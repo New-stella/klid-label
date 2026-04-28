@@ -130,9 +130,6 @@ export function OverallStats() {
 
   if (!overall) return null;
 
-  const imagePct = Math.round((overall.imageCompleted / overall.imageTarget) * 100);
-  const videoPct = Math.round((overall.videoCompleted / overall.videoTarget) * 100);
-
   const sortedWorkers = [...overall.workers].sort((a, b) => {
     const aVal = a[sortField] as number;
     const bVal = b[sortField] as number;
@@ -163,63 +160,31 @@ export function OverallStats() {
       {/* Progress cards — 이미지/영상 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* 이미지 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3">
           <div className="flex items-center gap-2">
             <Image size={18} className="text-blue-500" />
             <h2 className="text-sm font-semibold text-gray-700">이미지 학습데이터</h2>
           </div>
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-3xl font-black text-gray-900 tabular-nums">
-                {imagePct}%
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {overall.imageCompleted.toLocaleString()} / {overall.imageTarget.toLocaleString()}장
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">목표</p>
-              <p className="text-lg font-bold text-gray-700 tabular-nums">
-                {(overall.imageTarget / 10000).toFixed(0)}만 장
-              </p>
-            </div>
+          <div className="flex items-baseline gap-1">
+            <p className="text-3xl font-black text-primary tabular-nums">
+              {overall.imageCompleted.toLocaleString()}
+            </p>
+            <span className="text-base font-semibold text-gray-500">장</span>
           </div>
-          <ProgressBar
-            value={imagePct}
-            tone={imagePct >= 80 ? 'success' : imagePct >= 50 ? 'primary' : 'warning'}
-            size="md"
-            showLabel
-          />
         </div>
 
         {/* 영상 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3">
           <div className="flex items-center gap-2">
             <Film size={18} className="text-purple-500" />
             <h2 className="text-sm font-semibold text-gray-700">영상 학습데이터</h2>
           </div>
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-3xl font-black text-gray-900 tabular-nums">
-                {videoPct}%
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {overall.videoCompleted.toLocaleString()} / {overall.videoTarget.toLocaleString()}건
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">목표</p>
-              <p className="text-lg font-bold text-gray-700 tabular-nums">
-                {overall.videoTarget.toLocaleString()} 건
-              </p>
-            </div>
+          <div className="flex items-baseline gap-1">
+            <p className="text-3xl font-black text-primary tabular-nums">
+              {overall.videoCompleted.toLocaleString()}
+            </p>
+            <span className="text-base font-semibold text-gray-500">건</span>
           </div>
-          <ProgressBar
-            value={videoPct}
-            tone={videoPct >= 80 ? 'success' : videoPct >= 50 ? 'primary' : 'warning'}
-            size="md"
-            showLabel
-          />
         </div>
       </div>
 

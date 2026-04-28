@@ -14,6 +14,8 @@
 | V1.1 | 2026-04-23 | 전면 재작성 — 기존 `klid_system` DB 공유 구조 확정. 재사용·컬럼 추가·신규 추가·미사용으로 재분류. 포털 신규 테이블(`LS_PORTAL_USER_VIDEO`, `LS_PORTAL_USER_STATS`) 추가 |
 | V1.2 | 2026-04-28 | mock 필수 항목 지원 컬럼 추가 (`LBL_INTGRT_PCT`, `GITEA_CMT_HASH`) + 검수 코드값 보강 (`DATA_STTS_CD` 4종) + mock 필드 ↔ DB 매핑 가이드 추가 |
 | V1.2.1 | 2026-04-28 | SFR 원문 정합 재검증: LS_DATA_RAW.FRM_CNT, THMBNL_FILE_PATH 컬럼 제거 (SFR-08 명시 없음) |
+| V1.2.2 | 2026-04-28 | LS_SYSTEM_CONFIG 시스템 설정 영속화 테이블 추가 (FFmpeg / 배치 설정) |
+| V1.2.3 | 2026-04-28 | LS_SYSTEM_CONFIG 시드에서 FFMPEG_RESOLUTION 제거 (원본 해상도 보존 정책) |
 
 ---
 
@@ -28,6 +30,8 @@
    - 4.3 `LS_DATA_LBL_HSTRY` — Gitea 커밋 해시 (신규)
    - 4.4 `CM_CODE` — 검수 워크플로우 코드값 보강 (신규)
 5. [신규 추가 테이블](#5-신규-추가-테이블)
+   - 5.1 포털 신규 테이블 (`LS_PORTAL_USER_VIDEO`, `LS_PORTAL_USER_STATS`)
+   - 5.2 `LS_SYSTEM_CONFIG` — 시스템 설정 키-값 영속화
 6. [미사용 테이블](#6-미사용-테이블)
 7. [mock 필드 ↔ DB 매핑 가이드](#7-mock-필드--db-매핑-가이드)
 
@@ -66,7 +70,7 @@
 |------|:---------:|------|
 | **재사용** | 31개 | 기존 테이블을 그대로 활용 |
 | **컬럼 추가** | 3개 | `LS_DATA_LBL` (3컬럼), `LS_DATA_AUG` (1컬럼 신규), `LS_DATA_LBL_HSTRY` (1컬럼 신규) |
-| **신규 추가** | 2개 (포털 전용) | `LS_PORTAL_USER_VIDEO` (필수), `LS_PORTAL_USER_STATS` (옵션) |
+| **신규 추가** | 3개 | `LS_PORTAL_USER_VIDEO` (필수), `LS_PORTAL_USER_STATS` (옵션), `LS_SYSTEM_CONFIG` (시스템 설정) |
 | **미사용** | 해당없음 | 저작도구 범위 외 테이블 (관제서버·외부연계 등) |
 
 ---
@@ -366,6 +370,60 @@ CREATE TABLE LS_PORTAL_USER_VIDEO (
 
 ---
 
+### 5.2 `LS_SYSTEM_CONFIG` — 시스템 설정 키-값 영속화
+
+운영자가 동적으로 조정하는 시스템 설정을 `application.yml` 외부에서 영속화한다.  
+FFmpeg 스레드 수·출력 FPS·해상도, 배치 처리 주기·동시 처리 수 등 운영 중 변경이 필요한 항목을 Key-Value 패턴으로 단일 테이블에 관리한다.
+
+| 컬럼 | 타입 | NULL | 기본값 | 설명 | 비고 |
+|------|------|:----:|--------|------|------|
+| `CONFIG_KEY` | VARCHAR(50) | NO | — | 설정 키 (예: `FFMPEG_THREADS`) | PK |
+| `CONFIG_VALUE` | VARCHAR(500) | NO | — | 설정 값 (문자열 직렬화) | NUMBER/STRING/JSON 모두 문자열 저장 |
+| `CONFIG_TYPE` | VARCHAR(20) | NO | `'STRING'` | 값 타입 (`NUMBER`/`STRING`/`JSON`/`BOOLEAN`) | 백엔드 파싱 분기 |
+| `DESCRIPTION` | VARCHAR(255) | YES | NULL | 설정 설명 | 운영자 안내용 |
+| `UPDATED_BY` | BIGINT | YES | NULL | 마지막 수정자 `USER_NO` | `MNG_ACCT_USER` FK |
+| `UPDATED_AT` | DATETIME | NO | `CURRENT_TIMESTAMP` | 마지막 수정 시각 | ON UPDATE 자동 갱신 |
+
+**인덱스**: PK(`CONFIG_KEY`)만 — 키 단일 조회 외 쿼리 없음.
+
+**초기 시드 데이터**
+
+| CONFIG_KEY | CONFIG_VALUE | CONFIG_TYPE | DESCRIPTION |
+|------------|--------------|-------------|-------------|
+| `FFMPEG_THREADS` | `4` | `NUMBER` | FFmpeg 프레임 추출 동시 스레드 수 (1~16) |
+| `FFMPEG_OUTPUT_FPS` | `30` | `NUMBER` | 추출 프레임 FPS (1~60) |
+| `BATCH_INTERVAL_SEC` | `60` | `NUMBER` | 배치 처리 주기 초 (Quartz interval) |
+| `BATCH_CONCURRENCY` | `1` | `NUMBER` | 배치 동시 처리 수 (1=직렬, 2+=병렬) |
+
+**DDL (참고용)**
+
+```sql
+CREATE TABLE LS_SYSTEM_CONFIG (
+  CONFIG_KEY      VARCHAR(50)  NOT NULL                                    COMMENT '설정 키',
+  CONFIG_VALUE    VARCHAR(500) NOT NULL                                    COMMENT '설정 값 (문자열 직렬화)',
+  CONFIG_TYPE     VARCHAR(20)  NOT NULL DEFAULT 'STRING'                   COMMENT '값 타입 (NUMBER/STRING/JSON/BOOLEAN)',
+  DESCRIPTION     VARCHAR(255)                                             COMMENT '설정 설명 (운영자 안내용)',
+  UPDATED_BY      BIGINT                                                   COMMENT '마지막 수정자 USER_NO',
+  UPDATED_AT      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+                               ON UPDATE CURRENT_TIMESTAMP                 COMMENT '마지막 수정 시각',
+  PRIMARY KEY (CONFIG_KEY)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='시스템 설정 키-값 영속화';
+
+INSERT INTO LS_SYSTEM_CONFIG (CONFIG_KEY, CONFIG_VALUE, CONFIG_TYPE, DESCRIPTION) VALUES
+  ('FFMPEG_THREADS',     '4',  'NUMBER', 'FFmpeg 프레임 추출 동시 스레드 수 (1~16)'),
+  ('FFMPEG_OUTPUT_FPS',  '30', 'NUMBER', '추출 프레임 FPS (1~60)'),
+  ('BATCH_INTERVAL_SEC', '60', 'NUMBER', '배치 처리 주기(초) (Quartz interval)'),
+  ('BATCH_CONCURRENCY',  '1',  'NUMBER', '배치 동시 처리 수 (1=직렬, 2+=병렬)');
+```
+
+> **해상도 정책**: FFmpeg 출력 해상도는 시스템 일률 설정 대신 **원본 해상도 보존**을 원칙으로 한다. 학습데이터 좌표 정밀도 보장 + CCTV별 해상도 차이 대응. CCTV별 해상도는 `MNG_RESOURCE_CCTV.RESOLUTION` 마스터를 참조한다 (별도 컬럼 추가 없음).
+
+> **변경 영향**: 본 테이블은 신규 추가로 기존 데이터 영향 없음. `application.yml`의 `ffmpeg.*`, `batch.*` 설정과 중복될 경우 DB 우선 로드 정책 권장 (Spring `@ConfigurationProperties` + DB fallback).
+
+> **mock 정합성**: `mock/src/api/types.ts`의 `SystemSettings.ffmpegConfig`, `batchConfig` 필드와 매핑됨. `externalSystems`는 mock 시뮬레이션이며 실제는 actuator 호출.
+
+---
+
 ## 6. 미사용 테이블
 
 저작도구 기능과 관련 없는 기존 테이블 그룹이다. 저작도구에서 해당 테이블을 읽거나 쓰지 않는다.
@@ -401,7 +459,10 @@ CREATE TABLE LS_PORTAL_USER_VIDEO (
 | `VideoDto.downloadDeadline` | `LS_PORTAL_USER_VIDEO.DOWNLOAD_DDLN_DT` | 포털 영역 (§5) |
 | `PortalUserDto.uploadCount` | `LS_PORTAL_USER_VIDEO` GROUP BY 또는 `LS_PORTAL_USER_STATS.UPLOAD_CNT` | 포털 영역 (§5) |
 | `PortalUserDto.labeledCount` | `LS_PORTAL_USER_STATS.LABELED_CNT` 또는 GROUP BY | 포털 영역 (§5) |
+| `SystemSettings.ffmpegConfig.*` | `LS_SYSTEM_CONFIG` (`FFMPEG_*` keys) | 영속화 (§5.2 신규, resolution 제외 — 원본 보존 정책) |
+| `SystemSettings.batchConfig.*` | `LS_SYSTEM_CONFIG` (`BATCH_*` keys) | 영속화 (§5.2 신규) |
+| `SystemSettings.externalSystems` | (DB 미저장) | 실시간 actuator/health 조회 |
 
 ---
 
-*문서 버전: V1.2.1 | 작성일: 2026-04-28 | 참조 DB: klid_system @ 192.168.102.101:13307 (조회일: 2026-04-23)*
+*문서 버전: V1.2.3 | 작성일: 2026-04-28 | 참조 DB: klid_system @ 192.168.102.101:13307 (조회일: 2026-04-23)*
