@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    control:
+      jdbc-url: jdbc:mariadb://${CONTROL_DB_HOST}:${CONTROL_DB_PORT}/${CONTROL_DB_NAME}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul
+      username: ${CONTROL_DB_USERNAME}
+      password: ${CONTROL_DB_PASSWORD}
+      driver-class-name: org.mariadb.jdbc.Driver
+    portal:
+      jdbc-url: jdbc:mariadb://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul
+      username: ${PORTAL_DB_USERNAME}
+      password: ${PORTAL_DB_PASSWORD}
+      driver-class-name: org.mariadb.jdbc.Driver
+
+logging:
+  level:
+    root: INFO

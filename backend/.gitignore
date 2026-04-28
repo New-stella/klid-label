@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.iws
+
+# OS
+.DS_Store
+
+# Env
+.env
+.env.local
+*.local
+
+# Storage (배치 결과)
+storage/
+tmp/
+logs/
+
+# QueryDSL generated
+generated/
+
+# HELP.md
+HELP.md

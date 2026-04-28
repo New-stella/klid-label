@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.vite/
+.turbo/
+
+# Env
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.DS_Store

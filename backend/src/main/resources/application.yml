@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: klid-la-authoring
+  profiles:
+    active: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Seoul
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+authoring:
+  jwt:
+    issuer: ${JWT_ISSUER:klid-auth}
+    algorithm: HS256
+    secret: ${JWT_SECRET:change-me-in-prod}
+  storage:
+    raw-path: ${STORAGE_RAW_PATH:./storage/raw}
+    deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
+  integration:
+    control-server:
+      base-url: ${CONTROL_SERVER_API_URL:http://localhost:9000}
+      m2m-token: ${CONTROL_M2M_TOKEN:}
+      timeout-ms: 10000
+    portal-server:
+      base-url: ${PORTAL_SERVER_API_URL:http://localhost:9100}
+      m2m-token: ${PORTAL_M2M_TOKEN:}
+      timeout-ms: 10000
+    deidentify:
+      base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}
+      timeout-ms: 30000
+    ai-server:
+      base-url: ${AI_SERVER_URL:http://localhost:9300}
+      timeout-ms: 60000
+    gitea:
+      base-url: ${GITEA_BASE_URL:http://localhost:3000}
+      token: ${GITEA_TOKEN:}
+      owner: ${GITEA_OWNER:authoring}
+      repo: ${GITEA_REPO:labels}
+  batch:
+    rate-per-min: 1
+    frame-interval-sec: 60
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

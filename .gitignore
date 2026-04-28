@@ -1,0 +1,35 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude-plan.md
+
+# 환경 설정
+.env.local
+*.local
+
+# 빌드 산출물
+build/
+dist/
+node_modules/
+.next/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+
+# 리포트 (로컬 생성물)
+reports/
+
+# 외부 참조 소스 (CVAT 원본 트리 — 커스텀 라벨링 도구 레퍼런스)
+cvat/

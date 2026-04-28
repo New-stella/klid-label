@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    control:
+      jdbc-url: jdbc:h2:mem:klid_system;MODE=MySQL;DB_CLOSE_DELAY=-1
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+    portal:
+      jdbc-url: jdbc:h2:mem:portal;MODE=MySQL;DB_CLOSE_DELAY=-1
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+
+  flyway:
+    enabled: false  # 로컬 H2에서는 마이그레이션 건너뜀 (운영은 klid_system MariaDB)
+
+logging:
+  level:
+    root: INFO
+    kr.co.cudo.authoring: DEBUG
+    org.hibernate.SQL: DEBUG
