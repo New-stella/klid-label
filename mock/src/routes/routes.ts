@@ -14,103 +14,103 @@ export const APP_ROUTES: AppRouteMeta[] = [
   {
     path: '/dashboard',
     label: '대시보드',
-    roles: ['ADMIN', 'REVIEWER', 'WORKER'],
+    roles: ['REVIEWER', 'WORKER'],
     menuGroup: '대시보드',
   },
   // 영상
   {
     path: '/video/completed',
     label: '영상 목록',
-    roles: ['ADMIN', 'REVIEWER', 'WORKER'],
+    roles: ['REVIEWER', 'WORKER'],
     menuGroup: '영상',
   },
   {
     path: '/video/monitoring',
     label: '처리 현황',
-    roles: ['ADMIN', 'REVIEWER', 'WORKER'],
+    roles: ['REVIEWER', 'WORKER'],
     menuGroup: '영상',
   },
   {
     path: '/video/:id',
     label: '영상 상세',
-    roles: ['ADMIN', 'REVIEWER', 'WORKER'],
+    roles: ['REVIEWER', 'WORKER'],
     hideInMenu: true,
   },
   // 작업
   {
     path: '/task',
     label: '작업 목록',
-    roles: ['ADMIN', 'REVIEWER', 'WORKER'],
+    roles: ['REVIEWER', 'WORKER'],
     menuGroup: '작업',
   },
   {
     path: '/label/:id',
     label: '라벨링',
-    roles: ['ADMIN', 'WORKER'],
+    roles: ['REVIEWER', 'WORKER'],
     hideInMenu: true,
   },
   // 검수
   {
     path: '/review/pending',
     label: '검수 대기',
-    roles: ['ADMIN', 'REVIEWER'],
+    roles: ['REVIEWER'],
     menuGroup: '검수',
   },
   {
     path: '/review/:id',
     label: '검수 화면',
-    roles: ['ADMIN', 'REVIEWER'],
+    roles: ['REVIEWER'],
     hideInMenu: true,
   },
   // 비식별
   {
     path: '/deident',
     label: '비식별 결과',
-    roles: ['ADMIN', 'REVIEWER'],
+    roles: ['REVIEWER'],
     menuGroup: '비식별',
   },
   {
     path: '/deident/:id',
     label: '비식별 비교',
-    roles: ['ADMIN', 'REVIEWER'],
+    roles: ['REVIEWER'],
     hideInMenu: true,
   },
   // 버전관리 (hideInMenu)
   {
     path: '/history/:id',
     label: '버전관리',
-    roles: ['ADMIN', 'REVIEWER', 'WORKER'],
+    roles: ['REVIEWER', 'WORKER'],
     hideInMenu: true,
   },
   // 데이터
   {
     path: '/augment/request',
     label: '증강 요청',
-    roles: ['ADMIN'],
+    roles: ['REVIEWER'],
     menuGroup: '데이터',
   },
   {
     path: '/augment/result/:id',
     label: '증강 결과',
-    roles: ['ADMIN'],
+    roles: ['REVIEWER'],
     hideInMenu: true,
   },
   {
     path: '/export',
     label: '내보내기',
-    roles: ['ADMIN'],
+    roles: ['REVIEWER'],
     menuGroup: '데이터',
   },
   {
     path: '/mart',
     label: '데이터마트',
-    roles: ['ADMIN', 'REVIEWER', 'PORTAL_USER'],
+    roles: ['REVIEWER', 'PORTAL_USER'],
     menuGroup: '데이터',
   },
   {
     path: '/generate/result/:id',
     label: '생성 결과',
-    roles: ['ADMIN'],
+    roles: ['REVIEWER'],
     hideInMenu: true,
   },
   // 포털
@@ -131,32 +131,32 @@ export const APP_ROUTES: AppRouteMeta[] = [
   {
     path: '/stat/worker',
     label: '작업자 통계',
-    roles: ['ADMIN', 'REVIEWER', 'WORKER'],
+    roles: ['REVIEWER', 'WORKER'],
     menuGroup: '통계',
   },
   {
     path: '/stat/overall',
     label: '전체 구축 현황',
-    roles: ['ADMIN', 'REVIEWER'],
+    roles: ['REVIEWER'],
     menuGroup: '통계',
   },
   // 관리
   {
-    path: '/admin/users',
+    path: '/manage/users',
     label: '사용자 관리',
-    roles: ['ADMIN'],
+    roles: ['REVIEWER'],
     menuGroup: '관리',
   },
   {
-    path: '/admin/settings',
+    path: '/manage/settings',
     label: '시스템 설정',
-    roles: ['ADMIN'],
+    roles: ['REVIEWER'],
     menuGroup: '관리',
   },
   {
     path: '/preset',
     label: '프리셋 관리',
-    roles: ['ADMIN', 'REVIEWER'],
+    roles: ['REVIEWER'],
     menuGroup: '관리',
   },
 ];

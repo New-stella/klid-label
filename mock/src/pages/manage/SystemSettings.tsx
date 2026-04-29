@@ -33,7 +33,7 @@ interface ExternalSystemStatus {
   latencyMs: number;
 }
 
-interface AdminSettings {
+interface ManageSettings {
   ffmpegConfig: FfmpegConfig;
   batchConfig: BatchConfig;
   /** @deprecated 하위호환용 */
@@ -46,7 +46,7 @@ interface AdminSettings {
 export function SystemSettings() {
   const { showToast } = useToast();
 
-  const { data: settings, isLoading } = useFetch<AdminSettings>('/admin/settings');
+  const { data: settings, isLoading } = useFetch<ManageSettings>('/manage/settings');
 
   // FFmpeg 폼 상태
   const [threads, setThreads] = useState(4);
@@ -59,11 +59,11 @@ export function SystemSettings() {
   const [batchDirty, setBatchDirty] = useState(false);
 
   const { mutate: saveFfmpeg, isLoading: savingFfmpeg } = useMutation<FfmpegConfig, FfmpegConfig>(
-    (body) => api.put<FfmpegConfig>('/admin/settings/ffmpeg', body),
+    (body) => api.put<FfmpegConfig>('/manage/settings/ffmpeg', body),
   );
 
   const { mutate: saveBatch, isLoading: savingBatch } = useMutation<BatchConfig, BatchConfig>(
-    (body) => api.put<BatchConfig>('/admin/settings/batch', body),
+    (body) => api.put<BatchConfig>('/manage/settings/batch', body),
   );
 
   // 서버 데이터 → 폼 초기화

@@ -12,8 +12,8 @@ export const usersHandlers = [
   }),
 
   http.get('/api/v1/users/me', () => {
-    const admin = users.find((u) => u.role === 'ADMIN') ?? users[0];
-    return ok(admin);
+    const reviewer = users.find((u) => u.role === 'REVIEWER') ?? users[0];
+    return ok(reviewer);
   }),
 
   http.get('/api/v1/users/workers', ({ request }) => {

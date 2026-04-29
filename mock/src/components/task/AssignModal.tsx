@@ -78,7 +78,7 @@ export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModa
 
   if (!task) return null;
 
-  const canChangeReviewer = currentRole === 'ADMIN';
+  const canChangeReviewer = currentRole === 'REVIEWER';
   const isReassign = mode === 'reassign';
 
   return (

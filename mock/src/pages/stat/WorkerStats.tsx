@@ -44,7 +44,7 @@ const MONTHLY_COLS: ColumnDef<MonthlyRow>[] = [
 
 export function WorkerStats() {
   const { currentRole, currentUser } = useSessionStore();
-  const isAdmin = currentRole === 'ADMIN' || currentRole === 'REVIEWER';
+  const isReviewer = currentRole === 'REVIEWER';
 
   // Fetch overall to get worker list + daily data
   const { data: overall, isLoading: loadingOverall } = useFetch<OverallStat>('/stats/overall');
@@ -52,7 +52,7 @@ export function WorkerStats() {
   // Selected worker — WORKER role is fixed to themselves
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
 
-  const workerId = isAdmin
+  const workerId = isReviewer
     ? (selectedWorkerId ?? overall?.workers[0]?.workerId ?? null)
     : currentUser.id;
 
@@ -109,8 +109,8 @@ export function WorkerStats() {
           </div>
         </div>
 
-        {/* Worker selector (ADMIN/REVIEWER only) */}
-        {isAdmin && overall && (
+        {/* Worker selector (REVIEWER only) */}
+        {isReviewer && overall && (
           <select
             value={selectedWorkerId ?? overall.workers[0]?.workerId ?? ''}
             onChange={(e) => setSelectedWorkerId(e.target.value)}

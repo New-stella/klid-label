@@ -39,7 +39,7 @@ function NowClock() {
 
 export function Dashboard() {
   const { currentRole, currentUser } = useSessionStore();
-  const adminRole = currentRole as 'ADMIN' | 'REVIEWER' | 'WORKER';
+  const sessionRole = currentRole as 'REVIEWER' | 'WORKER';
 
   // KPI: fetch all videos (large page)
   const { data: videosPage, isLoading: videosLoading, refetch: refetchVideos } =
@@ -53,7 +53,7 @@ export function Dashboard() {
   const { data: recentPage, isLoading: recentLoading } =
     useFetch<Page<VideoDto>>('/videos', { status: 'COMPLETED', size: 5, page: 0 });
 
-  const isWorker = adminRole === 'WORKER';
+  const isWorker = sessionRole === 'WORKER';
 
   // My tasks — fetched only when WORKER; hook called unconditionally (rules of hooks)
   const { data: taskPage, isLoading: taskLoading } =
@@ -63,7 +63,7 @@ export function Dashboard() {
     );
 
   const kpi = videosPage
-    ? computeKpiStats(videosPage.content, currentUser.id, adminRole)
+    ? computeKpiStats(videosPage.content, currentUser.id, sessionRole)
     : null;
 
   // Recent completed video table columns
@@ -132,7 +132,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* KPI 카드: WORKER 4개, ADMIN/REVIEWER 3개 */}
+      {/* KPI 카드: WORKER 4개, REVIEWER 3개 */}
       {videosLoading || !kpi ? (
         <div className={`grid grid-cols-2 ${isWorker ? 'xl:grid-cols-4' : 'xl:grid-cols-3'} gap-4`}>
           {Array.from({ length: isWorker ? 4 : 3 }).map((_, i) => (

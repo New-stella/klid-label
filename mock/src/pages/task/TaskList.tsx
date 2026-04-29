@@ -135,7 +135,6 @@ export function TaskList() {
         (t) => t.reviewerId === currentUser.id || !t.assigneeId,
       );
     }
-    // ADMIN sees all
 
     // Text search (영상명 / 작업자명)
     if (filters.q) {
@@ -152,7 +151,7 @@ export function TaskList() {
       result = result.filter((t) => t.status === filters.status);
     }
 
-    // Assignee filter (ADMIN/REVIEWER only)
+    // Assignee filter (REVIEWER only)
     if (filters.assigneeId) {
       result = result.filter((t) => t.assigneeId === filters.assigneeId);
     }
@@ -202,9 +201,9 @@ export function TaskList() {
   // ---------------------------------------------------------------------------
   // Table columns
   // ---------------------------------------------------------------------------
-  const showAssignBtn = currentRole === 'REVIEWER' || currentRole === 'ADMIN';
-  const showReassignBtn = currentRole === 'ADMIN';
-  const showWorkerFilter = currentRole === 'ADMIN' || currentRole === 'REVIEWER';
+  const showAssignBtn = currentRole === 'REVIEWER';
+  const showReassignBtn = currentRole === 'REVIEWER';
+  const showWorkerFilter = currentRole === 'REVIEWER';
 
   const columns: ColumnDef<TaskDto>[] = [
     {
@@ -264,8 +263,8 @@ export function TaskList() {
       header: '액션',
       render: (row) => (
         <div className="flex gap-1 flex-nowrap" onClick={(e) => e.stopPropagation()}>
-          {/* 작업▶ — always visible for the assignee, or ADMIN */}
-          {(currentRole === 'WORKER' || currentRole === 'ADMIN') && (
+          {/* 작업▶ — assignee (WORKER) only */}
+          {currentRole === 'WORKER' && (
             <Button
               variant="ghost"
               size="sm"
@@ -275,7 +274,7 @@ export function TaskList() {
               작업
             </Button>
           )}
-          {/* 배정 — REVIEWER & ADMIN */}
+          {/* 배정 — REVIEWER */}
           {showAssignBtn && row.status === 'PENDING' && (
             <Button
               variant="secondary"
@@ -286,7 +285,7 @@ export function TaskList() {
               배정
             </Button>
           )}
-          {/* 재배정 — ADMIN */}
+          {/* 재배정 — REVIEWER */}
           {showReassignBtn && row.assigneeId && (
             <Button
               variant="secondary"

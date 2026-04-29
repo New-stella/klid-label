@@ -1,3 +1,5 @@
+import type { Role } from '../types/role';
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -18,7 +20,7 @@ export interface UserDto {
   id: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'REVIEWER' | 'WORKER' | 'PORTAL_USER';
+  role: Role;
   status: 'ACTIVE' | 'INACTIVE';
   lastLoginAt: string;
 }

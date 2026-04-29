@@ -24,7 +24,7 @@ interface ExternalSystemStatus {
   latencyMs: number;
 }
 
-interface AdminSettings {
+interface ManageSettings {
   ffmpegConfig: FfmpegConfig;
   batchConfig: BatchConfig;
   /** @deprecated batchInterval — 하위호환용. batchConfig.interval 사용 권장 */
@@ -32,7 +32,7 @@ interface AdminSettings {
   externalSystems: ExternalSystemStatus[];
 }
 
-const defaultSettings: AdminSettings = {
+const defaultSettings: ManageSettings = {
   ffmpegConfig: {
     threads: 4,
     outputFps: 1,
@@ -51,10 +51,10 @@ const defaultSettings: AdminSettings = {
   ],
 };
 
-let currentSettings: AdminSettings = { ...defaultSettings, ffmpegConfig: { ...defaultSettings.ffmpegConfig }, batchConfig: { ...defaultSettings.batchConfig } };
+let currentSettings: ManageSettings = { ...defaultSettings, ffmpegConfig: { ...defaultSettings.ffmpegConfig }, batchConfig: { ...defaultSettings.batchConfig } };
 
-export const adminHandlers = [
-  http.get('/api/v1/admin/users', ({ request }) => {
+export const manageHandlers = [
+  http.get('/api/v1/manage/users', ({ request }) => {
     const url = new URL(request.url);
     const { page, size } = parsePageParams(url);
     const role = url.searchParams.get('role');
@@ -62,7 +62,7 @@ export const adminHandlers = [
     return ok(paginate(filtered, page, size));
   }),
 
-  http.put('/api/v1/admin/users/:id', async ({ params, request }) => {
+  http.put('/api/v1/manage/users/:id', async ({ params, request }) => {
     const userId = params['id'] as string;
     const body = (await request.json()) as Partial<Pick<UserDto, 'role' | 'status'>>;
     const idx = mutableUsers.findIndex((u) => u.id === userId);
@@ -72,12 +72,12 @@ export const adminHandlers = [
   }),
 
   // ── 전체 설정 조회 (GET) ────────────────────────────────────────────────
-  http.get('/api/v1/admin/settings', () => {
+  http.get('/api/v1/manage/settings', () => {
     return ok(currentSettings);
   }),
 
   // ── FFmpeg 설정 저장 (PUT /settings/ffmpeg) — DB 영속화 대상 ────────────
-  http.put('/api/v1/admin/settings/ffmpeg', async ({ request }) => {
+  http.put('/api/v1/manage/settings/ffmpeg', async ({ request }) => {
     const body = (await request.json()) as Partial<FfmpegConfig>;
     currentSettings = {
       ...currentSettings,
@@ -87,7 +87,7 @@ export const adminHandlers = [
   }),
 
   // ── 배치 처리 설정 저장 (PUT /settings/batch) — DB 영속화 대상 ──────────
-  http.put('/api/v1/admin/settings/batch', async ({ request }) => {
+  http.put('/api/v1/manage/settings/batch', async ({ request }) => {
     const body = (await request.json()) as Partial<BatchConfig>;
     currentSettings = {
       ...currentSettings,
@@ -99,8 +99,8 @@ export const adminHandlers = [
   }),
 
   // ── 기존 단일 PUT 유지 (하위호환) ────────────────────────────────────────
-  http.put('/api/v1/admin/settings', async ({ request }) => {
-    const body = (await request.json()) as Partial<AdminSettings>;
+  http.put('/api/v1/manage/settings', async ({ request }) => {
+    const body = (await request.json()) as Partial<ManageSettings>;
     currentSettings = { ...currentSettings, ...body };
     return ok(currentSettings);
   }),

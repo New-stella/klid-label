@@ -2,9 +2,8 @@ import type { UserDto } from '../../api/types';
 import { id, daysAgo } from './_helpers';
 
 export const users: UserDto[] = [
-  // ADMIN 1명
-  { id: id('user', 0), name: '김관리', email: 'admin@cudo.co.kr', role: 'ADMIN', status: 'ACTIVE', lastLoginAt: daysAgo(0) },
-  // REVIEWER 2명
+  // REVIEWER 3명
+  { id: id('user', 0), name: '김검수', email: 'reviewer0@cudo.co.kr', role: 'REVIEWER', status: 'ACTIVE', lastLoginAt: daysAgo(0) },
   { id: id('user', 1), name: '이검수', email: 'reviewer1@cudo.co.kr', role: 'REVIEWER', status: 'ACTIVE', lastLoginAt: daysAgo(1) },
   { id: id('user', 2), name: '박검토', email: 'reviewer2@cudo.co.kr', role: 'REVIEWER', status: 'ACTIVE', lastLoginAt: daysAgo(2) },
   // WORKER 8명

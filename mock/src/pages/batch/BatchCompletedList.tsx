@@ -46,8 +46,8 @@ export function BatchCompletedList() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentRole } = useSessionStore();
-  const canAssign = currentRole === 'ADMIN' || currentRole === 'REVIEWER';
-  const canRequestBgGen = currentRole === 'ADMIN' || currentRole === 'REVIEWER';
+  const canAssign = currentRole === 'REVIEWER';
+  const canRequestBgGen = currentRole === 'REVIEWER';
 
   const [page, setPage] = useState(0);
   const [filters, setFilters] = useState<BatchFilterValues>(() =>

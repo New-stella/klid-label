@@ -42,9 +42,9 @@ import { PortalLabelEditor } from '../pages/portal/PortalLabelEditor';
 import { WorkerStats } from '../pages/stat/WorkerStats';
 import { OverallStats } from '../pages/stat/OverallStats';
 
-// Phase 10: Admin
-import { UserManagement } from '../pages/admin/UserManagement';
-import { SystemSettings } from '../pages/admin/SystemSettings';
+// Phase 10: Manage
+import { UserManagement } from '../pages/manage/UserManagement';
+import { SystemSettings } from '../pages/manage/SystemSettings';
 
 // Phase 10: Preset
 import { PresetList } from '../pages/preset/PresetList';
@@ -73,8 +73,8 @@ const REAL_PATHS = new Set([
   '/portal/label/:id',
   '/stat/worker',
   '/stat/overall',
-  '/admin/users',
-  '/admin/settings',
+  '/manage/users',
+  '/manage/settings',
   '/preset',
   '/generate/result/:id',
 ]);
@@ -91,7 +91,7 @@ export function AppRoutes() {
         <Route
           path="/dashboard"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER', 'WORKER']}>
+            <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <Dashboard />
             </RoleGuard>
           }
@@ -99,7 +99,7 @@ export function AppRoutes() {
         <Route
           path="/video/completed"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER', 'WORKER']}>
+            <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <BatchCompletedList />
             </RoleGuard>
           }
@@ -107,7 +107,7 @@ export function AppRoutes() {
         <Route
           path="/video/monitoring"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER', 'WORKER']}>
+            <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <BatchMonitoring />
             </RoleGuard>
           }
@@ -115,7 +115,7 @@ export function AppRoutes() {
         <Route
           path="/video/:id"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER', 'WORKER']}>
+            <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <VideoDetail />
             </RoleGuard>
           }
@@ -123,7 +123,7 @@ export function AppRoutes() {
         <Route
           path="/task"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER', 'WORKER']}>
+            <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <TaskList />
             </RoleGuard>
           }
@@ -133,7 +133,7 @@ export function AppRoutes() {
         <Route
           path="/label/:id"
           element={
-            <RoleGuard roles={['ADMIN', 'WORKER']}>
+            <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <LabelEditor />
             </RoleGuard>
           }
@@ -143,7 +143,7 @@ export function AppRoutes() {
         <Route
           path="/review/pending"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER']}>
+            <RoleGuard roles={['REVIEWER']}>
               <ReviewPending />
             </RoleGuard>
           }
@@ -151,7 +151,7 @@ export function AppRoutes() {
         <Route
           path="/review/:id"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER']}>
+            <RoleGuard roles={['REVIEWER']}>
               <ReviewEditor />
             </RoleGuard>
           }
@@ -161,7 +161,7 @@ export function AppRoutes() {
         <Route
           path="/deident"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER']}>
+            <RoleGuard roles={['REVIEWER']}>
               <DeidentList />
             </RoleGuard>
           }
@@ -169,7 +169,7 @@ export function AppRoutes() {
         <Route
           path="/deident/:id"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER']}>
+            <RoleGuard roles={['REVIEWER']}>
               <DeidentCompare />
             </RoleGuard>
           }
@@ -179,7 +179,7 @@ export function AppRoutes() {
         <Route
           path="/history/:id"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER', 'WORKER']}>
+            <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <VersionHistory />
             </RoleGuard>
           }
@@ -189,7 +189,7 @@ export function AppRoutes() {
         <Route
           path="/augment/request"
           element={
-            <RoleGuard roles={['ADMIN']}>
+            <RoleGuard roles={['REVIEWER']}>
               <AugmentRequest />
             </RoleGuard>
           }
@@ -197,7 +197,7 @@ export function AppRoutes() {
         <Route
           path="/augment/result/:id"
           element={
-            <RoleGuard roles={['ADMIN']}>
+            <RoleGuard roles={['REVIEWER']}>
               <AugmentResult />
             </RoleGuard>
           }
@@ -207,7 +207,7 @@ export function AppRoutes() {
         <Route
           path="/export"
           element={
-            <RoleGuard roles={['ADMIN']}>
+            <RoleGuard roles={['REVIEWER']}>
               <ExportPage />
             </RoleGuard>
           }
@@ -217,7 +217,7 @@ export function AppRoutes() {
         <Route
           path="/mart"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER', 'PORTAL_USER']}>
+            <RoleGuard roles={['REVIEWER', 'PORTAL_USER']}>
               <DataMart />
             </RoleGuard>
           }
@@ -227,7 +227,7 @@ export function AppRoutes() {
         <Route
           path="/stat/worker"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER', 'WORKER']}>
+            <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <WorkerStats />
             </RoleGuard>
           }
@@ -235,25 +235,25 @@ export function AppRoutes() {
         <Route
           path="/stat/overall"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER']}>
+            <RoleGuard roles={['REVIEWER']}>
               <OverallStats />
             </RoleGuard>
           }
         />
 
-        {/* Phase 10: Admin */}
+        {/* Phase 10: Manage */}
         <Route
-          path="/admin/users"
+          path="/manage/users"
           element={
-            <RoleGuard roles={['ADMIN']}>
+            <RoleGuard roles={['REVIEWER']}>
               <UserManagement />
             </RoleGuard>
           }
         />
         <Route
-          path="/admin/settings"
+          path="/manage/settings"
           element={
-            <RoleGuard roles={['ADMIN']}>
+            <RoleGuard roles={['REVIEWER']}>
               <SystemSettings />
             </RoleGuard>
           }
@@ -263,7 +263,7 @@ export function AppRoutes() {
         <Route
           path="/preset"
           element={
-            <RoleGuard roles={['ADMIN', 'REVIEWER']}>
+            <RoleGuard roles={['REVIEWER']}>
               <PresetList />
             </RoleGuard>
           }
@@ -273,7 +273,7 @@ export function AppRoutes() {
         <Route
           path="/generate/result/:id"
           element={
-            <RoleGuard roles={['ADMIN']}>
+            <RoleGuard roles={['REVIEWER']}>
               <GenerateResult />
             </RoleGuard>
           }

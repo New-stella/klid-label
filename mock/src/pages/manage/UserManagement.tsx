@@ -10,18 +10,16 @@ import { Button } from '../../components/ui/Button';
 import { Pagination } from '../../components/ui/Pagination';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/common/Toast';
-import { UserEditModal } from '../../components/admin/UserEditModal';
+import { UserEditModal } from '../../components/manage/UserEditModal';
 import { avatarColorFromId } from '../../utils/format';
 
 const ROLE_LABEL: Record<UserDto['role'], string> = {
-  ADMIN: '관리자',
   REVIEWER: '검수자',
   WORKER: '작업자',
   PORTAL_USER: '포털',
 };
 
-const ROLE_TONE: Record<UserDto['role'], 'danger' | 'warning' | 'info' | 'neutral'> = {
-  ADMIN: 'danger',
+const ROLE_TONE: Record<UserDto['role'], 'warning' | 'info' | 'neutral'> = {
   REVIEWER: 'warning',
   WORKER: 'info',
   PORTAL_USER: 'neutral',
@@ -52,12 +50,12 @@ export function UserManagement() {
   };
   if (roleFilter) queryParams['role'] = roleFilter;
 
-  const { data, isLoading, refetch } = useFetch<Page<UserDto>>('/admin/users', queryParams);
+  const { data, isLoading, refetch } = useFetch<Page<UserDto>>('/manage/users', queryParams);
 
   const { mutate: updateUser } = useMutation<
     { id: string; patch: Partial<Pick<UserDto, 'role' | 'status'>> },
     UserDto
-  >(({ id, patch }) => api.put<UserDto>(`/admin/users/${id}`, patch));
+  >(({ id, patch }) => api.put<UserDto>(`/manage/users/${id}`, patch));
 
   // Client-side search + status filter
   const filtered = (data?.content ?? []).filter((u) => {
@@ -217,7 +215,6 @@ export function UserManagement() {
           aria-label="역할 필터"
         >
           <option value="">전체 역할</option>
-          <option value="ADMIN">관리자</option>
           <option value="REVIEWER">검수자</option>
           <option value="WORKER">작업자</option>
           <option value="PORTAL_USER">포털</option>

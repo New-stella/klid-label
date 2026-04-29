@@ -85,7 +85,7 @@ export function TaskFilters({ values, onChange, onReset, showAssigneeSelect, wor
         </select>
       </div>
 
-      {/* 작업자 드롭다운 (ADMIN/REVIEWER만) */}
+      {/* 작업자 드롭다운 (REVIEWER만) */}
       {showAssigneeSelect && (
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-500">작업자</label>

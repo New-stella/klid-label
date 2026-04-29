@@ -9,7 +9,7 @@ import { augmentHandlers } from './augment';
 import { exportHandlers } from './export';
 import { portalHandlers } from './portal';
 import { statsHandlers } from './stats';
-import { adminHandlers } from './admin';
+import { manageHandlers } from './manage';
 import { presetHandlers } from './preset';
 import { generateHandlers } from './generate';
 
@@ -25,7 +25,7 @@ export const handlers = [
   ...exportHandlers,
   ...portalHandlers,
   ...statsHandlers,
-  ...adminHandlers,
+  ...manageHandlers,
   ...presetHandlers,
   ...generateHandlers,
 ];

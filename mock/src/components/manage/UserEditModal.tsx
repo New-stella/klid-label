@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import type { UserDto } from '../../api/types';
+import { ROLES, ROLE_LABEL } from '../../types/role';
 import { avatarColorFromId } from '../../utils/format';
 
 interface UserEditModalProps {
@@ -10,14 +11,6 @@ interface UserEditModalProps {
   onClose: () => void;
   onSave: (id: string, patch: Partial<Pick<UserDto, 'role' | 'status'>>) => Promise<void>;
 }
-
-const ROLE_OPTIONS: UserDto['role'][] = ['ADMIN', 'REVIEWER', 'WORKER', 'PORTAL_USER'];
-const ROLE_LABEL: Record<UserDto['role'], string> = {
-  ADMIN: '시스템 관리자',
-  REVIEWER: '검수자',
-  WORKER: '라벨링 작업자',
-  PORTAL_USER: '포털 회원',
-};
 
 export function UserEditModal({ user, open, onClose, onSave }: UserEditModalProps) {
   const [role, setRole] = useState<UserDto['role']>(user?.role ?? 'WORKER');
@@ -94,7 +87,7 @@ export function UserEditModal({ user, open, onClose, onSave }: UserEditModalProp
             onChange={(e) => setRole(e.target.value as UserDto['role'])}
             className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            {ROLE_OPTIONS.map((r) => (
+            {ROLES.map((r) => (
               <option key={r} value={r}>{ROLE_LABEL[r]}</option>
             ))}
           </select>

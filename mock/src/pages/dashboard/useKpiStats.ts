@@ -11,7 +11,7 @@ export interface KpiStats {
 export function computeKpiStats(
   videos: VideoDto[],
   currentUserId: string,
-  currentRole: 'ADMIN' | 'REVIEWER' | 'WORKER',
+  currentRole: 'REVIEWER' | 'WORKER',
 ): KpiStats {
   const pending = videos.filter((v) => v.batchStatus === 'PENDING').length;
   const completed = videos.filter((v) => v.batchStatus === 'COMPLETED').length;
@@ -20,11 +20,9 @@ export function computeKpiStats(
   let myWork = 0;
   if (currentRole === 'WORKER') {
     myWork = videos.filter((v) => v.assigneeId === currentUserId).length;
-  } else if (currentRole === 'REVIEWER') {
-    myWork = videos.filter((v) => v.reviewerId === currentUserId).length;
   } else {
-    // ADMIN: count all assigned
-    myWork = videos.filter((v) => v.assigneeId !== undefined).length;
+    // REVIEWER: count tasks they review
+    myWork = videos.filter((v) => v.reviewerId === currentUserId).length;
   }
 
   return { pending, completed, myWork, rejected };

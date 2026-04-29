@@ -132,14 +132,15 @@ klid-la-test-v0/
 | stg | (stg BE) | (stg AI) | (stg FE) | (stg DB) | |
 | prd | (prd BE) | (prd AI) | (prd FE) | (prd DB) | 시크릿은 환경변수/Vault |
 
-## 역할 정의 (V1.1)
+## 역할 정의 (V1.3)
 
 | 역할 | 코드 | 주요 권한 |
 |------|------|-----------|
-| 시스템 관리자 | `ADMIN` | 전체 관리·사용자 관리·시스템 설정. **작업 배정 권한 없음** (V1.1 제거) |
-| 검수자 | `REVIEWER` | **작업자 배정**, 검수 승인/반려 (V1.1 추가) |
+| 검수자 | `REVIEWER` | **사용자 관리·시스템 설정**, 작업자 배정·재배정·배정 이력 조회, 검수 승인/반려 (V1.3 — ADMIN 권한 흡수) |
 | 라벨링 작업자 | `WORKER` | 라벨 수정·검수 제출 |
 | 포털 회원 | `PORTAL_USER` | 이미지/영상 업로드, 간편 라벨링, 본인 데이터 기간 내 다운로드. 데이터마트 접근 없음 |
+
+> **V1.3 변경**: 시스템 관리자(ADMIN) 역할이 제거되고 모든 권한이 REVIEWER에 통합되었다. UI 호칭은 '검수자'로 통일하며, 관리 화면 URL은 `/manage/*`로 변경되었다.
 
 ## 주요 비즈니스 규칙
 
@@ -156,10 +157,10 @@ klid-la-test-v0/
 - 원본 이미지와 비식별 이미지는 **별도 경로로 동시 저장**
 - YOLO/SAM2/VLM은 `AiServerClient`로 호출 (타임아웃 60s + Resilience4j CircuitBreaker)
 
-### 작업 배정 (V1.1)
-- **REVIEWER가 WORKER에게 배정** (ADMIN 아님)
+### 작업 배정 (V1.3)
+- **REVIEWER가 WORKER에게 배정** (역할 단일화 — V1.3에서 ADMIN 제거)
 - `LS_PJT_USER_AUTHRT`에 `TASK_TYPE_CD='LABELER'` INSERT, 재배정 시 `LS_PJT_USER_AUTHRT_HSTRY` 기록
-- ADMIN은 배정 이력 조회·재배정 권한만 유지
+- 배정 이력 조회·재배정 권한도 REVIEWER가 보유 (V1.3 — 기존 ADMIN 권한 흡수)
 
 ### 라벨링·버전관리
 - 바운딩박스 / 폴리곤 / 세그멘테이션 / SAM2 Track — 캔버스는 konva.js
