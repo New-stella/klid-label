@@ -46,8 +46,12 @@ export function BatchCompletedList() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentRole } = useSessionStore();
-  const canAssign = currentRole === 'REVIEWER';
-  const canRequestBgGen = currentRole === 'REVIEWER';
+  const isReviewer = currentRole === 'REVIEWER';
+  // 행별 액션 가능 여부: REVIEWER 권한 + 처리 완료 상태일 때만 활성화
+  const canAssignRow = (video: VideoDto) =>
+    isReviewer && video.batchStatus === 'COMPLETED';
+  const canRequestBgGenRow = (video: VideoDto) =>
+    isReviewer && video.batchStatus === 'COMPLETED';
 
   const [page, setPage] = useState(0);
   const [filters, setFilters] = useState<BatchFilterValues>(() =>
@@ -176,27 +180,38 @@ export function BatchCompletedList() {
           >
             상세▶
           </Button>
-          {canAssign && (
+          {isReviewer && (
             <Button
               variant="secondary"
               size="sm"
               leftIcon={UserPlus}
+              disabled={!canAssignRow(row)}
               onClick={() => alert(`배정: ${row.id}`)}
+              title={
+                canAssignRow(row)
+                  ? '작업자 배정'
+                  : '처리 완료된 영상만 배정할 수 있습니다'
+              }
             >
               배정
             </Button>
           )}
-          {canRequestBgGen && (
+          {isReviewer && (
             <Button
               variant="secondary"
               size="sm"
               leftIcon={Sparkles}
+              disabled={!canRequestBgGenRow(row)}
               onClick={(e) => {
                 e.stopPropagation();
                 setBgGenVideo(row);
                 setBgGenOpen(true);
               }}
-              title="배경영상 생성 요청"
+              title={
+                canRequestBgGenRow(row)
+                  ? '배경영상 생성 요청'
+                  : '처리 완료된 영상만 배경영상을 요청할 수 있습니다'
+              }
             >
               배경영상
             </Button>
@@ -223,7 +238,7 @@ export function BatchCompletedList() {
       {selected.size > 0 && (
         <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-sm">
           <span className="font-medium text-primary-700">선택 {selected.size}건</span>
-          {canAssign && (
+          {isReviewer && (
             <Button
               variant="primary"
               size="sm"
