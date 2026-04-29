@@ -5,7 +5,7 @@ import App from './App'
 import './index.css'
 
 async function enableMocking(): Promise<void> {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV || import.meta.env.VITE_USE_MSW === 'true') {
     const { worker } = await import('./mocks/browser')
     await worker.start({
       onUnhandledRequest: 'bypass',
