@@ -1,9 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import { Upload, Tag, Download, ArrowRight, Play, Eye } from 'lucide-react';
+import { Upload, Tag, ArrowRight, Play } from 'lucide-react';
 import { useFetch } from '../../api/queries';
 import { UploadDropzone } from '../../components/portal/UploadDropzone';
 import type { PortalUserDto, VideoDto, Page } from '../../api/types';
-import dayjs from 'dayjs';
 
 // Status badge
 function StatusBadge({ status }: { status: string }) {
@@ -22,14 +21,6 @@ function StatusBadge({ status }: { status: string }) {
       {info.label}
     </span>
   );
-}
-
-// DDay helper
-function calcDDay(deadline: string): string {
-  const diff = dayjs(deadline).diff(dayjs(), 'day');
-  if (diff < 0) return `D+${Math.abs(diff)}`;
-  if (diff === 0) return 'D-Day';
-  return `D-${diff}`;
 }
 
 export function PortalMain() {
@@ -54,7 +45,7 @@ export function PortalMain() {
         <div className="max-w-4xl mx-auto">
           <h1 className="text-2xl font-bold mb-2">AI 학습데이터 작성 포털</h1>
           <p className="text-orange-100 text-sm">
-            영상/이미지 업로드, 간편 라벨링, 데이터 다운로드
+            영상/이미지 업로드, 간편 라벨링, 오토라벨링 체험
           </p>
         </div>
       </section>
@@ -147,39 +138,10 @@ export function PortalMain() {
                 시작하기
               </button>
             </div>
-
-            {/* Arrow */}
-            <div className="hidden md:flex items-center text-gray-300 shrink-0">
-              <ArrowRight size={20} />
-            </div>
-
-            {/* Step 3: Download */}
-            <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold">
-                  3
-                </div>
-                <Download size={16} className="text-orange-500" />
-                <span className="text-sm font-semibold text-gray-800">다운로드</span>
-              </div>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                본인 라벨 데이터를 다운로드하세요
-              </p>
-              <p className="text-xs text-gray-500">
-                각 영상별 다운로드 기한은 아래 목록에서 확인하세요
-              </p>
-              <button
-                className="mt-auto flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-sm font-medium border border-orange-300 text-orange-600 hover:bg-orange-50 transition-colors"
-                onClick={() => {
-                  // scroll to my uploads
-                  document.getElementById('my-uploads')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-              >
-                <Eye size={14} />
-                내 데이터 목록
-              </button>
-            </div>
           </div>
+          <p className="mt-3 text-xs text-gray-500">
+            ※ 다운로드는 포털 자체 시스템에서 별도 제공됩니다.
+          </p>
         </section>
 
         {/* My uploads grid */}
@@ -229,22 +191,6 @@ export function PortalMain() {
                     <div className="flex items-center justify-between">
                       <StatusBadge status={video.taskStatus ?? 'PENDING'} />
                     </div>
-                    {video.downloadDeadline && (() => {
-                      const ddayStr = calcDDay(video.downloadDeadline);
-                      const dateStr = dayjs(video.downloadDeadline).format('YYYY.MM.DD');
-                      const isExpired = ddayStr.startsWith('D+');
-                      const diff = dayjs(video.downloadDeadline).diff(dayjs(), 'day');
-                      const colorCls = isExpired
-                        ? 'text-red-500'
-                        : diff <= 7
-                        ? 'text-orange-500'
-                        : 'text-gray-400';
-                      return (
-                        <p className={['text-[10px] font-medium', colorCls].join(' ')}>
-                          {ddayStr} · {dateStr}
-                        </p>
-                      );
-                    })()}
                     {video.taskStatus === 'COMPLETED' ? (
                       <button
                         onClick={() => navigate(`/portal/label/${video.id}`)}

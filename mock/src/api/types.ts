@@ -45,7 +45,6 @@ export interface VideoDto {
   taskStatus?: 'BATCH_COMPLETED' | 'PENDING' | 'IN_PROGRESS' | 'REVIEW_PENDING' | 'REVIEW' | 'COMPLETED' | 'REJECTED';
   createdAt: string;
   updatedAt: string;
-  downloadDeadline?: string; // ISO datetime — 포털 업로드 영상에만 부여, 영상별 다운로드 만료일
 }
 
 export interface TaskDto {
@@ -178,6 +177,4 @@ export interface PortalUserDto {
   name: string;
   uploadCount: number;
   labeledCount: number;
-  /** @deprecated 사용자 단일 기한은 폐기. 다운로드 기한은 VideoDto.downloadDeadline(영상별)을 사용하세요. */
-  downloadDeadline: string;
 }
