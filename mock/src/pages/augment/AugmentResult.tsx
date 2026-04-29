@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Layers, DatabaseZap, Check, ChevronDown, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Layers, Check, ChevronDown, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
 import { useFetch } from '../../api/queries';
 import { api } from '../../api/client';
 import type { AugmentJob, AugmentDecision } from '../../api/types';
@@ -536,19 +536,6 @@ export function AugmentResult() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* CTA */}
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={DatabaseZap}
-              disabled={(job.decision ?? 'PENDING') !== 'ACCEPTED'}
-              onClick={() => showToast('데이터마트 등록 요청이 전달되었습니다.', 'success')}
-            >
-              증강 결과 반영 — 데이터마트 등록
-            </Button>
           </div>
 
           {/* 거부 사유 입력 모달 */}

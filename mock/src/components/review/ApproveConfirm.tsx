@@ -31,8 +31,7 @@ export function ApproveConfirm({ open, onClose, onConfirm, isLoading = false }: 
       }
     >
       <p className="text-sm text-gray-700 leading-relaxed">
-        이 작업을 승인하시겠습니까?<br />
-        승인 후 데이터마트 등록 대상이 됩니다.
+        이 작업을 승인하시겠습니까?
       </p>
     </Modal>
   );

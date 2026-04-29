@@ -121,20 +121,6 @@ export interface HistoryCommit {
   committedAt: string;
 }
 
-export interface MartDataset {
-  id: string;
-  name: string;
-  eventType: string;
-  weather: string;
-  season: string;  // '봄' | '여름' | '가을' | '겨울'
-  count: number;
-  version: string;
-  sizeBytes: number;
-  createdAt: string;
-  /** SFR-13 — 활용 AI 모델 코드 배열 (침수탐지/이상상황탐지 등 자체개발 모델). 비어있으면 연동 없음. */
-  linkedModels?: string[];
-}
-
 /** SFR-07 — 증강 결과 학습데이터 활용 결정 상태 */
 export type AugmentDecision = 'PENDING' | 'ACCEPTED' | 'REJECTED';
 

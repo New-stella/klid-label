@@ -32,7 +32,6 @@ import { VersionHistory } from '../pages/history/VersionHistory';
 import { AugmentRequest } from '../pages/augment/AugmentRequest';
 import { AugmentResult } from '../pages/augment/AugmentResult';
 import { ExportPage } from '../pages/export/ExportPage';
-import { DataMart } from '../pages/mart/DataMart';
 
 // Phase 9: Portal pages
 import { PortalMain } from '../pages/portal/PortalMain';
@@ -68,7 +67,6 @@ const REAL_PATHS = new Set([
   '/augment/request',
   '/augment/result/:id',
   '/export',
-  '/mart',
   '/portal',
   '/portal/label/:id',
   '/stat/worker',
@@ -209,16 +207,6 @@ export function AppRoutes() {
           element={
             <RoleGuard roles={['REVIEWER']}>
               <ExportPage />
-            </RoleGuard>
-          }
-        />
-
-        {/* Phase 8: DataMart */}
-        <Route
-          path="/mart"
-          element={
-            <RoleGuard roles={['REVIEWER', 'PORTAL_USER']}>
-              <DataMart />
             </RoleGuard>
           }
         />

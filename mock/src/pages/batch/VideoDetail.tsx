@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, GitBranch, DatabaseZap } from 'lucide-react';
+import { ArrowLeft, GitBranch } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Tabs } from '../../components/ui/Tabs';
 import { Modal } from '../../components/ui/Modal';
@@ -12,56 +12,6 @@ import { useFetch } from '../../api/queries';
 import type { VideoDto, FrameMeta, FrameLabels } from '../../api/types';
 import { formatDate, formatDuration, privacyTypeLabel } from '../../utils/format';
 import { BatchStageIndicator } from '../../components/batch/BatchStageIndicator';
-
-// SFR-08 — 영상이 포함된 데이터마트 요약
-interface MartImpactItem {
-  id: string;
-  name: string;
-  version: string;
-}
-
-function MartImpactSection({ videoId }: { videoId: string }) {
-  const navigate = useNavigate();
-  const { data, isLoading } = useFetch<{ datasets: MartImpactItem[] }>(
-    `/videos/${videoId}/mart-impact`,
-  );
-
-  if (isLoading) return null;
-  const datasets = data?.datasets ?? [];
-  if (datasets.length === 0) return null;
-
-  return (
-    <Card>
-      <div className="flex items-start gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 shrink-0">
-          <DatabaseZap size={16} className="text-indigo-600" />
-        </div>
-        <div className="flex-1 min-w-0 space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-semibold text-gray-800">포함된 데이터마트</h3>
-            <span className="text-xs text-gray-500">{datasets.length}건</span>
-          </div>
-          <p className="text-xs text-gray-500">
-            라벨 변경 시 아래 데이터셋의 학습데이터가 동기화 대상이 됩니다.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {datasets.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => navigate(`/mart?q=${encodeURIComponent(d.name)}`)}
-                className="inline-flex items-center gap-1.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-100 transition-colors"
-              >
-                <span className="font-medium">{d.name}</span>
-                <span className="font-mono text-indigo-500">{d.version}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
 
 // ── Info Tab ──────────────────────────────────────────────────────────────────
 function InfoTab({ video }: { video: VideoDto }) {
@@ -305,9 +255,6 @@ export function VideoDetail() {
           </div>
         </div>
       </Card>
-
-      {/* SFR-08 — 포함된 데이터마트 (영향 있을 때만 노출) */}
-      <MartImpactSection videoId={video.id} />
 
       {/* Tabs */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">

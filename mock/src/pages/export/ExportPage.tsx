@@ -15,14 +15,10 @@ interface ExportRequestBody {
   format: ExportFormat;
   videoIds: string[];
   saveNas: boolean;
-  registerMart: boolean;
   options: {
     includeLabels: boolean;
     includeImages: boolean;
     nasPath: string;
-    martName: string;
-    martVersion: string;
-    martDescription: string;
   };
 }
 
@@ -117,10 +113,6 @@ export function ExportPage() {
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
   const [saveNas, setSaveNas] = useState(false);
   const [nasPath, setNasPath] = useState('/mnt/nas/export/');
-  const [registerMart, setRegisterMart] = useState(false);
-  const [martName, setMartName] = useState('');
-  const [martVersion, setMartVersion] = useState('1.0.0');
-  const [martDescription, setMartDescription] = useState('');
   const [includeLabels, setIncludeLabels] = useState(true);
   const [includeImages, setIncludeImages] = useState(true);
 
@@ -167,14 +159,10 @@ export function ExportPage() {
         format,
         videoIds: Array.from(selectedVideoIds),
         saveNas,
-        registerMart,
         options: {
           includeLabels,
           includeImages,
           nasPath,
-          martName,
-          martVersion,
-          martDescription,
         },
       });
       showToast(`내보내기 작업 #${result.jobId} 시작됨`, 'success');
@@ -378,43 +366,6 @@ export function ExportPage() {
                     onChange={(e) => setNasPath(e.target.value)}
                     placeholder="/mnt/nas/export/"
                     className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
-                  />
-                </div>
-              )}
-
-              {/* Mart */}
-              <label className="flex items-center gap-3 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={registerMart}
-                  onChange={(e) => setRegisterMart(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-gray-700 font-medium">데이터마트 등록</span>
-              </label>
-
-              {registerMart && (
-                <div className="ml-7 space-y-2">
-                  <input
-                    type="text"
-                    value={martName}
-                    onChange={(e) => setMartName(e.target.value)}
-                    placeholder="데이터셋 이름"
-                    className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                  <input
-                    type="text"
-                    value={martVersion}
-                    onChange={(e) => setMartVersion(e.target.value)}
-                    placeholder="버전 (예: 1.0.0)"
-                    className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                  <textarea
-                    value={martDescription}
-                    onChange={(e) => setMartDescription(e.target.value)}
-                    placeholder="데이터셋 설명"
-                    rows={2}
-                    className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
               )}

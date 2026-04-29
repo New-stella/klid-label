@@ -102,12 +102,6 @@ export const APP_ROUTES: AppRouteMeta[] = [
     menuGroup: '데이터',
   },
   {
-    path: '/mart',
-    label: '데이터마트',
-    roles: ['REVIEWER', 'PORTAL_USER'],
-    menuGroup: '데이터',
-  },
-  {
     path: '/generate/result/:id',
     label: '생성 결과',
     roles: ['REVIEWER'],

@@ -1,7 +1,6 @@
 import { http } from 'msw';
 import { videos } from '../data/videos';
 import { getFrames } from '../data/frames';
-import { martDatasets, videoMartImpact } from '../data/mart';
 import { ok, fail, paginate, parsePageParams } from './_utils';
 
 export const videosHandlers = [
@@ -39,16 +38,5 @@ export const videosHandlers = [
     const videoId = params['id'] as string;
     const frames = getFrames(videoId);
     return ok(frames);
-  }),
-
-  // SFR-08 — 영상이 포함된 데이터마트 영향 조회
-  http.get('/api/v1/videos/:videoId/mart-impact', ({ params }) => {
-    const videoId = params['videoId'] as string;
-    const datasetIds = videoMartImpact[videoId] ?? [];
-    const datasets = datasetIds
-      .map((dsId) => martDatasets.find((d) => d.id === dsId))
-      .filter((d): d is NonNullable<typeof d> => d !== undefined)
-      .map((d) => ({ id: d.id, name: d.name, version: d.version }));
-    return ok({ datasets });
   }),
 ];

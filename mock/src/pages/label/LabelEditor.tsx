@@ -90,25 +90,7 @@ export function LabelEditor({ portalMode = false }: LabelEditorProps) {
         console.warn('[LabelEditor] version commit failed', err);
       }
 
-      // SFR-08 — 데이터마트 라벨 동기화 영향 확인
-      let martCount = 0;
-      try {
-        const impact = await api.get<{ datasets: { id: string; name: string; version: string }[] }>(
-          `/videos/${videoId}/mart-impact`,
-        );
-        martCount = impact.datasets.length;
-      } catch (err) {
-        console.warn('[LabelEditor] mart-impact lookup failed', err);
-      }
-
-      if (martCount > 0) {
-        showToast(
-          `저장됨 · 데이터마트 ${martCount}건 동기화 대상 (확인하세요)`,
-          'success',
-        );
-      } else {
-        showToast(commitOk ? '저장됨 · 버전 기록됨' : '저장됨', 'success');
-      }
+      showToast(commitOk ? '저장됨 · 버전 기록됨' : '저장됨', 'success');
     } catch {
       showToast('저장 실패', 'error');
     }
