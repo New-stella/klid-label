@@ -9,7 +9,7 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { CompareSlider } from '../../components/common/CompareSlider';
+import { SideBySideCompare } from '../../components/common/SideBySideCompare';
 import { useToast } from '../../components/common/Toast';
 
 type AugmentType = 'WINTER' | 'NIGHT' | 'RAIN' | 'RESOLUTION';
@@ -200,8 +200,8 @@ function VideoSection({
         </p>
       </div>
 
-      {/* Large CompareSlider for selected frame */}
-      <CompareSlider
+      {/* 큰 좌우 비교 — 선택 프레임 */}
+      <SideBySideCompare
         beforeSrc={beforeLarge}
         afterSrc={afterLarge}
         height={380}

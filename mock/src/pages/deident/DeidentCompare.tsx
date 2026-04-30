@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, LayoutPanelLeft, Sliders, Check } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Check } from 'lucide-react';
 import { useFetch } from '../../api/queries';
 import { api } from '../../api/client';
 import type { DeidentDto } from '../../api/types';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { CompareSlider } from '../../components/common/CompareSlider';
+import { SideBySideCompare } from '../../components/common/SideBySideCompare';
 import { useToast } from '../../components/common/Toast';
-
-type ViewMode = 'split' | 'slider';
 
 const TOTAL_FRAMES = 12;
 
@@ -73,7 +71,6 @@ export function DeidentCompare() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [retrying, setRetrying] = useState(false);
   const [selectedFrameIdx, setSelectedFrameIdx] = useState(0);
 
@@ -269,76 +266,41 @@ export function DeidentCompare() {
         </p>
       </div>
 
-      {/* View mode toggle */}
+      {/* Selected frame caption */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => setViewMode('split')}
-          className={[
-            'flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors',
-            viewMode === 'split'
-              ? 'bg-primary-600 text-white border-primary-600'
-              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50',
-          ].join(' ')}
-        >
-          <LayoutPanelLeft size={14} />
-          좌우 분할
-        </button>
-        <button
-          onClick={() => setViewMode('slider')}
-          className={[
-            'flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors',
-            viewMode === 'slider'
-              ? 'bg-primary-600 text-white border-primary-600'
-              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50',
-          ].join(' ')}
-        >
-          <Sliders size={14} />
-          슬라이더 오버레이
-        </button>
-        <span className="ml-2 text-xs text-gray-400">
-          프레임 {frameTimeLabel(selectedFrameIdx)} 기준
+        <span className="text-xs text-gray-400">
+          프레임 {frameTimeLabel(selectedFrameIdx)} 기준 · 좌우 비교
         </span>
       </div>
 
-      {/* Image comparison — selected frame */}
-      {viewMode === 'split' ? (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">원본</p>
-            <div className="rounded-lg overflow-hidden bg-gray-900 aspect-video">
-              <img
-                src={origSrc}
-                alt="원본"
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">비식별</p>
-            <div className="rounded-lg overflow-hidden bg-gray-900 aspect-video">
-              {deidSrc ? (
-                <img
-                  src={deidSrc}
-                  alt="비식별"
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
-                  비식별 이미지 없음
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <CompareSlider
+      {/* Image comparison — selected frame (좌우 비교) */}
+      {deidSrc ? (
+        <SideBySideCompare
           beforeSrc={origSrc}
-          afterSrc={deidSrc ?? origSrc}
+          afterSrc={deidSrc}
           height={420}
           label={{ before: '원본', after: '비식별' }}
         />
+      ) : (
+        <div className="grid grid-cols-2 gap-2 w-full" style={{ height: 420 }}>
+          <div className="relative overflow-hidden rounded-lg bg-gray-900">
+            <img
+              src={origSrc}
+              alt="원본"
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+            />
+            <span className="absolute top-3 left-3 bg-black/60 text-white text-xs font-semibold px-2.5 py-1 rounded">
+              원본
+            </span>
+          </div>
+          <div className="relative overflow-hidden rounded-lg bg-gray-900 flex items-center justify-center">
+            <span className="text-gray-400 text-sm">비식별 이미지 없음</span>
+            <span className="absolute top-3 left-3 bg-blue-600/90 text-white text-xs font-semibold px-2.5 py-1 rounded">
+              비식별
+            </span>
+          </div>
+        </div>
       )}
 
       {/* Processing timeline */}
