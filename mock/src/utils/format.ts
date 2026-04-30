@@ -43,7 +43,7 @@ export function stageLabel(stage: BatchStage): string {
     DEIDENTIFY: '비식별',
     YOLO: 'YOLO',
     SAM2: 'SAM2',
-    VLM: 'VLM',
+    VLM: 'VLM 객체 검증',
   };
   return map[stage] ?? stage;
 }

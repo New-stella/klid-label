@@ -13,7 +13,7 @@ const COMMIT_MESSAGES = [
   'MOTORCYCLE 어트리뷰트 수정',
   '오토라벨 결과 수동 검수 완료',
   'PERSON occluded 속성 업데이트',
-  'VLM 메타데이터 반영',
+  'VLM 객체 검증 결과 반영',
 ];
 
 const AUTHOR_NAMES = ['최라벨', '정작업', '강라벨링', '윤어노테', '임태그'];

@@ -26,6 +26,11 @@ export interface UserDto {
 }
 
 export type BatchStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+/**
+ * 배치 파이프라인 단계 코드.
+ * V1.7: VLM은 시계열 메타데이터 추출이 아닌, YOLO/SAM2가 감지한 객체의 분류 정합성을 검증하는 단계다.
+ * 코드값('VLM')은 API 호환성을 위해 유지하고 표시 라벨은 stageLabel()에서 "VLM 객체 검증"으로 노출한다.
+ */
 export type BatchStage = 'FRAME_EXTRACT' | 'DEIDENTIFY' | 'YOLO' | 'SAM2' | 'VLM';
 export type StageStatus = 'DONE' | 'PROGRESS' | 'PENDING' | 'FAIL';
 export type PrivacyType = 'PRVC' | 'PSDO' | 'ANONY';
