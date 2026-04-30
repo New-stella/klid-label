@@ -10,30 +10,26 @@ interface Props {
 
 const TYPE_META: Record<
   AugmentType,
-  { emoji: string; name: string; description: string; seed: number }
+  { emoji: string; name: string; seed: number }
 > = {
   WINTER: {
     emoji: '❄️',
     name: '겨울',
-    description: '눈/설경 변환 — 배경에 눈 입자·설경 합성',
     seed: 111,
   },
   NIGHT: {
     emoji: '🌙',
     name: '야간',
-    description: '조도 저하 + 가우시안 노이즈 주입',
     seed: 222,
   },
   RAIN: {
     emoji: '🌧',
     name: '비',
-    description: '빗방울 스트리크 + 습윤 반사 효과',
     seed: 333,
   },
   RESOLUTION: {
     emoji: '📐',
     name: '해상도',
-    description: '업/다운스케일 노이즈 — 해상도 품질 변화',
     seed: 444,
   },
 };
@@ -74,7 +70,6 @@ export function AugmentTypeCard({ type, selected, onToggle }: Props) {
           </span>
           <span className="font-semibold text-gray-900 text-sm">{meta.name}</span>
         </div>
-        <p className="text-xs text-gray-500 leading-relaxed">{meta.description}</p>
       </div>
 
       {/* Check badge */}
