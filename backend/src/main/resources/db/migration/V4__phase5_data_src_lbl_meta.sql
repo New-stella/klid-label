@@ -1,0 +1,92 @@
+-- Phase 5: 배치 파이프라인 결과 저장용 스키마.
+-- 운영 klid_system 적용 시 관제서버팀 사전 협의 필수 (DB 설계서 §3.4 / §3.6 / §3.7).
+-- H2 + MariaDB 호환을 위해 IF NOT EXISTS + 표준 SQL 타입만 사용.
+--
+-- 본 V4 는 LS_DATA_SRC / LS_DATA_LBL / LS_DATA_META 와 각 _HSTRY 테이블을 일괄 생성한다.
+-- LS_DATA_LBL 에는 Phase 5 자동 라벨링 결과 보관용 컬럼 3종 (AUTO_LBL_YN / CONF_SCORE / DATA_AUG_SN)
+-- 이 본 마이그레이션 시점에 포함되어 있다 — Phase 6 라벨 CRUD 와 호환.
+
+-- ============================================================
+-- §3.4 LS_DATA_SRC : 영상에서 추출한 키프레임 (FRAME_EXTRACT 단계 산출)
+--   - RAW_SN FK + (RAW_SN, FRAME_NO) UK 로 동일 영상 동일 프레임 중복 방지.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_DATA_SRC (
+    SRC_SN          BIGINT          NOT NULL AUTO_INCREMENT,
+    RAW_SN          BIGINT          NOT NULL,
+    FRAME_NO        INT             NOT NULL,
+    FILE_PATH       VARCHAR(500)    NOT NULL,
+    DEID_FILE_PATH  VARCHAR(500),
+    CAPTURED_AT     TIMESTAMP,
+    REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DT          TIMESTAMP,
+    PRIMARY KEY (SRC_SN),
+    CONSTRAINT UK_LS_DATA_SRC_RAW_FRAME UNIQUE (RAW_SN, FRAME_NO)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_DATA_SRC_RAW ON LS_DATA_SRC (RAW_SN);
+
+CREATE TABLE IF NOT EXISTS LS_DATA_SRC_HSTRY (
+    HSTRY_SEQ       BIGINT          NOT NULL AUTO_INCREMENT,
+    SRC_SN          BIGINT          NOT NULL,
+    CHG_TYPE        VARCHAR(16)     NOT NULL,
+    CHG_USER_NO     BIGINT,
+    CHG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (HSTRY_SEQ)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_DATA_SRC_HSTRY_SRC ON LS_DATA_SRC_HSTRY (SRC_SN);
+
+-- ============================================================
+-- §3.6 LS_DATA_LBL : 라벨 (자동 + 수동)
+--   - SRC_SN FK (프레임 단위) + LBL_TYPE_CD (BBOX/POLYGON/SEGMENT/TRACK).
+--   - 본 Phase 5 에서 추가되는 컬럼 3종:
+--       AUTO_LBL_YN  CHAR(1)     자동 라벨 여부 ('Y' = YOLO/SAM2/VLM 산출, 'N' = 사람 입력)
+--       CONF_SCORE   DECIMAL(5,4) 0.0~1.0 신뢰도 (VLM 검증 결과로 갱신될 수 있음)
+--       DATA_AUG_SN  BIGINT       증강 데이터 FK (Phase 10 — 본 Phase 에서는 nullable)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_DATA_LBL (
+    LBL_SN          BIGINT          NOT NULL AUTO_INCREMENT,
+    SRC_SN          BIGINT          NOT NULL,
+    LBL_TYPE_CD     VARCHAR(16)     NOT NULL,
+    LABEL           VARCHAR(255)    NOT NULL,
+    POINTS_JSON     CLOB,
+    AUTO_LBL_YN     CHAR(1)         NOT NULL DEFAULT 'N',
+    CONF_SCORE      DECIMAL(5,4),
+    DATA_AUG_SN     BIGINT,
+    REG_USER_NO     BIGINT,
+    REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DT          TIMESTAMP,
+    PRIMARY KEY (LBL_SN)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_DATA_LBL_SRC ON LS_DATA_LBL (SRC_SN);
+CREATE INDEX IF NOT EXISTS IX_LS_DATA_LBL_AUTO ON LS_DATA_LBL (AUTO_LBL_YN);
+
+-- ============================================================
+-- §3.7 LS_DATA_META : 영상/프레임 메타 (외부 시계열 메타 검토 + VLM 객체 검증 보조)
+--   - RAW_SN FK + (RAW_SN, META_KEY) UK.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_DATA_META (
+    META_SN         BIGINT          NOT NULL AUTO_INCREMENT,
+    RAW_SN          BIGINT          NOT NULL,
+    META_KEY        VARCHAR(64)     NOT NULL,
+    META_VAL        VARCHAR(2000),
+    REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DT          TIMESTAMP,
+    PRIMARY KEY (META_SN),
+    CONSTRAINT UK_LS_DATA_META_RAW_KEY UNIQUE (RAW_SN, META_KEY)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_DATA_META_RAW ON LS_DATA_META (RAW_SN);
+
+CREATE TABLE IF NOT EXISTS LS_DATA_META_HSTRY (
+    HSTRY_SEQ       BIGINT          NOT NULL AUTO_INCREMENT,
+    META_SN         BIGINT          NOT NULL,
+    PREV_VAL        VARCHAR(2000),
+    NEW_VAL         VARCHAR(2000),
+    CHG_USER_NO     BIGINT,
+    CHG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (HSTRY_SEQ)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_DATA_META_HSTRY_META ON LS_DATA_META_HSTRY (META_SN);

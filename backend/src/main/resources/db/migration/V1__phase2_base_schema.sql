@@ -1,0 +1,117 @@
+-- Phase 2 base schema (H2 + MariaDB compatible).
+-- klid_system 공유 DB 운영 환경에는 본 테이블이 이미 존재하므로 IF NOT EXISTS 로 충돌 방지.
+-- 컬럼 정의는 저작도구_DB설계서_FINAL.md §3.1 / §3.5 + plan Phase 2 기준.
+
+-- ============================================================
+-- §3.1 사용자/권한 (관제서버 마스터, 저작도구는 읽기 전용)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS MNG_ACCT_USER (
+    USER_NO     BIGINT          NOT NULL,
+    USER_ID     VARCHAR(64)     NOT NULL,
+    USER_NM     VARCHAR(128)    NOT NULL,
+    USER_EMAIL  VARCHAR(255),
+    USE_YN      VARCHAR(1)      NOT NULL DEFAULT 'Y',
+    REG_DT      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DT      TIMESTAMP,
+    PRIMARY KEY (USER_NO)
+);
+
+CREATE TABLE IF NOT EXISTS MNG_ACCT_AUTHRT (
+    AUTHRT_CD   VARCHAR(32)     NOT NULL,
+    AUTHRT_NM   VARCHAR(128)    NOT NULL,
+    USE_YN      VARCHAR(1)      NOT NULL DEFAULT 'Y',
+    PRIMARY KEY (AUTHRT_CD)
+);
+
+CREATE TABLE IF NOT EXISTS MNG_ACCT_USER_AUTHRT (
+    USER_NO     BIGINT          NOT NULL,
+    AUTHRT_CD   VARCHAR(32)     NOT NULL,
+    REG_DT      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (USER_NO, AUTHRT_CD)
+);
+
+-- ============================================================
+-- §3.5 프로젝트
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS LS_PJT (
+    PJT_ID          BIGINT          NOT NULL,
+    PJT_NM          VARCHAR(255)    NOT NULL,
+    PJT_DESC        VARCHAR(2000),
+    PJT_STTS_CD     VARCHAR(32)     NOT NULL DEFAULT 'ACTIVE',
+    USE_YN          VARCHAR(1)      NOT NULL DEFAULT 'Y',
+    REG_USER_NO     BIGINT,
+    REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UPD_DT          TIMESTAMP,
+    PRIMARY KEY (PJT_ID)
+);
+
+CREATE TABLE IF NOT EXISTS LS_PJT_DDLN (
+    PJT_ID          BIGINT          NOT NULL,
+    DDLN_SEQ        BIGINT          NOT NULL,
+    DDLN_DT         TIMESTAMP,
+    ANONY_INCL_YN   VARCHAR(1)      NOT NULL DEFAULT 'N',
+    PSDO_INCL_YN    VARCHAR(1)      NOT NULL DEFAULT 'N',
+    PRVC_INCL_YN    VARCHAR(1)      NOT NULL DEFAULT 'N',
+    REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (PJT_ID, DDLN_SEQ)
+);
+
+CREATE TABLE IF NOT EXISTS LS_PJT_DATA_MPNG (
+    PJT_ID          BIGINT          NOT NULL,
+    RAW_DATA_ID     BIGINT          NOT NULL,
+    REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (PJT_ID, RAW_DATA_ID)
+);
+
+CREATE TABLE IF NOT EXISTS LS_PJT_META (
+    PJT_ID          BIGINT          NOT NULL,
+    META_KEY        VARCHAR(64)     NOT NULL,
+    META_VAL        VARCHAR(2000),
+    PRIMARY KEY (PJT_ID, META_KEY)
+);
+
+-- ============================================================
+-- §3.5 배정 + 이력 + 데이터 상태
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS LS_PJT_USER_AUTHRT (
+    AUTHRT_SEQ      BIGINT          NOT NULL AUTO_INCREMENT,
+    PJT_ID          BIGINT          NOT NULL,
+    USER_NO         BIGINT          NOT NULL,
+    RAW_DATA_ID     BIGINT          NOT NULL,
+    TASK_TYPE_CD    VARCHAR(32)     NOT NULL,
+    REG_USER_NO     BIGINT          NOT NULL,
+    REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (AUTHRT_SEQ),
+    CONSTRAINT UK_LS_PJT_USER_AUTHRT UNIQUE (PJT_ID, RAW_DATA_ID, USER_NO, TASK_TYPE_CD)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_PJT_USER_AUTHRT_USER ON LS_PJT_USER_AUTHRT (USER_NO, TASK_TYPE_CD);
+CREATE INDEX IF NOT EXISTS IX_LS_PJT_USER_AUTHRT_RAW ON LS_PJT_USER_AUTHRT (RAW_DATA_ID);
+
+CREATE TABLE IF NOT EXISTS LS_PJT_USER_AUTHRT_HSTRY (
+    HSTRY_SEQ       BIGINT          NOT NULL AUTO_INCREMENT,
+    AUTHRT_SEQ      BIGINT          NOT NULL,
+    PJT_ID          BIGINT          NOT NULL,
+    RAW_DATA_ID     BIGINT          NOT NULL,
+    PREV_USER_NO    BIGINT          NOT NULL,
+    NEW_USER_NO     BIGINT          NOT NULL,
+    TASK_TYPE_CD    VARCHAR(32)     NOT NULL,
+    CHG_USER_NO     BIGINT          NOT NULL,
+    CHG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (HSTRY_SEQ)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_PJT_USER_AUTHRT_HSTRY_AUTHRT ON LS_PJT_USER_AUTHRT_HSTRY (AUTHRT_SEQ);
+
+CREATE TABLE IF NOT EXISTS LS_PJT_DATA_STTS (
+    PJT_ID          BIGINT          NOT NULL,
+    RAW_DATA_ID     BIGINT          NOT NULL,
+    DATA_STTS_CD    VARCHAR(32)     NOT NULL DEFAULT 'PENDING',
+    STP_CYCL        INT             NOT NULL DEFAULT 0,
+    IGI_CYCL        INT             NOT NULL DEFAULT 0,
+    UPD_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (PJT_ID, RAW_DATA_ID)
+);

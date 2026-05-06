@@ -1,0 +1,1 @@
+-- baseline placeholder; actual migrations start from V1__*

@@ -1,0 +1,46 @@
+-- Phase 10: 학습데이터셋 내보내기 (LS_DATA_SET).
+-- DB 설계서 §LS_DATA_SET — V1.4 SFR-08 §4.4.6 (내보내기).
+--
+-- ⚠ 협의 필요 (관제서버팀 / DBA):
+--   - 운영 klid_system 의 LS_DATA_SET 가 이미 존재하면 본 V8 의 ALTER 만 적용 필요.
+--     아래 CREATE TABLE IF NOT EXISTS / ALTER TABLE ... ADD COLUMN IF NOT EXISTS 는
+--     양쪽(존재/미존재) 모두에서 안전하게 동작.
+--   - 데이터마트 검색·다운로드는 외부제공 시스템 책임 (V1.4 — SFR-13 제외)
+--     → 본체는 NAS 디렉토리(NAS_PATH)까지만 생성.
+--   - EXPORT_STTS_CD : PENDING / IN_PROGRESS / COMPLETED / FAILED
+--   - EXPORT_FORMAT  : YOLO / COCO
+--
+-- H2 + MariaDB 호환을 위해 표준 SQL 타입 + IF NOT EXISTS 사용.
+
+-- ============================================================
+-- LS_DATA_SET : 학습데이터셋 내보내기 작업
+--   - PJT_ID         : LS_PJT FK (FK 정의는 운영 정책상 미설정)
+--   - EXPORT_FORMAT  : YOLO / COCO
+--   - EXPORT_STTS_CD : PENDING / IN_PROGRESS / COMPLETED / FAILED
+--   - NAS_PATH       : 산출물 디렉토리 (외부 데이터마트 시스템 약속 경로)
+--   - ERROR_MESSAGE  : FAILED 시 사유
+--   - EXPORTED_AT    : COMPLETED 시각
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS LS_DATA_SET (
+    EXPORT_SN            BIGINT          NOT NULL AUTO_INCREMENT,
+    PJT_ID               BIGINT          NOT NULL,
+    EXPORT_FORMAT        VARCHAR(20)     NOT NULL,
+    EXPORT_STTS_CD       VARCHAR(20)     NOT NULL DEFAULT 'PENDING',
+    NAS_PATH             VARCHAR(500),
+    ERROR_MESSAGE        VARCHAR(1000),
+    EXPORTED_AT          TIMESTAMP       NULL,
+    REGISTERED_USER_NO   VARCHAR(50),
+    REGISTERED_AT        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (EXPORT_SN)
+);
+
+-- 운영 DB 에 컬럼이 누락된 경우를 위한 ALTER (이미 있으면 NOOP — H2/MariaDB 모두 IF NOT EXISTS 지원)
+ALTER TABLE LS_DATA_SET ADD COLUMN IF NOT EXISTS EXPORT_STTS_CD VARCHAR(20) NOT NULL DEFAULT 'PENDING';
+ALTER TABLE LS_DATA_SET ADD COLUMN IF NOT EXISTS NAS_PATH VARCHAR(500);
+ALTER TABLE LS_DATA_SET ADD COLUMN IF NOT EXISTS ERROR_MESSAGE VARCHAR(1000);
+ALTER TABLE LS_DATA_SET ADD COLUMN IF NOT EXISTS EXPORTED_AT TIMESTAMP NULL;
+ALTER TABLE LS_DATA_SET ADD COLUMN IF NOT EXISTS REGISTERED_USER_NO VARCHAR(50);
+
+CREATE INDEX IF NOT EXISTS IDX_LS_DATA_SET_PJT      ON LS_DATA_SET (PJT_ID, REGISTERED_AT);
+CREATE INDEX IF NOT EXISTS IDX_LS_DATA_SET_STTS     ON LS_DATA_SET (EXPORT_STTS_CD, REGISTERED_AT);

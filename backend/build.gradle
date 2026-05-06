@@ -37,6 +37,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+
+    // Phase 12 — Caffeine 캐시 (시스템 설정 TTL 60s)
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+
+    // Phase 12 — Prometheus 메트릭 노출 (/actuator/prometheus)
+    implementation 'io.micrometer:micrometer-registry-prometheus'
 
     // JSON logging
     implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
@@ -89,6 +96,7 @@ dependencies {
     testRuntimeOnly   'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.testcontainers:junit-jupiter:1.19.8'
     testImplementation 'org.testcontainers:mariadb:1.19.8'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
 }
 
 tasks.named('test') {

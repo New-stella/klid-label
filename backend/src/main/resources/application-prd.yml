@@ -16,6 +16,26 @@ spring:
       hikari:
         maximum-pool-size: 20
         minimum-idle: 5
+  quartz:
+    properties:
+      org.quartz.jobStore.isClustered: 'true'
+      org.quartz.jobStore.clusterCheckinInterval: '20000'
+      org.quartz.scheduler.instanceId: AUTO
+
+authoring:
+  gitea:
+    retry:
+      enabled: ${GITEA_RETRY_ENABLED:true}
+
+# Phase 12 — 운영 환경 actuator 최소 노출 (보안: env/beans/heapdump 차단)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 logging:
   level:

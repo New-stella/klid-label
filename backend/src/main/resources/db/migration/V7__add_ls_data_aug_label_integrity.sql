@@ -1,0 +1,45 @@
+-- Phase 9: 데이터 증강 검수 + 배경영상 요청 (외부 인터페이스).
+-- DB 설계서 §LS_DATA_AUG (라벨 무결성 점수 컬럼 추가) — V1.5 SFR-07 (증강 결과 검수).
+--
+-- ⚠ 협의 필요 (관제서버팀 / DBA):
+--   - 운영 klid_system 의 LS_DATA_AUG 가 이미 존재하면 본 V7 의 ALTER 만 적용 필요.
+--     아래 CREATE TABLE IF NOT EXISTS / ALTER TABLE ... ADD COLUMN IF NOT EXISTS 는
+--     양쪽(존재/미존재) 모두에서 안전하게 동작.
+--   - LBL_INTGRT_PCT (라벨 무결성 점수) DECIMAL(5,2) — 좌표 보존 70% + 카테고리 보존 30% 가중평균.
+--   - AUG_PROC_STTS_CD : PENDING / ACCEPTED / REJECTED (외부 시스템에서 생성된 결과를 본체가 검수).
+--
+-- H2 + MariaDB 호환을 위해 표준 SQL 타입 + IF NOT EXISTS 사용.
+
+-- ============================================================
+-- LS_DATA_AUG : 데이터 증강 결과 (외부 SFR-07 시스템 산출물)
+--   - SRC_SN  : 증강 원본 (LS_DATA_RAW.RAW_SN 참조, FK 정의는 운영 정책상 미설정)
+--   - AUG_TYPE_CD : WINTER / NIGHT / RAIN / RESOLUTION (4종)
+--   - AUG_PROC_STTS_CD : PENDING / ACCEPTED / REJECTED
+--   - LBL_INTGRT_PCT : 라벨 무결성 보존율 0~100 (좌표 0.7 + 카테고리 0.3 가중)
+--   - REJECT_REASON : 반려 시 사유 (REJECTED 일 때만 채워짐)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS LS_DATA_AUG (
+    DATA_AUG_SN          BIGINT          NOT NULL AUTO_INCREMENT,
+    SRC_SN               BIGINT          NOT NULL,
+    AUG_TYPE_CD          VARCHAR(20)     NOT NULL,
+    AUG_PROC_STTS_CD     VARCHAR(20)     NOT NULL DEFAULT 'PENDING',
+    LBL_INTGRT_PCT       DECIMAL(5,2),
+    REJECT_REASON        VARCHAR(500),
+    DECISION_USER_NO     VARCHAR(50),
+    DECISION_AT          TIMESTAMP       NULL,
+    REGISTERED_AT        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    REGISTERED_USER_NO   VARCHAR(50),
+    PRIMARY KEY (DATA_AUG_SN)
+);
+
+-- 운영 DB 에 컬럼이 누락된 경우를 위한 ALTER (이미 있으면 NOOP — H2/MariaDB 모두 IF NOT EXISTS 지원)
+ALTER TABLE LS_DATA_AUG ADD COLUMN IF NOT EXISTS AUG_PROC_STTS_CD VARCHAR(20) NOT NULL DEFAULT 'PENDING';
+ALTER TABLE LS_DATA_AUG ADD COLUMN IF NOT EXISTS LBL_INTGRT_PCT DECIMAL(5,2);
+ALTER TABLE LS_DATA_AUG ADD COLUMN IF NOT EXISTS REJECT_REASON VARCHAR(500);
+ALTER TABLE LS_DATA_AUG ADD COLUMN IF NOT EXISTS DECISION_USER_NO VARCHAR(50);
+ALTER TABLE LS_DATA_AUG ADD COLUMN IF NOT EXISTS DECISION_AT TIMESTAMP NULL;
+ALTER TABLE LS_DATA_AUG ADD COLUMN IF NOT EXISTS REGISTERED_USER_NO VARCHAR(50);
+
+CREATE INDEX IF NOT EXISTS IDX_LS_DATA_AUG_SRC      ON LS_DATA_AUG (SRC_SN, AUG_TYPE_CD);
+CREATE INDEX IF NOT EXISTS IDX_LS_DATA_AUG_STTS     ON LS_DATA_AUG (AUG_PROC_STTS_CD, REGISTERED_AT);

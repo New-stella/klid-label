@@ -3,6 +3,11 @@ spring:
     name: klid-la-authoring
   profiles:
     active: local
+  servlet:
+    multipart:
+      # TUS 업로드는 application/offset+octet-stream (raw body) 사용 → multipart 비활성.
+      # 활성화 시 Spring 이 form data 로 파싱 시도하여 5GB 파일 메모리 적재 위험.
+      enabled: false
   jpa:
     open-in-view: false
     hibernate:
@@ -11,42 +16,81 @@ spring:
       hibernate:
         format_sql: true
         jdbc:
+          batch_size: 50
           time_zone: Asia/Seoul
+        order_inserts: true
+        order_updates: true
   flyway:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+  quartz:
+    # JDBC JobStore — controlDataSource(@Primary) 를 통해 기존 QRTZ_* 테이블 공유.
+    # 실제 라벨링 잡은 Phase 5 에서 등록. Phase 3 는 부트스트랩 잡 1개만.
+    # jobStore.class 는 Spring Boot 가 LocalDataSourceJobStore 로 자동 지정하므로 명시 X.
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never  # 운영 QRTZ_* 는 이미 존재 / 로컬은 V2 Flyway 로 생성
+    properties:
+      org.quartz.scheduler.instanceName: KlidAuthoringScheduler
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.threadPool.threadCount: '3'
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
+      org.quartz.jobStore.useProperties: 'true'
+      org.quartz.jobStore.misfireThreshold: '60000'
+      org.quartz.jobStore.isClustered: 'false'
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+  # Phase 12 — Caffeine 캐시 (시스템 설정 TTL 60s)
+  cache:
+    type: caffeine
+    cache-names: sysconfig
+    caffeine:
+      spec: maximumSize=100,expireAfterWrite=60s
 
 server:
   port: 8080
   servlet:
     context-path: /api
+  tomcat:
+    # TUS PATCH 본문(최대 청크) 흡수 + 폼 사이즈 제한 해제 — raw octet-stream 업로드 호환.
+    max-swallow-size: -1
+    max-http-form-post-size: -1
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: ${ACTUATOR_EXPOSE:health,info,metrics,prometheus}
   endpoint:
     health:
       show-details: when-authorized
+      probes:
+        enabled: true
 
 authoring:
   jwt:
     issuer: ${JWT_ISSUER:klid-auth}
     algorithm: HS256
-    secret: ${JWT_SECRET:change-me-in-prod}
+    # 운영/스테이징/개발: 환경변수 JWT_SECRET 필수 (미설정 시 부트 실패)
+    # 로컬: application-local.yml 의 dev 기본값 사용
+    secret: ${JWT_SECRET}
+    allowed-issuers: ${JWT_ALLOWED_ISSUERS:klid-auth,klid,klid-portal}
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
   integration:
     control-server:
       base-url: ${CONTROL_SERVER_API_URL:http://localhost:9000}
-      m2m-token: ${CONTROL_M2M_TOKEN:}
+      # 운영/스테이징/개발: 환경변수 CONTROL_M2M_TOKEN 필수 (미설정 시 부트 실패)
+      m2m-token: ${CONTROL_M2M_TOKEN}
       timeout-ms: 10000
     portal-server:
       base-url: ${PORTAL_SERVER_API_URL:http://localhost:9100}
-      m2m-token: ${PORTAL_M2M_TOKEN:}
+      # 운영/스테이징/개발: 환경변수 PORTAL_M2M_TOKEN 필수 (미설정 시 부트 실패)
+      m2m-token: ${PORTAL_M2M_TOKEN}
       timeout-ms: 10000
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}
@@ -56,13 +100,107 @@ authoring:
       timeout-ms: 60000
     gitea:
       base-url: ${GITEA_BASE_URL:http://localhost:3000}
-      token: ${GITEA_TOKEN:}
+      # 운영/스테이징/개발: 환경변수 GITEA_TOKEN 필수 (미설정 시 부트 실패)
+      token: ${GITEA_TOKEN}
       owner: ${GITEA_OWNER:authoring}
       repo: ${GITEA_REPO:labels}
   batch:
     rate-per-min: 1
     frame-interval-sec: 60
+    # Phase 5 배치 파이프라인
+    enabled: ${BATCH_ENABLED:true}
+    interval-sec: ${BATCH_INTERVAL_SEC:60}
+    retry:
+      max-attempts: ${BATCH_RETRY_MAX:3}
+      initial-delay-sec: ${BATCH_RETRY_INITIAL_DELAY_SEC:60}
+      interval-sec: ${BATCH_RETRY_INTERVAL_SEC:300}
+  ffmpeg:
+    threads: ${FFMPEG_THREADS:2}
+    binary: ${FFMPEG_BIN:ffmpeg}
+  gitea:
+    retry:
+      # Gitea fallback 재시도 잡 활성화 (Phase 8). 기본 false → prd 에서 true 로 오버라이드.
+      enabled: ${GITEA_RETRY_ENABLED:false}
+  # Phase 9 — 외부 SFR-06/11 배경영상 생성 시스템 (V1.5: 외부 책임, 본체는 인터페이스만)
+  generate:
+    base-url: ${EXTERNAL_GENERATE_API_URL:http://localhost:9400}
+    enabled: ${EXTERNAL_GENERATE_ENABLED:false}  # 외부 미연결 시 mock 응답
+
+# Phase 11 — 포털 채널 TUS 업로드 정책
+portal:
+  upload:
+    max-file-size-bytes: ${PORTAL_MAX_FILE_SIZE:5368709120}        # 5 GB
+    allowed-extensions: ${PORTAL_ALLOWED_EXT:mp4,mov,avi}
+    storage-path: ${PORTAL_STORAGE_PATH:${authoring.storage.raw-path:./storage/raw}/portal}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      control:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+      portal:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+      deid:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+      ai:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+      gitea:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+      generate:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+  retry:
+    instances:
+      control:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+      portal:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+      deid:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+      ai:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+      gitea:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+      generate:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+  timelimiter:
+    instances:
+      control: { timeout-duration: 60s }
+      portal:  { timeout-duration: 60s }
+      deid:    { timeout-duration: 60s }
+      ai:      { timeout-duration: 60s }
+      gitea:   { timeout-duration: 60s }
+      generate: { timeout-duration: 60s }
 
 logging:
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-}] %logger{36} - %msg%n"
