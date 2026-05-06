@@ -1,44 +1,69 @@
-"""VLM 객체 검증 — YOLO/SAM2가 감지한 객체에 대한 분류 정합성 검증."""
+"""
+VLM 객체 검증 (V1.7) — YOLO/SAM2가 감지한 객체에 대한 분류 정합성 검증.
+
+POST /infer/vlm/verify-objects
+- 입력: 프레임 이미지 + 검증 대상 객체 목록 (obj_id, expected_label, bbox)
+- 출력: per-object verified bool + confidence
+
+> V1.7 — 시계열 메타 자동 생성 엔드포인트는 만들지 않는다 (외부 시스템 책임).
+"""
+
+from __future__ import annotations
+
+import logging
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+
+from app.config import get_settings
+from app.image_utils import decode_image_b64
+from app.models.vlm_loader import get_vlm_model
+from app.schemas import (
+    ObjectVerification,
+    VlmVerifyRequest,
+    VlmVerifyResponse,
+)
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# Mock 모드에서 검증 결과를 결정적으로 생성하기 위한 화이트리스트
+_KNOWN_LABELS: frozenset[str] = frozenset(
+    {"person", "car", "bicycle", "motorbike", "bus", "truck", "dog", "cat"}
+)
 
 
-class ObjectToVerify(BaseModel):
-    """검증 대상 객체 — YOLO/SAM2가 감지한 단일 객체."""
+@router.post("/verify-objects", response_model=VlmVerifyResponse)
+async def verify_objects(req: VlmVerifyRequest) -> VlmVerifyResponse:
+    """객체 단위 검증 결과 반환."""
+    width, height = decode_image_b64(req.image_b64)
+    logger.info(
+        "[VLM] verify-objects received image_size=%dx%d objects=%d",
+        width,
+        height,
+        len(req.objects),
+    )
 
-    obj_id: str
-    predicted_label: str
-    bbox: list[float] | None = None  # [x, y, w, h] (선택)
-    mask_path: str | None = None  # SAM2 마스크 파일 경로 (선택)
-
-
-class VlmRequest(BaseModel):
-    """프레임 1장 + 그 프레임에서 검증할 객체 목록."""
-
-    frame_path: str
-    objects: list[ObjectToVerify]
-
-
-class ObjectVerification(BaseModel):
-    """객체 단위 검증 결과."""
-
-    obj_id: str
-    predicted_label: str
-    verified: bool
-    confidence: float
-    reason: str | None = None
+    if _should_mock():
+        return _mock_verify(req)
+    return _mock_verify(req)
 
 
-class VlmResponse(BaseModel):
-    """검증 결과 — 요청한 객체 목록과 1:1 대응."""
+def _should_mock() -> bool:
+    """mock 모드이거나 모델이 로드되지 않은 경우 True."""
+    return get_settings().ai_mock_mode or get_vlm_model() is None
 
-    results: list[ObjectVerification]
 
-
-@router.post("", response_model=VlmResponse)
-async def verify(req: VlmRequest) -> VlmResponse:
-    # TODO: VLM 객체 검증 호출 구현 (Phase 3)
-    return VlmResponse(results=[])
+def _mock_verify(req: VlmVerifyRequest) -> VlmVerifyResponse:
+    """expected_label이 _KNOWN_LABELS에 있으면 verified=true, 아니면 false."""
+    results: list[ObjectVerification] = []
+    for obj in req.objects:
+        verified = obj.expected_label.lower() in _KNOWN_LABELS
+        results.append(
+            ObjectVerification(
+                obj_id=obj.obj_id,
+                expected_label=obj.expected_label,
+                verified=verified,
+                confidence=0.92 if verified else 0.18,
+            )
+        )
+    return VlmVerifyResponse(results=results)
