@@ -1,0 +1,113 @@
+package kr.co.cudo.authoring.batch.step;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.dto.YoloRequest;
+import kr.co.cudo.authoring.common.client.dto.YoloResponse;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import reactor.core.publisher.Mono;
+
+import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class YoloAutolabelStepTest {
+
+    private AiServerClient aiServerClient;
+    private LsDataSrcRepository srcRepository;
+    private LsDataLblRepository lblRepository;
+    private YoloAutolabelStep step;
+
+    @BeforeEach
+    void setUp() {
+        aiServerClient = mock(AiServerClient.class);
+        srcRepository = mock(LsDataSrcRepository.class);
+        lblRepository = mock(LsDataLblRepository.class);
+        step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, new ObjectMapper());
+    }
+
+    private LsDataSrc newSrc(Long srcSn) {
+        LsDataSrc src = LsDataSrc.create(1L, srcSn.intValue(), "/raw/" + srcSn + ".jpg", null);
+        try {
+            Field f = LsDataSrc.class.getDeclaredField("srcSn");
+            f.setAccessible(true);
+            f.set(src, srcSn);
+        } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
+        return src;
+    }
+
+    @Test
+    @DisplayName("YOLO_검출_결과는_AUTO_LBL_YN_Y_+_BBOX_타입_+_score_0_1_저장")
+    void detectionsSavedAsAutoBbox() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
+                .thenReturn(List.of(newSrc(10L), newSrc(11L)));
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
+                        new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
+                ))));
+
+        int saved = step.run(1L);
+
+        assertThat(saved).isEqualTo(4); // 2 frames × 2 detections
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(4)).save(captor.capture());
+        captor.getAllValues().forEach(lbl -> {
+            assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
+            assertThat(lbl.getLblTypeCd()).isEqualTo("BBOX");
+            assertThat(lbl.getConfScore()).isBetween(BigDecimal.ZERO, BigDecimal.ONE);
+        });
+    }
+
+    @Test
+    @DisplayName("YOLO_검출_결과_없으면_라벨_미저장")
+    void noDetectionsNoSaves() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(2L))
+                .thenReturn(List.of(newSrc(20L)));
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of())));
+
+        int saved = step.run(2L);
+
+        assertThat(saved).isZero();
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    @DisplayName("rawSn_null이면_INVALID_INPUT")
+    void nullRawSnRejected() {
+        assertThatThrownBy(() -> step.run(null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+    }
+
+    @Test
+    @DisplayName("ai_server_예외시_EXTERNAL_API_ERROR")
+    void externalErrorWrapped() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(3L))
+                .thenReturn(List.of(newSrc(30L)));
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.error(new RuntimeException("ai-server down")));
+
+        assertThatThrownBy(() -> step.run(3L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("EXTERNAL_API_ERROR");
+    }
+}
