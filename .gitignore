@@ -9,6 +9,9 @@ Thumbs.db
 
 # Claude
 .claude-plan.md
+.claude-plan-*.md
+.code-review-result
+.claude/settings.local.json
 
 # 환경 설정
 .env.local
