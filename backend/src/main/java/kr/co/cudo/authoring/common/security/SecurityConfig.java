@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -34,12 +36,16 @@ public class SecurityConfig {
     private final JwtIssuerValidator issuerValidator;
     private final M2mTokenValidator m2mTokenValidator;
     private final ObjectMapper objectMapper;
+    private final Environment environment;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                     CorsConfigurationSource corsConfigurationSource) throws Exception {
         M2mTokenAuthenticationFilter m2mFilter = new M2mTokenAuthenticationFilter(m2mTokenValidator);
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(keyResolver, issuerValidator);
+
+        // 개발/검수 전용 토큰 발급 endpoint — 운영(prd) 에서는 매처 자체를 추가하지 않음 (endpoint 도 @Profile("!prd") 로 부재 → 404).
+        boolean devTokenEndpointEnabled = !environment.acceptsProfiles(Profiles.of("prd"));
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -54,21 +60,26 @@ public class SecurityConfig {
                                 .includeSubDomains(true)
                                 .maxAgeInSeconds(31536000))
                 )
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/health", "/actuator/health", "/actuator/health/**",
-                                "/actuator/info",
-                                "/swagger-ui/**", "/v3/api-docs/**",
-                                "/v1/auth/**", "/v1/portal/auth/**").permitAll()
-                        // Phase 12 — actuator metrics/prometheus 는 REVIEWER 만 (운영 prd 는 노출 자체 차단)
-                        .requestMatchers("/actuator/**").hasRole(Role.REVIEWER.name())
-                        .requestMatchers("/v1/integration/control/**").hasAuthority(M2mTokenAuthenticationFilter.M2M_AUTHORITY)
-                        .requestMatchers("/v1/integration/**").denyAll()
-                        .requestMatchers("/v1/manage/**").hasRole(Role.REVIEWER.name())
-                        .requestMatchers("/v1/system/**").hasRole(Role.REVIEWER.name())
-                        .requestMatchers("/v1/portal/**").hasRole(Role.PORTAL_USER.name())
-                        .requestMatchers("/v1/**").authenticated()
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers("/health", "/actuator/health", "/actuator/health/**",
+                                    "/actuator/info",
+                                    "/swagger-ui/**", "/v3/api-docs/**",
+                                    "/v1/auth/**", "/v1/portal/auth/**").permitAll();
+                    if (devTokenEndpointEnabled) {
+                        // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음
+                        auth.requestMatchers("/v1/dev/**").permitAll();
+                    }
+                    auth
+                            // Phase 12 — actuator metrics/prometheus 는 REVIEWER 만 (운영 prd 는 노출 자체 차단)
+                            .requestMatchers("/actuator/**").hasRole(Role.REVIEWER.name())
+                            .requestMatchers("/v1/integration/control/**").hasAuthority(M2mTokenAuthenticationFilter.M2M_AUTHORITY)
+                            .requestMatchers("/v1/integration/**").denyAll()
+                            .requestMatchers("/v1/manage/**").hasRole(Role.REVIEWER.name())
+                            .requestMatchers("/v1/system/**").hasRole(Role.REVIEWER.name())
+                            .requestMatchers("/v1/portal/**").hasRole(Role.PORTAL_USER.name())
+                            .requestMatchers("/v1/**").authenticated()
+                            .anyRequest().authenticated();
+                })
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint((req, res, ex) -> writeError(res, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED))
                         .accessDeniedHandler((req, res, ex) -> writeError(res, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN))
