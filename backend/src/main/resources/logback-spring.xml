@@ -16,10 +16,30 @@
     </springProfile>
 
     <springProfile name="dev,stg,prd">
+        <!--
+            HIGH-1 fix (CWE-532, OWASP A09): MaskingPatternLayout 은 PatternLayout 전용이라
+            LogstashEncoder 사용 시 password/token/Authorization 이 마스킹되지 않았다.
+            LoggingEventCompositeJsonEncoder + ValueMasker 로 message 필드에 마스킹 적용.
+        -->
         <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-                <includeMdcKeyName>traceId</includeMdcKeyName>
-                <customFields>{"app":"klid-la-authoring"}</customFields>
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp/>
+                    <version/>
+                    <logLevel/>
+                    <loggerName/>
+                    <threadName/>
+                    <mdc>
+                        <includeMdcKeyName>traceId</includeMdcKeyName>
+                    </mdc>
+                    <message>
+                        <valueMasker class="kr.co.cudo.authoring.common.logging.MaskingJsonValueMasker"/>
+                    </message>
+                    <stackTrace/>
+                    <pattern>
+                        <pattern>{"app":"klid-la-authoring"}</pattern>
+                    </pattern>
+                </providers>
             </encoder>
         </appender>
         <root level="INFO">

@@ -125,6 +125,11 @@ authoring:
   generate:
     base-url: ${EXTERNAL_GENERATE_API_URL:http://localhost:9400}
     enabled: ${EXTERNAL_GENERATE_ENABLED:false}  # 외부 미연결 시 mock 응답
+  # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
+  # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
+  # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
 # Phase 11 — 포털 채널 TUS 업로드 정책
 portal:
