@@ -1,0 +1,91 @@
+// Query Key Factory — 도메인별 골격 (Phase 1+에서 도메인별로 확장)
+
+export const USER_KEYS = {
+  all: ['users'] as const,
+  me: () => [...USER_KEYS.all, 'me'] as const,
+  list: (params: Record<string, unknown>) => [...USER_KEYS.all, 'list', params] as const,
+  detail: (id: number) => [...USER_KEYS.all, 'detail', id] as const,
+};
+
+export const PROJECT_KEYS = {
+  all: ['projects'] as const,
+  list: (params: Record<string, unknown>) => [...PROJECT_KEYS.all, 'list', params] as const,
+  detail: (id: number) => [...PROJECT_KEYS.all, 'detail', id] as const,
+};
+
+export const ASSIGNMENT_KEYS = {
+  all: ['assignments'] as const,
+  list: (params: Record<string, unknown>) => [...ASSIGNMENT_KEYS.all, 'list', params] as const,
+  history: (id: number) => [...ASSIGNMENT_KEYS.all, 'history', id] as const,
+};
+
+export const VIDEO_KEYS = {
+  all: ['videos'] as const,
+  list: (params: Record<string, unknown>) => [...VIDEO_KEYS.all, 'list', params] as const,
+  detail: (id: number) => [...VIDEO_KEYS.all, 'detail', id] as const,
+  status: () => [...VIDEO_KEYS.all, 'status'] as const,
+};
+
+export const LABEL_KEYS = {
+  all: ['labels'] as const,
+  byVideo: (videoId: number) => [...LABEL_KEYS.all, 'video', videoId] as const,
+  byFrame: (videoId: number, frameNo: number) =>
+    [...LABEL_KEYS.all, 'video', videoId, 'frame', frameNo] as const,
+};
+
+export const REVIEW_KEYS = {
+  all: ['reviews'] as const,
+  pending: (params: Record<string, unknown>) => [...REVIEW_KEYS.all, 'pending', params] as const,
+  detail: (id: number) => [...REVIEW_KEYS.all, 'detail', id] as const,
+};
+
+export const VERSION_KEYS = {
+  all: ['versions'] as const,
+  history: (videoId: number) => [...VERSION_KEYS.all, 'history', videoId] as const,
+  diff: (videoId: number, fromSha: string, toSha: string) =>
+    [...VERSION_KEYS.all, 'diff', videoId, fromSha, toSha] as const,
+};
+
+export const AUGMENT_KEYS = {
+  all: ['augments'] as const,
+  list: (params: Record<string, unknown>) => [...AUGMENT_KEYS.all, 'list', params] as const,
+  detail: (id: number) => [...AUGMENT_KEYS.all, 'detail', id] as const,
+};
+
+export const EXPORT_KEYS = {
+  all: ['exports'] as const,
+  list: (params: Record<string, unknown>) => [...EXPORT_KEYS.all, 'list', params] as const,
+  detail: (id: number) => [...EXPORT_KEYS.all, 'detail', id] as const,
+};
+
+export const PORTAL_KEYS = {
+  all: ['portal'] as const,
+  uploads: (params: Record<string, unknown>) => [...PORTAL_KEYS.all, 'uploads', params] as const,
+};
+
+export const SYSCONFIG_KEYS = {
+  all: ['sysconfig'] as const,
+  presets: () => [...SYSCONFIG_KEYS.all, 'presets'] as const,
+};
+
+export const META_KEYS = {
+  all: ['meta'] as const,
+  byVideo: (videoId: number) => [...META_KEYS.all, 'video', videoId] as const,
+};
+
+export const AUTOLABEL_KEYS = {
+  all: ['autolabel'] as const,
+  byVideo: (videoId: number) => [...AUTOLABEL_KEYS.all, 'video', videoId] as const,
+};
+
+export const DEIDENT_KEYS = {
+  all: ['deidentify'] as const,
+  list: (params: Record<string, unknown>) => [...DEIDENT_KEYS.all, 'list', params] as const,
+  detail: (id: number) => [...DEIDENT_KEYS.all, 'detail', id] as const,
+};
+
+export const STAT_KEYS = {
+  all: ['stats'] as const,
+  worker: (userId: number) => [...STAT_KEYS.all, 'worker', userId] as const,
+  overall: () => [...STAT_KEYS.all, 'overall'] as const,
+};
