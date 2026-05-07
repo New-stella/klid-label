@@ -24,6 +24,13 @@ repositories {
     mavenCentral()
 }
 
+// HIGH-3 fix (OWASP A03:2025 Software Supply Chain Failures):
+// 모든 configuration 의존성 버전을 gradle.lockfile 에 고정.
+// 의존성 갱신 시: ./gradlew dependencies --write-locks
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 ext {
     queryDslVersion = '5.1.0'
     mapstructVersion = '1.5.5.Final'
