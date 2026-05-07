@@ -258,13 +258,14 @@ class TusUploadControllerTest {
                 .andExpect(status().isNoContent())
                 .andExpect(header().string("Upload-Offset", "5"));
 
-        // 본인 업로드 목록에 1건 노출
+        // 본인 업로드 목록에 1건 노출 (FE 계약: data 는 배열)
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .get("/v1/portal/uploads")
                         .header("Authorization", "Bearer " + userAToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(1))
-                .andExpect(jsonPath("$.data.content[0].fileName").value("v.mp4"));
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].fileName").value("v.mp4"));
 
         // sanity: tempDir 에 파일 존재
         assertThat(tempDir.resolve("alice").resolve(fileId).toFile()).exists();

@@ -3,8 +3,11 @@ package kr.co.cudo.authoring.user.repository;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.dto.WorkerWithTaskCount;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -31,4 +34,18 @@ public interface UserRepository extends JpaRepository<MngAcctUser, Long> {
             ORDER BY u.userNo ASC
             """)
     List<WorkerWithTaskCount> findAllWorkersWithTaskCount();
+
+    /**
+     * 사용자 마스터 페이징 검색 (REVIEWER 의 /manage/users 화면용).
+     * keyword 가 null/빈 문자열이면 전체 검색, 그렇지 않으면 USER_ID/USER_NM/USER_EMAIL LIKE.
+     * 활성/비활성 모두 포함.
+     */
+    @Query("""
+            SELECT u FROM MngAcctUser u
+             WHERE (:keyword IS NULL OR :keyword = ''
+                    OR LOWER(u.userId)    LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(u.userNm)    LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(u.userEmail) LIKE LOWER(CONCAT('%', :keyword, '%')))
+            """)
+    Page<MngAcctUser> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 }

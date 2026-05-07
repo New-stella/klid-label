@@ -2,7 +2,11 @@ package kr.co.cudo.authoring.review.repository;
 
 import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -18,4 +22,15 @@ public interface ReviewRepository extends JpaRepository<LsPjtDataStts, LsPjtData
      * Phase 7 워크플로우에서는 단건만 사용 — 호출자에서 단건 보장 검증.
      */
     List<LsPjtDataStts> findByIdRawDataId(Long rawDataId);
+
+    /**
+     * 검수 워크플로우 상태별 페이징 조회 (REVIEWER 의 검수 목록 화면용).
+     * status 가 null/빈 문자열이면 전체, 아니면 해당 상태만 (PENDING/IN_REVIEW/APPROVED/REJECTED).
+     */
+    @Query("""
+            SELECT s FROM LsPjtDataStts s
+             WHERE (:status IS NULL OR :status = '' OR s.dataSttsCd = :status)
+             ORDER BY s.updDt DESC
+            """)
+    Page<LsPjtDataStts> searchByStatus(@Param("status") String status, Pageable pageable);
 }

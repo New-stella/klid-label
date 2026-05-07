@@ -73,4 +73,17 @@ class AugmentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1));
     }
+
+    @Test
+    @DisplayName("AugmentController_srcSn_미지정시_전체_페이징_응답")
+    void listAllPagedWhenSrcSnMissing() throws Exception {
+        repository.save(LsDataAug.createPending(800L, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+        repository.save(LsDataAug.createPending(801L, LsDataAug.AUG_NIGHT,  new BigDecimal("85.00"), "system"));
+
+        mockMvc.perform(get("/v1/augments")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content").isArray());
+    }
 }

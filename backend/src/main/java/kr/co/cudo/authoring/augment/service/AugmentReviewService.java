@@ -10,6 +10,8 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,14 @@ public class AugmentReviewService {
 
     private final LsDataAugRepository repository;
     private final ExternalAugmentClient externalClient;
+
+    /**
+     * REVIEWER/WORKER 의 증강 결과 전체 페이징 조회 (srcSn 미지정 시 화면용 목록).
+     */
+    public Page<AugmentSummaryResponse> listAll(Pageable pageable) {
+        return repository.findAllByOrderByRegisteredAtDesc(pageable)
+                .map(AugmentSummaryResponse::from);
+    }
 
     /**
      * 원본 영상(srcSn)에 대한 4종 증강 결과 묶음 조회.

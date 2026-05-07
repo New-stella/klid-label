@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.portal.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,23 +17,21 @@ import kr.co.cudo.authoring.portal.entity.LsPortalUserVideo;
 import kr.co.cudo.authoring.portal.service.PortalLabelService;
 import kr.co.cudo.authoring.portal.service.PortalUploadService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * Phase 11 — 포털 채널 라벨링/업로드 목록 API.
  *
  * 엔드포인트 (모두 PORTAL_USER 만):
- *  - GET  /v1/portal/uploads     : 본인 업로드 영상 목록 (페이징)
+ *  - GET  /v1/portal/uploads     : 본인 업로드 영상 목록 (배열, 최신순)
  *  - POST /v1/portal/labels      : 수동 라벨(체험) — echo only
  *  - POST /v1/portal/autolabel   : YOLO 추론 체험
  *
@@ -49,34 +46,25 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearerAuth")
 public class PortalLabelController {
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     private final PortalLabelService portalLabelService;
     private final PortalUploadService portalUploadService;
 
     @Operation(
             summary = "본인 업로드 영상 목록 조회 (포털)",
-            description = "포털 사용자가 업로드한 본인 영상만 페이징 조회. size 최대 100."
+            description = "포털 사용자가 업로드한 본인 영상 전체를 배열로 반환 (최신순). 본인 데이터 범위가 작아 페이징 미사용."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "size 한도 초과"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "포털 토큰 없음/검증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "PORTAL_USER 권한 없음")
     })
     @GetMapping("/uploads")
     @PreAuthorize("hasRole('PORTAL_USER')")
-    public ApiResponse<Page<PortalUploadResponse>> listMyUploads(
-            @Parameter(description = "페이지 번호 (0-based)", example = "0") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "페이지 크기 (max 100)", example = "20") @RequestParam(defaultValue = "20") int size,
+    public ApiResponse<List<PortalUploadResponse>> listMyUploads(
             @AuthenticationPrincipal TokenClaims actor) {
         requireActor(actor);
-        if (size > MAX_PAGE_SIZE) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "size 한도 초과 (max=" + MAX_PAGE_SIZE + ")");
-        }
-        Pageable pageable = PageRequest.of(page, size);
-        Page<LsPortalUserVideo> result = portalUploadService.listMyUploads(actor.sub(), pageable);
-        return ApiResponse.ok(result.map(PortalUploadResponse::from));
+        List<LsPortalUserVideo> result = portalUploadService.listMyUploads(actor.sub());
+        return ApiResponse.ok(result.stream().map(PortalUploadResponse::from).toList());
     }
 
     @Operation(

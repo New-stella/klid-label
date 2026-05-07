@@ -11,6 +11,8 @@ import kr.co.cudo.authoring.export.quartz.ExportJobScheduler;
 import kr.co.cudo.authoring.export.repository.LsDataSetRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +48,15 @@ public class ExportService {
         log.info("[Export] prepared exportSn={} pjtId={} format={} actor={}",
                 saved.getExportSn(), req.pjtId(), req.format(), actor.sub());
         return ExportStatusResponse.from(saved);
+    }
+
+    /**
+     * 데이터셋(내보내기 작업) 목록 페이징 (REVIEWER 의 /manage/datasets 화면용).
+     */
+    public Page<ExportStatusResponse> listDatasets(Pageable pageable, TokenClaims actor) {
+        requireReviewer(actor);
+        return repository.findAllByOrderByRegisteredAtDesc(pageable)
+                .map(ExportStatusResponse::from);
     }
 
     /**

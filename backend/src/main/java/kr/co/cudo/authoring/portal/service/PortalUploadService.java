@@ -7,10 +7,10 @@ import kr.co.cudo.authoring.portal.repository.PortalUserVideoRepository;
 import kr.co.cudo.authoring.portal.tus.TusFile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * Phase 11 — 포털 업로드 결과 영속화.
@@ -46,8 +46,8 @@ public class PortalUploadService {
         return saved;
     }
 
-    public Page<LsPortalUserVideo> listMyUploads(String portalUserNo, Pageable pageable) {
-        return repository.findByPortalUserNoOrderByRegisteredAtDesc(portalUserNo, pageable);
+    public List<LsPortalUserVideo> listMyUploads(String portalUserNo) {
+        return repository.findByPortalUserNoOrderByRegisteredAtDesc(portalUserNo);
     }
 
     /** 본인 영상만 조회 (IDOR 차단). */

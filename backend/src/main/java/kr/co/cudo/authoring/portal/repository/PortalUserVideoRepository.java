@@ -2,10 +2,9 @@ package kr.co.cudo.authoring.portal.repository;
 
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserVideo;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -19,7 +18,7 @@ import java.util.Optional;
 @ControlRepo
 public interface PortalUserVideoRepository extends JpaRepository<LsPortalUserVideo, Long> {
 
-    Page<LsPortalUserVideo> findByPortalUserNoOrderByRegisteredAtDesc(String portalUserNo, Pageable pageable);
+    List<LsPortalUserVideo> findByPortalUserNoOrderByRegisteredAtDesc(String portalUserNo);
 
     Optional<LsPortalUserVideo> findByPortalVideoSnAndPortalUserNo(Long portalVideoSn, String portalUserNo);
 }

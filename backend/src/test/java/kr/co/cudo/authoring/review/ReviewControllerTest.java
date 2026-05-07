@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -209,5 +210,29 @@ class ReviewControllerTest {
 
         LsPjtDataStts after = dataSttsRepository.findById(LsPjtDataStts.Pk.of(PJT_ID, videoId)).orElseThrow();
         assertThat(after.getDataSttsCd()).isEqualTo("PENDING");
+    }
+
+    // ---------- 목록 조회 (REVIEWER) ----------
+
+    @Test
+    @DisplayName("ReviewController_REVIEWER_GET_reviews_status_PENDING_필터_페이징_응답")
+    void reviewerListsPendingReviews() throws Exception {
+        seedDataStts(LsPjtDataStts.STTS_PENDING);
+
+        mockMvc.perform(get("/v1/reviews")
+                        .param("status", "PENDING")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].dataSttsCd").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_WORKER가_GET_reviews_호출시_403")
+    void workerForbiddenOnReviewList() throws Exception {
+        mockMvc.perform(get("/v1/reviews")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isForbidden());
     }
 }

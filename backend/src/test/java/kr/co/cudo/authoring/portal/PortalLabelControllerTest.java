@@ -127,17 +127,21 @@ class PortalLabelControllerTest {
     }
 
     @Test
-    @DisplayName("PORTAL_USER_본인_업로드_목록_조회_정상")
+    @DisplayName("PORTAL_USER_본인_업로드_목록_조회_정상_배열_응답")
     void listMyUploads() throws Exception {
+        // FE 계약: data 는 배열 (Page 래퍼 미사용)
         mockMvc.perform(get("/v1/portal/uploads")
                         .header("Authorization", "Bearer " + alicePortalToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(1));
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].fileName").value("v.mp4"));
 
-        // bob 은 빈 목록
+        // bob 은 빈 배열
         mockMvc.perform(get("/v1/portal/uploads")
                         .header("Authorization", "Bearer " + bobPortalToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(0));
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 }

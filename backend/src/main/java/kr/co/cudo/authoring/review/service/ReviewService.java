@@ -15,6 +15,8 @@ import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,16 @@ public class ReviewService {
     private final IssueRepository issueRepository;
     private final LsPjtUserAuthrtRepository authrtRepository;
     private final ReviewStateMachine stateMachine;
+
+    /**
+     * 검수 워크플로우 상태별 페이징 목록 (REVIEWER 의 검수 목록 화면용).
+     * status 가 null/빈 문자열이면 전체.
+     */
+    public Page<ReviewResponse> list(String status, Pageable pageable, TokenClaims actor) {
+        requireReviewer(actor);
+        return reviewRepository.searchByStatus(status, pageable)
+                .map(ReviewResponse::from);
+    }
 
     /**
      * 작업자가 라벨링 완료 후 검수 제출. 본인에게 LABELER 로 배정된 영상만 가능.

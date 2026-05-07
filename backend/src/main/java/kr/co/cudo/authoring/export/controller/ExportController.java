@@ -6,12 +6,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.export.dto.ExportRequest;
 import kr.co.cudo.authoring.export.dto.ExportStatusResponse;
 import kr.co.cudo.authoring.export.service.ExportService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +24,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -32,7 +38,35 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearerAuth")
 public class ExportController {
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final ExportService service;
+
+    /**
+     * 데이터셋(내보내기 작업) 목록 페이징 — REVIEWER 의 /manage/datasets 화면용.
+     */
+    @Operation(
+            summary = "데이터셋 목록 조회 (REVIEWER 전용)",
+            description = "내보내기 작업의 페이징 목록을 등록일 최신순으로 반환한다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "size 한도 초과"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @GetMapping("/datasets")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<Page<ExportStatusResponse>> listDatasets(
+            @Parameter(description = "페이지 번호 (0-based)", example = "0") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기 (max 100)", example = "20") @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal TokenClaims actor) {
+        if (size > MAX_PAGE_SIZE) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "size 한도 초과 (max=" + MAX_PAGE_SIZE + ")");
+        }
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.ok(service.listDatasets(pageable, actor));
+    }
 
     /**
      * 내보내기 작업 등록. REVIEWER 만 호출 가능 (Service 이중 검증).

@@ -6,18 +6,25 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.service.ReviewService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Review", description = "검수 워크플로우 — WORKER가 제출(submit), REVIEWER가 시작/승인/반려를 처리하는 상태 머신.")
@@ -27,7 +34,36 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearerAuth")
 public class ReviewController {
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final ReviewService reviewService;
+
+    /**
+     * REVIEWER 의 검수 목록 (status 필터, 페이징).
+     */
+    @Operation(
+            summary = "검수 목록 조회 (REVIEWER)",
+            description = "검수 워크플로우 상태별 페이징 목록. status 미지정 시 전체. (PENDING/IN_REVIEW/APPROVED/REJECTED)"
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "size 한도 초과"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @GetMapping("/reviews")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<Page<ReviewResponse>> list(
+            @Parameter(description = "검수 상태 (PENDING/IN_REVIEW/APPROVED/REJECTED)") @RequestParam(required = false) String status,
+            @Parameter(description = "페이지 번호 (0-based)", example = "0") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기 (max 100)", example = "20") @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal TokenClaims actor) {
+        if (size > MAX_PAGE_SIZE) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "size 한도 초과 (max=" + MAX_PAGE_SIZE + ")");
+        }
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.ok(reviewService.list(status, pageable, actor));
+    }
 
     /**
      * WORKER 가 라벨링 완료 후 검수 제출 (PENDING 으로 전이).

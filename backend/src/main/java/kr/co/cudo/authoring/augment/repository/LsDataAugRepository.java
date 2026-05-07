@@ -2,6 +2,8 @@ package kr.co.cudo.authoring.augment.repository;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -14,4 +16,10 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
      * UI 에서는 화면에서 4종 ENUM 순서로 재정렬하여 표시.
      */
     List<LsDataAug> findBySrcSnOrderByAugTypeCd(Long srcSn);
+
+    /**
+     * REVIEWER 의 증강 검수 화면용 — srcSn 미지정 시 전체 페이징 조회.
+     * 최신순(REGISTERED_AT DESC)으로 정렬.
+     */
+    Page<LsDataAug> findAllByOrderByRegisteredAtDesc(Pageable pageable);
 }

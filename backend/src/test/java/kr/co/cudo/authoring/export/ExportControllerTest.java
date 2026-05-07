@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -88,5 +89,26 @@ class ExportControllerTest {
 
         // Quartz 트리거 호출 검증
         Mockito.verify(scheduler, Mockito.times(1)).schedule(all.get(0).getExportSn());
+    }
+
+    @Test
+    @DisplayName("ExportController_REVIEWER_GET_datasets_페이징_응답")
+    void reviewerListsDatasetsPaged() throws Exception {
+        repository.save(LsDataSet.createPending(10L, "YOLO", "1"));
+        repository.save(LsDataSet.createPending(11L, "COCO", "1"));
+
+        mockMvc.perform(get("/v1/exports/datasets")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content").isArray());
+    }
+
+    @Test
+    @DisplayName("ExportController_WORKER가_GET_datasets_호출시_403")
+    void workerForbiddenOnDatasetList() throws Exception {
+        mockMvc.perform(get("/v1/exports/datasets")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isForbidden());
     }
 }

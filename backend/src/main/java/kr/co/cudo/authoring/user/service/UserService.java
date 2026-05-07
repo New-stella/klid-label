@@ -4,11 +4,14 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.user.dto.UserProfileResponse;
+import kr.co.cudo.authoring.user.dto.UserSummaryResponse;
 import kr.co.cudo.authoring.user.dto.WorkerSummaryResponse;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +42,14 @@ public class UserService {
         return userRepository.findAllWorkersWithTaskCount().stream()
                 .map(WorkerSummaryResponse::from)
                 .toList();
+    }
+
+    /**
+     * 사용자 마스터 페이징 검색 (/v1/users) — REVIEWER 의 사용자 관리 화면.
+     */
+    public Page<UserSummaryResponse> searchUsers(String keyword, Pageable pageable) {
+        return userRepository.searchByKeyword(keyword, pageable)
+                .map(UserSummaryResponse::from);
     }
 
     private Long parseUserNo(String sub) {

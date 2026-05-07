@@ -9,9 +9,13 @@ import jakarta.validation.Valid;
 import kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse;
 import kr.co.cudo.authoring.augment.dto.RejectRequest;
 import kr.co.cudo.authoring.augment.service.AugmentReviewService;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,24 +39,39 @@ import java.util.List;
 @SecurityRequirement(name = "bearerAuth")
 public class AugmentController {
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final AugmentReviewService service;
 
     /**
-     * 원본 영상의 4종 증강 결과 묶음 조회 (REVIEWER/WORKER 모두 조회 가능).
+     * 증강 결과 조회.
+     * - srcSn 지정 시: 원본 영상의 4종 증강 결과 묶음 (목록)
+     * - srcSn 미지정 시: 전체 증강 결과 페이징 (REVIEWER 의 검수 화면용)
      */
     @Operation(
-            summary = "원본 영상의 증강 결과 묶음 조회",
-            description = "WINTER/NIGHT/RAIN/RESOLUTION 4종 증강 결과를 srcSn으로 조회. REVIEWER/WORKER 가능."
+            summary = "증강 결과 조회",
+            description = "srcSn 지정 시 4종 묶음 배열, 미지정 시 전체 페이징. REVIEWER/WORKER 가능."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "size 한도 초과"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
-    public ApiResponse<List<AugmentSummaryResponse>> findBySource(@Parameter(description = "원본 영상 PK", required = true, example = "1") @RequestParam Long srcSn) {
-        return ApiResponse.ok(service.findBySource(srcSn));
+    public ApiResponse<?> list(
+            @Parameter(description = "원본 영상 PK (없으면 전체 페이징)", example = "1") @RequestParam(required = false) Long srcSn,
+            @Parameter(description = "페이지 번호 (0-based, srcSn 미지정 시 사용)", example = "0") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기 (max 100)", example = "20") @RequestParam(defaultValue = "20") int size) {
+        if (srcSn != null) {
+            return ApiResponse.ok(service.findBySource(srcSn));
+        }
+        if (size > MAX_PAGE_SIZE) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "size 한도 초과 (max=" + MAX_PAGE_SIZE + ")");
+        }
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.ok(service.listAll(pageable));
     }
 
     /**
