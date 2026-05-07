@@ -11,8 +11,8 @@ import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
  * SCR-DASH-001 메인 대시보드.
- * - WORKER: KPI 4개 (전체영상/누적라벨/검수대기/내배정)
- * - REVIEWER: KPI 3개 (전체영상/누적라벨/검수대기) — 내 작업 KPI 제외
+ * - WORKER: KPI 4개 (처리 대기 / 처리 완료 / 내 작업 / 반려 건수)
+ * - REVIEWER: KPI 3개 (처리 대기 / 처리 완료 / 반려 건수) — 내 작업 KPI 제외
  * - 누적 카드 2종(이미지 10만, 영상 5천 목표)
  * - 6종 이벤트 분포 그리드 (고정)
  * - 내 작업(WORKER 전용) + 공지사항
@@ -44,27 +44,27 @@ export function DashboardPage() {
         ) : (
           <>
             <KpiCard
-              label="전체 영상"
-              value={data?.totalVideos ?? 0}
+              label="처리 대기"
+              value={data?.pendingCount ?? 0}
               unit="건"
             />
             <KpiCard
-              label="누적 라벨 프레임"
-              value={data?.totalLabeledFrames ?? 0}
-              unit="프레임"
-            />
-            <KpiCard
-              label="검수 대기"
-              value={data?.reviewPendingCount ?? 0}
+              label="처리 완료"
+              value={data?.completedCount ?? 0}
               unit="건"
             />
             {isWorker && (
               <KpiCard
-                label="내 배정"
-                value={data?.myAssignedCount ?? 0}
+                label="내 작업"
+                value={data?.myTaskCount ?? 0}
                 unit="건"
               />
             )}
+            <KpiCard
+              label="반려 건수"
+              value={data?.rejectedCount ?? 0}
+              unit="건"
+            />
           </>
         )}
       </div>

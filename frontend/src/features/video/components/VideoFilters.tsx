@@ -14,12 +14,12 @@ export interface VideoFiltersProps {
 
 const eventTypes = [
   { value: '', label: '전체 이벤트' },
-  { value: 'FIRE', label: '화재' },
-  { value: 'FALL', label: '쓰러짐' },
-  { value: 'INVASION', label: '침입' },
-  { value: 'CROWD', label: '군집' },
+  { value: 'FALL', label: '낙상' },
   { value: 'VIOLENCE', label: '폭력' },
-  { value: 'ABANDON', label: '유기/방치' },
+  { value: 'TRAFFIC_ACCIDENT', label: '교통사고' },
+  { value: 'ABNORMAL_BEHAVIOR', label: '이상행동' },
+  { value: 'FLOOD', label: '침수' },
+  { value: 'WILDFIRE', label: '산불' },
 ];
 
 /**

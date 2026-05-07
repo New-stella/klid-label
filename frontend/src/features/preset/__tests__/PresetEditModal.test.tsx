@@ -10,7 +10,7 @@ describe('PresetEditModal', () => {
     const initial: Preset = {
       id: 1,
       name: '6종 가득',
-      eventTypeCd: 'FIRE',
+      eventTypeCd: 'FALL',
       items: Array.from({ length: 6 }, (_, i) => ({
         name: `항목${i + 1}`,
         shape: 'BBOX',

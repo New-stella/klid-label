@@ -16,7 +16,7 @@ describe('preset api', () => {
     mock.onGet('/manage/presets').reply(200, {
       success: true,
       data: [
-        { id: 1, name: '화재 기본', eventTypeCd: 'FIRE', items: [] },
+        { id: 1, name: '화재 기본', eventTypeCd: 'FALL', items: [] },
       ],
       message: null,
       errorCode: null,
@@ -32,7 +32,7 @@ describe('preset api', () => {
       data: {
         id: 2,
         name: '화재 기본 (복사본)',
-        eventTypeCd: 'FIRE',
+        eventTypeCd: 'FALL',
         items: [],
       },
       message: null,

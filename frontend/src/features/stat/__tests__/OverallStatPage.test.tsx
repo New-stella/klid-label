@@ -30,7 +30,7 @@ const sample = {
     rejected: 5,
   },
   eventDistribution: [
-    { eventTypeCd: 'FIRE', label: '화재', count: 100 },
+    { eventTypeCd: 'FALL', label: '낙상', count: 100 },
   ],
   workers: [
     { userId: 1, name: '홍길동', labeled: 100, reviewed: 50, approvalRate: 95.0 },

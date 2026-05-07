@@ -22,7 +22,7 @@ describe('video api', () => {
         page: 0,
         size: 20,
         cctvNameKeyword: '강남',
-        eventTypeCd: 'FIRE',
+        eventTypeCd: 'FALL',
       });
       return [
         200,
@@ -45,7 +45,7 @@ describe('video api', () => {
       page: 0,
       size: 20,
       cctvNameKeyword: '강남',
-      eventTypeCd: 'FIRE',
+      eventTypeCd: 'FALL',
     });
     expect(result.totalElements).toBe(0);
   });
@@ -57,8 +57,8 @@ describe('video api', () => {
         id: 42,
         cctvName: '강남대로 CCTV',
         vmsClipId: 'VMS-42',
-        eventName: '화재',
-        eventTypeCd: 'FIRE',
+        eventName: '낙상',
+        eventTypeCd: 'FALL',
         localGov: '강남구',
         frameCount: 900,
         status: 'COMPLETED',

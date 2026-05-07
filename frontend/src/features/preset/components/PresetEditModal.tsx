@@ -11,12 +11,12 @@ import { presetSchema, type PresetForm } from '../schemas';
 import type { Preset } from '../types';
 
 const EVENT_OPTIONS = [
-  { value: 'FIRE', label: '화재' },
-  { value: 'FALL', label: '쓰러짐' },
-  { value: 'INVASION', label: '침입' },
-  { value: 'CROWD', label: '군집' },
+  { value: 'FALL', label: '낙상' },
   { value: 'VIOLENCE', label: '폭력' },
-  { value: 'ABANDON', label: '유기/방치' },
+  { value: 'TRAFFIC_ACCIDENT', label: '교통사고' },
+  { value: 'ABNORMAL_BEHAVIOR', label: '이상행동' },
+  { value: 'FLOOD', label: '침수' },
+  { value: 'WILDFIRE', label: '산불' },
 ];
 
 const SHAPE_OPTIONS = [
@@ -38,7 +38,7 @@ export interface PresetEditModalProps {
 
 const EMPTY_FORM: PresetForm = {
   name: '',
-  eventTypeCd: 'FIRE',
+  eventTypeCd: 'FALL',
   subType: '',
   items: [{ name: '항목1', shape: 'BBOX', color: '#ef4444' }],
 };

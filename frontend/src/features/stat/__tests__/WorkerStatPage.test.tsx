@@ -28,7 +28,7 @@ const sample = {
     { date: '2026-05-01', count: 10 },
     { date: '2026-05-02', count: 20 },
   ],
-  eventDistribution: [{ eventTypeCd: 'FIRE', label: '화재', count: 30 }],
+  eventDistribution: [{ eventTypeCd: 'FALL', label: '낙상', count: 30 }],
   monthly: [{ month: '2026-04', labeled: 500, reviewed: 30, approvalRate: 90.0 }],
 };
 

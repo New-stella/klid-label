@@ -12,7 +12,14 @@ const NAME_REGEX = /^[가-힣A-Za-z0-9 _-]{1,50}$/;
 const COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
 const LABEL_SHAPE = z.enum(['BBOX', 'POLYGON', 'SEGMENT', 'TRACK']);
-const EVENT_TYPE = z.enum(['FIRE', 'FALL', 'INVASION', 'CROWD', 'VIOLENCE', 'ABANDON']);
+const EVENT_TYPE = z.enum([
+  'FALL',
+  'VIOLENCE',
+  'TRAFFIC_ACCIDENT',
+  'ABNORMAL_BEHAVIOR',
+  'FLOOD',
+  'WILDFIRE',
+]);
 
 export const labelItemSchema = z.object({
   id: z.number().int().optional(),

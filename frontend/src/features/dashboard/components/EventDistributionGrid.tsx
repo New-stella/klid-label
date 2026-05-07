@@ -9,12 +9,12 @@ export interface EventDistributionGridProps {
 
 // 6종 고정 (UI/UX §4-3)
 const FIXED_EVENT_TYPES: { code: EventTypeCd; label: string }[] = [
-  { code: 'FIRE', label: '화재' },
-  { code: 'FALL', label: '쓰러짐' },
-  { code: 'INVASION', label: '침입' },
-  { code: 'CROWD', label: '군집' },
+  { code: 'FALL', label: '낙상' },
   { code: 'VIOLENCE', label: '폭력' },
-  { code: 'ABANDON', label: '유기/방치' },
+  { code: 'TRAFFIC_ACCIDENT', label: '교통사고' },
+  { code: 'ABNORMAL_BEHAVIOR', label: '이상행동' },
+  { code: 'FLOOD', label: '침수' },
+  { code: 'WILDFIRE', label: '산불' },
 ];
 
 /** 6종 이벤트 분포 그리드 — 데이터 누락 시에도 6종 고정 렌더 */
