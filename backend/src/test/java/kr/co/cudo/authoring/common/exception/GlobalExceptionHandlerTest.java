@@ -68,6 +68,17 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.errorCode").value("INTERNAL_ERROR"));
     }
 
+    @Test
+    @DisplayName("매핑되지_않은_API_경로_요청_시_404_NOT_FOUND_반환_500_금지")
+    void noResourceFoundReturnsNotFound() throws Exception {
+        // Spring 이 매핑되지 않은 경로에 대해 던지는 NoResourceFoundException 을
+        // 핸들러가 404 NOT_FOUND 로 정규화하는지 검증.
+        mockMvc.perform(get("/test/no-resource").header("X-Test-Bypass", "1"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+    }
+
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -96,6 +107,13 @@ class GlobalExceptionHandlerTest {
         @org.springframework.web.bind.annotation.GetMapping("/runtime-ex")
         public String runtimeEx() {
             throw new RuntimeException("뭔가 터짐");
+        }
+
+        @org.springframework.web.bind.annotation.GetMapping("/no-resource")
+        public String noResource() throws org.springframework.web.servlet.resource.NoResourceFoundException {
+            // Spring 이 정적 리소스를 못 찾을 때 던지는 예외를 직접 시뮬레이션.
+            throw new org.springframework.web.servlet.resource.NoResourceFoundException(
+                    org.springframework.http.HttpMethod.GET, "v1/missing");
         }
 
         @PostMapping("/validate")

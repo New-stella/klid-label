@@ -12,6 +12,9 @@ import { useBatchStatus } from '@/features/video/hooks/useBatchStatus';
  */
 export function VideoStatusPage() {
   const { data, isLoading, error } = useBatchStatus();
+  // BE 응답이 { videos: [...] } 형식이 아니거나(미구현/축약 응답) 누락된 경우에도
+  // 화면이 깨지지 않도록 안전하게 빈 배열로 폴백한다.
+  const videos = data?.videos ?? [];
 
   return (
     <section className="flex flex-col gap-4">
@@ -48,19 +51,19 @@ export function VideoStatusPage() {
         </div>
       )}
 
-      {data && data.videos.length === 0 && (
+      {data && videos.length === 0 && (
         <EmptyState
           title="처리 중인 영상이 없습니다"
           message="배치 처리 대기 중이거나 모두 완료되었습니다."
         />
       )}
 
-      {data && data.videos.length > 0 && (
+      {data && videos.length > 0 && (
         <ul
           data-testid="batch-video-list"
           className="flex flex-col gap-3"
         >
-          {data.videos.map((v) => (
+          {videos.map((v) => (
             <li
               key={v.videoId}
               className="rounded border border-border bg-white p-4"

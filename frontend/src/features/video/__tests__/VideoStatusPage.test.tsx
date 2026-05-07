@@ -103,4 +103,21 @@ describe('VideoStatusPage', () => {
     expect(screen.getByText('완료')).toBeInTheDocument();
     expect(screen.getByText('실패')).toBeInTheDocument();
   });
+
+  it('BE가_videos_없는_응답_반환해도_500_안나고_EmptyState_노출', async () => {
+    // 실 BE 응답 형식 — { items: [] }만 포함 (videos/totalProcessing 누락).
+    // FE는 graceful 처리되어 EmptyState 보여야 한다.
+    mock.onGet('/batch/status').reply(200, {
+      success: true,
+      data: { items: [] },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<VideoStatusPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('처리 중인 영상이 없습니다')).toBeInTheDocument();
+    });
+  });
 });

@@ -8,6 +8,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -59,6 +60,18 @@ public class GlobalExceptionHandler {
         log.warn("[Exception] auth failed message={}", e.getMessage());
         return ResponseEntity.status(ErrorCode.UNAUTHORIZED.status())
                 .body(ApiResponse.error(ErrorCode.UNAUTHORIZED));
+    }
+
+    /**
+     * 매핑되지 않은 경로 요청 시 Spring 이 던지는 예외를 404 로 정규화한다.
+     * 이 핸들러가 없으면 Exception.class 가 잡아 500 INTERNAL_ERROR 로 응답되어
+     * FE 가 미구현 endpoint 를 서버 장애로 오인하게 된다.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("[Exception] no resource found path={}", e.getResourcePath());
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.status())
+                .body(ApiResponse.error(ErrorCode.NOT_FOUND, "요청한 API를 찾을 수 없습니다."));
     }
 
     @ExceptionHandler(Exception.class)
