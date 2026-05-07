@@ -3,6 +3,14 @@ dist/
 .vite/
 .turbo/
 
+# TypeScript build artifacts
+*.tsbuildinfo
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
 # Env
 .env
 .env.local
