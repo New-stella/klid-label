@@ -18,8 +18,11 @@ const PALETTE = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#6b7280
 /** 이벤트 비율 파이차트 — 6종 고정 */
 export function EventTypePieChart({ data, height = 240 }: EventTypePieChartProps) {
   return (
-    <div data-testid="event-type-pie-chart" style={{ width: '100%', height }}>
-      <ResponsiveContainer width="100%" height="100%">
+    <div
+      data-testid="event-type-pie-chart"
+      style={{ width: '100%', height, minWidth: 200, minHeight: 160 }}
+    >
+      <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={160}>
         <PieChart>
           <Pie
             data={data}

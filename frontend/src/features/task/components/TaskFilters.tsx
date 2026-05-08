@@ -167,10 +167,13 @@ export function TaskFilters({
             }
             className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">전체 작업자</option>
-            {workers.map((w) => (
-              <option key={w.id} value={String(w.id)}>
-                {w.name}
+            <option key="__all__" value="">전체 작업자</option>
+            {workers.map((w, idx) => (
+              <option
+                key={w.id ?? `worker-${idx}`}
+                value={String(w.id ?? '')}
+              >
+                {w.name ?? '(이름 없음)'}
               </option>
             ))}
           </select>

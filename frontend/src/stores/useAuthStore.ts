@@ -17,12 +17,18 @@ function decodeJwtPayload(token: string): TokenClaims | null {
     const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const padding = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
     const binary = atob(padded + padding);
-    // UTF-8 safe decode (한글 등 멀티바이트 처리)
-    const json = decodeURIComponent(
-      Array.from(binary)
-        .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join(''),
-    );
+    // UTF-8 safe decode — Array.from(binary) 는 surrogate pair 만 처리하고
+    // 한글(EUC-KR/UTF-8 mix) 멀티바이트는 깨질 수 있으므로 TextDecoder 로 정확히 디코드.
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const json =
+      typeof TextDecoder !== 'undefined'
+        ? new TextDecoder('utf-8').decode(bytes)
+        : decodeURIComponent(
+            Array.from(binary)
+              .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+              .join(''),
+          );
     const raw = JSON.parse(json) as Record<string, unknown>;
 
     const sub = typeof raw.sub === 'string' ? raw.sub : '';
