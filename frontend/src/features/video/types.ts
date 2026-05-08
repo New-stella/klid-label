@@ -17,9 +17,9 @@ export interface Video {
   id: number;
   cctvName: string;
   vmsClipId: string;
-  eventName: string;
-  eventTypeCd: string;
-  localGov: string;
+  eventName?: string;
+  eventTypeCd?: string;
+  localGov?: string;
   frameCount: number;
   status: BadgeStatus;
   capturedAt: string;

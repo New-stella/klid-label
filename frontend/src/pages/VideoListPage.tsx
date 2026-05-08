@@ -1,12 +1,18 @@
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
-import { DataTable, type DataTableColumn } from '@/components/common/DataTable';
+import { Button } from '@/components/common/Button';
+import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
-import { PageHeader } from '@/components/common/PageHeader';
+import { EventTypeBadge } from '@/components/common/EventTypeBadge';
+import { PrivacyBadge } from '@/components/common/PrivacyBadge';
+import { Skeleton } from '@/components/common/Skeleton';
+import { StageBadge } from '@/components/common/StageBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { cn } from '@/lib/cn';
 import { AssignModal } from '@/features/task/components/AssignModal';
-import { VideoActions } from '@/features/video/components/VideoActions';
 import { VideoFilters } from '@/features/video/components/VideoFilters';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
@@ -18,77 +24,288 @@ import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
- * SCR-VIDEO-001 영상 목록.
- * 검색·필터 + DataTable + URL 파라미터 동기화 (뒤로가기 유지).
+ * SCR-VIDEO-001 영상 처리 현황 (mock 정합).
  *
- * 보안: 검색 입력은 URL 인코딩되어 axios params로 전달 (XSS 방지).
+ * 레이아웃:
+ *   - 헤더: 제목 + 부제 + 새로고침
+ *   - 검색 한 줄 (CCTV/이벤트/날짜)
+ *   - 체크박스 + 8컬럼 테이블 (CCTV명/이벤트/녹화일/프레임수/개인정보/처리단계/액션)
+ *   - 페이지네이션
  */
 export function VideoListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const params = useMemo(() => parseVideoListParams(searchParams), [searchParams]);
-  const { data, isLoading, error } = useVideos(params);
+  const { data, isLoading, error, refetch } = useVideos(params);
   const role = useAuthStore((s) => s.claims?.role);
   const isReviewer = role === Role.REVIEWER;
   const [assignTarget, setAssignTarget] = useState<Video | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const updateParams = (next: VideoListParams) => {
     const sp = videoListParamsToSearchParams({ ...params, ...next });
     setSearchParams(sp, { replace: false });
+    setSelected(new Set());
   };
 
-  const columns: DataTableColumn<Video>[] = [
-    { key: 'cctvName', header: 'CCTV명/파일명', render: (v) => v.cctvName },
-    { key: 'eventName', header: '이벤트', render: (v) => v.eventName },
-    { key: 'localGov', header: '지자체', render: (v) => v.localGov },
-    {
-      key: 'frameCount',
-      header: '프레임수',
-      align: 'right',
-      render: (v) => v.frameCount.toLocaleString('ko-KR'),
-    },
-    {
-      key: 'status',
-      header: '상태',
-      render: (v) => <StatusBadge status={v.status} />,
-    },
-    {
-      key: 'actions',
-      header: '액션',
-      render: (v) => (
-        <VideoActions
-          video={v}
-          canAssign={isReviewer}
-          canRequestBg={isReviewer}
-          onAssign={(video) => setAssignTarget(video)}
-        />
-      ),
-    },
-  ];
+  const rows = data?.content ?? [];
+  const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const toggleAll = () => {
+    if (allChecked) setSelected(new Set());
+    else setSelected(new Set(rows.map((r) => r.id)));
+  };
+  const toggleRow = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleRefresh = () => {
+    refetch();
+    queryClient.invalidateQueries({ queryKey: ['videos'] });
+  };
+
+  const totalPages = Math.max(
+    1,
+    data ? Math.ceil(data.totalElements / (params.size ?? 20)) : 1,
+  );
+  const currentPage = data?.number ?? params.page ?? 0;
 
   return (
-    <section className="flex flex-col gap-4">
-      <PageHeader
-        title="영상 목록"
-        description="배치 처리가 완료된 영상 목록입니다."
-      />
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">영상 처리 현황</h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            관제서버에서 인계받은 영상의 배치 처리 상태와 단계를 확인합니다.
+          </p>
+        </div>
+        <Button variant="secondary" size="sm" onClick={handleRefresh}>
+          <RefreshCw size={14} aria-hidden />
+          새로고침
+        </Button>
+      </div>
+
+      {/* Filters */}
       <VideoFilters initial={params} onApply={updateParams} />
+
       {error && <ErrorState title="영상 목록을 불러올 수 없습니다" />}
-      <DataTable<Video>
-        columns={columns}
-        rows={data?.content ?? []}
-        totalElements={data?.totalElements ?? 0}
-        page={params.page ?? 0}
-        size={params.size ?? 20}
-        sort={params.sort}
-        loading={isLoading}
-        emptyMessage="조건에 맞는 영상이 없습니다"
-        rowKey={(v) => v.id}
-        onPageChange={(p) => updateParams({ page: p })}
-        onSortChange={(s) => updateParams({ sort: s, page: 0 })}
-      />
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-sm">
+          <span className="font-medium text-primary-700">선택 {selected.size}건</span>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="flex items-center px-4 py-2 border-b border-gray-100 bg-gray-50">
+          <input
+            type="checkbox"
+            checked={allChecked}
+            onChange={toggleAll}
+            className="w-4 h-4 accent-primary-600"
+            aria-label="전체 선택"
+          />
+          <span className="ml-2 text-xs text-gray-500">
+            전체 {data?.totalElements ?? 0}건
+            {data ? ` (${currentPage + 1}/${totalPages} 페이지)` : ''}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th
+                  className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
+                  style={{ width: '40px' }}
+                >
+                  {''}
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  CCTV명
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  이벤트
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  지자체
+                </th>
+                <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  프레임수
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  녹화일
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  개인정보
+                </th>
+                <th
+                  className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
+                  style={{ width: '120px' }}
+                >
+                  처리 단계
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  액션
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b border-gray-100">
+                    {Array.from({ length: 9 }).map((__, j) => (
+                      <td key={j} className="px-4 py-3">
+                        <Skeleton height={16} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-3 py-12">
+                    <EmptyState message="해당하는 영상이 없습니다." />
+                  </td>
+                </tr>
+              ) : (
+                rows.map((v) => (
+                  <tr
+                    key={v.id}
+                    className={cn(
+                      'border-b border-gray-100 transition-colors hover:bg-primary-50 cursor-pointer',
+                      selected.has(v.id) && 'bg-primary-50',
+                    )}
+                    onClick={() => navigate(`/video/${v.id}`)}
+                  >
+                    <td
+                      className="px-4 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(v.id)}
+                        onChange={() => toggleRow(v.id)}
+                        className="w-4 h-4 accent-primary-600"
+                        aria-label={`${v.cctvName} 선택`}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-gray-800 text-xs">{v.cctvName}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-gray-600">{v.localGov ?? '-'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-xs tabular-nums">
+                        {(v.frameCount ?? 0).toLocaleString('ko-KR')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-gray-500">
+                        {v.capturedAt ? v.capturedAt.slice(0, 10) : '-'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {/* 우리 BE 응답에 privacyType 미포함 — 임시로 PRVC 가정 */}
+                      <PrivacyBadge privacyType="PRVC" />
+                    </td>
+                    <td className="px-4 py-3">
+                      {v.status === 'BATCH_COMPLETED' || v.status === 'COMPLETED' ? (
+                        <StageBadge stage="VLM_VERIFY" status="COMPLETED" />
+                      ) : v.status === 'BATCH_FAILED' ? (
+                        <StageBadge stage="YOLO" status="FAILED" />
+                      ) : (
+                        <StatusBadge status={v.status} />
+                      )}
+                    </td>
+                    <td
+                      className="px-4 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/video/${v.id}`)}
+                        >
+                          상세
+                        </Button>
+                        {isReviewer && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setAssignTarget(v)}
+                          >
+                            배정
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      {data && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1 mt-4">
+          <button
+            type="button"
+            onClick={() => updateParams({ page: currentPage - 1 })}
+            disabled={currentPage === 0}
+            aria-label="이전 페이지"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft size={16} aria-hidden />
+          </button>
+          {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => {
+            const p = i;
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => updateParams({ page: p })}
+                aria-current={p === currentPage ? 'page' : undefined}
+                className={cn(
+                  'inline-flex items-center justify-center w-8 h-8 rounded-md text-sm font-medium transition-colors',
+                  p === currentPage
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100',
+                )}
+              >
+                {p + 1}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => updateParams({ page: currentPage + 1 })}
+            disabled={currentPage >= totalPages - 1}
+            aria-label="다음 페이지"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight size={16} aria-hidden />
+          </button>
+        </div>
+      )}
+
       {assignTarget && (
         <AssignModal video={assignTarget} onClose={() => setAssignTarget(null)} />
       )}
-    </section>
+    </div>
   );
 }

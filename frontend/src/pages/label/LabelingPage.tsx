@@ -79,7 +79,7 @@ export function LabelingPage() {
   const currentFrame = frames[frameIdx];
 
   useEffect(() => {
-    if (data) setLabels(data.labels);
+    if (data) setLabels(Array.isArray(data.labels) ? data.labels : []);
     return () => {
       reset();
     };

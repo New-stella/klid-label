@@ -17,7 +17,7 @@ function mockVideosOnce(mock: MockAdapter, opts: { content?: unknown[]; total?: 
           id: 1,
           cctvName: '강남대로 CCTV',
           vmsClipId: 'VMS-1',
-          eventName: '낙상',
+          eventName: '쓰러짐',
           eventTypeCd: 'FALL',
           localGov: '강남구',
           frameCount: 900,
@@ -68,11 +68,11 @@ describe('VideoListPage', () => {
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
     });
+    // mock 정합 — REVIEWER에게 배정 버튼이 행마다 노출됨
     expect(screen.getByRole('button', { name: '배정' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /배경영상 요청/ })).toBeInTheDocument();
   });
 
-  it('WORKER는_배정_배경영상_요청_버튼_미노출', async () => {
+  it('WORKER는_배정_버튼_미노출', async () => {
     setRole('WORKER');
     mockVideosOnce(mock);
 
@@ -82,7 +82,6 @@ describe('VideoListPage', () => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: '배정' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /배경영상 요청/ })).not.toBeInTheDocument();
   });
 
   it('영상_없을_때_EmptyState_노출', async () => {
@@ -92,19 +91,17 @@ describe('VideoListPage', () => {
     renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
 
     await waitFor(() => {
-      expect(screen.getByText('조건에 맞는 영상이 없습니다')).toBeInTheDocument();
+      expect(screen.getByText('해당하는 영상이 없습니다.')).toBeInTheDocument();
     });
   });
 
-  it('loading_상태에서_DataTable_skeleton_렌더', () => {
+  it('loading_상태에서_skeleton_렌더', () => {
     setRole('WORKER');
-    // never resolve to keep loading
     mock.onGet('/videos').reply(() => new Promise(() => {}));
 
     renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
 
-    // EmptyState 미노출 (loading)
-    expect(screen.queryByText('조건에 맞는 영상이 없습니다')).not.toBeInTheDocument();
+    expect(screen.queryByText('해당하는 영상이 없습니다.')).not.toBeInTheDocument();
   });
 
   it('영상_목록_검색_필터_URL_파라미터_동기화', async () => {
@@ -114,16 +111,15 @@ describe('VideoListPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
 
+    // mock 정합 — 라벨이 'CCTV명 / 영상ID'로 변경됨
     await waitFor(() => {
-      expect(screen.getByLabelText('CCTV명/이벤트 검색')).toBeInTheDocument();
+      expect(screen.getByLabelText('CCTV명 / 영상ID')).toBeInTheDocument();
     });
 
-    // 검색어 입력 후 검색
-    const input = screen.getByLabelText('CCTV명/이벤트 검색');
+    const input = screen.getByLabelText('CCTV명 / 영상ID');
     await user.type(input, '강남');
-    await user.click(screen.getByRole('button', { name: '검색' }));
+    await user.click(screen.getByRole('button', { name: /조회/ }));
 
-    // 마지막 호출 params에 cctvNameKeyword가 포함됨을 확인
     await waitFor(() => {
       const last = mock.history.get[mock.history.get.length - 1];
       expect(last?.params).toMatchObject({ cctvNameKeyword: '강남' });

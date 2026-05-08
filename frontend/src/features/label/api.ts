@@ -16,7 +16,16 @@ export interface CommitResponse {
  * 프레임의 라벨 목록 조회.
  */
 export function getLabels(srcSn: number): Promise<LabelsResponse> {
-  return apiClient.get<LabelsResponse>(`/frames/${srcSn}/labels`).then((r) => r.data);
+  return apiClient
+    .get<LabelsResponse | { items: Label[] }>(`/frames/${srcSn}/labels`)
+    .then((r) => {
+      const d = r.data as LabelsResponse & { items?: Label[] };
+      return {
+        frameNo: d.frameNo ?? 0,
+        srcSn,
+        labels: Array.isArray(d.labels) ? d.labels : Array.isArray(d.items) ? d.items : [],
+      };
+    });
 }
 
 /**

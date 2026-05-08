@@ -6,59 +6,42 @@ export type BadgeStatus =
   | 'BATCH_FAILED'
   | 'PENDING'
   | 'IN_PROGRESS'
+  | 'PROCESSING'
   | 'REVIEW_PENDING'
   | 'REVIEWING'
+  | 'IN_REVIEW'
   | 'COMPLETED'
-  | 'REJECTED';
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'FAILED';
 
 export interface StatusBadgeProps {
-  status: BadgeStatus;
+  status: BadgeStatus | string;
   label?: string;
   className?: string;
 }
 
-// UI/UX §3.4 9종 상태 — §2.2 색상 토큰 매핑
-const statusConfig: Record<BadgeStatus, { label: string; className: string }> = {
-  BATCH_PROCESSING: {
-    label: '배치 처리중',
-    className: 'bg-accent/10 text-accent border border-accent',
-  },
-  BATCH_COMPLETED: {
-    label: '배치 완료',
-    className: 'bg-success/10 text-success border border-success',
-  },
-  BATCH_FAILED: {
-    label: '배치 실패',
-    className: 'bg-danger/10 text-danger border border-danger',
-  },
-  PENDING: {
-    label: '대기',
-    className: 'bg-bgLight text-neutral border border-border',
-  },
-  IN_PROGRESS: {
-    label: '진행중',
-    className: 'bg-secondary/10 text-secondary border border-secondary',
-  },
-  REVIEW_PENDING: {
-    label: '검수 대기',
-    className: 'bg-warning/10 text-warning border border-warning',
-  },
-  REVIEWING: {
-    label: '검수중',
-    className: 'bg-accent/10 text-accent border border-accent',
-  },
-  COMPLETED: {
-    label: '완료',
-    className: 'bg-success/10 text-success border border-success',
-  },
-  REJECTED: {
-    label: '반려',
-    className: 'bg-danger/10 text-danger border border-danger',
-  },
+// UI/UX §3.4 9종 상태 — mock modern blue tone (soft tonal pill) + BE alias
+const statusConfig: Record<string, { label: string; className: string }> = {
+  BATCH_PROCESSING: { label: '배치 처리중', className: 'bg-blue-100 text-blue-700' },
+  BATCH_COMPLETED: { label: '배치 완료', className: 'bg-green-100 text-green-700' },
+  BATCH_FAILED: { label: '배치 실패', className: 'bg-red-100 text-red-700' },
+  PENDING: { label: '대기', className: 'bg-gray-100 text-gray-600' },
+  IN_PROGRESS: { label: '진행중', className: 'bg-blue-100 text-blue-700' },
+  PROCESSING: { label: '처리중', className: 'bg-blue-100 text-blue-700' },
+  REVIEW_PENDING: { label: '검수 대기', className: 'bg-yellow-100 text-yellow-700' },
+  REVIEWING: { label: '검수중', className: 'bg-blue-100 text-blue-700' },
+  IN_REVIEW: { label: '검수중', className: 'bg-blue-100 text-blue-700' },
+  COMPLETED: { label: '완료', className: 'bg-green-100 text-green-700' },
+  APPROVED: { label: '승인', className: 'bg-green-100 text-green-700' },
+  REJECTED: { label: '반려', className: 'bg-red-100 text-red-700' },
+  FAILED: { label: '실패', className: 'bg-red-100 text-red-700' },
 };
 
+const FALLBACK = { label: '', className: 'bg-gray-100 text-gray-600' };
+
 export function StatusBadge({ status, label, className }: StatusBadgeProps) {
-  const cfg = statusConfig[status];
+  const cfg = statusConfig[status] ?? FALLBACK;
   return (
     <span
       data-status={status}
@@ -68,7 +51,7 @@ export function StatusBadge({ status, label, className }: StatusBadgeProps) {
         className,
       )}
     >
-      {label ?? cfg.label}
+      {label ?? cfg.label ?? status}
     </span>
   );
 }

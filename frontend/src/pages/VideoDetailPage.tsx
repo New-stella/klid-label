@@ -63,11 +63,11 @@ export function VideoDetailPage() {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Field label="CCTV명">{data.cctvName}</Field>
             <Field label="VMS Clip ID">{data.vmsClipId}</Field>
-            <Field label="이벤트">{data.eventName}</Field>
-            <Field label="지자체">{data.localGov}</Field>
-            <Field label="해상도">{data.resolution}</Field>
-            <Field label="프레임 수">{data.frameCount.toLocaleString('ko-KR')}</Field>
-            <Field label="용량">{data.fileSizeMb.toLocaleString('ko-KR')} MB</Field>
+            <Field label="이벤트">{data.eventName ?? data.eventTypeCd ?? '-'}</Field>
+            <Field label="지자체">{data.localGov ?? '-'}</Field>
+            <Field label="해상도">{data.resolution || '-'}</Field>
+            <Field label="프레임 수">{(data.frameCount ?? 0).toLocaleString('ko-KR')}</Field>
+            <Field label="용량">{(data.fileSizeMb ?? 0).toLocaleString('ko-KR')} MB</Field>
             <Field label="상태">
               <StatusBadge status={data.status} />
             </Field>
