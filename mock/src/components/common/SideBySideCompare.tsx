@@ -14,7 +14,7 @@ export function SideBySideCompare({
   beforeSrc,
   afterSrc,
   height = 400,
-  label = { before: '원본', after: '비식별' },
+  label = { before: '원본', after: '비교' },
 }: SideBySideCompareProps) {
   return (
     <div

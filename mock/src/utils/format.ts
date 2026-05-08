@@ -39,11 +39,10 @@ export function eventTypeLabel(code: string): string {
 
 export function stageLabel(stage: BatchStage): string {
   const map: Record<BatchStage, string> = {
+    VLM: 'VLM 메타',
     FRAME_EXTRACT: '프레임추출',
-    DEIDENTIFY: '비식별',
     YOLO: 'YOLO',
     SAM2: 'SAM2',
-    VLM: 'VLM 객체 검증',
   };
   return map[stage] ?? stage;
 }

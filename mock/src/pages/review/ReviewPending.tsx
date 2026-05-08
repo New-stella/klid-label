@@ -94,7 +94,7 @@ export function ReviewPending() {
     <div className="p-6 space-y-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">검수 대기 작업</h1>
+        <h1 className="text-xl font-bold text-gray-900">검수 목록</h1>
       </div>
 
       {/* KPI cards */}
@@ -173,7 +173,7 @@ export function ReviewPending() {
         ) : reviews.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <ClipboardCheck size={40} className="mb-3 opacity-30" />
-            <p className="text-sm">검수 대기 작업이 없습니다</p>
+            <p className="text-sm">검수 작업이 없습니다</p>
           </div>
         ) : (
           <table className="w-full text-sm">

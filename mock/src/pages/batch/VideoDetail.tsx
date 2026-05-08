@@ -29,12 +29,8 @@ function InfoTab({ video }: { video: VideoDto }) {
       ),
     },
     {
-      label: '비식별 여부',
-      value: (
-        <span>
-          {privacyTypeLabel(video.privacyType)} — {video.deidentified ? '처리됨' : '미처리'}
-        </span>
-      ),
+      label: '개인정보 분류',
+      value: <span>{privacyTypeLabel(video.privacyType)}</span>,
     },
     { label: '생성일', value: formatDate(video.createdAt) },
     { label: '수정일', value: formatDate(video.updatedAt) },

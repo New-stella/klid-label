@@ -7,6 +7,8 @@ export interface TaskFilterValues {
   q: string;
   status: string;
   assigneeId: string;
+  /** 영상의 이벤트 유형 (예: 쓰러짐, 폭력 등). 빈 문자열이면 전체. */
+  eventType: string;
 }
 
 interface TaskFiltersProps {
@@ -15,10 +17,13 @@ interface TaskFiltersProps {
   onReset: () => void;
   showAssigneeSelect: boolean;
   workers: UserDto[];
+  /** 영상의 이벤트 유형 옵션 (videos 데이터 기반 unique 값). */
+  eventTypes: string[];
 }
 
 const STATUSES = [
   { value: '', label: '전체 상태' },
+  { value: 'UNASSIGNED', label: '미배정' },
   { value: 'PENDING', label: '대기' },
   { value: 'IN_PROGRESS', label: '진행중' },
   { value: 'REVIEW_PENDING', label: '검수대기' },
@@ -30,9 +35,17 @@ export const DEFAULT_TASK_FILTERS: TaskFilterValues = {
   q: '',
   status: '',
   assigneeId: '',
+  eventType: '',
 };
 
-export function TaskFilters({ values, onChange, onReset, showAssigneeSelect, workers }: TaskFiltersProps) {
+export function TaskFilters({
+  values,
+  onChange,
+  onReset,
+  showAssigneeSelect,
+  workers,
+  eventTypes,
+}: TaskFiltersProps) {
   const [local, setLocal] = useState<TaskFilterValues>(values);
 
   // Sync external reset
@@ -67,6 +80,23 @@ export function TaskFilters({ values, onChange, onReset, showAssigneeSelect, wor
             className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
+      </div>
+
+      {/* 이벤트 유형 */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-gray-500">이벤트</label>
+        <select
+          value={local.eventType}
+          onChange={(e) => setLocal((p) => ({ ...p, eventType: e.target.value }))}
+          className="py-1.5 px-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="">전체</option>
+          {eventTypes.map((et) => (
+            <option key={et} value={et}>
+              {et}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* 상태 */}

@@ -10,7 +10,6 @@ import { APP_ROUTES } from './routes';
 // Phase 3 real pages
 import { Dashboard } from '../pages/Dashboard';
 import { BatchCompletedList } from '../pages/batch/BatchCompletedList';
-import { BatchMonitoring } from '../pages/batch/BatchMonitoring';
 import { VideoDetail } from '../pages/batch/VideoDetail';
 
 // Phase 4 real pages
@@ -24,8 +23,6 @@ import { ReviewPending } from '../pages/review/ReviewPending';
 import { ReviewEditor } from '../pages/review/ReviewEditor';
 
 // Phase 7 real pages
-import { DeidentList } from '../pages/deident/DeidentList';
-import { DeidentCompare } from '../pages/deident/DeidentCompare';
 import { VersionHistory } from '../pages/history/VersionHistory';
 
 // Phase 8 real pages
@@ -48,21 +45,15 @@ import { SystemSettings } from '../pages/manage/SystemSettings';
 // Phase 10: Preset
 import { PresetList } from '../pages/preset/PresetList';
 
-// Phase 10: Generate (bonus)
-import { GenerateResult } from '../pages/generate/GenerateResult';
-
 // Paths that have been replaced with real components
 const REAL_PATHS = new Set([
   '/dashboard',
   '/video/completed',
-  '/video/monitoring',
   '/video/:id',
   '/task',
   '/label/:id',
   '/review/pending',
   '/review/:id',
-  '/deident',
-  '/deident/:id',
   '/history/:id',
   '/augment/request',
   '/augment/result/:id',
@@ -74,7 +65,6 @@ const REAL_PATHS = new Set([
   '/manage/users',
   '/manage/settings',
   '/preset',
-  '/generate/result/:id',
 ]);
 
 export function AppRoutes() {
@@ -99,14 +89,6 @@ export function AppRoutes() {
           element={
             <RoleGuard roles={['REVIEWER', 'WORKER']}>
               <BatchCompletedList />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="/video/monitoring"
-          element={
-            <RoleGuard roles={['REVIEWER', 'WORKER']}>
-              <BatchMonitoring />
             </RoleGuard>
           }
         />
@@ -151,24 +133,6 @@ export function AppRoutes() {
           element={
             <RoleGuard roles={['REVIEWER']}>
               <ReviewEditor />
-            </RoleGuard>
-          }
-        />
-
-        {/* Phase 7: Deident pages */}
-        <Route
-          path="/deident"
-          element={
-            <RoleGuard roles={['REVIEWER']}>
-              <DeidentList />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="/deident/:id"
-          element={
-            <RoleGuard roles={['REVIEWER']}>
-              <DeidentCompare />
             </RoleGuard>
           }
         />
@@ -253,16 +217,6 @@ export function AppRoutes() {
           element={
             <RoleGuard roles={['REVIEWER']}>
               <PresetList />
-            </RoleGuard>
-          }
-        />
-
-        {/* Phase 10: Generate (bonus) */}
-        <Route
-          path="/generate/result/:id"
-          element={
-            <RoleGuard roles={['REVIEWER']}>
-              <GenerateResult />
             </RoleGuard>
           }
         />

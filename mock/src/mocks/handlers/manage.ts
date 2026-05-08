@@ -45,7 +45,6 @@ const defaultSettings: ManageSettings = {
   externalSystems: [
     { name: '관제서버', url: 'https://control.example.com', status: 'CONNECTED', latencyMs: 12 },
     { name: '포털서버', url: 'https://portal.example.com', status: 'CONNECTED', latencyMs: 8 },
-    { name: '비식별서버', url: 'https://deident.example.com', status: 'DISCONNECTED', latencyMs: 320 },
     { name: 'AI서버', url: 'http://localhost:9300', status: 'CONNECTED', latencyMs: 45 },
     { name: 'Gitea', url: 'https://gitea.example.com', status: 'CONNECTED', latencyMs: 22 },
   ],

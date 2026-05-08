@@ -1,25 +1,58 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { RefreshCw, UserPlus, Sparkles } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Table } from '../../components/ui/Table';
 import { Badge } from '../../components/ui/Badge';
 import { Pagination } from '../../components/ui/Pagination';
-import { StatusBadge } from '../../components/batch/StatusBadge';
 import { EventTypeBadge } from '../../components/batch/EventTypeBadge';
-import { BackgroundGenerateModal } from '../../components/batch/BackgroundGenerateModal';
 import { BatchFilters, DEFAULT_FILTERS } from './BatchFilters';
 import type { BatchFilterValues } from './BatchFilters';
 import { useFetch } from '../../api/queries';
-import type { VideoDto, Page } from '../../api/types';
-import { useSessionStore } from '../../store/sessionStore';
-import { formatDate, formatDuration, privacyTypeLabel } from '../../utils/format';
+import type { VideoDto, Page, BatchStage, StageStatus } from '../../api/types';
+import { formatDate, formatDuration, privacyTypeLabel, stageLabel } from '../../utils/format';
 import type { ColumnDef } from '../../components/ui/Table';
 
 function privacyTone(t: string): 'danger' | 'warning' | 'neutral' {
   if (t === 'PRVC') return 'danger';
   if (t === 'PSDO') return 'warning';
   return 'neutral';
+}
+
+/**
+ * stage 이름·상태 조합으로 Badge 톤을 결정한다.
+ * V1.8: 신규 진입 단계인 VLM은 다른 stage와 구분되는 보라 톤으로 표시한다.
+ * 종료(DONE)/실패(FAIL)는 status 기반 색을 우선하고, 그 외에는 stage 정체성을 드러낸다.
+ */
+function stageBadgeTone(
+  name: BatchStage,
+  status: StageStatus,
+): 'info' | 'success' | 'danger' | 'neutral' | 'purple' {
+  if (status === 'DONE') return 'success';
+  if (status === 'FAIL') return 'danger';
+  if (name === 'VLM') return 'purple';
+  if (status === 'PROGRESS') return 'info';
+  return 'neutral';
+}
+
+/**
+ * 영상의 현재 처리 단계를 산출한다.
+ * - 진행 중(PROGRESS)이 있으면 그 단계
+ * - 실패(FAIL)가 있으면 그 단계
+ * - 모두 DONE이면 마지막 단계
+ * - 아직 시작 전이면 첫 단계(대기)
+ */
+function currentStage(
+  stages: { name: BatchStage; status: StageStatus; progress: number }[],
+): { name: BatchStage; status: StageStatus } | null {
+  if (!stages || stages.length === 0) return null;
+  const progress = stages.find((s) => s.status === 'PROGRESS');
+  if (progress) return { name: progress.name, status: progress.status };
+  const fail = stages.find((s) => s.status === 'FAIL');
+  if (fail) return { name: fail.name, status: fail.status };
+  const allDone = stages.every((s) => s.status === 'DONE');
+  if (allDone) return { name: stages[stages.length - 1].name, status: 'DONE' };
+  return { name: stages[0].name, status: 'PENDING' };
 }
 
 function searchParamsToFilters(sp: URLSearchParams): BatchFilterValues {
@@ -45,21 +78,12 @@ function filtersToSearchParams(f: BatchFilterValues): Record<string, string> {
 export function BatchCompletedList() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { currentRole } = useSessionStore();
-  const isReviewer = currentRole === 'REVIEWER';
-  // 행별 액션 가능 여부: REVIEWER 권한 + 처리 완료 상태일 때만 활성화
-  const canAssignRow = (video: VideoDto) =>
-    isReviewer && video.batchStatus === 'COMPLETED';
-  const canRequestBgGenRow = (video: VideoDto) =>
-    isReviewer && video.batchStatus === 'COMPLETED';
 
   const [page, setPage] = useState(0);
   const [filters, setFilters] = useState<BatchFilterValues>(() =>
     searchParamsToFilters(searchParams),
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bgGenVideo, setBgGenVideo] = useState<VideoDto | null>(null);
-  const [bgGenOpen, setBgGenOpen] = useState(false);
 
   // Build fetch params
   const fetchParams: Record<string, unknown> = {
@@ -156,7 +180,7 @@ export function BatchCompletedList() {
     },
     {
       key: 'privacyType',
-      header: '비식별',
+      header: '개인정보',
       render: (row) => (
         <Badge tone={privacyTone(row.privacyType)} size="sm">
           {privacyTypeLabel(row.privacyType)}
@@ -164,9 +188,27 @@ export function BatchCompletedList() {
       ),
     },
     {
-      key: 'batchStatus',
-      header: '처리 상태',
-      render: (row) => <StatusBadge status={row.batchStatus} />,
+      key: '_stage',
+      header: '처리 단계',
+      width: '120px',
+      render: (row) => {
+        const stage = currentStage(row.stages);
+        if (!stage) return <span className="text-xs text-gray-400">-</span>;
+        const allDone =
+          row.stages.length > 0 && row.stages.every((s) => s.status === 'DONE');
+        if (allDone) {
+          return (
+            <Badge tone="success" size="sm">
+              완료
+            </Badge>
+          );
+        }
+        return (
+          <Badge tone={stageBadgeTone(stage.name, stage.status)} size="sm">
+            {stageLabel(stage.name)}
+          </Badge>
+        );
+      },
     },
     {
       key: '_actions',
@@ -180,42 +222,6 @@ export function BatchCompletedList() {
           >
             상세▶
           </Button>
-          {isReviewer && (
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={UserPlus}
-              disabled={!canAssignRow(row)}
-              onClick={() => alert(`배정: ${row.id}`)}
-              title={
-                canAssignRow(row)
-                  ? '작업자 배정'
-                  : '처리 완료된 영상만 배정할 수 있습니다'
-              }
-            >
-              배정
-            </Button>
-          )}
-          {isReviewer && (
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={Sparkles}
-              disabled={!canRequestBgGenRow(row)}
-              onClick={(e) => {
-                e.stopPropagation();
-                setBgGenVideo(row);
-                setBgGenOpen(true);
-              }}
-              title={
-                canRequestBgGenRow(row)
-                  ? '배경영상 생성 요청'
-                  : '처리 완료된 영상만 배경영상을 요청할 수 있습니다'
-              }
-            >
-              배경영상
-            </Button>
-          )}
         </div>
       ),
     },
@@ -225,7 +231,12 @@ export function BatchCompletedList() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">영상 목록</h1>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">영상 처리 현황</h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            관제서버에서 인계받은 영상의 배치 처리 상태와 단계를 확인합니다.
+          </p>
+        </div>
         <Button variant="secondary" size="sm" leftIcon={RefreshCw} onClick={() => refetch()}>
           새로고침
         </Button>
@@ -238,16 +249,6 @@ export function BatchCompletedList() {
       {selected.size > 0 && (
         <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-sm">
           <span className="font-medium text-primary-700">선택 {selected.size}건</span>
-          {isReviewer && (
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={UserPlus}
-              onClick={() => alert(`${selected.size}건 일괄 배정 (Phase 4에서 구현)`)}
-            >
-              일괄 배정
-            </Button>
-          )}
         </div>
       )}
 
@@ -285,16 +286,6 @@ export function BatchCompletedList() {
           onChange={handlePageChange}
         />
       )}
-
-      {/* Background generate modal */}
-      <BackgroundGenerateModal
-        open={bgGenOpen}
-        video={bgGenVideo}
-        onClose={() => {
-          setBgGenOpen(false);
-          setBgGenVideo(null);
-        }}
-      />
     </div>
   );
 }

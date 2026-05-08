@@ -41,3 +41,35 @@ export function updateTask(taskId: string, patch: Partial<TaskDto>): TaskDto | u
   tasks[idx] = { ...tasks[idx], ...patch };
   return tasks[idx];
 }
+
+/**
+ * 처리 완료된 영상에 대해 task가 없을 때 신규 task를 생성한다.
+ * - id: 현재 task 개수 + 1 기준으로 자동 할당
+ * - status: 작업자가 배정되었으므로 IN_PROGRESS로 시작
+ * - progress, labelCount: 0으로 시작
+ */
+export function createTask(input: {
+  videoId: string;
+  videoName: string;
+  assigneeId: string;
+  assigneeName?: string;
+  reviewerId?: string;
+}): TaskDto {
+  const nextIndex = tasks.length;
+  const now = new Date().toISOString();
+  const created: TaskDto = {
+    id: id('task', nextIndex),
+    videoId: input.videoId,
+    videoName: input.videoName,
+    status: 'IN_PROGRESS',
+    assigneeId: input.assigneeId,
+    assigneeName: input.assigneeName,
+    reviewerId: input.reviewerId,
+    progress: 0,
+    labelCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  tasks.push(created);
+  return created;
+}

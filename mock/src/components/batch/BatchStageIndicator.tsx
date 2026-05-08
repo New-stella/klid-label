@@ -6,7 +6,7 @@ interface BatchStageIndicatorProps {
   stages: VideoDto['stages'];
 }
 
-const STAGE_ORDER: BatchStage[] = ['FRAME_EXTRACT', 'DEIDENTIFY', 'YOLO', 'SAM2', 'VLM'];
+const STAGE_ORDER: BatchStage[] = ['VLM', 'FRAME_EXTRACT', 'YOLO', 'SAM2'];
 
 function StageIcon({ status }: { status: StageStatus }): JSX.Element {
   if (status === 'DONE') {

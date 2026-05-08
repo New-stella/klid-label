@@ -20,13 +20,7 @@ export const APP_ROUTES: AppRouteMeta[] = [
   // 영상
   {
     path: '/video/completed',
-    label: '영상 목록',
-    roles: ['REVIEWER', 'WORKER'],
-    menuGroup: '영상',
-  },
-  {
-    path: '/video/monitoring',
-    label: '처리 현황',
+    label: '영상 처리 현황',
     roles: ['REVIEWER', 'WORKER'],
     menuGroup: '영상',
   },
@@ -52,26 +46,13 @@ export const APP_ROUTES: AppRouteMeta[] = [
   // 검수
   {
     path: '/review/pending',
-    label: '검수 대기',
+    label: '검수 목록',
     roles: ['REVIEWER'],
-    menuGroup: '검수',
+    menuGroup: '작업',
   },
   {
     path: '/review/:id',
     label: '검수 화면',
-    roles: ['REVIEWER'],
-    hideInMenu: true,
-  },
-  // 비식별
-  {
-    path: '/deident',
-    label: '비식별 결과',
-    roles: ['REVIEWER'],
-    menuGroup: '비식별',
-  },
-  {
-    path: '/deident/:id',
-    label: '비식별 비교',
     roles: ['REVIEWER'],
     hideInMenu: true,
   },
@@ -100,12 +81,6 @@ export const APP_ROUTES: AppRouteMeta[] = [
     label: '내보내기',
     roles: ['REVIEWER'],
     menuGroup: '데이터',
-  },
-  {
-    path: '/generate/result/:id',
-    label: '생성 결과',
-    roles: ['REVIEWER'],
-    hideInMenu: true,
   },
   // 포털
   {

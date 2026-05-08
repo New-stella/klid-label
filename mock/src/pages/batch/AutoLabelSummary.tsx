@@ -105,7 +105,6 @@ export function AutoLabelSummary({ video, labels }: AutoLabelSummaryProps) {
             { label: '오토라벨 수', value: autoCount.toLocaleString('ko-KR') },
             { label: '오토라벨 비율', value: `${autoRate}%` },
             { label: '처리 상태', value: video.batchStatus },
-            { label: '비식별 여부', value: video.deidentified ? '처리됨' : '미처리' },
           ].map((item) => (
             <div key={item.label} className="bg-gray-50 rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-0.5">{item.label}</p>

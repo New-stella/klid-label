@@ -6,18 +6,41 @@ import { useFetch } from '../../api/queries';
 import { api } from '../../api/client';
 import { useToast } from '../common/Toast';
 import { useSessionStore } from '../../store/sessionStore';
-import type { TaskDto, UserDto, Page } from '../../api/types';
+import type {
+  TaskDto,
+  UserDto,
+  Page,
+  BulkAssignRequest,
+  BulkAssignResponse,
+} from '../../api/types';
 import { formatDate } from '../../utils/format';
 
 interface AssignModalProps {
   open: boolean;
   onClose: () => void;
+  /** single 모드일 때 사용. bulk 모드에서는 무시된다. */
   task: TaskDto | null;
-  mode: 'assign' | 'reassign';
-  onSuccess: (updated: TaskDto) => void;
+  mode: 'assign' | 'reassign' | 'bulk';
+  /** single 모드 — 단일 갱신 콜백 */
+  onSuccess?: (updated: TaskDto) => void;
+  /** bulk 모드 — 일괄 갱신 콜백 */
+  onBulkSuccess?: (result: BulkAssignResponse) => void;
+  /** bulk 모드일 때 대상 영상 ID 목록 */
+  videoIds?: string[];
+  /** bulk 모드 요약 표시용 영상명 매핑 */
+  videoNameById?: Record<string, string>;
 }
 
-export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModalProps) {
+export function AssignModal({
+  open,
+  onClose,
+  task,
+  mode,
+  onSuccess,
+  onBulkSuccess,
+  videoIds = [],
+  videoNameById = {},
+}: AssignModalProps) {
   const { showToast } = useToast();
   const { currentRole, currentUser } = useSessionStore();
 
@@ -34,10 +57,21 @@ export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModa
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const isBulk = mode === 'bulk';
+
   // Initialise form when task changes / modal opens
   useEffect(() => {
-    if (open && task) {
-      setAssigneeId(task.assigneeId ?? '');
+    if (!open) return;
+    if (isBulk) {
+      // bulk: 현재 사용자를 기본 작업자로 미리 선택 (사용자가 변경 가능)
+      setAssigneeId(currentUser.id);
+      setReviewerId(currentRole === 'REVIEWER' ? currentUser.id : '');
+      setErrors({});
+      return;
+    }
+    if (task) {
+      // single: 기존 배정자 유지, 비어있으면 현재 사용자로 기본 채움
+      setAssigneeId(task.assigneeId ?? currentUser.id);
       // REVIEWER can only assign to themselves as reviewer
       if (currentRole === 'REVIEWER') {
         setReviewerId(currentUser.id);
@@ -46,7 +80,7 @@ export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModa
       }
       setErrors({});
     }
-  }, [open, task, currentRole, currentUser.id]);
+  }, [open, task, currentRole, currentUser.id, isBulk]);
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
@@ -56,19 +90,38 @@ export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModa
   }
 
   async function handleSave() {
-    if (!task) return;
     if (!validate()) return;
+    if (saving) return; // 이중 클릭 방어
     setSaving(true);
+    const assigneeName = workers.find((w) => w.id === assigneeId)?.name;
     try {
-      const assigneeName = workers.find((w) => w.id === assigneeId)?.name;
-      const updated = await api.post<TaskDto>(`/tasks/${task.id}/assign`, {
-        assigneeId,
-        assigneeName,
-        reviewerId: reviewerId || undefined,
-      });
-      showToast('배정 완료', 'success');
-      onSuccess(updated);
-      onClose();
+      if (isBulk) {
+        if (videoIds.length === 0) {
+          showToast('선택된 영상이 없습니다.', 'error');
+          setSaving(false);
+          return;
+        }
+        const payload: BulkAssignRequest = {
+          videoIds,
+          assigneeId,
+          assigneeName,
+          reviewerId: reviewerId || undefined,
+        };
+        const result = await api.post<BulkAssignResponse>('/tasks/bulk-assign', payload);
+        // 토스트는 호출 측(onBulkSuccess)에서 처리한다. 여기서는 생략.
+        onBulkSuccess?.(result);
+        onClose();
+      } else {
+        if (!task) return;
+        const updated = await api.post<TaskDto>(`/tasks/${task.id}/assign`, {
+          assigneeId,
+          assigneeName,
+          reviewerId: reviewerId || undefined,
+        });
+        showToast('배정 완료', 'success');
+        onSuccess?.(updated);
+        onClose();
+      }
     } catch {
       showToast('배정 중 오류가 발생했습니다.', 'error');
     } finally {
@@ -76,16 +129,27 @@ export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModa
     }
   }
 
-  if (!task) return null;
+  if (!isBulk && !task) return null;
+  if (isBulk && videoIds.length === 0) return null;
 
   const canChangeReviewer = currentRole === 'REVIEWER';
   const isReassign = mode === 'reassign';
+
+  const title = isBulk
+    ? `${videoIds.length}개 영상 일괄 배정`
+    : isReassign
+      ? '작업 재배정'
+      : '작업 배정';
+
+  // bulk 요약 — 처음 3개 + 외 N건
+  const previewIds = videoIds.slice(0, 3);
+  const remaining = Math.max(0, videoIds.length - previewIds.length);
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={isReassign ? '작업 재배정' : '작업 배정'}
+      title={title}
       size="lg"
       footer={
         <>
@@ -97,27 +161,50 @@ export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModa
             size="sm"
             onClick={handleSave}
             loading={saving}
-            disabled={!assigneeId}
+            disabled={!assigneeId || saving}
           >
-            저장
+            {isBulk ? `${videoIds.length}건 일괄 배정` : '저장'}
           </Button>
         </>
       }
     >
       <div className="space-y-5">
         {/* 1. 영상 정보 (읽기전용) */}
-        <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-1.5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">영상 정보</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-gray-800 text-sm">{task.videoName}</span>
-            <Badge tone="info" size="sm">{task.videoId}</Badge>
+        {isBulk ? (
+          <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              대상 영상 ({videoIds.length}건)
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {previewIds.map((vid) => (
+                <Badge key={vid} tone="info" size="sm">
+                  {videoNameById[vid] ?? vid}
+                </Badge>
+              ))}
+              {remaining > 0 && (
+                <Badge tone="neutral" size="sm">
+                  외 {remaining}건
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              선택된 모든 영상에 동일한 작업자/검수자가 배정됩니다. 이미 동일 배정인 영상은 변경되지 않습니다.
+            </p>
           </div>
-          <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span>생성: {formatDate(task.createdAt, 'YYYY-MM-DD')}</span>
-            <span>레이블: {task.labelCount.toLocaleString('ko-KR')}개</span>
-            <span>진행률: {task.progress}%</span>
+        ) : task ? (
+          <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-1.5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">영상 정보</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-gray-800 text-sm">{task.videoName}</span>
+              <Badge tone="info" size="sm">{task.videoId}</Badge>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span>생성: {formatDate(task.createdAt, 'YYYY-MM-DD')}</span>
+              <span>레이블: {task.labelCount.toLocaleString('ko-KR')}개</span>
+              <span>진행률: {task.progress}%</span>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {/* 2. 작업자 선택 */}
         <div className="space-y-1">
@@ -131,7 +218,8 @@ export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModa
               setAssigneeId(e.target.value);
               setErrors((prev) => ({ ...prev, assigneeId: '' }));
             }}
-            className="w-full py-2 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            disabled={saving}
+            className="w-full py-2 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-400"
           >
             <option value="">작업자 선택</option>
             {workers.map((w) => (
@@ -155,7 +243,8 @@ export function AssignModal({ open, onClose, task, mode, onSuccess }: AssignModa
               id="assign-reviewer"
               value={reviewerId}
               onChange={(e) => setReviewerId(e.target.value)}
-              className="w-full py-2 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              disabled={saving}
+              className="w-full py-2 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-400"
             >
               <option value="">검수자 선택 (선택)</option>
               {reviewers.map((r) => (
