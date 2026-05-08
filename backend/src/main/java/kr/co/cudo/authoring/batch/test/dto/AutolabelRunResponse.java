@@ -9,6 +9,7 @@ import java.util.List;
 public record AutolabelRunResponse(
         Long rawSn,
         long framesFound,
+        boolean frameExtracted,
         int yoloLabels,
         int sam2Labels,
         long durationMs,

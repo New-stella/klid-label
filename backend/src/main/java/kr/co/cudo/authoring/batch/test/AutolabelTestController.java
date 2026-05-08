@@ -28,4 +28,9 @@ public class AutolabelTestController {
     public ApiResponse<AutolabelRunResponse> run(@RequestParam @Min(1) Long rawSn) {
         return ApiResponse.ok(autolabelTestService.run(rawSn));
     }
+
+    @PostMapping("/run-full")
+    public ApiResponse<AutolabelRunResponse> runFull(@RequestParam @Min(1) Long rawSn) {
+        return ApiResponse.ok(autolabelTestService.runFull(rawSn));
+    }
 }

@@ -1,12 +1,16 @@
 package kr.co.cudo.authoring.batch.test;
 
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.batch.test.dto.AutolabelRunResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +35,8 @@ public class AutolabelTestService {
     private final Sam2SegmentStep sam2Step;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
+    private final FfmpegFrameExtractor frameExtractor;
+    private final VideoRepository videoRepository;
 
     public AutolabelRunResponse run(Long rawSn) {
         long framesFound = srcRepository.countByRawSn(rawSn);
@@ -50,6 +56,37 @@ public class AutolabelTestService {
         log.info("[AutolabelTest] run rawSn={} yolo={} sam2={} elapsed={}ms",
                 rawSn, yoloCount, sam2Count, elapsed);
 
-        return new AutolabelRunResponse(rawSn, framesFound, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
+        return new AutolabelRunResponse(rawSn, framesFound, false, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
+    }
+
+    public AutolabelRunResponse runFull(Long rawSn) {
+        LsDataRaw raw = videoRepository.findById(rawSn)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT,
+                        "rawSn=" + rawSn + " 영상 레코드가 없습니다."));
+
+        long framesFound = srcRepository.countByRawSn(rawSn);
+        boolean frameExtracted = false;
+
+        if (framesFound == 0L) {
+            List<LsDataSrc> extracted = frameExtractor.extract(raw);
+            framesFound = extracted.size();
+            frameExtracted = true;
+            if (framesFound == 0L) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "rawSn=" + rawSn + " 프레임 추출 결과가 0건입니다.");
+            }
+        }
+
+        lblRepository.deleteByRawSnAutoLbl(rawSn);
+
+        long started = System.currentTimeMillis();
+        int yoloCount = yoloStep.run(rawSn);
+        int sam2Count = sam2Step.run(rawSn);
+        long elapsed = System.currentTimeMillis() - started;
+
+        log.info("[AutolabelTest] runFull rawSn={} frameExtracted={} yolo={} sam2={} elapsed={}ms",
+                rawSn, frameExtracted, yoloCount, sam2Count, elapsed);
+
+        return new AutolabelRunResponse(rawSn, framesFound, frameExtracted, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
     }
 }
