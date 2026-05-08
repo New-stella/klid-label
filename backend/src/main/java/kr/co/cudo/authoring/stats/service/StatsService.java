@@ -8,6 +8,8 @@ import kr.co.cudo.authoring.stats.dto.DashboardSummaryResponse;
 import kr.co.cudo.authoring.stats.dto.EventDistributionItem;
 import kr.co.cudo.authoring.stats.dto.MyTaskBreakdown;
 import kr.co.cudo.authoring.stats.dto.NoticeItem;
+import kr.co.cudo.authoring.stats.dto.OverallStatSummaryResponse;
+import kr.co.cudo.authoring.stats.dto.WorkerStatSummaryResponse;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.CountRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -133,6 +135,52 @@ public class StatsService {
     private long sumOf(Map<String, Long> m, String key) {
         Long v = m.get(key);
         return v == null ? 0L : v;
+    }
+
+    /**
+     * SCR-STAT-001 작업자 통계 placeholder.
+     *
+     * <p>현재는 6 종 이벤트 라벨만 보장된 빈 응답을 반환한다 (FE 그리드 안전 표시).
+     * 실제 집계 (라벨/검수 카운트, 일별/월별 표) 는 후속 Phase 에서 채운다.
+     */
+    public WorkerStatSummaryResponse getWorkerSummary(TokenClaims actor, String period) {
+        // period 는 FE 가 allowlist 검증 (WEEK/MONTH/QUARTER/YEAR) — BE 는 추가 분기 없이 동일 응답.
+        return new WorkerStatSummaryResponse(
+                0L,
+                0L,
+                0.0,
+                0L,
+                List.of(),
+                buildDistribution(Map.of()),
+                List.of()
+        );
+    }
+
+    /**
+     * SCR-STAT-002 전체 구축 현황 placeholder (REVIEWER 전용).
+     *
+     * <p>누적 카운트만 실제 집계 사용, 처리 현황/작업자별 표는 0 / 빈 배열.
+     */
+    public OverallStatSummaryResponse getOverallSummary() {
+        long cumulativeImageCount = statsQueryRepository.countCumulativeFrames();
+        long cumulativeVideoCount = videoRepository.count();
+        Map<String, Long> sttsCounts = toMap(statsQueryRepository.countByDataSttsCd());
+        OverallStatSummaryResponse.Processing processing = new OverallStatSummaryResponse.Processing(
+                sumOf(sttsCounts, LsPjtDataStts.STTS_PENDING),
+                sumOf(sttsCounts, LsPjtDataStts.STTS_ASSIGNED),
+                sumOf(sttsCounts, LsPjtDataStts.STTS_IN_REVIEW),
+                sumOf(sttsCounts, LsPjtDataStts.STTS_APPROVED),
+                sumOf(sttsCounts, LsPjtDataStts.STTS_REJECTED)
+        );
+        List<EventDistributionItem> distribution = buildDistribution(
+                toMap(statsQueryRepository.countVideoByEventType()));
+        return new OverallStatSummaryResponse(
+                cumulativeImageCount,
+                cumulativeVideoCount,
+                processing,
+                distribution,
+                List.of()
+        );
     }
 
     private Long parseUserNo(TokenClaims actor) {

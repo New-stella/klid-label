@@ -1,34 +1,45 @@
 package kr.co.cudo.authoring.stats.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Pattern;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.stats.dto.DashboardSummaryResponse;
+import kr.co.cudo.authoring.stats.dto.OverallStatSummaryResponse;
+import kr.co.cudo.authoring.stats.dto.WorkerStatSummaryResponse;
 import kr.co.cudo.authoring.stats.service.StatsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * SCR-DASH-001 메인 대시보드 통계 API.
+ * SCR-DASH-001 / SCR-STAT-001 / SCR-STAT-002 통계 API.
  *
- * <p>FE {@code DashboardPage} 의 {@code GET /api/v1/stats/summary} 호출에 대응.
- * REVIEWER / WORKER 모두 접근 가능. (PORTAL_USER 는 차단)
- *
- * <p>응답 데이터가 비어있는 환경에서도 모든 카운트는 0, 배열은 빈 배열로 안전하게 반환된다.
+ * <p>대시보드 요약 + 작업자 통계 + 전체 구축 현황 + 리포트 다운로드.
+ * 작업자/전체 통계 집계는 placeholder — 실제 분포/표 데이터는 후속 Phase 에서 채운다.
  */
-@Tag(name = "Stats", description = "통계·대시보드 — 메인 대시보드 KPI/이벤트 분포/내 작업 요약. REVIEWER/WORKER.")
+@Tag(name = "Stats", description = "통계·대시보드 — 메인 대시보드 KPI/이벤트 분포/내 작업 요약·작업자 통계·전체 구축 현황·리포트.")
 @RestController
 @RequestMapping("/v1/stats")
 @RequiredArgsConstructor
+@Validated
 @SecurityRequirement(name = "bearerAuth")
 public class StatsController {
+
+    /** 입력 period allowlist — FE 와 동일 (Path/Command Injection 차단). */
+    private static final String PERIOD_REGEX = "^(WEEK|MONTH|QUARTER|YEAR)$";
 
     private final StatsService statsService;
 
@@ -45,5 +56,54 @@ public class StatsController {
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<DashboardSummaryResponse> summary(@AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(statsService.getSummary(actor));
+    }
+
+    @Operation(
+            summary = "작업자 본인 통계 (REVIEWER/WORKER) — placeholder",
+            description = "기간별 라벨/검수 누적·승인률·이벤트 분포·월별 표. period: WEEK|MONTH|QUARTER|YEAR. 현재는 0/빈 배열 placeholder."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "period 형식 오류")
+    })
+    @GetMapping("/worker")
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
+    public ApiResponse<WorkerStatSummaryResponse> worker(
+            @AuthenticationPrincipal TokenClaims actor,
+            @Parameter(description = "기간 (WEEK|MONTH|QUARTER|YEAR)", example = "WEEK")
+            @RequestParam(name = "period", defaultValue = "WEEK")
+            @Pattern(regexp = PERIOD_REGEX, message = "period 는 WEEK|MONTH|QUARTER|YEAR 만 허용") String period
+    ) {
+        return ApiResponse.ok(statsService.getWorkerSummary(actor, period));
+    }
+
+    @Operation(
+            summary = "전체 구축 현황 (REVIEWER 전용) — placeholder",
+            description = "누적 이미지/영상 카드 + 처리 현황 5 카드 + 6종 이벤트 분포 + 작업자별 표(빈 배열)."
+    )
+    @GetMapping("/overall")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<OverallStatSummaryResponse> overall() {
+        return ApiResponse.ok(statsService.getOverallSummary());
+    }
+
+    @Operation(
+            summary = "리포트 다운로드 (REVIEWER 전용) — placeholder CSV",
+            description = "기간별 통계 CSV 다운로드. 현재는 헤더 행만 포함된 placeholder. period: WEEK|MONTH|QUARTER|YEAR."
+    )
+    @GetMapping(value = "/report", produces = "text/csv; charset=UTF-8")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ResponseEntity<String> report(
+            @RequestParam(name = "period", defaultValue = "WEEK")
+            @Pattern(regexp = PERIOD_REGEX, message = "period 는 WEEK|MONTH|QUARTER|YEAR 만 허용") String period
+    ) {
+        // CWE-117 Header Injection 방어: period 는 위 @Pattern 으로 allowlist 검증 후만 헤더에 사용.
+        String filename = "stats_report_" + period + ".csv";
+        // BOM + 한글 안전 헤더 — Excel 호환.
+        String body = "﻿month,labeled,reviewed,approvalRate\n";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(body);
     }
 }
