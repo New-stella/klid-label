@@ -140,12 +140,12 @@ export function ObjectAttributePanel({
         </div>
       )}
 
-      <Field label="형태" value={target.shape.type} />
+      <Field label="형태" value={target.shape?.type ?? '-'} />
 
-      {target.shape.type === 'BBOX' && (
+      {target.shape?.type === 'BBOX' && (
         <CoordsEditor target={target} onChange={handleCoordChange} />
       )}
-      {target.shape.type !== 'BBOX' && <CoordsReadonly target={target} />}
+      {target.shape && target.shape.type !== 'BBOX' && <CoordsReadonly target={target} />}
 
       {/* SAM2 자동추적 토글 placeholder (Sam2TrackTool 컴포넌트 외부에서 결합) */}
       <div className="mt-2 rounded bg-bgLight p-2 text-xs text-neutral">

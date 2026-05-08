@@ -153,6 +153,16 @@ export const router = createBrowserRouter([
   { path: '/ingress', element: <SessionIngressPage /> },
   { path: '/forbidden', element: <ForbiddenPage /> },
 
+  // 라벨링 화면은 풀스크린 다크 UI — AppLayout(LNB/GNB) 밖에서 직접 매칭
+  // 인증 가드(InternalRoute)는 그대로 유지
+  {
+    path: '/label/:id',
+    element: (
+      <InternalRoute allow={internalAllRoles}>{withSuspense(<LabelingPage />)}</InternalRoute>
+    ),
+    errorElement: <AppErrorPage status={500} />,
+  },
+
   // INTERNAL 채널 (저작도구 내부)
   {
     path: '/',
@@ -218,14 +228,6 @@ export const router = createBrowserRouter([
             ),
           },
         ],
-      },
-      {
-        path: 'label/:id',
-        element: (
-          <InternalRoute allow={internalAllRoles}>
-            {withSuspense(<LabelingPage />)}
-          </InternalRoute>
-        ),
       },
       {
         path: 'auto/:videoId',

@@ -52,7 +52,7 @@ export function LabelPanel({ labels }: LabelPanelProps) {
                       : 'text-neutral hover:bg-bgLight',
                   )}
                 >
-                  #{item.id.slice(0, 8)} · {item.shape.type}
+                  #{String(item.id ?? '').slice(0, 8)} · {item.shape?.type ?? '-'}
                   {item.source !== 'MANUAL' && <span className="ml-1">🤖</span>}
                 </button>
               </li>

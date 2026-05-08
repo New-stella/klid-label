@@ -5,11 +5,88 @@
 
 import { apiClient } from '@/lib/api/client';
 
-import type { Label, LabelsResponse } from './types';
+import type { Label, LabelsResponse, Shape } from './types';
 
 export interface CommitResponse {
   commitSha: string;
   committedAt: string;
+}
+
+/**
+ * BE → FE 라벨 정규화.
+ * BE 응답: { id: number, lblTypeCd: 'BBOX'|'POLYGON'|'MASK', label: string,
+ *           points: [[x,y],...], autoLblYn: 'Y'|'N', confScore: number, ... }
+ * FE 타입(Label): { id: string, className, source, confidence, shape: {...} }
+ *
+ * 이미 FE 형태로 들어오는 응답(테스트/구버전)은 그대로 통과.
+ */
+function normalizeLabel(raw: any): Label {
+  const id = raw?.id !== undefined && raw?.id !== null ? String(raw.id) : '';
+
+  // 이미 정규화된 형태면 id만 string 캐스팅하여 반환
+  if (raw?.shape && typeof raw.shape === 'object' && raw.shape.type) {
+    return { ...raw, id } as Label;
+  }
+
+  const lblType: string = raw?.lblTypeCd ?? raw?.shape?.type ?? 'BBOX';
+  const points = raw?.points;
+  const shape: Shape = (() => {
+    if (lblType === 'BBOX') {
+      // BE points: [[left, top], [right, bottom]] 또는 flat [l,t,r,b]
+      if (Array.isArray(points) && points.length >= 2) {
+        const p0 = points[0];
+        const p1 = points[1];
+        if (Array.isArray(p0) && Array.isArray(p1)) {
+          return {
+            type: 'BBOX',
+            left: Number(p0[0]) || 0,
+            top: Number(p0[1]) || 0,
+            right: Number(p1[0]) || 0,
+            bottom: Number(p1[1]) || 0,
+          };
+        }
+        if (typeof p0 === 'number') {
+          return {
+            type: 'BBOX',
+            left: Number(points[0]) || 0,
+            top: Number(points[1]) || 0,
+            right: Number(points[2]) || 0,
+            bottom: Number(points[3]) || 0,
+          };
+        }
+      }
+      return { type: 'BBOX', left: 0, top: 0, right: 0, bottom: 0 };
+    }
+    if (lblType === 'POLYGON') {
+      const flat: number[] = Array.isArray(points)
+        ? points.flatMap((p: any) =>
+            Array.isArray(p) ? [Number(p[0]) || 0, Number(p[1]) || 0] : [Number(p) || 0],
+          )
+        : [];
+      return { type: 'POLYGON', points: flat };
+    }
+    return { type: 'MASK' };
+  })();
+
+  const autoYn = raw?.autoLblYn;
+  const source: Label['source'] =
+    autoYn === 'Y'
+      ? raw?.lblTypeCd === 'POLYGON' || raw?.algorithm === 'SAM2'
+        ? 'AUTO_SAM2'
+        : 'AUTO_YOLO'
+      : 'MANUAL';
+
+  return {
+    id,
+    serverId: typeof raw?.id === 'number' ? raw.id : undefined,
+    frameNo: Number(raw?.frameNo ?? 0),
+    classId: Number(raw?.classId ?? raw?.classCd ?? 0),
+    className: String(raw?.label ?? raw?.className ?? ''),
+    source,
+    confidence: raw?.confScore !== undefined ? Number(raw.confScore) : raw?.confidence,
+    shape,
+    trackId: raw?.trackId,
+  };
 }
 
 /**
@@ -20,10 +97,15 @@ export function getLabels(srcSn: number): Promise<LabelsResponse> {
     .get<LabelsResponse | { items: Label[] }>(`/frames/${srcSn}/labels`)
     .then((r) => {
       const d = r.data as LabelsResponse & { items?: Label[] };
+      const rawList = Array.isArray(d.labels)
+        ? d.labels
+        : Array.isArray(d.items)
+          ? d.items
+          : [];
       return {
         frameNo: d.frameNo ?? 0,
         srcSn,
-        labels: Array.isArray(d.labels) ? d.labels : Array.isArray(d.items) ? d.items : [],
+        labels: rawList.map(normalizeLabel),
       };
     });
 }

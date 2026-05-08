@@ -32,13 +32,21 @@ export function CanvasShell({ frame, width, height, labels, onLabelAdd }: Canvas
 
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
 
-  // 이미지 로드 (XSS: imageUrl은 BE 신뢰 도메인만)
+  // 이미지 로드 (XSS: imageUrl은 BE 신뢰 도메인만).
+  // 빈 imageUrl이면 로드 시도 생략 — placeholder 배경(bg-bgLight)만 노출.
   useEffect(() => {
+    if (!frame.imageUrl) {
+      setImageEl(null);
+      return;
+    }
     let cancelled = false;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       if (!cancelled) setImageEl(img);
+    };
+    img.onerror = () => {
+      if (!cancelled) setImageEl(null);
     };
     img.src = frame.imageUrl;
     return () => {
