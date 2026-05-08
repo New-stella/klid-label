@@ -16,12 +16,17 @@ import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -52,6 +57,9 @@ public class Sam2TrackService {
     private final LabelAccessGuard accessGuard;
     private final ObjectMapper objectMapper;
 
+    @Value("${authoring.storage.raw-path:./storage/raw}")
+    private String storageRawPath;
+
     public Sam2TrackResponseDto track(Sam2TrackRequest req, TokenClaims actor) {
         // IDOR 차단: 시작 프레임에 대한 접근 권한 검증 (LabelService 와 동일 규칙).
         accessGuard.verifyAccess(req.srcSn(), actor);
@@ -65,6 +73,10 @@ public class Sam2TrackService {
         List<Sam2TrackResponseDto.TrackedItem> tracked = new ArrayList<>();
         List<List<Double>> currentPolygon = req.prevPolygon();
 
+        Path baseDir = Path.of(storageRawPath).toAbsolutePath().normalize();
+        // 시작 프레임 이미지를 prev 로 사용.
+        String prevImageB64 = encodeImageToBase64(baseDir, startSrc.getFilePath());
+
         for (Long nextSrcSn : req.nextSrcSns()) {
             // IDOR 차단: 후속 프레임 각각에 대해서도 권한 검증.
             accessGuard.verifyAccess(nextSrcSn, actor);
@@ -72,11 +84,13 @@ public class Sam2TrackService {
             LsDataSrc nextSrc = srcRepository.findById(nextSrcSn)
                     .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "후속 프레임을 찾을 수 없습니다: " + nextSrcSn));
 
+            String nextImageB64 = encodeImageToBase64(baseDir, nextSrc.getFilePath());
+
             kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest aiReq =
                     new kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest(
                             req.trackId(),
-                            "", // 이미지 base64 — 본 Phase 에서는 ai-server 가 file_path 로 로드 (placeholder)
-                            "",
+                            prevImageB64,
+                            nextImageB64,
                             currentPolygon
                     );
 
@@ -107,6 +121,7 @@ public class Sam2TrackService {
 
             // 다음 루프의 prev → 이번 응답.
             currentPolygon = aiRes.polygon();
+            prevImageB64 = nextImageB64;
         }
         log.info("[Sam2Track] propagated trackId={} startSrc={} count={}",
                 req.trackId(), startSrc.getSrcSn(), tracked.size());
@@ -129,6 +144,32 @@ public class Sam2TrackService {
                 throw new CustomException(ErrorCode.INVALID_INPUT,
                         fieldName + " 좌표는 0 이상이어야 합니다 (x=" + x + ", y=" + y + ")");
             }
+        }
+    }
+
+    /** Path Traversal (CWE-22) 방어 — 기준 디렉토리 외부 접근 차단. */
+    private Path resolveSafe(Path baseDir, String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "이미지 경로가 비어있습니다.");
+        }
+        Path resolved = baseDir.resolve(relativePath).normalize();
+        if (!resolved.startsWith(baseDir)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "허용되지 않은 경로입니다.");
+        }
+        return resolved;
+    }
+
+    /** 원본 프레임 이미지를 읽어 base64 인코딩. ai-server 입력용. */
+    private String encodeImageToBase64(Path baseDir, String filePath) {
+        try {
+            Path imagePath = resolveSafe(baseDir, filePath);
+            if (!Files.exists(imagePath)) {
+                throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일을 찾을 수 없습니다: " + filePath);
+            }
+            byte[] bytes = Files.readAllBytes(imagePath);
+            return Base64.getEncoder().encodeToString(bytes);
+        } catch (IOException e) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 읽기 실패: " + e.getMessage());
         }
     }
 

@@ -24,8 +24,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,6 +54,14 @@ class Sam2TrackServiceTest {
 
     @MockBean private AiServerClient aiServerClient;
 
+    private static Path tmpRawDir;
+
+    @DynamicPropertySource
+    static void overrideStorageRawPath(DynamicPropertyRegistry registry) throws IOException {
+        tmpRawDir = Files.createTempDirectory("sam2-track-raw-");
+        registry.add("authoring.storage.raw-path", () -> tmpRawDir.toAbsolutePath().toString());
+    }
+
     private Long src0;
     private Long src1;
     private Long src2;
@@ -59,15 +72,19 @@ class Sam2TrackServiceTest {
     private TokenClaims workerNotAssigned;
 
     @BeforeEach
-    void setup() {
+    void setup() throws IOException {
         // 동일 영상의 3 프레임 시드.
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
         rawSn = 9001L;
-        src0 = srcRepository.save(LsDataSrc.create(rawSn, 0, "/raw/0.jpg", LocalDateTime.now())).getSrcSn();
-        src1 = srcRepository.save(LsDataSrc.create(rawSn, 1, "/raw/1.jpg", LocalDateTime.now())).getSrcSn();
-        src2 = srcRepository.save(LsDataSrc.create(rawSn, 2, "/raw/2.jpg", LocalDateTime.now())).getSrcSn();
+        // ai-server 로 전송할 base64 인코딩을 위해 실제 파일 생성 (상대 경로).
+        Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
+        Files.write(tmpRawDir.resolve("1.jpg"), new byte[]{0x03, 0x04});
+        Files.write(tmpRawDir.resolve("2.jpg"), new byte[]{0x05, 0x06});
+        src0 = srcRepository.save(LsDataSrc.create(rawSn, 0, "0.jpg", LocalDateTime.now())).getSrcSn();
+        src1 = srcRepository.save(LsDataSrc.create(rawSn, 1, "1.jpg", LocalDateTime.now())).getSrcSn();
+        src2 = srcRepository.save(LsDataSrc.create(rawSn, 2, "2.jpg", LocalDateTime.now())).getSrcSn();
 
         // 작업자 100 만 rawSn 에 LABELER 배정 — IDOR 검증용
         authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
