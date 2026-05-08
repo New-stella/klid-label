@@ -36,11 +36,28 @@ apiClient.interceptors.response.use(
     }
     return res;
   },
-  (err: AxiosError<ApiResponse<unknown>>) => {
+  async (err: AxiosError<ApiResponse<unknown>>) => {
     const status = err.response?.status ?? 0;
 
     if (status === 401) {
-      // 보안: 만료/인증 실패 시 메모리 토큰 즉시 제거
+      // Race 방어: 토큰 적재 직전에 발사된 요청은 Authorization 헤더가 비어 있어 401 을 받는다.
+      // 이 경우 (현재 store 에 토큰이 있고, 1차 시도에서 헤더 없이 보냈다면) 한 번만 재시도.
+      const config = err.config as (InternalAxiosRequestConfig & {
+        _retriedWithToken?: boolean;
+      }) | undefined;
+      const currentToken = useAuthStore.getState().token;
+      const sentAuth = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
+      if (
+        config &&
+        currentToken &&
+        !sentAuth &&
+        !config._retriedWithToken
+      ) {
+        config._retriedWithToken = true;
+        config.headers?.set?.('Authorization', `Bearer ${currentToken}`);
+        return apiClient.request(config);
+      }
+      // 정상 401 — 토큰 제거 + 상위 시스템 로그인 페이지로 이동
       useAuthStore.getState().clear();
       redirectToUpstreamLogin();
     }

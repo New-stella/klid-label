@@ -16,8 +16,8 @@ describe('export api', () => {
     mock.restore();
   });
 
-  it('prepareExport_POST_exports_prepare_바디_전달', async () => {
-    let body: unknown;
+  it('prepareExport_POST_exports_prepare_바디_전달_BE_alias_pjtId_포함', async () => {
+    let body: { pjtId?: number; datasetId?: number; format?: string; nasPath?: string } = {};
     mock.onPost('/exports/prepare').reply((config) => {
       body = JSON.parse(config.data ?? '{}');
       return [
@@ -40,13 +40,13 @@ describe('export api', () => {
       format: 'COCO',
       nasPath: '/mnt/nas/exports/2026-05',
     });
-    expect(body).toMatchObject({
-      datasetId: 1,
-      format: 'COCO',
-      nasPath: '/mnt/nas/exports/2026-05',
-    });
+    // BE 가 기대하는 pjtId 와 FE 호환 datasetId 둘 다 송신.
+    expect(body.pjtId).toBe(1);
+    expect(body.datasetId).toBe(1);
+    expect(body.format).toBe('COCO');
+    expect(body.nasPath).toBe('/mnt/nas/exports/2026-05');
     expect(res.exportId).toBe(7);
-    expect(res.preview.videoCount).toBe(10);
+    expect(res.preview?.videoCount).toBe(10);
   });
 
   it('getExportStatus_GET_exports_id_status', async () => {

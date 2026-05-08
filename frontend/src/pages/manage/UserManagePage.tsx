@@ -259,7 +259,7 @@ export function UserManagePage() {
         size={params.size ?? 20}
         loading={isLoading}
         emptyMessage="조건에 맞는 사용자가 없습니다"
-        rowKey={(u) => u.id}
+        rowKey={(u) => u.id ?? u.loginId ?? '_'}
         onPageChange={(p) => updateParams({ page: p })}
       />
       <ConfirmDialog

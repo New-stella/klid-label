@@ -108,15 +108,15 @@ export function OverallStatPage() {
             ))
           ) : (
             <>
-              <KpiCard label="대기" value={data?.processing.pending ?? 0} unit="건" />
-              <KpiCard label="진행중" value={data?.processing.inProgress ?? 0} unit="건" />
+              <KpiCard label="대기" value={data?.processing?.pending ?? 0} unit="건" />
+              <KpiCard label="진행중" value={data?.processing?.inProgress ?? 0} unit="건" />
               <KpiCard
                 label="검수 대기"
-                value={data?.processing.reviewPending ?? 0}
+                value={data?.processing?.reviewPending ?? 0}
                 unit="건"
               />
-              <KpiCard label="승인" value={data?.processing.approved ?? 0} unit="건" />
-              <KpiCard label="반려" value={data?.processing.rejected ?? 0} unit="건" />
+              <KpiCard label="승인" value={data?.processing?.approved ?? 0} unit="건" />
+              <KpiCard label="반려" value={data?.processing?.rejected ?? 0} unit="건" />
             </>
           )}
         </div>

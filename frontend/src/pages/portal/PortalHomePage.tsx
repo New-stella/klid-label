@@ -17,6 +17,7 @@ import { UploadDropzone } from '../../features/portal/components/UploadDropzone'
 import { UploadProgressItem } from '../../features/portal/components/UploadProgressList';
 import type { UploadValidationError } from '../../features/portal/types';
 import { useTusUpload } from '../../features/portal/upload/hooks/useTusUpload';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 const REJECTION_LABEL: Record<UploadValidationError, string> = {
   EXTENSION_NOT_ALLOWED: '허용되지 않은 확장자입니다 (mp4/mov/avi).',
@@ -26,9 +27,13 @@ const REJECTION_LABEL: Record<UploadValidationError, string> = {
 };
 
 export function PortalHomePage() {
+  // 첫 마운트 시 토큰 ingress race 방어 — 토큰이 적재된 후에만 호출
+  // (token 없는 상태에서 호출 → 401 → 인터셉터 redirectToUpstream → 18081 connection refused 폭탄 방지)
+  const token = useAuthStore((s) => s.token);
   const { data: uploads = [], isLoading } = useQuery({
     queryKey: ['portal', 'uploads'],
     queryFn: listMyUploads,
+    enabled: !!token,
   });
   const tus = useTusUpload();
   const [rejectionMsg, setRejectionMsg] = useState<string | null>(null);

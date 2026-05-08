@@ -194,7 +194,9 @@ export function DataTable<T>({
                     </tr>
                   )
                 : rows.map((row, idx) => {
-                    const id = rowKey ? rowKey(row) : selection?.getId(row) ?? idx;
+                    // rowKey 가 undefined/null 을 반환할 경우(데이터 alias 누락 등) idx fallback 으로 React key 경고 회피
+                    const candidate = rowKey ? rowKey(row) : selection?.getId(row);
+                    const id = candidate === undefined || candidate === null ? idx : candidate;
                     const checked =
                       !!selection && selection.selected.includes(selection.getId(row));
                     return (

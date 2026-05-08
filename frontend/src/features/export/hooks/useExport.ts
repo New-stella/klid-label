@@ -2,7 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { EXPORT_KEYS } from '@/lib/queryKeys';
 
-import { getExportStatus, listDatasets, prepareExport } from '../api';
+import {
+  getExportStatus,
+  listDatasets,
+  listRecentExports,
+  prepareExport,
+} from '../api';
 import type { PrepareExportRequest } from '../types';
 
 interface MutationOptions<T> {
@@ -29,6 +34,16 @@ export function useExportStatus(id: number | undefined) {
       id !== undefined ? EXPORT_KEYS.detail(id) : EXPORT_KEYS.all,
     queryFn: () => getExportStatus(id as number),
     enabled: id !== undefined,
+  });
+}
+
+/**
+ * 최근 내보내기 이력 (사이드 카드).
+ */
+export function useRecentExports(size = 5) {
+  return useQuery({
+    queryKey: [...EXPORT_KEYS.all, 'recent', size] as const,
+    queryFn: () => listRecentExports(size),
   });
 }
 

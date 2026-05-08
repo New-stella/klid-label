@@ -5,10 +5,18 @@
 export const ExportFormat = {
   COCO: 'COCO',
   YOLO: 'YOLO',
-  /** 영상 + Chain-of-Thought (생성형 AI 학습용) */
-  VIDEO_COT: 'VIDEO_COT',
+  /** CVAT 호환 XML — 폴리곤·트랙 포함 */
+  CVAT: 'CVAT',
+  /** Pascal VOC XML — 이미지별 개별 어노테이션 */
+  PASCAL_VOC: 'PASCAL_VOC',
 } as const;
 export type ExportFormat = (typeof ExportFormat)[keyof typeof ExportFormat];
+
+/** BE 가 현재 지원하는 포맷 (Phase 10 기준). 그 외는 화면에서 비활성 표시. */
+export const SUPPORTED_EXPORT_FORMATS: ExportFormat[] = [
+  ExportFormat.COCO,
+  ExportFormat.YOLO,
+];
 
 export const ExportStatus = {
   PREPARING: 'PREPARING',
@@ -24,17 +32,19 @@ export interface ExportPreview {
 }
 
 export interface PrepareExportRequest {
-  /** 데이터셋 식별자 (BE에서 dataset/SQL allowlist 검증) */
+  /** 데이터셋(프로젝트) 식별자 — BE alias: pjtId */
   datasetId: number;
   format: ExportFormat;
-  /** NAS 경로. 사용자 입력 → BE에서 path traversal 검증 */
-  nasPath: string;
+  /** 선택된 영상 ID 목록 (mock 정합). 현재 BE 는 사용하지 않음(향후 확장 대비). */
+  videoIds?: number[];
+  /** NAS 경로. 기본값은 BE 가 결정. */
+  nasPath?: string;
 }
 
 export interface PrepareExportResponse {
   exportId: number;
   status: ExportStatus;
-  preview: ExportPreview;
+  preview?: ExportPreview;
 }
 
 export interface ExportStatusInfo {
@@ -44,6 +54,11 @@ export interface ExportStatusInfo {
   /** 실패 시 사유 */
   errorMessage?: string;
   completedAt?: string;
+  /** mock 정합 — 등록 시점 */
+  registeredAt?: string;
+  /** mock 정합 — NAS 경로(있으면) */
+  nasPath?: string;
+  format?: ExportFormat | string;
 }
 
 export interface DatasetOption {
