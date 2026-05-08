@@ -74,8 +74,8 @@ class Sam2TrackRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     track_id: str = Field(..., description="이전 프레임에서 부여된 트랙 ID")
-    prev_image_b64: str = Field(..., min_length=1)
-    next_image_b64: str = Field(..., min_length=1)
+    prev_image_b64: str = Field(default="", description="이전 프레임 base64 — mock 모드에서는 미사용")
+    next_image_b64: str = Field(default="", description="다음 프레임 base64 — mock 모드에서는 미사용")
     prev_polygon: list[list[float]] = Field(..., min_length=3, description="이전 프레임 폴리곤")
 
 

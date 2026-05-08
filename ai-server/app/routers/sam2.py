@@ -45,6 +45,14 @@ async def segment(req: Sam2SegmentRequest) -> Sam2SegmentResponse:
 @router.post("/track", response_model=Sam2TrackResponse)
 async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
     """이전 프레임 폴리곤을 다음 프레임으로 전파. 동일 track_id 유지."""
+    if _should_mock():
+        logger.info(
+            "[SAM2] track mock track_id=%s points=%d",
+            req.track_id,
+            len(req.prev_polygon),
+        )
+        return _mock_track(req)
+
     pw, ph = decode_image_b64(req.prev_image_b64)
     nw, nh = decode_image_b64(req.next_image_b64)
     logger.info(
@@ -56,9 +64,6 @@ async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
         nh,
         len(req.prev_polygon),
     )
-
-    if _should_mock():
-        return _mock_track(req)
     return _mock_track(req)
 
 
