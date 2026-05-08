@@ -75,6 +75,31 @@ public class AugmentController {
     }
 
     /**
+     * 증강 작업(jobId) 결과 placeholder — V1.5 외부 SFR-07 시스템 연동 결과 폴링용.
+     * 현재는 외부 시스템과 연결되지 않아 status=PENDING 의 빈 placeholder 만 반환한다.
+     */
+    @Operation(
+            summary = "증강 작업 결과 조회 (REVIEWER) — placeholder",
+            description = "V1.5 외부 SFR-07 결과 폴링용 placeholder. 외부 연동 완료 전까지 status=PENDING 빈 응답."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @GetMapping("/{jobId}/result")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<java.util.Map<String, Object>> result(
+            @Parameter(description = "증강 jobId", required = true, example = "1") @PathVariable Long jobId) {
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("jobId", jobId);
+        body.put("status", "PENDING");
+        body.put("results", java.util.List.of());
+        body.put("message", "외부 SFR-07 시스템 연동 전 — placeholder 응답");
+        return ApiResponse.ok(body);
+    }
+
+    /**
      * 증강 결과 승인 (REVIEWER 만).
      */
     @Operation(

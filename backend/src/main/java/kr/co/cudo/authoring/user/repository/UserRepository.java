@@ -48,4 +48,21 @@ public interface UserRepository extends JpaRepository<MngAcctUser, Long> {
                     OR LOWER(u.userEmail) LIKE LOWER(CONCAT('%', :keyword, '%')))
             """)
     Page<MngAcctUser> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
+    /**
+     * 주어진 userNo 목록에 해당하는 권한 매핑을 조회 (N+1 방지용).
+     * 우선순위가 높은 권한이 앞에 오도록 정렬 (REVIEWER > WORKER > PORTAL_USER > etc).
+     */
+    @Query("""
+            SELECT ua FROM MngAcctUserAuthrt ua
+             WHERE ua.id.userNo IN :userNos
+             ORDER BY
+               CASE ua.id.authrtCd
+                   WHEN 'REVIEWER'    THEN 1
+                   WHEN 'WORKER'      THEN 2
+                   WHEN 'PORTAL_USER' THEN 3
+                   ELSE 9
+               END ASC
+            """)
+    List<kr.co.cudo.authoring.user.entity.MngAcctUserAuthrt> findAuthrtsByUserNos(@Param("userNos") List<Long> userNos);
 }

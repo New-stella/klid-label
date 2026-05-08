@@ -13,6 +13,9 @@ import kr.co.cudo.authoring.generate.service.BackgroundGenerateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import io.swagger.v3.oas.annotations.Parameter;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,5 +52,30 @@ public class BackgroundGenerateController {
             @Valid @RequestBody BackgroundGenerateRequest req,
             @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(service.requestExternal(req, actor));
+    }
+
+    /**
+     * 배경영상 생성 결과 placeholder — V1.5 외부 SFR-06/11 시스템 결과 폴링용.
+     * 본 저작도구는 외부 결과 산출 책임이 없으므로 status=PENDING 의 빈 응답만 제공.
+     */
+    @Operation(
+            summary = "배경영상 생성 결과 조회 (REVIEWER) — placeholder",
+            description = "V1.5 외부 SFR-06/11 시스템 결과 폴링용 placeholder. 외부 연동 완료 전까지 status=PENDING 빈 응답."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @GetMapping("/background/{jobId}")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<java.util.Map<String, Object>> backgroundResult(
+            @Parameter(description = "외부 시스템 jobId", required = true, example = "1") @PathVariable Long jobId) {
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("jobId", jobId);
+        body.put("status", "PENDING");
+        body.put("videoUrl", null);
+        body.put("message", "외부 SFR-06/11 시스템 연동 전 — placeholder 응답");
+        return ApiResponse.ok(body);
     }
 }

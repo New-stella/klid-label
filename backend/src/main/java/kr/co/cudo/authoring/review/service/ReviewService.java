@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.review.dto.IssueResponse;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
@@ -53,6 +54,26 @@ public class ReviewService {
         requireReviewer(actor);
         return reviewRepository.searchByStatus(status, pageable)
                 .map(ReviewResponse::from);
+    }
+
+    /**
+     * 검수 단건 상세 조회 (REVIEWER) — 검수 상세 화면 진입 시.
+     */
+    public ReviewResponse getDetail(Long videoId, TokenClaims actor) {
+        requireReviewer(actor);
+        LsPjtDataStts stts = loadByVideoId(videoId);
+        return ReviewResponse.from(stts);
+    }
+
+    /**
+     * 검수 이슈(반려 사유) 목록 조회 (REVIEWER).
+     * LS_DATA_ISSUE 가 비어 있으면 빈 배열 반환.
+     */
+    public List<IssueResponse> listIssues(Long videoId, TokenClaims actor) {
+        requireReviewer(actor);
+        return issueRepository.findByVideoIdOrderByRegisteredAtDesc(videoId).stream()
+                .map(IssueResponse::from)
+                .toList();
     }
 
     /**

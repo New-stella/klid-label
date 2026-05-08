@@ -58,7 +58,7 @@ class ExportControllerTest {
     @Test
     @DisplayName("ExportController_WORKER가_export_호출시_403")
     void workerCannotExport() throws Exception {
-        ExportRequest req = new ExportRequest(10L, "YOLO");
+        ExportRequest req = new ExportRequest(10L, "YOLO", null, null);
 
         mockMvc.perform(post("/v1/exports/prepare")
                         .header("Authorization", "Bearer " + workerToken)
@@ -70,7 +70,7 @@ class ExportControllerTest {
     @Test
     @DisplayName("ExportController_REVIEWER_export_prepare_정상_PENDING_생성_+_Quartz_트리거")
     void reviewerPreparesExportWithPendingStatus() throws Exception {
-        ExportRequest req = new ExportRequest(10L, "YOLO");
+        ExportRequest req = new ExportRequest(10L, "YOLO", null, null);
 
         mockMvc.perform(post("/v1/exports/prepare")
                         .header("Authorization", "Bearer " + reviewerToken)

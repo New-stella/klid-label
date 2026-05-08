@@ -10,9 +10,11 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.review.dto.IssueResponse;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.service.ReviewService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -63,6 +65,47 @@ public class ReviewController {
         }
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(reviewService.list(status, pageable, actor));
+    }
+
+    /**
+     * 검수 단건 상세 조회 (REVIEWER) — 검수 상세 화면 진입 시.
+     */
+    @Operation(
+            summary = "검수 상세 조회 (REVIEWER)",
+            description = "videoId 기준 검수 단건 상세를 반환한다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "검수 대상 영상 없음")
+    })
+    @GetMapping("/reviews/{videoId}")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<ReviewResponse> detail(
+            @Parameter(description = "영상 PK", required = true, example = "1") @PathVariable Long videoId,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(reviewService.getDetail(videoId, actor));
+    }
+
+    /**
+     * 검수 이슈(반려 사유) 목록 조회 (REVIEWER).
+     */
+    @Operation(
+            summary = "검수 이슈 목록 조회 (REVIEWER)",
+            description = "videoId 기준 LS_DATA_ISSUE 이력을 등록일 내림차순으로 반환한다. 비어 있으면 빈 배열."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @GetMapping("/reviews/{videoId}/issues")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<List<IssueResponse>> issues(
+            @Parameter(description = "영상 PK", required = true, example = "1") @PathVariable Long videoId,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(reviewService.listIssues(videoId, actor));
     }
 
     /**

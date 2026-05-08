@@ -61,4 +61,32 @@ public class VideoController {
     public ApiResponse<VideoDetailResponse> getOne(@Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
         return ApiResponse.ok(videoQueryService.getOne(rawSn));
     }
+
+    /**
+     * 오토라벨 요약 placeholder — SCR-AUTO-002 진입 시 외부 시계열 메타/객체 검증 요약 표시용.
+     * V1.7 기준 시계열 메타 자동 추출은 외부 시스템 책임이며, 본 엔드포인트는 빈 placeholder 만 반환한다.
+     */
+    @Operation(
+            summary = "오토라벨 요약 조회 (REVIEWER) — placeholder",
+            description = "V1.7 외부 시스템(시계열 메타) 연동 전 placeholder. 객체 수/검증 통과율/메타 카운트 0 반환."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @GetMapping("/{rawSn}/auto-summary")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<java.util.Map<String, Object>> autoSummary(
+            @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("videoId", rawSn);
+        body.put("yoloObjectCount", 0);
+        body.put("sam2TrackCount", 0);
+        body.put("vlmVerifiedCount", 0);
+        body.put("metaCount", 0);
+        body.put("status", "PENDING");
+        body.put("message", "외부 시계열 메타 추출 시스템 연동 전 — placeholder 응답");
+        return ApiResponse.ok(body);
+    }
 }
