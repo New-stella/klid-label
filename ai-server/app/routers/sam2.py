@@ -8,11 +8,12 @@ POST /infer/sam2/track   — 다음 프레임 추적, 동일 트랙 ID 유지
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter
 
 from app.config import get_settings
-from app.image_utils import decode_image_b64
+from app.image_utils import decode_image_b64, decode_image_b64_pil
 from app.models.sam2_loader import get_sam2_model
 from app.schemas import (
     Sam2SegmentRequest,
@@ -39,7 +40,7 @@ async def segment(req: Sam2SegmentRequest) -> Sam2SegmentResponse:
 
     if _should_mock():
         return _mock_segment(width, height, req)
-    return _mock_segment(width, height, req)
+    return _real_segment(get_sam2_model(), req)
 
 
 @router.post("/track", response_model=Sam2TrackResponse)
@@ -64,13 +65,85 @@ async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
         nh,
         len(req.prev_polygon),
     )
-    return _mock_track(req)
+    return _real_track(get_sam2_model(), req)
 
 
 def _should_mock() -> bool:
     """mock 모드이거나 모델이 로드되지 않은 경우 True."""
     return get_settings().ai_mock_mode or get_sam2_model() is None
 
+
+# ────────────────────────────────────────────────────────────────────
+# 실제 추론
+# ────────────────────────────────────────────────────────────────────
+
+def _real_segment(model: Any, req: Sam2SegmentRequest) -> Sam2SegmentResponse:
+    """ultralytics SAM으로 실제 세그멘테이션 수행."""
+    pil_image = decode_image_b64_pil(req.image_b64)
+    try:
+        if req.box and len(req.box) == 4:
+            results = model.predict(pil_image, bboxes=[req.box], verbose=False)
+        elif req.points:
+            labels = [[1] * len(req.points)]
+            results = model.predict(pil_image, points=[req.points], labels=labels, verbose=False)
+        else:
+            w, h = pil_image.width, pil_image.height
+            results = model.predict(
+                pil_image, points=[[[w / 2, h / 2]]], labels=[[1]], verbose=False
+            )
+
+        if results and results[0].masks is not None and len(results[0].masks.xy) > 0:
+            polygon = results[0].masks.xy[0].tolist()
+            score = float(results[0].masks.data[0].max().item())
+            logger.info(
+                "[SAM2] segment real polygon_pts=%d score=%.3f", len(polygon), score
+            )
+            return Sam2SegmentResponse(polygon=polygon, score=min(score, 1.0))
+    finally:
+        pil_image.close()
+
+    # 마스크가 비어있으면 mock으로 fallback
+    logger.warning("[SAM2] segment real returned no mask — mock fallback")
+    return _mock_segment(pil_image.width, pil_image.height, req)
+
+
+def _real_track(model: Any, req: Sam2TrackRequest) -> Sam2TrackResponse:
+    """이전 폴리곤 bbox를 프롬프트로 다음 프레임을 세그멘테이션."""
+    xs = [p[0] for p in req.prev_polygon]
+    ys = [p[1] for p in req.prev_polygon]
+    bbox = [min(xs), min(ys), max(xs), max(ys)]
+
+    pil_image = decode_image_b64_pil(req.next_image_b64)
+    try:
+        results = model.predict(pil_image, bboxes=[bbox], verbose=False)
+
+        if results and results[0].masks is not None and len(results[0].masks.xy) > 0:
+            polygon = results[0].masks.xy[0].tolist()
+            score = float(results[0].masks.data[0].max().item())
+            logger.info(
+                "[SAM2] track real track_id=%s polygon_pts=%d score=%.3f",
+                req.track_id,
+                len(polygon),
+                score,
+            )
+            return Sam2TrackResponse(
+                track_id=req.track_id, polygon=polygon, score=min(score, 1.0)
+            )
+    finally:
+        pil_image.close()
+
+    # 마스크 없으면 이전 폴리곤 그대로 반환
+    logger.warning("[SAM2] track real returned no mask — prev polygon fallback")
+    return Sam2TrackResponse(
+        track_id=req.track_id,
+        polygon=[list(p) for p in req.prev_polygon],
+        score=0.5,
+    )
+
+
+# ────────────────────────────────────────────────────────────────────
+# Mock 추론 (fallback)
+# ────────────────────────────────────────────────────────────────────
 
 def _mock_segment(width: int, height: int, req: Sam2SegmentRequest) -> Sam2SegmentResponse:
     """포인트 또는 박스 주변에 사각 폴리곤 생성."""

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # 모델 가중치 경로 (mock 모드에서는 무시)
     yolo_weights_path: str = Field(default="./weights/yolov8n.pt")
-    sam2_weights_path: str = Field(default="./weights/sam2.pt")
+    sam2_weights_path: str = Field(default="./weights/sam2_t.pt")
     vlm_model_name: str = Field(default="openai/clip-vit-base-patch32")
 
     # CORS

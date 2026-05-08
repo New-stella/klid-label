@@ -10,4 +10,4 @@ venv/
 .env.local
 
 weights/
-models/
+/models/
