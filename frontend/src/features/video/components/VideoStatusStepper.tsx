@@ -2,10 +2,15 @@ import { Check, Loader2 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 
-import type { BatchStageInfo } from '../types';
+interface StageInfo {
+  stage: string;
+  label: string;
+  status: string;
+  progressPercent: number;
+}
 
 export interface VideoStatusStepperProps {
-  stages: BatchStageInfo[];
+  stages: StageInfo[];
 }
 
 /**

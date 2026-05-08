@@ -38,29 +38,16 @@ export interface VideoDetail extends Video {
   framePreviews: FramePreview[];
 }
 
-// 5단계: 프레임 추출 / 비식별화 / YOLO / SAM2 / VLM 객체 검증
-export type BatchStage = 'FRAME_EXTRACT' | 'DEIDENTIFY' | 'YOLO' | 'SAM2' | 'VLM_VERIFY';
-export type BatchStageStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
-
-export interface BatchStageInfo {
-  stage: BatchStage;
-  label: string;
-  status: BatchStageStatus;
-  progressPercent: number; // 0-100
-}
-
-export interface BatchVideoStatus {
-  videoId: number;
-  cctvName: string;
-  vmsClipId: string;
-  currentStage: BatchStage;
-  stages: BatchStageInfo[];
-  startedAt: string;
+// BE: BatchStageProgress (GET /v1/batch/status → { items: [...] })
+export interface BatchStageProgress {
+  rawSn: number;
+  stage: string; // PENDING | FRAME_EXTRACT | DEIDENTIFY | YOLO | SAM2 | VLM_VERIFY | COMPLETED | FAILED
+  startedAt: string | null;
+  lastUpdatedAt: string | null;
+  retryCount: number;
+  errorMessage: string | null;
 }
 
 export interface BatchStatus {
-  totalProcessing: number;
-  totalCompleted: number;
-  totalFailed: number;
-  videos: BatchVideoStatus[];
+  items: BatchStageProgress[];
 }

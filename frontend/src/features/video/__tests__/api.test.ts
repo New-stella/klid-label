@@ -89,23 +89,22 @@ describe('video api', () => {
     mock.onGet('/batch/status').reply(200, {
       success: true,
       data: {
-        totalProcessing: 2,
-        totalCompleted: 5,
-        totalFailed: 1,
-        videos: [
+        items: [
           {
-            videoId: 1,
-            cctvName: 'CCTV-1',
-            vmsClipId: 'VMS-1',
-            currentStage: 'YOLO',
-            startedAt: '2026-05-07T10:00:00Z',
-            stages: [
-              { stage: 'FRAME_EXTRACT', label: '프레임 추출', status: 'COMPLETED', progressPercent: 100 },
-              { stage: 'DEIDENTIFY', label: '비식별화', status: 'COMPLETED', progressPercent: 100 },
-              { stage: 'YOLO', label: 'YOLO', status: 'IN_PROGRESS', progressPercent: 60 },
-              { stage: 'SAM2', label: 'SAM2', status: 'PENDING', progressPercent: 0 },
-              { stage: 'VLM_VERIFY', label: 'VLM 검증', status: 'PENDING', progressPercent: 0 },
-            ],
+            rawSn: 1001,
+            stage: 'YOLO',
+            startedAt: '2026-05-07T10:00:00',
+            lastUpdatedAt: '2026-05-07T10:05:00',
+            retryCount: 0,
+            errorMessage: null,
+          },
+          {
+            rawSn: 1002,
+            stage: 'COMPLETED',
+            startedAt: '2026-05-07T09:00:00',
+            lastUpdatedAt: '2026-05-07T09:30:00',
+            retryCount: 0,
+            errorMessage: null,
           },
         ],
       },
@@ -114,7 +113,8 @@ describe('video api', () => {
     });
 
     const status = await getBatchStatus();
-    expect(status.totalProcessing).toBe(2);
-    expect(status.videos[0].stages).toHaveLength(5);
+    expect(status.items).toHaveLength(2);
+    expect(status.items[0].rawSn).toBe(1001);
+    expect(status.items[0].stage).toBe('YOLO');
   });
 });

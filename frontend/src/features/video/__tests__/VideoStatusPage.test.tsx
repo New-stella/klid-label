@@ -7,24 +7,32 @@ import { VideoStatusPage } from '@/pages/VideoStatusPage';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
+// BE 응답 형식: GET /v1/batch/status → { items: BatchStageProgress[] }
 const samplePayload = {
-  totalProcessing: 1,
-  totalCompleted: 5,
-  totalFailed: 0,
-  videos: [
+  items: [
     {
-      videoId: 10,
-      cctvName: '테헤란로 CCTV',
-      vmsClipId: 'VMS-10',
-      currentStage: 'YOLO',
-      startedAt: '2026-05-07T10:00:00Z',
-      stages: [
-        { stage: 'FRAME_EXTRACT', label: '프레임 추출', status: 'COMPLETED', progressPercent: 100 },
-        { stage: 'DEIDENTIFY', label: '비식별화', status: 'COMPLETED', progressPercent: 100 },
-        { stage: 'YOLO', label: 'YOLO', status: 'IN_PROGRESS', progressPercent: 60 },
-        { stage: 'SAM2', label: 'SAM2', status: 'PENDING', progressPercent: 0 },
-        { stage: 'VLM_VERIFY', label: 'VLM 검증', status: 'PENDING', progressPercent: 0 },
-      ],
+      rawSn: 1001,
+      stage: 'YOLO',
+      startedAt: '2026-05-07T10:00:00',
+      lastUpdatedAt: '2026-05-07T10:05:00',
+      retryCount: 0,
+      errorMessage: null,
+    },
+    {
+      rawSn: 1002,
+      stage: 'COMPLETED',
+      startedAt: '2026-05-07T09:00:00',
+      lastUpdatedAt: '2026-05-07T09:30:00',
+      retryCount: 0,
+      errorMessage: null,
+    },
+    {
+      rawSn: 1003,
+      stage: 'FAILED',
+      startedAt: '2026-05-07T08:00:00',
+      lastUpdatedAt: '2026-05-07T08:10:00',
+      retryCount: 2,
+      errorMessage: 'IOException',
     },
   ],
 };
@@ -54,7 +62,7 @@ describe('VideoStatusPage', () => {
     useAuthStore.getState().clear();
   });
 
-  it('처리_현황_5단계_progressbar_렌더', async () => {
+  it('처리_현황_원본_목록_렌더', async () => {
     mock.onGet('/batch/status').reply(200, {
       success: true,
       data: samplePayload,
@@ -65,17 +73,16 @@ describe('VideoStatusPage', () => {
     renderWithProviders(<VideoStatusPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('테헤란로 CCTV')).toBeInTheDocument();
+      expect(screen.getByText('원본 #1001')).toBeInTheDocument();
     });
-
-    const bars = screen.getAllByRole('progressbar');
-    expect(bars).toHaveLength(5);
+    expect(screen.getByText('원본 #1002')).toBeInTheDocument();
+    expect(screen.getByText('원본 #1003')).toBeInTheDocument();
   });
 
-  it('영상_없을_때_EmptyState_노출', async () => {
+  it('아이템_없을_때_EmptyState_노출', async () => {
     mock.onGet('/batch/status').reply(200, {
       success: true,
-      data: { ...samplePayload, videos: [] },
+      data: { items: [] },
       message: null,
       errorCode: null,
     });
@@ -104,12 +111,11 @@ describe('VideoStatusPage', () => {
     expect(screen.getByText('실패')).toBeInTheDocument();
   });
 
-  it('BE가_videos_없는_응답_반환해도_500_안나고_EmptyState_노출', async () => {
-    // 실 BE 응답 형식 — { items: [] }만 포함 (videos/totalProcessing 누락).
-    // FE는 graceful 처리되어 EmptyState 보여야 한다.
+  it('KPI_카운트_계산_정확', async () => {
+    // YOLO=처리중(1), COMPLETED=완료(1), FAILED=실패(1)
     mock.onGet('/batch/status').reply(200, {
       success: true,
-      data: { items: [] },
+      data: samplePayload,
       message: null,
       errorCode: null,
     });
@@ -117,7 +123,27 @@ describe('VideoStatusPage', () => {
     renderWithProviders(<VideoStatusPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('처리 중인 영상이 없습니다')).toBeInTheDocument();
+      expect(screen.getByText('원본 #1001')).toBeInTheDocument();
+    });
+
+    // KpiCard는 label + value + unit 을 별도 DOM 요소로 렌더
+    // 처리중=1, 완료=1, 실패=1
+    const allOnes = screen.getAllByText('1');
+    expect(allOnes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('실패_아이템_오류메시지_노출', async () => {
+    mock.onGet('/batch/status').reply(200, {
+      success: true,
+      data: samplePayload,
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<VideoStatusPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/IOException/)).toBeInTheDocument();
     });
   });
 });

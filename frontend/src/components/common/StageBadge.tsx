@@ -1,10 +1,8 @@
 import { cn } from '@/lib/cn';
 
-import type { BatchStage, BatchStageStatus } from '@/features/video/types';
-
 export interface StageBadgeProps {
-  stage: BatchStage | string;
-  status?: BatchStageStatus | string;
+  stage: string;
+  status?: string;
   size?: 'sm' | 'md';
   className?: string;
 }

@@ -3,18 +3,84 @@ import { KpiCard } from '@/components/common/KpiCard';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
 import { EmptyState } from '@/components/common/EmptyState';
-import { VideoStatusStepper } from '@/features/video/components/VideoStatusStepper';
 import { useBatchStatus } from '@/features/video/hooks/useBatchStatus';
+import type { BatchStageProgress } from '@/features/video/types';
+
+const STAGE_LABELS: Record<string, string> = {
+  PENDING: '대기',
+  FRAME_EXTRACT: '프레임 추출',
+  DEIDENTIFY: '비식별화',
+  YOLO: 'YOLO',
+  SAM2: 'SAM2',
+  VLM_VERIFY: 'VLM 검증',
+  COMPLETED: '완료',
+  FAILED: '실패',
+};
+
+const STAGE_ORDER = ['PENDING', 'FRAME_EXTRACT', 'DEIDENTIFY', 'YOLO', 'SAM2', 'VLM_VERIFY', 'COMPLETED'];
+
+function stageColor(stage: string) {
+  if (stage === 'COMPLETED') return 'text-success bg-success/10';
+  if (stage === 'FAILED') return 'text-error bg-error/10';
+  if (stage === 'PENDING') return 'text-neutral bg-neutral/10';
+  return 'text-primary bg-primary/10';
+}
+
+function BatchItemRow({ item }: { item: BatchStageProgress }) {
+  const stageIdx = STAGE_ORDER.indexOf(item.stage);
+  const progress = item.stage === 'COMPLETED'
+    ? 100
+    : item.stage === 'FAILED' || item.stage === 'PENDING'
+      ? 0
+      : Math.round(((stageIdx) / (STAGE_ORDER.length - 2)) * 100);
+
+  return (
+    <li className="rounded border border-border bg-white p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <p className="text-section-title text-primary">원본 #{item.rawSn}</p>
+          <p className="text-sub text-neutral">
+            시작: {item.startedAt ? new Date(item.startedAt).toLocaleString('ko-KR') : '-'}
+          </p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-sub font-medium ${stageColor(item.stage)}`}>
+          {STAGE_LABELS[item.stage] ?? item.stage}
+        </span>
+      </div>
+
+      {/* 진행 바 */}
+      <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-neutral/20">
+        <div
+          className={`h-full rounded-full transition-all ${item.stage === 'FAILED' ? 'bg-error' : 'bg-primary'}`}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <p className="text-sub text-neutral">{progress}%</p>
+
+      {item.errorMessage && (
+        <p className="mt-2 text-sub text-error">오류: {item.errorMessage}</p>
+      )}
+      {item.retryCount > 0 && (
+        <p className="text-sub text-neutral">재시도: {item.retryCount}회</p>
+      )}
+    </li>
+  );
+}
 
 /**
  * SCR-VIDEO-002 처리 현황.
- * 5초 폴링 + 단계 표시(프레임/비식별/YOLO/SAM2/VLM) + 진행률 바.
+ * 5초 폴링 + 단계 표시 + 진행률 바.
+ * BE 응답: GET /v1/batch/status → { items: BatchStageProgress[] }
  */
 export function VideoStatusPage() {
   const { data, isLoading, error } = useBatchStatus();
-  // BE 응답이 { videos: [...] } 형식이 아니거나(미구현/축약 응답) 누락된 경우에도
-  // 화면이 깨지지 않도록 안전하게 빈 배열로 폴백한다.
-  const videos = data?.videos ?? [];
+  const items = data?.items ?? [];
+
+  const totalProcessing = items.filter(
+    (i) => !['COMPLETED', 'FAILED', 'PENDING'].includes(i.stage),
+  ).length;
+  const totalCompleted = items.filter((i) => i.stage === 'COMPLETED').length;
+  const totalFailed = items.filter((i) => i.stage === 'FAILED').length;
 
   return (
     <section className="flex flex-col gap-4">
@@ -24,21 +90,9 @@ export function VideoStatusPage() {
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiCard
-          label="처리 중"
-          value={data?.totalProcessing ?? 0}
-          unit="건"
-        />
-        <KpiCard
-          label="완료"
-          value={data?.totalCompleted ?? 0}
-          unit="건"
-        />
-        <KpiCard
-          label="실패"
-          value={data?.totalFailed ?? 0}
-          unit="건"
-        />
+        <KpiCard label="처리 중" value={totalProcessing} unit="건" />
+        <KpiCard label="완료" value={totalCompleted} unit="건" />
+        <KpiCard label="실패" value={totalFailed} unit="건" />
       </div>
 
       {error && <ErrorState title="배치 현황을 불러올 수 없습니다" />}
@@ -51,34 +105,17 @@ export function VideoStatusPage() {
         </div>
       )}
 
-      {data && videos.length === 0 && (
+      {data && items.length === 0 && (
         <EmptyState
           title="처리 중인 영상이 없습니다"
           message="배치 처리 대기 중이거나 모두 완료되었습니다."
         />
       )}
 
-      {data && videos.length > 0 && (
-        <ul
-          data-testid="batch-video-list"
-          className="flex flex-col gap-3"
-        >
-          {videos.map((v) => (
-            <li
-              key={v.videoId}
-              className="rounded border border-border bg-white p-4"
-            >
-              <header className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-section-title text-primary">{v.cctvName}</p>
-                  <p className="text-sub text-neutral">{v.vmsClipId}</p>
-                </div>
-                <span className="text-sub text-neutral">
-                  현재 단계: {v.currentStage}
-                </span>
-              </header>
-              <VideoStatusStepper stages={v.stages} />
-            </li>
+      {data && items.length > 0 && (
+        <ul data-testid="batch-video-list" className="flex flex-col gap-3">
+          {items.map((item) => (
+            <BatchItemRow key={item.rawSn} item={item} />
           ))}
         </ul>
       )}

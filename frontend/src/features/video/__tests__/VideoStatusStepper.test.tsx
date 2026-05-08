@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 import { VideoStatusStepper } from '../components/VideoStatusStepper';
-import type { BatchStageInfo } from '../types';
-
-const stages: BatchStageInfo[] = [
+const stages = [
   { stage: 'FRAME_EXTRACT', label: '프레임 추출', status: 'COMPLETED', progressPercent: 100 },
   { stage: 'DEIDENTIFY', label: '비식별화', status: 'COMPLETED', progressPercent: 100 },
   { stage: 'YOLO', label: 'YOLO', status: 'IN_PROGRESS', progressPercent: 60 },
