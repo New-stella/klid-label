@@ -27,15 +27,18 @@ export function EmptyState({
     <div
       role="status"
       className={cn(
-        'flex flex-col items-center justify-center gap-2 py-8 text-center text-neutral',
+        'flex flex-col items-center justify-center gap-2 py-12 text-center',
         className,
       )}
     >
-      <div aria-hidden="true">
-        {icon ?? <Inbox className="h-8 w-8 text-neutral" />}
+      <div
+        className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100"
+        aria-hidden="true"
+      >
+        {icon ?? <Inbox className="h-7 w-7 text-gray-400" />}
       </div>
-      {title && <p className="text-section-title text-primary">{title}</p>}
-      <p className="text-body">{message}</p>
+      {title && <p className="text-section-title text-gray-700">{title}</p>}
+      <p className="text-body text-gray-500">{message}</p>
       {action && (
         <Button variant="outline" size="sm" onClick={action.onClick} className="mt-2">
           {action.label}

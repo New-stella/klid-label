@@ -8,34 +8,56 @@ export default {
     },
     extend: {
       colors: {
-        // UI/UX FINAL §2.2 — 9색 디자인 토큰
+        // UI/UX FINAL §2.2 — 9색 디자인 토큰 (mock modern blue tone)
         primary: {
-          DEFAULT: '#1F4E79', // GNB, 주요 버튼, 제목
+          DEFAULT: '#2563EB', // mock primary-600 (GNB, 주요 버튼, 제목)
+          50: '#EFF6FF',
+          100: '#DBEAFE',
+          200: '#BFDBFE',
+          300: '#93C5FD',
+          400: '#60A5FA',
+          500: '#3B82F6',
+          600: '#2563EB',
+          700: '#1D4ED8',
+          800: '#1E40AF',
+          900: '#1E3A8A',
         },
         secondary: {
-          DEFAULT: '#2E75B6', // 강조 요소, 링크
+          DEFAULT: '#3B82F6', // mock primary-500 (강조 요소, 링크)
         },
         accent: {
-          DEFAULT: '#2196F3', // 포인트 아이콘, 활성 상태
+          DEFAULT: '#60A5FA', // mock primary-400 (포인트 아이콘, 활성 상태)
         },
         success: {
-          DEFAULT: '#4CAF50', // 완료, 승인
+          DEFAULT: '#10B981', // mock green-500 (완료, 승인)
         },
         warning: {
-          DEFAULT: '#FF9800', // 검토 중, 주의
+          DEFAULT: '#F59E0B', // mock yellow-500 (검토 중, 주의)
         },
         danger: {
-          DEFAULT: '#F44336', // 반려, 오류
+          DEFAULT: '#EF4444', // mock red-500 (반려, 오류)
         },
         neutral: {
-          DEFAULT: '#757575', // 보조 텍스트, 비활성
+          DEFAULT: '#6B7280', // mock gray-500 (보조 텍스트, 비활성)
         },
         bgLight: {
-          DEFAULT: '#F5F7FA', // 콘텐츠 배경
+          DEFAULT: '#F9FAFB', // mock gray-50 (콘텐츠 배경)
         },
         border: {
-          DEFAULT: '#E0E0E0', // 구분선, 테두리
+          DEFAULT: '#E5E7EB', // mock gray-200 (구분선, 테두리)
         },
+      },
+      fontFamily: {
+        sans: [
+          'Pretendard',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif',
+        ],
       },
       fontSize: {
         // UI/UX §2.3

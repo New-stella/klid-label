@@ -13,14 +13,17 @@ export function PortalLayout() {
   const claims = useAuthStore((s) => s.claims);
 
   return (
-    <div className="flex min-h-screen flex-col bg-bgLight">
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between bg-primary px-4 text-white md:px-6">
-        <Link to="/portal" className="text-section-title font-bold">
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6">
+        <Link
+          to="/portal"
+          className="text-section-title font-bold text-gray-900 hover:text-primary-600 transition-colors"
+        >
           AI 학습데이터 포털
         </Link>
-        <span className="text-btn-label">{claims?.name ?? '사용자'}</span>
+        <span className="text-btn-label text-gray-700">{claims?.name ?? '사용자'}</span>
       </header>
-      <main className="flex-1 px-4 py-4 md:px-6">
+      <main className="flex-1 px-4 py-6 md:px-6">
         <Outlet />
       </main>
       <Footer />

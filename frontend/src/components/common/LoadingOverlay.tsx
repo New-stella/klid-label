@@ -30,7 +30,7 @@ export function LoadingOverlay({
     >
       <Spinner size="lg" label={typeof message === 'string' ? message : '로딩 중'} />
       {typeof message === 'string' ? (
-        <span className="text-body text-neutral">{message}</span>
+        <span className="text-body text-gray-600">{message}</span>
       ) : (
         message
       )}

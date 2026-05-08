@@ -22,7 +22,7 @@ function renderWithRoutes(initialEntries: string[]) {
     <MemoryRouter initialEntries={initialEntries}>
       <Routes>
         <Route path="/ingress" element={<SessionIngressPage />} />
-        <Route path="/video/completed" element={<div>VIDEO_COMPLETED_HOME</div>} />
+        <Route path="/dashboard" element={<div>DASHBOARD_HOME</div>} />
         <Route path="/portal" element={<div>PORTAL_HOME</div>} />
       </Routes>
     </MemoryRouter>,
@@ -51,7 +51,7 @@ describe('SessionIngressPage', () => {
     vi.unstubAllEnvs();
   });
 
-  it('URL_token_파라미터_수령_후_INTERNAL_채널_video_completed_navigate', async () => {
+  it('URL_token_파라미터_수령_후_INTERNAL_채널_dashboard_navigate', async () => {
     const tok = buildJwt(
       { alg: 'HS256', typ: 'JWT' },
       { sub: 'u1', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
@@ -59,7 +59,7 @@ describe('SessionIngressPage', () => {
     renderWithRoutes([`/ingress?token=${tok}`]);
 
     await waitFor(() => {
-      expect(screen.getByText('VIDEO_COMPLETED_HOME')).toBeInTheDocument();
+      expect(screen.getByText('DASHBOARD_HOME')).toBeInTheDocument();
     });
     expect(useAuthStore.getState().token).toBe(tok);
     expect(useAuthStore.getState().claims?.role).toBe('REVIEWER');

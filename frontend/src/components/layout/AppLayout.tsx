@@ -1,20 +1,22 @@
 import { Outlet } from 'react-router-dom';
 
-import { Footer } from './Footer';
 import { Gnb } from './Gnb';
 import { Lnb } from './Lnb';
 
+/**
+ * mock 정합 — fixed GNB + fixed LNB + main(pl-60 pt-14).
+ * Footer는 mock에 없으므로 제거.
+ */
 export function AppLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-bgLight">
+    <div className="min-h-screen bg-gray-50">
       <Gnb />
-      <div className="flex flex-1">
-        <Lnb />
-        <main className="flex-1 px-6 py-4">
+      <Lnb />
+      <main className="pl-60 pt-14 min-h-screen">
+        <div className="p-6 min-h-full">
           <Outlet />
-        </main>
-      </div>
-      <Footer />
+        </div>
+      </main>
     </div>
   );
 }

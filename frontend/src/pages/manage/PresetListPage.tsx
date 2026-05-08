@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Layers } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -13,7 +14,7 @@ import type { Preset } from '@/features/preset/types';
 import { useUiStore } from '@/stores/useUiStore';
 
 /**
- * SCR-MANAGE-PRESETS 라벨링 프리셋 관리 — REVIEWER 전용.
+ * SCR-MANAGE-PRESETS 라벨링 프리셋 관리 (V1.x mock 시각 정합) — REVIEWER 전용.
  *
  * - 프리셋 추가 / 수정 / 복사 / 삭제
  * - 라벨 항목 최대 6종 제한 (zod presetSchema)
@@ -79,15 +80,30 @@ export function PresetListPage() {
     setPendingDelete(null);
   };
 
+  const presets = useMemo(() => data ?? [], [data]);
+
   const columns: DataTableColumn<Preset>[] = [
-    { key: 'name', header: '프리셋명', render: (p) => p.name },
+    {
+      key: 'name',
+      header: '프리셋명',
+      render: (p) => (
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-orange-500" aria-hidden />
+          <span className="font-medium text-gray-800">{p.name}</span>
+        </div>
+      ),
+    },
     { key: 'eventTypeCd', header: '이벤트', render: (p) => p.eventTypeCd },
     { key: 'subType', header: '서브유형', render: (p) => p.subType ?? '-' },
     {
       key: 'items',
       header: '항목 수',
       align: 'right',
-      render: (p) => `${p.items.length}`,
+      render: (p) => (
+        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-700 tabular-nums">
+          {p.items.length}
+        </span>
+      ),
     },
     {
       key: 'actions',
@@ -119,11 +135,16 @@ export function PresetListPage() {
     <section className="flex flex-col gap-4">
       <PageHeader
         title="라벨링 프리셋"
-        description="이벤트 유형별 라벨 항목 프리셋 관리 (최대 6항목)"
+        description={`이벤트 유형별 라벨 항목 프리셋 관리 (최대 6항목) — 전체 ${presets.length.toLocaleString('ko-KR')}개`}
         actions={
-          <Button variant="primary" onClick={openCreate}>
-            + 프리셋 추가
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center rounded-lg bg-orange-50 p-2">
+              <Layers className="h-5 w-5 text-orange-500" aria-hidden />
+            </div>
+            <Button variant="primary" onClick={openCreate}>
+              + 프리셋 추가
+            </Button>
+          </div>
         }
       />
 
@@ -131,12 +152,12 @@ export function PresetListPage() {
 
       <DataTable<Preset>
         columns={columns}
-        rows={data ?? []}
-        totalElements={data?.length ?? 0}
+        rows={presets}
+        totalElements={presets.length}
         page={0}
-        size={(data?.length || 1) as number}
+        size={(presets.length || 1) as number}
         loading={isLoading}
-        emptyMessage="등록된 프리셋이 없습니다"
+        emptyMessage="등록된 프리셋이 없습니다 — 새 프리셋을 만들어 라벨링 작업에 활용하세요"
         rowKey={(p) => p.id}
         onPageChange={() => {
           // 페이징 미사용 — 통상 100건 이하

@@ -15,7 +15,7 @@ const samplePayload = {
   cumulativeImageCount: 50000,
   cumulativeVideoCount: 1500,
   eventDistribution: [
-    { eventTypeCd: 'FALL', label: '낙상', count: 80 },
+    { eventTypeCd: 'FALL', label: '쓰러짐', count: 80 },
     { eventTypeCd: 'VIOLENCE', label: '폭력', count: 50 },
   ],
   myTask: {
@@ -52,6 +52,13 @@ describe('DashboardPage', () => {
       message: null,
       errorCode: null,
     });
+    // mock 정합 — 최근 완료 영상 빈 응답
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 5 },
+      message: null,
+      errorCode: null,
+    });
   });
 
   afterEach(() => {
@@ -59,7 +66,7 @@ describe('DashboardPage', () => {
     useAuthStore.getState().clear();
   });
 
-  it('대시보드_WORKER_KPI_4개_처리대기_처리완료_내작업_반려건수', async () => {
+  it('대시보드_KPI_3개_처리대기_처리완료_반려건수_노출', async () => {
     setRole('WORKER');
     renderWithProviders(<DashboardPage />);
 
@@ -70,78 +77,43 @@ describe('DashboardPage', () => {
     const grid = screen.getByTestId('dashboard-kpi-grid');
     expect(within(grid).getByText('처리 대기')).toBeInTheDocument();
     expect(within(grid).getByText('처리 완료')).toBeInTheDocument();
-    expect(within(grid).getByText('내 작업')).toBeInTheDocument();
     expect(within(grid).getByText('반려 건수')).toBeInTheDocument();
   });
 
-  it('대시보드_REVIEWER_KPI_3개_처리대기_처리완료_반려건수', async () => {
+  it('이미지_영상_데이터_카드_이벤트_6종_노출', async () => {
     setRole('REVIEWER');
     renderWithProviders(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('처리 대기')).toBeInTheDocument();
+      expect(screen.getByText('이미지 데이터 개수')).toBeInTheDocument();
     });
 
-    const grid = screen.getByTestId('dashboard-kpi-grid');
-    expect(within(grid).getByText('처리 대기')).toBeInTheDocument();
-    expect(within(grid).getByText('처리 완료')).toBeInTheDocument();
-    expect(within(grid).getByText('반려 건수')).toBeInTheDocument();
-    expect(within(grid).queryByText('내 작업')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('my-task-card')).not.toBeInTheDocument();
+    expect(screen.getByText('영상 데이터 개수')).toBeInTheDocument();
+
+    // 데이터 로드 후 6종 이벤트 라벨 노출 (이미지+영상 카드 양쪽 모두 있어 getAllByText 사용)
+    const labels = ['쓰러짐', '폭력', '교통사고', '이상행동(유괴)', '침수', '산불'];
+    for (const l of labels) {
+      await waitFor(() => {
+        expect(screen.getAllByText(l).length).toBeGreaterThan(0);
+      });
+    }
   });
 
-  it('이벤트_분포_그리드_6종_고정_렌더링', async () => {
-    setRole('WORKER');
-    renderWithProviders(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('event-distribution-grid')).toBeInTheDocument();
-    });
-
-    const grid = screen.getByTestId('event-distribution-grid');
-    // 데이터에 2종만 있어도 6종 고정 렌더
-    const items = within(grid).getAllByRole('listitem');
-    expect(items).toHaveLength(6);
-  });
-
-  it('이벤트_분포_6종_FALL_VIOLENCE_TRAFFIC_ACCIDENT_ABNORMAL_BEHAVIOR_FLOOD_WILDFIRE_노출', async () => {
-    setRole('WORKER');
-    renderWithProviders(<DashboardPage />);
-
-    const grid = await screen.findByTestId('event-distribution-grid');
-    // 6종 코드/레이블이 정확히 노출되는지 검증 (UI/UX §4-3 정합)
-    expect(grid.querySelector('[data-event-type="FALL"]')).not.toBeNull();
-    expect(grid.querySelector('[data-event-type="VIOLENCE"]')).not.toBeNull();
-    expect(grid.querySelector('[data-event-type="TRAFFIC_ACCIDENT"]')).not.toBeNull();
-    expect(grid.querySelector('[data-event-type="ABNORMAL_BEHAVIOR"]')).not.toBeNull();
-    expect(grid.querySelector('[data-event-type="FLOOD"]')).not.toBeNull();
-    expect(grid.querySelector('[data-event-type="WILDFIRE"]')).not.toBeNull();
-
-    expect(within(grid).getByText('낙상')).toBeInTheDocument();
-    expect(within(grid).getByText('폭력')).toBeInTheDocument();
-    expect(within(grid).getByText('교통사고')).toBeInTheDocument();
-    expect(within(grid).getByText('이상행동')).toBeInTheDocument();
-    expect(within(grid).getByText('침수')).toBeInTheDocument();
-    expect(within(grid).getByText('산불')).toBeInTheDocument();
-  });
-
-  it('WORKER_내_작업_현황_카드_노출', async () => {
-    setRole('WORKER');
-    renderWithProviders(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('my-task-card')).toBeInTheDocument();
-    });
-  });
-
-  it('공지사항_카드_노출', async () => {
+  it('최근_완료_영상_섹션_제목_노출', async () => {
     setRole('REVIEWER');
     renderWithProviders(<DashboardPage />);
 
-    // 데이터 로드 후 공지 제목 노출까지 대기
     await waitFor(() => {
-      expect(screen.getByText('시스템 점검 안내')).toBeInTheDocument();
+      expect(screen.getByText('최근 완료 영상')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('notice-card')).toBeInTheDocument();
+  });
+
+  it('대시보드_제목_렌더', async () => {
+    setRole('REVIEWER');
+    renderWithProviders(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '대시보드' })).toBeInTheDocument();
+    });
   });
 });

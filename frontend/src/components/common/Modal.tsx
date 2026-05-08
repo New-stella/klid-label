@@ -97,8 +97,7 @@ export function Modal({
     // 클릭만 부가적인 종료 수단으로 제공한다.
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) onClose();
       }}
@@ -111,7 +110,7 @@ export function Modal({
         aria-label={typeof title === 'string' ? title : ariaLabel}
         tabIndex={-1}
         className={cn(
-          'relative w-full rounded bg-white p-6 shadow-xl outline-none',
+          'relative w-full rounded-xl bg-white p-6 shadow-xl outline-none',
           sizeClass[size],
         )}
       >
@@ -119,14 +118,14 @@ export function Modal({
           type="button"
           onClick={onClose}
           aria-label="닫기"
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded text-neutral hover:bg-bgLight focus-visible:ring-2 focus-visible:ring-accent"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
         {title && (
-          <h2 className="mb-2 text-section-title text-primary">{title}</h2>
+          <h2 className="mb-2 text-section-title text-gray-900">{title}</h2>
         )}
-        {description && <p className="mb-4 text-sub text-neutral">{description}</p>}
+        {description && <p className="mb-4 text-sub text-gray-500">{description}</p>}
         <div>{children}</div>
         {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
       </div>

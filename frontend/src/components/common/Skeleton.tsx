@@ -12,7 +12,7 @@ export function Skeleton({ className, width, height, rounded = true }: SkeletonP
     <span
       role="presentation"
       className={clsx(
-        'inline-block animate-pulse bg-bgLight',
+        'inline-block animate-pulse bg-gray-200',
         rounded && 'rounded',
         className,
       )}

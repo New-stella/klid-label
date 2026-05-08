@@ -44,7 +44,7 @@ export function RadioGroup({
       aria-invalid={error ? true : undefined}
       className="flex flex-col gap-1"
     >
-      {label && <span className="text-body font-medium text-primary">{label}</span>}
+      {label && <span className="text-body font-medium text-gray-700">{label}</span>}
       <div
         className={cn(
           'flex gap-4',

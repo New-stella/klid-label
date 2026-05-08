@@ -18,7 +18,8 @@ describe('Button', () => {
     expect(screen.getByRole('button').className).toMatch(/bg-primary/);
 
     rerender(<Button variant="secondary">S</Button>);
-    expect(screen.getByRole('button').className).toMatch(/bg-secondary/);
+    // secondary는 white 배경 + gray border 스타일 (mock tone)
+    expect(screen.getByRole('button').className).toMatch(/bg-white|border-gray/);
 
     rerender(<Button variant="outline">O</Button>);
     expect(screen.getByRole('button').className).toMatch(/border/);

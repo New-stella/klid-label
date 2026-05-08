@@ -86,8 +86,7 @@ export function Drawer({
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       data-testid="drawer-backdrop"
-      className="fixed inset-0 z-50"
-      style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+      className="fixed inset-0 z-50 bg-black/50"
       onClick={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) onClose();
       }}
@@ -104,20 +103,20 @@ export function Drawer({
           side === 'left' ? 'left-0' : 'right-0',
         )}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          {title && <h2 className="text-section-title text-primary">{title}</h2>}
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          {title && <h2 className="text-section-title text-gray-900">{title}</h2>}
           <button
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-neutral hover:bg-bgLight focus-visible:ring-2 focus-visible:ring-accent"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        <div className="flex-1 overflow-y-auto p-6">{children}</div>
         {footer && (
-          <div className="border-t border-border px-4 py-3">{footer}</div>
+          <div className="border-t border-gray-100 px-6 py-4">{footer}</div>
         )}
       </div>
     </div>

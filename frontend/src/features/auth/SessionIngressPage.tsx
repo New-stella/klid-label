@@ -54,7 +54,8 @@ export function SessionIngressPage() {
       return;
     }
 
-    const target = claims.channel === 'PORTAL' ? '/portal' : '/video/completed';
+    // mock 정합 — INTERNAL 채널은 /dashboard 진입
+    const target = claims.channel === 'PORTAL' ? '/portal' : '/dashboard';
     navigate(target, { replace: true });
   }, [params, navigate]);
 

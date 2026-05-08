@@ -16,7 +16,7 @@ export interface BreadcrumbProps {
 
 export function Breadcrumb({ items, className }: BreadcrumbProps) {
   return (
-    <nav aria-label="현재 위치" className={cn('text-sub text-neutral', className)}>
+    <nav aria-label="현재 위치" className={cn('text-sub text-gray-500', className)}>
       <ol className="inline-flex items-center gap-1">
         {items.map((item, idx) => {
           const isLast = idx === items.length - 1;
@@ -24,11 +24,14 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
             <Fragment key={`${idx}-${typeof item.label === 'string' ? item.label : ''}`}>
               <li className="inline-flex items-center">
                 {item.href && !isLast ? (
-                  <Link to={item.href} className="hover:text-secondary">
+                  <Link to={item.href} className="hover:text-primary-600 transition-colors">
                     {item.label}
                   </Link>
                 ) : (
-                  <span aria-current={isLast ? 'page' : undefined} className={cn(isLast && 'text-primary font-medium')}>
+                  <span
+                    aria-current={isLast ? 'page' : undefined}
+                    className={cn(isLast && 'text-gray-900 font-medium')}
+                  >
                     {item.label}
                   </span>
                 )}

@@ -25,7 +25,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         <label
           htmlFor={fieldId}
           className={cn(
-            'text-body font-medium text-primary',
+            'text-body font-medium text-gray-700',
             hideLabel && 'sr-only',
           )}
         >
@@ -39,8 +39,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         className={cn(
-          'w-full rounded border bg-white px-3 py-2 text-body outline-none transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-accent disabled:bg-bgLight disabled:opacity-60',
-          error ? 'border-danger' : 'border-border focus-visible:border-accent',
+          'w-full rounded-md border bg-white px-3 py-2 text-body text-gray-900 outline-none transition-colors duration-100 placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-primary-500 disabled:bg-gray-50 disabled:opacity-60',
+          error
+            ? 'border-danger focus-visible:border-danger'
+            : 'border-gray-300 focus-visible:border-primary-500',
           className,
         )}
         {...rest}
@@ -50,7 +52,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
           {error}
         </span>
       ) : hint ? (
-        <span id={hintId} className="text-sub text-neutral">
+        <span id={hintId} className="text-sub text-gray-500">
           {hint}
         </span>
       ) : null}

@@ -35,27 +35,27 @@ export function KpiCard({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'flex w-full flex-col gap-2 rounded border border-border bg-white p-4 text-left shadow-sm',
+        'flex w-full flex-col gap-2 rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition-colors',
         onClick &&
-          'cursor-pointer hover:border-primary focus-visible:ring-2 focus-visible:ring-accent',
+          'cursor-pointer hover:border-primary-400 focus-visible:ring-2 focus-visible:ring-primary-500',
         className,
       )}
     >
       <div className="flex items-start justify-between">
-        <span className="text-sub text-neutral">{label}</span>
+        <span className="text-sub font-medium text-gray-500">{label}</span>
         {icon && <span aria-hidden="true">{icon}</span>}
       </div>
       <div className="flex items-baseline gap-1">
-        <strong className="text-page-title text-primary">{formatNumber(value)}</strong>
-        {unit && <span className="text-sub text-neutral">{unit}</span>}
+        <strong className="text-page-title text-gray-900 tabular-nums">{formatNumber(value)}</strong>
+        {unit && <span className="text-sub text-gray-500">{unit}</span>}
       </div>
       {trend && (
         <span
           className={cn(
-            'text-sub',
-            trend.delta > 0 && 'text-success',
-            trend.delta < 0 && 'text-danger',
-            trend.delta === 0 && 'text-neutral',
+            'text-sub font-medium',
+            trend.delta > 0 && 'text-green-600',
+            trend.delta < 0 && 'text-red-500',
+            trend.delta === 0 && 'text-gray-500',
           )}
         >
           {trend.delta > 0 && '▲ '}

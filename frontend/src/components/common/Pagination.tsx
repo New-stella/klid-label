@@ -37,14 +37,14 @@ export function Pagination({
   const isLast = safePage >= totalPages - 1;
 
   const baseBtn =
-    'inline-flex h-8 min-w-8 items-center justify-center rounded border border-border px-2 text-sub hover:bg-bgLight disabled:cursor-not-allowed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-accent';
+    'inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sub text-gray-600 hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-primary-500';
 
   return (
     <nav
       aria-label="페이지네이션"
       className={cn('flex items-center justify-between gap-4', className)}
     >
-      <span className="text-sub text-neutral" aria-live="polite">
+      <span className="text-sub text-gray-500" aria-live="polite">
         {start}-{end} / 총 {totalElements.toLocaleString('ko-KR')}건
       </span>
       <div className="inline-flex items-center gap-1">
@@ -75,7 +75,8 @@ export function Pagination({
             onClick={() => onPageChange(n)}
             className={cn(
               baseBtn,
-              n === safePage && 'border-primary bg-primary text-white hover:opacity-90',
+              n === safePage &&
+                'bg-primary-600 text-white hover:bg-primary-700 font-medium',
             )}
           >
             {n + 1}

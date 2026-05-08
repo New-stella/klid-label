@@ -103,12 +103,12 @@ export function DataTable<T>({
 
   return (
     <div className={cn('flex flex-col gap-3', className)}>
-      <div className="overflow-x-auto rounded border border-border">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full text-body" role="table">
-          <thead className="bg-bgLight">
-            <tr>
+          <thead className="bg-gray-50">
+            <tr className="border-b border-gray-200">
               {selection && (
-                <th scope="col" className="w-10 px-3 py-2">
+                <th scope="col" className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
                     aria-label="전체 선택"
@@ -117,7 +117,7 @@ export function DataTable<T>({
                       if (el) el.indeterminate = !allSelected && someSelected;
                     }}
                     onChange={handleSelectAll}
-                    className="h-4 w-4 rounded border-border text-primary focus-visible:ring-2 focus-visible:ring-accent"
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500"
                   />
                 </th>
               )}
@@ -135,7 +135,7 @@ export function DataTable<T>({
                     aria-sort={col.sortable ? (ariaSort ?? 'none') : undefined}
                     style={col.width ? { width: col.width } : undefined}
                     className={cn(
-                      'px-3 py-2 text-table-header text-primary',
+                      'px-4 py-3 text-table-header uppercase tracking-wide text-gray-500',
                       col.align === 'center' && 'text-center',
                       col.align === 'right' && 'text-right',
                       col.align !== 'center' && col.align !== 'right' && 'text-left',
@@ -145,7 +145,7 @@ export function DataTable<T>({
                       <button
                         type="button"
                         onClick={() => handleSort(col.key)}
-                        className="inline-flex items-center gap-1 hover:text-secondary focus-visible:ring-2 focus-visible:ring-accent"
+                        className="inline-flex items-center gap-1 hover:text-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500"
                       >
                         <span>{col.header}</span>
                         {isSorted ? (
@@ -169,14 +169,14 @@ export function DataTable<T>({
           <tbody>
             {loading
               ? Array.from({ length: Math.max(3, size) }).map((_, i) => (
-                  <tr key={`skeleton-${i}`} className="border-t border-border">
+                  <tr key={`skeleton-${i}`} className="border-t border-gray-100">
                     {selection && (
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         <Skeleton width={16} height={16} />
                       </td>
                     )}
                     {columns.map((col) => (
-                      <td key={col.key} className="px-3 py-2">
+                      <td key={col.key} className="px-4 py-3">
                         <Skeleton height={16} className="w-full" />
                       </td>
                     ))}
@@ -201,15 +201,15 @@ export function DataTable<T>({
                       <tr
                         key={String(id)}
                         className={cn(
-                          'border-t border-border hover:bg-bgLight',
-                          onRowClick && 'cursor-pointer',
-                          checked && 'bg-accent/5',
+                          'border-t border-gray-100 transition-colors',
+                          onRowClick ? 'cursor-pointer hover:bg-primary-50' : 'hover:bg-gray-50',
+                          checked && 'bg-primary-50',
                         )}
                         onClick={onRowClick ? () => onRowClick(row) : undefined}
                       >
                         {selection && (
                           <td
-                            className="px-3 py-2"
+                            className="px-4 py-3"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <input
@@ -217,7 +217,7 @@ export function DataTable<T>({
                               aria-label="행 선택"
                               checked={checked}
                               onChange={() => handleSelectRow(row)}
-                              className="h-4 w-4 rounded border-border text-primary focus-visible:ring-2 focus-visible:ring-accent"
+                              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500"
                             />
                           </td>
                         )}
@@ -225,7 +225,7 @@ export function DataTable<T>({
                           <td
                             key={col.key}
                             className={cn(
-                              'px-3 py-2',
+                              'px-4 py-3 text-gray-700',
                               col.align === 'center' && 'text-center',
                               col.align === 'right' && 'text-right',
                             )}

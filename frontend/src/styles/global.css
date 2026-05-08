@@ -12,9 +12,9 @@
   body {
     margin: 0;
     font-family:
-      -apple-system, BlinkMacSystemFont, 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR',
-      sans-serif;
-    color: #212121;
-    background-color: #f5f7fa;
+      'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+      Arial, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    color: #111827;
+    background-color: #f9fafb;
   }
 }

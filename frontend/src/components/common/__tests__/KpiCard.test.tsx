@@ -12,6 +12,7 @@ describe('KpiCard', () => {
   it('KpiCard_trend_양수_success_색상', () => {
     render(<KpiCard label="이번주" value={100} trend={{ delta: 12, label: '대비' }} />);
     const trendEl = screen.getByText(/12 대비/);
-    expect(trendEl.className).toMatch(/text-success/);
+    // 양수 트렌드는 green 계열 (mock tone)
+    expect(trendEl.className).toMatch(/text-green-600|text-success/);
   });
 });

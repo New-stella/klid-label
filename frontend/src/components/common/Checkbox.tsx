@@ -32,13 +32,13 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
           aria-invalid={error ? true : undefined}
           aria-describedby={errorId}
           className={cn(
-            'h-4 w-4 rounded border-border text-primary focus-visible:ring-2 focus-visible:ring-accent',
+            'h-4 w-4 rounded border-gray-300 text-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500',
             className,
           )}
           {...rest}
         />
         {label && (
-          <label htmlFor={fieldId} className="cursor-pointer select-none text-body">
+          <label htmlFor={fieldId} className="cursor-pointer select-none text-body text-gray-700">
             {label}
           </label>
         )}

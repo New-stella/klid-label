@@ -12,12 +12,15 @@ export function ForbiddenPage() {
 
   return (
     <main role="alert" className="flex min-h-[60vh] flex-col items-center justify-center p-8">
-      <h1 className="text-page-title text-primary">403</h1>
-      <p className="mt-4 text-section-title text-primary">접근 권한이 없습니다</p>
-      <p className="mt-2 text-body text-neutral">
+      <h1 className="text-page-title text-gray-900">403</h1>
+      <p className="mt-4 text-section-title text-gray-700">접근 권한이 없습니다</p>
+      <p className="mt-2 text-body text-gray-500">
         이 페이지에 접근할 수 있는 권한이 없습니다. 메인 화면으로 돌아가세요.
       </p>
-      <Link to={home} className="mt-6 text-secondary underline">
+      <Link
+        to={home}
+        className="mt-6 text-primary-600 underline hover:text-primary-700 transition-colors"
+      >
         메인으로 이동
       </Link>
     </main>

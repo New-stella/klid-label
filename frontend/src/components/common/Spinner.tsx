@@ -14,7 +14,7 @@ export function Spinner({ size = 'md', className, label = '로딩 중' }: Spinne
       aria-live="polite"
       aria-label={label}
       className={clsx(
-        'inline-block animate-spin rounded-full border-2 border-border border-t-primary',
+        'inline-block animate-spin rounded-full border-2 border-gray-200 border-t-primary-600',
         dim,
         className,
       )}

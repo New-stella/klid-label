@@ -12,10 +12,10 @@ export interface ToastProps {
 }
 
 const variantClass: Record<ToastVariant, string> = {
-  success: 'bg-success text-white',
-  error: 'bg-danger text-white',
-  warning: 'bg-warning text-white',
-  info: 'bg-secondary text-white',
+  success: 'bg-green-600 text-white',
+  error: 'bg-red-600 text-white',
+  warning: 'bg-yellow-500 text-white',
+  info: 'bg-primary-600 text-white',
 };
 
 const variantLabel: Record<ToastVariant, string> = {
@@ -36,7 +36,7 @@ export function Toast({ id, variant, message, durationMs = 5000, onDismiss }: To
       role="alert"
       aria-live="polite"
       className={clsx(
-        'pointer-events-auto rounded px-4 py-3 shadow transition-opacity duration-100',
+        'pointer-events-auto rounded-lg px-4 py-3 shadow-lg transition-opacity duration-100',
         variantClass[variant],
       )}
     >

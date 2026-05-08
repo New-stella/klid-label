@@ -15,10 +15,13 @@ export function AppErrorPage({ status = 404, message }: AppErrorPageProps) {
   const title = TITLES[status];
   return (
     <main role="alert" className="flex min-h-[60vh] flex-col items-center justify-center p-8">
-      <h1 className="text-page-title text-primary">{status}</h1>
-      <p className="mt-4 text-section-title text-primary">{title}</p>
-      {message && <p className="mt-2 text-body text-neutral">{message}</p>}
-      <Link to="/" className="mt-6 text-secondary underline">
+      <h1 className="text-page-title text-gray-900">{status}</h1>
+      <p className="mt-4 text-section-title text-gray-700">{title}</p>
+      {message && <p className="mt-2 text-body text-gray-500">{message}</p>}
+      <Link
+        to="/"
+        className="mt-6 text-primary-600 underline hover:text-primary-700 transition-colors"
+      >
         메인으로 이동
       </Link>
     </main>

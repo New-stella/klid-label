@@ -152,8 +152,6 @@ export const router = createBrowserRouter([
   // 진입/공통 — Layout 없이 직접 매칭
   { path: '/ingress', element: <SessionIngressPage /> },
   { path: '/forbidden', element: <ForbiddenPage /> },
-  // 루트 → /ingress redirect
-  { path: '/', element: <Navigate to="/ingress" replace /> },
 
   // INTERNAL 채널 (저작도구 내부)
   {
@@ -161,6 +159,8 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     errorElement: <AppErrorPage status={500} />,
     children: [
+      // 루트 → /dashboard redirect (mock 정합)
+      { index: true, element: <Navigate to="/dashboard" replace /> },
       {
         path: 'video',
         children: [
@@ -271,6 +271,15 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            // mock 정합 alias — /review/pending == /review
+            path: 'pending',
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<ReviewListPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
             path: ':id',
             element: (
               <InternalRoute allow={internalReviewerOnly}>
@@ -292,6 +301,15 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            // mock 정합 alias — /stat/worker == /stat
+            path: 'worker',
+            element: (
+              <InternalRoute allow={internalAllRoles}>
+                {withSuspense(<WorkerStatPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
             path: 'overall',
             element: (
               <InternalRoute allow={internalReviewerOnly}>
@@ -306,6 +324,15 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true,
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<AugmentRequestPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            // mock 정합 alias — /augment/request == /augment
+            path: 'request',
             element: (
               <InternalRoute allow={internalReviewerOnly}>
                 {withSuspense(<AugmentRequestPage />)}

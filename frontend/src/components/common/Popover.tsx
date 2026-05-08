@@ -52,7 +52,7 @@ export function Popover({
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
       >
         {trigger}
       </button>
@@ -60,7 +60,7 @@ export function Popover({
         <div
           role="dialog"
           className={cn(
-            'absolute z-30 min-w-40 rounded border border-border bg-white p-2 shadow-lg',
+            'absolute z-30 min-w-40 rounded-lg border border-gray-200 bg-white p-2 shadow-lg',
             placementClass[placement],
             contentClassName,
           )}

@@ -18,10 +18,12 @@ import {
 import { useUiStore } from '@/stores/useUiStore';
 
 /**
- * SCR-REVIEW-002 검수 화면.
+ * SCR-REVIEW-002 검수 화면 (V1.x mock 시각 정합).
  *
  * UI/UX §4-9 정합:
- * - 캔버스(읽기 전용 라벨 오버레이) + 이슈 사이드바(프레임별 카드 누적) + [+ 이슈 추가] + 전체 의견 textarea + [승인][반려]
+ * - 헤더: 영상명·작업자·제출일 + StatusBadge + [승인][반려]
+ * - 메인: 캔버스(읽기 전용 라벨 오버레이) + 전체 의견 textarea
+ * - 사이드바: IssueSidebar (프레임별 카드 누적)
  * - **캔버스 좌표 마커 컴포넌트 미사용** (회귀 방지)
  *
  * 보안:
@@ -86,10 +88,13 @@ export function ReviewPage() {
     });
   };
 
+  const submittedDate = new Date(review.submittedAt).toLocaleString('ko-KR');
+
   return (
     <div className="flex h-full flex-col gap-3" data-testid="review-page">
       <PageHeader
         title={`검수 — ${review.cctvName}`}
+        description={`작업자: ${review.workerName} · 제출: ${submittedDate} · 라벨 ${review.labelCount.toLocaleString('ko-KR')}건`}
         breadcrumb={[
           { label: '검수 대기', href: '/review' },
           { label: review.cctvName },
@@ -122,11 +127,14 @@ export function ReviewPage() {
           {/* 라벨 캔버스 — 검수 화면에서는 읽기 전용 오버레이만.
               UI/UX §4-9 정합 — 캔버스 좌표 마커 컴포넌트는 절대 사용하지 않는다 (회귀 방지). */}
           <div
-            className="flex aspect-video items-center justify-center bg-black/5"
+            className="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-900"
             data-testid="review-canvas-readonly"
             aria-label="검수 캔버스 (읽기 전용)"
           >
-            <span className="text-sub text-neutral">
+            <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-yellow-600/90 px-2 py-1 text-sub font-medium text-white">
+              읽기 전용
+            </div>
+            <span className="text-body text-gray-300">
               라벨 오버레이 (읽기 전용 — 좌표 마커 미사용)
             </span>
           </div>

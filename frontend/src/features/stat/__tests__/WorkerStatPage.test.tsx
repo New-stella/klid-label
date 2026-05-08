@@ -59,7 +59,8 @@ describe('WorkerStatPage', () => {
     });
 
     const grid = screen.getByTestId('worker-kpi-grid');
-    const labels = Array.from(grid.querySelectorAll('span.text-sub.text-neutral')).map(
+    // KpiCard label은 text-sub 클래스를 가진 span (mock tone에서는 text-gray-500)
+    const labels = Array.from(grid.querySelectorAll('span.text-sub')).map(
       (el) => el.textContent,
     );
     expect(labels).toContain('누적 라벨');

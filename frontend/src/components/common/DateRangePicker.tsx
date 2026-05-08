@@ -33,7 +33,7 @@ export function DateRangePicker({
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       {label && (
-        <span id={groupId} className="text-body font-medium text-primary">
+        <span id={groupId} className="text-body font-medium text-gray-700">
           {label}
         </span>
       )}
@@ -44,7 +44,7 @@ export function DateRangePicker({
           max={value?.to}
           onChange={(from) => onChange?.({ from, to: value?.to })}
         />
-        <span aria-hidden="true" className="pb-3 text-neutral">
+        <span aria-hidden="true" className="pb-3 text-gray-400">
           ~
         </span>
         <DatePicker

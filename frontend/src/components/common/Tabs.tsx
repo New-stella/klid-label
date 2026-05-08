@@ -42,7 +42,7 @@ export function Tabs({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div role="tablist" aria-label={ariaLabel} className="flex border-b border-border">
+      <div role="tablist" aria-label={ariaLabel} className="flex border-b border-gray-200">
         {items.map((item, idx) => {
           const selected = item.value === value;
           const id = `${baseId}-tab-${item.value}`;
@@ -60,10 +60,10 @@ export function Tabs({
               onClick={() => onChange(item.value)}
               onKeyDown={(e) => handleKey(e, idx)}
               className={cn(
-                '-mb-px border-b-2 px-4 py-2 text-body transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40',
+                '-mb-px border-b-2 px-4 py-2.5 text-sm transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-40',
                 selected
-                  ? 'border-primary text-primary font-medium'
-                  : 'border-transparent text-neutral hover:text-secondary',
+                  ? 'border-primary-500 text-primary-600 font-medium'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
               )}
             >
               {item.label}
