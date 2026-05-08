@@ -8,7 +8,8 @@ test.describe('영상 목록 — 검색/필터/페이지/URL 동기화', () => {
 
     await list.search('테스트');
 
-    await expect(workerPage).toHaveURL(/keyword=/);
+    // mock 정합 — 검색 파라미터는 cctvNameKeyword (CCTV 명 부분 일치).
+    await expect(workerPage).toHaveURL(/cctvNameKeyword=/);
   });
 
   test('페이지_이동_시_URL_page_파라미터_갱신', async ({ workerPage }) => {

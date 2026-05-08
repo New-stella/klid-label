@@ -14,8 +14,24 @@ export class LabelingPage {
     this.saveBtn = page.getByRole('button', { name: /저장/ });
   }
 
+  /**
+   * SPA 내부 navigation 으로 라벨링 화면 진입.
+   *
+   * <p>Vite dev server 의 dependency re-optimization 으로 인해 새로 {@code page.goto()} 를 호출하면
+   * 동적 import 체인 중 axios 등의 청크가 invalidate 되어 chrome-error 로 떨어지는 문제 회피.
+   * History API 로 SPA 라우터를 직접 트리거한다.
+   */
   async goto(videoId: number | string) {
-    await this.page.goto(`/label/${videoId}`);
+    // path 화이트리스트 (videoId 는 number 만 허용 — XSS/Path injection 방어).
+    const id = Number(videoId);
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new Error(`invalid videoId: ${videoId}`);
+    }
+    await this.page.evaluate((target) => {
+      window.history.pushState({}, '', target);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, `/label/${id}`);
+    await this.page.waitForLoadState('networkidle').catch(() => undefined);
   }
 
   /** 캔버스에 바운딩박스 드래그. */

@@ -9,13 +9,19 @@ export class VideoListPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.searchInput = page.getByLabel('검색');
-    this.searchButton = page.getByRole('button', { name: '검색' });
+    // VideoFilters 의 placeholder "검색어 입력" — getByLabel('검색') 은 form 컨테이너 매칭이라 fill 불가.
+    this.searchInput = page.getByPlaceholder('검색어 입력');
+    this.searchButton = page.getByRole('button', { name: /조회|검색/ });
     this.table = page.getByRole('table');
   }
 
+  /** SPA 내부 navigation — Vite re-optimize 회피 (LabelingPage 주석 참조). */
   async goto() {
-    await this.page.goto('/video/completed');
+    await this.page.evaluate(() => {
+      window.history.pushState({}, '', '/video/completed');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await this.page.waitForLoadState('networkidle').catch(() => undefined);
   }
 
   async search(keyword: string) {

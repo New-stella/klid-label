@@ -18,7 +18,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['list']] : [['list']],
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:5173',
+    baseURL: process.env.BASE_URL || 'http://127.0.0.1:5174',
     trace: 'on-first-retry',
     screenshot: process.env.E2E_CAPTURE ? 'on' : 'only-on-failure',
     headless: true,
@@ -26,7 +26,7 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5173',
+    url: 'http://127.0.0.1:5174',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

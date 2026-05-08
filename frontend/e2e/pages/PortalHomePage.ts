@@ -8,12 +8,19 @@ export class PortalHomePage {
 
   constructor(page: Page) {
     this.page = page;
-    this.dropzone = page.getByTestId('portal-dropzone');
+    this.dropzone = page.getByTestId('upload-dropzone');
     this.fileInput = page.locator('input[type="file"]');
   }
 
+  /** SPA 내부 navigation — Vite re-optimize 회피. */
   async goto() {
-    await this.page.goto('/portal');
+    await this.page.evaluate(() => {
+      if (window.location.pathname !== '/portal') {
+        window.history.pushState({}, '', '/portal');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    });
+    await this.page.waitForLoadState('networkidle').catch(() => undefined);
   }
 
   async uploadFile(filePath: string) {
