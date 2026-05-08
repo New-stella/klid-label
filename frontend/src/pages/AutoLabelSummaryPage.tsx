@@ -29,6 +29,9 @@ export function AutoLabelSummaryPage() {
       : data.lowConfidenceFrames;
   }, [data, lowOnly]);
 
+  // BE placeholder 응답 감지: buckets/classDistribution이 없으면 미구현 단계
+  const isPlaceholder = data && (!data.buckets || !data.classDistribution);
+
   if (validId === null) {
     return <ErrorState title="잘못된 영상 ID" message="유효한 영상 ID가 필요합니다." />;
   }
@@ -43,7 +46,7 @@ export function AutoLabelSummaryPage() {
           { label: '오토라벨' },
         ]}
         actions={
-          data && (
+          data && !isPlaceholder && (
             <Button
               variant="primary"
               size="md"
@@ -64,7 +67,16 @@ export function AutoLabelSummaryPage() {
 
       {error && <ErrorState title="요약 정보를 불러올 수 없습니다" />}
 
-      {data && (
+      {isPlaceholder && (
+        <div className="rounded border border-border bg-white p-6 text-center">
+          <p className="text-section-title text-neutral">배치 처리 대기 중</p>
+          <p className="mt-1 text-body text-neutral">
+            YOLO/SAM2 오토라벨링 완료 후 요약 정보가 표시됩니다.
+          </p>
+        </div>
+      )}
+
+      {data && !isPlaceholder && (
         <>
           <div
             data-testid="auto-summary-info"
