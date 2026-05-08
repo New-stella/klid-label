@@ -14,6 +14,6 @@ public record YoloRequest(
         @JsonProperty("conf_threshold") Double confThreshold
 ) {
     public YoloRequest(String imageB64) {
-        this(imageB64, null);
+        this(imageB64, 0.25);
     }
 }
