@@ -8,7 +8,7 @@
 // 라우트는 AppLayout 밖에서 직접 매칭되므로 LNB/GNB 없는 풀스크린.
 // 보안: 사용자 입력 ID는 axios가 URL 인코딩. BE에서 IDOR/Mass Assignment 방어.
 
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
@@ -19,6 +19,7 @@ import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import { ClassAttributePanel } from '@/features/label/components/ClassAttributePanel';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
+import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { saveAndCommit } from '@/features/label/SaveCommitFlow';
@@ -39,7 +40,8 @@ function useContainerSize<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
-  useEffect(() => {
+  // useLayoutEffect — 첫 페인트 전 동기 측정으로 캔버스 마운트 가드(`size.width > 0`) 통과 보장
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const update = () => {
@@ -73,6 +75,10 @@ export function LabelingPage() {
     Number.isFinite(numericId) ? numericId : undefined,
   );
 
+  // BE 의 인증 보호된 /v1/frames/{srcSn}/image 를 axios 로 fetch → blob URL 발급.
+  // <img>/Image() 직접 호출은 Bearer 토큰 누락으로 401. CSP 의 img-src blob: 허용 활용.
+  const { url: imageBlobUrl } = useImageBlob(data?.srcSn);
+
   const { mutate: submitForReview, isPending: submitting } = useSubmitReview({
     onSuccess: () => {
       pushToast({ variant: 'success', message: '검수 제출 완료' });
@@ -88,20 +94,21 @@ export function LabelingPage() {
   const addLabel = useLabelStore((s) => s.addLabel);
   const reset = useLabelStore((s) => s.reset);
 
-  // Phase 8 전: 단일 프레임만 보유 — frames 배열에 srcSn 1건
+  // Phase 8 전: 단일 프레임만 보유 — frames 배열에 srcSn 1건.
+  // imageUrl 은 useImageBlob 이 발급한 blob: URL (인증 헤더로 fetch 한 결과).
   const frames: FrameSummary[] = useMemo(() => {
     if (!data) return [];
     return [
       {
         frameNo: data.frameNo,
         srcSn: data.srcSn,
-        thumbnailUrl: '',
-        imageUrl: '',
+        thumbnailUrl: imageBlobUrl ?? '',
+        imageUrl: imageBlobUrl ?? '',
         imageWidth: 1920,
         imageHeight: 1080,
       },
     ];
-  }, [data]);
+  }, [data, imageBlobUrl]);
 
   const [frameIdx, setFrameIdx] = useState(0);
   const currentFrame = frames[frameIdx];
@@ -246,7 +253,7 @@ export function LabelingPage() {
           ref={canvasRef}
           className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-900"
         >
-          {currentFrame && canvasSize.width > 0 && canvasSize.height > 0 ? (
+          {currentFrame ? (
             <Suspense
               fallback={
                 <div className="flex items-center justify-center text-gray-400">
@@ -256,8 +263,8 @@ export function LabelingPage() {
             >
               <CanvasShell
                 frame={currentFrame}
-                width={canvasSize.width}
-                height={canvasSize.height}
+                width={canvasSize.width || 1280}
+                height={canvasSize.height || 720}
                 labels={labels}
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
               />

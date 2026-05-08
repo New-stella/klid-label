@@ -227,11 +227,15 @@ INSERT INTO LS_PJT_USER_AUTHRT (PJT_ID, USER_NO, RAW_DATA_ID, TASK_TYPE_CD, REG_
 
 -- 10) 키프레임 (LS_DATA_SRC) — 처리 완료/진행중 영상에 키프레임 5장씩
 --   COMPLETED 15건 (9001..9015) + 추가 3건 (9031..9033) + PROCESSING 5건 (9016..9020) = 23건 × 5 frame = 115 row
+--
+--   FILE_PATH 정책: storage.raw-path 기준 상대 경로 'seed/{rawSn}/frame_{N}.jpg'.
+--   FrameImageController 가 baseDir + filePath 를 normalize 후 baseDir startsWith 검증 (CWE-22 방어).
+--   SeedImageRunner 가 동일 경로에 합성 placeholder JPEG 를 생성한다 (운영 데이터 아님).
 INSERT INTO LS_DATA_SRC (RAW_SN, FRAME_NO, FILE_PATH, DEID_FILE_PATH, CAPTURED_AT, REG_DT)
 SELECT r.RAW_SN, fn.frame_no,
-       CONCAT('/data/src/seed/', r.RAW_SN, '/frame_', fn.frame_no, '.jpg'),
+       CONCAT('seed/', r.RAW_SN, '/frame_', fn.frame_no, '.jpg'),
        CASE WHEN r.PRVC_TYPE_CD IN ('PRVC','PSDO')
-            THEN CONCAT('/data/src/seed/deid/', r.RAW_SN, '/frame_', fn.frame_no, '.jpg')
+            THEN CONCAT('seed/deid/', r.RAW_SN, '/frame_', fn.frame_no, '.jpg')
             ELSE NULL END,
        r.CAPTURED_AT,
        r.REG_DT
