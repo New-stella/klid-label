@@ -1,0 +1,294 @@
+-- ============================================================
+-- 개발/로컬 전용 시드 데이터 (klid_system)
+-- ⚠ LOCAL/DEV ONLY — 절대 prd DB에 실행 금지
+--
+-- 목적: FE 빈 화면 방지. mock(33건 영상 / 작업 / 검수자 흐름)과 동일한 풍부 데이터 시각화 비교.
+--
+-- 멱등성: 시드 ID 범위(1000번대 사용자, 9000번대 영상/세부)만 DELETE 후 INSERT.
+--   → 재실행 안전. 운영 데이터(다른 ID 범위)는 건드리지 않음.
+--
+-- 시드 ID 정책:
+--   - REVIEWER 사용자: 1001 (DevTokenService 기본값), 1002~1003 (추가)
+--   - WORKER 사용자  : 2001 (DevTokenService 기본값 user_no=1002 이지만 충돌 회피 위해 별도 ID 부여),
+--                      2002~2007 (추가)
+--   - PORTAL_USER    : 3001~3002
+--   - PJT_ID         : 1
+--   - LS_DATA_RAW.RAW_SN : 9001~9033 (33건)
+--   - LS_DATA_SRC.SRC_SN : 시드 INSERT 후 AUTO_INCREMENT (DELETE 시 RAW_SN >= 9001 조건의 row만 삭제)
+-- ============================================================
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- 1) 정리 (자식 → 부모 순) — 9000번대 영상 / 1000~3000번대 사용자만 대상
+DELETE FROM LS_DATA_LBL WHERE SRC_SN IN (SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN >= 9001 AND RAW_SN <= 9999);
+DELETE FROM LS_DATA_SRC WHERE RAW_SN >= 9001 AND RAW_SN <= 9999;
+DELETE FROM LS_PJT_DATA_STTS WHERE PJT_ID = 1;
+DELETE FROM LS_PJT_USER_AUTHRT_HSTRY WHERE PJT_ID = 1;
+DELETE FROM LS_PJT_USER_AUTHRT WHERE PJT_ID = 1;
+DELETE FROM LS_PJT_DATA_MPNG WHERE PJT_ID = 1;
+DELETE FROM LS_DATA_RAW WHERE RAW_SN >= 9001 AND RAW_SN <= 9999;
+DELETE FROM LS_PJT WHERE PJT_ID = 1;
+DELETE FROM MNG_ACCT_USER_AUTHRT WHERE USER_NO BETWEEN 1000 AND 9999;
+DELETE FROM MNG_ACCT_USER WHERE USER_NO BETWEEN 1000 AND 9999;
+
+-- 2) 권한 코드 마스터 (REVIEWER / WORKER / PORTAL_USER) — Role enum 과 일치
+INSERT INTO MNG_ACCT_AUTHRT (AUTHRT_CD, AUTHRT_NM, USE_YN) VALUES
+    ('REVIEWER',    '검수자',     'Y'),
+    ('WORKER',      '라벨링 작업자', 'Y'),
+    ('PORTAL_USER', '포털 회원',   'Y')
+ON DUPLICATE KEY UPDATE AUTHRT_NM = VALUES(AUTHRT_NM);
+
+-- 3) 사용자 마스터 (MNG_ACCT_USER) — REVIEWER 3 / WORKER 7 / PORTAL_USER 2
+--   1001 = DevTokenService.DEFAULT_USER_NO_REVIEWER
+--   2001 = DevTokenService.DEFAULT_USER_NO_PORTAL (PORTAL_USER이지만 WORKER 영역 차지하므로 PORTAL은 3001로)
+--   3001 = PORTAL_USER 1번
+-- ⚠ DevToken 기본값:
+--   REVIEWER -> 1001 (시드와 일치)
+--   WORKER   -> 1002 (시드에 1002 = REVIEWER. WORKER 토큰 사용 시 userNo 명시 필요. 본 시드는 2001 = WORKER)
+--   PORTAL_USER -> 2001 (시드에 2001 = WORKER. PORTAL 토큰 사용 시 userNo=3001 명시 필요)
+INSERT INTO MNG_ACCT_USER (USER_NO, USER_ID, USER_NM, USER_EMAIL, USE_YN, REG_DT) VALUES
+    -- REVIEWER 3명
+    (1001, 'reviewer1', '김검수',   'reviewer1@cudo.co.kr', 'Y', '2026-02-01 09:00:00'),
+    (1002, 'reviewer2', '이검수',   'reviewer2@cudo.co.kr', 'Y', '2026-02-01 09:00:00'),
+    (1003, 'reviewer3', '박검토',   'reviewer3@cudo.co.kr', 'Y', '2026-02-01 09:00:00'),
+    -- WORKER 7명
+    (2001, 'worker1',   '최라벨',   'worker1@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
+    (2002, 'worker2',   '정작업',   'worker2@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
+    (2003, 'worker3',   '강라벨링', 'worker3@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
+    (2004, 'worker4',   '윤어노테', 'worker4@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
+    (2005, 'worker5',   '임태그',   'worker5@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
+    (2006, 'worker6',   '한마킹',   'worker6@cudo.co.kr',   'N', '2026-02-05 09:00:00'),
+    (2007, 'worker7',   '오분류',   'worker7@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
+    -- PORTAL_USER 2명
+    (3001, 'portal1',   '홍길동',   'portal1@example.com',  'Y', '2026-03-01 09:00:00'),
+    (3002, 'portal2',   '이순신',   'portal2@example.com',  'Y', '2026-03-01 09:00:00')
+ON DUPLICATE KEY UPDATE
+    USER_NM = VALUES(USER_NM),
+    USER_EMAIL = VALUES(USER_EMAIL),
+    USE_YN = VALUES(USE_YN);
+
+-- 4) 사용자-권한 매핑
+INSERT INTO MNG_ACCT_USER_AUTHRT (USER_NO, AUTHRT_CD, REG_DT) VALUES
+    (1001, 'REVIEWER',    '2026-02-01 09:00:00'),
+    (1002, 'REVIEWER',    '2026-02-01 09:00:00'),
+    (1003, 'REVIEWER',    '2026-02-01 09:00:00'),
+    (2001, 'WORKER',      '2026-02-05 09:00:00'),
+    (2002, 'WORKER',      '2026-02-05 09:00:00'),
+    (2003, 'WORKER',      '2026-02-05 09:00:00'),
+    (2004, 'WORKER',      '2026-02-05 09:00:00'),
+    (2005, 'WORKER',      '2026-02-05 09:00:00'),
+    (2006, 'WORKER',      '2026-02-05 09:00:00'),
+    (2007, 'WORKER',      '2026-02-05 09:00:00'),
+    (3001, 'PORTAL_USER', '2026-03-01 09:00:00'),
+    (3002, 'PORTAL_USER', '2026-03-01 09:00:00');
+
+-- 5) 프로젝트
+INSERT INTO LS_PJT (PJT_ID, PJT_NM, PJT_DESC, PJT_STTS_CD, USE_YN, REG_USER_NO, REG_DT) VALUES
+    (1, 'CCTV 라벨링 메인', '관제서버 송신 영상 라벨링/검수 메인 프로젝트 (V1.8)', 'ACTIVE', 'Y', 1001, '2026-02-01 09:00:00');
+
+-- 6) 영상 33건 (LS_DATA_RAW)
+--   분포 (mock videos.ts 기준):
+--     index 0..14 (RAW_SN 9001..9015)  : COMPLETED (배치 처리 완료) — 작업 base
+--     index 15..24 (RAW_SN 9016..9025) : PROCESSING
+--     index 25..29 (RAW_SN 9026..9030) : PENDING
+--     index 30..32 (RAW_SN 9031..9033) : COMPLETED 추가 (시연용)
+--   이벤트 6종 순환: 쓰러짐(EVT_FALL), 폭력(EVT_VIOLENCE), 교통사고(EVT_ACCIDENT), 이상행동(EVT_ABNORMAL), 침수(EVT_FLOOD), 산불(EVT_FIRE)
+--   PRVC_TYPE: PRVC 50%, PSDO 33%, ANONY 17% 분포
+INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, EVNT_TYPE_CD, LCLGV_CD, PRVC_TYPE_CD, PRVC_YN, DE_IDNTF_YN, FILE_PATH, CAPTURED_AT, DURATION_SEC, DATA_STTS_CD, REG_DT, UPD_DT) VALUES
+    -- COMPLETED (15건) — 9001..9015
+    (9001, 'SEED-CLIP-9001', 'CCTV-001', 'EVT_FALL',     '11680', 'PRVC',  'Y', 'Y', '/data/raw/seed/9001.mp4', '2026-02-15 10:30:00',  60, 'COMPLETED', '2026-02-15 10:35:00', '2026-04-20 14:00:00'),
+    (9002, 'SEED-CLIP-9002', 'CCTV-002', 'EVT_VIOLENCE', '11650', 'PRVC',  'Y', 'Y', '/data/raw/seed/9002.mp4', '2026-02-16 11:00:00', 120, 'COMPLETED', '2026-02-16 11:05:00', '2026-04-21 10:00:00'),
+    (9003, 'SEED-CLIP-9003', 'CCTV-003', 'EVT_ACCIDENT', '11710', 'PSDO',  'Y', 'Y', '/data/raw/seed/9003.mp4', '2026-02-17 09:15:00',  90, 'COMPLETED', '2026-02-17 09:20:00', '2026-04-22 09:00:00'),
+    (9004, 'SEED-CLIP-9004', 'CCTV-004', 'EVT_ABNORMAL', '11110', 'ANONY', 'N', 'N', '/data/raw/seed/9004.mp4', '2026-02-18 14:00:00', 180, 'COMPLETED', '2026-02-18 14:05:00', '2026-04-23 11:00:00'),
+    (9005, 'SEED-CLIP-9005', 'CCTV-005', 'EVT_FLOOD',    '11440', 'PRVC',  'Y', 'Y', '/data/raw/seed/9005.mp4', '2026-02-19 16:30:00',  45, 'COMPLETED', '2026-02-19 16:35:00', '2026-04-24 12:00:00'),
+    (9006, 'SEED-CLIP-9006', 'CCTV-006', 'EVT_FIRE',     '11560', 'PSDO',  'Y', 'F', '/data/raw/seed/9006.mp4', '2026-02-20 08:45:00', 240, 'COMPLETED', '2026-02-20 08:50:00', '2026-04-25 13:00:00'),
+    (9007, 'SEED-CLIP-9007', 'CCTV-007', 'EVT_FALL',     '11170', 'PRVC',  'Y', 'Y', '/data/raw/seed/9007.mp4', '2026-02-21 13:20:00',  75, 'COMPLETED', '2026-02-21 13:25:00', '2026-04-26 14:00:00'),
+    (9008, 'SEED-CLIP-9008', 'CCTV-008', 'EVT_VIOLENCE', '11140', 'PRVC',  'Y', 'Y', '/data/raw/seed/9008.mp4', '2026-02-22 12:00:00', 150, 'COMPLETED', '2026-02-22 12:05:00', '2026-04-27 15:00:00'),
+    (9009, 'SEED-CLIP-9009', 'CCTV-009', 'EVT_ACCIDENT', '11200', 'PSDO',  'Y', 'Y', '/data/raw/seed/9009.mp4', '2026-02-23 11:30:00',  95, 'COMPLETED', '2026-02-23 11:35:00', '2026-04-28 16:00:00'),
+    (9010, 'SEED-CLIP-9010', 'CCTV-010', 'EVT_ABNORMAL', '11215', 'PRVC',  'Y', 'Y', '/data/raw/seed/9010.mp4', '2026-02-24 17:00:00', 200, 'COMPLETED', '2026-02-24 17:05:00', '2026-04-29 11:00:00'),
+    (9011, 'SEED-CLIP-9011', 'CCTV-011', 'EVT_FLOOD',    '11230', 'ANONY', 'N', 'N', '/data/raw/seed/9011.mp4', '2026-02-25 10:00:00',  55, 'COMPLETED', '2026-02-25 10:05:00', '2026-04-30 12:00:00'),
+    (9012, 'SEED-CLIP-9012', 'CCTV-012', 'EVT_FIRE',     '11290', 'PRVC',  'Y', 'Y', '/data/raw/seed/9012.mp4', '2026-02-26 15:45:00', 110, 'COMPLETED', '2026-02-26 15:50:00', '2026-05-01 13:00:00'),
+    (9013, 'SEED-CLIP-9013', 'CCTV-013', 'EVT_FALL',     '11305', 'PSDO',  'Y', 'Y', '/data/raw/seed/9013.mp4', '2026-02-27 09:30:00',  85, 'COMPLETED', '2026-02-27 09:35:00', '2026-05-02 14:00:00'),
+    (9014, 'SEED-CLIP-9014', 'CCTV-014', 'EVT_VIOLENCE', '11320', 'PRVC',  'Y', 'Y', '/data/raw/seed/9014.mp4', '2026-02-28 13:15:00', 130, 'COMPLETED', '2026-02-28 13:20:00', '2026-05-03 15:00:00'),
+    (9015, 'SEED-CLIP-9015', 'CCTV-015', 'EVT_ACCIDENT', '11380', 'PRVC',  'Y', 'Y', '/data/raw/seed/9015.mp4', '2026-03-01 11:00:00',  65, 'COMPLETED', '2026-03-01 11:05:00', '2026-05-04 09:00:00'),
+    -- PROCESSING (10건) — 9016..9025
+    (9016, 'SEED-CLIP-9016', 'CCTV-016', 'EVT_ABNORMAL', '11680', 'ANONY', 'N', 'N', '/data/raw/seed/9016.mp4', '2026-04-15 10:00:00', 100, 'PROCESSING', '2026-04-15 10:05:00', '2026-05-07 09:00:00'),
+    (9017, 'SEED-CLIP-9017', 'CCTV-017', 'EVT_FLOOD',    '11650', 'PRVC',  'Y', 'Y', '/data/raw/seed/9017.mp4', '2026-04-16 11:00:00', 220, 'PROCESSING', '2026-04-16 11:05:00', '2026-05-07 09:30:00'),
+    (9018, 'SEED-CLIP-9018', 'CCTV-018', 'EVT_FIRE',     '11710', 'PSDO',  'Y', 'Y', '/data/raw/seed/9018.mp4', '2026-04-17 14:30:00', 175, 'PROCESSING', '2026-04-17 14:35:00', '2026-05-07 10:00:00'),
+    (9019, 'SEED-CLIP-9019', 'CCTV-019', 'EVT_FALL',     '11110', 'PRVC',  'Y', 'Y', '/data/raw/seed/9019.mp4', '2026-04-18 16:00:00',  70, 'PROCESSING', '2026-04-18 16:05:00', '2026-05-07 11:00:00'),
+    (9020, 'SEED-CLIP-9020', 'CCTV-020', 'EVT_VIOLENCE', '11440', 'PRVC',  'Y', 'Y', '/data/raw/seed/9020.mp4', '2026-04-19 09:30:00', 145, 'PROCESSING', '2026-04-19 09:35:00', '2026-05-07 11:30:00'),
+    (9021, 'SEED-CLIP-9021', 'CCTV-021', 'EVT_ACCIDENT', '11560', 'PSDO',  'Y', 'Y', '/data/raw/seed/9021.mp4', '2026-04-20 13:00:00',  80, 'PROCESSING', '2026-04-20 13:05:00', '2026-05-07 12:00:00'),
+    (9022, 'SEED-CLIP-9022', 'CCTV-022', 'EVT_ABNORMAL', '11170', 'PRVC',  'Y', 'Y', '/data/raw/seed/9022.mp4', '2026-04-21 15:30:00', 195, 'PROCESSING', '2026-04-21 15:35:00', '2026-05-07 12:30:00'),
+    (9023, 'SEED-CLIP-9023', 'CCTV-023', 'EVT_FLOOD',    '11140', 'ANONY', 'N', 'N', '/data/raw/seed/9023.mp4', '2026-04-22 08:00:00',  50, 'PROCESSING', '2026-04-22 08:05:00', '2026-05-07 13:00:00'),
+    (9024, 'SEED-CLIP-9024', 'CCTV-024', 'EVT_FIRE',     '11200', 'PRVC',  'Y', 'Y', '/data/raw/seed/9024.mp4', '2026-04-23 12:30:00', 105, 'PROCESSING', '2026-04-23 12:35:00', '2026-05-07 13:30:00'),
+    (9025, 'SEED-CLIP-9025', 'CCTV-025', 'EVT_FALL',     '11215', 'PSDO',  'Y', 'Y', '/data/raw/seed/9025.mp4', '2026-04-24 10:00:00',  90, 'PROCESSING', '2026-04-24 10:05:00', '2026-05-07 14:00:00'),
+    -- PENDING (5건) — 9026..9030
+    (9026, 'SEED-CLIP-9026', 'CCTV-026', 'EVT_VIOLENCE', '11230', 'PRVC',  'Y', 'N', '/data/raw/seed/9026.mp4', '2026-05-01 11:00:00', 165, 'PENDING', '2026-05-01 11:05:00', NULL),
+    (9027, 'SEED-CLIP-9027', 'CCTV-027', 'EVT_ACCIDENT', '11290', 'PRVC',  'Y', 'N', '/data/raw/seed/9027.mp4', '2026-05-02 14:00:00',  60, 'PENDING', '2026-05-02 14:05:00', NULL),
+    (9028, 'SEED-CLIP-9028', 'CCTV-028', 'EVT_ABNORMAL', '11305', 'PSDO',  'Y', 'N', '/data/raw/seed/9028.mp4', '2026-05-03 09:00:00', 250, 'PENDING', '2026-05-03 09:05:00', NULL),
+    (9029, 'SEED-CLIP-9029', 'CCTV-029', 'EVT_FLOOD',    '11320', 'ANONY', 'N', 'N', '/data/raw/seed/9029.mp4', '2026-05-04 16:00:00',  35, 'PENDING', '2026-05-04 16:05:00', NULL),
+    (9030, 'SEED-CLIP-9030', 'CCTV-030', 'EVT_FIRE',     '11380', 'PRVC',  'Y', 'N', '/data/raw/seed/9030.mp4', '2026-05-05 10:30:00', 115, 'PENDING', '2026-05-05 10:35:00', NULL),
+    -- COMPLETED 추가 (3건) — 9031..9033 (시연용 — task 미배정/검수자 미등록 케이스)
+    (9031, 'SEED-CLIP-9031', 'CCTV-031', 'EVT_FALL',     '11440', 'PRVC',  'Y', 'Y', '/data/raw/seed/9031.mp4', '2026-03-15 11:00:00',  95, 'COMPLETED', '2026-03-15 11:05:00', '2026-05-05 14:00:00'),
+    (9032, 'SEED-CLIP-9032', 'CCTV-032', 'EVT_VIOLENCE', '11560', 'PSDO',  'Y', 'Y', '/data/raw/seed/9032.mp4', '2026-03-16 13:30:00', 185, 'COMPLETED', '2026-03-16 13:35:00', '2026-05-06 10:00:00'),
+    (9033, 'SEED-CLIP-9033', 'CCTV-033', 'EVT_ACCIDENT', '11680', 'PRVC',  'Y', 'Y', '/data/raw/seed/9033.mp4', '2026-03-17 15:00:00',  72, 'COMPLETED', '2026-03-17 15:05:00', '2026-05-06 11:00:00');
+
+-- 7) 프로젝트-영상 매핑 (LS_PJT_DATA_MPNG) — 33건 모두 PJT 1번 소속
+INSERT INTO LS_PJT_DATA_MPNG (PJT_ID, RAW_DATA_ID, REG_DT)
+SELECT 1, RAW_SN, REG_DT FROM LS_DATA_RAW WHERE RAW_SN BETWEEN 9001 AND 9033;
+
+-- 8) 프로젝트-영상 검수 상태 (LS_PJT_DATA_STTS)
+--   분포 (배정 가능한 COMPLETED 18건 + PROCESSING 10건 + PENDING 5건):
+--     COMPLETED 15건 (9001..9015) → 13건 APPROVED + 2건 IN_REVIEW
+--     COMPLETED 추가 3건 (9031..9033) → 3건 REJECTED (반려)
+--     PROCESSING 10건 (9016..9025) → 5건 IN_REVIEW + 5건 PENDING
+--     PENDING 5건 (9026..9030) → 5건 PENDING
+--   ※ DATA_STTS_CD 후보: PENDING / ASSIGNED / IN_REVIEW / APPROVED / REJECTED (CM_CODE 시드)
+INSERT INTO LS_PJT_DATA_STTS (PJT_ID, RAW_DATA_ID, DATA_STTS_CD, STP_CYCL, IGI_CYCL, UPD_DT, VERSION) VALUES
+    -- APPROVED 13건
+    (1, 9001, 'APPROVED', 1, 0, '2026-04-20 14:00:00', 1),
+    (1, 9002, 'APPROVED', 1, 0, '2026-04-21 10:00:00', 1),
+    (1, 9003, 'APPROVED', 1, 0, '2026-04-22 09:00:00', 1),
+    (1, 9004, 'APPROVED', 1, 0, '2026-04-23 11:00:00', 1),
+    (1, 9005, 'APPROVED', 1, 0, '2026-04-24 12:00:00', 1),
+    (1, 9006, 'APPROVED', 1, 0, '2026-04-25 13:00:00', 1),
+    (1, 9007, 'APPROVED', 1, 0, '2026-04-26 14:00:00', 1),
+    (1, 9008, 'APPROVED', 1, 0, '2026-04-27 15:00:00', 1),
+    (1, 9009, 'APPROVED', 1, 0, '2026-04-28 16:00:00', 1),
+    (1, 9010, 'APPROVED', 1, 0, '2026-04-29 11:00:00', 1),
+    (1, 9011, 'APPROVED', 1, 0, '2026-04-30 12:00:00', 1),
+    (1, 9012, 'APPROVED', 1, 0, '2026-05-01 13:00:00', 1),
+    (1, 9013, 'APPROVED', 1, 0, '2026-05-02 14:00:00', 1),
+    -- IN_REVIEW 2건 (COMPLETED 영상에서)
+    (1, 9014, 'IN_REVIEW', 1, 1, '2026-05-03 15:00:00', 0),
+    (1, 9015, 'IN_REVIEW', 1, 1, '2026-05-04 09:00:00', 0),
+    -- IN_REVIEW 5건 (PROCESSING 중에서 — 라벨링 진행 중인 영상)
+    (1, 9016, 'IN_REVIEW', 0, 0, '2026-05-07 09:00:00', 0),
+    (1, 9017, 'IN_REVIEW', 0, 0, '2026-05-07 09:30:00', 0),
+    (1, 9018, 'IN_REVIEW', 0, 0, '2026-05-07 10:00:00', 0),
+    (1, 9019, 'IN_REVIEW', 0, 0, '2026-05-07 11:00:00', 0),
+    (1, 9020, 'IN_REVIEW', 0, 0, '2026-05-07 11:30:00', 0),
+    -- PENDING 5건 (PROCESSING 중 검수 대기)
+    (1, 9021, 'PENDING', 0, 0, '2026-05-07 12:00:00', 0),
+    (1, 9022, 'PENDING', 0, 0, '2026-05-07 12:30:00', 0),
+    (1, 9023, 'PENDING', 0, 0, '2026-05-07 13:00:00', 0),
+    (1, 9024, 'PENDING', 0, 0, '2026-05-07 13:30:00', 0),
+    (1, 9025, 'PENDING', 0, 0, '2026-05-07 14:00:00', 0),
+    -- PENDING 5건 (PENDING 영상 — 배치 전)
+    (1, 9026, 'PENDING', 0, 0, '2026-05-01 11:05:00', 0),
+    (1, 9027, 'PENDING', 0, 0, '2026-05-02 14:05:00', 0),
+    (1, 9028, 'PENDING', 0, 0, '2026-05-03 09:05:00', 0),
+    (1, 9029, 'PENDING', 0, 0, '2026-05-04 16:05:00', 0),
+    (1, 9030, 'PENDING', 0, 0, '2026-05-05 10:35:00', 0),
+    -- REJECTED 3건
+    (1, 9031, 'REJECTED', 1, 1, '2026-05-05 14:00:00', 1),
+    (1, 9032, 'REJECTED', 1, 1, '2026-05-06 10:00:00', 1),
+    (1, 9033, 'REJECTED', 1, 1, '2026-05-06 11:00:00', 1);
+
+-- 9) 작업 배정 (LS_PJT_USER_AUTHRT) — TASK_TYPE_CD='LABELER'
+--   COMPLETED 13건 + IN_REVIEW 7건 = 20건에 작업자 배정 (5명 워커 분배)
+--   배정자(REG_USER_NO): 1001 (REVIEWER 김검수)
+INSERT INTO LS_PJT_USER_AUTHRT (PJT_ID, USER_NO, RAW_DATA_ID, TASK_TYPE_CD, REG_USER_NO, REG_DT) VALUES
+    (1, 2001, 9001, 'LABELER', 1001, '2026-02-15 11:00:00'),
+    (1, 2002, 9002, 'LABELER', 1001, '2026-02-16 12:00:00'),
+    (1, 2003, 9003, 'LABELER', 1001, '2026-02-17 10:00:00'),
+    (1, 2004, 9004, 'LABELER', 1001, '2026-02-18 15:00:00'),
+    (1, 2005, 9005, 'LABELER', 1001, '2026-02-19 17:00:00'),
+    (1, 2001, 9006, 'LABELER', 1001, '2026-02-20 09:00:00'),
+    (1, 2002, 9007, 'LABELER', 1001, '2026-02-21 14:00:00'),
+    (1, 2003, 9008, 'LABELER', 1001, '2026-02-22 13:00:00'),
+    (1, 2004, 9009, 'LABELER', 1001, '2026-02-23 12:00:00'),
+    (1, 2005, 9010, 'LABELER', 1001, '2026-02-24 18:00:00'),
+    (1, 2001, 9011, 'LABELER', 1001, '2026-02-25 11:00:00'),
+    (1, 2002, 9012, 'LABELER', 1001, '2026-02-26 16:00:00'),
+    (1, 2003, 9013, 'LABELER', 1001, '2026-02-27 10:00:00'),
+    (1, 2004, 9014, 'LABELER', 1001, '2026-02-28 14:00:00'),
+    (1, 2005, 9015, 'LABELER', 1001, '2026-03-01 12:00:00'),
+    -- IN_REVIEW 5건도 작업자 배정 (라벨링 진행 중)
+    (1, 2001, 9016, 'LABELER', 1001, '2026-04-15 11:00:00'),
+    (1, 2002, 9017, 'LABELER', 1001, '2026-04-16 12:00:00'),
+    (1, 2003, 9018, 'LABELER', 1001, '2026-04-17 15:00:00'),
+    (1, 2004, 9019, 'LABELER', 1001, '2026-04-18 17:00:00'),
+    (1, 2005, 9020, 'LABELER', 1001, '2026-04-19 10:00:00'),
+    -- 검수자(REVIEWER) 배정 — APPROVED 영상 13건 + IN_REVIEW 5건 = 18건에 검수자 1002, 1003 분배
+    (1, 1002, 9001, 'REVIEWER', 1001, '2026-04-20 13:00:00'),
+    (1, 1003, 9002, 'REVIEWER', 1001, '2026-04-21 09:00:00'),
+    (1, 1002, 9003, 'REVIEWER', 1001, '2026-04-22 08:00:00'),
+    (1, 1003, 9004, 'REVIEWER', 1001, '2026-04-23 10:00:00'),
+    (1, 1002, 9005, 'REVIEWER', 1001, '2026-04-24 11:00:00'),
+    (1, 1003, 9006, 'REVIEWER', 1001, '2026-04-25 12:00:00'),
+    (1, 1002, 9007, 'REVIEWER', 1001, '2026-04-26 13:00:00'),
+    (1, 1003, 9008, 'REVIEWER', 1001, '2026-04-27 14:00:00'),
+    (1, 1002, 9009, 'REVIEWER', 1001, '2026-04-28 15:00:00'),
+    (1, 1003, 9010, 'REVIEWER', 1001, '2026-04-29 10:00:00'),
+    (1, 1002, 9011, 'REVIEWER', 1001, '2026-04-30 11:00:00'),
+    (1, 1003, 9012, 'REVIEWER', 1001, '2026-05-01 12:00:00'),
+    (1, 1002, 9013, 'REVIEWER', 1001, '2026-05-02 13:00:00');
+
+-- 10) 키프레임 (LS_DATA_SRC) — 처리 완료/진행중 영상에 키프레임 5장씩
+--   COMPLETED 15건 (9001..9015) + 추가 3건 (9031..9033) + PROCESSING 5건 (9016..9020) = 23건 × 5 frame = 115 row
+INSERT INTO LS_DATA_SRC (RAW_SN, FRAME_NO, FILE_PATH, DEID_FILE_PATH, CAPTURED_AT, REG_DT)
+SELECT r.RAW_SN, fn.frame_no,
+       CONCAT('/data/src/seed/', r.RAW_SN, '/frame_', fn.frame_no, '.jpg'),
+       CASE WHEN r.PRVC_TYPE_CD IN ('PRVC','PSDO')
+            THEN CONCAT('/data/src/seed/deid/', r.RAW_SN, '/frame_', fn.frame_no, '.jpg')
+            ELSE NULL END,
+       r.CAPTURED_AT,
+       r.REG_DT
+FROM LS_DATA_RAW r
+CROSS JOIN (
+    SELECT 1 AS frame_no UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5
+) fn
+WHERE r.RAW_SN IN (9001,9002,9003,9004,9005,9006,9007,9008,9009,9010,9011,9012,9013,9014,9015,
+                   9016,9017,9018,9019,9020, 9031,9032,9033);
+
+-- 11) 라벨 (LS_DATA_LBL) — APPROVED 영상의 첫 프레임에 BBOX 라벨 1~2개씩
+--    AUTO_LBL_YN='Y' 자동 라벨 + 'N' 사람 검토 후 확정 라벨 혼합
+INSERT INTO LS_DATA_LBL (SRC_SN, LBL_TYPE_CD, LABEL, POINTS_JSON, AUTO_LBL_YN, CONF_SCORE, REG_USER_NO, REG_DT, UPD_DT)
+SELECT s.SRC_SN, 'BBOX',
+       CASE r.EVNT_TYPE_CD
+           WHEN 'EVT_FALL'     THEN 'person'
+           WHEN 'EVT_VIOLENCE' THEN 'person'
+           WHEN 'EVT_ACCIDENT' THEN 'car'
+           WHEN 'EVT_ABNORMAL' THEN 'person'
+           WHEN 'EVT_FLOOD'    THEN 'water'
+           WHEN 'EVT_FIRE'     THEN 'fire'
+           ELSE 'object'
+       END,
+       '[{"x":120,"y":80},{"x":340,"y":280}]',
+       'Y',
+       0.8500,
+       NULL,
+       r.REG_DT,
+       NULL
+FROM LS_DATA_SRC s
+JOIN LS_DATA_RAW r ON s.RAW_SN = r.RAW_SN
+WHERE s.RAW_SN IN (9001,9002,9003,9004,9005,9006,9007,9008,9009,9010,9011,9012,9013)
+  AND s.FRAME_NO = 1;
+
+-- 두 번째 라벨 (사람 검토 후 추가) — 일부 영상에만
+INSERT INTO LS_DATA_LBL (SRC_SN, LBL_TYPE_CD, LABEL, POINTS_JSON, AUTO_LBL_YN, CONF_SCORE, REG_USER_NO, REG_DT, UPD_DT)
+SELECT s.SRC_SN, 'BBOX', 'person',
+       '[{"x":50,"y":40},{"x":180,"y":200}]',
+       'N',
+       NULL,
+       2001,
+       r.REG_DT,
+       r.UPD_DT
+FROM LS_DATA_SRC s
+JOIN LS_DATA_RAW r ON s.RAW_SN = r.RAW_SN
+WHERE s.RAW_SN IN (9001,9003,9005,9007,9009,9011)
+  AND s.FRAME_NO = 1;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- 검증용 SELECT (실행 결과 확인용)
+SELECT '=== SEED COMPLETE ===' AS marker;
+SELECT 'MNG_ACCT_USER' AS t, COUNT(*) AS n FROM MNG_ACCT_USER WHERE USER_NO BETWEEN 1000 AND 9999
+UNION ALL SELECT 'MNG_ACCT_USER_AUTHRT', COUNT(*) FROM MNG_ACCT_USER_AUTHRT WHERE USER_NO BETWEEN 1000 AND 9999
+UNION ALL SELECT 'LS_PJT', COUNT(*) FROM LS_PJT WHERE PJT_ID = 1
+UNION ALL SELECT 'LS_PJT_USER_AUTHRT', COUNT(*) FROM LS_PJT_USER_AUTHRT WHERE PJT_ID = 1
+UNION ALL SELECT 'LS_DATA_RAW', COUNT(*) FROM LS_DATA_RAW WHERE RAW_SN BETWEEN 9001 AND 9999
+UNION ALL SELECT 'LS_PJT_DATA_STTS', COUNT(*) FROM LS_PJT_DATA_STTS WHERE PJT_ID = 1
+UNION ALL SELECT 'LS_DATA_SRC', COUNT(*) FROM LS_DATA_SRC WHERE RAW_SN BETWEEN 9001 AND 9999
+UNION ALL SELECT 'LS_DATA_LBL', COUNT(*) FROM LS_DATA_LBL WHERE SRC_SN IN (SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN BETWEEN 9001 AND 9999);
