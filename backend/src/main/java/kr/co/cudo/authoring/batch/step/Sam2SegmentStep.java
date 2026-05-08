@@ -11,15 +11,20 @@ import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -28,16 +33,31 @@ import java.util.List;
  * YOLO BBOX 가 있는 프레임에 대해 SAM2 segment 호출 → POLYGON 라벨 추가 INSERT.
  *  - YOLO 라벨이 0건인 프레임은 SAM2 호출 skip (효율성).
  *  - autoLblYn = 'Y'.
+ *
+ * 보안:
+ *  - Path Manipulation (CWE-22): baseRawPath 기준 경로 범위 내로 제한.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class Sam2SegmentStep {
 
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
     private final ObjectMapper objectMapper;
+    private final Path baseRawPath;
+
+    public Sam2SegmentStep(AiServerClient aiServerClient,
+                           LsDataSrcRepository srcRepository,
+                           LsDataLblRepository lblRepository,
+                           ObjectMapper objectMapper,
+                           @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
+        this.aiServerClient = aiServerClient;
+        this.srcRepository = srcRepository;
+        this.lblRepository = lblRepository;
+        this.objectMapper = objectMapper;
+        this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
+    }
 
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public int run(Long rawSn) {
@@ -51,10 +71,13 @@ public class Sam2SegmentStep {
             if (bboxes.isEmpty()) {
                 continue;
             }
-            String imageRef = src.getDeidFilePath() != null ? src.getDeidFilePath() : src.getFilePath();
+            String relPath = resolveImagePath(src);
+            String imageB64 = readImageAsBase64(relPath);
+            // 첫 번째 YOLO BBOX를 SAM2 box 힌트로 전달
+            List<Double> box = parseBbox(bboxes.get(0).getPointsJson());
             Sam2Response resp;
             try {
-                resp = aiServerClient.segment(new Sam2Request(imageRef, null, null))
+                resp = aiServerClient.segment(new Sam2Request(imageB64, null, box))
                         .block(Duration.ofSeconds(70));
             } catch (RuntimeException e) {
                 log.error("[Batch][Sam2] failed srcSn={} err={}", src.getSrcSn(), e.getMessage());
@@ -65,13 +88,48 @@ public class Sam2SegmentStep {
             }
             BigDecimal score = BigDecimal.valueOf(resp.score()).setScale(4, RoundingMode.HALF_UP);
             // TODO(Phase 6): 다중 객체별 SAM2 호출/병합 — 현재는 V1.7 정책으로 첫 번째 라벨만 처리
-            // (BBOX 라벨이 여러 개여도 SAM2 segment 는 영상 단위 1회 호출. 객체 검증은 VLM 단계 책임)
             String label = bboxes.get(0).getLabel();
             lblRepository.save(LsDataLbl.createAutoPolygon(src.getSrcSn(), label, serialize(resp.polygon()), score));
             saved++;
         }
         log.info("[Batch][Sam2] saved polygons rawSn={} count={}", rawSn, saved);
         return saved;
+    }
+
+    private String resolveImagePath(LsDataSrc src) {
+        if (src.getDeidFilePath() != null) {
+            Path deidPath = baseRawPath.resolve(src.getDeidFilePath()).normalize();
+            if (deidPath.startsWith(baseRawPath) && Files.exists(deidPath)) {
+                return src.getDeidFilePath();
+            }
+        }
+        return src.getFilePath();
+    }
+
+    private String readImageAsBase64(String relativePath) {
+        Path imagePath = baseRawPath.resolve(relativePath).normalize();
+        if (!imagePath.startsWith(baseRawPath)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 이미지 경로: " + relativePath);
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(imagePath);
+            return Base64.getEncoder().encodeToString(bytes);
+        } catch (IOException e) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 파일 읽기 실패: " + relativePath, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Double> parseBbox(String pointsJson) {
+        if (pointsJson == null) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(pointsJson, List.class);
+        } catch (JsonProcessingException e) {
+            log.warn("[Batch][Sam2] bbox 파싱 실패 — box 없이 호출: {}", e.getMessage());
+            return null;
+        }
     }
 
     private String serialize(Object value) {

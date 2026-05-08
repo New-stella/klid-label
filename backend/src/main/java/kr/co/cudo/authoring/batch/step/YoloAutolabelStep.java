@@ -11,15 +11,20 @@ import kr.co.cudo.authoring.common.client.dto.YoloRequest;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -33,16 +38,29 @@ import java.util.List;
  * 보안:
  *  - SSRF: AiServerClient 내부에서 application.yml ai-server.base-url 사용.
  *  - Insecure Deserialization: Jackson 표준 ObjectMapper 사용. enableDefaultTyping 없음.
+ *  - Path Manipulation (CWE-22): baseRawPath 기준 경로 범위 내로 제한.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class YoloAutolabelStep {
 
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
     private final ObjectMapper objectMapper;
+    private final Path baseRawPath;
+
+    public YoloAutolabelStep(AiServerClient aiServerClient,
+                             LsDataSrcRepository srcRepository,
+                             LsDataLblRepository lblRepository,
+                             ObjectMapper objectMapper,
+                             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
+        this.aiServerClient = aiServerClient;
+        this.srcRepository = srcRepository;
+        this.lblRepository = lblRepository;
+        this.objectMapper = objectMapper;
+        this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
+    }
 
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public int run(Long rawSn) {
@@ -52,10 +70,11 @@ public class YoloAutolabelStep {
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         int saved = 0;
         for (LsDataSrc src : frames) {
-            String imageRef = src.getDeidFilePath() != null ? src.getDeidFilePath() : src.getFilePath();
+            String relPath = resolveImagePath(src);
+            String imageB64 = readImageAsBase64(relPath);
             YoloResponse resp;
             try {
-                resp = aiServerClient.predictYolo(new YoloRequest(imageRef))
+                resp = aiServerClient.predictYolo(new YoloRequest(imageB64))
                         .block(Duration.ofSeconds(70));
             } catch (RuntimeException e) {
                 log.error("[Batch][Yolo] failed srcSn={} err={}", src.getSrcSn(), e.getMessage());
@@ -75,11 +94,33 @@ public class YoloAutolabelStep {
         return saved;
     }
 
+    private String resolveImagePath(LsDataSrc src) {
+        if (src.getDeidFilePath() != null) {
+            Path deidPath = baseRawPath.resolve(src.getDeidFilePath()).normalize();
+            if (deidPath.startsWith(baseRawPath) && Files.exists(deidPath)) {
+                return src.getDeidFilePath();
+            }
+        }
+        return src.getFilePath();
+    }
+
+    private String readImageAsBase64(String relativePath) {
+        Path imagePath = baseRawPath.resolve(relativePath).normalize();
+        if (!imagePath.startsWith(baseRawPath)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 이미지 경로: " + relativePath);
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(imagePath);
+            return Base64.getEncoder().encodeToString(bytes);
+        } catch (IOException e) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 파일 읽기 실패: " + relativePath, e);
+        }
+    }
+
     private String serialize(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            // points 직렬화 실패는 데이터 무결성 문제 — 명시적 예외.
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "points 직렬화 실패", e);
         }
     }

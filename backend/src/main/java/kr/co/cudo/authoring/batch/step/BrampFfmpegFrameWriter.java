@@ -8,34 +8,25 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
- * net.bramp.ffmpeg 래퍼 기반 FrameWriter — 운영(local 외 프로파일) 구현.
+ * ffmpeg 바이너리 기반 FrameWriter — local 프로파일에서도 실제 추출 수행.
  * <p>
- * Phase 5 본체는 FfmpegFrameExtractor.FrameWriter 인터페이스로 추상화하여 단위 테스트 격리한다.
- * 본 구현은 ffmpeg 바이너리가 PATH 또는 ${authoring.ffmpeg.binary} 에 존재한다고 가정하며,
- * 단위 테스트는 별도 InMemoryFrameWriter 또는 Mockito stub 으로 대체한다.
+ * frameIndex N → 영상에서 N*60초 지점의 프레임을 추출. 시크 실패 시 0초로 fallback.
  * <p>
  * 보안:
- * - Command Injection (CWE-78): net.bramp.ffmpeg API 는 인자를 분리 전달하므로 안전.
- *   FFmpegBuilder API 호출만 사용하고 사용자 입력으로 명령 문자열 조합 금지.
- *
- * 주의: 실제 net.bramp.ffmpeg.FFmpeg 호출은 ffmpeg 바이너리 의존이 강해
- * 본 클래스는 시스템에 ffmpeg 가 없는 환경(local 빌드 서버)에서 빈 frame 파일을 생성한다.
- * 운영 환경에서는 실제 추출 로직으로 확장.
+ * - Command Injection (CWE-78): ProcessBuilder 리스트 방식으로 인자를 분리 전달.
+ *   사용자 입력으로 문자열 조합하지 않음.
  */
-// TODO(Phase 5.1): net.bramp.ffmpeg FFmpegBuilder로 실제 프레임 추출 구현 — 현재는 stub
 @Slf4j
 @Profile("!test")
 @Component
 public class BrampFfmpegFrameWriter implements FfmpegFrameExtractor.FrameWriter {
 
-    private final int threads;
     private final String binary;
 
-    public BrampFfmpegFrameWriter(@Value("${authoring.ffmpeg.threads:2}") int threads,
-                                   @Value("${authoring.ffmpeg.binary:ffmpeg}") String binary) {
-        this.threads = threads;
+    public BrampFfmpegFrameWriter(@Value("${authoring.ffmpeg.binary:ffmpeg}") String binary) {
         this.binary = binary;
     }
 
@@ -46,14 +37,46 @@ public class BrampFfmpegFrameWriter implements FfmpegFrameExtractor.FrameWriter 
 
     @Override
     public void writeFrame(Path sourceVideo, Path outputFrame, int frameIndex) throws IOException {
-        // 운영 ffmpeg 호출은 별도 PR 에서 net.bramp.ffmpeg.FFmpegBuilder 사용으로 확장.
-        // 본 Phase 5 단계에서는 빈 jpeg 파일을 생성하여 LS_DATA_SRC 레코드 정합만 보장.
-        log.warn("[Batch] BrampFfmpegFrameWriter is stub - empty JPEG written for frameIndex={}", frameIndex);
         if (outputFrame.getParent() != null && !Files.exists(outputFrame.getParent())) {
             Files.createDirectories(outputFrame.getParent());
         }
-        Files.write(outputFrame, new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xD9}); // JPEG SOI/EOI
-        log.debug("[Batch][FrameWriter] wrote stub frame index={} path={} (threads={}, binary={})",
-                frameIndex, outputFrame.getFileName(), threads, binary);
+
+        int seekSeconds = frameIndex * 60;
+        boolean extracted = runFfmpeg(sourceVideo, outputFrame, seekSeconds);
+
+        if (!extracted && seekSeconds > 0) {
+            log.warn("[Batch][FrameWriter] seek={}s failed — retry at 0s", seekSeconds);
+            extracted = runFfmpeg(sourceVideo, outputFrame, 0);
+        }
+
+        if (!extracted || !Files.exists(outputFrame) || Files.size(outputFrame) < 100) {
+            throw new IOException("프레임 추출 실패: frameIndex=" + frameIndex + " src=" + sourceVideo.getFileName());
+        }
+        log.info("[Batch][FrameWriter] extracted frame index={} size={}B path={}",
+                frameIndex, Files.size(outputFrame), outputFrame.getFileName());
+    }
+
+    private boolean runFfmpeg(Path sourceVideo, Path outputFrame, int seekSeconds) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(List.of(
+                    binary, "-y",
+                    "-ss", String.valueOf(seekSeconds),
+                    "-i", sourceVideo.toAbsolutePath().toString(),
+                    "-vframes", "1",
+                    "-q:v", "2",
+                    outputFrame.toAbsolutePath().toString()
+            ));
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            process.getInputStream().readAllBytes();
+            int exitCode = process.waitFor();
+            return exitCode == 0 && Files.exists(outputFrame) && Files.size(outputFrame) >= 100;
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            log.error("[Batch][FrameWriter] ffmpeg error: {}", e.getMessage());
+            return false;
+        }
     }
 }
