@@ -9,27 +9,22 @@ import {
   RotateCcw,
   Search,
   Send,
-  Server,
   ShieldCheck,
   XCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
-import { ErrorState } from '@/components/common/ErrorState';
 import { Pagination } from '@/components/common/Pagination';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
-import { StatusBadge } from '@/components/common/StatusBadge';
 import {
   useDatasets,
   usePrepareExport,
-  useRecentExports,
 } from '@/features/export/hooks/useExport';
 import {
   ExportFormat,
   SUPPORTED_EXPORT_FORMATS,
   type ExportFormat as Format,
-  type ExportPreview,
 } from '@/features/export/types';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import type { Video } from '@/features/video/types';
@@ -46,7 +41,7 @@ import { useUiStore } from '@/stores/useUiStore';
  * - 클라이언트 사이드 페이지네이션 (100/page)
  * - 강제 재전송 토글
  * - 미리보기 사이드 카드 (포맷 샘플 + 실행 버튼)
- * - 최근 요청 이력 카드
+ * - Step 3 옵션 하단 포털 전송 대상 endpoint 안내
  *
  * 보안:
  * - REVIEWER 역할 (라우터 + BE @PreAuthorize)
@@ -192,19 +187,17 @@ export function ExportPage() {
   );
   const [forceReexport, setForceReexport] = useState(false);
   const [datasetId, setDatasetId] = useState<number | null>(null);
-  const [preview, setPreview] = useState<ExportPreview | null>(null);
+  const [includeLabels, setIncludeLabels] = useState(true);
+  const [includeImages, setIncludeImages] = useState(true);
+  const [deidentify, setDeidentify] = useState(true);
 
   const [filters, setFilters] = useState<VideoFilterValues>(() =>
     searchParamsToFilters(searchParams),
   );
   const [localFilters, setLocalFilters] = useState<VideoFilterValues>(filters);
 
-  // 데이터셋 목록 (라디오 그룹 — 첫 번째 자동 선택)
-  const {
-    data: datasets,
-    isLoading: dsLoading,
-    error: dsError,
-  } = useDatasets();
+  // 데이터셋 목록 (자동 선택 — UI 미노출, BE prepareExport 요구사항만 충족)
+  const { data: datasets } = useDatasets();
   useEffect(() => {
     if (datasetId === null && datasets && datasets.length > 0) {
       setDatasetId(datasets[0].id);
@@ -364,9 +357,7 @@ export function ExportPage() {
   }, []);
 
   const { mutate, isPending } = usePrepareExport({
-    onSuccess: (data) => {
-      const res = data as unknown as { exportId: number; preview?: ExportPreview };
-      if (res.preview) setPreview(res.preview);
+    onSuccess: () => {
       pushToast({ variant: 'success', message: '내보내기 준비 완료' });
       setSelectedVideoIds(new Set());
     },
@@ -374,9 +365,6 @@ export function ExportPage() {
       pushToast({ variant: 'error', message: '내보내기 준비 실패' });
     },
   });
-
-  // 최근 요청 이력
-  const { data: recentExports } = useRecentExports(5);
 
   const isFormatSupported = SUPPORTED_EXPORT_FORMATS.includes(format);
   const canSubmit =
@@ -410,8 +398,8 @@ export function ExportPage() {
   return (
     <section className="flex flex-col gap-5" data-testid="export-page">
       <PageHeader
-        title="학습데이터셋 내보내기"
-        description="검수 완료된 학습데이터셋을 NAS 경로로 내보냅니다."
+        title="내보내기"
+        description="포털 서버로 학습데이터셋을 전송합니다"
         actions={
           <div className="flex items-center justify-center rounded-lg bg-green-50 p-2">
             <Send className="h-5 w-5 text-green-600" aria-hidden />
@@ -422,65 +410,18 @@ export function ExportPage() {
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden />
         <p className="text-sub text-blue-700">
-          내보내기는 검수 완료(승인)된 영상만 가능합니다. 비식별 처리 실패 영상은 BE 에서 자동
-          제외됩니다.
+          내보내기는 검수 완료(승인)된 영상만 가능합니다. 검수 미완료 영상은 목록에 표시되지
+          않습니다.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          {/* Step 1: 데이터셋 선택 */}
+          {/* Step 1: 형식 선택 (4 포맷) */}
           <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sub font-bold text-white">
                 1
-              </span>
-              <h2 className="text-section-title text-primary">데이터셋 선택</h2>
-            </div>
-            {dsError && <ErrorState title="데이터셋 목록을 불러올 수 없습니다" />}
-            {dsLoading && <Skeleton height={48} />}
-            {datasets && datasets.length > 0 && (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {datasets.map((d) => {
-                  const selected = datasetId === d.id;
-                  return (
-                    <label
-                      key={d.id}
-                      className={cn(
-                        'flex cursor-pointer items-start gap-2 rounded-lg border-2 p-3 transition-colors',
-                        selected
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-200 bg-white hover:border-gray-300',
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="export-dataset"
-                        value={String(d.id)}
-                        checked={selected}
-                        onChange={() => setDatasetId(d.id)}
-                        className="mt-0.5 h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-body font-medium text-gray-800">
-                          {d.name}
-                        </p>
-                        <p className="text-sub text-gray-500">
-                          영상 {d.videoCount.toLocaleString('ko-KR')}건
-                        </p>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          {/* Step 2: 형식 선택 (4 포맷) */}
-          <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sub font-bold text-white">
-                2
               </span>
               <h2 className="text-section-title text-primary">형식 선택</h2>
             </div>
@@ -537,12 +478,12 @@ export function ExportPage() {
             </div>
           </section>
 
-          {/* Step 3: 대상 영상 */}
+          {/* Step 2: 대상 영상 */}
           <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sub font-bold text-white">
-                  3
+                  2
                 </span>
                 <h2 className="text-section-title text-primary">대상 영상</h2>
                 <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-700">
@@ -797,6 +738,70 @@ export function ExportPage() {
               </>
             )}
           </section>
+
+          {/* Step 3: 옵션 */}
+          <section className="space-y-5 rounded-lg border border-gray-200 bg-white p-5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sub font-bold text-white">
+                3
+              </span>
+              <h2 className="text-section-title text-primary">옵션</h2>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex cursor-pointer items-center gap-3 text-body">
+                <input
+                  type="checkbox"
+                  checked={includeLabels}
+                  onChange={(e) => setIncludeLabels(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="font-medium text-gray-700">라벨 포함</span>
+                <span className="text-sub text-gray-400">어노테이션 파일 포함</span>
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-3 text-body">
+                <input
+                  type="checkbox"
+                  checked={includeImages}
+                  onChange={(e) => setIncludeImages(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="font-medium text-gray-700">이미지 포함</span>
+                <span className="text-sub text-gray-400">프레임 이미지 파일 포함</span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-3 text-body">
+                <input
+                  type="checkbox"
+                  checked={deidentify}
+                  onChange={(e) => setDeidentify(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-primary-600" aria-hidden />
+                    <span className="font-medium text-gray-700">
+                      비식별 처리 (개인정보 마스킹)
+                    </span>
+                  </div>
+                  <span className="mt-0.5 text-sub text-gray-400">
+                    체크 해제 시 원본 그대로 전송됩니다
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="flex items-start gap-2">
+                <span className="text-xs text-gray-500">전송 대상</span>
+              </div>
+              <p className="mt-1 text-sm font-medium text-gray-800">포털 서버</p>
+              <p className="mt-0.5 text-xs text-gray-500 break-all">
+                https://portal.example.com/api/v1/datasets/import
+              </p>
+            </div>
+          </section>
         </div>
 
         {/* Right column: 미리보기 + 실행 + 최근 이력 */}
@@ -822,7 +827,7 @@ export function ExportPage() {
             </pre>
 
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={handlePreview}
               disabled={!canSubmit}
@@ -847,99 +852,16 @@ export function ExportPage() {
 
             <p className="text-center text-sub text-gray-400">
               선택된 영상 {selectedVideoIds.size}건
+              {deidentify && (
+                <span className="ml-1 text-primary-600">· 비식별 처리</span>
+              )}
               {forceReexport && (
                 <span className="ml-1 text-amber-600">· 강제 재전송</span>
               )}
             </p>
-
-            <div className="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2">
-              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-500" aria-hidden />
-              <p className="text-sub text-gray-500">
-                비식별 처리 실패 영상은 BE 에서 자동 제외됩니다.
-              </p>
-            </div>
-
-            {preview && (
-              <section
-                data-testid="export-preview"
-                aria-label="미리보기 결과"
-                className="space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-3"
-              >
-                <h3 className="text-sub font-semibold text-gray-700">
-                  미리보기 결과
-                </h3>
-                <dl className="grid grid-cols-3 gap-2 text-center">
-                  <Field label="영상">
-                    {preview.videoCount.toLocaleString('ko-KR')}
-                  </Field>
-                  <Field label="프레임">
-                    {preview.frameCount.toLocaleString('ko-KR')}
-                  </Field>
-                  <Field label="라벨">
-                    {preview.labelCount.toLocaleString('ko-KR')}
-                  </Field>
-                </dl>
-              </section>
-            )}
           </div>
-
-          {/* 최근 요청 이력 */}
-          <section
-            aria-label="최근 요청 이력"
-            data-testid="export-recent-history"
-            className="space-y-2 rounded-lg border border-gray-200 bg-white p-5"
-          >
-            <div className="flex items-center gap-2 text-body font-semibold text-gray-700">
-              <Server size={15} aria-hidden />
-              <span>최근 요청 이력</span>
-            </div>
-            {!recentExports || recentExports.length === 0 ? (
-              <p className="py-2 text-center text-sub text-gray-400">
-                최근 내보내기 이력이 없습니다.
-              </p>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {recentExports.map((ex) => (
-                  <li
-                    key={ex.exportId}
-                    className="flex items-center justify-between py-2 text-sub"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-mono text-gray-700">#{ex.exportId}</p>
-                      <p className="truncate text-gray-400">
-                        {ex.format ?? '-'} ·{' '}
-                        {ex.registeredAt
-                          ? ex.registeredAt.slice(0, 10)
-                          : '-'}
-                      </p>
-                    </div>
-                    <StatusBadge status={ex.status} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </div>
       </div>
     </section>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-md bg-white p-2">
-      <dt className="text-[10px] uppercase tracking-wide text-gray-500">
-        {label}
-      </dt>
-      <dd className="text-body font-semibold tabular-nums text-gray-800">
-        {children}
-      </dd>
-    </div>
   );
 }

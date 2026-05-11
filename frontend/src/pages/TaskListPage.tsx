@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
+  History,
   ListTodo,
   Play,
   RefreshCw,
@@ -51,7 +52,7 @@ const STATUS_LABEL: Record<RowStatus, string> = {
   UNASSIGNED: '미배정',
   PENDING: '대기',
   IN_PROGRESS: '진행중',
-  SUBMITTED: '검수대기',
+  REVIEW_PENDING: '검수대기',
   COMPLETED: '완료',
   REJECTED: '반려',
 };
@@ -61,7 +62,7 @@ const STATUS_BADGE_MAP: Record<RowStatus, BadgeStatus> = {
   UNASSIGNED: 'PENDING',
   PENDING: 'PENDING',
   IN_PROGRESS: 'IN_PROGRESS',
-  SUBMITTED: 'REVIEW_PENDING',
+  REVIEW_PENDING: 'REVIEW_PENDING',
   COMPLETED: 'COMPLETED',
   REJECTED: 'REJECTED',
 };
@@ -72,7 +73,7 @@ function progressFor(status: RowStatus): number {
       return 0;
     case 'IN_PROGRESS':
       return 50;
-    case 'SUBMITTED':
+    case 'REVIEW_PENDING':
       return 80;
     case 'COMPLETED':
       return 100;
@@ -143,8 +144,11 @@ export function TaskListPage() {
   const [page, setPage] = useState(0);
 
   // Modal state
-  const [assignTarget, setAssignTarget] = useState<Video | null>(null);
-  const [bulkAssignVideos, setBulkAssignVideos] = useState<Video[] | null>(null);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignMode, setAssignMode] = useState<'assign' | 'reassign' | 'bulk'>(
+    'assign',
+  );
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(
     new Set(),
   );
@@ -277,7 +281,7 @@ export function TaskListPage() {
     const total = visibleRows.length;
     const inProgress = visibleRows.filter((r) => r.rowStatus === 'IN_PROGRESS')
       .length;
-    const reviewPending = visibleRows.filter((r) => r.rowStatus === 'SUBMITTED')
+    const reviewPending = visibleRows.filter((r) => r.rowStatus === 'REVIEW_PENDING')
       .length;
     const rejected = visibleRows.filter((r) => r.rowStatus === 'REJECTED')
       .length;
@@ -340,21 +344,21 @@ export function TaskListPage() {
 
   const openBulkAssign = () => {
     if (selectedVideoIds.size === 0) return;
-    const targets = pagedRows
-      .map((r) => r.video)
-      .concat(allRows.filter((r) => selectedVideoIds.has(r.video.id)).map((r) => r.video))
-      .filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i)
-      .filter((v) => selectedVideoIds.has(v.id));
-    setBulkAssignVideos(targets);
+    setSelectedTask(null);
+    setAssignMode('bulk');
+    setAssignModalOpen(true);
   };
 
-  const handleAssignSuccess = () => {
-    setAssignTarget(null);
-    setBulkAssignVideos(null);
-    setSelectedVideoIds(new Set());
-    refetch();
-    queryClient.invalidateQueries({ queryKey: ['assignments'] });
-  };
+  const videoNameById = useMemo(() => {
+    const map: Record<number, string> = {};
+    videos.forEach((v) => {
+      map[v.id] = v.cctvName;
+    });
+    tasks.forEach((t) => {
+      map[t.videoId] = t.cctvName;
+    });
+    return map;
+  }, [videos, tasks]);
 
   return (
     <div className="space-y-4">
@@ -388,26 +392,30 @@ export function TaskListPage() {
       {error && <ErrorState title="작업 목록을 불러올 수 없습니다" />}
 
       {/* KPI 4카드 */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-4 gap-4">
         <KpiCard
           label="전체 작업"
           value={kpi.total}
           icon={<ListTodo size={22} className="text-primary-600" aria-hidden />}
+          iconBgClassName="bg-primary-50"
         />
         <KpiCard
           label="진행중"
           value={kpi.inProgress}
           icon={<Play size={22} className="text-green-600" aria-hidden />}
+          iconBgClassName="bg-green-50"
         />
         <KpiCard
           label="검수대기"
           value={kpi.reviewPending}
           icon={<Flame size={22} className="text-yellow-600" aria-hidden />}
+          iconBgClassName="bg-yellow-50"
         />
         <KpiCard
           label="반려"
           value={kpi.rejected}
           icon={<ArrowDown size={22} className="text-red-600" aria-hidden />}
+          iconBgClassName="bg-red-50"
         />
       </div>
 
@@ -538,7 +546,7 @@ export function TaskListPage() {
                           <p className="truncate max-w-[200px] text-sm font-medium text-gray-800">
                             {r.videoName}
                           </p>
-                          <p className="text-xs text-gray-400">{r.video.id}</p>
+                          <p className="text-xs text-gray-400">{`video-${String(r.video.id).padStart(4, '0')}`}</p>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -566,12 +574,15 @@ export function TaskListPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {/* BE Task 응답에 reviewerId 미포함 → 미등록 표기 */}
-                        <span className="text-sm italic text-gray-400">
-                          미등록
-                        </span>
-                        {/* 추후 BE Task에 reviewerId 추가 시 reviewerMap 활용 */}
-                        {void reviewerMap}
+                        {r.task?.reviewerId ? (
+                          <span className="text-sm text-gray-700">
+                            {reviewerMap[r.task.reviewerId] ?? '미등록'}
+                          </span>
+                        ) : (
+                          <span className="text-sm italic text-gray-400">
+                            미등록
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex min-w-[80px] items-center gap-2">
@@ -590,27 +601,40 @@ export function TaskListPage() {
                           className="flex flex-nowrap gap-1"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {/* 배정 — REVIEWER: task가 없거나 PENDING 상태일 때 */}
-                          {isReviewer &&
-                            (!r.task || r.task.status === 'PENDING') && (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => setAssignTarget(r.video)}
-                              >
-                                <UserPlus size={14} aria-hidden />
-                                배정
-                              </Button>
-                            )}
-                          {/* 재배정 — REVIEWER: 이미 작업자가 있을 때 */}
-                          {isReviewer && r.task?.workerId && (
+                          {/* 배정 / 재배정 — REVIEWER */}
+                          {isReviewer && (
                             <Button
                               variant="secondary"
                               size="sm"
-                              onClick={() => setAssignTarget(r.video)}
+                              onClick={() => {
+                                setSelectedTask(r.task ?? null);
+                                setAssignMode(
+                                  r.task?.workerId ? 'reassign' : 'assign',
+                                );
+                                setAssignModalOpen(true);
+                              }}
                             >
-                              <RefreshCw size={14} aria-hidden />
-                              재배정
+                              {r.task?.workerId ? (
+                                <RefreshCw size={14} aria-hidden />
+                              ) : (
+                                <UserPlus size={14} aria-hidden />
+                              )}
+                              {r.task?.workerId ? '재배정' : '배정'}
+                            </Button>
+                          )}
+                          {/* 이력 — task가 있을 때만 */}
+                          {r.task && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                alert(
+                                  `배정 이력: 작업 #${r.task!.id}\n(추후 구현)`,
+                                )
+                              }
+                            >
+                              <History size={14} aria-hidden />
+                              이력
                             </Button>
                           )}
                         </div>
@@ -667,24 +691,27 @@ export function TaskListPage() {
         </div>
       )}
 
-      {/* Single Assign Modal */}
-      {assignTarget && (
-        <AssignModal
-          video={assignTarget}
-          onClose={() => setAssignTarget(null)}
-          onSuccess={handleAssignSuccess}
-        />
-      )}
-
-      {/* Bulk Assign Modal */}
-      {bulkAssignVideos && bulkAssignVideos.length > 0 && (
-        <AssignModal
-          video={bulkAssignVideos[0]!}
-          videos={bulkAssignVideos}
-          onClose={() => setBulkAssignVideos(null)}
-          onSuccess={handleAssignSuccess}
-        />
-      )}
+      {/* Assign Modal (assign / reassign / bulk) */}
+      <AssignModal
+        open={assignModalOpen}
+        onClose={() => setAssignModalOpen(false)}
+        task={selectedTask}
+        mode={assignMode}
+        onSuccess={() => {
+          setAssignModalOpen(false);
+          setSelectedVideoIds(new Set());
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ['assignments'] });
+        }}
+        onBulkSuccess={() => {
+          setAssignModalOpen(false);
+          setSelectedVideoIds(new Set());
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ['assignments'] });
+        }}
+        videoIds={assignMode === 'bulk' ? Array.from(selectedVideoIds) : []}
+        videoNameById={videoNameById}
+      />
     </div>
   );
 }

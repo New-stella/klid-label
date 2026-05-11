@@ -91,9 +91,9 @@ export function ReviewListPage() {
   }, [allRows, keyword, statusFilter]);
 
   const actionLabel = (status: ReviewStatus) => {
-    if (status === 'REVIEW_PENDING') return '검수 시작 ▶';
+    if (status === 'REVIEW_PENDING') return '검수시작 ▶';
     if (status === 'REVIEWING') return '이어서 검수';
-    return '결과 보기 ▶';
+    return '결과보기 ▶';
   };
 
   const actionVariant = (status: ReviewStatus): 'primary' | 'secondary' | 'ghost' => {
@@ -103,7 +103,7 @@ export function ReviewListPage() {
   };
 
   const columns: DataTableColumn<Review>[] = [
-    { key: 'cctvName', header: 'CCTV명/파일명', render: (r) => r.cctvName },
+    { key: 'cctvName', header: '영상명', render: (r) => r.cctvName },
     { key: 'workerName', header: '작업자', render: (r) => r.workerName },
     {
       key: 'submittedAt',
@@ -148,35 +148,35 @@ export function ReviewListPage() {
   return (
     <section className="flex flex-col gap-4" data-testid="review-list-page">
       <PageHeader
-        title="검수 대기 목록"
+        title="검수 목록"
         description="작업자가 제출한 라벨링 결과를 검수합니다."
       />
 
       {/* KPI 4종 */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-4 gap-4">
         <KpiCard
           label="검수 대기"
           value={kpi.pending}
-          unit="건"
-          icon={<Hourglass className="h-4 w-4 text-yellow-500" aria-hidden />}
+          icon={<Hourglass size={22} className="text-yellow-600" aria-hidden />}
+          iconBgClassName="bg-yellow-50"
         />
         <KpiCard
           label="검수중"
           value={kpi.reviewing}
-          unit="건"
-          icon={<ClipboardCheck className="h-4 w-4 text-blue-500" aria-hidden />}
+          icon={<ClipboardCheck size={22} className="text-primary-600" aria-hidden />}
+          iconBgClassName="bg-primary-50"
         />
         <KpiCard
           label="승인"
           value={kpi.completed}
-          unit="건"
-          icon={<CheckCircle2 className="h-4 w-4 text-green-500" aria-hidden />}
+          icon={<CheckCircle2 size={22} className="text-green-600" aria-hidden />}
+          iconBgClassName="bg-green-50"
         />
         <KpiCard
           label="반려"
           value={kpi.rejected}
-          unit="건"
-          icon={<XCircle className="h-4 w-4 text-red-500" aria-hidden />}
+          icon={<XCircle size={22} className="text-red-600" aria-hidden />}
+          iconBgClassName="bg-red-50"
         />
       </div>
 
@@ -218,11 +218,14 @@ export function ReviewListPage() {
             ))}
           </select>
         </div>
-        {isFilterActive && (
-          <Button variant="ghost" size="sm" onClick={handleResetFilters}>
-            필터 초기화
+        <div className="flex items-end gap-2">
+          <Button variant="primary" size="sm" onClick={() => { /* 즉시 필터 적용은 onChange 기반 — 버튼은 명시적 트리거 용도 */ }}>
+            조회
           </Button>
-        )}
+          <Button variant="ghost" size="sm" onClick={handleResetFilters} disabled={!isFilterActive}>
+            초기화
+          </Button>
+        </div>
       </div>
 
       {error && <ErrorState title="검수 목록을 불러올 수 없습니다" />}
