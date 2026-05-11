@@ -67,10 +67,12 @@ public class SecurityConfig {
                                     "/v1/auth/**", "/v1/portal/auth/**").permitAll();
                     if (devTokenEndpointEnabled) {
                         // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음.
-                        // HIGH-1 fix (OWASP A01:2025): /v1/dev/** 무인증 노출은 데이터 손상 위험.
-                        // - /v1/dev/tokens: 부트스트랩 토큰 발급 → permitAll 유지 (이 endpoint 없이는 로컬 인증 불가).
-                        // - /v1/dev/autolabel/** 등 그 외: 자동 라벨 전량 삭제·재실행 가능 → REVIEWER 권한 필수.
-                        auth.requestMatchers("/v1/dev/tokens", "/v1/dev/tokens/**").permitAll();
+                        // - /v1/dev/tokens: 부트스트랩 토큰 발급 → permitAll (로컬 인증 불가 방지).
+                        // - /v1/dev/autolabel/**: 오토라벨 파이프라인 수동 트리거 → permitAll (로컬 테스트 편의).
+                        //   prd 노출은 @Profile("!prd") + devTokenEndpointEnabled 이중 차단으로 보호.
+                        auth.requestMatchers(
+                                "/v1/dev/tokens", "/v1/dev/tokens/**",
+                                "/v1/dev/autolabel/**").permitAll();
                     }
                     auth
                             // HIGH-1 fix: /v1/dev/** (tokens 외) 는 REVIEWER 만 — 자동 라벨 삭제·재실행 차단.
