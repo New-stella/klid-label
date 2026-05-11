@@ -1,8 +1,10 @@
 package kr.co.cudo.authoring.batch.test;
 
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
@@ -37,6 +39,7 @@ public class AutolabelTestService {
     private final LsDataLblRepository lblRepository;
     private final FfmpegFrameExtractor frameExtractor;
     private final VideoRepository videoRepository;
+    private final BatchStatusService statusService;
 
     public AutolabelRunResponse run(Long rawSn) {
         long framesFound = srcRepository.countByRawSn(rawSn);
@@ -49,14 +52,24 @@ public class AutolabelTestService {
         lblRepository.deleteByRawSnAutoLbl(rawSn);
 
         long started = System.currentTimeMillis();
-        int yoloCount = yoloStep.run(rawSn);
-        int sam2Count = sam2Step.run(rawSn);
-        long elapsed = System.currentTimeMillis() - started;
+        try {
+            statusService.markStage(rawSn, BatchStage.YOLO);
+            int yoloCount = yoloStep.run(rawSn);
 
-        log.info("[AutolabelTest] run rawSn={} yolo={} sam2={} elapsed={}ms",
-                rawSn, yoloCount, sam2Count, elapsed);
+            statusService.markStage(rawSn, BatchStage.SAM2);
+            int sam2Count = sam2Step.run(rawSn);
 
-        return new AutolabelRunResponse(rawSn, framesFound, false, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
+            long elapsed = System.currentTimeMillis() - started;
+            statusService.markCompleted(rawSn);
+
+            log.info("[AutolabelTest] run rawSn={} yolo={} sam2={} elapsed={}ms",
+                    rawSn, yoloCount, sam2Count, elapsed);
+
+            return new AutolabelRunResponse(rawSn, framesFound, false, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
+        } catch (Exception e) {
+            statusService.markFailed(rawSn, e);
+            throw e;
+        }
     }
 
     public AutolabelRunResponse runFull(Long rawSn) {
@@ -68,10 +81,12 @@ public class AutolabelTestService {
         boolean frameExtracted = false;
 
         if (framesFound == 0L) {
+            statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
             List<LsDataSrc> extracted = frameExtractor.extract(raw);
             framesFound = extracted.size();
             frameExtracted = true;
             if (framesFound == 0L) {
+                statusService.markFailed(rawSn, new IllegalStateException("프레임 추출 결과 0건"));
                 throw new CustomException(ErrorCode.INVALID_INPUT,
                         "rawSn=" + rawSn + " 프레임 추출 결과가 0건입니다.");
             }
@@ -80,13 +95,23 @@ public class AutolabelTestService {
         lblRepository.deleteByRawSnAutoLbl(rawSn);
 
         long started = System.currentTimeMillis();
-        int yoloCount = yoloStep.run(rawSn);
-        int sam2Count = sam2Step.run(rawSn);
-        long elapsed = System.currentTimeMillis() - started;
+        try {
+            statusService.markStage(rawSn, BatchStage.YOLO);
+            int yoloCount = yoloStep.run(rawSn);
 
-        log.info("[AutolabelTest] runFull rawSn={} frameExtracted={} yolo={} sam2={} elapsed={}ms",
-                rawSn, frameExtracted, yoloCount, sam2Count, elapsed);
+            statusService.markStage(rawSn, BatchStage.SAM2);
+            int sam2Count = sam2Step.run(rawSn);
 
-        return new AutolabelRunResponse(rawSn, framesFound, frameExtracted, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
+            long elapsed = System.currentTimeMillis() - started;
+            statusService.markCompleted(rawSn);
+
+            log.info("[AutolabelTest] runFull rawSn={} frameExtracted={} yolo={} sam2={} elapsed={}ms",
+                    rawSn, frameExtracted, yoloCount, sam2Count, elapsed);
+
+            return new AutolabelRunResponse(rawSn, framesFound, frameExtracted, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
+        } catch (Exception e) {
+            statusService.markFailed(rawSn, e);
+            throw e;
+        }
     }
 }

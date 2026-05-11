@@ -2,11 +2,15 @@ import { create } from 'zustand';
 
 import { Channel, Role, type TokenClaims } from '@/lib/api/types';
 
+const SESSION_KEY = 'klid_jwt';
+
 interface AuthState {
   token: string | null;
   claims: TokenClaims | null;
+  isHydrated: boolean;
   setToken: (token: string) => void;
   clear: () => void;
+  hydrate: () => void;
 }
 
 // JWT payload base64url decode (보안: 무결성 검증은 BE에서 — FE는 표시용 클레임만 추출)
@@ -55,9 +59,29 @@ function isChannel(value: unknown): value is Channel {
 export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   claims: null,
+  isHydrated: false,
   setToken: (token: string) => {
     const claims = decodeJwtPayload(token);
+    if (!claims) return; // 유효하지 않은 토큰은 저장하지 않음
+    sessionStorage.setItem(SESSION_KEY, token);
     set({ token, claims });
   },
-  clear: () => set({ token: null, claims: null }),
+  clear: () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    set({ token: null, claims: null });
+  },
+  hydrate: () => {
+    const stored = sessionStorage.getItem(SESSION_KEY);
+    if (stored) {
+      const claims = decodeJwtPayload(stored);
+      // 만료된 토큰은 무시
+      if (claims && claims.exp > Math.floor(Date.now() / 1000)) {
+        set({ token: stored, claims, isHydrated: true });
+        return;
+      }
+      // 만료됐으면 스토리지에서도 제거
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+    set({ isHydrated: true });
+  },
 }));
