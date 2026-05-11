@@ -91,32 +91,21 @@ public final class SeedImageGenerator {
     // 인자: outDir (default: ./storage/raw)
     // ========================================================================
 
-    /** dev-seed.sql 과 동기 — RAW_SN, CCTV_ID, EVENT_CODE 매핑. */
+    /**
+     * dev-seed.sql 과 동기 — 프레임이 존재하는 RAW_SN 목록.
+     * COMPLETED 5건 (9001~9005) + PROCESSING 3건 (9016~9018) = 8건 × 5프레임 = 40장.
+     * PENDING 영상(9026~9027)은 DB에 LS_DATA_SRC 없으므로 여기서도 제외.
+     */
     private static final Object[][] SEED_RAW_META = {
-            // {rawSn, cctvId, eventCode, capturedAt-yyyyMMddHHmmss}
+            // {rawSn, cctvId, eventCode, capturedAt}
             {9001L, "CCTV-001", "EVT_FALL",     "2026-02-15T10:30:00"},
             {9002L, "CCTV-002", "EVT_VIOLENCE", "2026-02-16T11:00:00"},
             {9003L, "CCTV-003", "EVT_ACCIDENT", "2026-02-17T09:15:00"},
             {9004L, "CCTV-004", "EVT_ABNORMAL", "2026-02-18T14:00:00"},
             {9005L, "CCTV-005", "EVT_FLOOD",    "2026-02-19T16:30:00"},
-            {9006L, "CCTV-006", "EVT_FIRE",     "2026-02-20T08:45:00"},
-            {9007L, "CCTV-007", "EVT_FALL",     "2026-02-21T13:20:00"},
-            {9008L, "CCTV-008", "EVT_VIOLENCE", "2026-02-22T12:00:00"},
-            {9009L, "CCTV-009", "EVT_ACCIDENT", "2026-02-23T11:30:00"},
-            {9010L, "CCTV-010", "EVT_ABNORMAL", "2026-02-24T17:00:00"},
-            {9011L, "CCTV-011", "EVT_FLOOD",    "2026-02-25T10:00:00"},
-            {9012L, "CCTV-012", "EVT_FIRE",     "2026-02-26T15:45:00"},
-            {9013L, "CCTV-013", "EVT_FALL",     "2026-02-27T09:30:00"},
-            {9014L, "CCTV-014", "EVT_VIOLENCE", "2026-02-28T13:15:00"},
-            {9015L, "CCTV-015", "EVT_ACCIDENT", "2026-03-01T11:00:00"},
             {9016L, "CCTV-016", "EVT_ABNORMAL", "2026-04-15T10:00:00"},
             {9017L, "CCTV-017", "EVT_FLOOD",    "2026-04-16T11:00:00"},
             {9018L, "CCTV-018", "EVT_FIRE",     "2026-04-17T14:30:00"},
-            {9019L, "CCTV-019", "EVT_FALL",     "2026-04-18T16:00:00"},
-            {9020L, "CCTV-020", "EVT_VIOLENCE", "2026-04-19T09:30:00"},
-            {9031L, "CCTV-031", "EVT_FALL",     "2026-03-15T11:00:00"},
-            {9032L, "CCTV-032", "EVT_VIOLENCE", "2026-03-16T13:30:00"},
-            {9033L, "CCTV-033", "EVT_ACCIDENT", "2026-03-17T15:00:00"},
     };
 
     private static final int FRAMES_PER_RAW = 5;
