@@ -7,19 +7,22 @@ import type { Channel } from '@/lib/api/types';
  * - redirect 대상 URL은 환경변수에서만 사용 (사용자 입력 금지)
  * - `?next=` 파라미터로 현재 URL 보존 — 인코딩 후 전달
  * - 환경변수 미설정 시 redirect 안 함 (안전 가드)
+ *
+ * @returns redirect가 실제로 발생했으면 `true`, 환경변수 미설정 등으로 redirect 불가 시 `false`
  */
-export function redirectToUpstream(channel?: Channel): void {
+export function redirectToUpstream(channel?: Channel): boolean {
   const portalUrl = import.meta.env.VITE_PORTAL_LOGIN_URL as string | undefined;
   const controlUrl = import.meta.env.VITE_CONTROL_LOGIN_URL as string | undefined;
   const target = channel === 'PORTAL' ? portalUrl : controlUrl;
-  if (!target) return;
-  if (typeof window === 'undefined' || typeof window.location?.assign !== 'function') return;
+  if (!target) return false;
+  if (typeof window === 'undefined' || typeof window.location?.assign !== 'function') return false;
 
   const currentHref = window.location.href ?? '';
   const next = encodeURIComponent(currentHref);
   const separator = target.includes('?') ? '&' : '?';
   const url = `${target}${separator}next=${next}`;
   window.location.assign(url);
+  return true;
 }
 
 /**
