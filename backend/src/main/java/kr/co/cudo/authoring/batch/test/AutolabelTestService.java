@@ -24,7 +24,8 @@ import java.util.List;
  * 외부 서버(비식별/Gitea/VLM) 없이 YOLO → SAM2 만 실행해서 라벨이 DB에 저장되는지 검증.
  *
  * 트랜잭션 정책: 각 step 이 자체 REQUIRES_NEW 트랜잭션을 사용하므로 본 서비스는 비트랜잭션.
- * 삭제는 repository 의 자체 트랜잭션을 통해 수행.
+ * 상태 갱신은 VideoRepository.updateStatus 의 @Modifying 쿼리(자체 트랜잭션)로 수행 —
+ * AOP self-invocation 문제를 피하기 위해 같은 빈 내부 메서드 호출이 아닌 repository 직접 호출.
  */
 @Slf4j
 @Service
@@ -61,6 +62,7 @@ public class AutolabelTestService {
 
             long elapsed = System.currentTimeMillis() - started;
             statusService.markCompleted(rawSn);
+            videoRepository.updateStatus(rawSn, "BATCH_COMPLETED");
 
             log.info("[AutolabelTest] run rawSn={} yolo={} sam2={} elapsed={}ms",
                     rawSn, yoloCount, sam2Count, elapsed);
@@ -68,6 +70,7 @@ public class AutolabelTestService {
             return new AutolabelRunResponse(rawSn, framesFound, false, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
         } catch (Exception e) {
             statusService.markFailed(rawSn, e);
+            videoRepository.updateStatus(rawSn, "BATCH_FAILED");
             throw e;
         }
     }
@@ -104,6 +107,7 @@ public class AutolabelTestService {
 
             long elapsed = System.currentTimeMillis() - started;
             statusService.markCompleted(rawSn);
+            videoRepository.updateStatus(rawSn, "BATCH_COMPLETED");
 
             log.info("[AutolabelTest] runFull rawSn={} frameExtracted={} yolo={} sam2={} elapsed={}ms",
                     rawSn, frameExtracted, yoloCount, sam2Count, elapsed);
@@ -111,6 +115,7 @@ public class AutolabelTestService {
             return new AutolabelRunResponse(rawSn, framesFound, frameExtracted, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
         } catch (Exception e) {
             statusService.markFailed(rawSn, e);
+            videoRepository.updateStatus(rawSn, "BATCH_FAILED");
             throw e;
         }
     }

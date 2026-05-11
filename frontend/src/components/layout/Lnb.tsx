@@ -28,6 +28,7 @@ const MENU: MenuGroup[] = [
     group: '영상',
     items: [
       { label: '영상 처리 현황', path: '/video/completed', allow: ['REVIEWER', 'WORKER'] },
+      { label: '배치 처리 현황', path: '/video/status', allow: ['REVIEWER', 'WORKER'] },
     ],
   },
   {
