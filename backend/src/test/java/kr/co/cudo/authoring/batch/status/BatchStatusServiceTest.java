@@ -4,93 +4,129 @@ import kr.co.cudo.authoring.batch.dto.BatchStageProgress;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class BatchStatusServiceTest {
 
+    @Mock
+    private LsBatchProcLogRepository repository;
+
+    @InjectMocks
+    private BatchStatusService svc;
+
+    // ──────────────────────────────────────────────
+    // markStage
+    // ──────────────────────────────────────────────
+
     @Test
-    @DisplayName("markStage_후_currentStage_조회_가능")
-    void markAndQuery() {
-        BatchStatusService svc = new BatchStatusService();
+    @DisplayName("markStage_신규_rawSn이면_create_후_save")
+    void markStage_신규_rawSn이면_create_후_save() {
+        when(repository.findById(1L)).thenReturn(Optional.empty());
+
         svc.markStage(1L, BatchStage.YOLO);
-        assertThat(svc.currentStage(1L)).isEqualTo(BatchStage.YOLO);
+
+        verify(repository).findById(1L);
+        verify(repository).save(any(LsBatchProcLog.class));
     }
 
     @Test
-    @DisplayName("markFailed_시_retryCount_증가_+_errorMessage_저장")
-    void markFailedIncrementsRetry() {
-        BatchStatusService svc = new BatchStatusService();
-        svc.markFailed(2L, new IllegalStateException("boom"));
-        svc.markFailed(2L, new RuntimeException("again"));
+    @DisplayName("markStage_기존_rawSn이면_updateStage_후_save")
+    void markStage_기존_rawSn이면_updateStage_후_save() {
+        LsBatchProcLog existing = LsBatchProcLog.create(2L, BatchStage.FRAME_EXTRACT);
+        when(repository.findById(2L)).thenReturn(Optional.of(existing));
 
-        assertThat(svc.retryCount(2L)).isEqualTo(2);
-        assertThat(svc.currentStage(2L)).isEqualTo(BatchStage.FAILED);
+        svc.markStage(2L, BatchStage.YOLO);
 
-        List<BatchStageProgress> recent = svc.recent(10);
-        assertThat(recent).hasSize(1);
-        assertThat(recent.get(0).errorMessage()).isEqualTo("RuntimeException");
+        assertThat(existing.getStageCd()).isEqualTo(BatchStage.YOLO.name());
+        verify(repository).save(existing);
+    }
+
+    // ──────────────────────────────────────────────
+    // markFailed
+    // ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("markFailed_기존_행이면_retryCnt_1_증가")
+    void markFailed_기존_행이면_retryCnt_1_증가() {
+        LsBatchProcLog existing = LsBatchProcLog.create(3L, BatchStage.YOLO);
+        when(repository.findById(3L)).thenReturn(Optional.of(existing));
+
+        svc.markFailed(3L, new IllegalStateException("boom"));
+
+        assertThat(existing.getStageCd()).isEqualTo(BatchStage.FAILED.name());
+        assertThat(existing.getRetryCnt()).isEqualTo(1);
+        verify(repository).save(existing);
     }
 
     @Test
-    @DisplayName("recent는_lastUpdatedAt_DESC_정렬_+_limit_적용")
-    void recentSortedAndLimited() throws InterruptedException {
-        BatchStatusService svc = new BatchStatusService();
-        svc.markStage(10L, BatchStage.YOLO);
-        Thread.sleep(5);
-        svc.markStage(11L, BatchStage.SAM2);
-        Thread.sleep(5);
-        svc.markStage(12L, BatchStage.VLM_VERIFY);
+    @DisplayName("markFailed_신규_행이면_retryCnt_0_유지")
+    void markFailed_신규_행이면_retryCnt_0_유지() {
+        when(repository.findById(4L)).thenReturn(Optional.empty());
 
-        List<BatchStageProgress> top2 = svc.recent(2);
-        assertThat(top2).hasSize(2);
-        assertThat(top2.get(0).rawSn()).isEqualTo(12L);
-        assertThat(top2.get(1).rawSn()).isEqualTo(11L);
+        svc.markFailed(4L, new RuntimeException("new failure"));
+
+        verify(repository).save(argThat(log ->
+                log.getStageCd().equals(BatchStage.FAILED.name()) &&
+                log.getRetryCnt() == 0
+        ));
     }
 
-    @Test
-    @DisplayName("동시_markStage_호출_안전성_검증_ConcurrentHashMap")
-    void concurrentMarksAreSafe() throws InterruptedException {
-        BatchStatusService svc = new BatchStatusService();
-        ExecutorService pool = Executors.newFixedThreadPool(8);
-        CountDownLatch start = new CountDownLatch(1);
-        int n = 200;
-        CountDownLatch done = new CountDownLatch(n);
-        for (int i = 0; i < n; i++) {
-            final long id = i;
-            pool.submit(() -> {
-                try {
-                    start.await();
-                    svc.markStage(id, BatchStage.YOLO);
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                } finally {
-                    done.countDown();
-                }
-            });
-        }
-        start.countDown();
-        assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
-        pool.shutdown();
+    // ──────────────────────────────────────────────
+    // currentStage
+    // ──────────────────────────────────────────────
 
-        // recent(MAX_ENTRIES) 이내 모든 항목 반환되어야.
-        assertThat(svc.recent(1000)).hasSize(n);
+    @Test
+    @DisplayName("currentStage_DB없으면_PENDING_반환")
+    void currentStage_DB없으면_PENDING_반환() {
+        when(repository.findById(99L)).thenReturn(Optional.empty());
+
+        BatchStage result = svc.currentStage(99L);
+
+        assertThat(result).isEqualTo(BatchStage.PENDING);
     }
 
+    // ──────────────────────────────────────────────
+    // recent
+    // ──────────────────────────────────────────────
+
     @Test
-    @DisplayName("limit_0_이하는_1로_보정_+_상한_초과는_MAX_ENTRIES로_보정")
-    void limitClamped() {
-        BatchStatusService svc = new BatchStatusService();
-        svc.markStage(1L, BatchStage.YOLO);
-        assertThat(svc.recent(0)).hasSize(1); // 0 → 1 보정
-        assertThat(svc.recent(-5)).hasSize(1);
-        // upper limit 초과는 가능한 범위까지만
-        assertThat(svc.recent(1_000_000)).hasSize(1);
+    @DisplayName("recent_limit_적용_확인")
+    void recent_limit_적용_확인() {
+        LsBatchProcLog log1 = LsBatchProcLog.create(10L, BatchStage.YOLO);
+        LsBatchProcLog log2 = LsBatchProcLog.create(11L, BatchStage.SAM2);
+        LsBatchProcLog log3 = LsBatchProcLog.create(12L, BatchStage.COMPLETED);
+        when(repository.findTop100ByOrderByUpdatedAtDesc()).thenReturn(List.of(log1, log2, log3));
+
+        List<BatchStageProgress> result = svc.recent(2);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).rawSn()).isEqualTo(10L);
+        assertThat(result.get(1).rawSn()).isEqualTo(11L);
+    }
+
+    // ──────────────────────────────────────────────
+    // null 방어
+    // ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("rawSn_null이면_markStage_무시")
+    void rawSn_null이면_markStage_무시() {
+        svc.markStage(null, BatchStage.YOLO);
+
+        verify(repository, never()).findById(any());
+        verify(repository, never()).save(any());
     }
 }

@@ -54,7 +54,7 @@ class BatchOrchestratorTest {
         yoloStep = mock(YoloAutolabelStep.class);
         sam2Step = mock(Sam2SegmentStep.class);
         vlmStep = mock(VlmObjectVerifyStep.class);
-        statusService = new BatchStatusService();
+        statusService = mock(BatchStatusService.class);
         retryQueue = new BatchRetryQueue(3, 60);
         videoRepository = mock(VideoRepository.class);
 
@@ -137,7 +137,7 @@ class BatchOrchestratorTest {
         verify(sam2Step, never()).run(any());
         verify(vlmStep, never()).run(any());
         // statusService 가 FAILED 로 마킹되었어야 함.
-        assertThat(statusService.currentStage(104L)).isEqualTo(BatchStage.FAILED);
+        verify(statusService).markFailed(eq(104L), any(RuntimeException.class));
     }
 
     @Test
@@ -149,7 +149,7 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(105L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        assertThat(statusService.currentStage(105L)).isEqualTo(BatchStage.COMPLETED);
+        verify(statusService).markCompleted(105L);
     }
 
     @Test
@@ -165,8 +165,8 @@ class BatchOrchestratorTest {
         verify(yoloStep).run(106L);
         verify(sam2Step).run(106L);
         verify(vlmStep).run(106L);
-        // 상태는 FAILED
-        assertThat(statusService.currentStage(106L)).isEqualTo(BatchStage.FAILED);
+        // 상태는 FAILED 로 마킹
+        verify(statusService).markFailed(eq(106L), any(RuntimeException.class));
     }
 
     @Test
@@ -182,9 +182,8 @@ class BatchOrchestratorTest {
 
         // retryCount 는 1·2·3 까지 증가 후, 4회째는 maxAttempts(3) 초과로 false
         assertThat(retryQueue.retryCount(107L)).isEqualTo(4);
-        // BatchStatusService 의 retryCount 도 4 (실패마다 증가).
-        assertThat(statusService.retryCount(107L)).isEqualTo(4);
-        assertThat(statusService.currentStage(107L)).isEqualTo(BatchStage.FAILED);
+        // BatchStatusService.markFailed 가 4회 호출되었어야 함.
+        verify(statusService, times(4)).markFailed(eq(107L), any(RuntimeException.class));
     }
 
     @Test

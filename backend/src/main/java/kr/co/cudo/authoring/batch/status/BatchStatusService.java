@@ -2,115 +2,75 @@ package kr.co.cudo.authoring.batch.status;
 
 import kr.co.cudo.authoring.batch.dto.BatchStageProgress;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Optional;
 
 /**
- * 배치 단계별 in-memory 상태 추적 (Phase 5).
- *  - 멀티스레드 안전: ConcurrentHashMap + atomic counter.
- *  - 메모리 누수 방지: 최대 N건 유지 (오래된 entry 제거).
- *  - DB sync 는 별도 Phase 4 BatchStatusController 와 결합 (본 Phase 는 in-memory 만).
+ * 배치 단계별 DB 기반 상태 추적.
+ * LsBatchProcLog(RAW_SN PK) 단일 행 upsert 방식으로 영상 1건당 1행 유지.
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class BatchStatusService {
 
-    /** 메모리 한도 — 최대 보관 영상 수. 초과 시 가장 오래된 항목 제거. */
-    static final int MAX_ENTRIES = 10_000;
+    private final LsBatchProcLogRepository repository;
 
-    private final Map<Long, Entry> entries = new ConcurrentHashMap<>();
-
+    @Transactional("controlTransactionManager")
     public void markStage(Long rawSn, BatchStage stage) {
         if (rawSn == null || stage == null) return;
-        entries.compute(rawSn, (k, prev) -> {
-            Entry e = prev == null ? new Entry(rawSn) : prev;
-            e.stage = stage;
-            e.lastUpdatedAt = LocalDateTime.now();
-            if (e.startedAt == null) {
-                e.startedAt = e.lastUpdatedAt;
-            }
-            return e;
-        });
-        evictIfNeeded();
+        LsBatchProcLog log = repository.findById(rawSn)
+                .map(existing -> { existing.updateStage(stage); return existing; })
+                .orElseGet(() -> LsBatchProcLog.create(rawSn, stage));
+        repository.save(log);
     }
 
+    @Transactional("controlTransactionManager")
     public void markCompleted(Long rawSn) {
         markStage(rawSn, BatchStage.COMPLETED);
     }
 
+    @Transactional("controlTransactionManager")
     public void markFailed(Long rawSn, Throwable cause) {
         if (rawSn == null) return;
-        entries.compute(rawSn, (k, prev) -> {
-            Entry e = prev == null ? new Entry(rawSn) : prev;
-            e.stage = BatchStage.FAILED;
-            e.lastUpdatedAt = LocalDateTime.now();
-            if (e.startedAt == null) e.startedAt = e.lastUpdatedAt;
-            e.errorMessage = cause == null ? "unknown" : cause.getClass().getSimpleName();
-            e.retryCount.incrementAndGet();
-            return e;
-        });
-        evictIfNeeded();
+        Optional<LsBatchProcLog> existing = repository.findById(rawSn);
+        LsBatchProcLog log = existing.orElseGet(() -> LsBatchProcLog.create(rawSn, BatchStage.FAILED));
+        log.fail(cause);
+        if (existing.isPresent()) {
+            log.incrementRetry();
+        }
+        repository.save(log);
     }
 
+    @Transactional(value = "controlTransactionManager", readOnly = true)
     public BatchStage currentStage(Long rawSn) {
-        Entry e = entries.get(rawSn);
-        return e == null ? BatchStage.PENDING : e.stage;
+        return repository.findById(rawSn)
+                .map(l -> BatchStage.valueOf(l.getStageCd()))
+                .orElse(BatchStage.PENDING);
     }
 
-    public int retryCount(Long rawSn) {
-        Entry e = entries.get(rawSn);
-        return e == null ? 0 : e.retryCount.get();
-    }
-
-    /** 최근 N건을 lastUpdatedAt DESC 로 반환. */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<BatchStageProgress> recent(int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, MAX_ENTRIES));
-        List<Entry> snapshot = new ArrayList<>(entries.values());
-        snapshot.sort(Comparator.comparing((Entry e) -> e.lastUpdatedAt).reversed());
-        return snapshot.stream()
+        int safeLimit = Math.max(1, Math.min(limit, 100));
+        return repository.findTop100ByOrderByUpdatedAtDesc().stream()
                 .limit(safeLimit)
                 .map(this::toDto)
                 .toList();
     }
 
-    private BatchStageProgress toDto(Entry e) {
+    private BatchStageProgress toDto(LsBatchProcLog e) {
         return new BatchStageProgress(
-                e.rawSn,
-                e.stage.name(),
-                e.startedAt,
-                e.lastUpdatedAt,
-                e.retryCount.get(),
-                e.errorMessage
+                e.getRawSn(),
+                e.getStageCd(),
+                e.getStartedAt(),
+                e.getUpdatedAt(),
+                e.getRetryCnt(),
+                e.getErrMsg()
         );
-    }
-
-    private void evictIfNeeded() {
-        if (entries.size() <= MAX_ENTRIES) return;
-        // 오래된 항목 제거 — 단일 스캔으로 충분.
-        List<Map.Entry<Long, Entry>> sorted = new ArrayList<>(entries.entrySet());
-        sorted.sort(Comparator.comparing((Map.Entry<Long, Entry> en) -> en.getValue().lastUpdatedAt));
-        int over = entries.size() - MAX_ENTRIES;
-        for (int i = 0; i < over && i < sorted.size(); i++) {
-            entries.remove(sorted.get(i).getKey());
-        }
-    }
-
-    private static final class Entry {
-        final Long rawSn;
-        volatile BatchStage stage = BatchStage.PENDING;
-        volatile LocalDateTime startedAt;
-        volatile LocalDateTime lastUpdatedAt;
-        final AtomicInteger retryCount = new AtomicInteger(0);
-        volatile String errorMessage;
-
-        Entry(Long rawSn) { this.rawSn = rawSn; }
     }
 }
