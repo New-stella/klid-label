@@ -12,11 +12,15 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,16 +36,28 @@ class YoloAutolabelStepTest {
     private LsDataLblRepository lblRepository;
     private YoloAutolabelStep step;
 
+    @TempDir
+    Path tempDir;
+
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
         aiServerClient = mock(AiServerClient.class);
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
-        step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, new ObjectMapper());
+
+        // Create temp directory and dummy image files
+        Path rawDir = tempDir.resolve("raw");
+        Files.createDirectories(rawDir);
+        Files.write(rawDir.resolve("10.jpg"), new byte[]{(byte) 0xFF, (byte) 0xD8}); // JPEG header
+        Files.write(rawDir.resolve("11.jpg"), new byte[]{(byte) 0xFF, (byte) 0xD8});
+        Files.write(rawDir.resolve("20.jpg"), new byte[]{(byte) 0xFF, (byte) 0xD8});
+        Files.write(rawDir.resolve("30.jpg"), new byte[]{(byte) 0xFF, (byte) 0xD8});
+
+        step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, new ObjectMapper(), rawDir.toString());
     }
 
     private LsDataSrc newSrc(Long srcSn) {
-        LsDataSrc src = LsDataSrc.create(1L, srcSn.intValue(), "/raw/" + srcSn + ".jpg", null);
+        LsDataSrc src = LsDataSrc.create(1L, srcSn.intValue(), srcSn + ".jpg", null);
         try {
             Field f = LsDataSrc.class.getDeclaredField("srcSn");
             f.setAccessible(true);

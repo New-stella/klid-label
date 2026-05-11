@@ -57,6 +57,9 @@ public class BrampFfmpegFrameWriter implements FfmpegFrameExtractor.FrameWriter 
     }
 
     private boolean runFfmpeg(Path sourceVideo, Path outputFrame, int seekSeconds) {
+        // MEDIUM-4 fix: InterruptedException 등 중도 종료 시 ffmpeg 좀비 프로세스 방지 →
+        // process 를 try 밖에 선언하고 finally 에서 destroyForcibly() 보장.
+        Process process = null;
         try {
             ProcessBuilder pb = new ProcessBuilder(List.of(
                     binary, "-y",
@@ -67,7 +70,7 @@ public class BrampFfmpegFrameWriter implements FfmpegFrameExtractor.FrameWriter 
                     outputFrame.toAbsolutePath().toString()
             ));
             pb.redirectErrorStream(true);
-            Process process = pb.start();
+            process = pb.start();
             process.getInputStream().readAllBytes();
             int exitCode = process.waitFor();
             return exitCode == 0 && Files.exists(outputFrame) && Files.size(outputFrame) >= 100;
@@ -77,6 +80,10 @@ public class BrampFfmpegFrameWriter implements FfmpegFrameExtractor.FrameWriter 
             }
             log.error("[Batch][FrameWriter] ffmpeg error: {}", e.getMessage());
             return false;
+        } finally {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
         }
     }
 }

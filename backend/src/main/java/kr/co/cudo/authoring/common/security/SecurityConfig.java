@@ -66,10 +66,15 @@ public class SecurityConfig {
                                     "/swagger-ui/**", "/v3/api-docs/**",
                                     "/v1/auth/**", "/v1/portal/auth/**").permitAll();
                     if (devTokenEndpointEnabled) {
-                        // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음
-                        auth.requestMatchers("/v1/dev/**").permitAll();
+                        // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음.
+                        // HIGH-1 fix (OWASP A01:2025): /v1/dev/** 무인증 노출은 데이터 손상 위험.
+                        // - /v1/dev/tokens: 부트스트랩 토큰 발급 → permitAll 유지 (이 endpoint 없이는 로컬 인증 불가).
+                        // - /v1/dev/autolabel/** 등 그 외: 자동 라벨 전량 삭제·재실행 가능 → REVIEWER 권한 필수.
+                        auth.requestMatchers("/v1/dev/tokens", "/v1/dev/tokens/**").permitAll();
                     }
                     auth
+                            // HIGH-1 fix: /v1/dev/** (tokens 외) 는 REVIEWER 만 — 자동 라벨 삭제·재실행 차단.
+                            .requestMatchers("/v1/dev/**").hasRole(Role.REVIEWER.name())
                             // Phase 12 — actuator metrics/prometheus 는 REVIEWER 만 (운영 prd 는 노출 자체 차단)
                             .requestMatchers("/actuator/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/integration/control/**").hasAuthority(M2mTokenAuthenticationFilter.M2M_AUTHORITY)

@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -109,23 +110,25 @@ public class Sam2SegmentStep {
     private String readImageAsBase64(String relativePath) {
         Path imagePath = baseRawPath.resolve(relativePath).normalize();
         if (!imagePath.startsWith(baseRawPath)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 이미지 경로: " + relativePath);
+            // HIGH-2 fix (CWE-209): 클라이언트 응답에 내부 스토리지 경로 노출 금지.
+            throw new CustomException(ErrorCode.INVALID_INPUT, "이미지 경로 범위 초과");
         }
         try {
             byte[] bytes = Files.readAllBytes(imagePath);
             return Base64.getEncoder().encodeToString(bytes);
         } catch (IOException e) {
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 파일 읽기 실패: " + relativePath, e);
+            // HIGH-2 fix (CWE-209): 내부 경로 노출 금지.
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 파일 읽기 실패", e);
         }
     }
 
-    @SuppressWarnings("unchecked")
     private List<Double> parseBbox(String pointsJson) {
         if (pointsJson == null) {
             return null;
         }
         try {
-            return objectMapper.readValue(pointsJson, List.class);
+            // MEDIUM-3 fix: raw type 대신 TypeReference 사용 → 역직렬화 타입 안전성 확보.
+            return objectMapper.readValue(pointsJson, new TypeReference<List<Double>>() {});
         } catch (JsonProcessingException e) {
             log.warn("[Batch][Sam2] bbox 파싱 실패 — box 없이 호출: {}", e.getMessage());
             return null;
