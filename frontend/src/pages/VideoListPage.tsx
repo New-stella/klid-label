@@ -7,7 +7,6 @@ import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
-import { PrivacyBadge } from '@/components/common/PrivacyBadge';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StageBadge } from '@/components/common/StageBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -144,9 +143,6 @@ export function VideoListPage() {
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   녹화일
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                  개인정보
-                </th>
                 <th
                   className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
                   style={{ width: '120px' }}
@@ -162,7 +158,7 @@ export function VideoListPage() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-100">
-                    {Array.from({ length: 9 }).map((__, j) => (
+                    {Array.from({ length: 8 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton height={16} />
                       </td>
@@ -171,7 +167,7 @@ export function VideoListPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-12">
+                  <td colSpan={8} className="px-3 py-12">
                     <EmptyState message="해당하는 영상이 없습니다." />
                   </td>
                 </tr>
@@ -215,10 +211,6 @@ export function VideoListPage() {
                       <span className="text-xs text-gray-500">
                         {v.capturedAt ? v.capturedAt.slice(0, 10) : '-'}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {/* 우리 BE 응답에 privacyType 미포함 — 임시로 PRVC 가정 */}
-                      <PrivacyBadge privacyType="PRVC" />
                     </td>
                     <td className="px-4 py-3">
                       {v.status === 'BATCH_COMPLETED' || v.status === 'COMPLETED' ? (
