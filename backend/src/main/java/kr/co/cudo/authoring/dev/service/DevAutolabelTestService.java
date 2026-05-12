@@ -74,6 +74,7 @@ public class DevAutolabelTestService {
     private final DurationProbe durationProbe;
 
     /** 운영용 생성자 — Spring 이 의존성 주입. */
+    @org.springframework.beans.factory.annotation.Autowired
     public DevAutolabelTestService(
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
