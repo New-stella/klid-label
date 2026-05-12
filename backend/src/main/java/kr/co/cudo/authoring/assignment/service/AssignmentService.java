@@ -5,9 +5,11 @@ import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
+import kr.co.cudo.authoring.assignment.entity.LsPjtTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
 import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrtHstry;
 import kr.co.cudo.authoring.assignment.repository.LsPjtDataSttsRepository;
+import kr.co.cudo.authoring.assignment.repository.LsPjtTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtHstryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -31,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -41,6 +44,7 @@ public class AssignmentService {
     private final LsPjtUserAuthrtRepository authrtRepository;
     private final LsPjtUserAuthrtHstryRepository hstryRepository;
     private final LsPjtDataSttsRepository dataSttsRepository;
+    private final LsPjtTaskEventLogRepository taskEventLogRepository;
     private final UserRepository userRepository;
 
     @Transactional("controlTransactionManager")
@@ -51,6 +55,9 @@ public class AssignmentService {
         if (userRepository.findByUserNo(req.workerId()).isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "존재하지 않는 작업자입니다.");
         }
+        if (req.reviewerId() != null && userRepository.findByUserNo(req.reviewerId()).isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "존재하지 않는 검수자입니다.");
+        }
 
         List<LsPjtUserAuthrt> created = new ArrayList<>();
         try {
@@ -60,6 +67,10 @@ public class AssignmentService {
                 );
                 LsPjtDataStts stts = upsertDataStts(req.pjtId(), rawDataId);
                 stts.markAssigned();
+                // 통합 이벤트 로그 (SCR-TASK-003): 배정 이벤트 기록
+                taskEventLogRepository.save(
+                        LsPjtTaskEventLog.assign(req.pjtId(), rawDataId, actorNo, req.workerId())
+                );
                 created.add(entity);
             }
             authrtRepository.flush();
@@ -67,8 +78,51 @@ public class AssignmentService {
             log.warn("[Assignment] duplicate assignment detected pjtId={} workerId={}", req.pjtId(), req.workerId());
             throw new CustomException(ErrorCode.CONFLICT, "이미 동일 작업자에게 배정된 영상이 있습니다.");
         }
-        log.info("[Assignment] created actor={} workerId={} count={}", actorNo, req.workerId(), created.size());
+
+        // 옵셔널 — REVIEWER 동시 등록. worker 배정과 동일 트랜잭션 내에서 수행하되,
+        // UK 충돌(이미 동일 reviewer 가 동일 영상에 등록되어 있음) 은 정상 흐름으로 간주하여 skip.
+        if (req.reviewerId() != null) {
+            assignReviewers(req.pjtId(), req.rawDataIds(), req.reviewerId(), actorNo);
+        }
+
+        log.info("[Assignment] created actor={} workerId={} count={} reviewerAttached={}",
+                actorNo, req.workerId(), created.size(), req.reviewerId() != null);
         return AssignmentResponse.of(created);
+    }
+
+    /**
+     * REVIEWER 배정 — 각 rawDataId 에 대해 (PJT_ID, RAW_DATA_ID, USER_NO=reviewerId, TASK_TYPE_CD='REVIEWER')
+     * row 가 이미 존재하는지 확인 후 없을 때만 INSERT.
+     * UK 충돌이 발생해도 worker 배정 결과는 보존되어야 하므로 별도 try-catch 로 격리하고
+     * 충돌은 WARN 로깅 후 무시 (이미 등록된 상태이므로 결과적으로 동일).
+     * 이벤트 로그는 별도 이벤트 타입 도입 전까지 기록하지 않는다 (V1.x 정책).
+     */
+    private void assignReviewers(Long pjtId, List<Long> rawDataIds, Long reviewerId, Long actorNo) {
+        // 페이지 단위로 기존 REVIEWER 배정을 한 번에 batch 조회 (N+1 회피)
+        List<LsPjtUserAuthrt> existing = rawDataIds.isEmpty()
+                ? List.of()
+                : authrtRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(
+                        LsPjtUserAuthrt.TASK_REVIEWER, rawDataIds);
+        Set<Long> alreadyAssignedRawIds = existing.stream()
+                .filter(r -> r.getUserNo() != null && r.getUserNo().equals(reviewerId))
+                .map(LsPjtUserAuthrt::getRawDataId)
+                .collect(Collectors.toSet());
+
+        for (Long rawDataId : rawDataIds) {
+            if (alreadyAssignedRawIds.contains(rawDataId)) {
+                continue;
+            }
+            try {
+                authrtRepository.save(
+                        LsPjtUserAuthrt.createReviewer(pjtId, rawDataId, reviewerId, actorNo)
+                );
+                authrtRepository.flush();
+            } catch (DataIntegrityViolationException e) {
+                // 동시성 등으로 인한 UK 충돌은 worker 배정에 영향 주지 않도록 격리.
+                log.warn("[Assignment] reviewer assign skipped (already exists) pjtId={} rawDataId={}",
+                        pjtId, rawDataId);
+            }
+        }
     }
 
     @Transactional("controlTransactionManager")
@@ -79,31 +133,52 @@ public class AssignmentService {
         LsPjtUserAuthrt prev = authrtRepository.findById(assignmentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "배정을 찾을 수 없습니다."));
 
-        if (userRepository.findByUserNo(req.newWorkerId()).isEmpty()) {
+        if (userRepository.findByUserNo(req.workerId()).isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "존재하지 않는 작업자입니다.");
         }
-        if (prev.getUserNo().equals(req.newWorkerId())) {
+        if (prev.getUserNo().equals(req.workerId())) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "현재 배정된 작업자와 동일합니다.");
         }
 
-        hstryRepository.save(LsPjtUserAuthrtHstry.record(prev, req.newWorkerId(), actorNo));
-        prev.reassignTo(req.newWorkerId());
+        // 사전 검증: 새 작업자가 이미 동일 영상에 LABELER 로 다른 row 를 갖고 있는지 확인.
+        // UK(PJT_ID, RAW_DATA_ID, USER_NO, TASK_TYPE_CD) 충돌을 flush 시점이 아닌
+        // 사전에 명확한 메시지로 차단한다. (자기 자신 row 는 제외)
+        boolean alreadyAssigned = authrtRepository
+                .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(
+                        LsPjtUserAuthrt.TASK_LABELER, List.of(prev.getRawDataId()))
+                .stream()
+                .anyMatch(r -> r.getUserNo() != null
+                        && r.getUserNo().equals(req.workerId())
+                        && !r.getAuthrtSeq().equals(assignmentId));
+        if (alreadyAssigned) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "선택한 작업자는 이미 해당 영상에 배정되어 있습니다.");
+        }
+
+        Long prevWorkerNo = prev.getUserNo();
+        hstryRepository.save(LsPjtUserAuthrtHstry.record(prev, req.workerId(), actorNo));
+        // 통합 이벤트 로그 (SCR-TASK-003): 재배정 이벤트 기록
+        taskEventLogRepository.save(LsPjtTaskEventLog.reassign(
+                prev.getPjtId(), prev.getRawDataId(), actorNo, req.workerId(), prevWorkerNo));
+        prev.reassignTo(req.workerId());
         try {
             authrtRepository.flush();
         } catch (DataIntegrityViolationException e) {
-            throw new CustomException(ErrorCode.CONFLICT, "재배정 대상 작업자에게 이미 배정된 영상입니다.");
+            // 사전 체크 후에도 동시성으로 UK 충돌이 발생할 수 있으므로 동일 메시지로 통일.
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "선택한 작업자는 이미 해당 영상에 배정되어 있습니다.");
         }
-        log.info("[Assignment] reassigned actor={} authrtSeq={} newWorker={}", actorNo, assignmentId, req.newWorkerId());
+        log.info("[Assignment] reassigned actor={} authrtSeq={} newWorker={}", actorNo, assignmentId, req.workerId());
         return AssignmentResponse.single(prev);
     }
 
     /**
-     * 단일 배정의 변경 이력 조회 — `LS_PJT_USER_AUTHRT_HSTRY` 시간순(ASC) 정렬.
+     * 영상 단위 통합 이벤트 이력 조회 — SCR-TASK-003 작업 이력 화면용.
      *
-     * <p>각 row 의 prev/new userNo 를 한 번에 모아 {@code MNG_ACCT_USER} 를 일괄 조회하여 N+1 회피.
-     * ASSIGN 이벤트는 {@link LsPjtUserAuthrt} 본체의 {@code REG_DT} 를 기준으로 합성하여 첫 행으로 포함하고,
-     * 이후 HSTRY rows 를 REASSIGN 으로 추가한다.
-     * 변경 사유(reason) 는 현재 스키마에 컬럼이 없으므로 null 로 반환 (V1.x — 추후 확장 시 컬럼 추가 필요).
+     * <p>배정/재배정/검수 제출/승인/반려를 시간순으로 통합 반환한다.
+     * {@code assignmentId} 로부터 (PJT_ID, RAW_DATA_ID) 를 도출하여
+     * {@link LsPjtTaskEventLog} 를 OCCURRED_AT ASC 로 조회하고,
+     * actor/subject/prev userNo 를 한 번에 모아 {@code MNG_ACCT_USER} 를 일괄 조회하여 N+1 회피.
      */
     public List<AssignmentHistoryResponse> getHistory(Long assignmentId) {
         if (assignmentId == null || assignmentId <= 0) {
@@ -111,52 +186,35 @@ public class AssignmentService {
         }
         LsPjtUserAuthrt authrt = authrtRepository.findById(assignmentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "배정을 찾을 수 없습니다."));
-        List<LsPjtUserAuthrtHstry> rows = hstryRepository.findByAuthrtSeqOrderByChgDtAsc(assignmentId);
 
-        // 최초 배정 작업자(originalWorkerNo) 도출:
-        // - HSTRY 가 비어있으면 현재 userNo 가 곧 최초 배정 작업자
-        // - HSTRY 가 있으면 가장 오래된 row 의 PREV_USER_NO 가 최초 배정 작업자
-        Long originalWorkerNo = rows.isEmpty()
-                ? authrt.getUserNo()
-                : rows.get(0).getPrevUserNo();
+        List<LsPjtTaskEventLog> events = taskEventLogRepository
+                .findByPjtIdAndRawDataIdOrderByOccurredAtAsc(authrt.getPjtId(), authrt.getRawDataId());
 
+        // userNo batch lookup (N+1 회피)
         Set<Long> userNos = new HashSet<>();
-        if (originalWorkerNo != null) userNos.add(originalWorkerNo);
-        for (LsPjtUserAuthrtHstry r : rows) {
-            if (r.getPrevUserNo() != null) userNos.add(r.getPrevUserNo());
-            if (r.getNewUserNo() != null) userNos.add(r.getNewUserNo());
+        for (LsPjtTaskEventLog e : events) {
+            if (e.getActorUserNo() != null) userNos.add(e.getActorUserNo());
+            if (e.getSubjectUserNo() != null) userNos.add(e.getSubjectUserNo());
+            if (e.getPrevUserNo() != null) userNos.add(e.getPrevUserNo());
         }
-        Map<Long, String> nameByUserNo = new HashMap<>();
-        for (Long no : userNos) {
-            userRepository.findByUserNo(no)
-                    .map(MngAcctUser::getUserNm)
-                    .ifPresent(name -> nameByUserNo.put(no, name));
-        }
+        Map<Long, String> nameByUserNo = userNos.isEmpty()
+                ? Collections.emptyMap()
+                : userRepository.findByUserNoIn(userNos).stream()
+                        .collect(Collectors.toMap(MngAcctUser::getUserNo, MngAcctUser::getUserNm));
 
-        List<AssignmentHistoryResponse> out = new ArrayList<>(rows.size() + 1);
-        // 1) ASSIGN 합성: 본체 REG_DT 를 기준으로 첫 행에 추가.
-        //    hstrySn 은 HSTRY 실제 PK 와 충돌하지 않도록 음수로 부여(FE 는 key 로만 사용).
-        out.add(new AssignmentHistoryResponse(
-                -authrt.getAuthrtSeq(),
-                "ASSIGN",
-                null,
-                null,
-                originalWorkerNo,
-                originalWorkerNo != null ? nameByUserNo.get(originalWorkerNo) : null,
-                null,
-                authrt.getRegDt()
-        ));
-        // 2) REASSIGN rows: HSTRY 본체 (CHG_DT ASC 정렬 유지)
-        for (LsPjtUserAuthrtHstry r : rows) {
+        List<AssignmentHistoryResponse> out = new ArrayList<>(events.size());
+        for (LsPjtTaskEventLog e : events) {
             out.add(new AssignmentHistoryResponse(
-                    r.getHstrySeq(),
-                    "REASSIGN",
-                    r.getPrevUserNo(),
-                    r.getPrevUserNo() != null ? nameByUserNo.get(r.getPrevUserNo()) : null,
-                    r.getNewUserNo(),
-                    r.getNewUserNo() != null ? nameByUserNo.get(r.getNewUserNo()) : null,
-                    null,
-                    r.getChgDt()
+                    e.getEventSeq(),
+                    e.getEventTypeCd(),
+                    e.getActorUserNo(),
+                    e.getActorUserNo() != null ? nameByUserNo.get(e.getActorUserNo()) : null,
+                    e.getSubjectUserNo(),
+                    e.getSubjectUserNo() != null ? nameByUserNo.get(e.getSubjectUserNo()) : null,
+                    e.getPrevUserNo(),
+                    e.getPrevUserNo() != null ? nameByUserNo.get(e.getPrevUserNo()) : null,
+                    e.getReason(),
+                    e.getOccurredAt()
             ));
         }
         return out;

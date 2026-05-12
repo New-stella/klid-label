@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { useAssignTask } from '../hooks/useAssignTask';
+import { useReassignTask } from '../hooks/useReassignTask';
 import type { Task } from '../types';
 
 export interface AssignModalProps {
@@ -30,6 +31,24 @@ export interface AssignModalProps {
   videoId?: number;
   /** 단건 신규 배정 영상 표시명 */
   videoName?: string;
+}
+
+/**
+ * BE 가 ApiResponse.message 로 내려준 사람 친화적 에러 메시지를 안전하게 추출한다.
+ * - axios 에러 형태(`err.response.data.message`)만 신뢰하고 그 외에는 fallback 사용.
+ * - 토스트에 표시되므로 JSX 자동 이스케이프로 XSS 위험은 없음. BE 측 메시지가
+ *   민감 정보/내부 경로를 포함하지 않는다는 전제 (GlobalExceptionHandler 가 보장).
+ */
+function extractBeMessage(err: unknown, fallback: string): string {
+  if (typeof err === 'object' && err !== null && 'response' in err) {
+    const resp = (err as { response?: { data?: unknown } }).response;
+    const data = resp?.data;
+    if (typeof data === 'object' && data !== null && 'message' in data) {
+      const m = (data as { message?: unknown }).message;
+      if (typeof m === 'string' && m.trim() !== '') return m;
+    }
+  }
+  return fallback;
 }
 
 /**
@@ -84,28 +103,52 @@ export function AssignModal({
     setErrors({});
   }, [open, task, isBulk, canChangeReviewer, claims?.sub, workers]);
 
-  const { mutate, isPending } = useAssignTask({
-    onSuccess: () => {
-      const count = isBulk ? videoIds.length : 1;
-      pushToast({
-        variant: 'success',
-        message: count > 1 ? `${count}건 일괄 배정 완료` : '배정 완료',
-      });
-      if (isBulk) {
-        onBulkSuccess?.(videoIds);
-      } else {
-        onSuccess?.();
-      }
-      onClose();
-    },
-    onError: () => {
-      pushToast({ variant: 'error', message: '배정에 실패했습니다' });
-    },
+  const handleAssignSuccess = () => {
+    const count = isBulk ? videoIds.length : 1;
+    pushToast({
+      variant: 'success',
+      message: isReassign
+        ? '재배정 완료'
+        : count > 1
+          ? `${count}건 일괄 배정 완료`
+          : '배정 완료',
+    });
+    if (isBulk) {
+      onBulkSuccess?.(videoIds);
+    } else {
+      onSuccess?.();
+    }
+    onClose();
+  };
+
+  const handleAssignError = (err: unknown) => {
+    const fallback = isReassign ? '재배정에 실패했습니다' : '배정에 실패했습니다';
+    pushToast({
+      variant: 'error',
+      message: extractBeMessage(err, fallback),
+    });
+  };
+
+  const { mutate: mutateAssign, isPending: assignPending } = useAssignTask({
+    onSuccess: handleAssignSuccess,
+    onError: handleAssignError,
   });
+
+  const { mutate: mutateReassign, isPending: reassignPending } = useReassignTask({
+    onSuccess: handleAssignSuccess,
+    onError: handleAssignError,
+  });
+
+  const isPending = assignPending || reassignPending;
 
   const handleSave = () => {
     if (!workerId) {
       setErrors({ workerId: '작업자를 선택해주세요.' });
+      return;
+    }
+    // 재배정 모드: PATCH /assignments/{id} 호출 (workerId 만 변경 가능 — reviewer 변경 미지원)
+    if (isReassign && task) {
+      mutateReassign({ id: task.id, body: { workerId: Number(workerId) } });
       return;
     }
     const targetVideoIds = isBulk
@@ -116,11 +159,12 @@ export function AssignModal({
           ? [videoId]
           : [];
     if (targetVideoIds.length === 0) return;
-    // BE 계약: { pjtId, workerId, rawDataIds } — 현재 단일 프로젝트(PJT_ID=1) 운영 중
-    mutate({
+    // BE 계약: { pjtId, workerId, rawDataIds, reviewerId? } — 현재 단일 프로젝트(PJT_ID=1) 운영 중
+    mutateAssign({
       pjtId: 1,
       workerId: Number(workerId),
       rawDataIds: targetVideoIds,
+      ...(reviewerId ? { reviewerId: Number(reviewerId) } : {}),
     });
   };
 
@@ -151,7 +195,11 @@ export function AssignModal({
           <Button
             variant="primary"
             onClick={handleSave}
-            disabled={!workerId || isPending}
+            disabled={
+              !workerId ||
+              isPending ||
+              (isReassign && task != null && Number(workerId) === task.workerId)
+            }
             loading={isPending}
           >
             {isBulk ? `${videoIds.length}건 일괄 배정` : '저장'}
@@ -231,12 +279,18 @@ export function AssignModal({
                 <option key={w.id} value={w.id}>
                   {w.name}
                   {!w.active ? ' (비활성)' : ''}
+                  {isReassign && task && w.id === task.workerId ? ' (현재)' : ''}
                 </option>
               ))}
             </select>
           )}
           {errors['workerId'] && (
             <p className="text-xs text-red-500">{errors['workerId']}</p>
+          )}
+          {isReassign && task && workerId !== '' && Number(workerId) === task.workerId && (
+            <p className="text-xs text-amber-600">
+              현재 배정된 작업자와 동일합니다. 다른 작업자를 선택해주세요.
+            </p>
           )}
         </div>
 

@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.review.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
+import kr.co.cudo.authoring.assignment.entity.LsPjtTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
+import kr.co.cudo.authoring.assignment.repository.LsPjtTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -44,6 +46,7 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final IssueRepository issueRepository;
     private final LsPjtUserAuthrtRepository authrtRepository;
+    private final LsPjtTaskEventLogRepository taskEventLogRepository;
     private final ReviewStateMachine stateMachine;
 
     /**
@@ -86,6 +89,10 @@ public class ReviewService {
         LsPjtDataStts stts = loadByVideoId(videoId);
         stateMachine.verify(stts.getDataSttsCd(), LsPjtDataStts.STTS_PENDING);
         stts.transitionTo(LsPjtDataStts.STTS_PENDING);
+        // 통합 이벤트 로그 (SCR-TASK-003): 검수 제출 이벤트 기록
+        Long workerUserNo = parseUserNo(actor.sub());
+        taskEventLogRepository.save(LsPjtTaskEventLog.submit(
+                stts.getId().getPjtId(), stts.getId().getRawDataId(), workerUserNo));
         log.info("[Review] submitted videoId={} actor={}", videoId, actor.sub());
         return ReviewResponse.from(stts);
     }
@@ -112,6 +119,10 @@ public class ReviewService {
         LsPjtDataStts stts = loadByVideoId(videoId);
         stateMachine.verify(stts.getDataSttsCd(), LsPjtDataStts.STTS_APPROVED);
         stts.transitionTo(LsPjtDataStts.STTS_APPROVED);
+        // 통합 이벤트 로그 (SCR-TASK-003): 승인 이벤트 기록
+        Long reviewerUserNo = parseUserNo(actor.sub());
+        taskEventLogRepository.save(LsPjtTaskEventLog.approve(
+                stts.getId().getPjtId(), stts.getId().getRawDataId(), reviewerUserNo));
         try {
             reviewRepository.flush();
         } catch (OptimisticLockingFailureException e) {
@@ -142,6 +153,10 @@ public class ReviewService {
         issueRepository.save(issue);
 
         stts.transitionTo(LsPjtDataStts.STTS_REJECTED);
+        // 통합 이벤트 로그 (SCR-TASK-003): 반려 이벤트 기록
+        Long reviewerUserNo = parseUserNo(actor.sub());
+        taskEventLogRepository.save(LsPjtTaskEventLog.reject(
+                stts.getId().getPjtId(), stts.getId().getRawDataId(), reviewerUserNo, req.reason()));
         try {
             reviewRepository.flush();
         } catch (OptimisticLockingFailureException e) {

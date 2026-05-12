@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { ASSIGNMENT_KEYS } from '@/lib/queryKeys';
+import { ASSIGNMENT_KEYS, VIDEO_KEYS } from '@/lib/queryKeys';
 
 import { reassignTask } from '../api';
 import type { Assignment, ReassignTaskRequest } from '../types';
@@ -17,6 +17,7 @@ export interface ReassignArgs {
 
 /**
  * 재배정 mutation — PATCH /assignments/{id} (BE plan 정합).
+ * 성공 시 assignments/videos 쿼리 무효화.
  */
 export function useReassignTask(options: UseReassignTaskOptions = {}) {
   const qc = useQueryClient();
@@ -24,6 +25,7 @@ export function useReassignTask(options: UseReassignTaskOptions = {}) {
     mutationFn: ({ id, body }: ReassignArgs) => reassignTask(id, body),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ASSIGNMENT_KEYS.all });
+      qc.invalidateQueries({ queryKey: VIDEO_KEYS.all });
       options.onSuccess?.(data);
     },
     onError: options.onError,

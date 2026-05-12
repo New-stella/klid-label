@@ -67,6 +67,17 @@ public class LsPjtUserAuthrt {
                 .build();
     }
 
+    public static LsPjtUserAuthrt createReviewer(Long pjtId, Long rawDataId, Long reviewerNo, Long actorNo) {
+        return LsPjtUserAuthrt.builder()
+                .pjtId(pjtId)
+                .userNo(reviewerNo)
+                .rawDataId(rawDataId)
+                .taskTypeCd(TASK_REVIEWER)
+                .regUserNo(actorNo)
+                .regDt(LocalDateTime.now())
+                .build();
+    }
+
     public void reassignTo(Long newWorkerNo) {
         this.userNo = newWorkerNo;
     }

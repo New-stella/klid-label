@@ -1,0 +1,51 @@
+-- ============================================================
+-- V14 : LS_PJT_TASK_EVENT_LOG (작업 단위 이벤트 누적 로그)
+--   - SCR-TASK-003 작업 이력 화면 — 배정/재배정/검수 제출/승인/반려를 시간순 통합 표시
+--   - 저작도구 전용 신규 테이블 (klid_system 공유 테이블 변경 아님)
+--   - H2 + MariaDB 호환을 위해 IF NOT EXISTS + 표준 SQL 타입 사용
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_PJT_TASK_EVENT_LOG (
+    EVENT_SEQ        BIGINT       NOT NULL AUTO_INCREMENT,
+    PJT_ID           BIGINT       NOT NULL,
+    RAW_DATA_ID      BIGINT       NOT NULL,
+    EVENT_TYPE_CD    VARCHAR(32)  NOT NULL,
+    ACTOR_USER_NO    BIGINT       NOT NULL,
+    SUBJECT_USER_NO  BIGINT       NULL,
+    PREV_USER_NO     BIGINT       NULL,
+    REASON           VARCHAR(500) NULL,
+    OCCURRED_AT      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (EVENT_SEQ)
+);
+
+CREATE INDEX IF NOT EXISTS IDX_PJT_TASK_EVENT_VIDEO
+    ON LS_PJT_TASK_EVENT_LOG (PJT_ID, RAW_DATA_ID, OCCURRED_AT);
+CREATE INDEX IF NOT EXISTS IDX_PJT_TASK_EVENT_ACTOR
+    ON LS_PJT_TASK_EVENT_LOG (ACTOR_USER_NO);
+
+-- ============================================================
+-- Backfill (현재 데이터 손실 회피)
+--   - 신규 환경이면 row 0 일 수 있음
+--   - REJECT 는 LS_DATA_ISSUE 의 컬럼이 plan 가정과 다르고 (PJT_ID 없음,
+--     REPORTED_USER_NO 가 VARCHAR(50)) 안전을 위해 backfill 생략
+-- ============================================================
+
+-- 1) ASSIGN backfill: LS_PJT_USER_AUTHRT 최초 배정 (TASK_TYPE_CD='LABELER')
+INSERT INTO LS_PJT_TASK_EVENT_LOG
+    (PJT_ID, RAW_DATA_ID, EVENT_TYPE_CD, ACTOR_USER_NO, SUBJECT_USER_NO, OCCURRED_AT)
+SELECT a.PJT_ID, a.RAW_DATA_ID, 'ASSIGN', a.REG_USER_NO, a.USER_NO, a.REG_DT
+FROM LS_PJT_USER_AUTHRT a
+WHERE a.TASK_TYPE_CD = 'LABELER';
+
+-- 2) REASSIGN backfill: LS_PJT_USER_AUTHRT_HSTRY
+INSERT INTO LS_PJT_TASK_EVENT_LOG
+    (PJT_ID, RAW_DATA_ID, EVENT_TYPE_CD, ACTOR_USER_NO, SUBJECT_USER_NO, PREV_USER_NO, OCCURRED_AT)
+SELECT h.PJT_ID, h.RAW_DATA_ID, 'REASSIGN', h.CHG_USER_NO, h.NEW_USER_NO, h.PREV_USER_NO, h.CHG_DT
+FROM LS_PJT_USER_AUTHRT_HSTRY h
+WHERE h.TASK_TYPE_CD = 'LABELER';
+
+-- 3) REJECT backfill: LS_DATA_ISSUE 의 실제 스키마 (V5 §5A.6)
+--    컬럼: DATA_ISSUE_SN, UP_DATA_ISSUE_SN, VIDEO_ID, ISSUE_REASON, REPORTED_USER_NO(VARCHAR 50), REGISTERED_AT
+--    - PJT_ID 컬럼 없음 → PJT_ID 를 LS_PJT_DATA_STTS 에서 lookup 해야 하나 동일 RAW_DATA_ID
+--      가 다수 PJT 매핑 시 ambiguity 발생 → 안전을 위해 backfill 생략
+--    - REPORTED_USER_NO 가 VARCHAR(50) 이라 BIGINT 변환 시 H2/MariaDB 양쪽 안전 보장 어려움
+--    → 신규 hook 으로만 REJECT 이벤트가 누적되도록 함

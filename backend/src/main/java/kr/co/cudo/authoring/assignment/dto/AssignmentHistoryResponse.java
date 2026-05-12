@@ -3,19 +3,30 @@ package kr.co.cudo.authoring.assignment.dto;
 import java.time.LocalDateTime;
 
 /**
- * 배정 이력 응답 — `LS_PJT_USER_AUTHRT_HSTRY` 한 row 매핑.
+ * 작업(영상) 단위 이벤트 응답 — LS_PJT_TASK_EVENT_LOG 한 row 매핑.
  *
- * <p>FE 타임라인 표시용: prev/new 작업자 이름과 변경 시각, 변경 사유(추후 확장 — 현재는 null).
- * 사용자 입력으로 동적 SQL을 구성하지 않으며, prev/new 이름은 {@code MNG_ACCT_USER}에서 조회된 정보만 노출.
+ * <p>SCR-TASK-003 작업 이력 화면 통합 타임라인 표시용. 배정/재배정/검수 제출/승인/반려를
+ * 동일 응답 구조로 표현하며, 이벤트 종류에 따라 사용되는 필드가 다르다:
+ * <ul>
+ *   <li>ASSIGN    : actor=배정자(REVIEWER), subject=배정된 작업자</li>
+ *   <li>REASSIGN  : actor=재배정자(REVIEWER), subject=새 작업자, prev=이전 작업자</li>
+ *   <li>SUBMIT    : actor=subject=작업자(본인 제출)</li>
+ *   <li>APPROVE   : actor=검수자(REVIEWER)</li>
+ *   <li>REJECT    : actor=검수자(REVIEWER), reason=반려 사유</li>
+ * </ul>
+ *
+ * <p>응답에 노출되는 userNo / userName 은 MNG_ACCT_USER 에서 batch lookup 된 값만 사용한다.
  */
 public record AssignmentHistoryResponse(
-        Long hstrySn,
-        String chgTypeCd,
+        Long eventSeq,
+        String eventTypeCd,
+        Long actorUserNo,
+        String actorUserName,
+        Long subjectUserNo,
+        String subjectUserName,
         Long prevUserNo,
         String prevUserName,
-        Long newUserNo,
-        String newUserName,
         String reason,
-        LocalDateTime chgDt
+        LocalDateTime occurredAt
 ) {
 }

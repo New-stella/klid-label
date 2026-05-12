@@ -23,7 +23,7 @@ import { ProgressBar } from '@/components/common/ProgressBar';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 import { AssignModal } from '@/features/task/components/AssignModal';
-import { HistoryModal } from '@/features/task/components/HistoryModal';
+import { HistoryDrawer } from '@/features/task/components/HistoryDrawer';
 import {
   DEFAULT_TASK_FILTERS,
   TaskFilters,
@@ -158,10 +158,13 @@ export function TaskListPage() {
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(
     new Set(),
   );
-  // 이력 모달
-  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  // 이력 Drawer
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [historyAssignmentId, setHistoryAssignmentId] = useState<number | null>(
     null,
+  );
+  const [historyVideoName, setHistoryVideoName] = useState<string | undefined>(
+    undefined,
   );
 
   // 데이터 fetch — workerId 필터(URL)는 그대로 BE로 위임
@@ -655,7 +658,8 @@ export function TaskListPage() {
                               size="sm"
                               onClick={() => {
                                 setHistoryAssignmentId(r.task!.id);
-                                setHistoryModalOpen(true);
+                                setHistoryVideoName(r.videoName);
+                                setHistoryDrawerOpen(true);
                               }}
                             >
                               <History size={14} aria-hidden />
@@ -750,11 +754,12 @@ export function TaskListPage() {
         }
       />
 
-      {/* 배정 이력 모달 */}
-      <HistoryModal
-        open={historyModalOpen}
-        onClose={() => setHistoryModalOpen(false)}
+      {/* 배정 이력 Drawer (우측 슬라이드) */}
+      <HistoryDrawer
+        open={historyDrawerOpen}
+        onClose={() => setHistoryDrawerOpen(false)}
         assignmentId={historyAssignmentId}
+        videoName={historyVideoName}
       />
     </div>
   );

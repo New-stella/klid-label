@@ -3,7 +3,9 @@ package kr.co.cudo.authoring.assignment;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
+import kr.co.cudo.authoring.assignment.entity.LsPjtTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
+import kr.co.cudo.authoring.assignment.repository.LsPjtTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtHstryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
 import kr.co.cudo.authoring.assignment.service.AssignmentService;
@@ -34,6 +36,7 @@ class AssignmentServiceTest {
     @Autowired private AssignmentService assignmentService;
     @Autowired private LsPjtUserAuthrtRepository authrtRepository;
     @Autowired private LsPjtUserAuthrtHstryRepository hstryRepository;
+    @Autowired private LsPjtTaskEventLogRepository taskEventLogRepository;
 
     private TokenClaims reviewer() {
         return new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -89,18 +92,20 @@ class AssignmentServiceTest {
         AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
         var created = assignmentService.assign(req, reviewer());
         Long authrtSeq = created.items().get(0).authrtSeq();
-        LsPjtUserAuthrt authrt = authrtRepository.findById(authrtSeq).orElseThrow();
 
         List<AssignmentHistoryResponse> history = assignmentService.getHistory(authrtSeq);
 
         assertThat(history).hasSize(1);
         AssignmentHistoryResponse only = history.get(0);
-        assertThat(only.chgTypeCd()).isEqualTo("ASSIGN");
+        assertThat(only.eventTypeCd()).isEqualTo("ASSIGN");
+        assertThat(only.actorUserNo()).isEqualTo(1L);
+        assertThat(only.actorUserName()).isEqualTo("검수자1");
+        assertThat(only.subjectUserNo()).isEqualTo(100L);
+        assertThat(only.subjectUserName()).isEqualTo("작업자100");
         assertThat(only.prevUserNo()).isNull();
         assertThat(only.prevUserName()).isNull();
-        assertThat(only.newUserNo()).isEqualTo(100L);
-        assertThat(only.newUserName()).isEqualTo("작업자100");
-        assertThat(only.chgDt()).isEqualTo(authrt.getRegDt());
+        assertThat(only.reason()).isNull();
+        assertThat(only.occurredAt()).isNotNull();
     }
 
     @Test
@@ -109,7 +114,6 @@ class AssignmentServiceTest {
         AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
         var created = assignmentService.assign(req, reviewer());
         Long authrtSeq = created.items().get(0).authrtSeq();
-        LsPjtUserAuthrt authrt = authrtRepository.findById(authrtSeq).orElseThrow();
 
         assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer());
         assignmentService.reassign(authrtSeq, new ReassignRequest(200L), reviewer());
@@ -119,24 +123,63 @@ class AssignmentServiceTest {
         assertThat(history).hasSize(3);
 
         AssignmentHistoryResponse first = history.get(0);
-        assertThat(first.chgTypeCd()).isEqualTo("ASSIGN");
+        assertThat(first.eventTypeCd()).isEqualTo("ASSIGN");
+        assertThat(first.actorUserNo()).isEqualTo(1L);
+        assertThat(first.subjectUserNo()).isEqualTo(100L);
+        assertThat(first.subjectUserName()).isEqualTo("작업자100");
         assertThat(first.prevUserNo()).isNull();
-        assertThat(first.newUserNo()).isEqualTo(100L);
-        assertThat(first.newUserName()).isEqualTo("작업자100");
-        assertThat(first.chgDt()).isEqualTo(authrt.getRegDt());
 
         AssignmentHistoryResponse second = history.get(1);
-        assertThat(second.chgTypeCd()).isEqualTo("REASSIGN");
+        assertThat(second.eventTypeCd()).isEqualTo("REASSIGN");
+        assertThat(second.actorUserNo()).isEqualTo(1L);
+        assertThat(second.subjectUserNo()).isEqualTo(101L);
         assertThat(second.prevUserNo()).isEqualTo(100L);
-        assertThat(second.newUserNo()).isEqualTo(101L);
 
         AssignmentHistoryResponse third = history.get(2);
-        assertThat(third.chgTypeCd()).isEqualTo("REASSIGN");
+        assertThat(third.eventTypeCd()).isEqualTo("REASSIGN");
+        assertThat(third.actorUserNo()).isEqualTo(1L);
+        assertThat(third.subjectUserNo()).isEqualTo(200L);
         assertThat(third.prevUserNo()).isEqualTo(101L);
-        assertThat(third.newUserNo()).isEqualTo(200L);
 
         // 시간순 정합성: ASSIGN <= REASSIGN1 <= REASSIGN2
-        assertThat(first.chgDt()).isBeforeOrEqualTo(second.chgDt());
-        assertThat(second.chgDt()).isBeforeOrEqualTo(third.chgDt());
+        assertThat(first.occurredAt()).isBeforeOrEqualTo(second.occurredAt());
+        assertThat(second.occurredAt()).isBeforeOrEqualTo(third.occurredAt());
+    }
+
+    @Test
+    @DisplayName("assign_시_LS_PJT_TASK_EVENT_LOG에_ASSIGN_이벤트_누적")
+    void assignAccumulatesEventLog() {
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L, 1001L));
+        assignmentService.assign(req, reviewer());
+
+        List<LsPjtTaskEventLog> rows = taskEventLogRepository.findAll();
+        assertThat(rows).hasSize(2);
+        assertThat(rows).allSatisfy(r -> {
+            assertThat(r.getEventTypeCd()).isEqualTo("ASSIGN");
+            assertThat(r.getActorUserNo()).isEqualTo(1L);
+            assertThat(r.getSubjectUserNo()).isEqualTo(100L);
+            assertThat(r.getPjtId()).isEqualTo(10L);
+        });
+    }
+
+    @Test
+    @DisplayName("reassign_시_REASSIGN_이벤트가_prev_subject_와_함께_누적")
+    void reassignAccumulatesEventLog() {
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        var created = assignmentService.assign(req, reviewer());
+        Long authrtSeq = created.items().get(0).authrtSeq();
+
+        assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer());
+
+        List<LsPjtTaskEventLog> rows = taskEventLogRepository.findByPjtIdAndRawDataIdOrderByOccurredAtAsc(10L, 1000L);
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).getEventTypeCd()).isEqualTo("ASSIGN");
+        assertThat(rows.get(0).getSubjectUserNo()).isEqualTo(100L);
+
+        LsPjtTaskEventLog reassign = rows.get(1);
+        assertThat(reassign.getEventTypeCd()).isEqualTo("REASSIGN");
+        assertThat(reassign.getActorUserNo()).isEqualTo(1L);
+        assertThat(reassign.getSubjectUserNo()).isEqualTo(101L);
+        assertThat(reassign.getPrevUserNo()).isEqualTo(100L);
     }
 }

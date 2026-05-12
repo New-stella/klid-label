@@ -42,6 +42,8 @@ export interface AssignTaskRequest {
   workerId: number;
   /** 영상(LS_DATA_RAW) PK 목록 — 1건 이상 필수. */
   rawDataIds: number[];
+  /** 옵셔널 — 함께 등록할 REVIEWER 사용자 PK. */
+  reviewerId?: number;
 }
 
 export interface ReassignTaskRequest {
@@ -49,16 +51,35 @@ export interface ReassignTaskRequest {
 }
 
 /**
+ * 작업(영상) 단위 이벤트 타입 — LS_PJT_TASK_EVENT_LOG.EVENT_TYPE_CD.
+ * SCR-TASK-003 타임라인에서 배정/재배정/검수 제출/승인/반려를 동일 구조로 표현한다.
+ */
+export type TaskEventType =
+  | 'ASSIGN'
+  | 'REASSIGN'
+  | 'SUBMIT'
+  | 'APPROVE'
+  | 'REJECT';
+
+/**
  * 배정 이력 한 row — BE `AssignmentHistoryResponse` alias.
- * 변경 사유(reason)는 현재 스키마에 컬럼이 없어 null 로 전달된다.
+ *
+ * 이벤트 타입별 사용 필드:
+ * - ASSIGN    : actor=배정자(REVIEWER), subject=배정된 작업자
+ * - REASSIGN  : actor=재배정자(REVIEWER), subject=새 작업자, prev=이전 작업자
+ * - SUBMIT    : actor=subject=작업자(본인 제출)
+ * - APPROVE   : actor=검수자(REVIEWER)
+ * - REJECT    : actor=검수자(REVIEWER), reason=반려 사유
  */
 export interface AssignmentHistory {
-  hstrySn: number;
-  chgTypeCd: 'ASSIGN' | 'REASSIGN';
+  eventSeq: number;
+  eventTypeCd: TaskEventType;
+  actorUserNo: number | null;
+  actorUserName: string | null;
+  subjectUserNo: number | null;
+  subjectUserName: string | null;
   prevUserNo: number | null;
   prevUserName: string | null;
-  newUserNo: number | null;
-  newUserName: string | null;
   reason: string | null;
-  chgDt: string;
+  occurredAt: string;
 }
