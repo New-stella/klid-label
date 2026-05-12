@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resolveToken } from '../tokenIngress';
+
+const LS_KEY = 'klid-jwt-token';
 
 // helper: base64url
 function b64url(obj: Record<string, unknown>): string {
@@ -14,7 +16,15 @@ function buildJwt(headerObj: Record<string, unknown>, payloadObj: Record<string,
   return `${b64url(headerObj)}.${b64url(payloadObj)}.signature`;
 }
 
-describe('resolveToken (URL/cookie 분기 + 보안 검증)', () => {
+describe('resolveToken (URL/cookie/localStorage 분기 + 보안 검증)', () => {
+  beforeEach(() => {
+    try {
+      localStorage.clear();
+    } catch {
+      // ignore (test env edge case)
+    }
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     // cookie clear
@@ -23,6 +33,11 @@ describe('resolveToken (URL/cookie 분기 + 보안 검증)', () => {
       const name = (eq > -1 ? c.substr(0, eq) : c).trim();
       document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
     });
+    try {
+      localStorage.clear();
+    } catch {
+      // ignore
+    }
   });
 
   it('URL_파라미터_token_수령_후_useAuthStore에_저장', () => {
@@ -71,5 +86,77 @@ describe('resolveToken (URL/cookie 분기 + 보안 검증)', () => {
     // spaces are allowed in raw cookie strings but cookie value parser should reject
     // we set explicitly an invalid format
     expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBeNull();
+  });
+
+  // --- localStorage 인계 채널 (관제서버 표준 키 'klid-jwt-token') ---
+
+  it('localStorage에_유효_JWT_있으면_반환', () => {
+    vi.stubEnv('VITE_TOKEN_INGRESS', 'all');
+    const tok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'ls', exp: 9999999999 });
+    localStorage.setItem(LS_KEY, tok);
+
+    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBe(tok);
+  });
+
+  it('URL_토큰이_있으면_localStorage_무시', () => {
+    vi.stubEnv('VITE_TOKEN_INGRESS', 'all');
+    const lsTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'ls', exp: 9999999999 });
+    const urlTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'url', exp: 9999999999 });
+    localStorage.setItem(LS_KEY, lsTok);
+
+    expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBe(urlTok);
+  });
+
+  it('localStorage_값이_잘못된_형식이면_null', () => {
+    vi.stubEnv('VITE_TOKEN_INGRESS', 'localStorage');
+    localStorage.setItem(LS_KEY, 'not-a-jwt');
+    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBeNull();
+
+    localStorage.setItem(LS_KEY, 'only.two');
+    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBeNull();
+  });
+
+  it('localStorage_값이_alg_none_이면_거부', () => {
+    vi.stubEnv('VITE_TOKEN_INGRESS', 'localStorage');
+    const tok = buildJwt({ alg: 'none', typ: 'JWT' }, { sub: 'u1', exp: 9999999999 });
+    localStorage.setItem(LS_KEY, tok);
+    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBeNull();
+  });
+
+  it('VITE_TOKEN_INGRESS_localStorage_전략이면_url_쿠키_무시', () => {
+    vi.stubEnv('VITE_TOKEN_INGRESS', 'localStorage');
+    const lsTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'ls', exp: 9999999999 });
+    const urlTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'url', exp: 9999999999 });
+    const cookieTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'cookie', exp: 9999999999 });
+    localStorage.setItem(LS_KEY, lsTok);
+    document.cookie = `klid_jwt=${cookieTok};path=/`;
+
+    expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBe(lsTok);
+  });
+
+  it('VITE_TOKEN_INGRESS_미설정이면_url_localStorage_cookie_순_시도', () => {
+    // env 미설정 → 기본 전략 'all' (url > localStorage > cookie)
+    const lsTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'ls', exp: 9999999999 });
+    const cookieTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'cookie', exp: 9999999999 });
+    const urlTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'url', exp: 9999999999 });
+    document.cookie = `klid_jwt=${cookieTok};path=/`;
+
+    // url 있으면 url
+    expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBe(urlTok);
+
+    // url 없고 localStorage 있으면 localStorage
+    localStorage.setItem(LS_KEY, lsTok);
+    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBe(lsTok);
+
+    // url/localStorage 없으면 cookie
+    localStorage.removeItem(LS_KEY);
+    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBe(cookieTok);
+  });
+
+  it('VITE_TOKEN_INGRESS_잘못된_값이면_all로_폴백', () => {
+    vi.stubEnv('VITE_TOKEN_INGRESS', 'invalid-strategy');
+    const lsTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'ls', exp: 9999999999 });
+    localStorage.setItem(LS_KEY, lsTok);
+    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBe(lsTok);
   });
 });

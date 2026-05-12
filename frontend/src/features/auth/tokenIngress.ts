@@ -1,22 +1,36 @@
 /**
- * Token Ingress Resolver — URL 파라미터 / cookie / both 전략
+ * Token Ingress Resolver — URL 파라미터 / localStorage / cookie 인계 전략
  *
  * 보안:
  * - JWT 형식(3 segments) + 길이 제한 + 문자셋(base64url) 검증
  * - alg=none 거부 (FE는 헤더 alg만 확인 — 서명 검증은 BE 책임)
- * - 토큰은 메모리 (useAuthStore)에만 저장, localStorage 미사용
+ * - 토큰은 메모리 + sessionStorage (useAuthStore) 에 저장.
+ *   localStorage 는 관제서버 인계 채널로 **읽기만** — 저작도구가 새로 쓰지 않는다.
+ *   (관제서버가 같은 origin 의 localStorage[`klid-jwt-token`] 에 JWT 를 두면 저작도구가
+ *    그것을 인계받아 sessionStorage 로 이전한다 — XSS 표면 확대 없음.)
  */
 
 const MAX_JWT_LEN = 4096;
 // base64url 문자셋: A-Za-z0-9-_= (= 패딩 허용)
 const JWT_PART_RE = /^[A-Za-z0-9_-]+={0,2}$/;
 
-type IngressStrategy = 'url' | 'cookie' | 'both';
+/** 관제서버 인계 표준 키 (변경 금지 — 양측 합의) */
+const LOCAL_STORAGE_TOKEN_KEY = 'klid-jwt-token';
+
+type IngressStrategy = 'url' | 'cookie' | 'localStorage' | 'both' | 'all';
 
 function getStrategy(): IngressStrategy {
-  const v = (import.meta.env.VITE_TOKEN_INGRESS as string | undefined) ?? 'both';
-  if (v === 'url' || v === 'cookie' || v === 'both') return v;
-  return 'both';
+  const v = (import.meta.env.VITE_TOKEN_INGRESS as string | undefined) ?? 'all';
+  if (
+    v === 'url' ||
+    v === 'cookie' ||
+    v === 'localStorage' ||
+    v === 'both' ||
+    v === 'all'
+  ) {
+    return v;
+  }
+  return 'all';
 }
 
 function isValidJwtFormat(token: string): boolean {
@@ -75,6 +89,21 @@ function readCookie(name: string): string | null {
   return null;
 }
 
+/**
+ * 관제서버 인계 채널: localStorage[`klid-jwt-token`] 읽기 전용.
+ * - SSR / 비브라우저 환경 가드
+ * - private mode / quota / disabled storage 등 예외 안전
+ * - 값 자체는 형식 검증 없이 반환 — 호출부에서 통합 검증 (isValidJwtFormat + isAlgAcceptable)
+ */
+function readLocalStorageToken(): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    return localStorage.getItem(LOCAL_STORAGE_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export interface ResolveTokenParams {
   urlToken: string | null;
   cookieName: string;
@@ -84,18 +113,27 @@ export interface ResolveTokenParams {
  * 전략별 토큰 해상도.
  * - url: urlToken만 사용
  * - cookie: 쿠키 cookieName만 사용
- * - both: urlToken 우선, 없으면 cookie
+ * - localStorage: 관제서버 인계 키만 사용
+ * - both: urlToken → cookie (레거시 호환)
+ * - all (기본값): urlToken → localStorage → cookie
  *
- * 어떤 경로든 형식·alg 검증 통과한 토큰만 반환. 그 외는 null.
+ * 어떤 경로든 형식·alg 검증 통과한 첫 토큰만 반환. 그 외는 null.
  */
 export function resolveToken(params: ResolveTokenParams): string | null {
   const strategy = getStrategy();
   const candidates: (string | null)[] = [];
 
-  if (strategy === 'url' || strategy === 'both') {
+  // 우선순위:
+  //   1) URL (?token=...)      — 명시적 인계
+  //   2) localStorage (klid-jwt-token) — 관제서버 인계
+  //   3) cookie (klid_jwt)     — 레거시/대체
+  if (strategy === 'url' || strategy === 'both' || strategy === 'all') {
     candidates.push(params.urlToken);
   }
-  if (strategy === 'cookie' || strategy === 'both') {
+  if (strategy === 'localStorage' || strategy === 'all') {
+    candidates.push(readLocalStorageToken());
+  }
+  if (strategy === 'cookie' || strategy === 'both' || strategy === 'all') {
     candidates.push(readCookie(params.cookieName));
   }
 
