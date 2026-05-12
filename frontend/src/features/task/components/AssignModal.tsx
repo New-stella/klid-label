@@ -73,8 +73,16 @@ export function AssignModal({
   const role = claims?.role;
   const canChangeReviewer = role === Role.REVIEWER;
 
-  const { data: workers, isLoading: workersLoading } = useWorkers();
-  const { data: reviewersPage } = useUsers({ role: Role.REVIEWER, size: 50 });
+  // 모달이 열려 있고 REVIEWER 일 때만 호출 — /users 와 /users/workers 는 REVIEWER 전용 API.
+  // (WORKER 화면에서도 모달이 마운트되어 있어 무조건 호출되면 403 이 발생하므로 enabled 로 막는다.)
+  const shouldFetchUsers = open && canChangeReviewer;
+  const { data: workers, isLoading: workersLoading } = useWorkers({
+    enabled: shouldFetchUsers,
+  });
+  const { data: reviewersPage } = useUsers(
+    { role: Role.REVIEWER, size: 50 },
+    { enabled: shouldFetchUsers },
+  );
   const reviewers = reviewersPage?.content ?? [];
 
   const [workerId, setWorkerId] = useState<number | ''>('');

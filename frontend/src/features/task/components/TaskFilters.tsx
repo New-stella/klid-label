@@ -30,7 +30,7 @@ interface TaskFiltersProps {
   eventTypes: string[];
 }
 
-const STATUSES = [
+const STATUSES_FULL = [
   { value: '', label: '전체 상태' },
   { value: 'UNASSIGNED', label: '미배정' },
   { value: 'PENDING', label: '대기' },
@@ -39,6 +39,8 @@ const STATUSES = [
   { value: 'COMPLETED', label: '완료' },
   { value: 'REJECTED', label: '반려' },
 ];
+
+const STATUSES_WORKER = STATUSES_FULL.filter((s) => s.value !== 'UNASSIGNED');
 
 /**
  * mock §4-5 정합 — 작업 목록 검색 폼.
@@ -143,7 +145,7 @@ export function TaskFilters({
           }
           className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          {STATUSES.map((s) => (
+          {(showAssigneeSelect ? STATUSES_FULL : STATUSES_WORKER).map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
             </option>

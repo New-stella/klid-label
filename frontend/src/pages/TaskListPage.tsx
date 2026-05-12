@@ -182,8 +182,15 @@ export function TaskListPage() {
 
   const { data: tasksPage, isLoading, error, refetch } = useTasks(taskParams);
   const { data: videosPage } = useVideos({ size: 999 });
-  const { data: workersPage } = useUsers({ role: Role.WORKER, size: 100 });
-  const { data: reviewersPage } = useUsers({ role: Role.REVIEWER, size: 100 });
+  // /users 는 REVIEWER 전용 (BE @PreAuthorize). WORKER 화면에서는 호출 자체를 막아 403 스팸을 방지한다.
+  const { data: workersPage } = useUsers(
+    { role: Role.WORKER, size: 100 },
+    { enabled: isReviewer },
+  );
+  const { data: reviewersPage } = useUsers(
+    { role: Role.REVIEWER, size: 100 },
+    { enabled: isReviewer },
+  );
 
   const tasks = tasksPage?.content ?? [];
   const videos = videosPage?.content ?? [];
@@ -228,8 +235,33 @@ export function TaskListPage() {
     return m;
   }, [tasks]);
 
-  // base = 처리 완료 영상 + left-join task. videos 데이터가 비어있으면 task 직접 사용.
+  // base 계산.
+  // - WORKER: 본인에게 배정된 task만 표시 (미배정 영상 left-join 금지 — IDOR/노이즈 방지)
+  // - REVIEWER: 처리 완료 영상 + left-join task (미배정도 노출하여 배정 액션 제공)
   const allRows = useMemo<TaskRow[]>(() => {
+    if (!isReviewer) {
+      const videoById = new Map(videos.map((v) => [v.id, v]));
+      return tasks.map((t) => {
+        const v = videoById.get(t.videoId);
+        return {
+          id: String(t.videoId),
+          video: v ?? {
+            id: t.videoId,
+            cctvName: t.cctvName,
+            vmsClipId: '',
+            eventName: '',
+            eventTypeCd: '',
+            localGov: '',
+            frameCount: 0,
+            status: 'COMPLETED' as BadgeStatus,
+            capturedAt: t.assignedAt,
+          },
+          task: t,
+          rowStatus: t.status,
+          videoName: t.cctvName,
+        };
+      });
+    }
     if (completedVideos.length === 0) {
       // videos 데이터 없으면 BE task 직접 사용 (후방 호환)
       return tasks.map((t) => ({
@@ -260,7 +292,7 @@ export function TaskListPage() {
         videoName: task?.cctvName ?? v.cctvName,
       };
     });
-  }, [completedVideos, taskByVideoId, tasks]);
+  }, [isReviewer, videos, completedVideos, taskByVideoId, tasks]);
 
   const visibleRows = useMemo<TaskRow[]>(() => {
     let result = [...allRows];

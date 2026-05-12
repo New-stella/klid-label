@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { useAuthStore } from '@/stores/useAuthStore';
 import type { Task } from '../types';
 
 import { AssignModal } from '../components/AssignModal';
@@ -52,10 +53,17 @@ describe('AssignModal', () => {
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
     mockReviewers(mock);
+    // AssignModal 은 REVIEWER 만 열 수 있으며, /users 와 /users/workers 는 BE @PreAuthorize REVIEWER.
+    // 테스트에서도 REVIEWER 로 로그인된 상태를 가정한다.
+    useAuthStore.setState({
+      token: 'tok',
+      claims: { sub: 'u-1', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
+    });
   });
 
   afterEach(() => {
     mock.restore();
+    useAuthStore.getState().clear();
   });
 
   it('우선순위_기한_메모_입력_없음_(UI_UX_4_5_회귀_방지)', async () => {

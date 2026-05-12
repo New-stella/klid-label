@@ -23,9 +23,10 @@ export function WorkerStatPage() {
   const isReviewer = claims?.role === Role.REVIEWER;
   const myId = claims?.sub;
 
-  // REVIEWER만 작업자 목록 로드 (selector)
+  // REVIEWER만 작업자 목록 로드 (selector) — /users 는 REVIEWER 전용 API 라 enabled 로 호출 자체를 막는다.
   const { data: workersPage } = useUsers(
-    isReviewer ? { role: Role.WORKER, size: 100 } : { size: 0 },
+    { role: Role.WORKER, size: 100 },
+    { enabled: isReviewer },
   );
   const workers = isReviewer ? workersPage?.content ?? [] : [];
 
