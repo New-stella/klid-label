@@ -2,7 +2,9 @@ package kr.co.cudo.authoring.label.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -42,6 +44,7 @@ public class LabelService {
     public static final int MAX_POINTS_PER_LABEL = 1000;
 
     private final LsDataLblRepository labelRepository;
+    private final LsDataSrcRepository srcRepository;
     private final LabelAccessGuard accessGuard;
     private final ObjectMapper objectMapper;
     /**
@@ -52,20 +55,28 @@ public class LabelService {
     private final VersionService versionService;
 
     public LabelService(LsDataLblRepository labelRepository,
+                        LsDataSrcRepository srcRepository,
                         LabelAccessGuard accessGuard,
                         ObjectMapper objectMapper,
                         @Lazy VersionService versionService) {
         this.labelRepository = labelRepository;
+        this.srcRepository = srcRepository;
         this.accessGuard = accessGuard;
         this.objectMapper = objectMapper;
         this.versionService = versionService;
     }
 
-    /** 프레임 라벨 조회 — WORKER 는 본인 배정 프레임만, REVIEWER 는 모두. */
+    /**
+     * 프레임 라벨 조회 — WORKER 는 본인 배정 프레임만, REVIEWER 는 모두.
+     *
+     * <p>응답에 영상(rawSn=videoId) 및 동일 영상의 형제 프레임 (siblings) 메타를 함께 반환.
+     * N+1 회피: 권한 검사 시점에 LsDataSrc 1회 조회 + siblings 조회 1회 = SELECT 2회.
+     */
     public LabelResponse getByFrame(Long srcSn, TokenClaims actor) {
-        accessGuard.verifyAccess(srcSn, actor);
+        LsDataSrc current = accessGuard.verifyAndGet(srcSn, actor);
         List<LsDataLbl> labels = labelRepository.findBySrcSn(srcSn);
-        return LabelResponse.of(labels, objectMapper);
+        List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
+        return LabelResponse.of(current, siblings, labels, objectMapper);
     }
 
     /**
@@ -76,7 +87,7 @@ public class LabelService {
      */
     @Transactional("controlTransactionManager")
     public LabelResponse bulkUpsert(Long srcSn, LabelBulkUpsertRequest req, TokenClaims actor) {
-        accessGuard.verifyAccess(srcSn, actor);
+        LsDataSrc current = accessGuard.verifyAndGet(srcSn, actor);
         Long actorNo = accessGuard.parseUserNo(actor.sub());
 
         // 좌표 사전 검증 (트랜잭션 내부에서 한꺼번에 실패해도 롤백 — 여기선 명시적으로 미리 차단)
@@ -110,9 +121,11 @@ public class LabelService {
         }
         log.info("[Label] bulkUpsert srcSn={} actor={} count={}", srcSn, actorNo, result.size());
 
+        List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
+
         // Phase 8 — Gitea 자동 커밋 (PORTAL 채널은 버전관리 미제공 → skip).
         if (VersionService.isCommittable(actor)) {
-            LabelResponse responseSnapshot = LabelResponse.of(result, objectMapper);
+            LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, objectMapper);
             String labelsJson;
             try {
                 labelsJson = objectMapper.writeValueAsString(responseSnapshot);
@@ -126,7 +139,7 @@ public class LabelService {
             }
         }
 
-        return LabelResponse.of(result, objectMapper);
+        return LabelResponse.of(current, siblings, result, objectMapper);
     }
 
     /** 좌표 검증 — 음수 차단 + 점 개수 상한. */

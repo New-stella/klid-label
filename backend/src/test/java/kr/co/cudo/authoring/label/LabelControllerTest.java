@@ -215,4 +215,24 @@ class LabelControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1));
     }
+
+    @Test
+    @DisplayName("LabelController_라벨_조회시_videoId와_siblings_응답_포함")
+    void getLabelsIncludesVideoIdAndSiblings() throws Exception {
+        // 동일 영상에 추가 프레임 4개 시드 (총 5프레임: frameNo 0~4)
+        for (int i = 1; i < 5; i++) {
+            srcRepository.save(LsDataSrc.create(rawSn, i,
+                    "/var/raw/frame_" + i + ".jpg", LocalDateTime.now()));
+        }
+
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.srcSn").value(srcSn.intValue()))
+                .andExpect(jsonPath("$.data.frameNo").value(0))
+                .andExpect(jsonPath("$.data.videoId").value(rawSn.intValue()))
+                .andExpect(jsonPath("$.data.siblings.length()").value(5))
+                .andExpect(jsonPath("$.data.siblings[0].frameNo").value(0))
+                .andExpect(jsonPath("$.data.siblings[4].frameNo").value(4));
+    }
 }

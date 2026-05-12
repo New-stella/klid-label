@@ -94,24 +94,54 @@ export function LabelingPage() {
   const addLabel = useLabelStore((s) => s.addLabel);
   const reset = useLabelStore((s) => s.reset);
 
-  // Phase 8 전: 단일 프레임만 보유 — frames 배열에 srcSn 1건.
-  // imageUrl 은 useImageBlob 이 발급한 blob: URL (인증 헤더로 fetch 한 결과).
+  // BE 의 LabelResponse.siblings 로 영상 전체 프레임 표시.
+  // 썸네일 API 미보유 — 현재 프레임 외 imageUrl/thumbnailUrl 은 빈 값 (placeholder).
+  // 다른 프레임 선택 시 navigate 로 URL 전환 → useLabels 재조회 → 해당 프레임 이미지 로딩.
   const frames: FrameSummary[] = useMemo(() => {
     if (!data) return [];
-    return [
-      {
-        frameNo: data.frameNo,
-        srcSn: data.srcSn,
-        thumbnailUrl: imageBlobUrl ?? '',
-        imageUrl: imageBlobUrl ?? '',
+    const siblings = Array.isArray(data.siblings) ? data.siblings : [];
+    // siblings 가 비어 있으면(레거시 응답 호환) 현재 프레임 단건으로 폴백.
+    if (siblings.length === 0) {
+      return [
+        {
+          frameNo: data.frameNo,
+          srcSn: data.srcSn,
+          thumbnailUrl: imageBlobUrl ?? '',
+          imageUrl: imageBlobUrl ?? '',
+          imageWidth: 1920,
+          imageHeight: 1080,
+        },
+      ];
+    }
+    return siblings.map((s) => {
+      const isCurrent = s.srcSn === data.srcSn;
+      return {
+        frameNo: s.frameNo,
+        srcSn: s.srcSn,
+        thumbnailUrl: isCurrent ? (imageBlobUrl ?? '') : '',
+        imageUrl: isCurrent ? (imageBlobUrl ?? '') : '',
         imageWidth: 1920,
         imageHeight: 1080,
-      },
-    ];
+      };
+    });
   }, [data, imageBlobUrl]);
 
-  const [frameIdx, setFrameIdx] = useState(0);
+  // 현재 프레임의 인덱스는 siblings 위치를 기준으로 계산.
+  const frameIdx = useMemo(() => {
+    if (!data) return 0;
+    const idx = frames.findIndex((f) => f.srcSn === data.srcSn);
+    return idx >= 0 ? idx : 0;
+  }, [frames, data]);
   const currentFrame = frames[frameIdx];
+
+  // 다른 프레임으로 이동 — URL 전환 (useLabels 가 재조회).
+  const jumpTo = (idx: number) => {
+    const target = frames[idx];
+    if (!target || !data) return;
+    if (target.srcSn !== data.srcSn) {
+      navigate(`/label/${target.srcSn}`);
+    }
+  };
 
   useEffect(() => {
     if (data) setLabels(Array.isArray(data.labels) ? data.labels : []);
@@ -140,8 +170,8 @@ export function LabelingPage() {
   };
 
   useLabelingShortcuts({
-    onPrevFrame: () => setFrameIdx((i) => Math.max(0, i - 1)),
-    onNextFrame: () => setFrameIdx((i) => Math.min(frames.length - 1, i + 1)),
+    onPrevFrame: () => jumpTo(Math.max(0, frameIdx - 1)),
+    onNextFrame: () => jumpTo(Math.min(frames.length - 1, frameIdx + 1)),
     onSave: handleSave,
   });
 
@@ -297,14 +327,14 @@ export function LabelingPage() {
           <DarkFrameStrip
             frames={frames}
             currentIndex={frameIdx}
-            onSelect={setFrameIdx}
+            onSelect={jumpTo}
           />
         </div>
         <div style={{ height: 60 }}>
           <DarkFrameSlider
             currentIndex={frameIdx}
             totalFrames={Math.max(frames.length, 1)}
-            onSelect={setFrameIdx}
+            onSelect={jumpTo}
           />
         </div>
       </div>

@@ -1,0 +1,111 @@
+// LabelingPage — siblings 응답으로 영상 전체 프레임 표시 및 프레임 이동 검증.
+// react-konva 는 jsdom 에서 실제 렌더링 안 됨 → 모킹.
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import MockAdapter from 'axios-mock-adapter';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+vi.mock('react-konva', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const React = require('react');
+  const passthrough = (name: string) => {
+    return ({ children, ...rest }: any) =>
+      // eslint-disable-next-line react/no-children-prop
+      React.createElement('div', { 'data-konva': name, ...rest }, children);
+  };
+  return {
+    Stage: passthrough('Stage'),
+    Layer: passthrough('Layer'),
+    Image: passthrough('Image'),
+    Rect: passthrough('Rect'),
+    Line: passthrough('Line'),
+    Circle: passthrough('Circle'),
+    Group: passthrough('Group'),
+  };
+});
+
+import { apiClient } from '@/lib/api/client';
+import { LabelingPage } from '@/pages/label/LabelingPage';
+import { renderWithProviders } from '@/test/renderWithProviders';
+import { useAuthStore } from '@/stores/useAuthStore';
+
+function labelsPayloadFor(srcSn: number, frameNo: number) {
+  return {
+    success: true,
+    data: {
+      frameNo,
+      srcSn,
+      videoId: 7,
+      // 5 프레임 영상: srcSn 200~204, frameNo 0~4
+      siblings: [
+        { srcSn: 200, frameNo: 0 },
+        { srcSn: 201, frameNo: 1 },
+        { srcSn: 202, frameNo: 2 },
+        { srcSn: 203, frameNo: 3 },
+        { srcSn: 204, frameNo: 4 },
+      ],
+      labels: [],
+    },
+    message: null,
+    errorCode: null,
+  };
+}
+
+describe('LabelingPage siblings 표시', () => {
+  let mock: MockAdapter;
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+    useAuthStore.setState({
+      token: 'tok',
+      claims: { sub: '10', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
+    });
+    // 영상의 모든 프레임에 대해 동일한 siblings 응답.
+    [200, 201, 202, 203, 204].forEach((sn, idx) => {
+      mock.onGet(`/frames/${sn}/labels`).reply(200, labelsPayloadFor(sn, idx));
+      // useImageBlob 가 호출하는 이미지 엔드포인트 — 빈 blob 으로 통과.
+      mock.onGet(`/frames/${sn}/image`).reply(200, new Blob());
+    });
+  });
+
+  afterEach(() => {
+    mock.restore();
+    useAuthStore.getState().clear();
+  });
+
+  it('siblings_5건이면_썸네일_strip에_5건_렌더', async () => {
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/200'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
+
+    // DarkFrameStrip 의 listbox 안에 5개 option 렌더 — aria-label "프레임 0".."프레임 4"
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: '프레임 0' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: '프레임 4' })).toBeInTheDocument();
+    });
+  });
+
+  it('siblings_썸네일_클릭시_해당_프레임_URL로_이동', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/200'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
+
+    // 처음에는 프레임 0 (srcSn=200) — useImageBlob 가 /frames/200/image 호출.
+    // 프레임 2 (srcSn=202) 썸네일 클릭 → navigate('/label/202') → useLabels 재조회 → 프레임 2 응답 로딩.
+    const frame2 = await screen.findByRole('option', { name: '프레임 2' });
+    await user.click(frame2);
+
+    // 새 라우트에서 frameNo 2 의 응답이 적용되어야 함 — strip 의 frame 2 가 선택된 상태(aria-selected=true)
+    await waitFor(() => {
+      const opt = screen.getByRole('option', { name: '프레임 2' });
+      expect(opt.getAttribute('aria-selected')).toBe('true');
+    });
+  });
+});

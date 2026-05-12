@@ -49,4 +49,35 @@ class LabelPointSerializerTest {
         assertThat(LabelPointSerializer.toJson(null, objectMapper)).isEqualTo("[]");
         assertThat(LabelPointSerializer.fromJson(null, objectMapper)).isEmpty();
     }
+
+    @Test
+    @DisplayName("LabelPointSerializer_객체배열_x_y_레거시_포맷_호환_역직렬화")
+    void deserializeObjectArrayLegacy() {
+        String json = "[{\"x\":120,\"y\":80},{\"x\":340,\"y\":280}]";
+
+        List<Point> points = LabelPointSerializer.fromJson(json, objectMapper);
+
+        assertThat(points).containsExactly(new Point(120.0, 80.0), new Point(340.0, 280.0));
+    }
+
+    @Test
+    @DisplayName("LabelPointSerializer_평탄_1차원_BBOX_4요소_호환_역직렬화")
+    void deserializeFlatBBoxLegacy() {
+        String json = "[165.0,210.0,385.0,430.0]";
+
+        List<Point> points = LabelPointSerializer.fromJson(json, objectMapper);
+
+        assertThat(points).containsExactly(new Point(165.0, 210.0), new Point(385.0, 430.0));
+    }
+
+    @Test
+    @DisplayName("LabelPointSerializer_평탄_1차원_홀수_길이_예외")
+    void deserializeFlatOddLengthThrows() {
+        String json = "[1.0,2.0,3.0]";
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> LabelPointSerializer.fromJson(json, objectMapper))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("짝수");
+    }
 }

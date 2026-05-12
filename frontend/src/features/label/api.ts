@@ -5,7 +5,7 @@
 
 import { apiClient } from '@/lib/api/client';
 
-import type { Label, LabelsResponse, Shape } from './types';
+import type { Label, LabelsResponse, Shape, SiblingFrame } from './types';
 
 export interface CommitResponse {
   commitSha: string;
@@ -91,6 +91,11 @@ function normalizeLabel(raw: any): Label {
 
 /**
  * 프레임의 라벨 목록 조회.
+ *
+ * BE 응답에 다음 필드가 함께 포함된다:
+ *   - videoId  : LS_DATA_RAW.RAW_SN (해당 프레임이 속한 영상)
+ *   - siblings : 동일 영상의 모든 프레임 (FRAME_NO ASC)
+ * FE 는 siblings 로 프레임 타임라인을 구성하고 클릭 시 해당 프레임 URL 로 이동.
  */
 export function getLabels(srcSn: number): Promise<LabelsResponse> {
   return apiClient
@@ -102,9 +107,17 @@ export function getLabels(srcSn: number): Promise<LabelsResponse> {
         : Array.isArray(d.items)
           ? d.items
           : [];
+      const siblings: SiblingFrame[] = Array.isArray(d.siblings)
+        ? d.siblings.map((s) => ({
+            srcSn: Number(s.srcSn),
+            frameNo: Number(s.frameNo),
+          }))
+        : [];
       return {
         frameNo: d.frameNo ?? 0,
         srcSn,
+        videoId: d.videoId !== undefined && d.videoId !== null ? Number(d.videoId) : undefined,
+        siblings,
         labels: rawList.map(normalizeLabel),
       };
     });

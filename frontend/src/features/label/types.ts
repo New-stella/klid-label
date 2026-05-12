@@ -85,8 +85,21 @@ export interface FrameSummary {
   imageHeight: number;
 }
 
+/**
+ * 동일 영상 내 형제 프레임 식별자 (BE LabelResponse.siblings 와 1:1).
+ * 라벨링 캔버스 하단 타임라인 및 이전/다음 프레임 이동에 사용.
+ */
+export interface SiblingFrame {
+  srcSn: number;
+  frameNo: number;
+}
+
 export interface LabelsResponse {
   frameNo: number;
   srcSn: number;
+  /** LS_DATA_RAW.RAW_SN — 현재 프레임이 속한 영상 PK */
+  videoId?: number;
+  /** 동일 영상의 모든 프레임 (FRAME_NO ASC). 단일 프레임 응답에도 포함됨 */
+  siblings: SiblingFrame[];
   labels: Label[];
 }

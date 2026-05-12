@@ -29,13 +29,21 @@ public class LabelAccessGuard {
     private final LsPjtUserAuthrtRepository authrtRepository;
 
     public void verifyAccess(Long srcSn, TokenClaims actor) {
+        verifyAndGet(srcSn, actor);
+    }
+
+    /**
+     * verifyAccess 와 동일한 인가 검사를 수행하되 조회된 {@link LsDataSrc} 를 반환한다.
+     * 호출 측에서 rawSn/frameNo 가 추가로 필요할 때 사용 (N+1 회피).
+     */
+    public LsDataSrc verifyAndGet(Long srcSn, TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
         LsDataSrc src = srcRepository.findById(srcSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
         if (actor.role() == Role.REVIEWER) {
-            return;
+            return src;
         }
         if (actor.role() == Role.WORKER) {
             Long selfNo = parseUserNo(actor.sub());
@@ -44,7 +52,7 @@ public class LabelAccessGuard {
             if (!assigned) {
                 throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다.");
             }
-            return;
+            return src;
         }
         throw new CustomException(ErrorCode.FORBIDDEN, "라벨 접근 권한이 없습니다.");
     }
