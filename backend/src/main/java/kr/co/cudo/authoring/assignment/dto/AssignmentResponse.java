@@ -25,19 +25,22 @@ public record AssignmentResponse(
             // FE TaskListPage — 영상별 REVIEWER 배정자 (없으면 null)
             Long reviewerId,
             // FE TaskListPage — 영상별 REVIEWER 실제 이름 (없으면 null)
-            String reviewerName
+            String reviewerName,
+            // FE LabelingPage — 해당 영상의 첫 프레임 SRC_SN. 프레임 미생성 시 null.
+            // WORKER 가 "작업" 버튼 클릭 시 /label/{firstSrcSn} 으로 navigate 하는 데 사용.
+            Long firstSrcSn
     ) {
         /**
          * 기본 변환 — REVIEWER 정보 없이 사용한다.
          * 서비스 레이어에서 REVIEWER 배정 lookup 후 {@link #from(LsPjtUserAuthrt, Long)} 사용 권장.
          */
         public static Item from(LsPjtUserAuthrt e) {
-            return from(e, null, null, null);
+            return from(e, null, null, null, null);
         }
 
         /** REVIEWER 배정 lookup 결과를 함께 주입 (서비스에서 N+1 회피 후 호출). */
         public static Item from(LsPjtUserAuthrt e, Long reviewerId) {
-            return from(e, reviewerId, null, null);
+            return from(e, reviewerId, null, null, null);
         }
 
         /**
@@ -46,6 +49,15 @@ public record AssignmentResponse(
          */
         public static Item from(LsPjtUserAuthrt e, Long reviewerId,
                                 String workerName, String reviewerName) {
+            return from(e, reviewerId, workerName, reviewerName, null);
+        }
+
+        /**
+         * 전체 인자 변환 — 영상의 firstSrcSn 까지 한 번에 주입한다.
+         * 호출 측에서 LsDataSrcRepository.findFirstSrcSnGroupedByRawSn() 결과를 lookup 한 뒤 전달한다.
+         */
+        public static Item from(LsPjtUserAuthrt e, Long reviewerId,
+                                String workerName, String reviewerName, Long firstSrcSn) {
             return new Item(
                     e.getAuthrtSeq(),
                     e.getAuthrtSeq(),
@@ -62,7 +74,8 @@ public record AssignmentResponse(
                     e.getRegDt(),
                     e.getRegDt(),
                     reviewerId,
-                    reviewerName
+                    reviewerName,
+                    firstSrcSn
             );
         }
     }

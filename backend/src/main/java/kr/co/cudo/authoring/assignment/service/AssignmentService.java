@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.assignment.repository.LsPjtDataSttsRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtHstryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
@@ -46,6 +47,7 @@ public class AssignmentService {
     private final LsPjtDataSttsRepository dataSttsRepository;
     private final LsPjtTaskEventLogRepository taskEventLogRepository;
     private final UserRepository userRepository;
+    private final LsDataSrcRepository dataSrcRepository;
 
     @Transactional("controlTransactionManager")
     public AssignmentResponse assign(AssignmentCreateRequest req, TokenClaims actor) {
@@ -250,6 +252,7 @@ public class AssignmentService {
             throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
         }
         Map<Long, Long> reviewerByVideo = lookupReviewerByVideo(page.getContent());
+        Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(page.getContent());
 
         // worker + reviewer userNo 를 한 Set 에 모아 1회 batch 조회 (N+1 회피).
         Set<Long> userNos = new HashSet<>();
@@ -269,7 +272,8 @@ public class AssignmentService {
             Long reviewerId = reviewerByVideo.get(e.getRawDataId());
             String workerName = e.getUserNo() != null ? nameByUserNo.get(e.getUserNo()) : null;
             String reviewerName = reviewerId != null ? nameByUserNo.get(reviewerId) : null;
-            return AssignmentResponse.Item.from(e, reviewerId, workerName, reviewerName);
+            Long firstSrcSn = firstSrcSnByVideo.get(e.getRawDataId());
+            return AssignmentResponse.Item.from(e, reviewerId, workerName, reviewerName, firstSrcSn);
         });
     }
 
@@ -296,6 +300,34 @@ public class AssignmentService {
         for (LsPjtUserAuthrt r : reviewers) {
             // REG_DT DESC 정렬되어 있으므로 첫 매핑(가장 최근)만 유지.
             map.putIfAbsent(r.getRawDataId(), r.getUserNo());
+        }
+        return map;
+    }
+
+    /**
+     * 페이지 단위로 영상별 첫 프레임 SRC_SN 을 한 번에 조회하여 매핑한다 (N+1 회피).
+     * 프레임이 아직 생성되지 않은 영상은 결과 map 에 키가 존재하지 않으므로
+     * {@code map.get(rawDataId)} 는 null 을 반환한다.
+     */
+    private Map<Long, Long> lookupFirstSrcSnByVideo(List<LsPjtUserAuthrt> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawDataIds = rows.stream()
+                .map(LsPjtUserAuthrt::getRawDataId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (rawDataIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : dataSrcRepository.findFirstSrcSnGroupedByRawSn(rawDataIds)) {
+            // row[0]=rawSn, row[1]=firstSrcSn (both Long via JPQL projection)
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
+            Long rawSn = ((Number) row[0]).longValue();
+            Long firstSrcSn = ((Number) row[1]).longValue();
+            map.put(rawSn, firstSrcSn);
         }
         return map;
     }

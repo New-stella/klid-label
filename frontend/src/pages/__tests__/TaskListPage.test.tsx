@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -7,6 +7,18 @@ import { apiClient } from '@/lib/api/client';
 import { TaskListPage } from '@/pages/TaskListPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
+
+const navigateMock = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>(
+    'react-router-dom',
+  );
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
 
 function setRole(role: 'REVIEWER' | 'WORKER', sub = 'u-7') {
   useAuthStore.setState({
@@ -20,6 +32,7 @@ describe('TaskListPage', () => {
 
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
+    navigateMock.mockReset();
   });
 
   afterEach(() => {
@@ -219,6 +232,7 @@ describe('TaskListPage', () => {
             workerName: '홍길동',
             status: 'PENDING',
             assignedAt: '2026-05-07T10:00:00Z',
+            firstSrcSn: 12345,
           },
         ],
         totalElements: 1,
@@ -252,6 +266,97 @@ describe('TaskListPage', () => {
     // 배정/재배정 버튼은 노출되지 않아야 한다.
     expect(screen.queryByRole('button', { name: '재배정' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '배정' })).not.toBeInTheDocument();
+  });
+
+  it('WORKER가_작업_버튼_클릭_시_firstSrcSn_경로로_navigate', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 42,
+            cctvName: 'CCTV-WORK-42',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+            firstSrcSn: 12345,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 999 },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-WORK-42')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: /작업 시작 CCTV-WORK-42/ }),
+    );
+
+    await waitFor(() => {
+      // videoId(42) 가 아닌 firstSrcSn(12345) 으로 navigate 되어야 한다.
+      expect(navigateMock).toHaveBeenCalledWith('/label/12345');
+    });
+  });
+
+  it('WORKER_시점_firstSrcSn_없으면_작업_버튼_disabled', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 42,
+            cctvName: 'CCTV-NO-FRAME',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+            // firstSrcSn 미제공 — 프레임 아직 안 만들어진 영상
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 999 },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-NO-FRAME')).toBeInTheDocument();
+    });
+
+    const btn = screen.getByRole('button', { name: /작업 시작 CCTV-NO-FRAME/ });
+    expect(btn).toBeDisabled();
   });
 
   it('WORKER가_이력_버튼_클릭_시_HistoryDrawer가_열림', async () => {

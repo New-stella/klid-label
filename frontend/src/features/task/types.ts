@@ -19,6 +19,12 @@ export interface Task {
   reviewerName?: string;
   status: AssignmentStatus;
   assignedAt: string;
+  /**
+   * 해당 영상의 첫 프레임 SRC_SN (LS_DATA_SRC PK).
+   * WORKER 가 "작업" 버튼 클릭 시 /label/{firstSrcSn} 으로 navigate 한다.
+   * 프레임이 아직 생성되지 않은 영상이면 undefined.
+   */
+  firstSrcSn?: number;
 }
 
 export interface Assignment {

@@ -41,6 +41,7 @@ import type { Video } from '@/features/video/types';
 import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUiStore } from '@/stores/useUiStore';
 
 const ROLE_LABEL: Record<string, string> = {
   REVIEWER: '검수자',
@@ -139,6 +140,7 @@ export function TaskListPage() {
   const claims = useAuthStore((s) => s.claims);
   const role = claims?.role ?? Role.WORKER;
   const isReviewer = role === Role.REVIEWER;
+  const pushToast = useUiStore((s) => s.pushToast);
 
   const [filters, setFilters] = useState<TaskFilterValues>(() =>
     searchParamsToFilters(searchParams),
@@ -653,10 +655,10 @@ export function TaskListPage() {
                           className="flex flex-nowrap gap-1"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {/* 배정 / 재배정 — REVIEWER */}
+                          {/* 배정 / 재배정 — REVIEWER (mock 정합: ghost 텍스트 버튼) */}
                           {isReviewer && (
                             <Button
-                              variant="secondary"
+                              variant="ghost"
                               size="sm"
                               onClick={() => {
                                 if (r.task?.workerId) {
@@ -699,15 +701,26 @@ export function TaskListPage() {
                               이력
                             </Button>
                           )}
-                          {/* WORKER: 본인 배정 작업 시작 + 이력 보기 (BE Service 레이어에서 IDOR 방어) */}
+                          {/* WORKER: 본인 배정 작업 시작 + 이력 보기 (BE Service 레이어에서 IDOR 방어).
+                              mock 정합: ghost 텍스트 버튼. 프레임 미생성 영상은 disabled + 안내 토스트. */}
                           {!isReviewer && r.task && (
                             <>
                               <Button
                                 size="sm"
-                                variant="primary"
+                                variant="ghost"
+                                disabled={!r.task.firstSrcSn}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`/label/${r.task!.videoId}`);
+                                  const firstSrcSn = r.task?.firstSrcSn;
+                                  if (firstSrcSn) {
+                                    navigate(`/label/${firstSrcSn}`);
+                                  } else {
+                                    pushToast({
+                                      variant: 'error',
+                                      message:
+                                        '아직 프레임이 준비되지 않은 영상입니다',
+                                    });
+                                  }
                                 }}
                                 aria-label={`작업 시작 ${r.videoName}`}
                               >
@@ -715,7 +728,7 @@ export function TaskListPage() {
                               </Button>
                               <Button
                                 size="sm"
-                                variant="secondary"
+                                variant="ghost"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setHistoryAssignmentId(r.task!.id);
