@@ -61,7 +61,11 @@ export function ReviewListPage() {
     setSearchParams(sp, { replace: false });
   };
 
-  const allRows = data?.content ?? [];
+  // ASSIGNED 상태(라벨링 작업 진행 중)는 검수 워크플로우 진입 전이므로 검수 목록에서 제외.
+  // 검수 목록은 'REVIEW_PENDING'(라벨링 제출 완료) 이후 단계만 노출.
+  const allRows = (data?.content ?? []).filter(
+    (r) => r.status !== ('ASSIGNED' as ReviewStatus),
+  );
 
   // KPI 집계 — 현재 페이지 데이터 기준 (전체 집계는 후속 BE endpoint에서)
   const kpi = useMemo(() => {
@@ -96,10 +100,10 @@ export function ReviewListPage() {
     return '결과보기 ▶';
   };
 
-  const actionVariant = (status: ReviewStatus): 'primary' | 'secondary' | 'ghost' => {
+  const actionVariant = (status: ReviewStatus): 'primary' | 'secondary' => {
     if (status === 'REVIEW_PENDING') return 'primary';
-    if (status === 'REVIEWING') return 'secondary';
-    return 'ghost';
+    // 검수중 / 완료(승인·반려) 모두 secondary로 통일 — 동일 위치의 다른 버튼과 시각 일관성 확보
+    return 'secondary';
   };
 
   const columns: DataTableColumn<Review>[] = [

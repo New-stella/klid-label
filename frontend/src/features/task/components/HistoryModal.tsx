@@ -22,7 +22,8 @@ export interface HistoryModalProps {
  *
  * - React Query 로 `/assignments/{id}/history` 조회 → 시간 오름차순 타임라인 표시
  * - 데이터: prev 작업자 → new 작업자 + 변경 시각 (현재 reason 컬럼은 BE 스키마에 없어 null 로 옴)
- * - 빈 상태: "이력이 없습니다 (재배정 기록 없음)"
+ * - BE 는 본체 REG_DT 기반 ASSIGN 이벤트를 항상 첫 행으로 합성해 반환하므로 정상 응답은 최소 1건이다.
+ * - 빈 상태("이력이 없습니다")는 비정상/방어 케이스에서만 노출된다.
  * - 보안: 모든 사용자 입력값(이름) 은 React 의 JSX 텍스트 보간으로 자동 이스케이프되며,
  *   `dangerouslySetInnerHTML` 을 사용하지 않는다.
  */
@@ -44,7 +45,7 @@ export function HistoryModal({ open, onClose, assignmentId }: HistoryModalProps)
       title="배정 이력"
       description={
         assignmentId
-          ? `배정 #${assignmentId} 의 재배정 이력을 시간순으로 표시합니다.`
+          ? `배정 #${assignmentId} 의 배정·재배정 이력을 시간순으로 표시합니다.`
           : undefined
       }
       footer={
@@ -67,7 +68,7 @@ export function HistoryModal({ open, onClose, assignmentId }: HistoryModalProps)
         ) : !data || data.length === 0 ? (
           <EmptyState
             icon={<HistoryIcon size={28} aria-hidden />}
-            message="이력이 없습니다 (재배정 기록 없음)"
+            message="이력이 없습니다"
           />
         ) : (
           <ol className="relative space-y-4 border-l border-gray-200 pl-4">
@@ -80,8 +81,10 @@ export function HistoryModal({ open, onClose, assignmentId }: HistoryModalProps)
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-gray-500">
                     {formatDateTime(row.chgDt)}
-                    <span className="ml-2 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                      {row.chgTypeCd}
+                    <span
+                      className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${chgTypeChipClass(row.chgTypeCd)}`}
+                    >
+                      {chgTypeLabel(row.chgTypeCd)}
                     </span>
                   </p>
                   <p className="text-sm text-gray-800">
@@ -110,6 +113,35 @@ export function HistoryModal({ open, onClose, assignmentId }: HistoryModalProps)
       </div>
     </Modal>
   );
+}
+
+/**
+ * 변경 타입(chgTypeCd) → 한글 라벨 매핑.
+ * 알 수 없는 값은 원본을 그대로 반환 (방어적 fallback).
+ */
+function chgTypeLabel(code: AssignmentHistory['chgTypeCd']): string {
+  switch (code) {
+    case 'ASSIGN':
+      return '배정';
+    case 'REASSIGN':
+      return '재배정';
+    default:
+      return code;
+  }
+}
+
+/**
+ * 변경 타입에 따른 칩 배경/텍스트 색상(Tailwind) — 시각 명료성 확보.
+ */
+function chgTypeChipClass(code: AssignmentHistory['chgTypeCd']): string {
+  switch (code) {
+    case 'ASSIGN':
+      return 'bg-green-50 text-green-700';
+    case 'REASSIGN':
+      return 'bg-blue-50 text-blue-700';
+    default:
+      return 'bg-gray-50 text-gray-700';
+  }
 }
 
 /**

@@ -68,17 +68,18 @@ export function AssignModal({
   // 모달 열릴 때 초기값 설정
   useEffect(() => {
     if (!open) return;
+    const defaultReviewer =
+      canChangeReviewer && claims?.sub ? Number(claims.sub) : '';
     if (isBulk) {
       setWorkerId(workers?.[0]?.id ?? '');
-      setReviewerId(
-        canChangeReviewer && claims?.sub ? Number(claims.sub) : '',
-      );
+      setReviewerId(defaultReviewer);
     } else if (task) {
       setWorkerId(task.workerId ?? '');
-      setReviewerId(
-        task.reviewerId ??
-          (canChangeReviewer && claims?.sub ? Number(claims.sub) : ''),
-      );
+      setReviewerId(task.reviewerId ?? defaultReviewer);
+    } else {
+      // 미배정 영상 단건 신규 배정 — 작업자는 미선택, 검수자는 로그인 사용자
+      setWorkerId('');
+      setReviewerId(defaultReviewer);
     }
     setErrors({});
   }, [open, task, isBulk, canChangeReviewer, claims?.sub, workers]);
@@ -115,7 +116,12 @@ export function AssignModal({
           ? [videoId]
           : [];
     if (targetVideoIds.length === 0) return;
-    mutate({ videoIds: targetVideoIds, workerId: Number(workerId) });
+    // BE 계약: { pjtId, workerId, rawDataIds } — 현재 단일 프로젝트(PJT_ID=1) 운영 중
+    mutate({
+      pjtId: 1,
+      workerId: Number(workerId),
+      rawDataIds: targetVideoIds,
+    });
   };
 
   const title = isBulk

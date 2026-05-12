@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.assignment;
 
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
+import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtHstryRepository;
@@ -80,5 +81,62 @@ class AssignmentServiceTest {
         assertThat(history.get(0).getChgDt()).isNotNull();
         assertThat(history.get(0).getPrevUserNo()).isEqualTo(100L);
         assertThat(history.get(0).getNewUserNo()).isEqualTo(101L);
+    }
+
+    @Test
+    @DisplayName("getHistory_재배정_이력_없을때_ASSIGN_단건_반환")
+    void getHistoryReturnsAssignWhenNoReassign() {
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        var created = assignmentService.assign(req, reviewer());
+        Long authrtSeq = created.items().get(0).authrtSeq();
+        LsPjtUserAuthrt authrt = authrtRepository.findById(authrtSeq).orElseThrow();
+
+        List<AssignmentHistoryResponse> history = assignmentService.getHistory(authrtSeq);
+
+        assertThat(history).hasSize(1);
+        AssignmentHistoryResponse only = history.get(0);
+        assertThat(only.chgTypeCd()).isEqualTo("ASSIGN");
+        assertThat(only.prevUserNo()).isNull();
+        assertThat(only.prevUserName()).isNull();
+        assertThat(only.newUserNo()).isEqualTo(100L);
+        assertThat(only.newUserName()).isEqualTo("작업자100");
+        assertThat(only.chgDt()).isEqualTo(authrt.getRegDt());
+    }
+
+    @Test
+    @DisplayName("getHistory_재배정_2회_있을때_총_3건_시간순_반환")
+    void getHistoryReturnsAssignPlusReassigns() {
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        var created = assignmentService.assign(req, reviewer());
+        Long authrtSeq = created.items().get(0).authrtSeq();
+        LsPjtUserAuthrt authrt = authrtRepository.findById(authrtSeq).orElseThrow();
+
+        assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer());
+        assignmentService.reassign(authrtSeq, new ReassignRequest(200L), reviewer());
+
+        List<AssignmentHistoryResponse> history = assignmentService.getHistory(authrtSeq);
+
+        assertThat(history).hasSize(3);
+
+        AssignmentHistoryResponse first = history.get(0);
+        assertThat(first.chgTypeCd()).isEqualTo("ASSIGN");
+        assertThat(first.prevUserNo()).isNull();
+        assertThat(first.newUserNo()).isEqualTo(100L);
+        assertThat(first.newUserName()).isEqualTo("작업자100");
+        assertThat(first.chgDt()).isEqualTo(authrt.getRegDt());
+
+        AssignmentHistoryResponse second = history.get(1);
+        assertThat(second.chgTypeCd()).isEqualTo("REASSIGN");
+        assertThat(second.prevUserNo()).isEqualTo(100L);
+        assertThat(second.newUserNo()).isEqualTo(101L);
+
+        AssignmentHistoryResponse third = history.get(2);
+        assertThat(third.chgTypeCd()).isEqualTo("REASSIGN");
+        assertThat(third.prevUserNo()).isEqualTo(101L);
+        assertThat(third.newUserNo()).isEqualTo(200L);
+
+        // 시간순 정합성: ASSIGN <= REASSIGN1 <= REASSIGN2
+        assertThat(first.chgDt()).isBeforeOrEqualTo(second.chgDt());
+        assertThat(second.chgDt()).isBeforeOrEqualTo(third.chgDt());
     }
 }

@@ -101,18 +101,27 @@ public class AssignmentService {
      * 단일 배정의 변경 이력 조회 — `LS_PJT_USER_AUTHRT_HSTRY` 시간순(ASC) 정렬.
      *
      * <p>각 row 의 prev/new userNo 를 한 번에 모아 {@code MNG_ACCT_USER} 를 일괄 조회하여 N+1 회피.
-     * 첫 row 는 ASSIGN(초기 배정 자체는 별도 row 없음 — REASSIGN 만 누적되는 구조), 이후 REASSIGN 으로 표기.
+     * ASSIGN 이벤트는 {@link LsPjtUserAuthrt} 본체의 {@code REG_DT} 를 기준으로 합성하여 첫 행으로 포함하고,
+     * 이후 HSTRY rows 를 REASSIGN 으로 추가한다.
      * 변경 사유(reason) 는 현재 스키마에 컬럼이 없으므로 null 로 반환 (V1.x — 추후 확장 시 컬럼 추가 필요).
      */
     public List<AssignmentHistoryResponse> getHistory(Long assignmentId) {
         if (assignmentId == null || assignmentId <= 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 배정 ID 입니다.");
         }
+        LsPjtUserAuthrt authrt = authrtRepository.findById(assignmentId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "배정을 찾을 수 없습니다."));
         List<LsPjtUserAuthrtHstry> rows = hstryRepository.findByAuthrtSeqOrderByChgDtAsc(assignmentId);
-        if (rows.isEmpty()) {
-            return Collections.emptyList();
-        }
+
+        // 최초 배정 작업자(originalWorkerNo) 도출:
+        // - HSTRY 가 비어있으면 현재 userNo 가 곧 최초 배정 작업자
+        // - HSTRY 가 있으면 가장 오래된 row 의 PREV_USER_NO 가 최초 배정 작업자
+        Long originalWorkerNo = rows.isEmpty()
+                ? authrt.getUserNo()
+                : rows.get(0).getPrevUserNo();
+
         Set<Long> userNos = new HashSet<>();
+        if (originalWorkerNo != null) userNos.add(originalWorkerNo);
         for (LsPjtUserAuthrtHstry r : rows) {
             if (r.getPrevUserNo() != null) userNos.add(r.getPrevUserNo());
             if (r.getNewUserNo() != null) userNos.add(r.getNewUserNo());
@@ -123,7 +132,21 @@ public class AssignmentService {
                     .map(MngAcctUser::getUserNm)
                     .ifPresent(name -> nameByUserNo.put(no, name));
         }
-        List<AssignmentHistoryResponse> out = new ArrayList<>(rows.size());
+
+        List<AssignmentHistoryResponse> out = new ArrayList<>(rows.size() + 1);
+        // 1) ASSIGN 합성: 본체 REG_DT 를 기준으로 첫 행에 추가.
+        //    hstrySn 은 HSTRY 실제 PK 와 충돌하지 않도록 음수로 부여(FE 는 key 로만 사용).
+        out.add(new AssignmentHistoryResponse(
+                -authrt.getAuthrtSeq(),
+                "ASSIGN",
+                null,
+                null,
+                originalWorkerNo,
+                originalWorkerNo != null ? nameByUserNo.get(originalWorkerNo) : null,
+                null,
+                authrt.getRegDt()
+        ));
+        // 2) REASSIGN rows: HSTRY 본체 (CHG_DT ASC 정렬 유지)
         for (LsPjtUserAuthrtHstry r : rows) {
             out.add(new AssignmentHistoryResponse(
                     r.getHstrySeq(),
