@@ -98,16 +98,18 @@ public class AssignmentController {
 
     @Operation(
             summary = "배정 이력 조회",
-            description = "단일 배정의 재배정 이력을 시간 오름차순으로 반환한다. REVIEWER 만 조회 가능."
+            description = "단일 배정의 통합 이벤트 이력(배정/재배정/검수)을 시간 오름차순으로 반환한다. " +
+                    "REVIEWER 는 모든 배정 이력을 조회할 수 있고, WORKER 는 본인 배정 이력만 조회 가능 (IDOR 방어)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정이 아닌 이력 조회 시도")
     })
     @GetMapping("/{assignmentId}/history")
-    @PreAuthorize("hasRole('REVIEWER')")
-    public ApiResponse<List<AssignmentHistoryResponse>> history(@Parameter(description = "배정 PK", required = true, example = "100") @PathVariable Long assignmentId) {
-        return ApiResponse.ok(assignmentService.getHistory(assignmentId));
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<List<AssignmentHistoryResponse>> history(@Parameter(description = "배정 PK", required = true, example = "100") @PathVariable Long assignmentId,
+                                                                @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(assignmentService.getHistory(assignmentId, actor));
     }
 }

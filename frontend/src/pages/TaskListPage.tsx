@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown,
   ChevronLeft,
@@ -135,6 +135,7 @@ function filtersToSearchParams(f: TaskFilterValues): Record<string, string> {
 export function TaskListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const claims = useAuthStore((s) => s.claims);
   const role = claims?.role ?? Role.WORKER;
   const isReviewer = role === Role.REVIEWER;
@@ -683,7 +684,7 @@ export function TaskListPage() {
                               {r.task?.workerId ? '재배정' : '배정'}
                             </Button>
                           )}
-                          {/* 이력 — task가 있을 때만 (REVIEWER 만 접근 가능 — BE PreAuthorize 일치) */}
+                          {/* 이력 — task가 있을 때만 (REVIEWER) */}
                           {isReviewer && r.task && (
                             <Button
                               variant="ghost"
@@ -697,6 +698,35 @@ export function TaskListPage() {
                               <History size={14} aria-hidden />
                               이력
                             </Button>
+                          )}
+                          {/* WORKER: 본인 배정 작업 시작 + 이력 보기 (BE Service 레이어에서 IDOR 방어) */}
+                          {!isReviewer && r.task && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/label/${r.task!.videoId}`);
+                                }}
+                                aria-label={`작업 시작 ${r.videoName}`}
+                              >
+                                <Play size={14} aria-hidden /> 작업
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setHistoryAssignmentId(r.task!.id);
+                                  setHistoryVideoName(r.videoName);
+                                  setHistoryDrawerOpen(true);
+                                }}
+                                aria-label="배정 이력 보기"
+                              >
+                                <History size={14} aria-hidden /> 이력
+                              </Button>
+                            </>
                           )}
                         </div>
                       </td>

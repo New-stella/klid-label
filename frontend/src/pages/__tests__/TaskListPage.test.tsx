@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
 import { TaskListPage } from '@/pages/TaskListPage';
@@ -202,6 +203,120 @@ describe('TaskListPage', () => {
       req.url?.startsWith('/users'),
     );
     expect(callsToUsers).toHaveLength(0);
+  });
+
+  it('WORKER_시점_각_row에_작업_이력_버튼_노출', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 42,
+            cctvName: 'CCTV-WORK-42',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 999 },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-WORK-42')).toBeInTheDocument();
+    });
+
+    // WORKER 시점에는 작업/이력 버튼이 노출되어야 한다.
+    expect(
+      screen.getByRole('button', { name: /작업 시작 CCTV-WORK-42/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /배정 이력 보기/ }),
+    ).toBeInTheDocument();
+    // 배정/재배정 버튼은 노출되지 않아야 한다.
+    expect(screen.queryByRole('button', { name: '재배정' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '배정' })).not.toBeInTheDocument();
+  });
+
+  it('WORKER가_이력_버튼_클릭_시_HistoryDrawer가_열림', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 42,
+            cctvName: 'CCTV-WORK-42',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 999 },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/assignments/100/history').reply(200, {
+      success: true,
+      data: [
+        {
+          eventSeq: 1,
+          eventTypeCd: 'ASSIGN',
+          actorUserNo: 1,
+          actorUserName: '검수자1',
+          subjectUserNo: 7,
+          subjectUserName: '홍길동',
+          prevUserNo: null,
+          prevUserName: null,
+          reason: null,
+          occurredAt: '2026-05-07T10:00:00Z',
+        },
+      ],
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-WORK-42')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /배정 이력 보기/ }));
+
+    await waitFor(() => {
+      // Drawer 헤더에 '배정 이력' 텍스트가 렌더링 됨
+      expect(screen.getByRole('dialog', { name: '배정 이력' })).toBeInTheDocument();
+    });
   });
 
   it('REVIEWER로_진입_시_users_API_호출됨', async () => {

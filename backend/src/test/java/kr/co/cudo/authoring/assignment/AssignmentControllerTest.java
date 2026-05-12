@@ -195,6 +195,66 @@ class AssignmentControllerTest {
     }
 
     @Test
+    @DisplayName("WORKER가_본인_배정_이력_조회시_200")
+    void workerCanReadOwnHistory() throws Exception {
+        // worker100 에게 1000 영상 배정
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        String body = mockMvc.perform(post("/v1/assignments")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        Long authrtSeq = objectMapper.readTree(body).path("data").path("items").get(0).path("authrtSeq").asLong();
+
+        // worker100 본인 토큰으로 이력 조회 → 200
+        mockMvc.perform(get("/v1/assignments/" + authrtSeq + "/history")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].eventTypeCd").value("ASSIGN"));
+    }
+
+    @Test
+    @DisplayName("WORKER가_다른_작업자_배정_이력_조회시_403_FORBIDDEN_IDOR_방어")
+    void workerCannotReadOthersHistory() throws Exception {
+        // worker101 에게 1001 영상 배정
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 101L, List.of(1001L));
+        String body = mockMvc.perform(post("/v1/assignments")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        Long authrtSeq = objectMapper.readTree(body).path("data").path("items").get(0).path("authrtSeq").asLong();
+
+        // worker100 토큰으로 worker101 의 배정 이력 조회 → 403
+        mockMvc.perform(get("/v1/assignments/" + authrtSeq + "/history")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("REVIEWER는_모든_배정_이력_조회_가능_200")
+    void reviewerCanReadAnyHistory() throws Exception {
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        String body = mockMvc.perform(post("/v1/assignments")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        Long authrtSeq = objectMapper.readTree(body).path("data").path("items").get(0).path("authrtSeq").asLong();
+
+        mockMvc.perform(get("/v1/assignments/" + authrtSeq + "/history")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1));
+    }
+
+    @Test
     @DisplayName("한_영상에_같은_작업자_중복_배정시_409_CONFLICT")
     void duplicateAssignmentConflict() throws Exception {
         AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));

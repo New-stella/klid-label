@@ -179,13 +179,24 @@ public class AssignmentService {
      * {@code assignmentId} 로부터 (PJT_ID, RAW_DATA_ID) 를 도출하여
      * {@link LsPjtTaskEventLog} 를 OCCURRED_AT ASC 로 조회하고,
      * actor/subject/prev userNo 를 한 번에 모아 {@code MNG_ACCT_USER} 를 일괄 조회하여 N+1 회피.
+     *
+     * <p><b>IDOR 방어 (CWE-639)</b>: actor 가 WORKER 인 경우, 본인이 배정된 이력만 조회 가능하다.
+     * 본인 배정이 아니면 {@code ErrorCode.FORBIDDEN} 으로 거부한다. REVIEWER 는 제한 없음.
      */
-    public List<AssignmentHistoryResponse> getHistory(Long assignmentId) {
+    public List<AssignmentHistoryResponse> getHistory(Long assignmentId, TokenClaims actor) {
         if (assignmentId == null || assignmentId <= 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 배정 ID 입니다.");
         }
         LsPjtUserAuthrt authrt = authrtRepository.findById(assignmentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "배정을 찾을 수 없습니다."));
+
+        // IDOR 방어 — WORKER 는 본인 배정 이력만 조회 가능.
+        if (actor != null && actor.role() == Role.WORKER) {
+            Long selfNo = parseUserNo(actor.sub());
+            if (authrt.getUserNo() == null || !authrt.getUserNo().equals(selfNo)) {
+                throw new CustomException(ErrorCode.FORBIDDEN, "본인 배정 이력만 조회할 수 있습니다.");
+            }
+        }
 
         List<LsPjtTaskEventLog> events = taskEventLogRepository
                 .findByPjtIdAndRawDataIdOrderByOccurredAtAsc(authrt.getPjtId(), authrt.getRawDataId());

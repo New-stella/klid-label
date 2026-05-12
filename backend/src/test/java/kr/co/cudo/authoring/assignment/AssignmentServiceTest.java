@@ -93,7 +93,7 @@ class AssignmentServiceTest {
         var created = assignmentService.assign(req, reviewer());
         Long authrtSeq = created.items().get(0).authrtSeq();
 
-        List<AssignmentHistoryResponse> history = assignmentService.getHistory(authrtSeq);
+        List<AssignmentHistoryResponse> history = assignmentService.getHistory(authrtSeq, reviewer());
 
         assertThat(history).hasSize(1);
         AssignmentHistoryResponse only = history.get(0);
@@ -118,7 +118,7 @@ class AssignmentServiceTest {
         assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer());
         assignmentService.reassign(authrtSeq, new ReassignRequest(200L), reviewer());
 
-        List<AssignmentHistoryResponse> history = assignmentService.getHistory(authrtSeq);
+        List<AssignmentHistoryResponse> history = assignmentService.getHistory(authrtSeq, reviewer());
 
         assertThat(history).hasSize(3);
 
