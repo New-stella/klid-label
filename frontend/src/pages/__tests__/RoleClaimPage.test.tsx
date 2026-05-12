@@ -1,0 +1,203 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import MockAdapter from 'axios-mock-adapter';
+
+import { apiClient } from '@/lib/api/client';
+import { RoleClaimPage } from '@/pages/RoleClaimPage';
+import { renderWithProviders } from '@/test/renderWithProviders';
+import { useAuthStore } from '@/stores/useAuthStore';
+
+const navigateMock = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>(
+    'react-router-dom',
+  );
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
+
+// b64url 인코더 — 가짜 JWT 생성용 (UTF-8 safe)
+function b64url(obj: Record<string, unknown>): string {
+  const json = JSON.stringify(obj);
+  const utf8 = unescape(encodeURIComponent(json));
+  const b64 = btoa(utf8);
+  return b64.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function buildJwt(payload: Record<string, unknown>): string {
+  const header = b64url({ alg: 'HS256', typ: 'JWT' });
+  return `${header}.${b64url(payload)}.sig`;
+}
+
+describe('RoleClaimPage', () => {
+  let mock: MockAdapter;
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+    navigateMock.mockReset();
+    // 권한 자가 부여 화면 진입 전제 — 인증은 됐으나 role 미부여 상태 (claims.role=null).
+    useAuthStore.setState({
+      token: 'tok',
+      claims: {
+        sub: '1001',
+        role: null,
+        channel: 'INTERNAL',
+        exp: 9999999999,
+      },
+      isHydrated: true,
+    });
+  });
+
+  afterEach(() => {
+    mock.restore();
+    useAuthStore.getState().clear();
+  });
+
+  it('역할_미선택시_확인_버튼_disabled', () => {
+    renderWithProviders(<RoleClaimPage />);
+    const button = screen.getByRole('button', { name: '권한 부여 확인' });
+    expect(button).toBeDisabled();
+  });
+
+  it('역할_선택만_하고_패스워드_미입력시도_disabled', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<RoleClaimPage />);
+    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    const button = screen.getByRole('button', { name: '권한 부여 확인' });
+    expect(button).toBeDisabled();
+  });
+
+  it('패스워드_input_type_password_autocomplete_new_password', () => {
+    renderWithProviders(<RoleClaimPage />);
+    const passwordInput = screen.getByLabelText('관리자 패스워드') as HTMLInputElement;
+    expect(passwordInput.type).toBe('password');
+    expect(passwordInput.getAttribute('autocomplete')).toBe('new-password');
+  });
+
+  it('정확한_패스워드_입력_성공시_navigate_dashboard', async () => {
+    const user = userEvent.setup();
+    const newToken = buildJwt({
+      sub: '1001',
+      role: 'WORKER',
+      channel: 'INTERNAL',
+      exp: 9999999999,
+      name: '홍길동',
+    });
+    mock.onPost('/auth/role-claim').reply(200, {
+      success: true,
+      data: {
+        accessToken: newToken,
+        role: 'WORKER',
+        userNo: 1001,
+        userName: '홍길동',
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+
+    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard', { replace: true });
+    });
+    // 새 토큰으로 useAuthStore 교체 확인
+    expect(useAuthStore.getState().token).toBe(newToken);
+    expect(useAuthStore.getState().claims?.role).toBe('WORKER');
+  });
+
+  it('잘못된_패스워드_401_에러_메시지_표시', async () => {
+    const user = userEvent.setup();
+    mock.onPost('/auth/role-claim').reply(401, {
+      success: false,
+      data: null,
+      message: '관리자 패스워드가 일치하지 않습니다.',
+      errorCode: 'UNAUTHORIZED',
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+
+    await user.click(screen.getByLabelText('검수자 (REVIEWER)'));
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'wrong');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('관리자 패스워드가 일치하지 않습니다.'),
+      ).toBeInTheDocument();
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('이미_권한_있는_사용자_409_안내_메시지', async () => {
+    const user = userEvent.setup();
+    mock.onPost('/auth/role-claim').reply(409, {
+      success: false,
+      data: null,
+      message: '이미 권한이 부여된 사용자입니다.',
+      errorCode: 'CONFLICT',
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+
+    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/이미 권한이 부여된 사용자입니다\. 새로고침/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('429_과다_시도_안내', async () => {
+    const user = userEvent.setup();
+    mock.onPost('/auth/role-claim').reply(429, {
+      success: false,
+      data: null,
+      message: '시도 횟수가 제한을 초과했습니다.',
+      errorCode: 'TOO_MANY_REQUESTS',
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+
+    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/시도 횟수가 제한을 초과했습니다/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('PORTAL_USER_400_INVALID_INPUT_BE_userMessage_표시', async () => {
+    const user = userEvent.setup();
+    mock.onPost('/auth/role-claim').reply(400, {
+      success: false,
+      data: null,
+      message: 'PORTAL_USER 역할은 본 API 로 부여할 수 없습니다.',
+      errorCode: 'INVALID_INPUT',
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/PORTAL_USER 역할은 본 API 로 부여할 수 없습니다/),
+      ).toBeInTheDocument();
+    });
+  });
+});

@@ -26,6 +26,11 @@ spring:
 # 로컬 개발 전용 시크릿/토큰 기본값 (운영 배포 환경에는 절대 적용되지 않음)
 # DO NOT use these defaults in any non-local environment
 authoring:
+  # Phase 1 (role-claim) — 로컬 BCrypt 해시 (cost 12).
+  # 평문은 코드/yml 에 절대 노출 금지 — 로컬 평문은 별도 채널(README/문서)로만 공유한다.
+  # 운영(dev/stg/prd)에서는 ADMIN_CLAIM_PASSWORD_HASH 환경변수로 override 필수.
+  auth:
+    admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:$2y$12$NxE8qu8kf7G6kxmhtKs8b.d4uWDvWg1YsSQ7ShVvQmrLTwCE.mCSq}
   jwt:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
   integration:

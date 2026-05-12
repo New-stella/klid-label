@@ -61,6 +61,9 @@ public class SecurityConfig {
                                 .maxAgeInSeconds(31536000))
                 )
                 .authorizeHttpRequests(auth -> {
+                    // /v1/auth/role-claim 은 인증된 사용자만 호출 가능 — role 부여 endpoint.
+                    // permitAll 매처보다 먼저 매칭되도록 위에 둔다.
+                    auth.requestMatchers("/v1/auth/role-claim").authenticated();
                     auth.requestMatchers("/health", "/actuator/health", "/actuator/health/**",
                                     "/actuator/info",
                                     "/swagger-ui/**", "/v3/api-docs/**",

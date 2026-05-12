@@ -9,7 +9,7 @@ import { PortalLayout } from '@/components/layout/PortalLayout';
 import { SessionIngressPage } from '@/features/auth/SessionIngressPage';
 import { Role } from '@/lib/api/types';
 
-import { ChannelGuard, RoleGuard } from './guards';
+import { AuthenticatedGuard, ChannelGuard, RoleGuard } from './guards';
 
 // Phase 3 — 영상 도메인 + 대시보드 lazy 로드 (코드 스플리팅)
 const VideoListPage = lazy(() =>
@@ -107,6 +107,11 @@ const PresetListPage = lazy(() =>
   import('@/pages/manage/PresetListPage').then((m) => ({ default: m.PresetListPage })),
 );
 
+// Phase 2 — 권한 자가 부여 화면 (role 미부여 사용자 진입점) lazy 로드
+const RoleClaimPage = lazy(() =>
+  import('@/pages/RoleClaimPage').then((m) => ({ default: m.RoleClaimPage })),
+);
+
 function PageFallback() {
   return (
     <div className="flex h-full items-center justify-center py-10">
@@ -166,6 +171,11 @@ export const router = createBrowserRouter([
   // 진입/공통 — Layout 없이 직접 매칭
   { path: '/ingress', element: <SessionIngressPage /> },
   { path: '/forbidden', element: <ForbiddenPage /> },
+  // Phase 2 — 권한 자가 부여 화면. 인증만 통과하면 진입 가능 (role 무관, RoleGuard 미사용).
+  {
+    path: '/role-claim',
+    element: <AuthenticatedGuard>{withSuspense(<RoleClaimPage />)}</AuthenticatedGuard>,
+  },
   ...devOnlyRoutes,
 
   // 라벨링 화면은 풀스크린 다크 UI — AppLayout(LNB/GNB) 밖에서 직접 매칭

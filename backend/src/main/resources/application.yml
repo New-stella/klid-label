@@ -71,6 +71,12 @@ management:
         enabled: true
 
 authoring:
+  # Phase 1 (role-claim) — 관리자 공유 패스워드 BCrypt 해시 (cost ≥ 12).
+  #   - 평문은 코드/yml 어디에도 보관 금지 (CWE-256). 해시만 보관.
+  #   - 운영(dev/stg/prd)에서는 환경변수 ADMIN_CLAIM_PASSWORD_HASH 로 override 필수.
+  #   - 로컬 기본값은 application-local.yml 에 명시.
+  auth:
+    admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:}
   jwt:
     issuer: ${JWT_ISSUER:klid-auth}
     algorithm: HS256

@@ -9,6 +9,11 @@ interface AuthState {
   claims: TokenClaims | null;
   isHydrated: boolean;
   setToken: (token: string) => void;
+  /**
+   * Phase 2 (권한 자가 부여) — 새 토큰을 디코드하여 claims 와 함께 일괄 갱신한다.
+   * `setToken` 과 동일 동작이지만 호출 의도(토큰 + 클레임 동시 교체)를 명확히 한다.
+   */
+  setTokenAndClaims: (token: string) => void;
   clear: () => void;
   hydrate: () => void;
 }
@@ -36,12 +41,17 @@ function decodeJwtPayload(token: string): TokenClaims | null {
     const raw = JSON.parse(json) as Record<string, unknown>;
 
     const sub = typeof raw.sub === 'string' ? raw.sub : '';
-    const role = isRole(raw.role) ? raw.role : null;
+    // Phase 2 — role 클레임이 비어 있는 인증 토큰(권한 자가 부여 대기 상태)을 허용한다.
+    // role 이 명시되어 있다면 화이트리스트(Role enum) 검증을 통과해야 하며, 알 수 없는 값은
+    // 무효 토큰으로 거절한다.
+    const hasRole = raw.role !== undefined && raw.role !== null && raw.role !== '';
+    if (hasRole && !isRole(raw.role)) return null;
+    const role = hasRole ? (raw.role as Role) : null;
     const channel = isChannel(raw.channel) ? raw.channel : null;
     const exp = typeof raw.exp === 'number' ? raw.exp : 0;
     const name = typeof raw.name === 'string' ? raw.name : undefined;
 
-    if (!sub || !role || !channel || !exp) return null;
+    if (!sub || !channel || !exp) return null;
     return { sub, role, channel, exp, name };
   } catch {
     return null;
@@ -63,6 +73,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   setToken: (token: string) => {
     const claims = decodeJwtPayload(token);
     if (!claims) return; // 유효하지 않은 토큰은 저장하지 않음
+    sessionStorage.setItem(SESSION_KEY, token);
+    set({ token, claims });
+  },
+  setTokenAndClaims: (token: string) => {
+    const claims = decodeJwtPayload(token);
+    if (!claims) return;
     sessionStorage.setItem(SESSION_KEY, token);
     set({ token, claims });
   },
