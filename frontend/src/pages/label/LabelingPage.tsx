@@ -136,11 +136,13 @@ export function LabelingPage() {
   const currentFrame = frames[frameIdx];
 
   // 다른 프레임으로 이동 — URL 전환 (useLabels 가 재조회).
+  // replace=true: history stack 에 push 하지 않음 — X(닫기) 버튼이 뒤로가기 시
+  // 이전 프레임이 아닌 진입 이전 경로(작업 목록)로 빠져나가도록 한다.
   const jumpTo = (idx: number) => {
     const target = frames[idx];
     if (!target || !data) return;
     if (target.srcSn !== data.srcSn) {
-      navigate(`/label/${target.srcSn}`);
+      navigate(`/label/${target.srcSn}`, { replace: true });
     }
   };
 
