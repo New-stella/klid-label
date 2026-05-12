@@ -5,21 +5,30 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Min;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
+import kr.co.cudo.authoring.video.service.FrameImageService;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.io.IOException;
 
 /**
  * 영상 조회 API. REVIEWER/WORKER 모두 조회 가능.
@@ -31,9 +40,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v1/videos")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
+@Validated
 public class VideoController {
 
     private final VideoQueryService videoQueryService;
+    private final FrameImageService frameImageService;
 
     @Operation(
             summary = "영상 목록 조회 (페이징)",
@@ -108,5 +119,34 @@ public class VideoController {
         body.put("status", "PENDING");
         body.put("message", "외부 시계열 메타 추출 시스템 연동 전 — placeholder 응답");
         return ApiResponse.ok(body);
+    }
+
+    /**
+     * SCR-REVIEW-002 — 프레임 이미지 byte streaming.
+     * <p>rawSn + frameNo 기반. PRVC/PSDO 영상은 비식별 경로만 사용 (REVIEWER 도 원본 강제 노출 금지).
+     */
+    @Operation(
+            summary = "프레임 이미지 다운로드 (rawSn + frameNo)",
+            description = "검수 화면용 프레임 이미지 byte streaming. " +
+                    "비식별 대상(PRVC/PSDO) 영상은 deid 경로 강제 사용. " +
+                    "Path Traversal 방어 (CWE-22) + 확장자 allowlist + Cache-Control: private, max-age=3600."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 — image/jpeg or image/png or image/webp"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Path Traversal 의심 / 허용 외 확장자"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상/프레임/파일 없음 또는 비식별 미완료")
+    })
+    @GetMapping("/{rawSn}/frames/{frameNo}/image")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Resource> getFrameImage(
+            @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
+            @Parameter(description = "프레임 번호 (0-base)", required = true, example = "0")
+            @PathVariable @Min(value = 0, message = "frameNo는 0 이상이어야 합니다.") Integer frameNo
+    ) throws IOException {
+        if (frameNo == null || frameNo < 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "frameNo는 0 이상이어야 합니다.");
+        }
+        return frameImageService.serve(rawSn, frameNo);
     }
 }

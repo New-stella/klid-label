@@ -43,3 +43,28 @@ export interface RejectRequest {
 export interface ApproveRequest {
   generalComment?: string;
 }
+
+// SCR-REVIEW-002 Phase 2 — 프레임/라벨 응답 타입 (BE FrameListResponse alias)
+export type LabelType = 'BBOX' | 'POLYGON' | 'SEGMENT' | 'TRACK';
+
+export interface LabelItem {
+  id: number;
+  lblTypeCd: LabelType;
+  label: string;
+  points: number[][]; // [[x,y], ...]
+  autoLblYn: 'Y' | 'N';
+  confScore: number | null;
+}
+
+export interface FrameDetail {
+  srcSn: number;
+  frameNo: number;
+  imageUrl: string;
+  labels: LabelItem[];
+}
+
+export interface FrameList {
+  videoId: number;
+  totalFrames: number;
+  frames: FrameDetail[];
+}

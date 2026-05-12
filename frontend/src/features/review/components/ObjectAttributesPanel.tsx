@@ -1,0 +1,139 @@
+// SCR-REVIEW-002 Phase 4 — 객체 속성 패널.
+//
+// store.selectedLabelId 로 현재 선택된 라벨을 찾아 상세 속성을 표시한다.
+//
+// 표시 항목:
+// - 카테고리 색상 점 + 카테고리 + `#순번` (카테고리 내 1-base)
+// - 타입 (BBOX 시 x/y/w/h, POLYGON/SEGMENT/TRACK 시 점 개수)
+// - confScore: 퍼센트 (소수 1자리) 또는 "—"
+// - autoLblYn: 자동/수동 라벨 한글 표시
+//
+// 미선택 시 안내문 + 보조 안내.
+//
+// 보안: 모든 텍스트 JSX 자동 이스케이프.
+
+import { useMemo } from 'react';
+
+import type { LabelItem } from '../types';
+import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
+import { colorForLabel } from '../utils/labelColor';
+import { pointsToBBox } from '../utils/coordinates';
+
+interface ObjectAttributesPanelProps {
+  labels: LabelItem[];
+}
+
+/**
+ * confScore (0~1) → 퍼센트 문자열. null 이면 "—".
+ */
+function formatConfScore(score: number | null | undefined): string {
+  if (score == null || Number.isNaN(score)) return '—';
+  const pct = score * 100;
+  return `${pct.toFixed(1)}%`;
+}
+
+function AttrRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5">
+      <dt className="shrink-0 text-xs text-gray-400">{label}</dt>
+      <dd className="text-right text-xs font-medium text-gray-100">{value}</dd>
+    </div>
+  );
+}
+
+export function ObjectAttributesPanel({ labels }: ObjectAttributesPanelProps) {
+  const selectedLabelId = useReviewSelectionStore((s) => s.selectedLabelId);
+
+  const selected = useMemo(
+    () =>
+      selectedLabelId == null ? null : labels.find((l) => l.id === selectedLabelId) ?? null,
+    [selectedLabelId, labels],
+  );
+
+  const indexInCategory = useMemo(() => {
+    if (!selected) return 0;
+    let count = 0;
+    for (const l of labels) {
+      if (l.label === selected.label) {
+        count += 1;
+        if (l.id === selected.id) return count;
+      }
+    }
+    return count;
+  }, [selected, labels]);
+
+  if (!selected) {
+    return (
+      <div
+        className="rounded-md border border-dashed border-gray-700 px-4 py-6 text-center"
+        data-testid="object-attributes-empty"
+      >
+        <p className="text-sm text-gray-300">객체를 선택하세요</p>
+        <p className="mt-1 text-xs text-gray-500">캔버스 또는 목록에서 객체를 클릭</p>
+      </div>
+    );
+  }
+
+  const color = colorForLabel(selected.label);
+  const isBBox = selected.lblTypeCd === 'BBOX';
+  const bbox = isBBox ? pointsToBBox(selected.points) : null;
+
+  return (
+    <div
+      className="rounded-md border border-gray-700 bg-gray-900/40 p-3"
+      data-testid="object-attributes-panel"
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+        <span className="text-sm font-semibold text-gray-100">
+          {selected.label} #{indexInCategory}
+        </span>
+      </div>
+
+      <dl className="divide-y divide-gray-800">
+        <AttrRow label="타입" value={<span data-testid="attr-type">{selected.lblTypeCd}</span>} />
+
+        {isBBox && bbox ? (
+          <AttrRow
+            label="좌표"
+            value={
+              <span data-testid="attr-bbox-coords" className="font-mono">
+                x:{Math.round(bbox.x)} y:{Math.round(bbox.y)} w:{Math.round(bbox.width)} h:
+                {Math.round(bbox.height)}
+              </span>
+            }
+          />
+        ) : (
+          <AttrRow
+            label="점 개수"
+            value={
+              <span data-testid="attr-point-count">{selected.points.length}</span>
+            }
+          />
+        )}
+
+        <AttrRow
+          label="신뢰도"
+          value={
+            <span data-testid="attr-conf-score">{formatConfScore(selected.confScore)}</span>
+          }
+        />
+
+        <AttrRow
+          label="라벨 유형"
+          value={
+            <span data-testid="attr-auto-yn">
+              {selected.autoLblYn === 'Y' ? '자동 라벨' : '수동 라벨'}
+            </span>
+          }
+        />
+
+        <AttrRow label="카테고리" value={<span data-testid="attr-category">{selected.label}</span>} />
+      </dl>
+    </div>
+  );
+}

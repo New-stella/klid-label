@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.review.dto.FrameListResponse;
 import kr.co.cudo.authoring.review.dto.IssueResponse;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
@@ -86,6 +87,29 @@ public class ReviewController {
             @Parameter(description = "영상 PK", required = true, example = "1") @PathVariable Long videoId,
             @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(reviewService.getDetail(videoId, actor));
+    }
+
+    /**
+     * SCR-REVIEW-002 — 영상의 모든 프레임 + 라벨 일괄 조회 (REVIEWER).
+     */
+    @Operation(
+            summary = "검수 프레임 + 라벨 일괄 조회 (REVIEWER)",
+            description = "videoId 기준 모든 프레임 메타와 각 프레임에 속한 라벨 (auto + manual)을 한 번에 반환한다. " +
+                    "N+1 회피 — 프레임 1회 + 라벨 단일 IN-쿼리 1회 (총 2회). " +
+                    "imageUrl 은 /v1/videos/{rawSn}/frames/{frameNo}/image."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음")
+    })
+    @GetMapping("/reviews/{videoId}/frames")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<FrameListResponse> frames(
+            @Parameter(description = "영상 PK", required = true, example = "1") @PathVariable Long videoId,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(reviewService.listFrames(videoId, actor));
     }
 
     /**

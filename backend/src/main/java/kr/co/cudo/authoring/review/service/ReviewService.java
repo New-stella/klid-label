@@ -1,20 +1,29 @@
 package kr.co.cudo.authoring.review.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
 import kr.co.cudo.authoring.assignment.entity.LsPjtTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
 import kr.co.cudo.authoring.assignment.repository.LsPjtTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
+import kr.co.cudo.authoring.review.dto.FrameDetailResponse;
+import kr.co.cudo.authoring.review.dto.FrameListResponse;
 import kr.co.cudo.authoring.review.dto.IssueResponse;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -23,7 +32,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Phase 7 — 검수 워크플로우 (REVIEWER 승인/반려).
@@ -48,6 +61,10 @@ public class ReviewService {
     private final LsPjtUserAuthrtRepository authrtRepository;
     private final LsPjtTaskEventLogRepository taskEventLogRepository;
     private final ReviewStateMachine stateMachine;
+    private final LsDataSrcRepository srcRepository;
+    private final LsDataLblRepository labelRepository;
+    private final VideoRepository videoRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * 검수 워크플로우 상태별 페이징 목록 (REVIEWER 의 검수 목록 화면용).
@@ -66,6 +83,48 @@ public class ReviewService {
         requireReviewer(actor);
         LsPjtDataStts stts = loadByVideoId(videoId);
         return ReviewResponse.from(stts);
+    }
+
+    /**
+     * SCR-REVIEW-002 — 영상의 모든 프레임 + 라벨 일괄 응답 (REVIEWER).
+     *
+     * <p>N+1 회피: 프레임 1회 (findByRawSn..) + 라벨 1회 (findBySrcSnIn) — 총 2회 쿼리.
+     */
+    public FrameListResponse listFrames(Long videoId, TokenClaims actor) {
+        requireReviewer(actor);
+        // 영상 존재 확인 — 미존재 시 404
+        videoRepository.findById(videoId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+
+        // 1) 프레임 일괄 조회
+        List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(videoId);
+        if (frames.isEmpty()) {
+            return new FrameListResponse(videoId, 0, Collections.emptyList());
+        }
+
+        // 2) 라벨 IN-쿼리 — N+1 회피
+        List<Long> srcSns = frames.stream().map(LsDataSrc::getSrcSn).toList();
+        List<LsDataLbl> allLabels = labelRepository.findBySrcSnIn(srcSns);
+
+        // 3) srcSn -> 라벨 목록 매핑
+        Map<Long, List<LabelResponse.Item>> labelMap = new HashMap<>();
+        for (LsDataLbl entity : allLabels) {
+            labelMap.computeIfAbsent(entity.getSrcSn(), k -> new ArrayList<>())
+                    .add(LabelResponse.Item.from(entity, objectMapper));
+        }
+
+        // 4) 프레임 DTO 매핑 (frameNo 순서 보장)
+        List<FrameDetailResponse> details = new ArrayList<>(frames.size());
+        for (LsDataSrc src : frames) {
+            String imageUrl = "/v1/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image";
+            details.add(new FrameDetailResponse(
+                    src.getSrcSn(),
+                    src.getFrameNo(),
+                    imageUrl,
+                    labelMap.getOrDefault(src.getSrcSn(), Collections.emptyList())
+            ));
+        }
+        return new FrameListResponse(videoId, details.size(), details);
     }
 
     /**

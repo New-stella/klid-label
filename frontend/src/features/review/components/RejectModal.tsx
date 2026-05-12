@@ -22,6 +22,12 @@ export interface RejectModalProps {
   open: boolean;
   onClose(): void;
   onSuccess?(): void;
+  /**
+   * Phase 6 — 사용자가 입력한 사유에 추가 컨텍스트를 합성하기 위한 콜백.
+   * 미지정 시 사용자 입력만 그대로 전송 (하위 호환).
+   * 예: reviewComment + pendingIssues 통합.
+   */
+  composeReason?(userReason: string): string;
 }
 
 /**
@@ -33,7 +39,13 @@ export interface RejectModalProps {
  * - reason은 zod로 길이 검증 (min 1, max 1000) — 빈 사유 제출 차단.
  * - reviewId는 number 타입 — IDOR/Injection 방어는 BE 책임.
  */
-export function RejectModal({ reviewId, open, onClose, onSuccess }: RejectModalProps) {
+export function RejectModal({
+  reviewId,
+  open,
+  onClose,
+  onSuccess,
+  composeReason,
+}: RejectModalProps) {
   const pushToast = useUiStore((s) => s.pushToast);
 
   const {
@@ -60,7 +72,10 @@ export function RejectModal({ reviewId, open, onClose, onSuccess }: RejectModalP
   });
 
   const onSubmit = (values: RejectForm) => {
-    mutate({ reviewId, body: { reason: values.reason } });
+    const finalReason = composeReason
+      ? composeReason(values.reason)
+      : values.reason;
+    mutate({ reviewId, body: { reason: finalReason } });
   };
 
   return (

@@ -11,6 +11,7 @@ import type { PageResponse } from '@/lib/api/types';
 import type {
   AddIssueRequest,
   ApproveRequest,
+  FrameList,
   RejectRequest,
   Review,
   ReviewIssue,
@@ -92,5 +93,19 @@ export function listIssues(reviewId: number): Promise<ReviewIssue[]> {
 export function addIssue(reviewId: number, body: AddIssueRequest): Promise<ReviewIssue> {
   return apiClient
     .post<ReviewIssue>(`/reviews/${reviewId}/issues`, body)
+    .then((r) => r.data);
+}
+
+/**
+ * 검수 화면 프레임 목록 + 라벨 조회.
+ * BE: GET /api/v1/reviews/{videoId}/frames (Phase 1 신설)
+ *
+ * 보안:
+ * - videoId path 파라미터는 axios가 URL 인코딩 (XSS/Injection 방어).
+ * - 본인 배정 검증은 BE 책임 (IDOR 방어).
+ */
+export function getReviewFrames(videoId: number): Promise<FrameList> {
+  return apiClient
+    .get<FrameList>(`/reviews/${videoId}/frames`)
     .then((r) => r.data);
 }

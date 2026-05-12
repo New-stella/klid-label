@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api/client';
 import {
   addIssue,
   approveReview,
+  getReviewFrames,
   listIssues,
   listReviews,
   rejectReview,
@@ -185,5 +186,41 @@ describe('review api', () => {
     const res = await addIssue(10, { frameId: 9, description: '바운딩 박스 어긋남' });
     expect(body).toMatchObject({ frameId: 9, description: '바운딩 박스 어긋남' });
     expect(res.id).toBe(3);
+  });
+
+  it('getReviewFrames_GET_reviews_videoId_frames_프레임_목록_조회', async () => {
+    mock.onGet('/reviews/1/frames').reply(200, {
+      success: true,
+      data: {
+        videoId: 1,
+        totalFrames: 25,
+        frames: [
+          {
+            srcSn: 100,
+            frameNo: 1,
+            imageUrl: '/api/v1/videos/1/frames/1/image',
+            labels: [
+              {
+                id: 11,
+                lblTypeCd: 'BBOX',
+                label: 'person',
+                points: [
+                  [10, 20],
+                  [30, 40],
+                ],
+                autoLblYn: 'Y',
+                confScore: 0.92,
+              },
+            ],
+          },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const res = await getReviewFrames(1);
+    expect(res.totalFrames).toBe(25);
+    expect(res.frames[0].labels[0].lblTypeCd).toBe('BBOX');
   });
 });

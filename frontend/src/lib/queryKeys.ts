@@ -37,6 +37,7 @@ export const REVIEW_KEYS = {
   all: ['reviews'] as const,
   pending: (params: Record<string, unknown>) => [...REVIEW_KEYS.all, 'pending', params] as const,
   detail: (id: number) => [...REVIEW_KEYS.all, 'detail', id] as const,
+  frames: (videoId: number) => [...REVIEW_KEYS.all, 'frames', videoId] as const,
 };
 
 export const VERSION_KEYS = {

@@ -16,6 +16,13 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
 
     List<LsDataLbl> findBySrcSn(Long srcSn);
 
+    /**
+     * 프레임(srcSn) 집합에 속한 모든 라벨을 단일 IN 쿼리로 일괄 조회.
+     * <p>SCR-REVIEW-002 검수 화면 일괄 조회용 — N+1 회피.
+     * 빈 컬렉션 입력 시 빈 결과 반환 (default).
+     */
+    List<LsDataLbl> findBySrcSnIn(Collection<Long> srcSns);
+
     List<LsDataLbl> findBySrcSnAndAutoLblYn(Long srcSn, String autoLblYn);
 
     long countBySrcSnAndAutoLblYn(Long srcSn, String autoLblYn);
