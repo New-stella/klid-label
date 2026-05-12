@@ -70,4 +70,31 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
               )
             """, nativeQuery = true)
     List<VideoExportProjection> findLatestExportsByRawSnsInternal(@Param("rawSns") Collection<Long> rawSns);
+
+    /**
+     * 페이지의 rawSn 들에 대해 (rawSn, cctvNm, vmsCctvId) 를 한 번에 조회 (N+1 회피).
+     *
+     * <p>FE WORKER/REVIEWER 작업 목록 영상명 컬럼에 표시할 CCTV 명을 일괄 lookup 하기 위한 용도.
+     * LS_DATA_RAW LEFT JOIN MNG_RESOURCE_CCTV 로 결합한다. MNG_RESOURCE_CCTV 시드가 없는 환경
+     * (또는 매핑이 끊긴 영상) 에서는 cctvNm 이 null 로 반환된다.
+     *
+     * <p>반환 행: {@code [Long rawSn, String cctvNm, String vmsCctvId]}.
+     * 호출 측에서 cctvNm 이 null/blank 일 때 vmsCctvId 로 폴백한다.
+     */
+    default List<Object[]> findCctvNamesByRawSns(Collection<Long> rawSns) {
+        if (rawSns == null || rawSns.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return findCctvNamesByRawSnsInternal(rawSns);
+    }
+
+    @Query(value = """
+            SELECT r.RAW_SN AS rawSn,
+                   c.CCTV_NM AS cctvNm,
+                   r.VMS_CCTV_ID AS vmsCctvId
+            FROM LS_DATA_RAW r
+            LEFT JOIN MNG_RESOURCE_CCTV c ON c.VMS_CCTV_ID = r.VMS_CCTV_ID
+            WHERE r.RAW_SN IN (:rawSns)
+            """, nativeQuery = true)
+    List<Object[]> findCctvNamesByRawSnsInternal(@Param("rawSns") Collection<Long> rawSns);
 }

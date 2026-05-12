@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.assignment;
 
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
+import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsPjtTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
@@ -18,7 +19,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -37,6 +40,7 @@ class AssignmentServiceTest {
     @Autowired private LsPjtUserAuthrtRepository authrtRepository;
     @Autowired private LsPjtUserAuthrtHstryRepository hstryRepository;
     @Autowired private LsPjtTaskEventLogRepository taskEventLogRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     private TokenClaims reviewer() {
         return new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -160,6 +164,55 @@ class AssignmentServiceTest {
             assertThat(r.getSubjectUserNo()).isEqualTo(100L);
             assertThat(r.getPjtId()).isEqualTo(10L);
         });
+    }
+
+    @Test
+    @DisplayName("listAssignments_응답_Item에_MNG_RESOURCE_CCTV의_cctvName이_매핑되어_반환")
+    void listAssignmentsIncludesCctvName() {
+        // MNG_RESOURCE_CCTV 마스터 + LS_DATA_RAW 시드 (FK 무관 — 단순 LEFT JOIN lookup 검증).
+        // 영상명 컬럼이 "CCTV-강남구-001" 형식으로 표시되도록 한다.
+        jdbcTemplate.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES (?,?,?)",
+                "CCTV-GANGNAM-001", "CCTV-강남구-001", "Y");
+        jdbcTemplate.update(
+                "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, PRVC_TYPE_CD, PRVC_YN, DE_IDNTF_YN, " +
+                        "FILE_PATH, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
+                1000L, "TEST-CLIP-1000", "CCTV-GANGNAM-001",
+                "ANONY", "N", "N", "/tmp/test/1000.mp4", "PENDING");
+
+        // 배정 생성 — rawDataId=1000 으로 LABELER 1건.
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        assignmentService.assign(req, reviewer());
+
+        Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
+                null, reviewer(), PageRequest.of(0, 20));
+
+        assertThat(page.getContent()).hasSize(1);
+        AssignmentResponse.Item item = page.getContent().get(0);
+        assertThat(item.rawDataId()).isEqualTo(1000L);
+        assertThat(item.cctvName()).isEqualTo("CCTV-강남구-001");
+        // videoTitle 도 cctvName 으로 채워져 mock 디자인 정합.
+        assertThat(item.videoTitle()).isEqualTo("CCTV-강남구-001");
+    }
+
+    @Test
+    @DisplayName("listAssignments_MNG_RESOURCE_CCTV_매핑_없으면_VMS_CCTV_ID_폴백")
+    void listAssignmentsCctvNameFallsBackToVmsCctvId() {
+        // CCTV 마스터 시드 없이 LS_DATA_RAW 만 등록 → cctvName 은 vmsCctvId 폴백.
+        jdbcTemplate.update(
+                "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, PRVC_TYPE_CD, PRVC_YN, DE_IDNTF_YN, " +
+                        "FILE_PATH, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
+                1001L, "TEST-CLIP-1001", "CCTV-ORPHAN-001",
+                "ANONY", "N", "N", "/tmp/test/1001.mp4", "PENDING");
+
+        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1001L));
+        assignmentService.assign(req, reviewer());
+
+        Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
+                null, reviewer(), PageRequest.of(0, 20));
+
+        assertThat(page.getContent()).hasSize(1);
+        AssignmentResponse.Item item = page.getContent().get(0);
+        assertThat(item.cctvName()).isEqualTo("CCTV-ORPHAN-001");
     }
 
     @Test

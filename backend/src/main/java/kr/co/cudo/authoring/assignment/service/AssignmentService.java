@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.assignment.repository.LsPjtTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtHstryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
@@ -48,6 +49,7 @@ public class AssignmentService {
     private final LsPjtTaskEventLogRepository taskEventLogRepository;
     private final UserRepository userRepository;
     private final LsDataSrcRepository dataSrcRepository;
+    private final VideoRepository videoRepository;
 
     @Transactional("controlTransactionManager")
     public AssignmentResponse assign(AssignmentCreateRequest req, TokenClaims actor) {
@@ -253,6 +255,7 @@ public class AssignmentService {
         }
         Map<Long, Long> reviewerByVideo = lookupReviewerByVideo(page.getContent());
         Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(page.getContent());
+        Map<Long, String> cctvNameByVideo = lookupCctvNameByVideo(page.getContent());
 
         // worker + reviewer userNo 를 한 Set 에 모아 1회 batch 조회 (N+1 회피).
         Set<Long> userNos = new HashSet<>();
@@ -273,8 +276,43 @@ public class AssignmentService {
             String workerName = e.getUserNo() != null ? nameByUserNo.get(e.getUserNo()) : null;
             String reviewerName = reviewerId != null ? nameByUserNo.get(reviewerId) : null;
             Long firstSrcSn = firstSrcSnByVideo.get(e.getRawDataId());
-            return AssignmentResponse.Item.from(e, reviewerId, workerName, reviewerName, firstSrcSn);
+            String cctvName = cctvNameByVideo.get(e.getRawDataId());
+            return AssignmentResponse.Item.from(e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName);
         });
+    }
+
+    /**
+     * 페이지 단위로 영상별 CCTV 명을 한 번에 조회하여 매핑 (N+1 회피).
+     * LS_DATA_RAW LEFT JOIN MNG_RESOURCE_CCTV — 마스터 매핑이 없으면 VMS_CCTV_ID 폴백을 사용한다.
+     * 둘 다 null/blank 면 키 자체를 넣지 않아 호출 측 {@code map.get(rawSn)} 이 null 을 반환한다.
+     */
+    private Map<Long, String> lookupCctvNameByVideo(List<LsPjtUserAuthrt> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawDataIds = rows.stream()
+                .map(LsPjtUserAuthrt::getRawDataId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (rawDataIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, String> map = new HashMap<>();
+        for (Object[] row : videoRepository.findCctvNamesByRawSns(rawDataIds)) {
+            // row[0]=rawSn, row[1]=cctvNm (nullable), row[2]=vmsCctvId
+            if (row == null || row.length < 3 || row[0] == null) continue;
+            Long rawSn = ((Number) row[0]).longValue();
+            String cctvNm = row[1] != null ? row[1].toString() : null;
+            String vmsCctvId = row[2] != null ? row[2].toString() : null;
+            String resolved = (cctvNm != null && !cctvNm.isBlank())
+                    ? cctvNm
+                    : (vmsCctvId != null && !vmsCctvId.isBlank() ? vmsCctvId : null);
+            if (resolved != null) {
+                map.put(rawSn, resolved);
+            }
+        }
+        return map;
     }
 
     /**

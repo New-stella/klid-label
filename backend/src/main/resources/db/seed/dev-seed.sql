@@ -71,6 +71,24 @@ INSERT INTO MNG_ACCT_USER_AUTHRT (USER_NO, AUTHRT_CD, REG_DT) VALUES
 INSERT INTO LS_PJT (PJT_ID, PJT_NM, PJT_DESC, PJT_STTS_CD, USE_YN, REG_USER_NO, REG_DT) VALUES
     (1, 'CCTV 라벨링 메인', '관제서버 송신 영상 라벨링/검수 메인 프로젝트', 'ACTIVE', 'Y', 1001, '2026-02-01 09:00:00');
 
+-- 5.5) CCTV 마스터 (MNG_RESOURCE_CCTV) — 영상 VMS_CCTV_ID 매칭용 한글 이름.
+--   AssignmentResponse.cctvName 표시 및 작업/검수 목록의 "CCTV-{지자체}-{NN}" 노출.
+--   INSERT IGNORE — 시드 재실행 시 PK 충돌 회피 (이미 존재하면 무시).
+INSERT IGNORE INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES
+    ('CCTV-001', 'CCTV-강남구-001', 'Y'),
+    ('CCTV-002', 'CCTV-강남구-002', 'Y'),
+    ('CCTV-003', 'CCTV-강남구-003', 'Y'),
+    ('CCTV-004', 'CCTV-강남구-004', 'Y'),
+    ('CCTV-005', 'CCTV-강남구-005', 'Y'),
+    ('CCTV-016', 'CCTV-서초구-016', 'Y'),
+    ('CCTV-017', 'CCTV-서초구-017', 'Y'),
+    ('CCTV-018', 'CCTV-서초구-018', 'Y'),
+    ('CCTV-026', 'CCTV-송파구-026', 'Y'),
+    ('CCTV-027', 'CCTV-송파구-027', 'Y'),
+    ('CCTV-031', 'CCTV-마포구-031', 'Y'),
+    ('CCTV-032', 'CCTV-마포구-032', 'Y'),
+    ('CCTV-033', 'CCTV-마포구-033', 'Y');
+
 -- 6) 영상 13건 (LS_DATA_RAW)
 --   COMPLETED 5건  (9001~9005) : 라벨링/검수 테스트 베이스. 9001은 오토라벨 파이프라인 기본 rawSn.
 --   PROCESSING 3건 (9016~9018): 배치 처리 중 상태 테스트
