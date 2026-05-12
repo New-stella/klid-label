@@ -181,7 +181,27 @@ public class AssignmentService {
             throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
         }
         Map<Long, Long> reviewerByVideo = lookupReviewerByVideo(page.getContent());
-        return page.map(e -> AssignmentResponse.Item.from(e, reviewerByVideo.get(e.getRawDataId())));
+
+        // worker + reviewer userNo 를 한 Set 에 모아 1회 batch 조회 (N+1 회피).
+        Set<Long> userNos = new HashSet<>();
+        for (LsPjtUserAuthrt e : page.getContent()) {
+            if (e.getUserNo() != null) userNos.add(e.getUserNo());
+            Long reviewerNo = reviewerByVideo.get(e.getRawDataId());
+            if (reviewerNo != null) userNos.add(reviewerNo);
+        }
+        Map<Long, String> nameByUserNo = new HashMap<>();
+        if (!userNos.isEmpty()) {
+            for (MngAcctUser u : userRepository.findByUserNoIn(userNos)) {
+                nameByUserNo.put(u.getUserNo(), u.getUserNm());
+            }
+        }
+
+        return page.map(e -> {
+            Long reviewerId = reviewerByVideo.get(e.getRawDataId());
+            String workerName = e.getUserNo() != null ? nameByUserNo.get(e.getUserNo()) : null;
+            String reviewerName = reviewerId != null ? nameByUserNo.get(reviewerId) : null;
+            return AssignmentResponse.Item.from(e, reviewerId, workerName, reviewerName);
+        });
     }
 
     /**

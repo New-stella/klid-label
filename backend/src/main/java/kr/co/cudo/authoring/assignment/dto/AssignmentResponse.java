@@ -23,18 +23,29 @@ public record AssignmentResponse(
             LocalDateTime regDt,
             LocalDateTime assignedAt,
             // FE TaskListPage — 영상별 REVIEWER 배정자 (없으면 null)
-            Long reviewerId
+            Long reviewerId,
+            // FE TaskListPage — 영상별 REVIEWER 실제 이름 (없으면 null)
+            String reviewerName
     ) {
         /**
          * 기본 변환 — REVIEWER 정보 없이 사용한다.
          * 서비스 레이어에서 REVIEWER 배정 lookup 후 {@link #from(LsPjtUserAuthrt, Long)} 사용 권장.
          */
         public static Item from(LsPjtUserAuthrt e) {
-            return from(e, null);
+            return from(e, null, null, null);
         }
 
         /** REVIEWER 배정 lookup 결과를 함께 주입 (서비스에서 N+1 회피 후 호출). */
         public static Item from(LsPjtUserAuthrt e, Long reviewerId) {
+            return from(e, reviewerId, null, null);
+        }
+
+        /**
+         * Service 레이어에서 user 이름 일괄 조회 후 호출 (N+1 회피).
+         * workerName/reviewerName 이 null 이면 폴백("user #N") 적용.
+         */
+        public static Item from(LsPjtUserAuthrt e, Long reviewerId,
+                                String workerName, String reviewerName) {
             return new Item(
                     e.getAuthrtSeq(),
                     e.getAuthrtSeq(),
@@ -42,14 +53,16 @@ public record AssignmentResponse(
                     e.getUserNo(),
                     e.getRawDataId(),
                     e.getRawDataId() != null ? "video #" + e.getRawDataId() : null,
-                    e.getUserNo() != null ? "user #" + e.getUserNo() : "",
+                    workerName != null ? workerName
+                            : (e.getUserNo() != null ? "user #" + e.getUserNo() : ""),
                     e.getTaskTypeCd(),
                     e.getRawDataId(),
                     e.getTaskTypeCd(),
                     e.getRegUserNo(),
                     e.getRegDt(),
                     e.getRegDt(),
-                    reviewerId
+                    reviewerId,
+                    reviewerName
             );
         }
     }

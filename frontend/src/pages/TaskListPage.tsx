@@ -585,9 +585,14 @@ export function TaskListPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {r.task?.reviewerId ? (
+                        {r.task?.reviewerName ? (
                           <span className="text-sm text-gray-700">
-                            {reviewerMap[r.task.reviewerId] ?? '미등록'}
+                            {r.task.reviewerName}
+                          </span>
+                        ) : r.task?.reviewerId ? (
+                          <span className="text-sm text-gray-700">
+                            {reviewerMap[r.task.reviewerId] ??
+                              `user #${r.task.reviewerId}`}
                           </span>
                         ) : (
                           <span className="text-sm italic text-gray-400">

@@ -16,6 +16,7 @@ export interface Task {
   workerId: number;
   workerName: string;
   reviewerId?: number;
+  reviewerName?: string;
   status: AssignmentStatus;
   assignedAt: string;
 }

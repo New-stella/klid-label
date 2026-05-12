@@ -20,6 +20,12 @@ public interface UserRepository extends JpaRepository<MngAcctUser, Long> {
     Optional<MngAcctUser> findByUserNo(Long userNo);
 
     /**
+     * 주어진 userNo 목록에 해당하는 사용자 마스터를 한 번에 조회 (N+1 방지).
+     * 빈 컬렉션 호출 시 빈 리스트 반환.
+     */
+    List<MngAcctUser> findByUserNoIn(java.util.Collection<Long> userNos);
+
+    /**
      * WORKER 권한을 가진 활성 사용자 목록과 활성 라벨러 태스크 개수를 단일 쿼리로 조회한다.
      * N+1 방지: 사용자별 LS_PJT_USER_AUTHRT GROUP BY COUNT 를 LEFT JOIN.
      */
