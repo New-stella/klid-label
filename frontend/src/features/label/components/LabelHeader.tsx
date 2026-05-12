@@ -23,6 +23,8 @@ interface LabelHeaderProps {
   saving?: boolean;
   /** 검수제출 — WORKER만 노출 (LabelingPage에서 isWorker 가드) */
   submitButton?: React.ReactNode;
+  /** X 닫기 버튼 클릭 콜백. 미지정 시 navigate(-1) 기본 동작 (dirty 가드 없음). */
+  onClose?: () => void;
 }
 
 export function LabelHeader({
@@ -37,8 +39,10 @@ export function LabelHeader({
   onSave,
   saving = false,
   submitButton,
+  onClose,
 }: LabelHeaderProps) {
   const navigate = useNavigate();
+  const handleClose = onClose ?? (() => navigate(-1));
 
   return (
     <header
@@ -46,7 +50,7 @@ export function LabelHeader({
       style={{ height: 56 }}
     >
       <button
-        onClick={() => navigate(-1)}
+        onClick={handleClose}
         className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
         aria-label="뒤로가기"
         type="button"

@@ -12,6 +12,7 @@ import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
+import { Modal } from '@/components/common/Modal';
 import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
 import { DarkToolbar } from '@/features/label/components/DarkToolbar';
@@ -172,6 +173,58 @@ export function LabelingPage() {
     }
   };
 
+  // dirty 가드 — X(닫기) 클릭 시 미저장 변경이 있으면 확인 다이얼로그.
+  // 권한/role 가드 redirect 경로(잘못된 ID / 라벨 조회 실패)에는 적용하지 않음 — 보안상 즉시 차단 유지.
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const handleClose = () => {
+    if (dirtyCount > 0) {
+      setCloseConfirmOpen(true);
+    } else {
+      navigate(-1);
+    }
+  };
+  const handleConfirmSaveAndClose = async () => {
+    if (!currentFrame) {
+      setCloseConfirmOpen(false);
+      navigate(-1);
+      return;
+    }
+    setClosing(true);
+    try {
+      await saveAndCommit(currentFrame.srcSn, labels, { portalMode });
+      clearDirty();
+      setCloseConfirmOpen(false);
+      navigate(-1);
+    } catch (e) {
+      pushToast({
+        variant: 'error',
+        message: e instanceof Error ? e.message : '저장 실패',
+      });
+    } finally {
+      setClosing(false);
+    }
+  };
+  const handleDiscardAndClose = () => {
+    setCloseConfirmOpen(false);
+    navigate(-1);
+  };
+  const handleStayOnPage = () => {
+    setCloseConfirmOpen(false);
+  };
+
+  // 브라우저 탭/창 닫기 시 dirty 경고 (브라우저 native 다이얼로그)
+  useEffect(() => {
+    if (dirtyCount === 0) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // 일부 브라우저는 returnValue 설정 필요 — 메시지는 브라우저가 결정
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirtyCount]);
+
   useLabelingShortcuts({
     onPrevFrame: () => jumpTo(Math.max(0, frameIdx - 1)),
     onNextFrame: () => jumpTo(Math.min(frames.length - 1, frameIdx + 1)),
@@ -261,6 +314,7 @@ export function LabelingPage() {
         showHistory={!portalMode}
         onSave={handleSave}
         saving={saving}
+        onClose={handleClose}
         submitButton={
           isWorker && data ? (
             <Button
@@ -274,6 +328,45 @@ export function LabelingPage() {
               검수제출
             </Button>
           ) : null
+        }
+      />
+
+      {/* dirty 가드 — X 닫기 시 미저장 변경 확인.
+          3-옵션 다이얼로그(저장 후 닫기 / 저장 없이 닫기 / 머무름) 이므로 ConfirmDialog 대신
+          Modal 직접 사용. ESC/백드롭/X = 머무름 (handleStayOnPage). */}
+      <Modal
+        open={closeConfirmOpen}
+        onClose={handleStayOnPage}
+        title="저장 안 한 변경사항이 있습니다"
+        description={`${dirtyCount}개 객체에 미저장 변경이 있습니다. 어떻게 하시겠습니까?`}
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={handleStayOnPage}
+              disabled={closing}
+              data-testid="label-close-cancel"
+            >
+              취소
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleDiscardAndClose}
+              disabled={closing}
+              data-testid="label-close-discard"
+            >
+              저장 없이 닫기
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleConfirmSaveAndClose}
+              loading={closing}
+              data-testid="label-close-save"
+            >
+              저장 후 닫기
+            </Button>
+          </>
         }
       />
 
