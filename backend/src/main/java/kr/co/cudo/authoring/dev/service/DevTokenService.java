@@ -44,9 +44,13 @@ public class DevTokenService {
     private static final int DEFAULT_EXP_SECONDS = 3600;
     private static final int MIN_EXP_SECONDS = 60;
     private static final int MAX_EXP_SECONDS = 86400;
+    // 기본 USER_NO 는 dev-seed.sql 과 1:1 매칭되어야 한다.
+    //   1001=REVIEWER(김검수) · 2001=WORKER(최라벨) · 3001=PORTAL_USER(홍길동)
+    // 과거 1002(WORKER)·2001(PORTAL) 매핑은 시드와 어긋나 WORKER 토큰의 sub 가
+    // 실제 REVIEWER 사용자를 가리켜 LABELER 배정 0건이 반환되는 버그가 있었다.
     private static final String DEFAULT_USER_NO_REVIEWER = "1001";
-    private static final String DEFAULT_USER_NO_WORKER = "1002";
-    private static final String DEFAULT_USER_NO_PORTAL = "2001";
+    private static final String DEFAULT_USER_NO_WORKER = "2001";
+    private static final String DEFAULT_USER_NO_PORTAL = "3001";
     private static final String DEFAULT_NAME_REVIEWER = "검수자";
     private static final String DEFAULT_NAME_WORKER = "라벨러";
     private static final String DEFAULT_NAME_PORTAL = "포털사용자";

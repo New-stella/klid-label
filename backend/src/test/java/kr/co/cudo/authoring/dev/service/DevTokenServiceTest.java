@@ -82,7 +82,7 @@ class DevTokenServiceTest {
         Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(res.token()).getPayload();
         assertThat(claims.get("role", String.class)).isEqualTo("WORKER");
         assertThat(claims.get("channel", String.class)).isEqualTo("INTERNAL");
-        assertThat(claims.getSubject()).isEqualTo("1002");
+        assertThat(claims.getSubject()).isEqualTo("2001");
     }
 
     @Test
@@ -96,7 +96,7 @@ class DevTokenServiceTest {
         assertThat(claims.get("role", String.class)).isEqualTo("PORTAL_USER");
         assertThat(claims.get("channel", String.class)).isEqualTo("PORTAL");
         assertThat(claims.get("name", String.class)).isEqualTo("포털A");
-        assertThat(claims.getSubject()).isEqualTo("2001");
+        assertThat(claims.getSubject()).isEqualTo("3001");
     }
 
     @Test
@@ -161,9 +161,9 @@ class DevTokenServiceTest {
         assertThat(Jwts.parser().verifyWith(key).build().parseSignedClaims(rev.token()).getPayload().getSubject())
                 .isEqualTo("1001");
         assertThat(Jwts.parser().verifyWith(key).build().parseSignedClaims(wrk.token()).getPayload().getSubject())
-                .isEqualTo("1002");
-        assertThat(Jwts.parser().verifyWith(key).build().parseSignedClaims(prt.token()).getPayload().getSubject())
                 .isEqualTo("2001");
+        assertThat(Jwts.parser().verifyWith(key).build().parseSignedClaims(prt.token()).getPayload().getSubject())
+                .isEqualTo("3001");
     }
 
     @Test

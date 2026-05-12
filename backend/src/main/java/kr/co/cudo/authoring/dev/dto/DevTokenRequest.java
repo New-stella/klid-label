@@ -31,7 +31,7 @@ public record DevTokenRequest(
         @NotNull
         Channel channel,
 
-        @Schema(description = "사용자 번호 (sub 클레임). null 이면 역할별 기본값 (REVIEWER=1001, WORKER=1002, PORTAL_USER=2001)",
+        @Schema(description = "사용자 번호 (sub 클레임). null 이면 역할별 기본값 (REVIEWER=1001, WORKER=2001, PORTAL_USER=3001)",
                 example = "1001")
         String userNo,
 
