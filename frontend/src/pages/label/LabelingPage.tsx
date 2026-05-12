@@ -95,8 +95,8 @@ export function LabelingPage() {
   const reset = useLabelStore((s) => s.reset);
 
   // BE 의 LabelResponse.siblings 로 영상 전체 프레임 표시.
-  // 썸네일 API 미보유 — 현재 프레임 외 imageUrl/thumbnailUrl 은 빈 값 (placeholder).
-  // 다른 프레임 선택 시 navigate 로 URL 전환 → useLabels 재조회 → 해당 프레임 이미지 로딩.
+  // 메인 캔버스(currentFrame)는 imageBlobUrl(현재 프레임)만 채우고, strip 의 다른 프레임 썸네일은
+  // DarkFrameStrip 내부 FrameThumbnail 이 srcSn 별로 useImageBlob 을 호출해 자체 fetch.
   const frames: FrameSummary[] = useMemo(() => {
     if (!data) return [];
     const siblings = Array.isArray(data.siblings) ? data.siblings : [];
@@ -115,10 +115,11 @@ export function LabelingPage() {
     }
     return siblings.map((s) => {
       const isCurrent = s.srcSn === data.srcSn;
+      // 메인 캔버스는 현재 프레임의 imageBlobUrl 만 사용. 나머지 썸네일은 strip 이 자체 fetch.
       return {
         frameNo: s.frameNo,
         srcSn: s.srcSn,
-        thumbnailUrl: isCurrent ? (imageBlobUrl ?? '') : '',
+        thumbnailUrl: '',
         imageUrl: isCurrent ? (imageBlobUrl ?? '') : '',
         imageWidth: 1920,
         imageHeight: 1080,
