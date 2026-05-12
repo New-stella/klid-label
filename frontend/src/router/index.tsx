@@ -167,6 +167,15 @@ if (import.meta.env.DEV) {
   });
 }
 
+// [개발/검수 전용] 오토라벨 테스트 페이지 — REVIEWER 만 진입.
+// BE endpoint 가 `@Profile("!prd")` 격리되어 있어 prd 환경에서도 라우트는 마운트되지만
+// 호출 시 404 가 반환된다. UI 노출은 REVIEWER 로 제한.
+const DevAutolabelTestPage = lazy(() =>
+  import('@/pages/dev/DevAutolabelTestPage').then((m) => ({
+    default: m.DevAutolabelTestPage,
+  })),
+);
+
 export const router = createBrowserRouter([
   // 진입/공통 — Layout 없이 직접 매칭
   { path: '/ingress', element: <SessionIngressPage /> },
@@ -434,6 +443,15 @@ export const router = createBrowserRouter([
         element: (
           <InternalRoute allow={internalReviewerOnly}>
             {withSuspense(<GenerateResultPage />)}
+          </InternalRoute>
+        ),
+      },
+      // [개발/검수 전용] 오토라벨 테스트 — REVIEWER 만 진입.
+      {
+        path: 'dev/autolabel-test',
+        element: (
+          <InternalRoute allow={internalReviewerOnly}>
+            {withSuspense(<DevAutolabelTestPage />)}
           </InternalRoute>
         ),
       },

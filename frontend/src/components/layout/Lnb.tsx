@@ -61,6 +61,17 @@ const MENU: MenuGroup[] = [
   },
 ];
 
+// [개발/검수 전용] DEV 빌드에서만 노출되는 도구 메뉴 — REVIEWER 한정.
+// `import.meta.env.DEV` 는 빌드 시 상수로 치환되므로 prd 산출물에서는 dead-code 로 제거된다.
+if (import.meta.env.DEV) {
+  MENU.push({
+    group: '개발 도구',
+    items: [
+      { label: '오토라벨 테스트', path: '/dev/autolabel-test', allow: ['REVIEWER'] },
+    ],
+  });
+}
+
 /**
  * mock 정합 — fixed top-14 left-0 w-60 LNB.
  * active 항목은 좌측 보더 + 배경 + 텍스트 톤 모두 강조.

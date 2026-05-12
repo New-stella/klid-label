@@ -8,6 +8,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
@@ -67,6 +68,17 @@ public class GlobalExceptionHandler {
      * 이 핸들러가 없으면 Exception.class 가 잡아 500 INTERNAL_ERROR 로 응답되어
      * FE 가 미구현 endpoint 를 서버 장애로 오인하게 된다.
      */
+    /**
+     * Spring multipart 한도 초과 시 발생하는 예외를 413 으로 정규화한다.
+     * (CWE-770 Resource Consumption 가드 — 사용자에게는 메시지만 노출, 내부 한도 수치 비노출.)
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+        log.warn("[Exception] max upload size exceeded");
+        return ResponseEntity.status(ErrorCode.PAYLOAD_TOO_LARGE.status())
+                .body(ApiResponse.error(ErrorCode.PAYLOAD_TOO_LARGE));
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException e) {
         log.warn("[Exception] no resource found path={}", e.getResourcePath());

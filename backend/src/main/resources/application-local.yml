@@ -8,6 +8,14 @@
 #   운영 시크릿은 환경변수(JWT_SECRET, *_DB_PASSWORD, *_M2M_TOKEN, GITEA_TOKEN)로 주입.
 # ============================================================================
 spring:
+  # [개발/검수 전용] /v1/dev/autolabel-test multipart 업로드용 — local 프로파일만 활성화.
+  #   상위 application.yml 에서 false (TUS 호환). local 에서 dev endpoint 사용 시 override.
+  #   prd 는 application.yml 의 enabled: false 가 유지되어 영향 없음.
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 500MB
+      max-request-size: 500MB
   datasource:
     control:
       jdbc-url: jdbc:mariadb://127.0.0.1:3307/klid_system?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useSSL=false
@@ -47,6 +55,11 @@ authoring:
   # HIGH-5 fix (OWASP A06): 로컬 FE 개발 서버 기본 허용
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174}
+  # [개발/검수 전용] /v1/dev/autolabel-test 업로드 한도 (bytes) — 500MB 기본.
+  #   서비스 레이어에서 multipart 한도와 별개로 이중 가드.
+  dev:
+    autolabel-test:
+      max-file-size: ${AUTHORING_DEV_AUTOLABEL_TEST_MAX_FILE_SIZE:524288000}
 
 logging:
   level:
