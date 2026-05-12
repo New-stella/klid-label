@@ -12,30 +12,48 @@ describe('stat api', () => {
   });
   afterEach(() => mock.restore());
 
-  it('getWorkerDashboard_period_정규식_검증_불일치_에러', async () => {
-    await expect(
-      // @ts-expect-error — 의도적 불일치
-      getWorkerDashboard('INVALID'),
-    ).rejects.toThrow(/잘못된 period/);
-  });
-
-  it('getWorkerDashboard_정상_period_요청', async () => {
+  it('getWorkerDashboard_workerId_없이_본인_조회', async () => {
     mock.onGet('/stats/worker').reply(200, {
       success: true,
       data: {
-        totalLabeled: 100,
-        totalReviewed: 20,
-        approvalRate: 95.5,
-        averageElapsedSec: 120,
+        workerId: 'self',
+        workerName: 'me',
+        completed: 100,
+        inProgress: 5,
+        rejected: 2,
+        labelCount: 1000,
+        autoLabelRate: 0.3,
+        rejectRate: 0.02,
         dailyCompletion: [],
-        eventDistribution: [],
         monthly: [],
       },
       message: null,
       errorCode: null,
     });
-    const data = await getWorkerDashboard('WEEK');
-    expect(data.totalLabeled).toBe(100);
+    const data = await getWorkerDashboard();
+    expect(data.completed).toBe(100);
+  });
+
+  it('getWorkerDashboard_workerId_지정_조회', async () => {
+    mock.onGet('/stats/worker').reply(200, {
+      success: true,
+      data: {
+        workerId: '11',
+        workerName: '홍길동',
+        completed: 50,
+        inProgress: 1,
+        rejected: 0,
+        labelCount: 500,
+        autoLabelRate: 0.5,
+        rejectRate: 0.0,
+        dailyCompletion: [],
+        monthly: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+    const data = await getWorkerDashboard(11);
+    expect(data.workerId).toBe('11');
   });
 
   it('getOverallStats_요청', async () => {

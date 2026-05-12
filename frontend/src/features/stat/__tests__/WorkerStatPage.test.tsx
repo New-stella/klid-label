@@ -20,16 +20,21 @@ function setRole(role: 'WORKER' | 'REVIEWER') {
 }
 
 const sample = {
-  totalLabeled: 1234,
-  totalReviewed: 56,
-  approvalRate: 92.5,
-  averageElapsedSec: 180,
+  workerId: '11',
+  workerName: '홍길동',
+  completed: 1234,
+  inProgress: 5,
+  rejected: 8,
+  labelCount: 9876,
+  autoLabelRate: 0.42,
+  rejectRate: 0.05,
   dailyCompletion: [
     { date: '2026-05-01', count: 10 },
     { date: '2026-05-02', count: 20 },
   ],
-  eventDistribution: [{ eventTypeCd: 'FALL', label: '낙상', count: 30 }],
-  monthly: [{ month: '2026-04', labeled: 500, reviewed: 30, approvalRate: 90.0 }],
+  monthly: [
+    { month: '2026-04', completed: 500, rejected: 3, labelCount: 1000 },
+  ],
 };
 
 describe('WorkerStatPage', () => {
@@ -40,6 +45,12 @@ describe('WorkerStatPage', () => {
     mock.onGet('/stats/worker').reply(200, {
       success: true,
       data: sample,
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 0 },
       message: null,
       errorCode: null,
     });
@@ -59,14 +70,13 @@ describe('WorkerStatPage', () => {
     });
 
     const grid = screen.getByTestId('worker-kpi-grid');
-    // KpiCard label은 text-sub 클래스를 가진 span (mock tone에서는 text-gray-500)
     const labels = Array.from(grid.querySelectorAll('span.text-sub')).map(
       (el) => el.textContent,
     );
-    expect(labels).toContain('누적 라벨');
-    expect(labels).toContain('누적 검수');
-    expect(labels).toContain('승인률');
-    expect(labels).toContain('평균 소요시간');
+    expect(labels).toContain('완료 작업');
+    expect(labels).toContain('진행 중');
+    expect(labels).toContain('반려');
+    expect(labels).toContain('총 라벨 수');
     expect(grid.querySelectorAll('strong').length).toBeGreaterThanOrEqual(4);
   });
 

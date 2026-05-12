@@ -16,7 +16,14 @@ describe('preset api', () => {
     mock.onGet('/manage/presets').reply(200, {
       success: true,
       data: [
-        { id: 1, name: '화재 기본', eventTypeCd: 'FALL', items: [] },
+        {
+          id: 1,
+          name: '화재 기본',
+          description: null,
+          labelCodes: ['FIRE', 'SMOKE'],
+          createdAt: '2026-05-01T00:00:00Z',
+          updatedAt: '2026-05-01T00:00:00Z',
+        },
       ],
       message: null,
       errorCode: null,
@@ -24,6 +31,7 @@ describe('preset api', () => {
     const list = await listPresets();
     expect(list).toHaveLength(1);
     expect(list[0]!.name).toBe('화재 기본');
+    expect(list[0]!.labelCodes).toEqual(['FIRE', 'SMOKE']);
   });
 
   it('프리셋_복사시_복사본_접미사', async () => {
@@ -32,8 +40,10 @@ describe('preset api', () => {
       data: {
         id: 2,
         name: '화재 기본 (복사본)',
-        eventTypeCd: 'FALL',
-        items: [],
+        description: null,
+        labelCodes: ['FIRE'],
+        createdAt: '2026-05-10T00:00:00Z',
+        updatedAt: '2026-05-10T00:00:00Z',
       },
       message: null,
       errorCode: null,

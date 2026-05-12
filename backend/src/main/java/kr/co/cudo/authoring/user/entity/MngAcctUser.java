@@ -11,6 +11,12 @@ import org.hibernate.annotations.Immutable;
 
 import java.time.LocalDateTime;
 
+/**
+ * 사용자 마스터 엔티티 — 관제서버팀 공유 테이블 `MNG_ACCT_USER`.
+ *
+ * <p>{@code @Immutable} 로 JPA dirty checking 갱신은 비활성. 활성/비활성 상태 변경은
+ * Repository 의 {@code @Modifying} UPDATE 쿼리({@code UserRepository.updateUseYn})로 수행한다.
+ */
 @Entity
 @Table(name = "MNG_ACCT_USER")
 @Immutable

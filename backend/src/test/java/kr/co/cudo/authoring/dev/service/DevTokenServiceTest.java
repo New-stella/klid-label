@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.security.JwtKeyResolver;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.dev.dto.DevTokenRequest;
 import kr.co.cudo.authoring.dev.dto.DevTokenResponse;
+import kr.co.cudo.authoring.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,9 +20,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class DevTokenServiceTest {
 
@@ -32,6 +37,7 @@ class DevTokenServiceTest {
     private DevTokenService service;
     private SecretKey key;
     private String secretMaterial;
+    private UserRepository userRepository;
 
     @BeforeEach
     void setUp() {
@@ -40,7 +46,9 @@ class DevTokenServiceTest {
         secretMaterial = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
         key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(secretMaterial.getBytes(StandardCharsets.UTF_8));
         JwtKeyResolver resolver = () -> key;
-        service = new DevTokenService(resolver, List.of("klid-auth", "klid", "klid-portal"));
+        userRepository = mock(UserRepository.class);
+        when(userRepository.findByUserNo(anyLong())).thenReturn(Optional.empty());
+        service = new DevTokenService(resolver, userRepository, List.of("klid-auth", "klid", "klid-portal"));
     }
 
     @Test

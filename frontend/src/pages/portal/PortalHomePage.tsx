@@ -6,6 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Upload as UploadIcon, Tag, Play } from 'lucide-react';
 
 import { KpiCard } from '@/components/common/KpiCard';
@@ -27,6 +28,7 @@ const REJECTION_LABEL: Record<UploadValidationError, string> = {
 };
 
 export function PortalHomePage() {
+  const navigate = useNavigate();
   // 첫 마운트 시 토큰 ingress race 방어 — 토큰이 적재된 후에만 호출
   // (token 없는 상태에서 호출 → 401 → 인터셉터 redirectToUpstream → 18081 connection refused 폭탄 방지)
   const token = useAuthStore((s) => s.token);
@@ -41,9 +43,11 @@ export function PortalHomePage() {
 
   const totalUploads = uploads.length;
   const labeledCount = uploads.filter((u) => u.status === 'AUTOLABEL_DONE').length;
-  const pendingCount = uploads.filter(
+  const pendingUploads = uploads.filter(
     (u) => u.status === 'COMPLETED' || u.status === 'AUTOLABEL_PENDING',
-  ).length;
+  );
+  const pendingCount = pendingUploads.length;
+  const firstPendingSrcSn = pendingUploads[0]?.srcSn ?? null;
 
   function handleAccept(file: File) {
     setRejectionMsg(null);
@@ -124,10 +128,18 @@ export function PortalHomePage() {
                 라벨링 필요{' '}
                 <span className="font-semibold text-orange-600">{pendingCount}건</span>
               </p>
-              <div className="mt-auto flex items-center justify-center gap-1.5 rounded-lg bg-orange-50 px-3 py-2 text-sub text-orange-700">
+              <button
+                onClick={() => {
+                  if (firstPendingSrcSn !== null) {
+                    navigate(`/portal/label/${firstPendingSrcSn}`);
+                  }
+                }}
+                disabled={firstPendingSrcSn === null}
+                className="mt-auto flex w-full items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-sub font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 <Play className="h-3.5 w-3.5" aria-hidden />
-                아래 목록에서 영상을 선택해 라벨링을 시작하세요
-              </div>
+                시작하기 ▶
+              </button>
             </article>
           </div>
         </section>

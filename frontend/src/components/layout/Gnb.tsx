@@ -60,7 +60,9 @@ export function Gnb() {
           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-sm font-bold shrink-0">
             {initials}
           </div>
-          <span className="text-sm font-medium text-gray-700 hidden sm:block">{name}</span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm font-medium text-gray-700">{name}</span>
+          </div>
         </div>
       </div>
     </header>

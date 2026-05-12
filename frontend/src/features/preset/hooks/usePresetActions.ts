@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { clonePreset, createPreset, deletePreset, updatePreset } from '../api';
-import type { PresetForm } from '../schemas';
+import type { PresetForm } from '../types';
 import { PRESETS_QUERY_KEY } from './usePresets';
 
 export function usePresetActions() {

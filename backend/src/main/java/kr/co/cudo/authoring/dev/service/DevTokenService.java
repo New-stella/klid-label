@@ -8,6 +8,8 @@ import kr.co.cudo.authoring.common.security.JwtKeyResolver;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.dev.dto.DevTokenRequest;
 import kr.co.cudo.authoring.dev.dto.DevTokenResponse;
+import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -18,6 +20,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * [개발/검수 전용] 테스트 JWT 발급 서비스.
@@ -49,13 +52,16 @@ public class DevTokenService {
     private static final String DEFAULT_NAME_PORTAL = "포털사용자";
 
     private final JwtKeyResolver keyResolver;
+    private final UserRepository userRepository;
     private final String issuer;
 
     public DevTokenService(
             JwtKeyResolver keyResolver,
+            UserRepository userRepository,
             @Value("${authoring.jwt.allowed-issuers:klid-auth,klid,klid-portal}") List<String> allowedIssuers
     ) {
         this.keyResolver = keyResolver;
+        this.userRepository = userRepository;
         this.issuer = resolveIssuer(allowedIssuers);
     }
 
@@ -77,7 +83,7 @@ public class DevTokenService {
 
         int expSeconds = clampExp(req.expSeconds());
         String userNo = resolveUserNo(req.userNo(), role);
-        String name = resolveName(req.name(), role);
+        String name = resolveName(req.name(), role, userNo);
 
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(expSeconds);
@@ -150,10 +156,26 @@ public class DevTokenService {
         };
     }
 
-    private static String resolveName(String name, Role role) {
+    private String resolveName(String name, Role role, String userNo) {
         if (name != null && !name.isBlank()) {
             return name.trim();
         }
+        if (userNo != null && !userNo.isBlank()) {
+            try {
+                Long userNoLong = Long.parseLong(userNo.trim());
+                Optional<MngAcctUser> user = userRepository.findByUserNo(userNoLong);
+                if (user.isPresent() && user.get().getUserNm() != null
+                        && !user.get().getUserNm().isBlank()) {
+                    return user.get().getUserNm();
+                }
+            } catch (NumberFormatException ignored) {
+                // userNo 가 숫자가 아니면 fallback
+            }
+        }
+        return defaultNameByRole(role);
+    }
+
+    private static String defaultNameByRole(Role role) {
         return switch (role) {
             case REVIEWER -> DEFAULT_NAME_REVIEWER;
             case WORKER -> DEFAULT_NAME_WORKER;

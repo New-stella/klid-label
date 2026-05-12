@@ -2,19 +2,21 @@
 
 import type { EventTypeCd } from '@/features/dashboard/types';
 
-/** 작업자 통계 — KPI 4 + 일별/이벤트별 분포 + 월별 표 */
+/** 작업자 통계 — KPI + 일별/월별 — mock WorkerStat 정합 */
 export interface WorkerStatSummary {
-  totalLabeled: number; // 누적 라벨 프레임
-  totalReviewed: number; // 누적 검수 건수
-  approvalRate: number; // 승인률 (0~100)
-  averageElapsedSec: number; // 평균 소요시간 (초)
+  workerId: string;
+  workerName: string;
+  completed: number; // 완료 작업
+  inProgress: number; // 진행 중
+  rejected: number; // 반려
+  labelCount: number; // 총 라벨 수
+  autoLabelRate: number; // 오토라벨 비율 (0~1)
+  rejectRate: number; // 반려율 (0~1)
 
-  /** 일별 완료 — 최근 N일 */
+  /** 일별 완료 — 최근 30일 */
   dailyCompletion: { date: string; count: number }[];
-  /** 이벤트 비율 — 6종 */
-  eventDistribution: { eventTypeCd: EventTypeCd; label: string; count: number }[];
-  /** 월별 표 */
-  monthly: { month: string; labeled: number; reviewed: number; approvalRate: number }[];
+  /** 월별 통계 — 최근 12개월 */
+  monthly: { month: string; completed: number; rejected: number; labelCount: number }[];
 }
 
 export type StatPeriod = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
@@ -45,4 +47,7 @@ export interface OverallStatSummary {
     reviewed: number;
     approvalRate: number;
   }[];
+
+  /** 일별 전체 작업량 (최근 30일) — OverallStatPage 차트용 */
+  dailyCounts?: { date: string; count: number }[];
 }

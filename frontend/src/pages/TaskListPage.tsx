@@ -23,6 +23,7 @@ import { ProgressBar } from '@/components/common/ProgressBar';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 import { AssignModal } from '@/features/task/components/AssignModal';
+import { HistoryModal } from '@/features/task/components/HistoryModal';
 import {
   DEFAULT_TASK_FILTERS,
   TaskFilters,
@@ -149,8 +150,18 @@ export function TaskListPage() {
     'assign',
   );
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  // 미배정 영상 단건 신규 배정용 (task=null 일 때 사용)
+  const [selectedVideoForAssign, setSelectedVideoForAssign] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(
     new Set(),
+  );
+  // 이력 모달
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyAssignmentId, setHistoryAssignmentId] = useState<number | null>(
+    null,
   );
 
   // 데이터 fetch — workerId 필터(URL)는 그대로 BE로 위임
@@ -607,10 +618,20 @@ export function TaskListPage() {
                               variant="secondary"
                               size="sm"
                               onClick={() => {
-                                setSelectedTask(r.task ?? null);
-                                setAssignMode(
-                                  r.task?.workerId ? 'reassign' : 'assign',
-                                );
+                                if (r.task?.workerId) {
+                                  // 기존 배정 — 재배정 모드
+                                  setSelectedTask(r.task);
+                                  setSelectedVideoForAssign(null);
+                                  setAssignMode('reassign');
+                                } else {
+                                  // 미배정 영상 — 단건 신규 배정 모드 (videoId 전달)
+                                  setSelectedTask(null);
+                                  setSelectedVideoForAssign({
+                                    id: r.video.id,
+                                    name: r.videoName,
+                                  });
+                                  setAssignMode('assign');
+                                }
                                 setAssignModalOpen(true);
                               }}
                             >
@@ -622,16 +643,15 @@ export function TaskListPage() {
                               {r.task?.workerId ? '재배정' : '배정'}
                             </Button>
                           )}
-                          {/* 이력 — task가 있을 때만 */}
-                          {r.task && (
+                          {/* 이력 — task가 있을 때만 (REVIEWER 만 접근 가능 — BE PreAuthorize 일치) */}
+                          {isReviewer && r.task && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() =>
-                                alert(
-                                  `배정 이력: 작업 #${r.task!.id}\n(추후 구현)`,
-                                )
-                              }
+                              onClick={() => {
+                                setHistoryAssignmentId(r.task!.id);
+                                setHistoryModalOpen(true);
+                              }}
                             >
                               <History size={14} aria-hidden />
                               이력
@@ -699,18 +719,37 @@ export function TaskListPage() {
         mode={assignMode}
         onSuccess={() => {
           setAssignModalOpen(false);
+          setSelectedVideoForAssign(null);
           setSelectedVideoIds(new Set());
           refetch();
           queryClient.invalidateQueries({ queryKey: ['assignments'] });
         }}
         onBulkSuccess={() => {
           setAssignModalOpen(false);
+          setSelectedVideoForAssign(null);
           setSelectedVideoIds(new Set());
           refetch();
           queryClient.invalidateQueries({ queryKey: ['assignments'] });
         }}
         videoIds={assignMode === 'bulk' ? Array.from(selectedVideoIds) : []}
         videoNameById={videoNameById}
+        videoId={
+          assignMode === 'assign' && !selectedTask
+            ? selectedVideoForAssign?.id
+            : undefined
+        }
+        videoName={
+          assignMode === 'assign' && !selectedTask
+            ? selectedVideoForAssign?.name
+            : undefined
+        }
+      />
+
+      {/* 배정 이력 모달 */}
+      <HistoryModal
+        open={historyModalOpen}
+        onClose={() => setHistoryModalOpen(false)}
+        assignmentId={historyAssignmentId}
       />
     </div>
   );

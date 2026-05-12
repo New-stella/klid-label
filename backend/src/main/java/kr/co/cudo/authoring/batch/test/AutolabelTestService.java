@@ -62,7 +62,7 @@ public class AutolabelTestService {
 
             long elapsed = System.currentTimeMillis() - started;
             statusService.markCompleted(rawSn);
-            videoRepository.updateStatus(rawSn, "BATCH_COMPLETED");
+            videoRepository.updateStatus(rawSn, "COMPLETED");
 
             log.info("[AutolabelTest] run rawSn={} yolo={} sam2={} elapsed={}ms",
                     rawSn, yoloCount, sam2Count, elapsed);
@@ -70,7 +70,7 @@ public class AutolabelTestService {
             return new AutolabelRunResponse(rawSn, framesFound, false, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
         } catch (Exception e) {
             statusService.markFailed(rawSn, e);
-            videoRepository.updateStatus(rawSn, "BATCH_FAILED");
+            videoRepository.updateStatus(rawSn, "FAILED");
             throw e;
         }
     }
@@ -107,7 +107,7 @@ public class AutolabelTestService {
 
             long elapsed = System.currentTimeMillis() - started;
             statusService.markCompleted(rawSn);
-            videoRepository.updateStatus(rawSn, "BATCH_COMPLETED");
+            videoRepository.updateStatus(rawSn, "COMPLETED");
 
             log.info("[AutolabelTest] runFull rawSn={} frameExtracted={} yolo={} sam2={} elapsed={}ms",
                     rawSn, frameExtracted, yoloCount, sam2Count, elapsed);
@@ -115,7 +115,7 @@ public class AutolabelTestService {
             return new AutolabelRunResponse(rawSn, framesFound, frameExtracted, yoloCount, sam2Count, elapsed, SKIPPED_STEPS);
         } catch (Exception e) {
             statusService.markFailed(rawSn, e);
-            videoRepository.updateStatus(rawSn, "BATCH_FAILED");
+            videoRepository.updateStatus(rawSn, "FAILED");
             throw e;
         }
     }

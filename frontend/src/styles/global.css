@@ -16,5 +16,7 @@
       Arial, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
     color: #111827;
     background-color: #f9fafb;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }

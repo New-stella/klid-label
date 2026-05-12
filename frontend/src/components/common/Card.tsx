@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 
 export interface CardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   title?: ReactNode;
+  description?: ReactNode;
   actions?: ReactNode;
   footer?: ReactNode;
   padding?: 'none' | 'sm' | 'md' | 'lg';
@@ -12,12 +13,13 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'>
 const paddingClass = {
   none: 'p-0',
   sm: 'p-3',
-  md: 'p-4',
+  md: 'px-6 py-4',
   lg: 'p-6',
 } as const;
 
 export function Card({
   title,
+  description,
   actions,
   footer,
   padding = 'md',
@@ -25,6 +27,8 @@ export function Card({
   children,
   ...rest
 }: CardProps) {
+  const hasHeader = title || description || actions;
+
   return (
     <section
       className={cn(
@@ -33,12 +37,21 @@ export function Card({
       )}
       {...rest}
     >
-      {(title || actions) && (
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          {title && (
-            <h3 className="text-section-title text-gray-900">{title}</h3>
+      {hasHeader && (
+        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
+          <div className="flex-1 min-w-0 mr-4">
+            {title && (
+              <h3 className="text-base font-semibold text-gray-900 truncate">
+                {title}
+              </h3>
+            )}
+            {description && (
+              <p className="text-sm text-gray-500 mt-0.5">{description}</p>
+            )}
+          </div>
+          {actions && (
+            <div className="flex items-center gap-2 shrink-0">{actions}</div>
           )}
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
         </div>
       )}
       <div className={paddingClass[padding]}>{children}</div>

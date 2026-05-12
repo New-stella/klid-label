@@ -8,7 +8,10 @@ export interface StageBadgeProps {
 }
 
 // mock 정합 — stage(이름)별 라벨
+// V1.x 후속: 모두 DONE인 영상은 'COMPLETED' stage로 전달 → '완료' 라벨(초록 톤)
 const STAGE_LABEL: Record<string, string> = {
+  COMPLETED: '완료',
+  FAILED: '실패',
   FRAME_EXTRACT: '프레임추출',
   DEIDENTIFY: '비식별화',
   YOLO: 'YOLO',

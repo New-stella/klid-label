@@ -86,6 +86,6 @@ export const DEIDENT_KEYS = {
 
 export const STAT_KEYS = {
   all: ['stats'] as const,
-  worker: (userId: number) => [...STAT_KEYS.all, 'worker', userId] as const,
+  worker: (userId: number | string) => [...STAT_KEYS.all, 'worker', userId] as const,
   overall: () => [...STAT_KEYS.all, 'overall'] as const,
 };

@@ -18,7 +18,16 @@ public record DashboardSummaryResponse(
         long rejectedCount,
         long cumulativeImageCount,
         long cumulativeVideoCount,
+        /**
+         * 영상(LS_DATA_RAW) 단위 이벤트 6종 분포 — "영상 데이터 개수" 카드용.
+         * 후방 호환을 위해 필드명을 유지한다.
+         */
         List<EventDistributionItem> eventDistribution,
+        /**
+         * 프레임(LS_DATA_SRC) 단위 이벤트 6종 분포 — "이미지 데이터 개수" 카드용.
+         * 영상 1건당 N프레임이 모두 합산되므로 eventDistribution 보다 일반적으로 크다.
+         */
+        List<EventDistributionItem> imageDistribution,
         MyTaskBreakdown myTask,
         List<NoticeItem> notices
 ) {

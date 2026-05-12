@@ -12,12 +12,15 @@ import kr.co.cudo.authoring.stats.dto.OverallStatSummaryResponse;
 import kr.co.cudo.authoring.stats.dto.WorkerStatSummaryResponse;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.CountRow;
+import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.UserCountRow;
+import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.WorkerStatRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +56,19 @@ public class StatsService {
             new EventLabel("WILDFIRE", "산불")
     );
 
+    /**
+     * UI 코드(FE EventTypeCd) → DB 시드 코드(EVT_ 접두사) 매핑.
+     * LS_DATA_RAW.EVNT_TYPE_CD 가 실제 'EVT_FALL' 등으로 저장되므로 카운트 조회 시 변환 필요.
+     */
+    private static final Map<String, String> UI_CODE_TO_DB_CODE = Map.of(
+            "FALL", "EVT_FALL",
+            "VIOLENCE", "EVT_VIOLENCE",
+            "TRAFFIC_ACCIDENT", "EVT_ACCIDENT",
+            "ABNORMAL_BEHAVIOR", "EVT_ABNORMAL",
+            "FLOOD", "EVT_FLOOD",
+            "WILDFIRE", "EVT_FIRE"
+    );
+
     private record EventLabel(String code, String label) {
     }
 
@@ -76,6 +92,8 @@ public class StatsService {
 
         List<EventDistributionItem> distribution = buildDistribution(
                 toMap(statsQueryRepository.countVideoByEventType()));
+        List<EventDistributionItem> imageDistribution = buildDistribution(
+                toMap(statsQueryRepository.countFrameByEventType()));
 
         Long userNo = parseUserNo(actor);
         boolean isWorker = actor != null && actor.role() == Role.WORKER && userNo != null;
@@ -94,6 +112,7 @@ public class StatsService {
                 cumulativeImageCount,
                 cumulativeVideoCount,
                 distribution,
+                imageDistribution,
                 myTask,
                 notices
         );
@@ -118,7 +137,7 @@ public class StatsService {
                 .map(e -> new EventDistributionItem(
                         e.code(),
                         e.label(),
-                        raw.getOrDefault(e.code(), 0L)))
+                        raw.getOrDefault(UI_CODE_TO_DB_CODE.getOrDefault(e.code(), e.code()), 0L)))
                 .toList();
     }
 
@@ -174,13 +193,55 @@ public class StatsService {
         );
         List<EventDistributionItem> distribution = buildDistribution(
                 toMap(statsQueryRepository.countVideoByEventType()));
+        List<OverallStatSummaryResponse.WorkerRow> workers = buildWorkerRows();
         return new OverallStatSummaryResponse(
                 cumulativeImageCount,
                 cumulativeVideoCount,
                 processing,
                 distribution,
-                List.of()
+                workers
         );
+    }
+
+    /**
+     * SCR-STAT-002 작업자별 통계 행 조립.
+     *
+     * <p>LABELER 배정 + 상태별 카운트는 JPQL 한 번에 GROUP BY 로 가져오고
+     * (N+1 회피), REVIEWER 배정 수는 별도 GROUP BY 쿼리 1 회 추가 후
+     * Map 으로 합산한다. approvalRate 는 분모 0 일 때 0.0.
+     */
+    private List<OverallStatSummaryResponse.WorkerRow> buildWorkerRows() {
+        List<WorkerStatRow> rows = statsQueryRepository.findWorkerStats();
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Long> reviewedMap = toUserCountMap(statsQueryRepository.countReviewerByUser());
+        return rows.stream()
+                .map(r -> {
+                    long approved = r.getApprovedCount();
+                    long rejected = r.getRejectedCount();
+                    long denom = approved + rejected;
+                    double approvalRate = (denom == 0) ? 0.0 : (approved * 100.0 / denom);
+                    long reviewed = reviewedMap.getOrDefault(r.getUserId(), 0L);
+                    return new OverallStatSummaryResponse.WorkerRow(
+                            r.getUserId() == null ? 0L : r.getUserId(),
+                            r.getName(),
+                            r.getLabeled(),
+                            reviewed,
+                            approvalRate
+                    );
+                })
+                .toList();
+    }
+
+    private Map<Long, Long> toUserCountMap(List<UserCountRow> rows) {
+        Map<Long, Long> m = new HashMap<>();
+        for (UserCountRow r : rows) {
+            if (r.getCode() != null) {
+                m.put(r.getCode(), r.getCnt());
+            }
+        }
+        return m;
     }
 
     private Long parseUserNo(TokenClaims actor) {

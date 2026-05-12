@@ -6,36 +6,37 @@ import type { Preset } from '@/features/preset/types';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
 describe('PresetEditModal', () => {
-  it('라벨_항목_최대_6종_제한_추가_버튼_비활성화', () => {
+  it('초기값_라벨_코드_렌더링', () => {
     const initial: Preset = {
       id: 1,
-      name: '6종 가득',
-      eventTypeCd: 'FALL',
-      items: Array.from({ length: 6 }, (_, i) => ({
-        name: `항목${i + 1}`,
-        shape: 'BBOX',
-        color: '#ef4444',
-      })),
+      name: '교통사고 표준',
+      description: '교통사고용',
+      labelCodes: ['PERSON', 'VEHICLE'],
+      createdAt: '2026-05-01T00:00:00Z',
+      updatedAt: '2026-05-10T00:00:00Z',
     };
     renderWithProviders(
       <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
     );
 
-    const addBtn = screen.getByTestId('preset-add-item-btn');
-    expect(addBtn).toBeDisabled();
-    expect(screen.getByTestId('preset-items-count').textContent).toContain('6 / 6');
+    expect(screen.getByTestId('preset-labels-count').textContent).toContain('2');
+    expect(screen.getByText('PERSON')).toBeInTheDocument();
+    expect(screen.getByText('VEHICLE')).toBeInTheDocument();
   });
 
-  it('이름_특수문자_시_zod_에러_노출', async () => {
+  it('라벨_코드_미입력_시_zod_에러_노출', async () => {
     const onSubmit = vi.fn();
-    renderWithProviders(<PresetEditModal open onClose={() => undefined} onSubmit={onSubmit} />);
+    renderWithProviders(
+      <PresetEditModal open onClose={() => undefined} onSubmit={onSubmit} />,
+    );
 
-    const nameInput = screen.getByLabelText('프리셋명');
-    fireEvent.change(nameInput, { target: { value: '<script>' } });
-    fireEvent.click(screen.getByText('저장'));
+    fireEvent.change(screen.getByLabelText(/프리셋 이름/), {
+      target: { value: '새 프리셋' },
+    });
+    fireEvent.click(screen.getByText('만들기'));
 
     await waitFor(() => {
-      expect(screen.getByText(/특수문자 제한/)).toBeInTheDocument();
+      expect(screen.getByText(/1개 이상/)).toBeInTheDocument();
     });
     expect(onSubmit).not.toHaveBeenCalled();
   });

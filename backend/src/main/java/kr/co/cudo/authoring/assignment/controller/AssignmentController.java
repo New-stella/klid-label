@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
+import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.service.AssignmentService;
@@ -28,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Tag(name = "Assignment", description = "작업 배정 — REVIEWER가 WORKER에게 라벨링 작업을 배정/재배정한다 (V1.3 정책).")
 @RestController
@@ -91,5 +94,20 @@ public class AssignmentController {
                                                             @AuthenticationPrincipal TokenClaims actor,
                                                             @PageableDefault(size = 20) Pageable pageable) {
         return ApiResponse.ok(assignmentService.listAssignments(workerId, actor, pageable));
+    }
+
+    @Operation(
+            summary = "배정 이력 조회",
+            description = "단일 배정의 재배정 이력을 시간 오름차순으로 반환한다. REVIEWER 만 조회 가능."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @GetMapping("/{assignmentId}/history")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<List<AssignmentHistoryResponse>> history(@Parameter(description = "배정 PK", required = true, example = "100") @PathVariable Long assignmentId) {
+        return ApiResponse.ok(assignmentService.getHistory(assignmentId));
     }
 }

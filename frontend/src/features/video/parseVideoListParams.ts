@@ -43,6 +43,9 @@ export function parseVideoListParams(params: URLSearchParams): VideoListParams {
   const to = params.get('to');
   if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) next.to = to;
 
+  const dataSttsCd = params.get('dataSttsCd');
+  if (dataSttsCd) next.dataSttsCd = dataSttsCd.slice(0, 50);
+
   return next;
 }
 
@@ -60,5 +63,6 @@ export function videoListParamsToSearchParams(params: VideoListParams): URLSearc
   if (params.localGovId !== undefined) sp.set('localGovId', String(params.localGovId));
   if (params.from) sp.set('from', params.from);
   if (params.to) sp.set('to', params.to);
+  if (params.dataSttsCd) sp.set('dataSttsCd', params.dataSttsCd);
   return sp;
 }

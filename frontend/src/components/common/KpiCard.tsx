@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { TrendingDown, TrendingUp } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 
@@ -11,6 +12,7 @@ export interface KpiCardProps {
     label?: string;
   };
   icon?: ReactNode;
+  iconBgClassName?: string;
   className?: string;
   onClick?: () => void;
 }
@@ -26,6 +28,7 @@ export function KpiCard({
   unit,
   trend,
   icon,
+  iconBgClassName,
   className,
   onClick,
 }: KpiCardProps) {
@@ -35,34 +38,41 @@ export function KpiCard({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'flex w-full flex-col gap-2 rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition-colors',
+        'flex w-full items-start justify-between rounded-lg border border-gray-200 bg-white px-6 py-5 text-left shadow-sm transition-colors',
         onClick &&
           'cursor-pointer hover:border-primary-400 focus-visible:ring-2 focus-visible:ring-primary-500',
         className,
       )}
     >
-      <div className="flex items-start justify-between">
-        <span className="text-sub font-medium text-gray-500">{label}</span>
-        {icon && <span aria-hidden="true">{icon}</span>}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-gray-500">{label}</p>
+        <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
+          {formatNumber(value)}
+          {unit && <span className="ml-1 text-sm font-normal text-gray-500">{unit}</span>}
+        </p>
+        {trend && (
+          <div
+            className={cn(
+              'mt-1.5 flex items-center gap-1 text-xs font-medium',
+              trend.delta > 0 && 'text-green-600',
+              trend.delta < 0 && 'text-red-500',
+              trend.delta === 0 && 'text-gray-500',
+            )}
+          >
+            {trend.delta > 0 && <TrendingUp className="h-3.5 w-3.5" />}
+            {trend.delta < 0 && <TrendingDown className="h-3.5 w-3.5" />}
+            <span>
+              {trend.delta > 0 ? '+' : ''}
+              {trend.delta.toLocaleString('ko-KR')}
+              {trend.label ? ` ${trend.label}` : ''}
+            </span>
+          </div>
+        )}
       </div>
-      <div className="flex items-baseline gap-1">
-        <strong className="text-page-title text-gray-900 tabular-nums">{formatNumber(value)}</strong>
-        {unit && <span className="text-sub text-gray-500">{unit}</span>}
-      </div>
-      {trend && (
-        <span
-          className={cn(
-            'text-sub font-medium',
-            trend.delta > 0 && 'text-green-600',
-            trend.delta < 0 && 'text-red-500',
-            trend.delta === 0 && 'text-gray-500',
-          )}
-        >
-          {trend.delta > 0 && '▲ '}
-          {trend.delta < 0 && '▼ '}
-          {Math.abs(trend.delta).toLocaleString('ko-KR')}
-          {trend.label ? ` ${trend.label}` : ''}
-        </span>
+      {icon && (
+        <div className={cn('rounded-lg p-2.5', iconBgClassName ?? 'bg-gray-100')} aria-hidden="true">
+          {icon}
+        </div>
       )}
     </Wrapper>
   );

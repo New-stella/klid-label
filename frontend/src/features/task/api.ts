@@ -6,6 +6,7 @@ import type { PageResponse } from '@/lib/api/types';
 import type {
   AssignTaskRequest,
   Assignment,
+  AssignmentHistory,
   ReassignTaskRequest,
   Task,
   TaskListParams,
@@ -30,4 +31,14 @@ export function assignTask(body: AssignTaskRequest) {
  */
 export function reassignTask(id: number, body: ReassignTaskRequest) {
   return apiClient.patch<Assignment>(`/assignments/${id}`, body).then((r) => r.data);
+}
+
+/**
+ * 배정 이력 조회 — REVIEWER 만 접근(서버측 @PreAuthorize 검증).
+ * URL 파라미터는 axios 가 안전하게 인코딩한다.
+ */
+export function getAssignmentHistory(assignmentId: number) {
+  return apiClient
+    .get<AssignmentHistory[]>(`/assignments/${assignmentId}/history`)
+    .then((r) => r.data);
 }

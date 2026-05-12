@@ -1,32 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
-import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
-import { Select } from '@/components/common/Select';
 
-import { presetSchema, type PresetForm } from '../schemas';
-import type { Preset } from '../types';
-
-const EVENT_OPTIONS = [
-  { value: 'FALL', label: '낙상' },
-  { value: 'VIOLENCE', label: '폭력' },
-  { value: 'TRAFFIC_ACCIDENT', label: '교통사고' },
-  { value: 'ABNORMAL_BEHAVIOR', label: '이상행동' },
-  { value: 'FLOOD', label: '침수' },
-  { value: 'WILDFIRE', label: '산불' },
-];
-
-const SHAPE_OPTIONS = [
-  { value: 'BBOX', label: '바운딩박스' },
-  { value: 'POLYGON', label: '폴리곤' },
-  { value: 'SEGMENT', label: '세그멘테이션' },
-  { value: 'TRACK', label: '트랙' },
-];
-
-const MAX_ITEMS = 6;
+import { presetSchema, type PresetFormValues } from '../schemas';
+import { PRESET_LABEL_SUGGESTIONS, type Preset, type PresetForm } from '../types';
 
 export interface PresetEditModalProps {
   open: boolean;
@@ -36,13 +17,16 @@ export interface PresetEditModalProps {
   submitting?: boolean;
 }
 
-const EMPTY_FORM: PresetForm = {
+const EMPTY_FORM: PresetFormValues = {
   name: '',
-  eventTypeCd: 'FALL',
-  subType: '',
-  items: [{ name: '항목1', shape: 'BBOX', color: '#ef4444' }],
+  description: '',
+  labelCodes: [],
 };
 
+/**
+ * mock의 PresetFormModal 패턴을 그대로 포팅한 모달.
+ * - 이름 / 설명 / 라벨 코드 chips + 빠른 추가 chips
+ */
 export function PresetEditModal({
   open,
   onClose,
@@ -50,18 +34,22 @@ export function PresetEditModal({
   onSubmit,
   submitting,
 }: PresetEditModalProps) {
+  const isEdit = !!initial;
+
   const {
     register,
-    control,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
-  } = useForm<PresetForm>({
+  } = useForm<PresetFormValues>({
     resolver: zodResolver(presetSchema),
     defaultValues: EMPTY_FORM,
   });
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+  const labelCodes = watch('labelCodes') ?? [];
+  const [newCode, setNewCode] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -69,148 +57,205 @@ export function PresetEditModal({
         initial
           ? {
               name: initial.name,
-              eventTypeCd: initial.eventTypeCd,
-              subType: initial.subType ?? '',
-              items: initial.items.map((it) => ({
-                id: it.id,
-                name: it.name,
-                shape: it.shape,
-                color: it.color,
-                attributes: it.attributes,
-              })),
+              description: initial.description ?? '',
+              labelCodes: [...initial.labelCodes],
             }
           : EMPTY_FORM,
       );
+      setNewCode('');
     }
   }, [open, initial, reset]);
 
-  const submit = handleSubmit((form) => {
-    onSubmit(form);
-  });
+  const addLabel = (code: string) => {
+    const upper = code.trim().toUpperCase();
+    if (!upper || labelCodes.includes(upper)) return;
+    setValue('labelCodes', [...labelCodes, upper], {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    setNewCode('');
+  };
 
-  const canAdd = fields.length < MAX_ITEMS;
+  const removeLabel = (code: string) => {
+    setValue(
+      'labelCodes',
+      labelCodes.filter((c) => c !== code),
+      { shouldValidate: true, shouldDirty: true },
+    );
+  };
+
+  const submit = handleSubmit((form) => {
+    onSubmit({
+      name: form.name,
+      description: form.description ?? '',
+      labelCodes: form.labelCodes,
+    });
+  });
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       size="lg"
-      title={initial ? '프리셋 수정' : '프리셋 추가'}
+      title={isEdit ? '프리셋 편집' : '새 프리셋 만들기'}
       footer={
         <>
-          <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={submitting}
+          >
             취소
           </Button>
-          <Button type="button" variant="primary" onClick={submit} loading={submitting}>
-            저장
+          <Button
+            type="button"
+            variant="primary"
+            onClick={submit}
+            loading={submitting}
+          >
+            {isEdit ? '저장' : '만들기'}
           </Button>
         </>
       }
     >
       <form
-        className="flex flex-col gap-3"
+        className="space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
       >
-        <Input
-          label="프리셋명"
-          placeholder="예: 화재 표준 라벨"
-          error={errors.name?.message}
-          {...register('name')}
-        />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Select
-            label="이벤트 유형"
-            options={EVENT_OPTIONS}
-            {...register('eventTypeCd')}
-          />
-          <Input
-            label="서브 유형 (선택)"
-            placeholder="예: 산불"
-            error={errors.subType?.message}
-            {...register('subType')}
-          />
-        </div>
-
-        <div className="flex items-center justify-between border-b border-border pb-2">
-          <h3 className="text-section-title text-primary">라벨 항목</h3>
-          <span
-            className="text-sub text-neutral"
-            data-testid="preset-items-count"
+        {/* Name */}
+        <div className="space-y-1.5">
+          <label
+            className="block text-sm font-medium text-gray-700"
+            htmlFor="preset-name"
           >
-            {fields.length} / {MAX_ITEMS}
-          </span>
-        </div>
-
-        <ul className="flex flex-col gap-2" data-testid="preset-items-list">
-          {fields.map((field, idx) => (
-            <li
-              key={field.id}
-              className="grid grid-cols-12 items-end gap-2 rounded border border-border p-2"
-            >
-              <div className="col-span-4">
-                <Input
-                  label={`항목 ${idx + 1}`}
-                  placeholder="라벨명"
-                  error={errors.items?.[idx]?.name?.message}
-                  {...register(`items.${idx}.name`)}
-                />
-              </div>
-              <div className="col-span-3">
-                <Select
-                  label="형태"
-                  options={SHAPE_OPTIONS}
-                  {...register(`items.${idx}.shape`)}
-                />
-              </div>
-              <div className="col-span-3">
-                <Input
-                  label="색상"
-                  type="color"
-                  className="h-10 p-1"
-                  error={errors.items?.[idx]?.color?.message}
-                  {...register(`items.${idx}.color`)}
-                />
-              </div>
-              <div className="col-span-2 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => remove(idx)}
-                  disabled={fields.length <= 1}
-                >
-                  삭제
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {errors.items?.message && (
-          <p className="text-sub text-danger" role="alert">
-            {errors.items.message}
-          </p>
-        )}
-
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!canAdd}
-            onClick={() =>
-              append({ name: `항목${fields.length + 1}`, shape: 'BBOX', color: '#3b82f6' })
-            }
-            data-testid="preset-add-item-btn"
-          >
-            + 라벨 항목 추가
-          </Button>
-          {!canAdd && (
-            <p className="mt-1 text-sub text-neutral">최대 6개까지 등록할 수 있습니다</p>
+            프리셋 이름 <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="preset-name"
+            type="text"
+            placeholder="예: 교통사고 표준 프리셋"
+            className={[
+              'w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500',
+              errors.name ? 'border-red-400' : 'border-gray-300',
+            ].join(' ')}
+            {...register('name')}
+          />
+          {errors.name?.message && (
+            <p className="text-xs text-red-500">{errors.name.message}</p>
           )}
+        </div>
+
+        {/* Description */}
+        <div className="space-y-1.5">
+          <label
+            className="block text-sm font-medium text-gray-700"
+            htmlFor="preset-desc"
+          >
+            설명
+          </label>
+          <textarea
+            id="preset-desc"
+            placeholder="프리셋에 대한 설명을 입력하세요."
+            rows={2}
+            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
+            {...register('description')}
+          />
+          {errors.description?.message && (
+            <p className="text-xs text-red-500">{errors.description.message}</p>
+          )}
+        </div>
+
+        {/* Label codes */}
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">
+            라벨 항목 <span className="text-red-500">*</span>
+            <span
+              className="ml-1 font-normal text-gray-400"
+              data-testid="preset-labels-count"
+            >
+              ({labelCodes.length}개)
+            </span>
+          </label>
+
+          {/* Existing labels */}
+          {labelCodes.length > 0 && (
+            <div className="flex flex-wrap gap-2" data-testid="preset-labels-list">
+              {labelCodes.map((code) => (
+                <span
+                  key={code}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-100 text-primary-700 text-xs font-medium"
+                >
+                  {code}
+                  <button
+                    type="button"
+                    onClick={() => removeLabel(code)}
+                    className="ml-0.5 hover:text-red-500 transition-colors"
+                    aria-label={`${code} 삭제`}
+                  >
+                    <Trash2 className="h-3 w-3" aria-hidden />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Add new label */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newCode}
+              onChange={(e) => setNewCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addLabel(newCode);
+                }
+              }}
+              placeholder="라벨 코드 입력 (Enter로 추가)"
+              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              aria-label="라벨 코드 입력"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              leftIcon={Plus}
+              onClick={() => addLabel(newCode)}
+              disabled={!newCode.trim()}
+            >
+              추가
+            </Button>
+          </div>
+
+          {errors.labelCodes?.message && (
+            <p className="text-xs text-red-500" role="alert">
+              {errors.labelCodes.message}
+            </p>
+          )}
+
+          {/* Suggestions */}
+          <div className="space-y-1">
+            <p className="text-xs text-gray-400">빠른 추가:</p>
+            <div className="flex flex-wrap gap-1.5" data-testid="preset-suggestions">
+              {PRESET_LABEL_SUGGESTIONS.filter(
+                (s) => !labelCodes.includes(s.code),
+              ).map((s) => (
+                <button
+                  key={s.code}
+                  type="button"
+                  onClick={() => addLabel(s.code)}
+                  className="text-xs px-2 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 transition-colors"
+                >
+                  + {s.code}{' '}
+                  <span className="text-gray-400">({s.name})</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </form>
     </Modal>

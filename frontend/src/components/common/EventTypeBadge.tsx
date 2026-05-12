@@ -24,13 +24,22 @@ const EVENT_COLORS: Record<string, string> = {
 };
 
 // BE EventTypeCd → 한글 라벨 매핑 (대시보드 EventTypeCd와 호환)
+// DB 시드 코드(EVT_ 접두사)와 필터용 약어 코드 모두 지원
 const CODE_TO_LABEL: Record<string, string> = {
+  // 필터 약어 코드
   FALL: '쓰러짐',
   VIOLENCE: '폭력',
   TRAFFIC_ACCIDENT: '교통사고',
   ABNORMAL_BEHAVIOR: '이상행동(유괴)',
   FLOOD: '침수',
   WILDFIRE: '산불',
+  // DB EVT_ 접두사 코드 (LS_DATA_RAW.EVNT_TYPE_CD 실제 값)
+  EVT_FALL: '쓰러짐',
+  EVT_VIOLENCE: '폭력',
+  EVT_ACCIDENT: '교통사고',
+  EVT_ABNORMAL: '이상행동(유괴)',
+  EVT_FLOOD: '침수',
+  EVT_FIRE: '산불',
 };
 
 const SIZE_CLASSES = {

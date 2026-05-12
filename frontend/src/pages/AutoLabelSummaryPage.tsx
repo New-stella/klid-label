@@ -103,17 +103,30 @@ export function AutoLabelSummaryPage() {
             className="rounded border border-border bg-white p-4"
           >
             <h3 className="mb-3 text-section-title text-primary">라벨별 분포</h3>
-            <ul className="flex flex-col gap-1">
-              {data.classDistribution.map((c) => (
-                <li
-                  key={c.classId}
-                  className="flex items-center justify-between text-body text-primary"
-                >
-                  <span>{c.className}</span>
-                  <span className="text-neutral">{c.count.toLocaleString('ko-KR')}</span>
-                </li>
-              ))}
-            </ul>
+            {(() => {
+              const top10 = data.classDistribution.slice(0, 10);
+              const maxCount = Math.max(...top10.map((c) => c.count), 1);
+              return (
+                <ul className="flex flex-col gap-2">
+                  {top10.map((c) => (
+                    <li key={c.classId} className="flex items-center gap-2">
+                      <span className="w-20 shrink-0 truncate text-xs text-gray-600">
+                        {c.className}
+                      </span>
+                      <div className="flex-1 overflow-hidden rounded-full bg-gray-100 h-3">
+                        <div
+                          className="h-full rounded-full bg-blue-500 transition-all"
+                          style={{ width: `${Math.round((c.count / maxCount) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="w-8 text-right text-xs tabular-nums text-gray-500">
+                        {c.count}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
           </section>
 
           <section

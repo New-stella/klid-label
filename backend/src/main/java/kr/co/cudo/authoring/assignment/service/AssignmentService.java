@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.assignment.service;
 
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
+import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
@@ -13,6 +14,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +25,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -90,6 +97,48 @@ public class AssignmentService {
         return AssignmentResponse.single(prev);
     }
 
+    /**
+     * 단일 배정의 변경 이력 조회 — `LS_PJT_USER_AUTHRT_HSTRY` 시간순(ASC) 정렬.
+     *
+     * <p>각 row 의 prev/new userNo 를 한 번에 모아 {@code MNG_ACCT_USER} 를 일괄 조회하여 N+1 회피.
+     * 첫 row 는 ASSIGN(초기 배정 자체는 별도 row 없음 — REASSIGN 만 누적되는 구조), 이후 REASSIGN 으로 표기.
+     * 변경 사유(reason) 는 현재 스키마에 컬럼이 없으므로 null 로 반환 (V1.x — 추후 확장 시 컬럼 추가 필요).
+     */
+    public List<AssignmentHistoryResponse> getHistory(Long assignmentId) {
+        if (assignmentId == null || assignmentId <= 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 배정 ID 입니다.");
+        }
+        List<LsPjtUserAuthrtHstry> rows = hstryRepository.findByAuthrtSeqOrderByChgDtAsc(assignmentId);
+        if (rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<Long> userNos = new HashSet<>();
+        for (LsPjtUserAuthrtHstry r : rows) {
+            if (r.getPrevUserNo() != null) userNos.add(r.getPrevUserNo());
+            if (r.getNewUserNo() != null) userNos.add(r.getNewUserNo());
+        }
+        Map<Long, String> nameByUserNo = new HashMap<>();
+        for (Long no : userNos) {
+            userRepository.findByUserNo(no)
+                    .map(MngAcctUser::getUserNm)
+                    .ifPresent(name -> nameByUserNo.put(no, name));
+        }
+        List<AssignmentHistoryResponse> out = new ArrayList<>(rows.size());
+        for (LsPjtUserAuthrtHstry r : rows) {
+            out.add(new AssignmentHistoryResponse(
+                    r.getHstrySeq(),
+                    "REASSIGN",
+                    r.getPrevUserNo(),
+                    r.getPrevUserNo() != null ? nameByUserNo.get(r.getPrevUserNo()) : null,
+                    r.getNewUserNo(),
+                    r.getNewUserNo() != null ? nameByUserNo.get(r.getNewUserNo()) : null,
+                    null,
+                    r.getChgDt()
+            ));
+        }
+        return out;
+    }
+
     public Page<AssignmentResponse.Item> listAssignments(Long workerIdParam, TokenClaims actor, Pageable pageable) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
@@ -108,7 +157,35 @@ public class AssignmentService {
         } else {
             throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
         }
-        return page.map(AssignmentResponse.Item::from);
+        Map<Long, Long> reviewerByVideo = lookupReviewerByVideo(page.getContent());
+        return page.map(e -> AssignmentResponse.Item.from(e, reviewerByVideo.get(e.getRawDataId())));
+    }
+
+    /**
+     * 페이지 단위로 REVIEWER 배정 (TASK_TYPE_CD='REVIEWER') 을 한 번에 조회해
+     * rawDataId → reviewer userNo 매핑을 만든다 (N+1 회피).
+     * 동일 영상에 여러 REVIEWER 배정이 있으면 REG_DT DESC 첫 1건만 사용.
+     */
+    private Map<Long, Long> lookupReviewerByVideo(List<LsPjtUserAuthrt> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawDataIds = rows.stream()
+                .map(LsPjtUserAuthrt::getRawDataId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (rawDataIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<LsPjtUserAuthrt> reviewers = authrtRepository
+                .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(LsPjtUserAuthrt.TASK_REVIEWER, rawDataIds);
+        Map<Long, Long> map = new HashMap<>();
+        for (LsPjtUserAuthrt r : reviewers) {
+            // REG_DT DESC 정렬되어 있으므로 첫 매핑(가장 최근)만 유지.
+            map.putIfAbsent(r.getRawDataId(), r.getUserNo());
+        }
+        return map;
     }
 
     /**

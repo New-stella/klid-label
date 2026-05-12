@@ -1,6 +1,6 @@
 // 작업 배정 도메인 타입 (BE OpenAPI alias)
 
-export type AssignmentStatus = 'PENDING' | 'IN_PROGRESS' | 'SUBMITTED' | 'COMPLETED' | 'REJECTED';
+export type AssignmentStatus = 'PENDING' | 'IN_PROGRESS' | 'REVIEW_PENDING' | 'COMPLETED' | 'REJECTED';
 
 export interface Worker {
   id: number;
@@ -15,6 +15,7 @@ export interface Task {
   cctvName: string;
   workerId: number;
   workerName: string;
+  reviewerId?: number;
   status: AssignmentStatus;
   assignedAt: string;
 }
@@ -41,4 +42,19 @@ export interface AssignTaskRequest {
 
 export interface ReassignTaskRequest {
   workerId: number;
+}
+
+/**
+ * 배정 이력 한 row — BE `AssignmentHistoryResponse` alias.
+ * 변경 사유(reason)는 현재 스키마에 컬럼이 없어 null 로 전달된다.
+ */
+export interface AssignmentHistory {
+  hstrySn: number;
+  chgTypeCd: 'ASSIGN' | 'REASSIGN';
+  prevUserNo: number | null;
+  prevUserName: string | null;
+  newUserNo: number | null;
+  newUserName: string | null;
+  reason: string | null;
+  chgDt: string;
 }

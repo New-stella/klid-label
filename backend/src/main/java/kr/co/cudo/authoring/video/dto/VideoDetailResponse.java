@@ -3,6 +3,8 @@ package kr.co.cudo.authoring.video.dto;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 영상 상세 응답 — 상세 화면용.
@@ -33,16 +35,32 @@ public record VideoDetailResponse(
         Integer durationSec,
         String dataSttsCd,
         LocalDateTime regDt,
-        LocalDateTime updDt
+        LocalDateTime updDt,
+        // 프레임 미리보기 (최대 6개)
+        List<FramePreviewDto> framePreviews
 ) {
+    /** 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. */
+    public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
+
     public static VideoDetailResponse from(LsDataRaw e) {
-        return from(e, null, null, 0L);
+        return from(e, null, null, 0L, Collections.emptyList());
     }
 
     public static VideoDetailResponse from(LsDataRaw e, String cctvName, String localGov, Long frameCount) {
+        return from(e, cctvName, localGov, frameCount, Collections.emptyList());
+    }
+
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews
+    ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
         String resolvedGov = (localGov != null && !localGov.isBlank()) ? localGov : e.getLclgvCd();
         Long resolvedFrame = (frameCount != null) ? frameCount : 0L;
+        List<FramePreviewDto> resolvedPreviews = (framePreviews != null) ? framePreviews : Collections.emptyList();
         return new VideoDetailResponse(
                 e.getRawSn(),
                 resolvedCctv,
@@ -64,7 +82,8 @@ public record VideoDetailResponse(
                 e.getDurationSec(),
                 e.getDataSttsCd(),
                 e.getRegDt(),
-                e.getUpdDt()
+                e.getUpdDt(),
+                resolvedPreviews
         );
     }
 }

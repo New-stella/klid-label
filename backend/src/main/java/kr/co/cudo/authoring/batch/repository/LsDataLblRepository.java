@@ -35,6 +35,19 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     List<Object[]> countLabelsByRawSnIn(@Param("rawSns") Collection<Long> rawSns);
 
     /**
+     * 영상(rawSn)에 속한 모든 프레임의 라벨 조회 (auto + manual).
+     * LS_DATA_LBL.SRC_SN → LS_DATA_SRC.SRC_SN → LS_DATA_SRC.RAW_SN 조인.
+     */
+    @Query("""
+            SELECT l
+              FROM LsDataLbl l, LsDataSrc s
+             WHERE l.srcSn = s.srcSn
+               AND s.rawSn = :rawSn
+             ORDER BY l.lblSn ASC
+            """)
+    List<LsDataLbl> findAllByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 영상(rawSn)에 속한 모든 프레임의 자동 라벨(autoLblYn='Y')을 일괄 삭제.
      * 오토라벨링 테스트 재실행 시 idempotent 보장 용도.
      */

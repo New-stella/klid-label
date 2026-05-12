@@ -1,13 +1,13 @@
-// 프리셋 도메인 API — BE: /api/v1/manage/presets (Phase 12 — BE 미구현 시 임시 mock)
+// 프리셋 도메인 API — BE: /api/v1/manage/presets
 //
 // 보안:
 // - 모든 입력은 zod presetSchema로 검증 후 호출
-// - 이름은 axios JSON body로만 전달 (SQL/Path injection 방지)
+// - 이름/설명/labelCodes는 axios JSON body로만 전달 (SQL/Path injection 방지)
 
 import { apiClient } from '@/lib/api/client';
 
-import { presetSchema, type PresetForm } from './schemas';
-import type { Preset } from './types';
+import { presetSchema } from './schemas';
+import type { Preset, PresetForm } from './types';
 
 export function listPresets() {
   return apiClient.get<Preset[]>('/manage/presets').then((r) => r.data);

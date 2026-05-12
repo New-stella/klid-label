@@ -13,7 +13,7 @@ export interface ModalProps {
   footer?: ReactNode;
   closeOnBackdrop?: boolean;
   closeOnEsc?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   ariaLabel?: string;
 }
 
@@ -21,6 +21,7 @@ const sizeClass = {
   sm: 'max-w-sm',
   md: 'max-w-lg',
   lg: 'max-w-3xl',
+  xl: 'max-w-5xl',
 } as const;
 
 const FOCUSABLE_SELECTOR =

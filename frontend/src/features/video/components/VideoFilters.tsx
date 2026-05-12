@@ -12,10 +12,10 @@ export interface VideoFiltersProps {
 
 const STATUS_OPTIONS = [
   { value: '', label: '전체 상태' },
-  { value: 'BATCH_COMPLETED', label: '완료' },
-  { value: 'BATCH_PROCESSING', label: '처리중' },
+  { value: 'COMPLETED', label: '완료' },
+  { value: 'PROCESSING', label: '처리중' },
   { value: 'PENDING', label: '대기' },
-  { value: 'BATCH_FAILED', label: '실패' },
+  { value: 'FAILED', label: '실패' },
 ];
 
 const EVENT_OPTIONS = [
@@ -34,7 +34,7 @@ const EVENT_OPTIONS = [
  */
 export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
   const [keyword, setKeyword] = useState(initial.cctvNameKeyword ?? '');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(initial.dataSttsCd ?? '');
   const [eventTypeCd, setEventTypeCd] = useState(initial.eventTypeCd ?? '');
   const [from, setFrom] = useState(initial.from ?? '');
   const [to, setTo] = useState(initial.to ?? '');
@@ -48,6 +48,7 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
       eventTypeCd: eventTypeCd || undefined,
       from: from || undefined,
       to: to || undefined,
+      dataSttsCd: status || undefined,
     });
   };
 
@@ -57,7 +58,7 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
     setEventTypeCd('');
     setFrom('');
     setTo('');
-    onApply({ page: 0, size: initial.size ?? 20 });
+    onApply({ page: 0, size: initial.size ?? 20, dataSttsCd: undefined });
   };
 
   return (

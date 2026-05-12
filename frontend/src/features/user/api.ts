@@ -29,3 +29,20 @@ export function listUsers(params: UserListParams) {
 export function getUser(id: number) {
   return apiClient.get<User>(`/users/${id}`).then((r) => r.data);
 }
+
+/**
+ * 사용자 수정 요청 — 활성/비활성(useYn) + 역할(role). 두 필드 모두 선택.
+ * 값은 화이트리스트 리터럴 유니온으로 타입 단계에서 허용 값 외 전송을 차단.
+ */
+export interface UserUpdatePayload {
+  useYn?: 'Y' | 'N';
+  role?: 'REVIEWER' | 'WORKER' | 'PORTAL_USER';
+}
+
+/**
+ * 사용자 활성/비활성 + 역할 변경 (REVIEWER 전용).
+ * BE 가 @Pattern 화이트리스트로 useYn(Y|N)·role(REVIEWER|WORKER|PORTAL_USER) 검증.
+ */
+export function updateUser(userNo: number, payload: UserUpdatePayload) {
+  return apiClient.patch(`/users/${userNo}`, payload).then((r) => r.data);
+}

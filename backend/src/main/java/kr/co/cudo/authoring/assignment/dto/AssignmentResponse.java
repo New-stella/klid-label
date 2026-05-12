@@ -21,9 +21,20 @@ public record AssignmentResponse(
             String taskTypeCd,
             Long regUserNo,
             LocalDateTime regDt,
-            LocalDateTime assignedAt
+            LocalDateTime assignedAt,
+            // FE TaskListPage — 영상별 REVIEWER 배정자 (없으면 null)
+            Long reviewerId
     ) {
+        /**
+         * 기본 변환 — REVIEWER 정보 없이 사용한다.
+         * 서비스 레이어에서 REVIEWER 배정 lookup 후 {@link #from(LsPjtUserAuthrt, Long)} 사용 권장.
+         */
         public static Item from(LsPjtUserAuthrt e) {
+            return from(e, null);
+        }
+
+        /** REVIEWER 배정 lookup 결과를 함께 주입 (서비스에서 N+1 회피 후 호출). */
+        public static Item from(LsPjtUserAuthrt e, Long reviewerId) {
             return new Item(
                     e.getAuthrtSeq(),
                     e.getAuthrtSeq(),
@@ -37,7 +48,8 @@ public record AssignmentResponse(
                     e.getTaskTypeCd(),
                     e.getRegUserNo(),
                     e.getRegDt(),
-                    e.getRegDt()
+                    e.getRegDt(),
+                    reviewerId
             );
         }
     }

@@ -17,15 +17,15 @@ function assertPeriod(period: StatPeriod): StatPeriod {
   return period;
 }
 
-/** 작업자 본인 통계. */
-export function getWorkerDashboard(period: StatPeriod): Promise<WorkerStatSummary> {
-  return Promise.resolve()
-    .then(() => assertPeriod(period))
-    .then((safe) =>
-      apiClient
-        .get<WorkerStatSummary>('/stats/worker', { params: { period: safe } })
-        .then((r) => r.data),
-    );
+/** 작업자 본인 통계 — REVIEWER는 workerId로 임의 작업자 조회 가능. */
+export function getWorkerDashboard(
+  workerId?: number | string,
+): Promise<WorkerStatSummary> {
+  return apiClient
+    .get<WorkerStatSummary>('/stats/worker', {
+      params: workerId !== undefined && workerId !== null ? { workerId } : undefined,
+    })
+    .then((r) => r.data);
 }
 
 /** REVIEWER 전체 구축 현황. */

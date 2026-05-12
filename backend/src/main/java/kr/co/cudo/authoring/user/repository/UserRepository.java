@@ -6,8 +6,10 @@ import kr.co.cudo.authoring.user.repository.dto.WorkerWithTaskCount;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -65,4 +67,13 @@ public interface UserRepository extends JpaRepository<MngAcctUser, Long> {
                END ASC
             """)
     List<kr.co.cudo.authoring.user.entity.MngAcctUserAuthrt> findAuthrtsByUserNos(@Param("userNos") List<Long> userNos);
+
+    /**
+     * 활성/비활성 상태 변경 — 엔티티가 {@code @Immutable} 이므로 {@code @Modifying} UPDATE 로 수행.
+     * useYn 은 Controller/DTO 단계 {@code @Pattern} 화이트리스트(Y/N)로 사전 검증된 값만 도달한다.
+     */
+    @Modifying
+    @Transactional("controlTransactionManager")
+    @Query("UPDATE MngAcctUser u SET u.useYn = :useYn, u.updDt = CURRENT_TIMESTAMP WHERE u.userNo = :userNo")
+    int updateUseYn(@Param("userNo") Long userNo, @Param("useYn") String useYn);
 }

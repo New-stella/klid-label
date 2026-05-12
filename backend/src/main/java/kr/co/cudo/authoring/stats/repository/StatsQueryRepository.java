@@ -31,6 +31,24 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     List<CountRow> countVideoByEventType();
 
     /**
+     * 이벤트 유형별 프레임(이미지) 카운트.
+     *
+     * <p>LS_DATA_SRC ⨝ LS_DATA_RAW on (RAW_SN) — 영상 1건당 N프레임을 모두 합산하여
+     * "이미지 데이터 개수" 카드의 분포 단위를 영상이 아닌 프레임으로 맞춘다.
+     *
+     * <p>LsDataSrc 와 LsDataRaw 간 관계는 객체 참조가 아닌 ID 참조(rawSn)이므로
+     * JPQL 의 명시적 ON 절을 사용한다 (Hibernate 5.1+ ad-hoc JOIN).
+     */
+    @Query("""
+            SELECT r.evntTypeCd AS code, COUNT(s) AS cnt
+              FROM LsDataSrc s
+              JOIN LsDataRaw r ON s.rawSn = r.rawSn
+             WHERE r.evntTypeCd IS NOT NULL
+             GROUP BY r.evntTypeCd
+            """)
+    List<CountRow> countFrameByEventType();
+
+    /**
      * 검수 워크플로우 상태별 카운트 (PENDING / IN_REVIEW / APPROVED / REJECTED).
      * LS_PJT_DATA_STTS 는 (PJT_ID, RAW_DATA_ID) 복합 PK 라 동일 영상이 여러 PJT 에 매핑돼도 각각 1 건씩 계산된다.
      */
@@ -61,11 +79,68 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     List<CountRow> countMyTaskByStatus(@Param("userNo") Long userNo);
 
     /**
+     * 작업자별 통계 행 — SCR-STAT-002 전체 구축 현황 의 'workers' 표 데이터.
+     *
+     * <p>집계 정책:
+     * <ul>
+     *   <li>{@code labeled}        — 해당 사용자가 LABELER 로 배정된 LS_PJT_DATA_STTS 중
+     *       APPROVED/IN_REVIEW/REJECTED 합계 (작업 진행한 영상 수).</li>
+     *   <li>{@code reviewed}       — 별도 조회 (REVIEWER 배정 record 수, 서비스 레이어에서 합산).</li>
+     *   <li>{@code approvedCount}  — APPROVED 만 카운트 → approvalRate 분자.</li>
+     *   <li>{@code rejectedCount}  — REJECTED 만 카운트 → approvalRate 분모(approved+rejected).</li>
+     * </ul>
+     */
+    @Query("""
+            SELECT u.userNo AS userId,
+                   u.userNm AS name,
+                   SUM(CASE WHEN s.dataSttsCd IN ('APPROVED','IN_REVIEW','REJECTED') THEN 1 ELSE 0 END) AS labeled,
+                   0L AS reviewed,
+                   SUM(CASE WHEN s.dataSttsCd = 'APPROVED' THEN 1 ELSE 0 END) AS approvedCount,
+                   SUM(CASE WHEN s.dataSttsCd = 'REJECTED' THEN 1 ELSE 0 END) AS rejectedCount
+              FROM MngAcctUser u, LsPjtUserAuthrt a, LsPjtDataStts s
+             WHERE u.userNo = a.userNo
+               AND a.taskTypeCd = 'LABELER'
+               AND a.pjtId = s.id.pjtId
+               AND a.rawDataId = s.id.rawDataId
+             GROUP BY u.userNo, u.userNm
+             ORDER BY SUM(CASE WHEN s.dataSttsCd IN ('APPROVED','IN_REVIEW','REJECTED') THEN 1 ELSE 0 END) DESC
+            """)
+    List<WorkerStatRow> findWorkerStats();
+
+    /**
+     * 사용자별 REVIEWER 배정 record 수 — workers 표의 {@code reviewed} 컬럼.
+     * 결과 Map 형태로 합치는 작업은 서비스 레이어에서 수행.
+     */
+    @Query("""
+            SELECT a.userNo AS code, COUNT(a) AS cnt
+              FROM LsPjtUserAuthrt a
+             WHERE a.taskTypeCd = 'REVIEWER'
+             GROUP BY a.userNo
+            """)
+    List<UserCountRow> countReviewerByUser();
+
+    /**
      * 코드(=GROUP BY 대상) + 건수 를 담는 단일 인터페이스 projection.
      * 이벤트 코드 / 상태 코드 모두 동일 형태라 공용으로 사용한다.
      */
     interface CountRow {
         String getCode();
         long getCnt();
+    }
+
+    /** userNo 키 + 건수 projection. */
+    interface UserCountRow {
+        Long getCode();
+        long getCnt();
+    }
+
+    /** 작업자 통계 행 projection. */
+    interface WorkerStatRow {
+        Long getUserId();
+        String getName();
+        long getLabeled();
+        long getReviewed();
+        long getApprovedCount();
+        long getRejectedCount();
     }
 }

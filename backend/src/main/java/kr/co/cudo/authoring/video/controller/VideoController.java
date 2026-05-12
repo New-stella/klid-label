@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import kr.co.cudo.authoring.common.response.ApiResponse;
+import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
@@ -17,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -43,8 +45,11 @@ public class VideoController {
     })
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Page<VideoSummaryResponse>> list(@PageableDefault(size = 20) Pageable pageable) {
-        return ApiResponse.ok(videoQueryService.list(pageable));
+    public ApiResponse<Page<VideoSummaryResponse>> list(
+            @PageableDefault(size = 20) Pageable pageable,
+            @Parameter(description = "데이터 상태 코드 필터 (예: BATCH_COMPLETED, BATCH_PROCESSING, PENDING, BATCH_FAILED)")
+            @RequestParam(required = false) String dataSttsCd) {
+        return ApiResponse.ok(videoQueryService.list(pageable, dataSttsCd));
     }
 
     @Operation(
@@ -60,6 +65,21 @@ public class VideoController {
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<VideoDetailResponse> getOne(@Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
         return ApiResponse.ok(videoQueryService.getOne(rawSn));
+    }
+
+    @Operation(
+            summary = "영상별 오토라벨 결과 조회",
+            description = "rawSn 영상에 연결된 모든 프레임의 라벨(auto + manual) 목록. FE 라벨 패널 표시용."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패")
+    })
+    @GetMapping("/{rawSn}/labels/auto")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<AutoLabelResultResponse> getAutoLabels(
+            @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
+        return ApiResponse.ok(videoQueryService.getAutoLabels(rawSn));
     }
 
     /**

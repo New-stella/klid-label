@@ -1,10 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Save } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
-import { Input } from '@/components/common/Input';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { useUpdateConfig } from '../hooks/useUpdateConfig';
@@ -16,7 +15,7 @@ interface Props {
 }
 
 /**
- * UI/UX §4-16 ① 배치 설정 카드 (FFmpeg와 독립 저장).
+ * UI/UX §4-16 ① 배치 처리 카드 (FFmpeg와 독립 저장).
  *
  * 보안: zod 스키마로 입력 범위 검증.
  */
@@ -30,7 +29,8 @@ export function BatchConfigCard({ configs }: Props) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    watch,
+    formState: { isDirty },
     reset,
   } = useForm<BatchConfigForm>({
     resolver: zodResolver(batchConfigSchema),
@@ -47,38 +47,73 @@ export function BatchConfigCard({ configs }: Props) {
     });
   }, [configs.BATCH_INTERVAL_SEC, configs.BATCH_CONCURRENCY, reset]);
 
+  const batchInterval = watch('BATCH_INTERVAL_SEC');
+  const concurrency = watch('BATCH_CONCURRENCY');
+
   const onSubmit = (values: BatchConfigForm) => {
     mutate({ key: 'BATCH_INTERVAL_SEC', value: values.BATCH_INTERVAL_SEC });
     mutate({ key: 'BATCH_CONCURRENCY', value: values.BATCH_CONCURRENCY });
   };
 
   return (
-    <Card title="배치 설정">
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
-        <Input
-          type="number"
-          label="BATCH_INTERVAL_SEC (10~3600)"
-          min={10}
-          max={3600}
-          step={1}
-          error={errors.BATCH_INTERVAL_SEC?.message}
-          {...register('BATCH_INTERVAL_SEC', { valueAsNumber: true })}
-        />
-        <Input
-          type="number"
-          label="BATCH_CONCURRENCY (1~10)"
-          min={1}
-          max={10}
-          step={1}
-          error={errors.BATCH_CONCURRENCY?.message}
-          {...register('BATCH_CONCURRENCY', { valueAsNumber: true })}
-        />
-        <div className="flex justify-end">
-          <Button type="submit" variant="primary" loading={isPending} disabled={isPending}>
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-5">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <h3 className="text-sm font-semibold text-gray-700">배치 처리</h3>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            leftIcon={Save}
+            loading={isPending}
+            disabled={!isDirty || isPending}
+          >
             저장
           </Button>
         </div>
-      </form>
-    </Card>
+
+        {/* 처리 주기 */}
+        <div className="space-y-2">
+          <label className="flex items-center justify-between text-sm" htmlFor="batch-interval">
+            <span className="font-medium text-gray-700">처리 주기 (초)</span>
+            <span className="text-primary-600 font-semibold tabular-nums">{batchInterval}s</span>
+          </label>
+          <input
+            id="batch-interval"
+            type="range"
+            min={10}
+            max={300}
+            step={10}
+            className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
+            {...register('BATCH_INTERVAL_SEC', { valueAsNumber: true })}
+          />
+          <div className="flex justify-between text-xs text-gray-400">
+            <span>10s</span>
+            <span>300s</span>
+          </div>
+        </div>
+
+        {/* 동시 처리 수 */}
+        <div className="space-y-2">
+          <label className="flex items-center justify-between text-sm" htmlFor="concurrent-jobs">
+            <span className="font-medium text-gray-700">동시 처리 수</span>
+            <span className="text-primary-600 font-semibold tabular-nums">{concurrency}</span>
+          </label>
+          <input
+            id="concurrent-jobs"
+            type="range"
+            min={1}
+            max={8}
+            step={1}
+            className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
+            {...register('BATCH_CONCURRENCY', { valueAsNumber: true })}
+          />
+          <div className="flex justify-between text-xs text-gray-400">
+            <span>1</span>
+            <span>8</span>
+          </div>
+        </div>
+      </div>
+    </form>
   );
 }

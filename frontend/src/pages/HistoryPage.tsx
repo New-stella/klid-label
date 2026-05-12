@@ -1,19 +1,26 @@
-import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, GitCommit, RotateCcw } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
-import { PageHeader } from '@/components/common/PageHeader';
 import { Spinner } from '@/components/common/Spinner';
 import { DiffViewer } from '@/features/version/components/DiffViewer';
 import { RollbackConfirmModal } from '@/features/version/components/RollbackConfirmModal';
-import { VersionList } from '@/features/version/components/VersionList';
-import { VersionPicker } from '@/features/version/components/VersionPicker';
 import { useDiff } from '@/features/version/hooks/useDiff';
 import { useVersions } from '@/features/version/hooks/useVersions';
-import type { Version } from '@/features/version/types';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 /**
  * SCR-HIST-001 버전 목록·diff 페이지.
@@ -26,6 +33,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
  */
 export function HistoryPage() {
   const { videoId } = useParams<{ videoId: string }>();
+  const navigate = useNavigate();
   const numericId = videoId ? Number(videoId) : NaN;
   const role = useAuthStore((s) => s.claims?.role ?? null);
   const canRollback = role === Role.REVIEWER;
@@ -34,19 +42,63 @@ export function HistoryPage() {
     Number.isFinite(numericId) ? numericId : undefined,
   );
 
-  const [fromSha, setFromSha] = useState('');
-  const [toSha, setToSha] = useState('');
-  const [rollbackTarget, setRollbackTarget] = useState<Version | null>(null);
+  const [selectedHash, setSelectedHash] = useState<string | null>(null);
+  const [checkedHashes, setCheckedHashes] = useState<string[]>([]);
+  const [showRollback, setShowRollback] = useState(false);
+
+  const versionList = versions ?? [];
+  const latestHash = versionList[0]?.commitSha ?? null;
+
+  // 2개 체크 시: 두 커밋 직접 비교
+  const diffFrom: string | undefined =
+    checkedHashes.length === 2 ? checkedHashes[1] : undefined;
+  const diffTo: string | undefined =
+    checkedHashes.length === 2 ? checkedHashes[0] : undefined;
+
+  // 단일 선택 시: 해당 커밋 vs 직전(목록 newest-first → idx+1) 커밋
+  const singleDiffFrom =
+    checkedHashes.length === 0 && selectedHash
+      ? (() => {
+          const idx = versionList.findIndex((v) => v.commitSha === selectedHash);
+          return idx >= 0 ? versionList[idx + 1]?.commitSha : undefined;
+        })()
+      : undefined;
+  const singleDiffTo =
+    checkedHashes.length === 0 && selectedHash ? selectedHash : undefined;
+
+  const activeFrom = checkedHashes.length === 2 ? diffFrom : singleDiffFrom;
+  const activeTo = checkedHashes.length === 2 ? diffTo : singleDiffTo;
 
   const diffQuery = useDiff(
     Number.isFinite(numericId) ? numericId : undefined,
-    toSha || undefined,
-    fromSha || undefined,
+    activeTo,
+    activeFrom,
   );
 
-  // 롤백 직후 새로 발급된 commit이 fromSha/toSha에 포함된 상태에서
-  // versions 재조회로 dropdown이 stale일 수 있어 useMemo로 안정화
-  const versionList = useMemo(() => versions ?? [], [versions]);
+  // 롤백 대상: 단일 선택 + 최신 아닌 커밋
+  const rollbackHash =
+    checkedHashes.length === 0 && selectedHash && selectedHash !== latestHash
+      ? selectedHash
+      : null;
+  const rollbackVersion = rollbackHash
+    ? versionList.find((v) => v.commitSha === rollbackHash) ?? null
+    : null;
+
+  const handleCheck = (hash: string, checked: boolean) => {
+    if (checked) {
+      setCheckedHashes((prev) =>
+        prev.length < 2 ? [...prev, hash] : [prev[1] ?? hash, hash],
+      );
+    } else {
+      setCheckedHashes((prev) => prev.filter((h) => h !== hash));
+    }
+    setSelectedHash(null);
+  };
+
+  const handleSelect = (hash: string) => {
+    if (checkedHashes.length > 0) return;
+    setSelectedHash((prev) => (prev === hash ? null : hash));
+  };
 
   if (Number.isNaN(numericId)) {
     return <ErrorState title="잘못된 영상 ID" />;
@@ -65,41 +117,117 @@ export function HistoryPage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4" data-testid="history-page">
-      <PageHeader
-        title="버전 이력"
-        breadcrumb={[
-          { label: '영상', href: '/video/completed' },
-          { label: '버전 이력' },
-        ]}
-        actions={
-          <Link to={`/label/${numericId}`} className="text-sub text-primary hover:underline">
-            ◀ 라벨링으로
-          </Link>
-        }
-      />
-
-      <section className="flex flex-col gap-2 rounded border border-border bg-white p-4">
-        <h2 className="text-section-title text-primary">버전 비교</h2>
-        <div className="flex items-end gap-3">
-          <VersionPicker
-            label="이전 버전"
-            value={fromSha}
-            onChange={setFromSha}
-            versions={versionList}
-            testId="version-picker-from"
-          />
-          <span className="pb-2 text-neutral">→</span>
-          <VersionPicker
-            label="이후 버전"
-            value={toSha}
-            onChange={setToSha}
-            versions={versionList}
-            testId="version-picker-to"
-          />
+    <div className="space-y-5 p-6" data-testid="history-page">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100"
+          aria-label="뒤로가기"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">버전 관리</h1>
+          <p className="mt-0.5 text-sm text-gray-500">{videoId}</p>
         </div>
-        <div className="mt-2">
-          {fromSha && toSha ? (
+      </div>
+
+      <div className="grid grid-cols-[400px_1fr] items-start gap-6">
+        {/* Left — commit list */}
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+              <GitCommit size={15} className="text-gray-400" />
+              커밋 목록
+              <span className="ml-1 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                {versionList.length}
+              </span>
+            </h2>
+            {checkedHashes.length === 2 && (
+              <span className="text-xs font-medium text-blue-600">2개 선택됨</span>
+            )}
+          </div>
+
+          <ul className="max-h-[600px] divide-y divide-gray-100 overflow-y-auto">
+            {versionList.map((commit, idx) => {
+              const isSelected = selectedHash === commit.commitSha;
+              const isChecked = checkedHashes.includes(commit.commitSha);
+              const isLatest = idx === 0 || commit.isCurrent;
+
+              return (
+                <li
+                  key={commit.commitSha}
+                  className={[
+                    'px-4 py-3 transition-colors',
+                    isSelected
+                      ? 'border-l-2 border-blue-500 bg-blue-50'
+                      : 'hover:bg-gray-50',
+                  ].join(' ')}
+                  data-testid={`commit-row-${commit.shortHash}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => handleCheck(commit.commitSha, e.target.checked)}
+                      className="mt-0.5 shrink-0 accent-blue-600"
+                      aria-label={`커밋 ${commit.shortHash} 선택`}
+                    />
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
+                      onClick={() => handleSelect(commit.commitSha)}
+                      disabled={checkedHashes.length > 0}
+                    >
+                      <div className="mb-0.5 flex flex-wrap items-center gap-2">
+                        <code className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-xs text-blue-700">
+                          {commit.shortHash}
+                        </code>
+                        {isLatest && (
+                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                            최신
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-sm text-gray-800">{commit.message}</p>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {commit.authorName} · {formatTime(commit.committedAt)}
+                      </p>
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {checkedHashes.length === 2 && (
+            <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+              <Button variant="primary" size="sm" fullWidth>
+                diff 비교
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Right — diff viewer */}
+        <div className="min-h-64 space-y-4 rounded-lg border border-gray-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700">변경 내용 (Diff)</h2>
+            {rollbackVersion && canRollback && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowRollback(true)}
+                data-testid={`rollback-trigger-${rollbackVersion.shortHash}`}
+              >
+                <RotateCcw size={14} />
+                이 버전으로 롤백
+              </Button>
+            )}
+          </div>
+
+          {activeFrom && activeTo ? (
             diffQuery.isLoading ? (
               <Spinner label="diff 로딩" />
             ) : diffQuery.error ? (
@@ -108,40 +236,24 @@ export function HistoryPage() {
               <DiffViewer diffs={diffQuery.data ?? []} />
             )
           ) : (
-            <p className="text-sub text-neutral">두 버전을 선택하면 변경 내역이 표시됩니다.</p>
+            <p className="text-sm text-gray-500">
+              커밋을 선택하거나 두 커밋을 체크하여 diff를 확인하세요.
+            </p>
           )}
         </div>
-      </section>
+      </div>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-section-title text-primary">커밋 이력</h2>
-        <VersionList
-          versions={versionList}
-          renderActions={(v) =>
-            v.isCurrent ? null : (
-              <Button
-                variant="danger"
-                size="sm"
-                disabled={!canRollback}
-                onClick={() => setRollbackTarget(v)}
-                aria-label={`롤백 시작 ${v.shortHash}`}
-                data-testid={`rollback-trigger-${v.shortHash}`}
-              >
-                롤백 시작
-              </Button>
-            )
-          }
-        />
-      </section>
-
-      {rollbackTarget && Number.isFinite(numericId) && (
+      {rollbackVersion && Number.isFinite(numericId) && (
         <RollbackConfirmModal
-          open={Boolean(rollbackTarget)}
-          commitSha={rollbackTarget.commitSha}
-          shortHash={rollbackTarget.shortHash}
+          open={showRollback}
+          commitSha={rollbackVersion.commitSha}
+          shortHash={rollbackVersion.shortHash}
           videoId={numericId}
-          onClose={() => setRollbackTarget(null)}
-          onSuccess={() => setRollbackTarget(null)}
+          onClose={() => setShowRollback(false)}
+          onSuccess={() => {
+            setShowRollback(false);
+            setSelectedHash(null);
+          }}
         />
       )}
     </div>

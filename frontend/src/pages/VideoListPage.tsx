@@ -7,29 +7,35 @@ import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
+import { PrivacyBadge } from '@/components/common/PrivacyBadge';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StageBadge } from '@/components/common/StageBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { cn } from '@/lib/cn';
-import { AssignModal } from '@/features/task/components/AssignModal';
 import { VideoFilters } from '@/features/video/components/VideoFilters';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
   parseVideoListParams,
   videoListParamsToSearchParams,
 } from '@/features/video/parseVideoListParams';
-import type { Video, VideoListParams } from '@/features/video/types';
-import { Role } from '@/lib/api/types';
-import { useAuthStore } from '@/stores/useAuthStore';
+import type { VideoListParams } from '@/features/video/types';
+
+function formatDuration(seconds: number | undefined): string {
+  if (!seconds) return '-';
+  if (seconds >= 3600) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}시간 ${m}분`;
+  }
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}분 ${s}초`;
+}
 
 /**
  * SCR-VIDEO-001 영상 처리 현황 (mock 정합).
  *
- * 레이아웃:
- *   - 헤더: 제목 + 부제 + 새로고침
- *   - 검색 한 줄 (CCTV/이벤트/날짜)
- *   - 체크박스 + 8컬럼 테이블 (CCTV명/이벤트/녹화일/프레임수/개인정보/처리단계/액션)
- *   - 페이지네이션
+ * 컬럼: checkbox / CCTV명 / 이벤트 / 녹화일 / 길이 / 개인정보 / 처리단계 / 액션
  */
 export function VideoListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,9 +43,6 @@ export function VideoListPage() {
   const queryClient = useQueryClient();
   const params = useMemo(() => parseVideoListParams(searchParams), [searchParams]);
   const { data, isLoading, error, refetch } = useVideos(params);
-  const role = useAuthStore((s) => s.claims?.role);
-  const isReviewer = role === Role.REVIEWER;
-  const [assignTarget, setAssignTarget] = useState<Video | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const updateParams = (next: VideoListParams) => {
@@ -135,13 +138,13 @@ export function VideoListPage() {
                   이벤트
                 </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                  지자체
-                </th>
-                <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                  프레임수
+                  녹화일
                 </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                  녹화일
+                  길이
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  개인정보
                 </th>
                 <th
                   className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
@@ -200,23 +203,21 @@ export function VideoListPage() {
                       <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-gray-600">{v.localGov ?? '-'}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-xs tabular-nums">
-                        {(v.frameCount ?? 0).toLocaleString('ko-KR')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
                       <span className="text-xs text-gray-500">
                         {v.capturedAt ? v.capturedAt.slice(0, 10) : '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {v.status === 'BATCH_COMPLETED' || v.status === 'COMPLETED' ? (
-                        <StageBadge stage="VLM_VERIFY" status="COMPLETED" />
-                      ) : v.status === 'BATCH_FAILED' ? (
-                        <StageBadge stage="YOLO" status="FAILED" />
+                      <span className="text-xs">{formatDuration(v.durationSec)}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <PrivacyBadge privacyType={v.privacyTypeCd ?? ''} size="sm" />
+                    </td>
+                    <td className="px-4 py-3">
+                      {v.status === 'COMPLETED' ? (
+                        <StageBadge stage="COMPLETED" status="COMPLETED" />
+                      ) : v.status === 'FAILED' ? (
+                        <StageBadge stage="FAILED" status="FAILED" />
                       ) : (
                         <StatusBadge status={v.status} />
                       )}
@@ -232,16 +233,8 @@ export function VideoListPage() {
                           onClick={() => navigate(`/video/${v.id}`)}
                         >
                           상세
+                          <ChevronRight size={12} aria-hidden />
                         </Button>
-                        {isReviewer && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setAssignTarget(v)}
-                          >
-                            배정
-                          </Button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -293,10 +286,6 @@ export function VideoListPage() {
             <ChevronRight size={16} aria-hidden />
           </button>
         </div>
-      )}
-
-      {assignTarget && (
-        <AssignModal video={assignTarget} onClose={() => setAssignTarget(null)} />
       )}
     </div>
   );

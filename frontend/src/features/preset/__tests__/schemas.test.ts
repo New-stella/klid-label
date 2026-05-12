@@ -2,54 +2,73 @@ import { describe, expect, it } from 'vitest';
 
 import { presetSchema } from '@/features/preset/schemas';
 
-const baseItem = { name: '항목1', shape: 'BBOX' as const, color: '#ef4444' };
-
 describe('preset schemas', () => {
-  it('프리셋_라벨_항목_최대_6종_제한', () => {
-    const tooMany = {
+  it('라벨_코드_1개_이상_요구', () => {
+    const empty = {
       name: '테스트 프리셋',
-      eventTypeCd: 'FALL' as const,
-      items: Array.from({ length: 7 }, (_, i) => ({ ...baseItem, name: `항목${i + 1}` })),
+      description: '',
+      labelCodes: [],
+    };
+    const result = presetSchema.safeParse(empty);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((iss) => /1개 이상/.test(iss.message))).toBe(true);
+    }
+  });
+
+  it('라벨_코드_최대_20개_제한', () => {
+    const tooMany = {
+      name: '테스트',
+      description: '',
+      labelCodes: Array.from({ length: 21 }, (_, i) => `LABEL_${i}`),
     };
     const result = presetSchema.safeParse(tooMany);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues.some((iss) => /최대 6/.test(iss.message))).toBe(true);
+      expect(result.error.issues.some((iss) => /최대 20/.test(iss.message))).toBe(true);
     }
   });
 
-  it('프리셋_라벨_항목_6종_정확히_허용', () => {
-    const exactly6 = {
-      name: '6종 프리셋',
-      eventTypeCd: 'FALL' as const,
-      items: Array.from({ length: 6 }, (_, i) => ({ ...baseItem, name: `항목${i + 1}` })),
-    };
-    expect(presetSchema.safeParse(exactly6).success).toBe(true);
-  });
-
-  it('프리셋_이름_특수문자_거부', () => {
-    const bad = {
-      name: '<script>alert(1)</script>',
-      eventTypeCd: 'FALL' as const,
-      items: [baseItem],
-    };
-    expect(presetSchema.safeParse(bad).success).toBe(false);
-  });
-
-  it('프리셋_이름_정상_허용', () => {
+  it('정상_프리셋_허용', () => {
     const ok = {
-      name: '화재-표준_v1',
-      eventTypeCd: 'FALL' as const,
-      items: [baseItem],
+      name: '교통사고 표준 프리셋',
+      description: '교통사고 라벨링용',
+      labelCodes: ['PERSON', 'VEHICLE'],
     };
     expect(presetSchema.safeParse(ok).success).toBe(true);
   });
 
-  it('색상_RGB_정규식_검증', () => {
+  it('이름_빈_문자열_거부', () => {
     const bad = {
-      name: '테스트',
-      eventTypeCd: 'FALL' as const,
-      items: [{ ...baseItem, color: 'red' }],
+      name: '',
+      description: '',
+      labelCodes: ['PERSON'],
+    };
+    expect(presetSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('이름_64자_초과_거부', () => {
+    const bad = {
+      name: 'a'.repeat(65),
+      description: '',
+      labelCodes: ['PERSON'],
+    };
+    expect(presetSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('설명_optional_허용', () => {
+    const ok = {
+      name: '프리셋',
+      labelCodes: ['PERSON'],
+    };
+    expect(presetSchema.safeParse(ok).success).toBe(true);
+  });
+
+  it('라벨_코드_특수문자_거부', () => {
+    const bad = {
+      name: '프리셋',
+      description: '',
+      labelCodes: ['<script>'],
     };
     expect(presetSchema.safeParse(bad).success).toBe(false);
   });

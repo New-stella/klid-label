@@ -22,6 +22,7 @@ import { useRequestAugment } from '@/features/augment/hooks/useAugmentDecision';
 import { useAugmentJobs } from '@/features/augment/hooks/useAugmentJobs';
 import { AugmentType, type AugmentType as AT } from '@/features/augment/types';
 import { useVideos } from '@/features/video/hooks/useVideos';
+import { FIXED_EVENT_TYPE_CODES, getEventTypeLabel } from '@/lib/eventTypeLabel';
 import { useUiStore } from '@/stores/useUiStore';
 
 const ALL_TYPES: AT[] = [
@@ -82,13 +83,7 @@ export function AugmentRequestPage() {
     [allVideos],
   );
 
-  const eventTypeOptions = useMemo(() => {
-    const set = new Set<string>();
-    approvedVideos.forEach((v) => {
-      if (v.eventName) set.add(v.eventName);
-    });
-    return Array.from(set).sort();
-  }, [approvedVideos]);
+  const eventTypeOptions = FIXED_EVENT_TYPE_CODES;
 
   const filteredVideos = useMemo(() => {
     let result = approvedVideos;
@@ -317,7 +312,7 @@ export function AugmentRequestPage() {
               <option value="">전체</option>
               {eventTypeOptions.map((et) => (
                 <option key={et} value={et}>
-                  {et}
+                  {getEventTypeLabel(et)}
                 </option>
               ))}
             </select>

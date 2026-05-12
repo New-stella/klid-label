@@ -1,33 +1,45 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Users } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 
 import { Button } from '@/components/common/Button';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DataTable, type DataTableColumn } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Input } from '@/components/common/Input';
+import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
+import { updateUser, type UserUpdatePayload } from '@/features/user/api';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import type { User, UserListParams } from '@/features/user/types';
 import { Role } from '@/lib/api/types';
+import { USER_KEYS } from '@/lib/queryKeys';
 import { useUiStore } from '@/stores/useUiStore';
 
 /**
  * SCR-MANAGE-USERS 사용자 관리 (V1.x mock 시각 정합).
  *
- * 진행 범위: 조회 + 검색/필터 + 비활성화 placeholder.
- * 추가/수정 모달은 후속 Phase에서 연결.
+ * 진행 범위: 조회 + 검색/필터 + 활성/비활성 토글 + 역할/상태 수정 (PATCH /v1/users/{userNo}).
  *
  * 보안:
- * - REVIEWER만 진입 (RoleGuard)
+ * - REVIEWER만 진입 (RoleGuard) / BE @PreAuthorize("hasRole('REVIEWER')") 이중 방어
  * - 검색어는 axios params로만 (XSS/Injection 방지)
- * - 비활성화는 ConfirmDialog 한 단계 거치고, 현재는 placeholder (실수 방지)
+ * - useYn/role 은 TypeScript 리터럴 유니온 + BE @Pattern 화이트리스트로 이중 검증
+ * - 상태 변경/역할 변경은 ConfirmDialog 또는 Modal 한 단계 거쳐 실수 방지
  */
 const ROLE_LABEL: Record<Role, string> = {
   [Role.REVIEWER]: '검수자',
   [Role.WORKER]: '작업자',
   [Role.PORTAL_USER]: '포털',
+};
+
+// 역할별 컬러 배지 — mock 시각 정합
+const ROLE_BADGE_CLASS: Record<Role, string> = {
+  [Role.REVIEWER]: 'bg-amber-100 text-amber-700',
+  [Role.WORKER]: 'bg-blue-100 text-blue-700',
+  [Role.PORTAL_USER]: 'bg-gray-100 text-gray-600',
 };
 
 const ROLE_FILTER_OPTIONS: { value: '' | Role; label: string }[] = [
@@ -48,8 +60,28 @@ export function UserManagePage() {
   const [keywordInput, setKeywordInput] = useState(searchParams.get('keyword') ?? '');
   const [roleFilter, setRoleFilter] = useState<'' | Role>('');
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('');
-  const [pendingDisable, setPendingDisable] = useState<User | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<User | null>(null);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editRole, setEditRole] = useState<Role>(Role.WORKER);
+  const [editActive, setEditActive] = useState<boolean>(true);
   const pushToast = useUiStore((s) => s.pushToast);
+  const queryClient = useQueryClient();
+
+  // PATCH /v1/users/{userNo} — 활성/비활성 + 역할 변경 통합 mutation.
+  const updateMutation = useMutation({
+    mutationFn: ({ userNo, payload }: { userNo: number; payload: UserUpdatePayload }) =>
+      updateUser(userNo, payload),
+    onSuccess: () => {
+      // 사용자 목록/단건 캐시 무효화 → 자동 재조회.
+      queryClient.invalidateQueries({ queryKey: USER_KEYS.all });
+      pushToast({ variant: 'success', message: '수정되었습니다.' });
+    },
+    onError: (err: unknown) => {
+      const axiosErr = err as AxiosError<{ message?: string }>;
+      const reason = axiosErr?.response?.data?.message ?? axiosErr?.message ?? '알 수 없는 오류';
+      pushToast({ variant: 'error', message: `수정에 실패했습니다 — ${reason}` });
+    },
+  });
 
   const params = useMemo<UserListParams>(() => {
     const page = Number(searchParams.get('page') ?? '0');
@@ -78,14 +110,40 @@ export function UserManagePage() {
     updateParams({ keyword: keywordInput.trim() || undefined, page: 0 });
   };
 
-  const handleConfirmDisable = () => {
-    if (!pendingDisable) return;
-    // placeholder — 실제 API는 후속 Phase에서.
-    pushToast({
-      variant: 'info',
-      message: `${pendingDisable.name} 비활성화 (placeholder — 후속 Phase 구현 예정)`,
-    });
-    setPendingDisable(null);
+  const handleConfirmToggle = () => {
+    if (!pendingToggle) return;
+    const willActivate = !pendingToggle.active;
+    updateMutation.mutate(
+      { userNo: pendingToggle.id, payload: { useYn: willActivate ? 'Y' : 'N' } },
+      { onSettled: () => setPendingToggle(null) },
+    );
+  };
+
+  const handleEditOpen = (u: User) => {
+    setEditUser(u);
+    setEditRole(u.role);
+    setEditActive(u.active);
+  };
+
+  const handleEditSave = () => {
+    if (!editUser) return;
+    // 변경된 필드만 payload 에 포함 (서버 측은 null 필드 무시).
+    const payload: UserUpdatePayload = {};
+    if (editRole !== editUser.role) {
+      payload.role = editRole as UserUpdatePayload['role'];
+    }
+    if (editActive !== editUser.active) {
+      payload.useYn = editActive ? 'Y' : 'N';
+    }
+    if (!payload.role && !payload.useYn) {
+      // 변경 사항 없음 — 모달만 닫는다.
+      setEditUser(null);
+      return;
+    }
+    updateMutation.mutate(
+      { userNo: editUser.id, payload },
+      { onSettled: () => setEditUser(null) },
+    );
   };
 
   // 클라이언트 사이드 추가 필터 (role + active)
@@ -115,12 +173,23 @@ export function UserManagePage() {
         </div>
       ),
     },
-    { key: 'loginId', header: '로그인 ID', render: (u) => u.loginId },
+    {
+      key: 'email',
+      header: '이메일',
+      render: (u) => (
+        <span className="text-sub text-gray-500">{u.email ?? u.loginId}</span>
+      ),
+    },
     {
       key: 'role',
       header: '역할',
       render: (u) => (
-        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-700">
+        <span
+          className={[
+            'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
+            ROLE_BADGE_CLASS[u.role] ?? 'bg-gray-100 text-gray-700',
+          ].join(' ')}
+        >
           {ROLE_LABEL[u.role] ?? u.role}
         </span>
       ),
@@ -141,22 +210,48 @@ export function UserManagePage() {
       ),
     },
     {
-      key: 'createdAt',
-      header: '가입일',
-      render: (u) => new Date(u.createdAt).toLocaleDateString('ko-KR'),
+      key: 'lastLoginAt',
+      header: '최근 로그인',
+      render: (u) => {
+        const ts = u.lastLoginAt ?? u.createdAt;
+        return (
+          <span className="text-sub text-gray-500">
+            {ts ? new Date(ts).toLocaleDateString('ko-KR') : '-'}
+          </span>
+        );
+      },
     },
     {
       key: 'actions',
-      header: '액션',
+      header: '관리',
       render: (u) => (
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!u.active}
-          onClick={() => setPendingDisable(u)}
-        >
-          비활성화
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEditOpen(u);
+            }}
+          >
+            수정
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPendingToggle(u);
+            }}
+            className={
+              u.active
+                ? 'text-red-500 hover:bg-red-50 hover:text-red-700'
+                : 'text-green-600 hover:bg-green-50'
+            }
+          >
+            {u.active ? '비활성화' : '활성화'}
+          </Button>
+        </div>
       ),
     },
   ];
@@ -164,29 +259,36 @@ export function UserManagePage() {
   return (
     <section className="flex flex-col gap-4">
       <PageHeader
-        title="사용자 관리"
+        title={
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-flex items-center justify-center rounded-lg bg-gray-100 p-2">
+              <Users className="h-5 w-5 text-gray-600" aria-hidden />
+            </span>
+            <span>사용자 관리</span>
+          </span>
+        }
         description={
           data
-            ? `REVIEWER/WORKER 사용자 조회 및 상태 관리 — 전체 ${data.totalElements.toLocaleString('ko-KR')}명`
-            : 'REVIEWER/WORKER 사용자 조회 및 상태 관리'
-        }
-        actions={
-          <div className="flex items-center justify-center rounded-lg bg-gray-100 p-2">
-            <Users className="h-5 w-5 text-gray-600" aria-hidden />
-          </div>
+            ? `전체 ${data.totalElements.toLocaleString('ko-KR')}명`
+            : '전체 0명'
         }
       />
       <div className="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-white p-3">
-        <div className="max-w-sm flex-1">
-          <Input
-            label="검색"
-            placeholder="이름·로그인ID 검색"
-            value={keywordInput}
-            onChange={(e) => setKeywordInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSearch();
-            }}
-          />
+        <div className="flex max-w-md flex-1 items-end gap-2">
+          <div className="flex-1">
+            <Input
+              label="검색"
+              placeholder="이름 또는 이메일 검색"
+              value={keywordInput}
+              onChange={(e) => setKeywordInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSearch();
+              }}
+            />
+          </div>
+          <Button variant="primary" onClick={handleSearch}>
+            검색
+          </Button>
         </div>
         <div>
           <label
@@ -232,9 +334,6 @@ export function UserManagePage() {
             ))}
           </select>
         </div>
-        <Button variant="primary" onClick={handleSearch}>
-          검색
-        </Button>
         {isFilterActive && (
           <Button
             variant="ghost"
@@ -263,18 +362,84 @@ export function UserManagePage() {
         onPageChange={(p) => updateParams({ page: p })}
       />
       <ConfirmDialog
-        open={!!pendingDisable}
-        title="사용자 비활성화"
+        open={!!pendingToggle}
+        title={pendingToggle?.active ? '사용자 비활성화' : '사용자 활성화'}
         description={
-          pendingDisable
-            ? `${pendingDisable.name}(${pendingDisable.loginId})을(를) 비활성화하시겠습니까?`
+          pendingToggle
+            ? `${pendingToggle.name}(${pendingToggle.loginId})을(를) ${pendingToggle.active ? '비활성화' : '활성화'}하시겠습니까?`
             : ''
         }
-        variant="danger"
-        confirmLabel="비활성화"
-        onConfirm={handleConfirmDisable}
-        onCancel={() => setPendingDisable(null)}
+        variant={pendingToggle?.active ? 'danger' : 'primary'}
+        confirmLabel={pendingToggle?.active ? '비활성화' : '활성화'}
+        loading={updateMutation.isPending}
+        onConfirm={handleConfirmToggle}
+        onCancel={() => setPendingToggle(null)}
       />
+      <Modal
+        open={!!editUser}
+        onClose={() => setEditUser(null)}
+        title="사용자 정보 수정"
+        description={editUser ? `${editUser.name}(${editUser.loginId})` : ''}
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setEditUser(null)}
+              disabled={updateMutation.isPending}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleEditSave}
+              loading={updateMutation.isPending}
+            >
+              저장
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <div>
+            <label
+              htmlFor="edit-user-role"
+              className="mb-1 block text-sub font-medium text-gray-700"
+            >
+              역할
+            </label>
+            <select
+              id="edit-user-role"
+              value={editRole}
+              onChange={(e) => setEditRole(e.target.value as Role)}
+              className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-body focus-visible:ring-2 focus-visible:ring-primary-500"
+            >
+              <option value={Role.REVIEWER}>검수자</option>
+              <option value={Role.WORKER}>작업자</option>
+              <option value={Role.PORTAL_USER}>포털</option>
+            </select>
+          </div>
+          <div>
+            <label
+              htmlFor="edit-user-status"
+              className="mb-1 block text-sub font-medium text-gray-700"
+            >
+              상태
+            </label>
+            <select
+              id="edit-user-status"
+              value={editActive ? 'active' : 'inactive'}
+              onChange={(e) => setEditActive(e.target.value === 'active')}
+              className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-body focus-visible:ring-2 focus-visible:ring-primary-500"
+            >
+              <option value="active">활성</option>
+              <option value="inactive">비활성</option>
+            </select>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }

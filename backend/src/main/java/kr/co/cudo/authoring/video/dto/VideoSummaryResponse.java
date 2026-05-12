@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.video.dto;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * 영상 요약 응답 — 목록 화면용.
@@ -18,6 +19,10 @@ import java.time.LocalDateTime;
  *   <li>{@code frameCount} = LS_DATA_SRC count by rawSn (서비스에서 주입)</li>
  *   <li>{@code status}     = {@code dataSttsCd} (FE BadgeStatus 와 1:1)</li>
  *   <li>{@code capturedAt} = {@code regDt} (수신 시각)</li>
+ *   <li>{@code exportStatus} = 영상-프로젝트 매핑 기반 최신 export 상태 ("EXPORTED"/"FAILED"/null)</li>
+ *   <li>{@code exportedAt} = 최신 export 완료 시각 (없으면 null)</li>
+ *   <li>{@code lastExportFailureReason} = FAILED 일 때 사유 (그 외 null)</li>
+ *   <li>{@code updatedAt} = {@code updDt} (마지막 수정 시각; 미수정이면 null)</li>
  * </ul>
  * 기존 필드는 backward-compat 유지.
  */
@@ -40,18 +45,82 @@ public record VideoSummaryResponse(
         String prvcYn,
         String dataSttsCd,
         Integer durationSec,
-        LocalDateTime regDt
+        LocalDateTime regDt,
+        // 내보내기 상태 (영상↔프로젝트 매핑 → LS_DATA_SET 최신 1건 기반)
+        String exportStatus,
+        LocalDateTime exportedAt,
+        String lastExportFailureReason,
+        // 마지막 수정 시각 (LS_DATA_RAW.UPD_DT)
+        LocalDateTime updatedAt
 ) {
+
+    /**
+     * 행정구역 코드(LCLGV_CD) → 한글 표기 매핑.
+     * dev-seed.sql 의 코드 전체를 포함한다. 누락 코드는 원본 코드로 fallback.
+     */
+    private static final Map<String, String> LCLGV_CODE_TO_NAME = Map.ofEntries(
+            Map.entry("11110", "서울 종로구"),
+            Map.entry("11230", "서울 동대문구"),
+            Map.entry("11290", "서울 성북구"),
+            Map.entry("11440", "서울 마포구"),
+            Map.entry("11650", "서울 서초구"),
+            Map.entry("11680", "서울 강남구"),
+            Map.entry("11710", "서울 송파구")
+    );
+    /**
+     * 영상별 최신 내보내기 요약 정보 (서비스 레이어에서 주입).
+     * {@code exportSttsCd} 는 LS_DATA_SET 원본 코드(COMPLETED/FAILED) — DTO 변환 시
+     * COMPLETED → "EXPORTED", FAILED → "FAILED" 로 매핑한다.
+     */
+    public record ExportInfo(String exportSttsCd, LocalDateTime exportedAt, String errorMessage) {}
+
     /** 단순 매핑 — frameCount/cctvName 등은 0/fallback 으로 채움. */
     public static VideoSummaryResponse from(LsDataRaw e) {
-        return from(e, null, null, 0L);
+        return from(e, null, null, 0L, null);
     }
 
     /** 보강 매핑 — 서비스 레이어에서 CCTV 명/지자체명/프레임수를 함께 주입. */
     public static VideoSummaryResponse from(LsDataRaw e, String cctvName, String localGov, Long frameCount) {
+        return from(e, cctvName, localGov, frameCount, null);
+    }
+
+    /**
+     * 보강 매핑 (export 포함) — 서비스 레이어에서 CCTV 명/지자체명/프레임수/내보내기 요약을 함께 주입.
+     * exportInfo 가 null 이면 export 관련 3개 필드 모두 null 로 응답.
+     */
+    public static VideoSummaryResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            ExportInfo exportInfo
+    ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
-        String resolvedGov = (localGov != null && !localGov.isBlank()) ? localGov : e.getLclgvCd();
+        String resolvedGov = (localGov != null && !localGov.isBlank())
+                ? localGov
+                : (e.getLclgvCd() == null
+                        ? null
+                        : LCLGV_CODE_TO_NAME.getOrDefault(e.getLclgvCd(), e.getLclgvCd()));
         Long resolvedFrame = (frameCount != null) ? frameCount : 0L;
+        String exportStatus = null;
+        LocalDateTime exportedAt = null;
+        String failureReason = null;
+        if (exportInfo != null && exportInfo.exportSttsCd() != null) {
+            switch (exportInfo.exportSttsCd()) {
+                case "COMPLETED" -> {
+                    exportStatus = "EXPORTED";
+                    exportedAt = exportInfo.exportedAt();
+                }
+                case "FAILED" -> {
+                    exportStatus = "FAILED";
+                    exportedAt = exportInfo.exportedAt();
+                    failureReason = exportInfo.errorMessage();
+                }
+                default -> {
+                    // PENDING/IN_PROGRESS 등은 UI 상 'NEVER' 처리 — 모두 null 유지.
+                }
+            }
+        }
         return new VideoSummaryResponse(
                 e.getRawSn(),
                 resolvedCctv,
@@ -69,7 +138,11 @@ public record VideoSummaryResponse(
                 e.getPrvcYn(),
                 e.getDataSttsCd(),
                 e.getDurationSec(),
-                e.getRegDt()
+                e.getRegDt(),
+                exportStatus,
+                exportedAt,
+                failureReason,
+                e.getUpdDt()
         );
     }
 }

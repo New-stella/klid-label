@@ -3,6 +3,7 @@ import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import type { Worker } from '@/features/task/types';
+import { getEventTypeLabel } from '@/lib/eventTypeLabel';
 
 export interface TaskFilterValues {
   q: string;
@@ -34,7 +35,7 @@ const STATUSES = [
   { value: 'UNASSIGNED', label: '미배정' },
   { value: 'PENDING', label: '대기' },
   { value: 'IN_PROGRESS', label: '진행중' },
-  { value: 'SUBMITTED', label: '검수대기' },
+  { value: 'REVIEW_PENDING', label: '검수대기' },
   { value: 'COMPLETED', label: '완료' },
   { value: 'REJECTED', label: '반려' },
 ];
@@ -120,7 +121,7 @@ export function TaskFilters({
           <option value="">전체</option>
           {eventTypes.map((et) => (
             <option key={et} value={et}>
-              {et}
+              {getEventTypeLabel(et)}
             </option>
           ))}
         </select>

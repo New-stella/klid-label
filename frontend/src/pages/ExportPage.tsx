@@ -9,11 +9,13 @@ import {
   RotateCcw,
   Search,
   Send,
+  Server,
   ShieldCheck,
   XCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { Pagination } from '@/components/common/Pagination';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
@@ -23,12 +25,12 @@ import {
 } from '@/features/export/hooks/useExport';
 import {
   ExportFormat,
-  SUPPORTED_EXPORT_FORMATS,
   type ExportFormat as Format,
 } from '@/features/export/types';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import type { Video } from '@/features/video/types';
 import { cn } from '@/lib/cn';
+import { FIXED_EVENT_TYPE_CODES, getEventTypeLabel } from '@/lib/eventTypeLabel';
 import { useUiStore } from '@/stores/useUiStore';
 
 /**
@@ -168,11 +170,13 @@ function filtersToSearchParams(f: VideoFilterValues): Record<string, string> {
 }
 
 /**
- * mock 의 exportStatus 는 우리 BE 에 없는 필드. videoId 가 selection 에 있으면 NEVER,
- * 추후 BE 가 video 단위 export 이력을 제공하면 매핑 추가.
+ * BE 가 video.exportStatus 를 제공하면 그대로 매핑, 없거나 그 외 값(null)이면 'NEVER'.
+ * BE: LS_PJT_DATA_STTS join LS_DATA_SET 최신 1건 → COMPLETED→'EXPORTED', FAILED→'FAILED', 그 외 null.
  */
-function deriveExportStatus(_video: Video): 'NEVER' | 'EXPORTED' | 'FAILED' {
-  // 현재 BE 는 영상 단위 export 이력을 노출하지 않으므로 기본값 NEVER.
+function deriveExportStatus(video: Video): 'NEVER' | 'EXPORTED' | 'FAILED' {
+  if (video.exportStatus === 'EXPORTED' || video.exportStatus === 'FAILED') {
+    return video.exportStatus;
+  }
   return 'NEVER';
 }
 
@@ -219,14 +223,8 @@ export function ExportPage() {
     [videoPage],
   );
 
-  // 이벤트 유형 옵션 (검수 완료 영상에서 unique, 정렬)
-  const eventTypeOptions = useMemo(() => {
-    const set = new Set<string>();
-    approvedVideos.forEach((v) => {
-      if (v.eventTypeCd) set.add(v.eventTypeCd);
-    });
-    return Array.from(set).sort();
-  }, [approvedVideos]);
+  // 이벤트 유형 옵션 (DB EVT_ 코드 6종 고정 — 데이터 의존성 제거)
+  const eventTypeOptions = FIXED_EVENT_TYPE_CODES;
 
   const filteredVideos = useMemo(() => {
     let result = approvedVideos;
@@ -366,19 +364,10 @@ export function ExportPage() {
     },
   });
 
-  const isFormatSupported = SUPPORTED_EXPORT_FORMATS.includes(format);
-  const canSubmit =
-    datasetId !== null && format && isFormatSupported && !isPending;
+  const canSubmit = datasetId !== null && !!format && !isPending;
 
   const handleExecute = () => {
     if (!canSubmit || datasetId === null) return;
-    if (!isFormatSupported) {
-      pushToast({
-        variant: 'info',
-        message: `${FORMAT_META[format].label} 포맷은 현재 지원되지 않습니다 (COCO/YOLO 만 지원)`,
-      });
-      return;
-    }
     mutate({
       datasetId,
       format,
@@ -398,13 +387,15 @@ export function ExportPage() {
   return (
     <section className="flex flex-col gap-5" data-testid="export-page">
       <PageHeader
-        title="내보내기"
-        description="포털 서버로 학습데이터셋을 전송합니다"
-        actions={
-          <div className="flex items-center justify-center rounded-lg bg-green-50 p-2">
-            <Send className="h-5 w-5 text-green-600" aria-hidden />
-          </div>
+        title={
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-flex items-center justify-center rounded-lg bg-green-50 p-2">
+              <Send className="h-5 w-5 text-green-600" aria-hidden />
+            </span>
+            <span>내보내기</span>
+          </span>
         }
+        description="포털 서버로 학습데이터셋을 전송합니다"
       />
 
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
@@ -430,24 +421,15 @@ export function ExportPage() {
               {(Object.keys(FORMAT_META) as Format[]).map((f) => {
                 const meta = FORMAT_META[f];
                 const selected = format === f;
-                const supported = SUPPORTED_EXPORT_FORMATS.includes(f);
                 return (
                   <label
                     key={f}
                     className={cn(
-                      'flex items-start gap-3 rounded-lg border-2 p-3 transition-colors',
-                      supported
-                        ? 'cursor-pointer'
-                        : 'cursor-not-allowed opacity-60',
+                      'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 transition-colors',
                       selected
                         ? 'border-primary-500 bg-primary-50'
                         : 'border-gray-200 bg-white hover:border-gray-300',
                     )}
-                    title={
-                      supported
-                        ? undefined
-                        : '현재 BE 미지원 — COCO/YOLO 만 가능'
-                    }
                   >
                     <input
                       type="radio"
@@ -455,8 +437,7 @@ export function ExportPage() {
                       value={f}
                       checked={selected}
                       onChange={() => setFormat(f)}
-                      disabled={!supported}
-                      className="mt-0.5 h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed"
+                      className="mt-0.5 h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
                     <div className="min-w-0">
                       <p className="text-body font-semibold text-gray-800">
@@ -464,11 +445,6 @@ export function ExportPage() {
                         <span className="ml-1 text-sub font-normal text-gray-400">
                           {meta.extension}
                         </span>
-                        {!supported && (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-                            지원 예정
-                          </span>
-                        )}
                       </p>
                       <p className="text-sub text-gray-500">{meta.description}</p>
                     </div>
@@ -555,7 +531,7 @@ export function ExportPage() {
                   <option value="">전체</option>
                   {eventTypeOptions.map((et) => (
                     <option key={et} value={et}>
-                      {et}
+                      {getEventTypeLabel(et)}
                     </option>
                   ))}
                 </select>
@@ -631,7 +607,7 @@ export function ExportPage() {
                           />
                         </th>
                         <th className="py-2 text-left text-sub font-medium text-gray-600">
-                          영상 / CCTV
+                          영상명 / CCTV
                         </th>
                         <th className="py-2 text-left text-sub font-medium text-gray-600">
                           이벤트
@@ -681,9 +657,7 @@ export function ExportPage() {
                             </td>
                             <td className="py-2">
                               {video.eventTypeCd ? (
-                                <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-sub font-medium text-blue-700">
-                                  {video.eventName ?? video.eventTypeCd}
-                                </span>
+                                <EventTypeBadge eventType={video.eventTypeCd} />
                               ) : (
                                 <span className="text-sub text-gray-400">-</span>
                               )}
@@ -695,12 +669,14 @@ export function ExportPage() {
                             </td>
                             <td className="py-2">
                               {exportStatus === 'EXPORTED' ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-sub font-medium text-green-700">
-                                  <CheckCircle2 size={11} aria-hidden /> 전송됨
+                                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                                  <CheckCircle2 className="h-3 w-3" aria-hidden />
+                                  전송됨
                                 </span>
                               ) : exportStatus === 'FAILED' ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-sub font-medium text-red-700">
-                                  <XCircle size={11} aria-hidden /> 전송 실패
+                                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                                  <XCircle className="h-3 w-3" aria-hidden />
+                                  비식별 실패
                                 </span>
                               ) : (
                                 <span className="text-sub text-gray-300">—</span>
@@ -792,14 +768,17 @@ export function ExportPage() {
               </label>
             </div>
 
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <div className="flex items-start gap-2">
-                <span className="text-xs text-gray-500">전송 대상</span>
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2.5">
+                <Server size={14} className="mt-0.5 shrink-0 text-gray-400" aria-hidden />
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500">전송 대상</p>
+                  <p className="mt-0.5 text-sm font-medium text-gray-800">포털 서버</p>
+                  <p className="mt-0.5 text-xs text-gray-500 break-all">
+                    https://portal.example.com/api/v1/datasets/import
+                  </p>
+                </div>
               </div>
-              <p className="mt-1 text-sm font-medium text-gray-800">포털 서버</p>
-              <p className="mt-0.5 text-xs text-gray-500 break-all">
-                https://portal.example.com/api/v1/datasets/import
-              </p>
             </div>
           </section>
         </div>

@@ -41,8 +41,11 @@ export interface DashboardSummary {
   cumulativeImageCount: number; // 목표 10만장
   cumulativeVideoCount: number; // 목표 5,000건
 
-  // 6종 이벤트 분포
+  // 6종 이벤트 분포 (영상 단위)
   eventDistribution: EventDistribution[];
+
+  // 6종 이벤트 분포 (이미지/프레임 단위 — "이미지 데이터 개수" 카드용)
+  imageDistribution?: EventDistribution[];
 
   // 내 작업 현황 (WORKER 전용)
   myTask: MyTask;
