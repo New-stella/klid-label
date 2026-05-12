@@ -46,8 +46,11 @@ export function SessionIngressPage() {
     if (!token) {
       const redirected = redirectToUpstream(detectChannel());
       if (!redirected) {
+        const devHint = import.meta.env.DEV
+          ? ' (DEV: /dev/login 에서 토큰을 발급할 수 있습니다.)'
+          : '';
         setErrorMessage(
-          '로그인 서버에 연결할 수 없습니다. 관제서버 또는 포털에서 다시 접근해주세요.',
+          `로그인 서버에 연결할 수 없습니다. 관제서버 또는 포털에서 다시 접근해주세요.${devHint}`,
         );
       }
       return;

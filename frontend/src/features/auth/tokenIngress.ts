@@ -15,7 +15,7 @@ const MAX_JWT_LEN = 4096;
 const JWT_PART_RE = /^[A-Za-z0-9_-]+={0,2}$/;
 
 /** 관제서버 인계 표준 키 (변경 금지 — 양측 합의) */
-const LOCAL_STORAGE_TOKEN_KEY = 'klid-jwt-token';
+export const LOCAL_STORAGE_TOKEN_KEY = 'klid-jwt-token';
 
 type IngressStrategy = 'url' | 'cookie' | 'localStorage' | 'both' | 'all';
 

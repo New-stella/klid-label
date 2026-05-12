@@ -148,10 +148,25 @@ function PortalRoute({ children }: { children: ReactNode }) {
   );
 }
 
+// DEV 빌드에서만 `/dev/login` 라우트를 노출.
+// import.meta.env.DEV 는 빌드 시 상수로 치환되므로, prod 에서는 if 블록 전체가 dead-code 로
+// 제거되어 DevLoginPage 청크 자체가 산출물에 포함되지 않는다.
+const devOnlyRoutes: Array<{ path: string; element: ReactNode }> = [];
+if (import.meta.env.DEV) {
+  const DevLoginPage = lazy(() =>
+    import('@/features/auth/DevLoginPage').then((m) => ({ default: m.DevLoginPage })),
+  );
+  devOnlyRoutes.push({
+    path: '/dev/login',
+    element: withSuspense(<DevLoginPage />),
+  });
+}
+
 export const router = createBrowserRouter([
   // 진입/공통 — Layout 없이 직접 매칭
   { path: '/ingress', element: <SessionIngressPage /> },
   { path: '/forbidden', element: <ForbiddenPage /> },
+  ...devOnlyRoutes,
 
   // 라벨링 화면은 풀스크린 다크 UI — AppLayout(LNB/GNB) 밖에서 직접 매칭
   // 인증 가드(InternalRoute)는 그대로 유지
