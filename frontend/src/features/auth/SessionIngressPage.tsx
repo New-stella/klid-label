@@ -13,9 +13,10 @@ const COOKIE_NAME = 'klid_jwt';
  * `/ingress` 진입 페이지.
  * 흐름:
  *   1) [개발 전용] VITE_DEV_TOKEN 환경변수로 토큰 자동 주입 (DEV 빌드에서만)
- *   2) URL `?token=` 또는 cookie에서 토큰 수령 (env 전략)
- *   3) 토큰 없으면 detectChannel 기준으로 상위 시스템 redirect
- *      → redirect URL 없으면(환경변수 미설정) 에러 메시지 표시 (스피너 무한 방지)
+ *   2) URL `?token=` 또는 cookie/localStorage 에서 토큰 수령 (env 전략)
+ *   3) 토큰 없음 / claims 없음 / 만료 시:
+ *      - DEV 빌드 → /dev/login 으로 이동 (관제서버 미연결 환경 막다른 길 방지)
+ *      - 운영 → detectChannel 기준 상위 시스템 redirect, 실패 시 에러 메시지
  *   4) JWT decode → 만료 검증 → useAuthStore.setToken
  *   5) 채널별 메인 진입점 navigate (INTERNAL → /dashboard, PORTAL → /portal)
  */
@@ -29,6 +30,21 @@ export function SessionIngressPage() {
   useEffect(() => {
     if (ranRef.current) return;
     ranRef.current = true;
+
+    // 인증 실패 fallback: DEV 는 /dev/login, 운영은 upstream redirect → 실패 시 에러 메시지.
+    const handleAuthFailure = (
+      channel: ReturnType<typeof detectChannel>,
+      message: string,
+    ) => {
+      if (import.meta.env.DEV) {
+        navigate('/dev/login', { replace: true });
+        return;
+      }
+      const redirected = redirectToUpstream(channel);
+      if (!redirected) {
+        setErrorMessage(message);
+      }
+    };
 
     let token = resolveToken({
       urlToken: params.get('token'),
@@ -44,15 +60,10 @@ export function SessionIngressPage() {
     }
 
     if (!token) {
-      const redirected = redirectToUpstream(detectChannel());
-      if (!redirected) {
-        const devHint = import.meta.env.DEV
-          ? ' (DEV: /dev/login 에서 토큰을 발급할 수 있습니다.)'
-          : '';
-        setErrorMessage(
-          `로그인 서버에 연결할 수 없습니다. 관제서버 또는 포털에서 다시 접근해주세요.${devHint}`,
-        );
-      }
+      handleAuthFailure(
+        detectChannel(),
+        '로그인 서버에 연결할 수 없습니다. 관제서버 또는 포털에서 다시 접근해주세요.',
+      );
       return;
     }
 
@@ -61,12 +72,10 @@ export function SessionIngressPage() {
     const claims = useAuthStore.getState().claims;
 
     if (!claims) {
-      const redirected = redirectToUpstream(detectChannel());
-      if (!redirected) {
-        setErrorMessage(
-          '로그인 서버에 연결할 수 없습니다. 관제서버 또는 포털에서 다시 접근해주세요.',
-        );
-      }
+      handleAuthFailure(
+        detectChannel(),
+        '로그인 서버에 연결할 수 없습니다. 관제서버 또는 포털에서 다시 접근해주세요.',
+      );
       return;
     }
 
@@ -74,12 +83,10 @@ export function SessionIngressPage() {
     const nowSec = Math.floor(Date.now() / 1000);
     if (claims.exp <= nowSec) {
       useAuthStore.getState().clear();
-      const redirected = redirectToUpstream(claims.channel);
-      if (!redirected) {
-        setErrorMessage(
-          '세션이 만료되었습니다. 관제서버 또는 포털에서 다시 접근해주세요.',
-        );
-      }
+      handleAuthFailure(
+        claims.channel,
+        '세션이 만료되었습니다. 관제서버 또는 포털에서 다시 접근해주세요.',
+      );
       return;
     }
 

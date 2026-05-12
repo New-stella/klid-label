@@ -24,6 +24,7 @@ function renderWithRoutes(initialEntries: string[]) {
         <Route path="/ingress" element={<SessionIngressPage />} />
         <Route path="/dashboard" element={<div>DASHBOARD_HOME</div>} />
         <Route path="/portal" element={<div>PORTAL_HOME</div>} />
+        <Route path="/dev/login" element={<div>DEV_LOGIN</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -77,17 +78,18 @@ describe('SessionIngressPage', () => {
     });
   });
 
-  it('토큰_없으면_상위_시스템_redirect', async () => {
+  // DEV 빌드(Vitest 기본 import.meta.env.DEV=true) 에서는 토큰 없음/만료 시
+  // upstream redirect 대신 /dev/login 으로 이동한다 (관제서버 미연결 환경 막다른 길 방지).
+  it('DEV_빌드_토큰_없으면_dev_login_으로_이동', async () => {
     renderWithRoutes(['/ingress']);
 
     await waitFor(() => {
-      expect(assignSpy).toHaveBeenCalled();
+      expect(screen.getByText('DEV_LOGIN')).toBeInTheDocument();
     });
-    const target = assignSpy.mock.calls[0][0] as string;
-    expect(target.startsWith('http://control.local/login')).toBe(true);
+    expect(assignSpy).not.toHaveBeenCalled();
   });
 
-  it('만료된_exp_클레임은_redirect_처리', async () => {
+  it('DEV_빌드_만료된_exp_클레임은_dev_login_으로_이동', async () => {
     const expired = buildJwt(
       { alg: 'HS256', typ: 'JWT' },
       { sub: 'u3', role: 'REVIEWER', channel: 'INTERNAL', exp: 1 }, // long expired
@@ -95,8 +97,9 @@ describe('SessionIngressPage', () => {
     renderWithRoutes([`/ingress?token=${expired}`]);
 
     await waitFor(() => {
-      expect(assignSpy).toHaveBeenCalled();
+      expect(screen.getByText('DEV_LOGIN')).toBeInTheDocument();
     });
     expect(useAuthStore.getState().token).toBeNull();
+    expect(assignSpy).not.toHaveBeenCalled();
   });
 });
