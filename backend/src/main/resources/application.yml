@@ -123,6 +123,8 @@ authoring:
   ffmpeg:
     threads: ${FFMPEG_THREADS:2}
     binary: ${FFMPEG_BIN:ffmpeg}
+    # ffprobe 바이너리 경로 — DevAutolabelTestService 가 업로드된 영상에서 duration 자동 추출 시 사용.
+    ffprobe-binary: ${FFPROBE_BIN:ffprobe}
   gitea:
     retry:
       # Gitea fallback 재시도 잡 활성화 (Phase 8). 기본 false → prd 에서 true 로 오버라이드.

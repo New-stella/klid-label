@@ -9,6 +9,8 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
+import net.bramp.ffmpeg.FFprobe;
+import net.bramp.ffmpeg.probe.FFmpegProbeResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -56,24 +58,70 @@ public class DevAutolabelTestService {
     /** 업로드된 파일을 저장할 storage 하위 디렉토리. */
     private static final String UPLOAD_SUBDIR = "autolabel-test";
 
+    /** ffprobe 가 추출 가능한 최소 duration 상한 — `LS_DATA_RAW.DURATION_SEC` 유효 범위(2h). */
+    private static final int MAX_DURATION_SEC = 7200;
+
     private final VideoRepository videoRepository;
     private final MngResourceCctvRepository cctvRepository;
     private final AutolabelTestService autolabelTestService;
     private final Path storageRawPath;
     private final long maxFileSize;
+    private final String ffprobePath;
+    /**
+     * 영상 파일 → duration(초) 추출 함수. 운영은 ffprobe 바이너리 호출.
+     * 테스트는 stub 함수 주입으로 ffprobe 의존성을 격리.
+     */
+    private final DurationProbe durationProbe;
 
+    /** 운영용 생성자 — Spring 이 의존성 주입. */
     public DevAutolabelTestService(
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
             AutolabelTestService autolabelTestService,
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
-            @Value("${authoring.dev.autolabel-test.max-file-size:524288000}") long maxFileSize
+            @Value("${authoring.dev.autolabel-test.max-file-size:524288000}") long maxFileSize,
+            @Value("${authoring.ffmpeg.ffprobe-binary:ffprobe}") String ffprobePath
+    ) {
+        this(videoRepository, cctvRepository, autolabelTestService,
+                storageRawPath, maxFileSize, ffprobePath, null);
+    }
+
+    /**
+     * 테스트용 생성자 — durationProbe 를 직접 주입해 ffprobe 바이너리 의존성을 격리.
+     * {@code durationProbe == null} 이면 ffprobe 기반 기본 구현을 사용한다.
+     */
+    public DevAutolabelTestService(
+            VideoRepository videoRepository,
+            MngResourceCctvRepository cctvRepository,
+            AutolabelTestService autolabelTestService,
+            String storageRawPath,
+            long maxFileSize,
+            String ffprobePath,
+            DurationProbe durationProbe
     ) {
         this.videoRepository = videoRepository;
         this.cctvRepository = cctvRepository;
         this.autolabelTestService = autolabelTestService;
         this.storageRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.maxFileSize = maxFileSize;
+        this.ffprobePath = ffprobePath;
+        this.durationProbe = durationProbe != null ? durationProbe : this::probeWithFfprobe;
+    }
+
+    /**
+     * 기존 테스트 시그니처 호환용 (5-인자 생성자) — ffprobe 의존 없이 고정 duration(60s) 을
+     * 반환하는 stub probe 를 주입한다. 신규 테스트는 7-인자 생성자로 {@link DurationProbe}
+     * 를 직접 주입해 정확한 검증을 수행한다.
+     */
+    public DevAutolabelTestService(
+            VideoRepository videoRepository,
+            MngResourceCctvRepository cctvRepository,
+            AutolabelTestService autolabelTestService,
+            String storageRawPath,
+            long maxFileSize
+    ) {
+        this(videoRepository, cctvRepository, autolabelTestService,
+                storageRawPath, maxFileSize, "ffprobe", path -> 60);
     }
 
     /**
@@ -104,6 +152,9 @@ public class DevAutolabelTestService {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "영상 파일 저장에 실패했습니다.");
         }
 
+        // duration 자동 추출 — ffprobe 로 영상 메타에서 추출. 실패 시 400 으로 거절.
+        int durationSec = extractDurationSec(savedAbsolutePath, meta.vmsClipId());
+
         LocalDateTime capturedAt = LocalDateTime.ofInstant(meta.capturedAt(), ZoneId.systemDefault());
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 meta.vmsClipId(),
@@ -113,30 +164,41 @@ public class DevAutolabelTestService {
                 meta.prvcTypeCd().name(),
                 relativePath,
                 capturedAt,
-                meta.durationSec()
+                durationSec
         );
         LsDataRaw saved = videoRepository.save(raw);
         Long rawSn = saved.getRawSn();
         long startedAt = System.currentTimeMillis();
 
         // CWE-117 Log Injection 방어 — 사용자 입력 원본 파일명/경로 절대 출력 금지.
-        log.info("[DevAutolabelTest] uploaded rawSn={} vmsClipIdHash={} prvcType={} ext={} sizeBytes={}",
+        log.info("[DevAutolabelTest] uploaded rawSn={} vmsClipIdHash={} prvcType={} ext={} sizeBytes={} durationSec={}",
                 rawSn,
                 Integer.toHexString(meta.vmsClipId().hashCode()),
                 meta.prvcTypeCd().name(),
                 extension,
-                file.getSize());
+                file.getSize(),
+                durationSec);
 
         // 백그라운드 파이프라인 실행 — runFull 은 동기 long-running, 별도 스레드로 분리.
         // 트랜잭션 커밋 이후에 호출되어야 하므로 CompletableFuture 로 fire-and-forget.
-        CompletableFuture.runAsync(() -> {
-            try {
-                autolabelTestService.runFull(rawSn);
-            } catch (Exception e) {
-                log.warn("[DevAutolabelTest] pipeline failed rawSn={} cause={}",
-                        rawSn, e.getClass().getSimpleName());
-            }
-        });
+        // 실패 시 (1) cause/stack 로깅 보강, (2) LS_DATA_RAW.DATA_STTS_CD=FAILED 갱신해
+        // FE polling 이 무한 "대기중" 상태로 남지 않도록 보장.
+        CompletableFuture.runAsync(() -> autolabelTestService.runFull(rawSn))
+                .exceptionally(e -> {
+                    Throwable cause = e.getCause() != null ? e.getCause() : e;
+                    log.error("[DevAutolabelTest] pipeline failed rawSn={} causeType={} message={}",
+                            rawSn,
+                            cause.getClass().getSimpleName(),
+                            cause.getMessage(),
+                            e);
+                    try {
+                        videoRepository.updateStatus(rawSn, "FAILED");
+                    } catch (Exception updateEx) {
+                        log.warn("[DevAutolabelTest] failed to mark FAILED rawSn={} causeType={}",
+                                rawSn, updateEx.getClass().getSimpleName(), updateEx);
+                    }
+                    return null;
+                });
 
         return new AutolabelTestResponse(rawSn, relativePath, "PROCESSING", startedAt);
     }
@@ -205,6 +267,61 @@ public class DevAutolabelTestService {
     }
 
     /**
+     * 업로드된 영상 파일에서 duration(초) 을 자동 추출한다.
+     * <p>ffprobe 실패(손상된 영상/지원되지 않는 형식) 시 400 응답.
+     * <p>0 이하 또는 상한 초과 값은 거절 (LS_DATA_RAW.DURATION_SEC 도메인 제약 — 1~7200s).
+     *
+     * @param savedPath 저장된 영상의 절대 경로
+     * @param vmsClipIdForLog 로그 마스킹용 — 원본은 출력하지 않고 hash 만 사용
+     */
+    int extractDurationSec(Path savedPath, String vmsClipIdForLog) {
+        int durationSec;
+        try {
+            durationSec = durationProbe.probe(savedPath);
+        } catch (RuntimeException e) {
+            log.warn("[DevAutolabelTest] ffprobe failed vmsClipIdHash={} causeType={} message={}",
+                    Integer.toHexString(vmsClipIdForLog == null ? 0 : vmsClipIdForLog.hashCode()),
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "영상 길이를 추출할 수 없습니다. 손상되었거나 지원되지 않는 형식일 수 있습니다.");
+        }
+        if (durationSec <= 0) {
+            log.warn("[DevAutolabelTest] ffprobe returned non-positive duration vmsClipIdHash={} durationSec={}",
+                    Integer.toHexString(vmsClipIdForLog == null ? 0 : vmsClipIdForLog.hashCode()),
+                    durationSec);
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "영상 길이가 유효하지 않습니다 (0초 이하).");
+        }
+        if (durationSec > MAX_DURATION_SEC) {
+            log.warn("[DevAutolabelTest] ffprobe returned over-limit duration vmsClipIdHash={} durationSec={}",
+                    Integer.toHexString(vmsClipIdForLog == null ? 0 : vmsClipIdForLog.hashCode()),
+                    durationSec);
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "영상 길이가 허용 한도(" + MAX_DURATION_SEC + "초) 를 초과합니다.");
+        }
+        return durationSec;
+    }
+
+    /**
+     * ffprobe 바이너리 기반 duration 추출 — 운영 기본 구현.
+     * <p>실패 시 RuntimeException 으로 위쪽 {@link #extractDurationSec} 가 변환.
+     */
+    private int probeWithFfprobe(Path filePath) {
+        try {
+            FFprobe ffprobe = new FFprobe(ffprobePath);
+            FFmpegProbeResult probe = ffprobe.probe(filePath.toString());
+            if (probe == null || probe.getFormat() == null) {
+                throw new IllegalStateException("ffprobe 응답에 format 정보가 없습니다.");
+            }
+            double durationSec = probe.getFormat().duration;
+            return (int) Math.round(durationSec);
+        } catch (IOException e) {
+            throw new IllegalStateException("ffprobe 호출 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * CWE-22 Path Traversal 방어 — storage 기준 경로 prefix 검증.
      * UUID 재명명된 파일명만 입력으로 받으므로 일반적으로 안전하지만 이중 방어.
      */
@@ -216,5 +333,18 @@ public class DevAutolabelTestService {
                     "저장 경로가 허용 범위를 벗어납니다.");
         }
         return candidate;
+    }
+
+    /**
+     * 영상 파일 → duration(초) 추출 추상화. 테스트는 stub 구현 주입으로 ffprobe 의존성 제거.
+     */
+    @FunctionalInterface
+    public interface DurationProbe {
+        /**
+         * @param filePath 저장된 영상의 절대 경로
+         * @return duration in seconds (1 ~ 7200 범위 검증은 호출자가 수행)
+         * @throws RuntimeException ffprobe 호출 실패 또는 영상 포맷 인식 불가
+         */
+        int probe(Path filePath);
     }
 }

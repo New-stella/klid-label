@@ -134,7 +134,8 @@ describe('DevAutolabelTestPage', () => {
     expect(meta.eventTypeCd).toBe('EVT_FALL');
     expect(meta.localGovCd).toBe('11680');
     expect(meta.prvcTypeCd).toBe('ANONY');
-    expect(meta.durationSec).toBe(60);
+    // durationSec 는 BE 가 ffprobe 로 자동 추출 → FE meta 에 포함되지 않음
+    expect(meta).not.toHaveProperty('durationSec');
     // ISO-8601 instant 형식
     expect(typeof meta.capturedAt).toBe('string');
     expect(meta.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -222,6 +223,56 @@ describe('DevAutolabelTestPage', () => {
     });
     // 결과 영역은 노출되지 않음
     expect(screen.queryByTestId('autolabel-raw-sn')).not.toBeInTheDocument();
+  });
+
+  it('파이프라인_FAILED_상태_감지시_에러_박스_노출', async () => {
+    const user = userEvent.setup();
+    mock.onPost('/dev/autolabel-test').reply(200, {
+      success: true,
+      data: {
+        rawSn: 8888,
+        savedFilePath: 'autolabel-test/fail.mp4',
+        pipelineStatus: 'PROCESSING',
+        startedAt: 1715520000000,
+      },
+      message: null,
+      errorCode: null,
+    });
+    // 영상 상세 polling — FAILED 상태로 응답
+    mock.onGet(/\/videos\/\d+$/).reply(200, {
+      success: true,
+      data: {
+        id: 8888,
+        rawSn: 8888,
+        cctvName: 'CCTV-001',
+        vmsClipId: 'test-clip-fail',
+        frameCount: 0,
+        status: 'FAILED',
+        capturedAt: '2026-05-12T10:00:00Z',
+        duration: 60,
+        fileSizeMb: 10,
+        resolution: '1920x1080',
+        framePreviews: [],
+        stages: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<DevAutolabelTestPage />);
+
+    const file = new File(['v'], 'fail.mp4', { type: 'video/mp4' });
+    const fileInput = document.getElementById(
+      'autolabel-test-file',
+    ) as HTMLInputElement;
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: '실행' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('autolabel-pipeline-failed'),
+      ).toHaveTextContent('파이프라인 실행에 실패했습니다');
+    });
   });
 
   it('BE_409_vmsClipId_중복_메시지_표시', async () => {

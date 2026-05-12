@@ -34,8 +34,9 @@ export type EventTypeCd = (typeof EventTypeCd)[keyof typeof EventTypeCd];
  * BE record `AutolabelTestRequest` 와 동일한 필드 + 검증.
  * - vmsClipId / cctvId: 영문/숫자/-/_ 1~64자
  * - localGovCd: 숫자 1~10자리
- * - durationSec: 1~7200
  * - capturedAt: ISO-8601 (`Date.toISOString()` 형식)
+ *
+ * `durationSec` 는 BE 가 ffprobe 로 업로드된 영상 파일에서 자동 추출하므로 FE 가 전송하지 않는다.
  */
 export interface AutolabelTestMeta {
   vmsClipId: string;
@@ -43,7 +44,6 @@ export interface AutolabelTestMeta {
   eventTypeCd: EventTypeCd | string;
   localGovCd: string;
   prvcTypeCd: PrvcType;
-  durationSec: number;
   /** ISO-8601 Instant (예: `2026-05-12T10:00:00Z`) */
   capturedAt: string;
 }

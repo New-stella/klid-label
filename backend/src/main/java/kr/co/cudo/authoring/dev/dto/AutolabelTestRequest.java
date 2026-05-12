@@ -1,8 +1,6 @@
 package kr.co.cudo.authoring.dev.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -16,8 +14,10 @@ import java.time.Instant;
  * <ul>
  *   <li>{@code vmsClipId}, {@code cctvId} 는 영문/숫자/하이픈/언더스코어만 허용 — 경로 순회·SQL Injection 차단.</li>
  *   <li>{@code localGovCd} 는 숫자만 허용.</li>
- *   <li>{@code durationSec} 1~7200(2h) 범위 — 무제한 업로드 방지.</li>
  * </ul>
+ *
+ * <p>{@code durationSec} 는 ffprobe 로 업로드된 영상 파일에서 자동 추출하므로 요청 필드에서 제거되었다
+ * (사용자 입력 무시 → 위/변조 차단).
  */
 @Schema(description = "[개발/검수 전용] 영상 업로드 + 오토라벨 파이프라인 트리거 메타데이터")
 public record AutolabelTestRequest(
@@ -49,13 +49,6 @@ public record AutolabelTestRequest(
                 requiredMode = Schema.RequiredMode.REQUIRED)
         @NotNull(message = "prvcTypeCd 는 필수입니다.")
         PrvcType prvcTypeCd,
-
-        @Schema(description = "영상 길이 초 단위 (1~7200)", example = "60",
-                minimum = "1", maximum = "7200", requiredMode = Schema.RequiredMode.REQUIRED)
-        @NotNull(message = "durationSec 는 필수입니다.")
-        @Min(value = 1, message = "durationSec 는 1 이상이어야 합니다.")
-        @Max(value = 7200, message = "durationSec 는 7200 이하여야 합니다.")
-        Integer durationSec,
 
         @Schema(description = "촬영 시각 (ISO-8601 Instant)", example = "2024-05-01T12:00:00Z",
                 requiredMode = Schema.RequiredMode.REQUIRED)

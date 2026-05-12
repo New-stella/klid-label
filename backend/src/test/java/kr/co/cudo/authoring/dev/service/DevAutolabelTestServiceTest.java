@@ -19,13 +19,16 @@ import org.springframework.web.multipart.MultipartFile;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,7 +74,6 @@ class DevAutolabelTestServiceTest {
                 "EVT_FALL",
                 "1168000000",
                 AutolabelTestRequest.PrvcType.ANONY,
-                60,
                 Instant.parse("2024-05-01T12:00:00Z")
         );
     }
@@ -258,5 +260,109 @@ class DevAutolabelTestServiceTest {
         assertThatThrownBy(() -> service.upload(file, validMeta()))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    /** durationProbe 주입형 서비스 — ffprobe 의존 격리. */
+    private DevAutolabelTestService serviceWithProbe(DevAutolabelTestService.DurationProbe probe) {
+        return new DevAutolabelTestService(
+                videoRepository, cctvRepository, autolabelTestService,
+                storageRoot.toString(), MAX_FILE_SIZE, "ffprobe", probe);
+    }
+
+    @Test
+    @DisplayName("영상_파일에서_duration_자동_추출_LS_DATA_RAW에_저장")
+    void 영상_파일에서_duration_자동_추출() throws Exception {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(cctvRepository.existsById(any())).willReturn(true);
+        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(101L));
+
+        // ffprobe stub — 정확히 137초 반환
+        DevAutolabelTestService localService = serviceWithProbe(path -> 137);
+
+        MultipartFile file = mp4File("video.mp4", new byte[]{1, 2, 3, 4});
+        AutolabelTestResponse response = localService.upload(file, validMeta());
+
+        assertThat(response.rawSn()).isEqualTo(101L);
+
+        // LS_DATA_RAW INSERT 시 ffprobe 가 반환한 137 이 그대로 사용되었는지 검증
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        assertThat(captor.getValue().getDurationSec()).isEqualTo(137);
+    }
+
+    @Test
+    @DisplayName("ffprobe_실패시_400_INVALID_INPUT_저장_안됨")
+    void ffprobe_실패시_400() {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(cctvRepository.existsById(any())).willReturn(true);
+
+        // ffprobe 가 RuntimeException 던지는 stub — 손상된 영상 시뮬레이션
+        DevAutolabelTestService localService = serviceWithProbe(path -> {
+            throw new IllegalStateException("ffprobe call failed: corrupted file");
+        });
+
+        MultipartFile file = mp4File("corrupt.mp4", new byte[]{1, 2, 3});
+
+        assertThatThrownBy(() -> localService.upload(file, validMeta()))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+
+        // LS_DATA_RAW 저장이 일어나지 않음 (ffprobe 실패 → 400)
+        verify(videoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("ffprobe_0초_반환시_400_INVALID_INPUT")
+    void ffprobe_0초_반환_거부() {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(cctvRepository.existsById(any())).willReturn(true);
+
+        DevAutolabelTestService localService = serviceWithProbe(path -> 0);
+        MultipartFile file = mp4File("zero.mp4", new byte[]{1, 2});
+
+        assertThatThrownBy(() -> localService.upload(file, validMeta()))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(videoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("ffprobe_상한_초과시_400_INVALID_INPUT")
+    void ffprobe_상한_초과_거부() {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(cctvRepository.existsById(any())).willReturn(true);
+
+        DevAutolabelTestService localService = serviceWithProbe(path -> 7201);
+        MultipartFile file = mp4File("toolong.mp4", new byte[]{1, 2});
+
+        assertThatThrownBy(() -> localService.upload(file, validMeta()))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(videoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("파이프라인_비동기_실패시_LS_DATA_RAW_DATA_STTS_CD_FAILED_갱신")
+    void 파이프라인_실패시_FAILED_갱신() throws Exception {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(cctvRepository.existsById(any())).willReturn(true);
+        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(202L));
+
+        // autolabelTestService.runFull 이 예외 던지도록 설정
+        doThrow(new RuntimeException("YOLO step failed: server unreachable"))
+                .when(autolabelTestService).runFull(202L);
+
+        DevAutolabelTestService localService = serviceWithProbe(path -> 60);
+        MultipartFile file = mp4File("ok.mp4", new byte[]{1, 2, 3});
+
+        // 동기 응답은 200 으로 반환 — 파이프라인은 비동기
+        AutolabelTestResponse response = localService.upload(file, validMeta());
+        assertThat(response.rawSn()).isEqualTo(202L);
+
+        // 비동기 exceptionally 콜백이 updateStatus(202, "FAILED") 를 호출하는지 검증.
+        await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                verify(videoRepository).updateStatus(202L, "FAILED"));
     }
 }

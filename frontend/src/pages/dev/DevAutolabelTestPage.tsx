@@ -65,7 +65,6 @@ interface FormState {
   eventTypeCd: EventTypeCd;
   localGovCd: string;
   prvcTypeCd: PrvcType;
-  durationSec: number;
   /** datetime-local 형식 (`YYYY-MM-DDTHH:mm`) — 제출 시 ISO 로 변환. */
   capturedAtLocal: string;
 }
@@ -77,7 +76,6 @@ function initialForm(): FormState {
     eventTypeCd: EventTypeCd.EVT_FALL,
     localGovCd: '11680',
     prvcTypeCd: PrvcType.ANONY,
-    durationSec: 60,
     capturedAtLocal: nowLocalDateTime(),
   };
 }
@@ -113,23 +111,25 @@ export function DevAutolabelTestPage() {
   });
 
   // 결과 영역 polling — rawSn 받은 이후, 영상 상태가 COMPLETED/FAILED 도달 전까지
+  // statusQuery 가 직전 응답을 보유하므로 terminal 도달 후 enabled 가 false 로 떨어져도
+  // videoDetail 캐시는 유지되어 화면 표시는 정상이다.
+  const [terminalReached, setTerminalReached] = useState(false);
   const pollingEnabled = useMemo(() => {
     if (!result) return false;
-    return true;
-  }, [result]);
+    return !terminalReached;
+  }, [result, terminalReached]);
 
   const statusQuery = useAutolabelStatus(result?.rawSn ?? null, pollingEnabled);
   const videoDetail = statusQuery.data ?? null;
   const reachedTerminal =
     videoDetail?.status === 'COMPLETED' || videoDetail?.status === 'FAILED';
 
-  // terminal 도달 시 polling 자동 중단 (불필요한 트래픽 차단)
+  // terminal 도달 시 polling 즉시 중단 (불필요한 트래픽 차단)
   useEffect(() => {
-    if (reachedTerminal && pollingEnabled) {
-      // statusQuery 의 `enabled` 가 reachedTerminal 변화에 따라 falsy 로 재계산되도록
-      // pollingEnabled 메모에 반영되어 자동 정지된다. 별도 액션 불필요.
+    if (reachedTerminal && !terminalReached) {
+      setTerminalReached(true);
     }
-  }, [reachedTerminal, pollingEnabled]);
+  }, [reachedTerminal, terminalReached]);
 
   const isValid = useMemo(() => {
     if (!file) return false;
@@ -137,7 +137,6 @@ export function DevAutolabelTestPage() {
     if (!form.cctvId.trim()) return false;
     if (!form.eventTypeCd) return false;
     if (!form.localGovCd.trim()) return false;
-    if (!form.durationSec || form.durationSec <= 0) return false;
     if (!form.capturedAtLocal) return false;
     return true;
   }, [file, form]);
@@ -153,6 +152,7 @@ export function DevAutolabelTestPage() {
     if (!file || !isValid) return;
     setErrorMessage(null);
     setResult(null);
+    setTerminalReached(false);
 
     const meta: AutolabelTestMeta = {
       vmsClipId: form.vmsClipId.trim(),
@@ -160,7 +160,6 @@ export function DevAutolabelTestPage() {
       eventTypeCd: form.eventTypeCd,
       localGovCd: form.localGovCd.trim(),
       prvcTypeCd: form.prvcTypeCd,
-      durationSec: form.durationSec,
       capturedAt: toIsoInstant(form.capturedAtLocal),
     };
     mutation.mutate({ file, meta });
@@ -171,6 +170,7 @@ export function DevAutolabelTestPage() {
     setForm(initialForm());
     setErrorMessage(null);
     setResult(null);
+    setTerminalReached(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -316,22 +316,6 @@ export function DevAutolabelTestPage() {
           </fieldset>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input
-              label="durationSec"
-              type="number"
-              min={1}
-              max={7200}
-              value={form.durationSec}
-              onChange={(e) =>
-                setForm((s) => ({
-                  ...s,
-                  durationSec: Number.parseInt(e.target.value, 10) || 0,
-                }))
-              }
-              hint="영상 길이 (초) · 1~7200"
-              disabled={mutation.isPending}
-              required
-            />
             <div className="flex flex-col gap-1">
               <label
                 htmlFor="autolabel-test-capturedAt"
@@ -351,6 +335,17 @@ export function DevAutolabelTestPage() {
               />
               <span className="text-sub text-gray-500">
                 촬영 시각 (브라우저 로컬 → BE 전송 시 ISO-8601 UTC 로 변환)
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-body font-medium text-gray-700">
+                영상 길이 (durationSec)
+              </span>
+              <div className="flex h-10 items-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 text-sub text-gray-600">
+                업로드 후 ffprobe 로 자동 추출됩니다
+              </div>
+              <span className="text-sub text-gray-500">
+                영상 파일에서 BE 가 자동 산출 (1~7200초 범위 검증)
               </span>
             </div>
           </div>
@@ -401,6 +396,17 @@ export function DevAutolabelTestPage() {
               </span>
               {!reachedTerminal && <Spinner size="sm" label="파이프라인 진행 중" />}
             </div>
+
+            {videoDetail?.status === 'FAILED' && (
+              <div
+                role="alert"
+                data-testid="autolabel-pipeline-failed"
+                className="rounded-md border border-danger/40 bg-red-50 px-3 py-2 text-sub text-danger"
+              >
+                파이프라인 실행에 실패했습니다. BE 로그를 확인해주세요. (rawSn ={' '}
+                {result.rawSn})
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-2 text-gray-600 sm:grid-cols-3">
               <div>
