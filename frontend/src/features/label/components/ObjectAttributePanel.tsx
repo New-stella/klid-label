@@ -51,6 +51,8 @@ export function ObjectAttributePanel({
 
   const lowConfidence = target.confidence !== undefined && target.confidence < 0.5;
   const sourceLabel = target.source === 'MANUAL' ? '수동' : '자동';
+  // 객체 식별자: trackId 가 있으면 우선, 없으면 라벨 id 앞 8자 (UUID/short hash 가독성)
+  const objectNumber = target.trackId ?? String(target.id ?? '').slice(0, 8);
 
   function clampX(v: number): number {
     return Math.max(0, Math.min(imageWidth - 1, v));
@@ -81,7 +83,12 @@ export function ObjectAttributePanel({
       className="flex h-full w-72 flex-col gap-3 overflow-y-auto border-l border-border bg-white p-3"
       aria-label="객체 속성"
     >
-      <h3 className="text-sub font-semibold text-primary">객체 속성</h3>
+      <h3 className="flex items-center gap-2 text-sub font-semibold text-primary">
+        <span>객체 속성</span>
+        <span className="text-gray-500 text-xs" data-testid="object-attribute-id">
+          #{objectNumber}
+        </span>
+      </h3>
 
       {/* 라벨 드롭다운 */}
       {availableLabels.length > 0 ? (

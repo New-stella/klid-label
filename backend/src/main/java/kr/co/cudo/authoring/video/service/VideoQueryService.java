@@ -85,7 +85,6 @@ public class VideoQueryService {
         List<VideoDetailResponse.FramePreviewDto> framePreviews = srcRepository
                 .findByRawSnOrderByFrameNoAsc(entity.getRawSn())
                 .stream()
-                .limit(6)
                 .map(src -> new VideoDetailResponse.FramePreviewDto(
                         src.getSrcSn(),
                         src.getFrameNo(),

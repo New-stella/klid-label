@@ -8,6 +8,7 @@ import { useLabelStore } from '@/stores/useLabelStore';
 
 import { getLabelColor, getLabelDisplayName } from '../labelColors';
 import type { Label } from '../types';
+import { trackIdToColor } from '../utils/trackColor';
 
 interface ObjectClassTreeProps {
   labels: Label[];
@@ -70,25 +71,33 @@ export function ObjectClassTree({ labels }: ObjectClassTreeProps) {
                 const isSelected = selectedId === obj.id;
                 const shapeType = obj.shape?.type ?? '-';
                 const isAuto = obj.source !== 'MANUAL';
+                const objNumber = obj.trackId ?? idx + 1;
+                const barColor = trackIdToColor(obj.trackId);
                 return (
                   <div
                     key={obj.id}
                     className={cn(
-                      'flex items-center gap-2 pl-7 pr-2 py-1 text-xs group',
+                      'flex items-stretch gap-2 pl-3 pr-2 py-1 text-xs group',
                       isSelected
                         ? 'bg-blue-600/30 text-white'
                         : 'text-gray-300 hover:bg-gray-700',
                     )}
                   >
+                    <span
+                      data-testid="label-color-bar"
+                      aria-hidden="true"
+                      className="inline-block w-1 shrink-0 rounded-sm"
+                      style={{ backgroundColor: barColor }}
+                    />
                     <button
                       type="button"
                       onClick={() => selectLabel(obj.id)}
                       className="flex-1 flex items-center gap-2 text-left"
-                      aria-label={`${displayName} #${idx + 1} 선택`}
+                      aria-label={`${displayName} #${objNumber} 선택`}
                     >
                       <span aria-hidden>{isAuto ? '🤖' : '✏️'}</span>
                       <span className="flex-1 truncate">
-                        {displayName} #{idx + 1}
+                        {displayName} #{objNumber}
                       </span>
                       <span className="text-gray-500 text-xs uppercase">{shapeType}</span>
                     </button>

@@ -113,4 +113,32 @@ describe('ObjectAttributePanel Phase 6 완성', () => {
       expect(updated.shape.left).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it('trackId 있는 객체는 헤더에 #{trackId} 표시', () => {
+    const withTrack: Label = { ...sampleAuto, trackId: '42' };
+    useLabelStore.getState().setLabels([withTrack]);
+    useLabelStore.getState().selectLabel('auto1');
+    renderWithProviders(<ObjectAttributePanel labels={[withTrack]} />);
+    const idSpan = screen.getByTestId('object-attribute-id');
+    expect(idSpan.textContent).toBe('#42');
+  });
+
+  it('trackId 없는 객체는 헤더에 id 앞 8자 fallback', () => {
+    // id 가 8자보다 긴 경우 (앞 8자만)
+    const longId: Label = { ...sampleAuto, id: 'abcdef0123-zzz', trackId: undefined };
+    useLabelStore.getState().setLabels([longId]);
+    useLabelStore.getState().selectLabel('abcdef0123-zzz');
+    renderWithProviders(<ObjectAttributePanel labels={[longId]} />);
+    const idSpan = screen.getByTestId('object-attribute-id');
+    expect(idSpan.textContent).toBe('#abcdef01');
+  });
+
+  it('trackId 가 null 인 객체도 id fallback (legacy DB row)', () => {
+    const legacy: Label = { ...sampleAuto, id: 'leg12345-rest', trackId: null };
+    useLabelStore.getState().setLabels([legacy]);
+    useLabelStore.getState().selectLabel('leg12345-rest');
+    renderWithProviders(<ObjectAttributePanel labels={[legacy]} />);
+    const idSpan = screen.getByTestId('object-attribute-id');
+    expect(idSpan.textContent).toBe('#leg12345');
+  });
 });

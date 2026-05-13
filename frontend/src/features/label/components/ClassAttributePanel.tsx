@@ -67,12 +67,14 @@ export function ClassAttributePanel({
 
   return (
     <div className="overflow-y-auto flex-1 p-3 space-y-3 text-sm text-gray-200">
-      {/* 라벨 (className 표시) */}
+      {/* 라벨 (className 표시 — 객체 식별자는 trackId 우선, 없으면 id 앞 8자) */}
       <div>
         <span className="block text-xs text-gray-400 mb-1">라벨</span>
         <div className="text-sm text-white">
           {getLabelDisplayName(target.className)}{' '}
-          <span className="text-gray-500 text-xs">#{target.classId}</span>
+          <span className="text-gray-500 text-xs" data-testid="class-attribute-id">
+            #{target.trackId ?? String(target.id ?? '').slice(0, 8)}
+          </span>
         </div>
       </div>
 
