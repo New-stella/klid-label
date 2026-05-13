@@ -157,13 +157,15 @@ public class DevAutolabelTestService {
         int durationSec = extractDurationSec(savedAbsolutePath, meta.vmsClipId());
 
         LocalDateTime capturedAt = LocalDateTime.ofInstant(meta.capturedAt(), ZoneId.systemDefault());
+        // FfmpegFrameExtractor 는 Paths.get(filePath) 로 절대 해석하므로 LS_DATA_RAW.FILE_PATH 에는
+        // 절대 경로를 저장해야 한다 (저장 자체는 storage prefix 내부로 이미 격리됨 — CWE-22 회피).
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 meta.vmsClipId(),
                 meta.cctvId(),
                 meta.eventTypeCd(),
                 meta.localGovCd(),
                 meta.prvcTypeCd().name(),
-                relativePath,
+                savedAbsolutePath.toString(),
                 capturedAt,
                 durationSec
         );
