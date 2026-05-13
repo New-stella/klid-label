@@ -47,6 +47,8 @@ class AutolabelTestServiceTest {
     private FfmpegFrameExtractor frameExtractor;
     @Mock
     private VideoRepository videoRepository;
+    @Mock
+    private kr.co.cudo.authoring.batch.status.BatchStatusService statusService;
 
     @InjectMocks
     private AutolabelTestService service;

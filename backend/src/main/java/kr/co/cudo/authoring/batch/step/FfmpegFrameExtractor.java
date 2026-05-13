@@ -7,6 +7,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.ManifestJsonlWriter;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,35 +30,48 @@ import java.util.List;
 /**
  * FFmpeg 프레임 추출기 (Phase 5 — FRAME_EXTRACT 단계).
  * <p>
- * 1프레임/분 추출. 영상 1초당 1프레임이 아니라 영상 N분 길이 → N개 프레임.
+ * 시스템 설정 {@code FFMPEG_OUTPUT_FPS}(1~30) 값을 사용해 초당 N프레임을 추출한다.
+ * 예) 1 fps · 113초 영상 → 113 프레임, 2 fps · 60초 영상 → 120 프레임.
  * (실제 운영에서는 net.bramp.ffmpeg 가 ffmpeg 바이너리를 호출. 본 구현은 바이너리 의존을 격리한 추상화.)
  * <p>
  * 보안:
  * - Path Manipulation (CWE-22): 출력 경로는 storage.raw-path 기반 + Path.normalize + base 검증.
  * - Resource Exhaustion (CWE-770): durationSec=0 또는 음수면 INVALID_INPUT.
+ *   outputFps 는 [1,30] 범위로 클램프되어 무한정 프레임 생성 방지.
  * - Privacy: 영상 경로는 hash 로 마스킹 후 로그 출력.
  */
 @Slf4j
 @Component
 public class FfmpegFrameExtractor {
 
+    /** outputFps 허용 하한 (ConfigKeys.NUMBER_RANGE 와 동일). */
+    static final int MIN_OUTPUT_FPS = 1;
+    /** outputFps 허용 상한 (ConfigKeys.NUMBER_RANGE 와 동일). */
+    static final int MAX_OUTPUT_FPS = 30;
+    /** 시스템 설정 조회 실패 시 사용할 기본 fps. */
+    static final int DEFAULT_OUTPUT_FPS = 1;
+
     private final LsDataSrcRepository srcRepository;
     private final LsDataSrcHstryRepository hstryRepository;
     private final FrameWriter frameWriter;
+    private final SystemConfigService systemConfigService;
     private final Path baseRawPath;
 
     public FfmpegFrameExtractor(LsDataSrcRepository srcRepository,
                                 LsDataSrcHstryRepository hstryRepository,
                                 FrameWriter frameWriter,
+                                SystemConfigService systemConfigService,
                                 @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
         this.srcRepository = srcRepository;
         this.hstryRepository = hstryRepository;
         this.frameWriter = frameWriter;
+        this.systemConfigService = systemConfigService;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
 
     /**
-     * 영상으로부터 키프레임을 1분당 1개씩 추출하여 LS_DATA_SRC INSERT + manifest.jsonl 작성.
+     * 영상으로부터 키프레임을 추출하여 LS_DATA_SRC INSERT + manifest.jsonl 작성.
+     * 추출 수량은 {@code durationSec × FFMPEG_OUTPUT_FPS}.
      * - REQUIRES_NEW 트랜잭션: 다른 단계 실패가 본 단계 결과에 영향 없도록 격리.
      * - durationSec 0 이하 또는 filePath 미존재면 INVALID_INPUT.
      */
@@ -76,7 +91,8 @@ public class FfmpegFrameExtractor {
                     "durationSec 가 0 이하입니다: rawSn=" + raw.getRawSn());
         }
 
-        int frameCount = computeFrameCount(duration);
+        int outputFps = getOutputFps();
+        int frameCount = computeFrameCount(duration, outputFps);
         Path outputDir = resolveSafeOutputDir(raw.getRawSn());
         Path manifestPath = outputDir.resolve("manifest.jsonl");
 
@@ -103,13 +119,43 @@ public class FfmpegFrameExtractor {
             log.error("[Batch][FrameExtract] failed rawSn={} err={}", raw.getRawSn(), e.getMessage());
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "프레임 추출 실패", e);
         }
-        log.info("[Batch][FrameExtract] extracted rawSn={} frames={}", raw.getRawSn(), saved.size());
+        log.info("[Batch][FrameExtract] extracted rawSn={} frames={} outputFps={}",
+                raw.getRawSn(), saved.size(), outputFps);
         return saved;
     }
 
-    /** 1분당 1프레임. durationSec 가 짧아도 최소 1프레임은 추출. */
-    static int computeFrameCount(int durationSec) {
-        return Math.max(1, durationSec / 60);
+    /**
+     * 추출 프레임 수 계산: durationSec × outputFps. 최소 1프레임 보장.
+     * outputFps 는 [MIN_OUTPUT_FPS, MAX_OUTPUT_FPS] 범위로 클램프된 값을 전제로 한다.
+     */
+    static int computeFrameCount(int durationSec, int outputFps) {
+        int fps = clampOutputFps(outputFps);
+        return Math.max(1, durationSec * fps);
+    }
+
+    /** outputFps 값을 [MIN, MAX] 범위로 클램프. 범위 밖이면 기본값으로 보정. */
+    static int clampOutputFps(int outputFps) {
+        if (outputFps < MIN_OUTPUT_FPS || outputFps > MAX_OUTPUT_FPS) {
+            return DEFAULT_OUTPUT_FPS;
+        }
+        return outputFps;
+    }
+
+    /**
+     * 시스템 설정 FFMPEG_OUTPUT_FPS 조회. 조회 실패 또는 범위 이탈 시 기본 1 fps 폴백.
+     * - SystemConfigService 가 Caffeine 캐시(TTL 60s) 적용되어 핫 패스에서도 부담 적음.
+     * - 캐시/DB 장애 발생 시 배치가 중단되지 않도록 광범위 catch + WARN 로그.
+     */
+    private int getOutputFps() {
+        try {
+            Integer raw = systemConfigService.getInt(ConfigKeys.FFMPEG_OUTPUT_FPS);
+            int value = raw == null ? DEFAULT_OUTPUT_FPS : raw;
+            return clampOutputFps(value);
+        } catch (Exception e) {
+            log.warn("[Batch][FrameExtract] FFMPEG_OUTPUT_FPS 조회 실패, 기본 {} fps 사용 err={}",
+                    DEFAULT_OUTPUT_FPS, e.getMessage());
+            return DEFAULT_OUTPUT_FPS;
+        }
     }
 
     /**
