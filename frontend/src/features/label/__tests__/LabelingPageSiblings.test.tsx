@@ -108,4 +108,34 @@ describe('LabelingPage siblings 표시', () => {
       expect(opt.getAttribute('aria-selected')).toBe('true');
     });
   });
+
+  // 회귀 방지: 프레임 전환 시 isLoading=true 가 되어 Spinner 가 보이면
+  // DarkFrameSlider 가 unmount 되고 재생 인터벌이 끊긴다.
+  // useLabels 의 placeholderData: keepPreviousData 로 이전 data 가 유지되어야 함.
+  it('siblings_프레임_전환시_로딩_Spinner_안_보임_(keepPreviousData)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/200'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    // 첫 fetch 완료 대기 — strip 이 렌더된 상태
+    await screen.findByRole('option', { name: '프레임 0' });
+    expect(screen.queryByText('라벨 로딩 중...')).not.toBeInTheDocument();
+
+    // 다른 프레임으로 전환 — 새 fetch 트리거되지만 Spinner 분기는 타지 않아야 함
+    const frame2 = await screen.findByRole('option', { name: '프레임 2' });
+    await user.click(frame2);
+
+    // 새 fetch 진행 중에도 Spinner 가 노출되지 않고 strip 도 유지됨
+    expect(screen.queryByText('라벨 로딩 중...')).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '프레임 0' })).toBeInTheDocument();
+
+    // 새 응답 적용 완료
+    await waitFor(() => {
+      const opt = screen.getByRole('option', { name: '프레임 2' });
+      expect(opt.getAttribute('aria-selected')).toBe('true');
+    });
+    expect(screen.queryByText('라벨 로딩 중...')).not.toBeInTheDocument();
+  });
 });
