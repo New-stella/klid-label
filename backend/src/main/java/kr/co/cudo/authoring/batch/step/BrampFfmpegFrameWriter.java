@@ -9,11 +9,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * ffmpeg 바이너리 기반 FrameWriter — local 프로파일에서도 실제 추출 수행.
  * <p>
- * frameIndex N → 영상에서 N*60초 지점의 프레임을 추출. 시크 실패 시 0초로 fallback.
+ * 호출자(FfmpegFrameExtractor)가 outputFps 와 frameIndex 로부터 계산한 seekMillis
+ * (영상 시작점부터의 시크 위치, 밀리초)를 그대로 받아 ffmpeg {@code -ss} 옵션에
+ * 초 단위(소수점 3자리) 로 전달한다. 시크 실패 시 0초로 fallback.
  * <p>
  * 보안:
  * - Command Injection (CWE-78): ProcessBuilder 리스트 방식으로 인자를 분리 전달.
@@ -36,42 +39,47 @@ public class BrampFfmpegFrameWriter implements FfmpegFrameExtractor.FrameWriter 
     }
 
     @Override
-    public void writeFrame(Path sourceVideo, Path outputFrame, int frameIndex) throws IOException {
+    public void writeFrame(Path sourceVideo, Path outputFrame, long seekMillis) throws IOException {
         if (outputFrame.getParent() != null && !Files.exists(outputFrame.getParent())) {
             Files.createDirectories(outputFrame.getParent());
         }
 
-        int seekSeconds = frameIndex * 60;
+        double seekSeconds = seekMillis / 1000.0;
         boolean extracted = runFfmpeg(sourceVideo, outputFrame, seekSeconds);
 
-        if (!extracted && seekSeconds > 0) {
+        if (!extracted && seekSeconds > 0.0) {
             log.warn("[Batch][FrameWriter] seek={}s failed — retry at 0s", seekSeconds);
-            extracted = runFfmpeg(sourceVideo, outputFrame, 0);
+            extracted = runFfmpeg(sourceVideo, outputFrame, 0.0);
         }
 
         if (!extracted || !Files.exists(outputFrame) || Files.size(outputFrame) < 100) {
-            throw new IOException("프레임 추출 실패: frameIndex=" + frameIndex + " src=" + sourceVideo.getFileName());
+            throw new IOException("프레임 추출 실패: seekMillis=" + seekMillis + " src=" + sourceVideo.getFileName());
         }
-        log.info("[Batch][FrameWriter] extracted frame index={} size={}B path={}",
-                frameIndex, Files.size(outputFrame), outputFrame.getFileName());
+        log.info("[Batch][FrameWriter] extracted frame seekMillis={} size={}B path={}",
+                seekMillis, Files.size(outputFrame), outputFrame.getFileName());
     }
 
-    private boolean runFfmpeg(Path sourceVideo, Path outputFrame, int seekSeconds) {
+    private boolean runFfmpeg(Path sourceVideo, Path outputFrame, double seekSeconds) {
         // MEDIUM-4 fix: InterruptedException 등 중도 종료 시 ffmpeg 좀비 프로세스 방지 →
         // process 를 try 밖에 선언하고 finally 에서 destroyForcibly() 보장.
+        //
+        // MEDIUM-1 fix (OOM 잠재 위험): redirectErrorStream(true) 후 stdout 을
+        // readAllBytes() 로 메모리에 적재하면 ffmpeg progress 로그 누적으로 OOM 가능.
+        // ffmpeg -vframes 1 -q:v 2 는 결과를 outputFrame 파일로 직접 저장하므로
+        // stdout/stderr 는 모두 DISCARD 하여 메모리 적재를 차단한다.
         Process process = null;
         try {
             ProcessBuilder pb = new ProcessBuilder(List.of(
                     binary, "-y",
-                    "-ss", String.valueOf(seekSeconds),
+                    "-ss", String.format(Locale.ROOT, "%.3f", seekSeconds),
                     "-i", sourceVideo.toAbsolutePath().toString(),
                     "-vframes", "1",
                     "-q:v", "2",
                     outputFrame.toAbsolutePath().toString()
             ));
-            pb.redirectErrorStream(true);
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
             process = pb.start();
-            process.getInputStream().readAllBytes();
             int exitCode = process.waitFor();
             return exitCode == 0 && Files.exists(outputFrame) && Files.size(outputFrame) >= 100;
         } catch (IOException | InterruptedException e) {

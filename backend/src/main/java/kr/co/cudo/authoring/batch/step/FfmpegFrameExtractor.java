@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -103,12 +104,15 @@ public class FfmpegFrameExtractor {
                 mw.writeVideoHeader(maskName(raw.getVmsClipId()), 0, 0, frameCount);
                 for (int i = 0; i < frameCount; i++) {
                     Path frameFile = outputDir.resolve("frame-" + i + ".jpg");
-                    frameWriter.writeFrame(source, frameFile, i);
+                    // outputFps 기반 균등 간격 시크 (단위 미스매치 방지):
+                    // 예) 1fps → i*1000ms, 2fps → i*500ms.
+                    long seekMillis = (long) i * 1000L / outputFps;
+                    frameWriter.writeFrame(source, frameFile, seekMillis);
                     String checksum = checksumOf(frameFile);
-                    mw.writeKeyFrame(i, (long) i * 1000L, checksum);
+                    mw.writeKeyFrame(i, seekMillis, checksum);
 
                     LocalDateTime capturedAt = raw.getCapturedAt() == null
-                            ? null : raw.getCapturedAt().plusMinutes(i);
+                            ? null : raw.getCapturedAt().plus(Duration.ofMillis(seekMillis));
                     LsDataSrc src = srcRepository.save(
                             LsDataSrc.create(raw.getRawSn(), i, frameFile.toString(), capturedAt));
                     hstryRepository.save(LsDataSrcHstry.recordCreated(src.getSrcSn()));
@@ -194,9 +198,13 @@ public class FfmpegFrameExtractor {
     /**
      * 프레임 쓰기 추상화. 운영은 net.bramp.ffmpeg 으로 실제 추출,
      * 단위 테스트는 빈 jpg 더미 파일 작성. 본체는 BatchStep 책임 분리.
+     * <p>
+     * seekMillis 는 영상 시작점부터의 시크 위치(밀리초). 호출자(FfmpegFrameExtractor)가
+     * outputFps 와 frameIndex 를 가지고 직접 계산하여 전달한다 — 구현체에서 단위를
+     * 자체 변환하지 않도록 하여 단위 미스매치 버그를 구조적으로 차단한다.
      */
     public interface FrameWriter {
         boolean sourceExists(Path sourceVideo);
-        void writeFrame(Path sourceVideo, Path outputFrame, int frameIndex) throws IOException;
+        void writeFrame(Path sourceVideo, Path outputFrame, long seekMillis) throws IOException;
     }
 }

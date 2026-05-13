@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -37,6 +38,7 @@ class FfmpegFrameExtractorTest {
     private FfmpegFrameExtractor.FrameWriter frameWriter;
     private SystemConfigService systemConfigService;
     private Path sourceVideo;
+    private List<Long> recordedSeekMillis;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -55,15 +57,17 @@ class FfmpegFrameExtractorTest {
         });
         when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
 
+        recordedSeekMillis = new ArrayList<>();
         frameWriter = new FfmpegFrameExtractor.FrameWriter() {
             @Override
             public boolean sourceExists(Path sourceVideo) { return Files.exists(sourceVideo); }
             @Override
-            public void writeFrame(Path sourceVideo, Path outputFrame, int frameIndex) throws IOException {
+            public void writeFrame(Path sourceVideo, Path outputFrame, long seekMillis) throws IOException {
                 if (outputFrame.getParent() != null && !Files.exists(outputFrame.getParent())) {
                     Files.createDirectories(outputFrame.getParent());
                 }
-                Files.write(outputFrame, ("frame-" + frameIndex).getBytes());
+                recordedSeekMillis.add(seekMillis);
+                Files.write(outputFrame, ("frame-seek-" + seekMillis).getBytes());
             }
         };
 
@@ -205,5 +209,31 @@ class FfmpegFrameExtractorTest {
     void computeFrameCount_최소_1프레임_보장() {
         // durationSec=0 이라도 최소 1프레임 (extract() 진입 단계 가드 별개로 메서드 자체 보장)
         assertThat(FfmpegFrameExtractor.computeFrameCount(0, 1)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("1fps_113초_영상_seekMillis_는_i초_균등간격")
+    void seekMillis_at_1fps_is_one_second_per_frame() {
+        // 단위 미스매치 회귀 방지: 1fps · 113초 → frameIndex=i 의 seek 위치가 i*1000ms 인지 확인.
+        // 옛 버그: frameIndex * 60 (초) 로 시크 → 검정 프레임 출력.
+        when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
+        FfmpegFrameExtractor extractor = newExtractor();
+        extractor.extract(newRaw(113));
+
+        assertThat(recordedSeekMillis).hasSize(113);
+        assertThat(recordedSeekMillis.get(0)).isEqualTo(0L);
+        assertThat(recordedSeekMillis.get(2)).isEqualTo(2_000L);
+        assertThat(recordedSeekMillis.get(112)).isEqualTo(112_000L);
+    }
+
+    @Test
+    @DisplayName("2fps_seekMillis_는_500ms_간격")
+    void seekMillis_at_2fps_is_500ms_per_frame() {
+        when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(2);
+        FfmpegFrameExtractor extractor = newExtractor();
+        extractor.extract(newRaw(3));
+
+        // 3초 · 2fps = 6 프레임, seek: 0, 500, 1000, 1500, 2000, 2500 (ms)
+        assertThat(recordedSeekMillis).containsExactly(0L, 500L, 1000L, 1500L, 2000L, 2500L);
     }
 }
