@@ -1,0 +1,290 @@
+package kr.co.cudo.authoring.batch.step;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.dto.Sam2Request;
+import kr.co.cudo.authoring.common.client.dto.Sam2Response;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
+
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * Phase 2 Sam2SegmentStep 단위 테스트.
+ *
+ * <p>검증 포인트:
+ * <ul>
+ *   <li>signature: {@code run(rawSn, List&lt;BbHint&gt; upstreamHints)}</li>
+ *   <li>polygonEnabled=false 라벨은 SAM2 호출 skip + WARN 로그</li>
+ *   <li>POLYGON_ONLY 라벨이 BbHint 로만 들어오면 SAM2 호출 후 POLYGON 저장</li>
+ *   <li>DB BBOX 와 upstreamHints 둘 다 있을 때 (srcSn, label) 키로 중복 제거</li>
+ * </ul>
+ */
+class Sam2SegmentStepTest {
+
+    private AiServerClient aiServerClient;
+    private LsDataSrcRepository srcRepository;
+    private LsDataLblRepository lblRepository;
+    private VideoRepository videoRepository;
+    private PresetLabelLookupService presetLabelLookup;
+    private Sam2SegmentStep step;
+    private ListAppender<ILoggingEvent> logAppender;
+    private Logger stepLogger;
+
+    @TempDir
+    Path tempDir;
+
+    @BeforeEach
+    void setUp() throws IOException {
+        aiServerClient = mock(AiServerClient.class);
+        srcRepository = mock(LsDataSrcRepository.class);
+        lblRepository = mock(LsDataLblRepository.class);
+        videoRepository = mock(VideoRepository.class);
+        presetLabelLookup = mock(PresetLabelLookupService.class);
+
+        // dummy image files
+        Path rawDir = tempDir.resolve("raw");
+        Files.createDirectories(rawDir);
+        for (long i = 10L; i <= 60L; i++) {
+            Files.write(rawDir.resolve(i + ".jpg"), new byte[]{(byte) 0xFF, (byte) 0xD8});
+        }
+
+        when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
+        when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
+
+        step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository,
+                videoRepository, presetLabelLookup,
+                new ObjectMapper(), rawDir.toString());
+
+        stepLogger = (Logger) LoggerFactory.getLogger(Sam2SegmentStep.class);
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        stepLogger.addAppender(logAppender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (stepLogger != null && logAppender != null) {
+            stepLogger.detachAppender(logAppender);
+            logAppender.stop();
+        }
+    }
+
+    private LsDataSrc newSrc(Long srcSn) {
+        LsDataSrc src = LsDataSrc.create(1L, srcSn.intValue(), srcSn + ".jpg", null);
+        setField(src, "srcSn", srcSn);
+        return src;
+    }
+
+    private LsDataLbl newBbox(Long srcSn, String label, String pointsJson) {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(srcSn, label, pointsJson, BigDecimal.valueOf(0.9));
+        return lbl;
+    }
+
+    private LsDataRaw rawWithEvent(String evntTypeCd) {
+        LsDataRaw raw = mock(LsDataRaw.class);
+        when(raw.getEvntTypeCd()).thenReturn(evntTypeCd);
+        return raw;
+    }
+
+    private static void setField(Object target, String name, Object value) {
+        try {
+            Field f = target.getClass().getDeclaredField(name);
+            f.setAccessible(true);
+            f.set(target, value);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    @DisplayName("rawSn_null이면_INVALID_INPUT")
+    void nullRawSnRejected() {
+        assertThatThrownBy(() -> step.run(null, List.of()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+    }
+
+    @Test
+    @DisplayName("Sam2Step_DB_BBOX_없고_upstreamHints_도_없으면_SAM2_호출_안_함")
+    void noBboxNoHintsSkipsSam2() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(10L, "Y")).thenReturn(List.of());
+
+        int saved = step.run(1L, List.of());
+
+        assertThat(saved).isZero();
+        verify(aiServerClient, never()).segment(any());
+        verify(lblRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Sam2Step_DB_BBOX_있으면_SAM2_호출_후_POLYGON_저장")
+    void dbBboxTriggersSam2() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(2L))
+                .thenReturn(List.of(newSrc(20L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
+                .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.88)));
+
+        int saved = step.run(2L, List.of());
+
+        assertThat(saved).isEqualTo(1);
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        verify(lblRepository, times(1)).save(captor.capture());
+        LsDataLbl saved1 = captor.getValue();
+        assertThat(saved1.getLblTypeCd()).isEqualTo("POLYGON");
+        assertThat(saved1.getLabel()).isEqualTo("person");
+        assertThat(saved1.getAutoLblYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("Sam2Step_polygonEnabled_false_라벨은_SAM2_호출_안_함_그리고_경고_로그")
+    void polygonDisabledLabelSkipsSam2WithWarn() {
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(3L)).thenReturn(Optional.of(raw));
+        // person 은 bbox-only (polygon=false)
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(true, false))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(3L))
+                .thenReturn(List.of(newSrc(30L)));
+        // YOLO 가 BBOX 를 저장해 둠 (BBOX_ONLY 라벨)
+        when(lblRepository.findBySrcSnAndAutoLblYn(30L, "Y"))
+                .thenReturn(List.of(newBbox(30L, "person", "[1.0,2.0,3.0,4.0]")));
+
+        int saved = step.run(3L, List.of());
+
+        // SAM2 미호출, POLYGON 미저장
+        assertThat(saved).isZero();
+        verify(aiServerClient, never()).segment(any());
+        verify(lblRepository, never()).save(any());
+
+        // WARN 로그가 출력되어야 함
+        long warnCount = logAppender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .filter(e -> e.getFormattedMessage().contains("sam2 skipped")
+                        && e.getFormattedMessage().contains("polygonDisabled"))
+                .count();
+        assertThat(warnCount).isGreaterThanOrEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("Sam2Step_POLYGON_ONLY_라벨이_BbHint_로만_들어오면_SAM2_호출_후_POLYGON_저장")
+    void polygonOnlyHintProcessed() {
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(4L)).thenReturn(Optional.of(raw));
+        // person 은 polygon-only (bbox=false, polygon=true)
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, true))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(4L))
+                .thenReturn(List.of(newSrc(40L)));
+        // DB BBOX 없음 (YOLO 가 BBOX 저장을 skip 했기 때문)
+        when(lblRepository.findBySrcSnAndAutoLblYn(40L, "Y")).thenReturn(List.of());
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.77)));
+
+        List<BbHint> hints = List.of(new BbHint(40L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92));
+        int saved = step.run(4L, hints);
+
+        assertThat(saved).isEqualTo(1);
+        verify(aiServerClient, times(1)).segment(any());
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        verify(lblRepository, times(1)).save(captor.capture());
+        LsDataLbl saved1 = captor.getValue();
+        assertThat(saved1.getLblTypeCd()).isEqualTo("POLYGON");
+        assertThat(saved1.getLabel()).isEqualTo("person");
+    }
+
+    @Test
+    @DisplayName("Sam2Step_DB_BBOX_와_upstreamHints_둘_다_있으면_중복_제거_후_처리")
+    void duplicateBboxAndHintMergedOnce() {
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(5L)).thenReturn(Optional.of(raw));
+        // person=BOTH 인 경우 DB BBOX 와 hint 가 동시에 들어옴 (오케스트레이션 일관성)
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(5L))
+                .thenReturn(List.of(newSrc(50L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(50L, "Y"))
+                .thenReturn(List.of(newBbox(50L, "person", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.91)));
+
+        // 동일 (srcSn=50, label="person") 의 hint 가 별도로 들어옴 — 중복
+        List<BbHint> hints = List.of(new BbHint(50L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92));
+        int saved = step.run(5L, hints);
+
+        // 한 번만 처리되어야 함 (DB BBOX 우선 또는 dedup) — SAM2 1회 호출, POLYGON 1건 저장
+        assertThat(saved).isEqualTo(1);
+        verify(aiServerClient, times(1)).segment(any());
+        verify(lblRepository, times(1)).save(any());
+    }
+
+    @Test
+    @DisplayName("Sam2Step_DB_BBOX_와_upstreamHints_가_다른_라벨이면_둘_다_처리")
+    void differentLabelsBothProcessed() {
+        LsDataRaw raw = rawWithEvent("EVT_TRESPASS");
+        when(videoRepository.findById(6L)).thenReturn(Optional.of(raw));
+        // person=BOTH, car=polygon-only
+        when(presetLabelLookup.togglesFor("EVT_TRESPASS"))
+                .thenReturn(Optional.of(Map.of(
+                        "person", AnnotationToggle.BOTH,
+                        "car", new AnnotationToggle(false, true)
+                )));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(6L))
+                .thenReturn(List.of(newSrc(60L)));
+        // DB BBOX: person 만 (BOTH → BBOX 저장됨)
+        when(lblRepository.findBySrcSnAndAutoLblYn(60L, "Y"))
+                .thenReturn(List.of(newBbox(60L, "person", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.85)));
+
+        // car 는 polygon-only → hint 로만 들어옴
+        List<BbHint> hints = List.of(new BbHint(60L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81));
+        int saved = step.run(6L, hints);
+
+        // SAM2 2회 호출, POLYGON 2건 저장
+        assertThat(saved).isEqualTo(2);
+        verify(aiServerClient, times(2)).segment(any());
+        verify(lblRepository, times(2)).save(any());
+    }
+}

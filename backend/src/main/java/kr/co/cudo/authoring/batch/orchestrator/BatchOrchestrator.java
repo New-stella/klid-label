@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.orchestrator;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.step.BbHint;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
@@ -80,10 +81,12 @@ public class BatchOrchestrator {
             }
 
             statusService.markStage(rawSn, BatchStage.YOLO);
-            yoloStep.run(rawSn);
+            // Phase 2: YoloStep 이 인메모리 BBOX 힌트(POLYGON_ONLY 라벨 포함)를 반환.
+            // 정적 필드/싱글톤 저장 금지 — 지역 변수로만 전달 (스레드 안전).
+            List<BbHint> hints = yoloStep.run(rawSn);
 
             statusService.markStage(rawSn, BatchStage.SAM2);
-            sam2Step.run(rawSn);
+            sam2Step.run(rawSn, hints);
 
             statusService.markStage(rawSn, BatchStage.VLM_VERIFY);
             vlmStep.run(rawSn);

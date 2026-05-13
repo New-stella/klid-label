@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.test;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.step.BbHint;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
@@ -25,6 +26,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -72,15 +74,15 @@ class AutolabelTestServiceTest {
 
         verify(lblRepository, never()).deleteByRawSnAutoLbl(any());
         verify(yoloStep, never()).run(any());
-        verify(sam2Step, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
     }
 
     @Test
     @DisplayName("YOLO_SAM2_정상실행시_카운트_반환")
     void YOLO_SAM2_정상실행시_카운트_반환() {
         given(srcRepository.countByRawSn(RAW_SN)).willReturn(5L);
-        given(yoloStep.run(RAW_SN)).willReturn(3);
-        given(sam2Step.run(RAW_SN)).willReturn(3);
+        given(yoloStep.run(RAW_SN)).willReturn(threeHints());
+        given(sam2Step.run(eq(RAW_SN), any())).willReturn(3);
 
         AutolabelRunResponse response = service.run(RAW_SN);
 
@@ -97,15 +99,15 @@ class AutolabelTestServiceTest {
     @DisplayName("기존_auto라벨_삭제_호출_검증")
     void 기존_auto라벨_삭제_호출_검증() {
         given(srcRepository.countByRawSn(RAW_SN)).willReturn(2L);
-        given(yoloStep.run(RAW_SN)).willReturn(1);
-        given(sam2Step.run(RAW_SN)).willReturn(1);
+        given(yoloStep.run(RAW_SN)).willReturn(oneHint());
+        given(sam2Step.run(eq(RAW_SN), any())).willReturn(1);
 
         service.run(RAW_SN);
 
         InOrder order = inOrder(lblRepository, yoloStep, sam2Step);
         order.verify(lblRepository, times(1)).deleteByRawSnAutoLbl(RAW_SN);
         order.verify(yoloStep, times(1)).run(RAW_SN);
-        order.verify(sam2Step, times(1)).run(RAW_SN);
+        order.verify(sam2Step, times(1)).run(eq(RAW_SN), any());
     }
 
     @Test
@@ -119,7 +121,7 @@ class AutolabelTestServiceTest {
                 .hasMessageContaining("yolo boom");
 
         verify(lblRepository, times(1)).deleteByRawSnAutoLbl(RAW_SN);
-        verify(sam2Step, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
     }
 
     @Test
@@ -134,7 +136,7 @@ class AutolabelTestServiceTest {
 
         verify(frameExtractor, never()).extract(any());
         verify(yoloStep, never()).run(any());
-        verify(sam2Step, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
     }
 
     @Test
@@ -144,8 +146,8 @@ class AutolabelTestServiceTest {
         given(videoRepository.findById(RAW_SN)).willReturn(Optional.of(raw));
         given(srcRepository.countByRawSn(RAW_SN)).willReturn(0L);
         given(frameExtractor.extract(raw)).willReturn(List.of(mock(LsDataSrc.class), mock(LsDataSrc.class), mock(LsDataSrc.class)));
-        given(yoloStep.run(RAW_SN)).willReturn(2);
-        given(sam2Step.run(RAW_SN)).willReturn(2);
+        given(yoloStep.run(RAW_SN)).willReturn(twoHints());
+        given(sam2Step.run(eq(RAW_SN), any())).willReturn(2);
 
         AutolabelRunResponse response = service.runFull(RAW_SN);
 
@@ -163,8 +165,8 @@ class AutolabelTestServiceTest {
         LsDataRaw raw = mock(LsDataRaw.class);
         given(videoRepository.findById(RAW_SN)).willReturn(Optional.of(raw));
         given(srcRepository.countByRawSn(RAW_SN)).willReturn(7L);
-        given(yoloStep.run(RAW_SN)).willReturn(4);
-        given(sam2Step.run(RAW_SN)).willReturn(4);
+        given(yoloStep.run(RAW_SN)).willReturn(fourHints());
+        given(sam2Step.run(eq(RAW_SN), any())).willReturn(4);
 
         AutolabelRunResponse response = service.runFull(RAW_SN);
 
@@ -188,7 +190,32 @@ class AutolabelTestServiceTest {
 
         verify(lblRepository, never()).deleteByRawSnAutoLbl(any());
         verify(yoloStep, never()).run(any());
-        verify(sam2Step, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
+    }
+
+    private static List<BbHint> oneHint() {
+        return List.of(new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9));
+    }
+
+    private static List<BbHint> twoHints() {
+        return List.of(
+                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9),
+                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8));
+    }
+
+    private static List<BbHint> threeHints() {
+        return List.of(
+                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9),
+                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8),
+                new BbHint(3L, "bus", List.of(9.0, 10.0, 11.0, 12.0), 0.7));
+    }
+
+    private static List<BbHint> fourHints() {
+        return List.of(
+                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9),
+                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8),
+                new BbHint(3L, "bus", List.of(9.0, 10.0, 11.0, 12.0), 0.7),
+                new BbHint(4L, "truck", List.of(13.0, 14.0, 15.0, 16.0), 0.6));
     }
 
     private static <T> T any() {

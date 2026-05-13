@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -12,6 +14,8 @@ import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -25,16 +29,34 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
- * SAM2 segment 단계 (Phase 5 — SAM2).
+ * SAM2 segment 단계 (Phase 5 — SAM2, Phase 2 — 토글 분기 + 인메모리 힌트 병합).
  * <p>
- * YOLO BBOX 가 있는 프레임에 대해 SAM2 segment 호출 → POLYGON 라벨 추가 INSERT.
- *  - YOLO 라벨이 0건인 프레임은 SAM2 호출 skip (효율성).
- *  - autoLblYn = 'Y'.
- *
+ * 입력 소스(라벨 단위):
+ * <ol>
+ *   <li>DB BBOX — YOLO 가 BBOX_ENABLED=true 인 라벨에 대해 LS_DATA_LBL 에 저장한 row.
+ *       기존 BOTH 라벨 경로.</li>
+ *   <li>upstreamHints — YOLO 가 POLYGON_ENABLED=true 인 라벨에 대해 인메모리로 전달.
+ *       특히 BBOX_ENABLED=false, POLYGON_ENABLED=true 인 POLYGON_ONLY 라벨은 본 경로로만 들어옴.</li>
+ * </ol>
+ * <p>
+ * 중복 제거: 동일 {@code (srcSn, label)} 키로 dedup. DB BBOX 가 있으면 그 좌표를 우선 사용.
+ * 양쪽에서 동일 라벨이 들어오면 SAM2 는 1회만 호출되고 POLYGON 도 1건만 저장된다.
+ * <p>
+ * 토글 방어:
+ * <ul>
+ *   <li>라벨별 {@code polygon=false} 면 SAM2 호출 skip + WARN 로그.
+ *       (Phase 1 의 (false,false) 거부로 정상 흐름에서는 발생하지 않으나 방어 코드.)</li>
+ *   <li>togglesFor empty (매핑 없음) → 모든 라벨이 {@link AnnotationToggle#BOTH} 로 처리 (기존 동작).</li>
+ * </ul>
+ * <p>
  * 보안:
  *  - Path Manipulation (CWE-22): baseRawPath 기준 경로 범위 내로 제한.
  */
@@ -45,56 +67,137 @@ public class Sam2SegmentStep {
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
+    private final VideoRepository videoRepository;
+    private final PresetLabelLookupService presetLabelLookup;
     private final ObjectMapper objectMapper;
     private final Path baseRawPath;
 
     public Sam2SegmentStep(AiServerClient aiServerClient,
                            LsDataSrcRepository srcRepository,
                            LsDataLblRepository lblRepository,
+                           VideoRepository videoRepository,
+                           PresetLabelLookupService presetLabelLookup,
                            ObjectMapper objectMapper,
                            @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
+        this.videoRepository = videoRepository;
+        this.presetLabelLookup = presetLabelLookup;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
 
+    /**
+     * 단일 영상의 모든 프레임에 대해 SAM2 segment 호출 + POLYGON 라벨을 저장한다.
+     *
+     * @param rawSn          LS_DATA_RAW.RAW_SN
+     * @param upstreamHints  YoloAutolabelStep 이 발행한 인메모리 BBOX 힌트 (POLYGON_ONLY 라벨 포함)
+     * @return 저장된 POLYGON row 수
+     */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public int run(Long rawSn) {
+    public int run(Long rawSn, List<BbHint> upstreamHints) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
+        List<BbHint> hints = upstreamHints == null ? List.of() : upstreamHints;
+
+        // 이벤트 타입별 프리셋 토글 조회 (fail-safe: 미매핑이면 모든 라벨 BOTH 처리)
+        String eventTypeCd = videoRepository.findById(rawSn)
+                .map(LsDataRaw::getEvntTypeCd)
+                .orElse(null);
+        Optional<Map<String, AnnotationToggle>> togglesOpt = presetLabelLookup.togglesFor(eventTypeCd);
+
+        // srcSn → upstream hint list (프레임 단위 빠른 조회)
+        Map<Long, List<BbHint>> hintsBySrc = groupHintsBySrc(hints);
+
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         int saved = 0;
         for (LsDataSrc src : frames) {
-            List<LsDataLbl> bboxes = lblRepository.findBySrcSnAndAutoLblYn(src.getSrcSn(), LsDataLbl.AUTO_YES);
-            if (bboxes.isEmpty()) {
+            // (srcSn, label) 키로 중복 제거하면서 SAM2 호출 단위(SegmentJob)를 생성
+            List<SegmentJob> jobs = buildJobs(src, hintsBySrc.getOrDefault(src.getSrcSn(), List.of()));
+            if (jobs.isEmpty()) {
                 continue;
             }
             String relPath = resolveImagePath(src);
             String imageB64 = readImageAsBase64(relPath);
-            // 첫 번째 YOLO BBOX를 SAM2 box 힌트로 전달
-            List<Double> box = parseBbox(bboxes.get(0).getPointsJson());
-            Sam2Response resp;
-            try {
-                resp = aiServerClient.segment(new Sam2Request(imageB64, null, box))
-                        .block(Duration.ofSeconds(70));
-            } catch (RuntimeException e) {
-                log.error("[Batch][Sam2] failed srcSn={} err={}", src.getSrcSn(), e.getMessage());
-                throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "SAM2 호출 실패", e);
+            for (SegmentJob job : jobs) {
+                AnnotationToggle toggle = resolveToggle(togglesOpt, job.label);
+                if (toggle == null) {
+                    // 매핑 존재 + 허용 라벨에 미포함 → 노이즈 제거 (방어)
+                    continue;
+                }
+                if (!toggle.polygon()) {
+                    // POLYGON 비활성 라벨 — 정상 흐름에서는 YOLO 가 hint 를 미발행하므로 도달하지 않음.
+                    // DB BBOX 만 BBOX_ONLY 라벨로 들어왔다면 본 방어 코드가 발동.
+                    log.warn("[Batch] sam2 skipped polygonDisabled label={} rawSn={} srcSn={}",
+                            job.label, rawSn, src.getSrcSn());
+                    continue;
+                }
+                Sam2Response resp = callSam2(imageB64, job.box, src.getSrcSn());
+                if (resp == null || resp.polygon() == null) {
+                    continue;
+                }
+                BigDecimal score = BigDecimal.valueOf(resp.score()).setScale(4, RoundingMode.HALF_UP);
+                lblRepository.save(LsDataLbl.createAutoPolygon(
+                        src.getSrcSn(), job.label, serialize(resp.polygon()), score));
+                saved++;
             }
-            if (resp == null || resp.polygon() == null) {
-                continue;
-            }
-            BigDecimal score = BigDecimal.valueOf(resp.score()).setScale(4, RoundingMode.HALF_UP);
-            // TODO(Phase 6): 다중 객체별 SAM2 호출/병합 — 현재는 V1.7 정책으로 첫 번째 라벨만 처리
-            String label = bboxes.get(0).getLabel();
-            lblRepository.save(LsDataLbl.createAutoPolygon(src.getSrcSn(), label, serialize(resp.polygon()), score));
-            saved++;
         }
         log.info("[Batch][Sam2] saved polygons rawSn={} count={}", rawSn, saved);
         return saved;
+    }
+
+    private Sam2Response callSam2(String imageB64, List<Double> box, Long srcSn) {
+        try {
+            return aiServerClient.segment(new Sam2Request(imageB64, null, box))
+                    .block(Duration.ofSeconds(70));
+        } catch (RuntimeException e) {
+            log.error("[Batch][Sam2] failed srcSn={} err={}", srcSn, e.getMessage());
+            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "SAM2 호출 실패", e);
+        }
+    }
+
+    /**
+     * (srcSn, label) 키로 dedup 한 SAM2 호출 단위를 생성한다.
+     * DB BBOX 우선 — 같은 라벨이 hint 로도 들어오면 hint 는 무시.
+     */
+    private List<SegmentJob> buildJobs(LsDataSrc src, List<BbHint> frameHints) {
+        // DB BBOX 우선 등록 (insertion-order 보존: BBOX → hint)
+        LinkedHashMap<String, SegmentJob> jobs = new LinkedHashMap<>();
+        List<LsDataLbl> bboxes = lblRepository.findBySrcSnAndAutoLblYn(src.getSrcSn(), LsDataLbl.AUTO_YES).stream()
+                .filter(l -> LsDataLbl.TYPE_BBOX.equals(l.getLblTypeCd()))
+                .toList();
+        for (LsDataLbl lbl : bboxes) {
+            jobs.putIfAbsent(lbl.getLabel(), new SegmentJob(lbl.getLabel(), parseBbox(lbl.getPointsJson())));
+        }
+        for (BbHint h : frameHints) {
+            jobs.putIfAbsent(h.label(), new SegmentJob(h.label(), h.points()));
+        }
+        return new ArrayList<>(jobs.values());
+    }
+
+    private static Map<Long, List<BbHint>> groupHintsBySrc(List<BbHint> hints) {
+        if (hints.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<BbHint>> bySrc = new LinkedHashMap<>();
+        for (BbHint h : hints) {
+            bySrc.computeIfAbsent(h.srcSn(), k -> new ArrayList<>()).add(h);
+        }
+        return bySrc;
+    }
+
+    private static AnnotationToggle resolveToggle(Optional<Map<String, AnnotationToggle>> togglesOpt,
+                                                  String rawLabel) {
+        if (togglesOpt.isEmpty()) {
+            return AnnotationToggle.BOTH;
+        }
+        if (rawLabel == null) {
+            return null;
+        }
+        String normalized = rawLabel.trim().toLowerCase();
+        return togglesOpt.get().get(normalized);
     }
 
     private String resolveImagePath(LsDataSrc src) {
@@ -141,5 +244,12 @@ public class Sam2SegmentStep {
         } catch (JsonProcessingException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "polygon 직렬화 실패", e);
         }
+    }
+
+    /**
+     * SAM2 호출 단위 — 라벨 + bbox 좌표.
+     * 동일 (srcSn, label) 의 DB BBOX 와 upstreamHint 가 동시 존재할 경우 DB BBOX 좌표가 우선.
+     */
+    private record SegmentJob(String label, List<Double> box) {
     }
 }

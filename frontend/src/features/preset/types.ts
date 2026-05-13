@@ -1,12 +1,28 @@
-// 프리셋 도메인 타입 — BE: {name, description?, labelCodes: string[], eventTypeCd?} 정합
+// 프리셋 도메인 타입 — BE: {name, description?, labelCodes: string[], labelCodeOptions: LabelCodeOption[], eventTypeCd?} 정합
+//
+// Phase 3 (V1.7) — 각 라벨 코드별 BBOX/POLYGON 옵션 지원.
+// `labelCodes` 는 레거시 호환 필드로 유지 (PresetListPage 등 카드 표시용).
 
 import { EVENT_TYPES } from '@/constants/eventTypes';
+
+/**
+ * 라벨 코드별 어노테이션 타입 옵션.
+ * - BBOX 또는 POLYGON 중 최소 하나는 true 여야 함 (둘 다 false 는 schema/BE 에서 거부)
+ */
+export interface LabelCodeOption {
+  code: string;
+  bboxEnabled: boolean;
+  polygonEnabled: boolean;
+}
 
 export interface Preset {
   id: number;
   name: string;
   description: string | null;
+  /** 레거시 호환 — 카드 표시 등. labelCodeOptions 의 code 목록과 동일. */
   labelCodes: string[];
+  /** Phase 3 — 각 라벨의 BBOX/POLYGON 옵션. */
+  labelCodeOptions: LabelCodeOption[];
   /** 매핑 이벤트 타입 코드. null/undefined = 미매핑. (V15 — DB UNIQUE 제약, 이벤트 1:1 매핑) */
   eventTypeCd?: string | null;
   createdAt: string;
@@ -16,7 +32,10 @@ export interface Preset {
 export interface PresetForm {
   name: string;
   description: string;
+  /** 레거시 호환 — labelCodeOptions 의 code 만 발췌한 배열. BE 송신 시 함께 전송하지 않아도 OK. */
   labelCodes: string[];
+  /** Phase 3 — 각 라벨의 BBOX/POLYGON 옵션. */
+  labelCodeOptions: LabelCodeOption[];
   /** 매핑 이벤트 타입. 빈 문자열/undefined = 미매핑. */
   eventTypeCd?: string;
 }

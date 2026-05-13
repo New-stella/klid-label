@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -28,10 +29,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * YOLO 자동 라벨링 단계 (Phase 5 — YOLO).
@@ -46,6 +48,14 @@ import java.util.Set;
  *  - 매핑은 운영자가 프리셋 UI 에서 동적으로 관리 — {@link PresetLabelLookupService} 가 DB 조회.
  *  - 미정/미매핑 이벤트는 fail-safe 로 전체 통과.
  *  - 라벨 비교는 소문자 + trim 정규화.
+ * <p>
+ * Phase 2 — 라벨별 BBOX/POLYGON 토글 분기:
+ *  - {@code toggle.bbox()=true} 라벨은 기존처럼 LS_DATA_LBL 에 BBOX row INSERT.
+ *  - {@code toggle.bbox()=false} 라벨은 LS_DATA_LBL INSERT skip (POLYGON_ONLY 라벨).
+ *  - {@code toggle.polygon()=true} 라벨은 {@link BbHint} 로 누적하여 Sam2SegmentStep 에 전달.
+ *  - {@code toggle.polygon()=false} 라벨은 BbHint 미발행.
+ *  - togglesFor empty (fail-safe): 모든 라벨이 {@link AnnotationToggle#BOTH} 로 처리 — 기존 동작.
+ *  - 메서드 반환 타입은 {@code List<BbHint>} 로, 정적/필드 저장 없이 호출자에게 인메모리 전달.
  *
  * 보안:
  *  - SSRF: AiServerClient 내부에서 application.yml ai-server.base-url 사용.
@@ -80,8 +90,15 @@ public class YoloAutolabelStep {
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
 
+    /**
+     * 단일 영상의 모든 프레임에 대해 YOLO 자동 라벨링을 수행하고
+     * SAM2 단계로 전달할 인메모리 힌트 목록을 반환한다.
+     *
+     * @param rawSn LS_DATA_RAW.RAW_SN
+     * @return {@code polygon=true} 인 라벨의 {@link BbHint} 목록 (불변 보장 위해 새 ArrayList 반환)
+     */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public int run(Long rawSn) {
+    public List<BbHint> run(Long rawSn) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
@@ -89,11 +106,13 @@ public class YoloAutolabelStep {
         String eventTypeCd = videoRepository.findById(rawSn)
                 .map(LsDataRaw::getEvntTypeCd)
                 .orElse(null);
-        Optional<Set<String>> allowedLabels = presetLabelLookup.labelsFor(eventTypeCd);
+        Optional<Map<String, AnnotationToggle>> togglesOpt = presetLabelLookup.togglesFor(eventTypeCd);
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
-        int saved = 0;
+        List<BbHint> hints = new ArrayList<>();
+        int bboxSaved = 0;
         int yoloTotal = 0;
+        int hintsEmitted = 0;
         for (LsDataSrc src : frames) {
             String relPath = resolveImagePath(src);
             String imageB64 = readImageAsBase64(relPath);
@@ -123,34 +142,48 @@ public class YoloAutolabelStep {
             }
             for (YoloResponse.Detection d : resp.detections()) {
                 yoloTotal++;
-                if (!isLabelAllowed(allowedLabels, d.label())) {
+                AnnotationToggle toggle = resolveToggle(togglesOpt, d.label());
+                if (toggle == null) {
+                    // 매핑 존재 + 허용 라벨에 미포함 → 노이즈 제거
                     continue;
                 }
-                BigDecimal score = BigDecimal.valueOf(d.score()).setScale(4, RoundingMode.HALF_UP);
-                lblRepository.save(LsDataLbl.createAutoBbox(
-                        src.getSrcSn(), d.label(), serialize(d.points()), score));
-                saved++;
+                if (toggle.bbox()) {
+                    BigDecimal score = BigDecimal.valueOf(d.score()).setScale(4, RoundingMode.HALF_UP);
+                    lblRepository.save(LsDataLbl.createAutoBbox(
+                            src.getSrcSn(), d.label(), serialize(d.points()), score));
+                    bboxSaved++;
+                }
+                if (toggle.polygon()) {
+                    hints.add(new BbHint(src.getSrcSn(), d.label(), d.points(), d.score()));
+                    hintsEmitted++;
+                }
             }
         }
-        log.info("[Batch][Yolo] saved labels rawSn={} eventType={} yoloCount={} filteredCount={} preset={}",
-                rawSn, eventTypeCd, yoloTotal, saved,
-                allowedLabels.map(Set::toString).orElse("(none)"));
-        return saved;
+        log.info("[Batch][Yolo] saved labels rawSn={} eventType={} yoloCount={} bboxSaved={} hintsEmitted={} preset={}",
+                rawSn, eventTypeCd, yoloTotal, bboxSaved, hintsEmitted,
+                togglesOpt.map(m -> m.keySet().toString()).orElse("(none)"));
+        return hints;
     }
 
     /**
-     * 이벤트 프리셋 매핑이 있으면 허용 라벨 집합에 포함된 경우에만 통과시킨다.
-     * 매핑이 없으면(fail-safe) 모두 통과.
+     * togglesFor 결과 + 검출 라벨로 적용할 토글을 결정한다.
+     *
+     * <ul>
+     *   <li>togglesOpt empty (매핑 없음) → {@link AnnotationToggle#BOTH} fail-safe</li>
+     *   <li>매핑 존재 + 라벨이 맵에 있음 → 해당 토글</li>
+     *   <li>매핑 존재 + 라벨이 맵에 없음 → {@code null} (노이즈 제거)</li>
+     * </ul>
      */
-    private static boolean isLabelAllowed(Optional<Set<String>> allowedLabels, String rawLabel) {
-        if (allowedLabels.isEmpty()) {
-            return true;
+    private static AnnotationToggle resolveToggle(Optional<Map<String, AnnotationToggle>> togglesOpt,
+                                                  String rawLabel) {
+        if (togglesOpt.isEmpty()) {
+            return AnnotationToggle.BOTH;
         }
         if (rawLabel == null) {
-            return false;
+            return null;
         }
         String normalized = rawLabel.trim().toLowerCase();
-        return allowedLabels.get().contains(normalized);
+        return togglesOpt.get().get(normalized);
     }
 
     private String resolveImagePath(LsDataSrc src) {

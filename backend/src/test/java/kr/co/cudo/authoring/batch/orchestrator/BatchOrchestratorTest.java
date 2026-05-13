@@ -96,7 +96,7 @@ class BatchOrchestratorTest {
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         verify(deidentifyStep, never()).run(any());
         verify(yoloStep).run(101L);
-        verify(sam2Step).run(101L);
+        verify(sam2Step).run(eq(101L), any());
         verify(vlmStep).run(101L);
     }
 
@@ -134,7 +134,7 @@ class BatchOrchestratorTest {
         assertThat(retryQueue.retryCount(104L)).isEqualTo(1);
         // 비식별 이후 단계는 호출되지 않아야 함 (단계 격리).
         verify(yoloStep, never()).run(any());
-        verify(sam2Step, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
         verify(vlmStep, never()).run(any());
         // statusService 가 FAILED 로 마킹되었어야 함.
         verify(statusService).markFailed(eq(104L), any(RuntimeException.class));
@@ -144,7 +144,9 @@ class BatchOrchestratorTest {
     @DisplayName("YOLO_단계_정상_처리시_COMPLETED_상태_전이")
     void yoloSuccessReachesCompleted() {
         newRaw(105L, LsDataRaw.PRVC_TYPE_ANONY);
-        when(yoloStep.run(eq(105L))).thenReturn(7);
+        when(yoloStep.run(eq(105L)))
+                .thenReturn(List.of(
+                        new kr.co.cudo.authoring.batch.step.BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)));
 
         BatchStage result = orchestrator.process(105L);
 
@@ -163,7 +165,7 @@ class BatchOrchestratorTest {
         assertThat(result).isEqualTo(BatchStage.FAILED);
         // 이전 단계는 호출 완료
         verify(yoloStep).run(106L);
-        verify(sam2Step).run(106L);
+        verify(sam2Step).run(eq(106L), any());
         verify(vlmStep).run(106L);
         // 상태는 FAILED 로 마킹
         verify(statusService).markFailed(eq(106L), any(RuntimeException.class));
@@ -209,6 +211,7 @@ class BatchOrchestratorTest {
         assertThat(result).isEqualTo(BatchStage.FAILED);
         verify(deidentifyStep, never()).run(any());
         verify(yoloStep, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
     }
 
     @Test
@@ -222,7 +225,11 @@ class BatchOrchestratorTest {
 
         // 이번엔 정상 동작
         org.mockito.Mockito.reset(yoloStep);
-        when(yoloStep.run(any())).thenReturn(3);
+        when(yoloStep.run(any())).thenReturn(List.of(
+                new kr.co.cudo.authoring.batch.step.BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
+                new kr.co.cudo.authoring.batch.step.BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81),
+                new kr.co.cudo.authoring.batch.step.BbHint(3L, "person", List.of(9.0, 10.0, 11.0, 12.0), 0.75)
+        ));
 
         ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
         BatchStage result = orchestrator.process(109L);
@@ -230,5 +237,25 @@ class BatchOrchestratorTest {
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         assertThat(retryQueue.retryCount(109L)).isEqualTo(0);
         verify(frameExtractor, times(2)).extract(captor.capture());
+    }
+
+    @Test
+    @DisplayName("BatchOrchestrator_YoloStep_결과를_Sam2Step_에_정확히_전달")
+    void yoloHintsPassedToSam2() {
+        newRaw(110L, LsDataRaw.PRVC_TYPE_ANONY);
+        List<kr.co.cudo.authoring.batch.step.BbHint> hints = List.of(
+                new kr.co.cudo.authoring.batch.step.BbHint(11L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
+                new kr.co.cudo.authoring.batch.step.BbHint(12L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
+        );
+        when(yoloStep.run(110L)).thenReturn(hints);
+
+        BatchStage result = orchestrator.process(110L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<kr.co.cudo.authoring.batch.step.BbHint>> captor =
+                ArgumentCaptor.forClass(List.class);
+        verify(sam2Step).run(eq(110L), captor.capture());
+        assertThat(captor.getValue()).containsExactlyElementsOf(hints);
     }
 }

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -30,7 +31,9 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -77,6 +80,7 @@ class YoloAutolabelStepTest {
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
         // PresetLabelLookupService 기본 동작: 매핑 없음(fail-safe).
         when(presetLabelLookup.labelsFor(any())).thenReturn(Optional.empty());
+        when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
 
         step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, videoRepository,
                 presetLabelLookup, new ObjectMapper(), rawDir.toString());
@@ -123,9 +127,10 @@ class YoloAutolabelStepTest {
                         new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
                 ))));
 
-        int saved = step.run(1L);
+        List<BbHint> hints = step.run(1L);
 
-        assertThat(saved).isEqualTo(4); // 2 frames × 2 detections
+        // fail-safe (togglesFor empty) → BOTH 라벨로 처리. 2 frames × 2 detections = 4 BBOX save + 4 hints.
+        assertThat(hints).hasSize(4);
 
         ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(4)).save(captor.capture());
@@ -144,9 +149,9 @@ class YoloAutolabelStepTest {
         when(aiServerClient.predictYolo(any(YoloRequest.class)))
                 .thenReturn(Mono.just(new YoloResponse(List.of())));
 
-        int saved = step.run(2L);
+        List<BbHint> hints = step.run(2L);
 
-        assertThat(saved).isZero();
+        assertThat(hints).isEmpty();
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
     }
 
@@ -178,7 +183,9 @@ class YoloAutolabelStepTest {
     void evtFallFiltersToPersonOnly() {
         LsDataRaw rawMock = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(4L)).thenReturn(Optional.of(rawMock));
-        when(presetLabelLookup.labelsFor("EVT_FALL")).thenReturn(Optional.of(Set.of("person")));
+        // Phase 2: 토글 맵으로 매핑된 라벨(person=BOTH)만 통과
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(4L))
                 .thenReturn(List.of(newSrc(40L)));
         when(aiServerClient.predictYolo(any(YoloRequest.class)))
@@ -188,10 +195,10 @@ class YoloAutolabelStepTest {
                         new YoloResponse.Detection("Person", List.of(9.0, 10.0, 11.0, 12.0), 0.75)
                 ))));
 
-        int saved = step.run(4L);
+        List<BbHint> hints = step.run(4L);
 
-        // person 2건 통과 (대소문자 정규화), car 1건 필터링
-        assertThat(saved).isEqualTo(2);
+        // person 2건 통과 (대소문자 정규화), car 1건 필터링 — BOTH 라벨이므로 BBOX 저장 + hint 발행
+        assertThat(hints).hasSize(2);
 
         ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(2)).save(captor.capture());
@@ -204,8 +211,12 @@ class YoloAutolabelStepTest {
     void evtAccidentAllowsVehiclesAndPerson() {
         LsDataRaw rawMock = rawWithEvent("EVT_ACCIDENT");
         when(videoRepository.findById(5L)).thenReturn(Optional.of(rawMock));
-        when(presetLabelLookup.labelsFor("EVT_ACCIDENT"))
-                .thenReturn(Optional.of(Set.of("car", "motorcycle", "person", "truck", "bus", "bicycle")));
+        // Phase 2: 토글 맵으로 매핑된 라벨(car/motorcycle/person/truck/bus/bicycle=BOTH)만 통과
+        Map<String, AnnotationToggle> allowed = new LinkedHashMap<>();
+        for (String label : List.of("car", "motorcycle", "person", "truck", "bus", "bicycle")) {
+            allowed.put(label, AnnotationToggle.BOTH);
+        }
+        when(presetLabelLookup.togglesFor("EVT_ACCIDENT")).thenReturn(Optional.of(allowed));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(5L))
                 .thenReturn(List.of(newSrc(50L)));
         when(aiServerClient.predictYolo(any(YoloRequest.class)))
@@ -216,10 +227,10 @@ class YoloAutolabelStepTest {
                         new YoloResponse.Detection("trash", List.of(13.0, 14.0, 15.0, 16.0), 0.55)
                 ))));
 
-        int saved = step.run(5L);
+        List<BbHint> hints = step.run(5L);
 
-        // car/motorcycle/person 통과, trash 필터링
-        assertThat(saved).isEqualTo(3);
+        // car/motorcycle/person 통과 (BOTH), trash 필터링
+        assertThat(hints).hasSize(3);
     }
 
     @Test
@@ -237,10 +248,10 @@ class YoloAutolabelStepTest {
         when(aiServerClient.predictYolo(any(YoloRequest.class)))
                 .thenReturn(Mono.just(mockResp));
 
-        int saved = step.run(7L);
+        List<BbHint> hints = step.run(7L);
 
         // mock 응답이라도 파이프라인은 진행 — 라벨 1건 저장됨
-        assertThat(saved).isEqualTo(1);
+        assertThat(hints).hasSize(1);
 
         // WARN 로그가 최소 1회 출력되고 메시지에 "mock response detected" 포함
         long warnCount = logAppender.list.stream()
@@ -287,9 +298,123 @@ class YoloAutolabelStepTest {
                         new YoloResponse.Detection("trash", List.of(9.0, 10.0, 11.0, 12.0), 0.55)
                 ))));
 
-        int saved = step.run(6L);
+        List<BbHint> hints = step.run(6L);
 
-        // 매핑 없음 → 전체 통과
-        assertThat(saved).isEqualTo(3);
+        // 매핑 없음 → 전체 통과 (BOTH default — BBOX 저장 + hint 발행)
+        assertThat(hints).hasSize(3);
+    }
+
+    // ─── Phase 2: 라벨별 BBOX/POLYGON 토글 분기 ───
+
+    @Test
+    @DisplayName("YoloStep_bboxEnabled_false_라벨은_LS_DATA_LBL_에_BBOX_저장하지_않음")
+    void bboxDisabledLabelDoesNotPersist() {
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(10L)).thenReturn(Optional.of(rawMock));
+        // person 은 polygon-only (bbox=false, polygon=true) — BBOX 저장은 skip, hint 만 발행
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, true))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(10L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(10L);
+
+        // BBOX 저장은 skip — lblRepository.save 호출 0회
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
+        // polygon=true 이므로 hint 는 발행되어야 함
+        assertThat(hints).hasSize(1);
+        assertThat(hints.get(0).label()).isEqualTo("person");
+    }
+
+    @Test
+    @DisplayName("YoloStep_polygonEnabled_true_라벨은_BbHint_로_반환")
+    void polygonEnabledLabelReturnsHint() {
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(11L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(true, true))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(11L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(11L);
+
+        assertThat(hints).hasSize(1);
+        BbHint h = hints.get(0);
+        assertThat(h.srcSn()).isEqualTo(10L);
+        assertThat(h.label()).isEqualTo("person");
+        assertThat(h.points()).containsExactly(1.0, 2.0, 3.0, 4.0);
+        assertThat(h.score()).isEqualTo(0.92);
+    }
+
+    @Test
+    @DisplayName("YoloStep_polygonEnabled_false_라벨은_BbHint_미발행")
+    void polygonDisabledLabelOmitsHint() {
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(12L)).thenReturn(Optional.of(rawMock));
+        // person 은 bbox-only (bbox=true, polygon=false) — BBOX 저장만, hint 없음
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(true, false))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(12L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(12L);
+
+        // BBOX 1건 저장
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(any());
+        // hint 발행 없음
+        assertThat(hints).isEmpty();
+    }
+
+    @Test
+    @DisplayName("YoloStep_BOTH_라벨은_BBOX_저장_그리고_BbHint_도_반환")
+    void bothToggleSavesBboxAndReturnsHint() {
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(13L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(13L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(13L);
+
+        // BBOX 1건 저장 + hint 1건 발행 (둘 다)
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(any());
+        assertThat(hints).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("YoloStep_매핑_없는_라벨은_BOTH_fail_safe_로_BBOX_저장_및_hint_발행")
+    void unmappedLabelDefaultsToBothFailSafe() {
+        // 토글 맵에 person 만 등록되어 있는데 ai-server 가 car 를 검출한 경우 — 매핑 없으면 통과 (Phase 1 fail-safe)
+        // 단, YoloStep 의 isLabelAllowed 가 set 외 라벨을 필터링하므로 본 케이스에서는 car 가 필터링됨.
+        // 본 테스트는 togglesFor=empty (전체 fail-safe) 일 때 BOTH 처럼 동작하는지 검증.
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(14L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("car", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(14L);
+
+        // togglesFor empty (no preset) → fail-safe BOTH → BBOX 저장 + hint 발행
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(any());
+        assertThat(hints).hasSize(1);
     }
 }

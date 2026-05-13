@@ -1,18 +1,25 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 
-import { presetSchema, type PresetFormValues } from '../schemas';
+import {
+  presetSchema,
+  type PresetFormInput,
+  type PresetFormOutput,
+} from '../schemas';
 import {
   EVENT_TYPE_OPTIONS,
   PRESET_LABEL_SUGGESTIONS,
+  type LabelCodeOption,
   type Preset,
   type PresetForm,
 } from '../types';
+
+import { PresetCodeChip } from './PresetCodeChip';
 
 export interface PresetEditModalProps {
   open: boolean;
@@ -22,16 +29,18 @@ export interface PresetEditModalProps {
   submitting?: boolean;
 }
 
-const EMPTY_FORM: PresetFormValues = {
+const EMPTY_FORM: PresetFormInput = {
   name: '',
   description: '',
   labelCodes: [],
+  labelCodeOptions: [],
   eventTypeCd: '',
 };
 
 /**
  * mock의 PresetFormModal 패턴을 그대로 포팅한 모달.
  * - 이름 / 설명 / 라벨 코드 chips + 빠른 추가 chips
+ * - 각 chip 옆에 BBOX/POLYGON 체크박스 (Phase 3)
  * - 매핑 이벤트 타입 select (V15 — 1:1 매핑, 빈 값 = 미매핑)
  */
 export function PresetEditModal({
@@ -50,56 +59,97 @@ export function PresetEditModal({
     setValue,
     watch,
     formState: { errors },
-  } = useForm<PresetFormValues>({
+  } = useForm<PresetFormInput, unknown, PresetFormOutput>({
     resolver: zodResolver(presetSchema),
     defaultValues: EMPTY_FORM,
   });
 
-  const labelCodes = watch('labelCodes') ?? [];
+  const labelCodeOptions = watch('labelCodeOptions') ?? [];
   const [newCode, setNewCode] = useState('');
 
   useEffect(() => {
-    if (open) {
-      reset(
-        initial
-          ? {
-              name: initial.name,
-              description: initial.description ?? '',
-              labelCodes: [...initial.labelCodes],
-              eventTypeCd: initial.eventTypeCd ?? '',
-            }
-          : EMPTY_FORM,
-      );
-      setNewCode('');
+    if (!open) return;
+    if (initial) {
+      // initial 의 labelCodeOptions 가 있으면 우선, 없으면 labelCodes 로부터 모두 (true,true) 로 변환
+      const opts: LabelCodeOption[] =
+        initial.labelCodeOptions && initial.labelCodeOptions.length > 0
+          ? initial.labelCodeOptions.map((o) => ({ ...o }))
+          : initial.labelCodes.map((code) => ({
+              code,
+              bboxEnabled: true,
+              polygonEnabled: true,
+            }));
+      reset({
+        name: initial.name,
+        description: initial.description ?? '',
+        labelCodes: opts.map((o) => o.code),
+        labelCodeOptions: opts,
+        eventTypeCd: initial.eventTypeCd ?? '',
+      });
+    } else {
+      reset(EMPTY_FORM);
     }
+    setNewCode('');
   }, [open, initial, reset]);
+
+  const setOptions = (opts: LabelCodeOption[]) => {
+    setValue('labelCodeOptions', opts, { shouldValidate: true, shouldDirty: true });
+    setValue(
+      'labelCodes',
+      opts.map((o) => o.code),
+      { shouldValidate: false, shouldDirty: true },
+    );
+  };
 
   const addLabel = (code: string) => {
     const upper = code.trim().toUpperCase();
-    if (!upper || labelCodes.includes(upper)) return;
-    setValue('labelCodes', [...labelCodes, upper], {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
+    if (!upper) return;
+    if (labelCodeOptions.some((o) => o.code === upper)) return;
+    setOptions([
+      ...labelCodeOptions,
+      { code: upper, bboxEnabled: true, polygonEnabled: true },
+    ]);
     setNewCode('');
   };
 
   const removeLabel = (code: string) => {
-    setValue(
-      'labelCodes',
-      labelCodes.filter((c) => c !== code),
-      { shouldValidate: true, shouldDirty: true },
+    setOptions(labelCodeOptions.filter((o) => o.code !== code));
+  };
+
+  const toggleBbox = (code: string) => {
+    setOptions(
+      labelCodeOptions.map((o) =>
+        o.code === code ? { ...o, bboxEnabled: !o.bboxEnabled } : o,
+      ),
     );
   };
+
+  const togglePolygon = (code: string) => {
+    setOptions(
+      labelCodeOptions.map((o) =>
+        o.code === code ? { ...o, polygonEnabled: !o.polygonEnabled } : o,
+      ),
+    );
+  };
+
+  // chip 중 하나라도 둘 다 off 면 저장 disabled
+  const hasInvalidOption = useMemo(
+    () =>
+      labelCodeOptions.some((o) => !o.bboxEnabled && !o.polygonEnabled),
+    [labelCodeOptions],
+  );
 
   const submit = handleSubmit((form) => {
     onSubmit({
       name: form.name,
       description: form.description ?? '',
-      labelCodes: form.labelCodes,
+      labelCodes: form.labelCodeOptions.map((o) => o.code),
+      labelCodeOptions: form.labelCodeOptions,
       eventTypeCd: form.eventTypeCd ?? '',
     });
   });
+
+  const saveDisabled = !!submitting || hasInvalidOption;
 
   return (
     <Modal
@@ -122,6 +172,7 @@ export function PresetEditModal({
             variant="primary"
             onClick={submit}
             loading={submitting}
+            disabled={saveDisabled}
           >
             {isEdit ? '저장' : '만들기'}
           </Button>
@@ -220,28 +271,21 @@ export function PresetEditModal({
               className="ml-1 font-normal text-gray-400"
               data-testid="preset-labels-count"
             >
-              ({labelCodes.length}개)
+              ({labelCodeOptions.length}개)
             </span>
           </label>
 
           {/* Existing labels */}
-          {labelCodes.length > 0 && (
+          {labelCodeOptions.length > 0 && (
             <div className="flex flex-wrap gap-2" data-testid="preset-labels-list">
-              {labelCodes.map((code) => (
-                <span
-                  key={code}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-100 text-primary-700 text-xs font-medium"
-                >
-                  {code}
-                  <button
-                    type="button"
-                    onClick={() => removeLabel(code)}
-                    className="ml-0.5 hover:text-red-500 transition-colors"
-                    aria-label={`${code} 삭제`}
-                  >
-                    <Trash2 className="h-3 w-3" aria-hidden />
-                  </button>
-                </span>
+              {labelCodeOptions.map((option) => (
+                <PresetCodeChip
+                  key={option.code}
+                  option={option}
+                  onToggleBbox={() => toggleBbox(option.code)}
+                  onTogglePolygon={() => togglePolygon(option.code)}
+                  onRemove={() => removeLabel(option.code)}
+                />
               ))}
             </div>
           )}
@@ -274,9 +318,14 @@ export function PresetEditModal({
             </Button>
           </div>
 
-          {errors.labelCodes?.message && (
+          {errors.labelCodeOptions?.message && (
             <p className="text-xs text-red-500" role="alert">
-              {errors.labelCodes.message}
+              {errors.labelCodeOptions.message}
+            </p>
+          )}
+          {hasInvalidOption && (
+            <p className="text-xs text-red-500" role="alert">
+              BBOX 또는 POLYGON 중 최소 하나는 활성화해야 합니다.
             </p>
           )}
 
@@ -285,7 +334,7 @@ export function PresetEditModal({
             <p className="text-xs text-gray-400">빠른 추가:</p>
             <div className="flex flex-wrap gap-1.5" data-testid="preset-suggestions">
               {PRESET_LABEL_SUGGESTIONS.filter(
-                (s) => !labelCodes.includes(s.code),
+                (s) => !labelCodeOptions.some((o) => o.code === s.code),
               ).map((s) => (
                 <button
                   key={s.code}

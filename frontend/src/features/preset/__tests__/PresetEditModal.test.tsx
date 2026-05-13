@@ -12,6 +12,10 @@ describe('PresetEditModal', () => {
       name: '교통사고 표준',
       description: '교통사고용',
       labelCodes: ['PERSON', 'VEHICLE'],
+      labelCodeOptions: [
+        { code: 'PERSON', bboxEnabled: true, polygonEnabled: true },
+        { code: 'VEHICLE', bboxEnabled: true, polygonEnabled: true },
+      ],
       eventTypeCd: null,
       createdAt: '2026-05-01T00:00:00Z',
       updatedAt: '2026-05-10T00:00:00Z',
@@ -67,6 +71,9 @@ describe('PresetEditModal', () => {
       name: '낙상',
       description: null,
       labelCodes: ['PERSON'],
+      labelCodeOptions: [
+        { code: 'PERSON', bboxEnabled: true, polygonEnabled: true },
+      ],
       eventTypeCd: 'EVT_FALL',
       createdAt: '2026-05-01T00:00:00Z',
       updatedAt: '2026-05-10T00:00:00Z',
@@ -122,6 +129,154 @@ describe('PresetEditModal', () => {
     });
     expect(onSubmit.mock.calls[0]![0]).toMatchObject({
       eventTypeCd: '',
+    });
+  });
+
+  // ── Phase 3: BBOX/POLYGON 옵션 ──
+  describe('Phase 3 — BBOX/POLYGON 옵션', () => {
+    it('PresetEditModal_빠른_추가_chip_은_기본값_BBOX_POLYGON_모두_활성', () => {
+      renderWithProviders(
+        <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /\+ PERSON/ }));
+
+      const bbox = screen.getByRole('checkbox', {
+        name: /PERSON.*BBOX|BBOX.*PERSON/,
+      }) as HTMLInputElement;
+      const poly = screen.getByRole('checkbox', {
+        name: /PERSON.*POLYGON|POLYGON.*PERSON/,
+      }) as HTMLInputElement;
+      expect(bbox.checked).toBe(true);
+      expect(poly.checked).toBe(true);
+    });
+
+    it('PresetEditModal_BBOX_체크박스_해제_시_옵션_갱신', () => {
+      renderWithProviders(
+        <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /\+ PERSON/ }));
+
+      const bbox = screen.getByRole('checkbox', {
+        name: /PERSON.*BBOX|BBOX.*PERSON/,
+      }) as HTMLInputElement;
+      fireEvent.click(bbox);
+      expect(bbox.checked).toBe(false);
+      // POLYGON 은 여전히 true
+      const poly = screen.getByRole('checkbox', {
+        name: /PERSON.*POLYGON|POLYGON.*PERSON/,
+      }) as HTMLInputElement;
+      expect(poly.checked).toBe(true);
+    });
+
+    it('PresetEditModal_BBOX_POLYGON_모두_해제_시_chip_빨간_테두리_표시', () => {
+      renderWithProviders(
+        <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /\+ PERSON/ }));
+
+      const bbox = screen.getByRole('checkbox', {
+        name: /PERSON.*BBOX|BBOX.*PERSON/,
+      }) as HTMLInputElement;
+      const poly = screen.getByRole('checkbox', {
+        name: /PERSON.*POLYGON|POLYGON.*PERSON/,
+      }) as HTMLInputElement;
+      fireEvent.click(bbox);
+      fireEvent.click(poly);
+
+      const chip = screen.getByTestId('preset-chip-PERSON');
+      expect(chip.className).toMatch(/border-red-500|border-red-400/);
+    });
+
+    it('PresetEditModal_모든_chip_정상일_때_저장_버튼_활성화', () => {
+      renderWithProviders(
+        <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />,
+      );
+      fireEvent.change(screen.getByLabelText(/프리셋 이름/), {
+        target: { value: '정상' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /\+ PERSON/ }));
+
+      const saveBtn = screen.getByText('만들기') as HTMLButtonElement;
+      expect(saveBtn.disabled).toBe(false);
+    });
+
+    it('PresetEditModal_chip_하나라도_둘_다_off_면_저장_버튼_disabled', () => {
+      renderWithProviders(
+        <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />,
+      );
+      fireEvent.change(screen.getByLabelText(/프리셋 이름/), {
+        target: { value: '잘못된 프리셋' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /\+ PERSON/ }));
+
+      const bbox = screen.getByRole('checkbox', {
+        name: /PERSON.*BBOX|BBOX.*PERSON/,
+      }) as HTMLInputElement;
+      const poly = screen.getByRole('checkbox', {
+        name: /PERSON.*POLYGON|POLYGON.*PERSON/,
+      }) as HTMLInputElement;
+      fireEvent.click(bbox);
+      fireEvent.click(poly);
+
+      const saveBtn = screen.getByText('만들기') as HTMLButtonElement;
+      expect(saveBtn.disabled).toBe(true);
+    });
+
+    it('PresetEditModal_저장_payload_에_labelCodeOptions_가_정확히_포함', async () => {
+      const onSubmit = vi.fn();
+      renderWithProviders(
+        <PresetEditModal open onClose={() => undefined} onSubmit={onSubmit} />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/프리셋 이름/), {
+        target: { value: 'PERSON BBOX only' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /\+ PERSON/ }));
+      // POLYGON 해제 → bboxEnabled=true, polygonEnabled=false
+      const poly = screen.getByRole('checkbox', {
+        name: /PERSON.*POLYGON|POLYGON.*PERSON/,
+      }) as HTMLInputElement;
+      fireEvent.click(poly);
+      fireEvent.click(screen.getByText('만들기'));
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+      const payload = onSubmit.mock.calls[0]![0];
+      expect(payload.labelCodeOptions).toEqual([
+        { code: 'PERSON', bboxEnabled: true, polygonEnabled: false },
+      ]);
+    });
+
+    it('PresetEditModal_initial_에_labelCodeOptions_가_있으면_체크박스_반영', () => {
+      const initial = {
+        id: 3,
+        name: 'PERSON BBOX',
+        description: null,
+        labelCodes: ['PERSON'],
+        labelCodeOptions: [
+          { code: 'PERSON', bboxEnabled: true, polygonEnabled: false },
+        ],
+        eventTypeCd: null,
+        createdAt: '2026-05-01T00:00:00Z',
+        updatedAt: '2026-05-10T00:00:00Z',
+      };
+      renderWithProviders(
+        <PresetEditModal
+          open
+          onClose={() => undefined}
+          onSubmit={vi.fn()}
+          initial={initial}
+        />,
+      );
+      const bbox = screen.getByRole('checkbox', {
+        name: /PERSON.*BBOX|BBOX.*PERSON/,
+      }) as HTMLInputElement;
+      const poly = screen.getByRole('checkbox', {
+        name: /PERSON.*POLYGON|POLYGON.*PERSON/,
+      }) as HTMLInputElement;
+      expect(bbox.checked).toBe(true);
+      expect(poly.checked).toBe(false);
     });
   });
 });

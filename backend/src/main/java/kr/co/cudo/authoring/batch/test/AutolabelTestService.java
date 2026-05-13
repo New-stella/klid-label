@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.step.BbHint;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
@@ -55,10 +56,11 @@ public class AutolabelTestService {
         long started = System.currentTimeMillis();
         try {
             statusService.markStage(rawSn, BatchStage.YOLO);
-            int yoloCount = yoloStep.run(rawSn);
+            List<BbHint> hints = yoloStep.run(rawSn);
+            int yoloCount = hints.size();
 
             statusService.markStage(rawSn, BatchStage.SAM2);
-            int sam2Count = sam2Step.run(rawSn);
+            int sam2Count = sam2Step.run(rawSn, hints);
 
             long elapsed = System.currentTimeMillis() - started;
             statusService.markCompleted(rawSn);
@@ -100,10 +102,11 @@ public class AutolabelTestService {
         long started = System.currentTimeMillis();
         try {
             statusService.markStage(rawSn, BatchStage.YOLO);
-            int yoloCount = yoloStep.run(rawSn);
+            List<BbHint> hints = yoloStep.run(rawSn);
+            int yoloCount = hints.size();
 
             statusService.markStage(rawSn, BatchStage.SAM2);
-            int sam2Count = sam2Step.run(rawSn);
+            int sam2Count = sam2Step.run(rawSn, hints);
 
             long elapsed = System.currentTimeMillis() - started;
             statusService.markCompleted(rawSn);

@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.AssertTrue;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,6 +18,8 @@ import lombok.NoArgsConstructor;
  * 프리셋 라벨 코드 (Aggregate 내부 엔티티).
  *
  * <p>외부에서 직접 생성/수정 금지. {@link LsLabelPreset#replaceCodes(java.util.List)} 통해서만 변경한다.
+ *
+ * <p>Phase 1 — 라벨별 BBOX/POLYGON 토글 컬럼 추가 (V16 migration).
  */
 @Entity
 @Table(name = "LS_LABEL_PRESET_CODE")
@@ -39,19 +42,62 @@ public class LsLabelPresetCode {
     @Column(name = "SORT_ORDER", nullable = false)
     private int sortOrder;
 
-    private LsLabelPresetCode(LsLabelPreset preset, String code, int sortOrder) {
+    /** BBOX 어노테이션 활성 여부 (V16). */
+    @Column(name = "BBOX_ENABLED", nullable = false)
+    private boolean bboxEnabled;
+
+    /** POLYGON 어노테이션 활성 여부 (V16). */
+    @Column(name = "POLYGON_ENABLED", nullable = false)
+    private boolean polygonEnabled;
+
+    private LsLabelPresetCode(LsLabelPreset preset, String code, int sortOrder,
+                              boolean bboxEnabled, boolean polygonEnabled) {
         this.preset = preset;
         this.code = code;
         this.sortOrder = sortOrder;
+        this.bboxEnabled = bboxEnabled;
+        this.polygonEnabled = polygonEnabled;
     }
 
-    /** 내부 팩토리 — 패키지 가시성으로 Aggregate Root 만 호출 가능. */
+    /**
+     * 내부 팩토리 — 패키지 가시성으로 Aggregate Root 만 호출 가능.
+     * 두 옵션이 모두 false 인 조합은 호출자({@link LsLabelPreset#replaceCodes}) 또는
+     * 상위 검증 단계({@code LabelCodeOptionDto.@AssertTrue})에서 거부되어야 한다.
+     */
+    static LsLabelPresetCode of(LsLabelPreset preset, String code, int sortOrder,
+                                boolean bboxEnabled, boolean polygonEnabled) {
+        return new LsLabelPresetCode(preset, code, sortOrder, bboxEnabled, polygonEnabled);
+    }
+
+    /**
+     * 레거시 팩토리 — 두 토글을 모두 true 로 위임한다.
+     *
+     * @deprecated {@link #of(LsLabelPreset, String, int, boolean, boolean)} 사용. 호환성 위해 유지.
+     */
+    @Deprecated
     static LsLabelPresetCode of(LsLabelPreset preset, String code, int sortOrder) {
-        return new LsLabelPresetCode(preset, code, sortOrder);
+        return of(preset, code, sortOrder, true, true);
     }
 
     /** sortOrder 갱신 — Aggregate Root의 replaceCodes에서만 호출. */
     public void updateSortOrder(int order) {
         this.sortOrder = order;
+    }
+
+    /** 토글 갱신 — Aggregate Root의 replaceCodes에서만 호출 (이미 살아남은 row 의 옵션 변경). */
+    void updateToggles(boolean bboxEnabled, boolean polygonEnabled) {
+        this.bboxEnabled = bboxEnabled;
+        this.polygonEnabled = polygonEnabled;
+    }
+
+    /**
+     * Bean Validation 다중 가드 — DTO·DB CHECK 외에 엔티티 레벨에서도 보호.
+     *
+     * <p>{@link AssertTrue} 는 메서드 호출시점이 아닌 {@code @Valid} 검증 시점에 평가되므로
+     * 단위 테스트에서는 {@link #isAtLeastOneEnabled()} 를 직접 호출해 boolean 결과를 확인한다.
+     */
+    @AssertTrue(message = "최소 하나의 어노테이션 유형은 활성화되어야 합니다.")
+    public boolean isAtLeastOneEnabled() {
+        return bboxEnabled || polygonEnabled;
     }
 }
