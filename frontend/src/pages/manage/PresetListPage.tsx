@@ -10,7 +10,8 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { PresetEditModal } from '@/features/preset/components/PresetEditModal';
 import { usePresetActions } from '@/features/preset/hooks/usePresetActions';
 import { usePresets } from '@/features/preset/hooks/usePresets';
-import type { Preset, PresetForm } from '@/features/preset/types';
+import { EVENT_TYPE_LABELS, type Preset, type PresetForm } from '@/features/preset/types';
+import { ApiError } from '@/lib/api/errors';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
@@ -45,6 +46,14 @@ export function PresetListPage() {
     setModalOpen(true);
   };
 
+  /** 409 CONFLICT 응답이면 BE 메시지를 그대로 사용자에게 노출 (이벤트 중복 / 이름 중복 분기). */
+  const resolveErrorMessage = (err: unknown, fallback: string): string => {
+    if (err instanceof ApiError && err.status === 409) {
+      return err.userMessage || fallback;
+    }
+    return fallback;
+  };
+
   const handleSubmit = (form: PresetForm) => {
     if (editing) {
       update.mutate(
@@ -54,8 +63,11 @@ export function PresetListPage() {
             pushToast({ variant: 'success', message: '프리셋을 수정했습니다' });
             setModalOpen(false);
           },
-          onError: () =>
-            pushToast({ variant: 'error', message: '프리셋 수정에 실패했습니다' }),
+          onError: (err) =>
+            pushToast({
+              variant: 'error',
+              message: resolveErrorMessage(err, '프리셋 수정에 실패했습니다'),
+            }),
         },
       );
     } else {
@@ -64,7 +76,11 @@ export function PresetListPage() {
           pushToast({ variant: 'success', message: '프리셋을 추가했습니다' });
           setModalOpen(false);
         },
-        onError: () => pushToast({ variant: 'error', message: '프리셋 추가에 실패했습니다' }),
+        onError: (err) =>
+          pushToast({
+            variant: 'error',
+            message: resolveErrorMessage(err, '프리셋 추가에 실패했습니다'),
+          }),
       });
     }
   };
@@ -152,7 +168,25 @@ export function PresetListPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-gray-900">{preset.name}</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-sm font-semibold text-gray-900">{preset.name}</h3>
+                      {preset.eventTypeCd ? (
+                        <span
+                          className="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-700"
+                          data-testid={`preset-event-${preset.id}`}
+                          title={`매핑 이벤트: ${preset.eventTypeCd}`}
+                        >
+                          {EVENT_TYPE_LABELS[preset.eventTypeCd] ?? preset.eventTypeCd}
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-400"
+                          data-testid={`preset-event-${preset.id}`}
+                        >
+                          미매핑
+                        </span>
+                      )}
+                    </div>
                     {preset.description && (
                       <p className="mt-0.5 truncate text-xs text-gray-400">
                         {preset.description}

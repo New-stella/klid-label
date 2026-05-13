@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
@@ -33,12 +34,14 @@ import java.util.List;
  * SCR-LBL-PRESET-001 라벨링 프리셋 관리.
  *
  * <p>V13 마이그레이션으로 LS_LABEL_PRESET / LS_LABEL_PRESET_CODE 영속 저장소를 사용한다.
+ * V15 마이그레이션으로 LS_LABEL_PRESET.EVNT_TYPE_CD (이벤트 1:1 매핑) 컬럼이 추가되었다.
  *
  * <p>보안:
  * <ul>
  *   <li>REVIEWER 전용 — SecurityConfig {@code /v1/manage/**} 매처 + {@code @PreAuthorize}.</li>
  *   <li>RequestBody 는 DTO ({@link PresetRequest}) 로 강제 — Mass Assignment 방어.</li>
- *   <li>입력 검증: 이름 1~64자, description 최대 500자, labelCodes null 금지(각 코드 1~32자).</li>
+ *   <li>입력 검증: 이름 1~64자, description 최대 500자, labelCodes null 금지(각 코드 1~32자),
+ *       eventTypeCd 는 {@code ^EVT_[A-Z_]+$} 패턴 또는 null/빈 문자열.</li>
  *   <li>JSON unknown 필드는 ignore — 클라이언트 호환성.</li>
  * </ul>
  */
@@ -70,7 +73,8 @@ public class PresetController {
         LsLabelPreset saved = presetService.create(
                 request.name(),
                 request.description(),
-                request.labelCodes() == null ? List.of() : List.copyOf(request.labelCodes())
+                request.labelCodes() == null ? List.of() : List.copyOf(request.labelCodes()),
+                request.eventTypeCd()
         );
         return ApiResponse.ok(toResponse(saved));
     }
@@ -83,7 +87,8 @@ public class PresetController {
                 id,
                 request.name(),
                 request.description(),
-                request.labelCodes() == null ? List.of() : List.copyOf(request.labelCodes())
+                request.labelCodes() == null ? List.of() : List.copyOf(request.labelCodes()),
+                request.eventTypeCd()
         );
         return ApiResponse.ok(toResponse(updated));
     }
@@ -111,6 +116,7 @@ public class PresetController {
                 entity.getName(),
                 entity.getDescription(),
                 entity.codeValues(),
+                entity.getEventTypeCd(),
                 formatTimestamp(entity.getCreatedAt()),
                 formatTimestamp(entity.getUpdatedAt())
         );
@@ -127,7 +133,10 @@ public class PresetController {
     public record PresetRequest(
             @NotBlank @Size(max = 64) String name,
             @Size(max = 500) String description,
-            @NotNull List<@NotBlank @Size(max = 32) String> labelCodes
+            @NotNull List<@NotBlank @Size(max = 32) String> labelCodes,
+            @Pattern(regexp = "^$|^EVT_[A-Z_]+$", message = "이벤트 타입 형식이 올바르지 않습니다")
+            @Size(max = 32)
+            String eventTypeCd
     ) {
     }
 
@@ -136,6 +145,7 @@ public class PresetController {
             String name,
             String description,
             List<String> labelCodes,
+            String eventTypeCd,
             String createdAt,
             String updatedAt
     ) {

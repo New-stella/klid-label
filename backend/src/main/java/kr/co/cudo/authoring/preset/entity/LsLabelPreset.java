@@ -47,6 +47,13 @@ public class LsLabelPreset {
     @Column(name = "DESCRIPTION", length = 500)
     private String description;
 
+    /**
+     * 매핑된 이벤트 타입 코드 (예: EVT_FALL). null = 미매핑.
+     * <p>DB UNIQUE 제약(UK_LS_LABEL_PRESET_EVNT) — 이벤트 1개 = 프리셋 1개.
+     */
+    @Column(name = "EVNT_TYPE_CD", length = 32)
+    private String eventTypeCd;
+
     @Column(name = "CREATED_AT", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -62,20 +69,33 @@ public class LsLabelPreset {
     @OrderBy("sortOrder ASC")
     private List<LsLabelPresetCode> codes = new ArrayList<>();
 
-    private LsLabelPreset(String name, String description) {
+    private LsLabelPreset(String name, String description, String eventTypeCd) {
         this.name = name;
         this.description = description;
+        this.eventTypeCd = normalizeEventTypeCd(eventTypeCd);
     }
 
     /**
-     * 정적 팩토리. 이름/설명/코드 목록으로 프리셋을 생성한다.
+     * 정적 팩토리. 이름/설명/코드 목록으로 프리셋을 생성한다 (이벤트 매핑 없음).
      *
      * @param name        프리셋 이름 (1~64자)
      * @param description 설명 (선택)
      * @param codes       라벨 코드 목록 (null 허용, 빈 목록 처리)
      */
     public static LsLabelPreset create(String name, String description, List<String> codes) {
-        LsLabelPreset preset = new LsLabelPreset(name, description);
+        return create(name, description, codes, null);
+    }
+
+    /**
+     * 정적 팩토리. 이름/설명/코드 목록/이벤트 매핑으로 프리셋을 생성한다.
+     *
+     * @param name        프리셋 이름 (1~64자)
+     * @param description 설명 (선택)
+     * @param codes       라벨 코드 목록 (null 허용, 빈 목록 처리)
+     * @param eventTypeCd 매핑 이벤트 타입 코드 (선택, null/blank → 미매핑)
+     */
+    public static LsLabelPreset create(String name, String description, List<String> codes, String eventTypeCd) {
+        LsLabelPreset preset = new LsLabelPreset(name, description, eventTypeCd);
         preset.replaceCodes(codes);
         return preset;
     }
@@ -84,6 +104,23 @@ public class LsLabelPreset {
     public void updateBasics(String name, String description) {
         this.name = name;
         this.description = description;
+    }
+
+    /**
+     * 이벤트 타입 매핑을 갱신한다. null/blank 입력은 미매핑(null)으로 저장한다.
+     * <p>실제 UNIQUE 충돌(다른 프리셋과의 이벤트 중복)은 DB 레벨에서 차단되며,
+     * 응용 서비스가 DataIntegrityViolationException → CONFLICT 로 변환한다.
+     */
+    public void assignToEvent(String eventTypeCd) {
+        this.eventTypeCd = normalizeEventTypeCd(eventTypeCd);
+    }
+
+    private static String normalizeEventTypeCd(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**

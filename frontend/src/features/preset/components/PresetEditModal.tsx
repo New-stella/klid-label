@@ -7,7 +7,12 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 
 import { presetSchema, type PresetFormValues } from '../schemas';
-import { PRESET_LABEL_SUGGESTIONS, type Preset, type PresetForm } from '../types';
+import {
+  EVENT_TYPE_OPTIONS,
+  PRESET_LABEL_SUGGESTIONS,
+  type Preset,
+  type PresetForm,
+} from '../types';
 
 export interface PresetEditModalProps {
   open: boolean;
@@ -21,11 +26,13 @@ const EMPTY_FORM: PresetFormValues = {
   name: '',
   description: '',
   labelCodes: [],
+  eventTypeCd: '',
 };
 
 /**
  * mock의 PresetFormModal 패턴을 그대로 포팅한 모달.
  * - 이름 / 설명 / 라벨 코드 chips + 빠른 추가 chips
+ * - 매핑 이벤트 타입 select (V15 — 1:1 매핑, 빈 값 = 미매핑)
  */
 export function PresetEditModal({
   open,
@@ -59,6 +66,7 @@ export function PresetEditModal({
               name: initial.name,
               description: initial.description ?? '',
               labelCodes: [...initial.labelCodes],
+              eventTypeCd: initial.eventTypeCd ?? '',
             }
           : EMPTY_FORM,
       );
@@ -89,6 +97,7 @@ export function PresetEditModal({
       name: form.name,
       description: form.description ?? '',
       labelCodes: form.labelCodes,
+      eventTypeCd: form.eventTypeCd ?? '',
     });
   });
 
@@ -167,6 +176,40 @@ export function PresetEditModal({
           {errors.description?.message && (
             <p className="text-xs text-red-500">{errors.description.message}</p>
           )}
+        </div>
+
+        {/* Event type mapping (V15 — 1:1) */}
+        <div className="space-y-1.5">
+          <label
+            className="block text-sm font-medium text-gray-700"
+            htmlFor="preset-event"
+          >
+            매핑 이벤트 타입
+            <span className="ml-1 font-normal text-gray-400">
+              (오토라벨 시 이 이벤트의 영상에 본 프리셋 적용)
+            </span>
+          </label>
+          <select
+            id="preset-event"
+            className={[
+              'w-full text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500',
+              errors.eventTypeCd ? 'border-red-400' : 'border-gray-300',
+            ].join(' ')}
+            {...register('eventTypeCd')}
+          >
+            <option value="">선택 안 함 (-)</option>
+            {EVENT_TYPE_OPTIONS.map((o) => (
+              <option key={o.code} value={o.code}>
+                {o.code} — {o.name}
+              </option>
+            ))}
+          </select>
+          {errors.eventTypeCd?.message && (
+            <p className="text-xs text-red-500">{errors.eventTypeCd.message}</p>
+          )}
+          <p className="text-xs text-gray-400">
+            동일 이벤트는 1개 프리셋에만 매핑됩니다. 이미 다른 프리셋이 매핑된 경우 저장 시 안내됩니다.
+          </p>
         </div>
 
         {/* Label codes */}

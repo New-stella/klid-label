@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.policy.EventPresetMapping;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -41,7 +41,8 @@ import java.util.Set;
  *  - lblTypeCd = BBOX
  * <p>
  * 이벤트 타입 기반 프리셋 필터 (V1.8):
- *  - 영상의 EVNT_TYPE_CD 에 매핑된 라벨만 INSERT (노이즈 제거).
+ *  - 영상의 EVNT_TYPE_CD 에 매핑된 프리셋(LS_LABEL_PRESET.EVNT_TYPE_CD) 의 라벨 코드만 INSERT (노이즈 제거).
+ *  - 매핑은 운영자가 프리셋 UI 에서 동적으로 관리 — {@link PresetLabelLookupService} 가 DB 조회.
  *  - 미정/미매핑 이벤트는 fail-safe 로 전체 통과.
  *  - 라벨 비교는 소문자 + trim 정규화.
  *
@@ -58,6 +59,7 @@ public class YoloAutolabelStep {
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
     private final VideoRepository videoRepository;
+    private final PresetLabelLookupService presetLabelLookup;
     private final ObjectMapper objectMapper;
     private final Path baseRawPath;
 
@@ -65,12 +67,14 @@ public class YoloAutolabelStep {
                              LsDataSrcRepository srcRepository,
                              LsDataLblRepository lblRepository,
                              VideoRepository videoRepository,
+                             PresetLabelLookupService presetLabelLookup,
                              ObjectMapper objectMapper,
                              @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
         this.videoRepository = videoRepository;
+        this.presetLabelLookup = presetLabelLookup;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
@@ -84,7 +88,7 @@ public class YoloAutolabelStep {
         String eventTypeCd = videoRepository.findById(rawSn)
                 .map(LsDataRaw::getEvntTypeCd)
                 .orElse(null);
-        Optional<Set<String>> allowedLabels = EventPresetMapping.labelsFor(eventTypeCd);
+        Optional<Set<String>> allowedLabels = presetLabelLookup.labelsFor(eventTypeCd);
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         int saved = 0;

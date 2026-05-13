@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.step;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -25,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,6 +41,7 @@ class YoloAutolabelStepTest {
     private LsDataSrcRepository srcRepository;
     private LsDataLblRepository lblRepository;
     private VideoRepository videoRepository;
+    private PresetLabelLookupService presetLabelLookup;
     private YoloAutolabelStep step;
 
     @TempDir
@@ -50,6 +53,7 @@ class YoloAutolabelStepTest {
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
         videoRepository = mock(VideoRepository.class);
+        presetLabelLookup = mock(PresetLabelLookupService.class);
 
         // Create temp directory and dummy image files
         Path rawDir = tempDir.resolve("raw");
@@ -63,9 +67,11 @@ class YoloAutolabelStepTest {
 
         // 기본은 fail-safe (필터 미적용) 동작을 위해 빈 Optional
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
+        // PresetLabelLookupService 기본 동작: 매핑 없음(fail-safe).
+        when(presetLabelLookup.labelsFor(any())).thenReturn(Optional.empty());
 
         step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, videoRepository,
-                new ObjectMapper(), rawDir.toString());
+                presetLabelLookup, new ObjectMapper(), rawDir.toString());
     }
 
     private LsDataSrc newSrc(Long srcSn) {
@@ -150,6 +156,7 @@ class YoloAutolabelStepTest {
     void evtFallFiltersToPersonOnly() {
         LsDataRaw rawMock = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(4L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.labelsFor("EVT_FALL")).thenReturn(Optional.of(Set.of("person")));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(4L))
                 .thenReturn(List.of(newSrc(40L)));
         when(aiServerClient.predictYolo(any(YoloRequest.class)))
@@ -175,6 +182,8 @@ class YoloAutolabelStepTest {
     void evtAccidentAllowsVehiclesAndPerson() {
         LsDataRaw rawMock = rawWithEvent("EVT_ACCIDENT");
         when(videoRepository.findById(5L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.labelsFor("EVT_ACCIDENT"))
+                .thenReturn(Optional.of(Set.of("car", "motorcycle", "person", "truck", "bus", "bicycle")));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(5L))
                 .thenReturn(List.of(newSrc(50L)));
         when(aiServerClient.predictYolo(any(YoloRequest.class)))

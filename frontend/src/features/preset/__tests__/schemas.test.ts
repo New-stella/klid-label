@@ -72,4 +72,34 @@ describe('preset schemas', () => {
     };
     expect(presetSchema.safeParse(bad).success).toBe(false);
   });
+
+  it('eventTypeCd_빈_문자열_허용_미매핑', () => {
+    const ok = {
+      name: '프리셋',
+      description: '',
+      labelCodes: ['PERSON'],
+      eventTypeCd: '',
+    };
+    expect(presetSchema.safeParse(ok).success).toBe(true);
+  });
+
+  it('eventTypeCd_올바른_패턴_허용', () => {
+    const ok = {
+      name: '프리셋',
+      description: '',
+      labelCodes: ['PERSON'],
+      eventTypeCd: 'EVT_FALL',
+    };
+    expect(presetSchema.safeParse(ok).success).toBe(true);
+  });
+
+  it('eventTypeCd_잘못된_형식_거부', () => {
+    const bad = {
+      name: '프리셋',
+      description: '',
+      labelCodes: ['PERSON'],
+      eventTypeCd: 'invalid-event',
+    };
+    expect(presetSchema.safeParse(bad).success).toBe(false);
+  });
 });
