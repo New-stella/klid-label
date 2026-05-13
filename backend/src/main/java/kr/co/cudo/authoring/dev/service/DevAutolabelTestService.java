@@ -181,10 +181,11 @@ public class DevAutolabelTestService {
                 durationSec);
 
         // 백그라운드 파이프라인 실행 — runFull 은 동기 long-running, 별도 스레드로 분리.
-        // 트랜잭션 커밋 이후에 호출되어야 하므로 CompletableFuture 로 fire-and-forget.
+        // 트랜잭션 커밋 이후에 호출되어야 새 스레드에서 LsDataRaw row 가 보인다
+        // (read-after-write 가시성 — afterCommit 미사용 시 "영상 레코드가 없습니다" 발생).
         // 실패 시 (1) cause/stack 로깅 보강, (2) LS_DATA_RAW.DATA_STTS_CD=FAILED 갱신해
         // FE polling 이 무한 "대기중" 상태로 남지 않도록 보장.
-        CompletableFuture.runAsync(() -> autolabelTestService.runFull(rawSn))
+        Runnable triggerPipeline = () -> CompletableFuture.runAsync(() -> autolabelTestService.runFull(rawSn))
                 .exceptionally(e -> {
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
                     log.error("[DevAutolabelTest] pipeline failed rawSn={} causeType={} message={}",
@@ -200,6 +201,18 @@ public class DevAutolabelTestService {
                     }
                     return null;
                 });
+
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            triggerPipeline.run();
+                        }
+                    });
+        } else {
+            triggerPipeline.run();
+        }
 
         return new AutolabelTestResponse(rawSn, relativePath, "PROCESSING", startedAt);
     }
