@@ -41,7 +41,7 @@ import java.util.List;
  *   <li>REVIEWER 전용 — SecurityConfig {@code /v1/manage/**} 매처 + {@code @PreAuthorize}.</li>
  *   <li>RequestBody 는 DTO ({@link PresetRequest}) 로 강제 — Mass Assignment 방어.</li>
  *   <li>입력 검증: 이름 1~64자, description 최대 500자, labelCodes null 금지(각 코드 1~32자),
- *       eventTypeCd 는 {@code ^EVT_[A-Z_]+$} 패턴 또는 null/빈 문자열.</li>
+ *       eventTypeCd 는 SoT 6종({@code ^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$}) 또는 null/빈 문자열.</li>
  *   <li>JSON unknown 필드는 ignore — 클라이언트 호환성.</li>
  * </ul>
  */
@@ -134,7 +134,8 @@ public class PresetController {
             @NotBlank @Size(max = 64) String name,
             @Size(max = 500) String description,
             @NotNull List<@NotBlank @Size(max = 32) String> labelCodes,
-            @Pattern(regexp = "^$|^EVT_[A-Z_]+$", message = "이벤트 타입 형식이 올바르지 않습니다")
+            @Pattern(regexp = "^$|^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$",
+                    message = "지원하지 않는 이벤트 타입입니다")
             @Size(max = 32)
             String eventTypeCd
     ) {

@@ -1,5 +1,7 @@
 // 프리셋 도메인 타입 — BE: {name, description?, labelCodes: string[], eventTypeCd?} 정합
 
+import { EVENT_TYPES } from '@/constants/eventTypes';
+
 export interface Preset {
   id: number;
   name: string;
@@ -35,17 +37,14 @@ export const PRESET_LABEL_SUGGESTIONS = [
 
 /**
  * 이벤트 타입 옵션 — 프리셋 1:1 매핑용.
- * BE V1.8 SFR-08 / EventTypeBadge 라벨과 정합.
+ *
+ * SoT: {@code @/constants/eventTypes}. EVT_TRASH 제거, ABNORMAL/FLOOD 포함 6 종.
+ * 라벨은 SoT 한글 라벨을 그대로 노출 (UI 표시 통일).
  */
-export const EVENT_TYPE_OPTIONS = [
-  { code: 'EVT_FALL', name: '낙상' },
-  { code: 'EVT_VIOLENCE', name: '폭력' },
-  { code: 'EVT_ACCIDENT', name: '사고' },
-  { code: 'EVT_FIRE', name: '화재' },
-  { code: 'EVT_TRASH', name: '쓰레기 무단투기' },
-] as const;
+export const EVENT_TYPE_OPTIONS: ReadonlyArray<{ code: string; name: string }> =
+  EVENT_TYPES.map((e) => ({ code: e.code, name: e.label }));
 
-/** 이벤트 코드 → 한글 라벨 매핑 (목록/카드 표시용). */
+/** 이벤트 코드 → 한글 라벨 매핑 (목록/카드 표시용). SoT 기반. */
 export const EVENT_TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze(
   EVENT_TYPE_OPTIONS.reduce<Record<string, string>>((acc, e) => {
     acc[e.code] = e.name;

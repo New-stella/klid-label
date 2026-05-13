@@ -33,10 +33,11 @@ public record AutolabelTestRequest(
         @Pattern(regexp = "^[A-Za-z0-9_-]{1,64}$", message = "cctvId 는 영문/숫자/-/_ 1~64자만 허용됩니다.")
         String cctvId,
 
-        @Schema(description = "이벤트 타입 코드 (EVT_FALL/EVT_VIOLENCE/EVT_ACCIDENT/EVT_FIRE 등)",
+        @Schema(description = "이벤트 타입 코드 (SoT 6종: EVT_FALL/EVT_VIOLENCE/EVT_ACCIDENT/EVT_ABNORMAL/EVT_FLOOD/EVT_FIRE)",
                 example = "EVT_FALL", requiredMode = Schema.RequiredMode.REQUIRED)
         @NotBlank(message = "eventTypeCd 는 필수입니다.")
-        @Pattern(regexp = "^[A-Z][A-Z0-9_]{1,31}$", message = "eventTypeCd 는 대문자/숫자/_ 형식이어야 합니다.")
+        @Pattern(regexp = "^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$",
+                message = "지원하지 않는 이벤트 타입입니다")
         String eventTypeCd,
 
         @Schema(description = "지자체 코드 (숫자)", example = "1168000000",

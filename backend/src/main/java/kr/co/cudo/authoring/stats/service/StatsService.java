@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.stats.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.common.eventtype.EvntType;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.stats.dto.DashboardSummaryResponse;
@@ -43,17 +44,20 @@ import java.util.Map;
 public class StatsService {
 
     /**
-     * UI 6 종 이벤트 코드 → 한글 라벨 (frontend types.ts EventTypeCd 와 동기).
+     * UI 6 종 이벤트 코드 → SoT 한글 라벨 (frontend types.ts EventTypeCd 와 동기).
      * 순서가 보장되어야 하므로 (UI 그리드 6 칸 고정 순서) 불변 List 로 보관한다.
      * Map.copyOf 는 hash 순서로 변환되어 순서가 깨진다 — 사용 금지.
+     *
+     * <p>약어 코드는 외부 API 계약(FE 통계 그리드 코드)이라 유지하되, 한글 라벨은
+     * {@link EvntType#getLabel()} SoT 값을 그대로 사용해 일관성을 보장한다.
      */
     private static final List<EventLabel> EVENT_LABELS = List.of(
-            new EventLabel("FALL", "쓰러짐"),
-            new EventLabel("VIOLENCE", "폭력"),
-            new EventLabel("TRAFFIC_ACCIDENT", "교통사고"),
-            new EventLabel("ABNORMAL_BEHAVIOR", "이상행동(유괴)"),
-            new EventLabel("FLOOD", "침수"),
-            new EventLabel("WILDFIRE", "산불")
+            new EventLabel("FALL", EvntType.EVT_FALL.getLabel()),
+            new EventLabel("VIOLENCE", EvntType.EVT_VIOLENCE.getLabel()),
+            new EventLabel("TRAFFIC_ACCIDENT", EvntType.EVT_ACCIDENT.getLabel()),
+            new EventLabel("ABNORMAL_BEHAVIOR", EvntType.EVT_ABNORMAL.getLabel()),
+            new EventLabel("FLOOD", EvntType.EVT_FLOOD.getLabel()),
+            new EventLabel("WILDFIRE", EvntType.EVT_FIRE.getLabel())
     );
 
     /**
@@ -61,12 +65,12 @@ public class StatsService {
      * LS_DATA_RAW.EVNT_TYPE_CD 가 실제 'EVT_FALL' 등으로 저장되므로 카운트 조회 시 변환 필요.
      */
     private static final Map<String, String> UI_CODE_TO_DB_CODE = Map.of(
-            "FALL", "EVT_FALL",
-            "VIOLENCE", "EVT_VIOLENCE",
-            "TRAFFIC_ACCIDENT", "EVT_ACCIDENT",
-            "ABNORMAL_BEHAVIOR", "EVT_ABNORMAL",
-            "FLOOD", "EVT_FLOOD",
-            "WILDFIRE", "EVT_FIRE"
+            "FALL", EvntType.EVT_FALL.getCode(),
+            "VIOLENCE", EvntType.EVT_VIOLENCE.getCode(),
+            "TRAFFIC_ACCIDENT", EvntType.EVT_ACCIDENT.getCode(),
+            "ABNORMAL_BEHAVIOR", EvntType.EVT_ABNORMAL.getCode(),
+            "FLOOD", EvntType.EVT_FLOOD.getCode(),
+            "WILDFIRE", EvntType.EVT_FIRE.getCode()
     );
 
     private record EventLabel(String code, String label) {

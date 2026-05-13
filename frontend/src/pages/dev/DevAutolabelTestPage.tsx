@@ -7,6 +7,7 @@ import { Input } from '@/components/common/Input';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Radio } from '@/components/common/Radio';
 import { Spinner } from '@/components/common/Spinner';
+import { EVENT_TYPES } from '@/constants/eventTypes';
 import {
   extractBeMessage,
   useAutolabelTest,
@@ -23,15 +24,12 @@ import {
 const ACCEPT_MIME =
   'video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi';
 
-/** SFR 6종 이벤트 옵션 (코드 → 한글). */
-const EVENT_OPTIONS: ReadonlyArray<{ value: EventTypeCd; label: string }> = [
-  { value: EventTypeCd.EVT_FALL, label: '쓰러짐 (EVT_FALL)' },
-  { value: EventTypeCd.EVT_VIOLENCE, label: '폭력 (EVT_VIOLENCE)' },
-  { value: EventTypeCd.EVT_ACCIDENT, label: '교통사고 (EVT_ACCIDENT)' },
-  { value: EventTypeCd.EVT_ABNORMAL, label: '이상행동 (EVT_ABNORMAL)' },
-  { value: EventTypeCd.EVT_FLOOD, label: '침수 (EVT_FLOOD)' },
-  { value: EventTypeCd.EVT_FIRE, label: '산불 (EVT_FIRE)' },
-];
+/** SFR 6종 이벤트 옵션 (코드 → 한글). SoT `EVENT_TYPES` 에서 도출. */
+const EVENT_OPTIONS: ReadonlyArray<{ value: EventTypeCd; label: string }> =
+  EVENT_TYPES.map((e) => ({
+    value: e.code,
+    label: `${e.label} (${e.code})`,
+  }));
 
 const PRVC_OPTIONS: ReadonlyArray<{ value: PrvcType; label: string; hint: string }> = [
   { value: PrvcType.ANONY, label: 'ANONY (비식별 대상 아님)', hint: '원본만 저장' },

@@ -49,13 +49,16 @@ describe('PresetEditModal', () => {
 
     const select = screen.getByLabelText(/매핑 이벤트 타입/);
     expect(select).toBeInTheDocument();
-    // 미선택 옵션 + EVT_FALL 등 5개 이벤트
+    // 미선택 옵션 + SoT 6 종 (EVT_FALL/VIOLENCE/ACCIDENT/ABNORMAL/FLOOD/FIRE)
     expect(screen.getByRole('option', { name: /선택 안 함/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /EVT_FALL/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /EVT_VIOLENCE/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /EVT_ACCIDENT/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /EVT_ABNORMAL/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /EVT_FLOOD/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /EVT_FIRE/ })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /EVT_TRASH/ })).toBeInTheDocument();
+    // EVT_TRASH 는 SoT 에서 제거됨 (V1.8 — 6 종 운영)
+    expect(screen.queryByRole('option', { name: /EVT_TRASH/ })).toBeNull();
   });
 
   it('초기값_eventTypeCd_select_반영', () => {

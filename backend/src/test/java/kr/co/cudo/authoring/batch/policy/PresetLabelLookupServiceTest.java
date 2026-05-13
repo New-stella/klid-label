@@ -70,10 +70,11 @@ class PresetLabelLookupServiceTest {
     @Test
     @DisplayName("매핑된_프리셋의_코드가_비어있으면_빈_Optional")
     void emptyCodesPresetReturnsEmpty() {
-        LsLabelPreset preset = LsLabelPreset.create("빈 프리셋", null, List.of(), "EVT_TRASH");
-        when(presetRepository.findByEventTypeCd("EVT_TRASH")).thenReturn(Optional.of(preset));
+        // SoT 6 종 중 임의 코드 (entity 레이어는 검증하지 않음 — 로직만 확인).
+        LsLabelPreset preset = LsLabelPreset.create("빈 프리셋", null, List.of(), "EVT_FLOOD");
+        when(presetRepository.findByEventTypeCd("EVT_FLOOD")).thenReturn(Optional.of(preset));
 
-        Optional<Set<String>> result = service.labelsFor("EVT_TRASH");
+        Optional<Set<String>> result = service.labelsFor("EVT_FLOOD");
 
         assertThat(result).isEmpty();
     }

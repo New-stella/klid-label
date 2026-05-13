@@ -5,6 +5,7 @@ import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
 import { SimpleBarChart } from '@/components/charts/SimpleBarChart';
 import { SimplePieChart } from '@/components/charts/SimplePieChart';
+import { eventTypeLabel } from '@/constants/eventTypes';
 import type { EventTypeCd } from '@/features/dashboard/types';
 import { downloadReport } from '@/features/stat/api';
 import { WorkerStatsTable } from '@/features/stat/components/WorkerStatsTable';
@@ -21,13 +22,14 @@ import { useUiStore } from '@/stores/useUiStore';
  */
 
 // 이벤트 6종 고정 슬롯 — 데이터 누락 시에도 6개 렌더 (UI/UX §4-3)
+// 한글 라벨은 SoT `eventTypeLabel` 사용 (constants/eventTypes).
 const FIXED_EVENT_TYPES: { code: EventTypeCd; label: string; color: string }[] = [
-  { code: 'FALL', label: '낙상', color: '#a855f7' },
-  { code: 'VIOLENCE', label: '폭력', color: '#ef4444' },
-  { code: 'TRAFFIC_ACCIDENT', label: '교통사고', color: '#3b82f6' },
-  { code: 'ABNORMAL_BEHAVIOR', label: '이상행동', color: '#f59e0b' },
-  { code: 'FLOOD', label: '침수', color: '#06b6d4' },
-  { code: 'WILDFIRE', label: '산불', color: '#dc2626' },
+  { code: 'FALL', label: eventTypeLabel('FALL'), color: '#a855f7' },
+  { code: 'VIOLENCE', label: eventTypeLabel('VIOLENCE'), color: '#ef4444' },
+  { code: 'TRAFFIC_ACCIDENT', label: eventTypeLabel('TRAFFIC_ACCIDENT'), color: '#3b82f6' },
+  { code: 'ABNORMAL_BEHAVIOR', label: eventTypeLabel('ABNORMAL_BEHAVIOR'), color: '#f59e0b' },
+  { code: 'FLOOD', label: eventTypeLabel('FLOOD'), color: '#06b6d4' },
+  { code: 'WILDFIRE', label: eventTypeLabel('WILDFIRE'), color: '#dc2626' },
 ];
 
 export function OverallStatPage() {

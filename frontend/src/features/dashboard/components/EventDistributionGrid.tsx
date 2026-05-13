@@ -1,3 +1,4 @@
+import { eventTypeLabel } from '@/constants/eventTypes';
 import { cn } from '@/lib/cn';
 
 import type { EventDistribution, EventTypeCd } from '../types';
@@ -7,14 +8,14 @@ export interface EventDistributionGridProps {
   className?: string;
 }
 
-// 6종 고정 (UI/UX §4-3)
+// 6종 고정 (UI/UX §4-3). 한글 라벨은 SoT `eventTypeLabel` 사용.
 const FIXED_EVENT_TYPES: { code: EventTypeCd; label: string }[] = [
-  { code: 'FALL', label: '낙상' },
-  { code: 'VIOLENCE', label: '폭력' },
-  { code: 'TRAFFIC_ACCIDENT', label: '교통사고' },
-  { code: 'ABNORMAL_BEHAVIOR', label: '이상행동' },
-  { code: 'FLOOD', label: '침수' },
-  { code: 'WILDFIRE', label: '산불' },
+  { code: 'FALL', label: eventTypeLabel('FALL') },
+  { code: 'VIOLENCE', label: eventTypeLabel('VIOLENCE') },
+  { code: 'TRAFFIC_ACCIDENT', label: eventTypeLabel('TRAFFIC_ACCIDENT') },
+  { code: 'ABNORMAL_BEHAVIOR', label: eventTypeLabel('ABNORMAL_BEHAVIOR') },
+  { code: 'FLOOD', label: eventTypeLabel('FLOOD') },
+  { code: 'WILDFIRE', label: eventTypeLabel('WILDFIRE') },
 ];
 
 /** 6종 이벤트 분포 그리드 — 데이터 누락 시에도 6종 고정 렌더 */
