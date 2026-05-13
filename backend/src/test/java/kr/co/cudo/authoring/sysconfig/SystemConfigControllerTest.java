@@ -133,4 +133,13 @@ class SystemConfigControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(ConfigKeys.ALLOWED.size()));
     }
+
+    @Test
+    @DisplayName("Phase1_V19_마이그레이션_적용_후_YOLO_CONF_THRESHOLD_기본값은_25")
+    void v19MigrationLowersYoloConfThresholdTo25() {
+        // V17 시드값 40 → V19 마이그레이션에서 25 로 하향
+        // 작은 객체 검출율 향상이 목적
+        Integer value = service.getInt(ConfigKeys.YOLO_CONF_THRESHOLD);
+        assertThat(value).isEqualTo(25);
+    }
 }

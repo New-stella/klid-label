@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
+import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.VlmObjectVerifyStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -41,6 +42,7 @@ class BatchOrchestratorTest {
     private DeidentifyStep deidentifyStep;
     private YoloAutolabelStep yoloStep;
     private Sam2SegmentStep sam2Step;
+    private TrackInterpolationStep trackInterpolationStep;
     private VlmObjectVerifyStep vlmStep;
     private BatchStatusService statusService;
     private BatchRetryQueue retryQueue;
@@ -53,13 +55,14 @@ class BatchOrchestratorTest {
         deidentifyStep = mock(DeidentifyStep.class);
         yoloStep = mock(YoloAutolabelStep.class);
         sam2Step = mock(Sam2SegmentStep.class);
+        trackInterpolationStep = mock(TrackInterpolationStep.class);
         vlmStep = mock(VlmObjectVerifyStep.class);
         statusService = mock(BatchStatusService.class);
         retryQueue = new BatchRetryQueue(3, 60);
         videoRepository = mock(VideoRepository.class);
 
         orchestrator = new BatchOrchestrator(
-                frameExtractor, deidentifyStep, yoloStep, sam2Step, vlmStep,
+                frameExtractor, deidentifyStep, yoloStep, sam2Step, trackInterpolationStep, vlmStep,
                 statusService, retryQueue, videoRepository);
 
         // 기본 — 프레임 1개 추출, ai-server step 모두 정상.
@@ -255,11 +258,50 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(120L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        // YoloStep 이 Sam2Step 보다 먼저 호출되어야 함 (InOrder 검증)
-        org.mockito.InOrder order = org.mockito.Mockito.inOrder(yoloStep, sam2Step, vlmStep);
+        // YoloStep → Sam2Step → TrackInterpolationStep → VlmStep (InOrder 검증)
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(yoloStep, sam2Step, trackInterpolationStep, vlmStep);
         order.verify(yoloStep).run(120L);
         order.verify(sam2Step).run(eq(120L), any());
+        order.verify(trackInterpolationStep).run(120L);
         order.verify(vlmStep).run(120L);
+    }
+
+    @Test
+    @DisplayName("Phase3_trackInterpolationStep_이_sam2_다음_vlm_이전에_호출")
+    void trackInterpolationStepBetweenSam2AndVlm() {
+        newRaw(121L, LsDataRaw.PRVC_TYPE_ANONY);
+
+        BatchStage result = orchestrator.process(121L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(sam2Step, trackInterpolationStep, vlmStep);
+        order.verify(sam2Step).run(eq(121L), any());
+        order.verify(trackInterpolationStep).run(121L);
+        order.verify(vlmStep).run(121L);
+    }
+
+    @Test
+    @DisplayName("Phase3_trackInterpolationStep_은_정상_플로우에서_정확히_1회_호출")
+    void trackInterpolationStepInvokedOncePerProcess() {
+        newRaw(122L, LsDataRaw.PRVC_TYPE_ANONY);
+
+        BatchStage result = orchestrator.process(122L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        verify(trackInterpolationStep, times(1)).run(122L);
+    }
+
+    @Test
+    @DisplayName("Phase3_sam2_단계_실패시_trackInterpolationStep_은_호출되지_않음")
+    void trackInterpolationStepSkippedWhenSam2Fails() {
+        newRaw(123L, LsDataRaw.PRVC_TYPE_ANONY);
+        doThrow(new RuntimeException("sam2 down")).when(sam2Step).run(any(), any());
+
+        BatchStage result = orchestrator.process(123L);
+
+        assertThat(result).isEqualTo(BatchStage.FAILED);
+        verify(trackInterpolationStep, never()).run(any());
+        verify(vlmStep, never()).run(any());
     }
 
     @Test

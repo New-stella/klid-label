@@ -87,6 +87,84 @@ describe('label api', () => {
     expect(res.labels[1].trackId == null).toBe(true);
   });
 
+  it('api_응답의_lblSrcCd_가_Label_객체로_정상_매핑', async () => {
+    mock.onGet('/frames/889/labels').reply(200, {
+      success: true,
+      data: {
+        frameNo: 3,
+        srcSn: 889,
+        siblings: [],
+        items: [
+          {
+            id: 21,
+            lblTypeCd: 'BBOX',
+            label: 'person',
+            points: [
+              [0, 0],
+              [10, 10],
+            ],
+            autoLblYn: 'Y',
+            confScore: 0.0,
+            trackId: '5',
+            lblSrcCd: 'INTERPOLATED',
+          },
+          {
+            id: 22,
+            lblTypeCd: 'BBOX',
+            label: 'person',
+            points: [
+              [0, 0],
+              [10, 10],
+            ],
+            autoLblYn: 'Y',
+            confScore: 0.9,
+            trackId: '5',
+            lblSrcCd: null,
+          },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const res = await getLabels(889);
+    expect(res.labels).toHaveLength(2);
+    expect(res.labels[0].lblSrcCd).toBe('INTERPOLATED');
+    expect(res.labels[1].lblSrcCd == null).toBe(true);
+  });
+
+  it('api_lblSrcCd_누락_응답은_null_정규화', async () => {
+    mock.onGet('/frames/890/labels').reply(200, {
+      success: true,
+      data: {
+        frameNo: 4,
+        srcSn: 890,
+        siblings: [],
+        items: [
+          {
+            id: 31,
+            lblTypeCd: 'BBOX',
+            label: 'car',
+            points: [
+              [0, 0],
+              [10, 10],
+            ],
+            autoLblYn: 'Y',
+            confScore: 0.8,
+            trackId: null,
+            // lblSrcCd 필드 자체가 응답에 없는 케이스
+          },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const res = await getLabels(890);
+    expect(res.labels).toHaveLength(1);
+    expect(res.labels[0].lblSrcCd == null).toBe(true);
+  });
+
   it('putLabels_PUT_body에_labels_배열_포함', async () => {
     const labels = [bbox('tmp1', 1)];
     mock.onPut('/frames/777/labels').reply((config) => {

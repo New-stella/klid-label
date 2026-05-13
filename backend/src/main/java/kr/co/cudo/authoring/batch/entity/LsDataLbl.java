@@ -40,6 +40,9 @@ public class LsDataLbl {
     public static final String TYPE_SEGMENT = "SEGMENT";
     public static final String TYPE_TRACK = "TRACK";
 
+    /** Phase 3 트랙 보간: LBL_SRC_CD 값 — 트랙 보간으로 자동 생성된 row. */
+    public static final String SRC_INTERPOLATED = "INTERPOLATED";
+
     private static final BigDecimal MIN_SCORE = BigDecimal.ZERO;
     private static final BigDecimal MAX_SCORE = BigDecimal.ONE;
 
@@ -80,6 +83,15 @@ public class LsDataLbl {
     @Column(name = "TRACK_ID", length = 64)
     private String trackId;
 
+    /**
+     * 라벨 출처 — Phase 3 트랙 보간 도입.
+     * <p>NULL = DETECTED (YOLO detection 직접 발견 + 사용자 수동 입력 등 기본 경로),
+     * 'INTERPOLATED' = 트랙 보간으로 추정·생성된 BBOX row.
+     * <p>값 화이트리스트: NULL | INTERPOLATED. 향후 'AUGMENTED', 'IMPORTED' 확장 여지.
+     */
+    @Column(name = "LBL_SRC_CD", length = 20)
+    private String lblSrcCd;
+
     @Column(name = "REG_USER_NO")
     private Long regUserNo;
 
@@ -91,7 +103,7 @@ public class LsDataLbl {
 
     @Builder
     private LsDataLbl(Long srcSn, String lblTypeCd, String label, String pointsJson,
-                      String autoLblYn, BigDecimal confScore, String trackId) {
+                      String autoLblYn, BigDecimal confScore, String trackId, String lblSrcCd) {
         this.srcSn = srcSn;
         this.lblTypeCd = lblTypeCd;
         this.label = label;
@@ -99,6 +111,7 @@ public class LsDataLbl {
         this.autoLblYn = autoLblYn;
         this.confScore = clampScore(confScore);
         this.trackId = trackId;
+        this.lblSrcCd = lblSrcCd;
         this.regDt = LocalDateTime.now();
     }
 
@@ -126,6 +139,31 @@ public class LsDataLbl {
     @Deprecated
     public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson, BigDecimal confScore) {
         return createAutoBbox(srcSn, label, pointsJson, confScore, null);
+    }
+
+    /**
+     * 트랙 보간으로 자동 생성된 BBOX 라벨 — Phase 3.
+     * <p>{@code LBL_SRC_CD='INTERPOLATED'}, {@code AUTO_LBL_YN='Y'}, {@code LBL_TYPE_CD='BBOX'} 고정.
+     * trackId 는 원본 detection 과 동일한 값으로 전달되어야 한다 (FE 가 같은 트랙으로 인식하도록).
+     *
+     * @param srcSn      대상 프레임의 LS_DATA_SRC.SRC_SN
+     * @param label      원본 detection 의 라벨 (e.g. "person", "car")
+     * @param pointsJson 보간된 BBOX 좌표 JSON
+     * @param confScore  보간 신뢰도. 0.0 권장 (보간이므로 detection 점수 없음). null 도 허용.
+     * @param trackId    원본 트랙 ID (NON-NULL 권장 — 보간 대상 자체가 trackId 있는 라벨로 한정됨)
+     */
+    public static LsDataLbl createAutoInterpolatedBbox(Long srcSn, String label, String pointsJson,
+                                                       BigDecimal confScore, String trackId) {
+        return LsDataLbl.builder()
+                .srcSn(srcSn)
+                .lblTypeCd(TYPE_BBOX)
+                .label(label)
+                .pointsJson(pointsJson)
+                .autoLblYn(AUTO_YES)
+                .confScore(confScore)
+                .trackId(trackId)
+                .lblSrcCd(SRC_INTERPOLATED)
+                .build();
     }
 
     /** SAM2 segment 결과를 저장할 때 사용. POLYGON 타입. */

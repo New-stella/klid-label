@@ -72,4 +72,44 @@ class LabelResponseTest {
         assertThat(resp.items().get(0).trackId()).isEqualTo("track-1");
         assertThat(resp.items().get(1).trackId()).isEqualTo("track-2");
     }
+
+    // --- Phase 3: lblSrcCd 필드 ---
+
+    @Test
+    @DisplayName("Item_from_은_entity_lblSrcCd_INTERPOLATED_를_DTO_로_매핑")
+    void itemFromMapsLblSrcCdInterpolated() {
+        LsDataLbl entity = LsDataLbl.createAutoInterpolatedBbox(
+                1L, "person", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-7");
+
+        LabelResponse.Item item = LabelResponse.Item.from(entity, objectMapper);
+
+        assertThat(item.lblSrcCd()).isEqualTo("INTERPOLATED");
+        assertThat(item.trackId()).isEqualTo("track-7");
+        assertThat(item.autoLblYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("Item_DETECTED_라벨은_lblSrcCd_null")
+    void itemFromDetectedLblSrcCdNull() {
+        LsDataLbl entity = LsDataLbl.createAutoBbox(
+                1L, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.9), "track-1");
+
+        LabelResponse.Item item = LabelResponse.Item.from(entity, objectMapper);
+
+        assertThat(item.lblSrcCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("Item_직렬화_JSON_에_lblSrcCd_필드_포함")
+    void itemSerializesLblSrcCd() throws Exception {
+        LsDataLbl entity = LsDataLbl.createAutoInterpolatedBbox(
+                1L, "person", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-7");
+
+        LabelResponse.Item item = LabelResponse.Item.from(entity, objectMapper);
+        String json = objectMapper.writeValueAsString(item);
+        ObjectNode node = (ObjectNode) objectMapper.readTree(json);
+
+        assertThat(node.has("lblSrcCd")).isTrue();
+        assertThat(node.get("lblSrcCd").asText()).isEqualTo("INTERPOLATED");
+    }
 }

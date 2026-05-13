@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.batch.step.BbHint;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
+import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.VlmObjectVerifyStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -29,8 +30,9 @@ import java.util.List;
  *   2. DEIDENTIFY     (조건부 — needsDeidentify(rawSn) 일 때만)
  *   3. YOLO           (YoloAutolabelStep.run)
  *   4. SAM2           (Sam2SegmentStep.run)
- *   5. VLM_VERIFY     (VlmObjectVerifyStep.run)
- *   6. COMPLETED      (statusService.markCompleted)
+ *   5. INTERPOLATE    (TrackInterpolationStep.run — Phase 3 신규)
+ *   6. VLM_VERIFY     (VlmObjectVerifyStep.run)
+ *   7. COMPLETED      (statusService.markCompleted)
  * <p>
  * 실패 처리:
  *  - 어느 단계에서든 예외 발생 시 statusService.markFailed + retryQueue.enqueueIfRetryable.
@@ -60,6 +62,7 @@ public class BatchOrchestrator {
     private final DeidentifyStep deidentifyStep;
     private final YoloAutolabelStep yoloStep;
     private final Sam2SegmentStep sam2Step;
+    private final TrackInterpolationStep trackInterpolationStep;
     private final VlmObjectVerifyStep vlmStep;
     private final BatchStatusService statusService;
     private final BatchRetryQueue retryQueue;
@@ -97,6 +100,11 @@ public class BatchOrchestrator {
 
             statusService.markStage(rawSn, BatchStage.SAM2);
             sam2Step.run(rawSn, hints);
+
+            // Phase 3: 트랙 보간 — 같은 trackId 의 누락 프레임 BBOX 를 선형 보간으로 채움.
+            // SAM2 다음, VLM 이전. VLM 검증은 보간 row 까지 포함하여 신뢰도 갱신할 수 있음.
+            statusService.markStage(rawSn, BatchStage.INTERPOLATE);
+            trackInterpolationStep.run(rawSn);
 
             statusService.markStage(rawSn, BatchStage.VLM_VERIFY);
             vlmStep.run(rawSn);

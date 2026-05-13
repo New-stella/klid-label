@@ -118,6 +118,41 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     expect(screen.getByText(/이 프레임에 객체가 없습니다/)).toBeInTheDocument();
   });
 
+  it('INTERPOLATED 객체 행에 🔗 아이콘 표시', () => {
+    useLabelStore.getState().reset();
+    const labels: Label[] = [
+      makeLabel({ id: 'a', trackId: '7', source: 'AUTO_YOLO', lblSrcCd: 'INTERPOLATED' }),
+    ];
+    renderWithProviders(<ObjectClassTree labels={labels} />);
+
+    const btn = screen.getByLabelText(/#7 선택$/);
+    expect(btn).toBeInTheDocument();
+    // aria-hidden 인 아이콘 텍스트에 🔗 포함
+    expect(btn.textContent ?? '').toContain('🔗');
+    expect(btn.textContent ?? '').not.toContain('🤖');
+  });
+
+  it('DETECTED 자동 객체는 🤖, 수동은 ✏️, 보간은 🔗', () => {
+    useLabelStore.getState().reset();
+    const labels: Label[] = [
+      makeLabel({ id: 'a', trackId: '1', source: 'AUTO_YOLO', lblSrcCd: null }),
+      makeLabel({ id: 'b', trackId: '2', source: 'MANUAL', lblSrcCd: null }),
+      makeLabel({ id: 'c', trackId: '3', source: 'AUTO_YOLO', lblSrcCd: 'INTERPOLATED' }),
+    ];
+    renderWithProviders(<ObjectClassTree labels={labels} />);
+
+    const auto = screen.getByLabelText(/#1 선택$/);
+    const manual = screen.getByLabelText(/#2 선택$/);
+    const interp = screen.getByLabelText(/#3 선택$/);
+
+    expect(auto.textContent ?? '').toContain('🤖');
+    expect(auto.textContent ?? '').not.toContain('🔗');
+    expect(manual.textContent ?? '').toContain('✏️');
+    expect(manual.textContent ?? '').not.toContain('🔗');
+    expect(interp.textContent ?? '').toContain('🔗');
+    expect(interp.textContent ?? '').not.toContain('🤖');
+  });
+
   it('shapeType 표시 회귀 방지 — BBOX/POLYGON', () => {
     useLabelStore.getState().reset();
     const labels: Label[] = [

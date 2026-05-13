@@ -64,4 +64,25 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
             "(SELECT s.srcSn FROM LsDataSrc s WHERE s.rawSn = :rawSn) " +
             "AND l.autoLblYn = 'Y'")
     void deleteByRawSnAutoLbl(@Param("rawSn") Long rawSn);
+
+    /**
+     * 영상(rawSn)에 속한 자동 BBOX 라벨 중 trackId 가 있는 row 만 조회. — Phase 3 트랙 보간.
+     * <p>보간 대상 정의:
+     * <ul>
+     *   <li>{@code AUTO_LBL_YN='Y'} — 자동 라벨링 결과만</li>
+     *   <li>{@code LBL_TYPE_CD='BBOX'} — POLYGON/SEGMENT 는 보간 범위 외</li>
+     *   <li>{@code TRACK_ID IS NOT NULL} — 트래커 저신뢰 detection 은 보간 대상 외</li>
+     * </ul>
+     * <p>같은 영상의 모든 트랙을 단일 IN 쿼리로 가져와 N+1 회피.
+     */
+    @Query("""
+            SELECT l
+              FROM LsDataLbl l, LsDataSrc s
+             WHERE l.srcSn = s.srcSn
+               AND s.rawSn = :rawSn
+               AND l.autoLblYn = 'Y'
+               AND l.lblTypeCd = 'BBOX'
+               AND l.trackId IS NOT NULL
+            """)
+    List<LsDataLbl> findAutoBboxWithTrackId(@Param("rawSn") Long rawSn);
 }

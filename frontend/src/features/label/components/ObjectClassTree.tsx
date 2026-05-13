@@ -70,7 +70,10 @@ export function ObjectClassTree({ labels }: ObjectClassTreeProps) {
               items.map((obj, idx) => {
                 const isSelected = selectedId === obj.id;
                 const shapeType = obj.shape?.type ?? '-';
+                const isInterpolated = obj.lblSrcCd === 'INTERPOLATED';
                 const isAuto = obj.source !== 'MANUAL';
+                // Phase 4: 보간 우선 → 자동 → 수동 순.
+                const sourceIcon = isInterpolated ? '🔗' : isAuto ? '🤖' : '✏️';
                 const objNumber = obj.trackId ?? idx + 1;
                 const barColor = trackIdToColor(obj.trackId);
                 return (
@@ -95,7 +98,7 @@ export function ObjectClassTree({ labels }: ObjectClassTreeProps) {
                       className="flex-1 flex items-center gap-2 text-left"
                       aria-label={`${displayName} #${objNumber} 선택`}
                     >
-                      <span aria-hidden>{isAuto ? '🤖' : '✏️'}</span>
+                      <span aria-hidden>{sourceIcon}</span>
                       <span className="flex-1 truncate">
                         {displayName} #{objNumber}
                       </span>

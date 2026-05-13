@@ -5,7 +5,7 @@
 
 import { apiClient } from '@/lib/api/client';
 
-import type { Label, LabelsResponse, Shape, SiblingFrame } from './types';
+import type { Label, LabelsResponse, LabelSrcCd, Shape, SiblingFrame } from './types';
 
 export interface CommitResponse {
   commitSha: string;
@@ -84,6 +84,11 @@ function normalizeLabel(raw: any): Label {
       ? null
       : String(rawTrackId);
 
+  // Phase 4: LBL_SRC_CD — 보간 row 식별. 누락/공백/타 값은 null 정규화.
+  const rawSrcCd = raw?.lblSrcCd;
+  const lblSrcCd: LabelSrcCd | null =
+    rawSrcCd === 'INTERPOLATED' ? 'INTERPOLATED' : null;
+
   return {
     id,
     serverId: typeof raw?.id === 'number' ? raw.id : undefined,
@@ -94,6 +99,7 @@ function normalizeLabel(raw: any): Label {
     confidence: raw?.confScore !== undefined ? Number(raw.confScore) : raw?.confidence,
     shape,
     trackId,
+    lblSrcCd,
   };
 }
 

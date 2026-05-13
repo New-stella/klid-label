@@ -41,7 +41,8 @@ public record LabelResponse(
             List<List<Double>> points,
             String autoLblYn,
             BigDecimal confScore,
-            String trackId
+            String trackId,
+            String lblSrcCd
     ) {
         public static Item from(LsDataLbl entity, ObjectMapper objectMapper) {
             List<Point> parsed = LabelPointSerializer.fromJson(entity.getPointsJson(), objectMapper);
@@ -56,7 +57,8 @@ public record LabelResponse(
                     nested,
                     entity.getAutoLblYn(),
                     entity.getConfScore(),
-                    entity.getTrackId()
+                    entity.getTrackId(),
+                    entity.getLblSrcCd()
             );
         }
     }

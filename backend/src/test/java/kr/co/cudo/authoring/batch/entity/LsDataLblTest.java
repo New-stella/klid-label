@@ -109,4 +109,57 @@ class LsDataLblTest {
         assertThat(lbl.getTrackId()).isNull();
         assertThat(lbl.getAutoLblYn()).isEqualTo("N");
     }
+
+    // --- Phase 3: LBL_SRC_CD 컬럼 + createAutoInterpolatedBbox factory ---
+
+    @Test
+    @DisplayName("createAutoInterpolatedBbox_는_LBL_SRC_CD_INTERPOLATED_저장")
+    void createAutoInterpolatedBboxMarksLblSrcCd() {
+        LsDataLbl lbl = LsDataLbl.createAutoInterpolatedBbox(
+                100L, "person", "[10.0,20.0,30.0,40.0]", BigDecimal.ZERO, "7");
+
+        assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
+        assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
+        assertThat(lbl.getLblTypeCd()).isEqualTo("BBOX");
+        assertThat(lbl.getLabel()).isEqualTo("person");
+        assertThat(lbl.getTrackId()).isEqualTo("7");
+        assertThat(lbl.getPointsJson()).isEqualTo("[10.0,20.0,30.0,40.0]");
+        assertThat(lbl.getConfScore()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("createAutoInterpolatedBbox_confScore_null_허용")
+    void createAutoInterpolatedBboxAllowsNullConfScore() {
+        LsDataLbl lbl = LsDataLbl.createAutoInterpolatedBbox(
+                1L, "car", "[0.0,0.0,10.0,10.0]", null, "3");
+
+        assertThat(lbl.getConfScore()).isNull();
+        assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
+    }
+
+    @Test
+    @DisplayName("createAutoBbox_는_LBL_SRC_CD_null_(DETECTED_기본)")
+    void createAutoBboxLblSrcCdNull() {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(
+                100L, "person", "[]", BigDecimal.valueOf(0.85), "1");
+
+        assertThat(lbl.getLblSrcCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("createAutoPolygon_은_LBL_SRC_CD_null_(DETECTED_기본)")
+    void createAutoPolygonLblSrcCdNull() {
+        LsDataLbl lbl = LsDataLbl.createAutoPolygon(
+                1L, "car", "[]", BigDecimal.valueOf(0.7));
+
+        assertThat(lbl.getLblSrcCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("createManual_은_LBL_SRC_CD_null_(DETECTED_기본)")
+    void createManualLblSrcCdNull() {
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", "person", "[]", 99L);
+
+        assertThat(lbl.getLblSrcCd()).isNull();
+    }
 }

@@ -37,7 +37,15 @@ class Settings(BaseSettings):
     max_image_size_mb: int = Field(default=10, ge=1, le=100, description="image_b64 최대 크기(MB)")
 
     # 모델 가중치 경로 (mock 모드에서는 무시)
-    yolo_weights_path: str = Field(default="./weights/yolov8n.pt")
+    # Phase 1: YOLO 가중치 우선순위 = yolo_weights_path → yolo_weights_fallback_path → mock(weights_missing)
+    yolo_weights_path: str = Field(default="./weights/yolov8m.pt")
+    yolo_weights_fallback_path: str = Field(
+        default="./weights/yolov8n.pt",
+        description=(
+            "yolo_weights_path 가 없을 때 fallback 으로 시도할 경로. "
+            "둘 다 없으면 mock 응답 (mock_reason=weights_missing)."
+        ),
+    )
     sam2_weights_path: str = Field(default="./weights/sam2_t.pt")
     vlm_model_name: str = Field(default="openai/clip-vit-base-patch32")
 

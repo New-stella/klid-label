@@ -15,6 +15,16 @@ export const ShapeType = {
 export type ShapeType = (typeof ShapeType)[keyof typeof ShapeType];
 
 /**
+ * 라벨 원천 코드 — BE LS_DATA_LBL.LBL_SRC_CD 와 1:1.
+ * - INTERPOLATED: TrackInterpolationStep 이 같은 trackId 의 detection 키프레임 사이를 선형 보간하여 생성한 BBOX (Phase 4)
+ * - null/undefined: 일반 detection (YOLO/SAM2/MANUAL) — 외곽선 실선
+ */
+export const LabelSrcCd = {
+  INTERPOLATED: 'INTERPOLATED',
+} as const;
+export type LabelSrcCd = (typeof LabelSrcCd)[keyof typeof LabelSrcCd];
+
+/**
  * BBox: [left, top, right, bottom] (이미지 픽셀 좌표).
  */
 export interface BBoxShape {
@@ -61,6 +71,12 @@ export interface Label {
    * - null/undefined 가능 (저신뢰 detection / 수동 라벨 / legacy row)
    */
   trackId?: string | null;
+  /**
+   * 라벨 원천 코드 (BE LS_DATA_LBL.LBL_SRC_CD, VARCHAR nullable).
+   * - 'INTERPOLATED': TrackInterpolationStep 보간 결과 (Phase 4) — 캔버스 점선 + 트리 🔗 아이콘
+   * - null/undefined: 일반 detection (실선 + 🤖/✏️)
+   */
+  lblSrcCd?: LabelSrcCd | null;
 }
 
 /**

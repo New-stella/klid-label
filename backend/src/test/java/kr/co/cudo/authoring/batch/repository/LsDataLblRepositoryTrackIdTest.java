@@ -64,4 +64,31 @@ class LsDataLblRepositoryTrackIdTest {
         assertThat(labels).extracting(LsDataLbl::getTrackId)
                 .containsExactly("track-1", "track-1");
     }
+
+    // --- Phase 3: V20 LBL_SRC_CD 컬럼 + createAutoInterpolatedBbox 라운드트립 ---
+
+    @Test
+    @DisplayName("Phase3_LBL_SRC_CD_INTERPOLATED_저장_+_조회_정합")
+    void persistsAndReadsLblSrcCdInterpolated() {
+        LsDataLbl saved = repository.saveAndFlush(LsDataLbl.createAutoInterpolatedBbox(
+                999_020L, "person", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-100"));
+
+        LsDataLbl found = repository.findById(saved.getLblSn()).orElseThrow();
+
+        assertThat(found.getLblSrcCd()).isEqualTo("INTERPOLATED");
+        assertThat(found.getAutoLblYn()).isEqualTo("Y");
+        assertThat(found.getLblTypeCd()).isEqualTo("BBOX");
+        assertThat(found.getTrackId()).isEqualTo("track-100");
+    }
+
+    @Test
+    @DisplayName("Phase3_LBL_SRC_CD_기본_NULL_(detection_라벨)")
+    void detectedLabelLblSrcCdNull() {
+        LsDataLbl saved = repository.saveAndFlush(LsDataLbl.createAutoBbox(
+                999_021L, "car", "[]", BigDecimal.valueOf(0.85), "track-200"));
+
+        LsDataLbl found = repository.findById(saved.getLblSn()).orElseThrow();
+
+        assertThat(found.getLblSrcCd()).isNull();
+    }
 }

@@ -36,6 +36,24 @@ _yolo_model: Any | None = None
 _loaded: bool = False
 _mock_reason: str | None = None
 
+
+def _resolve_weights_path() -> tuple[str, str | None]:
+    """가중치 파일 존재 여부에 따라 (사용할 경로, fallback 사유) 를 반환한다.
+
+    - primary (settings.yolo_weights_path) 가 있으면 그대로 사용 → (primary, None)
+    - primary 부재 & fallback (settings.yolo_weights_fallback_path) 있으면 fallback 사용
+      → (fallback, "primary missing (<primary>)")
+    - 둘 다 부재 → (primary, "weights_missing")  (호출자는 mock 처리)
+    """
+    settings = get_settings()
+    primary = settings.yolo_weights_path
+    if os.path.isfile(primary):
+        return primary, None
+    fallback = getattr(settings, "yolo_weights_fallback_path", None)
+    if fallback and os.path.isfile(fallback):
+        return fallback, f"primary missing ({primary})"
+    return primary, "weights_missing"
+
 # ───────────────── 트래커 캐시 (영상 단위 격리) ─────────────────
 # clip_id → (model, last_access_ts)
 _TRACKERS: "OrderedDict[str, tuple[Any, float]]" = OrderedDict()
@@ -57,12 +75,15 @@ def get_yolo_model() -> Any | None:
         _loaded = True
         return None
 
-    weights_path = settings.yolo_weights_path
-    if not os.path.isfile(weights_path):
+    weights_path, fallback_reason = _resolve_weights_path()
+    if fallback_reason == "weights_missing":
         logger.warning("[YOLO] weights not found path=%s — fallback to mock", weights_path)
         _mock_reason = "weights_missing"
         _loaded = True
         return None
+    if fallback_reason is not None:
+        # primary 부재 → fallback 사용
+        logger.warning("[YOLO] fallback path=%s reason=%s", weights_path, fallback_reason)
 
     try:
         from ultralytics import YOLO  # noqa: WPS433 (lazy import)
@@ -100,10 +121,13 @@ def _create_fresh_tracker() -> Any:
     """새 ultralytics YOLO 인스턴스를 로드한다 (테스트는 monkeypatch 로 대체).
 
     호출 전 ``get_yolo_mock_reason()`` 이 None 임을 보장해야 한다.
+    Phase 1: primary 가중치 부재 시 fallback 경로 사용 (predict 와 동일 정책).
     """
     from ultralytics import YOLO  # noqa: WPS433 (lazy import)
 
-    weights_path = get_settings().yolo_weights_path
+    weights_path, fallback_reason = _resolve_weights_path()
+    if fallback_reason is not None and fallback_reason != "weights_missing":
+        logger.warning("[YOLO] tracker fallback path=%s reason=%s", weights_path, fallback_reason)
     logger.info("[YOLO] tracker fresh instance loading path=%s", weights_path)
     return YOLO(weights_path)
 

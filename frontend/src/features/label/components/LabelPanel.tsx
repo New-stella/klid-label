@@ -64,7 +64,11 @@ export function LabelPanel({ labels }: LabelPanelProps) {
                     )}
                   >
                     #{String(item.id ?? '').slice(0, 8)} · {item.shape?.type ?? '-'}
-                    {item.source !== 'MANUAL' && <span className="ml-1">🤖</span>}
+                    {item.lblSrcCd === 'INTERPOLATED' ? (
+                      <span className="ml-1" aria-label="보간 라벨">🔗</span>
+                    ) : (
+                      item.source !== 'MANUAL' && <span className="ml-1">🤖</span>
+                    )}
                     {item.trackId && (
                       <span className="ml-1 text-[10px] text-gray-500">#{item.trackId}</span>
                     )}
