@@ -31,10 +31,17 @@ _KNOWN_LABELS: frozenset[str] = frozenset(
     {"person", "car", "bicycle", "motorbike", "bus", "truck", "dog", "cat"}
 )
 
+# 운영에서 mock 응답이 첫 호출 시 1회 WARN 출력하기 위한 플래그
+_mock_warned: bool = False
+
 
 @router.post("/verify-objects", response_model=VlmVerifyResponse)
 async def verify_objects(req: VlmVerifyRequest) -> VlmVerifyResponse:
-    """객체 단위 검증 결과 반환."""
+    """객체 단위 검증 결과 반환.
+
+    현재 실제 VLM 검증은 구현되지 않아 항상 mock 응답을 반환한다.
+    mock 여부는 응답에 mock=true / source="mock" 로 표시한다.
+    """
     width, height = decode_image_b64(req.image_b64)
     logger.info(
         "[VLM] verify-objects received image_size=%dx%d objects=%d",
@@ -43,9 +50,9 @@ async def verify_objects(req: VlmVerifyRequest) -> VlmVerifyResponse:
         len(req.objects),
     )
 
-    if _should_mock():
-        return _mock_verify(req)
-    return _mock_verify(req)
+    reason = _mock_reason()
+    _warn_mock_once(reason)
+    return _mock_verify(req, reason)
 
 
 def _should_mock() -> bool:
@@ -53,7 +60,33 @@ def _should_mock() -> bool:
     return get_settings().ai_mock_mode or get_vlm_model() is None
 
 
-def _mock_verify(req: VlmVerifyRequest) -> VlmVerifyResponse:
+def _mock_reason() -> str:
+    """mock 응답 사유."""
+    if get_settings().ai_mock_mode:
+        return "env_mock"
+    if get_vlm_model() is None:
+        return "weights_missing"
+    return "not_implemented"
+
+
+def _warn_mock_once(reason: str) -> None:
+    global _mock_warned
+    if not _mock_warned:
+        logger.warning(
+            "[VLM][MOCK] returning mock verify-objects "
+            "(model not loaded or AI_MOCK_MODE=true) reason=%s",
+            reason,
+        )
+        _mock_warned = True
+
+
+def reset_mock_warn_flag() -> None:
+    """테스트용 — mock WARN 플래그 초기화."""
+    global _mock_warned
+    _mock_warned = False
+
+
+def _mock_verify(req: VlmVerifyRequest, reason: str = "env_mock") -> VlmVerifyResponse:
     """expected_label이 _KNOWN_LABELS에 있으면 verified=true, 아니면 false."""
     results: list[ObjectVerification] = []
     for obj in req.objects:
@@ -66,4 +99,6 @@ def _mock_verify(req: VlmVerifyRequest) -> VlmVerifyResponse:
                 confidence=0.92 if verified else 0.18,
             )
         )
-    return VlmVerifyResponse(results=results)
+    return VlmVerifyResponse(
+        results=results, mock=True, source="mock", mock_reason=reason
+    )

@@ -1,8 +1,9 @@
 """
 ai-server 환경 설정.
 
-환경변수 기반 설정 (pydantic-settings). MOCK_MODE=true이면 실제 모델 로드 없이
-고정 응답을 반환하여 테스트/개발 환경에서도 동작하도록 한다.
+환경변수 기반 설정 (pydantic-settings). AI_MOCK_MODE=true 일 때만 실제 모델 로드 없이
+고정 응답을 반환한다 — 기본값은 False (실제 모델 사용). 테스트 환경에서는 반드시
+명시적으로 AI_MOCK_MODE=true 를 설정해야 한다 (tests/conftest.py 참조).
 """
 
 from __future__ import annotations
@@ -22,7 +23,14 @@ class Settings(BaseSettings):
     )
 
     # 동작 모드
-    ai_mock_mode: bool = Field(default=True, description="실제 모델 로드 대신 mock 응답 반환")
+    ai_mock_mode: bool = Field(
+        default=False,
+        description=(
+            "mock 모드 활성화 여부. 기본값 False — 실제 모델/가중치 사용. "
+            "테스트/개발에서 모델 로드 없이 고정 응답을 받으려면 "
+            "AI_MOCK_MODE=true 로 명시적으로 활성화해야 한다."
+        ),
+    )
     ai_device: str = Field(default="cpu", description="cuda | cpu")
 
     # 보안/제한

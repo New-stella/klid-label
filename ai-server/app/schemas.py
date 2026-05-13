@@ -46,9 +46,23 @@ class Detection(BaseModel):
 
 
 class YoloResponse(BaseModel):
+    """YOLO 추론 응답.
+
+    - mock: True 이면 ai-server 가 mock 응답을 반환했음을 의미한다.
+      운영에서 mock 응답이 흘러나가면 데이터 품질이 떨어지므로 BE 가 감지해 경고를 남긴다.
+    - source: "mock" | "model" — mock 의 사유까지 문자열로 표시.
+      ("weights_missing" 등 세부 사유는 mock_reason 에 별도 표기)
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     detections: list[Detection]
+    mock: bool = Field(default=False, description="mock 응답이면 True")
+    source: str = Field(default="model", description='"mock" | "model"')
+    mock_reason: str | None = Field(
+        default=None,
+        description='mock 응답인 경우 사유. "env_mock" | "weights_missing" | "load_failed"',
+    )
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -68,6 +82,9 @@ class Sam2SegmentResponse(BaseModel):
 
     polygon: list[list[float]] = Field(..., description="[[x, y], ...] 폐곡선 좌표")
     score: float = Field(..., ge=0.0, le=1.0)
+    mock: bool = Field(default=False, description="mock 응답이면 True")
+    source: str = Field(default="model", description='"mock" | "model"')
+    mock_reason: str | None = Field(default=None)
 
 
 class Sam2TrackRequest(BaseModel):
@@ -85,6 +102,9 @@ class Sam2TrackResponse(BaseModel):
     track_id: str
     polygon: list[list[float]]
     score: float = Field(..., ge=0.0, le=1.0)
+    mock: bool = Field(default=False, description="mock 응답이면 True")
+    source: str = Field(default="model", description='"mock" | "model"')
+    mock_reason: str | None = Field(default=None)
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -119,3 +139,6 @@ class VlmVerifyResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     results: list[ObjectVerification]
+    mock: bool = Field(default=False, description="mock 응답이면 True")
+    source: str = Field(default="model", description='"mock" | "model"')
+    mock_reason: str | None = Field(default=None)

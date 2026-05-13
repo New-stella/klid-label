@@ -1,5 +1,9 @@
 package kr.co.cudo.authoring.batch.step;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -12,11 +16,13 @@ import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
@@ -43,6 +49,8 @@ class YoloAutolabelStepTest {
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
     private YoloAutolabelStep step;
+    private ListAppender<ILoggingEvent> logAppender;
+    private Logger stepLogger;
 
     @TempDir
     Path tempDir;
@@ -72,6 +80,20 @@ class YoloAutolabelStepTest {
 
         step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, videoRepository,
                 presetLabelLookup, new ObjectMapper(), rawDir.toString());
+
+        // Logback ListAppender 부착 — mock 응답 감지 시 WARN 로그를 검증
+        stepLogger = (Logger) LoggerFactory.getLogger(YoloAutolabelStep.class);
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        stepLogger.addAppender(logAppender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (stepLogger != null && logAppender != null) {
+            stepLogger.detachAppender(logAppender);
+            logAppender.stop();
+        }
     }
 
     private LsDataSrc newSrc(Long srcSn) {
@@ -198,6 +220,58 @@ class YoloAutolabelStepTest {
 
         // car/motorcycle/person 통과, trash 필터링
         assertThat(saved).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("ai_server_mock_응답_감지시_WARN_로그_출력_및_파이프라인_계속_진행")
+    void mockResponseTriggersWarnLog() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(7L))
+                .thenReturn(List.of(newSrc(10L)));
+        // mock=true, source="mock", mock_reason="env_mock" 으로 응답
+        YoloResponse mockResp = new YoloResponse(
+                List.of(new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)),
+                true,
+                "mock",
+                "env_mock"
+        );
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(mockResp));
+
+        int saved = step.run(7L);
+
+        // mock 응답이라도 파이프라인은 진행 — 라벨 1건 저장됨
+        assertThat(saved).isEqualTo(1);
+
+        // WARN 로그가 최소 1회 출력되고 메시지에 "mock response detected" 포함
+        long warnCount = logAppender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .filter(e -> e.getFormattedMessage().contains("mock response detected"))
+                .count();
+        assertThat(warnCount).isGreaterThanOrEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("ai_server_정상_응답시_mock_WARN_로그_없음")
+    void realResponseNoWarnLog() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(8L))
+                .thenReturn(List.of(newSrc(10L)));
+        // mock=false (실제 모델 응답)
+        YoloResponse realResp = new YoloResponse(
+                List.of(new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)),
+                false,
+                "model",
+                null
+        );
+        when(aiServerClient.predictYolo(any(YoloRequest.class)))
+                .thenReturn(Mono.just(realResp));
+
+        step.run(8L);
+
+        long mockWarnCount = logAppender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .filter(e -> e.getFormattedMessage().contains("mock response detected"))
+                .count();
+        assertThat(mockWarnCount).isZero();
     }
 
     @Test

@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.common.client.dto.YoloRequest;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -106,6 +107,19 @@ public class YoloAutolabelStep {
             }
             if (resp == null || resp.detections() == null) {
                 continue;
+            }
+            if (resp.mock()) {
+                // ai-server 가 mock 응답을 반환한 경우 — 운영에서 데이터 품질 저하 위험.
+                // 파이프라인 차단은 별도 정책. 본 hotfix 에서는 경고 로그로만 표시.
+                //
+                // MEDIUM-3 fix (CWE-117 Log Injection): resp.source(), resp.mockReason() 은
+                // 외부 ai-server 응답에서 유래 → 신뢰할 수 없음. LogSanitizer 로 CRLF/제어문자
+                // 제거 후 출력.
+                log.warn("[Batch][YOLO] mock response detected — ai-server is in mock mode. "
+                                + "rawSn={} srcSn={} source={} mockReason={}",
+                        rawSn, src.getSrcSn(),
+                        LogSanitizer.sanitize(resp.source()),
+                        LogSanitizer.sanitize(resp.mockReason()));
             }
             for (YoloResponse.Detection d : resp.detections()) {
                 yoloTotal++;
