@@ -2,13 +2,16 @@
 Pydantic v2 Request/Response 스키마.
 
 Spring Boot AiServerClient 호출 정합성을 위해 다음 경로/형식을 따른다:
-- POST /infer/yolo/predict   → YoloRequest  → YoloResponse
+- POST /infer/yolo/predict   → YoloRequest      → YoloResponse
+- POST /infer/yolo/track     → YoloTrackRequest → YoloTrackResponse
 - POST /infer/sam2/segment   → Sam2SegmentRequest → Sam2SegmentResponse
 - POST /infer/sam2/track     → Sam2TrackRequest   → Sam2TrackResponse
 - POST /infer/vlm/verify-objects → VlmVerifyRequest → VlmVerifyResponse
 """
 
 from __future__ import annotations
+
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -34,7 +37,9 @@ class YoloRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     image_b64: str = Field(..., min_length=1, description="base64 인코딩 이미지(jpeg/png)")
-    conf_threshold: float = Field(default=0.25, ge=0.0, le=1.0)
+    conf_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
+    imgsz: int = Field(default=1280, ge=320, le=1920, description="추론 입력 해상도(px)")
+    iou: float = Field(default=0.5, ge=0.0, le=1.0, description="NMS IoU 임계값")
 
 
 class Detection(BaseModel):
@@ -43,6 +48,13 @@ class Detection(BaseModel):
     label: str
     points: list[float] = Field(..., min_length=4, max_length=4, description="[x1, y1, x2, y2]")
     score: float = Field(..., ge=0.0, le=1.0)
+    track_id: Optional[int] = Field(
+        default=None,
+        description=(
+            "트래커가 부여한 객체 ID. /predict 응답에서는 항상 None, "
+            "/track 응답에서만 의미 있음. 저신뢰 detection 은 트래커가 ID 를 부여하지 않을 수 있음"
+        ),
+    )
 
 
 class YoloResponse(BaseModel):
@@ -52,6 +64,48 @@ class YoloResponse(BaseModel):
       운영에서 mock 응답이 흘러나가면 데이터 품질이 떨어지므로 BE 가 감지해 경고를 남긴다.
     - source: "mock" | "model" — mock 의 사유까지 문자열로 표시.
       ("weights_missing" 등 세부 사유는 mock_reason 에 별도 표기)
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    detections: list[Detection]
+    mock: bool = Field(default=False, description="mock 응답이면 True")
+    source: str = Field(default="model", description='"mock" | "model"')
+    mock_reason: str | None = Field(
+        default=None,
+        description='mock 응답인 경우 사유. "env_mock" | "weights_missing" | "load_failed"',
+    )
+
+
+class YoloTrackRequest(BaseModel):
+    """YOLO 객체 트래킹 요청.
+
+    - clip_id: 영상 식별자. ai-server 가 이 키로 트래커 인스턴스를 격리/캐시한다.
+    - frame_index: 영상 내 프레임 순서. 0 이면 트래커 리셋 (새 인스턴스), 그 외 persist=True.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    image_b64: str = Field(..., min_length=1, description="base64 인코딩 이미지(jpeg/png)")
+    clip_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=128,
+        description="영상 식별자 (BE 의 rawSn 등). 트래커 인스턴스 격리 키",
+    )
+    frame_index: int = Field(
+        ..., ge=0, description="영상 내 프레임 순서. 0 이면 트래커 리셋"
+    )
+    conf_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
+    imgsz: int = Field(default=1280, ge=320, le=1920, description="추론 입력 해상도(px)")
+    iou: float = Field(default=0.5, ge=0.0, le=1.0, description="NMS IoU 임계값")
+
+
+class YoloTrackResponse(BaseModel):
+    """YOLO 트래킹 응답.
+
+    /predict 와 동일한 필드 구성. detections 의 track_id 필드가 트래커 부여 ID.
+    저신뢰 detection 의 경우 track_id 는 None 일 수 있다.
     """
 
     model_config = ConfigDict(extra="forbid")

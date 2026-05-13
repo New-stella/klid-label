@@ -68,4 +68,45 @@ class LsDataLblTest {
         assertThatThrownBy(() -> lbl.updateConfScore(BigDecimal.valueOf(2.0)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    // --- Phase 3: TRACK_ID 컬럼 + factory 5-arg ---
+
+    @Test
+    @DisplayName("createAutoBbox_5arg_는_trackId_저장")
+    void createAutoBboxFiveArgRetainsTrackId() {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(
+                100L, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.85), "42");
+
+        assertThat(lbl.getTrackId()).isEqualTo("42");
+        assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
+        assertThat(lbl.getLblTypeCd()).isEqualTo("BBOX");
+    }
+
+    @Test
+    @DisplayName("createAutoBbox_4arg_는_trackId_null_로_위임_(레거시_호환)")
+    void createAutoBboxFourArgDelegatesNullTrackId() {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(
+                100L, "person", "[]", BigDecimal.valueOf(0.8));
+
+        assertThat(lbl.getTrackId()).isNull();
+        assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("createAutoBbox_5arg_trackId_null_입력도_허용")
+    void createAutoBboxFiveArgAllowsNullTrackId() {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(
+                1L, "x", "[]", BigDecimal.valueOf(0.5), null);
+
+        assertThat(lbl.getTrackId()).isNull();
+    }
+
+    @Test
+    @DisplayName("수동_라벨_(createManual)_은_trackId_null")
+    void createManualHasNullTrackId() {
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", "person", "[]", 99L);
+
+        assertThat(lbl.getTrackId()).isNull();
+        assertThat(lbl.getAutoLblYn()).isEqualTo("N");
+    }
 }

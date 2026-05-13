@@ -70,6 +70,16 @@ public class LsDataLbl {
     @Column(name = "DATA_AUG_SN")
     private Long dataAugSn;
 
+    /**
+     * 자동라벨링 트래커(ultralytics BoT-SORT 등) 부여 객체 ID — Phase 3.
+     * <p>NULL 허용:
+     *  - 수동 라벨 (사용자가 직접 그린 라벨)
+     *  - 트래커가 저신뢰 detection 에 ID 미부여한 경우 (fallback)
+     *  - V18 마이그레이션 이전 legacy row
+     */
+    @Column(name = "TRACK_ID", length = 64)
+    private String trackId;
+
     @Column(name = "REG_USER_NO")
     private Long regUserNo;
 
@@ -81,18 +91,23 @@ public class LsDataLbl {
 
     @Builder
     private LsDataLbl(Long srcSn, String lblTypeCd, String label, String pointsJson,
-                      String autoLblYn, BigDecimal confScore) {
+                      String autoLblYn, BigDecimal confScore, String trackId) {
         this.srcSn = srcSn;
         this.lblTypeCd = lblTypeCd;
         this.label = label;
         this.pointsJson = pointsJson;
         this.autoLblYn = autoLblYn;
         this.confScore = clampScore(confScore);
+        this.trackId = trackId;
         this.regDt = LocalDateTime.now();
     }
 
-    /** YOLO 자동 라벨링 결과를 저장할 때 사용. AUTO_LBL_YN='Y' 강제. */
-    public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson, BigDecimal confScore) {
+    /**
+     * YOLO 자동 라벨링 결과를 저장 — trackId 포함 (Phase 3).
+     * AUTO_LBL_YN='Y' 강제. trackId 는 null 허용 (트래커 저신뢰 detection fallback).
+     */
+    public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson,
+                                           BigDecimal confScore, String trackId) {
         return LsDataLbl.builder()
                 .srcSn(srcSn)
                 .lblTypeCd(TYPE_BBOX)
@@ -100,7 +115,17 @@ public class LsDataLbl {
                 .pointsJson(pointsJson)
                 .autoLblYn(AUTO_YES)
                 .confScore(confScore)
+                .trackId(trackId)
                 .build();
+    }
+
+    /**
+     * 4-arg 호환 — trackId=null 로 위임.
+     * Phase 3 부터 자동 라벨링 경로는 5-arg 생성자 사용 권장.
+     */
+    @Deprecated
+    public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson, BigDecimal confScore) {
+        return createAutoBbox(srcSn, label, pointsJson, confScore, null);
     }
 
     /** SAM2 segment 결과를 저장할 때 사용. POLYGON 타입. */

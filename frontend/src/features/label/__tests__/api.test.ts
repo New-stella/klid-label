@@ -42,6 +42,51 @@ describe('label api', () => {
     expect(res.labels).toEqual([]);
   });
 
+  it('getLabels_BE_items_의_trackId_String_은_정규화_시_그대로_노출', async () => {
+    mock.onGet('/frames/888/labels').reply(200, {
+      success: true,
+      data: {
+        frameNo: 2,
+        srcSn: 888,
+        siblings: [],
+        items: [
+          {
+            id: 11,
+            lblTypeCd: 'BBOX',
+            label: 'person',
+            points: [
+              [10, 20],
+              [100, 80],
+            ],
+            autoLblYn: 'Y',
+            confScore: 0.9,
+            trackId: '7',
+          },
+          {
+            id: 12,
+            lblTypeCd: 'BBOX',
+            label: 'car',
+            points: [
+              [0, 0],
+              [10, 10],
+            ],
+            autoLblYn: 'Y',
+            confScore: 0.8,
+            trackId: null,
+          },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const res = await getLabels(888);
+    expect(res.labels).toHaveLength(2);
+    expect(res.labels[0].trackId).toBe('7');
+    // null → undefined or null 둘 다 허용 — null 이 유지되거나 미설정
+    expect(res.labels[1].trackId == null).toBe(true);
+  });
+
   it('putLabels_PUT_body에_labels_배열_포함', async () => {
     const labels = [bbox('tmp1', 1)];
     mock.onPut('/frames/777/labels').reply((config) => {

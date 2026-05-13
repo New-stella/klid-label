@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.client.dto.VlmVerifyRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmVerifyResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloRequest;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
+import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -38,6 +39,23 @@ public class AiServerClient {
     public Mono<YoloResponse> predictYolo(YoloRequest request) {
         return webClient.post()
                 .uri("/infer/yolo/predict")
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(YoloResponse.class)
+                .timeout(Duration.ofSeconds(60))
+                .transformDeferred(RetryOperator.of(retry))
+                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+    }
+
+    /**
+     * YOLO Track 추론 — Phase 3.
+     * <p>{@code clip_id} 단위로 ai-server 가 트래커 상태를 격리하며, 동일 객체에 동일 track_id 를 부여한다.
+     * Phase 4 에서 {@link kr.co.cudo.authoring.batch.step.YoloAutolabelStep} 가 {@link #predictYolo}
+     * 대신 본 메서드를 호출하도록 전환된다.
+     */
+    public Mono<YoloResponse> predictYoloTrack(YoloTrackRequest request) {
+        return webClient.post()
+                .uri("/infer/yolo/track")
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(YoloResponse.class)

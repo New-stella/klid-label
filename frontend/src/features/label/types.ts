@@ -54,7 +54,13 @@ export interface Label {
   source: LabelSource;
   confidence?: number; // 오토라벨 신뢰도 (0~1)
   shape: Shape;
-  trackId?: number; // SAM2 Track 연속 객체 ID (Phase 6)
+  /**
+   * 트래커 부여 객체 ID (BE LS_DATA_LBL.TRACK_ID, VARCHAR(64) nullable).
+   * - Phase 5: YOLO BoT-SORT track 결과 (문자열로 직렬화된 정수)
+   * - 동일 trackId → 라벨 패널/캔버스에서 같은 색상으로 시각화 (utils/trackColor)
+   * - null/undefined 가능 (저신뢰 detection / 수동 라벨 / legacy row)
+   */
+  trackId?: string | null;
 }
 
 /**

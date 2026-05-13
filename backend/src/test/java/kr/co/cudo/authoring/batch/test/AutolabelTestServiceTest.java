@@ -194,28 +194,28 @@ class AutolabelTestServiceTest {
     }
 
     private static List<BbHint> oneHint() {
-        return List.of(new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9));
+        return List.of(new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9, null));
     }
 
     private static List<BbHint> twoHints() {
         return List.of(
-                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9),
-                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8));
+                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9, null),
+                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8, null));
     }
 
     private static List<BbHint> threeHints() {
         return List.of(
-                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9),
-                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8),
-                new BbHint(3L, "bus", List.of(9.0, 10.0, 11.0, 12.0), 0.7));
+                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9, null),
+                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8, null),
+                new BbHint(3L, "bus", List.of(9.0, 10.0, 11.0, 12.0), 0.7, null));
     }
 
     private static List<BbHint> fourHints() {
         return List.of(
-                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9),
-                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8),
-                new BbHint(3L, "bus", List.of(9.0, 10.0, 11.0, 12.0), 0.7),
-                new BbHint(4L, "truck", List.of(13.0, 14.0, 15.0, 16.0), 0.6));
+                new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9, null),
+                new BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.8, null),
+                new BbHint(3L, "bus", List.of(9.0, 10.0, 11.0, 12.0), 0.7, null),
+                new BbHint(4L, "truck", List.of(13.0, 14.0, 15.0, 16.0), 0.6, null));
     }
 
     private static <T> T any() {

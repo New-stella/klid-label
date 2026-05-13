@@ -146,7 +146,7 @@ class BatchOrchestratorTest {
         newRaw(105L, LsDataRaw.PRVC_TYPE_ANONY);
         when(yoloStep.run(eq(105L)))
                 .thenReturn(List.of(
-                        new kr.co.cudo.authoring.batch.step.BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)));
+                        new kr.co.cudo.authoring.batch.step.BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null)));
 
         BatchStage result = orchestrator.process(105L);
 
@@ -226,9 +226,9 @@ class BatchOrchestratorTest {
         // 이번엔 정상 동작
         org.mockito.Mockito.reset(yoloStep);
         when(yoloStep.run(any())).thenReturn(List.of(
-                new kr.co.cudo.authoring.batch.step.BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
-                new kr.co.cudo.authoring.batch.step.BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81),
-                new kr.co.cudo.authoring.batch.step.BbHint(3L, "person", List.of(9.0, 10.0, 11.0, 12.0), 0.75)
+                new kr.co.cudo.authoring.batch.step.BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null),
+                new kr.co.cudo.authoring.batch.step.BbHint(2L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81, null),
+                new kr.co.cudo.authoring.batch.step.BbHint(3L, "person", List.of(9.0, 10.0, 11.0, 12.0), 0.75, null)
         ));
 
         ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
@@ -240,12 +240,35 @@ class BatchOrchestratorTest {
     }
 
     @Test
+    @DisplayName("BatchOrchestrator_같은_영상_프레임은_순차_호출_보장")
+    void yoloAndSam2InvokedSequentiallyPerVideo() {
+        // 단일 영상 process() 는 YoloStep → Sam2Step 순서로 직렬 호출.
+        // 이 보장은 BatchOrchestrator 자체가 단일 스레드 메서드이고, YoloStep.run(rawSn) 내부에서
+        // 영상의 모든 프레임을 ORDER BY frame_no ASC 로 직렬 처리하기 때문이다.
+        // ultralytics tracker state 격리를 위해 같은 영상 프레임이 반드시 직렬로 호출되어야 한다.
+        newRaw(120L, LsDataRaw.PRVC_TYPE_ANONY);
+        List<kr.co.cudo.authoring.batch.step.BbHint> hints = List.of(
+                new kr.co.cudo.authoring.batch.step.BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1)
+        );
+        when(yoloStep.run(120L)).thenReturn(hints);
+
+        BatchStage result = orchestrator.process(120L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        // YoloStep 이 Sam2Step 보다 먼저 호출되어야 함 (InOrder 검증)
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(yoloStep, sam2Step, vlmStep);
+        order.verify(yoloStep).run(120L);
+        order.verify(sam2Step).run(eq(120L), any());
+        order.verify(vlmStep).run(120L);
+    }
+
+    @Test
     @DisplayName("BatchOrchestrator_YoloStep_결과를_Sam2Step_에_정확히_전달")
     void yoloHintsPassedToSam2() {
         newRaw(110L, LsDataRaw.PRVC_TYPE_ANONY);
         List<kr.co.cudo.authoring.batch.step.BbHint> hints = List.of(
-                new kr.co.cudo.authoring.batch.step.BbHint(11L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
-                new kr.co.cudo.authoring.batch.step.BbHint(12L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
+                new kr.co.cudo.authoring.batch.step.BbHint(11L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null),
+                new kr.co.cudo.authoring.batch.step.BbHint(12L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81, null)
         );
         when(yoloStep.run(110L)).thenReturn(hints);
 

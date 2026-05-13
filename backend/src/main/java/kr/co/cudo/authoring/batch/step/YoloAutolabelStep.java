@@ -9,11 +9,13 @@ import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationTogg
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
-import kr.co.cudo.authoring.common.client.dto.YoloRequest;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
+import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -36,12 +38,19 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * YOLO 자동 라벨링 단계 (Phase 5 — YOLO).
+ * YOLO 자동 라벨링 단계 (Phase 5 — YOLO, Phase 4 — Track 전환).
  * <p>
- * 프레임별 AiServerClient.predictYolo() 호출 → 검출 결과를 LS_DATA_LBL INSERT.
+ * 프레임별 AiServerClient.predictYoloTrack() 호출 → 검출 결과를 LS_DATA_LBL INSERT.
  *  - autoLblYn = 'Y' (강제)
  *  - confScore = response.score (0.0~1.0; clamp 는 LsDataLbl 내부에서 처리)
  *  - lblTypeCd = BBOX
+ *  - trackId   = ultralytics 트래커가 부여한 객체 ID (null 허용 — 저신뢰 fallback)
+ * <p>
+ * Phase 4 — Track 호출 전환:
+ *  - clipId   : {@code String.valueOf(rawSn)} — 영상 단위 트래커 상태 격리 키.
+ *  - frameIndex : 영상 내 프레임 순서(0 부터 누적). ai-server 가 0 일 때 트래커 상태를 리셋.
+ *  - 같은 영상의 모든 프레임은 반드시 단일 스레드에서 순서대로 호출되어야 한다
+ *    ({@code findByRawSnOrderByFrameNoAsc} 가 ORDER BY 보장). 정적/필드에 frameIndex 저장 금지.
  * <p>
  * 이벤트 타입 기반 프리셋 필터 (V1.8):
  *  - 영상의 EVNT_TYPE_CD 에 매핑된 프리셋(LS_LABEL_PRESET.EVNT_TYPE_CD) 의 라벨 코드만 INSERT (노이즈 제거).
@@ -66,11 +75,19 @@ import java.util.Optional;
 @Component
 public class YoloAutolabelStep {
 
+    /** Phase 1 fallback — SystemConfig 미설정/조회 실패 시 사용할 기본값(0.4). */
+    static final double DEFAULT_CONF_THRESHOLD = 0.4;
+    /** Phase 1 fallback — SystemConfig 미설정/조회 실패 시 사용할 기본 imgsz(1280px). */
+    static final int DEFAULT_IMGSZ = 1280;
+    /** Phase 1 fallback — SystemConfig 미설정/조회 실패 시 사용할 기본 IoU(0.5). */
+    static final double DEFAULT_IOU = 0.5;
+
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
     private final VideoRepository videoRepository;
     private final PresetLabelLookupService presetLabelLookup;
+    private final SystemConfigService systemConfigService;
     private final ObjectMapper objectMapper;
     private final Path baseRawPath;
 
@@ -79,6 +96,7 @@ public class YoloAutolabelStep {
                              LsDataLblRepository lblRepository,
                              VideoRepository videoRepository,
                              PresetLabelLookupService presetLabelLookup,
+                             SystemConfigService systemConfigService,
                              ObjectMapper objectMapper,
                              @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
         this.aiServerClient = aiServerClient;
@@ -86,6 +104,7 @@ public class YoloAutolabelStep {
         this.lblRepository = lblRepository;
         this.videoRepository = videoRepository;
         this.presetLabelLookup = presetLabelLookup;
+        this.systemConfigService = systemConfigService;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
@@ -108,23 +127,40 @@ public class YoloAutolabelStep {
                 .orElse(null);
         Optional<Map<String, AnnotationToggle>> togglesOpt = presetLabelLookup.togglesFor(eventTypeCd);
 
+        // Phase 1: 운영 UI 로 조정 가능한 YOLO 추론 파라미터를 1회 조회 (Caffeine 캐시 활용).
+        double confThreshold = readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
+        int imgsz = readInt(ConfigKeys.YOLO_IMGSZ, DEFAULT_IMGSZ);
+        double iou = readDoublePercent(ConfigKeys.YOLO_IOU, DEFAULT_IOU);
+
+        // Phase 4: 영상 식별자 — ai-server 트래커가 clipId 단위로 상태 격리.
+        // 두 영상이 연속 처리되어도 clip A 의 track_id 가 clip B 로 누수되지 않는다.
+        final String clipId = String.valueOf(rawSn);
+
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         List<BbHint> hints = new ArrayList<>();
         int bboxSaved = 0;
         int yoloTotal = 0;
         int hintsEmitted = 0;
+        // Phase 4: 영상 내 프레임 순서(0-base). Repository 가 frame_no ASC 정렬 보장.
+        // ultralytics 트래커는 frame_index=0 시 상태 리셋, 그 외엔 persist=True 로 누적.
+        // 같은 영상 프레임은 본 루프에서 순차 호출 — 정적/필드 저장 금지(스레드 안전).
+        int frameIndex = 0;
         for (LsDataSrc src : frames) {
             String relPath = resolveImagePath(src);
             String imageB64 = readImageAsBase64(relPath);
             YoloResponse resp;
             try {
-                resp = aiServerClient.predictYolo(new YoloRequest(imageB64))
+                resp = aiServerClient.predictYoloTrack(
+                                new YoloTrackRequest(imageB64, clipId, frameIndex,
+                                        confThreshold, imgsz, iou))
                         .block(Duration.ofSeconds(70));
             } catch (RuntimeException e) {
-                log.error("[Batch][Yolo] failed srcSn={} err={}", src.getSrcSn(), e.getMessage());
+                log.error("[Batch][Yolo] failed srcSn={} frameIndex={} err={}",
+                        src.getSrcSn(), frameIndex, e.getMessage());
                 throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "YOLO 호출 실패", e);
             }
             if (resp == null || resp.detections() == null) {
+                frameIndex++;
                 continue;
             }
             if (resp.mock()) {
@@ -147,22 +183,62 @@ public class YoloAutolabelStep {
                     // 매핑 존재 + 허용 라벨에 미포함 → 노이즈 제거
                     continue;
                 }
+                // Phase 4: trackId 는 Integer (ai-server 의 ultralytics persist 트래커 부여).
+                // null 인 경우(저신뢰 detection fallback) 그대로 null 유지.
+                String trackIdStr = d.trackId() == null ? null : String.valueOf(d.trackId());
                 if (toggle.bbox()) {
                     BigDecimal score = BigDecimal.valueOf(d.score()).setScale(4, RoundingMode.HALF_UP);
                     lblRepository.save(LsDataLbl.createAutoBbox(
-                            src.getSrcSn(), d.label(), serialize(d.points()), score));
+                            src.getSrcSn(), d.label(), serialize(d.points()), score, trackIdStr));
                     bboxSaved++;
                 }
                 if (toggle.polygon()) {
-                    hints.add(new BbHint(src.getSrcSn(), d.label(), d.points(), d.score()));
+                    // Phase 4: BbHint 5번째 인자에 d.trackId() (Integer) 그대로 전달.
+                    hints.add(new BbHint(src.getSrcSn(), d.label(), d.points(), d.score(), d.trackId()));
                     hintsEmitted++;
                 }
             }
+            frameIndex++;
         }
-        log.info("[Batch][Yolo] saved labels rawSn={} eventType={} yoloCount={} bboxSaved={} hintsEmitted={} preset={}",
-                rawSn, eventTypeCd, yoloTotal, bboxSaved, hintsEmitted,
-                togglesOpt.map(m -> m.keySet().toString()).orElse("(none)"));
+        log.info("[Batch][Yolo] saved labels rawSn={} clipId={} eventType={} frames={} yoloCount={} bboxSaved={} hintsEmitted={} preset={} conf={} imgsz={} iou={}",
+                rawSn, clipId, eventTypeCd, frameIndex, yoloTotal, bboxSaved, hintsEmitted,
+                togglesOpt.map(m -> m.keySet().toString()).orElse("(none)"),
+                confThreshold, imgsz, iou);
         return hints;
+    }
+
+    /**
+     * 시스템 설정에서 정수 백분율 값을 읽어 비율(/100.0) 로 변환한다.
+     * 조회 실패·null·범위 이탈 시 {@code fallback} 반환 (fail-safe).
+     */
+    private double readDoublePercent(String key, double fallback) {
+        try {
+            Integer raw = systemConfigService.getInt(key);
+            if (raw == null) {
+                return fallback;
+            }
+            // NUMBER_RANGE 는 SystemConfigService.update 시점에 이미 검증됨.
+            // 추가 방어: 0 미만/100 초과만 클램프 후 비율 변환.
+            int clamped = Math.max(0, Math.min(100, raw));
+            return clamped / 100.0;
+        } catch (Exception e) {
+            log.warn("[Batch][Yolo] {} 조회 실패, 기본값 {} 사용 err={}", key, fallback, e.getMessage());
+            return fallback;
+        }
+    }
+
+    /**
+     * 시스템 설정에서 정수 값을 읽어 반환한다.
+     * 조회 실패·null 시 {@code fallback} 반환 (fail-safe).
+     */
+    private int readInt(String key, int fallback) {
+        try {
+            Integer raw = systemConfigService.getInt(key);
+            return raw == null ? fallback : raw;
+        } catch (Exception e) {
+            log.warn("[Batch][Yolo] {} 조회 실패, 기본값 {} 사용 err={}", key, fallback, e.getMessage());
+            return fallback;
+        }
     }
 
     /**

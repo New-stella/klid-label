@@ -5,6 +5,10 @@ export const ConfigKey = {
   FFMPEG_OUTPUT_FPS: 'FFMPEG_OUTPUT_FPS',
   BATCH_INTERVAL_SEC: 'BATCH_INTERVAL_SEC',
   BATCH_CONCURRENCY: 'BATCH_CONCURRENCY',
+  // Phase 1: YOLO 추론 파라미터 (BE ConfigKeys 와 1:1 매핑)
+  YOLO_CONF_THRESHOLD: 'YOLO_CONF_THRESHOLD',
+  YOLO_IMGSZ: 'YOLO_IMGSZ',
+  YOLO_IOU: 'YOLO_IOU',
 } as const;
 export type ConfigKey = (typeof ConfigKey)[keyof typeof ConfigKey];
 

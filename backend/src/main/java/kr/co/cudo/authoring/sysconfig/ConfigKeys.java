@@ -16,17 +16,33 @@ public final class ConfigKeys {
     public static final String BATCH_INTERVAL_SEC = "BATCH_INTERVAL_SEC";
     public static final String BATCH_CONCURRENCY  = "BATCH_CONCURRENCY";
 
+    /**
+     * Phase 1 (YOLO 정확도 개선) — 운영 UI 에서 조정 가능한 YOLO 추론 파라미터.
+     * <ul>
+     *   <li>{@code YOLO_CONF_THRESHOLD} : 정수 25~80 (사용 시 /100.0 → 0.25~0.80)</li>
+     *   <li>{@code YOLO_IMGSZ} : 추론 입력 해상도 320~1920 px</li>
+     *   <li>{@code YOLO_IOU} : 정수 30~80 (사용 시 /100.0 → 0.30~0.80)</li>
+     * </ul>
+     */
+    public static final String YOLO_CONF_THRESHOLD = "YOLO_CONF_THRESHOLD";
+    public static final String YOLO_IMGSZ          = "YOLO_IMGSZ";
+    public static final String YOLO_IOU            = "YOLO_IOU";
+
     /** 화이트리스트 — Service.update / getInt 진입 검증에 사용. */
     public static final Set<String> ALLOWED = Set.of(
-            FFMPEG_THREADS, FFMPEG_OUTPUT_FPS, BATCH_INTERVAL_SEC, BATCH_CONCURRENCY
+            FFMPEG_THREADS, FFMPEG_OUTPUT_FPS, BATCH_INTERVAL_SEC, BATCH_CONCURRENCY,
+            YOLO_CONF_THRESHOLD, YOLO_IMGSZ, YOLO_IOU
     );
 
     /** NUMBER 키별 허용 범위 [min, max] (DB설계서 §5A.4 정책). */
     public static final Map<String, int[]> NUMBER_RANGE = Map.of(
-            FFMPEG_THREADS,     new int[]{1, 16},
-            FFMPEG_OUTPUT_FPS,  new int[]{1, 30},
-            BATCH_INTERVAL_SEC, new int[]{10, 3600},
-            BATCH_CONCURRENCY,  new int[]{1, 10}
+            FFMPEG_THREADS,      new int[]{1, 16},
+            FFMPEG_OUTPUT_FPS,   new int[]{1, 30},
+            BATCH_INTERVAL_SEC,  new int[]{10, 3600},
+            BATCH_CONCURRENCY,   new int[]{1, 10},
+            YOLO_CONF_THRESHOLD, new int[]{25, 80},
+            YOLO_IMGSZ,          new int[]{320, 1920},
+            YOLO_IOU,            new int[]{30, 80}
     );
 
     private ConfigKeys() {}

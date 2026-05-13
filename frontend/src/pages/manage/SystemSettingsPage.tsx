@@ -7,6 +7,7 @@ import { BatchConfigCard } from '@/features/sysconfig/components/BatchConfigCard
 import { DangerActions } from '@/features/sysconfig/components/DangerActions';
 import { FFmpegConfigCard } from '@/features/sysconfig/components/FFmpegConfigCard';
 import { HealthStatusList } from '@/features/sysconfig/components/HealthStatusList';
+import { YoloConfigCard } from '@/features/sysconfig/components/YoloConfigCard';
 import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
 
 /**
@@ -52,6 +53,7 @@ export function SystemSettingsPage() {
             <>
               <FFmpegConfigCard configs={configs} />
               <BatchConfigCard configs={configs} />
+              <YoloConfigCard configs={configs} />
             </>
           )}
         </div>

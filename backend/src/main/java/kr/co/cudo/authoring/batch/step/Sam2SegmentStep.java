@@ -47,8 +47,11 @@ import java.util.Optional;
  *       특히 BBOX_ENABLED=false, POLYGON_ENABLED=true 인 POLYGON_ONLY 라벨은 본 경로로만 들어옴.</li>
  * </ol>
  * <p>
- * 중복 제거: 동일 {@code (srcSn, label)} 키로 dedup. DB BBOX 가 있으면 그 좌표를 우선 사용.
- * 양쪽에서 동일 라벨이 들어오면 SAM2 는 1회만 호출되고 POLYGON 도 1건만 저장된다.
+ * 중복 제거 (Phase 4): 동일 {@code (srcSn, label, trackId)} 키로 dedup. DB BBOX 가 있으면 그 좌표를 우선 사용.
+ * trackId 는 ai-server 가 부여한 객체 ID (Integer). 같은 라벨이라도 다른 trackId 면 별도 객체로
+ * 간주하여 SAM2 호출을 분리한다. trackId 가 null 인 경우(legacy/저신뢰 fallback)는 라벨 단위 dedup 으로
+ * 자연 흡수된다 (record equality 의 null 처리).
+ * <p>양쪽에서 동일 (srcSn, label, trackId) 가 들어오면 SAM2 는 1회만 호출되고 POLYGON 도 1건만 저장된다.
  * <p>
  * 토글 방어:
  * <ul>
@@ -159,22 +162,42 @@ public class Sam2SegmentStep {
     }
 
     /**
-     * (srcSn, label) 키로 dedup 한 SAM2 호출 단위를 생성한다.
-     * DB BBOX 우선 — 같은 라벨이 hint 로도 들어오면 hint 는 무시.
+     * (srcSn, label, trackId) 키로 dedup 한 SAM2 호출 단위를 생성한다. (Phase 4)
+     * <p>DB BBOX 우선 — 같은 (라벨, trackId) 가 hint 로도 들어오면 hint 는 무시.
+     * trackId 가 null 인 경우 record equality 의 null 비교로 자연스럽게 label 단위 dedup 이 된다.
      */
     private List<SegmentJob> buildJobs(LsDataSrc src, List<BbHint> frameHints) {
         // DB BBOX 우선 등록 (insertion-order 보존: BBOX → hint)
-        LinkedHashMap<String, SegmentJob> jobs = new LinkedHashMap<>();
+        LinkedHashMap<DedupKey, SegmentJob> jobs = new LinkedHashMap<>();
         List<LsDataLbl> bboxes = lblRepository.findBySrcSnAndAutoLblYn(src.getSrcSn(), LsDataLbl.AUTO_YES).stream()
                 .filter(l -> LsDataLbl.TYPE_BBOX.equals(l.getLblTypeCd()))
                 .toList();
         for (LsDataLbl lbl : bboxes) {
-            jobs.putIfAbsent(lbl.getLabel(), new SegmentJob(lbl.getLabel(), parseBbox(lbl.getPointsJson())));
+            Integer trackId = parseTrackId(lbl.getTrackId());
+            DedupKey key = new DedupKey(src.getSrcSn(), lbl.getLabel(), trackId);
+            jobs.putIfAbsent(key, new SegmentJob(lbl.getLabel(), parseBbox(lbl.getPointsJson())));
         }
         for (BbHint h : frameHints) {
-            jobs.putIfAbsent(h.label(), new SegmentJob(h.label(), h.points()));
+            DedupKey key = new DedupKey(h.srcSn(), h.label(), h.trackId());
+            jobs.putIfAbsent(key, new SegmentJob(h.label(), h.points()));
         }
         return new ArrayList<>(jobs.values());
+    }
+
+    /**
+     * LsDataLbl.trackId 는 String(VARCHAR) 으로 저장되지만 ai-server 는 Integer 를 부여한다.
+     * dedup 키는 BbHint(Integer) 와 일치해야 하므로 정수 파싱. 파싱 실패는 null 로 fallback.
+     */
+    private static Integer parseTrackId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(raw.trim());
+        } catch (NumberFormatException e) {
+            // legacy/임의 문자열 trackId — null 로 fallback (라벨 단위 dedup 으로 흡수)
+            return null;
+        }
     }
 
     private static Map<Long, List<BbHint>> groupHintsBySrc(List<BbHint> hints) {
@@ -248,8 +271,15 @@ public class Sam2SegmentStep {
 
     /**
      * SAM2 호출 단위 — 라벨 + bbox 좌표.
-     * 동일 (srcSn, label) 의 DB BBOX 와 upstreamHint 가 동시 존재할 경우 DB BBOX 좌표가 우선.
+     * 동일 (srcSn, label, trackId) 의 DB BBOX 와 upstreamHint 가 동시 존재할 경우 DB BBOX 좌표가 우선.
      */
     private record SegmentJob(String label, List<Double> box) {
+    }
+
+    /**
+     * SAM2 dedup 키 (Phase 4) — 같은 라벨이라도 trackId 가 다르면 별도 객체로 간주.
+     * trackId=null 인 경우 record equality 의 null 처리로 라벨 단위 dedup 으로 fallback.
+     */
+    private record DedupKey(long srcSn, String label, Integer trackId) {
     }
 }

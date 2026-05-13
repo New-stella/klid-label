@@ -76,6 +76,14 @@ function normalizeLabel(raw: any): Label {
         : 'AUTO_YOLO'
       : 'MANUAL';
 
+  // BE LabelResponse.Item.trackId 는 VARCHAR(64) 로 String 또는 null 로 들어온다.
+  // Phase 5: 정수 형태로 전달되는 케이스(legacy/SAM2 등)도 문자열로 정규화한다.
+  const rawTrackId = raw?.trackId;
+  const trackId: string | null =
+    rawTrackId === null || rawTrackId === undefined || rawTrackId === ''
+      ? null
+      : String(rawTrackId);
+
   return {
     id,
     serverId: typeof raw?.id === 'number' ? raw.id : undefined,
@@ -85,7 +93,7 @@ function normalizeLabel(raw: any): Label {
     source,
     confidence: raw?.confScore !== undefined ? Number(raw.confScore) : raw?.confidence,
     shape,
-    trackId: raw?.trackId,
+    trackId,
   };
 }
 

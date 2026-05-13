@@ -40,6 +40,16 @@ import java.util.List;
  * 트랜잭션 분리:
  *  - 본 process() 자체는 NOT_SUPPORTED — 각 Step 이 REQUIRES_NEW 로 자체 트랜잭션 보유.
  *  - 단계 실패가 다른 단계 결과(예: FRAME_EXTRACT INSERT) 에 영향 없도록 격리.
+ * <p>
+ * 영상 단위 직렬 호출 보장 (Phase 4):
+ *  - {@link #process(Long)} 는 단일 영상(rawSn) 에 대해 단일 스레드에서 호출된다.
+ *  - {@link YoloAutolabelStep#run(Long)} 가 내부적으로 frame_no ASC 정렬된 모든 프레임을
+ *    순차로 {@code aiServerClient.predictYoloTrack(...)} 호출.
+ *  - ultralytics tracker state 는 ai-server 측에서 clip_id 단위로 격리되므로, 같은 영상의
+ *    프레임 호출 순서가 보장되어야 동일 객체에 동일 track_id 가 부여된다.
+ *  - 외부 스케줄러(Quartz) 가 두 영상을 병렬로 처리하는 경우에도 clip_id 가 다르므로 격리됨 —
+ *    즉 영상 간 track_id 누수는 ai-server 의 clip_id 기반 격리로 차단.
+ *  - 본 클래스는 정적 필드/싱글톤 상태를 보유하지 않으므로 영상 간 독립성을 보장한다.
  */
 @Slf4j
 @Service

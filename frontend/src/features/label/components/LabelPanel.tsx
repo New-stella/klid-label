@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
 
 import type { Label } from '../types';
+import { trackIdToColor } from '../utils/trackColor';
 
 interface LabelPanelProps {
   labels: Label[];
@@ -11,6 +12,8 @@ interface LabelPanelProps {
 
 /**
  * 라벨 트리 좌측 패널 — 클래스별 그룹 + 객체 카운트.
+ *
+ * Phase 5: 라벨 행에 좌측 4px 컬러 바(trackId 해시 기반) + trackId 가 있으면 `#{id}` 텍스트 표시.
  */
 export function LabelPanel({ labels }: LabelPanelProps) {
   const selectedId = useLabelStore((s) => s.selectedLabelId);
@@ -40,23 +43,35 @@ export function LabelPanel({ labels }: LabelPanelProps) {
             <span className="text-xs text-neutral">({items.length})</span>
           </div>
           <ul className="flex flex-col gap-0.5 pl-3">
-            {items.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => selectLabel(item.id)}
-                  className={cn(
-                    'w-full rounded px-2 py-0.5 text-left text-xs',
-                    selectedId === item.id
-                      ? 'bg-primary text-white'
-                      : 'text-neutral hover:bg-bgLight',
-                  )}
-                >
-                  #{String(item.id ?? '').slice(0, 8)} · {item.shape?.type ?? '-'}
-                  {item.source !== 'MANUAL' && <span className="ml-1">🤖</span>}
-                </button>
-              </li>
-            ))}
+            {items.map((item) => {
+              const barColor = trackIdToColor(item.trackId);
+              return (
+                <li key={item.id} className="flex items-stretch gap-1">
+                  <span
+                    data-testid="label-color-bar"
+                    aria-hidden="true"
+                    className="inline-block w-1 shrink-0 rounded-sm"
+                    style={{ backgroundColor: barColor }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => selectLabel(item.id)}
+                    className={cn(
+                      'w-full rounded px-2 py-0.5 text-left text-xs',
+                      selectedId === item.id
+                        ? 'bg-primary text-white'
+                        : 'text-neutral hover:bg-bgLight',
+                    )}
+                  >
+                    #{String(item.id ?? '').slice(0, 8)} · {item.shape?.type ?? '-'}
+                    {item.source !== 'MANUAL' && <span className="ml-1">🤖</span>}
+                    {item.trackId && (
+                      <span className="ml-1 text-[10px] text-gray-500">#{item.trackId}</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}

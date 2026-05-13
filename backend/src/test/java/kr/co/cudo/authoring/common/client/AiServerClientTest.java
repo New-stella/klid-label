@@ -7,8 +7,11 @@ import io.github.resilience4j.retry.RetryRegistry;
 import kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.common.client.dto.Sam2TrackResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloRequest;
+import kr.co.cudo.authoring.common.client.dto.YoloResponse;
+import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -103,5 +106,50 @@ class AiServerClientTest {
         assertThat(response.trackId()).isEqualTo("track-001");
         assertThat(response.polygon()).hasSize(4);
         assertThat(response.score()).isEqualTo(0.91);
+    }
+
+    // --- Phase 3: predictYoloTrack 신규 메서드 검증 ---
+
+    @Test
+    @DisplayName("predictYoloTrack_는_infer_yolo_track_으로_POST_요청")
+    void predictYoloTrackPostsToTrackEndpoint() throws Exception {
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("""
+                        {
+                          "detections": [
+                            {"label": "person", "points": [10.0, 10.0, 50.0, 50.0], "score": 0.9, "track_id": 7}
+                          ],
+                          "mock": false,
+                          "source": "model"
+                        }
+                        """));
+
+        CircuitBreaker cb = CircuitBreakerRegistry.ofDefaults().circuitBreaker("ai");
+        WebClient webClient = WebClient.builder()
+                .baseUrl(server.url("/").toString())
+                .build();
+        AiServerClient client = new AiServerClient(webClient, cb, retryRegistry);
+
+        YoloTrackRequest request = new YoloTrackRequest(
+                "IMGB64", "clip-77", 3, 0.4, 1280, 0.5);
+
+        YoloResponse response = client.predictYoloTrack(request).block(Duration.ofSeconds(2));
+
+        assertThat(response).isNotNull();
+        assertThat(response.detections()).hasSize(1);
+        assertThat(response.detections().get(0).trackId()).isEqualTo(7);
+        assertThat(response.detections().get(0).label()).isEqualTo("person");
+
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(recorded.getMethod()).isEqualTo("POST");
+        assertThat(recorded.getPath()).isEqualTo("/infer/yolo/track");
+        String body = recorded.getBody().readUtf8();
+        assertThat(body).contains("\"image_b64\":\"IMGB64\"");
+        assertThat(body).contains("\"clip_id\":\"clip-77\"");
+        assertThat(body).contains("\"frame_index\":3");
+        assertThat(body).contains("\"conf_threshold\":0.4");
+        assertThat(body).contains("\"imgsz\":1280");
+        assertThat(body).contains("\"iou\":0.5");
     }
 }

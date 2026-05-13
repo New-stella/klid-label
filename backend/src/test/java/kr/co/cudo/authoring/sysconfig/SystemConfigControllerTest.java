@@ -125,11 +125,12 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @DisplayName("SystemConfig_REVIEWER_GET_목록_조회시_4개_키_반환")
+    @DisplayName("SystemConfig_REVIEWER_GET_목록_조회시_화이트리스트_키_전체_반환")
     void reviewerGetsAllConfigs() throws Exception {
+        // Phase 1: FFmpeg 2 + Batch 2 + YOLO 3 = 7 키
         mockMvc.perform(get("/v1/manage/configs")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(4));
+                .andExpect(jsonPath("$.data.length()").value(ConfigKeys.ALLOWED.size()));
     }
 }

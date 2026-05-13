@@ -170,8 +170,8 @@ export function ClassAttributePanel({
         </div>
       )}
 
-      {/* Track ID */}
-      {target.trackId !== undefined && (
+      {/* Track ID — Phase 5: trackId 는 string|null, null 인 경우 숨김 */}
+      {target.trackId != null && target.trackId !== '' && (
         <div>
           <span className="block text-xs text-gray-400 mb-1">트랙 ID</span>
           <span className="text-xs text-gray-300 bg-gray-700 rounded px-2 py-1 inline-block">

@@ -78,10 +78,10 @@ class Sam2SegmentStepTest {
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
 
-        // dummy image files
+        // dummy image files (Phase 4: srcSn 70/80 케이스 추가 — 범위 확장)
         Path rawDir = tempDir.resolve("raw");
         Files.createDirectories(rawDir);
-        for (long i = 10L; i <= 60L; i++) {
+        for (long i = 10L; i <= 90L; i++) {
             Files.write(rawDir.resolve(i + ".jpg"), new byte[]{(byte) 0xFF, (byte) 0xD8});
         }
 
@@ -222,7 +222,7 @@ class Sam2SegmentStepTest {
         when(aiServerClient.segment(any(Sam2Request.class)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.77)));
 
-        List<BbHint> hints = List.of(new BbHint(40L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92));
+        List<BbHint> hints = List.of(new BbHint(40L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null));
         int saved = step.run(4L, hints);
 
         assertThat(saved).isEqualTo(1);
@@ -250,10 +250,64 @@ class Sam2SegmentStepTest {
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.91)));
 
         // 동일 (srcSn=50, label="person") 의 hint 가 별도로 들어옴 — 중복
-        List<BbHint> hints = List.of(new BbHint(50L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92));
+        List<BbHint> hints = List.of(new BbHint(50L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null));
         int saved = step.run(5L, hints);
 
         // 한 번만 처리되어야 함 (DB BBOX 우선 또는 dedup) — SAM2 1회 호출, POLYGON 1건 저장
+        assertThat(saved).isEqualTo(1);
+        verify(aiServerClient, times(1)).segment(any());
+        verify(lblRepository, times(1)).save(any());
+    }
+
+    // ─── Phase 4: dedup 키에 trackId 반영 ───
+
+    @Test
+    @DisplayName("Sam2Step_dedup_은_label_과_trackId_조합_기준_다른_trackId_는_별도_처리")
+    void dedupKeyIncludesTrackId() {
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(70L)).thenReturn(Optional.of(raw));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(70L))
+                .thenReturn(List.of(newSrc(70L)));
+        // 같은 srcSn + 같은 라벨 "person" 이지만 trackId 가 1 인 DB BBOX 1건만 존재
+        LsDataLbl bboxWithTrack = LsDataLbl.createAutoBbox(70L, "person", "[1.0,2.0,3.0,4.0]",
+                BigDecimal.valueOf(0.9), "1");
+        when(lblRepository.findBySrcSnAndAutoLblYn(70L, "Y"))
+                .thenReturn(List.of(bboxWithTrack));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.85)));
+
+        // hint 는 같은 라벨 "person" 이지만 trackId=2 → 별도 객체이므로 별도 처리되어야 함
+        List<BbHint> hints = List.of(new BbHint(70L, "person", List.of(5.0, 6.0, 7.0, 8.0), 0.81, 2));
+        int saved = step.run(70L, hints);
+
+        // SAM2 2회 호출, POLYGON 2건 저장 (트랙 분리)
+        assertThat(saved).isEqualTo(2);
+        verify(aiServerClient, times(2)).segment(any());
+        verify(lblRepository, times(2)).save(any());
+    }
+
+    @Test
+    @DisplayName("Sam2Step_trackId_null_시_기존_label_기준_dedup_으로_fallback")
+    void dedupFallbackWhenTrackIdNull() {
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(80L)).thenReturn(Optional.of(raw));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(80L))
+                .thenReturn(List.of(newSrc(80L)));
+        // DB BBOX 는 trackId=null (legacy/저신뢰 fallback)
+        when(lblRepository.findBySrcSnAndAutoLblYn(80L, "Y"))
+                .thenReturn(List.of(newBbox(80L, "person", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.85)));
+
+        // hint 도 trackId=null → 같은 (srcSn, label, null) 키로 dedup
+        List<BbHint> hints = List.of(new BbHint(80L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null));
+        int saved = step.run(80L, hints);
+
+        // 한 번만 처리 (트랙 null 이면 라벨 기준 dedup 으로 fallback)
         assertThat(saved).isEqualTo(1);
         verify(aiServerClient, times(1)).segment(any());
         verify(lblRepository, times(1)).save(any());
@@ -279,7 +333,7 @@ class Sam2SegmentStepTest {
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.85)));
 
         // car 는 polygon-only → hint 로만 들어옴
-        List<BbHint> hints = List.of(new BbHint(60L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81));
+        List<BbHint> hints = List.of(new BbHint(60L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81, null));
         int saved = step.run(6L, hints);
 
         // SAM2 2회 호출, POLYGON 2건 저장
