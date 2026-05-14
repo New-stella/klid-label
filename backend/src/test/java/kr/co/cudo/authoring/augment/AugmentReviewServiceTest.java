@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.augment;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.augment.service.AugmentReviewService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -9,7 +11,6 @@ import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,7 @@ class AugmentReviewServiceTest {
 
     @Autowired private AugmentReviewService service;
     @Autowired private LsDataAugRepository repository;
+    @Autowired private LsDataAugRvwRepository reviewRepository;
 
     private TokenClaims reviewer;
     private TokenClaims worker;
@@ -38,6 +40,7 @@ class AugmentReviewServiceTest {
     void setup() {
         reviewer = new TokenClaims("1",   Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         worker   = new TokenClaims("100", Role.WORKER,   Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        reviewRepository.deleteAll();
         repository.deleteAll();
     }
 
@@ -58,26 +61,33 @@ class AugmentReviewServiceTest {
     }
 
     @Test
-    @Disabled("TODO Phase 9: 신규 DB 설계 — 검수 상태/사유는 LS_DATA_AUG_RVW 에 저장됨. LsDataAug.augProcSttsCd 는 변경되지 않음. 새 Repository 기반으로 재작성 필요.")
-    @DisplayName("AugmentReviewService_REVIEWER_accept시_AUG_PROC_STTS_CD_ACCEPTED_+_검수자_USER_ID_+_일시_기록")
+    @DisplayName("AugmentReviewService_REVIEWER_accept시_AUG_PROC_STTS_CD_ACCEPTED_+_LS_DATA_AUG_RVW_row_INSERT")
     void reviewerAcceptUpdatesStatusAndAudit() {
         LsDataAug seed = seedPending(LsDataAug.AUG_WINTER);
 
         var resp = service.accept(seed.getDataAugSn(), reviewer);
 
+        // 응답 — LS_DATA_AUG_RVW 의 ACCEPTED status / 검수자 / 시각
         assertThat(resp.augProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
         assertThat(resp.decisionUserNo()).isEqualTo("1");
         assertThat(resp.decisionAt()).isNotNull();
 
+        // LsDataAug.augProcSttsCd 동기 갱신 (DB 설계서 라인 162-169 호환)
         LsDataAug after = repository.findById(seed.getDataAugSn()).orElseThrow();
         assertThat(after.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
-        assertThat(after.getDecisionUserNo()).isEqualTo("1");
-        assertThat(after.getDecisionAt()).isNotNull();
+
+        // LS_DATA_AUG_RVW row INSERT 검증
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd()).isEqualTo(LsDataAugRvw.STTS_ACCEPTED);
+        assertThat(rvw.getRvwId()).isEqualTo("1");
+        assertThat(rvw.getRvwDt()).isNotNull();
+        assertThat(rvw.getDataAugSn()).isEqualTo(seed.getDataAugSn());
+        assertThat(rvw.getDataSrcSn()).isEqualTo(seed.getSrcSn());
+        assertThat(rvw.getRejectReason()).isNull();
     }
 
     @Test
-    @Disabled("TODO Phase 9: 신규 DB 설계 — 검수 상태/사유는 LS_DATA_AUG_RVW 에 저장됨. LsDataAug.augProcSttsCd/rejectReason 는 변경되지 않음. 새 Repository 기반으로 재작성 필요.")
-    @DisplayName("AugmentReviewService_REJECTED_시_사유_저장")
+    @DisplayName("AugmentReviewService_REJECTED_시_사유_LS_DATA_AUG_RVW_REJECT_REASON_저장")
     void rejectStoresReason() {
         LsDataAug seed = seedPending(LsDataAug.AUG_NIGHT);
 
@@ -86,9 +96,16 @@ class AugmentReviewServiceTest {
         assertThat(resp.augProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
         assertThat(resp.rejectReason()).isEqualTo("야간 명도 조정 부정확");
 
+        // LsDataAug.augProcSttsCd 동기 갱신
         LsDataAug after = repository.findById(seed.getDataAugSn()).orElseThrow();
         assertThat(after.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
-        assertThat(after.getRejectReason()).isEqualTo("야간 명도 조정 부정확");
+
+        // LS_DATA_AUG_RVW.REJECT_REASON 저장 검증
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd()).isEqualTo(LsDataAugRvw.STTS_REJECTED);
+        assertThat(rvw.getRejectReason()).isEqualTo("야간 명도 조정 부정확");
+        assertThat(rvw.getRvwId()).isEqualTo("1");
+        assertThat(rvw.getRvwDt()).isNotNull();
     }
 
     @Test

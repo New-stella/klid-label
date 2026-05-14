@@ -69,11 +69,15 @@ public class AugmentReviewService {
 
     /**
      * REVIEWER 가 증강 결과를 승인. PENDING → ACCEPTED.
+     * LS_DATA_AUG_RVW row INSERT/갱신 + LsDataAug.augProcSttsCd 동기 갱신 (DB 설계서 라인 162-169 호환).
      */
     @Transactional("controlTransactionManager")
     public AugmentSummaryResponse accept(Long dataAugSn, TokenClaims actor) {
         requireReviewer(actor);
         LsDataAug aug = loadOrThrow(dataAugSn);
+        // 1) LsDataAug.augProcSttsCd 갱신 (DB 설계서 호환 — PENDING 이외면 CONFLICT)
+        aug.applyReviewStatus(LsDataAug.STTS_ACCEPTED);
+        // 2) LS_DATA_AUG_RVW row INSERT/갱신
         LsDataAugRvw review = loadOrCreateReview(aug, actor.sub());
         review.accept(actor.sub(), LocalDateTime.now());
         // 외부 통보 (best-effort — 실패해도 본 트랜잭션 영향 없음)
@@ -81,14 +85,15 @@ public class AugmentReviewService {
             externalClient.syncDecision(dataAugSn, LsDataAug.STTS_ACCEPTED, null);
         } catch (Exception e) {
             log.warn("[Augment] external sync failed dataAugSn={} decision=ACCEPTED err={}",
-                    dataAugSn, e.getMessage());
+                    dataAugSn, sanitize(e.getMessage()));
         }
-        log.info("[Augment] accepted dataAugSn={} actor={}", dataAugSn, actor.sub());
+        log.info("[Augment] accepted dataAugSn={} actor={}", dataAugSn, sanitize(actor.sub()));
         return AugmentSummaryResponse.from(aug, review);
     }
 
     /**
      * REVIEWER 가 증강 결과를 반려. PENDING → REJECTED. 사유 필수.
+     * LS_DATA_AUG_RVW row INSERT/갱신 + LsDataAug.augProcSttsCd 동기 갱신.
      */
     @Transactional("controlTransactionManager")
     public AugmentSummaryResponse reject(Long dataAugSn, String reason, TokenClaims actor) {
@@ -97,25 +102,36 @@ public class AugmentReviewService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "반려 사유는 필수입니다.");
         }
         LsDataAug aug = loadOrThrow(dataAugSn);
+        // 1) LsDataAug.augProcSttsCd 갱신 (DB 설계서 호환 — PENDING 이외면 CONFLICT)
+        aug.applyReviewStatus(LsDataAug.STTS_REJECTED);
+        // 2) LS_DATA_AUG_RVW row INSERT/갱신
         LsDataAugRvw review = loadOrCreateReview(aug, actor.sub());
         review.reject(reason, actor.sub(), LocalDateTime.now());
         try {
             externalClient.syncDecision(dataAugSn, LsDataAug.STTS_REJECTED, reason);
         } catch (Exception e) {
             log.warn("[Augment] external sync failed dataAugSn={} decision=REJECTED err={}",
-                    dataAugSn, e.getMessage());
+                    dataAugSn, sanitize(e.getMessage()));
         }
-        log.info("[Augment] rejected dataAugSn={} actor={}", dataAugSn, actor.sub());
+        log.info("[Augment] rejected dataAugSn={} actor={} reasonLen={}",
+                dataAugSn, sanitize(actor.sub()), reason.length());
         return AugmentSummaryResponse.from(aug, review);
+    }
+
+    /** Log Injection (CWE-117) 방어 — CR/LF 제거. */
+    private static String sanitize(String value) {
+        if (value == null) return null;
+        return value.replace('\n', '_').replace('\r', '_');
     }
 
     private AugmentSummaryResponse toResponse(LsDataAug aug) {
         return AugmentSummaryResponse.from(aug,
-                reviewRepository.findFirstByDataAugSnOrderByRegDtDesc(aug.getDataAugSn()).orElse(null));
+                reviewRepository.findLatestByDataAugSn(aug.getDataAugSn()).orElse(null));
     }
 
     private LsDataAugRvw loadOrCreateReview(LsDataAug aug, String actorId) {
-        return reviewRepository.findFirstByDataAugSnOrderByRegDtDesc(aug.getDataAugSn())
+        // PJT_SN 0L — Phase 5+7 와 동일 정책 (프로젝트 매핑 컬럼 미연결).
+        return reviewRepository.findLatestByDataAugSn(aug.getDataAugSn())
                 .orElseGet(() -> reviewRepository.save(
                         LsDataAugRvw.pending(aug.getDataAugSn(), 0L, 0L, aug.getSrcSn(),
                                 aug.getLblIntgrtPct(), actorId)));

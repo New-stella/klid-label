@@ -83,6 +83,51 @@ public class LsDataAugRvw {
         return review;
     }
 
+    /**
+     * 승인된 검수 row 를 한 번에 생성 (PENDING row 사전 등록 없이 직접 INSERT).
+     */
+    public static LsDataAugRvw createAccepted(Long dataAugSn, Long pjtSn, Long dataRawSn, Long dataSrcSn,
+                                              BigDecimal labelIntegrityPct, String rvwId, LocalDateTime rvwDt) {
+        LsDataAugRvw review = new LsDataAugRvw();
+        review.dataAugSn = dataAugSn;
+        review.pjtSn = pjtSn == null ? 0L : pjtSn;
+        review.dataRawSn = dataRawSn == null ? 0L : dataRawSn;
+        review.dataSrcSn = dataSrcSn;
+        review.rvwSttsCd = STTS_ACCEPTED;
+        review.lblIntgrtPct = labelIntegrityPct;
+        review.rvwId = rvwId;
+        review.rvwDt = rvwDt;
+        review.regId = rvwId;
+        review.regDt = rvwDt == null ? LocalDateTime.now() : rvwDt;
+        review.mdfcnId = rvwId;
+        review.mdfcnDt = rvwDt;
+        return review;
+    }
+
+    /**
+     * 반려된 검수 row 를 한 번에 생성. 반려 사유는 필수.
+     */
+    public static LsDataAugRvw createRejected(Long dataAugSn, Long pjtSn, Long dataRawSn, Long dataSrcSn,
+                                              String rejectReason, String rvwId, LocalDateTime rvwDt) {
+        if (rejectReason == null || rejectReason.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "반려 사유는 필수입니다.");
+        }
+        LsDataAugRvw review = new LsDataAugRvw();
+        review.dataAugSn = dataAugSn;
+        review.pjtSn = pjtSn == null ? 0L : pjtSn;
+        review.dataRawSn = dataRawSn == null ? 0L : dataRawSn;
+        review.dataSrcSn = dataSrcSn;
+        review.rvwSttsCd = STTS_REJECTED;
+        review.rejectReason = rejectReason;
+        review.rvwId = rvwId;
+        review.rvwDt = rvwDt;
+        review.regId = rvwId;
+        review.regDt = rvwDt == null ? LocalDateTime.now() : rvwDt;
+        review.mdfcnId = rvwId;
+        review.mdfcnDt = rvwDt;
+        return review;
+    }
+
     public void accept(String reviewerId, LocalDateTime at) {
         ensurePending();
         this.rvwSttsCd = STTS_ACCEPTED;

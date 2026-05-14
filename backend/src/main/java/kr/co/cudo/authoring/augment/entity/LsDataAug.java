@@ -102,6 +102,23 @@ public class LsDataAug {
                 .build();
     }
 
+    /**
+     * 검수 결과를 LsDataAug.augProcSttsCd 에도 동기 반영 (DB 설계서 라인 162-169 호환).
+     * 상세 audit 컬럼(LBL_INTGRT_PCT/REJECT_REASON/DECISION_USER_NO/DECISION_AT)은 LS_DATA_AUG_RVW 에서 관리.
+     */
+    public void applyReviewStatus(String newStatus) {
+        if (newStatus == null
+                || (!STTS_ACCEPTED.equals(newStatus) && !STTS_REJECTED.equals(newStatus))) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "유효하지 않은 검수 상태입니다. status=" + newStatus);
+        }
+        if (!STTS_PENDING.equals(this.augProcSttsCd)) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이미 처리된 증강 결과입니다. status=" + this.augProcSttsCd);
+        }
+        this.augProcSttsCd = newStatus;
+    }
+
     /** @deprecated 증강 검수 상태는 LS_DATA_AUG_RVW 에 저장한다. */
     @Deprecated
     public void markAccepted(String decisionUserNo, LocalDateTime decisionAt) {

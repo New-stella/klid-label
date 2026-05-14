@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LsDataAugLblMap {
 
+    public static final String RECALC_Y = "Y";
+    public static final String RECALC_N = "N";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "DATA_AUG_LBL_MAP_SN")
@@ -51,11 +54,25 @@ public class LsDataAugLblMap {
     public static LsDataAugLblMap create(Long dataAugSn, Long orgnDataLblSn, Long dataLblSn,
                                          boolean coordRecalculated, BigDecimal scaleX,
                                          BigDecimal scaleY, String regId) {
+        return create(dataAugSn, orgnDataLblSn, dataLblSn,
+                coordRecalculated ? RECALC_Y : RECALC_N, scaleX, scaleY, regId);
+    }
+
+    /**
+     * 명시적 COORD_RECALC_YN ('Y'/'N') 으로 생성. 사양 호환용.
+     */
+    public static LsDataAugLblMap create(Long dataAugSn, Long orgnDataLblSn, Long dataLblSn,
+                                         String coordRecalcYn, BigDecimal scaleX,
+                                         BigDecimal scaleY, String regId) {
+        if (!RECALC_Y.equals(coordRecalcYn) && !RECALC_N.equals(coordRecalcYn)) {
+            throw new IllegalArgumentException(
+                    "coordRecalcYn 은 'Y' 또는 'N' 이어야 합니다. value=" + coordRecalcYn);
+        }
         LsDataAugLblMap map = new LsDataAugLblMap();
         map.dataAugSn = dataAugSn;
         map.orgnDataLblSn = orgnDataLblSn;
         map.dataLblSn = dataLblSn;
-        map.coordRecalcYn = coordRecalculated ? "Y" : "N";
+        map.coordRecalcYn = coordRecalcYn;
         map.scaleX = scaleX;
         map.scaleY = scaleY;
         map.regId = regId;
