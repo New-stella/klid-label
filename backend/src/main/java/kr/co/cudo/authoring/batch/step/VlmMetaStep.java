@@ -7,6 +7,8 @@ import kr.co.cudo.authoring.common.client.dto.VlmMetaRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmMetaResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
+import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,12 +22,14 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * VLM 영상 단위 메타 추출 단계 (V2 Phase 1 신규).
+ * VLM 영상 단위 메타 추출 단계 (V2 Phase 1 신규 + Phase 5 검토 분리).
  * <p>
  * V2 파이프라인의 첫 단계로, 영상 1건에 대한 K/V 메타를 LS_DATA_META 에 저장한다.
- *  - META_KEY 는 {@code "VLM_META." + key} 형식으로 통일 (Phase 2 META_TYPE_CD 컬럼 도입 전 임시 분기 규약).
+ *  - META_KEY 는 {@code "VLM_META." + key} 형식으로 통일 (메타 출처 식별).
  *  - 동일 (rawSn, key) 가 이미 존재하면 UPDATE (UK 충돌 방지).
  *  - 외부 호출 실패 시 예외 전파 → BatchOrchestrator 가 FAILED 처리 및 재시도 큐 등록.
+ *  - Phase 5: 신규 저장된 메타에 대해 LS_DATA_META_REVIEW row 동시 INSERT
+ *    (META_TYPE_CD='VLM', SRC_SYS_CD='AI_SERVER', RVW_STTS_CD='AUTO_GENERATED' — REVIEWER 후속 검토 대상).
  */
 @Slf4j
 @Component
@@ -36,6 +40,7 @@ public class VlmMetaStep {
 
     private final AiServerClient aiServerClient;
     private final LsDataMetaRepository metaRepository;
+    private final LsDataMetaReviewRepository metaReviewRepository;
     private final VideoRepository videoRepository;
 
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
@@ -65,11 +70,25 @@ public class VlmMetaStep {
             String metaKey = META_KEY_PREFIX + entry.getKey();
             String metaVal = entry.getValue();
             Optional<LsDataMeta> existing = metaRepository.findByRawSnAndMetaKey(rawSn, metaKey);
+            LsDataMeta persisted;
             if (existing.isPresent()) {
                 existing.get().updateValue(metaVal);
-                // 영속 객체이므로 별도 save 호출 불요 (dirty checking).
+                persisted = existing.get();
+                // 영속 객체 — dirty checking
             } else {
-                metaRepository.save(LsDataMeta.create(rawSn, metaKey, metaVal));
+                persisted = metaRepository.save(LsDataMeta.create(rawSn, metaKey, metaVal));
+            }
+            // Phase 5: 신규 메타에 한해 검토 row 생성 (이미 검토 row 가 있으면 중복 생성 회피)
+            if (persisted.getMetaSn() != null
+                    && !metaReviewRepository.existsByDataMetaSn(persisted.getMetaSn())) {
+                metaReviewRepository.save(LsDataMetaReview.createAuto(
+                        persisted.getMetaSn(),
+                        null,            // PJT_SN — VLM 영상 단위는 아직 미상 (Phase 6+ 보강)
+                        rawSn,
+                        null,            // DATA_SRC_SN — 영상 단위
+                        LsDataMetaReview.META_TYPE_VLM,
+                        LsDataMetaReview.SRC_AI_SERVER,
+                        LsDataMetaReview.STTS_AUTO_GENERATED));
             }
             saved++;
         }

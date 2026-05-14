@@ -8,7 +8,10 @@ import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.meta.dto.MetaReviewRejectRequest;
 import kr.co.cudo.authoring.meta.dto.MetaUpdateRequest;
+import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
+import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +31,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,6 +48,7 @@ class MetaControllerTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataMetaRepository metaRepository;
+    @Autowired private LsDataMetaReviewRepository metaReviewRepository;
     @Autowired private LsPjtUserAuthrtRepository authrtRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
@@ -110,8 +115,79 @@ class MetaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.metaKey=='weather')].metaVal").value("snow"));
 
-        LsDataMeta after = metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(
-                rawSn, "weather", LsDataMeta.META_TYPE_RAW).orElseThrow();
+        LsDataMeta after = metaRepository.findByRawSnAndMetaKey(rawSn, "weather").orElseThrow();
         assertThat(after.getMetaVal()).isEqualTo("snow");
+    }
+
+    // ─────────────────────────── Phase 5: 메타 검토 approve/reject ───────────────────────────
+
+    private Long seedReview(String rvwSttsCd) {
+        LsDataMeta meta = metaRepository.save(LsDataMeta.create(rawSn, "VLM_META.scene", "intersection"));
+        LsDataMetaReview review = LsDataMetaReview.createAuto(
+                meta.getMetaSn(), null, rawSn, null,
+                LsDataMetaReview.META_TYPE_VLM,
+                LsDataMetaReview.SRC_AI_SERVER,
+                rvwSttsCd);
+        review = metaReviewRepository.save(review);
+        return review.getDataMetaReviewSn();
+    }
+
+    @Test
+    @DisplayName("MetaController_검토_승인_POST_REVIEWER_정상_200")
+    void reviewerApproveOk() throws Exception {
+        Long reviewSn = seedReview(LsDataMetaReview.STTS_AUTO_GENERATED);
+        mockMvc.perform(post("/v1/meta/" + reviewSn + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk());
+
+        LsDataMetaReview after = metaReviewRepository.findById(reviewSn).orElseThrow();
+        assertThat(after.getRvwSttsCd()).isEqualTo(LsDataMetaReview.STTS_APPROVED);
+        assertThat(after.getRvwId()).isEqualTo("1");
+        assertThat(after.getRvwDt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("MetaController_검토_반려_POST_REVIEWER_사유_포함_정상_200")
+    void reviewerRejectWithReasonOk() throws Exception {
+        Long reviewSn = seedReview(LsDataMetaReview.STTS_AUTO_GENERATED);
+        MetaReviewRejectRequest body = new MetaReviewRejectRequest("정확도 부족");
+        mockMvc.perform(post("/v1/meta/" + reviewSn + "/reject")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+
+        LsDataMetaReview after = metaReviewRepository.findById(reviewSn).orElseThrow();
+        assertThat(after.getRvwSttsCd()).isEqualTo(LsDataMetaReview.STTS_REJECTED);
+        assertThat(after.getRejectReason()).isEqualTo("정확도 부족");
+        assertThat(after.getRvwId()).isEqualTo("1");
+    }
+
+    @Test
+    @DisplayName("MetaController_검토_반려_POST_사유_누락_400")
+    void rejectMissingReason400() throws Exception {
+        Long reviewSn = seedReview(LsDataMetaReview.STTS_AUTO_GENERATED);
+        mockMvc.perform(post("/v1/meta/" + reviewSn + "/reject")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("MetaController_검토_승인_POST_WORKER_권한_403")
+    void workerApproveForbidden() throws Exception {
+        Long reviewSn = seedReview(LsDataMetaReview.STTS_AUTO_GENERATED);
+        mockMvc.perform(post("/v1/meta/" + reviewSn + "/approve")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("MetaController_검토_승인_POST_미존재_404")
+    void approveNotFound404() throws Exception {
+        mockMvc.perform(post("/v1/meta/999999/approve")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isNotFound());
     }
 }
