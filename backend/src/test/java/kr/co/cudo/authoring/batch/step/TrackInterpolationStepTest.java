@@ -2,7 +2,9 @@ package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -37,6 +39,7 @@ import static org.mockito.Mockito.when;
 class TrackInterpolationStepTest {
 
     private LsDataLblRepository lblRepository;
+    private LsDataLblAiInfoRepository aiInfoRepository;
     private LsDataSrcRepository srcRepository;
     private ObjectMapper objectMapper;
     private TrackInterpolationStep step;
@@ -44,15 +47,21 @@ class TrackInterpolationStepTest {
     @BeforeEach
     void setUp() {
         lblRepository = mock(LsDataLblRepository.class);
+        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
         objectMapper = new ObjectMapper();
-        step = new TrackInterpolationStep(lblRepository, srcRepository, objectMapper);
+        step = new TrackInterpolationStep(lblRepository, aiInfoRepository, srcRepository, objectMapper);
 
-        // saveAll 기본 동작 — 입력 그대로 반환
+        // saveAll 기본 동작 — 입력 그대로 반환하되 lblSn 부여 (AI Info INSERT 시 row.getLblSn() 사용)
         when(lblRepository.saveAll(any())).thenAnswer(inv -> {
             Iterable<?> arg = inv.getArgument(0);
-            List<Object> ret = new ArrayList<>();
-            arg.forEach(ret::add);
+            List<LsDataLbl> ret = new ArrayList<>();
+            long id = 10000L;
+            for (Object o : arg) {
+                LsDataLbl l = (LsDataLbl) o;
+                setField(l, "lblSn", id++);
+                ret.add(l);
+            }
             return ret;
         });
     }
@@ -279,6 +288,45 @@ class TrackInterpolationStepTest {
 
         assertThat(saved).isEqualTo(0);
         verify(lblRepository, never()).saveAll(any());
+    }
+
+    // ─── Phase 6: LS_DATA_LBL_AI_INFO 분리 ───
+
+    @Test
+    @DisplayName("Phase6_보간_라벨_저장_후_LsDataLblAiInfo_SRC_INTERPOLATE_도_동시_저장")
+    void aiInfoSavedForEveryInterpolatedRow() {
+        // frame 0, 4 — 사이 1,2,3 보간 → 3건 AI Info
+        List<LsDataSrc> frames = framesOf(910L, 9000L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(910L)).thenReturn(frames);
+        LsDataLbl at0 = autoBboxAt(9000L, "car", "1", 0, 0, 100, 100);
+        LsDataLbl at4 = autoBboxAt(9004L, "car", "1", 40, 40, 140, 140);
+        when(lblRepository.findAutoBboxWithTrackId(910L)).thenReturn(List.of(at0, at4));
+
+        int saved = step.run(910L);
+
+        assertThat(saved).isEqualTo(3);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
+        verify(aiInfoRepository).saveAll(aiCaptor.capture());
+        List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
+        aiCaptor.getValue().forEach(aiInfos::add);
+        assertThat(aiInfos).hasSize(3);
+        assertThat(aiInfos)
+                .allMatch(i -> LsDataLblAiInfo.SRC_INTERPOLATE.equals(i.getLblSrcCd()))
+                .allMatch(i -> "Y".equals(i.getAutoLblYn()))
+                .allMatch(i -> 910L == i.getDataRawSn())
+                .allMatch(i -> i.getDataLblSn() != null);
+    }
+
+    @Test
+    @DisplayName("Phase6_보간_대상_없으면_LsDataLblAiInfo_도_saveAll_미호출")
+    void aiInfoNotSavedWhenNoInterpolation() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(911L)).thenReturn(framesOf(911L, 1000L, 5));
+        when(lblRepository.findAutoBboxWithTrackId(911L)).thenReturn(List.of());
+
+        step.run(911L);
+
+        verify(aiInfoRepository, never()).saveAll(any());
     }
 
     @Test

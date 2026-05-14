@@ -6,9 +6,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -50,10 +52,13 @@ class YoloAutolabelStepTest {
     private AiServerClient aiServerClient;
     private LsDataSrcRepository srcRepository;
     private LsDataLblRepository lblRepository;
+    private LsDataLblAiInfoRepository aiInfoRepository;
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
     private SystemConfigService systemConfigService;
     private YoloAutolabelStep step;
+    /** Phase 6 — lblRepository.save() mock 이 생성된 라벨에 부여할 단조 증가 ID. */
+    private final java.util.concurrent.atomic.AtomicLong lblSnSeq = new java.util.concurrent.atomic.AtomicLong(1);
     private ListAppender<ILoggingEvent> logAppender;
     private Logger stepLogger;
 
@@ -65,11 +70,22 @@ class YoloAutolabelStepTest {
         aiServerClient = mock(AiServerClient.class);
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
+        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
         systemConfigService = mock(SystemConfigService.class);
         // SystemConfigService 기본은 모든 키 조회 시 null 반환 → fallback 기본값(40, 1280, 50) 사용.
         when(systemConfigService.getInt(any())).thenReturn(null);
+        // Phase 6 — save() 후 LsDataLblAiInfo.create(savedLabel.getLblSn(), ...) 호출되므로 lblSn 부여 필수.
+        when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
+            LsDataLbl arg = inv.getArgument(0);
+            try {
+                Field f = LsDataLbl.class.getDeclaredField("lblSn");
+                f.setAccessible(true);
+                f.set(arg, lblSnSeq.getAndIncrement());
+            } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
+            return arg;
+        });
 
         // Create temp directory and dummy image files
         Path rawDir = tempDir.resolve("raw");
@@ -87,8 +103,8 @@ class YoloAutolabelStepTest {
         when(presetLabelLookup.labelsFor(any())).thenReturn(Optional.empty());
         when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
 
-        step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, videoRepository,
-                presetLabelLookup, systemConfigService, new ObjectMapper(), rawDir.toString());
+        step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
+                videoRepository, presetLabelLookup, systemConfigService, new ObjectMapper(), rawDir.toString());
 
         // Logback ListAppender 부착 — mock 응답 감지 시 WARN 로그를 검증
         stepLogger = (Logger) LoggerFactory.getLogger(YoloAutolabelStep.class);
@@ -538,6 +554,51 @@ class YoloAutolabelStepTest {
         assertThat(captor.getValue().getTrackId()).isNull();
         assertThat(hints).hasSize(1);
         assertThat(hints.get(0).trackId()).isNull();
+    }
+
+    // ─── Phase 6: LS_DATA_LBL_AI_INFO 분리 ───
+
+    @Test
+    @DisplayName("Phase6_YoloStep_BBOX_저장_시_LsDataLblAiInfo_SRC_YOLO_도_동시_저장")
+    void aiInfoPersistedAlongsideBbox() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(60L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        step.run(60L);
+
+        ArgumentCaptor<LsDataLblAiInfo> aiCaptor = ArgumentCaptor.forClass(LsDataLblAiInfo.class);
+        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.times(1)).save(aiCaptor.capture());
+        LsDataLblAiInfo info = aiCaptor.getValue();
+        assertThat(info.getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
+        assertThat(info.getAutoLblYn()).isEqualTo("Y");
+        assertThat(info.getDataRawSn()).isEqualTo(60L);
+        assertThat(info.getDataLblSn()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Phase6_BBOX_저장_skip_시_LsDataLblAiInfo_도_미저장")
+    void aiInfoNotPersistedWhenBboxSkipped() {
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(61L)).thenReturn(Optional.of(rawMock));
+        // polygon-only: BBOX 저장 skip
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, true))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(61L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        step.run(61L);
+
+        // BBOX 저장 0회 → AI Info 도 0회
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
+        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test

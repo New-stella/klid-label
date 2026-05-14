@@ -3,7 +3,9 @@ package kr.co.cudo.authoring.label.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -26,6 +28,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Phase 6 — 라벨 CRUD 서비스.
@@ -47,6 +51,7 @@ public class LabelService {
     public static final int MAX_POINTS_PER_LABEL = 1000;
 
     private final LsDataLblRepository labelRepository;
+    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsDataSrcRepository srcRepository;
     private final VideoRepository videoRepository;
     private final WorkLockService workLockService;
@@ -60,6 +65,7 @@ public class LabelService {
     private final VersionService versionService;
 
     public LabelService(LsDataLblRepository labelRepository,
+                        LsDataLblAiInfoRepository aiInfoRepository,
                         LsDataSrcRepository srcRepository,
                         VideoRepository videoRepository,
                         WorkLockService workLockService,
@@ -67,12 +73,30 @@ public class LabelService {
                         ObjectMapper objectMapper,
                         @Lazy VersionService versionService) {
         this.labelRepository = labelRepository;
+        this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
         this.videoRepository = videoRepository;
         this.workLockService = workLockService;
         this.accessGuard = accessGuard;
         this.objectMapper = objectMapper;
         this.versionService = versionService;
+    }
+
+    /**
+     * Phase 6 — 라벨 목록에 대한 LS_DATA_LBL_AI_INFO 일괄 lookup.
+     * N+1 회피: 라벨 수만큼 SELECT 가 아니라 IN 절 1회로 결합 응답에 채울 맵을 만든다.
+     * 빈 라벨 목록이면 Repository 호출 자체를 skip 한다.
+     */
+    private Map<Long, LsDataLblAiInfo> resolveAiInfoMap(List<LsDataLbl> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> labelSns = labels.stream().map(LsDataLbl::getLblSn).toList();
+        return aiInfoRepository.findByDataLblSnIn(labelSns).stream()
+                .collect(Collectors.toMap(
+                        LsDataLblAiInfo::getDataLblSn,
+                        Function.identity(),
+                        (a, b) -> a));
     }
 
     /**
@@ -104,7 +128,9 @@ public class LabelService {
         // 잠금된 영상은 라벨 저장 자체가 차단되므로(아래 bulkUpsert 가드 참조) UI 측 비활성화 단서로 사용된다.
         // hotfix: 전체 row fetch 회피 — lockSttsCd 단일 컬럼 projection 사용 (PK 인덱스 lookup).
         String lockSttsCd = workLockService.isRawLocked(current.getRawSn()) ? "LOCKED" : null;
-        return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd, objectMapper);
+        // Phase 6 — autoLblYn/confScore/lblSrcCd 는 LS_DATA_LBL_AI_INFO 에서 채움 (N+1 회피 일괄 lookup)
+        Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(labels);
+        return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd, aiInfoMap, objectMapper);
     }
 
     /** Phase 3 — actor + raw 요청 여부 → frameImageType 결정 (단일 진실의 원천). */
@@ -169,9 +195,13 @@ public class LabelService {
         // 응답 스키마 일관성을 위해 동일 필드를 반환한다. raw 는 이미 fetch 됨 → 추가 쿼리 없음.
         String lockSttsCd = null;
 
+        // Phase 6 — bulkUpsert 결과에 자동 라벨(수정만 이루어진)이 섞일 수 있으므로 AI Info lookup.
+        // 수동 신규 라벨은 row 없음 → 자연스럽게 autoLblYn='N' 응답.
+        Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(result);
+
         // Phase 8 — Gitea 자동 커밋 (PORTAL 채널은 버전관리 미제공 → skip).
         if (VersionService.isCommittable(actor)) {
-            LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd, objectMapper);
+            LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd, aiInfoMap, objectMapper);
             String labelsJson;
             try {
                 labelsJson = objectMapper.writeValueAsString(responseSnapshot);
@@ -185,7 +215,7 @@ public class LabelService {
             }
         }
 
-        return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd, objectMapper);
+        return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd, aiInfoMap, objectMapper);
     }
 
     /** 좌표 검증 — 음수 차단 + 점 개수 상한. */

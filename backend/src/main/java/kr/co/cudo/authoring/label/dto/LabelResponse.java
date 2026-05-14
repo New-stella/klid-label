@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.label.dto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
@@ -10,6 +11,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 라벨 조회/수정 결과.
@@ -50,7 +52,21 @@ public record LabelResponse(
             String trackId,
             String lblSrcCd
     ) {
+        /**
+         * 기존 호출자 호환 (AI Info 없음 → 수동 라벨 응답).
+         * @deprecated Phase 6 — {@link #from(LsDataLbl, LsDataLblAiInfo, ObjectMapper)} 사용 권장.
+         */
+        @Deprecated
         public static Item from(LsDataLbl entity, ObjectMapper objectMapper) {
+            return from(entity, null, objectMapper);
+        }
+
+        /**
+         * Phase 6 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO 결합 응답.
+         * <p>aiInfo == null 이면 수동 라벨로 간주: {@code autoLblYn='N'}, {@code confScore=null}, {@code lblSrcCd=null}.
+         * <p>aiInfo != null 이면 AI 정보 우선 사용 — LsDataLbl 의 @Transient 필드는 무시.
+         */
+        public static Item from(LsDataLbl entity, LsDataLblAiInfo aiInfo, ObjectMapper objectMapper) {
             List<Point> parsed = LabelPointSerializer.fromJson(entity.getPointsJson(), objectMapper);
             List<List<Double>> nested = new ArrayList<>(parsed.size());
             for (Point p : parsed) {
@@ -61,10 +77,10 @@ public record LabelResponse(
                     entity.getLblTypeCd(),
                     entity.getLabel(),
                     nested,
-                    entity.getAutoLblYn(),
-                    entity.getConfScore(),
+                    aiInfo != null ? aiInfo.getAutoLblYn() : LsDataLbl.AUTO_NO,
+                    aiInfo != null ? aiInfo.getConfScore() : null,
                     entity.getTrackId(),
-                    entity.getLblSrcCd()
+                    aiInfo != null ? aiInfo.getLblSrcCd() : null
             );
         }
     }
@@ -96,6 +112,8 @@ public record LabelResponse(
     /**
      * Phase 3 보강 — frameImageType + 영상 잠금 상태 코드 명시 빌드.
      * lockSttsCd 는 LS_DATA_RAW.LOCK_STTS_CD 그대로 전달 (null/"LOCKED_FOR_REDEIDENT").
+     *
+     * <p>AI Info 빈 맵으로 위임 (Phase 6 호환). 수동 라벨 응답으로 간주됨.
      */
     public static LabelResponse of(LsDataSrc current,
                                    List<LsDataSrc> siblings,
@@ -103,11 +121,29 @@ public record LabelResponse(
                                    String frameImageType,
                                    String lockSttsCd,
                                    ObjectMapper objectMapper) {
+        return of(current, siblings, entities, frameImageType, lockSttsCd, Map.of(), objectMapper);
+    }
+
+    /**
+     * Phase 6 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO 결합 응답.
+     * <p>{@code aiInfoMap} 키: {@code dataLblSn}. row 없으면 수동 라벨로 간주.
+     * <p>LabelService 가 한 번의 일괄 lookup ({@code findByDataLblSnIn})으로 맵을 구성하여 전달 — N+1 회피.
+     */
+    public static LabelResponse of(LsDataSrc current,
+                                   List<LsDataSrc> siblings,
+                                   List<LsDataLbl> entities,
+                                   String frameImageType,
+                                   String lockSttsCd,
+                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
+                                   ObjectMapper objectMapper) {
         List<SiblingFrame> siblingDtos = new ArrayList<>(siblings.size());
         for (LsDataSrc s : siblings) {
             siblingDtos.add(SiblingFrame.from(s));
         }
-        List<Item> items = entities.stream().map(e -> Item.from(e, objectMapper)).toList();
+        Map<Long, LsDataLblAiInfo> safeMap = aiInfoMap == null ? Map.of() : aiInfoMap;
+        List<Item> items = entities.stream()
+                .map(e -> Item.from(e, safeMap.get(e.getLblSn()), objectMapper))
+                .toList();
         return new LabelResponse(
                 current.getSrcSn(),
                 current.getFrameNo(),

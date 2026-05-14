@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.label.dto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -12,13 +13,18 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Phase 3: LabelResponse.Item 의 trackId 필드 노출 검증.
+ * Phase 3 + Phase 6: LabelResponse.Item 의 trackId/lblSrcCd/autoLblYn 노출 검증.
  *
- * <p>API 응답이 trackId 를 포함해야 FE 가 자동 라벨링 트랙을 시각화할 수 있다.
+ * <p>Phase 6 부터 autoLblYn/confScore/lblSrcCd 는 LS_DATA_LBL_AI_INFO 에서 채워지며
+ * AiInfo row 가 없는 라벨은 수동 라벨로 간주된다 (autoLblYn='N', lblSrcCd=null).
  */
 class LabelResponseTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private LsDataLblAiInfo autoAiInfo(String lblSrcCd) {
+        return LsDataLblAiInfo.create(1L, 0L, 100L, 1L, lblSrcCd, BigDecimal.valueOf(0.9), "batch");
+    }
 
     @Test
     @DisplayName("Item_from_은_entity_trackId_를_DTO_로_매핑")
@@ -26,7 +32,8 @@ class LabelResponseTest {
         LsDataLbl entity = LsDataLbl.createAutoBbox(
                 1L, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.9), "track-7");
 
-        LabelResponse.Item item = LabelResponse.Item.from(entity, objectMapper);
+        // Phase 6: AiInfo 동봉 (자동 라벨 응답)
+        LabelResponse.Item item = LabelResponse.Item.from(entity, autoAiInfo(LsDataLblAiInfo.SRC_YOLO), objectMapper);
 
         assertThat(item.trackId()).isEqualTo("track-7");
         assertThat(item.label()).isEqualTo("person");
@@ -81,9 +88,11 @@ class LabelResponseTest {
         LsDataLbl entity = LsDataLbl.createAutoInterpolatedBbox(
                 1L, "person", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-7");
 
-        LabelResponse.Item item = LabelResponse.Item.from(entity, objectMapper);
+        // Phase 6: AiInfo (SRC_INTERPOLATE) 동봉 — 응답 lblSrcCd 는 AiInfo 의 값을 사용
+        LabelResponse.Item item = LabelResponse.Item.from(entity,
+                autoAiInfo(LsDataLblAiInfo.SRC_INTERPOLATE), objectMapper);
 
-        assertThat(item.lblSrcCd()).isEqualTo("INTERPOLATED");
+        assertThat(item.lblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_INTERPOLATE);
         assertThat(item.trackId()).isEqualTo("track-7");
         assertThat(item.autoLblYn()).isEqualTo("Y");
     }
@@ -94,9 +103,11 @@ class LabelResponseTest {
         LsDataLbl entity = LsDataLbl.createAutoBbox(
                 1L, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.9), "track-1");
 
-        LabelResponse.Item item = LabelResponse.Item.from(entity, objectMapper);
+        // Phase 6: 수동 라벨 (AiInfo null) — lblSrcCd 는 null
+        LabelResponse.Item item = LabelResponse.Item.from(entity, null, objectMapper);
 
         assertThat(item.lblSrcCd()).isNull();
+        assertThat(item.autoLblYn()).isEqualTo("N");
     }
 
     @Test
@@ -105,11 +116,12 @@ class LabelResponseTest {
         LsDataLbl entity = LsDataLbl.createAutoInterpolatedBbox(
                 1L, "person", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-7");
 
-        LabelResponse.Item item = LabelResponse.Item.from(entity, objectMapper);
+        LabelResponse.Item item = LabelResponse.Item.from(entity,
+                autoAiInfo(LsDataLblAiInfo.SRC_INTERPOLATE), objectMapper);
         String json = objectMapper.writeValueAsString(item);
         ObjectNode node = (ObjectNode) objectMapper.readTree(json);
 
         assertThat(node.has("lblSrcCd")).isTrue();
-        assertThat(node.get("lblSrcCd").asText()).isEqualTo("INTERPOLATED");
+        assertThat(node.get("lblSrcCd").asText()).isEqualTo(LsDataLblAiInfo.SRC_INTERPOLATE);
     }
 }

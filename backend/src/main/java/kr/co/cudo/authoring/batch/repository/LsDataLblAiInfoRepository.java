@@ -9,12 +9,19 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @ControlRepo
 public interface LsDataLblAiInfoRepository extends JpaRepository<LsDataLblAiInfo, Long> {
 
     Optional<LsDataLblAiInfo> findFirstByDataLblSn(Long dataLblSn);
+
+    /**
+     * 일괄 lookup — N+1 회피용 (Phase 6).
+     * LabelService 가 프레임 라벨 응답 빌드 시점에 한 번에 AI 정보를 채워넣기 위해 사용.
+     */
+    List<LsDataLblAiInfo> findByDataLblSnIn(Collection<Long> dataLblSns);
 
     @Modifying
     @Query("""

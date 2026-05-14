@@ -6,9 +6,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -61,9 +63,11 @@ class Sam2SegmentStepTest {
     private AiServerClient aiServerClient;
     private LsDataSrcRepository srcRepository;
     private LsDataLblRepository lblRepository;
+    private LsDataLblAiInfoRepository aiInfoRepository;
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
     private Sam2SegmentStep step;
+    private final java.util.concurrent.atomic.AtomicLong lblSnSeq = new java.util.concurrent.atomic.AtomicLong(1);
     private ListAppender<ILoggingEvent> logAppender;
     private Logger stepLogger;
 
@@ -75,8 +79,15 @@ class Sam2SegmentStepTest {
         aiServerClient = mock(AiServerClient.class);
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
+        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
+        // Phase 6 — save() 후 LsDataLblAiInfo.create(savedLabel.getLblSn(), ...) 호출되므로 lblSn 부여 필수.
+        when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
+            LsDataLbl arg = inv.getArgument(0);
+            setField(arg, "lblSn", lblSnSeq.getAndIncrement());
+            return arg;
+        });
 
         // dummy image files (Phase 4: srcSn 70/80 케이스 추가 — 범위 확장)
         Path rawDir = tempDir.resolve("raw");
@@ -88,7 +99,7 @@ class Sam2SegmentStepTest {
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
         when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
 
-        step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository,
+        step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
                 videoRepository, presetLabelLookup,
                 new ObjectMapper(), rawDir.toString());
 
@@ -340,5 +351,29 @@ class Sam2SegmentStepTest {
         assertThat(saved).isEqualTo(2);
         verify(aiServerClient, times(2)).segment(any());
         verify(lblRepository, times(2)).save(any());
+    }
+
+    // ─── Phase 6: LS_DATA_LBL_AI_INFO 분리 ───
+
+    @Test
+    @DisplayName("Phase6_Sam2Step_POLYGON_저장_시_LsDataLblAiInfo_SRC_SAM2_도_동시_저장")
+    void aiInfoPersistedAlongsidePolygon() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(90L))
+                .thenReturn(List.of(newSrc(20L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
+                .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.88)));
+
+        int saved = step.run(90L, List.of());
+
+        assertThat(saved).isEqualTo(1);
+        ArgumentCaptor<LsDataLblAiInfo> aiCaptor = ArgumentCaptor.forClass(LsDataLblAiInfo.class);
+        verify(aiInfoRepository, times(1)).save(aiCaptor.capture());
+        LsDataLblAiInfo info = aiCaptor.getValue();
+        assertThat(info.getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_SAM2);
+        assertThat(info.getAutoLblYn()).isEqualTo("Y");
+        assertThat(info.getDataRawSn()).isEqualTo(90L);
+        assertThat(info.getDataLblSn()).isNotNull();
     }
 }
