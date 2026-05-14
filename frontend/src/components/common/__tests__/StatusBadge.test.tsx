@@ -23,7 +23,7 @@ describe('StatusBadge', () => {
       expect(el).toBeInTheDocument();
       // 색상 토큰 클래스 검증 — bg-* 또는 text-* 가 매핑돼야 함 (mock tonal pill)
       expect(el.className).toMatch(
-        /bg-(blue|green|yellow|red|gray)-(50|100|200)|text-(blue|green|yellow|red|gray)-(600|700|800)/,
+        /bg-(blue|green|yellow|red|gray|purple)-(50|100|200)|text-(blue|green|yellow|red|gray|purple)-(600|700|800)/,
       );
       unmount();
     });

@@ -72,11 +72,12 @@ describe('VideoStatusPage', () => {
 
     renderWithProviders(<VideoStatusPage />);
 
+    // mock 정합 — 원본 번호는 '#{rawSn}' 형태로 렌더 (공백 없이)
     await waitFor(() => {
-      expect(screen.getByText('원본 #1001')).toBeInTheDocument();
+      expect(screen.getByText('#1001')).toBeInTheDocument();
     });
-    expect(screen.getByText('원본 #1002')).toBeInTheDocument();
-    expect(screen.getByText('원본 #1003')).toBeInTheDocument();
+    expect(screen.getByText('#1002')).toBeInTheDocument();
+    expect(screen.getByText('#1003')).toBeInTheDocument();
   });
 
   it('아이템_없을_때_EmptyState_노출', async () => {
@@ -123,13 +124,18 @@ describe('VideoStatusPage', () => {
     renderWithProviders(<VideoStatusPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('원본 #1001')).toBeInTheDocument();
+      expect(screen.getByText('#1001')).toBeInTheDocument();
     });
 
-    // KpiCard는 label + value + unit 을 별도 DOM 요소로 렌더
-    // 처리중=1, 완료=1, 실패=1
-    const allOnes = screen.getAllByText('1');
-    expect(allOnes.length).toBeGreaterThanOrEqual(3);
+    // KpiCard 는 value 를 <p> 안에 숫자 + <span>건</span> 으로 렌더 → "1" 만으로는 매치되지 않음
+    // value <p> 내부의 텍스트 노드 단위로 매치하기 위해 함수형 matcher 사용.
+    const onesInKpi = screen.getAllByText((_, el) => {
+      if (!el || el.tagName !== 'P') return false;
+      const firstChild = el.firstChild;
+      return firstChild?.nodeType === Node.TEXT_NODE && firstChild.textContent?.trim() === '1';
+    });
+    // 처리중/완료/실패 KPI 3개의 value <p> 가 모두 '1' 을 표시.
+    expect(onesInKpi.length).toBeGreaterThanOrEqual(3);
   });
 
   it('실패_아이템_오류메시지_노출', async () => {

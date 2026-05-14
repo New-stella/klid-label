@@ -39,20 +39,21 @@ describe('AugmentRequestPage', () => {
       expect(screen.getByTestId('augment-type-list')).toBeInTheDocument();
     });
 
-    const winter = screen.getByTestId('augment-type-WINTER') as HTMLInputElement;
-    const night = screen.getByTestId('augment-type-NIGHT') as HTMLInputElement;
-    const rain = screen.getByTestId('augment-type-RAIN') as HTMLInputElement;
-    const reso = screen.getByTestId('augment-type-RESOLUTION') as HTMLInputElement;
+    // AugmentTypeCard 는 button + aria-pressed 로 토글 상태를 표현한다.
+    const winter = screen.getByTestId('augment-type-WINTER');
+    const night = screen.getByTestId('augment-type-NIGHT');
+    const rain = screen.getByTestId('augment-type-RAIN');
+    const reso = screen.getByTestId('augment-type-RESOLUTION');
 
     await user.click(winter);
     await user.click(night);
     await user.click(rain);
     await user.click(reso);
 
-    expect(winter).toBeChecked();
-    expect(night).toBeChecked();
-    expect(rain).toBeChecked();
-    expect(reso).toBeChecked();
+    expect(winter).toHaveAttribute('aria-pressed', 'true');
+    expect(night).toHaveAttribute('aria-pressed', 'true');
+    expect(rain).toHaveAttribute('aria-pressed', 'true');
+    expect(reso).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('잡_카드_5초_폴링_상태_변화_반영', async () => {

@@ -134,7 +134,8 @@ describe('AssignModal', () => {
     await user.click(submit);
 
     await waitFor(() => {
-      expect(postBody).toMatchObject({ videoIds: [1], workerId: 7 });
+      // BE 계약: { pjtId, workerId, rawDataIds[] } — videoId 는 rawDataIds 로 매핑됨
+      expect(postBody).toMatchObject({ pjtId: 1, workerId: 7, rawDataIds: [1] });
     });
     await waitFor(() => {
       expect(onClose).toHaveBeenCalled();

@@ -70,14 +70,14 @@ describe('WorkerStatPage', () => {
     });
 
     const grid = screen.getByTestId('worker-kpi-grid');
-    const labels = Array.from(grid.querySelectorAll('span.text-sub')).map(
-      (el) => el.textContent,
-    );
+    // KpiCard 는 label 을 <p class="truncate text-sm font-medium text-gray-500"> 로 렌더한다.
+    const labels = Array.from(grid.querySelectorAll('p')).map((el) => el.textContent);
     expect(labels).toContain('완료 작업');
     expect(labels).toContain('진행 중');
     expect(labels).toContain('반려');
     expect(labels).toContain('총 라벨 수');
-    expect(grid.querySelectorAll('strong').length).toBeGreaterThanOrEqual(4);
+    // KpiCard 가 4개 이상 렌더되었는지 확인 (라벨 <p> + 값 <p> 페어)
+    expect(grid.querySelectorAll('p').length).toBeGreaterThanOrEqual(8);
   });
 
   it('월별_표_노출', async () => {

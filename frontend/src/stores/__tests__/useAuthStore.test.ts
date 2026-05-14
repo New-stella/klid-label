@@ -44,9 +44,10 @@ describe('useAuthStore', () => {
     expect(claims?.name).toBe('박찬기');
   });
 
-  it('setToken시_잘못된_JWT는_claims가_null', () => {
+  it('setToken시_잘못된_JWT는_token도_저장되지_않음', () => {
+    // 보안: invalid JWT 는 token/claims 둘 다 저장하지 않는다 (fail-secure).
     useAuthStore.getState().setToken('not-a-jwt');
-    expect(useAuthStore.getState().token).toBe('not-a-jwt');
+    expect(useAuthStore.getState().token).toBeNull();
     expect(useAuthStore.getState().claims).toBeNull();
   });
 });

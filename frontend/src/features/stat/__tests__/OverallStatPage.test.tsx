@@ -84,14 +84,14 @@ describe('OverallStatPage', () => {
     setRole('REVIEWER');
     renderWithProviders(<OverallStatPage />);
 
-    await screen.findByText('진행중');
+    // mock 정합 — UI/UX §4-11 처리 현황 카드 라벨: 전체/완료/처리중/실패/대기
+    await screen.findByText('처리중');
     const cards = screen.getByTestId('processing-cards');
+    expect(within(cards).getByText('전체')).toBeInTheDocument();
+    expect(within(cards).getByText('완료')).toBeInTheDocument();
+    expect(within(cards).getByText('처리중')).toBeInTheDocument();
+    expect(within(cards).getByText('실패')).toBeInTheDocument();
     expect(within(cards).getByText('대기')).toBeInTheDocument();
-    expect(within(cards).getByText('진행중')).toBeInTheDocument();
-    // '검수 대기'는 페이지 헤더와 카드에 모두 등장하므로 within(cards)에서 찾음
-    expect(within(cards).getByText('검수 대기')).toBeInTheDocument();
-    expect(within(cards).getByText('승인')).toBeInTheDocument();
-    expect(within(cards).getByText('반려')).toBeInTheDocument();
   });
 
   it('리포트_다운로드_버튼_노출', async () => {

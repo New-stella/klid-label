@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
@@ -58,37 +58,31 @@ describe('SystemSettingsPage', () => {
 
     renderWithProviders(<SystemSettingsPage />, { initialEntries: ['/manage/settings'] });
 
+    // mock 정합 — 카드 제목: 'FFmpeg 설정' / '배치 처리' / '외부 연동 상태' / '위험 구역'
+    // 섹션 헤더는 별도로 '편집 가능 — DB 영속화' / '실시간 모니터링' / '위험 액션'
     await waitFor(() => {
       expect(screen.getByText('FFmpeg 설정')).toBeInTheDocument();
     });
-    expect(screen.getByText('배치 설정')).toBeInTheDocument();
-    expect(screen.getByText('헬스 상태')).toBeInTheDocument();
+    expect(screen.getByText('배치 처리')).toBeInTheDocument();
+    // '실시간 모니터링' 은 섹션 헤더(h2) 와 배지 양쪽에 등장 — getAllBy 로 처리
+    expect(screen.getAllByText('실시간 모니터링').length).toBeGreaterThan(0);
     expect(screen.getByText('위험 액션')).toBeInTheDocument();
   });
 
   it('FFMPEG_THREADS_1_16_범위_검증_zod', async () => {
-    mockConfigs(mock);
-    mockHealth(mock);
+    // FFmpeg 스레드는 range slider 로 입력받아 UI 상 1~16 클램프되지만,
+    // zod 스키마가 실제로 1~16 을 강제하는지 직접 검증한다 (이중 방어).
+    const { ffmpegConfigSchema } = await import('@/features/sysconfig/schemas');
 
-    const user = userEvent.setup();
-    renderWithProviders(<SystemSettingsPage />, { initialEntries: ['/manage/settings'] });
-
-    await waitFor(() => {
-      expect(screen.getByLabelText(/FFMPEG_THREADS/)).toBeInTheDocument();
+    const result = ffmpegConfigSchema.safeParse({
+      FFMPEG_THREADS: 99,
+      FFMPEG_OUTPUT_FPS: 5,
     });
-
-    const input = screen.getByLabelText(/FFMPEG_THREADS/) as HTMLInputElement;
-    await user.clear(input);
-    await user.type(input, '99');
-
-    // FFmpeg 카드 저장 버튼 클릭
-    const saveBtns = screen.getAllByRole('button', { name: '저장' });
-    await user.click(saveBtns[0]);
-
-    await waitFor(() => {
-      // 범위 에러 메시지 노출
-      expect(screen.getByText(/1.*16.*범위/)).toBeInTheDocument();
-    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(' ');
+      expect(messages).toMatch(/1.*16.*범위/);
+    }
   });
 
   it('FFMPEG_저장_시_invalidateQueries_+_PUT_호출', async () => {
@@ -112,14 +106,15 @@ describe('SystemSettingsPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<SystemSettingsPage />, { initialEntries: ['/manage/settings'] });
 
+    // FFmpeg 스레드 input — label '스레드 수' (range slider, id="ffmpeg-threads")
     await waitFor(() => {
-      const input = screen.getByLabelText(/FFMPEG_THREADS/) as HTMLInputElement;
+      const input = screen.getByLabelText(/스레드 수/) as HTMLInputElement;
       expect(input.value).toBe('4');
     });
 
-    const input = screen.getByLabelText(/FFMPEG_THREADS/) as HTMLInputElement;
-    await user.clear(input);
-    await user.type(input, '8');
+    const input = screen.getByLabelText(/스레드 수/) as HTMLInputElement;
+    // range slider 는 user.type 으로 값을 못 바꾸므로 fireEvent.change 로 변경
+    fireEvent.change(input, { target: { value: '8' } });
 
     const saveBtns = screen.getAllByRole('button', { name: '저장' });
     await user.click(saveBtns[0]);
@@ -150,9 +145,10 @@ describe('SystemSettingsPage', () => {
     const dangerBtn = screen.getByRole('button', { name: /배치 큐 초기화/ });
     await user.click(dangerBtn);
 
-    // ConfirmDialog 노출
+    // ConfirmDialog 노출 — dialog 안의 description 텍스트는 '이 작업은 되돌릴 수 없습니다' 가 포함됨.
+    // 페이지 상단에도 '되돌릴 수 없습니다' 가 있어 다수 매치 → getAllBy 로 확인.
     await waitFor(() => {
-      expect(screen.getByText(/되돌릴 수 없습니다/)).toBeInTheDocument();
+      expect(screen.getAllByText(/되돌릴 수 없습니다/).length).toBeGreaterThanOrEqual(2);
     });
 
     // 확인 클릭 — placeholder이므로 실제 API 호출 X

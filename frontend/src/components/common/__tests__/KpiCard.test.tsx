@@ -11,8 +11,9 @@ describe('KpiCard', () => {
 
   it('KpiCard_trend_양수_success_색상', () => {
     render(<KpiCard label="이번주" value={100} trend={{ delta: 12, label: '대비' }} />);
-    const trendEl = screen.getByText(/12 대비/);
-    // 양수 트렌드는 green 계열 (mock tone)
-    expect(trendEl.className).toMatch(/text-green-600|text-success/);
+    const trendSpan = screen.getByText(/12 대비/);
+    // 양수 트렌드는 green 계열 (mock tone) — 부모 div 에 색상 클래스가 적용됨
+    const trendContainer = trendSpan.parentElement;
+    expect(trendContainer?.className).toMatch(/text-green-600|text-success/);
   });
 });

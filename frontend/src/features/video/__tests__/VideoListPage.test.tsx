@@ -59,7 +59,8 @@ describe('VideoListPage', () => {
     useAuthStore.getState().clear();
   });
 
-  it('영상_목록_렌더_및_REVIEWER_배정_버튼_노출', async () => {
+  it('영상_목록_렌더_및_상세_버튼_노출', async () => {
+    // mock 정합 — 영상 목록에는 행 별 액션으로 '상세' 버튼만 존재 (배정은 별도 작업 페이지로 분리).
     setRole('REVIEWER');
     mockVideosOnce(mock);
 
@@ -68,11 +69,10 @@ describe('VideoListPage', () => {
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
     });
-    // mock 정합 — REVIEWER에게 배정 버튼이 행마다 노출됨
-    expect(screen.getByRole('button', { name: '배정' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /상세/ })).toBeInTheDocument();
   });
 
-  it('WORKER는_배정_버튼_미노출', async () => {
+  it('WORKER도_상세_버튼만_노출', async () => {
     setRole('WORKER');
     mockVideosOnce(mock);
 
@@ -81,6 +81,7 @@ describe('VideoListPage', () => {
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
     });
+    // 배정 버튼은 영상 목록 화면에 노출되지 않는다 (배정은 작업 페이지에서만)
     expect(screen.queryByRole('button', { name: '배정' })).not.toBeInTheDocument();
   });
 
