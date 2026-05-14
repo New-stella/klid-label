@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -19,10 +20,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>FE DashboardPage 가 호출하는 단일 엔드포인트. REVIEWER/WORKER 모두 허용,
  * PORTAL_USER 는 차단. 데이터 비어있는 환경에서 모든 카운트는 0 으로 응답한다.
+ *
+ * <p>{@code test-data-stats-clean.sql} 로 LS_DATA_RAW 등 통계 대상 테이블을 매 테스트
+ * 진입 시 비워 공유 H2 컨텍스트에서 다른 테스트가 남긴 EVT_FALL 등 잔재로 인한
+ * 회귀를 차단한다 (FALL count 0 검증이 1 로 깨지는 문제).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
+@Sql(scripts = "/db/test-data-stats-clean.sql",
+        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class StatsControllerTest {
 
     @Autowired private MockMvc mockMvc;

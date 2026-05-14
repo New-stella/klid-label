@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.dev;
 import kr.co.cudo.authoring.common.security.JwtKeyResolver;
 import kr.co.cudo.authoring.dev.controller.DevTokenController;
 import kr.co.cudo.authoring.dev.service.DevTokenService;
+import kr.co.cudo.authoring.user.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -13,6 +14,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * 개발/검수 전용 토큰 발급 빈은 운영(prd) 프로파일에서 미등록 — endpoint 자체가 부재하여 404 처리됨.
@@ -36,6 +38,7 @@ class DevTokenProfileGuardTest {
         new ApplicationContextRunner()
                 .withUserConfiguration(DevTokenController.class, DevTokenService.class)
                 .withBean(JwtKeyResolver.class, () -> () -> key)
+                .withBean(UserRepository.class, () -> mock(UserRepository.class))
                 .withPropertyValues(
                         "spring.profiles.active=prd",
                         "authoring.jwt.allowed-issuers=klid-auth"
@@ -53,6 +56,7 @@ class DevTokenProfileGuardTest {
         new ApplicationContextRunner()
                 .withUserConfiguration(DevTokenController.class, DevTokenService.class)
                 .withBean(JwtKeyResolver.class, () -> () -> key)
+                .withBean(UserRepository.class, () -> mock(UserRepository.class))
                 .withPropertyValues(
                         "spring.profiles.active=local",
                         "authoring.jwt.allowed-issuers=klid-auth"
@@ -70,6 +74,7 @@ class DevTokenProfileGuardTest {
         new ApplicationContextRunner()
                 .withUserConfiguration(DevTokenController.class, DevTokenService.class)
                 .withBean(JwtKeyResolver.class, () -> () -> key)
+                .withBean(UserRepository.class, () -> mock(UserRepository.class))
                 .withPropertyValues(
                         "spring.profiles.active=dev",
                         "authoring.jwt.allowed-issuers=klid-auth"
@@ -87,6 +92,7 @@ class DevTokenProfileGuardTest {
         new ApplicationContextRunner()
                 .withUserConfiguration(DevTokenController.class, DevTokenService.class)
                 .withBean(JwtKeyResolver.class, () -> () -> key)
+                .withBean(UserRepository.class, () -> mock(UserRepository.class))
                 .withPropertyValues(
                         "spring.profiles.active=stg",
                         "authoring.jwt.allowed-issuers=klid-auth"
