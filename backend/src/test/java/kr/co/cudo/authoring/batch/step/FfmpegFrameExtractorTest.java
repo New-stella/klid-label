@@ -84,8 +84,10 @@ class FfmpegFrameExtractorTest {
     }
 
     private FfmpegFrameExtractor newExtractor() {
+        // Phase 2: deidentified-path 별도 base 디렉토리 주입 — extractBoth 가 DEID 프레임을 별도 base 에 작성
+        Path deidBase = tmp.resolve("deid");
         return new FfmpegFrameExtractor(srcRepository, hstryRepository, frameWriter,
-                systemConfigService, tmp.toString());
+                systemConfigService, tmp.toString(), deidBase.toString());
     }
 
     private LsDataRaw newRaw(int durationSec) {
@@ -96,8 +98,15 @@ class FfmpegFrameExtractorTest {
         return raw;
     }
 
+    /** Phase 2: deidFilePath 가 설정된 raw (영상 단위 비식별 영상이 별도 보관됨) */
+    private LsDataRaw newRawWithDeidVideo(int durationSec, Path deidVideoPath) {
+        LsDataRaw raw = newRaw(durationSec);
+        setField(raw, "deidFilePath", deidVideoPath.toString());
+        return raw;
+    }
+
     @Test
-    @DisplayName("1fps_설정_113초_영상은_113프레임")
+    @DisplayName("1fps_설정_113초_영상은_113프레임_FRM_TYPE_CD_RAW")
     void extractsOneFramePerSecondAtDefaultFps() {
         when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
         FfmpegFrameExtractor extractor = newExtractor();
@@ -106,6 +115,8 @@ class FfmpegFrameExtractorTest {
         assertThat(frames).hasSize(113);
         assertThat(frames.get(0).getFrameNo()).isZero();
         assertThat(frames.get(112).getFrameNo()).isEqualTo(112);
+        // Phase 2: 단일 extract() 는 모든 프레임이 RAW 타입
+        assertThat(frames).allMatch(f -> LsDataSrc.FRM_TYPE_RAW.equals(f.getFrmTypeCd()));
     }
 
     @Test
@@ -235,5 +246,56 @@ class FfmpegFrameExtractorTest {
 
         // 3초 · 2fps = 6 프레임, seek: 0, 500, 1000, 1500, 2000, 2500 (ms)
         assertThat(recordedSeekMillis).containsExactly(0L, 500L, 1000L, 1500L, 2000L, 2500L);
+    }
+
+    // ============================================================
+    // Phase 2: extractBoth — 원본/비식별 영상 2벌 추출
+    // ============================================================
+
+    @Test
+    @DisplayName("Phase2_extractBoth_deidFilePath_있을_때_원본_+_비식별_2벌_저장_FRM_TYPE_CD_RAW_DEID")
+    void extractBoth_savesRawAndDeidFrames() throws IOException {
+        when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
+        // 비식별 영상 파일 작성
+        Path deidVideo = tmp.resolve("clip-deid.mp4");
+        Files.write(deidVideo, new byte[]{0, 0, 0});
+
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<LsDataSrc> frames = extractor.extractBoth(newRawWithDeidVideo(3, deidVideo));
+
+        // 1fps · 3초 = RAW 3 프레임 + DEID 3 프레임 = 6 row
+        assertThat(frames).hasSize(6);
+        long rawCount = frames.stream().filter(f -> LsDataSrc.FRM_TYPE_RAW.equals(f.getFrmTypeCd())).count();
+        long deidCount = frames.stream().filter(f -> LsDataSrc.FRM_TYPE_DEID.equals(f.getFrmTypeCd())).count();
+        assertThat(rawCount).isEqualTo(3);
+        assertThat(deidCount).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("Phase2_extractBoth_deidFilePath_NULL_일_때_원본만_추출_V1_호환")
+    void extractBoth_nullDeidPath_rawOnly() {
+        when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
+        FfmpegFrameExtractor extractor = newExtractor();
+        // deidFilePath 가 null 인 raw (V1 호환)
+        List<LsDataSrc> frames = extractor.extractBoth(newRaw(3));
+
+        assertThat(frames).hasSize(3);
+        assertThat(frames).allMatch(f -> LsDataSrc.FRM_TYPE_RAW.equals(f.getFrmTypeCd()));
+    }
+
+    @Test
+    @DisplayName("Phase2_extractBoth_비식별_영상_파일_없으면_경고_로그_+_RAW_만")
+    void extractBoth_deidVideoMissing_rawOnly() {
+        when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
+        FfmpegFrameExtractor extractor = newExtractor();
+        // deidFilePath 가 설정되어 있으나 실제 파일은 존재하지 않음
+        Path missingDeidVideo = tmp.resolve("missing-deid.mp4");
+        LsDataRaw raw = newRawWithDeidVideo(3, missingDeidVideo);
+
+        List<LsDataSrc> frames = extractor.extractBoth(raw);
+
+        // RAW 만 추출됨 — DEID 프레임 미생성, 예외 미발생 (graceful fallback)
+        assertThat(frames).hasSize(3);
+        assertThat(frames).allMatch(f -> LsDataSrc.FRM_TYPE_RAW.equals(f.getFrmTypeCd()));
     }
 }

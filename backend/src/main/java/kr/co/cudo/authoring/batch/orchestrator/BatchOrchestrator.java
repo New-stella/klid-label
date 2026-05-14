@@ -25,10 +25,10 @@ import java.util.List;
 /**
  * 배치 파이프라인 오케스트레이터 (V2 — 파이프라인 재배치).
  * <p>
- * V2 단계 순서:
+ * V2 단계 순서 (Phase 2 갱신):
  *   1. VLM            (VlmMetaStep.run — 영상 단위 메타, Phase 1 신규 첫 단계)
- *   2. DEIDENTIFY     (DeidentifyStep.run — Phase 1: needsDeidentify 분기 유지. Phase 2 에서 무조건화 예정)
- *   3. FRAME_EXTRACT  (FfmpegFrameExtractor.extract — Phase 1: 단일 추출 유지. Phase 2 에서 2벌 분기 예정)
+ *   2. DEIDENTIFY     (DeidentifyStep.run — Phase 2: 무조건 호출 — PRVC/PSDO/ANONY 모두 호출)
+ *   3. FRAME_EXTRACT  (FfmpegFrameExtractor.extractBoth — Phase 2: 원본/비식별 영상 2벌 추출)
  *   4. YOLO           (YoloAutolabelStep.run)
  *   5. SAM2           (Sam2SegmentStep.run)
  *   6. INTERPOLATE    (TrackInterpolationStep.run)
@@ -83,15 +83,15 @@ public class BatchOrchestrator {
             statusService.markStage(rawSn, BatchStage.VLM);
             vlmMetaStep.run(rawSn);
 
-            // 2. 비식별 (Phase 1: 분기 유지. Phase 2 에서 무조건화 예정).
-            if (raw.needsDeidentify()) {
-                statusService.markStage(rawSn, BatchStage.DEIDENTIFY);
-                deidentifyStep.run(raw);
-            }
+            // 2. 비식별 (Phase 2 — 무조건화: PRVC/PSDO/ANONY 구분 없이 모든 영상 호출).
+            //    원본 보존 원칙 + DE_IDNTF_YN 'Y'/'F' 마킹은 DeidentifyStep 자체 처리.
+            statusService.markStage(rawSn, BatchStage.DEIDENTIFY);
+            deidentifyStep.run(raw);
 
-            // 3. 프레임 추출 (Phase 1: 단일 추출 유지. Phase 2 에서 원본/비식별 2벌 분기 예정).
+            // 3. 프레임 추출 (Phase 2 — 영상 2벌 보관: 원본 + 비식별 영상 양쪽에서 추출).
+            //    raw.deidFilePath 가 null 이거나 파일 미존재면 RAW 만 (V1 호환 / graceful fallback).
             statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
-            List<LsDataSrc> frames = frameExtractor.extract(raw);
+            List<LsDataSrc> frames = frameExtractor.extractBoth(raw);
             if (frames.isEmpty()) {
                 throw new CustomException(ErrorCode.INTERNAL_ERROR,
                         "프레임 추출 결과가 0건입니다 rawSn=" + rawSn);

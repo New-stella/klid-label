@@ -61,6 +61,14 @@ public class LsDataRaw {
     @Column(name = "FILE_PATH", nullable = false, length = 500)
     private String filePath;
 
+    /**
+     * 비식별 처리된 영상 파일 경로 (Phase 2 — V2 정책 "영상 2벌 보관").
+     *  - NULL 허용 (비식별 미적용 / V1 데이터 호환).
+     *  - 외부 비식별 API 가 영상 단위 인터페이스 제공 시 사용.
+     */
+    @Column(name = "DEID_FILE_PATH", length = 500)
+    private String deidFilePath;
+
     @Column(name = "CAPTURED_AT")
     private LocalDateTime capturedAt;
 
@@ -143,6 +151,16 @@ public class LsDataRaw {
             throw new IllegalArgumentException("DE_IDNTF_YN 은 Y/F/N 중 하나여야 합니다: " + code);
         }
         this.deIdntfYn = code;
+        this.updDt = LocalDateTime.now();
+    }
+
+    /**
+     * 비식별 영상 파일 경로 연결 (Phase 2 — V2 영상 2벌 보관).
+     *  - 외부 비식별 API 가 영상 단위 결과를 반환한 경우 호출.
+     *  - 원본 filePath 는 절대 변경되지 않음.
+     */
+    public void attachDeidVideoPath(String deidFilePath) {
+        this.deidFilePath = deidFilePath;
         this.updDt = LocalDateTime.now();
     }
 

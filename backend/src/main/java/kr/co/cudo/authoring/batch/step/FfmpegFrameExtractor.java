@@ -57,17 +57,21 @@ public class FfmpegFrameExtractor {
     private final FrameWriter frameWriter;
     private final SystemConfigService systemConfigService;
     private final Path baseRawPath;
+    /** Phase 2: 비식별 프레임 출력 base 경로 (영상 2벌 보관 정책). */
+    private final Path baseDeidPath;
 
     public FfmpegFrameExtractor(LsDataSrcRepository srcRepository,
                                 LsDataSrcHstryRepository hstryRepository,
                                 FrameWriter frameWriter,
                                 SystemConfigService systemConfigService,
-                                @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
+                                @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
+                                @Value("${authoring.storage.deidentified-path:./storage/deidentified}") String storageDeidPath) {
         this.srcRepository = srcRepository;
         this.hstryRepository = hstryRepository;
         this.frameWriter = frameWriter;
         this.systemConfigService = systemConfigService;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        this.baseDeidPath = Paths.get(storageDeidPath).toAbsolutePath().normalize();
     }
 
     /**
@@ -91,10 +95,48 @@ public class FfmpegFrameExtractor {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "durationSec 가 0 이하입니다: rawSn=" + raw.getRawSn());
         }
+        Path outputDir = resolveSafeOutputDir(baseRawPath, raw.getRawSn());
+        return extractInternal(raw, source, outputDir, LsDataSrc.FRM_TYPE_RAW);
+    }
 
+    /**
+     * Phase 2: 영상 2벌 보관 — 원본 영상 + 비식별 영상에서 각각 프레임을 추출.
+     *  - raw.deidFilePath 가 null → 원본만 추출 (V1 호환).
+     *  - 비식별 영상 파일이 존재하지 않으면 → 경고 로그 + 원본만 (graceful fallback).
+     *  - 둘 다 OK → RAW + DEID 양쪽 row 적재 (FRM_TYPE_CD 로 구분).
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public List<LsDataSrc> extractBoth(LsDataRaw raw) {
+        List<LsDataSrc> rawFrames = extract(raw);
+
+        String deidPathStr = raw == null ? null : raw.getDeidFilePath();
+        if (deidPathStr == null || deidPathStr.isBlank()) {
+            // V1 호환: 비식별 영상 미보유.
+            return rawFrames;
+        }
+        Path deidSource = Paths.get(deidPathStr);
+        if (!frameWriter.sourceExists(deidSource)) {
+            log.warn("[Batch][FrameExtract] deid video missing rawSn={} path={} — RAW only",
+                    raw.getRawSn(), maskName(deidPathStr));
+            return rawFrames;
+        }
+        Path deidOutputDir = resolveSafeOutputDir(baseDeidPath, raw.getRawSn());
+        List<LsDataSrc> deidFrames = extractInternal(raw, deidSource, deidOutputDir, LsDataSrc.FRM_TYPE_DEID);
+        List<LsDataSrc> merged = new ArrayList<>(rawFrames.size() + deidFrames.size());
+        merged.addAll(rawFrames);
+        merged.addAll(deidFrames);
+        return merged;
+    }
+
+    /**
+     * 공통 추출 헬퍼 — sourceVideo 에서 frameCount 만큼 프레임을 outputDir 에 작성하고
+     * LS_DATA_SRC 에 frmTypeCd 로 적재한다.
+     *  - durationSec 검증은 호출자(extract/extractBoth) 가 raw 기준으로 1회만 수행.
+     */
+    private List<LsDataSrc> extractInternal(LsDataRaw raw, Path sourceVideo, Path outputDir, String frmTypeCd) {
+        int duration = raw.getDurationSec() == null ? 0 : raw.getDurationSec();
         int outputFps = getOutputFps();
         int frameCount = computeFrameCount(duration, outputFps);
-        Path outputDir = resolveSafeOutputDir(raw.getRawSn());
         Path manifestPath = outputDir.resolve("manifest.jsonl");
 
         List<LsDataSrc> saved = new ArrayList<>(frameCount);
@@ -107,25 +149,33 @@ public class FfmpegFrameExtractor {
                     // outputFps 기반 균등 간격 시크 (단위 미스매치 방지):
                     // 예) 1fps → i*1000ms, 2fps → i*500ms.
                     long seekMillis = (long) i * 1000L / outputFps;
-                    frameWriter.writeFrame(source, frameFile, seekMillis);
+                    frameWriter.writeFrame(sourceVideo, frameFile, seekMillis);
                     String checksum = checksumOf(frameFile);
                     mw.writeKeyFrame(i, seekMillis, checksum);
 
                     LocalDateTime capturedAt = raw.getCapturedAt() == null
                             ? null : raw.getCapturedAt().plus(Duration.ofMillis(seekMillis));
-                    LsDataSrc src = srcRepository.save(
-                            LsDataSrc.create(raw.getRawSn(), i, frameFile.toString(), capturedAt));
+                    LsDataSrc src = srcRepository.save(buildSrc(raw.getRawSn(), i, frameFile.toString(), capturedAt, frmTypeCd));
                     hstryRepository.save(LsDataSrcHstry.recordCreated(src.getSrcSn()));
                     saved.add(src);
                 }
             }
         } catch (IOException e) {
-            log.error("[Batch][FrameExtract] failed rawSn={} err={}", raw.getRawSn(), e.getMessage());
+            log.error("[Batch][FrameExtract] failed rawSn={} type={} err={}",
+                    raw.getRawSn(), frmTypeCd, e.getMessage());
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "프레임 추출 실패", e);
         }
-        log.info("[Batch][FrameExtract] extracted rawSn={} frames={} outputFps={}",
-                raw.getRawSn(), saved.size(), outputFps);
+        log.info("[Batch][FrameExtract] extracted rawSn={} type={} frames={} outputFps={}",
+                raw.getRawSn(), frmTypeCd, saved.size(), outputFps);
         return saved;
+    }
+
+    private static LsDataSrc buildSrc(Long rawSn, int frameNo, String filePath,
+                                       LocalDateTime capturedAt, String frmTypeCd) {
+        if (LsDataSrc.FRM_TYPE_DEID.equals(frmTypeCd)) {
+            return LsDataSrc.createDeid(rawSn, frameNo, filePath, capturedAt);
+        }
+        return LsDataSrc.create(rawSn, frameNo, filePath, capturedAt);
     }
 
     /**
@@ -163,12 +213,13 @@ public class FfmpegFrameExtractor {
     }
 
     /**
-     * baseRawPath 하위에 영상별 디렉토리를 안전하게 생성.
-     * - resolved 가 baseRawPath 외부로 빠지면 거부 (Path Manipulation 방어).
+     * base 하위에 영상별 디렉토리를 안전하게 생성.
+     * - resolved 가 base 외부로 빠지면 거부 (Path Manipulation 방어).
+     * - Phase 2: base 인자화 — RAW(baseRawPath) / DEID(baseDeidPath) 양쪽에서 사용.
      */
-    private Path resolveSafeOutputDir(Long rawSn) {
-        Path resolved = baseRawPath.resolve("frames").resolve(String.valueOf(rawSn)).normalize();
-        if (!resolved.startsWith(baseRawPath)) {
+    private static Path resolveSafeOutputDir(Path base, Long rawSn) {
+        Path resolved = base.resolve("frames").resolve(String.valueOf(rawSn)).normalize();
+        if (!resolved.startsWith(base)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "프레임 출력 경로가 허용된 저장 경로를 벗어납니다.");
         }
         return resolved;

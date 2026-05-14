@@ -25,15 +25,15 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * 비식별화 단계 (Phase 5 — DEIDENTIFY).
+ * 비식별화 단계 (Phase 5 → Phase 2 무조건화).
  * <p>
- * 호출 조건:
- *  - LsDataRaw.needsDeidentify() == true (PRVC / PSDO 만)
- *  - ANONY 영상은 본 단계가 호출되더라도 즉시 skip (DE_IDNTF_YN='N' 유지).
+ * Phase 2 정책 (V2):
+ *  - 모든 영상에 대해 무조건 비식별 호출 (PRVC/PSDO/ANONY 구분 없음).
+ *  - 외부 비식별 API 가 ANONY 영상도 동일 인터페이스로 처리한다는 전제.
+ *  - 원본 filePath 는 절대 변경되지 않는다 — 원본 보존 원칙.
  * <p>
  * 실패 처리:
  *  - 비식별 API 실패 (5xx, 타임아웃) → DE_IDNTF_YN='F' 마킹 + 원본 보존.
- *  - 원본 filePath 는 절대 변경되지 않는다.
  * <p>
  * 보안:
  *  - SSRF (CWE-918): DeidentifyClient 가 application.yml 의 base-url 사용. 사용자 입력으로 URL 구성 금지.
@@ -69,10 +69,8 @@ public class DeidentifyStep {
         if (raw == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
-        if (!raw.needsDeidentify()) {
-            log.info("[Batch][Deid] skipped (ANONY) rawSn={}", raw.getRawSn());
-            return;
-        }
+        // Phase 2: needsDeidentify 분기 제거 — 모든 영상에 대해 무조건 비식별 호출.
+        // needsDeidentify() 메서드 자체는 호환을 위해 LsDataRaw 에 보존.
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(raw.getRawSn());
         if (frames.isEmpty()) {

@@ -110,11 +110,40 @@ class DeidentifyStepTest {
     }
 
     @Test
-    @DisplayName("ANONY_영상이면_skip_되어_비식별_API_미호출")
-    void anonySkipped() {
+    @DisplayName("Phase2_ANONY_영상도_DeidentifyStep_호출_프레임별_비식별_시도")
+    void anonyAlsoInvokesDeidentify() {
+        // Phase 2: needsDeidentify 분기 제거 — ANONY 영상도 무조건 비식별 호출
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_ANONY);
+        LsDataSrc src = newSrc(7L, 0);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
+                .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
+        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
+
         step.run(raw);
-        verify(deidentifyClient, never()).deidentify(any());
+
+        // ANONY 도 외부 비식별 호출이 발생해야 함
+        verify(deidentifyClient).deidentify(any(DeidentifyRequest.class));
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("Phase2_PRVC_영상_정상_호출_성공_시_markDeidentified_Y_회귀")
+    void prvcSuccessMarksY() {
+        LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
+        LsDataSrc src = newSrc(11L, 0);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
+                .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
+        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        step.run(raw);
+
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
     }
 
     private static void setField(Object target, String name, Object value) {

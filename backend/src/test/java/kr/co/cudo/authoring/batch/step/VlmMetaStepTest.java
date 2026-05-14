@@ -92,6 +92,27 @@ class VlmMetaStepTest {
         assertThat(saved).extracting(LsDataMeta::getMetaVal)
                 .containsExactlyInAnyOrder("outdoor", "walking");
         assertThat(saved).allMatch(m -> m.getRawSn().equals(rawSn));
+        // Phase 2: 모든 신규 저장 메타는 metaTypeCd='RAW' (원본 영상 기준)
+        assertThat(saved).allMatch(m -> LsDataMeta.META_TYPE_RAW.equals(m.getMetaTypeCd()));
+    }
+
+    @Test
+    @DisplayName("Phase2_정상_저장_시_LS_DATA_META_METATYPECD_RAW")
+    void newlySavedMetaHasRawTypeCode() {
+        Long rawSn = 210L;
+        newRaw(rawSn);
+        Map<String, String> pairs = new LinkedHashMap<>();
+        pairs.put("scene_type", "intersection");
+        when(aiServerClient.extractVideoMeta(any(VlmMetaRequest.class)))
+                .thenReturn(Mono.just(new VlmMetaResponse(pairs)));
+        when(metaRepository.findByRawSnAndMetaKey(any(), any())).thenReturn(Optional.empty());
+
+        step.run(rawSn);
+
+        ArgumentCaptor<LsDataMeta> captor = ArgumentCaptor.forClass(LsDataMeta.class);
+        verify(metaRepository).save(captor.capture());
+        // Phase 2: META_TYPE_CD 컬럼 도입 — 신규 저장 시 'RAW' 디폴트
+        assertThat(captor.getValue().getMetaTypeCd()).isEqualTo(LsDataMeta.META_TYPE_RAW);
     }
 
     @Test
