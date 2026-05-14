@@ -16,10 +16,10 @@
    - 4.2 `LS_DATA_AUG` — 라벨 무결성 점수
    - 4.3 `LS_DATA_LBL_HSTRY` — Gitea 커밋 해시
    - 4.4 `CM_CODE` — 검수 워크플로우 코드값 보강
-   - 4.5 `LS_DATA_ISSUE` — 검수 이슈 캔버스 좌표 (V1.x)
-   - 4.6 `CM_CODE` — 배치 처리 단계 코드 재정의 (V1.x)
-   - 4.7 내보내기 작업 테이블 — 포털 전송 옵션 (V1.x)
-   - 4.8 영상 메타 테이블 — 내보내기 이력 상태 (V1.x 후속)
+   - 4.5 (V1.x — 폐기) `LS_DATA_ISSUE` 캔버스 좌표 컬럼 추가 계획
+   - 4.6 `CM_CODE` — 배치 처리 단계 코드 재정의 (V2)
+   - 4.7 외부 시스템 학습데이터 API 호출 로그 — `LS_DATA_API_LOG` (V2)
+   - 4.8 영상 메타 테이블 — 비식별 영구 이력 + 2벌 경로 (V2)
 5. [신규 추가 테이블](#5-신규-추가-테이블)
    - 5.1 포털 신규 테이블 (`LS_PORTAL_USER_VIDEO`, `LS_PORTAL_USER_STATS`)
    - 5.2 `LS_SYSTEM_CONFIG` — 시스템 설정 키-값 영속화
@@ -60,7 +60,7 @@
 | 구분 | 테이블 수 | 설명 |
 |------|:---------:|------|
 | **재사용** | 31개 | 기존 테이블을 그대로 활용 |
-| **컬럼 추가** | 6개 | `LS_DATA_LBL` (3컬럼), `LS_DATA_AUG` (1컬럼 신규), `LS_DATA_LBL_HSTRY` (1컬럼 신규), `LS_DATA_ISSUE` (2컬럼 신규 — V1.x), `LS_DATA_SET` (5컬럼 — V1.x §4.7), 영상 메타 테이블 (3컬럼 — V1.x 후속 §4.8) |
+| **컬럼 추가** | 5개 | `LS_DATA_LBL` (3컬럼), `LS_DATA_AUG` (1컬럼 신규), `LS_DATA_LBL_HSTRY` (1컬럼 신규), `LS_DATA_SET` (5컬럼 — V1.x §4.7), 영상 메타 테이블 (3컬럼 — V1.x 후속 §4.8). V1.x — `LS_DATA_ISSUE` 좌표 컬럼 추가 계획 폐기(§4.5 참조) |
 | **신규 추가** | 3개 | `LS_PORTAL_USER_VIDEO` (필수), `LS_PORTAL_USER_STATS` (옵션), `LS_SYSTEM_CONFIG` (시스템 설정) |
 | **코드 정의 변경 (V1.x)** | — | `CM_CODE` 내 배치 처리 단계 코드 재정의 (`DEIDENTIFY` 제거, `VLM` 첫 단계로 이동) — DDL 변경 없이 INSERT/UPDATE만으로 적용 |
 | **미사용** | 해당없음 | 저작도구 범위 외 테이블 (관제서버·외부연계 등) |
@@ -108,7 +108,7 @@
 | `LS_DATA_LBL_HSTRY` | 라벨 이력 | 라벨 수정 이력. Gitea 자동 커밋 시 커밋 해시 참조 (`GITEA_CMT_HASH` 컬럼 — §4 참조) |
 | `LS_DATA_META` | 메타데이터 | 프레임 단위 메타정보 저장 |
 | `LS_DATA_META_HSTRY` | 메타데이터 이력 | 메타 수정 이력 추적 |
-| `LS_DATA_ISSUE` | 데이터 이슈 | 검수 반려 사유·이슈 항목 관리 (`UP_DATA_ISSUE_SN`으로 계층 구조 지원). V1.x — 캔버스 좌표(`X_COORD`/`Y_COORD`) 컬럼 신규 추가 (§4.5 참조) |
+| `LS_DATA_ISSUE` | 데이터 이슈 | 검수 반려 사유·이슈 항목 관리 (`UP_DATA_ISSUE_SN`으로 계층 구조 지원). V1.x — 프레임 단위 코멘트만 보존 (캔버스 좌표 마킹 미사용 — §4.5 참조) |
 
 ### 3.5 프로젝트·작업
 
@@ -139,7 +139,7 @@
 
 ### 3.8 데이터마트·배포 (저작도구 범위 외)
 
-SFR-13(학습데이터 외부제공 활용 기능)은 저작도구 범위에서 제외되어, 데이터마트·배포 테이블 4종(`MNG_DATA_SET`, `MNG_DATA_SET_DSTRB`, `MNG_DATA_SET_DSTRB_DTL`, `MNG_DATA_SET_ATCH_FILE`)은 **외부제공 시스템이 별도 책임**진다. 저작도구는 학습데이터셋 내보내기까지만 담당하며 마트 등록·배포·다운로드 이력은 다루지 않는다.
+SFR-13(학습데이터 외부제공 활용 기능)은 저작도구 범위에서 제외되어, 데이터마트·배포 테이블 4종(`MNG_DATA_SET`, `MNG_DATA_SET_DSTRB`, `MNG_DATA_SET_DSTRB_DTL`, `MNG_DATA_SET_ATCH_FILE`)은 **외부제공 시스템이 별도 책임**진다. V2에서 저작도구의 학습데이터 노출은 **외부 시스템 학습데이터 API 호출 형태**로 단일화되며 (저작도구 내 "내보내기" 화면·메뉴 제거), 마트 등록·배포·다운로드 이력은 외부제공 시스템에서 다룬다.
 
 ### 3.9 배치·스케줄러
 
@@ -276,176 +276,248 @@ INSERT INTO CM_CODE (GROUP_CODE, CODE, CODE_NM, CODE_DC, USE_YN, SORT_ORDR) VALU
 
 ---
 
-### 4.5 `LS_DATA_ISSUE` — 검수 이슈 캔버스 좌표 (V1.x) ★
+### 4.5 (V1.x — 폐기) `LS_DATA_ISSUE` 캔버스 좌표 컬럼 추가 계획
 
-검수자가 캔버스에서 문제 지점을 좌표 단위로 마킹할 수 있도록 좌표 컬럼을 신규 추가한다. 등록된 좌표는 결과보기(읽기 전용 모드) 진입 시에도 보존되어 검수 이력 추적용으로 활용한다.
-
-| 추가 컬럼 | 타입 | NULL | 기본값 | 설명 |
-|-----------|------|:----:|--------|------|
-| `X_COORD` | DECIMAL(10,4) | ✓ | NULL | 이슈 마킹 X 좌표 (캔버스 원본 픽셀 기준) |
-| `Y_COORD` | DECIMAL(10,4) | ✓ | NULL | 이슈 마킹 Y 좌표 (캔버스 원본 픽셀 기준) |
-
-**추가 이유**
-
-- 요구사항정의서 §4.4.3a 검수 이슈 관리 — 캔버스 좌표 기반 마킹 흐름 지원.
-- 결과보기에서 이전 검수자의 마킹 위치 보존 → 검수 이력 추적 가능.
-- optional 컬럼으로 정의하여 좌표 없이 등록된 기존 이슈와의 호환성을 유지한다.
-
-```sql
-ALTER TABLE LS_DATA_ISSUE
-    ADD COLUMN X_COORD DECIMAL(10,4) NULL COMMENT '이슈 마킹 X 좌표 (캔버스 원본 픽셀 기준)',
-    ADD COLUMN Y_COORD DECIMAL(10,4) NULL COMMENT '이슈 마킹 Y 좌표';
-```
-
-| 항목 | 값 |
-|------|----|
-| 마이그레이션 버전 | V1.x__add_issue_coords.sql |
-| 협의 필요 | 관제서버팀 (klid_system 공유 테이블) |
-| 호환성 | optional 컬럼 — 기존 좌표 없는 이슈 그대로 호환 |
-
-> **참고**: 본 컬럼 추가는 관제서버팀과 사전 협의가 필요하다. Flyway 마이그레이션 작성 시 `klid_system` 공유 테이블이므로 ALTER 시점 조정 필요.
+> **본 섹션은 V1.x 후속 정책 변경으로 폐기되었다.** 검수 이슈는 **프레임 단위 코멘트만** 보존하며, 캔버스 좌표 마킹은 mock 및 운영 명세 모두에서 사용하지 않는다.
+>
+> mock의 `ReviewIssue` 타입은 `{ id, frameNo, comment, createdAt }` 4개 필드로 구성되며, `LS_DATA_ISSUE` 테이블에는 좌표 컬럼(`X_COORD` / `Y_COORD`)을 **추가하지 않는다**. 결과보기(읽기 전용)에서는 프레임 번호 기준으로 이슈 목록을 표시하며, 캔버스 위 좌표 마커 렌더링은 없다.
+>
+> UI-UX 설계서 SCR-REVIEW-002에서도 "캔버스 좌표 마커는 사용하지 않음"이 명시되어 있다.
 
 ---
 
-### 4.6 `CM_CODE` — 배치 처리 단계 코드 재정의 (V1.x) ★
+### 4.6 `CM_CODE` — 배치 처리 단계 코드 재정의 (V2) ★
 
-V1.x에서 배치 파이프라인의 처리 단계 정책이 변경되어 `BATCH_STAGE_CD` 코드값을 재정의한다. **DDL 변경 없이 INSERT/UPDATE만으로 적용 가능**하다.
+V2에서 배치 파이프라인의 처리 단계 정책이 다시 변경되어 `BATCH_STAGE_CD` 코드값을 재정의한다. **DDL 변경 없이 INSERT/UPDATE만으로 적용 가능**하다.
 
-**변경 요약**
+**변경 요약 (V1.x → V2)**
 
-| 코드 | V1.7 이전 | V1.x | 변경 내용 |
-|------|-----------|------|----------|
-| `VLM` | 객체 검증 (마지막 단계) | 시계열 메타 (첫 단계) | 의미 변경 + 정렬 변경 |
-| `FRAME_EXTRACT` | 첫 단계 | 두 번째 | 정렬 변경 |
-| `DEIDENTIFY` | 두 번째 단계 | (제거) | 자동 단계 → 내보내기 옵션 |
-| `YOLO` | 세 번째 | 세 번째 | 동일 |
-| `SAM2` | 네 번째 | 네 번째 | 동일 |
+| 코드 | V1.7 이전 | V1.x | V2 | 변경 내용 |
+|------|-----------|------|----|----------|
+| `VLM` | 객체 검증 (마지막) | 시계열 메타 (1번째) | 시계열 메타 (1번째) | V2 동일 |
+| `DEIDENTIFY` | 두 번째 단계 | (USE_N — 옵션으로 이관) | 영상 단위 비식별 (2번째) | **V2 부활 — 무조건 실행** |
+| `FRAME_EXTRACT` | 첫 단계 | 2번째 | 원본·비식별 2벌 추출 (3번째) | V2 — 정렬·의미 변경 |
+| `YOLO` | 세 번째 | 3번째 | 원본 프레임 오토라벨링 (4번째) | V2 — 정렬 변경 |
+| `SAM2` | 네 번째 | 4번째 | 원본 프레임 세그멘테이션 (5번째) | V2 — 정렬 변경 |
 
-**`CM_GROUP_CODE`: `BATCH_STAGE_CD` (배치 처리 단계 코드) — V1.x 재정의**
+**`CM_GROUP_CODE`: `BATCH_STAGE_CD` (배치 처리 단계 코드) — V2 재정의**
 
 | GROUP_CODE | CODE | NAME | 설명 | 정렬 |
 |------------|------|------|------|:----:|
-| `BATCH_STAGE_CD` | `VLM` | VLM 메타 | 외부 시스템 시계열 메타 단계 (V1.x 첫 단계로 이동) | 10 |
-| `BATCH_STAGE_CD` | `FRAME_EXTRACT` | 프레임추출 | FFmpeg 1프레임/분 추출 | 20 |
-| `BATCH_STAGE_CD` | `YOLO` | YOLO | 오토라벨링 | 30 |
-| `BATCH_STAGE_CD` | `SAM2` | SAM2 | 세그멘테이션 | 40 |
+| `BATCH_STAGE_CD` | `VLM` | VLM 메타 | 외부 시스템 시계열 메타 단계 (원본 영상 입력) | 10 |
+| `BATCH_STAGE_CD` | `DEIDENTIFY` | 비식별 처리 | 외부 비식별 서버 호출 (영상 단위, PRVC_TYPE_CD 무관 무조건 — V2 부활) | 20 |
+| `BATCH_STAGE_CD` | `FRAME_EXTRACT` | 프레임추출 | FFmpeg 1프레임/분 추출 (원본·비식별 2벌) | 30 |
+| `BATCH_STAGE_CD` | `YOLO` | YOLO | 오토라벨링 (원본 프레임 입력) | 40 |
+| `BATCH_STAGE_CD` | `SAM2` | SAM2 | 세그멘테이션 (원본 프레임 입력) | 50 |
 
 ```sql
--- DEIDENTIFY 코드값 비활성 (USE_YN='N')
+-- DEIDENTIFY 코드값 재활성 (V1.x에서 USE_YN='N'으로 했던 것을 'Y'로 복원)
 UPDATE CM_CODE
-   SET USE_YN = 'N'
+   SET USE_YN = 'Y',
+       CODE_NM = '비식별 처리',
+       CODE_DC = '외부 비식별 서버 호출 (영상 단위, 무조건 실행)',
+       SORT_ORDR = 20
  WHERE GROUP_CODE = 'BATCH_STAGE_CD' AND CODE = 'DEIDENTIFY';
 
--- VLM 정렬 / 명칭 갱신 (기존 SORT_ORDR=50 이었다면 10으로)
+-- VLM 정렬 유지 (10)
 UPDATE CM_CODE
    SET CODE_NM = 'VLM 메타', CODE_DC = '외부 시스템 시계열 메타 단계', SORT_ORDR = 10
  WHERE GROUP_CODE = 'BATCH_STAGE_CD' AND CODE = 'VLM';
 
--- 나머지 정렬 갱신
-UPDATE CM_CODE SET SORT_ORDR = 20 WHERE GROUP_CODE = 'BATCH_STAGE_CD' AND CODE = 'FRAME_EXTRACT';
-UPDATE CM_CODE SET SORT_ORDR = 30 WHERE GROUP_CODE = 'BATCH_STAGE_CD' AND CODE = 'YOLO';
-UPDATE CM_CODE SET SORT_ORDR = 40 WHERE GROUP_CODE = 'BATCH_STAGE_CD' AND CODE = 'SAM2';
+-- FRAME_EXTRACT는 DEIDENTIFY 뒤로 이동 (20 → 30)
+UPDATE CM_CODE SET CODE_DC = 'FFmpeg 1프레임/분 추출 (원본·비식별 2벌)', SORT_ORDR = 30
+ WHERE GROUP_CODE = 'BATCH_STAGE_CD' AND CODE = 'FRAME_EXTRACT';
+
+-- YOLO / SAM2 정렬 갱신
+UPDATE CM_CODE SET SORT_ORDR = 40 WHERE GROUP_CODE = 'BATCH_STAGE_CD' AND CODE = 'YOLO';
+UPDATE CM_CODE SET SORT_ORDR = 50 WHERE GROUP_CODE = 'BATCH_STAGE_CD' AND CODE = 'SAM2';
+
+-- V2 추가: 비식별 실패 정지 상태 코드 (재시도 최대 횟수 초과)
+INSERT INTO CM_CODE (GROUP_CODE, CODE, CODE_NM, CODE_DC, USE_YN, SORT_ORDR) VALUES
+    ('BATCH_STAGE_CD', 'DEIDENT_FAILED', '비식별 실패 정지',
+     '비식별 재시도 최대 횟수 초과로 후속 단계 진행 불가 — 검수자 별도 조치 필요', 'Y', 25);
 ```
 
 | 항목 | 값 |
 |------|----|
-| 마이그레이션 버전 | V1.x__redefine_batch_stage_codes.sql |
+| 마이그레이션 버전 | V2__redefine_batch_stage_codes.sql |
 | 협의 필요 | 관제서버팀 (klid_system 공유 코드) |
-| 호환성 | 기존 `DEIDENTIFY` 데이터 — `USE_YN='N'`으로 보존, 신규 영상부터는 미사용 |
+| 호환성 | V1.x에서 USE_YN='N'으로 했던 DEIDENTIFY를 'Y'로 복원. 기존 영상 데이터는 단계 정렬 변경의 영향을 받지 않음 |
 
 ---
 
-### 4.7 내보내기 작업 테이블 — 포털 전송 옵션 (V1.x) ★
+### 4.7 외부 시스템 학습데이터 API 호출 로그 — `LS_DATA_API_LOG` (V2) ★
 
-V1.x에서 내보내기 정책이 NAS 저장 → 포털 서버 전송으로 단일화되었다. 내보내기 작업(`LS_DATA_SET` 또는 별도 잡 테이블)에 다음 컬럼이 필요하다.
+V2에서 저작도구 내 "내보내기" 화면·메뉴가 제거되고 외부 시스템(데이터마트·외부 학습 시스템)이 학습데이터 API를 호출해 가져가는 모델로 일원화되었다. V1.x의 내보내기 작업 테이블(`LS_DATA_SET` 또는 잡 단위 테이블)에 추가했던 옵션 컬럼들은 의미를 잃었으며, 외부 API 호출 로그 테이블로 교체된다.
+
+**V1.x 컬럼 폐기 (롤백)**
+
+| V1.x 컬럼 | 처리 | 사유 |
+|-----------|------|------|
+| `LS_DATA_SET.TARGET_SERVER` | 제거 | 외부 API 호출은 호출자(API_KEY_ID)로 식별. 단일 대상 서버 개념 자체가 의미 없어짐 |
+| `LS_DATA_SET.DEIDENTIFY_YN` | 제거 | 비식별은 자동 파이프라인 단계로 무조건 실행되므로 옵션 개념 불필요 |
+| `LS_DATA_SET.EXPORT_FORMAT_CD` | 제거 | API 쿼리 파라미터(`?format=...`)로 이관 |
+| `LS_DATA_SET.INCL_LBL_YN` | 제거 | API 응답에는 항상 라벨 포함 |
+| `LS_DATA_SET.INCL_IMG_YN` | 제거 | API 응답에는 항상 프레임 사전서명 URL 포함 |
+
+**신규 테이블: `LS_DATA_API_LOG`**
 
 | 컬럼 | 타입 | NULL | 기본값 | 설명 |
 |-----------|------|:----:|--------|------|
-| `TARGET_SERVER` | VARCHAR(20) | ✗ | `'PORTAL'` | 전송 대상 서버. 현재 `PORTAL`만 지원 |
-| `DEIDENTIFY_YN` | VARCHAR(1) | ✗ | `'Y'` | 비식별 처리 옵션 — `Y`면 비식별 서버 호출 후 마스킹된 산출물 전송, `N`이면 원본 전송 |
-| `EXPORT_FORMAT_CD` | VARCHAR(20) | ✗ | — | 내보내기 포맷 (`COCO` / `YOLO` / `CVAT` / `PASCAL_VOC`) — `CM_CODE` 참조 |
-| `INCL_LBL_YN` | VARCHAR(1) | ✗ | `'Y'` | 라벨 포함 여부 |
-| `INCL_IMG_YN` | VARCHAR(1) | ✗ | `'Y'` | 이미지 포함 여부 |
-
-**컬럼 배치 결정**: `LS_DATA_SET`(데이터셋 추출 관리)에 위 5개 컬럼을 추가하거나, 잡 단위 추적이 필요하면 별도 신규 테이블(`LS_EXPORT_JOB`)을 두는 안 중 선택. **권장: 기존 `LS_DATA_SET`에 컬럼 추가**(잡 1건 = 데이터셋 1건). 관제서버팀과 협의 후 확정.
+| `API_LOG_NO` | BIGINT (PK, AUTO_INCREMENT) | ✗ | — | 호출 로그 식별자 |
+| `API_KEY_ID` | VARCHAR(64) | ✗ | — | 외부 시스템 식별 (M2M 토큰의 키 ID) |
+| `REQUEST_AT` | DATETIME | ✗ | NOW() | 호출 일시 |
+| `VIDEO_IDS` | TEXT | ✗ | — | 조회 영상 식별자 JSON 배열 |
+| `MERGE_OPTION` | VARCHAR(1) | ✗ | `'N'` | `?merge=true` 옵션 여부 (`Y`/`N`) |
+| `FORMAT` | VARCHAR(20) | ✗ | `'COCO'` | 요청 포맷 (`COCO` / `YOLO` / `CVAT` / `PASCAL_VOC`) |
+| `RESPONSE_STATUS` | INT | ✗ | — | HTTP 응답 코드 (200/4xx/5xx) |
+| `RESPONSE_VIDEO_COUNT` | INT | ✗ | 0 | 실제 응답에 포함된 영상 수 (미승인 제외 후) |
+| `NOT_INCLUDED_REASON` | VARCHAR(500) | ✓ | NULL | 일부 영상 제외 시 사유 요약 (`NOT_APPROVED` 등) |
+| `CLIENT_IP` | VARCHAR(45) | ✗ | — | 호출자 IP (IPv4/IPv6) |
 
 ```sql
--- 권장 안: LS_DATA_SET 컬럼 추가
-ALTER TABLE LS_DATA_SET
-    ADD COLUMN TARGET_SERVER     VARCHAR(20) NOT NULL DEFAULT 'PORTAL'
-        COMMENT '전송 대상 서버 (V1.x)',
-    ADD COLUMN DEIDENTIFY_YN     VARCHAR(1)  NOT NULL DEFAULT 'Y'
-        COMMENT '비식별 처리 옵션 (V1.x)',
-    ADD COLUMN EXPORT_FORMAT_CD  VARCHAR(20) NOT NULL
-        COMMENT '내보내기 포맷 (CM_CODE BATCH_FORMAT_CD)',
-    ADD COLUMN INCL_LBL_YN       VARCHAR(1)  NOT NULL DEFAULT 'Y'
-        COMMENT '라벨 포함',
-    ADD COLUMN INCL_IMG_YN       VARCHAR(1)  NOT NULL DEFAULT 'Y'
-        COMMENT '이미지 포함';
+-- V2 신규 테이블
+CREATE TABLE LS_DATA_API_LOG (
+    API_LOG_NO            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '호출 로그 식별자',
+    API_KEY_ID            VARCHAR(64)  NOT NULL COMMENT '외부 시스템 M2M 키 ID',
+    REQUEST_AT            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '호출 일시',
+    VIDEO_IDS             TEXT         NOT NULL COMMENT '조회 영상 식별자 JSON 배열',
+    MERGE_OPTION          VARCHAR(1)   NOT NULL DEFAULT 'N' COMMENT 'merge=true 옵션 여부',
+    FORMAT                VARCHAR(20)  NOT NULL DEFAULT 'COCO' COMMENT '요청 포맷',
+    RESPONSE_STATUS       INT          NOT NULL COMMENT 'HTTP 응답 코드',
+    RESPONSE_VIDEO_COUNT  INT          NOT NULL DEFAULT 0 COMMENT '응답 포함 영상 수',
+    NOT_INCLUDED_REASON   VARCHAR(500) NULL COMMENT '일부 제외 영상 사유 요약',
+    CLIENT_IP             VARCHAR(45)  NOT NULL COMMENT '호출자 IP',
+    PRIMARY KEY (API_LOG_NO),
+    INDEX IDX_API_LOG_KEY_AT (API_KEY_ID, REQUEST_AT),
+    INDEX IDX_API_LOG_AT (REQUEST_AT)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='외부 시스템 학습데이터 API 호출 로그 (V2)';
 
--- 포맷 코드 그룹 추가 (이미 있으면 생략)
-INSERT INTO CM_CODE (GROUP_CODE, CODE, CODE_NM, USE_YN, SORT_ORDR) VALUES
-    ('BATCH_FORMAT_CD', 'COCO',       'COCO',       'Y', 10),
-    ('BATCH_FORMAT_CD', 'YOLO',       'YOLO',       'Y', 20),
-    ('BATCH_FORMAT_CD', 'CVAT',       'CVAT',       'Y', 30),
-    ('BATCH_FORMAT_CD', 'PASCAL_VOC', 'PASCAL VOC', 'Y', 40);
+-- V1.x 컬럼 롤백 (LS_DATA_SET — 운영 데이터가 있다면 관제서버팀과 협의 후 진행)
+ALTER TABLE LS_DATA_SET
+    DROP COLUMN TARGET_SERVER,
+    DROP COLUMN DEIDENTIFY_YN,
+    DROP COLUMN EXPORT_FORMAT_CD,
+    DROP COLUMN INCL_LBL_YN,
+    DROP COLUMN INCL_IMG_YN;
 ```
 
 | 항목 | 값 |
 |------|----|
-| 마이그레이션 버전 | V1.x__export_portal_columns.sql |
-| 협의 필요 | 관제서버팀 + 포털팀 |
-| 호환성 | DEFAULT 적용으로 기존 행 무영향 |
+| 마이그레이션 버전 | V2__create_data_api_log_and_drop_export_columns.sql |
+| 협의 필요 | 관제서버팀 (LS_DATA_SET 공유) + 외부 시스템 담당팀 |
+| 호환성 | V1.x 옵션 컬럼은 운영 미반영 상태라면 무영향. 운영 반영된 경우 데이터 백업 후 DROP |
 
 ---
 
-### 4.8 영상 메타 테이블 — 내보내기 이력 상태 (V1.x 후속) ★
+### 4.8 영상 메타 테이블 — 비식별 영구 이력 + 2벌 경로 (V2) ★
 
-V1.x 후속 정정으로 영상 단위로 **내보내기(포털 전송) 이력 상태**를 영구 보존한다. 본 컬럼은 영상 메타 테이블(예: `LS_DATA_RAW` — 관제서버팀과 협의하여 적용 위치 확정 필요)에 추가된다.
+V2에서 영상 단위로 **비식별 처리 이력**(완료/실패/재시도)과 **원본·비식별 영상 2벌 경로**, **메타 JSON 2종 경로**를 영구 보존한다. 본 컬럼은 영상 메타 테이블(예: `LS_DATA_RAW` — 관제서버팀과 협의하여 적용 위치 확정 필요)에 추가된다.
 
-**비식별 정책 정정 (영구 속성 폐기)**: 비식별은 **매 전송 시도마다 실행되는 단발 행위**이며, 영상이 영구적으로 '비식별 실패' 상태를 갖지 않는다. 이전 V1.x에서 잘못 추가될 뻔했던 `deidentifyStatus` 같은 영구 컬럼은 **두지 않는다**. 시도별 실패 사유는 `LAST_EXPORT_FAIL_REASON`에 마지막 시도의 사유로만 보존되며, `EXPORT_STATUS_CD = 'FAILED'` 영상은 다음 시도에 자연스럽게 재선택 가능하다(`forceReexport`와 무관).
+**V1.x 후속 컬럼 폐기 (롤백)**
+
+| V1.x 컬럼 | 처리 | 사유 |
+|-----------|------|------|
+| `EXPORT_STATUS_CD` | 제거 | 외부 노출 이력은 영상 단위 영구 필드가 아닌 `LS_DATA_API_LOG` 호출 로그로 충분 (V2) |
+| `LAST_EXPORTED_AT` | 제거 | 동상 |
+| `LAST_EXPORT_FAIL_REASON` | 제거 | 동상 |
+
+**V2 추가 컬럼**
 
 | 추가 컬럼 | 타입 | NULL | 기본값 | 설명 |
 |-----------|------|:----:|--------|------|
-| `EXPORT_STATUS_CD` | VARCHAR(20) | ✗ | `'NEVER'` | 내보내기 이력 상태 (`NEVER` / `EXPORTED` / `FAILED`). `CM_CODE` group `EXPORT_STATUS_CD` |
-| `LAST_EXPORTED_AT` | DATETIME | ✓ | NULL | 마지막 내보내기 성공 일시 (성공 시에만 갱신) |
-| `LAST_EXPORT_FAIL_REASON` | VARCHAR(500) | ✓ | NULL | 마지막 내보내기 실패 사유 (시도별 사유 — '비식별 실패', '포털 응답 오류' 등). 실패 시에만 갱신 |
+| `RAW_VIDEO_PATH` | VARCHAR(500) | ✗ | — | 원본 영상 NAS 경로 (절대 삭제 금지) |
+| `DEIDENT_VIDEO_PATH` | VARCHAR(500) | ✓ | NULL | 비식별 영상 NAS 경로 (DEIDENTIFY 단계 완료 후 채워짐) |
+| `RAW_META_JSON_PATH` | VARCHAR(500) | ✓ | NULL | 원본 메타 JSON 경로 (FRAME_EXTRACT 이후 생성) |
+| `DEIDENT_META_JSON_PATH` | VARCHAR(500) | ✓ | NULL | 비식별 메타 JSON 경로 (FRAME_EXTRACT 이후 생성) |
+| `DE_IDNTF_YN` | VARCHAR(1) | ✗ | `'N'` | 비식별 완료 여부 (`Y` 완료 / `N` 미완료 / `F` 실패) |
+| `DE_IDNTF_DT` | DATETIME | ✓ | NULL | 비식별 최종 완료 일시 (성공 시에만 갱신) |
+| `DE_IDNTF_RETRY_CNT` | INT | ✗ | 0 | 비식별 재시도 횟수 (라벨러 [비식별 누락 신고]에 의한 재시도 포함) |
+| `DE_IDNTF_LAST_FAIL_REASON` | VARCHAR(500) | ✓ | NULL | 직전 비식별 실패 사유 (외부 서버 오류 / 라벨러 신고 사유 등) |
 
-**추가 이유**
-
-- 요구사항정의서 §4.4.6 학습데이터 내보내기 — 이력 상태 추적 (검수 완료 가드 + 재전송 토글) 지원.
-- "이미 내보낸 영상 포함" 토글로 강제 재전송(`forceReexport`)을 가능하게 하면서, 기본은 미전송/실패 영상만 노출.
-- 매 전송 시도 결과의 상세 로그는 별도 export job/history 테이블에서 관리하는 모델로 진행하며(현재 mock은 영상의 last 사유만 저장), 본 컬럼은 영상 단위의 마지막 상태만 보존한다.
+**비식별 정책 (V2)**: 비식별은 **자동 파이프라인의 영상 단위 무조건 단계**이며 모든 영상이 비식별 처리를 거친다. PRVC_TYPE_CD 무관 호출. 실패 시 `DE_IDNTF_YN='F'` 마킹 + 재시도 큐 적재 후 후속 단계 진행 차단. 최대 재시도 횟수(`DE_IDNTF_MAX_RETRY`, 시스템 설정) 초과 시 `BATCH_STAGE_CD='DEIDENT_FAILED'`로 정지.
 
 ```sql
+-- V2 신규 컬럼 (영상 메타)
 ALTER TABLE LS_DATA_RAW
-    ADD COLUMN EXPORT_STATUS_CD        VARCHAR(20)  NOT NULL DEFAULT 'NEVER'
-        COMMENT '내보내기 이력 상태 (NEVER/EXPORTED/FAILED) — V1.x 후속',
-    ADD COLUMN LAST_EXPORTED_AT        DATETIME     NULL
-        COMMENT '마지막 내보내기 성공 일시',
-    ADD COLUMN LAST_EXPORT_FAIL_REASON VARCHAR(500) NULL
-        COMMENT '마지막 내보내기 실패 사유 (시도별 사유)';
+    ADD COLUMN RAW_VIDEO_PATH             VARCHAR(500) NOT NULL
+        COMMENT '원본 영상 NAS 경로 (V2 — 절대 삭제 금지)',
+    ADD COLUMN DEIDENT_VIDEO_PATH         VARCHAR(500) NULL
+        COMMENT '비식별 영상 NAS 경로 (V2)',
+    ADD COLUMN RAW_META_JSON_PATH         VARCHAR(500) NULL
+        COMMENT '원본 메타 JSON 경로 (V2)',
+    ADD COLUMN DEIDENT_META_JSON_PATH     VARCHAR(500) NULL
+        COMMENT '비식별 메타 JSON 경로 (V2)',
+    ADD COLUMN DE_IDNTF_YN                VARCHAR(1)   NOT NULL DEFAULT 'N'
+        COMMENT '비식별 완료 여부 (Y/N/F)',
+    ADD COLUMN DE_IDNTF_DT                DATETIME     NULL
+        COMMENT '비식별 최종 완료 일시',
+    ADD COLUMN DE_IDNTF_RETRY_CNT         INT          NOT NULL DEFAULT 0
+        COMMENT '비식별 재시도 횟수 (라벨러 신고 포함)',
+    ADD COLUMN DE_IDNTF_LAST_FAIL_REASON  VARCHAR(500) NULL
+        COMMENT '직전 비식별 실패 사유';
 
--- 코드값 추가 (그룹 미존재 시 INSERT)
-INSERT INTO CM_CODE (GROUP_CODE, CODE, CODE_NM, USE_YN, SORT_ORDR) VALUES
-    ('EXPORT_STATUS_CD', 'NEVER',    '미전송',     'Y', 10),
-    ('EXPORT_STATUS_CD', 'EXPORTED', '전송 완료', 'Y', 20),
-    ('EXPORT_STATUS_CD', 'FAILED',   '전송 실패', 'Y', 30);
+-- V1.x 컬럼 롤백 (운영 미반영이면 단순 DROP, 반영됐다면 백업 후 진행)
+ALTER TABLE LS_DATA_RAW
+    DROP COLUMN EXPORT_STATUS_CD,
+    DROP COLUMN LAST_EXPORTED_AT,
+    DROP COLUMN LAST_EXPORT_FAIL_REASON;
+
+-- EXPORT_STATUS_CD 코드 그룹 비활성
+UPDATE CM_CODE SET USE_YN='N' WHERE GROUP_CODE = 'EXPORT_STATUS_CD';
 ```
 
 **갱신 규칙**
 
-- 전송 성공: `EXPORT_STATUS_CD='EXPORTED'`, `LAST_EXPORTED_AT=NOW()`, `LAST_EXPORT_FAIL_REASON=NULL`
-- 전송 실패(비식별 실패 포함): `EXPORT_STATUS_CD='FAILED'`, `LAST_EXPORTED_AT`은 변경 없음, `LAST_EXPORT_FAIL_REASON='비식별 실패'` 등 시도별 사유로 갱신
-- 강제 재전송 시(`forceReexport=true`)도 동일 규칙 적용 — 이전 상태에 무관하게 시도 결과로 덮어씀
+- 비식별 성공: `DE_IDNTF_YN='Y'`, `DE_IDNTF_DT=NOW()`, `DEIDENT_VIDEO_PATH` 채움. 라벨러 신고에 의한 재시도라면 `DE_IDNTF_RETRY_CNT+=1`
+- 비식별 실패: `DE_IDNTF_YN='F'`, `DE_IDNTF_LAST_FAIL_REASON` 갱신, `DE_IDNTF_DT`는 변경 없음 (재시도 큐 적재)
+- 라벨러 [비식별 누락 신고]: `BATCH_STAGE_CD='DEIDENTIFY'`로 영상 단위 되돌림, `DE_IDNTF_RETRY_CNT+=1`, `DE_IDNTF_LAST_FAIL_REASON='라벨러 신고 — {누락 유형}'` 기록
+
+**라벨러 신고 이력 테이블 — `LS_LABELER_REPORT` (V2 신규)**
+
+| 컬럼 | 타입 | NULL | 설명 |
+|------|------|:----:|------|
+| `REPORT_NO` | BIGINT (PK, AUTO_INCREMENT) | ✗ | 신고 식별자 |
+| `VIDEO_ID` | BIGINT | ✗ | 영상 식별자 (FK: LS_DATA_RAW) |
+| `LABELER_ID` | VARCHAR(50) | ✗ | 신고자 (사용자 ID) |
+| `REPORTED_AT` | DATETIME | ✗ | 신고 일시 |
+| `MISSING_TYPE_CD` | VARCHAR(20) | ✗ | 누락 유형 (`FACE` / `PLATE` / `ETC`) |
+| `MISSING_X` / `MISSING_Y` | INT | ✓ | 누락 위치 좌표 (옵션, 캔버스 원본 픽셀) |
+| `FRAME_NO` | INT | ✓ | 신고 시 보고 있던 프레임 번호 |
+| `COMMENT_TEXT` | VARCHAR(2000) | ✓ | 자유 코멘트 |
+| `RETRY_RESULT_CD` | VARCHAR(20) | ✓ | 재시도 결과 (`SUCCESS` / `FAILED` / `IN_PROGRESS`) |
+
+```sql
+CREATE TABLE LS_LABELER_REPORT (
+    REPORT_NO         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '신고 식별자',
+    VIDEO_ID          BIGINT       NOT NULL COMMENT '영상 식별자',
+    LABELER_ID        VARCHAR(50)  NOT NULL COMMENT '신고자 사용자 ID',
+    REPORTED_AT       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '신고 일시',
+    MISSING_TYPE_CD   VARCHAR(20)  NOT NULL COMMENT '누락 유형 (FACE/PLATE/ETC)',
+    MISSING_X         INT          NULL COMMENT '누락 위치 X 좌표',
+    MISSING_Y         INT          NULL COMMENT '누락 위치 Y 좌표',
+    FRAME_NO          INT          NULL COMMENT '신고 시 프레임 번호',
+    COMMENT_TEXT      VARCHAR(2000) NULL COMMENT '자유 코멘트',
+    RETRY_RESULT_CD   VARCHAR(20)  NULL COMMENT '재시도 결과 (SUCCESS/FAILED/IN_PROGRESS)',
+    PRIMARY KEY (REPORT_NO),
+    INDEX IDX_LABELER_REPORT_VIDEO (VIDEO_ID, REPORTED_AT),
+    INDEX IDX_LABELER_REPORT_LABELER (LABELER_ID, REPORTED_AT)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='라벨러 비식별 누락 신고 이력 (V2)';
+
+-- 누락 유형 코드
+INSERT INTO CM_CODE (GROUP_CODE, CODE, CODE_NM, USE_YN, SORT_ORDR) VALUES
+    ('MISSING_TYPE_CD', 'FACE',  '얼굴',    'Y', 10),
+    ('MISSING_TYPE_CD', 'PLATE', '번호판', 'Y', 20),
+    ('MISSING_TYPE_CD', 'ETC',   '기타',    'Y', 30);
+```
 
 | 항목 | 값 |
 |------|----|
-| 마이그레이션 버전 | V1.x__add_export_status_columns.sql |
-| 협의 필요 | 관제서버팀 (`klid_system` 공유 테이블) |
-| 호환성 | DEFAULT `'NEVER'` 적용으로 기존 행 무영향. 기존 영상은 모두 미전송 상태로 시작 |
+| 마이그레이션 버전 | V2__deident_2copy_paths_and_labeler_reports.sql |
+| 협의 필요 | 관제서버팀 (`LS_DATA_RAW` 공유 테이블) |
+| 호환성 | V1.x 컬럼 DROP은 운영 미반영 상태 가정. RAW_VIDEO_PATH는 NOT NULL이므로 마이그레이션 시 기존 영상에 대해 백필 필요 |
 
-> **참고**: 본 컬럼 추가는 관제서버팀과 사전 협의가 필요하다. 적용 위치(`LS_DATA_RAW` 또는 별도 영상 메타 테이블)는 협의 후 확정. 시도별 상세 로그가 추가로 필요하면 별도 `LS_EXPORT_JOB_HSTRY` 테이블을 후속 도입 검토.
+> **참고**: `RAW_VIDEO_PATH`는 NOT NULL인데, 기존 영상 데이터에 대한 백필 절차가 마이그레이션 스크립트에 포함되어야 한다. 관제서버팀이 보유한 기존 영상 NAS 경로 매핑을 받아 백필 후 ALTER 실행.
 
 ---
 
@@ -526,7 +598,7 @@ CREATE TABLE LS_PORTAL_USER_VIDEO (
 
 ---
 
-> **mock 정합성**: `mock/src/api/types.ts`의 `VideoDto.downloadDeadline`, `PortalUserDto.uploadCount`, `PortalUserDto.labeledCount` 필드와 매핑됨.
+> **mock 정합성**: `mock/src/api/types.ts`의 `PortalUserDto.uploadCount`, `PortalUserDto.labeledCount` 필드와 매핑됨. V1.5 — 다운로드 기한은 포털 자체 책임으로 이관되어 mock `VideoDto`에는 `downloadDeadline` 필드를 두지 않으며, `LS_PORTAL_USER_VIDEO.DOWNLOAD_DDLN_DT` 컬럼은 포털 시스템 단독 책임 컬럼으로 운영한다 (저작도구 mock에는 노출/매핑 없음).
 
 ---
 
@@ -616,27 +688,29 @@ INSERT INTO LS_SYSTEM_CONFIG (CONFIG_KEY, CONFIG_VALUE, CONFIG_TYPE, DESCRIPTION
 | `ReviewDto.status` | `LS_PJT_DATA_STTS.DATA_STTS_CD` (`PENDING` / `IN_REVIEW` / `APPROVED` / `REJECTED`) | 코드값 §4.4에 신규 정의 |
 | `HistoryCommit.hash` | `LS_DATA_LBL_HSTRY.GITEA_CMT_HASH` | 신규 컬럼 (§4.3) |
 | `MartDataset.eventType` / `weather` / `season` | `LS_DATA_RAW` GROUP BY | 데이터셋 구성 영상의 대표값 |
-| `VideoDto.downloadDeadline` | `LS_PORTAL_USER_VIDEO.DOWNLOAD_DDLN_DT` | 포털 영역 (§5) |
 | `PortalUserDto.uploadCount` | `LS_PORTAL_USER_VIDEO` GROUP BY 또는 `LS_PORTAL_USER_STATS.UPLOAD_CNT` | 포털 영역 (§5) |
 | `PortalUserDto.labeledCount` | `LS_PORTAL_USER_STATS.LABELED_CNT` 또는 GROUP BY | 포털 영역 (§5) |
 | `SystemSettings.ffmpegConfig.*` | `LS_SYSTEM_CONFIG` (`FFMPEG_*` keys) | 영속화 (§5.2 신규, resolution 제외 — 원본 보존 정책) |
 | `SystemSettings.batchConfig.*` | `LS_SYSTEM_CONFIG` (`BATCH_*` keys) | 영속화 (§5.2 신규) |
-| `SystemSettings.externalSystems` | (DB 미저장) | 실시간 actuator/health 조회 |
-| `ReviewIssue.x` / `IssueDto.x` | `LS_DATA_ISSUE.X_COORD` | 신규 컬럼 (§4.5, V1.x). optional |
-| `ReviewIssue.y` / `IssueDto.y` | `LS_DATA_ISSUE.Y_COORD` | 신규 컬럼 (§4.5, V1.x). optional |
-| `BatchStage` (`VLM` / `FRAME_EXTRACT` / `YOLO` / `SAM2`) | `CM_CODE.CODE` (group `BATCH_STAGE_CD`) | V1.x — `DEIDENTIFY` 코드 비활성, `VLM` 첫 단계로 재정의 (§4.6) |
-| `ExportRequest.targetServer` | `LS_DATA_SET.TARGET_SERVER` | 신규 컬럼 (§4.7, V1.x). 현재 `'PORTAL'` 단일값 |
-| `ExportRequest.deidentify` | `LS_DATA_SET.DEIDENTIFY_YN` | 신규 컬럼 (§4.7, V1.x). 기본 `'Y'` |
-| `ExportRequest.format` | `LS_DATA_SET.EXPORT_FORMAT_CD` | `CM_CODE` group `BATCH_FORMAT_CD` (V1.x 신규 정의) |
-| `ExportRequest.options.includeLabels` | `LS_DATA_SET.INCL_LBL_YN` | 신규 컬럼 (§4.7, V1.x) |
-| `ExportRequest.options.includeImages` | `LS_DATA_SET.INCL_IMG_YN` | 신규 컬럼 (§4.7, V1.x) |
+| `SystemSettings.externalSystems` | (DB 미저장) | 실시간 actuator/health 조회. mock 4개 시스템(관제서버/포털서버/AI서버/Gitea) — 비식별 서버는 외부 인터페이스만 보유하며 헬스 모니터링 대상 아님 |
+| `ReviewIssue` (`{ id, frameNo, comment, createdAt }`) | `LS_DATA_ISSUE` (`UP_DATA_ISSUE_SN`/프레임참조/`ISSUE_CN`/`CRTN_DT`) | V1.x — **좌표(x, y) 미사용**. 프레임 단위 코멘트만 매핑 (§4.5 폐기 안내 참조) |
+| `BatchStage` (`VLM` / `DEIDENTIFY` / `FRAME_EXTRACT` / `YOLO` / `SAM2` / `DEIDENT_FAILED`) | `CM_CODE.CODE` (group `BATCH_STAGE_CD`) | V2 — `DEIDENTIFY` 코드 부활 (영상 단위 무조건), 단계 순서: VLM → DEIDENTIFY → FRAME_EXTRACT → YOLO → SAM2. `DEIDENT_FAILED`는 재시도 최대 횟수 초과 시 정지 상태 (§4.6) |
+| `VideoDto.rawVideoPath` | `LS_DATA_RAW.RAW_VIDEO_PATH` | 신규 컬럼 (§4.8, V2). 원본 영상 NAS 경로, NOT NULL |
+| `VideoDto.deidentVideoPath` | `LS_DATA_RAW.DEIDENT_VIDEO_PATH` | 신규 컬럼 (§4.8, V2). 비식별 영상 NAS 경로 |
+| `VideoDto.rawMetaJsonPath` | `LS_DATA_RAW.RAW_META_JSON_PATH` | 신규 컬럼 (§4.8, V2). 원본 메타 JSON 경로 |
+| `VideoDto.deidentMetaJsonPath` | `LS_DATA_RAW.DEIDENT_META_JSON_PATH` | 신규 컬럼 (§4.8, V2). 비식별 메타 JSON 경로 |
+| `VideoDto.deidentified` | `LS_DATA_RAW.DE_IDNTF_YN` (`Y`/`N`/`F`) | V2 부활 — 비식별 완료 여부 영구 속성 (자동 파이프라인 무조건 단계이므로 영상마다 추적) |
+| `VideoDto.deidentAt` | `LS_DATA_RAW.DE_IDNTF_DT` | 신규 컬럼 (§4.8, V2). 비식별 최종 완료 일시 |
+| `VideoDto.deidentRetryCount` | `LS_DATA_RAW.DE_IDNTF_RETRY_CNT` | 신규 컬럼 (§4.8, V2). 비식별 재시도 횟수 (라벨러 신고 포함) |
+| `VideoDto.deidentLastFailReason` | `LS_DATA_RAW.DE_IDNTF_LAST_FAIL_REASON` | 신규 컬럼 (§4.8, V2). 직전 비식별 실패 사유 |
+| `LabelerReportRequest` (`videoId` / `missingType` / `x` / `y` / `frameNo` / `comment`) | `LS_LABELER_REPORT` INSERT | V2 신규 — 라벨러 [비식별 누락 신고] 액션. 신고 시 `LS_DATA_RAW.BATCH_STAGE_CD='DEIDENTIFY'`로 되돌리고 `DE_IDNTF_RETRY_CNT+=1` |
+| `LabelerReportDto.retryResult` | `LS_LABELER_REPORT.RETRY_RESULT_CD` (`SUCCESS`/`FAILED`/`IN_PROGRESS`) | V2 신규 |
+| `ApiCallLog` (`apiKeyId` / `requestAt` / `videoIds` / `mergeOption` / `format` / `responseStatus`) | `LS_DATA_API_LOG` (§4.7, V2) | V2 신규 — 외부 시스템 학습데이터 API 호출 로그. 영상 단위 외부 노출 이력은 본 테이블로 통합 (영상 메타의 영구 필드는 제거) |
+| `ExternalDataApiResponse` (분리) | (DB 비저장 — API 응답 형태) | V2 — 기본 응답: `{ raw: {...}, deident: {...} }`. 라벨링 좌표는 두 객체에서 동일 참조 |
+| `ExternalDataApiResponse` (머지, `?merge=true`) | (DB 비저장 — API 응답 형태) | V2 — 머지 응답: 단일 객체. 영상/프레임 단위에 `deidentified: true|false` 플래그 포함 |
 | `BulkAssignRequest.videoIds` / `assigneeId` / `reviewerId` | `LS_PJT_USER_AUTHRT` 다건 INSERT/UPDATE + `LS_PJT_USER_AUTHRT_HSTRY` 다건 INSERT | V1.x — `POST /api/v1/tasks/bulk-assign` 단일 트랜잭션 멱등 처리. 동일 배정은 skip 카운트로 분류. **task가 없는 영상은 신규 task 생성**(V1.x 후속 — 작업 목록의 영상-기반 데이터 소스와 정합) |
-| `VideoDto.deidentified` | (V1.x DTO에서 제거 — 영구 속성 폐기) | 비식별은 매 전송 시도마다 실행되는 단발 행위(V1.x 후속 정정). 영상이 영구적인 '비식별 실패' 속성을 가지지 않으며 `deidentifyStatus` 같은 영구 컬럼도 두지 않는다. 시도별 실패 사유는 `LAST_EXPORT_FAIL_REASON`에 기록 |
-| `VideoDto.exportStatus` | `LS_DATA_RAW.EXPORT_STATUS_CD` (`NEVER` / `EXPORTED` / `FAILED`) | 신규 컬럼 (§4.8, V1.x 후속) |
-| `VideoDto.exportedAt` | `LS_DATA_RAW.LAST_EXPORTED_AT` | 신규 컬럼 (§4.8, V1.x 후속). 마지막 성공 일시 |
-| `VideoDto.lastExportFailureReason` | `LS_DATA_RAW.LAST_EXPORT_FAIL_REASON` | 신규 컬럼 (§4.8, V1.x 후속). 시도별 사유 (예: '비식별 실패') |
-| `ExportRequest.forceReexport` | (DB 컬럼 없음 — 요청 옵션) | V1.x 후속. true면 이미 전송된 영상도 강제 재전송 |
-| `ExportResponse.failedDueDeident` / `skippedAlreadyExported` / `blockedNotApproved` | (응답 카운트 — 잡 단위 집계) | V1.x 후속. 영상 단위로는 `EXPORT_STATUS_CD` / `LAST_EXPORT_FAIL_REASON`에서 산출 |
+| **(폐기)** `VideoDto.exportStatus` / `exportedAt` / `lastExportFailureReason` | (V1.x 컬럼 폐기, §4.8 참조) | V2 — 영상 단위 외부 노출 이력은 `LS_DATA_API_LOG` 호출 로그로 충분, 영구 필드 제거 |
+| **(폐기)** `ExportRequest.targetServer` / `deidentify` / `format` / `options` / `forceReexport` | (V1.x 컬럼 폐기, §4.7 참조) | V2 — 저작도구 내 내보내기 화면 제거. 외부 API는 쿼리 파라미터(`?format=...`, `?merge=true`)로 옵션 처리 |
 
 ---
 
