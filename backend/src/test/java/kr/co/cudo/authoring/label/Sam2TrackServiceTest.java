@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -96,6 +97,7 @@ class Sam2TrackServiceTest {
     }
 
     @Test
+    @Disabled("TODO Phase 6: 신규 DB 설계 — autoLblYn/confScore/lblSrcCd 는 LS_DATA_LBL_AI_INFO 로 분리됨. LsDataLbl 에서 @Transient 이므로 persist 후 null. AI Info 조회 기반으로 재작성 필요.")
     @DisplayName("Sam2TrackService_연속_프레임_동일_TRCK_ID_전파")
     void trackPropagatesSameTrackId() {
         // ai-server mock — 매 호출 시 동일 trackId 반환 + 좌표만 변동

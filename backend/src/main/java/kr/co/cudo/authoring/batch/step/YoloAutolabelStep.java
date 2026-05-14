@@ -3,9 +3,11 @@ package kr.co.cudo.authoring.batch.step;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -85,6 +87,7 @@ public class YoloAutolabelStep {
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
+    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final VideoRepository videoRepository;
     private final PresetLabelLookupService presetLabelLookup;
     private final SystemConfigService systemConfigService;
@@ -94,6 +97,7 @@ public class YoloAutolabelStep {
     public YoloAutolabelStep(AiServerClient aiServerClient,
                              LsDataSrcRepository srcRepository,
                              LsDataLblRepository lblRepository,
+                             LsDataLblAiInfoRepository aiInfoRepository,
                              VideoRepository videoRepository,
                              PresetLabelLookupService presetLabelLookup,
                              SystemConfigService systemConfigService,
@@ -102,6 +106,7 @@ public class YoloAutolabelStep {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
+        this.aiInfoRepository = aiInfoRepository;
         this.videoRepository = videoRepository;
         this.presetLabelLookup = presetLabelLookup;
         this.systemConfigService = systemConfigService;
@@ -188,8 +193,10 @@ public class YoloAutolabelStep {
                 String trackIdStr = d.trackId() == null ? null : String.valueOf(d.trackId());
                 if (toggle.bbox()) {
                     BigDecimal score = BigDecimal.valueOf(d.score()).setScale(4, RoundingMode.HALF_UP);
-                    lblRepository.save(LsDataLbl.createAutoBbox(
+                    LsDataLbl saved = lblRepository.save(LsDataLbl.createAutoBbox(
                             src.getSrcSn(), d.label(), serialize(d.points()), score, trackIdStr));
+                    aiInfoRepository.save(LsDataLblAiInfo.create(saved.getLblSn(), 0L, rawSn, src.getSrcSn(),
+                            LsDataLblAiInfo.SRC_YOLO, score, "batch"));
                     bboxSaved++;
                 }
                 if (toggle.polygon()) {

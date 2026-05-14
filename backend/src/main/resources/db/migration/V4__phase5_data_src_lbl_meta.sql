@@ -3,8 +3,7 @@
 -- H2 + MariaDB 호환을 위해 IF NOT EXISTS + 표준 SQL 타입만 사용.
 --
 -- 본 V4 는 LS_DATA_SRC / LS_DATA_LBL / LS_DATA_META 와 각 _HSTRY 테이블을 일괄 생성한다.
--- LS_DATA_LBL 에는 Phase 5 자동 라벨링 결과 보관용 컬럼 3종 (AUTO_LBL_YN / CONF_SCORE / DATA_AUG_SN)
--- 이 본 마이그레이션 시점에 포함되어 있다 — Phase 6 라벨 CRUD 와 호환.
+-- AI 라벨 출처/신뢰도 등 저작도구 전용 메타는 LS_DATA_LBL_AI_INFO 로 분리한다.
 
 -- ============================================================
 -- §3.4 LS_DATA_SRC : 영상에서 추출한 키프레임 (FRAME_EXTRACT 단계 산출)
@@ -15,7 +14,7 @@ CREATE TABLE IF NOT EXISTS LS_DATA_SRC (
     RAW_SN          BIGINT          NOT NULL,
     FRAME_NO        INT             NOT NULL,
     FILE_PATH       VARCHAR(500)    NOT NULL,
-    DEID_FILE_PATH  VARCHAR(500),
+    SRC_BKUP_FILE_PATH VARCHAR(1000),
     CAPTURED_AT     TIMESTAMP,
     REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UPD_DT          TIMESTAMP,
@@ -39,10 +38,7 @@ CREATE INDEX IF NOT EXISTS IX_LS_DATA_SRC_HSTRY_SRC ON LS_DATA_SRC_HSTRY (SRC_SN
 -- ============================================================
 -- §3.6 LS_DATA_LBL : 라벨 (자동 + 수동)
 --   - SRC_SN FK (프레임 단위) + LBL_TYPE_CD (BBOX/POLYGON/SEGMENT/TRACK).
---   - 본 Phase 5 에서 추가되는 컬럼 3종:
---       AUTO_LBL_YN  CHAR(1)     자동 라벨 여부 ('Y' = YOLO/SAM2/VLM 산출, 'N' = 사람 입력)
---       CONF_SCORE   DECIMAL(5,4) 0.0~1.0 신뢰도 (VLM 검증 결과로 갱신될 수 있음)
---       DATA_AUG_SN  BIGINT       증강 데이터 FK (Phase 10 — 본 Phase 에서는 nullable)
+--   - AI 라벨 여부/신뢰도/출처는 LS_DATA_LBL_AI_INFO 에 분리 저장한다.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS LS_DATA_LBL (
     LBL_SN          BIGINT          NOT NULL AUTO_INCREMENT,
@@ -50,9 +46,7 @@ CREATE TABLE IF NOT EXISTS LS_DATA_LBL (
     LBL_TYPE_CD     VARCHAR(16)     NOT NULL,
     LABEL           VARCHAR(255)    NOT NULL,
     POINTS_JSON     LONGTEXT,
-    AUTO_LBL_YN     CHAR(1)         NOT NULL DEFAULT 'N',
-    CONF_SCORE      DECIMAL(5,4),
-    DATA_AUG_SN     BIGINT,
+    TRCK_ID         VARCHAR(64),
     REG_USER_NO     BIGINT,
     REG_DT          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UPD_DT          TIMESTAMP,
@@ -60,7 +54,7 @@ CREATE TABLE IF NOT EXISTS LS_DATA_LBL (
 );
 
 CREATE INDEX IF NOT EXISTS IX_LS_DATA_LBL_SRC ON LS_DATA_LBL (SRC_SN);
-CREATE INDEX IF NOT EXISTS IX_LS_DATA_LBL_AUTO ON LS_DATA_LBL (AUTO_LBL_YN);
+CREATE INDEX IF NOT EXISTS IX_LS_DATA_LBL_TRCK_ID ON LS_DATA_LBL (TRCK_ID);
 
 -- ============================================================
 -- §3.7 LS_DATA_META : 영상/프레임 메타 (외부 시계열 메타 검토 + VLM 객체 검증 보조)

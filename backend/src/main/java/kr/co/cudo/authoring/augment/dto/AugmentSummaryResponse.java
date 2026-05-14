@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.augment.dto;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -23,15 +24,19 @@ public record AugmentSummaryResponse(
 ) {
 
     public static AugmentSummaryResponse from(LsDataAug e) {
+        return from(e, null);
+    }
+
+    public static AugmentSummaryResponse from(LsDataAug e, LsDataAugRvw review) {
         return new AugmentSummaryResponse(
                 e.getDataAugSn(),
                 e.getSrcSn(),
                 e.getAugTypeCd(),
-                e.getAugProcSttsCd(),
-                e.getLblIntgrtPct(),
-                e.getRejectReason(),
-                e.getDecisionUserNo(),
-                e.getDecisionAt(),
+                review == null ? e.getAugProcSttsCd() : review.getRvwSttsCd(),
+                review == null ? null : review.getLblIntgrtPct(),
+                review == null ? null : review.getRejectReason(),
+                review == null ? null : review.getRvwId(),
+                review == null ? null : review.getRvwDt(),
                 e.getRegisteredAt()
         );
     }

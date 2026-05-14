@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -40,6 +42,7 @@ public class VlmObjectVerifyStep {
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
+    private final LsDataLblAiInfoRepository aiInfoRepository;
 
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public int run(Long rawSn) {
@@ -86,6 +89,12 @@ public class VlmObjectVerifyStep {
                 if (lbl == null) continue;
                 BigDecimal newScore = BigDecimal.valueOf(v.confidence()).setScale(4, RoundingMode.HALF_UP);
                 lbl.updateConfScore(newScore);
+                int updatedRows = aiInfoRepository.updateConfidence(
+                        lbl.getLblSn(), newScore, LsDataLblAiInfo.SRC_VLM, "batch");
+                if (updatedRows == 0) {
+                    aiInfoRepository.save(LsDataLblAiInfo.create(lbl.getLblSn(), 0L, rawSn, src.getSrcSn(),
+                            LsDataLblAiInfo.SRC_VLM, newScore, "batch"));
+                }
                 updated++;
             }
         }

@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,15 +17,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * LS_DATA_LBL: 라벨 (자동/수동 통합).
+ * LS_DATA_LBL: 현재 라벨 좌표/속성.
  *  - srcSn: LS_DATA_SRC FK (프레임 단위)
  *  - lblTypeCd: BBOX / POLYGON / SEGMENT / TRACK
  *  - pointsJson: 좌표 직렬화 (Jackson 안전 모드 — enableDefaultTyping 사용 금지)
- *  - autoLblYn: 'Y' = YOLO/SAM2/VLM 자동 산출, 'N' = 사람 입력
- *  - confScore: 0.0 ~ 1.0 (VLM 검증 결과로 갱신될 수 있음)
- *  - dataAugSn: 증강 데이터 FK (Phase 10)
  *
- *  본 Phase 5 에서는 자동 산출 라벨 INSERT 와 confScore UPDATE 가 주된 사용처.
+ * 자동/수동 여부, 모델명, 신뢰도, 보간 출처 등 저작도구 전용 AI 메타는
+ * LS_DATA_LBL_AI_INFO 에 분리 저장한다. 본 엔티티의 autoLblYn/confScore/lblSrcCd 는
+ * 생성 직후 서비스가 AI 정보 테이블을 저장하기 위한 transient 값이다.
  */
 @Entity
 @Table(name = "LS_DATA_LBL")
@@ -64,13 +64,13 @@ public class LsDataLbl {
     @Column(name = "POINTS_JSON")
     private String pointsJson;
 
-    @Column(name = "AUTO_LBL_YN", nullable = false, length = 1)
+    @Transient
     private String autoLblYn;
 
-    @Column(name = "CONF_SCORE", precision = 5, scale = 4)
+    @Transient
     private BigDecimal confScore;
 
-    @Column(name = "DATA_AUG_SN")
+    @Transient
     private Long dataAugSn;
 
     /**
@@ -80,7 +80,7 @@ public class LsDataLbl {
      *  - 트래커가 저신뢰 detection 에 ID 미부여한 경우 (fallback)
      *  - V18 마이그레이션 이전 legacy row
      */
-    @Column(name = "TRACK_ID", length = 64)
+    @Column(name = "TRCK_ID", length = 64)
     private String trackId;
 
     /**
@@ -89,7 +89,7 @@ public class LsDataLbl {
      * 'INTERPOLATED' = 트랙 보간으로 추정·생성된 BBOX row.
      * <p>값 화이트리스트: NULL | INTERPOLATED. 향후 'AUGMENTED', 'IMPORTED' 확장 여지.
      */
-    @Column(name = "LBL_SRC_CD", length = 20)
+    @Transient
     private String lblSrcCd;
 
     @Column(name = "REG_USER_NO")

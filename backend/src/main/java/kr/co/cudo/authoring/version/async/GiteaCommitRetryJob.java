@@ -2,8 +2,6 @@ package kr.co.cudo.authoring.version.async;
 
 import kr.co.cudo.authoring.common.client.GiteaClient;
 import kr.co.cudo.authoring.common.client.dto.CommitResponse;
-import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
-import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.version.service.GiteaPathPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +19,7 @@ import java.util.Optional;
  * Phase 8 — Gitea 커밋 fallback 재시도 잡.
  *
  * <p>5분 간격으로 큐를 polling 하여, 한 번에 큐 크기만큼 처리.
- * 성공 시: 가장 최신 PENDING history 의 hash 를 채움.
+ * 성공 시: Gitea 재시도 성공 로그를 남긴다.
  * 실패 시: requeueIfRetryable 로 큐 끝에 재배치 (최대 5회 후 폐기).
  *
  * <p>환경: Spring {@code @Scheduled} 사용. {@code @EnableScheduling} 활성화 + property 활성화 시 동작.
@@ -36,7 +34,6 @@ public class GiteaCommitRetryJob {
     private final GiteaCommitFallbackQueue queue;
     private final GiteaClient giteaClient;
     private final GiteaPathPolicy pathPolicy;
-    private final LsDataLblHstryRepository historyRepository;
 
     @Value("${authoring.integration.gitea.repo}")
     private String repo;
@@ -80,18 +77,6 @@ public class GiteaCommitRetryJob {
                 .block(GiteaClient.BLOCK_TIMEOUT);
         String sha = resp == null ? "" : resp.sha();
 
-        // 가장 최근 PENDING history 한 건의 hash 를 채움 (없으면 신규 record)
-        var latest = historyRepository.findBySrcSnOrderByRegisteredAtDesc(item.getSrcSn());
-        LsDataLblHstry pending = latest.stream()
-                .filter(h -> h.getGiteaCmtHash() == null)
-                .findFirst()
-                .orElse(null);
-        if (pending != null) {
-            pending.fillGiteaHash(sha);
-            historyRepository.save(pending);
-        } else {
-            historyRepository.save(LsDataLblHstry.create(item.getSrcSn(), sha, item.getUserNo(), labelsJson));
-        }
         log.info("[Version] gitea retry success srcSn={} sha={}", item.getSrcSn(), sha);
     }
 }

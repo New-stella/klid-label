@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.label.service;
 
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
+import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -44,6 +45,7 @@ public class DeidentReportService {
     private final LsDeidentReportRepository reportRepository;
     private final BatchRetryQueue retryQueue;
     private final NotificationService notificationService;
+    private final WorkLockService workLockService;
 
     /**
      * 비식별 누락 신고 등록.
@@ -64,16 +66,16 @@ public class DeidentReportService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
 
         // 3) 이미 잠금 상태면 409 — 중복 신고 차단 (재처리 폭주 방지)
-        if (raw.isLockedForRedeident()) {
+        if (workLockService.isRawLocked(raw.getRawSn())) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 비식별 재처리 중인 영상입니다.");
         }
 
         // 4) 신고 row 저장
         LsDeidentReport report = reportRepository.save(
-                LsDeidentReport.create(raw.getRawSn(), reporterNo, reason));
+                LsDeidentReport.request(raw.getRawSn(), null, raw.getFilePath(), actor.sub()));
 
         // 5) 영상 잠금 + 비식별 상태 'F' 마킹 + 재시도 큐 적재
-        raw.attachLockStts(LsDataRaw.LOCK_REDEIDENT);
+        workLockService.lockRawForRedeident(raw.getRawSn(), actor.sub());
         raw.markDeidentified("F");
         retryQueue.enqueueIfRetryable(raw.getRawSn());
 
@@ -94,10 +96,11 @@ public class DeidentReportService {
         if (rawSn == null) {
             return 0;
         }
-        List<LsDeidentReport> opens = reportRepository.findAllByRawSnAndSttsCd(rawSn, LsDeidentReport.STATUS_OPEN);
+        List<LsDeidentReport> opens = reportRepository.findAllByDataRawSnAndProcSttsCd(rawSn, LsDeidentReport.STATUS_OPEN);
         for (LsDeidentReport r : opens) {
             r.resolve();
         }
+        workLockService.releaseRaw(rawSn, "system", "DEIDENT_SUCCEEDED");
         if (!opens.isEmpty()) {
             log.info("[DeidentReport] resolved rawSn={} count={}", rawSn, opens.size());
         }

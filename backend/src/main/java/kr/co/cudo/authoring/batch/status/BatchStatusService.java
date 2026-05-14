@@ -12,7 +12,7 @@ import java.util.Optional;
 
 /**
  * 배치 단계별 DB 기반 상태 추적.
- * LsBatchProcLog(RAW_SN PK) 단일 행 upsert 방식으로 영상 1건당 1행 유지.
+ * LsBatchProcLog 신규 스키마 기준으로 영상별 최신 로그를 갱신한다.
  */
 @Slf4j
 @Service
@@ -24,7 +24,7 @@ public class BatchStatusService {
     @Transactional("controlTransactionManager")
     public void markStage(Long rawSn, BatchStage stage) {
         if (rawSn == null || stage == null) return;
-        LsBatchProcLog log = repository.findById(rawSn)
+        LsBatchProcLog log = repository.findTopByDataRawSnOrderByRegDtDesc(rawSn)
                 .map(existing -> { existing.updateStage(stage); return existing; })
                 .orElseGet(() -> LsBatchProcLog.create(rawSn, stage));
         repository.save(log);
@@ -38,7 +38,7 @@ public class BatchStatusService {
     @Transactional("controlTransactionManager")
     public void markFailed(Long rawSn, Throwable cause) {
         if (rawSn == null) return;
-        Optional<LsBatchProcLog> existing = repository.findById(rawSn);
+        Optional<LsBatchProcLog> existing = repository.findTopByDataRawSnOrderByRegDtDesc(rawSn);
         LsBatchProcLog log = existing.orElseGet(() -> LsBatchProcLog.create(rawSn, BatchStage.FAILED));
         log.fail(cause);
         if (existing.isPresent()) {
@@ -49,7 +49,7 @@ public class BatchStatusService {
 
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public BatchStage currentStage(Long rawSn) {
-        return repository.findById(rawSn)
+        return repository.findTopByDataRawSnOrderByRegDtDesc(rawSn)
                 .map(l -> BatchStage.valueOf(l.getStageCd()))
                 .orElse(BatchStage.PENDING);
     }
@@ -57,7 +57,7 @@ public class BatchStatusService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<BatchStageProgress> recent(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 100));
-        return repository.findTop100ByOrderByUpdatedAtDesc().stream()
+        return repository.findTop100ByOrderByMdfcnDtDescRegDtDesc().stream()
                 .limit(safeLimit)
                 .map(this::toDto)
                 .toList();

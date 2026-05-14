@@ -32,9 +32,6 @@ public class LsDataRaw {
 
     public static final String STATUS_PENDING = "PENDING";
 
-    /** Phase 3 — 비식별 재처리 잠금 코드 (라벨 commit 차단용). */
-    public static final String LOCK_REDEIDENT = "LOCKED_FOR_REDEIDENT";
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "RAW_SN")
@@ -64,14 +61,6 @@ public class LsDataRaw {
     @Column(name = "FILE_PATH", nullable = false, length = 500)
     private String filePath;
 
-    /**
-     * 비식별 처리된 영상 파일 경로 (Phase 2 — V2 정책 "영상 2벌 보관").
-     *  - NULL 허용 (비식별 미적용 / V1 데이터 호환).
-     *  - 외부 비식별 API 가 영상 단위 인터페이스 제공 시 사용.
-     */
-    @Column(name = "DEID_FILE_PATH", length = 500)
-    private String deidFilePath;
-
     @Column(name = "CAPTURED_AT")
     private LocalDateTime capturedAt;
 
@@ -80,13 +69,6 @@ public class LsDataRaw {
 
     @Column(name = "DATA_STTS_CD", nullable = false, length = 32)
     private String dataSttsCd;
-
-    /**
-     * Phase 3 — 영상 잠금 상태 코드. 비식별 누락 신고로 재비식별이 예정/진행 중일 때 설정.
-     * NULL = 정상 / {@link #LOCK_REDEIDENT} = 재비식별 진행 중 (라벨 commit 차단 대상).
-     */
-    @Column(name = "LOCK_STTS_CD", length = 32)
-    private String lockSttsCd;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
@@ -164,16 +146,6 @@ public class LsDataRaw {
         this.updDt = LocalDateTime.now();
     }
 
-    /**
-     * 비식별 영상 파일 경로 연결 (Phase 2 — V2 영상 2벌 보관).
-     *  - 외부 비식별 API 가 영상 단위 결과를 반환한 경우 호출.
-     *  - 원본 filePath 는 절대 변경되지 않음.
-     */
-    public void attachDeidVideoPath(String deidFilePath) {
-        this.deidFilePath = deidFilePath;
-        this.updDt = LocalDateTime.now();
-    }
-
     /** 배치 상태 코드 갱신 (PROCESSING / COMPLETED / FAILED). */
     public void changeStatus(String dataSttsCd) {
         if (dataSttsCd == null || dataSttsCd.isBlank()) {
@@ -181,29 +153,6 @@ public class LsDataRaw {
         }
         this.dataSttsCd = dataSttsCd;
         this.updDt = LocalDateTime.now();
-    }
-
-    /**
-     * Phase 3 — 비식별 재처리 잠금 설정. 신고 발생 시 호출.
-     */
-    public void attachLockStts(String code) {
-        this.lockSttsCd = code;
-        this.updDt = LocalDateTime.now();
-    }
-
-    /**
-     * Phase 3 — 잠금 해제 (재비식별 성공 시 호출).
-     */
-    public void releaseLock() {
-        this.lockSttsCd = null;
-        this.updDt = LocalDateTime.now();
-    }
-
-    /**
-     * Phase 3 — 현재 재비식별 잠금 상태인지 여부.
-     */
-    public boolean isLockedForRedeident() {
-        return LOCK_REDEIDENT.equals(this.lockSttsCd);
     }
 
     /** PRVC_TYPE_CD 기반 PRVC_YN 산출 (단일 진실의 원천). */

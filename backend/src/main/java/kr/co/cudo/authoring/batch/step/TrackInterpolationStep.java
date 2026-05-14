@@ -4,10 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.interpolation.Bbox;
 import kr.co.cudo.authoring.batch.interpolation.Keyframe;
 import kr.co.cudo.authoring.batch.interpolation.TrackInterpolator;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -62,13 +64,16 @@ public class TrackInterpolationStep {
     private static final TrackInterpolator INTERPOLATOR = new TrackInterpolator();
 
     private final LsDataLblRepository lblRepository;
+    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsDataSrcRepository srcRepository;
     private final ObjectMapper objectMapper;
 
     public TrackInterpolationStep(LsDataLblRepository lblRepository,
+                                  LsDataLblAiInfoRepository aiInfoRepository,
                                   LsDataSrcRepository srcRepository,
                                   ObjectMapper objectMapper) {
         this.lblRepository = lblRepository;
+        this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
         this.objectMapper = objectMapper;
     }
@@ -144,7 +149,13 @@ public class TrackInterpolationStep {
         }
 
         if (!newRows.isEmpty()) {
-            lblRepository.saveAll(newRows);
+            Iterable<LsDataLbl> savedRows = lblRepository.saveAll(newRows);
+            List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
+            for (LsDataLbl row : savedRows) {
+                aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), 0L, rawSn, row.getSrcSn(),
+                        LsDataLblAiInfo.SRC_INTERPOLATE, row.getConfScore(), "batch"));
+            }
+            aiInfoRepository.saveAll(aiInfos);
         }
         log.info("[Batch][Interpolation] saved rawSn={} tracks={} interpolatedRows={}",
                 rawSn, byTrackId.size(), newRows.size());

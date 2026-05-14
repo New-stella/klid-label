@@ -2,8 +2,10 @@ package kr.co.cudo.authoring.augment.service;
 
 import kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
@@ -43,6 +45,7 @@ public class AugmentReviewService {
     );
 
     private final LsDataAugRepository repository;
+    private final LsDataAugRvwRepository reviewRepository;
     private final ExternalAugmentClient externalClient;
 
     /**
@@ -50,7 +53,7 @@ public class AugmentReviewService {
      */
     public Page<AugmentSummaryResponse> listAll(Pageable pageable) {
         return repository.findAllByOrderByRegisteredAtDesc(pageable)
-                .map(AugmentSummaryResponse::from);
+                .map(this::toResponse);
     }
 
     /**
@@ -60,7 +63,7 @@ public class AugmentReviewService {
     public List<AugmentSummaryResponse> findBySource(Long srcSn) {
         return repository.findBySrcSnOrderByAugTypeCd(srcSn).stream()
                 .sorted(Comparator.comparingInt(a -> AUG_ORDER.getOrDefault(a.getAugTypeCd(), 99)))
-                .map(AugmentSummaryResponse::from)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -71,7 +74,8 @@ public class AugmentReviewService {
     public AugmentSummaryResponse accept(Long dataAugSn, TokenClaims actor) {
         requireReviewer(actor);
         LsDataAug aug = loadOrThrow(dataAugSn);
-        aug.markAccepted(actor.sub(), LocalDateTime.now());
+        LsDataAugRvw review = loadOrCreateReview(aug, actor.sub());
+        review.accept(actor.sub(), LocalDateTime.now());
         // 외부 통보 (best-effort — 실패해도 본 트랜잭션 영향 없음)
         try {
             externalClient.syncDecision(dataAugSn, LsDataAug.STTS_ACCEPTED, null);
@@ -80,7 +84,7 @@ public class AugmentReviewService {
                     dataAugSn, e.getMessage());
         }
         log.info("[Augment] accepted dataAugSn={} actor={}", dataAugSn, actor.sub());
-        return AugmentSummaryResponse.from(aug);
+        return AugmentSummaryResponse.from(aug, review);
     }
 
     /**
@@ -93,7 +97,8 @@ public class AugmentReviewService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "반려 사유는 필수입니다.");
         }
         LsDataAug aug = loadOrThrow(dataAugSn);
-        aug.markRejected(reason, actor.sub(), LocalDateTime.now());
+        LsDataAugRvw review = loadOrCreateReview(aug, actor.sub());
+        review.reject(reason, actor.sub(), LocalDateTime.now());
         try {
             externalClient.syncDecision(dataAugSn, LsDataAug.STTS_REJECTED, reason);
         } catch (Exception e) {
@@ -101,7 +106,19 @@ public class AugmentReviewService {
                     dataAugSn, e.getMessage());
         }
         log.info("[Augment] rejected dataAugSn={} actor={}", dataAugSn, actor.sub());
-        return AugmentSummaryResponse.from(aug);
+        return AugmentSummaryResponse.from(aug, review);
+    }
+
+    private AugmentSummaryResponse toResponse(LsDataAug aug) {
+        return AugmentSummaryResponse.from(aug,
+                reviewRepository.findFirstByDataAugSnOrderByRegDtDesc(aug.getDataAugSn()).orElse(null));
+    }
+
+    private LsDataAugRvw loadOrCreateReview(LsDataAug aug, String actorId) {
+        return reviewRepository.findFirstByDataAugSnOrderByRegDtDesc(aug.getDataAugSn())
+                .orElseGet(() -> reviewRepository.save(
+                        LsDataAugRvw.pending(aug.getDataAugSn(), 0L, 0L, aug.getSrcSn(),
+                                aug.getLblIntgrtPct(), actorId)));
     }
 
     private LsDataAug loadOrThrow(Long dataAugSn) {

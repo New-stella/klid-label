@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import lombok.AccessLevel;
@@ -20,14 +21,7 @@ import java.time.LocalDateTime;
  * Phase 9 — 데이터 증강 결과 (LS_DATA_AUG).
  *
  * <p>외부 SFR-07 시스템이 생성한 4종 증강 결과(WINTER/NIGHT/RAIN/RESOLUTION)를
- * 본 저작도구의 REVIEWER 가 검수(ACCEPT/REJECT)한다.
- *
- * <p>상태 전이:
- * <ul>
- *   <li>PENDING  → ACCEPTED  (markAccepted)</li>
- *   <li>PENDING  → REJECTED  (markRejected)</li>
- *   <li>ACCEPTED/REJECTED → 재처리 불가 (CONFLICT)</li>
- * </ul>
+ * 검수 상태/반려 사유/정합률은 LS_DATA_AUG_RVW 에 분리 저장한다.
  */
 @Entity
 @Table(name = "LS_DATA_AUG")
@@ -58,16 +52,16 @@ public class LsDataAug {
     @Column(name = "AUG_PROC_STTS_CD", nullable = false, length = 20)
     private String augProcSttsCd;
 
-    @Column(name = "LBL_INTGRT_PCT", precision = 5, scale = 2)
+    @Transient
     private BigDecimal lblIntgrtPct;
 
-    @Column(name = "REJECT_REASON", length = 500)
+    @Transient
     private String rejectReason;
 
-    @Column(name = "DECISION_USER_NO", length = 50)
+    @Transient
     private String decisionUserNo;
 
-    @Column(name = "DECISION_AT")
+    @Transient
     private LocalDateTime decisionAt;
 
     @Column(name = "REGISTERED_AT", nullable = false)
@@ -108,31 +102,19 @@ public class LsDataAug {
                 .build();
     }
 
-    /**
-     * REVIEWER 가 증강 결과를 승인. PENDING 일 때만 가능.
-     */
+    /** @deprecated 증강 검수 상태는 LS_DATA_AUG_RVW 에 저장한다. */
+    @Deprecated
     public void markAccepted(String decisionUserNo, LocalDateTime decisionAt) {
-        if (!STTS_PENDING.equals(this.augProcSttsCd)) {
-            throw new CustomException(ErrorCode.CONFLICT,
-                    "이미 처리된 증강 결과입니다. status=" + this.augProcSttsCd);
-        }
-        this.augProcSttsCd = STTS_ACCEPTED;
         this.decisionUserNo = decisionUserNo;
         this.decisionAt = decisionAt;
     }
 
-    /**
-     * REVIEWER 가 증강 결과를 반려. 사유 필수, PENDING 일 때만 가능.
-     */
+    /** @deprecated 증강 검수 상태는 LS_DATA_AUG_RVW 에 저장한다. */
+    @Deprecated
     public void markRejected(String reason, String decisionUserNo, LocalDateTime decisionAt) {
         if (reason == null || reason.isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "반려 사유는 필수입니다.");
         }
-        if (!STTS_PENDING.equals(this.augProcSttsCd)) {
-            throw new CustomException(ErrorCode.CONFLICT,
-                    "이미 처리된 증강 결과입니다. status=" + this.augProcSttsCd);
-        }
-        this.augProcSttsCd = STTS_REJECTED;
         this.rejectReason = reason;
         this.decisionUserNo = decisionUserNo;
         this.decisionAt = decisionAt;

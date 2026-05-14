@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.label.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -9,7 +10,6 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
@@ -49,6 +49,7 @@ public class LabelService {
     private final LsDataLblRepository labelRepository;
     private final LsDataSrcRepository srcRepository;
     private final VideoRepository videoRepository;
+    private final WorkLockService workLockService;
     private final LabelAccessGuard accessGuard;
     private final ObjectMapper objectMapper;
     /**
@@ -61,12 +62,14 @@ public class LabelService {
     public LabelService(LsDataLblRepository labelRepository,
                         LsDataSrcRepository srcRepository,
                         VideoRepository videoRepository,
+                        WorkLockService workLockService,
                         LabelAccessGuard accessGuard,
                         ObjectMapper objectMapper,
                         @Lazy VersionService versionService) {
         this.labelRepository = labelRepository;
         this.srcRepository = srcRepository;
         this.videoRepository = videoRepository;
+        this.workLockService = workLockService;
         this.accessGuard = accessGuard;
         this.objectMapper = objectMapper;
         this.versionService = versionService;
@@ -100,7 +103,7 @@ public class LabelService {
         // Phase 3 보강 — FE 가 라벨링 화면 진입 시 영상 잠금 상태(LOCKED_FOR_REDEIDENT)를 사전 인지하도록 응답에 포함.
         // 잠금된 영상은 라벨 저장 자체가 차단되므로(아래 bulkUpsert 가드 참조) UI 측 비활성화 단서로 사용된다.
         // hotfix: 전체 row fetch 회피 — lockSttsCd 단일 컬럼 projection 사용 (PK 인덱스 lookup).
-        String lockSttsCd = videoRepository.findLockSttsCdByRawSn(current.getRawSn()).orElse(null);
+        String lockSttsCd = workLockService.isRawLocked(current.getRawSn()) ? "LOCKED" : null;
         return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd, objectMapper);
     }
 
@@ -124,9 +127,7 @@ public class LabelService {
         Long actorNo = accessGuard.parseUserNo(actor.sub());
 
         // Phase 3 — 비식별 재처리 중 영상은 라벨 수정 금지 (Race Condition 방어 + 정책)
-        LsDataRaw raw = videoRepository.findById(current.getRawSn())
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
-        if (raw.isLockedForRedeident()) {
+        if (workLockService.isRawLocked(current.getRawSn())) {
             throw new CustomException(ErrorCode.CONFLICT,
                     "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
         }
@@ -166,7 +167,7 @@ public class LabelService {
         String frameImageType = resolveFrameImageType(actor, false);
         // Phase 3 보강 — bulkUpsert 통과 시점에는 잠금이 없음이 보장되지만(위 가드)
         // 응답 스키마 일관성을 위해 동일 필드를 반환한다. raw 는 이미 fetch 됨 → 추가 쿼리 없음.
-        String lockSttsCd = raw.getLockSttsCd();
+        String lockSttsCd = null;
 
         // Phase 8 — Gitea 자동 커밋 (PORTAL 채널은 버전관리 미제공 → skip).
         if (VersionService.isCommittable(actor)) {

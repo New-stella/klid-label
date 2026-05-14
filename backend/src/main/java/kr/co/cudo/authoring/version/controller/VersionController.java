@@ -12,7 +12,7 @@ import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
 import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.dto.VersionResponse;
-import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.service.VersionService;
 
 import java.util.List;
@@ -82,7 +82,7 @@ public class VersionController {
 
     @Operation(
             summary = "특정 커밋으로 롤백 (REVIEWER 전용)",
-            description = "지정 커밋의 라벨 상태로 되돌린다. 새 커밋이 생성되며 LS_DATA_LBL_HSTRY에 기록."
+            description = "지정 커밋의 라벨 상태로 되돌린다. 새 커밋이 생성되며 LS_LABEL_VERSION에 기록."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -96,7 +96,7 @@ public class VersionController {
     public ApiResponse<VersionResponse.Item> rollback(@Parameter(description = "롤백 대상 커밋 SHA", required = true) @PathVariable("commit") String commitHash,
                                                        @Valid @RequestBody RollbackRequest req,
                                                        @AuthenticationPrincipal TokenClaims actor) {
-        LsDataLblHstry hist = versionService.rollback(commitHash, req.srcSn(), actor);
-        return ApiResponse.ok(VersionResponse.Item.from(hist));
+        LsLabelVersion version = versionService.rollback(commitHash, req.srcSn(), actor);
+        return ApiResponse.ok(VersionResponse.Item.from(version));
     }
 }

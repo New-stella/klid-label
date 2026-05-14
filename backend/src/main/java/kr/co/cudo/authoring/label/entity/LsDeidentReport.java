@@ -13,17 +13,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Phase 3 — 비식별 누락 신고 (LS_DEIDENT_REPORT).
- *
- * <p>라벨러(WORKER) 또는 검수자(REVIEWER) 가 라벨링 중 비식별 미흡(얼굴/번호판 미블러 등)
- * 을 발견하면 본 엔티티를 INSERT 한다.
- *
- * <p>상태 전이:
- * <ul>
- *   <li>{@link #STATUS_OPEN}      — 신고 직후 (LS_DATA_RAW.LOCK_STTS_CD 가 LOCKED_FOR_REDEIDENT 로 잠김).</li>
- *   <li>{@link #STATUS_RESOLVED}  — 재비식별 성공 시 (DeidentifyStep 가 호출).</li>
- *   <li>{@link #STATUS_DISMISSED} — 검수자가 반려 (현재 Phase 범위 밖, 향후 확장).</li>
- * </ul>
+ * LS_DEIDENT_REPORT: 영상 단위 비식별 요청/결과 이력.
+ * 비식별 결과 영상 경로는 LS_DATA_RAW 에 붙이지 않고 본 테이블에만 저장한다.
  */
 @Entity
 @Table(name = "LS_DEIDENT_REPORT")
@@ -31,63 +22,115 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LsDeidentReport {
 
-    public static final String STATUS_OPEN = "OPEN";
-    public static final String STATUS_RESOLVED = "RESOLVED";
+    public static final String STATUS_REQUESTED = "REQUESTED";
+    public static final String STATUS_SUCCEEDED = "SUCCEEDED";
+    public static final String STATUS_FAILED = "FAILED";
+    public static final String STATUS_OPEN = STATUS_REQUESTED;
+    public static final String STATUS_RESOLVED = STATUS_SUCCEEDED;
     public static final String STATUS_DISMISSED = "DISMISSED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "RPRT_SN")
-    private Long rprtSn;
+    @Column(name = "DEIDENT_REPORT_SN")
+    private Long deidentReportSn;
 
-    @Column(name = "RAW_SN", nullable = false)
-    private Long rawSn;
+    @Column(name = "DATA_RAW_SN", nullable = false)
+    private Long dataRawSn;
 
-    @Column(name = "REPORTER_NO", nullable = false)
-    private Long reporterNo;
+    @Column(name = "REQ_ID", length = 64)
+    private String reqId;
 
-    @Column(name = "REASON", nullable = false, length = 1000)
-    private String reason;
+    @Column(name = "ORGN_FILE_PATH", nullable = false, length = 1000)
+    private String orgnFilePath;
 
-    @Column(name = "STTS_CD", nullable = false, length = 16)
-    private String sttsCd;
+    @Column(name = "DE_IDNTF_FILE_PATH", length = 1000)
+    private String deIdntfFilePath;
 
-    @Column(name = "RPRT_DT", nullable = false)
-    private LocalDateTime rprtDt;
+    @Column(name = "PROC_STTS_CD", nullable = false, length = 20)
+    private String procSttsCd;
 
-    @Column(name = "RESOLVED_DT")
-    private LocalDateTime resolvedDt;
+    @Column(name = "REQ_DT")
+    private LocalDateTime reqDt;
 
-    private LsDeidentReport(Long rawSn, Long reporterNo, String reason) {
-        this.rawSn = rawSn;
-        this.reporterNo = reporterNo;
-        this.reason = reason;
-        this.sttsCd = STATUS_OPEN;
-        this.rprtDt = LocalDateTime.now();
+    @Column(name = "RES_DT")
+    private LocalDateTime resDt;
+
+    @Column(name = "ERROR_CD", length = 50)
+    private String errorCd;
+
+    @Column(name = "ERROR_MSG", length = 1000)
+    private String errorMsg;
+
+    @Column(name = "REG_ID", length = 30)
+    private String regId;
+
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
+
+    @Column(name = "MDFCN_ID", length = 30)
+    private String mdfcnId;
+
+    @Column(name = "MDFCN_DT")
+    private LocalDateTime mdfcnDt;
+
+    private LsDeidentReport(Long rawSn, String reqId, String originalFilePath, String regId) {
+        this.dataRawSn = rawSn;
+        this.reqId = reqId;
+        this.orgnFilePath = originalFilePath;
+        this.procSttsCd = STATUS_REQUESTED;
+        this.reqDt = LocalDateTime.now();
+        this.regId = regId;
+        this.regDt = this.reqDt;
     }
 
     public static LsDeidentReport create(Long rawSn, Long reporterNo, String reason) {
+        return request(rawSn, null, reason, reporterNo == null ? null : String.valueOf(reporterNo));
+    }
+
+    public static LsDeidentReport request(Long rawSn, String reqId, String originalFilePath, String regId) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
         }
-        if (reporterNo == null) {
-            throw new IllegalArgumentException("reporterNo 는 필수입니다.");
+        if (originalFilePath == null || originalFilePath.isBlank()) {
+            throw new IllegalArgumentException("originalFilePath 는 필수입니다.");
         }
-        if (reason == null || reason.isBlank()) {
-            throw new IllegalArgumentException("reason 은 필수입니다.");
-        }
-        return new LsDeidentReport(rawSn, reporterNo, reason);
+        return new LsDeidentReport(rawSn, reqId, originalFilePath, regId);
     }
 
-    /** 재비식별 성공 시 본 신고를 RESOLVED 로 전이. */
+    public void succeed(String resultPath) {
+        this.procSttsCd = STATUS_SUCCEEDED;
+        this.deIdntfFilePath = resultPath;
+        this.resDt = LocalDateTime.now();
+        this.mdfcnDt = this.resDt;
+    }
+
+    public void fail(String errorCd, String errorMsg) {
+        this.procSttsCd = STATUS_FAILED;
+        this.errorCd = errorCd;
+        this.errorMsg = errorMsg;
+        this.resDt = LocalDateTime.now();
+        this.mdfcnDt = this.resDt;
+    }
+
     public void resolve() {
-        this.sttsCd = STATUS_RESOLVED;
-        this.resolvedDt = LocalDateTime.now();
+        succeed(this.deIdntfFilePath);
     }
 
-    /** 검수자가 반려 처리할 때. */
     public void dismiss() {
-        this.sttsCd = STATUS_DISMISSED;
-        this.resolvedDt = LocalDateTime.now();
+        this.procSttsCd = STATUS_DISMISSED;
+        this.resDt = LocalDateTime.now();
+        this.mdfcnDt = this.resDt;
+    }
+
+    public Long getRprtSn() {
+        return deidentReportSn;
+    }
+
+    public Long getRawSn() {
+        return dataRawSn;
+    }
+
+    public String getSttsCd() {
+        return procSttsCd;
     }
 }

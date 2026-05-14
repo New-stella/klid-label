@@ -45,9 +45,7 @@ public class MetaService {
         Long rawSn = src.getRawSn();
 
         for (MetaUpdateRequest.Item item : req.items()) {
-            // Phase 5 hotfix — V26 트리플 UK: 외부 시계열 메타 검토는 원본(RAW) 기준 메타만 대상.
-            LsDataMeta meta = metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(
-                            rawSn, item.metaKey(), LsDataMeta.META_TYPE_RAW)
+            LsDataMeta meta = metaRepository.findByRawSnAndMetaKey(rawSn, item.metaKey())
                     .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                             "메타 키가 존재하지 않습니다: " + item.metaKey()));
             meta.updateValue(item.metaVal());

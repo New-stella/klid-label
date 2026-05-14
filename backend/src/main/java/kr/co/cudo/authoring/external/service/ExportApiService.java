@@ -33,8 +33,8 @@ import java.util.Map;
  * <p>{@link #build(Long, boolean)} 은 영상(rawSn) 1건에 대해 다음 데이터를 조립한다.
  * <ul>
  *   <li>{@link VideoInfo} — LS_DATA_RAW 컬럼 중 시스템 식별·객관 메타만 (사용자 식별자 제외)</li>
- *   <li>메타 — {@code META_TYPE_CD='RAW'} / {@code 'DEID'} 분리 조회 후 merge 옵션에 따라 분리/병합 응답</li>
- *   <li>라벨 — {@code FRM_TYPE_CD='RAW'} 프레임 + 해당 프레임의 {@code LS_DATA_LBL} 좌표 1벌</li>
+ *   <li>메타 — 기존 {@code LS_DATA_META} 값을 조회</li>
+ *   <li>라벨 — 기존 {@code LS_DATA_SRC} 프레임 + 해당 프레임의 {@code LS_DATA_LBL} 좌표 1벌</li>
  * </ul>
  *
  * <p>병합 정책: 같은 META_KEY 가 RAW 와 DEID 양쪽에 존재하면 RAW 가 우선한다 (외부 분석 시
@@ -61,10 +61,8 @@ public class ExportApiService {
 
         VideoInfo video = VideoInfo.from(raw);
 
-        Map<String, String> rawMeta = toMap(
-                metaRepository.findByRawSnAndMetaTypeCd(rawSn, LsDataMeta.META_TYPE_RAW));
-        Map<String, String> deidMeta = toMap(
-                metaRepository.findByRawSnAndMetaTypeCd(rawSn, LsDataMeta.META_TYPE_DEID));
+        Map<String, String> rawMeta = toMap(metaRepository.findByRawSn(rawSn));
+        Map<String, String> deidMeta = Collections.emptyMap();
 
         List<FrameLabelInfo> frames = buildFrames(rawSn);
 
@@ -83,8 +81,7 @@ public class ExportApiService {
      * <p>N+1 회피: 영상 전체 라벨을 단일 IN 쿼리로 조회 후 srcSn → labels 맵으로 그룹핑.
      */
     private List<FrameLabelInfo> buildFrames(Long rawSn) {
-        List<LsDataSrc> frames = srcRepository.findByRawSnAndFrmTypeCdOrderByFrameNoAsc(
-                rawSn, LsDataSrc.FRM_TYPE_RAW);
+        List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         if (frames.isEmpty()) {
             return Collections.emptyList();
         }

@@ -96,44 +96,37 @@ public class FfmpegFrameExtractor {
                     "durationSec 가 0 이하입니다: rawSn=" + raw.getRawSn());
         }
         Path outputDir = resolveSafeOutputDir(baseRawPath, raw.getRawSn());
-        return extractInternal(raw, source, outputDir, LsDataSrc.FRM_TYPE_RAW);
+        return extractInternal(raw, source, outputDir);
     }
 
     /**
-     * Phase 2: 영상 2벌 보관 — 원본 영상 + 비식별 영상에서 각각 프레임을 추출.
-     *  - raw.deidFilePath 가 null → 원본만 추출 (V1 호환).
-     *  - 비식별 영상 파일이 존재하지 않으면 → 경고 로그 + 원본만 (graceful fallback).
-     *  - 둘 다 OK → RAW + DEID 양쪽 row 적재 (FRM_TYPE_CD 로 구분).
+     * 원본 영상과 비식별 영상에서 프레임을 추출한다.
+     * 원본 프레임은 FILE_PATH, 비식별 프레임은 같은 row 의 SRC_BKUP_FILE_PATH 에 저장한다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public List<LsDataSrc> extractBoth(LsDataRaw raw) {
+    public List<LsDataSrc> extractBoth(LsDataRaw raw, String deidVideoPath) {
         List<LsDataSrc> rawFrames = extract(raw);
 
-        String deidPathStr = raw == null ? null : raw.getDeidFilePath();
-        if (deidPathStr == null || deidPathStr.isBlank()) {
-            // V1 호환: 비식별 영상 미보유.
+        if (deidVideoPath == null || deidVideoPath.isBlank()) {
             return rawFrames;
         }
-        Path deidSource = Paths.get(deidPathStr);
+        Path deidSource = Paths.get(deidVideoPath);
         if (!frameWriter.sourceExists(deidSource)) {
             log.warn("[Batch][FrameExtract] deid video missing rawSn={} path={} — RAW only",
-                    raw.getRawSn(), maskName(deidPathStr));
+                    raw.getRawSn(), maskName(deidVideoPath));
             return rawFrames;
         }
         Path deidOutputDir = resolveSafeOutputDir(baseDeidPath, raw.getRawSn());
-        List<LsDataSrc> deidFrames = extractInternal(raw, deidSource, deidOutputDir, LsDataSrc.FRM_TYPE_DEID);
-        List<LsDataSrc> merged = new ArrayList<>(rawFrames.size() + deidFrames.size());
-        merged.addAll(rawFrames);
-        merged.addAll(deidFrames);
-        return merged;
+        attachDeidFrames(raw, deidSource, deidOutputDir, rawFrames);
+        return rawFrames;
     }
 
     /**
      * 공통 추출 헬퍼 — sourceVideo 에서 frameCount 만큼 프레임을 outputDir 에 작성하고
-     * LS_DATA_SRC 에 frmTypeCd 로 적재한다.
+     * LS_DATA_SRC 에 적재한다.
      *  - durationSec 검증은 호출자(extract/extractBoth) 가 raw 기준으로 1회만 수행.
      */
-    private List<LsDataSrc> extractInternal(LsDataRaw raw, Path sourceVideo, Path outputDir, String frmTypeCd) {
+    private List<LsDataSrc> extractInternal(LsDataRaw raw, Path sourceVideo, Path outputDir) {
         int duration = raw.getDurationSec() == null ? 0 : raw.getDurationSec();
         int outputFps = getOutputFps();
         int frameCount = computeFrameCount(duration, outputFps);
@@ -155,27 +148,35 @@ public class FfmpegFrameExtractor {
 
                     LocalDateTime capturedAt = raw.getCapturedAt() == null
                             ? null : raw.getCapturedAt().plus(Duration.ofMillis(seekMillis));
-                    LsDataSrc src = srcRepository.save(buildSrc(raw.getRawSn(), i, frameFile.toString(), capturedAt, frmTypeCd));
+                    LsDataSrc src = srcRepository.save(LsDataSrc.create(raw.getRawSn(), i, frameFile.toString(), capturedAt));
                     hstryRepository.save(LsDataSrcHstry.recordCreated(src.getSrcSn()));
                     saved.add(src);
                 }
             }
         } catch (IOException e) {
-            log.error("[Batch][FrameExtract] failed rawSn={} type={} err={}",
-                    raw.getRawSn(), frmTypeCd, e.getMessage());
+            log.error("[Batch][FrameExtract] failed rawSn={} err={}", raw.getRawSn(), e.getMessage());
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "프레임 추출 실패", e);
         }
-        log.info("[Batch][FrameExtract] extracted rawSn={} type={} frames={} outputFps={}",
-                raw.getRawSn(), frmTypeCd, saved.size(), outputFps);
+        log.info("[Batch][FrameExtract] extracted rawSn={} frames={} outputFps={}",
+                raw.getRawSn(), saved.size(), outputFps);
         return saved;
     }
 
-    private static LsDataSrc buildSrc(Long rawSn, int frameNo, String filePath,
-                                       LocalDateTime capturedAt, String frmTypeCd) {
-        if (LsDataSrc.FRM_TYPE_DEID.equals(frmTypeCd)) {
-            return LsDataSrc.createDeid(rawSn, frameNo, filePath, capturedAt);
+    private void attachDeidFrames(LsDataRaw raw, Path sourceVideo, Path outputDir, List<LsDataSrc> rawFrames) {
+        int outputFps = getOutputFps();
+        try {
+            ensureDir(outputDir);
+            for (LsDataSrc src : rawFrames) {
+                Path frameFile = outputDir.resolve("frame-" + src.getFrameNo() + ".jpg");
+                long seekMillis = (long) src.getFrameNo() * 1000L / outputFps;
+                frameWriter.writeFrame(sourceVideo, frameFile, seekMillis);
+                src.attachDeidPath(frameFile.toString());
+                hstryRepository.save(LsDataSrcHstry.recordDeidAttached(src.getSrcSn()));
+            }
+        } catch (IOException e) {
+            log.error("[Batch][FrameExtract] deid attach failed rawSn={} err={}", raw.getRawSn(), e.getMessage());
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "비식별 프레임 추출 실패", e);
         }
-        return LsDataSrc.create(rawSn, frameNo, filePath, capturedAt);
     }
 
     /**

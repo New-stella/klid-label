@@ -23,9 +23,45 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
      */
     List<LsDataLbl> findBySrcSnIn(Collection<Long> srcSns);
 
-    List<LsDataLbl> findBySrcSnAndAutoLblYn(Long srcSn, String autoLblYn);
+    @Query("""
+            SELECT l
+              FROM LsDataLbl l
+             WHERE l.srcSn = :srcSn
+               AND (
+                    (:autoLblYn = 'Y' AND EXISTS (
+                        SELECT 1 FROM LsDataLblAiInfo ai
+                         WHERE ai.dataLblSn = l.lblSn
+                           AND ai.autoLblYn = 'Y'
+                    ))
+                    OR
+                    (:autoLblYn = 'N' AND NOT EXISTS (
+                        SELECT 1 FROM LsDataLblAiInfo ai
+                         WHERE ai.dataLblSn = l.lblSn
+                           AND ai.autoLblYn = 'Y'
+                    ))
+               )
+            """)
+    List<LsDataLbl> findBySrcSnAndAutoLblYn(@Param("srcSn") Long srcSn, @Param("autoLblYn") String autoLblYn);
 
-    long countBySrcSnAndAutoLblYn(Long srcSn, String autoLblYn);
+    @Query("""
+            SELECT COUNT(l)
+              FROM LsDataLbl l
+             WHERE l.srcSn = :srcSn
+               AND (
+                    (:autoLblYn = 'Y' AND EXISTS (
+                        SELECT 1 FROM LsDataLblAiInfo ai
+                         WHERE ai.dataLblSn = l.lblSn
+                           AND ai.autoLblYn = 'Y'
+                    ))
+                    OR
+                    (:autoLblYn = 'N' AND NOT EXISTS (
+                        SELECT 1 FROM LsDataLblAiInfo ai
+                         WHERE ai.dataLblSn = l.lblSn
+                           AND ai.autoLblYn = 'Y'
+                    ))
+               )
+            """)
+    long countBySrcSnAndAutoLblYn(@Param("srcSn") Long srcSn, @Param("autoLblYn") String autoLblYn);
 
     /**
      * 페이지 단위 batch lookup — 영상(rawSn) 별 라벨 총개수.
@@ -62,7 +98,7 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     @Transactional(value = "controlTransactionManager")
     @Query("DELETE FROM LsDataLbl l WHERE l.srcSn IN " +
             "(SELECT s.srcSn FROM LsDataSrc s WHERE s.rawSn = :rawSn) " +
-            "AND l.autoLblYn = 'Y'")
+            "AND EXISTS (SELECT 1 FROM LsDataLblAiInfo ai WHERE ai.dataLblSn = l.lblSn AND ai.autoLblYn = 'Y')")
     void deleteByRawSnAutoLbl(@Param("rawSn") Long rawSn);
 
     /**
@@ -80,7 +116,11 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
               FROM LsDataLbl l, LsDataSrc s
              WHERE l.srcSn = s.srcSn
                AND s.rawSn = :rawSn
-               AND l.autoLblYn = 'Y'
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.autoLblYn = 'Y'
+               )
                AND l.lblTypeCd = 'BBOX'
                AND l.trackId IS NOT NULL
             """)

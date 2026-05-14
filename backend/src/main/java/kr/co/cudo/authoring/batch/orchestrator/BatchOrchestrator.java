@@ -86,12 +86,12 @@ public class BatchOrchestrator {
             // 2. 비식별 (Phase 2 — 무조건화: PRVC/PSDO/ANONY 구분 없이 모든 영상 호출).
             //    원본 보존 원칙 + DE_IDNTF_YN 'Y'/'F' 마킹은 DeidentifyStep 자체 처리.
             statusService.markStage(rawSn, BatchStage.DEIDENTIFY);
-            deidentifyStep.run(raw);
+            String deidVideoPath = deidentifyStep.run(raw);
 
             // 3. 프레임 추출 (Phase 2 — 영상 2벌 보관: 원본 + 비식별 영상 양쪽에서 추출).
             //    raw.deidFilePath 가 null 이거나 파일 미존재면 RAW 만 (V1 호환 / graceful fallback).
             statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
-            List<LsDataSrc> frames = frameExtractor.extractBoth(raw);
+            List<LsDataSrc> frames = frameExtractor.extractBoth(raw, deidVideoPath);
             if (frames.isEmpty()) {
                 throw new CustomException(ErrorCode.INTERNAL_ERROR,
                         "프레임 추출 결과가 0건입니다 rawSn=" + rawSn);

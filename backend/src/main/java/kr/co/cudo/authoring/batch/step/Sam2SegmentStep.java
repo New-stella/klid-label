@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -70,6 +72,7 @@ public class Sam2SegmentStep {
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
+    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final VideoRepository videoRepository;
     private final PresetLabelLookupService presetLabelLookup;
     private final ObjectMapper objectMapper;
@@ -78,6 +81,7 @@ public class Sam2SegmentStep {
     public Sam2SegmentStep(AiServerClient aiServerClient,
                            LsDataSrcRepository srcRepository,
                            LsDataLblRepository lblRepository,
+                           LsDataLblAiInfoRepository aiInfoRepository,
                            VideoRepository videoRepository,
                            PresetLabelLookupService presetLabelLookup,
                            ObjectMapper objectMapper,
@@ -85,6 +89,7 @@ public class Sam2SegmentStep {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
+        this.aiInfoRepository = aiInfoRepository;
         this.videoRepository = videoRepository;
         this.presetLabelLookup = presetLabelLookup;
         this.objectMapper = objectMapper;
@@ -142,8 +147,10 @@ public class Sam2SegmentStep {
                     continue;
                 }
                 BigDecimal score = BigDecimal.valueOf(resp.score()).setScale(4, RoundingMode.HALF_UP);
-                lblRepository.save(LsDataLbl.createAutoPolygon(
+                LsDataLbl savedLabel = lblRepository.save(LsDataLbl.createAutoPolygon(
                         src.getSrcSn(), job.label, serialize(resp.polygon()), score));
+                aiInfoRepository.save(LsDataLblAiInfo.create(savedLabel.getLblSn(), 0L, rawSn, src.getSrcSn(),
+                        LsDataLblAiInfo.SRC_SAM2, score, "batch"));
                 saved++;
             }
         }

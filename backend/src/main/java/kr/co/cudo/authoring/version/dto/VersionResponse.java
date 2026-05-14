@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.version.dto;
 
-import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,18 +17,18 @@ public record VersionResponse(List<Item> items) {
             String registeredUserNo,
             LocalDateTime registeredAt
     ) {
-        public static Item from(LsDataLblHstry e) {
+        public static Item from(LsLabelVersion e) {
             return new Item(
-                    e.getLblHstrySn(),
-                    e.getSrcSn(),
+                    e.getLabelVersionSn(),
+                    e.getDataSrcSn(),
                     e.getGiteaCmtHash(),
-                    e.getRegisteredUserNo(),
-                    e.getRegisteredAt()
+                    e.getRegId(),
+                    e.getRegDt()
             );
         }
     }
 
-    public static VersionResponse of(List<LsDataLblHstry> entities) {
+    public static VersionResponse of(List<LsLabelVersion> entities) {
         return new VersionResponse(entities.stream().map(Item::from).toList());
     }
 }

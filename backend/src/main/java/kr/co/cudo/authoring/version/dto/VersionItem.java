@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.version.dto;
 
 import kr.co.cudo.authoring.common.client.dto.CommitResponse;
-import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -12,7 +12,7 @@ import java.time.ZoneOffset;
  * <p>FE {@code Version} 인터페이스와 동일한 와이어 포맷:
  * {@code { commitSha, shortHash, authorName, message, committedAt, isCurrent }}
  *
- * <p>Gitea 응답이 비어 있거나 Gitea 호출 실패 시 DB({@code LsDataLblHstry})만으로 생성하여
+ * <p>Gitea 응답이 비어 있거나 Gitea 호출 실패 시 DB({@code LsLabelVersion})만으로 생성하여
  * 새로 등록된 영상(아직 commit 0건)도 200 + 빈 배열로 응답할 수 있게 한다.
  */
 public record VersionItem(
@@ -43,16 +43,15 @@ public record VersionItem(
         );
     }
 
-    /** Gitea 호출 실패 fallback — DB {@link LsDataLblHstry} 단독으로 생성. */
-    public static VersionItem fromHistory(LsDataLblHstry h, boolean current) {
-        String sha = h.getGiteaCmtHash() == null ? "" : h.getGiteaCmtHash();
-        Instant ts = h.getRegisteredAt() == null
+    public static VersionItem fromLabelVersion(LsLabelVersion v, boolean current) {
+        String sha = v.getGiteaCmtHash() == null ? "" : v.getGiteaCmtHash();
+        Instant ts = v.getRegDt() == null
                 ? null
-                : h.getRegisteredAt().toInstant(ZoneOffset.UTC);
+                : v.getRegDt().toInstant(ZoneOffset.UTC);
         return new VersionItem(
                 sha,
                 shortOf(sha),
-                h.getRegisteredUserNo() == null ? "" : h.getRegisteredUserNo(),
+                v.getRegId() == null ? "" : v.getRegId(),
                 "",
                 ts,
                 current
