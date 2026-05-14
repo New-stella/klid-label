@@ -9,6 +9,8 @@ import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.common.client.dto.Sam2TrackResponse;
+import kr.co.cudo.authoring.common.client.dto.VlmMetaRequest;
+import kr.co.cudo.authoring.common.client.dto.VlmMetaResponse;
 import kr.co.cudo.authoring.common.client.dto.VlmVerifyRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmVerifyResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloRequest;
@@ -92,6 +94,22 @@ public class AiServerClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(VlmVerifyResponse.class)
+                .timeout(Duration.ofSeconds(60))
+                .transformDeferred(RetryOperator.of(retry))
+                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+    }
+
+    /**
+     * VLM 영상 단위 메타 추출 — V2 Phase 1 신규.
+     * <p>ai-server {@code POST /infer/vlm/meta} 를 호출하여 영상 1건의 K/V 메타를 받아온다.
+     * mock 모드(AI_MOCK_MODE=true) 응답 처리는 ai-server 측에서 수행하므로 본 클라이언트는 분기 없음.
+     */
+    public Mono<VlmMetaResponse> extractVideoMeta(VlmMetaRequest request) {
+        return webClient.post()
+                .uri("/infer/vlm/meta")
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(VlmMetaResponse.class)
                 .timeout(Duration.ofSeconds(60))
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));

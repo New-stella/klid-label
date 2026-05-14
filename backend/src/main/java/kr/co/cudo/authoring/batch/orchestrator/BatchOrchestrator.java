@@ -8,7 +8,7 @@ import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
-import kr.co.cudo.authoring.batch.step.VlmObjectVerifyStep;
+import kr.co.cudo.authoring.batch.step.VlmMetaStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -23,16 +23,20 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 배치 파이프라인 오케스트레이터 (Phase 5).
+ * 배치 파이프라인 오케스트레이터 (V2 — 파이프라인 재배치).
  * <p>
- * 단계 순서:
- *   1. FRAME_EXTRACT  (FfmpegFrameExtractor.extract)
- *   2. DEIDENTIFY     (조건부 — needsDeidentify(rawSn) 일 때만)
- *   3. YOLO           (YoloAutolabelStep.run)
- *   4. SAM2           (Sam2SegmentStep.run)
- *   5. INTERPOLATE    (TrackInterpolationStep.run — Phase 3 신규)
- *   6. VLM_VERIFY     (VlmObjectVerifyStep.run)
+ * V2 단계 순서:
+ *   1. VLM            (VlmMetaStep.run — 영상 단위 메타, Phase 1 신규 첫 단계)
+ *   2. DEIDENTIFY     (DeidentifyStep.run — Phase 1: needsDeidentify 분기 유지. Phase 2 에서 무조건화 예정)
+ *   3. FRAME_EXTRACT  (FfmpegFrameExtractor.extract — Phase 1: 단일 추출 유지. Phase 2 에서 2벌 분기 예정)
+ *   4. YOLO           (YoloAutolabelStep.run)
+ *   5. SAM2           (Sam2SegmentStep.run)
+ *   6. INTERPOLATE    (TrackInterpolationStep.run)
  *   7. COMPLETED      (statusService.markCompleted)
+ * <p>
+ * V2 변경:
+ *  - VlmObjectVerifyStep(객체 검증) 호출 제거 — 영상 단위 메타로 일원화. 코드/enum(VLM_VERIFY) 은 보존 (Phase 5 cleanup).
+ *  - VLM 을 첫 단계로 전진 배치하여 비식별 이전 원본 기반 메타 추출.
  * <p>
  * 실패 처리:
  *  - 어느 단계에서든 예외 발생 시 statusService.markFailed + retryQueue.enqueueIfRetryable.
@@ -41,35 +45,29 @@ import java.util.List;
  * <p>
  * 트랜잭션 분리:
  *  - 본 process() 자체는 NOT_SUPPORTED — 각 Step 이 REQUIRES_NEW 로 자체 트랜잭션 보유.
- *  - 단계 실패가 다른 단계 결과(예: FRAME_EXTRACT INSERT) 에 영향 없도록 격리.
+ *  - 단계 실패가 다른 단계 결과(예: VLM_META INSERT) 에 영향 없도록 격리.
  * <p>
- * 영상 단위 직렬 호출 보장 (Phase 4):
+ * 영상 단위 직렬 호출 보장:
  *  - {@link #process(Long)} 는 단일 영상(rawSn) 에 대해 단일 스레드에서 호출된다.
- *  - {@link YoloAutolabelStep#run(Long)} 가 내부적으로 frame_no ASC 정렬된 모든 프레임을
- *    순차로 {@code aiServerClient.predictYoloTrack(...)} 호출.
- *  - ultralytics tracker state 는 ai-server 측에서 clip_id 단위로 격리되므로, 같은 영상의
- *    프레임 호출 순서가 보장되어야 동일 객체에 동일 track_id 가 부여된다.
- *  - 외부 스케줄러(Quartz) 가 두 영상을 병렬로 처리하는 경우에도 clip_id 가 다르므로 격리됨 —
- *    즉 영상 간 track_id 누수는 ai-server 의 clip_id 기반 격리로 차단.
- *  - 본 클래스는 정적 필드/싱글톤 상태를 보유하지 않으므로 영상 간 독립성을 보장한다.
+ *  - YoloAutolabelStep 내부에서 frame_no ASC 정렬된 모든 프레임을 순차로 ai-server 호출 (tracker state 격리).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class BatchOrchestrator {
 
+    private final VlmMetaStep vlmMetaStep;
     private final FfmpegFrameExtractor frameExtractor;
     private final DeidentifyStep deidentifyStep;
     private final YoloAutolabelStep yoloStep;
     private final Sam2SegmentStep sam2Step;
     private final TrackInterpolationStep trackInterpolationStep;
-    private final VlmObjectVerifyStep vlmStep;
     private final BatchStatusService statusService;
     private final BatchRetryQueue retryQueue;
     private final VideoRepository videoRepository;
 
     /**
-     * 단일 영상 1건 처리.
+     * 단일 영상 1건 처리 (V2 순서).
      * - rawSn null/존재하지 않음 → INVALID_INPUT.
      * - process 자체는 트랜잭션을 시작하지 않으나(NOT_SUPPORTED), 영상 메타 조회를 위한
      *   짧은 readOnly 트랜잭션은 필요 → 별도 메서드로 격리.
@@ -79,36 +77,40 @@ public class BatchOrchestrator {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
         LsDataRaw raw = loadRaw(rawSn);
-        statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
 
         try {
+            // 1. VLM 영상 단위 메타 — V2 정책상 비식별 이전 원본으로 메타 추출.
+            statusService.markStage(rawSn, BatchStage.VLM);
+            vlmMetaStep.run(rawSn);
+
+            // 2. 비식별 (Phase 1: 분기 유지. Phase 2 에서 무조건화 예정).
+            if (raw.needsDeidentify()) {
+                statusService.markStage(rawSn, BatchStage.DEIDENTIFY);
+                deidentifyStep.run(raw);
+            }
+
+            // 3. 프레임 추출 (Phase 1: 단일 추출 유지. Phase 2 에서 원본/비식별 2벌 분기 예정).
+            statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
             List<LsDataSrc> frames = frameExtractor.extract(raw);
             if (frames.isEmpty()) {
                 throw new CustomException(ErrorCode.INTERNAL_ERROR,
                         "프레임 추출 결과가 0건입니다 rawSn=" + rawSn);
             }
 
-            if (raw.needsDeidentify()) {
-                statusService.markStage(rawSn, BatchStage.DEIDENTIFY);
-                deidentifyStep.run(raw);
-            }
-
+            // 4. YOLO + Track — 인메모리 BBOX 힌트(POLYGON_ONLY 라벨 포함) 반환.
+            //    정적 필드/싱글톤 저장 금지 — 지역 변수로만 전달 (스레드 안전).
             statusService.markStage(rawSn, BatchStage.YOLO);
-            // Phase 2: YoloStep 이 인메모리 BBOX 힌트(POLYGON_ONLY 라벨 포함)를 반환.
-            // 정적 필드/싱글톤 저장 금지 — 지역 변수로만 전달 (스레드 안전).
             List<BbHint> hints = yoloStep.run(rawSn);
 
+            // 5. SAM2.
             statusService.markStage(rawSn, BatchStage.SAM2);
             sam2Step.run(rawSn, hints);
 
-            // Phase 3: 트랙 보간 — 같은 trackId 의 누락 프레임 BBOX 를 선형 보간으로 채움.
-            // SAM2 다음, VLM 이전. VLM 검증은 보간 row 까지 포함하여 신뢰도 갱신할 수 있음.
+            // 6. 트랙 보간 — 같은 trackId 의 누락 프레임 BBOX 를 선형 보간으로 채움.
             statusService.markStage(rawSn, BatchStage.INTERPOLATE);
             trackInterpolationStep.run(rawSn);
 
-            statusService.markStage(rawSn, BatchStage.VLM_VERIFY);
-            vlmStep.run(rawSn);
-
+            // V2: VlmObjectVerifyStep 호출 제거 — 영상 단위 메타로 일원화.
             markRawCompleted(rawSn);
             statusService.markCompleted(rawSn);
             retryQueue.clear(rawSn);

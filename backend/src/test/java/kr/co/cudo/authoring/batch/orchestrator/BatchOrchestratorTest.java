@@ -7,7 +7,7 @@ import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
-import kr.co.cudo.authoring.batch.step.VlmObjectVerifyStep;
+import kr.co.cudo.authoring.batch.step.VlmMetaStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -32,18 +34,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 5 BatchOrchestrator 단위 테스트.
- * - 모든 Step / Repository 는 Mockito mock.
- * - 비즈니스 규칙(needsDeidentify, autoLblYn, retry) 검증 위주.
+ * BatchOrchestrator V2 단위 테스트.
+ * V2 정책 파이프라인 순서:
+ *   VLM(영상 단위 메타) → DEIDENTIFY(분기) → FRAME_EXTRACT → YOLO → SAM2 → INTERPOLATE → COMPLETED
+ * VLM_VERIFY(객체 검증) 호출은 V2 에서 제거 (코드는 일단 보존, Phase 5 cleanup).
  */
 class BatchOrchestratorTest {
 
+    private VlmMetaStep vlmMetaStep;
     private FfmpegFrameExtractor frameExtractor;
     private DeidentifyStep deidentifyStep;
     private YoloAutolabelStep yoloStep;
     private Sam2SegmentStep sam2Step;
     private TrackInterpolationStep trackInterpolationStep;
-    private VlmObjectVerifyStep vlmStep;
     private BatchStatusService statusService;
     private BatchRetryQueue retryQueue;
     private VideoRepository videoRepository;
@@ -51,19 +54,19 @@ class BatchOrchestratorTest {
 
     @BeforeEach
     void setUp() {
+        vlmMetaStep = mock(VlmMetaStep.class);
         frameExtractor = mock(FfmpegFrameExtractor.class);
         deidentifyStep = mock(DeidentifyStep.class);
         yoloStep = mock(YoloAutolabelStep.class);
         sam2Step = mock(Sam2SegmentStep.class);
         trackInterpolationStep = mock(TrackInterpolationStep.class);
-        vlmStep = mock(VlmObjectVerifyStep.class);
         statusService = mock(BatchStatusService.class);
         retryQueue = new BatchRetryQueue(3, 60);
         videoRepository = mock(VideoRepository.class);
 
         orchestrator = new BatchOrchestrator(
-                frameExtractor, deidentifyStep, yoloStep, sam2Step, trackInterpolationStep, vlmStep,
-                statusService, retryQueue, videoRepository);
+                vlmMetaStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
+                trackInterpolationStep, statusService, retryQueue, videoRepository);
 
         // 기본 — 프레임 1개 추출, ai-server step 모두 정상.
         when(frameExtractor.extract(any(LsDataRaw.class)))
@@ -90,28 +93,36 @@ class BatchOrchestratorTest {
     }
 
     @Test
-    @DisplayName("ANONY_영상은_DeidentifyStep_skip")
+    @DisplayName("ANONY_영상은_DeidentifyStep_skip_VLM_영상메타는_먼저_호출")
     void anonySkipsDeidentifyStep() {
         newRaw(101L, LsDataRaw.PRVC_TYPE_ANONY);
 
         BatchStage result = orchestrator.process(101L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        // V2: vlmMetaStep 은 항상 가장 먼저 호출됨
+        verify(vlmMetaStep).run(101L);
+        // ANONY 는 비식별 skip
         verify(deidentifyStep, never()).run(any());
+        // 이후 단계는 정상 호출
+        verify(frameExtractor).extract(any(LsDataRaw.class));
         verify(yoloStep).run(101L);
         verify(sam2Step).run(eq(101L), any());
-        verify(vlmStep).run(101L);
+        verify(trackInterpolationStep).run(101L);
     }
 
     @Test
-    @DisplayName("PRVC_영상은_DeidentifyStep_호출")
+    @DisplayName("PRVC_영상은_DeidentifyStep_호출_VLM_먼저_그_다음_DEIDENT_그_다음_FRAME")
     void prvcInvokesDeidentifyStep() {
         newRaw(102L, LsDataRaw.PRVC_TYPE_PRVC);
 
         BatchStage result = orchestrator.process(102L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        verify(deidentifyStep, times(1)).run(any(LsDataRaw.class));
+        InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor);
+        order.verify(vlmMetaStep).run(102L);
+        order.verify(deidentifyStep).run(any(LsDataRaw.class));
+        order.verify(frameExtractor).extract(any(LsDataRaw.class));
     }
 
     @Test
@@ -126,6 +137,72 @@ class BatchOrchestratorTest {
     }
 
     @Test
+    @DisplayName("BatchOrchestrator_V2_순서_VLM_DEIDENT_FRAME_YOLO_SAM2_INTERPOLATE")
+    void v2PipelineOrderForPrvc() {
+        newRaw(130L, LsDataRaw.PRVC_TYPE_PRVC);
+
+        BatchStage result = orchestrator.process(130L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
+        order.verify(vlmMetaStep).run(130L);
+        order.verify(deidentifyStep).run(any(LsDataRaw.class));
+        order.verify(frameExtractor).extract(any(LsDataRaw.class));
+        order.verify(yoloStep).run(130L);
+        order.verify(sam2Step).run(eq(130L), any());
+        order.verify(trackInterpolationStep).run(130L);
+    }
+
+    @Test
+    @DisplayName("BatchOrchestrator_V2_ANONY도_VLM_먼저_그_다음_FRAME")
+    void v2PipelineOrderForAnony() {
+        newRaw(131L, LsDataRaw.PRVC_TYPE_ANONY);
+
+        BatchStage result = orchestrator.process(131L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        InOrder order = inOrder(vlmMetaStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
+        order.verify(vlmMetaStep).run(131L);
+        order.verify(frameExtractor).extract(any(LsDataRaw.class));
+        order.verify(yoloStep).run(131L);
+        order.verify(sam2Step).run(eq(131L), any());
+        order.verify(trackInterpolationStep).run(131L);
+        verify(deidentifyStep, never()).run(any());
+    }
+
+    @Test
+    @DisplayName("BatchOrchestrator_VLM_META_실패_시_이후_모든_단계_호출_안_함_+_FAILED_마킹")
+    void vlmMetaFailureFailsImmediately() {
+        newRaw(132L, LsDataRaw.PRVC_TYPE_PRVC);
+        doThrow(new RuntimeException("vlm-meta 5xx")).when(vlmMetaStep).run(132L);
+
+        BatchStage result = orchestrator.process(132L);
+
+        assertThat(result).isEqualTo(BatchStage.FAILED);
+        // 이후 모든 단계 호출 안 됨
+        verify(deidentifyStep, never()).run(any());
+        verify(frameExtractor, never()).extract(any());
+        verify(yoloStep, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
+        verify(trackInterpolationStep, never()).run(any());
+        // FAILED 마킹 + 재시도 등록
+        verify(statusService).markFailed(eq(132L), any(RuntimeException.class));
+        assertThat(retryQueue.retryCount(132L)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("BatchOrchestrator_기존_프레임_추출_단일_호출_유지_Phase1_회귀")
+    void frameExtractorInvokedOnce() {
+        newRaw(133L, LsDataRaw.PRVC_TYPE_ANONY);
+
+        BatchStage result = orchestrator.process(133L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        // Phase 1: 비식별 무조건화/이중 추출은 Phase 2~ 에서. 본 Phase 는 단일 추출 유지.
+        verify(frameExtractor, times(1)).extract(any(LsDataRaw.class));
+    }
+
+    @Test
     @DisplayName("비식별_API_500_응답시_FAILED_+_재시도큐_등록")
     void deidentifyFailureMovesToFailedAndRetry() {
         newRaw(104L, LsDataRaw.PRVC_TYPE_PRVC);
@@ -135,11 +212,13 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
         assertThat(retryQueue.retryCount(104L)).isEqualTo(1);
+        // V2: VLM 은 비식별 이전이므로 호출되어야 함
+        verify(vlmMetaStep).run(104L);
         // 비식별 이후 단계는 호출되지 않아야 함 (단계 격리).
+        verify(frameExtractor, never()).extract(any());
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
-        verify(vlmStep, never()).run(any());
-        // statusService 가 FAILED 로 마킹되었어야 함.
+        verify(trackInterpolationStep, never()).run(any());
         verify(statusService).markFailed(eq(104L), any(RuntimeException.class));
     }
 
@@ -158,19 +237,17 @@ class BatchOrchestratorTest {
     }
 
     @Test
-    @DisplayName("VLM_단계_실패시_이전_단계는_커밋되고_FAILED_고정")
-    void vlmFailureKeepsPriorStagesAndMarksFailed() {
+    @DisplayName("INTERPOLATE_단계_실패시_FAILED_고정_+_이전_단계는_커밋")
+    void interpolateFailureKeepsPriorStagesAndMarksFailed() {
         newRaw(106L, LsDataRaw.PRVC_TYPE_ANONY);
-        doThrow(new RuntimeException("vlm down")).when(vlmStep).run(any());
+        doThrow(new RuntimeException("interpolate down")).when(trackInterpolationStep).run(any());
 
         BatchStage result = orchestrator.process(106L);
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
-        // 이전 단계는 호출 완료
         verify(yoloStep).run(106L);
         verify(sam2Step).run(eq(106L), any());
-        verify(vlmStep).run(106L);
-        // 상태는 FAILED 로 마킹
+        verify(trackInterpolationStep).run(106L);
         verify(statusService).markFailed(eq(106L), any(RuntimeException.class));
     }
 
@@ -185,9 +262,7 @@ class BatchOrchestratorTest {
             orchestrator.process(107L);
         }
 
-        // retryCount 는 1·2·3 까지 증가 후, 4회째는 maxAttempts(3) 초과로 false
         assertThat(retryQueue.retryCount(107L)).isEqualTo(4);
-        // BatchStatusService.markFailed 가 4회 호출되었어야 함.
         verify(statusService, times(4)).markFailed(eq(107L), any(RuntimeException.class));
     }
 
@@ -212,6 +287,8 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(108L);
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
+        // V2: vlm 은 frame 이전이므로 호출됨
+        verify(vlmMetaStep).run(108L);
         verify(deidentifyStep, never()).run(any());
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
@@ -243,12 +320,8 @@ class BatchOrchestratorTest {
     }
 
     @Test
-    @DisplayName("BatchOrchestrator_같은_영상_프레임은_순차_호출_보장")
+    @DisplayName("BatchOrchestrator_같은_영상_프레임은_순차_호출_보장_V2_순서")
     void yoloAndSam2InvokedSequentiallyPerVideo() {
-        // 단일 영상 process() 는 YoloStep → Sam2Step 순서로 직렬 호출.
-        // 이 보장은 BatchOrchestrator 자체가 단일 스레드 메서드이고, YoloStep.run(rawSn) 내부에서
-        // 영상의 모든 프레임을 ORDER BY frame_no ASC 로 직렬 처리하기 때문이다.
-        // ultralytics tracker state 격리를 위해 같은 영상 프레임이 반드시 직렬로 호출되어야 한다.
         newRaw(120L, LsDataRaw.PRVC_TYPE_ANONY);
         List<kr.co.cudo.authoring.batch.step.BbHint> hints = List.of(
                 new kr.co.cudo.authoring.batch.step.BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1)
@@ -258,26 +331,26 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(120L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        // YoloStep → Sam2Step → TrackInterpolationStep → VlmStep (InOrder 검증)
-        org.mockito.InOrder order = org.mockito.Mockito.inOrder(yoloStep, sam2Step, trackInterpolationStep, vlmStep);
+        // V2: VLM → FRAME → YOLO → SAM2 → INTERPOLATE
+        InOrder order = inOrder(vlmMetaStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
+        order.verify(vlmMetaStep).run(120L);
+        order.verify(frameExtractor).extract(any(LsDataRaw.class));
         order.verify(yoloStep).run(120L);
         order.verify(sam2Step).run(eq(120L), any());
         order.verify(trackInterpolationStep).run(120L);
-        order.verify(vlmStep).run(120L);
     }
 
     @Test
-    @DisplayName("Phase3_trackInterpolationStep_이_sam2_다음_vlm_이전에_호출")
-    void trackInterpolationStepBetweenSam2AndVlm() {
+    @DisplayName("Phase3_trackInterpolationStep_이_sam2_다음에_호출")
+    void trackInterpolationStepAfterSam2() {
         newRaw(121L, LsDataRaw.PRVC_TYPE_ANONY);
 
         BatchStage result = orchestrator.process(121L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        org.mockito.InOrder order = org.mockito.Mockito.inOrder(sam2Step, trackInterpolationStep, vlmStep);
+        InOrder order = inOrder(sam2Step, trackInterpolationStep);
         order.verify(sam2Step).run(eq(121L), any());
         order.verify(trackInterpolationStep).run(121L);
-        order.verify(vlmStep).run(121L);
     }
 
     @Test
@@ -301,7 +374,6 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
         verify(trackInterpolationStep, never()).run(any());
-        verify(vlmStep, never()).run(any());
     }
 
     @Test
