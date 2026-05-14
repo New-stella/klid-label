@@ -12,5 +12,8 @@ public interface LsDataMetaRepository extends JpaRepository<LsDataMeta, Long> {
 
     List<LsDataMeta> findByRawSn(Long rawSn);
 
+    /** Phase 4 — 외부 학습데이터 API: META_TYPE_CD(RAW/DEID) 별 메타 조회. */
+    List<LsDataMeta> findByRawSnAndMetaTypeCd(Long rawSn, String metaTypeCd);
+
     Optional<LsDataMeta> findByRawSnAndMetaKey(Long rawSn, String metaKey);
 }

@@ -24,6 +24,8 @@ authoring:
   integration:
     control-server:
       m2m-token: ${CONTROL_M2M_TOKEN:dev-m2m-token-32bytes-or-longer-please}
+    learning-data:
+      m2m-token: ${LEARNING_DATA_M2M_TOKEN:test-learning-data-m2m-token-32bytes}
     portal-server:
       m2m-token: ${PORTAL_M2M_TOKEN:dev-m2m-token-32bytes-or-longer-please}
     gitea:

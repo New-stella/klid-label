@@ -31,4 +31,17 @@ public class StubControllers {
             return "m2m-ok";
         }
     }
+
+    /**
+     * Phase 4 — /v1/export-api/** 경로 권한 분리 검증용 스텁.
+     * 실제 ExportApiController 와 동일하게 hasAuthority('M2M_LEARNING_DATA') 가드.
+     */
+    @RestController
+    public static class ExportApiStub {
+        @GetMapping("/v1/export-api/test")
+        @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('M2M_LEARNING_DATA')")
+        public String test() {
+            return "export-api-ok";
+        }
+    }
 }

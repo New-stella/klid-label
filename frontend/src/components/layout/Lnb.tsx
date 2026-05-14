@@ -41,7 +41,6 @@ const MENU: MenuGroup[] = [
     group: '데이터',
     items: [
       { label: '증강 요청', path: '/augment/request', allow: ['REVIEWER'] },
-      { label: '내보내기', path: '/export', allow: ['REVIEWER'] },
     ],
   },
   {

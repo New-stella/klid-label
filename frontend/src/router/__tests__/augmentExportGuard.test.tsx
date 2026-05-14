@@ -27,14 +27,6 @@ function renderGuard(initialPath: string) {
           }
         />
         <Route
-          path="/export"
-          element={
-            <RoleGuard allow={[Role.REVIEWER]}>
-              <div>EXPORT_PAGE</div>
-            </RoleGuard>
-          }
-        />
-        <Route
           path="/generate/result/:jobId"
           element={
             <RoleGuard allow={[Role.REVIEWER]}>
@@ -49,7 +41,7 @@ function renderGuard(initialPath: string) {
   );
 }
 
-describe('augment/export 라우트 RoleGuard', () => {
+describe('augment/generate 라우트 RoleGuard', () => {
   beforeEach(() => {
     useAuthStore.getState().clear();
   });
@@ -58,7 +50,7 @@ describe('augment/export 라우트 RoleGuard', () => {
     useAuthStore.getState().clear();
   });
 
-  it('WORKER가_augment_export_접근시_forbidden', () => {
+  it('WORKER가_augment_generate_접근시_forbidden', () => {
     useAuthStore.setState({
       token: 'tok',
       claims: { sub: 'u', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
@@ -72,15 +64,11 @@ describe('augment/export 라우트 RoleGuard', () => {
     expect(screen.getByText('FORBIDDEN_PAGE')).toBeInTheDocument();
     u2();
 
-    const { unmount: u3 } = renderGuard('/export');
-    expect(screen.getByText('FORBIDDEN_PAGE')).toBeInTheDocument();
-    u3();
-
     renderGuard('/generate/result/555');
     expect(screen.getByText('FORBIDDEN_PAGE')).toBeInTheDocument();
   });
 
-  it('REVIEWER는_augment_export_generate_경로_접근_허용', () => {
+  it('REVIEWER는_augment_generate_경로_접근_허용', () => {
     useAuthStore.setState({
       token: 'tok',
       claims: { sub: 'u', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
@@ -93,10 +81,6 @@ describe('augment/export 라우트 RoleGuard', () => {
     const { unmount: u2 } = renderGuard('/augment/result/100');
     expect(screen.getByText('AUGMENT_RESULT_PAGE')).toBeInTheDocument();
     u2();
-
-    const { unmount: u3 } = renderGuard('/export');
-    expect(screen.getByText('EXPORT_PAGE')).toBeInTheDocument();
-    u3();
 
     renderGuard('/generate/result/555');
     expect(screen.getByText('GENERATE_RESULT_PAGE')).toBeInTheDocument();

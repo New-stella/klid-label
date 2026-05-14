@@ -15,6 +15,9 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
 
     List<LsDataSrc> findByRawSnOrderByFrameNoAsc(Long rawSn);
 
+    /** Phase 4 — 외부 학습데이터 API: 특정 frmTypeCd(RAW/DEID) 만 정렬 조회. */
+    List<LsDataSrc> findByRawSnAndFrmTypeCdOrderByFrameNoAsc(Long rawSn, String frmTypeCd);
+
     Optional<LsDataSrc> findByRawSnAndFrameNo(Long rawSn, Integer frameNo);
 
     long countByRawSn(Long rawSn);

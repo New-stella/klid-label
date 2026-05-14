@@ -86,6 +86,8 @@ public class SecurityConfig {
                             .requestMatchers("/actuator/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/integration/control/**").hasAuthority(M2mTokenAuthenticationFilter.M2M_AUTHORITY)
                             .requestMatchers("/v1/integration/**").denyAll()
+                            // Phase 4 — 외부 학습데이터 API (M2M LEARNING_DATA scope 전용).
+                            .requestMatchers("/v1/export-api/**").hasAuthority(M2mTokenAuthenticationFilter.M2M_AUTHORITY_LEARNING_DATA)
                             .requestMatchers("/v1/manage/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/system/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/portal/**").hasRole(Role.PORTAL_USER.name())
