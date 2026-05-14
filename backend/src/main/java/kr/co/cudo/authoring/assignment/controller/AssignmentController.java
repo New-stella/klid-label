@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -92,7 +93,7 @@ public class AssignmentController {
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<Page<AssignmentResponse.Item>> list(@Parameter(description = "조회 대상 작업자 PK (선택, REVIEWER만)", example = "1001") @RequestParam(required = false) Long workerId,
                                                             @AuthenticationPrincipal TokenClaims actor,
-                                                            @PageableDefault(size = 20) Pageable pageable) {
+                                                            @PageableDefault(size = 20, sort = "regDt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(assignmentService.listAssignments(workerId, actor, pageable));
     }
 

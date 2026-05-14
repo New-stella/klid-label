@@ -159,6 +159,62 @@ class AssignmentControllerTest {
     }
 
     @Test
+    @DisplayName("list_기본_sort_regDt_desc_적용_최신_배정이_먼저")
+    void listDefaultSortIsRegDtDesc() throws Exception {
+        // worker100 에 영상을 3건 시간차로 배정 (1000 → 1001 → 1002 순)
+        AssignmentCreateRequest r1 = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest r2 = new AssignmentCreateRequest(10L, 100L, List.of(1001L));
+        AssignmentCreateRequest r3 = new AssignmentCreateRequest(10L, 100L, List.of(1002L));
+        mockMvc.perform(post("/v1/assignments")
+                .header("Authorization", "Bearer " + reviewerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(r1))).andExpect(status().isCreated());
+        Thread.sleep(10);
+        mockMvc.perform(post("/v1/assignments")
+                .header("Authorization", "Bearer " + reviewerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(r2))).andExpect(status().isCreated());
+        Thread.sleep(10);
+        mockMvc.perform(post("/v1/assignments")
+                .header("Authorization", "Bearer " + reviewerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(r3))).andExpect(status().isCreated());
+
+        // sort 파라미터 미지정 → 기본 regDt DESC → 가장 최근(r3=videoId 1002) 이 첫 번째
+        mockMvc.perform(get("/v1/assignments")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(3))
+                .andExpect(jsonPath("$.data.content[0].videoId").value(1002))
+                .andExpect(jsonPath("$.data.content[1].videoId").value(1001))
+                .andExpect(jsonPath("$.data.content[2].videoId").value(1000));
+    }
+
+    @Test
+    @DisplayName("list_sort_파라미터_명시시_override_적용")
+    void listExplicitSortOverridesDefault() throws Exception {
+        AssignmentCreateRequest r1 = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest r2 = new AssignmentCreateRequest(10L, 100L, List.of(1001L));
+        mockMvc.perform(post("/v1/assignments")
+                .header("Authorization", "Bearer " + reviewerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(r1))).andExpect(status().isCreated());
+        Thread.sleep(10);
+        mockMvc.perform(post("/v1/assignments")
+                .header("Authorization", "Bearer " + reviewerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(r2))).andExpect(status().isCreated());
+
+        // sort=regDt,asc 명시 → 오름차순으로 override
+        mockMvc.perform(get("/v1/assignments?sort=regDt,asc")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].videoId").value(1000))
+                .andExpect(jsonPath("$.data.content[1].videoId").value(1001));
+    }
+
+    @Test
     @DisplayName("존재하지_않는_workerId_배정시_INVALID_INPUT")
     void unknownWorkerRejected() throws Exception {
         AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 99999L, List.of(1000L));
