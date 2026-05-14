@@ -19,7 +19,7 @@ const versionsPayload = {
   success: true,
   data: [
     {
-      commitSha: 'aaa111',
+      commitSha: 'aaa111aaa111aaa111aaa111aaa111aaa111aaa1',
       shortHash: 'aaa111',
       authorName: '홍길동',
       message: '라벨 수정',
@@ -27,7 +27,7 @@ const versionsPayload = {
       isCurrent: true,
     },
     {
-      commitSha: 'bbb222',
+      commitSha: 'bbb222bbb222bbb222bbb222bbb222bbb222bbb2',
       shortHash: 'bbb222',
       authorName: '김검수',
       message: '초기 라벨',
@@ -63,7 +63,9 @@ describe('HistoryPage', () => {
     await waitFor(() => {
       expect(screen.getByText('aaa111')).toBeInTheDocument();
     });
-    expect(screen.getAllByTestId('version-item')).toHaveLength(2);
+    // HistoryPanel 의 commit-row 사용 (page 는 panel 의 wrapper)
+    expect(screen.getByTestId('commit-row-aaa111')).toBeInTheDocument();
+    expect(screen.getByTestId('commit-row-bbb222')).toBeInTheDocument();
   });
 
   it('WORKER_권한도_diff_조회_가능', async () => {
@@ -116,9 +118,15 @@ describe('HistoryPage', () => {
       expect(screen.getByText('aaa111')).toBeInTheDocument();
     });
 
-    // 두 번째 버전(bbb222)에 대한 롤백 시작 버튼 클릭 → 모달 노출
-    const trigger = screen.getByTestId('rollback-trigger-bbb222');
-    fireEvent.click(trigger);
+    // 최신 아닌 커밋(bbb222) 선택 → 롤백 트리거 노출 → 클릭
+    const bbbRow = screen.getByTestId('commit-row-bbb222');
+    const selectBtn = bbbRow.querySelector('button[type="button"]') as HTMLButtonElement;
+    fireEvent.click(selectBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('rollback-trigger-bbb222')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('rollback-trigger-bbb222'));
 
     await waitFor(() => {
       expect(screen.getByText('이 버전으로 롤백하시겠습니까?')).toBeInTheDocument();

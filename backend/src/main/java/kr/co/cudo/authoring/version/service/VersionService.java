@@ -11,7 +11,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.version.async.GiteaCommitFallbackQueue;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
-import kr.co.cudo.authoring.version.dto.VersionResponse;
+import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -100,11 +102,56 @@ public class VersionService {
         }
     }
 
-    /** 프레임 단위 버전 목록 — 최신순. */
-    public VersionResponse listVersions(Long srcSn, TokenClaims actor) {
+    /**
+     * 프레임 단위 버전 목록 — 최신순.
+     *
+     * <p>응답 정책 (FE Version[] 정합):
+     * <ul>
+     *   <li>새로 등록된 영상이라 commit 이 0건이면 → 200 + 빈 배열.</li>
+     *   <li>Gitea 호출 성공: Gitea commit 메타(작가/메시지/일시) 우선 사용.</li>
+     *   <li>Gitea 호출 실패(404/네트워크/timeout): WARN 로그 + DB({@link LsDataLblHstry}) 단독 fallback.
+     *       Gitea 일시 장애나 신규 영상(path 없음)이 사용자에게 500 으로 보이지 않도록 한다
+     *       (OWASP A10:2025 — Mishandling of Exceptional Conditions).</li>
+     * </ul>
+     */
+    public List<VersionItem> listVersions(Long srcSn, TokenClaims actor) {
         accessGuard.verifyAccess(srcSn, actor);
-        List<LsDataLblHstry> list = historyRepository.findBySrcSnOrderByRegisteredAtDesc(srcSn);
-        return VersionResponse.of(list);
+        List<LsDataLblHstry> history = historyRepository.findBySrcSnOrderByRegisteredAtDesc(srcSn);
+        if (history.isEmpty()) {
+            // 신규 영상 — 아직 한 번도 커밋되지 않음. Gitea 호출 자체를 skip.
+            return Collections.emptyList();
+        }
+        String path = pathPolicy.path(srcSn);
+
+        List<CommitResponse> giteaCommits = Collections.emptyList();
+        try {
+            List<CommitResponse> resp = giteaClient.listCommits(repo, path, 100)
+                    .block(GiteaClient.BLOCK_TIMEOUT);
+            if (resp != null) {
+                giteaCommits = resp;
+            }
+        } catch (Exception e) {
+            // Gitea 404 (신규 path) / timeout / 네트워크 단절 — empty list 로 graceful fallback.
+            // CWE-209/CWE-359: 예외 원인은 클래스명만 (스택트레이스/내부 경로 노출 금지).
+            log.warn("[Version] gitea listCommits failed — fallback to DB only. srcSn={} reason={}",
+                    srcSn, e.getClass().getSimpleName());
+        }
+
+        // 1) Gitea 응답이 있으면 hash 매핑 후 enrich.
+        //    DB 에 hash 가 있는 history 만 매핑 (PENDING(hash null) 은 Gitea 응답에 존재할 수 없음).
+        // 2) Gitea 응답이 비어 있으면 DB 단독 — PENDING 도 포함하여 사용자에게 "기록은 남았음" 을 노출.
+        if (!giteaCommits.isEmpty()) {
+            List<VersionItem> items = new ArrayList<>(giteaCommits.size());
+            for (int i = 0; i < giteaCommits.size(); i++) {
+                items.add(VersionItem.fromGitea(giteaCommits.get(i), i == 0));
+            }
+            return items;
+        }
+        List<VersionItem> items = new ArrayList<>(history.size());
+        for (int i = 0; i < history.size(); i++) {
+            items.add(VersionItem.fromHistory(history.get(i), i == 0));
+        }
+        return items;
     }
 
     /**

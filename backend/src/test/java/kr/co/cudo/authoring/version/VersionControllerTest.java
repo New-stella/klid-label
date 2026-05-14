@@ -97,10 +97,27 @@ class VersionControllerTest {
         historyRepository.save(LsDataLblHstry.create(srcSn,
                 "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", "100", "{\"v\":2}"));
 
+        // Gitea 호출 실패 → DB 단독 fallback 으로 응답 — FE Version[] 정합 shape 검증.
+        when(giteaClient.listCommits(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(Mono.error(new RuntimeException("gitea down")));
+
         mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items.length()").value(2));
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].commitSha").exists())
+                .andExpect(jsonPath("$.data[0].shortHash").exists())
+                .andExpect(jsonPath("$.data[0].isCurrent").value(true));
+    }
+
+    @Test
+    @DisplayName("GET_versions_커밋_없는_새_영상_빈_배열_200")
+    void getVersionsEmptyForFreshSrc() throws Exception {
+        // history 0건 — accessGuard 만 통과하면 빈 배열 200 이어야 함 (500 회귀 방어)
+        mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 
     @Test

@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.label.service.LabelService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.version.async.GiteaCommitFallbackQueue;
+import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.version.service.VersionService;
@@ -216,5 +217,75 @@ class VersionServiceTest {
         assertThatThrownBy(() -> versionService.rollback("not-a-sha-../etc/passwd", srcSn, reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    // ---------- listVersions 회귀 방어 ----------
+
+    @Test
+    @DisplayName("listVersions_빈_커밋_새_영상_은_빈_리스트_반환")
+    void listVersionsEmptyForFreshSrc() {
+        // history 0건 — Gitea 호출 자체가 일어나면 안 되고 500 도 발생하지 않아야 함
+        List<VersionItem> result = versionService.listVersions(srcSn, workerAssigned);
+
+        assertThat(result).isEmpty();
+        // Gitea 호출 skip 확인
+        verify(giteaClient, never())
+                .listCommits(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    @DisplayName("listVersions_gitea_404_빈_리스트_또는_DB_fallback")
+    void listVersionsGiteaFailureFallsBackToDb() {
+        // 사전: history 1건 — Gitea path 가 아직 없는 신규 영상 시뮬레이션
+        historyRepository.save(LsDataLblHstry.create(srcSn,
+                "abc1234abc1234abc1234abc1234abc1234abc12", "100", "{\"items\":[]}"));
+
+        when(giteaClient.listCommits(anyString(), anyString(),
+                org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(reactor.core.publisher.Mono.error(
+                        new RuntimeException("gitea 404")));
+
+        List<VersionItem> result = versionService.listVersions(srcSn, workerAssigned);
+
+        // Gitea 가 실패해도 500 이 아니라 DB 기반 fallback 으로 1건 반환
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).commitSha()).isEqualTo("abc1234abc1234abc1234abc1234abc1234abc12");
+        assertThat(result.get(0).shortHash()).isEqualTo("abc1234");
+        assertThat(result.get(0).isCurrent()).isTrue();
+    }
+
+    @Test
+    @DisplayName("listVersions_gitea_정상_응답_시_커밋_메타_사용")
+    void listVersionsUsesGiteaMetadata() {
+        historyRepository.save(LsDataLblHstry.create(srcSn,
+                "abc1234abc1234abc1234abc1234abc1234abc12", "100", "{}"));
+
+        Instant now = Instant.now();
+        when(giteaClient.listCommits(anyString(), anyString(),
+                org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(reactor.core.publisher.Mono.just(List.of(
+                        new kr.co.cudo.authoring.common.client.dto.CommitResponse(
+                                "abc1234abc1234abc1234abc1234abc1234abc12",
+                                "라벨 수정",
+                                "100",
+                                now)
+                )));
+
+        List<VersionItem> result = versionService.listVersions(srcSn, workerAssigned);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).message()).isEqualTo("라벨 수정");
+        assertThat(result.get(0).committedAt()).isEqualTo(now);
+        assertThat(result.get(0).isCurrent()).isTrue();
+    }
+
+    @Test
+    @DisplayName("listVersions_미배정_WORKER_접근시_FORBIDDEN")
+    void listVersionsForbiddenForUnassignedWorker() {
+        TokenClaims unassigned = new TokenClaims("999", Role.WORKER, Channel.INTERNAL,
+                Instant.now().plusSeconds(60));
+        assertThatThrownBy(() -> versionService.listVersions(srcSn, unassigned))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
     }
 }

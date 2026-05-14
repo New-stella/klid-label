@@ -10,9 +10,12 @@ import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
+import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.dto.VersionResponse;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.service.VersionService;
+
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -54,8 +57,8 @@ public class VersionController {
     })
     @GetMapping("/videos/{srcSn}/versions")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
-    public ApiResponse<VersionResponse> listVersions(@Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long srcSn,
-                                                      @AuthenticationPrincipal TokenClaims actor) {
+    public ApiResponse<List<VersionItem>> listVersions(@Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long srcSn,
+                                                       @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(versionService.listVersions(srcSn, actor));
     }
 

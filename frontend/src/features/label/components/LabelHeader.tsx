@@ -25,6 +25,13 @@ interface LabelHeaderProps {
   submitButton?: React.ReactNode;
   /** X 닫기 버튼 클릭 콜백. 미지정 시 navigate(-1) 기본 동작 (dirty 가드 없음). */
   onClose?: () => void;
+  /**
+   * 히스토리 버튼 클릭 콜백. 지정 시 인라인 패널 토글(<button>),
+   * 미지정 시 fallback 으로 별도 페이지(/history/{videoId}) <Link>.
+   */
+  onHistoryClick?: () => void;
+  /** 인라인 패널 열림 상태 (aria-expanded 표기) — onHistoryClick 사용 시에만 의미 있음. */
+  historyOpen?: boolean;
 }
 
 export function LabelHeader({
@@ -40,6 +47,8 @@ export function LabelHeader({
   saving = false,
   submitButton,
   onClose,
+  onHistoryClick,
+  historyOpen = false,
 }: LabelHeaderProps) {
   const navigate = useNavigate();
   const handleClose = onClose ?? (() => navigate(-1));
@@ -80,13 +89,32 @@ export function LabelHeader({
           {objectCount}개 객체
         </span>
         {showHistory && videoId !== undefined && (
-          <Link
-            to={`/history/${videoId}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-gray-700 transition-colors border border-gray-600"
-          >
-            <GitBranch size={14} />
-            히스토리
-          </Link>
+          onHistoryClick ? (
+            <button
+              type="button"
+              onClick={onHistoryClick}
+              aria-label="히스토리 토글"
+              aria-expanded={historyOpen}
+              data-testid="history-toggle"
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors border',
+                historyOpen
+                  ? 'bg-gray-700 text-white border-gray-500'
+                  : 'text-gray-300 hover:bg-gray-700 border-gray-600',
+              )}
+            >
+              <GitBranch size={14} />
+              히스토리
+            </button>
+          ) : (
+            <Link
+              to={`/history/${videoId}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-gray-700 transition-colors border border-gray-600"
+            >
+              <GitBranch size={14} />
+              히스토리
+            </Link>
+          )
         )}
         <button
           onClick={onSave}

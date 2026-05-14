@@ -26,6 +26,7 @@ import { useLabels } from '@/features/label/hooks/useLabels';
 import { saveAndCommit } from '@/features/label/SaveCommitFlow';
 import type { FrameSummary } from '@/features/label/types';
 import { useSubmitReview } from '@/features/review/hooks/useReviewActions';
+import { HistoryPanel } from '@/features/version/components/HistoryPanel';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -153,6 +154,9 @@ export function LabelingPage() {
       reset();
     };
   }, [data, setLabels, reset]);
+
+  // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // 저장 (PUT + commit) — 단축키와 헤더 버튼 공유
   const [saving, setSaving] = useState(false);
@@ -315,6 +319,10 @@ export function LabelingPage() {
         onSave={handleSave}
         saving={saving}
         onClose={handleClose}
+        onHistoryClick={
+          data?.srcSn !== undefined ? () => setHistoryOpen((v) => !v) : undefined
+        }
+        historyOpen={historyOpen}
         submitButton={
           isWorker && data ? (
             <Button
@@ -415,6 +423,20 @@ export function LabelingPage() {
             <ClassAttributePanel labels={labels} />
           </div>
         </div>
+
+        {/* 우측 슬라이드 — 히스토리 인라인 패널 (INTERNAL only). 본 영역은 기존 우측 패널 옆으로 펼침. */}
+        {historyOpen && !portalMode && data?.srcSn !== undefined && (
+          <div
+            className="w-80 shrink-0 border-l border-gray-700 bg-gray-900 overflow-hidden"
+            data-testid="inline-history-panel"
+          >
+            <HistoryPanel
+              srcSn={data.srcSn}
+              dark
+              onClose={() => setHistoryOpen(false)}
+            />
+          </div>
+        )}
       </div>
 
       {/* 하단 — 썸네일 strip + 슬라이더 */}
