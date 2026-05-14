@@ -110,7 +110,8 @@ class MetaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.metaKey=='weather')].metaVal").value("snow"));
 
-        LsDataMeta after = metaRepository.findByRawSnAndMetaKey(rawSn, "weather").orElseThrow();
+        LsDataMeta after = metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(
+                rawSn, "weather", LsDataMeta.META_TYPE_RAW).orElseThrow();
         assertThat(after.getMetaVal()).isEqualTo("snow");
     }
 }

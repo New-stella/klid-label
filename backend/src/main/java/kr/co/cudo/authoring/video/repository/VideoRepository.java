@@ -20,6 +20,13 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
 
     Optional<LsDataRaw> findByVmsClipId(String vmsClipId);
 
+    /**
+     * Phase 3 hotfix — 라벨 조회 응답에 잠금 상태만 필요할 때 단일 컬럼 projection.
+     * 전체 row fetch (영상 메타·CCTV 등) 회피 → PK 인덱스 lookup + 단일 컬럼만 SELECT.
+     */
+    @Query("select r.lockSttsCd from LsDataRaw r where r.rawSn = :rawSn")
+    Optional<String> findLockSttsCdByRawSn(@Param("rawSn") Long rawSn);
+
     Page<LsDataRaw> findAllByOrderByRegDtDesc(Pageable pageable);
 
     Page<LsDataRaw> findAllByDataSttsCdOrderByRegDtDesc(String dataSttsCd, Pageable pageable);

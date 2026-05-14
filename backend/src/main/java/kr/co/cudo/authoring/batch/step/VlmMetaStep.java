@@ -64,7 +64,10 @@ public class VlmMetaStep {
         for (Map.Entry<String, String> entry : resp.metaPairs().entrySet()) {
             String metaKey = META_KEY_PREFIX + entry.getKey();
             String metaVal = entry.getValue();
-            Optional<LsDataMeta> existing = metaRepository.findByRawSnAndMetaKey(rawSn, metaKey);
+            // Phase 5 hotfix — V26 트리플 UK 도입: VlmMetaStep 은 원본 영상 기준 메타만 저장하므로
+            // META_TYPE_CD='RAW' 한정 lookup 으로 결정성 확보.
+            Optional<LsDataMeta> existing = metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(
+                    rawSn, metaKey, LsDataMeta.META_TYPE_RAW);
             if (existing.isPresent()) {
                 existing.get().updateValue(metaVal);
                 // 영속 객체이므로 별도 save 호출 불요 (dirty checking).

@@ -99,9 +99,8 @@ public class LabelService {
         String frameImageType = resolveFrameImageType(actor, allowRaw);
         // Phase 3 보강 — FE 가 라벨링 화면 진입 시 영상 잠금 상태(LOCKED_FOR_REDEIDENT)를 사전 인지하도록 응답에 포함.
         // 잠금된 영상은 라벨 저장 자체가 차단되므로(아래 bulkUpsert 가드 참조) UI 측 비활성화 단서로 사용된다.
-        String lockSttsCd = videoRepository.findById(current.getRawSn())
-                .map(LsDataRaw::getLockSttsCd)
-                .orElse(null);
+        // hotfix: 전체 row fetch 회피 — lockSttsCd 단일 컬럼 projection 사용 (PK 인덱스 lookup).
+        String lockSttsCd = videoRepository.findLockSttsCdByRawSn(current.getRawSn()).orElse(null);
         return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd, objectMapper);
     }
 

@@ -79,7 +79,7 @@ class VlmMetaStepTest {
         pairs.put("activity", "walking");
         when(aiServerClient.extractVideoMeta(any(VlmMetaRequest.class)))
                 .thenReturn(Mono.just(new VlmMetaResponse(pairs)));
-        when(metaRepository.findByRawSnAndMetaKey(any(), any())).thenReturn(Optional.empty());
+        when(metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(any(), any(), any())).thenReturn(Optional.empty());
 
         step.run(rawSn);
 
@@ -105,7 +105,7 @@ class VlmMetaStepTest {
         pairs.put("scene_type", "intersection");
         when(aiServerClient.extractVideoMeta(any(VlmMetaRequest.class)))
                 .thenReturn(Mono.just(new VlmMetaResponse(pairs)));
-        when(metaRepository.findByRawSnAndMetaKey(any(), any())).thenReturn(Optional.empty());
+        when(metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(any(), any(), any())).thenReturn(Optional.empty());
 
         step.run(rawSn);
 
@@ -139,7 +139,7 @@ class VlmMetaStepTest {
         mockPairs.put("activity", "MOCK_ACT");
         when(aiServerClient.extractVideoMeta(any(VlmMetaRequest.class)))
                 .thenReturn(Mono.just(new VlmMetaResponse(mockPairs)));
-        when(metaRepository.findByRawSnAndMetaKey(any(), any())).thenReturn(Optional.empty());
+        when(metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(any(), any(), any())).thenReturn(Optional.empty());
 
         step.run(rawSn);
 
@@ -158,9 +158,9 @@ class VlmMetaStepTest {
                 .thenReturn(Mono.just(new VlmMetaResponse(pairs)));
 
         LsDataMeta existing = LsDataMeta.create(rawSn, "VLM_META.environment", "outdoor");
-        when(metaRepository.findByRawSnAndMetaKey(rawSn, "VLM_META.environment"))
+        when(metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(rawSn, "VLM_META.environment", LsDataMeta.META_TYPE_RAW))
                 .thenReturn(Optional.of(existing));
-        when(metaRepository.findByRawSnAndMetaKey(rawSn, "VLM_META.activity"))
+        when(metaRepository.findByRawSnAndMetaKeyAndMetaTypeCd(rawSn, "VLM_META.activity", LsDataMeta.META_TYPE_RAW))
                 .thenReturn(Optional.empty());
 
         step.run(rawSn);

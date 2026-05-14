@@ -13,7 +13,7 @@ import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -43,42 +43,20 @@ import java.util.List;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class DeidentifyStep {
 
     private final DeidentifyClient deidentifyClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataSrcHstryRepository hstryRepository;
     private final VideoRepository videoRepository;
-    /** Phase 3 — 재비식별 성공 시 OPEN 신고를 RESOLVED 로 일괄 전이. null 허용(단위 테스트 호환). */
+    /** Phase 3 — 재비식별 성공 시 OPEN 신고를 RESOLVED 로 일괄 전이. */
     private final DeidentReportService deidentReportService;
-    /** Phase 3 — 잠금 해제 알림. null 허용. */
+    /** Phase 3 — 잠금 해제 알림. */
     private final NotificationService notificationService;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
-
-    /** 기존 단위 테스트 호환 생성자 (Phase 3 신규 의존성 null). */
-    public DeidentifyStep(DeidentifyClient deidentifyClient,
-                          LsDataSrcRepository srcRepository,
-                          LsDataSrcHstryRepository hstryRepository,
-                          VideoRepository videoRepository) {
-        this(deidentifyClient, srcRepository, hstryRepository, videoRepository, null, null);
-    }
-
-    @Autowired
-    public DeidentifyStep(DeidentifyClient deidentifyClient,
-                          LsDataSrcRepository srcRepository,
-                          LsDataSrcHstryRepository hstryRepository,
-                          VideoRepository videoRepository,
-                          DeidentReportService deidentReportService,
-                          NotificationService notificationService) {
-        this.deidentifyClient = deidentifyClient;
-        this.srcRepository = srcRepository;
-        this.hstryRepository = hstryRepository;
-        this.videoRepository = videoRepository;
-        this.deidentReportService = deidentReportService;
-        this.notificationService = notificationService;
-    }
 
     private Path baseDeidentifiedPath;
 

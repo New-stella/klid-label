@@ -22,8 +22,8 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "LS_DATA_META",
-        uniqueConstraints = @UniqueConstraint(name = "UK_LS_DATA_META_RAW_KEY",
-                columnNames = {"RAW_SN", "META_KEY"}))
+        uniqueConstraints = @UniqueConstraint(name = "UK_LS_DATA_META_RAW_KEY_TYPE",
+                columnNames = {"RAW_SN", "META_KEY", "META_TYPE_CD"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LsDataMeta {
