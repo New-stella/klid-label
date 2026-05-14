@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
 import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.auth.repository.LsAuthWorkLockRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.label.dto.DeidentReportRequest;
+import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -23,6 +25,7 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -31,6 +34,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Phase 3 — POST /v1/labels/{srcSn}/deident-report E2E (MockMvc 통합).
+ *
+ * <p>Phase 3 정책:
+ * <ul>
+ *   <li>신고 row INSERT → LS_DEIDENT_REPORT (REPORT_STTS_CD='OPEN').</li>
+ *   <li>잠금 INSERT → LS_AUTH_WORK_LOCK (LOCK_TARGET_CD='RAW', LOCK_STTS_CD='LOCKED').</li>
+ *   <li>영상 DE_IDNTF_YN='F' 마킹.</li>
+ * </ul>
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -45,6 +55,7 @@ class DeidentReportControllerTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsPjtUserAuthrtRepository authrtRepository;
     @Autowired private LsDeidentReportRepository reportRepository;
+    @Autowired private LsAuthWorkLockRepository workLockRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -77,7 +88,7 @@ class DeidentReportControllerTest {
     }
 
     @Test
-    @DisplayName("WORKER_본인_배정_영상_신고_201_+_신고_저장_+_LOCK_+_DE_IDNTF_F")
+    @DisplayName("WORKER_본인_배정_영상_신고_201_+_REPORT_STTS_OPEN_저장_+_LS_AUTH_WORK_LOCK_LOCKED_+_DE_IDNTF_F")
     void workerAssignedReports201() throws Exception {
         DeidentReportRequest req = new DeidentReportRequest("얼굴 미블러");
 
@@ -89,10 +100,17 @@ class DeidentReportControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isNumber());
 
-        assertThat(reportRepository.findAllByRawSnOrderByRprtDtDesc(rawSn)).hasSize(1);
+        // 신고 row 1건 — REPORT_STTS_CD='OPEN'
+        List<LsDeidentReport> reports = reportRepository.findAllByDataRawSnAndReportSttsCd(
+                rawSn, LsDeidentReport.REPORT_OPEN);
+        assertThat(reports).hasSize(1);
+        assertThat(reports.get(0).getReason()).isEqualTo("얼굴 미블러");
+        // 영상 DE_IDNTF_YN='F'
         LsDataRaw reloaded = rawRepository.findById(rawSn).orElseThrow();
-        assertThat(reloaded.isLockedForRedeident()).isTrue();
         assertThat(reloaded.getDeIdntfYn()).isEqualTo("F");
+        // LS_AUTH_WORK_LOCK 에 LOCKED row 존재
+        assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
+                "RAW", rawSn, "LOCKED")).isTrue();
     }
 
     @Test
@@ -107,7 +125,9 @@ class DeidentReportControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
 
-        assertThat(reportRepository.findAllByRawSnOrderByRprtDtDesc(rawSn)).isEmpty();
+        assertThat(reportRepository.findAllByDataRawSnOrderByReportDtDesc(rawSn)).isEmpty();
+        assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
+                "RAW", rawSn, "LOCKED")).isFalse();
     }
 
     @Test

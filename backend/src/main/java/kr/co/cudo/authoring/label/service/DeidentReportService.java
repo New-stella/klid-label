@@ -70,11 +70,13 @@ public class DeidentReportService {
             throw new CustomException(ErrorCode.CONFLICT, "이미 비식별 재처리 중인 영상입니다.");
         }
 
-        // 4) 신고 row 저장
+        // 4) 신고 row 저장 — 사용자 신고 흐름: REPORT_STTS_CD='OPEN' + REPORTER_NO/REASON/REPORT_DT
         LsDeidentReport report = reportRepository.save(
-                LsDeidentReport.request(raw.getRawSn(), null, raw.getFilePath(), actor.sub()));
+                LsDeidentReport.createReport(raw.getRawSn(), reporterNo, reason));
 
-        // 5) 영상 잠금 + 비식별 상태 'F' 마킹 + 재시도 큐 적재
+        // 5) 영상 잠금 (LS_AUTH_WORK_LOCK INSERT) + 비식별 상태 'F' 마킹 + 재시도 큐 적재
+        //    잠금 INSERT 가 unique 제약 위반으로 실패하면 RuntimeException → 트랜잭션 롤백.
+        //    (DATA_RAW_SN, LOCK_TARGET_CD='RAW', LOCK_STTS_CD='LOCKED') 동시성 충돌 차단.
         workLockService.lockRawForRedeident(raw.getRawSn(), actor.sub());
         raw.markDeidentified("F");
         retryQueue.enqueueIfRetryable(raw.getRawSn());
@@ -96,7 +98,9 @@ public class DeidentReportService {
         if (rawSn == null) {
             return 0;
         }
-        List<LsDeidentReport> opens = reportRepository.findAllByDataRawSnAndProcSttsCd(rawSn, LsDeidentReport.STATUS_OPEN);
+        // REPORT_STTS_CD='OPEN' 사용자 신고 row 를 RESOLVED 로 전이.
+        List<LsDeidentReport> opens = reportRepository.findAllByDataRawSnAndReportSttsCd(
+                rawSn, LsDeidentReport.REPORT_OPEN);
         for (LsDeidentReport r : opens) {
             r.resolve();
         }

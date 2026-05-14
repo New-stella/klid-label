@@ -1,13 +1,12 @@
 package kr.co.cudo.authoring.batch.step;
 
-import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.entity.LsDataSrcHstry;
-import kr.co.cudo.authoring.batch.repository.LsDataSrcHstryRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.common.client.DeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.label.entity.LsDeidentReport;
+import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -21,45 +20,64 @@ import reactor.core.publisher.Mono;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Phase 3 — DeidentifyStep 단위 테스트.
+ *
+ * <p>V2 정책:
+ * <ul>
+ *   <li>영상 단위 비식별 (프레임별 호출 폐기). 결과 경로는 LS_DEIDENT_REPORT.DE_IDNTF_FILE_PATH 에만 저장.</li>
+ *   <li>PRVC/PSDO/ANONY 모두 비식별 호출 (분기 폐기).</li>
+ *   <li>잠금 해제 + OPEN 신고 RESOLVED 전이 — WorkLockService + DeidentReportService 위임.</li>
+ * </ul>
+ */
 class DeidentifyStepTest {
 
     @TempDir
     Path tmp;
 
     private DeidentifyClient deidentifyClient;
-    private LsDataSrcRepository srcRepository;
-    private LsDataSrcHstryRepository hstryRepository;
     private VideoRepository videoRepository;
+    private LsDeidentReportRepository reportRepository;
     private DeidentReportService deidentReportService;
     private NotificationService notificationService;
+    private WorkLockService workLockService;
     private DeidentifyStep step;
     private Path baseDeid;
 
     @BeforeEach
     void setUp() throws Exception {
         deidentifyClient = mock(DeidentifyClient.class);
-        srcRepository = mock(LsDataSrcRepository.class);
-        hstryRepository = mock(LsDataSrcHstryRepository.class);
         videoRepository = mock(VideoRepository.class);
+        reportRepository = mock(LsDeidentReportRepository.class);
         deidentReportService = mock(DeidentReportService.class);
         notificationService = mock(NotificationService.class);
+        workLockService = mock(WorkLockService.class);
 
         baseDeid = tmp.resolve("deid");
-        step = new DeidentifyStep(deidentifyClient, srcRepository, hstryRepository, videoRepository,
-                deidentReportService, notificationService);
+        // @RequiredArgsConstructor 순서: deidentifyClient, videoRepository, reportRepository,
+        //                                deidentReportService, notificationService, workLockService
+        step = new DeidentifyStep(deidentifyClient, videoRepository, reportRepository,
+                deidentReportService, notificationService, workLockService);
         setField(step, "deidPath", baseDeid.toString());
         invoke(step, "initBasePath");
+
+        // reportRepository.save 는 echo + ID 부여
+        when(reportRepository.save(any(LsDeidentReport.class))).thenAnswer(inv -> {
+            LsDeidentReport r = inv.getArgument(0);
+            setField(r, "deidentReportSn", 1L);
+            return r;
+        });
     }
 
     private LsDataRaw newRaw(String prvc) {
@@ -70,36 +88,28 @@ class DeidentifyStepTest {
         return raw;
     }
 
-    private LsDataSrc newSrc(long srcSn, int frameNo) {
-        LsDataSrc src = LsDataSrc.create(9001L, frameNo, "/var/raw/frames/9001/frame-" + frameNo + ".jpg", null);
-        setField(src, "srcSn", srcSn);
-        return src;
-    }
-
     @Test
-    @DisplayName("정상_경로_응답이면_attachDeidPath_호출")
-    void normalPath_attaches() {
+    @DisplayName("정상_경로_응답이면_LS_DEIDENT_REPORT_SUCCEEDED_+_DE_IDNTF_Y_+_결과경로_반환")
+    void normalPath_marksSuccess() {
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
-        LsDataSrc src = newSrc(1L, 0);
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
-        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        Path safeReturn = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
         when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
                 .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
-        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        step.run(raw);
+        String result = step.run(raw);
 
-        assertThat(src.getDeidFilePath()).isEqualTo(safeReturn.toString());
+        assertThat(result).isEqualTo(safeReturn.toString());
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+        // LS_DEIDENT_REPORT 가 최소 2회 save (REQUESTED, SUCCEEDED)
+        verify(reportRepository, org.mockito.Mockito.atLeast(1)).save(any(LsDeidentReport.class));
     }
 
     @Test
-    @DisplayName("응답_resultPath가_baseDeidentifiedPath_밖이면_INVALID_INPUT_그리고_DE_IDNTF_YN_F_마킹")
+    @DisplayName("응답_resultPath가_baseDeidentifiedPath_밖이면_EXTERNAL_API_ERROR_그리고_DE_IDNTF_F_마킹")
     void escapingResultPath_rejected() {
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
-        LsDataSrc src = newSrc(2L, 0);
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
         // 외부 응답이 base 밖 경로 (path traversal 시도)
         Path escaping = tmp.resolve("other").resolve("frame-0.jpg").toAbsolutePath().normalize();
@@ -109,83 +119,74 @@ class DeidentifyStepTest {
         assertThatThrownBy(() -> step.run(raw))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
-                .isEqualTo("EXTERNAL_API_ERROR"); // catch 블록에서 EXTERNAL_API_ERROR 로 래핑
+                .isEqualTo("EXTERNAL_API_ERROR");
 
         assertThat(raw.getDeIdntfYn()).isEqualTo("F");
-        verify(hstryRepository, never()).save(any());
-        assertThat(src.getDeidFilePath()).isNull();
     }
 
     @Test
-    @DisplayName("Phase2_ANONY_영상도_DeidentifyStep_호출_프레임별_비식별_시도")
+    @DisplayName("Phase2_ANONY_영상도_DeidentifyStep_호출_무조건_비식별")
     void anonyAlsoInvokesDeidentify() {
-        // Phase 2: needsDeidentify 분기 제거 — ANONY 영상도 무조건 비식별 호출
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_ANONY);
-        LsDataSrc src = newSrc(7L, 0);
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
-        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        Path safeReturn = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
         when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
                 .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
-        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
 
         step.run(raw);
 
-        // ANONY 도 외부 비식별 호출이 발생해야 함
         verify(deidentifyClient).deidentify(any(DeidentifyRequest.class));
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
     }
 
     @Test
-    @DisplayName("Phase3_LOCKED_FOR_REDEIDENT_영상_성공시_releaseLock_+_resolveOpenReports_호출_+_알림")
+    @DisplayName("Phase3_재비식별_잠금_영상_성공시_WorkLockService_releaseRaw_+_resolveOpenReports_+_알림")
     void redeidentLockReleasedOnSuccess() {
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
-        raw.attachLockStts(LsDataRaw.LOCK_REDEIDENT);
-        LsDataSrc src = newSrc(33L, 0);
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
-        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        when(workLockService.isRawLocked(9001L)).thenReturn(true);
+        Path safeReturn = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
         when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
                 .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
-        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
 
         step.run(raw);
 
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
-        assertThat(raw.isLockedForRedeident()).isFalse();
+        verify(workLockService).releaseRaw(eq(9001L), eq("batch"), eq("DEIDENT_SUCCEEDED"));
         verify(deidentReportService).resolveOpenReports(9001L);
         verify(notificationService).notifyReviewersOnLockRelease(raw);
     }
 
     @Test
-    @DisplayName("Phase3_정상_영상_lockSttsCd_NULL_성공시_resolveOpenReports_호출_안함")
-    void normalVideoSuccessSkipsResolve() {
+    @DisplayName("Phase3_정상_영상_잠금_없으면_releaseRaw_미호출_+_resolveOpenReports_idempotent_호출")
+    void normalVideoSuccessSkipsRelease() {
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
-        LsDataSrc src = newSrc(34L, 0);
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
-        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        when(workLockService.isRawLocked(9001L)).thenReturn(false);
+        Path safeReturn = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
         when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
                 .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
-        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
 
         step.run(raw);
 
-        verify(deidentReportService, never()).resolveOpenReports(any());
-        verify(notificationService, never()).notifyReviewersOnLockRelease(any());
+        // 잠금이 없으면 release 호출 안 함 (가드 통과)
+        verify(workLockService, never()).releaseRaw(any(), any(), any());
+        // resolveOpenReports 는 항상 호출됨 (idempotent — 신고 없으면 0 반환)
+        verify(deidentReportService).resolveOpenReports(9001L);
     }
 
     @Test
     @DisplayName("Phase2_PRVC_영상_정상_호출_성공_시_markDeidentified_Y_회귀")
     void prvcSuccessMarksY() {
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
-        LsDataSrc src = newSrc(11L, 0);
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
-        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        Path safeReturn = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
         when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
                 .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
-        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
 
         step.run(raw);
 

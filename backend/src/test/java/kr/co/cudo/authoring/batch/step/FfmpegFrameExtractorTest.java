@@ -28,6 +28,17 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Phase 4 — FfmpegFrameExtractor 단위 테스트.
+ *
+ * <p>V2 정책:
+ * <ul>
+ *   <li>frmTypeCd 컬럼 폐기. 원본/비식별 프레임을 별도 row 로 만들지 않고
+ *       단일 row 의 FILE_PATH(원본) + SRC_BKUP_FILE_PATH(비식별) 컬럼에 저장.</li>
+ *   <li>{@link FfmpegFrameExtractor#extractBoth(LsDataRaw, String)} 는 비식별 영상 경로를
+ *       호출자(BatchOrchestrator)가 전달하면 동일 row 에 attach.</li>
+ * </ul>
+ */
 class FfmpegFrameExtractorTest {
 
     @TempDir
@@ -45,8 +56,6 @@ class FfmpegFrameExtractorTest {
         srcRepository = mock(LsDataSrcRepository.class);
         hstryRepository = mock(LsDataSrcHstryRepository.class);
         systemConfigService = mock(SystemConfigService.class);
-        // 기본 1 fps — 기존 케이스(60초 미만 1프레임, 300초 5프레임 등)와 호환되지 않으므로
-        // 개별 테스트에서 stubbing 을 덮어쓰거나 1 fps 기준으로 가정값을 재설정한다.
         when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
 
         AtomicLong seq = new AtomicLong(0);
@@ -84,7 +93,6 @@ class FfmpegFrameExtractorTest {
     }
 
     private FfmpegFrameExtractor newExtractor() {
-        // Phase 2: deidentified-path 별도 base 디렉토리 주입 — extractBoth 가 DEID 프레임을 별도 base 에 작성
         Path deidBase = tmp.resolve("deid");
         return new FfmpegFrameExtractor(srcRepository, hstryRepository, frameWriter,
                 systemConfigService, tmp.toString(), deidBase.toString());
@@ -98,15 +106,12 @@ class FfmpegFrameExtractorTest {
         return raw;
     }
 
-    /** Phase 2: deidFilePath 가 설정된 raw (영상 단위 비식별 영상이 별도 보관됨) */
-    private LsDataRaw newRawWithDeidVideo(int durationSec, Path deidVideoPath) {
-        LsDataRaw raw = newRaw(durationSec);
-        setField(raw, "deidFilePath", deidVideoPath.toString());
-        return raw;
-    }
+    // ============================================================
+    // 기본 extract — RAW 프레임 추출
+    // ============================================================
 
     @Test
-    @DisplayName("1fps_설정_113초_영상은_113프레임_FRM_TYPE_CD_RAW")
+    @DisplayName("1fps_설정_113초_영상은_113_RAW_프레임_row")
     void extractsOneFramePerSecondAtDefaultFps() {
         when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
         FfmpegFrameExtractor extractor = newExtractor();
@@ -115,8 +120,8 @@ class FfmpegFrameExtractorTest {
         assertThat(frames).hasSize(113);
         assertThat(frames.get(0).getFrameNo()).isZero();
         assertThat(frames.get(112).getFrameNo()).isEqualTo(112);
-        // Phase 2: 단일 extract() 는 모든 프레임이 RAW 타입
-        assertThat(frames).allMatch(f -> LsDataSrc.FRM_TYPE_RAW.equals(f.getFrmTypeCd()));
+        // Phase 4: 단일 extract() 는 비식별 경로 미할당 (srcBkupFilePath == null)
+        assertThat(frames).allMatch(f -> f.getSrcBkupFilePath() == null);
     }
 
     @Test
@@ -146,7 +151,6 @@ class FfmpegFrameExtractorTest {
         FfmpegFrameExtractor extractor = newExtractor();
         List<LsDataSrc> frames = extractor.extract(newRaw(45));
 
-        // 1 fps 폴백 → 45 frames
         assertThat(frames).hasSize(45);
     }
 
@@ -176,7 +180,6 @@ class FfmpegFrameExtractorTest {
     void manifestFileWritten() throws IOException {
         when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
         FfmpegFrameExtractor extractor = newExtractor();
-        // 짧은 duration 으로 manifest 라인 수를 예측 가능하게 유지 (1 fps · 2 sec → 2 frames)
         extractor.extract(newRaw(2));
 
         Path manifest = tmp.resolve("frames").resolve("9001").resolve("manifest.jsonl");
@@ -201,16 +204,13 @@ class FfmpegFrameExtractorTest {
     @Test
     @DisplayName("computeFrameCount_outputFps_30_상한_클램프")
     void computeFrameCount_outputFps_상한_클램프() {
-        // 31 fps 는 범위 밖 → 기본 1 fps 로 폴백 → 10 sec * 1 fps = 10
         assertThat(FfmpegFrameExtractor.computeFrameCount(10, 31)).isEqualTo(10);
-        // 정확히 상한 30 fps 는 그대로 사용 → 10 sec * 30 fps = 300
         assertThat(FfmpegFrameExtractor.computeFrameCount(10, 30)).isEqualTo(300);
     }
 
     @Test
     @DisplayName("computeFrameCount_outputFps_0_이하_기본1")
     void computeFrameCount_outputFps_0_이하_기본1() {
-        // 0 / 음수는 범위 밖 → 1 fps 폴백
         assertThat(FfmpegFrameExtractor.computeFrameCount(10, 0)).isEqualTo(10);
         assertThat(FfmpegFrameExtractor.computeFrameCount(10, -5)).isEqualTo(10);
     }
@@ -218,15 +218,12 @@ class FfmpegFrameExtractorTest {
     @Test
     @DisplayName("computeFrameCount_최소_1프레임_보장")
     void computeFrameCount_최소_1프레임_보장() {
-        // durationSec=0 이라도 최소 1프레임 (extract() 진입 단계 가드 별개로 메서드 자체 보장)
         assertThat(FfmpegFrameExtractor.computeFrameCount(0, 1)).isEqualTo(1);
     }
 
     @Test
     @DisplayName("1fps_113초_영상_seekMillis_는_i초_균등간격")
     void seekMillis_at_1fps_is_one_second_per_frame() {
-        // 단위 미스매치 회귀 방지: 1fps · 113초 → frameIndex=i 의 seek 위치가 i*1000ms 인지 확인.
-        // 옛 버그: frameIndex * 60 (초) 로 시크 → 검정 프레임 출력.
         when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
         FfmpegFrameExtractor extractor = newExtractor();
         extractor.extract(newRaw(113));
@@ -249,53 +246,48 @@ class FfmpegFrameExtractorTest {
     }
 
     // ============================================================
-    // Phase 2: extractBoth — 원본/비식별 영상 2벌 추출
+    // Phase 4: extractBoth — 동일 row 의 srcBkupFilePath 에 비식별 프레임 attach
     // ============================================================
 
     @Test
-    @DisplayName("Phase2_extractBoth_deidFilePath_있을_때_원본_+_비식별_2벌_저장_FRM_TYPE_CD_RAW_DEID")
-    void extractBoth_savesRawAndDeidFrames() throws IOException {
+    @DisplayName("Phase4_extractBoth_비식별영상_경로_있을_때_RAW_프레임_+_srcBkupFilePath_attach")
+    void extractBoth_attachesDeidPathToSameRow() throws IOException {
         when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
-        // 비식별 영상 파일 작성
         Path deidVideo = tmp.resolve("clip-deid.mp4");
         Files.write(deidVideo, new byte[]{0, 0, 0});
 
         FfmpegFrameExtractor extractor = newExtractor();
-        List<LsDataSrc> frames = extractor.extractBoth(newRawWithDeidVideo(3, deidVideo));
+        List<LsDataSrc> frames = extractor.extractBoth(newRaw(3), deidVideo.toString());
 
-        // 1fps · 3초 = RAW 3 프레임 + DEID 3 프레임 = 6 row
-        assertThat(frames).hasSize(6);
-        long rawCount = frames.stream().filter(f -> LsDataSrc.FRM_TYPE_RAW.equals(f.getFrmTypeCd())).count();
-        long deidCount = frames.stream().filter(f -> LsDataSrc.FRM_TYPE_DEID.equals(f.getFrmTypeCd())).count();
-        assertThat(rawCount).isEqualTo(3);
-        assertThat(deidCount).isEqualTo(3);
+        // 1fps · 3초 = 3 프레임 row — 추가 row 없음 (frmTypeCd 폐기, 동일 row 의 srcBkupFilePath 사용)
+        assertThat(frames).hasSize(3);
+        assertThat(frames).allMatch(f -> f.getSrcBkupFilePath() != null);
+        // 원본 FILE_PATH 는 raw base 하위
+        assertThat(frames).allMatch(f -> f.getFilePath().contains("frames"));
     }
 
     @Test
-    @DisplayName("Phase2_extractBoth_deidFilePath_NULL_일_때_원본만_추출_V1_호환")
+    @DisplayName("Phase4_extractBoth_deidVideoPath_NULL_일_때_RAW_프레임_만_attach_없음_V1_호환")
     void extractBoth_nullDeidPath_rawOnly() {
         when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
         FfmpegFrameExtractor extractor = newExtractor();
-        // deidFilePath 가 null 인 raw (V1 호환)
-        List<LsDataSrc> frames = extractor.extractBoth(newRaw(3));
+        List<LsDataSrc> frames = extractor.extractBoth(newRaw(3), null);
 
         assertThat(frames).hasSize(3);
-        assertThat(frames).allMatch(f -> LsDataSrc.FRM_TYPE_RAW.equals(f.getFrmTypeCd()));
+        assertThat(frames).allMatch(f -> f.getSrcBkupFilePath() == null);
     }
 
     @Test
-    @DisplayName("Phase2_extractBoth_비식별_영상_파일_없으면_경고_로그_+_RAW_만")
+    @DisplayName("Phase4_extractBoth_비식별_영상_파일_없으면_경고_로그_+_RAW_만_graceful_fallback")
     void extractBoth_deidVideoMissing_rawOnly() {
         when(systemConfigService.getInt(eq(ConfigKeys.FFMPEG_OUTPUT_FPS))).thenReturn(1);
         FfmpegFrameExtractor extractor = newExtractor();
-        // deidFilePath 가 설정되어 있으나 실제 파일은 존재하지 않음
         Path missingDeidVideo = tmp.resolve("missing-deid.mp4");
-        LsDataRaw raw = newRawWithDeidVideo(3, missingDeidVideo);
 
-        List<LsDataSrc> frames = extractor.extractBoth(raw);
+        List<LsDataSrc> frames = extractor.extractBoth(newRaw(3), missingDeidVideo.toString());
 
         // RAW 만 추출됨 — DEID 프레임 미생성, 예외 미발생 (graceful fallback)
         assertThat(frames).hasSize(3);
-        assertThat(frames).allMatch(f -> LsDataSrc.FRM_TYPE_RAW.equals(f.getFrmTypeCd()));
+        assertThat(frames).allMatch(f -> f.getSrcBkupFilePath() == null);
     }
 }

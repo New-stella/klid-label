@@ -25,6 +25,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -35,9 +36,13 @@ import static org.mockito.Mockito.when;
 
 /**
  * BatchOrchestrator V2 단위 테스트.
- * V2 정책 파이프라인 순서:
- *   VLM(영상 단위 메타) → DEIDENTIFY(분기) → FRAME_EXTRACT → YOLO → SAM2 → INTERPOLATE → COMPLETED
- * VLM_VERIFY(객체 검증) 호출은 V2 에서 제거 (코드는 일단 보존, Phase 5 cleanup).
+ *
+ * <p>V2 정책 파이프라인 순서:
+ *   VLM(영상 단위 메타) → DEIDENTIFY(무조건) → FRAME_EXTRACT(extractBoth)
+ *   → YOLO → SAM2 → INTERPOLATE → COMPLETED
+ *
+ * <p>Phase 3/4: 영상 잠금은 LS_AUTH_WORK_LOCK 에서 관리되며 본 orchestrator 는
+ * 잠금 상태에 관여하지 않는다 (LsDataRaw.attachLockStts/releaseLock 호출 제거).
  */
 class BatchOrchestratorTest {
 
@@ -68,12 +73,11 @@ class BatchOrchestratorTest {
                 vlmMetaStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
                 trackInterpolationStep, statusService, retryQueue, videoRepository);
 
-        // 기본 — 프레임 1개 추출, ai-server step 모두 정상.
-        // Phase 2: extract → extractBoth 로 전환. 회귀를 위해 두 경로 모두 stubbing.
-        when(frameExtractor.extract(any(LsDataRaw.class)))
+        // 기본: extractBoth(raw, deidVideoPath) 가 1 프레임 반환 — orchestrator 통과 보장
+        when(frameExtractor.extractBoth(any(LsDataRaw.class), nullable(String.class)))
                 .thenReturn(List.of(mock(LsDataSrc.class)));
-        when(frameExtractor.extractBoth(any(LsDataRaw.class)))
-                .thenReturn(List.of(mock(LsDataSrc.class)));
+        // 기본: deidentifyStep.run 는 null 반환 (비식별 결과 없음 == 원본만 추출)
+        when(deidentifyStep.run(any(LsDataRaw.class))).thenReturn(null);
     }
 
     private LsDataRaw newRaw(Long rawSn, String prvcTypeCd) {
@@ -98,18 +102,14 @@ class BatchOrchestratorTest {
     @Test
     @DisplayName("Phase2_ANONY_영상도_DeidentifyStep_무조건_호출_VLM_먼저")
     void anonyAlsoInvokesDeidentifyStep() {
-        // Phase 2: needsDeidentify 분기 제거 — ANONY 도 무조건 비식별 호출
         newRaw(101L, LsDataRaw.PRVC_TYPE_ANONY);
 
         BatchStage result = orchestrator.process(101L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        // V2: vlmMetaStep 은 항상 가장 먼저 호출됨
         verify(vlmMetaStep).run(101L);
-        // Phase 2: ANONY 도 비식별 호출됨
         verify(deidentifyStep, times(1)).run(any(LsDataRaw.class));
-        // 이후 단계는 정상 호출 — extractBoth 사용
-        verify(frameExtractor).extractBoth(any(LsDataRaw.class));
+        verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
         verify(yoloStep).run(101L);
         verify(sam2Step).run(eq(101L), any());
         verify(trackInterpolationStep).run(101L);
@@ -126,7 +126,7 @@ class BatchOrchestratorTest {
         InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor);
         order.verify(vlmMetaStep).run(102L);
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
-        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class));
+        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
     }
 
     @Test
@@ -151,7 +151,7 @@ class BatchOrchestratorTest {
         InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
         order.verify(vlmMetaStep).run(130L);
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
-        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class));
+        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
         order.verify(yoloStep).run(130L);
         order.verify(sam2Step).run(eq(130L), any());
         order.verify(trackInterpolationStep).run(130L);
@@ -160,7 +160,6 @@ class BatchOrchestratorTest {
     @Test
     @DisplayName("Phase2_ANONY도_VLM_DEIDENT_FRAME_순서")
     void v2PipelineOrderForAnony() {
-        // Phase 2: ANONY 도 DEIDENT 호출됨
         newRaw(131L, LsDataRaw.PRVC_TYPE_ANONY);
 
         BatchStage result = orchestrator.process(131L);
@@ -169,7 +168,7 @@ class BatchOrchestratorTest {
         InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
         order.verify(vlmMetaStep).run(131L);
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
-        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class));
+        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
         order.verify(yoloStep).run(131L);
         order.verify(sam2Step).run(eq(131L), any());
         order.verify(trackInterpolationStep).run(131L);
@@ -184,28 +183,24 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(132L);
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
-        // 이후 모든 단계 호출 안 됨
         verify(deidentifyStep, never()).run(any());
-        verify(frameExtractor, never()).extract(any());
-        verify(frameExtractor, never()).extractBoth(any());
+        verify(frameExtractor, never()).extractBoth(any(), any());
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
         verify(trackInterpolationStep, never()).run(any());
-        // FAILED 마킹 + 재시도 등록
         verify(statusService).markFailed(eq(132L), any(RuntimeException.class));
         assertThat(retryQueue.retryCount(132L)).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("Phase2_프레임_추출_extractBoth_단일_호출")
+    @DisplayName("Phase4_프레임_추출_extractBoth_단일_호출")
     void frameExtractorInvokedOnce() {
         newRaw(133L, LsDataRaw.PRVC_TYPE_ANONY);
 
         BatchStage result = orchestrator.process(133L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        // Phase 2: extractBoth 가 정확히 1회 호출됨
-        verify(frameExtractor, times(1)).extractBoth(any(LsDataRaw.class));
+        verify(frameExtractor, times(1)).extractBoth(any(LsDataRaw.class), nullable(String.class));
     }
 
     @Test
@@ -218,11 +213,8 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
         assertThat(retryQueue.retryCount(104L)).isEqualTo(1);
-        // V2: VLM 은 비식별 이전이므로 호출되어야 함
         verify(vlmMetaStep).run(104L);
-        // 비식별 이후 단계는 호출되지 않아야 함 (단계 격리).
-        verify(frameExtractor, never()).extract(any());
-        verify(frameExtractor, never()).extractBoth(any());
+        verify(frameExtractor, never()).extractBoth(any(), any());
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
         verify(trackInterpolationStep, never()).run(any());
@@ -289,14 +281,12 @@ class BatchOrchestratorTest {
     @DisplayName("프레임_추출_결과_0건이면_FAILED_+_이후_단계_미호출")
     void emptyFramesMovesToFailed() {
         newRaw(108L, LsDataRaw.PRVC_TYPE_ANONY);
-        when(frameExtractor.extractBoth(any(LsDataRaw.class))).thenReturn(List.of());
+        when(frameExtractor.extractBoth(any(LsDataRaw.class), nullable(String.class))).thenReturn(List.of());
 
         BatchStage result = orchestrator.process(108L);
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
-        // V2: vlm 은 frame 이전이므로 호출됨
         verify(vlmMetaStep).run(108L);
-        // Phase 2: ANONY 도 DEIDENT 호출됨
         verify(deidentifyStep).run(any(LsDataRaw.class));
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
@@ -324,8 +314,7 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         assertThat(retryQueue.retryCount(109L)).isEqualTo(0);
-        // Phase 2: extractBoth 가 2회 호출됨 (1회차/재시도)
-        verify(frameExtractor, times(2)).extractBoth(captor.capture());
+        verify(frameExtractor, times(2)).extractBoth(captor.capture(), nullable(String.class));
     }
 
     @Test
@@ -340,11 +329,10 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(120L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        // Phase 2 V2: VLM → DEIDENT → FRAME(extractBoth) → YOLO → SAM2 → INTERPOLATE
         InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
         order.verify(vlmMetaStep).run(120L);
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
-        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class));
+        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
         order.verify(yoloStep).run(120L);
         order.verify(sam2Step).run(eq(120L), any());
         order.verify(trackInterpolationStep).run(120L);
@@ -404,5 +392,20 @@ class BatchOrchestratorTest {
                 ArgumentCaptor.forClass(List.class);
         verify(sam2Step).run(eq(110L), captor.capture());
         assertThat(captor.getValue()).containsExactlyElementsOf(hints);
+    }
+
+    @Test
+    @DisplayName("Phase4_deidentifyStep_반환_경로가_extractBoth_에_전달")
+    void deidVideoPathPassedToExtractor() {
+        newRaw(140L, LsDataRaw.PRVC_TYPE_PRVC);
+        String deidPath = "/storage/deidentified/videos/140/deidentified.mp4";
+        when(deidentifyStep.run(any(LsDataRaw.class))).thenReturn(deidPath);
+
+        BatchStage result = orchestrator.process(140L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
+        verify(frameExtractor).extractBoth(any(LsDataRaw.class), pathCaptor.capture());
+        assertThat(pathCaptor.getValue()).isEqualTo(deidPath);
     }
 }
