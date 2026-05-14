@@ -11,8 +11,8 @@ import kr.co.cudo.authoring.common.client.dto.CommitResponse;
 import kr.co.cudo.authoring.common.client.dto.DiffFile;
 import kr.co.cudo.authoring.common.client.dto.DiffResponse;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
-import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
-import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
+import kr.co.cudo.authoring.version.entity.LsLabelVersion;
+import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -40,6 +41,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Phase 7 — VersionController + LS_LABEL_VERSION 통합 회귀.
+ * 기존 LS_DATA_LBL_HSTRY.GITEA_CMT_HASH 경로 폐기. 모든 commit/list/rollback 은
+ * LS_LABEL_VERSION 기준으로 동작.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
@@ -52,7 +58,7 @@ class VersionControllerTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsPjtUserAuthrtRepository authrtRepository;
-    @Autowired private LsDataLblHstryRepository historyRepository;
+    @Autowired private LsLabelVersionRepository labelVersionRepository;
 
     @MockBean private GiteaClient giteaClient;
 
@@ -68,7 +74,7 @@ class VersionControllerTest {
 
     @BeforeEach
     void setup() {
-        historyRepository.deleteAll();
+        labelVersionRepository.deleteAll();
 
         reviewerToken           = JwtTestSupport.token(secret, "1",   "REVIEWER", "INTERNAL", issuer, 60);
         workerAssignedToken     = JwtTestSupport.token(secret, "100", "WORKER",   "INTERNAL", issuer, 60);
@@ -88,16 +94,25 @@ class VersionControllerTest {
         authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
     }
 
-    @Test
-    @DisplayName("GET_versions_정상_조회")
-    void getVersionsReturnsList() throws Exception {
-        // 사전 시드 — history 2건
-        historyRepository.save(LsDataLblHstry.create(srcSn,
-                "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "1", "{\"v\":1}"));
-        historyRepository.save(LsDataLblHstry.create(srcSn,
-                "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", "100", "{\"v\":2}"));
+    private LsLabelVersion seedVersion(String sha, int versionNo, String reasonCd, String regId, boolean active) {
+        LsLabelVersion v = LsLabelVersion.create(0L, rawSn, srcSn, sha, versionNo, reasonCd, regId);
+        if (!active) {
+            v.deactivate();
+        }
+        return labelVersionRepository.save(v);
+    }
 
-        // Gitea 호출 실패 → DB 단독 fallback 으로 응답 — FE Version[] 정합 shape 검증.
+    // ──────────────────────────────────────────────
+    // GET /v1/videos/{srcSn}/versions
+    // ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET_versions_정상_조회_LS_LABEL_VERSION_fallback")
+    void getVersionsReturnsList() throws Exception {
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+        seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", 2, LsLabelVersion.SAVE_REASON_MANUAL, "100", true);
+
+        // Gitea 호출 실패 → DB 단독 fallback 으로 응답
         when(giteaClient.listCommits(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(Mono.error(new RuntimeException("gitea down")));
 
@@ -113,7 +128,6 @@ class VersionControllerTest {
     @Test
     @DisplayName("GET_versions_커밋_없는_새_영상_빈_배열_200")
     void getVersionsEmptyForFreshSrc() throws Exception {
-        // history 0건 — accessGuard 만 통과하면 빈 배열 200 이어야 함 (500 회귀 방어)
         mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
@@ -123,21 +137,22 @@ class VersionControllerTest {
     @Test
     @DisplayName("GET_versions_미배정_WORKER_403")
     void getVersionsForbiddenForUnassignedWorker() throws Exception {
-        historyRepository.save(LsDataLblHstry.create(srcSn,
-                "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "1", "{}"));
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
 
         mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerNotAssignedToken))
                 .andExpect(status().isForbidden());
     }
 
+    // ──────────────────────────────────────────────
+    // GET /v1/versions/{commit}/diff
+    // ──────────────────────────────────────────────
+
     @Test
     @DisplayName("GET_diff_변경된_라벨만_반환")
     void getDiffReturnsChangedFiles() throws Exception {
-        historyRepository.save(LsDataLblHstry.create(srcSn,
-                "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "1", "{}"));
-        historyRepository.save(LsDataLblHstry.create(srcSn,
-                "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", "1", "{}"));
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+        seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", 2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
 
         when(giteaClient.diff(anyString(), anyString(), anyString()))
                 .thenReturn(Mono.just(new DiffResponse(List.of(
@@ -152,12 +167,19 @@ class VersionControllerTest {
                 .andExpect(jsonPath("$.data.files[0].additions").value(5));
     }
 
+    // ──────────────────────────────────────────────
+    // POST /v1/versions/{commit}/rollback
+    // ──────────────────────────────────────────────
+
     @Test
-    @DisplayName("POST_rollback_REVIEWER_정상_동작")
+    @DisplayName("POST_rollback_REVIEWER_정상_LS_LABEL_VERSION_새_row_INSERT")
     void postRollbackReviewerOk() throws Exception {
         String pastSha = "feedface1234567890abcdef1234567890abcdef";
-        historyRepository.save(LsDataLblHstry.create(srcSn, pastSha, "1", "{\"items\":[]}"));
+        seedVersion(pastSha, 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+        seedVersion("0000000000000000000000000000000000000000", 2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
 
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just("{\"items\":[]}"));
         when(giteaClient.createOrUpdateFile(anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString()))
                 .thenReturn(Mono.just(new CommitResponse(
@@ -171,13 +193,22 @@ class VersionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.giteaCmtHash")
                         .value("ccccdddd1111222233334444555566667777aaaa"));
+
+        // ROLLBACK 신규 row + 이전 ACTIVE='Y' row 가 'N' 으로 deactivate
+        List<LsLabelVersion> all = labelVersionRepository.findAll();
+        assertThat(all).hasSize(3);
+        long activeCount = all.stream().filter(v -> "Y".equals(v.getActiveYn())).count();
+        assertThat(activeCount).isEqualTo(1L);
+        LsLabelVersion active = all.stream().filter(v -> "Y".equals(v.getActiveYn())).findFirst().orElseThrow();
+        assertThat(active.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_ROLLBACK);
+        assertThat(active.getGiteaCmtHash()).isEqualTo("ccccdddd1111222233334444555566667777aaaa");
     }
 
     @Test
     @DisplayName("POST_rollback_WORKER_403")
     void postRollbackWorkerForbidden() throws Exception {
         String pastSha = "feedface1234567890abcdef1234567890abcdef";
-        historyRepository.save(LsDataLblHstry.create(srcSn, pastSha, "1", "{}"));
+        seedVersion(pastSha, 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
 
         RollbackRequest req = new RollbackRequest(srcSn);
         mockMvc.perform(post("/v1/versions/" + pastSha + "/rollback")

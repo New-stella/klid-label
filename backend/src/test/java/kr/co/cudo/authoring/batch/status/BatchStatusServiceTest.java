@@ -9,15 +9,20 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+/**
+ * Phase 7 — BatchStatusService 회귀 보호.
+ * V12 LS_BATCH_PROC_LOG 신스키마 기준 (BATCH_PROC_LOG_SN PK, JOB_ID, PROC_STEP_CD 등).
+ */
 @ExtendWith(MockitoExtension.class)
 class BatchStatusServiceTest {
 
@@ -34,23 +39,38 @@ class BatchStatusServiceTest {
     @Test
     @DisplayName("markStage_신규_rawSn이면_create_후_save")
     void markStage_신규_rawSn이면_create_후_save() {
-        when(repository.findById(1L)).thenReturn(Optional.empty());
+        when(repository.findTopByDataRawSnOrderByRegDtDesc(1L)).thenReturn(Optional.empty());
 
         svc.markStage(1L, BatchStage.YOLO);
 
-        verify(repository).findById(1L);
-        verify(repository).save(any(LsBatchProcLog.class));
+        verify(repository).findTopByDataRawSnOrderByRegDtDesc(1L);
+        verify(repository).save(argThat(log ->
+                log.getRawSn().equals(1L) &&
+                log.getStageCd().equals(BatchStage.YOLO.name())
+        ));
     }
 
     @Test
     @DisplayName("markStage_기존_rawSn이면_updateStage_후_save")
     void markStage_기존_rawSn이면_updateStage_후_save() {
         LsBatchProcLog existing = LsBatchProcLog.create(2L, BatchStage.FRAME_EXTRACT);
-        when(repository.findById(2L)).thenReturn(Optional.of(existing));
+        when(repository.findTopByDataRawSnOrderByRegDtDesc(2L)).thenReturn(Optional.of(existing));
 
         svc.markStage(2L, BatchStage.YOLO);
 
         assertThat(existing.getStageCd()).isEqualTo(BatchStage.YOLO.name());
+        verify(repository).save(existing);
+    }
+
+    @Test
+    @DisplayName("markCompleted_COMPLETED_단계로_갱신")
+    void markCompleted_COMPLETED_단계로_갱신() {
+        LsBatchProcLog existing = LsBatchProcLog.create(3L, BatchStage.SAM2);
+        when(repository.findTopByDataRawSnOrderByRegDtDesc(3L)).thenReturn(Optional.of(existing));
+
+        svc.markCompleted(3L);
+
+        assertThat(existing.getStageCd()).isEqualTo(BatchStage.COMPLETED.name());
         verify(repository).save(existing);
     }
 
@@ -61,10 +81,10 @@ class BatchStatusServiceTest {
     @Test
     @DisplayName("markFailed_기존_행이면_retryCnt_1_증가")
     void markFailed_기존_행이면_retryCnt_1_증가() {
-        LsBatchProcLog existing = LsBatchProcLog.create(3L, BatchStage.YOLO);
-        when(repository.findById(3L)).thenReturn(Optional.of(existing));
+        LsBatchProcLog existing = LsBatchProcLog.create(4L, BatchStage.YOLO);
+        when(repository.findTopByDataRawSnOrderByRegDtDesc(4L)).thenReturn(Optional.of(existing));
 
-        svc.markFailed(3L, new IllegalStateException("boom"));
+        svc.markFailed(4L, new IllegalStateException("boom"));
 
         assertThat(existing.getStageCd()).isEqualTo(BatchStage.FAILED.name());
         assertThat(existing.getRetryCnt()).isEqualTo(1);
@@ -74,9 +94,9 @@ class BatchStatusServiceTest {
     @Test
     @DisplayName("markFailed_신규_행이면_retryCnt_0_유지")
     void markFailed_신규_행이면_retryCnt_0_유지() {
-        when(repository.findById(4L)).thenReturn(Optional.empty());
+        when(repository.findTopByDataRawSnOrderByRegDtDesc(5L)).thenReturn(Optional.empty());
 
-        svc.markFailed(4L, new RuntimeException("new failure"));
+        svc.markFailed(5L, new RuntimeException("new failure"));
 
         verify(repository).save(argThat(log ->
                 log.getStageCd().equals(BatchStage.FAILED.name()) &&
@@ -91,11 +111,22 @@ class BatchStatusServiceTest {
     @Test
     @DisplayName("currentStage_DB없으면_PENDING_반환")
     void currentStage_DB없으면_PENDING_반환() {
-        when(repository.findById(99L)).thenReturn(Optional.empty());
+        when(repository.findTopByDataRawSnOrderByRegDtDesc(99L)).thenReturn(Optional.empty());
 
         BatchStage result = svc.currentStage(99L);
 
         assertThat(result).isEqualTo(BatchStage.PENDING);
+    }
+
+    @Test
+    @DisplayName("currentStage_DB있으면_저장된_단계_반환")
+    void currentStage_DB있으면_저장된_단계_반환() {
+        LsBatchProcLog existing = LsBatchProcLog.create(6L, BatchStage.SAM2);
+        when(repository.findTopByDataRawSnOrderByRegDtDesc(6L)).thenReturn(Optional.of(existing));
+
+        BatchStage result = svc.currentStage(6L);
+
+        assertThat(result).isEqualTo(BatchStage.SAM2);
     }
 
     // ──────────────────────────────────────────────
@@ -108,7 +139,8 @@ class BatchStatusServiceTest {
         LsBatchProcLog log1 = LsBatchProcLog.create(10L, BatchStage.YOLO);
         LsBatchProcLog log2 = LsBatchProcLog.create(11L, BatchStage.SAM2);
         LsBatchProcLog log3 = LsBatchProcLog.create(12L, BatchStage.COMPLETED);
-        when(repository.findTop100ByOrderByUpdatedAtDesc()).thenReturn(List.of(log1, log2, log3));
+        when(repository.findTop100ByOrderByMdfcnDtDescRegDtDesc())
+                .thenReturn(List.of(log1, log2, log3));
 
         List<BatchStageProgress> result = svc.recent(2);
 
@@ -126,7 +158,16 @@ class BatchStatusServiceTest {
     void rawSn_null이면_markStage_무시() {
         svc.markStage(null, BatchStage.YOLO);
 
-        verify(repository, never()).findById(any());
+        verify(repository, never()).findTopByDataRawSnOrderByRegDtDesc(any());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("rawSn_null이면_markFailed_무시")
+    void rawSn_null이면_markFailed_무시() {
+        svc.markFailed(null, new RuntimeException("boom"));
+
+        verify(repository, never()).findTopByDataRawSnOrderByRegDtDesc(any());
         verify(repository, never()).save(any());
     }
 }

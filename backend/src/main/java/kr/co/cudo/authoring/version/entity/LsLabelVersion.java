@@ -21,6 +21,11 @@ public class LsLabelVersion {
     public static final String ACTIVE_YES = "Y";
     public static final String ACTIVE_NO = "N";
 
+    // Phase 7 — SAVE_REASON_CD 표준 코드 (LS_LABEL_VERSION 정착).
+    public static final String SAVE_REASON_MANUAL = "MANUAL";
+    public static final String SAVE_REASON_ROLLBACK = "ROLLBACK";
+    public static final String SAVE_REASON_BATCH = "BATCH";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "LABEL_VERSION_SN")

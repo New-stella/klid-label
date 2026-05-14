@@ -71,7 +71,7 @@ public class VersionService {
                     .createOrUpdateFile(repo, path, contentBase64, message, actor.sub(), "main")
                     .block(GiteaClient.BLOCK_TIMEOUT);
             String sha = resp == null ? "" : resp.sha();
-            saveActiveVersion(src, raw, sha, "SAVE", actor.sub());
+            saveActiveVersion(src, raw, sha, LsLabelVersion.SAVE_REASON_MANUAL, actor.sub());
             log.info("[Version] committed srcSn={} sha={} actor={}", srcSn, sha, actor.sub());
             return sha;
         } catch (Exception e) {
@@ -178,7 +178,8 @@ public class VersionService {
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
         LsDataRaw raw = videoRepository.findById(src.getRawSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
-        return saveActiveVersion(src, raw, newSha == null ? commitHash : newSha, "ROLLBACK", actor.sub());
+        return saveActiveVersion(src, raw, newSha == null ? commitHash : newSha,
+                LsLabelVersion.SAVE_REASON_ROLLBACK, actor.sub());
     }
 
     private LsLabelVersion saveActiveVersion(LsDataSrc src, LsDataRaw raw, String sha,
