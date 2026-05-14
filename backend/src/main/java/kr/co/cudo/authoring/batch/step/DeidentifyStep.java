@@ -9,9 +9,11 @@ import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.label.service.DeidentReportService;
+import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -41,16 +43,42 @@ import java.util.List;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class DeidentifyStep {
 
     private final DeidentifyClient deidentifyClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataSrcHstryRepository hstryRepository;
     private final VideoRepository videoRepository;
+    /** Phase 3 — 재비식별 성공 시 OPEN 신고를 RESOLVED 로 일괄 전이. null 허용(단위 테스트 호환). */
+    private final DeidentReportService deidentReportService;
+    /** Phase 3 — 잠금 해제 알림. null 허용. */
+    private final NotificationService notificationService;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
+
+    /** 기존 단위 테스트 호환 생성자 (Phase 3 신규 의존성 null). */
+    public DeidentifyStep(DeidentifyClient deidentifyClient,
+                          LsDataSrcRepository srcRepository,
+                          LsDataSrcHstryRepository hstryRepository,
+                          VideoRepository videoRepository) {
+        this(deidentifyClient, srcRepository, hstryRepository, videoRepository, null, null);
+    }
+
+    @Autowired
+    public DeidentifyStep(DeidentifyClient deidentifyClient,
+                          LsDataSrcRepository srcRepository,
+                          LsDataSrcHstryRepository hstryRepository,
+                          VideoRepository videoRepository,
+                          DeidentReportService deidentReportService,
+                          NotificationService notificationService) {
+        this.deidentifyClient = deidentifyClient;
+        this.srcRepository = srcRepository;
+        this.hstryRepository = hstryRepository;
+        this.videoRepository = videoRepository;
+        this.deidentReportService = deidentReportService;
+        this.notificationService = notificationService;
+    }
 
     private Path baseDeidentifiedPath;
 
@@ -101,6 +129,18 @@ public class DeidentifyStep {
             LsDataRaw managed = videoRepository.findById(raw.getRawSn())
                     .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "raw not found"));
             managed.markDeidentified("Y");
+
+            // Phase 3 — 재비식별로 진입한 경우(LOCKED_FOR_REDEIDENT) 잠금 해제 + OPEN 신고 RESOLVED 전이 + 알림
+            if (managed.isLockedForRedeident()) {
+                managed.releaseLock();
+                if (deidentReportService != null) {
+                    deidentReportService.resolveOpenReports(managed.getRawSn());
+                }
+                if (notificationService != null) {
+                    notificationService.notifyReviewersOnLockRelease(managed);
+                }
+                log.info("[Batch][Deid] redeident-lock released rawSn={}", managed.getRawSn());
+            }
             log.info("[Batch][Deid] succeeded rawSn={} frames={}", raw.getRawSn(), frames.size());
         } catch (RuntimeException e) {
             // 원본은 절대 삭제/덮어쓰기하지 않는다. DE_IDNTF_YN='F' 마킹만 + 예외 재던짐.

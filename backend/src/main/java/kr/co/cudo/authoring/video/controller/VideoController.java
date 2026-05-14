@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Min;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
+import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
@@ -21,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -142,11 +144,14 @@ public class VideoController {
     public ResponseEntity<Resource> getFrameImage(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
             @Parameter(description = "프레임 번호 (0-base)", required = true, example = "0")
-            @PathVariable @Min(value = 0, message = "frameNo는 0 이상이어야 합니다.") Integer frameNo
+            @PathVariable @Min(value = 0, message = "frameNo는 0 이상이어야 합니다.") Integer frameNo,
+            @Parameter(description = "REVIEWER 한정 — true 면 원본(RAW) 프레임 반환. WORKER 는 무시되고 DEID 강제.")
+            @RequestParam(name = "raw", defaultValue = "false") boolean raw,
+            @AuthenticationPrincipal TokenClaims actor
     ) throws IOException {
         if (frameNo == null || frameNo < 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "frameNo는 0 이상이어야 합니다.");
         }
-        return frameImageService.serve(rawSn, frameNo);
+        return frameImageService.serve(rawSn, frameNo, raw, actor);
     }
 }

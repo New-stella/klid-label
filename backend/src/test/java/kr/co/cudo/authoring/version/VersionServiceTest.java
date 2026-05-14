@@ -288,4 +288,23 @@ class VersionServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
     }
+
+    // ---------- Phase 3 — 비식별 재처리 잠금 가드 ----------
+
+    @Test
+    @DisplayName("Phase3_잠금_영상_commit_시도시_409_CONFLICT_+_Gitea_호출안함")
+    void lockedVideoCommitConflict() {
+        // raw 를 LOCKED_FOR_REDEIDENT 로 잠금
+        LsDataRaw raw = rawRepository.findById(rawSn).orElseThrow();
+        raw.attachLockStts(LsDataRaw.LOCK_REDEIDENT);
+        rawRepository.save(raw);
+
+        assertThatThrownBy(() -> versionService.commit(srcSn, "{\"items\":[]}", workerAssigned))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
+
+        verify(giteaClient, never())
+                .createOrUpdateFile(anyString(), anyString(), anyString(), anyString(), anyString(), anyString());
+        assertThat(historyRepository.findBySrcSnOrderByRegisteredAtDesc(srcSn)).isEmpty();
+    }
 }

@@ -217,6 +217,59 @@ class LabelControllerTest {
     }
 
     @Test
+    @DisplayName("LabelController_라벨_조회시_frameImageType_WORKER는_DEID_응답")
+    void labelResponseFrameImageTypeForWorkerIsDeid() throws Exception {
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.frameImageType").value("DEID"));
+    }
+
+    @Test
+    @DisplayName("LabelController_REVIEWER_raw_true_쿼리시_frameImageType_RAW_응답")
+    void labelResponseFrameImageTypeForReviewerRawTrueIsRaw() throws Exception {
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
+                        .queryParam("raw", "true")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.frameImageType").value("RAW"));
+    }
+
+    @Test
+    @DisplayName("LabelController_WORKER_raw_true_쿼리는_무시되고_frameImageType_DEID")
+    void labelResponseFrameImageTypeForWorkerRawTrueStaysDeid() throws Exception {
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
+                        .queryParam("raw", "true")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.frameImageType").value("DEID"));
+    }
+
+    @Test
+    @DisplayName("LabelController_잠금_영상의_라벨_응답에_lockSttsCd_LOCKED_FOR_REDEIDENT_포함")
+    void lockedVideoResponseIncludesLockSttsCd() throws Exception {
+        // 비식별 누락 신고 시뮬레이션 — 영상 잠금
+        LsDataRaw raw = rawRepository.findById(rawSn).orElseThrow();
+        raw.attachLockStts(LsDataRaw.LOCK_REDEIDENT);
+        rawRepository.save(raw);
+
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lockSttsCd").value("LOCKED_FOR_REDEIDENT"));
+    }
+
+    @Test
+    @DisplayName("LabelController_잠금_없는_영상의_라벨_응답에_lockSttsCd_null")
+    void unlockedVideoResponseHasNullLockSttsCd() throws Exception {
+        // 기본 시드는 잠금 없음 — lockSttsCd 는 JSON 상 null (필드 자체는 존재) 이어야 함
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lockSttsCd").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     @DisplayName("LabelController_라벨_조회시_videoId와_siblings_응답_포함")
     void getLabelsIncludesVideoIdAndSiblings() throws Exception {
         // 동일 영상에 추가 프레임 4개 시드 (총 5프레임: frameNo 0~4)

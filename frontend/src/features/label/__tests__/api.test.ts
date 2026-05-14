@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { commitLabels, getLabels, putLabels } from '../api';
+import { commitLabels, getLabels, putLabels, reportDeidentMiss } from '../api';
 import { saveAndCommit } from '../SaveCommitFlow';
 import type { Label } from '../types';
 
@@ -183,6 +183,119 @@ describe('label api', () => {
 
     const res = await putLabels(777, labels);
     expect(res.labels).toHaveLength(1);
+  });
+
+  it('getLabels_raw_true_옵션_지정시_쿼리_파라미터_raw_true_전달', async () => {
+    mock
+      .onGet('/frames/901/labels', { params: { raw: true } })
+      .reply(200, {
+        success: true,
+        data: {
+          frameNo: 1,
+          srcSn: 901,
+          videoId: 7,
+          frameImageType: 'RAW',
+          siblings: [],
+          labels: [],
+        },
+        message: null,
+        errorCode: null,
+      });
+
+    const res = await getLabels(901, { raw: true });
+    expect(res.srcSn).toBe(901);
+    expect(res.frameImageType).toBe('RAW');
+    expect(mock.history.get).toHaveLength(1);
+    expect(mock.history.get[0].params).toEqual({ raw: true });
+  });
+
+  it('getLabels_응답에_frameImageType_DEID_포함시_정규화_노출', async () => {
+    mock.onGet('/frames/902/labels').reply(200, {
+      success: true,
+      data: {
+        frameNo: 1,
+        srcSn: 902,
+        videoId: 7,
+        frameImageType: 'DEID',
+        siblings: [],
+        labels: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const res = await getLabels(902);
+    expect(res.frameImageType).toBe('DEID');
+  });
+
+  it('getLabels_응답에_lockSttsCd_LOCKED_FOR_REDEIDENT_포함시_정규화_노출', async () => {
+    mock.onGet('/frames/903/labels').reply(200, {
+      success: true,
+      data: {
+        frameNo: 1,
+        srcSn: 903,
+        videoId: 7,
+        frameImageType: 'DEID',
+        lockSttsCd: 'LOCKED_FOR_REDEIDENT',
+        siblings: [],
+        labels: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const res = await getLabels(903);
+    expect(res.lockSttsCd).toBe('LOCKED_FOR_REDEIDENT');
+  });
+
+  it('getLabels_응답에_lockSttsCd_누락_시_null_또는_undefined', async () => {
+    mock.onGet('/frames/904/labels').reply(200, {
+      success: true,
+      data: { frameNo: 1, srcSn: 904, siblings: [], labels: [] },
+      message: null,
+      errorCode: null,
+    });
+
+    const res = await getLabels(904);
+    expect(res.lockSttsCd == null).toBe(true);
+  });
+
+  describe('reportDeidentMiss', () => {
+    it('reportDeidentMiss_POST_labels_srcSn_deident_report_body_reason_포함', async () => {
+      mock.onPost('/labels/555/deident-report').reply((config) => {
+        const body = JSON.parse(config.data ?? '{}');
+        expect(body).toEqual({ reason: '얼굴 미블러' });
+        return [
+          201,
+          { success: true, data: 555, message: null, errorCode: null },
+        ];
+      });
+
+      const res = await reportDeidentMiss(555, '얼굴 미블러');
+      expect(res).toBe(555);
+    });
+
+    it('reportDeidentMiss_409_LOCKED_FOR_REDEIDENT_에러_throw', async () => {
+      mock.onPost('/labels/556/deident-report').reply(409, {
+        success: false,
+        data: null,
+        message: '이미 잠금',
+        errorCode: 'LOCKED_FOR_REDEIDENT',
+      });
+
+      await expect(reportDeidentMiss(556, '사유')).rejects.toThrow();
+    });
+
+    it('reportDeidentMiss_403_FORBIDDEN_에러_throw', async () => {
+      mock.onPost('/labels/557/deident-report').reply(403, {
+        success: false,
+        data: null,
+        message: '권한 없음',
+        errorCode: 'FORBIDDEN',
+      });
+
+      await expect(reportDeidentMiss(557, '사유')).rejects.toThrow();
+    });
   });
 
   it('commitLabels_POST_frames_srcSn_commit', async () => {

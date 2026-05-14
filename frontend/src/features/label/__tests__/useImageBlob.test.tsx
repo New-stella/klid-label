@@ -77,4 +77,31 @@ describe('useImageBlob', () => {
     expect(result.current.error).not.toBeNull();
     expect(result.current.url).toBeNull();
   });
+
+  it('raw_true_옵션_지정시_쿼리_파라미터_raw_true_포함', async () => {
+    mock
+      .onGet('/frames/321/image', { params: { raw: true } })
+      .reply(200, new Blob(['raw-bytes'], { type: 'image/jpeg' }));
+
+    const { result } = renderHook(() => useImageBlob(321, { raw: true }));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.url).toMatch(/^blob:/);
+    expect(result.current.error).toBeNull();
+    // axios-mock-adapter 가 params 매칭 — 통과 시 raw=true 가 정상 전달된 것
+    expect(mock.history.get).toHaveLength(1);
+    expect(mock.history.get[0].params).toEqual({ raw: true });
+  });
+
+  it('raw_옵션_미지정시_raw_쿼리_파라미터_미포함', async () => {
+    mock.onGet('/frames/322/image').reply((config) => {
+      // raw 파라미터가 없어야 함
+      expect(config.params === undefined || config.params.raw === undefined).toBe(true);
+      return [200, new Blob(['no-raw'], { type: 'image/jpeg' })];
+    });
+
+    const { result } = renderHook(() => useImageBlob(322));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.url).toMatch(/^blob:/);
+  });
 });

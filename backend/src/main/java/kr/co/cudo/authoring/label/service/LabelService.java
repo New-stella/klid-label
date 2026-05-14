@@ -7,7 +7,10 @@ import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
@@ -45,6 +48,7 @@ public class LabelService {
 
     private final LsDataLblRepository labelRepository;
     private final LsDataSrcRepository srcRepository;
+    private final VideoRepository videoRepository;
     private final LabelAccessGuard accessGuard;
     private final ObjectMapper objectMapper;
     /**
@@ -56,11 +60,13 @@ public class LabelService {
 
     public LabelService(LsDataLblRepository labelRepository,
                         LsDataSrcRepository srcRepository,
+                        VideoRepository videoRepository,
                         LabelAccessGuard accessGuard,
                         ObjectMapper objectMapper,
                         @Lazy VersionService versionService) {
         this.labelRepository = labelRepository;
         this.srcRepository = srcRepository;
+        this.videoRepository = videoRepository;
         this.accessGuard = accessGuard;
         this.objectMapper = objectMapper;
         this.versionService = versionService;
@@ -73,10 +79,38 @@ public class LabelService {
      * N+1 회피: 권한 검사 시점에 LsDataSrc 1회 조회 + siblings 조회 1회 = SELECT 2회.
      */
     public LabelResponse getByFrame(Long srcSn, TokenClaims actor) {
+        return getByFrame(srcSn, actor, false);
+    }
+
+    /**
+     * Phase 3 — 라벨 조회 (REVIEWER 한정 RAW 프레임 옵션 지원).
+     *
+     * <p>frameImageType 결정 규칙:
+     * <ul>
+     *   <li>WORKER → 'DEID' (라벨러는 비식별 영상만 본다)</li>
+     *   <li>REVIEWER + allowRaw=true → 'RAW' (검수자가 명시적으로 원본 요청)</li>
+     *   <li>그 외 → 'DEID'</li>
+     * </ul>
+     */
+    public LabelResponse getByFrame(Long srcSn, TokenClaims actor, boolean allowRaw) {
         LsDataSrc current = accessGuard.verifyAndGet(srcSn, actor);
         List<LsDataLbl> labels = labelRepository.findBySrcSn(srcSn);
         List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
-        return LabelResponse.of(current, siblings, labels, objectMapper);
+        String frameImageType = resolveFrameImageType(actor, allowRaw);
+        // Phase 3 보강 — FE 가 라벨링 화면 진입 시 영상 잠금 상태(LOCKED_FOR_REDEIDENT)를 사전 인지하도록 응답에 포함.
+        // 잠금된 영상은 라벨 저장 자체가 차단되므로(아래 bulkUpsert 가드 참조) UI 측 비활성화 단서로 사용된다.
+        String lockSttsCd = videoRepository.findById(current.getRawSn())
+                .map(LsDataRaw::getLockSttsCd)
+                .orElse(null);
+        return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd, objectMapper);
+    }
+
+    /** Phase 3 — actor + raw 요청 여부 → frameImageType 결정 (단일 진실의 원천). */
+    public static String resolveFrameImageType(TokenClaims actor, boolean allowRaw) {
+        if (actor != null && actor.role() == Role.REVIEWER && allowRaw) {
+            return "RAW";
+        }
+        return "DEID";
     }
 
     /**
@@ -89,6 +123,14 @@ public class LabelService {
     public LabelResponse bulkUpsert(Long srcSn, LabelBulkUpsertRequest req, TokenClaims actor) {
         LsDataSrc current = accessGuard.verifyAndGet(srcSn, actor);
         Long actorNo = accessGuard.parseUserNo(actor.sub());
+
+        // Phase 3 — 비식별 재처리 중 영상은 라벨 수정 금지 (Race Condition 방어 + 정책)
+        LsDataRaw raw = videoRepository.findById(current.getRawSn())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+        if (raw.isLockedForRedeident()) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
+        }
 
         // 좌표 사전 검증 (트랜잭션 내부에서 한꺼번에 실패해도 롤백 — 여기선 명시적으로 미리 차단)
         for (LabelItemDto item : req.items()) {
@@ -122,10 +164,14 @@ public class LabelService {
         log.info("[Label] bulkUpsert srcSn={} actor={} count={}", srcSn, actorNo, result.size());
 
         List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
+        String frameImageType = resolveFrameImageType(actor, false);
+        // Phase 3 보강 — bulkUpsert 통과 시점에는 잠금이 없음이 보장되지만(위 가드)
+        // 응답 스키마 일관성을 위해 동일 필드를 반환한다. raw 는 이미 fetch 됨 → 추가 쿼리 없음.
+        String lockSttsCd = raw.getLockSttsCd();
 
         // Phase 8 — Gitea 자동 커밋 (PORTAL 채널은 버전관리 미제공 → skip).
         if (VersionService.isCommittable(actor)) {
-            LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, objectMapper);
+            LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd, objectMapper);
             String labelsJson;
             try {
                 labelsJson = objectMapper.writeValueAsString(responseSnapshot);
@@ -139,7 +185,7 @@ public class LabelService {
             }
         }
 
-        return LabelResponse.of(current, siblings, result, objectMapper);
+        return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd, objectMapper);
     }
 
     /** 좌표 검증 — 음수 차단 + 점 개수 상한. */

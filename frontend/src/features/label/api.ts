@@ -5,7 +5,15 @@
 
 import { apiClient } from '@/lib/api/client';
 
-import type { Label, LabelsResponse, LabelSrcCd, Shape, SiblingFrame } from './types';
+import type {
+  FrameImageType,
+  Label,
+  LabelsResponse,
+  LabelSrcCd,
+  LockSttsCd,
+  Shape,
+  SiblingFrame,
+} from './types';
 
 export interface CommitResponse {
   commitSha: string;
@@ -103,17 +111,32 @@ function normalizeLabel(raw: any): Label {
   };
 }
 
+export interface GetLabelsOptions {
+  /**
+   * REVIEWER 가 비식별이 아닌 원본 프레임을 보고 싶을 때 true.
+   * - WORKER 가 true 로 호출해도 BE 가 강제로 DEID 응답.
+   * - 기본 false (DEID 우선).
+   */
+  raw?: boolean;
+}
+
 /**
  * 프레임의 라벨 목록 조회.
  *
  * BE 응답에 다음 필드가 함께 포함된다:
- *   - videoId  : LS_DATA_RAW.RAW_SN (해당 프레임이 속한 영상)
- *   - siblings : 동일 영상의 모든 프레임 (FRAME_NO ASC)
+ *   - videoId        : LS_DATA_RAW.RAW_SN (해당 프레임이 속한 영상)
+ *   - siblings       : 동일 영상의 모든 프레임 (FRAME_NO ASC)
+ *   - frameImageType : 'DEID' | 'RAW' (Phase 3 신규)
+ *   - lockSttsCd     : 'LOCKED_FOR_REDEIDENT' | null (Phase 3 신규)
  * FE 는 siblings 로 프레임 타임라인을 구성하고 클릭 시 해당 프레임 URL 로 이동.
  */
-export function getLabels(srcSn: number): Promise<LabelsResponse> {
+export function getLabels(
+  srcSn: number,
+  opts?: GetLabelsOptions,
+): Promise<LabelsResponse> {
+  const params = opts?.raw ? { raw: true } : undefined;
   return apiClient
-    .get<LabelsResponse | { items: Label[] }>(`/frames/${srcSn}/labels`)
+    .get<LabelsResponse | { items: Label[] }>(`/frames/${srcSn}/labels`, { params })
     .then((r) => {
       const d = r.data as LabelsResponse & { items?: Label[] };
       const rawList = Array.isArray(d.labels)
@@ -127,10 +150,20 @@ export function getLabels(srcSn: number): Promise<LabelsResponse> {
             frameNo: Number(s.frameNo),
           }))
         : [];
+      // frameImageType — 화이트리스트 검증 (BE 응답 신뢰하되, 알 수 없는 값은 undefined)
+      const fit = d.frameImageType;
+      const frameImageType: FrameImageType | undefined =
+        fit === 'RAW' || fit === 'DEID' ? fit : undefined;
+      // lockSttsCd — null/undefined 정규화, 그 외 코드는 그대로 통과 (확장 대비 string 허용)
+      const rawLock = (d as LabelsResponse).lockSttsCd;
+      const lockSttsCd: LockSttsCd | string | null =
+        rawLock === null || rawLock === undefined || rawLock === '' ? null : rawLock;
       return {
         frameNo: d.frameNo ?? 0,
         srcSn,
         videoId: d.videoId !== undefined && d.videoId !== null ? Number(d.videoId) : undefined,
+        frameImageType,
+        lockSttsCd,
         siblings,
         labels: rawList.map(normalizeLabel),
       };
@@ -155,6 +188,26 @@ export function commitLabels(srcSn: number, message?: string): Promise<CommitRes
   return apiClient
     .post<CommitResponse>(`/frames/${srcSn}/commit`, { message: message ?? null })
     .then((r) => r.data);
+}
+
+/**
+ * 비식별 누락 신고 — Phase 3 (라벨러 안전장치).
+ *
+ * BE: POST /v1/labels/{srcSn}/deident-report
+ *   - Body: { reason: string (1~1000자) }
+ *   - 응답: 201 { success: true, data: <reportId> }
+ *   - 에러: 400 (검증 실패), 403 (본인 배정 아님), 404 (영상 없음),
+ *           409 (이미 잠금 — LOCKED_FOR_REDEIDENT)
+ *
+ * 보안:
+ *  - srcSn: number (axios path 자동 인코딩)
+ *  - reason: body 로 전달 (HTML escape 는 표시 단에서 React 가 자동 처리)
+ *  - IDOR/권한 검증은 BE 책임
+ */
+export function reportDeidentMiss(srcSn: number, reason: string): Promise<number> {
+  return apiClient
+    .post<number>(`/labels/${srcSn}/deident-report`, { reason })
+    .then((r) => r.data as unknown as number);
 }
 
 export interface Sam2TrackRequest {

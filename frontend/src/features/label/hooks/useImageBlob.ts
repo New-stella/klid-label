@@ -23,15 +23,29 @@ export interface UseImageBlobResult {
   error: Error | null;
 }
 
+export interface UseImageBlobOptions {
+  /**
+   * REVIEWER 가 원본(RAW) 프레임을 요청할 때 true.
+   * BE 는 WORKER 요청 시 raw=true 를 무시하고 DEID 강제.
+   * 기본 false (DEID 우선, ANONY 폴백 / PRVC·PSDO 미준비 시 404).
+   */
+  raw?: boolean;
+}
+
 /**
  * 프레임 이미지 바이너리를 blob URL 로 발급.
  *
  * @param srcSn 프레임 PK (LS_DATA_SRC.SRC_SN). undefined 면 fetch 안 함.
+ * @param opts  raw=true 시 RAW 원본 이미지 요청 (REVIEWER 전용, WORKER 는 BE 가 무시)
  */
-export function useImageBlob(srcSn: number | undefined): UseImageBlobResult {
+export function useImageBlob(
+  srcSn: number | undefined,
+  opts?: UseImageBlobOptions,
+): UseImageBlobResult {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
+  const raw = opts?.raw === true;
 
   useEffect(() => {
     if (srcSn === undefined || !Number.isFinite(srcSn)) {
@@ -46,8 +60,14 @@ export function useImageBlob(srcSn: number | undefined): UseImageBlobResult {
     setLoading(true);
     setError(null);
 
+    // raw=true 일 때만 쿼리 파라미터 첨부. 미지정/false 는 axios config 에 params 자체를 넣지 않아
+    // 기존 동작(쿼리 없음)을 그대로 유지 — 테스트의 'raw 미지정' 케이스 보장.
+    const config = raw
+      ? { responseType: 'blob' as const, params: { raw: true } }
+      : { responseType: 'blob' as const };
+
     apiClient
-      .get<Blob>(`/frames/${srcSn}/image`, { responseType: 'blob' })
+      .get<Blob>(`/frames/${srcSn}/image`, config)
       .then((res) => {
         if (cancelled) return;
         const blob = res.data as unknown as Blob;
@@ -68,7 +88,7 @@ export function useImageBlob(srcSn: number | undefined): UseImageBlobResult {
         URL.revokeObjectURL(createdUrl);
       }
     };
-  }, [srcSn]);
+  }, [srcSn, raw]);
 
   return { url, loading, error };
 }

@@ -4,6 +4,8 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.security.Role;
+import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -50,13 +52,29 @@ public class FrameImageService {
     private String storageRawPath;
 
     /**
-     * 프레임 이미지를 stream 으로 응답. 인증/인가는 Controller 의 PreAuthorize 에 위임.
-     *
-     * @param rawSn    영상 PK
-     * @param frameNo  프레임 번호 (0-base)
-     * @return image bytes (image/jpeg or image/png or image/webp)
+     * 프레임 이미지를 stream 으로 응답 — 기본 시그니처 (raw=false). 기존 호출자 호환.
      */
     public ResponseEntity<Resource> serve(Long rawSn, Integer frameNo) throws IOException {
+        return serve(rawSn, frameNo, false, null);
+    }
+
+    /**
+     * Phase 3 — V2 비식별 정책 갱신.
+     *
+     * <ul>
+     *   <li>모든 영상은 기본 DEID 프레임을 서빙 (라벨러는 RAW 못 봄).</li>
+     *   <li>REVIEWER 가 명시적으로 {@code raw=true} 요청 시에만 원본(filePath) 서빙.</li>
+     *   <li>WORKER 의 {@code raw=true} 는 무시 (강제 DEID).</li>
+     *   <li>PRVC/PSDO 영상에서 DEID 가 준비되지 않은 경우: NOT_FOUND (기존 회귀 유지).</li>
+     * </ul>
+     *
+     * @param rawSn     영상 PK
+     * @param frameNo   프레임 번호 (0-base)
+     * @param allowRaw  REVIEWER 한정 — true 면 원본 경로 사용
+     * @param actor     호출자 (null 이면 raw 옵션 무시)
+     */
+    public ResponseEntity<Resource> serve(Long rawSn, Integer frameNo, boolean allowRaw, TokenClaims actor)
+            throws IOException {
         // 1) 영상 조회 — 비식별 정책 판정용
         LsDataRaw raw = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
@@ -65,17 +83,23 @@ public class FrameImageService {
         LsDataSrc src = srcRepository.findByRawSnAndFrameNo(rawSn, frameNo)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
 
-        // 3) 비식별 정책 — PRVC/PSDO 는 무조건 deidFilePath 사용 (REVIEWER 도 원본 강제 노출 금지)
+        // 3) Phase 3 — V2 정책: 기본 DEID, REVIEWER 가 명시적으로 raw=true 요청 시에만 원본 허용
+        boolean reviewerRequestedRaw = allowRaw && actor != null && actor.role() == Role.REVIEWER;
         String relPath;
-        if (raw.needsDeidentify()) {
+        if (reviewerRequestedRaw) {
+            relPath = src.getFilePath();
+        } else {
             String deid = src.getDeidFilePath();
-            if (deid == null || deid.isBlank()) {
+            if (deid != null && !deid.isBlank()) {
+                relPath = deid;
+            } else if (raw.needsDeidentify()) {
+                // PRVC/PSDO — DEID 미준비 시 원본 노출 금지 (기존 회귀)
                 log.warn("[FrameImage] deid path missing for sensitive video rawSn={} frameNo={}", rawSn, frameNo);
                 throw new CustomException(ErrorCode.NOT_FOUND, "비식별 처리 미완료");
+            } else {
+                // ANONY + DEID 미준비 → 원본 폴백 (V2 정책상 비식별 우선이지만 ANONY 는 정책상 원본 노출 무방)
+                relPath = src.getFilePath();
             }
-            relPath = deid;
-        } else {
-            relPath = src.getFilePath();
         }
 
         // 4) Path Traversal 방어

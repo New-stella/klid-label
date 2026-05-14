@@ -8,6 +8,8 @@ import kr.co.cudo.authoring.common.client.DeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.label.service.DeidentReportService;
+import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,8 @@ class DeidentifyStepTest {
     private LsDataSrcRepository srcRepository;
     private LsDataSrcHstryRepository hstryRepository;
     private VideoRepository videoRepository;
+    private DeidentReportService deidentReportService;
+    private NotificationService notificationService;
     private DeidentifyStep step;
     private Path baseDeid;
 
@@ -48,9 +52,12 @@ class DeidentifyStepTest {
         srcRepository = mock(LsDataSrcRepository.class);
         hstryRepository = mock(LsDataSrcHstryRepository.class);
         videoRepository = mock(VideoRepository.class);
+        deidentReportService = mock(DeidentReportService.class);
+        notificationService = mock(NotificationService.class);
 
         baseDeid = tmp.resolve("deid");
-        step = new DeidentifyStep(deidentifyClient, srcRepository, hstryRepository, videoRepository);
+        step = new DeidentifyStep(deidentifyClient, srcRepository, hstryRepository, videoRepository,
+                deidentReportService, notificationService);
         setField(step, "deidPath", baseDeid.toString());
         invoke(step, "initBasePath");
     }
@@ -127,6 +134,45 @@ class DeidentifyStepTest {
         // ANONY 도 외부 비식별 호출이 발생해야 함
         verify(deidentifyClient).deidentify(any(DeidentifyRequest.class));
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("Phase3_LOCKED_FOR_REDEIDENT_영상_성공시_releaseLock_+_resolveOpenReports_호출_+_알림")
+    void redeidentLockReleasedOnSuccess() {
+        LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
+        raw.attachLockStts(LsDataRaw.LOCK_REDEIDENT);
+        LsDataSrc src = newSrc(33L, 0);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
+                .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
+        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        step.run(raw);
+
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+        assertThat(raw.isLockedForRedeident()).isFalse();
+        verify(deidentReportService).resolveOpenReports(9001L);
+        verify(notificationService).notifyReviewersOnLockRelease(raw);
+    }
+
+    @Test
+    @DisplayName("Phase3_정상_영상_lockSttsCd_NULL_성공시_resolveOpenReports_호출_안함")
+    void normalVideoSuccessSkipsResolve() {
+        LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
+        LsDataSrc src = newSrc(34L, 0);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(src));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        Path safeReturn = baseDeid.resolve("frames").resolve("9001").resolve("frame-0.jpg").toAbsolutePath().normalize();
+        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
+                .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
+        when(hstryRepository.save(any(LsDataSrcHstry.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        step.run(raw);
+
+        verify(deidentReportService, never()).resolveOpenReports(any());
+        verify(notificationService, never()).notifyReviewersOnLockRelease(any());
     }
 
     @Test

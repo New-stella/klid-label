@@ -116,11 +116,45 @@ export interface SiblingFrame {
   frameNo: number;
 }
 
+/**
+ * 프레임 이미지 타입 (BE 응답 frameImageType 과 1:1).
+ * - DEID: 비식별 처리된 프레임 (WORKER 기본/REVIEWER 기본)
+ * - RAW: 원본 프레임 (REVIEWER + ?raw=true)
+ */
+export const FrameImageType = {
+  DEID: 'DEID',
+  RAW: 'RAW',
+} as const;
+export type FrameImageType = (typeof FrameImageType)[keyof typeof FrameImageType];
+
+/**
+ * 영상 잠금 상태 코드 (BE 응답 lockSttsCd 와 1:1).
+ * - LOCKED_FOR_REDEIDENT: 비식별 누락 신고로 인한 재처리 대기 잠금 상태.
+ *   잠금 동안 라벨 수정/저장 불가.
+ */
+export const LockSttsCd = {
+  LOCKED_FOR_REDEIDENT: 'LOCKED_FOR_REDEIDENT',
+} as const;
+export type LockSttsCd = (typeof LockSttsCd)[keyof typeof LockSttsCd];
+
 export interface LabelsResponse {
   frameNo: number;
   srcSn: number;
   /** LS_DATA_RAW.RAW_SN — 현재 프레임이 속한 영상 PK */
   videoId?: number;
+  /**
+   * 현재 프레임 이미지의 타입 (DEID/RAW).
+   * - WORKER: 항상 DEID
+   * - REVIEWER + ?raw=true: RAW
+   * - REVIEWER 기본: DEID
+   */
+  frameImageType?: FrameImageType;
+  /**
+   * 영상 잠금 상태 코드.
+   * - 'LOCKED_FOR_REDEIDENT': 비식별 재처리 대기 — 라벨 수정/저장 불가
+   * - null/undefined: 정상 (편집 가능)
+   */
+  lockSttsCd?: LockSttsCd | string | null;
   /** 동일 영상의 모든 프레임 (FRAME_NO ASC). 단일 프레임 응답에도 포함됨 */
   siblings: SiblingFrame[];
   labels: Label[];

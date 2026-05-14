@@ -16,6 +16,7 @@ import { Modal } from '@/components/common/Modal';
 import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
 import { DarkToolbar } from '@/features/label/components/DarkToolbar';
+import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import { ClassAttributePanel } from '@/features/label/components/ClassAttributePanel';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
@@ -71,6 +72,9 @@ export function LabelingPage() {
   const portalMode = useAuthStore((s) => s.claims?.channel === 'PORTAL');
   const role = useAuthStore((s) => s.claims?.role);
   const isWorker = role === Role.WORKER;
+  const isReviewer = role === Role.REVIEWER;
+  // INTERNAL 채널 + WORKER/REVIEWER 만 비식별 누락 신고 가능 (포털 회원은 미노출)
+  const canReportDeident = !portalMode && (isWorker || isReviewer);
   const pushToast = useUiStore((s) => s.pushToast);
 
   const { data, isLoading, error } = useLabels(
@@ -158,10 +162,28 @@ export function LabelingPage() {
   // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  // 비식별 누락 신고 — 영상 잠금 상태 추적.
+  // 1) BE 응답 lockSttsCd='LOCKED_FOR_REDEIDENT' → 진입 시 잠금
+  // 2) 신고 성공 직후 → 클라이언트 측 reportedLock=true 로 즉시 잠금
+  //    (BE 가 lockSttsCd 를 보장하지 않는 케이스 대비 — Phase 3 보강 권고)
+  const [reportedLock, setReportedLock] = useState(false);
+  const isLocked = data?.lockSttsCd === 'LOCKED_FOR_REDEIDENT' || reportedLock;
+  // 영상이 변경되면 클라이언트 측 잠금 마킹 초기화 (다른 영상 진입 시 잘못된 잠금 표시 방지)
+  useEffect(() => {
+    setReportedLock(false);
+  }, [data?.videoId, data?.srcSn]);
+
   // 저장 (PUT + commit) — 단축키와 헤더 버튼 공유
   const [saving, setSaving] = useState(false);
   const handleSave = async () => {
     if (!currentFrame) return;
+    if (isLocked) {
+      pushToast({
+        variant: 'error',
+        message: '비식별 재처리 중인 영상은 저장할 수 없습니다.',
+      });
+      return;
+    }
     setSaving(true);
     try {
       await saveAndCommit(currentFrame.srcSn, labels, { portalMode });
@@ -318,17 +340,28 @@ export function LabelingPage() {
         showHistory={!portalMode}
         onSave={handleSave}
         saving={saving}
+        saveDisabled={isLocked}
+        frameImageType={data?.frameImageType}
         onClose={handleClose}
         onHistoryClick={
           data?.srcSn !== undefined ? () => setHistoryOpen((v) => !v) : undefined
         }
         historyOpen={historyOpen}
+        deidentReportButton={
+          canReportDeident && data?.srcSn !== undefined ? (
+            <DeidentReportButton
+              srcSn={data.srcSn}
+              disabled={isLocked || data.frameImageType === 'RAW'}
+              onSuccess={() => setReportedLock(true)}
+            />
+          ) : null
+        }
         submitButton={
           isWorker && data ? (
             <Button
               variant="primary"
               onClick={() => submitForReview(data.srcSn)}
-              disabled={submitting}
+              disabled={submitting || isLocked}
               loading={submitting}
               aria-label="검수제출"
               data-testid="submit-review-button"
@@ -338,6 +371,18 @@ export function LabelingPage() {
           ) : null
         }
       />
+
+      {/* 영상 잠금 상태 배너 — LOCKED_FOR_REDEIDENT 시 라벨 수정 불가 안내 */}
+      {isLocked && (
+        <div
+          data-testid="deident-locked-banner"
+          role="status"
+          aria-live="polite"
+          className="bg-amber-900/60 text-amber-100 px-4 py-2 text-sm border-b border-amber-700 shrink-0"
+        >
+          비식별 재처리 중인 영상입니다. 처리가 완료될 때까지 라벨 수정·저장이 제한됩니다.
+        </div>
+      )}
 
       {/* dirty 가드 — X 닫기 시 미저장 변경 확인.
           3-옵션 다이얼로그(저장 후 닫기 / 저장 없이 닫기 / 머무름) 이므로 ConfirmDialog 대신

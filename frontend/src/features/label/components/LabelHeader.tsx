@@ -21,8 +21,17 @@ interface LabelHeaderProps {
   showHistory: boolean;
   onSave: () => void;
   saving?: boolean;
+  /** 저장 버튼 비활성 (예: 영상 잠금 LOCKED_FOR_REDEIDENT) */
+  saveDisabled?: boolean;
   /** 검수제출 — WORKER만 노출 (LabelingPage에서 isWorker 가드) */
   submitButton?: React.ReactNode;
+  /**
+   * 비식별 누락 신고 버튼 슬롯 (히스토리 우측에 배치).
+   * INTERNAL 채널 + WORKER/REVIEWER 에게만 LabelingPage 에서 주입.
+   */
+  deidentReportButton?: React.ReactNode;
+  /** 현재 프레임 이미지 타입 배지 (DEID/RAW) — 우측 정보 영역에 작게 노출 */
+  frameImageType?: 'DEID' | 'RAW';
   /** X 닫기 버튼 클릭 콜백. 미지정 시 navigate(-1) 기본 동작 (dirty 가드 없음). */
   onClose?: () => void;
   /**
@@ -45,7 +54,10 @@ export function LabelHeader({
   showHistory,
   onSave,
   saving = false,
+  saveDisabled = false,
   submitButton,
+  deidentReportButton,
+  frameImageType,
   onClose,
   onHistoryClick,
   historyOpen = false,
@@ -88,6 +100,21 @@ export function LabelHeader({
         <span className="text-xs text-gray-400" aria-label="객체 수">
           {objectCount}개 객체
         </span>
+        {frameImageType && (
+          <span
+            data-testid="frame-image-type-badge"
+            className={cn(
+              'px-1.5 py-0.5 rounded text-[10px] font-semibold border',
+              frameImageType === 'RAW'
+                ? 'text-amber-200 border-amber-600 bg-amber-900/40'
+                : 'text-emerald-200 border-emerald-700 bg-emerald-900/40',
+            )}
+            aria-label={`프레임 이미지 타입 ${frameImageType}`}
+          >
+            {frameImageType}
+          </span>
+        )}
+        {deidentReportButton}
         {showHistory && videoId !== undefined && (
           onHistoryClick ? (
             <button
@@ -118,9 +145,10 @@ export function LabelHeader({
         )}
         <button
           onClick={onSave}
-          disabled={saving}
+          disabled={saving || saveDisabled}
           aria-label="저장"
           type="button"
+          data-testid="label-header-save"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Save size={14} />

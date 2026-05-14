@@ -53,6 +53,7 @@ class FrameImageRawFrameNoTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
+    @Autowired private kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository authrtRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -216,5 +217,65 @@ class FrameImageRawFrameNoTest {
         Path resolved = FrameImageService.resolveSafe(base, "seed/9001/frame_0.jpg");
         assertThat(resolved.toString()).endsWith("seed/9001/frame_0.jpg");
         assertThat(resolved.startsWith(base)).isTrue();
+    }
+
+    // ---------- Phase 3 — V2 정책: 모든 영상 DEID 우선, REVIEWER raw=true 시 RAW ----------
+
+    @Test
+    @DisplayName("Phase3_ANONY_영상도_DEID_경로가_있으면_DEID_우선_서빙")
+    void anonyDeidPreferredOverRaw() throws Exception {
+        // ANONY 영상에 DEID 경로도 부여
+        LsDataRaw raw = rawRepository.findById(rawSnAnony).orElseThrow();
+        // 기존 ANONY frame_0 의 deidFilePath 부여
+        LsDataSrc anonySrc = srcRepository.findByRawSnAndFrameNo(rawSnAnony, 0).orElseThrow();
+        String relDeid = "test-rev-img/" + rawSnAnony + "/anony_deid_0.jpg";
+        anonySrc.attachDeidPath(relDeid);
+        srcRepository.save(anonySrc);
+        Path deidFile = baseDir.resolve(relDeid).normalize();
+        Files.createDirectories(deidFile.getParent());
+        kr.co.cudo.authoring.common.util.SeedImageGenerator.generate(
+                deidFile, "EVT_FALL", "CCTV-X1", 0, java.time.LocalDateTime.now());
+
+        long deidSize = Files.size(deidFile);
+
+        var result = mockMvc.perform(get("/v1/videos/" + rawSnAnony + "/frames/0/image")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long served = result.getResponse().getContentAsByteArray().length;
+        assertThat(served).isEqualTo(deidSize);
+    }
+
+    @Test
+    @DisplayName("Phase3_REVIEWER_raw_true_쿼리시_원본_RAW_프레임_허용")
+    void reviewerRawTrueServesOriginal() throws Exception {
+        // PRVC 영상이지만 REVIEWER 가 raw=true 명시 → 원본 파일 서빙
+        long sizeOfOriginal = Files.size(baseDir.resolve("test-rev-img/" + rawSnPrvc + "/orig_0.jpg").normalize());
+
+        var result = mockMvc.perform(get("/v1/videos/" + rawSnPrvc + "/frames/0/image")
+                        .queryParam("raw", "true")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long served = result.getResponse().getContentAsByteArray().length;
+        assertThat(served).isEqualTo(sizeOfOriginal);
+    }
+
+    @Test
+    @DisplayName("Phase3_WORKER_raw_true_쿼리는_무시되고_DEID_강제")
+    void workerRawTrueIgnoredForcesDeid() throws Exception {
+        // WORKER 100 을 PRVC 영상에 LABELER 배정 (isAuthenticated 통과 + DEID 정책 검증)
+        authrtRepository.save(
+                kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt.createLabeler(20L, rawSnPrvc, 100L, 1L));
+
+        long sizeOfDeid = Files.size(framePathPrvcDeid);
+
+        var result = mockMvc.perform(get("/v1/videos/" + rawSnPrvc + "/frames/0/image")
+                        .queryParam("raw", "true")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long served = result.getResponse().getContentAsByteArray().length;
+        assertThat(served).isEqualTo(sizeOfDeid);
     }
 }

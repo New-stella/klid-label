@@ -8,8 +8,11 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.version.async.GiteaCommitFallbackQueue;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
@@ -59,6 +62,7 @@ public class VersionService {
     private final GiteaPathPolicy pathPolicy;
     private final GiteaCommitFallbackQueue fallbackQueue;
     private final LabelAccessGuard accessGuard;
+    private final VideoRepository videoRepository;
 
     @Value("${authoring.integration.gitea.repo}")
     private String repo;
@@ -79,6 +83,16 @@ public class VersionService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
+        // Phase 3 — 비식별 재처리 중인 영상은 라벨 commit 금지 (CWE-362 Race Condition 방어).
+        // LabelAccessGuard.verifyAndGet 으로 srcSn → LsDataSrc 조회 (권한 검사는 LabelService 단에서 이미 통과한 상태).
+        LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
+        LsDataRaw raw = videoRepository.findById(src.getRawSn())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+        if (raw.isLockedForRedeident()) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
+        }
+
         String path = pathPolicy.path(srcSn);
         String message = "label update by " + actor.sub();
         String contentBase64 = Base64.getEncoder().encodeToString(

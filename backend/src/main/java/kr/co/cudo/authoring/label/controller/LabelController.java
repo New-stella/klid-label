@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Label", description = "라벨 CRUD 및 SAM2 Track 추론 — REVIEWER/WORKER. 본인 배정 프레임 검증(IDOR 방어) 적용.")
@@ -47,9 +48,12 @@ public class LabelController {
     })
     @GetMapping("/{srcSn}/labels")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
-    public ApiResponse<LabelResponse> getLabels(@Parameter(description = "프레임 PK", required = true, example = "1") @PathVariable Long srcSn,
-                                                @AuthenticationPrincipal TokenClaims actor) {
-        return ApiResponse.ok(labelService.getByFrame(srcSn, actor));
+    public ApiResponse<LabelResponse> getLabels(
+            @Parameter(description = "프레임 PK", required = true, example = "1") @PathVariable Long srcSn,
+            @Parameter(description = "REVIEWER 한정 — true 면 원본(RAW) 프레임 응답. WORKER 는 무시되고 DEID 강제.")
+            @RequestParam(name = "raw", defaultValue = "false") boolean raw,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(labelService.getByFrame(srcSn, actor, raw));
     }
 
     @Operation(
