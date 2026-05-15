@@ -124,4 +124,57 @@ class LabelResponseTest {
         assertThat(node.has("lblSrcCd")).isTrue();
         assertThat(node.get("lblSrcCd").asText()).isEqualTo(LsDataLblAiInfo.SRC_INTERPOLATE);
     }
+
+    // --- Phase 2: labelId / labelName / color 필드 ---
+
+    @Test
+    @DisplayName("Item_from_은_LsLabel_있을_때_labelId_labelName_color_매핑")
+    void itemFromMapsLsLabel() {
+        LsDataLbl entity = LsDataLbl.createAutoBbox(
+                1L, 7L, "person", "[[1,1],[2,2]]", BigDecimal.valueOf(0.9), "track-1");
+        kr.co.cudo.authoring.label.entity.LsLabel master =
+                kr.co.cudo.authoring.label.entity.LsLabel.create(1L, "person", "#E74C3C", "BBOX", 1, "seed");
+
+        LabelResponse.Item item = LabelResponse.Item.from(entity,
+                autoAiInfo(LsDataLblAiInfo.SRC_YOLO), master, objectMapper);
+
+        assertThat(item.labelId()).isEqualTo(7L);
+        assertThat(item.labelName()).isEqualTo("person");
+        assertThat(item.color()).isEqualTo("#E74C3C");
+        assertThat(item.label()).isEqualTo("person");  // 호환 필드
+    }
+
+    @Test
+    @DisplayName("Item_from_은_LsLabel_null_일_때_labelName_color_null")
+    void itemFromLsLabelNull() {
+        LsDataLbl entity = LsDataLbl.createAutoBbox(
+                1L, null, "person", "[[1,1],[2,2]]", BigDecimal.valueOf(0.9), null);
+
+        LabelResponse.Item item = LabelResponse.Item.from(entity, null, null, objectMapper);
+
+        assertThat(item.labelId()).isNull();
+        assertThat(item.labelName()).isNull();
+        assertThat(item.color()).isNull();
+        assertThat(item.label()).isEqualTo("person");
+    }
+
+    @Test
+    @DisplayName("Item_직렬화_JSON_에_labelId_labelName_color_필드_포함")
+    void itemSerializesNewFields() throws Exception {
+        LsDataLbl entity = LsDataLbl.createAutoBbox(
+                1L, 7L, "person", "[[1,1]]", BigDecimal.valueOf(0.9), null);
+        kr.co.cudo.authoring.label.entity.LsLabel master =
+                kr.co.cudo.authoring.label.entity.LsLabel.create(1L, "person", "#E74C3C", "BBOX", 1, "seed");
+
+        LabelResponse.Item item = LabelResponse.Item.from(entity,
+                autoAiInfo(LsDataLblAiInfo.SRC_YOLO), master, objectMapper);
+        String json = objectMapper.writeValueAsString(item);
+        ObjectNode node = (ObjectNode) objectMapper.readTree(json);
+
+        assertThat(node.has("labelId")).isTrue();
+        assertThat(node.has("labelName")).isTrue();
+        assertThat(node.has("color")).isTrue();
+        assertThat(node.get("labelName").asText()).isEqualTo("person");
+        assertThat(node.get("color").asText()).isEqualTo("#E74C3C");
+    }
 }

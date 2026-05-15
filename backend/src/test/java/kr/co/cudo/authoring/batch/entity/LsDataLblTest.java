@@ -162,4 +162,88 @@ class LsDataLblTest {
 
         assertThat(lbl.getLblSrcCd()).isNull();
     }
+
+    // --- Phase 2: LABEL_ID FK 컬럼 + factory 오버로드 ---
+
+    @Test
+    @DisplayName("createAutoBbox_6arg_는_labelId_저장")
+    void createAutoBboxSixArgRetainsLabelId() {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(
+                100L, 7L, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.85), "track-1");
+
+        assertThat(lbl.getLabelId()).isEqualTo(7L);
+        assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
+        assertThat(lbl.getTrackId()).isEqualTo("track-1");
+    }
+
+    @Test
+    @DisplayName("createAutoBbox_5arg_(legacy)_는_labelId_null")
+    void createAutoBboxFiveArgLabelIdNull() {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(
+                100L, "person", "[]", BigDecimal.valueOf(0.5), "track-1");
+
+        assertThat(lbl.getLabelId()).isNull();
+    }
+
+    @Test
+    @DisplayName("createAutoPolygon_5arg_는_labelId_저장")
+    void createAutoPolygonWithLabelId() {
+        LsDataLbl lbl = LsDataLbl.createAutoPolygon(
+                100L, 9L, "fire", "[[1,1],[2,2]]", BigDecimal.valueOf(0.7));
+
+        assertThat(lbl.getLabelId()).isEqualTo(9L);
+        assertThat(lbl.getLblTypeCd()).isEqualTo("POLYGON");
+    }
+
+    @Test
+    @DisplayName("createManual_6arg_는_labelId_저장")
+    void createManualWithLabelId() {
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[]", 99L);
+
+        assertThat(lbl.getLabelId()).isEqualTo(5L);
+        assertThat(lbl.getAutoLblYn()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("createAutoInterpolatedBbox_6arg_는_labelId_저장")
+    void createAutoInterpolatedBboxWithLabelId() {
+        LsDataLbl lbl = LsDataLbl.createAutoInterpolatedBbox(
+                100L, 3L, "car", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-2");
+
+        assertThat(lbl.getLabelId()).isEqualTo(3L);
+        assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
+    }
+
+    @Test
+    @DisplayName("updateUserContent_labelId_non_null_시_LABEL_ID_변경")
+    void updateUserContentChangesLabelId() {
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[[1,1],[2,2]]", 99L);
+
+        lbl.updateUserContent("BBOX", 10L, "car", "[[3,3],[4,4]]");
+
+        assertThat(lbl.getLabelId()).isEqualTo(10L);
+        assertThat(lbl.getLabel()).isEqualTo("car");
+    }
+
+    @Test
+    @DisplayName("updateUserContent_labelId_null_시_기존_LABEL_ID_유지")
+    void updateUserContentPreservesLabelIdOnNull() {
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[[1,1],[2,2]]", 99L);
+
+        lbl.updateUserContent("BBOX", null, "person", "[[3,3],[4,4]]");
+
+        assertThat(lbl.getLabelId()).isEqualTo(5L);  // 그대로 유지
+        assertThat(lbl.getPointsJson()).contains("3,3");
+    }
+
+    @Test
+    @DisplayName("updateUserContent_3arg_(legacy)_는_LABEL_ID_변경_없음")
+    void updateUserContentLegacy3ArgPreservesLabelId() {
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[]", 99L);
+
+        lbl.updateUserContent("BBOX", "person-v2", "[[1,1]]");
+
+        assertThat(lbl.getLabelId()).isEqualTo(5L);  // 3-arg 위임은 labelId=null → 기존 유지
+        assertThat(lbl.getLabel()).isEqualTo("person-v2");
+    }
 }

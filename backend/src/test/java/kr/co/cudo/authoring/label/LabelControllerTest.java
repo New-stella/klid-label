@@ -15,6 +15,8 @@ import kr.co.cudo.authoring.common.client.GiteaClient;
 import kr.co.cudo.authoring.common.client.dto.CommitResponse;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +62,7 @@ class LabelControllerTest {
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsLabelRepository lsLabelRepository;
     @Autowired private WorkLockService workLockService;
 
     /** Phase 8 Gitea 자동 커밋 — 라벨 저장 후 호출됨. 외부 호출 차단을 위해 mock. */
@@ -291,6 +294,164 @@ class LabelControllerTest {
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.lockSttsCd").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    // --- Phase 2: LS_LABEL FK (labelId / labelName / color) ---
+
+    /**
+     * Phase 2 — 각 테스트별 LS_LABEL UNIQUE 충돌 방지를 위한 시드 헬퍼.
+     * 동일 클래스 내 여러 테스트가 같은 H2 인메모리 DB 를 공유하므로 name 은 테스트별 고유.
+     */
+    private LsLabel seedLabel(String name, String color) {
+        return lsLabelRepository.save(LsLabel.create(1L, name, color, "BBOX", 1, "seed"));
+    }
+
+    @Test
+    @DisplayName("LabelController_GET_프레임_라벨_응답에_labelId_labelName_color_포함")
+    void getLabelsIncludesLabelIdNameColor() throws Exception {
+        LsLabel master = seedLabel("phase2-get-person", "#E74C3C");
+
+        LsDataLbl auto = labelRepository.save(LsDataLbl.createAutoBbox(
+                srcSn, master.getLabelId(), "phase2-get-person", "[[1.0,1.0],[2.0,2.0]]",
+                new BigDecimal("0.9000"), null));
+        aiInfoRepository.save(LsDataLblAiInfo.create(auto.getLblSn(), 0L, rawSn, srcSn,
+                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
+
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].labelId").value(master.getLabelId().intValue()))
+                .andExpect(jsonPath("$.data.items[0].labelName").value("phase2-get-person"))
+                .andExpect(jsonPath("$.data.items[0].color").value("#E74C3C"))
+                // 호환: 기존 label 텍스트 필드는 그대로 노출
+                .andExpect(jsonPath("$.data.items[0].label").value("phase2-get-person"));
+    }
+
+    @Test
+    @DisplayName("LabelController_PUT_labelId_지정_시_DB_LABEL_ID_저장_REVIEWER_200")
+    void putWithLabelIdReviewerOk() throws Exception {
+        LsLabel master = seedLabel("phase2-put-reviewer-car", "#3498DB");
+
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", master.getLabelId(), "phase2-put-reviewer-car",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].labelId").value(master.getLabelId().intValue()))
+                .andExpect(jsonPath("$.data.items[0].labelName").value("phase2-put-reviewer-car"))
+                .andExpect(jsonPath("$.data.items[0].color").value("#3498DB"));
+
+        List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getLabelId()).isEqualTo(master.getLabelId());
+    }
+
+    @Test
+    @DisplayName("LabelController_PUT_labelId_지정_시_DB_LABEL_ID_저장_WORKER_200")
+    void putWithLabelIdWorkerOk() throws Exception {
+        LsLabel master = seedLabel("phase2-put-worker-bicycle", "#9B59B6");
+
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", master.getLabelId(), "phase2-put-worker-bicycle",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].labelId").value(master.getLabelId().intValue()));
+
+        List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
+        assertThat(saved.get(0).getLabelId()).isEqualTo(master.getLabelId());
+    }
+
+    @Test
+    @DisplayName("LabelController_PUT_존재하지_않는_labelId_시_NOT_FOUND_404")
+    void putUnknownLabelIdNotFound() throws Exception {
+        Long missingLabelId = 999_999L;
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", missingLabelId, "phase2-missing",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("LabelController_PUT_USE_YN_N_라벨_시_CONFLICT_409")
+    void putDeletedLabelIdConflict() throws Exception {
+        LsLabel master = seedLabel("phase2-conflict-deprecated", "#000000");
+        master.softDelete("admin");
+        lsLabelRepository.save(master);
+
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", master.getLabelId(), "phase2-conflict-deprecated",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("LabelController_PUT_labelId_null_이면_기존_LABEL_ID_유지")
+    void putNullLabelIdPreservesExisting() throws Exception {
+        LsLabel master = seedLabel("phase2-preserve-person", "#E74C3C");
+
+        // 기존 라벨 INSERT (labelId 지정)
+        LsDataLbl seed = labelRepository.save(LsDataLbl.createAutoBbox(
+                srcSn, master.getLabelId(), "phase2-preserve-person", "[[1.0,1.0],[2.0,2.0]]",
+                new BigDecimal("0.9000"), null));
+        aiInfoRepository.save(LsDataLblAiInfo.create(seed.getLblSn(), 0L, rawSn, srcSn,
+                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
+
+        // PUT — labelId null 로 좌표만 수정
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(seed.getLblSn(), "BBOX", null, "phase2-preserve-person",
+                        List.of(List.of(20.0, 20.0), List.of(60.0, 60.0)), null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+
+        // DB 의 LABEL_ID 는 기존 master.getLabelId() 그대로 유지되어야 한다.
+        LsDataLbl after = labelRepository.findById(seed.getLblSn()).orElseThrow();
+        assertThat(after.getLabelId()).isEqualTo(master.getLabelId());
+        assertThat(after.getPointsJson()).contains("20.0").contains("60.0");
+    }
+
+    @Test
+    @DisplayName("LabelController_라벨_조회_LABEL_ID_NULL_row_는_labelName_color_null")
+    void getLabelsUnmappedLabelIdNulls() throws Exception {
+        // LABEL_ID 미지정 (legacy/free-text) 라벨
+        LsDataLbl legacy = labelRepository.save(LsDataLbl.createAutoBbox(
+                srcSn, null, "phase2-unmapped", "[[1.0,1.0],[2.0,2.0]]",
+                new BigDecimal("0.9000"), null));
+        aiInfoRepository.save(LsDataLblAiInfo.create(legacy.getLblSn(), 0L, rawSn, srcSn,
+                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
+
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].labelId").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.items[0].labelName").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.items[0].color").value(org.hamcrest.Matchers.nullValue()))
+                // 호환: 기존 label 텍스트는 그대로
+                .andExpect(jsonPath("$.data.items[0].label").value("phase2-unmapped"));
     }
 
     @Test

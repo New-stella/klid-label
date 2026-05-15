@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
+import kr.co.cudo.authoring.label.entity.LsLabel;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -46,6 +47,9 @@ public record LabelResponse(
             Long id,
             String lblTypeCd,
             String label,
+            Long labelId,
+            String labelName,
+            String color,
             List<List<Double>> points,
             String autoLblYn,
             BigDecimal confScore,
@@ -58,15 +62,25 @@ public record LabelResponse(
          */
         @Deprecated
         public static Item from(LsDataLbl entity, ObjectMapper objectMapper) {
-            return from(entity, null, objectMapper);
+            return from(entity, null, null, objectMapper);
         }
 
         /**
-         * Phase 6 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO 결합 응답.
-         * <p>aiInfo == null 이면 수동 라벨로 간주: {@code autoLblYn='N'}, {@code confScore=null}, {@code lblSrcCd=null}.
-         * <p>aiInfo != null 이면 AI 정보 우선 사용 — LsDataLbl 의 @Transient 필드는 무시.
+         * Phase 6 호환 — LS_LABEL 마스터 정보 없이 응답 구성.
+         * @deprecated Phase 2 (V32) — {@link #from(LsDataLbl, LsDataLblAiInfo, LsLabel, ObjectMapper)} 사용 권장.
          */
+        @Deprecated
         public static Item from(LsDataLbl entity, LsDataLblAiInfo aiInfo, ObjectMapper objectMapper) {
+            return from(entity, aiInfo, null, objectMapper);
+        }
+
+        /**
+         * Phase 2 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO + LS_LABEL 결합 응답.
+         * <p>{@code aiInfo == null} 이면 수동 라벨로 간주: {@code autoLblYn='N'}, {@code confScore=null}, {@code lblSrcCd=null}.
+         * <p>{@code lsLabel == null} 이면 (V32 마이그 매칭 실패 등) {@code labelId/labelName/color} 모두 null.
+         * <p>{@code label} 필드(LS_DATA_LBL.LABEL 텍스트)는 호환 위해 그대로 노출 — FE 는 labelName/color 우선 사용.
+         */
+        public static Item from(LsDataLbl entity, LsDataLblAiInfo aiInfo, LsLabel lsLabel, ObjectMapper objectMapper) {
             List<Point> parsed = LabelPointSerializer.fromJson(entity.getPointsJson(), objectMapper);
             List<List<Double>> nested = new ArrayList<>(parsed.size());
             for (Point p : parsed) {
@@ -76,6 +90,9 @@ public record LabelResponse(
                     entity.getLblSn(),
                     entity.getLblTypeCd(),
                     entity.getLabel(),
+                    entity.getLabelId(),
+                    lsLabel != null ? lsLabel.getName() : null,
+                    lsLabel != null ? lsLabel.getColor() : null,
                     nested,
                     aiInfo != null ? aiInfo.getAutoLblYn() : LsDataLbl.AUTO_NO,
                     aiInfo != null ? aiInfo.getConfScore() : null,
@@ -128,6 +145,7 @@ public record LabelResponse(
      * Phase 6 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO 결합 응답.
      * <p>{@code aiInfoMap} 키: {@code dataLblSn}. row 없으면 수동 라벨로 간주.
      * <p>LabelService 가 한 번의 일괄 lookup ({@code findByDataLblSnIn})으로 맵을 구성하여 전달 — N+1 회피.
+     * <p>Phase 2 (V32) 호환 — LS_LABEL 마스터 맵 없이 호출되는 경로 (labelId/labelName/color 모두 null).
      */
     public static LabelResponse of(LsDataSrc current,
                                    List<LsDataSrc> siblings,
@@ -136,13 +154,34 @@ public record LabelResponse(
                                    String lockSttsCd,
                                    Map<Long, LsDataLblAiInfo> aiInfoMap,
                                    ObjectMapper objectMapper) {
+        return of(current, siblings, entities, frameImageType, lockSttsCd, aiInfoMap, Map.of(), objectMapper);
+    }
+
+    /**
+     * Phase 2 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO + LS_LABEL 결합 응답.
+     * <p>{@code lsLabelMap} 키: {@code LS_LABEL.labelId}. 라벨 마스터 매칭 안 되는 엔티티는 labelName/color=null.
+     * <p>LabelService 가 한 번의 일괄 lookup({@code findAllById})으로 맵을 구성하여 전달 — N+1 회피.
+     */
+    public static LabelResponse of(LsDataSrc current,
+                                   List<LsDataSrc> siblings,
+                                   List<LsDataLbl> entities,
+                                   String frameImageType,
+                                   String lockSttsCd,
+                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
+                                   Map<Long, LsLabel> lsLabelMap,
+                                   ObjectMapper objectMapper) {
         List<SiblingFrame> siblingDtos = new ArrayList<>(siblings.size());
         for (LsDataSrc s : siblings) {
             siblingDtos.add(SiblingFrame.from(s));
         }
-        Map<Long, LsDataLblAiInfo> safeMap = aiInfoMap == null ? Map.of() : aiInfoMap;
+        Map<Long, LsDataLblAiInfo> safeAiMap = aiInfoMap == null ? Map.of() : aiInfoMap;
+        Map<Long, LsLabel> safeLabelMap = lsLabelMap == null ? Map.of() : lsLabelMap;
         List<Item> items = entities.stream()
-                .map(e -> Item.from(e, safeMap.get(e.getLblSn()), objectMapper))
+                .map(e -> Item.from(
+                        e,
+                        safeAiMap.get(e.getLblSn()),
+                        e.getLabelId() != null ? safeLabelMap.get(e.getLabelId()) : null,
+                        objectMapper))
                 .toList();
         return new LabelResponse(
                 current.getSrcSn(),

@@ -57,6 +57,21 @@ public class LsDataLbl {
     @Column(name = "LBL_TYPE_CD", nullable = false, length = 16)
     private String lblTypeCd;
 
+    /**
+     * LS_LABEL 마스터 FK — Phase 2 (CVAT-Like 라벨 풀 포팅).
+     * <p>NULL 허용:
+     *  - V32 마이그레이션에서 best-effort 매칭에 실패한 legacy row
+     *  - 외부 시스템에서 INSERT 된 자유 텍스트 라벨 (Phase 4 이후 정리)
+     * <p>FK 강제는 Phase 4 (AutoLabel preset 매핑) 완료 후 별도 마이그레이션으로 NOT NULL 검토.
+     */
+    @Column(name = "LABEL_ID")
+    private Long labelId;
+
+    /**
+     * @deprecated V32 (Phase 2) 이후 deprecated — {@link #labelId} (LS_LABEL FK) 사용 권장.
+     * 호환 위해 유지. 응답에서는 LS_LABEL.NAME (labelName) 을 우선 노출.
+     */
+    @Deprecated
     @Column(name = "LABEL", nullable = false, length = 255)
     private String label;
 
@@ -102,10 +117,11 @@ public class LsDataLbl {
     private LocalDateTime updDt;
 
     @Builder
-    private LsDataLbl(Long srcSn, String lblTypeCd, String label, String pointsJson,
+    private LsDataLbl(Long srcSn, String lblTypeCd, Long labelId, String label, String pointsJson,
                       String autoLblYn, BigDecimal confScore, String trackId, String lblSrcCd) {
         this.srcSn = srcSn;
         this.lblTypeCd = lblTypeCd;
+        this.labelId = labelId;
         this.label = label;
         this.pointsJson = pointsJson;
         this.autoLblYn = autoLblYn;
@@ -116,14 +132,16 @@ public class LsDataLbl {
     }
 
     /**
-     * YOLO 자동 라벨링 결과를 저장 — trackId 포함 (Phase 3).
+     * Phase 2 — YOLO 자동 라벨링 결과 (LS_LABEL FK 포함).
+     * <p>{@code labelId} null 허용 (Phase 4 이전 호환). Phase 4 이후 매핑 강제 예정.
      * AUTO_LBL_YN='Y' 강제. trackId 는 null 허용 (트래커 저신뢰 detection fallback).
      */
-    public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson,
+    public static LsDataLbl createAutoBbox(Long srcSn, Long labelId, String label, String pointsJson,
                                            BigDecimal confScore, String trackId) {
         return LsDataLbl.builder()
                 .srcSn(srcSn)
                 .lblTypeCd(TYPE_BBOX)
+                .labelId(labelId)
                 .label(label)
                 .pointsJson(pointsJson)
                 .autoLblYn(AUTO_YES)
@@ -133,12 +151,40 @@ public class LsDataLbl {
     }
 
     /**
+     * @deprecated Phase 2 (V32) 이후 labelId 미포함 시그니처 deprecated — {@link #createAutoBbox(Long, Long, String, String, BigDecimal, String)} 사용 권장.
+     * 호환 유지를 위해 labelId=null 로 위임.
+     */
+    @Deprecated
+    public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson,
+                                           BigDecimal confScore, String trackId) {
+        return createAutoBbox(srcSn, null, label, pointsJson, confScore, trackId);
+    }
+
+    /**
      * 4-arg 호환 — trackId=null 로 위임.
      * Phase 3 부터 자동 라벨링 경로는 5-arg 생성자 사용 권장.
      */
     @Deprecated
     public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson, BigDecimal confScore) {
-        return createAutoBbox(srcSn, label, pointsJson, confScore, null);
+        return createAutoBbox(srcSn, null, label, pointsJson, confScore, null);
+    }
+
+    /**
+     * Phase 2 — 트랙 보간 자동 생성 BBOX (LS_LABEL FK 포함).
+     */
+    public static LsDataLbl createAutoInterpolatedBbox(Long srcSn, Long labelId, String label, String pointsJson,
+                                                       BigDecimal confScore, String trackId) {
+        return LsDataLbl.builder()
+                .srcSn(srcSn)
+                .lblTypeCd(TYPE_BBOX)
+                .labelId(labelId)
+                .label(label)
+                .pointsJson(pointsJson)
+                .autoLblYn(AUTO_YES)
+                .confScore(confScore)
+                .trackId(trackId)
+                .lblSrcCd(SRC_INTERPOLATED)
+                .build();
     }
 
     /**
@@ -151,26 +197,20 @@ public class LsDataLbl {
      * @param pointsJson 보간된 BBOX 좌표 JSON
      * @param confScore  보간 신뢰도. 0.0 권장 (보간이므로 detection 점수 없음). null 도 허용.
      * @param trackId    원본 트랙 ID (NON-NULL 권장 — 보간 대상 자체가 trackId 있는 라벨로 한정됨)
+     * @deprecated Phase 2 (V32) — {@link #createAutoInterpolatedBbox(Long, Long, String, String, BigDecimal, String)} 사용 권장.
      */
+    @Deprecated
     public static LsDataLbl createAutoInterpolatedBbox(Long srcSn, String label, String pointsJson,
                                                        BigDecimal confScore, String trackId) {
-        return LsDataLbl.builder()
-                .srcSn(srcSn)
-                .lblTypeCd(TYPE_BBOX)
-                .label(label)
-                .pointsJson(pointsJson)
-                .autoLblYn(AUTO_YES)
-                .confScore(confScore)
-                .trackId(trackId)
-                .lblSrcCd(SRC_INTERPOLATED)
-                .build();
+        return createAutoInterpolatedBbox(srcSn, null, label, pointsJson, confScore, trackId);
     }
 
-    /** SAM2 segment 결과를 저장할 때 사용. POLYGON 타입. */
-    public static LsDataLbl createAutoPolygon(Long srcSn, String label, String pointsJson, BigDecimal confScore) {
+    /** Phase 2 — SAM2 segment 결과 (LS_LABEL FK 포함). */
+    public static LsDataLbl createAutoPolygon(Long srcSn, Long labelId, String label, String pointsJson, BigDecimal confScore) {
         return LsDataLbl.builder()
                 .srcSn(srcSn)
                 .lblTypeCd(TYPE_POLYGON)
+                .labelId(labelId)
                 .label(label)
                 .pointsJson(pointsJson)
                 .autoLblYn(AUTO_YES)
@@ -179,14 +219,24 @@ public class LsDataLbl {
     }
 
     /**
-     * 사용자(WORKER/REVIEWER) 가 직접 그린 라벨 — Phase 6.
+     * SAM2 segment 결과를 저장할 때 사용. POLYGON 타입.
+     * @deprecated Phase 2 (V32) — {@link #createAutoPolygon(Long, Long, String, String, BigDecimal)} 사용 권장.
+     */
+    @Deprecated
+    public static LsDataLbl createAutoPolygon(Long srcSn, String label, String pointsJson, BigDecimal confScore) {
+        return createAutoPolygon(srcSn, null, label, pointsJson, confScore);
+    }
+
+    /**
+     * Phase 2 — 사용자가 직접 그린 라벨 (LS_LABEL FK 포함).
      * AUTO_LBL_YN='N' 강제, confScore 는 null.
      */
-    public static LsDataLbl createManual(Long srcSn, String lblTypeCd, String label,
+    public static LsDataLbl createManual(Long srcSn, String lblTypeCd, Long labelId, String label,
                                          String pointsJson, Long regUserNo) {
         LsDataLbl entity = LsDataLbl.builder()
                 .srcSn(srcSn)
                 .lblTypeCd(lblTypeCd)
+                .labelId(labelId)
                 .label(label)
                 .pointsJson(pointsJson)
                 .autoLblYn(AUTO_NO)
@@ -197,10 +247,23 @@ public class LsDataLbl {
     }
 
     /**
-     * 사용자가 기존 라벨의 좌표/라벨명/타입을 수정 — Phase 6.
-     * AUTO_LBL_YN 은 변경되지 않음 (정책: 자동 라벨은 사용자가 수정해도 'Y' 유지).
+     * 사용자(WORKER/REVIEWER) 가 직접 그린 라벨 — Phase 6.
+     * AUTO_LBL_YN='N' 강제, confScore 는 null.
+     * @deprecated Phase 2 (V32) — {@link #createManual(Long, String, Long, String, String, Long)} 사용 권장.
      */
-    public void updateUserContent(String lblTypeCd, String label, String pointsJson) {
+    @Deprecated
+    public static LsDataLbl createManual(Long srcSn, String lblTypeCd, String label,
+                                         String pointsJson, Long regUserNo) {
+        return createManual(srcSn, lblTypeCd, null, label, pointsJson, regUserNo);
+    }
+
+    /**
+     * Phase 2 — 사용자가 기존 라벨의 좌표/라벨명/타입 + LABEL_ID FK 수정.
+     * AUTO_LBL_YN 은 변경되지 않음 (정책: 자동 라벨은 사용자가 수정해도 'Y' 유지).
+     *
+     * @param labelId LS_LABEL FK. null 이면 기존 값 유지(변경 안 함). Service 레이어에서 사전 검증 필요.
+     */
+    public void updateUserContent(String lblTypeCd, Long labelId, String label, String pointsJson) {
         if (lblTypeCd == null || lblTypeCd.isBlank()) {
             throw new IllegalArgumentException("LBL_TYPE_CD 는 필수입니다.");
         }
@@ -208,9 +271,22 @@ public class LsDataLbl {
             throw new IllegalArgumentException("LABEL 은 필수입니다.");
         }
         this.lblTypeCd = lblTypeCd;
+        if (labelId != null) {
+            this.labelId = labelId;
+        }
         this.label = label;
         this.pointsJson = pointsJson;
         this.updDt = LocalDateTime.now();
+    }
+
+    /**
+     * 사용자가 기존 라벨의 좌표/라벨명/타입을 수정 — Phase 6.
+     * AUTO_LBL_YN 은 변경되지 않음 (정책: 자동 라벨은 사용자가 수정해도 'Y' 유지).
+     * @deprecated Phase 2 (V32) — {@link #updateUserContent(String, Long, String, String)} 사용 권장.
+     */
+    @Deprecated
+    public void updateUserContent(String lblTypeCd, String label, String pointsJson) {
+        updateUserContent(lblTypeCd, null, label, pointsJson);
     }
 
     /** VLM 객체 검증 결과 등 신뢰도만 갱신. 0.0~1.0 범위 강제. */

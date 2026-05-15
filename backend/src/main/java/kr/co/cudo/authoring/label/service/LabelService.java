@@ -12,6 +12,8 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
@@ -26,8 +28,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -57,6 +61,8 @@ public class LabelService {
     private final WorkLockService workLockService;
     private final LabelAccessGuard accessGuard;
     private final ObjectMapper objectMapper;
+    /** Phase 2 — LS_LABEL 마스터 조회 (labelId 검증 + 응답 enrichment). */
+    private final LsLabelRepository lsLabelRepository;
     /**
      * Phase 8 — Gitea 자동 커밋 훅.
      * label ⇄ version 순환 의존 (LabelService → VersionService, VersionService → LabelAccessGuard)
@@ -71,6 +77,7 @@ public class LabelService {
                         WorkLockService workLockService,
                         LabelAccessGuard accessGuard,
                         ObjectMapper objectMapper,
+                        LsLabelRepository lsLabelRepository,
                         @Lazy VersionService versionService) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
@@ -79,6 +86,7 @@ public class LabelService {
         this.workLockService = workLockService;
         this.accessGuard = accessGuard;
         this.objectMapper = objectMapper;
+        this.lsLabelRepository = lsLabelRepository;
         this.versionService = versionService;
     }
 
@@ -97,6 +105,28 @@ public class LabelService {
                         LsDataLblAiInfo::getDataLblSn,
                         Function.identity(),
                         (a, b) -> a));
+    }
+
+    /**
+     * Phase 2 — 라벨 목록의 LABEL_ID FK 에 해당하는 LS_LABEL 마스터 일괄 lookup.
+     * N+1 회피: 라벨 수만큼 SELECT 가 아니라 IN 절 1회 ({@code findAllById}).
+     * 모든 LABEL_ID 가 null 이면 Repository 호출 skip.
+     */
+    private Map<Long, LsLabel> resolveLsLabelMap(List<LsDataLbl> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> labelIds = new HashSet<>();
+        for (LsDataLbl e : labels) {
+            if (e.getLabelId() != null) {
+                labelIds.add(e.getLabelId());
+            }
+        }
+        if (labelIds.isEmpty()) {
+            return Map.of();
+        }
+        return lsLabelRepository.findAllById(labelIds).stream()
+                .collect(Collectors.toMap(LsLabel::getLabelId, Function.identity(), (a, b) -> a));
     }
 
     /**
@@ -130,7 +160,10 @@ public class LabelService {
         String lockSttsCd = workLockService.isRawLocked(current.getRawSn()) ? "LOCKED" : null;
         // Phase 6 — autoLblYn/confScore/lblSrcCd 는 LS_DATA_LBL_AI_INFO 에서 채움 (N+1 회피 일괄 lookup)
         Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(labels);
-        return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd, aiInfoMap, objectMapper);
+        // Phase 2 — labelName/color 는 LS_LABEL 에서 채움 (N+1 회피 일괄 lookup)
+        Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(labels);
+        return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd,
+                aiInfoMap, lsLabelMap, objectMapper);
     }
 
     /** Phase 3 — actor + raw 요청 여부 → frameImageType 결정 (단일 진실의 원천). */
@@ -163,6 +196,10 @@ public class LabelService {
             validatePoints(item.points());
         }
 
+        // Phase 2 — labelId 사전 검증 (입력에 포함된 모든 labelId 의 존재 + USE_YN='Y' 확인).
+        // N+1 회피: distinct labelId 1회 lookup. (응답 enrichment 는 저장 후 result 기준으로 다시 lookup 한다.)
+        validateAndLoadLabels(req.items());
+
         // 기존 라벨 인덱싱 (id 기반 수정용)
         List<LsDataLbl> existing = labelRepository.findBySrcSn(srcSn);
         Map<Long, LsDataLbl> idIndex = new HashMap<>();
@@ -179,11 +216,13 @@ public class LabelService {
                     // IDOR 추가 방어 — id 가 다른 프레임의 라벨이면 차단.
                     throw new CustomException(ErrorCode.FORBIDDEN, "다른 프레임의 라벨 ID 입니다.");
                 }
-                found.updateUserContent(item.lblTypeCd(), item.label(), pointsJson);
+                // Phase 2 — labelId 가 null 이면 기존 값 유지, non-null 이면 검증 후 변경.
+                found.updateUserContent(item.lblTypeCd(), item.labelId(), item.label(), pointsJson);
                 result.add(found);
             } else {
                 LsDataLbl created = labelRepository.save(
-                        LsDataLbl.createManual(srcSn, item.lblTypeCd(), item.label(), pointsJson, actorNo));
+                        LsDataLbl.createManual(srcSn, item.lblTypeCd(), item.labelId(),
+                                item.label(), pointsJson, actorNo));
                 result.add(created);
             }
         }
@@ -198,10 +237,13 @@ public class LabelService {
         // Phase 6 — bulkUpsert 결과에 자동 라벨(수정만 이루어진)이 섞일 수 있으므로 AI Info lookup.
         // 수동 신규 라벨은 row 없음 → 자연스럽게 autoLblYn='N' 응답.
         Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(result);
+        // Phase 2 — 응답 labelName/color enrichment.
+        Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(result);
 
         // Phase 8 — Gitea 자동 커밋 (PORTAL 채널은 버전관리 미제공 → skip).
         if (VersionService.isCommittable(actor)) {
-            LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd, aiInfoMap, objectMapper);
+            LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, frameImageType,
+                    lockSttsCd, aiInfoMap, lsLabelMap, objectMapper);
             String labelsJson;
             try {
                 labelsJson = objectMapper.writeValueAsString(responseSnapshot);
@@ -215,7 +257,41 @@ public class LabelService {
             }
         }
 
-        return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd, aiInfoMap, objectMapper);
+        return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
+                aiInfoMap, lsLabelMap, objectMapper);
+    }
+
+    /**
+     * Phase 2 — 요청에 포함된 distinct labelId 들을 LS_LABEL 에서 일괄 조회하여 검증.
+     * <ul>
+     *   <li>존재하지 않으면 {@link ErrorCode#NOT_FOUND}</li>
+     *   <li>USE_YN='N' 이면 {@link ErrorCode#CONFLICT} (사용 불가 라벨)</li>
+     * </ul>
+     * 모든 labelId 가 null 이면 Repository 호출 skip (early return).
+     */
+    private void validateAndLoadLabels(List<LabelItemDto> items) {
+        Set<Long> requestedIds = new HashSet<>();
+        for (LabelItemDto item : items) {
+            if (item.labelId() != null) {
+                requestedIds.add(item.labelId());
+            }
+        }
+        if (requestedIds.isEmpty()) {
+            return;
+        }
+        Map<Long, LsLabel> loaded = lsLabelRepository.findAllById(requestedIds).stream()
+                .collect(Collectors.toMap(LsLabel::getLabelId, Function.identity(), (a, b) -> a));
+        for (Long requested : requestedIds) {
+            LsLabel found = loaded.get(requested);
+            if (found == null) {
+                throw new CustomException(ErrorCode.NOT_FOUND,
+                        "라벨 마스터를 찾을 수 없습니다: labelId=" + requested);
+            }
+            if (!"Y".equals(found.getUseYn())) {
+                throw new CustomException(ErrorCode.CONFLICT,
+                        "사용 중지된 라벨입니다: labelId=" + requested);
+            }
+        }
     }
 
     /** 좌표 검증 — 음수 차단 + 점 개수 상한. */
