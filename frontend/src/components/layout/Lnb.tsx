@@ -66,7 +66,7 @@ if (import.meta.env.DEV) {
   MENU.push({
     group: '개발 도구',
     items: [
-      { label: '오토라벨 테스트', path: '/dev/autolabel-test', allow: ['REVIEWER'] },
+      { label: '영상 업로드', path: '/dev/autolabel-test', allow: ['REVIEWER'] },
     ],
   });
 }

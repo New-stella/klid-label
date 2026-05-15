@@ -139,6 +139,81 @@ describe('DevAutolabelTestPage', () => {
     // ISO-8601 instant 형식
     expect(typeof meta.capturedAt).toBe('string');
     expect(meta.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // enabledStages 기본값 — 4단계 모두 ON
+    expect(meta.enabledStages).toEqual({
+      FRAME_EXTRACT: true,
+      DEIDENTIFY: true,
+      YOLO: true,
+      SAM2: true,
+    });
+  });
+
+  it('단계_토글_OFF시_meta_enabledStages에_false_전송', async () => {
+    const user = userEvent.setup();
+    let capturedFormData: FormData | null = null;
+    mock.onPost('/dev/autolabel-test').reply((config) => {
+      capturedFormData =
+        config.data instanceof FormData ? (config.data as FormData) : null;
+      return [
+        200,
+        {
+          success: true,
+          data: {
+            rawSn: 11111,
+            savedFilePath: 'autolabel-test/toggle.mp4',
+            pipelineStatus: 'PROCESSING',
+            startedAt: 1715520000000,
+          },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+    mock.onGet(/\/videos\/\d+$/).reply(200, {
+      success: true,
+      data: {
+        id: 11111,
+        rawSn: 11111,
+        cctvName: 'CCTV-001',
+        vmsClipId: 'test-toggle',
+        frameCount: 0,
+        status: 'PENDING',
+        capturedAt: '2026-05-12T10:00:00Z',
+        duration: 60,
+        fileSizeMb: 10,
+        resolution: '1920x1080',
+        framePreviews: [],
+        stages: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<DevAutolabelTestPage />);
+
+    const file = new File(['v'], 'toggle.mp4', { type: 'video/mp4' });
+    const fileInput = document.getElementById(
+      'autolabel-test-file',
+    ) as HTMLInputElement;
+    await user.upload(fileInput, file);
+
+    // YOLO + SAM2 토글 OFF
+    const yoloLabel = screen.getByTestId('autolabel-stage-toggle-YOLO');
+    const sam2Label = screen.getByTestId('autolabel-stage-toggle-SAM2');
+    await user.click(yoloLabel.querySelector('input[type=checkbox]')!);
+    await user.click(sam2Label.querySelector('input[type=checkbox]')!);
+
+    await user.click(screen.getByRole('button', { name: '실행' }));
+
+    await waitFor(() => expect(capturedFormData).not.toBeNull());
+    const metaPart = (capturedFormData as unknown as FormData).get('meta') as Blob;
+    const meta = JSON.parse(await readBlobAsText(metaPart));
+    expect(meta.enabledStages).toEqual({
+      FRAME_EXTRACT: true,
+      DEIDENTIFY: true,
+      YOLO: false,
+      SAM2: false,
+    });
   });
 
   it('성공시_rawSn_화면_표시', async () => {

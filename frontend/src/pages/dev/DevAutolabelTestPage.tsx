@@ -16,8 +16,11 @@ import { useAutolabelStatus } from '@/features/dev/hooks/useAutolabelStatus';
 import {
   EventTypeCd,
   PrvcType,
+  STAGE_KEYS,
   type AutolabelTestMeta,
   type AutolabelTestResult,
+  type EnabledStages,
+  type StageKey,
 } from '@/features/dev/types';
 
 // 허용 확장자 (BE 와 동일) — `accept` 속성으로 1차 가드. BE 가 본 검증 수행.
@@ -65,6 +68,8 @@ interface FormState {
   prvcTypeCd: PrvcType;
   /** datetime-local 형식 (`YYYY-MM-DDTHH:mm`) — 제출 시 ISO 로 변환. */
   capturedAtLocal: string;
+  /** 4단계 토글 — 기본 모두 ON. */
+  enabledStages: EnabledStages;
 }
 
 function initialForm(): FormState {
@@ -75,14 +80,29 @@ function initialForm(): FormState {
     localGovCd: '11680',
     prvcTypeCd: PrvcType.ANONY,
     capturedAtLocal: nowLocalDateTime(),
+    enabledStages: {
+      [STAGE_KEYS.FRAME_EXTRACT]: true,
+      [STAGE_KEYS.DEIDENTIFY]: true,
+      [STAGE_KEYS.YOLO]: true,
+      [STAGE_KEYS.SAM2]: true,
+    },
   };
 }
 
+/** 토글 라벨 (한글). */
+const STAGE_LABELS: ReadonlyArray<{ key: StageKey; label: string; hint: string }> = [
+  { key: STAGE_KEYS.FRAME_EXTRACT, label: '프레임 추출', hint: 'FFmpeg 로 영상에서 1초 단위 프레임 추출' },
+  { key: STAGE_KEYS.DEIDENTIFY, label: '비식별', hint: '외부 비식별 API 호출 (V2: 무조건)' },
+  { key: STAGE_KEYS.YOLO, label: 'YOLO 자동 라벨', hint: '객체 탐지 + 트래킹' },
+  { key: STAGE_KEYS.SAM2, label: 'SAM2 세그멘테이션', hint: 'YOLO bbox 힌트 기반 세그' },
+];
+
 /**
- * [개발/검수 전용] 오토라벨 테스트 화면 (`/dev/autolabel-test`).
+ * [개발/검수 전용] 영상 업로드 화면 (`/dev/autolabel-test`).
  *
- * REVIEWER 전용. 영상 파일 + 메타데이터 입력 → BE `POST /api/v1/dev/autolabel-test` 호출
- * → rawSn 수신 후 영상 상세를 2초 간격으로 polling 하여 파이프라인 진행 상황을 가시화한다.
+ * REVIEWER 전용. 영상 파일 + 메타데이터 + 단계 토글 입력 →
+ * BE `POST /api/v1/dev/autolabel-test` 호출 → rawSn 수신 후 영상 상세를 2초 간격으로 polling 하여
+ * 파이프라인 진행 상황을 가시화한다. 라우터 path 와 endpoint URL 은 URL 호환성을 위해 유지.
  *
  * 보안:
  * - 파일 input `accept` 로 확장자 화이트리스트 1차 가드. BE 가 본 검증을 수행.
@@ -159,8 +179,19 @@ export function DevAutolabelTestPage() {
       localGovCd: form.localGovCd.trim(),
       prvcTypeCd: form.prvcTypeCd,
       capturedAt: toIsoInstant(form.capturedAtLocal),
+      enabledStages: { ...form.enabledStages },
     };
     mutation.mutate({ file, meta });
+  };
+
+  const toggleStage = (key: StageKey) => {
+    setForm((s) => ({
+      ...s,
+      enabledStages: {
+        ...s.enabledStages,
+        [key]: !s.enabledStages[key],
+      },
+    }));
   };
 
   const handleReset = () => {
@@ -177,7 +208,7 @@ export function DevAutolabelTestPage() {
   return (
     <main className="space-y-6">
       <PageHeader
-        title="오토라벨 테스트"
+        title="영상 업로드"
         description="영상 파일과 메타데이터를 입력해 프레임 추출 + 오토라벨링 파이프라인을 실행합니다. (개발/검수 전용)"
       />
 
@@ -347,6 +378,46 @@ export function DevAutolabelTestPage() {
               </span>
             </div>
           </div>
+
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-body font-medium text-gray-700">
+              실행 단계 선택
+            </legend>
+            <div
+              role="group"
+              aria-label="배치 단계 토글"
+              className="grid grid-cols-1 gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:grid-cols-2"
+            >
+              {STAGE_LABELS.map((s) => {
+                const checked = form.enabledStages[s.key];
+                return (
+                  <label
+                    key={s.key}
+                    className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-gray-50"
+                    data-testid={`autolabel-stage-toggle-${s.key}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleStage(s.key)}
+                      disabled={mutation.isPending}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="flex flex-col">
+                      <span className="text-body text-gray-800">{s.label}</span>
+                      <span className="text-sub text-gray-500">
+                        {s.hint} ({s.key})
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <span className="text-sub text-gray-500">
+              선택하지 않은 단계는 건너뜁니다. 의존 단계가 OFF 라도 강제 차단하지 않으며,
+              자연스럽게 빈 결과로 처리됩니다.
+            </span>
+          </fieldset>
 
           {errorMessage && (
             <div

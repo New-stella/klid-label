@@ -27,6 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -74,7 +76,8 @@ class DevAutolabelTestServiceTest {
                 "EVT_FALL",
                 "1168000000",
                 AutolabelTestRequest.PrvcType.ANONY,
-                Instant.parse("2024-05-01T12:00:00Z")
+                Instant.parse("2024-05-01T12:00:00Z"),
+                null
         );
     }
 
@@ -344,6 +347,43 @@ class DevAutolabelTestServiceTest {
     }
 
     @Test
+    @DisplayName("enabledStages_meta가_있으면_runFull에_그대로_전달")
+    void enabledStages_runFull_전달() throws Exception {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(cctvRepository.existsById(any())).willReturn(true);
+        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(303L));
+
+        java.util.Map<String, Boolean> toggles = new java.util.HashMap<>();
+        toggles.put("FRAME_EXTRACT", true);
+        toggles.put("DEIDENTIFY", false);
+        toggles.put("YOLO", true);
+        toggles.put("SAM2", false);
+
+        AutolabelTestRequest meta = new AutolabelTestRequest(
+                "TEST-CLIP-002", "CCTV-001", "EVT_FALL",
+                "1168000000", AutolabelTestRequest.PrvcType.ANONY,
+                Instant.parse("2024-05-01T12:00:00Z"),
+                toggles
+        );
+
+        DevAutolabelTestService localService = serviceWithProbe(path -> 60);
+        MultipartFile file = mp4File("ok.mp4", new byte[]{1, 2, 3});
+        localService.upload(file, meta);
+
+        // 비동기 호출이므로 awaitility 로 대기
+        await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            ArgumentCaptor<java.util.Map<String, Boolean>> mapCaptor =
+                    ArgumentCaptor.forClass(java.util.Map.class);
+            verify(autolabelTestService).runFull(eq(303L), mapCaptor.capture());
+            java.util.Map<String, Boolean> captured = mapCaptor.getValue();
+            assertThat(captured.get("FRAME_EXTRACT")).isTrue();
+            assertThat(captured.get("DEIDENTIFY")).isFalse();
+            assertThat(captured.get("YOLO")).isTrue();
+            assertThat(captured.get("SAM2")).isFalse();
+        });
+    }
+
+    @Test
     @DisplayName("파이프라인_비동기_실패시_LS_DATA_RAW_DATA_STTS_CD_FAILED_갱신")
     void 파이프라인_실패시_FAILED_갱신() throws Exception {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
@@ -352,7 +392,7 @@ class DevAutolabelTestServiceTest {
 
         // autolabelTestService.runFull 이 예외 던지도록 설정
         doThrow(new RuntimeException("YOLO step failed: server unreachable"))
-                .when(autolabelTestService).runFull(202L);
+                .when(autolabelTestService).runFull(eq(202L), anyMap());
 
         DevAutolabelTestService localService = serviceWithProbe(path -> 60);
         MultipartFile file = mp4File("ok.mp4", new byte[]{1, 2, 3});

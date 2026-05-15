@@ -26,6 +26,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -187,7 +188,8 @@ public class DevAutolabelTestService {
         // (read-after-write 가시성 — afterCommit 미사용 시 "영상 레코드가 없습니다" 발생).
         // 실패 시 (1) cause/stack 로깅 보강, (2) LS_DATA_RAW.DATA_STTS_CD=FAILED 갱신해
         // FE polling 이 무한 "대기중" 상태로 남지 않도록 보장.
-        Runnable triggerPipeline = () -> CompletableFuture.runAsync(() -> autolabelTestService.runFull(rawSn))
+        final Map<String, Boolean> stageToggles = meta.resolveEnabledStages();
+        Runnable triggerPipeline = () -> CompletableFuture.runAsync(() -> autolabelTestService.runFull(rawSn, stageToggles))
                 .exceptionally(e -> {
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
                     log.error("[DevAutolabelTest] pipeline failed rawSn={} causeType={} message={}",

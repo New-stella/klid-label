@@ -33,6 +33,22 @@ export const EventTypeCd = Object.freeze(
 );
 export type EventTypeCd = EventTypeCode;
 
+/** 배치 단계 토글 키 — BE `AutolabelTestRequest.STAGE_*` 와 1:1 매핑. */
+export const STAGE_KEYS = {
+  FRAME_EXTRACT: 'FRAME_EXTRACT',
+  DEIDENTIFY: 'DEIDENTIFY',
+  YOLO: 'YOLO',
+  SAM2: 'SAM2',
+} as const;
+export type StageKey = (typeof STAGE_KEYS)[keyof typeof STAGE_KEYS];
+
+/**
+ * 단계 토글 맵 — 키: FRAME_EXTRACT/DEIDENTIFY/YOLO/SAM2, 값: ON/OFF.
+ *
+ * BE 는 누락 키를 {@code true} 로 처리한다. FE 는 항상 4개 키를 전송해 의도를 명확히 한다.
+ */
+export type EnabledStages = Record<StageKey, boolean>;
+
 /**
  * 오토라벨 테스트 메타데이터.
  *
@@ -40,6 +56,7 @@ export type EventTypeCd = EventTypeCode;
  * - vmsClipId / cctvId: 영문/숫자/-/_ 1~64자
  * - localGovCd: 숫자 1~10자리
  * - capturedAt: ISO-8601 (`Date.toISOString()` 형식)
+ * - enabledStages: 4단계 ON/OFF 토글. 누락 시 BE 가 모두 true 처리 (back-compat).
  *
  * `durationSec` 는 BE 가 ffprobe 로 업로드된 영상 파일에서 자동 추출하므로 FE 가 전송하지 않는다.
  */
@@ -51,6 +68,8 @@ export interface AutolabelTestMeta {
   prvcTypeCd: PrvcType;
   /** ISO-8601 Instant (예: `2026-05-12T10:00:00Z`) */
   capturedAt: string;
+  /** 단계 ON/OFF 토글 — 누락 시 BE 가 모두 실행 (선택 필드). */
+  enabledStages?: EnabledStages;
 }
 
 /** 업로드 + 파이프라인 트리거 응답. */

@@ -71,7 +71,8 @@ class AutolabelTestRequestValidationTest {
                 eventTypeCd,
                 "11680",
                 AutolabelTestRequest.PrvcType.ANONY,
-                Instant.parse("2026-05-01T12:00:00Z")
+                Instant.parse("2026-05-01T12:00:00Z"),
+                null
         );
     }
 }
