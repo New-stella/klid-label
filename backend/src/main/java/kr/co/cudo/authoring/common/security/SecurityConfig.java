@@ -84,8 +84,10 @@ public class SecurityConfig {
                             .requestMatchers("/v1/integration/**").denyAll()
                             .requestMatchers("/v1/export-api/**").denyAll()
                             // Phase 1 (CVAT-Like 라벨 풀): 라벨 마스터 조회는 WORKER/PORTAL_USER 도 허용.
+                            // Phase 3 — 라벨 속성 정의 조회(GET /v1/manage/labels/{labelId}/attrs) 도 동일 정책 적용 →
+                            // 와일드카드 /v1/manage/labels/** 로 확장. POST/PUT/DELETE 는 메서드 @PreAuthorize 로 REVIEWER 강제.
                             // 매처 순서 — REVIEWER 매처보다 앞에 위치해야 함.
-                            .requestMatchers(org.springframework.http.HttpMethod.GET, "/v1/manage/labels").authenticated()
+                            .requestMatchers(org.springframework.http.HttpMethod.GET, "/v1/manage/labels", "/v1/manage/labels/**").authenticated()
                             .requestMatchers("/v1/manage/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/system/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/portal/**").hasRole(Role.PORTAL_USER.name())
