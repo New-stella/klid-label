@@ -1,10 +1,8 @@
 package kr.co.cudo.authoring.observability;
 
 import kr.co.cudo.authoring.observability.health.AiServerHealthIndicator;
-import kr.co.cudo.authoring.observability.health.ControlServerHealthIndicator;
 import kr.co.cudo.authoring.observability.health.DeidentifyHealthIndicator;
 import kr.co.cudo.authoring.observability.health.GiteaHealthIndicator;
-import kr.co.cudo.authoring.observability.health.PortalServerHealthIndicator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,28 +14,26 @@ import org.springframework.test.context.ActiveProfiles;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Phase 12 — 5종 외부 시스템 헬스 인디케이터 등록 검증.
+ * Phase 12 — 외부 시스템 헬스 인디케이터 등록 검증.
  * <p>
  * 외부 서버는 local 환경에서 미기동 상태이므로 health() 호출 시 down 으로 응답한다.
  * 본 테스트는 빈 등록 + 안전한 down 응답(에러 메시지 노출 없음)을 검증한다.
+ *
+ * <p>관제/포털 양방향 통합은 deprecated 되어 헬스 인디케이터에서 제외.
  */
 @SpringBootTest
 @ActiveProfiles("local")
 class HealthIndicatorTest {
 
     @Autowired private AiServerHealthIndicator aiHealth;
-    @Autowired private ControlServerHealthIndicator controlHealth;
-    @Autowired private PortalServerHealthIndicator portalHealth;
     @Autowired private DeidentifyHealthIndicator deidHealth;
     @Autowired private GiteaHealthIndicator giteaHealth;
 
     @Test
-    @DisplayName("Health_5종_외부_시스템_인디케이터_등록_및_안전한_응답")
-    void fiveExternalHealthIndicatorsRegistered() {
+    @DisplayName("Health_외부_시스템_인디케이터_등록_및_안전한_응답")
+    void externalHealthIndicatorsRegistered() {
         // 빈 등록 확인.
         assertThat(aiHealth).isNotNull();
-        assertThat(controlHealth).isNotNull();
-        assertThat(portalHealth).isNotNull();
         assertThat(deidHealth).isNotNull();
         assertThat(giteaHealth).isNotNull();
 

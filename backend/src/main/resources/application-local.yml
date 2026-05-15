@@ -5,7 +5,7 @@
 #   운영 환경(dev/stg/prd)에 SPRING_PROFILES_ACTIVE=local 로 배포하지 말 것.
 #   ENV 환경변수가 dev/stg/prd 인 경우 LocalProfileGuard 가 부트를 거부함.
 #
-#   운영 시크릿은 환경변수(JWT_SECRET, *_DB_PASSWORD, *_M2M_TOKEN, GITEA_TOKEN)로 주입.
+#   운영 시크릿은 환경변수(JWT_SECRET, *_DB_PASSWORD, GITEA_TOKEN)로 주입.
 # ============================================================================
 spring:
   # [개발/검수 전용] /v1/dev/autolabel-test multipart 업로드용 — local 프로파일만 활성화.
@@ -42,12 +42,6 @@ authoring:
   jwt:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
   integration:
-    control-server:
-      m2m-token: ${CONTROL_M2M_TOKEN:dev-m2m-token-32bytes-or-longer-please}
-    learning-data:
-      m2m-token: ${LEARNING_DATA_M2M_TOKEN:dev-learning-data-m2m-token-please-rotate}
-    portal-server:
-      m2m-token: ${PORTAL_M2M_TOKEN:dev-m2m-token-32bytes-or-longer-please}
     gitea:
       token: ${GITEA_TOKEN:dev-gitea-token}
   # Phase 5 — local 환경에서는 자동 트리거 비활성화 (Quartz 잡 미등록).

@@ -19,18 +19,6 @@ public class WebClientConfig {
                 .build();
     }
 
-    @Bean(name = "controlServerWebClient")
-    public WebClient controlServerWebClient(
-            @Value("${authoring.integration.control-server.base-url}") String baseUrl) {
-        return WebClient.builder().baseUrl(baseUrl).build();
-    }
-
-    @Bean(name = "portalServerWebClient")
-    public WebClient portalServerWebClient(
-            @Value("${authoring.integration.portal-server.base-url}") String baseUrl) {
-        return WebClient.builder().baseUrl(baseUrl).build();
-    }
-
     @Bean(name = "deidentifyWebClient")
     public WebClient deidentifyWebClient(
             @Value("${authoring.integration.deidentify.base-url}") String baseUrl) {

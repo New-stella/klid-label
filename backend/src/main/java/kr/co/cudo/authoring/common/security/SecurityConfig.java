@@ -1,8 +1,6 @@
 package kr.co.cudo.authoring.common.security;
 
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
-import kr.co.cudo.authoring.auth.m2m.M2mTokenAuthenticationFilter;
-import kr.co.cudo.authoring.auth.m2m.M2mTokenValidator;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,14 +32,12 @@ public class SecurityConfig {
 
     private final JwtKeyResolver keyResolver;
     private final JwtIssuerValidator issuerValidator;
-    private final M2mTokenValidator m2mTokenValidator;
     private final ObjectMapper objectMapper;
     private final Environment environment;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                     CorsConfigurationSource corsConfigurationSource) throws Exception {
-        M2mTokenAuthenticationFilter m2mFilter = new M2mTokenAuthenticationFilter(m2mTokenValidator);
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(keyResolver, issuerValidator);
 
         // 개발/검수 전용 토큰 발급 endpoint — 운영(prd) 에서는 매처 자체를 추가하지 않음 (endpoint 도 @Profile("!prd") 로 부재 → 404).
@@ -84,10 +80,9 @@ public class SecurityConfig {
                             .requestMatchers("/v1/dev/**").hasRole(Role.REVIEWER.name())
                             // Phase 12 — actuator metrics/prometheus 는 REVIEWER 만 (운영 prd 는 노출 자체 차단)
                             .requestMatchers("/actuator/**").hasRole(Role.REVIEWER.name())
-                            .requestMatchers("/v1/integration/control/**").hasAuthority(M2mTokenAuthenticationFilter.M2M_AUTHORITY)
+                            // 외부 시스템(관제/학습데이터) 양방향 통합 deprecated — 모든 매처 거부.
                             .requestMatchers("/v1/integration/**").denyAll()
-                            // Phase 4 — 외부 학습데이터 API (M2M LEARNING_DATA scope 전용).
-                            .requestMatchers("/v1/export-api/**").hasAuthority(M2mTokenAuthenticationFilter.M2M_AUTHORITY_LEARNING_DATA)
+                            .requestMatchers("/v1/export-api/**").denyAll()
                             .requestMatchers("/v1/manage/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/system/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/portal/**").hasRole(Role.PORTAL_USER.name())
@@ -98,7 +93,6 @@ public class SecurityConfig {
                         .authenticationEntryPoint((req, res, ex) -> writeError(res, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED))
                         .accessDeniedHandler((req, res, ex) -> writeError(res, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN))
                 )
-                .addFilterBefore(m2mFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -123,7 +117,7 @@ public class SecurityConfig {
         }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
-                "Authorization", "X-M2M-Token", "X-Trace-Id",
+                "Authorization", "X-Trace-Id",
                 "X-Tus-Resumable", "Upload-Length", "Upload-Offset", "Upload-Metadata",
                 "Tus-Resumable", "Content-Type"
         ));

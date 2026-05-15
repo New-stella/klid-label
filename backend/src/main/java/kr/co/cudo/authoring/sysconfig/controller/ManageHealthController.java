@@ -22,9 +22,10 @@ import java.util.Map;
 /**
  * 시스템 설정 화면 — 외부 의존성 헬스 요약 (REVIEWER 전용).
  *
- * <p>FE 의 /manage/health 호출에 대응. Spring Actuator 의 5종 외부 인디케이터
- * (control-server / portal-server / deidentify / ai-server / gitea) + DB 핑을
- * 단일 응답으로 요약한다.
+ * <p>FE 의 /manage/health 호출에 대응. Spring Actuator 의 외부 인디케이터
+ * (deidentify / ai-server / gitea) + DB 핑을 단일 응답으로 요약한다.
+ *
+ * <p>관제/포털 양방향 통합은 deprecated 되어 헬스 체크 대상에서 제외.
  */
 @Tag(name = "Manage Health", description = "시스템 설정 화면용 외부 의존성 헬스 요약 — REVIEWER 전용. /v1/manage/health.")
 @Slf4j
@@ -33,22 +34,16 @@ import java.util.Map;
 @SecurityRequirement(name = "bearerAuth")
 public class ManageHealthController {
 
-    private final HealthIndicator controlServerHealth;
-    private final HealthIndicator portalServerHealth;
     private final HealthIndicator deidentifyHealth;
     private final HealthIndicator aiServerHealth;
     private final HealthIndicator giteaHealth;
     private final DataSource controlDataSource;
 
     public ManageHealthController(
-            @Qualifier("controlServerHealth") HealthIndicator controlServerHealth,
-            @Qualifier("portalServerHealth")  HealthIndicator portalServerHealth,
             @Qualifier("deidentifyHealth")    HealthIndicator deidentifyHealth,
             @Qualifier("aiServerHealth")      HealthIndicator aiServerHealth,
             @Qualifier("giteaHealth")         HealthIndicator giteaHealth,
             @Qualifier("controlDataSource")   DataSource controlDataSource) {
-        this.controlServerHealth = controlServerHealth;
-        this.portalServerHealth  = portalServerHealth;
         this.deidentifyHealth    = deidentifyHealth;
         this.aiServerHealth      = aiServerHealth;
         this.giteaHealth         = giteaHealth;
@@ -57,7 +52,7 @@ public class ManageHealthController {
 
     @Operation(
             summary = "외부 의존성 헬스 요약 (REVIEWER)",
-            description = "control-server / portal-server / deidentify / ai-server / gitea + DB 의 상태를 단일 응답으로 반환."
+            description = "deidentify / ai-server / gitea + DB 의 상태를 단일 응답으로 반환."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -68,8 +63,6 @@ public class ManageHealthController {
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<Map<String, Object>> health() {
         Map<String, Object> components = new LinkedHashMap<>();
-        components.put("controlServer", toComponent(controlServerHealth));
-        components.put("portalServer",  toComponent(portalServerHealth));
         components.put("deidentify",    toComponent(deidentifyHealth));
         components.put("aiServer",      toComponent(aiServerHealth));
         components.put("gitea",         toComponent(giteaHealth));

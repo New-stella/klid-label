@@ -8,16 +8,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class Resilience4jConfig {
 
-    @Bean(name = "controlCircuitBreaker")
-    public CircuitBreaker controlCircuitBreaker(CircuitBreakerRegistry registry) {
-        return registry.circuitBreaker("control");
-    }
-
-    @Bean(name = "portalCircuitBreaker")
-    public CircuitBreaker portalCircuitBreaker(CircuitBreakerRegistry registry) {
-        return registry.circuitBreaker("portal");
-    }
-
     @Bean(name = "deidCircuitBreaker")
     public CircuitBreaker deidCircuitBreaker(CircuitBreakerRegistry registry) {
         return registry.circuitBreaker("deid");

@@ -27,7 +27,7 @@ class ManageHealthControllerTest {
     @Value("${authoring.jwt.issuer}") private String issuer;
 
     @Test
-    @DisplayName("REVIEWER가_GET_manage_health_호출시_5종_외부_DB_컴포넌트_상태_반환")
+    @DisplayName("REVIEWER가_GET_manage_health_호출시_외부_DB_컴포넌트_상태_반환")
     void reviewerCanFetchManageHealth() throws Exception {
         String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         mockMvc.perform(get("/v1/manage/health")
@@ -35,8 +35,6 @@ class ManageHealthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").exists())
-                .andExpect(jsonPath("$.data.components.controlServer").exists())
-                .andExpect(jsonPath("$.data.components.portalServer").exists())
                 .andExpect(jsonPath("$.data.components.deidentify").exists())
                 .andExpect(jsonPath("$.data.components.aiServer").exists())
                 .andExpect(jsonPath("$.data.components.gitea").exists())

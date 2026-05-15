@@ -12,7 +12,6 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME = "bearerAuth";
-    private static final String M2M_SCHEME = "m2mToken";
 
     @Bean
     public OpenAPI openAPI() {
@@ -28,12 +27,6 @@ public class OpenApiConfig {
                                         .name(SECURITY_SCHEME)
                                         .type(SecurityScheme.Type.HTTP)
                                         .scheme("bearer")
-                                        .bearerFormat("JWT"))
-                        .addSecuritySchemes(M2M_SCHEME,
-                                new SecurityScheme()
-                                        .name("X-M2M-Token")
-                                        .type(SecurityScheme.Type.APIKEY)
-                                        .in(SecurityScheme.In.HEADER)
-                                        .description("관제서버 ↔ 저작도구 M2M 인증 토큰 헤더")));
+                                        .bearerFormat("JWT")));
     }
 }

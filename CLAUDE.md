@@ -95,7 +95,7 @@ klid-la-test-v0/
 - `common.security.SecurityConfig` — 역할 기반 접근 제어
 - `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` — 듀얼 EntityManager/TransactionManager (`@ControlRepo`, `@PortalRepo`로 분리)
 - `common.logging.RequestIdFilter` + Logback JSON 인코더 (민감 필드 마스킹)
-- `common.client.*` — ControlServerClient / PortalServerClient / DeidentifyClient / AiServerClient / GiteaClient (Resilience4j 적용)
+- `common.client.*` — DeidentifyClient / AiServerClient / GiteaClient (Resilience4j 적용) — 관제/포털 양방향 통합은 deprecated
 
 ### 코드 컨벤션
 - 패키지: 소문자 케밥 금지, 영문 소문자만 (`kr.co.cudo.authoring.label`)
@@ -120,8 +120,6 @@ klid-la-test-v0/
 | `CONTROL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | klid_system 접속 | dev/stg/prd |
 | `PORTAL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | 포털 DB 접속 | dev/stg/prd |
 | `JWT_SECRET` / `JWT_ISSUER` | JWT 검증 | dev/stg/prd |
-| `CONTROL_SERVER_API_URL` / `CONTROL_M2M_TOKEN` | 관제서버 수신 API | dev/stg/prd |
-| `PORTAL_SERVER_API_URL` / `PORTAL_M2M_TOKEN` | 포털 서버 API | dev/stg/prd |
 | `DEIDENTIFY_API_URL` | 비식별 서버 | dev/stg/prd |
 | `AI_SERVER_URL` | ai-server 내부 주소 | 전체 |
 | `GITEA_BASE_URL` / `GITEA_TOKEN` / `GITEA_OWNER` / `GITEA_REPO` | Gitea 버전관리 | dev/stg/prd |
@@ -153,9 +151,10 @@ klid-la-test-v0/
 - 두 채널 모두 **동일 JWT 발급 서버** — 단일 검증 로직(`JwtAuthenticationFilter`)로 처리
 - 토큰 `role` + `channel` 클레임으로 권한 분기 (`@PreAuthorize("hasRole('REVIEWER')")`)
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트
+- **외부 시스템 양방향 통합(M2M) deprecated**: 관제서버/외부 학습데이터 시스템과의 송수신 API 및 M2M 인증 인프라는 본 버전에서 제거. 재구축 시 별도 설계 필요.
 
 ### 배치 파이프라인 (인증 불필요)
-- 관제서버가 라벨링 필요 여부 판별 → 대상 영상 목록 송신 (`POST /api/v1/integration/control/videos`)
+- 영상 적재는 자체 업로드(포털 TUS / 관리 화면) 기반 — 관제서버 자동 송신은 미연동
 - Quartz 트리거로 1건/분 처리: FFmpeg → 조건부 비식별화 → YOLO → SAM2 → VLM 객체 검증 (V1.7 — 시계열 메타 자동 생성은 외부 시스템 책임)
 - **비식별 호출 조건**: 영상 `PRVC_TYPE_CD='PRVC' or 'PSDO'`일 때만. `ANONY`는 원본만 저장
 - 원본 이미지와 비식별 이미지는 **별도 경로로 동시 저장**
@@ -210,10 +209,11 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 ## 주의사항
 
-### 외부 API 연동 (다수)
-- 관제서버·포털·비식별·Gitea·ai-server — **Resilience4j로 타임아웃/재시도/서킷 브레이커 적용 필수**
+### 외부 API 연동
+- 비식별·Gitea·ai-server — **Resilience4j로 타임아웃/재시도/서킷 브레이커 적용 필수**
 - 비식별 API 실패 시 영상 상태 `DE_IDNTF_YN='F'`로 마킹 + 재시도 큐. 원본 절대 삭제 금지
 - 관제서버 세션 토큰은 저작도구가 발급하지 않음 — 검증 실패 시 관제서버 로그인 페이지로 리다이렉트
+- 관제/포털 양방향 통합 API 및 외부 학습데이터 API는 deprecated — 재구축 전까지 미연동
 
 ### 파일 업로드 (포털 + TUS)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수

@@ -88,21 +88,6 @@ authoring:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
   integration:
-    control-server:
-      base-url: ${CONTROL_SERVER_API_URL:http://localhost:9000}
-      # 운영/스테이징/개발: 환경변수 CONTROL_M2M_TOKEN 필수 (미설정 시 부트 실패)
-      m2m-token: ${CONTROL_M2M_TOKEN}
-      timeout-ms: 10000
-    # Phase 4 — 외부 학습데이터 API (/v1/export-api/**) 소비 시스템 토큰.
-    #   - 관제 토큰과 분리: 한쪽 유출이 다른 scope 으로 번지지 않도록 권한 격리.
-    #   - 운영/스테이징/개발: LEARNING_DATA_M2M_TOKEN 환경변수 필수 (미설정 시 부트 실패).
-    learning-data:
-      m2m-token: ${LEARNING_DATA_M2M_TOKEN}
-    portal-server:
-      base-url: ${PORTAL_SERVER_API_URL:http://localhost:9100}
-      # 운영/스테이징/개발: 환경변수 PORTAL_M2M_TOKEN 필수 (미설정 시 부트 실패)
-      m2m-token: ${PORTAL_M2M_TOKEN}
-      timeout-ms: 10000
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}
       timeout-ms: 30000
@@ -154,16 +139,6 @@ portal:
 resilience4j:
   circuitbreaker:
     instances:
-      control:
-        failure-rate-threshold: 50
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        wait-duration-in-open-state: 30s
-      portal:
-        failure-rate-threshold: 50
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        wait-duration-in-open-state: 30s
       deid:
         failure-rate-threshold: 50
         sliding-window-size: 10
@@ -186,14 +161,6 @@ resilience4j:
         wait-duration-in-open-state: 30s
   retry:
     instances:
-      control:
-        max-attempts: 3
-        wait-duration: 1s
-        exponential-backoff-multiplier: 2
-      portal:
-        max-attempts: 3
-        wait-duration: 1s
-        exponential-backoff-multiplier: 2
       deid:
         max-attempts: 3
         wait-duration: 1s
@@ -212,8 +179,6 @@ resilience4j:
         exponential-backoff-multiplier: 2
   timelimiter:
     instances:
-      control: { timeout-duration: 60s }
-      portal:  { timeout-duration: 60s }
       deid:    { timeout-duration: 60s }
       ai:      { timeout-duration: 60s }
       gitea:   { timeout-duration: 60s }
