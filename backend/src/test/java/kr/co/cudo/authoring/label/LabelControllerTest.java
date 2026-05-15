@@ -31,6 +31,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -51,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
+@Transactional("controlTransactionManager")
 @Sql(scripts = {"/db/test-data.sql", "/db/test-data-video.sql"},
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class LabelControllerTest {
@@ -103,7 +105,7 @@ class LabelControllerTest {
         srcSn = src.getSrcSn();
 
         // 작업자 100 만 배정 (작업자 101 은 미배정 — IDOR 차단 검증용)
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
     }
 
     @Test
@@ -303,7 +305,7 @@ class LabelControllerTest {
      * 동일 클래스 내 여러 테스트가 같은 H2 인메모리 DB 를 공유하므로 name 은 테스트별 고유.
      */
     private LsLabel seedLabel(String name, String color) {
-        return lsLabelRepository.save(LsLabel.create(1L, name, color, "BBOX", 1, "seed"));
+        return lsLabelRepository.save(LsLabel.create(name, color, "BBOX", 1, "seed"));
     }
 
     @Test

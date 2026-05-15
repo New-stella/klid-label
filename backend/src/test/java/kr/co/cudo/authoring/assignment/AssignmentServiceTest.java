@@ -49,11 +49,11 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("assign_트랜잭션_중간_실패시_전체_롤백")
     void rollbackOnDuplicate() {
-        AssignmentCreateRequest first = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest first = new AssignmentCreateRequest(100L, List.of(1000L));
         assignmentService.assign(first, reviewer());
 
         // 두 번째 요청에 새 영상 1002 + 중복 1000 포함 → 1000 의 unique 제약 위반으로 롤백 → 1002 도 반영 안 됨
-        AssignmentCreateRequest second = new AssignmentCreateRequest(10L, 100L, List.of(1002L, 1000L));
+        AssignmentCreateRequest second = new AssignmentCreateRequest(100L, List.of(1002L, 1000L));
         assertThatThrownBy(() -> assignmentService.assign(second, reviewer()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -76,7 +76,7 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("reassign_시_actor_sub와_시각이_HSTRY에_기록")
     void reassignRecordsActorAndTime() {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         var created = assignmentService.assign(req, reviewer());
         Long authrtSeq = created.items().get(0).authrtSeq();
 
@@ -93,7 +93,7 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("getHistory_재배정_이력_없을때_ASSIGN_단건_반환")
     void getHistoryReturnsAssignWhenNoReassign() {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         var created = assignmentService.assign(req, reviewer());
         Long authrtSeq = created.items().get(0).authrtSeq();
 
@@ -115,7 +115,7 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("getHistory_재배정_2회_있을때_총_3건_시간순_반환")
     void getHistoryReturnsAssignPlusReassigns() {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         var created = assignmentService.assign(req, reviewer());
         Long authrtSeq = created.items().get(0).authrtSeq();
 
@@ -153,7 +153,7 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("assign_시_LS_PJT_TASK_EVENT_LOG에_ASSIGN_이벤트_누적")
     void assignAccumulatesEventLog() {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L, 1001L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L, 1001L));
         assignmentService.assign(req, reviewer());
 
         List<LsPjtTaskEventLog> rows = taskEventLogRepository.findAll();
@@ -162,7 +162,7 @@ class AssignmentServiceTest {
             assertThat(r.getEventTypeCd()).isEqualTo("ASSIGN");
             assertThat(r.getActorUserNo()).isEqualTo(1L);
             assertThat(r.getSubjectUserNo()).isEqualTo(100L);
-            assertThat(r.getPjtId()).isEqualTo(10L);
+            assertThat(r.getRawDataId()).isIn(1000L, 1001L);
         });
     }
 
@@ -180,7 +180,7 @@ class AssignmentServiceTest {
                 "ANONY", "N", "N", "/tmp/test/1000.mp4", "PENDING");
 
         // 배정 생성 — rawDataId=1000 으로 LABELER 1건.
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         assignmentService.assign(req, reviewer());
 
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
@@ -204,7 +204,7 @@ class AssignmentServiceTest {
                 1001L, "TEST-CLIP-1001", "CCTV-ORPHAN-001",
                 "ANONY", "N", "N", "/tmp/test/1001.mp4", "PENDING");
 
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1001L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1001L));
         assignmentService.assign(req, reviewer());
 
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
@@ -218,13 +218,13 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("reassign_시_REASSIGN_이벤트가_prev_subject_와_함께_누적")
     void reassignAccumulatesEventLog() {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         var created = assignmentService.assign(req, reviewer());
         Long authrtSeq = created.items().get(0).authrtSeq();
 
         assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer());
 
-        List<LsPjtTaskEventLog> rows = taskEventLogRepository.findByPjtIdAndRawDataIdOrderByOccurredAtAsc(10L, 1000L);
+        List<LsPjtTaskEventLog> rows = taskEventLogRepository.findByRawDataIdOrderByOccurredAtAsc(1000L);
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).getEventTypeCd()).isEqualTo("ASSIGN");
         assertThat(rows.get(0).getSubjectUserNo()).isEqualTo(100L);

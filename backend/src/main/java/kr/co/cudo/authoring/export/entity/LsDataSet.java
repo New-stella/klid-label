@@ -46,9 +46,6 @@ public class LsDataSet {
     @Column(name = "EXPORT_SN")
     private Long exportSn;
 
-    @Column(name = "PJT_ID", nullable = false)
-    private Long pjtId;
-
     @Column(name = "EXPORT_FORMAT", nullable = false, length = 20)
     private String exportFormat;
 
@@ -71,9 +68,8 @@ public class LsDataSet {
     private LocalDateTime registeredAt;
 
     @Builder
-    private LsDataSet(Long pjtId, String exportFormat, String exportSttsCd,
+    private LsDataSet(String exportFormat, String exportSttsCd,
                       String nasPath, String registeredUserNo, LocalDateTime registeredAt) {
-        this.pjtId = pjtId;
         this.exportFormat = exportFormat;
         this.exportSttsCd = exportSttsCd;
         this.nasPath = nasPath;
@@ -84,13 +80,12 @@ public class LsDataSet {
     /**
      * 신규 PENDING 작업 생성. nasPath 는 Job 실행 단계에서 결정 (exportSn 기반).
      */
-    public static LsDataSet createPending(Long pjtId, String exportFormat, String registeredUserNo) {
+    public static LsDataSet createPending(String exportFormat, String registeredUserNo) {
         if (!FORMAT_YOLO.equals(exportFormat) && !FORMAT_COCO.equals(exportFormat)) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "지원하지 않는 포맷입니다: " + exportFormat + " (YOLO/COCO 만 지원)");
         }
         return LsDataSet.builder()
-                .pjtId(pjtId)
                 .exportFormat(exportFormat)
                 .exportSttsCd(STTS_PENDING)
                 .registeredUserNo(registeredUserNo)

@@ -77,7 +77,7 @@ class MetaControllerTest {
         srcSn = src.getSrcSn();
 
         // worker 100 배정 — 작업자도 메타 조회 가능 검증용
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
 
         // 외부 시스템이 생성한 시계열 메타 시드
         metaRepository.save(LsDataMeta.create(rawSn, "weather", "rain"));

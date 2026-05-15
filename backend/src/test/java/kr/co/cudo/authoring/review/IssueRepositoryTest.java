@@ -29,9 +29,9 @@ class IssueRepositoryTest {
     void countRejectionsByWorker() {
         // 작업자 100 → 영상 5001, 5002 배정
         // 작업자 101 → 영상 5003 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, 5001L, 100L, 1L));
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, 5002L, 100L, 1L));
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, 5003L, 101L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(5001L, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(5002L, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(5003L, 101L, 1L));
 
         // 영상 5001 = 2건 반려, 5002 = 1건 반려, 5003 = 1건 반려
         issueRepository.save(LsDataIssue.create(5001L, "사유1", "1"));

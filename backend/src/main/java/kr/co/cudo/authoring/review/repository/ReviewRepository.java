@@ -8,20 +8,22 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
+import java.util.Optional;
 
 /**
  * 검수 워크플로우 전용 LS_PJT_DATA_STTS 조회.
- * (CRUD 자체는 LsPjtDataSttsRepository 사용; 본 리포는 RAW_DATA_ID 기준 검색을 위한 별도 메서드 제공)
+ * (CRUD 자체는 LsPjtDataSttsRepository 사용; 본 리포는 페이징/검색 메서드 제공)
+ *
+ * <p>V34 이후 LS_PJT_DATA_STTS 의 PK 는 단일 RAW_DATA_ID — Pk(pjtId, rawDataId) 복합키 제거.
  */
 @ControlRepo
-public interface ReviewRepository extends JpaRepository<LsPjtDataStts, LsPjtDataStts.Pk> {
+public interface ReviewRepository extends JpaRepository<LsPjtDataStts, Long> {
 
     /**
-     * VIDEO_ID(=RAW_DATA_ID) 단위 검수 상태 조회. 동일 RAW_DATA_ID 가 여러 PJT 에 매핑될 수 있으므로 List.
-     * Phase 7 워크플로우에서는 단건만 사용 — 호출자에서 단건 보장 검증.
+     * VIDEO_ID(=RAW_DATA_ID) 단위 검수 상태 조회.
+     * PJT_ID 제거 후 RAW_DATA_ID 는 PK 이므로 단건만 존재한다.
      */
-    List<LsPjtDataStts> findByIdRawDataId(Long rawDataId);
+    Optional<LsPjtDataStts> findByRawDataId(Long rawDataId);
 
     /**
      * 검수 워크플로우 상태별 페이징 조회 (REVIEWER 의 검수 목록 화면용).

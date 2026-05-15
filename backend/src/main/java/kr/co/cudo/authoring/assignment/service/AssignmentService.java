@@ -67,26 +67,26 @@ public class AssignmentService {
         try {
             for (Long rawDataId : req.rawDataIds()) {
                 LsPjtUserAuthrt entity = authrtRepository.save(
-                        LsPjtUserAuthrt.createLabeler(req.pjtId(), rawDataId, req.workerId(), actorNo)
+                        LsPjtUserAuthrt.createLabeler(rawDataId, req.workerId(), actorNo)
                 );
-                LsPjtDataStts stts = upsertDataStts(req.pjtId(), rawDataId);
+                LsPjtDataStts stts = upsertDataStts(rawDataId);
                 stts.markAssigned();
                 // 통합 이벤트 로그 (SCR-TASK-003): 배정 이벤트 기록
                 taskEventLogRepository.save(
-                        LsPjtTaskEventLog.assign(req.pjtId(), rawDataId, actorNo, req.workerId())
+                        LsPjtTaskEventLog.assign(rawDataId, actorNo, req.workerId())
                 );
                 created.add(entity);
             }
             authrtRepository.flush();
         } catch (DataIntegrityViolationException e) {
-            log.warn("[Assignment] duplicate assignment detected pjtId={} workerId={}", req.pjtId(), req.workerId());
+            log.warn("[Assignment] duplicate assignment detected workerId={}", req.workerId());
             throw new CustomException(ErrorCode.CONFLICT, "이미 동일 작업자에게 배정된 영상이 있습니다.");
         }
 
         // 옵셔널 — REVIEWER 동시 등록. worker 배정과 동일 트랜잭션 내에서 수행하되,
         // UK 충돌(이미 동일 reviewer 가 동일 영상에 등록되어 있음) 은 정상 흐름으로 간주하여 skip.
         if (req.reviewerId() != null) {
-            assignReviewers(req.pjtId(), req.rawDataIds(), req.reviewerId(), actorNo);
+            assignReviewers(req.rawDataIds(), req.reviewerId(), actorNo);
         }
 
         log.info("[Assignment] created actor={} workerId={} count={} reviewerAttached={}",
@@ -95,13 +95,13 @@ public class AssignmentService {
     }
 
     /**
-     * REVIEWER 배정 — 각 rawDataId 에 대해 (PJT_ID, RAW_DATA_ID, USER_NO=reviewerId, TASK_TYPE_CD='REVIEWER')
+     * REVIEWER 배정 — 각 rawDataId 에 대해 (RAW_DATA_ID, USER_NO=reviewerId, TASK_TYPE_CD='REVIEWER')
      * row 가 이미 존재하는지 확인 후 없을 때만 INSERT.
      * UK 충돌이 발생해도 worker 배정 결과는 보존되어야 하므로 별도 try-catch 로 격리하고
      * 충돌은 WARN 로깅 후 무시 (이미 등록된 상태이므로 결과적으로 동일).
      * 이벤트 로그는 별도 이벤트 타입 도입 전까지 기록하지 않는다 (V1.x 정책).
      */
-    private void assignReviewers(Long pjtId, List<Long> rawDataIds, Long reviewerId, Long actorNo) {
+    private void assignReviewers(List<Long> rawDataIds, Long reviewerId, Long actorNo) {
         // 페이지 단위로 기존 REVIEWER 배정을 한 번에 batch 조회 (N+1 회피)
         List<LsPjtUserAuthrt> existing = rawDataIds.isEmpty()
                 ? List.of()
@@ -118,13 +118,12 @@ public class AssignmentService {
             }
             try {
                 authrtRepository.save(
-                        LsPjtUserAuthrt.createReviewer(pjtId, rawDataId, reviewerId, actorNo)
+                        LsPjtUserAuthrt.createReviewer(rawDataId, reviewerId, actorNo)
                 );
                 authrtRepository.flush();
             } catch (DataIntegrityViolationException e) {
                 // 동시성 등으로 인한 UK 충돌은 worker 배정에 영향 주지 않도록 격리.
-                log.warn("[Assignment] reviewer assign skipped (already exists) pjtId={} rawDataId={}",
-                        pjtId, rawDataId);
+                log.warn("[Assignment] reviewer assign skipped (already exists) rawDataId={}", rawDataId);
             }
         }
     }
@@ -145,7 +144,7 @@ public class AssignmentService {
         }
 
         // 사전 검증: 새 작업자가 이미 동일 영상에 LABELER 로 다른 row 를 갖고 있는지 확인.
-        // UK(PJT_ID, RAW_DATA_ID, USER_NO, TASK_TYPE_CD) 충돌을 flush 시점이 아닌
+        // UK(RAW_DATA_ID, USER_NO, TASK_TYPE_CD) 충돌을 flush 시점이 아닌
         // 사전에 명확한 메시지로 차단한다. (자기 자신 row 는 제외)
         boolean alreadyAssigned = authrtRepository
                 .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(
@@ -163,7 +162,7 @@ public class AssignmentService {
         hstryRepository.save(LsPjtUserAuthrtHstry.record(prev, req.workerId(), actorNo));
         // 통합 이벤트 로그 (SCR-TASK-003): 재배정 이벤트 기록
         taskEventLogRepository.save(LsPjtTaskEventLog.reassign(
-                prev.getPjtId(), prev.getRawDataId(), actorNo, req.workerId(), prevWorkerNo));
+                prev.getRawDataId(), actorNo, req.workerId(), prevWorkerNo));
         prev.reassignTo(req.workerId());
         try {
             authrtRepository.flush();
@@ -180,7 +179,7 @@ public class AssignmentService {
      * 영상 단위 통합 이벤트 이력 조회 — SCR-TASK-003 작업 이력 화면용.
      *
      * <p>배정/재배정/검수 제출/승인/반려를 시간순으로 통합 반환한다.
-     * {@code assignmentId} 로부터 (PJT_ID, RAW_DATA_ID) 를 도출하여
+     * {@code assignmentId} 로부터 RAW_DATA_ID 를 도출하여
      * {@link LsPjtTaskEventLog} 를 OCCURRED_AT ASC 로 조회하고,
      * actor/subject/prev userNo 를 한 번에 모아 {@code MNG_ACCT_USER} 를 일괄 조회하여 N+1 회피.
      *
@@ -203,7 +202,7 @@ public class AssignmentService {
         }
 
         List<LsPjtTaskEventLog> events = taskEventLogRepository
-                .findByPjtIdAndRawDataIdOrderByOccurredAtAsc(authrt.getPjtId(), authrt.getRawDataId());
+                .findByRawDataIdOrderByOccurredAtAsc(authrt.getRawDataId());
 
         // userNo batch lookup (N+1 회피)
         Set<Long> userNos = new HashSet<>();
@@ -371,15 +370,14 @@ public class AssignmentService {
     }
 
     /**
-     * LS_PJT_DATA_STTS upsert. PK(pjtId, rawDataId)가 이미 존재하면 그대로 반환,
+     * LS_PJT_DATA_STTS upsert. PK(rawDataId)가 이미 존재하면 그대로 반환,
      * 없으면 새로 생성. 동시 두 트랜잭션이 같은 PK 로 INSERT 시도해도 PK 제약으로
      * DataIntegrityViolationException 발생 → outer try-catch 가 CONFLICT 로 처리하여
      * 사용자는 재시도 가능. (낙관적 동시성 — 충돌 빈도 낮은 시나리오에 적합)
      */
-    private LsPjtDataStts upsertDataStts(Long pjtId, Long rawDataId) {
-        LsPjtDataStts.Pk pk = LsPjtDataStts.Pk.of(pjtId, rawDataId);
-        return dataSttsRepository.findById(pk)
-                .orElseGet(() -> dataSttsRepository.save(LsPjtDataStts.initial(pjtId, rawDataId)));
+    private LsPjtDataStts upsertDataStts(Long rawDataId) {
+        return dataSttsRepository.findById(rawDataId)
+                .orElseGet(() -> dataSttsRepository.save(LsPjtDataStts.initial(rawDataId)));
     }
 
     private void requireReviewer(TokenClaims actor) {

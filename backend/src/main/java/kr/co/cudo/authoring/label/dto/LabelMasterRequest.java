@@ -3,7 +3,6 @@ package kr.co.cudo.authoring.label.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -22,9 +21,6 @@ import jakarta.validation.constraints.Size;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record LabelMasterRequest(
-        @NotNull(message = "pjtId 는 필수입니다.")
-        Long pjtId,
-
         @NotBlank(message = "name 은 필수입니다.")
         @Size(max = 64, message = "name 은 64자 이하여야 합니다.")
         String name,

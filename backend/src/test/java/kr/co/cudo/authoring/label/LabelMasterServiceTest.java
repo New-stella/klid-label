@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 /**
  * 라벨 마스터 응용 서비스 단위 테스트 (Mockito).
  *
- * <p>CVAT-Like 라벨 풀 포팅 Phase 1.
+ * <p>CVAT-Like 라벨 풀 포팅 Phase 1. V34 이후 PJT_ID 제거됨.
  */
 class LabelMasterServiceTest {
 
@@ -38,22 +38,21 @@ class LabelMasterServiceTest {
         service = new LabelMasterService(repository);
     }
 
-    private static LabelMasterRequest req(Long pjtId, String name, String color, String type, Integer sortNo) {
-        return new LabelMasterRequest(pjtId, name, color, type, sortNo);
+    private static LabelMasterRequest req(String name, String color, String type, Integer sortNo) {
+        return new LabelMasterRequest(name, color, type, sortNo);
     }
 
     @Test
     @DisplayName("생성_정상_시_LsLabel_save_호출_및_응답_반환")
     void create_정상() {
-        when(repository.existsByPjtIdAndName(1L, "person")).thenReturn(false);
+        when(repository.existsByName("person")).thenReturn(false);
         when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        LabelMasterResponse res = service.create(req(1L, "person", "#E74C3C", "BBOX", 1), "1001");
+        LabelMasterResponse res = service.create(req("person", "#E74C3C", "BBOX", 1), "1001");
 
         ArgumentCaptor<LsLabel> captor = ArgumentCaptor.forClass(LsLabel.class);
         verify(repository).save(captor.capture());
         LsLabel saved = captor.getValue();
-        assertThat(saved.getPjtId()).isEqualTo(1L);
         assertThat(saved.getName()).isEqualTo("person");
         assertThat(saved.getColor()).isEqualTo("#E74C3C");
         assertThat(saved.getType()).isEqualTo("BBOX");
@@ -68,9 +67,9 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("생성_중복_이름_시_CONFLICT_예외")
     void create_중복이름_CONFLICT() {
-        when(repository.existsByPjtIdAndName(1L, "person")).thenReturn(true);
+        when(repository.existsByName("person")).thenReturn(true);
 
-        assertThatThrownBy(() -> service.create(req(1L, "person", "#E74C3C", "BBOX", 1), "1001"))
+        assertThatThrownBy(() -> service.create(req("person", "#E74C3C", "BBOX", 1), "1001"))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
 
@@ -82,7 +81,7 @@ class LabelMasterServiceTest {
     void update_없는라벨_NOT_FOUND() {
         when(repository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.update(99L, req(1L, "person", "#E74C3C", "BBOX", 1), "1001"))
+        assertThatThrownBy(() -> service.update(99L, req("person", "#E74C3C", "BBOX", 1), "1001"))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("NOT_FOUND"));
     }
@@ -90,7 +89,7 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("삭제_시_USE_YN_N_으로_soft_delete")
     void delete_soft() {
-        LsLabel label = LsLabel.create(1L, "person", "#E74C3C", "BBOX", 1, "1001");
+        LsLabel label = LsLabel.create("person", "#E74C3C", "BBOX", 1, "1001");
         when(repository.findById(10L)).thenReturn(Optional.of(label));
 
         service.delete(10L, "1001");
@@ -102,26 +101,26 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("목록_조회_시_USE_YN_Y_만_sort_no_ASC_반환")
     void list_활성만_정렬() {
-        LsLabel a = LsLabel.create(1L, "person", "#E74C3C", "BBOX", 1, "seed");
-        LsLabel b = LsLabel.create(1L, "car", "#3498DB", "BBOX", 2, "seed");
-        when(repository.findByPjtIdAndUseYnOrderBySortNoAsc(1L, "Y")).thenReturn(List.of(a, b));
+        LsLabel a = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
+        LsLabel b = LsLabel.create("car", "#3498DB", "BBOX", 2, "seed");
+        when(repository.findByUseYnOrderBySortNoAsc("Y")).thenReturn(List.of(a, b));
 
-        List<LabelMasterResponse> result = service.list(1L);
+        List<LabelMasterResponse> result = service.list();
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).name()).isEqualTo("person");
         assertThat(result.get(1).name()).isEqualTo("car");
-        verify(repository).findByPjtIdAndUseYnOrderBySortNoAsc(1L, "Y");
+        verify(repository).findByUseYnOrderBySortNoAsc("Y");
     }
 
     @Test
     @DisplayName("수정_정상_시_이름_색상_타입_변경_및_mdfcnId_기록")
     void update_정상() {
-        LsLabel label = LsLabel.create(1L, "person", "#E74C3C", "BBOX", 1, "seed");
+        LsLabel label = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
         when(repository.findById(10L)).thenReturn(Optional.of(label));
-        when(repository.existsByPjtIdAndNameAndLabelIdNot(1L, "person-v2", 10L)).thenReturn(false);
+        when(repository.existsByNameAndLabelIdNot("person-v2", 10L)).thenReturn(false);
 
-        LabelMasterResponse res = service.update(10L, req(1L, "person-v2", "#AABBCC", "POLYGON", 5), "1002");
+        LabelMasterResponse res = service.update(10L, req("person-v2", "#AABBCC", "POLYGON", 5), "1002");
 
         assertThat(res.name()).isEqualTo("person-v2");
         assertThat(label.getName()).isEqualTo("person-v2");
@@ -134,11 +133,11 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("수정_시_다른_라벨과_이름_중복이면_CONFLICT")
     void update_이름중복_CONFLICT() {
-        LsLabel label = LsLabel.create(1L, "person", "#E74C3C", "BBOX", 1, "seed");
+        LsLabel label = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
         when(repository.findById(10L)).thenReturn(Optional.of(label));
-        when(repository.existsByPjtIdAndNameAndLabelIdNot(1L, "car", 10L)).thenReturn(true);
+        when(repository.existsByNameAndLabelIdNot("car", 10L)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.update(10L, req(1L, "car", "#3498DB", "BBOX", 2), "1002"))
+        assertThatThrownBy(() -> service.update(10L, req("car", "#3498DB", "BBOX", 2), "1002"))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
     }

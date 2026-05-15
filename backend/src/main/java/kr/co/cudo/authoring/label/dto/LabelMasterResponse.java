@@ -9,7 +9,6 @@ import kr.co.cudo.authoring.label.entity.LsLabel;
  */
 public record LabelMasterResponse(
         Long labelId,
-        Long pjtId,
         String name,
         String color,
         String type,
@@ -21,7 +20,6 @@ public record LabelMasterResponse(
     public static LabelMasterResponse from(LsLabel e) {
         return new LabelMasterResponse(
                 e.getLabelId(),
-                e.getPjtId(),
                 e.getName(),
                 e.getColor(),
                 e.getType(),

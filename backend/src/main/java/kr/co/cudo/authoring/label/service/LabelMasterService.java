@@ -20,7 +20,7 @@ import java.util.List;
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>create: 동일 (pjtId, name) 중복 시 {@link ErrorCode#CONFLICT}.</li>
+ *   <li>create: 동일 name 중복 시 {@link ErrorCode#CONFLICT}.</li>
  *   <li>update: name 변경 시 동일 검증, 자기 자신 제외.</li>
  *   <li>delete: soft delete (USE_YN='N'). hard delete 절대 안 함.</li>
  *   <li>list: 활성(USE_YN='Y') 라벨만 SORT_NO ASC 로 반환.</li>
@@ -37,27 +37,26 @@ public class LabelMasterService {
 
     /** 활성 라벨 목록 — sort_no ASC. */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public List<LabelMasterResponse> list(Long pjtId) {
-        return labelRepository.findByPjtIdAndUseYnOrderBySortNoAsc(pjtId, USE_YN_ACTIVE).stream()
+    public List<LabelMasterResponse> list() {
+        return labelRepository.findByUseYnOrderBySortNoAsc(USE_YN_ACTIVE).stream()
                 .map(LabelMasterResponse::from)
                 .toList();
     }
 
-    /** 라벨 신규 등록 — 동일 (pjtId, name) 중복 시 CONFLICT. */
+    /** 라벨 신규 등록 — 동일 name 중복 시 CONFLICT. */
     @Transactional("controlTransactionManager")
     public LabelMasterResponse create(LabelMasterRequest req, String regId) {
-        if (labelRepository.existsByPjtIdAndName(req.pjtId(), req.name())) {
+        if (labelRepository.existsByName(req.name())) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 라벨 이름입니다.");
         }
         LsLabel saved = labelRepository.save(LsLabel.create(
-                req.pjtId(),
                 req.name(),
                 req.color(),
                 req.type(),
                 req.sortNo(),
                 regId
         ));
-        log.info("[Label] created labelId={}, pjtId={}, name={}", saved.getLabelId(), saved.getPjtId(), saved.getName());
+        log.info("[Label] created labelId={}, name={}", saved.getLabelId(), saved.getName());
         return LabelMasterResponse.from(saved);
     }
 
@@ -67,7 +66,7 @@ public class LabelMasterService {
         LsLabel label = labelRepository.findById(labelId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "라벨을 찾을 수 없습니다."));
         // name 변경 시 동일 검증 (자기 자신 제외).
-        if (labelRepository.existsByPjtIdAndNameAndLabelIdNot(req.pjtId(), req.name(), labelId)) {
+        if (labelRepository.existsByNameAndLabelIdNot(req.name(), labelId)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 라벨 이름입니다.");
         }
         label.update(req.name(), req.color(), req.type(), req.sortNo(), mdfcnId);

@@ -91,7 +91,7 @@ class VersionControllerTest {
                 .getSrcSn();
 
         // 작업자 100 만 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
     }
 
     private LsLabelVersion seedVersion(String sha, int versionNo, String reasonCd, String regId, boolean active) {

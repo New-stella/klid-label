@@ -42,8 +42,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional("controlTransactionManager")
 class LabelAttrControllerTest {
 
-    private static final long TEST_PJT_ID = 8888L;
-
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private LsLabelRepository labelRepository;
@@ -64,7 +62,7 @@ class LabelAttrControllerTest {
         workerToken   = JwtTestSupport.token(secret, "2001", "WORKER",   "INTERNAL", issuer, 60);
 
         LsLabel label = labelRepository.save(
-                LsLabel.create(TEST_PJT_ID, "person", "#E74C3C", "BBOX", 1, "seed"));
+                LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed"));
         labelId = label.getLabelId();
     }
 

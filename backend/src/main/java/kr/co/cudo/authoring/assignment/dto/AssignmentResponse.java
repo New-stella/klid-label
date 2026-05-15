@@ -11,7 +11,6 @@ public record AssignmentResponse(
     public record Item(
             Long id,
             Long authrtSeq,
-            Long pjtId,
             Long workerId,
             Long videoId,
             String videoTitle,
@@ -77,7 +76,6 @@ public record AssignmentResponse(
             return new Item(
                     e.getAuthrtSeq(),
                     e.getAuthrtSeq(),
-                    e.getPjtId(),
                     e.getUserNo(),
                     e.getRawDataId(),
                     videoTitle,

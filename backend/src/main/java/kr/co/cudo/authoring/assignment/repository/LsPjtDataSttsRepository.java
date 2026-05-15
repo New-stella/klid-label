@@ -5,5 +5,5 @@ import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 @ControlRepo
-public interface LsPjtDataSttsRepository extends JpaRepository<LsPjtDataStts, LsPjtDataStts.Pk> {
+public interface LsPjtDataSttsRepository extends JpaRepository<LsPjtDataStts, Long> {
 }

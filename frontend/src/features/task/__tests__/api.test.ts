@@ -50,10 +50,10 @@ describe('task api', () => {
     expect(res.totalElements).toBe(1);
   });
 
-  it('assignTask_POST_assignments_body_pjtId_workerId_rawDataIds', async () => {
+  it('assignTask_POST_assignments_body_workerId_rawDataIds', async () => {
     mock.onPost('/assignments').reply((config) => {
       const body = JSON.parse(config.data ?? '{}');
-      expect(body).toMatchObject({ pjtId: 1, workerId: 7, rawDataIds: [1, 2] });
+      expect(body).toMatchObject({ workerId: 7, rawDataIds: [1, 2] });
       return [
         201,
         {
@@ -65,7 +65,7 @@ describe('task api', () => {
       ];
     });
 
-    const a = await assignTask({ pjtId: 1, workerId: 7, rawDataIds: [1, 2] });
+    const a = await assignTask({ workerId: 7, rawDataIds: [1, 2] });
     expect(a.id).toBe(200);
   });
 

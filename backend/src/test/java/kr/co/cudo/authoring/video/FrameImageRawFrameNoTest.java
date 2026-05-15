@@ -266,7 +266,7 @@ class FrameImageRawFrameNoTest {
     void workerRawTrueIgnoredForcesDeid() throws Exception {
         // WORKER 100 을 PRVC 영상에 LABELER 배정 (isAuthenticated 통과 + DEID 정책 검증)
         authrtRepository.save(
-                kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt.createLabeler(20L, rawSnPrvc, 100L, 1L));
+                kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt.createLabeler(rawSnPrvc, 100L, 1L));
 
         long sizeOfDeid = Files.size(framePathPrvcDeid);
 

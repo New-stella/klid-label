@@ -84,7 +84,7 @@ class DeidentReportControllerTest {
         srcSn = srcRepository.save(src).getSrcSn();
 
         // 작업자 100 만 LABELER 배정 (101 미배정)
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
     }
 
     @Test

@@ -27,9 +27,6 @@ public class LsPjtUserAuthrtHstry {
     @Column(name = "AUTHRT_SEQ", nullable = false)
     private Long authrtSeq;
 
-    @Column(name = "PJT_ID", nullable = false)
-    private Long pjtId;
-
     @Column(name = "RAW_DATA_ID", nullable = false)
     private Long rawDataId;
 
@@ -49,10 +46,9 @@ public class LsPjtUserAuthrtHstry {
     private LocalDateTime chgDt;
 
     @Builder
-    private LsPjtUserAuthrtHstry(Long authrtSeq, Long pjtId, Long rawDataId, Long prevUserNo, Long newUserNo,
+    private LsPjtUserAuthrtHstry(Long authrtSeq, Long rawDataId, Long prevUserNo, Long newUserNo,
                                  String taskTypeCd, Long chgUserNo, LocalDateTime chgDt) {
         this.authrtSeq = authrtSeq;
-        this.pjtId = pjtId;
         this.rawDataId = rawDataId;
         this.prevUserNo = prevUserNo;
         this.newUserNo = newUserNo;
@@ -64,7 +60,6 @@ public class LsPjtUserAuthrtHstry {
     public static LsPjtUserAuthrtHstry record(LsPjtUserAuthrt prev, Long newUserNo, Long chgUserNo) {
         return LsPjtUserAuthrtHstry.builder()
                 .authrtSeq(prev.getAuthrtSeq())
-                .pjtId(prev.getPjtId())
                 .rawDataId(prev.getRawDataId())
                 .prevUserNo(prev.getUserNo())
                 .newUserNo(newUserNo)

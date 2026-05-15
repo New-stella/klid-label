@@ -7,10 +7,6 @@ import jakarta.validation.constraints.Positive;
 import java.util.List;
 
 public record AssignmentCreateRequest(
-        @NotNull(message = "pjtId 는 필수입니다.")
-        @Positive
-        Long pjtId,
-
         @NotNull(message = "workerId 는 필수입니다.")
         @Positive
         Long workerId,
@@ -28,7 +24,7 @@ public record AssignmentCreateRequest(
     /**
      * Backward-compatible 보조 생성자 — reviewerId 도입 이전 코드/테스트 호환용.
      */
-    public AssignmentCreateRequest(Long pjtId, Long workerId, List<Long> rawDataIds) {
-        this(pjtId, workerId, rawDataIds, null);
+    public AssignmentCreateRequest(Long workerId, List<Long> rawDataIds) {
+        this(workerId, rawDataIds, null);
     }
 }

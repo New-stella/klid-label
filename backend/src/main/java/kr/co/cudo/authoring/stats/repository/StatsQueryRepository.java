@@ -50,7 +50,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
 
     /**
      * 검수 워크플로우 상태별 카운트 (PENDING / IN_REVIEW / APPROVED / REJECTED).
-     * LS_PJT_DATA_STTS 는 (PJT_ID, RAW_DATA_ID) 복합 PK 라 동일 영상이 여러 PJT 에 매핑돼도 각각 1 건씩 계산된다.
+     * V34 이후 LS_PJT_DATA_STTS 의 PK 는 단일 RAW_DATA_ID.
      */
     @Query("""
             SELECT s.dataSttsCd AS code, COUNT(s) AS cnt
@@ -65,15 +65,14 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
 
     /**
      * 특정 사용자의 라벨링(작업) 상태별 카운트.
-     * LS_PJT_USER_AUTHRT(LABELER) ⨝ LS_PJT_DATA_STTS on (PJT_ID, RAW_DATA_ID).
+     * LS_PJT_USER_AUTHRT(LABELER) ⨝ LS_PJT_DATA_STTS on RAW_DATA_ID.
      */
     @Query("""
             SELECT s.dataSttsCd AS code, COUNT(s) AS cnt
               FROM LsPjtUserAuthrt a, LsPjtDataStts s
              WHERE a.userNo = :userNo
                AND a.taskTypeCd = 'LABELER'
-               AND a.pjtId = s.id.pjtId
-               AND a.rawDataId = s.id.rawDataId
+               AND a.rawDataId = s.rawDataId
              GROUP BY s.dataSttsCd
             """)
     List<CountRow> countMyTaskByStatus(@Param("userNo") Long userNo);
@@ -100,8 +99,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
               FROM MngAcctUser u, LsPjtUserAuthrt a, LsPjtDataStts s
              WHERE u.userNo = a.userNo
                AND a.taskTypeCd = 'LABELER'
-               AND a.pjtId = s.id.pjtId
-               AND a.rawDataId = s.id.rawDataId
+               AND a.rawDataId = s.rawDataId
              GROUP BY u.userNo, u.userNm
              ORDER BY SUM(CASE WHEN s.dataSttsCd IN ('APPROVED','IN_REVIEW','REJECTED') THEN 1 ELSE 0 END) DESC
             """)

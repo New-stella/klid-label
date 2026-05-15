@@ -89,7 +89,7 @@ class FrameImageControllerTest {
         srcSn = src.getSrcSn();
 
         // WORKER 100 만 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
 
         // 실제 JPEG 파일 생성 — SeedImageGenerator 사용
         baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();

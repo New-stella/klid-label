@@ -10,8 +10,8 @@ import java.util.List;
 public interface LsPjtTaskEventLogRepository extends JpaRepository<LsPjtTaskEventLog, Long> {
 
     /**
-     * 영상(PJT_ID + RAW_DATA_ID) 단위 이벤트 로그 시간순 조회.
+     * 영상(RAW_DATA_ID) 단위 이벤트 로그 시간순 조회.
      * SCR-TASK-003 작업 이력 화면의 통합 타임라인 응답에 사용.
      */
-    List<LsPjtTaskEventLog> findByPjtIdAndRawDataIdOrderByOccurredAtAsc(Long pjtId, Long rawDataId);
+    List<LsPjtTaskEventLog> findByRawDataIdOrderByOccurredAtAsc(Long rawDataId);
 }

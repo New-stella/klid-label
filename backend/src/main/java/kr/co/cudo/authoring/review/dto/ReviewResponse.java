@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 /**
  * 검수 워크플로우 단건 응답.
  *
- * <p>BE 원본 컬럼(pjtId/dataSttsCd/version/updDt) 외에 FE 호환 alias 필드를 함께 노출해
+ * <p>BE 원본 컬럼(dataSttsCd/version/updDt) 외에 FE 호환 alias 필드를 함께 노출해
  * 화면 측 필드명 매핑을 단순화한다.
  * <ul>
  *   <li>{@code id}            = {@code videoId} (FE 라우팅 PK)</li>
@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  *   <li>{@code labelCount}    = LS_DATA_LBL count by srcSn for this rawSn — 없으면 0</li>
  *   <li>{@code status}        = FE ReviewStatus 코드 (BE dataSttsCd → FE 코드 매핑)</li>
  * </ul>
- * 기존 필드(pjtId/videoId/dataSttsCd/version/updDt)는 backward-compat 유지.
+ * BE 원본 필드(videoId/dataSttsCd/version/updDt)는 backward-compat 유지.
  */
 public record ReviewResponse(
         // FE 호환 alias
@@ -30,7 +30,6 @@ public record ReviewResponse(
         Long labelCount,
         String status,
         // BE 원본 필드 (호환 유지)
-        Long pjtId,
         Long videoId,
         String dataSttsCd,
         Long version,
@@ -48,7 +47,7 @@ public record ReviewResponse(
                                       Long workerId,
                                       String workerName,
                                       Long labelCount) {
-        Long videoId = stts.getId().getRawDataId();
+        Long videoId = stts.getRawDataId();
         String resolvedCctv = (cctvName != null && !cctvName.isBlank())
                 ? cctvName : ("video #" + videoId);
         String resolvedWorkerName = workerName == null ? "" : workerName;
@@ -62,7 +61,6 @@ public record ReviewResponse(
                 stts.getUpdDt(),
                 resolvedLabelCount,
                 feStatus,
-                stts.getId().getPjtId(),
                 videoId,
                 stts.getDataSttsCd(),
                 stts.getVersion(),

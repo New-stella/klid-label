@@ -151,7 +151,7 @@ public class ReviewService {
         // 통합 이벤트 로그 (SCR-TASK-003): 검수 제출 이벤트 기록
         Long workerUserNo = parseUserNo(actor.sub());
         taskEventLogRepository.save(LsPjtTaskEventLog.submit(
-                stts.getId().getPjtId(), stts.getId().getRawDataId(), workerUserNo));
+                stts.getRawDataId(), workerUserNo));
         log.info("[Review] submitted videoId={} actor={}", videoId, actor.sub());
         return ReviewResponse.from(stts);
     }
@@ -181,7 +181,7 @@ public class ReviewService {
         // 통합 이벤트 로그 (SCR-TASK-003): 승인 이벤트 기록
         Long reviewerUserNo = parseUserNo(actor.sub());
         taskEventLogRepository.save(LsPjtTaskEventLog.approve(
-                stts.getId().getPjtId(), stts.getId().getRawDataId(), reviewerUserNo));
+                stts.getRawDataId(), reviewerUserNo));
         try {
             reviewRepository.flush();
         } catch (OptimisticLockingFailureException e) {
@@ -215,7 +215,7 @@ public class ReviewService {
         // 통합 이벤트 로그 (SCR-TASK-003): 반려 이벤트 기록
         Long reviewerUserNo = parseUserNo(actor.sub());
         taskEventLogRepository.save(LsPjtTaskEventLog.reject(
-                stts.getId().getPjtId(), stts.getId().getRawDataId(), reviewerUserNo, req.reason()));
+                stts.getRawDataId(), reviewerUserNo, req.reason()));
         try {
             reviewRepository.flush();
         } catch (OptimisticLockingFailureException e) {
@@ -227,17 +227,12 @@ public class ReviewService {
     }
 
     /**
-     * VIDEO_ID(=RAW_SN) 단위 LS_PJT_DATA_STTS 조회. 동일 RAW_DATA_ID 가 여러 PJT 매핑된 경우 단건 보장 깨짐 → 409.
+     * VIDEO_ID(=RAW_SN) 단위 LS_PJT_DATA_STTS 조회.
+     * V34 이후 RAW_DATA_ID 는 단일 PK 이므로 단건 조회 후 미존재 시 404.
      */
     private LsPjtDataStts loadByVideoId(Long videoId) {
-        List<LsPjtDataStts> list = reviewRepository.findByIdRawDataId(videoId);
-        if (list.isEmpty()) {
-            throw new CustomException(ErrorCode.NOT_FOUND, "검수 대상 영상을 찾을 수 없습니다.");
-        }
-        if (list.size() > 1) {
-            throw new CustomException(ErrorCode.CONFLICT, "동일 영상이 다수 프로젝트에 매핑되어 있습니다.");
-        }
-        return list.get(0);
+        return reviewRepository.findByRawDataId(videoId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "검수 대상 영상을 찾을 수 없습니다."));
     }
 
     /**

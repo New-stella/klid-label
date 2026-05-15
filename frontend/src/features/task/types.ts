@@ -43,8 +43,6 @@ export interface TaskListParams {
 }
 
 export interface AssignTaskRequest {
-  /** 프로젝트 ID. 현재 단일 프로젝트 운영 — 기본 1 사용. */
-  pjtId: number;
   workerId: number;
   /** 영상(LS_DATA_RAW) PK 목록 — 1건 이상 필수. */
   rawDataIds: number[];

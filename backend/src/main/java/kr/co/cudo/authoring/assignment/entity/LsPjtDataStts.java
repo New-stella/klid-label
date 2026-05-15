@@ -1,18 +1,15 @@
 package kr.co.cudo.authoring.assignment.entity;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Embeddable;
-import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Entity
@@ -28,8 +25,9 @@ public class LsPjtDataStts {
     public static final String STTS_APPROVED = "APPROVED";
     public static final String STTS_REJECTED = "REJECTED";
 
-    @EmbeddedId
-    private Pk id;
+    @Id
+    @Column(name = "RAW_DATA_ID")
+    private Long rawDataId;
 
     @Column(name = "DATA_STTS_CD", nullable = false, length = 32)
     private String dataSttsCd;
@@ -52,17 +50,17 @@ public class LsPjtDataStts {
     private Long version;
 
     @Builder
-    private LsPjtDataStts(Pk id, String dataSttsCd, int stpCycl, int igiCycl, LocalDateTime updDt) {
-        this.id = id;
+    private LsPjtDataStts(Long rawDataId, String dataSttsCd, int stpCycl, int igiCycl, LocalDateTime updDt) {
+        this.rawDataId = rawDataId;
         this.dataSttsCd = dataSttsCd;
         this.stpCycl = stpCycl;
         this.igiCycl = igiCycl;
         this.updDt = updDt;
     }
 
-    public static LsPjtDataStts initial(Long pjtId, Long rawDataId) {
+    public static LsPjtDataStts initial(Long rawDataId) {
         return LsPjtDataStts.builder()
-                .id(Pk.of(pjtId, rawDataId))
+                .rawDataId(rawDataId)
                 .dataSttsCd(STTS_PENDING)
                 .stpCycl(0)
                 .igiCycl(0)
@@ -82,26 +80,5 @@ public class LsPjtDataStts {
     public void transitionTo(String newStatus) {
         this.dataSttsCd = newStatus;
         this.updDt = LocalDateTime.now();
-    }
-
-    @Embeddable
-    @Getter
-    @EqualsAndHashCode
-    @NoArgsConstructor(access = AccessLevel.PROTECTED)
-    public static class Pk implements Serializable {
-        @Column(name = "PJT_ID")
-        private Long pjtId;
-
-        @Column(name = "RAW_DATA_ID")
-        private Long rawDataId;
-
-        private Pk(Long pjtId, Long rawDataId) {
-            this.pjtId = pjtId;
-            this.rawDataId = rawDataId;
-        }
-
-        public static Pk of(Long pjtId, Long rawDataId) {
-            return new Pk(pjtId, rawDataId);
-        }
     }
 }

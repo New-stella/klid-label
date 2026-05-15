@@ -167,9 +167,8 @@ export function AssignModal({
           ? [videoId]
           : [];
     if (targetVideoIds.length === 0) return;
-    // BE 계약: { pjtId, workerId, rawDataIds, reviewerId? } — 현재 단일 프로젝트(PJT_ID=1) 운영 중
+    // BE 계약: { workerId, rawDataIds, reviewerId? }
     mutateAssign({
-      pjtId: 1,
       workerId: Number(workerId),
       rawDataIds: targetVideoIds,
       ...(reviewerId ? { reviewerId: Number(reviewerId) } : {}),

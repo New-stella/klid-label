@@ -1,12 +1,10 @@
 package kr.co.cudo.authoring.label.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.LabelMasterRequest;
@@ -24,7 +22,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,8 +35,10 @@ import java.util.List;
  *   <li>GET — REVIEWER + WORKER + PORTAL_USER (인증된 사용자 모두). SecurityConfig 에서 매처로 처리.</li>
  *   <li>POST / PUT / DELETE — REVIEWER 만 (메서드 {@code @PreAuthorize} + SecurityConfig 의 {@code /v1/manage/**} 매처).</li>
  * </ul>
+ *
+ * <p>V34 이후 — 프로젝트 개념 자체 제거. pjtId 파라미터 모두 제거됨.
  */
-@Tag(name = "LabelMaster", description = "프로젝트 단위 라벨 마스터 CRUD — REVIEWER 가 관리, 조회는 WORKER/PORTAL_USER 도 가능.")
+@Tag(name = "LabelMaster", description = "라벨 마스터 CRUD — REVIEWER 가 관리, 조회는 WORKER/PORTAL_USER 도 가능.")
 @RestController
 @RequestMapping("/v1/manage/labels")
 @RequiredArgsConstructor
@@ -49,16 +48,14 @@ public class LabelMasterController {
 
     private final LabelMasterService labelMasterService;
 
-    @Operation(summary = "프로젝트의 활성 라벨 마스터 목록 조회 (인증된 사용자)")
+    @Operation(summary = "활성 라벨 마스터 목록 조회 (인증된 사용자)")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패")
     })
     @GetMapping
-    public ApiResponse<List<LabelMasterResponse>> list(
-            @Parameter(description = "프로젝트 ID", required = true, example = "1")
-            @RequestParam("pjtId") @NotNull Long pjtId) {
-        return ApiResponse.ok(labelMasterService.list(pjtId));
+    public ApiResponse<List<LabelMasterResponse>> list() {
+        return ApiResponse.ok(labelMasterService.list());
     }
 
     @Operation(summary = "라벨 마스터 생성 (REVIEWER)")

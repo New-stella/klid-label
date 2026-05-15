@@ -56,7 +56,7 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("WORKER가_assignments_POST_호출시_403")
     void workerCannotAssign() throws Exception {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + workerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -67,7 +67,7 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("REVIEWER가_배정_시_LS_PJT_USER_AUTHRT에_LABELER_INSERT")
     void reviewerAssignsLabeler() throws Exception {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L, 1001L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L, 1001L));
         mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -89,7 +89,7 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("재배정_시_LS_PJT_USER_AUTHRT_HSTRY에_이전_레코드_INSERT")
     void reassignWritesHistory() throws Exception {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         String body = mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -117,8 +117,8 @@ class AssignmentControllerTest {
     @DisplayName("WORKER의_listAssignments는_본인_배정만_반환")
     void workerListsOnlyOwn() throws Exception {
         // 사전 데이터: worker100, worker101 각각 1건씩 배정
-        AssignmentCreateRequest req1 = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
-        AssignmentCreateRequest req2 = new AssignmentCreateRequest(10L, 101L, List.of(1001L));
+        AssignmentCreateRequest req1 = new AssignmentCreateRequest(100L, List.of(1000L));
+        AssignmentCreateRequest req2 = new AssignmentCreateRequest(101L, List.of(1001L));
         mockMvc.perform(post("/v1/assignments")
                 .header("Authorization", "Bearer " + reviewerToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -139,7 +139,7 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("WORKER가_다른_workerId_조회시_본인_데이터만_반환")
     void workerCannotEscalateViaWorkerIdParam() throws Exception {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 101L, List.of(1001L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(101L, List.of(1001L));
         mockMvc.perform(post("/v1/assignments")
                 .header("Authorization", "Bearer " + reviewerToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -162,9 +162,9 @@ class AssignmentControllerTest {
     @DisplayName("list_기본_sort_regDt_desc_적용_최신_배정이_먼저")
     void listDefaultSortIsRegDtDesc() throws Exception {
         // worker100 에 영상을 3건 시간차로 배정 (1000 → 1001 → 1002 순)
-        AssignmentCreateRequest r1 = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
-        AssignmentCreateRequest r2 = new AssignmentCreateRequest(10L, 100L, List.of(1001L));
-        AssignmentCreateRequest r3 = new AssignmentCreateRequest(10L, 100L, List.of(1002L));
+        AssignmentCreateRequest r1 = new AssignmentCreateRequest(100L, List.of(1000L));
+        AssignmentCreateRequest r2 = new AssignmentCreateRequest(100L, List.of(1001L));
+        AssignmentCreateRequest r3 = new AssignmentCreateRequest(100L, List.of(1002L));
         mockMvc.perform(post("/v1/assignments")
                 .header("Authorization", "Bearer " + reviewerToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -193,8 +193,8 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("list_sort_파라미터_명시시_override_적용")
     void listExplicitSortOverridesDefault() throws Exception {
-        AssignmentCreateRequest r1 = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
-        AssignmentCreateRequest r2 = new AssignmentCreateRequest(10L, 100L, List.of(1001L));
+        AssignmentCreateRequest r1 = new AssignmentCreateRequest(100L, List.of(1000L));
+        AssignmentCreateRequest r2 = new AssignmentCreateRequest(100L, List.of(1001L));
         mockMvc.perform(post("/v1/assignments")
                 .header("Authorization", "Bearer " + reviewerToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -217,7 +217,7 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("존재하지_않는_workerId_배정시_INVALID_INPUT")
     void unknownWorkerRejected() throws Exception {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 99999L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(99999L, List.of(1000L));
         mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -229,7 +229,7 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("PATCH로_reassign시_정상_동작_및_workerId_갱신")
     void patchReassignSucceeds() throws Exception {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         String body = mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -254,7 +254,7 @@ class AssignmentControllerTest {
     @DisplayName("WORKER가_본인_배정_이력_조회시_200")
     void workerCanReadOwnHistory() throws Exception {
         // worker100 에게 1000 영상 배정
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         String body = mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -276,7 +276,7 @@ class AssignmentControllerTest {
     @DisplayName("WORKER가_다른_작업자_배정_이력_조회시_403_FORBIDDEN_IDOR_방어")
     void workerCannotReadOthersHistory() throws Exception {
         // worker101 에게 1001 영상 배정
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 101L, List.of(1001L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(101L, List.of(1001L));
         String body = mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -295,7 +295,7 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("REVIEWER는_모든_배정_이력_조회_가능_200")
     void reviewerCanReadAnyHistory() throws Exception {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         String body = mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -313,7 +313,7 @@ class AssignmentControllerTest {
     @Test
     @DisplayName("한_영상에_같은_작업자_중복_배정시_409_CONFLICT")
     void duplicateAssignmentConflict() throws Exception {
-        AssignmentCreateRequest req = new AssignmentCreateRequest(10L, 100L, List.of(1000L));
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         mockMvc.perform(post("/v1/assignments")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)

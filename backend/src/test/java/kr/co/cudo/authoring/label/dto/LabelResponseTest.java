@@ -133,7 +133,7 @@ class LabelResponseTest {
         LsDataLbl entity = LsDataLbl.createAutoBbox(
                 1L, 7L, "person", "[[1,1],[2,2]]", BigDecimal.valueOf(0.9), "track-1");
         kr.co.cudo.authoring.label.entity.LsLabel master =
-                kr.co.cudo.authoring.label.entity.LsLabel.create(1L, "person", "#E74C3C", "BBOX", 1, "seed");
+                kr.co.cudo.authoring.label.entity.LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
 
         LabelResponse.Item item = LabelResponse.Item.from(entity,
                 autoAiInfo(LsDataLblAiInfo.SRC_YOLO), master, objectMapper);
@@ -164,7 +164,7 @@ class LabelResponseTest {
         LsDataLbl entity = LsDataLbl.createAutoBbox(
                 1L, 7L, "person", "[[1,1]]", BigDecimal.valueOf(0.9), null);
         kr.co.cudo.authoring.label.entity.LsLabel master =
-                kr.co.cudo.authoring.label.entity.LsLabel.create(1L, "person", "#E74C3C", "BBOX", 1, "seed");
+                kr.co.cudo.authoring.label.entity.LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
 
         LabelResponse.Item item = LabelResponse.Item.from(entity,
                 autoAiInfo(LsDataLblAiInfo.SRC_YOLO), master, objectMapper);

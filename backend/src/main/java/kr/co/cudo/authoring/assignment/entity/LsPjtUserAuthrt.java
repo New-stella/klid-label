@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,7 +15,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "LS_PJT_USER_AUTHRT")
+@Table(name = "LS_PJT_USER_AUTHRT", uniqueConstraints = {
+        @UniqueConstraint(name = "UK_LS_PJT_USER_AUTHRT",
+                columnNames = {"RAW_DATA_ID", "USER_NO", "TASK_TYPE_CD"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LsPjtUserAuthrt {
@@ -26,9 +30,6 @@ public class LsPjtUserAuthrt {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "AUTHRT_SEQ")
     private Long authrtSeq;
-
-    @Column(name = "PJT_ID", nullable = false)
-    private Long pjtId;
 
     @Column(name = "USER_NO", nullable = false)
     private Long userNo;
@@ -46,9 +47,8 @@ public class LsPjtUserAuthrt {
     private LocalDateTime regDt;
 
     @Builder
-    private LsPjtUserAuthrt(Long pjtId, Long userNo, Long rawDataId, String taskTypeCd,
+    private LsPjtUserAuthrt(Long userNo, Long rawDataId, String taskTypeCd,
                             Long regUserNo, LocalDateTime regDt) {
-        this.pjtId = pjtId;
         this.userNo = userNo;
         this.rawDataId = rawDataId;
         this.taskTypeCd = taskTypeCd;
@@ -56,9 +56,8 @@ public class LsPjtUserAuthrt {
         this.regDt = regDt;
     }
 
-    public static LsPjtUserAuthrt createLabeler(Long pjtId, Long rawDataId, Long workerNo, Long actorNo) {
+    public static LsPjtUserAuthrt createLabeler(Long rawDataId, Long workerNo, Long actorNo) {
         return LsPjtUserAuthrt.builder()
-                .pjtId(pjtId)
                 .userNo(workerNo)
                 .rawDataId(rawDataId)
                 .taskTypeCd(TASK_LABELER)
@@ -67,9 +66,8 @@ public class LsPjtUserAuthrt {
                 .build();
     }
 
-    public static LsPjtUserAuthrt createReviewer(Long pjtId, Long rawDataId, Long reviewerNo, Long actorNo) {
+    public static LsPjtUserAuthrt createReviewer(Long rawDataId, Long reviewerNo, Long actorNo) {
         return LsPjtUserAuthrt.builder()
-                .pjtId(pjtId)
                 .userNo(reviewerNo)
                 .rawDataId(rawDataId)
                 .taskTypeCd(TASK_REVIEWER)

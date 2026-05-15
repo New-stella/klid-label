@@ -91,7 +91,7 @@ class VersionServiceTest {
                 .getSrcSn();
 
         // 작업자 100 만 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
 
         // 이전 테스트 잔여 잠금 정리.
         workLockService.releaseRaw(rawSn, "test", "TEST_SETUP");

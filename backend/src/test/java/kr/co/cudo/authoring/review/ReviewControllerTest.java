@@ -53,7 +53,6 @@ class ReviewControllerTest {
     private String workerAssignedToken;     // user 100
     private String workerNotAssignedToken;  // user 101
 
-    private static final Long PJT_ID = 10L;
     private Long videoId;
 
     @BeforeEach
@@ -71,11 +70,11 @@ class ReviewControllerTest {
         videoId = raw.getRawSn();
 
         // 작업자 100 만 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(PJT_ID, videoId, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(videoId, 100L, 1L));
     }
 
     private void seedDataStts(String status) {
-        LsPjtDataStts stts = LsPjtDataStts.initial(PJT_ID, videoId);
+        LsPjtDataStts stts = LsPjtDataStts.initial(videoId);
         stts.transitionTo(status);
         dataSttsRepository.save(stts);
     }
@@ -114,7 +113,7 @@ class ReviewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dataSttsCd").value("APPROVED"));
 
-        LsPjtDataStts after = dataSttsRepository.findById(LsPjtDataStts.Pk.of(PJT_ID, videoId)).orElseThrow();
+        LsPjtDataStts after = dataSttsRepository.findById(videoId).orElseThrow();
         assertThat(after.getDataSttsCd()).isEqualTo("APPROVED");
     }
 
@@ -131,7 +130,7 @@ class ReviewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dataSttsCd").value("REJECTED"));
 
-        LsPjtDataStts after = dataSttsRepository.findById(LsPjtDataStts.Pk.of(PJT_ID, videoId)).orElseThrow();
+        LsPjtDataStts after = dataSttsRepository.findById(videoId).orElseThrow();
         assertThat(after.getDataSttsCd()).isEqualTo("REJECTED");
 
         List<LsDataIssue> issues = issueRepository.findByVideoIdOrderByRegisteredAtDesc(videoId);
@@ -208,7 +207,7 @@ class ReviewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dataSttsCd").value("PENDING"));
 
-        LsPjtDataStts after = dataSttsRepository.findById(LsPjtDataStts.Pk.of(PJT_ID, videoId)).orElseThrow();
+        LsPjtDataStts after = dataSttsRepository.findById(videoId).orElseThrow();
         assertThat(after.getDataSttsCd()).isEqualTo("PENDING");
     }
 

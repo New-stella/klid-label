@@ -27,15 +27,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 라벨 마스터 Controller 통합 테스트 (MockMvc + Security).
  *
- * <p>CVAT-Like 라벨 풀 포팅 Phase 1.
+ * <p>CVAT-Like 라벨 풀 포팅 Phase 1. V34 이후 PJT_ID 제거.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 @Transactional("controlTransactionManager")
 class LabelMasterControllerTest {
-
-    private static final long TEST_PJT_ID = 7777L;
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -55,7 +53,6 @@ class LabelMasterControllerTest {
 
     private ObjectNode body(String name, String color, String type, Integer sortNo) {
         ObjectNode node = objectMapper.createObjectNode();
-        node.put("pjtId", TEST_PJT_ID);
         node.put("name", name);
         node.put("color", color);
         node.put("type", type);
@@ -68,10 +65,9 @@ class LabelMasterControllerTest {
     @Test
     @DisplayName("GET_라벨목록_REVIEWER_200")
     void getLabels_REVIEWER_200() throws Exception {
-        labelRepository.save(LsLabel.create(TEST_PJT_ID, "person", "#E74C3C", "BBOX", 1, "seed"));
+        labelRepository.save(LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed"));
 
         mockMvc.perform(get("/v1/manage/labels")
-                        .param("pjtId", String.valueOf(TEST_PJT_ID))
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -82,10 +78,9 @@ class LabelMasterControllerTest {
     @Test
     @DisplayName("GET_라벨목록_WORKER_200")
     void getLabels_WORKER_200() throws Exception {
-        labelRepository.save(LsLabel.create(TEST_PJT_ID, "car", "#3498DB", "BBOX", 2, "seed"));
+        labelRepository.save(LsLabel.create("car", "#3498DB", "BBOX", 2, "seed"));
 
         mockMvc.perform(get("/v1/manage/labels")
-                        .param("pjtId", String.valueOf(TEST_PJT_ID))
                         .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -108,7 +103,7 @@ class LabelMasterControllerTest {
                 .andExpect(jsonPath("$.data.type").value("BBOX"))
                 .andExpect(jsonPath("$.data.useYn").value("Y"));
 
-        assertThat(labelRepository.existsByPjtIdAndName(TEST_PJT_ID, "person")).isTrue();
+        assertThat(labelRepository.existsByName("person")).isTrue();
     }
 
     @Test
@@ -161,7 +156,7 @@ class LabelMasterControllerTest {
     @Test
     @DisplayName("POST_중복_name_409")
     void postLabel_중복name_409() throws Exception {
-        labelRepository.save(LsLabel.create(TEST_PJT_ID, "person", "#E74C3C", "BBOX", 1, "seed"));
+        labelRepository.save(LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed"));
 
         ObjectNode req = body("person", "#AABBCC", "BBOX", 2);
         mockMvc.perform(post("/v1/manage/labels")
@@ -175,7 +170,7 @@ class LabelMasterControllerTest {
     @Test
     @DisplayName("DELETE_REVIEWER_204")
     void deleteLabel_REVIEWER_204() throws Exception {
-        LsLabel saved = labelRepository.save(LsLabel.create(TEST_PJT_ID, "person", "#E74C3C", "BBOX", 1, "seed"));
+        LsLabel saved = labelRepository.save(LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed"));
 
         mockMvc.perform(delete("/v1/manage/labels/" + saved.getLabelId())
                         .header("Authorization", "Bearer " + reviewerToken))
@@ -189,7 +184,7 @@ class LabelMasterControllerTest {
     @Test
     @DisplayName("GET_비인증_401")
     void getLabels_비인증_401() throws Exception {
-        mockMvc.perform(get("/v1/manage/labels").param("pjtId", "1"))
+        mockMvc.perform(get("/v1/manage/labels"))
                 .andExpect(status().isUnauthorized());
     }
 }

@@ -88,7 +88,7 @@ class Sam2TrackServiceTest {
         src2 = srcRepository.save(LsDataSrc.create(rawSn, 2, "2.jpg", LocalDateTime.now())).getSrcSn();
 
         // 작업자 100 만 rawSn 에 LABELER 배정 — IDOR 검증용
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(10L, rawSn, 100L, 1L));
+        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
 
         Instant exp = Instant.now().plusSeconds(60);
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, exp);
