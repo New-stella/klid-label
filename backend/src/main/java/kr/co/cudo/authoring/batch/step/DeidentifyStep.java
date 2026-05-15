@@ -1,13 +1,13 @@
 package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.auth.service.WorkLockService;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.client.DeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.label.entity.LsDeidentReport;
-import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -47,7 +47,7 @@ public class DeidentifyStep {
 
     private final DeidentifyClient deidentifyClient;
     private final VideoRepository videoRepository;
-    private final LsDeidentReportRepository reportRepository;
+    private final LsDeidentProcLogRepository procLogRepository;
     /** Phase 3 — 재비식별 성공 시 OPEN 신고를 RESOLVED 로 일괄 전이. */
     private final DeidentReportService deidentReportService;
     /** Phase 3 — 잠금 해제 알림. */
@@ -74,8 +74,8 @@ public class DeidentifyStep {
         if (raw == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
-        LsDeidentReport report = reportRepository.save(
-                LsDeidentReport.request(raw.getRawSn(), null, raw.getFilePath(), "batch"));
+        LsDeidentProcLog procLog = procLogRepository.save(
+                LsDeidentProcLog.request(raw.getRawSn(), null, raw.getFilePath(), "batch"));
 
         try {
             Path target = resolveSafeTargetPath(raw.getRawSn());
@@ -93,7 +93,7 @@ public class DeidentifyStep {
             LsDataRaw managed = videoRepository.findById(raw.getRawSn())
                     .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "raw not found"));
             managed.markDeidentified("Y");
-            report.succeed(resp.resultPath());
+            procLog.succeed(resp.resultPath());
 
             if (workLockService.isRawLocked(managed.getRawSn())) {
                 workLockService.releaseRaw(managed.getRawSn(), "batch", "DEIDENT_SUCCEEDED");
@@ -107,7 +107,7 @@ public class DeidentifyStep {
             log.info("[Batch][Deid] succeeded rawSn={}", raw.getRawSn());
             return resp.resultPath();
         } catch (RuntimeException e) {
-            report.fail(e.getClass().getSimpleName(), e.getMessage());
+            procLog.fail(e.getClass().getSimpleName(), e.getMessage());
             videoRepository.findById(raw.getRawSn())
                     .ifPresent(v -> v.markDeidentified("F"));
             log.error("[Batch][Deid] failed rawSn={} err={}", raw.getRawSn(), e.getMessage());

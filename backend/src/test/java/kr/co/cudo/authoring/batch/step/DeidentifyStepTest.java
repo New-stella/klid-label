@@ -1,12 +1,12 @@
 package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.auth.service.WorkLockService;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.client.DeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
-import kr.co.cudo.authoring.label.entity.LsDeidentReport;
-import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -48,7 +48,7 @@ class DeidentifyStepTest {
 
     private DeidentifyClient deidentifyClient;
     private VideoRepository videoRepository;
-    private LsDeidentReportRepository reportRepository;
+    private LsDeidentProcLogRepository procLogRepository;
     private DeidentReportService deidentReportService;
     private NotificationService notificationService;
     private WorkLockService workLockService;
@@ -59,24 +59,24 @@ class DeidentifyStepTest {
     void setUp() throws Exception {
         deidentifyClient = mock(DeidentifyClient.class);
         videoRepository = mock(VideoRepository.class);
-        reportRepository = mock(LsDeidentReportRepository.class);
+        procLogRepository = mock(LsDeidentProcLogRepository.class);
         deidentReportService = mock(DeidentReportService.class);
         notificationService = mock(NotificationService.class);
         workLockService = mock(WorkLockService.class);
 
         baseDeid = tmp.resolve("deid");
-        // @RequiredArgsConstructor 순서: deidentifyClient, videoRepository, reportRepository,
+        // @RequiredArgsConstructor 순서: deidentifyClient, videoRepository, procLogRepository,
         //                                deidentReportService, notificationService, workLockService
-        step = new DeidentifyStep(deidentifyClient, videoRepository, reportRepository,
+        step = new DeidentifyStep(deidentifyClient, videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService);
         setField(step, "deidPath", baseDeid.toString());
         invoke(step, "initBasePath");
 
-        // reportRepository.save 는 echo + ID 부여
-        when(reportRepository.save(any(LsDeidentReport.class))).thenAnswer(inv -> {
-            LsDeidentReport r = inv.getArgument(0);
-            setField(r, "deidentReportSn", 1L);
-            return r;
+        // procLogRepository.save 는 echo + ID 부여
+        when(procLogRepository.save(any(LsDeidentProcLog.class))).thenAnswer(inv -> {
+            LsDeidentProcLog p = inv.getArgument(0);
+            setField(p, "procLogSn", 1L);
+            return p;
         });
     }
 
@@ -102,8 +102,8 @@ class DeidentifyStepTest {
 
         assertThat(result).isEqualTo(safeReturn.toString());
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
-        // LS_DEIDENT_REPORT 가 최소 2회 save (REQUESTED, SUCCEEDED)
-        verify(reportRepository, org.mockito.Mockito.atLeast(1)).save(any(LsDeidentReport.class));
+        // LS_DEIDENT_PROC_LOG 가 최소 1회 save (REQUESTED 시점 저장; SUCCEEDED 는 영속 엔티티 변경으로 dirty checking)
+        verify(procLogRepository, org.mockito.Mockito.atLeast(1)).save(any(LsDeidentProcLog.class));
     }
 
     @Test
