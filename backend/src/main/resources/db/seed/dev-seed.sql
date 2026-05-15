@@ -195,7 +195,8 @@ CROSS JOIN (
 WHERE r.RAW_SN IN (9001,9002,9003,9004,9005,9016,9017,9018,9026,9027,9031,9032,9033);
 
 -- 11) 라벨 (LS_DATA_LBL) — APPROVED 3건의 첫 프레임에 자동 BBOX 라벨
-INSERT INTO LS_DATA_LBL (SRC_SN, LBL_TYPE_CD, LABEL, POINTS_JSON, AUTO_LBL_YN, CONF_SCORE, REG_USER_NO, REG_DT, UPD_DT)
+--   V21 분리 이후: AUTO_LBL_YN/CONF_SCORE 는 LS_DATA_LBL_AI_INFO 로 이관됨.
+INSERT INTO LS_DATA_LBL (SRC_SN, LBL_TYPE_CD, LABEL, POINTS_JSON, REG_USER_NO, REG_DT, UPD_DT)
 SELECT s.SRC_SN, 'BBOX',
        CASE r.EVNT_TYPE_CD
            WHEN 'EVT_FALL'     THEN 'person'
@@ -204,8 +205,6 @@ SELECT s.SRC_SN, 'BBOX',
            ELSE 'object'
        END,
        '[{"x":120,"y":80},{"x":340,"y":280}]',
-       'Y',
-       0.8500,
        NULL,
        r.REG_DT,
        NULL
@@ -213,18 +212,9 @@ FROM LS_DATA_SRC s
 JOIN LS_DATA_RAW r ON s.RAW_SN = r.RAW_SN
 WHERE s.RAW_SN IN (9001,9002,9003) AND s.FRAME_NO = 1;
 
--- 사람 검토 후 추가 라벨 (9001 프레임1)
-INSERT INTO LS_DATA_LBL (SRC_SN, LBL_TYPE_CD, LABEL, POINTS_JSON, AUTO_LBL_YN, CONF_SCORE, REG_USER_NO, REG_DT, UPD_DT)
-SELECT s.SRC_SN, 'BBOX', 'person',
-       '[{"x":50,"y":40},{"x":180,"y":200}]',
-       'N', NULL, 2001, r.REG_DT, r.UPD_DT
-FROM LS_DATA_SRC s
-JOIN LS_DATA_RAW r ON s.RAW_SN = r.RAW_SN
-WHERE s.RAW_SN = 9001 AND s.FRAME_NO = 1;
-
 -- 12) AI 라벨 출처 정보 (LS_DATA_LBL_AI_INFO)
---   자동 라벨(AUTO_LBL_YN='Y')에 대해 YOLO 추론 메타 기록.
---   9001/9002/9003 프레임1의 auto 라벨 3건.
+--   바로 위 11)에서 적재한 자동 라벨 3건 (9001/9002/9003 프레임1) 에 YOLO 추론 메타 기록.
+--   이후 13)에서 추가될 수동 라벨이 같은 SRC_SN 에 들어와도 이 시점엔 자동 라벨만 존재하므로 LBL_SN 매칭이 명확.
 INSERT INTO LS_DATA_LBL_AI_INFO
     (DATA_LBL_SN, PJT_SN, DATA_RAW_SN, DATA_SRC_SN, LBL_SRC_CD, MODEL_NM, MODEL_VER, CONF_SCORE, AUTO_LBL_YN, REG_DT)
 SELECT
@@ -235,14 +225,22 @@ SELECT
     'YOLO'         AS LBL_SRC_CD,
     'yolov8m'      AS MODEL_NM,
     'v8m-20260201' AS MODEL_VER,
-    l.CONF_SCORE,
+    0.8500         AS CONF_SCORE,
     'Y'            AS AUTO_LBL_YN,
     l.REG_DT
 FROM LS_DATA_LBL l
 JOIN LS_DATA_SRC s ON l.SRC_SN = s.SRC_SN
 WHERE s.RAW_SN IN (9001, 9002, 9003)
-  AND s.FRAME_NO = 1
-  AND l.AUTO_LBL_YN = 'Y';
+  AND s.FRAME_NO = 1;
+
+-- 13) 사람 검토 후 추가 수동 라벨 (9001 프레임1) — AI_INFO row 없음 = 수동
+INSERT INTO LS_DATA_LBL (SRC_SN, LBL_TYPE_CD, LABEL, POINTS_JSON, REG_USER_NO, REG_DT, UPD_DT)
+SELECT s.SRC_SN, 'BBOX', 'person',
+       '[{"x":50,"y":40},{"x":180,"y":200}]',
+       2001, r.REG_DT, r.UPD_DT
+FROM LS_DATA_SRC s
+JOIN LS_DATA_RAW r ON s.RAW_SN = r.RAW_SN
+WHERE s.RAW_SN = 9001 AND s.FRAME_NO = 1;
 
 -- 13) 비식별 처리 이력 (LS_DEIDENT_PROC_LOG)
 --   DE_IDNTF_YN='Y' 인 PRVC/PSDO 영상의 비식별 API 성공 이력.
