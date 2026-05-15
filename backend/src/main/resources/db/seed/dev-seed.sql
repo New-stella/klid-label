@@ -46,6 +46,7 @@ DELETE FROM LS_PJT_USER_AUTHRT_HSTRY WHERE PJT_ID = 1;
 DELETE FROM LS_PJT_USER_AUTHRT WHERE PJT_ID = 1;
 DELETE FROM LS_PJT_DATA_MPNG WHERE PJT_ID = 1;
 DELETE FROM LS_DATA_RAW WHERE RAW_SN BETWEEN 9001 AND 9999;
+DELETE FROM LS_LABEL WHERE PJT_ID = 1;
 DELETE FROM LS_PJT WHERE PJT_ID = 1;
 DELETE FROM MNG_ACCT_USER_AUTHRT WHERE USER_NO BETWEEN 1000 AND 9999;
 DELETE FROM MNG_ACCT_USER WHERE USER_NO BETWEEN 1000 AND 9999;
@@ -102,6 +103,22 @@ INSERT IGNORE INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES
     ('CCTV-032', 'CCTV-마포구-032', 'Y'),
     ('CCTV-033', 'CCTV-마포구-033', 'Y');
 
+-- 6) 라벨 마스터 (LS_LABEL) — CVAT-Like 라벨 풀 포팅 Phase 1
+INSERT INTO LS_LABEL (PJT_ID, NAME, COLOR, TYPE, SORT_NO, USE_YN, REG_ID, REG_DT) VALUES
+    (1, 'person',           '#E74C3C', 'BBOX',    1,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'car',              '#3498DB', 'BBOX',    2,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'bicycle',          '#9B59B6', 'BBOX',    3,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'motorbike',        '#1ABC9C', 'BBOX',    4,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'bus',              '#F39C12', 'BBOX',    5,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'truck',            '#34495E', 'BBOX',    6,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'animal',           '#16A085', 'BBOX',    7,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'fire',             '#FF5733', 'POLYGON', 8,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'smoke',            '#7F8C8D', 'POLYGON', 9,  'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'water',            '#2980B9', 'POLYGON', 10, 'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'fallen-person',    '#C0392B', 'BBOX',    11, 'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'vehicle-accident', '#D35400', 'BBOX',    12, 'Y', 'seed', '2026-05-15 00:00:00'),
+    (1, 'object',           '#95A5A6', 'BBOX',    13, 'Y', 'seed', '2026-05-15 00:00:00');
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 검증용 SELECT — 마스터 데이터만
@@ -110,5 +127,6 @@ SELECT 'MNG_ACCT_AUTHRT'        AS t, COUNT(*) AS n FROM MNG_ACCT_AUTHRT        
 UNION ALL SELECT 'MNG_ACCT_USER',         COUNT(*) FROM MNG_ACCT_USER         WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'MNG_ACCT_USER_AUTHRT',  COUNT(*) FROM MNG_ACCT_USER_AUTHRT  WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'LS_PJT',                COUNT(*) FROM LS_PJT                WHERE PJT_ID = 1
-UNION ALL SELECT 'MNG_RESOURCE_CCTV',     COUNT(*) FROM MNG_RESOURCE_CCTV     WHERE VMS_CCTV_ID LIKE 'CCTV-0%';
--- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, LS_PJT=1, MNG_RESOURCE_CCTV=13
+UNION ALL SELECT 'MNG_RESOURCE_CCTV',     COUNT(*) FROM MNG_RESOURCE_CCTV     WHERE VMS_CCTV_ID LIKE 'CCTV-0%'
+UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE PJT_ID = 1 AND USE_YN = 'Y';
+-- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, LS_PJT=1, MNG_RESOURCE_CCTV=13, LS_LABEL=13

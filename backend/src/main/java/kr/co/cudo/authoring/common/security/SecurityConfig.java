@@ -83,6 +83,9 @@ public class SecurityConfig {
                             // 외부 시스템(관제/학습데이터) 양방향 통합 deprecated — 모든 매처 거부.
                             .requestMatchers("/v1/integration/**").denyAll()
                             .requestMatchers("/v1/export-api/**").denyAll()
+                            // Phase 1 (CVAT-Like 라벨 풀): 라벨 마스터 조회는 WORKER/PORTAL_USER 도 허용.
+                            // 매처 순서 — REVIEWER 매처보다 앞에 위치해야 함.
+                            .requestMatchers(org.springframework.http.HttpMethod.GET, "/v1/manage/labels").authenticated()
                             .requestMatchers("/v1/manage/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/system/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/portal/**").hasRole(Role.PORTAL_USER.name())

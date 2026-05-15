@@ -1,0 +1,25 @@
+-- Phase 1 (CVAT-Like 라벨 풀 포팅): 프로젝트 단위 라벨 마스터.
+-- DB 설계서 §5.x LS_LABEL.
+--
+-- 목적: 프로젝트별 라벨 이름·색상·타입(BBOX/POLYGON/POINT)을 정의한다.
+--   - REVIEWER 가 CRUD, WORKER 는 조회만 (Spring Security 에서 강제).
+--   - soft delete (USE_YN='N') — hard delete 금지, 라벨 히스토리·태그 무결성 보호.
+--
+-- H2/MariaDB 공통: BIGINT/VARCHAR/TIMESTAMP DEFAULT CURRENT_TIMESTAMP 표준 호환.
+
+CREATE TABLE IF NOT EXISTS LS_LABEL (
+    LABEL_ID  BIGINT       NOT NULL AUTO_INCREMENT,
+    PJT_ID    BIGINT       NOT NULL,
+    NAME      VARCHAR(64)  NOT NULL,
+    COLOR     VARCHAR(7)   NOT NULL,
+    TYPE      VARCHAR(16)  NOT NULL,
+    SORT_NO   INT          NOT NULL DEFAULT 0,
+    USE_YN    VARCHAR(1)   NOT NULL DEFAULT 'Y',
+    REG_ID    VARCHAR(30)  NULL,
+    REG_DT    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    MDFCN_ID  VARCHAR(30)  NULL,
+    MDFCN_DT  TIMESTAMP    NULL,
+    PRIMARY KEY (LABEL_ID),
+    UNIQUE KEY UK_LS_LABEL_NAME (PJT_ID, NAME),
+    KEY IDX_LS_LABEL_PJT_USE (PJT_ID, USE_YN, SORT_NO)
+);
