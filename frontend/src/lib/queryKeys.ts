@@ -7,12 +7,6 @@ export const USER_KEYS = {
   detail: (id: number) => [...USER_KEYS.all, 'detail', id] as const,
 };
 
-export const PROJECT_KEYS = {
-  all: ['projects'] as const,
-  list: (params: Record<string, unknown>) => [...PROJECT_KEYS.all, 'list', params] as const,
-  detail: (id: number) => [...PROJECT_KEYS.all, 'detail', id] as const,
-};
-
 export const ASSIGNMENT_KEYS = {
   all: ['assignments'] as const,
   list: (params: Record<string, unknown>) => [...ASSIGNMENT_KEYS.all, 'list', params] as const,

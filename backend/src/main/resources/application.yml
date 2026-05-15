@@ -119,10 +119,6 @@ authoring:
     retry:
       # Gitea fallback 재시도 잡 활성화 (Phase 8). 기본 false → prd 에서 true 로 오버라이드.
       enabled: ${GITEA_RETRY_ENABLED:false}
-  # Phase 9 — 외부 SFR-06/11 배경영상 생성 시스템 (V1.5: 외부 책임, 본체는 인터페이스만)
-  generate:
-    base-url: ${EXTERNAL_GENERATE_API_URL:http://localhost:9400}
-    enabled: ${EXTERNAL_GENERATE_ENABLED:false}  # 외부 미연결 시 mock 응답
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
@@ -154,11 +150,6 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
-      generate:
-        failure-rate-threshold: 50
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        wait-duration-in-open-state: 30s
   retry:
     instances:
       deid:
@@ -173,16 +164,11 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
-      generate:
-        max-attempts: 3
-        wait-duration: 1s
-        exponential-backoff-multiplier: 2
   timelimiter:
     instances:
       deid:    { timeout-duration: 60s }
       ai:      { timeout-duration: 60s }
       gitea:   { timeout-duration: 60s }
-      generate: { timeout-duration: 60s }
 
 logging:
   pattern:

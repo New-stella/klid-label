@@ -26,14 +26,6 @@ function renderGuard(initialPath: string) {
             </RoleGuard>
           }
         />
-        <Route
-          path="/generate/result/:jobId"
-          element={
-            <RoleGuard allow={[Role.REVIEWER]}>
-              <div>GENERATE_RESULT_PAGE</div>
-            </RoleGuard>
-          }
-        />
         <Route path="/forbidden" element={<div>FORBIDDEN_PAGE</div>} />
         <Route path="/ingress" element={<div>INGRESS_PAGE</div>} />
       </Routes>
@@ -41,7 +33,7 @@ function renderGuard(initialPath: string) {
   );
 }
 
-describe('augment/generate 라우트 RoleGuard', () => {
+describe('augment 라우트 RoleGuard', () => {
   beforeEach(() => {
     useAuthStore.getState().clear();
   });
@@ -50,7 +42,7 @@ describe('augment/generate 라우트 RoleGuard', () => {
     useAuthStore.getState().clear();
   });
 
-  it('WORKER가_augment_generate_접근시_forbidden', () => {
+  it('WORKER가_augment_접근시_forbidden', () => {
     useAuthStore.setState({
       token: 'tok',
       claims: { sub: 'u', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
@@ -60,15 +52,11 @@ describe('augment/generate 라우트 RoleGuard', () => {
     expect(screen.getByText('FORBIDDEN_PAGE')).toBeInTheDocument();
     u1();
 
-    const { unmount: u2 } = renderGuard('/augment/result/100');
-    expect(screen.getByText('FORBIDDEN_PAGE')).toBeInTheDocument();
-    u2();
-
-    renderGuard('/generate/result/555');
+    renderGuard('/augment/result/100');
     expect(screen.getByText('FORBIDDEN_PAGE')).toBeInTheDocument();
   });
 
-  it('REVIEWER는_augment_generate_경로_접근_허용', () => {
+  it('REVIEWER는_augment_경로_접근_허용', () => {
     useAuthStore.setState({
       token: 'tok',
       claims: { sub: 'u', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
@@ -78,11 +66,7 @@ describe('augment/generate 라우트 RoleGuard', () => {
     expect(screen.getByText('AUGMENT_PAGE')).toBeInTheDocument();
     u1();
 
-    const { unmount: u2 } = renderGuard('/augment/result/100');
+    renderGuard('/augment/result/100');
     expect(screen.getByText('AUGMENT_RESULT_PAGE')).toBeInTheDocument();
-    u2();
-
-    renderGuard('/generate/result/555');
-    expect(screen.getByText('GENERATE_RESULT_PAGE')).toBeInTheDocument();
   });
 });

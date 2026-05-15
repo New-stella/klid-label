@@ -68,7 +68,7 @@ const DeidentDetailPage = lazy(() =>
   import('@/pages/DeidentDetailPage').then((m) => ({ default: m.DeidentDetailPage })),
 );
 
-// Phase 10 — 데이터 증강 + 배경영상 요청 결과 lazy 로드
+// Phase 10 — 데이터 증강 lazy 로드
 const AugmentRequestPage = lazy(() =>
   import('@/pages/AugmentRequestPage').then((m) => ({
     default: m.AugmentRequestPage,
@@ -77,11 +77,6 @@ const AugmentRequestPage = lazy(() =>
 const AugmentResultPage = lazy(() =>
   import('@/pages/AugmentResultPage').then((m) => ({
     default: m.AugmentResultPage,
-  })),
-);
-const GenerateResultPage = lazy(() =>
-  import('@/pages/GenerateResultPage').then((m) => ({
-    default: m.GenerateResultPage,
   })),
 );
 
@@ -424,14 +419,6 @@ export const router = createBrowserRouter([
         element: (
           <InternalRoute allow={internalAllRoles}>
             {withSuspense(<HistoryPage />)}
-          </InternalRoute>
-        ),
-      },
-      {
-        path: 'generate/result/:jobId',
-        element: (
-          <InternalRoute allow={internalReviewerOnly}>
-            {withSuspense(<GenerateResultPage />)}
           </InternalRoute>
         ),
       },

@@ -25,33 +25,20 @@ function renderWithRouter(ui: React.ReactElement) {
 describe('VideoActions', () => {
   it('REVIEWER만_배정_버튼_노출', () => {
     const { unmount } = renderWithRouter(
-      <VideoActions video={baseVideo} canAssign canRequestBg={false} />,
+      <VideoActions video={baseVideo} canAssign />,
     );
     expect(screen.getByRole('button', { name: '배정' })).toBeInTheDocument();
     unmount();
 
     renderWithRouter(
-      <VideoActions video={baseVideo} canAssign={false} canRequestBg={false} />,
+      <VideoActions video={baseVideo} canAssign={false} />,
     );
     expect(screen.queryByRole('button', { name: '배정' })).not.toBeInTheDocument();
   });
 
-  it('REVIEWER만_배경영상_요청_버튼_노출', () => {
-    const { unmount } = renderWithRouter(
-      <VideoActions video={baseVideo} canAssign={false} canRequestBg />,
-    );
-    expect(screen.getByRole('button', { name: /배경영상 요청/ })).toBeInTheDocument();
-    unmount();
-
-    renderWithRouter(
-      <VideoActions video={baseVideo} canAssign={false} canRequestBg={false} />,
-    );
-    expect(screen.queryByRole('button', { name: /배경영상 요청/ })).not.toBeInTheDocument();
-  });
-
   it('상세_버튼은_권한_무관_노출', () => {
     renderWithRouter(
-      <VideoActions video={baseVideo} canAssign={false} canRequestBg={false} />,
+      <VideoActions video={baseVideo} canAssign={false} />,
     );
     expect(screen.getByRole('button', { name: '상세' })).toBeInTheDocument();
   });
@@ -63,7 +50,6 @@ describe('VideoActions', () => {
       <VideoActions
         video={baseVideo}
         canAssign={false}
-        canRequestBg={false}
         onDetail={onDetail}
       />,
     );
