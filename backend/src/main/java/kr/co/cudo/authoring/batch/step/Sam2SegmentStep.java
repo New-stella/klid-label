@@ -16,6 +16,8 @@ import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -75,6 +77,7 @@ public class Sam2SegmentStep {
     private final LsDataLblAiInfoRepository aiInfoRepository;
     private final VideoRepository videoRepository;
     private final PresetLabelLookupService presetLabelLookup;
+    private final LabelMasterService labelMasterService;
     private final ObjectMapper objectMapper;
     private final Path baseRawPath;
 
@@ -84,6 +87,7 @@ public class Sam2SegmentStep {
                            LsDataLblAiInfoRepository aiInfoRepository,
                            VideoRepository videoRepository,
                            PresetLabelLookupService presetLabelLookup,
+                           LabelMasterService labelMasterService,
                            ObjectMapper objectMapper,
                            @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
         this.aiServerClient = aiServerClient;
@@ -92,6 +96,7 @@ public class Sam2SegmentStep {
         this.aiInfoRepository = aiInfoRepository;
         this.videoRepository = videoRepository;
         this.presetLabelLookup = presetLabelLookup;
+        this.labelMasterService = labelMasterService;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
@@ -147,8 +152,12 @@ public class Sam2SegmentStep {
                     continue;
                 }
                 BigDecimal score = BigDecimal.valueOf(resp.score()).setScale(4, RoundingMode.HALF_UP);
+                // Phase 6: ai-server 응답 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
+                Long labelId = labelMasterService.findLabelIdByName(job.label).orElse(null);
+                log.info("[Batch][Sam2] mapped label name={} labelId={}",
+                        LogSanitizer.sanitize(job.label), labelId);
                 LsDataLbl savedLabel = lblRepository.save(LsDataLbl.createAutoPolygon(
-                        src.getSrcSn(), job.label, serialize(resp.polygon()), score));
+                        src.getSrcSn(), labelId, job.label, serialize(resp.polygon()), score));
                 aiInfoRepository.save(LsDataLblAiInfo.create(savedLabel.getLblSn(), 0L, rawSn, src.getSrcSn(),
                         LsDataLblAiInfo.SRC_SAM2, score, "batch"));
                 saved++;

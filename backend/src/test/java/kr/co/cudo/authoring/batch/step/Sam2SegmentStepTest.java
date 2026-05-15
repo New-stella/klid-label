@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -41,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -66,6 +68,7 @@ class Sam2SegmentStepTest {
     private LsDataLblAiInfoRepository aiInfoRepository;
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
+    private LabelMasterService labelMasterService;
     private Sam2SegmentStep step;
     private final java.util.concurrent.atomic.AtomicLong lblSnSeq = new java.util.concurrent.atomic.AtomicLong(1);
     private ListAppender<ILoggingEvent> logAppender;
@@ -82,6 +85,9 @@ class Sam2SegmentStepTest {
         aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
+        labelMasterService = mock(LabelMasterService.class);
+        // LabelMasterService 기본은 미매핑 (Optional.empty) — 개별 테스트가 필요 시 override.
+        when(labelMasterService.findLabelIdByName(anyString())).thenReturn(Optional.empty());
         // Phase 6 — save() 후 LsDataLblAiInfo.create(savedLabel.getLblSn(), ...) 호출되므로 lblSn 부여 필수.
         when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
             LsDataLbl arg = inv.getArgument(0);
@@ -100,7 +106,7 @@ class Sam2SegmentStepTest {
         when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
 
         step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
-                videoRepository, presetLabelLookup,
+                videoRepository, presetLabelLookup, labelMasterService,
                 new ObjectMapper(), rawDir.toString());
 
         stepLogger = (Logger) LoggerFactory.getLogger(Sam2SegmentStep.class);
@@ -375,5 +381,65 @@ class Sam2SegmentStepTest {
         assertThat(info.getAutoLblYn()).isEqualTo("Y");
         assertThat(info.getDataRawSn()).isEqualTo(90L);
         assertThat(info.getDataLblSn()).isNotNull();
+    }
+
+    // ─── Phase 6 — AutoLabel preset 매핑 (LS_LABEL.NAME → LABEL_ID) ───
+
+    @Test
+    @DisplayName("SAM2_person_응답_시_LABEL_ID_매칭됨")
+    void sam2LabelIdMappedFromMaster() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(91L))
+                .thenReturn(List.of(newSrc(20L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
+                .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
+        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(1L));
+
+        step.run(91L, List.of());
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        verify(lblRepository, times(1)).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isEqualTo(1L);
+        assertThat(captor.getValue().getLblTypeCd()).isEqualTo("POLYGON");
+    }
+
+    @Test
+    @DisplayName("SAM2_unknown_label_응답_시_LABEL_ID_null")
+    void sam2UnknownLabelIdRemainsNull() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(92L))
+                .thenReturn(List.of(newSrc(20L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
+                .thenReturn(List.of(newBbox(20L, "rare_label_unknown", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
+        // 기본 stub (Optional.empty)
+
+        step.run(92L, List.of());
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        verify(lblRepository, times(1)).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isNull();
+    }
+
+    @Test
+    @DisplayName("SAM2_매핑_로그_검증")
+    void sam2MappingLogged() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(93L))
+                .thenReturn(List.of(newSrc(20L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
+                .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
+        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(1L));
+
+        step.run(93L, List.of());
+
+        long matchedLogs = logAppender.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("[Batch][Sam2] mapped label"))
+                .filter(e -> e.getFormattedMessage().contains("name=person"))
+                .filter(e -> e.getFormattedMessage().contains("labelId=1"))
+                .count();
+        assertThat(matchedLogs).isGreaterThanOrEqualTo(1L);
     }
 }

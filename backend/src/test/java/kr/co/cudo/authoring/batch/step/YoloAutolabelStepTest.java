@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -44,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +58,7 @@ class YoloAutolabelStepTest {
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
     private SystemConfigService systemConfigService;
+    private LabelMasterService labelMasterService;
     private YoloAutolabelStep step;
     /** Phase 6 — lblRepository.save() mock 이 생성된 라벨에 부여할 단조 증가 ID. */
     private final java.util.concurrent.atomic.AtomicLong lblSnSeq = new java.util.concurrent.atomic.AtomicLong(1);
@@ -74,8 +77,11 @@ class YoloAutolabelStepTest {
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
         systemConfigService = mock(SystemConfigService.class);
+        labelMasterService = mock(LabelMasterService.class);
         // SystemConfigService 기본은 모든 키 조회 시 null 반환 → fallback 기본값(40, 1280, 50) 사용.
         when(systemConfigService.getInt(any())).thenReturn(null);
+        // LabelMasterService 기본은 미매핑 (Optional.empty) — 개별 테스트가 필요 시 override.
+        when(labelMasterService.findLabelIdByName(anyString())).thenReturn(Optional.empty());
         // Phase 6 — save() 후 LsDataLblAiInfo.create(savedLabel.getLblSn(), ...) 호출되므로 lblSn 부여 필수.
         when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
             LsDataLbl arg = inv.getArgument(0);
@@ -104,7 +110,8 @@ class YoloAutolabelStepTest {
         when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
 
         step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
-                videoRepository, presetLabelLookup, systemConfigService, new ObjectMapper(), rawDir.toString());
+                videoRepository, presetLabelLookup, systemConfigService, labelMasterService,
+                new ObjectMapper(), rawDir.toString());
 
         // Logback ListAppender 부착 — mock 응답 감지 시 WARN 로그를 검증
         stepLogger = (Logger) LoggerFactory.getLogger(YoloAutolabelStep.class);
@@ -619,5 +626,65 @@ class YoloAutolabelStepTest {
         // togglesFor empty (no preset) → fail-safe BOTH → BBOX 저장 + hint 발행
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(any());
         assertThat(hints).hasSize(1);
+    }
+
+    // ─── Phase 6 — AutoLabel preset 매핑 (LS_LABEL.NAME → LABEL_ID) ───
+
+    @Test
+    @DisplayName("YOLO_person_응답_시_LABEL_ID_매칭됨")
+    void yoloLabelIdMappedFromMaster() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(100L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(1L));
+
+        step.run(100L);
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("YOLO_unknown_label_응답_시_LABEL_ID_null")
+    void yoloUnknownLabelIdRemainsNull() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(101L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("rare_label_unknown", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+        // 기본 stub: findLabelIdByName(anyString()) → Optional.empty() (setUp 에서 설정)
+
+        step.run(101L);
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isNull();
+    }
+
+    @Test
+    @DisplayName("YOLO_매핑_로그_검증")
+    void yoloMappingLogged() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(102L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(1L));
+
+        step.run(102L);
+
+        // 로그 메시지 검증: [Batch][Yolo] mapped label name=person labelId=1
+        long matchedLogs = logAppender.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("[Batch][Yolo] mapped label"))
+                .filter(e -> e.getFormattedMessage().contains("name=person"))
+                .filter(e -> e.getFormattedMessage().contains("labelId=1"))
+                .count();
+        assertThat(matchedLogs).isGreaterThanOrEqualTo(1L);
     }
 }

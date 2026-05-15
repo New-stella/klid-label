@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 라벨 마스터 응용 서비스.
@@ -72,6 +73,25 @@ public class LabelMasterService {
         label.update(req.name(), req.color(), req.type(), req.sortNo(), mdfcnId);
         log.info("[Label] updated labelId={}, name={}", labelId, req.name());
         return LabelMasterResponse.from(label);
+    }
+
+    /**
+     * Phase 6 (AutoLabel preset 매핑) — 자동 라벨링 단계가 ai-server 응답 라벨명을
+     * LS_LABEL FK 로 변환할 때 사용.
+     *
+     * <ul>
+     *   <li>null/blank 입력 → {@link Optional#empty()} (repository 호출 없음)</li>
+     *   <li>name trim 후 use_yn='Y' 인 라벨만 대소문자 무시 매칭</li>
+     *   <li>미매칭 시 {@link Optional#empty()} (LABEL_ID 는 NULL 로 저장됨)</li>
+     * </ul>
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Optional<Long> findLabelIdByName(String name) {
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        return labelRepository.findByNameIgnoreCaseAndUseYn(name.trim(), USE_YN_ACTIVE)
+                .map(LsLabel::getLabelId);
     }
 
     /** Soft delete — USE_YN='N'. */

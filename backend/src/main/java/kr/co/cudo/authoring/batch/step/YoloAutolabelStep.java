@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -91,6 +92,7 @@ public class YoloAutolabelStep {
     private final VideoRepository videoRepository;
     private final PresetLabelLookupService presetLabelLookup;
     private final SystemConfigService systemConfigService;
+    private final LabelMasterService labelMasterService;
     private final ObjectMapper objectMapper;
     private final Path baseRawPath;
 
@@ -101,6 +103,7 @@ public class YoloAutolabelStep {
                              VideoRepository videoRepository,
                              PresetLabelLookupService presetLabelLookup,
                              SystemConfigService systemConfigService,
+                             LabelMasterService labelMasterService,
                              ObjectMapper objectMapper,
                              @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
         this.aiServerClient = aiServerClient;
@@ -110,6 +113,7 @@ public class YoloAutolabelStep {
         this.videoRepository = videoRepository;
         this.presetLabelLookup = presetLabelLookup;
         this.systemConfigService = systemConfigService;
+        this.labelMasterService = labelMasterService;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
@@ -191,10 +195,14 @@ public class YoloAutolabelStep {
                 // Phase 4: trackId 는 Integer (ai-server 의 ultralytics persist 트래커 부여).
                 // null 인 경우(저신뢰 detection fallback) 그대로 null 유지.
                 String trackIdStr = d.trackId() == null ? null : String.valueOf(d.trackId());
+                // Phase 6: ai-server 응답 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
+                Long labelId = labelMasterService.findLabelIdByName(d.label()).orElse(null);
+                log.info("[Batch][Yolo] mapped label name={} labelId={}",
+                        LogSanitizer.sanitize(d.label()), labelId);
                 if (toggle.bbox()) {
                     BigDecimal score = BigDecimal.valueOf(d.score()).setScale(4, RoundingMode.HALF_UP);
                     LsDataLbl saved = lblRepository.save(LsDataLbl.createAutoBbox(
-                            src.getSrcSn(), d.label(), serialize(d.points()), score, trackIdStr));
+                            src.getSrcSn(), labelId, d.label(), serialize(d.points()), score, trackIdStr));
                     aiInfoRepository.save(LsDataLblAiInfo.create(saved.getLblSn(), 0L, rawSn, src.getSrcSn(),
                             LsDataLblAiInfo.SRC_YOLO, score, "batch"));
                     bboxSaved++;

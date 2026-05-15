@@ -141,4 +141,99 @@ class LabelMasterServiceTest {
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
     }
+
+    // ─── Phase 6 — AutoLabel preset 매핑 (LS_LABEL.NAME → LABEL_ID 조회) ───
+
+    /** Phase 6 helper — labelId 가 부여된 LsLabel 생성. */
+    private static LsLabel labelWithId(Long id, String name) {
+        LsLabel label = LsLabel.create(name, "#E74C3C", "BBOX", 1, "seed");
+        try {
+            java.lang.reflect.Field f = LsLabel.class.getDeclaredField("labelId");
+            f.setAccessible(true);
+            f.set(label, id);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+        return label;
+    }
+
+    @Test
+    @DisplayName("findLabelIdByName_정확한_이름_매칭_시_labelId_반환")
+    void findLabelIdByName_정확한_이름_매칭() {
+        when(repository.findByNameIgnoreCaseAndUseYn("person", "Y"))
+                .thenReturn(Optional.of(labelWithId(1L, "person")));
+
+        Optional<Long> result = service.findLabelIdByName("person");
+
+        assertThat(result).contains(1L);
+        verify(repository).findByNameIgnoreCaseAndUseYn("person", "Y");
+    }
+
+    @Test
+    @DisplayName("findLabelIdByName_대소문자_무시_매칭")
+    void findLabelIdByName_대소문자_무시() {
+        // 구현은 trim 후 입력값 그대로 repository 에 전달 — IgnoreCase 검색은 repository 가 처리
+        when(repository.findByNameIgnoreCaseAndUseYn("PERSON", "Y"))
+                .thenReturn(Optional.of(labelWithId(1L, "person")));
+
+        Optional<Long> result = service.findLabelIdByName("PERSON");
+
+        assertThat(result).contains(1L);
+    }
+
+    @Test
+    @DisplayName("findLabelIdByName_앞뒤_공백_trim_후_매칭")
+    void findLabelIdByName_공백_trim() {
+        when(repository.findByNameIgnoreCaseAndUseYn("person", "Y"))
+                .thenReturn(Optional.of(labelWithId(1L, "person")));
+
+        Optional<Long> result = service.findLabelIdByName("  person  ");
+
+        assertThat(result).contains(1L);
+        verify(repository).findByNameIgnoreCaseAndUseYn("person", "Y");
+    }
+
+    @Test
+    @DisplayName("findLabelIdByName_미매칭_시_Optional_empty")
+    void findLabelIdByName_미매칭() {
+        when(repository.findByNameIgnoreCaseAndUseYn("unknown", "Y"))
+                .thenReturn(Optional.empty());
+
+        Optional<Long> result = service.findLabelIdByName("unknown");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("findLabelIdByName_null_입력_시_Optional_empty")
+    void findLabelIdByName_null_입력() {
+        Optional<Long> result = service.findLabelIdByName(null);
+
+        assertThat(result).isEmpty();
+        // null 입력은 repository 호출 없이 즉시 empty 반환
+        verify(repository, never()).findByNameIgnoreCaseAndUseYn(any(), any());
+    }
+
+    @Test
+    @DisplayName("findLabelIdByName_빈문자열_입력_시_Optional_empty")
+    void findLabelIdByName_빈문자열() {
+        Optional<Long> result = service.findLabelIdByName("   ");
+
+        assertThat(result).isEmpty();
+        verify(repository, never()).findByNameIgnoreCaseAndUseYn(any(), any());
+    }
+
+    @Test
+    @DisplayName("findLabelIdByName_use_yn_N_라벨은_제외")
+    void findLabelIdByName_useYn_Y_만_조회() {
+        // useYn='Y' 인 라벨만 검색되도록 repository 인자에 "Y" 가 들어가는지 검증
+        when(repository.findByNameIgnoreCaseAndUseYn("person", "Y"))
+                .thenReturn(Optional.empty());
+
+        Optional<Long> result = service.findLabelIdByName("person");
+
+        assertThat(result).isEmpty();
+        // 두번째 인자가 "Y" 인지 검증 (use_yn='N' 라벨이 매칭되지 않도록)
+        verify(repository).findByNameIgnoreCaseAndUseYn("person", "Y");
+    }
 }
