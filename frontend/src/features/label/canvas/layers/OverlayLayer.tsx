@@ -2,6 +2,9 @@ import { useState, type RefObject } from 'react';
 import { Circle, Line, Rect } from 'react-konva';
 import type Konva from 'konva';
 
+import { useLabelStore } from '@/stores/useLabelStore';
+
+import { useLabelMasters } from '../../hooks/useLabelMasters';
 import type { Label, ToolType } from '../../types';
 import { ToolType as ToolTypeEnum } from '../../types';
 import { isValidBox, normalizeBox } from '../utils/canvasGeometry';
@@ -12,6 +15,7 @@ import {
   type Point,
 } from '../utils/coordinateTransformer';
 import { closePolygonIfNear, validatePolygonPoints } from '../utils/polygonHelpers';
+import { resolveDefaultLabel } from './resolveDefaultLabel';
 
 interface OverlayLayerProps {
   geometry: Geometry;
@@ -25,17 +29,21 @@ interface BboxDraft {
   current: Point;
 }
 
-const DEFAULT_CLASS_ID = 1;
-const DEFAULT_CLASS_NAME = 'object';
-
 /**
  * 활성 도구의 임시 그리기 오버레이.
  * - BBOX: pointerdown → drag → pointerup 으로 박스 생성
  * - POLYGON: 클릭으로 점 추가, dblclick 또는 시작점 근접 시 닫기
+ *
+ * Phase 7: 신규 라벨은 activeLabelId 의 라벨 마스터로부터 classId/className 을 적용.
+ *   activeLabelId 가 null 이면 sortNo 최소 활성 라벨로 fallback.
+ *   labelMasters 가 비어 있으면 신규 BBOX/Polygon 생성 거부 (안전장치).
  */
 export function OverlayLayer({ geometry, activeTool, onLabelAdd, stageRef }: OverlayLayerProps) {
   const [bboxDraft, setBboxDraft] = useState<BboxDraft | null>(null);
   const [polyPoints, setPolyPoints] = useState<number[]>([]);
+
+  const { data: labelMasters } = useLabelMasters();
+  const activeLabelId = useLabelStore((s) => s.activeLabelId);
 
   function pointerCanvas(): Point | null {
     const stage = stageRef.current;
@@ -51,11 +59,13 @@ export function OverlayLayer({ geometry, activeTool, onLabelAdd, stageRef }: Ove
     const cb = clampToImage(geometry, b);
     const norm = normalizeBox(ca.x, ca.y, cb.x, cb.y);
     if (!isValidBox(norm.left, norm.top, norm.right, norm.bottom)) return;
+    const def = resolveDefaultLabel(labelMasters ?? [], activeLabelId);
+    if (!def) return; // 라벨 마스터 없음 — 신규 라벨 생성 거부 (Object fallback 제거)
     onLabelAdd?.({
       id: `tmp-${Date.now()}`,
       frameNo: 0,
-      classId: DEFAULT_CLASS_ID,
-      className: DEFAULT_CLASS_NAME,
+      classId: def.labelId,
+      className: def.name,
       source: 'MANUAL',
       shape: { type: 'BBOX', ...norm },
     });
@@ -70,11 +80,13 @@ export function OverlayLayer({ geometry, activeTool, onLabelAdd, stageRef }: Ove
     }
     const valid = validatePolygonPoints(pts);
     if (!valid) return;
+    const def = resolveDefaultLabel(labelMasters ?? [], activeLabelId);
+    if (!def) return; // 라벨 마스터 없음 — 신규 라벨 생성 거부
     onLabelAdd?.({
       id: `tmp-${Date.now()}`,
       frameNo: 0,
-      classId: DEFAULT_CLASS_ID,
-      className: DEFAULT_CLASS_NAME,
+      classId: def.labelId,
+      className: def.name,
       source: 'MANUAL',
       shape: { type: 'POLYGON', points: valid },
     });

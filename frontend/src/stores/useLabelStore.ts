@@ -11,6 +11,12 @@ interface LabelState {
   // 도구/선택
   activeTool: ToolType;
   selectedLabelId: string | null;
+  /**
+   * Phase 7: 라벨 사이드바에서 선택된 활성 라벨 마스터 ID.
+   * 신규 BBOX/Polygon 그리기 시 이 라벨의 classId/className 이 자동 적용된다.
+   * null 이면 OverlayLayer 가 sortNo 최소 활성 라벨로 fallback.
+   */
+  activeLabelId: number | null;
 
   // 라벨 데이터 (현재 프레임)
   labels: Label[];
@@ -29,6 +35,7 @@ interface LabelState {
   // Actions
   setActiveTool: (tool: ToolType) => void;
   selectLabel: (id: string | null) => void;
+  setActiveLabelId: (id: number | null) => void;
   setLabels: (labels: Label[]) => void;
   addLabel: (label: Label) => void;
   updateLabel: (id: string, patch: Partial<Label>) => void;
@@ -56,6 +63,7 @@ function snapshot(labels: Label[]): UndoSnapshot {
 export const useLabelStore = create<LabelState>((set, get) => ({
   activeTool: ToolTypeEnum.SELECT,
   selectedLabelId: null,
+  activeLabelId: null,
   labels: [],
   dirtyLabels: new Set<string>(),
   zoom: 1,
@@ -66,6 +74,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   selectLabel: (id) => set({ selectedLabelId: id }),
+  setActiveLabelId: (id) => set({ activeLabelId: id }),
 
   setLabels: (labels) =>
     set({
@@ -139,6 +148,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
     set({
       activeTool: ToolTypeEnum.SELECT,
       selectedLabelId: null,
+      activeLabelId: null,
       labels: [],
       dirtyLabels: new Set<string>(),
       zoom: 1,

@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 
 import { useLabelStore } from '@/stores/useLabelStore';
 
+import { useLabelMasters } from '../hooks/useLabelMasters';
 import type { Label } from '../types';
 
 export interface AvailableLabel {
@@ -16,7 +17,10 @@ export interface AvailableLabel {
 
 export interface ObjectAttributePanelProps {
   labels: Label[];
-  /** 도메인 라벨 목록 (드롭다운 옵션) */
+  /**
+   * 도메인 라벨 목록 (드롭다운 옵션) — 명시 시 useLabelMasters 호출을 우회.
+   * Phase 8: 미제공 시 useLabelMasters() 응답을 자동 사용.
+   */
   availableLabels?: AvailableLabel[];
   /** 좌표 clamp용 이미지 크기 */
   imageWidth?: number;
@@ -29,10 +33,23 @@ export interface ObjectAttributePanelProps {
  */
 export function ObjectAttributePanel({
   labels,
-  availableLabels = [],
+  availableLabels,
   imageWidth = 1920,
   imageHeight = 1080,
 }: ObjectAttributePanelProps) {
+  // Phase 8: availableLabels 미전달 시 useLabelMasters 에서 자동 채움.
+  const { data: labelMasters } = useLabelMasters();
+  const resolvedAvailable: AvailableLabel[] = useMemo(() => {
+    if (availableLabels && availableLabels.length > 0) return availableLabels;
+    if (!labelMasters) return [];
+    return labelMasters
+      .filter((m) => m.useYn === 'Y')
+      .sort((a, b) => {
+        if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
+        return a.labelId - b.labelId;
+      })
+      .map((m) => ({ id: m.labelId, name: m.name, color: m.color }));
+  }, [availableLabels, labelMasters]);
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const updateLabel = useLabelStore((s) => s.updateLabel);
   const target = useMemo(() => labels.find((l) => l.id === selectedId), [labels, selectedId]);
@@ -63,7 +80,7 @@ export function ObjectAttributePanel({
 
   function handleLabelChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newId = Number(e.target.value);
-    const found = availableLabels.find((l) => l.id === newId);
+    const found = resolvedAvailable.find((l) => l.id === newId);
     if (!found || !target) return;
     updateLabel(target.id, { classId: found.id, className: found.name });
   }
@@ -90,8 +107,8 @@ export function ObjectAttributePanel({
         </span>
       </h3>
 
-      {/* 라벨 드롭다운 */}
-      {availableLabels.length > 0 ? (
+      {/* 라벨 드롭다운 — Phase 8: useLabelMasters 응답을 자동 사용 */}
+      {resolvedAvailable.length > 0 ? (
         <label className="flex flex-col gap-1">
           <span className="text-xs text-neutral">라벨</span>
           <select
@@ -100,7 +117,7 @@ export function ObjectAttributePanel({
             onChange={handleLabelChange}
             className="rounded border border-border px-2 py-1 text-sub"
           >
-            {availableLabels.map((al) => (
+            {resolvedAvailable.map((al) => (
               <option key={al.id} value={al.id}>
                 {al.name} (#{al.id})
               </option>
@@ -108,7 +125,7 @@ export function ObjectAttributePanel({
           </select>
         </label>
       ) : (
-        <Field label="라벨" value={`${target.className} (#${target.classId})`} />
+        <Field label="라벨" value={target.className ? `${target.className} (#${target.classId})` : '라벨 없음'} />
       )}
 
       <Field

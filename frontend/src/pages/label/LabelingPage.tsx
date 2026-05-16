@@ -17,6 +17,7 @@ import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
 import { DarkToolbar } from '@/features/label/components/DarkToolbar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
+import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import { ClassAttributePanel } from '@/features/label/components/ClassAttributePanel';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
@@ -423,9 +424,10 @@ export function LabelingPage() {
         }
       />
 
-      {/* 본문 — 좌측 도구바 + 캔버스 + 우측 패널 */}
+      {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
       <div className="flex flex-1 overflow-hidden">
         <DarkToolbar onSave={handleSave} />
+        <LabelSidebar />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}
         <div

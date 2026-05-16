@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { useLabelStore } from '@/stores/useLabelStore';
 
+import { useLabelMasters } from './useLabelMasters';
 import { ToolType } from '../types';
 
 export interface ShortcutHandlers {
@@ -31,6 +32,22 @@ export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
   const redo = useLabelStore((s) => s.redo);
   const removeLabel = useLabelStore((s) => s.removeLabel);
   const setZoom = useLabelStore((s) => s.setZoom);
+  const setActiveLabelId = useLabelStore((s) => s.setActiveLabelId);
+  // 라벨 마스터는 staleTime 5분 — 호출 비용 무시. 1~9 단축키 매핑.
+  const { data: labelMasters } = useLabelMasters();
+
+  // sortNo asc 정렬된 첫 9개 라벨 — 1~9 키 매핑 대상.
+  const sortedLabelIds = useMemo(() => {
+    if (!labelMasters) return [] as number[];
+    return [...labelMasters]
+      .filter((m) => m.useYn === 'Y')
+      .sort((a, b) => {
+        if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
+        return a.labelId - b.labelId;
+      })
+      .slice(0, 9)
+      .map((m) => m.labelId);
+  }, [labelMasters]);
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -111,13 +128,22 @@ export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
             if (id) removeLabel(id);
             return;
           }
-          default:
+          default: {
+            // 단축키 1~9 — 라벨 마스터 sortNo asc N번째 활성화.
+            if (e.key.length === 1 && e.key >= '1' && e.key <= '9') {
+              const idx = Number(e.key) - 1;
+              const labelId = sortedLabelIds[idx];
+              if (labelId !== undefined) {
+                setActiveLabelId(labelId);
+              }
+            }
             return;
+          }
         }
       }
     }
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handlers, setActiveTool, undo, redo, removeLabel, setZoom]);
+  }, [handlers, setActiveTool, undo, redo, removeLabel, setZoom, setActiveLabelId, sortedLabelIds]);
 }
