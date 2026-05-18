@@ -114,7 +114,7 @@ class ReviewFramesControllerTest {
                 .andExpect(jsonPath("$.data.frames[0].frameNo").value(0))
                 .andExpect(jsonPath("$.data.frames[0].labels.length()").value(2))
                 .andExpect(jsonPath("$.data.frames[0].imageUrl")
-                        .value("/v1/videos/" + videoId + "/frames/0/image"));
+                        .value("/api/v1/videos/" + videoId + "/frames/0/image"));
     }
 
     @Test

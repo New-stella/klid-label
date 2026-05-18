@@ -290,7 +290,9 @@ public class ReviewService {
         // 4) 프레임 DTO 매핑 (frameNo 순서 보장)
         List<FrameDetailResponse> details = new ArrayList<>(frames.size());
         for (LsDataSrc src : frames) {
-            String imageUrl = "/v1/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image";
+            // server.servlet.context-path=/api 적용 시 실제 호출 경로는 /api/v1/... 이다.
+            // FE 가 imageUrl 을 그대로 absolute path 로 사용할 수 있도록 /api prefix 포함.
+            String imageUrl = "/api/v1/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image";
             details.add(new FrameDetailResponse(
                     src.getSrcSn(),
                     src.getFrameNo(),

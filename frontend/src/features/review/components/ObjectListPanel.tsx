@@ -162,7 +162,7 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
 
             {!isCollapsed && (
               <ul className="ml-3 flex flex-col gap-0.5 border-l border-gray-700 pl-2">
-                {g.items.map(({ item, indexInCategory }) => {
+                {g.items.map(({ item, indexInCategory }, listIdx) => {
                   const isSelected = selectedLabelId === item.id;
                   const isHover = hoverLabelId === item.id;
                   const rowClass = [
@@ -174,7 +174,8 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
                         : 'text-gray-300 hover:bg-gray-700/40',
                   ].join(' ');
                   return (
-                    <li key={item.id}>
+                    // BE 데이터 정합 이슈로 동일 id 가 들어와도 key 충돌이 발생하지 않도록 인덱스 폴백 포함.
+                    <li key={`${item.id}-${listIdx}`}>
                       <div
                         role="button"
                         tabIndex={0}

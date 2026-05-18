@@ -77,23 +77,59 @@ export function submitReview(videoId: number): Promise<Review> {
 }
 
 /**
+ * BE IssueResponse 원본 shape — FE ReviewIssue 와 필드명이 다르므로 변환 매퍼 적용.
+ *
+ * BE: { dataIssueSn, upDataIssueSn, videoId, issueReason, reportedUserNo, registeredAt }
+ * FE: { id,         frameId,        description, createdAt }
+ *
+ * LS_DATA_ISSUE 는 영상 단위 반려 (좌표/프레임 컬럼 없음 — 설계서 §5A.6) → frameId 는 videoId 로 대체.
+ * 추후 BE 가 프레임 단위 이슈 컬럼을 도입하면 매퍼에서 frameNo 로 교체한다.
+ */
+interface BackendIssueResponse {
+  dataIssueSn: number;
+  upDataIssueSn: number | null;
+  videoId: number;
+  issueReason: string;
+  reportedUserNo: string | null;
+  registeredAt: string;
+  // 호환 — BE 가 FE 호환 shape 으로 응답하는 경로(테스트 mock 등)도 허용.
+  id?: number;
+  frameId?: number;
+  description?: string;
+  createdAt?: string;
+}
+
+function toReviewIssue(raw: BackendIssueResponse): ReviewIssue {
+  return {
+    id: raw.id ?? raw.dataIssueSn,
+    frameId: raw.frameId ?? raw.videoId,
+    description: raw.description ?? raw.issueReason ?? '',
+    createdAt: raw.createdAt ?? raw.registeredAt ?? '',
+  };
+}
+
+/**
  * 검수 이슈 목록.
  * BE: GET /api/v1/reviews/{id}/issues
+ *
+ * BE 원본 IssueResponse → FE ReviewIssue 매핑 적용 (필드명 정합).
  */
 export function listIssues(reviewId: number): Promise<ReviewIssue[]> {
   return apiClient
-    .get<ReviewIssue[]>(`/reviews/${reviewId}/issues`)
-    .then((r) => r.data);
+    .get<BackendIssueResponse[]>(`/reviews/${reviewId}/issues`)
+    .then((r) => (r.data ?? []).map(toReviewIssue));
 }
 
 /**
  * 이슈 추가 (프레임 단위 카드 누적).
  * BE: POST /api/v1/reviews/{id}/issues
+ *
+ * BE 원본 IssueResponse → FE ReviewIssue 매핑 적용 (필드명 정합).
  */
 export function addIssue(reviewId: number, body: AddIssueRequest): Promise<ReviewIssue> {
   return apiClient
-    .post<ReviewIssue>(`/reviews/${reviewId}/issues`, body)
-    .then((r) => r.data);
+    .post<BackendIssueResponse>(`/reviews/${reviewId}/issues`, body)
+    .then((r) => toReviewIssue(r.data));
 }
 
 /**

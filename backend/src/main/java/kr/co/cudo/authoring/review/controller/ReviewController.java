@@ -96,7 +96,7 @@ public class ReviewController {
             summary = "검수 프레임 + 라벨 일괄 조회 (REVIEWER)",
             description = "videoId 기준 모든 프레임 메타와 각 프레임에 속한 라벨 (auto + manual)을 한 번에 반환한다. " +
                     "N+1 회피 — 프레임 1회 + 라벨 단일 IN-쿼리 1회 (총 2회). " +
-                    "imageUrl 은 /v1/videos/{rawSn}/frames/{frameNo}/image."
+                    "imageUrl 은 /api/v1/videos/{rawSn}/frames/{frameNo}/image (context-path 포함)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),

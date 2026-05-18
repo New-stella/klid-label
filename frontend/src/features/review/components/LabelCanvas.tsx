@@ -4,8 +4,8 @@
 // 마우스 호버 시 라벨명 칩 (`사람 #1`) 을 HTML overlay 로 표시.
 //
 // 보안:
-// - imageUrl 은 BE 발급 상대경로 → HTMLImageElement 가 동일 origin 으로 fetch.
-//   새 origin 입력 금지 (XSS/SSRF 위험 회피).
+// - 이미지는 srcSn 으로 useImageBlob 훅이 axios(Bearer 자동 첨부) 로 BE 인증 호출 →
+//   blob URL 발급. <img src> 직접 사용 시 401 (인증 헤더 누락) 및 prefix 누락(404) 위험 회피.
 // - 라벨명은 JSX 텍스트로만 출력 (자동 이스케이프, dangerouslySetInnerHTML 금지).
 //
 // 레이어 분리:
@@ -14,6 +14,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image as KonvaImage, Layer, Line, Rect, Stage } from 'react-konva';
+
+import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 
 import type { FrameDetail, LabelItem } from '../types';
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
@@ -209,7 +211,11 @@ export function LabelCanvas({ frame }: LabelCanvasProps) {
     return () => ro.disconnect();
   }, []);
 
-  const img = useImageElement(frame?.imageUrl);
+  // useImageBlob 가 axios(Bearer) 로 BE 인증 fetch → blob URL 발급. 직접 <img src=imageUrl> 호출은
+  // 인증 헤더 누락(401) + context-path(/api) 미적용 위험이 있어 사용하지 않는다.
+  // (REVIEWER 도 기본 DEID 이미지 사용 — 필요 시 추후 raw=true 옵션 추가)
+  const { url: imageBlobUrl } = useImageBlob(frame?.srcSn);
+  const img = useImageElement(imageBlobUrl ?? undefined);
   const imgW = img?.naturalWidth ?? 0;
   const imgH = img?.naturalHeight ?? 0;
 
@@ -261,9 +267,11 @@ export function LabelCanvas({ frame }: LabelCanvasProps) {
           </Layer>
           {/* Layer 2 — 라벨 shapes (interactive) */}
           <Layer x={offsetX} y={offsetY} scaleX={scale} scaleY={scale}>
-            {labels.map((label) => (
+            {labels.map((label, i) => (
               <LabelShape
-                key={label.id}
+                // 동일 id 라벨이 BE 응답에 섞여 들어오는 경우(데이터 정합 이슈)에도
+                // React key 충돌(react-konva 중복 key warning)을 방지하기 위해 인덱스 폴백 포함.
+                key={`${label.id}-${label.lblTypeCd}-${i}`}
                 label={label}
                 isHover={hoverId === label.id}
                 isSelected={selectedLabelId === label.id}

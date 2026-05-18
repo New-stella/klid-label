@@ -10,8 +10,9 @@
 // - 좌측 진행 바 + 우측 "x / y 00:00" 텍스트.
 //
 // 보안:
-// - imageUrl 은 BE 제공 상대경로. JSX 자동 이스케이프.
-// - 사용자 입력 기반 URL 구성 없음 (SSRF/Open Redirect 회피).
+// - 썸네일은 useImageBlob(srcSn) 으로 BE 인증 fetch (Bearer 자동) → blob URL 사용.
+//   <img src=BE_url> 직접 호출은 인증 헤더 누락(401) 회피.
+// - 텍스트는 JSX 자동 이스케이프.
 //
 // 성능 (frontend-performance.md):
 // - <img loading="lazy"> — above-the-fold 외 lazy load.
@@ -19,6 +20,8 @@
 // - 인라인 객체 prop 회피 — 진행바 width 만 인라인 style (동적).
 
 import { useEffect, useRef, type KeyboardEvent } from 'react';
+
+import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 
 import type { FrameDetail } from '../types';
 
@@ -30,6 +33,33 @@ interface FrameTimelineProps {
 
 const THUMB_WIDTH = 64;
 const THUMB_HEIGHT = 40;
+
+/**
+ * 단일 썸네일 — useImageBlob 으로 BE 인증 이미지 fetch.
+ * 컴포넌트 분리 이유: 각 프레임마다 hook 호출이 필요하므로 컴포넌트 단위로 격리.
+ *
+ * 보안: blob: URL 만 노출. img alt 는 JSX 자동 escape.
+ */
+function FrameTimelineThumbnail({
+  srcSn,
+  displayNo,
+}: {
+  srcSn: number;
+  displayNo: number;
+}) {
+  const { url } = useImageBlob(srcSn);
+  return (
+    <img
+      src={url ?? ''}
+      alt={`프레임 ${displayNo}`}
+      width={THUMB_WIDTH}
+      height={THUMB_HEIGHT}
+      loading="lazy"
+      className="rounded object-cover"
+      style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
+    />
+  );
+}
 
 /**
  * 프레임 인덱스 기반 가상 타임코드 (V1.x — 실제 영상 FPS 연동 전).
@@ -153,15 +183,7 @@ export function FrameTimeline({
                   : 'border-transparent hover:border-gray-500',
               ].join(' ')}
             >
-              <img
-                src={f.imageUrl}
-                alt={`프레임 ${displayNo}`}
-                width={THUMB_WIDTH}
-                height={THUMB_HEIGHT}
-                loading="lazy"
-                className="rounded object-cover"
-                style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
-              />
+              <FrameTimelineThumbnail srcSn={f.srcSn} displayNo={displayNo} />
               <span className="text-[10px] leading-none text-gray-400">
                 {displayNo}
               </span>
