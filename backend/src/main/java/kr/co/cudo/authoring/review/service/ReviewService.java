@@ -23,11 +23,14 @@ import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
+import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +67,7 @@ public class ReviewService {
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository labelRepository;
     private final VideoRepository videoRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -72,8 +76,124 @@ public class ReviewService {
      */
     public Page<ReviewResponse> list(String status, Pageable pageable, TokenClaims actor) {
         requireReviewer(actor);
-        return reviewRepository.searchByStatus(status, pageable)
-                .map(ReviewResponse::from);
+        Page<LsRawDataStatus> page = reviewRepository.searchByStatus(status, pageable);
+        List<LsRawDataStatus> rows = page.getContent();
+        if (rows.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(), pageable, page.getTotalElements());
+        }
+
+        // 페이지의 영상 ID 집합 (N+1 회피용 batch lookup 키)
+        List<Long> videoIds = rows.stream()
+                .map(LsRawDataStatus::getRawDataId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        // 1) CCTV 명 lookup — LS_DATA_RAW LEFT JOIN MNG_RESOURCE_CCTV (단일 native 쿼리)
+        Map<Long, String> cctvNameMap = lookupCctvNames(videoIds);
+
+        // 2) LABELER 배정 lookup — REG_DT DESC, rawDataId → userNo (단일 IN 쿼리)
+        Map<Long, Long> workerIdMap = lookupLabelerByVideo(videoIds);
+
+        // 3) 사용자 이름 lookup — userNo → userNm (단일 IN 쿼리)
+        Map<Long, String> userNameMap = lookupUserNames(workerIdMap.values());
+
+        // 4) 영상별 라벨 총개수 lookup — LS_DATA_LBL JOIN LS_DATA_SRC GROUP BY rawSn (단일 IN 쿼리)
+        Map<Long, Long> labelCountMap = lookupLabelCountByVideo(videoIds);
+
+        List<ReviewResponse> content = rows.stream()
+                .map(stts -> {
+                    Long videoId = stts.getRawDataId();
+                    String cctvName = cctvNameMap.get(videoId);
+                    Long workerId = workerIdMap.get(videoId);
+                    String workerName = (workerId != null) ? userNameMap.get(workerId) : null;
+                    Long labelCount = labelCountMap.getOrDefault(videoId, 0L);
+                    return ReviewResponse.from(stts, cctvName, workerId, workerName, labelCount);
+                })
+                .toList();
+        return new PageImpl<>(content, pageable, page.getTotalElements());
+    }
+
+    /**
+     * 페이지의 영상 ID 들에 대해 (rawSn → cctvNm) 매핑을 단일 native 쿼리로 조회.
+     * cctvNm 이 비어 있으면 VMS_CCTV_ID 폴백을 사용한다 (AssignmentService 와 동일 정책).
+     * 둘 다 비어 있으면 키 자체를 넣지 않아 ReviewResponse.from 의 "video #N" 폴백이 작동한다.
+     */
+    private Map<Long, String> lookupCctvNames(List<Long> videoIds) {
+        if (videoIds == null || videoIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, String> map = new HashMap<>();
+        for (Object[] row : videoRepository.findCctvNamesByRawSns(videoIds)) {
+            if (row == null || row.length < 3 || row[0] == null) continue;
+            Long rawSn = ((Number) row[0]).longValue();
+            String cctvNm = row[1] != null ? row[1].toString() : null;
+            String vmsCctvId = row[2] != null ? row[2].toString() : null;
+            String resolved = (cctvNm != null && !cctvNm.isBlank())
+                    ? cctvNm
+                    : (vmsCctvId != null && !vmsCctvId.isBlank() ? vmsCctvId : null);
+            if (resolved != null) {
+                map.put(rawSn, resolved);
+            }
+        }
+        return map;
+    }
+
+    /**
+     * 페이지의 영상 ID 들에 대해 LABELER 배정 (rawDataId → 작업자 userNo) 매핑을 단일 IN 쿼리로 조회.
+     * 동일 영상에 여러 LABELER 배정이 있으면 REG_DT DESC 첫 1건(가장 최근)만 유지.
+     */
+    private Map<Long, Long> lookupLabelerByVideo(List<Long> videoIds) {
+        if (videoIds == null || videoIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<LsTaskAssignment> labelers = authrtRepository
+                .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(LsTaskAssignment.TASK_LABELER, videoIds);
+        Map<Long, Long> map = new HashMap<>();
+        for (LsTaskAssignment a : labelers) {
+            map.putIfAbsent(a.getRawDataId(), a.getUserNo());
+        }
+        return map;
+    }
+
+    /**
+     * 사용자 번호 집합에 대해 (userNo → userNm) 매핑을 단일 IN 쿼리로 조회.
+     */
+    private Map<Long, String> lookupUserNames(java.util.Collection<Long> userNos) {
+        if (userNos == null || userNos.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> distinct = userNos.stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (distinct.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, String> map = new HashMap<>();
+        for (MngAcctUser u : userRepository.findByUserNoIn(distinct)) {
+            map.put(u.getUserNo(), u.getUserNm());
+        }
+        return map;
+    }
+
+    /**
+     * 페이지의 영상 ID 들에 대해 (rawSn → 라벨 총개수) 매핑을 단일 IN 쿼리로 조회.
+     * LS_DATA_LBL JOIN LS_DATA_SRC GROUP BY rawSn — 라벨이 없는 영상은 키가 존재하지 않아
+     * 호출 측 {@code getOrDefault(id, 0L)} 로 0 폴백 처리.
+     */
+    private Map<Long, Long> lookupLabelCountByVideo(List<Long> videoIds) {
+        if (videoIds == null || videoIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : labelRepository.countLabelsByRawSnIn(videoIds)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
+            Long rawSn = ((Number) row[0]).longValue();
+            Long count = ((Number) row[1]).longValue();
+            map.put(rawSn, count);
+        }
+        return map;
     }
 
     /**

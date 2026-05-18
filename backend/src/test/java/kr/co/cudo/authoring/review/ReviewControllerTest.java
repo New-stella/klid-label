@@ -6,6 +6,10 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
@@ -23,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -45,6 +50,8 @@ class ReviewControllerTest {
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private LsRawDataStatusRepository dataSttsRepository;
     @Autowired private IssueRepository issueRepository;
+    @Autowired private LsDataSrcRepository srcRepository;
+    @Autowired private LsDataLblRepository labelRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -233,5 +240,67 @@ class ReviewControllerTest {
         mockMvc.perform(get("/v1/reviews")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("ReviewController_목록_응답에_cctvName_workerName_labelCount_가_채워진다")
+    void listEnrichesCctvWorkerLabelCount() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        // 라벨 시드: 영상에 프레임 1개 + 라벨 3개 → labelCount=3
+        LsDataSrc src = LsDataSrc.create(videoId, 0,
+                "test-rev-list/" + videoId + "/f_0.jpg", LocalDateTime.now());
+        src = srcRepository.save(src);
+        for (int i = 0; i < 3; i++) {
+            labelRepository.save(LsDataLbl.createAutoBbox(
+                    src.getSrcSn(), "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9)));
+        }
+
+        mockMvc.perform(get("/v1/reviews")
+                        .param("status", "PENDING")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                // workerId/workerName: setup() 에서 user 100 을 LABELER 로 배정 → '작업자100'
+                .andExpect(jsonPath("$.data.content[0].workerId").value(100))
+                .andExpect(jsonPath("$.data.content[0].workerName").value("작업자100"))
+                // labelCount: 라벨 3건
+                .andExpect(jsonPath("$.data.content[0].labelCount").value(3))
+                // cctvName: test-data-video.sql 의 CCTV-001 매핑 '동대문구 회기로 CCTV'
+                .andExpect(jsonPath("$.data.content[0].cctvName").value("동대문구 회기로 CCTV"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_미배정_라벨없는_영상은_workerName_빈값_labelCount_0_폴백")
+    void listFallsBackWhenNoAssignmentAndNoLabels() throws Exception {
+        // 다른 영상 생성 — 배정/라벨 없음
+        LsDataRaw raw2 = LsDataRaw.createFromIngest(
+                "CLIP-REV-002", "CCTV-002", "EVT-A", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip2.mp4",
+                LocalDateTime.now(), 30);
+        raw2 = rawRepository.save(raw2);
+        Long videoId2 = raw2.getRawSn();
+
+        // 두 영상 모두 PENDING
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+        LsRawDataStatus stts2 = LsRawDataStatus.initial(videoId2);
+        stts2.transitionTo(LsRawDataStatus.STTS_PENDING);
+        dataSttsRepository.save(stts2);
+
+        mockMvc.perform(get("/v1/reviews")
+                        .param("status", "PENDING")
+                        .param("size", "20")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                // 미배정 영상은 workerName="" (DTO 폴백) 이며 labelCount=0 이다.
+                // content 순서는 보장되지 않으므로 둘 중 어느 인덱스에도 0 이 존재해야 한다.
+                .andExpect(jsonPath("$.data.content[?(@.videoId == " + videoId2 + ")].workerName")
+                        .value(org.hamcrest.Matchers.contains("")))
+                .andExpect(jsonPath("$.data.content[?(@.videoId == " + videoId2 + ")].labelCount")
+                        .value(org.hamcrest.Matchers.contains(0)))
+                // cctvName: CCTV-002 매핑 '강남구 테헤란로 CCTV'
+                .andExpect(jsonPath("$.data.content[?(@.videoId == " + videoId2 + ")].cctvName")
+                        .value(org.hamcrest.Matchers.contains("강남구 테헤란로 CCTV")));
     }
 }
