@@ -5,11 +5,14 @@ import { ClipboardCheck, Hourglass, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { DataTable, type DataTableColumn } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
+import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { KpiCard } from '@/components/common/KpiCard';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useReviewList } from '@/features/review/hooks/useReviewList';
 import type { Review, ReviewListParams, ReviewStatus } from '@/features/review/types';
+import { useVideos } from '@/features/video/hooks/useVideos';
+import type { Video } from '@/features/video/types';
 
 /**
  * SCR-REVIEW-001 검수 대기 목록 (V1.x mock 시각 정합).
@@ -47,6 +50,13 @@ export function ReviewListPage() {
   }, [searchParams]);
 
   const { data, isLoading, error } = useReviewList(params);
+  // 영상 메타 left-join (이벤트 라벨/식별자 표시용) — 작업 목록과 동일 패턴
+  const { data: videosPage } = useVideos({ size: 999 });
+  const videoById = useMemo(() => {
+    const map = new Map<number, Video>();
+    (videosPage?.content ?? []).forEach((v) => map.set(v.id, v));
+    return map;
+  }, [videosPage]);
 
   // 클라이언트 검색·상태 필터 (URL과 분리한 로컬 state — 서버 파라미터화는 후속)
   const [keyword, setKeyword] = useState('');
@@ -106,41 +116,68 @@ export function ReviewListPage() {
     return 'secondary';
   };
 
-  const columns: DataTableColumn<Review>[] = [
-    { key: 'cctvName', header: '영상명', render: (r) => r.cctvName },
-    { key: 'workerName', header: '작업자', render: (r) => r.workerName },
-    {
-      key: 'submittedAt',
-      header: '제출일',
-      sortable: true,
-      render: (r) => new Date(r.submittedAt).toLocaleString('ko-KR'),
-    },
-    {
-      key: 'labelCount',
-      header: '라벨 수',
-      align: 'right',
-      render: (r) => r.labelCount.toLocaleString('ko-KR'),
-    },
-    {
-      key: 'status',
-      header: '상태',
-      render: (r) => <StatusBadge status={r.status} />,
-    },
-    {
-      key: 'actions',
-      header: '액션',
-      render: (r) => (
-        <Button
-          variant={actionVariant(r.status)}
-          size="sm"
-          onClick={() => navigate(`/review/${r.id}`)}
-          aria-label={`검수 시작 ${r.cctvName}`}
-        >
-          {actionLabel(r.status)}
-        </Button>
-      ),
-    },
-  ];
+  // columns: videoById/navigate closure 캡처 — videoById 변경 시 stale 방지
+  const columns = useMemo<DataTableColumn<Review>[]>(
+    () => [
+      {
+        key: 'cctvName',
+        header: '영상명',
+        render: (r) => (
+          <div className="min-w-[160px]">
+            <p className="truncate max-w-[200px] text-sm font-medium text-gray-800">
+              {r.cctvName}
+            </p>
+            <p className="text-xs text-gray-400">{`video-${String(r.videoId).padStart(4, '0')}`}</p>
+          </div>
+        ),
+      },
+      {
+        key: 'eventName',
+        header: '이벤트',
+        render: (r) => {
+          const v = videoById.get(r.videoId);
+          return v?.eventName ? (
+            <EventTypeBadge eventType={v.eventName} />
+          ) : (
+            <span className="text-xs text-gray-400">-</span>
+          );
+        },
+      },
+      { key: 'workerName', header: '작업자', render: (r) => r.workerName },
+      {
+        key: 'submittedAt',
+        header: '제출일',
+        sortable: true,
+        render: (r) => new Date(r.submittedAt).toLocaleString('ko-KR'),
+      },
+      {
+        key: 'labelCount',
+        header: '라벨 수',
+        align: 'right',
+        render: (r) => r.labelCount.toLocaleString('ko-KR'),
+      },
+      {
+        key: 'status',
+        header: '상태',
+        render: (r) => <StatusBadge status={r.status} />,
+      },
+      {
+        key: 'actions',
+        header: '액션',
+        render: (r) => (
+          <Button
+            variant={actionVariant(r.status)}
+            size="sm"
+            onClick={() => navigate(`/review/${r.id}`)}
+            aria-label={`검수 시작 ${r.cctvName}`}
+          >
+            {actionLabel(r.status)}
+          </Button>
+        ),
+      },
+    ],
+    [videoById, navigate],
+  );
 
   const handleResetFilters = () => {
     setKeyword('');
