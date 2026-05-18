@@ -1,14 +1,38 @@
+// 회귀 가드 — 라벨 저장 성공 후 5개 도메인 캐시(LABEL/VIDEO/ASSIGNMENT/REVIEW/VERSION)가
+// 모두 invalidate 되는지 검증.
+//
+// 증상 1 (HIGH) "저장 후 작업이력에 새 커밋이 바로 안 보임" 의 근본 원인이
+// onSuccess 의 VERSION_KEYS 누락이었던 회귀를 방지한다.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
-import { LABEL_KEYS, VERSION_KEYS } from '@/lib/queryKeys';
+import {
+  ASSIGNMENT_KEYS,
+  LABEL_KEYS,
+  REVIEW_KEYS,
+  VERSION_KEYS,
+  VIDEO_KEYS,
+} from '@/lib/queryKeys';
 
-import { useRollback } from '../hooks/useRollback';
+import { useUpdateLabels } from '../hooks/useUpdateLabels';
+import type { Label } from '../types';
 
-describe('useRollback', () => {
+function bbox(id: string): Label {
+  return {
+    id,
+    frameNo: 0,
+    classId: 1,
+    className: 'car',
+    source: 'MANUAL',
+    shape: { type: 'BBOX', left: 10, top: 20, right: 100, bottom: 80 },
+  };
+}
+
+describe('useUpdateLabels onSuccess invalidate', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
@@ -19,10 +43,10 @@ describe('useRollback', () => {
     mock.restore();
   });
 
-  it('롤백_성공_후_LabelingPage_라벨_재조회_invalidate', async () => {
-    mock.onPost('/versions/bbb222/rollback').reply(200, {
+  it('저장_성공_시_VERSION_KEYS도_invalidate된다', async () => {
+    mock.onPut('/frames/241/labels').reply(200, {
       success: true,
-      data: { newCommitSha: 'ccc333', rolledBackFrom: 'bbb222' },
+      data: { srcSn: 241, frameNo: 0, labels: [], siblings: [] },
       message: null,
       errorCode: null,
     });
@@ -36,27 +60,21 @@ describe('useRollback', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useRollback(777), { wrapper });
-    result.current.mutate({ commitSha: 'bbb222', srcSn: 241 });
+    const { result } = renderHook(() => useUpdateLabels(241), { wrapper });
+    result.current.mutate([bbox('a')]);
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    // LABEL_KEYS.byVideo + VERSION_KEYS.history 무효화
     const calls = invalidate.mock.calls.map((c) => c[0]);
-    expect(calls).toContainEqual({ queryKey: LABEL_KEYS.byVideo(777) });
-    expect(calls).toContainEqual({ queryKey: VERSION_KEYS.history(777) });
+    expect(calls).toContainEqual({ queryKey: VERSION_KEYS.all });
   });
 
-  it('롤백_성공_후_LABEL_KEYS_all과_VERSION_KEYS_all도_invalidate', async () => {
-    // 회귀 가드 — byVideo prefix 매칭 의존을 제거하고 LABEL_KEYS.all 로 일괄 무효화
-    // 하는지 검증. useLabels 의 byFrame queryKey 가 byVideo prefix 와 정확히 일치
-    // 하지 않는 경우(videoId/srcSn 인자 누락 등) 에도 캔버스가 새 라벨로 갱신되도록
-    // 안전 가드를 둔다.
-    mock.onPost('/versions/bbb222/rollback').reply(200, {
+  it('저장_성공_시_LABEL_VIDEO_ASSIGNMENT_REVIEW_VERSION_5종_모두_invalidate', async () => {
+    mock.onPut('/frames/241/labels').reply(200, {
       success: true,
-      data: { newCommitSha: 'ccc333', rolledBackFrom: 'bbb222' },
+      data: { srcSn: 241, frameNo: 0, labels: [], siblings: [] },
       message: null,
       errorCode: null,
     });
@@ -70,8 +88,8 @@ describe('useRollback', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useRollback(777), { wrapper });
-    result.current.mutate({ commitSha: 'bbb222', srcSn: 241 });
+    const { result } = renderHook(() => useUpdateLabels(241), { wrapper });
+    result.current.mutate([bbox('a')]);
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
@@ -79,6 +97,9 @@ describe('useRollback', () => {
 
     const calls = invalidate.mock.calls.map((c) => c[0]);
     expect(calls).toContainEqual({ queryKey: LABEL_KEYS.all });
+    expect(calls).toContainEqual({ queryKey: VIDEO_KEYS.all });
+    expect(calls).toContainEqual({ queryKey: ASSIGNMENT_KEYS.all });
+    expect(calls).toContainEqual({ queryKey: REVIEW_KEYS.all });
     expect(calls).toContainEqual({ queryKey: VERSION_KEYS.all });
   });
 });
