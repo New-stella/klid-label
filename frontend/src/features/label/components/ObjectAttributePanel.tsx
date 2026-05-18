@@ -57,11 +57,11 @@ export function ObjectAttributePanel({
   if (!target) {
     return (
       <aside
-        className="flex h-full w-72 flex-col gap-2 border-l border-border bg-white p-3"
+        className="flex h-full w-72 flex-col gap-2 border-l border-gray-700 bg-gray-800 p-3"
         aria-label="객체 속성"
       >
-        <h3 className="text-sub font-semibold text-primary">객체 속성</h3>
-        <p className="text-sub text-neutral">선택된 객체가 없습니다</p>
+        <h3 className="text-sub font-semibold text-gray-100">객체 속성</h3>
+        <p className="text-sub text-gray-400">선택된 객체가 없습니다</p>
       </aside>
     );
   }
@@ -97,12 +97,12 @@ export function ObjectAttributePanel({
 
   return (
     <aside
-      className="flex h-full w-72 flex-col gap-3 overflow-y-auto border-l border-border bg-white p-3"
+      className="flex h-full w-72 flex-col gap-3 overflow-y-auto border-l border-gray-700 bg-gray-800 p-3"
       aria-label="객체 속성"
     >
-      <h3 className="flex items-center gap-2 text-sub font-semibold text-primary">
+      <h3 className="flex items-center gap-2 text-sub font-semibold text-gray-100">
         <span>객체 속성</span>
-        <span className="text-gray-500 text-xs" data-testid="object-attribute-id">
+        <span className="text-gray-400 text-xs" data-testid="object-attribute-id">
           #{objectNumber}
         </span>
       </h3>
@@ -110,12 +110,12 @@ export function ObjectAttributePanel({
       {/* 라벨 드롭다운 — Phase 8: useLabelMasters 응답을 자동 사용 */}
       {resolvedAvailable.length > 0 ? (
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-neutral">라벨</span>
+          <span className="text-xs text-gray-400">라벨</span>
           <select
             aria-label="라벨 선택"
             value={target.classId}
             onChange={handleLabelChange}
-            className="rounded border border-border px-2 py-1 text-sub"
+            className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             {resolvedAvailable.map((al) => (
               <option key={al.id} value={al.id}>
@@ -134,7 +134,7 @@ export function ObjectAttributePanel({
           <span>
             {sourceLabel}
             {lowConfidence && (
-              <span className="ml-2 rounded bg-warning/10 px-1 text-xs text-warning" role="status">
+              <span className="ml-2 rounded bg-amber-500/20 px-1 text-xs text-amber-300" role="status">
                 낮은 신뢰도
               </span>
             )}
@@ -144,21 +144,21 @@ export function ObjectAttributePanel({
 
       {target.confidence !== undefined && (
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-neutral">신뢰도</span>
+          <span className="text-xs text-gray-400">신뢰도</span>
           <div
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(target.confidence * 100)}
             aria-label="신뢰도"
-            className="h-2 w-full overflow-hidden rounded bg-bgLight"
+            className="h-2 w-full overflow-hidden rounded bg-gray-700"
           >
             <div
-              className={lowConfidence ? 'h-full bg-warning' : 'h-full bg-success'}
+              className={lowConfidence ? 'h-full bg-amber-400' : 'h-full bg-emerald-400'}
               style={{ width: `${(target.confidence * 100).toFixed(1)}%` }}
             />
           </div>
-          <span className="text-xs text-neutral">
+          <span className="text-xs text-gray-400">
             {(target.confidence * 100).toFixed(1)}%
           </span>
         </div>
@@ -172,7 +172,7 @@ export function ObjectAttributePanel({
       {target.shape && target.shape.type !== 'BBOX' && <CoordsReadonly target={target} />}
 
       {/* SAM2 자동추적 토글 placeholder (Sam2TrackTool 컴포넌트 외부에서 결합) */}
-      <div className="mt-2 rounded bg-bgLight p-2 text-xs text-neutral">
+      <div className="mt-2 rounded bg-gray-700 p-2 text-xs text-gray-300">
         SAM2 자동추적은 도구바에서 [T] 버튼으로 활성화
       </div>
     </aside>
@@ -182,8 +182,8 @@ export function ObjectAttributePanel({
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-neutral">{label}</span>
-      <span className="text-sub text-primary">{value}</span>
+      <span className="text-xs text-gray-400">{label}</span>
+      <span className="text-sub text-gray-100">{value}</span>
     </div>
   );
 }
@@ -218,13 +218,13 @@ function NumberField({
 }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-xs text-neutral">{label}</span>
+      <span className="text-xs text-gray-400">{label}</span>
       <input
         type="number"
         aria-label={label}
         value={Number.isFinite(value) ? value : ''}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded border border-border px-2 py-1 text-sub"
+        className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
     </label>
   );
