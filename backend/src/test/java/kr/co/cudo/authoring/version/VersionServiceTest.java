@@ -571,11 +571,11 @@ class VersionServiceTest {
         verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
                 messageCap.capture(), anyString(), anyString());
         String msg = messageCap.getValue();
-        assertThat(msg).contains("frame 0");
-        assertThat(msg).contains("+2 added");
-        assertThat(msg).contains("-1 removed");
-        assertThat(msg).contains("~1 modified");
-        assertThat(msg).contains("by 100");
+        assertThat(msg).contains("프레임 0");
+        assertThat(msg).contains("+2개 추가");
+        assertThat(msg).contains("-1개 삭제");
+        assertThat(msg).contains("~1개 수정");
+        assertThat(msg).contains("작성자: 100");
     }
 
     @Test
@@ -596,11 +596,11 @@ class VersionServiceTest {
         verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
                 messageCap.capture(), anyString(), anyString());
         String msg = messageCap.getValue();
-        assertThat(msg).contains("frame 0");
-        assertThat(msg).contains("+2 added");
-        assertThat(msg).doesNotContain("removed");
-        assertThat(msg).doesNotContain("modified");
-        assertThat(msg).contains("by 100");
+        assertThat(msg).contains("프레임 0");
+        assertThat(msg).contains("+2개 추가");
+        assertThat(msg).doesNotContain("삭제");
+        assertThat(msg).doesNotContain("수정");
+        assertThat(msg).contains("작성자: 100");
     }
 
     @Test
@@ -620,10 +620,10 @@ class VersionServiceTest {
         verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
                 messageCap.capture(), anyString(), anyString());
         String msg = messageCap.getValue();
-        assertThat(msg).contains("frame 0");
-        assertThat(msg).contains("no changes");
-        assertThat(msg).contains("re-commit");
-        assertThat(msg).contains("by 100");
+        assertThat(msg).contains("프레임 0");
+        assertThat(msg).contains("변경 없음");
+        assertThat(msg).contains("재커밋");
+        assertThat(msg).contains("작성자: 100");
     }
 
     @Test
@@ -637,7 +637,7 @@ class VersionServiceTest {
 
         // 빈 items 새 commit — 정상이라면 initial commit 메시지가 나와야 하지만,
         // fetch 실패의 경우에도 enrichment 가 정상 동작해야 함 (빈 content → initial commit).
-        // 다만 raw "label update by ACTOR" fallback 은 parse/unknown 예외 시 작동하므로,
+        // 다만 raw "라벨 저장 (작성자: ACTOR)" fallback 은 parse/unknown 예외 시 작동하므로,
         // 이 케이스(getContent 만 실패)는 안전하게 빈 content 로 처리되어 정상 enrichment 가 적용됨을 확인.
         versionService.commit(srcSn, "{\"frameNo\":0,\"items\":[{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"x\",\"points\":[[1.0,1.0]]}]}",
                 workerAssigned);
@@ -645,10 +645,10 @@ class VersionServiceTest {
         verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
                 messageCap.capture(), anyString(), anyString());
         String msg = messageCap.getValue();
-        // getContent 실패는 빈 content 로 흡수 → initial commit 또는 +1 added 형태
-        // 어떻든 actor 포함 + frame 번호 포함은 보장되어야 함
-        assertThat(msg).contains("by 100");
-        assertThat(msg).contains("frame 0");
+        // getContent 실패는 빈 content 로 흡수 → 최초 커밋 또는 +1개 추가 형태
+        // 어떻든 작성자 포함 + 프레임 번호 포함은 보장되어야 함
+        assertThat(msg).contains("작성자: 100");
+        assertThat(msg).contains("프레임 0");
     }
 
     @Test
@@ -679,10 +679,10 @@ class VersionServiceTest {
         verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
                 messageCap.capture(), anyString(), anyString());
         String msg = messageCap.getValue();
-        assertThat(msg).contains("frame 0");
-        assertThat(msg).contains("+2 added");
-        assertThat(msg).contains("-1 removed");
-        assertThat(msg).contains("~1 modified");
-        assertThat(msg).contains("by 100");
+        assertThat(msg).contains("프레임 0");
+        assertThat(msg).contains("+2개 추가");
+        assertThat(msg).contains("-1개 삭제");
+        assertThat(msg).contains("~1개 수정");
+        assertThat(msg).contains("작성자: 100");
     }
 }

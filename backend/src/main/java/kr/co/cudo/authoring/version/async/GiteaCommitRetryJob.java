@@ -70,7 +70,7 @@ public class GiteaCommitRetryJob {
         String labelsJson = item.getLabelsJson();
         String contentBase64 = Base64.getEncoder().encodeToString(
                 (labelsJson == null ? "" : labelsJson).getBytes(StandardCharsets.UTF_8));
-        String message = "label update by " + item.getUserNo() + " (retry)";
+        String message = "라벨 저장 (작성자: " + item.getUserNo() + ", 재시도)";
         CommitResponse resp = giteaClient
                 .createOrUpdateFile(repo, pathPolicy.path(item.getSrcSn()), contentBase64,
                         message, item.getUserNo(), "main")

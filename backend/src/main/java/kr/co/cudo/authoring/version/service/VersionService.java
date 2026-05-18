@@ -171,22 +171,22 @@ public class VersionService {
 
     /**
      * commit 메시지 enrichment — 현재 HEAD content 와 새 labelsJson 을 비교해
-     * frame 번호 + added/removed/modified 카운트 + actor 를 포함한 메시지를 생성한다.
+     * 프레임 번호 + 추가/삭제/수정 카운트 + 작성자를 포함한 한글 메시지를 생성한다.
      *
      * <p>형식:
      * <ul>
-     *   <li>변화 있음: {@code "frame N: +A added, -R removed, ~M modified by ACTOR"} (카운트 0 항목은 생략)</li>
-     *   <li>최초 commit (HEAD 없음): {@code "frame N: +A added by ACTOR"} 또는 신규 라벨도 없으면 {@code "frame N: initial commit by ACTOR"}</li>
-     *   <li>변화 없음 (re-commit): {@code "frame N: no changes (re-commit) by ACTOR"}</li>
-     *   <li>fetch/parse 실패: 기본 메시지 {@code "label update by ACTOR"} 로 폴백 (회귀가드)</li>
+     *   <li>변화 있음: {@code "프레임 N: +A개 추가, -R개 삭제, ~M개 수정 (작성자: ACTOR)"} (카운트 0 항목은 생략)</li>
+     *   <li>최초 commit (HEAD 없음): {@code "프레임 N: +A개 추가 (작성자: ACTOR)"} 또는 신규 라벨도 없으면 {@code "프레임 N: 최초 커밋 (작성자: ACTOR)"}</li>
+     *   <li>변화 없음 (re-commit): {@code "프레임 N: 변경 없음 (재커밋) (작성자: ACTOR)"}</li>
+     *   <li>fetch/parse 실패: 기본 메시지 {@code "라벨 저장 (작성자: ACTOR)"} 로 폴백 (회귀가드)</li>
      * </ul>
      *
-     * <p>frameNo 가 null 이면 {@code "frame ?"} 으로 표기 (srcSn 기반 폴백은 frameNo 보장이 강해 사용하지 않음).
+     * <p>frameNo 가 null 이면 {@code "프레임 ?"} 으로 표기 (srcSn 기반 폴백은 frameNo 보장이 강해 사용하지 않음).
      */
     private String buildCommitMessage(String path, String newLabelsJson, Integer frameNo,
                                       Long srcSn, String actorSub) {
-        String defaultMessage = "label update by " + actorSub;
-        String frameLabel = "frame " + (frameNo != null ? frameNo : "?");
+        String defaultMessage = "라벨 저장 (작성자: " + actorSub + ")";
+        String frameLabel = "프레임 " + (frameNo != null ? frameNo : "?");
         try {
             // HEAD content fetch — 최초 commit 이면 404 등으로 실패 → 빈 문자열 처리
             String headContent = fetchHeadContentOrEmpty(path);
@@ -213,26 +213,26 @@ public class VersionService {
             boolean initialCommit = headContent.isEmpty();
             if (added == 0 && removed == 0 && modified == 0) {
                 if (initialCommit) {
-                    return frameLabel + ": initial commit by " + actorSub;
+                    return frameLabel + ": 최초 커밋 (작성자: " + actorSub + ")";
                 }
-                return frameLabel + ": no changes (re-commit) by " + actorSub;
+                return frameLabel + ": 변경 없음 (재커밋) (작성자: " + actorSub + ")";
             }
             StringBuilder sb = new StringBuilder(frameLabel).append(": ");
             boolean first = true;
             if (added > 0) {
-                sb.append("+").append(added).append(" added");
+                sb.append("+").append(added).append("개 추가");
                 first = false;
             }
             if (removed > 0) {
                 if (!first) sb.append(", ");
-                sb.append("-").append(removed).append(" removed");
+                sb.append("-").append(removed).append("개 삭제");
                 first = false;
             }
             if (modified > 0) {
                 if (!first) sb.append(", ");
-                sb.append("~").append(modified).append(" modified");
+                sb.append("~").append(modified).append("개 수정");
             }
-            sb.append(" by ").append(actorSub);
+            sb.append(" (작성자: ").append(actorSub).append(")");
             return sb.toString();
         } catch (Exception e) {
             log.warn("[Version] commit message enrichment failed srcSn={} reason={} - fallback to default message",
