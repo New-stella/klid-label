@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/common/Button';
 import { useLabelStore } from '@/stores/useLabelStore';
 
-import { saveAndCommit } from '../SaveCommitFlow';
+import { useUpdateLabels } from '../hooks/useUpdateLabels';
 import type { Label } from '../types';
 
 interface SaveCommitButtonProps {
@@ -14,26 +14,29 @@ interface SaveCommitButtonProps {
 }
 
 /**
- * 저장 + 커밋 버튼. PUT 후 portalMode가 아니면 POST commit.
+ * 저장 버튼. BE의 PUT /frames/{srcSn}/labels 가 저장 + (내부 채널 한정) Gitea 커밋을 함께 처리한다.
+ * useUpdateLabels 훅을 통해 호출하여 저장 성공 시 LABEL/VIDEO/ASSIGNMENT/REVIEW 캐시를 일괄
+ * invalidate 한다 — 프레임 왕복·작업 목록 진입 시 stale 노출 회귀 방지.
+ *
+ * portalMode 는 호출 측 의도를 명시하기 위해 prop 으로 유지하지만, BE 가 채널 정보로 커밋 여부를
+ * 결정하므로 FE 행위는 동일(단일 PUT)이다.
  */
-export function SaveCommitButton({ srcSn, labels, portalMode, onSaved }: SaveCommitButtonProps) {
-  const [loading, setLoading] = useState(false);
+export function SaveCommitButton({ srcSn, labels, portalMode: _portalMode, onSaved }: SaveCommitButtonProps) {
   const [error, setError] = useState<string | null>(null);
   const clearDirty = useLabelStore((s) => s.clearDirty);
   const dirtyCount = useLabelStore((s) => s.dirtyLabels.size);
 
+  const { mutateAsync: updateLabels, isPending: loading } = useUpdateLabels(srcSn);
+
   async function handleSave() {
     if (srcSn === undefined) return;
-    setLoading(true);
     setError(null);
     try {
-      await saveAndCommit(srcSn, labels, { portalMode });
+      await updateLabels(labels);
       clearDirty();
       onSaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장 실패');
-    } finally {
-      setLoading(false);
     }
   }
 

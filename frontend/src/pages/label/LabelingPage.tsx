@@ -25,7 +25,7 @@ import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useLabels } from '@/features/label/hooks/useLabels';
-import { saveAndCommit } from '@/features/label/SaveCommitFlow';
+import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import type { FrameSummary } from '@/features/label/types';
 import { useSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { HistoryPanel } from '@/features/version/components/HistoryPanel';
@@ -153,12 +153,20 @@ export function LabelingPage() {
     }
   };
 
+  // 데이터 동기화 — data 변경 시 store 의 labels 를 갱신.
+  // setLabels 내부에서 dirtyLabels/undoStack/redoStack/selectedLabelId 를 초기화하므로
+  // 프레임 전환 시점에 별도 reset() 호출은 불필요하다. (cleanup 에서 reset 호출하면
+  // 매 data 변경마다 store 가 완전 초기화돼 깜빡임/라벨 사라짐 회귀가 발생함)
   useEffect(() => {
     if (data) setLabels(Array.isArray(data.labels) ? data.labels : []);
+  }, [data, setLabels]);
+
+  // 컴포넌트 unmount 시에만 store 를 완전 초기화 — 다른 화면으로 빠져나갈 때 잔존 상태 제거.
+  useEffect(() => {
     return () => {
       reset();
     };
-  }, [data, setLabels, reset]);
+  }, [reset]);
 
   // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -174,8 +182,10 @@ export function LabelingPage() {
     setReportedLock(false);
   }, [data?.videoId, data?.srcSn]);
 
-  // 저장 (PUT + commit) — 단축키와 헤더 버튼 공유
-  const [saving, setSaving] = useState(false);
+  // 저장 (PUT + commit) — 단축키와 헤더 버튼 공유.
+  // useUpdateLabels 훅이 PUT 성공 시 LABEL/VIDEO/ASSIGNMENT/REVIEW_KEYS 를 일괄 invalidate 하여
+  // 프레임 전환·작업 목록 진행률이 최신 상태로 갱신되도록 한다.
+  const { mutateAsync: updateLabels, isPending: saving } = useUpdateLabels(currentFrame?.srcSn);
   const handleSave = async () => {
     if (!currentFrame) return;
     if (isLocked) {
@@ -185,9 +195,8 @@ export function LabelingPage() {
       });
       return;
     }
-    setSaving(true);
     try {
-      await saveAndCommit(currentFrame.srcSn, labels, { portalMode });
+      await updateLabels(labels);
       clearDirty();
       pushToast({ variant: 'success', message: portalMode ? '저장됨' : '저장됨 · 버전 기록됨' });
     } catch (e) {
@@ -195,8 +204,6 @@ export function LabelingPage() {
         variant: 'error',
         message: e instanceof Error ? e.message : '저장 실패',
       });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -219,7 +226,7 @@ export function LabelingPage() {
     }
     setClosing(true);
     try {
-      await saveAndCommit(currentFrame.srcSn, labels, { portalMode });
+      await updateLabels(labels);
       clearDirty();
       setCloseConfirmOpen(false);
       navigate(-1);
