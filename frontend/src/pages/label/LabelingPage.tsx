@@ -361,7 +361,7 @@ export function LabelingPage() {
           isWorker && data ? (
             <Button
               variant="primary"
-              onClick={() => submitForReview(data.srcSn)}
+              onClick={() => submitForReview(data.videoId ?? data.srcSn)}
               disabled={submitting || isLocked}
               loading={submitting}
               aria-label="검수제출"

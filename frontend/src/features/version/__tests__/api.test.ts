@@ -100,7 +100,7 @@ describe('version api', () => {
       ];
     });
 
-    const res = await rollback('bbb222');
+    const res = await rollback('bbb222', 241);
     expect(res.newCommitSha).toBe('ccc333');
   });
 });

@@ -9,8 +9,8 @@ export class LabelingPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.canvas = page.getByTestId('labeling-canvas');
-    this.bboxToolBtn = page.getByRole('button', { name: /바운딩박스|BBox/i });
+    this.canvas = page.getByTestId('canvas-shell');
+    this.bboxToolBtn = page.locator('[aria-label="바운딩박스"]');
     this.saveBtn = page.getByTestId('label-header-save');
   }
 
@@ -31,7 +31,16 @@ export class LabelingPage {
       window.history.pushState({}, '', target);
       window.dispatchEvent(new PopStateEvent('popstate'));
     }, `/label/${id}`);
-    await this.page.waitForLoadState('networkidle').catch(() => undefined);
+    // 라벨링 페이지 렌더링 → 프레임 데이터 로드 → 캔버스 노출까지 대기.
+    await this.page
+      .getByTestId('labeling-page')
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .catch(() => undefined);
+    // 캔버스는 프레임 API 응답 후 렌더링되므로 추가 대기.
+    await this.page
+      .getByTestId('canvas-shell')
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .catch(() => undefined);
   }
 
   /** 캔버스에 바운딩박스 드래그. */

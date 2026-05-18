@@ -69,11 +69,11 @@ export function rejectReview(id: number, body: RejectRequest): Promise<Review> {
 
 /**
  * 작업자가 라벨링 결과를 검수 제출.
- * BE: POST /api/v1/videos/{videoId}/submit
- * 상태 전이: IN_PROGRESS → REVIEW_PENDING
+ * BE: POST /api/v1/reviews/{videoId}/submit
+ * 상태 전이: ASSIGNED/REJECTED → PENDING
  */
 export function submitReview(videoId: number): Promise<Review> {
-  return apiClient.post<Review>(`/videos/${videoId}/submit`).then((r) => r.data);
+  return apiClient.post<Review>(`/reviews/${videoId}/submit`).then((r) => r.data);
 }
 
 /**

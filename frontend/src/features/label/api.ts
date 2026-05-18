@@ -188,12 +188,45 @@ export function getLabels(
 }
 
 /**
+ * FE Label → BE LabelItemDto 변환.
+ * BE PUT 요청 body: { items: LabelItemDto[] }
+ */
+function serializeLabel(lbl: Label): object {
+  const id: number | null =
+    lbl.serverId != null
+      ? lbl.serverId
+      : lbl.id && !isNaN(Number(lbl.id))
+        ? Number(lbl.id)
+        : null;
+
+  const lblTypeCd = lbl.shape.type === 'MASK' ? 'SEGMENT' : lbl.shape.type;
+
+  let points: number[][];
+  if (lbl.shape.type === 'BBOX') {
+    points = [
+      [lbl.shape.left, lbl.shape.top],
+      [lbl.shape.right, lbl.shape.bottom],
+    ];
+  } else if (lbl.shape.type === 'POLYGON') {
+    const flat = lbl.shape.points;
+    points = [];
+    for (let i = 0; i + 1 < flat.length; i += 2) {
+      points.push([flat[i], flat[i + 1]]);
+    }
+  } else {
+    points = [];
+  }
+
+  return { id, lblTypeCd, labelId: lbl.labelId ?? null, label: lbl.className, points };
+}
+
+/**
  * 프레임 라벨 일괄 저장 (전체 교체).
- * BE: PUT /frames/{srcSn}/labels
+ * BE: PUT /frames/{srcSn}/labels  — body: { items: LabelItemDto[] }
  */
 export function putLabels(srcSn: number, labels: Label[]): Promise<LabelsResponse> {
   return apiClient
-    .put<LabelsResponse>(`/frames/${srcSn}/labels`, { labels })
+    .put<LabelsResponse>(`/frames/${srcSn}/labels`, { items: labels.map(serializeLabel) })
     .then((r) => r.data);
 }
 

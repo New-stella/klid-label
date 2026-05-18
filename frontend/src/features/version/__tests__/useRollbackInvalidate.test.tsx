@@ -37,7 +37,7 @@ describe('useRollback', () => {
     );
 
     const { result } = renderHook(() => useRollback(777), { wrapper });
-    result.current.mutate('bbb222');
+    result.current.mutate({ commitSha: 'bbb222', srcSn: 241 });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);

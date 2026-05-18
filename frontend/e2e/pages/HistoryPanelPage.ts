@@ -24,12 +24,13 @@ export class HistoryPanelPage {
     }
   }
 
-  /** 현재 최신 커밋이 아닌 이전 커밋 행을 선택하여 롤백 트리거 노출. */
+  /** 현재 최신 커밋이 아닌 직전 커밋(index 1)을 선택하여 롤백 트리거 노출. */
   async selectOldestAvailableCommit() {
     const commitRows = this.page.getByRole('listitem').filter({ has: this.page.getByRole('code') });
     const count = await commitRows.count();
     if (count < 2) return;
-    await commitRows.nth(count - 1).click();
+    // index 1 (두 번째 최신) — index 0은 현재 HEAD라 롤백 불가, 마지막은 DB 미존재 가능
+    await commitRows.nth(1).click();
   }
 
   rollbackTrigger(shortHash: string): Locator {

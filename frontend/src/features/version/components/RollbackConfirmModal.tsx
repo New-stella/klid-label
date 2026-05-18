@@ -30,7 +30,7 @@ export function RollbackConfirmModal({
   const mutation = useRollback(videoId);
 
   function handleConfirm() {
-    mutation.mutate(commitSha, {
+    mutation.mutate({ commitSha, srcSn: videoId }, {
       onSuccess: () => {
         onSuccess();
         onClose();

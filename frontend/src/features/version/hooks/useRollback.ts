@@ -13,7 +13,8 @@ import { rollback } from '../api';
 export function useRollback(videoId: number | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (commitSha: string) => rollback(commitSha),
+    mutationFn: ({ commitSha, srcSn }: { commitSha: string; srcSn: number }) =>
+      rollback(commitSha, srcSn),
     onSuccess: () => {
       if (videoId !== undefined) {
         qc.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(videoId) });

@@ -37,6 +37,8 @@ export function getDiff(commit: string, compareWith?: string): Promise<LabelDiff
  *
  * 보안: 권한(REVIEWER) 검증 + commit SHA 검증은 BE에서 수행.
  */
-export function rollback(commit: string): Promise<RollbackResponse> {
-  return apiClient.post<RollbackResponse>(`/versions/${commit}/rollback`).then((r) => r.data);
+export function rollback(commit: string, srcSn: number): Promise<RollbackResponse> {
+  return apiClient
+    .post<RollbackResponse>(`/versions/${commit}/rollback`, { srcSn })
+    .then((r) => r.data);
 }
