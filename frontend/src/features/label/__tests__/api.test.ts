@@ -165,11 +165,25 @@ describe('label api', () => {
     expect(res.labels[0].lblSrcCd == null).toBe(true);
   });
 
-  it('putLabels_PUT_body에_labels_배열_포함', async () => {
+  it('putLabels_PUT_body에_items_배열_포함', async () => {
+    // BE 계약: PUT /frames/{srcSn}/labels — body { items: LabelItemDto[] }.
+    // FE serializeLabel 은 임시 id('tmp1') 를 null 로, BBOX shape 을 points [[l,t],[r,b]] 로 직렬화한다.
     const labels = [bbox('tmp1', 1)];
     mock.onPut('/frames/777/labels').reply((config) => {
       const body = JSON.parse(config.data ?? '{}');
-      expect(body).toMatchObject({ labels: [{ id: 'tmp1', shape: { type: 'BBOX' } }] });
+      expect(body).toMatchObject({
+        items: [
+          {
+            id: null,
+            lblTypeCd: 'BBOX',
+            label: 'car',
+            points: [
+              [10, 20],
+              [100, 80],
+            ],
+          },
+        ],
+      });
       return [
         200,
         {
@@ -311,7 +325,9 @@ describe('label api', () => {
   });
 
   describe('saveAndCommit', () => {
-    it('저장_시_PUT_labels_→_POST_commit_순서', async () => {
+    it('저장_시_PUT_labels_단일_호출_BE가_커밋_통합_처리', async () => {
+      // BE 계약: PUT /frames/{srcSn}/labels 가 저장 + Gitea 커밋을 한 번에 처리.
+      // 별도 POST /frames/{srcSn}/commit 호출 없음. committed 는 null 로 반환.
       const calls: string[] = [];
       mock.onPut('/frames/777/labels').reply(() => {
         calls.push('PUT');
@@ -320,18 +336,6 @@ describe('label api', () => {
           {
             success: true,
             data: { frameNo: 1, srcSn: 777, labels: [] },
-            message: null,
-            errorCode: null,
-          },
-        ];
-      });
-      mock.onPost('/frames/777/commit').reply(() => {
-        calls.push('POST');
-        return [
-          200,
-          {
-            success: true,
-            data: { commitSha: 'sha', committedAt: '2026-05-07' },
             message: null,
             errorCode: null,
           },
@@ -339,11 +343,13 @@ describe('label api', () => {
       });
 
       const result = await saveAndCommit(777, [bbox('a', 1)]);
-      expect(calls).toEqual(['PUT', 'POST']);
-      expect(result.committed?.commitSha).toBe('sha');
+      expect(calls).toEqual(['PUT']);
+      expect(result.committed).toBeNull();
+      expect(result.saved.srcSn).toBe(777);
     });
 
-    it('portalMode_저장시_commit_호출_안_함', async () => {
+    it('portalMode_저장시에도_PUT_단일_호출', async () => {
+      // portalMode 여부와 무관하게 단일 PUT. BE 가 채널에 따라 commit skip 처리.
       const calls: string[] = [];
       mock.onPut('/frames/777/labels').reply(() => {
         calls.push('PUT');
@@ -356,10 +362,6 @@ describe('label api', () => {
             errorCode: null,
           },
         ];
-      });
-      mock.onPost('/frames/777/commit').reply(() => {
-        calls.push('POST');
-        return [200, { success: true, data: {}, message: null, errorCode: null }];
       });
 
       const result = await saveAndCommit(777, [bbox('a', 1)], { portalMode: true });

@@ -131,8 +131,9 @@ describe('review api', () => {
     expect(res.status).toBe('REJECTED');
   });
 
-  it('submitReview_POST_videos_id_submit_검수_제출', async () => {
-    mock.onPost('/videos/1/submit').reply(200, {
+  it('submitReview_POST_reviews_videoId_submit_검수_제출', async () => {
+    // BE 계약: POST /v1/reviews/{videoId}/submit (ReviewController @RequestMapping("/v1") + @PostMapping("/reviews/{videoId}/submit")).
+    mock.onPost('/reviews/1/submit').reply(200, {
       success: true,
       data: {
         id: 10,

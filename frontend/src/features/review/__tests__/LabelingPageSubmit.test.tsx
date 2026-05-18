@@ -48,14 +48,15 @@ describe('LabelingPage 검수제출 버튼', () => {
     useAuthStore.getState().clear();
   });
 
-  it('WORKER가_검수제출_버튼_클릭시_videos_id_submit_호출', async () => {
+  it('WORKER가_검수제출_버튼_클릭시_reviews_videoId_submit_호출', async () => {
+    // BE 계약: POST /v1/reviews/{videoId}/submit — FE submitReview(videoId) 가 이 경로로 호출.
     useAuthStore.setState({
       token: 'tok',
       claims: { sub: 'u', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
     });
 
     let submitted = false;
-    mock.onPost('/videos/100/submit').reply(() => {
+    mock.onPost('/reviews/100/submit').reply(() => {
       submitted = true;
       return [
         200,
