@@ -71,7 +71,7 @@ describe('HistoryPanel', () => {
     });
   });
 
-  it('WORKER는_롤백_트리거_미노출', async () => {
+  it('WORKER도_롤백_트리거_노출됨', async () => {
     setRole('WORKER');
     mock.onGet('/videos/42/versions').reply(200, versionsPayload);
 
@@ -85,8 +85,10 @@ describe('HistoryPanel', () => {
     const bbbButton = bbbRow.querySelector('button[type="button"]') as HTMLButtonElement;
     fireEvent.click(bbbButton);
 
-    // WORKER에게는 롤백 트리거 노출되지 않아야 함
-    expect(screen.queryByTestId('rollback-trigger-bbb222b')).toBeNull();
+    // WORKER에게도 롤백 트리거가 노출되어야 함
+    await waitFor(() => {
+      expect(screen.getByTestId('rollback-trigger-bbb222b')).toBeInTheDocument();
+    });
   });
 
   it('빈_응답일_때_커밋_없음_메시지_노출_및_500_없이_렌더', async () => {

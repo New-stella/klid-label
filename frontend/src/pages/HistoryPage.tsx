@@ -12,7 +12,7 @@ import { HistoryPanel } from '@/features/version/components/HistoryPanel';
  *
  * 권한:
  * - 조회(WORKER+REVIEWER): 버전 목록 + diff 가능
- * - 롤백(REVIEWER만): HistoryPanel 내부에서 role 검증 (BE에서도 403 검증)
+ * - 롤백(REVIEWER+WORKER): HistoryPanel 내부에서 role 검증. WORKER는 본인 배정만 (BE IDOR 검증)
  *
  * 보안: 사용자 입력 commit hash 는 BE 에서 SHA hex 검증. FE 는 단순 전달.
  */

@@ -6,7 +6,7 @@ import type { Version } from '../types';
 
 interface VersionListProps {
   versions: Version[];
-  /** 각 행 우측에 노출할 액션(롤백 버튼 등) — REVIEWER만 노출 */
+  /** 각 행 우측에 노출할 액션(롤백 버튼 등) — REVIEWER+WORKER 노출 */
   renderActions?: (version: Version) => ReactNode;
 }
 

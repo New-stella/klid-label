@@ -5,7 +5,7 @@
 //
 // 권한:
 // - 조회(WORKER+REVIEWER): 버전 목록 + diff 가능
-// - 롤백(REVIEWER만): "이 버전으로 롤백" 트리거 노출 (BE 에서도 403 검증)
+// - 롤백(REVIEWER+WORKER): "이 버전으로 롤백" 트리거 노출. WORKER는 본인 배정 프레임만 가능 (BE에서 IDOR 검증)
 //
 // 보안: 사용자 입력 commit hash 는 BE 에서 SHA hex 검증. FE 는 단순 전달.
 
@@ -46,7 +46,7 @@ function formatTime(iso: string | undefined): string {
 
 export function HistoryPanel({ srcSn, onClose, dark = false }: HistoryPanelProps) {
   const role = useAuthStore((s) => s.claims?.role ?? null);
-  const canRollback = role === Role.REVIEWER;
+  const canRollback = role === Role.REVIEWER || role === Role.WORKER;
 
   const { data: versions, isLoading, error } = useVersions(srcSn);
 

@@ -171,14 +171,41 @@ class VersionServiceTest {
     // ---------- rollback 권한 ----------
 
     @Test
-    @DisplayName("WORKER가_rollback_호출시_403")
-    void workerRollbackForbidden() {
-        // 사전 version 시드
+    @DisplayName("배정된_WORKER가_본인_프레임_rollback_호출시_정상_LS_LABEL_VERSION_생성")
+    void assignedWorkerRollbackCreatesNewHistory() {
+        // given: WORKER(100) 가 본인에게 배정된 프레임에 대해 롤백
+        String pastSha = "feedface1234567890abcdef1234567890abcdef";
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, pastSha, 1, "SAVE", "1"));
+
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just("{\"items\":[]}"));
+        when(giteaClient.createOrUpdateFile(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString()))
+                .thenReturn(Mono.just(new CommitResponse(
+                        "99998888777766665555444433332222aaaa1111", "rollback", "100", Instant.now())));
+
+        // when
+        LsLabelVersion rollback = versionService.rollback(pastSha, srcSn, workerAssigned);
+
+        // then: 새 ROLLBACK 버전 생성
+        assertThat(rollback).isNotNull();
+        assertThat(rollback.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_ROLLBACK);
+        assertThat(rollback.getGiteaCmtHash()).isEqualTo("99998888777766665555444433332222aaaa1111");
+        assertThat(rollback.getRegId()).isEqualTo("100");
+    }
+
+    @Test
+    @DisplayName("미배정_WORKER가_rollback_호출시_FORBIDDEN_accessGuard_차단")
+    void unassignedWorkerRollbackForbidden() {
+        // given: WORKER(999) 는 어떤 프레임에도 배정되지 않음
+        TokenClaims unassigned = new TokenClaims("999", Role.WORKER, Channel.INTERNAL,
+                Instant.now().plusSeconds(60));
         labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn,
                 "feedface1234567890abcdef1234567890abcdef", 1, "SAVE", "1"));
 
+        // when / then: accessGuard 에서 403
         assertThatThrownBy(() -> versionService.rollback(
-                "feedface1234567890abcdef1234567890abcdef", srcSn, workerAssigned))
+                "feedface1234567890abcdef1234567890abcdef", srcSn, unassigned))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
 

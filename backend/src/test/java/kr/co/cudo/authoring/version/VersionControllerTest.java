@@ -205,14 +205,49 @@ class VersionControllerTest {
     }
 
     @Test
-    @DisplayName("POST_rollback_WORKER_403")
-    void postRollbackWorkerForbidden() throws Exception {
+    @DisplayName("POST_rollback_배정된_WORKER_본인_프레임_정상_200")
+    void postRollbackAssignedWorkerOk() throws Exception {
+        // given: WORKER(100) 가 본인에게 배정된 프레임에 대해 롤백 요청
+        String pastSha = "feedface1234567890abcdef1234567890abcdef";
+        seedVersion(pastSha, 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+        seedVersion("0000000000000000000000000000000000000000", 2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just("{\"items\":[]}"));
+        when(giteaClient.createOrUpdateFile(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString()))
+                .thenReturn(Mono.just(new CommitResponse(
+                        "ddddeeee1111222233334444555566667777aaaa", "rollback", "100", Instant.now())));
+
+        // when
+        RollbackRequest req = new RollbackRequest(srcSn);
+        mockMvc.perform(post("/v1/versions/" + pastSha + "/rollback")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                // then
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.giteaCmtHash")
+                        .value("ddddeeee1111222233334444555566667777aaaa"));
+
+        // ROLLBACK 신규 row + 이전 ACTIVE='Y' row 가 'N' 으로 deactivate
+        List<LsLabelVersion> all = labelVersionRepository.findAll();
+        assertThat(all).hasSize(3);
+        long activeCount = all.stream().filter(v -> "Y".equals(v.getActiveYn())).count();
+        assertThat(activeCount).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("POST_rollback_미배정_WORKER_403")
+    void postRollbackUnassignedWorkerForbidden() throws Exception {
+        // given: WORKER(101) 는 어떤 프레임에도 배정되지 않음 → accessGuard 차단
         String pastSha = "feedface1234567890abcdef1234567890abcdef";
         seedVersion(pastSha, 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
 
         RollbackRequest req = new RollbackRequest(srcSn);
+        // when / then
         mockMvc.perform(post("/v1/versions/" + pastSha + "/rollback")
-                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .header("Authorization", "Bearer " + workerNotAssignedToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
