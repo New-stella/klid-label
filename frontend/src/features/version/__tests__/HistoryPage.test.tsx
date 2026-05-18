@@ -53,7 +53,7 @@ describe('HistoryPage', () => {
 
   it('REVIEWER가_접근시_버전_목록과_롤백_버튼_노출', async () => {
     setRole('REVIEWER');
-    mock.onGet('/videos/777/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/777/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPage />, {
       initialEntries: ['/history/777'],
@@ -70,7 +70,7 @@ describe('HistoryPage', () => {
 
   it('WORKER_권한도_diff_조회_가능', async () => {
     setRole('WORKER');
-    mock.onGet('/videos/777/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/777/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPage />, {
       initialEntries: ['/history/777'],
@@ -85,7 +85,7 @@ describe('HistoryPage', () => {
 
   it('WORKER가_롤백_버튼_클릭시_disabled_또는_미노출', async () => {
     setRole('WORKER');
-    mock.onGet('/videos/777/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/777/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPage />, {
       initialEntries: ['/history/777'],
@@ -107,7 +107,7 @@ describe('HistoryPage', () => {
 
   it('REVIEWER가_롤백_시작_클릭시_확인_모달_노출', async () => {
     setRole('REVIEWER');
-    mock.onGet('/videos/777/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/777/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPage />, {
       initialEntries: ['/history/777'],

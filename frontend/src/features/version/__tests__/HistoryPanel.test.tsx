@@ -52,7 +52,7 @@ describe('HistoryPanel', () => {
 
   it('REVIEWER가_버전_2건_렌더링하고_롤백_트리거가_노출됨', async () => {
     setRole('REVIEWER');
-    mock.onGet('/videos/42/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPanel srcSn={42} />);
 
@@ -73,7 +73,7 @@ describe('HistoryPanel', () => {
 
   it('WORKER도_롤백_트리거_노출됨', async () => {
     setRole('WORKER');
-    mock.onGet('/videos/42/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPanel srcSn={42} />);
 
@@ -93,7 +93,7 @@ describe('HistoryPanel', () => {
 
   it('빈_응답일_때_커밋_없음_메시지_노출_및_500_없이_렌더', async () => {
     setRole('WORKER');
-    mock.onGet('/videos/99/versions').reply(200, {
+    mock.onGet('/frames/99/versions').reply(200, {
       success: true,
       data: [],
       message: null,
@@ -111,7 +111,7 @@ describe('HistoryPanel', () => {
 
   it('onClose_콜백이_있으면_닫기_버튼_노출_및_호출', async () => {
     setRole('WORKER');
-    mock.onGet('/videos/42/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
 
     let closed = false;
     renderWithProviders(<HistoryPanel srcSn={42} onClose={() => { closed = true; }} />);
@@ -126,7 +126,8 @@ describe('HistoryPanel', () => {
   it('BE_응답이_배열이_아니어도_빈_목록으로_방어', async () => {
     setRole('WORKER');
     // 레거시 { items: [...] } 응답 — FE 는 안전하게 빈 배열로 처리
-    mock.onGet('/videos/42/versions').reply(200, {
+    // 2026-05-18: 경로 정합화로 /frames/{srcSn}/versions 사용 (api.ts/api.test.ts 참조)
+    mock.onGet('/frames/42/versions').reply(200, {
       success: true,
       data: { items: [{ commitSha: 'x' }] },
       message: null,

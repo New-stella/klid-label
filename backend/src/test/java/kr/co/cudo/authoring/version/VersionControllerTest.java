@@ -103,11 +103,12 @@ class VersionControllerTest {
     }
 
     // ──────────────────────────────────────────────
-    // GET /v1/videos/{srcSn}/versions
+    // GET /v1/frames/{srcSn}/versions (정식)
+    // GET /v1/videos/{srcSn}/versions (deprecated alias)
     // ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("GET_versions_정상_조회_LS_LABEL_VERSION_fallback")
+    @DisplayName("GET_frames_versions_정상_조회_LS_LABEL_VERSION_fallback")
     void getVersionsReturnsList() throws Exception {
         seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
         seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", 2, LsLabelVersion.SAVE_REASON_MANUAL, "100", true);
@@ -116,7 +117,7 @@ class VersionControllerTest {
         when(giteaClient.listCommits(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(Mono.error(new RuntimeException("gitea down")));
 
-        mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
@@ -126,22 +127,38 @@ class VersionControllerTest {
     }
 
     @Test
-    @DisplayName("GET_versions_커밋_없는_새_영상_빈_배열_200")
+    @DisplayName("GET_frames_versions_커밋_없는_새_프레임_빈_배열_200")
     void getVersionsEmptyForFreshSrc() throws Exception {
-        mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(0));
     }
 
     @Test
-    @DisplayName("GET_versions_미배정_WORKER_403")
+    @DisplayName("GET_frames_versions_미배정_WORKER_403")
     void getVersionsForbiddenForUnassignedWorker() throws Exception {
         seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
 
-        mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
+        mockMvc.perform(get("/v1/frames/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerNotAssignedToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET_videos_versions_deprecated_alias_정식_경로와_동일_응답")
+    void getVersionsLegacyAliasReturnsSamePayload() throws Exception {
+        // given: 동일 시드 데이터
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+        seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", 2, LsLabelVersion.SAVE_REASON_MANUAL, "100", true);
+        when(giteaClient.listCommits(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(Mono.error(new RuntimeException("gitea down")));
+
+        // when / then: 기존 /videos/{srcSn}/versions 도 200 + 동일 size
+        mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2));
     }
 
     // ──────────────────────────────────────────────

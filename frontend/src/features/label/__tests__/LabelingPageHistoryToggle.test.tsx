@@ -55,7 +55,7 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
     mock.onGet('/frames/300/labels').reply(200, labelsPayload(300));
     mock.onGet('/frames/300/image').reply(200, new Blob());
     // 빈 버전 응답 — 새 영상 회귀 가드 케이스
-    mock.onGet('/videos/300/versions').reply(200, {
+    mock.onGet('/frames/300/versions').reply(200, {
       success: true,
       data: [],
       message: null,

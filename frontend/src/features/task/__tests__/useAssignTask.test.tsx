@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { ASSIGNMENT_KEYS, TASK_BOARD_KEYS, VIDEO_KEYS } from '@/lib/queryKeys';
 
-import { useReassignTask } from '../hooks/useReassignTask';
+import { useAssignTask } from '../hooks/useAssignTask';
 
 function wrapper(qc: QueryClient) {
   return function Wrap({ children }: { children: ReactNode }) {
@@ -15,7 +15,7 @@ function wrapper(qc: QueryClient) {
   };
 }
 
-describe('useReassignTask', () => {
+describe('useAssignTask', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
@@ -26,17 +26,17 @@ describe('useReassignTask', () => {
     mock.restore();
   });
 
-  it('재배정시_PATCH_assignments_id_호출', async () => {
+  it('배정시_POST_assignments_호출', async () => {
     let calledMethod: string | undefined;
     let calledUrl: string | undefined;
-    mock.onPatch('/assignments/200').reply((config) => {
+    mock.onPost('/assignments').reply((config) => {
       calledMethod = config.method;
       calledUrl = config.url;
       return [
-        200,
+        201,
         {
           success: true,
-          data: { id: 200, videoId: 1, workerId: 9, status: 'PENDING', assignedAt: '2026-05-07T10:00:00Z' },
+          data: { id: 100, videoId: 1, workerId: 9, status: 'PENDING', assignedAt: '2026-05-07T10:00:00Z' },
           message: null,
           errorCode: null,
         },
@@ -46,23 +46,21 @@ describe('useReassignTask', () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const { result } = renderHook(() => useReassignTask(), { wrapper: wrapper(qc) });
+    const { result } = renderHook(() => useAssignTask(), { wrapper: wrapper(qc) });
 
-    result.current.mutate({ id: 200, body: { workerId: 9 } });
+    result.current.mutate({ workerId: 9, rawDataIds: [1], reviewerId: 1 });
 
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(calledMethod).toBe('patch');
-    expect(calledUrl).toBe('/assignments/200');
+    expect(calledMethod).toBe('post');
+    expect(calledUrl).toBe('/assignments');
   });
 
-  it('재배정_성공시_TASK_BOARD_ASSIGNMENT_VIDEO_캐시_invalidate', async () => {
-    // given: 200 응답 mock + 각 키 별 stale 한 쿼리 캐시 시드
-    mock.onPatch('/assignments/200').reply(200, {
+  it('배정_성공시_TASK_BOARD_ASSIGNMENT_VIDEO_캐시_invalidate', async () => {
+    // given: 201 응답 + stale 캐시 시드 (TASK_BOARD_KEYS 누락 시 작업 목록이 옛 데이터로 노출되는 회귀 가드)
+    mock.onPost('/assignments').reply(201, {
       success: true,
-      data: { id: 200, videoId: 1, workerId: 9, status: 'PENDING', assignedAt: '2026-05-07T10:00:00Z' },
+      data: { id: 100, videoId: 1, workerId: 9, status: 'PENDING', assignedAt: '2026-05-07T10:00:00Z' },
       message: null,
       errorCode: null,
     });
@@ -74,13 +72,13 @@ describe('useReassignTask', () => {
     qc.setQueryData(ASSIGNMENT_KEYS.list({ page: 0 }), { content: ['stale-assign'] });
     qc.setQueryData(VIDEO_KEYS.list({ page: 0 }), { content: ['stale-video'] });
 
-    const { result } = renderHook(() => useReassignTask(), { wrapper: wrapper(qc) });
+    const { result } = renderHook(() => useAssignTask(), { wrapper: wrapper(qc) });
 
     // when
-    result.current.mutate({ id: 200, body: { workerId: 9 } });
+    result.current.mutate({ workerId: 9, rawDataIds: [1], reviewerId: 1 });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    // then: 세 캐시 모두 invalidate 되어 staleness 보장
+    // then
     expect(qc.getQueryState(TASK_BOARD_KEYS.list({ page: 0 }))?.isInvalidated).toBe(true);
     expect(qc.getQueryState(ASSIGNMENT_KEYS.list({ page: 0 }))?.isInvalidated).toBe(true);
     expect(qc.getQueryState(VIDEO_KEYS.list({ page: 0 }))?.isInvalidated).toBe(true);

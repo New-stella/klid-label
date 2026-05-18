@@ -5,12 +5,15 @@ import { VERSION_KEYS } from '@/lib/queryKeys';
 import { listVersions } from '../api';
 
 /**
- * 영상의 버전(커밋) 이력 조회.
+ * 프레임(srcSn)의 버전(커밋) 이력 조회.
+ *
+ * @param srcSn LS_DATA_SRC.SRC_SN — 프레임 단위 PK.
+ *              VERSION_KEYS.history(srcSn) 캐시 키로 격리되어 라벨 저장·롤백 시 invalidate 된다.
  */
-export function useVersions(videoId: number | undefined) {
+export function useVersions(srcSn: number | undefined) {
   return useQuery({
-    queryKey: videoId !== undefined ? VERSION_KEYS.history(videoId) : VERSION_KEYS.all,
-    queryFn: () => listVersions(videoId as number),
-    enabled: videoId !== undefined,
+    queryKey: srcSn !== undefined ? VERSION_KEYS.history(srcSn) : VERSION_KEYS.all,
+    queryFn: () => listVersions(srcSn as number),
+    enabled: srcSn !== undefined,
   });
 }

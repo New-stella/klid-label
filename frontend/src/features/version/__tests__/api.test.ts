@@ -16,8 +16,9 @@ describe('version api', () => {
     mock.restore();
   });
 
-  it('listVersions_GET_videos_id_versions_커밋_시간순_정렬', async () => {
-    mock.onGet('/videos/777/versions').reply(200, {
+  it('listVersions_GET_frames_srcSn_versions_커밋_시간순_정렬', async () => {
+    // 2026-05-18: 정식 경로 /frames/{srcSn}/versions 사용 (기존 /videos/{srcSn}/versions 는 BE deprecated alias).
+    mock.onGet('/frames/777/versions').reply(200, {
       success: true,
       data: [
         {

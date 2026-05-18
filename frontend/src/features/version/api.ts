@@ -1,4 +1,8 @@
-// 버전관리 도메인 API — BE: /api/v1/videos/{id}/versions, /versions/{commit}/diff, /versions/{commit}/rollback
+// 버전관리 도메인 API — BE: /api/v1/frames/{srcSn}/versions, /versions/{commit}/diff, /versions/{commit}/rollback
+//
+// 경로 의미 (2026-05-18 정리):
+// - srcSn 은 LS_DATA_SRC.SRC_SN (프레임 단위 PK). 영상(LS_DATA_RAW.RAW_SN)이 아니다.
+// - 기존 /v1/videos/{srcSn}/versions 는 BE deprecated alias 로 유지되지만 FE 는 정식 경로 /frames/{srcSn}/versions 사용.
 //
 // 보안 (security.md 정합):
 // - 사용자 입력 commit hash는 BE에서 SHA hex(40자) 검증 후 사용 — FE는 단순 전달.
@@ -10,11 +14,13 @@ import { apiClient } from '@/lib/api/client';
 import type { LabelDiff, RollbackResponse, Version } from './types';
 
 /**
- * 영상의 라벨 커밋 이력 조회 (최신순).
- * BE: GET /api/v1/videos/{videoId}/versions
+ * 프레임(srcSn)의 라벨 커밋 이력 조회 (최신순).
+ * BE: GET /api/v1/frames/{srcSn}/versions
+ *
+ * @param srcSn LS_DATA_SRC.SRC_SN — 프레임 단위 PK (LabelingPage 에서는 data.srcSn 그대로 전달)
  */
-export function listVersions(videoId: number): Promise<Version[]> {
-  return apiClient.get<Version[]>(`/videos/${videoId}/versions`).then((r) => r.data);
+export function listVersions(srcSn: number): Promise<Version[]> {
+  return apiClient.get<Version[]>(`/frames/${srcSn}/versions`).then((r) => r.data);
 }
 
 /**
