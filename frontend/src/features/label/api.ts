@@ -112,6 +112,19 @@ function normalizeLabel(raw: any): Label {
       ? null
       : Number(rawLabelId);
 
+  // Hotfix: BE 가 수동 라벨에 대해 confScore: null 을 응답 (LS_DATA_LBL_AI_INFO 행 없음).
+  // 기존 코드는 `null !== undefined → Number(null) === 0` 으로 confidence=0 을 설정해
+  // ObjectAttributePanel 이 "낮은 신뢰도" 배지 + 신뢰도 바 0% 를 잘못 표시.
+  // null/undefined 모두 undefined 로 정규화하여 표시 자체를 막는다.
+  const rawConfScore = raw?.confScore;
+  const rawConfidence = raw?.confidence;
+  const confidence: number | undefined =
+    rawConfScore !== undefined && rawConfScore !== null
+      ? Number(rawConfScore)
+      : rawConfidence !== undefined && rawConfidence !== null
+        ? Number(rawConfidence)
+        : undefined;
+
   return {
     id,
     serverId: typeof raw?.id === 'number' ? raw.id : undefined,
@@ -121,7 +134,7 @@ function normalizeLabel(raw: any): Label {
     color,
     className: String(raw?.label ?? raw?.className ?? ''),
     source,
-    confidence: raw?.confScore !== undefined ? Number(raw.confScore) : raw?.confidence,
+    confidence,
     shape,
     trackId,
     lblSrcCd,

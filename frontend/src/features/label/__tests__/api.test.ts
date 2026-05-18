@@ -133,6 +133,151 @@ describe('label api', () => {
     expect(res.labels[1].lblSrcCd == null).toBe(true);
   });
 
+  // Hotfix: BE 응답에 confScore: null 이 들어오면 (수동 라벨 — LS_DATA_LBL_AI_INFO 행 없음)
+  // FE 가 Number(null) === 0 으로 강제 변환하여 confidence=0 이 되었고,
+  // ObjectAttributePanel 이 "낮은 신뢰도" 배지와 신뢰도 바 0% 를 잘못 표시.
+  // null/undefined 모두 undefined 로 정규화하여 표시 자체를 막아야 함.
+  describe('confidence 매핑 정규화 (null/undefined → undefined)', () => {
+    it('mapLabelToFrontend_BE_confScore_null_이면_confidence_undefined', async () => {
+      mock.onGet('/frames/1001/labels').reply(200, {
+        success: true,
+        data: {
+          frameNo: 1,
+          srcSn: 1001,
+          siblings: [],
+          items: [
+            {
+              id: 41,
+              lblTypeCd: 'BBOX',
+              label: 'car',
+              points: [
+                [0, 0],
+                [10, 10],
+              ],
+              autoLblYn: 'N', // 수동
+              confScore: null, // BE: AI_INFO 없음 → null
+              trackId: null,
+            },
+          ],
+        },
+        message: null,
+        errorCode: null,
+      });
+
+      const res = await getLabels(1001);
+      expect(res.labels).toHaveLength(1);
+      expect(res.labels[0].source).toBe('MANUAL');
+      // 핵심: 0 이 아니라 undefined 여야 함
+      expect(res.labels[0].confidence).toBeUndefined();
+    });
+
+    it('mapLabelToFrontend_BE_confScore_숫자면_confidence_그_값', async () => {
+      mock.onGet('/frames/1002/labels').reply(200, {
+        success: true,
+        data: {
+          frameNo: 1,
+          srcSn: 1002,
+          siblings: [],
+          items: [
+            {
+              id: 42,
+              lblTypeCd: 'BBOX',
+              label: 'person',
+              points: [
+                [0, 0],
+                [10, 10],
+              ],
+              autoLblYn: 'Y',
+              confScore: 0.85,
+              trackId: null,
+            },
+          ],
+        },
+        message: null,
+        errorCode: null,
+      });
+
+      const res = await getLabels(1002);
+      expect(res.labels[0].confidence).toBe(0.85);
+    });
+
+    it('mapLabelToFrontend_BE_confScore_누락_confidence_null_이면_confidence_undefined', async () => {
+      // confScore 필드 자체 누락 + legacy confidence 도 null 인 경우
+      mock.onGet('/frames/1003/labels').reply(200, {
+        success: true,
+        data: {
+          frameNo: 1,
+          srcSn: 1003,
+          siblings: [],
+          items: [
+            {
+              id: 43,
+              lblTypeCd: 'BBOX',
+              label: 'car',
+              points: [
+                [0, 0],
+                [10, 10],
+              ],
+              autoLblYn: 'N',
+              // confScore 필드 없음
+              confidence: null,
+              trackId: null,
+            },
+          ],
+        },
+        message: null,
+        errorCode: null,
+      });
+
+      const res = await getLabels(1003);
+      expect(res.labels[0].confidence).toBeUndefined();
+    });
+
+    it('mapLabelToFrontend_legacy_confidence_필드만_있어도_undefined_null_을_undefined로', async () => {
+      // legacy 경로: confScore 누락, confidence 숫자 — 그 값 유지
+      mock.onGet('/frames/1004/labels').reply(200, {
+        success: true,
+        data: {
+          frameNo: 1,
+          srcSn: 1004,
+          siblings: [],
+          items: [
+            {
+              id: 44,
+              lblTypeCd: 'BBOX',
+              label: 'person',
+              points: [
+                [0, 0],
+                [10, 10],
+              ],
+              autoLblYn: 'Y',
+              confidence: 0.72, // legacy
+              trackId: null,
+            },
+            {
+              id: 45,
+              lblTypeCd: 'BBOX',
+              label: 'car',
+              points: [
+                [0, 0],
+                [10, 10],
+              ],
+              autoLblYn: 'N',
+              // confScore / confidence 모두 없음
+              trackId: null,
+            },
+          ],
+        },
+        message: null,
+        errorCode: null,
+      });
+
+      const res = await getLabels(1004);
+      expect(res.labels[0].confidence).toBe(0.72);
+      expect(res.labels[1].confidence).toBeUndefined();
+    });
+  });
+
   it('api_lblSrcCd_누락_응답은_null_정규화', async () => {
     mock.onGet('/frames/890/labels').reply(200, {
       success: true,
