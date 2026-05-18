@@ -70,9 +70,9 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
      */
     @Query("""
             SELECT s.rawSn, COUNT(l)
-              FROM LsDataLbl l, LsDataSrc s
-             WHERE l.srcSn = s.srcSn
-               AND s.rawSn IN :rawSns
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn IN :rawSns
              GROUP BY s.rawSn
             """)
     List<Object[]> countLabelsByRawSnIn(@Param("rawSns") Collection<Long> rawSns);
@@ -83,9 +83,9 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
      */
     @Query("""
             SELECT l
-              FROM LsDataLbl l, LsDataSrc s
-             WHERE l.srcSn = s.srcSn
-               AND s.rawSn = :rawSn
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
              ORDER BY l.lblSn ASC
             """)
     List<LsDataLbl> findAllByRawSn(@Param("rawSn") Long rawSn);
@@ -113,9 +113,9 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
      */
     @Query("""
             SELECT l
-              FROM LsDataLbl l, LsDataSrc s
-             WHERE l.srcSn = s.srcSn
-               AND s.rawSn = :rawSn
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
                AND EXISTS (
                    SELECT 1 FROM LsDataLblAiInfo ai
                     WHERE ai.dataLblSn = l.lblSn

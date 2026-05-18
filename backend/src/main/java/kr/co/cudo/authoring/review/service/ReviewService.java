@@ -202,7 +202,29 @@ public class ReviewService {
     public ReviewResponse getDetail(Long videoId, TokenClaims actor) {
         requireReviewer(actor);
         LsRawDataStatus stts = loadByVideoId(videoId);
-        return ReviewResponse.from(stts);
+        return enrichOne(stts);
+    }
+
+    /**
+     * 단건 응답 enrich — list() 의 batch helper 를 {@code List.of(videoId)} 단건 인자로 재사용해
+     * cctvName/workerId/workerName/labelCount 를 채운다.
+     * <p>모두 readOnly 조회이므로 쓰기 트랜잭션 내부(approve/reject)에서도 호출 가능.
+     * 변경된 stts 상태를 응답에 반영하려면 flush 이후에 호출할 것.
+     */
+    private ReviewResponse enrichOne(LsRawDataStatus stts) {
+        Long videoId = stts.getRawDataId();
+        if (videoId == null) {
+            return ReviewResponse.from(stts);
+        }
+        List<Long> ids = List.of(videoId);
+        String cctvName = lookupCctvNames(ids).get(videoId);
+        Map<Long, Long> workerIdMap = lookupLabelerByVideo(ids);
+        Long workerId = workerIdMap.get(videoId);
+        String workerName = (workerId != null)
+                ? lookupUserNames(List.of(workerId)).get(workerId)
+                : null;
+        Long labelCount = lookupLabelCountByVideo(ids).getOrDefault(videoId, 0L);
+        return ReviewResponse.from(stts, cctvName, workerId, workerName, labelCount);
     }
 
     /**
@@ -273,7 +295,7 @@ public class ReviewService {
         taskEventLogRepository.save(LsTaskEventLog.submit(
                 stts.getRawDataId(), workerUserNo));
         log.info("[Review] submitted videoId={} actor={}", videoId, actor.sub());
-        return ReviewResponse.from(stts);
+        return enrichOne(stts);
     }
 
     /**
@@ -286,7 +308,7 @@ public class ReviewService {
         stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_IN_REVIEW);
         stts.transitionTo(LsRawDataStatus.STTS_IN_REVIEW);
         log.info("[Review] startReview videoId={} actor={}", videoId, actor.sub());
-        return ReviewResponse.from(stts);
+        return enrichOne(stts);
     }
 
     /**
@@ -309,7 +331,7 @@ public class ReviewService {
             throw new CustomException(ErrorCode.CONFLICT, "다른 검수자가 먼저 처리했습니다.");
         }
         log.info("[Review] approved videoId={} actor={}", videoId, actor.sub());
-        return ReviewResponse.from(stts);
+        return enrichOne(stts);
     }
 
     /**
@@ -343,7 +365,7 @@ public class ReviewService {
             throw new CustomException(ErrorCode.CONFLICT, "다른 검수자가 먼저 처리했습니다.");
         }
         log.info("[Review] rejected videoId={} actor={} parentIssueSn={}", videoId, actor.sub(), parentIssueSn);
-        return ReviewResponse.from(stts);
+        return enrichOne(stts);
     }
 
     /**

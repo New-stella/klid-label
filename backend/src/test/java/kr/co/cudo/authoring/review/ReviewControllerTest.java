@@ -303,4 +303,77 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.data.content[?(@.videoId == " + videoId2 + ")].cctvName")
                         .value(org.hamcrest.Matchers.contains("강남구 테헤란로 CCTV")));
     }
+
+    // ---------- 단건 응답 enrich (cctvName/workerName/labelCount) ----------
+
+    @Test
+    @DisplayName("ReviewController_단건_상세_응답에_cctvName_workerName_labelCount_가_채워진다")
+    void getDetailEnrichesCctvWorkerLabelCount() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        // 라벨 시드 — labelCount=2 검증용
+        LsDataSrc src = LsDataSrc.create(videoId, 0,
+                "test-rev-detail/" + videoId + "/f_0.jpg", LocalDateTime.now());
+        src = srcRepository.save(src);
+        for (int i = 0; i < 2; i++) {
+            labelRepository.save(LsDataLbl.createAutoBbox(
+                    src.getSrcSn(), "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9)));
+        }
+
+        mockMvc.perform(get("/v1/reviews/" + videoId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.workerId").value(100))
+                .andExpect(jsonPath("$.data.workerName").value("작업자100"))
+                .andExpect(jsonPath("$.data.labelCount").value(2))
+                .andExpect(jsonPath("$.data.cctvName").value("동대문구 회기로 CCTV"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_approve_응답에도_enrich_필드가_채워진다")
+    void approveResponseAlsoEnriches() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
+
+        // 라벨 시드 — labelCount=1
+        LsDataSrc src = LsDataSrc.create(videoId, 0,
+                "test-rev-approve/" + videoId + "/f_0.jpg", LocalDateTime.now());
+        src = srcRepository.save(src);
+        labelRepository.save(LsDataLbl.createAutoBbox(
+                src.getSrcSn(), "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9)));
+
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataSttsCd").value("APPROVED"))
+                // approve 는 flush 이후 enrichOne — cctvName/workerName/labelCount 채워짐
+                .andExpect(jsonPath("$.data.workerId").value(100))
+                .andExpect(jsonPath("$.data.workerName").value("작업자100"))
+                .andExpect(jsonPath("$.data.labelCount").value(1))
+                .andExpect(jsonPath("$.data.cctvName").value("동대문구 회기로 CCTV"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_단건_미배정_라벨없는_영상은_workerName_빈값_labelCount_0_폴백")
+    void getDetailFallsBackWhenNoAssignmentAndNoLabels() throws Exception {
+        // 배정/라벨 없는 별도 영상
+        LsDataRaw raw3 = LsDataRaw.createFromIngest(
+                "CLIP-REV-003", "CCTV-002", "EVT-A", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip3.mp4",
+                LocalDateTime.now(), 30);
+        raw3 = rawRepository.save(raw3);
+        Long videoId3 = raw3.getRawSn();
+
+        LsRawDataStatus stts3 = LsRawDataStatus.initial(videoId3);
+        stts3.transitionTo(LsRawDataStatus.STTS_PENDING);
+        dataSttsRepository.save(stts3);
+
+        mockMvc.perform(get("/v1/reviews/" + videoId3)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                // 미배정 → workerId=null (JSON null), workerName="" (DTO 폴백)
+                .andExpect(jsonPath("$.data.workerId").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.workerName").value(""))
+                .andExpect(jsonPath("$.data.labelCount").value(0))
+                .andExpect(jsonPath("$.data.cctvName").value("강남구 테헤란로 CCTV"));
+    }
 }
