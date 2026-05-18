@@ -13,6 +13,15 @@ export const ASSIGNMENT_KEYS = {
   history: (id: number) => [...ASSIGNMENT_KEYS.all, 'history', id] as const,
 };
 
+/**
+ * SCR-TASK-001 REVIEWER 통합 작업 목록 — BE /v1/tasks/board.
+ * 페이지/상태별로 키를 분리하여 React Query 가 캐시를 분리 관리한다.
+ */
+export const TASK_BOARD_KEYS = {
+  all: ['taskBoard'] as const,
+  list: (params: Record<string, unknown>) => [...TASK_BOARD_KEYS.all, 'list', params] as const,
+};
+
 export const VIDEO_KEYS = {
   all: ['videos'] as const,
   list: (params: Record<string, unknown>) => [...VIDEO_KEYS.all, 'list', params] as const,

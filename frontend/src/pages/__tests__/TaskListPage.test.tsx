@@ -652,15 +652,9 @@ describe('TaskListPage', () => {
 
   it('REVIEWER로_진입_시_users_API_호출됨', async () => {
     setRole('REVIEWER');
-    mock.onGet('/assignments').reply(200, {
+    mock.onGet('/tasks/board').reply(200, {
       success: true,
       data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 },
-      message: null,
-      errorCode: null,
-    });
-    mock.onGet('/videos').reply(200, {
-      success: true,
-      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 999 },
       message: null,
       errorCode: null,
     });
@@ -680,5 +674,229 @@ describe('TaskListPage', () => {
       );
       expect(callsToUsers.length).toBeGreaterThanOrEqual(1);
     });
+  });
+
+  it('REVIEWER_진입_시_useVideos_미호출_v1_tasks_board만_호출', async () => {
+    // Phase 3: REVIEWER 시각에서 /videos 와 /assignments 가 아니라 /tasks/board 단일 엔드포인트만 호출되어야 한다.
+    setRole('REVIEWER');
+    mock.onGet('/tasks/board').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            videoId: 10,
+            cctvName: 'CCTV-BOARD-1',
+            eventName: 'FIRE',
+            eventTypeCd: 'FIRE',
+            frameCount: 30,
+            capturedAt: '2026-05-07T10:00:00Z',
+            batchStatus: 'COMPLETED',
+            status: 'COMPLETED',
+            assignmentId: 99,
+            workerId: 7,
+            workerName: '홍길동',
+            assignedAt: '2026-05-07T10:00:00Z',
+            firstSrcSn: 12345,
+            reviewerId: 1,
+            reviewerName: '검수자1',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 },
+      message: null,
+      errorCode: null,
+    });
+    // /videos 가 호출되면 fail — REVIEWER 시각에서도 호출이 일어나선 안 됨.
+    mock.onGet('/videos').reply(500);
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-BOARD-1')).toBeInTheDocument();
+    });
+
+    const callsToVideos = mock.history.get.filter((req) =>
+      req.url?.startsWith('/videos'),
+    );
+    expect(callsToVideos).toHaveLength(0);
+
+    // /tasks/board 가 정확히 1회 이상 호출되어야 한다.
+    const callsToBoard = mock.history.get.filter(
+      (req) => req.url === '/tasks/board',
+    );
+    expect(callsToBoard.length).toBeGreaterThanOrEqual(1);
+    expect(callsToBoard[0].params?.size).toBe(20);
+    expect(callsToBoard[0].params?.status).toBe('COMPLETED');
+  });
+
+  it('REVIEWER_시각_미배정_영상도_노출_workerName_미배정_표시', async () => {
+    setRole('REVIEWER');
+    mock.onGet('/tasks/board').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            videoId: 20,
+            cctvName: 'CCTV-UNASSIGN',
+            eventName: 'INTRUSION',
+            eventTypeCd: 'INTRUSION',
+            frameCount: 0,
+            capturedAt: '2026-05-07T10:00:00Z',
+            batchStatus: 'COMPLETED',
+            status: 'UNASSIGNED',
+            assignmentId: null,
+            workerId: null,
+            workerName: null,
+            assignedAt: null,
+            firstSrcSn: null,
+            reviewerId: null,
+            reviewerName: null,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-UNASSIGN')).toBeInTheDocument();
+    });
+
+    // 작업자 컬럼이 "미배정" 으로 표시되어야 한다.
+    const row = screen.getByText('CCTV-UNASSIGN').closest('tr');
+    expect(row).not.toBeNull();
+    expect(row!.textContent).toContain('미배정');
+
+    // 미배정 영상이면 REVIEWER 가 "배정" 버튼을 볼 수 있어야 한다.
+    expect(
+      screen.getByRole('button', { name: /배정/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('REVIEWER_페이지네이션_UI_노출_BE_totalPages_기반', async () => {
+    setRole('REVIEWER');
+    mock.onGet('/tasks/board').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            videoId: 30,
+            cctvName: 'CCTV-PG-REV',
+            eventName: null,
+            eventTypeCd: null,
+            frameCount: 0,
+            capturedAt: '2026-05-07T10:00:00Z',
+            batchStatus: 'COMPLETED',
+            status: 'UNASSIGNED',
+            assignmentId: null,
+            workerId: null,
+            workerName: null,
+            assignedAt: null,
+            firstSrcSn: null,
+            reviewerId: null,
+            reviewerName: null,
+          },
+        ],
+        totalElements: 60,
+        totalPages: 3,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-PG-REV')).toBeInTheDocument();
+    });
+
+    // BE totalPages=3 에 따라 페이지네이션 UI 가 노출되어야 한다.
+    expect(
+      screen.getByRole('button', { name: '다음 페이지' }),
+    ).toBeInTheDocument();
+  });
+
+  it('REVIEWER_시각_useTasks_미호출_assignments_API_요청_0회', async () => {
+    // REVIEWER 시각은 useTaskBoard 만 사용하므로 useTasks 가 게이트되어
+    // /assignments 호출이 일어나지 않아야 한다.
+    setRole('REVIEWER');
+    mock.onGet('/tasks/board').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            videoId: 10,
+            cctvName: 'CCTV-REV-NOTASK',
+            eventName: 'FIRE',
+            eventTypeCd: 'FIRE',
+            frameCount: 5,
+            capturedAt: '2026-05-07T10:00:00Z',
+            batchStatus: 'COMPLETED',
+            status: 'UNASSIGNED',
+            assignmentId: null,
+            workerId: null,
+            workerName: null,
+            assignedAt: null,
+            firstSrcSn: null,
+            reviewerId: null,
+            reviewerName: null,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 },
+      message: null,
+      errorCode: null,
+    });
+    // /assignments 가 호출되면 fail — REVIEWER 시각에서는 호출 자체가 일어나선 안 됨.
+    mock.onGet('/assignments').reply(500);
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-REV-NOTASK')).toBeInTheDocument();
+    });
+
+    const callsToAssignments = mock.history.get.filter(
+      (req) => req.url === '/assignments',
+    );
+    expect(callsToAssignments).toHaveLength(0);
   });
 });

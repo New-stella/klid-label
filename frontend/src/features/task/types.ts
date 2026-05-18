@@ -49,6 +49,43 @@ export interface TaskListParams {
   sort?: string;
 }
 
+/**
+ * REVIEWER 통합 작업 목록 — BE /v1/tasks/board 응답 1행.
+ *
+ * 처리 완료 영상 + (optional) LABELER 배정을 LEFT JOIN 한 형태.
+ * task 측 필드(workerId/workerName/assignmentId/reviewerId/reviewerName/assignedAt/firstSrcSn) 가
+ * 모두 null 인 경우 미배정 영상이며, status 는 'UNASSIGNED' 로 폴백된다.
+ *
+ * AssignmentStatus 외에 'UNASSIGNED' 값을 갖는 점에 주의 — FE STATUS_BADGE_MAP 매핑은
+ * TaskListPage 의 RowStatus(= AssignmentStatus | 'UNASSIGNED') 에 그대로 흘려보낸다.
+ */
+export interface TaskBoardItem {
+  videoId: number;
+  cctvName: string | null;
+  eventName: string | null;
+  eventTypeCd: string | null;
+  frameCount: number;
+  capturedAt: string | null;
+  batchStatus: string | null;
+  status: AssignmentStatus | 'UNASSIGNED';
+  // LABELER 배정 (left-join)
+  assignmentId: number | null;
+  workerId: number | null;
+  workerName: string | null;
+  assignedAt: string | null;
+  firstSrcSn: number | null;
+  // REVIEWER 배정 (left-join)
+  reviewerId: number | null;
+  reviewerName: string | null;
+}
+
+export interface TaskBoardParams {
+  status?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
 export interface AssignTaskRequest {
   workerId: number;
   /** 영상(LS_DATA_RAW) PK 목록 — 1건 이상 필수. */

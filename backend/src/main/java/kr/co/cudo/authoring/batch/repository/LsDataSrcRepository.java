@@ -29,4 +29,16 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     @Query("select s.rawSn as rawSn, min(s.srcSn) as firstSrcSn "
             + "from LsDataSrc s where s.rawSn in :rawSns group by s.rawSn")
     List<Object[]> findFirstSrcSnGroupedByRawSn(@Param("rawSns") Collection<Long> rawSns);
+
+    /**
+     * 영상별 프레임 개수를 한 번에 조회 (N+1 회피).
+     *
+     * <p>TaskBoardService.list 의 page.map 람다에서 각 row 마다 countByRawSn(...) 을 호출하면
+     * 페이지 size 만큼 SELECT COUNT 쿼리가 발생한다 (size 20 기준 20회). 이를 단일 GROUP BY 쿼리로
+     * 통합하여 페이지당 1회로 축소한다. 결과는 {@code [rawSn, frameCount]} Object 배열 리스트.
+     * 프레임이 0건인 영상은 결과에 포함되지 않으므로 caller 가 0L 폴백 처리해야 한다.
+     */
+    @Query("select s.rawSn as rawSn, count(s) as frameCount "
+            + "from LsDataSrc s where s.rawSn in :rawSns group by s.rawSn")
+    List<Object[]> countByRawSnsGrouped(@Param("rawSns") Collection<Long> rawSns);
 }

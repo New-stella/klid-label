@@ -9,6 +9,8 @@ import type {
   AssignmentHistory,
   ReassignTaskRequest,
   Task,
+  TaskBoardItem,
+  TaskBoardParams,
   TaskListParams,
 } from './types';
 
@@ -19,6 +21,21 @@ import type {
 export function listTasks(params: TaskListParams) {
   return apiClient
     .get<PageResponse<Task>>('/assignments', { params })
+    .then((r) => r.data);
+}
+
+/**
+ * SCR-TASK-001 REVIEWER 통합 작업 목록 — BE: /v1/tasks/board.
+ *
+ * 처리 완료 영상(LS_DATA_RAW.DATA_STTS_CD) 을 BE 페이징으로 응답하고
+ * LABELER/REVIEWER 배정을 LEFT JOIN 방식으로 enrich 한다.
+ * 미배정 영상도 함께 노출되며 task 측 필드는 null 로 응답된다.
+ *
+ * 보안: REVIEWER 권한 필수 (BE @PreAuthorize + Service requireReviewer 이중 가드).
+ */
+export function listTaskBoard(params: TaskBoardParams) {
+  return apiClient
+    .get<PageResponse<TaskBoardItem>>('/tasks/board', { params })
     .then((r) => r.data);
 }
 

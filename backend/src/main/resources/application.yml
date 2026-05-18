@@ -3,6 +3,13 @@ spring:
     name: klid-la-authoring
   profiles:
     active: local
+  data:
+    web:
+      pageable:
+        # CWE-770 / OWASP API4: 페이지 size 상한 — 무제한 size 입력으로 DoS 차단.
+        # 전역 적용: 모든 @PageableDefault / RequestParam size 가 100 으로 캡됨.
+        max-page-size: 100
+        default-page-size: 20
   servlet:
     multipart:
       # TUS 업로드는 application/offset+octet-stream (raw body) 사용 → multipart 비활성.
