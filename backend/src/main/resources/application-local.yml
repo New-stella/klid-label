@@ -43,7 +43,7 @@ authoring:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
   integration:
     gitea:
-      token: ${GITEA_TOKEN:dev-gitea-token}
+      token: ${GITEA_TOKEN:ceb737fdcac1cc45813ddd87c3100c957ad4148a}
   # Phase 5 — local 환경에서는 자동 트리거 비활성화 (Quartz 잡 미등록).
   # Step/Orchestrator/Service 빈은 그대로 등록되어 단위 테스트 가능.
   batch:

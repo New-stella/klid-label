@@ -44,9 +44,14 @@ export class HistoryPanelPage {
     }
   }
 
-  /** RollbackConfirmModal의 "롤백" 확정 버튼 클릭. */
+  /** RollbackConfirmModal의 "롤백" 확정 버튼 클릭. 모달 안 버튼만 선택 (트리거 버튼과 중복 방지). */
   async confirmRollback() {
-    const confirm = this.page.getByRole('button', { name: /^롤백$/ });
+    // modal-backdrop 내부로 스코프 — 트리거 버튼과 strict mode 충돌 방지
+    const modal = this.page.getByTestId('modal-backdrop');
+    const modalVisible = await modal.isVisible().catch(() => false);
+    const confirm = modalVisible
+      ? modal.getByRole('button', { name: /^롤백$/ })
+      : this.page.getByRole('button', { name: /^롤백$/ }).last();
     if ((await confirm.count()) > 0) {
       await confirm.click();
     }

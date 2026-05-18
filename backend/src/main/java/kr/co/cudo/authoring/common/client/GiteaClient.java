@@ -92,6 +92,7 @@ public class GiteaClient {
     /**
      * 파일 생성 또는 갱신.
      * Gitea PUT /api/v1/repos/{owner}/{repo}/contents/{path}.
+     * 파일이 이미 존재하면 현재 blob SHA를 먼저 조회하여 PUT body에 포함한다 (Gitea 422 방어).
      * 응답: {"commit": {"sha": "...", "message": "...", "author": {"name": "..."}}}
      *
      * @param repo            Gitea repo 이름
@@ -104,20 +105,33 @@ public class GiteaClient {
     @SuppressWarnings("unchecked")
     public Mono<CommitResponse> createOrUpdateFile(String repo, String path, String contentBase64,
                                                     String message, String author, String branch) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("branch", branch);
-        body.put("message", message);
-        body.put("content", contentBase64);
-        body.put("author", Map.of("name", author == null ? "" : author));
-        return webClient.put()
+        // 파일이 이미 존재하는 경우 blob SHA를 포함해야 422를 피할 수 있음
+        Mono<String> existingSha = webClient.get()
                 .uri("/api/v1/repos/{owner}/{repo}/contents/{path}", owner, repo, path)
-                .bodyValue(body)
                 .retrieve()
                 .bodyToMono(Map.class)
-                .map(resp -> parseCommitFromContentsApi(resp, message, author))
-                .timeout(CALL_TIMEOUT)
-                .transformDeferred(RetryOperator.of(retry))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+                .map(m -> m.getOrDefault("sha", "").toString())
+                .onErrorReturn("");  // 파일이 없으면(404) 빈 문자열
+
+        return existingSha.flatMap(sha -> {
+            Map<String, Object> body = new HashMap<>();
+            body.put("branch", branch);
+            body.put("message", message);
+            body.put("content", contentBase64);
+            body.put("author", Map.of("name", author == null ? "" : author));
+            if (!sha.isEmpty()) {
+                body.put("sha", sha);  // 파일 갱신 시 필수 — 없으면 Gitea 422
+            }
+            return webClient.put()
+                    .uri("/api/v1/repos/{owner}/{repo}/contents/{path}", owner, repo, path)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .map(resp -> parseCommitFromContentsApi(resp, message, author));
+        })
+        .timeout(CALL_TIMEOUT)
+        .transformDeferred(RetryOperator.of(retry))
+        .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }
 
     /**
