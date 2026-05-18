@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.label.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
 public class LabelAccessGuard {
 
     private final LsDataSrcRepository srcRepository;
-    private final LsPjtUserAuthrtRepository authrtRepository;
+    private final LsTaskAssignmentRepository authrtRepository;
 
     public void verifyAccess(Long srcSn, TokenClaims actor) {
         verifyAndGet(srcSn, actor);
@@ -48,7 +48,7 @@ public class LabelAccessGuard {
         if (actor.role() == Role.WORKER) {
             Long selfNo = parseUserNo(actor.sub());
             boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
-                    selfNo, LsPjtUserAuthrt.TASK_LABELER, src.getRawSn());
+                    selfNo, LsTaskAssignment.TASK_LABELER, src.getRawSn());
             if (!assigned) {
                 throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다.");
             }

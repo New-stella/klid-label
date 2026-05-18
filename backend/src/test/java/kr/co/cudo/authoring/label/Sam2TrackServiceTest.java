@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.label;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -62,7 +62,7 @@ class Sam2TrackServiceTest {
     @Autowired private Sam2TrackService sam2TrackService;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private LsLabelRepository lsLabelRepository;
 
     @MockBean private AiServerClient aiServerClient;
@@ -104,7 +104,7 @@ class Sam2TrackServiceTest {
         src2 = srcRepository.save(LsDataSrc.create(rawSn, 2, "2.jpg", LocalDateTime.now())).getSrcSn();
 
         // 작업자 100 만 rawSn 에 LABELER 배정 — IDOR 검증용
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
 
         Instant exp = Instant.now().plusSeconds(60);
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, exp);

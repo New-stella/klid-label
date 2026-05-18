@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "LS_PJT_DDLN")
+@Table(name = "LS_DEADLINE")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LsPjtDdln {
+public class LsDeadline {
 
     @Id
     @Column(name = "DDLN_SEQ")

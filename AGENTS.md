@@ -1,15 +1,15 @@
 # 학습데이터 저작도구 워크스페이스
 
 > 이 파일은 워크스페이스 루트에 위치합니다.
-> 팀 공통 규칙은 ~/.claude/rules/ 에 있으므로 여기엔 이 프로젝트 전용 내용만 작성합니다.
+> 팀 공통 규칙은 ~/.Codex/rules/ 에 있으므로 여기엔 이 프로젝트 전용 내용만 작성합니다.
 
 ## 프로젝트 개요
 - **목적**: AI 기반 지방정부 CCTV 관제지원시스템(2차)의 학습데이터 저작도구 — 영상/이미지 라벨링, 검수 워크플로우, 비식별화, 학습데이터셋 내보내기, 외부 생성 메타데이터 검토
 - **주요 도메인**: 사용자/권한, 배치 파이프라인(프레임 추출·오토라벨링·VLM 객체 검증), 라벨링, 검수(REVIEWER 배정), 비식별화, 버전관리(Gitea), 데이터 증강, 내보내기, 포털
 - **범위 외 (V1.4)**: 데이터마트(SFR-13) — 외부제공 시스템 책임으로 이관. 저작도구는 학습데이터셋 내보내기까지만 담당하고 마트 구축·검색·다운로드는 담당하지 않음
-- **범위 외 (V1.5)**: SFR-06 본체(생성형 AI 모델 학습·파인튜닝·UI/UX 편의성·프롬프트 가이드 등) — 외부 생성 시스템 책임. 저작도구는 SFR-07 증강 결과 검수(SCR-AUG-002)만 보유. SFR-15 다운로드 기능은 포털 자체 책임으로 이관 — 저작도구 mock에 다운로드 카드·D-day 배지·다운로드 버튼·만료 처리 UI 미제공. (2026-05-15 정리: 배경영상 요청 API `/v1/generate/background/*` 는 외부 미연동 상태로 제거. 추후 외부 연동 결정 시 재도입)
+- **범위 외 (V1.5)**: SFR-06 본체(생성형 AI 모델 학습·파인튜닝·UI/UX 편의성·프롬프트 가이드 등) — 외부 생성 시스템 책임. 저작도구는 SFR-07 증강 결과 검수(SCR-AUG-002)와 외부 시스템으로의 배경영상 요청 인터페이스(SCR-GEN-001)만 보유. SFR-15 다운로드 기능은 포털 자체 책임으로 이관 — 저작도구 mock에 다운로드 카드·D-day 배지·다운로드 버튼·만료 처리 UI 미제공
 - **범위 외 (V1.7)**: VLM 시계열 메타데이터 자동 추출(프레임 자연어 설명·객체 행동·환경 조건 등 광범위 VLM 메타) — 외부 시스템 책임. 저작도구의 VLM 연동은 **YOLO/SAM2가 감지한 객체에 대한 검증** 용도로 한정 (`ai-server/app/routers/vlm.py`는 객체 검증 보조). 외부에서 생성된 시계열 메타는 SCR-AUTO-002 화면에서 검토·수정만 제공
-- **요구사항 정리 (V1.8)**: 본체가 외부 시스템인 **SFR-03(시계열 메타)·SFR-06(생성형 AI)·SFR-11(영상 합성 모델)은 요구사항정의서에서 제거**. 저작도구 잔존 책임(VLM 객체 검증·외부 메타 검토 UI·증강 연동·생성된 영상 라벨링)은 모두 **SFR-08(저작도구 핵심 기능)에 흡수**됨. 화면 인덱스의 SFR 매핑도 SFR-08로 단일화. (2026-05-15 정리: 외부 미연동 상태인 배경영상 요청 인터페이스 BE 코드는 제거됨)
+- **요구사항 정리 (V1.8)**: 본체가 외부 시스템인 **SFR-03(시계열 메타)·SFR-06(생성형 AI)·SFR-11(영상 합성 모델)은 요구사항정의서에서 제거**. 저작도구 잔존 책임(VLM 객체 검증·외부 메타 검토 UI·증강 연동·배경영상 요청·생성된 영상 라벨링)은 모두 **SFR-08(저작도구 핵심 기능)에 흡수**됨. 화면 인덱스의 SFR 매핑도 SFR-08로 단일화
 
 ## 워크스페이스 구조
 
@@ -34,8 +34,8 @@ klid-la-test-v0/
 │   ├── design/ · contracts/ · api-specs/ · architecture/
 ├── reports/
 ├── cvat/                    # CVAT 원본 트리 (레퍼런스, .gitignore)
-├── .claude-plan.md
-└── CLAUDE.md
+├── .Codex-plan.md
+└── AGENTS.md
 ```
 
 ## 프로젝트 구성
@@ -95,7 +95,7 @@ klid-la-test-v0/
 - `common.security.SecurityConfig` — 역할 기반 접근 제어
 - `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` — 듀얼 EntityManager/TransactionManager (`@ControlRepo`, `@PortalRepo`로 분리)
 - `common.logging.RequestIdFilter` + Logback JSON 인코더 (민감 필드 마스킹)
-- `common.client.*` — DeidentifyClient / AiServerClient / GiteaClient (Resilience4j 적용) — 관제/포털 양방향 통합은 deprecated
+- `common.client.*` — ControlServerClient / PortalServerClient / DeidentifyClient / AiServerClient / GiteaClient (Resilience4j 적용)
 
 ### 코드 컨벤션
 - 패키지: 소문자 케밥 금지, 영문 소문자만 (`kr.co.cudo.authoring.label`)
@@ -120,6 +120,8 @@ klid-la-test-v0/
 | `CONTROL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | klid_system 접속 | dev/stg/prd |
 | `PORTAL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | 포털 DB 접속 | dev/stg/prd |
 | `JWT_SECRET` / `JWT_ISSUER` | JWT 검증 | dev/stg/prd |
+| `CONTROL_SERVER_API_URL` / `CONTROL_M2M_TOKEN` | 관제서버 수신 API | dev/stg/prd |
+| `PORTAL_SERVER_API_URL` / `PORTAL_M2M_TOKEN` | 포털 서버 API | dev/stg/prd |
 | `DEIDENTIFY_API_URL` | 비식별 서버 | dev/stg/prd |
 | `AI_SERVER_URL` | ai-server 내부 주소 | 전체 |
 | `GITEA_BASE_URL` / `GITEA_TOKEN` / `GITEA_OWNER` / `GITEA_REPO` | Gitea 버전관리 | dev/stg/prd |
@@ -151,10 +153,9 @@ klid-la-test-v0/
 - 두 채널 모두 **동일 JWT 발급 서버** — 단일 검증 로직(`JwtAuthenticationFilter`)로 처리
 - 토큰 `role` + `channel` 클레임으로 권한 분기 (`@PreAuthorize("hasRole('REVIEWER')")`)
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트
-- **외부 시스템 양방향 통합(M2M) deprecated**: 관제서버/외부 학습데이터 시스템과의 송수신 API 및 M2M 인증 인프라는 본 버전에서 제거. 재구축 시 별도 설계 필요.
 
 ### 배치 파이프라인 (인증 불필요)
-- 영상 적재는 자체 업로드(포털 TUS / 관리 화면) 기반 — 관제서버 자동 송신은 미연동
+- 관제서버가 라벨링 필요 여부 판별 → 대상 영상 목록 송신 (`POST /api/v1/integration/control/videos`)
 - Quartz 트리거로 1건/분 처리: FFmpeg → 조건부 비식별화 → YOLO → SAM2 → VLM 객체 검증 (V1.7 — 시계열 메타 자동 생성은 외부 시스템 책임)
 - **비식별 호출 조건**: 영상 `PRVC_TYPE_CD='PRVC' or 'PSDO'`일 때만. `ANONY`는 원본만 저장
 - 원본 이미지와 비식별 이미지는 **별도 경로로 동시 저장**
@@ -209,11 +210,10 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 ## 주의사항
 
-### 외부 API 연동
-- 비식별·Gitea·ai-server — **Resilience4j로 타임아웃/재시도/서킷 브레이커 적용 필수**
+### 외부 API 연동 (다수)
+- 관제서버·포털·비식별·Gitea·ai-server — **Resilience4j로 타임아웃/재시도/서킷 브레이커 적용 필수**
 - 비식별 API 실패 시 영상 상태 `DE_IDNTF_YN='F'`로 마킹 + 재시도 큐. 원본 절대 삭제 금지
 - 관제서버 세션 토큰은 저작도구가 발급하지 않음 — 검증 실패 시 관제서버 로그인 페이지로 리다이렉트
-- 관제/포털 양방향 통합 API 및 외부 학습데이터 API는 deprecated — 재구축 전까지 미연동
 
 ### 파일 업로드 (포털 + TUS)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수
@@ -232,6 +232,6 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - `klid_system` 공유 테이블 — **Flyway 마이그레이션 전 관제서버팀 협의 필수**
 - JPA `ddl-auto=validate` 고정. 엔티티 수정 시 Flyway migration 동반 작성
 
-### Self-evolving rules (Claude 특이)
-- `rule-injector.sh`가 `.claude/rules/learned-*.md`의 LEARNED 블록을 키워드로 주입
+### Self-evolving rules (Codex 특이)
+- `rule-injector.sh`가 `.Codex/rules/learned-*.md`의 LEARNED 블록을 키워드로 주입
 - `mistake-recorder.sh`가 빌드/테스트 실패 시 feedback memory 자동 기록

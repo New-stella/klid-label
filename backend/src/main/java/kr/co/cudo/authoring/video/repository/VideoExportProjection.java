@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 /**
  * 영상(rawSn) 별 최신 내보내기 요약 Projection.
  *
- * <p>LS_PJT_DATA_STTS(영상↔프로젝트 매핑) JOIN LS_DATA_SET(프로젝트 단위 내보내기 이력) 결과를
+ * <p>LS_RAW_DATA_STATUS(영상↔프로젝트 매핑) JOIN LS_DATA_SET(프로젝트 단위 내보내기 이력) 결과를
  * 영상 단위로 집계한 것. 한 영상이 여러 프로젝트에 매핑되어 있을 수 있고, 각 프로젝트가 여러
  * export 이력을 가질 수 있으므로 status IN ('COMPLETED','FAILED') 인 가장 최근 1건만 노출한다.
  *

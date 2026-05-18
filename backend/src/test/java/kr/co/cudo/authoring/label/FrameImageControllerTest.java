@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.label;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -54,7 +54,7 @@ class FrameImageControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -89,7 +89,7 @@ class FrameImageControllerTest {
         srcSn = src.getSrcSn();
 
         // WORKER 100 만 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
 
         // 실제 JPEG 파일 생성 — SeedImageGenerator 사용
         baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();

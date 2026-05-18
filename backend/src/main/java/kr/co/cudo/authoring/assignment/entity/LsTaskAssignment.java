@@ -15,21 +15,21 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "LS_PJT_USER_AUTHRT", uniqueConstraints = {
-        @UniqueConstraint(name = "UK_LS_PJT_USER_AUTHRT",
+@Table(name = "LS_TASK_ASSIGNMENT", uniqueConstraints = {
+        @UniqueConstraint(name = "UK_LS_TASK_ASSIGNMENT",
                 columnNames = {"RAW_DATA_ID", "USER_NO", "TASK_TYPE_CD"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LsPjtUserAuthrt {
+public class LsTaskAssignment {
 
     public static final String TASK_LABELER = "LABELER";
     public static final String TASK_REVIEWER = "REVIEWER";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "AUTHRT_SEQ")
-    private Long authrtSeq;
+    @Column(name = "ASSIGNMENT_ID")
+    private Long assignmentId;
 
     @Column(name = "USER_NO", nullable = false)
     private Long userNo;
@@ -47,8 +47,8 @@ public class LsPjtUserAuthrt {
     private LocalDateTime regDt;
 
     @Builder
-    private LsPjtUserAuthrt(Long userNo, Long rawDataId, String taskTypeCd,
-                            Long regUserNo, LocalDateTime regDt) {
+    private LsTaskAssignment(Long userNo, Long rawDataId, String taskTypeCd,
+                             Long regUserNo, LocalDateTime regDt) {
         this.userNo = userNo;
         this.rawDataId = rawDataId;
         this.taskTypeCd = taskTypeCd;
@@ -56,8 +56,8 @@ public class LsPjtUserAuthrt {
         this.regDt = regDt;
     }
 
-    public static LsPjtUserAuthrt createLabeler(Long rawDataId, Long workerNo, Long actorNo) {
-        return LsPjtUserAuthrt.builder()
+    public static LsTaskAssignment createLabeler(Long rawDataId, Long workerNo, Long actorNo) {
+        return LsTaskAssignment.builder()
                 .userNo(workerNo)
                 .rawDataId(rawDataId)
                 .taskTypeCd(TASK_LABELER)
@@ -66,8 +66,8 @@ public class LsPjtUserAuthrt {
                 .build();
     }
 
-    public static LsPjtUserAuthrt createReviewer(Long rawDataId, Long reviewerNo, Long actorNo) {
-        return LsPjtUserAuthrt.builder()
+    public static LsTaskAssignment createReviewer(Long rawDataId, Long reviewerNo, Long actorNo) {
+        return LsTaskAssignment.builder()
                 .userNo(reviewerNo)
                 .rawDataId(rawDataId)
                 .taskTypeCd(TASK_REVIEWER)

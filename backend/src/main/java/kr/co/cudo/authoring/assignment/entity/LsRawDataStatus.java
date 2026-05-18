@@ -13,10 +13,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "LS_PJT_DATA_STTS")
+@Table(name = "LS_RAW_DATA_STATUS")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LsPjtDataStts {
+public class LsRawDataStatus {
 
     public static final String STTS_PENDING = "PENDING";
     public static final String STTS_ASSIGNED = "ASSIGNED";
@@ -50,7 +50,7 @@ public class LsPjtDataStts {
     private Long version;
 
     @Builder
-    private LsPjtDataStts(Long rawDataId, String dataSttsCd, int stpCycl, int igiCycl, LocalDateTime updDt) {
+    private LsRawDataStatus(Long rawDataId, String dataSttsCd, int stpCycl, int igiCycl, LocalDateTime updDt) {
         this.rawDataId = rawDataId;
         this.dataSttsCd = dataSttsCd;
         this.stpCycl = stpCycl;
@@ -58,8 +58,8 @@ public class LsPjtDataStts {
         this.updDt = updDt;
     }
 
-    public static LsPjtDataStts initial(Long rawDataId) {
-        return LsPjtDataStts.builder()
+    public static LsRawDataStatus initial(Long rawDataId) {
+        return LsRawDataStatus.builder()
                 .rawDataId(rawDataId)
                 .dataSttsCd(STTS_PENDING)
                 .stpCycl(0)

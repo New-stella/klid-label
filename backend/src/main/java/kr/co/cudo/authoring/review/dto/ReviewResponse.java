@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.review.dto;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 
 import java.time.LocalDateTime;
 
@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * <ul>
  *   <li>{@code id}            = {@code videoId} (FE 라우팅 PK)</li>
  *   <li>{@code cctvName}      = video lookup 결과(미조인 시 "video #N" fallback)</li>
- *   <li>{@code workerId}      = LS_PJT_USER_AUTHRT lookup (LABELER) — 없으면 null</li>
+ *   <li>{@code workerId}      = LS_TASK_ASSIGNMENT lookup (LABELER) — 없으면 null</li>
  *   <li>{@code workerName}    = MNG_ACCT_USER lookup — 없으면 ""</li>
  *   <li>{@code submittedAt}   = {@code updDt}</li>
  *   <li>{@code labelCount}    = LS_DATA_LBL count by srcSn for this rawSn — 없으면 0</li>
@@ -37,12 +37,12 @@ public record ReviewResponse(
 ) {
 
     /** 단순 매핑 — lookup 인자 없이 status alias 만 변환. */
-    public static ReviewResponse from(LsPjtDataStts stts) {
+    public static ReviewResponse from(LsRawDataStatus stts) {
         return from(stts, null, null, null, 0L);
     }
 
     /** 보강 매핑 — 서비스 레이어에서 cctvName/workerId/workerName/labelCount 를 함께 주입. */
-    public static ReviewResponse from(LsPjtDataStts stts,
+    public static ReviewResponse from(LsRawDataStatus stts,
                                       String cctvName,
                                       Long workerId,
                                       String workerName,

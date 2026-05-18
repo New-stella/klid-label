@@ -1,8 +1,8 @@
 package kr.co.cudo.authoring.version;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -57,7 +57,7 @@ class VersionControllerTest {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private LsLabelVersionRepository labelVersionRepository;
 
     @MockBean private GiteaClient giteaClient;
@@ -91,7 +91,7 @@ class VersionControllerTest {
                 .getSrcSn();
 
         // 작업자 100 만 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
     }
 
     private LsLabelVersion seedVersion(String sha, int versionNo, String reasonCd, String regId, boolean active) {

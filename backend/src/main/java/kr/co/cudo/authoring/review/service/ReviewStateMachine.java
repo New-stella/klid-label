@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.review.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import org.springframework.stereotype.Component;
@@ -31,14 +31,14 @@ import java.util.Set;
 public class ReviewStateMachine {
 
     private static final Map<String, Set<String>> ALLOWED = Map.of(
-            LsPjtDataStts.STTS_ASSIGNED,  Set.of(LsPjtDataStts.STTS_PENDING),
-            LsPjtDataStts.STTS_PENDING,   Set.of(LsPjtDataStts.STTS_IN_REVIEW),
-            LsPjtDataStts.STTS_IN_REVIEW, Set.of(LsPjtDataStts.STTS_APPROVED, LsPjtDataStts.STTS_REJECTED),
-            LsPjtDataStts.STTS_REJECTED,  Set.of(LsPjtDataStts.STTS_PENDING)
+            LsRawDataStatus.STTS_ASSIGNED,  Set.of(LsRawDataStatus.STTS_PENDING),
+            LsRawDataStatus.STTS_PENDING,   Set.of(LsRawDataStatus.STTS_IN_REVIEW),
+            LsRawDataStatus.STTS_IN_REVIEW, Set.of(LsRawDataStatus.STTS_APPROVED, LsRawDataStatus.STTS_REJECTED),
+            LsRawDataStatus.STTS_REJECTED,  Set.of(LsRawDataStatus.STTS_PENDING)
     );
 
     public void verify(String from, String to) {
-        if (LsPjtDataStts.STTS_APPROVED.equals(from)) {
+        if (LsRawDataStatus.STTS_APPROVED.equals(from)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 APPROVED 된 영상은 상태 변경이 불가합니다.");
         }
         Set<String> allowed = ALLOWED.get(from);

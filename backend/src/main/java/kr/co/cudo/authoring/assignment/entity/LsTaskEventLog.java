@@ -30,10 +30,10 @@ import java.time.LocalDateTime;
  * </ul>
  */
 @Entity
-@Table(name = "LS_PJT_TASK_EVENT_LOG")
+@Table(name = "LS_TASK_EVENT_LOG")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LsPjtTaskEventLog {
+public class LsTaskEventLog {
 
     public static final String EVENT_ASSIGN = "ASSIGN";
     public static final String EVENT_REASSIGN = "REASSIGN";
@@ -68,9 +68,9 @@ public class LsPjtTaskEventLog {
     private LocalDateTime occurredAt;
 
     @Builder(access = AccessLevel.PRIVATE)
-    private LsPjtTaskEventLog(Long rawDataId, String eventTypeCd, Long actorUserNo,
-                              Long subjectUserNo, Long prevUserNo, String reason,
-                              LocalDateTime occurredAt) {
+    private LsTaskEventLog(Long rawDataId, String eventTypeCd, Long actorUserNo,
+                           Long subjectUserNo, Long prevUserNo, String reason,
+                           LocalDateTime occurredAt) {
         this.rawDataId = rawDataId;
         this.eventTypeCd = eventTypeCd;
         this.actorUserNo = actorUserNo;
@@ -80,8 +80,8 @@ public class LsPjtTaskEventLog {
         this.occurredAt = occurredAt;
     }
 
-    public static LsPjtTaskEventLog assign(Long rawDataId, Long actorUserNo, Long subjectWorkerNo) {
-        return LsPjtTaskEventLog.builder()
+    public static LsTaskEventLog assign(Long rawDataId, Long actorUserNo, Long subjectWorkerNo) {
+        return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_ASSIGN)
                 .actorUserNo(actorUserNo)
@@ -90,9 +90,9 @@ public class LsPjtTaskEventLog {
                 .build();
     }
 
-    public static LsPjtTaskEventLog reassign(Long rawDataId, Long actorUserNo,
-                                             Long newWorkerNo, Long prevWorkerNo) {
-        return LsPjtTaskEventLog.builder()
+    public static LsTaskEventLog reassign(Long rawDataId, Long actorUserNo,
+                                          Long newWorkerNo, Long prevWorkerNo) {
+        return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_REASSIGN)
                 .actorUserNo(actorUserNo)
@@ -102,8 +102,8 @@ public class LsPjtTaskEventLog {
                 .build();
     }
 
-    public static LsPjtTaskEventLog submit(Long rawDataId, Long workerUserNo) {
-        return LsPjtTaskEventLog.builder()
+    public static LsTaskEventLog submit(Long rawDataId, Long workerUserNo) {
+        return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_SUBMIT)
                 .actorUserNo(workerUserNo)
@@ -112,8 +112,8 @@ public class LsPjtTaskEventLog {
                 .build();
     }
 
-    public static LsPjtTaskEventLog approve(Long rawDataId, Long reviewerUserNo) {
-        return LsPjtTaskEventLog.builder()
+    public static LsTaskEventLog approve(Long rawDataId, Long reviewerUserNo) {
+        return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_APPROVE)
                 .actorUserNo(reviewerUserNo)
@@ -121,8 +121,8 @@ public class LsPjtTaskEventLog {
                 .build();
     }
 
-    public static LsPjtTaskEventLog reject(Long rawDataId, Long reviewerUserNo, String reason) {
-        return LsPjtTaskEventLog.builder()
+    public static LsTaskEventLog reject(Long rawDataId, Long reviewerUserNo, String reason) {
+        return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_REJECT)
                 .actorUserNo(reviewerUserNo)

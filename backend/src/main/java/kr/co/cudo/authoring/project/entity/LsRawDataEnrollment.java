@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "LS_PJT_DATA_MPNG")
+@Table(name = "LS_RAW_DATA_ENROLLMENT")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LsPjtDataMpng {
+public class LsRawDataEnrollment {
 
     @Id
     @Column(name = "RAW_DATA_ID")

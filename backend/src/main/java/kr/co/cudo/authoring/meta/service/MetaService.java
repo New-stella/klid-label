@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.meta.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
@@ -35,7 +35,7 @@ public class MetaService {
 
     private final LsDataMetaRepository metaRepository;
     private final LsDataSrcRepository srcRepository;
-    private final LsPjtUserAuthrtRepository authrtRepository;
+    private final LsTaskAssignmentRepository authrtRepository;
     private final LsDataMetaReviewRepository metaReviewRepository;
 
     public MetaResponse getByFrame(Long srcSn, TokenClaims actor) {
@@ -93,7 +93,7 @@ public class MetaService {
         if (actor.role() == Role.WORKER) {
             Long selfNo = parseUserNo(actor.sub());
             boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
-                    selfNo, LsPjtUserAuthrt.TASK_LABELER, src.getRawSn());
+                    selfNo, LsTaskAssignment.TASK_LABELER, src.getRawSn());
             if (!assigned) {
                 throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다.");
             }

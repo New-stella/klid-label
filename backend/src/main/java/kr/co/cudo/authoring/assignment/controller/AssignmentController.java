@@ -44,7 +44,7 @@ public class AssignmentController {
 
     @Operation(
             summary = "배정 생성",
-            description = "REVIEWER가 WORKER에게 영상/프레임 작업을 배정한다. LS_PJT_USER_AUTHRT INSERT."
+            description = "REVIEWER가 WORKER에게 영상/프레임 작업을 배정한다. LS_TASK_ASSIGNMENT INSERT."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "배정 생성 성공"),
@@ -63,7 +63,7 @@ public class AssignmentController {
 
     @Operation(
             summary = "배정 재할당",
-            description = "기존 배정을 다른 WORKER로 변경한다. LS_PJT_USER_AUTHRT_HSTRY 이력 기록."
+            description = "기존 배정을 다른 WORKER로 변경한다. LS_TASK_ASSIGN_HISTORY 이력 기록."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "재배정 성공"),

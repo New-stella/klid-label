@@ -9,10 +9,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "LS_PJT_META")
+@Table(name = "LS_META")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LsPjtMeta {
+public class LsMeta {
 
     @Id
     @Column(name = "META_KEY", length = 64)

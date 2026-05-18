@@ -1,8 +1,8 @@
 package kr.co.cudo.authoring.label;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
@@ -63,7 +63,7 @@ class LabelControllerTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private LsLabelRepository lsLabelRepository;
     @Autowired private WorkLockService workLockService;
 
@@ -105,7 +105,7 @@ class LabelControllerTest {
         srcSn = src.getSrcSn();
 
         // 작업자 100 만 배정 (작업자 101 은 미배정 — IDOR 차단 검증용)
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
     }
 
     @Test

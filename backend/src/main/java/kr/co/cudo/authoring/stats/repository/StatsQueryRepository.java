@@ -50,11 +50,11 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
 
     /**
      * 검수 워크플로우 상태별 카운트 (PENDING / IN_REVIEW / APPROVED / REJECTED).
-     * V34 이후 LS_PJT_DATA_STTS 의 PK 는 단일 RAW_DATA_ID.
+     * V34 이후 LS_RAW_DATA_STATUS 의 PK 는 단일 RAW_DATA_ID.
      */
     @Query("""
             SELECT s.dataSttsCd AS code, COUNT(s) AS cnt
-              FROM LsPjtDataStts s
+              FROM LsRawDataStatus s
              GROUP BY s.dataSttsCd
             """)
     List<CountRow> countByDataSttsCd();
@@ -65,11 +65,11 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
 
     /**
      * 특정 사용자의 라벨링(작업) 상태별 카운트.
-     * LS_PJT_USER_AUTHRT(LABELER) ⨝ LS_PJT_DATA_STTS on RAW_DATA_ID.
+     * LS_TASK_ASSIGNMENT(LABELER) ⨝ LS_RAW_DATA_STATUS on RAW_DATA_ID.
      */
     @Query("""
             SELECT s.dataSttsCd AS code, COUNT(s) AS cnt
-              FROM LsPjtUserAuthrt a, LsPjtDataStts s
+              FROM LsTaskAssignment a, LsRawDataStatus s
              WHERE a.userNo = :userNo
                AND a.taskTypeCd = 'LABELER'
                AND a.rawDataId = s.rawDataId
@@ -82,7 +82,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      *
      * <p>집계 정책:
      * <ul>
-     *   <li>{@code labeled}        — 해당 사용자가 LABELER 로 배정된 LS_PJT_DATA_STTS 중
+     *   <li>{@code labeled}        — 해당 사용자가 LABELER 로 배정된 LS_RAW_DATA_STATUS 중
      *       APPROVED/IN_REVIEW/REJECTED 합계 (작업 진행한 영상 수).</li>
      *   <li>{@code reviewed}       — 별도 조회 (REVIEWER 배정 record 수, 서비스 레이어에서 합산).</li>
      *   <li>{@code approvedCount}  — APPROVED 만 카운트 → approvalRate 분자.</li>
@@ -96,7 +96,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
                    0L AS reviewed,
                    SUM(CASE WHEN s.dataSttsCd = 'APPROVED' THEN 1 ELSE 0 END) AS approvedCount,
                    SUM(CASE WHEN s.dataSttsCd = 'REJECTED' THEN 1 ELSE 0 END) AS rejectedCount
-              FROM MngAcctUser u, LsPjtUserAuthrt a, LsPjtDataStts s
+              FROM MngAcctUser u, LsTaskAssignment a, LsRawDataStatus s
              WHERE u.userNo = a.userNo
                AND a.taskTypeCd = 'LABELER'
                AND a.rawDataId = s.rawDataId
@@ -111,7 +111,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      */
     @Query("""
             SELECT a.userNo AS code, COUNT(a) AS cnt
-              FROM LsPjtUserAuthrt a
+              FROM LsTaskAssignment a
              WHERE a.taskTypeCd = 'REVIEWER'
              GROUP BY a.userNo
             """)

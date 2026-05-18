@@ -1,11 +1,11 @@
 package kr.co.cudo.authoring.review.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
-import kr.co.cudo.authoring.assignment.entity.LsPjtTaskEventLog;
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtTaskEventLogRepository;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -47,7 +47,7 @@ import java.util.Map;
  *   <li>startReview / approve / reject   : REVIEWER 만 (현재 정책: 모든 영상 가능)</li>
  * </ul>
  *
- * <p>동시성: LS_PJT_DATA_STTS 의 {@code @Version} 컬럼으로 낙관적 잠금. 동시 두 REVIEWER 가
+ * <p>동시성: LS_RAW_DATA_STATUS 의 {@code @Version} 컬럼으로 낙관적 잠금. 동시 두 REVIEWER 가
  * 같은 영상을 승인 시도할 때 1건만 성공 → 다른 1건은 {@link ErrorCode#CONFLICT}.
  */
 @Slf4j
@@ -58,8 +58,8 @@ public class ReviewService {
 
     private final ReviewRepository reviewRepository;
     private final IssueRepository issueRepository;
-    private final LsPjtUserAuthrtRepository authrtRepository;
-    private final LsPjtTaskEventLogRepository taskEventLogRepository;
+    private final LsTaskAssignmentRepository authrtRepository;
+    private final LsTaskEventLogRepository taskEventLogRepository;
     private final ReviewStateMachine stateMachine;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository labelRepository;
@@ -81,7 +81,7 @@ public class ReviewService {
      */
     public ReviewResponse getDetail(Long videoId, TokenClaims actor) {
         requireReviewer(actor);
-        LsPjtDataStts stts = loadByVideoId(videoId);
+        LsRawDataStatus stts = loadByVideoId(videoId);
         return ReviewResponse.from(stts);
     }
 
@@ -145,12 +145,12 @@ public class ReviewService {
     @Transactional("controlTransactionManager")
     public ReviewResponse submit(Long videoId, TokenClaims actor) {
         verifyAssignedWorker(videoId, actor);
-        LsPjtDataStts stts = loadByVideoId(videoId);
-        stateMachine.verify(stts.getDataSttsCd(), LsPjtDataStts.STTS_PENDING);
-        stts.transitionTo(LsPjtDataStts.STTS_PENDING);
+        LsRawDataStatus stts = loadByVideoId(videoId);
+        stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_PENDING);
+        stts.transitionTo(LsRawDataStatus.STTS_PENDING);
         // 통합 이벤트 로그 (SCR-TASK-003): 검수 제출 이벤트 기록
         Long workerUserNo = parseUserNo(actor.sub());
-        taskEventLogRepository.save(LsPjtTaskEventLog.submit(
+        taskEventLogRepository.save(LsTaskEventLog.submit(
                 stts.getRawDataId(), workerUserNo));
         log.info("[Review] submitted videoId={} actor={}", videoId, actor.sub());
         return ReviewResponse.from(stts);
@@ -162,9 +162,9 @@ public class ReviewService {
     @Transactional("controlTransactionManager")
     public ReviewResponse startReview(Long videoId, TokenClaims actor) {
         requireReviewer(actor);
-        LsPjtDataStts stts = loadByVideoId(videoId);
-        stateMachine.verify(stts.getDataSttsCd(), LsPjtDataStts.STTS_IN_REVIEW);
-        stts.transitionTo(LsPjtDataStts.STTS_IN_REVIEW);
+        LsRawDataStatus stts = loadByVideoId(videoId);
+        stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_IN_REVIEW);
+        stts.transitionTo(LsRawDataStatus.STTS_IN_REVIEW);
         log.info("[Review] startReview videoId={} actor={}", videoId, actor.sub());
         return ReviewResponse.from(stts);
     }
@@ -175,12 +175,12 @@ public class ReviewService {
     @Transactional("controlTransactionManager")
     public ReviewResponse approve(Long videoId, TokenClaims actor) {
         requireReviewer(actor);
-        LsPjtDataStts stts = loadByVideoId(videoId);
-        stateMachine.verify(stts.getDataSttsCd(), LsPjtDataStts.STTS_APPROVED);
-        stts.transitionTo(LsPjtDataStts.STTS_APPROVED);
+        LsRawDataStatus stts = loadByVideoId(videoId);
+        stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_APPROVED);
+        stts.transitionTo(LsRawDataStatus.STTS_APPROVED);
         // 통합 이벤트 로그 (SCR-TASK-003): 승인 이벤트 기록
         Long reviewerUserNo = parseUserNo(actor.sub());
-        taskEventLogRepository.save(LsPjtTaskEventLog.approve(
+        taskEventLogRepository.save(LsTaskEventLog.approve(
                 stts.getRawDataId(), reviewerUserNo));
         try {
             reviewRepository.flush();
@@ -198,8 +198,8 @@ public class ReviewService {
     @Transactional("controlTransactionManager")
     public ReviewResponse reject(Long videoId, RejectRequest req, TokenClaims actor) {
         requireReviewer(actor);
-        LsPjtDataStts stts = loadByVideoId(videoId);
-        stateMachine.verify(stts.getDataSttsCd(), LsPjtDataStts.STTS_REJECTED);
+        LsRawDataStatus stts = loadByVideoId(videoId);
+        stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_REJECTED);
 
         // 직전 반려가 있으면 계층 연결 (UP_DATA_ISSUE_SN)
         Long parentIssueSn = issueRepository.findByVideoIdOrderByRegisteredAtDesc(videoId).stream()
@@ -211,10 +211,10 @@ public class ReviewService {
                 : LsDataIssue.createWithParent(videoId, req.reason(), actor.sub(), parentIssueSn);
         issueRepository.save(issue);
 
-        stts.transitionTo(LsPjtDataStts.STTS_REJECTED);
+        stts.transitionTo(LsRawDataStatus.STTS_REJECTED);
         // 통합 이벤트 로그 (SCR-TASK-003): 반려 이벤트 기록
         Long reviewerUserNo = parseUserNo(actor.sub());
-        taskEventLogRepository.save(LsPjtTaskEventLog.reject(
+        taskEventLogRepository.save(LsTaskEventLog.reject(
                 stts.getRawDataId(), reviewerUserNo, req.reason()));
         try {
             reviewRepository.flush();
@@ -227,10 +227,10 @@ public class ReviewService {
     }
 
     /**
-     * VIDEO_ID(=RAW_SN) 단위 LS_PJT_DATA_STTS 조회.
+     * VIDEO_ID(=RAW_SN) 단위 LS_RAW_DATA_STATUS 조회.
      * V34 이후 RAW_DATA_ID 는 단일 PK 이므로 단건 조회 후 미존재 시 404.
      */
-    private LsPjtDataStts loadByVideoId(Long videoId) {
+    private LsRawDataStatus loadByVideoId(Long videoId) {
         return reviewRepository.findByRawDataId(videoId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "검수 대상 영상을 찾을 수 없습니다."));
     }
@@ -248,7 +248,7 @@ public class ReviewService {
         }
         Long selfNo = parseUserNo(actor.sub());
         boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
-                selfNo, LsPjtUserAuthrt.TASK_LABELER, videoId);
+                selfNo, LsTaskAssignment.TASK_LABELER, videoId);
         if (!assigned) {
             throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다.");
         }

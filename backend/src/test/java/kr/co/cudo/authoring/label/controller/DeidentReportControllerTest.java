@@ -1,8 +1,8 @@
 package kr.co.cudo.authoring.label.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.auth.repository.LsAuthWorkLockRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -53,7 +53,7 @@ class DeidentReportControllerTest {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private LsDeidentReportRepository reportRepository;
     @Autowired private LsAuthWorkLockRepository workLockRepository;
 
@@ -84,7 +84,7 @@ class DeidentReportControllerTest {
         srcSn = srcRepository.save(src).getSrcSn();
 
         // 작업자 100 만 LABELER 배정 (101 미배정)
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
     }
 
     @Test

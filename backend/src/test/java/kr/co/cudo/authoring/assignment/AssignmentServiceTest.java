@@ -4,11 +4,11 @@ import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
-import kr.co.cudo.authoring.assignment.entity.LsPjtTaskEventLog;
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtTaskEventLogRepository;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtHstryRepository;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.assignment.service.AssignmentService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -37,9 +37,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AssignmentServiceTest {
 
     @Autowired private AssignmentService assignmentService;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
-    @Autowired private LsPjtUserAuthrtHstryRepository hstryRepository;
-    @Autowired private LsPjtTaskEventLogRepository taskEventLogRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
+    @Autowired private LsTaskAssignHistoryRepository hstryRepository;
+    @Autowired private LsTaskEventLogRepository taskEventLogRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     private TokenClaims reviewer() {
@@ -59,7 +59,7 @@ class AssignmentServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        List<LsPjtUserAuthrt> all = authrtRepository.findAll();
+        List<LsTaskAssignment> all = authrtRepository.findAll();
         assertThat(all).hasSize(1);
         assertThat(all.get(0).getRawDataId()).isEqualTo(1000L);
     }
@@ -151,12 +151,12 @@ class AssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("assign_시_LS_PJT_TASK_EVENT_LOG에_ASSIGN_이벤트_누적")
+    @DisplayName("assign_시_LS_TASK_EVENT_LOG에_ASSIGN_이벤트_누적")
     void assignAccumulatesEventLog() {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L, 1001L));
         assignmentService.assign(req, reviewer());
 
-        List<LsPjtTaskEventLog> rows = taskEventLogRepository.findAll();
+        List<LsTaskEventLog> rows = taskEventLogRepository.findAll();
         assertThat(rows).hasSize(2);
         assertThat(rows).allSatisfy(r -> {
             assertThat(r.getEventTypeCd()).isEqualTo("ASSIGN");
@@ -224,12 +224,12 @@ class AssignmentServiceTest {
 
         assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer());
 
-        List<LsPjtTaskEventLog> rows = taskEventLogRepository.findByRawDataIdOrderByOccurredAtAsc(1000L);
+        List<LsTaskEventLog> rows = taskEventLogRepository.findByRawDataIdOrderByOccurredAtAsc(1000L);
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).getEventTypeCd()).isEqualTo("ASSIGN");
         assertThat(rows.get(0).getSubjectUserNo()).isEqualTo(100L);
 
-        LsPjtTaskEventLog reassign = rows.get(1);
+        LsTaskEventLog reassign = rows.get(1);
         assertThat(reassign.getEventTypeCd()).isEqualTo("REASSIGN");
         assertThat(reassign.getActorUserNo()).isEqualTo(1L);
         assertThat(reassign.getSubjectUserNo()).isEqualTo(101L);

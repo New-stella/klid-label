@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.review;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -22,16 +22,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 class IssueRepositoryTest {
 
     @Autowired private IssueRepository issueRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
 
     @Test
     @DisplayName("IssueRepository_작업자별_반려_건수_집계_쿼리_정상_QUR_03")
     void countRejectionsByWorker() {
         // 작업자 100 → 영상 5001, 5002 배정
         // 작업자 101 → 영상 5003 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(5001L, 100L, 1L));
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(5002L, 100L, 1L));
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(5003L, 101L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(5001L, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(5002L, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(5003L, 101L, 1L));
 
         // 영상 5001 = 2건 반려, 5002 = 1건 반려, 5003 = 1건 반려
         issueRepository.save(LsDataIssue.create(5001L, "사유1", "1"));

@@ -1,8 +1,8 @@
 package kr.co.cudo.authoring.meta;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -49,7 +49,7 @@ class MetaControllerTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataMetaRepository metaRepository;
     @Autowired private LsDataMetaReviewRepository metaReviewRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -77,7 +77,7 @@ class MetaControllerTest {
         srcSn = src.getSrcSn();
 
         // worker 100 배정 — 작업자도 메타 조회 가능 검증용
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
 
         // 외부 시스템이 생성한 시계열 메타 시드
         metaRepository.save(LsDataMeta.create(rawSn, "weather", "rain"));

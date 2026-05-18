@@ -1,10 +1,10 @@
 package kr.co.cudo.authoring.review;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtDataSttsRepository;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
@@ -42,8 +42,8 @@ class ReviewControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VideoRepository rawRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
-    @Autowired private LsPjtDataSttsRepository dataSttsRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
+    @Autowired private LsRawDataStatusRepository dataSttsRepository;
     @Autowired private IssueRepository issueRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
@@ -70,11 +70,11 @@ class ReviewControllerTest {
         videoId = raw.getRawSn();
 
         // 작업자 100 만 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(videoId, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(videoId, 100L, 1L));
     }
 
     private void seedDataStts(String status) {
-        LsPjtDataStts stts = LsPjtDataStts.initial(videoId);
+        LsRawDataStatus stts = LsRawDataStatus.initial(videoId);
         stts.transitionTo(status);
         dataSttsRepository.save(stts);
     }
@@ -84,7 +84,7 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_WORKER가_approve_호출시_403")
     void workerCannotApprove() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_IN_REVIEW);
+        seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
         mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isForbidden());
@@ -93,8 +93,8 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_REVIEWER는_본인_검수자_미배정_영상도_검수_가능_현재정책")
     void reviewerCanAccessAnyVideoCurrentPolicy() throws Exception {
-        // 현재 정책: REVIEWER 는 모든 영상 검수 가능 (본인이 LS_PJT_USER_AUTHRT.REVIEWER 배정 여부 무관).
-        seedDataStts(LsPjtDataStts.STTS_PENDING);
+        // 현재 정책: REVIEWER 는 모든 영상 검수 가능 (본인이 LS_TASK_ASSIGNMENT.REVIEWER 배정 여부 무관).
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
         mockMvc.perform(post("/v1/reviews/" + videoId + "/start")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
@@ -104,23 +104,23 @@ class ReviewControllerTest {
     // ---------- 핵심 워크플로우 ----------
 
     @Test
-    @DisplayName("ReviewController_승인시_LS_PJT_DATA_STTS_APPROVED")
+    @DisplayName("ReviewController_승인시_LS_RAW_DATA_STATUS_APPROVED")
     void approveTransitionsToApproved() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_IN_REVIEW);
+        seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
 
         mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dataSttsCd").value("APPROVED"));
 
-        LsPjtDataStts after = dataSttsRepository.findById(videoId).orElseThrow();
+        LsRawDataStatus after = dataSttsRepository.findById(videoId).orElseThrow();
         assertThat(after.getDataSttsCd()).isEqualTo("APPROVED");
     }
 
     @Test
     @DisplayName("ReviewController_반려시_LS_DATA_ISSUE_생성_+_상태_REJECTED_+_DATA_STTS_CD_업데이트")
     void rejectCreatesIssueAndTransitions() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_IN_REVIEW);
+        seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
 
         RejectRequest req = new RejectRequest("바운딩박스 좌표가 부정확합니다.");
         mockMvc.perform(post("/v1/reviews/" + videoId + "/reject")
@@ -130,7 +130,7 @@ class ReviewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dataSttsCd").value("REJECTED"));
 
-        LsPjtDataStts after = dataSttsRepository.findById(videoId).orElseThrow();
+        LsRawDataStatus after = dataSttsRepository.findById(videoId).orElseThrow();
         assertThat(after.getDataSttsCd()).isEqualTo("REJECTED");
 
         List<LsDataIssue> issues = issueRepository.findByVideoIdOrderByRegisteredAtDesc(videoId);
@@ -143,7 +143,7 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_중복_승인_시도시_409_CONFLICT_낙관적_잠금_또는_상태")
     void duplicateApproveReturnsConflict() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_IN_REVIEW);
+        seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
 
         // 1차 승인 — 성공 → APPROVED
         mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
@@ -160,7 +160,7 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_반려_사유_누락시_INVALID_INPUT_400")
     void rejectWithoutReasonReturns400() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_IN_REVIEW);
+        seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
 
         // reason = "" (NotBlank 위반)
         RejectRequest req = new RejectRequest("");
@@ -175,7 +175,7 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_PENDING에서_APPROVED_직접_전이는_불가_INVALID_INPUT")
     void pendingToApprovedDirectlyForbidden() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_PENDING);
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
 
         // PENDING → APPROVED 직접 시도 (IN_REVIEW 거쳐야 함) → INVALID_INPUT
         mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
@@ -189,7 +189,7 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_미배정_WORKER가_submit_시도시_403_IDOR")
     void notAssignedWorkerSubmitForbidden() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_ASSIGNED);
+        seedDataStts(LsRawDataStatus.STTS_ASSIGNED);
 
         mockMvc.perform(post("/v1/reviews/" + videoId + "/submit")
                         .header("Authorization", "Bearer " + workerNotAssignedToken))
@@ -200,14 +200,14 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_배정된_WORKER의_submit는_PENDING으로_전이")
     void assignedWorkerSubmitTransitionsToPending() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_ASSIGNED);
+        seedDataStts(LsRawDataStatus.STTS_ASSIGNED);
 
         mockMvc.perform(post("/v1/reviews/" + videoId + "/submit")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dataSttsCd").value("PENDING"));
 
-        LsPjtDataStts after = dataSttsRepository.findById(videoId).orElseThrow();
+        LsRawDataStatus after = dataSttsRepository.findById(videoId).orElseThrow();
         assertThat(after.getDataSttsCd()).isEqualTo("PENDING");
     }
 
@@ -216,7 +216,7 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_REVIEWER_GET_reviews_status_PENDING_필터_페이징_응답")
     void reviewerListsPendingReviews() throws Exception {
-        seedDataStts(LsPjtDataStts.STTS_PENDING);
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
 
         mockMvc.perform(get("/v1/reviews")
                         .param("status", "PENDING")

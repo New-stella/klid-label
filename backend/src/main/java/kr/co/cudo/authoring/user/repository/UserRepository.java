@@ -27,12 +27,12 @@ public interface UserRepository extends JpaRepository<MngAcctUser, Long> {
 
     /**
      * WORKER 권한을 가진 활성 사용자 목록과 활성 라벨러 태스크 개수를 단일 쿼리로 조회한다.
-     * N+1 방지: 사용자별 LS_PJT_USER_AUTHRT GROUP BY COUNT 를 LEFT JOIN.
+     * N+1 방지: 사용자별 LS_TASK_ASSIGNMENT GROUP BY COUNT 를 LEFT JOIN.
      */
     @Query("""
             SELECT new kr.co.cudo.authoring.user.repository.dto.WorkerWithTaskCount(
                 u.userNo, u.userId, u.userNm, u.userEmail,
-                (SELECT COUNT(a) FROM kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt a
+                (SELECT COUNT(a) FROM kr.co.cudo.authoring.assignment.entity.LsTaskAssignment a
                   WHERE a.userNo = u.userNo AND a.taskTypeCd = 'LABELER')
             )
             FROM MngAcctUser u, MngAcctUserAuthrt ua

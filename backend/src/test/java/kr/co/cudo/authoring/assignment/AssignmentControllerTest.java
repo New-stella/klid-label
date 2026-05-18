@@ -3,9 +3,9 @@ package kr.co.cudo.authoring.assignment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtHstryRepository;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,8 +36,8 @@ class AssignmentControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
-    @Autowired private LsPjtUserAuthrtHstryRepository hstryRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
+    @Autowired private LsTaskAssignHistoryRepository hstryRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -65,7 +65,7 @@ class AssignmentControllerTest {
     }
 
     @Test
-    @DisplayName("REVIEWER가_배정_시_LS_PJT_USER_AUTHRT에_LABELER_INSERT")
+    @DisplayName("REVIEWER가_배정_시_LS_TASK_ASSIGNMENT에_LABELER_INSERT")
     void reviewerAssignsLabeler() throws Exception {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L, 1001L));
         mockMvc.perform(post("/v1/assignments")
@@ -77,7 +77,7 @@ class AssignmentControllerTest {
                 .andExpect(jsonPath("$.data.items.length()").value(2))
                 .andExpect(jsonPath("$.data.items[0].taskTypeCd").value("LABELER"));
 
-        List<LsPjtUserAuthrt> all = authrtRepository.findAll();
+        List<LsTaskAssignment> all = authrtRepository.findAll();
         assertThat(all).hasSize(2);
         assertThat(all).allSatisfy(a -> {
             assertThat(a.getTaskTypeCd()).isEqualTo("LABELER");
@@ -87,7 +87,7 @@ class AssignmentControllerTest {
     }
 
     @Test
-    @DisplayName("재배정_시_LS_PJT_USER_AUTHRT_HSTRY에_이전_레코드_INSERT")
+    @DisplayName("재배정_시_LS_TASK_ASSIGN_HISTORY에_이전_레코드_INSERT")
     void reassignWritesHistory() throws Exception {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         String body = mockMvc.perform(post("/v1/assignments")

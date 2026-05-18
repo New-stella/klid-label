@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.version;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtUserAuthrt;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -62,7 +62,7 @@ class VersionServiceTest {
     @Autowired private GiteaCommitFallbackQueue fallbackQueue;
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
-    @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private WorkLockService workLockService;
 
     @MockBean private GiteaClient giteaClient;
@@ -91,7 +91,7 @@ class VersionServiceTest {
                 .getSrcSn();
 
         // 작업자 100 만 배정
-        authrtRepository.save(LsPjtUserAuthrt.createLabeler(rawSn, 100L, 1L));
+        authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
 
         // 이전 테스트 잔여 잠금 정리.
         workLockService.releaseRaw(rawSn, "test", "TEST_SETUP");

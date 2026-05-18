@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.stats.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsPjtDataStts;
-import kr.co.cudo.authoring.assignment.repository.LsPjtUserAuthrtRepository;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.common.eventtype.EvntType;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -78,7 +78,7 @@ public class StatsService {
 
     private final StatsQueryRepository statsQueryRepository;
     private final VideoRepository videoRepository;
-    private final LsPjtUserAuthrtRepository authrtRepository;
+    private final LsTaskAssignmentRepository authrtRepository;
 
     /**
      * 대시보드 요약을 조립한다. actor 가 null 이거나 인증 정보가 없는 경우(테스트 등)는
@@ -87,9 +87,9 @@ public class StatsService {
     public DashboardSummaryResponse getSummary(TokenClaims actor) {
         Map<String, Long> sttsCounts = toMap(statsQueryRepository.countByDataSttsCd());
 
-        long pendingCount   = sumOf(sttsCounts, LsPjtDataStts.STTS_PENDING);
-        long completedCount = sumOf(sttsCounts, LsPjtDataStts.STTS_APPROVED);
-        long rejectedCount  = sumOf(sttsCounts, LsPjtDataStts.STTS_REJECTED);
+        long pendingCount   = sumOf(sttsCounts, LsRawDataStatus.STTS_PENDING);
+        long completedCount = sumOf(sttsCounts, LsRawDataStatus.STTS_APPROVED);
+        long rejectedCount  = sumOf(sttsCounts, LsRawDataStatus.STTS_REJECTED);
 
         long cumulativeImageCount = statsQueryRepository.countCumulativeFrames();
         long cumulativeVideoCount = videoRepository.count();
@@ -125,10 +125,10 @@ public class StatsService {
     private MyTaskBreakdown buildMyTask(Long userNo) {
         Map<String, Long> mine = toMap(statsQueryRepository.countMyTaskByStatus(userNo));
         return new MyTaskBreakdown(
-                sumOf(mine, LsPjtDataStts.STTS_PENDING),
-                sumOf(mine, LsPjtDataStts.STTS_ASSIGNED),
-                sumOf(mine, LsPjtDataStts.STTS_IN_REVIEW),
-                sumOf(mine, LsPjtDataStts.STTS_REJECTED)
+                sumOf(mine, LsRawDataStatus.STTS_PENDING),
+                sumOf(mine, LsRawDataStatus.STTS_ASSIGNED),
+                sumOf(mine, LsRawDataStatus.STTS_IN_REVIEW),
+                sumOf(mine, LsRawDataStatus.STTS_REJECTED)
         );
     }
 
@@ -189,11 +189,11 @@ public class StatsService {
         long cumulativeVideoCount = videoRepository.count();
         Map<String, Long> sttsCounts = toMap(statsQueryRepository.countByDataSttsCd());
         OverallStatSummaryResponse.Processing processing = new OverallStatSummaryResponse.Processing(
-                sumOf(sttsCounts, LsPjtDataStts.STTS_PENDING),
-                sumOf(sttsCounts, LsPjtDataStts.STTS_ASSIGNED),
-                sumOf(sttsCounts, LsPjtDataStts.STTS_IN_REVIEW),
-                sumOf(sttsCounts, LsPjtDataStts.STTS_APPROVED),
-                sumOf(sttsCounts, LsPjtDataStts.STTS_REJECTED)
+                sumOf(sttsCounts, LsRawDataStatus.STTS_PENDING),
+                sumOf(sttsCounts, LsRawDataStatus.STTS_ASSIGNED),
+                sumOf(sttsCounts, LsRawDataStatus.STTS_IN_REVIEW),
+                sumOf(sttsCounts, LsRawDataStatus.STTS_APPROVED),
+                sumOf(sttsCounts, LsRawDataStatus.STTS_REJECTED)
         );
         List<EventDistributionItem> distribution = buildDistribution(
                 toMap(statsQueryRepository.countVideoByEventType()));

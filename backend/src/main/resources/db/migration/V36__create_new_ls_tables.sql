@@ -1,0 +1,133 @@
+-- ============================================================
+-- V36 — 신규 LS_* 7개 테이블 생성 (Phase 10)
+--
+-- 목적: 기존 LS_PJT_* (V34 적용 후 PJT_ID 제거된 상태) 의 스키마를
+--       그대로 복제하여 신규 명칭(LS_RAW_DATA_*, LS_TASK_*, LS_META, LS_DEADLINE)으로 생성한다.
+--       데이터 복사는 V37 에서 수행하며, BE 코드의 Entity 매핑 전환은 Phase 11 에서 진행한다.
+--
+-- 원칙:
+--   - 기존 LS_PJT_* 는 변경하지 않음 (readonly 잔존, Phase 11/12 에서 단계적 제거)
+--   - 신규 테이블의 컬럼/타입/NULL/DEFAULT 는 V1/V5/V14 + V34 후 상태와 1:1 동일
+--   - H2 + MariaDB 호환: IF NOT EXISTS + 표준 SQL 타입만 사용
+--   - 외래키는 보류 (Phase 11 Entity 매핑 시 결정)
+--   - LS_TASK_ASSIGNMENT 만 PK 컬럼명을 ASSIGNMENT_ID 로 변경 (기존 AUTHRT_SEQ → ASSIGNMENT_ID)
+-- ============================================================
+
+-- ============================================================
+-- 1. LS_RAW_DATA_ENROLLMENT  (← LS_PJT_DATA_MPNG)
+--    영상 등록 매핑. V1 정의 + V34 PJT_ID 제거 후 상태.
+--    원본 컬럼: RAW_DATA_ID, REG_DT
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_RAW_DATA_ENROLLMENT (
+    RAW_DATA_ID  BIGINT     NOT NULL,
+    REG_DT       TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (RAW_DATA_ID)
+);
+
+-- ============================================================
+-- 2. LS_RAW_DATA_STATUS  (← LS_PJT_DATA_STTS)
+--    영상별 진행 상태. V1 정의 + V5 VERSION 컬럼 추가 + V34 PJT_ID 제거 후 상태.
+--    원본 컬럼: RAW_DATA_ID, DATA_STTS_CD, STP_CYCL, IGI_CYCL, UPD_DT, VERSION
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_RAW_DATA_STATUS (
+    RAW_DATA_ID   BIGINT       NOT NULL,
+    DATA_STTS_CD  VARCHAR(32)  NOT NULL DEFAULT 'PENDING',
+    STP_CYCL      INT          NOT NULL DEFAULT 0,
+    IGI_CYCL      INT          NOT NULL DEFAULT 0,
+    UPD_DT        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    VERSION       BIGINT       NOT NULL DEFAULT 0,
+    PRIMARY KEY (RAW_DATA_ID)
+);
+
+-- ============================================================
+-- 3. LS_TASK_ASSIGNMENT  (← LS_PJT_USER_AUTHRT)
+--    작업자/검수자 배정. V1 정의 + V34 PJT_ID 제거 후 상태.
+--    PK 컬럼명: AUTHRT_SEQ → ASSIGNMENT_ID (의미 명확화, AUTO_INCREMENT 유지)
+--    원본 컬럼: AUTHRT_SEQ, USER_NO, RAW_DATA_ID, TASK_TYPE_CD, REG_USER_NO, REG_DT
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_TASK_ASSIGNMENT (
+    ASSIGNMENT_ID  BIGINT       NOT NULL AUTO_INCREMENT,
+    USER_NO        BIGINT       NOT NULL,
+    RAW_DATA_ID    BIGINT       NOT NULL,
+    TASK_TYPE_CD   VARCHAR(32)  NOT NULL,
+    REG_USER_NO    BIGINT       NOT NULL,
+    REG_DT         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ASSIGNMENT_ID),
+    CONSTRAINT UK_LS_TASK_ASSIGNMENT UNIQUE (RAW_DATA_ID, USER_NO, TASK_TYPE_CD)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_TASK_ASSIGNMENT_USER
+    ON LS_TASK_ASSIGNMENT (USER_NO, TASK_TYPE_CD);
+CREATE INDEX IF NOT EXISTS IX_LS_TASK_ASSIGNMENT_RAW
+    ON LS_TASK_ASSIGNMENT (RAW_DATA_ID);
+
+-- ============================================================
+-- 4. LS_TASK_ASSIGN_HISTORY  (← LS_PJT_USER_AUTHRT_HSTRY)
+--    재배정 이력. V1 정의 + V34 PJT_ID 제거 후 상태.
+--    원본 컬럼: HSTRY_SEQ, AUTHRT_SEQ, RAW_DATA_ID, PREV_USER_NO, NEW_USER_NO, TASK_TYPE_CD, CHG_USER_NO, CHG_DT
+--    AUTHRT_SEQ 컬럼명은 그대로 유지 (LS_TASK_ASSIGNMENT.ASSIGNMENT_ID 와의 매핑은 Phase 11 에서 결정)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_TASK_ASSIGN_HISTORY (
+    HSTRY_SEQ     BIGINT       NOT NULL AUTO_INCREMENT,
+    AUTHRT_SEQ    BIGINT       NOT NULL,
+    RAW_DATA_ID   BIGINT       NOT NULL,
+    PREV_USER_NO  BIGINT       NOT NULL,
+    NEW_USER_NO   BIGINT       NOT NULL,
+    TASK_TYPE_CD  VARCHAR(32)  NOT NULL,
+    CHG_USER_NO   BIGINT       NOT NULL,
+    CHG_DT        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (HSTRY_SEQ)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_TASK_ASSIGN_HISTORY_AUTHRT
+    ON LS_TASK_ASSIGN_HISTORY (AUTHRT_SEQ);
+
+-- ============================================================
+-- 5. LS_META  (← LS_PJT_META)
+--    저작도구 전역 메타 키-값. V1 정의 + V34 PJT_ID 제거 후 상태.
+--    원본 컬럼: META_KEY, META_VAL
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_META (
+    META_KEY  VARCHAR(64)    NOT NULL,
+    META_VAL  VARCHAR(2000),
+    PRIMARY KEY (META_KEY)
+);
+
+-- ============================================================
+-- 6. LS_DEADLINE  (← LS_PJT_DDLN)
+--    데드라인 정의. V1 정의 + V34 PJT_ID 제거 후 상태.
+--    원본 컬럼: DDLN_SEQ, DDLN_DT, ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN, REG_DT
+--    DDLN_SEQ 는 V1 정의에서 AUTO_INCREMENT 가 아님 → 동일하게 유지
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_DEADLINE (
+    DDLN_SEQ       BIGINT       NOT NULL,
+    DDLN_DT        TIMESTAMP,
+    ANONY_INCL_YN  VARCHAR(1)   NOT NULL DEFAULT 'N',
+    PSDO_INCL_YN   VARCHAR(1)   NOT NULL DEFAULT 'N',
+    PRVC_INCL_YN   VARCHAR(1)   NOT NULL DEFAULT 'N',
+    REG_DT         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (DDLN_SEQ)
+);
+
+-- ============================================================
+-- 7. LS_TASK_EVENT_LOG  (← LS_PJT_TASK_EVENT_LOG)
+--    작업 단위 이벤트 누적 로그. V14 정의 + V34 PJT_ID 제거 후 상태.
+--    원본 컬럼: EVENT_SEQ, RAW_DATA_ID, EVENT_TYPE_CD, ACTOR_USER_NO,
+--              SUBJECT_USER_NO, PREV_USER_NO, REASON, OCCURRED_AT
+-- ============================================================
+CREATE TABLE IF NOT EXISTS LS_TASK_EVENT_LOG (
+    EVENT_SEQ        BIGINT       NOT NULL AUTO_INCREMENT,
+    RAW_DATA_ID      BIGINT       NOT NULL,
+    EVENT_TYPE_CD    VARCHAR(32)  NOT NULL,
+    ACTOR_USER_NO    BIGINT       NOT NULL,
+    SUBJECT_USER_NO  BIGINT       NULL,
+    PREV_USER_NO     BIGINT       NULL,
+    REASON           VARCHAR(500) NULL,
+    OCCURRED_AT      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (EVENT_SEQ)
+);
+
+CREATE INDEX IF NOT EXISTS IX_LS_TASK_EVENT_LOG_RAW
+    ON LS_TASK_EVENT_LOG (RAW_DATA_ID, OCCURRED_AT);
+CREATE INDEX IF NOT EXISTS IX_LS_TASK_EVENT_LOG_ACTOR
+    ON LS_TASK_EVENT_LOG (ACTOR_USER_NO);

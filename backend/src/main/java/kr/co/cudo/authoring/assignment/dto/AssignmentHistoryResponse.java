@@ -3,7 +3,7 @@ package kr.co.cudo.authoring.assignment.dto;
 import java.time.LocalDateTime;
 
 /**
- * 작업(영상) 단위 이벤트 응답 — LS_PJT_TASK_EVENT_LOG 한 row 매핑.
+ * 작업(영상) 단위 이벤트 응답 — LS_TASK_EVENT_LOG 한 row 매핑.
  *
  * <p>SCR-TASK-003 작업 이력 화면 통합 타임라인 표시용. 배정/재배정/검수 제출/승인/반려를
  * 동일 응답 구조로 표현하며, 이벤트 종류에 따라 사용되는 필드가 다르다:

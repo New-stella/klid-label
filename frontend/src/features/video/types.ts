@@ -27,7 +27,7 @@ export interface Video {
   thumbnailUrl?: string;
   privacyTypeCd?: string;
   durationSec?: number;
-  // 영상별 최근 내보내기 상태 (BE: LS_PJT_DATA_STTS join LS_DATA_SET 최신 1건)
+  // 영상별 최근 내보내기 상태 (BE: LS_RAW_DATA_STATUS join LS_DATA_SET 최신 1건)
   exportStatus?: 'EXPORTED' | 'FAILED' | null;
   exportedAt?: string | null;
   lastExportFailureReason?: string | null;
