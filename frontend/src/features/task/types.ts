@@ -25,6 +25,13 @@ export interface Task {
    * 프레임이 아직 생성되지 않은 영상이면 undefined.
    */
   firstSrcSn?: number;
+  /**
+   * 영상 이벤트 정보 (LS_DATA_RAW.EVNT_TYPE_CD 기반).
+   * 영상 메타가 없거나 코드값 부재 시 undefined — FE 는 "-" 폴백 표시.
+   * WORKER 시각 TaskListPage 가 useVideos 의존 없이 이벤트 컬럼을 채울 수 있도록 BE 에서 enrich.
+   */
+  eventName?: string;
+  eventTypeCd?: string;
 }
 
 export interface Assignment {

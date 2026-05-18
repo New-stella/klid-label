@@ -170,21 +170,28 @@ export function TaskListPage() {
     undefined,
   );
 
-  // 데이터 fetch — workerId 필터(URL)는 그대로 BE로 위임
+  // 데이터 fetch — workerId 필터(URL)는 그대로 BE로 위임.
+  // WORKER 시각은 BE 페이징(page+size=20) 사용 — useVideos 의존을 끊는다.
+  // REVIEWER 시각은 기존 클라이언트 슬라이싱 유지 (Phase 3 에서 별도 개선 예정).
   const taskParams = useMemo<TaskListParams>(() => {
     const workerIdParam = filters.assigneeId;
     return {
-      page: 0,
-      size: 999,
+      page: isReviewer ? 0 : page,
+      size: isReviewer ? 999 : PAGE_SIZE,
       workerId:
         workerIdParam && Number.isFinite(Number(workerIdParam))
           ? Number(workerIdParam)
           : undefined,
     };
-  }, [filters.assigneeId]);
+  }, [filters.assigneeId, isReviewer, page]);
 
   const { data: tasksPage, isLoading, error, refetch } = useTasks(taskParams);
-  const { data: videosPage } = useVideos({ size: 999 });
+  // REVIEWER 시각은 처리 완료 영상 left-join 을 위해 useVideos 유지.
+  // WORKER 시각에서는 호출 자체를 차단해 N+1 / 404 노이즈를 제거한다 (BE TaskResponse 가 eventName 포함).
+  const { data: videosPage } = useVideos(
+    { size: 999 },
+    { enabled: isReviewer },
+  );
   // /users 는 REVIEWER 전용 (BE @PreAuthorize). WORKER 화면에서는 호출 자체를 막아 403 스팸을 방지한다.
   const { data: workersPage } = useUsers(
     { role: Role.WORKER, size: 100 },
@@ -214,14 +221,22 @@ export function TaskListPage() {
     return map;
   }, [reviewersPage]);
 
-  // 이벤트 유형 옵션 (videos에서 unique)
+  // 이벤트 유형 옵션 (REVIEWER: videos / WORKER: tasks 의 eventName 에서 unique 수집).
+  // WORKER 시각은 useVideos 가 비활성이므로 videos 가 비어 드롭다운이 무용지물이었음(이슈 #3).
+  // BE TaskResponse 가 eventName 을 enrich 하므로 tasks 기반으로 채운다.
   const eventTypeOptions = useMemo(() => {
     const set = new Set<string>();
-    videos.forEach((v) => {
-      if (v.eventName) set.add(v.eventName);
-    });
+    if (isReviewer) {
+      videos.forEach((v) => {
+        if (v.eventName) set.add(v.eventName);
+      });
+    } else {
+      tasks.forEach((t) => {
+        if (t.eventName) set.add(t.eventName);
+      });
+    }
     return Array.from(set).sort();
-  }, [videos]);
+  }, [isReviewer, videos, tasks]);
 
   // 처리 완료 영상 (BatchStatus가 COMPLETED인 영상)
   const completedVideos = useMemo(
@@ -243,27 +258,24 @@ export function TaskListPage() {
   // - REVIEWER: 처리 완료 영상 + left-join task (미배정도 노출하여 배정 액션 제공)
   const allRows = useMemo<TaskRow[]>(() => {
     if (!isReviewer) {
-      const videoById = new Map(videos.map((v) => [v.id, v]));
-      return tasks.map((t) => {
-        const v = videoById.get(t.videoId);
-        return {
-          id: String(t.videoId),
-          video: v ?? {
-            id: t.videoId,
-            cctvName: t.cctvName,
-            vmsClipId: '',
-            eventName: '',
-            eventTypeCd: '',
-            localGov: '',
-            frameCount: 0,
-            status: 'COMPLETED' as BadgeStatus,
-            capturedAt: t.assignedAt,
-          },
-          task: t,
-          rowStatus: t.status,
-          videoName: t.cctvName,
-        };
-      });
+      // WORKER 시각은 useVideos 호출 없이 BE TaskResponse 의 eventName/eventTypeCd 만 사용한다.
+      return tasks.map((t) => ({
+        id: String(t.videoId),
+        video: {
+          id: t.videoId,
+          cctvName: t.cctvName,
+          vmsClipId: '',
+          eventName: t.eventName ?? '',
+          eventTypeCd: t.eventTypeCd ?? '',
+          localGov: '',
+          frameCount: 0,
+          status: 'COMPLETED' as BadgeStatus,
+          capturedAt: t.assignedAt,
+        },
+        task: t,
+        rowStatus: t.status,
+        videoName: t.cctvName,
+      }));
     }
     if (completedVideos.length === 0) {
       // videos 데이터 없으면 BE task 직접 사용 (후방 호환)
@@ -338,11 +350,18 @@ export function TaskListPage() {
   }, [visibleRows]);
 
   // 페이징
-  const totalPages = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+  // WORKER: BE 가 페이지 단위 응답을 보내므로 totalPages 는 BE 응답값, 슬라이싱 없음.
+  // REVIEWER: useVideos 와 left-join 한 결과를 클라이언트에서 슬라이스 (Phase 3 에서 개선 예정).
+  const totalPages = isReviewer
+    ? Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE))
+    : Math.max(1, tasksPage?.totalPages ?? 1);
   const safePage = Math.min(page, totalPages - 1);
   const pagedRows = useMemo(
-    () => visibleRows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE),
-    [visibleRows, safePage],
+    () =>
+      isReviewer
+        ? visibleRows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
+        : visibleRows,
+    [isReviewer, visibleRows, safePage],
   );
 
   // 필터 변경 시 URL 동기화 + 페이지 리셋 + 선택 해제

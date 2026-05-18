@@ -424,6 +424,232 @@ describe('TaskListPage', () => {
     });
   });
 
+  it('WORKER_TaskListPage_렌더_시_useVideos_미호출', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 1,
+            cctvName: 'CCTV-1',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+            eventName: 'FIRE',
+            eventTypeCd: 'FIRE',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    // /videos 가 호출되면 403 — WORKER 시각에서는 호출 자체가 일어나선 안 됨.
+    mock.onGet('/videos').reply(403);
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-1')).toBeInTheDocument();
+    });
+
+    const callsToVideos = mock.history.get.filter((req) =>
+      req.url?.startsWith('/videos'),
+    );
+    expect(callsToVideos).toHaveLength(0);
+  });
+
+  it('WORKER_taskParams_size_20으로_페이징_호출', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 1,
+            cctvName: 'CCTV-1',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-1')).toBeInTheDocument();
+    });
+
+    // WORKER 진입 시 /assignments 요청 size 가 20 이어야 한다 (size=999 금지).
+    const assignReq = mock.history.get.find((r) => r.url === '/assignments');
+    expect(assignReq).toBeDefined();
+    expect(assignReq?.params?.size).toBe(20);
+    expect(assignReq?.params?.page).toBe(0);
+  });
+
+  it('WORKER_페이지네이션_UI_노출', async () => {
+    setRole('WORKER');
+    // BE 가 totalPages=3 으로 응답하면 페이지 버튼이 노출되어야 한다.
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 1,
+            cctvName: 'CCTV-PG-1',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+          },
+        ],
+        totalElements: 60,
+        totalPages: 3,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-PG-1')).toBeInTheDocument();
+    });
+
+    // 다음 페이지 버튼 노출
+    expect(
+      screen.getByRole('button', { name: '다음 페이지' }),
+    ).toBeInTheDocument();
+  });
+
+  it('BE_eventName_미응답_시_이벤트_컬럼_dash_폴백', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 1,
+            cctvName: 'CCTV-NO-EVT',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+            // eventName/eventTypeCd 미제공
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-NO-EVT')).toBeInTheDocument();
+    });
+
+    // 이벤트 컬럼이 "-" (대시) 로 폴백되어야 한다.
+    // EmptyState 등에서 "-" 텍스트가 우연히 매칭될 수 있으므로 row 내부에서만 검증.
+    const row = screen.getByText('CCTV-NO-EVT').closest('tr');
+    expect(row).not.toBeNull();
+    expect(row!.textContent).toContain('-');
+  });
+
+  it('WORKER_시각_이벤트_필터_옵션이_tasks의_eventName으로_채워짐', async () => {
+    // 이슈 #3: WORKER 시각은 useVideos 비활성으로 videos 가 비어 있어
+    // 기존 코드는 eventTypeOptions 가 항상 [] 였다. 본 테스트는 tasks 의 eventName 으로
+    // 이벤트 select 옵션이 채워지는지 검증한다.
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 100,
+            videoId: 1,
+            cctvName: 'CCTV-FIRE-1',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+            eventName: 'FIRE',
+            eventTypeCd: 'FIRE',
+          },
+          {
+            id: 101,
+            videoId: 2,
+            cctvName: 'CCTV-INTRUSION-2',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+            eventName: 'INTRUSION',
+            eventTypeCd: 'INTRUSION',
+          },
+          {
+            // 중복 eventName — Set 으로 unique 처리되어야 한다.
+            id: 102,
+            videoId: 3,
+            cctvName: 'CCTV-FIRE-3',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-07T10:00:00Z',
+            eventName: 'FIRE',
+            eventTypeCd: 'FIRE',
+          },
+        ],
+        totalElements: 3,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-FIRE-1')).toBeInTheDocument();
+    });
+
+    // 이벤트 select 의 옵션 — '전체' + FIRE/INTRUSION (총 3개, 중복 제거됨).
+    const eventSelect = screen.getByLabelText('이벤트') as HTMLSelectElement;
+    const optionValues = Array.from(eventSelect.options).map((o) => o.value);
+    expect(optionValues).toContain('FIRE');
+    expect(optionValues).toContain('INTRUSION');
+    // 중복 제거 검증 — FIRE 는 한 번만 등장.
+    expect(optionValues.filter((v) => v === 'FIRE')).toHaveLength(1);
+    // 빈 '전체' 옵션 포함 총 3개.
+    expect(optionValues).toHaveLength(3);
+  });
+
   it('REVIEWER로_진입_시_users_API_호출됨', async () => {
     setRole('REVIEWER');
     mock.onGet('/assignments').reply(200, {

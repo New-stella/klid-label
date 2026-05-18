@@ -216,6 +216,113 @@ class AssignmentServiceTest {
     }
 
     @Test
+    @DisplayName("listAssignments_응답_Item에_eventName_eventTypeCd가_매핑되어_반환")
+    void listAssignmentsIncludesEventInfo() {
+        // given — LS_DATA_RAW 시드에 EVNT_TYPE_CD 포함. eventName/eventTypeCd 양쪽에 EVNT_TYPE_CD 값이 반환된다 (Phase 1 정책).
+        // RAW_SN 은 다른 테스트와 충돌 방지를 위해 별도 ID 사용 + 사전 삭제.
+        jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", 2000L);
+        jdbcTemplate.update(
+                "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, EVNT_TYPE_CD, PRVC_TYPE_CD, PRVC_YN, DE_IDNTF_YN, " +
+                        "FILE_PATH, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
+                2000L, "TEST-CLIP-EVT-2000", "CCTV-EVT-001",
+                "FIRE", "ANONY", "N", "N", "/tmp/test/2000.mp4", "PENDING");
+
+        // when
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(2000L));
+        assignmentService.assign(req, reviewer());
+
+        Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
+                null, reviewer(), PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).hasSize(1);
+        AssignmentResponse.Item item = page.getContent().get(0);
+        assertThat(item.eventTypeCd()).isEqualTo("FIRE");
+        assertThat(item.eventName()).isEqualTo("FIRE");
+    }
+
+    @Test
+    @DisplayName("listAssignments_LS_DATA_RAW_없을때_eventName_null_폴백")
+    void listAssignmentsEventNameNullFallback() {
+        // given — LS_DATA_RAW 미시딩. 배정만 존재 → eventName/eventTypeCd 는 null 로 폴백.
+        // 이전 테스트의 LS_DATA_RAW 잔존 데이터를 미리 비워 lookup 이 null 을 반환하는 시나리오 보장.
+        jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", 2001L);
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(2001L));
+        assignmentService.assign(req, reviewer());
+
+        // when
+        Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
+                null, reviewer(), PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).hasSize(1);
+        AssignmentResponse.Item item = page.getContent().get(0);
+        assertThat(item.eventName()).isNull();
+        assertThat(item.eventTypeCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("requireReviewer_actor가_null이면_UNAUTHORIZED")
+    void assignWithNullActorThrowsUnauthorized() {
+        // given — assign 진입 시 actor 가 null 이면 actor.role() NPE 가 아니라
+        // CustomException(UNAUTHORIZED) 으로 일관 처리되어야 한다 (CWE-476 방어).
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
+
+        // when / then
+        assertThatThrownBy(() -> assignmentService.assign(req, null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("reassign에_actor가_null이면_UNAUTHORIZED")
+    void reassignWithNullActorThrowsUnauthorized() {
+        assertThatThrownBy(() -> assignmentService.reassign(1L, new ReassignRequest(101L), null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("listAssignments_응답_Item에_status가_FE_AssignmentStatus로_매핑되어_반환")
+    void listAssignmentsIncludesStatus() {
+        // given — 배정 생성 (assign 호출이 LS_RAW_DATA_STATUS 를 ASSIGNED 로 마킹).
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
+        assignmentService.assign(req, reviewer());
+
+        // when
+        Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
+                null, reviewer(), PageRequest.of(0, 20));
+
+        // then — ASSIGNED → FE 'PENDING' 매핑.
+        assertThat(page.getContent()).hasSize(1);
+        AssignmentResponse.Item item = page.getContent().get(0);
+        assertThat(item.status()).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("listAssignments_LS_RAW_DATA_STATUS_미존재_시_status는_PENDING_폴백")
+    void listAssignmentsStatusFallbackToPending() {
+        // given — LS_TASK_ASSIGNMENT 만 직접 INSERT (assign 메서드를 우회해 LS_RAW_DATA_STATUS 미생성).
+        // dataSttsByVideo lookup 이 키를 찾지 못해 mapToFeStatus(null) → 'PENDING' 폴백을 거쳐야 한다.
+        jdbcTemplate.update(
+                "INSERT INTO LS_TASK_ASSIGNMENT (USER_NO, RAW_DATA_ID, TASK_TYPE_CD, REG_USER_NO, REG_DT) " +
+                        "VALUES (?,?,?,?, CURRENT_TIMESTAMP)",
+                100L, 9999L, "LABELER", 1L);
+
+        // when
+        Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
+                null, reviewer(), PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).hasSize(1);
+        AssignmentResponse.Item item = page.getContent().get(0);
+        assertThat(item.rawDataId()).isEqualTo(9999L);
+        assertThat(item.status()).isEqualTo("PENDING");
+    }
+
+    @Test
     @DisplayName("reassign_시_REASSIGN_이벤트가_prev_subject_와_함께_누적")
     void reassignAccumulatesEventLog() {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));

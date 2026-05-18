@@ -76,4 +76,31 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             WHERE r.RAW_SN IN (:rawSns)
             """, nativeQuery = true)
     List<Object[]> findCctvNamesByRawSnsInternal(@Param("rawSns") Collection<Long> rawSns);
+
+    /**
+     * 페이지의 rawSn 들에 대해 (rawSn, eventName, eventTypeCd) 를 한 번에 조회 (N+1 회피).
+     *
+     * <p>FE 검수/작업 목록의 이벤트 컬럼에 표시할 이벤트 정보를 일괄 lookup 하기 위한 용도.
+     * 현 단계에서는 {@code EVNT_TYPE_CD} 값을 eventName/eventTypeCd 양쪽에 동일하게 반환한다
+     * (VideoSummaryResponse 와 동일한 정책 — 코드값 fallback). 향후 이벤트 마스터 테이블이
+     * 추가되면 JOIN 으로 한글명을 가져오도록 확장 가능하다.
+     *
+     * <p>반환 행: {@code [Long rawSn, String eventName, String eventTypeCd]}.
+     * 영상 메타가 없거나 EVNT_TYPE_CD 가 null 이면 호출 측에서 키가 누락된 채 반환된다.
+     */
+    default List<Object[]> findEventInfoByRawSns(Collection<Long> rawSns) {
+        if (rawSns == null || rawSns.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return findEventInfoByRawSnsInternal(rawSns);
+    }
+
+    @Query(value = """
+            SELECT r.RAW_SN AS rawSn,
+                   r.EVNT_TYPE_CD AS eventName,
+                   r.EVNT_TYPE_CD AS eventTypeCd
+            FROM LS_DATA_RAW r
+            WHERE r.RAW_SN IN (:rawSns)
+            """, nativeQuery = true)
+    List<Object[]> findEventInfoByRawSnsInternal(@Param("rawSns") Collection<Long> rawSns);
 }

@@ -24,7 +24,7 @@ describe('ReviewListPage', () => {
     useAuthStore.getState().clear();
   });
 
-  it('검수_대기_목록_DataTable_렌더링_및_검수_시작_버튼_네비게이션', async () => {
+  it('검수_대기_목록_DataTable_렌더링_및_검수_시작_버튼_네비게이션_eventName_BE_직접_사용', async () => {
     mock.onGet('/reviews').reply(200, {
       success: true,
       data: {
@@ -38,36 +38,15 @@ describe('ReviewListPage', () => {
             submittedAt: '2026-05-07T10:00:00Z',
             labelCount: 12,
             status: 'REVIEW_PENDING',
+            // BE enrich: eventName/eventTypeCd 직접 응답
+            eventName: '쓰러짐',
+            eventTypeCd: 'EVT_FALL',
           },
         ],
         totalElements: 1,
         totalPages: 1,
         number: 0,
         size: 20,
-      },
-      message: null,
-      errorCode: null,
-    });
-    mock.onGet('/videos').reply(200, {
-      success: true,
-      data: {
-        content: [
-          {
-            id: 1,
-            cctvName: 'CCTV-A',
-            vmsClipId: 'VMS-0001',
-            eventName: '쓰러짐',
-            eventTypeCd: 'FALL',
-            localGov: '서울시',
-            frameCount: 30,
-            status: 'COMPLETED',
-            capturedAt: '2026-05-07T10:00:00Z',
-          },
-        ],
-        totalElements: 1,
-        totalPages: 1,
-        number: 0,
-        size: 999,
       },
       message: null,
       errorCode: null,
@@ -90,7 +69,7 @@ describe('ReviewListPage', () => {
 
     // 작업 목록과 동일한 2줄 시각 정합 — 영상 식별자(video-NNNN) 노출
     expect(screen.getByText('video-0001')).toBeInTheDocument();
-    // 이벤트 컬럼 — videos left-join 으로 EventTypeBadge 렌더
+    // 이벤트 컬럼 — BE 응답의 eventName 으로 EventTypeBadge 렌더
     expect(screen.getByText('쓰러짐')).toBeInTheDocument();
 
     const startBtn = screen.getByRole('button', { name: /검수 시작 CCTV-A/ });
@@ -101,7 +80,7 @@ describe('ReviewListPage', () => {
     });
   });
 
-  it('이벤트_메타_없는_영상은_대시_폴백', async () => {
+  it('이벤트_메타_없는_영상은_대시_폴백_BE_eventName_미응답시', async () => {
     mock.onGet('/reviews').reply(200, {
       success: true,
       data: {
@@ -115,25 +94,15 @@ describe('ReviewListPage', () => {
             submittedAt: '2026-05-07T10:00:00Z',
             labelCount: 5,
             status: 'REVIEW_PENDING',
+            // BE eventName 미응답 (null)
+            eventName: null,
+            eventTypeCd: null,
           },
         ],
         totalElements: 1,
         totalPages: 1,
         number: 0,
         size: 20,
-      },
-      message: null,
-      errorCode: null,
-    });
-    // useVideos 결과에 매칭되는 영상 없음 — 이벤트 컬럼은 '-' 폴백
-    mock.onGet('/videos').reply(200, {
-      success: true,
-      data: {
-        content: [],
-        totalElements: 0,
-        totalPages: 0,
-        number: 0,
-        size: 999,
       },
       message: null,
       errorCode: null,
@@ -146,22 +115,58 @@ describe('ReviewListPage', () => {
     });
     // 영상 식별자는 그대로 노출 (videoId 기반)
     expect(screen.getByText('video-0002')).toBeInTheDocument();
-    // 이벤트 컬럼: video 메타 없음 → '-' 폴백
+    // 이벤트 컬럼: BE eventName 미응답 → '-' 폴백
     const row = screen.getByText('CCTV-B').closest('tr');
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByText('-')).toBeInTheDocument();
+  });
+
+  it('ReviewListPage_렌더_시_videos_API를_호출하지_않는다', async () => {
+    // /videos 호출이 발생하면 mock 미설정 → axios-mock-adapter 가 404/no-handler 응답으로 fail.
+    // 단언: mock.history.get 에 /videos 경로 호출이 0 건이어야 한다.
+    mock.onGet('/reviews').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 12,
+            videoId: 3,
+            cctvName: 'CCTV-C',
+            workerId: 8,
+            workerName: '박작업',
+            submittedAt: '2026-05-07T10:00:00Z',
+            labelCount: 1,
+            status: 'REVIEW_PENDING',
+            eventName: '낙상',
+            eventTypeCd: 'EVT_FALL',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<ReviewListPage />, { initialEntries: ['/review'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-C')).toBeInTheDocument();
+    });
+
+    // /videos 경로로 GET 호출이 한 번도 발생하지 않아야 한다.
+    const videoCalls = mock.history.get.filter((req) =>
+      (req.url ?? '').startsWith('/videos'),
+    );
+    expect(videoCalls).toHaveLength(0);
   });
 
   it('빈_목록일_때_EmptyState_노출', async () => {
     mock.onGet('/reviews').reply(200, {
       success: true,
       data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 },
-      message: null,
-      errorCode: null,
-    });
-    mock.onGet('/videos').reply(200, {
-      success: true,
-      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 999 },
       message: null,
       errorCode: null,
     });

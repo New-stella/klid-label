@@ -255,6 +255,9 @@ public class AssignmentService {
         Map<Long, Long> reviewerByVideo = lookupReviewerByVideo(page.getContent());
         Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(page.getContent());
         Map<Long, String> cctvNameByVideo = lookupCctvNameByVideo(page.getContent());
+        Map<Long, String[]> eventInfoByVideo = lookupEventInfoByVideo(page.getContent());
+        // FE Task.status 정합 — LS_RAW_DATA_STATUS.DATA_STTS_CD 를 단일 IN 쿼리로 일괄 lookup (N+1 회피).
+        Map<Long, String> dataSttsByVideo = lookupDataSttsByVideo(page.getContent());
 
         // worker + reviewer userNo 를 한 Set 에 모아 1회 batch 조회 (N+1 회피).
         Set<Long> userNos = new HashSet<>();
@@ -276,8 +279,48 @@ public class AssignmentService {
             String reviewerName = reviewerId != null ? nameByUserNo.get(reviewerId) : null;
             Long firstSrcSn = firstSrcSnByVideo.get(e.getRawDataId());
             String cctvName = cctvNameByVideo.get(e.getRawDataId());
-            return AssignmentResponse.Item.from(e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName);
+            String[] eventInfo = eventInfoByVideo.get(e.getRawDataId());
+            String eventName = eventInfo != null ? eventInfo[0] : null;
+            String eventTypeCd = eventInfo != null ? eventInfo[1] : null;
+            String dataSttsCd = dataSttsByVideo.get(e.getRawDataId());
+            return AssignmentResponse.Item.from(
+                    e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName, eventName, eventTypeCd,
+                    dataSttsCd);
         });
+    }
+
+    /**
+     * 페이지 단위로 영상별 이벤트 정보 (eventName/eventTypeCd) 를 한 번에 조회하여 매핑 (N+1 회피).
+     *
+     * <p>현 단계는 {@link kr.co.cudo.authoring.video.repository.VideoRepository#findEventInfoByRawSns}
+     * 가 LS_DATA_RAW.EVNT_TYPE_CD 값을 양쪽에 동일하게 반환한다 (VideoSummaryResponse 와 동일 정책).
+     * 영상 메타가 없거나 EVNT_TYPE_CD 가 null 인 영상은 키 자체를 넣지 않아 호출 측 lookup 이
+     * null 을 반환하고, FE 가 "-" 로 폴백 표시한다.
+     */
+    private Map<Long, String[]> lookupEventInfoByVideo(List<LsTaskAssignment> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawDataIds = rows.stream()
+                .map(LsTaskAssignment::getRawDataId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (rawDataIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, String[]> map = new HashMap<>();
+        for (Object[] row : videoRepository.findEventInfoByRawSns(rawDataIds)) {
+            // row[0]=rawSn, row[1]=eventName, row[2]=eventTypeCd
+            if (row == null || row.length < 3 || row[0] == null) continue;
+            Long rawSn = ((Number) row[0]).longValue();
+            String eventName = row[1] != null ? row[1].toString() : null;
+            String eventTypeCd = row[2] != null ? row[2].toString() : null;
+            if (eventName != null || eventTypeCd != null) {
+                map.put(rawSn, new String[] { eventName, eventTypeCd });
+            }
+        }
+        return map;
     }
 
     /**
@@ -310,6 +353,31 @@ public class AssignmentService {
             if (resolved != null) {
                 map.put(rawSn, resolved);
             }
+        }
+        return map;
+    }
+
+    /**
+     * 페이지 단위로 LS_RAW_DATA_STATUS.DATA_STTS_CD 를 한 번에 조회하여 매핑 (N+1 회피).
+     * status row 가 없는 영상은 키 자체를 넣지 않아 {@code map.get(rawSn)} 이 null 을 반환하고,
+     * {@link AssignmentResponse.Item} 에서 'PENDING' 으로 폴백 매핑된다.
+     */
+    private Map<Long, String> lookupDataSttsByVideo(List<LsTaskAssignment> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawDataIds = rows.stream()
+                .map(LsTaskAssignment::getRawDataId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (rawDataIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, String> map = new HashMap<>();
+        for (LsRawDataStatus s : dataSttsRepository.findAllById(rawDataIds)) {
+            if (s == null || s.getRawDataId() == null) continue;
+            map.put(s.getRawDataId(), s.getDataSttsCd());
         }
         return map;
     }
@@ -381,6 +449,12 @@ public class AssignmentService {
     }
 
     private void requireReviewer(TokenClaims actor) {
+        // CWE-476: null actor (인증 토큰 누락 또는 SecurityContext 미주입) 진입 시
+        // actor.role() 에서 NPE 가 발생하지 않도록 사전 가드.
+        // ReviewService.requireReviewer 와 동일한 패턴으로 일관성 유지.
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
         if (actor.role() != Role.REVIEWER) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }

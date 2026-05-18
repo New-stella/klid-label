@@ -271,6 +271,21 @@ class ReviewControllerTest {
     }
 
     @Test
+    @DisplayName("ReviewController_목록_응답에_eventName과_eventTypeCd가_채워진다")
+    void listEnrichesEventName() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        mockMvc.perform(get("/v1/reviews")
+                        .param("status", "PENDING")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                // setup() 의 LsDataRaw.createFromIngest 가 evntTypeCd="EVT-A" 로 시드
+                .andExpect(jsonPath("$.data.content[0].eventName").value("EVT-A"))
+                .andExpect(jsonPath("$.data.content[0].eventTypeCd").value("EVT-A"));
+    }
+
+    @Test
     @DisplayName("ReviewController_미배정_라벨없는_영상은_workerName_빈값_labelCount_0_폴백")
     void listFallsBackWhenNoAssignmentAndNoLabels() throws Exception {
         // 다른 영상 생성 — 배정/라벨 없음
@@ -350,6 +365,19 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.data.workerName").value("작업자100"))
                 .andExpect(jsonPath("$.data.labelCount").value(1))
                 .andExpect(jsonPath("$.data.cctvName").value("동대문구 회기로 CCTV"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_단건_상세_응답에_eventName이_채워진다")
+    void getDetailEnrichesEventName() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        mockMvc.perform(get("/v1/reviews/" + videoId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                // setup() 의 LsDataRaw.createFromIngest 가 evntTypeCd="EVT-A" 로 시드
+                .andExpect(jsonPath("$.data.eventName").value("EVT-A"))
+                .andExpect(jsonPath("$.data.eventTypeCd").value("EVT-A"));
     }
 
     @Test

@@ -101,6 +101,9 @@ public class ReviewService {
         // 4) 영상별 라벨 총개수 lookup — LS_DATA_LBL JOIN LS_DATA_SRC GROUP BY rawSn (단일 IN 쿼리)
         Map<Long, Long> labelCountMap = lookupLabelCountByVideo(videoIds);
 
+        // 5) 영상별 이벤트 메타 lookup — LS_DATA_RAW.EVNT_TYPE_CD (단일 IN 쿼리)
+        Map<Long, String[]> eventInfoMap = lookupEventByVideo(videoIds);
+
         List<ReviewResponse> content = rows.stream()
                 .map(stts -> {
                     Long videoId = stts.getRawDataId();
@@ -108,7 +111,11 @@ public class ReviewService {
                     Long workerId = workerIdMap.get(videoId);
                     String workerName = (workerId != null) ? userNameMap.get(workerId) : null;
                     Long labelCount = labelCountMap.getOrDefault(videoId, 0L);
-                    return ReviewResponse.from(stts, cctvName, workerId, workerName, labelCount);
+                    String[] eventInfo = eventInfoMap.get(videoId);
+                    String eventName = (eventInfo != null) ? eventInfo[0] : null;
+                    String eventTypeCd = (eventInfo != null) ? eventInfo[1] : null;
+                    return ReviewResponse.from(stts, cctvName, workerId, workerName, labelCount,
+                            eventName, eventTypeCd);
                 })
                 .toList();
         return new PageImpl<>(content, pageable, page.getTotalElements());
@@ -197,6 +204,27 @@ public class ReviewService {
     }
 
     /**
+     * 페이지의 영상 ID 들에 대해 (rawSn → [eventName, eventTypeCd]) 매핑을 단일 native 쿼리로 조회.
+     * 현 단계에서는 EVNT_TYPE_CD 값을 eventName/eventTypeCd 양쪽에 동일하게 반환 (코드값 fallback).
+     * 영상 메타가 없거나 EVNT_TYPE_CD 가 null 이면 키 자체를 넣지 않아 호출 측에서 null 폴백 처리.
+     */
+    private Map<Long, String[]> lookupEventByVideo(List<Long> videoIds) {
+        if (videoIds == null || videoIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, String[]> map = new HashMap<>();
+        for (Object[] row : videoRepository.findEventInfoByRawSns(videoIds)) {
+            if (row == null || row.length < 3 || row[0] == null) continue;
+            Long rawSn = ((Number) row[0]).longValue();
+            String eventName = row[1] != null ? row[1].toString() : null;
+            String eventTypeCd = row[2] != null ? row[2].toString() : null;
+            if (eventName == null && eventTypeCd == null) continue;
+            map.put(rawSn, new String[]{eventName, eventTypeCd});
+        }
+        return map;
+    }
+
+    /**
      * 검수 단건 상세 조회 (REVIEWER) — 검수 상세 화면 진입 시.
      */
     public ReviewResponse getDetail(Long videoId, TokenClaims actor) {
@@ -224,7 +252,11 @@ public class ReviewService {
                 ? lookupUserNames(List.of(workerId)).get(workerId)
                 : null;
         Long labelCount = lookupLabelCountByVideo(ids).getOrDefault(videoId, 0L);
-        return ReviewResponse.from(stts, cctvName, workerId, workerName, labelCount);
+        String[] eventInfo = lookupEventByVideo(ids).get(videoId);
+        String eventName = (eventInfo != null) ? eventInfo[0] : null;
+        String eventTypeCd = (eventInfo != null) ? eventInfo[1] : null;
+        return ReviewResponse.from(stts, cctvName, workerId, workerName, labelCount,
+                eventName, eventTypeCd);
     }
 
     /**

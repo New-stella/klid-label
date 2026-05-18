@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
  *   <li>{@code submittedAt}   = {@code updDt}</li>
  *   <li>{@code labelCount}    = LS_DATA_LBL count by srcSn for this rawSn — 없으면 0</li>
  *   <li>{@code status}        = FE ReviewStatus 코드 (BE dataSttsCd → FE 코드 매핑)</li>
+ *   <li>{@code eventName}     = video lookup 결과 EVNT_TYPE_CD — 없으면 null</li>
+ *   <li>{@code eventTypeCd}   = video lookup 결과 EVNT_TYPE_CD — 없으면 null</li>
  * </ul>
  * BE 원본 필드(videoId/dataSttsCd/version/updDt)는 backward-compat 유지.
  */
@@ -33,20 +35,40 @@ public record ReviewResponse(
         Long videoId,
         String dataSttsCd,
         Long version,
-        LocalDateTime updDt
+        LocalDateTime updDt,
+        // 이벤트 메타 (Phase 1 enrich) — 마지막에 추가하여 backward-compat 유지
+        String eventName,
+        String eventTypeCd
 ) {
 
     /** 단순 매핑 — lookup 인자 없이 status alias 만 변환. */
     public static ReviewResponse from(LsRawDataStatus stts) {
-        return from(stts, null, null, null, 0L);
+        return from(stts, null, null, null, 0L, null, null);
     }
 
-    /** 보강 매핑 — 서비스 레이어에서 cctvName/workerId/workerName/labelCount 를 함께 주입. */
+    /**
+     * 보강 매핑 (eventName 미주입 호환) — 서비스 레이어에서 cctvName/workerId/workerName/labelCount 만 주입.
+     * eventName/eventTypeCd 는 null 폴백.
+     */
     public static ReviewResponse from(LsRawDataStatus stts,
                                       String cctvName,
                                       Long workerId,
                                       String workerName,
                                       Long labelCount) {
+        return from(stts, cctvName, workerId, workerName, labelCount, null, null);
+    }
+
+    /**
+     * 보강 매핑 (정식 — Phase 1) — 서비스 레이어에서
+     * cctvName/workerId/workerName/labelCount/eventName/eventTypeCd 를 함께 주입.
+     */
+    public static ReviewResponse from(LsRawDataStatus stts,
+                                      String cctvName,
+                                      Long workerId,
+                                      String workerName,
+                                      Long labelCount,
+                                      String eventName,
+                                      String eventTypeCd) {
         Long videoId = stts.getRawDataId();
         String resolvedCctv = (cctvName != null && !cctvName.isBlank())
                 ? cctvName : ("video #" + videoId);
@@ -64,7 +86,9 @@ public record ReviewResponse(
                 videoId,
                 stts.getDataSttsCd(),
                 stts.getVersion(),
-                stts.getUpdDt()
+                stts.getUpdDt(),
+                eventName,
+                eventTypeCd
         );
     }
 

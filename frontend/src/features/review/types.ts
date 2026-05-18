@@ -16,6 +16,9 @@ export interface Review {
   labelCount: number;
   status: ReviewStatus;
   reviewerId?: number;
+  // Phase 1 enrich — BE 가 EVNT_TYPE_CD 를 직접 응답 (null 가능)
+  eventName?: string | null;
+  eventTypeCd?: string | null;
 }
 
 export interface ReviewIssue {

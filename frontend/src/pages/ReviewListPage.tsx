@@ -11,8 +11,6 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useReviewList } from '@/features/review/hooks/useReviewList';
 import type { Review, ReviewListParams, ReviewStatus } from '@/features/review/types';
-import { useVideos } from '@/features/video/hooks/useVideos';
-import type { Video } from '@/features/video/types';
 
 /**
  * SCR-REVIEW-001 검수 대기 목록 (V1.x mock 시각 정합).
@@ -50,13 +48,8 @@ export function ReviewListPage() {
   }, [searchParams]);
 
   const { data, isLoading, error } = useReviewList(params);
-  // 영상 메타 left-join (이벤트 라벨/식별자 표시용) — 작업 목록과 동일 패턴
-  const { data: videosPage } = useVideos({ size: 999 });
-  const videoById = useMemo(() => {
-    const map = new Map<number, Video>();
-    (videosPage?.content ?? []).forEach((v) => map.set(v.id, v));
-    return map;
-  }, [videosPage]);
+  // Phase 1 — BE 가 ReviewResponse.eventName 을 직접 응답하므로 useVideos left-join 제거.
+  // 영상 수 만 건 이상에서도 검수 목록은 BE 페이징 호출 1건만으로 동작.
 
   // 클라이언트 검색·상태 필터 (URL과 분리한 로컬 state — 서버 파라미터화는 후속)
   const [keyword, setKeyword] = useState('');
@@ -116,7 +109,7 @@ export function ReviewListPage() {
     return 'secondary';
   };
 
-  // columns: videoById/navigate closure 캡처 — videoById 변경 시 stale 방지
+  // columns: navigate closure 캡처 — eventName 은 row(r) 에서 직접 사용하므로 deps 불필요
   const columns = useMemo<DataTableColumn<Review>[]>(
     () => [
       {
@@ -134,14 +127,12 @@ export function ReviewListPage() {
       {
         key: 'eventName',
         header: '이벤트',
-        render: (r) => {
-          const v = videoById.get(r.videoId);
-          return v?.eventName ? (
-            <EventTypeBadge eventType={v.eventName} />
+        render: (r) =>
+          r.eventName ? (
+            <EventTypeBadge eventType={r.eventName} />
           ) : (
             <span className="text-xs text-gray-400">-</span>
-          );
-        },
+          ),
       },
       { key: 'workerName', header: '작업자', render: (r) => r.workerName },
       {
@@ -176,7 +167,7 @@ export function ReviewListPage() {
         ),
       },
     ],
-    [videoById, navigate],
+    [navigate],
   );
 
   const handleResetFilters = () => {
