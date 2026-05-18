@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
+import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
 import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.dto.VersionResponse;
@@ -89,8 +90,10 @@ public class VersionController {
     }
 
     @Operation(
-            summary = "커밋 간 diff 조회",
-            description = "두 커밋(from / to) 간 라벨 변경 차이를 반환. compareWith는 from 커밋 SHA."
+            summary = "커밋 간 diff 조회 (라벨 단위)",
+            description = "두 커밋(from / to) 간 라벨 단위 변경 차이를 반환. compareWith는 from 커밋 SHA. "
+                    + "ADDED/MODIFIED/REMOVED 로 분류된 라벨별 변경 사항을 배열로 반환한다. "
+                    + "(파일 단위 메타가 필요한 내부 API 는 /diff/files 사용)"
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -100,9 +103,27 @@ public class VersionController {
     })
     @GetMapping("/versions/{commit}/diff")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
-    public ApiResponse<DiffResponseDto> diff(@Parameter(description = "비교 대상(to) 커밋 SHA", required = true) @PathVariable("commit") String toSha,
-                                              @Parameter(description = "기준(from) 커밋 SHA", required = true) @RequestParam("compareWith") String fromSha,
-                                              @AuthenticationPrincipal TokenClaims actor) {
+    public ApiResponse<List<LabelDiffDto>> diff(@Parameter(description = "비교 대상(to) 커밋 SHA", required = true) @PathVariable("commit") String toSha,
+                                                @Parameter(description = "기준(from) 커밋 SHA", required = true) @RequestParam("compareWith") String fromSha,
+                                                @AuthenticationPrincipal TokenClaims actor) {
+        DiffResponseDto dto = versionService.diff(fromSha, toSha, actor);
+        return ApiResponse.ok(dto.labels());
+    }
+
+    /**
+     * 파일 단위 diff 응답 (내부 API / 감사용). FE 작업이력 패널은 {@link #diff} 를 사용한다.
+     * Phase 8 보강 (2026-05-19) — diff 엔드포인트 응답을 FE 가 기대하는 라벨 단위로 변경하면서
+     * 기존 파일 단위 메타가 필요한 호출자(감사 로그, E2E 회귀 등) 를 위해 별도 경로로 노출.
+     */
+    @Operation(
+            summary = "커밋 간 diff 조회 (파일 단위, 내부 API)",
+            description = "두 커밋 간 파일 단위 변경(라벨 JSON 파일 path/additions/deletions) 을 반환. 내부 감사용."
+    )
+    @GetMapping("/versions/{commit}/diff/files")
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ApiResponse<DiffResponseDto> diffFiles(@Parameter(description = "비교 대상(to) 커밋 SHA", required = true) @PathVariable("commit") String toSha,
+                                                  @Parameter(description = "기준(from) 커밋 SHA", required = true) @RequestParam("compareWith") String fromSha,
+                                                  @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(versionService.diff(fromSha, toSha, actor));
     }
 

@@ -1,9 +1,12 @@
 package kr.co.cudo.authoring.version.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.client.GiteaClient;
 import kr.co.cudo.authoring.common.client.dto.CommitResponse;
+import kr.co.cudo.authoring.common.client.dto.DiffFile;
 import kr.co.cudo.authoring.common.client.dto.DiffResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -12,6 +15,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.version.async.GiteaCommitFallbackQueue;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
+import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
@@ -27,7 +31,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -42,6 +49,7 @@ public class VersionService {
     private final LabelAccessGuard accessGuard;
     private final VideoRepository videoRepository;
     private final WorkLockService workLockService;
+    private final ObjectMapper objectMapper;
 
     @Value("${authoring.integration.gitea.repo}")
     private String repo;
@@ -125,12 +133,214 @@ public class VersionService {
         accessGuard.verifyAccess(fromVersion.getDataSrcSn(), actor);
         accessGuard.verifyAccess(toVersion.getDataSrcSn(), actor);
 
-        DiffResponse resp = giteaClient.diff(repo, fromSha, toSha)
-                .block(GiteaClient.BLOCK_TIMEOUT);
-        if (resp == null) {
-            return new DiffResponseDto(fromSha, toSha, List.of());
+        // 1차: Gitea compare API 사용 — files 필드가 응답에 포함되면 그대로 사용
+        DiffResponse resp = null;
+        try {
+            resp = giteaClient.diff(repo, fromSha, toSha).block(GiteaClient.BLOCK_TIMEOUT);
+        } catch (Exception e) {
+            log.warn("[Version] gitea compare failed - fallback to raw content diff. from={} to={} reason={}",
+                    fromSha, toSha, e.getClass().getSimpleName());
         }
-        return DiffResponseDto.of(fromSha, toSha, resp);
+
+        // 라벨 단위 diff 산출은 항상 시도 — 같은 srcSn 일 때만 의미 있음.
+        // FE 작업이력 패널이 사용하는 핵심 필드이므로 compare 결과와 무관하게 항상 채운다.
+        List<LabelDiffDto> labelDiffs = computeLabelDiffsIfSameSrc(fromVersion, toVersion, fromSha, toSha);
+
+        if (resp != null && resp.files() != null && !resp.files().isEmpty()) {
+            return DiffResponseDto.of(fromSha, toSha, resp, labelDiffs);
+        }
+
+        // 2차 fallback: Gitea compare 응답에 files 가 없으므로 (Gitea compare API 사양 — commits 만 반환),
+        // 두 SHA 시점의 라벨 파일을 직접 받아 BE 에서 내용 비교한다.
+        // srcSn 당 라벨 파일은 1개 (labels/{srcSn}.json) — fromVersion.dataSrcSn 과 toVersion.dataSrcSn 이
+        // 같을 때만 의미 있는 비교가 가능하므로 다른 경우는 빈 결과를 반환한다.
+        if (!fromVersion.getDataSrcSn().equals(toVersion.getDataSrcSn())) {
+            return new DiffResponseDto(fromSha, toSha, List.of(), List.of());
+        }
+        String path = pathPolicy.path(fromVersion.getDataSrcSn());
+        String fromContent = fetchContentOrEmpty(fromSha, path);
+        String toContent = fetchContentOrEmpty(toSha, path);
+        if (fromContent.equals(toContent)) {
+            // 동일 내용 → 변경 없음
+            return new DiffResponseDto(fromSha, toSha, List.of(), List.of());
+        }
+        DiffFile file = buildDiffFile(path, fromContent, toContent);
+        // raw content diff 경로에서는 위 computeLabelDiffsIfSameSrc 가 이미 같은 두 SHA 의 content 로 비교했으므로 그대로 사용.
+        return DiffResponseDto.of(fromSha, toSha, new DiffResponse(List.of(file)), labelDiffs);
+    }
+
+    /**
+     * 두 SHA 시점의 라벨 JSON 을 받아 라벨 단위 diff 산출.
+     * 라벨 식별자: LS_DATA_LBL.LBL_SN (응답 snapshot 의 {@code items[].id}).
+     *
+     * <p>분류 기준:
+     * <ul>
+     *   <li>fromSha 에 없고 toSha 에 있음 → {@link LabelDiffDto.DiffType#ADDED}</li>
+     *   <li>fromSha 에 있고 toSha 에 없음 → {@link LabelDiffDto.DiffType#REMOVED}</li>
+     *   <li>양쪽 모두 존재 + 좌표/lblTypeCd/label 중 하나라도 다름 → {@link LabelDiffDto.DiffType#MODIFIED}</li>
+     * </ul>
+     *
+     * <p>같은 srcSn(=프레임)이 아니면 의미 있는 라벨 비교가 불가능하므로 빈 리스트 반환.
+     * JSON 파싱 실패도 빈 리스트 반환 (장애 격리 — 파일 단위 diff 는 계속 제공).
+     */
+    private List<LabelDiffDto> computeLabelDiffsIfSameSrc(LsLabelVersion fromVersion,
+                                                          LsLabelVersion toVersion,
+                                                          String fromSha,
+                                                          String toSha) {
+        if (!Objects.equals(fromVersion.getDataSrcSn(), toVersion.getDataSrcSn())) {
+            return List.of();
+        }
+        String path = pathPolicy.path(fromVersion.getDataSrcSn());
+        String fromContent = fetchContentOrEmpty(fromSha, path);
+        String toContent = fetchContentOrEmpty(toSha, path);
+        if (fromContent.isEmpty() && toContent.isEmpty()) {
+            return List.of();
+        }
+        try {
+            Map<String, LabelSnapshot> fromMap = parseLabelsById(fromContent);
+            Map<String, LabelSnapshot> toMap = parseLabelsById(toContent);
+            return diffLabelMaps(fromMap, toMap);
+        } catch (Exception e) {
+            log.warn("[Version] label diff parse failed from={} to={} reason={}",
+                    fromSha, toSha, e.getClass().getSimpleName());
+            return List.of();
+        }
+    }
+
+    /**
+     * 라벨 응답 snapshot JSON ({@code {srcSn, frameNo, items:[{id, lblTypeCd, label, points, ...}]}}) 을
+     * id → LabelSnapshot 맵으로 변환. id 가 null/누락이면 skip (anonymous 신규 라벨 — commit 시점에 id 부여 전).
+     */
+    private Map<String, LabelSnapshot> parseLabelsById(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(json);
+        } catch (Exception e) {
+            // JSON 파싱 실패는 호출부 try/catch 에서 흡수.
+            throw new IllegalStateException("labels JSON parse failed", e);
+        }
+        JsonNode items = root.path("items");
+        if (!items.isArray()) {
+            return Map.of();
+        }
+        Integer frameNo = root.path("frameNo").isInt() ? root.get("frameNo").asInt() : null;
+        Map<String, LabelSnapshot> result = new LinkedHashMap<>();
+        for (JsonNode item : items) {
+            JsonNode idNode = item.path("id");
+            if (idNode.isMissingNode() || idNode.isNull()) {
+                continue;
+            }
+            String id = idNode.asText();
+            String lblTypeCd = item.path("lblTypeCd").asText(null);
+            String label = item.path("label").asText(null);
+            List<List<Double>> points = readPoints(item.path("points"));
+            result.put(id, new LabelSnapshot(id, lblTypeCd, label, points, frameNo));
+        }
+        return result;
+    }
+
+    private static List<List<Double>> readPoints(JsonNode pointsNode) {
+        if (!pointsNode.isArray()) {
+            return List.of();
+        }
+        List<List<Double>> out = new ArrayList<>(pointsNode.size());
+        for (JsonNode pair : pointsNode) {
+            if (pair.isArray() && pair.size() >= 2
+                    && pair.get(0).isNumber() && pair.get(1).isNumber()) {
+                out.add(List.of(pair.get(0).asDouble(), pair.get(1).asDouble()));
+            }
+        }
+        return out;
+    }
+
+    /** 두 라벨 맵 비교 → ADDED/REMOVED/MODIFIED 분류. 동일 내용은 결과에 포함하지 않음. */
+    private static List<LabelDiffDto> diffLabelMaps(Map<String, LabelSnapshot> fromMap,
+                                                    Map<String, LabelSnapshot> toMap) {
+        List<LabelDiffDto> result = new ArrayList<>();
+        // REMOVED + MODIFIED 분류
+        for (Map.Entry<String, LabelSnapshot> e : fromMap.entrySet()) {
+            LabelSnapshot before = e.getValue();
+            LabelSnapshot after = toMap.get(e.getKey());
+            if (after == null) {
+                result.add(new LabelDiffDto(
+                        LabelDiffDto.DiffType.REMOVED,
+                        before.frameNo(),
+                        before.id(),
+                        LabelDiffDto.ShapeDto.fromPoints(before.lblTypeCd(), before.points()),
+                        null));
+            } else if (!before.equalsContent(after)) {
+                result.add(new LabelDiffDto(
+                        LabelDiffDto.DiffType.MODIFIED,
+                        after.frameNo() != null ? after.frameNo() : before.frameNo(),
+                        before.id(),
+                        LabelDiffDto.ShapeDto.fromPoints(before.lblTypeCd(), before.points()),
+                        LabelDiffDto.ShapeDto.fromPoints(after.lblTypeCd(), after.points())));
+            }
+        }
+        // ADDED 분류
+        for (Map.Entry<String, LabelSnapshot> e : toMap.entrySet()) {
+            if (!fromMap.containsKey(e.getKey())) {
+                LabelSnapshot after = e.getValue();
+                result.add(new LabelDiffDto(
+                        LabelDiffDto.DiffType.ADDED,
+                        after.frameNo(),
+                        after.id(),
+                        null,
+                        LabelDiffDto.ShapeDto.fromPoints(after.lblTypeCd(), after.points())));
+            }
+        }
+        return result;
+    }
+
+    /** 비교용 라벨 스냅샷 — 외부 노출 없음. */
+    private record LabelSnapshot(String id, String lblTypeCd, String label,
+                                 List<List<Double>> points, Integer frameNo) {
+        boolean equalsContent(LabelSnapshot other) {
+            return Objects.equals(lblTypeCd, other.lblTypeCd)
+                    && Objects.equals(label, other.label)
+                    && Objects.equals(points, other.points);
+        }
+    }
+
+    private String fetchContentOrEmpty(String sha, String path) {
+        try {
+            String content = giteaClient.getContent(repo, sha, path).block(GiteaClient.BLOCK_TIMEOUT);
+            return content == null ? "" : content;
+        } catch (Exception e) {
+            log.warn("[Version] gitea getContent failed sha={} reason={}", sha, e.getClass().getSimpleName());
+            return "";
+        }
+    }
+
+    /**
+     * 두 라벨 JSON 내용에 대한 단순 라인-기반 diff 산출.
+     * change: from 비어있으면 "added" / to 비어있으면 "removed" / 둘 다 있으면 "modified".
+     * additions/deletions: 다른 라인 개수 — to 에만 있는 라인은 additions, from 에만 있는 라인은 deletions.
+     * patch: null (FE 에서 별도 fetch). DiffResponseDto 의 길이 제한 통과.
+     */
+    private static DiffFile buildDiffFile(String path, String fromContent, String toContent) {
+        String change;
+        if (fromContent.isEmpty()) {
+            change = "added";
+        } else if (toContent.isEmpty()) {
+            change = "removed";
+        } else {
+            change = "modified";
+        }
+        java.util.Set<String> fromLines = new java.util.HashSet<>(java.util.Arrays.asList(fromContent.split("\n")));
+        java.util.Set<String> toLines = new java.util.HashSet<>(java.util.Arrays.asList(toContent.split("\n")));
+        int additions = 0;
+        for (String l : toLines) {
+            if (!fromLines.contains(l)) additions++;
+        }
+        int deletions = 0;
+        for (String l : fromLines) {
+            if (!toLines.contains(l)) deletions++;
+        }
+        return new DiffFile(path, change, additions, deletions, null);
     }
 
     @Transactional("controlTransactionManager")

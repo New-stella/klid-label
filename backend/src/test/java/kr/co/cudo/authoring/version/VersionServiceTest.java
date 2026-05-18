@@ -7,6 +7,9 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.GiteaClient;
 import kr.co.cudo.authoring.common.client.dto.CommitResponse;
+import kr.co.cudo.authoring.common.client.dto.DiffResponse;
+import kr.co.cudo.authoring.version.dto.DiffResponseDto;
+import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -314,6 +317,201 @@ class VersionServiceTest {
         assertThatThrownBy(() -> versionService.listVersions(srcSn, unassigned))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    // ---------- diff API — Gitea compare files 비어있을 때 raw content fallback ----------
+
+    @Test
+    @DisplayName("getDiff_compare_API_files_미포함시_두_SHA_content_직접_비교하여_변경된_파일_반환")
+    void diffFallsBackToRawContentWhenCompareHasNoFiles() {
+        // given: 같은 srcSn 의 두 버전 — fromSha / toSha 가 LS_LABEL_VERSION 에 등록되어 있음
+        String fromSha = "c9491e1c9491e1c9491e1c9491e1c9491e1c9491";
+        String toSha   = "9099ee69099ee69099ee69099ee69099ee69099e";
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+
+        // Gitea compare API 는 files 미포함 응답 (실제 Gitea 사양 재현)
+        when(giteaClient.diff(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just(new DiffResponse(List.of())));
+
+        // 두 SHA 시점의 라벨 파일 내용이 다름 → 변경 감지되어야 함
+        String fromContent = "{\"items\":[{\"label\":\"car\"}]}";
+        String toContent   = "{\"items\":[{\"label\":\"person\"},{\"label\":\"car\"}]}";
+        when(giteaClient.getContent(anyString(), org.mockito.ArgumentMatchers.eq(fromSha), anyString()))
+                .thenReturn(Mono.just(fromContent));
+        when(giteaClient.getContent(anyString(), org.mockito.ArgumentMatchers.eq(toSha), anyString()))
+                .thenReturn(Mono.just(toContent));
+
+        // when
+        DiffResponseDto resp = versionService.diff(fromSha, toSha, workerAssigned);
+
+        // then: files 가 비어있지 않고, modified 상태로 표시
+        assertThat(resp.fromSha()).isEqualTo(fromSha);
+        assertThat(resp.toSha()).isEqualTo(toSha);
+        assertThat(resp.files()).isNotEmpty();
+        assertThat(resp.files().get(0).path()).isEqualTo("labels/" + srcSn + ".json");
+        assertThat(resp.files().get(0).change()).isEqualTo("modified");
+    }
+
+    @Test
+    @DisplayName("getDiff_동일_내용_비교시_files_빈_배열_회귀가드")
+    void diffSameContentReturnsEmpty() {
+        String fromSha = "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111";
+        String toSha   = "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222";
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+
+        when(giteaClient.diff(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just(new DiffResponse(List.of())));
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just("{\"items\":[]}"));
+
+        DiffResponseDto resp = versionService.diff(fromSha, toSha, workerAssigned);
+
+        assertThat(resp.files()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getDiff_compare_API가_files_제공해도_라벨_단위_diff_위해_getContent_호출됨")
+    void diffUsesCompareFilesWhenProvided() {
+        // 2026-05-19: FE 작업이력 패널 라벨 단위 diff 요구로 변경 —
+        // compare API 가 files 메타를 제공하더라도, 라벨 단위 변경 산출을 위해 getContent 로 두 SHA 의 라벨 JSON 을 조회한다.
+        // 기존 "getContent never" 가드는 제거. files 메타는 그대로 사용한다는 부분만 검증.
+        String fromSha = "1111111111111111111111111111111111111111";
+        String toSha   = "2222222222222222222222222222222222222222";
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+
+        when(giteaClient.diff(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just(new DiffResponse(List.of(
+                        new kr.co.cudo.authoring.common.client.dto.DiffFile(
+                                "labels/" + srcSn + ".json", "modified", 7, 3, "@@ patch ...")))));
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just("{\"items\":[]}"));
+
+        DiffResponseDto resp = versionService.diff(fromSha, toSha, workerAssigned);
+
+        assertThat(resp.files()).hasSize(1);
+        assertThat(resp.files().get(0).additions()).isEqualTo(7);
+        assertThat(resp.files().get(0).deletions()).isEqualTo(3);
+        // 라벨 JSON 이 양쪽 동일한 빈 items → 라벨 단위 변경은 없음
+        assertThat(resp.labels()).isEmpty();
+    }
+
+    // ---------- diff API — 라벨 단위 분류 (2026-05-19 추가) ----------
+
+    @Test
+    @DisplayName("getDiff_두_SHA_labels_JSON_파싱하여_라벨_단위_ADDED_REMOVED_MODIFIED_반환")
+    void diffParsesLabelsJsonAndClassifiesPerLabel() {
+        // given
+        String fromSha = "c0fefe11c0fefe11c0fefe11c0fefe11c0fefe11";
+        String toSha   = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+
+        // id=1: 좌표 이동 → MODIFIED
+        // id=2: from 에만 → REMOVED
+        // id=3: to 에만 → ADDED
+        String fromJson = "{\"frameNo\":7,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]},"
+                + "{\"id\":2,\"lblTypeCd\":\"BBOX\",\"label\":\"car\",\"points\":[[100.0,100.0],[200.0,200.0]]}"
+                + "]}";
+        String toJson = "{\"frameNo\":7,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[20.0,20.0],[60.0,60.0]]},"
+                + "{\"id\":3,\"lblTypeCd\":\"BBOX\",\"label\":\"bike\",\"points\":[[300.0,300.0],[400.0,400.0]]}"
+                + "]}";
+
+        when(giteaClient.diff(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just(new DiffResponse(List.of())));
+        when(giteaClient.getContent(anyString(), org.mockito.ArgumentMatchers.eq(fromSha), anyString()))
+                .thenReturn(Mono.just(fromJson));
+        when(giteaClient.getContent(anyString(), org.mockito.ArgumentMatchers.eq(toSha), anyString()))
+                .thenReturn(Mono.just(toJson));
+
+        // when
+        DiffResponseDto resp = versionService.diff(fromSha, toSha, workerAssigned);
+
+        // then: 3건 (ADDED 1 / REMOVED 1 / MODIFIED 1) + frameId=7
+        assertThat(resp.labels()).hasSize(3);
+        assertThat(resp.labels()).extracting(LabelDiffDto::type)
+                .containsExactlyInAnyOrder(LabelDiffDto.DiffType.MODIFIED,
+                        LabelDiffDto.DiffType.REMOVED,
+                        LabelDiffDto.DiffType.ADDED);
+        // 각 라벨의 objectId 매핑
+        LabelDiffDto modified = resp.labels().stream()
+                .filter(l -> l.type() == LabelDiffDto.DiffType.MODIFIED).findFirst().orElseThrow();
+        assertThat(modified.objectId()).isEqualTo("1");
+        assertThat(modified.frameId()).isEqualTo(7);
+        assertThat(modified.before()).isNotNull();
+        assertThat(modified.after()).isNotNull();
+        assertThat(modified.before().type()).isEqualTo("BBOX");
+        assertThat(modified.after().left()).isEqualTo(20.0);
+
+        LabelDiffDto removed = resp.labels().stream()
+                .filter(l -> l.type() == LabelDiffDto.DiffType.REMOVED).findFirst().orElseThrow();
+        assertThat(removed.objectId()).isEqualTo("2");
+        assertThat(removed.before()).isNotNull();
+        assertThat(removed.after()).isNull();
+
+        LabelDiffDto added = resp.labels().stream()
+                .filter(l -> l.type() == LabelDiffDto.DiffType.ADDED).findFirst().orElseThrow();
+        assertThat(added.objectId()).isEqualTo("3");
+        assertThat(added.before()).isNull();
+        assertThat(added.after()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("getDiff_동일_라벨_데이터_비교시_라벨_변화_없음_회귀가드")
+    void diffSameLabelsReturnsEmptyLabels() {
+        String fromSha = "abc111abc111abc111abc111abc111abc111abc1";
+        String toSha   = "def222def222def222def222def222def222def2";
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+
+        String sameJson = "{\"frameNo\":0,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]}"
+                + "]}";
+        when(giteaClient.diff(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just(new DiffResponse(List.of())));
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just(sameJson));
+
+        DiffResponseDto resp = versionService.diff(fromSha, toSha, workerAssigned);
+
+        assertThat(resp.labels()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getDiff_라벨_shape_변경시_MODIFIED_분류_before_after_좌표_모두_포함")
+    void diffShapeChangeClassifiedAsModifiedWithBeforeAfter() {
+        String fromSha = "1234abcd1234abcd1234abcd1234abcd1234abcd";
+        String toSha   = "5678ef015678ef015678ef015678ef015678ef01";
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+
+        String fromJson = "{\"frameNo\":2,\"items\":["
+                + "{\"id\":42,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]}"
+                + "]}";
+        String toJson = "{\"frameNo\":2,\"items\":["
+                + "{\"id\":42,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[15.0,12.0],[55.0,52.0]]}"
+                + "]}";
+        when(giteaClient.diff(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just(new DiffResponse(List.of())));
+        when(giteaClient.getContent(anyString(), org.mockito.ArgumentMatchers.eq(fromSha), anyString()))
+                .thenReturn(Mono.just(fromJson));
+        when(giteaClient.getContent(anyString(), org.mockito.ArgumentMatchers.eq(toSha), anyString()))
+                .thenReturn(Mono.just(toJson));
+
+        DiffResponseDto resp = versionService.diff(fromSha, toSha, workerAssigned);
+
+        assertThat(resp.labels()).hasSize(1);
+        LabelDiffDto only = resp.labels().get(0);
+        assertThat(only.type()).isEqualTo(LabelDiffDto.DiffType.MODIFIED);
+        assertThat(only.objectId()).isEqualTo("42");
+        assertThat(only.before().left()).isEqualTo(10.0);
+        assertThat(only.before().right()).isEqualTo(50.0);
+        assertThat(only.after().left()).isEqualTo(15.0);
+        assertThat(only.after().right()).isEqualTo(55.0);
     }
 
     // ---------- Phase 3 — 비식별 재처리 잠금 가드 (WorkLockService) ----------

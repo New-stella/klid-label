@@ -166,16 +166,59 @@ class VersionControllerTest {
     // ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("GET_diff_변경된_라벨만_반환")
-    void getDiffReturnsChangedFiles() throws Exception {
+    @DisplayName("GET_diff_라벨_단위_ADDED_MODIFIED_REMOVED_분류_반환")
+    void getDiffReturnsLabelUnitChanges() throws Exception {
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+        seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", 2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+
+        // Gitea compare 응답: 파일 단위 메타 (FE 미사용, 내부 보존)
+        when(giteaClient.diff(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just(new DiffResponse(List.of(
+                        new DiffFile("labels/" + srcSn + ".json", "modified", 5, 2, "@@ ...")))));
+
+        // 라벨 JSON 두 SHA 시점:
+        //  - id=1: 좌표 변경 → MODIFIED
+        //  - id=2: from 에만 존재 → REMOVED
+        //  - id=3: to 에만 존재 → ADDED
+        String fromJson = "{\"frameNo\":0,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]},"
+                + "{\"id\":2,\"lblTypeCd\":\"BBOX\",\"label\":\"car\",\"points\":[[100.0,100.0],[200.0,200.0]]}"
+                + "]}";
+        String toJson = "{\"frameNo\":0,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[15.0,15.0],[55.0,55.0]]},"
+                + "{\"id\":3,\"lblTypeCd\":\"BBOX\",\"label\":\"bike\",\"points\":[[300.0,300.0],[400.0,400.0]]}"
+                + "]}";
+        when(giteaClient.getContent(anyString(),
+                org.mockito.ArgumentMatchers.eq("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"), anyString()))
+                .thenReturn(Mono.just(fromJson));
+        when(giteaClient.getContent(anyString(),
+                org.mockito.ArgumentMatchers.eq("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222"), anyString()))
+                .thenReturn(Mono.just(toJson));
+
+        mockMvc.perform(get("/v1/versions/bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222/diff")
+                        .param("compareWith", "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                // FE 정합: data 가 LabelDiff 배열
+                .andExpect(jsonPath("$.data.length()").value(3))
+                .andExpect(jsonPath("$.data[?(@.objectId=='1')].type").value("MODIFIED"))
+                .andExpect(jsonPath("$.data[?(@.objectId=='2')].type").value("REMOVED"))
+                .andExpect(jsonPath("$.data[?(@.objectId=='3')].type").value("ADDED"));
+    }
+
+    @Test
+    @DisplayName("GET_diff_files_파일_단위_내부_API_별도_경로_유지")
+    void getDiffFilesEndpointStillReturnsFileMeta() throws Exception {
         seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
         seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", 2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
 
         when(giteaClient.diff(anyString(), anyString(), anyString()))
                 .thenReturn(Mono.just(new DiffResponse(List.of(
                         new DiffFile("labels/" + srcSn + ".json", "modified", 5, 2, "@@ ...")))));
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.just("{\"items\":[]}"));
 
-        mockMvc.perform(get("/v1/versions/bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222/diff")
+        mockMvc.perform(get("/v1/versions/bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222/diff/files")
                         .param("compareWith", "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
