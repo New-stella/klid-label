@@ -74,19 +74,24 @@ export function AugmentRequestPage() {
   const [page, setPage] = useState(0);
 
   // 검수 완료(승인) 영상만 — V1.x SFR-07 가드
+  // Phase 4 옵션 3: BE 페이징 사용 (size 20). dataSttsCd 로 BE에서 승인 영상만 필터.
   const { data: videosPage, isLoading: videosLoading } = useVideos({
-    size: 999,
+    page,
+    size: PAGE_SIZE,
+    dataSttsCd: 'COMPLETED',
   });
-  const allVideos = videosPage?.content ?? [];
-  const approvedVideos = useMemo(
-    () => allVideos.filter((v) => v.status === 'COMPLETED'),
-    [allVideos],
+  const pageContent = videosPage?.content ?? [];
+  // 안전 가드: BE가 COMPLETED 외 데이터를 섞어 반환해도 화면 노출은 COMPLETED 만 허용 (SFR-07).
+  const approvedPage = useMemo(
+    () => pageContent.filter((v) => v.status === 'COMPLETED'),
+    [pageContent],
   );
 
   const eventTypeOptions = FIXED_EVENT_TYPE_CODES;
 
-  const filteredVideos = useMemo(() => {
-    let result = approvedVideos;
+  // 클라이언트 필터 (현재 페이지 한정 — BE 검색 강화는 후속 PR)
+  const pagedVideos = useMemo(() => {
+    let result = approvedPage;
     if (filters.q) {
       const q = filters.q.toLowerCase();
       result = result.filter(
@@ -100,15 +105,12 @@ export function AugmentRequestPage() {
       result = result.filter((v) => v.eventName === filters.eventType);
     }
     return result;
-  }, [approvedVideos, filters]);
+  }, [approvedPage, filters]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredVideos.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages - 1);
-  const pagedVideos = useMemo(
-    () =>
-      filteredVideos.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE),
-    [filteredVideos, safePage],
-  );
+  // BE 페이지 메타데이터
+  const totalElements = videosPage?.totalElements ?? 0;
+  const totalPages = Math.max(1, videosPage?.totalPages ?? 1);
+  const currentPage = videosPage?.number ?? page;
 
   // 필터 적용 시 페이지 리셋
   useEffect(() => {
@@ -254,7 +256,7 @@ export function AugmentRequestPage() {
           </span>
           <h2 className="text-base font-semibold text-gray-800">대상 영상 선택</h2>
           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-            검수 완료 {approvedVideos.length}건
+            검수 완료 {totalElements}건
           </span>
           {selectedVideoIds.size > 0 && (
             <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
@@ -344,7 +346,7 @@ export function AugmentRequestPage() {
         ) : pagedVideos.length === 0 ? (
           <EmptyState
             message={
-              approvedVideos.length === 0
+              totalElements === 0
                 ? '검수 완료된 영상이 없습니다.'
                 : '검색 조건에 맞는 영상이 없습니다.'
             }
@@ -444,22 +446,22 @@ export function AugmentRequestPage() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs text-gray-500">
                 <span>
-                  전체 {filteredVideos.length}건 ({safePage + 1}/{totalPages}{' '}
+                  전체 {totalElements}건 ({currentPage + 1}/{totalPages}{' '}
                   페이지)
                 </span>
                 <div className="flex gap-1">
                   <button
                     type="button"
-                    onClick={() => setPage(safePage - 1)}
-                    disabled={safePage === 0}
+                    onClick={() => setPage(Math.max(0, currentPage - 1))}
+                    disabled={currentPage === 0}
                     className="rounded px-2 py-1 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     이전
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPage(safePage + 1)}
-                    disabled={safePage >= totalPages - 1}
+                    onClick={() => setPage(currentPage + 1)}
+                    disabled={currentPage >= totalPages - 1}
                     className="rounded px-2 py-1 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     다음

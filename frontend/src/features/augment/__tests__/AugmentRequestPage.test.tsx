@@ -56,6 +56,175 @@ describe('AugmentRequestPage', () => {
     expect(reso).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('AugmentRequestPage_영상_목록_size_20_페이지_로드', async () => {
+    let videosCall: { page?: number; size?: number; dataSttsCd?: string } | null =
+      null;
+    mock.onGet('/augments').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 6 },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply((config) => {
+      videosCall = config.params as typeof videosCall;
+      return [
+        200,
+        {
+          success: true,
+          data: {
+            content: [],
+            totalElements: 0,
+            totalPages: 0,
+            number: 0,
+            size: 20,
+          },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    renderWithProviders(<AugmentRequestPage />);
+
+    await waitFor(() => {
+      expect(videosCall).not.toBeNull();
+    });
+    // size 999 호출 금지 — Phase 4 옵션 3
+    const params = videosCall as unknown as {
+      size?: number;
+      page?: number;
+      dataSttsCd?: string;
+    };
+    expect(params.size).toBe(20);
+    expect(params.page).toBe(0);
+    // BE에서 검수 완료 영상만 페이지로 받기 위해 dataSttsCd 전달
+    expect(params.dataSttsCd).toBe('COMPLETED');
+  });
+
+  it('AugmentRequestPage_다음_페이지_클릭_시_BE_호출_page_1', async () => {
+    const calls: number[] = [];
+    mock.onGet('/augments').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 6 },
+      message: null,
+      errorCode: null,
+    });
+    // 25건(승인) — 2 페이지 발생
+    mock.onGet('/videos').reply((config) => {
+      const page = Number((config.params as { page?: number })?.page ?? 0);
+      calls.push(page);
+      const all = Array.from({ length: 25 }, (_, i) => ({
+        id: i + 1,
+        cctvName: `CCTV-${i + 1}`,
+        vmsClipId: `V${i + 1}`,
+        eventName: '쓰러짐',
+        eventTypeCd: 'FALL',
+        frameCount: 100,
+        status: 'COMPLETED',
+        capturedAt: '2026-05-01T12:00:00Z',
+      }));
+      const content = all.slice(page * 20, page * 20 + 20);
+      return [
+        200,
+        {
+          success: true,
+          data: {
+            content,
+            totalElements: 25,
+            totalPages: 2,
+            number: page,
+            size: 20,
+          },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<AugmentRequestPage />);
+
+    // 1페이지 로드 대기 (CCTV-1 ~ CCTV-20 중 첫 행)
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-1')).toBeInTheDocument();
+    });
+
+    const nextBtn = screen.getByRole('button', { name: /다음/ });
+    await user.click(nextBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-21')).toBeInTheDocument();
+    });
+    expect(calls).toContain(1);
+  });
+
+  it('AugmentRequestPage_페이지_이동_후_선택된_videoId_보존', async () => {
+    mock.onGet('/augments').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 6 },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply((config) => {
+      const page = Number((config.params as { page?: number })?.page ?? 0);
+      const all = Array.from({ length: 25 }, (_, i) => ({
+        id: i + 1,
+        cctvName: `CCTV-${i + 1}`,
+        vmsClipId: `V${i + 1}`,
+        eventName: '쓰러짐',
+        eventTypeCd: 'FALL',
+        frameCount: 100,
+        status: 'COMPLETED',
+        capturedAt: '2026-05-01T12:00:00Z',
+      }));
+      const content = all.slice(page * 20, page * 20 + 20);
+      return [
+        200,
+        {
+          success: true,
+          data: {
+            content,
+            totalElements: 25,
+            totalPages: 2,
+            number: page,
+            size: 20,
+          },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<AugmentRequestPage />);
+
+    // 1페이지에서 CCTV-1 선택
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-1')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('checkbox', { name: /CCTV-1 선택/ }));
+
+    // 선택 배지 노출 확인
+    await waitFor(() => {
+      expect(screen.getByText(/1개 영상 선택됨/)).toBeInTheDocument();
+    });
+
+    // 다음 페이지 이동
+    await user.click(screen.getByRole('button', { name: /다음/ }));
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-21')).toBeInTheDocument();
+    });
+
+    // 페이지가 바뀌어도 선택 상태(1개)가 유지되어야 한다
+    expect(screen.getByText(/1개 영상 선택됨/)).toBeInTheDocument();
+
+    // 2페이지에서 CCTV-21 추가 선택 — 누적 2개
+    await user.click(screen.getByRole('checkbox', { name: /CCTV-21 선택/ }));
+    await waitFor(() => {
+      expect(screen.getByText(/2개 영상 선택됨/)).toBeInTheDocument();
+    });
+  });
+
   it('잡_카드_5초_폴링_상태_변화_반영', async () => {
     let callCount = 0;
     mock.onGet('/augments').reply(() => {
