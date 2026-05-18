@@ -97,11 +97,28 @@ function normalizeLabel(raw: any): Label {
   const lblSrcCd: LabelSrcCd | null =
     rawSrcCd === 'INTERPOLATED' ? 'INTERPOLATED' : null;
 
+  // Phase 3 (속성 도메인 직후) — LS_LABEL.color enrichment 보존.
+  // BE LabelResponse.Item.color 는 '#RRGGBB' 또는 null (매칭 실패).
+  // FE 캔버스에서 BBox/Polygon 외곽선 색상으로 사용한다.
+  const rawColor = raw?.color;
+  const color: string | null =
+    typeof rawColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(rawColor) ? rawColor : null;
+
+  // BE LabelResponse.Item.labelId — LS_LABEL.LABEL_ID 와 1:1.
+  // FE 는 labelMasters lookup 의 키로 사용 (color 누락 시 fallback).
+  const rawLabelId = raw?.labelId;
+  const labelId: number | null =
+    rawLabelId === null || rawLabelId === undefined || rawLabelId === '' || Number.isNaN(Number(rawLabelId))
+      ? null
+      : Number(rawLabelId);
+
   return {
     id,
     serverId: typeof raw?.id === 'number' ? raw.id : undefined,
     frameNo: Number(raw?.frameNo ?? 0),
     classId: Number(raw?.classId ?? raw?.classCd ?? 0),
+    labelId,
+    color,
     className: String(raw?.label ?? raw?.className ?? ''),
     source,
     confidence: raw?.confScore !== undefined ? Number(raw.confScore) : raw?.confidence,

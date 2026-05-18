@@ -61,6 +61,19 @@ export interface Label {
   frameNo: number;
   classId: number;
   className: string;
+  /**
+   * 라벨 마스터 ID (BE LS_DATA_LBL.LABEL_ID, LS_LABEL.LABEL_ID 와 1:1).
+   * - Phase 2 (V32) 이후 BE LabelResponse.Item.labelId 로 함께 응답
+   * - null/undefined: V32 매칭 실패 또는 legacy row — fallback 색상 사용
+   * - 캔버스 색상 lookup 의 키로 사용 (LabelsLayer → useLabelMasters)
+   */
+  labelId?: number | null;
+  /**
+   * 라벨 마스터 색상 (BE LabelResponse.Item.color = LS_LABEL.color, #RRGGBB).
+   * - Phase 2 (V32) 이후 BE 가 enrichment 하여 응답에 포함
+   * - null/undefined: V32 매칭 실패 — labelId 로 LabelMaster lookup → 그 외 fallback
+   */
+  color?: string | null;
   source: LabelSource;
   confidence?: number; // 오토라벨 신뢰도 (0~1)
   shape: Shape;
