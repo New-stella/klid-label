@@ -5,6 +5,7 @@ import { TEST_USERS } from './test-data';
 export interface AuthFixtures {
   reviewerPage: Page;
   workerPage: Page;
+  labelerPage: Page;
   portalPage: Page;
 }
 
@@ -68,6 +69,14 @@ export const test = base.extend<AuthFixtures>({
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     const jwt = await issueDevToken(TEST_USERS.worker);
+    await loginViaIngress(page, jwt, /\/dashboard/);
+    await use(page);
+    await ctx.close();
+  },
+  labelerPage: async ({ browser }, use) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    const jwt = await issueDevToken(TEST_USERS.labeler);
     await loginViaIngress(page, jwt, /\/dashboard/);
     await use(page);
     await ctx.close();

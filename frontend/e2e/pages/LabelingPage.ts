@@ -11,7 +11,7 @@ export class LabelingPage {
     this.page = page;
     this.canvas = page.getByTestId('labeling-canvas');
     this.bboxToolBtn = page.getByRole('button', { name: /바운딩박스|BBox/i });
-    this.saveBtn = page.getByRole('button', { name: /저장/ });
+    this.saveBtn = page.getByTestId('label-header-save');
   }
 
   /**
