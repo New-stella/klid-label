@@ -19,7 +19,7 @@ import { DarkToolbar } from '@/features/label/components/DarkToolbar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
-import { ClassAttributePanel } from '@/features/label/components/ClassAttributePanel';
+import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
@@ -467,7 +467,7 @@ export function LabelingPage() {
             <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
               속성
             </div>
-            <ClassAttributePanel labels={labels} />
+            <ObjectAttributePanel labels={labels} />
           </div>
         </div>
 
