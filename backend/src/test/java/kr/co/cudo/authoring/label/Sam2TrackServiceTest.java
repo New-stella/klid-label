@@ -13,14 +13,23 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -28,6 +37,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import reactor.core.publisher.Mono;
+
+import java.util.Optional;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,8 +63,12 @@ class Sam2TrackServiceTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsPjtUserAuthrtRepository authrtRepository;
+    @Autowired private LsLabelRepository lsLabelRepository;
 
     @MockBean private AiServerClient aiServerClient;
+    @MockBean private LabelMasterService labelMasterService;
+
+    private ListAppender<ILoggingEvent> logAppender;
 
     private static Path tmpRawDir;
 
@@ -78,6 +93,7 @@ class Sam2TrackServiceTest {
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
+        lsLabelRepository.deleteAll();
         rawSn = 9001L;
         // ai-server 로 전송할 base64 인코딩을 위해 실제 파일 생성 (상대 경로).
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
@@ -94,6 +110,24 @@ class Sam2TrackServiceTest {
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, exp);
         workerAssigned = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, exp);
         workerNotAssigned = new TokenClaims("101", Role.WORKER, Channel.INTERNAL, exp);
+
+        // 기본 stub: 모든 라벨명 → 미매칭 (테스트별로 override)
+        when(labelMasterService.findLabelIdByName(any())).thenReturn(Optional.empty());
+
+        // ListAppender — Sam2TrackService 로그 캡처
+        Logger trackLogger = (Logger) LoggerFactory.getLogger(Sam2TrackService.class);
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        trackLogger.addAppender(logAppender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (logAppender != null) {
+            Logger trackLogger = (Logger) LoggerFactory.getLogger(Sam2TrackService.class);
+            trackLogger.detachAppender(logAppender);
+            logAppender.stop();
+        }
     }
 
     @Test
@@ -170,5 +204,77 @@ class Sam2TrackServiceTest {
 
         assertThat(res.tracked()).hasSize(1);
         assertThat(labelRepository.findBySrcSn(src1)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Sam2Track_매핑된_라벨_labelId_저장")
+    void mappedLabelStoresLabelId() {
+        // LS_LABEL row 가 실제로 존재해야 FK 가 통과 (H2 DDL 에 FK_LS_DATA_LBL_LABEL).
+        Long personLabelId = lsLabelRepository.save(
+                LsLabel.create("person", "#FF0000", "POLYGON", 1, "test")).getLabelId();
+        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(personLabelId));
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(
+                new Sam2TrackResponse("track-ZZ",
+                        List.of(List.of(11.0, 12.0), List.of(31.0, 32.0), List.of(11.0, 32.0)),
+                        0.91)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-ZZ",
+                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
+                "person",
+                List.of(src1));
+
+        sam2TrackService.track(req, reviewer);
+
+        List<LsDataLbl> saved = labelRepository.findBySrcSn(src1);
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getLabelId()).isEqualTo(personLabelId);
+        assertThat(saved.get(0).getLabel()).isEqualTo("person");
+    }
+
+    @Test
+    @DisplayName("Sam2Track_미매칭_라벨_labelId_null")
+    void unmappedLabelStoresNullLabelId() {
+        when(labelMasterService.findLabelIdByName("unknown-label")).thenReturn(Optional.empty());
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(
+                new Sam2TrackResponse("track-NM",
+                        List.of(List.of(11.0, 12.0), List.of(31.0, 32.0), List.of(11.0, 32.0)),
+                        0.77)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-NM",
+                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
+                "unknown-label",
+                List.of(src1));
+
+        sam2TrackService.track(req, reviewer);
+
+        List<LsDataLbl> saved = labelRepository.findBySrcSn(src1);
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getLabelId()).isNull();
+        assertThat(saved.get(0).getLabel()).isEqualTo("unknown-label");
+    }
+
+    @Test
+    @DisplayName("Sam2Track_매핑_로그_검증")
+    void mappingLogIsEmitted() {
+        Long carLabelId = lsLabelRepository.save(
+                LsLabel.create("car", "#00FF00", "POLYGON", 2, "test")).getLabelId();
+        when(labelMasterService.findLabelIdByName("car")).thenReturn(Optional.of(carLabelId));
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(
+                new Sam2TrackResponse("track-LOG",
+                        List.of(List.of(11.0, 12.0), List.of(31.0, 32.0), List.of(11.0, 32.0)),
+                        0.88)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-LOG",
+                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
+                "car",
+                List.of(src1));
+
+        sam2TrackService.track(req, reviewer);
+
+        assertThat(logAppender.list)
+                .anyMatch(e -> e.getLevel() == Level.INFO
+                        && e.getFormattedMessage().contains("[Batch][Sam2Track] mapped label")
+                        && e.getFormattedMessage().contains("name=car")
+                        && e.getFormattedMessage().contains("labelId=" + carLabelId));
     }
 }

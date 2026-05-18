@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
@@ -55,6 +56,7 @@ public class Sam2TrackService {
     private final LsDataLblRepository labelRepository;
     private final LsDataSrcRepository srcRepository;
     private final LabelAccessGuard accessGuard;
+    private final LabelMasterService labelMasterService;
     private final ObjectMapper objectMapper;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
@@ -114,7 +116,11 @@ public class Sam2TrackService {
             }
             String pointsJson = LabelPointSerializer.toJson(nextPoints, objectMapper);
             BigDecimal score = clampScore(aiRes.score());
-            labelRepository.save(LsDataLbl.createAutoPolygon(nextSrcSn, req.label(), pointsJson, score));
+            // Phase 6: 요청 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
+            Long labelId = labelMasterService.findLabelIdByName(req.label()).orElse(null);
+            log.info("[Batch][Sam2Track] mapped label name={} labelId={}",
+                    LogSanitizer.sanitize(req.label()), labelId);
+            labelRepository.save(LsDataLbl.createAutoPolygon(nextSrcSn, labelId, req.label(), pointsJson, score));
 
             tracked.add(new Sam2TrackResponseDto.TrackedItem(
                     nextSrcSn, aiRes.trackId(), req.label(), aiRes.polygon(), aiRes.score()));
