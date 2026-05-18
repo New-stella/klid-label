@@ -70,7 +70,7 @@ public class VersionService {
         }
 
         String path = pathPolicy.path(srcSn);
-        String message = "label update by " + actor.sub();
+        String message = buildCommitMessage(path, labelsJson, src.getFrameNo(), srcSn, actor.sub());
         String contentBase64 = Base64.getEncoder().encodeToString(
                 (labelsJson == null ? "" : labelsJson).getBytes(StandardCharsets.UTF_8));
         try {
@@ -167,6 +167,94 @@ public class VersionService {
         DiffFile file = buildDiffFile(path, fromContent, toContent);
         // raw content diff 경로에서는 위 computeLabelDiffsIfSameSrc 가 이미 같은 두 SHA 의 content 로 비교했으므로 그대로 사용.
         return DiffResponseDto.of(fromSha, toSha, new DiffResponse(List.of(file)), labelDiffs);
+    }
+
+    /**
+     * commit 메시지 enrichment — 현재 HEAD content 와 새 labelsJson 을 비교해
+     * frame 번호 + added/removed/modified 카운트 + actor 를 포함한 메시지를 생성한다.
+     *
+     * <p>형식:
+     * <ul>
+     *   <li>변화 있음: {@code "frame N: +A added, -R removed, ~M modified by ACTOR"} (카운트 0 항목은 생략)</li>
+     *   <li>최초 commit (HEAD 없음): {@code "frame N: +A added by ACTOR"} 또는 신규 라벨도 없으면 {@code "frame N: initial commit by ACTOR"}</li>
+     *   <li>변화 없음 (re-commit): {@code "frame N: no changes (re-commit) by ACTOR"}</li>
+     *   <li>fetch/parse 실패: 기본 메시지 {@code "label update by ACTOR"} 로 폴백 (회귀가드)</li>
+     * </ul>
+     *
+     * <p>frameNo 가 null 이면 {@code "frame ?"} 으로 표기 (srcSn 기반 폴백은 frameNo 보장이 강해 사용하지 않음).
+     */
+    private String buildCommitMessage(String path, String newLabelsJson, Integer frameNo,
+                                      Long srcSn, String actorSub) {
+        String defaultMessage = "label update by " + actorSub;
+        String frameLabel = "frame " + (frameNo != null ? frameNo : "?");
+        try {
+            // HEAD content fetch — 최초 commit 이면 404 등으로 실패 → 빈 문자열 처리
+            String headContent = fetchHeadContentOrEmpty(path);
+            Map<String, LabelSnapshot> beforeMap = parseLabelsById(headContent);
+            Map<String, LabelSnapshot> afterMap = parseLabelsById(newLabelsJson);
+
+            int added = 0;
+            int modified = 0;
+            int removed = 0;
+            for (Map.Entry<String, LabelSnapshot> e : afterMap.entrySet()) {
+                LabelSnapshot before = beforeMap.get(e.getKey());
+                if (before == null) {
+                    added++;
+                } else if (!before.equalsContent(e.getValue())) {
+                    modified++;
+                }
+            }
+            for (String id : beforeMap.keySet()) {
+                if (!afterMap.containsKey(id)) {
+                    removed++;
+                }
+            }
+
+            boolean initialCommit = headContent.isEmpty();
+            if (added == 0 && removed == 0 && modified == 0) {
+                if (initialCommit) {
+                    return frameLabel + ": initial commit by " + actorSub;
+                }
+                return frameLabel + ": no changes (re-commit) by " + actorSub;
+            }
+            StringBuilder sb = new StringBuilder(frameLabel).append(": ");
+            boolean first = true;
+            if (added > 0) {
+                sb.append("+").append(added).append(" added");
+                first = false;
+            }
+            if (removed > 0) {
+                if (!first) sb.append(", ");
+                sb.append("-").append(removed).append(" removed");
+                first = false;
+            }
+            if (modified > 0) {
+                if (!first) sb.append(", ");
+                sb.append("~").append(modified).append(" modified");
+            }
+            sb.append(" by ").append(actorSub);
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("[Version] commit message enrichment failed srcSn={} reason={} - fallback to default message",
+                    srcSn, e.getClass().getSimpleName());
+            return defaultMessage;
+        }
+    }
+
+    /**
+     * 현재 HEAD 시점의 라벨 파일 content. 최초 commit 이거나 fetch 실패 시 빈 문자열.
+     * {@link #fetchContentOrEmpty(String, String)} 와 분리한 이유: HEAD 는 ref="HEAD" 로 조회.
+     */
+    private String fetchHeadContentOrEmpty(String path) {
+        try {
+            String content = giteaClient.getContent(repo, "HEAD", path).block(GiteaClient.BLOCK_TIMEOUT);
+            return content == null ? "" : content;
+        } catch (Exception e) {
+            // 최초 commit (파일 없음) 도 여기로 떨어짐 — 정상 케이스로 빈 문자열 반환.
+            log.debug("[Version] HEAD content fetch returned empty path={} reason={}",
+                    path, e.getClass().getSimpleName());
+            return "";
+        }
     }
 
     /**

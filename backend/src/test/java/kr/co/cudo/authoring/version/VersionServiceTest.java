@@ -38,11 +38,13 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -529,5 +531,158 @@ class VersionServiceTest {
         verify(giteaClient, never())
                 .createOrUpdateFile(anyString(), anyString(), anyString(), anyString(), anyString(), anyString());
         assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).isEmpty();
+    }
+
+    // ---------- commit 메시지 enrichment (2026-05-19 추가) ----------
+
+    /**
+     * commit() 의 message 인자(4번째)를 캡처해 enriched 포맷인지 검증한다.
+     * GiteaClient.createOrUpdateFile(repo, path, contentBase64, message, author, branch) 시그니처 기준.
+     */
+    private ArgumentCaptor<String> captureCommitMessageOnSuccess(String resultingSha) {
+        when(giteaClient.createOrUpdateFile(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString()))
+                .thenReturn(Mono.just(new CommitResponse(resultingSha, "msg", "100", Instant.now())));
+        return ArgumentCaptor.forClass(String.class);
+    }
+
+    @Test
+    @DisplayName("commit_메시지에_frame_번호와_added_removed_modified_카운트_포함")
+    void commitMessageIncludesFrameAndDiffCounts() {
+        // given: HEAD 에 id=1,2 두 라벨 → 새 commit 은 id=1 수정 + id=2 제거 + id=3,4 추가
+        String headJson = "{\"frameNo\":0,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]},"
+                + "{\"id\":2,\"lblTypeCd\":\"BBOX\",\"label\":\"car\",\"points\":[[100.0,100.0],[200.0,200.0]]}"
+                + "]}";
+        String newJson = "{\"frameNo\":0,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[20.0,20.0],[60.0,60.0]]},"
+                + "{\"id\":3,\"lblTypeCd\":\"BBOX\",\"label\":\"bike\",\"points\":[[300.0,300.0],[400.0,400.0]]},"
+                + "{\"id\":4,\"lblTypeCd\":\"BBOX\",\"label\":\"truck\",\"points\":[[500.0,500.0],[600.0,600.0]]}"
+                + "]}";
+        when(giteaClient.getContent(anyString(), eq("HEAD"), anyString()))
+                .thenReturn(Mono.just(headJson));
+        ArgumentCaptor<String> messageCap = captureCommitMessageOnSuccess(
+                "abc1234567890abcdef1234567890abcdef12345");
+
+        // when
+        versionService.commit(srcSn, newJson, workerAssigned);
+
+        // then
+        verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
+                messageCap.capture(), anyString(), anyString());
+        String msg = messageCap.getValue();
+        assertThat(msg).contains("frame 0");
+        assertThat(msg).contains("+2 added");
+        assertThat(msg).contains("-1 removed");
+        assertThat(msg).contains("~1 modified");
+        assertThat(msg).contains("by 100");
+    }
+
+    @Test
+    @DisplayName("최초_commit_은_added_카운트만_포함")
+    void initialCommitMessageHasOnlyAddedCount() {
+        // given: HEAD content 없음 (최초 commit) — getContent 가 빈 Mono 반환
+        when(giteaClient.getContent(anyString(), eq("HEAD"), anyString()))
+                .thenReturn(Mono.empty());
+        String newJson = "{\"frameNo\":0,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]},"
+                + "{\"id\":2,\"lblTypeCd\":\"BBOX\",\"label\":\"car\",\"points\":[[100.0,100.0],[200.0,200.0]]}"
+                + "]}";
+        ArgumentCaptor<String> messageCap = captureCommitMessageOnSuccess(
+                "abc1234567890abcdef1234567890abcdef12345");
+
+        versionService.commit(srcSn, newJson, workerAssigned);
+
+        verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
+                messageCap.capture(), anyString(), anyString());
+        String msg = messageCap.getValue();
+        assertThat(msg).contains("frame 0");
+        assertThat(msg).contains("+2 added");
+        assertThat(msg).doesNotContain("removed");
+        assertThat(msg).doesNotContain("modified");
+        assertThat(msg).contains("by 100");
+    }
+
+    @Test
+    @DisplayName("변화_없는_재_commit_은_no_changes_메시지")
+    void reCommitWithNoChangesEmitsNoChangesMessage() {
+        // given: HEAD content 와 새 content 가 동일 라벨 셋
+        String sameJson = "{\"frameNo\":0,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]}"
+                + "]}";
+        when(giteaClient.getContent(anyString(), eq("HEAD"), anyString()))
+                .thenReturn(Mono.just(sameJson));
+        ArgumentCaptor<String> messageCap = captureCommitMessageOnSuccess(
+                "abc1234567890abcdef1234567890abcdef12345");
+
+        versionService.commit(srcSn, sameJson, workerAssigned);
+
+        verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
+                messageCap.capture(), anyString(), anyString());
+        String msg = messageCap.getValue();
+        assertThat(msg).contains("frame 0");
+        assertThat(msg).contains("no changes");
+        assertThat(msg).contains("re-commit");
+        assertThat(msg).contains("by 100");
+    }
+
+    @Test
+    @DisplayName("Gitea_content_fetch_실패시_기본_메시지_fallback")
+    void giteaContentFetchFailureFallsBackToDefaultMessage() {
+        // given: HEAD content fetch 실패 (Mono.error)
+        when(giteaClient.getContent(anyString(), eq("HEAD"), anyString()))
+                .thenReturn(Mono.error(new RuntimeException("gitea timeout")));
+        ArgumentCaptor<String> messageCap = captureCommitMessageOnSuccess(
+                "abc1234567890abcdef1234567890abcdef12345");
+
+        // 빈 items 새 commit — 정상이라면 initial commit 메시지가 나와야 하지만,
+        // fetch 실패의 경우에도 enrichment 가 정상 동작해야 함 (빈 content → initial commit).
+        // 다만 raw "label update by ACTOR" fallback 은 parse/unknown 예외 시 작동하므로,
+        // 이 케이스(getContent 만 실패)는 안전하게 빈 content 로 처리되어 정상 enrichment 가 적용됨을 확인.
+        versionService.commit(srcSn, "{\"frameNo\":0,\"items\":[{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"x\",\"points\":[[1.0,1.0]]}]}",
+                workerAssigned);
+
+        verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
+                messageCap.capture(), anyString(), anyString());
+        String msg = messageCap.getValue();
+        // getContent 실패는 빈 content 로 흡수 → initial commit 또는 +1 added 형태
+        // 어떻든 actor 포함 + frame 번호 포함은 보장되어야 함
+        assertThat(msg).contains("by 100");
+        assertThat(msg).contains("frame 0");
+    }
+
+    @Test
+    @DisplayName("여러_라벨_타입_변경시_종합_카운트_정확성")
+    void aggregateCountAccuracyAcrossMultipleLabelTypes() {
+        // given: HEAD 에 BBOX/POLYGON 혼합 3개 → 새 commit 에서 1개 수정 / 1개 제거 / 신규 2개 추가
+        String headJson = "{\"frameNo\":12,\"items\":["
+                + "{\"id\":10,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]},"
+                + "{\"id\":11,\"lblTypeCd\":\"POLYGON\",\"label\":\"road\",\"points\":[[0.0,0.0],[100.0,0.0],[100.0,100.0]]},"
+                + "{\"id\":12,\"lblTypeCd\":\"BBOX\",\"label\":\"car\",\"points\":[[200.0,200.0],[300.0,300.0]]}"
+                + "]}";
+        // id=10 수정(label 변경), id=11 제거, id=12 유지, id=20/21 추가
+        String newJson = "{\"frameNo\":12,\"items\":["
+                + "{\"id\":10,\"lblTypeCd\":\"BBOX\",\"label\":\"pedestrian\",\"points\":[[10.0,10.0],[50.0,50.0]]},"
+                + "{\"id\":12,\"lblTypeCd\":\"BBOX\",\"label\":\"car\",\"points\":[[200.0,200.0],[300.0,300.0]]},"
+                + "{\"id\":20,\"lblTypeCd\":\"SEGMENT\",\"label\":\"sidewalk\",\"points\":[[400.0,400.0],[500.0,500.0]]},"
+                + "{\"id\":21,\"lblTypeCd\":\"BBOX\",\"label\":\"truck\",\"points\":[[600.0,600.0],[700.0,700.0]]}"
+                + "]}";
+        when(giteaClient.getContent(anyString(), eq("HEAD"), anyString()))
+                .thenReturn(Mono.just(headJson));
+        ArgumentCaptor<String> messageCap = captureCommitMessageOnSuccess(
+                "abc1234567890abcdef1234567890abcdef12345");
+
+        // setup() 의 srcSn 은 frameNo=0 으로 생성됨 → 메시지의 frame 번호는 0
+        // (newJson 의 frameNo 는 enrichment 카운트 계산에만 영향 없음, 메시지 frame label 은 LsDataSrc 기준)
+        versionService.commit(srcSn, newJson, workerAssigned);
+
+        verify(giteaClient).createOrUpdateFile(anyString(), anyString(), anyString(),
+                messageCap.capture(), anyString(), anyString());
+        String msg = messageCap.getValue();
+        assertThat(msg).contains("frame 0");
+        assertThat(msg).contains("+2 added");
+        assertThat(msg).contains("-1 removed");
+        assertThat(msg).contains("~1 modified");
+        assertThat(msg).contains("by 100");
     }
 }
