@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,13 +67,25 @@ public class AugmentResultService {
                     "augType 불일치: row=" + aug.getAugTypeCd() + " request=" + req.augType());
         }
 
-        // 5) 상태 전이
-        if (LsDataAug.STTS_PENDING.equals(aug.getAugProcSttsCd())) {
-            // FAILED 결과는 그대로 REJECTED 로 마킹 (간단한 매핑 — Phase 4 dead-letter 표준 컬럼 추가 후 분리)
-            String newStatus = "SUCCESS".equals(req.status())
-                    ? LsDataAug.STTS_ACCEPTED
-                    : LsDataAug.STTS_REJECTED;
-            aug.applyReviewStatus(newStatus);
+        // 5) 상태 전이 + 비동기 표준 컬럼 적재 (Phase 4 — Deident/Vlm 와 동일 race 흡수 패턴).
+        //    UNIQUE(IDEMPOTENCY_KEY) 위반 시 재조회 후 멱등 흡수 (CWE-362 차단).
+        String newStatus = "SUCCESS".equals(req.status())
+                ? LsDataAug.STTS_ACCEPTED
+                : LsDataAug.STTS_REJECTED;
+        try {
+            // 멱등 키가 이미 적재된 경우 동일 row 갱신, 아니면 인계 대상 row 갱신.
+            LsDataAug target = augRepository.findByIdempotencyKey(req.idempotencyKey())
+                    .orElse(aug);
+            applyAugStateAndAsyncColumns(target, req, newStatus);
+            augRepository.save(target);
+        } catch (DataIntegrityViolationException e) {
+            // 동시 인계 race 흡수 — UNIQUE(IDEMPOTENCY_KEY) 위반 후 재조회 후 갱신.
+            LsDataAug existing = augRepository.findByIdempotencyKey(req.idempotencyKey())
+                    .orElseThrow(() -> new IllegalStateException("UNIQUE 위반 후 재조회 실패", e));
+            applyAugStateAndAsyncColumns(existing, req, newStatus);
+            augRepository.save(existing);
+            log.warn("[Webhook][Augment] race 감지 후 멱등 흡수 idempotencyKey={}",
+                    safe(req.idempotencyKey()));
         }
 
         // 6) 멱등 마킹
@@ -81,6 +94,21 @@ public class AugmentResultService {
         log.info("[Webhook][Augment] result applied augSn={} status={} externalJobId={}",
                 req.originAugSn(), safe(req.status()), safe(req.externalJobId()));
         return true;
+    }
+
+    /** PENDING 상태일 때만 상태 전이 + 비동기 표준 컬럼 적재. */
+    private static void applyAugStateAndAsyncColumns(LsDataAug target, AugmentResultRequest req,
+                                                     String newStatus) {
+        if (LsDataAug.STTS_PENDING.equals(target.getAugProcSttsCd())) {
+            target.applyReviewStatus(newStatus);
+        }
+        // Phase 4 비동기 표준 컬럼 적재 — 이미 채워져 있어도 동일 값 재할당으로 무영향.
+        if (target.getIdempotencyKey() == null) {
+            target.assignIdempotencyKey(req.idempotencyKey());
+        }
+        if (target.getExternalJobId() == null) {
+            target.assignExternalJobId(req.externalJobId());
+        }
     }
 
     private void validateFilePath(String filePath) {

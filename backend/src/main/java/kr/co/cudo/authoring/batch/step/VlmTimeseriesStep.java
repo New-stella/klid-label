@@ -39,7 +39,7 @@ import java.util.Map;
  *
  * <h3>이전 VlmMetaStep 와의 관계</h3>
  * <p>본 Step 신설로 기존 {@code VlmMetaStep}(ai-server 직접 호출) 는 호출 경로에서 제거되었다.
- * 다만 코드 자체는 Phase 2 webhook 적재 흐름이 완성된 후 폐기(Phase 5)되도록 보존한다.
+ * <b>Phase 4 (2026-05-19)</b> 에서 {@code VlmMetaStep} 클래스 자체가 완전 폐기되어 git 에서 삭제되었다.
  */
 @Slf4j
 @Component

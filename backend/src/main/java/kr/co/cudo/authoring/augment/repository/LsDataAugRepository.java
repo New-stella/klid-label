@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 @ControlRepo
 public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
@@ -22,4 +23,10 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
      * 최신순(REGISTERED_AT DESC)으로 정렬.
      */
     Page<LsDataAug> findAllByOrderByRegisteredAtDesc(Pageable pageable);
+
+    /**
+     * Phase 4 — webhook race 흡수용 멱등 키 조회.
+     * UNIQUE 제약 (uk_aug_idempotency_key) 위반 후 재조회 경로에서 사용.
+     */
+    Optional<LsDataAug> findByIdempotencyKey(String idempotencyKey);
 }

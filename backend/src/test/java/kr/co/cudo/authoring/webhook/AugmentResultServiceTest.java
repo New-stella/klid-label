@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -121,6 +123,67 @@ class AugmentResultServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("AugmentResultService_동시_webhook_인계_시_DataIntegrityViolation_멱등_흡수")
+    void concurrentWebhookRace_absorbsDataIntegrityViolation() throws Exception {
+        // Phase 4 — DeidentifyResultService / VlmResultService 와 동일한 race 흡수 패턴 적용.
+        // 동시 webhook 인계 시 findByIdempotencyKey 모두 empty → 두 트랜잭션이 신규 save
+        // 시도 → 한쪽이 DataIntegrityViolationException. 서비스는 catch 후 재조회하여 멱등 흡수해야 함.
+        ledger.recordIssued("K-A-RACE", "EXT-A-RACE");
+
+        LsDataAug raceWinner = newAug(50L, "WINTER", LsDataAug.STTS_PENDING);
+        when(augRepository.findById(50L)).thenReturn(Optional.of(raceWinner));
+
+        // 첫 호출: empty (둘 다 신규 갱신 시도)
+        // 두 번째 호출: 다른 트랜잭션이 이미 적용한 row 반환 (race 흡수 경로)
+        when(augRepository.findByIdempotencyKey("K-A-RACE"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(raceWinner));
+
+        // 첫 save 호출 시 UNIQUE 위반 시뮬레이션, 두 번째 save 는 정상 (race 흡수 후)
+        when(augRepository.save(any(LsDataAug.class)))
+                .thenThrow(new DataIntegrityViolationException("UNIQUE violation"))
+                .thenReturn(raceWinner);
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-A-RACE", "EXT-A-RACE", "SUCCESS", 50L, "WINTER",
+                "/storage/augment/50.mp4", List.of());
+
+        boolean applied = service.handle(req);
+
+        assertThat(applied).isTrue();
+        // race 흡수 후 ACCEPTED 로 갱신
+        assertThat(raceWinner.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        // save 두 번 호출 — 실패 + 재조회 후 갱신
+        verify(augRepository, times(2)).save(any(LsDataAug.class));
+        // 멱등 마킹 정상 수행
+        assertThat(ledger.isProcessed("K-A-RACE")).isTrue();
+    }
+
+    @Test
+    @DisplayName("AugmentResultService_동일_idempotencyKey_재인계_시_단일_LsDataAug_갱신")
+    void sameIdempotencyKey_singleRowUpdate() throws Exception {
+        // Phase 4 — findByIdempotencyKey 가 기존 row 를 반환하면 동일 row 갱신 (신규 save 없음).
+        ledger.recordIssued("K-A-SAME", "EXT-A-SAME");
+
+        LsDataAug existing = newAug(51L, "RAIN", LsDataAug.STTS_PENDING);
+        existing.assignIdempotencyKey("K-A-SAME");
+        when(augRepository.findById(51L)).thenReturn(Optional.of(existing));
+        when(augRepository.findByIdempotencyKey("K-A-SAME")).thenReturn(Optional.of(existing));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-A-SAME", "EXT-A-SAME", "SUCCESS", 51L, "RAIN",
+                "/storage/augment/51.mp4", List.of());
+
+        boolean applied = service.handle(req);
+
+        assertThat(applied).isTrue();
+        assertThat(existing.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        // 단일 save 호출 — UNIQUE 위반 없음
+        verify(augRepository, times(1)).save(any(LsDataAug.class));
     }
 
     private LsDataAug newAug(Long sn, String type, String status) throws Exception {

@@ -49,12 +49,35 @@ public class LsDataMeta {
     @Column(name = "UPD_DT")
     private LocalDateTime updDt;
 
+    /**
+     * Phase 4 비동기 표준 컬럼 — webhook 인계 원래 위탁 요청 식별자.
+     * UNIQUE 제약 (uk_meta_idempotency_key) — 동시 인계 race 차단.
+     */
+    @Column(name = "IDEMPOTENCY_KEY", length = 64)
+    private String idempotencyKey;
+
+    /**
+     * Phase 4 비동기 표준 컬럼 — 외부 시스템 작업 ID.
+     * UNIQUE 제약 (uk_meta_external_job_id).
+     */
+    @Column(name = "EXTERNAL_JOB_ID", length = 128)
+    private String externalJobId;
+
+    /** Phase 4 비동기 표준 컬럼 — 재시도 횟수. */
+    @Column(name = "RETRY_COUNT", nullable = false)
+    private int retryCount;
+
+    /** Phase 4 비동기 표준 컬럼 — 영구 실패(dead-letter) 마킹 시점. */
+    @Column(name = "DEAD_LETTER_AT")
+    private LocalDateTime deadLetterAt;
+
     @Builder
     private LsDataMeta(Long rawSn, String metaKey, String metaVal) {
         this.rawSn = rawSn;
         this.metaKey = metaKey;
         this.metaVal = metaVal;
         this.regDt = LocalDateTime.now();
+        this.retryCount = 0;
     }
 
     public static LsDataMeta create(Long rawSn, String metaKey, String metaVal) {
@@ -68,5 +91,29 @@ public class LsDataMeta {
     public void updateValue(String newVal) {
         this.metaVal = newVal;
         this.updDt = LocalDateTime.now();
+    }
+
+    // ============================================================
+    // Phase 4 — 비동기 표준 컬럼 비즈니스 메서드 (setter 금지 패턴)
+    // ============================================================
+
+    /** 멱등 키 할당. 신규 webhook 인계 시점에 1회 호출. */
+    public void assignIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    /** 외부 작업 ID 할당. */
+    public void assignExternalJobId(String externalJobId) {
+        this.externalJobId = externalJobId;
+    }
+
+    /** 재시도 횟수 1 증가. */
+    public void incrementRetryCount() {
+        this.retryCount++;
+    }
+
+    /** 영구 실패 마킹 — dead-letter 큐 진입. */
+    public void markDeadLetter() {
+        this.deadLetterAt = LocalDateTime.now();
     }
 }
