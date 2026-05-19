@@ -19,7 +19,6 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { KpiCard } from '@/components/common/KpiCard';
-import { ProgressBar } from '@/components/common/ProgressBar';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 import { AssignModal } from '@/features/task/components/AssignModal';
@@ -70,23 +69,6 @@ const STATUS_BADGE_MAP: Record<RowStatus, BadgeStatus> = {
   REJECTED: 'REJECTED',
 };
 
-function progressFor(status: RowStatus): number {
-  switch (status) {
-    case 'PENDING':
-      return 0;
-    case 'IN_PROGRESS':
-      return 50;
-    case 'REVIEW_PENDING':
-      return 80;
-    case 'COMPLETED':
-      return 100;
-    case 'REJECTED':
-      return 30;
-    default:
-      return 0;
-  }
-}
-
 interface TaskRow {
   id: string;
   video: Video;
@@ -123,7 +105,7 @@ function filtersToSearchParams(f: TaskFilterValues): Record<string, string> {
  *   - 검색폼 (영상명/작업자명 + 이벤트 + 상태 + (REVIEWER) 작업자)
  *   - KPI 4카드
  *   - 다중 선택 일괄 배정 액션바
- *   - 테이블: (REVIEWER) 체크박스 + 영상명 + 이벤트 + 상태 + 작업자 + 검수자 + 진행률 + 액션
+ *   - 테이블: (REVIEWER) 체크박스 + 영상명 + 이벤트 + 상태 + 작업자 + 검수자 + 액션
  *
  * V1.x 후속 반영:
  * - 처리 완료 영상이지만 task가 없는 경우도 노출 (left-join)
@@ -569,12 +551,6 @@ export function TaskListPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                   검수자
                 </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
-                  style={{ width: '120px' }}
-                >
-                  진행률
-                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                   액션
                 </th>
@@ -584,7 +560,7 @@ export function TaskListPage() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-100">
-                    {Array.from({ length: isReviewer ? 8 : 7 }).map((__, j) => (
+                    {Array.from({ length: isReviewer ? 7 : 6 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton height={16} />
                       </td>
@@ -594,7 +570,7 @@ export function TaskListPage() {
               ) : pagedRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isReviewer ? 8 : 7}
+                    colSpan={isReviewer ? 7 : 6}
                     className="px-3 py-12"
                   >
                     <EmptyState message="배정된 작업이 없습니다" />
@@ -668,18 +644,6 @@ export function TaskListPage() {
                             미등록
                           </span>
                         )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex min-w-[80px] items-center gap-2">
-                          <ProgressBar
-                            value={progressFor(r.rowStatus)}
-                            size="sm"
-                            className="flex-1"
-                          />
-                          <span className="w-8 text-right text-xs tabular-nums text-gray-500">
-                            {progressFor(r.rowStatus)}%
-                          </span>
-                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div
