@@ -650,8 +650,10 @@ export function TaskListPage() {
                           className="flex flex-nowrap gap-1"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {/* 배정 / 재배정 — REVIEWER (mock 정합: ghost 텍스트 버튼) */}
-                          {isReviewer && (
+                          {/* 배정 / 재배정 — REVIEWER (mock 정합: ghost 텍스트 버튼).
+                              COMPLETED(검수 승인 완료) 행은 재배정 불가 — 버튼 자체를 가린다.
+                              BE 가드(ASSIGNMENT_ALREADY_COMPLETED)와 짝을 이루는 UI 정합. */}
+                          {isReviewer && !(r.task?.workerId && r.rowStatus === 'COMPLETED') && (
                             <Button
                               variant="ghost"
                               size="sm"

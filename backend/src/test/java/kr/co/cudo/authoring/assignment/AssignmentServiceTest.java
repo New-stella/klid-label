@@ -323,6 +323,29 @@ class AssignmentServiceTest {
     }
 
     @Test
+    @DisplayName("reassign_완료된_배정은_거부_ASSIGNMENT_ALREADY_COMPLETED")
+    void reassignRejectsCompletedAssignment() {
+        // given — 배정 생성 후 LS_RAW_DATA_STATUS 를 APPROVED 로 강제 전이 (검수 승인 시뮬레이션).
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
+        var created = assignmentService.assign(req, reviewer());
+        Long authrtSeq = created.items().get(0).authrtSeq();
+        jdbcTemplate.update(
+                "UPDATE LS_RAW_DATA_STATUS SET DATA_STTS_CD = 'APPROVED', UPD_DT = CURRENT_TIMESTAMP " +
+                        "WHERE RAW_DATA_ID = ?", 1000L);
+
+        // when / then — 재배정 시도 시 CONFLICT 로 거부.
+        assertThatThrownBy(() ->
+                assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ASSIGNMENT_ALREADY_COMPLETED);
+
+        // 회귀 가드 — 배정의 USER_NO 가 변경되지 않아야 한다.
+        LsTaskAssignment after = authrtRepository.findById(authrtSeq).orElseThrow();
+        assertThat(after.getUserNo()).isEqualTo(100L);
+    }
+
+    @Test
     @DisplayName("reassign_시_REASSIGN_이벤트가_prev_subject_와_함께_누적")
     void reassignAccumulatesEventLog() {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));

@@ -136,6 +136,15 @@ public class AssignmentService {
         LsTaskAssignment prev = authrtRepository.findById(assignmentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "배정을 찾을 수 없습니다."));
 
+        // 비즈니스 로직 가드 (CWE-840): 검수 승인 완료된 배정은 재배정 불가.
+        // FE 버튼은 이미 가려지지만 API 직접 호출/동시성으로 우회 가능하므로 서버에서 최종 차단.
+        dataSttsRepository.findById(prev.getRawDataId()).ifPresent(stts -> {
+            if (LsRawDataStatus.STTS_APPROVED.equals(stts.getDataSttsCd())) {
+                throw new CustomException(ErrorCode.ASSIGNMENT_ALREADY_COMPLETED,
+                        "완료된 작업은 재배정할 수 없습니다.");
+            }
+        });
+
         if (userRepository.findByUserNo(req.workerId()).isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "존재하지 않는 작업자입니다.");
         }
