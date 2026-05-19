@@ -205,6 +205,30 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
                                              @Param("since") java.time.LocalDateTime since);
 
     /**
+     * SCR-STAT-001 — 최근 N 개월 작업자 라벨 timestamps raw row.
+     *
+     * <p>월별 라벨 수 컬럼용. {@link #countLabelsForWorker(Long)} 와 동일하게
+     * 작업자에게 LABELER 로 배정된 raw 의 모든 LsDataLbl (자동+수동) 을 대상으로
+     * regDt timestamp 만 반환한다. 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY.
+     *
+     * <p>dialect 호환성: JPQL FUNCTION(TO_CHAR,...) 가 MariaDB 미지원이라 raw 행 반환.
+     * 데이터량: 단일 사용자/12개월 윈도 → 라벨 timestamp 만 select 이므로 N+1 없음.
+     */
+    @Query("""
+            SELECT l.regDt AS regDt
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE l.regDt >= :since
+               AND s.rawSn IN (
+                   SELECT a.rawDataId FROM LsTaskAssignment a
+                    WHERE a.userNo = :userNo
+                      AND a.taskTypeCd = 'LABELER'
+             )
+            """)
+    List<LabelTimestampRow> findMonthlyLabelTimestampsForWorker(@Param("userNo") Long userNo,
+                                                                @Param("since") java.time.LocalDateTime since);
+
+    /**
      * 코드(=GROUP BY 대상) + 건수 를 담는 단일 인터페이스 projection.
      * 이벤트 코드 / 상태 코드 모두 동일 형태라 공용으로 사용한다.
      */
@@ -245,5 +269,13 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     interface MonthlyRawRow {
         java.time.LocalDateTime getUpdDt();
         String getDataSttsCd();
+    }
+
+    /**
+     * SCR-STAT-001 라벨 등록 시각 raw row projection.
+     * <p>서비스 레이어에서 'YYYY-MM' 키로 묶어 월별 라벨 수 카운트.
+     */
+    interface LabelTimestampRow {
+        java.time.LocalDateTime getRegDt();
     }
 }

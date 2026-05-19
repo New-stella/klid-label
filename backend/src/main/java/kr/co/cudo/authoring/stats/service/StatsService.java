@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.stats.dto.WorkerStatSummaryResponse;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.CountRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.DailyRawRow;
+import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.LabelTimestampRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.MonthlyRawRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.UserCountRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.WorkerStatRow;
@@ -245,8 +246,9 @@ public class StatsService {
             daily.add(new WorkerStatSummaryResponse.DailyCompletion(e.getKey(), e.getValue()));
         }
 
-        // 5) 월별 12개월 (라벨 수 컬럼은 라벨 집계가 월별로 비용이 커서 0 으로 채움 — 후속 개선 여지)
-        //    JPQL TO_CHAR 대신 raw 행 받아 Java 측 'YYYY-MM' 키 + dataSttsCd 분기로 합산.
+        // 5) 월별 12개월 — completed/rejected 는 LS_RAW_DATA_STATUS.UPD_DT 기준,
+        //    labelCount 는 LS_DATA_LBL.REG_DT 기준으로 별도 쿼리 후 동일 'YYYY-MM' 키로 매핑.
+        //    JPQL TO_CHAR 대신 raw 행 받아 Java 측 키 생성 → dialect 무관.
         LocalDateTime monthlySince = LocalDate.now()
                 .minusMonths(MONTHLY_WINDOW_MONTHS - 1L)
                 .withDayOfMonth(1)
@@ -264,13 +266,24 @@ public class StatsService {
                 acc[1]++;
             }
         }
+        // 월별 라벨 수 — countLabelsForWorker 와 동일 기준 (자동+수동, LABELER 배정 raw 의 모든 라벨).
+        List<LabelTimestampRow> labelRows =
+                statsQueryRepository.findMonthlyLabelTimestampsForWorker(targetUserNo, monthlySince);
+        Map<String, Long> labelMonthlyMap = new HashMap<>();
+        for (LabelTimestampRow r : labelRows) {
+            if (r.getRegDt() == null) continue;
+            String key = r.getRegDt().toLocalDate().format(MONTHLY_KEY_FMT);
+            labelMonthlyMap.merge(key, 1L, Long::sum);
+            // 라벨만 있고 completed/rejected 가 없는 월도 monthly 행에 노출되도록 키 보강.
+            monthlyMap.computeIfAbsent(key, k -> new long[2]);
+        }
         List<WorkerStatSummaryResponse.MonthlyRow> monthly = new ArrayList<>(monthlyMap.size());
         for (Map.Entry<String, long[]> e : monthlyMap.entrySet()) {
             monthly.add(new WorkerStatSummaryResponse.MonthlyRow(
                     e.getKey(),
                     e.getValue()[0],
                     e.getValue()[1],
-                    0L
+                    labelMonthlyMap.getOrDefault(e.getKey(), 0L)
             ));
         }
 

@@ -20,7 +20,9 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -116,6 +118,45 @@ class WorkerStatsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.labelCount").value(4))
                 .andExpect(jsonPath("$.data.autoLabelRate").value(0.75));
+    }
+
+    @Test
+    @DisplayName("WORKER_월별_라벨수_현재월에_실제_라벨_수와_일치")
+    void worker_monthly_labelCount_currentMonth() throws Exception {
+        // given: WORKER 100 의 영상(rawDataId=9001) 에 프레임 2개 + 라벨 3건 (자동 2 + 수동 1).
+        // 모두 LsDataLbl.createXxx() 가 regDt=LocalDateTime.now() 로 채우므로 현재 월 키로 묶임.
+        seedAssignment(WORKER_ID, 9001L, LsRawDataStatus.STTS_IN_REVIEW);
+        Long srcA = seedSrc(9001L, 1);
+        Long srcB = seedSrc(9001L, 2);
+        seedAutoLabel(srcA);
+        seedAutoLabel(srcB);
+        seedManualLabel(srcB, WORKER_ID);
+
+        String currentMonthKey = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        String token = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
+
+        mockMvc.perform(get("/v1/stats/worker")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                // 월별 표에 현재 월 행이 라벨수=3 으로 포함되어야 함 (직전 hotfix 의 0 하드코딩 회귀 방지).
+                .andExpect(jsonPath("$.data.monthly[?(@.month == '" + currentMonthKey + "')].labelCount")
+                        .value(org.hamcrest.Matchers.contains(3)));
+    }
+
+    @Test
+    @DisplayName("WORKER_월별_라벨_0건이면_labelCount_0_안전응답")
+    void worker_monthly_labelCount_zero_whenNoLabels() throws Exception {
+        // given: 배정만 있고 라벨이 없는 경우 → completed 행은 있어도 labelCount=0.
+        seedAssignment(WORKER_ID, 9001L, LsRawDataStatus.STTS_APPROVED);
+
+        String token = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
+
+        mockMvc.perform(get("/v1/stats/worker")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                // 라벨 없으므로 모든 monthly 행 labelCount == 0.
+                .andExpect(jsonPath("$.data.monthly[*].labelCount")
+                        .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is(0))));
     }
 
     @Test
