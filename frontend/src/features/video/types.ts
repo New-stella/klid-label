@@ -33,6 +33,10 @@ export interface Video {
   exportStatus?: 'EXPORTED' | 'FAILED' | null;
   exportedAt?: string | null;
   lastExportFailureReason?: string | null;
+  // 영상 마지막 수정 시각 (LS_DATA_RAW.UPD_DT)
+  updatedAt?: string | null;
+  // 검수 완료 시각 (LS_RAW_DATA_STATUS.UPD_DT) — 검수 상태가 APPROVED 일 때만, 그 외 null
+  reviewCompletedAt?: string | null;
 }
 
 export interface FramePreview {

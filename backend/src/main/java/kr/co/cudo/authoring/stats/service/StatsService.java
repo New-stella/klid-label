@@ -3,6 +3,8 @@ package kr.co.cudo.authoring.stats.service;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.common.eventtype.EvntType;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.stats.dto.DashboardSummaryResponse;
@@ -13,18 +15,28 @@ import kr.co.cudo.authoring.stats.dto.OverallStatSummaryResponse;
 import kr.co.cudo.authoring.stats.dto.WorkerStatSummaryResponse;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.CountRow;
+import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.DailyRawRow;
+import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.MonthlyRawRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.UserCountRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.WorkerStatRow;
+import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * SCR-DASH-001 메인 대시보드 통계 조회 서비스.
@@ -76,9 +88,21 @@ public class StatsService {
     private record EventLabel(String code, String label) {
     }
 
+    /** SCR-STAT-001 일별 차트 윈도우. */
+    private static final int DAILY_WINDOW_DAYS = 30;
+    /** SCR-STAT-001 월별 표 윈도우. */
+    private static final int MONTHLY_WINDOW_MONTHS = 12;
+    /**
+     * SCR-STAT-001 일별/월별 키 포맷. JPQL TO_CHAR 가 MariaDB 미지원이라
+     * 서비스 레이어에서 dialect 무관하게 문자열 키를 생성한다.
+     */
+    private static final DateTimeFormatter DAILY_KEY_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter MONTHLY_KEY_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
+
     private final StatsQueryRepository statsQueryRepository;
     private final VideoRepository videoRepository;
     private final LsTaskAssignmentRepository authrtRepository;
+    private final UserRepository userRepository;
 
     /**
      * 대시보드 요약을 조립한다. actor 가 null 이거나 인증 정보가 없는 경우(테스트 등)는
@@ -161,21 +185,106 @@ public class StatsService {
     }
 
     /**
-     * SCR-STAT-001 작업자 통계 placeholder.
+     * SCR-STAT-001 작업자 통계.
      *
-     * <p>현재는 6 종 이벤트 라벨만 보장된 빈 응답을 반환한다 (FE 그리드 안전 표시).
-     * 실제 집계 (라벨/검수 카운트, 일별/월별 표) 는 후속 Phase 에서 채운다.
+     * <p>권한 정책 (CWE-639 IDOR 차단):
+     * <ul>
+     *   <li>WORKER 는 본인 통계만 — workerId 가 자기 자신이 아니면 403.</li>
+     *   <li>REVIEWER 는 workerId 로 임의 작업자 통계 조회 가능. 미지정 시 본인.</li>
+     * </ul>
+     *
+     * @param actor    인증된 사용자 (필수)
+     * @param workerId 조회 대상 (REVIEWER 만 의미 있음). null → actor 본인.
+     * @return 통계 응답. 데이터 없는 사용자는 모든 카운트 0, 빈 배열로 안전 응답.
      */
-    public WorkerStatSummaryResponse getWorkerSummary(TokenClaims actor, String period) {
-        // period 는 FE 가 allowlist 검증 (WEEK/MONTH/QUARTER/YEAR) — BE 는 추가 분기 없이 동일 응답.
+    public WorkerStatSummaryResponse getWorkerSummary(TokenClaims actor, Long workerId) {
+        Long actorUserNo = parseUserNo(actor);
+        if (actorUserNo == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        Long targetUserNo = (workerId != null) ? workerId : actorUserNo;
+
+        // CWE-639 IDOR — WORKER 는 본인만 조회 가능.
+        if (actor.role() == Role.WORKER && !actorUserNo.equals(targetUserNo)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+
+        String workerName = userRepository.findByUserNo(targetUserNo)
+                .map(MngAcctUser::getUserNm)
+                .orElse(null);
+
+        // 1) 상태별 카운트 (completed/inProgress/rejected)
+        Map<String, Long> taskCounts = toMap(statsQueryRepository.countWorkerTaskByStatus(targetUserNo));
+        long completed = sumOf(taskCounts, LsRawDataStatus.STTS_APPROVED);
+        long inProgress = sumOf(taskCounts, LsRawDataStatus.STTS_ASSIGNED)
+                + sumOf(taskCounts, LsRawDataStatus.STTS_IN_REVIEW);
+        long rejected = sumOf(taskCounts, LsRawDataStatus.STTS_REJECTED);
+
+        // 2) 라벨 수 + 오토라벨 비율
+        long labelCount = statsQueryRepository.countLabelsForWorker(targetUserNo);
+        long autoLabelCount = statsQueryRepository.countAutoLabelsForWorker(targetUserNo);
+        double autoLabelRate = (labelCount == 0) ? 0.0 : (double) autoLabelCount / (double) labelCount;
+
+        // 3) 반려율
+        long rejectDenom = completed + rejected;
+        double rejectRate = (rejectDenom == 0) ? 0.0 : (double) rejected / (double) rejectDenom;
+
+        // 4) 일별 30일 — JPQL TO_CHAR 대신 raw 행 받아 Java 측 'YYYY-MM-DD' 키로 그룹.
+        //    데이터량: 단일 사용자/30일 윈도 → 최대 수십~수백 행. 메모리 부담 없음.
+        LocalDateTime dailySince = LocalDate.now().minusDays(DAILY_WINDOW_DAYS - 1L).atStartOfDay();
+        List<DailyRawRow> dailyRows = statsQueryRepository.findDailyCompletionForWorker(targetUserNo, dailySince);
+        // TreeMap 으로 키(YYYY-MM-DD 문자열) 자연 정렬 = 날짜 ASC.
+        Map<String, Long> dailyMap = new TreeMap<>();
+        for (DailyRawRow r : dailyRows) {
+            if (r.getUpdDt() == null) continue;
+            String key = r.getUpdDt().toLocalDate().format(DAILY_KEY_FMT);
+            dailyMap.merge(key, 1L, Long::sum);
+        }
+        List<WorkerStatSummaryResponse.DailyCompletion> daily = new ArrayList<>(dailyMap.size());
+        for (Map.Entry<String, Long> e : dailyMap.entrySet()) {
+            daily.add(new WorkerStatSummaryResponse.DailyCompletion(e.getKey(), e.getValue()));
+        }
+
+        // 5) 월별 12개월 (라벨 수 컬럼은 라벨 집계가 월별로 비용이 커서 0 으로 채움 — 후속 개선 여지)
+        //    JPQL TO_CHAR 대신 raw 행 받아 Java 측 'YYYY-MM' 키 + dataSttsCd 분기로 합산.
+        LocalDateTime monthlySince = LocalDate.now()
+                .minusMonths(MONTHLY_WINDOW_MONTHS - 1L)
+                .withDayOfMonth(1)
+                .atStartOfDay();
+        List<MonthlyRawRow> monthlyRows = statsQueryRepository.findMonthlyForWorker(targetUserNo, monthlySince);
+        // TreeMap → 월 키 자연 정렬 ASC. 값은 long[2] = {completed, rejected}.
+        Map<String, long[]> monthlyMap = new TreeMap<>();
+        for (MonthlyRawRow r : monthlyRows) {
+            if (r.getUpdDt() == null || r.getDataSttsCd() == null) continue;
+            String key = r.getUpdDt().toLocalDate().format(MONTHLY_KEY_FMT);
+            long[] acc = monthlyMap.computeIfAbsent(key, k -> new long[2]);
+            if (LsRawDataStatus.STTS_APPROVED.equals(r.getDataSttsCd())) {
+                acc[0]++;
+            } else if (LsRawDataStatus.STTS_REJECTED.equals(r.getDataSttsCd())) {
+                acc[1]++;
+            }
+        }
+        List<WorkerStatSummaryResponse.MonthlyRow> monthly = new ArrayList<>(monthlyMap.size());
+        for (Map.Entry<String, long[]> e : monthlyMap.entrySet()) {
+            monthly.add(new WorkerStatSummaryResponse.MonthlyRow(
+                    e.getKey(),
+                    e.getValue()[0],
+                    e.getValue()[1],
+                    0L
+            ));
+        }
+
         return new WorkerStatSummaryResponse(
-                0L,
-                0L,
-                0.0,
-                0L,
-                List.of(),
-                buildDistribution(Map.of()),
-                List.of()
+                String.valueOf(targetUserNo),
+                workerName,
+                completed,
+                inProgress,
+                rejected,
+                labelCount,
+                autoLabelRate,
+                rejectRate,
+                daily,
+                monthly
         );
     }
 

@@ -118,6 +118,93 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     List<UserCountRow> countReviewerByUser();
 
     /**
+     * SCR-STAT-001 — 특정 작업자(LABELER) 의 검수 상태별 카운트.
+     * <p>{@link #countMyTaskByStatus(Long)} 와 동일 쿼리지만 의도 분리를 위해 별도 메서드로 둔다.
+     */
+    @Query("""
+            SELECT s.dataSttsCd AS code, COUNT(s) AS cnt
+              FROM LsTaskAssignment a, LsRawDataStatus s
+             WHERE a.userNo = :userNo
+               AND a.taskTypeCd = 'LABELER'
+               AND a.rawDataId = s.rawDataId
+             GROUP BY s.dataSttsCd
+            """)
+    List<CountRow> countWorkerTaskByStatus(@Param("userNo") Long userNo);
+
+    /**
+     * SCR-STAT-001 — 작업자에게 LABELER 로 배정된 raw 의 LsDataSrc 에 달린 모든 LsDataLbl 총 수.
+     * 분모로 사용 (autoLabelRate, labelCount).
+     */
+    @Query("""
+            SELECT COUNT(l)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn IN (
+                   SELECT a.rawDataId FROM LsTaskAssignment a
+                    WHERE a.userNo = :userNo
+                      AND a.taskTypeCd = 'LABELER'
+             )
+            """)
+    long countLabelsForWorker(@Param("userNo") Long userNo);
+
+    /**
+     * SCR-STAT-001 — 작업자 배정 raw 의 라벨 중 자동 라벨(regUserNo IS NULL) 수.
+     * <p>createManual() 는 regUserNo 를 설정하고 createAutoBbox()/createAutoPolygon() 은 설정하지 않으므로
+     * regUserNo IS NULL 을 "자동 라벨" 프록시로 사용한다 (LsDataLblAiInfo 조인 비용 회피).
+     */
+    @Query("""
+            SELECT COUNT(l)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE l.regUserNo IS NULL
+               AND s.rawSn IN (
+                   SELECT a.rawDataId FROM LsTaskAssignment a
+                    WHERE a.userNo = :userNo
+                      AND a.taskTypeCd = 'LABELER'
+             )
+            """)
+    long countAutoLabelsForWorker(@Param("userNo") Long userNo);
+
+    /**
+     * SCR-STAT-001 — 최근 N 일간 작업자 일별 완료 row (APPROVED 상태 영상 기준).
+     * UPD_DT 가 APPROVED 로 전이된 시점이라고 가정 (review.transitionTo() 가 updDt 갱신).
+     *
+     * <p><b>dialect 호환성:</b> 일별 그룹화는 JPQL FUNCTION(TO_CHAR,...) 가 MariaDB 에 없어
+     * 실행 실패하므로, raw 행을 그대로 반환하고 서비스 레이어 Java 측에서 DateTimeFormatter +
+     * groupingBy 로 'YYYY-MM-DD' 키를 만든다. 데이터량은 단일 사용자/30일 윈도 → 수십 ~ 수백 행이라
+     * 메모리 부담 없음.
+     */
+    @Query("""
+            SELECT s.updDt AS updDt
+              FROM LsTaskAssignment a, LsRawDataStatus s
+             WHERE a.userNo = :userNo
+               AND a.taskTypeCd = 'LABELER'
+               AND a.rawDataId = s.rawDataId
+               AND s.dataSttsCd = 'APPROVED'
+               AND s.updDt >= :since
+            """)
+    List<DailyRawRow> findDailyCompletionForWorker(@Param("userNo") Long userNo,
+                                                   @Param("since") java.time.LocalDateTime since);
+
+    /**
+     * SCR-STAT-001 — 최근 N 개월 작업자 월별 완료/반려 raw row.
+     *
+     * <p>dialect 호환성: TO_CHAR 제거. 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY 하면서
+     * dataSttsCd 에 따라 completed/rejected 분기.
+     */
+    @Query("""
+            SELECT s.updDt AS updDt, s.dataSttsCd AS dataSttsCd
+              FROM LsTaskAssignment a, LsRawDataStatus s
+             WHERE a.userNo = :userNo
+               AND a.taskTypeCd = 'LABELER'
+               AND a.rawDataId = s.rawDataId
+               AND s.dataSttsCd IN ('APPROVED','REJECTED')
+               AND s.updDt >= :since
+            """)
+    List<MonthlyRawRow> findMonthlyForWorker(@Param("userNo") Long userNo,
+                                             @Param("since") java.time.LocalDateTime since);
+
+    /**
      * 코드(=GROUP BY 대상) + 건수 를 담는 단일 인터페이스 projection.
      * 이벤트 코드 / 상태 코드 모두 동일 형태라 공용으로 사용한다.
      */
@@ -140,5 +227,23 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
         long getReviewed();
         long getApprovedCount();
         long getRejectedCount();
+    }
+
+    /**
+     * SCR-STAT-001 일별 완료 raw row projection.
+     * <p>서비스 레이어에서 Java DateTimeFormatter 로 'YYYY-MM-DD' 키로 묶어 카운트한다.
+     * (TO_CHAR JPQL FUNCTION 이 MariaDB 미지원이라 dialect 호환을 위해 raw 행을 반환.)
+     */
+    interface DailyRawRow {
+        java.time.LocalDateTime getUpdDt();
+    }
+
+    /**
+     * SCR-STAT-001 월별 완료/반려 raw row projection.
+     * <p>서비스 레이어에서 'YYYY-MM' 키로 묶고 dataSttsCd 에 따라 completed/rejected 분기.
+     */
+    interface MonthlyRawRow {
+        java.time.LocalDateTime getUpdDt();
+        String getDataSttsCd();
     }
 }

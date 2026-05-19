@@ -205,4 +205,35 @@ class VideoListReviewStatusFilterTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(0));
     }
+
+    @Test
+    @DisplayName("reviewCompletedAt_APPROVED_영상은_LsRawDataStatus_updDt가_응답에_포함")
+    void reviewCompletedAtIncludedForApproved() throws Exception {
+        // given: APPROVED 영상 1건 (LsRawDataStatus.UPD_DT 가 검수 완료 시각으로 표시되어야 함)
+        LsDataRaw v1 = seedCompletedVideo("CLIP-RCA-1", "CCTV-001", "EVT-FIRE");
+        seedStatus(v1.getRawSn(), LsRawDataStatus.STTS_APPROVED);
+
+        // when / then: reviewCompletedAt 필드가 응답에 존재하고 null 이 아님
+        mockMvc.perform(get("/v1/videos?reviewStatusCd=APPROVED&page=0&size=20")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(v1.getRawSn()))
+                .andExpect(jsonPath("$.data.content[0].reviewCompletedAt").exists())
+                .andExpect(jsonPath("$.data.content[0].reviewCompletedAt").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("reviewCompletedAt_검수_상태가_APPROVED가_아니면_null")
+    void reviewCompletedAtNullWhenNotApproved() throws Exception {
+        // given: IN_REVIEW 영상 1건
+        LsDataRaw v1 = seedCompletedVideo("CLIP-RCA-IR", "CCTV-001", "EVT-FIRE");
+        seedStatus(v1.getRawSn(), LsRawDataStatus.STTS_IN_REVIEW);
+
+        // when / then: reviewCompletedAt 은 null (APPROVED 아닌 경우 노출 금지)
+        mockMvc.perform(get("/v1/videos?reviewStatusCd=IN_REVIEW&page=0&size=20")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(v1.getRawSn()))
+                .andExpect(jsonPath("$.data.content[0].reviewCompletedAt").value(org.hamcrest.Matchers.nullValue()));
+    }
 }

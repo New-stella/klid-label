@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.video.service;
 
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +39,7 @@ public class VideoQueryService {
     private final MngResourceCctvRepository cctvRepository;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
+    private final LsRawDataStatusRepository rawDataStatusRepository;
 
     /**
      * 검수 상태 필터 입력 길이 상한 — 정상 enum 값(PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED)은
@@ -59,14 +63,38 @@ public class VideoQueryService {
         }
         Map<String, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
+        Map<Long, LocalDateTime> reviewCompletedAtMap = lookupReviewCompletedAt(page.getContent());
         // 각 영상별 frameCount 조회 (페이지당 최대 size 건수만큼). 향후 성능 이슈 시 단일 group-by 쿼리로 최적화.
         return page.map(e -> VideoSummaryResponse.from(
                 e,
                 cctvNameMap.get(e.getVmsCctvId()),
                 null,
                 srcRepository.countByRawSn(e.getRawSn()),
-                exportInfoMap.get(e.getRawSn())
+                exportInfoMap.get(e.getRawSn()),
+                reviewCompletedAtMap.get(e.getRawSn())
         ));
+    }
+
+    /**
+     * 페이지 단위로 rawSn 들의 검수 완료 시각을 한 번에 조회 (N+1 회피).
+     *
+     * <p>LS_RAW_DATA_STATUS row 가 있고 dataSttsCd='APPROVED' 인 영상만 매핑한다.
+     * 그 외 상태(PENDING/ASSIGNED/IN_REVIEW/REJECTED)나 row 부재 시 Map 에서 누락 →
+     * DTO 의 reviewCompletedAt 은 null (정확성 — "검수 완료 일시"의 의미 보존).
+     */
+    private Map<Long, LocalDateTime> lookupReviewCompletedAt(List<LsDataRaw> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawSns = rows.stream().map(LsDataRaw::getRawSn).toList();
+        List<LsRawDataStatus> statuses = rawDataStatusRepository.findByRawDataIdIn(rawSns);
+        Map<Long, LocalDateTime> map = new HashMap<>();
+        for (LsRawDataStatus s : statuses) {
+            if (LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd())) {
+                map.put(s.getRawDataId(), s.getUpdDt());
+            }
+        }
+        return map;
     }
 
     /**

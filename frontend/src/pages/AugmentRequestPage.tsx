@@ -429,18 +429,18 @@ export function AugmentRequestPage() {
                         {new Date(v.capturedAt).toLocaleDateString('ko-KR')}
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-500">
-                        {(() => {
-                          const ts = (v as { updatedAt?: string }).updatedAt;
-                          return ts
-                            ? new Date(ts).toLocaleString('ko-KR', {
+                        {v.reviewCompletedAt
+                          ? new Date(v.reviewCompletedAt).toLocaleString(
+                              'ko-KR',
+                              {
                                 year: 'numeric',
                                 month: '2-digit',
                                 day: '2-digit',
                                 hour: '2-digit',
                                 minute: '2-digit',
-                              })
-                            : '-';
-                        })()}
+                              },
+                            )
+                          : '-'}
                       </td>
                     </tr>
                   );

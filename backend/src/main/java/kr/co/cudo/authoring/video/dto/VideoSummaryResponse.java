@@ -23,6 +23,7 @@ import java.util.Map;
  *   <li>{@code exportedAt} = 최신 export 완료 시각 (없으면 null)</li>
  *   <li>{@code lastExportFailureReason} = FAILED 일 때 사유 (그 외 null)</li>
  *   <li>{@code updatedAt} = {@code updDt} (마지막 수정 시각; 미수정이면 null)</li>
+ *   <li>{@code reviewCompletedAt} = {@code LsRawDataStatus.UPD_DT} (검수 상태가 APPROVED 일 때만; 그 외 null)</li>
  * </ul>
  * 기존 필드는 backward-compat 유지.
  */
@@ -51,7 +52,9 @@ public record VideoSummaryResponse(
         LocalDateTime exportedAt,
         String lastExportFailureReason,
         // 마지막 수정 시각 (LS_DATA_RAW.UPD_DT)
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        // 검수 완료 시각 (LS_RAW_DATA_STATUS.UPD_DT) — dataSttsCd='APPROVED' 일 때만 노출, 그 외 null
+        LocalDateTime reviewCompletedAt
 ) {
 
     /**
@@ -76,12 +79,12 @@ public record VideoSummaryResponse(
 
     /** 단순 매핑 — frameCount/cctvName 등은 0/fallback 으로 채움. */
     public static VideoSummaryResponse from(LsDataRaw e) {
-        return from(e, null, null, 0L, null);
+        return from(e, null, null, 0L, null, null);
     }
 
     /** 보강 매핑 — 서비스 레이어에서 CCTV 명/지자체명/프레임수를 함께 주입. */
     public static VideoSummaryResponse from(LsDataRaw e, String cctvName, String localGov, Long frameCount) {
-        return from(e, cctvName, localGov, frameCount, null);
+        return from(e, cctvName, localGov, frameCount, null, null);
     }
 
     /**
@@ -94,6 +97,21 @@ public record VideoSummaryResponse(
             String localGov,
             Long frameCount,
             ExportInfo exportInfo
+    ) {
+        return from(e, cctvName, localGov, frameCount, exportInfo, null);
+    }
+
+    /**
+     * 보강 매핑 (export + 검수완료시각 포함). reviewCompletedAt 은 호출 측에서
+     * LS_RAW_DATA_STATUS 의 dataSttsCd='APPROVED' 인 경우의 UPD_DT 만 전달해야 한다 (그 외 null).
+     */
+    public static VideoSummaryResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            ExportInfo exportInfo,
+            LocalDateTime reviewCompletedAt
     ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
         String resolvedGov = (localGov != null && !localGov.isBlank())
@@ -142,7 +160,8 @@ public record VideoSummaryResponse(
                 exportStatus,
                 exportedAt,
                 failureReason,
-                e.getUpdDt()
+                e.getUpdDt(),
+                reviewCompletedAt
         );
     }
 }

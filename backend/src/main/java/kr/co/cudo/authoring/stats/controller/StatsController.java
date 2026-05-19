@@ -59,22 +59,26 @@ public class StatsController {
     }
 
     @Operation(
-            summary = "작업자 본인 통계 (REVIEWER/WORKER) — placeholder",
-            description = "기간별 라벨/검수 누적·승인률·이벤트 분포·월별 표. period: WEEK|MONTH|QUARTER|YEAR. 현재는 0/빈 배열 placeholder."
+            summary = "작업자 통계 (REVIEWER/WORKER)",
+            description = "FE WorkerStatPage 응답 — KPI 4 + 비율 2 + 일별 30일 + 월별 12개월. " +
+                    "WORKER 는 본인 통계만 조회 가능 (CWE-639 IDOR 차단). " +
+                    "REVIEWER 는 workerId 로 임의 작업자 통계 조회 가능."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "period 형식 오류")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "workerId 형식 오류 (숫자 아님)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "WORKER 가 타인 통계 조회 시도")
     })
     @GetMapping("/worker")
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<WorkerStatSummaryResponse> worker(
             @AuthenticationPrincipal TokenClaims actor,
-            @Parameter(description = "기간 (WEEK|MONTH|QUARTER|YEAR)", example = "WEEK")
-            @RequestParam(name = "period", defaultValue = "WEEK")
-            @Pattern(regexp = PERIOD_REGEX, message = "period 는 WEEK|MONTH|QUARTER|YEAR 만 허용") String period
+            @Parameter(description = "조회 대상 작업자 USER_NO (선택). REVIEWER 만 의미 있음.")
+            @RequestParam(name = "workerId", required = false)
+            @Pattern(regexp = "^[0-9]+$", message = "workerId 는 숫자만 허용") String workerId
     ) {
-        return ApiResponse.ok(statsService.getWorkerSummary(actor, period));
+        Long parsed = (workerId == null) ? null : Long.parseLong(workerId);
+        return ApiResponse.ok(statsService.getWorkerSummary(actor, parsed));
     }
 
     @Operation(
