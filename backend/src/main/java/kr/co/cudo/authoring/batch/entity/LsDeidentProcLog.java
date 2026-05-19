@@ -27,6 +27,13 @@ public class LsDeidentProcLog {
     @Column(name = "REQ_ID", length = 64)
     private String reqId;
 
+    /**
+     * 외부 시스템(Deidentify SW)의 작업 ID — Phase 2 보강 (DEV_FIX H-3).
+     * UNIQUE 제약으로 동일 externalJobId 재인계 시 upsert 단일 row 갱신을 보장한다.
+     */
+    @Column(name = "EXTERNAL_JOB_ID", length = 128)
+    private String externalJobId;
+
     @Column(name = "ORGN_FILE_PATH", length = 1000, nullable = false)
     private String orgnFilePath;
 
@@ -61,11 +68,19 @@ public class LsDeidentProcLog {
     private LocalDateTime mdfcnDt;
 
     public static LsDeidentProcLog request(Long rawSn, String reqId, String orgnFilePath, String regId) {
+        return request(rawSn, reqId, orgnFilePath, regId, null);
+    }
+
+    /**
+     * externalJobId 포함 생성 — Phase 2 webhook 인계 시 사용.
+     */
+    public static LsDeidentProcLog request(Long rawSn, String reqId, String orgnFilePath, String regId, String externalJobId) {
         if (rawSn == null) throw new IllegalArgumentException("rawSn 은 필수입니다.");
         if (orgnFilePath == null || orgnFilePath.isBlank()) throw new IllegalArgumentException("orgnFilePath 는 필수입니다.");
         LsDeidentProcLog log = new LsDeidentProcLog();
         log.dataRawSn = rawSn;
         log.reqId = reqId;
+        log.externalJobId = externalJobId;
         log.orgnFilePath = orgnFilePath;
         log.procSttsCd = REQUESTED;
         log.reqDt = LocalDateTime.now();

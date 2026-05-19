@@ -27,6 +27,16 @@ authoring:
     retry:
       enabled: ${GITEA_RETRY_ENABLED:true}
 
+# Phase 2 보강 (DEV_FIX M-4): 운영(prd) 환경에서는 webhook HMAC 시크릿 환경변수 미설정 시 부팅 차단.
+# Spring 의 `${VAR:?msg}` 구문은 placeholder 미설정 시 BeanCreationException 으로 부팅 실패.
+# 빈 문자열 fallback(application.yml) 을 덮어쓰기 위해 prd 프로파일에서 별도 명시.
+webhook:
+  hmac:
+    secret:
+      deidentify: ${WEBHOOK_HMAC_SECRET_DEIDENTIFY:?WEBHOOK_HMAC_SECRET_DEIDENTIFY 환경변수가 필수입니다 (prd)}
+      vlm: ${WEBHOOK_HMAC_SECRET_VLM:?WEBHOOK_HMAC_SECRET_VLM 환경변수가 필수입니다 (prd)}
+      augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:?WEBHOOK_HMAC_SECRET_AUGMENT 환경변수가 필수입니다 (prd)}
+
 # Phase 12 — 운영 환경 actuator 최소 노출 (보안: env/beans/heapdump 차단)
 management:
   endpoints:

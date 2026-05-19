@@ -1,0 +1,5 @@
+-- Phase 2 보강 (DEV_FIX 1차) — H-3: LS_DEIDENT_PROC_LOG.EXTERNAL_JOB_ID 추가 + UNIQUE.
+-- 기존 REQ_ID 컬럼은 내부 요청 ID 용도로 유지하고, 외부 시스템의 작업 ID 는 별도 컬럼으로 분리.
+-- 동일 externalJobId 재인계 시 upsert 단일 row 갱신 보장 (CWE-362 race condition 차단).
+ALTER TABLE LS_DEIDENT_PROC_LOG ADD COLUMN EXTERNAL_JOB_ID VARCHAR(128) NULL;
+CREATE UNIQUE INDEX UK_LS_DEIDENT_PROC_LOG_EXT_JOB ON LS_DEIDENT_PROC_LOG (EXTERNAL_JOB_ID);

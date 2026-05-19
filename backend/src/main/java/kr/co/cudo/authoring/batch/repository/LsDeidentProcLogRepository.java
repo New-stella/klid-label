@@ -15,6 +15,11 @@ public interface LsDeidentProcLogRepository extends JpaRepository<LsDeidentProcL
 
     List<LsDeidentProcLog> findAllByDataRawSnOrderByReqDtDesc(Long rawSn);
 
+    /**
+     * Phase 2 보강 (DEV_FIX H-3) — 동일 externalJobId 재인계 시 upsert 대상 행 조회.
+     */
+    Optional<LsDeidentProcLog> findByExternalJobId(String externalJobId);
+
     @Query("SELECT p FROM LsDeidentProcLog p WHERE p.dataRawSn = :rawSn AND p.procSttsCd = '" + LsDeidentProcLog.SUCCEEDED + "' ORDER BY p.reqDt DESC")
     List<LsDeidentProcLog> findSuccessHistory(@Param("rawSn") Long rawSn, PageRequest pageable);
 

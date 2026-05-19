@@ -199,6 +199,19 @@ vlm:
     token: ${VLM_SERVICE_TOKEN:}
     timeout-seconds: 10
 
+# Phase 2 — 외부 시스템 결과 수신 webhook HMAC 시크릿.
+#  - 경로별 시크릿 분리 (/v1/deidentify/result, /v1/vlm/result, /v1/augments/result).
+#  - 시크릿 미설정 시 fail-closed (HmacWebhookFilter 가 401 반환) — 빈 키 회피 차단.
+#  - timestamp-window-seconds: replay 방지용 ±윈도우 (기본 300s).
+#  - 평문 커밋 금지: ${WEBHOOK_HMAC_SECRET_*} 환경변수만 허용.
+webhook:
+  hmac:
+    secret:
+      deidentify: ${WEBHOOK_HMAC_SECRET_DEIDENTIFY:}
+      vlm: ${WEBHOOK_HMAC_SECRET_VLM:}
+      augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:}
+    timestamp-window-seconds: ${WEBHOOK_HMAC_TIMESTAMP_WINDOW:300}
+
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-}] %logger{36} - %msg%n"

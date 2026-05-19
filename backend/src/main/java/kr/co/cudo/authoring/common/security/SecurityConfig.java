@@ -34,6 +34,7 @@ public class SecurityConfig {
     private final JwtIssuerValidator issuerValidator;
     private final ObjectMapper objectMapper;
     private final Environment environment;
+    private final HmacWebhookFilter hmacWebhookFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -64,6 +65,13 @@ public class SecurityConfig {
                                     "/actuator/info",
                                     "/swagger-ui/**", "/v3/api-docs/**",
                                     "/v1/auth/**", "/v1/portal/auth/**").permitAll();
+                    // Phase 2 — 외부 시스템 결과 수신 webhook 3종.
+                    // JWT 인증을 우회하고 HmacWebhookFilter 가 시그니처 검증을 단독 수행한다.
+                    // 시크릿 미설정 시 fail-closed 로 401 (HmacWebhookFilter 내부).
+                    auth.requestMatchers(
+                            "/v1/deidentify/result",
+                            "/v1/vlm/result",
+                            "/v1/augments/result").permitAll();
                     if (devTokenEndpointEnabled) {
                         // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음.
                         // - /v1/dev/tokens: 부트스트랩 토큰 발급 → permitAll (로컬 인증 불가 방지).
@@ -98,6 +106,9 @@ public class SecurityConfig {
                         .authenticationEntryPoint((req, res, ex) -> writeError(res, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED))
                         .accessDeniedHandler((req, res, ex) -> writeError(res, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN))
                 )
+                // Phase 2 — HmacWebhookFilter 를 JWT 필터보다 먼저 등록.
+                // /v1/*/result 경로는 HmacWebhookFilter 가 단독 인증, 그 외 경로는 shouldNotFilter() 로 우회.
+                .addFilterBefore(hmacWebhookFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
