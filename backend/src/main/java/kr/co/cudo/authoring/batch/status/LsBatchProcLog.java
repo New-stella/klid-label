@@ -110,6 +110,17 @@ public class LsBatchProcLog {
         this.rtryCnt++;
     }
 
+    /**
+     * RES_PAYLOAD 컬럼에 외부 응답 JSON 을 적재.
+     *
+     * <p>DEV_FIX-1: VLM 시계열 외부 위탁 응답({@code externalJobId}, {@code status}) 영속화에 사용.
+     * Phase 2 webhook 에서 externalJobId 로 영상 역추적할 때 활용된다.
+     */
+    public void setResPayload(String resPayload) {
+        this.resPayload = resPayload;
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
     public Long getRawSn() {
         return dataRawSn;
     }

@@ -7,7 +7,7 @@ import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
-import kr.co.cudo.authoring.batch.step.VlmMetaStep;
+import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
  */
 class BatchOrchestratorTest {
 
-    private VlmMetaStep vlmMetaStep;
+    private VlmTimeseriesStep vlmTimeseriesStep;
     private FfmpegFrameExtractor frameExtractor;
     private DeidentifyStep deidentifyStep;
     private YoloAutolabelStep yoloStep;
@@ -59,7 +59,7 @@ class BatchOrchestratorTest {
 
     @BeforeEach
     void setUp() {
-        vlmMetaStep = mock(VlmMetaStep.class);
+        vlmTimeseriesStep = mock(VlmTimeseriesStep.class);
         frameExtractor = mock(FfmpegFrameExtractor.class);
         deidentifyStep = mock(DeidentifyStep.class);
         yoloStep = mock(YoloAutolabelStep.class);
@@ -70,7 +70,7 @@ class BatchOrchestratorTest {
         videoRepository = mock(VideoRepository.class);
 
         orchestrator = new BatchOrchestrator(
-                vlmMetaStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
+                vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
                 trackInterpolationStep, statusService, retryQueue, videoRepository);
 
         // 기본: extractBoth(raw, deidVideoPath) 가 1 프레임 반환 — orchestrator 통과 보장
@@ -107,7 +107,7 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(101L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        verify(vlmMetaStep).run(101L);
+        verify(vlmTimeseriesStep).run(101L);
         verify(deidentifyStep, times(1)).run(any(LsDataRaw.class));
         verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
         verify(yoloStep).run(101L);
@@ -123,8 +123,8 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(102L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor);
-        order.verify(vlmMetaStep).run(102L);
+        InOrder order = inOrder(vlmTimeseriesStep, deidentifyStep, frameExtractor);
+        order.verify(vlmTimeseriesStep).run(102L);
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
         order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
     }
@@ -148,8 +148,8 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(130L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
-        order.verify(vlmMetaStep).run(130L);
+        InOrder order = inOrder(vlmTimeseriesStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
+        order.verify(vlmTimeseriesStep).run(130L);
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
         order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
         order.verify(yoloStep).run(130L);
@@ -165,8 +165,8 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(131L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
-        order.verify(vlmMetaStep).run(131L);
+        InOrder order = inOrder(vlmTimeseriesStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
+        order.verify(vlmTimeseriesStep).run(131L);
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
         order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
         order.verify(yoloStep).run(131L);
@@ -178,7 +178,7 @@ class BatchOrchestratorTest {
     @DisplayName("BatchOrchestrator_VLM_META_실패_시_이후_모든_단계_호출_안_함_+_FAILED_마킹")
     void vlmMetaFailureFailsImmediately() {
         newRaw(132L, LsDataRaw.PRVC_TYPE_PRVC);
-        doThrow(new RuntimeException("vlm-meta 5xx")).when(vlmMetaStep).run(132L);
+        doThrow(new RuntimeException("vlm-meta 5xx")).when(vlmTimeseriesStep).run(132L);
 
         BatchStage result = orchestrator.process(132L);
 
@@ -213,7 +213,7 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
         assertThat(retryQueue.retryCount(104L)).isEqualTo(1);
-        verify(vlmMetaStep).run(104L);
+        verify(vlmTimeseriesStep).run(104L);
         verify(frameExtractor, never()).extractBoth(any(), any());
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
@@ -286,7 +286,7 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(108L);
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
-        verify(vlmMetaStep).run(108L);
+        verify(vlmTimeseriesStep).run(108L);
         verify(deidentifyStep).run(any(LsDataRaw.class));
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
@@ -329,8 +329,8 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(120L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        InOrder order = inOrder(vlmMetaStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
-        order.verify(vlmMetaStep).run(120L);
+        InOrder order = inOrder(vlmTimeseriesStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
+        order.verify(vlmTimeseriesStep).run(120L);
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
         order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
         order.verify(yoloStep).run(120L);

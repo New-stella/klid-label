@@ -9,8 +9,6 @@ import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.common.client.dto.Sam2TrackResponse;
-import kr.co.cudo.authoring.common.client.dto.VlmMetaRequest;
-import kr.co.cudo.authoring.common.client.dto.VlmMetaResponse;
 import kr.co.cudo.authoring.common.client.dto.VlmVerifyRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmVerifyResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloRequest;
@@ -99,19 +97,8 @@ public class AiServerClient {
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }
 
-    /**
-     * VLM 영상 단위 메타 추출 — V2 Phase 1 신규.
-     * <p>ai-server {@code POST /infer/vlm/meta} 를 호출하여 영상 1건의 K/V 메타를 받아온다.
-     * mock 모드(AI_MOCK_MODE=true) 응답 처리는 ai-server 측에서 수행하므로 본 클라이언트는 분기 없음.
-     */
-    public Mono<VlmMetaResponse> extractVideoMeta(VlmMetaRequest request) {
-        return webClient.post()
-                .uri("/infer/vlm/meta")
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(VlmMetaResponse.class)
-                .timeout(Duration.ofSeconds(60))
-                .transformDeferred(RetryOperator.of(retry))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
-    }
+    // Phase 1 (2026-05-19): extractVideoMeta(VlmMetaRequest) 메서드 제거.
+    //  - 영상 단위 시계열 메타 추출은 외부 VLM 서비스 책임으로 이관됨 (V1.8 / ccarch if-vlm-timeseries-spi).
+    //  - 신규 외부 위탁 클라이언트는 {@link kr.co.cudo.authoring.common.client.VlmClient}.
+    //  - ai-server 의 /infer/vlm/meta 라우트는 본 Phase 이전부터 부재 (verify-objects 만 유지).
 }

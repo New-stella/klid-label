@@ -47,3 +47,22 @@ def test_vlm_verify_objects_빈_objects_배열_validation_error(small_png_b64: s
         json={"image_b64": small_png_b64, "objects": []},
     )
     assert res.status_code == 400
+
+
+def test_vlm_router_video_meta_endpoint_removed() -> None:
+    """Phase 1 (2026-05-19): 영상 단위 메타 추출은 외부 VLM 서비스로 이관.
+
+    ai-server 측에는 객체 검증(/verify-objects) 라우트만 남아야 한다.
+    영상 메타 추출 경로(/infer/vlm/meta, /infer/vlm/video-meta) 는 부재.
+    """
+    res_meta = client.post(
+        "/infer/vlm/meta",
+        json={"raw_sn": 1, "file_path": "/tmp/x.mp4"},
+    )
+    assert res_meta.status_code == 404
+
+    res_video_meta = client.post(
+        "/infer/vlm/video-meta",
+        json={"raw_sn": 1, "file_path": "/tmp/x.mp4"},
+    )
+    assert res_video_meta.status_code == 404

@@ -8,7 +8,7 @@ import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
-import kr.co.cudo.authoring.batch.step.VlmMetaStep;
+import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -23,20 +23,23 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 배치 파이프라인 오케스트레이터 (V2 — 파이프라인 재배치).
+ * 배치 파이프라인 오케스트레이터 (V2 — 파이프라인 재배치, Phase 1 외부 위탁 전환 반영).
  * <p>
- * V2 단계 순서 (Phase 2 갱신):
- *   1. VLM            (VlmMetaStep.run — 영상 단위 메타, Phase 1 신규 첫 단계)
- *   2. DEIDENTIFY     (DeidentifyStep.run — Phase 2: 무조건 호출 — PRVC/PSDO/ANONY 모두 호출)
- *   3. FRAME_EXTRACT  (FfmpegFrameExtractor.extractBoth — Phase 2: 원본/비식별 영상 2벌 추출)
+ * 단계 순서:
+ *   1. VLM_TIMESERIES (VlmTimeseriesStep.run — 외부 VLM 서비스 비동기 위탁. enabled=false 면 NO-OP.)
+ *   2. DEIDENTIFY     (DeidentifyStep.run — 무조건 호출 — PRVC/PSDO/ANONY 모두 호출)
+ *   3. FRAME_EXTRACT  (FfmpegFrameExtractor.extractBoth — 원본/비식별 영상 2벌 추출)
  *   4. YOLO           (YoloAutolabelStep.run)
  *   5. SAM2           (Sam2SegmentStep.run)
  *   6. INTERPOLATE    (TrackInterpolationStep.run)
  *   7. COMPLETED      (statusService.markCompleted)
  * <p>
- * V2 변경:
- *  - VlmObjectVerifyStep(객체 검증) 호출 제거 — 영상 단위 메타로 일원화. 코드/enum(VLM_VERIFY) 은 보존 (Phase 5 cleanup).
- *  - VLM 을 첫 단계로 전진 배치하여 비식별 이전 원본 기반 메타 추출.
+ * Phase 1 (2026-05-19) 변경:
+ *  - 영상 단위 시계열 메타 추출 책임을 외부 VLM 서비스로 위탁 (ccarch if-vlm-timeseries-spi).
+ *    기존 ai-server 직접 호출(VlmMetaStep) 은 NO-OP 으로 보류 (Phase 5 폐기 예정).
+ *  - 본 단계 stage 코드는 {@link BatchStage#VLM} 을 그대로 사용하되, 의미는 "외부 위탁" 으로 변경.
+ *  - 결과 적재는 Phase 2 webhook (POST /v1/vlm/result) 로 비동기 수신.
+ *  - VlmObjectVerifyStep(객체 검증) 호출 제거 — V2 정책 유지. 코드/enum(VLM_VERIFY) 은 보존.
  * <p>
  * 실패 처리:
  *  - 어느 단계에서든 예외 발생 시 statusService.markFailed + retryQueue.enqueueIfRetryable.
@@ -56,7 +59,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BatchOrchestrator {
 
-    private final VlmMetaStep vlmMetaStep;
+    private final VlmTimeseriesStep vlmTimeseriesStep;
     private final FfmpegFrameExtractor frameExtractor;
     private final DeidentifyStep deidentifyStep;
     private final YoloAutolabelStep yoloStep;
@@ -79,9 +82,10 @@ public class BatchOrchestrator {
         LsDataRaw raw = loadRaw(rawSn);
 
         try {
-            // 1. VLM 영상 단위 메타 — V2 정책상 비식별 이전 원본으로 메타 추출.
+            // 1. VLM 시계열 메타 — Phase 1: 외부 위탁 (enabled=false 면 NO-OP).
+            //    실제 결과는 Phase 2 webhook 으로 비동기 수신.
             statusService.markStage(rawSn, BatchStage.VLM);
-            vlmMetaStep.run(rawSn);
+            vlmTimeseriesStep.run(rawSn);
 
             // 2. 비식별 (Phase 2 — 무조건화: PRVC/PSDO/ANONY 구분 없이 모든 영상 호출).
             //    원본 보존 원칙 + DE_IDNTF_YN 'Y'/'F' 마킹은 DeidentifyStep 자체 처리.

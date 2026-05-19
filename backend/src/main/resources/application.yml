@@ -157,6 +157,12 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+      # Phase 1 — 외부 VLM 시계열 위탁 클라이언트 (vlm.client.enabled=true 일 때만 호출 발생)
+      vlmClient:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
   retry:
     instances:
       deid:
@@ -171,11 +177,27 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
+      vlmClient:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
   timelimiter:
     instances:
       deid:    { timeout-duration: 60s }
       ai:      { timeout-duration: 60s }
       gitea:   { timeout-duration: 60s }
+      # vlmClient TimeLimiter 미사용 — WebClient `.timeout(...)` 으로 Reactor 네이티브 처리.
+      # 타임아웃 단일 출처: vlm.client.timeout-seconds (아래)
+
+# Phase 1 — 외부 VLM 시계열 메타 분석 서비스 위탁 클라이언트.
+#  - enabled=false 기본값 (local/dev 환경 영향 0건). stg/prd 실 연동 확정 시 환경변수로 활성화.
+#  - url/token 은 평문 커밋 금지. 환경변수 ${VLM_SERVICE_URL}, ${VLM_SERVICE_TOKEN} 만 허용.
+vlm:
+  client:
+    enabled: ${VLM_CLIENT_ENABLED:false}
+    url: ${VLM_SERVICE_URL:http://localhost:9400}
+    token: ${VLM_SERVICE_TOKEN:}
+    timeout-seconds: 10
 
 logging:
   pattern:
