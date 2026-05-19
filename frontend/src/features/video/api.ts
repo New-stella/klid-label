@@ -40,6 +40,8 @@ function normalizeVideo(v: RawVideo): Video {
     thumbnailUrl: v.thumbnailUrl,
     privacyTypeCd: (v.privacyTypeCd ?? v.prvcTypeCd) as string | undefined,
     durationSec: v.durationSec,
+    updatedAt: v.updatedAt ?? null,
+    reviewCompletedAt: v.reviewCompletedAt ?? null,
   };
 }
 
