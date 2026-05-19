@@ -43,7 +43,7 @@ describe('auto api', () => {
     const r = await getAutoLabelSummary(42);
     expect(r.videoId).toBe(42);
     expect(r.buckets).toHaveLength(3);
-    expect(r.lowConfidenceFrames[0].confidence).toBe(0.55);
+    expect(r.lowConfidenceFrames?.[0].confidence).toBe(0.55);
   });
 
   it('메타_조회시_GET_frames_id_meta_호출', async () => {

@@ -22,12 +22,29 @@ export interface PortalUpload {
   fileSize: number;
 }
 
+/**
+ * 오토라벨링 응답.
+ * BE: `kr.co.cudo.authoring.common.client.dto.YoloResponse` 매핑.
+ *  - detections[].label   : 클래스 라벨
+ *  - detections[].points  : [x1, y1, x2, y2]
+ *  - detections[].score   : 신뢰도 0.0~1.0
+ *  - detections[].trackId : track 경로 외에는 null
+ *  - mock                 : ai-server 가 mock 응답을 반환했는지 여부
+ *  - source               : "mock" | "model"
+ *  - mockReason           : mock 인 경우 사유 (env_mock|weights_missing|load_failed)
+ */
+export interface PortalAutolabelDetection {
+  label: string;
+  points: number[];
+  score: number;
+  trackId?: number | null;
+}
+
 export interface PortalAutolabelResponse {
-  srcSn: number;
-  /** 검출된 객체 수 */
-  detectedCount: number;
-  /** 처리 소요 ms */
-  elapsedMs: number;
+  detections: PortalAutolabelDetection[];
+  mock: boolean;
+  source: 'mock' | 'model' | string;
+  mockReason?: string | null;
 }
 
 /** 업로드 사전 검증 실패 사유 */

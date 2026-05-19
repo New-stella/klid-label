@@ -20,12 +20,17 @@ export function PortalLabelingPage() {
     <div className="flex flex-col gap-3">
       {Number.isFinite(numericId) && (
         <div className="flex items-center justify-end">
+          {/*
+           * hotfix(W-3): BE PortalAutolabelRequest 는 portalVideoSn + imageB64 가 모두 필수.
+           * 캔버스 프레임 캡처 연동은 LabelingPage 캔버스 ref 확보 후 별도 작업 — 현재는 imageB64 미제공으로
+           * 버튼이 비활성화 상태로 노출된다 (UI 자리만 잡고, 클릭 시 400 발생하지 않도록 차단).
+           */}
           <AutolabelButton
-            srcSn={numericId}
+            portalVideoSn={numericId}
             onSuccess={(r) => {
               pushToast({
                 variant: 'success',
-                message: `오토라벨 완료 (${r.detectedCount}건, ${r.elapsedMs}ms)`,
+                message: `오토라벨 완료 (${r.detections.length}건${r.mock ? ', mock' : ''})`,
               });
               setAutolabelKey((k) => k + 1);
             }}

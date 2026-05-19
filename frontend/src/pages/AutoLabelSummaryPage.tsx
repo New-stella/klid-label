@@ -23,13 +23,12 @@ export function AutoLabelSummaryPage() {
   const [lowOnly, setLowOnly] = useState(false);
 
   const visibleLowFrames = useMemo(() => {
-    if (!data) return [];
-    return lowOnly
-      ? data.lowConfidenceFrames.filter((f) => f.confidence < 0.7)
-      : data.lowConfidenceFrames;
+    const frames = data?.lowConfidenceFrames ?? [];
+    return lowOnly ? frames.filter((f) => f.confidence < 0.7) : frames;
   }, [data, lowOnly]);
 
   // BE placeholder 응답 감지: buckets/classDistribution이 없으면 미구현 단계
+  // (BE V1.7 placeholder 는 status='PENDING' + buckets/classDistribution 부재)
   const isPlaceholder = data && (!data.buckets || !data.classDistribution);
 
   if (validId === null) {
@@ -82,20 +81,20 @@ export function AutoLabelSummaryPage() {
             data-testid="auto-summary-info"
             className="grid grid-cols-2 gap-3 rounded border border-border bg-white p-4 sm:grid-cols-5"
           >
-            <Field label="총 프레임">{data.totalFrames.toLocaleString('ko-KR')}</Field>
-            <Field label="총 라벨">{data.totalLabels.toLocaleString('ko-KR')}</Field>
+            <Field label="총 프레임">{(data.totalFrames ?? 0).toLocaleString('ko-KR')}</Field>
+            <Field label="총 라벨">{(data.totalLabels ?? 0).toLocaleString('ko-KR')}</Field>
             <Field label="평균 신뢰도">
-              {(data.averageConfidence * 100).toFixed(1)}%
+              {((data.averageConfidence ?? 0) * 100).toFixed(1)}%
             </Field>
             <Field label="VLM 동의">
-              {data.vlmVerifiedCount.toLocaleString('ko-KR')}
+              {(data.vlmVerifiedCount ?? 0).toLocaleString('ko-KR')}
             </Field>
             <Field label="VLM 거부">
-              {data.vlmRejectedCount.toLocaleString('ko-KR')}
+              {(data.vlmRejectedCount ?? 0).toLocaleString('ko-KR')}
             </Field>
           </div>
 
-          <ConfidenceDistribution buckets={data.buckets} />
+          <ConfidenceDistribution buckets={data.buckets ?? []} />
 
           <section
             data-testid="class-distribution"
@@ -104,7 +103,7 @@ export function AutoLabelSummaryPage() {
           >
             <h3 className="mb-3 text-section-title text-primary">라벨별 분포</h3>
             {(() => {
-              const top10 = data.classDistribution.slice(0, 10);
+              const top10 = (data.classDistribution ?? []).slice(0, 10);
               const maxCount = Math.max(...top10.map((c) => c.count), 1);
               return (
                 <ul className="flex flex-col gap-2">

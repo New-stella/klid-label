@@ -34,10 +34,13 @@ describe('sysconfig api', () => {
     expect(configs.find((c) => c.key === 'FFMPEG_THREADS')?.value).toBe(4);
   });
 
-  it('updateConfig_PUT_manage_configs_body_key_value', async () => {
-    mock.onPut('/manage/configs').reply((config) => {
+  it('updateConfig_PUT_manage_configs_key_path_body_value', async () => {
+    // BE 시그니처: PUT /v1/manage/configs/{key}  body: { value: string }
+    let capturedUrl = '';
+    mock.onPut(/\/manage\/configs\/.+/).reply((config) => {
+      capturedUrl = config.url ?? '';
       const body = JSON.parse(config.data ?? '{}');
-      expect(body).toMatchObject({ key: 'FFMPEG_THREADS', value: 8 });
+      expect(body).toEqual({ value: '8' });
       return [
         200,
         {
@@ -50,6 +53,7 @@ describe('sysconfig api', () => {
     });
 
     const c = await updateConfig({ key: 'FFMPEG_THREADS', value: 8 });
+    expect(capturedUrl).toBe('/manage/configs/FFMPEG_THREADS');
     expect(c.value).toBe(8);
   });
 });

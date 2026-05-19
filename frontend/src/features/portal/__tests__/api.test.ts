@@ -37,7 +37,7 @@ describe('portal api', () => {
     expect(result[0].srcSn).toBe(1);
   });
 
-  it('requestAutolabel_srcSn으로_오토라벨링_요청', async () => {
+  it('requestAutolabel_portalVideoSn과_imageB64로_오토라벨링_요청', async () => {
     let capturedUrl = '';
     mock.onPost(/.*/).reply((config) => {
       capturedUrl = config.url ?? '';
@@ -45,34 +45,48 @@ describe('portal api', () => {
         200,
         {
           success: true,
-          data: { srcSn: 42, detectedCount: 5, elapsedMs: 1200 },
+          data: {
+            detections: [
+              { label: 'person', points: [10, 20, 30, 40], score: 0.9, trackId: null },
+              { label: 'car', points: [50, 60, 70, 80], score: 0.85, trackId: null },
+              { label: 'dog', points: [90, 100, 110, 120], score: 0.75, trackId: null },
+              { label: 'bike', points: [1, 2, 3, 4], score: 0.7, trackId: null },
+              { label: 'tree', points: [5, 6, 7, 8], score: 0.65, trackId: null },
+            ],
+            mock: false,
+            source: 'model',
+            mockReason: null,
+          },
           message: null,
           errorCode: null,
         },
       ];
     });
 
-    const result = await requestAutolabel(42);
+    const result = await requestAutolabel(42, 'data:image/png;base64,AAAA');
     expect(capturedUrl).toBe('/portal/autolabel');
-    expect(result.detectedCount).toBe(5);
+    expect(result.detections).toHaveLength(5);
   });
 
-  it('savePortalLabels_라벨_저장_PUT', async () => {
+  it('savePortalLabels_라벨_저장_POST', async () => {
     let capturedData: unknown = null;
-    mock.onPut('/portal/labels/77').reply((config) => {
+    mock.onPost('/portal/labels').reply((config) => {
       capturedData = JSON.parse(config.data);
       return [
         200,
         {
           success: true,
-          data: { savedCount: 2 },
+          data: { portalVideoSn: 77, items: [] },
           message: null,
           errorCode: null,
         },
       ];
     });
 
-    await savePortalLabels(77, [{ classId: 1, x: 0, y: 0, w: 10, h: 10 }]);
-    expect((capturedData as { labels?: unknown[] }).labels).toHaveLength(1);
+    await savePortalLabels(77, [
+      { label: 'person', lblTypeCd: 'BBOX', points: [[0, 0, 10, 10]] },
+    ]);
+    expect((capturedData as { items?: unknown[] }).items).toHaveLength(1);
+    expect((capturedData as { portalVideoSn?: number }).portalVideoSn).toBe(77);
   });
 });

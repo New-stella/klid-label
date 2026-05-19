@@ -89,14 +89,19 @@ describe('SystemSettingsPage', () => {
     mockConfigs(mock);
     mockHealth(mock);
 
-    const putBodies: unknown[] = [];
-    mock.onPut('/manage/configs').reply((config) => {
-      putBodies.push(JSON.parse(config.data ?? '{}'));
+    const putBodies: Array<{ key: string; value: unknown }> = [];
+    // BE 정합: PUT /manage/configs/{key} body: { value }
+    // path variable 에서 key 를 추출해 기존 검증(key=FFMPEG_THREADS,value=8) 형태 유지.
+    mock.onPut(/\/manage\/configs\/.+/).reply((config) => {
+      const body = JSON.parse(config.data ?? '{}');
+      const url = config.url ?? '';
+      const key = decodeURIComponent(url.split('/').pop() ?? '');
+      putBodies.push({ key, value: Number(body.value) });
       return [
         200,
         {
           success: true,
-          data: { key: 'FFMPEG_THREADS', value: 8 },
+          data: { key, value: body.value },
           message: null,
           errorCode: null,
         },

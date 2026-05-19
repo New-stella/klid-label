@@ -43,14 +43,19 @@ describe('YoloConfigCard', () => {
 
   it('정상_입력_+_저장_클릭_시_PUT_API_3회_호출', async () => {
     const calls: Array<{ key: string; value: number }> = [];
-    mock.onPut('/manage/configs').reply((config) => {
+    // BE 정합: PUT /manage/configs/{key} body: { value }
+    // path variable 에서 key 를 추출해 calls 누적.
+    mock.onPut(/\/manage\/configs\/.+/).reply((config) => {
       const body = JSON.parse(config.data ?? '{}');
-      calls.push(body);
+      const url = config.url ?? '';
+      const key = decodeURIComponent(url.split('/').pop() ?? '');
+      const numericValue = Number(body.value);
+      calls.push({ key, value: numericValue });
       return [
         200,
         {
           success: true,
-          data: { ...body, updatedAt: '2026-05-13T10:00:00Z' },
+          data: { key, value: body.value, updatedAt: '2026-05-13T10:00:00Z' },
           message: null,
           errorCode: null,
         },
