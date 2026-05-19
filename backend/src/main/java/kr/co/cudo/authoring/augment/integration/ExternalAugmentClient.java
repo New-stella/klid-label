@@ -26,4 +26,23 @@ public class ExternalAugmentClient {
                 dataAugSn, decision, reasonOrNull == null ? "" : reasonOrNull);
         return true;
     }
+
+    /**
+     * 외부 시스템에 증강 요청을 전달 (placeholder).
+     *
+     * <p>V1.5 정책: 증강 본체는 외부 SFR-07 시스템이며, 본 저작도구는 검수 완료 영상 목록과
+     * 증강 유형만 통보한다. 외부 미연결 시(현 단계) ack 응답을 mock 으로 반환하며,
+     * 호출자 트랜잭션은 외부 실패 영향을 받지 않는다 (best-effort).
+     *
+     * @param videoIds 검수 완료된 원본 영상 ID 목록
+     * @param types    요청 증강 유형 (WINTER/NIGHT/RAIN/RESOLUTION)
+     * @return 외부 ack 여부 (현재는 항상 true — mock)
+     */
+    public boolean requestAugment(java.util.List<Long> videoIds, java.util.List<String> types) {
+        // 외부 SFR-07 시스템 미연결 — mock 응답.
+        log.info("[Augment] external request (mock) videoCount={} typeCount={}",
+                videoIds == null ? 0 : videoIds.size(),
+                types == null ? 0 : types.size());
+        return true;
+    }
 }

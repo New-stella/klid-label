@@ -73,6 +73,14 @@ interface AugmentRequestBody {
   types: AugmentType[];
 }
 
+/** BE 정합: POST /api/v1/augments/request 응답 형식. */
+interface AugmentRequestResponse {
+  jobId: number;
+  requestedAt: string;
+  videoCount: number;
+  typeCount: number;
+}
+
 interface VideoFilterValues {
   q: string;
   eventType: string;
@@ -124,8 +132,8 @@ export function AugmentRequest() {
     { page: 0, size: 6 },
   );
 
-  const { mutate, isLoading: isSubmitting } = useMutation<AugmentRequestBody, AugmentJob>(
-    (body) => api.post<AugmentJob>('/augment/request', body),
+  const { mutate, isLoading: isSubmitting } = useMutation<AugmentRequestBody, AugmentRequestResponse>(
+    (body) => api.post<AugmentRequestResponse>('/augments/request', body),
   );
 
   // PENDING/PROCESSING 잡이 있으면 5초마다 자동 갱신
@@ -263,7 +271,7 @@ export function AugmentRequest() {
       });
       showToast('증강 요청이 등록되었습니다.', 'success');
       refetchJobs();
-      navigate(`/augment/result/${job.id}`);
+      navigate(`/augment/result/${job.jobId}`);
     } catch {
       showToast('증강 요청 중 오류가 발생했습니다.', 'error');
     }

@@ -5,9 +5,14 @@ export function ok<T>(data: T) {
   return HttpResponse.json({ success: true, data } satisfies ApiResponse<T>);
 }
 
-export function fail(code: string, message: string, status = 400) {
+export function fail<T = null>(
+  code: string,
+  message: string,
+  status = 400,
+  data: T | null = null,
+) {
   return HttpResponse.json(
-    { success: false, data: null, message, errorCode: code } as ApiResponse<null>,
+    { success: false, data, message, errorCode: code } as ApiResponse<T | null>,
     { status },
   );
 }

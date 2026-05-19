@@ -20,11 +20,15 @@ import type {
 
 /**
  * 증강 요청 생성.
- * BE: POST /api/v1/augments
+ * BE: POST /api/v1/augments/request
+ *
+ * 실패 응답:
+ * - 400 errorCode=NOT_REVIEWED : data.blockedVideoIds 에 차단된 영상 ID 목록
+ *   (응답 처리는 `AugmentNotReviewedDetail` 타입 참고).
  */
 export function requestAugment(body: RequestAugmentRequest): Promise<RequestAugmentResponse> {
   return apiClient
-    .post<RequestAugmentResponse>('/augments', body)
+    .post<RequestAugmentResponse>('/augments/request', body)
     .then((r) => r.data);
 }
 

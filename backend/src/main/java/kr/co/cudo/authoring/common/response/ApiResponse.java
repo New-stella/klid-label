@@ -21,4 +21,12 @@ public record ApiResponse<T>(boolean success, T data, String message, String err
     public static <T> ApiResponse<T> error(ErrorCode code) {
         return new ApiResponse<>(false, null, code.defaultMessage(), code.name());
     }
+
+    /**
+     * 에러 응답에 부가 정보(data)를 포함해야 할 때 사용.
+     * 예) NOT_REVIEWED 응답에 blockedVideoIds 포함.
+     */
+    public static <T> ApiResponse<T> error(ErrorCode code, String message, T data) {
+        return new ApiResponse<>(false, data, message, code.name());
+    }
 }

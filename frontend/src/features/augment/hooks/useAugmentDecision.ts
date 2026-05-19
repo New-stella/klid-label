@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AUGMENT_KEYS } from '@/lib/queryKeys';
 
 import { acceptAugment, rejectAugment, requestAugment } from '../api';
-import type { RequestAugmentRequest } from '../types';
+import type { RequestAugmentRequest, RequestAugmentResponse } from '../types';
 
 interface MutationOptions<T> {
   onSuccess?: (data: T) => void;
@@ -11,10 +11,10 @@ interface MutationOptions<T> {
 }
 
 /**
- * 증강 요청 생성 (POST /augments).
+ * 증강 요청 생성 (POST /augments/request).
  */
 export function useRequestAugment(
-  options: MutationOptions<{ jobId: number }> = {},
+  options: MutationOptions<RequestAugmentResponse> = {},
 ) {
   const qc = useQueryClient();
   return useMutation({

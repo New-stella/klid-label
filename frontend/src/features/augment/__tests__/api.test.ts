@@ -22,15 +22,20 @@ describe('augment api', () => {
     mock.restore();
   });
 
-  it('requestAugment_POST_augments_요청_바디_videoIds_types_전달', async () => {
+  it('requestAugment_POST_augments_request_요청_바디_videoIds_types_전달', async () => {
     let body: unknown;
-    mock.onPost('/augments').reply((config) => {
+    mock.onPost('/augments/request').reply((config) => {
       body = JSON.parse(config.data ?? '{}');
       return [
-        201,
+        200,
         {
           success: true,
-          data: { jobId: 100 },
+          data: {
+            jobId: 100,
+            requestedAt: '2026-05-19T10:00:00Z',
+            videoCount: 3,
+            typeCount: 2,
+          },
           message: null,
           errorCode: null,
         },
@@ -43,6 +48,9 @@ describe('augment api', () => {
     });
     expect(body).toMatchObject({ videoIds: [1, 2, 3], types: ['WINTER', 'NIGHT'] });
     expect(res.jobId).toBe(100);
+    expect(res.videoCount).toBe(3);
+    expect(res.typeCount).toBe(2);
+    expect(res.requestedAt).toBe('2026-05-19T10:00:00Z');
   });
 
   it('listAugmentJobs_GET_augments_파라미터_srcSn_전달', async () => {

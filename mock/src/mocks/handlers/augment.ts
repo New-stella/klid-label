@@ -20,7 +20,7 @@ export const augmentHandlers = [
     return ok(job);
   }),
 
-  http.post('/api/v1/augment/request', async ({ request }) => {
+  http.post('/api/v1/augments/request', async ({ request }) => {
     const body = (await request.json()) as { videoIds: string[]; types: ('WINTER' | 'NIGHT' | 'RAIN' | 'RESOLUTION')[] };
 
     // SFR-07 — 검수 완료(승인)된 영상만 증강 요청 가능. taskStatus === 'COMPLETED'을 승인 판정으로 사용.
@@ -35,34 +35,37 @@ export const augmentHandlers = [
       }
     }
 
-    if (approvedIds.length === 0) {
+    // BE 정합: 미검수 영상이 하나라도 포함되면 400 + NOT_REVIEWED + blockedVideoIds 로 응답.
+    if (rejectedIds.length > 0) {
       return fail(
-        'AUGMENT_NO_APPROVED_VIDEO',
-        '검수 완료된 영상만 증강 요청 가능합니다.',
-        422,
+        'NOT_REVIEWED',
+        `검수 미완료 ${rejectedIds.length}건이 포함되어 있습니다. 검수 완료된 영상만 요청 가능합니다.`,
+        400,
+        { blockedVideoIds: rejectedIds },
       );
     }
 
+    const jobId = jobCounter++;
+    const requestedAt = dayjs().toISOString();
     const newJob = {
-      id: `aug-${String(jobCounter++).padStart(4, '0')}`,
+      id: `aug-${String(jobId).padStart(4, '0')}`,
       videoIds: approvedIds,
       types: body.types,
       status: 'PENDING' as const,
       progress: 0,
       labelIntegrity: 98,
-      createdAt: dayjs().toISOString(),
+      createdAt: requestedAt,
       decision: 'PENDING' as const,
     };
     addAugmentJob(newJob);
 
-    if (rejectedIds.length > 0) {
-      // 일부 영상이 차단된 경우에도 승인된 영상으로 잡은 생성하되, 응답 message에 차단 카운트 명시
-      return ok({
-        ...newJob,
-        message: `검수 미완료 ${rejectedIds.length}건은 제외되고 ${approvedIds.length}건으로 처리됩니다.`,
-      });
-    }
-    return ok(newJob);
+    // BE 정합: 성공 응답은 { jobId, requestedAt, videoCount, typeCount } 형태.
+    return ok({
+      jobId,
+      requestedAt,
+      videoCount: approvedIds.length,
+      typeCount: body.types.length,
+    });
   }),
 
   // SFR-07 — 학습데이터 활용 여부 결정

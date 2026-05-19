@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -18,11 +19,14 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(CustomException.class)
-    public ResponseEntity<ApiResponse<Void>> handleCustom(CustomException e) {
+    public ResponseEntity<ApiResponse<Object>> handleCustom(CustomException e) {
         ErrorCode code = e.getErrorCode();
         log.warn("[Exception] custom code={} message={}", code.name(), e.getMessage());
-        return ResponseEntity.status(code.status())
-                .body(ApiResponse.error(code, e.getMessage()));
+        Object details = e.getDetails();
+        ApiResponse<Object> body = details != null
+                ? ApiResponse.error(code, e.getMessage(), details)
+                : ApiResponse.error(code, e.getMessage());
+        return ResponseEntity.status(code.status()).body(body);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -47,6 +51,18 @@ public class GlobalExceptionHandler {
         log.warn("[Exception] constraint violation message={}", msg);
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT, msg));
+    }
+
+    /**
+     * 본문 역직렬화 실패 (잘못된 JSON, 매핑 불가 enum 값 등) 시 400 으로 정규화한다.
+     * 이 핸들러가 없으면 Exception.class 가 잡아 500 으로 응답되어 FE 가 입력 오류를 구별할 수 없다.
+     * (CWE-209 Information Leak 가드 — 메시지에 파서 내부 상세를 노출하지 않는다.)
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(HttpMessageNotReadableException e) {
+        log.warn("[Exception] message not readable cause={}", e.getMostSpecificCause().getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
+                .body(ApiResponse.error(ErrorCode.INVALID_INPUT, "요청 본문이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

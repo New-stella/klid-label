@@ -6,8 +6,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
+import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse;
 import kr.co.cudo.authoring.augment.dto.RejectRequest;
+import kr.co.cudo.authoring.augment.service.AugmentRequestService;
 import kr.co.cudo.authoring.augment.service.AugmentReviewService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -42,6 +45,7 @@ public class AugmentController {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final AugmentReviewService service;
+    private final AugmentRequestService requestService;
 
     /**
      * 증강 결과 조회.
@@ -72,6 +76,30 @@ public class AugmentController {
         }
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(service.listAll(pageable));
+    }
+
+    /**
+     * 외부 SFR-07 증강 시스템 요청 (REVIEWER 만).
+     *
+     * <p>검수 완료(APPROVED)된 영상만 요청 가능. 미검수 영상 포함 시 NOT_REVIEWED 와 함께
+     * blockedVideoIds 를 응답 data 에 포함하여 400 반환. 외부 미연동 단계이므로 jobId 는
+     * placeholder 시퀀스로 발급된다.
+     */
+    @Operation(
+            summary = "증강 요청 (REVIEWER)",
+            description = "검수 완료 영상에 대해 외부 SFR-07 증강 시스템에 4종 증강을 요청한다. 미검수 영상 포함 시 NOT_REVIEWED 400."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 (jobId 발급)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 미검수 영상 포함 (NOT_REVIEWED)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @PostMapping("/request")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<AugmentRequestResponse> request(@Valid @RequestBody AugmentRequestRequest req,
+                                                       @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(requestService.request(req, actor));
     }
 
     /**

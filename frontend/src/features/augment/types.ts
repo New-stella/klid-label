@@ -76,6 +76,21 @@ export interface RequestAugmentRequest {
 
 export interface RequestAugmentResponse {
   jobId: number;
+  /** 요청 일시 (ISO-8601) */
+  requestedAt: string;
+  /** 요청된 영상 수 */
+  videoCount: number;
+  /** 요청된 증강 유형 수 */
+  typeCount: number;
+}
+
+/**
+ * 증강 요청 실패(NOT_REVIEWED) 시 BE가 동봉하는 부가 정보.
+ * `ApiError.data` 또는 응답 본문의 `data` 필드에 담겨 전달된다.
+ */
+export interface AugmentNotReviewedDetail {
+  /** 검수 미완료로 차단된 영상 ID 목록 */
+  blockedVideoIds: number[];
 }
 
 export interface ListAugmentJobsParams {
