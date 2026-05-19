@@ -37,10 +37,26 @@ public class VideoQueryService {
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
 
-    public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd) {
-        Page<LsDataRaw> page = (dataSttsCd != null && !dataSttsCd.isBlank())
-                ? videoRepository.findAllByDataSttsCdOrderByRegDtDesc(dataSttsCd, pageable)
-                : videoRepository.findAllByOrderByRegDtDesc(pageable);
+    /**
+     * 검수 상태 필터 입력 길이 상한 — 정상 enum 값(PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED)은
+     * 모두 20자 이하. 상한 초과 입력은 즉시 차단해 의도 외 query 부하/탐색 방지.
+     * 파라미터 바인딩으로 SQL Injection 자체는 차단되지만, 입력 검증 차원의 1차 가드.
+     */
+    private static final int REVIEW_STATUS_MAX_LEN = 20;
+
+    public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
+        String normalizedDataStts = (dataSttsCd != null && !dataSttsCd.isBlank()) ? dataSttsCd.trim() : null;
+        String normalizedReviewStts = normalizeReviewStatusCd(reviewStatusCd);
+
+        Page<LsDataRaw> page;
+        if (normalizedReviewStts != null) {
+            // 검수 상태 필터 지정 시 LS_RAW_DATA_STATUS INNER JOIN 쿼리 사용.
+            page = videoRepository.findAllWithReviewStatus(normalizedDataStts, normalizedReviewStts, pageable);
+        } else if (normalizedDataStts != null) {
+            page = videoRepository.findAllByDataSttsCdOrderByRegDtDesc(normalizedDataStts, pageable);
+        } else {
+            page = videoRepository.findAllByOrderByRegDtDesc(pageable);
+        }
         Map<String, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
         // 각 영상별 frameCount 조회 (페이지당 최대 size 건수만큼). 향후 성능 이슈 시 단일 group-by 쿼리로 최적화.
@@ -51,6 +67,26 @@ public class VideoQueryService {
                 srcRepository.countByRawSn(e.getRawSn()),
                 exportInfoMap.get(e.getRawSn())
         ));
+    }
+
+    /**
+     * 검수 상태 필터 정규화 — null/blank → null, 길이 상한 초과 → 매칭되지 않을 sentinel.
+     *
+     * <p>길이 상한 초과 (예: SQL injection 시도 페이로드) 시 예외를 던지지 않고
+     * 매칭되지 않는 sentinel 값으로 변환해 빈 페이지를 반환한다 (정보 노출 회피 + 보안 fail-secure).
+     */
+    private String normalizeReviewStatusCd(String input) {
+        if (input == null) {
+            return null;
+        }
+        String trimmed = input.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.length() > REVIEW_STATUS_MAX_LEN) {
+            return "__INVALID_REVIEW_STATUS__";
+        }
+        return trimmed;
     }
 
     /**

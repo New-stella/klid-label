@@ -12,6 +12,8 @@ export interface VideoListParams {
   from?: string;
   to?: string;
   dataSttsCd?: string;
+  // 검수 상태 필터 (LS_RAW_DATA_STATUS) — APPROVED 만 노출하는 증강 요청 화면용
+  reviewStatusCd?: string;
 }
 
 export interface Video {

@@ -61,8 +61,12 @@ public class VideoController {
     public ApiResponse<Page<VideoSummaryResponse>> list(
             @PageableDefault(size = 20) Pageable pageable,
             @Parameter(description = "데이터 상태 코드 필터 (예: BATCH_COMPLETED, BATCH_PROCESSING, PENDING, BATCH_FAILED)")
-            @RequestParam(required = false) String dataSttsCd) {
-        return ApiResponse.ok(videoQueryService.list(pageable, dataSttsCd));
+            @RequestParam(required = false) String dataSttsCd,
+            @Parameter(description = "검수 상태 코드 필터 — LS_RAW_DATA_STATUS 기준 (PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED). " +
+                    "지정 시 LS_RAW_DATA_STATUS INNER JOIN 으로 필터링되어 row 가 없는 영상은 제외된다. " +
+                    "증강 요청 화면(SCR-AUG-001)에서 APPROVED 영상만 노출하는 용도.")
+            @RequestParam(required = false) String reviewStatusCd) {
+        return ApiResponse.ok(videoQueryService.list(pageable, dataSttsCd, reviewStatusCd));
     }
 
     @Operation(

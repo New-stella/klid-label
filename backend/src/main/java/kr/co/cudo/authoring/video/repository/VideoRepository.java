@@ -24,6 +24,27 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
 
     Page<LsDataRaw> findAllByDataSttsCdOrderByRegDtDesc(String dataSttsCd, Pageable pageable);
 
+    /**
+     * 영상 목록 + 검수 상태 필터(LS_RAW_DATA_STATUS) 조합 조회.
+     *
+     * <p>증강 요청 화면(SCR-AUG-001)에서 검수 완료(APPROVED) 영상만 노출하기 위한 용도.
+     * 검수 상태는 영상 레코드와 별도 테이블에 저장되어 있으므로 명시적 JPQL JOIN ON 으로 결합한다
+     * (Hibernate 6 HHH90003004 — 객체 참조 없는 implicit join 경고 회피).
+     *
+     * <p>INNER JOIN 특성상 LS_RAW_DATA_STATUS row 가 없는 영상(검수 미시작)은
+     * reviewStatusCd 필터가 지정된 호출에서 자동 제외된다.
+     *
+     * <p>두 필터 모두 null 일 수 있으며 각각 조건부로 적용된다 (AND 결합).
+     * 파라미터 바인딩만 사용 — SQL Injection 방어 (CWE-89).
+     */
+    @Query("SELECT v FROM LsDataRaw v JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn " +
+            "WHERE (:dataSttsCd IS NULL OR v.dataSttsCd = :dataSttsCd) " +
+            "AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd) " +
+            "ORDER BY v.regDt DESC")
+    Page<LsDataRaw> findAllWithReviewStatus(@Param("dataSttsCd") String dataSttsCd,
+                                            @Param("reviewStatusCd") String reviewStatusCd,
+                                            Pageable pageable);
+
     /** 개발 전용: DATA_STTS_CD 기준 가장 오래된 1건 (REG_DT 오름차순). */
     Optional<LsDataRaw> findFirstByDataSttsCdOrderByRegDtAsc(String dataSttsCd);
 

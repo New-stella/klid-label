@@ -74,14 +74,18 @@ export function AugmentRequestPage() {
   const [page, setPage] = useState(0);
 
   // 검수 완료(승인) 영상만 — V1.x SFR-07 가드
-  // Phase 4 옵션 3: BE 페이징 사용 (size 20). dataSttsCd 로 BE에서 승인 영상만 필터.
+  // Phase 4 옵션 3: BE 페이징 사용 (size 20).
+  // - dataSttsCd=COMPLETED: 배치 파이프라인 완료 (LS_DATA_RAW.DATA_STTS_CD)
+  // - reviewStatusCd=APPROVED: 검수 승인 완료 (LS_RAW_DATA_STATUS.DATA_STTS_CD)
+  // 두 조건이 모두 만족된 영상만 증강 요청 대상으로 노출된다.
   const { data: videosPage, isLoading: videosLoading } = useVideos({
     page,
     size: PAGE_SIZE,
     dataSttsCd: 'COMPLETED',
+    reviewStatusCd: 'APPROVED',
   });
   const pageContent = videosPage?.content ?? [];
-  // 안전 가드: BE가 COMPLETED 외 데이터를 섞어 반환해도 화면 노출은 COMPLETED 만 허용 (SFR-07).
+  // 안전 가드: BE 응답에 배치 미완료 영상이 섞여도 화면 노출은 COMPLETED 만 허용 (SFR-07).
   const approvedPage = useMemo(
     () => pageContent.filter((v) => v.status === 'COMPLETED'),
     [pageContent],

@@ -10,9 +10,25 @@ export const videosHandlers = [
     const status = url.searchParams.get('status');
     const eventType = url.searchParams.get('eventType');
     const q = url.searchParams.get('q');
+    // BE 호환 파라미터 — FE/BE 양쪽에서 동일한 API 표면 유지
+    const dataSttsCd = url.searchParams.get('dataSttsCd');
+    const reviewStatusCd = url.searchParams.get('reviewStatusCd');
 
     let filtered = [...videos];
     if (status) filtered = filtered.filter((v) => v.batchStatus === status || v.taskStatus === status);
+    // dataSttsCd: 배치 파이프라인 상태 (LS_DATA_RAW.DATA_STTS_CD) 매핑
+    if (dataSttsCd && dataSttsCd.trim()) {
+      const code = dataSttsCd.trim();
+      filtered = filtered.filter((v) => v.batchStatus === code);
+    }
+    // reviewStatusCd: 검수 상태 (LS_RAW_DATA_STATUS.DATA_STTS_CD) 매핑.
+    // mock 시드에서는 taskStatus 가 검수 상태 역할을 한다 (BATCH_COMPLETED/IN_PROGRESS/REVIEW_PENDING/REVIEW/COMPLETED/REJECTED).
+    // 'APPROVED' 요청은 검수 완료(=mock 의 taskStatus 'COMPLETED')로 매핑.
+    if (reviewStatusCd && reviewStatusCd.trim()) {
+      const code = reviewStatusCd.trim();
+      const mapped = code === 'APPROVED' ? 'COMPLETED' : code;
+      filtered = filtered.filter((v) => v.taskStatus === mapped);
+    }
     if (eventType) filtered = filtered.filter((v) => v.eventType === eventType);
     if (q) {
       const lq = q.toLowerCase();
