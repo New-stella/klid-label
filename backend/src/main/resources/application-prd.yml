@@ -27,6 +27,11 @@ authoring:
     retry:
       enabled: ${GITEA_RETRY_ENABLED:true}
 
+# Phase 3 — prd 환경에서 Gitea fallback 영속 큐 활성화.
+gitea:
+  fallback:
+    enabled: ${GITEA_FALLBACK_ENABLED:true}
+
 # Phase 2 보강 (DEV_FIX M-4): 운영(prd) 환경에서는 webhook HMAC 시크릿 환경변수 미설정 시 부팅 차단.
 # Spring 의 `${VAR:?msg}` 구문은 placeholder 미설정 시 BeanCreationException 으로 부팅 실패.
 # 빈 문자열 fallback(application.yml) 을 덮어쓰기 위해 prd 프로파일에서 별도 명시.

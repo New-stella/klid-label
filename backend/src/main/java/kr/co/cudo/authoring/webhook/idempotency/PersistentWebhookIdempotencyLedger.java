@@ -37,12 +37,22 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
     @Override
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void recordIssued(String idempotencyKey, String externalJobId) {
+        recordIssued(idempotencyKey, CHANNEL_UNKNOWN, externalJobId);
+    }
+
+    /**
+     * Phase 3 — channel 명시 발급 기록. 호출자(DeidentifyClient/VlmClient)가 채널을 명시한다.
+     */
+    @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordIssued(String idempotencyKey, String channel, String externalJobId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
+        String safeChannel = (channel == null || channel.isBlank()) ? CHANNEL_UNKNOWN : channel;
         try {
             if (repository.existsById(idempotencyKey)) {
                 return; // 불변 보장 — 이미 발급된 키는 다시 기록하지 않음
             }
-            repository.save(LsWebhookIdempotency.issue(idempotencyKey, CHANNEL_UNKNOWN, externalJobId));
+            repository.save(LsWebhookIdempotency.issue(idempotencyKey, safeChannel, externalJobId));
         } catch (DataIntegrityViolationException e) {
             // 동시 발급 — 멱등 반환
             log.debug("[WebhookLedger] recordIssued unique violation (idempotent)");

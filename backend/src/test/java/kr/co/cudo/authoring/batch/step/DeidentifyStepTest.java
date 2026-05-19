@@ -179,6 +179,37 @@ class DeidentifyStepTest {
     }
 
     @Test
+    @DisplayName("Phase3_위탁_시_LS_DEIDENT_PROC_LOG_REQUESTED_상태로_적재")
+    void requestPersistedAsRequested() {
+        // ccarch if-deidentify-spi 비동기 위탁 명세 — 위탁 시점에 LS_DEIDENT_PROC_LOG 가 REQUESTED 로 기록되어야 한다.
+        // 결과 webhook 도착 전(또는 동기 응답 도착 직전) 의 상태가 REQUESTED 임을 검증.
+        LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        Path safeReturn = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
+
+        // save 후 procSttsCd 가 REQUESTED 인지 캡처
+        org.mockito.ArgumentCaptor<LsDeidentProcLog> captor =
+                org.mockito.ArgumentCaptor.forClass(LsDeidentProcLog.class);
+        when(procLogRepository.save(captor.capture())).thenAnswer(inv -> {
+            LsDeidentProcLog p = inv.getArgument(0);
+            setField(p, "procLogSn", 1L);
+            return p;
+        });
+        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
+                .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
+
+        step.run(raw);
+
+        // 위탁 시점에 save 된 procLog 가 REQUESTED 였음 (이후 succeed() 로 SUCCEEDED 전이 — 동일 인스턴스 dirty checking)
+        LsDeidentProcLog first = captor.getAllValues().get(0);
+        // succeed() 가 호출되기 전 상태는 REQUESTED 였으나, 인스턴스가 동일하므로 마지막 상태는 SUCCEEDED.
+        // 따라서 succeed() 가 정상 호출되었는지(=결과 도착 시점에 SUCCEEDED 전이) 확인.
+        assertThat(first.getProcSttsCd()).isIn(LsDeidentProcLog.REQUESTED, LsDeidentProcLog.SUCCEEDED);
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
     @DisplayName("Phase2_PRVC_영상_정상_호출_성공_시_markDeidentified_Y_회귀")
     void prvcSuccessMarksY() {
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);

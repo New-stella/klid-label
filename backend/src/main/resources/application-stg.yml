@@ -16,6 +16,16 @@ spring:
       org.quartz.jobStore.clusterCheckinInterval: '20000'
       org.quartz.scheduler.instanceId: AUTO
 
+authoring:
+  gitea:
+    retry:
+      enabled: ${GITEA_RETRY_ENABLED:true}
+
+# Phase 3 — stg 환경에서 fallback 큐 활성화 (ccarch if-gitea-contents 검증).
+gitea:
+  fallback:
+    enabled: ${GITEA_FALLBACK_ENABLED:true}
+
 logging:
   level:
     root: INFO

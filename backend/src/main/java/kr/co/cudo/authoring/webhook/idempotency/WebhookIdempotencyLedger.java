@@ -33,8 +33,22 @@ public interface WebhookIdempotencyLedger {
     /**
      * 외부 위탁 시 발급한 idempotencyKey 를 등록한다.
      * 동일 키가 이미 존재하면 무시 (불변 보장).
+     *
+     * <p>본 오버로드는 externalJobId 만 받는다 (channel 미상 — UNKNOWN 으로 기록).
      */
     void recordIssued(String idempotencyKey, String externalJobId);
+
+    /**
+     * Phase 3 — channel 명시 발급 기록.
+     *
+     * <p>운영에서는 {@link PersistentWebhookIdempotencyLedger} 가
+     * {@code LsWebhookIdempotency.CHANNEL_*} 상수를 그대로 영속한다.
+     * 호환을 위해 디폴트 구현은 channel 을 externalJobId 위치로 전달 (구 시그니처와 동일 동작).
+     * 명시 구현체는 channel/externalJobId 슬롯을 분리한다.
+     */
+    default void recordIssued(String idempotencyKey, String channel, String externalJobId) {
+        recordIssued(idempotencyKey, externalJobId);
+    }
 
     /**
      * 처리 완료 마킹 — 이후 동일 키 재인계는 멱등 200 OK 로 응답되도록 한다.

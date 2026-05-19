@@ -126,6 +126,16 @@ authoring:
     retry:
       # Gitea fallback 재시도 잡 활성화 (Phase 8). 기본 false → prd 에서 true 로 오버라이드.
       enabled: ${GITEA_RETRY_ENABLED:false}
+
+# Phase 3 — Gitea fallback 영속 큐 (ccarch if-gitea-contents).
+#  - false 기본 (local/dev). CircuitBreaker open 시 즉시 예외 전파 (현재 동작 유지).
+#  - true (stg/prd) 활성화 시 LS_GITEA_FALLBACK_QUEUE 적재 + GiteaFallbackRetryJob 1분 polling.
+gitea:
+  fallback:
+    enabled: ${GITEA_FALLBACK_ENABLED:false}
+    retry:
+      interval-ms: ${GITEA_FALLBACK_RETRY_INTERVAL_MS:60000}
+      initial-delay-ms: ${GITEA_FALLBACK_RETRY_INITIAL_DELAY_MS:30000}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...

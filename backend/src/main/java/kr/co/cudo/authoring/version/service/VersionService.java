@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
+import kr.co.cudo.authoring.version.fallback.GiteaFallbackQueueService;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -28,9 +29,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +54,12 @@ public class VersionService {
     private final VideoRepository videoRepository;
     private final WorkLockService workLockService;
     private final ObjectMapper objectMapper;
+    /**
+     * Phase 3 — Gitea 영속 fallback 큐 (ccarch {@code if-gitea-contents} 명세).
+     * {@code gitea.fallback.enabled=true} 환경에서만 활성. 기존 in-memory {@link GiteaCommitFallbackQueue} 와 병행 적재 —
+     * 회귀 0건 보장. enabled=false (local/dev) 환경에서는 {@link GiteaFallbackQueueService#enqueuePut} 가 즉시 {@code Optional.empty()} 반환.
+     */
+    private final GiteaFallbackQueueService persistentFallbackQueue;
 
     @Value("${authoring.integration.gitea.repo}")
     private String repo;
@@ -84,8 +94,53 @@ public class VersionService {
         } catch (Exception e) {
             log.warn("[Version] gitea commit failed srcSn={} actor={} reason={}",
                     srcSn, actor.sub(), e.getClass().getSimpleName());
-            fallbackQueue.enqueue(srcSn, labelsJson, actor.sub());
+            // MEDIUM-2 (CWE-694): 중복 commit 차단 — enabled 분기로 단일 큐만 사용.
+            // enabled=true (stg/prd) → 영속 큐만 사용 (Quartz/Scheduler 가 재시도)
+            // enabled=false (local/dev 단일 인스턴스) → in-memory 큐만 사용 (기존 회귀 보존)
+            enqueueFallback(srcSn, labelsJson, actor.sub(), path, message, contentBase64);
             return null;
+        }
+    }
+
+    /**
+     * MEDIUM-2 (CWE-694) — Gitea 장애 시 fallback 적재 단일화.
+     * persistentFallbackQueue.isEnabled() 기준 단일 큐만 호출하여 중복 commit 방지.
+     */
+    private void enqueueFallback(Long srcSn, String labelsJson, String actorSub,
+                                 String path, String commitMessage, String contentBase64) {
+        if (persistentFallbackQueue.isEnabled()) {
+            try {
+                // NEW-2: 결정적 idempotencyKey — 같은 (srcSn, path, content) 재시도 시 UNIQUE 충돌로 중복 차단.
+                String idempotencyKey = deterministicIdempotencyKey(srcSn, path, contentBase64);
+                persistentFallbackQueue.enqueuePut(idempotencyKey, path, "main",
+                        commitMessage, actorSub, contentBase64);
+            } catch (RuntimeException pqe) {
+                // 영속 큐 적재 실패(예: 큐 가득 참, DB 다운) — 안전망으로 in-memory 큐에 적재.
+                log.warn("[Version] persistent fallback enqueue failed srcSn={} reason={} - in-memory fallback",
+                        srcSn, pqe.getClass().getSimpleName());
+                fallbackQueue.enqueue(srcSn, labelsJson, actorSub);
+            }
+        } else {
+            // enabled=false 환경: 기존 in-memory 큐 경로 유지 (local/dev 단일 인스턴스).
+            fallbackQueue.enqueue(srcSn, labelsJson, actorSub);
+        }
+    }
+
+    /**
+     * NEW-2 — srcSn + path + contentBase64 의 SHA-256 prefix(32자) 로 결정적 idempotency key 생성.
+     *
+     * <p>사용자가 "저장" 버튼을 더블클릭 / 네트워크 재시도로 같은 페이로드가 두 번 도착해도
+     * 같은 key 생성 → DB UNIQUE 제약(IDEMPOTENCY_KEY)이 자연스럽게 중복 적재 차단.
+     * (DataIntegrityViolationException 흡수 로직은 {@link GiteaFallbackQueueService#enqueuePut} 에 이미 존재.)
+     */
+    private String deterministicIdempotencyKey(Long srcSn, String path, String contentBase64) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            String input = srcSn + ":" + path + ":" + (contentBase64 == null ? "" : contentBase64);
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash).substring(0, 32);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
 
@@ -457,18 +512,22 @@ public class VersionService {
         }
 
         String newSha = null;
+        String rollbackPath = pathPolicy.path(srcSn);
+        String rollbackMessage = "rollback to " + commitHash + " by " + actor.sub();
+        String contentBase64 = Base64.getEncoder().encodeToString(
+                (snapshot == null ? "" : snapshot).getBytes(StandardCharsets.UTF_8));
         try {
-            String contentBase64 = Base64.getEncoder().encodeToString(
-                    (snapshot == null ? "" : snapshot).getBytes(StandardCharsets.UTF_8));
             CommitResponse resp = giteaClient
-                    .createOrUpdateFile(repo, pathPolicy.path(srcSn), contentBase64,
-                            "rollback to " + commitHash + " by " + actor.sub(), actor.sub(), "main")
+                    .createOrUpdateFile(repo, rollbackPath, contentBase64,
+                            rollbackMessage, actor.sub(), "main")
                     .block(GiteaClient.BLOCK_TIMEOUT);
             newSha = resp == null ? null : resp.sha();
         } catch (Exception e) {
             log.warn("[Version] rollback commit failed - enqueue retry srcSn={} reason={}",
                     srcSn, e.getClass().getSimpleName());
-            fallbackQueue.enqueue(srcSn, snapshot, actor.sub());
+            // H-2: rollback 경로도 commit 과 동일한 영속/in-memory 큐 분기 적용.
+            // 기존엔 in-memory 만 적재되어 stg/prd 에서 RetryJob 가 처리 불가했음 — 단일 큐 분기로 회복 보장.
+            enqueueFallback(srcSn, snapshot, actor.sub(), rollbackPath, rollbackMessage, contentBase64);
         }
 
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
