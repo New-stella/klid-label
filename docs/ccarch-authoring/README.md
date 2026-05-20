@@ -128,4 +128,22 @@ ai-server 는 본 도구가 책임지는 영역이므로 외부 시스템이 아
 - `docs/ccarch/`는 발주처·감리·외부 협력사가 사업 전체 추적성을 확인할 용도 (SYSTEM ARCHITECTURE 포함)
 - `docs/ccarch-authoring/`는 **본 도구 개발팀 + 본 도구의 호출 파트너 시스템**과의 통합 설계용
 - 두 폴더 모두 ccarch 에 업로드 가능하지만, 같은 workspace 라면 `_handle` 충돌이 없도록 본 폴더는 핸들에 `auth-` 또는 동일 슬러그 유지 + idempotencyKey 로 멱등 처리
-- 권장: 본 폴더 자료만 운영 워크스페이스에 업로드하고, 전체 사업 자료는 별도 워크스페이스(또는 readonly 참고 폴더)로 분리
+- 권장: 본 폴더 자료만 운영 워크스페이스에 업로드하고, 전체 사업 자료는 별도 워크스페이스(또는 readonly 참고 폴더)로 분리. ccarch 의 `workspaceScope` 제약으로 cross-workspace 링크는 불가하므로 추적성이 두 자료군을 가로질러야 한다면 단일 워크스페이스 운영 필수
+
+## ccarch MCP v1 가이드 변경 적응 (2026-05 기준)
+
+ccarch 가이드가 22개 노드 타입 + `attrsSchemas` 자식 자동 ID + 24종 `artifactCatalog` + 5개 신규 read 도구로 확장되었다. 본 폴더는 추적성·외부 계약 중심이라 **9개 타입(SOURCE_REQUIREMENT/REQUIREMENT/USECASE/ENTITY/COMPONENT/INTERFACE/ARCHITECTURE/ACTOR/FEATURE) 만 사용**한다.
+
+| 신규 타입 | 본 폴더 적용 | 사유 |
+|---|---|---|
+| `SYSTEM_INTERFACE` | ❌ 미적용 | `REALIZES`/`DEPENDS_ON` 의 `allowedTargetTypes` 에 미포함 — 외부 계약 4건은 추적성 링크 호환을 위해 `INTERFACE` 로 유지. artifactCatalog 의 `INTERFACE_DESIGN` 도 source=INTERFACE |
+| `SCREEN`, `DATABASE`, `DESIGN_CLASS`, UML 다이어그램 4종 | ❌ 미적용 | 화면설계서·DB 설계서·UML 다이어그램은 별도 워크스페이스 또는 추후 별도 폴더에서 다룬다 |
+| `TESTPLAN`/`TESTSCENARIO`/`TESTCASE`/`CODE`/`GUIDE` | ❌ 미적용 | 본 도구 구현·시험 단계 산출물은 본 폴더 범위 외 |
+
+| 신규 read 도구 | 본 폴더 활용 |
+|---|---|
+| `ccarch_list_node_types` | 사전 점검 (가이드 캐시 대신 빠른 타입 검증) |
+| `ccarch_list_system_artifact_types` / `ccarch_get_system_artifact` | 업로드 후 INTERFACE_DESIGN / COMPONENT_DESIGN / ARCHITECTURE_DESIGN 산출물 자동 생성 확인 |
+| `ccarch_list_revisions` / `ccarch_get_revision_diff` | 노드 update 시 `reason` 함께 보내고 감리 추적·변경 근거 보관 |
+
+자세한 호출 순서·템플릿은 [12-upload-plan.md](12-upload-plan.md) 참조.
