@@ -121,7 +121,9 @@ ai-server 는 본 도구가 책임지는 영역이므로 외부 시스템이 아
 | [09-interfaces.md](09-interfaces.md) | INTERFACE | 4 | 외부 시스템과의 계약만 — Inbound SPI 1(증강 결과 인계) + Outbound 3(비식별/Gitea/외부 VLM). 본 도구 내부 호출(FE↔BE, BE↔ai-server)·JWT 인계(storage 공유)는 등록하지 않음 |
 | [10-architecture.md](10-architecture.md) | ARCHITECTURE | 1 | 저작도구 서브시스템 ONLY |
 | [11-traceability.md](11-traceability.md) | (링크) | — | 좁혀진 매트릭스 |
-| [12-upload-plan.md](12-upload-plan.md) | (실행) | — | 본 폴더 한정 업로드 가이드 |
+| [12-upload-plan.md](12-upload-plan.md) | (실행) | — | 본 폴더 한정 업로드 가이드 (Phase A~F 체크리스트 + 산출물 자동 추출 검증) |
+| [13-databases.md](13-databases.md) | DATABASE | 1 | klid_system 공유 DB — 본 도구 사용 LS_*/MNG_*/QRTZ_* 테이블 + 핵심 인덱스 |
+| [14-erd.md](14-erd.md) | ERD | 1 | 저작도구 도메인 ERD — Mermaid ER source 보관 (감리·발주처 제출용) |
 
 ## 사업 전체 자료(`docs/ccarch/`)와의 관계
 
@@ -132,18 +134,42 @@ ai-server 는 본 도구가 책임지는 영역이므로 외부 시스템이 아
 
 ## ccarch MCP v1 가이드 변경 적응 (2026-05 기준)
 
-ccarch 가이드가 22개 노드 타입 + `attrsSchemas` 자식 자동 ID + 24종 `artifactCatalog` + 5개 신규 read 도구로 확장되었다. 본 폴더는 추적성·외부 계약 중심이라 **9개 타입(SOURCE_REQUIREMENT/REQUIREMENT/USECASE/ENTITY/COMPONENT/INTERFACE/ARCHITECTURE/ACTOR/FEATURE) 만 사용**한다.
+ccarch 가이드가 22개 노드 타입 + `attrsSchemas` 자식 자동 ID + **25종** `artifactCatalog` + 5개 신규 read 도구로 확장되었다. 본 폴더는 추적성·외부 계약 + **ERM/DB 설계서**까지 다루며 **11개 타입**을 사용한다: `SOURCE_REQUIREMENT` / `REQUIREMENT` / `USECASE` / `ENTITY` / `COMPONENT` / `INTERFACE` / `ARCHITECTURE` / `ACTOR` / `FEATURE` / **`DATABASE`** / **`ERD`**.
 
-| 신규 타입 | 본 폴더 적용 | 사유 |
+| 신규 타입 | 본 폴더 적용 | 사유 / 위치 |
 |---|---|---|
+| `ACTOR` | ✅ 적용 (10건) | 사람·내부 4건 + 외부 시스템 6건 — 01/02 |
+| `FEATURE` | ✅ 적용 (7건) | 저작도구 직접 책임 기능군 — 03 |
+| **`DATABASE`** | ✅ **적용 (1건, 2026-05 추가)** | klid_system 공유 DB — 본 도구 사용 테이블/인덱스만. [13-databases.md](13-databases.md) |
+| **`ERD`** | ✅ **적용 (1건, 2026-05 추가)** | 저작도구 도메인 ERD — Mermaid ER source 보관. [14-erd.md](14-erd.md) |
 | `SYSTEM_INTERFACE` | ❌ 미적용 | `REALIZES`/`DEPENDS_ON` 의 `allowedTargetTypes` 에 미포함 — 외부 계약 4건은 추적성 링크 호환을 위해 `INTERFACE` 로 유지. artifactCatalog 의 `INTERFACE_DESIGN` 도 source=INTERFACE |
-| `SCREEN`, `DATABASE`, `DESIGN_CLASS`, UML 다이어그램 4종 | ❌ 미적용 | 화면설계서·DB 설계서·UML 다이어그램은 별도 워크스페이스 또는 추후 별도 폴더에서 다룬다 |
+| `SCREEN`, `DESIGN_CLASS`, UML 다이어그램 4종 (UCD/SD/DCD) | ❌ 미적용 | 화면설계서·OO 설계 클래스·UML 다이어그램은 별도 워크스페이스 또는 추후 별도 폴더에서 다룬다 |
 | `TESTPLAN`/`TESTSCENARIO`/`TESTCASE`/`CODE`/`GUIDE` | ❌ 미적용 | 본 도구 구현·시험 단계 산출물은 본 폴더 범위 외 |
+
+### 신규 read 도구 5종 활용
 
 | 신규 read 도구 | 본 폴더 활용 |
 |---|---|
-| `ccarch_list_node_types` | 사전 점검 (가이드 캐시 대신 빠른 타입 검증) |
-| `ccarch_list_system_artifact_types` / `ccarch_get_system_artifact` | 업로드 후 INTERFACE_DESIGN / COMPONENT_DESIGN / ARCHITECTURE_DESIGN 산출물 자동 생성 확인 |
-| `ccarch_list_revisions` / `ccarch_get_revision_diff` | 노드 update 시 `reason` 함께 보내고 감리 추적·변경 근거 보관 |
+| `ccarch_list_node_types` | 사전 점검 (가이드 캐시 대신 빠른 22개 타입 검증) |
+| `ccarch_list_system_artifact_types` | 사전 점검 — 25종 산출물 카탈로그 확인 (본 폴더는 9종 충족) |
+| `ccarch_get_system_artifact` | 업로드 후 9종 산출물 자동 생성 확인 — 분석 3종(REQUIREMENT_SPEC/USECASE_SPEC/REQUIREMENT_TRACEABILITY) + 설계 6종(**CLASS_DESIGN** / **ENTITY_RELATIONSHIP_MODEL** / **DATABASE_DESIGN** / COMPONENT_DESIGN / INTERFACE_DESIGN / ARCHITECTURE_DESIGN) |
+| `ccarch_list_revisions` | 노드 update 시 `reason` 누락 여부 점검 |
+| `ccarch_get_revision_diff` | 감리·발주처 제출용 변경 근거 (revision A vs B 차이) |
+
+### ENTITY → 5종 산출물 자동 추출 매핑 (Critical)
+
+ENTITY 노드 1건은 가이드의 `usedInArtifacts` 에 따라 5종 산출물의 source 가 된다. `severity=ERROR` 필드 누락 시 추출 차단되므로 [07-entities.md](07-entities.md) 의 15개 ENTITY 는 아래 attrs 키를 모두 채워 두었다.
+
+| 산출물 | 본 폴더 충족 상태 | 비고 |
+|---|---|---|
+| `CLASS_DESIGN` (전체 클래스 설계서) | ✅ ERROR 충족 (`classId` / `node.title`) + WARN 충족 (`attributes`, `operations` 일부) | INFO 필드(`sequenceDiagram` / `classDiagram` PlantUML) 는 본 폴더 범위 외 |
+| **`ENTITY_RELATIONSHIP_MODEL`** (엔티티 관계 모형 기술서) | ✅ ERROR 4종 충족 (`entityId` / `node.title` / `attributes` / `primaryKey`) + WARN 충족 (`relationships`, `notNullConstraints`) + INFO 일부 (`synonym`) | 시각화 본체는 ERD 노드(14-erd.md)에 별도 보관 |
+| **`DATABASE_DESIGN`** (데이터베이스 설계서) | ✅ ERROR 4종 충족 (`tableId` / `node.title` / `columns` / `primaryKeyColumns`) | WARN(`capacity` / `maxRows` / `retentionPeriod`) 는 운영 환경 결정 후 보강 |
+| `DATABASE_TABLE` (DB 생성 스크립트) | ⚠️ 미충족 — `scriptId` / `databaseId` 미보유 | Flyway V0~V42 별 매핑은 별도 작업 |
+| `DATA_MIGRATION_DESIGN` (데이터 전환 설계서) | ⚠️ 미충족 — `purpose` / `targetSystems` / `targetData` / `dataMapping` 미보유 | 본 도구 신규 테이블 0건 정책이라 마이그레이션 범위 협소 — 운영 전환 시점 보강 |
+
+### workspaceScope (단일 워크스페이스 운영 권장)
+
+ccarch 의 `workspaceScope` 제약으로 cross-workspace 링크는 불가하다. 본 폴더(`docs/ccarch-authoring/`)와 사업 전체 자료(`docs/ccarch/`)를 별도 워크스페이스에 업로드하면 추적성 링크가 두 자료군을 가로지를 수 없으므로, **단일 워크스페이스 운영을 권장**한다. `_handle` 슬러그는 본 폴더 내부 식별용이며 등록 시 보내지 않는다 (idempotencyKey 로 멱등 처리).
 
 자세한 호출 순서·템플릿은 [12-upload-plan.md](12-upload-plan.md) 참조.
