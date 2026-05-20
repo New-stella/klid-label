@@ -14,7 +14,13 @@
   "type": "INTERFACE",
   "title": "외부 생성형 AI 증강 결과 인계 (Inbound 비동기)",
   "content": "**소유자**: 본 도구 (Inbound SPI)\n**연동 방식**: 비동기 — 외부 생성형 AI 시스템(ext-generative-ai)이 본 도구에 결과 메시지를 비동기 push (이벤트 또는 콜백)\n\n**흐름**\n1. 본 도구가 ext-generative-ai 에 증강 요청을 비동기 등록 (요청 ID 생성)\n2. 외부 시스템이 처리 완료 시 본 인터페이스로 결과 인계\n3. 본 도구는 요청 ID 로 매핑하여 `LS_DATA_AUG` 적재 → 검수 큐 진입\n\n**페이로드**\n- 요청 ID (idempotency 키)\n- 증강 결과 영상·이미지 (또는 저장소 위치)\n- 원본↔증강 라벨 매핑 (라벨 무결성)\n- 증강 메타 (augType: WINTER/NIGHT/RAIN/RESOLUTION, 원본 영상 ID)\n\n**신뢰성**\n- 동일 요청 ID 재인계 시 idempotency 처리\n- 비정상 페이로드는 dead-letter 영역에 보관 후 알림\n\n**보안**: 인계 토큰 또는 IP 화이트리스트로 보호 (운영 환경 결정)\n**protocol**: EVENT (transport·큐·콜백 구체 방식은 운영 결정)",
-  "attrs": {"protocol": "EVENT"},
+  "attrs": {
+    "protocol": "EVENT",
+    "interfaceNo": "if-augment-result-handover",
+    "senderSystem": "ext-generative-ai",
+    "receiverSystem": "authoring-tool (Backend)",
+    "direction": "Inbound"
+  },
   "_handle": "if-augment-result-handover"
 }
 ```
@@ -26,7 +32,13 @@
   "type": "INTERFACE",
   "title": "Deidentify 비동기 작업 위탁 계약",
   "content": "**소유자**: 외부 시스템 (ext-deidentify-sw) — 발주기관 SW 직접구매\n**본 워크스페이스 등록 사유**: ccarch 의 `DEPENDS_ON` 관계가 ACTOR 를 target 으로 허용하지 않아, 본 도구의 외부 의존성 추적성을 위해 본 워크스페이스에 등록한다.\n**연동 방식**: 비동기 — 본 도구가 작업 등록 후 결과를 별도 채널로 수신\n\n**흐름**\n1. 본 도구가 비식별 작업을 외부 솔루션에 비동기 등록 (영상·옵션 + 요청 ID)\n2. 외부 솔루션이 처리 완료 시 결과 메시지를 본 도구에 통지 (큐/콜백/폴링 — 운영 결정)\n3. 본 도구는 비식별본 경로 + 처리 영역 좌표를 `LS_DEIDENT_REPORT` 에 기록\n\n**호출 정책**: 모든 영상에 대해 무조건 위탁\n**신뢰성**\n- 요청 ID 기반 idempotency\n- 처리 실패·미응답 시 `LS_DATA_RAW.DE_IDNTF_YN='F'` 마킹 + 재등록 큐 (원본 절대 삭제 금지)\n- 비동기 재시도 정책 (운영 결정)\n\n**본 도구 측 호출자**: `DeidentifyClient` (comp-deidentify-client)\n**환경변수**: `DEIDENTIFY_API_URL` (또는 큐/메시지 브로커 주소)\n**protocol**: EVENT (작업 위탁 메시지 + 결과 수신 메시지)",
-  "attrs": {"protocol": "EVENT"},
+  "attrs": {
+    "protocol": "EVENT",
+    "interfaceNo": "if-deidentify-spi",
+    "senderSystem": "authoring-tool (DeidentifyClient)",
+    "receiverSystem": "ext-deidentify-sw",
+    "direction": "Outbound"
+  },
   "_handle": "if-deidentify-spi"
 }
 ```
@@ -38,7 +50,13 @@
   "type": "INTERFACE",
   "title": "Gitea Contents API (PUT/GET/DELETE /repos/{owner}/{repo}/contents/{path})",
   "content": "**소유자**: 외부 시스템 (ext-gitea)\n**본 워크스페이스 등록 사유**: ccarch 의 `DEPENDS_ON` 관계가 ACTOR 를 target 으로 허용하지 않아, 본 도구의 외부 의존성 추적성을 위해 본 워크스페이스에 등록한다.\n**연동 방식**: 동기 REST — 라벨 저장 시 본 도구가 즉시 외부 Gitea 에 커밋 후 hash 응답을 받아 후속 처리. (외부 시스템 연동 중 본 인터페이스만 동기 처리, 나머지 비식별/VLM/생성형 AI 는 모두 비동기)\n\n**흐름**\n1. WORKER 가 라벨 저장 → BE 가 `LS_DATA_LBL` upsert\n2. `GiteaClient` 가 외부 Gitea Contents API 동기 호출 (PUT/GET/DELETE `/repos/{owner}/{repo}/contents/{path}`)\n3. 커밋 hash 수신 후 `LS_DATA_LBL_HSTRY` 에 즉시 기록\n4. FE 응답에 커밋 결과 포함 → VERSION_KEYS / TASK_BOARD_KEYS invalidate\n\n**메시지**: 한글 커밋 메시지 + frame·변화 카운트 enrichment\n**신뢰성**\n- 동기 호출: timeout 70s + CircuitBreaker(failure-rate 50%, window 10, minCalls 5, wait 30s) + Retry max=3 + exp backoff\n- 외부 Gitea 장애 시 fallback 큐에 적재 후 재시도 (stg/prd 에서 활성화) — 정상 흐름은 동기, 장애 대응만 큐\n- CircuitBreaker open 시 사용자에게 안내, 라벨은 DB 우선 저장됨\n\n**본 도구 측 호출자**: `GiteaClient` (comp-gitea-client)\n**환경변수**: `GITEA_BASE_URL`, `GITEA_TOKEN`, `GITEA_OWNER`, `GITEA_REPO`\n**protocol**: REST (동기)",
-  "attrs": {"protocol": "REST"},
+  "attrs": {
+    "protocol": "REST",
+    "interfaceNo": "if-gitea-contents",
+    "senderSystem": "authoring-tool (GiteaClient)",
+    "receiverSystem": "ext-gitea",
+    "direction": "Outbound"
+  },
   "_handle": "if-gitea-contents"
 }
 ```
@@ -50,7 +68,13 @@
   "type": "INTERFACE",
   "title": "외부 VLM 시계열 분석 비동기 위탁 계약",
   "content": "**소유자**: 외부 시스템 (ext-vlm-service)\n**본 워크스페이스 등록 사유**: ccarch 의 `DEPENDS_ON` 관계가 ACTOR 를 target 으로 허용하지 않아, 본 도구의 외부 의존성 추적성을 위해 본 워크스페이스에 등록한다.\n**연동 방식**: 비동기 — 본 도구가 시계열 분석 작업을 위탁 등록 후 결과를 별도 채널로 수신\n\n**흐름**\n1. 본 도구의 BATCH_SYSTEM (VlmTimeseriesStep) 이 영상·프레임 시퀀스에 대한 분석 작업을 외부 VLM 서비스에 비동기 등록 (요청 ID + 분석 옵션)\n2. 외부 VLM 서비스가 처리 완료 시 시계열 메타 결과 메시지를 본 도구에 통지 (큐/콜백/폴링 — 운영 결정)\n3. 본 도구가 응답을 `LS_DATA_META`(META_TYPE_CD='VLM') 적재 + `LS_DATA_META_REVIEW` 검토 큐 진입 (RVW_STTS_CD='AUTO_GENERATED' 또는 'PENDING')\n\n**대상 외**: 영상 단위 일반 메타·객체 단위 정합성 검증은 위탁 대상 아님\n\n**페이로드 (결과)**: 시계열 메타 (자연어 설명·객체·환경 K/V 페어)\n**신뢰성**\n- 요청 ID 기반 idempotency\n- 처리 실패·미응답 시 재등록 큐\n- 비동기 재시도 정책 (운영 결정)\n\n**본 도구 측 호출자**: `VlmClient` (comp-vlm-client)\n**protocol**: EVENT (작업 위탁 메시지 + 결과 수신 메시지)",
-  "attrs": {"protocol": "EVENT"},
+  "attrs": {
+    "protocol": "EVENT",
+    "interfaceNo": "if-vlm-timeseries-spi",
+    "senderSystem": "authoring-tool (VlmClient)",
+    "receiverSystem": "ext-vlm-service",
+    "direction": "Outbound"
+  },
   "_handle": "if-vlm-timeseries-spi"
 }
 ```

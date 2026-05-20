@@ -6,14 +6,14 @@
 ## 0. 사전 점검
 
 1. `mcp__ccarch__ccarch_get_guide` — 노드/관계 타입 가이드 재확인 (10분 캐시, 응답이 클 수 있으므로 다음 두 도구 우선)
-2. `mcp__ccarch__ccarch_list_node_types` — 사용 가능한 22개 노드 타입 목록 (빠른 검증용, get_guide 보다 가벼움)
+2. `mcp__ccarch__ccarch_list_node_types` — 사용 가능한 23개 노드 타입 목록 (빠른 검증용, get_guide 보다 가벼움)
 3. `mcp__ccarch__ccarch_list_system_artifact_types` — 산출물 카탈로그 25종 목록 확인 (본 폴더는 REQUIREMENT_SPEC / USECASE_SPEC / REQUIREMENT_TRACEABILITY / CLASS_DESIGN / **ENTITY_RELATIONSHIP_MODEL** / **DATABASE_DESIGN** / COMPONENT_DESIGN / INTERFACE_DESIGN / ARCHITECTURE_DESIGN 대상)
 4. `mcp__ccarch__ccarch_get_wiki_stats` — 베이스라인 노드/링크 수 기록
 5. UUID v4 생성기 준비 (각 호출마다 새 idempotencyKey)
 
 ### 본 폴더에서 사용하는 노드 타입 (11종)
 
-ccarch 가이드 v1 은 22개 노드 타입을 지원한다. 본 폴더는 **11개 타입**을 사용한다:
+ccarch 가이드 v1 은 23개 노드 타입을 지원한다 (기존 13종 + 신규 10종: ACTOR/FEATURE/USECASE_DIAGRAM/SEQUENCE_DIAGRAM/DESIGN_CLASS_DIAGRAM/ERD/DESIGN_CLASS/SCREEN/SYSTEM_INTERFACE/DATABASE). 본 폴더는 **11개 타입**을 사용한다:
 
 | 분류 | 타입 | 파일 | 건수 |
 |---|---|---|---:|
@@ -103,6 +103,21 @@ mcp__ccarch__ccarch_create_node({
 
 **현재 본 폴더 충족 범위**: 상위 3종(CLASS_DESIGN / ERM / DATABASE_DESIGN)의 ERROR 필드 전체 + 권장 WARN/INFO 일부. 하위 2종(DATABASE_TABLE / DATA_MIGRATION_DESIGN)은 추후 운영 환경 보강.
 
+### 비-ENTITY 노드 attrs ERROR 필드 (참고)
+
+ENTITY 외 다른 노드 타입도 가이드 `usedInArtifacts.fields.severity=ERROR` 가 정의되어 있다. 본 폴더는 모두 충족하도록 attrs 를 보강했다 (05/06/08/09/10).
+
+| 노드 타입 | 산출물 | ERROR 필드 | 본 폴더 처리 |
+|---|---|---|---|
+| REQUIREMENT | REQUIREMENT_SPEC | `requirementId` (attrs), `requirementName` (title✅), `description` (bodyMd≈content), `category` (attrs✅) | 05-requirements.md — `attrs.requirementId` = _handle 슬러그 추가. description 은 content(=bodyMd) 매핑 가정 |
+| USECASE | USECASE_SPEC | `usecaseId` (attrs), `usecaseName` (title✅), `primaryActors` (attrs), `mainScenario` (bodyMd≈content) | 06-usecases.md — `attrs.usecaseId` + `attrs.primaryActors` (string[]). 기존 `attrs.actor` 키는 제거. mainScenario 는 content 매핑 |
+| COMPONENT | COMPONENT_DESIGN | `componentId` (attrs), `componentName` (title✅) | 08-components.md — `attrs.componentId` = _handle 슬러그 추가 |
+| INTERFACE | INTERFACE_DESIGN | `interfaceNo` (attrs), `senderSystem` (attrs), `receiverSystem` (attrs) | 09-interfaces.md — 4건 모두 추가 (Inbound/Outbound 방향 명시) |
+| INTERFACE | UI_DESIGN | `screenId`, `screenName`, `ioFields` | **추출 대상 외** — 본 폴더 INTERFACE 는 외부 시스템 계약(API/SPI)이라 UI 화면 의미 아님. F-3 참조 |
+| ARCHITECTURE | ARCHITECTURE_DESIGN | `softwareArchitectureDiagram` (attrs), `architecturePattern` (attrs) | 10-architecture.md — Mermaid graph 다이어그램 + "Modular Monolith + Sidecar Inference" 패턴 명시 |
+
+> **ID 정책**: 본 폴더 모든 *Id (requirementId/usecaseId/componentId/interfaceNo) 는 각 노드의 `_handle` 슬러그를 동일 값으로 재사용한다. 별도 외부 ID 체계를 도입하지 않아 추적성·중복 방지·검색 가독성을 모두 확보.
+
 ### 링크 등록 (예: DERIVES_FROM)
 ```jsonc
 mcp__ccarch__ccarch_create_link({
@@ -131,6 +146,17 @@ mcp__ccarch__ccarch_create_link({
    - **`DATABASE_DESIGN` (sourceNodeType=ENTITY)** — 15건 ENTITY 모두 포함 / tableId·columns·primaryKeyColumns 충족 확인
    - `REQUIREMENT_SPEC` / `USECASE_SPEC` / `REQUIREMENT_TRACEABILITY` — 분석 단계 3종
    - 미충족 ERROR 필드가 보고되면 해당 ENTITY 의 attrs 보강 후 update 재호출
+
+   **본 폴더에서 추출 대상이 아닌 산출물 (참고)**
+   - `UI_DESIGN` (sourceNodeType=INTERFACE) — **추출 대상 아님**. 본 폴더의 INTERFACE 4건은 외부 시스템과의 **계약(API/SPI)** 이며 UI 화면이 아니다. UI_DESIGN 은 SCREEN 노드 또는 화면 의미의 INTERFACE 가 등록된 별도 워크스페이스(`docs/ccarch/` 또는 추후 추가)에서 추출한다. 본 폴더에서 `get_system_artifact("UI_DESIGN")` 호출 시 4건이 들어가지만 의미 없는 데이터이므로 호출하지 않는다.
+   - `DATABASE_TABLE` / `DATA_MIGRATION_DESIGN` (sourceNodeType=ENTITY) — 본 폴더 ENTITY attrs 에 `scriptId` / `databaseId` / `purpose` / `targetSystems` 등이 미보강이므로 ERROR 보고가 예상됨. 운영 전환 시점에 별도 보강.
+   - 시험 단계 산출물 (OVERALL_TEST_PLAN / SYSTEM/INTEGRATION/UNIT/ACCEPTANCE_TEST_* / USER_MANUAL / OPERATOR_MANUAL / SYSTEM_INSTALL_RESULT / PROGRAM_CODE) — 본 폴더 범위 외 (TESTPLAN/TESTSCENARIO/TESTCASE/CODE/GUIDE 노드 미등록).
+
+   **DATABASE / ERD 노드의 위치 (Critical 해명)**
+   - DATABASE / ERD 노드는 가이드 v1 의 `usedInArtifacts` 에 산출물 source 로 등록되어 있지 않다. 즉 **자체로는 시스템 산출물을 직접 생성하지 않는다.**
+   - 본 폴더에서 두 노드를 등록하는 이유는 **(a) 물리 DB 컨텍스트 보관** (DATABASE — 13-databases.md), **(b) 도메인 ERD 다이어그램 source 보관** (ERD — 14-erd.md, 발주처 제출용 SVG/PNG 추출 소스) 이며, ARCHITECTURE 노드에서 `REFERS_TO` 로 연결되어 아키텍처 설계서(ARCHITECTURE_DESIGN 산출물)의 부록·참조 자료로 노출된다.
+   - ENTITY → DATABASE / ERD 간 명시 link 는 가이드 매트릭스에 없다. 두 노드와 ENTITY 의 매칭은 attrs 의 자연 키(테이블명 일치, scope 명시)로 유지하며 `REFERS_TO` 남발을 피한다 (잡음 방지).
+
 7. 누락 발견 시 `_handle` ↔ `node_id` 매핑 갱신 후 보완
 
 ## 4. 회복 (재시도/롤백)

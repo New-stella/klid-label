@@ -134,7 +134,7 @@ ai-server 는 본 도구가 책임지는 영역이므로 외부 시스템이 아
 
 ## ccarch MCP v1 가이드 변경 적응 (2026-05 기준)
 
-ccarch 가이드가 22개 노드 타입 + `attrsSchemas` 자식 자동 ID + **25종** `artifactCatalog` + 5개 신규 read 도구로 확장되었다. 본 폴더는 추적성·외부 계약 + **ERM/DB 설계서**까지 다루며 **11개 타입**을 사용한다: `SOURCE_REQUIREMENT` / `REQUIREMENT` / `USECASE` / `ENTITY` / `COMPONENT` / `INTERFACE` / `ARCHITECTURE` / `ACTOR` / `FEATURE` / **`DATABASE`** / **`ERD`**.
+ccarch 가이드가 23개 노드 타입 + `attrsSchemas` 자식 자동 ID + **25종** `artifactCatalog` + 5개 신규 read 도구로 확장되었다. 본 폴더는 추적성·외부 계약 + **ERM/DB 설계서**까지 다루며 **11개 타입**을 사용한다: `SOURCE_REQUIREMENT` / `REQUIREMENT` / `USECASE` / `ENTITY` / `COMPONENT` / `INTERFACE` / `ARCHITECTURE` / `ACTOR` / `FEATURE` / **`DATABASE`** / **`ERD`**.
 
 | 신규 타입 | 본 폴더 적용 | 사유 / 위치 |
 |---|---|---|
@@ -150,7 +150,7 @@ ccarch 가이드가 22개 노드 타입 + `attrsSchemas` 자식 자동 ID + **25
 
 | 신규 read 도구 | 본 폴더 활용 |
 |---|---|
-| `ccarch_list_node_types` | 사전 점검 (가이드 캐시 대신 빠른 22개 타입 검증) |
+| `ccarch_list_node_types` | 사전 점검 (가이드 캐시 대신 빠른 23개 타입 검증) |
 | `ccarch_list_system_artifact_types` | 사전 점검 — 25종 산출물 카탈로그 확인 (본 폴더는 9종 충족) |
 | `ccarch_get_system_artifact` | 업로드 후 9종 산출물 자동 생성 확인 — 분석 3종(REQUIREMENT_SPEC/USECASE_SPEC/REQUIREMENT_TRACEABILITY) + 설계 6종(**CLASS_DESIGN** / **ENTITY_RELATIONSHIP_MODEL** / **DATABASE_DESIGN** / COMPONENT_DESIGN / INTERFACE_DESIGN / ARCHITECTURE_DESIGN) |
 | `ccarch_list_revisions` | 노드 update 시 `reason` 누락 여부 점검 |
