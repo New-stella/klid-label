@@ -151,6 +151,7 @@ mcp__ccarch__ccarch_create_link({
    - `UI_DESIGN` (sourceNodeType=INTERFACE) — **추출 대상 아님**. 본 폴더의 INTERFACE 4건은 외부 시스템과의 **계약(API/SPI)** 이며 UI 화면이 아니다. UI_DESIGN 은 SCREEN 노드 또는 화면 의미의 INTERFACE 가 등록된 별도 워크스페이스(`docs/ccarch/` 또는 추후 추가)에서 추출한다. 본 폴더에서 `get_system_artifact("UI_DESIGN")` 호출 시 4건이 들어가지만 의미 없는 데이터이므로 호출하지 않는다.
    - `DATABASE_TABLE` / `DATA_MIGRATION_DESIGN` (sourceNodeType=ENTITY) — 본 폴더 ENTITY attrs 에 `scriptId` / `databaseId` / `purpose` / `targetSystems` 등이 미보강이므로 ERROR 보고가 예상됨. 운영 전환 시점에 별도 보강.
    - 시험 단계 산출물 (OVERALL_TEST_PLAN / SYSTEM/INTEGRATION/UNIT/ACCEPTANCE_TEST_* / USER_MANUAL / OPERATOR_MANUAL / SYSTEM_INSTALL_RESULT / PROGRAM_CODE) — 본 폴더 범위 외 (TESTPLAN/TESTSCENARIO/TESTCASE/CODE/GUIDE 노드 미등록).
+     - 추후 별도 폴더에서 등록 시 **시험 ID 명명 통일 정책 적용**: TESTSCENARIO = `KLID-AT-TS-*` (통합/시스템/인수 시험 **모두 동일 prefix**), TESTCASE = `KLID-AT-UT-*`. 시험 종류 구분은 `attrs.testType` (INTEGRATION/SYSTEM/ACCEPTANCE) 메타로 표현 — ID prefix(IT/ST 등)로 구분하지 않는다. 자세한 정책은 [README.md](README.md) "시험 단계 산출물 ID 명명 정책" 참조.
 
    **DATABASE / ERD 노드의 위치 (Critical 해명)**
    - DATABASE / ERD 노드는 가이드 v1 의 `usedInArtifacts` 에 산출물 source 로 등록되어 있지 않다. 즉 **자체로는 시스템 산출물을 직접 생성하지 않는다.**

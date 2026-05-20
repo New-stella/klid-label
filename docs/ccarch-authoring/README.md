@@ -144,7 +144,30 @@ ccarch 가이드가 23개 노드 타입 + `attrsSchemas` 자식 자동 ID + **25
 | **`ERD`** | ✅ **적용 (1건, 2026-05 추가)** | 저작도구 도메인 ERD — Mermaid ER source 보관. [14-erd.md](14-erd.md) |
 | `SYSTEM_INTERFACE` | ❌ 미적용 | `REALIZES`/`DEPENDS_ON` 의 `allowedTargetTypes` 에 미포함 — 외부 계약 4건은 추적성 링크 호환을 위해 `INTERFACE` 로 유지. artifactCatalog 의 `INTERFACE_DESIGN` 도 source=INTERFACE |
 | `SCREEN`, `DESIGN_CLASS`, UML 다이어그램 4종 (UCD/SD/DCD) | ❌ 미적용 | 화면설계서·OO 설계 클래스·UML 다이어그램은 별도 워크스페이스 또는 추후 별도 폴더에서 다룬다 |
-| `TESTPLAN`/`TESTSCENARIO`/`TESTCASE`/`CODE`/`GUIDE` | ❌ 미적용 | 본 도구 구현·시험 단계 산출물은 본 폴더 범위 외 |
+| `TESTPLAN`/`TESTSCENARIO`/`TESTCASE`/`CODE`/`GUIDE` | ❌ 미적용 | 본 도구 구현·시험 단계 산출물은 본 폴더 범위 외. **추후 별도 폴더에서 등록 시 아래 ID 명명 정책 적용** |
+
+### 시험 단계 산출물 ID 명명 정책 (추후 적용 — 참고)
+
+시험 단계 산출물(TESTSCENARIO / TESTCASE)을 별도 폴더(예: `docs/ccarch-testing/`)에서 등록할 때 적용할 통일 정책. 본 폴더는 등록하지 않지만 미리 명시.
+
+| 노드 / 산출물 | ID prefix | 비고 |
+|---|---|---|
+| `TESTSCENARIO` (SYSTEM_TEST_SCENARIO / INTEGRATION_TEST_SCENARIO / ACCEPTANCE_TEST_SCENARIO) | **`KLID-AT-TS-*`** | 통합/시스템/인수 시험 시나리오 **모두 동일 prefix** |
+| `TESTCASE` (UNIT_TEST_CASE) | **`KLID-AT-UT-*`** | 단위 시험 케이스 |
+
+**금지**: 시험 종류별로 다른 prefix(예: `KLID-AT-IT-*` 통합, `KLID-AT-ST-*` 시스템) — 가이드 v1 이전 일부 표에서 본 형식이 보였으나 **적용하지 않는다**.
+
+**구분 메타**: 통합·시스템·인수 시험의 구분은 ID 가 아닌 `attrs.testType` (또는 동등 메타 필드)로 표현한다. 예:
+
+```jsonc
+{
+  "type": "TESTSCENARIO",
+  "title": "KLID-AT-TS-001 — 영상 자동 처리 E2E",
+  "attrs": { "testType": "SYSTEM" }  // INTEGRATION | SYSTEM | ACCEPTANCE
+}
+```
+
+이 정책은 `ccarch_get_system_artifact` 가 sourceNodeType=TESTSCENARIO 한 종류에서 SYSTEM/INTEGRATION/ACCEPTANCE 3개 산출물 코드를 모두 추출하도록 attrs.testType 으로 필터링하기 위함이다.
 
 ### 신규 read 도구 5종 활용
 
