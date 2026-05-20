@@ -167,6 +167,82 @@ mcp__ccarch__ccarch_create_link({
 - **중간 실패 시** 이미 등록된 노드의 매핑을 `11-traceability.md` 에 갱신 후 다음 단계 진행
 - 노드/링크 삭제 API 는 가이드에 명시되지 않음 → 운영자가 admin 도구로 워크스페이스 청소
 
+## 4.5.4 외부 AI 등록 표준 워크플로우 (attrs 키 규약)
+
+외부 AI / 자동화 스크립트가 본 워크스페이스에 노드를 신규 등록(`create_node`)·갱신(`update_node`)할 때 따라야 할 attrs 키 규약. **모든 키는 `ccarch_get_guide` v1 의 `attrsSchemas` 를 그대로 따른다 — 변형 금지**.
+
+### A. ENTITY 노드 attrs 키 표준 (가이드 attrsSchemas 기준)
+
+| attrPath | childIdPrefix | required fields | maxItems | 비고 |
+|---|---|---|---|---|
+| `attributes` | `AR` | **`["name", "type"]`** | 500 | 클래스/엔티티 속성 — `nullable`/`comment`/`description` 등 추가 키 허용 |
+| `operations` | `OP` | `["name"]` | 200 | 메서드/팩토리. `signature`/`comment` 권장 |
+| `relationships` | `RL` | **`["target"]`** | 200 | `cardinality`/`via`/`comment` 권장. ⚠️ `relations` (s 없음) 변형 금지 |
+| `notNullConstraints` | `NN` | **`["column"]`** | 200 | ⚠️ 문자열 배열 (`["RAW_SN"]`) 금지 → 객체 배열 (`[{"column":"RAW_SN"}]`) |
+| `columns` | `CO` | **`["name", "type"]`** | 500 | DB 컬럼 메타 |
+| `targetSystems` | `TG` | `["name"]` | 200 | DATA_MIGRATION_DESIGN 용 |
+| `targetData` | `TD` | `["name"]` | 200 | DATA_MIGRATION_DESIGN 용 |
+| `dataMapping` | `DG` | `["name"]` | 200 | DATA_MIGRATION_DESIGN 용 |
+| `organization` / `tasks` / `systemSchedule` | `OG`/`TK`/`SH` | `["name"]` | 200 | DATA_MIGRATION_DESIGN 용 |
+
+**금지 패턴** (실제 발견된 함정):
+
+| 잘못된 키 | 가이드 표준 키 | 결과 |
+|---|---|---|
+| `attrs.relations` | `attrs.relationships` | BE 가 자식 자동 ID(RL-) 부여하지 않거나 산출물 Renderer 가 인식 못함 |
+| `attrs.methods` | `attrs.operations` | 산출물 markdown 의 "메서드" 섹션 비어보임 |
+| `notNullConstraints: ["RAW_SN", "VMS_CLIP_ID"]` | `[{"column":"RAW_SN"}, {"column":"VMS_CLIP_ID"}]` | child required(`column`) 미충족 → 자동 ID 부여 안 됨 |
+
+### B. usedInArtifacts ERROR severity 필드 충족 (산출물 추출 차단 방지)
+
+각 ENTITY 가 source 인 산출물의 ERROR 필드는 **attrs 키 또는 노드 본문(`bodyMd` = `content`)** 중 한쪽으로 충족:
+
+| 산출물 | ERROR 필드 (attrsPath) | 본 폴더 충족 위치 |
+|---|---|---|
+| `CLASS_DESIGN` | `classId` (attrs), `className` (=`node.title`) | attrs.classId + title ✅ |
+| `ENTITY_RELATIONSHIP_MODEL` | `entityId`, `node.title`, `attributes`, `primaryKey` | attrs ✅ |
+| `DATABASE_DESIGN` | `tableId`, `node.title`, `columns`, `primaryKeyColumns` | attrs ✅ |
+| `DATABASE_TABLE` | `scriptId`, `databaseId`, `tableId` | 미보강 (운영 환경 결정) |
+| `DATA_MIGRATION_DESIGN` | `purpose`, `targetSystems`, `targetData`, `dataMapping` | 미보강 (운영 환경 결정) |
+
+### C. long text (description / mainScenario 등) 처리 — bodyMd 보존
+
+가이드 `attrsPath` 가 **`node.bodyMd 또는 attrs.X`** 형식(예: REQUIREMENT.description / USECASE.mainScenario) 인 경우 **`bodyMd` (= `content`) 에 적힌 long text 도 산출물 검수에서 인정**된다.
+
+- 별도로 `attrs.description` / `attrs.mainScenario` 를 중복 채우지 않아도 됨
+- 풍부한 본문은 `content` 에 보존, 필요 시 짧은 메타만 attrs 에 추가
+- 본 폴더의 모든 노드는 풍부한 `content` 를 보유 → 검수 통과 보장
+
+### D. create_node vs update_node 시점 차이 (attrs 깊이 함정)
+
+- `create_node` (POST) 시점에 **attrs 중첩 깊이 5(배열 안 배열)** 가 거부될 수 있음 (예: `indexes[].columns: ["a","b"]` → 깊이 5)
+- 발견 시 폴백: **string 우회 후 `update_node` (PUT) 로 array 정규화** (BE 가 PUT 경로에서는 더 너그러움)
+- 또는 BE 픽스 적용 후 array 직접 사용 가능 (자동 확인됨)
+
+### E. ENTITY ↔ ENTITY 관계는 `ccarch_create_link` 정공법
+
+`attrs.relationships` 는 **가이드 노출/메타 보존용 보조**. 산출물 markdown 의 "관계 표" 는 `ccarch_create_link` 로 만든 WikiLink 기반.
+
+- attrs 만 채우면 산출물의 "관계" 섹션은 비어보일 수 있음
+- 정식 관계 추적성을 위해서는 `ccarch_create_link(relationType=REFERS_TO 또는 DEPENDS_ON)` 별도 등록 필요 — 가이드 매트릭스 상 ENTITY↔ENTITY 직접 link 타입은 명시 없음. `REFERS_TO` 가 범용 fallback
+
+### F. 외부 AI 인용 표준 문구
+
+본 절을 외부 AI 가 인용할 때 다음 표현을 사용한다.
+
+> "본 워크스페이스 ENTITY 등록 시 attrs 키 규약은 `docs/ccarch-authoring/12-upload-plan.md §4.5.4` 를 따른다. 핵심:
+> - 표준 키: `attributes`/`operations`/`relationships`/`notNullConstraints`/`columns`
+> - child required: attributes·columns=`[name,type]`, relationships=`[target]`, notNullConstraints=`[column]`(객체 배열), operations=`[name]`
+> - long text(description/mainScenario)는 `bodyMd` 에 보존하면 검수 통과
+> - ENTITY↔ENTITY 관계는 `attrs.relationships`(메타) + `ccarch_create_link`(정공법) 병행
+> - `create_node` 가 attrs 중첩 깊이 5 거부 시 → string 우회 → `update_node` array 정규화"
+
+### G. 본 워크스페이스 적용 이력
+
+- 2026-05-20 13:31 — ENTITY 15건 초기 등록 (KLID-AT-EN-001~015), `attrs.relations` 사용 (이전 가이드 추정)
+- 2026-05-20 14:17 — 1차 보강: `attrs.operations`/`attrs.relations` 추가
+- 2026-05-20 후속 — **2차 정규화**: `relations` → `relationships` 키 변경, `notNullConstraints` 문자열 배열 → 객체 배열(`{column}`) 변환. 가이드 v1 `attrsSchemas` 완전 준수
+
 ## 5. 실행 체크리스트
 
 ```
