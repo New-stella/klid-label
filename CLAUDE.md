@@ -95,7 +95,7 @@ klid-la-test-v0/
 - `common.security.SecurityConfig` — 역할 기반 접근 제어
 - `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` — 듀얼 EntityManager/TransactionManager (`@ControlRepo`, `@PortalRepo`로 분리)
 - `common.logging.RequestIdFilter` + Logback JSON 인코더 (민감 필드 마스킹)
-- `common.client.*` — DeidentifyClient / AiServerClient / GiteaClient (Resilience4j 적용) — 관제/포털 양방향 통합은 deprecated
+- `common.client.*` — DeidentifyClient / AiServerClient / GiteaClient / ControlNotifyClient (Resilience4j 적용) — 관제/포털 양방향 M2M 통합은 deprecated이나 **저작도구 → 관제서버 단방향 outbound 완료/수정 통지(ControlNotifyClient)는 예외로 보유**
 
 ### 코드 컨벤션
 - 패키지: 소문자 케밥 금지, 영문 소문자만 (`kr.co.cudo.authoring.label`)
@@ -152,6 +152,7 @@ klid-la-test-v0/
 - 토큰 `role` + `channel` 클레임으로 권한 분기 (`@PreAuthorize("hasRole('REVIEWER')")`)
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트
 - **외부 시스템 양방향 통합(M2M) deprecated**: 관제서버/외부 학습데이터 시스템과의 송수신 API 및 M2M 인증 인프라는 본 버전에서 제거. 재구축 시 별도 설계 필요.
+- **예외 — 저작도구 → 관제서버 단방향 outbound 완료/수정 통지 (V1.8 부활)**: 영상 단위 작업의 검수 완료 시 `TASK_COMPLETED` 이벤트, 검수 완료 후 라벨/메타 수정 시 `TASK_MODIFIED` 이벤트를 관제서버 inbound SPI 로 push (비동기). 동일 작업 ID(=`LS_DATA_RAW.RAW_SN`) 유지, 버전 업 아님 — 수신측은 마지막 상태로 갱신. 양방향 M2M 인증 인프라는 부활하지 않으며, 본 통지는 인계 토큰 또는 IP 화이트리스트로 보호.
 
 ### 배치 파이프라인 (인증 불필요)
 - 영상 적재는 자체 업로드(포털 TUS / 관리 화면) 기반 — 관제서버 자동 송신은 미연동
@@ -164,6 +165,13 @@ klid-la-test-v0/
 - **REVIEWER가 WORKER에게 배정** (역할 단일화 — V1.3에서 ADMIN 제거)
 - `LS_TASK_ASSIGNMENT`에 `TASK_TYPE_CD='LABELER'` INSERT, 재배정 시 `LS_TASK_ASSIGN_HISTORY` 기록
 - 배정 이력 조회·재배정 권한도 REVIEWER가 보유 (V1.3 — 기존 ADMIN 권한 흡수)
+
+### 작업 단위 + 완료/수정 통지 (V1.8 신규)
+- **작업 단위 = 영상 1건** — 프로젝트 단위 개념 사용 안 함. 작업 식별자는 영상 단위 ID(`LS_DATA_RAW.RAW_SN`)
+- **검수 완료 = 작업 완료** — REVIEWER 가 검수를 `APPROVED` 처리하면 작업이 완료됨. `LsRawDataStatus.dataSttsCd` 가 `COMPLETED` 전이된 시점에 outbound `TASK_COMPLETED` 통지 발행
+- **검수 완료 후 수정 시** — 동일 작업 ID 유지, 새 작업 ID 발급/버전 업 모두 안 함. 라벨/메타가 수정될 때마다 outbound `TASK_MODIFIED` 통지 발행. 수신측(관제서버)은 마지막 상태로 갱신
+- **통지 단위는 영상 1건** — 라벨/이미지 1장 단위로 통지하지 않음. 영상 내 다수 변경이 같은 트랜잭션·짧은 시간 내 발생하면 디바운스 후 1회 통지(운영 결정)
+- 이력 보존은 기존 인프라(`LS_DATA_LBL_HSTRY` + Gitea 커밋)로 충분 — 수신측이 diff 가 필요하면 본 도구 API 또는 Gitea 조회
 
 ### 라벨링·버전관리
 - 바운딩박스 / 폴리곤 / 세그멘테이션 / SAM2 Track — 캔버스는 konva.js
@@ -214,6 +222,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 비식별 API 실패 시 영상 상태 `DE_IDNTF_YN='F'`로 마킹 + 재시도 큐. 원본 절대 삭제 금지
 - 관제서버 세션 토큰은 저작도구가 발급하지 않음 — 검증 실패 시 관제서버 로그인 페이지로 리다이렉트
 - 관제/포털 양방향 통합 API 및 외부 학습데이터 API는 deprecated — 재구축 전까지 미연동
+- **관제서버 outbound 완료/수정 통지는 예외 (V1.8)**: `ControlNotifyClient` 가 비동기 EVENT 패턴으로 `TASK_COMPLETED`·`TASK_MODIFIED` 통지를 영상 단위로 송신 — 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 적용. 단방향 outbound 만 부활, 인바운드 양방향 M2M 인증은 여전히 deprecated
 
 ### 파일 업로드 (포털 + TUS)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수

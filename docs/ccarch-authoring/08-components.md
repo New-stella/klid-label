@@ -168,6 +168,17 @@
 }
 ```
 
+## C-17. ControlNotifyClient (관제서버 outbound 통지 어댑터 — V1.8 신규)
+```json
+{
+  "type": "COMPONENT",
+  "title": "ControlNotifyClient (관제서버 작업 완료/수정 통지 비동기 어댑터)",
+  "content": "**책임**\n- 관제서버(ext-control-server) inbound SPI 로 영상 단위 작업의 완료/수정 이벤트 비동기 push (if-control-notify-spi)\n- 이벤트 타입 2종: `TASK_COMPLETED` (검수 APPROVED → COMPLETED 전이 시) / `TASK_MODIFIED` (COMPLETED 영상의 라벨/메타 수정 시)\n- 동일 작업 ID(`LS_DATA_RAW.RAW_SN`) 유지 — 버전 업·새 ID 발급 없음\n- 디바운서로 같은 작업 ID 의 다중 수정을 짧은 시간(운영 결정 — 기본 60s) 내 1회로 통합\n- 요청 ID 기반 idempotency, dead-letter, 재등록 큐\n- Resilience4j: timeout + Retry max=3 + exp backoff + CircuitBreaker. stg/prd 에서 fallback 큐 활성화\n- 페이로드에 라벨 본문·PII·토큰 포함 금지 — 변경 요약 카운트만 송신\n- 송신 이력 감사 로그\n\n**의존**: ReviewService(COMPLETED 전이 이벤트), LabelService/MetaService(COMPLETED 영상 수정 이벤트)\n**구현 위치**: `backend/.../common/client/ControlNotifyClient.java`",
+  "attrs": {"layer": "INFRA", "componentId": "comp-control-notify-client"},
+  "_handle": "comp-control-notify-client"
+}
+```
+
 ## C-16. JwtAuthFilter + SecurityConfig + RoleHierarchy
 ```json
 {
@@ -201,3 +212,4 @@ ENTITY 등록 후 COMPONENT 일괄 등록 → USECASE → REALIZES → COMPONENT
 14. comp-preset-service
 15. comp-portal-suite
 16. comp-jwt-filter
+17. comp-control-notify-client (V1.8 신규)

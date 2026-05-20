@@ -156,6 +156,17 @@
 }
 ```
 
+## REQ-016. 관제서버 outbound 완료/수정 통지 (V1.8 신규)
+```json
+{
+  "type": "REQUIREMENT",
+  "title": "영상 단위 작업의 검수 완료 시 TASK_COMPLETED, 검수 완료 후 수정 시 TASK_MODIFIED 를 관제서버에 비동기 통지한다",
+  "content": "**범위**\n- 작업 단위 = 영상 1건 — 작업 식별자는 영상 단위 ID(`LS_DATA_RAW.RAW_SN`). 프로젝트 단위 개념 사용하지 않는다.\n- 통지 단위 = 영상 1건. 라벨/이미지/프레임 1장 단위 통지 금지.\n\n**이벤트 타입**\n- `TASK_COMPLETED` — REVIEWER 가 검수 `APPROVED` 결정으로 `LsRawDataStatus.dataSttsCd='COMPLETED'` 전이 시 1회 발행\n- `TASK_MODIFIED` — `COMPLETED` 상태에서 라벨(`LS_DATA_LBL`) 또는 시계열/외부 메타(`LS_DATA_META`) 가 수정될 때 발행. 동일 작업 ID 유지, 버전 업 금지\n\n**디바운스**: 같은 영상에 대해 짧은 시간(운영 결정 — 기본 60s) 내 다수 수정 시 1회로 통합 (마지막 수정 기준)\n\n**페이로드 (최소)**: 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이) + 검수 완료 일시 + 마지막 수정 일시 + 변경 요약 카운트 (라벨 N건, 메타 M건). 라벨 본문 자체는 송신하지 않음 — 수신측이 필요 시 본 도구 API 또는 Gitea 조회로 보강\n\n**신뢰성**\n- 요청 ID idempotency (동일 이벤트 재송 시 무시)\n- 비동기 EVENT 패턴 — 큐/콜백/HTTP push 구체 방식은 운영 결정\n- Resilience4j: timeout + Retry max=3 + exp backoff + CircuitBreaker. 장애 시 dead-letter + 재등록 큐 (stg/prd 활성화)\n- 송신 이력은 영상 단위 감사 테이블(운영 시점에 신규 또는 LS_BATCH_PROC_LOG 재사용)에 기록\n\n**보안**\n- 양방향 M2M 인증 인프라는 부활하지 않는다. 본 통지는 인계 토큰 또는 IP 화이트리스트로 보호 (운영 결정)\n- 통지 페이로드에 PII/토큰 포함 금지\n\n**DERIVES_FROM**: sr-sfr-08",
+  "attrs": {"requirementId": "req-control-notify", "priority": "HIGH", "category": "FUNCTIONAL"},
+  "_handle": "req-control-notify"
+}
+```
+
 ## REQ-015. 핵심 비기능 (응답시간·반응형·보안)
 ```json
 {
@@ -173,4 +184,4 @@
 
 USECASE 보다 먼저, SOURCE_REQUIREMENT 다음.
 
-권장: req-batch-orchestrator → req-deidentify-mandatory → req-yolo-sam2 → req-vlm-timeseries → req-labeling-canvas → req-label-precision → req-label-master-pool → req-label-preset → req-assign-task → req-review-state-machine → req-version-gitea → req-augment-completed-only → req-portal → req-dataset-output → req-nfr-core
+권장: req-batch-orchestrator → req-deidentify-mandatory → req-yolo-sam2 → req-vlm-timeseries → req-labeling-canvas → req-label-precision → req-label-master-pool → req-label-preset → req-assign-task → req-review-state-machine → req-version-gitea → req-augment-completed-only → req-portal → req-dataset-output → req-control-notify → req-nfr-core

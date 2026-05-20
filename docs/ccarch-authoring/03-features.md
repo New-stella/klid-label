@@ -46,7 +46,7 @@
 {
   "type": "FEATURE",
   "title": "검수 워크플로우 (Review Workflow)",
-  "content": "REVIEWER 가 WORKER 의 라벨을 검토·승인/반려하는 상태 머신. 낙관적 잠금(@Version)으로 동시성 보호.\n\n**상태 머신**: PENDING → ASSIGNED → IN_REVIEW → APPROVED/REJECTED\n\n**포함 유스케이스**\n- 작업자 배정·재배정 (uc-assign-task) — 완료 작업 재배정 차단\n- 검수 승인·반려 (uc-review-decision)",
+  "content": "REVIEWER 가 WORKER 의 라벨을 검토·승인/반려하는 상태 머신. 낙관적 잠금(@Version)으로 동시성 보호. 검수 완료(=작업 완료) 시점과 검수 완료 후 수정 발생 시 관제서버에 outbound 통지(영상 단위)를 발행한다.\n\n**상태 머신**: PENDING → ASSIGNED → IN_REVIEW → APPROVED/REJECTED → (COMPLETED 전이 시 TASK_COMPLETED 통지 발행) → (수정 시 TASK_MODIFIED 통지 발행)\n\n**작업 단위 정책**\n- 작업 단위 = 영상 1건. 프로젝트 단위 개념 사용하지 않는다.\n- 작업 식별자는 영상 단위 ID(`LS_DATA_RAW.RAW_SN`).\n- 완료 후 수정 시 동일 작업 ID 유지, 버전 업 금지 — 이벤트 타입(`TASK_MODIFIED`)으로 구분.\n\n**포함 유스케이스**\n- 작업자 배정·재배정 (uc-assign-task) — 완료 작업 재배정 차단\n- 검수 승인·반려 (uc-review-decision)\n- 검수 완료 통지 발행 (uc-task-completion-notify) — TASK_COMPLETED outbound\n- 검수 완료 후 수정 통지 발행 (uc-task-modification-notify) — TASK_MODIFIED outbound",
   "attrs": {"owner": "Assignment/Review 도메인"},
   "_handle": "feat-review-workflow"
 }

@@ -169,6 +169,28 @@
 }
 ```
 
+## UC-17. 검수 완료 통지 발행 (TASK_COMPLETED outbound)
+```json
+{
+  "type": "USECASE",
+  "title": "검수 APPROVED 로 작업 완료(COMPLETED) 전이 시 관제서버에 TASK_COMPLETED 비동기 통지",
+  "content": "**전제**: REVIEWER 가 영상 단위 검수에서 `verdict=APPROVED` 결정 → `LsRawDataStatus.dataSttsCd` 가 `COMPLETED` 로 전이됨.\n\n**기본 흐름**\n1. ReviewService 가 COMPLETED 전이를 감지 (트랜잭션 커밋 후 도메인 이벤트 발행)\n2. ControlNotifyClient 가 if-control-notify-spi 로 `TASK_COMPLETED` 메시지를 비동기 등록\n   - 페이로드: 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이) + 검수 완료 일시 + 변경 요약 카운트\n3. 송신 이력 기록 (감사 로그)\n4. 관제서버(ext-control-server) 가 결과 ack 응답 또는 무응답 (운영 결정)\n\n**대안**\n- 송신 실패·미응답: dead-letter + 재등록 큐 (Resilience4j Retry max=3 + exp backoff)\n- 동일 작업 ID 의 TASK_COMPLETED 가 이미 송신되어 있으면 idempotency 처리 (수신측이 중복 무시 또는 본 도구가 송신 억제)\n\n**PERFORMED_BY**: actor-reviewer, ext-control-server\n**BELONGS_TO**: feat-review-workflow\n**DERIVES_FROM**: req-control-notify",
+  "attrs": {"usecaseId": "uc-task-completion-notify", "primaryActors": ["actor-reviewer", "ext-control-server"]},
+  "_handle": "uc-task-completion-notify"
+}
+```
+
+## UC-18. 검수 완료 후 수정 통지 발행 (TASK_MODIFIED outbound)
+```json
+{
+  "type": "USECASE",
+  "title": "COMPLETED 상태 영상의 라벨/메타 수정 시 관제서버에 TASK_MODIFIED 비동기 통지 — 동일 작업 ID 유지",
+  "content": "**전제**: 영상이 이미 `dataSttsCd='COMPLETED'` 상태. REVIEWER/WORKER 가 라벨(`LS_DATA_LBL`) 또는 메타(`LS_DATA_META`) 를 수정.\n\n**기본 흐름**\n1. LabelService/MetaService 가 COMPLETED 영상 대상 변경 커밋 후 도메인 이벤트 발행\n2. 디바운서가 같은 작업 ID(RAW_SN) 대한 변경을 짧은 시간(운영 결정 — 기본 60s) 동안 통합\n3. ControlNotifyClient 가 if-control-notify-spi 로 `TASK_MODIFIED` 메시지 비동기 등록\n   - 페이로드: 이벤트 타입 + **동일 작업 ID(RAW_SN)** + 마지막 수정 일시 + 변경 요약 카운트 (라벨 N건, 메타 M건)\n   - **버전/시퀀스 번호 발행 안 함** — 동일 ID 로 마지막 상태를 통지\n4. 송신 이력 기록\n\n**대안**\n- 짧은 시간 내 추가 수정 발생 시 디바운스 윈도우 갱신, 마지막 수정 기준으로 1회 통지\n- 송신 실패·미응답: dead-letter + 재등록 큐 (idempotency)\n- 라벨 본문 자체는 통지에 포함하지 않음 — 관제서버가 diff 필요 시 본 도구 API(`/v1/versions/{commit}/diff`) 또는 Gitea 직접 조회\n\n**PERFORMED_BY**: actor-reviewer, actor-worker, ext-control-server\n**BELONGS_TO**: feat-review-workflow\n**DERIVES_FROM**: req-control-notify",
+  "attrs": {"usecaseId": "uc-task-modification-notify", "primaryActors": ["actor-reviewer", "actor-worker", "ext-control-server"]},
+  "_handle": "uc-task-modification-notify"
+}
+```
+
 ## UC-16. JWT 사용자 인계 (관제/포털)
 ```json
 {

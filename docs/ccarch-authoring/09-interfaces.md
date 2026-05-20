@@ -5,7 +5,9 @@
 > 본 도구 내부 호출(FE ↔ BE, BE ↔ ai-server)은 INTERFACE 노드로 등록하지 않는다 — 본 도구의 구현 세부사항이며 COMPONENT 간 `DEPENDS_ON` 관계로 충분히 표현된다.
 > 세션·JWT 인계는 storage(쿠키/localStorage/url) 공유 방식이므로 별도 API endpoint 가 아니며 INTERFACE 노드로 등록하지 않는다.
 >
-> **외부 시스템 연동은 원칙적으로 비동기**로 처리한다 — 작업 등록 + 결과 수신 채널(큐/콜백/폴링은 운영 환경에서 결정)로 분리. **단 Gitea 라벨 커밋은 예외로 동기 REST**(timeout + CircuitBreaker + Retry, 장애 시 fallback 큐). 결과적으로 본 폴더는 **외부 시스템과의 계약 4개만** INTERFACE 노드로 등록한다 — 동기 1(Gitea) + 비동기 3(비식별/VLM/생성형 AI).
+> **외부 시스템 연동은 원칙적으로 비동기**로 처리한다 — 작업 등록 + 결과 수신 채널(큐/콜백/폴링은 운영 환경에서 결정)로 분리. **단 Gitea 라벨 커밋은 예외로 동기 REST**(timeout + CircuitBreaker + Retry, 장애 시 fallback 큐). 결과적으로 본 폴더는 **외부 시스템과의 계약 5개**를 INTERFACE 노드로 등록한다 — 동기 1(Gitea) + 비동기 4(비식별/VLM/생성형 AI/관제 완료·수정 통지).
+>
+> **V1.8 신규**: `if-control-notify-spi` — 저작도구 → 관제서버 단방향 outbound 완료/수정 통지(영상 단위). 양방향 M2M 통합은 여전히 deprecated.
 
 ## I-01. if-augment-result-handover (Inbound 결과 인계)
 
@@ -61,6 +63,24 @@
 }
 ```
 
+## I-05. if-control-notify-spi (Outbound 비동기 작업 완료/수정 통지) — V1.8 신규
+
+```json
+{
+  "type": "INTERFACE",
+  "title": "관제서버 작업 완료/수정 통지 SPI (Outbound 비동기, 영상 단위)",
+  "content": "**소유자**: 외부 시스템 (ext-control-server)\n**본 워크스페이스 등록 사유**: ccarch 의 `DEPENDS_ON` 관계가 ACTOR 를 target 으로 허용하지 않아, 본 도구의 외부 의존성 추적성을 위해 본 워크스페이스에 등록한다.\n**연동 방식**: 비동기 — 본 도구가 영상 단위 작업의 완료·수정 이벤트를 관제서버에 push (큐/콜백/HTTP push 는 운영 결정)\n\n**범위**\n- 작업 단위 = 영상 1건 (`LS_DATA_RAW.RAW_SN` = 작업 ID). 프로젝트 단위 개념 사용 안 함.\n- 통지 단위 = 영상 1건. 라벨/이미지/프레임 1장 단위 통지 금지.\n\n**이벤트 타입**\n- `TASK_COMPLETED` — REVIEWER 가 검수 APPROVED → `LsRawDataStatus.dataSttsCd='COMPLETED'` 전이 시 1회 발행\n- `TASK_MODIFIED` — COMPLETED 상태 영상의 라벨/메타 수정 시 발행 (동일 작업 ID 유지, 버전 업 없음)\n\n**디바운스**: 같은 작업 ID 의 다중 수정은 운영 결정 윈도우(기본 60s) 동안 1회로 통합\n\n**페이로드 (최소)**\n- 이벤트 타입 (TASK_COMPLETED | TASK_MODIFIED)\n- 작업 ID (RAW_SN — 영상 단위)\n- 영상 메타: 파일명, 길이, 채널 등\n- 검수 완료 일시 (TASK_COMPLETED) / 마지막 수정 일시 (TASK_MODIFIED)\n- 변경 요약 카운트: 라벨 N건, 메타 M건\n- 요청 ID (idempotency 키)\n- 본 도구 송신 일시\n\n**페이로드에 포함하지 않음**: 라벨 본문, 메타 본문, PII, 토큰. 관제서버가 본문이 필요하면 본 도구 API(`/v1/versions/{commit}/diff` 등) 또는 공유 DB·Gitea 조회로 보강.\n\n**신뢰성**\n- 요청 ID 기반 idempotency (동일 이벤트 재송 시 수신측 무시 또는 본 도구 송신 억제)\n- Resilience4j: timeout + Retry max=3 + exp backoff + CircuitBreaker\n- 송신 실패·미응답 시 dead-letter + 재등록 큐 (stg/prd 활성화)\n- 송신 이력 감사 로그 (운영 시점에 신규 또는 LS_BATCH_PROC_LOG 재사용)\n\n**보안**\n- 단방향 outbound 만. 양방향 M2M 인증 인프라는 부활하지 않음 (CLAUDE.md 인증·진입 정책 유지)\n- 인계 토큰 또는 IP 화이트리스트로 보호 (운영 결정)\n\n**본 도구 측 호출자**: `ControlNotifyClient` (comp-control-notify-client)\n**환경변수**: `CONTROL_NOTIFY_URL` (또는 큐/메시지 브로커 주소 — 운영 결정), 인계 토큰\n**protocol**: EVENT (push 메시지)",
+  "attrs": {
+    "protocol": "EVENT",
+    "interfaceNo": "if-control-notify-spi",
+    "senderSystem": "authoring-tool (ControlNotifyClient)",
+    "receiverSystem": "ext-control-server",
+    "direction": "Outbound"
+  },
+  "_handle": "if-control-notify-spi"
+}
+```
+
 ## I-04. if-vlm-timeseries-spi (Outbound 비동기 시계열 분석 위탁)
 
 ```json
@@ -89,6 +109,7 @@
 | if-deidentify-spi | 비동기 (Outbound 작업 위탁) | EVENT | 요청 ID idempotency, 재등록 큐, 모든 영상 무조건 위탁 |
 | if-vlm-timeseries-spi | 비동기 (Outbound 작업 위탁) | EVENT | 요청 ID idempotency, 재등록 큐 |
 | **if-gitea-contents** | **동기 REST** | REST | timeout 70s + CircuitBreaker 50%/window10 + Retry max=3+exp backoff, 장애 시 fallback 큐(stg/prd) |
+| **if-control-notify-spi** (V1.8) | **비동기 (Outbound 통지)** | EVENT | 영상 단위 TASK_COMPLETED/TASK_MODIFIED, 동일 작업 ID 유지, 디바운스 60s, idempotency + dead-letter + 재등록 큐 |
 
 비동기 계약은 큐 처리 워커·idempotency·재등록 정책으로 신뢰성을 확보한다. Gitea 동기 호출은 라벨 저장 후 커밋 hash 즉시 응답이 필요한 흐름이라 예외적으로 동기로 유지하되, 장애 대응 큐만 비동기 적용된다.
 
@@ -109,5 +130,6 @@ ENTITY/COMPONENT 등록 후 INTERFACE 등록.
 
 1. if-augment-result-handover (Inbound 비동기 — 본 도구 소유)
 2. if-deidentify-spi (Outbound 비동기 — 외부 소유)
-3. if-gitea-contents (Outbound 비동기 — 외부 소유)
+3. if-gitea-contents (Outbound 동기 — 외부 소유)
 4. if-vlm-timeseries-spi (Outbound 비동기 — 외부 소유)
+5. if-control-notify-spi (Outbound 비동기 — 외부 소유, V1.8 신규)
