@@ -1,0 +1,82 @@
+package kr.co.cudo.authoring.controlnotify.fallback;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Phase 2 (통지 인프라) — Flyway V44 마이그레이션 파일 존재 + 핵심 DDL 항목 검증.
+ */
+class V44ControlNotifyFallbackMigrationTest {
+
+    private static final Path MIGRATION = Paths.get(
+            "src/main/resources/db/migration/V44__create_ls_control_notify_fallback.sql");
+
+    @Test
+    @DisplayName("V44_마이그레이션_파일_존재")
+    void migrationFileExists() {
+        // given / when / then
+        assertThat(Files.exists(MIGRATION))
+                .as("V44 마이그레이션 파일이 존재해야 한다 (%s)", MIGRATION)
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("V44_LS_CONTROL_NOTIFY_FALLBACK_핵심_컬럼_정의됨")
+    void migrationContainsCoreColumns() throws IOException {
+        // given
+        String sql = Files.readString(MIGRATION);
+
+        // when / then
+        assertThat(sql).contains("CREATE TABLE LS_CONTROL_NOTIFY_FALLBACK");
+        assertThat(sql).contains("IDEMPOTENCY_KEY");
+        assertThat(sql).contains("EVENT_TYPE");
+        assertThat(sql).contains("RAW_SN");
+        assertThat(sql).contains("PAYLOAD");
+        assertThat(sql).contains("STATUS");
+        assertThat(sql).contains("RETRY_COUNT");
+        assertThat(sql).contains("MAX_RETRY");
+        assertThat(sql).contains("NEXT_RETRY_AT");
+        assertThat(sql).contains("DEAD_LETTER_AT");
+    }
+
+    @Test
+    @DisplayName("V44_UNIQUE_idempotencyKey_제약")
+    void migrationDeclaresUniqueIdempotencyKey() throws IOException {
+        // given
+        String sql = Files.readString(MIGRATION);
+
+        // when / then
+        assertThat(sql).containsAnyOf(
+                "UK_LCNF_IDEMPOTENCY",
+                "UNIQUE KEY",
+                "UNIQUE (IDEMPOTENCY_KEY)");
+    }
+
+    @Test
+    @DisplayName("V44_STATUS_NEXT_RETRY_AT_복합_인덱스")
+    void migrationDeclaresStatusNextRetryIndex() throws IOException {
+        // given
+        String sql = Files.readString(MIGRATION);
+
+        // when / then
+        assertThat(sql).contains("IDX_LCNF_STATUS");
+    }
+
+    @Test
+    @DisplayName("V44_InnoDB_utf8mb4_엔진_charset_지정")
+    void migrationDeclaresInnoDbUtf8mb4() throws IOException {
+        // given
+        String sql = Files.readString(MIGRATION);
+
+        // when / then
+        assertThat(sql).contains("ENGINE=InnoDB");
+        assertThat(sql).contains("utf8mb4");
+    }
+}

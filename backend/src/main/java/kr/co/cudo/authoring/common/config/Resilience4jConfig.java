@@ -31,4 +31,12 @@ public class Resilience4jConfig {
     public CircuitBreaker vlmClientCircuitBreaker(CircuitBreakerRegistry registry) {
         return registry.circuitBreaker("vlmClient");
     }
+
+    /**
+     * Phase 2 — 관제서버 outbound 통지 클라이언트용 CircuitBreaker.
+     */
+    @Bean(name = "controlNotifyCircuitBreaker")
+    public CircuitBreaker controlNotifyCircuitBreaker(CircuitBreakerRegistry registry) {
+        return registry.circuitBreaker("controlNotify");
+    }
 }

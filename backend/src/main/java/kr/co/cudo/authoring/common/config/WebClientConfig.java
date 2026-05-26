@@ -87,6 +87,17 @@ public class WebClientConfig {
     }
 
     /**
+     * Phase 2 — 관제서버 outbound 통지 클라이언트용 WebClient.
+     *
+     * <p>CWE-918 SSRF: base-url 은 application.yml 설정값만 사용. 사용자 입력 X.
+     */
+    @Bean(name = "controlNotifyWebClient")
+    public WebClient controlNotifyWebClient(
+            @Value("${authoring.control-notify.url:http://localhost:8090}") String baseUrl) {
+        return WebClient.builder().baseUrl(baseUrl).build();
+    }
+
+    /**
      * 외부 호출 baseUrl 의 SSRF / cleartext / placeholder 위험을 검증한다.
      *
      * @throws IllegalStateException 검증 실패 시 (Spring Bean 생성 실패 → fail-closed)

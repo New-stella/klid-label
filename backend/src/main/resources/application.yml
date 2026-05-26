@@ -126,6 +126,14 @@ authoring:
     retry:
       # Gitea fallback 재시도 잡 활성화 (Phase 8). 기본 false → prd 에서 true 로 오버라이드.
       enabled: ${GITEA_RETRY_ENABLED:false}
+  # Phase 2 — 관제서버 outbound 완료/수정 통지.
+  #  - enabled=false 기본 (local/dev). 관제서버 연동 확정 시 환경변수로 true 활성화.
+  #  - url: 관제서버 inbound SPI 주소. 평문 커밋 금지 → 환경변수 CONTROL_NOTIFY_URL 사용.
+  control-notify:
+    enabled: ${CONTROL_NOTIFY_ENABLED:false}
+    url: ${CONTROL_NOTIFY_URL:http://localhost:8090}
+    timeout-ms: ${CONTROL_NOTIFY_TIMEOUT_MS:10000}
+    debounce-window-sec: ${CONTROL_NOTIFY_DEBOUNCE_SEC:60}
 
 # Phase 3 — Gitea fallback 영속 큐 (ccarch if-gitea-contents).
 #  - false 기본 (local/dev). CircuitBreaker open 시 즉시 예외 전파 (현재 동작 유지).
@@ -173,6 +181,12 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+      # Phase 2 — 관제서버 outbound 통지
+      controlNotify:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
   retry:
     instances:
       deid:
@@ -188,6 +202,10 @@ resilience4j:
         wait-duration: 1s
         exponential-backoff-multiplier: 2
       vlmClient:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+      controlNotify:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
