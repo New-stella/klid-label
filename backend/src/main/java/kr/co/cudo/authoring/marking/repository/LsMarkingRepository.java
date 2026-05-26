@@ -10,4 +10,6 @@ import java.util.List;
 public interface LsMarkingRepository extends JpaRepository<LsMarking, Long> {
 
     List<LsMarking> findByRawSnOrderByCreatedAtDesc(Long rawSn);
+
+    List<LsMarking> findByRawSnAndStatus(Long rawSn, String status);
 }

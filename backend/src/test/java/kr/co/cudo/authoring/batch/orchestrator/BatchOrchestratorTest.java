@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +56,7 @@ class BatchOrchestratorTest {
     private BatchStatusService statusService;
     private BatchRetryQueue retryQueue;
     private VideoRepository videoRepository;
+    private LsMarkingRepository markingRepository;
     private BatchOrchestrator orchestrator;
 
     @BeforeEach
@@ -68,10 +70,16 @@ class BatchOrchestratorTest {
         statusService = mock(BatchStatusService.class);
         retryQueue = new BatchRetryQueue(3, 60);
         videoRepository = mock(VideoRepository.class);
+        markingRepository = mock(LsMarkingRepository.class);
 
         orchestrator = new BatchOrchestrator(
                 vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
-                trackInterpolationStep, statusService, retryQueue, videoRepository);
+                trackInterpolationStep, statusService, retryQueue, videoRepository,
+                markingRepository);
+
+        // Phase 3: 기본 마킹 없음 (기존 테스트 호환)
+        when(markingRepository.findByRawSnOrderByCreatedAtDesc(any()))
+                .thenReturn(java.util.Collections.emptyList());
 
         // 기본: extractBoth(raw, deidVideoPath) 가 1 프레임 반환 — orchestrator 통과 보장
         when(frameExtractor.extractBoth(any(LsDataRaw.class), nullable(String.class)))

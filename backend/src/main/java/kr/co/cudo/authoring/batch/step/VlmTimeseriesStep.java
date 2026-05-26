@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * VLM 시계열 메타 분석 외부 위탁 단계 — Phase 1 신설.
+ * VLM 시계열 메타 분석 외부 위탁 단계 — Phase 1 신설, Phase 3 마킹 확장.
  *
  * <p>ccarch {@code if-vlm-timeseries-spi} 인터페이스 호출을 담당하는 배치 Step.
  * 영상 1건의 시계열 메타 분석을 외부 시스템에 비동기 위탁하고, 외부가 발급한 작업 ID 를
@@ -36,6 +37,10 @@ import java.util.Map;
  *       BatchOrchestrator 의 {@code FAILED} 경로 + {@code BatchRetryQueue} 가 처리.</li>
  *   <li>idempotencyKey 는 {@link VlmClient} 가 단일 발급 — 본 Step 은 null 만 전달.</li>
  * </ul>
+ *
+ * <h3>Phase 3 마킹 확장</h3>
+ * <p>{@link #runWithMarking(Long, LsMarking)} 으로 마킹 데이터(eventName, marks)를
+ * VLM 요청에 포함하고, 성공 시 마킹 상태를 VLM_REQUESTED 로 전이한다.
  *
  * <h3>이전 VlmMetaStep 와의 관계</h3>
  * <p>본 Step 신설로 기존 {@code VlmMetaStep}(ai-server 직접 호출) 는 호출 경로에서 제거되었다.
@@ -55,18 +60,41 @@ public class VlmTimeseriesStep {
     private final ObjectMapper objectMapper;
 
     /**
-     * 단일 영상에 대해 시계열 메타 분석을 외부에 위탁한다.
+     * 단일 영상에 대해 시계열 메타 분석을 외부에 위탁한다 (마킹 없음).
      *
      * @param rawSn 영상 식별자
      * @return 외부 시스템 수락 응답 (NO-OP 모드면 status=SKIPPED, externalJobId=null)
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public VlmTimeseriesResponse run(Long rawSn) {
+        return doSubmit(rawSn, null);
+    }
+
+    /**
+     * 마킹 데이터를 포함하여 시계열 메타 분석을 외부에 위탁한다 — Phase 3 신설.
+     *
+     * <p>마킹이 null 이면 eventName/marks 없이 기존 run() 과 동일하게 동작한다.
+     * 마킹이 있으면 eventName, marks 를 요청에 포함하고, 성공 시 마킹 상태를
+     * {@link LsMarking#STATUS_VLM_REQUESTED} 로 전이한다.
+     *
+     * @param rawSn   영상 식별자
+     * @param marking 마킹 엔티티 (null 가능 — null 이면 기존 동작)
+     * @return 외부 시스템 수락 응답
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public VlmTimeseriesResponse runWithMarking(Long rawSn, LsMarking marking) {
+        return doSubmit(rawSn, marking);
+    }
+
+    /**
+     * VLM 위탁 공통 로직 — run/runWithMarking 양쪽에서 호출.
+     */
+    private VlmTimeseriesResponse doSubmit(Long rawSn, LsMarking marking) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
 
-        // enabled=false 인 경우 영상 조회/외부 호출/영속화 모두 생략 — 외부 통신 0건.
+        // enabled=false 인 경우 마킹 상태 전이 없이 즉시 SKIPPED 반환.
         if (!vlmClient.isEnabled()) {
             log.info("[Batch][VlmTimeseries] skipped (disabled) rawSn={}", rawSn);
             return VlmTimeseriesResponse.skipped(null);
@@ -76,11 +104,14 @@ public class VlmTimeseriesStep {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "영상을 찾을 수 없습니다 rawSn=" + rawSn));
 
-        // DEV_FIX-1: idempotencyKey 발급 책임은 VlmClient 가 단일화. 여기서는 null 전달.
-        VlmTimeseriesRequest req = new VlmTimeseriesRequest(
-                rawSn, raw.getFilePath(), /* idempotencyKey */ null, /* callbackUrl */ null);
+        String eventName = marking != null ? marking.getEventName() : null;
+        String marks = marking != null ? marking.getMarks() : null;
 
-        log.info("[Batch][VlmTimeseries] submit rawSn={}", rawSn);
+        VlmTimeseriesRequest req = new VlmTimeseriesRequest(
+                rawSn, raw.getFilePath(), /* idempotencyKey */ null, /* callbackUrl */ null,
+                eventName, marks);
+
+        log.info("[Batch][VlmTimeseries] submit rawSn={} hasMarking={}", rawSn, marking != null);
         try {
             VlmTimeseriesResponse resp = vlmClient.submitTimeseries(req).block(BLOCK_TIMEOUT);
             if (resp == null) {
@@ -91,6 +122,12 @@ public class VlmTimeseriesStep {
                     rawSn, VlmClient.safeForLog(resp.externalJobId()),
                     VlmClient.safeForLog(resp.status()));
             persistResult(rawSn, resp);
+
+            // 마킹 상태 전이: PENDING → VLM_REQUESTED
+            if (marking != null) {
+                marking.markVlmRequested();
+            }
+
             return resp;
         } catch (CustomException ce) {
             throw ce;

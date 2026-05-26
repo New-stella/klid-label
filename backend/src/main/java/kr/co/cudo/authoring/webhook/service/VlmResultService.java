@@ -5,6 +5,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.ExternalUrlValidator;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
+import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -17,6 +19,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -36,6 +39,7 @@ public class VlmResultService {
     private final LsDataMetaReviewRepository reviewRepository;
     private final VideoRepository videoRepository;
     private final WebhookIdempotencyLedger ledger;
+    private final LsMarkingRepository markingRepository;
 
     /**
      * @return true = 신규 적재 / false = 멱등 스킵
@@ -113,8 +117,15 @@ public class VlmResultService {
         // 6) 멱등 마킹
         ledger.markProcessed(req.idempotencyKey(), req.externalJobId());
 
-        log.info("[Webhook][Vlm] result applied rawSn={} appended={} externalJobId={}",
-                raw.getRawSn(), appended, safe(req.externalJobId()));
+        // 7) Phase 3: VLM 결과 수신 시 마킹 상태 VLM_COMPLETED 전이
+        List<LsMarking> markings = markingRepository.findByRawSnAndStatus(
+                raw.getRawSn(), LsMarking.STATUS_VLM_REQUESTED);
+        for (LsMarking m : markings) {
+            m.markVlmCompleted();
+        }
+
+        log.info("[Webhook][Vlm] result applied rawSn={} appended={} externalJobId={} markingsTransitioned={}",
+                raw.getRawSn(), appended, safe(req.externalJobId()), markings.size());
         return true;
     }
 

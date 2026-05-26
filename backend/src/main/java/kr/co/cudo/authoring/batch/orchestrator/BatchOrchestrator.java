@@ -12,6 +12,8 @@ import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
+import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +70,7 @@ public class BatchOrchestrator {
     private final BatchStatusService statusService;
     private final BatchRetryQueue retryQueue;
     private final VideoRepository videoRepository;
+    private final LsMarkingRepository markingRepository;
 
     /**
      * 단일 영상 1건 처리 (V2 순서).
@@ -82,10 +85,19 @@ public class BatchOrchestrator {
         LsDataRaw raw = loadRaw(rawSn);
 
         try {
+            // 0. 마킹 확인 — Phase 3: VLM 호출 전에 마킹 데이터 조회.
+            statusService.markStage(rawSn, BatchStage.MARKING);
+            List<LsMarking> markings = markingRepository.findByRawSnOrderByCreatedAtDesc(rawSn);
+            log.info("[BatchOrchestrator] marking check rawSn={} count={}", rawSn, markings.size());
+
             // 1. VLM 시계열 메타 — Phase 1: 외부 위탁 (enabled=false 면 NO-OP).
-            //    실제 결과는 Phase 2 webhook 으로 비동기 수신.
+            //    마킹이 있으면 최신 마킹 데이터를 포함하여 호출.
             statusService.markStage(rawSn, BatchStage.VLM);
-            vlmTimeseriesStep.run(rawSn);
+            if (!markings.isEmpty()) {
+                vlmTimeseriesStep.runWithMarking(rawSn, markings.get(0));
+            } else {
+                vlmTimeseriesStep.run(rawSn);
+            }
 
             // 2. 비식별 (Phase 2 — 무조건화: PRVC/PSDO/ANONY 구분 없이 모든 영상 호출).
             //    원본 보존 원칙 + DE_IDNTF_YN 'Y'/'F' 마킹은 DeidentifyStep 자체 처리.

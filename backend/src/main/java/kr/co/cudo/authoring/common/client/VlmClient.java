@@ -102,7 +102,8 @@ public class VlmClient {
         Objects.requireNonNull(request, "request must not be null");
         String idemKey = resolveIdempotencyKey(request.idempotencyKey());
         VlmTimeseriesRequest enriched = new VlmTimeseriesRequest(
-                request.rawSn(), request.videoUri(), idemKey, request.callbackUrl());
+                request.rawSn(), request.videoUri(), idemKey, request.callbackUrl(),
+                request.eventName(), request.marks());
 
         if (!enabled) {
             log.info("[Vlm] timeseries skipped (disabled) rawSn={} idempotencyKey={}",

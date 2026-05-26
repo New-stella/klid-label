@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -37,13 +38,15 @@ class VlmResultServiceTest {
     @Mock LsDataMetaRepository metaRepository;
     @Mock LsDataMetaReviewRepository reviewRepository;
     @Mock VideoRepository videoRepository;
+    @Mock LsMarkingRepository markingRepository;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private VlmResultService service;
 
     @BeforeEach
     void setup() {
-        service = new VlmResultService(metaRepository, reviewRepository, videoRepository, ledger);
+        service = new VlmResultService(
+                metaRepository, reviewRepository, videoRepository, ledger, markingRepository);
         ledger.clear();
     }
 
