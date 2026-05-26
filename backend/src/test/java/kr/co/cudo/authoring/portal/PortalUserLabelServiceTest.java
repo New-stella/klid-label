@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelResponse;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
@@ -76,22 +77,23 @@ class PortalUserLabelServiceTest {
     // ─── 데이터마트 라벨 Load ───
 
     @Test
-    @DisplayName("V2_데이터마트_라벨_Load_정상")
-    void loadDatamartLabels_returnsLabels() {
+    @DisplayName("V2_데이터마트_라벨_Load_정상_DTO_변환")
+    void loadDatamartLabels_returnsDtoList() {
         LsDataLbl lbl = LsDataLbl.createAutoBbox(10L, null, "person", "[1,2,3,4]",
                 BigDecimal.valueOf(0.9), null);
         when(lblRepository.findAllByRawSn(100L)).thenReturn(List.of(lbl));
 
-        List<LsDataLbl> result = service.loadDatamartLabels(100L);
+        List<DatamartLabelResponse> result = service.loadDatamartLabels(100L, 0, 100);
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getLabel()).isEqualTo("person");
+        assertThat(result.get(0).label()).isEqualTo("person");
+        assertThat(result.get(0).srcSn()).isEqualTo(10L);
     }
 
     @Test
     @DisplayName("V2_데이터마트_rawSn_null_시_INVALID_INPUT")
     void loadDatamartLabels_nullRawSn_rejected() {
-        assertThatThrownBy(() -> service.loadDatamartLabels(null))
+        assertThatThrownBy(() -> service.loadDatamartLabels(null, 0, 100))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");

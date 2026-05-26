@@ -135,29 +135,40 @@ public class AugmentResultService {
         String filePath = req.resultFilePath() != null ? req.resultFilePath() : parentRaw.getFilePath();
         LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(parentRaw, filePath, req.augType()));
 
+        // 프레임 일괄 복사 (saveAll batch)
         List<LsDataSrc> parentFrames = srcRepository.findByRawSnOrderByFrameNoAsc(parentRaw.getRawSn());
+        List<LsDataSrc> newFrames = parentFrames.stream()
+                .map(f -> LsDataSrc.create(newRaw.getRawSn(), f.getFrameNo(), f.getFilePath(), f.getCapturedAt()))
+                .toList();
+        List<LsDataSrc> savedFrames = srcRepository.saveAll(newFrames);
+
+        // srcSnMap: 원본 srcSn -> 신규 srcSn (zip 매핑)
         Map<Long, Long> srcSnMap = new HashMap<>();
-        for (LsDataSrc frame : parentFrames) {
-            LsDataSrc newFrame = srcRepository.save(
-                    LsDataSrc.create(newRaw.getRawSn(), frame.getFrameNo(), frame.getFilePath(), frame.getCapturedAt()));
-            srcSnMap.put(frame.getSrcSn(), newFrame.getSrcSn());
+        for (int i = 0; i < parentFrames.size(); i++) {
+            srcSnMap.put(parentFrames.get(i).getSrcSn(), savedFrames.get(i).getSrcSn());
         }
 
-        for (Map.Entry<Long, Long> entry : srcSnMap.entrySet()) {
-            List<LsDataLbl> labels = lblRepository.findBySrcSn(entry.getKey());
-            for (LsDataLbl lbl : labels) {
-                lblRepository.save(LsDataLbl.copyForNewSrc(entry.getValue(), lbl));
-            }
+        // 라벨 일괄 조회 (IN 쿼리 1회) + 일괄 저장 (N+1 해소)
+        int copiedLabelCount = 0;
+        if (!srcSnMap.isEmpty()) {
+            List<LsDataLbl> allLabels = lblRepository.findBySrcSnIn(srcSnMap.keySet());
+            List<LsDataLbl> copied = allLabels.stream()
+                    .map(lbl -> LsDataLbl.copyForNewSrc(srcSnMap.get(lbl.getSrcSn()), lbl))
+                    .toList();
+            lblRepository.saveAll(copied);
+            copiedLabelCount = copied.size();
         }
 
+        // 메타 일괄 저장 (saveAll batch)
         List<LsDataMeta> parentMetas = metaRepository.findByRawSn(parentRaw.getRawSn());
-        for (LsDataMeta meta : parentMetas) {
-            metaRepository.save(LsDataMeta.create(newRaw.getRawSn(), meta.getMetaKey(), meta.getMetaVal()));
-        }
+        List<LsDataMeta> copiedMetas = parentMetas.stream()
+                .map(meta -> LsDataMeta.create(newRaw.getRawSn(), meta.getMetaKey(), meta.getMetaVal()))
+                .toList();
+        metaRepository.saveAll(copiedMetas);
 
         log.info("[Webhook][Augment] new video created rawSn={} parentRawSn={} augType={} frames={} labels={} metas={}",
                 newRaw.getRawSn(), parentRaw.getRawSn(), req.augType(),
-                parentFrames.size(), srcSnMap.size(), parentMetas.size());
+                parentFrames.size(), copiedLabelCount, parentMetas.size());
     }
 
     /** PENDING 상태일 때만 상태 전이 + 비동기 표준 컬럼 적재. */

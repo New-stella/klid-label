@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.PortalAutolabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUploadResponse;
@@ -109,13 +110,16 @@ public class PortalLabelController {
         return ApiResponse.ok(portalLabelService.acceptLabel(req, actor));
     }
 
-    @Operation(summary = "데이터마트 라벨 Load (V2.0)", description = "rawSn 에 해당하는 원본 라벨 목록 조회.")
+    @Operation(summary = "데이터마트 라벨 Load (V2.0)", description = "rawSn 에 해당하는 원본 라벨 목록 조회 (페이징).")
     @GetMapping("/datamart/labels")
     @PreAuthorize("hasRole('PORTAL_USER')")
-    public ApiResponse<List<?>> loadDatamartLabels(@RequestParam Long rawSn,
-                                                    @AuthenticationPrincipal TokenClaims actor) {
+    public ApiResponse<List<DatamartLabelResponse>> loadDatamartLabels(
+            @RequestParam Long rawSn,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size,
+            @AuthenticationPrincipal TokenClaims actor) {
         requireActor(actor);
-        return ApiResponse.ok(portalLabelService.loadDatamartLabels(rawSn));
+        return ApiResponse.ok(portalLabelService.loadDatamartLabels(rawSn, page, size));
     }
 
     @Operation(summary = "사용자 라벨 저장 (V2.0)", description = "원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재.")

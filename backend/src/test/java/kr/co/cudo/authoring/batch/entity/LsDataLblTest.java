@@ -236,6 +236,37 @@ class LsDataLblTest {
         assertThat(lbl.getPointsJson()).contains("3,3");
     }
 
+    // --- V2.0: copyForNewSrc ---
+
+    @Test
+    @DisplayName("copyForNewSrc_영구_필드만_복사_transient_필드_null")
+    void copyForNewSrcCopiesPersistentFieldsOnly() {
+        // given — 원본: DB 에서 로드한 상태를 시뮬레이션 (transient 필드는 null)
+        LsDataLbl original = LsDataLbl.createAutoBbox(
+                100L, 7L, "person", "[[10,20,30,40]]", BigDecimal.valueOf(0.85), "track-1");
+
+        // when
+        LsDataLbl copy = LsDataLbl.copyForNewSrc(999L, original);
+
+        // then — 영구 필드 복사
+        assertThat(copy.getSrcSn()).isEqualTo(999L);
+        assertThat(copy.getLblTypeCd()).isEqualTo("BBOX");
+        assertThat(copy.getLabelId()).isEqualTo(7L);
+        assertThat(copy.getLabel()).isEqualTo("person");
+        assertThat(copy.getPointsJson()).isEqualTo("[[10,20,30,40]]");
+        assertThat(copy.getTrackId()).isEqualTo("track-1");
+
+        // then — transient 필드 (DB 미저장)
+        assertThat(copy.getAutoLblYn()).isNull();
+        assertThat(copy.getConfScore()).isNull();
+        assertThat(copy.getLblSrcCd()).isNull();
+        assertThat(copy.getDataAugSn()).isNull();
+
+        // then — 새 row 이므로 lblSn 미할당
+        assertThat(copy.getLblSn()).isNull();
+        assertThat(copy.getRegDt()).isNotNull();
+    }
+
     @Test
     @DisplayName("updateUserContent_3arg_(legacy)_는_LABEL_ID_변경_없음")
     void updateUserContentLegacy3ArgPreservesLabelId() {

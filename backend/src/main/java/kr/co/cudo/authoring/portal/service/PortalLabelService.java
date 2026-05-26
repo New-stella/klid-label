@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.PortalAutolabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
@@ -59,13 +60,23 @@ public class PortalLabelService {
         return req;
     }
 
-    /** V2.0 — 데이터마트 라벨 Load. rawSn 에 해당하는 원본 라벨 목록 반환. */
+    /** V2.0 — 데이터마트 라벨 Load. rawSn 에 해당하는 원본 라벨 목록 반환 (페이징). */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public List<LsDataLbl> loadDatamartLabels(Long rawSn) {
+    public List<DatamartLabelResponse> loadDatamartLabels(Long rawSn, int page, int size) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
         }
-        return lblRepository.findAllByRawSn(rawSn);
+        int clampedSize = Math.min(Math.max(size, 1), 100);
+        int clampedPage = Math.max(page, 0);
+        List<LsDataLbl> all = lblRepository.findAllByRawSn(rawSn);
+        int fromIndex = clampedPage * clampedSize;
+        if (fromIndex >= all.size()) {
+            return List.of();
+        }
+        int toIndex = Math.min(fromIndex + clampedSize, all.size());
+        return all.subList(fromIndex, toIndex).stream()
+                .map(DatamartLabelResponse::from)
+                .toList();
     }
 
     /** V2.0 — 사용자 라벨 저장. 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재. */

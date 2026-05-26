@@ -29,12 +29,15 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -71,8 +74,30 @@ class AugmentResultServiceTest {
             setField(s, "srcSn", srcSnSeq.incrementAndGet());
             return s;
         });
+        when(srcRepository.saveAll(any())).thenAnswer(inv -> {
+            Iterable<LsDataSrc> items = inv.getArgument(0);
+            List<LsDataSrc> result = new java.util.ArrayList<>();
+            for (LsDataSrc s : items) {
+                setField(s, "srcSn", srcSnSeq.incrementAndGet());
+                result.add(s);
+            }
+            return result;
+        });
         when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(lblRepository.saveAll(any())).thenAnswer(inv -> {
+            Iterable<LsDataLbl> items = inv.getArgument(0);
+            List<LsDataLbl> result = new java.util.ArrayList<>();
+            items.forEach(result::add);
+            return result;
+        });
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
         when(metaRepository.save(any(LsDataMeta.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(metaRepository.saveAll(any())).thenAnswer(inv -> {
+            Iterable<LsDataMeta> items = inv.getArgument(0);
+            List<LsDataMeta> result = new java.util.ArrayList<>();
+            items.forEach(result::add);
+            return result;
+        });
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -263,7 +288,7 @@ class AugmentResultServiceTest {
         when(srcRepository.findById(200L)).thenReturn(Optional.of(originSrc));
         when(videoRepository.findById(100L)).thenReturn(Optional.of(parentRaw));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(100L)).thenReturn(List.of(originSrc));
-        when(lblRepository.findBySrcSn(any())).thenReturn(List.of());
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
         when(metaRepository.findByRawSn(100L)).thenReturn(List.of());
 
         AugmentResultRequest req = new AugmentResultRequest(
@@ -299,8 +324,7 @@ class AugmentResultServiceTest {
         when(srcRepository.findById(300L)).thenReturn(Optional.of(frame0));
         when(videoRepository.findById(101L)).thenReturn(Optional.of(parentRaw));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(101L)).thenReturn(List.of(frame0, frame1));
-        when(lblRepository.findBySrcSn(300L)).thenReturn(List.of(lbl));
-        when(lblRepository.findBySrcSn(301L)).thenReturn(List.of());
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of(lbl));
         when(metaRepository.findByRawSn(101L)).thenReturn(List.of(meta));
 
         AugmentResultRequest req = new AugmentResultRequest(
@@ -309,12 +333,13 @@ class AugmentResultServiceTest {
 
         service.handle(req);
 
-        // 프레임 2건 복사
-        verify(srcRepository, times(2)).save(any(LsDataSrc.class));
-        // 라벨 1건 복사 (frame0 에만 라벨 있음)
-        verify(lblRepository, times(1)).save(any(LsDataLbl.class));
-        // 메타 1건 복사
-        verify(metaRepository, times(1)).save(any(LsDataMeta.class));
+        // 프레임 2건 일괄 복사 (saveAll 1회)
+        verify(srcRepository, times(1)).saveAll(any());
+        // 라벨 1건 일괄 복사 (findBySrcSnIn 1회 + saveAll 1회)
+        verify(lblRepository, times(1)).findBySrcSnIn(anyCollection());
+        verify(lblRepository, times(1)).saveAll(any());
+        // 메타 1건 일괄 복사 (saveAll 1회)
+        verify(metaRepository, times(1)).saveAll(any());
     }
 
     @Test
@@ -330,7 +355,59 @@ class AugmentResultServiceTest {
         service.handle(req);
 
         verify(videoRepository, never()).save(any(LsDataRaw.class));
-        verify(srcRepository, never()).save(any(LsDataSrc.class));
+        verify(srcRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("V2_증강_SUCCESS_originSrc_미존재_시_신규영상_미생성")
+    void successButOriginSrcNotFound_skipsVideoCreation() throws Exception {
+        // given
+        ledger.recordIssued("K-V2-NOSRC", "EXT-V2NS");
+        LsDataAug aug = newAugWithSrc(30L, 9999L, "WINTER");
+
+        when(augRepository.findById(30L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(9999L)).thenReturn(Optional.empty()); // originSrc 미존재
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-V2-NOSRC", "EXT-V2NS", "SUCCESS", 30L, "WINTER",
+                "/storage/augment/winter.mp4", List.of());
+
+        // when
+        boolean applied = service.handle(req);
+
+        // then — 핸들 자체는 성공하지만 새 영상은 생성되지 않음
+        assertThat(applied).isTrue();
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(srcRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("V2_증강_SUCCESS_parentRaw_미존재_시_신규영상_미생성")
+    void successButParentRawNotFound_skipsVideoCreation() throws Exception {
+        // given
+        ledger.recordIssued("K-V2-NORAW", "EXT-V2NR");
+        LsDataSrc originSrc = newSrc(400L, 8888L, 0);
+        LsDataAug aug = newAugWithSrc(31L, 400L, "NIGHT");
+
+        when(augRepository.findById(31L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(400L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findById(8888L)).thenReturn(Optional.empty()); // parentRaw 미존재
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-V2-NORAW", "EXT-V2NR", "SUCCESS", 31L, "NIGHT",
+                "/storage/augment/night.mp4", List.of());
+
+        // when
+        boolean applied = service.handle(req);
+
+        // then — 핸들 자체는 성공하지만 새 영상은 생성되지 않음
+        assertThat(applied).isTrue();
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(srcRepository, never()).saveAll(any());
     }
 
     private LsDataAug newAug(Long sn, String type, String status) throws Exception {
