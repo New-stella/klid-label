@@ -1,0 +1,90 @@
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { cn } from '@/lib/cn';
+
+export interface VideoPlayerHandle {
+  getCurrentTime: () => number;
+  getCurrentFrame: (fps?: number) => number;
+  seekTo: (timeSec: number) => void;
+}
+
+interface VideoPlayerProps {
+  src: string;
+  className?: string;
+}
+
+const NATIVE_FPS = 30;
+
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
+  function VideoPlayer({ src, className }, ref) {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [playing, setPlaying] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+
+    useImperativeHandle(ref, () => ({
+      getCurrentTime: () => videoRef.current?.currentTime ?? 0,
+      getCurrentFrame: (fps = NATIVE_FPS) =>
+        Math.round((videoRef.current?.currentTime ?? 0) * fps),
+      seekTo: (timeSec: number) => {
+        if (videoRef.current) videoRef.current.currentTime = timeSec;
+      },
+    }));
+
+    const togglePlay = useCallback(() => {
+      const v = videoRef.current;
+      if (!v) return;
+      if (v.paused) {
+        v.play();
+        setPlaying(true);
+      } else {
+        v.pause();
+        setPlaying(false);
+      }
+    }, []);
+
+    const formatTime = (sec: number) => {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    };
+
+    return (
+      <div className={cn('flex flex-col gap-2', className)}>
+        <video
+          ref={videoRef}
+          src={src}
+          className="w-full rounded-lg bg-black"
+          onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
+          onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+        />
+        <div className="flex items-center gap-3 text-sm text-gray-600">
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="rounded px-3 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
+          >
+            {playing ? '일시정지' : '재생'}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={duration || 1}
+            step={0.01}
+            value={currentTime}
+            onChange={(e) => {
+              const t = parseFloat(e.target.value);
+              if (videoRef.current) videoRef.current.currentTime = t;
+              setCurrentTime(t);
+            }}
+            className="flex-1"
+          />
+          <span className="tabular-nums whitespace-nowrap">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+        </div>
+      </div>
+    );
+  },
+);

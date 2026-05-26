@@ -88,6 +88,11 @@ export const DEIDENT_KEYS = {
   detail: (id: number) => [...DEIDENT_KEYS.all, 'detail', id] as const,
 };
 
+export const MARKING_KEYS = {
+  all: ['markings'] as const,
+  byVideo: (rawSn: number) => [...MARKING_KEYS.all, 'video', rawSn] as const,
+};
+
 export const STAT_KEYS = {
   all: ['stats'] as const,
   worker: (userId: number | string) => [...STAT_KEYS.all, 'worker', userId] as const,

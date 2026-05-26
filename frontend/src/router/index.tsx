@@ -99,6 +99,11 @@ const PresetListPage = lazy(() =>
   import('@/pages/manage/PresetListPage').then((m) => ({ default: m.PresetListPage })),
 );
 
+// V2.0 Phase 7 — 마킹 화면 lazy 로드
+const MarkingPage = lazy(() =>
+  import('@/pages/MarkingPage').then((m) => ({ default: m.MarkingPage })),
+);
+
 // Phase 2 — 권한 자가 부여 화면 (role 미부여 사용자 진입점) lazy 로드
 const RoleClaimPage = lazy(() =>
   import('@/pages/RoleClaimPage').then((m) => ({ default: m.RoleClaimPage })),
@@ -254,6 +259,14 @@ export const router = createBrowserRouter([
             ),
           },
         ],
+      },
+      {
+        path: 'marking/:rawSn',
+        element: (
+          <InternalRoute allow={internalAllRoles}>
+            {withSuspense(<MarkingPage />)}
+          </InternalRoute>
+        ),
       },
       {
         path: 'auto/:videoId',
