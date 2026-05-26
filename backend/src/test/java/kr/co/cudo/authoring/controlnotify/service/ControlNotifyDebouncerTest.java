@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.controlnotify.service;
 
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
+import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,12 +25,14 @@ import static org.mockito.Mockito.verify;
 class ControlNotifyDebouncerTest {
 
     private ControlNotifyService notifyService;
+    private ControlNotifyMetrics metrics;
     private ControlNotifyDebouncer debouncer;
 
     @BeforeEach
     void setUp() {
         notifyService = mock(ControlNotifyService.class);
-        debouncer = new ControlNotifyDebouncer(notifyService, 60L);
+        metrics = mock(ControlNotifyMetrics.class);
+        debouncer = new ControlNotifyDebouncer(notifyService, 60L, metrics);
     }
 
     @SuppressWarnings("unchecked")
@@ -130,6 +133,40 @@ class ControlNotifyDebouncerTest {
         ControlNotifyDebouncer.DebouncedWindow window = getWindows().get(100L);
         assertThat(window.getFrameIds()).hasSize(1).containsExactly(1L);
         assertThat(window.getChangeTypes()).hasSize(2).contains("LABEL_ADDED", "LABEL_UPDATED");
+    }
+
+    // --- Phase 5: 메트릭 호출 검증 ---
+
+    @Test
+    @DisplayName("flushExpiredWindows_실행시_metrics_debounceFlush_호출됨")
+    void flushExpiredWindows_incrementsDebounceFlushMetric() {
+        // given -- 만료된 윈도우 2개 삽입
+        ConcurrentHashMap<Long, ControlNotifyDebouncer.DebouncedWindow> windows = getWindows();
+        ControlNotifyDebouncer.DebouncedWindow expired1 = createWindowWithCreatedAt(
+                System.currentTimeMillis() - 70_000L, List.of(1L), List.of("LABEL_ADDED"));
+        ControlNotifyDebouncer.DebouncedWindow expired2 = createWindowWithCreatedAt(
+                System.currentTimeMillis() - 70_000L, List.of(2L), List.of("META_UPDATED"));
+        windows.put(100L, expired1);
+        windows.put(200L, expired2);
+
+        // when
+        debouncer.flushExpiredWindows();
+
+        // then -- flush 된 윈도우 수만큼 debounceFlush 호출
+        verify(metrics, times(2)).incrementDebounceFlush();
+    }
+
+    @Test
+    @DisplayName("flushExpiredWindows_미만료시_metrics_debounceFlush_미호출")
+    void flushExpiredWindows_noExpired_noMetric() {
+        // given
+        debouncer.accumulate(new TaskModifiedEvent(100L, 1L, "LABEL_ADDED", 10L));
+
+        // when
+        debouncer.flushExpiredWindows();
+
+        // then
+        verify(metrics, never()).incrementDebounceFlush();
     }
 
     /**

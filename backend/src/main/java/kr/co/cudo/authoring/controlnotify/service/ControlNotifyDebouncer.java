@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.controlnotify.service;
 
 import jakarta.annotation.PreDestroy;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
+import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,11 +27,14 @@ public class ControlNotifyDebouncer {
     private final ConcurrentHashMap<Long, DebouncedWindow> windows = new ConcurrentHashMap<>();
     private final ControlNotifyService notifyService;
     private final long windowMillis;
+    private final ControlNotifyMetrics metrics;
 
     public ControlNotifyDebouncer(ControlNotifyService notifyService,
-                                  @Value("${authoring.control-notify.debounce-window-sec:60}") long windowSec) {
+                                  @Value("${authoring.control-notify.debounce-window-sec:60}") long windowSec,
+                                  ControlNotifyMetrics metrics) {
         this.notifyService = notifyService;
         this.windowMillis = windowSec * 1000L;
+        this.metrics = metrics;
     }
 
     /**
@@ -54,6 +58,7 @@ public class ControlNotifyDebouncer {
             if (window.getCreatedAt() <= cutoff) {
                 windows.remove(rawSn);
                 notifyService.sendModified(rawSn, window.getFrameIds(), window.getChangeTypes());
+                metrics.incrementDebounceFlush();
             }
         });
     }

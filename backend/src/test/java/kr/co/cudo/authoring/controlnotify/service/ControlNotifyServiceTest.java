@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.controlnotify.service;
 import kr.co.cudo.authoring.common.client.ControlNotifyClient;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.controlnotify.fallback.ControlNotifyFallbackService;
+import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,13 +27,15 @@ class ControlNotifyServiceTest {
 
     private ControlNotifyClient client;
     private ControlNotifyFallbackService fallbackService;
+    private ControlNotifyMetrics metrics;
     private ControlNotifyService svc;
 
     @BeforeEach
     void setUp() {
         client = mock(ControlNotifyClient.class);
         fallbackService = mock(ControlNotifyFallbackService.class);
-        svc = new ControlNotifyService(client, fallbackService);
+        metrics = mock(ControlNotifyMetrics.class);
+        svc = new ControlNotifyService(client, fallbackService, metrics);
     }
 
     @Test
@@ -89,5 +92,65 @@ class ControlNotifyServiceTest {
 
         // then
         verify(fallbackService).enqueuePending(anyString(), eq("TASK_MODIFIED"), eq(200L), anyString());
+    }
+
+    // --- Phase 5: 메트릭 호출 검증 ---
+
+    @Test
+    @DisplayName("통지_성공시_metrics_completedSuccess_호출됨")
+    void sendCompleted_success_incrementsMetric() {
+        // given
+        ReviewApprovedEvent event = new ReviewApprovedEvent(100L, 1L, Instant.now());
+        when(client.sendTaskCompleted(any())).thenReturn(Mono.empty());
+
+        // when
+        svc.sendCompleted(event);
+
+        // then
+        verify(metrics).incrementCompletedSuccess();
+        verify(metrics, never()).incrementCompletedFailed();
+    }
+
+    @Test
+    @DisplayName("통지_실패시_metrics_completedFailed_호출됨")
+    void sendCompleted_failure_incrementsMetric() {
+        // given
+        ReviewApprovedEvent event = new ReviewApprovedEvent(100L, 1L, Instant.now());
+        when(client.sendTaskCompleted(any())).thenReturn(Mono.error(new RuntimeException("fail")));
+
+        // when
+        svc.sendCompleted(event);
+
+        // then
+        verify(metrics).incrementCompletedFailed();
+        verify(metrics, never()).incrementCompletedSuccess();
+    }
+
+    @Test
+    @DisplayName("Modified_통지_성공시_metrics_modifiedSuccess_호출됨")
+    void sendModified_success_incrementsMetric() {
+        // given
+        when(client.sendTaskModified(any())).thenReturn(Mono.empty());
+
+        // when
+        svc.sendModified(200L, List.of(10L), List.of("LABEL_ADDED"));
+
+        // then
+        verify(metrics).incrementModifiedSuccess();
+        verify(metrics, never()).incrementModifiedFailed();
+    }
+
+    @Test
+    @DisplayName("Modified_통지_실패시_metrics_modifiedFailed_호출됨")
+    void sendModified_failure_incrementsMetric() {
+        // given
+        when(client.sendTaskModified(any())).thenReturn(Mono.error(new RuntimeException("fail")));
+
+        // when
+        svc.sendModified(200L, List.of(10L), List.of("LABEL_UPDATED"));
+
+        // then
+        verify(metrics).incrementModifiedFailed();
+        verify(metrics, never()).incrementModifiedSuccess();
     }
 }

@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.controlnotify.dto.TaskCompletedPayload;
 import kr.co.cudo.authoring.controlnotify.dto.TaskModifiedPayload;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.controlnotify.fallback.ControlNotifyFallbackService;
+import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,6 +30,7 @@ public class ControlNotifyService {
 
     private final ControlNotifyClient client;
     private final ControlNotifyFallbackService fallbackService;
+    private final ControlNotifyMetrics metrics;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     static {
@@ -43,11 +45,13 @@ public class ControlNotifyService {
         try {
             client.sendTaskCompleted(payload).block(ControlNotifyClient.BLOCK_TIMEOUT);
             log.info("[ControlNotify] TASK_COMPLETED sent rawSn={}", event.rawSn());
+            metrics.incrementCompletedSuccess();
         } catch (Exception e) {
             log.warn("[ControlNotify] TASK_COMPLETED failed rawSn={} reason={}",
                     event.rawSn(), e.getClass().getSimpleName());
             fallbackService.enqueuePending(payload.requestId(), "TASK_COMPLETED",
                     event.rawSn(), serializePayload(payload));
+            metrics.incrementCompletedFailed();
         }
     }
 
@@ -59,10 +63,12 @@ public class ControlNotifyService {
         try {
             client.sendTaskModified(payload).block(ControlNotifyClient.BLOCK_TIMEOUT);
             log.info("[ControlNotify] TASK_MODIFIED sent rawSn={} frames={}", rawSn, frameIds.size());
+            metrics.incrementModifiedSuccess();
         } catch (Exception e) {
             log.warn("[ControlNotify] TASK_MODIFIED failed rawSn={}", rawSn);
             fallbackService.enqueuePending(payload.requestId(), "TASK_MODIFIED",
                     rawSn, serializePayload(payload));
+            metrics.incrementModifiedFailed();
         }
     }
 
