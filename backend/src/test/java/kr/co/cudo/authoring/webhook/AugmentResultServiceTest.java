@@ -2,18 +2,29 @@ package kr.co.cudo.authoring.webhook;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataMeta;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.service.AugmentResultService;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.lang.reflect.Field;
@@ -29,18 +40,47 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@MockitoSettings(strictness = Strictness.LENIENT)
 @ExtendWith(MockitoExtension.class)
 class AugmentResultServiceTest {
 
     @Mock LsDataAugRepository augRepository;
+    @Mock VideoRepository videoRepository;
+    @Mock LsDataSrcRepository srcRepository;
+    @Mock LsDataLblRepository lblRepository;
+    @Mock LsDataMetaRepository metaRepository;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private AugmentResultService service;
+    private final java.util.concurrent.atomic.AtomicLong rawSnSeq = new java.util.concurrent.atomic.AtomicLong(9000);
+    private final java.util.concurrent.atomic.AtomicLong srcSnSeq = new java.util.concurrent.atomic.AtomicLong(5000);
 
     @BeforeEach
     void setup() {
-        service = new AugmentResultService(augRepository, ledger);
+        service = new AugmentResultService(augRepository, ledger,
+                videoRepository, srcRepository, lblRepository, metaRepository);
         ledger.clear();
+        // V2.0: save mocks for new video creation
+        when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
+            LsDataRaw r = inv.getArgument(0);
+            setField(r, "rawSn", rawSnSeq.incrementAndGet());
+            return r;
+        });
+        when(srcRepository.save(any(LsDataSrc.class))).thenAnswer(inv -> {
+            LsDataSrc s = inv.getArgument(0);
+            setField(s, "srcSn", srcSnSeq.incrementAndGet());
+            return s;
+        });
+        when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(metaRepository.save(any(LsDataMeta.class))).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    private static void setField(Object target, String name, Object value) {
+        try {
+            Field f = target.getClass().getDeclaredField(name);
+            f.setAccessible(true);
+            f.set(target, value);
+        } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
     }
 
     @Test
@@ -184,6 +224,113 @@ class AugmentResultServiceTest {
         assertThat(existing.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
         // 단일 save 호출 — UNIQUE 위반 없음
         verify(augRepository, times(1)).save(any(LsDataAug.class));
+    }
+
+    // ─── Phase 5 V2.0: 증강 = 새 영상 ───
+
+    private LsDataRaw newRaw(Long rawSn) {
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-" + rawSn, "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_ANONY, "/storage/raw/" + rawSn + ".mp4", null, 60);
+        setField(raw, "rawSn", rawSn);
+        return raw;
+    }
+
+    private LsDataSrc newSrc(Long srcSn, Long rawSn, int frameNo) {
+        LsDataSrc src = LsDataSrc.create(rawSn, frameNo, rawSn + "/frame-" + frameNo + ".jpg", null);
+        setField(src, "srcSn", srcSn);
+        return src;
+    }
+
+    private LsDataAug newAugWithSrc(Long augSn, Long srcSn, String type) throws Exception {
+        LsDataAug aug = LsDataAug.createPending(srcSn, type, BigDecimal.valueOf(0.95), "registrar");
+        Field f = LsDataAug.class.getDeclaredField("dataAugSn");
+        f.setAccessible(true);
+        f.set(aug, augSn);
+        return aug;
+    }
+
+    @Test
+    @DisplayName("V2_증강_SUCCESS_시_새_RAW_SN_생성_PARENT_RAW_SN_참조")
+    void successCreatesNewVideoWithParentRef() throws Exception {
+        ledger.recordIssued("K-V2-NEW", "EXT-V2");
+        LsDataRaw parentRaw = newRaw(100L);
+        LsDataSrc originSrc = newSrc(200L, 100L, 0);
+        LsDataAug aug = newAugWithSrc(20L, 200L, "WINTER");
+
+        when(augRepository.findById(20L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(200L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findById(100L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(100L)).thenReturn(List.of(originSrc));
+        when(lblRepository.findBySrcSn(any())).thenReturn(List.of());
+        when(metaRepository.findByRawSn(100L)).thenReturn(List.of());
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-V2-NEW", "EXT-V2", "SUCCESS", 20L, "WINTER",
+                "/storage/augment/winter.mp4", List.of());
+
+        boolean applied = service.handle(req);
+
+        assertThat(applied).isTrue();
+        ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(rawCaptor.capture());
+        LsDataRaw newRaw = rawCaptor.getValue();
+        assertThat(newRaw.getParentRawSn()).isEqualTo(100L);
+        assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
+        assertThat(newRaw.getFilePath()).isEqualTo("/storage/augment/winter.mp4");
+    }
+
+    @Test
+    @DisplayName("V2_증강_SUCCESS_시_원본_프레임_라벨_메타_복사")
+    void successCopiesFramesLabelsAndMeta() throws Exception {
+        ledger.recordIssued("K-V2-COPY", "EXT-V2C");
+        LsDataRaw parentRaw = newRaw(101L);
+        LsDataSrc frame0 = newSrc(300L, 101L, 0);
+        LsDataSrc frame1 = newSrc(301L, 101L, 1);
+        LsDataAug aug = newAugWithSrc(21L, 300L, "NIGHT");
+
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(300L, null, "person", "[1,2,3,4]",
+                BigDecimal.valueOf(0.9), null);
+        LsDataMeta meta = LsDataMeta.create(101L, "weather", "sunny");
+
+        when(augRepository.findById(21L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(300L)).thenReturn(Optional.of(frame0));
+        when(videoRepository.findById(101L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(101L)).thenReturn(List.of(frame0, frame1));
+        when(lblRepository.findBySrcSn(300L)).thenReturn(List.of(lbl));
+        when(lblRepository.findBySrcSn(301L)).thenReturn(List.of());
+        when(metaRepository.findByRawSn(101L)).thenReturn(List.of(meta));
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-V2-COPY", "EXT-V2C", "SUCCESS", 21L, "NIGHT",
+                "/storage/augment/night.mp4", List.of());
+
+        service.handle(req);
+
+        // 프레임 2건 복사
+        verify(srcRepository, times(2)).save(any(LsDataSrc.class));
+        // 라벨 1건 복사 (frame0 에만 라벨 있음)
+        verify(lblRepository, times(1)).save(any(LsDataLbl.class));
+        // 메타 1건 복사
+        verify(metaRepository, times(1)).save(any(LsDataMeta.class));
+    }
+
+    @Test
+    @DisplayName("V2_증강_FAILED_시_새_영상_미생성")
+    void failedDoesNotCreateNewVideo() throws Exception {
+        ledger.recordIssued("K-V2-FAIL", "EXT-V2F");
+        LsDataAug aug = newAug(22L, "RAIN", LsDataAug.STTS_PENDING);
+        when(augRepository.findById(22L)).thenReturn(Optional.of(aug));
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-V2-FAIL", "EXT-V2F", "FAILED", 22L, "RAIN", null, null);
+
+        service.handle(req);
+
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
     }
 
     private LsDataAug newAug(Long sn, String type, String status) throws Exception {

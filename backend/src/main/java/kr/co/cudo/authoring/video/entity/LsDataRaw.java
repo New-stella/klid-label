@@ -67,6 +67,9 @@ public class LsDataRaw {
     @Column(name = "DURATION_SEC")
     private Integer durationSec;
 
+    @Column(name = "PARENT_RAW_SN")
+    private Long parentRawSn;
+
     @Column(name = "DATA_STTS_CD", nullable = false, length = 32)
     private String dataSttsCd;
 
@@ -106,6 +109,28 @@ public class LsDataRaw {
                 .capturedAt(capturedAt)
                 .durationSec(durationSec)
                 .build();
+    }
+
+    /**
+     * V2.0 증강 결과 수신 시 새 영상 생성. 원본 메타를 계승하되 PENDING 상태로 시작.
+     * VMS_CLIP_ID 는 원본 + 증강 타입 + 타임스탬프로 유니크 보장.
+     */
+    public static LsDataRaw createFromAugment(LsDataRaw parent, String filePath, String augType) {
+        LsDataRaw raw = new LsDataRaw();
+        raw.vmsClipId = parent.getVmsClipId() + "_AUG_" + augType + "_" + System.currentTimeMillis();
+        raw.vmsCctvId = parent.getVmsCctvId();
+        raw.evntTypeCd = parent.getEvntTypeCd();
+        raw.lclgvCd = parent.getLclgvCd();
+        raw.prvcTypeCd = parent.getPrvcTypeCd();
+        raw.prvcYn = derivePrvcYn(parent.getPrvcTypeCd());
+        raw.deIdntfYn = "N";
+        raw.filePath = filePath;
+        raw.capturedAt = parent.getCapturedAt();
+        raw.durationSec = parent.getDurationSec();
+        raw.parentRawSn = parent.getRawSn();
+        raw.dataSttsCd = STATUS_PENDING;
+        raw.regDt = LocalDateTime.now();
+        return raw;
     }
 
     /**

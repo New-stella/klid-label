@@ -2,9 +2,17 @@ package kr.co.cudo.authoring.webhook.service;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataMeta;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.ExternalUrlValidator;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +21,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -34,6 +45,10 @@ public class AugmentResultService {
 
     private final LsDataAugRepository augRepository;
     private final WebhookIdempotencyLedger ledger;
+    private final VideoRepository videoRepository;
+    private final LsDataSrcRepository srcRepository;
+    private final LsDataLblRepository lblRepository;
+    private final LsDataMetaRepository metaRepository;
 
     /**
      * @return true = 신규 적재 / false = 멱등 스킵
@@ -88,12 +103,61 @@ public class AugmentResultService {
                     safe(req.idempotencyKey()));
         }
 
-        // 6) 멱등 마킹
+        // 6) V2.0 — 성공 시 새 영상 생성 (원본 라벨/메타 복사)
+        if (LsDataAug.STTS_ACCEPTED.equals(newStatus)) {
+            createAugmentedVideo(aug, req);
+        }
+
+        // 7) 멱등 마킹
         ledger.markProcessed(req.idempotencyKey(), req.externalJobId());
 
         log.info("[Webhook][Augment] result applied augSn={} status={} externalJobId={}",
                 req.originAugSn(), safe(req.status()), safe(req.externalJobId()));
         return true;
+    }
+
+    /**
+     * V2.0 — 증강 성공 시 새 영상(RAW_SN) 생성 + 원본 프레임/라벨/메타 복사.
+     * 새 영상은 PENDING 상태로 시작하여 기존 배정/검수 흐름을 따른다.
+     */
+    private void createAugmentedVideo(LsDataAug aug, AugmentResultRequest req) {
+        LsDataSrc originSrc = srcRepository.findById(aug.getSrcSn()).orElse(null);
+        if (originSrc == null) {
+            log.warn("[Webhook][Augment] originSrc not found srcSn={} — skip video creation", aug.getSrcSn());
+            return;
+        }
+        LsDataRaw parentRaw = videoRepository.findById(originSrc.getRawSn()).orElse(null);
+        if (parentRaw == null) {
+            log.warn("[Webhook][Augment] parentRaw not found rawSn={} — skip video creation", originSrc.getRawSn());
+            return;
+        }
+
+        String filePath = req.resultFilePath() != null ? req.resultFilePath() : parentRaw.getFilePath();
+        LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(parentRaw, filePath, req.augType()));
+
+        List<LsDataSrc> parentFrames = srcRepository.findByRawSnOrderByFrameNoAsc(parentRaw.getRawSn());
+        Map<Long, Long> srcSnMap = new HashMap<>();
+        for (LsDataSrc frame : parentFrames) {
+            LsDataSrc newFrame = srcRepository.save(
+                    LsDataSrc.create(newRaw.getRawSn(), frame.getFrameNo(), frame.getFilePath(), frame.getCapturedAt()));
+            srcSnMap.put(frame.getSrcSn(), newFrame.getSrcSn());
+        }
+
+        for (Map.Entry<Long, Long> entry : srcSnMap.entrySet()) {
+            List<LsDataLbl> labels = lblRepository.findBySrcSn(entry.getKey());
+            for (LsDataLbl lbl : labels) {
+                lblRepository.save(LsDataLbl.copyForNewSrc(entry.getValue(), lbl));
+            }
+        }
+
+        List<LsDataMeta> parentMetas = metaRepository.findByRawSn(parentRaw.getRawSn());
+        for (LsDataMeta meta : parentMetas) {
+            metaRepository.save(LsDataMeta.create(newRaw.getRawSn(), meta.getMetaKey(), meta.getMetaVal()));
+        }
+
+        log.info("[Webhook][Augment] new video created rawSn={} parentRawSn={} augType={} frames={} labels={} metas={}",
+                newRaw.getRawSn(), parentRaw.getRawSn(), req.augType(),
+                parentFrames.size(), srcSnMap.size(), parentMetas.size());
     }
 
     /** PENDING 상태일 때만 상태 전이 + 비동기 표준 컬럼 적재. */

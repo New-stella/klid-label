@@ -289,6 +289,21 @@ public class LsDataLbl {
         updateUserContent(lblTypeCd, null, label, pointsJson);
     }
 
+    /**
+     * V2.0 증강 새 영상용 라벨 복사. DB 에서 로드한 원본 라벨의 영구 필드만 복사한다.
+     * Transient 필드(autoLblYn, confScore, lblSrcCd)는 DB 미저장이므로 복사 대상 아님.
+     */
+    public static LsDataLbl copyForNewSrc(Long newSrcSn, LsDataLbl original) {
+        return LsDataLbl.builder()
+                .srcSn(newSrcSn)
+                .lblTypeCd(original.getLblTypeCd())
+                .labelId(original.getLabelId())
+                .label(original.getLabel())
+                .pointsJson(original.getPointsJson())
+                .trackId(original.getTrackId())
+                .build();
+    }
+
     /** VLM 객체 검증 결과 등 신뢰도만 갱신. 0.0~1.0 범위 강제. */
     public void updateConfScore(BigDecimal newScore) {
         this.confScore = clampScore(newScore);
