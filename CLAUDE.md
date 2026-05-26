@@ -4,12 +4,13 @@
 > 팀 공통 규칙은 ~/.claude/rules/ 에 있으므로 여기엔 이 프로젝트 전용 내용만 작성합니다.
 
 ## 프로젝트 개요
-- **목적**: AI 기반 지방정부 CCTV 관제지원시스템(2차)의 학습데이터 저작도구 — 영상/이미지 라벨링, 검수 워크플로우, 비식별화, 학습데이터셋 내보내기, 외부 생성 메타데이터 검토
-- **주요 도메인**: 사용자/권한, 배치 파이프라인(프레임 추출·오토라벨링·외부 VLM 시계열 호출), 라벨링, 검수(REVIEWER 배정), 비식별화, 버전관리(Gitea), 데이터 증강, 내보내기, 포털
+- **목적**: AI 기반 지방정부 CCTV 관제지원시스템(2차)의 학습데이터 저작도구 — 영상/이미지 라벨링, 검수 워크플로우, 비식별화, 외부 생성 메타데이터 검토
+- **주요 도메인**: 사용자/권한, 배치 파이프라인(프레임 추출·오토라벨링·외부 VLM 시계열 호출), 라벨링, 검수(REVIEWER 배정), 비식별화, 버전관리(Gitea), 데이터 증강, 포털
 - **범위 외 (V1.4)**: 데이터마트(SFR-13) — 외부제공 시스템 책임으로 이관. 저작도구는 학습데이터셋 내보내기까지만 담당하고 마트 구축·검색·다운로드는 담당하지 않음
 - **범위 외 (V1.5)**: SFR-06 본체(생성형 AI 모델 학습·파인튜닝·UI/UX 편의성·프롬프트 가이드 등) — 외부 생성 시스템 책임. 저작도구는 SFR-07 증강 결과 검수(SCR-AUG-002)만 보유. SFR-15 다운로드 기능은 포털 자체 책임으로 이관 — 저작도구 mock에 다운로드 카드·D-day 배지·다운로드 버튼·만료 처리 UI 미제공. (2026-05-15 정리: 배경영상 요청 API `/v1/generate/background/*` 는 외부 미연동 상태로 제거. 추후 외부 연동 결정 시 재도입)
 - **범위 외 (V1.7)**: VLM 모델 본체(학습·파인튜닝·프롬프트 관리) — 외부 시스템 책임. 저작도구의 VLM 연동은 **외부 VLM 서비스를 호출해 시계열 정보를 획득하는 연동**만 보유 (`ai-server/app/routers/vlm.py`는 외부 VLM 호출 어댑터). 응답을 LS_DATA_META(VLM)에 적재하고 SCR-AUTO-002 화면에서 REVIEWER 가 검토·수정
 - **요구사항 정리 (V1.8)**: 본체가 외부 시스템인 **SFR-03(시계열 메타 모델)·SFR-06(생성형 AI)·SFR-11(영상 합성 모델)은 요구사항정의서에서 제거**. 저작도구 잔존 책임(외부 VLM 시계열 호출 연동·외부 메타 검토 UI·증강 연동·생성된 영상 라벨링)은 모두 **SFR-08(저작도구 핵심 기능)에 흡수**됨. 화면 인덱스의 SFR 매핑도 SFR-08로 단일화. (2026-05-15 정리: 외부 미연동 상태인 배경영상 요청 인터페이스 BE 코드는 제거됨)
+- **범위 외 (V1.9)**: 학습데이터셋 내보내기(Export) — 범위 외로 변경. 저작도구는 라벨링·검수·버전관리까지만 담당
 
 ## 워크스페이스 구조
 
@@ -51,12 +52,14 @@ klid-la-test-v0/
 - **Java 17** + **Spring Boot 3.3** + **Gradle 8**
 - Spring Data JPA (Hibernate 6) + **QueryDSL 5.1** (복잡한 검색)
 - **Spring Security** + **JJWT 0.12** (관제서버/포털 발급 토큰 검증)
-- **Flyway** (klid_system 공유 DB — 제한된 DDL만, 관제서버팀 협의)
+- **Flyway 10.13** (`klid_system` DB 내 `klid_at` 스키마 — 저작도구 전용 테이블은 독립, MNG_* 공유 테이블 변경 시 관제서버팀 협의)
 - **Spring Boot Quartz** (기존 `QRTZ_*` 테이블과 호환)
 - **Resilience4j** (외부 API 재시도/서킷 브레이커/타임아웃)
 - **Spring WebFlux WebClient** (외부 시스템 연동)
 - **net.bramp.ffmpeg** (FFmpeg Java 래퍼)
+- **Caffeine** (로컬 캐시 — 시스템 설정 TTL 60s)
 - MapStruct 1.5 / Lombok
+- **Micrometer + Prometheus** (메트릭 수집 — API 응답시간, 배치 처리량, 외부 API 호출 모니터링)
 - Springdoc OpenAPI 2.5 (Swagger UI)
 - JUnit 5 + Testcontainers (MariaDB)
 
@@ -75,8 +78,8 @@ klid-la-test-v0/
 - **MariaDB 10.11.13 (LTS)** — `klid_system` @ 192.168.102.101:13307
 - utf8mb4 / utf8mb4_unicode_ci / InnoDB
 - MaxScale 24.02.5 (Master-Slave Read/Write Splitting)
-- Quartz 스케줄러 기존 운영 (`QRTZ_*` 11개 테이블 공유)
-- 저작도구 전용 독립 DB 없음 → **기존 `klid_system` 공유** (재사용 31개 · `LS_DATA_LBL` 3컬럼 추가 · 신규 0개)
+- `klid_system` DB 내 `klid_at` 스키마 운영 — **저작도구 전용 신규 34개(LS_*) + 관제서버 재사용 9개(MNG_*) = 총 43개 테이블**
+- Quartz 스케줄러 `QRTZ_*` 11개 테이블은 기존 `klid_system` 공유
 - 외부 채널은 포털 DB 공유
 
 ## 아키텍처 원칙
@@ -148,6 +151,7 @@ klid-la-test-v0/
 
 ### 인증·진입 (V1.1)
 - 저작도구는 **독립 로그인 UI 없음** — 관제서버(내부) / 포털 서버(외부)가 발급한 JWT 토큰을 인계
+- **관제서버와 동일 도메인 운영** → 브라우저 스토리지(localStorage/sessionStorage) 공유로 JWT 전달. URL 쿼리 파라미터(`?token=`) 방식 미사용
 - 두 채널 모두 **동일 JWT 발급 서버** — 단일 검증 로직(`JwtAuthenticationFilter`)로 처리
 - 토큰 `role` + `channel` 클레임으로 권한 분기 (`@PreAuthorize("hasRole('REVIEWER')")`)
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트
@@ -172,9 +176,10 @@ klid-la-test-v0/
 - **검수 완료 후 수정 시** — 동일 작업 ID 유지, 새 작업 ID 발급/버전 업 모두 안 함. 라벨/메타가 수정될 때마다 outbound `TASK_MODIFIED` 통지 발행. 수신측(관제서버)은 마지막 상태로 갱신
 - **통지 단위는 영상 1건** — 라벨/이미지 1장 단위로 통지하지 않음. 영상 내 다수 변경이 같은 트랜잭션·짧은 시간 내 발생하면 디바운스 후 1회 통지(운영 결정)
 - **TASK_COMPLETED 페이로드 — 메타만**: 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이·채널) + 검수 완료 일시 + 프레임 개수 + 결과 요약 카운트(라벨 N건·메타 M건) + 요청 ID. 라벨/메타 본문 자체는 포함하지 않으며, 관제가 필요 시 본 도구 API 또는 Gitea 조회로 보강
-- **TASK_MODIFIED 페이로드 — 변경 프레임 단위 데이터 포함**: 이벤트 타입 + 작업 ID(RAW_SN) + 마지막 수정 일시 + **변경 프레임 목록**(각 항목: 프레임 ID `SRC_SN` + 변경 종류 `LABEL_ADDED|LABEL_UPDATED|LABEL_DELETED|META_UPDATED` + **변경된 라벨/메타 본문 데이터**(변경 후 상태)) + 변경 요약 카운트 + 요청 ID. 관제가 별도 조회 없이 차분 적용 가능하도록 데이터를 함께 전달
-- 페이로드에 PII·토큰·원본 비-비식별 이미지 포함 금지 — 비식별 처리된 라벨 좌표·종류·메타 본문은 전달 가능
-- 이력 보존은 기존 인프라(`LS_DATA_LBL_HSTRY` + Gitea 커밋)로 충분 — 수신측이 diff 가 필요하면 본 도구 API 또는 Gitea 조회
+- **TASK_MODIFIED 페이로드 — 수정 요약만 전달**: 이벤트 타입 + 작업 ID(RAW_SN) + 마지막 수정 일시 + **변경 프레임 목록**(각 항목: 프레임 ID `SRC_SN` + 변경 종류 `LABEL_ADDED|LABEL_UPDATED|LABEL_DELETED|META_UPDATED`) + 변경 요약 카운트 + 요청 ID. 라벨/메타 본문 데이터는 포함하지 않음
+- **관제서버 조회 패턴**: 관제서버가 통지를 수신하면 저작도구 API를 호출하여 필요한 상세 데이터를 직접 조회. 저작도구는 관제서버가 조회할 수 있는 API를 제공해야 함
+- 페이로드에 PII·토큰·원본 비-비식별 이미지 포함 금지
+- 이력 보존은 기존 인프라(`LS_DATA_LBL_HSTRY` + Gitea 커밋)로 충분
 
 ### 라벨링·버전관리
 - 바운딩박스 / 폴리곤 / 세그멘테이션 / SAM2 Track — 캔버스는 konva.js
@@ -189,10 +194,10 @@ klid-la-test-v0/
 - 오토라벨링 체험(YOLO+SAM2), VLM/버전관리/검수 미제공
 - 반응형 웹 (PC/태블릿/모바일), WCAG 2.1 AA 준수
 
-### DB 공유 정책
-- 저작도구 전용 독립 DB 없음 → `klid_system` 공유
-- 기존 테이블 재사용 원칙, 신규 테이블 없음 (`LS_DATA_LBL`에 3개 컬럼만 추가)
-- Flyway 마이그레이션은 **`klid_system` 공유 테이블 변경 시 관제서버팀 선승인 필수**
+### DB 정책
+- `klid_system` DB 내 `klid_at` 스키마에 저작도구 전용 테이블 34개(LS_*) 신규 운영
+- 관제서버 MNG_* 테이블 9개 재사용 (READ 위주, JPA `ddl-auto=validate`)
+- Flyway 마이그레이션: LS_* 전용 테이블은 자체 관리, **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수**
 
 ## CVAT 포팅 전략
 
@@ -225,7 +230,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 비식별 API 실패 시 영상 상태 `DE_IDNTF_YN='F'`로 마킹 + 재시도 큐. 원본 절대 삭제 금지
 - 관제서버 세션 토큰은 저작도구가 발급하지 않음 — 검증 실패 시 관제서버 로그인 페이지로 리다이렉트
 - 관제/포털 양방향 통합 API 및 외부 학습데이터 API는 deprecated — 재구축 전까지 미연동
-- **관제서버 outbound 완료/수정 통지는 예외 (V1.8)**: `ControlNotifyClient` 가 비동기 EVENT 패턴으로 `TASK_COMPLETED`·`TASK_MODIFIED` 통지를 영상 단위로 송신 — 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 적용. 단방향 outbound 만 부활, 인바운드 양방향 M2M 인증은 여전히 deprecated
+- **관제서버 통지 + 조회 API (V1.8)**: `ControlNotifyClient`가 `TASK_COMPLETED`·`TASK_MODIFIED` 통지를 영상 단위로 송신(수정 요약만, 본문 미포함) — 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 적용. 관제서버는 통지 수신 후 저작도구 API를 호출하여 상세 데이터 조회. 단방향 outbound 통지 + inbound 조회 API 제공, 양방향 M2M 인증은 여전히 deprecated
 
 ### 파일 업로드 (포털 + TUS)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수
@@ -237,11 +242,14 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 비식별 처리 이력은 프레임 단위로 기록
 
 ### 배치 성능
+- Spring Boot + Quartz는 **단일 인스턴스 서비스** 배포 (Docker/Pod 미사용, Quartz 클러스터 미적용)
 - Quartz 기반 1건/분 처리. ai-server GPU 자원 모니터링 포인트 확보
+- **ai-server(YOLO/SAM2)는 다중 인스턴스 수평 확장 가능** — GPU Worker 별도 프로세스로 운영
 - 배치 실패 시 재처리 정책 (최대 재시도 횟수, 실패 알림)
 
 ### DB 공유 주의
-- `klid_system` 공유 테이블 — **Flyway 마이그레이션 전 관제서버팀 협의 필수**
+- MNG_* 공유 테이블 변경 시 **Flyway 마이그레이션 전 관제서버팀 협의 필수**
+- 관제서버 소유 MNG_* 스키마 변경 시 Hibernate validate 모드에서 기동 불가 — 변경 알림 프로세스 필요
 - JPA `ddl-auto=validate` 고정. 엔티티 수정 시 Flyway migration 동반 작성
 
 ### Self-evolving rules (Claude 특이)
