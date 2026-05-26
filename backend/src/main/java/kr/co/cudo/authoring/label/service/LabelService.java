@@ -20,8 +20,10 @@ import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
+import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.version.service.VersionService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,6 +71,7 @@ public class LabelService {
      * 해소를 위해 {@link Lazy} 적용 — 생성자 주입 유지 (보안 정책: 필드/세터 주입 금지).
      */
     private final VersionService versionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public LabelService(LsDataLblRepository labelRepository,
                         LsDataLblAiInfoRepository aiInfoRepository,
@@ -78,7 +81,8 @@ public class LabelService {
                         LabelAccessGuard accessGuard,
                         ObjectMapper objectMapper,
                         LsLabelRepository lsLabelRepository,
-                        @Lazy VersionService versionService) {
+                        @Lazy VersionService versionService,
+                        ApplicationEventPublisher eventPublisher) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
@@ -88,6 +92,7 @@ public class LabelService {
         this.objectMapper = objectMapper;
         this.lsLabelRepository = lsLabelRepository;
         this.versionService = versionService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -227,6 +232,8 @@ public class LabelService {
             }
         }
         log.info("[Label] bulkUpsert srcSn={} actor={} count={}", srcSn, actorNo, result.size());
+        eventPublisher.publishEvent(new TaskModifiedEvent(
+                current.getRawSn(), srcSn, "LABEL", actorNo));
 
         List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
         String frameImageType = resolveFrameImageType(actor, false);

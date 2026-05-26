@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.meta.dto.MetaResponse;
@@ -16,6 +17,7 @@ import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,7 @@ public class MetaService {
     private final LsDataSrcRepository srcRepository;
     private final LsTaskAssignmentRepository authrtRepository;
     private final LsDataMetaReviewRepository metaReviewRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public MetaResponse getByFrame(Long srcSn, TokenClaims actor) {
         LsDataSrc src = verifyAccess(srcSn, actor);
@@ -56,6 +59,8 @@ public class MetaService {
             meta.updateValue(item.metaVal());
         }
         log.info("[Meta] updated rawSn={} count={}", rawSn, req.items().size());
+        eventPublisher.publishEvent(new TaskModifiedEvent(
+                rawSn, srcSn, "META", parseUserNo(actor.sub())));
         return MetaResponse.of(metaRepository.findByRawSn(rawSn));
     }
 

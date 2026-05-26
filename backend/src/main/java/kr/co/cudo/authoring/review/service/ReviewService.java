@@ -26,8 +26,10 @@ import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -69,6 +71,7 @@ public class ReviewService {
     private final VideoRepository videoRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 검수 워크플로우 상태별 페이징 목록 (REVIEWER 의 검수 목록 화면용).
@@ -365,6 +368,8 @@ public class ReviewService {
             throw new CustomException(ErrorCode.CONFLICT, "다른 검수자가 먼저 처리했습니다.");
         }
         log.info("[Review] approved videoId={} actor={}", videoId, actor.sub());
+        eventPublisher.publishEvent(new ReviewApprovedEvent(
+                stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));
         return enrichOne(stts);
     }
 
