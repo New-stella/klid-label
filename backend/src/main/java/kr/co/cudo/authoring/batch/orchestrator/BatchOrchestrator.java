@@ -1,5 +1,8 @@
 package kr.co.cudo.authoring.batch.orchestrator;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -12,6 +15,7 @@ import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -71,6 +75,7 @@ public class BatchOrchestrator {
     private final BatchRetryQueue retryQueue;
     private final VideoRepository videoRepository;
     private final LsMarkingRepository markingRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * 단일 영상 1건 처리 (V2 순서).
@@ -104,10 +109,15 @@ public class BatchOrchestrator {
             statusService.markStage(rawSn, BatchStage.DEIDENTIFY);
             String deidVideoPath = deidentifyStep.run(raw);
 
-            // 3. 프레임 추출 (Phase 2 — 영상 2벌 보관: 원본 + 비식별 영상 양쪽에서 추출).
-            //    raw.deidFilePath 가 null 이거나 파일 미존재면 RAW 만 (V1 호환 / graceful fallback).
+            // 3. 프레임 추출 — V2.0: 마킹 있으면 마킹 위치 기반, 없으면 기존 균등 간격 추출.
             statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
-            List<LsDataSrc> frames = frameExtractor.extractBoth(raw, deidVideoPath);
+            List<LsDataSrc> frames;
+            if (!markings.isEmpty()) {
+                List<MarkItem> marks = parseMarks(markings.get(0).getMarks());
+                frames = frameExtractor.extractByMarks(raw, deidVideoPath, marks);
+            } else {
+                frames = frameExtractor.extractBoth(raw, deidVideoPath);
+            }
             if (frames.isEmpty()) {
                 throw new CustomException(ErrorCode.INTERNAL_ERROR,
                         "프레임 추출 결과가 0건입니다 rawSn=" + rawSn);
@@ -152,5 +162,13 @@ public class BatchOrchestrator {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     protected void markRawCompleted(Long rawSn) {
         videoRepository.findById(rawSn).ifPresent(r -> r.changeStatus("COMPLETED"));
+    }
+
+    private List<MarkItem> parseMarks(String marksJson) {
+        try {
+            return objectMapper.readValue(marksJson, new TypeReference<>() {});
+        } catch (JsonProcessingException e) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "마킹 데이터 파싱 실패", e);
+        }
     }
 }

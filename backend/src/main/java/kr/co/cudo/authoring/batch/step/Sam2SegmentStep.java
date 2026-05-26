@@ -240,12 +240,6 @@ public class Sam2SegmentStep {
     }
 
     private String resolveImagePath(LsDataSrc src) {
-        if (src.getDeidFilePath() != null) {
-            Path deidPath = baseRawPath.resolve(src.getDeidFilePath()).normalize();
-            if (deidPath.startsWith(baseRawPath) && Files.exists(deidPath)) {
-                return src.getDeidFilePath();
-            }
-        }
         return src.getFilePath();
     }
 

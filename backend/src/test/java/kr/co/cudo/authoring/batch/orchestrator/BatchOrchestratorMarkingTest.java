@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.orchestrator;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -9,6 +10,7 @@ import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
+import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -68,10 +70,12 @@ class BatchOrchestratorMarkingTest {
         orchestrator = new BatchOrchestrator(
                 vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
                 trackInterpolationStep, statusService, retryQueue, videoRepository,
-                markingRepository);
+                markingRepository, new ObjectMapper());
 
         // given: 기본 mock 설정
         when(frameExtractor.extractBoth(any(LsDataRaw.class), nullable(String.class)))
+                .thenReturn(List.of(mock(LsDataSrc.class)));
+        when(frameExtractor.extractByMarks(any(LsDataRaw.class), nullable(String.class), any()))
                 .thenReturn(List.of(mock(LsDataSrc.class)));
         when(deidentifyStep.run(any(LsDataRaw.class))).thenReturn(null);
     }
@@ -158,5 +162,69 @@ class BatchOrchestratorMarkingTest {
         // 최신 마킹(리스트 첫 번째)이 전달되어야 함
         verify(vlmTimeseriesStep).runWithMarking(eq(503L), eq(latest));
         verify(vlmTimeseriesStep, never()).run(503L);
+    }
+
+    // ─── Phase 4 V2.0: 마킹 기반 프레임 추출 ───
+
+    @Test
+    @DisplayName("V2_마킹_있을때_extractByMarks_호출_extractBoth_미호출")
+    void markingExists_extractByMarksInvoked() {
+        // given
+        newRaw(504L);
+        LsMarking marking = newMarking(504L);
+        when(markingRepository.findByRawSnOrderByCreatedAtDesc(504L))
+                .thenReturn(List.of(marking));
+
+        // when
+        BatchStage result = orchestrator.process(504L);
+
+        // then
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
+        verify(frameExtractor, never()).extractBoth(any(LsDataRaw.class), nullable(String.class));
+    }
+
+    @Test
+    @DisplayName("V2_마킹_없을때_기존_extractBoth_폴백_extractByMarks_미호출")
+    void noMarking_extractBothFallback() {
+        // given
+        newRaw(505L);
+        when(markingRepository.findByRawSnOrderByCreatedAtDesc(505L))
+                .thenReturn(Collections.emptyList());
+
+        // when
+        BatchStage result = orchestrator.process(505L);
+
+        // then
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
+        verify(frameExtractor, never()).extractByMarks(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("V2_마킹_marks_JSON이_extractByMarks에_MarkItem_리스트로_전달")
+    void markingMarksJsonParsedToMarkItems() {
+        // given
+        newRaw(506L);
+        LsMarking marking = LsMarking.createAuto(506L, "fire", 5,
+                "raw/path.mp4",
+                "[{\"frameIndex\":0,\"timestamp\":\"00:00\"},{\"frameIndex\":150,\"timestamp\":\"00:05\"}]",
+                1L);
+        when(markingRepository.findByRawSnOrderByCreatedAtDesc(506L))
+                .thenReturn(List.of(marking));
+
+        // when
+        BatchStage result = orchestrator.process(506L);
+
+        // then
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.List<MarkItem>> captor =
+                org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), captor.capture());
+        java.util.List<MarkItem> marks = captor.getValue();
+        assertThat(marks).hasSize(2);
+        assertThat(marks.get(0).frameIndex()).isEqualTo(0);
+        assertThat(marks.get(1).frameIndex()).isEqualTo(150);
     }
 }

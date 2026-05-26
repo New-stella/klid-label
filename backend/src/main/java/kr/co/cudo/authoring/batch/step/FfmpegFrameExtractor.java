@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.ManifestJsonlWriter;
+import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -51,6 +52,8 @@ public class FfmpegFrameExtractor {
     static final int MAX_OUTPUT_FPS = 30;
     /** 시스템 설정 조회 실패 시 사용할 기본 fps. */
     static final int DEFAULT_OUTPUT_FPS = 1;
+    /** 영상 네이티브 프레임레이트 가정값. MarkItem.frameIndex 는 이 fps 기준. */
+    static final int NATIVE_VIDEO_FPS = 30;
 
     private final LsDataSrcRepository srcRepository;
     private final LsDataSrcHstryRepository hstryRepository;
@@ -119,6 +122,80 @@ public class FfmpegFrameExtractor {
         Path deidOutputDir = resolveSafeOutputDir(baseDeidPath, raw.getRawSn());
         attachDeidFrames(raw, deidSource, deidOutputDir, rawFrames);
         return rawFrames;
+    }
+
+    /**
+     * V2.0 마킹 위치 기반 프레임 추출.
+     * marks 의 frameIndex 에 해당하는 프레임만 추출한다 (원본 + 비식별 2벌).
+     * marks 가 비어있으면 INVALID_INPUT.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public List<LsDataSrc> extractByMarks(LsDataRaw raw, String deidVideoPath, List<MarkItem> marks) {
+        if (raw == null || raw.getFilePath() == null || raw.getFilePath().isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "영상 메타가 비어있습니다.");
+        }
+        if (marks == null || marks.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "마킹 데이터가 비어있습니다.");
+        }
+        Path source = Paths.get(raw.getFilePath());
+        if (!frameWriter.sourceExists(source)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "원본 영상을 찾을 수 없습니다: rawSn=" + raw.getRawSn());
+        }
+        Path rawOutputDir = resolveSafeOutputDir(baseRawPath, raw.getRawSn());
+
+        Path deidSource = null;
+        Path deidOutputDir = null;
+        if (deidVideoPath != null && !deidVideoPath.isBlank()) {
+            Path deidPath = Paths.get(deidVideoPath);
+            if (frameWriter.sourceExists(deidPath)) {
+                deidSource = deidPath;
+                deidOutputDir = resolveSafeOutputDir(baseDeidPath, raw.getRawSn());
+            } else {
+                log.warn("[Batch][FrameExtract] deid video missing rawSn={} path={} — RAW only",
+                        raw.getRawSn(), maskName(deidVideoPath));
+            }
+        }
+
+        List<LsDataSrc> saved = new ArrayList<>(marks.size());
+        try {
+            ensureDir(rawOutputDir);
+            if (deidOutputDir != null) {
+                ensureDir(deidOutputDir);
+            }
+            Path manifestPath = rawOutputDir.resolve("manifest.jsonl");
+            try (ManifestJsonlWriter mw = new ManifestJsonlWriter(manifestPath)) {
+                mw.writeVideoHeader(maskName(raw.getVmsClipId()), 0, 0, marks.size());
+                for (int i = 0; i < marks.size(); i++) {
+                    MarkItem mark = marks.get(i);
+                    Path frameFile = rawOutputDir.resolve("frame-" + i + ".jpg");
+                    long seekMillis = mark.frameIndex() * 1000L / NATIVE_VIDEO_FPS;
+                    frameWriter.writeFrame(source, frameFile, seekMillis);
+                    String checksum = checksumOf(frameFile);
+                    mw.writeKeyFrame(i, seekMillis, checksum);
+
+                    LocalDateTime capturedAt = raw.getCapturedAt() == null
+                            ? null : raw.getCapturedAt().plus(Duration.ofMillis(seekMillis));
+                    LsDataSrc src = srcRepository.save(
+                            LsDataSrc.create(raw.getRawSn(), i, frameFile.toString(), capturedAt));
+                    hstryRepository.save(LsDataSrcHstry.recordCreated(src.getSrcSn()));
+
+                    if (deidSource != null && deidOutputDir != null) {
+                        Path deidFrame = deidOutputDir.resolve("frame-" + i + ".jpg");
+                        frameWriter.writeFrame(deidSource, deidFrame, seekMillis);
+                        src.attachDeidPath(deidFrame.toString());
+                        hstryRepository.save(LsDataSrcHstry.recordDeidAttached(src.getSrcSn()));
+                    }
+                    saved.add(src);
+                }
+            }
+        } catch (IOException e) {
+            log.error("[Batch][FrameExtract] mark-based extraction failed rawSn={} err={}",
+                    raw.getRawSn(), e.getMessage());
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "마킹 기반 프레임 추출 실패", e);
+        }
+        log.info("[Batch][FrameExtract] mark-based extracted rawSn={} frames={}", raw.getRawSn(), saved.size());
+        return saved;
     }
 
     /**

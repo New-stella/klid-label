@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.orchestrator;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -75,7 +76,7 @@ class BatchOrchestratorTest {
         orchestrator = new BatchOrchestrator(
                 vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
                 trackInterpolationStep, statusService, retryQueue, videoRepository,
-                markingRepository);
+                markingRepository, new ObjectMapper());
 
         // Phase 3: 기본 마킹 없음 (기존 테스트 호환)
         when(markingRepository.findByRawSnOrderByCreatedAtDesc(any()))

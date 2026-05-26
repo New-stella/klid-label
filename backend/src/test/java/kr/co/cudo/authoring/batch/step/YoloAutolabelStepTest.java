@@ -666,6 +666,47 @@ class YoloAutolabelStepTest {
         assertThat(captor.getValue().getLabelId()).isNull();
     }
 
+    // ─── Phase 4 V2.0: YOLO 원본 프레임 전용 ───
+
+    @Test
+    @DisplayName("V2_YOLO_원본_프레임만_실행_비식별_경로_존재해도_원본_사용")
+    void yoloUsesRawImagePathNotDeid() throws IOException {
+        // 원본 이미지와 비식별 이미지를 다른 내용으로 생성
+        Path rawDir = tempDir.resolve("raw");
+        byte[] rawContent = {(byte) 0xFF, (byte) 0xD8, 0x01};
+        byte[] deidContent = {(byte) 0xFF, (byte) 0xD8, 0x02};
+        Files.write(rawDir.resolve("raw-frame.jpg"), rawContent);
+        Path deidDir = rawDir.resolve("deid");
+        Files.createDirectories(deidDir);
+        Files.write(deidDir.resolve("deid-frame.jpg"), deidContent);
+
+        // LsDataSrc 에 filePath + deidFilePath 모두 설정
+        LsDataSrc srcWithDeid = LsDataSrc.create(1L, 0, "raw-frame.jpg", null);
+        try {
+            Field f = LsDataSrc.class.getDeclaredField("srcSn");
+            f.setAccessible(true);
+            f.set(srcWithDeid, 10L);
+        } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
+        srcWithDeid.attachDeidPath("deid/deid-frame.jpg");
+
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(70L))
+                .thenReturn(List.of(srcWithDeid));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        step.run(70L);
+
+        // ai-server 에 전달된 이미지가 원본(rawContent) 인지 검증
+        ArgumentCaptor<YoloTrackRequest> captor = ArgumentCaptor.forClass(YoloTrackRequest.class);
+        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture());
+        String sentB64 = captor.getValue().imageB64();
+        byte[] decoded = java.util.Base64.getDecoder().decode(sentB64);
+        // 원본 프레임 내용과 동일해야 함 (비식별 아님)
+        assertThat(decoded).isEqualTo(rawContent);
+    }
+
     @Test
     @DisplayName("YOLO_매핑_로그_검증")
     void yoloMappingLogged() {

@@ -442,4 +442,39 @@ class Sam2SegmentStepTest {
                 .count();
         assertThat(matchedLogs).isGreaterThanOrEqualTo(1L);
     }
+
+    // ─── Phase 4 V2.0: SAM2 원본 프레임 전용 ───
+
+    @Test
+    @DisplayName("V2_SAM2_원본_프레임만_실행_비식별_경로_존재해도_원본_사용")
+    void sam2UsesRawImagePathNotDeid() throws IOException {
+        Path rawDir = tempDir.resolve("raw");
+        byte[] rawContent = {(byte) 0xFF, (byte) 0xD8, 0x01};
+        byte[] deidContent = {(byte) 0xFF, (byte) 0xD8, 0x02};
+        Files.write(rawDir.resolve("raw-frame.jpg"), rawContent);
+        Path deidDir = rawDir.resolve("deid");
+        Files.createDirectories(deidDir);
+        Files.write(deidDir.resolve("deid-frame.jpg"), deidContent);
+
+        LsDataSrc srcWithDeid = LsDataSrc.create(1L, 0, "raw-frame.jpg", null);
+        setField(srcWithDeid, "srcSn", 10L);
+        srcWithDeid.attachDeidPath("deid/deid-frame.jpg");
+
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(80L))
+                .thenReturn(List.of(srcWithDeid));
+        when(lblRepository.findBySrcSnAndAutoLblYn(10L, "Y")).thenReturn(List.of());
+        // upstream hint 로 BBOX 전달 — SAM2 호출 트리거
+        List<BbHint> hints = List.of(
+                new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(5.0, 6.0)), 0.88)));
+
+        step.run(80L, hints);
+
+        ArgumentCaptor<Sam2Request> captor = ArgumentCaptor.forClass(Sam2Request.class);
+        verify(aiServerClient).segment(captor.capture());
+        byte[] decoded = java.util.Base64.getDecoder().decode(captor.getValue().imageB64());
+        // 원본 프레임 내용과 동일해야 함 (비식별 아님)
+        assertThat(decoded).isEqualTo(rawContent);
+    }
 }
