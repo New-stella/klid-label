@@ -13,16 +13,21 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.portal.dto.PortalAutolabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUploadResponse;
+import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
+import kr.co.cudo.authoring.portal.dto.PortalUserLabelResponse;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserVideo;
 import kr.co.cudo.authoring.portal.service.PortalLabelService;
 import kr.co.cudo.authoring.portal.service.PortalUploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -102,6 +107,36 @@ public class PortalLabelController {
                                                         @AuthenticationPrincipal TokenClaims actor) {
         requireActor(actor);
         return ApiResponse.ok(portalLabelService.acceptLabel(req, actor));
+    }
+
+    @Operation(summary = "데이터마트 라벨 Load (V2.0)", description = "rawSn 에 해당하는 원본 라벨 목록 조회.")
+    @GetMapping("/datamart/labels")
+    @PreAuthorize("hasRole('PORTAL_USER')")
+    public ApiResponse<List<?>> loadDatamartLabels(@RequestParam Long rawSn,
+                                                    @AuthenticationPrincipal TokenClaims actor) {
+        requireActor(actor);
+        return ApiResponse.ok(portalLabelService.loadDatamartLabels(rawSn));
+    }
+
+    @Operation(summary = "사용자 라벨 저장 (V2.0)", description = "원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재.")
+    @PostMapping("/user-labels")
+    @PreAuthorize("hasRole('PORTAL_USER')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<PortalUserLabelResponse> saveUserLabel(
+            @Valid @RequestBody PortalUserLabelRequest req,
+            @AuthenticationPrincipal TokenClaims actor) {
+        requireActor(actor);
+        return ApiResponse.ok(portalLabelService.saveUserLabel(req, actor));
+    }
+
+    @Operation(summary = "본인 작업 라벨 조회 (V2.0)", description = "IDOR 방어 — 본인 작업 데이터만 반환.")
+    @GetMapping("/user-labels")
+    @PreAuthorize("hasRole('PORTAL_USER')")
+    public ApiResponse<List<PortalUserLabelResponse>> listMyLabels(
+            @RequestParam Long rawSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        requireActor(actor);
+        return ApiResponse.ok(portalLabelService.listMyLabels(rawSn, actor));
     }
 
     private void requireActor(TokenClaims actor) {

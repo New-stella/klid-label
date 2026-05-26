@@ -1,12 +1,21 @@
 package kr.co.cudo.authoring.portal.service;
 
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.portal.dto.PortalAutolabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalLabelRequest;
+import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
+import kr.co.cudo.authoring.portal.dto.PortalUserLabelResponse;
+import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserVideo;
+import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +41,9 @@ public class PortalLabelService {
 
     private final PortalUploadService portalUploadService;
     private final PortalAutolabelService portalAutolabelService;
+    private final LsDataLblRepository lblRepository;
+    private final LsDataSrcRepository srcRepository;
+    private final LsPortalUserLabelRepository userLabelRepository;
 
     /** 본인 영상 한정 — 간편 라벨링 (오토 추론 결과 반환만, 저장 없음). */
     public YoloResponse autolabel(PortalAutolabelRequest req, TokenClaims actor) {
@@ -45,6 +57,44 @@ public class PortalLabelService {
         log.info("[Portal] manual label echoed userId={} portalVideoSn={} count={}",
                 actor.sub(), req.portalVideoSn(), req.items() == null ? 0 : req.items().size());
         return req;
+    }
+
+    /** V2.0 — 데이터마트 라벨 Load. rawSn 에 해당하는 원본 라벨 목록 반환. */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public List<LsDataLbl> loadDatamartLabels(Long rawSn) {
+        if (rawSn == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
+        }
+        return lblRepository.findAllByRawSn(rawSn);
+    }
+
+    /** V2.0 — 사용자 라벨 저장. 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재. */
+    @Transactional("controlTransactionManager")
+    public PortalUserLabelResponse saveUserLabel(PortalUserLabelRequest req, TokenClaims actor) {
+        requireActor(actor);
+        LsPortalUserLabel saved = userLabelRepository.save(
+                LsPortalUserLabel.create(actor.sub(), req.sourceRawSn(), req.sourceSrcSn(),
+                        req.lblTypeCd(), req.label(), req.points()));
+        log.info("[Portal] user label saved userId={} rawSn={} srcSn={}",
+                actor.sub(), req.sourceRawSn(), req.sourceSrcSn());
+        return PortalUserLabelResponse.from(saved);
+    }
+
+    /** V2.0 — 본인 작업 라벨 조회 (IDOR: portalUserNo = token sub). */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public List<PortalUserLabelResponse> listMyLabels(Long rawSn, TokenClaims actor) {
+        requireActor(actor);
+        if (rawSn == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
+        }
+        return userLabelRepository.findByPortalUserNoAndSourceRawSnOrderByCreatedAtDesc(actor.sub(), rawSn)
+                .stream().map(PortalUserLabelResponse::from).toList();
+    }
+
+    private void requireActor(TokenClaims actor) {
+        if (actor == null || actor.sub() == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "포털 토큰 미상");
+        }
     }
 
     private LsPortalUserVideo verifyMyVideo(Long portalVideoSn, TokenClaims actor) {
