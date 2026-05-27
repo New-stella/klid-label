@@ -164,7 +164,7 @@ klid-la-test-v0/
 - **마킹 단계 (V2.0 신규)**: 영상별 자동/수동 모드 설정. 자동=프레임 간격 기반 마킹, 수동=작업자 키보드 단축키로 이벤트 시점 마킹. 마킹 결과(이벤트명 + 영상경로 + marks 배열)를 VLM에 콜백 형태로 전달
 - **VLM 연동 (V2.0 변경)**: 동기 호출 → 콜백 비동기. 마킹 완료 → VLM 요청 → 콜백으로 시계열 결과 수신 후 파이프라인 재개
 - **비식별 호출 조건**: 영상 `PRVC_TYPE_CD='PRVC' or 'PSDO'`일 때만. `ANONY`는 원본만 저장
-- 원본 이미지와 비식별 이미지는 **별도 경로로 동시 저장**
+- 원본 영상과 비식별 영상은 **별도 경로로 동시 저장**
 - **오토라벨링 (V2.0 변경)**: YOLO/SAM2는 **원본 이미지에만 실행**. 라벨 좌표는 동일 해상도이므로 비식별본과 공유 (별도 실행 없음)
 - YOLO/SAM2/VLM은 `AiServerClient`로 호출 (타임아웃 60s + Resilience4j CircuitBreaker)
 
@@ -252,7 +252,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 ### 개인정보 보호
 - 영상 암호화 저장, 로그에 개인정보·토큰 출력 금지 (Logback MaskingPatternLayout)
-- 비식별 처리 이력은 프레임 단위로 기록
+- 비식별 처리 이력은 영상 단위로 기록
 
 ### 배치 성능
 - Spring Boot + Quartz는 **단일 인스턴스 서비스** 배포 (Docker/Pod 미사용, Quartz 클러스터 미적용)
