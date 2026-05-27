@@ -1,0 +1,62 @@
+{
+  "KLID_DE_데이터 전환 및 초기데이터 설계서": {
+    "file": "KLID_DE_데이터 전환 및 초기데이터 설계서 v1.0.hwpx",
+    "headerSize": "173KB",
+    "sections": 2
+  },
+  "KLID_DE_데이터베이스 설계서": {
+    "file": "KLID_DE_데이터베이스 설계서 v1.0.hwpx",
+    "headerSize": "174KB",
+    "sections": 2
+  },
+  "KLID_DE_시스템시험 시나리오": {
+    "file": "KLID_DE_시스템시험 시나리오 v1.0.hwpx",
+    "headerSize": "175KB",
+    "sections": 2
+  },
+  "KLID_DE_아키텍처 설계서": {
+    "file": "KLID_DE_아키텍처 설계서 v1.0.hwpx",
+    "headerSize": "176KB",
+    "sections": 2
+  },
+  "KLID_DE_엔티티 관계 모형 설계서": {
+    "file": "KLID_DE_엔티티 관계 모형 설계서 v1.0.hwpx",
+    "headerSize": "176KB",
+    "sections": 2
+  },
+  "KLID_DE_통합시험 시나리오": {
+    "file": "KLID_DE_통합시험 시나리오 v1.0.hwpx",
+    "headerSize": "175KB",
+    "sections": 2
+  },
+  "KLID_OO_단위시험 케이스": {
+    "file": "KLID_OO_단위시험 케이스 v1.0.hwpx",
+    "headerSize": "174KB",
+    "sections": 2
+  },
+  "KLID_OO_사용자 인터페이스 설계서": {
+    "file": "KLID_OO_사용자 인터페이스 설계서 v1.0.hwpx",
+    "headerSize": "177KB",
+    "sections": 2
+  },
+  "KLID_OO_유스케이스 명세서": {
+    "file": "KLID_OO_유스케이스 명세서 v1.0.hwpx",
+    "headerSize": "177KB",
+    "sections": 2
+  },
+  "KLID_OO_인터페이스 설계서": {
+    "file": "KLID_OO_인터페이스 설계서 v1.0.hwpx",
+    "headerSize": "176KB",
+    "sections": 2
+  },
+  "KLID_OO_컴포넌트 설계서": {
+    "file": "KLID_OO_컴포넌트 설계서 v1.0.hwpx",
+    "headerSize": "178KB",
+    "sections": 2
+  },
+  "KLID_OO_클래스 설계서": {
+    "file": "KLID_OO_클래스 설계서 v1.0.hwpx",
+    "headerSize": "175KB",
+    "sections": 2
+  }
+}
