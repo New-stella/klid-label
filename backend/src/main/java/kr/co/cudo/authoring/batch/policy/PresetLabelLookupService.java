@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -22,7 +21,6 @@ import java.util.stream.Collectors;
  * 동적으로 관리한다.
  *
  * <p>Phase 1 — 라벨별 BBOX/POLYGON 토글 조회({@link #togglesFor(String)}) 추가.
- * 기존 {@link #labelsFor(String)} 는 {@code togglesFor().keySet()} 로 구현되어 호환된다.
  *
  * <p>호출자({@code YoloAutolabelStep}) 는 라벨 비교 시 소문자 정규화된 set 를 기대한다.
  *
@@ -37,19 +35,6 @@ import java.util.stream.Collectors;
 public class PresetLabelLookupService {
 
     private final LsLabelPresetRepository presetRepository;
-
-    /**
-     * 주어진 이벤트 타입 코드에 매핑된 허용 라벨 집합을 반환한다.
-     *
-     * @param eventTypeCd 이벤트 타입 코드 (예: EVT_FALL). null/blank/미매핑 시 빈 Optional 반환.
-     * @return 매핑된 허용 라벨 집합 (소문자 정규화). 빈 Optional 이면 필터 미적용 (전체 통과).
-     * @deprecated Phase 1 이후 {@link #togglesFor(String)} 사용. keySet 으로 동등 동작.
-     */
-    @Deprecated
-    @Transactional(value = "controlTransactionManager", readOnly = true)
-    public Optional<Set<String>> labelsFor(String eventTypeCd) {
-        return togglesFor(eventTypeCd).map(Map::keySet);
-    }
 
     /**
      * 주어진 이벤트 타입에 매핑된 라벨 → 어노테이션 토글 맵을 반환한다 (Phase 1).

@@ -32,18 +32,9 @@ import org.springframework.web.bind.annotation.RestController;
  * Phase 8 — 버전관리(라벨 변경 이력) REST API.
  *
  * <ul>
- *   <li>GET  /v1/frames/{srcSn}/versions             : 프레임 단위 버전 목록 (정식 경로 — 2026-05-18 도입)</li>
- *   <li>GET  /v1/videos/{srcSn}/versions             : 위 엔드포인트의 deprecated alias (backward compat)</li>
+ *   <li>GET  /v1/frames/{srcSn}/versions             : 프레임 단위 버전 목록</li>
  *   <li>GET  /v1/versions/{commit}/diff?compareWith= : 두 커밋 비교</li>
  *   <li>POST /v1/versions/{commit}/rollback          : REVIEWER 전체 / WORKER 본인 배정 — 롤백</li>
- * </ul>
- *
- * <p>경로 의미 정리(2026-05-18):
- * <ul>
- *   <li>{@code srcSn} 은 {@code LS_DATA_SRC.SRC_SN} (프레임 단위 PK) 이다.
- *   <li>기존 {@code /v1/videos/{srcSn}/versions} 는 path prefix({@code /v1/videos/{rawSn}/frames/...}) 와 의미가 어긋났다.
- *       정식 경로 {@code /v1/frames/{srcSn}/versions} 를 추가하고, 기존 경로는 호출자 마이그레이션을 위해
- *       deprecated alias 로 한시적으로 유지한다.
  * </ul>
  */
 @Tag(name = "Version", description = "Gitea 기반 버전관리 — 라벨 변경 이력 / diff / 롤백. 롤백은 REVIEWER 전체 또는 WORKER 본인 배정 프레임.")
@@ -69,23 +60,6 @@ public class VersionController {
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
     public ApiResponse<List<VersionItem>> listVersions(@Parameter(description = "프레임 PK (LS_DATA_SRC.SRC_SN)", required = true, example = "1") @PathVariable Long srcSn,
                                                        @AuthenticationPrincipal TokenClaims actor) {
-        return ApiResponse.ok(versionService.listVersions(srcSn, actor));
-    }
-
-    /**
-     * Deprecated alias of {@link #listVersions(Long, TokenClaims)}.
-     * 기존 호출자(FE/E2E)가 정식 경로 {@code /v1/frames/{srcSn}/versions} 로 이행할 때까지만 한시적으로 유지한다.
-     * 동작은 정식 경로와 동일하다.
-     */
-    @Operation(
-            summary = "[Deprecated] 프레임 버전 이력 조회 (기존 경로 alias)",
-            description = "정식 경로 GET /v1/frames/{srcSn}/versions 와 동일. backward compat 용도로만 유지된다."
-    )
-    @Deprecated
-    @GetMapping("/videos/{srcSn}/versions")
-    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
-    public ApiResponse<List<VersionItem>> listVersionsLegacy(@Parameter(description = "프레임 PK (LS_DATA_SRC.SRC_SN)", required = true, example = "1") @PathVariable Long srcSn,
-                                                             @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(versionService.listVersions(srcSn, actor));
     }
 

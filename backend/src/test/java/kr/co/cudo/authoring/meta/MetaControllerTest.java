@@ -124,7 +124,7 @@ class MetaControllerTest {
     private Long seedReview(String rvwSttsCd) {
         LsDataMeta meta = metaRepository.save(LsDataMeta.create(rawSn, "VLM_META.scene", "intersection"));
         LsDataMetaReview review = LsDataMetaReview.createAuto(
-                meta.getMetaSn(), null, rawSn, null,
+                meta.getMetaSn(), rawSn, null,
                 LsDataMetaReview.META_TYPE_VLM,
                 LsDataMetaReview.SRC_AI_SERVER,
                 rvwSttsCd);

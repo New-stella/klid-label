@@ -68,10 +68,9 @@ public class LsDataLbl {
     private Long labelId;
 
     /**
-     * @deprecated V32 (Phase 2) 이후 deprecated — {@link #labelId} (LS_LABEL FK) 사용 권장.
+     * LS_LABEL FK 도입(V32) 이후 labelId 사용 권장.
      * 호환 위해 유지. 응답에서는 LS_LABEL.NAME (labelName) 을 우선 노출.
      */
-    @Deprecated
     @Column(name = "LABEL", nullable = false, length = 255)
     private String label;
 
@@ -151,25 +150,6 @@ public class LsDataLbl {
     }
 
     /**
-     * @deprecated Phase 2 (V32) 이후 labelId 미포함 시그니처 deprecated — {@link #createAutoBbox(Long, Long, String, String, BigDecimal, String)} 사용 권장.
-     * 호환 유지를 위해 labelId=null 로 위임.
-     */
-    @Deprecated
-    public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson,
-                                           BigDecimal confScore, String trackId) {
-        return createAutoBbox(srcSn, null, label, pointsJson, confScore, trackId);
-    }
-
-    /**
-     * 4-arg 호환 — trackId=null 로 위임.
-     * Phase 3 부터 자동 라벨링 경로는 5-arg 생성자 사용 권장.
-     */
-    @Deprecated
-    public static LsDataLbl createAutoBbox(Long srcSn, String label, String pointsJson, BigDecimal confScore) {
-        return createAutoBbox(srcSn, null, label, pointsJson, confScore, null);
-    }
-
-    /**
      * Phase 2 — 트랙 보간 자동 생성 BBOX (LS_LABEL FK 포함).
      */
     public static LsDataLbl createAutoInterpolatedBbox(Long srcSn, Long labelId, String label, String pointsJson,
@@ -197,14 +177,6 @@ public class LsDataLbl {
      * @param pointsJson 보간된 BBOX 좌표 JSON
      * @param confScore  보간 신뢰도. 0.0 권장 (보간이므로 detection 점수 없음). null 도 허용.
      * @param trackId    원본 트랙 ID (NON-NULL 권장 — 보간 대상 자체가 trackId 있는 라벨로 한정됨)
-     * @deprecated Phase 2 (V32) — {@link #createAutoInterpolatedBbox(Long, Long, String, String, BigDecimal, String)} 사용 권장.
-     */
-    @Deprecated
-    public static LsDataLbl createAutoInterpolatedBbox(Long srcSn, String label, String pointsJson,
-                                                       BigDecimal confScore, String trackId) {
-        return createAutoInterpolatedBbox(srcSn, null, label, pointsJson, confScore, trackId);
-    }
-
     /** Phase 2 — SAM2 segment 결과 (LS_LABEL FK 포함). */
     public static LsDataLbl createAutoPolygon(Long srcSn, Long labelId, String label, String pointsJson, BigDecimal confScore) {
         return LsDataLbl.builder()
@@ -216,15 +188,6 @@ public class LsDataLbl {
                 .autoLblYn(AUTO_YES)
                 .confScore(confScore)
                 .build();
-    }
-
-    /**
-     * SAM2 segment 결과를 저장할 때 사용. POLYGON 타입.
-     * @deprecated Phase 2 (V32) — {@link #createAutoPolygon(Long, Long, String, String, BigDecimal)} 사용 권장.
-     */
-    @Deprecated
-    public static LsDataLbl createAutoPolygon(Long srcSn, String label, String pointsJson, BigDecimal confScore) {
-        return createAutoPolygon(srcSn, null, label, pointsJson, confScore);
     }
 
     /**
@@ -247,17 +210,6 @@ public class LsDataLbl {
     }
 
     /**
-     * 사용자(WORKER/REVIEWER) 가 직접 그린 라벨 — Phase 6.
-     * AUTO_LBL_YN='N' 강제, confScore 는 null.
-     * @deprecated Phase 2 (V32) — {@link #createManual(Long, String, Long, String, String, Long)} 사용 권장.
-     */
-    @Deprecated
-    public static LsDataLbl createManual(Long srcSn, String lblTypeCd, String label,
-                                         String pointsJson, Long regUserNo) {
-        return createManual(srcSn, lblTypeCd, null, label, pointsJson, regUserNo);
-    }
-
-    /**
      * Phase 2 — 사용자가 기존 라벨의 좌표/라벨명/타입 + LABEL_ID FK 수정.
      * AUTO_LBL_YN 은 변경되지 않음 (정책: 자동 라벨은 사용자가 수정해도 'Y' 유지).
      *
@@ -277,16 +229,6 @@ public class LsDataLbl {
         this.label = label;
         this.pointsJson = pointsJson;
         this.updDt = LocalDateTime.now();
-    }
-
-    /**
-     * 사용자가 기존 라벨의 좌표/라벨명/타입을 수정 — Phase 6.
-     * AUTO_LBL_YN 은 변경되지 않음 (정책: 자동 라벨은 사용자가 수정해도 'Y' 유지).
-     * @deprecated Phase 2 (V32) — {@link #updateUserContent(String, Long, String, String)} 사용 권장.
-     */
-    @Deprecated
-    public void updateUserContent(String lblTypeCd, String label, String pointsJson) {
-        updateUserContent(lblTypeCd, null, label, pointsJson);
     }
 
     /**

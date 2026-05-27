@@ -69,16 +69,6 @@ public class LsLabelPresetCode {
         return new LsLabelPresetCode(preset, code, sortOrder, bboxEnabled, polygonEnabled);
     }
 
-    /**
-     * 레거시 팩토리 — 두 토글을 모두 true 로 위임한다.
-     *
-     * @deprecated {@link #of(LsLabelPreset, String, int, boolean, boolean)} 사용. 호환성 위해 유지.
-     */
-    @Deprecated
-    static LsLabelPresetCode of(LsLabelPreset preset, String code, int sortOrder) {
-        return of(preset, code, sortOrder, true, true);
-    }
-
     /** sortOrder 갱신 — Aggregate Root의 replaceCodes에서만 호출. */
     public void updateSortOrder(int order) {
         this.sortOrder = order;

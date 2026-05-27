@@ -15,7 +15,7 @@ class LabelIntegrityCalculatorTest {
     private final LabelIntegrityCalculator calculator = new LabelIntegrityCalculator();
 
     private static LabelItemDto bbox(String label, double x1, double y1, double x2, double y2) {
-        return new LabelItemDto(null, "BBOX", label,
+        return new LabelItemDto(null, "BBOX", null, label,
                 List.of(List.of(x1, y1), List.of(x2, y2)), null);
     }
 

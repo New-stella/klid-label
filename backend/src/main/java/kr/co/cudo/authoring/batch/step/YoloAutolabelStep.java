@@ -203,7 +203,7 @@ public class YoloAutolabelStep {
                     BigDecimal score = BigDecimal.valueOf(d.score()).setScale(4, RoundingMode.HALF_UP);
                     LsDataLbl saved = lblRepository.save(LsDataLbl.createAutoBbox(
                             src.getSrcSn(), labelId, d.label(), serialize(d.points()), score, trackIdStr));
-                    aiInfoRepository.save(LsDataLblAiInfo.create(saved.getLblSn(), 0L, rawSn, src.getSrcSn(),
+                    aiInfoRepository.save(LsDataLblAiInfo.create(saved.getLblSn(), rawSn, src.getSrcSn(),
                             LsDataLblAiInfo.SRC_YOLO, score, "batch"));
                     bboxSaved++;
                 }

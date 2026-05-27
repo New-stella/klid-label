@@ -112,7 +112,7 @@ class LabelControllerTest {
     @DisplayName("LabelController_본인_배정_아닌_프레임_편집시_403")
     void notAssignedWorkerForbidden() throws Exception {
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
-                new LabelItemDto(null, "BBOX", "person",
+                new LabelItemDto(null, "BBOX", null, "person",
                         List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
         ));
         mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
@@ -127,7 +127,7 @@ class LabelControllerTest {
     @DisplayName("LabelController_bbox_좌표_저장시_AUTO_LBL_YN_N_저장_수동")
     void manualBboxStoredAsAutoNo() throws Exception {
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
-                new LabelItemDto(null, "BBOX", "person",
+                new LabelItemDto(null, "BBOX", null, "person",
                         List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
         ));
         mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
@@ -151,16 +151,16 @@ class LabelControllerTest {
     @DisplayName("LabelController_오토_라벨_수정시_AUTO_LBL_YN은_Y_유지")
     void editingAutoLabelKeepsAutoYes() throws Exception {
         // 사전: AUTO 라벨 1건 INSERT + LS_DATA_LBL_AI_INFO row 도 함께 시드 (Phase 6 — 배치 step 흉내)
-        LsDataLbl auto = LsDataLbl.createAutoBbox(srcSn, "car",
-                "[[5.0,5.0],[40.0,40.0]]", new BigDecimal("0.9000"));
+        LsDataLbl auto = LsDataLbl.createAutoBbox(srcSn, null, "car",
+                "[[5.0,5.0],[40.0,40.0]]", new BigDecimal("0.9000"), null);
         auto = labelRepository.save(auto);
         Long autoId = auto.getLblSn();
-        aiInfoRepository.save(LsDataLblAiInfo.create(autoId, 0L, rawSn, srcSn,
+        aiInfoRepository.save(LsDataLblAiInfo.create(autoId, rawSn, srcSn,
                 LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
 
         // PUT 으로 좌표만 수정 (id 동봉)
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
-                new LabelItemDto(autoId, "BBOX", "car",
+                new LabelItemDto(autoId, "BBOX", null, "car",
                         List.of(List.of(15.0, 15.0), List.of(60.0, 60.0)), null)
         ));
         mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
@@ -184,7 +184,7 @@ class LabelControllerTest {
     @DisplayName("LabelController_좌표_음수_입력시_INVALID_INPUT_400")
     void negativeCoordinateRejected() throws Exception {
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
-                new LabelItemDto(null, "BBOX", "person",
+                new LabelItemDto(null, "BBOX", null, "person",
                         List.of(List.of(-1.0, 10.0), List.of(50.0, 50.0)), null)
         ));
         mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
@@ -204,7 +204,7 @@ class LabelControllerTest {
             manyPoints.add(List.of((double) i, (double) i));
         }
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
-                new LabelItemDto(null, "POLYGON", "wall", manyPoints, null)
+                new LabelItemDto(null, "POLYGON", null, "wall", manyPoints, null)
         ));
         mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + workerAssignedToken)
@@ -218,9 +218,9 @@ class LabelControllerTest {
     @DisplayName("LabelController_라벨_조회_GET_정상")
     void getLabelsByFrame() throws Exception {
         // Phase 6 — 자동 라벨이 응답에 autoLblYn='Y' 로 보이려면 LS_DATA_LBL + LS_DATA_LBL_AI_INFO 모두 시드 필요.
-        LsDataLbl autoLabel = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, "person",
-                "[[10.0,10.0],[50.0,50.0]]", new BigDecimal("0.85")));
-        aiInfoRepository.save(LsDataLblAiInfo.create(autoLabel.getLblSn(), 0L, rawSn, srcSn,
+        LsDataLbl autoLabel = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "person",
+                "[[10.0,10.0],[50.0,50.0]]", new BigDecimal("0.85"), null));
+        aiInfoRepository.save(LsDataLblAiInfo.create(autoLabel.getLblSn(), rawSn, srcSn,
                 LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.85"), "batch"));
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
@@ -235,9 +235,9 @@ class LabelControllerTest {
     @Test
     @DisplayName("LabelController_REVIEWER는_미배정_프레임도_조회_가능")
     void reviewerCanAccessAnyFrame() throws Exception {
-        LsDataLbl autoLabel = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, "car",
-                "[[1.0,1.0],[2.0,2.0]]", null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(autoLabel.getLblSn(), 0L, rawSn, srcSn,
+        LsDataLbl autoLabel = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car",
+                "[[1.0,1.0],[2.0,2.0]]", null, null));
+        aiInfoRepository.save(LsDataLblAiInfo.create(autoLabel.getLblSn(), rawSn, srcSn,
                 LsDataLblAiInfo.SRC_YOLO, null, "batch"));
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
@@ -316,7 +316,7 @@ class LabelControllerTest {
         LsDataLbl auto = labelRepository.save(LsDataLbl.createAutoBbox(
                 srcSn, master.getLabelId(), "phase2-get-person", "[[1.0,1.0],[2.0,2.0]]",
                 new BigDecimal("0.9000"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(auto.getLblSn(), 0L, rawSn, srcSn,
+        aiInfoRepository.save(LsDataLblAiInfo.create(auto.getLblSn(), rawSn, srcSn,
                 LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
@@ -416,7 +416,7 @@ class LabelControllerTest {
         LsDataLbl seed = labelRepository.save(LsDataLbl.createAutoBbox(
                 srcSn, master.getLabelId(), "phase2-preserve-person", "[[1.0,1.0],[2.0,2.0]]",
                 new BigDecimal("0.9000"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(seed.getLblSn(), 0L, rawSn, srcSn,
+        aiInfoRepository.save(LsDataLblAiInfo.create(seed.getLblSn(), rawSn, srcSn,
                 LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
 
         // PUT — labelId null 로 좌표만 수정
@@ -443,7 +443,7 @@ class LabelControllerTest {
         LsDataLbl legacy = labelRepository.save(LsDataLbl.createAutoBbox(
                 srcSn, null, "phase2-unmapped", "[[1.0,1.0],[2.0,2.0]]",
                 new BigDecimal("0.9000"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(legacy.getLblSn(), 0L, rawSn, srcSn,
+        aiInfoRepository.save(LsDataLblAiInfo.create(legacy.getLblSn(), rawSn, srcSn,
                 LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")

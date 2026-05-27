@@ -161,7 +161,7 @@ class VersionServiceTest {
                         "deadbeefcafebabe1234567890abcdef12345678", "msg", "100", Instant.now())));
 
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
-                new LabelItemDto(null, "BBOX", "person",
+                new LabelItemDto(null, "BBOX", null, "person",
                         List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
         ));
         labelService.bulkUpsert(srcSn, req, workerAssigned);
@@ -180,7 +180,7 @@ class VersionServiceTest {
     void assignedWorkerRollbackCreatesNewHistory() {
         // given: WORKER(100) 가 본인에게 배정된 프레임에 대해 롤백
         String pastSha = "feedface1234567890abcdef1234567890abcdef";
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, pastSha, 1, "SAVE", "1"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, pastSha, 1, "SAVE", "1"));
 
         when(giteaClient.getContent(anyString(), anyString(), anyString()))
                 .thenReturn(Mono.just("{\"items\":[]}"));
@@ -205,7 +205,7 @@ class VersionServiceTest {
         // given: WORKER(999) 는 어떤 프레임에도 배정되지 않음
         TokenClaims unassigned = new TokenClaims("999", Role.WORKER, Channel.INTERNAL,
                 Instant.now().plusSeconds(60));
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn,
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn,
                 "feedface1234567890abcdef1234567890abcdef", 1, "SAVE", "1"));
 
         // when / then: accessGuard 에서 403
@@ -222,7 +222,7 @@ class VersionServiceTest {
     @DisplayName("REVIEWER_rollback_정상_동작_새_LS_LABEL_VERSION_생성")
     void reviewerRollbackCreatesNewHistory() {
         String pastSha = "feedface1234567890abcdef1234567890abcdef";
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, pastSha, 1, "SAVE", "1"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, pastSha, 1, "SAVE", "1"));
 
         when(giteaClient.getContent(anyString(), anyString(), anyString()))
                 .thenReturn(Mono.just("{\"items\":[{\"label\":\"car\"}]}"));
@@ -271,7 +271,7 @@ class VersionServiceTest {
     @Test
     @DisplayName("listVersions_gitea_장애시_DB_fallback")
     void listVersionsGiteaFailureFallsBackToDb() {
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn,
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn,
                 "abc1234abc1234abc1234abc1234abc1234abc12", 1, "SAVE", "100"));
 
         when(giteaClient.listCommits(anyString(), anyString(),
@@ -289,7 +289,7 @@ class VersionServiceTest {
     @Test
     @DisplayName("listVersions_gitea_정상_응답_시_커밋_메타_사용")
     void listVersionsUsesGiteaMetadata() {
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn,
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn,
                 "abc1234abc1234abc1234abc1234abc1234abc12", 1, "SAVE", "100"));
 
         Instant now = Instant.now();
@@ -329,8 +329,8 @@ class VersionServiceTest {
         // given: 같은 srcSn 의 두 버전 — fromSha / toSha 가 LS_LABEL_VERSION 에 등록되어 있음
         String fromSha = "c9491e1c9491e1c9491e1c9491e1c9491e1c9491";
         String toSha   = "9099ee69099ee69099ee69099ee69099ee69099e";
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, toSha,   2, "SAVE", "100"));
 
         // Gitea compare API 는 files 미포함 응답 (실제 Gitea 사양 재현)
         when(giteaClient.diff(anyString(), anyString(), anyString()))
@@ -360,8 +360,8 @@ class VersionServiceTest {
     void diffSameContentReturnsEmpty() {
         String fromSha = "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111";
         String toSha   = "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222";
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, toSha,   2, "SAVE", "100"));
 
         when(giteaClient.diff(anyString(), anyString(), anyString()))
                 .thenReturn(Mono.just(new DiffResponse(List.of())));
@@ -381,8 +381,8 @@ class VersionServiceTest {
         // 기존 "getContent never" 가드는 제거. files 메타는 그대로 사용한다는 부분만 검증.
         String fromSha = "1111111111111111111111111111111111111111";
         String toSha   = "2222222222222222222222222222222222222222";
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, toSha,   2, "SAVE", "100"));
 
         when(giteaClient.diff(anyString(), anyString(), anyString()))
                 .thenReturn(Mono.just(new DiffResponse(List.of(
@@ -408,8 +408,8 @@ class VersionServiceTest {
         // given
         String fromSha = "c0fefe11c0fefe11c0fefe11c0fefe11c0fefe11";
         String toSha   = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, toSha,   2, "SAVE", "100"));
 
         // id=1: 좌표 이동 → MODIFIED
         // id=2: from 에만 → REMOVED
@@ -467,8 +467,8 @@ class VersionServiceTest {
     void diffSameLabelsReturnsEmptyLabels() {
         String fromSha = "abc111abc111abc111abc111abc111abc111abc1";
         String toSha   = "def222def222def222def222def222def222def2";
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, toSha,   2, "SAVE", "100"));
 
         String sameJson = "{\"frameNo\":0,\"items\":["
                 + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]}"
@@ -488,8 +488,8 @@ class VersionServiceTest {
     void diffShapeChangeClassifiedAsModifiedWithBeforeAfter() {
         String fromSha = "1234abcd1234abcd1234abcd1234abcd1234abcd";
         String toSha   = "5678ef015678ef015678ef015678ef015678ef01";
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, fromSha, 1, "SAVE", "100"));
-        labelVersionRepository.save(LsLabelVersion.create(0L, rawSn, srcSn, toSha,   2, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, fromSha, 1, "SAVE", "100"));
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, srcSn, toSha,   2, "SAVE", "100"));
 
         String fromJson = "{\"frameNo\":2,\"items\":["
                 + "{\"id\":42,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]}"

@@ -81,7 +81,7 @@ class TrackInterpolationStepTest {
     private LsDataLbl autoBboxAt(long srcSn, String label, String trackId,
                                  double x1, double y1, double x2, double y2) {
         String pts = "[" + x1 + "," + y1 + "," + x2 + "," + y2 + "]";
-        LsDataLbl lbl = LsDataLbl.createAutoBbox(srcSn, label, pts, BigDecimal.valueOf(0.9), trackId);
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(srcSn, null, label, pts, BigDecimal.valueOf(0.9), trackId);
         return lbl;
     }
 
@@ -337,9 +337,9 @@ class TrackInterpolationStepTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(908L)).thenReturn(frames);
 
         LsDataLbl nested0 = LsDataLbl.createAutoBbox(
-                8000L, "person", "[[0,0],[100,100]]", BigDecimal.valueOf(0.9), "1");
+                8000L, null, "person", "[[0,0],[100,100]]", BigDecimal.valueOf(0.9), "1");
         LsDataLbl nested4 = LsDataLbl.createAutoBbox(
-                8004L, "person", "[[40,40],[140,140]]", BigDecimal.valueOf(0.9), "1");
+                8004L, null, "person", "[[40,40],[140,140]]", BigDecimal.valueOf(0.9), "1");
         when(lblRepository.findAutoBboxWithTrackId(908L)).thenReturn(List.of(nested0, nested4));
 
         int saved = step.run(908L);

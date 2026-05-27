@@ -65,7 +65,7 @@ class AiServerClientTest {
 
         for (int i = 0; i < 4; i++) {
             try {
-                client.predictYolo(new YoloRequest("frame.jpg")).block(Duration.ofSeconds(2));
+                client.predictYolo(new YoloRequest("frame.jpg", 0.4, 1280, 0.5)).block(Duration.ofSeconds(2));
             } catch (Exception ignored) {
                 // 의도적 실패
             }

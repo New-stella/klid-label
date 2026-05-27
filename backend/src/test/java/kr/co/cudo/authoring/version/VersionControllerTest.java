@@ -95,7 +95,7 @@ class VersionControllerTest {
     }
 
     private LsLabelVersion seedVersion(String sha, int versionNo, String reasonCd, String regId, boolean active) {
-        LsLabelVersion v = LsLabelVersion.create(0L, rawSn, srcSn, sha, versionNo, reasonCd, regId);
+        LsLabelVersion v = LsLabelVersion.create(rawSn, srcSn, sha, versionNo, reasonCd, regId);
         if (!active) {
             v.deactivate();
         }
@@ -104,9 +104,6 @@ class VersionControllerTest {
 
     // ──────────────────────────────────────────────
     // GET /v1/frames/{srcSn}/versions (정식)
-    // GET /v1/videos/{srcSn}/versions (deprecated alias)
-    // ──────────────────────────────────────────────
-
     @Test
     @DisplayName("GET_frames_versions_정상_조회_LS_LABEL_VERSION_fallback")
     void getVersionsReturnsList() throws Exception {
@@ -143,22 +140,6 @@ class VersionControllerTest {
         mockMvc.perform(get("/v1/frames/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerNotAssignedToken))
                 .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("GET_videos_versions_deprecated_alias_정식_경로와_동일_응답")
-    void getVersionsLegacyAliasReturnsSamePayload() throws Exception {
-        // given: 동일 시드 데이터
-        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
-        seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", 2, LsLabelVersion.SAVE_REASON_MANUAL, "100", true);
-        when(giteaClient.listCommits(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt()))
-                .thenReturn(Mono.error(new RuntimeException("gitea down")));
-
-        // when / then: 기존 /videos/{srcSn}/versions 도 200 + 동일 size
-        mockMvc.perform(get("/v1/videos/" + srcSn + "/versions")
-                        .header("Authorization", "Bearer " + workerAssignedToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2));
     }
 
     // ──────────────────────────────────────────────

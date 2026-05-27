@@ -32,9 +32,6 @@ public class LsDataLblAiInfo {
     @Column(name = "DATA_LBL_SN", nullable = false)
     private Long dataLblSn;
 
-    @Column(name = "PJT_SN", nullable = false)
-    private Long pjtSn;
-
     @Column(name = "DATA_RAW_SN", nullable = false)
     private Long dataRawSn;
 
@@ -68,11 +65,10 @@ public class LsDataLblAiInfo {
     @Column(name = "MDFCN_DT")
     private LocalDateTime mdfcnDt;
 
-    public static LsDataLblAiInfo create(Long dataLblSn, Long pjtSn, Long rawSn, Long srcSn,
+    public static LsDataLblAiInfo create(Long dataLblSn, Long rawSn, Long srcSn,
                                          String lblSrcCd, BigDecimal confScore, String regId) {
         LsDataLblAiInfo info = new LsDataLblAiInfo();
         info.dataLblSn = dataLblSn;
-        info.pjtSn = pjtSn == null ? 0L : pjtSn;
         info.dataRawSn = rawSn;
         info.dataSrcSn = srcSn;
         info.lblSrcCd = lblSrcCd;

@@ -253,7 +253,7 @@ class ReviewControllerTest {
         src = srcRepository.save(src);
         for (int i = 0; i < 3; i++) {
             labelRepository.save(LsDataLbl.createAutoBbox(
-                    src.getSrcSn(), "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9)));
+                    src.getSrcSn(), null, "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9), null));
         }
 
         mockMvc.perform(get("/v1/reviews")
@@ -332,7 +332,7 @@ class ReviewControllerTest {
         src = srcRepository.save(src);
         for (int i = 0; i < 2; i++) {
             labelRepository.save(LsDataLbl.createAutoBbox(
-                    src.getSrcSn(), "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9)));
+                    src.getSrcSn(), null, "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9), null));
         }
 
         mockMvc.perform(get("/v1/reviews/" + videoId)
@@ -354,7 +354,7 @@ class ReviewControllerTest {
                 "test-rev-approve/" + videoId + "/f_0.jpg", LocalDateTime.now());
         src = srcRepository.save(src);
         labelRepository.save(LsDataLbl.createAutoBbox(
-                src.getSrcSn(), "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9)));
+                src.getSrcSn(), null, "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9), null));
 
         mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
                         .header("Authorization", "Bearer " + reviewerToken))

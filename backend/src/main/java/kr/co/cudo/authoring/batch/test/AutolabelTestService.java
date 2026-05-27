@@ -43,8 +43,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AutolabelTestService {
 
-    /** 영구 SKIP 단계 — VLM_VERIFY 는 V1.7 외부 시스템 책임으로 항상 건너뜀. */
-    private static final List<String> PERMANENT_SKIPPED = List.of("VLM_VERIFY");
+    /** 영구 SKIP 단계 — 현재 없음. 향후 영구 스킵 단계 추가 시 여기에 등록. */
+    private static final List<String> PERMANENT_SKIPPED = List.of();
 
     /** AutolabelTestRequest 의 stage 키와 동일 (DTO 의존 회피용 로컬 상수). */
     public static final String STAGE_FRAME_EXTRACT = "FRAME_EXTRACT";
@@ -183,7 +183,7 @@ public class AutolabelTestService {
             log.info("[AutolabelTest] runFull rawSn={} frameExtracted={} deident={} yolo={} sam2={} elapsed={}ms",
                     rawSn, frameExtracted, runDeident, yoloCount, sam2Count, elapsed);
 
-            // 영구 SKIP(VLM_VERIFY) + 이번 실행에서 토글 OFF 된 단계를 합산해 응답.
+            // 영구 SKIP + 이번 실행에서 토글 OFF 된 단계를 합산해 응답.
             List<String> responseSkipped = new ArrayList<>(skippedStages);
             responseSkipped.addAll(PERMANENT_SKIPPED);
             return new AutolabelRunResponse(rawSn, framesFound, frameExtracted, yoloCount, sam2Count, elapsed, responseSkipped);

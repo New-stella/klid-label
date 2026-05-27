@@ -133,7 +133,7 @@ public class AugmentReviewService {
         // PJT_SN 0L — Phase 5+7 와 동일 정책 (프로젝트 매핑 컬럼 미연결).
         return reviewRepository.findLatestByDataAugSn(aug.getDataAugSn())
                 .orElseGet(() -> reviewRepository.save(
-                        LsDataAugRvw.pending(aug.getDataAugSn(), 0L, 0L, aug.getSrcSn(),
+                        LsDataAugRvw.pending(aug.getDataAugSn(), 0L, aug.getSrcSn(),
                                 aug.getLblIntgrtPct(), actorId)));
     }
 

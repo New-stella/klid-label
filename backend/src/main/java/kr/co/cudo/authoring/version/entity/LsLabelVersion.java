@@ -31,9 +31,6 @@ public class LsLabelVersion {
     @Column(name = "LABEL_VERSION_SN")
     private Long labelVersionSn;
 
-    @Column(name = "PJT_SN", nullable = false)
-    private Long pjtSn;
-
     @Column(name = "DATA_RAW_SN", nullable = false)
     private Long dataRawSn;
 
@@ -58,10 +55,9 @@ public class LsLabelVersion {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    public static LsLabelVersion create(Long pjtSn, Long rawSn, Long srcSn, String commitHash,
+    public static LsLabelVersion create(Long rawSn, Long srcSn, String commitHash,
                                         int versionNo, String saveReasonCd, String regId) {
         LsLabelVersion version = new LsLabelVersion();
-        version.pjtSn = pjtSn == null ? 0L : pjtSn;
         version.dataRawSn = rawSn;
         version.dataSrcSn = srcSn;
         version.giteaCmtHash = commitHash;

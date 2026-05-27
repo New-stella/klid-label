@@ -265,9 +265,9 @@ class VersionServicePersistentFallbackTest {
         when(target.getDataSrcSn()).thenReturn(123L);
         when(labelVersionRepository.findByGiteaCmtHash(commitHash))
                 .thenReturn(Optional.of(target));
-        when(labelVersionRepository.findByPjtSnAndDataRawSnAndDataSrcSnAndActiveYn(
-                any(), any(), any(), any())).thenReturn(java.util.List.of());
-        when(labelVersionRepository.countByPjtSnAndDataRawSnAndDataSrcSn(any(), any(), any()))
+        when(labelVersionRepository.findByDataRawSnAndDataSrcSnAndActiveYn(
+                any(), any(), any())).thenReturn(java.util.List.of());
+        when(labelVersionRepository.countByDataRawSnAndDataSrcSn(any(), any()))
                 .thenReturn(0);
         when(labelVersionRepository.save(any(LsLabelVersion.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -300,9 +300,9 @@ class VersionServicePersistentFallbackTest {
         when(target.getDataSrcSn()).thenReturn(123L);
         when(labelVersionRepository.findByGiteaCmtHash(commitHash))
                 .thenReturn(Optional.of(target));
-        when(labelVersionRepository.findByPjtSnAndDataRawSnAndDataSrcSnAndActiveYn(
-                any(), any(), any(), any())).thenReturn(java.util.List.of());
-        when(labelVersionRepository.countByPjtSnAndDataRawSnAndDataSrcSn(any(), any(), any()))
+        when(labelVersionRepository.findByDataRawSnAndDataSrcSnAndActiveYn(
+                any(), any(), any())).thenReturn(java.util.List.of());
+        when(labelVersionRepository.countByDataRawSnAndDataSrcSn(any(), any()))
                 .thenReturn(0);
         when(labelVersionRepository.save(any(LsLabelVersion.class)))
                 .thenAnswer(inv -> inv.getArgument(0));

@@ -67,7 +67,7 @@ class LsLabelPresetCodeTest {
     void legacyFactoryDelegatesToBoth() {
         LsLabelPreset preset = LsLabelPreset.create("프리셋", "", List.of(), null);
 
-        LsLabelPresetCode code = LsLabelPresetCode.of(preset, "PERSON", 0);
+        LsLabelPresetCode code = LsLabelPresetCode.of(preset, "PERSON", 0, true, true);
 
         assertThat(code.isBboxEnabled()).isTrue();
         assertThat(code.isPolygonEnabled()).isTrue();

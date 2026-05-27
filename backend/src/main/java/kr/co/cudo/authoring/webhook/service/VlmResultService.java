@@ -104,7 +104,6 @@ public class VlmResultService {
             // 검수 큐 진입 — PENDING (외부 시스템 결과는 REVIEWER 승인 필요)
             LsDataMetaReview review = LsDataMetaReview.createAuto(
                     saved.getMetaSn(),
-                    null,
                     raw.getRawSn(),
                     null,
                     LsDataMetaReview.META_TYPE_VLM,

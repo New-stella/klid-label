@@ -158,7 +158,7 @@ public class Sam2SegmentStep {
                         LogSanitizer.sanitize(job.label), labelId);
                 LsDataLbl savedLabel = lblRepository.save(LsDataLbl.createAutoPolygon(
                         src.getSrcSn(), labelId, job.label, serialize(resp.polygon()), score));
-                aiInfoRepository.save(LsDataLblAiInfo.create(savedLabel.getLblSn(), 0L, rawSn, src.getSrcSn(),
+                aiInfoRepository.save(LsDataLblAiInfo.create(savedLabel.getLblSn(), rawSn, src.getSrcSn(),
                         LsDataLblAiInfo.SRC_SAM2, score, "batch"));
                 saved++;
             }

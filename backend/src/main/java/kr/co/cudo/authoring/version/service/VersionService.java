@@ -539,15 +539,14 @@ public class VersionService {
 
     private LsLabelVersion saveActiveVersion(LsDataSrc src, LsDataRaw raw, String sha,
                                              String reasonCd, String actorId) {
-        Long pjtSn = 0L;
         List<LsLabelVersion> activeVersions = labelVersionRepository
-                .findByPjtSnAndDataRawSnAndDataSrcSnAndActiveYn(
-                        pjtSn, raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
+                .findByDataRawSnAndDataSrcSnAndActiveYn(
+                        raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
         activeVersions.forEach(LsLabelVersion::deactivate);
-        int nextVersion = labelVersionRepository.countByPjtSnAndDataRawSnAndDataSrcSn(
-                pjtSn, raw.getRawSn(), src.getSrcSn()) + 1;
+        int nextVersion = labelVersionRepository.countByDataRawSnAndDataSrcSn(
+                raw.getRawSn(), src.getSrcSn()) + 1;
         return labelVersionRepository.save(LsLabelVersion.create(
-                pjtSn, raw.getRawSn(), src.getSrcSn(), sha, nextVersion, reasonCd, actorId));
+                raw.getRawSn(), src.getSrcSn(), sha, nextVersion, reasonCd, actorId));
     }
 
     private static void validateSha(String sha) {

@@ -14,12 +14,12 @@ public interface LsLabelVersionRepository extends JpaRepository<LsLabelVersion, 
 
     List<LsLabelVersion> findByDataSrcSnOrderByRegDtDesc(Long dataSrcSn);
 
-    List<LsLabelVersion> findByPjtSnAndDataRawSnAndDataSrcSnAndActiveYn(
-            Long pjtSn, Long dataRawSn, Long dataSrcSn, String activeYn);
+    List<LsLabelVersion> findByDataRawSnAndDataSrcSnAndActiveYn(
+            Long dataRawSn, Long dataSrcSn, String activeYn);
 
     Optional<LsLabelVersion> findByGiteaCmtHash(String giteaCmtHash);
 
-    int countByPjtSnAndDataRawSnAndDataSrcSn(Long pjtSn, Long dataRawSn, Long dataSrcSn);
+    int countByDataRawSnAndDataSrcSn(Long dataRawSn, Long dataSrcSn);
 
     // Phase 7 — rawSn 단위 활용 (영상 전체 버전 트래킹)
     Optional<LsLabelVersion> findByDataRawSnAndActiveYn(Long dataRawSn, String activeYn);

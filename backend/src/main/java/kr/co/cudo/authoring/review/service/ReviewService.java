@@ -287,7 +287,7 @@ public class ReviewService {
         Map<Long, List<LabelResponse.Item>> labelMap = new HashMap<>();
         for (LsDataLbl entity : allLabels) {
             labelMap.computeIfAbsent(entity.getSrcSn(), k -> new ArrayList<>())
-                    .add(LabelResponse.Item.from(entity, objectMapper));
+                    .add(LabelResponse.Item.from(entity, null, null, objectMapper));
         }
 
         // 4) 프레임 DTO 매핑 (frameNo 순서 보장)

@@ -57,24 +57,6 @@ public record LabelResponse(
             String lblSrcCd
     ) {
         /**
-         * 기존 호출자 호환 (AI Info 없음 → 수동 라벨 응답).
-         * @deprecated Phase 6 — {@link #from(LsDataLbl, LsDataLblAiInfo, ObjectMapper)} 사용 권장.
-         */
-        @Deprecated
-        public static Item from(LsDataLbl entity, ObjectMapper objectMapper) {
-            return from(entity, null, null, objectMapper);
-        }
-
-        /**
-         * Phase 6 호환 — LS_LABEL 마스터 정보 없이 응답 구성.
-         * @deprecated Phase 2 (V32) — {@link #from(LsDataLbl, LsDataLblAiInfo, LsLabel, ObjectMapper)} 사용 권장.
-         */
-        @Deprecated
-        public static Item from(LsDataLbl entity, LsDataLblAiInfo aiInfo, ObjectMapper objectMapper) {
-            return from(entity, aiInfo, null, objectMapper);
-        }
-
-        /**
          * Phase 2 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO + LS_LABEL 결합 응답.
          * <p>{@code aiInfo == null} 이면 수동 라벨로 간주: {@code autoLblYn='N'}, {@code confScore=null}, {@code lblSrcCd=null}.
          * <p>{@code lsLabel == null} 이면 (V32 마이그 매칭 실패 등) {@code labelId/labelName/color} 모두 null.
@@ -206,7 +188,7 @@ public record LabelResponse(
                 null,
                 null,
                 Collections.emptyList(),
-                entities.stream().map(e -> Item.from(e, objectMapper)).toList()
+                entities.stream().map(e -> Item.from(e, null, null, objectMapper)).toList()
         );
     }
 }

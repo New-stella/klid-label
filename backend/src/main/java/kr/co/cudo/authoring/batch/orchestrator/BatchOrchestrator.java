@@ -45,7 +45,6 @@ import java.util.List;
  *    기존 ai-server 직접 호출(VlmMetaStep) 은 Phase 4 (2026-05-19) 에서 완전 폐기되어 git 삭제됨.
  *  - 본 단계 stage 코드는 {@link BatchStage#VLM} 을 그대로 사용하되, 의미는 "외부 위탁" 으로 변경.
  *  - 결과 적재는 Phase 2 webhook (POST /v1/vlm/result) 로 비동기 수신.
- *  - VlmObjectVerifyStep(객체 검증) 호출 제거 — V2 정책 유지. 코드/enum(VLM_VERIFY) 은 보존.
  * <p>
  * 실패 처리:
  *  - 어느 단계에서든 예외 발생 시 statusService.markFailed + retryQueue.enqueueIfRetryable.
@@ -135,7 +134,6 @@ public class BatchOrchestrator {
             statusService.markStage(rawSn, BatchStage.INTERPOLATE);
             trackInterpolationStep.run(rawSn);
 
-            // V2: VlmObjectVerifyStep 호출 제거 — 영상 단위 메타로 일원화.
             markRawCompleted(rawSn);
             statusService.markCompleted(rawSn);
             retryQueue.clear(rawSn);

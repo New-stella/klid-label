@@ -32,13 +32,12 @@ class PresetLabelLookupServiceTest {
 
     @Test
     @DisplayName("매핑된_프리셋이_있으면_소문자_정규화된_라벨_집합_반환")
-    @SuppressWarnings("deprecation")
     void mappedPresetReturnsLowercaseLabelSet() {
         LsLabelPreset preset = LsLabelPreset.create(
                 "낙상 프리셋", "낙상", List.of("PERSON", "Fallen"), "EVT_FALL");
         when(presetRepository.findByEventTypeCd("EVT_FALL")).thenReturn(Optional.of(preset));
 
-        Optional<Set<String>> result = service.labelsFor("EVT_FALL");
+        Optional<Set<String>> result = service.togglesFor("EVT_FALL").map(Map::keySet);
 
         assertThat(result).isPresent();
         assertThat(result.get()).containsExactlyInAnyOrder("person", "fallen");
@@ -46,9 +45,8 @@ class PresetLabelLookupServiceTest {
 
     @Test
     @DisplayName("eventTypeCd_null이면_repository_조회_없이_빈_Optional")
-    @SuppressWarnings("deprecation")
     void nullEventReturnsEmptyWithoutQuery() {
-        Optional<Set<String>> result = service.labelsFor(null);
+        Optional<Set<String>> result = service.togglesFor(null).map(Map::keySet);
 
         assertThat(result).isEmpty();
         verify(presetRepository, never()).findByEventTypeCd(org.mockito.ArgumentMatchers.any());
@@ -56,32 +54,29 @@ class PresetLabelLookupServiceTest {
 
     @Test
     @DisplayName("eventTypeCd_blank이면_repository_조회_없이_빈_Optional")
-    @SuppressWarnings("deprecation")
     void blankEventReturnsEmptyWithoutQuery() {
-        assertThat(service.labelsFor("")).isEmpty();
-        assertThat(service.labelsFor("   ")).isEmpty();
+        assertThat(service.togglesFor("").map(Map::keySet)).isEmpty();
+        assertThat(service.togglesFor("   ").map(Map::keySet)).isEmpty();
         verify(presetRepository, never()).findByEventTypeCd(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     @DisplayName("매핑된_프리셋이_없으면_빈_Optional_fail_safe")
-    @SuppressWarnings("deprecation")
     void unmappedEventReturnsEmpty() {
         when(presetRepository.findByEventTypeCd("EVT_UNKNOWN")).thenReturn(Optional.empty());
 
-        Optional<Set<String>> result = service.labelsFor("EVT_UNKNOWN");
+        Optional<Set<String>> result = service.togglesFor("EVT_UNKNOWN").map(Map::keySet);
 
         assertThat(result).isEmpty();
     }
 
     @Test
     @DisplayName("매핑된_프리셋의_코드가_비어있으면_빈_Optional")
-    @SuppressWarnings("deprecation")
     void emptyCodesPresetReturnsEmpty() {
         LsLabelPreset preset = LsLabelPreset.create("빈 프리셋", null, List.of(), "EVT_FLOOD");
         when(presetRepository.findByEventTypeCd("EVT_FLOOD")).thenReturn(Optional.of(preset));
 
-        Optional<Set<String>> result = service.labelsFor("EVT_FLOOD");
+        Optional<Set<String>> result = service.togglesFor("EVT_FLOOD").map(Map::keySet);
 
         assertThat(result).isEmpty();
     }
@@ -108,9 +103,8 @@ class PresetLabelLookupServiceTest {
     }
 
     @Test
-    @DisplayName("PresetLabelLookupService_labelsFor_가_여전히_togglesFor_keys_와_일치")
-    @SuppressWarnings("deprecation")
-    void labelsForMatchesTogglesForKeys() {
+    @DisplayName("PresetLabelLookupService_togglesFor_keySet_으로_라벨_집합_도출_가능")
+    void togglesForKeysMatchesLabelSet() {
         LsLabelPreset preset = LsLabelPreset.createWithOptions(
                 "프리셋", "", List.of(
                         new LabelCodeSpec("PERSON", true, false),
@@ -118,12 +112,10 @@ class PresetLabelLookupServiceTest {
                 ), "EVT_FALL");
         when(presetRepository.findByEventTypeCd("EVT_FALL")).thenReturn(Optional.of(preset));
 
-        Optional<Set<String>> labels = service.labelsFor("EVT_FALL");
         Optional<Map<String, AnnotationToggle>> toggles = service.togglesFor("EVT_FALL");
 
-        assertThat(labels).isPresent();
         assertThat(toggles).isPresent();
-        assertThat(labels.get()).isEqualTo(toggles.get().keySet());
+        assertThat(toggles.get().keySet()).containsExactlyInAnyOrder("person", "fallen");
     }
 
     @Test

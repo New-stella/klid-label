@@ -33,9 +33,6 @@ public class LsDataAugRvw {
     @Column(name = "DATA_AUG_SN", nullable = false)
     private Long dataAugSn;
 
-    @Column(name = "PJT_SN", nullable = false)
-    private Long pjtSn;
-
     @Column(name = "DATA_RAW_SN", nullable = false)
     private Long dataRawSn;
 
@@ -69,11 +66,10 @@ public class LsDataAugRvw {
     @Column(name = "MDFCN_DT")
     private LocalDateTime mdfcnDt;
 
-    public static LsDataAugRvw pending(Long dataAugSn, Long pjtSn, Long rawSn, Long srcSn,
+    public static LsDataAugRvw pending(Long dataAugSn, Long rawSn, Long srcSn,
                                        BigDecimal integrityPct, String regId) {
         LsDataAugRvw review = new LsDataAugRvw();
         review.dataAugSn = dataAugSn;
-        review.pjtSn = pjtSn == null ? 0L : pjtSn;
         review.dataRawSn = rawSn == null ? 0L : rawSn;
         review.dataSrcSn = srcSn;
         review.rvwSttsCd = STTS_PENDING;
@@ -86,11 +82,10 @@ public class LsDataAugRvw {
     /**
      * 승인된 검수 row 를 한 번에 생성 (PENDING row 사전 등록 없이 직접 INSERT).
      */
-    public static LsDataAugRvw createAccepted(Long dataAugSn, Long pjtSn, Long dataRawSn, Long dataSrcSn,
+    public static LsDataAugRvw createAccepted(Long dataAugSn, Long dataRawSn, Long dataSrcSn,
                                               BigDecimal labelIntegrityPct, String rvwId, LocalDateTime rvwDt) {
         LsDataAugRvw review = new LsDataAugRvw();
         review.dataAugSn = dataAugSn;
-        review.pjtSn = pjtSn == null ? 0L : pjtSn;
         review.dataRawSn = dataRawSn == null ? 0L : dataRawSn;
         review.dataSrcSn = dataSrcSn;
         review.rvwSttsCd = STTS_ACCEPTED;
@@ -107,14 +102,13 @@ public class LsDataAugRvw {
     /**
      * 반려된 검수 row 를 한 번에 생성. 반려 사유는 필수.
      */
-    public static LsDataAugRvw createRejected(Long dataAugSn, Long pjtSn, Long dataRawSn, Long dataSrcSn,
+    public static LsDataAugRvw createRejected(Long dataAugSn, Long dataRawSn, Long dataSrcSn,
                                               String rejectReason, String rvwId, LocalDateTime rvwDt) {
         if (rejectReason == null || rejectReason.isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "반려 사유는 필수입니다.");
         }
         LsDataAugRvw review = new LsDataAugRvw();
         review.dataAugSn = dataAugSn;
-        review.pjtSn = pjtSn == null ? 0L : pjtSn;
         review.dataRawSn = dataRawSn == null ? 0L : dataRawSn;
         review.dataSrcSn = dataSrcSn;
         review.rvwSttsCd = STTS_REJECTED;

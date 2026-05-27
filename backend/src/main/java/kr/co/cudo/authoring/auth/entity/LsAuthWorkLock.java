@@ -32,9 +32,6 @@ public class LsAuthWorkLock {
     @Column(name = "LOCK_TARGET_CD", nullable = false, length = 20)
     private String lockTargetCd;
 
-    @Column(name = "PJT_SN")
-    private Long pjtSn;
-
     @Column(name = "DATA_RAW_SN")
     private Long dataRawSn;
 

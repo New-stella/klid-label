@@ -92,8 +92,8 @@ class AutolabelTestServiceTest {
         assertThat(response.frameExtracted()).isFalse();
         assertThat(response.yoloLabels()).isEqualTo(3);
         assertThat(response.sam2Labels()).isEqualTo(3);
-        // run() 은 DEIDENTIFY 를 실행하지 않으므로 DEIDENTIFY + 영구SKIP(VLM_VERIFY) 모두 포함.
-        assertThat(response.skipped()).containsExactlyInAnyOrder("DEIDENTIFY", "VLM_VERIFY");
+        // run() 은 DEIDENTIFY 를 실행하지 않으므로 DEIDENTIFY 가 skipped 에 포함.
+        assertThat(response.skipped()).containsExactly("DEIDENTIFY");
         assertThat(response.durationMs()).isGreaterThanOrEqualTo(0L);
     }
 
@@ -249,8 +249,8 @@ class AutolabelTestServiceTest {
         verify(deidentifyStep, times(1)).run(raw);
         verify(yoloStep, times(1)).run(RAW_SN);
         verify(sam2Step, times(1)).run(eq(RAW_SN), any());
-        // DEIDENTIFY 가 실행됐으므로 skipped 에 포함되면 안 됨 — VLM_VERIFY 만 영구 SKIP.
-        assertThat(response.skipped()).containsExactly("VLM_VERIFY");
+        // DEIDENTIFY 가 실행됐으므로 skipped 에 포함되면 안 됨 — 영구 SKIP 도 없으므로 빈 리스트.
+        assertThat(response.skipped()).isEmpty();
         assertThat(response.skipped()).doesNotContain("DEIDENTIFY");
     }
 
@@ -272,7 +272,7 @@ class AutolabelTestServiceTest {
         AutolabelRunResponse response = service.runFull(RAW_SN, toggles);
 
         assertThat(response.skipped()).doesNotContain("DEIDENTIFY");
-        assertThat(response.skipped()).containsExactly("VLM_VERIFY");
+        assertThat(response.skipped()).isEmpty();
     }
 
     @Test
@@ -293,7 +293,6 @@ class AutolabelTestServiceTest {
 
         assertThat(response.skipped()).contains("YOLO");
         assertThat(response.skipped()).doesNotContain("DEIDENTIFY");
-        assertThat(response.skipped()).contains("VLM_VERIFY");
     }
 
     @Test

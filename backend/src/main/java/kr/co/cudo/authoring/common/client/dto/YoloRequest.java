@@ -17,12 +17,4 @@ public record YoloRequest(
         @JsonProperty("imgsz") Integer imgsz,
         @JsonProperty("iou") Double iou
 ) {
-    /**
-     * 구버전 호출자 호환 — 기본값(0.4, 1280, 0.5) 로 위임.
-     * Phase 1 에서 운영 파라미터화 됐으므로 새 호출자는 4-arg 생성자 사용 권장.
-     */
-    @Deprecated
-    public YoloRequest(String imageB64) {
-        this(imageB64, 0.4, 1280, 0.5);
-    }
 }

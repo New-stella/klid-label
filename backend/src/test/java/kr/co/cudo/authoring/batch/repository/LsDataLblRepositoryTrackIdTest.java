@@ -30,7 +30,7 @@ class LsDataLblRepositoryTrackIdTest {
     @DisplayName("TRACK_ID_컬럼_에_String_저장_+_조회_정합")
     void persistsAndReadsTrackId() {
         LsDataLbl saved = repository.saveAndFlush(LsDataLbl.createAutoBbox(
-                999_001L, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.9), "track-42"));
+                999_001L, null, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.9), "track-42"));
 
         LsDataLbl found = repository.findById(saved.getLblSn()).orElseThrow();
 
@@ -41,7 +41,7 @@ class LsDataLblRepositoryTrackIdTest {
     @DisplayName("TRACK_ID_null_허용_(레거시_수동_라벨_호환)")
     void nullTrackIdAllowed() {
         LsDataLbl saved = repository.saveAndFlush(LsDataLbl.createAutoBbox(
-                999_002L, "car", "[]", BigDecimal.valueOf(0.7)));
+                999_002L, null, "car", "[]", BigDecimal.valueOf(0.7), null));
 
         LsDataLbl found = repository.findById(saved.getLblSn()).orElseThrow();
 
@@ -52,9 +52,9 @@ class LsDataLblRepositoryTrackIdTest {
     @DisplayName("동일_TRACK_ID_여러_프레임_저장_가능_(트래커_연속성)")
     void sameTrackIdAcrossFrames() {
         LsDataLbl a = repository.saveAndFlush(LsDataLbl.createAutoBbox(
-                999_010L, "person", "[]", BigDecimal.valueOf(0.9), "track-1"));
+                999_010L, null, "person", "[]", BigDecimal.valueOf(0.9), "track-1"));
         LsDataLbl b = repository.saveAndFlush(LsDataLbl.createAutoBbox(
-                999_011L, "person", "[]", BigDecimal.valueOf(0.92), "track-1"));
+                999_011L, null, "person", "[]", BigDecimal.valueOf(0.92), "track-1"));
 
         List<LsDataLbl> labels = List.of(
                 repository.findById(a.getLblSn()).orElseThrow(),
@@ -71,7 +71,7 @@ class LsDataLblRepositoryTrackIdTest {
     @DisplayName("Phase3_LBL_SRC_CD_INTERPOLATED_저장_+_조회_정합")
     void persistsAndReadsLblSrcCdInterpolated() {
         LsDataLbl saved = repository.saveAndFlush(LsDataLbl.createAutoInterpolatedBbox(
-                999_020L, "person", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-100"));
+                999_020L, null, "person", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-100"));
 
         LsDataLbl found = repository.findById(saved.getLblSn()).orElseThrow();
 
@@ -85,7 +85,7 @@ class LsDataLblRepositoryTrackIdTest {
     @DisplayName("Phase3_LBL_SRC_CD_기본_NULL_(detection_라벨)")
     void detectedLabelLblSrcCdNull() {
         LsDataLbl saved = repository.saveAndFlush(LsDataLbl.createAutoBbox(
-                999_021L, "car", "[]", BigDecimal.valueOf(0.85), "track-200"));
+                999_021L, null, "car", "[]", BigDecimal.valueOf(0.85), "track-200"));
 
         LsDataLbl found = repository.findById(saved.getLblSn()).orElseThrow();
 

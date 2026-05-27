@@ -47,9 +47,6 @@ public class LsDataMetaReview {
     @Column(name = "DATA_META_SN", nullable = false)
     private Long dataMetaSn;
 
-    @Column(name = "PJT_SN", nullable = false)
-    private Long pjtSn;
-
     @Column(name = "DATA_RAW_SN", nullable = false)
     private Long dataRawSn;
 
@@ -91,11 +88,10 @@ public class LsDataMetaReview {
      * - VLM 자동 생성 시 RVW_STTS_CD='AUTO_GENERATED' 또는 'PENDING'.
      * - 외부 시스템 송신 메타는 'PENDING'.
      */
-    public static LsDataMetaReview createAuto(Long dataMetaSn, Long pjtSn, Long dataRawSn, Long dataSrcSn,
+    public static LsDataMetaReview createAuto(Long dataMetaSn, Long dataRawSn, Long dataSrcSn,
                                               String metaTypeCd, String srcSysCd, String rvwSttsCd) {
         LsDataMetaReview review = new LsDataMetaReview();
         review.dataMetaSn = dataMetaSn;
-        review.pjtSn = pjtSn == null ? 0L : pjtSn;
         review.dataRawSn = dataRawSn == null ? 0L : dataRawSn;
         review.dataSrcSn = dataSrcSn;
         review.metaTypeCd = metaTypeCd;

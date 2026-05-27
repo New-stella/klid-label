@@ -21,9 +21,9 @@ class YoloRequestTest {
     }
 
     @Test
-    @DisplayName("YoloRequest_2arg_생성자는_기본값_0_4_1280_0_5_로_위임")
-    void twoArgConstructorDelegatesToDefaults() {
-        YoloRequest req = new YoloRequest("BASE64");
+    @DisplayName("YoloRequest_기본값_조합_0_4_1280_0_5_정상_저장")
+    void defaultValueCombinationStored() {
+        YoloRequest req = new YoloRequest("BASE64", 0.4, 1280, 0.5);
         assertThat(req.imageB64()).isEqualTo("BASE64");
         assertThat(req.confThreshold()).isEqualTo(0.4);
         assertThat(req.imgsz()).isEqualTo(1280);

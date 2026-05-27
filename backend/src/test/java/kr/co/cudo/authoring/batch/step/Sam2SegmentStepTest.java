@@ -130,7 +130,7 @@ class Sam2SegmentStepTest {
     }
 
     private LsDataLbl newBbox(Long srcSn, String label, String pointsJson) {
-        LsDataLbl lbl = LsDataLbl.createAutoBbox(srcSn, label, pointsJson, BigDecimal.valueOf(0.9));
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(srcSn, null, label, pointsJson, BigDecimal.valueOf(0.9), null);
         return lbl;
     }
 
@@ -288,7 +288,7 @@ class Sam2SegmentStepTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(70L))
                 .thenReturn(List.of(newSrc(70L)));
         // 같은 srcSn + 같은 라벨 "person" 이지만 trackId 가 1 인 DB BBOX 1건만 존재
-        LsDataLbl bboxWithTrack = LsDataLbl.createAutoBbox(70L, "person", "[1.0,2.0,3.0,4.0]",
+        LsDataLbl bboxWithTrack = LsDataLbl.createAutoBbox(70L, null, "person", "[1.0,2.0,3.0,4.0]",
                 BigDecimal.valueOf(0.9), "1");
         when(lblRepository.findBySrcSnAndAutoLblYn(70L, "Y"))
                 .thenReturn(List.of(bboxWithTrack));

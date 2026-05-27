@@ -23,11 +23,4 @@ public record LabelItemDto(
         @NotEmpty List<List<Double>> points,
         String autoLblYn   // 응답 전용 (요청 시 무시, REVIEWER 도 변경 불가 — Mass Assignment 방어)
 ) {
-    /**
-     * @deprecated Phase 2 (V32) 호환 — labelId 미지정 5-arg 생성자. {@link #LabelItemDto(Long, String, Long, String, List, String)} 사용 권장.
-     */
-    @Deprecated
-    public LabelItemDto(Long id, String lblTypeCd, String label, List<List<Double>> points, String autoLblYn) {
-        this(id, lblTypeCd, null, label, points, autoLblYn);
-    }
 }

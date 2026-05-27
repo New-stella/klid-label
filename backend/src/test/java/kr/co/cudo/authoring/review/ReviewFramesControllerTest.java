@@ -94,9 +94,11 @@ class ReviewFramesControllerTest {
             for (int l = 0; l < labelsPerFrame; l++) {
                 labelRepository.save(LsDataLbl.createAutoBbox(
                         src.getSrcSn(),
+                        null,
                         "person",
                         "[[10,20],[30,40]]",
-                        BigDecimal.valueOf(0.9)));
+                        BigDecimal.valueOf(0.9),
+                        null));
             }
         }
     }

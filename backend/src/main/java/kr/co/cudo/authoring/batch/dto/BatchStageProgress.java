@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 /**
  * 단일 영상의 배치 단계 진행도 (응답 DTO).
  *  - rawSn: LS_DATA_RAW PK
- *  - stage: BatchStage 의 name() (PENDING / FRAME_EXTRACT / DEIDENTIFY / YOLO / SAM2 / VLM_VERIFY / COMPLETED / FAILED)
+ *  - stage: BatchStage 의 name() (PENDING / MARKING / VLM / DEIDENTIFY / FRAME_EXTRACT / YOLO / SAM2 / INTERPOLATE / COMPLETED / FAILED)
  *  - startedAt: 최초 markStage 시각
  *  - lastUpdatedAt: 마지막 단계 전이 시각
  *  - retryCount: 재시도 누적 횟수

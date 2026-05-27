@@ -106,7 +106,7 @@ class YoloAutolabelStepTest {
         // 기본은 fail-safe (필터 미적용) 동작을 위해 빈 Optional
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
         // PresetLabelLookupService 기본 동작: 매핑 없음(fail-safe).
-        when(presetLabelLookup.labelsFor(any())).thenReturn(Optional.empty());
+        // labelsFor removed — only togglesFor remains
         when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
 
         step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,

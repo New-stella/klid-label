@@ -14,7 +14,7 @@ class LsDataLblTest {
     @DisplayName("createAutoBbox는_AUTO_LBL_YN_Y_+_BBOX_타입_저장")
     void createAutoBboxMarksAutoYes() {
         LsDataLbl lbl = LsDataLbl.createAutoBbox(
-                100L, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.85));
+                100L, null, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.85), null);
 
         assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
         assertThat(lbl.getLblTypeCd()).isEqualTo("BBOX");
@@ -26,7 +26,7 @@ class LsDataLblTest {
     @DisplayName("createAutoPolygon은_POLYGON_타입_+_AUTO_LBL_YN_Y")
     void createAutoPolygonType() {
         LsDataLbl lbl = LsDataLbl.createAutoPolygon(
-                200L, "car", "[[1,1],[2,2],[3,3]]", BigDecimal.valueOf(0.7));
+                200L, null, "car", "[[1,1],[2,2],[3,3]]", BigDecimal.valueOf(0.7));
 
         assertThat(lbl.getLblTypeCd()).isEqualTo("POLYGON");
         assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
@@ -36,7 +36,7 @@ class LsDataLblTest {
     @DisplayName("CONF_SCORE는_0_미만이면_IllegalArgumentException")
     void negativeScoreRejected() {
         assertThatThrownBy(() -> LsDataLbl.createAutoBbox(
-                1L, "x", "[]", BigDecimal.valueOf(-0.1)))
+                1L, null, "x", "[]", BigDecimal.valueOf(-0.1), null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("CONF_SCORE");
     }
@@ -45,15 +45,15 @@ class LsDataLblTest {
     @DisplayName("CONF_SCORE는_1_초과면_IllegalArgumentException")
     void scoreAboveOneRejected() {
         assertThatThrownBy(() -> LsDataLbl.createAutoBbox(
-                1L, "x", "[]", BigDecimal.valueOf(1.01)))
+                1L, null, "x", "[]", BigDecimal.valueOf(1.01), null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("CONF_SCORE는_0_과_1_경계값_허용")
     void boundaryScoresAllowed() {
-        LsDataLbl zero = LsDataLbl.createAutoBbox(1L, "x", "[]", BigDecimal.ZERO);
-        LsDataLbl one = LsDataLbl.createAutoBbox(2L, "x", "[]", BigDecimal.ONE);
+        LsDataLbl zero = LsDataLbl.createAutoBbox(1L, null, "x", "[]", BigDecimal.ZERO, null);
+        LsDataLbl one = LsDataLbl.createAutoBbox(2L, null, "x", "[]", BigDecimal.ONE, null);
         assertThat(zero.getConfScore()).isEqualByComparingTo("0");
         assertThat(one.getConfScore()).isEqualByComparingTo("1");
     }
@@ -61,7 +61,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("updateConfScore는_새_값으로_갱신_+_범위_검증")
     void updateScoreClampsRange() {
-        LsDataLbl lbl = LsDataLbl.createAutoBbox(1L, "x", "[]", BigDecimal.valueOf(0.5));
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(1L, null, "x", "[]", BigDecimal.valueOf(0.5), null);
         lbl.updateConfScore(BigDecimal.valueOf(0.92));
         assertThat(lbl.getConfScore()).isEqualByComparingTo("0.92");
 
@@ -72,10 +72,10 @@ class LsDataLblTest {
     // --- Phase 3: TRACK_ID 컬럼 + factory 5-arg ---
 
     @Test
-    @DisplayName("createAutoBbox_5arg_는_trackId_저장")
+    @DisplayName("createAutoBbox_6arg_는_trackId_저장")
     void createAutoBboxFiveArgRetainsTrackId() {
         LsDataLbl lbl = LsDataLbl.createAutoBbox(
-                100L, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.85), "42");
+                100L, null, "person", "[[10,10],[20,20]]", BigDecimal.valueOf(0.85), "42");
 
         assertThat(lbl.getTrackId()).isEqualTo("42");
         assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
@@ -83,28 +83,19 @@ class LsDataLblTest {
     }
 
     @Test
-    @DisplayName("createAutoBbox_4arg_는_trackId_null_로_위임_(레거시_호환)")
+    @DisplayName("createAutoBbox_trackId_null_입력_허용")
     void createAutoBboxFourArgDelegatesNullTrackId() {
         LsDataLbl lbl = LsDataLbl.createAutoBbox(
-                100L, "person", "[]", BigDecimal.valueOf(0.8));
+                100L, null, "person", "[]", BigDecimal.valueOf(0.8), null);
 
         assertThat(lbl.getTrackId()).isNull();
         assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
     }
 
     @Test
-    @DisplayName("createAutoBbox_5arg_trackId_null_입력도_허용")
-    void createAutoBboxFiveArgAllowsNullTrackId() {
-        LsDataLbl lbl = LsDataLbl.createAutoBbox(
-                1L, "x", "[]", BigDecimal.valueOf(0.5), null);
-
-        assertThat(lbl.getTrackId()).isNull();
-    }
-
-    @Test
     @DisplayName("수동_라벨_(createManual)_은_trackId_null")
     void createManualHasNullTrackId() {
-        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", "person", "[]", 99L);
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", null, "person", "[]", 99L);
 
         assertThat(lbl.getTrackId()).isNull();
         assertThat(lbl.getAutoLblYn()).isEqualTo("N");
@@ -116,7 +107,7 @@ class LsDataLblTest {
     @DisplayName("createAutoInterpolatedBbox_는_LBL_SRC_CD_INTERPOLATED_저장")
     void createAutoInterpolatedBboxMarksLblSrcCd() {
         LsDataLbl lbl = LsDataLbl.createAutoInterpolatedBbox(
-                100L, "person", "[10.0,20.0,30.0,40.0]", BigDecimal.ZERO, "7");
+                100L, null, "person", "[10.0,20.0,30.0,40.0]", BigDecimal.ZERO, "7");
 
         assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
         assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
@@ -131,7 +122,7 @@ class LsDataLblTest {
     @DisplayName("createAutoInterpolatedBbox_confScore_null_허용")
     void createAutoInterpolatedBboxAllowsNullConfScore() {
         LsDataLbl lbl = LsDataLbl.createAutoInterpolatedBbox(
-                1L, "car", "[0.0,0.0,10.0,10.0]", null, "3");
+                1L, null, "car", "[0.0,0.0,10.0,10.0]", null, "3");
 
         assertThat(lbl.getConfScore()).isNull();
         assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
@@ -141,7 +132,7 @@ class LsDataLblTest {
     @DisplayName("createAutoBbox_는_LBL_SRC_CD_null_(DETECTED_기본)")
     void createAutoBboxLblSrcCdNull() {
         LsDataLbl lbl = LsDataLbl.createAutoBbox(
-                100L, "person", "[]", BigDecimal.valueOf(0.85), "1");
+                100L, null, "person", "[]", BigDecimal.valueOf(0.85), "1");
 
         assertThat(lbl.getLblSrcCd()).isNull();
     }
@@ -150,7 +141,7 @@ class LsDataLblTest {
     @DisplayName("createAutoPolygon_은_LBL_SRC_CD_null_(DETECTED_기본)")
     void createAutoPolygonLblSrcCdNull() {
         LsDataLbl lbl = LsDataLbl.createAutoPolygon(
-                1L, "car", "[]", BigDecimal.valueOf(0.7));
+                1L, null, "car", "[]", BigDecimal.valueOf(0.7));
 
         assertThat(lbl.getLblSrcCd()).isNull();
     }
@@ -158,7 +149,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("createManual_은_LBL_SRC_CD_null_(DETECTED_기본)")
     void createManualLblSrcCdNull() {
-        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", "person", "[]", 99L);
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", null, "person", "[]", 99L);
 
         assertThat(lbl.getLblSrcCd()).isNull();
     }
@@ -177,10 +168,10 @@ class LsDataLblTest {
     }
 
     @Test
-    @DisplayName("createAutoBbox_5arg_(legacy)_는_labelId_null")
-    void createAutoBboxFiveArgLabelIdNull() {
+    @DisplayName("createAutoBbox_labelId_null_전달_시_null_저장")
+    void createAutoBboxLabelIdNull() {
         LsDataLbl lbl = LsDataLbl.createAutoBbox(
-                100L, "person", "[]", BigDecimal.valueOf(0.5), "track-1");
+                100L, null, "person", "[]", BigDecimal.valueOf(0.5), "track-1");
 
         assertThat(lbl.getLabelId()).isNull();
     }
@@ -268,13 +259,13 @@ class LsDataLblTest {
     }
 
     @Test
-    @DisplayName("updateUserContent_3arg_(legacy)_는_LABEL_ID_변경_없음")
-    void updateUserContentLegacy3ArgPreservesLabelId() {
+    @DisplayName("updateUserContent_labelId_null_전달_시_기존_LABEL_ID_유지")
+    void updateUserContentNullLabelIdPreservesExisting() {
         LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[]", 99L);
 
-        lbl.updateUserContent("BBOX", "person-v2", "[[1,1]]");
+        lbl.updateUserContent("BBOX", null, "person-v2", "[[1,1]]");
 
-        assertThat(lbl.getLabelId()).isEqualTo(5L);  // 3-arg 위임은 labelId=null → 기존 유지
+        assertThat(lbl.getLabelId()).isEqualTo(5L);  // labelId=null → 기존 유지
         assertThat(lbl.getLabel()).isEqualTo("person-v2");
     }
 }

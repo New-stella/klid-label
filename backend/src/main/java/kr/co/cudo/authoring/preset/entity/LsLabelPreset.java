@@ -96,7 +96,13 @@ public class LsLabelPreset {
      */
     public static LsLabelPreset create(String name, String description, List<String> codes, String eventTypeCd) {
         LsLabelPreset preset = new LsLabelPreset(name, description, eventTypeCd);
-        preset.replaceCodeStrings(codes);
+        List<LabelCodeSpec> specs = (codes == null)
+                ? Collections.emptyList()
+                : codes.stream()
+                    .filter(c -> c != null && !c.trim().isEmpty())
+                    .map(c -> new LabelCodeSpec(c, true, true))
+                    .toList();
+        preset.replaceCodes(specs);
         return preset;
     }
 
@@ -136,25 +142,6 @@ public class LsLabelPreset {
         }
         String trimmed = raw.trim();
         return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    /**
-     * 레거시 호환 — String 목록을 받아 모두 BBOX+POLYGON 활성으로 저장한다.
-     *
-     * <p>제네릭 type erasure 충돌 회피를 위해 {@link #replaceCodes(List)} 와 별도 메서드명을 사용한다.
-     *
-     * @deprecated Phase 1 이후 {@link #replaceCodes(java.util.List)} 의
-     *             {@code List<LabelCodeSpec>} 시그니처를 사용한다.
-     */
-    @Deprecated
-    public void replaceCodeStrings(List<String> newCodes) {
-        List<LabelCodeSpec> specs = (newCodes == null)
-                ? Collections.emptyList()
-                : newCodes.stream()
-                    .filter(c -> c != null && !c.trim().isEmpty())
-                    .map(c -> new LabelCodeSpec(c, true, true))
-                    .toList();
-        replaceCodes(specs);
     }
 
     /**

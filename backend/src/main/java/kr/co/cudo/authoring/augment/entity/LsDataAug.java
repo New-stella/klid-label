@@ -142,24 +142,6 @@ public class LsDataAug {
         this.augProcSttsCd = newStatus;
     }
 
-    /** @deprecated 증강 검수 상태는 LS_DATA_AUG_RVW 에 저장한다. */
-    @Deprecated
-    public void markAccepted(String decisionUserNo, LocalDateTime decisionAt) {
-        this.decisionUserNo = decisionUserNo;
-        this.decisionAt = decisionAt;
-    }
-
-    /** @deprecated 증강 검수 상태는 LS_DATA_AUG_RVW 에 저장한다. */
-    @Deprecated
-    public void markRejected(String reason, String decisionUserNo, LocalDateTime decisionAt) {
-        if (reason == null || reason.isBlank()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "반려 사유는 필수입니다.");
-        }
-        this.rejectReason = reason;
-        this.decisionUserNo = decisionUserNo;
-        this.decisionAt = decisionAt;
-    }
-
     // ============================================================
     // Phase 4 — 비동기 표준 컬럼 비즈니스 메서드 (setter 금지 패턴)
     // ============================================================

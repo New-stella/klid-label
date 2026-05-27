@@ -36,7 +36,7 @@ public class PortalAutolabelService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "imageB64 누락");
         }
         try {
-            YoloResponse result = aiServerClient.predictYolo(new YoloRequest(imageB64))
+            YoloResponse result = aiServerClient.predictYolo(new YoloRequest(imageB64, 0.4, 1280, 0.5))
                     .block(BLOCK_TIMEOUT);
             if (result == null) {
                 throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "AI 응답이 비어있습니다.");

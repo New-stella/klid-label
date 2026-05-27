@@ -144,7 +144,7 @@ public class TrackInterpolationStep {
                     continue;  // 안전망 — 매핑 안 되는 프레임은 skip
                 }
                 newRows.add(LsDataLbl.createAutoInterpolatedBbox(
-                        srcSn, label, serializeBbox(ie.getValue()), BigDecimal.ZERO, trackId));
+                        srcSn, null, label, serializeBbox(ie.getValue()), BigDecimal.ZERO, trackId));
             }
         }
 
@@ -152,7 +152,7 @@ public class TrackInterpolationStep {
             Iterable<LsDataLbl> savedRows = lblRepository.saveAll(newRows);
             List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
             for (LsDataLbl row : savedRows) {
-                aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), 0L, rawSn, row.getSrcSn(),
+                aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), rawSn, row.getSrcSn(),
                         LsDataLblAiInfo.SRC_INTERPOLATE, row.getConfScore(), "batch"));
             }
             aiInfoRepository.saveAll(aiInfos);
