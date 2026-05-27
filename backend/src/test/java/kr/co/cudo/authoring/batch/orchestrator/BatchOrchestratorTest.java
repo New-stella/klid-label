@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -39,8 +40,8 @@ import static org.mockito.Mockito.when;
 /**
  * BatchOrchestrator V2 단위 테스트.
  *
- * <p>V2 정책 파이프라인 순서:
- *   VLM(영상 단위 메타) → DEIDENTIFY(무조건) → FRAME_EXTRACT(extractBoth)
+ * <p>V2 정책 파이프라인 순서 (마킹 필수):
+ *   VLM(영상 단위 메타) → DEIDENTIFY(무조건) → FRAME_EXTRACT(extractByMarks)
  *   → YOLO → SAM2 → INTERPOLATE → COMPLETED
  *
  * <p>Phase 3/4: 영상 잠금은 LS_AUTH_WORK_LOCK 에서 관리되며 본 orchestrator 는
@@ -78,12 +79,12 @@ class BatchOrchestratorTest {
                 trackInterpolationStep, statusService, retryQueue, videoRepository,
                 markingRepository, new ObjectMapper());
 
-        // Phase 3: 기본 마킹 없음 (기존 테스트 호환)
+        // V2.0: 마킹 필수 — 기본 마킹 데이터 제공 (orchestrator 통과 보장)
         when(markingRepository.findByRawSnOrderByCreatedAtDesc(any()))
-                .thenReturn(java.util.Collections.emptyList());
+                .thenReturn(List.of(newMarking()));
 
-        // 기본: extractBoth(raw, deidVideoPath) 가 1 프레임 반환 — orchestrator 통과 보장
-        when(frameExtractor.extractBoth(any(LsDataRaw.class), nullable(String.class)))
+        // 기본: extractByMarks(raw, deidVideoPath, marks) 가 1 프레임 반환
+        when(frameExtractor.extractByMarks(any(LsDataRaw.class), nullable(String.class), any()))
                 .thenReturn(List.of(mock(LsDataSrc.class)));
         // 기본: deidentifyStep.run 는 null 반환 (비식별 결과 없음 == 원본만 추출)
         when(deidentifyStep.run(any(LsDataRaw.class))).thenReturn(null);
@@ -96,6 +97,11 @@ class BatchOrchestratorTest {
         setField(raw, "rawSn", rawSn);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         return raw;
+    }
+
+    private LsMarking newMarking() {
+        return LsMarking.createAuto(1L, "fire", 5,
+                "raw/path.mp4", "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]", 1L);
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -116,9 +122,9 @@ class BatchOrchestratorTest {
         BatchStage result = orchestrator.process(101L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        verify(vlmTimeseriesStep).run(101L);
+        verify(vlmTimeseriesStep).runWithMarking(eq(101L), any());
         verify(deidentifyStep, times(1)).run(any(LsDataRaw.class));
-        verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
+        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
         verify(yoloStep).run(101L);
         verify(sam2Step).run(eq(101L), any());
         verify(trackInterpolationStep).run(101L);
@@ -133,9 +139,9 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         InOrder order = inOrder(vlmTimeseriesStep, deidentifyStep, frameExtractor);
-        order.verify(vlmTimeseriesStep).run(102L);
+        order.verify(vlmTimeseriesStep).runWithMarking(eq(102L), any());
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
-        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
+        order.verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
     }
 
     @Test
@@ -158,9 +164,9 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         InOrder order = inOrder(vlmTimeseriesStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
-        order.verify(vlmTimeseriesStep).run(130L);
+        order.verify(vlmTimeseriesStep).runWithMarking(eq(130L), any());
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
-        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
+        order.verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
         order.verify(yoloStep).run(130L);
         order.verify(sam2Step).run(eq(130L), any());
         order.verify(trackInterpolationStep).run(130L);
@@ -175,9 +181,9 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         InOrder order = inOrder(vlmTimeseriesStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
-        order.verify(vlmTimeseriesStep).run(131L);
+        order.verify(vlmTimeseriesStep).runWithMarking(eq(131L), any());
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
-        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
+        order.verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
         order.verify(yoloStep).run(131L);
         order.verify(sam2Step).run(eq(131L), any());
         order.verify(trackInterpolationStep).run(131L);
@@ -187,13 +193,13 @@ class BatchOrchestratorTest {
     @DisplayName("BatchOrchestrator_VLM_META_실패_시_이후_모든_단계_호출_안_함_+_FAILED_마킹")
     void vlmMetaFailureFailsImmediately() {
         newRaw(132L, LsDataRaw.PRVC_TYPE_PRVC);
-        doThrow(new RuntimeException("vlm-meta 5xx")).when(vlmTimeseriesStep).run(132L);
+        doThrow(new RuntimeException("vlm-meta 5xx")).when(vlmTimeseriesStep).runWithMarking(eq(132L), any());
 
         BatchStage result = orchestrator.process(132L);
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
         verify(deidentifyStep, never()).run(any());
-        verify(frameExtractor, never()).extractBoth(any(), any());
+        verify(frameExtractor, never()).extractByMarks(any(), any(), any());
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
         verify(trackInterpolationStep, never()).run(any());
@@ -202,14 +208,17 @@ class BatchOrchestratorTest {
     }
 
     @Test
-    @DisplayName("Phase4_프레임_추출_extractBoth_단일_호출")
-    void frameExtractorInvokedOnce() {
+    @DisplayName("V2_마킹_없으면_FAILED_INVALID_INPUT")
+    void noMarkingResultsInFailed() {
         newRaw(133L, LsDataRaw.PRVC_TYPE_ANONY);
+        when(markingRepository.findByRawSnOrderByCreatedAtDesc(133L))
+                .thenReturn(java.util.Collections.emptyList());
 
         BatchStage result = orchestrator.process(133L);
 
-        assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        verify(frameExtractor, times(1)).extractBoth(any(LsDataRaw.class), nullable(String.class));
+        assertThat(result).isEqualTo(BatchStage.FAILED);
+        verify(frameExtractor, never()).extractByMarks(any(), any(), any());
+        verify(yoloStep, never()).run(any());
     }
 
     @Test
@@ -222,8 +231,8 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
         assertThat(retryQueue.retryCount(104L)).isEqualTo(1);
-        verify(vlmTimeseriesStep).run(104L);
-        verify(frameExtractor, never()).extractBoth(any(), any());
+        verify(vlmTimeseriesStep).runWithMarking(eq(104L), any());
+        verify(frameExtractor, never()).extractByMarks(any(), any(), any());
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
         verify(trackInterpolationStep, never()).run(any());
@@ -290,12 +299,13 @@ class BatchOrchestratorTest {
     @DisplayName("프레임_추출_결과_0건이면_FAILED_+_이후_단계_미호출")
     void emptyFramesMovesToFailed() {
         newRaw(108L, LsDataRaw.PRVC_TYPE_ANONY);
-        when(frameExtractor.extractBoth(any(LsDataRaw.class), nullable(String.class))).thenReturn(List.of());
+        when(frameExtractor.extractByMarks(any(LsDataRaw.class), nullable(String.class), any()))
+                .thenReturn(List.of());
 
         BatchStage result = orchestrator.process(108L);
 
         assertThat(result).isEqualTo(BatchStage.FAILED);
-        verify(vlmTimeseriesStep).run(108L);
+        verify(vlmTimeseriesStep).runWithMarking(eq(108L), any());
         verify(deidentifyStep).run(any(LsDataRaw.class));
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
@@ -318,12 +328,11 @@ class BatchOrchestratorTest {
                 new kr.co.cudo.authoring.batch.step.BbHint(3L, "person", List.of(9.0, 10.0, 11.0, 12.0), 0.75, null)
         ));
 
-        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
         BatchStage result = orchestrator.process(109L);
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         assertThat(retryQueue.retryCount(109L)).isEqualTo(0);
-        verify(frameExtractor, times(2)).extractBoth(captor.capture(), nullable(String.class));
+        verify(frameExtractor, times(2)).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
     }
 
     @Test
@@ -339,9 +348,9 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         InOrder order = inOrder(vlmTimeseriesStep, deidentifyStep, frameExtractor, yoloStep, sam2Step, trackInterpolationStep);
-        order.verify(vlmTimeseriesStep).run(120L);
+        order.verify(vlmTimeseriesStep).runWithMarking(eq(120L), any());
         order.verify(deidentifyStep).run(any(LsDataRaw.class));
-        order.verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
+        order.verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
         order.verify(yoloStep).run(120L);
         order.verify(sam2Step).run(eq(120L), any());
         order.verify(trackInterpolationStep).run(120L);
@@ -404,7 +413,7 @@ class BatchOrchestratorTest {
     }
 
     @Test
-    @DisplayName("Phase4_deidentifyStep_반환_경로가_extractBoth_에_전달")
+    @DisplayName("Phase4_deidentifyStep_반환_경로가_extractByMarks_에_전달")
     void deidVideoPathPassedToExtractor() {
         newRaw(140L, LsDataRaw.PRVC_TYPE_PRVC);
         String deidPath = "/storage/deidentified/videos/140/deidentified.mp4";
@@ -414,7 +423,7 @@ class BatchOrchestratorTest {
 
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
-        verify(frameExtractor).extractBoth(any(LsDataRaw.class), pathCaptor.capture());
+        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), pathCaptor.capture(), any());
         assertThat(pathCaptor.getValue()).isEqualTo(deidPath);
     }
 }

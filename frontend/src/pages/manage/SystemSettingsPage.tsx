@@ -5,7 +5,6 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Spinner } from '@/components/common/Spinner';
 import { BatchConfigCard } from '@/features/sysconfig/components/BatchConfigCard';
 import { DangerActions } from '@/features/sysconfig/components/DangerActions';
-import { FFmpegConfigCard } from '@/features/sysconfig/components/FFmpegConfigCard';
 import { HealthStatusList } from '@/features/sysconfig/components/HealthStatusList';
 import { YoloConfigCard } from '@/features/sysconfig/components/YoloConfigCard';
 import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
@@ -14,7 +13,7 @@ import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
  * SCR-MANAGE-SETTINGS 시스템 설정 (V1.x mock 시각 정합).
  *
  * UI/UX §4-16 — 3섹션 명확 분리:
- *   ① 편집 가능 — DB 영속화 (FFmpeg + Batch — 독립 저장 카드)
+ *   ① 편집 가능 — DB 영속화 (Batch + YOLO — 독립 저장 카드)
  *   ② 실시간 모니터링 — Health (read-only, 5초 폴링)
  *   ③ 위험 구역 (placeholder)
  *
@@ -34,7 +33,7 @@ export function SystemSettingsPage() {
             <span>시스템 설정</span>
           </span>
         }
-        description="FFmpeg/배치 파라미터 · 외부 연동 헬스 · 위험 구역"
+        description="배치 파라미터 · 외부 연동 헬스 · 위험 구역"
       />
 
       {error && <ErrorState title="시스템 설정을 불러올 수 없습니다" />}
@@ -51,7 +50,6 @@ export function SystemSettingsPage() {
             </div>
           ) : (
             <>
-              <FFmpegConfigCard configs={configs} />
               <BatchConfigCard configs={configs} />
               <YoloConfigCard configs={configs} />
             </>

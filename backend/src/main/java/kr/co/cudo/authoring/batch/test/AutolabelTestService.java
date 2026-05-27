@@ -1,13 +1,11 @@
 package kr.co.cudo.authoring.batch.test;
 
-import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.step.BbHint;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
-import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.batch.test.dto.AutolabelRunResponse;
@@ -58,7 +56,6 @@ public class AutolabelTestService {
     private final Sam2SegmentStep sam2Step;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
-    private final FfmpegFrameExtractor frameExtractor;
     private final DeidentifyStep deidentifyStep;
     private final VideoRepository videoRepository;
     private final BatchStatusService statusService;
@@ -133,15 +130,10 @@ public class AutolabelTestService {
 
         if (runFrameExtract) {
             if (framesFound == 0L) {
-                statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
-                List<LsDataSrc> extracted = frameExtractor.extract(raw);
-                framesFound = extracted.size();
-                frameExtracted = true;
-                if (framesFound == 0L) {
-                    statusService.markFailed(rawSn, new IllegalStateException("프레임 추출 결과 0건"));
-                    throw new CustomException(ErrorCode.INVALID_INPUT,
-                            "rawSn=" + rawSn + " 프레임 추출 결과가 0건입니다.");
-                }
+                // V2.0: 마킹 기반 프레임 추출은 BatchOrchestrator 에서만 수행.
+                // 테스트 서비스에서는 이미 추출된 프레임이 있어야 한다.
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "rawSn=" + rawSn + " 추출된 프레임이 없습니다. 배치 파이프라인을 먼저 실행하세요.");
             }
             // 프레임이 이미 존재하면 추출 스킵 (idempotent).
         } else {

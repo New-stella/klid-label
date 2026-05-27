@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 /**
  * Phase 3: BatchOrchestrator MARKING 단계 삽입 테스트.
  *
- * <p>마킹 데이터가 있으면 runWithMarking(), 없으면 기존 run() 호출을 검증한다.
+ * <p>V2.0: 마킹 필수 — 마킹이 없으면 INVALID_INPUT 으로 FAILED 처리.
  */
 class BatchOrchestratorMarkingTest {
 
@@ -73,8 +73,6 @@ class BatchOrchestratorMarkingTest {
                 markingRepository, new ObjectMapper());
 
         // given: 기본 mock 설정
-        when(frameExtractor.extractBoth(any(LsDataRaw.class), nullable(String.class)))
-                .thenReturn(List.of(mock(LsDataSrc.class)));
         when(frameExtractor.extractByMarks(any(LsDataRaw.class), nullable(String.class), any()))
                 .thenReturn(List.of(mock(LsDataSrc.class)));
         when(deidentifyStep.run(any(LsDataRaw.class))).thenReturn(null);
@@ -127,8 +125,8 @@ class BatchOrchestratorMarkingTest {
     }
 
     @Test
-    @DisplayName("마킹_없는_영상_MARKING_단계_후_기존_VLM_호출")
-    void noMarking_fallbackToExistingRun() {
+    @DisplayName("V2_마킹_없는_영상_FAILED_INVALID_INPUT")
+    void noMarking_failsWithInvalidInput() {
         // given
         newRaw(502L);
         when(markingRepository.findByRawSnOrderByCreatedAtDesc(502L))
@@ -138,9 +136,10 @@ class BatchOrchestratorMarkingTest {
         BatchStage result = orchestrator.process(502L);
 
         // then
-        assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        verify(vlmTimeseriesStep).run(502L);
-        verify(vlmTimeseriesStep, never()).runWithMarking(any(), any());
+        assertThat(result).isEqualTo(BatchStage.FAILED);
+        verify(frameExtractor, never()).extractByMarks(any(), any(), any());
+        verify(yoloStep, never()).run(any());
+        verify(statusService).markFailed(eq(502L), any(RuntimeException.class));
     }
 
     @Test
@@ -164,10 +163,10 @@ class BatchOrchestratorMarkingTest {
         verify(vlmTimeseriesStep, never()).run(503L);
     }
 
-    // ─── Phase 4 V2.0: 마킹 기반 프레임 추출 ───
+    // --- Phase 4 V2.0: 마킹 기반 프레임 추출 ---
 
     @Test
-    @DisplayName("V2_마킹_있을때_extractByMarks_호출_extractBoth_미호출")
+    @DisplayName("V2_마킹_있을때_extractByMarks_호출")
     void markingExists_extractByMarksInvoked() {
         // given
         newRaw(504L);
@@ -181,24 +180,6 @@ class BatchOrchestratorMarkingTest {
         // then
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
-        verify(frameExtractor, never()).extractBoth(any(LsDataRaw.class), nullable(String.class));
-    }
-
-    @Test
-    @DisplayName("V2_마킹_없을때_기존_extractBoth_폴백_extractByMarks_미호출")
-    void noMarking_extractBothFallback() {
-        // given
-        newRaw(505L);
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(505L))
-                .thenReturn(Collections.emptyList());
-
-        // when
-        BatchStage result = orchestrator.process(505L);
-
-        // then
-        assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        verify(frameExtractor).extractBoth(any(LsDataRaw.class), nullable(String.class));
-        verify(frameExtractor, never()).extractByMarks(any(), any(), any());
     }
 
     @Test

@@ -34,7 +34,7 @@ import java.util.List;
  * 단계 순서:
  *   1. VLM_TIMESERIES (VlmTimeseriesStep.run — 외부 VLM 서비스 비동기 위탁. enabled=false 면 NO-OP.)
  *   2. DEIDENTIFY     (DeidentifyStep.run — 무조건 호출 — PRVC/PSDO/ANONY 모두 호출)
- *   3. FRAME_EXTRACT  (FfmpegFrameExtractor.extractBoth — 원본/비식별 영상 2벌 추출)
+ *   3. FRAME_EXTRACT  (FfmpegFrameExtractor.extractByMarks — 마킹 위치 기반 원본/비식별 2벌 추출)
  *   4. YOLO           (YoloAutolabelStep.run)
  *   5. SAM2           (Sam2SegmentStep.run)
  *   6. INTERPOLATE    (TrackInterpolationStep.run)
@@ -109,15 +109,14 @@ public class BatchOrchestrator {
             statusService.markStage(rawSn, BatchStage.DEIDENTIFY);
             String deidVideoPath = deidentifyStep.run(raw);
 
-            // 3. 프레임 추출 — V2.0: 마킹 있으면 마킹 위치 기반, 없으면 기존 균등 간격 추출.
+            // 3. 프레임 추출 — V2.0: 마킹 필수 (자동/수동). 마킹 없으면 파이프라인 중단.
             statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
-            List<LsDataSrc> frames;
-            if (!markings.isEmpty()) {
-                List<MarkItem> marks = parseMarks(markings.get(0).getMarks());
-                frames = frameExtractor.extractByMarks(raw, deidVideoPath, marks);
-            } else {
-                frames = frameExtractor.extractBoth(raw, deidVideoPath);
+            if (markings.isEmpty()) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "마킹 데이터가 없습니다. rawSn=" + rawSn);
             }
+            List<MarkItem> marks = parseMarks(markings.get(0).getMarks());
+            List<LsDataSrc> frames = frameExtractor.extractByMarks(raw, deidVideoPath, marks);
             if (frames.isEmpty()) {
                 throw new CustomException(ErrorCode.INTERNAL_ERROR,
                         "프레임 추출 결과가 0건입니다 rawSn=" + rawSn);

@@ -16,11 +16,6 @@ import { useToast } from '../../components/common/Toast';
 
 // ── 도메인 타입 ─────────────────────────────────────────────────────────────
 
-interface FfmpegConfig {
-  threads: number;
-  outputFps: number;
-}
-
 interface BatchConfig {
   interval: number;
   concurrency: number;
@@ -34,7 +29,6 @@ interface ExternalSystemStatus {
 }
 
 interface ManageSettings {
-  ffmpegConfig: FfmpegConfig;
   batchConfig: BatchConfig;
   /** @deprecated 하위호환용 */
   batchInterval: number;
@@ -48,19 +42,10 @@ export function SystemSettings() {
 
   const { data: settings, isLoading } = useFetch<ManageSettings>('/manage/settings');
 
-  // FFmpeg 폼 상태
-  const [threads, setThreads] = useState(4);
-  const [outputFps, setOutputFps] = useState(1);
-  const [ffmpegDirty, setFfmpegDirty] = useState(false);
-
   // 배치 폼 상태
   const [batchInterval, setBatchInterval] = useState(60);
   const [concurrency, setConcurrency] = useState(2);
   const [batchDirty, setBatchDirty] = useState(false);
-
-  const { mutate: saveFfmpeg, isLoading: savingFfmpeg } = useMutation<FfmpegConfig, FfmpegConfig>(
-    (body) => api.put<FfmpegConfig>('/manage/settings/ffmpeg', body),
-  );
 
   const { mutate: saveBatch, isLoading: savingBatch } = useMutation<BatchConfig, BatchConfig>(
     (body) => api.put<BatchConfig>('/manage/settings/batch', body),
@@ -69,22 +54,13 @@ export function SystemSettings() {
   // 서버 데이터 → 폼 초기화
   useEffect(() => {
     if (!settings) return;
-    setThreads(settings.ffmpegConfig.threads);
-    setOutputFps(settings.ffmpegConfig.outputFps);
     setBatchInterval(settings.batchConfig?.interval ?? settings.batchInterval ?? 60);
     setConcurrency(settings.batchConfig?.concurrency ?? 2);
     // 초기화 후 dirty 초기화
-    setFfmpegDirty(false);
     setBatchDirty(false);
   }, [settings]);
 
   // ── 저장 핸들러 ────────────────────────────────────────────────────────────
-
-  const handleSaveFfmpeg = async () => {
-    await saveFfmpeg({ threads, outputFps });
-    showToast('FFmpeg 설정이 저장되었습니다.', 'success');
-    setFfmpegDirty(false);
-  };
 
   const handleSaveBatch = async () => {
     await saveBatch({ interval: batchInterval, concurrency });
@@ -148,64 +124,6 @@ export function SystemSettings() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-          {/* FFmpeg 설정 카드 */}
-          <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-sm font-semibold text-gray-700">FFmpeg 설정</h3>
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={Save}
-                loading={savingFfmpeg}
-                disabled={!ffmpegDirty}
-                onClick={() => { void handleSaveFfmpeg(); }}
-              >
-                저장
-              </Button>
-            </div>
-
-            {/* FFmpeg 스레드 수 */}
-            <div className="space-y-2">
-              <label className="flex items-center justify-between text-sm" htmlFor="ffmpeg-threads">
-                <span className="font-medium text-gray-700">스레드 수</span>
-                <span className="text-primary-600 font-semibold tabular-nums">{threads}</span>
-              </label>
-              <input
-                id="ffmpeg-threads"
-                type="range"
-                min={1}
-                max={16}
-                step={1}
-                value={threads}
-                onChange={(e) => { setThreads(Number(e.target.value)); setFfmpegDirty(true); }}
-                className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
-              />
-              <div className="flex justify-between text-xs text-gray-400">
-                <span>1</span>
-                <span>16</span>
-              </div>
-            </div>
-
-            {/* 프레임 추출 간격 */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700" htmlFor="output-fps">
-                프레임 추출 간격 (fps)
-              </label>
-              <select
-                id="output-fps"
-                value={outputFps}
-                onChange={(e) => { setOutputFps(Number(e.target.value)); setFfmpegDirty(true); }}
-                className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value={1}>1 fps (1초당 1프레임)</option>
-                <option value={2}>2 fps</option>
-                <option value={5}>5 fps</option>
-                <option value={10}>10 fps</option>
-              </select>
-            </div>
-
-          </div>
-
           {/* 배치 처리 카드 */}
           <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-5">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">

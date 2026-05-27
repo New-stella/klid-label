@@ -55,7 +55,7 @@ class SystemConfigControllerTest {
     @DisplayName("SystemConfig_WORKER가_configs_PUT_호출시_403")
     void workerCannotUpdateConfig() throws Exception {
         ConfigUpdateRequest req = new ConfigUpdateRequest("3");
-        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.FFMPEG_THREADS)
+        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.BATCH_CONCURRENCY)
                         .header("Authorization", "Bearer " + workerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -92,7 +92,7 @@ class SystemConfigControllerTest {
     @DisplayName("SystemConfig_NUMBER에_문자열_입력시_INVALID_INPUT_400")
     void numberTypeRejectsString() throws Exception {
         ConfigUpdateRequest req = new ConfigUpdateRequest("not-a-number");
-        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.FFMPEG_THREADS)
+        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.BATCH_CONCURRENCY)
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -101,10 +101,10 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @DisplayName("SystemConfig_FFMPEG_THREADS_범위_초과시_INVALID_INPUT_400")
-    void ffmpegThreadsRangeRejected() throws Exception {
-        ConfigUpdateRequest req = new ConfigUpdateRequest("17");
-        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.FFMPEG_THREADS)
+    @DisplayName("SystemConfig_BATCH_CONCURRENCY_범위_초과시_INVALID_INPUT_400")
+    void batchConcurrencyRangeRejected() throws Exception {
+        ConfigUpdateRequest req = new ConfigUpdateRequest("11");
+        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.BATCH_CONCURRENCY)
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -127,7 +127,7 @@ class SystemConfigControllerTest {
     @Test
     @DisplayName("SystemConfig_REVIEWER_GET_목록_조회시_화이트리스트_키_전체_반환")
     void reviewerGetsAllConfigs() throws Exception {
-        // Phase 1: FFmpeg 2 + Batch 2 + YOLO 3 = 7 키
+        // Batch 2 + YOLO 3 = 5 키
         mockMvc.perform(get("/v1/manage/configs")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())

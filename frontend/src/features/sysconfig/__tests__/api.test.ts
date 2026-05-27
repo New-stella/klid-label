@@ -20,8 +20,6 @@ describe('sysconfig api', () => {
     mock.onGet('/manage/configs').reply(200, {
       success: true,
       data: [
-        { key: 'FFMPEG_THREADS', value: 4, updatedAt: '2026-05-01T00:00:00Z' },
-        { key: 'FFMPEG_OUTPUT_FPS', value: 5, updatedAt: '2026-05-01T00:00:00Z' },
         { key: 'BATCH_INTERVAL_SEC', value: 60, updatedAt: '2026-05-01T00:00:00Z' },
         { key: 'BATCH_CONCURRENCY', value: 1, updatedAt: '2026-05-01T00:00:00Z' },
       ],
@@ -30,8 +28,8 @@ describe('sysconfig api', () => {
     });
 
     const configs = await getConfigs();
-    expect(configs).toHaveLength(4);
-    expect(configs.find((c) => c.key === 'FFMPEG_THREADS')?.value).toBe(4);
+    expect(configs).toHaveLength(2);
+    expect(configs.find((c) => c.key === 'BATCH_INTERVAL_SEC')?.value).toBe(60);
   });
 
   it('updateConfig_PUT_manage_configs_key_path_body_value', async () => {
@@ -40,20 +38,20 @@ describe('sysconfig api', () => {
     mock.onPut(/\/manage\/configs\/.+/).reply((config) => {
       capturedUrl = config.url ?? '';
       const body = JSON.parse(config.data ?? '{}');
-      expect(body).toEqual({ value: '8' });
+      expect(body).toEqual({ value: '120' });
       return [
         200,
         {
           success: true,
-          data: { key: 'FFMPEG_THREADS', value: 8, updatedAt: '2026-05-07T10:00:00Z' },
+          data: { key: 'BATCH_INTERVAL_SEC', value: 120, updatedAt: '2026-05-07T10:00:00Z' },
           message: null,
           errorCode: null,
         },
       ];
     });
 
-    const c = await updateConfig({ key: 'FFMPEG_THREADS', value: 8 });
-    expect(capturedUrl).toBe('/manage/configs/FFMPEG_THREADS');
-    expect(c.value).toBe(8);
+    const c = await updateConfig({ key: 'BATCH_INTERVAL_SEC', value: 120 });
+    expect(capturedUrl).toBe('/manage/configs/BATCH_INTERVAL_SEC');
+    expect(c.value).toBe(120);
   });
 });

@@ -1,8 +1,6 @@
 // 시스템 설정 도메인 타입
 
 export const ConfigKey = {
-  FFMPEG_THREADS: 'FFMPEG_THREADS',
-  FFMPEG_OUTPUT_FPS: 'FFMPEG_OUTPUT_FPS',
   BATCH_INTERVAL_SEC: 'BATCH_INTERVAL_SEC',
   BATCH_CONCURRENCY: 'BATCH_CONCURRENCY',
   // Phase 1: YOLO 추론 파라미터 (BE ConfigKeys 와 1:1 매핑)

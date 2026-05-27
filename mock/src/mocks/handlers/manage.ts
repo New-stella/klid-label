@@ -6,11 +6,6 @@ import type { UserDto } from '../../api/types';
 let mutableUsers = [...users];
 
 // ── DB 영속화 대상 (LS_SYSTEM_CONFIG 예정) ─────────────────────────────────
-interface FfmpegConfig {
-  threads: number;
-  outputFps: number;
-}
-
 interface BatchConfig {
   interval: number;
   concurrency: number;
@@ -25,7 +20,6 @@ interface ExternalSystemStatus {
 }
 
 interface ManageSettings {
-  ffmpegConfig: FfmpegConfig;
   batchConfig: BatchConfig;
   /** @deprecated batchInterval — 하위호환용. batchConfig.interval 사용 권장 */
   batchInterval: number;
@@ -33,10 +27,6 @@ interface ManageSettings {
 }
 
 const defaultSettings: ManageSettings = {
-  ffmpegConfig: {
-    threads: 4,
-    outputFps: 1,
-  },
   batchConfig: {
     interval: 60,
     concurrency: 2,
@@ -50,7 +40,7 @@ const defaultSettings: ManageSettings = {
   ],
 };
 
-let currentSettings: ManageSettings = { ...defaultSettings, ffmpegConfig: { ...defaultSettings.ffmpegConfig }, batchConfig: { ...defaultSettings.batchConfig } };
+let currentSettings: ManageSettings = { ...defaultSettings, batchConfig: { ...defaultSettings.batchConfig } };
 
 export const manageHandlers = [
   http.get('/api/v1/manage/users', ({ request }) => {
@@ -73,16 +63,6 @@ export const manageHandlers = [
   // ── 전체 설정 조회 (GET) ────────────────────────────────────────────────
   http.get('/api/v1/manage/settings', () => {
     return ok(currentSettings);
-  }),
-
-  // ── FFmpeg 설정 저장 (PUT /settings/ffmpeg) — DB 영속화 대상 ────────────
-  http.put('/api/v1/manage/settings/ffmpeg', async ({ request }) => {
-    const body = (await request.json()) as Partial<FfmpegConfig>;
-    currentSettings = {
-      ...currentSettings,
-      ffmpegConfig: { ...currentSettings.ffmpegConfig, ...body },
-    };
-    return ok(currentSettings.ffmpegConfig);
   }),
 
   // ── 배치 처리 설정 저장 (PUT /settings/batch) — DB 영속화 대상 ──────────

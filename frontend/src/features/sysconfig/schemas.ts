@@ -7,21 +7,6 @@ import { z } from 'zod';
  * BE는 서버 측 재검증 (이중 방어).
  */
 
-export const ffmpegConfigSchema = z.object({
-  FFMPEG_THREADS: z
-    .number({ invalid_type_error: '숫자를 입력해주세요' })
-    .int('정수만 허용')
-    .min(1, '1 ~ 16 범위 내에서 입력해주세요')
-    .max(16, '1 ~ 16 범위 내에서 입력해주세요'),
-  FFMPEG_OUTPUT_FPS: z
-    .number({ invalid_type_error: '숫자를 입력해주세요' })
-    .int('정수만 허용')
-    .min(1, '1 ~ 30 범위 내에서 입력해주세요')
-    .max(30, '1 ~ 30 범위 내에서 입력해주세요'),
-});
-
-export type FFmpegConfigForm = z.infer<typeof ffmpegConfigSchema>;
-
 export const batchConfigSchema = z.object({
   BATCH_INTERVAL_SEC: z
     .number({ invalid_type_error: '숫자를 입력해주세요' })

@@ -1,11 +1,9 @@
 package kr.co.cudo.authoring.batch.test;
 
-import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.step.BbHint;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
-import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
 import kr.co.cudo.authoring.batch.test.dto.AutolabelRunResponse;
@@ -48,8 +46,6 @@ class AutolabelTestServiceTest {
     private LsDataSrcRepository srcRepository;
     @Mock
     private LsDataLblRepository lblRepository;
-    @Mock
-    private FfmpegFrameExtractor frameExtractor;
     @Mock
     private DeidentifyStep deidentifyStep;
     @Mock
@@ -140,34 +136,29 @@ class AutolabelTestServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        verify(frameExtractor, never()).extract(any());
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
     }
 
     @Test
-    @DisplayName("runFull_프레임없으면_추출후_YOLO_SAM2_실행")
-    void runFull_프레임없으면_추출후_YOLO_SAM2_실행() {
+    @DisplayName("V2_runFull_프레임없으면_배치_선행_필요_INVALID_INPUT_예외")
+    void runFull_프레임없으면_배치_선행_필요_INVALID_INPUT_예외() {
         LsDataRaw raw = mock(LsDataRaw.class);
         given(videoRepository.findById(RAW_SN)).willReturn(Optional.of(raw));
         given(srcRepository.countByRawSn(RAW_SN)).willReturn(0L);
-        given(frameExtractor.extract(raw)).willReturn(List.of(mock(LsDataSrc.class), mock(LsDataSrc.class), mock(LsDataSrc.class)));
-        given(yoloStep.run(RAW_SN)).willReturn(twoHints());
-        given(sam2Step.run(eq(RAW_SN), any())).willReturn(2);
 
-        AutolabelRunResponse response = service.runFull(RAW_SN);
+        assertThatThrownBy(() -> service.runFull(RAW_SN))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        assertThat(response.rawSn()).isEqualTo(RAW_SN);
-        assertThat(response.framesFound()).isEqualTo(3L);
-        assertThat(response.frameExtracted()).isTrue();
-        assertThat(response.yoloLabels()).isEqualTo(2);
-        assertThat(response.sam2Labels()).isEqualTo(2);
-        verify(frameExtractor, times(1)).extract(raw);
+        verify(yoloStep, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
     }
 
     @Test
-    @DisplayName("runFull_프레임있으면_추출_스킵")
-    void runFull_프레임있으면_추출_스킵() {
+    @DisplayName("runFull_프레임있으면_YOLO_SAM2_실행")
+    void runFull_프레임있으면_YOLO_SAM2_실행() {
         LsDataRaw raw = mock(LsDataRaw.class);
         given(videoRepository.findById(RAW_SN)).willReturn(Optional.of(raw));
         given(srcRepository.countByRawSn(RAW_SN)).willReturn(7L);
@@ -178,25 +169,6 @@ class AutolabelTestServiceTest {
 
         assertThat(response.framesFound()).isEqualTo(7L);
         assertThat(response.frameExtracted()).isFalse();
-        verify(frameExtractor, never()).extract(any());
-    }
-
-    @Test
-    @DisplayName("runFull_추출후_0건이면_INVALID_INPUT_예외")
-    void runFull_추출후_0건이면_INVALID_INPUT_예외() {
-        LsDataRaw raw = mock(LsDataRaw.class);
-        given(videoRepository.findById(RAW_SN)).willReturn(Optional.of(raw));
-        given(srcRepository.countByRawSn(RAW_SN)).willReturn(0L);
-        given(frameExtractor.extract(raw)).willReturn(List.of());
-
-        assertThatThrownBy(() -> service.runFull(RAW_SN))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.INVALID_INPUT);
-
-        verify(lblRepository, never()).deleteByRawSnAutoLbl(any());
-        verify(yoloStep, never()).run(any());
-        verify(sam2Step, never()).run(any(), any());
     }
 
     @Test
@@ -220,7 +192,6 @@ class AutolabelTestServiceTest {
         verify(yoloStep, never()).run(any());
         verify(sam2Step, never()).run(any(), any());
         verify(deidentifyStep, never()).run(any());
-        verify(frameExtractor, never()).extract(any()); // 이미 프레임 존재 → 추출 스킵
     }
 
     @Test
@@ -261,7 +232,6 @@ class AutolabelTestServiceTest {
 
         AutolabelRunResponse response = service.runFull(RAW_SN, toggles);
 
-        verify(frameExtractor, never()).extract(any());
         assertThat(response.skipped()).contains("FRAME_EXTRACT");
     }
 

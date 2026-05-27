@@ -40,16 +40,12 @@ class ConfigKeysTest {
     }
 
     @Test
-    @DisplayName("기존_4개_FFmpeg_Batch_키는_그대로_유지")
+    @DisplayName("기존_Batch_키는_그대로_유지")
     void legacyKeysPreserved() {
         assertThat(ConfigKeys.ALLOWED).contains(
-                ConfigKeys.FFMPEG_THREADS,
-                ConfigKeys.FFMPEG_OUTPUT_FPS,
                 ConfigKeys.BATCH_INTERVAL_SEC,
                 ConfigKeys.BATCH_CONCURRENCY);
         assertThat(ConfigKeys.NUMBER_RANGE).containsKeys(
-                ConfigKeys.FFMPEG_THREADS,
-                ConfigKeys.FFMPEG_OUTPUT_FPS,
                 ConfigKeys.BATCH_INTERVAL_SEC,
                 ConfigKeys.BATCH_CONCURRENCY);
     }
