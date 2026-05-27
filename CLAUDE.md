@@ -10,7 +10,7 @@
 - **범위 외 (V1.5)**: SFR-06 본체(생성형 AI 모델 학습·파인튜닝·UI/UX 편의성·프롬프트 가이드 등) — 외부 생성 시스템 책임. 저작도구는 SFR-07 증강 결과 검수(SCR-AUG-002)만 보유. SFR-15 다운로드 기능은 포털 자체 책임으로 이관 — 저작도구 mock에 다운로드 카드·D-day 배지·다운로드 버튼·만료 처리 UI 미제공. (2026-05-15 정리: 배경영상 요청 API `/v1/generate/background/*` 는 외부 미연동 상태로 제거. 추후 외부 연동 결정 시 재도입)
 - **범위 외 (V1.7)**: VLM 모델 본체(학습·파인튜닝·프롬프트 관리) — 외부 시스템 책임. 저작도구의 VLM 연동은 **외부 VLM 서비스를 호출해 시계열 정보를 획득하는 연동**만 보유 (`ai-server/app/routers/vlm.py`는 외부 VLM 호출 어댑터). 응답을 LS_DATA_META(VLM)에 적재하고 SCR-AUTO-002 화면에서 REVIEWER 가 검토·수정
 - **요구사항 정리 (V1.8)**: 본체가 외부 시스템인 **SFR-03(시계열 메타 모델)·SFR-06(생성형 AI)·SFR-11(영상 합성 모델)은 요구사항정의서에서 제거**. 저작도구 잔존 책임(외부 VLM 시계열 호출 연동·외부 메타 검토 UI·증강 연동·생성된 영상 라벨링)은 모두 **SFR-08(저작도구 핵심 기능)에 흡수**됨. 화면 인덱스의 SFR 매핑도 SFR-08로 단일화. (2026-05-15 정리: 외부 미연동 상태인 배경영상 요청 인터페이스 BE 코드는 제거됨)
-- **범위 외 (V1.9)**: 학습데이터셋 내보내기(Export) — 범위 외로 변경. 저작도구는 라벨링·검수·버전관리까지만 담당
+- **범위 외 (V1.9)**: 학습데이터셋 내보내기(Export) — 범위 외로 변경. 저작도구는 라벨링·검수·버전관리까지만 담당. (참고: VideoSummaryResponse에 exportStatus/exportedAt 필드가 잔존하나 LS_DATA_SET 매핑 미완성으로 항상 null 반환)
 
 ## 워크스페이스 구조
 
@@ -78,7 +78,7 @@ klid-la-test-v0/
 - **MariaDB 10.11.13 (LTS)** — `klid_system` @ 192.168.102.101:13307
 - utf8mb4 / utf8mb4_unicode_ci / InnoDB
 - MaxScale 24.02.5 (Master-Slave Read/Write Splitting)
-- `klid_system` DB 내 `klid_at` 스키마 운영 — **저작도구 전용 신규 34개(LS_*) + 관제서버 재사용 9개(MNG_*) = 총 43개 테이블**
+- `klid_system` DB 내 `klid_at` 스키마 운영 — **저작도구 전용 38개(LS_*) + 관제서버 재사용 9개(MNG_*) = JPA 엔티티 47개 테이블**
 - Quartz 스케줄러 `QRTZ_*` 11개 테이블은 기존 `klid_system` 공유
 - 외부 채널은 포털 DB 공유
 
@@ -98,7 +98,7 @@ klid-la-test-v0/
 - `common.security.SecurityConfig` — 역할 기반 접근 제어
 - `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` — 듀얼 EntityManager/TransactionManager (`@ControlRepo`, `@PortalRepo`로 분리)
 - `common.logging.RequestIdFilter` + Logback JSON 인코더 (민감 필드 마스킹)
-- `common.client.*` — DeidentifyClient / AiServerClient / GiteaClient / ControlNotifyClient (Resilience4j 적용) — 관제/포털 양방향 M2M 통합은 deprecated이나 **저작도구 → 관제서버 단방향 outbound 완료/수정 통지(ControlNotifyClient)는 예외로 보유**
+- `common.client.*` — DeidentifyClient / AiServerClient / VlmClient / GiteaClient / ControlNotifyClient / ExternalAugmentClient (Resilience4j 적용) — 관제/포털 양방향 M2M 통합은 deprecated이나 **저작도구 → 관제서버 단방향 outbound 완료/수정 통지(ControlNotifyClient)는 예외로 보유**
 
 ### 코드 컨벤션
 - 패키지: 소문자 케밥 금지, 영문 소문자만 (`kr.co.cudo.authoring.label`)
