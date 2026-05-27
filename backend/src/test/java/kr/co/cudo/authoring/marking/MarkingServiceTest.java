@@ -72,7 +72,7 @@ class MarkingServiceTest {
     }
 
     @Test
-    @DisplayName("자동모드_마킹_생성_intervalSec_기반_marks_자동생성")
+    @DisplayName("자동모드_마킹_생성_intervalFrames_기반_marks_자동생성")
     void createAutoMode() {
         // given
         Long rawSn = 1L;
@@ -80,7 +80,8 @@ class MarkingServiceTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 10, null);
+        // intervalFrames=300 (30fps * 10sec)
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
 
         // when
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
@@ -88,8 +89,8 @@ class MarkingServiceTest {
         // then
         assertThat(result.markingMode()).isEqualTo("AUTO");
         assertThat(result.eventName()).isEqualTo("화재");
-        assertThat(result.intervalSec()).isEqualTo(10);
-        // 30초 / 10초 간격 = 0, 10, 20, 30 → 4개 마크
+        assertThat(result.intervalFrames()).isEqualTo(300);
+        // 30초 * 30fps = 900 totalFrames / 300 intervalFrames = 3 + 1(start) = 4개 마크
         assertThat(result.marks()).hasSize(4);
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
         assertThat(result.status()).isEqualTo(LsMarking.STATUS_PENDING);
@@ -117,7 +118,7 @@ class MarkingServiceTest {
         // then
         assertThat(result.markingMode()).isEqualTo("MANUAL");
         assertThat(result.eventName()).isEqualTo("침입");
-        assertThat(result.intervalSec()).isNull();
+        assertThat(result.intervalFrames()).isNull();
         assertThat(result.marks()).hasSize(2);
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(10);
         assertThat(result.marks().get(1).frameIndex()).isEqualTo(50);
@@ -183,7 +184,7 @@ class MarkingServiceTest {
         // given
         Long rawSn = 999L;
         when(videoRepository.findById(rawSn)).thenReturn(Optional.empty());
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 5, null);
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 30, null);
 
         // when / then
         assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
@@ -249,12 +250,75 @@ class MarkingServiceTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 10, null);
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
 
         // when
         markingService.create(rawSn, req, reviewer());
 
         // then
         verify(eventPublisher).publishEvent(any(MarkingCompletedEvent.class));
+    }
+
+    // ── intervalFrames 변경 테스트 ──
+
+    @Test
+    @DisplayName("자동마킹_프레임간격_30프레임_120초영상_marks_생성")
+    void autoMarking_intervalFrames30_120sec() {
+        // given
+        Long rawSn = 20L;
+        LsDataRaw raw = stubRaw(rawSn, 120);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // intervalFrames=30 (1초 단위)
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 30, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then — 120초 * 30fps = 3600 totalFrames, 3600/30 + 1 = 121개 마크
+        assertThat(result.marks()).hasSize(121);
+        assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
+        assertThat(result.marks().get(1).frameIndex()).isEqualTo(30);
+        assertThat(result.marks().get(120).frameIndex()).isEqualTo(3600);
+    }
+
+    @Test
+    @DisplayName("자동마킹_프레임간격_60프레임_120초영상_marks_생성")
+    void autoMarking_intervalFrames60_120sec() {
+        // given
+        Long rawSn = 21L;
+        LsDataRaw raw = stubRaw(rawSn, 120);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // intervalFrames=60 (2초 단위)
+        MarkingRequest req = new MarkingRequest("침입", "AUTO", 60, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then — 120초 * 30fps = 3600 totalFrames, 3600/60 + 1 = 61개 마크
+        assertThat(result.marks()).hasSize(61);
+        assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
+        assertThat(result.marks().get(1).frameIndex()).isEqualTo(60);
+        assertThat(result.marks().get(60).frameIndex()).isEqualTo(3600);
+    }
+
+    @Test
+    @DisplayName("자동모드_intervalFrames_0이하_INVALID_INPUT")
+    void autoMode_intervalFramesZero_invalidInput() {
+        // given
+        Long rawSn = 22L;
+        LsDataRaw raw = stubRaw(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 0, null);
+
+        // when / then
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 }

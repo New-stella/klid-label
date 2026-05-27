@@ -19,8 +19,8 @@ export function MarkingPage() {
 
   const videoRef = useRef<VideoPlayerHandle>(null);
   const {
-    mode, eventName, intervalSec, localMarks, selectedMarkIndex,
-    setMode, setEventName, setIntervalSec, addMark, selectMark,
+    mode, eventName, intervalFrames, localMarks, selectedMarkIndex,
+    setMode, setEventName, setIntervalFrames, addMark, selectMark,
     removeSelectedMark, clearMarks, reset,
   } = useMarkingStore();
 
@@ -54,7 +54,7 @@ export function MarkingPage() {
       createMutation.mutate({
         eventName: eventName.trim(),
         markingMode: 'AUTO',
-        intervalSec,
+        intervalFrames,
       });
     } else {
       if (localMarks.length === 0) return;
@@ -64,7 +64,7 @@ export function MarkingPage() {
         marks: localMarks,
       });
     }
-  }, [eventName, mode, intervalSec, localMarks, rawSn, createMutation]);
+  }, [eventName, mode, intervalFrames, localMarks, rawSn, createMutation]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -109,10 +109,10 @@ export function MarkingPage() {
       <MarkingToolbar
         mode={mode}
         eventName={eventName}
-        intervalSec={intervalSec}
+        intervalFrames={intervalFrames}
         onModeChange={(m: MarkingMode) => setMode(m)}
         onEventNameChange={setEventName}
-        onIntervalChange={setIntervalSec}
+        onIntervalFramesChange={setIntervalFrames}
         onSubmit={handleSubmit}
         onClear={clearMarks}
         submitting={createMutation.isPending}

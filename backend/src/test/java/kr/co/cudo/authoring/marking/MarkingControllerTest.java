@@ -68,8 +68,8 @@ class MarkingControllerTest {
     @Test
     @DisplayName("POST_마킹_자동모드_생성_201")
     void createAutoMode201() throws Exception {
-        // given
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 10, null);
+        // given — intervalFrames=300 (30fps * 10sec), durationSec=60
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
 
         // when / then
         mockMvc.perform(post("/v1/videos/" + rawSn + "/markings")
@@ -80,10 +80,10 @@ class MarkingControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.markingMode").value("AUTO"))
                 .andExpect(jsonPath("$.data.eventName").value("화재"))
-                .andExpect(jsonPath("$.data.intervalSec").value(10))
+                .andExpect(jsonPath("$.data.intervalFrames").value(300))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.marks").isArray())
-                .andExpect(jsonPath("$.data.marks.length()").value(7)); // 0,10,20,30,40,50,60 = 7개
+                .andExpect(jsonPath("$.data.marks.length()").value(7)); // 60*30=1800 / 300 + 1 = 7개
 
         // DB 검증
         List<LsMarking> saved = markingRepository.findByRawSnOrderByCreatedAtDesc(rawSn);

@@ -13,6 +13,7 @@ interface VideoPlayerProps {
 }
 
 const NATIVE_FPS = 30;
+const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   function VideoPlayer({ src, className }, ref) {
@@ -20,6 +21,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [playbackRate, setPlaybackRate] = useState(1);
+
+    const changeSpeed = useCallback((rate: number) => {
+      if (videoRef.current) videoRef.current.playbackRate = rate;
+      setPlaybackRate(rate);
+    }, []);
 
     useImperativeHandle(ref, () => ({
       getCurrentTime: () => videoRef.current?.currentTime ?? 0,
@@ -67,6 +74,21 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           >
             {playing ? '일시정지' : '재생'}
           </button>
+          <div className="flex items-center gap-1">
+            {SPEED_OPTIONS.map((rate) => (
+              <button
+                key={rate}
+                type="button"
+                onClick={() => changeSpeed(rate)}
+                className={cn(
+                  'px-1.5 py-0.5 rounded text-xs',
+                  playbackRate === rate ? 'bg-blue-600 text-white' : 'bg-gray-100',
+                )}
+              >
+                {rate}x
+              </button>
+            ))}
+          </div>
           <input
             type="range"
             min={0}

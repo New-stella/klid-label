@@ -54,8 +54,8 @@ public class LsMarking {
     @Column(name = "MARKING_MODE", nullable = false, length = 16)
     private String markingMode;
 
-    @Column(name = "INTERVAL_SEC")
-    private Integer intervalSec;
+    @Column(name = "INTERVAL_FRAMES")
+    private Integer intervalFrames;
 
     @Column(name = "VIDEO_PATH", nullable = false, length = 500)
     private String videoPath;
@@ -78,14 +78,14 @@ public class LsMarking {
     /**
      * 자동 모드 마킹 생성.
      *
-     * @param rawSn       영상 PK
-     * @param eventName   이벤트명
-     * @param intervalSec 프레임 간격(초) — 1 이상 필수
-     * @param videoPath   NAS 경로
-     * @param marksJson   JSON 문자열
-     * @param createdBy   생성자 사용자 번호
+     * @param rawSn          영상 PK
+     * @param eventName      이벤트명
+     * @param intervalFrames 프레임 간격(프레임 수) — 1 이상 필수
+     * @param videoPath      NAS 경로
+     * @param marksJson      JSON 문자열
+     * @param createdBy      생성자 사용자 번호
      */
-    public static LsMarking createAuto(Long rawSn, String eventName, int intervalSec,
+    public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
                                         String videoPath, String marksJson, Long createdBy) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
@@ -93,8 +93,8 @@ public class LsMarking {
         if (eventName == null || eventName.isBlank()) {
             throw new IllegalArgumentException("eventName 은 필수입니다.");
         }
-        if (intervalSec <= 0) {
-            throw new IllegalArgumentException("intervalSec 는 1 이상이어야 합니다.");
+        if (intervalFrames <= 0) {
+            throw new IllegalArgumentException("intervalFrames 는 1 이상이어야 합니다.");
         }
         if (videoPath == null || videoPath.isBlank()) {
             throw new IllegalArgumentException("videoPath 는 필수입니다.");
@@ -104,7 +104,7 @@ public class LsMarking {
         m.rawSn = rawSn;
         m.eventName = eventName;
         m.markingMode = MODE_AUTO;
-        m.intervalSec = intervalSec;
+        m.intervalFrames = intervalFrames;
         m.videoPath = videoPath;
         m.marks = marksJson;
         m.status = STATUS_PENDING;
@@ -140,7 +140,7 @@ public class LsMarking {
         m.rawSn = rawSn;
         m.eventName = eventName;
         m.markingMode = MODE_MANUAL;
-        m.intervalSec = null;
+        m.intervalFrames = null;
         m.videoPath = videoPath;
         m.marks = marksJson;
         m.status = STATUS_PENDING;

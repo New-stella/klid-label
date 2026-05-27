@@ -18,19 +18,19 @@ class LsMarkingEntityTest {
         // given
         Long rawSn = 1L;
         String eventName = "화재";
-        int intervalSec = 5;
+        int intervalFrames = 5;
         String videoPath = "/nas/video/001.mp4";
         String marksJson = "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]";
         Long createdBy = 100L;
 
         // when
-        LsMarking marking = LsMarking.createAuto(rawSn, eventName, intervalSec, videoPath, marksJson, createdBy);
+        LsMarking marking = LsMarking.createAuto(rawSn, eventName, intervalFrames, videoPath, marksJson, createdBy);
 
         // then
         assertThat(marking.getRawSn()).isEqualTo(rawSn);
         assertThat(marking.getEventName()).isEqualTo(eventName);
         assertThat(marking.getMarkingMode()).isEqualTo(LsMarking.MODE_AUTO);
-        assertThat(marking.getIntervalSec()).isEqualTo(intervalSec);
+        assertThat(marking.getIntervalFrames()).isEqualTo(intervalFrames);
         assertThat(marking.getVideoPath()).isEqualTo(videoPath);
         assertThat(marking.getMarks()).isEqualTo(marksJson);
         assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_PENDING);
@@ -56,7 +56,7 @@ class LsMarkingEntityTest {
         assertThat(marking.getRawSn()).isEqualTo(rawSn);
         assertThat(marking.getEventName()).isEqualTo(eventName);
         assertThat(marking.getMarkingMode()).isEqualTo(LsMarking.MODE_MANUAL);
-        assertThat(marking.getIntervalSec()).isNull();
+        assertThat(marking.getIntervalFrames()).isNull();
         assertThat(marking.getVideoPath()).isEqualTo(videoPath);
         assertThat(marking.getMarks()).isEqualTo(marksJson);
         assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_PENDING);
@@ -92,18 +92,18 @@ class LsMarkingEntityTest {
     }
 
     @Test
-    @DisplayName("createAuto_intervalSec_0이하_예외")
+    @DisplayName("createAuto_intervalFrames_0이하_예외")
     void createAutoInvalidIntervalSec() {
         // given / when / then
         assertThatThrownBy(() ->
                 LsMarking.createAuto(1L, "화재", 0, "/path", "[]", 1L))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("intervalSec");
+                .hasMessageContaining("intervalFrames");
 
         assertThatThrownBy(() ->
                 LsMarking.createAuto(1L, "화재", -1, "/path", "[]", 1L))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("intervalSec");
+                .hasMessageContaining("intervalFrames");
     }
 
     @Test

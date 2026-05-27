@@ -55,10 +55,10 @@ public class MarkingService {
         // 2. 마킹 모드에 따른 처리
         String marksJson;
         if ("AUTO".equals(req.mode())) {
-            if (req.intervalSec() == null || req.intervalSec() <= 0) {
-                throw new CustomException(ErrorCode.INVALID_INPUT, "자동 모드에서 intervalSec 는 1 이상이어야 합니다.");
+            if (req.intervalFrames() == null || req.intervalFrames() <= 0) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "자동 모드에서 intervalFrames 는 1 이상이어야 합니다.");
             }
-            marksJson = generateAutoMarks(raw.getDurationSec(), req.intervalSec());
+            marksJson = generateAutoMarks(raw.getDurationSec(), req.intervalFrames());
         } else if ("MANUAL".equals(req.mode())) {
             if (req.marks() == null || req.marks().isEmpty()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "수동 모드에서 marks 는 필수입니다.");
@@ -71,7 +71,7 @@ public class MarkingService {
         // 3. Entity 생성 + 저장
         Long actorNo = parseUserNo(actor.sub());
         LsMarking marking = "AUTO".equals(req.mode())
-                ? LsMarking.createAuto(rawSn, req.eventName(), req.intervalSec(), raw.getFilePath(), marksJson, actorNo)
+                ? LsMarking.createAuto(rawSn, req.eventName(), req.intervalFrames(), raw.getFilePath(), marksJson, actorNo)
                 : LsMarking.createManual(rawSn, req.eventName(), raw.getFilePath(), marksJson, actorNo);
         markingRepository.save(marking);
 
@@ -119,16 +119,21 @@ public class MarkingService {
         log.info("[Marking] deleted rawSn={}, markingSn={}", rawSn, markingSn);
     }
 
+    /** 네이티브 FPS 상수 (30fps). */
+    private static final int NATIVE_FPS = 30;
+
     /**
-     * 자동 모드: durationSec 기반 intervalSec 간격으로 marks 자동 생성.
+     * 자동 모드: durationSec 기반 intervalFrames 간격으로 marks 자동 생성 (프레임 단위).
+     *
+     * @param durationSec    영상 길이 (초)
+     * @param intervalFrames 프레임 간격 (1 이상)
      */
-    String generateAutoMarks(Integer durationSec, int intervalSec) {
+    String generateAutoMarks(Integer durationSec, int intervalFrames) {
         List<MarkItem> marks = new ArrayList<>();
-        int duration = (durationSec != null) ? durationSec : 0;
-        // 30fps 기준으로 frameIndex 계산
-        for (int sec = 0; sec <= duration; sec += intervalSec) {
-            int frameIndex = sec * 30; // 30fps 기준
-            String timestamp = formatTimestamp(sec);
+        int totalFrames = (durationSec != null ? durationSec : 0) * NATIVE_FPS;
+        for (int frameIndex = 0; frameIndex <= totalFrames; frameIndex += intervalFrames) {
+            double sec = frameIndex / (double) NATIVE_FPS;
+            String timestamp = formatTimestamp((int) sec);
             marks.add(new MarkItem(frameIndex, timestamp));
         }
         return serializeMarks(marks);

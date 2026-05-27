@@ -15,17 +15,21 @@ import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.service.FrameImageService;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
+import kr.co.cudo.authoring.video.service.VideoStreamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,6 +51,7 @@ public class VideoController {
 
     private final VideoQueryService videoQueryService;
     private final FrameImageService frameImageService;
+    private final VideoStreamService videoStreamService;
 
     @Operation(
             summary = "영상 목록 조회 (페이징)",
@@ -125,6 +130,31 @@ public class VideoController {
         body.put("status", "PENDING");
         body.put("message", "외부 시계열 메타 추출 시스템 연동 전 — placeholder 응답");
         return ApiResponse.ok(body);
+    }
+
+    /**
+     * 영상 파일 스트리밍 — HTTP Range 지원 (영상 시크 가능).
+     * <p>LS_DATA_RAW.FILE_PATH 기반. Path Traversal 방어 (CWE-22).
+     */
+    @Operation(
+            summary = "영상 파일 스트리밍",
+            description = "raw 영상 PK 로 영상 파일을 HTTP Range 지원하여 스트리밍. " +
+                    "Range 헤더 없으면 200 OK + 전체 파일, Range 있으면 206 Partial Content. " +
+                    "Path Traversal 방어 (CWE-22) + Cache-Control: private, max-age=3600."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 — 전체 파일"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "206", description = "성공 — Range 부분 응답"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Path Traversal 의심"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상/파일 없음")
+    })
+    @GetMapping("/{rawSn}/stream")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ResourceRegion> streamVideo(
+            @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
+            @RequestHeader HttpHeaders headers) throws IOException {
+        return videoStreamService.stream(rawSn, headers);
     }
 
     /**

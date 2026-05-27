@@ -19,7 +19,7 @@ export interface MarkItem {
 export interface MarkingRequest {
   eventName: string;
   markingMode: MarkingMode;
-  intervalSec?: number;
+  intervalFrames?: number;
   marks?: MarkItem[];
 }
 
@@ -28,7 +28,7 @@ export interface MarkingResponse {
   rawSn: number;
   eventName: string;
   markingMode: MarkingMode;
-  intervalSec: number | null;
+  intervalFrames: number | null;
   videoPath: string;
   marks: MarkItem[];
   status: MarkingStatus;

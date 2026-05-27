@@ -60,7 +60,7 @@ describe('MarkingPage', () => {
       rawSn: 42,
       eventName: '화재',
       markingMode: 'AUTO',
-      intervalSec: 5,
+      intervalFrames: 5,
       videoPath: '/path/to/video',
       marks: [],
       status: 'PENDING',

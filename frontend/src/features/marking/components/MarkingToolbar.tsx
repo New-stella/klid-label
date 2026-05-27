@@ -4,10 +4,10 @@ import type { MarkingMode } from '../types';
 interface MarkingToolbarProps {
   mode: MarkingMode;
   eventName: string;
-  intervalSec: number;
+  intervalFrames: number;
   onModeChange: (mode: MarkingMode) => void;
   onEventNameChange: (name: string) => void;
-  onIntervalChange: (sec: number) => void;
+  onIntervalFramesChange: (frames: number) => void;
   onSubmit: () => void;
   onClear: () => void;
   submitting?: boolean;
@@ -18,10 +18,10 @@ interface MarkingToolbarProps {
 export function MarkingToolbar({
   mode,
   eventName,
-  intervalSec,
+  intervalFrames,
   onModeChange,
   onEventNameChange,
-  onIntervalChange,
+  onIntervalFramesChange,
   onSubmit,
   onClear,
   submitting,
@@ -63,13 +63,13 @@ export function MarkingToolbar({
 
       {mode === 'AUTO' && (
         <label className="flex items-center gap-1 text-sm text-gray-600">
-          간격(초)
+          간격(프레임)
           <input
             type="number"
             min={1}
-            max={300}
-            value={intervalSec}
-            onChange={(e) => onIntervalChange(parseInt(e.target.value, 10) || 1)}
+            max={3600}
+            value={intervalFrames}
+            onChange={(e) => onIntervalFramesChange(parseInt(e.target.value, 10) || 1)}
             className="w-16 rounded border px-2 py-1.5 text-sm"
           />
         </label>
