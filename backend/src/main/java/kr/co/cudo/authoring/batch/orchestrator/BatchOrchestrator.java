@@ -13,6 +13,8 @@ import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
@@ -75,6 +77,7 @@ public class BatchOrchestrator {
     private final VideoRepository videoRepository;
     private final LsMarkingRepository markingRepository;
     private final ObjectMapper objectMapper;
+    private final LsRawDataStatusRepository rawDataStatusRepository;
 
     /**
      * 단일 영상 1건 처리 (V2 순서).
@@ -87,6 +90,10 @@ public class BatchOrchestrator {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
         LsDataRaw raw = loadRaw(rawSn);
+
+        // 배치 시작: 작업 상태 PROCESSING 전이
+        rawDataStatusRepository.findById(rawSn)
+                .ifPresent(stts -> stts.transitionTo(LsRawDataStatus.STTS_PROCESSING));
 
         try {
             // 0. 마킹 확인 — Phase 3: VLM 호출 전에 마킹 데이터 조회.
@@ -135,12 +142,18 @@ public class BatchOrchestrator {
             trackInterpolationStep.run(rawSn);
 
             markRawCompleted(rawSn);
+            // 작업 상태 COMPLETED 전이
+            rawDataStatusRepository.findById(rawSn)
+                    .ifPresent(stts -> stts.transitionTo(LsRawDataStatus.STTS_COMPLETED));
             statusService.markCompleted(rawSn);
             retryQueue.clear(rawSn);
             log.info("[BatchOrchestrator] completed rawSn={}", rawSn);
             return BatchStage.COMPLETED;
         } catch (RuntimeException e) {
             statusService.markFailed(rawSn, e);
+            // 실패 시 작업 상태 FAILED 전이
+            rawDataStatusRepository.findById(rawSn)
+                    .ifPresent(stts -> stts.transitionTo(LsRawDataStatus.STTS_FAILED));
             boolean willRetry = retryQueue.enqueueIfRetryable(rawSn);
             log.warn("[BatchOrchestrator] failed rawSn={} willRetry={} cause={}",
                     rawSn, willRetry, e.getClass().getSimpleName());

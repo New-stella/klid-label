@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.orchestrator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
@@ -34,6 +35,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +61,7 @@ class BatchOrchestratorTest {
     private BatchRetryQueue retryQueue;
     private VideoRepository videoRepository;
     private LsMarkingRepository markingRepository;
+    private LsRawDataStatusRepository rawDataStatusRepository;
     private BatchOrchestrator orchestrator;
 
     @BeforeEach
@@ -73,11 +76,15 @@ class BatchOrchestratorTest {
         retryQueue = new BatchRetryQueue(3, 60);
         videoRepository = mock(VideoRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
+        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
 
         orchestrator = new BatchOrchestrator(
                 vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
                 trackInterpolationStep, statusService, retryQueue, videoRepository,
-                markingRepository, new ObjectMapper());
+                markingRepository, new ObjectMapper(), rawDataStatusRepository);
+
+        // LsRawDataStatus 조회 기본: 행 없음 (lenient — 기존 테스트에 영향 없음)
+        lenient().when(rawDataStatusRepository.findById(any())).thenReturn(java.util.Optional.empty());
 
         // V2.0: 마킹 필수 — 기본 마킹 데이터 제공 (orchestrator 통과 보장)
         when(markingRepository.findByRawSnOrderByCreatedAtDesc(any()))
