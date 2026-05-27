@@ -9,11 +9,13 @@ import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.dto.MarkingRequest;
 import kr.co.cudo.authoring.marking.dto.MarkingResponse;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
+import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,7 @@ public class MarkingService {
     private final LsMarkingRepository markingRepository;
     private final VideoRepository videoRepository;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 마킹 생성.
@@ -74,7 +77,7 @@ public class MarkingService {
 
         log.info("[Marking] created rawSn={}, mode={}, markingSn={}", rawSn, req.mode(), marking.getMarkingSn());
 
-        // TODO: Phase 3 — VLM 콜백 요청 발송
+        eventPublisher.publishEvent(new MarkingCompletedEvent(rawSn, marking.getMarkingSn()));
 
         // 4. 응답
         return MarkingResponse.from(marking, objectMapper);

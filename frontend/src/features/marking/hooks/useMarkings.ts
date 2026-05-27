@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MARKING_KEYS } from '@/lib/queryKeys';
+import { ASSIGNMENT_KEYS, MARKING_KEYS, TASK_BOARD_KEYS } from '@/lib/queryKeys';
 import { createMarking, deleteMarking, getMarkings } from '../api';
 import type { MarkingRequest, MarkingResponse } from '../types';
 
@@ -17,6 +17,8 @@ export function useCreateMarking(rawSn: number | undefined, options?: { onSucces
     mutationFn: (body: MarkingRequest) => createMarking(rawSn as number, body),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: MARKING_KEYS.all });
+      qc.invalidateQueries({ queryKey: TASK_BOARD_KEYS.all });
+      qc.invalidateQueries({ queryKey: ASSIGNMENT_KEYS.all });
       options?.onSuccess?.(data);
     },
   });

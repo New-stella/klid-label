@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { MarkingList } from '@/features/marking/components/MarkingList';
 import { MarkingTimeline } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
@@ -7,12 +7,15 @@ import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/componen
 import { useCreateMarking, useDeleteMarking, useMarkings } from '@/features/marking/hooks/useMarkings';
 import { useMarkingStore } from '@/features/marking/store';
 import type { MarkItem, MarkingMode } from '@/features/marking/types';
+import { useUiStore } from '@/stores/useUiStore';
 
 const NATIVE_FPS = 30;
 
 export function MarkingPage() {
   const { rawSn: rawSnParam } = useParams<{ rawSn: string }>();
   const rawSn = rawSnParam ? parseInt(rawSnParam, 10) : undefined;
+  const navigate = useNavigate();
+  const pushToast = useUiStore((s) => s.pushToast);
 
   const videoRef = useRef<VideoPlayerHandle>(null);
   const {
@@ -22,7 +25,13 @@ export function MarkingPage() {
   } = useMarkingStore();
 
   const { data: savedMarkings = [] } = useMarkings(rawSn);
-  const createMutation = useCreateMarking(rawSn, { onSuccess: () => clearMarks() });
+  const createMutation = useCreateMarking(rawSn, {
+    onSuccess: () => {
+      clearMarks();
+      pushToast({ variant: 'success', message: '마킹이 제출되었습니다. 배치 처리가 시작됩니다.' });
+      navigate('/task');
+    },
+  });
   const deleteMutation = useDeleteMarking(rawSn);
 
   useEffect(() => {

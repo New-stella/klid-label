@@ -317,7 +317,8 @@ describe('TaskListPage', () => {
     });
   });
 
-  it('WORKER_시점_firstSrcSn_없으면_작업_버튼_disabled', async () => {
+  it('WORKER_시점_firstSrcSn_없으면_마킹_버튼_표시_작업_버튼_없음', async () => {
+    // V2.0 변경: firstSrcSn 미존재 시 disabled 작업 버튼 대신 "마킹" 버튼으로 대체
     setRole('WORKER');
     mock.onGet('/assignments').reply(200, {
       success: true,
@@ -355,8 +356,14 @@ describe('TaskListPage', () => {
       expect(screen.getByText('CCTV-NO-FRAME')).toBeInTheDocument();
     });
 
-    const btn = screen.getByRole('button', { name: /작업 시작 CCTV-NO-FRAME/ });
-    expect(btn).toBeDisabled();
+    // "마킹" 버튼이 표시되어야 한다 (disabled "작업" 대신)
+    expect(
+      screen.getByRole('button', { name: /마킹 시작 CCTV-NO-FRAME/ }),
+    ).toBeInTheDocument();
+    // "작업" 버튼은 존재하지 않아야 한다
+    expect(
+      screen.queryByRole('button', { name: /작업 시작 CCTV-NO-FRAME/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('WORKER가_이력_버튼_클릭_시_HistoryDrawer가_열림', async () => {
@@ -898,5 +905,136 @@ describe('TaskListPage', () => {
       (req) => req.url === '/assignments',
     );
     expect(callsToAssignments).toHaveLength(0);
+  });
+
+  // --- 마킹 네비게이션 + 버튼 분기 ---
+
+  it('WORKER_프레임없는_영상_마킹_버튼_렌더링', async () => {
+    // given: firstSrcSn 이 없는 배정 (프레임 미생성 영상)
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 200,
+            videoId: 50,
+            cctvName: 'CCTV-NO-FRAME-50',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-27T10:00:00Z',
+            // firstSrcSn 미제공 — 프레임 아직 미생성
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    // then: "마킹" 버튼이 렌더링되어야 한다
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-NO-FRAME-50')).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole('button', { name: /마킹 시작 CCTV-NO-FRAME-50/ }),
+    ).toBeInTheDocument();
+    // "작업" 버튼은 없어야 한다
+    expect(
+      screen.queryByRole('button', { name: /작업 시작 CCTV-NO-FRAME-50/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('WORKER_마킹_버튼_클릭_시_marking_경로로_navigate', async () => {
+    // given: firstSrcSn 없는 배정
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 200,
+            videoId: 50,
+            cctvName: 'CCTV-MARK-50',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-27T10:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-MARK-50')).toBeInTheDocument();
+    });
+
+    // when: 마킹 버튼 클릭
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: /마킹 시작 CCTV-MARK-50/ }),
+    );
+
+    // then: /marking/{videoId} 로 navigate
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith('/marking/50');
+    });
+  });
+
+  it('WORKER_프레임있는_영상_작업_버튼만_렌더링_마킹_버튼_없음', async () => {
+    // given: firstSrcSn 존재
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 201,
+            videoId: 51,
+            cctvName: 'CCTV-HAS-FRAME-51',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-27T10:00:00Z',
+            firstSrcSn: 99999,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    // then: "작업" 버튼만 존재, "마킹" 버튼은 없어야 한다
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-HAS-FRAME-51')).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole('button', { name: /작업 시작 CCTV-HAS-FRAME-51/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /마킹 시작 CCTV-HAS-FRAME-51/ }),
+    ).not.toBeInTheDocument();
   });
 });

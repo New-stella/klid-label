@@ -41,7 +41,6 @@ import type { Video } from '@/features/video/types';
 import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useUiStore } from '@/stores/useUiStore';
 
 const ROLE_LABEL: Record<string, string> = {
   REVIEWER: '검수자',
@@ -123,7 +122,6 @@ export function TaskListPage() {
   const claims = useAuthStore((s) => s.claims);
   const role = claims?.role ?? Role.WORKER;
   const isReviewer = role === Role.REVIEWER;
-  const pushToast = useUiStore((s) => s.pushToast);
 
   const [filters, setFilters] = useState<TaskFilterValues>(() =>
     searchParamsToFilters(searchParams),
@@ -698,31 +696,36 @@ export function TaskListPage() {
                               이력
                             </Button>
                           )}
-                          {/* WORKER: 본인 배정 작업 시작 + 이력 보기 (BE Service 레이어에서 IDOR 방어).
-                              mock 정합: ghost 텍스트 버튼. 프레임 미생성 영상은 disabled + 안내 토스트. */}
+                          {/* WORKER: 본인 배정 작업 시작 / 마킹 + 이력 보기 (BE Service 레이어에서 IDOR 방어).
+                              - 프레임 존재(firstSrcSn) → "작업" 버튼 (라벨링 화면으로 navigate)
+                              - 프레임 미존재 → "마킹" 버튼 (마킹 화면으로 navigate) */}
                           {!isReviewer && r.task && (
                             <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={!r.task.firstSrcSn}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const firstSrcSn = r.task?.firstSrcSn;
-                                  if (firstSrcSn) {
-                                    navigate(`/label/${firstSrcSn}`);
-                                  } else {
-                                    pushToast({
-                                      variant: 'error',
-                                      message:
-                                        '아직 프레임이 준비되지 않은 영상입니다',
-                                    });
-                                  }
-                                }}
-                                aria-label={`작업 시작 ${r.videoName}`}
-                              >
-                                <Play size={14} aria-hidden /> 작업
-                              </Button>
+                              {r.task.firstSrcSn ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/label/${r.task!.firstSrcSn}`);
+                                  }}
+                                  aria-label={`작업 시작 ${r.videoName}`}
+                                >
+                                  <Play size={14} aria-hidden /> 작업
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/marking/${r.task!.videoId}`);
+                                  }}
+                                  aria-label={`마킹 시작 ${r.videoName}`}
+                                >
+                                  <ListTodo size={14} aria-hidden /> 마킹
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"

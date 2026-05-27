@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.marking.service.MarkingService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -47,6 +49,9 @@ class MarkingServiceTest {
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private MarkingService markingService;
@@ -233,5 +238,23 @@ class MarkingServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("마킹_생성시_MarkingCompletedEvent_발행")
+    void createPublishesMarkingCompletedEvent() {
+        // given
+        Long rawSn = 10L;
+        LsDataRaw raw = stubRaw(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 10, null);
+
+        // when
+        markingService.create(rawSn, req, reviewer());
+
+        // then
+        verify(eventPublisher).publishEvent(any(MarkingCompletedEvent.class));
     }
 }

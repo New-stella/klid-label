@@ -21,6 +21,8 @@ public class LsRawDataStatus {
     public static final String STTS_PENDING = "PENDING";
     public static final String STTS_ASSIGNED = "ASSIGNED";
     // Phase 7 검수 워크플로우 상태 (CM_CODE.GROUP_CODE='DATA_STTS_CD' V3 seed 와 일치)
+    public static final String STTS_BATCH_QUEUED = "BATCH_QUEUED";
+    // Phase 7 검수 워크플로우 상태 (CM_CODE.GROUP_CODE='DATA_STTS_CD' V3 seed 와 일치)
     public static final String STTS_IN_REVIEW = "IN_REVIEW";
     public static final String STTS_APPROVED = "APPROVED";
     public static final String STTS_REJECTED = "REJECTED";
@@ -70,6 +72,11 @@ public class LsRawDataStatus {
 
     public void markAssigned() {
         this.dataSttsCd = STTS_ASSIGNED;
+        this.updDt = LocalDateTime.now();
+    }
+
+    public void markBatchQueued() {
+        this.dataSttsCd = STTS_BATCH_QUEUED;
         this.updDt = LocalDateTime.now();
     }
 
