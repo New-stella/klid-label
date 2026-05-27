@@ -55,15 +55,6 @@ export interface AutoLabelSummary {
   message?: string;
 }
 
-export interface VlmVerification {
-  /** YOLO/SAM2 객체별 VLM 재검증 결과 */
-  objectId: number;
-  className: string;
-  yoloConfidence: number;
-  vlmAgree: boolean;
-  vlmReason?: string;
-}
-
 export interface EnvMeta {
   weather?: 'CLEAR' | 'RAIN' | 'SNOW' | 'CLOUDY' | 'FOG' | null;
   timeOfDay?: 'DAY' | 'NIGHT' | 'DAWN' | 'DUSK' | null;
@@ -90,7 +81,6 @@ export interface FrameMeta {
   imageUrl: string;
   imageWidth: number;
   imageHeight: number;
-  vlmVerifications: VlmVerification[];
   envMeta: EnvMeta;
   eventMeta: EventMeta;
   stateChanges: StateChange[];

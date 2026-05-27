@@ -14,22 +14,6 @@ const metaPayload = {
   imageUrl: '/img/100.jpg',
   imageWidth: 1920,
   imageHeight: 1080,
-  vlmVerifications: [
-    {
-      objectId: 1,
-      className: 'person',
-      yoloConfidence: 0.92,
-      vlmAgree: true,
-      vlmReason: '인물 형태 확실',
-    },
-    {
-      objectId: 2,
-      className: 'vehicle',
-      yoloConfidence: 0.55,
-      vlmAgree: false,
-      vlmReason: '차량 아닌 표지판으로 보임',
-    },
-  ],
   envMeta: { weather: 'CLEAR', timeOfDay: 'DAY', illumination: 'HIGH' },
   eventMeta: { eventTypeCd: 'FIRE', intensity: 'HIGH', description: '소화전 인근 화재' },
   stateChanges: [
@@ -63,7 +47,7 @@ describe('MetaReviewPage', () => {
     useAuthStore.getState().clear();
   });
 
-  it('메타_화면_VLM_검증_영역과_외부_메타_폼_분리', async () => {
+  it('메타_화면_외부_메타_폼_렌더링', async () => {
     mock.onGet('/frames/100/meta').reply(200, {
       success: true,
       data: metaPayload,
@@ -77,17 +61,11 @@ describe('MetaReviewPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('vlm-verification-card')).toBeInTheDocument();
+      expect(screen.getByTestId('env-meta-form')).toBeInTheDocument();
     });
 
-    // V1.7 두 영역 분리: VLM 검증 (저작도구) + EnvMeta/EventMeta (외부 메타)
-    expect(screen.getByTestId('vlm-verification-card')).toBeInTheDocument();
     expect(screen.getByTestId('env-meta-form')).toBeInTheDocument();
     expect(screen.getByTestId('event-meta-form')).toBeInTheDocument();
-
-    // VLM 카드 안에 person/vehicle 두 객체
-    expect(screen.getByTestId('vlm-row-1')).toBeInTheDocument();
-    expect(screen.getByTestId('vlm-row-2')).toBeInTheDocument();
 
     // 좌·우 패널 분리
     expect(screen.getByTestId('meta-left-panel')).toBeInTheDocument();

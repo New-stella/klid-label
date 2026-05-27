@@ -10,7 +10,6 @@ import { useUiStore } from '@/stores/useUiStore';
 import { EnvMetaForm } from '@/features/auto/components/EnvMetaForm';
 import { EventMetaForm } from '@/features/auto/components/EventMetaForm';
 import { StateChangeTimeline } from '@/features/auto/components/StateChangeTimeline';
-import { VlmVerificationCard } from '@/features/auto/components/VlmVerificationCard';
 import { useMeta } from '@/features/auto/hooks/useMeta';
 import { useUpdateMeta } from '@/features/auto/hooks/useUpdateMeta';
 import type { EnvMeta, EventMeta } from '@/features/auto/types';
@@ -33,9 +32,7 @@ const eventSchema = z.object({
 /**
  * SCR-AUTO-002 시계열 메타 검토·수정.
  *
- * V1.7: 좌(프레임+오버레이+타임라인+상태변화) + 우(VLM 검증 + 외부 메타 폼)
- * 두 영역 명시적 분리:
- * - VLM 객체 검증 결과 (저작도구 영역)
+ * V1.7: 좌(프레임+오버레이+타임라인+상태변화) + 우(외부 메타 폼)
  * - 외부 자동 생성 환경/이벤트 메타 (외부 시스템 책임 — 검토·수정만)
  *
  * srcSn은 ?srcSn=N 쿼리로 전달 (videoId만으로는 어떤 프레임인지 모호하므로).
@@ -162,13 +159,12 @@ export function MetaReviewPage() {
             <StateChangeTimeline changes={data.stateChanges} />
           </div>
 
-          {/* 우: VLM 객체 검증 (저작도구) + 외부 메타 폼 (외부 시스템) — 두 영역 명시 분리 */}
+          {/* 우: 외부 메타 폼 (외부 시스템) */}
           <div
             data-testid="meta-right-panel"
-            aria-label="VLM 검증과 외부 메타 폼"
+            aria-label="외부 메타 폼"
             className="flex flex-col gap-4"
           >
-            <VlmVerificationCard verifications={data.vlmVerifications} />
             <EnvMetaForm
               value={envMeta}
               onChange={setEnvMeta}
