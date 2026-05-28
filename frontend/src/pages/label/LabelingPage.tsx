@@ -20,6 +20,7 @@ import { DeidentReportButton } from '@/features/label/components/DeidentReportBu
 import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
+import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
@@ -462,7 +463,7 @@ export function LabelingPage() {
           )}
         </div>
 
-        {/* 우측 패널 — 객체 트리 + 속성 */}
+        {/* 우측 패널 — 객체 트리 + 속성 + 시계열 메타 */}
         <div className="w-72 flex flex-col bg-gray-800 border-l border-gray-700 overflow-hidden shrink-0">
           <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-700">
             <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
@@ -476,6 +477,7 @@ export function LabelingPage() {
             </div>
             <ObjectAttributePanel labels={labels} />
           </div>
+          <TimeseriesSidePanel srcSn={data?.srcSn} />
         </div>
 
         {/* 우측 슬라이드 — 히스토리 인라인 패널 (INTERNAL only). 본 영역은 기존 우측 패널 옆으로 펼침. */}

@@ -17,6 +17,7 @@ describe('auto api', () => {
   });
 
   it('오토라벨_요약_조회_엔드포인트_video_id_경로', async () => {
+    // given
     mock.onGet('/videos/42/auto-summary').reply(200, {
       success: true,
       data: {
@@ -40,13 +41,17 @@ describe('auto api', () => {
       errorCode: null,
     });
 
+    // when
     const r = await getAutoLabelSummary(42);
+
+    // then
     expect(r.videoId).toBe(42);
     expect(r.buckets).toHaveLength(3);
     expect(r.lowConfidenceFrames?.[0].confidence).toBe(0.55);
   });
 
-  it('메타_조회시_GET_frames_id_meta_호출', async () => {
+  it('메타_조회시_GET_frames_id_meta_호출_vlmText_매핑', async () => {
+    // given
     mock.onGet('/frames/100/meta').reply(200, {
       success: true,
       data: {
@@ -55,24 +60,27 @@ describe('auto api', () => {
         imageUrl: '/img/100.jpg',
         imageWidth: 1920,
         imageHeight: 1080,
-        envMeta: { weather: 'CLEAR', timeOfDay: 'DAY', illumination: 'HIGH' },
-        eventMeta: { eventTypeCd: 'FIRE', intensity: 'HIGH', description: '소화전 인근 화재' },
+        vlmText: '09:00 맑음, 차량 3대 진입',
         stateChanges: [],
       },
       message: null,
       errorCode: null,
     });
 
+    // when
     const r = await getMeta(100);
+
+    // then
     expect(r.srcSn).toBe(100);
-    expect(r.envMeta.weather).toBe('CLEAR');
+    expect(r.vlmText).toBe('09:00 맑음, 차량 3대 진입');
   });
 
-  it('메타_저장시_PUT_frames_id_meta_호출', async () => {
+  it('메타_저장시_PUT_vlmText_전송', async () => {
+    // given
     mock.onPut('/frames/100/meta').reply((config) => {
       const body = JSON.parse(config.data);
-      expect(body.envMeta.weather).toBe('RAIN');
-      expect(body.eventMeta.intensity).toBe('LOW');
+      // vlmText가 전송되는지 검증
+      expect(body.vlmText).toBe('09:00 맑음, 수정됨');
       return [
         200,
         {
@@ -83,8 +91,7 @@ describe('auto api', () => {
             imageUrl: '/img/100.jpg',
             imageWidth: 1920,
             imageHeight: 1080,
-                envMeta: { weather: 'RAIN', timeOfDay: 'DAY', illumination: 'MID' },
-            eventMeta: { eventTypeCd: null, intensity: 'LOW', description: null },
+            vlmText: '09:00 맑음, 수정됨',
             stateChanges: [],
           },
           message: null,
@@ -93,10 +100,12 @@ describe('auto api', () => {
       ];
     });
 
+    // when
     const r = await updateMeta(100, {
-      envMeta: { weather: 'RAIN', timeOfDay: 'DAY', illumination: 'MID' },
-      eventMeta: { eventTypeCd: null, intensity: 'LOW', description: null },
+      vlmText: '09:00 맑음, 수정됨',
     });
-    expect(r.envMeta.weather).toBe('RAIN');
+
+    // then
+    expect(r.vlmText).toBe('09:00 맑음, 수정됨');
   });
 });

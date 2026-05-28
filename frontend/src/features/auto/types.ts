@@ -1,5 +1,5 @@
 // 오토라벨링 결과 + 시계열 메타 도메인 타입.
-// V1.7 — VLM 객체 검증은 저작도구 책임, 환경/이벤트 메타는 외부 시스템 생성 → 검토·수정만.
+// V2.0 — VLM 시계열 메타: enum 기반 환경/이벤트 메타 → 자연어 vlmText 단일 필드로 개편.
 
 export interface ConfidenceBucket {
   /** 90+ / 70-90 / under-70 */
@@ -55,18 +55,6 @@ export interface AutoLabelSummary {
   message?: string;
 }
 
-export interface EnvMeta {
-  weather?: 'CLEAR' | 'RAIN' | 'SNOW' | 'CLOUDY' | 'FOG' | null;
-  timeOfDay?: 'DAY' | 'NIGHT' | 'DAWN' | 'DUSK' | null;
-  illumination?: 'LOW' | 'MID' | 'HIGH' | null;
-}
-
-export interface EventMeta {
-  eventTypeCd?: string | null;
-  intensity?: 'LOW' | 'MID' | 'HIGH' | null;
-  description?: string | null;
-}
-
 export interface StateChange {
   /** 상태 변화 발생 frameNo */
   frameNo: number;
@@ -81,12 +69,11 @@ export interface FrameMeta {
   imageUrl: string;
   imageWidth: number;
   imageHeight: number;
-  envMeta: EnvMeta;
-  eventMeta: EventMeta;
+  /** VLM 시계열 자연어 텍스트 (외부 시스템 생성 → 검토·수정) */
+  vlmText: string;
   stateChanges: StateChange[];
 }
 
 export interface FrameMetaUpdateRequest {
-  envMeta: EnvMeta;
-  eventMeta: EventMeta;
+  vlmText: string;
 }

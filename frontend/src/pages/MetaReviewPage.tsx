@@ -7,33 +7,22 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
 import { useUiStore } from '@/stores/useUiStore';
-import { EnvMetaForm } from '@/features/auto/components/EnvMetaForm';
-import { EventMetaForm } from '@/features/auto/components/EventMetaForm';
 import { StateChangeTimeline } from '@/features/auto/components/StateChangeTimeline';
+import { TimeseriesTextPanel } from '@/features/auto/components/TimeseriesTextPanel';
 import { useMeta } from '@/features/auto/hooks/useMeta';
 import { useUpdateMeta } from '@/features/auto/hooks/useUpdateMeta';
-import type { EnvMeta, EventMeta } from '@/features/auto/types';
 
 /**
- * 사용자 입력 검증 (zod) — PUT /frames/{srcSn}/meta 호출 전.
- * 보안: 외부 메타 폼 입력값 길이/enum 검증.
+ * 사용자 입력 검증 (zod) -- PUT /frames/{srcSn}/meta 호출 전.
+ * 보안: vlmText 길이 제한.
  */
-const envSchema = z.object({
-  weather: z.enum(['CLEAR', 'RAIN', 'SNOW', 'CLOUDY', 'FOG']).nullable().optional(),
-  timeOfDay: z.enum(['DAY', 'NIGHT', 'DAWN', 'DUSK']).nullable().optional(),
-  illumination: z.enum(['LOW', 'MID', 'HIGH']).nullable().optional(),
-});
-const eventSchema = z.object({
-  eventTypeCd: z.string().max(32).nullable().optional(),
-  intensity: z.enum(['LOW', 'MID', 'HIGH']).nullable().optional(),
-  description: z.string().max(500).nullable().optional(),
-});
+const vlmTextSchema = z.string().max(5000);
 
 /**
- * SCR-AUTO-002 시계열 메타 검토·수정.
+ * SCR-AUTO-002 시계열 메타 검토/수정.
  *
- * V1.7: 좌(프레임+오버레이+타임라인+상태변화) + 우(외부 메타 폼)
- * - 외부 자동 생성 환경/이벤트 메타 (외부 시스템 책임 — 검토·수정만)
+ * V2.0: 좌(프레임+오버레이+타임라인+상태변화) + 우(VLM 시계열 자연어 패널)
+ * - 외부 VLM 이 자동 생성한 시계열 텍스트를 검토/수정
  *
  * srcSn은 ?srcSn=N 쿼리로 전달 (videoId만으로는 어떤 프레임인지 모호하므로).
  */
@@ -59,32 +48,26 @@ export function MetaReviewPage() {
       pushToast({ variant: 'error', message: '메타 저장에 실패했습니다.' }),
   });
 
-  const [envMeta, setEnvMeta] = useState<EnvMeta>({});
-  const [eventMeta, setEventMeta] = useState<EventMeta>({});
+  const [vlmText, setVlmText] = useState('');
 
   useEffect(() => {
     if (data) {
-      setEnvMeta(data.envMeta);
-      setEventMeta(data.eventMeta);
+      setVlmText(data.vlmText);
     }
   }, [data]);
 
   const dirty = useMemo(() => {
     if (!data) return false;
-    return (
-      JSON.stringify(envMeta) !== JSON.stringify(data.envMeta) ||
-      JSON.stringify(eventMeta) !== JSON.stringify(data.eventMeta)
-    );
-  }, [data, envMeta, eventMeta]);
+    return vlmText !== data.vlmText;
+  }, [data, vlmText]);
 
   const handleSave = () => {
-    const env = envSchema.safeParse(envMeta);
-    const evt = eventSchema.safeParse(eventMeta);
-    if (!env.success || !evt.success) {
+    const parsed = vlmTextSchema.safeParse(vlmText);
+    if (!parsed.success) {
       pushToast({ variant: 'error', message: '입력값을 확인해주세요.' });
       return;
     }
-    updateMutation.mutate({ envMeta: env.data, eventMeta: evt.data });
+    updateMutation.mutate({ vlmText: parsed.data });
   };
 
   if (validVideoId === null) {
@@ -159,20 +142,15 @@ export function MetaReviewPage() {
             <StateChangeTimeline changes={data.stateChanges} />
           </div>
 
-          {/* 우: 외부 메타 폼 (외부 시스템) */}
+          {/* 우: VLM 시계열 자연어 패널 */}
           <div
             data-testid="meta-right-panel"
-            aria-label="외부 메타 폼"
+            aria-label="VLM 시계열 메타 패널"
             className="flex flex-col gap-4"
           >
-            <EnvMetaForm
-              value={envMeta}
-              onChange={setEnvMeta}
-              disabled={updateMutation.isPending}
-            />
-            <EventMetaForm
-              value={eventMeta}
-              onChange={setEventMeta}
+            <TimeseriesTextPanel
+              vlmText={vlmText}
+              onChange={setVlmText}
               disabled={updateMutation.isPending}
             />
           </div>
