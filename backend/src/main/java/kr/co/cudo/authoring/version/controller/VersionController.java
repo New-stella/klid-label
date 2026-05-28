@@ -1,13 +1,20 @@
 package kr.co.cudo.authoring.version.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
+import kr.co.cudo.authoring.label.service.LabelService;
+import kr.co.cudo.authoring.version.dto.CommitRequest;
+import kr.co.cudo.authoring.version.dto.CommitResponseDto;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
@@ -15,6 +22,7 @@ import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.dto.VersionResponse;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.service.VersionService;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -32,12 +40,14 @@ import org.springframework.web.bind.annotation.RestController;
  * Phase 8 — 버전관리(라벨 변경 이력) REST API.
  *
  * <ul>
+ *   <li>POST /v1/frames/{srcSn}/commit               : 현재 라벨 상태 Gitea 커밋</li>
  *   <li>GET  /v1/frames/{srcSn}/versions             : 프레임 단위 버전 목록</li>
  *   <li>GET  /v1/versions/{commit}/diff?compareWith= : 두 커밋 비교</li>
  *   <li>POST /v1/versions/{commit}/rollback          : REVIEWER 전체 / WORKER 본인 배정 — 롤백</li>
  * </ul>
  */
-@Tag(name = "Version", description = "Gitea 기반 버전관리 — 라벨 변경 이력 / diff / 롤백. 롤백은 REVIEWER 전체 또는 WORKER 본인 배정 프레임.")
+@Slf4j
+@Tag(name = "Version", description = "Gitea 기반 버전관리 — 라벨 커밋 / 변경 이력 / diff / 롤백. 롤백은 REVIEWER 전체 또는 WORKER 본인 배정 프레임.")
 @RestController
 @RequestMapping("/v1")
 @RequiredArgsConstructor
@@ -45,6 +55,49 @@ import org.springframework.web.bind.annotation.RestController;
 public class VersionController {
 
     private final VersionService versionService;
+    private final LabelService labelService;
+    private final ObjectMapper objectMapper;
+
+    @Operation(
+            summary = "현재 라벨 상태 Gitea 커밋",
+            description = "프레임의 현재 라벨 상태를 Gitea에 커밋한다. "
+                    + "FE 라벨링 화면에서 명시적 '커밋' 버튼 클릭 시 호출. "
+                    + "PORTAL 채널은 버전관리 미제공 → 403."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 / PORTAL 채널"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "비식별 재처리 중")
+    })
+    @PostMapping("/frames/{srcSn}/commit")
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ApiResponse<CommitResponseDto> commit(
+            @Parameter(description = "프레임 PK (LS_DATA_SRC.SRC_SN)", required = true, example = "1")
+            @PathVariable Long srcSn,
+            @RequestBody(required = false) CommitRequest req,
+            @AuthenticationPrincipal TokenClaims actor) {
+
+        // PORTAL 채널은 버전관리(커밋) 미제공
+        if (!VersionService.isCommittable(actor)) {
+            throw new CustomException(ErrorCode.FORBIDDEN, "포털 채널은 커밋 기능을 사용할 수 없습니다.");
+        }
+
+        // 현재 라벨 상태 조회 → JSON 직렬화
+        LabelResponse labelSnapshot = labelService.getByFrame(srcSn, actor);
+        String labelsJson;
+        try {
+            labelsJson = objectMapper.writeValueAsString(labelSnapshot);
+        } catch (Exception e) {
+            log.error("[Version] labels JSON serialize failed srcSn={}", srcSn, e);
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "라벨 직렬화에 실패했습니다.");
+        }
+
+        // Gitea 커밋
+        String sha = versionService.commit(srcSn, labelsJson, actor);
+        return ApiResponse.ok(CommitResponseDto.of(sha));
+    }
 
     @Operation(
             summary = "프레임 버전 이력 조회",

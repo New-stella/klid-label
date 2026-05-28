@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.client.GiteaClient;
 import kr.co.cudo.authoring.common.client.dto.CommitResponse;
 import kr.co.cudo.authoring.common.client.dto.DiffFile;
 import kr.co.cudo.authoring.common.client.dto.DiffResponse;
+import kr.co.cudo.authoring.version.dto.CommitRequest;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
@@ -292,5 +293,137 @@ class VersionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
+    }
+
+    // ──────────────────────────────────────────────
+    // POST /v1/frames/{srcSn}/commit
+    // ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("POST_frames_commit_REVIEWER_정상_200_commitSha_반환")
+    void postCommitReviewerOk() throws Exception {
+        // given: Gitea 커밋 성공 응답 mock
+        String expectedSha = "aabbccdd1122334455667788aabbccdd11223344";
+        when(giteaClient.createOrUpdateFile(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString()))
+                .thenReturn(Mono.just(new CommitResponse(expectedSha, "라벨 저장", "1", Instant.now())));
+        // HEAD content fetch (commit message enrichment 용) — 최초 커밋 시 빈 응답
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.error(new RuntimeException("no HEAD yet")));
+
+        // when
+        CommitRequest req = new CommitRequest(null);
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                // then
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.commitSha").value(expectedSha))
+                .andExpect(jsonPath("$.data.committedAt").exists());
+
+        // LS_LABEL_VERSION 에 신규 row INSERT 확인
+        List<LsLabelVersion> versions = labelVersionRepository.findAll();
+        assertThat(versions).isNotEmpty();
+        assertThat(versions.get(0).getGiteaCmtHash()).isEqualTo(expectedSha);
+    }
+
+    @Test
+    @DisplayName("POST_frames_commit_배정된_WORKER_정상_200")
+    void postCommitAssignedWorkerOk() throws Exception {
+        // given: WORKER(100) 은 배정된 프레임 → 정상 커밋
+        String expectedSha = "1111222233334444555566667777888899990000";
+        when(giteaClient.createOrUpdateFile(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString()))
+                .thenReturn(Mono.just(new CommitResponse(expectedSha, "라벨 저장", "100", Instant.now())));
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.error(new RuntimeException("no HEAD yet")));
+
+        // when
+        CommitRequest req = new CommitRequest("수동 커밋 메시지");
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                // then
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.commitSha").value(expectedSha));
+    }
+
+    @Test
+    @DisplayName("POST_frames_commit_미인증시_401")
+    void postCommitUnauthenticated() throws Exception {
+        // given / when: Authorization 헤더 없음
+        CommitRequest req = new CommitRequest(null);
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                // then
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST_frames_commit_미존재_srcSn_404")
+    void postCommitNotFoundSrcSn() throws Exception {
+        // given: 존재하지 않는 srcSn
+        long nonExistentSrcSn = 999999L;
+        CommitRequest req = new CommitRequest(null);
+
+        // when / then
+        mockMvc.perform(post("/v1/frames/" + nonExistentSrcSn + "/commit")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("POST_frames_commit_미배정_WORKER_403")
+    void postCommitUnassignedWorkerForbidden() throws Exception {
+        // given: WORKER(101) 는 해당 프레임에 배정되지 않음
+        CommitRequest req = new CommitRequest(null);
+
+        // when / then
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
+                        .header("Authorization", "Bearer " + workerNotAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("POST_frames_commit_PORTAL_사용자_403")
+    void postCommitPortalUserForbidden() throws Exception {
+        // given: PORTAL 채널 사용자는 버전관리(커밋) 미제공
+        String portalToken = JwtTestSupport.token(secret, "200", "PORTAL_USER", "PORTAL", issuer, 60);
+        CommitRequest req = new CommitRequest(null);
+
+        // when / then
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
+                        .header("Authorization", "Bearer " + portalToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("POST_frames_commit_body_없이_호출해도_정상_200")
+    void postCommitWithoutBody() throws Exception {
+        // given: FE 가 body 없이 (또는 빈 body) 호출 가능
+        String expectedSha = "aabbccdd1122334455667788aabbccdd11223344";
+        when(giteaClient.createOrUpdateFile(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString()))
+                .thenReturn(Mono.just(new CommitResponse(expectedSha, "라벨 저장", "1", Instant.now())));
+        when(giteaClient.getContent(anyString(), anyString(), anyString()))
+                .thenReturn(Mono.error(new RuntimeException("no HEAD yet")));
+
+        // when: body 없이 호출
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                // then
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.commitSha").value(expectedSha));
     }
 }
