@@ -113,15 +113,14 @@ class PortalLabelControllerTest {
     @Test
     @DisplayName("버전관리_API는_PORTAL_USER에게_미노출_403")
     void versionApiHiddenFromPortalUser() throws Exception {
-        // /v1/videos/** 는 INTERNAL 채널의 REVIEWER/WORKER 만. PORTAL_USER 는 hasRole 미일치 → 403
-        // Path 가 인증된 사용자를 요구만 하지만 PortalUser 는 PORTAL 라우트 외에는 권한 없음.
-        // VersionController @PreAuthorize hasAnyRole('REVIEWER','WORKER') 로 차단.
-        mockMvc.perform(get("/v1/videos/9999/versions")
+        // /v1/frames/{srcSn}/versions 는 INTERNAL 채널의 REVIEWER/WORKER 만.
+        // PORTAL_USER 는 hasAnyRole('REVIEWER','WORKER') 미일치 → 403.
+        mockMvc.perform(get("/v1/frames/9999/versions")
                         .header("Authorization", "Bearer " + alicePortalToken))
                 .andExpect(status().isForbidden());
 
-        // sanity: REVIEWER 토큰은 (영상 미존재이지만) 200/4xx 비-403 응답
-        mockMvc.perform(get("/v1/videos/9999/versions")
+        // sanity: REVIEWER 토큰은 (프레임 미존재이지만) 200/4xx 비-403 응답
+        mockMvc.perform(get("/v1/frames/9999/versions")
                         .header("Authorization", "Bearer " + reviewerInternalToken))
                 .andExpect(status().is(org.hamcrest.Matchers.not(org.hamcrest.Matchers.equalTo(403))));
     }
