@@ -29,6 +29,9 @@ const DashboardPage = lazy(() =>
 const TaskListPage = lazy(() =>
   import('@/pages/TaskListPage').then((m) => ({ default: m.TaskListPage })),
 );
+const TaskAssignPage = lazy(() =>
+  import('@/pages/TaskAssignPage').then((m) => ({ default: m.TaskAssignPage })),
+);
 const UserManagePage = lazy(() =>
   import('@/pages/manage/UserManagePage').then((m) => ({ default: m.UserManagePage })),
 );
@@ -254,7 +257,7 @@ export const router = createBrowserRouter([
             path: 'assign',
             element: (
               <InternalRoute allow={internalReviewerOnly}>
-                <PlaceholderPage title="작업 배정" />
+                {withSuspense(<TaskAssignPage />)}
               </InternalRoute>
             ),
           },
