@@ -214,6 +214,16 @@ klid-la-test-v0/
 - 관제서버 MNG_* 테이블 9개 재사용 (READ 위주, JPA `ddl-auto=validate`)
 - Flyway 마이그레이션: LS_* 전용 테이블은 자체 관리, **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수**
 
+### 데이터마트 적재용 View (V52)
+- `klid_at` 스키마에 4종 View 제공 — 검수 완료(`LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'`) 영상만 노출
+  - `V_COMPLETED_VIDEO` : 영상 메타 + 원본 영상 경로 + 검수 완료 일시
+  - `V_COMPLETED_FRAME` : 프레임 페어 (`FILE_PATH`=원본, `SRC_BKUP_FILE_PATH`=비식별)
+  - `V_COMPLETED_LABEL` + `V_COMPLETED_LABEL_ATTR` : 라벨 좌표·마스터 코드 + 라벨 속성값
+  - `V_COMPLETED_META` : 시계열 메타 (`RVW_STTS_CD='APPROVED'` 만)
+- 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 통지 수신 후 RAW_SN 으로 4 View 단순 SELECT → 영상 1건=1 row UPSERT
+- 비식별 영상 파일 경로는 `STORAGE_RAW_PATH` → `STORAGE_DEIDENTIFIED_PATH` 컨벤션 치환으로 도출 (View 미포함)
+- 모두 `CREATE OR REPLACE VIEW` 라 멱등 — Flyway 재실행해도 안전
+
 ## CVAT 포팅 전략
 
 CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript. 전체 fork가 아닌 **9개 독립 모듈을 Phase별로 포팅**한다. (출처: `docs/analysis/index.md`)
