@@ -9,7 +9,8 @@
 -- 멱등(idempotent): INSERT IGNORE — 이미 존재하면 NOOP.
 -- LS_* 접두사 저작도구 전용 테이블 변경이므로 관제서버팀 협의 면제.
 
-INSERT IGNORE INTO LS_SYSTEM_CONFIG (CONFIG_KEY, CONFIG_VALUE, CONFIG_TYPE, DESCRIPTION, UPDATED_BY) VALUES
+INSERT INTO LS_SYSTEM_CONFIG (CONFIG_KEY, CONFIG_VALUE, CONFIG_TYPE, DESCRIPTION, UPDATED_BY) VALUES
     ('YOLO_CONF_THRESHOLD', '40',   'NUMBER', 'YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)', 'SYSTEM'),
     ('YOLO_IMGSZ',          '1280', 'NUMBER', 'YOLO 추론 입력 해상도 px (320~1920)',              'SYSTEM'),
-    ('YOLO_IOU',            '50',   'NUMBER', 'YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)', 'SYSTEM');
+    ('YOLO_IOU',            '50',   'NUMBER', 'YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)', 'SYSTEM')
+ON CONFLICT (CONFIG_KEY) DO NOTHING;

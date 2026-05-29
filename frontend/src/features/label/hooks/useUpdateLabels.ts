@@ -23,7 +23,7 @@ export interface UseUpdateLabelsOptions {
  *  - ASSIGNMENT_KEYS: 작업 배정 진행률 갱신
  *  - REVIEW_KEYS: 검수 진행률 갱신
  *  - VERSION_KEYS: 버전 이력(작업이력 패널)에 신규 커밋 즉시 반영
- *    — BE LabelService.bulkUpsert() 가 versionService.commit() 으로 Gitea 커밋 +
+ *    — BE LabelService.bulkUpsert() 가 versionService.commit() 으로 라벨 스냅샷 버전 커밋(DB) +
  *      LS_LABEL_VERSION INSERT 까지 수행하므로 저장 직후 새 커밋이 발생한다.
  *      VERSION_KEYS invalidate 누락 시 작업이력 패널에 새 커밋이 새로고침 전까지 안 보이는
  *      증상이 발생한다 (회귀 가드: useUpdateLabels.invalidate.test.tsx).

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 오토라벨링 파이프라인 테스트 트리거 — 운영(prd) 미노출.
- * 외부 의존(비식별/Gitea/VLM) 없이 YOLO → SAM2 만 실행한다.
+ * 외부 의존(비식별/버전관리/VLM) 없이 YOLO → SAM2 만 실행한다.
  */
 @RestController
 @RequestMapping("/v1/dev/autolabel")

@@ -1,0 +1,4 @@
+# Phase 3 — 전체 Spring 테스트 컨텍스트에 싱글톤 PostgreSQL Testcontainer 접속 정보 주입.
+# 개별 테스트가 베이스 클래스 상속/@DynamicPropertySource 없이도 PG 컨테이너를 향한다.
+org.springframework.test.context.ContextCustomizerFactory=\
+  kr.co.cudo.authoring.support.PostgresContainerContextCustomizerFactory

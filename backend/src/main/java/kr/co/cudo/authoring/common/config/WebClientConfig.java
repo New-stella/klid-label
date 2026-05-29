@@ -49,17 +49,6 @@ public class WebClientConfig {
                 .build();
     }
 
-    @Bean(name = "giteaWebClient")
-    public WebClient giteaWebClient(
-            @Value("${authoring.integration.gitea.base-url}") String baseUrl,
-            @Value("${authoring.integration.gitea.token:}") String token) {
-        WebClient.Builder b = WebClient.builder().baseUrl(baseUrl);
-        if (token != null && !token.isBlank()) {
-            b.defaultHeader("Authorization", "token " + token);
-        }
-        return b.build();
-    }
-
     /**
      * 외부 VLM 시계열 분석 위탁 클라이언트용 WebClient — Phase 1 신설.
      *

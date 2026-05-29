@@ -2,6 +2,8 @@
 
 > 출처: LogiCraft `generate_brownfield_report` (project: KLID-저작도구) + 본 작업 요약
 > 생성일: 2026-05-29 · 작성: 박찬기 · K-DOC '데이터 변경 명세서' / 운영팀 인계 자료 입력용
+>
+> **현행화 메모(2026-05-29)**: 버전관리 방식이 **Gitea → DB 스냅샷**(라벨 전체 스냅샷 DB 저장, diff·rollback 앱 계산)으로, 사용 DB가 **MariaDB → PostgreSQL**로 확정됨. 아래 표의 일부 diff_summary는 이 결정에 맞게 정정함. LogiCraft 동기화는 1차 정합 후 추후 반영 예정이라 LogiCraft 원본과는 일시적으로 차이가 있을 수 있음.
 
 ## 0. 작업 요약
 
@@ -132,7 +134,7 @@
 | `ERD-008` | erd | 라벨링 ERD | preserved | KLID-AI-PF-004 |  |  |
 | `ERD-009` | erd | 프로젝트 관리 ERD (LS_PJT 외 10종) | preserved | KLID-AI-PF-004 |  | ※ LS_PJT* 테이블 폐기/존속 DB 레벨 별도 결정 |
 | `FEAT-001` | feature | AI 보조 라벨링 | modified | SKKLID-UI-02-02-05 | capability-add | SFR-08-01/02 고도화 |
-| `FEAT-002` | feature | 라벨 버전관리·비교·복구 | new |  | capability-add | Gitea 2차 신규 (SFR-08-04/05) |
+| `FEAT-002` | feature | 라벨 버전관리·비교·복구 | new |  | capability-add | DB 스냅샷 기반 버전관리 2차 신규 (SFR-08-04/05) — 라벨 전체 스냅샷 DB 저장, 외부 VCS 미사용 |
 | `FEAT-003` | feature | 데이터마트 라벨 동기화 통지 | new |  | capability-add | 관제 통지 2차 신규 (V1.8, SFR-08-06) |
 | `FEAT-004` | feature | 영상 증강 연동·검수 + 해상도 변경 | modified | LS_DATA_AUG | capability-add | 외부 증강 연동·검수 (V1.5/V2.0, SFR-07) |
 | `FEAT-005` | feature | 개인정보 비식별 처리 (솔루션 연동) | modified | SKKLID-UI-02-02-04 | component-replace | 수동 블러 → 외부 비식별 솔루션 (SFR-09) |
@@ -146,7 +148,7 @@
 | `REQ-006` | requirement | RQ-SFR-08-01 라벨링 정확도 향상 | modified | SKKLID-UI-02-02-06 | capability-add | YOLO 고도화 |
 | `REQ-007` | requirement | RQ-SFR-08-02 객체 외곽 경계 자동 밀착 | modified | SKKLID-UI-02-02-05 | capability-add | SAM 고도화 |
 | `REQ-008` | requirement | RQ-SFR-08-03 라벨링 정밀도 조절 | modified | SKKLID-UI-02-02-05 | capability-add | 정밀도 조절 추가 |
-| `REQ-009` | requirement | RQ-SFR-08-04 버전관리·이력추적 | new |  | capability-add | Gitea 2차 신규 |
+| `REQ-009` | requirement | RQ-SFR-08-04 버전관리·이력추적 | new |  | capability-add | DB 스냅샷 기반 버전관리 2차 신규 |
 | `REQ-010` | requirement | RQ-SFR-08-05 버전별 비교·복구 | new |  | capability-add | 2차 신규 |
 | `REQ-011` | requirement | RQ-SFR-08-06 데이터마트 라벨 동기화 | new |  | capability-add | 관제 통지 2차 신규 (V1.8) |
 | `REQ-012` | requirement | RQ-SFR-09-01 클립영상 개인정보 비식별화 | new |  | capability-add | 2차 신규 |

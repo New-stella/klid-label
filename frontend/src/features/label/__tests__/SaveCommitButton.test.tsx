@@ -6,7 +6,7 @@
 // 이를 막기 위해 useUpdateLabels 훅으로 전환하고 LABEL/VIDEO/ASSIGNMENT/REVIEW_KEYS 일괄
 // invalidate 가 호출되는지 검증한다.
 //
-// BE 변경 사항: PUT /frames/{srcSn}/labels 가 저장 + Gitea 커밋을 한 번에 처리하므로
+// BE 변경 사항: PUT /frames/{srcSn}/labels 가 저장 + 라벨 스냅샷 버전 커밋(DB)을 한 번에 처리하므로
 // FE 는 commit 별도 호출이 필요 없음. (SaveCommitFlow.saveAndCommit 도 같은 단일 PUT 모델로 정리됨)
 
 import { fireEvent, screen, waitFor } from '@testing-library/react';

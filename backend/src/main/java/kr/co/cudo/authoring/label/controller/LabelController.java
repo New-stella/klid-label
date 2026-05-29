@@ -58,7 +58,7 @@ public class LabelController {
 
     @Operation(
             summary = "프레임 라벨 일괄 저장",
-            description = "프레임 라벨을 일괄 upsert (전체 교체 의미론). 저장 후 Gitea 자동 커밋 및 LS_DATA_LBL_HSTRY 기록."
+            description = "프레임 라벨을 일괄 upsert (전체 교체 의미론). 저장 후 DB 스냅샷 버전 자동 기록 및 LS_DATA_LBL_HSTRY 기록."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),

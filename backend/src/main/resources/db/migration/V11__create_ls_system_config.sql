@@ -3,10 +3,10 @@
 --
 -- ⚠ 협의 필요 (관제서버팀 / DBA):
 --   - 운영 klid_system 에 LS_SYSTEM_CONFIG 가 없으면 신규 CREATE.
---   - 4개 키 시드(MERGE INTO) 는 IF NOT EXISTS 효과 (이미 존재하면 NOOP).
+--   - 4개 키 시드(ON CONFLICT DO NOTHING) 는 IF NOT EXISTS 효과 (이미 존재하면 NOOP).
 --   - 본 테이블은 저작도구 전용 운영 파라미터만 보유 — 다른 도메인 설정 추가 금지.
 --
--- H2 + MariaDB 호환을 위해 표준 SQL 타입 + IF NOT EXISTS / MERGE INTO 사용.
+-- PostgreSQL: 표준 SQL 타입 + IF NOT EXISTS / ON CONFLICT DO NOTHING 사용.
 
 -- ============================================================
 -- LS_SYSTEM_CONFIG : 시스템 설정 키-값 저장소
@@ -29,8 +29,9 @@ CREATE TABLE IF NOT EXISTS LS_SYSTEM_CONFIG (
 );
 
 -- 4개 시드 (V1.4 §5A.4 — 편집 가능 키 화이트리스트)
-INSERT IGNORE INTO LS_SYSTEM_CONFIG (CONFIG_KEY, CONFIG_VALUE, CONFIG_TYPE, DESCRIPTION, UPDATED_BY) VALUES
+INSERT INTO LS_SYSTEM_CONFIG (CONFIG_KEY, CONFIG_VALUE, CONFIG_TYPE, DESCRIPTION, UPDATED_BY) VALUES
     ('FFMPEG_THREADS',     '2',  'NUMBER', 'FFmpeg 워커 수 (1~16)',          'SYSTEM'),
     ('FFMPEG_OUTPUT_FPS',  '1',  'NUMBER', 'FFmpeg 추출 FPS (분당, 1~30)',    'SYSTEM'),
     ('BATCH_INTERVAL_SEC', '60', 'NUMBER', '배치 트리거 간격 (초, 10~3600)',  'SYSTEM'),
-    ('BATCH_CONCURRENCY',  '1',  'NUMBER', '동시 배치 잡 수 (1=직렬, 1~10)',  'SYSTEM');
+    ('BATCH_CONCURRENCY',  '1',  'NUMBER', '동시 배치 잡 수 (1=직렬, 1~10)',  'SYSTEM')
+ON CONFLICT (CONFIG_KEY) DO NOTHING;

@@ -5,12 +5,13 @@
 
 ## 프로젝트 개요
 - **목적**: AI 기반 지방정부 CCTV 관제지원시스템(2차)의 학습데이터 저작도구 — 영상/이미지 라벨링, 검수 워크플로우, 비식별화, 외부 생성 메타데이터 검토
-- **주요 도메인**: 사용자/권한, **마킹(자동/수동 이벤트 식별)**, 배치 파이프라인(마킹→VLM 콜백→비식별→프레임 추출→오토라벨링), 라벨링, 검수(REVIEWER 배정), 비식별화, 버전관리(Gitea), 데이터 증강(새 영상), 포털(데이터마트 Load)
-- **범위 외 (V1.4)**: 데이터마트(SFR-13) — 외부제공 시스템 책임으로 이관. 저작도구는 학습데이터셋 내보내기까지만 담당하고 마트 구축·검색·다운로드는 담당하지 않음
-- **범위 외 (V1.5)**: SFR-06 본체(생성형 AI 모델 학습·파인튜닝·UI/UX 편의성·프롬프트 가이드 등) — 외부 생성 시스템 책임. 저작도구는 SFR-07 증강 결과 검수(SCR-AUG-002)만 보유. SFR-15 다운로드 기능은 포털 자체 책임으로 이관 — 저작도구 mock에 다운로드 카드·D-day 배지·다운로드 버튼·만료 처리 UI 미제공. (2026-05-15 정리: 배경영상 요청 API `/v1/generate/background/*` 는 외부 미연동 상태로 제거. 추후 외부 연동 결정 시 재도입)
-- **범위 외 (V1.7)**: VLM 모델 본체(학습·파인튜닝·프롬프트 관리) — 외부 시스템 책임. 저작도구의 VLM 연동은 **외부 VLM 서비스를 호출해 시계열 정보를 획득하는 연동**만 보유 (`ai-server/app/routers/vlm.py`는 외부 VLM 호출 어댑터). 응답을 LS_DATA_META(VLM)에 적재하고 SCR-AUTO-002 화면에서 REVIEWER 가 검토·수정
-- **요구사항 정리 (V1.8)**: 본체가 외부 시스템인 **SFR-03(시계열 메타 모델)·SFR-06(생성형 AI)·SFR-11(영상 합성 모델)은 요구사항정의서에서 제거**. 저작도구 잔존 책임(외부 VLM 시계열 호출 연동·외부 메타 검토 UI·증강 연동·생성된 영상 라벨링)은 모두 **SFR-08(저작도구 핵심 기능)에 흡수**됨. 화면 인덱스의 SFR 매핑도 SFR-08로 단일화. (2026-05-15 정리: 외부 미연동 상태인 배경영상 요청 인터페이스 BE 코드는 제거됨)
-- **범위 외 (V1.9)**: 학습데이터셋 내보내기(Export) — 범위 외로 변경. 저작도구는 라벨링·검수·버전관리까지만 담당. (참고: VideoSummaryResponse에 exportStatus/exportedAt 필드가 잔존하나 LS_DATA_SET 매핑 미완성으로 항상 null 반환)
+- **주요 도메인**: 사용자/권한, 마킹(자동/수동 이벤트 식별), 배치 파이프라인(마킹→VLM 콜백→비식별→프레임 추출→오토라벨링), 라벨링, 검수(REVIEWER 배정), 비식별화, 버전관리(DB 스냅샷), 데이터 증강(새 영상), 포털(데이터마트 Load)
+- **범위 외 — 데이터마트**: 외부 제공 시스템 책임. 저작도구는 라벨링·검수·버전관리까지만 담당하고 마트 구축·검색·다운로드는 담당하지 않음
+- **범위 외 — 생성형 AI 본체**: 생성형 AI 모델 학습·파인튜닝·프롬프트 가이드·UI/UX 편의성은 외부 생성 시스템 책임. 저작도구는 외부 증강 결과 검수(SCR-AUG-002)만 보유
+- **범위 외 — VLM 모델 본체**: 학습·파인튜닝·프롬프트 관리는 외부 시스템 책임. 저작도구의 VLM 연동은 **외부 VLM 서비스를 호출해 시계열 정보를 획득하는 연동**만 보유(`ai-server/app/routers/vlm.py`는 외부 VLM 호출 어댑터). 응답을 LS_DATA_META(VLM)에 적재하고 SCR-AUTO-002 화면에서 REVIEWER 가 검토·수정
+- **범위 외 — 영상 합성 모델 본체**: 외부 시스템 책임. 저작도구는 합성/증강된 영상의 수신·라벨링·검수만 담당
+- **범위 외 — 학습데이터셋 내보내기(Export)**: 저작도구는 라벨링·검수·버전관리까지만 담당
+- **요구사항 매핑**: 본체가 외부 시스템인 시계열 메타 모델·생성형 AI·영상 합성 모델은 요구사항정의서에서 제외. 저작도구 잔존 책임(외부 VLM 시계열 호출 연동·외부 메타 검토 UI·증강 연동·생성된 영상 라벨링)은 모두 SFR-08(저작도구 핵심 기능)에 흡수됨
 
 ## 워크스페이스 구조
 
@@ -20,7 +21,7 @@ klid-la-test-v0/
 │   ├── src/main/java/kr/co/cudo/authoring/   # 도메인 패키지
 │   ├── src/main/resources/
 │   │   ├── application.yml · application-{local,dev,stg,prd}.yml
-│   │   └── db/migration/    # Flyway
+│   │   └── db/migration/    # Flyway (PostgreSQL)
 │   ├── src/test/java/...
 │   ├── build.gradle · settings.gradle
 │   └── .env.example
@@ -30,12 +31,11 @@ klid-la-test-v0/
 │   └── tests/
 ├── frontend/                # React + Vite + TypeScript
 ├── docs/
-│   ├── requirements/        # 요구사항/DB/UI-UX V1.1
+│   ├── requirements/        # 요구사항/DB/UI-UX
 │   ├── analysis/            # CVAT 분석 문서 + portable-modules 9종
 │   ├── design/ · contracts/ · api-specs/ · architecture/
 ├── reports/
 ├── cvat/                    # CVAT 원본 트리 (레퍼런스, .gitignore)
-├── .claude-plan.md
 └── CLAUDE.md
 ```
 
@@ -52,8 +52,8 @@ klid-la-test-v0/
 - **Java 17** + **Spring Boot 3.3** + **Gradle 8**
 - Spring Data JPA (Hibernate 6) + **QueryDSL 5.1** (복잡한 검색)
 - **Spring Security** + **JJWT 0.12** (관제서버/포털 발급 토큰 검증)
-- **Flyway 10.13** (`klid_system` DB 내 `klid_at` 스키마 — 저작도구 전용 테이블은 독립, MNG_* 공유 테이블 변경 시 관제서버팀 협의)
-- **Spring Boot Quartz** (기존 `QRTZ_*` 테이블과 호환)
+- **Flyway 10.13** + `flyway-database-postgresql` (`klid_at` 스키마 — 저작도구 전용 LS_* 테이블은 자체 관리, MNG_* 공유 테이블 변경 시 관제서버팀 협의)
+- **Spring Boot Quartz** (PostgreSQL JobStore — `QRTZ_*` 테이블, `PostgreSQLDelegate`)
 - **Resilience4j** (외부 API 재시도/서킷 브레이커/타임아웃)
 - **Spring WebFlux WebClient** (외부 시스템 연동)
 - **net.bramp.ffmpeg** (FFmpeg Java 래퍼)
@@ -61,7 +61,7 @@ klid-la-test-v0/
 - MapStruct 1.5 / Lombok
 - **Micrometer + Prometheus** (메트릭 수집 — API 응답시간, 배치 처리량, 외부 API 호출 모니터링)
 - Springdoc OpenAPI 2.5 (Swagger UI)
-- JUnit 5 + Testcontainers (MariaDB)
+- JUnit 5 + Testcontainers (PostgreSQL)
 
 ### AI 추론 서버 (ai-server)
 - Python 3.11 + FastAPI
@@ -75,12 +75,12 @@ klid-la-test-v0/
 - 라벨링 캔버스: konva.js (CVAT canvas-drawing.md 참고한 포팅)
 
 ### 데이터베이스
-- **MariaDB 10.11.13 (LTS)** — `klid_system` @ 192.168.102.101:13307
-- utf8mb4 / utf8mb4_unicode_ci / InnoDB
-- MaxScale 24.02.5 (Master-Slave Read/Write Splitting)
-- `klid_system` DB 내 `klid_at` 스키마 운영 — **저작도구 전용 38개(LS_*) + 관제서버 재사용 9개(MNG_*) = JPA 엔티티 47개 테이블**
-- Quartz 스케줄러 `QRTZ_*` 11개 테이블은 기존 `klid_system` 공유
+- **PostgreSQL** — 드라이버 `org.postgresql.Driver`, JDBC `jdbc:postgresql://...`
+- 인코딩 UTF-8, 표준 SQL DDL (PostgreSQL 문법)
+- `klid_at` 스키마 운영 — **저작도구 전용(LS_*) 테이블은 자체 소유·구성**, 관제서버 재사용 9개(MNG_*)는 `ddl-auto=validate`로 읽기 위주 참조
+- Quartz 스케줄러 `QRTZ_*` 테이블은 PostgreSQL JobStore(`PostgreSQLDelegate`, BYTEA)로 운영
 - 외부 채널은 포털 DB 공유
+- **관제 인프라 정합**: 관제서버도 PostgreSQL로 전환되며, 저작도구는 자신이 소유한 LS_* 테이블만 PostgreSQL용으로 구성한다. 공유 MNG_*/QRTZ_* 스키마는 인프라가 제공하고 저작도구는 validate/연동만 한다.
 
 ## 아키텍처 원칙
 
@@ -91,14 +91,14 @@ klid-la-test-v0/
 - Repository는 JPA/QueryDSL만 사용, 비즈니스 로직 금지
 - 도메인 중심 패키지 구조: `kr.co.cudo.authoring.{domain}.{controller|service|repository|entity|dto}`
 
-### 공통 인프라 (Phase 0에서 구축)
+### 공통 인프라
 - `common.response.ApiResponse<T>` — 모든 API 표준 응답
 - `common.exception.ErrorCode` enum + `CustomException` + `@RestControllerAdvice GlobalExceptionHandler`
 - `common.security.JwtAuthenticationFilter` — 관제/포털 JWT 디코드 → `TokenClaims` → `SecurityContext`
 - `common.security.SecurityConfig` — 역할 기반 접근 제어
 - `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` — 듀얼 EntityManager/TransactionManager (`@ControlRepo`, `@PortalRepo`로 분리)
 - `common.logging.RequestIdFilter` + Logback JSON 인코더 (민감 필드 마스킹)
-- `common.client.*` — DeidentifyClient / AiServerClient / VlmClient / GiteaClient / ControlNotifyClient / ExternalAugmentClient (Resilience4j 적용) — 관제/포털 양방향 M2M 통합은 deprecated이나 **저작도구 → 관제서버 단방향 outbound 완료/수정 통지(ControlNotifyClient)는 예외로 보유**
+- `common.client.*` — DeidentifyClient / AiServerClient / VlmClient / ControlNotifyClient / ExternalAugmentClient (Resilience4j 적용). 관제/포털 양방향 M2M 통합은 deprecated이나 **저작도구 → 관제서버 단방향 outbound 완료/수정 통지(ControlNotifyClient)는 예외로 보유**
 
 ### 코드 컨벤션
 - 패키지: 소문자 케밥 금지, 영문 소문자만 (`kr.co.cudo.authoring.label`)
@@ -120,88 +120,87 @@ klid-la-test-v0/
 | 변수명 | 설명 | 사용 환경 |
 |--------|------|:---------:|
 | `SPRING_PROFILES_ACTIVE` | local/dev/stg/prd | 전체 |
-| `CONTROL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | klid_system 접속 | dev/stg/prd |
-| `PORTAL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | 포털 DB 접속 | dev/stg/prd |
+| `CONTROL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | klid_system(PostgreSQL) 접속 | dev/stg/prd |
+| `PORTAL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | 포털 DB(PostgreSQL) 접속 | dev/stg/prd |
 | `JWT_SECRET` / `JWT_ISSUER` | JWT 검증 | dev/stg/prd |
 | `DEIDENTIFY_API_URL` | 비식별 서버 | dev/stg/prd |
 | `AI_SERVER_URL` | ai-server 내부 주소 | 전체 |
-| `GITEA_BASE_URL` / `GITEA_TOKEN` / `GITEA_OWNER` / `GITEA_REPO` | Gitea 버전관리 | dev/stg/prd |
 | `STORAGE_RAW_PATH` / `STORAGE_DEIDENTIFIED_PATH` | 저장 경로 | 전체 |
 | `VITE_API_BASE_URL` | FE API 주소 | FE 전체 |
 
 ### 환경별 접속 정보
 | 환경 | BE | ai-server | FE | DB | 비고 |
 |:----:|:---|:---|:---|:---|:-----|
-| local | localhost:8080 | localhost:9300 | localhost:5173 | H2 (임시) | `./gradlew bootRun` / `uvicorn` / `vite` |
-| dev | (dev BE) | (dev AI) | (dev FE) | 192.168.102.101:13307 | |
-| stg | (stg BE) | (stg AI) | (stg FE) | (stg DB) | |
-| prd | (prd BE) | (prd AI) | (prd FE) | (prd DB) | 시크릿은 환경변수/Vault |
+| local | localhost:8080 | localhost:9300 | localhost:5173 | PostgreSQL (Docker/Testcontainers) | `./gradlew bootRun` / `uvicorn` / `vite` |
+| dev | (dev BE) | (dev AI) | (dev FE) | (dev PostgreSQL) | |
+| stg | (stg BE) | (stg AI) | (stg FE) | (stg PostgreSQL) | |
+| prd | (prd BE) | (prd AI) | (prd FE) | (prd PostgreSQL) | 시크릿은 환경변수/Vault |
 
-## 역할 정의 (V1.3)
+## 역할 정의
 
 | 역할 | 코드 | 주요 권한 |
 |------|------|-----------|
-| 검수자 | `REVIEWER` | **사용자 관리·시스템 설정**, 작업자 배정·재배정·배정 이력 조회, 검수 승인/반려 (V1.3 — ADMIN 권한 흡수) |
+| 검수자 | `REVIEWER` | **사용자 관리·시스템 설정**, 작업자 배정·재배정·배정 이력 조회, 검수 승인/반려 |
 | 라벨링 작업자 | `WORKER` | 라벨 수정·검수 제출 |
 | 포털 회원 | `PORTAL_USER` | 이미지/영상 업로드, 간편 라벨링, 본인 데이터 기간 내 다운로드 |
 
-> **V1.3 변경**: 시스템 관리자(ADMIN) 역할이 제거되고 모든 권한이 REVIEWER에 통합되었다. UI 호칭은 '검수자'로 통일하며, 관리 화면 URL은 `/manage/*`로 변경되었다.
+> 시스템 관리자(ADMIN) 역할은 없으며 모든 관리 권한은 REVIEWER에 통합되어 있다. UI 호칭은 '검수자'로 통일하고, 관리 화면 URL은 `/manage/*`다.
 
 ## 주요 비즈니스 규칙
 
-### 인증·진입 (V1.1)
+### 인증·진입
 - 저작도구는 **독립 로그인 UI 없음** — 관제서버(내부) / 포털 서버(외부)가 발급한 JWT 토큰을 인계
 - **관제서버와 동일 도메인 운영** → 브라우저 스토리지(localStorage/sessionStorage) 공유로 JWT 전달. URL 쿼리 파라미터(`?token=`) 방식 미사용
 - 두 채널 모두 **동일 JWT 발급 서버** — 단일 검증 로직(`JwtAuthenticationFilter`)로 처리
 - 토큰 `role` + `channel` 클레임으로 권한 분기 (`@PreAuthorize("hasRole('REVIEWER')")`)
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트
-- **외부 시스템 양방향 통합(M2M) deprecated**: 관제서버/외부 학습데이터 시스템과의 송수신 API 및 M2M 인증 인프라는 본 버전에서 제거. 재구축 시 별도 설계 필요.
-- **예외 — 저작도구 → 관제서버 단방향 outbound 완료/수정 통지 (V1.8 부활)**: 영상 단위 작업의 검수 완료 시 `TASK_COMPLETED` 이벤트, 검수 완료 후 라벨/메타 수정 시 `TASK_MODIFIED` 이벤트를 관제서버 inbound SPI 로 push (비동기). 동일 작업 ID(=`LS_DATA_RAW.RAW_SN`) 유지, 버전 업 아님 — 수신측은 마지막 상태로 갱신. 양방향 M2M 인증 인프라는 부활하지 않으며, 본 통지는 인계 토큰 또는 IP 화이트리스트로 보호.
+- **외부 시스템 양방향 통합(M2M) deprecated**: 관제서버/외부 학습데이터 시스템과의 송수신 API 및 M2M 인증 인프라는 미운영. 재구축 시 별도 설계 필요.
+- **예외 — 저작도구 → 관제서버 단방향 outbound 완료/수정 통지**: 영상 단위 작업의 검수 완료 시 `TASK_COMPLETED` 이벤트, 검수 완료 후 라벨/메타 수정 시 `TASK_MODIFIED` 이벤트를 관제서버 inbound SPI 로 push (비동기). 동일 작업 ID(=`LS_DATA_RAW.RAW_SN`) 유지, 버전 업 아님 — 수신측은 마지막 상태로 갱신. 양방향 M2M 인증 인프라는 부활하지 않으며, 본 통지는 인계 토큰 또는 IP 화이트리스트로 보호.
 
 ### 배치 파이프라인 (인증 불필요)
 - 영상 적재는 자체 업로드(포털 TUS / 관리 화면) 기반 — 관제서버 자동 송신은 미연동
-- **V2.0 파이프라인 순서**: ⭐마킹(자동/수동) → VLM 시계열(콜백 비동기) → 비식별화 → FFmpeg(**마킹 위치 기반** 원본+비식별 2벌 추출) → YOLO(**원본만** 실행, 비식별본 결과 공유) → SAM2 → 트랙 보간
-- **마킹 단계 (V2.0 신규)**: 영상별 자동/수동 모드 설정. 자동=**프레임 간격**(intervalFrames) 기반 마킹, 수동=작업자 키보드 단축키로 이벤트 시점 마킹. 마킹 결과(이벤트명 + 영상경로 + marks 배열)를 VLM에 콜백 형태로 전달. **마킹 완료 시 MarkingCompletedEvent → MarkingBatchBridge(AFTER_COMMIT) → BATCH_QUEUED 전이 + @Async 배치 자동 시작**
+- **파이프라인 순서**: ⭐마킹(자동/수동) → VLM 시계열(콜백 비동기) → 비식별화 → FFmpeg(**마킹 위치 기반** 원본+비식별 2벌 추출) → YOLO(**원본만** 실행, 비식별본 결과 공유) → SAM2 → 트랙 보간
+- **마킹 단계**: 영상별 자동/수동 모드 설정. 자동=**프레임 간격**(intervalFrames) 기반 마킹, 수동=작업자 키보드 단축키로 이벤트 시점 마킹. 마킹 결과(이벤트명 + 영상경로 + marks 배열)를 VLM에 콜백 형태로 전달. **마킹 완료 시 MarkingCompletedEvent → MarkingBatchBridge(AFTER_COMMIT) → BATCH_QUEUED 전이 + @Async 배치 자동 시작**
 - **마킹 화면**: 영상 파일 스트리밍(`GET /v1/videos/{rawSn}/stream`, HTTP Range 지원) + 배속 설정(0.25x~4x) + 키보드 단축키(Space: 마킹, Del: 삭제, Enter: 완료)
-- **VLM 연동 (V2.0 변경)**: BatchOrchestrator가 VlmTimeseriesStep을 동기 호출(45s 타임아웃, Resilience4j 재시도). VLM 서버가 즉시 응답 시 파이프라인 다음 단계 진행. 결과 상세는 VLM 서버가 콜백(`POST /v1/webhook/vlm-result`)으로 별도 전송 → VlmResultService가 LS_DATA_META 적재 + 검수큐(LS_DATA_META_REVIEW) 진입
+- **VLM 연동**: BatchOrchestrator가 VlmTimeseriesStep을 동기 호출(45s 타임아웃, Resilience4j 재시도). VLM 서버가 즉시 응답 시 파이프라인 다음 단계 진행. 결과 상세는 VLM 서버가 콜백(`POST /v1/webhook/vlm-result`)으로 별도 전송 → VlmResultService가 LS_DATA_META 적재 + 검수큐(LS_DATA_META_REVIEW) 진입
 - **배치 상태 전이**: BatchOrchestrator.process() 시작 시 `LsRawDataStatus → PROCESSING`, 완료 시 `→ COMPLETED`, 실패 시 `→ FAILED`. `LsDataRaw.dataSttsCd`(배치 단계)와 `LsRawDataStatus.dataSttsCd`(작업 상태) 양쪽 모두 갱신
 - **비식별 호출 조건**: 영상 `PRVC_TYPE_CD='PRVC' or 'PSDO'`일 때만. `ANONY`는 원본만 저장
 - 원본 영상과 비식별 영상은 **별도 경로로 동시 저장**
-- **오토라벨링 (V2.0 변경)**: YOLO/SAM2는 **원본 이미지에만 실행**. 라벨 좌표는 동일 해상도이므로 비식별본과 공유 (별도 실행 없음)
+- **오토라벨링**: YOLO/SAM2는 **원본 이미지에만 실행**. 라벨 좌표는 동일 해상도이므로 비식별본과 공유 (별도 실행 없음)
 - YOLO/SAM2/VLM은 `AiServerClient`로 호출 (타임아웃 60s + Resilience4j CircuitBreaker)
 
-### 작업 배정 (V1.3)
-- **REVIEWER가 WORKER에게 배정** (역할 단일화 — V1.3에서 ADMIN 제거)
+### 작업 배정
+- **REVIEWER가 WORKER에게 배정** (역할 단일화 — ADMIN 권한은 REVIEWER에 통합)
 - `LS_TASK_ASSIGNMENT`에 `TASK_TYPE_CD='LABELER'` INSERT, 재배정 시 `LS_TASK_ASSIGN_HISTORY` 기록
-- 배정 이력 조회·재배정 권한도 REVIEWER가 보유 (V1.3 — 기존 ADMIN 권한 흡수)
+- 배정 이력 조회·재배정 권한도 REVIEWER가 보유
 
-### 작업 단위 + 완료/수정 통지 (V1.8 신규)
+### 작업 단위 + 완료/수정 통지
 - **작업 단위 = 영상 1건** — 프로젝트 단위 개념 사용 안 함. 작업 식별자는 영상 단위 ID(`LS_DATA_RAW.RAW_SN`)
 - **검수 완료 = 작업 완료** — REVIEWER 가 검수를 `APPROVED` 처리하면 작업이 완료됨. `LsRawDataStatus.dataSttsCd` 가 `COMPLETED` 전이된 시점에 outbound `TASK_COMPLETED` 통지 발행
 - **검수 완료 후 수정 시** — 동일 작업 ID 유지, 새 작업 ID 발급/버전 업 모두 안 함. 라벨/메타가 수정될 때마다 outbound `TASK_MODIFIED` 통지 발행. 수신측(관제서버)은 마지막 상태로 갱신
 - **통지 단위는 영상 1건** — 라벨/이미지 1장 단위로 통지하지 않음. 영상 내 다수 변경이 같은 트랜잭션·짧은 시간 내 발생하면 디바운스 후 1회 통지(운영 결정)
-- **TASK_COMPLETED 페이로드 — 메타만**: 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이·채널) + 검수 완료 일시 + 프레임 개수 + 결과 요약 카운트(라벨 N건·메타 M건) + 요청 ID. 라벨/메타 본문 자체는 포함하지 않으며, 관제가 필요 시 본 도구 API 또는 Gitea 조회로 보강
+- **TASK_COMPLETED 페이로드 — 메타만**: 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이·채널) + 검수 완료 일시 + 프레임 개수 + 결과 요약 카운트(라벨 N건·메타 M건) + 요청 ID. 라벨/메타 본문 자체는 포함하지 않으며, 관제가 필요 시 본 도구 API로 보강
 - **TASK_MODIFIED 페이로드 — 수정 요약만 전달**: 이벤트 타입 + 작업 ID(RAW_SN) + 마지막 수정 일시 + **변경 프레임 목록**(각 항목: 프레임 ID `SRC_SN` + 변경 종류 `LABEL_ADDED|LABEL_UPDATED|LABEL_DELETED|META_UPDATED`) + 변경 요약 카운트 + 요청 ID. 라벨/메타 본문 데이터는 포함하지 않음
 - **관제서버 조회 패턴**: 관제서버가 통지를 수신하면 저작도구 API를 호출하여 필요한 상세 데이터를 직접 조회. 저작도구는 관제서버가 조회할 수 있는 API를 제공해야 함
 - 페이로드에 PII·토큰·원본 비-비식별 이미지 포함 금지
-- 이력 보존은 기존 인프라(`LS_DATA_LBL_HSTRY` + Gitea 커밋)로 충분
+- 이력 보존은 `LS_LABEL_VERSION`(라벨 스냅샷) + `LS_DATA_LBL_HSTRY`로 충분
 
 ### 라벨링·버전관리
 - 바운딩박스 / 폴리곤 / 세그멘테이션 / SAM2 Track — 캔버스는 konva.js
-- 라벨 저장 이벤트 → Gitea 자동 커밋 (`GiteaClient.commit`). `LS_DATA_LBL_HSTRY`에 커밋 해시 저장
-- diff 비교 / 롤백 지원
+- **버전관리는 DB 기반 (외부 VCS 미사용)**: 라벨 저장 시 라벨 **전체 스냅샷(JSON)** 을 `LS_LABEL_VERSION.LABEL_PAYLOAD`에 저장한다. 버전 식별자는 페이로드 해시(`VERSION_HASH`, payload의 SHA-256)이며, 같은 페이로드 재저장 시 동일 해시로 중복을 식별한다.
+- **diff / 롤백**: 두 버전의 DB 스냅샷을 앱에서 비교해 diff를 계산하고, 롤백은 대상 스냅샷을 새 active 버전으로 복원한다. 외부 Git/Gitea 등 VCS에 의존하지 않는다.
 - **CVAT 트랙 보간 알고리즘** 포팅 (docs/analysis/portable-modules/01-track-interpolation.md → Java)
 - **MASK ↔ RLE ↔ Polygon 변환** 포팅 (portable-modules/02)
 
-### 증강 = 새 영상 (V2.0 신규)
+### 증강 = 새 영상
 - 증강 결과는 **새 영상(RAW_SN) 생성** — 원본과 다른 영상 ID. `LS_DATA_RAW.PARENT_RAW_SN`으로 원본 참조
 - 원본 영상의 라벨/메타 JSON을 새 영상에 **복사**. 해상도 변경 증강은 이미지 해상도만 변경하여 저장
 - 새 영상은 **미검수(PENDING) 상태**로 시작 → 작업자 배정 → 수정 → 검수 (기존 플로우 동일)
 - 관제서버 통지 시 **새 영상 ID(RAW_SN)로 별도 완료 통지** 발송
-- 증강 요청/수신 흐름은 기존 유지 (ExternalAugmentClient → 콜백)
+- 증강 요청/수신 흐름: ExternalAugmentClient → 콜백
 
-### 포털 (외부 채널) — V2.0
-- **데이터 소스 변경**: 관제서버 → 데이터마트 → 포털 DB 적재 (관제서버 책임). 저작도구는 포털 DB에서 Load
+### 포털 (외부 채널)
+- **데이터 소스**: 관제서버 → 데이터마트 → 포털 DB 적재 (관제서버 책임). 저작도구는 포털 DB에서 Load
 - 포털 사용자가 영상 선택 → 라벨/메타 데이터 Load → 라벨링 화면에 표시
 - **저장 시 원본 미수정** — 사용자별 작업 데이터로 `LS_PORTAL_USER_LABEL`에 별도 적재
 - 다운로드는 사용자 작업 데이터 기준
@@ -210,11 +209,12 @@ klid-la-test-v0/
 - 반응형 웹 (PC/태블릿/모바일), WCAG 2.1 AA 준수
 
 ### DB 정책
-- `klid_system` DB 내 `klid_at` 스키마에 저작도구 전용 테이블 34개(LS_*) 신규 운영
+- `klid_at` 스키마(PostgreSQL)에 저작도구 전용 테이블(LS_*) 운영 — 저작도구가 직접 소유·구성
 - 관제서버 MNG_* 테이블 9개 재사용 (READ 위주, JPA `ddl-auto=validate`)
 - Flyway 마이그레이션: LS_* 전용 테이블은 자체 관리, **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수**
+- 모든 마이그레이션 SQL은 PostgreSQL 표준 문법으로 작성 (MariaDB 고유 문법 금지)
 
-### 데이터마트 적재용 View (V52)
+### 데이터마트 적재용 View
 - `klid_at` 스키마에 4종 View 제공 — 검수 완료(`LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'`) 영상만 노출
   - `V_COMPLETED_VIDEO` : 영상 메타 + 원본 영상 경로 + 검수 완료 일시
   - `V_COMPLETED_FRAME` : 프레임 페어 (`FILE_PATH`=원본, `SRC_BKUP_FILE_PATH`=비식별)
@@ -251,11 +251,11 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 ## 주의사항
 
 ### 외부 API 연동
-- 비식별·Gitea·ai-server — **Resilience4j로 타임아웃/재시도/서킷 브레이커 적용 필수**
+- 비식별·ai-server·VLM — **Resilience4j로 타임아웃/재시도/서킷 브레이커 적용 필수**
 - 비식별 API 실패 시 영상 상태 `DE_IDNTF_YN='F'`로 마킹 + 재시도 큐. 원본 절대 삭제 금지
 - 관제서버 세션 토큰은 저작도구가 발급하지 않음 — 검증 실패 시 관제서버 로그인 페이지로 리다이렉트
 - 관제/포털 양방향 통합 API 및 외부 학습데이터 API는 deprecated — 재구축 전까지 미연동
-- **관제서버 통지 + 조회 API (V1.8)**: `ControlNotifyClient`가 `TASK_COMPLETED`·`TASK_MODIFIED` 통지를 영상 단위로 송신(수정 요약만, 본문 미포함) — 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 적용. 관제서버는 통지 수신 후 저작도구 API를 호출하여 상세 데이터 조회. 단방향 outbound 통지 + inbound 조회 API 제공, 양방향 M2M 인증은 여전히 deprecated
+- **관제서버 통지 + 조회 API**: `ControlNotifyClient`가 `TASK_COMPLETED`·`TASK_MODIFIED` 통지를 영상 단위로 송신(수정 요약만, 본문 미포함) — 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 적용. 관제서버는 통지 수신 후 저작도구 API를 호출하여 상세 데이터 조회. 단방향 outbound 통지 + inbound 조회 API 제공, 양방향 M2M 인증은 여전히 deprecated
 
 ### 파일 업로드 (포털 + TUS)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수

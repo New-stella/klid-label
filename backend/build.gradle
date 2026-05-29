@@ -36,6 +36,15 @@ ext {
     mapstructVersion = '1.5.5.Final'
 }
 
+// Phase 3: Spring Boot BOM 이 org.testcontainers:* 를 1.19.8(docker-java 3.3.6)로 핀하므로
+// junit-jupiter/postgresql 만 1.20.4 로 올려도 core 가 1.19.8 로 남아 docker-java 가
+// API 1.32 로 협상한다. Testcontainers BOM 을 1.20.4 로 임포트해 모든 모듈/도커자바를 정렬.
+dependencyManagement {
+    imports {
+        mavenBom 'org.testcontainers:testcontainers-bom:1.20.4'
+    }
+}
+
 dependencies {
     // Spring Boot core
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -76,10 +85,9 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok'
 
     // DB
-    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
-    runtimeOnly 'com.h2database:h2'                  // 로컬·테스트용
+    runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.flywaydb:flyway-core'
-    implementation 'org.flywaydb:flyway-mysql'
+    implementation 'org.flywaydb:flyway-database-postgresql'
 
     // HTTP clients (관제서버/포털/비식별서버/Gitea/ai-server 연동)
     implementation 'org.springframework.boot:spring-boot-starter-webflux'  // WebClient
@@ -100,13 +108,37 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly   'org.junit.platform:junit-platform-launcher'
-    testImplementation 'org.testcontainers:junit-jupiter:1.19.8'
-    testImplementation 'org.testcontainers:mariadb:1.19.8'
+    // Phase 3: Docker Desktop(API ≥1.40) 호환을 위해 docker-java 3.4.x 를 포함한 1.20.x 사용.
+    // 버전은 위 testcontainers-bom 1.20.4 가 일괄 관리 (core/docker-java 정렬).
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
     testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+
+    // Phase 3 (Testcontainers PostgreSQL): Docker Desktop 서버는 min API 1.40 을 요구하는데
+    // (docker version → Server APIVersion 1.54, MinAPIVersion 1.40), docker-java 클라이언트가
+    // 기본 API 1.32 로 핑/info 를 보내 데몬이 "client version too old" 로 거부한다(/info → 400).
+    // ~/.testcontainers.properties 의 UnixSocketClientProviderStrategy(소켓 전략)는 그대로 두고,
+    // API 버전만 1.44 로 고정해 회피한다. (1.40~1.54 구간 모두 200 응답 확인, 여유분 1.44 사용)
+    //
+    // 주의: Testcontainers 1.20.4 가 셰이딩한 docker-java(DefaultDockerClientConfig)는
+    // 환경변수 중 DOCKER_HOST/DOCKER_TLS_VERIFY/DOCKER_CONFIG/DOCKER_CERT_PATH/DOCKER_CONTEXT 만
+    // 매핑하고 DOCKER_API_VERSION 은 매핑하지 않는다. API 버전은 오직 'api.version' (system property
+    // 또는 ~/.testcontainers.properties) 로만 주입 가능하므로, env 가 아닌 systemProperty 로 고정한다.
+    systemProperty 'api.version', '1.44'
+
+    // 활성 Docker context 의 소켓을 명시(desktop-linux → ~/.docker/run/docker.sock,
+    // /var/run/docker.sock 가 여기로 심볼릭). 소켓 전략 자체는 정상이므로 strategy 는 덮어쓰지 않는다.
+    def desktopSock = file("${System.getProperty('user.home')}/.docker/run/docker.sock")
+    if ((System.getenv('DOCKER_HOST') == null || System.getenv('DOCKER_HOST').isBlank()) && desktopSock.exists()) {
+        environment 'DOCKER_HOST', "unix://${desktopSock.absolutePath}"
+    }
+
+    // Ryuk(reaper) 컨테이너도 동일 API 버전 이슈로 막히지 않도록 비활성화.
+    environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
 }
 
 // QueryDSL Q-class 생성 경로

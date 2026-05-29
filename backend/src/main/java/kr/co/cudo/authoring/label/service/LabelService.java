@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
  *  - 좌표 검증 (CWE-20): 음수 좌표 차단, polygon 최대 1000 점 (CWE-770 DoS 방어).
  *  - Mass Assignment (CWE-915): autoLblYn 은 요청 DTO 에서 무시 (정책: 자동 라벨 수정 시에도 'Y' 유지).
  *
- * Phase 8 에서 Gitea 자동 커밋 훅 추가 예정.
+ * Phase 5 — 라벨 저장 시 DB 스냅샷 버전 자동 기록 훅 (VersionService.commit).
  */
 @Slf4j
 @Service
@@ -66,7 +66,7 @@ public class LabelService {
     /** Phase 2 — LS_LABEL 마스터 조회 (labelId 검증 + 응답 enrichment). */
     private final LsLabelRepository lsLabelRepository;
     /**
-     * Phase 8 — Gitea 자동 커밋 훅.
+     * Phase 5 — 라벨 저장 시 DB 스냅샷 버전 자동 기록 훅.
      * label ⇄ version 순환 의존 (LabelService → VersionService, VersionService → LabelAccessGuard)
      * 해소를 위해 {@link Lazy} 적용 — 생성자 주입 유지 (보안 정책: 필드/세터 주입 금지).
      */
@@ -247,7 +247,7 @@ public class LabelService {
         // Phase 2 — 응답 labelName/color enrichment.
         Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(result);
 
-        // Phase 8 — Gitea 자동 커밋 (PORTAL 채널은 버전관리 미제공 → skip).
+        // Phase 5 — DB 스냅샷 버전 자동 기록 (PORTAL 채널은 버전관리 미제공 → skip).
         if (VersionService.isCommittable(actor)) {
             LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, frameImageType,
                     lockSttsCd, aiInfoMap, lsLabelMap, objectMapper);

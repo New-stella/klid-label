@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.AccessLevel;
@@ -74,8 +73,10 @@ public class LsDataLbl {
     @Column(name = "LABEL", nullable = false, length = 255)
     private String label;
 
-    @Lob
-    @Column(name = "POINTS_JSON")
+    // MariaDB → PostgreSQL: @Lob + String 은 PG 에서 large object(oid/CLOB) 타입으로 매핑되어
+    // "Large Objects may not be used in auto-commit mode" 오류를 유발한다. 마이그레이션이
+    // POINTS_JSON 을 TEXT 로 생성하므로 columnDefinition="TEXT" 로 평문 텍스트 매핑한다.
+    @Column(name = "POINTS_JSON", columnDefinition = "TEXT")
     private String pointsJson;
 
     @Transient

@@ -17,7 +17,7 @@ import java.util.Optional;
 /**
  * Phase 3 -- 관제서버 통지 fallback 큐 적재/처리 서비스.
  *
- * <p>GiteaFallbackQueueService 패턴을 그대로 복제.
+ * <p>외부 통지 영속 fallback 큐(idempotency + dead-letter + 백오프 재시도) 패턴.
  * 환경변수 {@code authoring.control-notify.enabled} 가 true 일 때만 적재.
  *
  * <h3>호출 시점</h3>

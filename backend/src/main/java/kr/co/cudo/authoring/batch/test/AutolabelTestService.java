@@ -25,7 +25,7 @@ import java.util.Map;
 
 /**
  * 오토라벨링 파이프라인 테스트 트리거 서비스.
- * 외부 서버(Gitea/VLM) 없이 FRAME_EXTRACT → DEIDENTIFY → YOLO → SAM2 4단계를 실행한다.
+ * 외부 서버(버전관리/VLM) 없이 FRAME_EXTRACT → DEIDENTIFY → YOLO → SAM2 4단계를 실행한다.
  * 각 단계는 호출자가 enabledStages 토글로 ON/OFF 할 수 있다.
  *
  * 트랜잭션 정책: 각 step 이 자체 REQUIRES_NEW 트랜잭션을 사용하므로 본 서비스는 비트랜잭션.

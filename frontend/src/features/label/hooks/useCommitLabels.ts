@@ -10,7 +10,7 @@ export interface UseCommitLabelsOptions {
 }
 
 /**
- * Gitea 커밋 트리거 mutation.
+ * 라벨 스냅샷 버전 커밋 트리거 mutation.
  */
 export function useCommitLabels(srcSn: number | undefined, options: UseCommitLabelsOptions = {}) {
   const qc = useQueryClient();

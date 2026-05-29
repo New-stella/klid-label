@@ -2,7 +2,6 @@ package kr.co.cudo.authoring.observability;
 
 import kr.co.cudo.authoring.observability.health.AiServerHealthIndicator;
 import kr.co.cudo.authoring.observability.health.DeidentifyHealthIndicator;
-import kr.co.cudo.authoring.observability.health.GiteaHealthIndicator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +26,6 @@ class HealthIndicatorTest {
 
     @Autowired private AiServerHealthIndicator aiHealth;
     @Autowired private DeidentifyHealthIndicator deidHealth;
-    @Autowired private GiteaHealthIndicator giteaHealth;
 
     @Test
     @DisplayName("Health_외부_시스템_인디케이터_등록_및_안전한_응답")
@@ -35,7 +33,6 @@ class HealthIndicatorTest {
         // 빈 등록 확인.
         assertThat(aiHealth).isNotNull();
         assertThat(deidHealth).isNotNull();
-        assertThat(giteaHealth).isNotNull();
 
         // health() 호출이 절대 throw 하지 않고 Health 객체 반환.
         // 외부 서버 미기동 → down 이지만 에러 본문/스택트레이스 노출 X.

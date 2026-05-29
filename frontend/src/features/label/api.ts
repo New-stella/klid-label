@@ -15,8 +15,13 @@ import type {
   SiblingFrame,
 } from './types';
 
+/**
+ * 라벨 스냅샷 커밋 결과 (BE 확정 계약).
+ * - commitSha: versionHash — 라벨 스냅샷 SHA-256 hex(64자). 멱등(동일 스냅샷 재커밋 시 동일 해시).
+ * - committedAt: ISO-8601 커밋 시각
+ */
 export interface CommitResponse {
-  commitSha: string;
+  commitSha: string; // = versionHash (SHA-256 hex 64)
   committedAt: string;
 }
 
@@ -244,8 +249,8 @@ export function putLabels(srcSn: number, labels: Label[]): Promise<LabelsRespons
 }
 
 /**
- * Gitea 커밋 트리거 (저장 후 버전관리 반영).
- * BE: POST /frames/{srcSn}/commit
+ * 라벨 스냅샷 버전 커밋 트리거 (저장 후 버전관리 반영).
+ * BE: POST /frames/{srcSn}/commit (body { message } 무시 가능). 멱등.
  */
 export function commitLabels(srcSn: number, message?: string): Promise<CommitResponse> {
   return apiClient

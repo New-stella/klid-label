@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * 정책 (V1.5):
  *  - 본인 업로드 영상에 한해 라벨링 체험 가능.
- *  - 검수 / 버전관리(Gitea 커밋) / VLM 검증 미제공 → LabelService 의 풀 워크플로우 미사용.
+ *  - 검수 / 버전관리(DB 스냅샷) / VLM 검증 미제공 → LabelService 의 풀 워크플로우 미사용.
  *  - 본 서비스는 권한 검증 + AiServerClient 위임만 수행.
  *
  * 보안:

@@ -471,7 +471,7 @@ describe('label api', () => {
 
   describe('saveAndCommit', () => {
     it('저장_시_PUT_labels_단일_호출_BE가_커밋_통합_처리', async () => {
-      // BE 계약: PUT /frames/{srcSn}/labels 가 저장 + Gitea 커밋을 한 번에 처리.
+      // BE 계약: PUT /frames/{srcSn}/labels 가 저장 + 라벨 스냅샷 버전 커밋(DB)을 한 번에 처리.
       // 별도 POST /frames/{srcSn}/commit 호출 없음. committed 는 null 로 반환.
       const calls: string[] = [];
       mock.onPut('/frames/777/labels').reply(() => {

@@ -11,8 +11,6 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.common.client.GiteaClient;
-import kr.co.cudo.authoring.common.client.dto.CommitResponse;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.entity.LsLabel;
@@ -26,15 +24,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
-import reactor.core.publisher.Mono;
-
-import java.time.Instant;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -42,8 +36,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -67,9 +59,6 @@ class LabelControllerTest {
     @Autowired private LsLabelRepository lsLabelRepository;
     @Autowired private WorkLockService workLockService;
 
-    /** Phase 8 Gitea 자동 커밋 — 라벨 저장 후 호출됨. 외부 호출 차단을 위해 mock. */
-    @MockBean private GiteaClient giteaClient;
-
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
 
@@ -85,12 +74,6 @@ class LabelControllerTest {
         reviewerToken           = JwtTestSupport.token(secret, "1",   "REVIEWER", "INTERNAL", issuer, 60);
         workerAssignedToken     = JwtTestSupport.token(secret, "100", "WORKER",   "INTERNAL", issuer, 60);
         workerNotAssignedToken  = JwtTestSupport.token(secret, "101", "WORKER",   "INTERNAL", issuer, 60);
-
-        // Phase 8 — Gitea 자동 커밋 mock. LS_LABEL_VERSION.GITEA_CMT_HASH 가 UK 이므로 매 호출마다 고유 SHA 반환.
-        when(giteaClient.createOrUpdateFile(anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyString()))
-                .thenAnswer(inv -> Mono.just(new CommitResponse(
-                        "sha-" + java.util.UUID.randomUUID(), "msg", "actor", Instant.now())));
 
         // raw + frame 시드
         LsDataRaw raw = LsDataRaw.createFromIngest(

@@ -13,7 +13,7 @@ public record VersionResponse(List<Item> items) {
     public record Item(
             Long lblHstrySn,
             Long srcSn,
-            String giteaCmtHash,
+            String versionHash,
             String registeredUserNo,
             LocalDateTime registeredAt
     ) {
@@ -21,7 +21,7 @@ public record VersionResponse(List<Item> items) {
             return new Item(
                     e.getLabelVersionSn(),
                     e.getDataSrcSn(),
-                    e.getGiteaCmtHash(),
+                    e.getVersionHash(),
                     e.getRegId(),
                     e.getRegDt()
             );

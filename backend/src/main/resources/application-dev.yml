@@ -1,15 +1,15 @@
 spring:
   datasource:
     control:
-      jdbc-url: jdbc:mariadb://${CONTROL_DB_HOST:192.168.102.101}:${CONTROL_DB_PORT:13307}/${CONTROL_DB_NAME:klid_system}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul
+      jdbc-url: jdbc:postgresql://${CONTROL_DB_HOST:192.168.102.101}:${CONTROL_DB_PORT:5432}/${CONTROL_DB_NAME:klid_system}
       username: ${CONTROL_DB_USERNAME}
       password: ${CONTROL_DB_PASSWORD}
-      driver-class-name: org.mariadb.jdbc.Driver
+      driver-class-name: org.postgresql.Driver
     portal:
-      jdbc-url: jdbc:mariadb://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul
+      jdbc-url: jdbc:postgresql://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}
       username: ${PORTAL_DB_USERNAME}
       password: ${PORTAL_DB_PASSWORD}
-      driver-class-name: org.mariadb.jdbc.Driver
+      driver-class-name: org.postgresql.Driver
 logging:
   level:
     root: INFO

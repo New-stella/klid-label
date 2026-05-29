@@ -37,8 +37,13 @@ public class LsLabelVersion {
     @Column(name = "DATA_SRC_SN")
     private Long dataSrcSn;
 
-    @Column(name = "GITEA_CMT_HASH", nullable = false, length = 64)
-    private String giteaCmtHash;
+    /** payload 의 SHA-256(hex) — 같은 프레임 내 동일 스냅샷 식별 (멱등 재커밋). */
+    @Column(name = "VERSION_HASH", length = 64)
+    private String versionHash;
+
+    /** 라벨 전체 JSON 스냅샷 (LabelResponse 직렬화 결과). diff/rollback 의 원천. */
+    @Column(name = "LABEL_PAYLOAD", columnDefinition = "TEXT")
+    private String labelPayload;
 
     @Column(name = "VERSION_NO", nullable = false)
     private int versionNo;
@@ -55,12 +60,13 @@ public class LsLabelVersion {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    public static LsLabelVersion create(Long rawSn, Long srcSn, String commitHash,
+    public static LsLabelVersion create(Long rawSn, Long srcSn, String versionHash, String labelPayload,
                                         int versionNo, String saveReasonCd, String regId) {
         LsLabelVersion version = new LsLabelVersion();
         version.dataRawSn = rawSn;
         version.dataSrcSn = srcSn;
-        version.giteaCmtHash = commitHash;
+        version.versionHash = versionHash;
+        version.labelPayload = labelPayload;
         version.versionNo = versionNo;
         version.saveReasonCd = saveReasonCd;
         version.activeYn = ACTIVE_YES;
