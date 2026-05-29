@@ -60,6 +60,23 @@ public class SystemConfigService {
         }
     }
 
+    /** DECIMAL 타입 캐시 조회. CONFIG_TYPE 이 DECIMAL 이 아니면 INVALID_INPUT. (FEAT-007) */
+    @Cacheable(cacheNames = "sysconfig", key = "'dbl:' + #key")
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Double getDouble(String key) {
+        LsSystemConfig cfg = loadOrThrow(key);
+        if (!"DECIMAL".equals(cfg.getConfigType())) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "CONFIG_TYPE 이 DECIMAL 이 아닙니다 key=" + key + " type=" + cfg.getConfigType());
+        }
+        try {
+            return Double.parseDouble(cfg.getConfigValue());
+        } catch (NumberFormatException e) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR,
+                    "CONFIG_VALUE 가 숫자가 아닙니다 key=" + key);
+        }
+    }
+
     @Cacheable(cacheNames = "sysconfig", key = "'str:' + #key")
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public String getString(String key) {
@@ -99,6 +116,7 @@ public class SystemConfigService {
     private void validateByType(String key, String type, String value) {
         switch (type) {
             case "NUMBER" -> validateNumberRange(key, value);
+            case "DECIMAL" -> validateDecimalRange(key, value);
             case "BOOLEAN" -> {
                 if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
                     throw new CustomException(ErrorCode.INVALID_INPUT,
@@ -120,6 +138,25 @@ public class SystemConfigService {
                     "NUMBER 타입 키에 숫자가 아닌 값이 입력되었습니다.");
         }
         int[] range = ConfigKeys.NUMBER_RANGE.get(key);
+        if (range != null && (v < range[0] || v > range[1])) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "값이 허용 범위를 벗어났습니다.");
+        }
+    }
+
+    private void validateDecimalRange(String key, String value) {
+        double v;
+        try {
+            v = Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "DECIMAL 타입 키에 숫자가 아닌 값이 입력되었습니다.");
+        }
+        if (Double.isNaN(v) || Double.isInfinite(v)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "유효하지 않은 숫자입니다.");
+        }
+        double[] range = ConfigKeys.DECIMAL_RANGE.get(key);
         if (range != null && (v < range[0] || v > range[1])) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "값이 허용 범위를 벗어났습니다.");

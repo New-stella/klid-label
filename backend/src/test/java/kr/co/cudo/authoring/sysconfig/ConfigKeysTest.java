@@ -49,4 +49,20 @@ class ConfigKeysTest {
                 ConfigKeys.BATCH_INTERVAL_SEC,
                 ConfigKeys.BATCH_CONCURRENCY);
     }
+
+    @Test
+    @DisplayName("FEAT007_POLYGON_SIMPLIFY_TOLERANCE_가_화이트리스트에_포함")
+    void allowedContainsPolygonSimplifyKey() {
+        assertThat(ConfigKeys.ALLOWED).contains(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE);
+    }
+
+    @Test
+    @DisplayName("FEAT007_POLYGON_SIMPLIFY_TOLERANCE_는_DECIMAL_RANGE_0_50")
+    void polygonSimplifyDecimalRange() {
+        double[] range = ConfigKeys.DECIMAL_RANGE.get(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE);
+        assertThat(range).isNotNull();
+        assertThat(range).containsExactly(0.0, 50.0);
+        // 정수 범위(NUMBER_RANGE)에는 포함되지 않아야 한다 — DECIMAL 키이므로.
+        assertThat(ConfigKeys.NUMBER_RANGE).doesNotContainKey(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE);
+    }
 }
