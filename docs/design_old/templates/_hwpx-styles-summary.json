@@ -1,0 +1,182 @@
+{
+  "KLID_DE_통합시험 시나리오 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 81,
+    "paraPropCount": 65,
+    "styleCount": 54
+  },
+  "KLID_DE_데이터 전환 및 초기데이터 설계서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 77,
+    "paraPropCount": 66,
+    "styleCount": 54
+  },
+  "KLID_DE_데이터베이스 설계서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 79,
+    "paraPropCount": 65,
+    "styleCount": 54
+  },
+  "KLID_OO_인터페이스 설계서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 81,
+    "paraPropCount": 66,
+    "styleCount": 54
+  },
+  "KLID_DE_엔티티 관계 모형 설계서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 80,
+    "paraPropCount": 66,
+    "styleCount": 54
+  },
+  "KLID_OO_클래스 설계서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 81,
+    "paraPropCount": 65,
+    "styleCount": 54
+  },
+  "KLID_DE_시스템시험 시나리오 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 80,
+    "paraPropCount": 65,
+    "styleCount": 54
+  },
+  "KLID_OO_단위시험 케이스 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 79,
+    "paraPropCount": 65,
+    "styleCount": 54
+  },
+  "KLID_OO_사용자 인터페이스 설계서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 81,
+    "paraPropCount": 66,
+    "styleCount": 54
+  },
+  "KLID_OO_유스케이스 명세서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 83,
+    "paraPropCount": 65,
+    "styleCount": 54
+  },
+  "KLID_DE_아키텍처 설계서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 82,
+    "paraPropCount": 65,
+    "styleCount": 54
+  },
+  "KLID_OO_컴포넌트 설계서 v1.0.hwpx": {
+    "fonts": [
+      "함초롬바탕",
+      "바탕",
+      "Malgun Gothic",
+      "한컴바탕",
+      "맑은 고딕",
+      "Times New Roman",
+      "함초롬돋움",
+      "Wingdings"
+    ],
+    "charPropCount": 81,
+    "paraPropCount": 67,
+    "styleCount": 54
+  }
+}
