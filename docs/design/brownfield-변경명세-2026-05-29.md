@@ -12,11 +12,18 @@
 | Step 2 | 도메인별 1차 기능 모델링 | DFEAT 38종 (preserved) |
 | Step 3 | LS_ 테이블 ERD (옵션D physical) | ERD 9종 (LS_ 30테이블) |
 | Step 4 | Pass 2 고도화 brownfield 태깅 | modified/new/deprecated + 마킹 신규(DFEAT-039) |
+| 보완 | 1차 기능 이관 완결성 audit | 연습장(DFEAT-040) deprecated 추가 |
 | Step 5 | 본 변경명세 리포트 | — |
 
 ### 소스 정정 사항 (중요)
 - **화면 수 66 → 70 정정**: 분석 MD(`KLID_IM_UI-UX설계서_분석.md` §7.1)는 65개만 나열하고 제목은 "66개"로 표기했으나, **원본 PDF**(`KLID_IM_UI, UX설계서_학습 저작도구 시스템.pdf`)에는 **70개 고유 화면 ID** 존재. 누락분 5종 = 사용자 관리(03-05-01) + 게시판 관리(03-06-01~04). `03-04-02`는 원본에도 없는 결번.
 - **API ~17**: 인터페이스규격서 D4의 II-001~007(7) + UI설계서 §5.1 REST 패턴(10, 재구성). REST 10건은 실제 1차 구현 코드 미확인(notes 명기).
+
+### 1차 기능 이관 완결성 audit (통합설계서 §4~12 교차검증)
+- 통합설계서 §4~12의 1차 기능은 DFEAT로 **전수 매핑** 확인.
+- **연습장(SKKLID-UI-02-04-01)**: 분석 MD·통합설계서 모두 누락됐던 1차 기능 → DFEAT-040 등록 후 **2차 폐기(deprecated)** 결정.
+- **데이터 자동 배정(통합설계서 §4.4, 보유 10개↓ 시 1건 자동 보충 pull)**: 2차에서 **기능으로 두지 않음** → DFEAT 미생성(의도적 제외).
+- **프로젝트 단위 → 영상 단위(RAW_SN) 라벨링 작업 구조 변경(V1.8)**: DOMAIN-002 + DFEAT-004/005/006 `modified` 로 반영.
 
 ### 거버넌스 메모
 - **정식 ADR 부재**: 모든 modified/deprecated 항목의 `decided_by`(ADR)가 비어 있음 → 변경 근거는 `diff_summary`의 버전 표기(V1.3~V2.0)로 대체. ADR 정형화는 추후 보완 필요.
@@ -29,15 +36,15 @@
 # Brownfield Report — KLID-저작도구
 
 - **Project**: `4ece2c3f-8e99-46f5-9580-71108a76e578`
-- **Generated**: 2026-05-29T07:17:40.400Z
-- **Items with brownfield**: 83
+- **Generated**: 2026-05-29T07:44:51Z
+- **Items with brownfield**: 84
 
 ## 📊 Status Distribution by ITEM Type
 
 | Type | preserved | modified | new | deprecated | split | merged | Total |
 |---|---|---|---|---|---|---|---|
 | domain | 8 | 2 | 0 | 0 | 0 | 0 | 10 |
-| domain_feature | 28 | 5 | 1 | 5 | 0 | 0 | 39 |
+| domain_feature | 28 | 5 | 1 | 6 | 0 | 0 | 40 |
 | erd | 9 | 0 | 0 | 0 | 0 | 0 | 9 |
 | feature | 0 | 3 | 4 | 0 | 0 | 0 | 7 |
 | requirement | 0 | 5 | 12 | 1 | 0 | 0 | 18 |
@@ -46,7 +53,7 @@
 
 | Legacy Repo | ITEM count |
 |---|---|
-| KLID-AI-PF-001 | 36 |
+| KLID-AI-PF-001 | 37 |
 | KLID-AI-PF-005 | 4 |
 | KLID-AI-PF-004 | 4 |
 | KLID-AI-PF-002 | 1 |
@@ -54,18 +61,18 @@
 
 ## ⚠️ Legacy Source Conflicts (identifier 중복)
 
-동일 1차 식별자가 여러 2차 ITEM 에 매핑된 경우. table-split 같은 의도적 분리이거나 매핑 오류일 수 있음.
+동일 1차 식별자가 여러 2차 ITEM 에 매핑된 경우. table-split 같은 의도적 분리이거나 매핑 오류일 수 있음. (아래는 모두 정당한 다대일 추적)
 
 | Legacy Identifier | Mapped ITEMs |
 |---|---|
-| `KLID-AI-PF-001` | `DFEAT-001` (domain_feature), `ERD-005` (erd), `ERD-006` (erd) |
-| `KLID-AI-PF-005` | `DFEAT-010` (domain_feature), `ERD-007` (erd) |
-| `SKKLID-UI-02-02-04` | `DFEAT-013` (domain_feature), `DFEAT-014` (domain_feature), `FEAT-005` (feature) |
-| `SKKLID-UI-02-02-05` | `DFEAT-018` (domain_feature), `FEAT-001` (feature), `REQ-007` (requirement), `REQ-008` (requirement) |
-| `SKKLID-UI-02-02-06` | `DFEAT-019` (domain_feature), `REQ-006` (requirement) |
-| `SKKLID-UI-02-02-16` | `DFEAT-021` (domain_feature), `DFEAT-022` (domain_feature), `DFEAT-023` (domain_feature) |
-| `LS_DATA_AUG` | `DFEAT-029` (domain_feature), `DFEAT-030` (domain_feature), `FEAT-004` (feature), `REQ-001` (requirement), `REQ-003` (requirement) |
-| `KLID-AI-PF-004` | `ERD-002` (erd), `ERD-003` (erd), `ERD-008` (erd), `ERD-009` (erd) |
+| `KLID-AI-PF-001` | `DFEAT-001`, `ERD-005`, `ERD-006` |
+| `KLID-AI-PF-005` | `DFEAT-010`, `ERD-007` |
+| `SKKLID-UI-02-02-04` | `DFEAT-013`, `DFEAT-014`, `FEAT-005` |
+| `SKKLID-UI-02-02-05` | `DFEAT-018`, `FEAT-001`, `REQ-007`, `REQ-008` |
+| `SKKLID-UI-02-02-06` | `DFEAT-019`, `REQ-006` |
+| `SKKLID-UI-02-02-16` | `DFEAT-021`, `DFEAT-022`, `DFEAT-023` |
+| `LS_DATA_AUG` | `DFEAT-029`, `DFEAT-030`, `FEAT-004`, `REQ-001`, `REQ-003` |
+| `KLID-AI-PF-004` | `ERD-002`, `ERD-003`, `ERD-008`, `ERD-009` |
 
 ## 📋 Brownfield Mapping Table
 
@@ -120,6 +127,7 @@
 | `DFEAT-037` | domain_feature | 게시글 목록·상세 조회 | preserved | SKKLID-UI-02-03-01 |  |  |
 | `DFEAT-038` | domain_feature | 게시글 작성·수정 (관리자) | preserved | SKKLID-UI-03-06-02 |  |  |
 | `DFEAT-039` | domain_feature | 마킹 (자동/수동 이벤트 식별) | new |  | capability-add | V2.0 파이프라인 선두 마킹 단계 신규 — 1차 미존재. 마킹→VLM 시계열→비식별→프레임추출 트리거 |
+| `DFEAT-040` | domain_feature | 연습장 (가공 작업 체험) | deprecated | SKKLID-UI-02-04-01 | scope-shrink | 1차 작업자 가공 작업 체험(연습장) — 2차 폐기 |
 | `ERD-001` | erd | 사용자·권한 ERD | preserved | KLID-AI-PF-002 |  |  |
 | `ERD-002` | erd | 검수 ERD (LS_PJT_DATA_STTS) | preserved | KLID-AI-PF-004 |  |  |
 | `ERD-003` | erd | 통계·대시보드 ERD | preserved | KLID-AI-PF-004 |  |  |
