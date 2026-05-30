@@ -9,7 +9,7 @@
 -- LS_* 접두사 저작도구 전용 테이블 변경이므로 관제서버팀 협의 면제.
 
 UPDATE LS_SYSTEM_CONFIG
-   SET CONFIG_VALUE = '25',
-       UPDATED_BY = 'SYSTEM'
+   SET CONFIG_VL = '25',
+       MDFR_ID = 'SYSTEM'
  WHERE CONFIG_KEY = 'YOLO_CONF_THRESHOLD'
-   AND CONFIG_VALUE = '40';
+   AND CONFIG_VL = '40';

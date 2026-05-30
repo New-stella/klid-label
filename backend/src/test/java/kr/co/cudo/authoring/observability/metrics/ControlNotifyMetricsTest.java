@@ -27,7 +27,7 @@ class ControlNotifyMetricsTest {
     void setUp() {
         registry = new SimpleMeterRegistry();
         fallbackRepository = mock(LsControlNotifyFallbackRepository.class);
-        when(fallbackRepository.countByStatusIn(anyCollection())).thenReturn(0L);
+        when(fallbackRepository.countBySttsCdIn(anyCollection())).thenReturn(0L);
         metrics = new ControlNotifyMetrics(registry, fallbackRepository);
     }
 
@@ -95,7 +95,7 @@ class ControlNotifyMetricsTest {
     @SuppressWarnings("unchecked")
     void fallback_depth_gauge_reflects_repository() {
         // given -- 리포지토리가 5를 반환하도록 설정
-        when(fallbackRepository.countByStatusIn(anyCollection())).thenReturn(5L);
+        when(fallbackRepository.countBySttsCdIn(anyCollection())).thenReturn(5L);
 
         // when
         double depth = registry.get("control.notify.fallback.depth").gauge().value();

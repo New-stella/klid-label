@@ -72,7 +72,7 @@ public class ControlNotifyFallbackService {
             return Optional.empty();
         }
         // CWE-770: 큐 깊이 상한
-        long active = repository.countByStatusIn(ACTIVE_STATUSES);
+        long active = repository.countBySttsCdIn(ACTIVE_STATUSES);
         if (active >= MAX_QUEUE_DEPTH) {
             log.error("[ControlNotifyFallback] queue full active={} max={} -- rejecting enqueue rawSn={}",
                     active, MAX_QUEUE_DEPTH, rawSn);
@@ -124,11 +124,11 @@ public class ControlNotifyFallbackService {
             boolean dead = item.failAndSchedule(error);
             if (dead) {
                 log.error("[ControlNotifyFallback] dead-letter queueSn={} retryCount={}",
-                        queueSn, item.getRetryCount());
+                        queueSn, item.getRtryCnt());
                 incrementCounter("control.notify.fallback.dead_letter");
             } else {
                 log.warn("[ControlNotifyFallback] retry scheduled queueSn={} retryCount={} nextRetryAt={}",
-                        queueSn, item.getRetryCount(), item.getNextRetryAt());
+                        queueSn, item.getRtryCnt(), item.getNextRtryDt());
                 incrementCounter("control.notify.fallback.retry_scheduled");
             }
         });

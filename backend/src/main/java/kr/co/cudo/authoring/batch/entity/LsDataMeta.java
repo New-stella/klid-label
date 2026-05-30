@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 /**
  * LS_DATA_META: 영상/프레임 메타 값.
  *  - rawSn: LS_DATA_RAW FK
- *  - metaKey + metaVal 단순 K/V (K 는 (RAW_SN, META_KEY) UK)
+ *  - metaKey + metaVal(META_VL) 단순 K/V (K 는 (RAW_SN, META_KEY) UK)
  *
  * 외부 생성 여부, 메타 유형, 검토 상태는 LS_DATA_META_REVIEW 에 분리 저장한다.
  */
@@ -40,13 +40,13 @@ public class LsDataMeta {
     @Column(name = "META_KEY", nullable = false, length = 64)
     private String metaKey;
 
-    @Column(name = "META_VAL", length = 2000)
+    @Column(name = "META_VL", length = 2000)
     private String metaVal;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "UPD_DT")
+    @Column(name = "MDFCN_DT")
     private LocalDateTime updDt;
 
     /**

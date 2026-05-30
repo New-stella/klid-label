@@ -354,7 +354,7 @@ class AssignmentServiceTest {
 
         assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer());
 
-        List<LsTaskEventLog> rows = taskEventLogRepository.findByRawDataIdOrderByOccurredAtAsc(1000L);
+        List<LsTaskEventLog> rows = taskEventLogRepository.findByRawDataIdOrderByOcrnDtAsc(1000L);
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).getEventTypeCd()).isEqualTo("ASSIGN");
         assertThat(rows.get(0).getSubjectUserNo()).isEqualTo(100L);

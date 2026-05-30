@@ -87,8 +87,8 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
         if (idempotencyKey == null || idempotencyKey.isBlank()) return Optional.empty();
         return repository.findById(idempotencyKey)
                 .map(e -> new Entry(
-                        LsWebhookIdempotency.STATE_PROCESSED.equals(e.getState()) ? State.PROCESSED : State.ISSUED,
-                        e.getExternalJobId()));
+                        LsWebhookIdempotency.STATE_PROCESSED.equals(e.getSttsCd()) ? State.PROCESSED : State.ISSUED,
+                        e.getOtsdJobId()));
     }
 
     /**

@@ -123,7 +123,7 @@ class DeidentifyResultServiceTest {
         verify(procLogRepository, org.mockito.Mockito.times(1)).save(existingRow);
         // 기존 row 가 SUCCEEDED 로 갱신되었어야 함
         assertThat(existingRow.getProcSttsCd()).isEqualTo(LsDeidentProcLog.SUCCEEDED);
-        assertThat(existingRow.getDeIdntfFilePath()).isEqualTo("/storage/deidentified/300.mp4");
+        assertThat(existingRow.getDeIdntfFilePathNm()).isEqualTo("/storage/deidentified/300.mp4");
     }
 
     @Test
@@ -173,7 +173,7 @@ class DeidentifyResultServiceTest {
         assertThat(applied).isTrue();
         // race 흡수 경로 — 재조회한 raceWinner 가 SUCCEEDED 로 갱신되어야 함
         assertThat(raceWinner.getProcSttsCd()).isEqualTo(LsDeidentProcLog.SUCCEEDED);
-        assertThat(raceWinner.getDeIdntfFilePath()).isEqualTo("/storage/deidentified/400.mp4");
+        assertThat(raceWinner.getDeIdntfFilePathNm()).isEqualTo("/storage/deidentified/400.mp4");
         // save 는 두 번 호출됨 (실패 + 재조회 후 갱신)
         verify(procLogRepository, org.mockito.Mockito.times(2)).save(any(LsDeidentProcLog.class));
         // 멱등 마킹은 정상 수행

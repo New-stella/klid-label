@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
  * Phase 7 — 검수 반려 사유 (LS_DATA_ISSUE).
  *
  * <p>DB설계서 §5A.6 — 좌표 컬럼 없음 (영상 단위 반려). 계층형 (UP_DATA_ISSUE_SN 자기참조).
+ * DATA_RAW_SN(=LS_DATA_RAW.RAW_SN) 영상 단위 참조. Java 필드명 videoId 는 의미 유지(=rawSn).
  * 외래키는 정의하지 않음 (klid_system 공유 DB 정책 — 운영 안정성 우선).
  */
 @Entity
@@ -33,16 +34,16 @@ public class LsDataIssue {
     @Column(name = "UP_DATA_ISSUE_SN")
     private Long upDataIssueSn;
 
-    @Column(name = "VIDEO_ID", nullable = false)
+    @Column(name = "DATA_RAW_SN", nullable = false)
     private Long videoId;
 
-    @Column(name = "ISSUE_REASON", length = 1000)
+    @Column(name = "ISSUE_RSN", length = 1000)
     private String issueReason;
 
     @Column(name = "REPORTED_USER_NO", length = 50)
     private String reportedUserNo;
 
-    @Column(name = "REGISTERED_AT", nullable = false)
+    @Column(name = "REG_DT", nullable = false)
     private LocalDateTime registeredAt;
 
     @Builder

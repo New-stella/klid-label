@@ -36,10 +36,10 @@ public class BatchStatusService {
     }
 
     /**
-     * VLM 시계열 외부 위탁 응답(externalJobId/status) 을 최신 로그의 RES_PAYLOAD 에 기록.
+     * VLM 시계열 외부 위탁 응답(externalJobId/status) 을 최신 로그의 RES_PAYLOAD_CN 에 기록.
      *
      * <p>Phase 2 결과 수신 webhook 에서 externalJobId 로 영상을 역추적할 때 사용한다.
-     * 별도 컬럼 추가 없이 기존 {@code RES_PAYLOAD} JSON 컬럼에 적재한다.
+     * 별도 컬럼 추가 없이 기존 {@code RES_PAYLOAD_CN} JSON 컬럼에 적재한다.
      * 로그가 없으면 새로 생성한다.
      */
     @Transactional("controlTransactionManager")
@@ -47,7 +47,7 @@ public class BatchStatusService {
         if (rawSn == null) return;
         LsBatchProcLog logEntry = repository.findTopByDataRawSnOrderByRegDtDesc(rawSn)
                 .orElseGet(() -> LsBatchProcLog.create(rawSn, BatchStage.VLM));
-        logEntry.setResPayload(resPayloadJson);
+        logEntry.setResPayloadCn(resPayloadJson);
         repository.save(logEntry);
     }
 

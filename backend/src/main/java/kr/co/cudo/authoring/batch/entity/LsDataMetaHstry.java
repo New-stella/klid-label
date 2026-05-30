@@ -27,10 +27,10 @@ public class LsDataMetaHstry {
     @Column(name = "META_SN", nullable = false)
     private Long metaSn;
 
-    @Column(name = "PREV_VAL", length = 2000)
+    @Column(name = "PREV_VL", length = 2000)
     private String prevVal;
 
-    @Column(name = "NEW_VAL", length = 2000)
+    @Column(name = "NEW_VL", length = 2000)
     private String newVal;
 
     @Column(name = "CHG_USER_NO")

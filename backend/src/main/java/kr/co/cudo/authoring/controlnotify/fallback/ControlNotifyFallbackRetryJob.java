@@ -48,7 +48,7 @@ public class ControlNotifyFallbackRetryJob {
     public int runOnce() {
         LocalDateTime now = LocalDateTime.now();
         List<LsControlNotifyFallback> due = repository
-                .findByStatusAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
+                .findBySttsCdAndNextRtryDtLessThanEqualOrderByNextRtryDtAsc(
                         LsControlNotifyFallback.STATUS_PENDING, now, PageRequest.of(0, BATCH_SIZE));
         int processed = 0;
         for (LsControlNotifyFallback snapshot : due) {
@@ -72,12 +72,12 @@ public class ControlNotifyFallbackRetryJob {
 
     /** 큐 항목의 eventType 에 따라 적절한 Client 메서드로 재호출. */
     private void processOne(LsControlNotifyFallback item) {
-        String eventType = item.getEventType();
+        String eventType = item.getEventTypeCd();
         if ("TASK_COMPLETED".equals(eventType)) {
-            TaskCompletedPayload payload = deserialize(item.getPayload(), TaskCompletedPayload.class);
+            TaskCompletedPayload payload = deserialize(item.getPayloadCn(), TaskCompletedPayload.class);
             client.sendTaskCompleted(payload).block(ControlNotifyClient.BLOCK_TIMEOUT);
         } else if ("TASK_MODIFIED".equals(eventType)) {
-            TaskModifiedPayload payload = deserialize(item.getPayload(), TaskModifiedPayload.class);
+            TaskModifiedPayload payload = deserialize(item.getPayloadCn(), TaskModifiedPayload.class);
             client.sendTaskModified(payload).block(ControlNotifyClient.BLOCK_TIMEOUT);
         } else {
             throw new IllegalStateException("지원하지 않는 eventType: " + eventType);

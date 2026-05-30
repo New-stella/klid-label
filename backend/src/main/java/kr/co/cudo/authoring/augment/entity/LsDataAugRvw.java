@@ -45,7 +45,7 @@ public class LsDataAugRvw {
     @Column(name = "LBL_INTGRT_PCT", precision = 5, scale = 2)
     private BigDecimal lblIntgrtPct;
 
-    @Column(name = "REJECT_REASON", length = 1000)
+    @Column(name = "REJECT_RSN", length = 1000)
     private String rejectReason;
 
     @Column(name = "RVW_ID", length = 30)

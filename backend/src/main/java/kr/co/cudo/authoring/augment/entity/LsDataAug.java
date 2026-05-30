@@ -64,24 +64,24 @@ public class LsDataAug {
     @Transient
     private LocalDateTime decisionAt;
 
-    @Column(name = "REGISTERED_AT", nullable = false)
+    @Column(name = "REG_DT", nullable = false)
     private LocalDateTime registeredAt;
 
-    @Column(name = "REGISTERED_USER_NO", length = 50)
+    @Column(name = "REG_USER_NO", length = 50)
     private String registeredUserNo;
 
     /**
      * Phase 4 비동기 표준 컬럼 — webhook 인계 원래 위탁 요청 식별자.
      * UNIQUE 제약 (uk_aug_idempotency_key) — 동시 인계 race 차단.
      */
-    @Column(name = "IDEMPOTENCY_KEY", length = 64)
+    @Column(name = "IDMP_KEY", length = 64)
     private String idempotencyKey;
 
     /**
      * Phase 4 비동기 표준 컬럼 — 외부 시스템 작업 ID.
      * UNIQUE 제약 (uk_aug_external_job_id).
      */
-    @Column(name = "EXTERNAL_JOB_ID", length = 128)
+    @Column(name = "OTSD_JOB_ID", length = 128)
     private String externalJobId;
 
     /** Phase 4 비동기 표준 컬럼 — 재시도 횟수. */

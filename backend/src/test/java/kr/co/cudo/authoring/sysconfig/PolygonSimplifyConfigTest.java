@@ -87,7 +87,7 @@ class PolygonSimplifyConfigTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.configValue").value("2.5"));
+                .andExpect(jsonPath("$.data.configVl").value("2.5"));
 
         assertThat(service.getDouble(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE))
                 .isCloseTo(2.5, within(0.0001));

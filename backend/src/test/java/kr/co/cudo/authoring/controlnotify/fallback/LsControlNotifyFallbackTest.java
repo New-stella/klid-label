@@ -29,14 +29,14 @@ class LsControlNotifyFallbackTest {
                 idempotencyKey, eventType, rawSn, payload);
 
         // then
-        assertThat(q.getStatus()).isEqualTo(LsControlNotifyFallback.STATUS_PENDING);
-        assertThat(q.getEventType()).isEqualTo("TASK_COMPLETED");
+        assertThat(q.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_PENDING);
+        assertThat(q.getEventTypeCd()).isEqualTo("TASK_COMPLETED");
         assertThat(q.getRawSn()).isEqualTo(100L);
-        assertThat(q.getRetryCount()).isZero();
-        assertThat(q.getMaxRetry()).isEqualTo(LsControlNotifyFallback.DEFAULT_MAX_RETRY);
-        assertThat(q.getNextRetryAt()).isNotNull();
-        assertThat(q.getIdempotencyKey()).isEqualTo(idempotencyKey);
-        assertThat(q.getPayload()).isEqualTo(payload);
+        assertThat(q.getRtryCnt()).isZero();
+        assertThat(q.getMaxRtryCnt()).isEqualTo(LsControlNotifyFallback.DEFAULT_MAX_RETRY);
+        assertThat(q.getNextRtryDt()).isNotNull();
+        assertThat(q.getIdmpKey()).isEqualTo(idempotencyKey);
+        assertThat(q.getPayloadCn()).isEqualTo(payload);
     }
 
     @Test
@@ -79,7 +79,7 @@ class LsControlNotifyFallbackTest {
         q.markRetrying();
 
         // then
-        assertThat(q.getStatus()).isEqualTo(LsControlNotifyFallback.STATUS_RETRYING);
+        assertThat(q.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_RETRYING);
     }
 
     @Test
@@ -93,8 +93,8 @@ class LsControlNotifyFallbackTest {
         q.markSucceeded();
 
         // then
-        assertThat(q.getStatus()).isEqualTo(LsControlNotifyFallback.STATUS_SUCCEEDED);
-        assertThat(q.getNextRetryAt()).isNull();
+        assertThat(q.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_SUCCEEDED);
+        assertThat(q.getNextRtryDt()).isNull();
     }
 
     // ---------- failAndSchedule ----------
@@ -111,10 +111,10 @@ class LsControlNotifyFallbackTest {
 
         // then
         assertThat(dead).isFalse();
-        assertThat(q.getRetryCount()).isEqualTo(1);
-        assertThat(q.getStatus()).isEqualTo(LsControlNotifyFallback.STATUS_PENDING);
-        assertThat(q.getNextRetryAt()).isAfter(LocalDateTime.now().minusSeconds(2));
-        assertThat(q.getLastError()).contains("HttpServerErrorException");
+        assertThat(q.getRtryCnt()).isEqualTo(1);
+        assertThat(q.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_PENDING);
+        assertThat(q.getNextRtryDt()).isAfter(LocalDateTime.now().minusSeconds(2));
+        assertThat(q.getLastErrMsg()).contains("HttpServerErrorException");
     }
 
     @Test
@@ -126,11 +126,11 @@ class LsControlNotifyFallbackTest {
 
         // when -- 1회 실패 -> 백오프 2^1 = 2분
         q.failAndSchedule("err1");
-        LocalDateTime first = q.getNextRetryAt();
+        LocalDateTime first = q.getNextRtryDt();
 
         // when -- 2회 실패 -> 백오프 2^2 = 4분
         q.failAndSchedule("err2");
-        LocalDateTime second = q.getNextRetryAt();
+        LocalDateTime second = q.getNextRtryDt();
 
         // then -- 두 번째 nextRetryAt 이 첫 번째보다 더 뒤여야 한다
         assertThat(second).isAfter(first);
@@ -151,9 +151,9 @@ class LsControlNotifyFallbackTest {
 
         // then
         assertThat(dead).isTrue();
-        assertThat(q.getStatus()).isEqualTo(LsControlNotifyFallback.STATUS_DEAD_LETTER);
-        assertThat(q.getDeadLetterAt()).isNotNull();
-        assertThat(q.getNextRetryAt()).isNull();
+        assertThat(q.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_DEAD_LETTER);
+        assertThat(q.getDlqDt()).isNotNull();
+        assertThat(q.getNextRtryDt()).isNull();
     }
 
     // ---------- sanitizeError (CWE-117 + CWE-209) ----------
@@ -169,7 +169,7 @@ class LsControlNotifyFallbackTest {
         q.failAndSchedule("line1\r\nline2\ttab");
 
         // then -- 제어문자(\r, \n, \t)가 공백으로 치환됨
-        String sanitized = q.getLastError();
+        String sanitized = q.getLastErrMsg();
         assertThat(sanitized).doesNotContain("\r");
         assertThat(sanitized).doesNotContain("\n");
         assertThat(sanitized).doesNotContain("\t");
@@ -188,7 +188,7 @@ class LsControlNotifyFallbackTest {
         q.failAndSchedule("401 Unauthorized: Authorization: Bearer abc123secret, token=xyz789");
 
         // then
-        assertThat(q.getLastError())
+        assertThat(q.getLastErrMsg())
                 .doesNotContain("abc123secret")
                 .doesNotContain("xyz789")
                 .contains("***");
@@ -205,7 +205,7 @@ class LsControlNotifyFallbackTest {
         q.failAndSchedule("Connection failed to https://control.internal:8090/api/v1/notify");
 
         // then
-        assertThat(q.getLastError())
+        assertThat(q.getLastErrMsg())
                 .doesNotContain("control.internal")
                 .doesNotContain("https://")
                 .contains("URL_REDACTED");
@@ -222,7 +222,7 @@ class LsControlNotifyFallbackTest {
         q.failAndSchedule("x".repeat(3000));
 
         // then
-        assertThat(q.getLastError()).hasSize(1900);
+        assertThat(q.getLastErrMsg()).hasSize(1900);
     }
 
     @Test
@@ -236,6 +236,6 @@ class LsControlNotifyFallbackTest {
         q.failAndSchedule(null);
 
         // then
-        assertThat(q.getLastError()).isNull();
+        assertThat(q.getLastErrMsg()).isNull();
     }
 }

@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
  *   <li>{@link #EVENT_REASSIGN}   : REVIEWER 가 다른 WORKER 로 재배정 — subject=새 작업자, prev=이전 작업자</li>
  *   <li>{@link #EVENT_SUBMIT}     : WORKER 가 라벨링 완료 후 검수 제출 — actor=subject=작업자 본인</li>
  *   <li>{@link #EVENT_APPROVE}    : REVIEWER 승인 — actor=검수자</li>
- *   <li>{@link #EVENT_REJECT}     : REVIEWER 반려 — actor=검수자, reason 필수</li>
+ *   <li>{@link #EVENT_REJECT}     : REVIEWER 반려 — actor=검수자, rsn(사유) 필수</li>
  * </ul>
  */
 @Entity
@@ -61,23 +61,23 @@ public class LsTaskEventLog {
     @Column(name = "PREV_USER_NO")
     private Long prevUserNo;
 
-    @Column(name = "REASON", length = 500)
-    private String reason;
+    @Column(name = "RSN", length = 500)
+    private String rsn;
 
-    @Column(name = "OCCURRED_AT", nullable = false)
-    private LocalDateTime occurredAt;
+    @Column(name = "OCRN_DT", nullable = false)
+    private LocalDateTime ocrnDt;
 
     @Builder(access = AccessLevel.PRIVATE)
     private LsTaskEventLog(Long rawDataId, String eventTypeCd, Long actorUserNo,
-                           Long subjectUserNo, Long prevUserNo, String reason,
-                           LocalDateTime occurredAt) {
+                           Long subjectUserNo, Long prevUserNo, String rsn,
+                           LocalDateTime ocrnDt) {
         this.rawDataId = rawDataId;
         this.eventTypeCd = eventTypeCd;
         this.actorUserNo = actorUserNo;
         this.subjectUserNo = subjectUserNo;
         this.prevUserNo = prevUserNo;
-        this.reason = reason;
-        this.occurredAt = occurredAt;
+        this.rsn = rsn;
+        this.ocrnDt = ocrnDt;
     }
 
     public static LsTaskEventLog assign(Long rawDataId, Long actorUserNo, Long subjectWorkerNo) {
@@ -86,7 +86,7 @@ public class LsTaskEventLog {
                 .eventTypeCd(EVENT_ASSIGN)
                 .actorUserNo(actorUserNo)
                 .subjectUserNo(subjectWorkerNo)
-                .occurredAt(LocalDateTime.now())
+                .ocrnDt(LocalDateTime.now())
                 .build();
     }
 
@@ -98,7 +98,7 @@ public class LsTaskEventLog {
                 .actorUserNo(actorUserNo)
                 .subjectUserNo(newWorkerNo)
                 .prevUserNo(prevWorkerNo)
-                .occurredAt(LocalDateTime.now())
+                .ocrnDt(LocalDateTime.now())
                 .build();
     }
 
@@ -108,7 +108,7 @@ public class LsTaskEventLog {
                 .eventTypeCd(EVENT_SUBMIT)
                 .actorUserNo(workerUserNo)
                 .subjectUserNo(workerUserNo)
-                .occurredAt(LocalDateTime.now())
+                .ocrnDt(LocalDateTime.now())
                 .build();
     }
 
@@ -117,17 +117,17 @@ public class LsTaskEventLog {
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_APPROVE)
                 .actorUserNo(reviewerUserNo)
-                .occurredAt(LocalDateTime.now())
+                .ocrnDt(LocalDateTime.now())
                 .build();
     }
 
-    public static LsTaskEventLog reject(Long rawDataId, Long reviewerUserNo, String reason) {
+    public static LsTaskEventLog reject(Long rawDataId, Long reviewerUserNo, String rsn) {
         return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_REJECT)
                 .actorUserNo(reviewerUserNo)
-                .reason(reason)
-                .occurredAt(LocalDateTime.now())
+                .rsn(rsn)
+                .ocrnDt(LocalDateTime.now())
                 .build();
     }
 }

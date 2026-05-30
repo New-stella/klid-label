@@ -48,12 +48,12 @@ public class SystemConfigService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Integer getInt(String key) {
         LsSystemConfig cfg = loadOrThrow(key);
-        if (!"NUMBER".equals(cfg.getConfigType())) {
+        if (!"NUMBER".equals(cfg.getConfigTypeCd())) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "CONFIG_TYPE 이 NUMBER 가 아닙니다 key=" + key + " type=" + cfg.getConfigType());
+                    "CONFIG_TYPE_CD 이 NUMBER 가 아닙니다 key=" + key + " type=" + cfg.getConfigTypeCd());
         }
         try {
-            return Integer.parseInt(cfg.getConfigValue());
+            return Integer.parseInt(cfg.getConfigVl());
         } catch (NumberFormatException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR,
                     "CONFIG_VALUE 가 숫자가 아닙니다 key=" + key);
@@ -65,12 +65,12 @@ public class SystemConfigService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Double getDouble(String key) {
         LsSystemConfig cfg = loadOrThrow(key);
-        if (!"DECIMAL".equals(cfg.getConfigType())) {
+        if (!"DECIMAL".equals(cfg.getConfigTypeCd())) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "CONFIG_TYPE 이 DECIMAL 이 아닙니다 key=" + key + " type=" + cfg.getConfigType());
+                    "CONFIG_TYPE_CD 이 DECIMAL 이 아닙니다 key=" + key + " type=" + cfg.getConfigTypeCd());
         }
         try {
-            return Double.parseDouble(cfg.getConfigValue());
+            return Double.parseDouble(cfg.getConfigVl());
         } catch (NumberFormatException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR,
                     "CONFIG_VALUE 가 숫자가 아닙니다 key=" + key);
@@ -80,7 +80,7 @@ public class SystemConfigService {
     @Cacheable(cacheNames = "sysconfig", key = "'str:' + #key")
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public String getString(String key) {
-        return loadOrThrow(key).getConfigValue();
+        return loadOrThrow(key).getConfigVl();
     }
 
     /**
@@ -98,7 +98,7 @@ public class SystemConfigService {
         }
 
         LsSystemConfig cfg = loadOrThrow(key);
-        validateByType(key, cfg.getConfigType(), value);
+        validateByType(key, cfg.getConfigTypeCd(), value);
 
         cfg.updateValue(value, actor.sub());
         log.info("[SystemConfig] updated key={} actor={}", key, actor.sub());

@@ -27,29 +27,29 @@ public class LsSystemConfig {
     @Column(name = "CONFIG_KEY", length = 100, nullable = false)
     private String configKey;
 
-    @Column(name = "CONFIG_VALUE", length = 500)
-    private String configValue;
+    @Column(name = "CONFIG_VL", length = 500)
+    private String configVl;
 
-    @Column(name = "CONFIG_TYPE", length = 20, nullable = false)
-    private String configType;
+    @Column(name = "CONFIG_TYPE_CD", length = 20, nullable = false)
+    private String configTypeCd;
 
-    @Column(name = "DESCRIPTION", length = 500)
-    private String description;
+    @Column(name = "EXPLN", length = 500)
+    private String expln;
 
-    @Column(name = "UPDATED_BY", length = 50)
-    private String updatedBy;
+    @Column(name = "MDFR_ID", length = 50)
+    private String mdfrId;
 
-    @Column(name = "UPDATED_AT", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "MDFCN_DT", nullable = false)
+    private LocalDateTime mdfcnDt;
 
-    private LsSystemConfig(String configKey, String configValue, String configType,
-                           String description, String updatedBy) {
+    private LsSystemConfig(String configKey, String configVl, String configTypeCd,
+                           String expln, String mdfrId) {
         this.configKey = configKey;
-        this.configValue = configValue;
-        this.configType = configType;
-        this.description = description;
-        this.updatedBy = updatedBy;
-        this.updatedAt = LocalDateTime.now();
+        this.configVl = configVl;
+        this.configTypeCd = configTypeCd;
+        this.expln = expln;
+        this.mdfrId = mdfrId;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     public static LsSystemConfig create(String key, String value, String type,
@@ -57,10 +57,10 @@ public class LsSystemConfig {
         return new LsSystemConfig(key, value, type, description, updatedBy);
     }
 
-    /** 값 갱신 — 비즈니스 메서드. CONFIG_TYPE 변경은 별도 마이그레이션 책임. */
+    /** 값 갱신 — 비즈니스 메서드. CONFIG_TYPE_CD 변경은 별도 마이그레이션 책임. */
     public void updateValue(String newValue, String updatedBy) {
-        this.configValue = newValue;
-        this.updatedBy = updatedBy;
-        this.updatedAt = LocalDateTime.now();
+        this.configVl = newValue;
+        this.mdfrId = updatedBy;
+        this.mdfcnDt = LocalDateTime.now();
     }
 }

@@ -34,11 +34,11 @@ public class LsDeidentProcLog {
     @Column(name = "EXTERNAL_JOB_ID", length = 128)
     private String externalJobId;
 
-    @Column(name = "ORGN_FILE_PATH", length = 1000, nullable = false)
-    private String orgnFilePath;
+    @Column(name = "ORGN_FILE_PATH_NM", length = 1000, nullable = false)
+    private String orgnFilePathNm;
 
-    @Column(name = "DE_IDNTF_FILE_PATH", length = 1000)
-    private String deIdntfFilePath;
+    @Column(name = "DE_IDNTF_FILE_PATH_NM", length = 1000)
+    private String deIdntfFilePathNm;
 
     @Column(name = "PROC_STTS_CD", length = 20, nullable = false)
     private String procSttsCd;
@@ -81,7 +81,7 @@ public class LsDeidentProcLog {
         log.dataRawSn = rawSn;
         log.reqId = reqId;
         log.externalJobId = externalJobId;
-        log.orgnFilePath = orgnFilePath;
+        log.orgnFilePathNm = orgnFilePath;
         log.procSttsCd = REQUESTED;
         log.reqDt = LocalDateTime.now();
         log.regId = regId;
@@ -91,7 +91,7 @@ public class LsDeidentProcLog {
 
     public void succeed(String resultPath) {
         this.procSttsCd = SUCCEEDED;
-        this.deIdntfFilePath = resultPath;
+        this.deIdntfFilePathNm = resultPath;
         this.resDt = LocalDateTime.now();
         this.mdfcnDt = this.resDt;
     }
