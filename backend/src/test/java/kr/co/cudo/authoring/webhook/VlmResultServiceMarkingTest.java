@@ -93,9 +93,9 @@ class VlmResultServiceMarkingTest {
         });
 
         LsMarking marking = createMarkingWithStatus(600L, LsMarking.STATUS_VLM_REQUESTED);
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
 
-        when(markingRepository.findByRawSnAndStatus(600L, LsMarking.STATUS_VLM_REQUESTED))
+        when(markingRepository.findByRawSnAndSttsCd(600L, LsMarking.STATUS_VLM_REQUESTED))
                 .thenReturn(List.of(marking));
 
         VlmResultRequest req = new VlmResultRequest(
@@ -108,7 +108,7 @@ class VlmResultServiceMarkingTest {
 
         // then
         assertThat(applied).isTrue();
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
     }
 
     @Test
@@ -127,8 +127,8 @@ class VlmResultServiceMarkingTest {
             return m;
         });
 
-        // PENDING 상태 마킹은 findByRawSnAndStatus 결과에 포함되지 않으므로 전이 대상 아님
-        when(markingRepository.findByRawSnAndStatus(601L, LsMarking.STATUS_VLM_REQUESTED))
+        // PENDING 상태 마킹은 findByRawSnAndSttsCd 결과에 포함되지 않으므로 전이 대상 아님
+        when(markingRepository.findByRawSnAndSttsCd(601L, LsMarking.STATUS_VLM_REQUESTED))
                 .thenReturn(Collections.emptyList());
 
         VlmResultRequest req = new VlmResultRequest(
@@ -141,7 +141,7 @@ class VlmResultServiceMarkingTest {
 
         // then — 정상 적재되지만 마킹 전이 대상 없음 (PENDING 마킹은 쿼리 결과에 없음)
         assertThat(applied).isTrue();
-        verify(markingRepository).findByRawSnAndStatus(601L, LsMarking.STATUS_VLM_REQUESTED);
+        verify(markingRepository).findByRawSnAndSttsCd(601L, LsMarking.STATUS_VLM_REQUESTED);
     }
 
     @Test
@@ -161,7 +161,7 @@ class VlmResultServiceMarkingTest {
         });
 
         // 마킹이 전혀 없는 영상
-        when(markingRepository.findByRawSnAndStatus(602L, LsMarking.STATUS_VLM_REQUESTED))
+        when(markingRepository.findByRawSnAndSttsCd(602L, LsMarking.STATUS_VLM_REQUESTED))
                 .thenReturn(Collections.emptyList());
 
         VlmResultRequest req = new VlmResultRequest(

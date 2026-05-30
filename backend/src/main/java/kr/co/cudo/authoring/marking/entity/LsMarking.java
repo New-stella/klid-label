@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
  *
  * <h3>마킹 모드</h3>
  * <ul>
- *   <li>AUTO: intervalSec 기반으로 marks(프레임 인덱스/타임스탬프) 자동 생성</li>
+ *   <li>AUTO: frmeIntvNocs(프레임간격수) 기반으로 marks(프레임 인덱스/타임스탬프) 자동 생성</li>
  *   <li>MANUAL: 사용자가 직접 선택한 marks 배열 저장</li>
  * </ul>
  *
@@ -48,32 +48,32 @@ public class LsMarking {
     @Column(name = "RAW_SN", nullable = false)
     private Long rawSn;
 
-    @Column(name = "EVENT_NAME", nullable = false, length = 100)
-    private String eventName;
+    @Column(name = "EVNT_NM", nullable = false, length = 100)
+    private String evntNm;
 
-    @Column(name = "MARKING_MODE", nullable = false, length = 16)
-    private String markingMode;
+    @Column(name = "MARK_MODE_CD", nullable = false, length = 16)
+    private String markModeCd;
 
-    @Column(name = "INTERVAL_FRAMES")
-    private Integer intervalFrames;
+    @Column(name = "FRME_INTV_NOCS")
+    private Integer frmeIntvNocs;
 
-    @Column(name = "VIDEO_PATH", nullable = false, length = 500)
-    private String videoPath;
+    @Column(name = "VIDEO_FILE_PATH_NM", nullable = false, length = 500)
+    private String videoFilePathNm;
 
-    @Column(name = "MARKS", nullable = false, columnDefinition = "TEXT")
-    private String marks;
+    @Column(name = "MARK_CN", nullable = false, columnDefinition = "TEXT")
+    private String markCn;
 
-    @Column(name = "STATUS", nullable = false, length = 16)
-    private String status;
+    @Column(name = "STTS_CD", nullable = false, length = 16)
+    private String sttsCd;
 
     @Column(name = "CREATED_BY")
     private Long createdBy;
 
-    @Column(name = "CREATED_AT", nullable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
 
-    @Column(name = "UPDATED_AT", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "MDFCN_DT", nullable = false)
+    private LocalDateTime mdfcnDt;
 
     /**
      * 자동 모드 마킹 생성.
@@ -102,16 +102,16 @@ public class LsMarking {
 
         LsMarking m = new LsMarking();
         m.rawSn = rawSn;
-        m.eventName = eventName;
-        m.markingMode = MODE_AUTO;
-        m.intervalFrames = intervalFrames;
-        m.videoPath = videoPath;
-        m.marks = marksJson;
-        m.status = STATUS_PENDING;
+        m.evntNm = eventName;
+        m.markModeCd = MODE_AUTO;
+        m.frmeIntvNocs = intervalFrames;
+        m.videoFilePathNm = videoPath;
+        m.markCn = marksJson;
+        m.sttsCd = STATUS_PENDING;
         m.createdBy = createdBy;
         LocalDateTime now = LocalDateTime.now();
-        m.createdAt = now;
-        m.updatedAt = now;
+        m.regDt = now;
+        m.mdfcnDt = now;
         return m;
     }
 
@@ -138,41 +138,41 @@ public class LsMarking {
 
         LsMarking m = new LsMarking();
         m.rawSn = rawSn;
-        m.eventName = eventName;
-        m.markingMode = MODE_MANUAL;
-        m.intervalFrames = null;
-        m.videoPath = videoPath;
-        m.marks = marksJson;
-        m.status = STATUS_PENDING;
+        m.evntNm = eventName;
+        m.markModeCd = MODE_MANUAL;
+        m.frmeIntvNocs = null;
+        m.videoFilePathNm = videoPath;
+        m.markCn = marksJson;
+        m.sttsCd = STATUS_PENDING;
         m.createdBy = createdBy;
         LocalDateTime now = LocalDateTime.now();
-        m.createdAt = now;
-        m.updatedAt = now;
+        m.regDt = now;
+        m.mdfcnDt = now;
         return m;
     }
 
     /** VLM 요청 발송 상태 전이. */
     public void markVlmRequested() {
-        this.status = STATUS_VLM_REQUESTED;
-        this.updatedAt = LocalDateTime.now();
+        this.sttsCd = STATUS_VLM_REQUESTED;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /** VLM 처리 완료 상태 전이. */
     public void markVlmCompleted() {
-        this.status = STATUS_VLM_COMPLETED;
-        this.updatedAt = LocalDateTime.now();
+        this.sttsCd = STATUS_VLM_COMPLETED;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     @PrePersist
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();
-        if (this.createdAt == null) this.createdAt = now;
-        if (this.updatedAt == null) this.updatedAt = now;
-        if (this.status == null) this.status = STATUS_PENDING;
+        if (this.regDt == null) this.regDt = now;
+        if (this.mdfcnDt == null) this.mdfcnDt = now;
+        if (this.sttsCd == null) this.sttsCd = STATUS_PENDING;
     }
 
     @PreUpdate
     void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 }

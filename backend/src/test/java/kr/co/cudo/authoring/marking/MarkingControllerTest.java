@@ -86,9 +86,9 @@ class MarkingControllerTest {
                 .andExpect(jsonPath("$.data.marks.length()").value(7)); // 60*30=1800 / 300 + 1 = 7개
 
         // DB 검증
-        List<LsMarking> saved = markingRepository.findByRawSnOrderByCreatedAtDesc(rawSn);
+        List<LsMarking> saved = markingRepository.findByRawSnOrderByRegDtDesc(rawSn);
         assertThat(saved).hasSize(1);
-        assertThat(saved.get(0).getMarkingMode()).isEqualTo("AUTO");
+        assertThat(saved.get(0).getMarkModeCd()).isEqualTo("AUTO");
     }
 
     @Test

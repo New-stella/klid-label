@@ -28,15 +28,15 @@ class LsMarkingEntityTest {
 
         // then
         assertThat(marking.getRawSn()).isEqualTo(rawSn);
-        assertThat(marking.getEventName()).isEqualTo(eventName);
-        assertThat(marking.getMarkingMode()).isEqualTo(LsMarking.MODE_AUTO);
-        assertThat(marking.getIntervalFrames()).isEqualTo(intervalFrames);
-        assertThat(marking.getVideoPath()).isEqualTo(videoPath);
-        assertThat(marking.getMarks()).isEqualTo(marksJson);
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_PENDING);
+        assertThat(marking.getEvntNm()).isEqualTo(eventName);
+        assertThat(marking.getMarkModeCd()).isEqualTo(LsMarking.MODE_AUTO);
+        assertThat(marking.getFrmeIntvNocs()).isEqualTo(intervalFrames);
+        assertThat(marking.getVideoFilePathNm()).isEqualTo(videoPath);
+        assertThat(marking.getMarkCn()).isEqualTo(marksJson);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_PENDING);
         assertThat(marking.getCreatedBy()).isEqualTo(createdBy);
-        assertThat(marking.getCreatedAt()).isNotNull();
-        assertThat(marking.getUpdatedAt()).isNotNull();
+        assertThat(marking.getRegDt()).isNotNull();
+        assertThat(marking.getMdfcnDt()).isNotNull();
     }
 
     @Test
@@ -54,12 +54,12 @@ class LsMarkingEntityTest {
 
         // then
         assertThat(marking.getRawSn()).isEqualTo(rawSn);
-        assertThat(marking.getEventName()).isEqualTo(eventName);
-        assertThat(marking.getMarkingMode()).isEqualTo(LsMarking.MODE_MANUAL);
-        assertThat(marking.getIntervalFrames()).isNull();
-        assertThat(marking.getVideoPath()).isEqualTo(videoPath);
-        assertThat(marking.getMarks()).isEqualTo(marksJson);
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_PENDING);
+        assertThat(marking.getEvntNm()).isEqualTo(eventName);
+        assertThat(marking.getMarkModeCd()).isEqualTo(LsMarking.MODE_MANUAL);
+        assertThat(marking.getFrmeIntvNocs()).isNull();
+        assertThat(marking.getVideoFilePathNm()).isEqualTo(videoPath);
+        assertThat(marking.getMarkCn()).isEqualTo(marksJson);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_PENDING);
         assertThat(marking.getCreatedBy()).isEqualTo(createdBy);
     }
 
@@ -68,13 +68,13 @@ class LsMarkingEntityTest {
     void markVlmRequestedTransition() {
         // given
         LsMarking marking = LsMarking.createAuto(1L, "화재", 5, "/path", "[]", 1L);
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_PENDING);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_PENDING);
 
         // when
         marking.markVlmRequested();
 
         // then
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
     }
 
     @Test
@@ -88,7 +88,7 @@ class LsMarkingEntityTest {
         marking.markVlmCompleted();
 
         // then
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
     }
 
     @Test

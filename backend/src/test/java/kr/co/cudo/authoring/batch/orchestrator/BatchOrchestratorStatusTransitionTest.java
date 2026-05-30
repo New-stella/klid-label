@@ -73,7 +73,7 @@ class BatchOrchestratorStatusTransitionTest {
                 markingRepository, new ObjectMapper(), rawDataStatusRepository);
 
         // V2.0: 마킹 필수 -- 기본 마킹 데이터 제공
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(any()))
+        when(markingRepository.findByRawSnOrderByRegDtDesc(any()))
                 .thenReturn(List.of(newMarking()));
 
         // 기본: extractByMarks(raw, deidVideoPath, marks) 가 1 프레임 반환

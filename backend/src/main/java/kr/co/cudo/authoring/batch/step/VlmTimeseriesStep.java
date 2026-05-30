@@ -104,8 +104,8 @@ public class VlmTimeseriesStep {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "영상을 찾을 수 없습니다 rawSn=" + rawSn));
 
-        String eventName = marking != null ? marking.getEventName() : null;
-        String marks = marking != null ? marking.getMarks() : null;
+        String eventName = marking != null ? marking.getEvntNm() : null;
+        String marks = marking != null ? marking.getMarkCn() : null;
 
         VlmTimeseriesRequest req = new VlmTimeseriesRequest(
                 rawSn, raw.getFilePath(), /* idempotencyKey */ null, /* callbackUrl */ null,

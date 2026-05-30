@@ -89,7 +89,7 @@ public class MarkingService {
     public List<MarkingResponse> list(Long rawSn) {
         videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
-        return markingRepository.findByRawSnOrderByCreatedAtDesc(rawSn)
+        return markingRepository.findByRawSnOrderByRegDtDesc(rawSn)
                 .stream().map(m -> MarkingResponse.from(m, objectMapper)).toList();
     }
 

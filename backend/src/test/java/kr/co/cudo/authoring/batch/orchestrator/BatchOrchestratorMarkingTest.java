@@ -115,7 +115,7 @@ class BatchOrchestratorMarkingTest {
         // given
         newRaw(501L);
         LsMarking marking = newMarking(501L);
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(501L))
+        when(markingRepository.findByRawSnOrderByRegDtDesc(501L))
                 .thenReturn(List.of(marking));
 
         // when
@@ -136,7 +136,7 @@ class BatchOrchestratorMarkingTest {
     void noMarking_failsWithInvalidInput() {
         // given
         newRaw(502L);
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(502L))
+        when(markingRepository.findByRawSnOrderByRegDtDesc(502L))
                 .thenReturn(Collections.emptyList());
 
         // when
@@ -156,8 +156,8 @@ class BatchOrchestratorMarkingTest {
         newRaw(503L);
         LsMarking latest = newMarking(503L);
         LsMarking older = newMarking(503L);
-        // findByRawSnOrderByCreatedAtDesc 결과는 최신 먼저
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(503L))
+        // findByRawSnOrderByRegDtDesc 결과는 최신 먼저
+        when(markingRepository.findByRawSnOrderByRegDtDesc(503L))
                 .thenReturn(List.of(latest, older));
 
         // when
@@ -178,7 +178,7 @@ class BatchOrchestratorMarkingTest {
         // given
         newRaw(504L);
         LsMarking marking = newMarking(504L);
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(504L))
+        when(markingRepository.findByRawSnOrderByRegDtDesc(504L))
                 .thenReturn(List.of(marking));
 
         // when
@@ -198,7 +198,7 @@ class BatchOrchestratorMarkingTest {
                 "raw/path.mp4",
                 "[{\"frameIndex\":0,\"timestamp\":\"00:00\"},{\"frameIndex\":150,\"timestamp\":\"00:05\"}]",
                 1L);
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(506L))
+        when(markingRepository.findByRawSnOrderByRegDtDesc(506L))
                 .thenReturn(List.of(marking));
 
         // when
