@@ -87,7 +87,7 @@ public class Sam2TrackService {
 
         Path baseDir = Path.of(storageRawPath).toAbsolutePath().normalize();
         // 시작 프레임 이미지를 prev 로 사용.
-        String prevImageB64 = encodeImageToBase64(baseDir, startSrc.getFilePath());
+        String prevImageB64 = encodeImageToBase64(baseDir, startSrc.getSrcFilePathNm());
 
         for (Long nextSrcSn : req.nextSrcSns()) {
             // IDOR 차단: 후속 프레임 각각에 대해서도 권한 검증.
@@ -96,7 +96,7 @@ public class Sam2TrackService {
             LsDataSrc nextSrc = srcRepository.findById(nextSrcSn)
                     .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "후속 프레임을 찾을 수 없습니다: " + nextSrcSn));
 
-            String nextImageB64 = encodeImageToBase64(baseDir, nextSrc.getFilePath());
+            String nextImageB64 = encodeImageToBase64(baseDir, nextSrc.getSrcFilePathNm());
 
             kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest aiReq =
                     new kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest(

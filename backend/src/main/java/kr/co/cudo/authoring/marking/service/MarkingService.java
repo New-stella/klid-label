@@ -71,8 +71,8 @@ public class MarkingService {
         // 3. Entity 생성 + 저장
         Long actorNo = parseUserNo(actor.sub());
         LsMarking marking = "AUTO".equals(req.mode())
-                ? LsMarking.createAuto(rawSn, req.eventName(), req.intervalFrames(), raw.getFilePath(), marksJson, actorNo)
-                : LsMarking.createManual(rawSn, req.eventName(), raw.getFilePath(), marksJson, actorNo);
+                ? LsMarking.createAuto(rawSn, req.eventName(), req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo)
+                : LsMarking.createManual(rawSn, req.eventName(), raw.getRawFilePathNm(), marksJson, actorNo);
         markingRepository.save(marking);
 
         log.info("[Marking] created rawSn={}, mode={}, markingSn={}", rawSn, req.mode(), marking.getMarkingSn());

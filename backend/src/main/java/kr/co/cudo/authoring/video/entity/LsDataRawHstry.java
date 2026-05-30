@@ -31,8 +31,8 @@ public class LsDataRawHstry {
     @Column(name = "RAW_SN", nullable = false)
     private Long rawSn;
 
-    @Column(name = "CHG_TYPE", nullable = false, length = 16)
-    private String chgType;
+    @Column(name = "CHG_TYPE_CD", nullable = false, length = 16)
+    private String chgTypeCd;
 
     @Column(name = "PREV_STTS_CD", length = 32)
     private String prevSttsCd;
@@ -47,9 +47,9 @@ public class LsDataRawHstry {
     private LocalDateTime chgDt;
 
     @Builder
-    private LsDataRawHstry(Long rawSn, String chgType, String prevSttsCd, String newSttsCd, Long chgUserNo) {
+    private LsDataRawHstry(Long rawSn, String chgTypeCd, String prevSttsCd, String newSttsCd, Long chgUserNo) {
         this.rawSn = rawSn;
-        this.chgType = chgType;
+        this.chgTypeCd = chgTypeCd;
         this.prevSttsCd = prevSttsCd;
         this.newSttsCd = newSttsCd;
         this.chgUserNo = chgUserNo;
@@ -59,7 +59,7 @@ public class LsDataRawHstry {
     public static LsDataRawHstry recordIngest(Long rawSn, boolean isNew, String currentSttsCd) {
         return LsDataRawHstry.builder()
                 .rawSn(rawSn)
-                .chgType(isNew ? CHG_INGEST_NEW : CHG_INGEST_UPD)
+                .chgTypeCd(isNew ? CHG_INGEST_NEW : CHG_INGEST_UPD)
                 .newSttsCd(currentSttsCd)
                 .build();
     }

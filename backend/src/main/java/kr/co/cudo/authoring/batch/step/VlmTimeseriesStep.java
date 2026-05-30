@@ -108,7 +108,7 @@ public class VlmTimeseriesStep {
         String marks = marking != null ? marking.getMarkCn() : null;
 
         VlmTimeseriesRequest req = new VlmTimeseriesRequest(
-                rawSn, raw.getFilePath(), /* idempotencyKey */ null, /* callbackUrl */ null,
+                rawSn, raw.getRawFilePathNm(), /* idempotencyKey */ null, /* callbackUrl */ null,
                 eventName, marks);
 
         log.info("[Batch][VlmTimeseries] submit rawSn={} hasMarking={}", rawSn, marking != null);

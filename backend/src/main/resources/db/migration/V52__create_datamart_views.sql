@@ -7,7 +7,7 @@
 --
 -- 검수 완료 판정: LS_RAW_DATA_STATUS.DATA_STTS_CD = 'APPROVED'
 -- 메타 승인 판정: LS_DATA_META_REVIEW.RVW_STTS_CD = 'APPROVED'
--- 프레임 페어 : LS_DATA_SRC.FILE_PATH (원본) + SRC_BKUP_FILE_PATH (비식별)
+-- 프레임 페어 : LS_DATA_SRC.SRC_FILE_PATH_NM (원본) + SRC_BKUP_FILE_PATH_NM (비식별)
 --
 -- 사용 패턴(권장): TASK_COMPLETED 통지 수신 → RAW_SN 으로 4개 View 단순 SELECT
 --                → 데이터마트 영상 1건 = 1 row UPSERT.
@@ -33,8 +33,8 @@ SELECT
     r.PRVC_TYPE_CD,
     r.PRVC_YN,
     r.DE_IDNTF_YN,
-    r.FILE_PATH AS ORIGINAL_VIDEO_PATH,
-    r.CAPTURED_AT,
+    r.RAW_FILE_PATH_NM AS ORIGINAL_VIDEO_PATH,
+    r.SHT_DT AS CAPTURED_AT,
     r.DURATION_SEC,
     r.PARENT_RAW_SN,
     r.DATA_STTS_CD AS BATCH_STTS_CD,
@@ -57,9 +57,9 @@ SELECT
     src.SRC_SN,
     src.RAW_SN,
     src.FRAME_NO,
-    src.FILE_PATH          AS ORIGINAL_PATH,
-    src.SRC_BKUP_FILE_PATH AS DEIDENTIFIED_PATH,
-    src.CAPTURED_AT,
+    src.SRC_FILE_PATH_NM      AS ORIGINAL_PATH,
+    src.SRC_BKUP_FILE_PATH_NM AS DEIDENTIFIED_PATH,
+    src.SHT_DT AS CAPTURED_AT,
     src.REG_DT,
     src.UPD_DT
 FROM LS_DATA_SRC src

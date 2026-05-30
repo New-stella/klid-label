@@ -77,12 +77,12 @@ public record VideoDetailResponse(
                 e.getPrvcTypeCd(),
                 e.getPrvcYn(),
                 e.getDeIdntfYn(),
-                e.getFilePath(),
-                e.getCapturedAt(),
+                e.getRawFilePathNm(),
+                e.getShtDt(),
                 e.getDurationSec(),
                 e.getDataSttsCd(),
                 e.getRegDt(),
-                e.getUpdDt(),
+                e.getMdfcnDt(),
                 resolvedPreviews
         );
     }

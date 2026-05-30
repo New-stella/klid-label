@@ -18,11 +18,11 @@ public record PortalUploadResponse(
     public static PortalUploadResponse from(LsPortalUserVideo e) {
         return new PortalUploadResponse(
                 e.getPortalVideoSn(),
-                e.getFileName(),
-                e.getFileSize(),
-                e.getMimeType(),
-                e.getThumbnailPath(),
-                e.getRegisteredAt()
+                e.getFileNm(),
+                e.getFileSz(),
+                e.getMimeTypeCd(),
+                e.getThmbFilePathNm(),
+                e.getRegDt()
         );
     }
 }

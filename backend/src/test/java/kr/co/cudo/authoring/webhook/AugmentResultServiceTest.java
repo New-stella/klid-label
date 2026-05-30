@@ -303,7 +303,7 @@ class AugmentResultServiceTest {
         LsDataRaw newRaw = rawCaptor.getValue();
         assertThat(newRaw.getParentRawSn()).isEqualTo(100L);
         assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
-        assertThat(newRaw.getFilePath()).isEqualTo("/storage/augment/winter.mp4");
+        assertThat(newRaw.getRawFilePathNm()).isEqualTo("/storage/augment/winter.mp4");
     }
 
     @Test

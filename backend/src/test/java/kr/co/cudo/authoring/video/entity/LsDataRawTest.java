@@ -32,7 +32,7 @@ class LsDataRawTest {
         // then — 새 영상 고유 속성
         assertThat(augmented.getParentRawSn()).isEqualTo(100L);
         assertThat(augmented.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
-        assertThat(augmented.getFilePath()).isEqualTo("/storage/augment/winter.mp4");
+        assertThat(augmented.getRawFilePathNm()).isEqualTo("/storage/augment/winter.mp4");
         assertThat(augmented.getDeIdntfYn()).isEqualTo("N");
         assertThat(augmented.getVmsClipId()).contains("clip-1");
         assertThat(augmented.getVmsClipId()).contains("AUG_WINTER");

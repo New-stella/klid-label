@@ -70,7 +70,7 @@ public class TaskQueryService {
         long totalMeta = metas.size();
 
         // lastModifiedAt: updDt 우선, 없으면 regDt
-        var lastModified = raw.getUpdDt() != null ? raw.getUpdDt() : raw.getRegDt();
+        var lastModified = raw.getMdfcnDt() != null ? raw.getMdfcnDt() : raw.getRegDt();
         var lastModifiedInstant = lastModified != null
                 ? lastModified.atZone(ZoneId.systemDefault()).toInstant()
                 : null;

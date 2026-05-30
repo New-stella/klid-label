@@ -132,13 +132,13 @@ public class AugmentResultService {
             return;
         }
 
-        String filePath = req.resultFilePath() != null ? req.resultFilePath() : parentRaw.getFilePath();
+        String filePath = req.resultFilePath() != null ? req.resultFilePath() : parentRaw.getRawFilePathNm();
         LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(parentRaw, filePath, req.augType()));
 
         // 프레임 일괄 복사 (saveAll batch)
         List<LsDataSrc> parentFrames = srcRepository.findByRawSnOrderByFrameNoAsc(parentRaw.getRawSn());
         List<LsDataSrc> newFrames = parentFrames.stream()
-                .map(f -> LsDataSrc.create(newRaw.getRawSn(), f.getFrameNo(), f.getFilePath(), f.getCapturedAt()))
+                .map(f -> LsDataSrc.create(newRaw.getRawSn(), f.getFrameNo(), f.getSrcFilePathNm(), f.getShtDt()))
                 .toList();
         List<LsDataSrc> savedFrames = srcRepository.saveAll(newFrames);
 

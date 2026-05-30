@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  *
  * <ul>
  *   <li>PORTAL_USER_NO : 포털 발급 토큰의 sub 클레임 그대로 저장 (IDOR 차단 키).</li>
- *   <li>FILE_PATH      : STORAGE_RAW_PATH/portal/{userId}/{fileId} (서버 측 저장 경로).</li>
+ *   <li>FILE_PATH_NM   : STORAGE_RAW_PATH/portal/{userId}/{fileId} (서버 측 저장 경로).</li>
  *   <li>DOWNLOAD_DDLN_DT : V1.5 정책 — 컬럼만 보유. 만료 정책/UI 는 포털 자체 책임.</li>
  * </ul>
  */
@@ -36,47 +36,47 @@ public class LsPortalUserVideo {
     @Column(name = "PORTAL_USER_NO", nullable = false, length = 50)
     private String portalUserNo;
 
-    @Column(name = "FILE_NAME", length = 255)
-    private String fileName;
+    @Column(name = "FILE_NM", length = 255)
+    private String fileNm;
 
-    @Column(name = "FILE_PATH", length = 500)
-    private String filePath;
+    @Column(name = "FILE_PATH_NM", length = 500)
+    private String filePathNm;
 
-    @Column(name = "FILE_SIZE")
-    private Long fileSize;
+    @Column(name = "FILE_SZ")
+    private Long fileSz;
 
-    @Column(name = "MIME_TYPE", length = 50)
-    private String mimeType;
+    @Column(name = "MIME_TYPE_CD", length = 50)
+    private String mimeTypeCd;
 
-    @Column(name = "THUMBNAIL_PATH", length = 500)
-    private String thumbnailPath;
+    @Column(name = "THMB_FILE_PATH_NM", length = 500)
+    private String thmbFilePathNm;
 
     @Column(name = "DOWNLOAD_DDLN_DT")
     private LocalDateTime downloadDdlnDt;
 
-    @Column(name = "REGISTERED_AT", nullable = false)
-    private LocalDateTime registeredAt;
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
 
     @Builder
-    private LsPortalUserVideo(String portalUserNo, String fileName, String filePath,
-                              Long fileSize, String mimeType, String thumbnailPath) {
+    private LsPortalUserVideo(String portalUserNo, String fileNm, String filePathNm,
+                              Long fileSz, String mimeTypeCd, String thmbFilePathNm) {
         this.portalUserNo = portalUserNo;
-        this.fileName = fileName;
-        this.filePath = filePath;
-        this.fileSize = fileSize;
-        this.mimeType = mimeType;
-        this.thumbnailPath = thumbnailPath;
-        this.registeredAt = LocalDateTime.now();
+        this.fileNm = fileNm;
+        this.filePathNm = filePathNm;
+        this.fileSz = fileSz;
+        this.mimeTypeCd = mimeTypeCd;
+        this.thmbFilePathNm = thmbFilePathNm;
+        this.regDt = LocalDateTime.now();
     }
 
-    public static LsPortalUserVideo create(String portalUserNo, String fileName, String filePath,
-                                           Long fileSize, String mimeType) {
+    public static LsPortalUserVideo create(String portalUserNo, String fileNm, String filePathNm,
+                                           Long fileSz, String mimeTypeCd) {
         return LsPortalUserVideo.builder()
                 .portalUserNo(portalUserNo)
-                .fileName(fileName)
-                .filePath(filePath)
-                .fileSize(fileSize)
-                .mimeType(mimeType)
+                .fileNm(fileNm)
+                .filePathNm(filePathNm)
+                .fileSz(fileSz)
+                .mimeTypeCd(mimeTypeCd)
                 .build();
     }
 }

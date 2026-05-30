@@ -42,12 +42,12 @@ public class PortalUploadService {
         );
         LsPortalUserVideo saved = repository.save(entity);
         log.info("[Portal] upload registered userId={} portalVideoSn={} size={}",
-                portalUserNo, saved.getPortalVideoSn(), saved.getFileSize());
+                portalUserNo, saved.getPortalVideoSn(), saved.getFileSz());
         return saved;
     }
 
     public List<LsPortalUserVideo> listMyUploads(String portalUserNo) {
-        return repository.findByPortalUserNoOrderByRegisteredAtDesc(portalUserNo);
+        return repository.findByPortalUserNoOrderByRegDtDesc(portalUserNo);
     }
 
     /** 본인 영상만 조회 (IDOR 차단). */

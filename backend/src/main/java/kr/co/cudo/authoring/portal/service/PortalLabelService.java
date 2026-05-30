@@ -85,7 +85,7 @@ public class PortalLabelService {
         requireActor(actor);
         LsPortalUserLabel saved = userLabelRepository.save(
                 LsPortalUserLabel.create(actor.sub(), req.sourceRawSn(), req.sourceSrcSn(),
-                        req.lblTypeCd(), req.label(), req.points()));
+                        req.lblTypeCd(), req.label(), req.points()));  // req JSON 키(sourceRawSn/sourceSrcSn/label/points)는 FE 계약 유지
         log.info("[Portal] user label saved userId={} rawSn={} srcSn={}",
                 actor.sub(), req.sourceRawSn(), req.sourceSrcSn());
         return PortalUserLabelResponse.from(saved);
@@ -98,7 +98,7 @@ public class PortalLabelService {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
         }
-        return userLabelRepository.findByPortalUserNoAndSourceRawSnOrderByCreatedAtDesc(actor.sub(), rawSn)
+        return userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(actor.sub(), rawSn)
                 .stream().map(PortalUserLabelResponse::from).toList();
     }
 

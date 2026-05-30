@@ -18,7 +18,7 @@ import java.util.Optional;
 @ControlRepo
 public interface PortalUserVideoRepository extends JpaRepository<LsPortalUserVideo, Long> {
 
-    List<LsPortalUserVideo> findByPortalUserNoOrderByRegisteredAtDesc(String portalUserNo);
+    List<LsPortalUserVideo> findByPortalUserNoOrderByRegDtDesc(String portalUserNo);
 
     Optional<LsPortalUserVideo> findByPortalVideoSnAndPortalUserNo(Long portalVideoSn, String portalUserNo);
 }

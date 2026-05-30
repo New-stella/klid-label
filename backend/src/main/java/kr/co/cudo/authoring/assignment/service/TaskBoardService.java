@@ -115,7 +115,7 @@ public class TaskBoardService {
                 eventName,
                 eventTypeCd,
                 frameCount,
-                r.getCapturedAt(),
+                r.getShtDt(),
                 r.getDataSttsCd(),
                 mappedStatus,
                 labeler != null ? labeler.getAssignmentId() : null,

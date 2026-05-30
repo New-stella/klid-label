@@ -136,7 +136,7 @@ class PortalUserLabelServiceTest {
     void listMyLabels_returnsOnlyOwnLabels() {
         LsPortalUserLabel aliceLabel = LsPortalUserLabel.create("alice", 100L, 10L, "BBOX", "person", "[1,2]");
         setField(aliceLabel, "userLblSn", 1L);
-        when(userLabelRepository.findByPortalUserNoAndSourceRawSnOrderByCreatedAtDesc("alice", 100L))
+        when(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc("alice", 100L))
                 .thenReturn(List.of(aliceLabel));
 
         List<PortalUserLabelResponse> result = service.listMyLabels(100L, alice);
@@ -148,7 +148,7 @@ class PortalUserLabelServiceTest {
     @Test
     @DisplayName("V2_다른_사용자_데이터_접근_불가_IDOR")
     void listMyLabels_differentUser_returnsEmpty() {
-        when(userLabelRepository.findByPortalUserNoAndSourceRawSnOrderByCreatedAtDesc("bob", 100L))
+        when(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc("bob", 100L))
                 .thenReturn(List.of());
 
         List<PortalUserLabelResponse> result = service.listMyLabels(100L, bob);

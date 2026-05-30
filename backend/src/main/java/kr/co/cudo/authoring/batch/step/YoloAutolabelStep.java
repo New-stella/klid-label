@@ -278,7 +278,7 @@ public class YoloAutolabelStep {
     }
 
     private String resolveImagePath(LsDataSrc src) {
-        return src.getFilePath();
+        return src.getSrcFilePathNm();
     }
 
     private String readImageAsBase64(String relativePath) {

@@ -77,7 +77,7 @@ public class DeidentifyResultService {
                     .findByExternalJobId(req.externalJobId())
                     .orElseGet(() -> LsDeidentProcLog.request(
                             raw.getRawSn(), req.externalJobId(),
-                            raw.getFilePath(), "webhook", req.externalJobId()));
+                            raw.getRawFilePathNm(), "webhook", req.externalJobId()));
             applyProcLogStatus(procLog, req);
             procLogRepository.save(procLog);
         } catch (DataIntegrityViolationException e) {

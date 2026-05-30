@@ -160,7 +160,7 @@ public record VideoSummaryResponse(
                 exportStatus,
                 exportedAt,
                 failureReason,
-                e.getUpdDt(),
+                e.getMdfcnDt(),
                 reviewCompletedAt
         );
     }

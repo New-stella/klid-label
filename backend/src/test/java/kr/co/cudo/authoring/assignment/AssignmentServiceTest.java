@@ -175,7 +175,7 @@ class AssignmentServiceTest {
                 "CCTV-GANGNAM-001", "CCTV-강남구-001", "Y");
         jdbcTemplate.update(
                 "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, PRVC_TYPE_CD, PRVC_YN, DE_IDNTF_YN, " +
-                        "FILE_PATH, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
+                        "RAW_FILE_PATH_NM, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
                 1000L, "TEST-CLIP-1000", "CCTV-GANGNAM-001",
                 "ANONY", "N", "N", "/tmp/test/1000.mp4", "PENDING");
 
@@ -200,7 +200,7 @@ class AssignmentServiceTest {
         // CCTV 마스터 시드 없이 LS_DATA_RAW 만 등록 → cctvName 은 vmsCctvId 폴백.
         jdbcTemplate.update(
                 "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, PRVC_TYPE_CD, PRVC_YN, DE_IDNTF_YN, " +
-                        "FILE_PATH, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
+                        "RAW_FILE_PATH_NM, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
                 1001L, "TEST-CLIP-1001", "CCTV-ORPHAN-001",
                 "ANONY", "N", "N", "/tmp/test/1001.mp4", "PENDING");
 
@@ -223,7 +223,7 @@ class AssignmentServiceTest {
         jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", 2000L);
         jdbcTemplate.update(
                 "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, EVNT_TYPE_CD, PRVC_TYPE_CD, PRVC_YN, DE_IDNTF_YN, " +
-                        "FILE_PATH, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
+                        "RAW_FILE_PATH_NM, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
                 2000L, "TEST-CLIP-EVT-2000", "CCTV-EVT-001",
                 "FIRE", "ANONY", "N", "N", "/tmp/test/2000.mp4", "PENDING");
 

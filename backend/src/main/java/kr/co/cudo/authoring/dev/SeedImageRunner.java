@@ -88,20 +88,20 @@ public class SeedImageRunner implements CommandLineRunner {
                 continue;
             }
             try {
-                Path target = resolveSafe(baseDir, src.getFilePath());
+                Path target = resolveSafe(baseDir, src.getSrcFilePathNm());
                 boolean made = SeedImageGenerator.generate(
                         target,
                         raw.getEvntTypeCd(),
                         raw.getVmsCctvId(),
                         src.getFrameNo(),
-                        src.getCapturedAt());
+                        src.getShtDt());
                 if (made) {
                     created++;
                 } else {
                     skipped++;
                 }
             } catch (Exception e) {
-                log.error("[SeedImage] 생성 실패 srcSn={} path={}", src.getSrcSn(), src.getFilePath(), e);
+                log.error("[SeedImage] 생성 실패 srcSn={} path={}", src.getSrcSn(), src.getSrcFilePathNm(), e);
                 failed++;
             }
         }

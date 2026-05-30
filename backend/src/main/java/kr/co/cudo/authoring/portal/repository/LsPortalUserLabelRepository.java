@@ -9,9 +9,9 @@ import java.util.List;
 @ControlRepo
 public interface LsPortalUserLabelRepository extends JpaRepository<LsPortalUserLabel, Long> {
 
-    List<LsPortalUserLabel> findByPortalUserNoAndSourceRawSnOrderByCreatedAtDesc(
-            String portalUserNo, Long sourceRawSn);
+    List<LsPortalUserLabel> findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(
+            String portalUserNo, Long srcRawSn);
 
-    List<LsPortalUserLabel> findByPortalUserNoAndSourceSrcSnOrderByCreatedAtDesc(
-            String portalUserNo, Long sourceSrcSn);
+    List<LsPortalUserLabel> findByPortalUserNoAndSrcDataSrcSnOrderByRegDtDesc(
+            String portalUserNo, Long srcDataSrcSn);
 }

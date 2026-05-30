@@ -240,7 +240,7 @@ public class Sam2SegmentStep {
     }
 
     private String resolveImagePath(LsDataSrc src) {
-        return src.getFilePath();
+        return src.getSrcFilePathNm();
     }
 
     private String readImageAsBase64(String relativePath) {

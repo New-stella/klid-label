@@ -75,12 +75,12 @@ public class DeidentifyStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
         LsDeidentProcLog procLog = procLogRepository.save(
-                LsDeidentProcLog.request(raw.getRawSn(), null, raw.getFilePath(), "batch"));
+                LsDeidentProcLog.request(raw.getRawSn(), null, raw.getRawFilePathNm(), "batch"));
 
         try {
             Path target = resolveSafeTargetPath(raw.getRawSn());
             DeidentifyResponse resp = deidentifyClient
-                    .deidentify(new DeidentifyRequest(raw.getFilePath(), target.toString()))
+                    .deidentify(new DeidentifyRequest(raw.getRawFilePathNm(), target.toString()))
                     .block(Duration.ofSeconds(70));
             if (resp == null || resp.resultPath() == null) {
                 throw new IllegalStateException("비식별 응답이 비어있음 rawSn=" + raw.getRawSn());

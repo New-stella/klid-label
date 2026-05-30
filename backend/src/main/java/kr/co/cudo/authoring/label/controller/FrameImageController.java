@@ -95,12 +95,12 @@ public class FrameImageController {
 
         // 2) Path traversal 방어 — baseDir 기준 normalize + startsWith 검증
         Path baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path resolved = resolveSafe(baseDir, src.getFilePath());
+        Path resolved = resolveSafe(baseDir, src.getSrcFilePathNm());
 
         // 3) 파일 존재 확인 — 부재 시 404 (내부 경로 노출 금지)
         if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
             log.warn("[FrameImage] file not found srcSn={} path-not-found (raw rel: {})",
-                    srcSn, src.getFilePath());
+                    srcSn, src.getSrcFilePathNm());
             throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
         }
 
