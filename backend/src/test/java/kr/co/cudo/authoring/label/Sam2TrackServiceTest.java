@@ -163,7 +163,7 @@ class Sam2TrackServiceTest {
         assertThat(savedSrc1).hasSize(1).allSatisfy(l -> {
             assertThat(l.getAutoLblYn()).isEqualTo("Y");
             assertThat(l.getLblTypeCd()).isEqualTo("POLYGON");
-            assertThat(l.getLabel()).isEqualTo("person");
+            assertThat(l.getLabelNm()).isEqualTo("person");
         });
         assertThat(savedSrc2).hasSize(1);
     }
@@ -228,7 +228,7 @@ class Sam2TrackServiceTest {
         List<LsDataLbl> saved = labelRepository.findBySrcSn(src1);
         assertThat(saved).hasSize(1);
         assertThat(saved.get(0).getLabelId()).isEqualTo(personLabelId);
-        assertThat(saved.get(0).getLabel()).isEqualTo("person");
+        assertThat(saved.get(0).getLabelNm()).isEqualTo("person");
     }
 
     @Test
@@ -250,7 +250,7 @@ class Sam2TrackServiceTest {
         List<LsDataLbl> saved = labelRepository.findBySrcSn(src1);
         assertThat(saved).hasSize(1);
         assertThat(saved.get(0).getLabelId()).isNull();
-        assertThat(saved.get(0).getLabel()).isEqualTo("unknown-label");
+        assertThat(saved.get(0).getLabelNm()).isEqualTo("unknown-label");
     }
 
     @Test

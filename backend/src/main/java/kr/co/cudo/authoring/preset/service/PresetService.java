@@ -44,7 +44,7 @@ public class PresetService {
     @Transactional("controlTransactionManager")
     public LsLabelPreset create(String name, String description,
                                 List<LabelCodeOptionDto> options, String eventTypeCd) {
-        if (presetRepository.existsByName(name)) {
+        if (presetRepository.existsByPresetNm(name)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 프리셋 이름입니다.");
         }
         LsLabelPreset preset = LsLabelPreset.createWithOptions(name, description, toSpecs(options), eventTypeCd);
@@ -56,7 +56,7 @@ public class PresetService {
                                 List<LabelCodeOptionDto> options, String eventTypeCd) {
         LsLabelPreset preset = presetRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프리셋을 찾을 수 없습니다."));
-        if (presetRepository.existsByNameAndPresetIdNot(name, id)) {
+        if (presetRepository.existsByPresetNmAndPresetIdNot(name, id)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 프리셋 이름입니다.");
         }
         preset.updateBasics(name, description);
@@ -83,13 +83,13 @@ public class PresetService {
     public LsLabelPreset clone(long id) {
         LsLabelPreset src = presetRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프리셋을 찾을 수 없습니다."));
-        String baseName = resolveCloneName(src.getName());
+        String baseName = resolveCloneName(src.getPresetNm());
         // 복제본은 이벤트 매핑 미상속 — 이벤트 UNIQUE 충돌을 피하기 위해 null 로 생성.
         // 옵션은 원본과 동일하게 복사 (BBOX/POLYGON 토글 유지).
         List<LabelCodeSpec> specs = src.getCodes().stream()
                 .map(c -> new LabelCodeSpec(c.getCode(), c.isBboxEnabled(), c.isPolygonEnabled()))
                 .toList();
-        LsLabelPreset copy = LsLabelPreset.createWithOptions(baseName, src.getDescription(), specs, null);
+        LsLabelPreset copy = LsLabelPreset.createWithOptions(baseName, src.getExpln(), specs, null);
         return presetRepository.save(copy);
     }
 
@@ -105,12 +105,12 @@ public class PresetService {
     /** 복제 이름 충돌 시 " (복사본 2)", " (복사본 3)" ... 식으로 시퀀스 부여. */
     private String resolveCloneName(String sourceName) {
         String candidate = sourceName + " (복사본)";
-        if (!presetRepository.existsByName(candidate)) {
+        if (!presetRepository.existsByPresetNm(candidate)) {
             return candidate;
         }
         for (int i = 2; i <= CLONE_SUFFIX_MAX; i++) {
             String alt = sourceName + " (복사본 " + i + ")";
-            if (!presetRepository.existsByName(alt)) {
+            if (!presetRepository.existsByPresetNm(alt)) {
                 return alt;
             }
         }

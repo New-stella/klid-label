@@ -136,7 +136,7 @@ class LabelAttrControllerTest {
                 .andExpect(jsonPath("$.data.name").value("occluded"))
                 .andExpect(jsonPath("$.data.inputType").value("SELECT"));
 
-        assertThat(attrRepository.existsByLabelIdAndName(labelId, "occluded")).isTrue();
+        assertThat(attrRepository.existsByLabelIdAndAttrNm(labelId, "occluded")).isTrue();
     }
 
     @Test

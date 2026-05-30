@@ -155,7 +155,7 @@ class LabelControllerTest {
                 .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"));
 
         LsDataLbl after = labelRepository.findById(autoId).orElseThrow();
-        assertThat(after.getPointsJson()).contains("15.0").contains("60.0");
+        assertThat(after.getPointCn()).contains("15.0").contains("60.0");
         // LS_DATA_LBL_AI_INFO row 도 그대로 유지 (수정 흐름에서 변경 없음)
         Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(autoId);
         assertThat(ai).isPresent();
@@ -416,7 +416,7 @@ class LabelControllerTest {
         // DB 의 LABEL_ID 는 기존 master.getLabelId() 그대로 유지되어야 한다.
         LsDataLbl after = labelRepository.findById(seed.getLblSn()).orElseThrow();
         assertThat(after.getLabelId()).isEqualTo(master.getLabelId());
-        assertThat(after.getPointsJson()).contains("20.0").contains("60.0");
+        assertThat(after.getPointCn()).contains("20.0").contains("60.0");
     }
 
     @Test

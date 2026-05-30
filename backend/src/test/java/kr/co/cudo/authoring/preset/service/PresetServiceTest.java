@@ -38,7 +38,7 @@ class PresetServiceTest {
     @Test
     @DisplayName("동일_이벤트가_다른_프리셋에_이미_매핑되어_있으면_CONFLICT")
     void createWithDuplicateEventThrowsConflict() {
-        when(repository.existsByName(any())).thenReturn(false);
+        when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenThrow(new DataIntegrityViolationException("UK_LS_LABEL_PRESET_EVNT"));
 
@@ -57,7 +57,7 @@ class PresetServiceTest {
     void updateWithDuplicateEventThrowsConflict() {
         LsLabelPreset existing = LsLabelPreset.create("기존", "", List.of("PERSON"), null);
         when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        when(repository.existsByNameAndPresetIdNot("기존", 1L)).thenReturn(false);
+        when(repository.existsByPresetNmAndPresetIdNot("기존", 1L)).thenReturn(false);
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenThrow(new DataIntegrityViolationException("UK_LS_LABEL_PRESET_EVNT"));
 
@@ -73,7 +73,7 @@ class PresetServiceTest {
     @Test
     @DisplayName("create_정상_케이스는_eventTypeCd가_전달되어_저장된다")
     void createPassesEventTypeToEntity() {
-        when(repository.existsByName(any())).thenReturn(false);
+        when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -86,7 +86,7 @@ class PresetServiceTest {
     @Test
     @DisplayName("eventTypeCd_빈_문자열은_null_로_정규화되어_저장된다")
     void emptyEventTypeNormalizedToNull() {
-        when(repository.existsByName(any())).thenReturn(false);
+        when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -98,7 +98,7 @@ class PresetServiceTest {
     @Test
     @DisplayName("동일_이름_프리셋은_CONFLICT_변경_없음")
     void duplicateNameConflict() {
-        when(repository.existsByName("중복")).thenReturn(true);
+        when(repository.existsByPresetNm("중복")).thenReturn(true);
 
         assertThatThrownBy(() ->
                 service.create("중복", "", bothOptions("PERSON"), null))
@@ -115,7 +115,7 @@ class PresetServiceTest {
     void cloneDoesNotInheritEventMapping() {
         LsLabelPreset src = LsLabelPreset.create("원본", "desc", List.of("PERSON"), "EVT_FALL");
         when(repository.findById(1L)).thenReturn(Optional.of(src));
-        when(repository.existsByName(any())).thenReturn(false);
+        when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.save(any(LsLabelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LsLabelPreset copy = service.clone(1L);
@@ -127,7 +127,7 @@ class PresetServiceTest {
     @Test
     @DisplayName("PresetService_create_시_옵션이_그대로_엔티티에_전파")
     void createPropagatesTogglesToEntity() {
-        when(repository.existsByName(any())).thenReturn(false);
+        when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -158,7 +158,7 @@ class PresetServiceTest {
         assertThat(existing.getCodes().get(0).isPolygonEnabled()).isTrue();
 
         when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        when(repository.existsByNameAndPresetIdNot(any(), any())).thenReturn(false);
+        when(repository.existsByPresetNmAndPresetIdNot(any(), any())).thenReturn(false);
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -182,7 +182,7 @@ class PresetServiceTest {
     @Test
     @DisplayName("PresetService_create_빈_옵션이면_엔티티에_빈_코드_목록_저장")
     void createWithEmptyOptionsResultsInEmptyCodes() {
-        when(repository.existsByName(any())).thenReturn(false);
+        when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 

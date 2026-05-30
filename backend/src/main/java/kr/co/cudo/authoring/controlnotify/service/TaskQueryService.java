@@ -157,8 +157,8 @@ public class TaskQueryService {
                 .map(l -> new TaskLabelsResponse.LabelItem(
                         l.getLblSn(),
                         l.getLblTypeCd(),
-                        l.getLabel(),
-                        l.getPointsJson()
+                        l.getLabelNm(),
+                        l.getPointCn()
                 ))
                 .toList();
 

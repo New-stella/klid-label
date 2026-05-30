@@ -170,8 +170,8 @@ public class VideoQueryService {
         List<AutoLabelResultResponse.LabelObjectDto> objects = labels.stream()
                 .map(l -> new AutoLabelResultResponse.LabelObjectDto(
                         String.valueOf(l.getLblSn()),
-                        l.getLabel(),
-                        l.getLabel(),
+                        l.getLabelNm(),
+                        l.getLabelNm(),
                         DEFAULT_LABEL_COLOR,
                         l.getConfScore() == null ? null : l.getConfScore().doubleValue(),
                         LsDataLbl.AUTO_YES.equals(l.getAutoLblYn()) ? "auto" : "manual"

@@ -39,7 +39,7 @@ public class LsLabelPresetCode {
     @Column(name = "CODE", nullable = false, length = 32)
     private String code;
 
-    @Column(name = "SORT_ORDER", nullable = false)
+    @Column(name = "SORT_SEQ", nullable = false)
     private int sortOrder;
 
     /** BBOX 어노테이션 활성 여부 (V16). */

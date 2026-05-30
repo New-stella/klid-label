@@ -123,11 +123,11 @@ public class TrackInterpolationStep {
             if (sorted.isEmpty()) {
                 continue;
             }
-            String label = sorted.get(0).getLabel();
+            String label = sorted.get(0).getLabelNm();
             List<Keyframe> keyframes = sorted.stream()
                     .map(l -> new Keyframe(
                             srcSnToFrame.get(l.getSrcSn()),
-                            parseBbox(l.getPointsJson()),
+                            parseBbox(l.getPointCn()),
                             false))
                     .toList();
             Map<Integer, Bbox> interpolated = INTERPOLATOR.interpolate(keyframes, totalFrames);

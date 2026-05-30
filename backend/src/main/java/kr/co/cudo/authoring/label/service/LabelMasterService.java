@@ -39,7 +39,7 @@ public class LabelMasterService {
     /** 활성 라벨 목록 — sort_no ASC. */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<LabelMasterResponse> list() {
-        return labelRepository.findByUseYnOrderBySortNoAsc(USE_YN_ACTIVE).stream()
+        return labelRepository.findByUseYnOrderBySortSeqAsc(USE_YN_ACTIVE).stream()
                 .map(LabelMasterResponse::from)
                 .toList();
     }
@@ -47,7 +47,7 @@ public class LabelMasterService {
     /** 라벨 신규 등록 — 동일 name 중복 시 CONFLICT. */
     @Transactional("controlTransactionManager")
     public LabelMasterResponse create(LabelMasterRequest req, String regId) {
-        if (labelRepository.existsByName(req.name())) {
+        if (labelRepository.existsByLabelNm(req.name())) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 라벨 이름입니다.");
         }
         LsLabel saved = labelRepository.save(LsLabel.create(
@@ -57,7 +57,7 @@ public class LabelMasterService {
                 req.sortNo(),
                 regId
         ));
-        log.info("[Label] created labelId={}, name={}", saved.getLabelId(), saved.getName());
+        log.info("[Label] created labelId={}, name={}", saved.getLabelId(), saved.getLabelNm());
         return LabelMasterResponse.from(saved);
     }
 
@@ -67,7 +67,7 @@ public class LabelMasterService {
         LsLabel label = labelRepository.findById(labelId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "라벨을 찾을 수 없습니다."));
         // name 변경 시 동일 검증 (자기 자신 제외).
-        if (labelRepository.existsByNameAndLabelIdNot(req.name(), labelId)) {
+        if (labelRepository.existsByLabelNmAndLabelIdNot(req.name(), labelId)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 라벨 이름입니다.");
         }
         label.update(req.name(), req.color(), req.type(), req.sortNo(), mdfcnId);
@@ -90,7 +90,7 @@ public class LabelMasterService {
         if (name == null || name.isBlank()) {
             return Optional.empty();
         }
-        return labelRepository.findByNameIgnoreCaseAndUseYn(name.trim(), USE_YN_ACTIVE)
+        return labelRepository.findByLabelNmIgnoreCaseAndUseYn(name.trim(), USE_YN_ACTIVE)
                 .map(LsLabel::getLabelId);
     }
 

@@ -17,6 +17,6 @@ public record DatamartLabelResponse(
     public static DatamartLabelResponse from(LsDataLbl e) {
         return new DatamartLabelResponse(
                 e.getLblSn(), e.getSrcSn(), e.getLblTypeCd(),
-                e.getLabel(), e.getPointsJson(), e.getTrackId());
+                e.getLabelNm(), e.getPointCn(), e.getTrackId());
     }
 }

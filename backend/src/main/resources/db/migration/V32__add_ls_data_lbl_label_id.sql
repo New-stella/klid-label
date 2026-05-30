@@ -1,8 +1,8 @@
 -- Phase 2 (CVAT-Like 라벨 풀 포팅): LS_DATA_LBL → LS_LABEL FK 연결.
--- 신규 LABEL_ID nullable 컬럼 + FK + 인덱스, 그리고 기존 row 의 LABEL 텍스트 ↔ LS_LABEL.NAME
+-- 신규 LABEL_ID nullable 컬럼 + FK + 인덱스, 그리고 기존 row 의 LABEL_NM 텍스트 ↔ LS_LABEL.LABEL_NM
 -- best-effort 매칭(case-insensitive). PJT_ID=1 단일 프로젝트 가정 (현 시점 시드 기준).
 --
--- 기존 LABEL(varchar 255) 컬럼은 호환을 위해 유지 (Entity 에서 @Deprecated 표기).
+-- 기존 LABEL_NM(varchar 255) 컬럼은 호환을 위해 유지 (Entity 에서 @Deprecated 표기).
 -- Phase 4 이후 호출자 정리 완료 시 별도 마이그레이션으로 NOT NULL 강제/제거 검토.
 --
 -- PostgreSQL:
@@ -23,9 +23,9 @@ CREATE INDEX IF NOT EXISTS IDX_LS_DATA_LBL_LABEL_ID ON LS_DATA_LBL(LABEL_ID);
 UPDATE LS_DATA_LBL ld
 SET LABEL_ID = (
     SELECT l.LABEL_ID FROM LS_LABEL l
-    WHERE LOWER(l.NAME) = LOWER(ld.LABEL)
+    WHERE LOWER(l.LABEL_NM) = LOWER(ld.LABEL_NM)
       AND l.PJT_ID = 1
       AND l.USE_YN = 'Y'
     LIMIT 1
 )
-WHERE ld.LABEL_ID IS NULL AND ld.LABEL IS NOT NULL;
+WHERE ld.LABEL_ID IS NULL AND ld.LABEL_NM IS NOT NULL;

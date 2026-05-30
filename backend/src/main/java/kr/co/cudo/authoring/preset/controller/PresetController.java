@@ -153,13 +153,13 @@ public class PresetController {
         }
         return new PresetResponse(
                 entity.getPresetId(),
-                entity.getName(),
-                entity.getDescription(),
+                entity.getPresetNm(),
+                entity.getExpln(),
                 codes,
                 opts,
                 entity.getEventTypeCd(),
-                formatTimestamp(entity.getCreatedAt()),
-                formatTimestamp(entity.getUpdatedAt())
+                formatTimestamp(entity.getRegDt()),
+                formatTimestamp(entity.getMdfcnDt())
         );
     }
 

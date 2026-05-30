@@ -41,11 +41,11 @@ public class LsLabelPreset {
     @Column(name = "PRESET_ID")
     private Long presetId;
 
-    @Column(name = "NAME", nullable = false, length = 64)
-    private String name;
+    @Column(name = "PRESET_NM", nullable = false, length = 64)
+    private String presetNm;
 
-    @Column(name = "DESCRIPTION", length = 500)
-    private String description;
+    @Column(name = "EXPLN", length = 500)
+    private String expln;
 
     /**
      * 매핑된 이벤트 타입 코드 (예: EVT_FALL). null = 미매핑.
@@ -54,11 +54,11 @@ public class LsLabelPreset {
     @Column(name = "EVNT_TYPE_CD", length = 32)
     private String eventTypeCd;
 
-    @Column(name = "CREATED_AT", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "REG_DT", nullable = false, updatable = false)
+    private LocalDateTime regDt;
 
-    @Column(name = "UPDATED_AT", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "MDFCN_DT", nullable = false)
+    private LocalDateTime mdfcnDt;
 
     @OneToMany(
             mappedBy = "preset",
@@ -70,8 +70,8 @@ public class LsLabelPreset {
     private List<LsLabelPresetCode> codes = new ArrayList<>();
 
     private LsLabelPreset(String name, String description, String eventTypeCd) {
-        this.name = name;
-        this.description = description;
+        this.presetNm = name;
+        this.expln = description;
         this.eventTypeCd = normalizeEventTypeCd(eventTypeCd);
     }
 
@@ -123,8 +123,8 @@ public class LsLabelPreset {
 
     /** 기본 정보(이름/설명) 갱신. */
     public void updateBasics(String name, String description) {
-        this.name = name;
-        this.description = description;
+        this.presetNm = name;
+        this.expln = description;
     }
 
     /**
@@ -223,13 +223,13 @@ public class LsLabelPreset {
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
+        this.regDt = now;
+        this.mdfcnDt = now;
     }
 
     @PreUpdate
     void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /**

@@ -103,7 +103,7 @@ class LabelMasterControllerTest {
                 .andExpect(jsonPath("$.data.type").value("BBOX"))
                 .andExpect(jsonPath("$.data.useYn").value("Y"));
 
-        assertThat(labelRepository.existsByName("person")).isTrue();
+        assertThat(labelRepository.existsByLabelNm("person")).isTrue();
     }
 
     @Test

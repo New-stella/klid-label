@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
  * LS_DATA_LBL: 현재 라벨 좌표/속성.
  *  - srcSn: LS_DATA_SRC FK (프레임 단위)
  *  - lblTypeCd: BBOX / POLYGON / SEGMENT / TRACK
- *  - pointsJson: 좌표 직렬화 (Jackson 안전 모드 — enableDefaultTyping 사용 금지)
+ *  - pointCn: 좌표 직렬화 (Jackson 안전 모드 — enableDefaultTyping 사용 금지)
  *
  * 자동/수동 여부, 모델명, 신뢰도, 보간 출처 등 저작도구 전용 AI 메타는
  * LS_DATA_LBL_AI_INFO 에 분리 저장한다. 본 엔티티의 autoLblYn/confScore/lblSrcCd 는
@@ -68,16 +68,16 @@ public class LsDataLbl {
 
     /**
      * LS_LABEL FK 도입(V32) 이후 labelId 사용 권장.
-     * 호환 위해 유지. 응답에서는 LS_LABEL.NAME (labelName) 을 우선 노출.
+     * 호환 위해 유지. 응답에서는 LS_LABEL.LABEL_NM (labelName) 을 우선 노출.
      */
-    @Column(name = "LABEL", nullable = false, length = 255)
-    private String label;
+    @Column(name = "LABEL_NM", nullable = false, length = 255)
+    private String labelNm;
 
     // MariaDB → PostgreSQL: @Lob + String 은 PG 에서 large object(oid/CLOB) 타입으로 매핑되어
     // "Large Objects may not be used in auto-commit mode" 오류를 유발한다. 마이그레이션이
-    // POINTS_JSON 을 TEXT 로 생성하므로 columnDefinition="TEXT" 로 평문 텍스트 매핑한다.
-    @Column(name = "POINTS_JSON", columnDefinition = "TEXT")
-    private String pointsJson;
+    // POINT_CN 을 TEXT 로 생성하므로 columnDefinition="TEXT" 로 평문 텍스트 매핑한다.
+    @Column(name = "POINT_CN", columnDefinition = "TEXT")
+    private String pointCn;
 
     @Transient
     private String autoLblYn;
@@ -113,8 +113,8 @@ public class LsDataLbl {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "UPD_DT")
-    private LocalDateTime updDt;
+    @Column(name = "MDFCN_DT")
+    private LocalDateTime mdfcnDt;
 
     @Builder
     private LsDataLbl(Long srcSn, String lblTypeCd, Long labelId, String label, String pointsJson,
@@ -122,8 +122,8 @@ public class LsDataLbl {
         this.srcSn = srcSn;
         this.lblTypeCd = lblTypeCd;
         this.labelId = labelId;
-        this.label = label;
-        this.pointsJson = pointsJson;
+        this.labelNm = label;
+        this.pointCn = pointsJson;
         this.autoLblYn = autoLblYn;
         this.confScore = clampScore(confScore);
         this.trackId = trackId;
@@ -227,9 +227,9 @@ public class LsDataLbl {
         if (labelId != null) {
             this.labelId = labelId;
         }
-        this.label = label;
-        this.pointsJson = pointsJson;
-        this.updDt = LocalDateTime.now();
+        this.labelNm = label;
+        this.pointCn = pointsJson;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /**
@@ -241,8 +241,8 @@ public class LsDataLbl {
                 .srcSn(newSrcSn)
                 .lblTypeCd(original.getLblTypeCd())
                 .labelId(original.getLabelId())
-                .label(original.getLabel())
-                .pointsJson(original.getPointsJson())
+                .label(original.getLabelNm())
+                .pointsJson(original.getPointCn())
                 .trackId(original.getTrackId())
                 .build();
     }
@@ -250,7 +250,7 @@ public class LsDataLbl {
     /** VLM 객체 검증 결과 등 신뢰도만 갱신. 0.0~1.0 범위 강제. */
     public void updateConfScore(BigDecimal newScore) {
         this.confScore = clampScore(newScore);
-        this.updDt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /**
