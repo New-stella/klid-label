@@ -68,8 +68,8 @@ public class LsDataMetaReview {
     @Column(name = "RVW_DT")
     private LocalDateTime rvwDt;
 
-    @Column(name = "REJECT_REASON", length = 1000)
-    private String rejectReason;
+    @Column(name = "REJECT_RSN", length = 1000)
+    private String rejectRsn;
 
     @Column(name = "REG_ID", length = 30)
     private String regId;
@@ -118,7 +118,7 @@ public class LsDataMetaReview {
         }
         ensureReviewable();
         this.rvwSttsCd = STTS_REJECTED;
-        this.rejectReason = sanitize(reason);
+        this.rejectRsn = sanitize(reason);
         this.rvwId = reviewerId;
         this.rvwDt = at;
         this.mdfcnId = reviewerId;

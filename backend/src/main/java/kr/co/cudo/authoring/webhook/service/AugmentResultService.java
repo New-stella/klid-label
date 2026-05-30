@@ -162,7 +162,7 @@ public class AugmentResultService {
         // 메타 일괄 저장 (saveAll batch)
         List<LsDataMeta> parentMetas = metaRepository.findByRawSn(parentRaw.getRawSn());
         List<LsDataMeta> copiedMetas = parentMetas.stream()
-                .map(meta -> LsDataMeta.create(newRaw.getRawSn(), meta.getMetaKey(), meta.getMetaVal()))
+                .map(meta -> LsDataMeta.create(newRaw.getRawSn(), meta.getMetaKey(), meta.getMetaVl()))
                 .toList();
         metaRepository.saveAll(copiedMetas);
 

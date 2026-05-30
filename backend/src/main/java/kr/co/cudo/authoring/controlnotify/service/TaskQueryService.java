@@ -134,7 +134,7 @@ public class TaskQueryService {
                 .map(m -> new TaskMetaResponse.MetaItem(
                         m.getMetaSn(),
                         m.getMetaKey(),
-                        m.getMetaVal()
+                        m.getMetaVl()
                 ))
                 .toList();
 

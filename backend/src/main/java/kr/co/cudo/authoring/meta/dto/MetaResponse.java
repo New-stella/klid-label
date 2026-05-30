@@ -12,7 +12,7 @@ public record MetaResponse(List<Item> items) {
 
     public record Item(Long metaSn, String metaKey, String metaVal) {
         public static Item from(LsDataMeta entity) {
-            return new Item(entity.getMetaSn(), entity.getMetaKey(), entity.getMetaVal());
+            return new Item(entity.getMetaSn(), entity.getMetaKey(), entity.getMetaVl());
         }
     }
 

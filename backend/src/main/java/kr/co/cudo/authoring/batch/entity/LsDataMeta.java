@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 /**
  * LS_DATA_META: 영상/프레임 메타 값.
  *  - rawSn: LS_DATA_RAW FK
- *  - metaKey + metaVal(META_VL) 단순 K/V (K 는 (RAW_SN, META_KEY) UK)
+ *  - metaKey + metaVl(META_VL) 단순 K/V (K 는 (RAW_SN, META_KEY) UK)
  *
  * 외부 생성 여부, 메타 유형, 검토 상태는 LS_DATA_META_REVIEW 에 분리 저장한다.
  */
@@ -41,13 +41,13 @@ public class LsDataMeta {
     private String metaKey;
 
     @Column(name = "META_VL", length = 2000)
-    private String metaVal;
+    private String metaVl;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
     @Column(name = "MDFCN_DT")
-    private LocalDateTime updDt;
+    private LocalDateTime mdfcnDt;
 
     /**
      * Phase 4 비동기 표준 컬럼 — webhook 인계 원래 위탁 요청 식별자.
@@ -72,25 +72,25 @@ public class LsDataMeta {
     private LocalDateTime deadLetterAt;
 
     @Builder
-    private LsDataMeta(Long rawSn, String metaKey, String metaVal) {
+    private LsDataMeta(Long rawSn, String metaKey, String metaVl) {
         this.rawSn = rawSn;
         this.metaKey = metaKey;
-        this.metaVal = metaVal;
+        this.metaVl = metaVl;
         this.regDt = LocalDateTime.now();
         this.retryCount = 0;
     }
 
-    public static LsDataMeta create(Long rawSn, String metaKey, String metaVal) {
+    public static LsDataMeta create(Long rawSn, String metaKey, String metaVl) {
         return LsDataMeta.builder()
                 .rawSn(rawSn)
                 .metaKey(metaKey)
-                .metaVal(metaVal)
+                .metaVl(metaVl)
                 .build();
     }
 
     public void updateValue(String newVal) {
-        this.metaVal = newVal;
-        this.updDt = LocalDateTime.now();
+        this.metaVl = newVal;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     // ============================================================

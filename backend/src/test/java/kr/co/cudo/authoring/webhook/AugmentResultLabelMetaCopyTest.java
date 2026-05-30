@@ -219,7 +219,7 @@ class AugmentResultLabelMetaCopyTest {
         // metaKey, metaVal 원본과 동일
         assertThat(copiedMetas).extracting(LsDataMeta::getMetaKey)
                 .containsExactlyInAnyOrder("weather", "time_of_day");
-        assertThat(copiedMetas).extracting(LsDataMeta::getMetaVal)
+        assertThat(copiedMetas).extracting(LsDataMeta::getMetaVl)
                 .containsExactlyInAnyOrder("sunny", "morning");
     }
 

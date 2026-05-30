@@ -141,14 +141,14 @@ WHERE EXISTS (
 -- 4. V_COMPLETED_META — 시계열 메타 (승인본)
 --
 -- VLM 또는 외부 인계 메타 중 REVIEWER 가 승인(RVW_STTS_CD='APPROVED')한 것만 노출.
--- LS_DATA_META 는 META_KEY/META_VAL 의 KV 형태로 영상 단위(RAW_SN)로 적재됨.
+-- LS_DATA_META 는 META_KEY/META_VL 의 KV 형태로 영상 단위(RAW_SN)로 적재됨.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW V_COMPLETED_META AS
 SELECT
     meta.META_SN,
     meta.RAW_SN,
     meta.META_KEY,
-    meta.META_VAL,
+    meta.META_VL,
     meta.EXTERNAL_JOB_ID,
     mrev.DATA_META_REVIEW_SN,
     mrev.META_TYPE_CD,

@@ -28,10 +28,10 @@ public class LsDataMetaHstry {
     private Long metaSn;
 
     @Column(name = "PREV_VL", length = 2000)
-    private String prevVal;
+    private String prevVl;
 
     @Column(name = "NEW_VL", length = 2000)
-    private String newVal;
+    private String newVl;
 
     @Column(name = "CHG_USER_NO")
     private Long chgUserNo;
@@ -40,17 +40,17 @@ public class LsDataMetaHstry {
     private LocalDateTime chgDt;
 
     @Builder
-    private LsDataMetaHstry(Long metaSn, String prevVal, String newVal, Long chgUserNo) {
+    private LsDataMetaHstry(Long metaSn, String prevVl, String newVl, Long chgUserNo) {
         this.metaSn = metaSn;
-        this.prevVal = prevVal;
-        this.newVal = newVal;
+        this.prevVl = prevVl;
+        this.newVl = newVl;
         this.chgUserNo = chgUserNo;
         this.chgDt = LocalDateTime.now();
     }
 
-    public static LsDataMetaHstry record(Long metaSn, String prevVal, String newVal, Long chgUserNo) {
+    public static LsDataMetaHstry record(Long metaSn, String prevVl, String newVl, Long chgUserNo) {
         return LsDataMetaHstry.builder()
-                .metaSn(metaSn).prevVal(prevVal).newVal(newVal).chgUserNo(chgUserNo)
+                .metaSn(metaSn).prevVl(prevVl).newVl(newVl).chgUserNo(chgUserNo)
                 .build();
     }
 }
