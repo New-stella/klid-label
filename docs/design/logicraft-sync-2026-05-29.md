@@ -50,9 +50,9 @@
 2. ✅ **LS_LABEL_VERSION 테이블 추가 (D3)**: ERD-008에 신규 테이블 + 관계(N:1 LS_DATA_SRC) (v2).
 3. ✅ **LS_DATA_LBL_HSTRY 설명 (D4)**: Gitea 언급 제거 (ERD-008 v2).
 4. ✅ **ERD dbms (D1 일부)**: 활성 ERD 7종(001·002·003·004·007·008·009) 전부 `dbms: postgresql`. 폐기 005·006 제외.
-5. ✅ **ERD 컬럼타입 정밀 (D1)** (ERD-008 2026-05-29 v4): ERD-008 `bigint(20)→bigint`·`datetime→timestamp`·`int(11)→integer` 변환 완료. ⏳ 나머지 6 ERD(001·002·003·004·007·009)는 미검증(B4에서 일괄 갱신됐을 가능성 높으나 전수 확인 잔여).
+5. ✅ **ERD 컬럼타입 정밀 (D1)** (ERD-008 2026-05-29 v4 + 6종 2026-05-30 전수확인): 활성 ERD 7종 모두 `dbms=postgresql` + PG 타입(`bigint(20)→bigint`·`datetime→timestamp`·`int(11)→integer`·`tinyint→smallint/boolean`·`longtext→text`). 6 ERD(001·002·003·004·007·009)는 2026-05-30 직접 read 로 전수 확인(ERD-007·009는 2차 신규 PG only). `legacy_dbms: MariaDB`는 1차 이력 보존.
 6. ✅ **PJT_SN 정리 (D6)** (ERD-008 2026-05-29 v4): 결정=deprecated 표기. ERD-008 `LS_DATA_LBL/META/ISSUE`의 `PJT_SN` 3컬럼 `brownfield.status: deprecated` + notes 적용(삭제 안 함). PJT_SN은 ERD-008에만 존재.
-7. ⏳ **(선택) 구현 상태 (D7)**: feature 7종 ✅ implemented(FEAT-001~006 2026-05-29, **FEAT-007 2026-05-30** — 코드 b04b1e8). 활성 domain_feature 27·도메인 7은 미반영(잔여).
+7. ✅ **(선택) 구현 상태 (D7)** (2026-05-30 완료): feature 7종 implemented(FEAT-001~006 2026-05-29, FEAT-007 2026-05-30 — 코드 b04b1e8). **활성 domain_feature 27종 전부 implemented/100%**(coverage: implemented 27/40, planned 13 = 폐기 13종과 정확히 일치). domain(도메인)은 logicraft implementation tracking **비대상**(`E_NOT_TRACKABLE`) — 하위 기능에서 롤업. DFEAT-007(영상관리 modified)·021(검수 단일통합)은 권위 데이터상 활성이라 사용자 승인 후 마킹.
 8. ⏳ **(선택) API/화면 모델링 (D8)**: 미반영. 별도 세션(~60+ 신규 ITEM).
 
 ### FEAT-007 (코드)
@@ -90,11 +90,11 @@
 ### Phase 2 — GAP 개발 (있을 때만) — ⏭ 스킵 (Phase 1 결과 GAP 0)
 - 미구현 1차 기능을 `/cc-tdd`로 구현 → 코드 GAP 0 확정. 없으면 스킵
 
-### Phase 3 — LogiCraft 현황 완전 업로드 (D8 포함 = 완전 패리티) — 부분 완료 (2026-05-30)
+### Phase 3 — LogiCraft 현황 완전 업로드 (D8 포함 = 완전 패리티) — D1·D6·D7 완료 (2026-05-30), D8 잔여
 > 진행 상세·정확한 현황은 위 §3 B항(라이브 트래커)을 정본으로 본다.
-- 3-1 D7: feature 7종 ✅ implemented(FEAT-007 2026-05-30 b04b1e8 포함). ⏳ 활성 DFEAT 27·도메인 7 잔여.
-- 3-2 D1: ERD-008 ✅ PG 타입 변환. ⏳ 나머지 6 ERD 전수 확인 잔여.
-- 3-3 D6: ERD-008 PJT_SN 3컬럼 ✅ deprecated 표기(삭제 안 함). PJT_SN은 ERD-008 한정.
+- 3-1 D7: ✅ feature 7/7 implemented(FEAT-007 b04b1e8 포함) + 활성 domain_feature 27/27 implemented. 도메인은 tracking 비대상(롤업).
+- 3-2 D1: ✅ 활성 ERD 7종 전부 PG 타입(6 ERD 2026-05-30 전수확인 완료).
+- 3-3 D6: ✅ PJT_SN deprecated 표기 — ERD-002·003·004·007·009·008 의 PJT_SN/PJT_PATH_SN 컬럼(삭제 안 함, 1차 이력 보존). 실제 PJT_SN 분포는 ERD-008 외에도 다수 ERD에 존재함을 확인.
 - 3-4 ⏳ **D8 신규 모델링(대규모)**: api_endpoint(BE 컨트롤러 35 기반)·screen_spec(FE 26 + 1차 잔존 화면)·code_module·glossary/nfr(필요시) 를 logicraft active ITEM으로 등록. domain/feature/req↔api/screen 링크 연결
 - ※ logicraft 정책상 ITEM 등록은 사용자 확인 기반 — 배치 단위로 진행·보고
 
