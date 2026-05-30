@@ -83,11 +83,11 @@ class AugmentReviewServiceTest {
         assertThat(rvw.getRvwDt()).isNotNull();
         assertThat(rvw.getDataAugSn()).isEqualTo(seed.getDataAugSn());
         assertThat(rvw.getDataSrcSn()).isEqualTo(seed.getSrcSn());
-        assertThat(rvw.getRejectReason()).isNull();
+        assertThat(rvw.getRejectRsn()).isNull();
     }
 
     @Test
-    @DisplayName("AugmentReviewService_REJECTED_시_사유_LS_DATA_AUG_RVW_REJECT_REASON_저장")
+    @DisplayName("AugmentReviewService_REJECTED_시_사유_LS_DATA_AUG_RVW_REJECT_RSN_저장")
     void rejectStoresReason() {
         LsDataAug seed = seedPending(LsDataAug.AUG_NIGHT);
 
@@ -100,10 +100,10 @@ class AugmentReviewServiceTest {
         LsDataAug after = repository.findById(seed.getDataAugSn()).orElseThrow();
         assertThat(after.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
 
-        // LS_DATA_AUG_RVW.REJECT_REASON 저장 검증
+        // LS_DATA_AUG_RVW.REJECT_RSN 저장 검증
         LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
         assertThat(rvw.getRvwSttsCd()).isEqualTo(LsDataAugRvw.STTS_REJECTED);
-        assertThat(rvw.getRejectReason()).isEqualTo("야간 명도 조정 부정확");
+        assertThat(rvw.getRejectRsn()).isEqualTo("야간 명도 조정 부정확");
         assertThat(rvw.getRvwId()).isEqualTo("1");
         assertThat(rvw.getRvwDt()).isNotNull();
     }

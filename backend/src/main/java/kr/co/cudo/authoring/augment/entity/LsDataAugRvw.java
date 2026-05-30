@@ -46,7 +46,7 @@ public class LsDataAugRvw {
     private BigDecimal lblIntgrtPct;
 
     @Column(name = "REJECT_RSN", length = 1000)
-    private String rejectReason;
+    private String rejectRsn;
 
     @Column(name = "RVW_ID", length = 30)
     private String rvwId;
@@ -103,8 +103,8 @@ public class LsDataAugRvw {
      * 반려된 검수 row 를 한 번에 생성. 반려 사유는 필수.
      */
     public static LsDataAugRvw createRejected(Long dataAugSn, Long dataRawSn, Long dataSrcSn,
-                                              String rejectReason, String rvwId, LocalDateTime rvwDt) {
-        if (rejectReason == null || rejectReason.isBlank()) {
+                                              String rejectRsn, String rvwId, LocalDateTime rvwDt) {
+        if (rejectRsn == null || rejectRsn.isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "반려 사유는 필수입니다.");
         }
         LsDataAugRvw review = new LsDataAugRvw();
@@ -112,7 +112,7 @@ public class LsDataAugRvw {
         review.dataRawSn = dataRawSn == null ? 0L : dataRawSn;
         review.dataSrcSn = dataSrcSn;
         review.rvwSttsCd = STTS_REJECTED;
-        review.rejectReason = rejectReason;
+        review.rejectRsn = rejectRsn;
         review.rvwId = rvwId;
         review.rvwDt = rvwDt;
         review.regId = rvwId;
@@ -137,7 +137,7 @@ public class LsDataAugRvw {
         }
         ensurePending();
         this.rvwSttsCd = STTS_REJECTED;
-        this.rejectReason = reason;
+        this.rejectRsn = reason;
         this.rvwId = reviewerId;
         this.rvwDt = at;
         this.mdfcnId = reviewerId;

@@ -52,7 +52,7 @@ public class AugmentReviewService {
      * REVIEWER/WORKER 의 증강 결과 전체 페이징 조회 (srcSn 미지정 시 화면용 목록).
      */
     public Page<AugmentSummaryResponse> listAll(Pageable pageable) {
-        return repository.findAllByOrderByRegisteredAtDesc(pageable)
+        return repository.findAllByOrderByRegDtDesc(pageable)
                 .map(this::toResponse);
     }
 
