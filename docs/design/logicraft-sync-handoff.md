@@ -29,18 +29,20 @@
 
 ## 내일 할 일 (잔여, 모두 선택 — 정부문서 보강)
 
-### 1. LEGACY 폐기매핑 (사용자 "내일 다시")
-1차 카탈로그 129개 중 91개 미매핑. 2차 폐기/유지 결정을 `deprecation_status`(active/deprecated/removed)에 반영해 1차↔2차 추적 완결.
+### 1. LEGACY 폐기매핑 — removed 31개 완료 (2026-05-30), 나머지 잔여
+1차 카탈로그 129개 중 91 미매핑. 2차 폐기/유지 결정을 `deprecation_status`에 반영해 1차↔2차 추적 완결.
 
-**★ 도구 한계 (반드시 인지)**: `get_brownfield_summary.legacy_coverage.unmapped_legacy[]`는 "91"이라 집계하나 배열엔 **49개만 직렬화**(42개 잘림). `find_legacy_artifact`엔 mapped/unmapped 필터 없음. `get_item`이 LEGACY-* ID를 인식 못 함. → 91 전수 식별 경로가 현재 막힘. 재개 시 도구 우회법(페이징/category별 조회+매핑 역산) 먼저 확보할 것.
+**✅ 완료: 명백한 폐기 31개 → removed** (update_item data_mode=merge data={deprecation_status:"removed"}, 전부 version2):
+LEGACY-050,052,054,055,058,059(/projects API) · 062,063(프로젝트 작업리스트) · 086,087,126(게시판) · 089,090,097,123(생성형AI/업로더) · 099,100,101,103,104,105,106,107,108,109,111,113,115,116,117,118(03-02-* 프로젝트관리 일체).
 
-**갱신 방법**: 각 LEGACY를 `update_item`(data_mode=merge, data={deprecation_status:"removed|deprecated"})로. ※ update_item이 LEGACY ID 받는지 먼저 1건 테스트.
+**✅ 검증된 사실 (서브에이전트 보고 정정)**:
+- `update_item`은 LEGACY-* ID **정상 처리**(get_item도 동작). 서브에이전트가 "get_item이 LEGACY 못 받음"이라 한 건 오류.
+- `find_legacy_artifact(deprecation_status="removed", limit, offset)`로 **페이징 조회 가능**(items_truncated + offset). 즉 91 전수 식별이 "막힘"이 아니라 **offset 페이징으로 가능** — 서브에이전트의 "42개 식별 불가"는 도구 사용법 문제였음.
 
-**서브에이전트 분류 초안 (49개 — 조회만 됨, 미반영):**
-- **removed 31** (논란없는 폐기): LEGACY-050,052,054,055,058,059(=/projects API) · 062,063(프로젝트 작업리스트) · 086,087,126(게시판) · 089,090,097,123(생성형AI/업로더) · 099,100,101,103,104,105,106,107,108,109,111,113,115,116,117,118(03-02-* 프로젝트관리 일체)
-- **deprecated 11** (다른 방식 대체): LEGACY-046,048,049(1차 오토라벨 API→내부 흡수) · 069,081,082,083,084(스켈레톤/빈상태/로딩 보조화면→2차 흡수) · 120,121,122(03-03-* 영상이미지관리→영상단위 재설계)
-- **확인필요 9** (사용자 판단): LEGACY-060(UI가이드) · 064(작업리스트+배정 혼재) · 066(SAM AI Tool) · 071(객체/라벨 패널) · 073(메타입력) · 074(이슈입력) · 075(작업이력) · 076(메타+이슈상세) · 080(검수 메타상세)
-- **미식별 42**: 도구 한계로 목록 못 받음 — 재개 시 우회 조회 필요.
+**잔여 (재개 시)**:
+- **deprecated 11** (다른 방식 대체, 미반영): LEGACY-046,048,049(1차 오토라벨 API→내부 흡수) · 069,081,082,083,084(스켈레톤/빈상태/로딩 보조화면→2차 흡수) · 120,121,122(03-03-* 영상이미지관리→영상단위 재설계). → update_item data={deprecation_status:"deprecated"}.
+- **확인필요 9** (사용자 판단 필요): LEGACY-060(UI가이드) · 064(작업리스트+배정 혼재) · 066(SAM AI Tool) · 071(객체/라벨 패널) · 073(메타입력) · 074(이슈입력) · 075(작업이력) · 076(메타+이슈상세) · 080(검수 메타상세).
+- **나머지 미분류**: `find_legacy_artifact(deprecation_status="active", limit=200)` 페이징으로 전수 조회 후 02-02-* 작업/검수 화면(067~080 등)의 매핑누락 여부 판정. 검수 화면(077·078·079)·캔버스(070)·패널(067·068·072)은 has_brownfield_refs=true라 이미 매핑됨(active 유지 정상).
 
 ### 2. brownfield 보완 (legacy_source / ADR)
 API·화면·모듈 다수가 `BROWNFIELD_REUSE_WITHOUT_SOURCE`(legacy_source.identifier 없음)·`MODIFIED_WITHOUT_DECISION`(decided_by ADR 없음) warning. 날조 금지로 비워둠. 1차 LEGACY ID·ADR 확정 후 update로 채움.
