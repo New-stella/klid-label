@@ -53,7 +53,7 @@
 5. ✅ **ERD 컬럼타입 정밀 (D1)** (ERD-008 2026-05-29 v4 + 6종 2026-05-30 전수확인): 활성 ERD 7종 모두 `dbms=postgresql` + PG 타입(`bigint(20)→bigint`·`datetime→timestamp`·`int(11)→integer`·`tinyint→smallint/boolean`·`longtext→text`). 6 ERD(001·002·003·004·007·009)는 2026-05-30 직접 read 로 전수 확인(ERD-007·009는 2차 신규 PG only). `legacy_dbms: MariaDB`는 1차 이력 보존.
 6. ✅ **PJT_SN 정리 (D6)** (ERD-008 2026-05-29 v4): 결정=deprecated 표기. ERD-008 `LS_DATA_LBL/META/ISSUE`의 `PJT_SN` 3컬럼 `brownfield.status: deprecated` + notes 적용(삭제 안 함). PJT_SN은 ERD-008에만 존재.
 7. ✅ **(선택) 구현 상태 (D7)** (2026-05-30 완료): feature 7종 implemented(FEAT-001~006 2026-05-29, FEAT-007 2026-05-30 — 코드 b04b1e8). **활성 domain_feature 27종 전부 implemented/100%**(coverage: implemented 27/40, planned 13 = 폐기 13종과 정확히 일치). domain(도메인)은 logicraft implementation tracking **비대상**(`E_NOT_TRACKABLE`) — 하위 기능에서 롤업. DFEAT-007(영상관리 modified)·021(검수 단일통합)은 권위 데이터상 활성이라 사용자 승인 후 마킹.
-8. ⏳ **(선택) API/화면 모델링 (D8)**: 미반영. 별도 세션(~60+ 신규 ITEM).
+8. 🔶 **(선택) API/화면 모델링 (D8)** (2026-05-30 api_endpoint 완료): **신규 도메인 6종**(DOMAIN-011 마킹·012 비식별화·013 포털·014 시스템설정·015 작업배정·016 관제통지) + **api_endpoint 84종**(API-001~084, coverage 84/84 implemented) 등록. 운영 엔드포인트 84개를 16개 도메인에 매핑, FEAT 링크 연결. ⏳ 잔여: **screen_spec(FE 26)·code_module** 미반영(다음 세션). API들의 brownfield legacy_source/ADR 보완도 잔여(날조 금지로 비움).
 
 ### FEAT-007 (코드)
 - 사용자 결정: **민감도(YOLO conf) + 세밀함(폴리곤 단순화 tolerance) 둘 다**. developer 에이전트로 구현 진행 중(sysconfig 2키 + 설정화면 컨트롤 + V54 시드).
