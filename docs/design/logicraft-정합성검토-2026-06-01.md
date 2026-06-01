@@ -5,6 +5,8 @@
 > 검토 기준(현재 방향): `CLAUDE.md` + LogiCraft kickoff(brownfield_modernization, modular_monolith, single_rdb=PostgreSQL)
 > 방법: 5개 타입 ITEM 전수 인벤토리(title·status·change_summary) + 핵심 ERD 표본 상세(ERD-002/009) + 실제 Flyway 마이그레이션 대조
 
+> **[후기 2026-06-01 — 재정비 완료]** 본 문서는 재정비 **착수 전** 진단이다. 이후 ERD 재정비(1차 ERD-001~009 deprecated + 고도화 신규 ERD-010~021), domain 정비(DOMAIN-002/008/009 deprecated·DOMAIN-007 title 정정), domain_feature 정비(deprecated 13·title 3·stale 4)가 완료되어 갭 **I-1(ERD)·I-3(domain status)·I-4(title)·I-5(stale) 해소**됨. 잔여: I-6(전체 draft→approved 미전이), BM 메타정정 4건, DE_IDNTF_YN 고도화 용어.
+
 ## 0. 검토 범위 / 한계
 
 - **대상 타입**: domain(16) · erd(9) · feature(7) · domain_feature(40) · api_endpoint(89) = **총 161 ITEM**
