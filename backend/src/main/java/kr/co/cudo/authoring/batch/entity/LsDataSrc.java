@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  *  - rawSn: LS_DATA_RAW FK (객체 참조 대신 ID 참조)
  *  - frameNo: 프레임 인덱스 (0-base)
  *  - srcFilePathNm: 원본 프레임 이미지 경로
- *  - srcBkupFilePathNm: 비식별 영상에서 추출한 동일 프레임 경로.
+ *  - deIdntfSrcFilePathNm: 비식별 영상에서 추출한 동일 프레임 경로.
  *
  * 기존 학습데이터 테이블에는 프레임 타입 컬럼을 추가하지 않는다. 원본과 비식별 프레임을
  * 같은 row 의 파일 경로/백업 파일 경로로 관리한다.
@@ -43,8 +43,8 @@ public class LsDataSrc {
     @Column(name = "SRC_FILE_PATH_NM", nullable = false, length = 500)
     private String srcFilePathNm;
 
-    @Column(name = "SRC_BKUP_FILE_PATH_NM", length = 1000)
-    private String srcBkupFilePathNm;
+    @Column(name = "DE_IDNTF_SRC_FILE_PATH_NM", length = 1000)
+    private String deIdntfSrcFilePathNm;
 
     @Column(name = "SHT_DT")
     private LocalDateTime shtDt;
@@ -75,14 +75,14 @@ public class LsDataSrc {
     }
 
     /**
-     * 동일 row 의 SRC_BKUP_FILE_PATH_NM 컬럼에 비식별 프레임 경로를 연결한다.
+     * 동일 row 의 DE_IDNTF_SRC_FILE_PATH_NM 컬럼에 비식별 프레임 경로를 연결한다.
      */
     public void attachDeidPath(String deidFilePath) {
-        this.srcBkupFilePathNm = deidFilePath;
+        this.deIdntfSrcFilePathNm = deidFilePath;
         this.updDt = LocalDateTime.now();
     }
 
     public String getDeidFilePath() {
-        return srcBkupFilePathNm;
+        return deIdntfSrcFilePathNm;
     }
 }

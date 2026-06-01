@@ -30,8 +30,8 @@ public class LsDataAugLblMap {
     @Column(name = "DATA_AUG_SN", nullable = false)
     private Long dataAugSn;
 
-    @Column(name = "ORGN_DATA_LBL_SN")
-    private Long orgnDataLblSn;
+    @Column(name = "ORGNL_DATA_LBL_SN")
+    private Long orgnlDataLblSn;
 
     @Column(name = "DATA_LBL_SN", nullable = false)
     private Long dataLblSn;
@@ -51,17 +51,17 @@ public class LsDataAugLblMap {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    public static LsDataAugLblMap create(Long dataAugSn, Long orgnDataLblSn, Long dataLblSn,
+    public static LsDataAugLblMap create(Long dataAugSn, Long orgnlDataLblSn, Long dataLblSn,
                                          boolean coordRecalculated, BigDecimal scaleX,
                                          BigDecimal scaleY, String regId) {
-        return create(dataAugSn, orgnDataLblSn, dataLblSn,
+        return create(dataAugSn, orgnlDataLblSn, dataLblSn,
                 coordRecalculated ? RECALC_Y : RECALC_N, scaleX, scaleY, regId);
     }
 
     /**
      * 명시적 COORD_RECALC_YN ('Y'/'N') 으로 생성. 사양 호환용.
      */
-    public static LsDataAugLblMap create(Long dataAugSn, Long orgnDataLblSn, Long dataLblSn,
+    public static LsDataAugLblMap create(Long dataAugSn, Long orgnlDataLblSn, Long dataLblSn,
                                          String coordRecalcYn, BigDecimal scaleX,
                                          BigDecimal scaleY, String regId) {
         if (!RECALC_Y.equals(coordRecalcYn) && !RECALC_N.equals(coordRecalcYn)) {
@@ -70,7 +70,7 @@ public class LsDataAugLblMap {
         }
         LsDataAugLblMap map = new LsDataAugLblMap();
         map.dataAugSn = dataAugSn;
-        map.orgnDataLblSn = orgnDataLblSn;
+        map.orgnlDataLblSn = orgnlDataLblSn;
         map.dataLblSn = dataLblSn;
         map.coordRecalcYn = coordRecalcYn;
         map.scaleX = scaleX;
