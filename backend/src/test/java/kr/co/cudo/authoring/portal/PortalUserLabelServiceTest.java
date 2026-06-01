@@ -12,9 +12,7 @@ import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelResponse;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
 import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
-import kr.co.cudo.authoring.portal.service.PortalAutolabelService;
 import kr.co.cudo.authoring.portal.service.PortalLabelService;
-import kr.co.cudo.authoring.portal.service.PortalUploadService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,8 +39,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PortalUserLabelServiceTest {
 
-    @Mock PortalUploadService portalUploadService;
-    @Mock PortalAutolabelService portalAutolabelService;
     @Mock LsDataLblRepository lblRepository;
     @Mock LsDataSrcRepository srcRepository;
     @Mock LsPortalUserLabelRepository userLabelRepository;
@@ -56,8 +52,7 @@ class PortalUserLabelServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PortalLabelService(portalUploadService, portalAutolabelService,
-                lblRepository, srcRepository, userLabelRepository);
+        service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository);
 
         when(userLabelRepository.save(any(LsPortalUserLabel.class))).thenAnswer(inv -> {
             LsPortalUserLabel e = inv.getArgument(0);

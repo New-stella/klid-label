@@ -1,108 +1,43 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
-import MockAdapter from 'axios-mock-adapter';
+import { describe, expect, it } from 'vitest';
+import { screen } from '@testing-library/react';
 
-import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { useAuthStore } from '@/stores/useAuthStore';
 
 import { PortalHomePage } from '../PortalHomePage';
 
+// GET /portal/uploads 엔드포인트는 BE 에서 삭제됨(ADR-013) — 홈은 더 이상 호출하지 않는다.
+// 데이터마트 영상 목록 전용 엔드포인트 도입 전까지 홈은 최소 상태(KPI 0·시작하기 비활성)다.
 describe('PortalHomePage', () => {
-  let mock: MockAdapter;
-
-  beforeEach(() => {
-    mock = new MockAdapter(apiClient);
-    useAuthStore.setState({
-      token: 'tok',
-      claims: { sub: 'u1', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
-    });
-  });
-
-  afterEach(() => {
-    mock.restore();
-    useAuthStore.getState().clear();
-  });
-
-  it('포털_홈_2단계_카드_업로드_라벨링_표시', async () => {
-    mock.onGet('/portal/uploads').reply(200, {
-      success: true,
-      data: [],
-      message: null,
-      errorCode: null,
-    });
-
+  it('포털_홈_라벨링_카드_표시_업로드_오토라벨_미노출', () => {
     renderWithProviders(<PortalHomePage />);
 
-    // 단계 카드 제목 — "1. 업로드", "2. 라벨링"
-    expect(screen.getByRole('heading', { name: /1\. 업로드/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /2\. 라벨링/ })).toBeInTheDocument();
+    // ADR-013: 라벨링 카드만 노출, 업로드·오토라벨 UI 미제공
+    expect(screen.getByRole('heading', { name: '라벨링' })).toBeInTheDocument();
+    expect(screen.queryByText(/업로드/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /오토라벨/ })).toBeNull();
+    expect(screen.queryByTestId('upload-dropzone')).toBeNull();
   });
 
-  it('내_업로드_목록_렌더', async () => {
-    mock.onGet('/portal/uploads').reply(200, {
-      success: true,
-      data: [
-        {
-          srcSn: 1,
-          displayName: 'sample.mp4',
-          uploadedAt: '2026-05-07T10:00:00Z',
-          status: 'COMPLETED',
-          fileSize: 1024,
-        },
-      ],
-      message: null,
-      errorCode: null,
-    });
-
+  it('목록_엔드포인트_미도입_시작하기_비활성', () => {
     renderWithProviders(<PortalHomePage />);
-    await waitFor(() => expect(screen.getByText('sample.mp4')).toBeInTheDocument());
+
+    // 데이터마트 목록 조회 엔드포인트가 없어 진입 대상 영상이 없으므로 비활성
+    expect(screen.getByRole('button', { name: /시작하기/ })).toBeDisabled();
   });
 
-  it('다운로드_UI_미제공_V1_5_포털_자체_책임', async () => {
-    mock.onGet('/portal/uploads').reply(200, {
-      success: true,
-      data: [],
-      message: null,
-      errorCode: null,
-    });
-
+  it('다운로드_UI_미제공_V1_5_포털_자체_책임', () => {
     const { container } = renderWithProviders(<PortalHomePage />);
-    await waitFor(() =>
-      expect(screen.getByRole('heading', { name: /1\. 업로드/ })).toBeInTheDocument(),
-    );
 
+    expect(screen.getByRole('heading', { name: '라벨링' })).toBeInTheDocument();
     // 다운로드 버튼/카드/배지 미렌더
     expect(container.querySelector('[aria-label*="다운로드"]')).toBeNull();
     expect(container.querySelector('[data-testid*="download"]')).toBeNull();
-    // "다운로드는 포털 자체" 안내 문구는 허용 — 단, 다운로드 동작 UI는 없어야 함
   });
 
-  it('KPI_2_표시_업로드수_라벨링수', async () => {
-    mock.onGet('/portal/uploads').reply(200, {
-      success: true,
-      data: [
-        {
-          srcSn: 1,
-          displayName: 'a.mp4',
-          uploadedAt: '2026-05-07T10:00:00Z',
-          status: 'COMPLETED',
-          fileSize: 1024,
-        },
-        {
-          srcSn: 2,
-          displayName: 'b.mp4',
-          uploadedAt: '2026-05-07T11:00:00Z',
-          status: 'AUTOLABEL_DONE',
-          fileSize: 2048,
-        },
-      ],
-      message: null,
-      errorCode: null,
-    });
-
+  it('KPI_2_표시_영상수_라벨링수', () => {
     renderWithProviders(<PortalHomePage />);
-    await waitFor(() => expect(screen.getByText(/업로드 수/)).toBeInTheDocument());
+
+    expect(screen.getByText(/영상 수/)).toBeInTheDocument();
     expect(screen.getByText(/라벨링 완료/)).toBeInTheDocument();
   });
 });
