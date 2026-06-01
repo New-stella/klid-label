@@ -162,7 +162,7 @@ klid-la-test-v0/
 - **파이프라인 순서**: ⭐마킹(자동/수동) → VLM 시계열(콜백 비동기) → 비식별화 → FFmpeg(**마킹 위치 기반** 원본+비식별 2벌 추출) → YOLO(**원본만** 실행, 비식별본 결과 공유) → SAM2 → 트랙 보간
 - **마킹 단계**: 영상별 자동/수동 모드 설정. 자동=**프레임 간격**(intervalFrames) 기반 마킹, 수동=작업자 키보드 단축키로 이벤트 시점 마킹. 마킹 결과(이벤트명 + 영상경로 + marks 배열)를 VLM에 콜백 형태로 전달. **마킹 완료 시 MarkingCompletedEvent → MarkingBatchBridge(AFTER_COMMIT) → BATCH_QUEUED 전이 + @Async 배치 자동 시작**
 - **마킹 화면**: 영상 파일 스트리밍(`GET /v1/videos/{rawSn}/stream`, HTTP Range 지원) + 배속 설정(0.25x~4x) + 키보드 단축키(Space: 마킹, Del: 삭제, Enter: 완료)
-- **VLM 연동**: BatchOrchestrator가 VlmTimeseriesStep을 동기 호출(45s 타임아웃, Resilience4j 재시도). VLM 서버가 즉시 응답 시 파이프라인 다음 단계 진행. 결과 상세는 VLM 서버가 콜백(`POST /v1/webhook/vlm-result`)으로 별도 전송 → VlmResultService가 LS_DATA_META 적재 + 검수큐(LS_DATA_META_REVIEW) 진입
+- **VLM 연동**: BatchOrchestrator가 VlmTimeseriesStep을 동기 호출(45s 타임아웃, Resilience4j 재시도). VLM 서버가 즉시 응답 시 파이프라인 다음 단계 진행. 결과 상세는 VLM 서버가 콜백(`POST /v1/vlm/result`)으로 별도 전송 → VlmResultService가 LS_DATA_META 적재 + 검수큐(LS_DATA_META_REVIEW) 진입
 - **배치 상태 전이**: BatchOrchestrator.process() 시작 시 `LsRawDataStatus → PROCESSING`, 완료 시 `→ COMPLETED`, 실패 시 `→ FAILED`. `LsDataRaw.dataSttsCd`(배치 단계)와 `LsRawDataStatus.dataSttsCd`(작업 상태) 양쪽 모두 갱신
 - **비식별 호출 조건**: 영상 `PRVC_TYPE_CD='PRVC' or 'PSDO'`일 때만. `ANONY`는 원본만 저장
 - 원본 영상과 비식별 영상은 **별도 경로로 동시 저장**
