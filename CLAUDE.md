@@ -142,7 +142,7 @@ klid-la-test-v0/
 |------|------|-----------|
 | 검수자 | `REVIEWER` | **사용자 관리·시스템 설정**, 작업자 배정·재배정·배정 이력 조회, 검수 승인/반려 |
 | 라벨링 작업자 | `WORKER` | 라벨 수정·검수 제출 |
-| 포털 회원 | `PORTAL_USER` | 이미지/영상 업로드, 간편 라벨링, 본인 데이터 기간 내 다운로드 |
+| 포털 회원 | `PORTAL_USER` | 데이터마트 영상 선택, 기존 라벨 확인·수정·저장, 본인 데이터 기간 내 다운로드 (업로드·오토라벨링 없음 — ADR-013) |
 
 > 시스템 관리자(ADMIN) 역할은 없으며 모든 관리 권한은 REVIEWER에 통합되어 있다. UI 호칭은 '검수자'로 통일하고, 관리 화면 URL은 `/manage/*`다.
 
@@ -158,7 +158,7 @@ klid-la-test-v0/
 - **예외 — 저작도구 → 관제서버 단방향 outbound 완료/수정 통지**: 영상 단위 작업의 검수 완료 시 `TASK_COMPLETED` 이벤트, 검수 완료 후 라벨/메타 수정 시 `TASK_MODIFIED` 이벤트를 관제서버 inbound SPI 로 push (비동기). 동일 작업 ID(=`LS_DATA_RAW.RAW_SN`) 유지, 버전 업 아님 — 수신측은 마지막 상태로 갱신. 양방향 M2M 인증 인프라는 부활하지 않으며, 본 통지는 인계 토큰 또는 IP 화이트리스트로 보호.
 
 ### 배치 파이프라인 (인증 불필요)
-- 영상 적재는 자체 업로드(포털 TUS / 관리 화면) 기반 — 관제서버 자동 송신은 미연동
+- 영상 적재는 자체 업로드(관리 화면) 기반 — 관제서버 자동 송신은 미연동 (포털 사용자 업로드는 미제공 — ADR-013)
 - **파이프라인 순서**: ⭐마킹(자동/수동) → VLM 시계열(콜백 비동기) → 비식별화 → FFmpeg(**마킹 위치 기반** 원본+비식별 2벌 추출) → YOLO(**원본만** 실행, 비식별본 결과 공유) → SAM2 → 트랙 보간
 - **마킹 단계**: 영상별 자동/수동 모드 설정. 자동=**프레임 간격**(intervalFrames) 기반 마킹, 수동=작업자 키보드 단축키로 이벤트 시점 마킹. 마킹 결과(이벤트명 + 영상경로 + marks 배열)를 VLM에 콜백 형태로 전달. **마킹 완료 시 MarkingCompletedEvent → MarkingBatchBridge(AFTER_COMMIT) → BATCH_QUEUED 전이 + @Async 배치 자동 시작**
 - **마킹 화면**: 영상 파일 스트리밍(`GET /v1/videos/{rawSn}/stream`, HTTP Range 지원) + 배속 설정(0.25x~4x) + 키보드 단축키(Space: 마킹, Del: 삭제, Enter: 완료)
@@ -201,11 +201,11 @@ klid-la-test-v0/
 
 ### 포털 (외부 채널)
 - **데이터 소스**: 관제서버 → 데이터마트 → 포털 DB 적재 (관제서버 책임). 저작도구는 포털 DB에서 Load
-- 포털 사용자가 영상 선택 → 라벨/메타 데이터 Load → 라벨링 화면에 표시
-- **저장 시 원본 미수정** — 사용자별 작업 데이터로 `LS_PORTAL_USER_LABEL`에 별도 적재
+- 관제서버가 제공한 데이터마트를 포털에 등록 → 포털 사용자가 영상 선택 → 기존 저장 라벨/메타 Load → 라벨링 화면에 표시
+- **저장 시 원본·데이터마트 미수정** — 사용자별 작업 데이터로 `LS_PORTAL_USER_LABEL`에 별도 적재, **데이터마트에 정합/반영 안 됨(단방향)**
 - 다운로드는 사용자 작업 데이터 기준
 - 기여도 점수 없음
-- 오토라벨링 체험(YOLO+SAM2), VLM/버전관리/검수 미제공
+- **오토라벨링(YOLO/SAM2)·VLM·버전관리·검수·업로드 미제공** (ADR-013 — 포털은 데이터마트 영상 선택 전용)
 - 반응형 웹 (PC/태블릿/모바일), WCAG 2.1 AA 준수
 
 ### DB 정책
@@ -231,7 +231,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | Phase 연관 | CVAT 포팅 모듈 | 언어 | 참고 문서 |
 |:--------:|-------------|:---:|----------|
 | Phase 3 | manifest.jsonl 포맷 (프레임 매니페스트) | Java | portable-modules/04 |
-| Phase 3 | TUS 재개 가능 업로드 (포털/대용량) | Java | portable-modules/03 |
+| Phase 3 | TUS 재개 가능 업로드 (관리 화면/대용량) | Java | portable-modules/03 |
 | Phase 3 | AI 함수 핸들러 템플릿 | Python(ai-server) | portable-modules/05 |
 | Phase 6 | MASK ↔ RLE ↔ Polygon 변환 | Java | portable-modules/02 |
 | Phase 6 | 좌표 변환/회전 유틸 | Java + TS | portable-modules/06 |
@@ -257,10 +257,10 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 관제/포털 양방향 통합 API 및 외부 학습데이터 API는 deprecated — 재구축 전까지 미연동
 - **관제서버 통지 + 조회 API**: `ControlNotifyClient`가 `TASK_COMPLETED`·`TASK_MODIFIED` 통지를 영상 단위로 송신(수정 요약만, 본문 미포함) — 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 적용. 관제서버는 통지 수신 후 저작도구 API를 호출하여 상세 데이터 조회. 단방향 outbound 통지 + inbound 조회 API 제공, 양방향 M2M 인증은 여전히 deprecated
 
-### 파일 업로드 (포털 + TUS)
+### 파일 업로드 (관리 화면 + TUS)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수
-- TUS 프로토콜(재개 가능 업로드) 포팅 — CVAT portable-modules/03 참고
-- 업로드 영상은 포털 사용자 본인 범위 내에서만 접근
+- TUS 프로토콜(재개 가능 업로드) 포팅 — CVAT portable-modules/03 참고 (내부 관리 화면 영상 적재용)
+- **포털 사용자 업로드는 미제공** (ADR-013 — 포털은 데이터마트 영상 선택 전용)
 
 ### 개인정보 보호
 - 영상 암호화 저장, 로그에 개인정보·토큰 출력 금지 (Logback MaskingPatternLayout)
