@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.label.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
@@ -65,6 +67,8 @@ public class LabelService {
     /** Phase 2 — LS_LABEL 마스터 조회 (labelId 검증 + 응답 enrichment). */
     private final LsLabelRepository lsLabelRepository;
     private final ApplicationEventPublisher eventPublisher;
+    /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회. */
+    private final LsRawDataStatusRepository rawDataStatusRepository;
 
     public LabelService(LsDataLblRepository labelRepository,
                         LsDataLblAiInfoRepository aiInfoRepository,
@@ -74,7 +78,8 @@ public class LabelService {
                         LabelAccessGuard accessGuard,
                         ObjectMapper objectMapper,
                         LsLabelRepository lsLabelRepository,
-                        ApplicationEventPublisher eventPublisher) {
+                        ApplicationEventPublisher eventPublisher,
+                        LsRawDataStatusRepository rawDataStatusRepository) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
@@ -84,6 +89,7 @@ public class LabelService {
         this.objectMapper = objectMapper;
         this.lsLabelRepository = lsLabelRepository;
         this.eventPublisher = eventPublisher;
+        this.rawDataStatusRepository = rawDataStatusRepository;
     }
 
     /**
@@ -223,8 +229,12 @@ public class LabelService {
             }
         }
         log.info("[Label] bulkUpsert srcSn={} actor={} count={}", srcSn, actorNo, result.size());
-        eventPublisher.publishEvent(new TaskModifiedEvent(
-                current.getRawSn(), srcSn, "LABEL", actorNo));
+        // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
+        // 검수 전(PENDING/ASSIGNED/IN_REVIEW/PROCESSING 등) 저장은 일반 작업이므로 통지 미발행.
+        if (isReviewApproved(current.getRawSn())) {
+            eventPublisher.publishEvent(new TaskModifiedEvent(
+                    current.getRawSn(), srcSn, "LABEL", actorNo));
+        }
 
         List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
         String frameImageType = resolveFrameImageType(actor, false);
@@ -244,6 +254,17 @@ public class LabelService {
 
         return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
                 aiInfoMap, lsLabelMap, objectMapper);
+    }
+
+    /**
+     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정.
+     * 상태 row 가 없으면 미검수로 간주하여 false. 매직스트링 금지 — {@link LsRawDataStatus#STTS_APPROVED} 상수 비교.
+     */
+    private boolean isReviewApproved(Long rawSn) {
+        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
+                .findFirst()
+                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
+                .orElse(false);
     }
 
     /**

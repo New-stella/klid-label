@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.meta.service;
 
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -40,6 +42,8 @@ public class MetaService {
     private final LsTaskAssignmentRepository authrtRepository;
     private final LsDataMetaReviewRepository metaReviewRepository;
     private final ApplicationEventPublisher eventPublisher;
+    /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회. */
+    private final LsRawDataStatusRepository rawDataStatusRepository;
 
     public MetaResponse getByFrame(Long srcSn, TokenClaims actor) {
         LsDataSrc src = verifyAccess(srcSn, actor);
@@ -59,8 +63,12 @@ public class MetaService {
             meta.updateValue(item.metaVal());
         }
         log.info("[Meta] updated rawSn={} count={}", rawSn, req.items().size());
-        eventPublisher.publishEvent(new TaskModifiedEvent(
-                rawSn, srcSn, "META", parseUserNo(actor.sub())));
+        // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
+        // 검수 전 저장은 일반 작업이므로 통지 미발행 (라벨 경로와 동일 가드).
+        if (isReviewApproved(rawSn)) {
+            eventPublisher.publishEvent(new TaskModifiedEvent(
+                    rawSn, srcSn, "META", parseUserNo(actor.sub())));
+        }
         return MetaResponse.of(metaRepository.findByRawSn(rawSn));
     }
 
@@ -84,6 +92,17 @@ public class MetaService {
                         "메타 검토를 찾을 수 없습니다: " + metaReviewSn));
         review.reject(reason, actor.sub(), LocalDateTime.now());
         log.info("[Meta] review rejected metaReviewSn={} actor={}", metaReviewSn, actor.sub());
+    }
+
+    /**
+     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정.
+     * 상태 row 가 없으면 미검수로 간주하여 false. 매직스트링 금지 — {@link LsRawDataStatus#STTS_APPROVED} 상수 비교.
+     */
+    private boolean isReviewApproved(Long rawSn) {
+        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
+                .findFirst()
+                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
+                .orElse(false);
     }
 
     private LsDataSrc verifyAccess(Long srcSn, TokenClaims actor) {
