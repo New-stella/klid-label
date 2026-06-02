@@ -22,6 +22,7 @@ import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
+import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -232,8 +233,11 @@ public class LabelService {
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
         // 검수 전(PENDING/ASSIGNED/IN_REVIEW/PROCESSING 등) 저장은 일반 작업이므로 통지 미발행.
         if (isReviewApproved(current.getRawSn())) {
+            // bulkUpsert 는 신규 INSERT + 기존 UPDATE 를 한 배치에서 함께 처리하며(누락 라벨은 보존,
+            // 삭제 없음) 단일 (rawSn, srcSn) 이벤트로는 add/update 를 자명하게 구분할 수 없으므로
+            // 계약 표준값 LABEL_UPDATED 하나로 통일한다(억지 분기 금지).
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    current.getRawSn(), srcSn, "LABEL", actorNo));
+                    current.getRawSn(), srcSn, ChangeType.LABEL_UPDATED, actorNo));
         }
 
         List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());

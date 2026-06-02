@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -67,7 +68,7 @@ public class MetaService {
         // 검수 전 저장은 일반 작업이므로 통지 미발행 (라벨 경로와 동일 가드).
         if (isReviewApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, srcSn, "META", parseUserNo(actor.sub())));
+                    rawSn, srcSn, ChangeType.META_UPDATED, parseUserNo(actor.sub())));
         }
         return MetaResponse.of(metaRepository.findByRawSn(rawSn));
     }

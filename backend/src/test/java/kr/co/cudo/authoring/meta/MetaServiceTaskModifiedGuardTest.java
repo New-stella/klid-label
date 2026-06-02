@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.meta.dto.MetaUpdateRequest;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
@@ -100,7 +101,7 @@ class MetaServiceTaskModifiedGuardTest {
     }
 
     @Test
-    @DisplayName("검수완료_APPROVED_후_메타update_시_TaskModifiedEvent_발행_changeType_META")
+    @DisplayName("검수완료_APPROVED_후_메타update_시_TaskModifiedEvent_발행_changeType_META_UPDATED")
     void 검수완료_발행() {
         // given — 검수 완료(APPROVED) 상태
         stubCommon();
@@ -115,7 +116,10 @@ class MetaServiceTaskModifiedGuardTest {
         TaskModifiedEvent event = captor.getValue();
         assertThat(event.rawSn()).isEqualTo(RAW_SN);
         assertThat(event.srcSn()).isEqualTo(SRC_SN);
-        assertThat(event.changeType()).isEqualTo("META");
+        // 계약 표준값 (이전 비표준 "META" → "META_UPDATED" 교정)
+        assertThat(event.changeType()).isEqualTo(ChangeType.META_UPDATED);
+        // 발행된 changeType 은 반드시 계약 표준 집합에 속해야 한다 (비표준 문자열 회귀 방어)
+        assertThat(ChangeType.ALL).contains(event.changeType());
         assertThat(event.modifierNo()).isEqualTo(1001L);
     }
 }
