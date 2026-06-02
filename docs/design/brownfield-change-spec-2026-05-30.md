@@ -13,7 +13,7 @@
 | domain_feature | 21 | 5 | 1 | 13 | 0 | 0 | 40 |
 | erd | 7 | 0 | 0 | 2 | 0 | 0 | 9 |
 | feature | 0 | 3 | 4 | 0 | 0 | 0 | 7 |
-| requirement | 0 | 5 | 12 | 1 | 0 | 0 | 18 |
+| requirement | 0 | 5 | 10 | 1 | 0 | 0 | 16 |
 | screen_spec | 7 | 14 | 8 | 0 | 0 | 0 | 29 |
 
 ## 📦 1차 Legacy Repo 분포
@@ -245,8 +245,8 @@
 | `REQ-014` | requirement | RQ-SFR-09-03 비식별화 처리 결과 검토 및 이력관리 | new |  | capability-add | 2차 신규 |
 | `REQ-015` | requirement | RQ-SFR-09-04 비식별화 솔루션 옵션 설정 기능 | new |  | capability-add | 2차 신규 |
 | `REQ-016` | requirement | RQ-SFR-09-05 비식별화 처리 결과 연동 확인 기능 | new |  | capability-add | 2차 신규 |
-| `REQ-017` | requirement | RQ-SFR-09-06 개인정보 보호대책 | new |  | capability-add | 2차 신규(암호화·비정상 로그인 방지·개인정보 필터) |
-| `REQ-018` | requirement | RQ-SFR-09-07 학습데이터 개인정보 유형 분류체계 구축 | new |  | capability-add | 2차 신규 |
+
+> 구 `REQ-017`(RQ-SFR-09-06 개인정보 보호대책)·`REQ-018`(RQ-SFR-09-07 개인정보 유형 분류체계)은 보안·인프라 책임으로 2026-06-02 범위 외 삭제(R1 v1.4). requirement 합계 18→16. 민감정보 보호 책임은 NFR-005로 유지.
 | `SCREEN-001` | screen_spec | 세션 인계 진입 화면 | preserved |  |  | 외부 JWT 인계 로그인(DFEAT-001 preserved) 진입 |
 | `SCREEN-002` | screen_spec | 역할 클레임 화면 | modified |  | redesign | 2차 role+channel 클레임 분기 화면 |
 | `SCREEN-003` | screen_spec | 접근 거부 화면 | new |  | capability-add | 2차 권한 없음 안내 화면 |

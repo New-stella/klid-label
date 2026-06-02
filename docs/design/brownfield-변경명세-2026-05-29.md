@@ -58,7 +58,7 @@
 | domain_feature | 21 | 5 | 1 | 13 | 40 |
 | erd | 7 | 0 | 0 | 2 | 9 |
 | feature | 0 | 3 | 4 | 0 | 7 |
-| requirement | 0 | 5 | 12 | 1 | 18 |
+| requirement | 0 | 5 | 10 | 1 | 16 |
 
 ## 📦 1차 Legacy Repo 분포
 
@@ -156,8 +156,8 @@
 | `REQ-014` | requirement | RQ-SFR-09-03 비식별 결과 검토·이력관리 | new |  | capability-add | 2차 신규 |
 | `REQ-015` | requirement | RQ-SFR-09-04 비식별 솔루션 옵션 설정 | new |  | capability-add | 2차 신규 |
 | `REQ-016` | requirement | RQ-SFR-09-05 비식별 결과 연동 확인 | new |  | capability-add | 2차 신규 |
-| `REQ-017` | requirement | RQ-SFR-09-06 개인정보 보호대책 | new |  | capability-add | 2차 신규 |
-| `REQ-018` | requirement | RQ-SFR-09-07 개인정보 유형 분류체계 | new |  | capability-add | 2차 신규 |
+
+> 구 `REQ-017`(RQ-SFR-09-06)·`REQ-018`(RQ-SFR-09-07)은 보안·인프라 책임으로 2026-06-02 범위 외 삭제(R1 v1.4). requirement 합계 18→16. 민감정보 보호 책임은 NFR-005로 유지.
 
 ---
 
