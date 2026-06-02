@@ -55,20 +55,31 @@ class WebhookRequestSizeLimitTest {
     }
 
     @Test
-    @DisplayName("AugmentResultRequest_labelMapping_1000_초과_시_검증_실패")
-    void labelMappingOver1000_violates() {
-        List<AugmentResultRequest.LabelMap> maps = new ArrayList<>(1001);
-        for (int i = 0; i < 1001; i++) {
-            maps.add(new AugmentResultRequest.LabelMap((long) i, (long) i, "AUTO"));
-        }
+    @DisplayName("AugmentResultRequest_augType_RESOLUTION_은_검증_거부")
+    void augTypeResolution_violates() {
         AugmentResultRequest req = new AugmentResultRequest(
-                "K1", "EXT1", "SUCCESS", 1L, "WINTER", null, maps);
+                "K1", "EXT1", "SUCCESS", 1L, "RESOLUTION", null);
 
         Set<ConstraintViolation<AugmentResultRequest>> violations = validator.validate(req);
 
         assertThat(violations)
                 .extracting(v -> v.getPropertyPath().toString())
-                .contains("labelMapping");
+                .contains("augType");
+    }
+
+    @Test
+    @DisplayName("AugmentResultRequest_augType_WINTER_NIGHT_RAIN_은_정상")
+    void augTypeWhitelist_passes() {
+        for (String t : new String[]{"WINTER", "NIGHT", "RAIN"}) {
+            AugmentResultRequest req = new AugmentResultRequest(
+                    "K1", "EXT1", "SUCCESS", 1L, t, null);
+
+            Set<ConstraintViolation<AugmentResultRequest>> violations = validator.validate(req);
+
+            assertThat(violations)
+                    .extracting(v -> v.getPropertyPath().toString())
+                    .doesNotContain("augType");
+        }
     }
 
     @Test

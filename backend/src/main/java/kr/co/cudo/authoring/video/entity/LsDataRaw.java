@@ -134,6 +134,31 @@ public class LsDataRaw {
     }
 
     /**
+     * Phase 3 해상도 변경(RESOLUTION) 새 영상 생성. 원본 메타를 계승하되 PENDING 상태로 시작.
+     * <p>VMS_CLIP_ID 는 {@code 원본_RES_<preset>} 형태로 <b>결정론적</b>으로 생성한다(timestamp 미사용).
+     * UNIQUE(VMS_CLIP_ID) 제약과 결합되어 동일 parent+preset 재요청을 UK 레벨에서 자연 차단하며,
+     * 서비스 레벨 사전 존재 체크의 2차 방어선이 된다.
+     * <p>rawFilePathNm 은 리사이즈 산출물(새 해상도) 경로. 원본은 변경되지 않는다.
+     */
+    public static LsDataRaw createFromResolution(LsDataRaw parent, String rawFilePathNm, String preset) {
+        LsDataRaw raw = new LsDataRaw();
+        raw.vmsClipId = parent.getVmsClipId() + "_RES_" + preset;
+        raw.vmsCctvId = parent.getVmsCctvId();
+        raw.evntTypeCd = parent.getEvntTypeCd();
+        raw.lclgvCd = parent.getLclgvCd();
+        raw.prvcTypeCd = parent.getPrvcTypeCd();
+        raw.prvcYn = derivePrvcYn(parent.getPrvcTypeCd());
+        raw.deIdntfYn = "N";
+        raw.rawFilePathNm = rawFilePathNm;
+        raw.shtDt = parent.getShtDt();
+        raw.durationSec = parent.getDurationSec();
+        raw.parentRawSn = parent.getRawSn();
+        raw.dataSttsCd = STATUS_PENDING;
+        raw.regDt = LocalDateTime.now();
+        return raw;
+    }
+
+    /**
      * 관제서버로부터 동일 VMS_CLIP_ID 가 다시 송신되었을 때 변경 가능 메타만 갱신.
      * (RAW_SN, VMS_CLIP_ID 는 불변)
      */
