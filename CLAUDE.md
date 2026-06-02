@@ -5,7 +5,7 @@
 
 ## 프로젝트 개요
 - **목적**: AI 기반 지방정부 CCTV 관제지원시스템(2차)의 학습데이터 저작도구 — 영상/이미지 라벨링, 검수 워크플로우, 비식별화, 외부 생성 메타데이터 검토
-- **주요 도메인**: 사용자/권한, 마킹(자동/수동 이벤트 식별), 배치 파이프라인(마킹→VLM 콜백→비식별→프레임 추출→오토라벨링), 라벨링, 검수(REVIEWER 배정), 비식별화, 버전관리(DB 스냅샷), 데이터 증강(새 영상), 포털(데이터마트 Load)
+- **주요 도메인**: 사용자/권한, 마킹(자동/수동 이벤트 식별), 배치 파이프라인(비식별→마킹→VLM 콜백→마킹위치 프레임 추출→오토라벨링), 라벨링, 검수(REVIEWER 배정), 비식별화, 버전관리(DB 스냅샷), 데이터 증강(새 영상), 포털(데이터마트 Load)
 - **범위 외 — 데이터마트**: 외부 제공 시스템 책임. 저작도구는 라벨링·검수·버전관리까지만 담당하고 마트 구축·검색·다운로드는 담당하지 않음
 - **범위 외 — 생성형 AI 본체**: 생성형 AI 모델 학습·파인튜닝·프롬프트 가이드·UI/UX 편의성은 외부 생성 시스템 책임. 저작도구는 외부 증강 결과 검수(SCR-AUG-002)만 보유
 - **범위 외 — VLM 모델 본체**: 학습·파인튜닝·프롬프트 관리는 외부 시스템 책임. 저작도구의 VLM 연동은 **외부 VLM 서비스를 호출해 시계열 정보를 획득하는 연동**만 보유(`ai-server/app/routers/vlm.py`는 외부 VLM 호출 어댑터). 응답을 LS_DATA_META(VLM)에 적재하고 SCR-AUTO-002 화면에서 REVIEWER 가 검토·수정
@@ -159,12 +159,13 @@ klid-la-test-v0/
 
 ### 배치 파이프라인 (인증 불필요)
 - 영상 적재는 자체 업로드(관리 화면) 기반 — 관제서버 자동 송신은 미연동 (포털 사용자 업로드는 미제공 — ADR-013)
-- **파이프라인 순서**: ⭐마킹(자동/수동) → VLM 시계열(콜백 비동기) → 비식별화 → FFmpeg(**마킹 위치 기반** 원본+비식별 2벌 추출) → YOLO(**원본만** 실행, 비식별본 결과 공유) → SAM2 → 트랙 보간
-- **마킹 단계**: 영상별 자동/수동 모드 설정. 자동=**프레임 간격**(intervalFrames) 기반 마킹, 수동=작업자 키보드 단축키로 이벤트 시점 마킹. 마킹 결과(이벤트명 + 영상경로 + marks 배열)를 VLM에 콜백 형태로 전달. **마킹 완료 시 MarkingCompletedEvent → MarkingBatchBridge(AFTER_COMMIT) → BATCH_QUEUED 전이 + @Async 배치 자동 시작**
-- **마킹 화면**: 영상 파일 스트리밍(`GET /v1/videos/{rawSn}/stream`, HTTP Range 지원) + 배속 설정(0.25x~4x) + 키보드 단축키(Space: 마킹, Del: 삭제, Enter: 완료)
+- **파이프라인 순서**(설계 타깃): ⭐비식별화(전체 영상) → 마킹(자동/수동, **비식별 영상 대상**) → VLM 시계열(콜백 비동기) → FFmpeg(**마킹 위치 기반** 원본+비식별 2벌 추출) → YOLO(**원본만** 실행, 비식별본 결과 공유) → SAM2 → 트랙 보간
+  - ⚠ **현재 코드는 구 순서**(마킹(원본) 트리거 → VLM → 비식별 → 프레임추출 → 오토라벨링) 구현. 비식별 선두 재배치·마킹 비식별영상화는 **설계 확정, 코드 미반영(planned)**
+- **마킹 단계**: **비식별화 완료 후** 작업자가 **비식별 영상**에서 자동/수동 마킹. 자동=**프레임 간격**(intervalFrames) 기반, 수동=키보드 단축키로 이벤트 시점 마킹. 마킹 결과(이벤트명 + 영상경로 + marks 배열)를 VLM에 콜백 전달. **마킹 완료 시 MarkingCompletedEvent → MarkingBatchBridge(AFTER_COMMIT) → 잔여 배치(VLM→프레임추출→오토라벨링) @Async 시작**. (설계 타깃: 적재 → 비식별 자동 → 마킹 ready. 현재 코드는 마킹이 전체 배치 트리거이며 BATCH_QUEUED 전이)
+- **마킹 화면**: **비식별 영상** 스트리밍(`GET /v1/videos/{rawSn}/stream`, HTTP Range 지원) + 배속 설정(0.25x~4x) + 키보드 단축키(Space: 마킹, Del: 삭제, Enter: 완료). 마킹 중 비식별 누락 발견 시 **비식별 신고** 가능(rawSn 기준)
 - **VLM 연동**: BatchOrchestrator가 VlmTimeseriesStep을 동기 호출(45s 타임아웃, Resilience4j 재시도). VLM 서버가 즉시 응답 시 파이프라인 다음 단계 진행. 결과 상세는 VLM 서버가 콜백(`POST /v1/vlm/result`)으로 별도 전송 → VlmResultService가 LS_DATA_META 적재 + 검수큐(LS_DATA_META_REVIEW) 진입
 - **배치 상태 전이**: BatchOrchestrator.process() 시작 시 `LsRawDataStatus → PROCESSING`, 완료 시 `→ COMPLETED`, 실패 시 `→ FAILED`. `LsDataRaw.dataSttsCd`(배치 단계)와 `LsRawDataStatus.dataSttsCd`(작업 상태) 양쪽 모두 갱신
-- **비식별 호출 조건**: 영상 `PRVC_TYPE_CD='PRVC' or 'PSDO'`일 때만. `ANONY`는 원본만 저장
+- **비식별 호출 조건**: **전체 영상 비식별 후 마킹**(ANONY 포함) — 비식별이 파이프라인 선두 단계. 비식별 영상이 마킹 대상이 되며 원본은 별도 보존 (구 규칙 'PRVC/PSDO만' 폐지)
 - 원본 영상과 비식별 영상은 **별도 경로로 동시 저장**
 - **오토라벨링**: YOLO/SAM2는 **원본 이미지에만 실행**. 라벨 좌표는 동일 해상도이므로 비식별본과 공유 (별도 실행 없음)
 - YOLO/SAM2/VLM은 `AiServerClient`로 호출 (타임아웃 60s + Resilience4j CircuitBreaker)
@@ -266,6 +267,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 ### 개인정보 보호
 - 영상 암호화 저장, 로그에 개인정보·토큰 출력 금지 (Logback MaskingPatternLayout)
 - 비식별 처리 이력은 영상 단위로 기록
+- **비식별 누락 신고**: 작업자가 개인정보 노출을 발견하면 신고 → 작업락 + 재비식별 큐 + 재비식별 성공 시 자동 RESOLVED. **마킹 단계**(rawSn 기준, `POST /v1/videos/{rawSn}/deident-report` — 설계 타깃/planned) + **라벨링 단계**(srcSn 기준, `POST /v1/labels/{srcSn}/deident-report` — 구현됨) 양쪽 가능. 적재 테이블 `LS_DEIDENT_REPORT`
 
 ### 배치 성능
 - Spring Boot + Quartz는 **단일 인스턴스 서비스** 배포 (Docker/Pod 미사용, Quartz 클러스터 미적용)
