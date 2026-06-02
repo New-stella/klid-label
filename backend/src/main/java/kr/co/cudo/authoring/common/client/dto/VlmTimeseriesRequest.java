@@ -9,6 +9,10 @@ package kr.co.cudo.authoring.common.client.dto;
  * <p>실제 외부 서비스 계약(URL/스키마/인증)이 미확정이므로 본 DTO는 최소 필드만 정의한다.
  * 외부 계약 확정 시 필드 추가는 가능하나 기존 필드 제거/이름 변경은 금지(backward-compat).
  *
+ * <p><b>결과 계약(기대):</b> 시계열 메타는 본 요청의 {@code marks(frameIndex)} 에 정렬된
+ * <b>마킹별 자연어 서술</b>로 콜백 수신한다(고정 속성 스키마 아님). 즉 각 결과 항목은
+ * "해당 시점(frameIndex) → 자연어 설명"이며, 수신측 {@code VlmResultRequest.MetaItem} 으로 매핑된다.
+ *
  * @param rawSn          저작도구 내 영상 식별자 (LS_DATA_RAW.RAW_SN). 결과 매핑에 사용.
  * @param videoUri       외부 시스템이 접근 가능한 영상 위치 (HTTPS / S3 / NFS 경로 등).
  *                       외부 시스템이 본 URI 로 영상을 fetch 한다.
