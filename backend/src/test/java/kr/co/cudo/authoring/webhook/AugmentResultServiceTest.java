@@ -113,7 +113,7 @@ class AugmentResultServiceTest {
     void unknownIdempotencyKey_throws401() {
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-A-UNK", "EXT-1", "SUCCESS", 1L, "WINTER",
-                "/storage/augment/1.mp4", List.of());
+                "/storage/augment/1.mp4");
 
         assertThatThrownBy(() -> service.handle(req))
                 .isInstanceOf(CustomException.class)
@@ -132,7 +132,7 @@ class AugmentResultServiceTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-A-OK", "EXT-AO", "SUCCESS", 10L, "WINTER",
-                "/storage/augment/10.mp4", List.of());
+                "/storage/augment/10.mp4");
 
         boolean applied = service.handle(req);
 
@@ -149,8 +149,7 @@ class AugmentResultServiceTest {
         when(augRepository.findById(11L)).thenReturn(Optional.of(aug));
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-A-FAIL", "EXT-AF", "FAILED", 11L, "NIGHT",
-                null, null);
+                "K-A-FAIL", "EXT-AF", "FAILED", 11L, "NIGHT", null);
 
         boolean applied = service.handle(req);
 
@@ -166,8 +165,7 @@ class AugmentResultServiceTest {
         when(augRepository.findById(12L)).thenReturn(Optional.of(aug));
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-A-DUP", "EXT-AD", "SUCCESS", 12L, "RAIN",
-                null, null);
+                "K-A-DUP", "EXT-AD", "SUCCESS", 12L, "RAIN", null);
 
         assertThat(service.handle(req)).isTrue();
         assertThat(service.handle(req)).isFalse();
@@ -181,8 +179,7 @@ class AugmentResultServiceTest {
         when(augRepository.findById(13L)).thenReturn(Optional.of(aug));
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-A-MISMATCH", "EXT-AM", "SUCCESS", 13L, "NIGHT",
-                null, null);
+                "K-A-MISMATCH", "EXT-AM", "SUCCESS", 13L, "NIGHT", null);
 
         assertThatThrownBy(() -> service.handle(req))
                 .isInstanceOf(CustomException.class)
@@ -214,7 +211,7 @@ class AugmentResultServiceTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-A-RACE", "EXT-A-RACE", "SUCCESS", 50L, "WINTER",
-                "/storage/augment/50.mp4", List.of());
+                "/storage/augment/50.mp4");
 
         boolean applied = service.handle(req);
 
@@ -241,7 +238,7 @@ class AugmentResultServiceTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-A-SAME", "EXT-A-SAME", "SUCCESS", 51L, "RAIN",
-                "/storage/augment/51.mp4", List.of());
+                "/storage/augment/51.mp4");
 
         boolean applied = service.handle(req);
 
@@ -293,7 +290,7 @@ class AugmentResultServiceTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-V2-NEW", "EXT-V2", "SUCCESS", 20L, "WINTER",
-                "/storage/augment/winter.mp4", List.of());
+                "/storage/augment/winter.mp4");
 
         boolean applied = service.handle(req);
 
@@ -329,7 +326,7 @@ class AugmentResultServiceTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-V2-COPY", "EXT-V2C", "SUCCESS", 21L, "NIGHT",
-                "/storage/augment/night.mp4", List.of());
+                "/storage/augment/night.mp4");
 
         service.handle(req);
 
@@ -350,7 +347,7 @@ class AugmentResultServiceTest {
         when(augRepository.findById(22L)).thenReturn(Optional.of(aug));
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-V2-FAIL", "EXT-V2F", "FAILED", 22L, "RAIN", null, null);
+                "K-V2-FAIL", "EXT-V2F", "FAILED", 22L, "RAIN", null);
 
         service.handle(req);
 
@@ -371,7 +368,7 @@ class AugmentResultServiceTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-V2-NOSRC", "EXT-V2NS", "SUCCESS", 30L, "WINTER",
-                "/storage/augment/winter.mp4", List.of());
+                "/storage/augment/winter.mp4");
 
         // when
         boolean applied = service.handle(req);
@@ -398,7 +395,7 @@ class AugmentResultServiceTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-V2-NORAW", "EXT-V2NR", "SUCCESS", 31L, "NIGHT",
-                "/storage/augment/night.mp4", List.of());
+                "/storage/augment/night.mp4");
 
         // when
         boolean applied = service.handle(req);

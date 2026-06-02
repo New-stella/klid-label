@@ -66,14 +66,14 @@ class AugmentRequestServiceTest {
 
         AugmentRequestRequest req = new AugmentRequestRequest(
                 List.of(1001L, 1002L, 1003L),
-                List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT, AugmentTypeCode.RAIN, AugmentTypeCode.RESOLUTION)
+                List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT, AugmentTypeCode.RAIN)
         );
 
         AugmentRequestResponse resp = service.request(req, reviewer);
 
         assertThat(resp.jobId()).isNotNull();
         assertThat(resp.videoCount()).isEqualTo(3);
-        assertThat(resp.typeCount()).isEqualTo(4);
+        assertThat(resp.typeCount()).isEqualTo(3);
         assertThat(resp.requestedAt()).isNotNull().isBeforeOrEqualTo(LocalDateTime.now().plusSeconds(1));
     }
 

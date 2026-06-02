@@ -35,7 +35,8 @@ public class ExternalAugmentClient {
      * 호출자 트랜잭션은 외부 실패 영향을 받지 않는다 (best-effort).
      *
      * @param videoIds 검수 완료된 원본 영상 ID 목록
-     * @param types    요청 증강 유형 (WINTER/NIGHT/RAIN/RESOLUTION)
+     * @param types    요청 증강 유형 (WINTER/NIGHT/RAIN). 해상도 변경(RESOLUTION)은 RQ-SFR-06-03에 따라
+     *                 저작도구가 직접 수행하므로 외부 위탁 대상이 아니다.
      * @return 외부 ack 여부 (현재는 항상 true — mock)
      */
     public boolean requestAugment(java.util.List<Long> videoIds, java.util.List<String> types) {

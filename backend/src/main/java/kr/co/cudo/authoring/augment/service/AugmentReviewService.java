@@ -25,8 +25,12 @@ import java.util.Map;
 /**
  * Phase 9 — 데이터 증강 검수 (V1.5 SFR-07).
  *
- * <p>외부 SFR-07 시스템이 생성한 4종 증강 결과(WINTER/NIGHT/RAIN/RESOLUTION)를
- * REVIEWER 가 검수(accept/reject)한다. 결과는 외부 시스템에도 best-effort 동기화된다.
+ * <p>외부 SFR-07 시스템이 생성한 증강 결과를 REVIEWER 가 검수(accept/reject)한다.
+ * 결과는 외부 시스템에도 best-effort 동기화된다.
+ *
+ * <p>신규 외부 콜백은 3종(WINTER/NIGHT/RAIN)만 수신한다(RESOLUTION은 RQ-SFR-06-03에 따라
+ * 저작도구 내부 기능으로 분리됨). 단, 기존에 적재된 RESOLUTION 데이터의 조회·정렬·검수를 위해
+ * {@code AUG_ORDER}는 4종 정렬을 유지한다.
  *
  * <p>RBAC: 모든 결정 메서드는 REVIEWER 만 호출 가능 (Service 이중 검증).
  */
@@ -36,7 +40,7 @@ import java.util.Map;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class AugmentReviewService {
 
-    /** UI 표시용 4종 ENUM 정렬 순서. */
+    /** UI 표시용 정렬 순서. RESOLUTION은 신규 콜백 대상은 아니나 기존 데이터 정렬을 위해 유지. */
     private static final Map<String, Integer> AUG_ORDER = Map.of(
             LsDataAug.AUG_WINTER, 1,
             LsDataAug.AUG_NIGHT, 2,

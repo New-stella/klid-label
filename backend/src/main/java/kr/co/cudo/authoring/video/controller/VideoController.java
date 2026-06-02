@@ -10,11 +10,15 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import jakarta.validation.Valid;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
+import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
+import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.service.FrameImageService;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
+import kr.co.cudo.authoring.video.service.VideoResolutionService;
 import kr.co.cudo.authoring.video.service.VideoStreamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -23,15 +27,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
@@ -52,6 +60,7 @@ public class VideoController {
     private final VideoQueryService videoQueryService;
     private final FrameImageService frameImageService;
     private final VideoStreamService videoStreamService;
+    private final VideoResolutionService videoResolutionService;
 
     @Operation(
             summary = "영상 목록 조회 (페이징)",
@@ -187,5 +196,33 @@ public class VideoController {
             throw new CustomException(ErrorCode.INVALID_INPUT, "frameNo는 0 이상이어야 합니다.");
         }
         return frameImageService.serve(rawSn, frameNo, raw, actor);
+    }
+
+    /**
+     * 해상도 변경 — Phase 3 (RQ-SFR-07-02).
+     * <p>검수 완료(APPROVED) 원본 영상을 배율 프리셋으로 리사이즈하여, 라벨 좌표를 동일 배율로
+     * 스케일 복사한 새 PENDING 영상을 생성한다. REVIEWER 만 호출 가능.
+     */
+    @Operation(
+            summary = "해상도 변경 (REVIEWER)",
+            description = "검수 완료(APPROVED) 원본 영상을 프리셋 배율(P75/P50/P25)로 리사이즈하여 새 PENDING 영상을 생성한다. " +
+                    "라벨 좌표는 동일 배율로 스케일·복사된다(프레임/속성값/메타 포함). " +
+                    "증강본(PARENT_RAW_SN 보유)·과소축소·중복 요청은 거부된다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 — 새 영상 RAW_SN 반환"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "프리셋 오류 / 증강본 / 과소축소 / 해상도 확인 불가"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "미검수 영상 / 중복 결과 존재")
+    })
+    @PostMapping("/{rawSn}/resolution")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<ResolutionChangeResponse> changeResolution(
+            @Parameter(description = "원본 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
+            @Valid @RequestBody ResolutionChangeRequest request) {
+        return ApiResponse.ok(videoResolutionService.changeResolution(rawSn, request));
     }
 }

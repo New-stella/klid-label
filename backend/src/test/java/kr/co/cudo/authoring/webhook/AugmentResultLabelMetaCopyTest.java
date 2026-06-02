@@ -155,7 +155,7 @@ class AugmentResultLabelMetaCopyTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-LBL-COPY", "EXT-LC", "SUCCESS", 20L, "WINTER",
-                "/storage/augment/winter.mp4", List.of());
+                "/storage/augment/winter.mp4");
 
         // when
         service.handle(req);
@@ -199,7 +199,7 @@ class AugmentResultLabelMetaCopyTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-META-COPY", "EXT-MC", "SUCCESS", 21L, "NIGHT",
-                "/storage/augment/night.mp4", List.of());
+                "/storage/augment/night.mp4");
 
         // when
         service.handle(req);
@@ -241,7 +241,7 @@ class AugmentResultLabelMetaCopyTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-NO-LBL", "EXT-NL", "SUCCESS", 22L, "RAIN",
-                "/storage/augment/rain.mp4", List.of());
+                "/storage/augment/rain.mp4");
 
         // when
         boolean applied = service.handle(req);
@@ -261,7 +261,7 @@ class AugmentResultLabelMetaCopyTest {
         ledger.recordIssued("K-NO-META", "EXT-NM");
         LsDataRaw parentRaw = newRaw(103L);
         LsDataSrc originSrc = newSrc(500L, 103L, 0);
-        LsDataAug aug = newAugWithSrc(23L, 500L, "RESOLUTION");
+        LsDataAug aug = newAugWithSrc(23L, 500L, "RAIN");
 
         stubAugAccept(23L, aug);
         when(srcRepository.findById(500L)).thenReturn(Optional.of(originSrc));
@@ -271,8 +271,8 @@ class AugmentResultLabelMetaCopyTest {
         when(metaRepository.findByRawSn(103L)).thenReturn(List.of());
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-NO-META", "EXT-NM", "SUCCESS", 23L, "RESOLUTION",
-                "/storage/augment/resolution.mp4", List.of());
+                "K-NO-META", "EXT-NM", "SUCCESS", 23L, "RAIN",
+                "/storage/augment/rain-no-meta.mp4");
 
         // when
         boolean applied = service.handle(req);
@@ -309,7 +309,7 @@ class AugmentResultLabelMetaCopyTest {
 
         AugmentResultRequest req = new AugmentResultRequest(
                 "K-MULTI", "EXT-MF", "SUCCESS", 24L, "WINTER",
-                "/storage/augment/winter-multi.mp4", List.of());
+                "/storage/augment/winter-multi.mp4");
 
         // when
         service.handle(req);
