@@ -3,7 +3,9 @@ package kr.co.cudo.authoring.version;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -37,11 +39,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Phase 5 — VersionService 통합 테스트 (DB 스냅샷 기반).
+ * VersionService 통합 테스트 (DB 스냅샷 기반).
  *
- * <p>외부 버전관리 서버 제거 이후 버전/이력은 LS_LABEL_VERSION (versionHash + labelPayload) 에만 저장된다.
- * commit→스냅샷 저장, diff(두 스냅샷 비교), rollback(스냅샷 복원), 접근권한(IDOR),
- * 비식별 재처리 잠금(409), 페이로드 한도를 검증한다.
+ * <p>버전/이력은 LS_LABEL_VERSION (versionHash + labelPayload) 에만 저장된다.
+ * 버전 스냅샷은 검수 승인(APPROVED) 시점에만 영상(rawSn) 단위로 생성된다(SFR-08, commitApproved).
+ * commitApproved(영상 다중 프레임 스냅샷·빈 프레임 스킵·멱등 재승인), diff(두 스냅샷 비교),
+ * rollback(스냅샷 복원), 접근권한(IDOR), 페이로드 한도를 검증한다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
@@ -54,6 +57,7 @@ class VersionServiceTest {
     @Autowired private LsLabelVersionRepository labelVersionRepository;
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
+    @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private WorkLockService workLockService;
 
@@ -93,49 +97,82 @@ class VersionServiceTest {
 
     private LsLabelVersion seed(String versionHash, String payload, int versionNo, boolean active) {
         LsLabelVersion v = LsLabelVersion.create(rawSn, srcSn, versionHash, payload,
-                versionNo, LsLabelVersion.SAVE_REASON_MANUAL, "100");
+                versionNo, LsLabelVersion.SAVE_REASON_APPROVED, "100");
         if (!active) {
             v.deactivate();
         }
         return labelVersionRepository.save(v);
     }
 
-    // ---------- commit ----------
+    private void seedLabel(Long frameSn, String label, String pointsJson) {
+        labelRepository.save(LsDataLbl.createManual(frameSn, "BBOX", null, label, pointsJson, 100L));
+    }
+
+    // ---------- commitApproved (검수 승인 시점 영상 단위 스냅샷) ----------
 
     @Test
-    @DisplayName("라벨_저장_성공시_DB_스냅샷_INSERT_+_versionHash_저장")
-    void commitWritesSnapshotWithHash() {
-        String payload = "{\"items\":[]}";
-        String hash = versionService.commit(srcSn, payload, workerAssigned);
+    @DisplayName("검수_승인시_영상_프레임의_현재_라벨로_DB_스냅샷_APPROVED_버전_생성")
+    void commitApprovedWritesSnapshotPerFrame() {
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
 
-        assertThat(hash).hasSize(64).matches("[0-9a-f]+");
+        int created = versionService.commitApproved(rawSn, reviewer);
+
+        assertThat(created).isEqualTo(1);
         List<LsLabelVersion> history = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
         assertThat(history).hasSize(1);
         LsLabelVersion saved = history.get(0);
-        assertThat(saved.getVersionHash()).isEqualTo(hash);
-        assertThat(saved.getLabelPayload()).isEqualTo(payload);
-        assertThat(saved.getRegId()).isEqualTo("100");
+        assertThat(saved.getVersionHash()).hasSize(64).matches("[0-9a-f]+");
+        assertThat(saved.getLabelPayload()).isNotNull();
+        assertThat(saved.getRegId()).isEqualTo("1");
         assertThat(saved.getActiveYn()).isEqualTo(LsLabelVersion.ACTIVE_YES);
-        assertThat(saved.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_MANUAL);
+        assertThat(saved.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_APPROVED);
     }
 
     @Test
-    @DisplayName("동일_스냅샷_재커밋은_멱등_새_row_생성안함_기존_해시_반환")
-    void commitIsIdempotentForSamePayload() {
-        String payload = "{\"items\":[{\"id\":1}]}";
-        String first = versionService.commit(srcSn, payload, workerAssigned);
-        String second = versionService.commit(srcSn, payload, workerAssigned);
+    @DisplayName("HIGH_영상_다중_프레임_각_프레임마다_스냅샷_생성_라벨_없는_프레임은_스킵")
+    void commitApprovedSnapshotsEachFrameSkipsEmpty() {
+        // 프레임 2개 추가: frame1(라벨 있음), frame2(라벨 없음)
+        Long frame1 = srcRepository.save(LsDataSrc.create(rawSn, 1, "/raw/1.jpg", LocalDateTime.now()))
+                .getSrcSn();
+        Long frame2 = srcRepository.save(LsDataSrc.create(rawSn, 2, "/raw/2.jpg", LocalDateTime.now()))
+                .getSrcSn();
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        seedLabel(frame1, "car", "[[1.0,1.0],[2.0,2.0]]");
+        // frame2 는 라벨 없음 → 스냅샷 미생성
 
-        assertThat(second).isEqualTo(first);
+        int created = versionService.commitApproved(rawSn, reviewer);
+
+        assertThat(created).isEqualTo(2);
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(1);
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(frame1)).hasSize(1);
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(frame2)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("HIGH_멱등_재승인_수정_없이_재승인시_동일_payload_중복_버전_미생성")
+    void commitApprovedReApprovalIsIdempotent() {
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+
+        int firstCreated = versionService.commitApproved(rawSn, reviewer);
+        int secondCreated = versionService.commitApproved(rawSn, reviewer);
+
+        assertThat(firstCreated).isEqualTo(1);
+        assertThat(secondCreated).isEqualTo(0);
         assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(1);
     }
 
     @Test
-    @DisplayName("내용_변경_재커밋시_새_active_버전_생성_이전_active_deactivate")
-    void commitNewPayloadCreatesNewActiveVersion() {
-        versionService.commit(srcSn, "{\"items\":[]}", workerAssigned);
-        versionService.commit(srcSn, "{\"items\":[{\"id\":1}]}", workerAssigned);
+    @DisplayName("HIGH_수정_후_재승인시_새_active_버전_생성_이전_active_deactivate")
+    void commitApprovedAfterEditCreatesNewVersion() {
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
 
+        // 라벨 수정 후 재승인
+        labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
+        seedLabel(srcSn, "person", "[[20.0,20.0],[60.0,60.0]]");
+        int created = versionService.commitApproved(rawSn, reviewer);
+
+        assertThat(created).isEqualTo(1);
         List<LsLabelVersion> all = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
         assertThat(all).hasSize(2);
         long activeCount = all.stream()
@@ -144,38 +181,47 @@ class VersionServiceTest {
     }
 
     @Test
-    @DisplayName("페이로드_1MB_한도_초과시_INVALID_INPUT")
-    void commitRejectsOversizedPayload() {
-        String huge = "x".repeat(VersionService.MAX_PAYLOAD_BYTES + 1);
-        assertThatThrownBy(() -> versionService.commit(srcSn, huge, workerAssigned))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
-        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).isEmpty();
+    @DisplayName("프레임이_없는_영상_승인시_스냅샷_0건_생성_예외없음")
+    void commitApprovedNoFramesCreatesNothing() {
+        // 새 라벨 없는 별도 영상
+        LsDataRaw empty = rawRepository.save(LsDataRaw.createFromIngest(
+                "CLIP-VER-EMPTY", "CCTV-001", "EVT-A", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/empty.mp4", LocalDateTime.now(), 30));
+
+        int created = versionService.commitApproved(empty.getRawSn(), reviewer);
+
+        assertThat(created).isZero();
     }
 
-    // ---------- 채널 분기: PORTAL → commit skip ----------
+    @Test
+    @DisplayName("존재하지_않는_영상_승인_스냅샷_시도시_NOT_FOUND")
+    void commitApprovedUnknownRawNotFound() {
+        assertThatThrownBy(() -> versionService.commitApproved(999_999L, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    // ---------- 채널 분기: PORTAL → 버전관리 미제공 (정책 유지) ----------
 
     @Test
-    @DisplayName("포털_모드_channel_PORTAL_는_커밋_불가_isCommittable_검증")
-    void portalChannelSkipsCommit() {
+    @DisplayName("포털_모드_channel_PORTAL_는_버전관리_미제공_isCommittable_검증")
+    void portalChannelHasNoVersioning() {
         assertThat(VersionService.isCommittable(portalUser)).isFalse();
         assertThat(VersionService.isCommittable(workerAssigned)).isTrue();
         assertThat(VersionService.isCommittable(reviewer)).isTrue();
     }
 
     @Test
-    @DisplayName("LabelService_bulkUpsert_INTERNAL_채널_시_DB_스냅샷_버전_자동_기록")
-    void labelBulkUpsertTriggersSnapshotVersion() {
+    @DisplayName("라벨_저장_bulkUpsert_는_버전_스냅샷을_생성하지_않음_트리거_이동_회귀가드")
+    void labelBulkUpsertDoesNotCreateVersion() {
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
                 new LabelItemDto(null, "BBOX", null, "person",
                         List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
         ));
         labelService.bulkUpsert(srcSn, req, workerAssigned);
 
-        List<LsLabelVersion> history = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
-        assertThat(history).hasSize(1);
-        assertThat(history.get(0).getVersionHash()).isNotBlank();
-        assertThat(history.get(0).getLabelPayload()).isNotNull();
+        // 라벨 저장 시 버전 스냅샷 미생성 (검수 승인 시점에만 생성).
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).isEmpty();
     }
 
     // ---------- rollback ----------
@@ -377,17 +423,4 @@ class VersionServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
     }
 
-    // ---------- Phase 3 — 비식별 재처리 잠금 가드 (WorkLockService) ----------
-
-    @Test
-    @DisplayName("Phase3_LS_AUTH_WORK_LOCK_LOCKED_영상_commit_시도시_409_CONFLICT_+_스냅샷_미생성")
-    void lockedVideoCommitConflict() {
-        workLockService.lockRawForRedeident(rawSn, "100");
-
-        assertThatThrownBy(() -> versionService.commit(srcSn, "{\"items\":[]}", workerAssigned))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
-
-        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).isEmpty();
-    }
 }

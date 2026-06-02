@@ -3,11 +3,15 @@ package kr.co.cudo.authoring.version.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.LabelDiffDto;
@@ -33,16 +37,21 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Phase 5 — 라벨 버전관리 (DB 스냅샷 기반).
+ * 라벨 버전관리 (DB 스냅샷 기반).
  *
  * <p>운영 제약상 외부 버전관리 서버를 둘 수 없어 라벨 버전/이력을 DB({@link LsLabelVersion}) 에만 저장한다.
  * 각 버전은 라벨 전체 JSON 스냅샷({@code LABEL_PAYLOAD}) 과 그 SHA-256({@code VERSION_HASH}) 을 보관하며,
  * diff/rollback 은 모두 이 스냅샷을 BE 에서 직접 파싱·비교하여 계산한다.
  *
+ * <p><b>버전 스냅샷 생성 트리거(SFR-08):</b> 학습데이터 버전관리는 <b>검수 완료(APPROVED) 단위</b>에 적용된다.
+ * 따라서 스냅샷은 라벨러의 라벨 저장(임시저장) 시점이 아니라 <b>검수 승인 시점</b>에만 생성한다
+ * ({@link #commitApproved}). 라벨 저장은 작업본 upsert + FE undo/redo 만 담당하고 버전을 만들지 않는다.
+ *
  * <p>보안:
  * <ul>
- *   <li>IDOR (CWE-639): commit/list/diff/rollback 모두 {@link LabelAccessGuard} 로 srcSn 소유/배정 검증.</li>
- *   <li>Race (CWE-362): 같은 srcSn 동시 commit/rollback 시 ACTIVE 행 비관적 잠금으로 직렬화.</li>
+ *   <li>IDOR (CWE-639): list/diff/rollback 모두 {@link LabelAccessGuard} 로 srcSn 소유/배정 검증.
+ *       commitApproved 는 REVIEWER 승인 트랜잭션 내부 전용 호출이라 영상(rawSn) 단위로 동작한다.</li>
+ *   <li>Race (CWE-362): 같은 srcSn 동시 승인 스냅샷/rollback 시 ACTIVE 행 비관적 잠금으로 직렬화.</li>
  *   <li>CWE-770 DoS: 스냅샷 페이로드 1MB 한도 검증.</li>
  *   <li>Privacy (CWE-359): 라벨 본문은 로그 출력 금지.</li>
  * </ul>
@@ -60,55 +69,95 @@ public class VersionService {
     private final LabelAccessGuard accessGuard;
     private final VideoRepository videoRepository;
     private final WorkLockService workLockService;
+    private final LsDataSrcRepository srcRepository;
+    private final LsDataLblRepository labelRepository;
     private final ObjectMapper objectMapper;
 
     /**
-     * 현재 라벨 상태를 새 버전으로 저장한다.
+     * 검수 승인(APPROVED) 시점에 영상(rawSn) 전체의 학습데이터 버전 스냅샷을 생성한다.
      *
-     * <p>접근권한 + 잠금 검증 후 라벨 JSON 의 SHA-256 을 계산하고, 스냅샷과 함께 새 active 버전을 기록한다.
-     * 멱등: 같은 프레임의 현재 active 버전과 동일한 페이로드(=동일 versionHash) 면 새 row 를 만들지 않고
-     * 기존 active 버전의 해시를 그대로 반환한다 (저장 버튼 더블클릭/재시도 안전, 복합 UNIQUE 충돌 회피).
+     * <p>영상에 속한 모든 프레임({@link LsDataSrc})을 순회하며, 각 프레임의 현재 라벨 상태를
+     * 라벨 응답 스냅샷(JSON)으로 직렬화하여 프레임 단위 새 active 버전(saveReason=APPROVED)을 기록한다.
      *
-     * @return 저장된(또는 기존) 버전의 versionHash
+     * <p>정책:
+     * <ul>
+     *   <li>라벨이 하나도 없는 프레임은 스냅샷을 생성하지 않는다(스킵) — 빈 버전 적재 방지.</li>
+     *   <li>멱등: 프레임의 현재 active 가 동일 스냅샷(=동일 versionHash)이면 새 버전을 만들지 않는다
+     *       (수정 없이 재승인 시 중복 버전 미생성).</li>
+     *   <li>Race(CWE-362): 프레임별 ACTIVE 행 비관적 잠금으로 동시 승인/롤백을 직렬화한다.</li>
+     * </ul>
+     *
+     * <p>호출 컨텍스트: {@code ReviewService.approve()} 의 승인 트랜잭션 내부에서만 호출된다.
+     * 인가는 호출 측(REVIEWER)에서 이미 검증되었으므로 프레임 단위 accessGuard 검증은 생략한다.
+     *
+     * @return 새로 생성된 프레임 스냅샷 버전 개수 (멱등/빈 프레임 스킵은 제외)
      */
     @Transactional("controlTransactionManager")
-    public String commit(Long srcSn, String labelsJson, TokenClaims actor) {
-        if (srcSn == null) {
-            throw new IllegalArgumentException("srcSn 은 필수입니다.");
+    public int commitApproved(Long rawSn, TokenClaims actor) {
+        if (rawSn == null) {
+            throw new IllegalArgumentException("rawSn 은 필수입니다.");
         }
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
-        LsDataRaw raw = videoRepository.findById(src.getRawSn())
+        LsDataRaw raw = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
-        if (workLockService.isRawLocked(raw.getRawSn())) {
-            throw new CustomException(ErrorCode.CONFLICT, "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
+
+        List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
+        if (frames.isEmpty()) {
+            log.info("[Version] approved snapshot no frames rawSn={} actor={}", rawSn, actor.sub());
+            return 0;
         }
 
-        String payload = labelsJson == null ? "" : labelsJson;
+        int created = 0;
+        for (LsDataSrc frame : frames) {
+            List<LsDataLbl> labels = labelRepository.findBySrcSn(frame.getSrcSn());
+            // 라벨이 없는 프레임은 스냅샷 미생성 (빈 버전 적재 방지).
+            if (labels.isEmpty()) {
+                continue;
+            }
+            if (snapshotFrameOnApprove(raw, frame, frames, labels, actor.sub())) {
+                created++;
+            }
+        }
+        log.info("[Version] approved snapshot rawSn={} frames={} created={} actor={}",
+                rawSn, frames.size(), created, actor.sub());
+        return created;
+    }
+
+    /**
+     * 단일 프레임의 현재 라벨을 승인 스냅샷으로 저장한다. 멱등(동일 active 해시) 시 미생성.
+     *
+     * @return 새 버전을 생성했으면 true, 멱등으로 스킵했으면 false
+     */
+    private boolean snapshotFrameOnApprove(LsDataRaw raw, LsDataSrc frame, List<LsDataSrc> siblings,
+                                           List<LsDataLbl> labels, String actorId) {
+        LabelResponse snapshot = LabelResponse.of(frame, siblings, labels, objectMapper);
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(snapshot);
+        } catch (Exception e) {
+            // 직렬화 실패는 내부 오류 — 승인 자체를 막지 않도록 해당 프레임만 스킵 + 경고(본문 미출력).
+            log.error("[Version] approved snapshot serialize failed srcSn={}", frame.getSrcSn(), e);
+            return false;
+        }
         validatePayloadSize(payload);
         String versionHash = sha256Hex(payload);
 
-        // Race 직렬화 — ACTIVE 행 비관적 잠금. 동시 commit/rollback 트랜잭션이 순차 진행되어
-        // versionNo 충돌·active 중복을 차단한다.
+        // Race 직렬화 — ACTIVE 행 비관적 잠금.
         List<LsLabelVersion> activeVersions = labelVersionRepository.findActiveForUpdate(
-                raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
+                raw.getRawSn(), frame.getSrcSn(), LsLabelVersion.ACTIVE_YES);
 
-        // 멱등 재커밋 — 현재 active 가 동일 스냅샷이면 새 버전 생성하지 않음.
+        // 멱등 — 현재 active 가 동일 스냅샷이면 새 버전 생성하지 않음 (수정 없이 재승인).
         for (LsLabelVersion active : activeVersions) {
             if (versionHash.equals(active.getVersionHash())) {
-                log.info("[Version] commit idempotent srcSn={} hash={} actor={}",
-                        srcSn, versionHash, actor.sub());
-                return versionHash;
+                return false;
             }
         }
 
-        LsLabelVersion saved = saveActiveVersion(src, raw, activeVersions, versionHash, payload,
-                LsLabelVersion.SAVE_REASON_MANUAL, actor.sub());
-        log.info("[Version] committed srcSn={} hash={} version={} actor={}",
-                srcSn, versionHash, saved.getVersionNo(), actor.sub());
-        return versionHash;
+        saveActiveVersion(frame, raw, activeVersions, versionHash, payload,
+                LsLabelVersion.SAVE_REASON_APPROVED, actorId);
+        return true;
     }
 
     public List<VersionItem> listVersions(Long srcSn, TokenClaims actor) {

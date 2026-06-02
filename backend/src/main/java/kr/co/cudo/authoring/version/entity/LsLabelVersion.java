@@ -21,8 +21,10 @@ public class LsLabelVersion {
     public static final String ACTIVE_YES = "Y";
     public static final String ACTIVE_NO = "N";
 
-    // Phase 7 — SAVE_REASON_CD 표준 코드 (LS_LABEL_VERSION 정착).
-    public static final String SAVE_REASON_MANUAL = "MANUAL";
+    // SAVE_REASON_CD 표준 코드 (LS_LABEL_VERSION 정착).
+    // 버전 스냅샷은 검수 승인(APPROVED) 시점에만 생성된다 (학습데이터 버전관리 단위 = 검수 완료).
+    // 라벨 저장(임시저장) 단계에서는 스냅샷을 만들지 않는다 — MANUAL 자동 커밋 폐기.
+    public static final String SAVE_REASON_APPROVED = "APPROVED";
     public static final String SAVE_REASON_ROLLBACK = "ROLLBACK";
     public static final String SAVE_REASON_BATCH = "BATCH";
 

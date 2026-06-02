@@ -1,7 +1,7 @@
-// 라벨 저장 + 커밋 시퀀스
+// 라벨 저장 시퀀스
 //
-// BE의 PUT /frames/{srcSn}/labels 가 저장과 라벨 스냅샷 버전 커밋(DB)을 한 번에 처리한다.
-// (portalMode: PORTAL 채널에서는 BE가 커밋을 skip)
+// BE의 PUT /frames/{srcSn}/labels 는 작업본 임시저장만 수행한다. 버전 스냅샷은 검수 승인(APPROVED)
+// 시점에 BE가 생성하므로(SFR-08) 저장 단계에서 별도 커밋 호출은 하지 않는다 — 단일 PUT.
 //
 // portalMode: 외부 채널(SCR-PORTAL-002) 간편 라벨링 — 버전관리 미제공.
 
@@ -15,11 +15,12 @@ export interface SaveCommitOptions {
 
 export interface SaveCommitResult {
   saved: LabelsResponse;
+  /** 저장은 버전을 만들지 않으므로 항상 null (버전 스냅샷은 검수 승인 시점에 BE가 생성). */
   committed: CommitResponse | null;
 }
 
 /**
- * 저장 + 커밋. BE PUT이 두 단계를 모두 처리하므로 단일 호출.
+ * 라벨 저장(임시저장). 단일 PUT — 버전 스냅샷은 생성하지 않는다.
  */
 export async function saveAndCommit(
   srcSn: number,

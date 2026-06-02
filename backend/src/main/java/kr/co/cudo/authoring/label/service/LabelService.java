@@ -21,10 +21,8 @@ import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
-import kr.co.cudo.authoring.version.service.VersionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +44,8 @@ import java.util.stream.Collectors;
  *  - 좌표 검증 (CWE-20): 음수 좌표 차단, polygon 최대 1000 점 (CWE-770 DoS 방어).
  *  - Mass Assignment (CWE-915): autoLblYn 은 요청 DTO 에서 무시 (정책: 자동 라벨 수정 시에도 'Y' 유지).
  *
- * Phase 5 — 라벨 저장 시 DB 스냅샷 버전 자동 기록 훅 (VersionService.commit).
+ * 라벨 저장(임시저장)은 LS_DATA_LBL upsert 만 수행한다. 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은
+ * 검수 승인(APPROVED) 시점에 VersionService.commitApproved 로 생성한다(SFR-08).
  */
 @Slf4j
 @Service
@@ -65,12 +64,6 @@ public class LabelService {
     private final ObjectMapper objectMapper;
     /** Phase 2 — LS_LABEL 마스터 조회 (labelId 검증 + 응답 enrichment). */
     private final LsLabelRepository lsLabelRepository;
-    /**
-     * Phase 5 — 라벨 저장 시 DB 스냅샷 버전 자동 기록 훅.
-     * label ⇄ version 순환 의존 (LabelService → VersionService, VersionService → LabelAccessGuard)
-     * 해소를 위해 {@link Lazy} 적용 — 생성자 주입 유지 (보안 정책: 필드/세터 주입 금지).
-     */
-    private final VersionService versionService;
     private final ApplicationEventPublisher eventPublisher;
 
     public LabelService(LsDataLblRepository labelRepository,
@@ -81,7 +74,6 @@ public class LabelService {
                         LabelAccessGuard accessGuard,
                         ObjectMapper objectMapper,
                         LsLabelRepository lsLabelRepository,
-                        @Lazy VersionService versionService,
                         ApplicationEventPublisher eventPublisher) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
@@ -91,7 +83,6 @@ public class LabelService {
         this.accessGuard = accessGuard;
         this.objectMapper = objectMapper;
         this.lsLabelRepository = lsLabelRepository;
-        this.versionService = versionService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -247,22 +238,9 @@ public class LabelService {
         // Phase 2 — 응답 labelName/color enrichment.
         Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(result);
 
-        // Phase 5 — DB 스냅샷 버전 자동 기록 (PORTAL 채널은 버전관리 미제공 → skip).
-        if (VersionService.isCommittable(actor)) {
-            LabelResponse responseSnapshot = LabelResponse.of(current, siblings, result, frameImageType,
-                    lockSttsCd, aiInfoMap, lsLabelMap, objectMapper);
-            String labelsJson;
-            try {
-                labelsJson = objectMapper.writeValueAsString(responseSnapshot);
-            } catch (Exception e) {
-                // 직렬화 실패는 심각한 내부 오류 — 라벨 저장 자체는 성공이므로 commit 만 skip + 경고.
-                log.error("[Label] labels JSON serialize failed srcSn={}", srcSn, e);
-                labelsJson = null;
-            }
-            if (labelsJson != null) {
-                versionService.commit(srcSn, labelsJson, actor);
-            }
-        }
+        // 라벨 저장(임시저장)은 LS_DATA_LBL upsert + 작업본 갱신만 수행한다.
+        // 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은 검수 승인(APPROVED) 시점에만 생성한다(SFR-08).
+        // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
 
         return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
                 aiInfoMap, lsLabelMap, objectMapper);

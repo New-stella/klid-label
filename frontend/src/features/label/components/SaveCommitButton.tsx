@@ -14,12 +14,12 @@ interface SaveCommitButtonProps {
 }
 
 /**
- * 저장 버튼. BE의 PUT /frames/{srcSn}/labels 가 저장 + (내부 채널 한정) 라벨 스냅샷 버전 커밋(DB)을 함께 처리한다.
+ * 저장 버튼. BE의 PUT /frames/{srcSn}/labels 는 작업본 임시저장만 수행한다(버전 스냅샷 미생성 —
+ * 버전은 검수 승인 시점에 BE가 생성, SFR-08).
  * useUpdateLabels 훅을 통해 호출하여 저장 성공 시 LABEL/VIDEO/ASSIGNMENT/REVIEW 캐시를 일괄
  * invalidate 한다 — 프레임 왕복·작업 목록 진입 시 stale 노출 회귀 방지.
  *
- * portalMode 는 호출 측 의도를 명시하기 위해 prop 으로 유지하지만, BE 가 채널 정보로 버전 커밋 여부를
- * 결정하므로 FE 행위는 동일(단일 PUT)이다.
+ * portalMode 는 호출 측 의도를 명시하기 위해 prop 으로 유지하지만 FE 행위는 동일(단일 PUT)이다.
  */
 export function SaveCommitButton({ srcSn, labels, portalMode: _portalMode, onSaved }: SaveCommitButtonProps) {
   const [error, setError] = useState<string | null>(null);

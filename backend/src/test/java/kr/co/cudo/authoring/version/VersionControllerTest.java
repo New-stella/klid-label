@@ -6,7 +6,6 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.version.dto.CommitRequest;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
@@ -23,7 +22,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -105,9 +103,9 @@ class VersionControllerTest {
     @DisplayName("GET_frames_versions_정상_조회_DB_스냅샷_목록_반환")
     void getVersionsReturnsList() throws Exception {
         seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "{\"items\":[]}",
-                1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
         seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", "{\"items\":[]}",
-                2, LsLabelVersion.SAVE_REASON_MANUAL, "100", true);
+                2, LsLabelVersion.SAVE_REASON_APPROVED, "100", true);
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerAssignedToken))
@@ -131,7 +129,7 @@ class VersionControllerTest {
     @DisplayName("GET_frames_versions_미배정_WORKER_403")
     void getVersionsForbiddenForUnassignedWorker() throws Exception {
         seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "{\"items\":[]}",
-                1, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/versions")
                         .header("Authorization", "Bearer " + workerNotAssignedToken))
@@ -155,9 +153,9 @@ class VersionControllerTest {
                 + "{\"id\":3,\"lblTypeCd\":\"BBOX\",\"label\":\"bike\",\"points\":[[300.0,300.0],[400.0,400.0]]}"
                 + "]}";
         seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", fromJson,
-                1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
         seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", toJson,
-                2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+                2, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         mockMvc.perform(get("/v1/versions/bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222/diff")
                         .param("compareWith", "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111")
@@ -177,9 +175,9 @@ class VersionControllerTest {
                 + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]}"
                 + "]}";
         seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", sameJson,
-                1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
         seedVersion("bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", sameJson,
-                2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+                2, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         mockMvc.perform(get("/v1/versions/bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222/diff")
                         .param("compareWith", "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111")
@@ -192,7 +190,7 @@ class VersionControllerTest {
     @DisplayName("GET_diff_존재하지_않는_버전_해시_404")
     void getDiffUnknownHashNotFound() throws Exception {
         seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "{\"items\":[]}",
-                1, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         mockMvc.perform(get("/v1/versions/ffffffffffffffffffffffffffffffffffffffff/diff")
                         .param("compareWith", "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111")
@@ -208,9 +206,9 @@ class VersionControllerTest {
     @DisplayName("POST_rollback_REVIEWER_정상_LS_LABEL_VERSION_새_row_INSERT")
     void postRollbackReviewerOk() throws Exception {
         String pastHash = "feedface1234567890abcdef1234567890abcdef";
-        seedVersion(pastHash, "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+        seedVersion(pastHash, "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
         seedVersion("0000000000000000000000000000000000000000", "{\"items\":[{\"id\":1}]}",
-                2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+                2, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         RollbackRequest req = new RollbackRequest(srcSn);
         mockMvc.perform(post("/v1/versions/" + pastHash + "/rollback")
@@ -237,9 +235,9 @@ class VersionControllerTest {
     @DisplayName("POST_rollback_배정된_WORKER_본인_프레임_정상_200")
     void postRollbackAssignedWorkerOk() throws Exception {
         String pastHash = "feedface1234567890abcdef1234567890abcdef";
-        seedVersion(pastHash, "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", false);
+        seedVersion(pastHash, "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
         seedVersion("0000000000000000000000000000000000000000", "{\"items\":[{\"id\":9}]}",
-                2, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+                2, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         RollbackRequest req = new RollbackRequest(srcSn);
         mockMvc.perform(post("/v1/versions/" + pastHash + "/rollback")
@@ -259,7 +257,7 @@ class VersionControllerTest {
     @DisplayName("POST_rollback_미배정_WORKER_403")
     void postRollbackUnassignedWorkerForbidden() throws Exception {
         String pastHash = "feedface1234567890abcdef1234567890abcdef";
-        seedVersion(pastHash, "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_MANUAL, "1", true);
+        seedVersion(pastHash, "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         RollbackRequest req = new RollbackRequest(srcSn);
         mockMvc.perform(post("/v1/versions/" + pastHash + "/rollback")
@@ -282,99 +280,17 @@ class VersionControllerTest {
     }
 
     // ──────────────────────────────────────────────
-    // POST /v1/frames/{srcSn}/commit
+    // 폐기된 수동 커밋 엔드포인트 회귀 가드
     // ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("POST_frames_commit_REVIEWER_정상_200_versionHash_반환_DB_스냅샷_INSERT")
-    void postCommitReviewerOk() throws Exception {
-        CommitRequest req = new CommitRequest(null);
-        MvcResult result = mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.commitSha").exists())
-                .andExpect(jsonPath("$.data.committedAt").exists())
-                .andReturn();
-
-        String commitSha = objectMapper.readTree(result.getResponse().getContentAsString())
-                .path("data").path("commitSha").asText();
-        // 식별자는 라벨 스냅샷의 SHA-256(hex 64자).
-        assertThat(commitSha).hasSize(64).matches("[0-9a-f]+");
-
-        // LS_LABEL_VERSION 에 신규 row INSERT 확인 — versionHash 가 응답과 일치.
-        List<LsLabelVersion> versions = labelVersionRepository.findAll();
-        assertThat(versions).hasSize(1);
-        assertThat(versions.get(0).getVersionHash()).isEqualTo(commitSha);
-        assertThat(versions.get(0).getLabelPayload()).isNotNull();
-    }
-
-    @Test
-    @DisplayName("POST_frames_commit_배정된_WORKER_정상_200")
-    void postCommitAssignedWorkerOk() throws Exception {
-        CommitRequest req = new CommitRequest("수동 커밋 메시지");
-        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
-                        .header("Authorization", "Bearer " + workerAssignedToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.commitSha").exists());
-    }
-
-    @Test
-    @DisplayName("POST_frames_commit_미인증시_401")
-    void postCommitUnauthenticated() throws Exception {
-        CommitRequest req = new CommitRequest(null);
-        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("POST_frames_commit_미존재_srcSn_404")
-    void postCommitNotFoundSrcSn() throws Exception {
-        long nonExistentSrcSn = 999999L;
-        CommitRequest req = new CommitRequest(null);
-        mockMvc.perform(post("/v1/frames/" + nonExistentSrcSn + "/commit")
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    @DisplayName("POST_frames_commit_미배정_WORKER_403")
-    void postCommitUnassignedWorkerForbidden() throws Exception {
-        CommitRequest req = new CommitRequest(null);
-        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
-                        .header("Authorization", "Bearer " + workerNotAssignedToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("POST_frames_commit_PORTAL_사용자_403")
-    void postCommitPortalUserForbidden() throws Exception {
-        String portalToken = JwtTestSupport.token(secret, "200", "PORTAL_USER", "PORTAL", issuer, 60);
-        CommitRequest req = new CommitRequest(null);
-        mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
-                        .header("Authorization", "Bearer " + portalToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("POST_frames_commit_body_없이_호출해도_정상_200")
-    void postCommitWithoutBody() throws Exception {
+    @DisplayName("폐기된_POST_frames_commit_엔드포인트는_더이상_라우팅되지_않음_404")
+    void removedCommitEndpointReturns404() throws Exception {
+        // 버전 스냅샷은 검수 승인 시점에만 생성 — 수동 커밋(POST /frames/{srcSn}/commit)은 폐기됨.
         mockMvc.perform(post("/v1/frames/" + srcSn + "/commit")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.commitSha").exists());
+                .andExpect(status().isNotFound());
     }
 }

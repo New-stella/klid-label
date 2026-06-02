@@ -1,4 +1,7 @@
-// 라벨 도메인 API — BE: /api/v1/frames/{srcSn}/labels, /commit
+// 라벨 도메인 API — BE: /api/v1/frames/{srcSn}/labels
+//
+// 라벨 저장(PUT)은 작업본 임시저장만 수행한다. 버전 스냅샷은 검수 승인(APPROVED) 시점에 BE 가
+// 생성하므로 FE 에서 별도 커밋 호출은 하지 않는다(수동 commit 엔드포인트 폐기).
 //
 // 보안: 사용자 입력은 path/body 파라미터로만 전달 (axios 자동 URL 인코딩, XSS 방지).
 // IDOR/Mass Assignment 방어는 BE 책임.
@@ -245,16 +248,6 @@ function serializeLabel(lbl: Label): object {
 export function putLabels(srcSn: number, labels: Label[]): Promise<LabelsResponse> {
   return apiClient
     .put<LabelsResponse>(`/frames/${srcSn}/labels`, { items: labels.map(serializeLabel) })
-    .then((r) => r.data);
-}
-
-/**
- * 라벨 스냅샷 버전 커밋 트리거 (저장 후 버전관리 반영).
- * BE: POST /frames/{srcSn}/commit (body { message } 무시 가능). 멱등.
- */
-export function commitLabels(srcSn: number, message?: string): Promise<CommitResponse> {
-  return apiClient
-    .post<CommitResponse>(`/frames/${srcSn}/commit`, { message: message ?? null })
     .then((r) => r.data);
 }
 

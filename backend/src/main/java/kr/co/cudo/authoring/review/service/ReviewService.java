@@ -27,6 +27,7 @@ import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
+import kr.co.cudo.authoring.version.service.VersionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -72,6 +73,8 @@ public class ReviewService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    /** 검수 승인 시점에 영상 전체 학습데이터 버전 스냅샷(LS_LABEL_VERSION, SAVE_REASON=APPROVED)을 생성. */
+    private final VersionService versionService;
 
     /**
      * 검수 워크플로우 상태별 페이징 목록 (REVIEWER 의 검수 목록 화면용).
@@ -367,6 +370,9 @@ public class ReviewService {
             log.warn("[Review] optimistic lock conflict on approve videoId={} actor={}", videoId, actor.sub());
             throw new CustomException(ErrorCode.CONFLICT, "다른 검수자가 먼저 처리했습니다.");
         }
+        // SFR-08 — 검수 승인 확정 후 같은 트랜잭션에서 영상 전체 학습데이터 버전 스냅샷 생성.
+        // APPROVED 전이/스냅샷이 함께 커밋되거나 함께 롤백되어 정합성을 유지한다.
+        versionService.commitApproved(stts.getRawDataId(), actor);
         log.info("[Review] approved videoId={} actor={}", videoId, actor.sub());
         eventPublisher.publishEvent(new ReviewApprovedEvent(
                 stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));

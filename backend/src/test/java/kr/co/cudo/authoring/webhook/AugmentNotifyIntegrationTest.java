@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import kr.co.cudo.authoring.review.service.ReviewService;
 import kr.co.cudo.authoring.review.service.ReviewStateMachine;
 import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.version.service.VersionService;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,11 +59,12 @@ class AugmentNotifyIntegrationTest {
         UserRepository userRepository = mock(UserRepository.class);
         ObjectMapper objectMapper = new ObjectMapper();
         eventPublisher = mock(ApplicationEventPublisher.class);
+        VersionService versionService = mock(VersionService.class);
 
         reviewService = new ReviewService(
                 reviewRepository, issueRepository, authrtRepository, taskEventLogRepository,
                 stateMachine, srcRepository, labelRepository, videoRepository, userRepository,
-                objectMapper, eventPublisher);
+                objectMapper, eventPublisher, versionService);
 
         // enrichOne lookup stubs — 빈 결과
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());

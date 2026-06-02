@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { commitLabels, getLabels, putLabels, reportDeidentMiss } from '../api';
+import { getLabels, putLabels, reportDeidentMiss } from '../api';
 import { saveAndCommit } from '../SaveCommitFlow';
 import type { Label } from '../types';
 
@@ -455,18 +455,6 @@ describe('label api', () => {
 
       await expect(reportDeidentMiss(557, '사유')).rejects.toThrow();
     });
-  });
-
-  it('commitLabels_POST_frames_srcSn_commit', async () => {
-    mock.onPost('/frames/777/commit').reply(200, {
-      success: true,
-      data: { commitSha: 'abc123', committedAt: '2026-05-07T10:00:00Z' },
-      message: null,
-      errorCode: null,
-    });
-
-    const res = await commitLabels(777, 'edit');
-    expect(res.commitSha).toBe('abc123');
   });
 
   describe('saveAndCommit', () => {

@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import kr.co.cudo.authoring.review.service.ReviewService;
 import kr.co.cudo.authoring.review.service.ReviewStateMachine;
 import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.version.service.VersionService;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,6 +42,7 @@ class ReviewServiceEventPublishTest {
 
     private ReviewRepository reviewRepository;
     private ApplicationEventPublisher eventPublisher;
+    private VersionService versionService;
     private ReviewService reviewService;
 
     @BeforeEach
@@ -56,11 +58,12 @@ class ReviewServiceEventPublishTest {
         UserRepository userRepository = mock(UserRepository.class);
         ObjectMapper objectMapper = new ObjectMapper();
         eventPublisher = mock(ApplicationEventPublisher.class);
+        versionService = mock(VersionService.class);
 
         reviewService = new ReviewService(
                 reviewRepository, issueRepository, authrtRepository, taskEventLogRepository,
                 stateMachine, srcRepository, labelRepository, videoRepository, userRepository,
-                objectMapper, eventPublisher);
+                objectMapper, eventPublisher, versionService);
 
         // enrichOne 헬퍼에서 N+1 회피 lookup 들이 빈 결과를 반환하도록
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());
@@ -92,5 +95,23 @@ class ReviewServiceEventPublishTest {
         assertThat(event.rawSn()).isEqualTo(videoId);
         assertThat(event.reviewerNo()).isEqualTo(1L);
         assertThat(event.approvedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("approve_성공시_영상_단위_버전_스냅샷_commitApproved_호출됨")
+    void approve_triggersVersionSnapshot() {
+        // given
+        Long videoId = 100L;
+        TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        when(stts.getRawDataId()).thenReturn(videoId);
+        when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
+        when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
+
+        // when
+        reviewService.approve(videoId, actor);
+
+        // then — SFR-08: 검수 승인 시점에 영상(rawSn) 단위 학습데이터 버전 스냅샷 생성.
+        verify(versionService).commitApproved(eq(videoId), eq(actor));
     }
 }
