@@ -187,7 +187,7 @@ class DeidentReportServiceTest {
 
         assertThat(r.getDataRawSn()).isEqualTo(9200L);
         assertThat(r.getReporterNo()).isEqualTo(200L);
-        assertThat(r.getReason()).isEqualTo("테스트 사유");
+        assertThat(r.getRsn()).isEqualTo("테스트 사유");
         assertThat(r.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
         assertThat(r.getReportDt()).isNotNull();
     }

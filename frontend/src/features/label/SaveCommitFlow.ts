@@ -1,6 +1,6 @@
 // 라벨 저장 + 커밋 시퀀스
 //
-// BE의 PUT /frames/{srcSn}/labels 가 저장과 Gitea 커밋을 한 번에 처리한다.
+// BE의 PUT /frames/{srcSn}/labels 가 저장과 라벨 스냅샷 버전 커밋(DB)을 한 번에 처리한다.
 // (portalMode: PORTAL 채널에서는 BE가 커밋을 skip)
 //
 // portalMode: 외부 채널(SCR-PORTAL-002) 간편 라벨링 — 버전관리 미제공.

@@ -71,13 +71,13 @@ public class FfmpegFrameExtractor {
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public List<LsDataSrc> extractByMarks(LsDataRaw raw, String deidVideoPath, List<MarkItem> marks) {
-        if (raw == null || raw.getFilePath() == null || raw.getFilePath().isBlank()) {
+        if (raw == null || raw.getRawFilePathNm() == null || raw.getRawFilePathNm().isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "영상 메타가 비어있습니다.");
         }
         if (marks == null || marks.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "마킹 데이터가 비어있습니다.");
         }
-        Path source = Paths.get(raw.getFilePath());
+        Path source = Paths.get(raw.getRawFilePathNm());
         if (!frameWriter.sourceExists(source)) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "원본 영상을 찾을 수 없습니다: rawSn=" + raw.getRawSn());
@@ -114,8 +114,8 @@ public class FfmpegFrameExtractor {
                     String checksum = checksumOf(frameFile);
                     mw.writeKeyFrame(i, seekMillis, checksum);
 
-                    LocalDateTime capturedAt = raw.getCapturedAt() == null
-                            ? null : raw.getCapturedAt().plus(Duration.ofMillis(seekMillis));
+                    LocalDateTime capturedAt = raw.getShtDt() == null
+                            ? null : raw.getShtDt().plus(Duration.ofMillis(seekMillis));
                     LsDataSrc src = srcRepository.save(
                             LsDataSrc.create(raw.getRawSn(), i, frameFile.toString(), capturedAt));
                     hstryRepository.save(LsDataSrcHstry.recordCreated(src.getSrcSn()));

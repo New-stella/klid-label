@@ -13,5 +13,5 @@ public interface LsTaskEventLogRepository extends JpaRepository<LsTaskEventLog, 
      * 영상(RAW_DATA_ID) 단위 이벤트 로그 시간순 조회.
      * SCR-TASK-003 작업 이력 화면의 통합 타임라인 응답에 사용.
      */
-    List<LsTaskEventLog> findByRawDataIdOrderByOccurredAtAsc(Long rawDataId);
+    List<LsTaskEventLog> findByRawDataIdOrderByOcrnDtAsc(Long rawDataId);
 }

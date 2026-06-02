@@ -7,6 +7,8 @@ export const ConfigKey = {
   YOLO_CONF_THRESHOLD: 'YOLO_CONF_THRESHOLD',
   YOLO_IMGSZ: 'YOLO_IMGSZ',
   YOLO_IOU: 'YOLO_IOU',
+  // FEAT-007: 라벨링 정밀도 — 경계 세밀함 (Douglas-Peucker epsilon, DECIMAL)
+  POLYGON_SIMPLIFY_TOLERANCE: 'POLYGON_SIMPLIFY_TOLERANCE',
 } as const;
 export type ConfigKey = (typeof ConfigKey)[keyof typeof ConfigKey];
 

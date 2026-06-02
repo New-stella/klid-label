@@ -38,7 +38,7 @@ class ControlNotifyFallbackServiceTest {
     @DisplayName("enqueuePending_enabled_true시_정상_적재")
     void enqueuePending_enabled_success() {
         // given
-        when(repository.countByStatusIn(anyCollection())).thenReturn(0L);
+        when(repository.countBySttsCdIn(anyCollection())).thenReturn(0L);
         ControlNotifyFallbackService svc = new ControlNotifyFallbackService(repository, true, null);
 
         // when
@@ -67,7 +67,7 @@ class ControlNotifyFallbackServiceTest {
     @DisplayName("enqueuePending_큐_깊이_초과시_예외")
     void enqueuePending_queueFull_throws() {
         // given
-        when(repository.countByStatusIn(anyCollection()))
+        when(repository.countBySttsCdIn(anyCollection()))
                 .thenReturn(ControlNotifyFallbackService.MAX_QUEUE_DEPTH);
         ControlNotifyFallbackService svc = new ControlNotifyFallbackService(repository, true, null);
 
@@ -82,7 +82,7 @@ class ControlNotifyFallbackServiceTest {
     @DisplayName("enqueuePending_중복_idempotencyKey_멱등_처리")
     void enqueuePending_duplicateKey_idempotent() {
         // given
-        when(repository.countByStatusIn(anyCollection())).thenReturn(0L);
+        when(repository.countBySttsCdIn(anyCollection())).thenReturn(0L);
         when(repository.save(any(LsControlNotifyFallback.class)))
                 .thenThrow(new DataIntegrityViolationException("uk_idempotency_key"));
         ControlNotifyFallbackService svc = new ControlNotifyFallbackService(repository, true, null);
@@ -138,7 +138,7 @@ class ControlNotifyFallbackServiceTest {
         svc.markSucceeded(1L);
 
         // then
-        assertThat(entity.getStatus()).isEqualTo(LsControlNotifyFallback.STATUS_SUCCEEDED);
+        assertThat(entity.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_SUCCEEDED);
     }
 
     @Test
@@ -153,8 +153,8 @@ class ControlNotifyFallbackServiceTest {
         svc.markFailedAndSchedule(1L, "503 Service Unavailable");
 
         // then
-        assertThat(entity.getRetryCount()).isEqualTo(1);
-        assertThat(entity.getStatus()).isEqualTo(LsControlNotifyFallback.STATUS_PENDING);
+        assertThat(entity.getRtryCnt()).isEqualTo(1);
+        assertThat(entity.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_PENDING);
     }
 
     @Test
@@ -171,7 +171,7 @@ class ControlNotifyFallbackServiceTest {
         }
 
         // then
-        assertThat(entity.getStatus()).isEqualTo(LsControlNotifyFallback.STATUS_DEAD_LETTER);
-        assertThat(entity.getDeadLetterAt()).isNotNull();
+        assertThat(entity.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_DEAD_LETTER);
+        assertThat(entity.getDlqDt()).isNotNull();
     }
 }

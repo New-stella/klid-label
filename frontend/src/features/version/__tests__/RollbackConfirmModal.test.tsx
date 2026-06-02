@@ -28,7 +28,7 @@ describe('RollbackConfirmModal', () => {
         200,
         {
           success: true,
-          data: { newCommitSha: 'ccc333', rolledBackFrom: 'bbb222' },
+          data: { lblHstrySn: 9001, srcSn: 241, versionHash: 'bbb222', registeredUserNo: 42, registeredAt: '2026-05-29T09:00:00Z' },
           message: null,
           errorCode: null,
         },

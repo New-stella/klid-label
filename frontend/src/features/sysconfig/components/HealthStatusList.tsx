@@ -11,7 +11,6 @@ const componentLabels: Record<string, string> = {
   controlServer: '관제서버',
   portalServer: '포털서버',
   aiServer: 'AI 서버',
-  gitea: 'Gitea',
   deidentify: '비식별 서버',
 };
 

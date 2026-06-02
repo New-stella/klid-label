@@ -48,3 +48,24 @@ export const yoloConfigSchema = z.object({
 });
 
 export type YoloConfigForm = z.infer<typeof yoloConfigSchema>;
+
+/**
+ * FEAT-007 (SFR-08-03) 라벨링 정밀도 zod 스키마.
+ * - YOLO_CONF_THRESHOLD (인식 민감도): 25~80 (BE 가 /100 → 0.25~0.80 confidence)
+ * - POLYGON_SIMPLIFY_TOLERANCE (경계 세밀함): 0.0~50.0 (Douglas-Peucker epsilon px, DECIMAL)
+ *
+ * 보안: 사용자 입력은 zod로 1차 검증 후 BE에 전달. BE는 서버 측 재검증(이중 방어).
+ */
+export const precisionConfigSchema = z.object({
+  YOLO_CONF_THRESHOLD: z
+    .number({ invalid_type_error: '숫자를 입력해주세요' })
+    .int('정수만 허용')
+    .min(25, '25 ~ 80 범위 내에서 입력해주세요')
+    .max(80, '25 ~ 80 범위 내에서 입력해주세요'),
+  POLYGON_SIMPLIFY_TOLERANCE: z
+    .number({ invalid_type_error: '숫자를 입력해주세요' })
+    .min(0, '0.0 ~ 50.0 범위 내에서 입력해주세요')
+    .max(50, '0.0 ~ 50.0 범위 내에서 입력해주세요'),
+});
+
+export type PrecisionConfigForm = z.infer<typeof precisionConfigSchema>;

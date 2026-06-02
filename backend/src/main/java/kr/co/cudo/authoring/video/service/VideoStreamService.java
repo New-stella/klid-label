@@ -65,7 +65,7 @@ public class VideoStreamService {
 
         // 2) Path Traversal 방어 (CWE-22)
         Path baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path resolved = resolveSafe(baseDir, raw.getFilePath());
+        Path resolved = resolveSafe(baseDir, raw.getRawFilePathNm());
 
         // 3) 파일 존재 확인
         if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {

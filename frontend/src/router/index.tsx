@@ -83,7 +83,7 @@ const AugmentResultPage = lazy(() =>
   })),
 );
 
-// Phase 11 — 포털 채널 (TUS 업로드 + 간편 라벨링) lazy 로드
+// Phase 11 — 포털 채널 (데이터마트 영상 선택 + 간편 라벨링, ADR-013) lazy 로드
 const PortalHomePage = lazy(() =>
   import('@/pages/portal/PortalHomePage').then((m) => ({ default: m.PortalHomePage })),
 );

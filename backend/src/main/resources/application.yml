@@ -42,7 +42,7 @@ spring:
       org.quartz.scheduler.instanceName: KlidAuthoringScheduler
       org.quartz.scheduler.instanceId: AUTO
       org.quartz.threadPool.threadCount: '3'
-      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
       org.quartz.jobStore.useProperties: 'true'
       org.quartz.jobStore.misfireThreshold: '60000'
       org.quartz.jobStore.isClustered: 'false'
@@ -101,12 +101,6 @@ authoring:
     ai-server:
       base-url: ${AI_SERVER_URL:http://localhost:9300}
       timeout-ms: 60000
-    gitea:
-      base-url: ${GITEA_BASE_URL:http://localhost:3000}
-      # 운영/스테이징/개발: 환경변수 GITEA_TOKEN 필수 (미설정 시 부트 실패)
-      token: ${GITEA_TOKEN}
-      owner: ${GITEA_OWNER:authoring}
-      repo: ${GITEA_REPO:labels}
   batch:
     rate-per-min: 1
     frame-interval-sec: 60
@@ -122,10 +116,6 @@ authoring:
     binary: ${FFMPEG_BIN:ffmpeg}
     # ffprobe 바이너리 경로 — DevAutolabelTestService 가 업로드된 영상에서 duration 자동 추출 시 사용.
     ffprobe-binary: ${FFPROBE_BIN:ffprobe}
-  gitea:
-    retry:
-      # Gitea fallback 재시도 잡 활성화 (Phase 8). 기본 false → prd 에서 true 로 오버라이드.
-      enabled: ${GITEA_RETRY_ENABLED:false}
   # Phase 2 — 관제서버 outbound 완료/수정 통지.
   #  - enabled=false 기본 (local/dev). 관제서버 연동 확정 시 환경변수로 true 활성화.
   #  - url: 관제서버 inbound SPI 주소. 평문 커밋 금지 → 환경변수 CONTROL_NOTIFY_URL 사용.
@@ -134,16 +124,6 @@ authoring:
     url: ${CONTROL_NOTIFY_URL:http://localhost:8090}
     timeout-ms: ${CONTROL_NOTIFY_TIMEOUT_MS:10000}
     debounce-window-sec: ${CONTROL_NOTIFY_DEBOUNCE_SEC:60}
-
-# Phase 3 — Gitea fallback 영속 큐 (ccarch if-gitea-contents).
-#  - false 기본 (local/dev). CircuitBreaker open 시 즉시 예외 전파 (현재 동작 유지).
-#  - true (stg/prd) 활성화 시 LS_GITEA_FALLBACK_QUEUE 적재 + GiteaFallbackRetryJob 1분 polling.
-gitea:
-  fallback:
-    enabled: ${GITEA_FALLBACK_ENABLED:false}
-    retry:
-      interval-ms: ${GITEA_FALLBACK_RETRY_INTERVAL_MS:60000}
-      initial-delay-ms: ${GITEA_FALLBACK_RETRY_INITIAL_DELAY_MS:30000}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
@@ -170,11 +150,6 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
-      gitea:
-        failure-rate-threshold: 50
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        wait-duration-in-open-state: 30s
       # Phase 1 — 외부 VLM 시계열 위탁 클라이언트 (vlm.client.enabled=true 일 때만 호출 발생)
       vlmClient:
         failure-rate-threshold: 50
@@ -197,10 +172,6 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
-      gitea:
-        max-attempts: 3
-        wait-duration: 1s
-        exponential-backoff-multiplier: 2
       vlmClient:
         max-attempts: 3
         wait-duration: 1s
@@ -213,7 +184,6 @@ resilience4j:
     instances:
       deid:    { timeout-duration: 60s }
       ai:      { timeout-duration: 60s }
-      gitea:   { timeout-duration: 60s }
       # vlmClient TimeLimiter 미사용 — WebClient `.timeout(...)` 으로 Reactor 네이티브 처리.
       # 타임아웃 단일 출처: vlm.client.timeout-seconds (아래)
 

@@ -33,20 +33,20 @@ public record MarkingResponse(
     public static MarkingResponse from(LsMarking entity, ObjectMapper mapper) {
         List<MarkItem> parsed;
         try {
-            parsed = mapper.readValue(entity.getMarks(), MARK_LIST_TYPE);
+            parsed = mapper.readValue(entity.getMarkCn(), MARK_LIST_TYPE);
         } catch (Exception e) {
             parsed = List.of();
         }
         return new MarkingResponse(
                 entity.getMarkingSn(),
                 entity.getRawSn(),
-                entity.getEventName(),
-                entity.getMarkingMode(),
-                entity.getIntervalFrames(),
-                entity.getVideoPath(),
+                entity.getEvntNm(),
+                entity.getMarkModeCd(),
+                entity.getFrmeIntvNocs(),
+                entity.getVideoFilePathNm(),
                 parsed,
-                entity.getStatus(),
-                entity.getCreatedAt()
+                entity.getSttsCd(),
+                entity.getRegDt()
         );
     }
 }

@@ -12,9 +12,9 @@ public interface LsLabelPresetRepository extends JpaRepository<LsLabelPreset, Lo
 
     List<LsLabelPreset> findAllByOrderByPresetIdDesc();
 
-    boolean existsByName(String name);
+    boolean existsByPresetNm(String presetNm);
 
-    boolean existsByNameAndPresetIdNot(String name, Long presetId);
+    boolean existsByPresetNmAndPresetIdNot(String presetNm, Long presetId);
 
     /**
      * 이벤트 타입에 매핑된 프리셋 조회. UNIQUE 제약상 0 또는 1건이 보장된다.

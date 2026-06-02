@@ -30,7 +30,7 @@ import java.time.Duration;
  * Phase 2 정책 (V2):
  *  - 영상 단위로 비식별 호출.
  *  - 외부 비식별 API 입력은 원본 영상, 출력은 비식별 영상.
- *  - 결과 영상 경로는 LS_DEIDENT_REPORT.DE_IDNTF_FILE_PATH 에만 저장.
+ *  - 결과 영상 경로는 LS_DEIDENT_REPORT.DE_IDNTF_FILE_PATH_NM 에만 저장.
  *  - 원본 filePath 는 절대 변경되지 않는다 — 원본 보존 원칙.
  * <p>
  * 실패 처리:
@@ -75,12 +75,12 @@ public class DeidentifyStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
         LsDeidentProcLog procLog = procLogRepository.save(
-                LsDeidentProcLog.request(raw.getRawSn(), null, raw.getFilePath(), "batch"));
+                LsDeidentProcLog.request(raw.getRawSn(), null, raw.getRawFilePathNm(), "batch"));
 
         try {
             Path target = resolveSafeTargetPath(raw.getRawSn());
             DeidentifyResponse resp = deidentifyClient
-                    .deidentify(new DeidentifyRequest(raw.getFilePath(), target.toString()))
+                    .deidentify(new DeidentifyRequest(raw.getRawFilePathNm(), target.toString()))
                     .block(Duration.ofSeconds(70));
             if (resp == null || resp.resultPath() == null) {
                 throw new IllegalStateException("비식별 응답이 비어있음 rawSn=" + raw.getRawSn());

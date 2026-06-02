@@ -6,7 +6,7 @@ import java.time.Instant;
  * Phase 2 — 관제서버 outbound TASK_COMPLETED 통지 페이로드.
  *
  * <p>CWE-359: PII, 토큰, 원본 이미지 경로 포함 금지.
- * 라벨/메타 본문 자체는 포함하지 않으며, 관제가 필요 시 본 도구 API 또는 Gitea 조회로 보강.
+ * 라벨/메타 본문 자체는 포함하지 않으며, 관제가 필요 시 본 도구 조회 API 로 보강.
  *
  * @param eventType     이벤트 타입 — "TASK_COMPLETED"
  * @param rawSn         작업 ID (= LS_DATA_RAW.RAW_SN)

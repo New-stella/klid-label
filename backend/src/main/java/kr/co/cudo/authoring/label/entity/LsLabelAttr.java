@@ -22,11 +22,11 @@ import java.time.LocalDateTime;
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>(LABEL_ID, NAME) UNIQUE — DB 레벨 + Service 레벨 이중 가드.</li>
- *   <li>INPUT_TYPE: SELECT / CHECKBOX / RADIO / NUMBER / TEXT.</li>
- *   <li>INPUT_TYPE 이 SELECT/CHECKBOX/RADIO 면 VALUES_JSON 필수 (Service 검증).</li>
- *   <li>MUTABLE='Y' 면 프레임마다 다른 값 허용. 'N' 이면 트랙 단위 고정 (강제는 향후 Phase).</li>
- *   <li>SORT_NO 는 목록 정렬용 (ASC).</li>
+ *   <li>(LABEL_ID, ATTR_NM) UNIQUE — DB 레벨 + Service 레벨 이중 가드.</li>
+ *   <li>INPUT_TYPE_CD: SELECT / CHECKBOX / RADIO / NUMBER / TEXT.</li>
+ *   <li>INPUT_TYPE_CD 가 SELECT/CHECKBOX/RADIO 면 VALUES_CN 필수 (Service 검증).</li>
+ *   <li>MUTABLE_YN='Y' 면 프레임마다 다른 값 허용. 'N' 이면 트랙 단위 고정 (강제는 향후 Phase).</li>
+ *   <li>SORT_SEQ 는 목록 정렬용 (ASC).</li>
  *   <li>soft delete (USE_YN='N') — hard delete 금지.</li>
  * </ul>
  */
@@ -50,23 +50,23 @@ public class LsLabelAttr {
     @Column(name = "LABEL_ID", nullable = false)
     private Long labelId;
 
-    @Column(name = "NAME", nullable = false, length = 64)
-    private String name;
+    @Column(name = "ATTR_NM", nullable = false, length = 64)
+    private String attrNm;
 
-    @Column(name = "INPUT_TYPE", nullable = false, length = 16)
-    private String inputType;
+    @Column(name = "INPUT_TYPE_CD", nullable = false, length = 16)
+    private String inputTypeCd;
 
-    @Column(name = "VALUES_JSON", length = 1000)
-    private String valuesJson;
+    @Column(name = "VALUES_CN", length = 1000)
+    private String valuesCn;
 
-    @Column(name = "DEFAULT_VAL", length = 255)
-    private String defaultVal;
+    @Column(name = "DFLT_VL", length = 255)
+    private String dfltVl;
 
-    @Column(name = "MUTABLE", nullable = false, length = 1)
-    private String mutable;
+    @Column(name = "MUTABLE_YN", nullable = false, length = 1)
+    private String mutableYn;
 
-    @Column(name = "SORT_NO", nullable = false)
-    private Integer sortNo;
+    @Column(name = "SORT_SEQ", nullable = false)
+    private Integer sortSeq;
 
     @Column(name = "USE_YN", nullable = false, length = 1)
     private String useYn;
@@ -83,15 +83,15 @@ public class LsLabelAttr {
     @Column(name = "MDFCN_DT")
     private LocalDateTime mdfcnDt;
 
-    private LsLabelAttr(Long labelId, String name, String inputType, String valuesJson,
-                        String defaultVal, String mutable, Integer sortNo, String regId) {
+    private LsLabelAttr(Long labelId, String attrNm, String inputTypeCd, String valuesCn,
+                        String dfltVl, String mutableYn, Integer sortSeq, String regId) {
         this.labelId = labelId;
-        this.name = name;
-        this.inputType = inputType;
-        this.valuesJson = valuesJson;
-        this.defaultVal = defaultVal;
-        this.mutable = (mutable == null || mutable.isBlank()) ? "Y" : mutable;
-        this.sortNo = sortNo == null ? 0 : sortNo;
+        this.attrNm = attrNm;
+        this.inputTypeCd = inputTypeCd;
+        this.valuesCn = valuesCn;
+        this.dfltVl = dfltVl;
+        this.mutableYn = (mutableYn == null || mutableYn.isBlank()) ? "Y" : mutableYn;
+        this.sortSeq = sortSeq == null ? 0 : sortSeq;
         this.useYn = "Y";
         this.regId = regId;
     }
@@ -99,29 +99,29 @@ public class LsLabelAttr {
     /**
      * 정적 팩토리 — 새 속성 정의 생성.
      *
-     * @param labelId    LS_LABEL FK
-     * @param name       속성 이름 (1~64자, 라벨 내 UNIQUE)
-     * @param inputType  SELECT / CHECKBOX / RADIO / NUMBER / TEXT
-     * @param valuesJson 옵션 목록 JSON (SELECT/CHECKBOX/RADIO 일 때 필수)
-     * @param defaultVal 기본값 (선택)
-     * @param mutable    'Y'(기본) | 'N' — 프레임마다 변경 허용 여부
-     * @param sortNo     정렬 순서 (null 허용 — 0 으로 정규화)
-     * @param regId      등록자 ID (선택)
+     * @param labelId     LS_LABEL FK
+     * @param attrNm      속성 이름 (1~64자, 라벨 내 UNIQUE)
+     * @param inputTypeCd SELECT / CHECKBOX / RADIO / NUMBER / TEXT
+     * @param valuesCn    옵션 목록 JSON (SELECT/CHECKBOX/RADIO 일 때 필수)
+     * @param dfltVl      기본값 (선택)
+     * @param mutableYn   'Y'(기본) | 'N' — 프레임마다 변경 허용 여부
+     * @param sortSeq     정렬 순서 (null 허용 — 0 으로 정규화)
+     * @param regId       등록자 ID (선택)
      */
-    public static LsLabelAttr create(Long labelId, String name, String inputType, String valuesJson,
-                                     String defaultVal, String mutable, Integer sortNo, String regId) {
-        return new LsLabelAttr(labelId, name, inputType, valuesJson, defaultVal, mutable, sortNo, regId);
+    public static LsLabelAttr create(Long labelId, String attrNm, String inputTypeCd, String valuesCn,
+                                     String dfltVl, String mutableYn, Integer sortSeq, String regId) {
+        return new LsLabelAttr(labelId, attrNm, inputTypeCd, valuesCn, dfltVl, mutableYn, sortSeq, regId);
     }
 
     /** 비즈니스 메서드 — 속성 정의 수정. Setter 대신 의미 있는 메서드명 사용. */
-    public void update(String name, String inputType, String valuesJson, String defaultVal,
-                       String mutable, Integer sortNo, String mdfcnId) {
-        this.name = name;
-        this.inputType = inputType;
-        this.valuesJson = valuesJson;
-        this.defaultVal = defaultVal;
-        this.mutable = (mutable == null || mutable.isBlank()) ? "Y" : mutable;
-        this.sortNo = sortNo == null ? 0 : sortNo;
+    public void update(String attrNm, String inputTypeCd, String valuesCn, String dfltVl,
+                       String mutableYn, Integer sortSeq, String mdfcnId) {
+        this.attrNm = attrNm;
+        this.inputTypeCd = inputTypeCd;
+        this.valuesCn = valuesCn;
+        this.dfltVl = dfltVl;
+        this.mutableYn = (mutableYn == null || mutableYn.isBlank()) ? "Y" : mutableYn;
+        this.sortSeq = sortSeq == null ? 0 : sortSeq;
         this.mdfcnId = mdfcnId;
     }
 

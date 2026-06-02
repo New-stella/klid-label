@@ -4,27 +4,20 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.common.client.GiteaClient;
-import kr.co.cudo.authoring.common.client.dto.CommitResponse;
-import kr.co.cudo.authoring.common.client.dto.DiffFile;
-import kr.co.cudo.authoring.common.client.dto.DiffResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
-import kr.co.cudo.authoring.version.async.GiteaCommitFallbackQueue;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
-import kr.co.cudo.authoring.version.fallback.GiteaFallbackQueueService;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +25,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -40,30 +32,45 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Phase 5 — 라벨 버전관리 (DB 스냅샷 기반).
+ *
+ * <p>운영 제약상 외부 버전관리 서버를 둘 수 없어 라벨 버전/이력을 DB({@link LsLabelVersion}) 에만 저장한다.
+ * 각 버전은 라벨 전체 JSON 스냅샷({@code LABEL_PAYLOAD}) 과 그 SHA-256({@code VERSION_HASH}) 을 보관하며,
+ * diff/rollback 은 모두 이 스냅샷을 BE 에서 직접 파싱·비교하여 계산한다.
+ *
+ * <p>보안:
+ * <ul>
+ *   <li>IDOR (CWE-639): commit/list/diff/rollback 모두 {@link LabelAccessGuard} 로 srcSn 소유/배정 검증.</li>
+ *   <li>Race (CWE-362): 같은 srcSn 동시 commit/rollback 시 ACTIVE 행 비관적 잠금으로 직렬화.</li>
+ *   <li>CWE-770 DoS: 스냅샷 페이로드 1MB 한도 검증.</li>
+ *   <li>Privacy (CWE-359): 라벨 본문은 로그 출력 금지.</li>
+ * </ul>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class VersionService {
 
+    /** CWE-770 — 단일 라벨 스냅샷 페이로드 최대 크기 (바이트). */
+    public static final int MAX_PAYLOAD_BYTES = 1024 * 1024;
+
     private final LsLabelVersionRepository labelVersionRepository;
-    private final GiteaClient giteaClient;
-    private final GiteaPathPolicy pathPolicy;
-    private final GiteaCommitFallbackQueue fallbackQueue;
     private final LabelAccessGuard accessGuard;
     private final VideoRepository videoRepository;
     private final WorkLockService workLockService;
     private final ObjectMapper objectMapper;
+
     /**
-     * Phase 3 — Gitea 영속 fallback 큐 (ccarch {@code if-gitea-contents} 명세).
-     * {@code gitea.fallback.enabled=true} 환경에서만 활성. 기존 in-memory {@link GiteaCommitFallbackQueue} 와 병행 적재 —
-     * 회귀 0건 보장. enabled=false (local/dev) 환경에서는 {@link GiteaFallbackQueueService#enqueuePut} 가 즉시 {@code Optional.empty()} 반환.
+     * 현재 라벨 상태를 새 버전으로 저장한다.
+     *
+     * <p>접근권한 + 잠금 검증 후 라벨 JSON 의 SHA-256 을 계산하고, 스냅샷과 함께 새 active 버전을 기록한다.
+     * 멱등: 같은 프레임의 현재 active 버전과 동일한 페이로드(=동일 versionHash) 면 새 row 를 만들지 않고
+     * 기존 active 버전의 해시를 그대로 반환한다 (저장 버튼 더블클릭/재시도 안전, 복합 UNIQUE 충돌 회피).
+     *
+     * @return 저장된(또는 기존) 버전의 versionHash
      */
-    private final GiteaFallbackQueueService persistentFallbackQueue;
-
-    @Value("${authoring.integration.gitea.repo}")
-    private String repo;
-
     @Transactional("controlTransactionManager")
     public String commit(Long srcSn, String labelsJson, TokenClaims actor) {
         if (srcSn == null) {
@@ -79,69 +86,29 @@ public class VersionService {
             throw new CustomException(ErrorCode.CONFLICT, "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
         }
 
-        String path = pathPolicy.path(srcSn);
-        String message = buildCommitMessage(path, labelsJson, src.getFrameNo(), srcSn, actor.sub());
-        String contentBase64 = Base64.getEncoder().encodeToString(
-                (labelsJson == null ? "" : labelsJson).getBytes(StandardCharsets.UTF_8));
-        try {
-            CommitResponse resp = giteaClient
-                    .createOrUpdateFile(repo, path, contentBase64, message, actor.sub(), "main")
-                    .block(GiteaClient.BLOCK_TIMEOUT);
-            String sha = resp == null ? "" : resp.sha();
-            saveActiveVersion(src, raw, sha, LsLabelVersion.SAVE_REASON_MANUAL, actor.sub());
-            log.info("[Version] committed srcSn={} sha={} actor={}", srcSn, sha, actor.sub());
-            return sha;
-        } catch (Exception e) {
-            log.warn("[Version] gitea commit failed srcSn={} actor={} reason={}",
-                    srcSn, actor.sub(), e.getClass().getSimpleName());
-            // MEDIUM-2 (CWE-694): 중복 commit 차단 — enabled 분기로 단일 큐만 사용.
-            // enabled=true (stg/prd) → 영속 큐만 사용 (Quartz/Scheduler 가 재시도)
-            // enabled=false (local/dev 단일 인스턴스) → in-memory 큐만 사용 (기존 회귀 보존)
-            enqueueFallback(srcSn, labelsJson, actor.sub(), path, message, contentBase64);
-            return null;
-        }
-    }
+        String payload = labelsJson == null ? "" : labelsJson;
+        validatePayloadSize(payload);
+        String versionHash = sha256Hex(payload);
 
-    /**
-     * MEDIUM-2 (CWE-694) — Gitea 장애 시 fallback 적재 단일화.
-     * persistentFallbackQueue.isEnabled() 기준 단일 큐만 호출하여 중복 commit 방지.
-     */
-    private void enqueueFallback(Long srcSn, String labelsJson, String actorSub,
-                                 String path, String commitMessage, String contentBase64) {
-        if (persistentFallbackQueue.isEnabled()) {
-            try {
-                // NEW-2: 결정적 idempotencyKey — 같은 (srcSn, path, content) 재시도 시 UNIQUE 충돌로 중복 차단.
-                String idempotencyKey = deterministicIdempotencyKey(srcSn, path, contentBase64);
-                persistentFallbackQueue.enqueuePut(idempotencyKey, path, "main",
-                        commitMessage, actorSub, contentBase64);
-            } catch (RuntimeException pqe) {
-                // 영속 큐 적재 실패(예: 큐 가득 참, DB 다운) — 안전망으로 in-memory 큐에 적재.
-                log.warn("[Version] persistent fallback enqueue failed srcSn={} reason={} - in-memory fallback",
-                        srcSn, pqe.getClass().getSimpleName());
-                fallbackQueue.enqueue(srcSn, labelsJson, actorSub);
+        // Race 직렬화 — ACTIVE 행 비관적 잠금. 동시 commit/rollback 트랜잭션이 순차 진행되어
+        // versionNo 충돌·active 중복을 차단한다.
+        List<LsLabelVersion> activeVersions = labelVersionRepository.findActiveForUpdate(
+                raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
+
+        // 멱등 재커밋 — 현재 active 가 동일 스냅샷이면 새 버전 생성하지 않음.
+        for (LsLabelVersion active : activeVersions) {
+            if (versionHash.equals(active.getVersionHash())) {
+                log.info("[Version] commit idempotent srcSn={} hash={} actor={}",
+                        srcSn, versionHash, actor.sub());
+                return versionHash;
             }
-        } else {
-            // enabled=false 환경: 기존 in-memory 큐 경로 유지 (local/dev 단일 인스턴스).
-            fallbackQueue.enqueue(srcSn, labelsJson, actorSub);
         }
-    }
 
-    /**
-     * NEW-2 — srcSn + path + contentBase64 의 SHA-256 prefix(32자) 로 결정적 idempotency key 생성.
-     *
-     * <p>사용자가 "저장" 버튼을 더블클릭 / 네트워크 재시도로 같은 페이로드가 두 번 도착해도
-     * 같은 key 생성 → DB UNIQUE 제약(IDEMPOTENCY_KEY)이 자연스럽게 중복 적재 차단.
-     * (DataIntegrityViolationException 흡수 로직은 {@link GiteaFallbackQueueService#enqueuePut} 에 이미 존재.)
-     */
-    private String deterministicIdempotencyKey(Long srcSn, String path, String contentBase64) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            String input = srcSn + ":" + path + ":" + (contentBase64 == null ? "" : contentBase64);
-            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash).substring(0, 32);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        LsLabelVersion saved = saveActiveVersion(src, raw, activeVersions, versionHash, payload,
+                LsLabelVersion.SAVE_REASON_MANUAL, actor.sub());
+        log.info("[Version] committed srcSn={} hash={} version={} actor={}",
+                srcSn, versionHash, saved.getVersionNo(), actor.sub());
+        return versionHash;
     }
 
     public List<VersionItem> listVersions(Long srcSn, TokenClaims actor) {
@@ -150,193 +117,137 @@ public class VersionService {
         if (versions.isEmpty()) {
             return Collections.emptyList();
         }
-
-        List<CommitResponse> giteaCommits = Collections.emptyList();
-        try {
-            List<CommitResponse> resp = giteaClient.listCommits(repo, pathPolicy.path(srcSn), 100)
-                    .block(GiteaClient.BLOCK_TIMEOUT);
-            if (resp != null) {
-                giteaCommits = resp;
-            }
-        } catch (Exception e) {
-            log.warn("[Version] gitea listCommits failed - fallback to LS_LABEL_VERSION. srcSn={} reason={}",
-                    srcSn, e.getClass().getSimpleName());
-        }
-
-        if (!giteaCommits.isEmpty()) {
-            List<VersionItem> items = new ArrayList<>(giteaCommits.size());
-            for (int i = 0; i < giteaCommits.size(); i++) {
-                items.add(VersionItem.fromGitea(giteaCommits.get(i), i == 0));
-            }
-            return items;
-        }
         List<VersionItem> items = new ArrayList<>(versions.size());
-        for (int i = 0; i < versions.size(); i++) {
-            items.add(VersionItem.fromLabelVersion(versions.get(i), i == 0));
+        for (LsLabelVersion v : versions) {
+            items.add(VersionItem.fromLabelVersion(v, LsLabelVersion.ACTIVE_YES.equals(v.getActiveYn())));
         }
         return items;
     }
 
-    public DiffResponseDto diff(String fromSha, String toSha, TokenClaims actor) {
-        validateSha(fromSha);
-        validateSha(toSha);
+    /**
+     * 두 버전(versionHash) 간 라벨 단위 diff.
+     *
+     * <p>각 버전의 {@code LABEL_PAYLOAD} 를 파싱하여 라벨 단위 ADDED/REMOVED/MODIFIED 를 계산한다.
+     * 두 버전이 같은 프레임(srcSn)일 때만 의미 있으므로 다른 경우 빈 결과를 반환한다.
+     */
+    public DiffResponseDto diff(String fromHash, String toHash, TokenClaims actor) {
+        validateHash(fromHash);
+        validateHash(toHash);
 
-        LsLabelVersion fromVersion = labelVersionRepository.findByGiteaCmtHash(fromSha)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "from 커밋을 찾을 수 없습니다."));
-        LsLabelVersion toVersion = labelVersionRepository.findByGiteaCmtHash(toSha)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "to 커밋을 찾을 수 없습니다."));
+        LsLabelVersion fromVersion = findByHashOrThrow(fromHash, "from 버전을 찾을 수 없습니다.");
+        LsLabelVersion toVersion = findByHashOrThrow(toHash, "to 버전을 찾을 수 없습니다.");
         accessGuard.verifyAccess(fromVersion.getDataSrcSn(), actor);
         accessGuard.verifyAccess(toVersion.getDataSrcSn(), actor);
 
-        // 1차: Gitea compare API 사용 — files 필드가 응답에 포함되면 그대로 사용
-        DiffResponse resp = null;
-        try {
-            resp = giteaClient.diff(repo, fromSha, toSha).block(GiteaClient.BLOCK_TIMEOUT);
-        } catch (Exception e) {
-            log.warn("[Version] gitea compare failed - fallback to raw content diff. from={} to={} reason={}",
-                    fromSha, toSha, e.getClass().getSimpleName());
-        }
-
-        // 라벨 단위 diff 산출은 항상 시도 — 같은 srcSn 일 때만 의미 있음.
-        // FE 작업이력 패널이 사용하는 핵심 필드이므로 compare 결과와 무관하게 항상 채운다.
-        List<LabelDiffDto> labelDiffs = computeLabelDiffsIfSameSrc(fromVersion, toVersion, fromSha, toSha);
-
-        if (resp != null && resp.files() != null && !resp.files().isEmpty()) {
-            return DiffResponseDto.of(fromSha, toSha, resp, labelDiffs);
-        }
-
-        // 2차 fallback: Gitea compare 응답에 files 가 없으므로 (Gitea compare API 사양 — commits 만 반환),
-        // 두 SHA 시점의 라벨 파일을 직접 받아 BE 에서 내용 비교한다.
-        // srcSn 당 라벨 파일은 1개 (labels/{srcSn}.json) — fromVersion.dataSrcSn 과 toVersion.dataSrcSn 이
-        // 같을 때만 의미 있는 비교가 가능하므로 다른 경우는 빈 결과를 반환한다.
-        if (!fromVersion.getDataSrcSn().equals(toVersion.getDataSrcSn())) {
-            return new DiffResponseDto(fromSha, toSha, List.of(), List.of());
-        }
-        String path = pathPolicy.path(fromVersion.getDataSrcSn());
-        String fromContent = fetchContentOrEmpty(fromSha, path);
-        String toContent = fetchContentOrEmpty(toSha, path);
-        if (fromContent.equals(toContent)) {
-            // 동일 내용 → 변경 없음
-            return new DiffResponseDto(fromSha, toSha, List.of(), List.of());
-        }
-        DiffFile file = buildDiffFile(path, fromContent, toContent);
-        // raw content diff 경로에서는 위 computeLabelDiffsIfSameSrc 가 이미 같은 두 SHA 의 content 로 비교했으므로 그대로 사용.
-        return DiffResponseDto.of(fromSha, toSha, new DiffResponse(List.of(file)), labelDiffs);
-    }
-
-    /**
-     * commit 메시지 enrichment — 현재 HEAD content 와 새 labelsJson 을 비교해
-     * 프레임 번호 + 추가/삭제/수정 카운트 + 작성자를 포함한 한글 메시지를 생성한다.
-     *
-     * <p>형식:
-     * <ul>
-     *   <li>변화 있음: {@code "프레임 N: +A개 추가, -R개 삭제, ~M개 수정 (작성자: ACTOR)"} (카운트 0 항목은 생략)</li>
-     *   <li>최초 commit (HEAD 없음): {@code "프레임 N: +A개 추가 (작성자: ACTOR)"} 또는 신규 라벨도 없으면 {@code "프레임 N: 최초 커밋 (작성자: ACTOR)"}</li>
-     *   <li>변화 없음 (re-commit): {@code "프레임 N: 변경 없음 (재커밋) (작성자: ACTOR)"}</li>
-     *   <li>fetch/parse 실패: 기본 메시지 {@code "라벨 저장 (작성자: ACTOR)"} 로 폴백 (회귀가드)</li>
-     * </ul>
-     *
-     * <p>frameNo 가 null 이면 {@code "프레임 ?"} 으로 표기 (srcSn 기반 폴백은 frameNo 보장이 강해 사용하지 않음).
-     */
-    private String buildCommitMessage(String path, String newLabelsJson, Integer frameNo,
-                                      Long srcSn, String actorSub) {
-        String defaultMessage = "라벨 저장 (작성자: " + actorSub + ")";
-        String frameLabel = "프레임 " + (frameNo != null ? frameNo : "?");
-        try {
-            // HEAD content fetch — 최초 commit 이면 404 등으로 실패 → 빈 문자열 처리
-            String headContent = fetchHeadContentOrEmpty(path);
-            Map<String, LabelSnapshot> beforeMap = parseLabelsById(headContent);
-            Map<String, LabelSnapshot> afterMap = parseLabelsById(newLabelsJson);
-
-            int added = 0;
-            int modified = 0;
-            int removed = 0;
-            for (Map.Entry<String, LabelSnapshot> e : afterMap.entrySet()) {
-                LabelSnapshot before = beforeMap.get(e.getKey());
-                if (before == null) {
-                    added++;
-                } else if (!before.equalsContent(e.getValue())) {
-                    modified++;
-                }
-            }
-            for (String id : beforeMap.keySet()) {
-                if (!afterMap.containsKey(id)) {
-                    removed++;
-                }
-            }
-
-            boolean initialCommit = headContent.isEmpty();
-            if (added == 0 && removed == 0 && modified == 0) {
-                if (initialCommit) {
-                    return frameLabel + ": 최초 커밋 (작성자: " + actorSub + ")";
-                }
-                return frameLabel + ": 변경 없음 (재커밋) (작성자: " + actorSub + ")";
-            }
-            StringBuilder sb = new StringBuilder(frameLabel).append(": ");
-            boolean first = true;
-            if (added > 0) {
-                sb.append("+").append(added).append("개 추가");
-                first = false;
-            }
-            if (removed > 0) {
-                if (!first) sb.append(", ");
-                sb.append("-").append(removed).append("개 삭제");
-                first = false;
-            }
-            if (modified > 0) {
-                if (!first) sb.append(", ");
-                sb.append("~").append(modified).append("개 수정");
-            }
-            sb.append(" (작성자: ").append(actorSub).append(")");
-            return sb.toString();
-        } catch (Exception e) {
-            log.warn("[Version] commit message enrichment failed srcSn={} reason={} - fallback to default message",
-                    srcSn, e.getClass().getSimpleName());
-            return defaultMessage;
-        }
-    }
-
-    /**
-     * 현재 HEAD 시점의 라벨 파일 content. 최초 commit 이거나 fetch 실패 시 빈 문자열.
-     * {@link #fetchContentOrEmpty(String, String)} 와 분리한 이유: HEAD 는 ref="HEAD" 로 조회.
-     */
-    private String fetchHeadContentOrEmpty(String path) {
-        try {
-            String content = giteaClient.getContent(repo, "HEAD", path).block(GiteaClient.BLOCK_TIMEOUT);
-            return content == null ? "" : content;
-        } catch (Exception e) {
-            // 최초 commit (파일 없음) 도 여기로 떨어짐 — 정상 케이스로 빈 문자열 반환.
-            log.debug("[Version] HEAD content fetch returned empty path={} reason={}",
-                    path, e.getClass().getSimpleName());
-            return "";
-        }
-    }
-
-    /**
-     * 두 SHA 시점의 라벨 JSON 을 받아 라벨 단위 diff 산출.
-     * 라벨 식별자: LS_DATA_LBL.LBL_SN (응답 snapshot 의 {@code items[].id}).
-     *
-     * <p>분류 기준:
-     * <ul>
-     *   <li>fromSha 에 없고 toSha 에 있음 → {@link LabelDiffDto.DiffType#ADDED}</li>
-     *   <li>fromSha 에 있고 toSha 에 없음 → {@link LabelDiffDto.DiffType#REMOVED}</li>
-     *   <li>양쪽 모두 존재 + 좌표/lblTypeCd/label 중 하나라도 다름 → {@link LabelDiffDto.DiffType#MODIFIED}</li>
-     * </ul>
-     *
-     * <p>같은 srcSn(=프레임)이 아니면 의미 있는 라벨 비교가 불가능하므로 빈 리스트 반환.
-     * JSON 파싱 실패도 빈 리스트 반환 (장애 격리 — 파일 단위 diff 는 계속 제공).
-     */
-    private List<LabelDiffDto> computeLabelDiffsIfSameSrc(LsLabelVersion fromVersion,
-                                                          LsLabelVersion toVersion,
-                                                          String fromSha,
-                                                          String toSha) {
         if (!Objects.equals(fromVersion.getDataSrcSn(), toVersion.getDataSrcSn())) {
-            return List.of();
+            return new DiffResponseDto(fromHash, toHash, List.of());
         }
-        String path = pathPolicy.path(fromVersion.getDataSrcSn());
-        String fromContent = fetchContentOrEmpty(fromSha, path);
-        String toContent = fetchContentOrEmpty(toSha, path);
-        if (fromContent.isEmpty() && toContent.isEmpty()) {
+
+        List<LabelDiffDto> labelDiffs = computeLabelDiffs(
+                fromVersion.getLabelPayload(), toVersion.getLabelPayload());
+        return DiffResponseDto.of(fromHash, toHash, labelDiffs);
+    }
+
+    /**
+     * 지정 버전(versionHash) 스냅샷으로 롤백한다.
+     *
+     * <p>대상 버전의 {@code LABEL_PAYLOAD} 를 그대로 새 active 버전(saveReason=ROLLBACK)으로 기록한다.
+     * 접근권한 + ACTIVE 비관적 잠금으로 동시성/IDOR 방어.
+     */
+    @Transactional("controlTransactionManager")
+    public LsLabelVersion rollback(String versionHash, Long srcSn, TokenClaims actor) {
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        validateHash(versionHash);
+        // 인가는 accessGuard.verifyAndGet 에 위임:
+        // REVIEWER 는 통과 / WORKER 는 본인 LABELER 배정 영상만 통과 (CWE-639 IDOR 방어)
+        LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
+
+        LsLabelVersion target = labelVersionRepository.findByDataSrcSnAndVersionHash(srcSn, versionHash)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "롤백 대상 버전을 찾을 수 없습니다."));
+
+        LsDataRaw raw = videoRepository.findById(src.getRawSn())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+
+        List<LsLabelVersion> activeVersions = labelVersionRepository.findActiveForUpdate(
+                raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
+
+        String snapshot = target.getLabelPayload() == null ? "" : target.getLabelPayload();
+        // 롤백 결과 스냅샷의 해시 — 같은 프레임 내 멱등성을 위해 재계산.
+        String newHash = sha256Hex(snapshot);
+
+        // 현재 active 가 이미 롤백 대상과 동일 스냅샷이면 멱등 — 기존 active 반환.
+        for (LsLabelVersion active : activeVersions) {
+            if (newHash.equals(active.getVersionHash())) {
+                log.info("[Version] rollback idempotent srcSn={} hash={} actor={}",
+                        srcSn, newHash, actor.sub());
+                return active;
+            }
+        }
+
+        LsLabelVersion saved = saveActiveVersion(src, raw, activeVersions, newHash, snapshot,
+                LsLabelVersion.SAVE_REASON_ROLLBACK, actor.sub());
+        log.info("[Version] rolled back srcSn={} toHash={} newHash={} version={} actor={}",
+                srcSn, versionHash, newHash, saved.getVersionNo(), actor.sub());
+        return saved;
+    }
+
+    // ---------- 내부 ----------
+
+    private LsLabelVersion saveActiveVersion(LsDataSrc src, LsDataRaw raw,
+                                             List<LsLabelVersion> currentActive,
+                                             String versionHash, String labelPayload,
+                                             String reasonCd, String actorId) {
+        currentActive.forEach(LsLabelVersion::deactivate);
+        int nextVersion = labelVersionRepository.countByDataRawSnAndDataSrcSn(
+                raw.getRawSn(), src.getSrcSn()) + 1;
+        return labelVersionRepository.save(LsLabelVersion.create(
+                raw.getRawSn(), src.getSrcSn(), versionHash, labelPayload,
+                nextVersion, reasonCd, actorId));
+    }
+
+    private LsLabelVersion findByHashOrThrow(String versionHash, String notFoundMessage) {
+        List<LsLabelVersion> matches = labelVersionRepository.findByVersionHash(versionHash);
+        if (matches.isEmpty()) {
+            throw new CustomException(ErrorCode.NOT_FOUND, notFoundMessage);
+        }
+        return matches.get(0);
+    }
+
+    private void validatePayloadSize(String payload) {
+        int bytes = payload.getBytes(StandardCharsets.UTF_8).length;
+        if (bytes > MAX_PAYLOAD_BYTES) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "라벨 스냅샷 크기 초과 (최대 " + MAX_PAYLOAD_BYTES + " 바이트)");
+        }
+    }
+
+    private static String sha256Hex(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    /**
+     * 두 라벨 JSON 스냅샷을 라벨 단위로 비교한다.
+     * 라벨 식별자: 응답 snapshot 의 {@code items[].id} (= LS_DATA_LBL.LBL_SN).
+     *
+     * <ul>
+     *   <li>from 에 없고 to 에 있음 → {@link LabelDiffDto.DiffType#ADDED}</li>
+     *   <li>from 에 있고 to 에 없음 → {@link LabelDiffDto.DiffType#REMOVED}</li>
+     *   <li>양쪽 존재 + 좌표/lblTypeCd/label 차이 → {@link LabelDiffDto.DiffType#MODIFIED}</li>
+     * </ul>
+     *
+     * <p>JSON 파싱 실패는 빈 리스트 반환 (장애 격리).
+     */
+    private List<LabelDiffDto> computeLabelDiffs(String fromContent, String toContent) {
+        if ((fromContent == null || fromContent.isBlank())
+                && (toContent == null || toContent.isBlank())) {
             return List.of();
         }
         try {
@@ -344,15 +255,14 @@ public class VersionService {
             Map<String, LabelSnapshot> toMap = parseLabelsById(toContent);
             return diffLabelMaps(fromMap, toMap);
         } catch (Exception e) {
-            log.warn("[Version] label diff parse failed from={} to={} reason={}",
-                    fromSha, toSha, e.getClass().getSimpleName());
+            log.warn("[Version] label diff parse failed reason={}", e.getClass().getSimpleName());
             return List.of();
         }
     }
 
     /**
      * 라벨 응답 snapshot JSON ({@code {srcSn, frameNo, items:[{id, lblTypeCd, label, points, ...}]}}) 을
-     * id → LabelSnapshot 맵으로 변환. id 가 null/누락이면 skip (anonymous 신규 라벨 — commit 시점에 id 부여 전).
+     * id → LabelSnapshot 맵으로 변환. id 가 null/누락이면 skip.
      */
     private Map<String, LabelSnapshot> parseLabelsById(String json) {
         if (json == null || json.isBlank()) {
@@ -362,7 +272,6 @@ public class VersionService {
         try {
             root = objectMapper.readTree(json);
         } catch (Exception e) {
-            // JSON 파싱 실패는 호출부 try/catch 에서 흡수.
             throw new IllegalStateException("labels JSON parse failed", e);
         }
         JsonNode items = root.path("items");
@@ -403,7 +312,6 @@ public class VersionService {
     private static List<LabelDiffDto> diffLabelMaps(Map<String, LabelSnapshot> fromMap,
                                                     Map<String, LabelSnapshot> toMap) {
         List<LabelDiffDto> result = new ArrayList<>();
-        // REMOVED + MODIFIED 분류
         for (Map.Entry<String, LabelSnapshot> e : fromMap.entrySet()) {
             LabelSnapshot before = e.getValue();
             LabelSnapshot after = toMap.get(e.getKey());
@@ -423,7 +331,6 @@ public class VersionService {
                         LabelDiffDto.ShapeDto.fromPoints(after.lblTypeCd(), after.points())));
             }
         }
-        // ADDED 분류
         for (Map.Entry<String, LabelSnapshot> e : toMap.entrySet()) {
             if (!fromMap.containsKey(e.getKey())) {
                 LabelSnapshot after = e.getValue();
@@ -448,116 +355,16 @@ public class VersionService {
         }
     }
 
-    private String fetchContentOrEmpty(String sha, String path) {
-        try {
-            String content = giteaClient.getContent(repo, sha, path).block(GiteaClient.BLOCK_TIMEOUT);
-            return content == null ? "" : content;
-        } catch (Exception e) {
-            log.warn("[Version] gitea getContent failed sha={} reason={}", sha, e.getClass().getSimpleName());
-            return "";
+    /** versionHash 형식 검증 — hex 64자 이하 (SHA-256). Path Manipulation/Injection 방어. */
+    private static void validateHash(String hash) {
+        if (hash == null || hash.isEmpty() || hash.length() > 64) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 버전 해시 형식입니다.");
         }
-    }
-
-    /**
-     * 두 라벨 JSON 내용에 대한 단순 라인-기반 diff 산출.
-     * change: from 비어있으면 "added" / to 비어있으면 "removed" / 둘 다 있으면 "modified".
-     * additions/deletions: 다른 라인 개수 — to 에만 있는 라인은 additions, from 에만 있는 라인은 deletions.
-     * patch: null (FE 에서 별도 fetch). DiffResponseDto 의 길이 제한 통과.
-     */
-    private static DiffFile buildDiffFile(String path, String fromContent, String toContent) {
-        String change;
-        if (fromContent.isEmpty()) {
-            change = "added";
-        } else if (toContent.isEmpty()) {
-            change = "removed";
-        } else {
-            change = "modified";
-        }
-        java.util.Set<String> fromLines = new java.util.HashSet<>(java.util.Arrays.asList(fromContent.split("\n")));
-        java.util.Set<String> toLines = new java.util.HashSet<>(java.util.Arrays.asList(toContent.split("\n")));
-        int additions = 0;
-        for (String l : toLines) {
-            if (!fromLines.contains(l)) additions++;
-        }
-        int deletions = 0;
-        for (String l : fromLines) {
-            if (!toLines.contains(l)) deletions++;
-        }
-        return new DiffFile(path, change, additions, deletions, null);
-    }
-
-    @Transactional("controlTransactionManager")
-    public LsLabelVersion rollback(String commitHash, Long srcSn, TokenClaims actor) {
-        if (actor == null) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
-        }
-        // 인가는 accessGuard.verifyAndGet 에 위임:
-        // REVIEWER 는 통과 / WORKER 는 본인 LABELER 배정 영상만 통과 (CWE-639 IDOR 방어)
-        validateSha(commitHash);
-        accessGuard.verifyAccess(srcSn, actor);
-
-        LsLabelVersion target = labelVersionRepository.findByGiteaCmtHash(commitHash)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "롤백 대상 커밋을 찾을 수 없습니다."));
-        if (!target.getDataSrcSn().equals(srcSn)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "커밋 해시와 프레임이 일치하지 않습니다.");
-        }
-
-        String snapshot = null;
-        try {
-            snapshot = giteaClient.getContent(repo, commitHash, pathPolicy.path(srcSn))
-                    .block(GiteaClient.BLOCK_TIMEOUT);
-        } catch (Exception e) {
-            log.warn("[Version] rollback content fetch failed srcSn={} sha={} reason={}",
-                    srcSn, commitHash, e.getClass().getSimpleName());
-        }
-
-        String newSha = null;
-        String rollbackPath = pathPolicy.path(srcSn);
-        String rollbackMessage = "rollback to " + commitHash + " by " + actor.sub();
-        String contentBase64 = Base64.getEncoder().encodeToString(
-                (snapshot == null ? "" : snapshot).getBytes(StandardCharsets.UTF_8));
-        try {
-            CommitResponse resp = giteaClient
-                    .createOrUpdateFile(repo, rollbackPath, contentBase64,
-                            rollbackMessage, actor.sub(), "main")
-                    .block(GiteaClient.BLOCK_TIMEOUT);
-            newSha = resp == null ? null : resp.sha();
-        } catch (Exception e) {
-            log.warn("[Version] rollback commit failed - enqueue retry srcSn={} reason={}",
-                    srcSn, e.getClass().getSimpleName());
-            // H-2: rollback 경로도 commit 과 동일한 영속/in-memory 큐 분기 적용.
-            // 기존엔 in-memory 만 적재되어 stg/prd 에서 RetryJob 가 처리 불가했음 — 단일 큐 분기로 회복 보장.
-            enqueueFallback(srcSn, snapshot, actor.sub(), rollbackPath, rollbackMessage, contentBase64);
-        }
-
-        LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
-        LsDataRaw raw = videoRepository.findById(src.getRawSn())
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
-        return saveActiveVersion(src, raw, newSha == null ? commitHash : newSha,
-                LsLabelVersion.SAVE_REASON_ROLLBACK, actor.sub());
-    }
-
-    private LsLabelVersion saveActiveVersion(LsDataSrc src, LsDataRaw raw, String sha,
-                                             String reasonCd, String actorId) {
-        List<LsLabelVersion> activeVersions = labelVersionRepository
-                .findByDataRawSnAndDataSrcSnAndActiveYn(
-                        raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
-        activeVersions.forEach(LsLabelVersion::deactivate);
-        int nextVersion = labelVersionRepository.countByDataRawSnAndDataSrcSn(
-                raw.getRawSn(), src.getSrcSn()) + 1;
-        return labelVersionRepository.save(LsLabelVersion.create(
-                raw.getRawSn(), src.getSrcSn(), sha, nextVersion, reasonCd, actorId));
-    }
-
-    private static void validateSha(String sha) {
-        if (sha == null || sha.isEmpty() || sha.length() > 64) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 커밋 해시 형식입니다.");
-        }
-        for (int i = 0; i < sha.length(); i++) {
-            char c = sha.charAt(i);
+        for (int i = 0; i < hash.length(); i++) {
+            char c = hash.charAt(i);
             boolean hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
             if (!hex) {
-                throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 커밋 해시 형식입니다.");
+                throw new CustomException(ErrorCode.INVALID_INPUT, "잘못된 버전 해시 형식입니다.");
             }
         }
     }

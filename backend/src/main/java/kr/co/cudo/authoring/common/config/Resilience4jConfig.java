@@ -18,11 +18,6 @@ public class Resilience4jConfig {
         return registry.circuitBreaker("ai");
     }
 
-    @Bean(name = "giteaCircuitBreaker")
-    public CircuitBreaker giteaCircuitBreaker(CircuitBreakerRegistry registry) {
-        return registry.circuitBreaker("gitea");
-    }
-
     /**
      * 외부 VLM 시계열 분석 위탁 서비스용 CircuitBreaker — Phase 1.
      * <p>인스턴스명 {@code vlmClient} 는 application.yml 의 resilience4j 설정 키와 일치.

@@ -56,7 +56,7 @@ public class QualityCheckService {
     }
 
     private QualityConflictDetector.LabelShape toShape(LsDataLbl lbl) {
-        List<Point> pts = LabelPointSerializer.fromJson(lbl.getPointsJson(), objectMapper);
-        return new QualityConflictDetector.LabelShape(lbl.getLblSn(), lbl.getLabel(), pts);
+        List<Point> pts = LabelPointSerializer.fromJson(lbl.getPointCn(), objectMapper);
+        return new QualityConflictDetector.LabelShape(lbl.getLblSn(), lbl.getLabelNm(), pts);
     }
 }

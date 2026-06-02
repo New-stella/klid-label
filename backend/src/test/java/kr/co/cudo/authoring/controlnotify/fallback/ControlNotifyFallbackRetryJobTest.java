@@ -70,7 +70,7 @@ class ControlNotifyFallbackRetryJobTest {
     void runOnce_success() {
         // given
         LsControlNotifyFallback q1 = makePending(1L, "key-1", "TASK_COMPLETED");
-        when(repository.findByStatusAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
+        when(repository.findBySttsCdAndNextRtryDtLessThanEqualOrderByNextRtryDtAsc(
                 eq(LsControlNotifyFallback.STATUS_PENDING), any(LocalDateTime.class), any(PageRequest.class)))
                 .thenReturn(List.of(q1));
         when(fallbackService.claimForRetry(1L)).thenReturn(Optional.of(q1));
@@ -89,7 +89,7 @@ class ControlNotifyFallbackRetryJobTest {
     void runOnce_claimFailed_skip() {
         // given
         LsControlNotifyFallback q1 = makePending(1L, "key-1", "TASK_COMPLETED");
-        when(repository.findByStatusAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
+        when(repository.findBySttsCdAndNextRtryDtLessThanEqualOrderByNextRtryDtAsc(
                 eq(LsControlNotifyFallback.STATUS_PENDING), any(LocalDateTime.class), any(PageRequest.class)))
                 .thenReturn(List.of(q1));
         when(fallbackService.claimForRetry(1L)).thenReturn(Optional.empty());
@@ -109,7 +109,7 @@ class ControlNotifyFallbackRetryJobTest {
     void runOnce_processFailed_markFailed() {
         // given
         LsControlNotifyFallback q1 = makePending(2L, "key-2", "TASK_MODIFIED");
-        when(repository.findByStatusAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
+        when(repository.findBySttsCdAndNextRtryDtLessThanEqualOrderByNextRtryDtAsc(
                 eq(LsControlNotifyFallback.STATUS_PENDING), any(LocalDateTime.class), any(PageRequest.class)))
                 .thenReturn(List.of(q1));
         when(fallbackService.claimForRetry(2L)).thenReturn(Optional.of(q1));

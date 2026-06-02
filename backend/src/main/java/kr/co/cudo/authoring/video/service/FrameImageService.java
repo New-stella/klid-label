@@ -87,7 +87,7 @@ public class FrameImageService {
         boolean reviewerRequestedRaw = allowRaw && actor != null && actor.role() == Role.REVIEWER;
         String relPath;
         if (reviewerRequestedRaw) {
-            relPath = src.getFilePath();
+            relPath = src.getSrcFilePathNm();
         } else {
             String deid = src.getDeidFilePath();
             if (deid != null && !deid.isBlank()) {
@@ -98,7 +98,7 @@ public class FrameImageService {
                 throw new CustomException(ErrorCode.NOT_FOUND, "비식별 처리 미완료");
             } else {
                 // ANONY + DEID 미준비 → 원본 폴백 (V2 정책상 비식별 우선이지만 ANONY 는 정책상 원본 노출 무방)
-                relPath = src.getFilePath();
+                relPath = src.getSrcFilePathNm();
             }
         }
 

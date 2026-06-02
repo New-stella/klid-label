@@ -312,7 +312,7 @@ public class ReviewService {
      */
     public List<IssueResponse> listIssues(Long videoId, TokenClaims actor) {
         requireReviewer(actor);
-        return issueRepository.findByVideoIdOrderByRegisteredAtDesc(videoId).stream()
+        return issueRepository.findByDataRawSnOrderByRegDtDesc(videoId).stream()
                 .map(IssueResponse::from)
                 .toList();
     }
@@ -383,7 +383,7 @@ public class ReviewService {
         stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_REJECTED);
 
         // 직전 반려가 있으면 계층 연결 (UP_DATA_ISSUE_SN)
-        Long parentIssueSn = issueRepository.findByVideoIdOrderByRegisteredAtDesc(videoId).stream()
+        Long parentIssueSn = issueRepository.findByDataRawSnOrderByRegDtDesc(videoId).stream()
                 .findFirst()
                 .map(LsDataIssue::getDataIssueSn)
                 .orElse(null);

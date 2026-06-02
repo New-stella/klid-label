@@ -48,41 +48,41 @@ public class LsControlNotifyFallback {
     @Column(name = "QUEUE_SN")
     private Long queueSn;
 
-    @Column(name = "IDEMPOTENCY_KEY", length = 64, nullable = false, unique = true)
-    private String idempotencyKey;
+    @Column(name = "IDMP_KEY", length = 64, nullable = false, unique = true)
+    private String idmpKey;
 
-    @Column(name = "EVENT_TYPE", length = 32, nullable = false)
-    private String eventType;
+    @Column(name = "EVENT_TYPE_CD", length = 32, nullable = false)
+    private String eventTypeCd;
 
     @Column(name = "RAW_SN", nullable = false)
     private Long rawSn;
 
-    @Column(name = "PAYLOAD", columnDefinition = "TEXT", nullable = false)
-    private String payload;
+    @Column(name = "PAYLOAD_CN", columnDefinition = "TEXT", nullable = false)
+    private String payloadCn;
 
-    @Column(name = "RETRY_COUNT", nullable = false)
-    private int retryCount;
+    @Column(name = "RTRY_CNT", nullable = false)
+    private int rtryCnt;
 
-    @Column(name = "MAX_RETRY", nullable = false)
-    private int maxRetry;
+    @Column(name = "MAX_RTRY_CNT", nullable = false)
+    private int maxRtryCnt;
 
-    @Column(name = "STATUS", length = 16, nullable = false)
-    private String status;
+    @Column(name = "STTS_CD", length = 16, nullable = false)
+    private String sttsCd;
 
-    @Column(name = "LAST_ERROR", length = 2000)
-    private String lastError;
+    @Column(name = "LAST_ERR_MSG", length = 2000)
+    private String lastErrMsg;
 
-    @Column(name = "NEXT_RETRY_AT")
-    private LocalDateTime nextRetryAt;
+    @Column(name = "NEXT_RTRY_DT")
+    private LocalDateTime nextRtryDt;
 
-    @Column(name = "DEAD_LETTER_AT")
-    private LocalDateTime deadLetterAt;
+    @Column(name = "DLQ_DT")
+    private LocalDateTime dlqDt;
 
-    @Column(name = "CREATED_AT", nullable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
 
-    @Column(name = "UPDATED_AT", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "MDFCN_DT", nullable = false)
+    private LocalDateTime mdfcnDt;
 
     /**
      * 통지 적재용 정적 팩토리.
@@ -106,31 +106,31 @@ public class LsControlNotifyFallback {
             throw new IllegalArgumentException("rawSn 는 필수입니다.");
         }
         LsControlNotifyFallback q = new LsControlNotifyFallback();
-        q.idempotencyKey = idempotencyKey;
-        q.eventType = eventType;
+        q.idmpKey = idempotencyKey;
+        q.eventTypeCd = eventType;
         q.rawSn = rawSn;
-        q.payload = payload;
-        q.retryCount = 0;
-        q.maxRetry = DEFAULT_MAX_RETRY;
-        q.status = STATUS_PENDING;
+        q.payloadCn = payload;
+        q.rtryCnt = 0;
+        q.maxRtryCnt = DEFAULT_MAX_RETRY;
+        q.sttsCd = STATUS_PENDING;
         LocalDateTime now = LocalDateTime.now();
-        q.nextRetryAt = now;
-        q.createdAt = now;
-        q.updatedAt = now;
+        q.nextRtryDt = now;
+        q.regDt = now;
+        q.mdfcnDt = now;
         return q;
     }
 
     /** Quartz job 이 항목을 RETRYING 으로 표시 — 동시 처리 방지. */
     public void markRetrying() {
-        this.status = STATUS_RETRYING;
-        this.updatedAt = LocalDateTime.now();
+        this.sttsCd = STATUS_RETRYING;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /** 성공. */
     public void markSucceeded() {
-        this.status = STATUS_SUCCEEDED;
-        this.nextRetryAt = null;
-        this.updatedAt = LocalDateTime.now();
+        this.sttsCd = STATUS_SUCCEEDED;
+        this.nextRtryDt = null;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /**
@@ -141,36 +141,36 @@ public class LsControlNotifyFallback {
      * @return true 면 DEAD_LETTER 전이됨
      */
     public boolean failAndSchedule(String error) {
-        this.retryCount += 1;
+        this.rtryCnt += 1;
         // CWE-117 + CWE-209: 제어문자 + 토큰/URL 마스킹 후 저장.
-        this.lastError = sanitizeError(error);
+        this.lastErrMsg = sanitizeError(error);
         LocalDateTime now = LocalDateTime.now();
-        if (this.retryCount > this.maxRetry) {
-            this.status = STATUS_DEAD_LETTER;
-            this.deadLetterAt = now;
-            this.nextRetryAt = null;
-            this.updatedAt = now;
+        if (this.rtryCnt > this.maxRtryCnt) {
+            this.sttsCd = STATUS_DEAD_LETTER;
+            this.dlqDt = now;
+            this.nextRtryDt = null;
+            this.mdfcnDt = now;
             return true;
         }
-        long backoffMin = Math.min(60L, 1L << Math.min(this.retryCount, 6));
-        this.status = STATUS_PENDING;
-        this.nextRetryAt = now.plusMinutes(backoffMin);
-        this.updatedAt = now;
+        long backoffMin = Math.min(60L, 1L << Math.min(this.rtryCnt, 6));
+        this.sttsCd = STATUS_PENDING;
+        this.nextRtryDt = now.plusMinutes(backoffMin);
+        this.mdfcnDt = now;
         return false;
     }
 
     @PrePersist
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();
-        if (this.createdAt == null) this.createdAt = now;
-        if (this.updatedAt == null) this.updatedAt = now;
-        if (this.status == null) this.status = STATUS_PENDING;
-        if (this.maxRetry <= 0) this.maxRetry = DEFAULT_MAX_RETRY;
+        if (this.regDt == null) this.regDt = now;
+        if (this.mdfcnDt == null) this.mdfcnDt = now;
+        if (this.sttsCd == null) this.sttsCd = STATUS_PENDING;
+        if (this.maxRtryCnt <= 0) this.maxRtryCnt = DEFAULT_MAX_RETRY;
     }
 
     @PreUpdate
     void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     private static String truncate(String s, int max) {

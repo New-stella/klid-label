@@ -104,7 +104,7 @@ class DeidentReportControllerTest {
         List<LsDeidentReport> reports = reportRepository.findAllByDataRawSnAndReportSttsCd(
                 rawSn, LsDeidentReport.REPORT_OPEN);
         assertThat(reports).hasSize(1);
-        assertThat(reports.get(0).getReason()).isEqualTo("얼굴 미블러");
+        assertThat(reports.get(0).getRsn()).isEqualTo("얼굴 미블러");
         // 영상 DE_IDNTF_YN='F'
         LsDataRaw reloaded = rawRepository.findById(rawSn).orElseThrow();
         assertThat(reloaded.getDeIdntfYn()).isEqualTo("F");

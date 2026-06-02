@@ -24,15 +24,15 @@ import java.time.LocalDateTime;
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>NAME UNIQUE — DB 레벨 + Service 레벨 이중 가드. (V34: PJT_ID 제거됨)</li>
- *   <li>COLOR 는 대문자 {@code #RRGGBB} hex (소문자 거부 — DTO 검증).</li>
- *   <li>TYPE 은 BBOX / POLYGON / POINT 중 하나 (DTO 검증).</li>
- *   <li>SORT_NO 는 목록 정렬용 (ASC).</li>
+ *   <li>LABEL_NM UNIQUE — DB 레벨 + Service 레벨 이중 가드. (V34: PJT_ID 제거됨)</li>
+ *   <li>COLR_VL 은 대문자 {@code #RRGGBB} hex (소문자 거부 — DTO 검증).</li>
+ *   <li>LABEL_TYPE_CD 는 BBOX / POLYGON / POINT 중 하나 (DTO 검증).</li>
+ *   <li>SORT_SEQ 는 목록 정렬용 (ASC).</li>
  * </ul>
  */
 @Entity
 @Table(name = "LS_LABEL", uniqueConstraints = {
-        @UniqueConstraint(name = "UK_LS_LABEL_NAME", columnNames = {"NAME"})
+        @UniqueConstraint(name = "UK_LS_LABEL_NAME", columnNames = {"LABEL_NM"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -43,17 +43,17 @@ public class LsLabel {
     @Column(name = "LABEL_ID")
     private Long labelId;
 
-    @Column(name = "NAME", nullable = false, length = 64)
-    private String name;
+    @Column(name = "LABEL_NM", nullable = false, length = 64)
+    private String labelNm;
 
-    @Column(name = "COLOR", nullable = false, length = 7)
-    private String color;
+    @Column(name = "COLR_VL", nullable = false, length = 7)
+    private String colrVl;
 
-    @Column(name = "TYPE", nullable = false, length = 16)
-    private String type;
+    @Column(name = "LABEL_TYPE_CD", nullable = false, length = 16)
+    private String labelTypeCd;
 
-    @Column(name = "SORT_NO", nullable = false)
-    private Integer sortNo;
+    @Column(name = "SORT_SEQ", nullable = false)
+    private Integer sortSeq;
 
     @Column(name = "USE_YN", nullable = false, length = 1)
     private String useYn;
@@ -70,11 +70,11 @@ public class LsLabel {
     @Column(name = "MDFCN_DT")
     private LocalDateTime mdfcnDt;
 
-    private LsLabel(String name, String color, String type, Integer sortNo, String regId) {
-        this.name = name;
-        this.color = color;
-        this.type = type;
-        this.sortNo = sortNo == null ? 0 : sortNo;
+    private LsLabel(String labelNm, String colrVl, String labelTypeCd, Integer sortSeq, String regId) {
+        this.labelNm = labelNm;
+        this.colrVl = colrVl;
+        this.labelTypeCd = labelTypeCd;
+        this.sortSeq = sortSeq == null ? 0 : sortSeq;
         this.useYn = "Y";
         this.regId = regId;
     }
@@ -82,23 +82,23 @@ public class LsLabel {
     /**
      * 정적 팩토리 — 새 라벨 생성.
      *
-     * @param name    라벨 이름 (1~64자, UNIQUE)
-     * @param color   색상 (대문자 #RRGGBB)
-     * @param type    BBOX / POLYGON / POINT
-     * @param sortNo  정렬 순서 (null 허용 — 0 으로 정규화)
-     * @param regId   등록자 ID (선택)
+     * @param labelNm      라벨 이름 (1~64자, UNIQUE)
+     * @param colrVl       색상값 (대문자 #RRGGBB)
+     * @param labelTypeCd  BBOX / POLYGON / POINT
+     * @param sortSeq      정렬 순서 (null 허용 — 0 으로 정규화)
+     * @param regId        등록자 ID (선택)
      */
-    public static LsLabel create(String name, String color, String type,
-                                 Integer sortNo, String regId) {
-        return new LsLabel(name, color, type, sortNo, regId);
+    public static LsLabel create(String labelNm, String colrVl, String labelTypeCd,
+                                 Integer sortSeq, String regId) {
+        return new LsLabel(labelNm, colrVl, labelTypeCd, sortSeq, regId);
     }
 
     /** 비즈니스 메서드 — 라벨 정보 수정. Setter 대신 의미 있는 메서드명 사용. */
-    public void update(String name, String color, String type, Integer sortNo, String mdfcnId) {
-        this.name = name;
-        this.color = color;
-        this.type = type;
-        this.sortNo = sortNo == null ? 0 : sortNo;
+    public void update(String labelNm, String colrVl, String labelTypeCd, Integer sortSeq, String mdfcnId) {
+        this.labelNm = labelNm;
+        this.colrVl = colrVl;
+        this.labelTypeCd = labelTypeCd;
+        this.sortSeq = sortSeq == null ? 0 : sortSeq;
         this.mdfcnId = mdfcnId;
     }
 

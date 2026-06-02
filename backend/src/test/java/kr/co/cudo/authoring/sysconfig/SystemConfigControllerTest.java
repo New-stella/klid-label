@@ -77,7 +77,7 @@ class SystemConfigControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.configValue").value("120"));
+                .andExpect(jsonPath("$.data.configVl").value("120"));
 
         // 캐시 무효화 후 다시 호출 시 새 값 반영.
         Integer afterValue = service.getInt(ConfigKeys.BATCH_INTERVAL_SEC);

@@ -23,7 +23,7 @@ import java.util.Map;
  * 시스템 설정 화면 — 외부 의존성 헬스 요약 (REVIEWER 전용).
  *
  * <p>FE 의 /manage/health 호출에 대응. Spring Actuator 의 외부 인디케이터
- * (deidentify / ai-server / gitea) + DB 핑을 단일 응답으로 요약한다.
+ * (deidentify / ai-server) + DB 핑을 단일 응답으로 요약한다.
  *
  * <p>관제/포털 양방향 통합은 deprecated 되어 헬스 체크 대상에서 제외.
  */
@@ -36,23 +36,20 @@ public class ManageHealthController {
 
     private final HealthIndicator deidentifyHealth;
     private final HealthIndicator aiServerHealth;
-    private final HealthIndicator giteaHealth;
     private final DataSource controlDataSource;
 
     public ManageHealthController(
             @Qualifier("deidentifyHealth")    HealthIndicator deidentifyHealth,
             @Qualifier("aiServerHealth")      HealthIndicator aiServerHealth,
-            @Qualifier("giteaHealth")         HealthIndicator giteaHealth,
             @Qualifier("controlDataSource")   DataSource controlDataSource) {
         this.deidentifyHealth    = deidentifyHealth;
         this.aiServerHealth      = aiServerHealth;
-        this.giteaHealth         = giteaHealth;
         this.controlDataSource   = controlDataSource;
     }
 
     @Operation(
             summary = "외부 의존성 헬스 요약 (REVIEWER)",
-            description = "deidentify / ai-server / gitea + DB 의 상태를 단일 응답으로 반환."
+            description = "deidentify / ai-server + DB 의 상태를 단일 응답으로 반환."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -65,7 +62,6 @@ public class ManageHealthController {
         Map<String, Object> components = new LinkedHashMap<>();
         components.put("deidentify",    toComponent(deidentifyHealth));
         components.put("aiServer",      toComponent(aiServerHealth));
-        components.put("gitea",         toComponent(giteaHealth));
         components.put("database",      probeDatabase());
 
         boolean allUp = components.values().stream()

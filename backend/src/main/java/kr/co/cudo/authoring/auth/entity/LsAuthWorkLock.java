@@ -56,8 +56,8 @@ public class LsAuthWorkLock {
     @Column(name = "RELEASE_DT")
     private LocalDateTime releaseDt;
 
-    @Column(name = "RELEASE_REASON", length = 500)
-    private String releaseReason;
+    @Column(name = "RELEASE_RSN", length = 500)
+    private String releaseRsn;
 
     @Column(name = "REG_ID", length = 30)
     private String regId;
@@ -87,7 +87,7 @@ public class LsAuthWorkLock {
 
     public void release(String actorId, String reason) {
         this.lockSttsCd = STATUS_RELEASED;
-        this.releaseReason = reason;
+        this.releaseRsn = reason;
         this.releaseDt = LocalDateTime.now();
         this.mdfcnId = actorId;
         this.mdfcnDt = this.releaseDt;

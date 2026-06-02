@@ -26,7 +26,7 @@ import java.util.Map;
  *
  * <p>ccarch {@code if-vlm-timeseries-spi} 인터페이스 호출을 담당하는 배치 Step.
  * 영상 1건의 시계열 메타 분석을 외부 시스템에 비동기 위탁하고, 외부가 발급한 작업 ID 를
- * {@code LS_BATCH_PROC_LOG.RES_PAYLOAD} 에 JSON 형태로 적재한다.
+ * {@code LS_BATCH_PROC_LOG.RES_PAYLOAD_CN} 에 JSON 형태로 적재한다.
  * 실제 결과 본문 적재는 Phase 2 결과 수신 webhook 책임이다.
  *
  * <h3>실행 정책</h3>
@@ -104,11 +104,11 @@ public class VlmTimeseriesStep {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "영상을 찾을 수 없습니다 rawSn=" + rawSn));
 
-        String eventName = marking != null ? marking.getEventName() : null;
-        String marks = marking != null ? marking.getMarks() : null;
+        String eventName = marking != null ? marking.getEvntNm() : null;
+        String marks = marking != null ? marking.getMarkCn() : null;
 
         VlmTimeseriesRequest req = new VlmTimeseriesRequest(
-                rawSn, raw.getFilePath(), /* idempotencyKey */ null, /* callbackUrl */ null,
+                rawSn, raw.getRawFilePathNm(), /* idempotencyKey */ null, /* callbackUrl */ null,
                 eventName, marks);
 
         log.info("[Batch][VlmTimeseries] submit rawSn={} hasMarking={}", rawSn, marking != null);
@@ -141,7 +141,7 @@ public class VlmTimeseriesStep {
 
     /**
      * 외부 위탁 응답({@code externalJobId}, {@code status}) 을
-     * {@code LS_BATCH_PROC_LOG.RES_PAYLOAD} 에 JSON 으로 적재.
+     * {@code LS_BATCH_PROC_LOG.RES_PAYLOAD_CN} 에 JSON 으로 적재.
      *
      * <p>Phase 2 webhook 이 externalJobId 로 영상을 역추적할 수 있도록 인덱스 역할.
      */

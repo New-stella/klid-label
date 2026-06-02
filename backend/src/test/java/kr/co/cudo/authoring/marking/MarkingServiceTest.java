@@ -135,7 +135,7 @@ class MarkingServiceTest {
 
         LsMarking m1 = LsMarking.createAuto(rawSn, "화재", 5, "/path", "[]", 1L);
         LsMarking m2 = LsMarking.createManual(rawSn, "침입", "/path", "[]", 1L);
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(rawSn)).thenReturn(List.of(m1, m2));
+        when(markingRepository.findByRawSnOrderByRegDtDesc(rawSn)).thenReturn(List.of(m1, m2));
 
         // when
         List<MarkingResponse> result = markingService.list(rawSn);

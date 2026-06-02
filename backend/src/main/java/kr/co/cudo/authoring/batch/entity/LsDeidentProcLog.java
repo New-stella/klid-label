@@ -34,11 +34,11 @@ public class LsDeidentProcLog {
     @Column(name = "EXTERNAL_JOB_ID", length = 128)
     private String externalJobId;
 
-    @Column(name = "ORGN_FILE_PATH", length = 1000, nullable = false)
-    private String orgnFilePath;
+    @Column(name = "ORGNL_FILE_PATH_NM", length = 1000, nullable = false)
+    private String orgnlFilePathNm;
 
-    @Column(name = "DE_IDNTF_FILE_PATH", length = 1000)
-    private String deIdntfFilePath;
+    @Column(name = "DE_IDNTF_FILE_PATH_NM", length = 1000)
+    private String deIdntfFilePathNm;
 
     @Column(name = "PROC_STTS_CD", length = 20, nullable = false)
     private String procSttsCd;
@@ -67,21 +67,21 @@ public class LsDeidentProcLog {
     @Column(name = "MDFCN_DT")
     private LocalDateTime mdfcnDt;
 
-    public static LsDeidentProcLog request(Long rawSn, String reqId, String orgnFilePath, String regId) {
-        return request(rawSn, reqId, orgnFilePath, regId, null);
+    public static LsDeidentProcLog request(Long rawSn, String reqId, String orgnlFilePath, String regId) {
+        return request(rawSn, reqId, orgnlFilePath, regId, null);
     }
 
     /**
      * externalJobId 포함 생성 — Phase 2 webhook 인계 시 사용.
      */
-    public static LsDeidentProcLog request(Long rawSn, String reqId, String orgnFilePath, String regId, String externalJobId) {
+    public static LsDeidentProcLog request(Long rawSn, String reqId, String orgnlFilePath, String regId, String externalJobId) {
         if (rawSn == null) throw new IllegalArgumentException("rawSn 은 필수입니다.");
-        if (orgnFilePath == null || orgnFilePath.isBlank()) throw new IllegalArgumentException("orgnFilePath 는 필수입니다.");
+        if (orgnlFilePath == null || orgnlFilePath.isBlank()) throw new IllegalArgumentException("orgnlFilePath 는 필수입니다.");
         LsDeidentProcLog log = new LsDeidentProcLog();
         log.dataRawSn = rawSn;
         log.reqId = reqId;
         log.externalJobId = externalJobId;
-        log.orgnFilePath = orgnFilePath;
+        log.orgnlFilePathNm = orgnlFilePath;
         log.procSttsCd = REQUESTED;
         log.reqDt = LocalDateTime.now();
         log.regId = regId;
@@ -91,7 +91,7 @@ public class LsDeidentProcLog {
 
     public void succeed(String resultPath) {
         this.procSttsCd = SUCCEEDED;
-        this.deIdntfFilePath = resultPath;
+        this.deIdntfFilePathNm = resultPath;
         this.resDt = LocalDateTime.now();
         this.mdfcnDt = this.resDt;
     }

@@ -56,32 +56,32 @@ public class LsDataAug {
     private BigDecimal lblIntgrtPct;
 
     @Transient
-    private String rejectReason;
+    private String rejectRsn;
 
     @Transient
-    private String decisionUserNo;
+    private String dcsnUserNo;
 
     @Transient
-    private LocalDateTime decisionAt;
+    private LocalDateTime dcsnDt;
 
-    @Column(name = "REGISTERED_AT", nullable = false)
-    private LocalDateTime registeredAt;
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
 
-    @Column(name = "REGISTERED_USER_NO", length = 50)
-    private String registeredUserNo;
+    @Column(name = "REG_USER_NO", length = 50)
+    private String regUserNo;
 
     /**
      * Phase 4 비동기 표준 컬럼 — webhook 인계 원래 위탁 요청 식별자.
      * UNIQUE 제약 (uk_aug_idempotency_key) — 동시 인계 race 차단.
      */
-    @Column(name = "IDEMPOTENCY_KEY", length = 64)
+    @Column(name = "IDMP_KEY", length = 64)
     private String idempotencyKey;
 
     /**
      * Phase 4 비동기 표준 컬럼 — 외부 시스템 작업 ID.
      * UNIQUE 제약 (uk_aug_external_job_id).
      */
-    @Column(name = "EXTERNAL_JOB_ID", length = 128)
+    @Column(name = "OTSD_JOB_ID", length = 128)
     private String externalJobId;
 
     /** Phase 4 비동기 표준 컬럼 — 재시도 횟수. */
@@ -94,18 +94,18 @@ public class LsDataAug {
 
     @Builder
     private LsDataAug(Long srcSn, String augTypeCd, String augProcSttsCd,
-                      BigDecimal lblIntgrtPct, String rejectReason,
-                      String decisionUserNo, LocalDateTime decisionAt,
-                      LocalDateTime registeredAt, String registeredUserNo) {
+                      BigDecimal lblIntgrtPct, String rejectRsn,
+                      String dcsnUserNo, LocalDateTime dcsnDt,
+                      LocalDateTime regDt, String regUserNo) {
         this.srcSn = srcSn;
         this.augTypeCd = augTypeCd;
         this.augProcSttsCd = augProcSttsCd;
         this.lblIntgrtPct = lblIntgrtPct;
-        this.rejectReason = rejectReason;
-        this.decisionUserNo = decisionUserNo;
-        this.decisionAt = decisionAt;
-        this.registeredAt = registeredAt;
-        this.registeredUserNo = registeredUserNo;
+        this.rejectRsn = rejectRsn;
+        this.dcsnUserNo = dcsnUserNo;
+        this.dcsnDt = dcsnDt;
+        this.regDt = regDt;
+        this.regUserNo = regUserNo;
         this.retryCount = 0;
     }
 
@@ -114,20 +114,20 @@ public class LsDataAug {
      */
     public static LsDataAug createPending(Long srcSn, String augTypeCd,
                                           BigDecimal lblIntgrtPct,
-                                          String registeredUserNo) {
+                                          String regUserNo) {
         return LsDataAug.builder()
                 .srcSn(srcSn)
                 .augTypeCd(augTypeCd)
                 .augProcSttsCd(STTS_PENDING)
                 .lblIntgrtPct(lblIntgrtPct)
-                .registeredAt(LocalDateTime.now())
-                .registeredUserNo(registeredUserNo)
+                .regDt(LocalDateTime.now())
+                .regUserNo(regUserNo)
                 .build();
     }
 
     /**
      * 검수 결과를 LsDataAug.augProcSttsCd 에도 동기 반영 (DB 설계서 라인 162-169 호환).
-     * 상세 audit 컬럼(LBL_INTGRT_PCT/REJECT_REASON/DECISION_USER_NO/DECISION_AT)은 LS_DATA_AUG_RVW 에서 관리.
+     * 상세 audit 컬럼(LBL_INTGRT_PCT/REJECT_RSN/DCSN_USER_NO/DCSN_DT)은 LS_DATA_AUG_RVW 에서 관리.
      */
     public void applyReviewStatus(String newStatus) {
         if (newStatus == null

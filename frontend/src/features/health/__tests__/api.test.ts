@@ -30,7 +30,6 @@ describe('health api', () => {
         controlServer: { status: 'UP' },
         portalServer: { status: 'UP' },
         aiServer: { status: 'UP' },
-        gitea: { status: 'UP' },
       },
     });
 

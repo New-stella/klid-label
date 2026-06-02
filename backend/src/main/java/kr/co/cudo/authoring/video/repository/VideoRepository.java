@@ -53,7 +53,7 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
 
     @Modifying
     @Transactional("controlTransactionManager")
-    @Query("UPDATE LsDataRaw r SET r.dataSttsCd = :status, r.updDt = CURRENT_TIMESTAMP WHERE r.rawSn = :rawSn")
+    @Query("UPDATE LsDataRaw r SET r.dataSttsCd = :status, r.mdfcnDt = CURRENT_TIMESTAMP WHERE r.rawSn = :rawSn")
     void updateStatus(@Param("rawSn") Long rawSn, @Param("status") String status);
 
     /**

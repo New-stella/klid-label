@@ -59,7 +59,7 @@ public class ControlNotifyMetrics {
                 .register(registry);
 
         Gauge.builder("control.notify.fallback.depth", fallbackRepository,
-                        repo -> repo.countByStatusIn(ACTIVE_STATUSES))
+                        repo -> repo.countBySttsCdIn(ACTIVE_STATUSES))
                 .description("통지 폴백 큐 깊이 (PENDING + RETRYING)")
                 .register(registry);
     }

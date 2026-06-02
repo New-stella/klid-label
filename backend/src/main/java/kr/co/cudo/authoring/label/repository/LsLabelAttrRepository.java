@@ -14,12 +14,12 @@ import java.util.List;
 @ControlRepo
 public interface LsLabelAttrRepository extends JpaRepository<LsLabelAttr, Long> {
 
-    /** 라벨 내 활성(USE_YN='Y') 속성을 SORT_NO ASC 로 조회. */
-    List<LsLabelAttr> findByLabelIdAndUseYnOrderBySortNoAsc(Long labelId, String useYn);
+    /** 라벨 내 활성(USE_YN='Y') 속성을 SORT_SEQ ASC 로 조회. */
+    List<LsLabelAttr> findByLabelIdAndUseYnOrderBySortSeqAsc(Long labelId, String useYn);
 
     /** create 검증용 — 동일 라벨의 동일 이름(활성/비활성 무관) 존재 여부. */
-    boolean existsByLabelIdAndName(Long labelId, String name);
+    boolean existsByLabelIdAndAttrNm(Long labelId, String attrNm);
 
     /** update 검증용 — 자기 자신을 제외한 동일 이름 존재 여부. */
-    boolean existsByLabelIdAndNameAndAttrIdNot(Long labelId, String name, Long attrId);
+    boolean existsByLabelIdAndAttrNmAndAttrIdNot(Long labelId, String attrNm, Long attrId);
 }

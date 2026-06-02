@@ -117,7 +117,7 @@ public class VlmResultService {
         ledger.markProcessed(req.idempotencyKey(), req.externalJobId());
 
         // 7) Phase 3: VLM 결과 수신 시 마킹 상태 VLM_COMPLETED 전이
-        List<LsMarking> markings = markingRepository.findByRawSnAndStatus(
+        List<LsMarking> markings = markingRepository.findByRawSnAndSttsCd(
                 raw.getRawSn(), LsMarking.STATUS_VLM_REQUESTED);
         for (LsMarking m : markings) {
             m.markVlmCompleted();

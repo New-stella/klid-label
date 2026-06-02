@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
  * Phase 7 — 검수 반려 사유 (LS_DATA_ISSUE).
  *
  * <p>DB설계서 §5A.6 — 좌표 컬럼 없음 (영상 단위 반려). 계층형 (UP_DATA_ISSUE_SN 자기참조).
+ * DATA_RAW_SN(=LS_DATA_RAW.RAW_SN) 영상 단위 참조 (행안부 공통표준 약어 정합).
  * 외래키는 정의하지 않음 (klid_system 공유 DB 정책 — 운영 안정성 우선).
  */
 @Entity
@@ -33,49 +34,49 @@ public class LsDataIssue {
     @Column(name = "UP_DATA_ISSUE_SN")
     private Long upDataIssueSn;
 
-    @Column(name = "VIDEO_ID", nullable = false)
-    private Long videoId;
+    @Column(name = "DATA_RAW_SN", nullable = false)
+    private Long dataRawSn;
 
-    @Column(name = "ISSUE_REASON", length = 1000)
-    private String issueReason;
+    @Column(name = "ISSUE_RSN", length = 1000)
+    private String issueRsn;
 
     @Column(name = "REPORTED_USER_NO", length = 50)
     private String reportedUserNo;
 
-    @Column(name = "REGISTERED_AT", nullable = false)
-    private LocalDateTime registeredAt;
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
 
     @Builder
-    private LsDataIssue(Long upDataIssueSn, Long videoId, String issueReason,
-                        String reportedUserNo, LocalDateTime registeredAt) {
+    private LsDataIssue(Long upDataIssueSn, Long dataRawSn, String issueRsn,
+                        String reportedUserNo, LocalDateTime regDt) {
         this.upDataIssueSn = upDataIssueSn;
-        this.videoId = videoId;
-        this.issueReason = issueReason;
+        this.dataRawSn = dataRawSn;
+        this.issueRsn = issueRsn;
         this.reportedUserNo = reportedUserNo;
-        this.registeredAt = registeredAt;
+        this.regDt = regDt;
     }
 
     /**
      * 신규 반려 사유 등록. UP_DATA_ISSUE_SN 은 첫 반려 시 NULL,
      * 동일 영상 재반려 시 직전 반려를 가리키도록 호출자에서 지정.
      */
-    public static LsDataIssue create(Long videoId, String reason, String reportedUserNo) {
+    public static LsDataIssue create(Long dataRawSn, String reason, String reportedUserNo) {
         return LsDataIssue.builder()
-                .videoId(videoId)
-                .issueReason(reason)
+                .dataRawSn(dataRawSn)
+                .issueRsn(reason)
                 .reportedUserNo(reportedUserNo)
-                .registeredAt(LocalDateTime.now())
+                .regDt(LocalDateTime.now())
                 .build();
     }
 
-    public static LsDataIssue createWithParent(Long videoId, String reason, String reportedUserNo,
+    public static LsDataIssue createWithParent(Long dataRawSn, String reason, String reportedUserNo,
                                                 Long upDataIssueSn) {
         return LsDataIssue.builder()
                 .upDataIssueSn(upDataIssueSn)
-                .videoId(videoId)
-                .issueReason(reason)
+                .dataRawSn(dataRawSn)
+                .issueRsn(reason)
                 .reportedUserNo(reportedUserNo)
-                .registeredAt(LocalDateTime.now())
+                .regDt(LocalDateTime.now())
                 .build();
     }
 }

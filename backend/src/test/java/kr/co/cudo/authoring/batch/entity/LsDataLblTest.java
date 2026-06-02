@@ -18,7 +18,7 @@ class LsDataLblTest {
 
         assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
         assertThat(lbl.getLblTypeCd()).isEqualTo("BBOX");
-        assertThat(lbl.getLabel()).isEqualTo("person");
+        assertThat(lbl.getLabelNm()).isEqualTo("person");
         assertThat(lbl.getConfScore()).isEqualByComparingTo("0.85");
     }
 
@@ -112,9 +112,9 @@ class LsDataLblTest {
         assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
         assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
         assertThat(lbl.getLblTypeCd()).isEqualTo("BBOX");
-        assertThat(lbl.getLabel()).isEqualTo("person");
+        assertThat(lbl.getLabelNm()).isEqualTo("person");
         assertThat(lbl.getTrackId()).isEqualTo("7");
-        assertThat(lbl.getPointsJson()).isEqualTo("[10.0,20.0,30.0,40.0]");
+        assertThat(lbl.getPointCn()).isEqualTo("[10.0,20.0,30.0,40.0]");
         assertThat(lbl.getConfScore()).isEqualByComparingTo("0");
     }
 
@@ -213,7 +213,7 @@ class LsDataLblTest {
         lbl.updateUserContent("BBOX", 10L, "car", "[[3,3],[4,4]]");
 
         assertThat(lbl.getLabelId()).isEqualTo(10L);
-        assertThat(lbl.getLabel()).isEqualTo("car");
+        assertThat(lbl.getLabelNm()).isEqualTo("car");
     }
 
     @Test
@@ -224,7 +224,7 @@ class LsDataLblTest {
         lbl.updateUserContent("BBOX", null, "person", "[[3,3],[4,4]]");
 
         assertThat(lbl.getLabelId()).isEqualTo(5L);  // 그대로 유지
-        assertThat(lbl.getPointsJson()).contains("3,3");
+        assertThat(lbl.getPointCn()).contains("3,3");
     }
 
     // --- V2.0: copyForNewSrc ---
@@ -243,8 +243,8 @@ class LsDataLblTest {
         assertThat(copy.getSrcSn()).isEqualTo(999L);
         assertThat(copy.getLblTypeCd()).isEqualTo("BBOX");
         assertThat(copy.getLabelId()).isEqualTo(7L);
-        assertThat(copy.getLabel()).isEqualTo("person");
-        assertThat(copy.getPointsJson()).isEqualTo("[[10,20,30,40]]");
+        assertThat(copy.getLabelNm()).isEqualTo("person");
+        assertThat(copy.getPointCn()).isEqualTo("[[10,20,30,40]]");
         assertThat(copy.getTrackId()).isEqualTo("track-1");
 
         // then — transient 필드 (DB 미저장)
@@ -266,6 +266,6 @@ class LsDataLblTest {
         lbl.updateUserContent("BBOX", null, "person-v2", "[[1,1]]");
 
         assertThat(lbl.getLabelId()).isEqualTo(5L);  // labelId=null → 기존 유지
-        assertThat(lbl.getLabel()).isEqualTo("person-v2");
+        assertThat(lbl.getLabelNm()).isEqualTo("person-v2");
     }
 }

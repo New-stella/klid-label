@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>V2 정책:
  * <ul>
- *   <li>영상 단위 비식별 (프레임별 호출 폐기). 결과 경로는 LS_DEIDENT_REPORT.DE_IDNTF_FILE_PATH 에만 저장.</li>
+ *   <li>영상 단위 비식별 (프레임별 호출 폐기). 결과 경로는 LS_DEIDENT_REPORT.DE_IDNTF_FILE_PATH_NM 에만 저장.</li>
  *   <li>PRVC/PSDO/ANONY 모두 비식별 호출 (분기 폐기).</li>
  *   <li>잠금 해제 + OPEN 신고 RESOLVED 전이 — WorkLockService + DeidentReportService 위임.</li>
  * </ul>

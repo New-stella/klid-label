@@ -100,7 +100,7 @@ class VlmTimeseriesStepMarkingTest {
         // given
         newRaw(401L);
         LsMarking marking = newMarking(401L);
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_PENDING);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_PENDING);
 
         when(vlmClient.isEnabled()).thenReturn(true);
         when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
@@ -110,7 +110,7 @@ class VlmTimeseriesStepMarkingTest {
         step.runWithMarking(401L, marking);
 
         // then
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
     }
 
     @Test
@@ -127,7 +127,7 @@ class VlmTimeseriesStepMarkingTest {
         assertThat(resp.status()).isEqualTo("SKIPPED");
         verify(vlmClient, never()).submitTimeseries(any());
         // disabled 시에는 마킹 상태 전이하지 않음
-        assertThat(marking.getStatus()).isEqualTo(LsMarking.STATUS_PENDING);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_PENDING);
     }
 
     @Test

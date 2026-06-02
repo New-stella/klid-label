@@ -34,26 +34,26 @@ public class LsWebhookIdempotency {
     public static final String CHANNEL_AUGMENT = "AUGMENT";
 
     @Id
-    @Column(name = "IDEMPOTENCY_KEY", length = 64, nullable = false)
-    private String idempotencyKey;
+    @Column(name = "IDMP_KEY", length = 64, nullable = false)
+    private String idmpKey;
 
-    @Column(name = "CHANNEL", length = 32, nullable = false)
-    private String channel;
+    @Column(name = "CHNL_CD", length = 32, nullable = false)
+    private String chnlCd;
 
-    @Column(name = "STATE", length = 16, nullable = false)
-    private String state;
+    @Column(name = "STTS_CD", length = 16, nullable = false)
+    private String sttsCd;
 
-    @Column(name = "EXTERNAL_JOB_ID", length = 128)
-    private String externalJobId;
+    @Column(name = "OTSD_JOB_ID", length = 128)
+    private String otsdJobId;
 
-    @Column(name = "APPLIED_AT")
-    private LocalDateTime appliedAt;
+    @Column(name = "APLY_DT")
+    private LocalDateTime aplyDt;
 
-    @Column(name = "CREATED_AT", nullable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
 
-    @Column(name = "UPDATED_AT", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "MDFCN_DT", nullable = false)
+    private LocalDateTime mdfcnDt;
 
     public static LsWebhookIdempotency issue(String idempotencyKey, String channel, String externalJobId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
@@ -63,43 +63,43 @@ public class LsWebhookIdempotency {
             throw new IllegalArgumentException("channel 은 필수입니다.");
         }
         LsWebhookIdempotency entity = new LsWebhookIdempotency();
-        entity.idempotencyKey = idempotencyKey;
-        entity.channel = channel;
-        entity.state = STATE_ISSUED;
-        entity.externalJobId = externalJobId;
+        entity.idmpKey = idempotencyKey;
+        entity.chnlCd = channel;
+        entity.sttsCd = STATE_ISSUED;
+        entity.otsdJobId = externalJobId;
         LocalDateTime now = LocalDateTime.now();
-        entity.createdAt = now;
-        entity.updatedAt = now;
+        entity.regDt = now;
+        entity.mdfcnDt = now;
         return entity;
     }
 
     public void markProcessed(String externalJobId) {
-        this.state = STATE_PROCESSED;
+        this.sttsCd = STATE_PROCESSED;
         if (externalJobId != null && !externalJobId.isBlank()) {
-            this.externalJobId = externalJobId;
+            this.otsdJobId = externalJobId;
         }
-        this.appliedAt = LocalDateTime.now();
-        this.updatedAt = this.appliedAt;
+        this.aplyDt = LocalDateTime.now();
+        this.mdfcnDt = this.aplyDt;
     }
 
     public void markFailed() {
-        this.state = STATE_FAILED;
-        this.updatedAt = LocalDateTime.now();
+        this.sttsCd = STATE_FAILED;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     public boolean isProcessed() {
-        return STATE_PROCESSED.equals(this.state);
+        return STATE_PROCESSED.equals(this.sttsCd);
     }
 
     @PrePersist
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();
-        if (this.createdAt == null) this.createdAt = now;
-        if (this.updatedAt == null) this.updatedAt = now;
+        if (this.regDt == null) this.regDt = now;
+        if (this.mdfcnDt == null) this.mdfcnDt = now;
     }
 
     @PreUpdate
     void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 }

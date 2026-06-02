@@ -477,7 +477,8 @@ export function LabelingPage() {
             </div>
             <ObjectAttributePanel labels={labels} />
           </div>
-          <TimeseriesSidePanel srcSn={data?.srcSn} />
+          {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 포털 라벨링에는 미노출, 내부 채널만 렌더 */}
+          {!portalMode && <TimeseriesSidePanel srcSn={data?.srcSn} />}
         </div>
 
         {/* 우측 슬라이드 — 히스토리 인라인 패널 (INTERNAL only). 본 영역은 기존 우측 패널 옆으로 펼침. */}

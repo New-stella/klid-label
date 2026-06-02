@@ -189,7 +189,7 @@ public class AssignmentService {
      *
      * <p>배정/재배정/검수 제출/승인/반려를 시간순으로 통합 반환한다.
      * {@code assignmentId} 로부터 RAW_DATA_ID 를 도출하여
-     * {@link LsTaskEventLog} 를 OCCURRED_AT ASC 로 조회하고,
+     * {@link LsTaskEventLog} 를 OCRN_DT ASC 로 조회하고,
      * actor/subject/prev userNo 를 한 번에 모아 {@code MNG_ACCT_USER} 를 일괄 조회하여 N+1 회피.
      *
      * <p><b>IDOR 방어 (CWE-639)</b>: actor 가 WORKER 인 경우, 본인이 배정된 이력만 조회 가능하다.
@@ -211,7 +211,7 @@ public class AssignmentService {
         }
 
         List<LsTaskEventLog> events = taskEventLogRepository
-                .findByRawDataIdOrderByOccurredAtAsc(authrt.getRawDataId());
+                .findByRawDataIdOrderByOcrnDtAsc(authrt.getRawDataId());
 
         // userNo batch lookup (N+1 회피)
         Set<Long> userNos = new HashSet<>();
@@ -236,8 +236,8 @@ public class AssignmentService {
                     e.getSubjectUserNo() != null ? nameByUserNo.get(e.getSubjectUserNo()) : null,
                     e.getPrevUserNo(),
                     e.getPrevUserNo() != null ? nameByUserNo.get(e.getPrevUserNo()) : null,
-                    e.getReason(),
-                    e.getOccurredAt()
+                    e.getRsn(),
+                    e.getOcrnDt()
             ));
         }
         return out;

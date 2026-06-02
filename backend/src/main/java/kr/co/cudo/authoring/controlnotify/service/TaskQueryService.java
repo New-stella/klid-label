@@ -70,7 +70,7 @@ public class TaskQueryService {
         long totalMeta = metas.size();
 
         // lastModifiedAt: updDt 우선, 없으면 regDt
-        var lastModified = raw.getUpdDt() != null ? raw.getUpdDt() : raw.getRegDt();
+        var lastModified = raw.getMdfcnDt() != null ? raw.getMdfcnDt() : raw.getRegDt();
         var lastModifiedInstant = lastModified != null
                 ? lastModified.atZone(ZoneId.systemDefault()).toInstant()
                 : null;
@@ -134,7 +134,7 @@ public class TaskQueryService {
                 .map(m -> new TaskMetaResponse.MetaItem(
                         m.getMetaSn(),
                         m.getMetaKey(),
-                        m.getMetaVal()
+                        m.getMetaVl()
                 ))
                 .toList();
 
@@ -150,15 +150,15 @@ public class TaskQueryService {
 
     /**
      * 프레임 + 라벨 목록을 응답 DTO로 변환.
-     * <p>CWE-359 Privacy: 파일 경로 필드(filePath, srcBkupFilePath) 미포함 — record 구조로 강제.
+     * <p>CWE-359 Privacy: 파일 경로 필드(filePath, deIdntfSrcFilePath) 미포함 — record 구조로 강제.
      */
     private TaskLabelsResponse toLabelsResponse(LsDataSrc frame, List<LsDataLbl> labels) {
         List<TaskLabelsResponse.LabelItem> items = labels.stream()
                 .map(l -> new TaskLabelsResponse.LabelItem(
                         l.getLblSn(),
                         l.getLblTypeCd(),
-                        l.getLabel(),
-                        l.getPointsJson()
+                        l.getLabelNm(),
+                        l.getPointCn()
                 ))
                 .toList();
 

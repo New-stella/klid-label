@@ -166,7 +166,7 @@ class TrackInterpolationStepTest {
                 .allMatch(r -> "Y".equals(r.getAutoLblYn()))
                 .allMatch(r -> "BBOX".equals(r.getLblTypeCd()))
                 .allMatch(r -> "7".equals(r.getTrackId()))
-                .allMatch(r -> "person".equals(r.getLabel()));
+                .allMatch(r -> "person".equals(r.getLabelNm()));
 
         // srcSn 매핑 확인: frame 6=3006, 7=3007, 8=3008, 9=3009
         assertThat(savedRows).extracting(LsDataLbl::getSrcSn)
@@ -197,7 +197,7 @@ class TrackInterpolationStepTest {
                 .filter(r -> r.getSrcSn() == 4002L)
                 .findFirst()
                 .orElseThrow();
-        List<Double> pts = objectMapper.readValue(mid.getPointsJson(),
+        List<Double> pts = objectMapper.readValue(mid.getPointCn(),
                 new com.fasterxml.jackson.core.type.TypeReference<List<Double>>() {});
         assertThat(pts).hasSize(4);
         assertThat(pts.get(0)).isCloseTo(20.0, within(1e-6));
@@ -246,10 +246,10 @@ class TrackInterpolationStepTest {
         // 라벨 보존 확인
         assertThat(savedRows.stream()
                 .filter(r -> "1".equals(r.getTrackId()))
-                .allMatch(r -> "person".equals(r.getLabel()))).isTrue();
+                .allMatch(r -> "person".equals(r.getLabelNm()))).isTrue();
         assertThat(savedRows.stream()
                 .filter(r -> "2".equals(r.getTrackId()))
-                .allMatch(r -> "car".equals(r.getLabel()))).isTrue();
+                .allMatch(r -> "car".equals(r.getLabelNm()))).isTrue();
     }
 
     @Test

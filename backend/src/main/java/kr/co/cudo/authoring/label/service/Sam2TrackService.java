@@ -13,6 +13,9 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.common.util.Point;
+import kr.co.cudo.authoring.common.util.PolygonSimplifier;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +60,11 @@ public class Sam2TrackService {
     private final LsDataSrcRepository srcRepository;
     private final LabelAccessGuard accessGuard;
     private final LabelMasterService labelMasterService;
+    private final SystemConfigService systemConfigService;
     private final ObjectMapper objectMapper;
+
+    /** POLYGON_SIMPLIFY_TOLERANCE 조회 실패 시 폴백 epsilon(px). */
+    private static final double DEFAULT_SIMPLIFY_TOLERANCE = 1.0;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -72,12 +79,15 @@ public class Sam2TrackService {
         LsDataSrc startSrc = srcRepository.findById(req.srcSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "시작 프레임을 찾을 수 없습니다."));
 
+        // FEAT-007: 경계 세밀함 — SAM2 응답 폴리곤을 sysconfig epsilon 으로 단순화(Douglas-Peucker).
+        double simplifyTolerance = readSimplifyTolerance();
+
         List<Sam2TrackResponseDto.TrackedItem> tracked = new ArrayList<>();
         List<List<Double>> currentPolygon = req.prevPolygon();
 
         Path baseDir = Path.of(storageRawPath).toAbsolutePath().normalize();
         // 시작 프레임 이미지를 prev 로 사용.
-        String prevImageB64 = encodeImageToBase64(baseDir, startSrc.getFilePath());
+        String prevImageB64 = encodeImageToBase64(baseDir, startSrc.getSrcFilePathNm());
 
         for (Long nextSrcSn : req.nextSrcSns()) {
             // IDOR 차단: 후속 프레임 각각에 대해서도 권한 검증.
@@ -86,7 +96,7 @@ public class Sam2TrackService {
             LsDataSrc nextSrc = srcRepository.findById(nextSrcSn)
                     .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "후속 프레임을 찾을 수 없습니다: " + nextSrcSn));
 
-            String nextImageB64 = encodeImageToBase64(baseDir, nextSrc.getFilePath());
+            String nextImageB64 = encodeImageToBase64(baseDir, nextSrc.getSrcFilePathNm());
 
             kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest aiReq =
                     new kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest(
@@ -110,10 +120,12 @@ public class Sam2TrackService {
             validatePolygon(aiRes.polygon(), "ai-server polygon");
 
             // DB 저장: POLYGON + AUTO_LBL_YN='Y' + confScore=ai 응답.
-            List<Point> nextPoints = new ArrayList<>(aiRes.polygon().size());
+            List<Point> rawPoints = new ArrayList<>(aiRes.polygon().size());
             for (List<Double> p : aiRes.polygon()) {
-                nextPoints.add(new Point(p.get(0), p.get(1)));
+                rawPoints.add(new Point(p.get(0), p.get(1)));
             }
+            // FEAT-007: 경계 세밀함 적용 — epsilon 으로 폴리곤 점 감소(형태 보존).
+            List<Point> nextPoints = PolygonSimplifier.simplify(rawPoints, simplifyTolerance);
             String pointsJson = LabelPointSerializer.toJson(nextPoints, objectMapper);
             BigDecimal score = clampScore(aiRes.score());
             // Phase 6: 요청 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
@@ -176,6 +188,19 @@ public class Sam2TrackService {
             return Base64.getEncoder().encodeToString(bytes);
         } catch (IOException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 읽기 실패: " + e.getMessage());
+        }
+    }
+
+    /**
+     * FEAT-007 경계 세밀함 epsilon 조회. 설정 누락/오류 시 기본값으로 폴백(fail-safe).
+     */
+    private double readSimplifyTolerance() {
+        try {
+            Double v = systemConfigService.getDouble(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE);
+            return v != null ? v : DEFAULT_SIMPLIFY_TOLERANCE;
+        } catch (Exception e) {
+            log.warn("[Sam2Track] POLYGON_SIMPLIFY_TOLERANCE 조회 실패 — 기본값 {} 사용", DEFAULT_SIMPLIFY_TOLERANCE);
+            return DEFAULT_SIMPLIFY_TOLERANCE;
         }
     }
 

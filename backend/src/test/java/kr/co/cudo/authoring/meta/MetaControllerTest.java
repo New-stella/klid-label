@@ -116,7 +116,7 @@ class MetaControllerTest {
                 .andExpect(jsonPath("$.data.items[?(@.metaKey=='weather')].metaVal").value("snow"));
 
         LsDataMeta after = metaRepository.findByRawSnAndMetaKey(rawSn, "weather").orElseThrow();
-        assertThat(after.getMetaVal()).isEqualTo("snow");
+        assertThat(after.getMetaVl()).isEqualTo("snow");
     }
 
     // ─────────────────────────── Phase 5: 메타 검토 approve/reject ───────────────────────────
@@ -159,7 +159,7 @@ class MetaControllerTest {
 
         LsDataMetaReview after = metaReviewRepository.findById(reviewSn).orElseThrow();
         assertThat(after.getRvwSttsCd()).isEqualTo(LsDataMetaReview.STTS_REJECTED);
-        assertThat(after.getRejectReason()).isEqualTo("정확도 부족");
+        assertThat(after.getRejectRsn()).isEqualTo("정확도 부족");
         assertThat(after.getRvwId()).isEqualTo("1");
     }
 

@@ -1,30 +1,21 @@
 spring:
   datasource:
     control:
-      jdbc-url: jdbc:mariadb://${CONTROL_DB_HOST}:${CONTROL_DB_PORT}/${CONTROL_DB_NAME}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul
+      jdbc-url: jdbc:postgresql://${CONTROL_DB_HOST}:${CONTROL_DB_PORT}/${CONTROL_DB_NAME}
       username: ${CONTROL_DB_USERNAME}
       password: ${CONTROL_DB_PASSWORD}
-      driver-class-name: org.mariadb.jdbc.Driver
+      driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 20
         minimum-idle: 5
     portal:
-      jdbc-url: jdbc:mariadb://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul
+      jdbc-url: jdbc:postgresql://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}
       username: ${PORTAL_DB_USERNAME}
       password: ${PORTAL_DB_PASSWORD}
-      driver-class-name: org.mariadb.jdbc.Driver
+      driver-class-name: org.postgresql.Driver
       hikari:
         maximum-pool-size: 20
         minimum-idle: 5
-authoring:
-  gitea:
-    retry:
-      enabled: ${GITEA_RETRY_ENABLED:true}
-
-# Phase 3 — prd 환경에서 Gitea fallback 영속 큐 활성화.
-gitea:
-  fallback:
-    enabled: ${GITEA_FALLBACK_ENABLED:true}
 
 # Phase 2 보강 (DEV_FIX M-4): 운영(prd) 환경에서는 webhook HMAC 시크릿 환경변수 미설정 시 부팅 차단.
 # Spring 의 `${VAR:?msg}` 구문은 placeholder 미설정 시 BeanCreationException 으로 부팅 실패.

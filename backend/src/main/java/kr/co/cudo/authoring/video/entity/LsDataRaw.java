@@ -58,11 +58,11 @@ public class LsDataRaw {
     @Column(name = "DE_IDNTF_YN", nullable = false, length = 1)
     private String deIdntfYn;
 
-    @Column(name = "FILE_PATH", nullable = false, length = 500)
-    private String filePath;
+    @Column(name = "RAW_FILE_PATH_NM", nullable = false, length = 500)
+    private String rawFilePathNm;
 
-    @Column(name = "CAPTURED_AT")
-    private LocalDateTime capturedAt;
+    @Column(name = "SHT_DT")
+    private LocalDateTime shtDt;
 
     @Column(name = "DURATION_SEC")
     private Integer durationSec;
@@ -76,12 +76,12 @@ public class LsDataRaw {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "UPD_DT")
-    private LocalDateTime updDt;
+    @Column(name = "MDFCN_DT")
+    private LocalDateTime mdfcnDt;
 
     @Builder
     private LsDataRaw(String vmsClipId, String vmsCctvId, String evntTypeCd, String lclgvCd,
-                      String prvcTypeCd, String filePath, LocalDateTime capturedAt, Integer durationSec) {
+                      String prvcTypeCd, String rawFilePathNm, LocalDateTime shtDt, Integer durationSec) {
         this.vmsClipId = vmsClipId;
         this.vmsCctvId = vmsCctvId;
         this.evntTypeCd = evntTypeCd;
@@ -89,24 +89,24 @@ public class LsDataRaw {
         this.prvcTypeCd = prvcTypeCd;
         this.prvcYn = derivePrvcYn(prvcTypeCd);
         this.deIdntfYn = "N";
-        this.filePath = filePath;
-        this.capturedAt = capturedAt;
+        this.rawFilePathNm = rawFilePathNm;
+        this.shtDt = shtDt;
         this.durationSec = durationSec;
         this.dataSttsCd = STATUS_PENDING;
         this.regDt = LocalDateTime.now();
     }
 
     public static LsDataRaw createFromIngest(String vmsClipId, String vmsCctvId, String evntTypeCd,
-                                              String lclgvCd, String prvcTypeCd, String filePath,
-                                              LocalDateTime capturedAt, Integer durationSec) {
+                                              String lclgvCd, String prvcTypeCd, String rawFilePathNm,
+                                              LocalDateTime shtDt, Integer durationSec) {
         return LsDataRaw.builder()
                 .vmsClipId(vmsClipId)
                 .vmsCctvId(vmsCctvId)
                 .evntTypeCd(evntTypeCd)
                 .lclgvCd(lclgvCd)
                 .prvcTypeCd(prvcTypeCd)
-                .filePath(filePath)
-                .capturedAt(capturedAt)
+                .rawFilePathNm(rawFilePathNm)
+                .shtDt(shtDt)
                 .durationSec(durationSec)
                 .build();
     }
@@ -115,7 +115,7 @@ public class LsDataRaw {
      * V2.0 증강 결과 수신 시 새 영상 생성. 원본 메타를 계승하되 PENDING 상태로 시작.
      * VMS_CLIP_ID 는 원본 + 증강 타입 + 타임스탬프로 유니크 보장.
      */
-    public static LsDataRaw createFromAugment(LsDataRaw parent, String filePath, String augType) {
+    public static LsDataRaw createFromAugment(LsDataRaw parent, String rawFilePathNm, String augType) {
         LsDataRaw raw = new LsDataRaw();
         raw.vmsClipId = parent.getVmsClipId() + "_AUG_" + augType + "_" + System.currentTimeMillis();
         raw.vmsCctvId = parent.getVmsCctvId();
@@ -124,8 +124,8 @@ public class LsDataRaw {
         raw.prvcTypeCd = parent.getPrvcTypeCd();
         raw.prvcYn = derivePrvcYn(parent.getPrvcTypeCd());
         raw.deIdntfYn = "N";
-        raw.filePath = filePath;
-        raw.capturedAt = parent.getCapturedAt();
+        raw.rawFilePathNm = rawFilePathNm;
+        raw.shtDt = parent.getShtDt();
         raw.durationSec = parent.getDurationSec();
         raw.parentRawSn = parent.getRawSn();
         raw.dataSttsCd = STATUS_PENDING;
@@ -138,16 +138,16 @@ public class LsDataRaw {
      * (RAW_SN, VMS_CLIP_ID 는 불변)
      */
     public void updateFromIngest(String vmsCctvId, String evntTypeCd, String lclgvCd, String prvcTypeCd,
-                                  String filePath, LocalDateTime capturedAt, Integer durationSec) {
+                                  String rawFilePathNm, LocalDateTime shtDt, Integer durationSec) {
         this.vmsCctvId = vmsCctvId;
         this.evntTypeCd = evntTypeCd;
         this.lclgvCd = lclgvCd;
         this.prvcTypeCd = prvcTypeCd;
         this.prvcYn = derivePrvcYn(prvcTypeCd);
-        this.filePath = filePath;
-        this.capturedAt = capturedAt;
+        this.rawFilePathNm = rawFilePathNm;
+        this.shtDt = shtDt;
         this.durationSec = durationSec;
-        this.updDt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /**
@@ -161,14 +161,14 @@ public class LsDataRaw {
     /**
      * 비식별 처리 결과를 마킹 (Phase 5).
      * - 'Y' = 성공 / 'F' = 실패 / 'N' = 미수행.
-     * - 원본 filePath 는 절대 변경되지 않는다 (원본 보존 원칙).
+     * - 원본 rawFilePathNm 은 절대 변경되지 않는다 (원본 보존 원칙).
      */
     public void markDeidentified(String code) {
         if (code == null || (!"Y".equals(code) && !"F".equals(code) && !"N".equals(code))) {
             throw new IllegalArgumentException("DE_IDNTF_YN 은 Y/F/N 중 하나여야 합니다: " + code);
         }
         this.deIdntfYn = code;
-        this.updDt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /** 배치 상태 코드 갱신 (PROCESSING / COMPLETED / FAILED). */
@@ -177,7 +177,7 @@ public class LsDataRaw {
             throw new IllegalArgumentException("DATA_STTS_CD 는 필수입니다.");
         }
         this.dataSttsCd = dataSttsCd;
-        this.updDt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /** PRVC_TYPE_CD 기반 PRVC_YN 산출 (단일 진실의 원천). */

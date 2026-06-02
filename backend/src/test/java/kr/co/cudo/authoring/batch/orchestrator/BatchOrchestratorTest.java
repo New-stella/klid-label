@@ -87,7 +87,7 @@ class BatchOrchestratorTest {
         lenient().when(rawDataStatusRepository.findById(any())).thenReturn(java.util.Optional.empty());
 
         // V2.0: 마킹 필수 — 기본 마킹 데이터 제공 (orchestrator 통과 보장)
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(any()))
+        when(markingRepository.findByRawSnOrderByRegDtDesc(any()))
                 .thenReturn(List.of(newMarking()));
 
         // 기본: extractByMarks(raw, deidVideoPath, marks) 가 1 프레임 반환
@@ -218,7 +218,7 @@ class BatchOrchestratorTest {
     @DisplayName("V2_마킹_없으면_FAILED_INVALID_INPUT")
     void noMarkingResultsInFailed() {
         newRaw(133L, LsDataRaw.PRVC_TYPE_ANONY);
-        when(markingRepository.findByRawSnOrderByCreatedAtDesc(133L))
+        when(markingRepository.findByRawSnOrderByRegDtDesc(133L))
                 .thenReturn(java.util.Collections.emptyList());
 
         BatchStage result = orchestrator.process(133L);

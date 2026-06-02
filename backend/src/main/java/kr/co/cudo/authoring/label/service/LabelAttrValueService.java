@@ -101,8 +101,8 @@ public class LabelAttrValueService {
         List<LabelAttrValueResponse> result = new ArrayList<>(values.size());
         for (LsDataLblAttrVal v : values) {
             LsLabelAttr attr = attrById.get(v.getAttrId());
-            String name = attr != null ? attr.getName() : null;
-            String inputType = attr != null ? attr.getInputType() : null;
+            String name = attr != null ? attr.getAttrNm() : null;
+            String inputType = attr != null ? attr.getInputTypeCd() : null;
             result.add(new LabelAttrValueResponse(v.getAttrId(), name, inputType, v.getValue()));
         }
         return result;

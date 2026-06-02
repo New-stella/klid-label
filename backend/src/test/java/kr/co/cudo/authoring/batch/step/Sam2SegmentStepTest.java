@@ -190,7 +190,7 @@ class Sam2SegmentStepTest {
         verify(lblRepository, times(1)).save(captor.capture());
         LsDataLbl saved1 = captor.getValue();
         assertThat(saved1.getLblTypeCd()).isEqualTo("POLYGON");
-        assertThat(saved1.getLabel()).isEqualTo("person");
+        assertThat(saved1.getLabelNm()).isEqualTo("person");
         assertThat(saved1.getAutoLblYn()).isEqualTo("Y");
     }
 
@@ -248,7 +248,7 @@ class Sam2SegmentStepTest {
         verify(lblRepository, times(1)).save(captor.capture());
         LsDataLbl saved1 = captor.getValue();
         assertThat(saved1.getLblTypeCd()).isEqualTo("POLYGON");
-        assertThat(saved1.getLabel()).isEqualTo("person");
+        assertThat(saved1.getLabelNm()).isEqualTo("person");
     }
 
     @Test

@@ -7,7 +7,7 @@
 --
 -- 검수 완료 판정: LS_RAW_DATA_STATUS.DATA_STTS_CD = 'APPROVED'
 -- 메타 승인 판정: LS_DATA_META_REVIEW.RVW_STTS_CD = 'APPROVED'
--- 프레임 페어 : LS_DATA_SRC.FILE_PATH (원본) + SRC_BKUP_FILE_PATH (비식별)
+-- 프레임 페어 : LS_DATA_SRC.SRC_FILE_PATH_NM (원본) + DE_IDNTF_SRC_FILE_PATH_NM (비식별)
 --
 -- 사용 패턴(권장): TASK_COMPLETED 통지 수신 → RAW_SN 으로 4개 View 단순 SELECT
 --                → 데이터마트 영상 1건 = 1 row UPSERT.
@@ -33,8 +33,8 @@ SELECT
     r.PRVC_TYPE_CD,
     r.PRVC_YN,
     r.DE_IDNTF_YN,
-    r.FILE_PATH AS ORIGINAL_VIDEO_PATH,
-    r.CAPTURED_AT,
+    r.RAW_FILE_PATH_NM AS ORIGINAL_VIDEO_PATH,
+    r.SHT_DT AS CAPTURED_AT,
     r.DURATION_SEC,
     r.PARENT_RAW_SN,
     r.DATA_STTS_CD AS BATCH_STTS_CD,
@@ -57,9 +57,9 @@ SELECT
     src.SRC_SN,
     src.RAW_SN,
     src.FRAME_NO,
-    src.FILE_PATH          AS ORIGINAL_PATH,
-    src.SRC_BKUP_FILE_PATH AS DEIDENTIFIED_PATH,
-    src.CAPTURED_AT,
+    src.SRC_FILE_PATH_NM      AS ORIGINAL_PATH,
+    src.DE_IDNTF_SRC_FILE_PATH_NM AS DEIDENTIFIED_PATH,
+    src.SHT_DT AS CAPTURED_AT,
     src.REG_DT,
     src.UPD_DT
 FROM LS_DATA_SRC src
@@ -75,7 +75,7 @@ WHERE EXISTS (
 -- 3. V_COMPLETED_LABEL — 라벨 좌표 + 마스터 코드 평면
 --
 -- 프레임(SRC_SN)별 라벨에 영상 RAW_SN, FRAME_NO 와 라벨 마스터(LS_LABEL)의
--- NAME / COLOR / TYPE 을 함께 노출한다. 검수 완료 영상의 라벨만 조회된다.
+-- LABEL_NM / COLR_VL / LABEL_TYPE_CD 를 함께 노출한다. 검수 완료 영상의 라벨만 조회된다.
 -- 라벨 속성값(LS_DATA_LBL_ATTR_VAL)은 V_COMPLETED_LABEL_ATTR 로 분리.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW V_COMPLETED_LABEL AS
@@ -86,16 +86,16 @@ SELECT
     src.FRAME_NO,
     lbl.LBL_TYPE_CD,
     lbl.LABEL_ID,
-    lbl.LABEL,
-    lbl.POINTS_JSON,
+    lbl.LABEL_NM   AS LABEL,
+    lbl.POINT_CN   AS POINTS_JSON,
     lbl.TRCK_ID,
     lbl.REG_USER_NO,
-    lbl.REG_DT AS LABEL_REG_DT,
-    lbl.UPD_DT AS LABEL_UPD_DT,
-    label.NAME    AS LABEL_NAME,
-    label.COLOR   AS LABEL_COLOR,
-    label.TYPE    AS LABEL_TYPE,
-    label.SORT_NO AS LABEL_SORT_NO
+    lbl.REG_DT  AS LABEL_REG_DT,
+    lbl.MDFCN_DT AS LABEL_UPD_DT,
+    label.LABEL_NM      AS LABEL_NAME,
+    label.COLR_VL       AS LABEL_COLOR,
+    label.LABEL_TYPE_CD AS LABEL_TYPE,
+    label.SORT_SEQ      AS LABEL_SORT_NO
 FROM LS_DATA_LBL lbl
 INNER JOIN LS_DATA_SRC src ON src.SRC_SN  = lbl.SRC_SN
 LEFT  JOIN LS_LABEL    label ON label.LABEL_ID = lbl.LABEL_ID
@@ -110,7 +110,7 @@ WHERE EXISTS (
 -- -----------------------------------------------------------------------------
 -- 3b. V_COMPLETED_LABEL_ATTR — 라벨 속성값
 --
--- 라벨(LBL_SN)별 속성값과 속성 정의(LS_LABEL_ATTR.NAME/INPUT_TYPE/VALUES_JSON)을
+-- 라벨(LBL_SN)별 속성값과 속성 정의(LS_LABEL_ATTR.ATTR_NM/INPUT_TYPE_CD/VALUES_CN)을
 -- 함께 노출. 검수 완료 영상에 속한 라벨의 속성값만 조회된다.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW V_COMPLETED_LABEL_ATTR AS
@@ -118,11 +118,11 @@ SELECT
     av.ATTR_VAL_ID,
     av.LBL_SN,
     av.ATTR_ID,
-    attr.NAME        AS ATTR_NAME,
-    attr.INPUT_TYPE  AS ATTR_INPUT_TYPE,
-    attr.VALUES_JSON AS ATTR_VALUES_JSON,
-    attr.DEFAULT_VAL AS ATTR_DEFAULT_VAL,
-    av.ATTR_VAL,
+    attr.ATTR_NM       AS ATTR_NAME,
+    attr.INPUT_TYPE_CD AS ATTR_INPUT_TYPE,
+    attr.VALUES_CN     AS ATTR_VALUES_JSON,
+    attr.DFLT_VL       AS ATTR_DEFAULT_VAL,
+    av.ATTR_VL         AS ATTR_VAL,
     av.REG_DT,
     av.MDFCN_DT
 FROM LS_DATA_LBL_ATTR_VAL av
@@ -141,14 +141,14 @@ WHERE EXISTS (
 -- 4. V_COMPLETED_META — 시계열 메타 (승인본)
 --
 -- VLM 또는 외부 인계 메타 중 REVIEWER 가 승인(RVW_STTS_CD='APPROVED')한 것만 노출.
--- LS_DATA_META 는 META_KEY/META_VAL 의 KV 형태로 영상 단위(RAW_SN)로 적재됨.
+-- LS_DATA_META 는 META_KEY/META_VL 의 KV 형태로 영상 단위(RAW_SN)로 적재됨.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW V_COMPLETED_META AS
 SELECT
     meta.META_SN,
     meta.RAW_SN,
     meta.META_KEY,
-    meta.META_VAL,
+    meta.META_VL,
     meta.EXTERNAL_JOB_ID,
     mrev.DATA_META_REVIEW_SN,
     mrev.META_TYPE_CD,

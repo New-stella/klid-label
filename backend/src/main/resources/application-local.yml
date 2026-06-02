@@ -1,11 +1,11 @@
 # ============================================================================
 # WARNING — local 프로파일 전용 fallback 시크릿 (CWE-798)
 #
-#   본 파일의 fallback 비밀번호/토큰은 docker dev 컨테이너(klid-mariadb) 한정.
+#   본 파일의 fallback 비밀번호/토큰은 docker dev 컨테이너(klid-postgres) 한정.
 #   운영 환경(dev/stg/prd)에 SPRING_PROFILES_ACTIVE=local 로 배포하지 말 것.
 #   ENV 환경변수가 dev/stg/prd 인 경우 LocalProfileGuard 가 부트를 거부함.
 #
-#   운영 시크릿은 환경변수(JWT_SECRET, *_DB_PASSWORD, GITEA_TOKEN)로 주입.
+#   운영 시크릿은 환경변수(JWT_SECRET, *_DB_PASSWORD)로 주입.
 # ============================================================================
 spring:
   # [개발/검수 전용] /v1/dev/autolabel-test multipart 업로드용 — local 프로파일만 활성화.
@@ -18,15 +18,15 @@ spring:
       max-request-size: 500MB
   datasource:
     control:
-      jdbc-url: jdbc:mariadb://127.0.0.1:3307/klid_system?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useSSL=false
+      jdbc-url: jdbc:postgresql://127.0.0.1:5432/klid_system
       username: ${CONTROL_DB_USERNAME:klid_user}
       password: ${CONTROL_DB_PASSWORD:klid_local_2024}
-      driver-class-name: org.mariadb.jdbc.Driver
+      driver-class-name: org.postgresql.Driver
     portal:
-      jdbc-url: jdbc:mariadb://127.0.0.1:3307/portal?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useSSL=false
+      jdbc-url: jdbc:postgresql://127.0.0.1:5432/portal
       username: ${PORTAL_DB_USERNAME:klid_user}
       password: ${PORTAL_DB_PASSWORD:klid_local_2024}
-      driver-class-name: org.mariadb.jdbc.Driver
+      driver-class-name: org.postgresql.Driver
 
   flyway:
     enabled: true
@@ -41,9 +41,6 @@ authoring:
     admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:$2y$12$NxE8qu8kf7G6kxmhtKs8b.d4uWDvWg1YsSQ7ShVvQmrLTwCE.mCSq}
   jwt:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
-  integration:
-    gitea:
-      token: ${GITEA_TOKEN:ceb737fdcac1cc45813ddd87c3100c957ad4148a}
   # Phase 5 — local 환경에서는 자동 트리거 비활성화 (Quartz 잡 미등록).
   # Step/Orchestrator/Service 빈은 그대로 등록되어 단위 테스트 가능.
   batch:

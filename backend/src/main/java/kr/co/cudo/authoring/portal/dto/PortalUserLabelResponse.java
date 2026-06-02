@@ -15,7 +15,7 @@ public record PortalUserLabelResponse(
 ) {
     public static PortalUserLabelResponse from(LsPortalUserLabel e) {
         return new PortalUserLabelResponse(
-                e.getUserLblSn(), e.getSourceRawSn(), e.getSourceSrcSn(),
-                e.getLblTypeCd(), e.getLabel(), e.getPoints(), e.getCreatedAt());
+                e.getUserLblSn(), e.getSrcRawSn(), e.getSrcDataSrcSn(),
+                e.getLblTypeCd(), e.getLabelNm(), e.getPointCn(), e.getRegDt());
     }
 }

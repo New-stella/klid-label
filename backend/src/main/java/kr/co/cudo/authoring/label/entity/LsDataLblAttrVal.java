@@ -44,8 +44,8 @@ public class LsDataLblAttrVal {
     @Column(name = "ATTR_ID", nullable = false)
     private Long attrId;
 
-    /** H2 의 VALUE reserved keyword 회피 — 컬럼명은 ATTR_VAL, Java 필드는 value 유지. */
-    @Column(name = "ATTR_VAL", length = 1000)
+    /** H2 의 VALUE reserved keyword 회피 — 컬럼명은 ATTR_VL, Java 필드는 value 유지. */
+    @Column(name = "ATTR_VL", length = 1000)
     private String value;
 
     @Column(name = "REG_DT", nullable = false, updatable = false)

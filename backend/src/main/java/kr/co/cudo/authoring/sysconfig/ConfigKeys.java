@@ -26,19 +26,34 @@ public final class ConfigKeys {
     public static final String YOLO_IMGSZ          = "YOLO_IMGSZ";
     public static final String YOLO_IOU            = "YOLO_IOU";
 
+    /**
+     * FEAT-007 (SFR-08-03) 라벨링 정밀도 — 경계 세밀함.
+     * <p>
+     * Douglas-Peucker 단순화 epsilon(px). DECIMAL 타입(0.0~50.0, 기본 1.0).
+     * 값이 클수록 폴리곤 점이 더 많이 제거되어 경계가 거칠어진다(=세밀함 낮춤).
+     * 인식 민감도는 기존 {@link #YOLO_CONF_THRESHOLD} 가 담당.
+     */
+    public static final String POLYGON_SIMPLIFY_TOLERANCE = "POLYGON_SIMPLIFY_TOLERANCE";
+
     /** 화이트리스트 — Service.update / getInt 진입 검증에 사용. */
     public static final Set<String> ALLOWED = Set.of(
             BATCH_INTERVAL_SEC, BATCH_CONCURRENCY,
-            YOLO_CONF_THRESHOLD, YOLO_IMGSZ, YOLO_IOU
+            YOLO_CONF_THRESHOLD, YOLO_IMGSZ, YOLO_IOU,
+            POLYGON_SIMPLIFY_TOLERANCE
     );
 
-    /** NUMBER 키별 허용 범위 [min, max] (DB설계서 §5A.4 정책). */
+    /** NUMBER(정수) 키별 허용 범위 [min, max] (DB설계서 §5A.4 정책). */
     public static final Map<String, int[]> NUMBER_RANGE = Map.of(
             BATCH_INTERVAL_SEC,  new int[]{10, 3600},
             BATCH_CONCURRENCY,   new int[]{1, 10},
             YOLO_CONF_THRESHOLD, new int[]{25, 80},
             YOLO_IMGSZ,          new int[]{320, 1920},
             YOLO_IOU,            new int[]{30, 80}
+    );
+
+    /** DECIMAL(소수) 키별 허용 범위 [min, max]. */
+    public static final Map<String, double[]> DECIMAL_RANGE = Map.of(
+            POLYGON_SIMPLIFY_TOLERANCE, new double[]{0.0, 50.0}
     );
 
     private ConfigKeys() {}

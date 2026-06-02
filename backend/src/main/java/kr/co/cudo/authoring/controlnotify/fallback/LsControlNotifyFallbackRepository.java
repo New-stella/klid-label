@@ -22,18 +22,18 @@ import java.util.Optional;
 @Repository
 public interface LsControlNotifyFallbackRepository extends JpaRepository<LsControlNotifyFallback, Long> {
 
-    Optional<LsControlNotifyFallback> findByIdempotencyKey(String idempotencyKey);
+    Optional<LsControlNotifyFallback> findByIdmpKey(String idmpKey);
 
-    /** 재시도 대상 polling — STATUS=PENDING + NEXT_RETRY_AT <= now. */
-    List<LsControlNotifyFallback> findByStatusAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
-            String status, LocalDateTime cutoff, Pageable pageable);
+    /** 재시도 대상 polling — STTS_CD=PENDING + NEXT_RTRY_DT <= now. */
+    List<LsControlNotifyFallback> findBySttsCdAndNextRtryDtLessThanEqualOrderByNextRtryDtAsc(
+            String sttsCd, LocalDateTime cutoff, Pageable pageable);
 
-    long countByStatus(String status);
+    long countBySttsCd(String sttsCd);
 
     /**
-     * 큐 깊이 측정용 — 다중 STATUS 집계.
+     * 큐 깊이 측정용 — 다중 STTS_CD 집계.
      */
-    long countByStatusIn(Collection<String> statuses);
+    long countBySttsCdIn(Collection<String> statuses);
 
     /**
      * CWE-362 — Read-Then-Write race 차단용 원자 CAS UPDATE.
@@ -43,7 +43,7 @@ public interface LsControlNotifyFallbackRepository extends JpaRepository<LsContr
      * @return 영향받은 행 수 (1 = claim 성공, 0 = 다른 인스턴스가 이미 처리 중)
      */
     @Modifying
-    @Query("UPDATE LsControlNotifyFallback q SET q.status = 'RETRYING', q.updatedAt = :now " +
-            "WHERE q.queueSn = :sn AND q.status = 'PENDING'")
+    @Query("UPDATE LsControlNotifyFallback q SET q.sttsCd = 'RETRYING', q.mdfcnDt = :now " +
+            "WHERE q.queueSn = :sn AND q.sttsCd = 'PENDING'")
     int claimAtomically(@Param("sn") Long sn, @Param("now") LocalDateTime now);
 }

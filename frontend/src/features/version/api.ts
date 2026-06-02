@@ -1,11 +1,12 @@
-// 버전관리 도메인 API — BE: /api/v1/frames/{srcSn}/versions, /versions/{commit}/diff, /versions/{commit}/rollback
+// 버전관리 도메인 API — BE: /api/v1/frames/{srcSn}/versions, /versions/{toHash}/diff, /versions/{versionHash}/rollback
 //
-// 경로 의미 (2026-05-18 정리):
+// 버전 식별자 의미 (Phase 6 DB 스냅샷 전환):
+// - 모든 버전 식별자(commitSha)는 versionHash = 라벨 스냅샷 SHA-256 hex(64자). 와이어 호환을 위해
+//   응답 필드명만 commitSha/shortHash 로 유지한다. 외부 VCS 의존 없음(versionHash=스냅샷 SHA-256).
 // - srcSn 은 LS_DATA_SRC.SRC_SN (프레임 단위 PK). 영상(LS_DATA_RAW.RAW_SN)이 아니다.
-// - 기존 /v1/videos/{srcSn}/versions 는 BE deprecated alias 로 유지되지만 FE 는 정식 경로 /frames/{srcSn}/versions 사용.
 //
 // 보안 (security.md 정합):
-// - 사용자 입력 commit hash는 BE에서 SHA hex(40자) 검증 후 사용 — FE는 단순 전달.
+// - 사용자 입력 versionHash 는 BE 에서 hex(64자) 검증 후 사용 — FE 는 단순 전달.
 // - axios가 path/query 자동 URL 인코딩 (XSS/CRLF 방어).
 // - IDOR 방어 + 롤백 권한(REVIEWER) 검증은 BE 책임.
 
@@ -24,10 +25,12 @@ export function listVersions(srcSn: number): Promise<Version[]> {
 }
 
 /**
- * 두 커밋 간 라벨 diff 조회.
- * BE: GET /api/v1/versions/{commit}/diff?compareWith={otherCommit}
+ * 두 버전 간 라벨 diff 조회.
+ * BE: GET /api/v1/versions/{toHash}/diff?compareWith={fromHash}
  *
- * compareWith가 없으면 BE는 직전 커밋(부모)과 비교.
+ * - path(commit) = 비교 대상 to 버전(versionHash)
+ * - query(compareWith) = 기준 from 버전(versionHash)
+ * compareWith가 없으면 BE는 직전 버전(부모 스냅샷)과 비교.
  */
 export function getDiff(commit: string, compareWith?: string): Promise<LabelDiff[]> {
   return apiClient
@@ -38,10 +41,10 @@ export function getDiff(commit: string, compareWith?: string): Promise<LabelDiff
 }
 
 /**
- * 지정한 커밋의 라벨 상태로 롤백 (현재 HEAD 위에 새 커밋 생성).
- * BE: POST /api/v1/versions/{commit}/rollback
+ * 지정한 versionHash 의 라벨 스냅샷으로 롤백 (현재 버전 위에 신규 이력 1건 생성).
+ * BE: POST /api/v1/versions/{versionHash}/rollback  body: { srcSn }
  *
- * 보안: 권한(REVIEWER) 검증 + commit SHA 검증은 BE에서 수행.
+ * 보안: 권한(REVIEWER) 검증 + versionHash hex 검증은 BE에서 수행.
  */
 export function rollback(commit: string, srcSn: number): Promise<RollbackResponse> {
   return apiClient

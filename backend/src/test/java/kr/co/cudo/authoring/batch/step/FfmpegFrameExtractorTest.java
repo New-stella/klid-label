@@ -133,9 +133,9 @@ class FfmpegFrameExtractorTest {
         List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), deidVideo.toString(), marks);
 
         assertThat(frames).hasSize(2);
-        // 원본 + 비식별 2벌 — 같은 row 의 srcBkupFilePath 에 비식별 경로
-        assertThat(frames).allMatch(f -> f.getSrcBkupFilePath() != null);
-        assertThat(frames).allMatch(f -> f.getFilePath().contains("frames"));
+        // 원본 + 비식별 2벌 — 같은 row 의 deIdntfSrcFilePathNm 에 비식별 경로
+        assertThat(frames).allMatch(f -> f.getDeIdntfSrcFilePathNm() != null);
+        assertThat(frames).allMatch(f -> f.getSrcFilePathNm().contains("frames"));
         // raw 2회 + deid 2회 = 총 4회 writeFrame 호출
         assertThat(recordedSeekMillis).hasSize(4);
     }
@@ -149,7 +149,7 @@ class FfmpegFrameExtractorTest {
         List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), null, marks);
 
         assertThat(frames).hasSize(1);
-        assertThat(frames.get(0).getSrcBkupFilePath()).isNull();
+        assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
     }
 
     @Test

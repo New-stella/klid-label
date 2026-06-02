@@ -98,7 +98,7 @@ public class BatchOrchestrator {
         try {
             // 0. 마킹 확인 — Phase 3: VLM 호출 전에 마킹 데이터 조회.
             statusService.markStage(rawSn, BatchStage.MARKING);
-            List<LsMarking> markings = markingRepository.findByRawSnOrderByCreatedAtDesc(rawSn);
+            List<LsMarking> markings = markingRepository.findByRawSnOrderByRegDtDesc(rawSn);
             log.info("[BatchOrchestrator] marking check rawSn={} count={}", rawSn, markings.size());
 
             // 1. VLM 시계열 메타 — Phase 1: 외부 위탁 (enabled=false 면 NO-OP).
@@ -121,7 +121,7 @@ public class BatchOrchestrator {
                 throw new CustomException(ErrorCode.INVALID_INPUT,
                         "마킹 데이터가 없습니다. rawSn=" + rawSn);
             }
-            List<MarkItem> marks = parseMarks(markings.get(0).getMarks());
+            List<MarkItem> marks = parseMarks(markings.get(0).getMarkCn());
             List<LsDataSrc> frames = frameExtractor.extractByMarks(raw, deidVideoPath, marks);
             if (frames.isEmpty()) {
                 throw new CustomException(ErrorCode.INTERNAL_ERROR,

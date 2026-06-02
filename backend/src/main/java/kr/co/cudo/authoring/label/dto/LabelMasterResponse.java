@@ -20,10 +20,10 @@ public record LabelMasterResponse(
     public static LabelMasterResponse from(LsLabel e) {
         return new LabelMasterResponse(
                 e.getLabelId(),
-                e.getName(),
-                e.getColor(),
-                e.getType(),
-                e.getSortNo(),
+                e.getLabelNm(),
+                e.getColrVl(),
+                e.getLabelTypeCd(),
+                e.getSortSeq(),
                 e.getUseYn()
         );
     }

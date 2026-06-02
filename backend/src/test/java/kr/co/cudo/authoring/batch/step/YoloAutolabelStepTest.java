@@ -231,7 +231,7 @@ class YoloAutolabelStepTest {
         ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(2)).save(captor.capture());
         captor.getAllValues().forEach(lbl ->
-                assertThat(lbl.getLabel().toLowerCase()).isEqualTo("person"));
+                assertThat(lbl.getLabelNm().toLowerCase()).isEqualTo("person"));
     }
 
     @Test

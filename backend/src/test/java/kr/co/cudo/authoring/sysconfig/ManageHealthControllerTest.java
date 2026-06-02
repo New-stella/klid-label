@@ -37,7 +37,6 @@ class ManageHealthControllerTest {
                 .andExpect(jsonPath("$.data.status").exists())
                 .andExpect(jsonPath("$.data.components.deidentify").exists())
                 .andExpect(jsonPath("$.data.components.aiServer").exists())
-                .andExpect(jsonPath("$.data.components.gitea").exists())
                 .andExpect(jsonPath("$.data.components.database").exists())
                 .andExpect(jsonPath("$.data.components.database.status").value("UP"));
     }

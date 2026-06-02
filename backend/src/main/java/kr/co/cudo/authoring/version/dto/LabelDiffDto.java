@@ -7,9 +7,9 @@ import java.util.List;
 /**
  * FE {@code LabelDiff} 와 1:1 매핑되는 라벨 단위 diff DTO.
  *
- * <p>Phase 8 보강 (2026-05-19) — Gitea compare API 의 파일 단위 diff 만으로는
- * 라벨링 화면 작업이력 패널에서 "어떤 라벨이 추가/수정/삭제되었는지" 를 알 수 없다.
- * BE 가 두 SHA 의 라벨 JSON 을 직접 파싱·비교하여 라벨 단위 diff 를 산출한다.
+ * <p>파일 단위 diff 만으로는 라벨링 화면 작업이력 패널에서
+ * "어떤 라벨이 추가/수정/삭제되었는지" 를 알 수 없다.
+ * BE 가 두 버전의 라벨 JSON 스냅샷을 직접 파싱·비교하여 라벨 단위 diff 를 산출한다.
  *
  * <ul>
  *   <li>{@code ADDED}    — toSha 에만 존재 (after only)
@@ -18,8 +18,7 @@ import java.util.List;
  * </ul>
  *
  * <p>{@code objectId} 는 라벨 PK(LS_DATA_LBL.LBL_SN) 의 문자열 표현.
- * 같은 srcSn 내에서 고유하므로 라벨 추적에 충분하다.
- * Gitea 의 SHA 비교 결과와 무관하게 안전하다 (외부 입력 아님).
+ * 같은 srcSn 내에서 고유하므로 라벨 추적에 충분하다 (외부 입력 아님 — 안전).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record LabelDiffDto(

@@ -190,8 +190,8 @@ public class Sam2SegmentStep {
                 .toList();
         for (LsDataLbl lbl : bboxes) {
             Integer trackId = parseTrackId(lbl.getTrackId());
-            DedupKey key = new DedupKey(src.getSrcSn(), lbl.getLabel(), trackId);
-            jobs.putIfAbsent(key, new SegmentJob(lbl.getLabel(), parseBbox(lbl.getPointsJson())));
+            DedupKey key = new DedupKey(src.getSrcSn(), lbl.getLabelNm(), trackId);
+            jobs.putIfAbsent(key, new SegmentJob(lbl.getLabelNm(), parseBbox(lbl.getPointCn())));
         }
         for (BbHint h : frameHints) {
             DedupKey key = new DedupKey(h.srcSn(), h.label(), h.trackId());
@@ -240,7 +240,7 @@ public class Sam2SegmentStep {
     }
 
     private String resolveImagePath(LsDataSrc src) {
-        return src.getFilePath();
+        return src.getSrcFilePathNm();
     }
 
     private String readImageAsBase64(String relativePath) {

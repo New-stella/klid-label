@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 
 /**
  * LS_DATA_LBL_HSTRY: 기존 라벨 이력 테이블 매핑.
- * Gitea 커밋 기준은 LS_LABEL_VERSION 에서 관리한다.
+ * 라벨 버전(스냅샷) 은 LS_LABEL_VERSION 에서 관리한다.
  */
 @Entity
 @Table(name = "LS_DATA_LBL_HSTRY")

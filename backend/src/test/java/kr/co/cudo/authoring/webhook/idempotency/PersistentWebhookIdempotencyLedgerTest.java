@@ -84,7 +84,7 @@ class PersistentWebhookIdempotencyLedgerTest {
                 .isZero();
         assertThat(ledger.isProcessed(key)).isTrue();
         assertThat(repository.findAll())
-                .filteredOn(e -> e.getIdempotencyKey().equals(key))
+                .filteredOn(e -> e.getIdmpKey().equals(key))
                 .hasSize(1);
     }
 

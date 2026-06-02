@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 외부 시스템 API 호출 메트릭 (Phase 12).
- *  - external.api.duration (Timer, tag service=control/portal/deid/gitea/ai/generate)
+ *  - external.api.duration (Timer, tag service=control/portal/deid/ai/generate)
  */
 @Component
 public class ExternalApiMetrics {

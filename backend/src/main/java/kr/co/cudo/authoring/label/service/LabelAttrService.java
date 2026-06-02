@@ -48,7 +48,7 @@ public class LabelAttrService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<LabelAttrResponse> list(Long labelId) {
         ensureLabelExists(labelId);
-        return attrRepository.findByLabelIdAndUseYnOrderBySortNoAsc(labelId, USE_YN_ACTIVE).stream()
+        return attrRepository.findByLabelIdAndUseYnOrderBySortSeqAsc(labelId, USE_YN_ACTIVE).stream()
                 .map(LabelAttrResponse::from)
                 .toList();
     }
@@ -58,7 +58,7 @@ public class LabelAttrService {
     public LabelAttrResponse create(Long labelId, LabelAttrRequest req, String regId) {
         ensureLabelExists(labelId);
         validateValuesJson(req.inputType(), req.valuesJson());
-        if (attrRepository.existsByLabelIdAndName(labelId, req.name())) {
+        if (attrRepository.existsByLabelIdAndAttrNm(labelId, req.name())) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 속성 이름입니다.");
         }
         LsLabelAttr saved = attrRepository.save(LsLabelAttr.create(
@@ -71,7 +71,7 @@ public class LabelAttrService {
                 req.sortNo(),
                 regId
         ));
-        log.info("[LabelAttr] created attrId={}, labelId={}, name={}", saved.getAttrId(), labelId, saved.getName());
+        log.info("[LabelAttr] created attrId={}, labelId={}, name={}", saved.getAttrId(), labelId, saved.getAttrNm());
         return LabelAttrResponse.from(saved);
     }
 
@@ -85,7 +85,7 @@ public class LabelAttrService {
         if (!attr.getLabelId().equals(labelId)) {
             throw new CustomException(ErrorCode.NOT_FOUND, "속성을 찾을 수 없습니다.");
         }
-        if (attrRepository.existsByLabelIdAndNameAndAttrIdNot(labelId, req.name(), attrId)) {
+        if (attrRepository.existsByLabelIdAndAttrNmAndAttrIdNot(labelId, req.name(), attrId)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 속성 이름입니다.");
         }
         attr.update(req.name(), req.inputType(), req.valuesJson(), req.defaultVal(),

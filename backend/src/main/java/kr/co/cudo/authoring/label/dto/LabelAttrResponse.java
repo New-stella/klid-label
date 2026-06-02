@@ -24,12 +24,12 @@ public record LabelAttrResponse(
         return new LabelAttrResponse(
                 e.getAttrId(),
                 e.getLabelId(),
-                e.getName(),
-                e.getInputType(),
-                e.getValuesJson(),
-                e.getDefaultVal(),
-                e.getMutable(),
-                e.getSortNo(),
+                e.getAttrNm(),
+                e.getInputTypeCd(),
+                e.getValuesCn(),
+                e.getDfltVl(),
+                e.getMutableYn(),
+                e.getSortSeq(),
                 e.getUseYn()
         );
     }

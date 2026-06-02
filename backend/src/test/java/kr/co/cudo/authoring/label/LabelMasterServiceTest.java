@@ -45,7 +45,7 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("생성_정상_시_LsLabel_save_호출_및_응답_반환")
     void create_정상() {
-        when(repository.existsByName("person")).thenReturn(false);
+        when(repository.existsByLabelNm("person")).thenReturn(false);
         when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LabelMasterResponse res = service.create(req("person", "#E74C3C", "BBOX", 1), "1001");
@@ -53,10 +53,10 @@ class LabelMasterServiceTest {
         ArgumentCaptor<LsLabel> captor = ArgumentCaptor.forClass(LsLabel.class);
         verify(repository).save(captor.capture());
         LsLabel saved = captor.getValue();
-        assertThat(saved.getName()).isEqualTo("person");
-        assertThat(saved.getColor()).isEqualTo("#E74C3C");
-        assertThat(saved.getType()).isEqualTo("BBOX");
-        assertThat(saved.getSortNo()).isEqualTo(1);
+        assertThat(saved.getLabelNm()).isEqualTo("person");
+        assertThat(saved.getColrVl()).isEqualTo("#E74C3C");
+        assertThat(saved.getLabelTypeCd()).isEqualTo("BBOX");
+        assertThat(saved.getSortSeq()).isEqualTo(1);
         assertThat(saved.getUseYn()).isEqualTo("Y");
         assertThat(saved.getRegId()).isEqualTo("1001");
 
@@ -67,7 +67,7 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("생성_중복_이름_시_CONFLICT_예외")
     void create_중복이름_CONFLICT() {
-        when(repository.existsByName("person")).thenReturn(true);
+        when(repository.existsByLabelNm("person")).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(req("person", "#E74C3C", "BBOX", 1), "1001"))
                 .isInstanceOf(CustomException.class)
@@ -103,14 +103,14 @@ class LabelMasterServiceTest {
     void list_활성만_정렬() {
         LsLabel a = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
         LsLabel b = LsLabel.create("car", "#3498DB", "BBOX", 2, "seed");
-        when(repository.findByUseYnOrderBySortNoAsc("Y")).thenReturn(List.of(a, b));
+        when(repository.findByUseYnOrderBySortSeqAsc("Y")).thenReturn(List.of(a, b));
 
         List<LabelMasterResponse> result = service.list();
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).name()).isEqualTo("person");
         assertThat(result.get(1).name()).isEqualTo("car");
-        verify(repository).findByUseYnOrderBySortNoAsc("Y");
+        verify(repository).findByUseYnOrderBySortSeqAsc("Y");
     }
 
     @Test
@@ -118,15 +118,15 @@ class LabelMasterServiceTest {
     void update_정상() {
         LsLabel label = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
         when(repository.findById(10L)).thenReturn(Optional.of(label));
-        when(repository.existsByNameAndLabelIdNot("person-v2", 10L)).thenReturn(false);
+        when(repository.existsByLabelNmAndLabelIdNot("person-v2", 10L)).thenReturn(false);
 
         LabelMasterResponse res = service.update(10L, req("person-v2", "#AABBCC", "POLYGON", 5), "1002");
 
         assertThat(res.name()).isEqualTo("person-v2");
-        assertThat(label.getName()).isEqualTo("person-v2");
-        assertThat(label.getColor()).isEqualTo("#AABBCC");
-        assertThat(label.getType()).isEqualTo("POLYGON");
-        assertThat(label.getSortNo()).isEqualTo(5);
+        assertThat(label.getLabelNm()).isEqualTo("person-v2");
+        assertThat(label.getColrVl()).isEqualTo("#AABBCC");
+        assertThat(label.getLabelTypeCd()).isEqualTo("POLYGON");
+        assertThat(label.getSortSeq()).isEqualTo(5);
         assertThat(label.getMdfcnId()).isEqualTo("1002");
     }
 
@@ -135,7 +135,7 @@ class LabelMasterServiceTest {
     void update_이름중복_CONFLICT() {
         LsLabel label = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
         when(repository.findById(10L)).thenReturn(Optional.of(label));
-        when(repository.existsByNameAndLabelIdNot("car", 10L)).thenReturn(true);
+        when(repository.existsByLabelNmAndLabelIdNot("car", 10L)).thenReturn(true);
 
         assertThatThrownBy(() -> service.update(10L, req("car", "#3498DB", "BBOX", 2), "1002"))
                 .isInstanceOf(CustomException.class)
@@ -160,20 +160,20 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("findLabelIdByName_정확한_이름_매칭_시_labelId_반환")
     void findLabelIdByName_정확한_이름_매칭() {
-        when(repository.findByNameIgnoreCaseAndUseYn("person", "Y"))
+        when(repository.findByLabelNmIgnoreCaseAndUseYn("person", "Y"))
                 .thenReturn(Optional.of(labelWithId(1L, "person")));
 
         Optional<Long> result = service.findLabelIdByName("person");
 
         assertThat(result).contains(1L);
-        verify(repository).findByNameIgnoreCaseAndUseYn("person", "Y");
+        verify(repository).findByLabelNmIgnoreCaseAndUseYn("person", "Y");
     }
 
     @Test
     @DisplayName("findLabelIdByName_대소문자_무시_매칭")
     void findLabelIdByName_대소문자_무시() {
         // 구현은 trim 후 입력값 그대로 repository 에 전달 — IgnoreCase 검색은 repository 가 처리
-        when(repository.findByNameIgnoreCaseAndUseYn("PERSON", "Y"))
+        when(repository.findByLabelNmIgnoreCaseAndUseYn("PERSON", "Y"))
                 .thenReturn(Optional.of(labelWithId(1L, "person")));
 
         Optional<Long> result = service.findLabelIdByName("PERSON");
@@ -184,19 +184,19 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("findLabelIdByName_앞뒤_공백_trim_후_매칭")
     void findLabelIdByName_공백_trim() {
-        when(repository.findByNameIgnoreCaseAndUseYn("person", "Y"))
+        when(repository.findByLabelNmIgnoreCaseAndUseYn("person", "Y"))
                 .thenReturn(Optional.of(labelWithId(1L, "person")));
 
         Optional<Long> result = service.findLabelIdByName("  person  ");
 
         assertThat(result).contains(1L);
-        verify(repository).findByNameIgnoreCaseAndUseYn("person", "Y");
+        verify(repository).findByLabelNmIgnoreCaseAndUseYn("person", "Y");
     }
 
     @Test
     @DisplayName("findLabelIdByName_미매칭_시_Optional_empty")
     void findLabelIdByName_미매칭() {
-        when(repository.findByNameIgnoreCaseAndUseYn("unknown", "Y"))
+        when(repository.findByLabelNmIgnoreCaseAndUseYn("unknown", "Y"))
                 .thenReturn(Optional.empty());
 
         Optional<Long> result = service.findLabelIdByName("unknown");
@@ -211,7 +211,7 @@ class LabelMasterServiceTest {
 
         assertThat(result).isEmpty();
         // null 입력은 repository 호출 없이 즉시 empty 반환
-        verify(repository, never()).findByNameIgnoreCaseAndUseYn(any(), any());
+        verify(repository, never()).findByLabelNmIgnoreCaseAndUseYn(any(), any());
     }
 
     @Test
@@ -220,20 +220,20 @@ class LabelMasterServiceTest {
         Optional<Long> result = service.findLabelIdByName("   ");
 
         assertThat(result).isEmpty();
-        verify(repository, never()).findByNameIgnoreCaseAndUseYn(any(), any());
+        verify(repository, never()).findByLabelNmIgnoreCaseAndUseYn(any(), any());
     }
 
     @Test
     @DisplayName("findLabelIdByName_use_yn_N_라벨은_제외")
     void findLabelIdByName_useYn_Y_만_조회() {
         // useYn='Y' 인 라벨만 검색되도록 repository 인자에 "Y" 가 들어가는지 검증
-        when(repository.findByNameIgnoreCaseAndUseYn("person", "Y"))
+        when(repository.findByLabelNmIgnoreCaseAndUseYn("person", "Y"))
                 .thenReturn(Optional.empty());
 
         Optional<Long> result = service.findLabelIdByName("person");
 
         assertThat(result).isEmpty();
         // 두번째 인자가 "Y" 인지 검증 (use_yn='N' 라벨이 매칭되지 않도록)
-        verify(repository).findByNameIgnoreCaseAndUseYn("person", "Y");
+        verify(repository).findByLabelNmIgnoreCaseAndUseYn("person", "Y");
     }
 }

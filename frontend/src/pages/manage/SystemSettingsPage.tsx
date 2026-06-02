@@ -6,6 +6,7 @@ import { Spinner } from '@/components/common/Spinner';
 import { BatchConfigCard } from '@/features/sysconfig/components/BatchConfigCard';
 import { DangerActions } from '@/features/sysconfig/components/DangerActions';
 import { HealthStatusList } from '@/features/sysconfig/components/HealthStatusList';
+import { PrecisionConfigCard } from '@/features/sysconfig/components/PrecisionConfigCard';
 import { YoloConfigCard } from '@/features/sysconfig/components/YoloConfigCard';
 import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
 
@@ -52,6 +53,7 @@ export function SystemSettingsPage() {
             <>
               <BatchConfigCard configs={configs} />
               <YoloConfigCard configs={configs} />
+              <PrecisionConfigCard configs={configs} />
             </>
           )}
         </div>

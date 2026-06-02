@@ -47,13 +47,13 @@ class IssueRepositoryTest {
     }
 
     @Test
-    @DisplayName("IssueRepository_VIDEO_ID_기준_반려_사유_시간역순_조회")
-    void findByVideoIdOrderByRegisteredAtDesc() {
-        Long videoId = 7777L;
-        LsDataIssue first = issueRepository.save(LsDataIssue.create(videoId, "첫번째", "1"));
-        LsDataIssue second = issueRepository.save(LsDataIssue.createWithParent(videoId, "두번째", "1", first.getDataIssueSn()));
+    @DisplayName("IssueRepository_DATA_RAW_SN_기준_반려_사유_시간역순_조회")
+    void findByDataRawSnOrderByRegDtDesc() {
+        Long dataRawSn = 7777L;
+        LsDataIssue first = issueRepository.save(LsDataIssue.create(dataRawSn, "첫번째", "1"));
+        LsDataIssue second = issueRepository.save(LsDataIssue.createWithParent(dataRawSn, "두번째", "1", first.getDataIssueSn()));
 
-        var list = issueRepository.findByVideoIdOrderByRegisteredAtDesc(videoId);
+        var list = issueRepository.findByDataRawSnOrderByRegDtDesc(dataRawSn);
         assertThat(list).hasSize(2);
         // 등록시각 동일할 수 있으므로 두 건이 모두 포함되는지만 검증 (계층 연결도 확인)
         assertThat(list).extracting(LsDataIssue::getDataIssueSn)

@@ -20,9 +20,9 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
 
     /**
      * REVIEWER 의 증강 검수 화면용 — srcSn 미지정 시 전체 페이징 조회.
-     * 최신순(REGISTERED_AT DESC)으로 정렬.
+     * 최신순(REG_DT DESC)으로 정렬.
      */
-    Page<LsDataAug> findAllByOrderByRegisteredAtDesc(Pageable pageable);
+    Page<LsDataAug> findAllByOrderByRegDtDesc(Pageable pageable);
 
     /**
      * Phase 4 — webhook race 흡수용 멱등 키 조회.

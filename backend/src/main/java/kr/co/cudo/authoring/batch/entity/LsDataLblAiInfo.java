@@ -44,8 +44,8 @@ public class LsDataLblAiInfo {
     @Column(name = "MODEL_NM", length = 100)
     private String modelNm;
 
-    @Column(name = "MODEL_VER", length = 50)
-    private String modelVer;
+    @Column(name = "MDL_VER", length = 50)
+    private String mdlVer;
 
     @Column(name = "CONF_SCORE", precision = 6, scale = 5)
     private BigDecimal confScore;

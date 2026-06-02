@@ -54,7 +54,7 @@ class LabelAttrServiceTest {
     @Test
     @DisplayName("생성_정상_시_save_호출")
     void create_정상() {
-        when(attrRepository.existsByLabelIdAndName(LABEL_ID, "occluded")).thenReturn(false);
+        when(attrRepository.existsByLabelIdAndAttrNm(LABEL_ID, "occluded")).thenReturn(false);
         when(attrRepository.save(any(LsLabelAttr.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LabelAttrResponse res = service.create(LABEL_ID,
@@ -64,12 +64,12 @@ class LabelAttrServiceTest {
         verify(attrRepository).save(captor.capture());
         LsLabelAttr saved = captor.getValue();
         assertThat(saved.getLabelId()).isEqualTo(LABEL_ID);
-        assertThat(saved.getName()).isEqualTo("occluded");
-        assertThat(saved.getInputType()).isEqualTo("SELECT");
-        assertThat(saved.getValuesJson()).isEqualTo("[\"yes\",\"no\"]");
-        assertThat(saved.getDefaultVal()).isEqualTo("no");
-        assertThat(saved.getMutable()).isEqualTo("Y");
-        assertThat(saved.getSortNo()).isEqualTo(1);
+        assertThat(saved.getAttrNm()).isEqualTo("occluded");
+        assertThat(saved.getInputTypeCd()).isEqualTo("SELECT");
+        assertThat(saved.getValuesCn()).isEqualTo("[\"yes\",\"no\"]");
+        assertThat(saved.getDfltVl()).isEqualTo("no");
+        assertThat(saved.getMutableYn()).isEqualTo("Y");
+        assertThat(saved.getSortSeq()).isEqualTo(1);
         assertThat(saved.getUseYn()).isEqualTo("Y");
         assertThat(saved.getRegId()).isEqualTo("1001");
         assertThat(res.name()).isEqualTo("occluded");
@@ -98,7 +98,7 @@ class LabelAttrServiceTest {
     @Test
     @DisplayName("생성_TEXT_타입_valuesJson_null_허용")
     void create_TEXT_valuesJson_null_허용() {
-        when(attrRepository.existsByLabelIdAndName(LABEL_ID, "note")).thenReturn(false);
+        when(attrRepository.existsByLabelIdAndAttrNm(LABEL_ID, "note")).thenReturn(false);
         when(attrRepository.save(any(LsLabelAttr.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LabelAttrResponse res = service.create(LABEL_ID,
@@ -111,7 +111,7 @@ class LabelAttrServiceTest {
     @Test
     @DisplayName("생성_NUMBER_타입_valuesJson_null_허용")
     void create_NUMBER_valuesJson_null_허용() {
-        when(attrRepository.existsByLabelIdAndName(LABEL_ID, "count")).thenReturn(false);
+        when(attrRepository.existsByLabelIdAndAttrNm(LABEL_ID, "count")).thenReturn(false);
         when(attrRepository.save(any(LsLabelAttr.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LabelAttrResponse res = service.create(LABEL_ID,
@@ -123,7 +123,7 @@ class LabelAttrServiceTest {
     @Test
     @DisplayName("생성_중복_name_시_CONFLICT")
     void create_중복name_CONFLICT() {
-        when(attrRepository.existsByLabelIdAndName(LABEL_ID, "occluded")).thenReturn(true);
+        when(attrRepository.existsByLabelIdAndAttrNm(LABEL_ID, "occluded")).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(LABEL_ID,
                 req("occluded", "SELECT", "[\"yes\",\"no\"]", null, "Y", 0), "1001"))
@@ -149,14 +149,14 @@ class LabelAttrServiceTest {
     void list_활성만_정렬() {
         LsLabelAttr a = LsLabelAttr.create(LABEL_ID, "occluded", "SELECT", "[\"yes\",\"no\"]", null, "Y", 1, "seed");
         LsLabelAttr b = LsLabelAttr.create(LABEL_ID, "direction", "RADIO", "[\"N\",\"S\",\"E\",\"W\"]", null, "Y", 2, "seed");
-        when(attrRepository.findByLabelIdAndUseYnOrderBySortNoAsc(LABEL_ID, "Y")).thenReturn(List.of(a, b));
+        when(attrRepository.findByLabelIdAndUseYnOrderBySortSeqAsc(LABEL_ID, "Y")).thenReturn(List.of(a, b));
 
         List<LabelAttrResponse> result = service.list(LABEL_ID);
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).name()).isEqualTo("occluded");
         assertThat(result.get(1).name()).isEqualTo("direction");
-        verify(attrRepository).findByLabelIdAndUseYnOrderBySortNoAsc(LABEL_ID, "Y");
+        verify(attrRepository).findByLabelIdAndUseYnOrderBySortSeqAsc(LABEL_ID, "Y");
     }
 
     @Test
@@ -176,15 +176,15 @@ class LabelAttrServiceTest {
     void update_정상() {
         LsLabelAttr attr = LsLabelAttr.create(LABEL_ID, "occluded", "SELECT", "[\"yes\",\"no\"]", null, "Y", 1, "seed");
         when(attrRepository.findById(20L)).thenReturn(Optional.of(attr));
-        when(attrRepository.existsByLabelIdAndNameAndAttrIdNot(LABEL_ID, "occluded-v2", 20L)).thenReturn(false);
+        when(attrRepository.existsByLabelIdAndAttrNmAndAttrIdNot(LABEL_ID, "occluded-v2", 20L)).thenReturn(false);
 
         service.update(LABEL_ID, 20L,
                 req("occluded-v2", "RADIO", "[\"yes\",\"no\",\"unknown\"]", "unknown", "N", 3), "1002");
 
-        assertThat(attr.getName()).isEqualTo("occluded-v2");
-        assertThat(attr.getInputType()).isEqualTo("RADIO");
-        assertThat(attr.getMutable()).isEqualTo("N");
-        assertThat(attr.getSortNo()).isEqualTo(3);
+        assertThat(attr.getAttrNm()).isEqualTo("occluded-v2");
+        assertThat(attr.getInputTypeCd()).isEqualTo("RADIO");
+        assertThat(attr.getMutableYn()).isEqualTo("N");
+        assertThat(attr.getSortSeq()).isEqualTo(3);
         assertThat(attr.getMdfcnId()).isEqualTo("1002");
     }
 

@@ -30,8 +30,8 @@ public class LsDataSrcHstry {
     @Column(name = "SRC_SN", nullable = false)
     private Long srcSn;
 
-    @Column(name = "CHG_TYPE", nullable = false, length = 16)
-    private String chgType;
+    @Column(name = "CHG_TYPE_CD", nullable = false, length = 16)
+    private String chgTypeCd;
 
     @Column(name = "CHG_USER_NO")
     private Long chgUserNo;
@@ -40,18 +40,18 @@ public class LsDataSrcHstry {
     private LocalDateTime chgDt;
 
     @Builder
-    private LsDataSrcHstry(Long srcSn, String chgType, Long chgUserNo) {
+    private LsDataSrcHstry(Long srcSn, String chgTypeCd, Long chgUserNo) {
         this.srcSn = srcSn;
-        this.chgType = chgType;
+        this.chgTypeCd = chgTypeCd;
         this.chgUserNo = chgUserNo;
         this.chgDt = LocalDateTime.now();
     }
 
     public static LsDataSrcHstry recordCreated(Long srcSn) {
-        return LsDataSrcHstry.builder().srcSn(srcSn).chgType(CHG_TYPE_CREATED).build();
+        return LsDataSrcHstry.builder().srcSn(srcSn).chgTypeCd(CHG_TYPE_CREATED).build();
     }
 
     public static LsDataSrcHstry recordDeidAttached(Long srcSn) {
-        return LsDataSrcHstry.builder().srcSn(srcSn).chgType(CHG_TYPE_DEID_ATTACHED).build();
+        return LsDataSrcHstry.builder().srcSn(srcSn).chgTypeCd(CHG_TYPE_DEID_ATTACHED).build();
     }
 }

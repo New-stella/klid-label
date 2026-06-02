@@ -173,8 +173,8 @@ class AugmentResultLabelMetaCopyTest {
         // 라벨 속성은 원본과 동일
         assertThat(copied.getLblTypeCd()).isEqualTo("BBOX");
         assertThat(copied.getLabelId()).isEqualTo(42L);
-        assertThat(copied.getLabel()).isEqualTo("person");
-        assertThat(copied.getPointsJson()).isEqualTo("[10,20,100,200]");
+        assertThat(copied.getLabelNm()).isEqualTo("person");
+        assertThat(copied.getPointCn()).isEqualTo("[10,20,100,200]");
         assertThat(copied.getTrackId()).isEqualTo("T-001");
     }
 
@@ -219,7 +219,7 @@ class AugmentResultLabelMetaCopyTest {
         // metaKey, metaVal 원본과 동일
         assertThat(copiedMetas).extracting(LsDataMeta::getMetaKey)
                 .containsExactlyInAnyOrder("weather", "time_of_day");
-        assertThat(copiedMetas).extracting(LsDataMeta::getMetaVal)
+        assertThat(copiedMetas).extracting(LsDataMeta::getMetaVl)
                 .containsExactlyInAnyOrder("sunny", "morning");
     }
 
@@ -324,13 +324,13 @@ class AugmentResultLabelMetaCopyTest {
         // 두 라벨의 srcSn 이 서로 다름 (각각 다른 신규 프레임에 매핑)
         assertThat(copied.get(0).getSrcSn()).isNotEqualTo(copied.get(1).getSrcSn());
         // car 라벨은 frame0 의 신규 srcSn, person 라벨은 frame1 의 신규 srcSn
-        LsDataLbl copiedCar = copied.stream().filter(l -> "car".equals(l.getLabel())).findFirst().orElseThrow();
-        LsDataLbl copiedPerson = copied.stream().filter(l -> "person".equals(l.getLabel())).findFirst().orElseThrow();
+        LsDataLbl copiedCar = copied.stream().filter(l -> "car".equals(l.getLabelNm())).findFirst().orElseThrow();
+        LsDataLbl copiedPerson = copied.stream().filter(l -> "person".equals(l.getLabelNm())).findFirst().orElseThrow();
         // srcSn 값이 원본(600, 601)이 아닌 새 값
         assertThat(copiedCar.getSrcSn()).isNotEqualTo(600L);
         assertThat(copiedPerson.getSrcSn()).isNotEqualTo(601L);
         // 좌표 내용 보존
-        assertThat(copiedCar.getPointsJson()).isEqualTo("[0,0,50,50]");
-        assertThat(copiedPerson.getPointsJson()).isEqualTo("[10,10,90,90]");
+        assertThat(copiedCar.getPointCn()).isEqualTo("[0,0,50,50]");
+        assertThat(copiedPerson.getPointCn()).isEqualTo("[10,10,90,90]");
     }
 }

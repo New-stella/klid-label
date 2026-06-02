@@ -140,9 +140,9 @@ class ReviewControllerTest {
         LsRawDataStatus after = dataSttsRepository.findById(videoId).orElseThrow();
         assertThat(after.getDataSttsCd()).isEqualTo("REJECTED");
 
-        List<LsDataIssue> issues = issueRepository.findByVideoIdOrderByRegisteredAtDesc(videoId);
+        List<LsDataIssue> issues = issueRepository.findByDataRawSnOrderByRegDtDesc(videoId);
         assertThat(issues).hasSize(1);
-        assertThat(issues.get(0).getIssueReason()).isEqualTo("바운딩박스 좌표가 부정확합니다.");
+        assertThat(issues.get(0).getIssueRsn()).isEqualTo("바운딩박스 좌표가 부정확합니다.");
         assertThat(issues.get(0).getReportedUserNo()).isEqualTo("1");
         assertThat(issues.get(0).getUpDataIssueSn()).isNull();
     }

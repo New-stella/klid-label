@@ -63,7 +63,7 @@ public record LabelResponse(
          * <p>{@code label} 필드(LS_DATA_LBL.LABEL 텍스트)는 호환 위해 그대로 노출 — FE 는 labelName/color 우선 사용.
          */
         public static Item from(LsDataLbl entity, LsDataLblAiInfo aiInfo, LsLabel lsLabel, ObjectMapper objectMapper) {
-            List<Point> parsed = LabelPointSerializer.fromJson(entity.getPointsJson(), objectMapper);
+            List<Point> parsed = LabelPointSerializer.fromJson(entity.getPointCn(), objectMapper);
             List<List<Double>> nested = new ArrayList<>(parsed.size());
             for (Point p : parsed) {
                 nested.add(List.of(p.x(), p.y()));
@@ -71,10 +71,10 @@ public record LabelResponse(
             return new Item(
                     entity.getLblSn(),
                     entity.getLblTypeCd(),
-                    entity.getLabel(),
+                    entity.getLabelNm(),
                     entity.getLabelId(),
-                    lsLabel != null ? lsLabel.getName() : null,
-                    lsLabel != null ? lsLabel.getColor() : null,
+                    lsLabel != null ? lsLabel.getLabelNm() : null,
+                    lsLabel != null ? lsLabel.getColrVl() : null,
                     nested,
                     aiInfo != null ? aiInfo.getAutoLblYn() : LsDataLbl.AUTO_NO,
                     aiInfo != null ? aiInfo.getConfScore() : null,

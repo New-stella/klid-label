@@ -32,51 +32,51 @@ public class LsPortalUserLabel {
     @Column(name = "PORTAL_USER_NO", nullable = false, length = 100)
     private String portalUserNo;
 
-    @Column(name = "SOURCE_RAW_SN", nullable = false)
-    private Long sourceRawSn;
+    @Column(name = "SRC_RAW_SN", nullable = false)
+    private Long srcRawSn;
 
-    @Column(name = "SOURCE_SRC_SN", nullable = false)
-    private Long sourceSrcSn;
+    @Column(name = "SRC_DATA_SRC_SN", nullable = false)
+    private Long srcDataSrcSn;
 
     @Column(name = "LBL_TYPE_CD", nullable = false, length = 16)
     private String lblTypeCd;
 
-    @Column(name = "LABEL", length = 255)
-    private String label;
+    @Column(name = "LABEL_NM", length = 255)
+    private String labelNm;
 
-    @Column(name = "POINTS", columnDefinition = "TEXT")
-    private String points;
+    @Column(name = "POINT_CN", columnDefinition = "TEXT")
+    private String pointCn;
 
-    @Column(name = "CREATED_AT", nullable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
 
-    @Column(name = "UPDATED_AT", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "MDFCN_DT", nullable = false)
+    private LocalDateTime mdfcnDt;
 
-    public static LsPortalUserLabel create(String portalUserNo, Long sourceRawSn, Long sourceSrcSn,
-                                           String lblTypeCd, String label, String points) {
+    public static LsPortalUserLabel create(String portalUserNo, Long srcRawSn, Long srcDataSrcSn,
+                                           String lblTypeCd, String labelNm, String pointCn) {
         LsPortalUserLabel entity = new LsPortalUserLabel();
         entity.portalUserNo = portalUserNo;
-        entity.sourceRawSn = sourceRawSn;
-        entity.sourceSrcSn = sourceSrcSn;
+        entity.srcRawSn = srcRawSn;
+        entity.srcDataSrcSn = srcDataSrcSn;
         entity.lblTypeCd = lblTypeCd;
-        entity.label = label;
-        entity.points = points;
+        entity.labelNm = labelNm;
+        entity.pointCn = pointCn;
         LocalDateTime now = LocalDateTime.now();
-        entity.createdAt = now;
-        entity.updatedAt = now;
+        entity.regDt = now;
+        entity.mdfcnDt = now;
         return entity;
     }
 
     @PrePersist
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();
-        if (this.createdAt == null) this.createdAt = now;
-        if (this.updatedAt == null) this.updatedAt = now;
+        if (this.regDt == null) this.regDt = now;
+        if (this.mdfcnDt == null) this.mdfcnDt = now;
     }
 
     @PreUpdate
     void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
+        this.mdfcnDt = LocalDateTime.now();
     }
 }
