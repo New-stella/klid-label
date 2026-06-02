@@ -1,22 +1,13 @@
-// 비식별화 결과 API.
+// 비식별화 재처리 API.
 //
-// 보안: 사용자 입력은 params/path로만 전달 (axios 자동 인코딩, XSS/Injection 방지).
-// IDOR 방어는 BE 책임. 이미지 URL은 BE 응답값만 사용 (사용자 입력 금지).
+// 비식별 결과 조회(목록/상세) API 는 외부 비식별 솔루션으로 이관되어 제거됨.
+// reprocessDeident 는 진입점(조회 화면)이 사라져 현재 미참조이나, 추후 신고→재처리
+// 연계용으로 유지한다.
+//
+// 보안: 사용자 입력은 path로만 전달 (axios 자동 인코딩, XSS/Injection 방지).
+// IDOR 방어는 BE 책임.
 
 import { apiClient } from '@/lib/api/client';
-import type { PageResponse } from '@/lib/api/types';
-
-import type { DeidentDetail, DeidentListParams, DeidentListRow } from './types';
-
-export function listDeidentResults(params: DeidentListParams) {
-  return apiClient
-    .get<PageResponse<DeidentListRow>>('/deident', { params })
-    .then((r) => r.data);
-}
-
-export function getDeidentDetail(videoId: number): Promise<DeidentDetail> {
-  return apiClient.get<DeidentDetail>(`/deident/${videoId}`).then((r) => r.data);
-}
 
 export function reprocessDeident(videoId: number): Promise<void> {
   return apiClient.post(`/deident/${videoId}/reprocess`).then(() => undefined);

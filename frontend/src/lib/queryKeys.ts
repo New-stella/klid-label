@@ -82,12 +82,6 @@ export const AUTOLABEL_KEYS = {
   byVideo: (videoId: number) => [...AUTOLABEL_KEYS.all, 'video', videoId] as const,
 };
 
-export const DEIDENT_KEYS = {
-  all: ['deidentify'] as const,
-  list: (params: Record<string, unknown>) => [...DEIDENT_KEYS.all, 'list', params] as const,
-  detail: (id: number) => [...DEIDENT_KEYS.all, 'detail', id] as const,
-};
-
 export const MARKING_KEYS = {
   all: ['markings'] as const,
   byVideo: (rawSn: number) => [...MARKING_KEYS.all, 'video', rawSn] as const,

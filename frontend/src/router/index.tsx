@@ -44,7 +44,7 @@ const LabelingPage = lazy(() =>
   import('@/pages/label/LabelingPage').then((m) => ({ default: m.LabelingPage })),
 );
 
-// Phase 7 — 오토라벨 결과 + 시계열 메타 + 비식별화 결과 lazy 로드
+// Phase 7 — 오토라벨 결과 + 시계열 메타 lazy 로드
 const AutoLabelSummaryPage = lazy(() =>
   import('@/pages/AutoLabelSummaryPage').then((m) => ({ default: m.AutoLabelSummaryPage })),
 );
@@ -64,13 +64,6 @@ const ReviewPage = lazy(() =>
 const MetaReviewPage = lazy(() =>
   import('@/pages/MetaReviewPage').then((m) => ({ default: m.MetaReviewPage })),
 );
-const DeidentListPage = lazy(() =>
-  import('@/pages/DeidentListPage').then((m) => ({ default: m.DeidentListPage })),
-);
-const DeidentDetailPage = lazy(() =>
-  import('@/pages/DeidentDetailPage').then((m) => ({ default: m.DeidentDetailPage })),
-);
-
 // Phase 10 — 데이터 증강 lazy 로드
 const AugmentRequestPage = lazy(() =>
   import('@/pages/AugmentRequestPage').then((m) => ({
@@ -284,22 +277,6 @@ export const router = createBrowserRouter([
         element: (
           <InternalRoute allow={internalAllRoles}>
             {withSuspense(<MetaReviewPage />)}
-          </InternalRoute>
-        ),
-      },
-      {
-        path: 'deident',
-        element: (
-          <InternalRoute allow={internalAllRoles}>
-            {withSuspense(<DeidentListPage />)}
-          </InternalRoute>
-        ),
-      },
-      {
-        path: 'deident/:videoId',
-        element: (
-          <InternalRoute allow={internalAllRoles}>
-            {withSuspense(<DeidentDetailPage />)}
           </InternalRoute>
         ),
       },
