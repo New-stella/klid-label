@@ -11,6 +11,7 @@ interface LabelState {
   // 도구/선택
   activeTool: ToolType;
   selectedLabelId: string | null;
+
   /**
    * Phase 7: 라벨 사이드바에서 선택된 활성 라벨 마스터 ID.
    * 신규 BBOX/Polygon 그리기 시 이 라벨의 classId/className 이 자동 적용된다.

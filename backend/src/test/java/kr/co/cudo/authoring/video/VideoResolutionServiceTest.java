@@ -1,28 +1,20 @@
 package kr.co.cudo.authoring.video;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
-import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.common.util.LabelCoordinateScaler;
-import kr.co.cudo.authoring.label.entity.LsDataLblAttrVal;
-import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.LsResolutionExportRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoResolutionPersister;
 import kr.co.cudo.authoring.video.service.VideoResolutionService;
-import kr.co.cudo.authoring.video.service.port.VideoProbe;
-import kr.co.cudo.authoring.video.service.port.VideoResizer;
+import kr.co.cudo.authoring.video.service.port.ImageResizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +24,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
@@ -39,22 +34,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 해상도 변경 서비스 단위 테스트 — VideoProbe/VideoResizer 는 stub/mock 주입(바이너리 비의존).
- * 실제 DB 트랜잭션 프록시는 단위 테스트 범위 외이므로 Persister 도 mock 으로 동작 검증한다.
+ * 해상도 변경 서비스 단위 테스트 (R1 정책) — ImageResizer 는 stub/mock 주입(바이너리 비의존).
+ * 산출물 = 다운스케일 프레임 이미지셋 + LS_RESOLUTION_EXPORT 1행. 라벨/메타/신규 영상은 생성하지 않는다.
  */
 @MockitoSettings(strictness = Strictness.LENIENT)
 @ExtendWith(MockitoExtension.class)
@@ -62,24 +56,29 @@ class VideoResolutionServiceTest {
 
     @Mock VideoRepository videoRepository;
     @Mock LsRawDataStatusRepository statusRepository;
-    @Mock VideoProbe videoProbe;
-    @Mock VideoResizer videoResizer;
+    @Mock LsDataSrcRepository srcRepository;
+    @Mock LsResolutionExportRepository exportRepository;
+    @Mock ImageResizer imageResizer;
     @Mock VideoResolutionPersister persister;
 
     VideoResolutionService service;
+    Path storageBase;
 
     @BeforeEach
-    void setup() {
-        service = new VideoResolutionService(videoRepository, statusRepository, videoProbe, videoResizer, persister);
-        ReflectionTestUtils.setField(service, "storageRawPath", "./storage/raw");
+    void setup() throws Exception {
+        // 격리된 임시 storage base — 실제 프레임 파일을 만들어 Files.exists 통과
+        storageBase = Files.createTempDirectory("res-test-");
+        service = new VideoResolutionService(videoRepository, statusRepository, srcRepository,
+                exportRepository, imageResizer, persister);
+        ReflectionTestUtils.setField(service, "storageRawPath", storageBase.toString());
         ReflectionTestUtils.setField(service, "resizeMaxConcurrent", 2);
         ReflectionTestUtils.setField(service, "resizeAcquireTimeoutSec", 5L);
 
-        // 기본: 원본 1920x1080, APPROVED, 비-증강본, 중복 없음
-        when(videoProbe.probe(any(Path.class))).thenReturn(new VideoProbe.Dimensions(1920, 1080));
-        when(videoRepository.findByVmsClipId(any())).thenReturn(Optional.empty());
-        when(persister.persist(any(), any(), any(), anyDouble(), anyInt(), anyInt(), anyInt(), anyInt()))
-                .thenReturn(new ResolutionChangeResponse(999L, 1920, 1080, 960, 540, 0.5, 3, 2, 1));
+        // 기본: 원본 1920x1080, 중복 없음, 프레임 3건
+        when(imageResizer.readDimensions(any(Path.class))).thenReturn(new int[]{1920, 1080});
+        when(exportRepository.existsByDataRawSnAndTargetResCd(any(), anyString())).thenReturn(false);
+        when(persister.persist(any(), any(), anyString(), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), any()))
+                .thenReturn(new ResolutionChangeResponse(777L, 1920, 1080, 1280, 720, 3));
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -93,7 +92,6 @@ class VideoResolutionServiceTest {
     }
 
     private LsDataRaw raw(Long rawSn, Long parentRawSn) {
-        // src 경로는 storageRawPath base(./storage/raw) 하위 상대경로로 — MEDIUM-1 base 검증 통과용
         LsDataRaw r = LsDataRaw.createFromIngest(
                 "clip-" + rawSn, "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_ANONY, rawSn + ".mp4", null, 60);
@@ -102,6 +100,31 @@ class VideoResolutionServiceTest {
             setField(r, "parentRawSn", parentRawSn);
         }
         return r;
+    }
+
+    /** storage base 하위 실제 프레임 파일 생성 후 LsDataSrc 반환. */
+    private LsDataSrc frame(Long rawSn, int frameNo) {
+        try {
+            Path dir = storageBase.resolve("frames").resolve(String.valueOf(rawSn));
+            Files.createDirectories(dir);
+            Path file = dir.resolve("f" + frameNo + ".jpg");
+            Files.write(file, new byte[]{1, 2, 3});
+            return LsDataSrc.create(rawSn, frameNo, file.toString(), null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void framesAvailable(Long rawSn, int count) {
+        List<LsDataSrc> frames = new java.util.ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            frames.add(frame(rawSn, i));
+        }
+        when(srcRepository.countByRawSn(rawSn)).thenReturn((long) count);
+        when(srcRepository.findByRawSnAndFrameNo(eq(rawSn), eq(0))).thenReturn(Optional.of(frames.get(0)));
+        Page<LsDataSrc> page = new PageImpl<>(frames);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(rawSn), any())).thenReturn(page);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(rawSn)).thenReturn(frames);
     }
 
     private void approved(Long rawSn) {
@@ -114,322 +137,220 @@ class VideoResolutionServiceTest {
         return new ResolutionChangeRequest(p);
     }
 
+    private ResolutionChangeResponse call(Long rawSn, ResolutionPreset p) {
+        return service.changeResolution(rawSn, req(p), "reviewer-1");
+    }
+
     @Test
-    @DisplayName("검수완료_아닌_영상_해상도변경_요청시_409")
+    @DisplayName("업스케일_요청시_400_거부")
+    void upscale_400() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        framesAvailable(1L, 3);
+        // 원본 480x270 인데 RES_1080P(1080) 요청 → 업스케일
+        when(imageResizer.readDimensions(any(Path.class))).thenReturn(new int[]{480, 270});
+
+        assertThatThrownBy(() -> call(1L, ResolutionPreset.RES_1080P))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(persister, never()).persist(any(), any(), anyString(), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("원본과_동일_해상도_요청시_400_거부")
+    void sameResolution_400() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        framesAvailable(1L, 3);
+        // 원본 1280x720, RES_720P(720) 요청 → targetH==srcH → 거부
+        when(imageResizer.readDimensions(any(Path.class))).thenReturn(new int[]{1280, 720});
+
+        assertThatThrownBy(() -> call(1L, ResolutionPreset.RES_720P))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("다운스케일_성공시_이미지셋_생성_및_EXPORT_1행_기록")
+    void downscale_success() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        framesAvailable(1L, 3);
+
+        ResolutionChangeResponse res = call(1L, ResolutionPreset.RES_720P);
+
+        assertThat(res.exportSn()).isEqualTo(777L);
+        // 프레임 3건 다운스케일
+        verify(imageResizer, atLeastOnce()).resize(any(), any(), anyInt(), anyInt());
+        // EXPORT 1행 INSERT (frameCount=3)
+        ArgumentCaptor<Integer> frameCap = ArgumentCaptor.forClass(Integer.class);
+        verify(persister).persist(any(), eq(ResolutionPreset.RES_720P), anyString(),
+                eq(1920), eq(1080), anyInt(), eq(720), frameCap.capture(), eq("reviewer-1"));
+        assertThat(frameCap.getValue()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("해상도_변경_결과에_라벨이_복사되지_않음")
+    void noLabelCopy() {
+        // 라벨/속성/메타 리포지토리는 서비스 의존성에 아예 없음 → 복사 경로 자체가 제거됨을 구조로 보장.
+        // 동작 검증: 성공 응답에 라벨 필드가 없고(타입상), EXPORT 1행만 기록.
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        framesAvailable(1L, 2);
+
+        ResolutionChangeResponse res = call(1L, ResolutionPreset.RES_480P);
+
+        assertThat(res.exportSn()).isNotNull();
+        verify(persister).persist(any(), any(), anyString(), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("새_PENDING_영상이_생성되지_않음")
+    void noNewRawCreated() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        framesAvailable(1L, 2);
+
+        call(1L, ResolutionPreset.RES_480P);
+
+        // videoRepository.save 가 절대 호출되지 않아야 함 (신규 LS_DATA_RAW 미생성)
+        verify(videoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("동일_영상_동일_해상도_중복_요청시_409")
+    void duplicate_409() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        when(exportRepository.existsByDataRawSnAndTargetResCd(1L, "RES_720P")).thenReturn(true);
+
+        assertThatThrownBy(() -> call(1L, ResolutionPreset.RES_720P))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(imageResizer, never()).resize(any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("동시_요청_UK경합_DataIntegrityViolation시_409")
+    void ukRace_409() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        framesAvailable(1L, 2);
+        when(persister.persist(any(), any(), anyString(), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), any()))
+                .thenThrow(new DataIntegrityViolationException("uk violation"));
+
+        assertThatThrownBy(() -> call(1L, ResolutionPreset.RES_720P))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("미검수_영상_요청시_409")
     void notApproved_409() {
-        // given
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         LsRawDataStatus st = LsRawDataStatus.initial(1L);
         st.transitionTo(LsRawDataStatus.STTS_IN_REVIEW);
         when(statusRepository.findByRawDataIdIn(any())).thenReturn(List.of(st));
 
-        // when / then
-        assertThatThrownBy(() -> service.changeResolution(1L, req(ResolutionPreset.P50)))
+        assertThatThrownBy(() -> call(1L, ResolutionPreset.RES_720P))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
-        verify(persister, never()).persist(any(), any(), any(), anyDouble(), anyInt(), anyInt(), anyInt(), anyInt());
     }
 
     @Test
     @DisplayName("영상_미존재_시_404")
     void notFound_404() {
         when(videoRepository.findById(404L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.changeResolution(404L, req(ResolutionPreset.P50)))
+        assertThatThrownBy(() -> call(404L, ResolutionPreset.RES_720P))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
     }
 
     @Test
-    @DisplayName("P50_변환시_새영상_PENDING_PARENT_RAW_SN_생성")
-    void p50_createsPendingChild() {
-        // given
-        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
-        approved(1L);
-
-        // when
-        ResolutionChangeResponse res = service.changeResolution(1L, req(ResolutionPreset.P50));
-
-        // then — persister 호출 + 응답 반영
-        assertThat(res.newRawSn()).isEqualTo(999L);
-        verify(persister).persist(any(LsDataRaw.class), any(), any(), anyDouble(), anyInt(), anyInt(), anyInt(), anyInt());
-    }
-
-    @Test
-    @DisplayName("ffprobe_원본WH_기반_targetWH_even_계산_검증")
-    void targetEvenCalculation() {
-        // given — 홀수가 나오도록 1921x1081, P50 → 960x540 (짝수 내림)
-        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
-        approved(1L);
-        when(videoProbe.probe(any(Path.class))).thenReturn(new VideoProbe.Dimensions(1921, 1081));
-
-        // when
-        service.changeResolution(1L, req(ResolutionPreset.P50));
-
-        // then
-        ArgumentCaptor<Integer> wCap = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<Integer> hCap = ArgumentCaptor.forClass(Integer.class);
-        verify(videoResizer).resize(any(), any(), anyDouble(), wCap.capture(), hCap.capture());
-        assertThat(wCap.getValue()).isEqualTo(960);   // floor(1921*0.5)=960
-        assertThat(hCap.getValue()).isEqualTo(540);   // floor(1081*0.5)=540
-        assertThat(wCap.getValue() % 2).isZero();
-        assertThat(hCap.getValue() % 2).isZero();
-    }
-
-    @Test
-    @DisplayName("ffprobe_video_stream_없음_또는_WH_0_이면_400")
-    void zeroDimensions_400() {
-        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
-        approved(1L);
-        when(videoProbe.probe(any(Path.class))).thenReturn(new VideoProbe.Dimensions(0, 0));
-
-        assertThatThrownBy(() -> service.changeResolution(1L, req(ResolutionPreset.P50)))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.INVALID_INPUT);
-        verify(videoResizer, never()).resize(any(), any(), anyDouble(), anyInt(), anyInt());
-    }
-
-    @Test
-    @DisplayName("targetWH_2미만_과소축소_400")
-    void underScale_400() {
-        // given — 2x2 원본 + P25 → floor(0.5)=0 → <2
-        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
-        approved(1L);
-        when(videoProbe.probe(any(Path.class))).thenReturn(new VideoProbe.Dimensions(2, 2));
-
-        assertThatThrownBy(() -> service.changeResolution(1L, req(ResolutionPreset.P25)))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.INVALID_INPUT);
-        verify(videoResizer, never()).resize(any(), any(), anyDouble(), anyInt(), anyInt());
-    }
-
-    @Test
-    @DisplayName("이미_증강본(PARENT_RAW_SN_not_null)_요청시_400")
+    @DisplayName("증강본_요청시_400")
     void nestedAugment_400() {
         when(videoRepository.findById(2L)).thenReturn(Optional.of(raw(2L, 1L)));
 
-        assertThatThrownBy(() -> service.changeResolution(2L, req(ResolutionPreset.P50)))
+        assertThatThrownBy(() -> call(2L, ResolutionPreset.RES_720P))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
-        verify(videoProbe, never()).probe(any());
+        verify(imageResizer, never()).resize(any(), any(), anyInt(), anyInt());
     }
 
     @Test
-    @DisplayName("동일_parent_preset_중복요청_409")
-    void duplicateChild_409() {
+    @DisplayName("프레임_0건_영상_요청시_400")
+    void zeroFrames_400() {
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         approved(1L);
-        // 동일 clipId 자식 이미 존재
-        when(videoRepository.findByVmsClipId("clip-1_RES_P50"))
-                .thenReturn(Optional.of(raw(50L, 1L)));
+        when(srcRepository.countByRawSn(1L)).thenReturn(0L);
 
-        assertThatThrownBy(() -> service.changeResolution(1L, req(ResolutionPreset.P50)))
+        assertThatThrownBy(() -> call(1L, ResolutionPreset.RES_720P))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
-        verify(videoResizer, never()).resize(any(), any(), anyDouble(), anyInt(), anyInt());
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(persister, never()).persist(any(), any(), anyString(), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), any());
     }
 
     @Test
-    @DisplayName("ffmpeg성공후_DB저장_실패시_출력파일_정리됨")
-    void dbFailure_cleansOrphanFile() throws Exception {
-        // given — resizer 가 실제 더미 파일을 생성하도록 stub, persister 는 예외
+    @DisplayName("프레임_중간_다운스케일_실패시_출력_디렉토리_정리되고_EXPORT_행_미생성")
+    void midFailure_cleansDir() {
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         approved(1L);
+        framesAvailable(1L, 3);
 
-        AtomicLong createdCheck = new AtomicLong();
-        // resize 는 void → doAnswer 로 더미 파일 작성
+        Path outputDir = storageBase.toAbsolutePath().normalize()
+                .resolve("resolution").resolve("1").resolve("RES_720P");
+
+        // 첫 프레임은 성공(파일 생성), 두번째에서 실패
         org.mockito.Mockito.doAnswer(inv -> {
             Path dst = inv.getArgument(1);
-            Files.createDirectories(dst.getParent());
-            Files.write(dst, new byte[]{1, 2, 3});
-            createdCheck.set(1);
+            Files.write(dst, new byte[]{9, 9, 9});
             return null;
-        }).when(videoResizer).resize(any(), any(), anyDouble(), anyInt(), anyInt());
+        }).doThrow(new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 다운스케일 실패"))
+                .when(imageResizer).resize(any(), any(), anyInt(), anyInt());
 
-        when(persister.persist(any(), any(), any(), anyDouble(), anyInt(), anyInt(), anyInt(), anyInt()))
-                .thenThrow(new CustomException(ErrorCode.INTERNAL_ERROR, "DB 적재 실패"));
-
-        // when / then
-        assertThatThrownBy(() -> service.changeResolution(1L, req(ResolutionPreset.P50)))
+        assertThatThrownBy(() -> call(1L, ResolutionPreset.RES_720P))
                 .isInstanceOf(CustomException.class);
 
-        // 더미 파일이 생성되었고, 정리되어 더 이상 존재하지 않아야 함
-        assertThat(createdCheck.get()).isEqualTo(1);
-        Path expected = Path.of("./storage/raw").toAbsolutePath().normalize()
-                .resolve("resolution").resolve("1").resolve("P50").resolve("1.mp4");
-        assertThat(Files.exists(expected)).isFalse();
-    }
-
-    // ─── MEDIUM-1: src(원본) 경로 normalize + base 검증 (CWE-22) ───
-
-    @Test
-    @DisplayName("src경로_storage_base_벗어나면_거부_ffprobe_resize_미실행")
-    void srcPathOutsideBase_rejected() {
-        // given — DB 의 원본 경로가 storage base 밖(절대경로 /etc/passwd)
-        LsDataRaw r = LsDataRaw.createFromIngest(
-                "clip-1", "cctv-1", "EVT", "GOV",
-                LsDataRaw.PRVC_TYPE_ANONY, "/etc/passwd", null, 60);
-        setField(r, "rawSn", 1L);
-        when(videoRepository.findById(1L)).thenReturn(Optional.of(r));
-        approved(1L);
-
-        // when / then — 거부(추상 메시지), 외부 프로세스 미실행
-        assertThatThrownBy(() -> service.changeResolution(1L, req(ResolutionPreset.P50)))
-                .isInstanceOf(CustomException.class);
-        verify(videoProbe, never()).probe(any());
-        verify(videoResizer, never()).resize(any(), any(), anyDouble(), anyInt(), anyInt());
+        // 출력 디렉토리 전체 정리
+        assertThat(Files.exists(outputDir)).isFalse();
+        verify(persister, never()).persist(any(), any(), anyString(), anyInt(), anyInt(), anyInt(), anyInt(), anyInt(), any());
     }
 
     @Test
-    @DisplayName("정상_src경로는_통과_회귀")
-    void srcPathInsideBase_passes() {
-        // given — base 내부 경로(./storage/raw/1.mp4)
+    @DisplayName("손상_이미지_읽기_실패시_추상_메시지_오류")
+    void corruptImage_abstractError() {
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         approved(1L);
+        framesAvailable(1L, 1);
+        // 첫 프레임 실측에서 손상 이미지 → ImageResizer 가 추상 500
+        when(imageResizer.readDimensions(any(Path.class)))
+                .thenThrow(new CustomException(ErrorCode.INTERNAL_ERROR, "프레임 이미지를 읽을 수 없습니다."));
 
-        // when
-        ResolutionChangeResponse res = service.changeResolution(1L, req(ResolutionPreset.P50));
-
-        // then — 정상 처리(ffprobe/resize 실행)
-        assertThat(res.newRawSn()).isEqualTo(999L);
-        verify(videoProbe).probe(any());
-        verify(videoResizer).resize(any(), any(), anyDouble(), anyInt(), anyInt());
-    }
-
-    // ─── MEDIUM-2: ffmpeg 동시 실행 Semaphore 상한 (DoS, API4:2023) ───
-
-    @Test
-    @DisplayName("동시실행_상한_초과시_거부_429")
-    void concurrencyLimitExceeded_rejected() {
-        // given — permit 0(상한 0) 으로 설정하여 즉시 획득 실패 유도
-        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
-        approved(1L);
-        ReflectionTestUtils.setField(service, "resizeMaxConcurrent", 0);
-        ReflectionTestUtils.setField(service, "resizeAcquireTimeoutSec", 0L);
-        ReflectionTestUtils.setField(service, "resizeSemaphore", new java.util.concurrent.Semaphore(0, true));
-
-        // when / then — 획득 실패 → 거부, resize 미실행
-        assertThatThrownBy(() -> service.changeResolution(1L, req(ResolutionPreset.P50)))
+        assertThatThrownBy(() -> call(1L, ResolutionPreset.RES_720P))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.TOO_MANY_REQUESTS);
-        verify(videoResizer, never()).resize(any(), any(), anyDouble(), anyInt(), anyInt());
+                .isEqualTo(ErrorCode.INTERNAL_ERROR);
     }
 
     @Test
-    @DisplayName("동시실행_상한_내에서는_정상_처리_그리고_permit_복원")
-    void concurrencyWithinLimit_passes() {
-        // given — 상한 1
+    @DisplayName("응답에_내부_파일_경로_미포함")
+    void responseNoInternalPath() {
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         approved(1L);
-        java.util.concurrent.Semaphore sem = new java.util.concurrent.Semaphore(1, true);
-        ReflectionTestUtils.setField(service, "resizeMaxConcurrent", 1);
-        ReflectionTestUtils.setField(service, "resizeSemaphore", sem);
+        framesAvailable(1L, 2);
 
-        // when
-        ResolutionChangeResponse res = service.changeResolution(1L, req(ResolutionPreset.P50));
+        ResolutionChangeResponse res = call(1L, ResolutionPreset.RES_480P);
 
-        // then — 정상 처리 + finally 에서 permit 복원
-        assertThat(res.newRawSn()).isEqualTo(999L);
-        verify(videoResizer).resize(any(), any(), anyDouble(), anyInt(), anyInt());
-        assertThat(sem.availablePermits()).isEqualTo(1);
-    }
-
-    // ─── Persister 직접 단위 테스트 (좌표 스케일·속성값 복사 검증) ───
-
-    @Test
-    @DisplayName("라벨_좌표가_factor로_스케일되어_복사됨_그리고_라벨_속성값도_복사됨_프레임_메타_건수_반영")
-    void persisterScalesLabelsCopiesAttrsAndMeta() {
-        // given — 실제 Persister + 실제 LabelCoordinateScaler + mock repos
-        LsDataSrcRepository srcRepo = org.mockito.Mockito.mock(LsDataSrcRepository.class);
-        LsDataLblRepository lblRepo = org.mockito.Mockito.mock(LsDataLblRepository.class);
-        LsDataLblAttrValRepository attrRepo = org.mockito.Mockito.mock(LsDataLblAttrValRepository.class);
-        LsDataMetaRepository metaRepo = org.mockito.Mockito.mock(LsDataMetaRepository.class);
-        VideoRepository videoRepo = org.mockito.Mockito.mock(VideoRepository.class);
-        LabelCoordinateScaler scaler = new LabelCoordinateScaler(new ObjectMapper());
-
-        VideoResolutionPersister p = new VideoResolutionPersister(
-                videoRepo, srcRepo, lblRepo, attrRepo, metaRepo, scaler);
-
-        LsDataRaw parent = raw(1L, null);
-        AtomicLong rawSeq = new AtomicLong(900);
-        AtomicLong srcSeq = new AtomicLong(700);
-        AtomicLong lblSeq = new AtomicLong(500);
-
-        when(videoRepo.save(any(LsDataRaw.class))).thenAnswer(inv -> {
-            LsDataRaw r = inv.getArgument(0);
-            setField(r, "rawSn", rawSeq.incrementAndGet());
-            return r;
-        });
-
-        // 원본 프레임 1개 (srcSn=700)
-        LsDataSrc f0 = LsDataSrc.create(1L, 0, "/raw/1/f0.jpg", null);
-        setField(f0, "srcSn", 700L);
-        when(srcRepo.findByRawSnOrderByFrameNoAsc(1L)).thenReturn(List.of(f0));
-        when(srcRepo.saveAll(any())).thenAnswer(inv -> {
-            List<LsDataSrc> result = new java.util.ArrayList<>();
-            for (LsDataSrc s : (Iterable<LsDataSrc>) inv.getArgument(0)) {
-                setField(s, "srcSn", srcSeq.incrementAndGet());
-                result.add(s);
-            }
-            return result;
-        });
-
-        // 원본 라벨 1개 — flat BBOX [100,200,300,400], srcSn=700
-        LsDataLbl lbl = LsDataLbl.createAutoBbox(700L, null, "person", "[100,200,300,400]",
-                java.math.BigDecimal.valueOf(0.9), null);
-        setField(lbl, "lblSn", 800L);
-        when(lblRepo.findBySrcSnIn(anyCollection())).thenReturn(List.of(lbl));
-        when(lblRepo.saveAll(any())).thenAnswer(inv -> {
-            List<LsDataLbl> result = new java.util.ArrayList<>();
-            for (LsDataLbl l : (Iterable<LsDataLbl>) inv.getArgument(0)) {
-                setField(l, "lblSn", lblSeq.incrementAndGet());
-                result.add(l);
-            }
-            return result;
-        });
-
-        // 원본 속성값 1개 (lblSn=800)
-        LsDataLblAttrVal attr = LsDataLblAttrVal.create(800L, 10L, "red");
-        when(attrRepo.findByLblSnIn(anyCollection())).thenReturn(List.of(attr));
-        when(attrRepo.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        // 메타 1개
-        LsDataMeta meta = LsDataMeta.create(1L, "weather", "rain");
-        when(metaRepo.findByRawSn(1L)).thenReturn(List.of(meta));
-        when(metaRepo.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        // when — P50 (factor 0.5), target 960x540
-        ResolutionChangeResponse res = p.persist(parent, ResolutionPreset.P50, "/raw/resolution/1/P50/1.mp4",
-                0.5, 1920, 1080, 960, 540);
-
-        // then — 좌표 스케일 0.5배 검증
-        ArgumentCaptor<List<LsDataLbl>> lblCap = ArgumentCaptor.forClass(List.class);
-        verify(lblRepo).saveAll(lblCap.capture());
-        LsDataLbl copied = lblCap.getValue().get(0);
-        assertThat(copied.getPointCn()).isEqualTo("[50,100,150,200]"); // [100,200,300,400] * 0.5
-        assertThat(copied.getSrcSn()).isEqualTo(701L); // 신규 srcSn
-
-        // 속성값 복사 — 신규 lblSn 으로 매핑
-        ArgumentCaptor<List<LsDataLblAttrVal>> attrCap = ArgumentCaptor.forClass(List.class);
-        verify(attrRepo).saveAll(attrCap.capture());
-        assertThat(attrCap.getValue()).hasSize(1);
-        assertThat(attrCap.getValue().get(0).getLblSn()).isEqualTo(501L); // 신규 lblSn
-        assertThat(attrCap.getValue().get(0).getValue()).isEqualTo("red");
-
-        // 메타 1건 복사
-        verify(metaRepo, times(1)).saveAll(any());
-
-        // 응답 건수 반영
-        assertThat(res.copiedFrames()).isEqualTo(1);
-        assertThat(res.copiedLabels()).isEqualTo(1);
-        assertThat(res.copiedMetas()).isEqualTo(1);
-        assertThat(res.srcW()).isEqualTo(1920);
-        assertThat(res.targetW()).isEqualTo(960);
+        // 응답 record 필드: exportSn/srcW/srcH/targetW/targetH/frameCount 만 — 경로 필드 없음 (컴파일 시점 보장)
+        assertThat(res.exportSn()).isNotNull();
+        assertThat(res.targetH()).isEqualTo(720); // mock 응답값
     }
 }

@@ -99,6 +99,7 @@ export interface Label {
  * - POLYGON: 클릭으로 점 추가, 더블클릭으로 완료
  * - PAN: 캔버스 팬
  * - TRACK: SAM2 자동 추적 (Phase 6)
+ * - SAM_SEGMENT: SAM2 클릭/박스 분할 — 클릭(포인트)/드래그(박스)로 객체 지목 → BE 프록시 폴리곤 (Phase 4)
  */
 export const ToolType = {
   SELECT: 'SELECT',
@@ -108,6 +109,7 @@ export const ToolType = {
   TRACK: 'TRACK',
   MASK_BRUSH: 'MASK_BRUSH',
   MASK_ERASER: 'MASK_ERASER',
+  SAM_SEGMENT: 'SAM_SEGMENT',
 } as const;
 export type ToolType = (typeof ToolType)[keyof typeof ToolType];
 

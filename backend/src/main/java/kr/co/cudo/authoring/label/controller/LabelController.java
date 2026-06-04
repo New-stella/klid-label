@@ -10,9 +10,12 @@ import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
+import kr.co.cudo.authoring.label.dto.Sam2SegmentRequest;
+import kr.co.cudo.authoring.label.dto.Sam2SegmentResponse;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import kr.co.cudo.authoring.label.service.LabelService;
+import kr.co.cudo.authoring.label.service.Sam2SegmentService;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,6 +38,7 @@ public class LabelController {
 
     private final LabelService labelService;
     private final Sam2TrackService sam2TrackService;
+    private final Sam2SegmentService sam2SegmentService;
 
     @Operation(
             summary = "프레임 라벨 조회",
@@ -101,5 +105,34 @@ public class LabelController {
                     "path 의 srcSn 과 body 의 srcSn 이 다릅니다.");
         }
         return ApiResponse.ok(sam2TrackService.track(req, actor));
+    }
+
+    @Operation(
+            summary = "SAM2 클릭/박스 분할",
+            description = "프레임에 대해 클릭(포인트) 또는 드래그(박스) 프롬프트를 ai-server SAM2 로 프록시하여 "
+                    + "폴리곤 + 신뢰도를 받는다. points/box 는 정확히 하나만 제공해야 한다(400). "
+                    + "path srcSn 과 body srcSn 불일치 시 400 (CWE-345). 정책상 원본 이미지에만 실행."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패 / points·box 배타 위반 / srcSn 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (CWE-639 방어)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "413", description = "이미지 크기 상한 초과"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502", description = "ai-server 연동 실패 / 잘못된 응답")
+    })
+    @PostMapping("/{srcSn}/sam2-segment")
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ApiResponse<Sam2SegmentResponse> sam2Segment(@Parameter(description = "프레임 PK", required = true, example = "1") @PathVariable Long srcSn,
+                                                        @Valid @RequestBody Sam2SegmentRequest req,
+                                                        @AuthenticationPrincipal TokenClaims actor) {
+        // path 의 srcSn 과 body 의 srcSn 불일치 시 거부 (CWE-345).
+        if (!srcSn.equals(req.srcSn())) {
+            throw new kr.co.cudo.authoring.common.exception.CustomException(
+                    kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
+                    "path 의 srcSn 과 body 의 srcSn 이 다릅니다.");
+        }
+        return ApiResponse.ok(sam2SegmentService.segment(req, actor));
     }
 }

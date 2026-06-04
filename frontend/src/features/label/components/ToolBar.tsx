@@ -13,6 +13,7 @@ const tools: ToolButtonProps[] = [
   { tool: ToolType.SELECT, label: '선택', shortcut: 'S' },
   { tool: ToolType.BBOX, label: 'BBox', shortcut: 'B' },
   { tool: ToolType.POLYGON, label: 'Polygon', shortcut: 'P' },
+  { tool: ToolType.SAM_SEGMENT, label: 'SAM분할', shortcut: 'G' },
   { tool: ToolType.PAN, label: '팬', shortcut: 'H' },
   { tool: ToolType.TRACK, label: 'Track', shortcut: 'T' },
   { tool: ToolType.MASK_BRUSH, label: '브러시', shortcut: 'M' },

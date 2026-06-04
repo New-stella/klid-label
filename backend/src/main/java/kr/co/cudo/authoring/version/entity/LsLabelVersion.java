@@ -27,6 +27,11 @@ public class LsLabelVersion {
     public static final String SAVE_REASON_APPROVED = "APPROVED";
     public static final String SAVE_REASON_ROLLBACK = "ROLLBACK";
     public static final String SAVE_REASON_BATCH = "BATCH";
+    /**
+     * 비식별 누락 신고로 영상 전체 라벨을 삭제하기 직전에 남기는 복원용 스냅샷(R1 v1.14).
+     * <p>ACTIVE_YN='N' 로 적재되며 diff/rollback(APPROVED 대상)에는 간섭하지 않는다.
+     */
+    public static final String SAVE_REASON_DEIDENT_REPORT = "DEIDENT_REPORT";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -72,6 +77,25 @@ public class LsLabelVersion {
         version.versionNo = versionNo;
         version.saveReasonCd = saveReasonCd;
         version.activeYn = ACTIVE_YES;
+        version.regId = regId;
+        version.regDt = LocalDateTime.now();
+        return version;
+    }
+
+    /**
+     * 영상(rawSn) 단위 복원용 비활성 스냅샷 생성 (R1 v1.14 — 비식별 신고 시 라벨 전체 삭제 직전 기록).
+     * <p>dataSrcSn 은 프레임 종속이 아닌 영상 전체이므로 null, ACTIVE_YN='N' 로 적재한다.
+     */
+    public static LsLabelVersion createInactiveRawSnapshot(Long rawSn, String versionHash, String labelPayload,
+                                                           int versionNo, String saveReasonCd, String regId) {
+        LsLabelVersion version = new LsLabelVersion();
+        version.dataRawSn = rawSn;
+        version.dataSrcSn = null;
+        version.versionHash = versionHash;
+        version.labelPayload = labelPayload;
+        version.versionNo = versionNo;
+        version.saveReasonCd = saveReasonCd;
+        version.activeYn = ACTIVE_NO;
         version.regId = regId;
         version.regDt = LocalDateTime.now();
         return version;

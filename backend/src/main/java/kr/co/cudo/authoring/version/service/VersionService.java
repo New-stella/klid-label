@@ -160,6 +160,56 @@ public class VersionService {
         return true;
     }
 
+    /**
+     * 비식별 누락 신고로 영상 전체 라벨을 삭제하기 직전에, 복원 가능한 전체 라벨 스냅샷을 기록한다(R1 v1.14).
+     *
+     * <p>기존 {@code LS_DATA_LBL_HSTRY} 는 LBL_SN/SRC_SN/REGISTERED_AT 만 보유하여 좌표 복원이 불가하므로,
+     * 영상 단위 라벨 전체를 JSON 스냅샷({@code LABEL_PAYLOAD})으로 직렬화해 {@link LsLabelVersion} 에
+     * {@code SAVE_REASON_CD='DEIDENT_REPORT'}, {@code ACTIVE_YN='N'} 로 적재한다.
+     *
+     * <p>정책:
+     * <ul>
+     *   <li>라벨 0건이면 스냅샷을 만들지 않고 false 반환(빈 버전 적재 방지) — 호출 측이 삭제도 스킵.</li>
+     *   <li>ACTIVE_YN='N' 적재라 diff/rollback(APPROVED active 대상)과 간섭하지 않는다.</li>
+     *   <li>CWE-770: 스냅샷 페이로드 1MB 한도 검증.</li>
+     *   <li>본 메서드는 호출 측(DeidentReportService.report)의 단일 트랜잭션에 참여하여
+     *       스냅샷·이력·삭제가 함께 커밋/롤백되도록 한다.</li>
+     * </ul>
+     *
+     * @return 스냅샷을 생성했으면 true, 라벨 0건으로 스킵했으면 false
+     */
+    @Transactional("controlTransactionManager")
+    public boolean snapshotDeidentReport(Long rawSn, TokenClaims actor) {
+        if (rawSn == null) {
+            throw new IllegalArgumentException("rawSn 은 필수입니다.");
+        }
+        String actorId = actor == null ? "system" : actor.sub();
+        List<LsDataLbl> labels = labelRepository.findAllByRawSn(rawSn);
+        if (labels.isEmpty()) {
+            log.info("[Version] deident-report snapshot skipped (no labels) rawSn={} actor={}", rawSn, actorId);
+            return false;
+        }
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(LabelResponse.of(labels, objectMapper));
+        } catch (Exception e) {
+            // 직렬화 실패는 내부 오류 — 신고 흐름 전체를 안전하게 막기 위해 예외 전파(트랜잭션 롤백).
+            log.error("[Version] deident-report snapshot serialize failed rawSn={}", rawSn, e);
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "라벨 스냅샷 직렬화에 실패했습니다.");
+        }
+        validatePayloadSize(payload);
+        String versionHash = sha256Hex(payload);
+        int nextVersion = labelVersionRepository.findFirstByDataRawSnOrderByVersionNoDesc(rawSn)
+                .map(v -> v.getVersionNo() + 1)
+                .orElse(1);
+        labelVersionRepository.save(LsLabelVersion.createInactiveRawSnapshot(
+                rawSn, versionHash, payload, nextVersion,
+                LsLabelVersion.SAVE_REASON_DEIDENT_REPORT, actorId));
+        log.info("[Version] deident-report snapshot saved rawSn={} labels={} version={} actor={}",
+                rawSn, labels.size(), nextVersion, actorId);
+        return true;
+    }
+
     public List<VersionItem> listVersions(Long srcSn, TokenClaims actor) {
         accessGuard.verifyAccess(srcSn, actor);
         List<LsLabelVersion> versions = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);

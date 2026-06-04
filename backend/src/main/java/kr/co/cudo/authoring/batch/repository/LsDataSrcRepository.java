@@ -15,6 +15,10 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
 
     List<LsDataSrc> findByRawSnOrderByFrameNoAsc(Long rawSn);
 
+    /** 프레임 청크 순회(대용량 다운스케일 — MEDIUM)용 페이징 조회. FRAME_NO 오름차순. */
+    org.springframework.data.domain.Page<LsDataSrc> findByRawSnOrderByFrameNoAsc(
+            Long rawSn, org.springframework.data.domain.Pageable pageable);
+
     Optional<LsDataSrc> findByRawSnAndFrameNo(Long rawSn, Integer frameNo);
 
     long countByRawSn(Long rawSn);

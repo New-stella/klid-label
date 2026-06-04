@@ -19,6 +19,13 @@ describe('ToolBar', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX);
   });
 
+  it('SAM분할_버튼_클릭_시_SAM_SEGMENT_활성', () => {
+    renderWithProviders(<ToolBar />);
+    const seg = screen.getByRole('button', { name: /SAM분할 \(G\)/i });
+    fireEvent.click(seg);
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
+  });
+
   it('aria-pressed_활성_도구_표시', () => {
     useLabelStore.getState().setActiveTool(ToolType.POLYGON);
     renderWithProviders(<ToolBar />);

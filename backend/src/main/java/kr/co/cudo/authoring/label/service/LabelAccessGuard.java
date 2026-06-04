@@ -57,6 +57,34 @@ public class LabelAccessGuard {
         throw new CustomException(ErrorCode.FORBIDDEN, "라벨 접근 권한이 없습니다.");
     }
 
+    /**
+     * 영상(rawSn) 단위 접근 인가 검사 — 프레임(srcSn)이 아니라 영상 ID 만으로 권한을 확인할 때 사용.
+     * <p>비식별 신고 resolve(R1 v1.14) 처럼 srcSn 컨텍스트 없이 rawSn 만 있는 경로용.
+     * <ul>
+     *   <li>REVIEWER : 통과</li>
+     *   <li>WORKER   : 본인 LABELER 배정 영상만 통과 (CWE-639 IDOR 방어)</li>
+     *   <li>그 외    : 차단</li>
+     * </ul>
+     */
+    public void verifyRawAccess(Long rawSn, TokenClaims actor) {
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        if (actor.role() == Role.REVIEWER) {
+            return;
+        }
+        if (actor.role() == Role.WORKER) {
+            Long selfNo = parseUserNo(actor.sub());
+            boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
+                    selfNo, LsTaskAssignment.TASK_LABELER, rawSn);
+            if (!assigned) {
+                throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다.");
+            }
+            return;
+        }
+        throw new CustomException(ErrorCode.FORBIDDEN, "라벨 접근 권한이 없습니다.");
+    }
+
     public Long parseUserNo(String sub) {
         try {
             return Long.parseLong(sub);

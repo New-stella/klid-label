@@ -20,7 +20,10 @@ import java.time.LocalDateTime;
 /**
  * Phase 9 — 데이터 증강 결과 (LS_DATA_AUG).
  *
- * <p>외부 SFR-07 시스템이 생성한 4종 증강 결과(WINTER/NIGHT/RAIN/RESOLUTION)를
+ * <p>외부 SFR-07 시스템이 생성한 3종 증강 결과(WINTER/NIGHT/RAIN)를 적재한다.
+ * 해상도 변경(RESOLUTION)은 R1 v1.8부터 외부 위탁이 아닌 저작도구 내부 수행(SFR-06-03,
+ * LS_RESOLUTION_EXPORT)으로 이관 — {@link #AUG_RESOLUTION} 상수는 기존 적재 데이터
+ * 호환을 위해서만 유지하며 신규 콜백/요청에서는 허용되지 않는다.
  * 검수 상태/반려 사유/정합률은 LS_DATA_AUG_RVW 에 분리 저장한다.
  */
 @Entity

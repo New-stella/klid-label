@@ -55,7 +55,7 @@ class VideoResolutionControllerTest {
     @Test
     @DisplayName("미인증_401")
     void unauthenticated_401() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of("preset", "P50"));
+        String body = objectMapper.writeValueAsString(Map.of("preset", "RES_720P"));
         mockMvc.perform(post("/v1/videos/1/resolution")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -65,7 +65,7 @@ class VideoResolutionControllerTest {
     @Test
     @DisplayName("WORKER_권한_403")
     void worker_403() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of("preset", "P50"));
+        String body = objectMapper.writeValueAsString(Map.of("preset", "RES_720P"));
         mockMvc.perform(post("/v1/videos/1/resolution")
                         .header("Authorization", "Bearer " + workerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -74,9 +74,9 @@ class VideoResolutionControllerTest {
     }
 
     @Test
-    @DisplayName("프리셋_enum_외_값_요청_400")
+    @DisplayName("화이트리스트_외_preset_값_요청_400")
     void invalidPreset_400() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of("preset", "P99"));
+        String body = objectMapper.writeValueAsString(Map.of("preset", "RES_4K"));
         mockMvc.perform(post("/v1/videos/1/resolution")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -95,29 +95,33 @@ class VideoResolutionControllerTest {
     }
 
     @Test
-    @DisplayName("REVIEWER_정상_요청시_201_새영상_응답")
+    @DisplayName("REVIEWER_정상_요청시_201_EXPORT_응답_내부경로_미포함")
     void reviewer_201() throws Exception {
-        when(videoResolutionService.changeResolution(eq(1L), any()))
-                .thenReturn(new ResolutionChangeResponse(999L, 1920, 1080, 960, 540, 0.5, 3, 2, 1));
+        when(videoResolutionService.changeResolution(eq(1L), any(), any()))
+                .thenReturn(new ResolutionChangeResponse(777L, 1920, 1080, 1280, 720, 3));
 
-        String body = objectMapper.writeValueAsString(Map.of("preset", "P50"));
+        String body = objectMapper.writeValueAsString(Map.of("preset", "RES_720P"));
         mockMvc.perform(post("/v1/videos/1/resolution")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.newRawSn").value(999))
-                .andExpect(jsonPath("$.data.targetW").value(960));
+                .andExpect(jsonPath("$.data.exportSn").value(777))
+                .andExpect(jsonPath("$.data.targetW").value(1280))
+                .andExpect(jsonPath("$.data.frameCount").value(3))
+                // 내부 파일 경로 미노출 (CWE-209)
+                .andExpect(jsonPath("$.data.outputDirPath").doesNotExist())
+                .andExpect(jsonPath("$.data.newRawSn").doesNotExist());
     }
 
     @Test
     @DisplayName("미검수_영상_요청시_409")
     void notApproved_409() throws Exception {
-        when(videoResolutionService.changeResolution(eq(2L), any()))
+        when(videoResolutionService.changeResolution(eq(2L), any(), any()))
                 .thenThrow(new CustomException(ErrorCode.CONFLICT, "검수 완료된 영상만 가능"));
 
-        String body = objectMapper.writeValueAsString(Map.of("preset", "P25"));
+        String body = objectMapper.writeValueAsString(Map.of("preset", "RES_480P"));
         mockMvc.perform(post("/v1/videos/2/resolution")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)

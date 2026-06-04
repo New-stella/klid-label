@@ -99,6 +99,9 @@ public class DeidentifyStep {
                 workLockService.releaseRaw(managed.getRawSn(), "batch", "DEIDENT_SUCCEEDED");
             }
             if (deidentReportService != null) {
+                // TODO(R1 v1.14): 자동(배치) 재비식별 경로의 일괄 RESOLVED 와 수동 resolve(resolveManually) 가
+                //   동일 영상에 대해 경쟁할 수 있다. 둘 다 OPEN→RESOLVED 멱등 전이라 데이터 정합은 유지되나,
+                //   장기적으로 재처리 경로를 수동 단일화(외부 솔루션) 로 정리할지 검토 필요.
                 deidentReportService.resolveOpenReports(managed.getRawSn());
             }
             if (notificationService != null) {

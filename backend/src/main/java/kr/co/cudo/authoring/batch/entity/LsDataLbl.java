@@ -252,36 +252,6 @@ public class LsDataLbl {
                 .build();
     }
 
-    /**
-     * Phase 2 — RESOLUTION 증강용 라벨 복사 (좌표만 스케일된 POINT_CN 으로 대체).
-     *
-     * <p>{@link #copyForNewSrc} 와 동일하게 영구 필드를 계승하되, POINT_CN 만
-     * 호출자가 미리 계산한 {@code scaledPointCn} 으로 대체한다. 좌표 스케일 계산은
-     * {@code LabelCoordinateScaler}(util) 책임이며, 엔티티는 ObjectMapper/직렬화
-     * 의존을 갖지 않고 이미 계산된 문자열만 받는다.
-     *
-     * @param newSrcSn       새 영상 프레임의 LS_DATA_SRC.SRC_SN
-     * @param original       DB 에서 로드한 원본 라벨
-     * @param scaledPointCn  LabelCoordinateScaler 로 스케일·클램프된 POINT_CN JSON
-     */
-    public static LsDataLbl copyForNewSrcScaled(Long newSrcSn, LsDataLbl original, String scaledPointCn) {
-        if (original == null) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "복사 원본 라벨이 null 입니다.");
-        }
-        if (scaledPointCn == null || scaledPointCn.isBlank()) {
-            // POINT_CN 컬럼에 null/공백이 적재되는 결함 방지 (CWE-20 입력 검증).
-            throw new CustomException(ErrorCode.INVALID_INPUT, "scaledPointCn 은 필수입니다.");
-        }
-        return LsDataLbl.builder()
-                .srcSn(newSrcSn)
-                .lblTypeCd(original.getLblTypeCd())
-                .labelId(original.getLabelId())
-                .label(original.getLabelNm())
-                .pointsJson(scaledPointCn)
-                .trackId(original.getTrackId())
-                .build();
-    }
-
     /** VLM 객체 검증 결과 등 신뢰도만 갱신. 0.0~1.0 범위 강제. */
     public void updateConfScore(BigDecimal newScore) {
         this.confScore = clampScore(newScore);

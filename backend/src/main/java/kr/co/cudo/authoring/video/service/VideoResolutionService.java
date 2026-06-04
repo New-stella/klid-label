@@ -2,134 +2,201 @@ package kr.co.cudo.authoring.video.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.LsResolutionExportRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.video.service.port.VideoProbe;
-import kr.co.cudo.authoring.video.service.port.VideoResizer;
+import kr.co.cudo.authoring.video.service.port.ImageResizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 /**
- * 해상도 변경(RESOLUTION) 서비스 — Phase 3 (RQ-SFR-07-02).
+ * 해상도 변경(RESOLUTION) 서비스 — Phase 1 (RQ-SFR-06-03 v1.8/1.10).
  *
- * <p>검수 완료(APPROVED) 영상을 REVIEWER 가 배율 프리셋으로 리사이즈하면, 라벨 좌표를
- * 동일 배율로 스케일 복사한 새 PENDING 영상(RAW_SN)을 만든다. 새 영상은 기존 배정/검수
- * 흐름을 그대로 탄다.
+ * <p><b>정책(R1)</b>: 검수 완료(APPROVED) 원본 영상의 프레임 이미지셋(LS_DATA_SRC.SRC_FILE_PATH_NM)을
+ * 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로 종횡비 보존 <b>다운스케일</b>한다. 영상(비디오)
+ * 재생성·라벨 좌표 스케일 복사·새 PENDING 영상(LS_DATA_RAW) 생성은 하지 않으며, 산출물은
+ * 다운스케일 이미지셋 + {@code LS_RESOLUTION_EXPORT} 1행뿐이다.
  *
- * <p><b>트랜잭션 경계 (HIGH-①)</b>: ffprobe/ffmpeg 같은 장시간 외부 프로세스는 DB 트랜잭션
- * 밖에서 실행한다(HikariCP 커넥션 고갈 방지). 본 오케스트레이션 메서드는 {@code @Transactional}
- * 이 아니며, DB INSERT 전체만 {@link VideoResolutionPersister#persist} 의 {@code REQUIRES_NEW}
- * 단일 트랜잭션으로 묶는다({@code FfmpegFrameExtractor} 와 동일 사유).
+ * <p><b>트랜잭션 경계 (HIGH-④)</b>: 이미지 다운스케일(파일 I/O)은 DB 트랜잭션 밖에서 수행하고,
+ * 모든 프레임 생성 완료 후에만 {@link VideoResolutionPersister#persist} 의 {@code REQUIRES_NEW}
+ * 단일 트랜잭션으로 EXPORT 1행을 INSERT 한다(파일→DB 순서).
  *
  * <p><b>RBAC 정책</b>: REVIEWER 역할 기반 접근. 영상별 소유권 개념은 없으며 모든 APPROVED 영상에
- * 허용한다(AugmentRequestService 와 동일한 의도된 정책 — IDOR 아님). 권한 검증은 Controller
- * {@code @PreAuthorize("hasRole('REVIEWER')")} 가 1차 책임이고, 본 서비스는 비즈니스 규칙만 다룬다.
+ * 허용한다(의도된 정책 — IDOR 아님). 권한 검증은 Controller {@code @PreAuthorize("hasRole('REVIEWER')")}
+ * 가 1차 책임이고, 본 서비스는 비즈니스 규칙만 다룬다.
  *
- * <p><b>보안</b>: ffmpeg/ffprobe 인자는 ProcessBuilder 리스트로 분리(CWE-78), src/dst 경로는
- * 모두 normalize + storageRawPath base 검증(CWE-22, {@link VideoStreamService#resolveSafe} 패턴
- * 재사용), 로그/예외는 경로 hash 마스킹·추상 메시지(CWE-209)로 처리한다. 또한 ffmpeg 동시 실행은
- * {@link Semaphore}(fair) 로 상한을 두어 자원 고갈(DoS, API4:2023)을 방지한다.
+ * <p><b>보안</b>: src/dst 경로는 모두 normalize + storageRawPath base 검증(CWE-22), 로그/예외는
+ * 경로 hash 마스킹·추상 메시지(CWE-209)로 처리한다. 동시 실행은 {@link Semaphore}(fair) 상한으로
+ * 자원 고갈(DoS, API4:2023)을 방지한다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class VideoResolutionService {
 
+    /** 프레임 청크 순회 크기 (대용량 다운스케일 — MEDIUM). */
+    private static final int FRAME_CHUNK_SIZE = 500;
+
     private final VideoRepository videoRepository;
     private final LsRawDataStatusRepository statusRepository;
-    private final VideoProbe videoProbe;
-    private final VideoResizer videoResizer;
+    private final LsDataSrcRepository srcRepository;
+    private final LsResolutionExportRepository exportRepository;
+    private final ImageResizer imageResizer;
     private final VideoResolutionPersister persister;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
 
-    /** ffmpeg resize 동시 실행 상한 (DoS 방지, API4:2023). */
-    @Value("${authoring.ffmpeg.resize-max-concurrent:2}")
+    /** 이미지 다운스케일 동시 실행 상한 (DoS 방지, API4:2023). */
+    @Value("${authoring.resolution.resize-max-concurrent:2}")
     private int resizeMaxConcurrent;
 
     /** Semaphore 획득 타임아웃(초) — 무한 대기로 인한 톰캣 스레드 점유 방지. */
-    @Value("${authoring.ffmpeg.resize-acquire-timeout-sec:5}")
+    @Value("${authoring.resolution.resize-acquire-timeout-sec:5}")
     private long resizeAcquireTimeoutSec;
 
-    /** ffmpeg 동시 실행 제한용 공정(fair) Semaphore — 단일 인스턴스 공유. {@link #resizeSemaphore()} 로 지연 초기화. */
+    /** 동시 실행 제한용 공정(fair) Semaphore — 단일 인스턴스 공유. {@link #resizeSemaphore()} 로 지연 초기화. */
     private volatile Semaphore resizeSemaphore;
 
     /**
-     * 해상도 변경 실행 — 검증 → ffprobe/ffmpeg(트랜잭션 밖) → DB INSERT(REQUIRES_NEW).
+     * 해상도 변경 실행 — 검증 → 프레임 이미지 다운스케일(트랜잭션 밖) → EXPORT INSERT(REQUIRES_NEW).
      *
      * @param rawSn   원본 영상 PK (검수 완료 + 비-증강본만 허용)
-     * @param request 배율 프리셋
-     * @return 새 영상 RAW_SN + 해상도/배율/복사 건수
+     * @param request 표준 하위 해상도 프리셋
+     * @param regId   등록자(REVIEWER) 식별자 (감사 추적용)
+     * @return EXPORT_SN + 원본/타겟 해상도 + 프레임 개수
      */
-    public ResolutionChangeResponse changeResolution(Long rawSn, ResolutionChangeRequest request) {
+    public ResolutionChangeResponse changeResolution(Long rawSn, ResolutionChangeRequest request, String regId) {
         ResolutionPreset preset = request.preset();
-        double factor = preset.factor();
 
-        // 1) 조회 + 검증 (read-only 트랜잭션 — 외부 프로세스 전에 종료)
+        // 1) 조회 + 검증 (APPROVED + 비-증강본)
         LsDataRaw parent = loadAndValidate(rawSn);
 
-        // 2) src(원본) 경로 검증 (CWE-22, MEDIUM-1) — VideoStreamService 와 동일 패턴.
-        //    DB 값(getRawFilePathNm)이 storageRawPath base 밖이면 ffprobe/ffmpeg 실행 전 거부.
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path source = VideoStreamService.resolveSafe(base, parent.getRawFilePathNm());
-
-        // 3) (트랜잭션 밖) ffprobe → 원본 해상도 검증 (HIGH-⑥)
-        VideoProbe.Dimensions dim = videoProbe.probe(source);
-        validateDimensions(dim);
-        int srcW = dim.width();
-        int srcH = dim.height();
-
-        // 3) target 계산 — 짝수 강제(yuv420p), <2 거부 (HIGH-⑧)
-        int targetW = evenScaled(srcW, factor);
-        int targetH = evenScaled(srcH, factor);
-        if (targetW < 2 || targetH < 2) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "원본 해상도가 너무 작아 해당 프리셋으로 리사이즈 불가");
-        }
-
-        // 4) 중복 자식 사전 체크 (HIGH-②⑩) — UK(VMS_CLIP_ID) 자연 방어의 1차선
-        String newClipId = parent.getVmsClipId() + "_RES_" + preset.name();
-        videoRepository.findByVmsClipId(newClipId).ifPresent(existing -> {
+        // 2) 동일 영상+해상도 중복 사전 체크 (HIGH-② 1차선)
+        if (exportRepository.existsByDataRawSnAndTargetResCd(rawSn, preset.name())) {
             throw new CustomException(ErrorCode.CONFLICT,
                     "동일 영상에 해당 해상도 변경 결과가 이미 존재합니다.");
-        });
+        }
 
-        // 5) dst 경로 검증 (CWE-22) — 결정론적 경로(재시도 시 덮어쓰기)
-        Path dst = resolveSafeDst(rawSn, preset.name(), source);
+        // 3) 프레임 조회 — 0건이면 조기 거부 (HIGH-⑥), EXPORT 행 미생성
+        long frameTotal = srcRepository.countByRawSn(rawSn);
+        if (frameTotal == 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "다운스케일할 프레임이 없습니다.");
+        }
 
-        // 6) (트랜잭션 밖) ffmpeg resize — 동시 실행 상한 Semaphore 보호 (DoS, MEDIUM-2).
+        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
+
+        // 4) 첫 프레임 실측으로 원본 해상도 산정 (HIGH-③ 업스케일 거부 — enum 비교 금지)
+        LsDataSrc firstFrame = srcRepository.findByRawSnAndFrameNo(rawSn, 0)
+                .orElseGet(() -> srcRepository.findByRawSnOrderByFrameNoAsc(rawSn).stream()
+                        .min(Comparator.comparing(LsDataSrc::getFrameNo))
+                        .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT, "다운스케일할 프레임이 없습니다.")));
+        Path firstSrcPath = resolveSafeSrc(base, firstFrame.getSrcFilePathNm());
+        int[] dim = imageResizer.readDimensions(firstSrcPath);
+        int srcW = dim[0];
+        int srcH = dim[1];
+        if (srcW <= 0 || srcH <= 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 해상도를 확인할 수 없습니다.");
+        }
+
+        // 5) 타겟 해상도 산정 — 종횡비 보존(height 기준), targetW 짝수 보정 (MEDIUM)
+        int targetH = preset.height();
+        int targetW = evenScaled(srcW, srcH, targetH);
+
+        // 6) 업스케일 거부 — 실측 원본 높이와 비교 (HIGH-③)
+        if (targetH >= srcH) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "목표 해상도가 원본보다 작아야 합니다(업스케일 불가).");
+        }
+        if (targetW < 2 || targetH < 2) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "원본 해상도가 너무 작아 해당 프리셋으로 다운스케일 불가");
+        }
+
+        // 7) 출력 디렉토리 — 결정론적 경로, 재시도 시 멱등 초기화 (HIGH-①)
+        Path outputDir = resolveSafeOutputDir(base, rawSn, preset.name());
+
+        // 8) 다운스케일 실행 — 동시 실행 상한 Semaphore 보호 (DoS)
         acquireResizeSlot();
         try {
-            videoResizer.resize(source, dst, factor, targetW, targetH);
+            resetOutputDir(outputDir);
+            int frameCount = downscaleAllFrames(rawSn, base, outputDir, targetW, targetH, (int) frameTotal);
 
-            // 7) DB INSERT 전체 — REQUIRES_NEW (HIGH-④). 실패 시 고아 출력 파일 정리 (HIGH-③).
-            return persister.persist(parent, preset, dst.toString(), factor, srcW, srcH, targetW, targetH);
+            // 9) 파일→DB 순서 — 모든 프레임 완료 후 EXPORT 1행 INSERT (HIGH-④)
+            try {
+                return persister.persist(parent, preset, outputDir.toString(),
+                        srcW, srcH, targetW, targetH, frameCount, regId);
+            } catch (DataIntegrityViolationException e) {
+                // UK(DATA_RAW_SN, TARGET_RES_CD) 최종 방어 — 동시 요청 경합 (HIGH-②)
+                deleteDirQuietly(outputDir);
+                throw new CustomException(ErrorCode.CONFLICT,
+                        "동일 영상에 해당 해상도 변경 결과가 이미 존재합니다.");
+            }
         } catch (RuntimeException e) {
-            deleteOrphan(dst);
+            deleteDirQuietly(outputDir);
             throw e;
         } finally {
             resizeSemaphore().release();
         }
     }
 
+    /** 프레임 청크 순회 다운스케일. K번째 실패 시 RuntimeException 전파(상위가 디렉토리 정리). */
+    private int downscaleAllFrames(Long rawSn, Path base, Path outputDir, int targetW, int targetH, int frameTotal) {
+        int processed = 0;
+        int page = 0;
+        int totalPages = Math.max(1, (frameTotal + FRAME_CHUNK_SIZE - 1) / FRAME_CHUNK_SIZE);
+        while (page < totalPages) {
+            Pageable pageable = PageRequest.of(page, FRAME_CHUNK_SIZE);
+            List<LsDataSrc> chunk = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn, pageable).getContent();
+            if (chunk.isEmpty()) {
+                break;
+            }
+            for (LsDataSrc frame : chunk) {
+                Path src = resolveSafeSrc(base, frame.getSrcFilePathNm());
+                if (!Files.exists(src)) {
+                    throw new CustomException(ErrorCode.NOT_FOUND, "원본 프레임 파일을 찾을 수 없습니다.");
+                }
+                Path dst = outputDir.resolve(outputFileName(frame, src));
+                imageResizer.resize(src, dst, targetW, targetH);
+                processed++;
+            }
+            page++;
+        }
+        if (processed == 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "다운스케일할 프레임이 없습니다.");
+        }
+        return processed;
+    }
+
+    private String outputFileName(LsDataSrc frame, Path src) {
+        String name = src.getFileName() != null ? src.getFileName().toString() : (frame.getFrameNo() + ".jpg");
+        return name;
+    }
+
     /**
-     * ffmpeg 동시 실행 슬롯 획득 (MEDIUM-2). 트랜잭션 밖에서 호출하며, 타임아웃 내 획득 실패 시
+     * 이미지 다운스케일 슬롯 획득 (DoS). 트랜잭션 밖에서 호출하며, 타임아웃 내 획득 실패 시
      * {@link ErrorCode#TOO_MANY_REQUESTS}(429) 로 거부하여 무한 대기·자원 고갈을 방지한다.
      */
     private void acquireResizeSlot() {
@@ -173,7 +240,7 @@ public class VideoResolutionService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 영상에만 해상도 변경 가능");
         }
 
-        // APPROVED 검증 — LS_RAW_DATA_STATUS 기준 (AugmentRequestService 와 동일 모델)
+        // APPROVED 검증 — LS_RAW_DATA_STATUS 기준
         boolean approved = statusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
                 .anyMatch(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()));
         if (!approved) {
@@ -183,49 +250,76 @@ public class VideoResolutionService {
         return parent;
     }
 
-    /** ffprobe 결과 검증 (HIGH-⑥) — video stream 없음/0 해상도. 경로/원인은 log 만, 응답은 추상 메시지. */
-    private void validateDimensions(VideoProbe.Dimensions dim) {
-        if (dim == null || dim.width() <= 0 || dim.height() <= 0) {
-            log.error("[Video][Resolution] invalid source dimensions {}", dim);
-            throw new CustomException(ErrorCode.INVALID_INPUT, "원본 영상의 해상도를 확인할 수 없습니다.");
+    /** 종횡비 보존: targetH 기준으로 targetW 산정 후 짝수로 내림(인코더 호환·일관성). */
+    private int evenScaled(int srcW, int srcH, int targetH) {
+        if (srcH <= 0) {
+            return 0;
         }
+        int scaledW = (int) Math.round((double) srcW * targetH / srcH);
+        if (scaledW < 0) {
+            scaledW = 0;
+        }
+        return scaledW - (scaledW % 2);
     }
 
-    /** factor 적용 후 짝수로 내림 (yuv420p 인코딩 요구). 음수 방지 위해 0 하한. */
-    private int evenScaled(int dimension, double factor) {
-        int scaled = (int) Math.floor(dimension * factor);
-        if (scaled < 0) {
-            scaled = 0;
+    /** src(원본 프레임) 경로 normalize + storageRawPath base 검증 (CWE-22). */
+    private Path resolveSafeSrc(Path base, String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new CustomException(ErrorCode.NOT_FOUND, "원본 프레임 경로가 비어있습니다.");
         }
-        return scaled - (scaled % 2);
-    }
-
-    /**
-     * dst 경로를 storageRawPath base 하위 결정론적 경로로 해석 + normalize 검증 (CWE-22).
-     * {@code <storageRawPath>/resolution/<rawSn>/<preset>/<원본파일명>}.
-     */
-    private Path resolveSafeDst(Long rawSn, String preset, Path source) {
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        String fileName = source.getFileName() != null ? source.getFileName().toString() : (rawSn + ".mp4");
-        Path resolved = base.resolve("resolution")
-                .resolve(String.valueOf(rawSn))
-                .resolve(preset)
-                .resolve(fileName)
-                .normalize();
+        Path candidate = Paths.get(filePath);
+        Path resolved = candidate.isAbsolute()
+                ? candidate.normalize()
+                : base.resolve(candidate).normalize();
         if (!resolved.startsWith(base)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "리사이즈 출력 경로가 허용된 저장 경로를 벗어납니다.");
+            throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 경로가 허용된 저장 경로를 벗어납니다.");
         }
         return resolved;
     }
 
-    /** DB INSERT 실패 시 ffmpeg 출력 고아 파일 정리 (HIGH-③). */
-    private void deleteOrphan(Path dst) {
+    /**
+     * 출력 디렉토리를 storageRawPath base 하위 결정론적 경로로 해석 + normalize 검증 (CWE-22, HIGH-①).
+     * {@code <storageRawPath>/resolution/<rawSn>/<TARGET_RES_CD>/}.
+     */
+    private Path resolveSafeOutputDir(Path base, Long rawSn, String preset) {
+        Path resolved = base.resolve("resolution")
+                .resolve(String.valueOf(rawSn))
+                .resolve(preset)
+                .normalize();
+        if (!resolved.startsWith(base)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "다운스케일 출력 경로가 허용된 저장 경로를 벗어납니다.");
+        }
+        return resolved;
+    }
+
+    /** 출력 디렉토리 멱등 초기화 — 재시도 시 기존 잔여물 제거 후 재생성 (HIGH-①). */
+    private void resetOutputDir(Path outputDir) {
+        deleteDirQuietly(outputDir);
         try {
-            Files.deleteIfExists(dst);
-            log.warn("[Video][Resolution] orphan output cleaned path={}", maskPath(dst));
-        } catch (Exception cleanupEx) {
-            log.error("[Video][Resolution] orphan cleanup failed path={} err={}",
-                    maskPath(dst), cleanupEx.getMessage());
+            Files.createDirectories(outputDir);
+        } catch (IOException e) {
+            log.error("[Video][Resolution] output dir create failed dir={}", maskPath(outputDir));
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "출력 디렉토리를 준비할 수 없습니다.");
+        }
+    }
+
+    /** 부분 실패/예외 시 출력 디렉토리 전체 정리 (HIGH-①④⑤). */
+    private void deleteDirQuietly(Path outputDir) {
+        if (outputDir == null || !Files.exists(outputDir)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(outputDir)) {
+            walk.sorted(Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException ignored) {
+                            // best-effort cleanup
+                        }
+                    });
+            log.warn("[Video][Resolution] output dir cleaned dir={}", maskPath(outputDir));
+        } catch (IOException e) {
+            log.error("[Video][Resolution] output dir cleanup failed dir={}", maskPath(outputDir));
         }
     }
 

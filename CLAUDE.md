@@ -187,7 +187,8 @@ klid-la-test-v0/
 - 이력 보존은 `LS_LABEL_VERSION`(라벨 스냅샷) + `LS_DATA_LBL_HSTRY`로 충분
 
 ### 라벨링·버전관리
-- 바운딩박스 / 폴리곤 / 세그멘테이션 / SAM2 Track — 캔버스는 konva.js
+- 바운딩박스 / 폴리곤 / 세그멘테이션 / SAM2 분할(클릭·박스 프롬프트) / SAM2 Track — 캔버스는 konva.js
+- **SFR-08-01(라벨링 정확도 향상) = VOS(추적+분할)로 해석** (2026-06-04 재정정 — 구 '자석 올가미' 해석 폐기·구현물 제거): SAM2 Track(박스→N프레임 추적 전파, `POST /v1/frames/{srcSn}/sam2-track`) + SAM2 분할(클릭/박스→폴리곤+신뢰도, `POST /v1/frames/{srcSn}/sam2-segment`, mock 응답은 FE 자동적용 차단)이 담당
 - **2계층 분리 (Critical)**: ①**작업 임시저장**(작업 중) — 라벨러 저장 시 현재 작업본을 `LS_DATA_LBL`에 영속(upsert)하고 되돌리기는 FE undo/redo(세션)로 처리한다. 학습데이터 버전이 아니며 `LS_LABEL_VERSION` 스냅샷을 만들지 않는다. ②**학습데이터 버전**(확정) — 아래 별개 개념.
 - **버전관리는 DB 기반 (외부 VCS 미사용)**: **검수 승인(`APPROVED`) 시점**에 영상 단위로 라벨 **전체 스냅샷(JSON)** 을 `LS_LABEL_VERSION.LABEL_PAYLOAD`에 저장한다(`SAVE_REASON='APPROVED'`). 라벨 저장 시점에는 버전을 생성하지 않는다 — SFR-08의 '학습데이터셋의 버전 관리'는 **검수 완료되어 학습데이터로 확정된 단위**를 대상으로 하기 때문. 버전 식별자는 페이로드 해시(`VERSION_HASH`, SHA-256)이며 동일 페이로드 재스냅샷은 동일 해시로 중복 식별한다. 검수완료 후 수정→재검수→재승인 시 새 버전이 쌓인다.
 - **diff / 롤백**: **검수완료(APPROVED) 버전 간** DB 스냅샷을 앱에서 비교해 diff를 계산하고, 롤백은 대상 검수완료 스냅샷을 새 active 버전으로 복원한다. 외부 Git/Gitea 등 VCS에 의존하지 않는다. 데이터마트 동기화(SFR-08 3번째 항목)는 검수완료 후 수정 시 `TASK_MODIFIED` 통지로 연계한다.
@@ -196,7 +197,8 @@ klid-la-test-v0/
 
 ### 증강 = 새 영상
 - 증강 결과는 **새 영상(RAW_SN) 생성** — 원본과 다른 영상 ID. `LS_DATA_RAW.PARENT_RAW_SN`으로 원본 참조
-- 원본 영상의 라벨/메타 JSON을 새 영상에 **복사**. 해상도 변경 증강은 이미지 해상도만 변경하여 저장
+- 원본 영상의 라벨/메타 JSON을 새 영상에 **복사** (외부 증강 3종은 해상도 동일 — 좌표 그대로 복사)
+- **해상도 변경(SFR-06-03)은 증강이 아님 — 저작도구 직접 수행**: 표준 하위 해상도 화이트리스트(RES_1080P/RES_720P/RES_480P)로 **프레임 이미지셋만 다운스케일** 제공. 업스케일(목표 ≥ 원본 높이) 400 거부, 영상(비디오) 재생성 없음, **라벨 좌표 미제공**(변환·복사 안 함), 새 영상(RAW_SN) 미생성 — 결과는 `LS_RESOLUTION_EXPORT` 1행으로 추적(UK: 원본 RAW_SN + 해상도)
 - 새 영상은 **미검수(PENDING) 상태**로 시작 → 작업자 배정 → 수정 → 검수 (기존 플로우 동일)
 - 관제서버 통지 시 **새 영상 ID(RAW_SN)로 별도 완료 통지** 발송
 - 증강 요청/수신 흐름: ExternalAugmentClient → 콜백
@@ -248,7 +250,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 ## 핵심 산출물 목표
 - 이미지 학습데이터 **10만장** (SFR-16)
 - 영상 학습데이터 **5,000건** (30초 이상/건, SFR-17)
-- 생성형 AI 증강 4종: WINTER / NIGHT / RAIN / RESOLUTION (SFR-07)
+- 생성형 AI 외부 증강 3종: WINTER / NIGHT / RAIN (SFR-07) — 해상도 변경은 외부 위탁이 아닌 **저작도구 내부 수행**(SFR-06-03, 아래 '해상도 변경' 참조)
 
 ## 주의사항
 
@@ -267,7 +269,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 ### 개인정보 보호
 - 영상 암호화 저장, 로그에 개인정보·토큰 출력 금지 (Logback MaskingPatternLayout)
 - 비식별 처리 이력은 영상 단위로 기록
-- **비식별 누락 신고**: 작업자가 개인정보 노출을 발견하면 신고 → 작업락 + 재비식별 큐 + 재비식별 성공 시 자동 RESOLVED. **마킹 단계**(rawSn 기준, `POST /v1/videos/{rawSn}/deident-report` — 설계 타깃/planned) + **라벨링 단계**(srcSn 기준, `POST /v1/labels/{srcSn}/deident-report` — 구현됨) 양쪽 가능. 적재 테이블 `LS_DEIDENT_REPORT`
+- **비식별 누락 신고** (R1 v1.14 수동 흐름): 작업자가 개인정보 노출을 발견하면 신고 → 작업락 + **해당 영상(rawSn) 전체 라벨 삭제**(삭제 전 `LS_LABEL_VERSION`에 `SAVE_REASON='DEIDENT_REPORT'` 비활성 스냅샷 + `LS_DATA_LBL_HSTRY` 이력 보존) + `DE_IDNTF_YN='F'`. 자동 재비식별 큐는 폐기 — 작업자/검수자가 **외부 솔루션으로 수동 비식별화** 후 `POST /v1/deident-reports/{rprtSn}/resolve`(WORKER 본인 배정/REVIEWER 전체)로 OPEN→RESOLVED 전이 + 작업락 해제. APPROVED 영상 신고 시 `TASK_MODIFIED` 통지 발행. **마킹 단계**(rawSn 기준, `POST /v1/videos/{rawSn}/deident-report` — 설계 타깃/planned) + **라벨링 단계**(srcSn 기준, `POST /v1/labels/{srcSn}/deident-report` — 구현됨) 양쪽 가능. 적재 테이블 `LS_DEIDENT_REPORT`
 
 ### 배치 성능
 - Spring Boot + Quartz는 **단일 인스턴스 서비스** 배포 (Docker/Pod 미사용, Quartz 클러스터 미적용)

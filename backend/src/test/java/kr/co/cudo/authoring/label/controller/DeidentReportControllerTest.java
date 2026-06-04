@@ -198,4 +198,82 @@ class DeidentReportControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isUnauthorized());
     }
+
+    // ============================================================
+    // R1 v1.14 — POST /v1/deident-reports/{rprtSn}/resolve
+    // ============================================================
+
+    /** 신고 1건 등록 후 RPRT_SN 반환 (resolve 테스트 픽스처). */
+    private Long openReport(String token) throws Exception {
+        DeidentReportRequest req = new DeidentReportRequest("얼굴 미블러");
+        String json = mockMvc.perform(post("/v1/labels/" + srcSn + "/deident-report")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(json).get("data").asLong();
+    }
+
+    @Test
+    @DisplayName("수동_비식별화_완료_resolve_200_+_RESOLVED_전이_+_LOCK_해제")
+    void resolveManually200() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        LsDeidentReport reloaded = reportRepository.findById(rprtSn).orElseThrow();
+        assertThat(reloaded.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        assertThat(reloaded.getResolvedDt()).isNotNull();
+        assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
+                "RAW", rawSn, "LOCKED")).isFalse();
+    }
+
+    @Test
+    @DisplayName("OPEN이_아닌_신고_재_resolve_409")
+    void resolveNonOpenConflict409() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+        // 1차 resolve → RESOLVED
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk());
+        // 2차 resolve → 409
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("타인_배정_영상_신고_WORKER_resolve_403")
+    void resolveByNotAssignedWorkerForbidden403() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + workerNotAssignedToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("REVIEWER_모든_신고_resolve_200")
+    void reviewerResolveAny200() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("resolve_인증_없음_401")
+    void resolveUnauthenticated401() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve"))
+                .andExpect(status().isUnauthorized());
+    }
 }

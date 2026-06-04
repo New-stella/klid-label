@@ -259,64 +259,6 @@ class LsDataLblTest {
         assertThat(copy.getRegDt()).isNotNull();
     }
 
-    // --- Phase 2: copyForNewSrcScaled (RESOLUTION 증강 좌표 스케일 복사) ---
-
-    @Test
-    @DisplayName("copyForNewSrcScaled_는_scaledPointCn으로_복사하고_나머지필드_계승")
-    void copyForNewSrcScaledReplacesPointCnOnly() {
-        // given — 원본 라벨 (좌표는 원본 해상도 기준)
-        LsDataLbl original = LsDataLbl.createAutoBbox(
-                100L, 7L, "person", "[100,50,300,400]", BigDecimal.valueOf(0.85), "track-9");
-        String scaledPointCn = "[50,25,150,200]";  // 호출자가 LabelCoordinateScaler 로 계산
-
-        // when — 이미 스케일된 좌표로 복사
-        LsDataLbl copy = LsDataLbl.copyForNewSrcScaled(999L, original, scaledPointCn);
-
-        // then — 좌표는 스케일 값으로 대체
-        assertThat(copy.getPointCn()).isEqualTo("[50,25,150,200]");
-
-        // then — 나머지 영구 필드는 원본 계승
-        assertThat(copy.getSrcSn()).isEqualTo(999L);
-        assertThat(copy.getLblTypeCd()).isEqualTo("BBOX");
-        assertThat(copy.getLabelId()).isEqualTo(7L);
-        assertThat(copy.getLabelNm()).isEqualTo("person");
-        assertThat(copy.getTrackId()).isEqualTo("track-9");
-
-        // then — 새 row (lblSn 미할당, regDt 세팅), transient 미복사
-        assertThat(copy.getLblSn()).isNull();
-        assertThat(copy.getRegDt()).isNotNull();
-        assertThat(copy.getAutoLblYn()).isNull();
-        assertThat(copy.getConfScore()).isNull();
-        assertThat(copy.getLblSrcCd()).isNull();
-    }
-
-    @Test
-    @DisplayName("copyForNewSrcScaled_scaledPointCn_null이면_예외")
-    void copyForNewSrcScaledRejectsNullPointCn() {
-        LsDataLbl original = LsDataLbl.createAutoBbox(
-                100L, 7L, "person", "[100,50,300,400]", BigDecimal.valueOf(0.85), "track-9");
-
-        assertThatThrownBy(() -> LsDataLbl.copyForNewSrcScaled(999L, original, null))
-                .isInstanceOf(CustomException.class);
-    }
-
-    @Test
-    @DisplayName("copyForNewSrcScaled_scaledPointCn_blank면_예외")
-    void copyForNewSrcScaledRejectsBlankPointCn() {
-        LsDataLbl original = LsDataLbl.createAutoBbox(
-                100L, 7L, "person", "[100,50,300,400]", BigDecimal.valueOf(0.85), "track-9");
-
-        assertThatThrownBy(() -> LsDataLbl.copyForNewSrcScaled(999L, original, "   "))
-                .isInstanceOf(CustomException.class);
-    }
-
-    @Test
-    @DisplayName("copyForNewSrcScaled_original_null이면_예외")
-    void copyForNewSrcScaledRejectsNullOriginal() {
-        assertThatThrownBy(() -> LsDataLbl.copyForNewSrcScaled(999L, null, "[50,25,150,200]"))
-                .isInstanceOf(CustomException.class);
-    }
-
     @Test
     @DisplayName("copyForNewSrc_original_null이면_예외")
     void copyForNewSrcRejectsNullOriginal() {

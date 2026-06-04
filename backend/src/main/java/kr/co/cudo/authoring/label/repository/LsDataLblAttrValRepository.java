@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.label.repository;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.label.entity.LsDataLblAttrVal;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 
 import java.util.Collection;
 import java.util.List;
@@ -28,4 +29,11 @@ public interface LsDataLblAttrValRepository extends JpaRepository<LsDataLblAttrV
      * 빈 컬렉션 입력 시 빈 결과 반환 (default).
      */
     List<LsDataLblAttrVal> findByLblSnIn(Collection<Long> lblSns);
+
+    /**
+     * 라벨(LBL_SN) 집합의 속성값 일괄 삭제 (R1 v1.14 — 비식별 신고 시 고아 방지 선삭제).
+     * 빈 컬렉션 입력 시 no-op.
+     */
+    @Modifying
+    void deleteByLblSnIn(Collection<Long> lblSns);
 }

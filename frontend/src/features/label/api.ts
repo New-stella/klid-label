@@ -306,3 +306,39 @@ export function requestSam2Track(
     .post<Sam2TrackResponse>(`/frames/${srcSn}/sam2-track`, payload)
     .then((r) => r.data);
 }
+
+/**
+ * SAM2 클릭/박스 분할 요청 페이로드.
+ * points 또는 box 중 정확히 하나만 제공 (BE 가 배타 검증 — 400).
+ */
+export interface Sam2SegmentRequest {
+  srcSn: number;
+  /** 클릭 좌표 [[x, y], ...] (image px). 박스 미사용 시. */
+  points?: number[][];
+  /** 드래그 박스 [x1, y1, x2, y2] (image px). 포인트 미사용 시. */
+  box?: [number, number, number, number];
+}
+
+export interface Sam2SegmentResponse {
+  /** 폐곡선 폴리곤 [[x, y], ...] (image px). */
+  polygon: number[][];
+  /** 신뢰도 0.0 ~ 1.0. */
+  score: number;
+  /** ai-server mock 응답(모델 미로드/AI_MOCK_MODE) 여부 — true 면 FE 가 경고 + 자동 적용 차단. */
+  mock: boolean;
+}
+
+/**
+ * SAM2 클릭/박스 분할 요청.
+ * BE: POST /frames/{srcSn}/sam2-segment
+ *
+ * 보안: srcSn/points/box 입력 검증·IDOR·좌표 상한은 BE 책임.
+ */
+export function requestSam2Segment(
+  srcSn: number,
+  payload: Omit<Sam2SegmentRequest, 'srcSn'>,
+): Promise<Sam2SegmentResponse> {
+  return apiClient
+    .post<Sam2SegmentResponse>(`/frames/${srcSn}/sam2-segment`, { srcSn, ...payload })
+    .then((r) => r.data);
+}

@@ -102,6 +102,17 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     void deleteByRawSnAutoLbl(@Param("rawSn") Long rawSn);
 
     /**
+     * 영상(rawSn)에 속한 모든 프레임의 라벨(자동+수동 전체)을 일괄 삭제 (R1 v1.14 — 비식별 신고 시).
+     * <p>1건씩 삭제 금지(수천 건 가능) — 단일 DELETE…WHERE SRC_SN IN(서브쿼리) 로 처리.
+     * 호출 전 ATTR_VAL/AI_INFO 자식 row 를 먼저 삭제해 FK 고아를 방지한다.
+     */
+    @Modifying
+    @Transactional(value = "controlTransactionManager")
+    @Query("DELETE FROM LsDataLbl l WHERE l.srcSn IN " +
+            "(SELECT s.srcSn FROM LsDataSrc s WHERE s.rawSn = :rawSn)")
+    void deleteAllByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 영상(rawSn)에 속한 자동 BBOX 라벨 중 trackId 가 있는 row 만 조회. — Phase 3 트랙 보간.
      * <p>보간 대상 정의:
      * <ul>

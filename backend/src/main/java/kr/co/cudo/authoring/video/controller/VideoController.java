@@ -199,19 +199,20 @@ public class VideoController {
     }
 
     /**
-     * 해상도 변경 — Phase 3 (RQ-SFR-07-02).
-     * <p>검수 완료(APPROVED) 원본 영상을 배율 프리셋으로 리사이즈하여, 라벨 좌표를 동일 배율로
-     * 스케일 복사한 새 PENDING 영상을 생성한다. REVIEWER 만 호출 가능.
+     * 해상도 변경 — Phase 1 (RQ-SFR-06-03 v1.8/1.10).
+     * <p>검수 완료(APPROVED) 원본 영상의 프레임 이미지셋을 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로
+     * 종횡비 보존 다운스케일한다. 영상(비디오) 재생성·라벨/메타 복사·새 영상(RAW_SN) 생성은 하지 않으며,
+     * 산출물은 다운스케일 이미지셋 + LS_RESOLUTION_EXPORT 1행뿐이다. REVIEWER 만 호출 가능.
      */
     @Operation(
             summary = "해상도 변경 (REVIEWER)",
-            description = "검수 완료(APPROVED) 원본 영상을 프리셋 배율(P75/P50/P25)로 리사이즈하여 새 PENDING 영상을 생성한다. " +
-                    "라벨 좌표는 동일 배율로 스케일·복사된다(프레임/속성값/메타 포함). " +
-                    "증강본(PARENT_RAW_SN 보유)·과소축소·중복 요청은 거부된다."
+            description = "검수 완료(APPROVED) 원본 영상의 프레임 이미지셋을 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로 " +
+                    "종횡비 보존 다운스케일한다. 영상·라벨·메타·신규 영상 행은 생성하지 않으며 LS_RESOLUTION_EXPORT 1행만 기록한다. " +
+                    "업스케일(목표 ≥ 원본 높이)·증강본(PARENT_RAW_SN 보유)·프레임 0건·중복 요청은 거부된다."
     )
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 — 새 영상 RAW_SN 반환"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "프리셋 오류 / 증강본 / 과소축소 / 해상도 확인 불가"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 — exportSn + 타겟 해상도 + 프레임 개수 반환"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "프리셋 오류 / 업스케일 / 증강본 / 프레임 0건 / 해상도 확인 불가"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
@@ -222,7 +223,9 @@ public class VideoController {
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<ResolutionChangeResponse> changeResolution(
             @Parameter(description = "원본 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
-            @Valid @RequestBody ResolutionChangeRequest request) {
-        return ApiResponse.ok(videoResolutionService.changeResolution(rawSn, request));
+            @Valid @RequestBody ResolutionChangeRequest request,
+            @AuthenticationPrincipal TokenClaims actor) {
+        String regId = actor != null ? actor.sub() : null;
+        return ApiResponse.ok(videoResolutionService.changeResolution(rawSn, request, regId));
     }
 }

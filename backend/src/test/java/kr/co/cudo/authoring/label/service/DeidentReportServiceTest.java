@@ -1,21 +1,33 @@
 package kr.co.cudo.authoring.label.service;
 
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.controlnotify.event.ChangeType;
+import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
+import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
+import kr.co.cudo.authoring.version.service.VersionService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
@@ -29,19 +41,22 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 3 — DeidentReportService 단위 테스트 (Mockito 기반).
+ * Phase 2 (R1 v1.14) — DeidentReportService 단위 테스트 (Mockito 기반).
  *
- * <p>신규 인프라 의존:
+ * <p>R1 v1.14 정합 변경:
  * <ul>
- *   <li>{@link WorkLockService} — LS_AUTH_WORK_LOCK 기반 잠금 (LsDataRaw.attachLockStts/releaseLock 대체).</li>
- *   <li>{@link LsDeidentReport#createReport} — REPORT_STTS_CD='OPEN' 사용자 신고 row.</li>
- *   <li>{@link LsDeidentReportRepository#findAllByDataRawSnAndReportSttsCd} — OPEN 신고 일괄 RESOLVED 전이.</li>
+ *   <li>신고 시 영상 전체 라벨(자동+수동)을 복원 가능 스냅샷 기록 후 일괄 삭제.</li>
+ *   <li>자동 재비식별 큐 적재(retryQueue) 제거 — 외부 솔루션 수동 비식별화로 대체.</li>
+ *   <li>{@link DeidentReportService#resolveManually} — OPEN→RESOLVED + 작업락 해제 + IDOR 검증.</li>
  * </ul>
  */
 class DeidentReportServiceTest {
@@ -52,9 +67,16 @@ class DeidentReportServiceTest {
     private BatchRetryQueue retryQueue;
     private NotificationService notificationService;
     private WorkLockService workLockService;
+    private VersionService versionService;
+    private LsDataLblRepository labelRepository;
+    private LsDataLblAttrValRepository attrValRepository;
+    private LsDataLblAiInfoRepository aiInfoRepository;
+    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ApplicationEventPublisher eventPublisher;
     private DeidentReportService service;
 
     private TokenClaims workerActor;
+    private TokenClaims reviewerActor;
 
     @BeforeEach
     void setUp() {
@@ -64,11 +86,21 @@ class DeidentReportServiceTest {
         retryQueue = mock(BatchRetryQueue.class);
         notificationService = mock(NotificationService.class);
         workLockService = mock(WorkLockService.class);
+        versionService = mock(VersionService.class);
+        labelRepository = mock(LsDataLblRepository.class);
+        attrValRepository = mock(LsDataLblAttrValRepository.class);
+        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
+        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
-                retryQueue, notificationService, workLockService);
+                notificationService, workLockService, versionService,
+                labelRepository, attrValRepository, aiInfoRepository,
+                rawDataStatusRepository, eventPublisher);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
+        reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         when(accessGuard.parseUserNo("100")).thenReturn(100L);
+        when(accessGuard.parseUserNo("1")).thenReturn(1L);
     }
 
     private LsDataSrc src(long srcSn, long rawSn) {
@@ -85,59 +117,215 @@ class DeidentReportServiceTest {
         return r;
     }
 
-    @Test
-    @DisplayName("정상_신고시_LS_DEIDENT_REPORT_저장_+_WorkLock_LOCKED_+_DE_IDNTF_F_+_재시도_큐_+_REVIEWER_알림")
-    void normalReportSavesAndLocks() {
-        LsDataSrc s = src(1L, 9001L);
-        LsDataRaw r = raw(9001L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
-        when(videoRepository.findById(9001L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9001L)).thenReturn(false);
+    private LsDataLbl lbl(long lblSn, long srcSn) {
+        LsDataLbl l = LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[0,0],[1,1]]", 100L);
+        setField(l, "lblSn", lblSn);
+        return l;
+    }
+
+    private void stubReportSave() {
         when(reportRepository.save(any(LsDeidentReport.class))).thenAnswer(inv -> {
             LsDeidentReport arg = inv.getArgument(0);
             setField(arg, "deidentReportSn", 555L);
             return arg;
         });
-        when(retryQueue.enqueueIfRetryable(9001L)).thenReturn(true);
+    }
+
+    /** 라벨이 있는(스냅샷 발생) 케이스 — versionService 가 true 를 반환하도록 스텁. */
+    private void stubSnapshotted(long rawSn) {
+        when(versionService.snapshotDeidentReport(eq(rawSn), any())).thenReturn(true);
+    }
+
+    private void stubApproved(long rawSn, boolean approved) {
+        if (approved) {
+            LsRawDataStatus st = LsRawDataStatus.initial(rawSn);
+            setField(st, "dataSttsCd", LsRawDataStatus.STTS_APPROVED);
+            when(rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn))).thenReturn(List.of(st));
+        } else {
+            when(rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn))).thenReturn(List.of());
+        }
+    }
+
+    @Test
+    @DisplayName("신고시_영상_전체_라벨이_스냅샷_기록_후_삭제됨")
+    void reportSnapshotsAndDeletesAllVideoLabels() {
+        LsDataSrc s = src(1L, 9001L);
+        LsDataRaw r = raw(9001L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9001L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9001L, false);
+        List<LsDataLbl> labels = List.of(lbl(10L, 1L), lbl(11L, 1L));
+        when(labelRepository.findAllByRawSn(9001L)).thenReturn(labels);
+        stubSnapshotted(9001L);
 
         Long rprtSn = service.report(1L, "얼굴 미블러", workerActor);
 
         assertThat(rprtSn).isEqualTo(555L);
-        // 비식별 상태가 'F' 로 갱신되었는지 확인.
+        // 삭제 전 복원 가능 스냅샷 기록 (VersionService 위임).
+        verify(versionService).snapshotDeidentReport(9001L, workerActor);
+        // 라벨 본문 일괄 삭제.
+        verify(labelRepository).deleteAllByRawSn(9001L);
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
         verify(workLockService).lockRawForRedeident(9001L, "100");
-        verify(retryQueue).enqueueIfRetryable(9001L);
-        verify(notificationService).notifyReviewersOnDeidentReport(r, 100L, "얼굴 미블러");
-        verify(reportRepository).save(any(LsDeidentReport.class));
     }
 
     @Test
-    @DisplayName("이미_잠금_영상_신고시_CONFLICT_409_+_저장_없음_+_LOCK_재요청_없음")
-    void alreadyLockedConflict() {
+    @DisplayName("신고시_라벨_속성값과_AI정보_고아_잔존_없음")
+    void reportDeletesAttrAndAiInfoBeforeLabels() {
         LsDataSrc s = src(2L, 9002L);
         LsDataRaw r = raw(9002L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(2L), any())).thenReturn(s);
         when(videoRepository.findById(9002L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9002L)).thenReturn(true);
+        when(workLockService.isRawLocked(9002L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9002L, false);
+        List<LsDataLbl> labels = List.of(lbl(20L, 2L), lbl(21L, 2L));
+        when(labelRepository.findAllByRawSn(9002L)).thenReturn(labels);
+        stubSnapshotted(9002L);
 
-        assertThatThrownBy(() -> service.report(2L, "재신고", workerActor))
+        service.report(2L, "사유", workerActor);
+
+        // 고아 방지 삭제 순서: ATTR_VAL → AI_INFO → LBL.
+        var order = inOrder(attrValRepository, aiInfoRepository, labelRepository);
+        order.verify(attrValRepository).deleteByLblSnIn(List.of(20L, 21L));
+        order.verify(aiInfoRepository).deleteByDataLblSnIn(List.of(20L, 21L));
+        order.verify(labelRepository).deleteAllByRawSn(9002L);
+    }
+
+    @Test
+    @DisplayName("신고시_재비식별_큐에_적재되지_않음")
+    void reportDoesNotEnqueueRetry() {
+        LsDataSrc s = src(3L, 9003L);
+        LsDataRaw r = raw(9003L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(3L), any())).thenReturn(s);
+        when(videoRepository.findById(9003L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9003L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9003L, false);
+        when(labelRepository.findAllByRawSn(9003L)).thenReturn(List.of(lbl(30L, 3L)));
+        stubSnapshotted(9003L);
+
+        service.report(3L, "사유", workerActor);
+
+        verify(retryQueue, never()).enqueueIfRetryable(anyLong());
+    }
+
+    @Test
+    @DisplayName("라벨_0건_영상_신고시_스냅샷_없이_정상_처리")
+    void reportWithNoLabelsSkipsSnapshotAndDelete() {
+        LsDataSrc s = src(4L, 9004L);
+        LsDataRaw r = raw(9004L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(4L), any())).thenReturn(s);
+        when(videoRepository.findById(9004L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9004L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9004L, false);
+        when(labelRepository.findAllByRawSn(9004L)).thenReturn(List.of());
+        // 라벨 0건 → VersionService 가 스냅샷 미생성(false) 반환 → 호출 측은 삭제 스킵.
+        when(versionService.snapshotDeidentReport(eq(9004L), any())).thenReturn(false);
+
+        Long rprtSn = service.report(4L, "사유", workerActor);
+
+        assertThat(rprtSn).isEqualTo(555L);
+        // 라벨 0건이면 삭제는 스킵 (스냅샷은 위임 호출되나 내부에서 미생성).
+        verify(labelRepository, never()).deleteAllByRawSn(anyLong());
+        verify(attrValRepository, never()).deleteByLblSnIn(any());
+        // 신고 저장·잠금·DE_IDNTF_F 는 정상.
+        verify(reportRepository).save(any(LsDeidentReport.class));
+        verify(workLockService).lockRawForRedeident(9004L, "100");
+        assertThat(r.getDeIdntfYn()).isEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("APPROVED_영상_신고시_TASK_MODIFIED_통지_발행")
+    void approvedVideoReportPublishesTaskModified() {
+        LsDataSrc s = src(5L, 9005L);
+        LsDataRaw r = raw(9005L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(5L), any())).thenReturn(s);
+        when(videoRepository.findById(9005L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9005L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9005L, true);
+        when(labelRepository.findAllByRawSn(9005L)).thenReturn(List.of(lbl(50L, 5L)));
+        stubSnapshotted(9005L);
+
+        service.report(5L, "사유", workerActor);
+
+        ArgumentCaptor<TaskModifiedEvent> cap = ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher, atLeastOnce()).publishEvent(cap.capture());
+        TaskModifiedEvent evt = cap.getValue();
+        assertThat(evt.rawSn()).isEqualTo(9005L);
+        assertThat(evt.changeType()).isEqualTo(ChangeType.LABEL_DELETED);
+    }
+
+    @Test
+    @DisplayName("미승인_영상_신고시_통지_미발행")
+    void notApprovedVideoReportDoesNotPublish() {
+        LsDataSrc s = src(6L, 9006L);
+        LsDataRaw r = raw(9006L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(6L), any())).thenReturn(s);
+        when(videoRepository.findById(9006L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9006L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9006L, false);
+        when(labelRepository.findAllByRawSn(9006L)).thenReturn(List.of(lbl(60L, 6L)));
+        stubSnapshotted(9006L);
+
+        service.report(6L, "사유", workerActor);
+
+        verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
+    }
+
+    @Test
+    @DisplayName("동시_신고_unique_위반시_409")
+    void concurrentReportUniqueViolationConflict() {
+        LsDataSrc s = src(7L, 9007L);
+        LsDataRaw r = raw(9007L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(7L), any())).thenReturn(s);
+        when(videoRepository.findById(9007L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9007L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9007L, false);
+        when(labelRepository.findAllByRawSn(9007L)).thenReturn(List.of());
+        // 잠금 INSERT 시 동시 신고로 unique 제약 위반.
+        doThrow(new DataIntegrityViolationException("unique"))
+                .when(workLockService).lockRawForRedeident(9007L, "100");
+
+        assertThatThrownBy(() -> service.report(7L, "사유", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("이미_잠금_영상_신고시_CONFLICT_409_+_저장_없음_+_라벨_삭제_없음")
+    void alreadyLockedConflict() {
+        LsDataSrc s = src(8L, 9008L);
+        LsDataRaw r = raw(9008L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(8L), any())).thenReturn(s);
+        when(videoRepository.findById(9008L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9008L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.report(8L, "재신고", workerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
 
         verify(reportRepository, never()).save(any());
-        verify(retryQueue, never()).enqueueIfRetryable(anyLong());
+        verify(labelRepository, never()).deleteAllByRawSn(anyLong());
         verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
     }
 
     @Test
     @DisplayName("존재하지_않는_영상_신고시_NOT_FOUND_404")
     void unknownVideoNotFound() {
-        LsDataSrc s = src(3L, 9999L);
-        when(accessGuard.verifyAndGet(eq(3L), any())).thenReturn(s);
+        LsDataSrc s = src(9L, 9999L);
+        when(accessGuard.verifyAndGet(eq(9L), any())).thenReturn(s);
         when(videoRepository.findById(9999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.report(3L, "사유", workerActor))
+        assertThatThrownBy(() -> service.report(9L, "사유", workerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
@@ -155,6 +343,116 @@ class DeidentReportServiceTest {
         assertThatThrownBy(() -> service.report(1L, null, workerActor))
                 .isInstanceOf(CustomException.class);
     }
+
+    @Test
+    @DisplayName("원본_영상_경로는_변경되지_않음")
+    void rawFilePathUnchanged() {
+        LsDataSrc s = src(10L, 9010L);
+        LsDataRaw r = raw(9010L, LsDataRaw.PRVC_TYPE_PRVC);
+        String originalPath = r.getRawFilePathNm();
+        when(accessGuard.verifyAndGet(eq(10L), any())).thenReturn(s);
+        when(videoRepository.findById(9010L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9010L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9010L, false);
+        when(labelRepository.findAllByRawSn(9010L)).thenReturn(List.of(lbl(100L, 10L)));
+        stubSnapshotted(9010L);
+
+        service.report(10L, "사유", workerActor);
+
+        assertThat(r.getRawFilePathNm()).isEqualTo(originalPath);
+    }
+
+    // ============================================================
+    // resolveManually — 수동 비식별화 완료 후 OPEN→RESOLVED 전이
+    // ============================================================
+
+    private LsDeidentReport report(long rprtSn, long rawSn, String status) {
+        LsDeidentReport rep = LsDeidentReport.createReport(rawSn, 100L, "사유");
+        setField(rep, "deidentReportSn", rprtSn);
+        setField(rep, "reportSttsCd", status);
+        return rep;
+    }
+
+    @Test
+    @DisplayName("수동_비식별화_완료시_신고가_RESOLVED로_전이되고_작업락_해제")
+    void resolveManuallyTransitionsAndReleasesLock() {
+        LsDeidentReport rep = report(700L, 9700L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(700L)).thenReturn(Optional.of(rep));
+
+        service.resolveManually(700L, reviewerActor);
+
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        assertThat(rep.getResolvedDt()).isNotNull();
+        verify(workLockService).releaseRaw(eq(9700L), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("OPEN이_아닌_신고_resolve_요청시_409")
+    void resolveNonOpenConflict() {
+        LsDeidentReport rep = report(701L, 9701L, LsDeidentReport.REPORT_RESOLVED);
+        when(reportRepository.findById(701L)).thenReturn(Optional.of(rep));
+
+        assertThatThrownBy(() -> service.resolveManually(701L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("타인_배정_영상_신고_WORKER가_resolve_요청시_403")
+    void resolveByNotAssignedWorkerForbidden() {
+        LsDeidentReport rep = report(702L, 9702L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(702L)).thenReturn(Optional.of(rep));
+        // accessGuard 가 본인 배정 아님 → FORBIDDEN.
+        doThrow(new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다."))
+                .when(accessGuard).verifyRawAccess(eq(9702L), eq(workerActor));
+
+        assertThatThrownBy(() -> service.resolveManually(702L, workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("REVIEWER는_모든_신고_resolve_가능")
+    void reviewerCanResolveAnyReport() {
+        LsDeidentReport rep = report(703L, 9703L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(703L)).thenReturn(Optional.of(rep));
+
+        service.resolveManually(703L, reviewerActor);
+
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        verify(workLockService).releaseRaw(eq(9703L), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("미인증_사용자_resolve_요청시_401")
+    void resolveUnauthenticated() {
+        assertThatThrownBy(() -> service.resolveManually(700L, null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("존재하지_않는_신고_resolve_요청시_NOT_FOUND_404")
+    void resolveUnknownReportNotFound() {
+        when(reportRepository.findById(9999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.resolveManually(9999L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    // ============================================================
+    // 기존 유지 — resolveOpenReports (DeidentifyStep 자동 호출 경로)
+    // ============================================================
 
     @Test
     @DisplayName("resolveOpenReports_REPORT_STTS_OPEN_신고_일괄_RESOLVED_전이_+_WorkLock_해제")
@@ -178,18 +476,6 @@ class DeidentReportServiceTest {
     void resolveNullRawSnReturnsZero() {
         assertThat(service.resolveOpenReports(null)).isZero();
         verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
-    }
-
-    @Test
-    @DisplayName("createReport_factory_는_REPORT_STTS_CD_OPEN_및_REPORTER_NO_REASON_설정")
-    void createReportFactoryFields() {
-        LsDeidentReport r = LsDeidentReport.createReport(9200L, 200L, "테스트 사유");
-
-        assertThat(r.getDataRawSn()).isEqualTo(9200L);
-        assertThat(r.getReporterNo()).isEqualTo(200L);
-        assertThat(r.getRsn()).isEqualTo("테스트 사유");
-        assertThat(r.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
-        assertThat(r.getReportDt()).isNotNull();
     }
 
     private static void setField(Object target, String name, Object value) {
