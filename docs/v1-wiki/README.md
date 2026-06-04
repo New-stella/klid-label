@@ -29,6 +29,7 @@
 | 15 | [데이터베이스](15-database.md) | 테이블 29개, ERD, 핵심 컬럼, 인덱스, 용량 |
 | 16 | [보안 정책](16-security.md) | GPKI, 입력/네트워크/데이터 보안, 개인정보 보호 |
 | 17 | [원본 문서 카탈로그](17-source-documents.md) | 11개 원본 문서 메타·버전·출처 매핑 |
+| 18 | [v1 ↔ v2 비교](18-v1-v2-comparison.md) | **현재 프로젝트와의 차이 · v1 전용 · v2 전용 기능** |
 
 ---
 
@@ -50,6 +51,7 @@
 | 생성형 AI (Text/Image to Image/Video) | [12](12-generative-ai.md) |
 | 프레임 분할 (초당/분당/시간당 FPS) | [06](06-video-frame-pipeline.md#프레임-분할-배정) |
 | 대시보드 통계 / 엑셀 다운로드 | [10](10-dashboard-statistics.md) |
+| **v2와의 차이 / v1·v2 전용 기능** | [18](18-v1-v2-comparison.md) |
 
 ### 화면 ID(`SKKLID-UI-*`) → 페이지
 
