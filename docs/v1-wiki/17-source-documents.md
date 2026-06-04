@@ -1,24 +1,24 @@
 # 17. 원본 문서 카탈로그
 
-> 본 위키의 원천. 모든 원본은 [`docs/v1/`](../v1/)에 있으며, 각 문서는 SweetK/KLID의 v1 시스템 산출물을 분석·정리한 것이다.
+> 본 위키의 원천. 모든 원본은 [`sources/`](sources/) (= `docs/v1-wiki/sources/`)에 있으며, 각 문서는 SweetK/KLID의 v1 시스템 산출물을 분석·정리한 것이다.
 
 ## 17.1 원본 문서 목록
 
 | 문서 | 버전 | 작성일 | 작성자 | 원본 파일 | 위키 반영 |
 |------|------|--------|--------|----------|----------|
-| [통합설계서](../v1/KLID-AI-저작도구_통합설계서.md) | - | 2026.04.14 | (분석 취합) | (취합본) | 전 페이지 |
-| [아키텍처 설계서](../v1/KLID-DE-아키텍처설계서_저작도구구조분석.md) | V1.5 | 2025.12.05 | 이장우/노명철 | KLID-DE-아키텍처 설계서 V1.5_20251205.hwp | [02](02-architecture.md)·[06](06-video-frame-pipeline.md)·[16](16-security.md) |
-| [데이터베이스 설계서](../v1/KLID-AI-데이터베이스설계서_V1_4_분석.md) | V1.4 | 2025.12.08 | 이주화/강현우 | KLID-AI-데이터베이스 설계서 V1.4_20251208.hwp | [15](15-database.md) |
-| [인터페이스 규격서 (D4)](../v1/KLID-AI-인터페이스규격서_분석.md) | V1.0 | 2025.11 | - | KLID-AI-인터페이스 설계서(D4) | [14](14-interfaces-api.md)·[06](06-video-frame-pipeline.md)·[08](08-ai-assisted-labeling.md) |
-| [프로그램 코드 규격서](../v1/KLID-AI-프로그램코드규격서_분석.md) | V1.1 | 2025.11.13 | 이주화/강현우 | (프로그램 코드) | [02](02-architecture.md) |
-| [사용자 인터페이스 설계서](../v1/KLID-AI-사용자인터페이스설계서_V1_1_분석.md) | V1.1 | 2025.07.22 | 이주화/강현우 | KLID-AI-사용자 인터페이스 설계서 V1.1_250722.hwp (14MB) | [07](07-labeling-tools.md)·[12](12-generative-ai.md) |
-| [화면정의서 (Storyboard)](../v1/KLID_IM_UI-UX설계서_학습저작도구시스템_분석.md) | V1.0(0.7) | 2025.09.22 | 남궁은 | (화면정의서) | [04](04-menu-ia-screens.md)·[07](07-labeling-tools.md)·[09](09-review-workflow.md)·[10](10-dashboard-statistics.md) |
-| [컴포넌트 설계서](../v1/KLID-AI-컴포넌트설계서_V1_0_분석.md) | V1.0 | 2018.10.27 | - | (지능형 스마트 선별관제, 557KB) | [02](02-architecture.md) |
-| [클래스 설계서](../v1/KLID-AI-클래스설계서_V1_0_분석.md) | V1.0 | (2011.09.23 표기) | - | (2.85MB) | [02](02-architecture.md) |
-| [운영자(사용자) 매뉴얼](../v1/KLID_TE_운영자매뉴얼_분석.md) | V1.1 | 2025.12 | 강현우/이지연 | KLID_TE 매뉴얼(사용자) | [07](07-labeling-tools.md)·[09](09-review-workflow.md)·[12](12-generative-ai.md) |
-| [관리자 매뉴얼](../v1/KLID_TE_관리자매뉴얼_분석.md) | V1.1 | 2025.12 | 강현우/이지연 | KLID_TE 매뉴얼(관리자) | [05](05-project-management.md)·[06](06-video-frame-pipeline.md)·[11](11-augmentation-export.md) |
+| [통합설계서](sources/KLID-AI-저작도구_통합설계서.md) | - | 2026.04.14 | (분석 취합) | (취합본) | 전 페이지 |
+| [아키텍처 설계서](sources/KLID-DE-아키텍처설계서_저작도구구조분석.md) | V1.5 | 2025.12.05 | 이장우/노명철 | KLID-DE-아키텍처 설계서 V1.5_20251205.hwp | [02](02-architecture.md)·[06](06-video-frame-pipeline.md)·[16](16-security.md) |
+| [데이터베이스 설계서](sources/KLID-AI-데이터베이스설계서_V1_4_분석.md) | V1.4 | 2025.12.08 | 이주화/강현우 | KLID-AI-데이터베이스 설계서 V1.4_20251208.hwp | [15](15-database.md) |
+| [인터페이스 규격서 (D4)](sources/KLID-AI-인터페이스규격서_분석.md) | V1.0 | 2025.11 | - | KLID-AI-인터페이스 설계서(D4) | [14](14-interfaces-api.md)·[06](06-video-frame-pipeline.md)·[08](08-ai-assisted-labeling.md) |
+| [프로그램 코드 규격서](sources/KLID-AI-프로그램코드규격서_분석.md) | V1.1 | 2025.11.13 | 이주화/강현우 | (프로그램 코드) | [02](02-architecture.md) |
+| [사용자 인터페이스 설계서](sources/KLID-AI-사용자인터페이스설계서_V1_1_분석.md) | V1.1 | 2025.07.22 | 이주화/강현우 | KLID-AI-사용자 인터페이스 설계서 V1.1_250722.hwp (14MB) | [07](07-labeling-tools.md)·[12](12-generative-ai.md) |
+| [화면정의서 (Storyboard)](sources/KLID_IM_UI-UX설계서_학습저작도구시스템_분석.md) | V1.0(0.7) | 2025.09.22 | 남궁은 | (화면정의서) | [04](04-menu-ia-screens.md)·[07](07-labeling-tools.md)·[09](09-review-workflow.md)·[10](10-dashboard-statistics.md) |
+| [컴포넌트 설계서](sources/KLID-AI-컴포넌트설계서_V1_0_분석.md) | V1.0 | 2018.10.27 | - | (지능형 스마트 선별관제, 557KB) | [02](02-architecture.md) |
+| [클래스 설계서](sources/KLID-AI-클래스설계서_V1_0_분석.md) | V1.0 | (2011.09.23 표기) | - | (2.85MB) | [02](02-architecture.md) |
+| [운영자(사용자) 매뉴얼](sources/KLID_TE_운영자매뉴얼_분석.md) | V1.1 | 2025.12 | 강현우/이지연 | KLID_TE 매뉴얼(사용자) | [07](07-labeling-tools.md)·[09](09-review-workflow.md)·[12](12-generative-ai.md) |
+| [관리자 매뉴얼](sources/KLID_TE_관리자매뉴얼_분석.md) | V1.1 | 2025.12 | 강현우/이지연 | KLID_TE 매뉴얼(관리자) | [05](05-project-management.md)·[06](06-video-frame-pipeline.md)·[11](11-augmentation-export.md) |
 
-> 통합설계서 `.docx` 버전도 [`docs/v1/KLID-AI-저작도구_통합설계서.md.docx`](../v1/)에 존재.
+> 통합설계서 `.docx` 버전도 [`sources/KLID-AI-저작도구_통합설계서.md.docx`](sources/KLID-AI-저작도구_통합설계서.md.docx)에 존재.
 
 ## 17.2 문서 신뢰도 / 주의
 

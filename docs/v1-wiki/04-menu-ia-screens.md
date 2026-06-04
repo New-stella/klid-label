@@ -134,4 +134,4 @@ SKKLID-UI-XX-XX-XX
 - 라벨 설정 화면(`03-02-05/06`)은 Google Form 참고로 명시
 - 단축키 상세 정리는 후속 보완 항목으로 명시
 
-> UI 공통 가이드(페이징·리스트·날짜·모달 등)는 [10 대시보드·통계](10-dashboard-statistics.md#ui-공통-가이드) 또는 [17 원본](17-source-documents.md)에 정리. 화면정의서 원본은 [`docs/v1/KLID_IM_UI-UX설계서_학습저작도구시스템_분석.md`](../v1/KLID_IM_UI-UX설계서_학습저작도구시스템_분석.md).
+> UI 공통 가이드(페이징·리스트·날짜·모달 등)는 [10 대시보드·통계](10-dashboard-statistics.md#ui-공통-가이드) 또는 [17 원본](17-source-documents.md)에 정리. 화면정의서 원본은 [`sources/KLID_IM_UI-UX설계서_학습저작도구시스템_분석.md`](sources/KLID_IM_UI-UX설계서_학습저작도구시스템_분석.md).
