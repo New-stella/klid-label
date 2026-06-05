@@ -16,6 +16,8 @@ import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
+import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.version.service.VersionService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -70,6 +72,7 @@ public class DeidentReportService {
     private final LsDataLblAttrValRepository attrValRepository;
     private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final LsDataLblHstryRepository lblHstryRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -188,16 +191,34 @@ public class DeidentReportService {
 
     /**
      * 영상 전체 라벨 삭제 — 고아 방지 순서: ATTR_VAL → AI_INFO → LBL (모두 bulk delete, 1건씩 금지).
+     *
+     * <p>삭제 <b>직전</b> 에 삭제 대상 라벨 1건당 LS_DATA_LBL_HSTRY 이력 1건을 기록한다
+     * (동일 트랜잭션 — 부분 실패 시 이력만 남는 정합성 깨짐 방지). 라벨 0건이면 이력도 0건.
      */
     private void deleteAllVideoLabels(Long rawSn) {
         List<LsDataLbl> labels = labelRepository.findAllByRawSn(rawSn);
         if (labels.isEmpty()) {
             return;
         }
+        recordDeletionHistory(labels);
         List<Long> lblSns = labels.stream().map(LsDataLbl::getLblSn).toList();
         attrValRepository.deleteByLblSnIn(lblSns);
         aiInfoRepository.deleteByDataLblSnIn(lblSns);
         labelRepository.deleteAllByRawSn(rawSn);
+    }
+
+    /**
+     * 삭제 대상 라벨들의 삭제 이력을 LS_DATA_LBL_HSTRY 에 일괄 기록 (saveAll — 1건씩 save 금지).
+     *
+     * <p>매핑된 컬럼(LBL_SN / SRC_SN / REGISTERED_AT)만 기록한다. 사유·행위자 등 PII 는
+     * 저장하지 않으며(복원 본문은 LS_LABEL_VERSION 스냅샷, 사유는 LS_DEIDENT_REPORT 보존),
+     * 이력은 "어떤 라벨이 어느 프레임에서 삭제되었는가" 의 식별만 보존한다.
+     */
+    private void recordDeletionHistory(List<LsDataLbl> labels) {
+        List<LsDataLblHstry> histories = labels.stream()
+                .map(l -> LsDataLblHstry.recordDeletion(l.getLblSn(), l.getSrcSn()))
+                .toList();
+        lblHstryRepository.saveAll(histories);
     }
 
     /**

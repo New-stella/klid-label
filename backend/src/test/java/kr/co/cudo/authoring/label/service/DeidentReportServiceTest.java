@@ -19,6 +19,8 @@ import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
+import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.version.service.VersionService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -72,6 +74,7 @@ class DeidentReportServiceTest {
     private LsDataLblAttrValRepository attrValRepository;
     private LsDataLblAiInfoRepository aiInfoRepository;
     private LsRawDataStatusRepository rawDataStatusRepository;
+    private LsDataLblHstryRepository lblHstryRepository;
     private ApplicationEventPublisher eventPublisher;
     private DeidentReportService service;
 
@@ -91,11 +94,12 @@ class DeidentReportServiceTest {
         attrValRepository = mock(LsDataLblAttrValRepository.class);
         aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        lblHstryRepository = mock(LsDataLblHstryRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService, versionService,
                 labelRepository, attrValRepository, aiInfoRepository,
-                rawDataStatusRepository, eventPublisher);
+                rawDataStatusRepository, lblHstryRepository, eventPublisher);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -236,6 +240,79 @@ class DeidentReportServiceTest {
         verify(reportRepository).save(any(LsDeidentReport.class));
         verify(workLockService).lockRawForRedeident(9004L, "100");
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("비식별_신고_시_삭제되는_라벨_이력이_LBL_HSTRY에_기록된다")
+    void reportRecordsDeletionHistoryForEachLabel() {
+        // given — 라벨 2건 영상 신고
+        LsDataSrc s = src(40L, 9040L);
+        LsDataRaw r = raw(9040L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(40L), any())).thenReturn(s);
+        when(videoRepository.findById(9040L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9040L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9040L, false);
+        List<LsDataLbl> labels = List.of(lbl(401L, 40L), lbl(402L, 40L));
+        when(labelRepository.findAllByRawSn(9040L)).thenReturn(labels);
+        stubSnapshotted(9040L);
+
+        // when
+        service.report(40L, "사유", workerActor);
+
+        // then — 삭제 라벨 1건당 이력 1건 saveAll (1건씩 save 금지)
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLblHstry>> cap = ArgumentCaptor.forClass(List.class);
+        verify(lblHstryRepository).saveAll(cap.capture());
+        List<LsDataLblHstry> saved = cap.getValue();
+        assertThat(saved).hasSize(2);
+        assertThat(saved).extracting(LsDataLblHstry::getLblSn).containsExactlyInAnyOrder(401L, 402L);
+        assertThat(saved).allSatisfy(h -> {
+            assertThat(h.getSrcSn()).isEqualTo(40L);
+            assertThat(h.getRegisteredAt()).isNotNull();
+        });
+
+        // 이력 기록은 라벨 본문 삭제보다 먼저 (부분 실패 시 이력만 남는 정합성 깨짐 방지, 동일 트랜잭션).
+        var order = inOrder(lblHstryRepository, labelRepository);
+        order.verify(lblHstryRepository).saveAll(any());
+        order.verify(labelRepository).deleteAllByRawSn(9040L);
+    }
+
+    @Test
+    @DisplayName("라벨이_없는_영상_신고_시_이력이_기록되지_않는다")
+    void reportWithNoLabelsDoesNotRecordHistory() {
+        // given — 라벨 0건
+        LsDataSrc s = src(41L, 9041L);
+        LsDataRaw r = raw(9041L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(41L), any())).thenReturn(s);
+        when(videoRepository.findById(9041L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9041L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9041L, false);
+        when(labelRepository.findAllByRawSn(9041L)).thenReturn(List.of());
+        when(versionService.snapshotDeidentReport(eq(9041L), any())).thenReturn(false);
+
+        // when
+        service.report(41L, "사유", workerActor);
+
+        // then — 라벨 0건이면 이력 0건 (saveAll 미호출)
+        verify(lblHstryRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("이미_잠금_영상_신고_거부_시_이력이_기록되지_않는다")
+    void rejectedReportDoesNotRecordHistory() {
+        // given — 이미 잠금 → CONFLICT 거부
+        LsDataSrc s = src(42L, 9042L);
+        LsDataRaw r = raw(9042L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(42L), any())).thenReturn(s);
+        when(videoRepository.findById(9042L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9042L)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.report(42L, "사유", workerActor))
+                .isInstanceOf(CustomException.class);
+        verify(lblHstryRepository, never()).saveAll(any());
     }
 
     @Test
