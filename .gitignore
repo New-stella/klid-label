@@ -33,6 +33,9 @@ __pycache__/
 # 외부 도구 바이너리 (scripts/hwpx_fill.py가 1회 자동 다운로드)
 tools/plantuml.jar
 
+# 외부 업체 제공 문서 원본 (저작권 — 서버 업로드 제외, 전사본은 docs/v2-wiki/22-deid-solution-api.md)
+docs/비식별화 솔루션 API 연동 방안.pdf
+
 # 리포트 (로컬 생성물)
 reports/
 

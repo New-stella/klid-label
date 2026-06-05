@@ -1,7 +1,9 @@
 # 08. 비식별화
 
 > 출처: R1 RQ-SFR-09-01~05, R2 KLID-AT-UC-011/016, CLAUDE.md, 코드(`deident/`, `webhook/DeidentifyResultController`)
-> 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [19 외부 시스템](19-external-security-cvat.md)
+> 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [19 외부 시스템](19-external-security-cvat.md) · [22 비식별 솔루션 API 명세](22-deid-solution-api.md)
+
+> ⚠ **실제 외부 솔루션(KPST) API와의 갭 (2026-06-05 확인)**: 본 페이지 8.2의 연동 흐름(동기 위탁 + HMAC **콜백** 수신)은 설계 시점 가정이다. 실제 KPST 솔루션 API([22 명세](22-deid-solution-api.md))는 **콜백이 없는 폴링 모델**(`POST /upload` → `POST /project` → `GET /retrieve_progress` 폴링 → `GET /download`)이며 작업 단위도 프로젝트(영상 1~50개 묶음)다. `DeidentifyClient`·`DeidentifyStep`·`webhook/DeidentifyResultController`는 폴링 어댑터로 재설계가 필요하다 (별도 과제 — 갭 상세는 [22.1](22-deid-solution-api.md#221-연동-개요) 비교표 참조).
 
 ## 8.1 개요
 

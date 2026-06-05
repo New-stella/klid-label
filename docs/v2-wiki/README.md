@@ -35,6 +35,7 @@
 | 19 | [외부 시스템 · 보안 · CVAT 포팅 · 설계문서](19-external-security-cvat.md) | 연동 클라이언트, 보안, CVAT 모듈, R/D 카탈로그 |
 | 20 | [게시판 (공지·가이드라인)](20-notice-board.md) | 공지 CRUD, DRAFT/발행, 고정, 첨부, 권한 — R1 외 추가 |
 | 21 | [이슈 소통 채널](21-issue-channel.md) | 검수자↔작업자 문의 스레드, 상태 머신, 반려 통합 — R1 외 추가 |
+| 22 | [비식별화 솔루션 API 연동 명세](22-deid-solution-api.md) | KPST 외부 API 13종 명세 전사(v1.0), 폴링 모델, 코드·상태 정의 |
 
 ---
 
@@ -48,6 +49,7 @@
 | 마킹 (자동=프레임간격 / 수동=Space·Del·Enter) | [06](06-marking.md) |
 | 배치 파이프라인 순서 | [07](07-batch-pipeline.md) |
 | 비식별화 / 누락 신고 (DE_IDNTF_YN='F') | [08](08-deidentification.md) |
+| 비식별 솔루션(KPST) API 명세·폴링 흐름 | [22](22-deid-solution-api.md) |
 | VLM 시계열 메타 검수 | [09](09-vlm-timeseries.md) |
 | 라벨링 도구 (bbox/polygon/mask) | [10](10-labeling.md) |
 | SAM2 추적(VOS) / 외곽 밀착 / YOLO | [11](11-ai-assisted.md) |
