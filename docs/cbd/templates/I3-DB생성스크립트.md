@@ -62,9 +62,9 @@
 >   - 테이블 ID: `KLID-AT-TB-NNN` (D9 참조)
 >   - 인덱스 ID: `KLID-AT-ID-NNN` (D9 참조)
 >
-> - 본 프로젝트의 DB 생성 스크립트는 `backend/src/main/resources/db/migration/` Flyway 마이그레이션 파일(V1__*.sql ~ V47__*.sql)이다.
-> - 목록 작성 시 각 Flyway 파일을 생성 스크립트 단위로 나열한다.
-> - 데이터베이스: `klid_system` (MariaDB 10.11), 스키마: `klid_at`
+> - 본 프로젝트의 DB 생성 스크립트는 `backend/src/main/resources/db/migration/` Flyway 마이그레이션 파일(`V1__*.sql` ~ 최신 — **고정 버전 번호 하드코딩 금지**, 작성 시점 최신까지 나열)이다.
+> - 목록 작성 시 각 Flyway 파일을 생성 스크립트 단위로 나열한다. DDL은 PostgreSQL 표준 문법으로 작성한다.
+> - 데이터베이스: PostgreSQL, 스키마: `klid_at` (LS_* 자체 소유 / MNG_*·QRTZ_* 공유 스키마는 인프라 제공 — 생성 스크립트 비대상, validate만)
 > - 초기 데이터 스크립트: 공통코드 INSERT, Quartz Job 정의, 시스템 설정 초기값 등
-> - 설치 위치: 192.168.102.101:13307 (dev), MaxScale 경유
+> - 설치 위치: 환경별 DB 서버 — CLAUDE.md의 환경별 접속 정보 참조 (문서에 IP·포트 등 실접속 정보 기재 금지)
 > - 스크립트 파일은 Git 저장소에서 제출하며, 본 문서에는 목록과 설명만 기재한다.
