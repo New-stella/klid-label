@@ -54,6 +54,7 @@ class AugmentResultLabelMetaCopyTest {
     @Mock LsDataSrcRepository srcRepository;
     @Mock LsDataLblRepository lblRepository;
     @Mock LsDataMetaRepository metaRepository;
+    @Mock kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository augLblMapRepository;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private AugmentResultService service;
@@ -63,7 +64,7 @@ class AugmentResultLabelMetaCopyTest {
     @BeforeEach
     void setup() {
         service = new AugmentResultService(augRepository, ledger,
-                videoRepository, srcRepository, lblRepository, metaRepository);
+                videoRepository, srcRepository, lblRepository, metaRepository, augLblMapRepository);
         ledger.clear();
 
         // save mocks — ID 자동 채번

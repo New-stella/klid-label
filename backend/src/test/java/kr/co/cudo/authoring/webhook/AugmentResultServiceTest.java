@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.webhook;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugLblMap;
+import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
@@ -52,16 +54,18 @@ class AugmentResultServiceTest {
     @Mock LsDataSrcRepository srcRepository;
     @Mock LsDataLblRepository lblRepository;
     @Mock LsDataMetaRepository metaRepository;
+    @Mock LsDataAugLblMapRepository augLblMapRepository;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private AugmentResultService service;
     private final java.util.concurrent.atomic.AtomicLong rawSnSeq = new java.util.concurrent.atomic.AtomicLong(9000);
     private final java.util.concurrent.atomic.AtomicLong srcSnSeq = new java.util.concurrent.atomic.AtomicLong(5000);
+    private final java.util.concurrent.atomic.AtomicLong lblSnSeq = new java.util.concurrent.atomic.AtomicLong(7000);
 
     @BeforeEach
     void setup() {
         service = new AugmentResultService(augRepository, ledger,
-                videoRepository, srcRepository, lblRepository, metaRepository);
+                videoRepository, srcRepository, lblRepository, metaRepository, augLblMapRepository);
         ledger.clear();
         // V2.0: save mocks for new video creation
         when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
@@ -87,10 +91,19 @@ class AugmentResultServiceTest {
         when(lblRepository.saveAll(any())).thenAnswer(inv -> {
             Iterable<LsDataLbl> items = inv.getArgument(0);
             List<LsDataLbl> result = new java.util.ArrayList<>();
-            items.forEach(result::add);
+            for (LsDataLbl l : items) {
+                setField(l, "lblSn", lblSnSeq.incrementAndGet());
+                result.add(l);
+            }
             return result;
         });
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
+        when(augLblMapRepository.saveAll(any())).thenAnswer(inv -> {
+            Iterable<LsDataAugLblMap> items = inv.getArgument(0);
+            List<LsDataAugLblMap> result = new java.util.ArrayList<>();
+            items.forEach(result::add);
+            return result;
+        });
         when(metaRepository.save(any(LsDataMeta.class))).thenAnswer(inv -> inv.getArgument(0));
         when(metaRepository.saveAll(any())).thenAnswer(inv -> {
             Iterable<LsDataMeta> items = inv.getArgument(0);
@@ -405,6 +418,104 @@ class AugmentResultServiceTest {
         assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(srcRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("증강_결과_수신_시_라벨_복사와_함께_매핑이_저장된다")
+    void copiesLabelsWithAugLblMap() throws Exception {
+        // given — 원본 라벨 2건 (lblSn 부여), 증강 SUCCESS 수신
+        ledger.recordIssued("K-MAP-OK", "EXT-MAP");
+        LsDataRaw parentRaw = newRaw(110L);
+        LsDataSrc frame0 = newSrc(500L, 110L, 0);
+        LsDataAug aug = newAugWithSrc(40L, 500L, "WINTER");
+
+        LsDataLbl lbl1 = LsDataLbl.createAutoBbox(500L, null, "person", "[1,2,3,4]",
+                BigDecimal.valueOf(0.9), null);
+        setField(lbl1, "lblSn", 6001L);
+        LsDataLbl lbl2 = LsDataLbl.createAutoBbox(500L, null, "car", "[5,6,7,8]",
+                BigDecimal.valueOf(0.8), null);
+        setField(lbl2, "lblSn", 6002L);
+
+        when(augRepository.findById(40L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(500L)).thenReturn(Optional.of(frame0));
+        when(videoRepository.findById(110L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(110L)).thenReturn(List.of(frame0));
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of(lbl1, lbl2));
+        when(metaRepository.findByRawSn(110L)).thenReturn(List.of());
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-MAP-OK", "EXT-MAP", "SUCCESS", 40L, "WINTER",
+                "/storage/augment/winter.mp4");
+
+        // when
+        service.handle(req);
+
+        // then — 라벨 2건당 매핑 2건 일괄 저장
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataAugLblMap>> mapCaptor = ArgumentCaptor.forClass(List.class);
+        verify(augLblMapRepository, times(1)).saveAll(mapCaptor.capture());
+        List<LsDataAugLblMap> maps = mapCaptor.getValue();
+        assertThat(maps).hasSize(2);
+        // 원본 SN 은 6001/6002, 복사본 SN 은 saveAll 에서 부여된 7000번대
+        assertThat(maps).extracting(LsDataAugLblMap::getOrgnlDataLblSn)
+                .containsExactlyInAnyOrder(6001L, 6002L);
+        assertThat(maps).allSatisfy(m -> {
+            assertThat(m.getDataAugSn()).isEqualTo(40L);
+            assertThat(m.getDataLblSn()).isNotNull();
+            assertThat(m.getDataLblSn()).isNotEqualTo(m.getOrgnlDataLblSn());
+            // 해상도 동일 → 좌표 그대로 복사
+            assertThat(m.getCoordRecalcYn()).isEqualTo(LsDataAugLblMap.RECALC_N);
+            assertThat(m.getScaleX()).isNull();
+            assertThat(m.getScaleY()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("복사할_라벨이_없으면_매핑도_저장되지_않는다")
+    void noLabels_noAugLblMapSaved() throws Exception {
+        // given — 원본 라벨 0건
+        ledger.recordIssued("K-MAP-EMPTY", "EXT-MAPE");
+        LsDataRaw parentRaw = newRaw(111L);
+        LsDataSrc frame0 = newSrc(510L, 111L, 0);
+        LsDataAug aug = newAugWithSrc(41L, 510L, "NIGHT");
+
+        when(augRepository.findById(41L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(510L)).thenReturn(Optional.of(frame0));
+        when(videoRepository.findById(111L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(111L)).thenReturn(List.of(frame0));
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
+        when(metaRepository.findByRawSn(111L)).thenReturn(List.of());
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-MAP-EMPTY", "EXT-MAPE", "SUCCESS", 41L, "NIGHT",
+                "/storage/augment/night.mp4");
+
+        // when
+        service.handle(req);
+
+        // then — 매핑 저장 미호출
+        verify(augLblMapRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("멱등_스킵_시_라벨_매핑도_저장되지_않는다")
+    void idempotentReplay_noAugLblMapSaved() throws Exception {
+        ledger.recordIssued("K-MAP-DUP", "EXT-MAPD");
+        LsDataAug aug = newAug(42L, "RAIN", LsDataAug.STTS_PENDING);
+        when(augRepository.findById(42L)).thenReturn(Optional.of(aug));
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-MAP-DUP", "EXT-MAPD", "SUCCESS", 42L, "RAIN", null);
+
+        // 1차 인계 후 2차 멱등 스킵
+        service.handle(req);
+        boolean second = service.handle(req);
+
+        assertThat(second).isFalse();
+        // 멱등 스킵된 2차 호출에서는 추가 매핑 저장 없음 (1차에서만 0건 — 라벨 없음)
+        verify(augLblMapRepository, never()).saveAll(any());
     }
 
     private LsDataAug newAug(Long sn, String type, String status) throws Exception {

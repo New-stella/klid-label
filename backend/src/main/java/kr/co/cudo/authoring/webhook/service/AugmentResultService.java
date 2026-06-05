@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.webhook.service;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugLblMap;
+import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
@@ -49,6 +51,7 @@ public class AugmentResultService {
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
     private final LsDataMetaRepository metaRepository;
+    private final LsDataAugLblMapRepository augLblMapRepository;
 
     /**
      * @return true = 신규 적재 / false = 멱등 스킵
@@ -155,8 +158,16 @@ public class AugmentResultService {
             List<LsDataLbl> copied = allLabels.stream()
                     .map(lbl -> LsDataLbl.copyForNewSrc(srcSnMap.get(lbl.getSrcSn()), lbl))
                     .toList();
-            lblRepository.saveAll(copied);
+            List<LsDataLbl> savedLabels = lblRepository.saveAll(copied);
             copiedLabelCount = copied.size();
+
+            // UC-002 — 원본 라벨 SN ↔ 증강(복사본) 라벨 SN 매핑 기록.
+            // 외부 증강 3종(WINTER/NIGHT/RAIN)은 해상도 동일 → 좌표 그대로 복사이므로
+            // COORD_RECALC_YN='N', scaleX/scaleY 는 null. 라벨 복사와 같은 트랜잭션 내 일괄 저장.
+            if (!savedLabels.isEmpty()) {
+                List<LsDataAugLblMap> labelMaps = buildAugLabelMaps(aug, allLabels, savedLabels);
+                augLblMapRepository.saveAll(labelMaps);
+            }
         }
 
         // 메타 일괄 저장 (saveAll batch)
@@ -169,6 +180,28 @@ public class AugmentResultService {
         log.info("[Webhook][Augment] new video created rawSn={} parentRawSn={} augType={} frames={} labels={} metas={}",
                 newRaw.getRawSn(), parentRaw.getRawSn(), req.augType(),
                 parentFrames.size(), copiedLabelCount, parentMetas.size());
+    }
+
+    /**
+     * 원본 라벨과 복사본 라벨을 인덱스로 zip 하여 LS_DATA_AUG_LBL_MAP 엔티티 목록 생성.
+     * {@code originals} 와 {@code copies} 는 동일 순서로 1:1 대응한다(saveAll 입력=출력 순서 보존).
+     */
+    private static List<LsDataAugLblMap> buildAugLabelMaps(LsDataAug aug, List<LsDataLbl> originals,
+                                                           List<LsDataLbl> copies) {
+        List<LsDataAugLblMap> maps = new java.util.ArrayList<>(copies.size());
+        for (int i = 0; i < copies.size(); i++) {
+            LsDataLbl original = originals.get(i);
+            LsDataLbl copy = copies.get(i);
+            maps.add(LsDataAugLblMap.create(
+                    aug.getDataAugSn(),
+                    original.getLblSn(),
+                    copy.getLblSn(),
+                    false,   // 해상도 동일 → 좌표 그대로 복사 (COORD_RECALC_YN='N')
+                    null,    // scaleX
+                    null,    // scaleY
+                    aug.getRegUserNo()));
+        }
+        return maps;
     }
 
     /** PENDING 상태일 때만 상태 전이 + 비동기 표준 컬럼 적재. */
