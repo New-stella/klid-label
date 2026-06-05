@@ -51,6 +51,10 @@ const MENU: MenuGroup[] = [
     ],
   },
   {
+    group: '게시판',
+    items: [{ label: '게시판', path: '/notice', allow: ['REVIEWER', 'WORKER'] }],
+  },
+  {
     group: '관리',
     items: [
       { label: '사용자 관리', path: '/manage/users', allow: ['REVIEWER'] },

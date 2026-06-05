@@ -1,5 +1,7 @@
 // Query Key Factory — 도메인별 골격 (Phase 1+에서 도메인별로 확장)
 
+import type { NoticeListParams } from '@/features/notice/types';
+
 export const USER_KEYS = {
   all: ['users'] as const,
   me: () => [...USER_KEYS.all, 'me'] as const,
@@ -70,6 +72,14 @@ export const PORTAL_KEYS = {
 export const SYSCONFIG_KEYS = {
   all: ['sysconfig'] as const,
   presets: () => [...SYSCONFIG_KEYS.all, 'presets'] as const,
+};
+
+export const NOTICE_KEYS = {
+  all: ['notices'] as const,
+  lists: () => [...NOTICE_KEYS.all, 'list'] as const,
+  list: (params: NoticeListParams) => [...NOTICE_KEYS.lists(), params] as const,
+  details: () => [...NOTICE_KEYS.all, 'detail'] as const,
+  detail: (id: number) => [...NOTICE_KEYS.details(), id] as const,
 };
 
 export const META_KEYS = {

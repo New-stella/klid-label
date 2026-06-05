@@ -98,6 +98,10 @@ public class SecurityConfig {
                             .requestMatchers(org.springframework.http.HttpMethod.GET, "/v1/manage/labels", "/v1/manage/labels/**").authenticated()
                             .requestMatchers("/v1/manage/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/system/**").hasRole(Role.REVIEWER.name())
+                            // 게시판(공지) — REVIEWER/WORKER 만. PORTAL_USER 차단.
+                            // /v1/** (authenticated) 보다 위에 두어 PORTAL_USER 통과를 막는다.
+                            // 쓰기 핸들러는 메서드 @PreAuthorize 로 REVIEWER 강제.
+                            .requestMatchers("/v1/notices", "/v1/notices/**").hasAnyRole(Role.REVIEWER.name(), Role.WORKER.name())
                             .requestMatchers("/v1/portal/**").hasRole(Role.PORTAL_USER.name())
                             .requestMatchers("/v1/**").authenticated()
                             .anyRequest().authenticated();

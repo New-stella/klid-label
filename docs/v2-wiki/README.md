@@ -33,6 +33,7 @@
 | 17 | [통계 · 대시보드](17-statistics.md) | 작업자/전체 통계, CSV 리포트 |
 | 18 | [데이터베이스](18-database.md) | LS_* 테이블, V_COMPLETED_* View, 마이그레이션 |
 | 19 | [외부 시스템 · 보안 · CVAT 포팅 · 설계문서](19-external-security-cvat.md) | 연동 클라이언트, 보안, CVAT 모듈, R/D 카탈로그 |
+| 20 | [게시판 (공지·가이드라인)](20-notice-board.md) | 공지 CRUD, DRAFT/발행, 고정, 첨부, 권한 — R1 외 추가 |
 
 ---
 
@@ -56,6 +57,7 @@
 | 관제 통지 TASK_COMPLETED/MODIFIED | [15](15-control-notify.md) |
 | 포털 (데이터마트 영상 선택) | [16](16-portal.md) |
 | 외부 시스템 연동 / 보안 / CVAT 포팅 | [19](19-external-security-cvat.md) |
+| 게시판 (공지/가이드라인, 첨부) | [20](20-notice-board.md) |
 
 ### 화면 ID(`KLID-AT-SC-*`) → 페이지
 
@@ -74,6 +76,7 @@
 | SC-022/023 | 증강 요청/결과 | [14](14-augmentation.md) |
 | SC-024/025/026 | 사용자/시스템설정/프리셋 관리 | [03](03-auth-roles.md)·[10](10-labeling.md) |
 | SC-029 | 포털 라벨링 | [16](16-portal.md) |
+| SC-030/031/032 | 게시판 목록/상세/작성 모달 | [20](20-notice-board.md) |
 
 > deprecated: SC-016/017(비식별 목록/상세 → 외부 솔루션), SC-028(포털 홈 → ADR-013).
 

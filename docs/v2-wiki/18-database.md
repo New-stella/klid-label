@@ -1,6 +1,6 @@
 # 18. 데이터베이스
 
-> 출처: D8 엔티티관계모형설계서, D9 데이터베이스설계서, CLAUDE.md(DB 정책·View), 코드(`db/migration/` V0~V55)
+> 출처: D8 엔티티관계모형설계서, D9 데이터베이스설계서, CLAUDE.md(DB 정책·View), 코드(`db/migration/` V0~V56)
 > 관련: 각 기능 페이지 · [19 외부 시스템](19-external-security-cvat.md)
 
 ## 18.1 기본 정보
@@ -9,7 +9,7 @@
 |------|------|
 | DBMS | **PostgreSQL** |
 | 스키마 | `klid_at` |
-| 마이그레이션 | **Flyway** (V0~V55, 70+ 테이블/뷰) |
+| 마이그레이션 | **Flyway** (V0~V56, 70+ 테이블/뷰) |
 | 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** 9개 `ddl-auto=validate` 참조, Quartz `QRTZ_*` |
 | DDL | PostgreSQL 표준 문법 (MariaDB 문법 금지), `ddl-auto=validate` 고정 |
 
@@ -64,6 +64,7 @@
 | `LS_WEBHOOK_IDEMPOTENCY` (V39) | 웹훅 멱등성 | [19](19-external-security-cvat.md) |
 | `LS_CONTROL_NOTIFY_FALLBACK` (V44) / `LS_GITEA_FALLBACK_QUEUE` (V41) | 통지 / Gitea 실패 재시도 | [15](15-control-notify.md)·[13](13-version-control.md) |
 | `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 | [16](16-portal.md) |
+| `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, PIN_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
 | `LS_DATA_ISSUE` (V5) / `LS_DATA_SET` (V8) / `LS_DEADLINE`·`LS_META` (V36) | 품질 이슈 / 데이터셋 / 데드라인·전역 메타 | — |
 
 ## 18.3 데이터마트 적재용 View (V52)

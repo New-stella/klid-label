@@ -100,6 +100,14 @@ const MarkingPage = lazy(() =>
   import('@/pages/MarkingPage').then((m) => ({ default: m.MarkingPage })),
 );
 
+// Phase 3 — 게시판(공지) 목록/상세 lazy 로드
+const NoticeListPage = lazy(() =>
+  import('@/pages/NoticeListPage').then((m) => ({ default: m.NoticeListPage })),
+);
+const NoticeDetailPage = lazy(() =>
+  import('@/pages/NoticeDetailPage').then((m) => ({ default: m.NoticeDetailPage })),
+);
+
 // Phase 2 — 권한 자가 부여 화면 (role 미부여 사용자 진입점) lazy 로드
 const RoleClaimPage = lazy(() =>
   import('@/pages/RoleClaimPage').then((m) => ({ default: m.RoleClaimPage })),
@@ -402,6 +410,27 @@ export const router = createBrowserRouter([
             element: (
               <InternalRoute allow={internalReviewerOnly}>
                 <PlaceholderPage title="관리" />
+              </InternalRoute>
+            ),
+          },
+        ],
+      },
+      {
+        path: 'notice',
+        children: [
+          {
+            index: true,
+            element: (
+              <InternalRoute allow={internalAllRoles}>
+                {withSuspense(<NoticeListPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: ':id',
+            element: (
+              <InternalRoute allow={internalAllRoles}>
+                {withSuspense(<NoticeDetailPage />)}
               </InternalRoute>
             ),
           },
