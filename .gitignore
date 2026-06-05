@@ -30,6 +30,9 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 
+# 외부 도구 바이너리 (scripts/hwpx_fill.py가 1회 자동 다운로드)
+tools/plantuml.jar
+
 # 리포트 (로컬 생성물)
 reports/
 
