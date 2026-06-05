@@ -21,6 +21,8 @@ import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
+import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
+import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
@@ -171,6 +173,18 @@ export function LabelingPage() {
 
   // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // 우측 패널 탭 — 객체 / 이슈(검수자↔작업자 소통). 이슈 스레드는 INTERNAL 채널만.
+  const [rightTab, setRightTab] = useState<'objects' | 'issues'>('objects');
+  // 이슈는 영상 단위(rawSn) — videoId(LS_DATA_RAW.RAW_SN)만 사용.
+  // srcSn(프레임 PK) 폴백 금지: 프레임 PK를 영상 ID 자리에 넣으면 잘못된 영상의 이슈 조회/404.
+  // videoId 부재 시 이슈 탭 비노출.
+  const issueRawSn = data?.videoId;
+  const showIssues = !portalMode && issueRawSn !== undefined;
+  const { data: issueThreads } = useIssueThreads(showIssues ? issueRawSn : undefined);
+  const unresolvedInquiries = (issueThreads ?? []).filter(
+    (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
+  ).length;
 
   // 비식별 누락 신고 — 영상 잠금 상태 추적.
   // 1) BE 응답 lockSttsCd='LOCKED_FOR_REDEIDENT' → 진입 시 잠금
@@ -463,22 +477,95 @@ export function LabelingPage() {
           )}
         </div>
 
-        {/* 우측 패널 — 객체 트리 + 속성 + 시계열 메타 */}
+        {/* 우측 패널 — 탭(객체 / 이슈). 이슈 탭은 INTERNAL 채널만 노출. */}
         <div className="w-72 flex flex-col bg-gray-800 border-l border-gray-700 overflow-hidden shrink-0">
-          <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-700">
-            <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
-              객체 목록
+          {showIssues && (
+            <div
+              className="flex shrink-0 border-b border-gray-700"
+              role="tablist"
+              aria-label="우측 패널 탭"
+            >
+              <button
+                type="button"
+                role="tab"
+                id="right-tab-objects"
+                aria-selected={rightTab === 'objects'}
+                aria-controls="right-panel-objects"
+                data-testid="right-tab-objects"
+                onClick={() => setRightTab('objects')}
+                className={
+                  rightTab === 'objects'
+                    ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-blue-500'
+                    : 'flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                }
+              >
+                객체
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="right-tab-issues"
+                aria-selected={rightTab === 'issues'}
+                aria-controls="right-panel-issues"
+                data-testid="right-tab-issues"
+                onClick={() => setRightTab('issues')}
+                className={
+                  rightTab === 'issues'
+                    ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-blue-500'
+                    : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                }
+              >
+                이슈
+                {unresolvedInquiries > 0 && (
+                  <span
+                    data-testid="issue-tab-badge"
+                    className="inline-flex min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+                    aria-label={`미해소 문의 ${unresolvedInquiries}건`}
+                  >
+                    {unresolvedInquiries}
+                  </span>
+                )}
+              </button>
             </div>
-            <ObjectClassTree labels={labels} />
-          </div>
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
-              속성
+          )}
+
+          {showIssues && rightTab === 'issues' && issueRawSn !== undefined ? (
+            <div
+              className="flex-1 overflow-y-auto"
+              data-testid="label-issue-panel"
+              role="tabpanel"
+              id="right-panel-issues"
+              aria-labelledby="right-tab-issues"
+            >
+              <IssueThreadPanel rawSn={issueRawSn} mode="worker" dark />
             </div>
-            <ObjectAttributePanel labels={labels} />
-          </div>
-          {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 포털 라벨링에는 미노출, 내부 채널만 렌더 */}
-          {!portalMode && <TimeseriesSidePanel srcSn={data?.srcSn} />}
+          ) : (
+            <div
+              className="flex-1 flex flex-col overflow-hidden"
+              {...(showIssues
+                ? {
+                    role: 'tabpanel',
+                    id: 'right-panel-objects',
+                    'aria-labelledby': 'right-tab-objects',
+                  }
+                : {})}
+            >
+              <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-700">
+                <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
+                  객체 목록
+                </div>
+                <ObjectClassTree labels={labels} />
+              </div>
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
+                  속성
+                </div>
+                <ObjectAttributePanel labels={labels} />
+              </div>
+              {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 포털 라벨링에는 미노출, 내부 채널만 렌더 */}
+              {!portalMode && <TimeseriesSidePanel srcSn={data?.srcSn} />}
+            </div>
+          )}
         </div>
 
         {/* 우측 슬라이드 — 히스토리 인라인 패널 (INTERNAL only). 본 영역은 기존 우측 패널 옆으로 펼침. */}

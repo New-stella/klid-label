@@ -34,6 +34,7 @@
 | 18 | [데이터베이스](18-database.md) | LS_* 테이블, V_COMPLETED_* View, 마이그레이션 |
 | 19 | [외부 시스템 · 보안 · CVAT 포팅 · 설계문서](19-external-security-cvat.md) | 연동 클라이언트, 보안, CVAT 모듈, R/D 카탈로그 |
 | 20 | [게시판 (공지·가이드라인)](20-notice-board.md) | 공지 CRUD, DRAFT/발행, 고정, 첨부, 권한 — R1 외 추가 |
+| 21 | [이슈 소통 채널](21-issue-channel.md) | 검수자↔작업자 문의 스레드, 상태 머신, 반려 통합 — R1 외 추가 |
 
 ---
 
@@ -58,6 +59,7 @@
 | 포털 (데이터마트 영상 선택) | [16](16-portal.md) |
 | 외부 시스템 연동 / 보안 / CVAT 포팅 | [19](19-external-security-cvat.md) |
 | 게시판 (공지/가이드라인, 첨부) | [20](20-notice-board.md) |
+| 이슈 소통 (문의/답변/해소, 반려 스레드) | [21](21-issue-channel.md) |
 
 ### 화면 ID(`KLID-AT-SC-*`) → 페이지
 

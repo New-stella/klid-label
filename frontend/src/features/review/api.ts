@@ -9,9 +9,13 @@ import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
 import type {
+  AddIssueCommentRequest,
   AddIssueRequest,
   ApproveRequest,
+  CreateInquiryRequest,
   FrameList,
+  IssueComment,
+  IssueThread,
   RejectRequest,
   Review,
   ReviewIssue,
@@ -144,4 +148,58 @@ export function getReviewFrames(videoId: number): Promise<FrameList> {
   return apiClient
     .get<FrameList>(`/reviews/${videoId}/frames`)
     .then((r) => r.data);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 2 — 이슈 스레드 (반려 이력 + 문의 통합 소통 채널)
+//
+// 보안:
+// - rawSn/issueSn/srcSn path·body 파라미터는 axios 가 URL 인코딩 (Injection 방어).
+// - content 는 zod 검증 후 전달 (1~1000자). XSS 저장 방어는 BE, 렌더 escape 는 FE(텍스트 노드).
+// - IDOR/권한(REVIEWER 해소·WORKER 문의)·낙관적 잠금은 BE 책임.
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * 영상 단위 이슈 스레드 목록.
+ * BE: GET /api/v1/videos/{rawSn}/issues → IssueThread[] (REG_DT asc).
+ * 반려(REJECTION) 이력과 문의(INQUIRY) 가 통합 조회된다.
+ */
+export function listIssueThreads(rawSn: number): Promise<IssueThread[]> {
+  return apiClient
+    .get<IssueThread[]>(`/videos/${rawSn}/issues`)
+    .then((r) => r.data ?? []);
+}
+
+/**
+ * 문의(INQUIRY) 등록 — WORKER.
+ * BE: POST /api/v1/videos/{rawSn}/issues → 201 IssueThread.
+ */
+export function createInquiry(
+  rawSn: number,
+  body: CreateInquiryRequest,
+): Promise<IssueThread> {
+  return apiClient
+    .post<IssueThread>(`/videos/${rawSn}/issues`, body)
+    .then((r) => r.data);
+}
+
+/**
+ * 이슈 스레드 댓글 추가 — REVIEWER/WORKER.
+ * BE: POST /api/v1/issues/{issueSn}/comments → 201 IssueComment.
+ */
+export function addIssueComment(
+  issueSn: number,
+  body: AddIssueCommentRequest,
+): Promise<IssueComment> {
+  return apiClient
+    .post<IssueComment>(`/issues/${issueSn}/comments`, body)
+    .then((r) => r.data);
+}
+
+/**
+ * 문의 해소 처리 — REVIEWER 전용.
+ * BE: POST /api/v1/issues/{issueSn}/resolve → 200.
+ */
+export function resolveIssue(issueSn: number): Promise<void> {
+  return apiClient.post<void>(`/issues/${issueSn}/resolve`).then(() => undefined);
 }

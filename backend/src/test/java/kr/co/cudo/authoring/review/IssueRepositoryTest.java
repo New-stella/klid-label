@@ -47,6 +47,21 @@ class IssueRepositoryTest {
     }
 
     @Test
+    @DisplayName("반려_건수_집계에_INQUIRY는_미포함")
+    void 반려_건수_집계에_INQUIRY는_미포함() {
+        // given: 작업자 200 에게 영상 6001 배정, 같은 영상에 INQUIRY 1건 + REJECTION 1건 저장
+        authrtRepository.save(LsTaskAssignment.createLabeler(6001L, 200L, 1L));
+        issueRepository.save(LsDataIssue.createInquiry(6001L, "문의입니다", "200", null)); // 집계 제외 대상
+        issueRepository.save(LsDataIssue.create(6001L, "반려사유", "1"));                  // 집계 대상
+
+        // when
+        long count = issueRepository.countRejectionsByWorker(200L);
+
+        // then: REJECTION 1건만 집계 (INQUIRY 는 부풀림 없이 제외)
+        assertThat(count).isEqualTo(1L);
+    }
+
+    @Test
     @DisplayName("IssueRepository_DATA_RAW_SN_기준_반려_사유_시간역순_조회")
     void findByDataRawSnOrderByRegDtDesc() {
         Long dataRawSn = 7777L;

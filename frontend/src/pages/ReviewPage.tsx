@@ -23,6 +23,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
 import { FrameTimeline } from '@/features/review/components/FrameTimeline';
+import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { LabelCanvas } from '@/features/review/components/LabelCanvas';
 import { ObjectAttributesPanel } from '@/features/review/components/ObjectAttributesPanel';
 import { ObjectListPanel } from '@/features/review/components/ObjectListPanel';
@@ -266,6 +267,15 @@ export function ReviewPage() {
         </section>
 
         <ReviewMemoPanel videoId={review.videoId} issues={issues ?? []} />
+
+        {/* Phase 2 — 검수자↔작업자 통합 이슈 스레드 (반려 이력 + 문의). 댓글·해소. */}
+        <section
+          className="border-t border-gray-700"
+          aria-label="이슈 스레드"
+          data-testid="review-issue-thread-section"
+        >
+          <IssueThreadPanel rawSn={review.videoId} mode="reviewer" dark />
+        </section>
       </aside>
 
       {/* Footer — FrameTimeline + ActionBar (col-span-2) */}

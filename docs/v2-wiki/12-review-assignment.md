@@ -40,4 +40,6 @@
 
 ## 12.6 관련 데이터 (DB)
 
-`LS_TASK_ASSIGNMENT`(배정), `LS_TASK_ASSIGN_HISTORY`(재배정 이력), `LS_TASK_EVENT_LOG`(이벤트 로그), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈). → [18](18-database.md).
+`LS_TASK_ASSIGNMENT`(배정), `LS_TASK_ASSIGN_HISTORY`(재배정 이력), `LS_TASK_EVENT_LOG`(이벤트 로그), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — V57부터 문의(INQUIRY) 타입·상태 확장), `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
+
+> 반려 사유는 V57부터 작업자 문의와 **통합 이슈 스레드**로 양방향 소통 가능 (등록→답변→해소) — 상세는 [21 이슈 소통 채널](21-issue-channel.md).
