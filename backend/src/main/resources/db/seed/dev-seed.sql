@@ -27,7 +27,7 @@
 --   - PORTAL   : 3001 (DevTokenService 기본값)
 -- ============================================================
 
-SET FOREIGN_KEY_CHECKS = 0;
+-- (PostgreSQL — FK 비활성화 불필요: 아래 DELETE가 자식 → 부모 순서를 보장)
 
 -- 1) 정리 (자식 → 부모 순) — 9000번대 영상 / 1000~3000번대 사용자 + 플로우 결과물 일괄
 DELETE FROM LS_DATA_LBL_AI_INFO
@@ -56,7 +56,7 @@ INSERT INTO MNG_ACCT_AUTHRT (AUTHRT_CD, AUTHRT_NM, USE_YN) VALUES
     ('REVIEWER',    '검수자',        'Y'),
     ('WORKER',      '라벨링 작업자', 'Y'),
     ('PORTAL_USER', '포털 회원',     'Y')
-ON DUPLICATE KEY UPDATE AUTHRT_NM = VALUES(AUTHRT_NM);
+ON CONFLICT (AUTHRT_CD) DO UPDATE SET AUTHRT_NM = EXCLUDED.AUTHRT_NM;
 
 -- 3) 사용자 (5명)
 --   1001 = DevTokenService.DEFAULT_USER_NO_REVIEWER (REVIEWER 기본)
@@ -68,10 +68,10 @@ INSERT INTO MNG_ACCT_USER (USER_NO, USER_ID, USER_NM, USER_EMAIL, USE_YN, REG_DT
     (2001, 'worker1',   '최라벨', 'worker1@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
     (2002, 'worker2',   '정작업', 'worker2@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
     (3001, 'portal1',   '홍길동', 'portal1@example.com',  'Y', '2026-03-01 09:00:00')
-ON DUPLICATE KEY UPDATE
-    USER_NM    = VALUES(USER_NM),
-    USER_EMAIL = VALUES(USER_EMAIL),
-    USE_YN     = VALUES(USE_YN);
+ON CONFLICT (USER_NO) DO UPDATE SET
+    USER_NM    = EXCLUDED.USER_NM,
+    USER_EMAIL = EXCLUDED.USER_EMAIL,
+    USE_YN     = EXCLUDED.USE_YN;
 
 -- 4) 사용자-권한 매핑
 INSERT INTO MNG_ACCT_USER_AUTHRT (USER_NO, AUTHRT_CD, REG_DT) VALUES
@@ -83,8 +83,8 @@ INSERT INTO MNG_ACCT_USER_AUTHRT (USER_NO, AUTHRT_CD, REG_DT) VALUES
 
 -- 5) CCTV 마스터 (MNG_RESOURCE_CCTV) — 영상 VMS_CCTV_ID 매칭용 한글 이름.
 --   AssignmentResponse.cctvName 표시 및 작업/검수 목록의 "CCTV-{지자체}-{NN}" 노출.
---   INSERT IGNORE — 시드 재실행 시 PK 충돌 회피 (이미 존재하면 무시).
-INSERT IGNORE INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES
+--   ON CONFLICT DO NOTHING — 시드 재실행 시 PK 충돌 회피 (이미 존재하면 무시).
+INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES
     ('CCTV-001', 'CCTV-강남구-001', 'Y'),
     ('CCTV-002', 'CCTV-강남구-002', 'Y'),
     ('CCTV-003', 'CCTV-강남구-003', 'Y'),
@@ -97,7 +97,8 @@ INSERT IGNORE INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES
     ('CCTV-027', 'CCTV-송파구-027', 'Y'),
     ('CCTV-031', 'CCTV-마포구-031', 'Y'),
     ('CCTV-032', 'CCTV-마포구-032', 'Y'),
-    ('CCTV-033', 'CCTV-마포구-033', 'Y');
+    ('CCTV-033', 'CCTV-마포구-033', 'Y')
+ON CONFLICT (VMS_CCTV_ID) DO NOTHING;
 
 -- 6) 라벨 마스터 (LS_LABEL) — CVAT-Like 라벨 풀 포팅 Phase 1
 INSERT INTO LS_LABEL (LABEL_NM, COLR_VL, LABEL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, REG_DT) VALUES
@@ -114,8 +115,6 @@ INSERT INTO LS_LABEL (LABEL_NM, COLR_VL, LABEL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID
     ('fallen-person',    '#C0392B', 'BBOX',    11, 'Y', 'seed', '2026-05-15 00:00:00'),
     ('vehicle-accident', '#D35400', 'BBOX',    12, 'Y', 'seed', '2026-05-15 00:00:00'),
     ('object',           '#95A5A6', 'BBOX',    13, 'Y', 'seed', '2026-05-15 00:00:00');
-
-SET FOREIGN_KEY_CHECKS = 1;
 
 -- 검증용 SELECT — 마스터 데이터만
 SELECT '=== SEED COMPLETE ===' AS marker;
