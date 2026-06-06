@@ -23,17 +23,17 @@
 [콜백] POST /v1/deidentify/result (HMAC + idempotencyKey)
    수신: {멱등키, 외부 작업 ID, 처리 상태(SUCCESS/FAILED/PARTIAL), RAW_SN, 비식별 파일 경로, 처리 영역 목록}
         ↓
-결과 경로 검증 → LS_DATA_RAW.DE_IDNTF_YN='Y' 마킹 + LS_DEIDENT_PROC_LOG 이력 저장
+결과 경로 검증 → LS_DATA_RAW.DE_IDENT_YN='Y' 마킹 + LS_DEIDENT_PROC_LOG 이력 저장
 ```
 
 - 멱등키(미지정 시 자동 발급)로 중복 인계 방지, 외부 작업 ID UNIQUE 로 콜백 upsert
-- 실패 시 `DE_IDNTF_YN='F'` + 재시도 큐, 원본 보존
+- 실패 시 `DE_IDENT_YN='F'` + 재시도 큐, 원본 보존
 - 코드: `DeidentifyClient`, `batch/step/DeidentifyStep`, `webhook/DeidentifyResultController`/`DeidentifyResultService`
 
 ## 8.3 처리 이력 (RQ-SFR-09-03)
 
 - 영상 단위 이력 `LS_DEIDENT_PROC_LOG`: `EXTERNAL_JOB_ID`, `ORGNL_FILE_PATH_NM`, `DE_IDNTF_FILE_PATH_NM`, `PROC_STTS_CD`(REQUESTED/SUCCEEDED/FAILED), `REQ_DT`/`RES_DT`, `ERROR_CD/MSG`
-- 저작도구 화면은 `DE_IDNTF_YN`(Y/F) 상태 + 이력만 표시. **상세 검토는 외부 솔루션 검토화면**으로 연계 (SC-016/017 deprecated)
+- 저작도구 화면은 `DE_IDENT_YN`(Y/F) 상태 + 이력만 표시. **상세 검토는 외부 솔루션 검토화면**으로 연계 (SC-016/017 deprecated)
 
 ## 8.4 누락 신고 (RQ-SFR-09-03, UC-016)
 
@@ -41,7 +41,7 @@
 
 ```
 누락 신고 (LS_DEIDENT_REPORT: OPEN)
-  → 현재 작업 내용 삭제 + DE_IDNTF_YN='F'
+  → 현재 작업 내용 삭제 + DE_IDENT_YN='F'
   → 작업자/검수자가 외부 비식별 솔루션으로 수동 비식별화
   → 완료 시 신고 RESOLVED (원본 보존)
 ```
@@ -57,4 +57,4 @@
 
 ## 8.6 관련 데이터 (DB)
 
-`LS_DEIDENT_REPORT`(누락 신고), `LS_DEIDENT_PROC_LOG`(처리 이력), `LS_DATA_RAW.DE_IDNTF_YN`, `LS_AUTH_WORK_LOCK`(재진행 중 잠금). → [18](18-database.md).
+`LS_DEIDENT_REPORT`(누락 신고), `LS_DEIDENT_PROC_LOG`(처리 이력), `LS_DATA_RAW.DE_IDENT_YN`, `LS_AUTH_WORK_LOCK`(재진행 중 잠금). → [18](18-database.md).

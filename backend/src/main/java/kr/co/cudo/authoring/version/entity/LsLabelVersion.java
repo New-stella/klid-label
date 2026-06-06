@@ -35,7 +35,7 @@ public class LsLabelVersion {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "LABEL_VERSION_SN")
+    @Column(name = "LBL_VERSION_SN")
     private Long labelVersionSn;
 
     @Column(name = "DATA_RAW_SN", nullable = false)
@@ -49,7 +49,7 @@ public class LsLabelVersion {
     private String versionHash;
 
     /** 라벨 전체 JSON 스냅샷 (LabelResponse 직렬화 결과). diff/rollback 의 원천. */
-    @Column(name = "LABEL_PAYLOAD", columnDefinition = "TEXT")
+    @Column(name = "LBL_PAYLOAD", columnDefinition = "TEXT")
     private String labelPayload;
 
     @Column(name = "VERSION_NO", nullable = false)
@@ -58,7 +58,7 @@ public class LsLabelVersion {
     @Column(name = "SAVE_REASON_CD", length = 20)
     private String saveReasonCd;
 
-    @Column(name = "ACTIVE_YN", nullable = false, length = 1)
+    @Column(name = "ACTVTN_YN", nullable = false, length = 1)
     private String activeYn;
 
     @Column(name = "REG_ID", length = 30)

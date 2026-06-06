@@ -41,7 +41,7 @@ public class LsNotice {
     private String content;
 
     /** 상단 고정 여부 — DB 컨벤션상 "Y"/"N" 문자열로 저장 (boolean 접근자는 {@link #isPinned()}). */
-    @Column(name = "PIN_YN", nullable = false, length = 1)
+    @Column(name = "UPEND_FIX_YN", nullable = false, length = 1)
     private String pinYn;
 
     @Enumerated(EnumType.STRING)

@@ -18,6 +18,6 @@ public class LsMeta {
     @Column(name = "META_KEY", length = 64)
     private String metaKey;
 
-    @Column(name = "META_VAL", length = 2000)
+    @Column(name = "META_VL", length = 2000)
     private String metaVal;
 }

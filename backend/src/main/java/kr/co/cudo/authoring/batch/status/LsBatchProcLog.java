@@ -42,19 +42,19 @@ public class LsBatchProcLog {
     @Column(name = "PROC_STTS_CD", nullable = false, length = 20)
     private String procSttsCd;
 
-    @Column(name = "START_DT")
+    @Column(name = "BGNG_DT")
     private LocalDateTime startDt;
 
     @Column(name = "END_DT")
     private LocalDateTime endDt;
 
-    @Column(name = "RTRY_CNT", nullable = false)
+    @Column(name = "RTRY_NMTM", nullable = false)
     private int rtryCnt;
 
-    @Column(name = "ERROR_CD", length = 50)
+    @Column(name = "ERR_CD", length = 50)
     private String errorCd;
 
-    @Column(name = "ERROR_MSG", length = 1000)
+    @Column(name = "ERR_MSG_CN", length = 1000)
     private String errorMsg;
 
     @Column(name = "REQ_PAYLOAD_CN")

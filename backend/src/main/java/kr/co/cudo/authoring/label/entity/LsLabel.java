@@ -24,15 +24,15 @@ import java.time.LocalDateTime;
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>LABEL_NM UNIQUE — DB 레벨 + Service 레벨 이중 가드. (V34: PJT_ID 제거됨)</li>
+ *   <li>LBL_NM UNIQUE — DB 레벨 + Service 레벨 이중 가드. (V34: PJT_ID 제거됨)</li>
  *   <li>COLR_VL 은 대문자 {@code #RRGGBB} hex (소문자 거부 — DTO 검증).</li>
- *   <li>LABEL_TYPE_CD 는 BBOX / POLYGON / POINT 중 하나 (DTO 검증).</li>
+ *   <li>LBL_TYPE_CD 는 BBOX / POLYGON / POINT 중 하나 (DTO 검증).</li>
  *   <li>SORT_SEQ 는 목록 정렬용 (ASC).</li>
  * </ul>
  */
 @Entity
 @Table(name = "LS_LABEL", uniqueConstraints = {
-        @UniqueConstraint(name = "UK_LS_LABEL_NAME", columnNames = {"LABEL_NM"})
+        @UniqueConstraint(name = "UK_LS_LABEL_NAME", columnNames = {"LBL_NM"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -40,16 +40,16 @@ public class LsLabel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "LABEL_ID")
+    @Column(name = "LBL_ID")
     private Long labelId;
 
-    @Column(name = "LABEL_NM", nullable = false, length = 64)
+    @Column(name = "LBL_NM", nullable = false, length = 64)
     private String labelNm;
 
     @Column(name = "COLR_VL", nullable = false, length = 7)
     private String colrVl;
 
-    @Column(name = "LABEL_TYPE_CD", nullable = false, length = 16)
+    @Column(name = "LBL_TYPE_CD", nullable = false, length = 16)
     private String labelTypeCd;
 
     @Column(name = "SORT_SEQ", nullable = false)

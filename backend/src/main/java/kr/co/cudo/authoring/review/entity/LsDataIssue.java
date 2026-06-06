@@ -77,7 +77,7 @@ public class LsDataIssue {
     private Long srcSn;
 
     @Version
-    @Column(name = "VERSION", nullable = false)
+    @Column(name = "VER", nullable = false)
     private Long version;
 
     @Column(name = "REG_DT", nullable = false)

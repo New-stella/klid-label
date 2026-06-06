@@ -66,7 +66,7 @@ public class LsMarking {
     @Column(name = "STTS_CD", nullable = false, length = 16)
     private String sttsCd;
 
-    @Column(name = "CREATED_BY")
+    @Column(name = "REG_USER_NO")
     private Long createdBy;
 
     @Column(name = "REG_DT", nullable = false)

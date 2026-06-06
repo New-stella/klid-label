@@ -37,7 +37,7 @@ public class LsDataSrc {
     @Column(name = "RAW_SN", nullable = false)
     private Long rawSn;
 
-    @Column(name = "FRAME_NO", nullable = false)
+    @Column(name = "FRM_NO", nullable = false)
     private Integer frameNo;
 
     @Column(name = "SRC_FILE_PATH_NM", nullable = false, length = 500)

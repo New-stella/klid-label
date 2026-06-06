@@ -51,7 +51,7 @@ public class LsRawDataStatus {
      * 동시 두 REVIEWER 가 같은 영상을 승인 시도할 때 1건만 성공 → 다른 1건은 OptimisticLockException.
      */
     @Version
-    @Column(name = "VERSION", nullable = false)
+    @Column(name = "VER", nullable = false)
     private Long version;
 
     @Builder

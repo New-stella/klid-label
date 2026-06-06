@@ -43,13 +43,13 @@ public class LsTaskEventLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "EVENT_SEQ")
+    @Column(name = "EVNT_ID")
     private Long eventSeq;
 
     @Column(name = "RAW_DATA_ID", nullable = false)
     private Long rawDataId;
 
-    @Column(name = "EVENT_TYPE_CD", nullable = false, length = 32)
+    @Column(name = "EVNT_TYPE_CD", nullable = false, length = 32)
     private String eventTypeCd;
 
     @Column(name = "ACTOR_USER_NO", nullable = false)

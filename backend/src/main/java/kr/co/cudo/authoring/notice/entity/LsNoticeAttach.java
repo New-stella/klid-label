@@ -48,7 +48,7 @@ public class LsNoticeAttach {
     @Column(name = "FILE_PATH", nullable = false, length = 500)
     private String filePath;
 
-    @Column(name = "FILE_SIZE", nullable = false)
+    @Column(name = "FILE_SZ", nullable = false)
     private Long fileSize;
 
     @Column(name = "REG_DT", nullable = false, updatable = false)

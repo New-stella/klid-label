@@ -256,7 +256,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 ### 외부 API 연동
 - 비식별·ai-server·VLM — **Resilience4j로 타임아웃/재시도/서킷 브레이커 적용 필수**
-- 비식별 API 실패 시 영상 상태 `DE_IDNTF_YN='F'`로 마킹 + 재시도 큐. 원본 절대 삭제 금지
+- 비식별 API 실패 시 영상 상태 `DE_IDENT_YN='F'`로 마킹 + 재시도 큐. 원본 절대 삭제 금지
 - 관제서버 세션 토큰은 저작도구가 발급하지 않음 — 검증 실패 시 관제서버 로그인 페이지로 리다이렉트
 - 관제/포털 양방향 통합 API 및 외부 학습데이터 API는 deprecated — 재구축 전까지 미연동
 - **관제서버 통지 + 조회 API**: `ControlNotifyClient`가 `TASK_COMPLETED`·`TASK_MODIFIED` 통지를 영상 단위로 송신(수정 요약만, 본문 미포함) — 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 적용. 관제서버는 통지 수신 후 저작도구 API를 호출하여 상세 데이터 조회. 단방향 outbound 통지 + inbound 조회 API 제공, 양방향 M2M 인증은 여전히 deprecated
@@ -269,7 +269,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 ### 개인정보 보호
 - 영상 암호화 저장, 로그에 개인정보·토큰 출력 금지 (Logback MaskingPatternLayout)
 - 비식별 처리 이력은 영상 단위로 기록
-- **비식별 누락 신고** (R1 v1.14 수동 흐름): 작업자가 개인정보 노출을 발견하면 신고 → 작업락 + **해당 영상(rawSn) 전체 라벨 삭제**(삭제 전 `LS_LABEL_VERSION`에 `SAVE_REASON='DEIDENT_REPORT'` 비활성 스냅샷 + `LS_DATA_LBL_HSTRY` 이력 보존) + `DE_IDNTF_YN='F'`. 자동 재비식별 큐는 폐기 — 작업자/검수자가 **외부 솔루션으로 수동 비식별화** 후 `POST /v1/deident-reports/{rprtSn}/resolve`(WORKER 본인 배정/REVIEWER 전체)로 OPEN→RESOLVED 전이 + 작업락 해제. APPROVED 영상 신고 시 `TASK_MODIFIED` 통지 발행. **마킹 단계**(rawSn 기준, `POST /v1/videos/{rawSn}/deident-report` — 설계 타깃/planned) + **라벨링 단계**(srcSn 기준, `POST /v1/labels/{srcSn}/deident-report` — 구현됨) 양쪽 가능. 적재 테이블 `LS_DEIDENT_REPORT`
+- **비식별 누락 신고** (R1 v1.14 수동 흐름): 작업자가 개인정보 노출을 발견하면 신고 → 작업락 + **해당 영상(rawSn) 전체 라벨 삭제**(삭제 전 `LS_LABEL_VERSION`에 `SAVE_REASON='DEIDENT_REPORT'` 비활성 스냅샷 + `LS_DATA_LBL_HSTRY` 이력 보존) + `DE_IDENT_YN='F'`. 자동 재비식별 큐는 폐기 — 작업자/검수자가 **외부 솔루션으로 수동 비식별화** 후 `POST /v1/deident-reports/{rprtSn}/resolve`(WORKER 본인 배정/REVIEWER 전체)로 OPEN→RESOLVED 전이 + 작업락 해제. APPROVED 영상 신고 시 `TASK_MODIFIED` 통지 발행. **마킹 단계**(rawSn 기준, `POST /v1/videos/{rawSn}/deident-report` — 설계 타깃/planned) + **라벨링 단계**(srcSn 기준, `POST /v1/labels/{srcSn}/deident-report` — 구현됨) 양쪽 가능. 적재 테이블 `LS_DEIDENT_REPORT`
 
 ### 배치 성능
 - Spring Boot + Quartz는 **단일 인스턴스 서비스** 배포 (Docker/Pod 미사용, Quartz 클러스터 미적용)

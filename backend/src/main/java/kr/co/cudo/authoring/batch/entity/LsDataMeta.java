@@ -53,18 +53,18 @@ public class LsDataMeta {
      * Phase 4 비동기 표준 컬럼 — webhook 인계 원래 위탁 요청 식별자.
      * UNIQUE 제약 (uk_meta_idempotency_key) — 동시 인계 race 차단.
      */
-    @Column(name = "IDEMPOTENCY_KEY", length = 64)
+    @Column(name = "IDMP_KEY", length = 64)
     private String idempotencyKey;
 
     /**
      * Phase 4 비동기 표준 컬럼 — 외부 시스템 작업 ID.
      * UNIQUE 제약 (uk_meta_external_job_id).
      */
-    @Column(name = "EXTERNAL_JOB_ID", length = 128)
+    @Column(name = "OTSD_JOB_ID", length = 128)
     private String externalJobId;
 
     /** Phase 4 비동기 표준 컬럼 — 재시도 횟수. */
-    @Column(name = "RETRY_COUNT", nullable = false)
+    @Column(name = "RTRY_NMTM", nullable = false)
     private int retryCount;
 
     /** Phase 4 비동기 표준 컬럼 — 영구 실패(dead-letter) 마킹 시점. */

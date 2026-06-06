@@ -31,7 +31,7 @@ public class LsDeidentProcLog {
      * 외부 시스템(Deidentify SW)의 작업 ID — Phase 2 보강 (DEV_FIX H-3).
      * UNIQUE 제약으로 동일 externalJobId 재인계 시 upsert 단일 row 갱신을 보장한다.
      */
-    @Column(name = "EXTERNAL_JOB_ID", length = 128)
+    @Column(name = "OTSD_JOB_ID", length = 128)
     private String externalJobId;
 
     @Column(name = "ORGNL_FILE_PATH_NM", length = 1000, nullable = false)
@@ -49,10 +49,10 @@ public class LsDeidentProcLog {
     @Column(name = "RES_DT")
     private LocalDateTime resDt;
 
-    @Column(name = "ERROR_CD", length = 50)
+    @Column(name = "ERR_CD", length = 50)
     private String errorCd;
 
-    @Column(name = "ERROR_MSG", length = 1000)
+    @Column(name = "ERR_MSG_CN", length = 1000)
     private String errorMsg;
 
     @Column(name = "REG_ID", length = 30)

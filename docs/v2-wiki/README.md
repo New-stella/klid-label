@@ -48,7 +48,7 @@
 | 작업 단위(영상 1건, RAW_SN) | [01](01-system-overview.md) |
 | 마킹 (자동=프레임간격 / 수동=Space·Del·Enter) | [06](06-marking.md) |
 | 배치 파이프라인 순서 | [07](07-batch-pipeline.md) |
-| 비식별화 / 누락 신고 (DE_IDNTF_YN='F') | [08](08-deidentification.md) |
+| 비식별화 / 누락 신고 (DE_IDENT_YN='F') | [08](08-deidentification.md) |
 | 비식별 솔루션(KPST) API 명세·폴링 흐름 | [22](22-deid-solution-api.md) |
 | VLM 시계열 메타 검수 | [09](09-vlm-timeseries.md) |
 | 라벨링 도구 (bbox/polygon/mask) | [10](10-labeling.md) |

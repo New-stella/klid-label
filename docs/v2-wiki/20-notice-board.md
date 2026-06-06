@@ -33,7 +33,7 @@ PUBLISHED --unpublish()--> DRAFT (PUB_DT=null)
 ```
 
 - publish/unpublish는 **멱등** — 이미 해당 상태면 no-op (재발행해도 PUB_DT 불변)
-- 목록 정렬: **고정(PIN_YN) 우선 → 최신순 → PK** (`PIN_YN DESC, REG_DT DESC, NOTICE_SN DESC` — 결정론적 페이징)
+- 목록 정렬: **고정(UPEND_FIX_YN) 우선 → 최신순 → PK** (`UPEND_FIX_YN DESC, REG_DT DESC, NOTICE_SN DESC` — 결정론적 페이징)
 
 ## 20.4 API (`/v1/notices`)
 
@@ -71,7 +71,7 @@ PUBLISHED --unpublish()--> DRAFT (PUB_DT=null)
 
 | 테이블 | 주요 컬럼 |
 |--------|----------|
-| `LS_NOTICE` | NOTICE_SN(PK), NOTICE_TITLE(200), NOTICE_CN(TEXT), PIN_YN, PUB_STTS_CD(DRAFT/PUBLISHED), PUB_DT, REG_ID/REG_DT, MDFR_ID/MDFCN_DT. INDEX(PUB_STTS_CD, PIN_YN, REG_DT DESC) |
+| `LS_NOTICE` | NOTICE_SN(PK), NOTICE_TITLE(200), NOTICE_CN(TEXT), UPEND_FIX_YN, PUB_STTS_CD(DRAFT/PUBLISHED), PUB_DT, REG_ID/REG_DT, MDFR_ID/MDFCN_DT. INDEX(PUB_STTS_CD, UPEND_FIX_YN, REG_DT DESC) |
 | `LS_NOTICE_ATTACH` | ATTACH_SN(PK), NOTICE_SN(FK ON DELETE CASCADE), ORGNL_FILE_NM, STORE_FILE_NM(UUID), FILE_PATH, FILE_SIZE, REG_DT |
 
 ## 20.7 화면 (FE)
@@ -91,7 +91,7 @@ PUBLISHED --unpublish()--> DRAFT (PUB_DT=null)
 | 항목 | v1 (`LS_NTC_BBS`) | v2 |
 |------|-------------------|-----|
 | 상태 | 게시 여부 | DRAFT/PUBLISHED 명시 전이 + 멱등 발행 |
-| 고정 | 상단 고정 | PIN_YN (정렬 1순위) |
+| 고정 | 상단 고정 | UPEND_FIX_YN (정렬 1순위) |
 | 첨부 | 첨부 지원 | allowlist + UUID + 경로검증 강화 |
 | 권한 | 관리자 작성 | REVIEWER 작성 / WORKER 열람 (역할 단일화 정합) |
 | 연습장 | 게시판과 세트 | **미구현** (별도 검토 후보 잔존) |

@@ -24,13 +24,13 @@ import java.time.LocalDateTime;
 public class LsSystemConfig {
 
     @Id
-    @Column(name = "CONFIG_KEY", length = 100, nullable = false)
+    @Column(name = "STNG_KEY", length = 100, nullable = false)
     private String configKey;
 
-    @Column(name = "CONFIG_VL", length = 500)
+    @Column(name = "STNG_VALUE", length = 500)
     private String configVl;
 
-    @Column(name = "CONFIG_TYPE_CD", length = 20, nullable = false)
+    @Column(name = "STNG_TYPE_CD", length = 20, nullable = false)
     private String configTypeCd;
 
     @Column(name = "EXPLN", length = 500)

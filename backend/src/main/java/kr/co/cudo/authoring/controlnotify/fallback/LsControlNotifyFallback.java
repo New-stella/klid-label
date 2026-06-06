@@ -51,7 +51,7 @@ public class LsControlNotifyFallback {
     @Column(name = "IDMP_KEY", length = 64, nullable = false, unique = true)
     private String idmpKey;
 
-    @Column(name = "EVENT_TYPE_CD", length = 32, nullable = false)
+    @Column(name = "EVNT_TYPE_CD", length = 32, nullable = false)
     private String eventTypeCd;
 
     @Column(name = "RAW_SN", nullable = false)
@@ -60,16 +60,16 @@ public class LsControlNotifyFallback {
     @Column(name = "PAYLOAD_CN", columnDefinition = "TEXT", nullable = false)
     private String payloadCn;
 
-    @Column(name = "RTRY_CNT", nullable = false)
+    @Column(name = "RTRY_NMTM", nullable = false)
     private int rtryCnt;
 
-    @Column(name = "MAX_RTRY_CNT", nullable = false)
+    @Column(name = "MAX_RTRY_NMTM", nullable = false)
     private int maxRtryCnt;
 
     @Column(name = "STTS_CD", length = 16, nullable = false)
     private String sttsCd;
 
-    @Column(name = "LAST_ERR_MSG", length = 2000)
+    @Column(name = "LAST_ERR_MSG_CN", length = 2000)
     private String lastErrMsg;
 
     @Column(name = "NEXT_RTRY_DT")

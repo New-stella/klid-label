@@ -55,7 +55,7 @@ public class LsDataRaw {
     @Column(name = "PRVC_YN", nullable = false, length = 1)
     private String prvcYn;
 
-    @Column(name = "DE_IDNTF_YN", nullable = false, length = 1)
+    @Column(name = "DE_IDENT_YN", nullable = false, length = 1)
     private String deIdntfYn;
 
     @Column(name = "RAW_FILE_PATH_NM", nullable = false, length = 500)
@@ -64,7 +64,7 @@ public class LsDataRaw {
     @Column(name = "SHT_DT")
     private LocalDateTime shtDt;
 
-    @Column(name = "DURATION_SEC")
+    @Column(name = "VDO_LEN_SEC")
     private Integer durationSec;
 
     @Column(name = "PARENT_RAW_SN")

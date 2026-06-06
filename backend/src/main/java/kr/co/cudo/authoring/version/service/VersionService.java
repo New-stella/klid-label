@@ -50,7 +50,7 @@ import java.util.Optional;
  * 라벨 버전관리 (DB 스냅샷 기반).
  *
  * <p>운영 제약상 외부 버전관리 서버를 둘 수 없어 라벨 버전/이력을 DB({@link LsLabelVersion}) 에만 저장한다.
- * 각 버전은 라벨 전체 JSON 스냅샷({@code LABEL_PAYLOAD}) 과 그 SHA-256({@code VERSION_HASH}) 을 보관하며,
+ * 각 버전은 라벨 전체 JSON 스냅샷({@code LBL_PAYLOAD}) 과 그 SHA-256({@code VERSION_HASH}) 을 보관하며,
  * diff/rollback 은 모두 이 스냅샷을 BE 에서 직접 파싱·비교하여 계산한다.
  *
  * <p><b>버전 스냅샷 생성 트리거(SFR-08):</b> 학습데이터 버전관리는 <b>검수 완료(APPROVED) 단위</b>에 적용된다.
@@ -198,7 +198,7 @@ public class VersionService {
      * 비식별 누락 신고로 영상 전체 라벨을 삭제하기 직전에, 복원 가능한 전체 라벨 스냅샷을 기록한다(R1 v1.14).
      *
      * <p>기존 {@code LS_DATA_LBL_HSTRY} 는 LBL_SN/SRC_SN/REGISTERED_AT 만 보유하여 좌표 복원이 불가하므로,
-     * 영상 단위 라벨 전체를 JSON 스냅샷({@code LABEL_PAYLOAD})으로 직렬화해 {@link LsLabelVersion} 에
+     * 영상 단위 라벨 전체를 JSON 스냅샷({@code LBL_PAYLOAD})으로 직렬화해 {@link LsLabelVersion} 에
      * {@code SAVE_REASON_CD='DEIDENT_REPORT'}, {@code ACTIVE_YN='N'} 로 적재한다.
      *
      * <p>정책:
@@ -252,7 +252,7 @@ public class VersionService {
     /**
      * 두 버전(versionHash) 간 라벨 단위 diff.
      *
-     * <p>각 버전의 {@code LABEL_PAYLOAD} 를 파싱하여 라벨 단위 ADDED/REMOVED/MODIFIED 를 계산한다.
+     * <p>각 버전의 {@code LBL_PAYLOAD} 를 파싱하여 라벨 단위 ADDED/REMOVED/MODIFIED 를 계산한다.
      * 두 버전이 같은 프레임(srcSn)일 때만 의미 있으므로 다른 경우 빈 결과를 반환한다.
      */
     public DiffResponseDto diff(String fromHash, String toHash, TokenClaims actor) {

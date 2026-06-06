@@ -20,9 +20,9 @@
 ### 영상 · 프레임 · 라벨
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDNTF_YN, PARENT_RAW_SN) | [05](05-video-management.md) |
+| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, PARENT_RAW_SN) | [05](05-video-management.md) |
 | `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
-| `LS_DATA_SRC` (V4) | 추출 프레임 (FRAME_NO, 원본/비식별 경로) | [07](07-batch-pipeline.md) |
+| `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로) | [07](07-batch-pipeline.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |
 | `LS_DATA_LBL` (V4) | 라벨 (좌표·트랙ID·LABEL_NM, 작업 중 임시저장) | [10](10-labeling.md) |
 | `LS_DATA_LBL_AI_INFO` (V23) | AI 라벨 출처(YOLO/SAM2/VLM)·신뢰도 CONF_SCORE | [11](11-ai-assisted.md) |
@@ -34,7 +34,7 @@
 | `LS_LABEL` (V31) | 라벨 마스터 (LABEL_NM, COLR_VL, LABEL_TYPE_CD) | [10](10-labeling.md) |
 | `LS_LABEL_ATTR` (V33) | 라벨 속성 정의 (INPUT_TYPE_CD, MUTABLE_YN) | [10](10-labeling.md) |
 | `LS_LABEL_PRESET` / `LS_LABEL_PRESET_CODE` (V13) | 프리셋 마스터 / 라벨 코드 | [10](10-labeling.md) |
-| `LS_LABEL_VERSION` (V24) | 라벨 버전 스냅샷 (VERSION_HASH, SAVE_REASON_CD, ACTIVE_YN) | [13](13-version-control.md) |
+| `LS_LABEL_VERSION` (V24) | 라벨 버전 스냅샷 (VERSION_HASH, SAVE_REASON_CD, ACTVTN_YN) | [13](13-version-control.md) |
 | `LS_DATA_LBL_HSTRY` | 라벨 변경 이력 | [13](13-version-control.md) |
 
 ### 메타 · 마킹
@@ -64,7 +64,7 @@
 | `LS_WEBHOOK_IDEMPOTENCY` (V39) | 웹훅 멱등성 | [19](19-external-security-cvat.md) |
 | `LS_CONTROL_NOTIFY_FALLBACK` (V44) / `LS_GITEA_FALLBACK_QUEUE` (V41) | 통지 / Gitea 실패 재시도 | [15](15-control-notify.md)·[13](13-version-control.md) |
 | `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 | [16](16-portal.md) |
-| `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, PIN_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
+| `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, UPEND_FIX_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
 | `LS_TUS_UPLOAD` (V59) | TUS 1.0 재개 가능 업로드 세션 — `UPLOAD_ID`(UUID PK)/`USER_NO`(소유자)/`UPLOAD_LENGTH`/`UPLOAD_OFFSET`(예약어 OFFSET 회피)/`STATUS`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPIRES_AT`(+24h TTL)/`VERSION`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
 | `LS_DATA_ISSUE` (V5) / `LS_DATA_SET` (V8) / `LS_DEADLINE`·`LS_META` (V36) | 품질 이슈 / 데이터셋 / 데드라인·전역 메타 | — |
 

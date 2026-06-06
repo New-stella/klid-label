@@ -88,7 +88,7 @@ public class LsDataAug {
     private String externalJobId;
 
     /** Phase 4 비동기 표준 컬럼 — 재시도 횟수. */
-    @Column(name = "RETRY_COUNT", nullable = false)
+    @Column(name = "RTRY_NMTM", nullable = false)
     private int retryCount;
 
     /** Phase 4 비동기 표준 컬럼 — 영구 실패(dead-letter) 마킹 시점. */

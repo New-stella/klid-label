@@ -65,14 +65,14 @@ public class LsDataLbl {
      *  - 외부 시스템에서 INSERT 된 자유 텍스트 라벨 (Phase 4 이후 정리)
      * <p>FK 강제는 Phase 4 (AutoLabel preset 매핑) 완료 후 별도 마이그레이션으로 NOT NULL 검토.
      */
-    @Column(name = "LABEL_ID")
+    @Column(name = "LBL_ID")
     private Long labelId;
 
     /**
      * LS_LABEL FK 도입(V32) 이후 labelId 사용 권장.
      * 호환 위해 유지. 응답에서는 LS_LABEL.LABEL_NM (labelName) 을 우선 노출.
      */
-    @Column(name = "LABEL_NM", nullable = false, length = 255)
+    @Column(name = "LBL_NM", nullable = false, length = 255)
     private String labelNm;
 
     // MariaDB → PostgreSQL: @Lob + String 은 PG 에서 large object(oid/CLOB) 타입으로 매핑되어

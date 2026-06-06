@@ -47,7 +47,7 @@ public class LsLabelAttr {
     @Column(name = "ATTR_ID")
     private Long attrId;
 
-    @Column(name = "LABEL_ID", nullable = false)
+    @Column(name = "LBL_ID", nullable = false)
     private Long labelId;
 
     @Column(name = "ATTR_NM", nullable = false, length = 64)

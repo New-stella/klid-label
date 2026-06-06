@@ -50,7 +50,7 @@ public class LsAuthWorkLock {
     @Column(name = "LOCK_DT", nullable = false)
     private LocalDateTime lockDt;
 
-    @Column(name = "EXPIRE_DT")
+    @Column(name = "EXPD_DT")
     private LocalDateTime expireDt;
 
     @Column(name = "RELEASE_DT")
