@@ -18,6 +18,8 @@ interface DarkFrameStripProps {
   onSelect: (index: number) => void;
   /** 검수 시점 이슈 표시용 frameNo 집합 */
   issueFrameNos?: Set<number>;
+  /** R16 — 포털 모드면 썸네일도 포털 전용 이미지 엔드포인트로 fetch (내부 API 403 회피). */
+  portalMode?: boolean;
 }
 
 interface FrameThumbnailProps {
@@ -27,6 +29,7 @@ interface FrameThumbnailProps {
   isSelected: boolean;
   hasIssue: boolean;
   onSelect: (index: number) => void;
+  portalMode?: boolean;
 }
 
 /**
@@ -40,8 +43,9 @@ function FrameThumbnail({
   isSelected,
   hasIssue,
   onSelect,
+  portalMode,
 }: FrameThumbnailProps) {
-  const { url } = useImageBlob(srcSn);
+  const { url } = useImageBlob(srcSn, { portalMode });
   return (
     <button
       type="button"
@@ -85,6 +89,7 @@ export function DarkFrameStrip({
   currentIndex,
   onSelect,
   issueFrameNos,
+  portalMode,
 }: DarkFrameStripProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -125,6 +130,7 @@ export function DarkFrameStrip({
           isSelected={idx === currentIndex}
           hasIssue={issueFrameNos?.has(f.frameNo) ?? false}
           onSelect={onSelect}
+          portalMode={portalMode}
         />
       ))}
     </div>

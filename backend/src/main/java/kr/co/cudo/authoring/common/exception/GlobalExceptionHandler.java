@@ -7,6 +7,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -63,6 +65,30 @@ public class GlobalExceptionHandler {
         log.warn("[Exception] message not readable cause={}", e.getMostSpecificCause().getClass().getSimpleName());
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT, "요청 본문이 올바르지 않습니다."));
+    }
+
+    /**
+     * 필수 @RequestParam 누락 시 400 으로 정규화한다 (R16).
+     * 이 핸들러가 없으면 Exception.class 가 잡아 500 으로 응답되어 FE 가 입력 누락을 장애로 오인한다.
+     * (CWE-209 가드 — 파라미터명만 노출, 내부 상세 비노출.)
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException e) {
+        log.warn("[Exception] missing request param name={}", e.getParameterName());
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
+                .body(ApiResponse.error(ErrorCode.INVALID_INPUT, "필수 파라미터가 누락되었습니다: " + e.getParameterName()));
+    }
+
+    /**
+     * @RequestParam / @PathVariable 타입 불일치 (예: Long 자리에 문자열) 시 400 으로 정규화한다 (R16).
+     * 이 핸들러가 없으면 Exception.class 가 잡아 500 으로 응답된다.
+     * (CWE-209 가드 — 사용자 입력 원문/타입 내부 상세를 메시지에 노출하지 않는다.)
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        log.warn("[Exception] type mismatch param={}", e.getName());
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
+                .body(ApiResponse.error(ErrorCode.INVALID_INPUT, "파라미터 형식이 올바르지 않습니다: " + e.getName()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

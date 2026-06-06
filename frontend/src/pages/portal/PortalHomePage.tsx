@@ -48,10 +48,14 @@ export function PortalHomePage() {
               라벨링 필요{' '}
               <span className="font-semibold text-orange-600">{pendingCount}건</span>
             </p>
+            {/* WCAG 2.1.1 키보드 접근성: 데이터마트 목록 엔드포인트 미도입으로 진입 대상이
+                없어 비활성이지만, native `disabled` 는 Tab 순서에서 제거되어 본문 키보드 도달이
+                막힌다(R5 지적). `aria-disabled` 로 포커스 순서는 유지하되 활성화만 차단한다. */}
             <button
               type="button"
-              disabled
-              className="mt-auto flex w-full items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-sub font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-disabled
+              onClick={(e) => e.preventDefault()}
+              className="mt-auto flex w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-sub font-medium text-white opacity-50 transition-colors aria-disabled:hover:bg-orange-500"
             >
               <Play className="h-3.5 w-3.5" aria-hidden />
               시작하기 ▶

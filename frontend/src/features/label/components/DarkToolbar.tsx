@@ -21,6 +21,12 @@ import { ToolType } from '../types';
 
 interface DarkToolbarProps {
   onSave: () => void;
+  /**
+   * R17 이슈3 / ADR-013 — 포털 모드에서는 SAM2 분할/추적 도구를 미노출.
+   * 포털은 데이터마트 영상 간편 라벨링 전용으로 오토라벨링(SAM2/YOLO)을 제공하지 않으며,
+   * 내부 /frames/{id}/sam2-* 엔드포인트도 PORTAL 채널 403 이다.
+   */
+  portalMode?: boolean;
 }
 
 interface ToolItem {
@@ -45,7 +51,7 @@ interface DividerItem {
 
 type Item = ToolItem | ActionItem | DividerItem;
 
-export function DarkToolbar({ onSave }: DarkToolbarProps) {
+export function DarkToolbar({ onSave, portalMode = false }: DarkToolbarProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
   const undo = useLabelStore((s) => s.undo);
@@ -60,8 +66,13 @@ export function DarkToolbar({ onSave }: DarkToolbarProps) {
     { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: '선택', shortcut: 'S' },
     { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩박스', shortcut: 'B' },
     { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: '폴리곤', shortcut: 'P' },
-    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: 'G' },
-    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: 'T' },
+    // R17 이슈3 — SAM2 분할/추적은 포털 모드에서 제외 (ADR-013)
+    ...(portalMode
+      ? []
+      : ([
+          { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: 'G' },
+          { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: 'T' },
+        ] as Item[])),
     { kind: 'divider' },
     { kind: 'action', icon: Trash2, label: '삭제', shortcut: 'Del', action: handleDelete },
     { kind: 'action', icon: RotateCcw, label: '실행취소', shortcut: 'Ctrl+Z', action: undo },

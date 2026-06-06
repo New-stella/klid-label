@@ -42,6 +42,7 @@ class PortalUserLabelServiceTest {
     @Mock LsDataLblRepository lblRepository;
     @Mock LsDataSrcRepository srcRepository;
     @Mock LsPortalUserLabelRepository userLabelRepository;
+    @Mock kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository rawDataStatusRepository;
 
     private PortalLabelService service;
 
@@ -52,7 +53,8 @@ class PortalUserLabelServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository);
+        service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
+                rawDataStatusRepository, new com.fasterxml.jackson.databind.ObjectMapper());
 
         when(userLabelRepository.save(any(LsPortalUserLabel.class))).thenAnswer(inv -> {
             LsPortalUserLabel e = inv.getArgument(0);
@@ -106,11 +108,28 @@ class PortalUserLabelServiceTest {
         assertThat(resp.sourceRawSn()).isEqualTo(100L);
         assertThat(resp.sourceSrcSn()).isEqualTo(10L);
         assertThat(resp.lblTypeCd()).isEqualTo("BBOX");
+        // R16 — 저장 응답에 points 직렬화 누락 회귀 방지: 요청 points 가 응답에 그대로 채워져야 한다.
+        assertThat(resp.points()).isEqualTo("[1,2,3,4]");
+        assertThat(resp.label()).isEqualTo("person");
 
         ArgumentCaptor<LsPortalUserLabel> captor = ArgumentCaptor.forClass(LsPortalUserLabel.class);
         verify(userLabelRepository).save(captor.capture());
         assertThat(captor.getValue().getPortalUserNo()).isEqualTo("alice");
         verify(lblRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("R17_사용자_라벨_저장_빈_좌표_JSON_시_INVALID_INPUT_빈라벨row_차단")
+    void saveUserLabel_emptyPoints_rejected() {
+        // given: points 가 빈 좌표 배열('[]') — 검증 우회로 빈 라벨 row 가 생기던 회귀
+        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[]");
+
+        // when/then: INVALID_INPUT 으로 거부, 저장 미수행 (fail-closed)
+        assertThatThrownBy(() -> service.saveUserLabel(req, alice))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+        verify(userLabelRepository, never()).save(any());
     }
 
     @Test

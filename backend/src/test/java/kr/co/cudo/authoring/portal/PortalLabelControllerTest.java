@@ -62,4 +62,50 @@ class PortalLabelControllerTest {
                         .header("Authorization", "Bearer " + reviewerInternalToken))
                 .andExpect(status().is(org.hamcrest.Matchers.not(org.hamcrest.Matchers.equalTo(403))));
     }
+
+    // ─── R16: 포털 프레임 이미지 채널 격리 + 파라미터 검증 ───
+
+    @Test
+    @DisplayName("포털_프레임_이미지_INTERNAL_채널_토큰_403")
+    void portalImageBlockedFromInternalChannel() throws Exception {
+        // /v1/portal/frames/{srcSn}/image 는 PORTAL 채널 + PORTAL_USER 만.
+        // INTERNAL 채널 REVIEWER 토큰은 채널 불일치 → 403.
+        mockMvc.perform(get("/v1/portal/frames/9999/image")
+                        .header("Authorization", "Bearer " + reviewerInternalToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("포털_프레임_이미지_PORTAL_토큰은_비403_프레임미존재시_404")
+    void portalImageAllowedForPortalChannel() throws Exception {
+        // PORTAL 채널 통과 — 프레임 미존재이므로 404 (비-403). 채널 격리가 막지 않음을 확인.
+        mockMvc.perform(get("/v1/portal/frames/9999/image")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().is(org.hamcrest.Matchers.not(org.hamcrest.Matchers.equalTo(403))));
+    }
+
+    @Test
+    @DisplayName("포털_데이터마트_라벨_rawSn_누락시_400")
+    void datamartLabels_missingRawSn_400() throws Exception {
+        mockMvc.perform(get("/v1/portal/datamart/labels")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("포털_데이터마트_라벨_rawSn_타입불일치시_400")
+    void datamartLabels_invalidRawSn_400() throws Exception {
+        mockMvc.perform(get("/v1/portal/datamart/labels")
+                        .param("rawSn", "not-a-number")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("포털_사용자라벨_조회_rawSn_누락시_400")
+    void userLabels_missingRawSn_400() throws Exception {
+        mockMvc.perform(get("/v1/portal/user-labels")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isBadRequest());
+    }
 }

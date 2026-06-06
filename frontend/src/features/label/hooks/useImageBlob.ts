@@ -30,6 +30,11 @@ export interface UseImageBlobOptions {
    * 기본 false (DEID 우선, ANONY 폴백 / PRVC·PSDO 미준비 시 404).
    */
   raw?: boolean;
+  /**
+   * R16 — 포털 모드. true 면 내부 전용 /frames/{id}/image(403) 대신 포털 전용
+   * /portal/frames/{id}/image 로 비식별 프레임 이미지를 요청한다.
+   */
+  portalMode?: boolean;
 }
 
 /**
@@ -46,6 +51,7 @@ export function useImageBlob(
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const raw = opts?.raw === true;
+  const portalMode = opts?.portalMode === true;
 
   useEffect(() => {
     if (srcSn === undefined || !Number.isFinite(srcSn)) {
@@ -62,12 +68,15 @@ export function useImageBlob(
 
     // raw=true 일 때만 쿼리 파라미터 첨부. 미지정/false 는 axios config 에 params 자체를 넣지 않아
     // 기존 동작(쿼리 없음)을 그대로 유지 — 테스트의 'raw 미지정' 케이스 보장.
-    const config = raw
-      ? { responseType: 'blob' as const, params: { raw: true } }
-      : { responseType: 'blob' as const };
+    const config =
+      raw && !portalMode
+        ? { responseType: 'blob' as const, params: { raw: true } }
+        : { responseType: 'blob' as const };
+    // R16 — 포털 모드는 포털 전용 이미지 엔드포인트 (내부 /frames/{id}/image 는 PORTAL 채널 403)
+    const path = portalMode ? `/portal/frames/${srcSn}/image` : `/frames/${srcSn}/image`;
 
     apiClient
-      .get<Blob>(`/frames/${srcSn}/image`, config)
+      .get<Blob>(path, config)
       .then((res) => {
         if (cancelled) return;
         const blob = res.data as unknown as Blob;
@@ -88,7 +97,7 @@ export function useImageBlob(
         URL.revokeObjectURL(createdUrl);
       }
     };
-  }, [srcSn, raw]);
+  }, [srcSn, raw, portalMode]);
 
   return { url, loading, error };
 }

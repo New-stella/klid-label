@@ -36,7 +36,7 @@ export interface CommitResponse {
  *
  * 이미 FE 형태로 들어오는 응답(테스트/구버전)은 그대로 통과.
  */
-function normalizeLabel(raw: any): Label {
+export function normalizeLabel(raw: any): Label {
   const id = raw?.id !== undefined && raw?.id !== null ? String(raw.id) : '';
 
   // 이미 정규화된 형태면 id만 string 캐스팅하여 반환

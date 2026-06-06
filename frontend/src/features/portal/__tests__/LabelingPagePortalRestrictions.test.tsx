@@ -33,6 +33,8 @@ const labelsPayload = {
   data: {
     frameNo: 1,
     srcSn: 555,
+    videoId: 5,
+    siblings: [{ srcSn: 555, frameNo: 1 }],
     labels: [],
   },
   message: null,
@@ -48,7 +50,9 @@ describe('포털 채널 라벨링 미노출', () => {
       token: 'tok',
       claims: { sub: 'u-99', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
     });
-    mock.onGet('/frames/555/labels').reply(200, labelsPayload);
+    // R16 — 포털 모드는 포털 전용 엔드포인트만 호출
+    mock.onGet('/portal/frames/555/labels').reply(200, labelsPayload);
+    mock.onGet('/portal/frames/555/image').reply(200, new Blob([new Uint8Array([1])]));
     // 시계열 메타 패널이 데이터를 받으면 비동기로 렌더되는 경로까지 활성화 —
     // 포털 모드 가드가 없으면 패널이 결국 노출되므로, mock 을 제공해 회귀를 확실히 잡는다.
     mock.onGet(/\/frames\/\d+\/meta/).reply(200, {
@@ -98,5 +102,20 @@ describe('포털 채널 라벨링 미노출', () => {
     expect(screen.queryByText(/VLM/)).toBeNull();
     expect(screen.queryByText(/시계열 메타/)).toBeNull();
     expect(screen.queryByRole('tab', { name: /메타/ })).toBeNull();
+  });
+
+  // R17 이슈3 — 포털 캔버스 좌측 도구바에 SAM2 분할/추적 버튼 미노출 (ADR-013).
+  it('포털_라벨링_도구바_SAM2_분할_추적_버튼_미노출', async () => {
+    renderPortalLabel();
+    // 로딩 화면도 labeling-page testid 를 갖는다 → 도구바가 실제 렌더될 때까지(바운딩박스 버튼) 대기.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '바운딩박스' })).toBeInTheDocument(),
+    );
+    // 도구바는 aria-label 로 식별되는 버튼 — 포털 모드에서 SAM 분할/추적은 제외되어야 한다.
+    expect(screen.queryByRole('button', { name: 'SAM 분할' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'SAM 추적' })).toBeNull();
+    // 기본 도구(선택/바운딩박스/폴리곤)는 그대로 노출 — 회귀 가드.
+    expect(screen.getByRole('button', { name: '바운딩박스' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '폴리곤' })).toBeInTheDocument();
   });
 });

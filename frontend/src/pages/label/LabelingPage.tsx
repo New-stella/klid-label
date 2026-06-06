@@ -30,6 +30,7 @@ import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
+import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
 import type { FrameSummary } from '@/features/label/types';
 import { useSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { useReview } from '@/features/review/hooks/useReview';
@@ -87,11 +88,13 @@ export function LabelingPage() {
 
   const { data, isLoading, error } = useLabels(
     Number.isFinite(numericId) ? numericId : undefined,
+    portalMode,
   );
 
-  // BE 의 인증 보호된 /v1/frames/{srcSn}/image 를 axios 로 fetch → blob URL 발급.
+  // BE 의 인증 보호된 프레임 이미지 API 를 axios 로 fetch → blob URL 발급.
   // <img>/Image() 직접 호출은 Bearer 토큰 누락으로 401. CSP 의 img-src blob: 허용 활용.
-  const { url: imageBlobUrl } = useImageBlob(data?.srcSn);
+  // R16 — 포털 모드는 /portal/frames/{id}/image (내부 /frames/{id}/image 는 PORTAL 채널 403).
+  const { url: imageBlobUrl } = useImageBlob(data?.srcSn, { portalMode });
 
   const { mutate: submitForReview, isPending: submitting } = useSubmitReview({
     onSuccess: () => {
@@ -253,7 +256,16 @@ export function LabelingPage() {
   // 저장 (PUT + commit) — 단축키와 헤더 버튼 공유.
   // useUpdateLabels 훅이 PUT 성공 시 LABEL/VIDEO/ASSIGNMENT/REVIEW_KEYS 를 일괄 invalidate 하여
   // 프레임 전환·작업 목록 진행률이 최신 상태로 갱신되도록 한다.
-  const { mutateAsync: updateLabels, isPending: saving } = useUpdateLabels(currentFrame?.srcSn);
+  const { mutateAsync: updateInternalLabels, isPending: savingInternal } = useUpdateLabels(
+    currentFrame?.srcSn,
+  );
+  // R16 — 포털 저장은 원본 미수정, 본인 작업분을 LS_PORTAL_USER_LABEL 에 별도 적재.
+  const { mutateAsync: savePortalLabels, isPending: savingPortal } = useSavePortalLabels(
+    currentFrame?.srcSn,
+    data?.videoId,
+  );
+  const updateLabels = portalMode ? savePortalLabels : updateInternalLabels;
+  const saving = portalMode ? savingPortal : savingInternal;
   const handleSave = async () => {
     if (!currentFrame) return;
     if (isLocked) {
@@ -367,6 +379,38 @@ export function LabelingPage() {
         <div className="flex flex-col items-center gap-3">
           <Spinner label="라벨 로딩" />
           <p className="text-sm text-gray-300">라벨 로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // R17 이슈5 — 포털 모드에서 라벨 로드 403(미승인/미노출 영상) 시 graceful 차단 화면.
+  // 빈 캔버스 노출(데이터 없는 UI) 대신 명확한 안내 + 뒤로 가기. (FORBIDDEN 만 별도 처리,
+  // 그 외 에러는 기존 '라벨 조회 실패' 분기 유지.)
+  const isPortalForbidden =
+    portalMode &&
+    !!error &&
+    ((error as { status?: number }).status === 403 ||
+      (error as { errorCode?: string }).errorCode === 'FORBIDDEN');
+  if (isPortalForbidden) {
+    return (
+      <div
+        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        style={{ zIndex: 50 }}
+        data-testid="portal-forbidden-screen"
+      >
+        <div className="text-center">
+          <p className="text-lg font-semibold mb-2">접근할 수 없는 영상입니다</p>
+          <p className="text-sm text-gray-400 mb-4">
+            데이터마트에 노출되지 않은 영상이거나 접근 권한이 없습니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 bg-blue-600 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+          >
+            뒤로 가기
+          </button>
         </div>
       </div>
     );
@@ -508,7 +552,7 @@ export function LabelingPage() {
 
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
       <div className="flex flex-1 overflow-hidden">
-        <DarkToolbar onSave={handleSave} />
+        <DarkToolbar onSave={handleSave} portalMode={portalMode} />
         <LabelSidebar />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}
@@ -529,6 +573,7 @@ export function LabelingPage() {
                 width={canvasSize.width || 1280}
                 height={canvasSize.height || 720}
                 labels={labels}
+                readOnly={isLocked}
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
               />
             </Suspense>
@@ -622,13 +667,19 @@ export function LabelingPage() {
                 </div>
                 <ObjectAttributePanel
                   labels={labels}
-                  track={{
-                    srcSn: data?.srcSn,
-                    nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
-                    onTracked: () => {
-                      pushToast({ variant: 'success', message: 'SAM2 자동추적 완료' });
-                    },
-                  }}
+                  // R16/ADR-013 — 포털은 SAM2 오토 트래킹 미제공(내부 /frames/{id}/sam2-* 는 PORTAL 채널 403).
+                  // 포털 모드에서는 track 컨텍스트를 전달하지 않아 SAM2 자동추적 UI 자체를 미노출.
+                  track={
+                    portalMode
+                      ? undefined
+                      : {
+                          srcSn: data?.srcSn,
+                          nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
+                          onTracked: () => {
+                            pushToast({ variant: 'success', message: 'SAM2 자동추적 완료' });
+                          },
+                        }
+                  }
                 />
               </div>
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 포털 라벨링에는 미노출, 내부 채널만 렌더 */}
@@ -659,6 +710,7 @@ export function LabelingPage() {
             frames={frames}
             currentIndex={frameIdx}
             onSelect={jumpTo}
+            portalMode={portalMode}
           />
         </div>
         <div style={{ height: 60 }}>

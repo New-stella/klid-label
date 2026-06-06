@@ -9,14 +9,18 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
+import kr.co.cudo.authoring.portal.dto.PortalFrameLabelsResponse;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelResponse;
 import kr.co.cudo.authoring.portal.service.PortalLabelService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -78,6 +83,29 @@ public class PortalLabelController {
             @AuthenticationPrincipal TokenClaims actor) {
         requireActor(actor);
         return ApiResponse.ok(portalLabelService.listMyLabels(rawSn, actor));
+    }
+
+    @Operation(summary = "포털 프레임 라벨 Load (V2.0/R16)",
+            description = "프레임 단위 라벨 조회 — datamart 원본 + 본인 user-label 병합(본인 작업분 우선). PORTAL_USER 전용.")
+    @GetMapping("/frames/{srcSn}/labels")
+    @PreAuthorize("hasRole('PORTAL_USER')")
+    public ApiResponse<PortalFrameLabelsResponse> loadFrameLabels(
+            @PathVariable Long srcSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        requireActor(actor);
+        return ApiResponse.ok(portalLabelService.loadFrameLabels(srcSn, actor));
+    }
+
+    @Operation(summary = "포털 프레임 이미지 서빙 (V2.0/R16)",
+            description = "데이터마트 노출(검수 완료) 영상의 비식별 프레임 이미지 바이너리. PORTAL_USER 전용. " +
+                    "미승인 영상 403, 프레임/파일 부재 404. Path Traversal(CWE-22) 방어.")
+    @GetMapping("/frames/{srcSn}/image")
+    @PreAuthorize("hasRole('PORTAL_USER')")
+    public ResponseEntity<Resource> getFrameImage(
+            @PathVariable Long srcSn,
+            @AuthenticationPrincipal TokenClaims actor) throws IOException {
+        requireActor(actor);
+        return portalLabelService.serveFrameImage(srcSn, actor);
     }
 
     private void requireActor(TokenClaims actor) {
