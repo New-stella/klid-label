@@ -119,6 +119,40 @@ class AugmentRequestControllerTest {
     }
 
     @Test
+    @DisplayName("증강요청_RESOLUTION_타입_400_거부_allowlist_WINTER_NIGHT_RAIN")
+    void resolutionTypeRejected400() throws Exception {
+        // 해상도(RESOLUTION)는 외부 증강 위탁 대상이 아님(저작도구 직접 수행) — allowlist 밖이므로 400.
+        String body = objectMapper.writeValueAsString(Map.of(
+                "videoIds", List.of(8301L),
+                "types", List.of("RESOLUTION")
+        ));
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("증강요청_WINTER_단일_정상_200")
+    void winterOnlyReturns200() throws Exception {
+        seedStatus(8401L, LsRawDataStatus.STTS_APPROVED);
+
+        String body = objectMapper.writeValueAsString(Map.of(
+                "videoIds", List.of(8401L),
+                "types", List.of("WINTER")
+        ));
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.typeCount").value(1));
+    }
+
+    @Test
     @DisplayName("AugmentRequestController_미검수_영상_포함_요청시_400_blockedVideoIds_포함")
     void notReviewedReturns400WithBlockedIds() throws Exception {
         seedStatus(8201L, LsRawDataStatus.STTS_APPROVED);

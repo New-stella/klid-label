@@ -9,6 +9,7 @@
 
 - **증강(생성) 본체는 외부 시스템 책임** — 저작도구는 위탁·결과 검수만
 - 위탁 유형 3종: **WINTER / NIGHT / RAIN** (날씨·계절·시간). 해상도 변경(RESOLUTION)은 §14.3 내부 수행
+- **증강 요청 화면(SCR-AUG-001) UI 도 3종 카드(겨울/야간/비)만 노출** — RESOLUTION 카드는 설계 정합상 제거됨. BE 증강 요청 API 는 `types` enum allowlist(WINTER/NIGHT/RAIN)로 강제하며 RESOLUTION 전달 시 400. 해상도 변환은 영상 상세 화면의 해상도 export 섹션(§14.3)에서 제공.
 
 ```
 [요청] REVIEWER → 대상 영상(검수완료 1~100건) + 증강 유형 선택

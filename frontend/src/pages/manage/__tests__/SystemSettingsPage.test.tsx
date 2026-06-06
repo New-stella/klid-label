@@ -15,12 +15,14 @@ function setReviewer() {
   });
 }
 
+// BE ConfigResponse 실제 형태(configKey/configVl 문자열) 로 mock.
+// concurrency 는 저장값 2 를 모사 — 재로드 시 슬라이더가 2 로 표시되어야 한다(R3-2).
 function mockConfigs(mock: MockAdapter) {
   mock.onGet('/manage/configs').reply(200, {
     success: true,
     data: [
-      { key: 'BATCH_INTERVAL_SEC', value: 60 },
-      { key: 'BATCH_CONCURRENCY', value: 1 },
+      { configKey: 'BATCH_INTERVAL_SEC', configVl: '60' },
+      { configKey: 'BATCH_CONCURRENCY', configVl: '2' },
     ],
     message: null,
     errorCode: null,
@@ -64,6 +66,22 @@ describe('SystemSettingsPage', () => {
     // '실시간 모니터링' 은 섹션 헤더(h2) 와 배지 양쪽에 등장 — getAllBy 로 처리
     expect(screen.getAllByText('실시간 모니터링').length).toBeGreaterThan(0);
     expect(screen.getByText('위험 액션')).toBeInTheDocument();
+  });
+
+  it('R3-2_저장된_설정값이_슬라이더에_반영됨_(재로드_시_기본값_폴백_금지)', async () => {
+    mockConfigs(mock); // BATCH_CONCURRENCY 저장값 = 2
+    mockHealth(mock);
+
+    renderWithProviders(<SystemSettingsPage />, { initialEntries: ['/manage/settings'] });
+
+    // 동시 처리 수 슬라이더 값 표시가 저장값 2 여야 한다 (기본값 1 폴백이면 버그).
+    const concurrencySlider = await screen.findByLabelText(/동시 처리 수/);
+    await waitFor(() => {
+      expect(concurrencySlider).toHaveValue('2');
+    });
+    // 처리 주기도 저장값 60 으로 표시
+    const intervalSlider = screen.getByLabelText(/처리 주기/);
+    expect(intervalSlider).toHaveValue('60');
   });
 
   it('위험_액션_클릭시_confirm_dialog_노출_및_API_호출_없음', async () => {

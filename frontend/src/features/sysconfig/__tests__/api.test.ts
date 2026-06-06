@@ -16,12 +16,13 @@ describe('sysconfig api', () => {
     mock.restore();
   });
 
-  it('getConfigs_GET_manage_configs_정상_파싱', async () => {
+  it('getConfigs_GET_manage_configs_정상_파싱_BE_configKey_configVl', async () => {
+    // BE ConfigResponse 실제 형태: configKey / configVl(문자열)
     mock.onGet('/manage/configs').reply(200, {
       success: true,
       data: [
-        { key: 'BATCH_INTERVAL_SEC', value: 60, updatedAt: '2026-05-01T00:00:00Z' },
-        { key: 'BATCH_CONCURRENCY', value: 1, updatedAt: '2026-05-01T00:00:00Z' },
+        { configKey: 'BATCH_INTERVAL_SEC', configVl: '60', mdfcnDt: '2026-05-01T00:00:00Z' },
+        { configKey: 'BATCH_CONCURRENCY', configVl: '1', mdfcnDt: '2026-05-01T00:00:00Z' },
       ],
       message: null,
       errorCode: null,
@@ -29,7 +30,7 @@ describe('sysconfig api', () => {
 
     const configs = await getConfigs();
     expect(configs).toHaveLength(2);
-    expect(configs.find((c) => c.key === 'BATCH_INTERVAL_SEC')?.value).toBe(60);
+    expect(configs.find((c) => c.configKey === 'BATCH_INTERVAL_SEC')?.configVl).toBe('60');
   });
 
   it('updateConfig_PUT_manage_configs_key_path_body_value', async () => {
@@ -43,7 +44,7 @@ describe('sysconfig api', () => {
         200,
         {
           success: true,
-          data: { key: 'BATCH_INTERVAL_SEC', value: 120, updatedAt: '2026-05-07T10:00:00Z' },
+          data: { configKey: 'BATCH_INTERVAL_SEC', configVl: '120', mdfcnDt: '2026-05-07T10:00:00Z' },
           message: null,
           errorCode: null,
         },
@@ -52,6 +53,6 @@ describe('sysconfig api', () => {
 
     const c = await updateConfig({ key: 'BATCH_INTERVAL_SEC', value: 120 });
     expect(capturedUrl).toBe('/manage/configs/BATCH_INTERVAL_SEC');
-    expect(c.value).toBe(120);
+    expect(c.configVl).toBe('120');
   });
 });

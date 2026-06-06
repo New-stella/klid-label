@@ -33,11 +33,6 @@ const TYPE_META: Record<AugmentType, TypeMeta> = {
     title: '비',
     description: '강우 효과로 영상을 변환합니다.',
   },
-  RESOLUTION: {
-    icon: '📐',
-    title: '해상도',
-    description: '해상도 변환으로 다양한 화질을 학습합니다.',
-  },
 };
 
 /**

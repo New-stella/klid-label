@@ -24,7 +24,7 @@ describe('AugmentRequestPage', () => {
     useAuthStore.getState().clear();
   });
 
-  it('증강_유형_4종_체크박스_복수_선택', async () => {
+  it('증강_유형_3종_카드만_렌더_RESOLUTION_제외', async () => {
     mock.onGet('/augments').reply(200, {
       success: true,
       data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 6 },
@@ -43,17 +43,17 @@ describe('AugmentRequestPage', () => {
     const winter = screen.getByTestId('augment-type-WINTER');
     const night = screen.getByTestId('augment-type-NIGHT');
     const rain = screen.getByTestId('augment-type-RAIN');
-    const reso = screen.getByTestId('augment-type-RESOLUTION');
+
+    // 해상도(RESOLUTION) 카드는 설계 정합상 제거되어야 한다(SFR-06-03).
+    expect(screen.queryByTestId('augment-type-RESOLUTION')).not.toBeInTheDocument();
 
     await user.click(winter);
     await user.click(night);
     await user.click(rain);
-    await user.click(reso);
 
     expect(winter).toHaveAttribute('aria-pressed', 'true');
     expect(night).toHaveAttribute('aria-pressed', 'true');
     expect(rain).toHaveAttribute('aria-pressed', 'true');
-    expect(reso).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('AugmentRequestPage_영상_목록_size_20_페이지_로드', async () => {

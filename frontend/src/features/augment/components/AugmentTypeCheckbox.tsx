@@ -13,7 +13,6 @@ const labelMap: Record<AugmentType, string> = {
   WINTER: '겨울',
   NIGHT: '야간',
   RAIN: '비',
-  RESOLUTION: '해상도',
 };
 
 /**

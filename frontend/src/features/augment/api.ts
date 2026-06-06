@@ -4,7 +4,8 @@
 // - axios가 path/body 파라미터 자동 URL 인코딩 (XSS/Injection 방어).
 // - IDOR/권한 검증은 BE 책임 (REVIEWER 역할).
 // - 거부 사유는 zod 검증 후 전달 (max 500자, 필수) — RejectReasonModal에서 처리.
-// - genType allowlist (WINTER/NIGHT/RAIN/RESOLUTION)는 RequestAugmentRequest 타입으로 강제.
+// - genType allowlist (WINTER/NIGHT/RAIN)는 RequestAugmentRequest 타입으로 강제.
+//   해상도(RESOLUTION)는 증강 위탁 대상이 아니라 저작도구 직접 수행이므로 제외(SFR-06-03).
 
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';

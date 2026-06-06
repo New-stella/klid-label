@@ -4,7 +4,9 @@ import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 
 import { type AugmentJob, type AugmentJobStatus, type AugmentType } from '../types';
 
-const typeLabelMap: Record<AugmentType, string> = {
+// 현재 증강 유형은 3종(WINTER/NIGHT/RAIN). 과거 잡 이력에 RESOLUTION 이 남아 있을 수 있어
+// 레거시 라벨도 표시하되, 유형 union 에는 포함하지 않는다(신규 요청 경로에서 제외 — SFR-06-03).
+const typeLabelMap: Record<AugmentType | 'RESOLUTION', string> = {
   WINTER: '겨울',
   NIGHT: '야간',
   RAIN: '비',

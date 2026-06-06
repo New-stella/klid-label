@@ -25,11 +25,12 @@ import { useVideos } from '@/features/video/hooks/useVideos';
 import { FIXED_EVENT_TYPE_CODES, getEventTypeLabel } from '@/lib/eventTypeLabel';
 import { useUiStore } from '@/stores/useUiStore';
 
+// 외부 증강 위탁 3종만 — 해상도(RESOLUTION)는 증강 잡 경로가 아니라 영상 상세의
+// 해상도 export 섹션에서 직접 수행한다(CLAUDE.md SFR-06-03 / 설계 정합).
 const ALL_TYPES: AT[] = [
   AugmentType.WINTER,
   AugmentType.NIGHT,
   AugmentType.RAIN,
-  AugmentType.RESOLUTION,
 ];
 
 const PAGE_SIZE = 20;
@@ -48,7 +49,8 @@ const DEFAULT_FILTERS: VideoFilterValues = {
  * SCR-AUG-001 데이터 증강 요청 (`/augment`).
  *
  * UI/UX §4-12 + V1.x:
- * - 증강 유형 4종 카드(겨울/야간/비/해상도)
+ * - 증강 유형 3종 카드(겨울/야간/비). 해상도(RESOLUTION)는 증강이 아니라 영상 상세의
+ *   해상도 export 섹션에서 직접 수행한다(SFR-06-03).
  * - **검수 완료된 영상만 선택 가능** — 비활성/검색·이벤트 필터·페이징
  * - 비상시 ID 콤마 입력 fallback
  * - 최근 요청 이력 잡 카드 6건 그리드
@@ -205,7 +207,7 @@ export function AugmentRequestPage() {
     >
       <PageHeader
         title="데이터 증강 요청"
-        description="검수 완료(승인) 영상에 4종(겨울/야간/비/해상도) 증강을 요청합니다."
+        description="검수 완료(승인) 영상에 3종(겨울/야간/비) 증강을 요청합니다. 해상도 변환은 영상 상세 화면에서 제공됩니다."
       />
 
       {/* SFR-07 안내 */}
@@ -231,7 +233,7 @@ export function AugmentRequestPage() {
         </div>
 
         <div
-          className="grid grid-cols-2 gap-4 md:grid-cols-4"
+          className="grid grid-cols-2 gap-4 md:grid-cols-3"
           data-testid="augment-type-list"
         >
           {ALL_TYPES.map((t) => (
