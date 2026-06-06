@@ -1,11 +1,10 @@
 package kr.co.cudo.authoring.batch.orchestrator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
@@ -26,17 +25,20 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * BatchOrchestrator LsRawDataStatus 상태 전이 테스트.
+ * BatchOrchestrator LS_RAW_DATA_STATUS 상태 전이 영속 테스트 (이슈 A 회귀).
  *
- * <p>process() 시작 시 PROCESSING, 완료 시 COMPLETED, 실패 시 FAILED 전이를 검증한다.
+ * <p>process() 는 NOT_SUPPORTED(비트랜잭션) 라 엔티티 직접 변경은 dirty checking 으로 영속되지
+ * 않는다. 상태 전이는 {@link BatchTransitionService} 의 REQUIRES_NEW public 메서드로 위임되어야
+ * DB 에 영속된다. 본 테스트는 orchestrator 가 transitionService 의 적절한 메서드를 호출하는지
+ * 검증한다 (자체 트랜잭션에서 load + save 하는 책임은 BatchTransitionServiceTest 가 검증).
  */
 class BatchOrchestratorStatusTransitionTest {
 
@@ -47,10 +49,10 @@ class BatchOrchestratorStatusTransitionTest {
     private Sam2SegmentStep sam2Step;
     private TrackInterpolationStep trackInterpolationStep;
     private BatchStatusService statusService;
+    private BatchTransitionService transitionService;
     private BatchRetryQueue retryQueue;
     private VideoRepository videoRepository;
     private LsMarkingRepository markingRepository;
-    private LsRawDataStatusRepository rawDataStatusRepository;
     private BatchOrchestrator orchestrator;
 
     @BeforeEach
@@ -62,15 +64,15 @@ class BatchOrchestratorStatusTransitionTest {
         sam2Step = mock(Sam2SegmentStep.class);
         trackInterpolationStep = mock(TrackInterpolationStep.class);
         statusService = mock(BatchStatusService.class);
+        transitionService = mock(BatchTransitionService.class);
         retryQueue = new BatchRetryQueue(3, 60);
         videoRepository = mock(VideoRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
 
         orchestrator = new BatchOrchestrator(
                 vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
-                trackInterpolationStep, statusService, retryQueue, videoRepository,
-                markingRepository, new ObjectMapper(), rawDataStatusRepository);
+                trackInterpolationStep, statusService, transitionService, retryQueue,
+                videoRepository, markingRepository, new ObjectMapper());
 
         // V2.0: 마킹 필수 -- 기본 마킹 데이터 제공
         when(markingRepository.findByRawSnOrderByRegDtDesc(any()))
@@ -108,43 +110,38 @@ class BatchOrchestratorStatusTransitionTest {
     }
 
     @Test
-    @DisplayName("process_시작시_LsRawDataStatus_PROCESSING_전이")
-    void process_시작시_LsRawDataStatus_PROCESSING_전이() {
+    @DisplayName("process_시작시_transitionService_markRawDataProcessing_호출로_PROCESSING_영속")
+    void process_시작시_PROCESSING_영속() {
         // given
         newRaw(601L);
-        LsRawDataStatus stts = mock(LsRawDataStatus.class);
-        when(rawDataStatusRepository.findById(601L)).thenReturn(Optional.of(stts));
 
         // when
         orchestrator.process(601L);
 
-        // then
-        verify(stts).transitionTo(LsRawDataStatus.STTS_PROCESSING);
+        // then — 전이가 별도 트랜잭션 빈으로 위임되어야 DB 영속됨
+        verify(transitionService).markRawDataProcessing(601L);
     }
 
     @Test
-    @DisplayName("process_완료시_LsRawDataStatus_COMPLETED_전이")
-    void process_완료시_LsRawDataStatus_COMPLETED_전이() {
+    @DisplayName("process_완료시_transitionService_markRawDataCompleted_호출로_COMPLETED_영속")
+    void process_완료시_COMPLETED_영속() {
         // given
         newRaw(602L);
-        LsRawDataStatus stts = mock(LsRawDataStatus.class);
-        when(rawDataStatusRepository.findById(602L)).thenReturn(Optional.of(stts));
 
         // when
         BatchStage result = orchestrator.process(602L);
 
         // then
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        verify(stts).transitionTo(LsRawDataStatus.STTS_COMPLETED);
+        verify(transitionService).markRawDataCompleted(602L);
+        verify(transitionService, never()).markRawDataFailed(any());
     }
 
     @Test
-    @DisplayName("process_실패시_LsRawDataStatus_FAILED_전이")
-    void process_실패시_LsRawDataStatus_FAILED_전이() {
+    @DisplayName("process_실패시_transitionService_markRawDataFailed_호출로_FAILED_영속")
+    void process_실패시_FAILED_영속() {
         // given
         newRaw(603L);
-        LsRawDataStatus stts = mock(LsRawDataStatus.class);
-        when(rawDataStatusRepository.findById(603L)).thenReturn(Optional.of(stts));
         doThrow(new RuntimeException("yolo failure")).when(yoloStep).run(any());
 
         // when
@@ -152,6 +149,7 @@ class BatchOrchestratorStatusTransitionTest {
 
         // then
         assertThat(result).isEqualTo(BatchStage.FAILED);
-        verify(stts).transitionTo(LsRawDataStatus.STTS_FAILED);
+        verify(transitionService).markRawDataFailed(603L);
+        verify(transitionService, never()).markRawDataCompleted(any());
     }
 }

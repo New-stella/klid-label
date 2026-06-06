@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.batch.step.BbHint;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
@@ -13,8 +14,6 @@ import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
@@ -73,11 +72,11 @@ public class BatchOrchestrator {
     private final Sam2SegmentStep sam2Step;
     private final TrackInterpolationStep trackInterpolationStep;
     private final BatchStatusService statusService;
+    private final BatchTransitionService transitionService;
     private final BatchRetryQueue retryQueue;
     private final VideoRepository videoRepository;
     private final LsMarkingRepository markingRepository;
     private final ObjectMapper objectMapper;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
 
     /**
      * 단일 영상 1건 처리 (V2 순서).
@@ -91,9 +90,8 @@ public class BatchOrchestrator {
         }
         LsDataRaw raw = loadRaw(rawSn);
 
-        // 배치 시작: 작업 상태 PROCESSING 전이
-        rawDataStatusRepository.findById(rawSn)
-                .ifPresent(stts -> stts.transitionTo(LsRawDataStatus.STTS_PROCESSING));
+        // 배치 시작: 작업 상태 PROCESSING 전이 (REQUIRES_NEW 별도 트랜잭션으로 명시 영속).
+        transitionService.markRawDataProcessing(rawSn);
 
         try {
             // 0. 마킹 확인 — Phase 3: VLM 호출 전에 마킹 데이터 조회.
@@ -141,19 +139,17 @@ public class BatchOrchestrator {
             statusService.markStage(rawSn, BatchStage.INTERPOLATE);
             trackInterpolationStep.run(rawSn);
 
-            markRawCompleted(rawSn);
-            // 작업 상태 COMPLETED 전이
-            rawDataStatusRepository.findById(rawSn)
-                    .ifPresent(stts -> stts.transitionTo(LsRawDataStatus.STTS_COMPLETED));
+            // 작업 상태 COMPLETED 전이 + LS_DATA_RAW.DATA_STTS_CD=COMPLETED
+            // (REQUIRES_NEW 별도 트랜잭션으로 명시 영속 — self-invocation/비트랜잭션 회피).
+            transitionService.markRawDataCompleted(rawSn);
             statusService.markCompleted(rawSn);
             retryQueue.clear(rawSn);
             log.info("[BatchOrchestrator] completed rawSn={}", rawSn);
             return BatchStage.COMPLETED;
         } catch (RuntimeException e) {
             statusService.markFailed(rawSn, e);
-            // 실패 시 작업 상태 FAILED 전이
-            rawDataStatusRepository.findById(rawSn)
-                    .ifPresent(stts -> stts.transitionTo(LsRawDataStatus.STTS_FAILED));
+            // 실패 시 작업 상태 FAILED 전이 (REQUIRES_NEW 별도 트랜잭션으로 명시 영속).
+            transitionService.markRawDataFailed(rawSn);
             boolean willRetry = retryQueue.enqueueIfRetryable(rawSn);
             log.warn("[BatchOrchestrator] failed rawSn={} willRetry={} cause={}",
                     rawSn, willRetry, e.getClass().getSimpleName());
@@ -167,11 +163,6 @@ public class BatchOrchestrator {
         return videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "영상을 찾을 수 없습니다 rawSn=" + rawSn));
-    }
-
-    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    protected void markRawCompleted(Long rawSn) {
-        videoRepository.findById(rawSn).ifPresent(r -> r.changeStatus("COMPLETED"));
     }
 
     private List<MarkItem> parseMarks(String marksJson) {

@@ -39,8 +39,9 @@
 
 ## 5.5 영상 상태 (LS_RAW_DATA_STATUS)
 
-- `LS_RAW_DATA_STATUS.DATA_STTS_CD` — 작업 진행 상태
-- 배치 진행 시 `PROCESSING`, 완료 `COMPLETED`, 검수 승인 `APPROVED`, 실패 `FAILED`
+- `LS_RAW_DATA_STATUS.DATA_STTS_CD` — 작업(검수 워크플로우) 진행 상태
+- 배치 진행 시 `PROCESSING`, 배치 완료 시 `ASSIGNED` 복귀(라벨링/검수 진행 가능), 검수 제출 `PENDING`, 검수 시작 `IN_REVIEW`, 검수 승인 `APPROVED`, 실패 `FAILED`
+- `COMPLETED` 는 작업 종결 상태로 검수 승인 흐름에서만 도달(배치 완료가 점프시키지 않음). 배치 단계 종료는 `LS_DATA_RAW.DATA_STTS_CD=COMPLETED` 로 별도 표기
 - `APPROVED` 전이 시 버전 스냅샷 + 관제 `TASK_COMPLETED` 통지
 - 영상 등록/상태 분리: `LS_RAW_DATA_ENROLLMENT`(등록) + `LS_RAW_DATA_STATUS`(상태)
 

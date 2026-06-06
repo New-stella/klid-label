@@ -2,9 +2,9 @@ package kr.co.cudo.authoring.batch.orchestrator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
@@ -33,7 +33,6 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,7 +53,7 @@ class BatchOrchestratorMarkingTest {
     private BatchRetryQueue retryQueue;
     private VideoRepository videoRepository;
     private LsMarkingRepository markingRepository;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private BatchTransitionService transitionService;
     private BatchOrchestrator orchestrator;
 
     @BeforeEach
@@ -69,15 +68,12 @@ class BatchOrchestratorMarkingTest {
         retryQueue = new BatchRetryQueue(3, 60);
         videoRepository = mock(VideoRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        transitionService = mock(BatchTransitionService.class);
 
         orchestrator = new BatchOrchestrator(
                 vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
-                trackInterpolationStep, statusService, retryQueue, videoRepository,
-                markingRepository, new ObjectMapper(), rawDataStatusRepository);
-
-        // LsRawDataStatus 조회 기본: 행 없음 (lenient)
-        lenient().when(rawDataStatusRepository.findById(any())).thenReturn(java.util.Optional.empty());
+                trackInterpolationStep, statusService, transitionService, retryQueue,
+                videoRepository, markingRepository, new ObjectMapper());
 
         // given: 기본 mock 설정
         when(frameExtractor.extractByMarks(any(LsDataRaw.class), nullable(String.class), any()))

@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.dev.service;
 
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.test.AutolabelTestService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -45,8 +46,11 @@ import java.util.concurrent.CompletableFuture;
  *   <li>CWE-863 Improper Authorization — 컨트롤러에서 {@code @PreAuthorize} 로 차단.</li>
  * </ul>
  *
- * <p>업로드된 영상은 LS_DATA_RAW row 생성 후 기존 {@link AutolabelTestService#runFull(Long)}
- * 을 비동기로 호출 — 프레임 추출 + YOLO + SAM2 가 백그라운드 실행된다 (외부 의존 없는 경량 파이프라인).
+ * <p>업로드된 영상은 LS_DATA_RAW row 를 생성한다. V2.0 에서 프레임 추출은 마킹 기반
+ * (BatchOrchestrator 전용) 이므로 신규 업로드 영상은 프레임이 0건이다. 이 경우 runFull 을
+ * 호출하지 않고 등록만 수행한다(pipelineStatus="REGISTERED"). 프레임이 이미 존재하는 재실행
+ * 케이스에서만 {@link AutolabelTestService#runFull(Long, Map)} 을 비동기로 호출해
+ * YOLO + SAM2 를 백그라운드 실행한다 (외부 의존 없는 경량 파이프라인).
  */
 @Slf4j
 @Service
@@ -65,6 +69,7 @@ public class DevAutolabelTestService {
     private final VideoRepository videoRepository;
     private final MngResourceCctvRepository cctvRepository;
     private final AutolabelTestService autolabelTestService;
+    private final LsDataSrcRepository srcRepository;
     private final Path storageRawPath;
     private final long maxFileSize;
     private final String ffprobePath;
@@ -80,11 +85,12 @@ public class DevAutolabelTestService {
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
             AutolabelTestService autolabelTestService,
+            LsDataSrcRepository srcRepository,
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
             @Value("${authoring.dev.autolabel-test.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.ffmpeg.ffprobe-binary:ffprobe}") String ffprobePath
     ) {
-        this(videoRepository, cctvRepository, autolabelTestService,
+        this(videoRepository, cctvRepository, autolabelTestService, srcRepository,
                 storageRawPath, maxFileSize, ffprobePath, null);
     }
 
@@ -96,6 +102,7 @@ public class DevAutolabelTestService {
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
             AutolabelTestService autolabelTestService,
+            LsDataSrcRepository srcRepository,
             String storageRawPath,
             long maxFileSize,
             String ffprobePath,
@@ -104,6 +111,7 @@ public class DevAutolabelTestService {
         this.videoRepository = videoRepository;
         this.cctvRepository = cctvRepository;
         this.autolabelTestService = autolabelTestService;
+        this.srcRepository = srcRepository;
         this.storageRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.maxFileSize = maxFileSize;
         this.ffprobePath = ffprobePath;
@@ -119,10 +127,11 @@ public class DevAutolabelTestService {
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
             AutolabelTestService autolabelTestService,
+            LsDataSrcRepository srcRepository,
             String storageRawPath,
             long maxFileSize
     ) {
-        this(videoRepository, cctvRepository, autolabelTestService,
+        this(videoRepository, cctvRepository, autolabelTestService, srcRepository,
                 storageRawPath, maxFileSize, "ffprobe", path -> 60);
     }
 
@@ -182,6 +191,17 @@ public class DevAutolabelTestService {
                 extension,
                 file.getSize(),
                 durationSec);
+
+        // 이슈 B: V2.0 에서 프레임 추출은 마킹 기반(BatchOrchestrator 전용)이므로, 신규 업로드
+        // 영상은 프레임이 0건이다. 이 상태에서 runFull 을 호출하면 "추출된 프레임이 없습니다"
+        // CustomException → LS_DATA_RAW.DATA_STTS_CD=FAILED 로 마킹되어 모든 신규 영상이 FAILED 로
+        // 시작하는 버그가 발생한다. 따라서 프레임이 0건이면 영상 등록만 수행하고 runFull 은 호출하지
+        // 않는다. 프레임이 이미 존재(재실행)하면 기존처럼 파이프라인을 트리거한다.
+        long framesFound = srcRepository.countByRawSn(rawSn);
+        if (framesFound == 0L) {
+            log.info("[DevAutolabelTest] registered without pipeline (no frames yet) rawSn={}", rawSn);
+            return new AutolabelTestResponse(rawSn, relativePath, "REGISTERED", startedAt);
+        }
 
         // 백그라운드 파이프라인 실행 — runFull 은 동기 long-running, 별도 스레드로 분리.
         // 트랜잭션 커밋 이후에 호출되어야 새 스레드에서 LsDataRaw row 가 보인다

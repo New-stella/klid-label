@@ -22,7 +22,7 @@
 ## 7.2 오케스트레이션
 
 - **트리거**: 마킹 완료 → `MarkingCompletedEvent` → `MarkingBatchBridge` → BATCH_QUEUED + @Async 시작. + Quartz 스케줄(1건/분).
-- **`BatchOrchestrator.process()`**: 시작 시 상태 `→ PROCESSING`, 완료 `→ COMPLETED`, 실패 `→ FAILED`. `LsDataRaw.dataSttsCd`(배치 단계)와 `LsRawDataStatus.dataSttsCd`(작업 상태) 양쪽 갱신.
+- **`BatchOrchestrator.process()`**: 시작 시 작업 상태 `→ PROCESSING`, 완료 시 작업 상태 `→ ASSIGNED 복귀`, 실패 `→ FAILED`. **두 테이블 책임 분리** — `LsDataRaw.dataSttsCd`(배치 단계)는 완료 시 `COMPLETED` 로 마감, `LsRawDataStatus.dataSttsCd`(작업/검수 워크플로우 상태)는 ASSIGNED 로 복귀시켜 라벨링/검수 플로우가 이어진다. 작업 상태 `COMPLETED` 는 **검수 승인(`ReviewService.approve`) 시점에만** 도달하는 종결 상태이므로 배치 완료가 점프시키지 않는다(점프 시 검수 제출 ASSIGNED→PENDING 차단).
 
 ## 7.3 단계별 Step
 
@@ -34,7 +34,7 @@
 | YOLO | `YoloAutolabelStep` | **원본만** 객체 탐지, 프리셋 필터, track_id 부여 |
 | SAM2 | `Sam2SegmentStep` | 세그멘테이션(polygon), BBOX/POLYGON_ONLY 분기 |
 | 트랙 보간 | `TrackInterpolationStep` | CVAT 선형보간(`TrackInterpolator`) → [11](11-ai-assisted.md) |
-| 완료 | `statusService.markCompleted` | COMPLETED 전이 |
+| 완료 | `transitionService.markRawDataCompleted` | `LsDataRaw`(배치 단계) → COMPLETED, `LsRawDataStatus`(작업 상태) → ASSIGNED 복귀 |
 
 > **오토라벨링은 원본 이미지에만 실행**. 라벨 좌표는 동일 해상도이므로 비식별본과 공유(별도 실행 없음).
 
