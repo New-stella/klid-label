@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef } from 'react';
-import { Line, Rect, Transformer } from 'react-konva';
+import { Circle, Line, Rect, Transformer } from 'react-konva';
 import type Konva from 'konva';
 
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -9,6 +9,12 @@ import type { Label } from '../../types';
 import { getLabelDisplayColor } from '../../utils/labelColor';
 import { canvasRectToImageBox } from '../utils/bboxEdit';
 import { translateToCanvas, type Geometry } from '../utils/coordinateTransformer';
+import {
+  imagePointsToCanvas,
+  movePolygonByCanvasDelta,
+  moveVertexToCanvas,
+  shouldRenderVertexAnchors,
+} from '../utils/polygonEdit';
 
 interface LabelsLayerProps {
   labels: Label[];
@@ -83,6 +89,28 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
     updateLabel(id, { shape: { type: 'BBOX', ...box } });
   }
 
+  /**
+   * 폴리곤 전체 이동 — 선택 Line 의 dragEnd. 노드 x/y 가 캔버스 이동량(delta).
+   * 모든 점에 scale 보정된 이미지 delta 를 적용하고 외접 박스 기준 경계 클램프(모양 유지).
+   * 이동 후 노드 위치는 0 으로 리셋해 다음 렌더에서 점 좌표와 이중 반영되지 않게 한다.
+   */
+  function commitPolygonMove(id: string, node: Konva.Node, points: number[]) {
+    const dx = node.x();
+    const dy = node.y();
+    node.x(0);
+    node.y(0);
+    if (dx === 0 && dy === 0) return;
+    const moved = movePolygonByCanvasDelta(geometry, points, dx, dy);
+    updateLabel(id, { shape: { type: 'POLYGON', points: moved } });
+  }
+
+  /** 꼭짓점 앵커 dragEnd — 해당 점만 캔버스 좌표 → 이미지 좌표로 갱신 (개별 클램프). */
+  function commitVertex(id: string, node: Konva.Node, points: number[], vertexIndex: number) {
+    const moved = moveVertexToCanvas(geometry, points, vertexIndex, node.x(), node.y());
+    if (moved === points) return;
+    updateLabel(id, { shape: { type: 'POLYGON', points: moved } });
+  }
+
   return (
     <>
       {labels.map((label) => {
@@ -119,27 +147,49 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
           );
         }
         if (label.shape.type === 'POLYGON') {
-          const pts: number[] = [];
-          for (let i = 0; i + 1 < label.shape.points.length; i += 2) {
-            const p = translateToCanvas(
-              geometry,
-              label.shape.points[i],
-              label.shape.points[i + 1],
-            );
-            pts.push(p.x, p.y);
-          }
+          const imagePoints = label.shape.points;
+          const pts = imagePointsToCanvas(geometry, imagePoints);
+          // 폴리곤 이동은 BBOX 와 동일 정책: 잠금 아니고 선택 시에만 draggable.
+          // Transformer 스케일 리사이즈는 점 왜곡 때문에 폴리곤에 적용하지 않음 (이동 + 꼭짓점 편집만).
+          const draggable = !readOnly && isSelected;
+          // 선택 + 비잠금 + 점 수 임계 이하일 때만 꼭짓점 앵커 렌더 (대량 SAM2 폴리곤 렉 방지).
+          const showAnchors = isSelected && !readOnly && shouldRenderVertexAnchors(imagePoints);
           return (
-            <Line
-              key={label.id}
-              points={pts}
-              stroke={stroke}
-              strokeWidth={strokeWidth}
-              dash={dash}
-              closed
-              fill={`${stroke}33`}
-              onClick={() => selectLabel(label.id)}
-              onTap={() => selectLabel(label.id)}
-            />
+            <Fragment key={label.id}>
+              <Line
+                points={pts}
+                stroke={stroke}
+                strokeWidth={strokeWidth}
+                dash={dash}
+                closed
+                fill={`${stroke}33`}
+                draggable={draggable}
+                onClick={() => selectLabel(label.id)}
+                onTap={() => selectLabel(label.id)}
+                onDragEnd={(e) => commitPolygonMove(label.id, e.target, imagePoints)}
+              />
+              {showAnchors &&
+                imagePoints.reduce<JSX.Element[]>((acc, _v, i) => {
+                  if (i % 2 !== 0) return acc;
+                  const vertexIndex = i / 2;
+                  acc.push(
+                    <Circle
+                      key={`${label.id}-v${vertexIndex}`}
+                      x={pts[i]}
+                      y={pts[i + 1]}
+                      radius={4}
+                      fill="#FFFFFF"
+                      stroke={stroke}
+                      strokeWidth={1.5}
+                      draggable
+                      onDragEnd={(e) =>
+                        commitVertex(label.id, e.target, imagePoints, vertexIndex)
+                      }
+                    />,
+                  );
+                  return acc;
+                }, [])}
+            </Fragment>
           );
         }
         return null;

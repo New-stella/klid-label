@@ -47,4 +47,39 @@ describe('ObjectAttributePanel', () => {
     expect(wInput.value).toBe('100');
     expect(hInput.value).toBe('50');
   });
+
+  it('정점_적은_폴리곤은_꼭짓점_편집_안내문구_없음', () => {
+    const smallPoly: Label = {
+      id: 'sp',
+      frameNo: 1,
+      classId: 1,
+      className: 'car',
+      source: 'MANUAL',
+      shape: { type: 'POLYGON', points: [0, 0, 10, 0, 5, 10] },
+    };
+    useLabelStore.getState().reset();
+    useLabelStore.getState().setLabels([smallPoly]);
+    useLabelStore.getState().selectLabel('sp');
+    renderWithProviders(<ObjectAttributePanel labels={[smallPoly]} />);
+    expect(screen.getByText(/3개 정점/)).toBeInTheDocument();
+    expect(screen.queryByText(/꼭짓점 편집은 비활성화/)).not.toBeInTheDocument();
+  });
+
+  it('정점_많은_폴리곤은_꼭짓점_편집_비활성_안내문구', () => {
+    const points: number[] = [];
+    for (let i = 0; i < 150; i += 1) points.push(i, i);
+    const bigPoly: Label = {
+      id: 'bp',
+      frameNo: 1,
+      classId: 1,
+      className: 'car',
+      source: 'AUTO_SAM2',
+      shape: { type: 'POLYGON', points },
+    };
+    useLabelStore.getState().reset();
+    useLabelStore.getState().setLabels([bigPoly]);
+    useLabelStore.getState().selectLabel('bp');
+    renderWithProviders(<ObjectAttributePanel labels={[bigPoly]} />);
+    expect(screen.getByText(/꼭짓점 편집은 비활성화/)).toBeInTheDocument();
+  });
 });

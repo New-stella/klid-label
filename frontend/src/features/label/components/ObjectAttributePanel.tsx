@@ -8,6 +8,7 @@ import { useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../hooks/useLabelMasters';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
+import { shouldRenderVertexAnchors } from '../canvas/utils/polygonEdit';
 import type { Sam2TrackResponse } from '../api';
 import type { Label } from '../types';
 import { ToolType } from '../types';
@@ -282,7 +283,19 @@ function NumberField({
 
 function CoordsReadonly({ target }: { target: Label }) {
   if (target.shape.type === 'POLYGON') {
-    return <Field label="좌표" value={<span>{target.shape.points.length / 2}개 정점</span>} />;
+    const points = target.shape.points;
+    // 임계 초과 폴리곤은 꼭짓점 앵커를 렌더하지 않으므로(렉 방지) 전체 이동만 가능함을 안내.
+    const vertexEditable = shouldRenderVertexAnchors(points);
+    return (
+      <div className="flex flex-col gap-1">
+        <Field label="좌표" value={<span>{points.length / 2}개 정점</span>} />
+        {!vertexEditable && (
+          <p className="text-[11px] text-amber-300" role="status">
+            정점이 많아 꼭짓점 편집은 비활성화됩니다. 폴리곤 전체 이동만 가능합니다.
+          </p>
+        )}
+      </div>
+    );
   }
   return <Field label="좌표" value={<span>Mask</span>} />;
 }
