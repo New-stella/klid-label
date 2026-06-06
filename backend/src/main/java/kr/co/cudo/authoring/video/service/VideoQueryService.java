@@ -55,11 +55,13 @@ public class VideoQueryService {
         Page<LsDataRaw> page;
         if (normalizedReviewStts != null) {
             // 검수 상태 필터 지정 시 LS_RAW_DATA_STATUS INNER JOIN 쿼리 사용.
+            // (JPQL ORDER BY regDt DESC 고정 — 본 화면은 정렬 키를 노출하지 않음)
             page = videoRepository.findAllWithReviewStatus(normalizedDataStts, normalizedReviewStts, pageable);
         } else if (normalizedDataStts != null) {
-            page = videoRepository.findAllByDataSttsCdOrderByRegDtDesc(normalizedDataStts, pageable);
+            // 정렬은 컨트롤러가 allowlist 로 검증·매핑한 Pageable Sort 에 위임 (기본 regDt DESC).
+            page = videoRepository.findAllByDataSttsCd(normalizedDataStts, pageable);
         } else {
-            page = videoRepository.findAllByOrderByRegDtDesc(pageable);
+            page = videoRepository.findAll(pageable);
         }
         Map<String, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());

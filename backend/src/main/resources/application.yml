@@ -94,6 +94,14 @@ authoring:
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
+  # 영상 스트림 단기 서명 URL — <video> 가 Authorization 헤더를 못 붙이는 문제 우회.
+  #   - sign-secret: JWT_SECRET 재사용 금지(키 분리). 운영(dev/stg/prd)은 STREAM_SIGN_SECRET 환경변수 필수.
+  #     설정 시 256bit(32B) 이상이어야 함(미달 시 부팅 차단). 미설정이면 서명 URL 발급/검증 모두 fail-closed.
+  #     로컬 기본값은 application-local.yml 에 명시.
+  #   - url-ttl-seconds: 서명 유효 시간(초). 5~600 클램프. 기본 60s.
+  stream:
+    sign-secret: ${STREAM_SIGN_SECRET:}
+    url-ttl-seconds: ${STREAM_URL_TTL_SECONDS:60}
   integration:
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}

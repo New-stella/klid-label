@@ -73,7 +73,12 @@ export function DashboardPage() {
   const isWorker = role === Role.WORKER;
 
   const { data, isLoading, error } = useDashboardSummary();
-  const { data: recentPage, isLoading: recentLoading } = useVideos({
+  const {
+    data: recentPage,
+    isLoading: recentLoading,
+    isError: recentError,
+    refetch: refetchRecent,
+  } = useVideos({
     page: 0,
     size: 5,
     sort: 'capturedAt,desc',
@@ -234,6 +239,13 @@ export function DashboardPage() {
         <Card title="최근 완료 영상">
           {recentLoading ? (
             <Skeleton height={120} />
+          ) : recentError ? (
+            <ErrorState
+              title="목록을 불러오지 못했습니다"
+              message="최근 완료 영상을 불러오는 중 오류가 발생했습니다."
+              onRetry={() => refetchRecent()}
+              retryLabel="재시도"
+            />
           ) : (recentPage?.content ?? []).length === 0 ? (
             <p className="text-center text-gray-400 py-12 text-sm">
               완료된 영상이 없습니다.

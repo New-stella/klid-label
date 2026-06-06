@@ -3,7 +3,15 @@
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
-import type { BatchStatus, FrameLabels, Video, VideoDetail, VideoListParams } from './types';
+import type {
+  BatchStatus,
+  FrameLabels,
+  ResolutionExportResult,
+  ResolutionPreset,
+  Video,
+  VideoDetail,
+  VideoListParams,
+} from './types';
 
 /**
  * 보안: axios가 자동 URL 인코딩 (XSS/Injection 방지).
@@ -87,8 +95,42 @@ export function getBatchStatus() {
   return apiClient.get<BatchStatus>('/batch/status').then((r) => r.data);
 }
 
+/**
+ * 영상 스트림 단기 서명 URL 발급 — BE: GET /api/v1/videos/{rawSn}/stream-url.
+ *
+ * <p><video> 엘리먼트는 Authorization 헤더를 못 붙여 인증 스트림(/stream)을 직접 재생하지 못한다.
+ * 따라서 인증된 axios 호출로 짧은 TTL HMAC 서명 URL 을 받아 <video src> 로 사용한다.
+ * 반환 url 은 BE 가 만든 절대 경로(`/api/v1/videos/{rawSn}/stream?exp=...&sig=...`)다.
+ *
+ * 보안: rawSn 은 숫자 path 파라미터로만 전달 — 문자열 직접 연결/사용자 입력 삽입 없음.
+ */
+export interface StreamUrl {
+  url: string;
+  expiresAt: number;
+  ttlSeconds: number;
+}
+
+export function getStreamUrl(rawSn: number) {
+  return apiClient
+    .get<StreamUrl>(`/videos/${rawSn}/stream-url`)
+    .then((r) => r.data);
+}
+
 export function getVideoLabels(videoId: number | string) {
   return apiClient
     .get<FrameLabels>(`/videos/${videoId}/labels/auto`)
+    .then((r) => r.data);
+}
+
+/**
+ * 해상도 export (SFR-06-03) — 검수 완료 원본의 프레임 이미지셋을 표준 하위 해상도로 다운스케일.
+ * BE: POST /api/v1/videos/{rawSn}/resolution (REVIEWER).
+ *
+ * 보안: preset 은 화이트리스트 타입(ResolutionPreset)으로 강제 — 자유 해상도 입력 차단.
+ * 업스케일/증강본/미검수/중복은 BE 가 400/409 로 거부 → ApiError 로 전파.
+ */
+export function changeResolution(rawSn: number, preset: ResolutionPreset) {
+  return apiClient
+    .post<ResolutionExportResult>(`/videos/${rawSn}/resolution`, { preset })
     .then((r) => r.data);
 }

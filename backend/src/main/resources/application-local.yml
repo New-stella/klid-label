@@ -41,6 +41,10 @@ authoring:
     admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:$2y$12$NxE8qu8kf7G6kxmhtKs8b.d4uWDvWg1YsSQ7ShVvQmrLTwCE.mCSq}
   jwt:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
+  # 영상 스트림 서명 URL — 로컬 기본 시크릿(32B 이상). JWT_SECRET 과 다른 값으로 키 분리.
+  # 운영(dev/stg/prd)은 STREAM_SIGN_SECRET 환경변수로 override 필수.
+  stream:
+    sign-secret: ${STREAM_SIGN_SECRET:local-stream-sign-secret-change-me-32bytes-min}
   # Phase 5 — local 환경에서는 자동 트리거 비활성화 (Quartz 잡 미등록).
   # Step/Orchestrator/Service 빈은 그대로 등록되어 단위 테스트 가능.
   batch:

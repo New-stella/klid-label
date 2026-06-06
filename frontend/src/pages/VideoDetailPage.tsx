@@ -13,6 +13,7 @@ import { PrivacyBadge } from '@/components/common/PrivacyBadge';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tabs } from '@/components/common/Tabs';
+import { ResolutionExportSection } from '@/features/video/components/ResolutionExportSection';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useVideoLabels } from '@/features/video/hooks/useVideoLabels';
 import type { FramePreview, VideoDetail } from '@/features/video/types';
@@ -60,13 +61,17 @@ function InfoTab({ video }: { video: VideoDetail }) {
   ];
 
   return (
-    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-      {metaRows.map((r) => (
-        <div key={r.label} className="bg-gray-50 rounded-lg px-4 py-3">
-          <p className="text-xs text-gray-500 mb-0.5">{r.label}</p>
-          <div className="text-sm font-medium text-gray-800">{r.value}</div>
-        </div>
-      ))}
+    <div className="mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {metaRows.map((r) => (
+          <div key={r.label} className="bg-gray-50 rounded-lg px-4 py-3">
+            <p className="text-xs text-gray-500 mb-0.5">{r.label}</p>
+            <div className="text-sm font-medium text-gray-800">{r.value}</div>
+          </div>
+        ))}
+      </div>
+      {/* SFR-06-03 — 해상도 export 독립 UI (증강 아님, 저작도구 직접 수행) */}
+      <ResolutionExportSection rawSn={video.id} />
     </div>
   );
 }

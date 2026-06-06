@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.StreamUrlSigner;
 import kr.co.cudo.authoring.video.service.VideoStreamService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +38,9 @@ class VideoStreamServiceTest {
     @Mock
     private VideoRepository videoRepository;
 
+    @Mock
+    private StreamUrlSigner streamUrlSigner;
+
     private VideoStreamService videoStreamService;
 
     @TempDir
@@ -44,7 +48,7 @@ class VideoStreamServiceTest {
 
     @BeforeEach
     void setUp() {
-        videoStreamService = new VideoStreamService(videoRepository);
+        videoStreamService = new VideoStreamService(videoRepository, streamUrlSigner);
         ReflectionTestUtils.setField(videoStreamService, "storageRawPath", tempDir.toString());
     }
 
@@ -150,5 +154,38 @@ class VideoStreamServiceTest {
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
         assertThat(response.getBody()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("서명URL_시크릿_미설정시_503_SERVICE_UNAVAILABLE")
+    void issueSignedUrl_secretNotConfigured_serviceUnavailable() {
+        // given: 영상은 존재하나 서명 시크릿 미설정(서버 설정 오류)
+        Long rawSn = 10L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(stubRaw(rawSn, "clip_10.mp4")));
+        when(streamUrlSigner.isConfigured()).thenReturn(false);
+
+        // when / then: 권한 거부(403)가 아닌 503 SERVICE_UNAVAILABLE 로 매핑
+        assertThatThrownBy(() -> videoStreamService.issueSignedUrl(rawSn, "1"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
+    @DisplayName("서명URL_발급_userNo바인딩_URL에_u포함")
+    void issueSignedUrl_bindsUserNo_includesUInUrl() {
+        // given: 시크릿 설정 + userNo='1' 로 서명
+        Long rawSn = 11L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(stubRaw(rawSn, "clip_11.mp4")));
+        when(streamUrlSigner.isConfigured()).thenReturn(true);
+        when(streamUrlSigner.sign(rawSn, "1"))
+                .thenReturn(new StreamUrlSigner.SignedParams(1_700_000_000L, "deadbeef", 60L));
+
+        // when
+        var resp = videoStreamService.issueSignedUrl(rawSn, "1");
+
+        // then: 서명 입력에 userNo 가 바인딩되고 URL 쿼리에 u=1 이 포함된다
+        org.mockito.Mockito.verify(streamUrlSigner).sign(rawSn, "1");
+        assertThat(resp.url()).contains("&u=1&sig=deadbeef");
     }
 }

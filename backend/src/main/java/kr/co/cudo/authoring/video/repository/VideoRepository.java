@@ -25,6 +25,15 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Page<LsDataRaw> findAllByDataSttsCdOrderByRegDtDesc(String dataSttsCd, Pageable pageable);
 
     /**
+     * dataSttsCd 필터 — 정렬은 Pageable 의 Sort 로 위임한다 (정적 OrderBy 미적용).
+     *
+     * <p>{@code findAllByDataSttsCdOrderByRegDtDesc} 는 정적 {@code regDt DESC} 가 Pageable Sort 보다
+     * 우선해 외부 정렬 키(예: capturedAt→shtDt)가 보조 정렬로만 밀린다. 본 메서드는 컨트롤러가
+     * allowlist 로 검증·매핑한 Sort 를 1차 정렬로 적용하기 위해 사용한다.
+     */
+    Page<LsDataRaw> findAllByDataSttsCd(String dataSttsCd, Pageable pageable);
+
+    /**
      * 영상 목록 + 검수 상태 필터(LS_RAW_DATA_STATUS) 조합 조회.
      *
      * <p>증강 요청 화면(SCR-AUG-001)에서 검수 완료(APPROVED) 영상만 노출하기 위한 용도.
@@ -44,6 +53,31 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Page<LsDataRaw> findAllWithReviewStatus(@Param("dataSttsCd") String dataSttsCd,
                                             @Param("reviewStatusCd") String reviewStatusCd,
                                             Pageable pageable);
+
+    /**
+     * 미배정(UNASSIGNED) 영상 목록 — 지정 배치 상태(dataSttsCd)이면서 LABELER 배정이 없는 영상만.
+     *
+     * <p>SCR-TASK-002 배정 전용 화면에서 작업자가 아직 배정되지 않은 영상만 노출하는 용도.
+     * LS_TASK_ASSIGNMENT 에 TASK_TYPE_CD='LABELER' row 가 없는 영상을 NOT EXISTS 로 필터링한다.
+     * 파라미터 바인딩만 사용 — SQL Injection 방어 (CWE-89). 정렬은 Pageable 의 Sort 로 위임.
+     */
+    @Query("SELECT v FROM LsDataRaw v WHERE v.dataSttsCd = :dataSttsCd " +
+            "AND NOT EXISTS (SELECT 1 FROM LsTaskAssignment a " +
+            "WHERE a.rawDataId = v.rawSn AND a.taskTypeCd = 'LABELER')")
+    Page<LsDataRaw> findUnassignedByDataSttsCd(@Param("dataSttsCd") String dataSttsCd, Pageable pageable);
+
+    /**
+     * 미배정(UNASSIGNED) 영상 목록 — 배치 상태 무관, LABELER 배정이 없는 모든 영상.
+     *
+     * <p>SCR-TASK-002 배정 전용 화면에서 신규 업로드(PENDING)·실패(FAILED) 영상까지 포함해
+     * 배정 가능한 모든 미배정 영상을 노출하기 위한 용도(상태 조건 제거). FE 는 batchStatus 뱃지로
+     * 상태를 구분 표시한다. LS_TASK_ASSIGNMENT 에 TASK_TYPE_CD='LABELER' row 가 없는 영상을
+     * NOT EXISTS 로 필터링한다. 파라미터 바인딩만 사용 — SQL Injection 방어 (CWE-89).
+     * 정렬은 Pageable 의 Sort 로 위임.
+     */
+    @Query("SELECT v FROM LsDataRaw v WHERE NOT EXISTS (SELECT 1 FROM LsTaskAssignment a " +
+            "WHERE a.rawDataId = v.rawSn AND a.taskTypeCd = 'LABELER')")
+    Page<LsDataRaw> findUnassigned(Pageable pageable);
 
     /** 개발 전용: DATA_STTS_CD 기준 가장 오래된 1건 (REG_DT 오름차순). */
     Optional<LsDataRaw> findFirstByDataSttsCdOrderByRegDtAsc(String dataSttsCd);

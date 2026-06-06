@@ -67,6 +67,125 @@ describe('VideoDetailPage', () => {
     });
   });
 
+  it('SFR_06_03_해상도_export_섹션이_상세_기본정보에_노출', async () => {
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        id: 42,
+        cctvName: '강남대로 CCTV',
+        status: 'COMPLETED',
+        duration: 30,
+        resolution: '1920x1080',
+        framePreviews: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/video/:id" element={<VideoDetailPage />} />
+      </Routes>,
+      { initialEntries: ['/video/42'] },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+
+    // 해상도 export 섹션 + 프리셋 선택 + 실행 버튼이 노출된다
+    expect(
+      screen.getByRole('heading', { name: /해상도 변경/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('목표 해상도 선택')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '해상도 변환 실행' }),
+    ).toBeInTheDocument();
+  });
+
+  it('SFR_06_03_해상도_변환_실행시_BE_호출_후_결과_표시', async () => {
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        id: 42,
+        cctvName: '강남대로 CCTV',
+        status: 'COMPLETED',
+        duration: 30,
+        resolution: '1920x1080',
+        framePreviews: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onPost('/videos/42/resolution').reply(201, {
+      success: true,
+      data: { exportSn: 7, srcW: 1920, srcH: 1080, targetW: 1280, targetH: 720, frameCount: 90 },
+      message: null,
+      errorCode: null,
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Routes>
+        <Route path="/video/:id" element={<VideoDetailPage />} />
+      </Routes>,
+      { initialEntries: ['/video/42'] },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: '해상도 변환 실행' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/변환 완료/)).toBeInTheDocument();
+    });
+    const postCall = mock.history.post.find((c) => c.url === '/videos/42/resolution');
+    expect(postCall).toBeTruthy();
+    expect(JSON.parse(postCall!.data)).toEqual({ preset: 'RES_720P' });
+  });
+
+  it('SFR_06_03_업스케일_400_거부시_에러메시지_표시', async () => {
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        id: 42,
+        cctvName: '강남대로 CCTV',
+        status: 'COMPLETED',
+        duration: 30,
+        resolution: '640x480',
+        framePreviews: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onPost('/videos/42/resolution').reply(400, {
+      success: false,
+      data: null,
+      message: '업스케일은 지원하지 않습니다.',
+      errorCode: 'INVALID_INPUT',
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Routes>
+        <Route path="/video/:id" element={<VideoDetailPage />} />
+      </Routes>,
+      { initialEntries: ['/video/42'] },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: '해상도 변환 실행' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('업스케일은 지원하지 않습니다.');
+    });
+  });
+
   it('잘못된_id는_ErrorState_노출', () => {
     renderWithProviders(
       <Routes>

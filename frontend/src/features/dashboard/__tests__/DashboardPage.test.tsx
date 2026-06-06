@@ -116,4 +116,25 @@ describe('DashboardPage', () => {
       expect(screen.getByRole('heading', { name: '대시보드' })).toBeInTheDocument();
     });
   });
+
+  it('I3_최근_완료_영상_API_오류시_빈상태가_아니라_오류_메시지와_재시도_노출', async () => {
+    // given: 최근 완료 영상 API 가 500 으로 실패 (이전엔 빈 상태로 조용히 표시됨)
+    mock.onGet('/videos').reply(500, {
+      success: false,
+      data: null,
+      message: '서버 오류',
+      errorCode: 'INTERNAL_ERROR',
+    });
+    setRole('REVIEWER');
+
+    // when
+    renderWithProviders(<DashboardPage />);
+
+    // then: "데이터 없음" 이 아니라 로드 실패 메시지 + 재시도 버튼 노출
+    await waitFor(() => {
+      expect(screen.getByText('목록을 불러오지 못했습니다')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: '재시도' })).toBeInTheDocument();
+    expect(screen.queryByText('완료된 영상이 없습니다.')).not.toBeInTheDocument();
+  });
 });

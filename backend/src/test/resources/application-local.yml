@@ -32,6 +32,10 @@ authoring:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
   batch:
     enabled: false
+  # 스트림 단기 서명 URL 검증 — 서명 발급/검증은 fail-closed 라 테스트에서도 시크릿이 설정되어야 동작한다.
+  # 최소 32B(256bit) 이상 (StreamUrlSigner.MIN_SECRET_BYTES).
+  stream:
+    sign-secret: ${STREAM_SIGN_SECRET:test-stream-sign-secret-change-me-32bytes-min}
 
 logging:
   level:

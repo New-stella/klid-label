@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
+import kr.co.cudo.authoring.video.service.AutoLabelSummaryService;
 import kr.co.cudo.authoring.video.service.FrameImageService;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
 import kr.co.cudo.authoring.video.service.VideoResolutionService;
@@ -61,6 +62,7 @@ public class VideoController {
     private final FrameImageService frameImageService;
     private final VideoStreamService videoStreamService;
     private final VideoResolutionService videoResolutionService;
+    private final AutoLabelSummaryService autoLabelSummaryService;
 
     @Operation(
             summary = "영상 목록 조회 (페이징)",
@@ -80,7 +82,32 @@ public class VideoController {
                     "지정 시 LS_RAW_DATA_STATUS INNER JOIN 으로 필터링되어 row 가 없는 영상은 제외된다. " +
                     "증강 요청 화면(SCR-AUG-001)에서 APPROVED 영상만 노출하는 용도.")
             @RequestParam(required = false) String reviewStatusCd) {
-        return ApiResponse.ok(videoQueryService.list(pageable, dataSttsCd, reviewStatusCd));
+        return ApiResponse.ok(videoQueryService.list(safeSort(pageable), dataSttsCd, reviewStatusCd));
+    }
+
+    /**
+     * 외부 노출 정렬 키 → 엔티티 필드 allowlist 매핑 (CWE-20).
+     *
+     * <p>FE 는 {@code sort=capturedAt,desc} 같은 외부 키를 보내는데 엔티티 실제 필드는 {@code shtDt}(촬영시각)다.
+     * allowlist 밖의 임의 프로퍼티가 Pageable 로 직행하면 Spring Data 가
+     * {@code PropertyReferenceException} → 500 으로 노출하므로, 컨트롤러에서 안전하게 변환·폴백한다.
+     * allowlist 밖 키는 drop 되고 유효 정렬이 없으면 {@code regDt DESC} 기본 정렬로 폴백한다 (500 금지).
+     */
+    private static final java.util.Map<String, String> VIDEO_SORT_ALLOWLIST = java.util.Map.of(
+            "capturedAt", "shtDt",
+            "shtDt", "shtDt",
+            "regDt", "regDt",
+            "createdAt", "regDt",
+            "updatedAt", "mdfcnDt",
+            "rawSn", "rawSn",
+            "id", "rawSn"
+    );
+
+    private static final org.springframework.data.domain.Sort DEFAULT_VIDEO_SORT =
+            org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "regDt");
+
+    private Pageable safeSort(Pageable pageable) {
+        return kr.co.cudo.authoring.common.web.SortFieldMapper.apply(pageable, VIDEO_SORT_ALLOWLIST, DEFAULT_VIDEO_SORT);
     }
 
     @Operation(
@@ -114,31 +141,53 @@ public class VideoController {
     }
 
     /**
-     * 오토라벨 요약 placeholder — SCR-AUTO-002 진입 시 외부 시계열 메타/객체 검증 요약 표시용.
-     * V1.7 기준 시계열 메타 자동 추출은 외부 시스템 책임이며, 본 엔드포인트는 빈 placeholder 만 반환한다.
+     * 오토라벨 요약 조회 (SCR-AUTO-001) — 실데이터 집계.
+     *
+     * <p>LS_DATA_SRC(프레임)·LS_DATA_LBL(라벨) 기준으로 총 프레임/총 라벨/클래스 분포/신뢰도 분포/
+     * 저신뢰 프레임 목록을 집계한다. 영상 미존재 시 404, 프레임 0건(배치 미완료) 시 status='PENDING'.
      */
     @Operation(
-            summary = "오토라벨 요약 조회 (REVIEWER) — placeholder",
-            description = "V1.7 외부 시스템(시계열 메타) 연동 전 placeholder. 객체 수/검증 통과율/메타 카운트 0 반환."
+            summary = "오토라벨 요약 조회 (REVIEWER)",
+            description = "rawSn 영상의 오토라벨 결과 실집계 — 총 프레임/총 라벨/클래스 분포/신뢰도 분포/저신뢰 프레임. " +
+                    "영상 없음 404, 배치 미완료(프레임 0)면 status='PENDING'."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음")
     })
     @GetMapping("/{rawSn}/auto-summary")
     @PreAuthorize("hasRole('REVIEWER')")
-    public ApiResponse<java.util.Map<String, Object>> autoSummary(
+    public ApiResponse<kr.co.cudo.authoring.video.dto.AutoLabelSummaryResponse> autoSummary(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
-        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("videoId", rawSn);
-        body.put("yoloObjectCount", 0);
-        body.put("sam2TrackCount", 0);
-        body.put("vlmVerifiedCount", 0);
-        body.put("metaCount", 0);
-        body.put("status", "PENDING");
-        body.put("message", "외부 시계열 메타 추출 시스템 연동 전 — placeholder 응답");
-        return ApiResponse.ok(body);
+        return ApiResponse.ok(autoLabelSummaryService.summarize(rawSn));
+    }
+
+    /**
+     * 영상 스트림 단기 서명 URL 발급.
+     * <p>&lt;video&gt; 엘리먼트가 Authorization 헤더를 못 붙여 401 이 나는 문제를 우회한다.
+     * 인증된 사용자가 호출하면 짧은 TTL HMAC 서명 쿼리가 붙은 스트림 URL 을 반환한다 (JWT 본문 미노출).
+     */
+    @Operation(
+            summary = "영상 스트림 서명 URL 발급",
+            description = "인증 필수(INTERNAL 채널). 짧은 TTL HMAC 서명 쿼리가 붙은 스트림 URL 을 발급한다. " +
+                    "<video> 가 Authorization 헤더를 못 붙이는 문제를 우회한다. JWT 본문은 URL 에 노출되지 않는다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 — url + expiresAt"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "서명 발급 비활성화(서버 시크릿 미설정)")
+    })
+    @GetMapping("/{rawSn}/stream-url")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<kr.co.cudo.authoring.video.dto.StreamUrlResponse> streamUrl(
+            @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        // CWE-284 — 발급 요청자 subject 를 서명에 바인딩해 타 사용자 URL 재사용을 차단한다.
+        String userNo = actor == null ? null : actor.sub();
+        return ApiResponse.ok(videoStreamService.issueSignedUrl(rawSn, userNo));
     }
 
     /**

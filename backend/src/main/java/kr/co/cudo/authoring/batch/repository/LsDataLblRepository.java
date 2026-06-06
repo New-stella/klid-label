@@ -113,6 +113,90 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     void deleteAllByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * 영상(rawSn) 의 총 라벨 개수 — 단일 COUNT 쿼리 (N+1 금지).
+     * LS_DATA_LBL.SRC_SN → LS_DATA_SRC.SRC_SN → LS_DATA_SRC.RAW_SN 조인.
+     */
+    @Query("""
+            SELECT COUNT(l)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+            """)
+    long countByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * 영상(rawSn) 의 클래스(라벨명)별 라벨 분포 — 단일 GROUP BY 쿼리 (N+1 금지).
+     * <p>결과 Object[]: [Long labelId, String labelNm, Long count]. labelId 는 null 가능
+     * (V32 이전 라벨) — caller 가 0L 폴백 처리. count DESC 정렬.
+     */
+    @Query("""
+            SELECT l.labelId, l.labelNm, COUNT(l)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+             GROUP BY l.labelId, l.labelNm
+             ORDER BY COUNT(l) DESC
+            """)
+    List<Object[]> aggregateClassDistribution(@Param("rawSn") Long rawSn);
+
+    /**
+     * 영상(rawSn) 의 신뢰도 보유 라벨에 대한 [합계, 개수] — 평균 계산용 (단일 쿼리).
+     *
+     * <p>신뢰도는 {@code LS_DATA_LBL_AI_INFO.CONF_SCORE} 에 저장된다(LsDataLbl.confScore 는 @Transient).
+     * AiInfo 의 {@code DATA_RAW_SN} 으로 직접 필터링한다. 결과 Object[]: [BigDecimal sum, Long cnt].
+     * 신뢰도 보유 라벨이 0건이면 sum=null, cnt=0.
+     */
+    @Query("""
+            SELECT SUM(ai.confScore), COUNT(ai)
+              FROM LsDataLblAiInfo ai
+             WHERE ai.dataRawSn = :rawSn
+               AND ai.confScore IS NOT NULL
+            """)
+    Object[] aggregateConfidenceSum(@Param("rawSn") Long rawSn);
+
+    /**
+     * 영상(rawSn) 의 신뢰도 구간별 라벨 개수 — 단일 GROUP BY 쿼리 (N+1 금지).
+     * <p>구간: high(&gt;=0.9) / mid(0.7~0.9) / low(&lt;0.7). LS_DATA_LBL_AI_INFO 기준.
+     * 결과 Object[]: [String bucket, Long count].
+     */
+    @Query("""
+            SELECT CASE
+                       WHEN ai.confScore >= 0.9 THEN 'high'
+                       WHEN ai.confScore >= 0.7 THEN 'mid'
+                       ELSE 'low'
+                   END,
+                   COUNT(ai)
+              FROM LsDataLblAiInfo ai
+             WHERE ai.dataRawSn = :rawSn
+               AND ai.confScore IS NOT NULL
+             GROUP BY CASE
+                       WHEN ai.confScore >= 0.9 THEN 'high'
+                       WHEN ai.confScore >= 0.7 THEN 'mid'
+                       ELSE 'low'
+                   END
+            """)
+    List<Object[]> aggregateConfidenceBuckets(@Param("rawSn") Long rawSn);
+
+    /**
+     * 영상(rawSn) 의 저신뢰(임계 미만) 라벨을 프레임 정보와 함께 조회 — 단일 조인 쿼리.
+     *
+     * <p>신뢰도는 LS_DATA_LBL_AI_INFO 기준. 프레임 정보(frameNo)는 LS_DATA_SRC 조인으로 획득.
+     * 결과 Object[]: [Long srcSn, Integer frameNo, BigDecimal confScore]. confScore ASC(낮은 순).
+     * 동일 프레임에 여러 저신뢰 라벨이 있으면 각각 반환되므로 caller 가 프레임 단위로 중복 제거한다.
+     */
+    @Query("""
+            SELECT s.srcSn, s.frameNo, ai.confScore
+              FROM LsDataLblAiInfo ai
+              JOIN LsDataSrc s ON ai.dataSrcSn = s.srcSn
+             WHERE ai.dataRawSn = :rawSn
+               AND ai.confScore IS NOT NULL
+               AND ai.confScore < :threshold
+             ORDER BY ai.confScore ASC
+            """)
+    List<Object[]> findLowConfidenceFrames(@Param("rawSn") Long rawSn,
+                                           @Param("threshold") java.math.BigDecimal threshold);
+
+    /**
      * 영상(rawSn)에 속한 자동 BBOX 라벨 중 trackId 가 있는 row 만 조회. — Phase 3 트랙 보간.
      * <p>보간 대상 정의:
      * <ul>

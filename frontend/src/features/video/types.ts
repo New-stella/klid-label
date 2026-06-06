@@ -65,6 +65,27 @@ export interface VideoDetail extends Video {
   updatedAt?: string;
 }
 
+// SFR-06-03 — 해상도 export (저작도구 직접 수행, 증강 아님).
+// 표준 하위 해상도 화이트리스트 (BE ResolutionPreset enum 과 1:1).
+export const RESOLUTION_PRESETS = ['RES_1080P', 'RES_720P', 'RES_480P'] as const;
+export type ResolutionPreset = (typeof RESOLUTION_PRESETS)[number];
+
+export const RESOLUTION_PRESET_LABEL: Record<ResolutionPreset, string> = {
+  RES_1080P: '1080P (1920×1080)',
+  RES_720P: '720P (1280×720)',
+  RES_480P: '480P (854×480)',
+};
+
+// BE: ResolutionChangeResponse (POST /v1/videos/{rawSn}/resolution)
+export interface ResolutionExportResult {
+  exportSn: number;
+  srcW: number;
+  srcH: number;
+  targetW: number;
+  targetH: number;
+  frameCount: number;
+}
+
 // BE: BatchStageProgress (GET /v1/batch/status → { items: [...] })
 export interface BatchStageProgress {
   rawSn: number;
