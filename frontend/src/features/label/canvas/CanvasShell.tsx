@@ -12,6 +12,7 @@ import { useSam2Segment } from '../hooks/useSam2Segment';
 import type { Sam2SegmentResponse } from '../api';
 import { buildGeometry } from './utils/canvasGeometry';
 import type { Geometry } from './utils/coordinateTransformer';
+import { zoomToPoint } from './utils/zoomToPoint';
 
 export interface CanvasShellProps {
   frame: FrameSummary;
@@ -19,18 +20,35 @@ export interface CanvasShellProps {
   height: number;
   labels: Label[];
   onLabelAdd?: (label: Label) => void;
+  /** 편집 잠금 (작업락/포털 읽기 제약 등) — LabelsLayer 이동/리사이즈 비활성. */
+  readOnly?: boolean;
 }
+
+// 스토어 clampZoom 과 동일 한계 — 휠 줌도 같은 범위로 제한.
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 8;
+// 휠 한 틱당 줌 배율.
+const WHEEL_ZOOM_FACTOR = 1.1;
 
 /**
  * react-konva Stage 컨테이너.
  * Layer 분리 원칙: ImageLayer는 imageUrl 변경 시에만 재렌더 (라벨 변경 시 X).
  */
-export function CanvasShell({ frame, width, height, labels, onLabelAdd }: CanvasShellProps) {
+export function CanvasShell({
+  frame,
+  width,
+  height,
+  labels,
+  onLabelAdd,
+  readOnly = false,
+}: CanvasShellProps) {
   const stageRef = useRef<Konva.Stage | null>(null);
   const zoom = useLabelStore((s) => s.zoom);
   const panX = useLabelStore((s) => s.panX);
   const panY = useLabelStore((s) => s.panY);
   const activeTool = useLabelStore((s) => s.activeTool);
+  const setZoom = useLabelStore((s) => s.setZoom);
+  const setPan = useLabelStore((s) => s.setPan);
 
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
   // SAM2 클릭/박스 분할 — 진행 중 무시 + 프레임 전환 stale 폐기 가드 포함.
@@ -79,14 +97,25 @@ export function CanvasShell({ frame, width, height, labels, onLabelAdd }: Canvas
     [frame.imageWidth, frame.imageHeight, width, height, zoom, panX, panY],
   );
 
+  // R17 이슈6: 마우스 휠 줌 — 커서 위치 중심(zoom-to-point). 페이지 스크롤 방지.
+  function handleWheel(e: Konva.KonvaEventObject<WheelEvent>) {
+    e.evt.preventDefault();
+    const pointer = e.target.getStage()?.getPointerPosition();
+    if (!pointer) return;
+    const factor = e.evt.deltaY < 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR;
+    const next = zoomToPoint(geometry, pointer, factor, MIN_ZOOM, MAX_ZOOM);
+    setZoom(next.zoom);
+    setPan(next.panX, next.panY);
+  }
+
   return (
     <div className="relative" data-testid="canvas-shell">
-      <Stage ref={stageRef} width={width} height={height} className="bg-bgLight">
+      <Stage ref={stageRef} width={width} height={height} className="bg-bgLight" onWheel={handleWheel}>
         <Layer listening={false} name="image-layer">
           {imageEl && <ImageLayer image={imageEl} geometry={geometry} />}
         </Layer>
         <Layer name="labels-layer">
-          <LabelsLayer labels={labels} geometry={geometry} />
+          <LabelsLayer labels={labels} geometry={geometry} readOnly={readOnly} />
         </Layer>
         <Layer name="overlay-layer">
           <OverlayLayer
