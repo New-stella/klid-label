@@ -67,7 +67,17 @@ export function MetaReviewPage() {
       pushToast({ variant: 'error', message: '입력값을 확인해주세요.' });
       return;
     }
-    updateMutation.mutate({ vlmText: parsed.data });
+    // BE 는 기존 metaKey 의 값만 수정 가능 — 원본 items 의 키를 보존해 round-trip.
+    // 단일 항목이면 편집 텍스트를 그 값으로 반영. (items 0건이면 저장 버튼이 비활성)
+    const sourceItems = data?.items ?? [];
+    if (sourceItems.length === 0) {
+      return;
+    }
+    const items =
+      sourceItems.length === 1
+        ? [{ metaKey: sourceItems[0].metaKey, metaVal: parsed.data }]
+        : sourceItems.map((it) => ({ metaKey: it.metaKey, metaVal: it.metaVal }));
+    updateMutation.mutate({ items });
   };
 
   if (validVideoId === null) {
@@ -113,33 +123,51 @@ export function MetaReviewPage() {
 
       {error && <ErrorState title="메타 정보를 불러올 수 없습니다" />}
 
-      {data && (
+      {/* R7-2: VLM 메타 0건 빈 상태 — 크래시(undefined.length) 대신 안내 화면. */}
+      {!isLoading && !error && data && data.items.length === 0 && (
+        <div
+          data-testid="meta-empty-state"
+          className="rounded border border-border bg-white p-8 text-center"
+        >
+          <h3 className="text-section-title text-primary">VLM 메타 없음</h3>
+          <p className="mt-2 text-sub text-neutral">
+            이 영상에는 검토할 VLM 시계열 메타가 아직 없습니다.
+          </p>
+        </div>
+      )}
+
+      {!isLoading && !error && data && data.items.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* 좌: 프레임 + 오버레이 + 상태 변화 (외부 자동 감지) */}
+          {/* 좌: 프레임 미리보기(있을 때만) + 상태 변화 */}
           <div
             data-testid="meta-left-panel"
             aria-label="프레임 미리보기와 상태 변화"
             className="flex flex-col gap-4"
           >
-            <section
-              aria-label="프레임 미리보기"
-              className="rounded border border-border bg-white p-4"
-            >
-              <h3 className="mb-3 text-section-title text-primary">프레임</h3>
-              <img
-                src={data.imageUrl}
-                alt={`프레임 ${data.frameNo}`}
-                width={data.imageWidth}
-                height={data.imageHeight}
-                loading="lazy"
-                data-testid="meta-frame-image"
-                className="h-auto w-full rounded border border-border object-contain"
-              />
-              <p className="mt-2 text-sub text-neutral">
-                #{data.frameNo} (srcSn: {data.srcSn})
-              </p>
-            </section>
-            <StateChangeTimeline changes={data.stateChanges} />
+            {data.imageUrl && (
+              <section
+                aria-label="프레임 미리보기"
+                className="rounded border border-border bg-white p-4"
+              >
+                <h3 className="mb-3 text-section-title text-primary">프레임</h3>
+                <img
+                  src={data.imageUrl}
+                  alt={`프레임 ${data.frameNo ?? ''}`}
+                  width={data.imageWidth}
+                  height={data.imageHeight}
+                  loading="lazy"
+                  data-testid="meta-frame-image"
+                  className="h-auto w-full rounded border border-border object-contain"
+                />
+                {data.frameNo != null && (
+                  <p className="mt-2 text-sub text-neutral">
+                    #{data.frameNo}
+                    {data.srcSn != null ? ` (srcSn: ${data.srcSn})` : ''}
+                  </p>
+                )}
+              </section>
+            )}
+            <StateChangeTimeline changes={data.stateChanges ?? []} />
           </div>
 
           {/* 우: VLM 시계열 자연어 패널 */}

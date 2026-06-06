@@ -63,17 +63,42 @@ export interface StateChange {
   detectedAt: string; // ISO8601
 }
 
+/**
+ * BE 실제 응답 항목 (SoT) — {@code GET /v1/frames/{srcSn}/meta} → {@code MetaResponse.Item}.
+ * BE 는 영상(rawSn) 단위 시계열 K/V 목록을 반환한다 (metaKey=정렬키/프레임인덱스, metaVal=VLM 텍스트).
+ * R7-2: 과거 FE 가 기대하던 {@code {vlmText, stateChanges, imageUrl, frameNo}} 형태는 BE 가 생성한 적이 없다.
+ */
+export interface MetaItem {
+  metaSn: number;
+  metaKey: string;
+  metaVal: string;
+}
+
+/**
+ * 화면 표시용 메타 모델 (BE {@link MetaItem} 목록을 어댑터에서 변환).
+ *
+ * R7-2: BE 가 SoT 이므로 {@code items} 가 원본이며, {@code vlmText}/{@code stateChanges} 는
+ * 어댑터가 안전 기본값과 함께 파생한다(items 0건이면 vlmText=''·stateChanges=[]).
+ * imageUrl/frameNo 등은 BE 메타가 제공하지 않으므로 optional 이다 (없으면 화면에서 숨김).
+ */
 export interface FrameMeta {
-  srcSn: number;
-  frameNo: number;
-  imageUrl: string;
-  imageWidth: number;
-  imageHeight: number;
-  /** VLM 시계열 자연어 텍스트 (외부 시스템 생성 → 검토·수정) */
+  /** BE 원본 K/V 목록 (round-trip 시 metaKey 보존용). 0건이면 빈 배열. */
+  items: MetaItem[];
+  srcSn?: number;
+  frameNo?: number;
+  imageUrl?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  /** items 의 metaVal 을 metaKey 오름차순으로 결합한 VLM 시계열 텍스트 (없으면 ''). */
   vlmText: string;
+  /** BE 메타에 상태변화 데이터가 없으므로 항상 [] (옵셔널 가드 — 크래시 방지). */
   stateChanges: StateChange[];
 }
 
+/**
+ * 메타 수정 요청 — BE {@code MetaUpdateRequest} 와 정렬 ({@code items:[{metaKey, metaVal}]}).
+ * BE 는 기존 metaKey 의 값만 수정 가능(key 추가/삭제 불가)하므로 원본 metaKey 를 그대로 보낸다.
+ */
 export interface FrameMetaUpdateRequest {
-  vlmText: string;
+  items: Array<{ metaKey: string; metaVal: string }>;
 }

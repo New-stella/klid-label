@@ -152,12 +152,15 @@ public class Sam2SegmentStep {
                     continue;
                 }
                 BigDecimal score = BigDecimal.valueOf(resp.score()).setScale(4, RoundingMode.HALF_UP);
+                // ISSUE-1: SAM2 적재 폴리곤을 저장 검증 상한(MAX_POINTS_PER_LABEL) 이하로 단순화.
+                // 적재(무제한)와 라벨 저장(1000점 cap)의 정합성 불일치로 인한 저장 차단 회귀 방지.
+                List<List<Double>> capped = capPolygon(resp.polygon());
                 // Phase 6: ai-server 응답 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
                 Long labelId = labelMasterService.findLabelIdByName(job.label).orElse(null);
-                log.info("[Batch][Sam2] mapped label name={} labelId={}",
-                        LogSanitizer.sanitize(job.label), labelId);
+                log.info("[Batch][Sam2] mapped label name={} labelId={} points={}",
+                        LogSanitizer.sanitize(job.label), labelId, capped.size());
                 LsDataLbl savedLabel = lblRepository.save(LsDataLbl.createAutoPolygon(
-                        src.getSrcSn(), labelId, job.label, serialize(resp.polygon()), score));
+                        src.getSrcSn(), labelId, job.label, serialize(capped), score));
                 aiInfoRepository.save(LsDataLblAiInfo.create(savedLabel.getLblSn(), rawSn, src.getSrcSn(),
                         LsDataLblAiInfo.SRC_SAM2, score, "batch"));
                 saved++;
@@ -269,6 +272,30 @@ public class Sam2SegmentStep {
             log.warn("[Batch][Sam2] bbox 파싱 실패 — box 없이 호출: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * SAM2 응답 폴리곤([[x,y],...])을 저장 검증 상한({@link kr.co.cudo.authoring.label.service.LabelService#MAX_POINTS_PER_LABEL})
+     * 이하로 단순화한다. 상한 이하면 원본을 그대로 반환한다.
+     */
+    private List<List<Double>> capPolygon(List<List<Double>> polygon) {
+        if (polygon == null || polygon.size() <= kr.co.cudo.authoring.label.service.LabelService.MAX_POINTS_PER_LABEL) {
+            return polygon;
+        }
+        List<kr.co.cudo.authoring.common.util.Point> pts = new ArrayList<>(polygon.size());
+        for (List<Double> p : polygon) {
+            if (p != null && p.size() >= 2) {
+                pts.add(new kr.co.cudo.authoring.common.util.Point(p.get(0), p.get(1)));
+            }
+        }
+        List<kr.co.cudo.authoring.common.util.Point> simplified =
+                kr.co.cudo.authoring.common.util.PolygonSimplifier.simplifyToMax(
+                        pts, 1.0, kr.co.cudo.authoring.label.service.LabelService.MAX_POINTS_PER_LABEL);
+        List<List<Double>> out = new ArrayList<>(simplified.size());
+        for (kr.co.cudo.authoring.common.util.Point p : simplified) {
+            out.add(List.of(p.x(), p.y()));
+        }
+        return out;
     }
 
     private String serialize(Object value) {

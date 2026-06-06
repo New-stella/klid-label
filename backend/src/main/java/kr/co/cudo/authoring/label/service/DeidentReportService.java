@@ -169,6 +169,42 @@ public class DeidentReportService {
     }
 
     /**
+     * 비식별 신고 목록 조회 (G-1 — REVIEWER 신고 관리 화면).
+     *
+     * <p>권한은 Controller {@code @PreAuthorize("hasRole('REVIEWER')")} 로 강제하며,
+     * 본 메서드는 상태(status) 필터 정규화 + 페이징 조회만 수행한다.
+     *
+     * <ul>
+     *   <li>status null/blank → 기본 OPEN.</li>
+     *   <li>status 는 OPEN/RESOLVED/DISMISSED allowlist 만 허용 — 그 외는 400 (CWE-20 입력 검증).</li>
+     * </ul>
+     *
+     * @return 신고 목록 페이지 (DTO 변환 — Entity 직접 노출 금지)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public org.springframework.data.domain.Page<kr.co.cudo.authoring.label.dto.DeidentReportListResponse> listReports(
+            String status, org.springframework.data.domain.Pageable pageable) {
+        String normalized = normalizeStatus(status);
+        return reportRepository.findByReportSttsCd(normalized, pageable)
+                .map(kr.co.cudo.authoring.label.dto.DeidentReportListResponse::from);
+    }
+
+    /** 상태 필터 정규화 — null/blank → OPEN, allowlist 밖이면 400. */
+    private String normalizeStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return LsDeidentReport.REPORT_OPEN;
+        }
+        String upper = status.trim().toUpperCase();
+        if (!LsDeidentReport.REPORT_OPEN.equals(upper)
+                && !LsDeidentReport.REPORT_RESOLVED.equals(upper)
+                && !LsDeidentReport.REPORT_DISMISSED.equals(upper)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "status 는 OPEN/RESOLVED/DISMISSED 만 허용됩니다.");
+        }
+        return upper;
+    }
+
+    /**
      * 배치 자동 재비식별 성공 시 — 해당 영상의 OPEN 신고 일괄 RESOLVED (기존 DeidentifyStep 경로 유지).
      */
     public int resolveOpenReports(Long rawSn) {

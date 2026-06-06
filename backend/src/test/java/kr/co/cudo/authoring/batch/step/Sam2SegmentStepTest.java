@@ -195,6 +195,36 @@ class Sam2SegmentStepTest {
     }
 
     @Test
+    @DisplayName("Sam2Step_4192점_응답_폴리곤은_저장전_1000점_이하로_simplify되어_저장된다")
+    void oversizedSam2PolygonIsCappedBeforeSave() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(2L))
+                .thenReturn(List.of(newSrc(20L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
+                .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
+        // SAM2 가 4192점 폐곡선(원 근사)을 응답 — 적재 시 무제한이던 회귀를 cap 으로 차단.
+        java.util.List<java.util.List<Double>> dense = new java.util.ArrayList<>();
+        for (int i = 0; i < 4192; i++) {
+            double t = 2 * Math.PI * i / 4192;
+            dense.add(List.of(1000 + Math.cos(t) * 500, 1000 + Math.sin(t) * 500));
+        }
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(dense, 0.9)));
+
+        int saved = step.run(2L, List.of());
+
+        assertThat(saved).isEqualTo(1);
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        verify(lblRepository, times(1)).save(captor.capture());
+        // 저장된 POLYGON 좌표가 라벨 저장 검증 상한 이하여야 한다.
+        var saved1 = captor.getValue();
+        var pts = kr.co.cudo.authoring.common.util.LabelPointSerializer.fromJson(
+                saved1.getPointCn(), new ObjectMapper());
+        assertThat(pts.size())
+                .isLessThanOrEqualTo(kr.co.cudo.authoring.label.service.LabelService.MAX_POINTS_PER_LABEL);
+        assertThat(pts.size()).isGreaterThanOrEqualTo(3);
+    }
+
+    @Test
     @DisplayName("Sam2Step_polygonEnabled_false_라벨은_SAM2_호출_안_함_그리고_경고_로그")
     void polygonDisabledLabelSkipsSam2WithWarn() {
         LsDataRaw raw = rawWithEvent("EVT_FALL");

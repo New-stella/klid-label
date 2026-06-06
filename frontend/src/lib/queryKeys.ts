@@ -29,6 +29,7 @@ export const VIDEO_KEYS = {
   list: (params: Record<string, unknown>) => [...VIDEO_KEYS.all, 'list', params] as const,
   detail: (id: number) => [...VIDEO_KEYS.all, 'detail', id] as const,
   status: () => [...VIDEO_KEYS.all, 'status'] as const,
+  streamUrl: (id: number) => [...VIDEO_KEYS.all, 'stream-url', id] as const,
 };
 
 export const LABEL_KEYS = {
@@ -64,6 +65,16 @@ export const EXPORT_KEYS = {
   all: ['exports'] as const,
   list: (params: Record<string, unknown>) => [...EXPORT_KEYS.all, 'list', params] as const,
   detail: (id: number) => [...EXPORT_KEYS.all, 'detail', id] as const,
+};
+
+/**
+ * 비식별 신고 관리(REVIEWER) — BE GET /v1/deident-reports.
+ * 상태/페이지별로 키를 분리하여 React Query 가 캐시를 분리 관리한다.
+ */
+export const DEIDENT_REPORT_KEYS = {
+  all: ['deidentReports'] as const,
+  list: (params: Record<string, unknown>) =>
+    [...DEIDENT_REPORT_KEYS.all, 'list', params] as const,
 };
 
 export const PORTAL_KEYS = {

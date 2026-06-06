@@ -42,7 +42,16 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
   const dirty = vlmText !== (data?.vlmText ?? '');
 
   const handleSave = () => {
-    updateMutation.mutate({ vlmText });
+    // BE 는 기존 metaKey 값만 수정 — 원본 items 키 보존 (단일 항목이면 편집 텍스트 반영).
+    const sourceItems = data?.items ?? [];
+    if (sourceItems.length === 0) {
+      return;
+    }
+    const items =
+      sourceItems.length === 1
+        ? [{ metaKey: sourceItems[0].metaKey, metaVal: vlmText }]
+        : sourceItems.map((it) => ({ metaKey: it.metaKey, metaVal: it.metaVal }));
+    updateMutation.mutate({ items });
   };
 
   return (

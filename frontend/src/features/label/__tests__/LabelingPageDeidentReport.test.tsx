@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 vi.mock('react-konva', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -33,8 +34,25 @@ import { apiClient } from '@/lib/api/client';
 import { LabelingPage } from '@/pages/label/LabelingPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useLabelStore } from '@/stores/useLabelStore';
 
-function labelsPayload(srcSn: number, opts: { frameImageType?: string; lockSttsCd?: string | null } = {}) {
+function labelItem(srcSn: number, n: number) {
+  return {
+    id: `srv-${srcSn}-${n}`,
+    serverId: n,
+    frameNo: 0,
+    classId: 1,
+    className: 'PERSON',
+    source: 'MANUAL',
+    shape: { type: 'BBOX', left: 10, top: 10, right: 50, bottom: 80 },
+  };
+}
+
+function labelsPayload(
+  srcSn: number,
+  opts: { frameImageType?: string; lockSttsCd?: string | null; labelCount?: number } = {},
+) {
+  const labelCount = opts.labelCount ?? 0;
   return {
     success: true,
     data: {
@@ -44,7 +62,7 @@ function labelsPayload(srcSn: number, opts: { frameImageType?: string; lockSttsC
       frameImageType: opts.frameImageType ?? 'DEID',
       lockSttsCd: opts.lockSttsCd ?? null,
       siblings: [{ srcSn, frameNo: 0 }],
-      labels: [],
+      labels: Array.from({ length: labelCount }, (_, i) => labelItem(srcSn, i + 1)),
     },
     message: null,
     errorCode: null,
@@ -68,6 +86,7 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
   afterEach(() => {
     mock.restore();
     useAuthStore.getState().clear();
+    useLabelStore.getState().reset();
   });
 
   it('WORKER_+_DEID_프레임에서_비식별_누락_신고_버튼_노출', async () => {
@@ -141,5 +160,67 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
 
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /비식별 누락 신고/ })).toBeNull();
+  });
+
+  it('비식별_신고_성공_시_객체_목록이_즉시_0건으로_갱신_+_라벨_재조회', async () => {
+    const user = userEvent.setup();
+
+    // 1차 조회: 라벨 3건 존재. 신고 후 재조회(invalidate)에서는 BE 가 라벨을 전부 삭제하여 0건 응답.
+    let labelsCallCount = 0;
+    mock.onGet('/frames/300/labels').reply(() => {
+      labelsCallCount += 1;
+      // 첫 호출은 라벨 3건, 이후(신고 후 invalidate 재조회)는 0건
+      const count = labelsCallCount === 1 ? 3 : 0;
+      return [200, labelsPayload(300, { frameImageType: 'DEID', labelCount: count })];
+    });
+    mock.onPost('/labels/300/deident-report').reply(201, {
+      success: true,
+      data: { rprtSn: 9001, rawSn: 7, srcSn: 300, status: 'OPEN' },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    // 초기: 객체 3건 렌더 (헤더 "3개 객체" + 객체 트리에 그룹 표시)
+    await waitFor(() => {
+      expect(screen.getByLabelText('객체 수')).toHaveTextContent('3개 객체');
+    });
+    expect(screen.queryByText('이 프레임에 객체가 없습니다')).not.toBeInTheDocument();
+
+    // 신고 모달 열고 제출
+    await user.click(screen.getByRole('button', { name: /비식별 누락 신고/ }));
+    await user.type(
+      screen.getByLabelText(/신고 사유/),
+      '오른쪽 보행자 얼굴 블러 누락',
+    );
+    await user.click(screen.getByTestId('deident-report-submit'));
+
+    // 신고 POST 호출됨 확인
+    await waitFor(() => {
+      expect(
+        mock.history.post.filter((r) => r.url === '/labels/300/deident-report').length,
+      ).toBe(1);
+    });
+
+    // RED 핵심 1) 캔버스/객체 목록이 즉시 0건으로 갱신 — 새로고침 없이 스테일 라벨 사라짐
+    await waitFor(() => {
+      expect(screen.getByText('이 프레임에 객체가 없습니다')).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('객체 수')).toHaveTextContent('0개 객체');
+
+    // RED 핵심 2) 라벨 스토어가 비워짐 (캔버스 렌더 소스)
+    expect(useLabelStore.getState().labels).toHaveLength(0);
+
+    // RED 핵심 3) 라벨 쿼리 invalidate → 재조회 발생 (GET /frames/300/labels 2회 이상)
+    await waitFor(() => {
+      expect(labelsCallCount).toBeGreaterThanOrEqual(2);
+    });
+
+    // 잠금 배너 표시 (기존 동작 유지)
+    expect(screen.getByTestId('deident-locked-banner')).toBeInTheDocument();
   });
 });

@@ -271,39 +271,48 @@ export function reportDeidentMiss(srcSn: number, reason: string): Promise<number
     .then((r) => r.data as unknown as number);
 }
 
+/**
+ * SAM2 Track 요청 — BE 계약(SoT)에 정합.
+ * BE record Sam2TrackRequest: { srcSn, trackId, prevPolygon, label, nextSrcSns }
+ *  - srcSn       : 시작 프레임 SRC_SN (path 와 동일)
+ *  - trackId     : 트랙 식별자 (이어붙일 기존 트랙 또는 신규 클라이언트 발급 — NotBlank)
+ *  - prevPolygon : 시작 프레임 폴리곤 [[x,y],...] (최소 3점, 박스는 4점으로 변환)
+ *  - label       : 객체 라벨명 (NotBlank)
+ *  - nextSrcSns  : 트래킹 대상 후속 프레임 SRC_SN 리스트 (1~50)
+ */
 export interface Sam2TrackRequest {
-  /** seed BBox: [left, top, right, bottom] (image px) */
-  bbox: [number, number, number, number];
-  classId: number;
-  /** 다음 N개 프레임까지 자동 추적 (BE 정책상 상한 적용) */
-  targetFrameCount: number;
-  /** 트랙 ID (이어붙일 기존 트랙 — 없으면 BE가 새로 발급) */
-  trackId?: number;
+  trackId: string;
+  prevPolygon: number[][];
+  label: string;
+  nextSrcSns: number[];
 }
 
-export interface Sam2TrackPropagatedFrame {
-  frameNo: number;
-  bbox: [number, number, number, number];
-  confidence?: number;
+/** BE Sam2TrackResponseDto.TrackedItem 와 1:1. */
+export interface Sam2TrackedItem {
+  srcSn: number;
+  trackId: string;
+  label: string;
+  points: number[][];
+  score: number;
 }
 
+/** BE Sam2TrackResponseDto. */
 export interface Sam2TrackResponse {
-  trackId: number;
-  propagatedFrames: Sam2TrackPropagatedFrame[];
+  tracked: Sam2TrackedItem[];
 }
 
 /**
  * SAM2 자동 추적 요청.
- * BE: POST /frames/{srcSn}/sam2-track
+ * BE: POST /frames/{srcSn}/sam2-track  — body: { srcSn, trackId, prevPolygon, label, nextSrcSns }
  *
- * 보안: srcSn/bbox/classId 입력 검증 + IDOR 방어는 BE 책임.
+ * 보안: srcSn/prevPolygon/nextSrcSns 입력 검증 + IDOR 방어는 BE 책임.
  */
 export function requestSam2Track(
   srcSn: number,
   payload: Sam2TrackRequest,
 ): Promise<Sam2TrackResponse> {
   return apiClient
-    .post<Sam2TrackResponse>(`/frames/${srcSn}/sam2-track`, payload)
+    .post<Sam2TrackResponse>(`/frames/${srcSn}/sam2-track`, { srcSn, ...payload })
     .then((r) => r.data);
 }
 

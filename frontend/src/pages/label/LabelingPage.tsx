@@ -9,6 +9,7 @@
 // 보안: 사용자 입력 ID는 axios가 URL 인코딩. BE에서 IDOR/Mass Assignment 방어.
 
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
@@ -31,8 +32,10 @@ import { useLabels } from '@/features/label/hooks/useLabels';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import type { FrameSummary } from '@/features/label/types';
 import { useSubmitReview } from '@/features/review/hooks/useReviewActions';
+import { useReview } from '@/features/review/hooks/useReview';
 import { HistoryPanel } from '@/features/version/components/HistoryPanel';
 import { Role } from '@/lib/api/types';
+import { LABEL_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
@@ -70,6 +73,7 @@ function useContainerSize<T extends HTMLElement>() {
 export function LabelingPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const numericId = id ? Number(id) : NaN;
 
   // 채널/역할 가드
@@ -96,6 +100,37 @@ export function LabelingPage() {
     },
     onError: () => pushToast({ variant: 'error', message: '검수 제출 실패' }),
   });
+
+  // R6-B / R12-2 검수제출 가드 — 작업(검수 워크플로우) 상태가 제출 가능 상태일 때만 버튼 enabled.
+  // 작업 상태는 LabelsResponse 에 없으므로 reviews/{videoId} 조회로 보강 (WORKER 만).
+  // 제출 가능 상태:
+  //   - ASSIGNED(배치 완료/배정 직후) / REJECTED(반려 후 재제출)
+  //   - COMPLETED(=APPROVED, BE mapToFeStatus 매핑): 검수완료본도 재검수 진입 허용
+  //     (CLAUDE.md '검수완료 후 수정→재검수→재승인 시 새 버전 적층'. BE 는 APPROVED→PENDING 재제출 200 허용).
+  // 차단 상태: REVIEW_PENDING(=PENDING/이미 제출), REVIEWING(=IN_REVIEW/검수 진행 중).
+  // 상태 조회 실패/로딩 중에는 차단하지 않는다(기존 UX 유지) — BE 가 최종 가드.
+  const workVideoId = data?.videoId;
+  const { data: reviewInfo } = useReview(isWorker ? workVideoId : undefined);
+  const workStatus = reviewInfo?.status;
+  // BE ReviewResponse.mapToFeStatus 매핑: ASSIGNED/REJECTED 는 원본/REJECTED 코드로, APPROVED→COMPLETED.
+  // 'APPROVED' 도 방어적으로 포함(BE 매핑 변경 대비).
+  const SUBMITTABLE_STATUSES = ['ASSIGNED', 'REJECTED', 'COMPLETED', 'APPROVED'] as const;
+  const submitBlockedByStatus =
+    workStatus !== undefined &&
+    !(SUBMITTABLE_STATUSES as readonly string[]).includes(workStatus);
+  // 검수완료(APPROVED→COMPLETED 매핑) 상태에서의 제출은 '재검수' — 완료본을 다시 건드린다는 인지를 위해 문구 구분.
+  const isResubmitOfApproved = workStatus === 'COMPLETED';
+  const submitButtonLabel = isResubmitOfApproved ? '재검수 제출' : '검수제출';
+  const submitStatusHint = (() => {
+    switch (workStatus) {
+      case 'REVIEW_PENDING':
+        return '이미 검수 제출되어 검수 대기 중입니다.';
+      case 'REVIEWING':
+        return '검수가 진행 중이라 다시 제출할 수 없습니다.';
+      default:
+        return '현재 상태에서는 검수 제출할 수 없습니다.';
+    }
+  })();
 
   const setLabels = useLabelStore((s) => s.setLabels);
   const labels = useLabelStore((s) => s.labels);
@@ -196,6 +231,24 @@ export function LabelingPage() {
   useEffect(() => {
     setReportedLock(false);
   }, [data?.videoId, data?.srcSn]);
+
+  // 비식별 누락 신고 성공 처리.
+  // BE 는 신고 접수 시 해당 영상(rawSn)의 라벨을 전체 삭제하고 영상을 잠근다. 따라서:
+  //  1) 클라이언트 잠금 마킹(reportedLock) → 배너/저장 차단 즉시 반영
+  //  2) 라벨 스토어 reset → 캔버스/객체 목록의 스테일 라벨 즉시 제거 + undo/redo 스택 초기화
+  //     (잠금 상태에서 스테일 라벨을 편집/되돌리기 시도하는 경로 자체를 차단)
+  //  3) 해당 프레임 범위의 LABEL 캐시만 무효화 → 서버가 비운 라벨로 재조회되어 캐시-화면 정합 유지.
+  //     useLabels 는 LABEL_KEYS.byFrame(srcSn, 0) 으로 키잉되므로 그 prefix 인 byVideo(srcSn)로
+  //     범위를 축소해 무관한 영상/프레임 캐시까지 일괄 재조회하던 LABEL_KEYS.all 무효화를 피한다.
+  const handleDeidentReportSuccess = () => {
+    setReportedLock(true);
+    reset();
+    if (data?.srcSn !== undefined) {
+      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(data.srcSn) });
+    } else {
+      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.all });
+    }
+  };
 
   // 저장 (PUT + commit) — 단축키와 헤더 버튼 공유.
   // useUpdateLabels 훅이 PUT 성공 시 LABEL/VIDEO/ASSIGNMENT/REVIEW_KEYS 를 일괄 invalidate 하여
@@ -375,7 +428,7 @@ export function LabelingPage() {
             <DeidentReportButton
               srcSn={data.srcSn}
               disabled={isLocked || data.frameImageType === 'RAW'}
-              onSuccess={() => setReportedLock(true)}
+              onSuccess={handleDeidentReportSuccess}
             />
           ) : null
         }
@@ -384,12 +437,19 @@ export function LabelingPage() {
             <Button
               variant="primary"
               onClick={() => submitForReview(data.videoId ?? data.srcSn)}
-              disabled={submitting || isLocked}
+              disabled={submitting || isLocked || submitBlockedByStatus}
               loading={submitting}
-              aria-label="검수제출"
+              aria-label={submitButtonLabel}
               data-testid="submit-review-button"
+              title={
+                submitBlockedByStatus
+                  ? submitStatusHint
+                  : isResubmitOfApproved
+                    ? '검수 완료된 영상을 재검수에 다시 제출합니다.'
+                    : undefined
+              }
             >
-              검수제출
+              {submitButtonLabel}
             </Button>
           ) : null
         }
@@ -560,7 +620,16 @@ export function LabelingPage() {
                 <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
                   속성
                 </div>
-                <ObjectAttributePanel labels={labels} />
+                <ObjectAttributePanel
+                  labels={labels}
+                  track={{
+                    srcSn: data?.srcSn,
+                    nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
+                    onTracked: () => {
+                      pushToast({ variant: 'success', message: 'SAM2 자동추적 완료' });
+                    },
+                  }}
+                />
               </div>
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 포털 라벨링에는 미노출, 내부 채널만 렌더 */}
               {!portalMode && <TimeseriesSidePanel srcSn={data?.srcSn} />}

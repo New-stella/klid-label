@@ -19,6 +19,7 @@ import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
+import kr.co.cudo.authoring.common.util.PolygonSimplifier;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
@@ -196,7 +197,10 @@ public class LabelService {
 
         // 좌표 사전 검증 (트랜잭션 내부에서 한꺼번에 실패해도 롤백 — 여기선 명시적으로 미리 차단)
         for (LabelItemDto item : req.items()) {
-            validatePoints(item.points());
+            // 신규 라벨(id == null)은 점 개수 상한을 강제(CWE-770 DoS 방어). 수동 드로잉/정상 SAM2 결과는
+            // 모두 상한 이하이며, SAM2 분할/추적 서비스가 적재 전 simplify 하므로 1000점 초과 신규 입력은 비정상.
+            // 기존 라벨(id != null)은 상한 초과여도 저장 직전 simplify 로 보존한다(ISSUE-1, 아래 capPoints).
+            validatePoints(item.points(), item.id() == null);
         }
 
         // Phase 2 — labelId 사전 검증 (입력에 포함된 모든 labelId 의 존재 + USE_YN='Y' 확인).
@@ -212,7 +216,8 @@ public class LabelService {
 
         List<LsDataLbl> result = new ArrayList<>();
         for (LabelItemDto item : req.items()) {
-            String pointsJson = LabelPointSerializer.toJson(toPoints(item.points()), objectMapper);
+            // ISSUE-1: 저장 직전 점 개수 상한 적용 (SAM2 적재 폴리곤 등 1000점 초과도 simplify 후 저장).
+            String pointsJson = LabelPointSerializer.toJson(capPoints(item.points()), objectMapper);
             if (item.id() != null && idIndex.containsKey(item.id())) {
                 LsDataLbl found = idIndex.get(item.id());
                 if (!found.getSrcSn().equals(srcSn)) {
@@ -304,12 +309,20 @@ public class LabelService {
         }
     }
 
-    /** 좌표 검증 — 음수 차단 + 점 개수 상한. */
-    private void validatePoints(List<List<Double>> points) {
+    /**
+     * 좌표 검증 — 빈 입력 / 형식 / 음수 차단.
+     * <p>
+     * ISSUE-1: 점 개수 상한(MAX_POINTS_PER_LABEL)은 신규 라벨(enforceMaxPoints=true)에만
+     * 400 으로 강제한다. 기존 라벨(id != null)은 SAM2 적재 폴리곤(>1000점)이 이미 DB 에 존재할 수
+     * 있어, 작업자가 본인이 만들지 않은 라벨 때문에 저장이 전면 차단되던 회귀를 막기 위해 상한
+     * 강제 없이 통과시키고 저장 직전 {@link #capPoints}(Douglas-Peucker simplify)로 줄인다.
+     * 신규 입력에 상한을 유지함으로써 CWE-770(과대 좌표 DoS) 방어는 보존된다.
+     */
+    private void validatePoints(List<List<Double>> points, boolean enforceMaxPoints) {
         if (points == null || points.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "points 가 비어있습니다.");
         }
-        if (points.size() > MAX_POINTS_PER_LABEL) {
+        if (enforceMaxPoints && points.size() > MAX_POINTS_PER_LABEL) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "라벨당 좌표 개수 초과 (최대 " + MAX_POINTS_PER_LABEL + " 점)");
         }
@@ -332,5 +345,17 @@ public class LabelService {
             out.add(new Point(pair.get(0), pair.get(1)));
         }
         return out;
+    }
+
+    /**
+     * 저장 직전 좌표 점 개수를 {@link #MAX_POINTS_PER_LABEL} 이하로 단순화한다(ISSUE-1).
+     * 상한 이하면 변환만 수행, 초과 시 Douglas-Peucker simplify 로 줄인다.
+     */
+    private static List<Point> capPoints(List<List<Double>> nested) {
+        List<Point> pts = toPoints(nested);
+        if (pts.size() <= MAX_POINTS_PER_LABEL) {
+            return pts;
+        }
+        return PolygonSimplifier.simplifyToMax(pts, 1.0, MAX_POINTS_PER_LABEL);
     }
 }

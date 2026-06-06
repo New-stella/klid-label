@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -274,6 +275,82 @@ class DeidentReportControllerTest {
         Long rprtSn = openReport(workerAssignedToken);
 
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ============================================================
+    // G-1 — GET /v1/deident-reports (REVIEWER 신고 관리 목록)
+    // ============================================================
+
+    @Test
+    @DisplayName("신고_목록_REVIEWER_조회_성공_기본_OPEN")
+    void listReportsReviewerDefaultOpen() throws Exception {
+        openReport(workerAssignedToken); // OPEN 신고 1건
+
+        mockMvc.perform(get("/v1/deident-reports")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].status").value("OPEN"))
+                .andExpect(jsonPath("$.data.content[0].rawSn").value(rawSn))
+                .andExpect(jsonPath("$.data.content[0].reason").value("얼굴 미블러"));
+    }
+
+    @Test
+    @DisplayName("신고_목록_WORKER_403")
+    void listReportsWorkerForbidden() throws Exception {
+        mockMvc.perform(get("/v1/deident-reports")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("신고_목록_status_RESOLVED_필터")
+    void listReportsResolvedFilter() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+        // resolve → RESOLVED 전이
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk());
+
+        // OPEN 필터 → 0건
+        mockMvc.perform(get("/v1/deident-reports?status=OPEN")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(0));
+
+        // RESOLVED 필터 → 1건
+        mockMvc.perform(get("/v1/deident-reports?status=RESOLVED")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].status").value("RESOLVED"));
+    }
+
+    @Test
+    @DisplayName("신고_목록_status_allowlist_밖_400")
+    void listReportsInvalidStatus400() throws Exception {
+        mockMvc.perform(get("/v1/deident-reports?status=DROP")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("신고_목록_status_악성입력_@Pattern_400")
+    void listReportsMaliciousStatus400() throws Exception {
+        // given: allowlist 밖 + 악성 형태 입력 → 컨트롤러 @Pattern 단에서 400 (서비스 도달 전 차단)
+        mockMvc.perform(get("/v1/deident-reports")
+                        .param("status", "OPEN'; DROP TABLE LS_DEIDENT_REPORT--")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("신고_목록_인증_없음_401")
+    void listReportsUnauthenticated401() throws Exception {
+        mockMvc.perform(get("/v1/deident-reports"))
                 .andExpect(status().isUnauthorized());
     }
 }

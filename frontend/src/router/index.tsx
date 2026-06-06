@@ -94,6 +94,12 @@ const OverallStatPage = lazy(() =>
 const PresetListPage = lazy(() =>
   import('@/pages/manage/PresetListPage').then((m) => ({ default: m.PresetListPage })),
 );
+// G-1 — 비식별 신고 관리 (REVIEWER 전용) lazy 로드
+const DeidentReportListPage = lazy(() =>
+  import('@/pages/manage/DeidentReportListPage').then((m) => ({
+    default: m.DeidentReportListPage,
+  })),
+);
 
 // V2.0 Phase 7 — 마킹 화면 lazy 로드
 const MarkingPage = lazy(() =>
@@ -402,6 +408,14 @@ export const router = createBrowserRouter([
             element: (
               <InternalRoute allow={internalReviewerOnly}>
                 {withSuspense(<PresetListPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: 'deident-reports',
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<DeidentReportListPage />)}
               </InternalRoute>
             ),
           },

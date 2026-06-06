@@ -1,8 +1,18 @@
 // SCR-LABEL-001 좌측 세로 도구바 (mock 정합 — 아이콘 only, w-14).
 //
-// 도구: 선택(V) / 바운딩박스(B) / 폴리곤(P) / [구분선] / 삭제(Del) / 실행취소(Ctrl+Z) / [구분선] / 저장(Ctrl+S)
+// 도구: 선택(S) / 바운딩박스(B) / 폴리곤(P) / SAM분할(G) / SAM추적(T)
+//       / [구분선] / 삭제(Del) / 실행취소(Ctrl+Z) / [구분선] / 저장(Ctrl+S)
 
-import { MousePointer2, Pentagon, RotateCcw, Save, Square, Trash2 } from 'lucide-react';
+import {
+  MousePointer2,
+  Pentagon,
+  RotateCcw,
+  Route,
+  Save,
+  Sparkles,
+  Square,
+  Trash2,
+} from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -50,6 +60,8 @@ export function DarkToolbar({ onSave }: DarkToolbarProps) {
     { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: '선택', shortcut: 'S' },
     { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩박스', shortcut: 'B' },
     { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: '폴리곤', shortcut: 'P' },
+    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: 'G' },
+    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: 'T' },
     { kind: 'divider' },
     { kind: 'action', icon: Trash2, label: '삭제', shortcut: 'Del', action: handleDelete },
     { kind: 'action', icon: RotateCcw, label: '실행취소', shortcut: 'Ctrl+Z', action: undo },

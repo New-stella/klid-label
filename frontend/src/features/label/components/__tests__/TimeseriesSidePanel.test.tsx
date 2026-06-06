@@ -28,12 +28,9 @@ vi.mock('@/features/auto/hooks/useUpdateMeta', () => ({
 import { TimeseriesSidePanel } from '../TimeseriesSidePanel';
 
 const defaultMetaData = {
+  // BE(SoT) 정렬: items K/V 목록 + 어댑터 파생 vlmText
+  items: [{ metaSn: 1, metaKey: '0001', metaVal: '초기 VLM 텍스트' }],
   vlmText: '초기 VLM 텍스트',
-  srcSn: 1,
-  frameNo: 0,
-  imageUrl: '',
-  imageWidth: 0,
-  imageHeight: 0,
   stateChanges: [],
 };
 
@@ -109,8 +106,10 @@ describe('TimeseriesSidePanel', () => {
     // when — 저장 클릭
     await user.click(saveBtn);
 
-    // then — mutate 호출
-    expect(mockMutate).toHaveBeenCalledWith({ vlmText: '수정된 텍스트' });
+    // then — mutate 호출 (원본 metaKey 보존 + 편집 텍스트 반영)
+    expect(mockMutate).toHaveBeenCalledWith({
+      items: [{ metaKey: '0001', metaVal: '수정된 텍스트' }],
+    });
   });
 
   it('srcSn_undefined일때_빈_상태_렌더링', () => {

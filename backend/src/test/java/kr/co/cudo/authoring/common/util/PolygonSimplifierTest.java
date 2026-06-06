@@ -117,4 +117,48 @@ class PolygonSimplifierTest {
         assertThat(PolygonSimplifier.simplify(null, 1.0)).isEmpty();
         assertThat(PolygonSimplifier.simplify(List.of(), 1.0)).isEmpty();
     }
+
+    @Test
+    @DisplayName("simplifyToMax_4192점_지그재그가_1000점_이하로_감소된다")
+    void simplifyToMaxCapsZigzagBelowLimit() {
+        // given: 작은 epsilon 으로는 거의 안 줄어드는 4192점 지그재그(SAM2 적재 실측 재현)
+        List<Point> dense = new java.util.ArrayList<>();
+        for (int i = 0; i < 4192; i++) {
+            // 진폭 5px 지그재그 — epsilon=1.0 으로는 대부분 보존되어 점 폭주.
+            dense.add(new Point(i, (i % 2 == 0) ? 0 : 5));
+        }
+
+        // when
+        List<Point> result = PolygonSimplifier.simplifyToMax(dense, 1.0, 1000);
+
+        // then: 상한 1000 이하 + 시작/끝점 보존.
+        assertThat(result.size()).isLessThanOrEqualTo(1000);
+        assertThat(result.get(0)).isEqualTo(new Point(0, 0));
+        assertThat(result.get(result.size() - 1)).isEqualTo(new Point(4191, 5));
+    }
+
+    @Test
+    @DisplayName("simplifyToMax_상한_이하_입력은_단순화없이_그대로_반환")
+    void simplifyToMaxKeepsSmallInput() {
+        List<Point> small = List.of(new Point(0, 0), new Point(1, 5), new Point(2, 0), new Point(3, 5));
+        assertThat(PolygonSimplifier.simplifyToMax(small, 1.0, 1000)).isEqualTo(small);
+    }
+
+    @Test
+    @DisplayName("simplifyToMax_균등샘플_폴백도_상한을_보장한다")
+    void simplifyToMaxSamplingFallbackHonorsLimit() {
+        // given: 모든 점이 형태에 기여(원형 근사) — epsilon 키워도 잘 안 줄어드는 케이스
+        List<Point> circle = new java.util.ArrayList<>();
+        int n = 5000;
+        for (int i = 0; i < n; i++) {
+            double t = 2 * Math.PI * i / n;
+            circle.add(new Point(1000 + Math.cos(t) * 500, 1000 + Math.sin(t) * 500));
+        }
+
+        // when: 작은 상한으로 강제 절삭 유도.
+        List<Point> result = PolygonSimplifier.simplifyToMax(circle, 0.01, 200);
+
+        // then: 균등 샘플 폴백을 거쳐도 상한을 넘지 않는다.
+        assertThat(result.size()).isLessThanOrEqualTo(200);
+    }
 }

@@ -7,7 +7,30 @@ import { useMemo } from 'react';
 import { useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../hooks/useLabelMasters';
+import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
+import type { Sam2TrackResponse } from '../api';
 import type { Label } from '../types';
+import { ToolType } from '../types';
+
+/** 선택 라벨의 shape → SAM2 Track 시작 폴리곤([[x,y],...]). 박스는 4점 폐곡선으로 변환. */
+function shapeToPolygon(shape: Label['shape']): number[][] | undefined {
+  if (shape.type === 'BBOX') {
+    return [
+      [shape.left, shape.top],
+      [shape.right, shape.top],
+      [shape.right, shape.bottom],
+      [shape.left, shape.bottom],
+    ];
+  }
+  if (shape.type === 'POLYGON') {
+    const out: number[][] = [];
+    for (let i = 0; i + 1 < shape.points.length; i += 2) {
+      out.push([shape.points[i], shape.points[i + 1]]);
+    }
+    return out.length >= 3 ? out : undefined;
+  }
+  return undefined;
+}
 
 export interface AvailableLabel {
   id: number;
@@ -25,6 +48,18 @@ export interface ObjectAttributePanelProps {
   /** 좌표 clamp용 이미지 크기 */
   imageWidth?: number;
   imageHeight?: number;
+  /**
+   * SAM2 자동추적 컨텍스트 — TRACK 도구가 활성이고 라벨이 선택되면 Sam2TrackTool 렌더.
+   * - srcSn       : 시작 프레임 SRC_SN
+   * - nextSrcSns  : 후속 프레임 SRC_SN 리스트 (현재 프레임 이후 siblings)
+   * - onTracked   : 전파 성공 시 콜백 (라벨 재조회 등)
+   * 미제공 시 추적 토글 비노출(하위호환).
+   */
+  track?: {
+    srcSn: number | undefined;
+    nextSrcSns: number[];
+    onTracked?: (res: Sam2TrackResponse) => void;
+  };
 }
 
 /**
@@ -36,7 +71,9 @@ export function ObjectAttributePanel({
   availableLabels,
   imageWidth = 1920,
   imageHeight = 1080,
+  track,
 }: ObjectAttributePanelProps) {
+  const activeTool = useLabelStore((s) => s.activeTool);
   // Phase 8: availableLabels 미전달 시 useLabelMasters 에서 자동 채움.
   const { data: labelMasters } = useLabelMasters();
   const resolvedAvailable: AvailableLabel[] = useMemo(() => {
@@ -171,10 +208,23 @@ export function ObjectAttributePanel({
       )}
       {target.shape && target.shape.type !== 'BBOX' && <CoordsReadonly target={target} />}
 
-      {/* SAM2 자동추적 토글 placeholder (Sam2TrackTool 컴포넌트 외부에서 결합) */}
-      <div className="mt-2 rounded bg-gray-700 p-2 text-xs text-gray-300">
-        SAM2 자동추적은 도구바에서 [T] 버튼으로 활성화
-      </div>
+      {/* SAM2 자동추적 — TRACK 도구 활성 + 선택 라벨이 있을 때 노출. */}
+      {track && activeTool === ToolType.TRACK && (
+        <div className="mt-2 rounded bg-gray-700 p-2 text-xs text-gray-300">
+          <div className="mb-1 font-semibold text-gray-200">SAM2 자동추적</div>
+          <Sam2TrackTool
+            srcSn={track.srcSn}
+            prevPolygon={shapeToPolygon(target.shape)}
+            label={target.className}
+            trackId={target.trackId ?? String(target.id ?? '')}
+            nextSrcSns={track.nextSrcSns}
+            onCompleted={track.onTracked}
+          />
+          {track.nextSrcSns.length === 0 && (
+            <p className="mt-1 text-[11px] text-gray-400">후속 프레임이 없어 추적할 수 없습니다.</p>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

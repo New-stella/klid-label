@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.DeidentReportRequest;
@@ -15,9 +16,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -37,10 +44,34 @@ import org.springframework.web.bind.annotation.RestController;
                 "완료 시 resolve 로 OPEN→RESOLVED 전이 + 작업락을 해제한다.")
 @RestController
 @RequiredArgsConstructor
+@org.springframework.validation.annotation.Validated
 @SecurityRequirement(name = "bearerAuth")
 public class DeidentReportController {
 
     private final DeidentReportService deidentReportService;
+
+    @Operation(
+            summary = "비식별 신고 목록 조회 (REVIEWER)",
+            description = "비식별 누락 신고 목록을 상태(status=OPEN|RESOLVED|DISMISSED)로 필터링해 페이징 조회한다. " +
+                    "기본 status=OPEN, 기본 정렬 reportDt DESC. REVIEWER 전용. " +
+                    "status allowlist 밖 입력은 400."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "status allowlist 밖"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @GetMapping("/v1/deident-reports")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<Page<kr.co.cudo.authoring.label.dto.DeidentReportListResponse>> list(
+            @Parameter(description = "신고 상태 필터 (기본 OPEN)", example = "OPEN")
+            @RequestParam(required = false)
+            @Pattern(regexp = "^(OPEN|RESOLVED|DISMISSED)$",
+                    message = "status 는 OPEN/RESOLVED/DISMISSED 만 허용됩니다.") String status,
+            @PageableDefault(size = 20, sort = "reportDt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ApiResponse.ok(deidentReportService.listReports(status, pageable));
+    }
 
     @Operation(
             summary = "비식별 누락 신고",

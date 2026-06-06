@@ -60,19 +60,33 @@ const MENU: MenuGroup[] = [
       { label: '사용자 관리', path: '/manage/users', allow: ['REVIEWER'] },
       { label: '시스템 설정', path: '/manage/settings', allow: ['REVIEWER'] },
       { label: '프리셋 관리', path: '/manage/presets', allow: ['REVIEWER'] },
+      { label: '비식별 신고', path: '/manage/deident-reports', allow: ['REVIEWER'] },
     ],
   },
 ];
 
-// [개발/검수 전용] DEV 빌드에서만 노출되는 도구 메뉴 — REVIEWER 한정.
-// `import.meta.env.DEV` 는 빌드 시 상수로 치환되므로 prd 산출물에서는 dead-code 로 제거된다.
-if (import.meta.env.DEV) {
-  MENU.push({
-    group: '개발 도구',
+const DEV_TOOLS_GROUP = '개발 도구';
+
+/**
+ * [개발/검수 전용] DEV 빌드에서만 노출되는 도구 메뉴를 MENU 에 멱등 등록한다.
+ *
+ * MENU 는 모듈 스코프 가변 배열이라 Vite HMR 로 본 모듈이 재평가될 때마다 무조건 push 하면
+ * '개발 도구' 그룹이 중복 누적되어 렌더 시 React "two children with the same key" 경고가 발생한다.
+ * 이미 등록되어 있으면 다시 넣지 않도록 그룹 존재 여부를 가드한다(멱등).
+ */
+export function registerDevToolsMenu(menu: MenuGroup[]): void {
+  if (menu.some((g) => g.group === DEV_TOOLS_GROUP)) return;
+  menu.push({
+    group: DEV_TOOLS_GROUP,
     items: [
       { label: '영상 업로드', path: '/dev/autolabel-test', allow: ['REVIEWER'] },
     ],
   });
+}
+
+// `import.meta.env.DEV` 는 빌드 시 상수로 치환되므로 prd 산출물에서는 dead-code 로 제거된다.
+if (import.meta.env.DEV) {
+  registerDevToolsMenu(MENU);
 }
 
 /**

@@ -1,7 +1,7 @@
-// SAM2 자동추적 도구 — 단축키 T로 활성화 + 토글 버튼 클릭 시 BE 호출.
+// SAM2 자동추적 도구 — 선택된 라벨(박스/폴리곤)을 시작점으로 후속 N프레임에 폴리곤 전파.
 //
 // UI/UX §4-6: 자동추적 토글 [▶][□] + 진행률 표시.
-// 보안: BE에서 IDOR/입력 검증 + 1M 픽셀 한도.
+// 보안: BE에서 IDOR/입력 검증 + 좌표 상한.
 
 import { useCallback } from 'react';
 import { Play, Square } from 'lucide-react';
@@ -9,14 +9,20 @@ import { Play, Square } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 import { useSam2Track } from '../../hooks/useSam2Track';
+import type { Sam2TrackResponse } from '../../api';
 
 export interface Sam2TrackToolProps {
+  /** 시작 프레임 SRC_SN */
   srcSn: number | undefined;
-  bbox: [number, number, number, number] | undefined;
-  classId: number | undefined;
-  /** 다음 N개 프레임까지 자동 추적 */
-  targetFrameCount?: number;
-  onCompleted?: (trackId: number) => void;
+  /** 시작 폴리곤 [[x,y],...] (박스는 4점으로 변환되어 전달, 최소 3점) */
+  prevPolygon: number[][] | undefined;
+  /** 객체 라벨명 (BE NotBlank) */
+  label: string | undefined;
+  /** 트랙 식별자 — 기존 trackId 또는 신규 클라이언트 발급 */
+  trackId: string | undefined;
+  /** 후속 프레임 SRC_SN 리스트 (1~50). 비어있으면 비활성. */
+  nextSrcSns: number[];
+  onCompleted?: (res: Sam2TrackResponse) => void;
 }
 
 /**
@@ -24,24 +30,33 @@ export interface Sam2TrackToolProps {
  */
 export function Sam2TrackTool({
   srcSn,
-  bbox,
-  classId,
-  targetFrameCount = 30,
+  prevPolygon,
+  label,
+  trackId,
+  nextSrcSns,
   onCompleted,
 }: Sam2TrackToolProps) {
   const mutation = useSam2Track(srcSn, {
     onSuccess: (data) => {
-      onCompleted?.(data.trackId);
+      onCompleted?.(data);
     },
   });
 
-  const disabled = srcSn === undefined || bbox === undefined || classId === undefined;
+  const hasPolygon = prevPolygon !== undefined && prevPolygon.length >= 3;
+  const disabled =
+    srcSn === undefined ||
+    !hasPolygon ||
+    label === undefined ||
+    label.length === 0 ||
+    trackId === undefined ||
+    trackId.length === 0 ||
+    nextSrcSns.length === 0;
   const isPending = mutation.isPending;
 
   const handleToggle = useCallback(() => {
-    if (disabled || !bbox || classId === undefined) return;
-    mutation.mutate({ bbox, classId, targetFrameCount });
-  }, [bbox, classId, disabled, mutation, targetFrameCount]);
+    if (disabled || !prevPolygon || label === undefined || trackId === undefined) return;
+    mutation.mutate({ trackId, prevPolygon, label, nextSrcSns });
+  }, [disabled, prevPolygon, label, trackId, nextSrcSns, mutation]);
 
   return (
     <div className="flex items-center gap-2" data-testid="sam2-track-tool">

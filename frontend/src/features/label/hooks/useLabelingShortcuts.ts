@@ -16,7 +16,7 @@ const ZOOM_STEP = 1.2;
 
 /**
  * UI/UX §4-6 라벨링 단축키.
- * - B: BBOX 도구 / P: POLYGON / S: SELECT / T: TRACK
+ * - B: BBOX 도구 / P: POLYGON / S: SELECT / G: SAM 분할 / T: TRACK
  * - ←/→: 프레임 이동
  * - Ctrl+Z: undo / Ctrl+Shift+Z: redo
  * - Ctrl+S: 저장 (preventDefault)
@@ -95,6 +95,10 @@ export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
           case 's':
           case 'S':
             setActiveTool(ToolType.SELECT);
+            return;
+          case 'g':
+          case 'G':
+            setActiveTool(ToolType.SAM_SEGMENT);
             return;
           case 't':
           case 'T':
