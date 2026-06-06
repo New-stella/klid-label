@@ -54,7 +54,7 @@ class PortalUserLabelServiceTest {
     @BeforeEach
     void setUp() {
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
-                rawDataStatusRepository, new com.fasterxml.jackson.databind.ObjectMapper());
+                rawDataStatusRepository, null, new com.fasterxml.jackson.databind.ObjectMapper());
 
         when(userLabelRepository.save(any(LsPortalUserLabel.class))).thenAnswer(inv -> {
             LsPortalUserLabel e = inv.getArgument(0);

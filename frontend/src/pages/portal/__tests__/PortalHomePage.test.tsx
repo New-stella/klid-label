@@ -1,15 +1,46 @@
-import { describe, expect, it } from 'vitest';
-import { screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
+import type { DatamartVideo } from '@/features/portal/api';
 
 import { PortalHomePage } from '../PortalHomePage';
 
-// GET /portal/uploads 엔드포인트는 BE 에서 삭제됨(ADR-013) — 홈은 더 이상 호출하지 않는다.
-// 데이터마트 영상 목록 전용 엔드포인트 도입 전까지 홈은 최소 상태(KPI 0·시작하기 비활성)다.
+// Phase B — 데이터마트 영상 목록 훅을 mock 하여 목록/빈 상태/라우팅 분기를 검증한다.
+// (BE 게이트 = APPROVED + 프레임>0 은 BE 단 테스트가 보장 — FE 는 렌더/동선만 검증)
+const useDatamartVideosMock = vi.fn();
+vi.mock('@/features/portal/hooks/useDatamartVideos', () => ({
+  useDatamartVideos: (params: { page?: number; size?: number }) => useDatamartVideosMock(params),
+}));
+
+function video(over: Partial<DatamartVideo> = {}): DatamartVideo {
+  return {
+    rawSn: 10,
+    title: 'CLIP-10',
+    eventName: 'FALL',
+    frameCount: 5,
+    firstSrcSn: 100,
+    lastUpdatedAt: '2026-06-01T10:00:00',
+    ...over,
+  };
+}
+
+function mockVideos(content: DatamartVideo[], isLoading = false) {
+  useDatamartVideosMock.mockReturnValue({
+    data: isLoading ? undefined : { content, totalElements: content.length, totalPages: 1, number: 0, size: 20 },
+    isLoading,
+    isError: false,
+  });
+}
+
+afterEach(() => {
+  useDatamartVideosMock.mockReset();
+});
+
 describe('PortalHomePage', () => {
   it('포털_홈_라벨링_카드_표시_업로드_오토라벨_미노출', () => {
+    mockVideos([]);
     renderWithProviders(<PortalHomePage />);
 
     // ADR-013: 라벨링 카드만 노출, 업로드·오토라벨 UI 미제공
@@ -19,52 +50,78 @@ describe('PortalHomePage', () => {
     expect(screen.queryByTestId('upload-dropzone')).toBeNull();
   });
 
-  it('목록_엔드포인트_미도입_시작하기_비활성', () => {
+  it('영상_0건이면_시작하기_비활성_빈상태', () => {
+    mockVideos([]);
     renderWithProviders(<PortalHomePage />);
 
-    // 데이터마트 목록 조회 엔드포인트가 없어 진입 대상 영상이 없으므로 비활성.
+    // 데이터마트 노출 영상이 없으므로 진입 대상이 없어 비활성.
     // WCAG 2.1.1: native disabled 대신 aria-disabled 로 포커스 순서는 유지하되 활성화는 차단한다.
     const cta = screen.getByRole('button', { name: /시작하기/ });
     expect(cta).toHaveAttribute('aria-disabled', 'true');
     expect(cta).not.toBeDisabled(); // native disabled 가 아니어야 Tab 으로 도달 가능
   });
 
-  it('본문_시작하기_CTA_키보드_Tab_포커스_도달_가능', async () => {
-    // R5 WCAG 2.1 AA 키보드 접근성: 본문 인터랙티브 요소가 Tab 순서에 포함되어야 한다.
-    // given — 포털 홈 렌더
-    const user = userEvent.setup();
+  it('영상_목록_렌더_카드_표시', () => {
+    mockVideos([video({ rawSn: 10, title: 'CLIP-10', firstSrcSn: 100 }), video({ rawSn: 20, title: 'CLIP-20', firstSrcSn: 200, eventName: 'FIRE' })]);
     renderWithProviders(<PortalHomePage />);
-    const cta = screen.getByRole('button', { name: /시작하기/ });
 
-    // when — body 시작점에서 Tab
-    document.body.focus();
-    await user.tab();
-
-    // then — 본문 시작하기 CTA 로 포커스가 도달한다 (native disabled 였다면 건너뛰어 도달 불가)
-    expect(cta).toHaveFocus();
+    // 영상 카드(링크/버튼 시맨틱)가 목록으로 렌더된다
+    const items = screen.getAllByTestId('datamart-video-item');
+    expect(items).toHaveLength(2);
+    expect(screen.getByText('CLIP-10')).toBeInTheDocument();
+    expect(screen.getByText('CLIP-20')).toBeInTheDocument();
   });
 
-  it('본문_시작하기_CTA_비활성_상태에서_클릭해도_동작_안함', async () => {
-    // aria-disabled 상태에서는 활성화(네비게이션 등)가 차단되어야 한다
+  it('영상_카드_클릭_시_첫_srcSn_라벨링으로_라우팅', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<PortalHomePage />);
-    const cta = screen.getByRole('button', { name: /시작하기/ });
+    mockVideos([video({ rawSn: 10, title: 'CLIP-10', firstSrcSn: 100 })]);
 
-    // 클릭해도 예외/네비게이션 없이 무시됨 (aria-disabled 가드)
+    const Probe = () => <div data-testid="label-route">labeling</div>;
+    renderWithProviders(<PortalHomePage />, {
+      initialEntries: ['/portal'],
+      routes: [
+        { path: '/portal', element: <PortalHomePage /> },
+        { path: '/portal/label/:id', element: <Probe /> },
+      ],
+    });
+
+    await user.click(screen.getByTestId('datamart-video-item'));
+
+    // 첫 프레임 srcSn(100) 으로 라벨링 진입
+    await waitFor(() => expect(screen.getByTestId('label-route')).toBeInTheDocument());
+  });
+
+  it('시작하기_CTA_영상_있으면_활성_첫_영상_진입', async () => {
+    const user = userEvent.setup();
+    mockVideos([video({ rawSn: 10, firstSrcSn: 100 }), video({ rawSn: 20, firstSrcSn: 200 })]);
+
+    const Probe = () => <div data-testid="label-route">labeling</div>;
+    renderWithProviders(<PortalHomePage />, {
+      initialEntries: ['/portal'],
+      routes: [
+        { path: '/portal', element: <PortalHomePage /> },
+        { path: '/portal/label/:id', element: <Probe /> },
+      ],
+    });
+
+    const cta = screen.getByRole('button', { name: /시작하기/ });
+    expect(cta).not.toHaveAttribute('aria-disabled', 'true');
+
     await user.click(cta);
-    expect(cta).toHaveAttribute('aria-disabled', 'true');
+    await waitFor(() => expect(screen.getByTestId('label-route')).toBeInTheDocument());
   });
 
   it('다운로드_UI_미제공_V1_5_포털_자체_책임', () => {
+    mockVideos([]);
     const { container } = renderWithProviders(<PortalHomePage />);
 
     expect(screen.getByRole('heading', { name: '라벨링' })).toBeInTheDocument();
-    // 다운로드 버튼/카드/배지 미렌더
     expect(container.querySelector('[aria-label*="다운로드"]')).toBeNull();
     expect(container.querySelector('[data-testid*="download"]')).toBeNull();
   });
 
   it('KPI_2_표시_영상수_라벨링수', () => {
+    mockVideos([video(), video({ rawSn: 20, firstSrcSn: 200 })]);
     renderWithProviders(<PortalHomePage />);
 
     expect(screen.getByText(/영상 수/)).toBeInTheDocument();

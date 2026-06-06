@@ -108,4 +108,24 @@ class PortalLabelControllerTest {
                         .header("Authorization", "Bearer " + alicePortalToken))
                 .andExpect(status().isBadRequest());
     }
+
+    // ─── Phase B: 포털 데이터마트 영상 목록 채널 격리 ───
+
+    @Test
+    @DisplayName("포털_데이터마트_영상목록_PORTAL_토큰은_200_빈목록")
+    void datamartVideos_portalToken_ok() throws Exception {
+        // PORTAL 채널 통과 — APPROVED 영상이 없으면 빈 페이지지만 비-403/비-401 (200).
+        mockMvc.perform(get("/v1/portal/datamart/videos")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("포털_데이터마트_영상목록_INTERNAL_채널_토큰_403")
+    void datamartVideos_internalChannel_forbidden() throws Exception {
+        // /v1/portal/** 는 PORTAL 채널 + PORTAL_USER 만. INTERNAL 채널 REVIEWER 토큰은 채널 불일치 → 403.
+        mockMvc.perform(get("/v1/portal/datamart/videos")
+                        .header("Authorization", "Bearer " + reviewerInternalToken))
+                .andExpect(status().isForbidden());
+    }
 }

@@ -10,22 +10,34 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
+import kr.co.cudo.authoring.portal.dto.DatamartVideoResponse;
 import kr.co.cudo.authoring.portal.dto.PortalFrameLabelsResponse;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelResponse;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
 import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.FrameImageService;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -54,9 +66,10 @@ public class PortalLabelService {
     private final LsDataSrcRepository srcRepository;
     private final LsPortalUserLabelRepository userLabelRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final VideoRepository videoRepository;
 
     /** 라벨 좌표 JSON 파싱용. 생성자 주입 (@RequiredArgsConstructor). */
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -88,6 +101,84 @@ public class PortalLabelService {
         return all.subList(fromIndex, toIndex).stream()
                 .map(DatamartLabelResponse::from)
                 .toList();
+    }
+
+    /**
+     * Phase B — 포털 홈 데이터마트 영상 목록 (PORTAL_USER 전용).
+     *
+     * <p>데이터마트 노출(검수 완료 = LS_RAW_DATA_STATUS.DATA_STTS_CD 'APPROVED') 영상만 페이징 조회한다.
+     * 이 게이트는 {@link #isExposedToDatamart(Long)} / 프레임 이미지·라벨 Load 가드와 동일 조건이며,
+     * BE 쿼리({@code findAllWithReviewStatus(null, APPROVED, ...)}) 단에서 INNER JOIN 으로 강제되어
+     * 미승인 영상은 애초에 결과에 포함되지 않는다(HIGH 방어 — 게이트 누락 차단).
+     *
+     * <p>프레임 0건 영상은 라벨링 진입(/portal/label/{firstSrcSn}) 대상 프레임이 없어 진입 불가하므로
+     * 목록에서 제외한다(MED 방어). firstSrcSn / frameCount 는 N+1 회피 batch lookup 으로 enrich.
+     *
+     * <p>N+1 회피: 페이지 rawSn 집합에 대해 firstSrcSn / frameCount / lastUpdatedAt 을 각 1회 IN 쿼리로 조회.
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Page<DatamartVideoResponse> listDatamartVideos(TokenClaims actor, Pageable pageable) {
+        requireActor(actor);
+
+        Page<LsDataRaw> page =
+                videoRepository.findAllWithReviewStatus(null, LsRawDataStatus.STTS_APPROVED, pageable);
+        List<LsDataRaw> rows = page.getContent();
+        if (rows.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, page.getTotalElements());
+        }
+
+        List<Long> rawSns = rows.stream().map(LsDataRaw::getRawSn).toList();
+
+        Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(rawSns);
+        Map<Long, Long> frameCountByVideo = lookupFrameCountByVideo(rawSns);
+        Map<Long, LocalDateTime> lastUpdatedAtByVideo = lookupLastUpdatedAtByVideo(rawSns);
+
+        // 프레임 0건(=firstSrcSn 부재) 영상은 진입 불가하므로 제외 (MED 방어).
+        List<DatamartVideoResponse> content = rows.stream()
+                .filter(r -> firstSrcSnByVideo.get(r.getRawSn()) != null)
+                .map(r -> new DatamartVideoResponse(
+                        r.getRawSn(),
+                        r.getVmsClipId(),
+                        r.getEvntTypeCd(),
+                        frameCountByVideo.getOrDefault(r.getRawSn(), 0L),
+                        firstSrcSnByVideo.get(r.getRawSn()),
+                        lastUpdatedAtByVideo.get(r.getRawSn())))
+                .toList();
+
+        // 제외로 인해 페이지 size 보다 적어질 수 있으나 totalElements 는 원본(게이트 후) 기준 유지.
+        return new PageImpl<>(content, pageable, page.getTotalElements());
+    }
+
+    private Map<Long, Long> lookupFirstSrcSnByVideo(List<Long> rawSns) {
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : srcRepository.findFirstSrcSnGroupedByRawSn(rawSns)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
+            map.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+        return map;
+    }
+
+    private Map<Long, Long> lookupFrameCountByVideo(List<Long> rawSns) {
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : srcRepository.countByRawSnsGrouped(rawSns)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
+            map.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+        return map;
+    }
+
+    /**
+     * MED-3: LS_RAW_DATA_STATUS.UPD_DT(마지막 상태 변경 일시)를 lastUpdatedAt 으로 노출한다.
+     * 정확한 승인 시각 컬럼이 없어 'approvedAt' 으로 명명하면 재승인 전 상태 전이 시 오해를 일으키므로
+     * 의미에 맞춘 lastUpdatedAt 으로 매핑한다.
+     */
+    private Map<Long, LocalDateTime> lookupLastUpdatedAtByVideo(List<Long> rawSns) {
+        Map<Long, LocalDateTime> map = new HashMap<>();
+        for (LsRawDataStatus s : rawDataStatusRepository.findAllById(rawSns)) {
+            if (s == null || s.getRawDataId() == null) continue;
+            map.put(s.getRawDataId(), s.getUpdDt());
+        }
+        return map;
     }
 
     /** V2.0 — 사용자 라벨 저장. 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재. */
@@ -219,15 +310,15 @@ public class PortalLabelService {
         // R17 이슈1 — deid 프레임은 deidentified-path 기준 절대경로. baseDir 도 deidentified-path 로 잡아야
         // resolveSafe 의 startsWith 검증을 통과한다 (CWE-22 Path Traversal 가드는 그대로 유지).
         Path baseDir = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
-        Path resolved = kr.co.cudo.authoring.video.service.FrameImageService.resolveSafe(baseDir, deid);
+        Path resolved = FrameImageService.resolveSafe(baseDir, deid);
         if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
             log.warn("[Portal] frame image file not found srcSn={}", srcSn);
             throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
         }
 
-        MediaType mediaType = kr.co.cudo.authoring.video.service.FrameImageService.resolveMediaType(resolved);
+        MediaType mediaType = FrameImageService.resolveMediaType(resolved);
         long contentLength = Files.size(resolved);
-        Resource body = new org.springframework.core.io.FileSystemResource(resolved);
+        Resource body = new FileSystemResource(resolved);
 
         return ResponseEntity.ok()
                 .contentType(mediaType)

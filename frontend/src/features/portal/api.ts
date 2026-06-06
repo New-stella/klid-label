@@ -11,10 +11,39 @@
 // ADR-013: 포털은 데이터마트 영상 선택·간편 라벨링 전용. 오토라벨링·업로드(TUS)·검수·버전관리 미제공.
 
 import { apiClient } from '@/lib/api/client';
-
+import type { PageResponse } from '@/lib/api/types';
 // 내부 라벨 api 의 normalizeLabel 과 동일 변환을 재사용 (중복 제거 — 단일 export).
 import { normalizeLabel as normalizeLabelShared } from '@/features/label/api';
 import type { LabelsResponse, SiblingFrame } from '@/features/label/types';
+
+/**
+ * Phase B — 포털 홈 데이터마트 영상 목록 1행 (BE DatamartVideoResponse 와 1:1).
+ *
+ * 데이터마트 노출(검수 완료=APPROVED) 영상만 포함. firstSrcSn 은 라벨링 진입
+ * (/portal/label/{firstSrcSn}) 용 첫 프레임 SRC_SN — BE 가 프레임 0건 영상을 제외하므로 항상 존재.
+ *
+ * MED-3: lastUpdatedAt 은 LS_RAW_DATA_STATUS.UPD_DT(마지막 상태 변경 일시)이다. 정확한 승인 시각
+ * 컬럼이 없어 'approvedAt' 으로 명명하면 재승인 전 상태 전이 시 오해를 일으키므로 의미에 맞춰 명명.
+ */
+export interface DatamartVideo {
+  rawSn: number;
+  title: string;
+  eventName: string | null;
+  frameCount: number;
+  firstSrcSn: number;
+  lastUpdatedAt: string | null;
+}
+
+/**
+ * Phase B — 데이터마트 영상 목록 조회.
+ * BE: GET /v1/portal/datamart/videos?page=&size=  (PORTAL_USER 전용, APPROVED 게이트는 BE 책임)
+ * 보안: page/size 는 axios params 로만 전달 — 문자열 직접 연결 금지.
+ */
+export function listDatamartVideos(params: { page?: number; size?: number } = {}) {
+  return apiClient
+    .get<PageResponse<DatamartVideo>>('/portal/datamart/videos', { params })
+    .then((r) => r.data);
+}
 
 /**
  * R16 — 포털 프레임 라벨 Load.

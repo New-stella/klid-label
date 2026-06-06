@@ -55,7 +55,7 @@ class PortalFrameLabelsServiceTest {
     @BeforeEach
     void setUp() {
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
-                rawDataStatusRepository, new ObjectMapper());
+                rawDataStatusRepository, null, new ObjectMapper());
     }
 
     private LsDataSrc src(Long srcSn, Long rawSn, int frameNo) {

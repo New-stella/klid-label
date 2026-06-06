@@ -66,7 +66,7 @@ class PortalFrameImageServiceTest {
     @BeforeEach
     void setUp() {
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
-                rawDataStatusRepository, new com.fasterxml.jackson.databind.ObjectMapper());
+                rawDataStatusRepository, null, new com.fasterxml.jackson.databind.ObjectMapper());
         ReflectionTestUtils.setField(service, "storageRawPath", tempDir.toString());
         // R17 이슈1 — 비식별 프레임 base 경로는 deidentified-path. 기본은 raw 와 동일 tempDir
         // (개별 테스트에서 deidentified 전용 디렉터리로 override).
