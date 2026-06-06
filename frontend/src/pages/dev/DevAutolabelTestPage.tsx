@@ -13,6 +13,7 @@ import {
   useAutolabelTest,
 } from '@/features/dev/hooks/useAutolabelTest';
 import { useAutolabelStatus } from '@/features/dev/hooks/useAutolabelStatus';
+import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
 import {
   EventTypeCd,
   PrvcType,
@@ -449,6 +450,8 @@ export function DevAutolabelTestPage() {
           </div>
         </form>
       </Card>
+
+      <TusUploadPanel />
 
       {result && (
         <Card title="실행 결과" padding="lg">

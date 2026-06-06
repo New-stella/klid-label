@@ -1,0 +1,176 @@
+package kr.co.cudo.authoring.upload.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/**
+ * TUS 1.0 재개 가능 업로드 세션 (LS_TUS_UPLOAD).
+ *
+ * <p>CVAT 포팅 Phase 3 — 관리 화면 대용량 영상 적재. 청크 단위 PATCH 로 누적 기록하고
+ * offset==length 일치 시 {@code LS_DATA_RAW} 로 합류한다.
+ *
+ * <p>동시성·멱등 가드:
+ * <ul>
+ *   <li>{@code @Version}(VERSION) — 동시 PATCH 오프셋 충돌을 낙관적 잠금으로 차단 (HIGH-1, 409).</li>
+ *   <li>STATUS 원자적 전이 — {@link #markCompleted(Long)} 는 IN_PROGRESS 일 때만 (HIGH-3, 멱등).</li>
+ *   <li>EXPIRES_AT(+24h) — TTL 만료 세션은 410 처리/정리 잡 대상 (HIGH-5).</li>
+ *   <li>USER_NO — 소유자만 HEAD/PATCH/DELETE (HIGH-8, 403).</li>
+ * </ul>
+ *
+ * <p>{@code @Setter} 금지 — 상태 변경은 모두 의미 있는 비즈니스 메서드로만 수행한다.
+ */
+@Entity
+@Table(name = "LS_TUS_UPLOAD")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class LsTusUpload {
+
+    public static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    public static final String STATUS_COMPLETED = "COMPLETED";
+    public static final String STATUS_EXPIRED = "EXPIRED";
+
+    /** 세션 TTL — 생성 시점 +24h. */
+    public static final long TTL_HOURS = 24L;
+
+    @Id
+    @Column(name = "UPLOAD_ID", nullable = false, updatable = false)
+    private UUID uploadId;
+
+    @Column(name = "USER_NO", nullable = false, length = 64)
+    private String userNo;
+
+    @Column(name = "UPLOAD_LENGTH", nullable = false)
+    private long uploadLength;
+
+    @Column(name = "UPLOAD_OFFSET", nullable = false)
+    private long uploadOffset;
+
+    @Column(name = "STATUS", nullable = false, length = 16)
+    private String status;
+
+    @Column(name = "FILE_PATH", nullable = false, length = 500)
+    private String filePath;
+
+    @Column(name = "FILE_NAME", length = 255)
+    private String fileName;
+
+    @Column(name = "VMS_CLIP_ID", length = 64)
+    private String vmsClipId;
+
+    @Column(name = "CCTV_ID", length = 64)
+    private String cctvId;
+
+    @Column(name = "EVENT_TYPE_CD", length = 32)
+    private String eventTypeCd;
+
+    @Column(name = "LOCAL_GOV_CD", length = 10)
+    private String localGovCd;
+
+    @Column(name = "PRVC_TYPE_CD", length = 8)
+    private String prvcTypeCd;
+
+    @Column(name = "CAPTURED_AT")
+    private LocalDateTime capturedAt;
+
+    @Column(name = "RAW_SN")
+    private Long rawSn;
+
+    @Column(name = "EXPIRES_AT", nullable = false)
+    private LocalDateTime expiresAt;
+
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private long version;
+
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
+
+    @Column(name = "MDFCN_DT")
+    private LocalDateTime mdfcnDt;
+
+    /**
+     * 신규 업로드 세션 생성. 저장 파일명은 UUID 강제(HIGH-7), filename 은 표시용만 보존.
+     */
+    public static LsTusUpload create(UUID uploadId, String userNo, long uploadLength,
+                                     String filePath, String fileName,
+                                     String vmsClipId, String cctvId, String eventTypeCd,
+                                     String localGovCd, String prvcTypeCd, LocalDateTime capturedAt) {
+        LsTusUpload u = new LsTusUpload();
+        u.uploadId = uploadId;
+        u.userNo = userNo;
+        u.uploadLength = uploadLength;
+        u.uploadOffset = 0L;
+        u.status = STATUS_IN_PROGRESS;
+        u.filePath = filePath;
+        u.fileName = fileName;
+        u.vmsClipId = vmsClipId;
+        u.cctvId = cctvId;
+        u.eventTypeCd = eventTypeCd;
+        u.localGovCd = localGovCd;
+        u.prvcTypeCd = prvcTypeCd;
+        u.capturedAt = capturedAt;
+        LocalDateTime now = LocalDateTime.now();
+        u.regDt = now;
+        u.mdfcnDt = now;
+        u.expiresAt = now.plusHours(TTL_HOURS);
+        return u;
+    }
+
+    public boolean isExpired(LocalDateTime now) {
+        return !STATUS_COMPLETED.equals(status) && now.isAfter(expiresAt);
+    }
+
+    public boolean isCompleted() {
+        return STATUS_COMPLETED.equals(status);
+    }
+
+    public boolean isOwnedBy(String candidateUserNo) {
+        return userNo != null && userNo.equals(candidateUserNo);
+    }
+
+    /**
+     * 청크 기록 후 오프셋 전진. 디스크 부분 쓰기 실패 시 호출하지 않아 offset 미갱신 보장(HIGH-4).
+     *
+     * @param newOffset 기록 완료 후의 누적 오프셋 (직전 오프셋 + 청크 길이)
+     */
+    public void advanceOffset(long newOffset) {
+        if (newOffset < this.uploadOffset || newOffset > this.uploadLength) {
+            throw new IllegalArgumentException("invalid offset transition");
+        }
+        this.uploadOffset = newOffset;
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
+    public boolean isFullyUploaded() {
+        return uploadOffset == uploadLength;
+    }
+
+    /**
+     * 완료 전이 — IN_PROGRESS 일 때만 적용(원자적). 이미 COMPLETED 면 멱등(false 반환).
+     *
+     * @return 이번 호출에서 전이가 발생했으면 true, 이미 완료 상태면 false
+     */
+    public boolean markCompleted(Long rawSn) {
+        if (STATUS_COMPLETED.equals(this.status)) {
+            return false;
+        }
+        this.status = STATUS_COMPLETED;
+        this.rawSn = rawSn;
+        this.mdfcnDt = LocalDateTime.now();
+        return true;
+    }
+
+    public void markExpired() {
+        this.status = STATUS_EXPIRED;
+        this.mdfcnDt = LocalDateTime.now();
+    }
+}

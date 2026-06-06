@@ -94,6 +94,14 @@ authoring:
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
+  # TUS 1.0 재개 가능 업로드 (관리 화면 대용량 영상 적재).
+  #   - max-file-size: 전체 파일 크기 상한(bytes). POST 시 Upload-Length 초과 즉시 413.
+  #   - max-chunk-bytes: 단일 PATCH 청크 크기 상한(bytes). 본문은 64KB 버퍼로 스트리밍 기록(OOM 방어),
+  #     누적이 한도 초과 시 413 + truncate 롤백. 기본 16MB.
+  upload:
+    tus:
+      max-file-size: ${TUS_MAX_FILE_SIZE:524288000}
+      max-chunk-bytes: ${TUS_MAX_CHUNK_BYTES:16777216}
   # 영상 스트림 단기 서명 URL — <video> 가 Authorization 헤더를 못 붙이는 문제 우회.
   #   - sign-secret: JWT_SECRET 재사용 금지(키 분리). 운영(dev/stg/prd)은 STREAM_SIGN_SECRET 환경변수 필수.
   #     설정 시 256bit(32B) 이상이어야 함(미달 시 부팅 차단). 미설정이면 서명 URL 발급/검증 모두 fail-closed.
