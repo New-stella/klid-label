@@ -10,13 +10,18 @@ export interface VideoPlayerHandle {
 interface VideoPlayerProps {
   src: string;
   className?: string;
+  /**
+   * <video> 로드 실패(예: 서명 URL 만료로 401) 시 호출.
+   * 상위에서 서명 URL 을 재발급해 src 를 교체하는 데 사용한다.
+   */
+  onSrcError?: () => void;
 }
 
 const NATIVE_FPS = 30;
 const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, className }, ref) {
+  function VideoPlayer({ src, className, onSrcError }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -65,6 +70,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
+          onError={() => onSrcError?.()}
         />
         <div className="flex items-center gap-3 text-sm text-gray-600">
           <button

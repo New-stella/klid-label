@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.marking;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -46,6 +48,9 @@ class MarkingServiceTest {
 
     @Mock
     private VideoRepository videoRepository;
+
+    @Mock
+    private LsTaskAssignmentRepository assignmentRepository;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -103,6 +108,9 @@ class MarkingServiceTest {
         // given
         Long rawSn = 2L;
         LsDataRaw raw = stubRaw(rawSn, 60);
+        // WORKER(100) 본인 배정 영상 — 마킹 생성 허용 (CWE-639 가드 통과)
+        when(assignmentRepository.existsByUserNoAndTaskTypeCdAndRawDataId(100L, LsTaskAssignment.TASK_LABELER, rawSn))
+                .thenReturn(true);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -138,7 +146,7 @@ class MarkingServiceTest {
         when(markingRepository.findByRawSnOrderByRegDtDesc(rawSn)).thenReturn(List.of(m1, m2));
 
         // when
-        List<MarkingResponse> result = markingService.list(rawSn);
+        List<MarkingResponse> result = markingService.list(rawSn, reviewer());
 
         // then
         assertThat(result).hasSize(2);
@@ -154,7 +162,7 @@ class MarkingServiceTest {
         when(markingRepository.findById(markingSn)).thenReturn(Optional.of(marking));
 
         // when
-        MarkingResponse result = markingService.get(rawSn, markingSn);
+        MarkingResponse result = markingService.get(rawSn, markingSn, reviewer());
 
         // then
         assertThat(result.eventName()).isEqualTo("화재");
@@ -172,7 +180,7 @@ class MarkingServiceTest {
         when(markingRepository.findById(markingSn)).thenReturn(Optional.of(marking));
 
         // when / then
-        assertThatThrownBy(() -> markingService.get(rawSn, markingSn))
+        assertThatThrownBy(() -> markingService.get(rawSn, markingSn, reviewer()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
@@ -202,7 +210,7 @@ class MarkingServiceTest {
         when(markingRepository.findById(markingSn)).thenReturn(Optional.empty());
 
         // when / then
-        assertThatThrownBy(() -> markingService.get(rawSn, markingSn))
+        assertThatThrownBy(() -> markingService.get(rawSn, markingSn, reviewer()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
@@ -303,6 +311,39 @@ class MarkingServiceTest {
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
         assertThat(result.marks().get(1).frameIndex()).isEqualTo(60);
         assertThat(result.marks().get(60).frameIndex()).isEqualTo(3600);
+    }
+
+    // ── I4 (CWE-639) 수평 권한 상승 가드 ──
+
+    @Test
+    @DisplayName("I4_미배정_WORKER_마킹생성_FORBIDDEN")
+    void createUnassignedWorkerForbidden() {
+        // given — WORKER(100) 가 미배정 영상에 마킹 생성 시도
+        Long rawSn = 7L;
+        when(assignmentRepository.existsByUserNoAndTaskTypeCdAndRawDataId(100L, LsTaskAssignment.TASK_LABELER, rawSn))
+                .thenReturn(false);
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+
+        // when / then — 영상 조회 이전에 FORBIDDEN
+        assertThatThrownBy(() -> markingService.create(rawSn, req, worker()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("I4_미배정_WORKER_마킹목록조회_FORBIDDEN")
+    void listUnassignedWorkerForbidden() {
+        // given — WORKER(100) 가 미배정 영상의 마킹 목록 조회 시도
+        Long rawSn = 8L;
+        when(assignmentRepository.existsByUserNoAndTaskTypeCdAndRawDataId(100L, LsTaskAssignment.TASK_LABELER, rawSn))
+                .thenReturn(false);
+
+        // when / then
+        assertThatThrownBy(() -> markingService.list(rawSn, worker()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test

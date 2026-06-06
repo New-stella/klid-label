@@ -2,8 +2,11 @@ package kr.co.cudo.authoring.marking.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.dto.MarkingRequest;
@@ -35,6 +38,7 @@ public class MarkingService {
 
     private final LsMarkingRepository markingRepository;
     private final VideoRepository videoRepository;
+    private final LsTaskAssignmentRepository assignmentRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -48,6 +52,9 @@ public class MarkingService {
      */
     @Transactional("controlTransactionManager")
     public MarkingResponse create(Long rawSn, MarkingRequest req, TokenClaims actor) {
+        // 0. 본인 배정 검증 (CWE-639 수평 권한 상승 차단) — WORKER 는 본인 LABELER 배정 영상만.
+        requireAssignedOrReviewer(rawSn, actor);
+
         // 1. 영상 존재 확인
         LsDataRaw raw = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
@@ -84,9 +91,10 @@ public class MarkingService {
     }
 
     /**
-     * 영상별 마킹 목록 조회.
+     * 영상별 마킹 목록 조회. 본인 배정 검증 (CWE-639 수평 권한 상승 차단).
      */
-    public List<MarkingResponse> list(Long rawSn) {
+    public List<MarkingResponse> list(Long rawSn, TokenClaims actor) {
+        requireAssignedOrReviewer(rawSn, actor);
         videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
         return markingRepository.findByRawSnOrderByRegDtDesc(rawSn)
@@ -94,15 +102,40 @@ public class MarkingService {
     }
 
     /**
-     * 마킹 단건 조회. rawSn 일치 검증 (CWE-639 IDOR 방어).
+     * 마킹 단건 조회. 본인 배정 검증(CWE-639 수평 권한 상승) + rawSn 일치 검증(IDOR).
      */
-    public MarkingResponse get(Long rawSn, Long markingSn) {
+    public MarkingResponse get(Long rawSn, Long markingSn, TokenClaims actor) {
+        requireAssignedOrReviewer(rawSn, actor);
         LsMarking marking = markingRepository.findById(markingSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "마킹을 찾을 수 없습니다."));
         if (!marking.getRawSn().equals(rawSn)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "해당 영상의 마킹이 아닙니다.");
         }
         return MarkingResponse.from(marking, objectMapper);
+    }
+
+    /**
+     * 영상 단위 접근 가드 (CWE-639 수평 권한 상승 차단).
+     *
+     * <p>REVIEWER 는 전체 허용. WORKER 는 본인이 LABELER 로 배정된 rawSn 만 허용한다.
+     * 배정 여부는 LS_TASK_ASSIGNMENT(TASK_TYPE_CD='LABELER') 존재로 판정한다.
+     *
+     * @param rawSn 영상 PK
+     * @param actor 인증된 사용자 (null 이면 401)
+     */
+    private void requireAssignedOrReviewer(Long rawSn, TokenClaims actor) {
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        if (actor.role() == Role.REVIEWER) {
+            return;
+        }
+        Long userNo = parseUserNo(actor.sub());
+        boolean assigned = userNo != null && assignmentRepository
+                .existsByUserNoAndTaskTypeCdAndRawDataId(userNo, LsTaskAssignment.TASK_LABELER, rawSn);
+        if (!assigned) {
+            throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정된 영상의 마킹만 접근할 수 있습니다.");
+        }
     }
 
     /**

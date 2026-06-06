@@ -64,8 +64,9 @@ public class MarkingController {
     @GetMapping
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
     public ApiResponse<List<MarkingResponse>> list(
-            @Parameter(description = "raw 영상 PK", required = true) @PathVariable Long rawSn) {
-        return ApiResponse.ok(markingService.list(rawSn));
+            @Parameter(description = "raw 영상 PK", required = true) @PathVariable Long rawSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(markingService.list(rawSn, actor));
     }
 
     @Operation(summary = "마킹 단건 조회", description = "마킹 PK로 단건 조회합니다.")
@@ -79,8 +80,9 @@ public class MarkingController {
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
     public ApiResponse<MarkingResponse> get(
             @Parameter(description = "raw 영상 PK", required = true) @PathVariable Long rawSn,
-            @Parameter(description = "마킹 PK", required = true) @PathVariable Long markingSn) {
-        return ApiResponse.ok(markingService.get(rawSn, markingSn));
+            @Parameter(description = "마킹 PK", required = true) @PathVariable Long markingSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(markingService.get(rawSn, markingSn, actor));
     }
 
     @Operation(summary = "마킹 삭제 (REVIEWER 전용)", description = "REVIEWER 만 마킹을 삭제할 수 있습니다.")

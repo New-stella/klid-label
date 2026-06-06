@@ -7,6 +7,7 @@ import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/componen
 import { useCreateMarking, useDeleteMarking, useMarkings } from '@/features/marking/hooks/useMarkings';
 import { useMarkingStore } from '@/features/marking/store';
 import type { MarkItem, MarkingMode } from '@/features/marking/types';
+import { useStreamUrl } from '@/features/video/hooks/useStreamUrl';
 import { useUiStore } from '@/stores/useUiStore';
 
 const NATIVE_FPS = 30;
@@ -23,6 +24,20 @@ export function MarkingPage() {
     setMode, setEventName, setIntervalFrames, addMark, selectMark,
     removeSelectedMark, clearMarks, reset,
   } = useMarkingStore();
+
+  // <video> 는 Authorization 헤더를 못 붙이므로 단기 서명 URL 을 발급받아 src 로 사용한다.
+  const { data: streamUrl, refetch: refetchStreamUrl } = useStreamUrl(rawSn);
+  // 만료(401)로 인한 재발급 무한루프 방지 — 에러당 1회만 재발급.
+  const streamRetriedRef = useRef(false);
+
+  const handleStreamError = useCallback(() => {
+    if (streamRetriedRef.current) return;
+    streamRetriedRef.current = true;
+    void refetchStreamUrl().finally(() => {
+      // 다음 만료 시 다시 1회 재시도 허용
+      streamRetriedRef.current = false;
+    });
+  }, [refetchStreamUrl]);
 
   const { data: savedMarkings = [] } = useMarkings(rawSn);
   const createMutation = useCreateMarking(rawSn, {
@@ -53,14 +68,14 @@ export function MarkingPage() {
     if (mode === 'AUTO') {
       createMutation.mutate({
         eventName: eventName.trim(),
-        markingMode: 'AUTO',
+        mode: 'AUTO',
         intervalFrames,
       });
     } else {
       if (localMarks.length === 0) return;
       createMutation.mutate({
         eventName: eventName.trim(),
-        markingMode: 'MANUAL',
+        mode: 'MANUAL',
         marks: localMarks,
       });
     }
@@ -91,13 +106,19 @@ export function MarkingPage() {
     return <div className="p-8 text-center text-gray-500">잘못된 영상 ID입니다.</div>;
   }
 
-  const videoSrc = `/api/v1/videos/${rawSn}/stream`;
+  const videoSrc = streamUrl?.url ?? '';
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <h1 className="text-lg font-semibold">마킹 — 영상 #{rawSn}</h1>
 
-      <VideoPlayer ref={videoRef} src={videoSrc} />
+      {videoSrc ? (
+        <VideoPlayer ref={videoRef} src={videoSrc} onSrcError={handleStreamError} />
+      ) : (
+        <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-black text-sm text-gray-400">
+          영상을 불러오는 중…
+        </div>
+      )}
 
       <MarkingTimeline
         marks={localMarks}

@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.marking;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.dto.MarkingRequest;
@@ -43,18 +45,25 @@ class MarkingControllerTest {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VideoRepository videoRepository;
     @Autowired private LsMarkingRepository markingRepository;
+    @Autowired private LsTaskAssignmentRepository assignmentRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
 
     private String reviewerToken;
     private String workerToken;
+    /** 타인(2002) 토큰 — I4 수평 권한 상승 재현용 (sub 200 토큰은 위 workerToken 과 별개). */
+    private String otherWorkerToken;
     private Long rawSn;
+
+    /** workerToken 의 sub = 100 (= LABELER 배정 대상), otherWorkerToken 의 sub = 200 (미배정). */
+    private static final long WORKER_NO = 100L;
 
     @BeforeEach
     void setUp() {
         reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
+        otherWorkerToken = JwtTestSupport.token(secret, "200", "WORKER", "INTERNAL", issuer, 60);
 
         // 영상 시드
         LsDataRaw raw = LsDataRaw.createFromIngest(
@@ -63,6 +72,9 @@ class MarkingControllerTest {
                 LocalDateTime.now(), 60);
         raw = videoRepository.save(raw);
         rawSn = raw.getRawSn();
+
+        // I4: WORKER(sub=100) 를 이 영상의 LABELER 로 배정 — 본인 배정 영상은 마킹 생성/조회 가능해야 한다.
+        assignmentRepository.save(LsTaskAssignment.createLabeler(rawSn, WORKER_NO, 1L));
     }
 
     @Test
@@ -222,6 +234,81 @@ class MarkingControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ── I4 (CWE-639) 수평 권한 상승 가드 — WORKER 는 본인 배정 영상만 ──
+
+    @Test
+    @DisplayName("I4_타인배정_영상_마킹생성_미배정_WORKER_403")
+    void createMarkingUnassignedWorkerForbidden() throws Exception {
+        // given — otherWorkerToken(sub=200) 은 이 영상의 LABELER 가 아니다 (배정자는 sub=100)
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+
+        // when / then — 미배정 WORKER 의 마킹 생성은 403
+        mockMvc.perform(post("/v1/videos/" + rawSn + "/markings")
+                        .header("Authorization", "Bearer " + otherWorkerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+
+        // DB 검증 — 마킹이 생성되지 않아야 한다
+        assertThat(markingRepository.findByRawSnOrderByRegDtDesc(rawSn)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("I4_타인배정_영상_마킹조회_미배정_WORKER_403")
+    void listMarkingsUnassignedWorkerForbidden() throws Exception {
+        // given — 영상에 마킹 1건 시드, otherWorkerToken(sub=200) 은 미배정
+        markingRepository.save(LsMarking.createAuto(rawSn, "화재", 10, "/path", "[]", 1L));
+
+        // when / then — 미배정 WORKER 의 목록 조회는 403 (마킹 노출 차단)
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings")
+                        .header("Authorization", "Bearer " + otherWorkerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("I4_본인배정_영상_마킹조회_WORKER_200")
+    void listMarkingsAssignedWorkerOk() throws Exception {
+        // given — workerToken(sub=100) 은 setUp 에서 LABELER 배정됨, 마킹 1건 시드
+        markingRepository.save(LsMarking.createAuto(rawSn, "화재", 10, "/path", "[]", 1L));
+
+        // when / then — 본인 배정 WORKER 의 목록 조회는 200
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1));
+    }
+
+    @Test
+    @DisplayName("I4_본인배정_영상_마킹생성_WORKER_201")
+    void createMarkingAssignedWorkerOk() throws Exception {
+        // given — workerToken(sub=100) 본인 배정 영상
+        MarkingRequest req = new MarkingRequest("침입", "MANUAL", null,
+                List.of(new MarkItem(0, "00:00")));
+
+        // when / then — 본인 배정 WORKER 의 마킹 생성은 201
+        mockMvc.perform(post("/v1/videos/" + rawSn + "/markings")
+                        .header("Authorization", "Bearer " + workerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @DisplayName("I4_REVIEWER_는_미배정여부_무관_마킹조회_200")
+    void listMarkingsReviewerOkRegardlessOfAssignment() throws Exception {
+        // given — 마킹 1건 시드, REVIEWER 는 배정 없이도 전체 허용
+        markingRepository.save(LsMarking.createAuto(rawSn, "화재", 10, "/path", "[]", 1L));
+
+        // when / then
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1));
     }
 
     @Test

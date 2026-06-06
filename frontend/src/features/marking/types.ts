@@ -18,7 +18,9 @@ export interface MarkItem {
 
 export interface MarkingRequest {
   eventName: string;
-  markingMode: MarkingMode;
+  // BE 계약(MarkingRequest.mode, @NotBlank)에 맞춘 요청 필드명.
+  // 응답 DTO(MarkingResponse)는 `markingMode` 로 내려오므로 요청/응답 필드명이 다른 점에 주의.
+  mode: MarkingMode;
   intervalFrames?: number;
   marks?: MarkItem[];
 }
