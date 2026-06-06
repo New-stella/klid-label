@@ -324,7 +324,9 @@ function CommitList({
       {versions.map((commit, idx) => {
         const isSelected = selectedHash === commit.commitSha;
         const isChecked = checkedHashes.includes(commit.commitSha);
-        const isLatest = idx === 0 || commit.isCurrent;
+        // 뱃지 분리 — "최신"은 시간순 첫 행, "현재"는 active 버전(롤백 시 과거 행으로 이동 가능).
+        const isLatest = idx === 0;
+        const isActive = commit.isCurrent;
         const rowClass = dark
           ? [
               'px-3 py-2 transition-colors',
@@ -377,6 +379,17 @@ function CommitList({
                       }
                     >
                       최신
+                    </span>
+                  )}
+                  {isActive && (
+                    <span
+                      className={
+                        dark
+                          ? 'inline-flex items-center rounded-full bg-blue-900 px-2 py-0.5 text-xs font-medium text-blue-200'
+                          : 'inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700'
+                      }
+                    >
+                      현재
                     </span>
                   )}
                 </div>

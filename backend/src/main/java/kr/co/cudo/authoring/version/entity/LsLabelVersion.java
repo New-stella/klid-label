@@ -104,4 +104,13 @@ public class LsLabelVersion {
     public void deactivate() {
         this.activeYn = ACTIVE_NO;
     }
+
+    /**
+     * R12-1 — 롤백 시 대상 스냅샷의 해시가 기존 버전과 동일하면 신규 INSERT 대신 기존 행을 active 로 복원한다.
+     * (DATA_SRC_SN, VERSION_HASH) UNIQUE 충돌(500) 방지. 식별자/페이로드/versionNo 는 보존하고
+     * ACTIVE_YN 만 'Y' 로 전환한다.
+     */
+    public void activate() {
+        this.activeYn = ACTIVE_YES;
+    }
 }

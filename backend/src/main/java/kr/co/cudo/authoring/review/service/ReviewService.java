@@ -231,10 +231,12 @@ public class ReviewService {
     }
 
     /**
-     * 검수 단건 상세 조회 (REVIEWER) — 검수 상세 화면 진입 시.
+     * 검수 단건 상세 조회 — REVIEWER(전체) 또는 본인 LABELER 배정 WORKER 만.
+     * <p>WORKER 는 라벨링 화면의 검수제출 가드(작업 상태 조회)용으로 본인 배정 영상만 조회 가능 (CWE-639 IDOR 방어).
+     * 다른 작업자에게 배정된 영상은 WORKER 에게 403.
      */
     public ReviewResponse getDetail(Long videoId, TokenClaims actor) {
-        requireReviewer(actor);
+        requireAssignedOrReviewer(videoId, actor);
         LsRawDataStatus stts = loadByVideoId(videoId);
         return enrichOne(stts);
     }
@@ -322,7 +324,12 @@ public class ReviewService {
 
     /**
      * 작업자가 라벨링 완료 후 검수 제출. 본인에게 LABELER 로 배정된 영상만 가능.
-     * 상태: ASSIGNED → PENDING (또는 REJECTED → PENDING 재제출).
+     * 상태: ASSIGNED → PENDING / REJECTED → PENDING(재제출) / APPROVED → PENDING(재검수 재제출).
+     *
+     * <p>재검수(APPROVED → PENDING): 검수완료 후 수정→재검수→재승인을 허용한다(CLAUDE.md 가 SoT).
+     * 동일 작업 ID(=RAW_SN)를 유지하며 버전업이 아니다. 재승인 시 {@code VersionService.commitApproved}
+     * 가 변경분에 대해 새 APPROVED 스냅샷을 적층한다. 본인 배정 WORKER 가드는 동일하게 적용된다.
+     * 검수 이슈(LS_DATA_ISSUE)는 append-only 이력(REJECTION=RESOLVED 고정)이라 새 사이클 진입 시 초기화하지 않는다.
      */
     @Transactional("controlTransactionManager")
     public ReviewResponse submit(Long videoId, TokenClaims actor) {
@@ -439,6 +446,29 @@ public class ReviewService {
         if (!assigned) {
             throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다.");
         }
+    }
+
+    /**
+     * 단건 상세 조회 접근 제어 — REVIEWER 는 전체, WORKER 는 본인 LABELER 배정 영상만 (CWE-639 IDOR 방어).
+     * 그 외 역할/미인증/타인 배정 영상은 거부. approve/reject/list 등 다른 액션 권한은 변경하지 않는다.
+     */
+    private void requireAssignedOrReviewer(Long videoId, TokenClaims actor) {
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        if (actor.role() == Role.REVIEWER) {
+            return;
+        }
+        if (actor.role() == Role.WORKER) {
+            Long selfNo = parseUserNo(actor.sub());
+            boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
+                    selfNo, LsTaskAssignment.TASK_LABELER, videoId);
+            if (assigned) {
+                return;
+            }
+            throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다.");
+        }
+        throw new CustomException(ErrorCode.FORBIDDEN, "검수 상세 조회 권한이 없습니다.");
     }
 
     private void requireReviewer(TokenClaims actor) {

@@ -79,6 +79,16 @@ describe('RejectModal', () => {
     expect(onSuccess).toHaveBeenCalled();
   });
 
+  it('반려_사유_textarea에_reject_reason_input_testid가_부여된다_(E2E_셀렉터_안정화)', () => {
+    renderWithProviders(<RejectModal reviewId={10} open onClose={() => {}} />);
+
+    // E2E 에서 review-comment textarea 와 충돌하지 않도록 모달 사유에 고유 testid 부여.
+    const textarea = screen.getByTestId('reject-reason-input');
+    expect(textarea.tagName).toBe('TEXTAREA');
+    // label "반려 사유" 와 연결(htmlFor↔id)되어 getByLabelText 로도 동일 요소 접근 가능.
+    expect(screen.getByLabelText(/반려 사유/)).toBe(textarea);
+  });
+
   it('반려_사유_텍스트_외_입력_폼_없음_(UI_UX_4_9_회귀_방지)', () => {
     renderWithProviders(<RejectModal reviewId={10} open onClose={() => {}} />);
 

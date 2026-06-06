@@ -11,8 +11,16 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.LabelPointSerializer;
+import kr.co.cudo.authoring.common.util.Point;
+import kr.co.cudo.authoring.common.util.PolygonSimplifier;
+import kr.co.cudo.authoring.controlnotify.event.ChangeType;
+import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
+import kr.co.cudo.authoring.label.service.LabelService;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.version.dto.VersionItem;
@@ -22,6 +30,7 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +44,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * 라벨 버전관리 (DB 스냅샷 기반).
@@ -62,8 +72,22 @@ import java.util.Objects;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class VersionService {
 
-    /** CWE-770 — 단일 라벨 스냅샷 페이로드 최대 크기 (바이트). */
+    /** CWE-770 — 일반(승인/롤백) 스냅샷 페이로드 최대 크기 (바이트, 1MB). */
     public static final int MAX_PAYLOAD_BYTES = 1024 * 1024;
+
+    /**
+     * R7-1 — 비식별 신고 스냅샷 전용 상향 한도 (바이트, 10MB).
+     *
+     * <p>비식별 신고는 개인정보 노출 안전장치이므로 <b>어떤 데이터 상태에서도 반드시 성공</b>해야 한다.
+     * 영상 전체 라벨(SAM2 폴리곤 다수 포함)이 1MB 를 넘으면 폴리곤 단순화로 실질 크기를 줄이되,
+     * 그래도 초과할 수 있으므로 이 경로에 한해 한도를 10MB 로 상향한다.
+     * DoS(CWE-770) 방어는 라벨당 좌표 상한({@link LabelService#MAX_POINTS_PER_LABEL})과
+     * 메타 수정 건수 상한 등 상류 가드로 유지되며, TEXT 컬럼이라 저장 자체는 안전하다.
+     */
+    public static final int MAX_DEIDENT_PAYLOAD_BYTES = 10 * 1024 * 1024;
+
+    /** R7-1 — 신고 스냅샷이 1MB 초과 시 폴리곤 단순화에 사용할 초기 epsilon(px). */
+    private static final double DEIDENT_SIMPLIFY_EPSILON = 1.0;
 
     private final LsLabelVersionRepository labelVersionRepository;
     private final LabelAccessGuard accessGuard;
@@ -72,6 +96,10 @@ public class VersionService {
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository labelRepository;
     private final ObjectMapper objectMapper;
+    /** 롤백이 라벨을 교체하면(APPROVED 영상) TASK_MODIFIED 통지를 트리거하기 위한 이벤트 발행기. */
+    private final ApplicationEventPublisher eventPublisher;
+    /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회 — APPROVED 롤백 시 TASK_MODIFIED 발행 조건. */
+    private final LsRawDataStatusRepository rawDataStatusRepository;
 
     /**
      * 검수 승인(APPROVED) 시점에 영상(rawSn) 전체의 학습데이터 버전 스냅샷을 생성한다.
@@ -109,9 +137,15 @@ public class VersionService {
             return 0;
         }
 
+        // N+1 SELECT 회피 — 프레임 루프 내 findBySrcSn 반복 대신 단일 IN 쿼리로 라벨을 일괄 조회한 뒤
+        // srcSn 단위로 분류한다.
+        List<Long> srcSns = frames.stream().map(LsDataSrc::getSrcSn).toList();
+        Map<Long, List<LsDataLbl>> labelsBySrcSn = labelRepository.findBySrcSnIn(srcSns).stream()
+                .collect(java.util.stream.Collectors.groupingBy(LsDataLbl::getSrcSn));
+
         int created = 0;
         for (LsDataSrc frame : frames) {
-            List<LsDataLbl> labels = labelRepository.findBySrcSn(frame.getSrcSn());
+            List<LsDataLbl> labels = labelsBySrcSn.getOrDefault(frame.getSrcSn(), List.of());
             // 라벨이 없는 프레임은 스냅샷 미생성 (빈 버전 적재 방지).
             if (labels.isEmpty()) {
                 continue;
@@ -189,15 +223,7 @@ public class VersionService {
             log.info("[Version] deident-report snapshot skipped (no labels) rawSn={} actor={}", rawSn, actorId);
             return false;
         }
-        String payload;
-        try {
-            payload = objectMapper.writeValueAsString(LabelResponse.of(labels, objectMapper));
-        } catch (Exception e) {
-            // 직렬화 실패는 내부 오류 — 신고 흐름 전체를 안전하게 막기 위해 예외 전파(트랜잭션 롤백).
-            log.error("[Version] deident-report snapshot serialize failed rawSn={}", rawSn, e);
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "라벨 스냅샷 직렬화에 실패했습니다.");
-        }
-        validatePayloadSize(payload);
+        String payload = serializeDeidentSnapshot(rawSn, labels);
         String versionHash = sha256Hex(payload);
         int nextVersion = labelVersionRepository.findFirstByDataRawSnOrderByVersionNoDesc(rawSn)
                 .map(v -> v.getVersionNo() + 1)
@@ -250,8 +276,23 @@ public class VersionService {
     /**
      * 지정 버전(versionHash) 스냅샷으로 롤백한다.
      *
-     * <p>대상 버전의 {@code LABEL_PAYLOAD} 를 그대로 새 active 버전(saveReason=ROLLBACK)으로 기록한다.
-     * 접근권한 + ACTIVE 비관적 잠금으로 동시성/IDOR 방어.
+     * <p><b>롤백 시맨틱(완성):</b> 버전 행 active 전환에 더해 <b>대상 스냅샷의 라벨 본문을 작업본
+     * ({@code LS_DATA_LBL}) 으로 실제 복원</b>한다. 라벨링 캔버스(GET /frames/{srcSn}/labels)와
+     * 데이터마트 View(V_COMPLETED_LABEL — LS_DATA_LBL 기반)가 롤백 결과를 즉시 반영한다.
+     * <ol>
+     *   <li>대상 스냅샷 페이로드(JSON)를 파싱해 해당 프레임(srcSn)의 라벨을 추출.</li>
+     *   <li>해당 프레임의 기존 LS_DATA_LBL 을 삭제하고 스냅샷 라벨을 재생성(lbl_sn 재발급 허용).</li>
+     *   <li>버전 행은 새 active(saveReason=ROLLBACK) 로 기록(R12-1 동일 해시 시 기존 행 재활성).</li>
+     * </ol>
+     *
+     * <p>가드/일관성:
+     * <ul>
+     *   <li>접근권한 + ACTIVE 비관적 잠금으로 동시성/IDOR 방어(기존 유지).</li>
+     *   <li>작업락(LS_AUTH_WORK_LOCK) 잠긴 영상은 롤백 거부(CONFLICT) — 라벨 교체와 비식별 재처리 충돌 차단.</li>
+     *   <li>APPROVED(검수 완료) 영상 롤백은 라벨 변경이므로 TASK_MODIFIED(LABEL_UPDATED) 발행.</li>
+     *   <li>페이로드 파싱 실패는 부분 적용 없이 전체 롤백 — 손상 스냅샷은 의미 있는 CustomException(INVALID_INPUT).</li>
+     *   <li>라벨 교체·버전 전환·통지가 모두 같은 트랜잭션에 묶여 원자적으로 커밋/롤백된다.</li>
+     * </ul>
      */
     @Transactional("controlTransactionManager")
     public LsLabelVersion rollback(String versionHash, Long srcSn, TokenClaims actor) {
@@ -269,27 +310,183 @@ public class VersionService {
         LsDataRaw raw = videoRepository.findById(src.getRawSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
 
+        // 작업락 잠긴 영상은 롤백 거부 — 비식별 재처리/라벨 삭제와 라벨 교체가 충돌하지 않도록 차단.
+        if (workLockService.isRawLocked(raw.getRawSn())) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "작업이 잠긴 영상은 롤백할 수 없습니다.");
+        }
+
+        String snapshot = target.getLabelPayload() == null ? "" : target.getLabelPayload();
+
+        // 손상 스냅샷은 부분 적용 없이 전체 롤백 — 라벨 교체 전에 먼저 파싱하여 유효성 확보.
+        List<RestoredLabel> restored = parseSnapshotLabels(snapshot);
+
+        // CWE-362 — ACTIVE 행 비관적 잠금을 라벨 교체보다 먼저 획득한다.
+        // 잠금을 보유한 상태에서 라벨 교체 → 버전 전환을 수행해야 동시 롤백 시
+        // 미잠금 구간에서의 라벨 DELETE+INSERT(데이터 조작)가 직렬화된다.
         List<LsLabelVersion> activeVersions = labelVersionRepository.findActiveForUpdate(
                 raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
 
-        String snapshot = target.getLabelPayload() == null ? "" : target.getLabelPayload();
+        // 대상 스냅샷의 라벨 본문을 작업본(LS_DATA_LBL)으로 복원 — 기존 프레임 라벨 삭제 후 재생성.
+        // (잠금 보유 상태에서 수행)
+        replaceFrameLabels(src, restored);
+
         // 롤백 결과 스냅샷의 해시 — 같은 프레임 내 멱등성을 위해 재계산.
         String newHash = sha256Hex(snapshot);
 
+        LsLabelVersion result = upsertRollbackVersion(src, raw, activeVersions, newHash, snapshot, actor);
+
+        // APPROVED(검수 완료) 영상은 라벨 변경이므로 TASK_MODIFIED(LABEL_UPDATED) 발행 (LabelService 패턴 재사용).
+        if (isReviewApproved(raw.getRawSn())) {
+            Long actorNo = accessGuard.parseUserNo(actor.sub());
+            eventPublisher.publishEvent(new TaskModifiedEvent(
+                    raw.getRawSn(), src.getSrcSn(), ChangeType.LABEL_UPDATED, actorNo));
+        }
+        return result;
+    }
+
+    /**
+     * 버전 행을 롤백 결과로 갱신한다. 멱등/UNIQUE 충돌 처리는 기존 R12-1 로직 유지.
+     * <ul>
+     *   <li>현재 active 가 이미 롤백 결과와 동일 스냅샷이면 멱등 — 기존 active 반환(새 행 미생성).</li>
+     *   <li>R12-1 — 롤백 결과 해시가 같은 프레임 내 기존 버전과 동일하면 신규 INSERT 시
+     *       (DATA_SRC_SN, VERSION_HASH) UNIQUE 충돌이 나므로 기존 행을 active 로 복원.</li>
+     *   <li>그 외엔 새 active(saveReason=ROLLBACK) 버전을 INSERT.</li>
+     * </ul>
+     */
+    private LsLabelVersion upsertRollbackVersion(LsDataSrc src, LsDataRaw raw,
+                                                 List<LsLabelVersion> activeVersions,
+                                                 String newHash, String snapshot, TokenClaims actor) {
         // 현재 active 가 이미 롤백 대상과 동일 스냅샷이면 멱등 — 기존 active 반환.
         for (LsLabelVersion active : activeVersions) {
             if (newHash.equals(active.getVersionHash())) {
                 log.info("[Version] rollback idempotent srcSn={} hash={} actor={}",
-                        srcSn, newHash, actor.sub());
+                        src.getSrcSn(), newHash, actor.sub());
                 return active;
             }
         }
 
+        Optional<LsLabelVersion> existingSameHash =
+                labelVersionRepository.findByDataSrcSnAndVersionHash(src.getSrcSn(), newHash);
+        if (existingSameHash.isPresent()) {
+            LsLabelVersion existing = existingSameHash.get();
+            activeVersions.forEach(LsLabelVersion::deactivate);
+            existing.activate();
+            log.info("[Version] rollback reactivated existing srcSn={} hash={} version={} actor={}",
+                    src.getSrcSn(), newHash, existing.getVersionNo(), actor.sub());
+            return existing;
+        }
+
         LsLabelVersion saved = saveActiveVersion(src, raw, activeVersions, newHash, snapshot,
                 LsLabelVersion.SAVE_REASON_ROLLBACK, actor.sub());
-        log.info("[Version] rolled back srcSn={} toHash={} newHash={} version={} actor={}",
-                srcSn, versionHash, newHash, saved.getVersionNo(), actor.sub());
+        log.info("[Version] rolled back srcSn={} newHash={} version={} actor={}",
+                src.getSrcSn(), newHash, saved.getVersionNo(), actor.sub());
         return saved;
+    }
+
+    /**
+     * 스냅샷 페이로드(LabelResponse 직렬화 JSON)의 {@code items[]} 를 복원 라벨 목록으로 역직렬화한다.
+     *
+     * <p>스냅샷 형식(commitApproved 가 생성): {@code {srcSn, frameNo, ..., items:[{id, lblTypeCd,
+     * label, labelId, points, ...}]}}. 각 item 에서 복원에 필요한 lblTypeCd / labelId / label /
+     * points 만 추출한다(lbl_sn 은 재발급하므로 보존하지 않음).
+     *
+     * <p>빈/공백 스냅샷은 라벨 0건(빈 목록)으로 해석 — 빈 상태로의 롤백을 허용한다.
+     * 파싱 실패(손상 JSON)는 {@link ErrorCode#INVALID_INPUT} 로 전체 롤백(부분 적용 금지).
+     */
+    private List<RestoredLabel> parseSnapshotLabels(String snapshot) {
+        if (snapshot == null || snapshot.isBlank()) {
+            return List.of();
+        }
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(snapshot);
+        } catch (Exception e) {
+            // 손상 스냅샷 — 내부 오류가 아닌 데이터 무결성 문제이므로 의미 있는 400 으로 전체 롤백.
+            log.warn("[Version] rollback snapshot parse failed reason={}", e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.INVALID_INPUT, "손상된 버전 스냅샷이라 롤백할 수 없습니다.");
+        }
+        JsonNode items = root.path("items");
+        if (items.isMissingNode() || items.isNull()) {
+            return List.of();
+        }
+        if (!items.isArray()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "손상된 버전 스냅샷이라 롤백할 수 없습니다.");
+        }
+        List<RestoredLabel> result = new ArrayList<>(items.size());
+        for (JsonNode item : items) {
+            String lblTypeCd = item.path("lblTypeCd").asText(null);
+            String label = item.path("label").asText(null);
+            Long labelId = item.path("labelId").isIntegralNumber() ? item.get("labelId").asLong() : null;
+            result.add(new RestoredLabel(lblTypeCd, labelId, label, readSnapshotPoints(item.path("points"))));
+        }
+        return result;
+    }
+
+    /**
+     * 프레임(src)의 기존 LS_DATA_LBL 을 모두 삭제하고 스냅샷 라벨을 재생성한다(lbl_sn 재발급).
+     *
+     * <p>같은 롤백 트랜잭션에 묶여 삭제+재생성이 원자적으로 적용된다. 라벨 0건 스냅샷이면 삭제만 수행해
+     * 프레임 라벨을 비운다(빈 상태로의 롤백).
+     */
+    private void replaceFrameLabels(LsDataSrc src, List<RestoredLabel> restored) {
+        Long srcSn = src.getSrcSn();
+        List<LsDataLbl> existing = labelRepository.findBySrcSn(srcSn);
+        if (!existing.isEmpty()) {
+            labelRepository.deleteAll(existing);
+            // delete 가 flush 되어 동일 트랜잭션 내 후속 insert 와 분리되도록 보장(IDENTITY PK 안전).
+            labelRepository.flush();
+        }
+        List<LsDataLbl> toCreate = new ArrayList<>(restored.size());
+        for (RestoredLabel r : restored) {
+            String lblTypeCd = (r.lblTypeCd() == null || r.lblTypeCd().isBlank())
+                    ? LsDataLbl.TYPE_BBOX : r.lblTypeCd();
+            String label = (r.label() == null || r.label().isBlank()) ? "label" : r.label();
+            String pointsJson = LabelPointSerializer.toJson(r.points(), objectMapper);
+            toCreate.add(LsDataLbl.createManual(
+                    srcSn, lblTypeCd, r.labelId(), label, pointsJson, null));
+        }
+        // N+1 INSERT 회피 — 낱건 save 대신 일괄 saveAll.
+        if (!toCreate.isEmpty()) {
+            labelRepository.saveAll(toCreate);
+        }
+        log.info("[Version] rollback restored labels srcSn={} deleted={} created={}",
+                srcSn, existing.size(), restored.size());
+    }
+
+    /**
+     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정 — APPROVED 롤백 시 TASK_MODIFIED 발행 조건.
+     * 상태 row 가 없으면 미검수로 간주하여 false (LabelService.isReviewApproved 와 동일 정책).
+     */
+    private boolean isReviewApproved(Long rawSn) {
+        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
+                .findFirst()
+                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
+                .orElse(false);
+    }
+
+    /**
+     * 스냅샷 item 의 {@code points} 노드를 {@link Point} 리스트로 변환한다.
+     * 미존재/null/비배열/형식 불일치 좌표쌍은 안전하게 무시(빈 좌표 허용) — 손상으로 간주하지 않는다.
+     * 좌표쌍이 [x,y] 숫자쌍이 아닌 경우만 건너뛰어 부분 복원을 허용하되, 음수 등 값 검증은
+     * commitApproved 스냅샷이 이미 정상 좌표만 담고 있어 별도 차단하지 않는다.
+     */
+    private static List<Point> readSnapshotPoints(JsonNode pointsNode) {
+        if (pointsNode == null || !pointsNode.isArray()) {
+            return List.of();
+        }
+        List<Point> out = new ArrayList<>(pointsNode.size());
+        for (JsonNode pair : pointsNode) {
+            if (pair.isArray() && pair.size() >= 2
+                    && pair.get(0).isNumber() && pair.get(1).isNumber()) {
+                out.add(new Point(pair.get(0).asDouble(), pair.get(1).asDouble()));
+            }
+        }
+        return out;
+    }
+
+    /** 롤백 시 스냅샷에서 복원할 라벨 1건 — 복원에 필요한 필드만(lbl_sn 은 재발급). 외부 노출 없음. */
+    private record RestoredLabel(String lblTypeCd, Long labelId, String label, List<Point> points) {
     }
 
     // ---------- 내부 ----------
@@ -320,6 +517,78 @@ public class VersionService {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "라벨 스냅샷 크기 초과 (최대 " + MAX_PAYLOAD_BYTES + " 바이트)");
         }
+    }
+
+    /**
+     * R7-1 — 비식별 신고 전용 스냅샷 직렬화.
+     *
+     * <p>영상 전체 라벨을 JSON 으로 직렬화하되, 일반 1MB 한도를 넘으면 폴리곤을 단순화하여 재직렬화한다.
+     * 단순화 후에도 {@link #MAX_DEIDENT_PAYLOAD_BYTES}(10MB) 를 넘으면 예외(롤백) — 단, 라벨당 좌표 상한이
+     * 상류에서 이미 적용되므로 정상 데이터에서는 도달하지 않는다. 신고는 안전장치이므로 일반 한도로
+     * 차단하지 않고 단순화 + 상향 한도로 반드시 성공시키는 것이 정책이다.
+     */
+    private String serializeDeidentSnapshot(Long rawSn, List<LsDataLbl> labels) {
+        // LabelResponse 직렬화 중복 제거 — 1회 생성 후 재활용.
+        LabelResponse response = LabelResponse.of(labels, objectMapper);
+        String payload = writeSnapshotOrThrow(rawSn, response);
+        if (utf8Bytes(payload) <= MAX_PAYLOAD_BYTES) {
+            return payload;
+        }
+        // 1MB 초과 — 폴리곤 단순화 후 재직렬화로 실질 크기 축소.
+        LabelResponse simplified = simplifyPolygons(response);
+        payload = writeSnapshotOrThrow(rawSn, simplified);
+        int bytes = utf8Bytes(payload);
+        log.info("[Version] deident-report snapshot simplified rawSn={} labels={} bytes={}",
+                rawSn, labels.size(), bytes);
+        if (bytes > MAX_DEIDENT_PAYLOAD_BYTES) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "라벨 스냅샷 크기 초과 (최대 " + MAX_DEIDENT_PAYLOAD_BYTES + " 바이트)");
+        }
+        return payload;
+    }
+
+    private String writeSnapshotOrThrow(Long rawSn, LabelResponse snapshot) {
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (Exception e) {
+            // 직렬화 실패는 내부 오류 — 신고 흐름 전체를 안전하게 막기 위해 예외 전파(트랜잭션 롤백).
+            log.error("[Version] deident-report snapshot serialize failed rawSn={}", rawSn, e);
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "라벨 스냅샷 직렬화에 실패했습니다.");
+        }
+    }
+
+    private static int utf8Bytes(String s) {
+        // byte[] 복사 없이 인코딩된 바이트 길이만 계산 (대용량 페이로드 메모리 절감).
+        return StandardCharsets.UTF_8.encode(s).remaining();
+    }
+
+    /**
+     * R7-1 — LabelResponse 의 각 라벨 좌표를 {@link PolygonSimplifier} 로 단순화한 복사본을 만든다.
+     * 좌표 외 필드(식별자/라벨명/색상 등)는 그대로 보존한다 (복원 이력의 식별성 유지).
+     */
+    private static LabelResponse simplifyPolygons(LabelResponse src) {
+        List<LabelResponse.Item> items = new ArrayList<>(src.items().size());
+        for (LabelResponse.Item it : src.items()) {
+            List<List<Double>> points = it.points();
+            List<List<Double>> reduced = points;
+            if (points != null && points.size() > LabelService.MAX_POINTS_PER_LABEL) {
+                List<Point> pts = new ArrayList<>(points.size());
+                for (List<Double> p : points) {
+                    pts.add(new Point(p.get(0), p.get(1)));
+                }
+                List<Point> simplified = PolygonSimplifier.simplifyToMax(
+                        pts, DEIDENT_SIMPLIFY_EPSILON, LabelService.MAX_POINTS_PER_LABEL);
+                reduced = new ArrayList<>(simplified.size());
+                for (Point p : simplified) {
+                    reduced.add(List.of(p.x(), p.y()));
+                }
+            }
+            items.add(new LabelResponse.Item(
+                    it.id(), it.lblTypeCd(), it.label(), it.labelId(), it.labelName(),
+                    it.color(), reduced, it.autoLblYn(), it.confScore(), it.trackId(), it.lblSrcCd()));
+        }
+        return new LabelResponse(src.srcSn(), src.frameNo(), src.videoId(),
+                src.frameImageType(), src.lockSttsCd(), src.siblings(), items);
     }
 
     private static String sha256Hex(String input) {

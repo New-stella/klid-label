@@ -52,6 +52,7 @@ class ReviewControllerTest {
     @Autowired private IssueRepository issueRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
+    @Autowired private kr.co.cudo.authoring.version.repository.LsLabelVersionRepository labelVersionRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -218,6 +219,92 @@ class ReviewControllerTest {
         assertThat(after.getDataSttsCd()).isEqualTo("PENDING");
     }
 
+    @Test
+    @DisplayName("ReviewController_재검수_APPROVED_영상의_배정WORKER_submit는_200_PENDING_전이")
+    void approvedVideoReReviewSubmitTransitionsToPending() throws Exception {
+        // given: 검수완료(APPROVED) 영상
+        seedDataStts(LsRawDataStatus.STTS_APPROVED);
+
+        // when: 본인 배정 WORKER 가 재검수 재제출
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/submit")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                // then: 200 + PENDING 전이 (재검수 사이클 시작)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataSttsCd").value("PENDING"));
+
+        LsRawDataStatus after = dataSttsRepository.findById(videoId).orElseThrow();
+        assertThat(after.getDataSttsCd()).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("ReviewController_재검수_미배정_WORKER의_APPROVED_재제출은_여전히_403_IDOR")
+    void approvedVideoReReviewByNotAssignedWorkerForbidden() throws Exception {
+        // given: 검수완료 영상 — 본인 배정 가드는 재검수에도 동일 적용
+        seedDataStts(LsRawDataStatus.STTS_APPROVED);
+
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/submit")
+                        .header("Authorization", "Bearer " + workerNotAssignedToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_재검수_재승인시_변경분에_새_APPROVED_스냅샷이_적층된다")
+    void reReviewReApproveStacksNewSnapshot() throws Exception {
+        // given: IN_REVIEW + 라벨 1건 시드
+        seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
+        LsDataSrc src = srcRepository.save(LsDataSrc.create(videoId, 0,
+                "test-rev-rereview/" + videoId + "/f_0.jpg", LocalDateTime.now()));
+        LsDataLbl label = labelRepository.save(LsDataLbl.createAutoBbox(
+                src.getSrcSn(), null, "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.9), null));
+
+        // 1차 승인 → v1 스냅샷 적층
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataSttsCd").value("APPROVED"));
+        int afterFirst = labelVersionRepository.countByDataRawSnAndDataSrcSn(videoId, src.getSrcSn());
+        assertThat(afterFirst).isEqualTo(1);
+
+        // 재검수: APPROVED → PENDING 재제출 (동일 작업 ID 유지)
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/submit")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataSttsCd").value("PENDING"));
+
+        // 라벨 수정 → 새 페이로드 해시 (멱등 우회, 실제 변경분)
+        label.updateUserContent("BBOX", null, "person", "[[11,21],[31,41]]");
+        labelRepository.saveAndFlush(label);
+
+        // 재검수 진행 → 재승인 → v2 스냅샷 적층
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/start")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataSttsCd").value("APPROVED"));
+
+        // then: 동일 프레임에 버전 2개 적층 (diff/롤백 활성화)
+        int afterSecond = labelVersionRepository.countByDataRawSnAndDataSrcSn(videoId, src.getSrcSn());
+        assertThat(afterSecond).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("ReviewController_재검수_APPROVED에서_REJECTED_직행은_여전히_409_CONFLICT")
+    void approvedToRejectedDirectlyStillConflict() throws Exception {
+        // given: 검수완료 영상 — REVIEWER 가 reject(=REJECTED) 직행 시도
+        seedDataStts(LsRawDataStatus.STTS_APPROVED);
+
+        RejectRequest req = new RejectRequest("재검수는 PENDING 재제출부터");
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/reject")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
+    }
+
     // ---------- 목록 조회 (REVIEWER) ----------
 
     @Test
@@ -365,6 +452,42 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.data.workerName").value("작업자100"))
                 .andExpect(jsonPath("$.data.labelCount").value(1))
                 .andExpect(jsonPath("$.data.cctvName").value("동대문구 회기로 CCTV"));
+    }
+
+    // ---------- 단건 상세 조회 RBAC / IDOR (R8-1) ----------
+
+    @Test
+    @DisplayName("ReviewController_본인_배정_WORKER의_GET_reviews_단건은_200")
+    void assignedWorkerCanGetDetail() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_ASSIGNED);
+
+        mockMvc.perform(get("/v1/reviews/" + videoId)
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.videoId").value(videoId));
+    }
+
+    @Test
+    @DisplayName("ReviewController_타인_배정_WORKER의_GET_reviews_단건은_403_IDOR")
+    void notAssignedWorkerGetDetailForbidden() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_ASSIGNED);
+
+        mockMvc.perform(get("/v1/reviews/" + videoId)
+                        .header("Authorization", "Bearer " + workerNotAssignedToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_REVIEWER의_GET_reviews_단건은_배정무관_200_유지")
+    void reviewerGetDetailStillAllowed() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        mockMvc.perform(get("/v1/reviews/" + videoId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.videoId").value(videoId));
     }
 
     @Test

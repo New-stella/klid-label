@@ -92,6 +92,7 @@ export function RejectModal({
           rows={5}
           error={errors.reason?.message}
           aria-required="true"
+          data-testid="reject-reason-input"
           {...register('reason')}
         />
         <div className="flex justify-end gap-2">

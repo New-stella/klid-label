@@ -69,20 +69,21 @@ public class ReviewController {
     }
 
     /**
-     * 검수 단건 상세 조회 (REVIEWER) — 검수 상세 화면 진입 시.
+     * 검수 단건 상세 조회 — REVIEWER(전체) 또는 본인 LABELER 배정 WORKER.
+     * <p>WORKER 는 라벨링 화면 검수제출 가드(작업 상태 조회)용으로 본인 배정 영상만 조회 가능 (IDOR 가드는 서비스에서 검증).
      */
     @Operation(
-            summary = "검수 상세 조회 (REVIEWER)",
-            description = "videoId 기준 검수 단건 상세를 반환한다."
+            summary = "검수 상세 조회 (REVIEWER / 본인 배정 WORKER)",
+            description = "videoId 기준 검수 단건 상세를 반환한다. REVIEWER 는 전체, WORKER 는 본인 LABELER 배정 영상만."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음 또는 본인 배정 아님"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "검수 대상 영상 없음")
     })
     @GetMapping("/reviews/{videoId}")
-    @PreAuthorize("hasRole('REVIEWER')")
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<ReviewResponse> detail(
             @Parameter(description = "영상 PK", required = true, example = "1") @PathVariable Long videoId,
             @AuthenticationPrincipal TokenClaims actor) {

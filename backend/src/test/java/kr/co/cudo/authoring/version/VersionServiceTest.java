@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.version;
 
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
@@ -12,8 +14,11 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.controlnotify.event.ChangeType;
+import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.service.LabelService;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.LabelDiffDto;
@@ -29,6 +34,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.context.jdbc.Sql;
 
 import java.time.Instant;
@@ -48,6 +55,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 @SpringBootTest
 @ActiveProfiles("local")
+@RecordApplicationEvents
 @Sql(scripts = {"/db/test-data.sql", "/db/test-data-video.sql"},
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class VersionServiceTest {
@@ -60,6 +68,9 @@ class VersionServiceTest {
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private WorkLockService workLockService;
+    @Autowired private LsRawDataStatusRepository rawDataStatusRepository;
+    @Autowired private ApplicationEvents applicationEvents;
+    @Autowired private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     private Long srcSn;
     private Long rawSn;
@@ -106,6 +117,20 @@ class VersionServiceTest {
 
     private void seedLabel(Long frameSn, String label, String pointsJson) {
         labelRepository.save(LsDataLbl.createManual(frameSn, "BBOX", null, label, pointsJson, 100L));
+    }
+
+    /** 영상(rawSn) 검수 상태를 지정값으로 적재 — APPROVED 롤백 통지 조건 검증용. */
+    private void seedRawStatus(String stts) {
+        LsRawDataStatus status = LsRawDataStatus.initial(rawSn);
+        status.transitionTo(stts);
+        rawDataStatusRepository.save(status);
+    }
+
+    /** commitApproved 가 만든 active 스냅샷의 versionHash 를 반환 (스냅샷 직렬화 형식 그대로 롤백 입력). */
+    private String approvedSnapshotHash() {
+        return labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn).stream()
+                .filter(v -> LsLabelVersion.ACTIVE_YES.equals(v.getActiveYn()))
+                .findFirst().orElseThrow().getVersionHash();
     }
 
     // ---------- commitApproved (검수 승인 시점 영상 단위 스냅샷) ----------
@@ -243,6 +268,134 @@ class VersionServiceTest {
         assertThat(rollback.getActiveYn()).isEqualTo(LsLabelVersion.ACTIVE_YES);
     }
 
+    // ---------- rollback 작업본(LS_DATA_LBL) 복원 시맨틱 (신규) ----------
+
+    @Test
+    @DisplayName("rollback_후_LS_DATA_LBL_이_스냅샷_라벨_수_좌표와_일치_작업본_복원")
+    void rollbackRestoresWorkingCopyToSnapshotContent() {
+        // given — 라벨 1건(person)으로 승인 스냅샷 v1 생성 → 이후 라벨을 (car 2건)으로 변경.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1Hash = approvedSnapshotHash();
+
+        labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+        seedLabel(srcSn, "bike", "[[3.0,3.0],[4.0,4.0]]");
+        assertThat(labelRepository.findBySrcSn(srcSn)).hasSize(2);
+
+        // when — v1 스냅샷으로 롤백.
+        versionService.rollback(v1Hash, srcSn, reviewer);
+
+        // then — 작업본이 v1 (person 1건, 좌표 [10,10]-[50,50]) 으로 복원.
+        List<LsDataLbl> after = labelRepository.findBySrcSn(srcSn);
+        assertThat(after).hasSize(1);
+        assertThat(after.get(0).getLabelNm()).isEqualTo("person");
+        List<List<Double>> pts = LabelResponse.Item.from(after.get(0), null, null, objectMapper).points();
+        assertThat(pts).containsExactly(List.of(10.0, 10.0), List.of(50.0, 50.0));
+    }
+
+    @Test
+    @DisplayName("rollback_후_캔버스_조회_getByFrame_가_스냅샷_라벨_반환")
+    void rollbackReflectedInLabelCanvasQuery() {
+        // given
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1Hash = approvedSnapshotHash();
+        labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+
+        // when
+        versionService.rollback(v1Hash, srcSn, workerAssigned);
+
+        // then — 라벨링 캔버스 API(getByFrame) 가 복원된 라벨을 반환.
+        LabelResponse resp = labelService.getByFrame(srcSn, workerAssigned);
+        assertThat(resp.items()).hasSize(1);
+        assertThat(resp.items().get(0).label()).isEqualTo("person");
+        assertThat(resp.items().get(0).points())
+                .containsExactly(List.of(10.0, 10.0), List.of(50.0, 50.0));
+    }
+
+    @Test
+    @DisplayName("APPROVED_영상_rollback시_TaskModifiedEvent_LABEL_UPDATED_발행")
+    void rollbackOnApprovedPublishesTaskModified() {
+        // given — 승인 스냅샷 생성 + 영상 상태 APPROVED + 라벨 변경.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1Hash = approvedSnapshotHash();
+        labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+        seedRawStatus(LsRawDataStatus.STTS_APPROVED);
+
+        // when
+        versionService.rollback(v1Hash, srcSn, reviewer);
+
+        // then — TASK_MODIFIED(LABEL_UPDATED) 통지 1회 발행.
+        List<TaskModifiedEvent> events = applicationEvents.stream(TaskModifiedEvent.class).toList();
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).rawSn()).isEqualTo(rawSn);
+        assertThat(events.get(0).srcSn()).isEqualTo(srcSn);
+        assertThat(events.get(0).changeType()).isEqualTo(ChangeType.LABEL_UPDATED);
+        assertThat(ChangeType.ALL).contains(events.get(0).changeType());
+    }
+
+    @Test
+    @DisplayName("미검수_영상_rollback시_TaskModifiedEvent_미발행")
+    void rollbackOnNonApprovedDoesNotPublish() {
+        // given — 승인 스냅샷은 있으나 영상 상태 row 없음(미검수 간주).
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1Hash = approvedSnapshotHash();
+        labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+
+        // when
+        versionService.rollback(v1Hash, srcSn, reviewer);
+
+        // then — 미검수이므로 통지 미발행.
+        assertThat(applicationEvents.stream(TaskModifiedEvent.class).toList()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("작업락_잠긴_영상_rollback시_CONFLICT_거부_라벨_미변경")
+    void rollbackOnLockedRawRejected() {
+        // given — 승인 스냅샷 + 라벨 변경 + 영상 작업락.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1Hash = approvedSnapshotHash();
+        labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+        workLockService.lockRawForRedeident(rawSn, "1");
+
+        // when / then — 잠긴 영상은 롤백 거부.
+        assertThatThrownBy(() -> versionService.rollback(v1Hash, srcSn, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
+
+        // 라벨은 변경 전(car) 그대로 — 롤백 미적용.
+        List<LsDataLbl> after = labelRepository.findBySrcSn(srcSn);
+        assertThat(after).hasSize(1);
+        assertThat(after.get(0).getLabelNm()).isEqualTo("car");
+
+        workLockService.releaseRaw(rawSn, "test", "TEST_CLEANUP");
+    }
+
+    @Test
+    @DisplayName("손상된_스냅샷_payload_rollback시_INVALID_INPUT_부분적용_없음")
+    void rollbackWithCorruptSnapshotRejected() {
+        // given — 잘못된 JSON 페이로드 active 스냅샷.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        String badHash = "abcdef0123456789abcdef0123456789abcdef01";
+        seed(badHash, "{not-json", 1, true);
+
+        // when / then — 손상 스냅샷은 400, 기존 라벨 보존(부분 적용 금지).
+        assertThatThrownBy(() -> versionService.rollback(badHash, srcSn, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+
+        assertThat(labelRepository.findBySrcSn(srcSn)).hasSize(1);
+        assertThat(labelRepository.findBySrcSn(srcSn).get(0).getLabelNm()).isEqualTo("person");
+    }
+
     @Test
     @DisplayName("REVIEWER_rollback_정상_동작_새_LS_LABEL_VERSION_생성")
     void reviewerRollbackCreatesNewVersion() {
@@ -255,6 +408,65 @@ class VersionServiceTest {
 
         assertThat(rollback).isNotNull();
         assertThat(rollback.getLabelPayload()).isEqualTo(pastPayload);
+    }
+
+    @Test
+    @DisplayName("R12_1_롤백_대상_payload_해시가_기존_버전과_동일하면_UNIQUE_충돌없이_기존행_active_전환")
+    void rollbackToExistingHashReactivatesInsteadOfInsert() {
+        // given — past(비활성) + current(active). 둘 다 실제 페이로드의 SHA-256 해시로 시드해
+        // 롤백 시 재계산된 해시가 기존 (srcSn, versionHash) UNIQUE 행과 충돌하는 상황 재현.
+        String pastPayload = "{\"items\":[{\"id\":7,\"label\":\"car\"}]}";
+        String currentPayload = "{\"items\":[]}";
+        String pastHash = sha256Hex(pastPayload);
+        String currentHash = sha256Hex(currentPayload);
+        LsLabelVersion past = seed(pastHash, pastPayload, 1, false);
+        seed(currentHash, currentPayload, 2, true);
+
+        // when — past 버전으로 롤백 (롤백 결과 해시 = pastHash, 이미 존재)
+        LsLabelVersion result = versionService.rollback(pastHash, srcSn, reviewer);
+
+        // then — 500(UNIQUE 충돌) 없이 기존 past 행이 active 로 전환되고, current 는 비활성.
+        assertThat(result).isNotNull();
+        assertThat(result.getLabelVersionSn()).isEqualTo(past.getLabelVersionSn());
+        assertThat(result.getActiveYn()).isEqualTo(LsLabelVersion.ACTIVE_YES);
+        assertThat(result.getLabelPayload()).isEqualTo(pastPayload);
+
+        List<LsLabelVersion> all = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
+        // 신규 INSERT 가 없으므로 행 수는 그대로 2.
+        assertThat(all).hasSize(2);
+        long activeCount = all.stream()
+                .filter(v -> LsLabelVersion.ACTIVE_YES.equals(v.getActiveYn())).count();
+        assertThat(activeCount).isEqualTo(1L);
+        // 동일 (srcSn, versionHash) 중복 없음 보장.
+        assertThat(all.stream().map(LsLabelVersion::getVersionHash).distinct().count())
+                .isEqualTo(all.size());
+    }
+
+    @Test
+    @DisplayName("R12_1_동일_해시_롤백_반복_호출도_멱등_500_미발생")
+    void rollbackToExistingHashIsIdempotentOnRepeat() {
+        String pastPayload = "{\"items\":[{\"id\":7,\"label\":\"car\"}]}";
+        String currentPayload = "{\"items\":[]}";
+        seed(sha256Hex(pastPayload), pastPayload, 1, false);
+        seed(sha256Hex(currentPayload), currentPayload, 2, true);
+        String pastHash = sha256Hex(pastPayload);
+
+        versionService.rollback(pastHash, srcSn, reviewer);
+        // 두 번째 롤백 — 이미 past 가 active 라 멱등.
+        LsLabelVersion second = versionService.rollback(pastHash, srcSn, reviewer);
+
+        assertThat(second.getActiveYn()).isEqualTo(LsLabelVersion.ACTIVE_YES);
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(2);
+    }
+
+    private static String sha256Hex(String input) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            return java.util.HexFormat.of().formatHex(
+                    md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test

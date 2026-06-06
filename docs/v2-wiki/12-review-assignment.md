@@ -17,7 +17,21 @@
 - **검수 완료 = 작업 완료**: REVIEWER가 `APPROVED` 처리 → `LsRawDataStatus.dataSttsCd` `COMPLETED` 전이
 - v1의 1차/2차 다단계 검수 없음 (REVIEWER 단일 승인으로 의도적 변경)
 - 검수 상세에서 라벨 승인/반려, 라벨 diff 비교, 버전 롤백 → [13](13-version-control.md)
-- 코드: `review/ReviewController`, `ReviewService`
+- 코드: `review/ReviewController`, `ReviewService`, `ReviewStateMachine`
+
+### 12.2.1 상태 전이 (LS_RAW_DATA_STATUS.DATA_STTS_CD)
+
+| From | To | 트리거 | 비고 |
+|------|----|--------|------|
+| ASSIGNED | PENDING | WORKER submit | 최초 검수 제출 |
+| PENDING | IN_REVIEW | REVIEWER start | 검수 시작 |
+| IN_REVIEW | APPROVED | REVIEWER approve | 승인 → 버전 스냅샷 적층 |
+| IN_REVIEW | REJECTED | REVIEWER reject | 반려 (사유 LS_DATA_ISSUE) |
+| REJECTED | PENDING | WORKER submit | 수정 후 재제출 |
+| **APPROVED** | **PENDING** | **WORKER submit** | **재검수 재제출 — 검수완료 후 수정→재검수→재승인 허용. 동일 작업 ID(RAW_SN) 유지·버전업 아님. 재승인 시 변경분에 새 APPROVED 스냅샷 적층(diff/롤백 활성화)** |
+
+- 불허: PENDING → APPROVED 직행(409 INVALID_INPUT), APPROVED → IN_REVIEW/REJECTED 직행(409 CONFLICT — 재검수는 PENDING 재제출부터).
+- `COMPLETED`(STTS_COMPLETED)는 배치 파이프라인 상태이며 검수 종결값으로 쓰이지 않는다. 검수 종결 시 영속 상태는 `APPROVED`이고, DTO 표시 계층에서만 APPROVED→"COMPLETED" 라벨로 매핑한다.
 
 ## 12.3 완료 → 통지
 

@@ -25,6 +25,14 @@ class ReviewStateMachineTest {
     }
 
     @Test
+    @DisplayName("ReviewStateMachine_재검수_허용_APPROVED에서_PENDING_재제출은_가능")
+    void approvedToPendingReReviewAllowed() {
+        // 검수완료(APPROVED) 영상도 PENDING 으로 재제출하면 새 검수 사이클을 시작할 수 있다 (CLAUDE.md SoT).
+        assertThatCode(() -> machine.verify(LsRawDataStatus.STTS_APPROVED, LsRawDataStatus.STTS_PENDING))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     @DisplayName("ReviewStateMachine_PENDING에서_APPROVED_직접_전이_불가")
     void pendingToApprovedRejected() {
         assertThatThrownBy(() -> machine.verify(LsRawDataStatus.STTS_PENDING, LsRawDataStatus.STTS_APPROVED))
@@ -33,8 +41,9 @@ class ReviewStateMachineTest {
     }
 
     @Test
-    @DisplayName("ReviewStateMachine_APPROVED는_최종_상태_409_CONFLICT")
-    void approvedIsTerminal() {
+    @DisplayName("ReviewStateMachine_APPROVED에서_PENDING_외_직행은_409_CONFLICT")
+    void approvedNonPendingIsConflict() {
+        // 재검수는 반드시 PENDING 재제출부터 시작 — IN_REVIEW/REJECTED 직행은 충돌(409).
         assertThatThrownBy(() -> machine.verify(LsRawDataStatus.STTS_APPROVED, LsRawDataStatus.STTS_IN_REVIEW))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);

@@ -8,10 +8,12 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,8 @@ class VersionServiceDeidentSnapshotTest {
     private WorkLockService workLockService;
     private LsDataSrcRepository srcRepository;
     private LsDataLblRepository labelRepository;
+    private ApplicationEventPublisher eventPublisher;
+    private LsRawDataStatusRepository rawDataStatusRepository;
     private VersionService service;
 
     private TokenClaims actor;
@@ -56,13 +60,33 @@ class VersionServiceDeidentSnapshotTest {
         workLockService = mock(WorkLockService.class);
         srcRepository = mock(LsDataSrcRepository.class);
         labelRepository = mock(LsDataLblRepository.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         service = new VersionService(labelVersionRepository, accessGuard, videoRepository,
-                workLockService, srcRepository, labelRepository, new ObjectMapper());
+                workLockService, srcRepository, labelRepository, new ObjectMapper(),
+                eventPublisher, rawDataStatusRepository);
         actor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
 
     private LsDataLbl lbl(long lblSn, long srcSn) {
         LsDataLbl l = LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[0,0],[1,1]]", 100L);
+        setField(l, "lblSn", lblSn);
+        return l;
+    }
+
+    /** N 점짜리 폴리곤 라벨 생성 (대용량 SAM2 폴리곤 재현용). */
+    private LsDataLbl polygonLabel(long lblSn, long srcSn, int pointCount) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < pointCount; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            // 단순화가 점을 제거하도록 미세한 변동을 준 좌표.
+            sb.append('[').append(i * 1.0 + (i % 2) * 0.3).append(',')
+                    .append(i * 2.0 + (i % 3) * 0.7).append(']');
+        }
+        sb.append(']');
+        LsDataLbl l = LsDataLbl.createManual(srcSn, "POLYGON", null, "person", sb.toString(), 100L);
         setField(l, "lblSn", lblSn);
         return l;
     }
@@ -98,6 +122,34 @@ class VersionServiceDeidentSnapshotTest {
 
         assertThat(result).isFalse();
         verify(labelVersionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("대용량_폴리곤_라벨_1MB초과여도_신고스냅샷_성공_+_10MB내_저장")
+    void snapshotSucceedsForOversizedLabelsViaSimplify() {
+        // given — 1MB 를 넘기는 대용량 폴리곤 라벨 다수 (SAM2 폴리곤 다수 상황 재현).
+        //         과거에는 1MB 캡(MAX_PAYLOAD_BYTES)에 막혀 400 으로 신고 자체가 실패했다(RED).
+        List<LsDataLbl> bigLabels = new java.util.ArrayList<>();
+        for (long i = 1; i <= 30; i++) {
+            bigLabels.add(polygonLabel(i, 10L, 5000)); // 라벨당 5000 점 (상한 1000 초과)
+        }
+        when(labelRepository.findAllByRawSn(6000L)).thenReturn(bigLabels);
+        when(labelVersionRepository.findFirstByDataRawSnOrderByVersionNoDesc(6000L))
+                .thenReturn(Optional.empty());
+
+        // when — 예외 없이 성공해야 한다.
+        boolean result = service.snapshotDeidentReport(6000L, actor);
+
+        // then
+        assertThat(result).isTrue();
+        ArgumentCaptor<LsLabelVersion> cap = ArgumentCaptor.forClass(LsLabelVersion.class);
+        verify(labelVersionRepository).save(cap.capture());
+        LsLabelVersion saved = cap.getValue();
+        assertThat(saved.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_DEIDENT_REPORT);
+        assertThat(saved.getActiveYn()).isEqualTo(LsLabelVersion.ACTIVE_NO);
+        // 단순화 후 저장 페이로드는 신고 전용 상향 한도(10MB) 이내.
+        int bytes = saved.getLabelPayload().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        assertThat(bytes).isLessThanOrEqualTo(VersionService.MAX_DEIDENT_PAYLOAD_BYTES);
     }
 
     @Test

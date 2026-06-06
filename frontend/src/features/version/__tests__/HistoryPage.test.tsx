@@ -15,6 +15,18 @@ function setRole(role: 'REVIEWER' | 'WORKER', sub = 'u-7') {
   });
 }
 
+// videoId=777 영상 → 프레임 1개(srcSn 7770). HistoryPage 가 프레임 목록을 조회해 첫 프레임 선택.
+const framesPayload = {
+  success: true,
+  data: {
+    videoId: 777,
+    totalFrames: 1,
+    frames: [{ srcSn: 7770, frameNo: 0, imageUrl: '/img/7770', labels: [] }],
+  },
+  message: null,
+  errorCode: null,
+};
+
 const versionsPayload = {
   success: true,
   data: [
@@ -53,7 +65,8 @@ describe('HistoryPage', () => {
 
   it('REVIEWER가_접근시_버전_목록과_롤백_버튼_노출', async () => {
     setRole('REVIEWER');
-    mock.onGet('/frames/777/versions').reply(200, versionsPayload);
+    mock.onGet('/reviews/777/frames').reply(200, framesPayload);
+    mock.onGet('/frames/7770/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPage />, {
       initialEntries: ['/history/777'],
@@ -70,7 +83,8 @@ describe('HistoryPage', () => {
 
   it('WORKER_권한도_diff_조회_가능', async () => {
     setRole('WORKER');
-    mock.onGet('/frames/777/versions').reply(200, versionsPayload);
+    mock.onGet('/reviews/777/frames').reply(200, framesPayload);
+    mock.onGet('/frames/7770/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPage />, {
       initialEntries: ['/history/777'],
@@ -85,7 +99,8 @@ describe('HistoryPage', () => {
 
   it('WORKER가_롤백_버튼_클릭시_disabled_또는_미노출', async () => {
     setRole('WORKER');
-    mock.onGet('/frames/777/versions').reply(200, versionsPayload);
+    mock.onGet('/reviews/777/frames').reply(200, framesPayload);
+    mock.onGet('/frames/7770/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPage />, {
       initialEntries: ['/history/777'],
@@ -107,7 +122,8 @@ describe('HistoryPage', () => {
 
   it('REVIEWER가_롤백_시작_클릭시_확인_모달_노출', async () => {
     setRole('REVIEWER');
-    mock.onGet('/frames/777/versions').reply(200, versionsPayload);
+    mock.onGet('/reviews/777/frames').reply(200, framesPayload);
+    mock.onGet('/frames/7770/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPage />, {
       initialEntries: ['/history/777'],
