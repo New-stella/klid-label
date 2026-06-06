@@ -54,10 +54,11 @@ public class TaskBoardController {
     @GetMapping("/board")
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<Page<TaskBoardItemResponse>> board(
-            @Parameter(description = "영상 배치 상태 (기본 COMPLETED)", example = "COMPLETED")
+            @Parameter(description = "영상 배치 상태 (기본 COMPLETED). UNASSIGNED 지정 시 LABELER 배정이 없는 영상만 반환.",
+                    example = "COMPLETED")
             @RequestParam(name = "status", required = false, defaultValue = "COMPLETED")
             @Pattern(
-                    regexp = "^(COMPLETED|ASSIGNED|PENDING|IN_REVIEW|APPROVED|REJECTED)$",
+                    regexp = "^(COMPLETED|UNASSIGNED|ASSIGNED|PENDING|IN_REVIEW|APPROVED|REJECTED)$",
                     message = "허용되지 않은 status 값"
             ) String status,
             @PageableDefault(size = 20, sort = "regDt", direction = Sort.Direction.DESC) Pageable pageable,

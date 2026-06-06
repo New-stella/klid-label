@@ -13,17 +13,37 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/components/common/Button';
+import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
 import { AssignModal } from '@/features/task/components/AssignModal';
 import { useTaskBoard } from '@/features/task/hooks/useTaskBoard';
 import type { TaskBoardItem } from '@/features/task/types';
+
+// 배치 상태(batchStatus) 별 뱃지 색상. 미배정 목록은 상태 무관 영상을 포함하므로
+// REGISTERED/PENDING/FAILED/COMPLETED 등을 시각적으로 구분 표시한다.
+const BADGE_BASE =
+  'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium';
+
+function batchStatusBadgeClass(status: string | null): string {
+  switch (status) {
+    case 'COMPLETED':
+      return `${BADGE_BASE} bg-green-100 text-green-700`;
+    case 'FAILED':
+      return `${BADGE_BASE} bg-red-100 text-red-700`;
+    case 'PENDING':
+    case 'REGISTERED':
+      return `${BADGE_BASE} bg-amber-100 text-amber-700`;
+    default:
+      return `${BADGE_BASE} bg-gray-100 text-gray-600`;
+  }
+}
 
 /**
  * SCR-TASK-002 배정 전용 페이지.
  */
 export function TaskAssignPage() {
   const [page, setPage] = useState(0);
-  const { data, isLoading } = useTaskBoard(
+  const { data, isLoading, isError, refetch } = useTaskBoard(
     { status: 'UNASSIGNED', page, size: 20 },
     { enabled: true },
   );
@@ -108,6 +128,19 @@ export function TaskAssignPage() {
     );
   }
 
+  if (isError) {
+    return (
+      <div data-testid="assign-page-error">
+        <ErrorState
+          title="목록을 불러오지 못했습니다"
+          message="미배정 영상 목록을 불러오는 중 오류가 발생했습니다."
+          onRetry={() => refetch()}
+          retryLabel="재시도"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4" data-testid="task-assign-page">
       <div className="flex items-center justify-between">
@@ -153,6 +186,9 @@ export function TaskAssignPage() {
                     영상명
                   </th>
                   <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500">
+                    상태
+                  </th>
+                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500">
                     이벤트
                   </th>
                   <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -185,6 +221,14 @@ export function TaskAssignPage() {
                     <td className="px-4 py-3">
                       <span className="font-medium text-gray-800">
                         {item.cctvName ?? `#${item.videoId}`}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        data-testid={`assign-status-${item.videoId}`}
+                        className={batchStatusBadgeClass(item.batchStatus)}
+                      >
+                        {item.batchStatus ?? '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-600">

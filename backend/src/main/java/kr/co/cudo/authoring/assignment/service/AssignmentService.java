@@ -91,7 +91,12 @@ public class AssignmentService {
 
         log.info("[Assignment] created actor={} workerId={} count={} reviewerAttached={}",
                 actorNo, req.workerId(), created.size(), req.reviewerId() != null);
-        return AssignmentResponse.of(created);
+        // 요청에 reviewerId 가 포함되면 응답 Item 에도 그대로 반영 (요청-응답 정합).
+        // 단일-인자 Item.from 은 reviewerId 를 항상 null 로 채우므로, reviewerId 주입 오버로드를 사용한다.
+        List<AssignmentResponse.Item> items = created.stream()
+                .map(e -> AssignmentResponse.Item.from(e, req.reviewerId()))
+                .toList();
+        return new AssignmentResponse(items);
     }
 
     /**

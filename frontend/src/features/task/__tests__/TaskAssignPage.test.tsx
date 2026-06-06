@@ -218,6 +218,95 @@ describe('TaskAssignPage', () => {
     });
   });
 
+  it('I3_미배정_목록_API_오류시_빈상태가_아니라_오류_메시지와_재시도_노출', async () => {
+    // given: TaskBoard API 가 500 으로 실패 (이전엔 빈 상태로 조용히 표시됨)
+    mock.onGet('/tasks/board').reply(500, {
+      success: false,
+      data: null,
+      message: '서버 오류',
+      errorCode: 'INTERNAL_ERROR',
+    });
+    mockWorkers(mock);
+
+    // when: 배정 페이지 렌더
+    renderWithProviders(<TaskAssignPage />, {
+      initialEntries: ['/task/assign'],
+      routes: [{ path: '/task/assign', element: <TaskAssignPage /> }],
+    });
+
+    // then: 빈 상태가 아니라 로드 실패 메시지 + 재시도 버튼 노출
+    await waitFor(() => {
+      expect(screen.getByTestId('assign-page-error')).toBeInTheDocument();
+    });
+    expect(screen.getByText('목록을 불러오지 못했습니다')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '재시도' })).toBeInTheDocument();
+    expect(screen.queryByTestId('assign-page-empty')).not.toBeInTheDocument();
+  });
+
+  it('I1_미배정_목록에_상태무관_영상이_배치상태_뱃지와_함께_표시', async () => {
+    // given: PENDING / FAILED / COMPLETED 미배정 영상 (배치 상태 무관 노출)
+    mock.onGet('/tasks/board').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            videoId: 31,
+            cctvName: 'CCTV-PENDING',
+            eventName: null,
+            eventTypeCd: null,
+            frameCount: 0,
+            capturedAt: '2026-06-01T10:00:00Z',
+            batchStatus: 'PENDING',
+            status: 'UNASSIGNED',
+            assignmentId: null,
+            workerId: null,
+            workerName: null,
+            assignedAt: null,
+            firstSrcSn: null,
+            reviewerId: null,
+            reviewerName: null,
+          },
+          {
+            videoId: 32,
+            cctvName: 'CCTV-FAILED',
+            eventName: null,
+            eventTypeCd: null,
+            frameCount: 0,
+            capturedAt: '2026-06-01T11:00:00Z',
+            batchStatus: 'FAILED',
+            status: 'UNASSIGNED',
+            assignmentId: null,
+            workerId: null,
+            workerName: null,
+            assignedAt: null,
+            firstSrcSn: null,
+            reviewerId: null,
+            reviewerName: null,
+          },
+        ],
+        totalElements: 2,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mockWorkers(mock);
+
+    // when: 배정 페이지 렌더
+    renderWithProviders(<TaskAssignPage />, {
+      initialEntries: ['/task/assign'],
+      routes: [{ path: '/task/assign', element: <TaskAssignPage /> }],
+    });
+
+    // then: 각 행에 배치 상태 뱃지가 표시됨
+    await waitFor(() => {
+      expect(screen.getByTestId('assign-status-31')).toHaveTextContent('PENDING');
+    });
+    expect(screen.getByTestId('assign-status-32')).toHaveTextContent('FAILED');
+  });
+
   it('미배정_영상이_없으면_빈_상태_안내_표시', async () => {
     // given: TaskBoard 응답이 빈 목록
     mock.onGet('/tasks/board').reply(200, {

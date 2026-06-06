@@ -61,12 +61,16 @@ class TaskBoardControllerTest {
     }
 
     private LsDataRaw seedCompletedVideo(String clipId, String cctvId, String evntType) {
+        return seedVideoWithStatus(clipId, cctvId, evntType, "COMPLETED");
+    }
+
+    private LsDataRaw seedVideoWithStatus(String clipId, String cctvId, String evntType, String status) {
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 clipId, cctvId, evntType, "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/" + clipId + ".mp4",
                 LocalDateTime.now(), 30);
         raw = videoRepository.save(raw);
-        raw.changeStatus("COMPLETED");
+        raw.changeStatus(status);
         videoRepository.save(raw);
         return raw;
     }
@@ -150,6 +154,90 @@ class TaskBoardControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("I2_status_UNASSIGNED_요청시_200_미배정_영상만_반환_배정된_영상은_제외")
+    void unassignedStatusReturnsOnlyUnassigned() throws Exception {
+        // given: 처리 완료 영상 2건 — 하나는 LABELER 배정됨, 하나는 미배정
+        LsDataRaw assigned = seedCompletedVideo("CLIP-UA-ASSIGNED", "CCTV-001", "EVT-FIRE");
+        LsDataRaw unassigned = seedCompletedVideo("CLIP-UA-FREE", "CCTV-002", "EVT-FALL");
+        authrtRepository.save(LsTaskAssignment.createLabeler(assigned.getRawSn(), 100L, 1L));
+
+        // when / then: UNASSIGNED 필터는 400 이 아니라 200, 미배정 영상 1건만 반환
+        mockMvc.perform(get("/v1/tasks/board?status=UNASSIGNED&page=0&size=20")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].videoId").value(unassigned.getRawSn()))
+                .andExpect(jsonPath("$.data.content[0].status").value("UNASSIGNED"))
+                .andExpect(jsonPath("$.data.content[0].workerId").isEmpty());
+    }
+
+    @Test
+    @DisplayName("I2_미배정_영상이_없으면_UNASSIGNED_빈_페이지_반환")
+    void unassignedStatusEmptyWhenAllAssigned() throws Exception {
+        LsDataRaw v = seedCompletedVideo("CLIP-UA-ALL", "CCTV-001", "EVT-FIRE");
+        authrtRepository.save(LsTaskAssignment.createLabeler(v.getRawSn(), 100L, 1L));
+
+        mockMvc.perform(get("/v1/tasks/board?status=UNASSIGNED&page=0&size=20")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    @Test
+    @DisplayName("I1_업로드직후_PENDING_영상도_상태무관_UNASSIGNED_목록에_포함")
+    void unassignedIncludesNonCompletedVideos() throws Exception {
+        // given: 막 업로드되어 아직 처리 전(PENDING)이며 LABELER 배정 없는 영상
+        LsDataRaw pending = seedVideoWithStatus("CLIP-UA-PENDING", "CCTV-001", "EVT-FIRE", "PENDING");
+        // 그리고 COMPLETED 미배정 영상 1건
+        LsDataRaw completed = seedCompletedVideo("CLIP-UA-DONE", "CCTV-002", "EVT-FALL");
+
+        // when / then: UNASSIGNED 는 상태 무관 — PENDING + COMPLETED 둘 다 포함 (과거엔 COMPLETED 만)
+        mockMvc.perform(get("/v1/tasks/board?status=UNASSIGNED&page=0&size=50")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath(
+                        "$.data.content[?(@.videoId==" + pending.getRawSn() + ")].batchStatus")
+                        .value("PENDING"))
+                .andExpect(jsonPath(
+                        "$.data.content[?(@.videoId==" + completed.getRawSn() + ")].batchStatus")
+                        .value("COMPLETED"));
+    }
+
+    @Test
+    @DisplayName("I1_FAILED_영상도_상태무관_UNASSIGNED_목록에_포함_상태뱃지_노출")
+    void unassignedIncludesFailedVideos() throws Exception {
+        // given: 배치 실패(FAILED) 미배정 영상
+        LsDataRaw failed = seedVideoWithStatus("CLIP-UA-FAILED", "CCTV-003", "EVT-INTRUSION", "FAILED");
+
+        // when / then: FAILED 도 UNASSIGNED 목록에 포함되고 batchStatus 로 구분 가능
+        mockMvc.perform(get("/v1/tasks/board?status=UNASSIGNED&page=0&size=50")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].videoId").value(failed.getRawSn()))
+                .andExpect(jsonPath("$.data.content[0].batchStatus").value("FAILED"))
+                .andExpect(jsonPath("$.data.content[0].status").value("UNASSIGNED"));
+    }
+
+    @Test
+    @DisplayName("I1_배정된_영상은_상태무관_UNASSIGNED_목록에서_제외")
+    void unassignedExcludesAssignedRegardlessOfStatus() throws Exception {
+        // given: PENDING 이지만 LABELER 배정된 영상 + PENDING 미배정 영상
+        LsDataRaw assigned = seedVideoWithStatus("CLIP-UA-ASG", "CCTV-001", "EVT-FIRE", "PENDING");
+        LsDataRaw free = seedVideoWithStatus("CLIP-UA-FREE2", "CCTV-002", "EVT-FALL", "PENDING");
+        authrtRepository.save(LsTaskAssignment.createLabeler(assigned.getRawSn(), 100L, 1L));
+
+        // when / then: 미배정(free) 1건만 반환
+        mockMvc.perform(get("/v1/tasks/board?status=UNASSIGNED&page=0&size=50")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].videoId").value(free.getRawSn()));
     }
 
     @Test

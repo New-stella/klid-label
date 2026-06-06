@@ -53,11 +53,22 @@ public class TaskBoardService {
     private final LsDataSrcRepository dataSrcRepository;
     private final UserRepository userRepository;
 
+    /** 미배정 필터 — 배치 상태 무관, LABELER 배정이 없는 모든 영상을 반환하는 가상 status. */
+    static final String STATUS_UNASSIGNED = "UNASSIGNED";
+    private static final String DEFAULT_BATCH_STATUS = "COMPLETED";
+
     public Page<TaskBoardItemResponse> listBoard(String status, TokenClaims actor, Pageable pageable) {
         requireReviewer(actor);
 
-        String effectiveStatus = (status != null && !status.isBlank()) ? status : "COMPLETED";
-        Page<LsDataRaw> page = videoRepository.findAllByDataSttsCdOrderByRegDtDesc(effectiveStatus, pageable);
+        String effectiveStatus = (status != null && !status.isBlank()) ? status : DEFAULT_BATCH_STATUS;
+        Page<LsDataRaw> page;
+        if (STATUS_UNASSIGNED.equals(effectiveStatus)) {
+            // 미배정 = 배치 상태 무관, LABELER 배정이 없는 모든 영상 (NOT EXISTS 필터).
+            // 신규 업로드(PENDING)·실패(FAILED) 영상도 포함 — FE 가 batchStatus 뱃지로 구분 표시.
+            page = videoRepository.findUnassigned(pageable);
+        } else {
+            page = videoRepository.findAllByDataSttsCdOrderByRegDtDesc(effectiveStatus, pageable);
+        }
         List<LsDataRaw> rows = page.getContent();
         if (rows.isEmpty()) {
             return page.map(r -> toResponse(r, null, null, null, null, Collections.emptyMap(), null, 0L, null));

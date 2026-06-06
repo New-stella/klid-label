@@ -65,6 +65,34 @@ class AssignmentServiceTest {
     }
 
     @Test
+    @DisplayName("assign_요청에_reviewerId가_있으면_응답_Item에도_reviewerId가_반영")
+    void assignReturnsReviewerIdInResponse() {
+        // given — workerId=100, reviewerId=1 (REVIEWER 시드) 함께 배정 요청.
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L), 1L);
+
+        // when
+        AssignmentResponse response = assignmentService.assign(req, reviewer());
+
+        // then — 응답 Item 의 reviewerId 가 요청값(1)으로 반영되어야 한다 (이전엔 항상 null 반환 버그).
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).reviewerId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("assign_요청에_reviewerId가_없으면_응답_Item의_reviewerId는_null")
+    void assignReturnsNullReviewerIdWhenNotRequested() {
+        // given — reviewerId 미지정.
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
+
+        // when
+        AssignmentResponse response = assignmentService.assign(req, reviewer());
+
+        // then
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).reviewerId()).isNull();
+    }
+
+    @Test
     @DisplayName("listAssignments에_actor가_null이면_UNAUTHORIZED")
     void listAssignmentsNullActorThrowsUnauthorized() {
         assertThatThrownBy(() -> assignmentService.listAssignments(null, null, PageRequest.of(0, 20)))
