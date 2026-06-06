@@ -69,9 +69,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         body.getExpiration() == null ? null : Instant.ofEpochMilli(body.getExpiration().getTime())
                 );
 
-                List<SimpleGrantedAuthority> authorities = role == null
-                        ? List.of()
-                        : List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+                // R5-1: ROLE_* + CHANNEL_* 권한 부여 → SecurityConfig 가 채널 격리를 인가 단계에서 강제.
+                // channel 클레임 없는 토큰은 위에서 INTERNAL 로 기본값 처리(fail-closed: 내부 사용자 호환).
+                List<SimpleGrantedAuthority> authorities = new java.util.ArrayList<>();
+                if (role != null) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name()));
+                }
+                authorities.add(new SimpleGrantedAuthority("CHANNEL_" + channel.name()));
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(claims, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);

@@ -15,8 +15,12 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -35,6 +39,7 @@ public class SecurityConfig {
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
+    private final StreamSignatureFilter streamSignatureFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -102,8 +107,14 @@ public class SecurityConfig {
                             // /v1/** (authenticated) 보다 위에 두어 PORTAL_USER 통과를 막는다.
                             // 쓰기 핸들러는 메서드 @PreAuthorize 로 REVIEWER 강제.
                             .requestMatchers("/v1/notices", "/v1/notices/**").hasAnyRole(Role.REVIEWER.name(), Role.WORKER.name())
-                            .requestMatchers("/v1/portal/**").hasRole(Role.PORTAL_USER.name())
-                            .requestMatchers("/v1/**").authenticated()
+                            // R5-1: 채널 격리 — 포털 API 는 PORTAL 채널 토큰만 (CHANNEL_PORTAL + PORTAL_USER role).
+                            .requestMatchers("/v1/portal/**")
+                                .access(allOf("ROLE_" + Role.PORTAL_USER.name(), "CHANNEL_" + Channel.PORTAL.name()))
+                            // R5-1: 그 외 모든 내부 /v1/** API 는 INTERNAL 채널 토큰만.
+                            // channel 클레임 없는 토큰은 JwtAuthenticationFilter 에서 INTERNAL 로 기본값 처리되므로
+                            // 기존 내부 사용자 토큰 호환(fail-closed: 무클레임=INTERNAL → 내부 허용, 외부 노출 없음).
+                            .requestMatchers("/v1/**")
+                                .access(hasAuthority("CHANNEL_" + Channel.INTERNAL.name()))
                             .anyRequest().authenticated();
                 })
                 .exceptionHandling(e -> e
@@ -113,7 +124,10 @@ public class SecurityConfig {
                 // Phase 2 — HmacWebhookFilter 를 JWT 필터보다 먼저 등록.
                 // /v1/*/result 경로는 HmacWebhookFilter 가 단독 인증, 그 외 경로는 shouldNotFilter() 로 우회.
                 .addFilterBefore(hmacWebhookFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                // 영상 스트림 단기 서명 URL 인증 — JWT 필터 뒤에 두어, Authorization 헤더 경로가 우선되고
+                // 헤더가 없을 때만 서명 쿼리(exp/sig)를 검증한다 (fail-closed).
+                .addFilterAfter(streamSignatureFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 
@@ -151,6 +165,22 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    /** 단일 권한(authority) 요구 — 채널 격리용. */
+    private static AuthorizationManager<RequestAuthorizationContext> hasAuthority(String authority) {
+        return AuthorityAuthorizationManager.hasAuthority(authority);
+    }
+
+    /** 모든 권한(authority) 동시 요구 — role + channel 결합 강제용. */
+    @SafeVarargs
+    private static AuthorizationManager<RequestAuthorizationContext> allOf(String... authorities) {
+        @SuppressWarnings("unchecked")
+        AuthorizationManager<RequestAuthorizationContext>[] managers =
+                java.util.Arrays.stream(authorities)
+                        .map(SecurityConfig::hasAuthority)
+                        .toArray(AuthorizationManager[]::new);
+        return AuthorizationManagers.allOf(managers);
     }
 
     private void writeError(jakarta.servlet.http.HttpServletResponse res, HttpStatus status, ErrorCode code) throws java.io.IOException {
