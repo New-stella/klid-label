@@ -1,0 +1,5 @@
+build/
+.gradle/
+storage/
+**/.DS_Store
+*.log

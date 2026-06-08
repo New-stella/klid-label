@@ -1,0 +1,136 @@
+# ============================================================================
+# klid-label 풀스택 배포 (cudo_246 / Docker compose v2)
+#   - 모든 리소스 klid- 프리픽스로 격리 (기존 컨테이너 무영향)
+#   - postgres 볼륨/스토리지는 /data 하위 (루트 / 디스크 보호)
+#   - ai-server 는 nvidia 기본 런타임으로 GPU 자동 사용
+#   - backend 는 local 프로파일 + 번들 postgres 로 자립 기동 (ENV 미설정)
+# ============================================================================
+
+services:
+  klid-postgres:
+    image: postgres:16
+    container_name: klid-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${CONTROL_DB_USERNAME:-klid_user}
+      POSTGRES_PASSWORD: ${CONTROL_DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${CONTROL_DB_NAME:-klid_system}
+      PORTAL_DB_NAME: ${PORTAL_DB_NAME:-portal}
+    # 추가 DB(portal) 생성 — control DB 외 portal DataSource 연결용
+    volumes:
+      - /data/klid/pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - klid-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CONTROL_DB_USERNAME:-klid_user} -d ${CONTROL_DB_NAME:-klid_system}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  klid-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: klid-backend:latest
+    container_name: klid-backend
+    restart: unless-stopped
+    depends_on:
+      klid-postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      # local 프로파일 jdbc-url 은 127.0.0.1 하드코딩 → 번들 postgres 로 override (relaxed binding)
+      SPRING_DATASOURCE_CONTROL_JDBC_URL: jdbc:postgresql://klid-postgres:5432/${CONTROL_DB_NAME:-klid_system}
+      SPRING_DATASOURCE_PORTAL_JDBC_URL: jdbc:postgresql://klid-postgres:5432/${PORTAL_DB_NAME:-portal}
+      CONTROL_DB_USERNAME: ${CONTROL_DB_USERNAME:-klid_user}
+      CONTROL_DB_PASSWORD: ${CONTROL_DB_PASSWORD:-changeme}
+      PORTAL_DB_USERNAME: ${CONTROL_DB_USERNAME:-klid_user}
+      PORTAL_DB_PASSWORD: ${CONTROL_DB_PASSWORD:-changeme}
+      AI_SERVER_URL: http://klid-ai-server:9300
+      STORAGE_RAW_PATH: /app/storage/raw
+      STORAGE_DEIDENTIFIED_PATH: /app/storage/deidentified
+    volumes:
+      - /data/klid/storage:/app/storage
+    ports:
+      - "18081:8080"
+    networks:
+      - klid-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/actuator/health | grep -q UP || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+
+  klid-ai-server:
+    build:
+      context: ./ai-server
+      dockerfile: Dockerfile
+    image: klid-ai-server:latest
+    container_name: klid-ai-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AI_MOCK_MODE: ${AI_MOCK_MODE:-true}
+      AI_DEVICE: ${AI_DEVICE:-cuda}
+    # nvidia 가 기본 런타임이므로 GPU 자동 가시. 명시적 예약도 추가(compose v2.18 지원).
+    runtime: nvidia
+    networks:
+      - klid-net
+    ports:
+      - "19300:9300"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9300/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 3072m
+
+  klid-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VITE_TOKEN_INGRESS: ${VITE_TOKEN_INGRESS:-all}
+    image: klid-frontend:latest
+    container_name: klid-frontend
+    restart: unless-stopped
+    depends_on:
+      - klid-backend
+    networks:
+      - klid-net
+    ports:
+      - "13000:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+networks:
+  klid-net:
+    name: klid-net
+    driver: bridge

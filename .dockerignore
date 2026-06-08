@@ -1,0 +1,35 @@
+# 빌드 컨텍스트에서 제외 (이미지 비대화/캐시 무효화 방지)
+.git
+.gitignore
+**/node_modules
+**/build
+**/dist
+**/.gradle
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.pytest_cache
+**/.mypy_cache
+
+# 외부 참조/스토리지/리포트
+cvat/
+storage/
+backend/storage/
+reports/
+.playwright-mcp/
+**/.DS_Store
+
+# 문서/계획 (이미지 빌드 불필요)
+docs/
+.claude/
+.claude-plan*.md
+.code-review-result
+AGENTS.md
+
+# AI 가중치 (대용량 — mock 모드라 불필요)
+ai-server/weights/*.pt
+ai-server/weights/*.pth
+
+# 환경 비밀
+.env
+**/.env.local

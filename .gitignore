@@ -13,8 +13,11 @@ Thumbs.db
 .claude/settings.local.json
 
 # 환경 설정
+.env
 .env.local
 *.local
+# .env.example 은 커밋 (placeholder 만)
+!.env.example
 
 # 빌드 산출물
 build/
