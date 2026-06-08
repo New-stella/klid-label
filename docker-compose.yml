@@ -64,7 +64,9 @@ services:
     networks:
       - klid-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/actuator/health | grep -q UP || exit 1"]
+      # liveness 프로브 사용 — 전체 /health 는 외부 의존(deidentify/control-notify) 미배포 시
+      # DOWN 으로 떨어지므로 앱 자체 생존 신호인 liveness 로 판정한다.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/actuator/health/liveness | grep -q UP || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
