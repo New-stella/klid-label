@@ -23,6 +23,16 @@ import java.util.Map;
  *
  * <p>{@code enabledStages} 는 4단계 (FRAME_EXTRACT/DEIDENTIFY/YOLO/SAM2) 의 On/Off 토글이다.
  * 누락/null 인 키는 모두 {@code true} 로 처리한다 (back-compat — 기존 클라이언트는 전 단계 실행).
+ *
+ * <p>Phase 3 (단일 파이프라인 수렴) 신 순서 의미:
+ * <ul>
+ *   <li>DEIDENTIFY: 선두 비식별 수행 여부(dev 한정 skip 가능). off 시 deIdntfYn 미설정 →
+ *       FRAME_EXTRACT 가드에 걸리므로 FRAME 도 off 권장.</li>
+ *   <li>FRAME_EXTRACT: 합성 마킹(frameIndex 0) 기반 프레임 추출 여부. on 이면 dev 합성 마킹 생성.</li>
+ *   <li>YOLO/SAM2: 단일 파이프라인 step 의 {@code isEnabled} 로 skip.</li>
+ * </ul>
+ * 토글은 {@link kr.co.cudo.authoring.batch.runner.DevPipelineRunner} 를 거쳐
+ * {@code BatchOrchestrator.process(rawSn, toggles)} 로 전달된다.
  */
 @Schema(description = "[개발/검수 전용] 영상 업로드 + 오토라벨 파이프라인 트리거 메타데이터")
 public record AutolabelTestRequest(

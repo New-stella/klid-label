@@ -80,12 +80,12 @@ public class SecurityConfig {
                     if (devTokenEndpointEnabled) {
                         // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음.
                         // - /v1/dev/tokens: 부트스트랩 토큰 발급 → permitAll (로컬 인증 불가 방지).
-                        // - /v1/dev/autolabel/**: 오토라벨 파이프라인 수동 트리거 → permitAll (로컬 테스트 편의).
                         // - /v1/dev/batch/**: 배치 파이프라인 수동 트리거 → permitAll (로컬 테스트 편의).
                         //   prd 노출은 @Profile("!prd") + devTokenEndpointEnabled 이중 차단으로 보호.
+                        // (Phase 3: /v1/dev/autolabel/** 은퇴 — AutolabelTestController 제거. dev 업로드
+                        //  /v1/dev/autolabel-test 는 아래 /v1/dev/** REVIEWER 가드를 따른다.)
                         auth.requestMatchers(
                                 "/v1/dev/tokens", "/v1/dev/tokens/**",
-                                "/v1/dev/autolabel/**",
                                 "/v1/dev/batch/**").permitAll();
                     }
                     auth

@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.dev.service;
 
-import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.batch.test.AutolabelTestService;
+import kr.co.cudo.authoring.batch.runner.DevPipelineRunner;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestRequest;
@@ -31,24 +30,22 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * DevAutolabelTestService 단위 테스트.
+ * DevAutolabelTestService 단위 테스트 (Phase 3 — 단일 파이프라인 수렴 반영).
  *
  * <p>실제 파일 IO 는 JUnit {@link TempDir} 로 격리. 파이프라인 trigger 는
- * {@link AutolabelTestService} mock 으로 대체 (백그라운드 호출이 mock 에 도달하는지는 race 라
- * 검증하지 않고, 동기 검증은 service.upload 의 핵심 로직(검증/저장/DB)만 다룸).
+ * {@link DevPipelineRunner} mock 으로 대체한다. upload 는 프레임 존재 여부 분기 없이
+ * 항상 {@code DevPipelineRunner.runAsync(rawSn, toggles)} 로 위임하며 응답은 PROCESSING 이다.
  */
 class DevAutolabelTestServiceTest {
 
     private VideoRepository videoRepository;
     private MngResourceCctvRepository cctvRepository;
-    private AutolabelTestService autolabelTestService;
-    private LsDataSrcRepository srcRepository;
+    private DevPipelineRunner devPipelineRunner;
 
     private DevAutolabelTestService service;
 
@@ -61,16 +58,11 @@ class DevAutolabelTestServiceTest {
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         cctvRepository = mock(MngResourceCctvRepository.class);
-        autolabelTestService = mock(AutolabelTestService.class);
-        srcRepository = mock(LsDataSrcRepository.class);
-        // 기본: 프레임이 이미 존재(>0)한다고 가정 — 기존 테스트의 runFull 트리거 동작 보존.
-        // 신규 업로드(프레임 0건) 케이스는 개별 테스트에서 override.
-        org.mockito.Mockito.lenient().when(srcRepository.countByRawSn(any())).thenReturn(3L);
+        devPipelineRunner = mock(DevPipelineRunner.class);
         service = new DevAutolabelTestService(
                 videoRepository,
                 cctvRepository,
-                autolabelTestService,
-                srcRepository,
+                devPipelineRunner,
                 storageRoot.toString(),
                 MAX_FILE_SIZE
         );
@@ -112,7 +104,7 @@ class DevAutolabelTestServiceTest {
     }
 
     @Test
-    @DisplayName("허용_확장자_mp4_업로드_200_rawSn반환")
+    @DisplayName("허용_확장자_mp4_업로드_200_rawSn반환_PROCESSING")
     void mp4_업로드_정상() throws Exception {
         given(videoRepository.findByVmsClipId("TEST-CLIP-001")).willReturn(Optional.empty());
         given(cctvRepository.existsById("CCTV-001")).willReturn(true);
@@ -173,7 +165,7 @@ class DevAutolabelTestServiceTest {
     void 파일크기_초과() {
         // maxFileSize 를 4 bytes 로 매우 작게 설정
         DevAutolabelTestService smallLimitService = new DevAutolabelTestService(
-                videoRepository, cctvRepository, autolabelTestService, srcRepository,
+                videoRepository, cctvRepository, devPipelineRunner,
                 storageRoot.toString(), 4L);
 
         MultipartFile file = mp4File("big.mp4", new byte[]{1, 2, 3, 4, 5});
@@ -275,7 +267,7 @@ class DevAutolabelTestServiceTest {
     /** durationProbe 주입형 서비스 — ffprobe 의존 격리. */
     private DevAutolabelTestService serviceWithProbe(DevAutolabelTestService.DurationProbe probe) {
         return new DevAutolabelTestService(
-                videoRepository, cctvRepository, autolabelTestService, srcRepository,
+                videoRepository, cctvRepository, devPipelineRunner,
                 storageRoot.toString(), MAX_FILE_SIZE, "ffprobe", probe);
     }
 
@@ -354,8 +346,8 @@ class DevAutolabelTestServiceTest {
     }
 
     @Test
-    @DisplayName("enabledStages_meta가_있으면_runFull에_그대로_전달")
-    void enabledStages_runFull_전달() throws Exception {
+    @DisplayName("enabledStages_meta가_있으면_DevPipelineRunner에_그대로_전달")
+    void enabledStages_runner_전달() throws Exception {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
         given(cctvRepository.existsById(any())).willReturn(true);
         given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(303L));
@@ -381,7 +373,7 @@ class DevAutolabelTestServiceTest {
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
             ArgumentCaptor<java.util.Map<String, Boolean>> mapCaptor =
                     ArgumentCaptor.forClass(java.util.Map.class);
-            verify(autolabelTestService).runFull(eq(303L), mapCaptor.capture());
+            verify(devPipelineRunner).runAsync(eq(303L), mapCaptor.capture());
             java.util.Map<String, Boolean> captured = mapCaptor.getValue();
             assertThat(captured.get("FRAME_EXTRACT")).isTrue();
             assertThat(captured.get("DEIDENTIFY")).isFalse();
@@ -391,70 +383,21 @@ class DevAutolabelTestServiceTest {
     }
 
     @Test
-    @DisplayName("이슈B_신규영상_프레임0건_업로드시_runFull_미호출_FAILED_미마킹_REGISTERED반환")
-    void 프레임_0건_업로드시_runFull_미호출() throws Exception {
+    @DisplayName("신규영상_업로드시_DevPipelineRunner_runAsync_위임_PROCESSING_반환")
+    void 신규영상_업로드시_runner_위임() throws Exception {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
         given(cctvRepository.existsById(any())).willReturn(true);
         given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(500L));
-        // 신규 업로드 영상 — 프레임 아직 0건 (마킹 전이므로 프레임 추출 안 됨)
-        given(srcRepository.countByRawSn(500L)).willReturn(0L);
 
         DevAutolabelTestService localService = serviceWithProbe(path -> 60);
         MultipartFile file = mp4File("new.mp4", new byte[]{1, 2, 3});
 
         AutolabelTestResponse response = localService.upload(file, validMeta());
 
-        // 영상 등록은 정상 수행, 파이프라인 상태는 REGISTERED
         assertThat(response.rawSn()).isEqualTo(500L);
-        assertThat(response.pipelineStatus()).isEqualTo("REGISTERED");
-
-        // 핵심: runFull 을 호출하지 않으며, FAILED 로 마킹하지도 않는다.
-        verify(autolabelTestService, never()).runFull(any(), anyMap());
-        verify(autolabelTestService, never()).runFull(any());
-        // 잠시 대기해도 비동기 FAILED 마킹이 일어나지 않음을 확인.
-        Thread.sleep(200);
-        verify(videoRepository, never()).updateStatus(eq(500L), eq("FAILED"));
-    }
-
-    @Test
-    @DisplayName("이슈B_프레임_존재시_재실행_runFull_호출_기존동작_보존")
-    void 프레임_존재시_runFull_호출() throws Exception {
-        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
-        given(cctvRepository.existsById(any())).willReturn(true);
-        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(501L));
-        // 재실행 케이스 — 프레임이 이미 존재
-        given(srcRepository.countByRawSn(501L)).willReturn(12L);
-
-        DevAutolabelTestService localService = serviceWithProbe(path -> 60);
-        MultipartFile file = mp4File("rerun.mp4", new byte[]{1, 2, 3});
-
-        AutolabelTestResponse response = localService.upload(file, validMeta());
         assertThat(response.pipelineStatus()).isEqualTo("PROCESSING");
 
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
-                verify(autolabelTestService).runFull(eq(501L), anyMap()));
-    }
-
-    @Test
-    @DisplayName("파이프라인_비동기_실패시_LS_DATA_RAW_DATA_STTS_CD_FAILED_갱신")
-    void 파이프라인_실패시_FAILED_갱신() throws Exception {
-        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
-        given(cctvRepository.existsById(any())).willReturn(true);
-        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(202L));
-
-        // autolabelTestService.runFull 이 예외 던지도록 설정
-        doThrow(new RuntimeException("YOLO step failed: server unreachable"))
-                .when(autolabelTestService).runFull(eq(202L), anyMap());
-
-        DevAutolabelTestService localService = serviceWithProbe(path -> 60);
-        MultipartFile file = mp4File("ok.mp4", new byte[]{1, 2, 3});
-
-        // 동기 응답은 200 으로 반환 — 파이프라인은 비동기
-        AutolabelTestResponse response = localService.upload(file, validMeta());
-        assertThat(response.rawSn()).isEqualTo(202L);
-
-        // 비동기 exceptionally 콜백이 updateStatus(202, "FAILED") 를 호출하는지 검증.
-        await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
-                verify(videoRepository).updateStatus(202L, "FAILED"));
+                verify(devPipelineRunner).runAsync(eq(500L), anyMap()));
     }
 }

@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
 /**
  * 배치 파이프라인 오케스트레이터 (V2.1 — 비식별 분리, post-marking 시퀀스 재정렬).
  *
@@ -82,6 +84,20 @@ public class BatchOrchestrator {
      *   짧은 readOnly 트랜잭션은 필요 → 별도 메서드로 격리.
      */
     public BatchStage process(Long rawSn) {
+        return process(rawSn, null);
+    }
+
+    /**
+     * 단일 영상 1건 처리 — stage 토글을 받는 오버로드 (Phase 3 — 조건부 step).
+     *
+     * <p>{@code stageToggles} 가 null/빈 맵이면 전 stage enabled — {@link #process(Long)} 와 동일
+     * (프로덕션 경로 100% 보존). 토글 대상 단계(FRAME_EXTRACT/YOLO/SAM2)가 off 면 해당 단계의
+     * stage 마킹과 execute 를 모두 건너뛴다. dev 단일 파이프라인 수렴 경로에서 사용한다.
+     *
+     * @param rawSn        영상 식별자
+     * @param stageToggles {@link BatchStage#name()} → enabled. null/빈 맵 = 전부 enabled.
+     */
+    public BatchStage process(Long rawSn, Map<String, Boolean> stageToggles) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
@@ -91,8 +107,13 @@ public class BatchOrchestrator {
         transitionService.markRawDataProcessing(rawSn);
 
         try {
-            BatchContext ctx = new BatchContext(rawSn, raw);
+            BatchContext ctx = new BatchContext(rawSn, raw, stageToggles);
             for (BatchStep step : pipeline.steps()) {
+                if (!step.isEnabled(ctx)) {
+                    log.info("[BatchOrchestrator] skip disabled stage rawSn={} stage={}",
+                            rawSn, step.stage());
+                    continue;
+                }
                 statusService.markStage(rawSn, step.stage());
                 step.execute(ctx);
             }

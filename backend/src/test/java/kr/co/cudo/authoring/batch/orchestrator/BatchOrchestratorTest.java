@@ -352,6 +352,74 @@ class BatchOrchestratorTest {
         verify(trackInterpolationStep, never()).run(any());
     }
 
+    // ── Phase 3: process(rawSn, toggles) 조건부 step skip ──
+
+    @Test
+    @DisplayName("Phase3_process_toggles_YOLO_off면_yoloStep_미호출_markStage_미호출_나머지는_정상")
+    void processWithTogglesSkipsDisabledYolo() {
+        newRaw(140L, LsDataRaw.PRVC_TYPE_ANONY);
+        java.util.Map<String, Boolean> toggles = new java.util.HashMap<>();
+        toggles.put(BatchStage.YOLO.name(), false);
+
+        BatchStage result = orchestrator.process(140L, toggles);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        // YOLO 비활성 — execute/markStage 모두 미호출.
+        verify(yoloStep, never()).run(any());
+        verify(statusService, never()).markStage(eq(140L), eq(BatchStage.YOLO));
+        // 나머지 활성 step 은 정상 실행.
+        verify(vlmTimeseriesStep).runWithMarking(eq(140L), any());
+        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), any());
+        verify(sam2Step).run(eq(140L), any());
+        verify(trackInterpolationStep).run(140L);
+        verify(statusService).markStage(eq(140L), eq(BatchStage.SAM2));
+    }
+
+    @Test
+    @DisplayName("Phase3_process_toggles_FRAME_off면_프레임추출_skip_+_marks없어도_INVALID_INPUT_안남")
+    void processWithTogglesSkipsFrameExtract() {
+        newRaw(141L, LsDataRaw.PRVC_TYPE_ANONY);
+        // 마킹 없음 — 정상 플로우면 FRAME_EXTRACT 가 INVALID_INPUT 으로 실패하지만, FRAME off 면 skip.
+        when(markingRepository.findByRawSnOrderByRegDtDesc(141L))
+                .thenReturn(java.util.Collections.emptyList());
+        java.util.Map<String, Boolean> toggles = new java.util.HashMap<>();
+        toggles.put(BatchStage.FRAME_EXTRACT.name(), false);
+
+        BatchStage result = orchestrator.process(141L, toggles);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        verify(frameExtractor, never()).extractByMarks(any(), any());
+        verify(statusService, never()).markStage(eq(141L), eq(BatchStage.FRAME_EXTRACT));
+        // FRAME off 이지만 YOLO/SAM2 는 기존 프레임으로 실행됨.
+        verify(yoloStep).run(141L);
+        verify(sam2Step).run(eq(141L), any());
+    }
+
+    @Test
+    @DisplayName("Phase3_process_단일인자는_전부_enabled_회귀보존")
+    void processSingleArgAllEnabled() {
+        newRaw(142L, LsDataRaw.PRVC_TYPE_ANONY);
+
+        BatchStage result = orchestrator.process(142L);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        verify(yoloStep).run(142L);
+        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), any());
+        verify(sam2Step).run(eq(142L), any());
+    }
+
+    @Test
+    @DisplayName("Phase3_process_빈_toggles는_전부_enabled")
+    void processEmptyTogglesAllEnabled() {
+        newRaw(143L, LsDataRaw.PRVC_TYPE_ANONY);
+
+        BatchStage result = orchestrator.process(143L, java.util.Collections.emptyMap());
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        verify(yoloStep).run(143L);
+        verify(sam2Step).run(eq(143L), any());
+    }
+
     @Test
     @DisplayName("BatchOrchestrator_YoloStep_결과를_Sam2Step_에_정확히_전달")
     void yoloHintsPassedToSam2() {

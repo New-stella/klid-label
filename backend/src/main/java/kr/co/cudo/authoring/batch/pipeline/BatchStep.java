@@ -19,4 +19,16 @@ public interface BatchStep {
 
     /** 컨텍스트를 읽고/쓰며 단계를 수행한다. 실패 시 RuntimeException 전파. */
     void execute(BatchContext ctx);
+
+    /**
+     * 이 단계가 주어진 컨텍스트에서 실행 대상인지 여부 (Phase 3 — 조건부 step 일반화).
+     *
+     * <p>기본은 항상 {@code true} — 프로덕션 경로({@code process(rawSn)}, 선두 비식별, 마킹 브릿지)는
+     * 토글 없는 컨텍스트를 사용하므로 모든 단계가 enabled 다(동작 100% 보존). 토글 대상 단계
+     * (FRAME_EXTRACT/YOLO/SAM2)만 {@code ctx.isStageEnabled(stage())} 로 오버라이드한다.
+     * 오케스트레이터는 {@code false} 인 단계의 stage 마킹/execute 를 모두 건너뛴다.
+     */
+    default boolean isEnabled(BatchContext ctx) {
+        return true;
+    }
 }

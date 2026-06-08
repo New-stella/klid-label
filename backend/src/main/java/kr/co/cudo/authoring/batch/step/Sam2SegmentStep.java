@@ -109,6 +109,12 @@ public class Sam2SegmentStep implements BatchStep {
         return BatchStage.SAM2;
     }
 
+    /** Phase 3 — 조건부 step: ctx 토글이 SAM2 off 면 단계 skip (dev 경로 전용, 프로덕션은 항상 on). */
+    @Override
+    public boolean isEnabled(BatchContext ctx) {
+        return ctx.isStageEnabled(stage());
+    }
+
     /**
      * 파이프라인 진입점 — YOLO 단계가 적재한 ctx.hints 를 SAM2 호출에 전달한다.
      * 동작 보존: 기존 orchestrator 의 {@code sam2Step.run(rawSn, hints)} 와 동일.
