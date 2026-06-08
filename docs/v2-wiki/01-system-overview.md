@@ -53,12 +53,13 @@ React 18 + TypeScript 5 + Vite 5 · TanStack Query v5 · Zustand · React Router
 ## 1.5 핵심 파이프라인
 
 ```
-영상 적재 → 마킹 → 외부 VLM 시계열(콜백) → 비식별화(PRVC/PSDO만)
-  → FFmpeg(마킹 위치 기반 원본+비식별 2벌) → YOLO(원본만) → SAM2 → 트랙 보간
+영상 적재 → 비식별화(전체 영상 무조건, 적재 직후 선두 자동) → 마킹(비식별 영상)
+  → 외부 VLM 시계열(콜백) → FFmpeg(마킹 위치 기반 원본+비식별 2벌)
+  → YOLO(원본만) → SAM2 → 트랙 보간
   → 라벨링 → 검수(승인=완료) → 버전 스냅샷 + 관제 통지 → (선택) 증강
 ```
 
-> 현재 코드 순서. R1 NFR-001(v1.5) **설계 타깃은 비식별 선두 재배치**(비식별→마킹→VLM→…). → [07](07-batch-pipeline.md).
+> 비식별 선두 재배치(R1 NFR-001 v1.5) **구현 완료**. 단계 순서는 `BatchPipelineConfig` 에서 선언적으로 관리. → [07](07-batch-pipeline.md).
 
 ## 1.6 핵심 산출물 목표 (NFR)
 
