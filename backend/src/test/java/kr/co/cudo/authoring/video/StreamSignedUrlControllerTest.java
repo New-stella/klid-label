@@ -3,6 +3,8 @@ package kr.co.cudo.authoring.video;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.StreamUrlSigner;
@@ -51,10 +53,12 @@ class StreamSignedUrlControllerTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private StreamUrlSigner signer;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private LsDeidentProcLogRepository procLogRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
     @Value("${authoring.storage.raw-path:./storage/raw}") private String storageRawPath;
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}") private String storageDeidPath;
     // 만료 서명을 동일 시크릿으로 재현하기 위해 설정값을 주입받는다 (하드코딩 금지).
     @Value("${authoring.stream.sign-secret}") private String streamSignSecret;
 
@@ -75,10 +79,16 @@ class StreamSignedUrlControllerTest {
         raw = rawRepository.save(raw);
         rawSn = raw.getRawSn();
 
-        Path baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path videoPath = baseDir.resolve(relPath).normalize();
+        // Phase 2: 마킹 스트림은 비식별 영상을 서빙 → deidentified-path 하위에 비식별 파일 + 성공 procLog 준비.
+        Path deidBase = Paths.get(storageDeidPath).toAbsolutePath().normalize();
+        Path videoPath = deidBase.resolve(relPath).normalize();
         Files.createDirectories(videoPath.getParent());
         Files.write(videoPath, new byte[FILE_SIZE]);
+
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(rawSn, null,
+                Paths.get(storageRawPath).resolve(relPath).toString(), "test");
+        procLog.succeed(videoPath.toString());
+        procLogRepository.save(procLog);
     }
 
     @Test

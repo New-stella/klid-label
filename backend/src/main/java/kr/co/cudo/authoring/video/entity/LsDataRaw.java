@@ -32,6 +32,14 @@ public class LsDataRaw {
 
     public static final String STATUS_PENDING = "PENDING";
 
+    /**
+     * 적재 직후 자동 비식별이 성공해 마킹 단계로 진입 가능한 상태 (Phase 2).
+     * <p>흐름: PENDING → (선두 비식별 성공) MARKING_READY → (마킹완료→배치) COMPLETED.
+     * marking-ready 신호는 LS_RAW_DATA_STATUS 가 아닌 본 LS_DATA_RAW.DATA_STTS_CD 에 둔다
+     * (작업 상태 row 는 배정 시점 lazy 생성이라 적재 직후 전이 불가).
+     */
+    public static final String DATA_STTS_MARKING_READY = "MARKING_READY";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "RAW_SN")
@@ -169,6 +177,14 @@ public class LsDataRaw {
         }
         this.deIdntfYn = code;
         this.mdfcnDt = LocalDateTime.now();
+    }
+
+    /**
+     * 선두 비식별 성공 후 마킹 단계 진입 가능 상태로 전이 (Phase 2).
+     * <p>원본 rawFilePathNm 은 절대 변경되지 않는다 (원본 보존 원칙).
+     */
+    public void markMarkingReady() {
+        changeStatus(DATA_STTS_MARKING_READY);
     }
 
     /** 배치 상태 코드 갱신 (PROCESSING / COMPLETED / FAILED). */

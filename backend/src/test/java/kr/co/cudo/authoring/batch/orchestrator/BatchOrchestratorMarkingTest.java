@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.batch.orchestrator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.pipeline.BatchPipeline;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
@@ -66,10 +66,12 @@ class BatchOrchestratorMarkingTest {
         markingRepository = mock(LsMarkingRepository.class);
         transitionService = mock(BatchTransitionService.class);
 
+        BatchPipeline pipeline = PipelineTestSupport.pipeline(
+                markingRepository, vlmTimeseriesStep, frameExtractor,
+                yoloStep, sam2Step, trackInterpolationStep);
+
         orchestrator = new BatchOrchestrator(
-                vlmTimeseriesStep, frameExtractor, yoloStep, sam2Step,
-                trackInterpolationStep, statusService, transitionService, retryQueue,
-                videoRepository, markingRepository, new ObjectMapper());
+                pipeline, statusService, transitionService, retryQueue, videoRepository);
 
         // given: 기본 mock 설정
         when(frameExtractor.extractByMarks(any(LsDataRaw.class), any()))

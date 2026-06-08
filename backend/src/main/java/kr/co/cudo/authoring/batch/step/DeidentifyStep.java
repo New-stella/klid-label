@@ -2,6 +2,9 @@ package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
+import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.client.DeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
@@ -43,7 +46,7 @@ import java.time.Duration;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class DeidentifyStep {
+public class DeidentifyStep implements BatchStep {
 
     private final DeidentifyClient deidentifyClient;
     private final VideoRepository videoRepository;
@@ -62,6 +65,20 @@ public class DeidentifyStep {
     @PostConstruct
     void initBasePath() {
         this.baseDeidentifiedPath = Paths.get(deidPath).toAbsolutePath().normalize();
+    }
+
+    @Override
+    public BatchStage stage() {
+        return BatchStage.DEIDENTIFY;
+    }
+
+    /**
+     * 균일 파이프라인 인터페이스 — 기존 typed {@link #run(LsDataRaw)} 에 위임 (Phase 2).
+     * 선두 비식별 파이프라인({@code preMarkingPipeline}) 이 본 메서드로 단계를 실행한다.
+     */
+    @Override
+    public void execute(BatchContext ctx) {
+        run(ctx.getRaw());
     }
 
     /**
@@ -110,10 +127,14 @@ public class DeidentifyStep {
             log.info("[Batch][Deid] succeeded rawSn={}", raw.getRawSn());
             return resp.resultPath();
         } catch (RuntimeException e) {
-            procLog.fail(e.getClass().getSimpleName(), e.getMessage());
+            // CWE-209: 외부 비식별 API 의 원문 메시지(e.getMessage())는 내부 구현/경로/스키마를 노출할 수
+            //          있으므로 DB/로그에 저장하지 않는다. 고정 에러코드 + 예외 클래스명만 보존한다.
+            procLog.fail("EXTERNAL_API_ERROR", e.getClass().getSimpleName());
             videoRepository.findById(raw.getRawSn())
                     .ifPresent(v -> v.markDeidentified("F"));
-            log.error("[Batch][Deid] failed rawSn={} err={}", raw.getRawSn(), e.getMessage());
+            log.error("[Batch][Deid] failed rawSn={} errType={}", raw.getRawSn(), e.getClass().getSimpleName());
+            // 원문 메시지는 진단용으로 DEBUG 에서만(운영 비노출). 예외 객체 자체는 상위 핸들러가 처리.
+            log.debug("[Batch][Deid] failure detail rawSn={}", raw.getRawSn(), e);
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 호출 실패", e);
         }
     }

@@ -2,6 +2,9 @@ package kr.co.cudo.authoring.batch.orchestrator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
+import kr.co.cudo.authoring.batch.pipeline.BatchPipeline;
+import kr.co.cudo.authoring.batch.pipeline.MarkingLoadStep;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
@@ -37,18 +40,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * BatchOrchestrator V2.1 단위 테스트 (Phase 1 — post-marking 시퀀스에서 비식별 분리).
+ * BatchOrchestrator V2.1 단위 테스트 (선언적 파이프라인 리팩토링 반영).
+ *
+ * <p>리팩토링 후 orchestrator 는 개별 step 빈 대신 {@link BatchPipeline} 1개를 주입받아
+ * 순서대로 실행한다. 본 테스트는 실제 step 구현({@link MarkingLoadStep}) + 나머지 typed step mock 을
+ * {@link BatchPipeline} 으로 구성해 주입한다. mock step 의 {@code execute(ctx)} 는 기존 orchestrator
+ * 가 수행하던 책임(typed 메서드 호출 + ctx 읽기/쓰기)을 그대로 위임하도록 어댑터로 연결하여,
+ * 기존 검증 의도(순서, 비식별 미호출, 마킹 분기, 상태전이, 실패 처리, 힌트 전달)를 모두 보존한다.
  *
  * <p>Phase 1 정책 파이프라인 순서 (마킹 필수):
- *   MARKING(확인) → VLM(영상 단위 메타) → FRAME_EXTRACT(extractByMarks)
+ *   MARKING(로드+marks 파싱) → VLM(영상 단위 메타) → FRAME_EXTRACT(extractByMarks)
  *   → YOLO → SAM2 → INTERPOLATE → COMPLETED
  *
  * <p>비식별(DEIDENTIFY) 단계는 post-marking 시퀀스에서 제거됐다 (적재 직후 선두 단계로 이동 — Phase 2).
- * orchestrator 는 더 이상 DeidentifyStep 을 주입/호출하지 않으며, FfmpegFrameExtractor 가
- * 저장된 비식별 결과 경로를 스스로 조회한다.
- *
- * <p>Phase 3/4: 영상 잠금은 LS_AUTH_WORK_LOCK 에서 관리되며 본 orchestrator 는
- * 잠금 상태에 관여하지 않는다 (LsDataRaw.attachLockStts/releaseLock 호출 제거).
  */
 class BatchOrchestratorTest {
 
@@ -77,10 +81,12 @@ class BatchOrchestratorTest {
         markingRepository = mock(LsMarkingRepository.class);
         transitionService = mock(BatchTransitionService.class);
 
+        BatchPipeline pipeline = PipelineTestSupport.pipeline(
+                markingRepository, vlmTimeseriesStep, frameExtractor,
+                yoloStep, sam2Step, trackInterpolationStep);
+
         orchestrator = new BatchOrchestrator(
-                vlmTimeseriesStep, frameExtractor, yoloStep, sam2Step,
-                trackInterpolationStep, statusService, transitionService, retryQueue,
-                videoRepository, markingRepository, new ObjectMapper());
+                pipeline, statusService, transitionService, retryQueue, videoRepository);
 
         // V2.0: 마킹 필수 — 기본 마킹 데이터 제공 (orchestrator 통과 보장)
         when(markingRepository.findByRawSnOrderByRegDtDesc(any()))

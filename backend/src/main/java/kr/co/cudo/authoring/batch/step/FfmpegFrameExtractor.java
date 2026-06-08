@@ -3,6 +3,9 @@ package kr.co.cudo.authoring.batch.step;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDataSrcHstry;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
+import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcHstryRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
@@ -50,7 +53,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-public class FfmpegFrameExtractor {
+public class FfmpegFrameExtractor implements BatchStep {
 
     /** 영상 네이티브 프레임레이트 가정값. MarkItem.frameIndex 는 이 fps 기준. */
     static final int NATIVE_VIDEO_FPS = 30;
@@ -78,6 +81,38 @@ public class FfmpegFrameExtractor {
         this.frameWriter = frameWriter;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.baseDeidPath = Paths.get(storageDeidPath).toAbsolutePath().normalize();
+    }
+
+    @Override
+    public BatchStage stage() {
+        return BatchStage.FRAME_EXTRACT;
+    }
+
+    /**
+     * 파이프라인 진입점 — ctx.marks 로 마킹 위치 기반 프레임을 추출한다.
+     *
+     * <p>동작 보존: 기존 orchestrator 가 FRAME_EXTRACT 단계 진입 직전에 수행하던 가드를
+     * 본 메서드로 이동했다.
+     * <ul>
+     *   <li>marks 가 비어있으면(마킹 없음 포함) {@code INVALID_INPUT} — 기존 orchestrator 의
+     *       "마킹 데이터가 없습니다" 가드와 동일 ErrorCode/단계.</li>
+     *   <li>추출 결과 0건이면 {@code INTERNAL_ERROR} — 기존 orchestrator 의 "프레임 추출 결과가
+     *       0건입니다" 가드와 동일 ErrorCode/단계.</li>
+     * </ul>
+     */
+    @Override
+    public void execute(BatchContext ctx) {
+        Long rawSn = ctx.getRawSn();
+        List<MarkItem> marks = ctx.getMarks();
+        if (marks.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "마킹 데이터가 없습니다. rawSn=" + rawSn);
+        }
+        List<LsDataSrc> frames = extractByMarks(ctx.getRaw(), marks);
+        if (frames.isEmpty()) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR,
+                    "프레임 추출 결과가 0건입니다 rawSn=" + rawSn);
+        }
     }
 
     /**

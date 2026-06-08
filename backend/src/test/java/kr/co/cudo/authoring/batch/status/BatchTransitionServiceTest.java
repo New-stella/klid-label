@@ -115,6 +115,32 @@ class BatchTransitionServiceTest {
     }
 
     @Test
+    @DisplayName("markRawDataMarkingReady_가_LsDataRaw를_MARKING_READY로_전이")
+    void markRawDataMarkingReady_LS_DATA_RAW_MARKING_READY() {
+        // given — 적재 직후 PENDING 영상
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-mr", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC,
+                "raw/mr.mp4", null, 60);
+        when(videoRepository.findById(7L)).thenReturn(Optional.of(raw));
+
+        // when — 선두 비식별 성공 후 marking-ready 전이
+        service.markRawDataMarkingReady(7L);
+
+        // then — LS_DATA_RAW.DATA_STTS_CD = MARKING_READY (작업 상태 row 는 미변경)
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+    }
+
+    @Test
+    @DisplayName("markRawDataMarkingReady_raw_row_없으면_graceful_예외없이_통과")
+    void markRawDataMarkingReady_raw_없음_graceful() {
+        // given
+        when(videoRepository.findById(88L)).thenReturn(Optional.empty());
+
+        // when / then — 예외 없이 통과 (WARN 로깅만)
+        service.markRawDataMarkingReady(88L);
+    }
+
+    @Test
     @DisplayName("status_row_없으면_save_미호출_예외없이_통과")
     void status_row_없음_graceful() {
         // given

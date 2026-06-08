@@ -42,6 +42,23 @@ class LsDataRawTest {
         assertThat(augmented.getRawSn()).isNull();
     }
 
+    @Test
+    @DisplayName("markMarkingReady_가_DATA_STTS_CD를_MARKING_READY로_전이_원본경로_미변경")
+    void markMarkingReady_transitionsAndPreservesRawPath() {
+        // given — 적재 직후 PENDING
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-mr", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/mr.mp4", null, 60);
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
+
+        // when
+        raw.markMarkingReady();
+
+        // then — 상태 전이 + 원본 파일 경로는 절대 미변경(원본 보존)
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(raw.getRawFilePathNm()).isEqualTo("/storage/raw/mr.mp4");
+    }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field f = target.getClass().getDeclaredField(name);
         f.setAccessible(true);

@@ -1,13 +1,17 @@
 package kr.co.cudo.authoring.video.service;
 
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.dto.StreamUrlResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.UrlResource;
 import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.CacheControl;
@@ -30,16 +34,19 @@ import java.util.List;
 /**
  * 영상 파일 스트리밍 서비스 — HTTP Range 지원.
  *
+ * <p>Privacy (Phase 2): 마킹 화면 스트림은 <b>항상 비식별 영상</b>을 서빙한다. 비식별 결과 경로는
+ * 최신 성공 {@link LsDeidentProcLog} 에서 도출하며, 비식별이 미완료(경로/파일 부재)면 원본을
+ * 절대 노출하지 않고 NOT_FOUND 로 거부한다 — 전체 무조건 비식별 정책상 모든 영상이 대상.
+ *
  * <p>보안 (HIGH):
  * <ul>
- *   <li><b>Path Traversal (CWE-22)</b>: filePath 가 basePath 외부이면 FORBIDDEN.</li>
- *   <li><b>확장자 allowlist</b>: video MIME 확인.</li>
+ *   <li><b>Path Traversal (CWE-22)</b>: 비식별 경로가 deidentified base 외부이면 FORBIDDEN.</li>
+ *   <li><b>비식별 미완료 원본 노출 차단</b>: deid 경로/파일 부재 시 NOT_FOUND.</li>
  *   <li>로그에 사용자 입력 평문 path 미노출.</li>
  * </ul>
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class VideoStreamService {
 
@@ -48,9 +55,32 @@ public class VideoStreamService {
 
     private final VideoRepository videoRepository;
     private final StreamUrlSigner streamUrlSigner;
+    private final LsDeidentProcLogRepository deidentProcLogRepository;
+
+    /**
+     * 자기 참조(프록시) — {@code @Cacheable} 는 자기호출(self-invocation) 시 프록시를 거치지 않아
+     * 캐시가 동작하지 않는다. {@link #stream}/{@link #issueSignedUrl} 이 캐시 적용 메서드
+     * {@link #resolveDeidPath} 를 프록시 경유로 호출하도록 {@code @Lazy} 자기 주입을 사용한다.
+     * 단위 테스트는 생성자로 직접 인스턴스화(프록시 없음)하므로 이 필드가 null 이며, 그 경우
+     * 캐시 없이 직접 호출로 폴백한다 — 캐시는 통합(Spring 컨텍스트)에서만 활성화된다.
+     */
+    @Lazy
+    @Autowired(required = false)
+    private VideoStreamService self;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
+
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String deidentifiedPath;
+
+    public VideoStreamService(VideoRepository videoRepository,
+                              StreamUrlSigner streamUrlSigner,
+                              LsDeidentProcLogRepository deidentProcLogRepository) {
+        this.videoRepository = videoRepository;
+        this.streamUrlSigner = streamUrlSigner;
+        this.deidentProcLogRepository = deidentProcLogRepository;
+    }
 
     /**
      * 단기 서명 스트림 URL 발급.
@@ -93,18 +123,21 @@ public class VideoStreamService {
      * @throws IOException 파일 읽기 실패 시
      */
     public ResponseEntity<ResourceRegion> stream(Long rawSn, HttpHeaders headers) throws IOException {
-        // 1) 영상 조회
-        LsDataRaw raw = videoRepository.findById(rawSn)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+        // 1~2) 영상 존재 확인 + 비식별 경로 해석(캐시 경유). 미완료면 원본 노출 금지 → NOT_FOUND.
+        String deidPath = resolveDeidPathCached(rawSn);
+        if (deidPath == null) {
+            log.warn("[VideoStream] deidentify not completed rawSn={} — refusing raw exposure", rawSn);
+            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 처리 미완료");
+        }
 
-        // 2) Path Traversal 방어 (CWE-22)
-        Path baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path resolved = resolveSafe(baseDir, raw.getRawFilePathNm());
+        // 3) Path Traversal 방어 (CWE-22) — 비식별 저장 base 정합
+        Path baseDir = Paths.get(deidentifiedPath).toAbsolutePath().normalize();
+        Path resolved = resolveSafe(baseDir, deidPath);
 
-        // 3) 파일 존재 확인
+        // 4) 파일 존재 확인 — 비식별 파일 부재 시 원본 노출 금지(privacy) → NOT_FOUND
         if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
-            log.warn("[VideoStream] file not found rawSn={}", rawSn);
-            throw new CustomException(ErrorCode.NOT_FOUND, "영상 파일이 존재하지 않습니다.");
+            log.warn("[VideoStream] deid file not found rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 영상 파일이 존재하지 않습니다.");
         }
 
         // 4) MIME 결정
@@ -160,6 +193,43 @@ public class VideoStreamService {
                 .header("X-Content-Type-Options", "nosniff")
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
                 .body(region);
+    }
+
+    /**
+     * 비식별 경로 해석을 캐시 경유로 호출 (성능 — HTTP Range 요청마다 DB 조회 반복 방지).
+     *
+     * <p>{@code @Cacheable} 는 자기호출 시 프록시를 우회하므로, Spring 컨텍스트에서는 {@link #self}
+     * (프록시)를 거쳐 캐시를 적용한다. 단위 테스트(직접 생성자 인스턴스화)에서는 {@code self} 가 null
+     * 이라 캐시 없이 직접 호출로 폴백한다 — 동작 의미는 동일하고 캐시는 투명하다.
+     */
+    private String resolveDeidPathCached(Long rawSn) {
+        return self != null ? self.resolveDeidPath(rawSn) : resolveDeidPath(rawSn);
+    }
+
+    /**
+     * 영상 존재 확인 + 비식별 결과 경로 해석.
+     *
+     * <p>마킹 화면 스트림은 항상 비식별 영상을 서빙한다(Privacy, Phase 2). 최신 성공 procLog 에서
+     * 비식별 경로를 도출하며, 미완료면 {@code null} 을 반환한다(호출부가 NOT_FOUND 로 거부).
+     *
+     * <p>캐시 정책: <b>경로가 확정된(non-null) 경우만 캐시</b>한다({@code unless="#result == null"}).
+     * 적재 직후 비식별이 @Async 로 완료되므로, 미완료(null) 를 캐시하면 완료 후에도 TTL 동안
+     * stale 한 NOT_FOUND 가 유지된다. 한번 생성된 비식별 경로는 안정적이라 안전하게 캐시 가능하다.
+     * 캐시 키는 rawSn.
+     *
+     * @return 비식별 결과 경로(non-null) 또는 미완료 시 null
+     * @throws CustomException 영상 자체가 존재하지 않으면 NOT_FOUND
+     */
+    @Cacheable(cacheNames = "stream-deid", key = "#rawSn", unless = "#result == null")
+    public String resolveDeidPath(Long rawSn) {
+        // 영상 존재 확인 (없으면 404) — existsById 로 경량화 (엔티티 로드 불필요)
+        if (!videoRepository.existsById(rawSn)) {
+            throw new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다.");
+        }
+        return deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn)
+                .map(LsDeidentProcLog::getDeIdntfFilePathNm)
+                .filter(p -> p != null && !p.isBlank())
+                .orElse(null);
     }
 
     /**

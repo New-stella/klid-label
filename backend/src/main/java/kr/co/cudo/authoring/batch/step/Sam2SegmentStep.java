@@ -6,6 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
+import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
@@ -69,7 +72,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-public class Sam2SegmentStep {
+public class Sam2SegmentStep implements BatchStep {
 
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
@@ -99,6 +102,20 @@ public class Sam2SegmentStep {
         this.labelMasterService = labelMasterService;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
+    }
+
+    @Override
+    public BatchStage stage() {
+        return BatchStage.SAM2;
+    }
+
+    /**
+     * 파이프라인 진입점 — YOLO 단계가 적재한 ctx.hints 를 SAM2 호출에 전달한다.
+     * 동작 보존: 기존 orchestrator 의 {@code sam2Step.run(rawSn, hints)} 와 동일.
+     */
+    @Override
+    public void execute(BatchContext ctx) {
+        run(ctx.getRawSn(), ctx.getHints());
     }
 
     /**
