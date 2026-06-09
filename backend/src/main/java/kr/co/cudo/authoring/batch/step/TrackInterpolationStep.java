@@ -9,6 +9,9 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.interpolation.Bbox;
 import kr.co.cudo.authoring.batch.interpolation.Keyframe;
 import kr.co.cudo.authoring.batch.interpolation.TrackInterpolator;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
+import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -59,7 +62,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
-public class TrackInterpolationStep {
+public class TrackInterpolationStep implements BatchStep {
 
     private static final TrackInterpolator INTERPOLATOR = new TrackInterpolator();
 
@@ -76,6 +79,20 @@ public class TrackInterpolationStep {
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
         this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public BatchStage stage() {
+        return BatchStage.INTERPOLATE;
+    }
+
+    /**
+     * 파이프라인 진입점 — 트랙 보간을 수행한다.
+     * 동작 보존: 기존 orchestrator 의 {@code trackInterpolationStep.run(rawSn)} 와 동일.
+     */
+    @Override
+    public void execute(BatchContext ctx) {
+        run(ctx.getRawSn());
     }
 
     /**

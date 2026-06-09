@@ -50,12 +50,8 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-  # Phase 12 — Caffeine 캐시 (시스템 설정 TTL 60s)
-  cache:
-    type: caffeine
-    cache-names: sysconfig
-    caffeine:
-      spec: maximumSize=100,expireAfterWrite=60s
+  # Phase 12 — Caffeine 캐시: 캐시별 TTL/사이즈가 달라 명시적 CacheManager 빈으로 구성한다.
+  #   (CacheConfig.cacheManager(): sysconfig 60s / stream-deid 5m)
 
 server:
   port: 8080

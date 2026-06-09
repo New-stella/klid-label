@@ -1,11 +1,10 @@
 package kr.co.cudo.authoring.batch.orchestrator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.pipeline.BatchPipeline;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
-import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
@@ -25,7 +24,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -44,7 +42,6 @@ class BatchOrchestratorStatusTransitionTest {
 
     private VlmTimeseriesStep vlmTimeseriesStep;
     private FfmpegFrameExtractor frameExtractor;
-    private DeidentifyStep deidentifyStep;
     private YoloAutolabelStep yoloStep;
     private Sam2SegmentStep sam2Step;
     private TrackInterpolationStep trackInterpolationStep;
@@ -59,7 +56,6 @@ class BatchOrchestratorStatusTransitionTest {
     void setUp() {
         vlmTimeseriesStep = mock(VlmTimeseriesStep.class);
         frameExtractor = mock(FfmpegFrameExtractor.class);
-        deidentifyStep = mock(DeidentifyStep.class);
         yoloStep = mock(YoloAutolabelStep.class);
         sam2Step = mock(Sam2SegmentStep.class);
         trackInterpolationStep = mock(TrackInterpolationStep.class);
@@ -69,20 +65,20 @@ class BatchOrchestratorStatusTransitionTest {
         videoRepository = mock(VideoRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
 
+        BatchPipeline pipeline = PipelineTestSupport.pipeline(
+                markingRepository, vlmTimeseriesStep, frameExtractor,
+                yoloStep, sam2Step, trackInterpolationStep);
+
         orchestrator = new BatchOrchestrator(
-                vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
-                trackInterpolationStep, statusService, transitionService, retryQueue,
-                videoRepository, markingRepository, new ObjectMapper());
+                pipeline, statusService, transitionService, retryQueue, videoRepository);
 
         // V2.0: 마킹 필수 -- 기본 마킹 데이터 제공
         when(markingRepository.findByRawSnOrderByRegDtDesc(any()))
                 .thenReturn(List.of(newMarking()));
 
-        // 기본: extractByMarks(raw, deidVideoPath, marks) 가 1 프레임 반환
-        when(frameExtractor.extractByMarks(any(LsDataRaw.class), nullable(String.class), any()))
+        // 기본: extractByMarks(raw, marks) 가 1 프레임 반환
+        when(frameExtractor.extractByMarks(any(LsDataRaw.class), any()))
                 .thenReturn(List.of(mock(LsDataSrc.class)));
-        // 기본: deidentifyStep.run 는 null 반환
-        when(deidentifyStep.run(any(LsDataRaw.class))).thenReturn(null);
     }
 
     private LsDataRaw newRaw(Long rawSn) {

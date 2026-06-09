@@ -20,7 +20,7 @@
 ### 영상 · 프레임 · 라벨
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, PARENT_RAW_SN) | [05](05-video-management.md) |
+| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, PARENT_RAW_SN). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료) | [05](05-video-management.md) |
 | `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
 | `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로) | [07](07-batch-pipeline.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |

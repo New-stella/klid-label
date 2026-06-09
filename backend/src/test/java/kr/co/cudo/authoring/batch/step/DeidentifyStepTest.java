@@ -141,6 +141,27 @@ class DeidentifyStepTest {
     }
 
     @Test
+    @DisplayName("Phase2_execute_ctx_는_run_raw_에_위임 — BatchStep 균일 인터페이스")
+    void executeDelegatesToRun() {
+        LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_ANONY);
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        Path safeReturn = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
+        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
+                .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
+
+        // stage() = DEIDENTIFY
+        assertThat(step.stage())
+                .isEqualTo(kr.co.cudo.authoring.batch.orchestrator.BatchStage.DEIDENTIFY);
+
+        // execute(ctx) → run(ctx.getRaw())
+        step.execute(new kr.co.cudo.authoring.batch.pipeline.BatchContext(raw.getRawSn(), raw));
+
+        verify(deidentifyClient).deidentify(any(DeidentifyRequest.class));
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
     @DisplayName("Phase3_재비식별_잠금_영상_성공시_WorkLockService_releaseRaw_+_resolveOpenReports_+_알림")
     void redeidentLockReleasedOnSuccess() {
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);

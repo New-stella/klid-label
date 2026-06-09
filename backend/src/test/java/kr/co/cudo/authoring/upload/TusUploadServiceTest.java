@@ -14,7 +14,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
+import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -56,6 +58,7 @@ class TusUploadServiceTest {
     private LsTusUploadRepository repository;
     private VideoRepository videoRepository;
     private MngResourceCctvRepository cctvRepository;
+    private ApplicationEventPublisher eventPublisher;
     private TusUploadService service;
     private final AtomicLong rawSnSeq = new AtomicLong(1000);
 
@@ -64,6 +67,7 @@ class TusUploadServiceTest {
         repository = new InMemoryRepo();
         videoRepository = mock(VideoRepository.class);
         cctvRepository = mock(MngResourceCctvRepository.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
 
         when(cctvRepository.existsById(anyString())).thenReturn(true);
         when(videoRepository.findByVmsClipId(anyString())).thenReturn(Optional.empty());
@@ -75,7 +79,7 @@ class TusUploadServiceTest {
 
         // duration probe stub — ffprobe 대체, 항상 60초 반환.
         service = new TusUploadService(repository, videoRepository, cctvRepository,
-                storageDir.toString(), MAX_SIZE, path -> 60);
+                storageDir.toString(), MAX_SIZE, eventPublisher, path -> 60);
     }
 
     @AfterEach
@@ -112,6 +116,22 @@ class TusUploadServiceTest {
         assertThat(repository.findById(id).orElseThrow().isCompleted()).isTrue();
     }
 
+    @Test
+    @DisplayName("Phase2_적재완료시_VideoIngestedEvent_발행 — 선두 비식별 트리거")
+    void publishesVideoIngestedEventOnComplete() {
+        // given — 8바이트 단일 청크로 완료
+        byte[] full = withMp4Head(8);
+        UUID id = service.createSession(OWNER, cmd(8));
+
+        // when
+        var r = service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(full, 0, 8), 8);
+
+        // then — 적재 완료 시 rawSn 으로 VideoIngestedEvent 발행
+        assertThat(r.completed()).isTrue();
+        org.mockito.Mockito.verify(eventPublisher)
+                .publishEvent(eq(new VideoIngestedEvent(r.rawSn())));
+    }
+
     // ======================== HIGH-1: 동시 PATCH 오프셋 충돌 ========================
 
     @Test
@@ -125,7 +145,7 @@ class TusUploadServiceTest {
             }
         };
         service = new TusUploadService(repository, videoRepository, cctvRepository,
-                storageDir.toString(), MAX_SIZE, path -> 60);
+                storageDir.toString(), MAX_SIZE, eventPublisher, path -> 60);
         byte[] full = withMp4Head(10);
         UUID id = service.createSession(OWNER, cmd(10));
 
@@ -334,7 +354,7 @@ class TusUploadServiceTest {
     void chunkExceedsMaxChunkBytes() throws Exception {
         // given — 청크 상한 8바이트로 서비스 구성, 10바이트 단일 청크 전송
         TusUploadService capped = new TusUploadService(repository, videoRepository, cctvRepository,
-                storageDir.toString(), MAX_SIZE, 8L, path -> 60);
+                storageDir.toString(), MAX_SIZE, 8L, eventPublisher, path -> 60);
         byte[] full = withMp4Head(10);
         UUID id = capped.createSession(OWNER, cmd(10));
 
@@ -354,7 +374,7 @@ class TusUploadServiceTest {
     void chunkWithinCapStreamsOk() {
         // given — 상한 32바이트, 8바이트 mp4 단일 청크 → 완료
         TusUploadService capped = new TusUploadService(repository, videoRepository, cctvRepository,
-                storageDir.toString(), MAX_SIZE, 32L, path -> 60);
+                storageDir.toString(), MAX_SIZE, 32L, eventPublisher, path -> 60);
         byte[] full = withMp4Head(8);
         UUID id = capped.createSession(OWNER, cmd(8));
 

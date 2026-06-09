@@ -17,7 +17,7 @@ public class AsyncBatchRunner {
 
     private final BatchOrchestrator orchestrator;
 
-    @Async
+    @Async("batchAsyncExecutor")
     public void runAsync(Long rawSn) {
         log.info("[AsyncBatchRunner] starting batch rawSn={}", rawSn);
         try {

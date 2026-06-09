@@ -2,6 +2,9 @@ package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
+import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,7 +53,7 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class VlmTimeseriesStep {
+public class VlmTimeseriesStep implements BatchStep {
 
     /** 외부 호출 1건 동기 wait 최대 시간. VlmClient 내부 timeout(10s) 보다 약간 길게. */
     private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(45);
@@ -58,6 +62,25 @@ public class VlmTimeseriesStep {
     private final VideoRepository videoRepository;
     private final BatchStatusService batchStatusService;
     private final ObjectMapper objectMapper;
+
+    @Override
+    public BatchStage stage() {
+        return BatchStage.VLM;
+    }
+
+    /**
+     * 파이프라인 진입점 — 마킹 유무에 따라 {@link #runWithMarking} / {@link #run} 분기.
+     * 동작 보존: 기존 orchestrator 의 {@code markings.isEmpty()} 분기와 동일.
+     */
+    @Override
+    public void execute(BatchContext ctx) {
+        List<kr.co.cudo.authoring.marking.entity.LsMarking> markings = ctx.getMarkings();
+        if (!markings.isEmpty()) {
+            runWithMarking(ctx.getRawSn(), markings.get(0));
+        } else {
+            run(ctx.getRawSn());
+        }
+    }
 
     /**
      * 단일 영상에 대해 시계열 메타 분석을 외부에 위탁한다 (마킹 없음).

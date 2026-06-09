@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.status;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,23 @@ public class BatchTransitionService {
         videoRepository.findById(rawSn).ifPresentOrElse(
                 r -> r.changeStatus("COMPLETED"),
                 () -> log.warn("[BatchTransition] raw video not found rawSn={} (completed)", rawSn));
+    }
+
+    /**
+     * 선두 비식별 성공 — LS_DATA_RAW.DATA_STTS_CD → MARKING_READY (Phase 2).
+     *
+     * <p>marking-ready 신호는 LS_RAW_DATA_STATUS 가 아닌 LS_DATA_RAW 에 둔다 (작업 상태 row 는
+     * 배정 시점 lazy 생성이라 적재 직후 전이 불가). 따라서 본 메서드는 LS_DATA_RAW 만 전이한다.
+     * row 가 없으면 WARN 로깅 후 진행을 막지 않는다.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void markRawDataMarkingReady(Long rawSn) {
+        if (rawSn == null) {
+            return;
+        }
+        videoRepository.findById(rawSn).ifPresentOrElse(
+                LsDataRaw::markMarkingReady,
+                () -> log.warn("[BatchTransition] raw video not found rawSn={} (marking-ready)", rawSn));
     }
 
     /**

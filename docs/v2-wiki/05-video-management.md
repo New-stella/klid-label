@@ -33,17 +33,18 @@
 
 ## 5.3 영상 스트리밍
 
-- `GET /v1/videos/{rawSn}/stream` — **HTTP Range 지원** (마킹 화면 재생용)
+- `GET /v1/videos/{rawSn}/stream` — **HTTP Range 지원** (마킹 화면 재생용). **항상 비식별 영상 서빙** — 비식별 결과 경로는 최신 성공 `LsDeidentProcLog` 에서 도출하며, 비식별 미완료(경로/파일 부재) 시 **NOT_FOUND** 로 원본 노출을 차단한다(`VideoStreamService`, 전체 무조건 비식별 정책상 모든 영상이 대상)
 - 마킹 화면에서 배속(0.25x~4x) 재생 → [06](06-marking.md)
 
 ## 5.4 개인정보 분류 (PRVC_TYPE_CD)
 
-| 값 | 의미 | 비식별 처리 |
-|----|------|------------|
-| `PRVC` | 개인정보 포함 | 비식별 호출 |
-| `PSDO` | 가명처리 대상 | 비식별 호출 |
-| `ANONY` | 비식별 불요 | 원본만 저장 |
+| 값 | 의미 |
+|----|------|
+| `PRVC` | 개인정보 포함 |
+| `PSDO` | 가명처리 대상 |
+| `ANONY` | 비식별 불요(분류상) |
 
+- **비식별 처리는 분류와 무관하게 전체 영상 무조건 실행**(ANONY 포함, 게이팅 폐지) — 적재 직후 선두 자동 → [08](08-deidentification.md)
 - 원본 영상과 비식별 영상은 **별도 경로 동시 저장** (`STORAGE_RAW_PATH` / `STORAGE_DEIDENTIFIED_PATH`)
 - 비식별 상태: `LS_DATA_RAW.DE_IDENT_YN` (Y/N/F) → [08](08-deidentification.md)
 
@@ -52,6 +53,7 @@
 - `LS_RAW_DATA_STATUS.DATA_STTS_CD` — 작업(검수 워크플로우) 진행 상태
 - 배치 진행 시 `PROCESSING`, 배치 완료 시 `ASSIGNED` 복귀(라벨링/검수 진행 가능), 검수 제출 `PENDING`, 검수 시작 `IN_REVIEW`, 검수 승인 `APPROVED`, 실패 `FAILED`
 - `COMPLETED` 는 작업 종결 상태로 검수 승인 흐름에서만 도달(배치 완료가 점프시키지 않음). 배치 단계 종료는 `LS_DATA_RAW.DATA_STTS_CD=COMPLETED` 로 별도 표기
+- **`LS_DATA_RAW.DATA_STTS_CD`(배치 단계)** 흐름: 적재 `PENDING` → 선두 비식별 성공 `MARKING_READY`(마킹 진입 허용) → 배치 완료 `COMPLETED`. `LS_RAW_DATA_STATUS`(작업/검수 상태)와 책임 분리 → [07](07-batch-pipeline.md)
 - `APPROVED` 전이 시 버전 스냅샷 + 관제 `TASK_COMPLETED` 통지
 - 영상 등록/상태 분리: `LS_RAW_DATA_ENROLLMENT`(등록) + `LS_RAW_DATA_STATUS`(상태)
 

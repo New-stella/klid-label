@@ -1,11 +1,10 @@
 package kr.co.cudo.authoring.batch.orchestrator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.pipeline.BatchPipeline;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
-import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
@@ -29,7 +28,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -45,7 +43,6 @@ class BatchOrchestratorMarkingTest {
 
     private VlmTimeseriesStep vlmTimeseriesStep;
     private FfmpegFrameExtractor frameExtractor;
-    private DeidentifyStep deidentifyStep;
     private YoloAutolabelStep yoloStep;
     private Sam2SegmentStep sam2Step;
     private TrackInterpolationStep trackInterpolationStep;
@@ -60,7 +57,6 @@ class BatchOrchestratorMarkingTest {
     void setUp() {
         vlmTimeseriesStep = mock(VlmTimeseriesStep.class);
         frameExtractor = mock(FfmpegFrameExtractor.class);
-        deidentifyStep = mock(DeidentifyStep.class);
         yoloStep = mock(YoloAutolabelStep.class);
         sam2Step = mock(Sam2SegmentStep.class);
         trackInterpolationStep = mock(TrackInterpolationStep.class);
@@ -70,15 +66,16 @@ class BatchOrchestratorMarkingTest {
         markingRepository = mock(LsMarkingRepository.class);
         transitionService = mock(BatchTransitionService.class);
 
+        BatchPipeline pipeline = PipelineTestSupport.pipeline(
+                markingRepository, vlmTimeseriesStep, frameExtractor,
+                yoloStep, sam2Step, trackInterpolationStep);
+
         orchestrator = new BatchOrchestrator(
-                vlmTimeseriesStep, frameExtractor, deidentifyStep, yoloStep, sam2Step,
-                trackInterpolationStep, statusService, transitionService, retryQueue,
-                videoRepository, markingRepository, new ObjectMapper());
+                pipeline, statusService, transitionService, retryQueue, videoRepository);
 
         // given: 기본 mock 설정
-        when(frameExtractor.extractByMarks(any(LsDataRaw.class), nullable(String.class), any()))
+        when(frameExtractor.extractByMarks(any(LsDataRaw.class), any()))
                 .thenReturn(List.of(mock(LsDataSrc.class)));
-        when(deidentifyStep.run(any(LsDataRaw.class))).thenReturn(null);
     }
 
     private LsDataRaw newRaw(Long rawSn) {
@@ -140,7 +137,7 @@ class BatchOrchestratorMarkingTest {
 
         // then
         assertThat(result).isEqualTo(BatchStage.FAILED);
-        verify(frameExtractor, never()).extractByMarks(any(), any(), any());
+        verify(frameExtractor, never()).extractByMarks(any(), any());
         verify(yoloStep, never()).run(any());
         verify(statusService).markFailed(eq(502L), any(RuntimeException.class));
     }
@@ -182,7 +179,7 @@ class BatchOrchestratorMarkingTest {
 
         // then
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
-        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), any());
+        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), any());
     }
 
     @Test
@@ -205,7 +202,7 @@ class BatchOrchestratorMarkingTest {
         @SuppressWarnings("unchecked")
         org.mockito.ArgumentCaptor<java.util.List<MarkItem>> captor =
                 org.mockito.ArgumentCaptor.forClass(java.util.List.class);
-        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), nullable(String.class), captor.capture());
+        verify(frameExtractor).extractByMarks(any(LsDataRaw.class), captor.capture());
         java.util.List<MarkItem> marks = captor.getValue();
         assertThat(marks).hasSize(2);
         assertThat(marks.get(0).frameIndex()).isEqualTo(0);

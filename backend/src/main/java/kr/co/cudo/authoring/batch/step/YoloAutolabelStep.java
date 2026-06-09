@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
+import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
@@ -76,7 +79,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-public class YoloAutolabelStep {
+public class YoloAutolabelStep implements BatchStep {
 
     /** Phase 1 fallback — SystemConfig 미설정/조회 실패 시 사용할 기본값(0.4). */
     static final double DEFAULT_CONF_THRESHOLD = 0.4;
@@ -116,6 +119,26 @@ public class YoloAutolabelStep {
         this.labelMasterService = labelMasterService;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
+    }
+
+    @Override
+    public BatchStage stage() {
+        return BatchStage.YOLO;
+    }
+
+    /** Phase 3 — 조건부 step: ctx 토글이 YOLO off 면 단계 skip (dev 경로 전용, 프로덕션은 항상 on). */
+    @Override
+    public boolean isEnabled(BatchContext ctx) {
+        return ctx.isStageEnabled(stage());
+    }
+
+    /**
+     * 파이프라인 진입점 — YOLO 자동 라벨링 결과 힌트를 컨텍스트에 적재한다.
+     * 동작 보존: 기존 orchestrator 의 {@code ctx.hints = yoloStep.run(rawSn)} 와 동일.
+     */
+    @Override
+    public void execute(BatchContext ctx) {
+        ctx.setHints(run(ctx.getRawSn()));
     }
 
     /**

@@ -6,10 +6,12 @@ import kr.co.cudo.authoring.upload.dto.TusCreateCommand;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.repository.LsTusUploadRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,6 +71,8 @@ public class TusUploadService {
     /** HIGH-2: 단일 PATCH 청크 크기 상한 (authoring.upload.tus.max-chunk-bytes). */
     private final long maxChunkBytes;
     private final DurationProbe durationProbe;
+    /** Phase 2: 적재 완료 시 VideoIngestedEvent 발행 → 선두 비식별 트리거. */
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 프로덕션 생성자 — Spring 컴포넌트 스캔이 주입한다.
@@ -86,24 +90,26 @@ public class TusUploadService {
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
             @Value("${authoring.upload.tus.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.upload.tus.max-chunk-bytes:16777216}") long maxChunkBytes,
+            ApplicationEventPublisher eventPublisher,
             DurationProbeFfprobe ffprobeProbe) {
         this(uploadRepository, videoRepository, cctvRepository, storageRawPath, maxFileSize,
-                maxChunkBytes, (DurationProbe) ffprobeProbe);
+                maxChunkBytes, eventPublisher, (DurationProbe) ffprobeProbe);
     }
 
-    /** 테스트용 — DurationProbe 직접 주입으로 ffprobe 의존성 격리 (청크 상한 기본값 적용). */
+    /** 테스트용 — DurationProbe + ApplicationEventPublisher 직접 주입 (청크 상한 기본값 적용). */
     public TusUploadService(
             LsTusUploadRepository uploadRepository,
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
             String storageRawPath,
             long maxFileSize,
+            ApplicationEventPublisher eventPublisher,
             DurationProbe durationProbe) {
         this(uploadRepository, videoRepository, cctvRepository, storageRawPath, maxFileSize,
-                DEFAULT_MAX_CHUNK_BYTES, durationProbe);
+                DEFAULT_MAX_CHUNK_BYTES, eventPublisher, durationProbe);
     }
 
-    /** 테스트용 — DurationProbe + 청크 상한 직접 주입. */
+    /** 테스트용 — DurationProbe + 청크 상한 + ApplicationEventPublisher 직접 주입. */
     public TusUploadService(
             LsTusUploadRepository uploadRepository,
             VideoRepository videoRepository,
@@ -111,6 +117,7 @@ public class TusUploadService {
             String storageRawPath,
             long maxFileSize,
             long maxChunkBytes,
+            ApplicationEventPublisher eventPublisher,
             DurationProbe durationProbe) {
         this.uploadRepository = uploadRepository;
         this.videoRepository = videoRepository;
@@ -118,6 +125,7 @@ public class TusUploadService {
         this.storageRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.maxFileSize = maxFileSize;
         this.maxChunkBytes = maxChunkBytes > 0 ? maxChunkBytes : DEFAULT_MAX_CHUNK_BYTES;
+        this.eventPublisher = eventPublisher;
         this.durationProbe = durationProbe;
     }
 
@@ -328,6 +336,9 @@ public class TusUploadService {
             return current.getRawSn();
         }
         // 완료 전이는 DB 조건부 UPDATE 로 이미 영속화됨(@Modifying clearAutomatically) — 추가 save 불필요.
+        // Phase 2: 적재 완료 시 선두 비식별 트리거 이벤트 발행. IngestDeidentifyBridge 가 AFTER_COMMIT 으로
+        // 수신하므로 본 트랜잭션 롤백 시 비식별은 시작되지 않는다(롤백 경쟁 차단).
+        eventPublisher.publishEvent(new VideoIngestedEvent(rawSn));
         log.info("[Tus] completed uploadId={} rawSn={} durationSec={}",
                 session.getUploadId(), rawSn, durationSec);
         return rawSn;

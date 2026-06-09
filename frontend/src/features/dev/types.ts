@@ -33,7 +33,13 @@ export const EventTypeCd = Object.freeze(
 );
 export type EventTypeCd = EventTypeCode;
 
-/** 배치 단계 토글 키 — BE `AutolabelTestRequest.STAGE_*` 와 1:1 매핑. */
+/**
+ * 배치 단계 토글 키 — BE `AutolabelTestRequest.STAGE_*` 와 1:1 매핑.
+ *
+ * 신 파이프라인 순서: DEIDENTIFY(선두·무조건, OFF 시 skip) → FRAME_EXTRACT(마킹 위치 추출)
+ * → YOLO(원본 기준 탐지/트래킹) → SAM2(YOLO bbox 힌트 세그). 키 자체는 BE 계약 호환을 위해 유지하며,
+ * 표시 순서는 화면(STAGE_LABELS)에서 신 순서로 정렬한다.
+ */
 export const STAGE_KEYS = {
   FRAME_EXTRACT: 'FRAME_EXTRACT',
   DEIDENTIFY: 'DEIDENTIFY',
@@ -78,7 +84,7 @@ export interface AutolabelTestResult {
   rawSn: number;
   /** 저장된 파일의 storage 기준 상대 경로 (절대 경로 미노출) */
   savedFilePath: string;
-  /** 파이프라인 상태 — PROCESSING (비동기 시작) 또는 ACCEPTED */
+  /** 파이프라인 상태 — 항상 PROCESSING (비동기 시작, REGISTERED/ACCEPTED 분기 폐지) */
   pipelineStatus: string;
   /** 트리거 시각 epoch millis */
   startedAt: number;

@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.video;
 
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -41,15 +43,23 @@ class VideoStreamServiceTest {
     @Mock
     private StreamUrlSigner streamUrlSigner;
 
+    @Mock
+    private LsDeidentProcLogRepository procLogRepository;
+
     private VideoStreamService videoStreamService;
 
     @TempDir
     Path tempDir;
 
+    /** 비식별 영상 저장 베이스 디렉토리. */
+    private Path deidDir;
+
     @BeforeEach
     void setUp() {
-        videoStreamService = new VideoStreamService(videoRepository, streamUrlSigner);
-        ReflectionTestUtils.setField(videoStreamService, "storageRawPath", tempDir.toString());
+        deidDir = tempDir.resolve("deidentified");
+        videoStreamService = new VideoStreamService(videoRepository, streamUrlSigner, procLogRepository);
+        ReflectionTestUtils.setField(videoStreamService, "storageRawPath", tempDir.resolve("raw").toString());
+        ReflectionTestUtils.setField(videoStreamService, "deidentifiedPath", deidDir.toString());
     }
 
     private LsDataRaw stubRaw(Long rawSn, String relativePath) {
@@ -59,34 +69,62 @@ class VideoStreamServiceTest {
                 LocalDateTime.now(), 60);
     }
 
-    @Test
-    @DisplayName("영상_스트리밍_정상_200_Content_Type_video")
-    void streamVideo_normal_200() throws IOException {
-        // given
-        Long rawSn = 1L;
-        String relativePath = "clip_1.mp4";
-        Files.write(tempDir.resolve(relativePath), new byte[1024]); // dummy video file
+    /** 비식별 성공 procLog stub (deidPath 경로를 결과로 보유). */
+    private LsDeidentProcLog stubDeidLog(Long rawSn, String deidPath) {
+        LsDeidentProcLog log = LsDeidentProcLog.request(rawSn, null, "raw/orig.mp4", "batch");
+        log.succeed(deidPath);
+        return log;
+    }
 
-        LsDataRaw raw = stubRaw(rawSn, relativePath);
-        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+    @Test
+    @DisplayName("마킹스트림이_비식별영상을_스트리밍 — 200 video")
+    void streamVideo_deidentified_200() throws IOException {
+        // given — 비식별 완료: procLog 에 deid 경로, 파일은 deidDir 하위에 존재
+        Long rawSn = 1L;
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_1_deid.mp4");
+        Files.write(deidFile, new byte[1024]);
+
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
 
         HttpHeaders headers = new HttpHeaders();
 
         // when
         ResponseEntity<ResourceRegion> response = videoStreamService.stream(rawSn, headers);
 
-        // then
+        // then — 비식별 영상이 스트리밍되어야 한다 (원본 노출 금지)
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().getContentType()).isNotNull();
         assertThat(response.getHeaders().getContentType().toString()).contains("video");
     }
 
     @Test
-    @DisplayName("영상_미존재시_NOT_FOUND")
-    void streamVideo_notFound() {
-        // given
-        Long rawSn = 999L;
-        when(videoRepository.findById(rawSn)).thenReturn(Optional.empty());
+    @DisplayName("비식별_미완료시_NOT_FOUND — 원본 노출 금지(privacy)")
+    void streamVideo_deidentNotReady_notFound() {
+        // given — 비식별 procLog 없음 (미완료)
+        Long rawSn = 2L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn)).thenReturn(Optional.empty());
+
+        HttpHeaders headers = new HttpHeaders();
+
+        // when / then — 원본을 절대 노출하지 않고 NOT_FOUND
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, headers))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("비식별_파일이_물리적으로_없으면_NOT_FOUND")
+    void streamVideo_deidFileMissing_notFound() {
+        // given — procLog 는 있으나 파일이 디스크에 없음
+        Long rawSn = 6L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidDir.resolve("missing.mp4").toString())));
 
         HttpHeaders headers = new HttpHeaders();
 
@@ -98,13 +136,29 @@ class VideoStreamServiceTest {
     }
 
     @Test
-    @DisplayName("Path_Traversal_시도시_FORBIDDEN")
-    void streamVideo_pathTraversal_forbidden() {
+    @DisplayName("영상_미존재시_NOT_FOUND")
+    void streamVideo_notFound() {
         // given
+        Long rawSn = 999L;
+        when(videoRepository.existsById(rawSn)).thenReturn(false);
+
+        HttpHeaders headers = new HttpHeaders();
+
+        // when / then
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, headers))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("비식별_경로_Path_Traversal_시도시_FORBIDDEN")
+    void streamVideo_pathTraversal_forbidden() {
+        // given — procLog 의 deid 경로가 base 밖을 가리킴 (변조 시도)
         Long rawSn = 3L;
-        String maliciousPath = "../../../etc/passwd";
-        LsDataRaw raw = stubRaw(rawSn, maliciousPath);
-        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, "../../../etc/passwd")));
 
         HttpHeaders headers = new HttpHeaders();
 
@@ -116,34 +170,17 @@ class VideoStreamServiceTest {
     }
 
     @Test
-    @DisplayName("파일_미존재시_NOT_FOUND")
-    void streamVideo_fileMissing_notFound() {
-        // given
-        Long rawSn = 4L;
-        String nonExistentPath = "nonexistent.mp4";
-        LsDataRaw raw = stubRaw(rawSn, nonExistentPath);
-        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
-
-        HttpHeaders headers = new HttpHeaders();
-
-        // when / then
-        assertThatThrownBy(() -> videoStreamService.stream(rawSn, headers))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.NOT_FOUND);
-    }
-
-    @Test
     @DisplayName("Range_헤더_있으면_206_Partial_Content")
     void streamVideo_rangeHeader_206() throws IOException {
-        // given
+        // given — 비식별 영상
         Long rawSn = 5L;
-        String relativePath = "clip_5.mp4";
-        byte[] content = new byte[10_000];
-        Files.write(tempDir.resolve(relativePath), content);
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_5_deid.mp4");
+        Files.write(deidFile, new byte[10_000]);
 
-        LsDataRaw raw = stubRaw(rawSn, relativePath);
-        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
 
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.RANGE, "bytes=0-999");
@@ -154,6 +191,37 @@ class VideoStreamServiceTest {
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
         assertThat(response.getBody()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("resolveDeidPath_비식별완료면_경로반환 — 캐시 대상(non-null)")
+    void resolveDeidPath_completed_returnsPath() {
+        // given — 비식별 완료
+        Long rawSn = 20L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, "/deid/clip_20.mp4")));
+
+        // when
+        String path = videoStreamService.resolveDeidPath(rawSn);
+
+        // then — non-null 경로만 @Cacheable(unless="#result==null") 캐시 대상
+        assertThat(path).isEqualTo("/deid/clip_20.mp4");
+    }
+
+    @Test
+    @DisplayName("resolveDeidPath_비식별미완료면_null — 캐시 미적용(stale NOT_FOUND 방지)")
+    void resolveDeidPath_notCompleted_returnsNull() {
+        // given — 비식별 미완료(async 진행 중)
+        Long rawSn = 21L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn)).thenReturn(Optional.empty());
+
+        // when
+        String path = videoStreamService.resolveDeidPath(rawSn);
+
+        // then — null 은 캐시하지 않아야 한다(완료 후 stale NOT_FOUND 방지). 메서드 자체는 null 반환.
+        assertThat(path).isNull();
     }
 
     @Test

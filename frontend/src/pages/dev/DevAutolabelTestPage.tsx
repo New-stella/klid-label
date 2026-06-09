@@ -36,9 +36,21 @@ const EVENT_OPTIONS: ReadonlyArray<{ value: EventTypeCd; label: string }> =
   }));
 
 const PRVC_OPTIONS: ReadonlyArray<{ value: PrvcType; label: string; hint: string }> = [
-  { value: PrvcType.ANONY, label: 'ANONY (비식별 대상 아님)', hint: '원본만 저장' },
-  { value: PrvcType.PRVC, label: 'PRVC (개인정보 포함)', hint: '비식별 처리 대상' },
-  { value: PrvcType.PSDO, label: 'PSDO (가명 정보)', hint: '비식별 처리 대상' },
+  {
+    value: PrvcType.ANONY,
+    label: 'ANONY (비식별 미적용)',
+    hint: '표시용 — 비식별은 선두 무조건 실행, 원본도 별도 보존',
+  },
+  {
+    value: PrvcType.PRVC,
+    label: 'PRVC (개인정보 포함)',
+    hint: '표시용 — 비식별은 선두 무조건 실행',
+  },
+  {
+    value: PrvcType.PSDO,
+    label: 'PSDO (가명 정보)',
+    hint: '표시용 — 비식별은 선두 무조건 실행',
+  },
 ];
 
 /** ISO-8601 (Instant) — capturedAt 직렬화. `datetime-local` 값은 timezone 미포함이므로 보정. */
@@ -90,12 +102,25 @@ function initialForm(): FormState {
   };
 }
 
-/** 토글 라벨 (한글). */
+/**
+ * 토글 라벨 (한글).
+ *
+ * 표시 순서 = 신 파이프라인 순서: 비식별(선두) → 프레임추출(마킹위치) → YOLO → SAM2.
+ * (전송 payload `enabledStages` 는 키-값 객체이므로 이 배열의 순서는 표시에만 영향.)
+ */
 const STAGE_LABELS: ReadonlyArray<{ key: StageKey; label: string; hint: string }> = [
-  { key: STAGE_KEYS.FRAME_EXTRACT, label: '프레임 추출', hint: 'FFmpeg 로 영상에서 1초 단위 프레임 추출' },
-  { key: STAGE_KEYS.DEIDENTIFY, label: '비식별', hint: '외부 비식별 API 호출 (V2: 무조건)' },
-  { key: STAGE_KEYS.YOLO, label: 'YOLO 자동 라벨', hint: '객체 탐지 + 트래킹' },
-  { key: STAGE_KEYS.SAM2, label: 'SAM2 세그멘테이션', hint: 'YOLO bbox 힌트 기반 세그' },
+  {
+    key: STAGE_KEYS.DEIDENTIFY,
+    label: '비식별',
+    hint: '비식별 API 호출 (파이프라인 선두 — OFF 시 건너뜀, 이 경우 프레임추출도 OFF 권장)',
+  },
+  {
+    key: STAGE_KEYS.FRAME_EXTRACT,
+    label: '프레임 추출',
+    hint: '합성 마킹 기반 프레임 추출 (마킹 위치)',
+  },
+  { key: STAGE_KEYS.YOLO, label: 'YOLO 자동 라벨', hint: '객체 탐지 + 트래킹 (원본 기준)' },
+  { key: STAGE_KEYS.SAM2, label: 'SAM2 세그멘테이션', hint: 'YOLO bbox 힌트 기반 세그멘테이션' },
 ];
 
 /**

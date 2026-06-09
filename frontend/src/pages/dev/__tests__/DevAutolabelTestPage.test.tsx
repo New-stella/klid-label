@@ -60,6 +60,33 @@ describe('DevAutolabelTestPage', () => {
     expect(button).toBeDisabled();
   });
 
+  it('신_시나리오_비식별은_선두_무조건이므로_비식별_대상_아님_문구가_없음', () => {
+    renderWithProviders(<DevAutolabelTestPage />);
+    // 구 시나리오 문구 부재 — 비식별은 적재 직후 선두·무조건 실행
+    expect(screen.queryByText(/비식별 대상 아님/)).not.toBeInTheDocument();
+  });
+
+  it('ANONY_선택시에도_비식별_단계_토글이_표시됨', () => {
+    renderWithProviders(<DevAutolabelTestPage />);
+    // ANONY 라디오 라벨이 신 의미로 노출 (prvcTypeCd 는 표시용, 게이팅 미사용)
+    expect(screen.getByText(/ANONY \(비식별 미적용\)/)).toBeInTheDocument();
+    // 비식별 단계 토글은 prvcTypeCd 와 무관하게 항상 표시
+    expect(
+      screen.getByTestId('autolabel-stage-toggle-DEIDENTIFY'),
+    ).toBeInTheDocument();
+  });
+
+  it('DEIDENTIFY가_토글_목록_선두에_표시됨_신_순서', () => {
+    renderWithProviders(<DevAutolabelTestPage />);
+    const group = screen.getByRole('group', { name: '배치 단계 토글' });
+    const toggles = group.querySelectorAll('[data-testid^="autolabel-stage-toggle-"]');
+    const keys = Array.from(toggles).map((el) =>
+      el.getAttribute('data-testid')?.replace('autolabel-stage-toggle-', ''),
+    );
+    // 신 순서: DEIDENTIFY → FRAME_EXTRACT → YOLO → SAM2
+    expect(keys).toEqual(['DEIDENTIFY', 'FRAME_EXTRACT', 'YOLO', 'SAM2']);
+  });
+
   it('정상_제출시_uploadAutolabelTest_호출_FormData에_file_meta_part_포함', async () => {
     const user = userEvent.setup();
     let capturedFormData: FormData | null = null;
