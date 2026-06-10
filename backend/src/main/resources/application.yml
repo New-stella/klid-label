@@ -136,6 +136,13 @@ authoring:
     url: ${CONTROL_NOTIFY_URL:http://localhost:8090}
     timeout-ms: ${CONTROL_NOTIFY_TIMEOUT_MS:10000}
     debounce-window-sec: ${CONTROL_NOTIFY_DEBOUNCE_SEC:60}
+  # 관제 학습용 영상 픽업 적재 — MNG_CLIP_MASTER.JOB_DMND_YN='Y' 클립을 주기 스캔해 LS_DATA_RAW 적재.
+  #  - enabled=true 기본 (matchIfMissing). 토글 시 Quartz 트리거 미등록.
+  #  - interval-sec: 스캔 주기(초). 기본 60.
+  control:
+    training-scan:
+      enabled: ${TRAINING_SCAN_ENABLED:true}
+      interval-sec: ${TRAINING_SCAN_INTERVAL_SEC:60}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
@@ -148,6 +155,25 @@ portal:
     max-file-size-bytes: ${PORTAL_MAX_FILE_SIZE:5368709120}        # 5 GB
     allowed-extensions: ${PORTAL_ALLOWED_EXT:mp4,mov,avi}
     storage-path: ${PORTAL_STORAGE_PATH:${authoring.storage.raw-path:./storage/raw}/portal}
+
+# Phase 1 — ㈜KPST 비식별 솔루션 폴링 연동 클라이언트 (docs/v2-wiki/22-deid-solution-api.md).
+#  - enabled=false 기본 (local/dev 환경 영향 0건 — ca.crt 미보유 환경 기동/테스트 보호).
+#    실 연동(dev/stg/prd)은 KPST_DEID_ENABLED=true 로 활성화.
+#  - base-url: KPST 테스트/운영 서버 주소(HTTPS 필수). 평문 커밋 금지 → 환경변수 사용.
+#  - ca-cert-path: KPST 자체 CA(ca.crt) 경로. enabled=true 시 필수(미설정 → 기동 실패 fail-closed, CWE-295).
+#  - creator-id / export-path-base / req-user-id: /project, /retrieve_progress 호출 시 기본값.
+kpst:
+  deid:
+    enabled: ${KPST_DEID_ENABLED:false}
+    base-url: ${KPST_DEID_BASE_URL:https://localhost:9201}
+    ca-cert-path: ${KPST_DEID_CA_CERT_PATH:}
+    creator-id: ${KPST_DEID_CREATOR_ID:authoring}
+    export-path-base: ${KPST_DEID_EXPORT_PATH_BASE:/share/Deid-data/export/}
+    req-user-id: ${KPST_DEID_REQ_USER_ID:authoring}
+    # UC018 — 완료감지 폴링 잡 (enabled=true 일 때만 트리거 등록).
+    poll-interval-sec: ${KPST_DEID_POLL_INTERVAL_SEC:30}        # 폴링 주기(초)
+    poll-max-attempts: ${KPST_DEID_POLL_MAX_ATTEMPTS:240}       # 시도 횟수 타임아웃(무한 폴링 방지)
+    poll-timeout-minutes: ${KPST_DEID_POLL_TIMEOUT_MINUTES:180} # 위탁 후 경과 시간 타임아웃(분)
 
 resilience4j:
   circuitbreaker:
@@ -174,6 +200,12 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+      # Phase 1 — KPST 비식별 폴링 클라이언트 (kpst.deid.enabled=true 일 때만 호출 발생)
+      kpstDeid:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
   retry:
     instances:
       deid:
@@ -192,10 +224,16 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
+      kpstDeid:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
   timelimiter:
     instances:
       deid:    { timeout-duration: 60s }
       ai:      { timeout-duration: 60s }
+      # kpstDeid TimeLimiter 미사용 — WebClient `.timeout(...)` 으로 Reactor 네이티브 처리.
+      # (업로드/다운로드 10m, 그 외 45s 단일 출처: KpstDeidentifyClient 상수)
       # vlmClient TimeLimiter 미사용 — WebClient `.timeout(...)` 으로 Reactor 네이티브 처리.
       # 타임아웃 단일 출처: vlm.client.timeout-seconds (아래)
 

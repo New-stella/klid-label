@@ -31,7 +31,7 @@
 | 파일 전달 | 공유 경로 기반 위탁 | `POST /upload`(multipart)로 솔루션 서버에 직접 업로드 |
 | 결과 파일 | 콜백 페이로드의 경로 | export_path 아래 `'원본명-mask.mp4'` 또는 `GET /download` 첨부 다운로드 |
 
-→ `DeidentifyClient`·`DeidentifyStep`·`webhook/DeidentifyResultController`는 **폴링 어댑터로 재설계 필요** (별도 DEV 과제). 본 페이지는 명세 정본 역할.
+→ ✅ **폴링 어댑터 구현 완료(2026-06-10)**: `KpstDeidentifyClient`(핵심 6 엔드포인트, 자체CA TLS) + `KpstDeidentService`/`KpstDeidentTxService` + `KpstDeidentPollJob`(Quartz)로 재설계됨. `kpst.deid.enabled` 토글(기본 false)로 기존 콜백 경로(`DeidentifyResultController`)와 **병행**. 영상 1건=프로젝트 1개, 매핑은 `LS_DEIDENT_PROC_LOG`(V64 KPST_PRJ_ID/DATASET_ID/POLL_STTS_CD). 본 페이지는 명세 정본 역할.
 
 ## 22.2 API 엔드포인트 요약 (13종)
 
@@ -361,8 +361,8 @@ DB 저장(`db_save=1`)이며 프로젝트 상태가 **수동 대상(state=3)**�
 
 ## 22.6 저작도구 연동 시사점 (내부 메모 — 명세 외)
 
-- **폴링 주기 설계 필요**: 배치 파이프라인([07](07-batch-pipeline.md))의 비식별 단계가 `retrieve_progress` 폴링 + `procState` 판정으로 완료를 감지해야 함 (Quartz 잡 또는 Step 내 폴링 루프 + 타임아웃)
-- **수동 비식별 연계**: `manual_deid_info`(state=3) + `dataset_frames`(base64+bbox)는 [08 비식별 누락 신고](08-deidentification.md)의 수동 비식별 워크플로(외부 솔루션 수동 처리)와 연결 가능
-- **검출 집계 활용**: `retrieve_report`의 faceCount/lpCount는 비식별 처리 이력(`LS_DEIDENT_PROC_LOG`) 기록에 활용 가능
-- **TLS 자체 CA**: `DeidentifyClient` WebClient에 `ca.crt` 신뢰 저장소 구성 필요 (시스템 기본 신뢰 체인 아님)
-- **저작도구 RAW_SN ↔ 솔루션 prj_id/dataset_id 매핑 테이블** 필요 (프로젝트=영상 묶음 단위이므로 1:N 주의)
+- ✅ **폴링 주기(구현)**: 배치 파이프라인([07](07-batch-pipeline.md))의 비식별 단계가 `retrieve_progress` 폴링 + `procState`(state=2) 판정으로 완료를 감지 — `KpstDeidentPollJob`(Quartz, `@DisallowConcurrentExecution`, 최대 시도 240회/180분 타임아웃 → 타임아웃 시 `DE_IDENT_YN='F'`)로 구현됨
+- ⏳ **수동 비식별 연계(후속, 미구현)**: `manual_deid_info`(state=3) + `dataset_frames`(base64+bbox)는 [08 비식별 누락 신고](08-deidentification.md)의 수동 비식별 워크플로(외부 솔루션 수동 처리)와 연결 가능 — 추후 협의
+- ⏳ **검출 집계 활용(후속, 미구현)**: `retrieve_report`의 faceCount/lpCount는 비식별 처리 이력(`LS_DEIDENT_PROC_LOG`) 기록에 활용 가능 — 추후 협의
+- ✅ **TLS 자체 CA(구현)**: `KpstWebClientConfig`가 `ca.crt` 신뢰 저장소를 구성한 전용 WebClient 제공 (시스템 기본 신뢰 체인 아님)
+- ✅ **RAW_SN ↔ 솔루션 prj_id/dataset_id 매핑(구현)**: `LS_DEIDENT_PROC_LOG`에 V64 마이그레이션으로 `KPST_PRJ_ID`/`KPST_DATASET_ID`/`POLL_STTS_CD` 컬럼 추가. 영상 1건=KPST 프로젝트 1개로 운영(1:1)

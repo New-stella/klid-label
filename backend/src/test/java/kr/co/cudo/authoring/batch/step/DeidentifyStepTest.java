@@ -65,11 +65,13 @@ class DeidentifyStepTest {
         workLockService = mock(WorkLockService.class);
 
         baseDeid = tmp.resolve("deid");
-        // @RequiredArgsConstructor 순서: deidentifyClient, videoRepository, procLogRepository,
-        //                                deidentReportService, notificationService, workLockService
+        // 생성자 순서: deidentifyClient, videoRepository, procLogRepository,
+        //              deidentReportService, notificationService, workLockService, kpstDeidentService
+        // 레거시(동기) 경로 테스트이므로 KpstDeidentService=null + kpstEnabled=false.
         step = new DeidentifyStep(deidentifyClient, videoRepository, procLogRepository,
-                deidentReportService, notificationService, workLockService);
+                deidentReportService, notificationService, workLockService, null);
         setField(step, "deidPath", baseDeid.toString());
+        setField(step, "kpstEnabled", false);
         invoke(step, "initBasePath");
 
         // procLogRepository.save 는 echo + ID 부여
@@ -243,6 +245,48 @@ class DeidentifyStepTest {
         step.run(raw);
 
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("KPST_disabled시_기존_DeidentifyClient_동기경로가_유지된다")
+    void kpstDisabledKeepsLegacySyncPath() {
+        // 회귀 가드 — kpstEnabled=false 면 KpstDeidentService 미주입(null)이라도 기존 동기 경로 동작.
+        LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        Path safeReturn = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
+        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
+                .thenReturn(Mono.just(new DeidentifyResponse("OK", safeReturn.toString())));
+
+        String result = step.run(raw);
+
+        // 기존 동기 경로: DeidentifyClient 호출 + 즉시 Y 전이 + 결과 경로 반환
+        verify(deidentifyClient).deidentify(any(DeidentifyRequest.class));
+        assertThat(result).isEqualTo(safeReturn.toString());
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("KPST_enabled시_DeidentifyStep이_KpstDeidentService_submit으로_위탁하고_동기경로를_타지않는다")
+    void kpstEnabledDelegatesToSubmit() {
+        kr.co.cudo.authoring.batch.service.KpstDeidentService kpst =
+                mock(kr.co.cudo.authoring.batch.service.KpstDeidentService.class);
+        DeidentifyStep kpstStep = new DeidentifyStep(deidentifyClient, videoRepository,
+                procLogRepository, deidentReportService, notificationService, workLockService, kpst);
+        setField(kpstStep, "deidPath", baseDeid.toString());
+        setField(kpstStep, "kpstEnabled", true);
+        invoke(kpstStep, "initBasePath");
+
+        LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
+
+        String result = kpstStep.run(raw);
+
+        // 위탁 경로: KpstDeidentService.submit 호출, 기존 동기 클라이언트는 미호출(완료 대기)
+        verify(kpst).submit(raw);
+        verify(deidentifyClient, never()).deidentify(any(DeidentifyRequest.class));
+        // DE_IDNTF_YN 미전이(완료 대기) — 폴링 잡이 나중에 Y 전이
+        assertThat(result).isNull();
+        assertThat(raw.getDeIdntfYn()).isNotEqualTo("Y");
     }
 
     private static void setField(Object target, String name, Object value) {
