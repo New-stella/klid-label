@@ -23,6 +23,11 @@ public interface LsDeidentProcLogRepository extends JpaRepository<LsDeidentProcL
     @Query("SELECT p FROM LsDeidentProcLog p WHERE p.dataRawSn = :rawSn AND p.procSttsCd = '" + LsDeidentProcLog.SUCCEEDED + "' ORDER BY p.reqDt DESC")
     List<LsDeidentProcLog> findSuccessHistory(@Param("rawSn") Long rawSn, PageRequest pageable);
 
+    /**
+     * Phase 2 (UC018) — KPST 폴링 잡 대상 조회: WAITING/POLLING 상태의 위탁 건.
+     */
+    List<LsDeidentProcLog> findByPollSttsCdIn(List<String> pollSttsCds);
+
     default Optional<LsDeidentProcLog> findLatestSuccessByDataRawSn(Long rawSn) {
         if (rawSn == null) return Optional.empty();
         List<LsDeidentProcLog> hits = findSuccessHistory(rawSn, PageRequest.of(0, 1));

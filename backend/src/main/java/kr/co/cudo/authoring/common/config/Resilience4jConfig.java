@@ -34,4 +34,13 @@ public class Resilience4jConfig {
     public CircuitBreaker controlNotifyCircuitBreaker(CircuitBreakerRegistry registry) {
         return registry.circuitBreaker("controlNotify");
     }
+
+    /**
+     * Phase 1 — KPST 비식별 솔루션 폴링 클라이언트용 CircuitBreaker.
+     * <p>인스턴스명 {@code kpstDeid} 는 application.yml resilience4j 설정 키와 일치.
+     */
+    @Bean(name = "kpstDeidCircuitBreaker")
+    public CircuitBreaker kpstDeidCircuitBreaker(CircuitBreakerRegistry registry) {
+        return registry.circuitBreaker("kpstDeid");
+    }
 }

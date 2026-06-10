@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.batch.service.KpstDeidentService;
 import kr.co.cudo.authoring.common.client.DeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
 import kr.co.cudo.authoring.common.client.dto.DeidentifyResponse;
@@ -15,8 +16,8 @@ import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -45,7 +46,6 @@ import java.time.Duration;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class DeidentifyStep implements BatchStep {
 
     private final DeidentifyClient deidentifyClient;
@@ -56,11 +56,36 @@ public class DeidentifyStep implements BatchStep {
     /** Phase 3 — 잠금 해제 알림. */
     private final NotificationService notificationService;
     private final WorkLockService workLockService;
+    /**
+     * UC018 — KPST 폴링 위탁 서비스. {@code kpst.deid.enabled=true} 일 때만 빈으로 존재(아니면 null).
+     * 활성 시 본 Step 은 KPST 위탁(upload→project)만 수행하고 완료(다운로드→Y전이)는 폴링 잡이 담당한다.
+     */
+    private final KpstDeidentService kpstDeidentService;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
 
+    /** UC018 — KPST 폴링 경로 토글. true 면 위탁만, false(기본) 면 기존 동기 경로 유지. */
+    @Value("${kpst.deid.enabled:false}")
+    private boolean kpstEnabled;
+
     private Path baseDeidentifiedPath;
+
+    public DeidentifyStep(DeidentifyClient deidentifyClient,
+                          VideoRepository videoRepository,
+                          LsDeidentProcLogRepository procLogRepository,
+                          DeidentReportService deidentReportService,
+                          NotificationService notificationService,
+                          WorkLockService workLockService,
+                          @Autowired(required = false) KpstDeidentService kpstDeidentService) {
+        this.deidentifyClient = deidentifyClient;
+        this.videoRepository = videoRepository;
+        this.procLogRepository = procLogRepository;
+        this.deidentReportService = deidentReportService;
+        this.notificationService = notificationService;
+        this.workLockService = workLockService;
+        this.kpstDeidentService = kpstDeidentService;
+    }
 
     @PostConstruct
     void initBasePath() {
@@ -90,6 +115,12 @@ public class DeidentifyStep implements BatchStep {
     public String run(LsDataRaw raw) {
         if (raw == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
+        }
+        // UC018 — KPST 폴링 경로: 위탁(upload→project)만 수행하고 완료(다운로드→Y전이)는 폴링 잡이 담당.
+        // DE_IDNTF_YN 미전이(완료 대기), MARKING_READY 미전이. 토글 false(기본)면 기존 동기 경로 유지.
+        if (kpstEnabled && kpstDeidentService != null) {
+            kpstDeidentService.submit(raw);
+            return null;
         }
         LsDeidentProcLog procLog = procLogRepository.save(
                 LsDeidentProcLog.request(raw.getRawSn(), null, raw.getRawFilePathNm(), "batch"));
