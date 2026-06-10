@@ -47,13 +47,15 @@ class TrainingVideoIngestServiceTest {
         service = new TrainingVideoIngestService(clipMasterRepository, ingestTx);
     }
 
-    private MngClipMaster clip(long clipSn, String vmsClipId) {
+    private MngClipMaster clip(String evntId, String clipId) {
         MngClipMaster clip = newClip();
-        ReflectionTestUtils.setField(clip, "clipSn", clipSn);
-        ReflectionTestUtils.setField(clip, "vmsClipId", vmsClipId);
-        ReflectionTestUtils.setField(clip, "vmsCctvId", "CCTV-" + clipSn);
+        ReflectionTestUtils.setField(clip, "evntId", evntId);
+        ReflectionTestUtils.setField(clip, "clipTypeCd", "ORIGINAL");
+        ReflectionTestUtils.setField(clip, "clipId", clipId);
+        ReflectionTestUtils.setField(clip, "vmsCctvId", "CCTV-" + evntId);
+        ReflectionTestUtils.setField(clip, "filePath", "/nas-storage/data/clip/" + clipId + ".mp4");
         ReflectionTestUtils.setField(clip, "jobDmndYn", "Y");
-        ReflectionTestUtils.setField(clip, "regDt", LocalDateTime.of(2026, 6, 1, 10, 0));
+        ReflectionTestUtils.setField(clip, "crtDt", LocalDateTime.of(2026, 6, 1, 10, 0));
         return clip;
     }
 
@@ -71,8 +73,8 @@ class TrainingVideoIngestServiceTest {
     @DisplayName("관제_작업수요_설정_클립을_픽업해_적재_위임한다")
     void delegatesIngestForTrainingDesignatedClip() {
         // given
-        MngClipMaster clip = clip(1L, "VMS-CLIP-1");
-        when(clipMasterRepository.findByJobDmndYn("Y")).thenReturn(List.of(clip));
+        MngClipMaster clip = clip("EVT-1", "CLIP-1");
+        when(clipMasterRepository.findIngestCandidatesByJobDmndYn("Y")).thenReturn(List.of(clip));
         when(ingestTx.ingestOne(clip)).thenReturn(true);
 
         // when
@@ -87,8 +89,8 @@ class TrainingVideoIngestServiceTest {
     @DisplayName("위임_적재가_skip되면_적재건수에_포함되지_않는다")
     void skippedClipNotCounted() {
         // given — 중복/스킵 클립은 ingestOne 이 false 반환.
-        MngClipMaster clip = clip(1L, "VMS-CLIP-DUP");
-        when(clipMasterRepository.findByJobDmndYn("Y")).thenReturn(List.of(clip));
+        MngClipMaster clip = clip("EVT-DUP", "CLIP-DUP");
+        when(clipMasterRepository.findIngestCandidatesByJobDmndYn("Y")).thenReturn(List.of(clip));
         when(ingestTx.ingestOne(clip)).thenReturn(false);
 
         // when
@@ -102,7 +104,7 @@ class TrainingVideoIngestServiceTest {
     @DisplayName("작업수요_미설정_클립은_조회되지_않아_위임하지_않는다")
     void doesNotDelegateForNonTrainingClips() {
         // given — repository 가 'Y' 만 조회하므로 빈 결과.
-        when(clipMasterRepository.findByJobDmndYn("Y")).thenReturn(List.of());
+        when(clipMasterRepository.findIngestCandidatesByJobDmndYn("Y")).thenReturn(List.of());
 
         // when
         int ingested = service.scanAndIngest();
@@ -117,9 +119,9 @@ class TrainingVideoIngestServiceTest {
     void partialFailureDoesNotBlockOtherClips() {
         // given — 첫 클립 적재 트랜잭션이 JPA 예외로 롤백돼도(REQUIRES_NEW 격리),
         // 둘째 클립 적재 커밋은 영향받지 않아야 한다.
-        MngClipMaster bad = clip(1L, "VMS-CLIP-BAD");
-        MngClipMaster good = clip(2L, "VMS-CLIP-GOOD");
-        when(clipMasterRepository.findByJobDmndYn("Y")).thenReturn(List.of(bad, good));
+        MngClipMaster bad = clip("EVT-BAD", "CLIP-BAD");
+        MngClipMaster good = clip("EVT-GOOD", "CLIP-GOOD");
+        when(clipMasterRepository.findIngestCandidatesByJobDmndYn("Y")).thenReturn(List.of(bad, good));
         when(ingestTx.ingestOne(bad))
                 .thenThrow(new DataIntegrityViolationException("rollback-only marked tx"));
         when(ingestTx.ingestOne(good)).thenReturn(true);
@@ -136,10 +138,10 @@ class TrainingVideoIngestServiceTest {
     @DisplayName("여러_클립_중_일부_skip_일부_적재가_정확히_집계된다")
     void mixedResultsCountedCorrectly() {
         // given
-        MngClipMaster a = clip(1L, "VMS-A");
-        MngClipMaster b = clip(2L, "VMS-B");
-        MngClipMaster c = clip(3L, "VMS-C");
-        when(clipMasterRepository.findByJobDmndYn("Y")).thenReturn(List.of(a, b, c));
+        MngClipMaster a = clip("EVT-A", "CLIP-A");
+        MngClipMaster b = clip("EVT-B", "CLIP-B");
+        MngClipMaster c = clip("EVT-C", "CLIP-C");
+        when(clipMasterRepository.findIngestCandidatesByJobDmndYn("Y")).thenReturn(List.of(a, b, c));
         when(ingestTx.ingestOne(a)).thenReturn(true);
         when(ingestTx.ingestOne(b)).thenReturn(false);
         when(ingestTx.ingestOne(c)).thenReturn(true);
@@ -156,7 +158,7 @@ class TrainingVideoIngestServiceTest {
     @DisplayName("스캔결과가_null이면_안전하게_0건_처리한다")
     void nullScanResultIsHandledSafely() {
         // given — repository 가 null 을 반환해도 NPE 없이 0 건 처리.
-        when(clipMasterRepository.findByJobDmndYn("Y")).thenReturn(null);
+        when(clipMasterRepository.findIngestCandidatesByJobDmndYn("Y")).thenReturn(null);
 
         // when
         int ingested = service.scanAndIngest();

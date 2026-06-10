@@ -21,15 +21,27 @@ import org.springframework.util.StringUtils;
  * rollback-only 마킹되더라도 그 롤백이 해당 클립 트랜잭션에만 한정되어, 같은 스캔의 다른 클립
  * 적재(커밋)를 오염시키지 않는다. (private 메서드는 프록시 미적용이므로 별도 빈으로 분리한다.)
  *
+ * <p>적재 매핑(관제 실제 스키마 MNG_CLIP_MASTER → LS_DATA_RAW):
+ * <ul>
+ *   <li>vmsClipId ← {@code CLIP_ID}(UUID) — LS_DATA_RAW.VMS_CLIP_ID(UK) 멱등키</li>
+ *   <li>vmsCctvId ← {@code VMS_CCTV_ID}</li>
+ *   <li>lclgvCd   ← {@code LCLGV_CD}</li>
+ *   <li>rawFilePathNm ← {@code FILE_PATH}(NAS 절대경로)</li>
+ *   <li>shtDt     ← {@code CRT_DT}(촬영시간 컬럼 부재 — 근사)</li>
+ *   <li>durationSec ← {@code VDO_LEN_SEC}(단위 ms 의심 — 임의 변환 금지, 1:1 매핑)</li>
+ *   <li>evntTypeCd ← null(관제에 직접 컬럼 부재), prvcTypeCd ← ANONY(전체 비식별 정책)</li>
+ * </ul>
+ *
  * <p>멱등성/안전 처리:
  * <ol>
  *   <li><b>이중 멱등</b> — 적재 전 {@code findByVmsClipId} 조회 skip + UK 위반
  *       ({@link DataIntegrityViolationException}) catch-skip 으로 동시 race 중복 적재를 흡수한다.</li>
- *   <li><b>식별자 가드</b> — {@code vmsClipId} 가 null/blank 면 적재하지 않고 skip(WARN, 식별자만 출력).</li>
- *   <li><b>파일경로 미해결 가드(잠정)</b> — MNG_CLIP_MASTER 에 파일경로 컬럼이 없어 플레이스홀더
- *       ({@link #PENDING_FILE_PATH})로 적재되는 동안에는 {@link VideoIngestedEvent} 를 발행하지 않는다.
- *       존재하지 않는 파일을 비식별 단계가 열다 실패→재시도 폭주하는 것을 차단하기 위한 잠정 조치다
- *       (관제 클립→파일경로 매핑 확정 시 제거 예정). 경로가 정상일 때만 이벤트를 발행해 비식별을 트리거한다.</li>
+ *   <li><b>식별자 가드</b> — {@code CLIP_ID}(vmsClipId) 가 null/blank 면 적재하지 않고 skip(WARN).</li>
+ *   <li><b>CCTV 식별자 가드</b> — {@code VMS_CCTV_ID} 가 null/blank 면 skip(WARN). 관제는 nullable
+ *       이나 LS_DATA_RAW.VMS_CCTV_ID 는 NOT NULL 이라, 가드 없이 save 시
+ *       {@link DataIntegrityViolationException} 이 중복 race catch 로 흡수되어 원인 식별이 불가하다.</li>
+ *   <li><b>파일경로 가드</b> — {@code FILE_PATH} 가 null/blank 인 클립은 깨진 적재 방지를 위해 skip(WARN).
+ *       정상 경로면 적재 후 {@link VideoIngestedEvent} 를 발행해 비식별 선두 파이프라인을 트리거한다.</li>
  * </ol>
  */
 @Slf4j
@@ -38,13 +50,12 @@ import org.springframework.util.StringUtils;
 public class TrainingVideoIngestTx {
 
     /**
-     * MNG_CLIP_MASTER 에 파일 경로 컬럼이 없어 도출 불가한 항목의 기본값. 비식별 유형은 전체 비식별
-     * 정책상 ANONY 로 적재한다(파이프라인이 무조건 비식별 수행). 실제 파일 경로/메타는 후속 보완 대상.
+     * 비식별 유형 기본값. 전체 비식별 정책상 ANONY 로 적재한다(파이프라인이 무조건 비식별 수행).
      */
     private static final String DEFAULT_PRVC_TYPE = LsDataRaw.PRVC_TYPE_ANONY;
 
-    /** 파일경로 미해결 플레이스홀더(매직값 금지 — 명명 상수). 이 값이면 비식별 트리거를 보류한다. */
-    static final String PENDING_FILE_PATH = "PENDING";
+    /** 관제에 EVNT_TYPE_CD 직접 컬럼이 없어 매핑 불가 — null 로 적재(미확정, 후속 보완 대상). */
+    private static final String UNMAPPED_EVNT_TYPE_CD = null;
 
     private final VideoRepository videoRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -56,44 +67,44 @@ public class TrainingVideoIngestTx {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, transactionManager = "controlTransactionManager")
     public boolean ingestOne(MngClipMaster clip) {
-        String vmsClipId = clip.getVmsClipId();
-        // MEDIUM-5: 식별자 가드 — null/blank 면 findByVmsClipId(null) 오작동을 피해 skip.
+        String vmsClipId = clip.getClipId();
+        // 식별자 가드 — CLIP_ID 가 null/blank 면 findByVmsClipId(null) 오작동을 피해 skip.
         if (!StringUtils.hasText(vmsClipId)) {
-            log.warn("[TrainingIngest] skip clip with blank vmsClipId clipSn={}", clip.getClipSn());
+            log.warn("[TrainingIngest] skip clip with blank clipId evntId={}", clip.getEvntId());
             return false;
         }
-        // HIGH-1(1차): 멱등성 — 동일 VMS_CLIP_ID 가 이미 적재되어 있으면 skip.
+        // CCTV 식별자 가드 — VMS_CCTV_ID(관제 nullable) 가 없으면 LS_DATA_RAW.VMS_CCTV_ID(NOT NULL)
+        // 위반이 중복 race catch 로 흡수되어 원인 식별이 불가하다. 사전 skip 으로 구분 가능한 WARN 남긴다.
+        if (!StringUtils.hasText(clip.getVmsCctvId())) {
+            log.warn("[TrainingIngest] skip clip with blank vmsCctvId evntId={} clipId={}",
+                    clip.getEvntId(), vmsClipId);
+            return false;
+        }
+        // 파일경로 가드 — FILE_PATH 가 없으면 비식별이 열 파일이 없어 적재 자체를 skip(깨진 적재 방지).
+        if (!StringUtils.hasText(clip.getFilePath())) {
+            log.warn("[TrainingIngest] skip clip with blank filePath evntId={} clipId={}",
+                    clip.getEvntId(), vmsClipId);
+            return false;
+        }
+        // 이중 멱등(1차): 동일 CLIP_ID 가 이미 적재되어 있으면 skip.
         if (videoRepository.findByVmsClipId(vmsClipId).isPresent()) {
-            log.debug("[TrainingIngest] clip already ingested — skip clipSn={}", clip.getClipSn());
+            log.debug("[TrainingIngest] clip already ingested — skip clipId={}", vmsClipId);
             return false;
         }
         try {
             LsDataRaw raw = LsDataRaw.createFromIngest(
                     vmsClipId, clip.getVmsCctvId(),
-                    null, null, DEFAULT_PRVC_TYPE,
-                    PENDING_FILE_PATH, clip.getRegDt(), null);
+                    UNMAPPED_EVNT_TYPE_CD, clip.getLclgvCd(), DEFAULT_PRVC_TYPE,
+                    clip.getFilePath(), clip.getCrtDt(), clip.getVdoLenSec());
             LsDataRaw saved = videoRepository.save(raw);
-            publishWhenFilePathResolved(clip, saved);
-            log.info("[TrainingIngest] ingested clipSn={} rawSn={}", clip.getClipSn(), saved.getRawSn());
+            // 가드 제거: 정상 FILE_PATH 면 비식별 선두 트리거 이벤트 발행.
+            eventPublisher.publishEvent(new VideoIngestedEvent(saved.getRawSn()));
+            log.info("[TrainingIngest] ingested clipId={} rawSn={}", vmsClipId, saved.getRawSn());
             return true;
         } catch (DataIntegrityViolationException e) {
-            // HIGH-1(2차): UK(VMS_CLIP_ID) 위반은 동시 race 의 중복 적재 — 정상 skip 처리.
-            log.debug("[TrainingIngest] duplicate ingest race — skip clipSn={}", clip.getClipSn());
+            // 이중 멱등(2차): UK(VMS_CLIP_ID) 위반은 동시 race 의 중복 적재 — 정상 skip 처리.
+            log.debug("[TrainingIngest] duplicate ingest race — skip clipId={}", vmsClipId);
             return false;
         }
-    }
-
-    /**
-     * 파일경로가 정상(플레이스홀더 아님)일 때만 {@link VideoIngestedEvent} 를 발행해 비식별을 트리거한다.
-     * 미해결(PENDING) 이면 발행을 보류하고 WARN 1회 기록(식별자만 — 경로 본문 미출력).
-     */
-    private void publishWhenFilePathResolved(MngClipMaster clip, LsDataRaw saved) {
-        if (PENDING_FILE_PATH.equals(saved.getRawFilePathNm())) {
-            // HIGH-3: 잠정 가드 — 파일경로 미해결 시 비식별 자동 트리거 보류(재시도 폭주 차단).
-            log.warn("[TrainingIngest] file path unresolved — deidentify deferred clipSn={} rawSn={}",
-                    clip.getClipSn(), saved.getRawSn());
-            return;
-        }
-        eventPublisher.publishEvent(new VideoIngestedEvent(saved.getRawSn()));
     }
 }

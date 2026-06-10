@@ -50,7 +50,7 @@ public class TrainingVideoIngestService {
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public int scanAndIngest() {
-        List<MngClipMaster> clips = clipMasterRepository.findByJobDmndYn(JOB_DEMAND_YES);
+        List<MngClipMaster> clips = clipMasterRepository.findIngestCandidatesByJobDmndYn(JOB_DEMAND_YES);
         if (clips == null || clips.isEmpty()) {
             log.debug("[TrainingIngest] no training-designated clips to scan");
             return 0;
@@ -63,9 +63,9 @@ public class TrainingVideoIngestService {
                 }
             } catch (RuntimeException e) {
                 // CRITICAL-1: 한 클립의 REQUIRES_NEW 트랜잭션 롤백/예외가 다른 클립을 막지 않게 흡수.
-                // clipSn 만 기록(파일경로/PII 미출력) 후 다음 클립 계속 진행.
-                log.error("[TrainingIngest] ingest failed clipSn={} causeType={}",
-                        clip.getClipSn(), e.getClass().getSimpleName());
+                // 식별자(evntId/clipId)만 기록(파일경로/PII 미출력) 후 다음 클립 계속 진행.
+                log.error("[TrainingIngest] ingest failed evntId={} clipId={} causeType={}",
+                        clip.getEvntId(), clip.getClipId(), e.getClass().getSimpleName());
             }
         }
         log.info("[TrainingIngest] scan finished scanned={} ingested={}", clips.size(), ingested);
