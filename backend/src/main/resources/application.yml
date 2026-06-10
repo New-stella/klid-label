@@ -136,6 +136,13 @@ authoring:
     url: ${CONTROL_NOTIFY_URL:http://localhost:8090}
     timeout-ms: ${CONTROL_NOTIFY_TIMEOUT_MS:10000}
     debounce-window-sec: ${CONTROL_NOTIFY_DEBOUNCE_SEC:60}
+  # 관제 학습용 영상 픽업 적재 — MNG_CLIP_MASTER.JOB_DMND_YN='Y' 클립을 주기 스캔해 LS_DATA_RAW 적재.
+  #  - enabled=true 기본 (matchIfMissing). 토글 시 Quartz 트리거 미등록.
+  #  - interval-sec: 스캔 주기(초). 기본 60.
+  control:
+    training-scan:
+      enabled: ${TRAINING_SCAN_ENABLED:true}
+      interval-sec: ${TRAINING_SCAN_INTERVAL_SEC:60}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
