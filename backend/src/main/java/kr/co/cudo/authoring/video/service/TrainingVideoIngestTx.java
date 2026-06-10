@@ -1,8 +1,10 @@
 package kr.co.cudo.authoring.video.service;
 
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.entity.MngClipEvntLst;
 import kr.co.cudo.authoring.video.entity.MngClipMaster;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
+import kr.co.cudo.authoring.video.repository.MngClipEvntLstRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,10 +29,15 @@ import org.springframework.util.StringUtils;
  *   <li>vmsCctvId ← {@code VMS_CCTV_ID}</li>
  *   <li>lclgvCd   ← {@code LCLGV_CD}</li>
  *   <li>rawFilePathNm ← {@code FILE_PATH}(NAS 절대경로)</li>
- *   <li>shtDt     ← {@code CRT_DT}(촬영시간 컬럼 부재 — 근사)</li>
- *   <li>durationSec ← {@code VDO_LEN_SEC}(단위 ms 의심 — 임의 변환 금지, 1:1 매핑)</li>
- *   <li>evntTypeCd ← null(관제에 직접 컬럼 부재), prvcTypeCd ← ANONY(전체 비식별 정책)</li>
+ *   <li>shtDt     ← {@code MNG_CLIP_EVNT_LST.SHT_DT}(이벤트리스트 촬영 일자), 미매칭 시 {@code CRT_DT} 폴백</li>
+ *   <li>durationSec ← {@code VDO_LEN_SEC / 1000}(관제 실측 단위 ms → 초 변환, null 이면 null 유지)</li>
+ *   <li>evntTypeCd ← {@code MNG_CLIP_EVNT_LST.EVNT_TYPE_CD}(EVNT_ID 조인), 미매칭 시 null</li>
+ *   <li>prvcTypeCd ← ANONY(전체 비식별 정책)</li>
  * </ul>
+ *
+ * <p>이벤트 메타 도출: 관제 마스터에 EVNT_TYPE_CD/촬영 일자 직접 컬럼이 없어 {@code EVNT_ID} 로
+ * {@link MngClipEvntLstRepository} 를 조인 조회한다(실측 EVNT_ID 당 1행). 미매칭(조회 empty)이어도
+ * evntTypeCd=null + shtDt=CRT_DT 폴백으로 적재를 진행한다 — 이벤트리스트 미매칭이 적재를 막지 않는다.
  *
  * <p>멱등성/안전 처리:
  * <ol>
@@ -54,11 +61,12 @@ public class TrainingVideoIngestTx {
      */
     private static final String DEFAULT_PRVC_TYPE = LsDataRaw.PRVC_TYPE_ANONY;
 
-    /** 관제에 EVNT_TYPE_CD 직접 컬럼이 없어 매핑 불가 — null 로 적재(미확정, 후속 보완 대상). */
-    private static final String UNMAPPED_EVNT_TYPE_CD = null;
+    /** 관제 VDO_LEN_SEC 실측 단위가 ms 라 초 단위(LS_DATA_RAW.VDO_LEN_SEC)로 변환할 제수. */
+    private static final int MILLIS_PER_SECOND = 1000;
 
     private final VideoRepository videoRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final MngClipEvntLstRepository clipEvntLstRepository;
 
     /**
      * 단일 클립을 독립(REQUIRES_NEW) 트랜잭션으로 적재한다.
@@ -91,11 +99,20 @@ public class TrainingVideoIngestTx {
             log.debug("[TrainingIngest] clip already ingested — skip clipId={}", vmsClipId);
             return false;
         }
+        // 이벤트 메타 도출: EVNT_ID 로 이벤트리스트 1회 조회(미매칭이면 폴백). 클립당 1회만 조회한다.
+        MngClipEvntLst evntLst = clipEvntLstRepository.findFirstByEvntId(clip.getEvntId()).orElse(null);
+        String evntTypeCd = (evntLst != null) ? evntLst.getEvntTypeCd() : null;
+        // shtDt: 이벤트리스트 SHT_DT(실제 촬영 일자) 우선, 미매칭/null 이면 CRT_DT 근사 폴백.
+        java.time.LocalDateTime shtDt = (evntLst != null && evntLst.getShtDt() != null)
+                ? evntLst.getShtDt() : clip.getCrtDt();
+        // durationSec: 관제 VDO_LEN_SEC 실측 단위가 ms → 초 변환(null 이면 null 유지).
+        Integer durationSec = (clip.getVdoLenSec() != null)
+                ? clip.getVdoLenSec() / MILLIS_PER_SECOND : null;
         try {
             LsDataRaw raw = LsDataRaw.createFromIngest(
                     vmsClipId, clip.getVmsCctvId(),
-                    UNMAPPED_EVNT_TYPE_CD, clip.getLclgvCd(), DEFAULT_PRVC_TYPE,
-                    clip.getFilePath(), clip.getCrtDt(), clip.getVdoLenSec());
+                    evntTypeCd, clip.getLclgvCd(), DEFAULT_PRVC_TYPE,
+                    clip.getFilePath(), shtDt, durationSec);
             LsDataRaw saved = videoRepository.save(raw);
             // 가드 제거: 정상 FILE_PATH 면 비식별 선두 트리거 이벤트 발행.
             eventPublisher.publishEvent(new VideoIngestedEvent(saved.getRawSn()));

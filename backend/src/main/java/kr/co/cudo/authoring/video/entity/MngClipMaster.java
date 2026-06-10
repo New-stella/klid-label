@@ -58,7 +58,8 @@ public class MngClipMaster {
     private String fileFmt;
 
     /**
-     * 영상 길이. 관제 코멘트는 '초'이나 실제 적재값이 ms 로 의심됨(단위 미확정). 임의 변환 없이 1:1 매핑한다.
+     * 영상 길이. 관제 컬럼명/코멘트는 '초'이나 실측값은 밀리초(ms) 다(DB 직접 조회 확정).
+     * 적재 시 ms → 초 변환한다({@code TrainingVideoIngestTx} 참조).
      */
     @Column(name = "VDO_LEN_SEC")
     private Integer vdoLenSec;

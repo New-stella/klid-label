@@ -1,8 +1,10 @@
 package kr.co.cudo.authoring.video.service;
 
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.entity.MngClipEvntLst;
 import kr.co.cudo.authoring.video.entity.MngClipMaster;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
+import kr.co.cudo.authoring.video.repository.MngClipEvntLstRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,11 +46,35 @@ class TrainingVideoIngestTxTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private MngClipEvntLstRepository clipEvntLstRepository;
+
     private TrainingVideoIngestTx tx;
 
     @BeforeEach
     void setUp() {
-        tx = new TrainingVideoIngestTx(videoRepository, eventPublisher);
+        tx = new TrainingVideoIngestTx(videoRepository, eventPublisher, clipEvntLstRepository);
+        // 이벤트리스트 미매칭이 기본값(개별 테스트에서 매칭 stub 으로 덮어쓴다).
+        lenient().when(clipEvntLstRepository.findFirstByEvntId(anyString())).thenReturn(Optional.empty());
+    }
+
+    /** 이벤트리스트 1행 생성 — evntTypeCd + 촬영일자(shtDt) 매핑 대상. */
+    private MngClipEvntLst evntLst(String evntId, String evntTypeCd, LocalDateTime shtDt) {
+        MngClipEvntLst e = newEvntLst();
+        ReflectionTestUtils.setField(e, "evntId", evntId);
+        ReflectionTestUtils.setField(e, "evntTypeCd", evntTypeCd);
+        ReflectionTestUtils.setField(e, "shtDt", shtDt);
+        return e;
+    }
+
+    private static MngClipEvntLst newEvntLst() {
+        try {
+            var ctor = MngClipEvntLst.class.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            return ctor.newInstance();
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     /** 관제 실제 스키마 기반 클립 생성 — 복합키(EVNT_ID, CLIP_TYPE_CD) + CLIP_ID/FILE_PATH 등. */
@@ -108,8 +134,94 @@ class TrainingVideoIngestTxTest {
         assertThat(saved.getVmsCctvId()).isEqualTo("CCTV-EVT-1");
         assertThat(saved.getLclgvCd()).isEqualTo("11110");
         assertThat(saved.getRawFilePathNm()).isEqualTo(filePath);
-        assertThat(saved.getDurationSec()).isEqualTo(602000);
+        // VDO_LEN_SEC 는 실측 단위가 ms — 602000ms → 602s 로 변환 적재.
+        assertThat(saved.getDurationSec()).isEqualTo(602);
         assertThat(saved.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
+    }
+
+    @Test
+    @DisplayName("VDO_LEN_SEC_밀리초를_초로_변환해_적재한다")
+    void convertsVdoLenMillisToSeconds() {
+        // given — 관제 VDO_LEN_SEC 실측 단위는 ms. 602000ms 영상.
+        MngClipMaster clip = clip("EVT-MS", "CLIP-UUID-MS", "/nas/ms.mp4");
+        ReflectionTestUtils.setField(clip, "vdoLenSec", 602000);
+        when(videoRepository.findByVmsClipId("CLIP-UUID-MS")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(3000L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip);
+
+        // then — ms/1000 = 602s 로 초 단위 적재.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        assertThat(captor.getValue().getDurationSec()).isEqualTo(602);
+    }
+
+    @Test
+    @DisplayName("VDO_LEN_SEC가_null이면_durationSec도_null로_적재한다")
+    void keepsDurationNullWhenVdoLenNull() {
+        // given
+        MngClipMaster clip = clip("EVT-NULLLEN", "CLIP-UUID-NULLLEN", "/nas/n.mp4");
+        ReflectionTestUtils.setField(clip, "vdoLenSec", null);
+        when(videoRepository.findByVmsClipId("CLIP-UUID-NULLLEN")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(3100L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip);
+
+        // then
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        assertThat(captor.getValue().getDurationSec()).isNull();
+    }
+
+    @Test
+    @DisplayName("이벤트리스트에서_evntTypeCd와_shtDt를_조회해_적재한다")
+    void mapsEvntTypeAndShtDtFromEvntLst() {
+        // given — MNG_CLIP_EVNT_LST 에 EVNT_ID 매칭 1행(EVNT_TYPE_CD + SHT_DT).
+        MngClipMaster clip = clip("EVT-MATCH", "CLIP-UUID-MATCH", "/nas/m.mp4");
+        LocalDateTime shtDt = LocalDateTime.of(2026, 5, 20, 14, 30);
+        when(clipEvntLstRepository.findFirstByEvntId("EVT-MATCH"))
+                .thenReturn(Optional.of(evntLst("EVT-MATCH", "FIRE", shtDt)));
+        when(videoRepository.findByVmsClipId("CLIP-UUID-MATCH")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(4000L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip);
+
+        // then — evntTypeCd 는 이벤트리스트값, shtDt 는 SHT_DT(CRT_DT 근사 아님).
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        LsDataRaw saved = captor.getValue();
+        assertThat(saved.getEvntTypeCd()).isEqualTo("FIRE");
+        assertThat(saved.getShtDt()).isEqualTo(shtDt);
+    }
+
+    @Test
+    @DisplayName("이벤트리스트_미매칭시_evntTypeCd_null이고_적재는_계속된다")
+    void fallsBackWhenEvntLstNotMatched() {
+        // given — 이벤트리스트에 매칭 행 없음(조회 empty).
+        MngClipMaster clip = clip("EVT-NOMATCH", "CLIP-UUID-NOMATCH", "/nas/nm.mp4");
+        LocalDateTime crtDt = LocalDateTime.of(2026, 6, 1, 10, 0);
+        ReflectionTestUtils.setField(clip, "crtDt", crtDt);
+        when(clipEvntLstRepository.findFirstByEvntId("EVT-NOMATCH")).thenReturn(Optional.empty());
+        when(videoRepository.findByVmsClipId("CLIP-UUID-NOMATCH")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(5000L);
+
+        // when — 미매칭이 적재를 막지 않는다.
+        boolean ingested = tx.ingestOne(clip);
+
+        // then — evntTypeCd=null, shtDt=CRT_DT 폴백, 적재 계속.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        LsDataRaw saved = captor.getValue();
+        assertThat(saved.getEvntTypeCd()).isNull();
+        assertThat(saved.getShtDt()).isEqualTo(crtDt);
+        verify(eventPublisher).publishEvent(any(VideoIngestedEvent.class));
     }
 
     @Test
