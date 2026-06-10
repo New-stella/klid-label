@@ -3,7 +3,7 @@
 > 출처: R1 RQ-SFR-09-01~05, R2 KLID-AT-UC-011/016, CLAUDE.md, 코드(`deident/`, `webhook/DeidentifyResultController`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [19 외부 시스템](19-external-security-cvat.md) · [22 비식별 솔루션 API 명세](22-deid-solution-api.md)
 
-> ⚠ **실제 외부 솔루션(KPST) API와의 갭 (2026-06-05 확인)**: 본 페이지 8.2의 연동 흐름(동기 위탁 + HMAC **콜백** 수신)은 설계 시점 가정이다. 실제 KPST 솔루션 API([22 명세](22-deid-solution-api.md))는 **콜백이 없는 폴링 모델**(`POST /upload` → `POST /project` → `GET /retrieve_progress` 폴링 → `GET /download`)이며 작업 단위도 프로젝트(영상 1~50개 묶음)다. `DeidentifyClient`·`DeidentifyStep`·`webhook/DeidentifyResultController`는 폴링 어댑터로 재설계가 필요하다 (별도 과제 — 갭 상세는 [22.1](22-deid-solution-api.md#221-연동-개요) 비교표 참조).
+> ✅ **KPST 폴링 어댑터 구현 완료(2026-06-10)**: 실제 KPST API([22 명세](22-deid-solution-api.md))의 폴링 모델(`POST /upload`→`POST /project`→`GET /retrieve_progress` 폴링→`GET /download`)을 `KpstDeidentifyClient`+`KpstDeidentPollJob`(Quartz)로 구현. `kpst.deid.enabled` 토글로 기존 동기/콜백 경로(아래 8.2)와 **병행**(기본 false). 영상 1건=프로젝트 1개. (갭 상세·명세 정본은 [22.1](22-deid-solution-api.md#221-연동-개요) 비교표 참조.)
 
 ## 8.1 개요
 
@@ -19,6 +19,19 @@
 
 ## 8.2 연동 흐름
 
+**[KPST 폴링 경로]** (`kpst.deid.enabled=true`)
+```
+[배치] DeidentifyStep 위탁 → KpstDeidentService(upload→project, WAITING)
+        ↓ (영상 1건 = KPST 프로젝트 1개)
+[폴링] KpstDeidentPollJob(Quartz) GET /retrieve_progress 반복 폴링
+        ↓ state=2(완료) 감지
+GET /download → 결과 파일 검증(0바이트/미존재 시 Y 전이 차단)
+        ↓ (KpstDeidentTxService.finishDownloadAndComplete, REQUIRES_NEW 원자화)
+LS_DATA_RAW.DE_IDENT_YN='Y' + dataSttsCd=MARKING_READY + 작업락 해제 + 신고 해소
+   타임아웃 시 DE_IDENT_YN='F'
+```
+
+**[콜백 경로]** (`kpst.deid.enabled=false` 또는 콜백형 솔루션용 — 병행 유지)
 ```
 [배치/요청] DeidentifyClient(Resilience4j, ~70s) → 외부 비식별 API (동기 위탁)
    요청: {원본 경로, 출력 경로(STORAGE_DEIDENTIFIED_PATH 하위), 멱등키}
@@ -31,7 +44,8 @@
 
 - 멱등키(미지정 시 자동 발급)로 중복 인계 방지, 외부 작업 ID UNIQUE 로 콜백 upsert
 - 실패 시 `DE_IDENT_YN='F'` + 재시도 큐, 원본 보존
-- 코드: `DeidentifyClient`, `batch/step/DeidentifyStep`, `webhook/DeidentifyResultController`/`DeidentifyResultService`
+- 코드(폴링 경로): `KpstDeidentifyClient`, `KpstWebClientConfig`(자체CA TLS), `batch/service/KpstDeidentService`/`KpstDeidentTxService`, `batch/scheduler/KpstDeidentPollJob`
+- 코드(콜백 경로): `DeidentifyClient`, `batch/step/DeidentifyStep`(토글 분기), `webhook/DeidentifyResultController`/`DeidentifyResultService`
 
 ## 8.3 처리 이력 (RQ-SFR-09-03)
 
