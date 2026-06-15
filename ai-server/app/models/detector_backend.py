@@ -94,3 +94,31 @@ def coco_label_from_id(class_id: int, id2label: dict[int, str] | None) -> str:
     if id2label and class_id in id2label:
         return id2label[class_id]
     return COCO_ID2LABEL.get(class_id, str(class_id))
+
+
+# 역참조 캐시: 라벨 문자열 → COCO class_id (coco_label_from_id 의 역방향).
+# 동일 라벨이 항상 동일 정수로 매핑되도록 1회 구성한다.
+_LABEL2ID: dict[str, int] = {label: cid for cid, label in COCO_ID2LABEL.items()}
+# 미지의(COCO 외) 라벨에 결정적 정수 id 를 부여하기 위한 base offset.
+# COCO 80개(0~79)와 충돌하지 않도록 충분히 큰 값에서 시작한다.
+_UNKNOWN_LABEL_ID_BASE: int = 10_000
+
+
+def coco_id_from_label(label: str) -> int:
+    """라벨 문자열 → 안정적인 정수 class_id (트래커 클래스 분리용).
+
+    - COCO 표준 라벨(person/car 등)은 해당 COCO class_id 를 그대로 반환한다.
+    - 라벨이 정수 문자열이면 그 정수를 반환한다(coco_label_from_id 의 id 미스 fallback 대칭).
+    - 그 외 미지의 라벨은 라벨 문자열 해시를 기반으로 한 결정적 정수를 부여한다.
+      같은 라벨은 항상 같은 정수가 되며 COCO id 범위(0~79)와 충돌하지 않는다.
+
+    좌표/스키마는 건드리지 않고 트래커에 전달할 class_id 만 안정화한다.
+    """
+    cid = _LABEL2ID.get(label)
+    if cid is not None:
+        return cid
+    # coco_label_from_id 가 id 미스 시 str(id) 를 반환하므로 그 역방향을 복원
+    if label.isdigit():
+        return int(label)
+    # 미지의 라벨 — 결정적 fallback (해시 mod). 동일 라벨은 항상 동일 정수.
+    return _UNKNOWN_LABEL_ID_BASE + (hash(label) & 0xFFFF)

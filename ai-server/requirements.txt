@@ -1,25 +1,265 @@
-fastapi>=0.110.0
-uvicorn[standard]>=0.27.0
-pydantic>=2.6.0
-pydantic-settings>=2.2.0
-python-multipart>=0.0.9
+# ============================================================================
+# 이 파일은 requirements.in 에서 pip-compile 로 생성된 lock 입니다.
+#   직접 편집 금지 — requirements.in 을 수정한 뒤 아래 명령으로 재컴파일하세요:
+#       .venv/bin/pip-compile --no-header --output-file requirements.txt requirements.in
+#
+# 해시(--hash) 없음: Dockerfile 이 이 파일을 grep/sed 로 munging 하므로 의도적으로
+#   --generate-hashes 를 쓰지 않습니다.
+#     - Dockerfile: grep -ivE '^(torch|torchvision)\b' (base 이미지가 torch 제공)
+#                 + sed 's/^numpy.*/numpy<2/' (torch 2.0.x ABI 호환 위해 numpy<2 강제)
+# 주의(로컬/비-Docker 재현용): 아래 torch==2.12.0 / numpy==2.4.6 는 dev 환경 기준
+#   핀입니다. Docker 빌드 시에는 torch/torchvision 이 strip 되고 numpy 는 <2 로
+#   치환되므로 운영(Docker)과 핀이 다릅니다.
+# ============================================================================
+annotated-doc==0.0.4
+    # via
+    #   fastapi
+    #   typer
+annotated-types==0.7.0
+    # via pydantic
+anyio==4.13.0
+    # via
+    #   httpx
+    #   starlette
+    #   watchfiles
+certifi==2026.5.20
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
+charset-normalizer==3.4.7
+    # via requests
+click==8.4.1
+    # via
+    #   huggingface-hub
+    #   typer
+    #   uvicorn
+contourpy==1.3.3
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
+defusedxml==0.7.1
+    # via supervision
+fastapi==0.137.0
+    # via -r requirements.in
+filelock==3.29.4
+    # via
+    #   huggingface-hub
+    #   torch
+fonttools==4.63.0
+    # via matplotlib
+fsspec==2026.4.0
+    # via
+    #   huggingface-hub
+    #   torch
+h11==0.16.0
+    # via
+    #   httpcore
+    #   uvicorn
+hf-xet==1.5.1
+    # via huggingface-hub
+httpcore==1.0.9
+    # via httpx
+httptools==0.8.0
+    # via uvicorn
+httpx==0.28.1
+    # via
+    #   -r requirements.in
+    #   huggingface-hub
+huggingface-hub==1.19.0
+    # via
+    #   tokenizers
+    #   transformers
+idna==3.18
+    # via
+    #   anyio
+    #   httpx
+    #   requests
+iniconfig==2.3.0
+    # via pytest
+jinja2==3.1.6
+    # via torch
+kiwisolver==1.5.0
+    # via matplotlib
+markdown-it-py==4.2.0
+    # via rich
+markupsafe==3.0.3
+    # via jinja2
+matplotlib==3.11.0
+    # via
+    #   supervision
+    #   ultralytics
+mdurl==0.1.2
+    # via markdown-it-py
+mpmath==1.3.0
+    # via sympy
+networkx==3.6.1
+    # via torch
+numpy==2.4.6
+    # via
+    #   -r requirements.in
+    #   contourpy
+    #   matplotlib
+    #   opencv-python
+    #   scipy
+    #   supervision
+    #   torchvision
+    #   trackers
+    #   transformers
+    #   ultralytics
+    #   ultralytics-thop
+nvidia-ml-py==13.610.43
+    # via ultralytics
+opencv-python==4.13.0.92
+    # via
+    #   -r requirements.in
+    #   supervision
+    #   trackers
+    #   ultralytics
+packaging==26.2
+    # via
+    #   huggingface-hub
+    #   matplotlib
+    #   pytest
+    #   transformers
+pillow==12.2.0
+    # via
+    #   -r requirements.in
+    #   matplotlib
+    #   supervision
+    #   torchvision
+    #   ultralytics
+pluggy==1.6.0
+    # via pytest
+polars==1.41.2
+    # via ultralytics
+polars-runtime-32==1.41.2
+    # via polars
+psutil==7.2.2
+    # via ultralytics
+pydantic==2.13.4
+    # via
+    #   -r requirements.in
+    #   fastapi
+    #   pydantic-settings
+pydantic-core==2.46.4
+    # via pydantic
+pydantic-settings==2.14.1
+    # via -r requirements.in
+pydeprecate==0.7.0
+    # via supervision
+pygments==2.20.0
+    # via
+    #   pytest
+    #   rich
+pyparsing==3.3.2
+    # via matplotlib
+pytest==9.1.0
+    # via
+    #   -r requirements.in
+    #   pytest-asyncio
+pytest-asyncio==1.4.0
+    # via -r requirements.in
+python-dateutil==2.9.0.post0
+    # via matplotlib
+python-dotenv==1.2.2
+    # via
+    #   pydantic-settings
+    #   uvicorn
+python-multipart==0.0.32
+    # via -r requirements.in
+pyyaml==6.0.3
+    # via
+    #   huggingface-hub
+    #   supervision
+    #   transformers
+    #   ultralytics
+    #   uvicorn
+regex==2026.5.9
+    # via transformers
+requests==2.34.2
+    # via
+    #   supervision
+    #   trackers
+    #   ultralytics
+rich==15.0.0
+    # via
+    #   trackers
+    #   typer
+safetensors==0.8.0
+    # via transformers
+scipy==1.17.1
+    # via
+    #   supervision
+    #   trackers
+    #   ultralytics
+shellingham==1.5.4
+    # via typer
+six==1.17.0
+    # via python-dateutil
+starlette==1.3.1
+    # via fastapi
+supervision==0.28.0
+    # via
+    #   -r requirements.in
+    #   trackers
+sympy==1.14.0
+    # via torch
+tokenizers==0.22.2
+    # via transformers
+torch==2.12.0
+    # via
+    #   -r requirements.in
+    #   torchvision
+    #   ultralytics
+    #   ultralytics-thop
+torchvision==0.27.0
+    # via
+    #   -r requirements.in
+    #   ultralytics
+tqdm==4.68.2
+    # via
+    #   huggingface-hub
+    #   supervision
+    #   transformers
+trackers==2.4.0
+    # via -r requirements.in
+transformers==5.12.0
+    # via -r requirements.in
+typer==0.25.1
+    # via
+    #   huggingface-hub
+    #   transformers
+typing-extensions==4.15.0
+    # via
+    #   anyio
+    #   fastapi
+    #   huggingface-hub
+    #   pydantic
+    #   pydantic-core
+    #   pytest-asyncio
+    #   starlette
+    #   torch
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via
+    #   fastapi
+    #   pydantic
+    #   pydantic-settings
+ultralytics==8.4.67
+    # via -r requirements.in
+ultralytics-thop==2.0.20
+    # via ultralytics
+urllib3==2.7.0
+    # via requests
+uvicorn[standard]==0.49.0
+    # via -r requirements.in
+uvloop==0.22.1
+    # via uvicorn
+watchfiles==1.2.0
+    # via uvicorn
+websockets==16.0
+    # via uvicorn
 
-# AI 모델
-# 탐지 백엔드는 detector_backend 설정으로 전환:
-#  - yolo (기본): ultralytics YOLOv8 + 내장 BoT-SORT
-#  - rtdetr     : RT-DETRv2 (transformers) + ByteTrack (supervision)
-ultralytics>=8.2.0
-transformers>=4.48,<6   # RT-DETRv2 (RTDetrV2ForObjectDetection) — lazy import, rtdetr 백엔드 전용. RTDetrV2 도입 4.48+ / v6 미검증 차단
-supervision>=0.22,<0.30    # ByteTrack (MIT) — lazy import, rtdetr 트래킹 전용. ByteTrack 0.30 제거 예정 차단
-torch>=2.2.0
-torchvision>=0.17.0
-opencv-python>=4.9.0
-pillow>=10.2.0
-numpy>=1.26.0
-
-# 테스트
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
-httpx>=0.27.0
-
-# 운영 배포 시 pip-compile 등으로 lock 파일 생성 권장 (재현 가능 빌드)
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

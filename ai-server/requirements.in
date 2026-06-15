@@ -1,0 +1,33 @@
+# ============================================================================
+# ai-server 의존성 source of truth (사람이 편집하는 파일)
+#   - 이 파일을 수정한 뒤 아래 명령으로 requirements.txt(lock)를 재생성한다:
+#       .venv/bin/pip-compile --no-header --output-file requirements.txt requirements.in
+#   - requirements.txt 는 컴파일된 lock 이므로 직접 편집하지 말 것.
+#   - --generate-hashes 사용 금지: Dockerfile 이 requirements.txt 를 grep/sed 로
+#     munging(torch/torchvision strip + numpy<2 강제)하므로 --hash 와 충돌한다.
+# ============================================================================
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+python-multipart>=0.0.9
+
+# AI 모델
+# 탐지 백엔드는 detector_backend 설정으로 전환:
+#  - yolo (기본): ultralytics YOLOv8 + 내장 BoT-SORT
+#  - rtdetr     : RT-DETRv2 (transformers) + ByteTrack (roboflow trackers)
+ultralytics>=8.2.0
+transformers>=4.48,<6   # RT-DETRv2 (RTDetrV2ForObjectDetection) — lazy import, rtdetr 백엔드 전용. RTDetrV2 도입 4.48+ / v6 미검증 차단
+trackers>=2.0    # ByteTrackTracker (Apache-2.0) — lazy import, rtdetr 트래킹 전용. supervision 0.30 에서 제거 예정인 sv.ByteTrack 대체
+supervision>=0.26    # sv.Detections 변환 전용 (trackers 호환) — lazy import. sv.ByteTrack 미사용이므로 <0.30 상한 제거. (trackers 가 supervision>=0.26.1 요구)
+torch>=2.2.0
+torchvision>=0.17.0
+opencv-python>=4.9.0
+pillow>=10.2.0
+numpy>=1.26.0
+
+# 테스트
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+httpx>=0.27.0

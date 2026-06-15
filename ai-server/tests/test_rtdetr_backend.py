@@ -469,9 +469,9 @@ def test_rtdetr_track_tracker_id가_적게_반환되면_WARN하고_누락분은_
     fake_sv.Detections = lambda **kwargs: types.SimpleNamespace(**kwargs)  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "supervision", fake_sv)
 
-    # 입력 2건인데 tracker_id 1건만 반환하는 가짜 ByteTrack
+    # 입력 2건인데 tracker_id 1건만 반환하는 가짜 ByteTrackTracker (신규 update() API)
     class _TruncTracker:
-        def update_with_detections(self, sv_dets):
+        def update(self, sv_dets):
             return types.SimpleNamespace(tracker_id=np.array([7], dtype=int))
 
     monkeypatch.setattr(backend, "_ensure_tracker", lambda reset: _TruncTracker())
@@ -528,3 +528,180 @@ def test_rtdetr_coco_id2label_person_car_매핑(monkeypatch) -> None:
     # transformers 가 제공한 id2label 우선
     assert coco_label_from_id(0, {0: "person"}) == "person"
     assert coco_label_from_id(7, {7: "truck"}) == "truck"
+
+
+# ────────────────────────────────────────────────────────────────────
+# 성능 리팩토링 — 싱글톤 모델 공유 + clip 별 경량 트래커 분리
+# ────────────────────────────────────────────────────────────────────
+
+class _CountingSingletonModel:
+    """공유 싱글톤 모델 stub — predict 호출 시 detection 1건 반환."""
+
+    def predict(self, img, params):
+        from app.models.detector_backend import DetectionResult
+
+        return [DetectionResult(label="person", points=[0.0, 0.0, 1.0, 1.0], score=0.9, track_id=None)]
+
+
+def test_rtdetr_여러_clip_track시_모델_build는_1회만_일어난다(monkeypatch) -> None:
+    """리팩토링 핵심: clip 이 여러 개여도 무거운 RT-DETR 모델 build 는 1회만(싱글톤 공유)."""
+    rtdetr_loader.reset_rtdetr_model()
+    rtdetr_loader.reset_rtdetr_trackers()
+    monkeypatch.setenv("AI_MOCK_MODE", "false")
+    reload_settings()
+
+    build_calls = {"n": 0}
+
+    def _fake_build():
+        build_calls["n"] += 1
+        return _CountingSingletonModel()
+
+    # 싱글톤 모델 build 카운트
+    monkeypatch.setattr(rtdetr_loader, "_build_rtdetr_backend", _fake_build)
+    # 트래커는 실제 trackers 의존 없이 동작하도록 None(=track_id 미부여) 으로 graceful
+    monkeypatch.setattr(rtdetr_loader, "_new_bytetrack_tracker", lambda: None)
+
+    from app.models.detector_backend import InferenceParams
+
+    for clip in ("clip-A", "clip-B", "clip-C"):
+        handle = rtdetr_loader.get_rtdetr_tracker(clip, reset=True)
+        assert handle is not None
+        dets = handle.track(object(), InferenceParams(clip_id=clip, frame_index=0))
+        assert dets and dets[0].label == "person"
+
+    # 3개 clip 을 트래킹했지만 무거운 모델 build 는 1회만
+    assert build_calls["n"] == 1
+
+
+def test_rtdetr_clip별_경량_트래커가_분리된다(monkeypatch) -> None:
+    """clip 별 트래커 핸들이 각자 독립된 ByteTrackTracker 상태를 보유한다."""
+    rtdetr_loader.reset_rtdetr_model()
+    rtdetr_loader.reset_rtdetr_trackers()
+    monkeypatch.setattr(rtdetr_loader, "get_rtdetr_mock_reason", lambda: None)
+
+    created_trackers: list[object] = []
+
+    def _fake_new_tracker():
+        t = object()
+        created_trackers.append(t)
+        return t
+
+    monkeypatch.setattr(rtdetr_loader, "_new_bytetrack_tracker", _fake_new_tracker)
+
+    a = rtdetr_loader.get_rtdetr_tracker("clip-A", reset=True)
+    b = rtdetr_loader.get_rtdetr_tracker("clip-B", reset=True)
+
+    assert isinstance(a, rtdetr_loader._RtdetrTrackerHandle)
+    assert a is not b
+    # 핸들마다 자체 트래커 상태를 보유 → 분리됨
+    assert a._tracker is not b._tracker
+    assert len(created_trackers) == 2
+
+
+def test_rtdetr_handle_track가_싱글톤_모델로_탐지하고_바이트트랙으로_id부여(monkeypatch) -> None:
+    """핸들.track() 은 공유 모델로 탐지 후 ByteTrackTracker.update() 로 track_id 부여."""
+    rtdetr_loader.reset_rtdetr_model()
+
+    # 공유 싱글톤 모델 stub (2건 detection)
+    from app.models.detector_backend import DetectionResult, InferenceParams
+
+    class _Model:
+        def predict(self, img, params):
+            return [
+                DetectionResult(label="person", points=[0.0, 0.0, 1.0, 1.0], score=0.9, track_id=None),
+                DetectionResult(label="car", points=[2.0, 2.0, 3.0, 3.0], score=0.8, track_id=None),
+            ]
+
+    monkeypatch.setattr(rtdetr_loader, "get_rtdetr_model", lambda: _Model())
+
+    # supervision sv.Detections 변환용 가짜
+    fake_sv = types.ModuleType("supervision")
+    fake_sv.Detections = lambda **kwargs: types.SimpleNamespace(**kwargs)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "supervision", fake_sv)
+
+    import numpy as np
+
+    # 신규 update() API + 미확정 트랙(-1)은 None 으로 정규화되는지 검증
+    class _FakeByteTrackTracker:
+        def update(self, sv_dets):
+            return types.SimpleNamespace(tracker_id=np.array([5, -1], dtype=int))
+
+    monkeypatch.setattr(rtdetr_loader, "_new_bytetrack_tracker", lambda: _FakeByteTrackTracker())
+
+    handle = rtdetr_loader._RtdetrTrackerHandle()
+    result = handle.track(object(), InferenceParams(frame_index=0))
+
+    assert len(result) == 2
+    assert result[0].track_id == 5      # 확정 트랙 → 정수 부여
+    assert result[1].track_id is None   # 미확정(-1) → None 정규화
+
+
+def test_rtdetr_handle_track_트래커_미설치시_graceful_track_id_None(monkeypatch) -> None:
+    """trackers 미설치(_new_bytetrack_tracker=None) 시 크래시 없이 track_id 미부여."""
+    rtdetr_loader.reset_rtdetr_model()
+    from app.models.detector_backend import DetectionResult, InferenceParams
+
+    class _Model:
+        def predict(self, img, params):
+            return [DetectionResult(label="person", points=[0.0, 0.0, 1.0, 1.0], score=0.9, track_id=None)]
+
+    monkeypatch.setattr(rtdetr_loader, "get_rtdetr_model", lambda: _Model())
+    monkeypatch.setattr(rtdetr_loader, "_new_bytetrack_tracker", lambda: None)
+
+    handle = rtdetr_loader._RtdetrTrackerHandle()
+    result = handle.track(object(), InferenceParams(frame_index=0))
+    assert len(result) == 1
+    assert result[0].track_id is None
+
+
+# ────────────────────────────────────────────────────────────────────
+# class_id 라벨 기반 안정 매핑 — Issue (LOW) class_id 하드코딩 제거
+# ────────────────────────────────────────────────────────────────────
+
+def test_coco_id_from_label_person과_car는_서로_다른_안정_정수다() -> None:
+    """label→class_id 매핑이 COCO 표준 id 로 안정적으로 분리된다(person=0, car=2)."""
+    from app.models.detector_backend import coco_id_from_label
+
+    assert coco_id_from_label("person") == 0
+    assert coco_id_from_label("car") == 2
+    assert coco_id_from_label("person") != coco_id_from_label("car")
+    # 미지의 라벨도 결정적(동일 라벨 → 동일 정수) + COCO 범위와 비충돌
+    unknown = coco_id_from_label("unknown_thing")
+    assert unknown == coco_id_from_label("unknown_thing")
+    assert unknown >= 80
+
+
+def test_rtdetr_bytetrack에_서로_다른_라벨은_다른_class_id로_전달된다(monkeypatch) -> None:
+    """Issue(class_id 하드코딩): person/car 가 ByteTrackTracker 에 서로 다른 class_id 로 전달된다.
+
+    기존엔 class_id 가 전부 0 으로 하드코딩되어 클래스별 트랙 분리 시 ID 충돌 위험이 있었다.
+    """
+    from app.models.detector_backend import DetectionResult
+
+    dets = [
+        DetectionResult(label="person", points=[0.0, 0.0, 1.0, 1.0], score=0.9, track_id=None),
+        DetectionResult(label="car", points=[2.0, 2.0, 3.0, 3.0], score=0.8, track_id=None),
+    ]
+
+    # supervision sv.Detections 변환용 가짜 — class_id 를 캡처
+    fake_sv = types.ModuleType("supervision")
+    fake_sv.Detections = lambda **kwargs: types.SimpleNamespace(**kwargs)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "supervision", fake_sv)
+
+    captured: dict[str, Any] = {}
+
+    import numpy as np
+
+    class _CapturingTracker:
+        def update(self, sv_dets):
+            captured["class_id"] = list(sv_dets.class_id)
+            return types.SimpleNamespace(tracker_id=np.array([1, 2], dtype=int))
+
+    rtdetr_loader._apply_bytetrack(dets, _CapturingTracker())
+
+    class_ids = captured["class_id"]
+    assert len(class_ids) == 2
+    # person 과 car 가 서로 다른 class_id 로 전달되어야 한다 (전부 0 하드코딩 회귀 방지)
+    assert class_ids[0] != class_ids[1]
+    assert class_ids[0] == 0  # person → COCO 0
+    assert class_ids[1] == 2  # car → COCO 2

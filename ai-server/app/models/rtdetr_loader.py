@@ -1,18 +1,31 @@
 """RT-DETRv2 탐지 백엔드 로더 + ByteTrack 트래커 LRU/TTL 캐시.
 
 yolo_loader 와 동일한 구조(싱글톤 + LRU max10 + TTL 300s + mock 사유 + WARN-once)를
-RT-DETR(transformers) + ByteTrack(supervision) 백엔드로 구현한다.
+RT-DETR(transformers) + ByteTrack(roboflow `trackers`) 백엔드로 구현한다.
+
+성능 구조 (싱글톤 모델 공유 + 경량 트래커 분리):
+- RT-DETR 전체 모델은 **싱글톤으로 1회 로드해 공유**한다(get_rtdetr_model). 무거운 모델을
+  clip 마다 재로드하지 않는다.
+- clip_id 별로는 **가벼운 ByteTrackTracker 상태만** LRU/TTL 캐시에 담는다(_RtdetrTrackerHandle).
+  탐지(predict)는 공유 싱글톤 모델로 1회 수행하고, track ID 부여만 clip 별 트래커로 한다.
+
+트래커 마이그레이션 (deprecated 제거):
+- supervision 0.30 에서 제거 예정인 sv.ByteTrack(update_with_detections) 대신
+  roboflow `trackers` 패키지(Apache-2.0)의 ByteTrackTracker.update() 를 사용한다.
+- 입력 detection 변환에는 여전히 supervision 의 sv.Detections 를 사용한다(trackers 호환).
+- ByteTrackTracker.update() 는 sv.Detections 를 그대로 반환하며 tracker_id 의 -1 은
+  '미확정 트랙'을 의미하므로 track_id=None 으로 매핑한다.
 
 mock 사유 (yolo 와 동일 체계):
 - "env_mock"        : AI_MOCK_MODE=true 환경변수 강제
 - "weights_missing" : (RT-DETR 은 HF Hub 자동 다운로드라 거의 없음 — 호환 위해 보유)
-- "load_failed"     : transformers/supervision 미설치 또는 모델 로드 중 예외
+- "load_failed"     : transformers/trackers 미설치 또는 모델 로드 중 예외
 - None              : 정상 로드됨 (실제 모델)
 
 Critical:
-- transformers/supervision 는 무거우므로 **반드시 lazy import** (모듈 최상단 import 금지).
+- transformers/supervision/trackers 는 무거우므로 **반드시 lazy import** (모듈 최상단 import 금지).
 - 기본 backend=yolo 경로는 이 모듈을 import 하지만, get_rtdetr_model() 을 호출하지
-  않는 한 transformers 를 import 하지 않는다.
+  않는 한 transformers/trackers 를 import 하지 않는다.
 - import/로드 실패 시 크래시 금지 → load_failed mock 사유로 None 반환.
 """
 
@@ -28,6 +41,7 @@ from app.config import get_settings
 from app.models.detector_backend import (
     DetectionResult,
     InferenceParams,
+    coco_id_from_label,
     coco_label_from_id,
 )
 
@@ -36,6 +50,9 @@ logger = logging.getLogger(__name__)
 _rtdetr_backend: Any | None = None
 _loaded: bool = False
 _mock_reason: str | None = None
+# 싱글톤 초기화 보호 — get_rtdetr_model 의 double-checked locking 용.
+# 멀티스레드 첫 호출 시 무거운 모델이 중복 빌드되지 않도록 한다.
+_MODEL_LOCK = threading.Lock()
 
 # ───────────────── 트래커 캐시 (영상 단위 격리, yolo_loader 와 동일 정책) ─────────────────
 # clip_id → (backend, last_access_ts)
@@ -44,18 +61,25 @@ _TRACKERS_LOCK = threading.Lock()
 _MAX_TRACKERS: int = 10
 _TRACKER_TTL_SEC: float = 300.0  # 5분
 
+# ByteTrackTracker import 실패 WARN-once (yolo router 의 _mock_warned 패턴과 일관).
+# trackers 미설치 등으로 생성 실패 시 매 호출 WARN 하지 않고 프로세스당 1회만 출력한다.
+_tracker_unavailable_warned: bool = False
+
 
 # ────────────────────────────────────────────────────────────────────
 # RT-DETR 백엔드 구현 (실제 추론) — predict/track
 # ────────────────────────────────────────────────────────────────────
 
 class _RtdetrBackend:
-    """transformers RT-DETRv2 추론 + (옵션) supervision ByteTrack.
+    """transformers RT-DETRv2 추론 (싱글톤 공유 모델).
 
     - predict: AutoImageProcessor + RTDetrV2ForObjectDetection
       → post_process_object_detection(threshold=conf) → DetectionResult 목록
-    - track: predict 결과를 sv.Detections 로 변환 → ByteTrack.update_with_detections
-      → tracker_id 를 track_id 에 매핑. supervision 미설치 시 track_id=None 으로 graceful.
+    - track: 자체 탐지 후 인스턴스-로컬 ByteTrackTracker 로 track_id 부여(레거시 호환 경로).
+      운영 경로(라우터)는 싱글톤 모델 + clip 별 _RtdetrTrackerHandle 을 사용하므로 이 메서드는
+      더 이상 호출하지 않지만, 직접 사용/테스트 호환을 위해 유지한다.
+
+    무거운 모델 인스턴스라 clip 마다 재로드하지 않고 싱글톤으로 1회만 생성해 공유한다.
     """
 
     def __init__(
@@ -108,51 +132,113 @@ class _RtdetrBackend:
         return self._infer_raw(img, params)
 
     def track(self, img: object, params: InferenceParams) -> list[DetectionResult]:
+        """레거시/직접 호출 호환 경로 — 자체 탐지 + 인스턴스-로컬 트래커.
+
+        운영 라우터는 싱글톤 모델 + clip 별 _RtdetrTrackerHandle 을 쓰므로 이 메서드는
+        직접 사용/하위 호환 시에만 동작한다.
+        """
         dets = self._infer_raw(img, params)
         tracker = self._ensure_tracker(reset=(params.frame_index == 0))
         if tracker is None or not dets:
             return dets
-
-        try:
-            import numpy as np  # noqa: WPS433 (lazy)
-            import supervision as sv  # noqa: WPS433 (lazy)
-
-            sv_dets = sv.Detections(
-                xyxy=np.array([d.points for d in dets], dtype=float),
-                confidence=np.array([d.score for d in dets], dtype=float),
-                class_id=np.array([0 for _ in dets], dtype=int),
-            )
-            tracked = tracker.update_with_detections(sv_dets)
-            tracker_ids = list(tracked.tracker_id) if tracked.tracker_id is not None else []
-            # ByteTrack 은 내부 필터링으로 입력 detection 과 길이가 달라질 수 있다.
-            # 조용한 truncate 를 막기 위해 길이 불일치를 명시적으로 WARN 하고,
-            # 매핑되지 않은 detection 의 track_id 는 None 으로 보존한다(strict=False 효과).
-            if len(tracker_ids) != len(dets):
-                logger.warning(
-                    "[RTDETR] bytetrack tracker_id 길이 불일치 dets=%d tracker_ids=%d "
-                    "— 누락분 track_id=None 유지",
-                    len(dets),
-                    len(tracker_ids),
-                )
-            for det, tid in zip(dets, tracker_ids):  # 짧은 쪽 길이만큼만 매핑
-                det.track_id = int(tid) if tid is not None else None
-        except Exception as exc:  # noqa: BLE001 — 트래킹 실패는 graceful (track_id 미부여)
-            logger.warning("[RTDETR] bytetrack update failed type=%s", type(exc).__name__)
+        _apply_bytetrack(dets, tracker)
         return dets
 
     def _ensure_tracker(self, reset: bool) -> Any | None:
         if reset or self._tracker is None:
-            try:
-                import supervision as sv  # noqa: WPS433 (lazy)
-
-                self._tracker = sv.ByteTrack()
-            except Exception as exc:  # noqa: BLE001 — supervision 미설치 시 graceful fallback
-                logger.warning(
-                    "[RTDETR] supervision(ByteTrack) unavailable type=%s — track_id 미부여",
-                    type(exc).__name__,
-                )
-                self._tracker = None
+            self._tracker = _new_bytetrack_tracker()
         return self._tracker
+
+
+# ────────────────────────────────────────────────────────────────────
+# ByteTrack (roboflow trackers) 헬퍼 — lazy import, graceful fallback
+# ────────────────────────────────────────────────────────────────────
+
+def _new_bytetrack_tracker() -> Any | None:
+    """roboflow `trackers` 의 ByteTrackTracker 인스턴스 1개를 생성.
+
+    미설치/로드실패 시 None 반환(graceful — track_id 미부여). lazy import 라
+    기본 yolo 경로는 trackers 를 import 하지 않는다.
+    """
+    global _tracker_unavailable_warned
+    try:
+        from trackers import ByteTrackTracker  # noqa: WPS433 (lazy)
+
+        return ByteTrackTracker()
+    except Exception as exc:  # noqa: BLE001 — trackers 미설치 시 graceful fallback
+        # WARN-once: 미설치 환경에서 clip 마다 반복 경고하지 않고 프로세스당 1회만.
+        if not _tracker_unavailable_warned:
+            logger.warning(
+                "[RTDETR] trackers(ByteTrackTracker) unavailable type=%s — track_id 미부여",
+                type(exc).__name__,
+            )
+            _tracker_unavailable_warned = True
+        return None
+
+
+def _apply_bytetrack(dets: list[DetectionResult], tracker: Any) -> None:
+    """dets 를 sv.Detections 로 변환 → tracker.update() → track_id 를 in-place 부여.
+
+    - 입력 변환에는 supervision sv.Detections 를 계속 사용(trackers 호환).
+    - ByteTrackTracker.update() 는 sv.Detections 를 반환하며 tracker_id 의 -1 은
+      '미확정 트랙'이므로 None 으로 매핑한다.
+    - 길이 불일치(필터링 등)는 WARN + 누락분 track_id=None 보존(조용한 truncate 방지).
+    - 실패는 graceful (track_id 미부여) — 예외를 밖으로 던지지 않는다.
+    """
+    if not dets:
+        return
+    try:
+        import numpy as np  # noqa: WPS433 (lazy)
+        import supervision as sv  # noqa: WPS433 (lazy)
+
+        # class_id 를 라벨 기반 안정 정수로 매핑 — ByteTrackTracker 가 클래스별 트랙 공간을
+        # 분리하는 경우 person/car 등 다른 클래스의 track ID 가 충돌하지 않도록 한다(CCTV 다중 클래스).
+        sv_dets = sv.Detections(
+            xyxy=np.array([d.points for d in dets], dtype=float),
+            confidence=np.array([d.score for d in dets], dtype=float),
+            class_id=np.array([coco_id_from_label(d.label) for d in dets], dtype=int),
+        )
+        tracked = tracker.update(sv_dets)
+        tracker_ids = list(tracked.tracker_id) if tracked.tracker_id is not None else []
+        if len(tracker_ids) != len(dets):
+            logger.warning(
+                "[RTDETR] bytetrack tracker_id 길이 불일치 dets=%d tracker_ids=%d "
+                "— 누락분 track_id=None 유지",
+                len(dets),
+                len(tracker_ids),
+            )
+        for det, tid in zip(dets, tracker_ids):  # 짧은 쪽 길이만큼만 매핑
+            # ByteTrackTracker 는 미확정 트랙에 -1 을 부여한다 → None 으로 정규화
+            det.track_id = int(tid) if tid is not None and int(tid) >= 0 else None
+    except Exception as exc:  # noqa: BLE001 — 트래킹 실패는 graceful (track_id 미부여)
+        logger.warning("[RTDETR] bytetrack update failed type=%s", type(exc).__name__)
+
+
+class _RtdetrTrackerHandle:
+    """clip_id 별 경량 트래커 상태 핸들.
+
+    무거운 RT-DETR 모델은 보유하지 않고 **싱글톤 모델을 공유**하며, 자신은 clip 전용
+    ByteTrackTracker 상태만 보유한다(캐시에 담기는 가벼운 객체). track() 호출 시
+    공유 모델로 탐지 후 자신의 트래커로 track_id 를 부여한다.
+    """
+
+    def __init__(self) -> None:
+        self._tracker: Any | None = _new_bytetrack_tracker()
+
+    # 주: 운영 경로(get_rtdetr_tracker)는 reset=True(frame_index=0) 시 핸들을 통째로
+    # 새로 생성해 교체하므로(테스트 계약: 매 reset 마다 새 핸들), 이 핸들 내부에는 별도
+    # reset() 메서드를 두지 않는다. 트래커 상태 초기화 = 새 핸들 생성으로 일원화한다.
+
+    def track(self, img: object, params: InferenceParams) -> list[DetectionResult]:
+        """공유 싱글톤 모델로 탐지 → 이 핸들의 트래커로 track_id 부여."""
+        model = get_rtdetr_model()
+        if model is None:
+            return []
+        dets = model.predict(img, params)
+        if self._tracker is None or not dets:
+            return dets
+        _apply_bytetrack(dets, self._tracker)
+        return dets
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -196,28 +282,40 @@ def _build_rtdetr_backend() -> _RtdetrBackend:
 
 
 def get_rtdetr_model() -> Any | None:
-    """RT-DETR 백엔드 싱글톤. mock 모드/로드 실패 시 None 반환."""
+    """RT-DETR 백엔드 싱글톤. mock 모드/로드 실패 시 None 반환.
+
+    double-checked locking: 락 밖 빠른 경로(_loaded)로 정상 호출은 락 비용 없이 통과하고,
+    초기화는 _MODEL_LOCK 안에서 _loaded 재확인 후 1회만 수행한다(멀티스레드 중복 빌드 방지).
+    """
     global _rtdetr_backend, _loaded, _mock_reason
+    # 빠른 경로 — 이미 로드 완료면 락 없이 즉시 반환
     if _loaded:
         return _rtdetr_backend
 
-    settings = get_settings()
-    if settings.ai_mock_mode:
-        logger.info("[RTDETR] mock mode (env) — model load skipped")
-        _mock_reason = "env_mock"
-        _loaded = True
-        return None
+    with _MODEL_LOCK:
+        # 락 진입 사이 다른 스레드가 초기화했을 수 있으므로 재확인
+        if _loaded:
+            return _rtdetr_backend
 
-    try:
-        _rtdetr_backend = _build_rtdetr_backend()
-        _mock_reason = None
-        _loaded = True
-        return _rtdetr_backend
-    except Exception as exc:  # noqa: BLE001 — 미설치/로드실패 모두 크래시 금지
-        logger.exception("[RTDETR] load failed type=%s — fallback to mock", type(exc).__name__)
-        _mock_reason = "load_failed"
-        _loaded = True
-        return None
+        settings = get_settings()
+        if settings.ai_mock_mode:
+            logger.info("[RTDETR] mock mode (env) — model load skipped")
+            _mock_reason = "env_mock"
+            _loaded = True
+            return None
+
+        try:
+            _rtdetr_backend = _build_rtdetr_backend()
+            _mock_reason = None
+            _loaded = True
+            return _rtdetr_backend
+        except Exception as exc:  # noqa: BLE001 — 미설치/로드실패 모두 크래시 금지
+            logger.exception(
+                "[RTDETR] load failed type=%s — fallback to mock", type(exc).__name__
+            )
+            _mock_reason = "load_failed"
+            _loaded = True
+            return None
 
 
 def get_rtdetr_mock_reason() -> str | None:
@@ -238,12 +336,13 @@ def reset_rtdetr_model() -> None:
 # ────────────────────────────────────────────────────────────────────
 
 def _create_fresh_rtdetr_tracker() -> Any:
-    """새 RT-DETR 백엔드 인스턴스를 로드한다 (테스트는 monkeypatch 로 대체).
+    """clip 전용 경량 트래커 핸들을 생성한다 (테스트는 monkeypatch 로 대체).
 
-    호출 전 get_rtdetr_mock_reason() 이 None 임을 보장해야 한다.
-    각 clip 인스턴스가 자체 ByteTrack 상태를 보유하여 영상 단위로 격리된다.
+    무거운 RT-DETR 모델은 싱글톤(get_rtdetr_model)으로 공유하므로 여기서는 다시 로드하지
+    않는다. 각 핸들은 clip 전용 ByteTrackTracker 상태만 보유하여 영상 단위로 격리된다.
+    호출 전 get_rtdetr_mock_reason() 이 None 임(=싱글톤 모델 사용 가능)을 보장해야 한다.
     """
-    return _build_rtdetr_backend()
+    return _RtdetrTrackerHandle()
 
 
 def _evict_expired_locked(now: float) -> None:
@@ -300,5 +399,7 @@ def get_rtdetr_tracker(clip_id: str, reset: bool) -> Any | None:
 
 def reset_rtdetr_trackers() -> None:
     """테스트용 — 트래커 캐시 전체 초기화."""
+    global _tracker_unavailable_warned
     with _TRACKERS_LOCK:
         _TRACKERS.clear()
+    _tracker_unavailable_warned = False
