@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.TrainingVideoIngestService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,8 @@ class BatchDevTriggerControllerTest {
     private BatchOrchestrator orchestrator;
     @Mock
     private VideoRepository videoRepository;
+    @Mock
+    private TrainingVideoIngestService trainingVideoIngestService;
 
     @InjectMocks
     private BatchDevTriggerController controller;
@@ -133,6 +136,29 @@ class BatchDevTriggerControllerTest {
 
         assertThat(response.success()).isTrue();
         assertThat(response.data()).containsExactly(101L, 102L);
+    }
+
+    @Test
+    @DisplayName("scan_트리거시_TrainingVideoIngestService_scanAndIngest_호출후_적재건수_200_반환")
+    void scan_invokesScanAndIngest_returnsIngestedCount() {
+        given(trainingVideoIngestService.scanAndIngest()).willReturn(2);
+
+        ApiResponse<Integer> response = controller.scan();
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data()).isEqualTo(2);
+        verify(trainingVideoIngestService).scanAndIngest();
+    }
+
+    @Test
+    @DisplayName("scan_트리거시_픽업_대상이_없으면_0건_200_반환")
+    void scan_noCandidates_returnsZero() {
+        given(trainingVideoIngestService.scanAndIngest()).willReturn(0);
+
+        ApiResponse<Integer> response = controller.scan();
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data()).isZero();
     }
 
     private static long anyLong() {

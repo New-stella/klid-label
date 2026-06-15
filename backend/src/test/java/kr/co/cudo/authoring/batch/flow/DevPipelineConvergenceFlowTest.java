@@ -88,7 +88,8 @@ class DevPipelineConvergenceFlowTest {
         sam2Step = mock(Sam2SegmentStep.class);
         interpStep = mock(TrackInterpolationStep.class);
 
-        transitionService = new BatchTransitionService(statusRepository, videoRepository);
+        transitionService = new BatchTransitionService(statusRepository, videoRepository,
+                mock(kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository.class));
 
         BatchRetryQueue retryQueue = new BatchRetryQueue(3, 60);
         orchestrator = new BatchOrchestrator(

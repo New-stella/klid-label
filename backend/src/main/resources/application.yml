@@ -125,6 +125,9 @@ authoring:
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}
       timeout-ms: 30000
+      # Phase 1 — mock-mode 는 application-local.yml 에서만 true 로 켠다. 공통 yml 에서 env 오버라이드
+      #   (${DEIDENTIFY_MOCK_MODE:...}) 를 제거해 비-local 환경에서 env 로 강제 활성화하는 경로를 차단(HIGH-1).
+      #   미설정 기본값 false 는 @Value("${...:false}") 가 제공. DeidentifyStep 게이트가 순수 local 만 추가 검증.
     ai-server:
       base-url: ${AI_SERVER_URL:http://localhost:9300}
       timeout-ms: 60000

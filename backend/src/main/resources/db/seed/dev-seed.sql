@@ -45,6 +45,12 @@ DELETE FROM LS_TASK_ASSIGN_HISTORY WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
 DELETE FROM LS_TASK_ASSIGNMENT WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
 DELETE FROM LS_RAW_DATA_ENROLLMENT WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
 DELETE FROM LS_DATA_RAW WHERE RAW_SN BETWEEN 9001 AND 9999;
+-- 관제 학습용 픽업 시드(DEV-CLIP-*)로 적재된 LS_DATA_RAW 도 재적재 멱등을 위해 정리
+--   (scan 트리거가 CLIP_ID 멱등키로 중복 차단하지만, 시드 재실행 시 깨끗한 상태에서 다시 픽업 가능하게).
+DELETE FROM LS_DATA_RAW WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%';
+-- 관제 공유 클립 stub 시드(DEV-EVT-*) 정리 — 자식(EVNT_LST) → 부모(MASTER) 순.
+DELETE FROM MNG_CLIP_EVNT_LST WHERE EVNT_ID LIKE 'DEV-EVT-%';
+DELETE FROM MNG_CLIP_MASTER WHERE EVNT_ID LIKE 'DEV-EVT-%';
 DELETE FROM LS_LABEL WHERE LBL_NM IN
     ('person','car','bicycle','motorbike','bus','truck','animal',
      'fire','smoke','water','fallen-person','vehicle-accident','object');
@@ -74,12 +80,15 @@ ON CONFLICT (USER_NO) DO UPDATE SET
     USE_YN     = EXCLUDED.USE_YN;
 
 -- 4) 사용자-권한 매핑
+--   ON CONFLICT DO NOTHING — 복합 PK(USER_NO, AUTHRT_CD) 기준 멱등. 선행 DELETE 가 정리하므로
+--   기능 영향 없으나 다른 시드 블록과 멱등 일관성 유지.
 INSERT INTO MNG_ACCT_USER_AUTHRT (USER_NO, AUTHRT_CD, REG_DT) VALUES
     (1001, 'REVIEWER',    '2026-02-01 09:00:00'),
     (1002, 'REVIEWER',    '2026-02-01 09:00:00'),
     (2001, 'WORKER',      '2026-02-05 09:00:00'),
     (2002, 'WORKER',      '2026-02-05 09:00:00'),
-    (3001, 'PORTAL_USER', '2026-03-01 09:00:00');
+    (3001, 'PORTAL_USER', '2026-03-01 09:00:00')
+ON CONFLICT (USER_NO, AUTHRT_CD) DO NOTHING;
 
 -- 5) CCTV 마스터 (MNG_RESOURCE_CCTV) — 영상 VMS_CCTV_ID 매칭용 한글 이름.
 --   AssignmentResponse.cctvName 표시 및 작업/검수 목록의 "CCTV-{지자체}-{NN}" 노출.
@@ -99,6 +108,31 @@ INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES
     ('CCTV-032', 'CCTV-마포구-032', 'Y'),
     ('CCTV-033', 'CCTV-마포구-033', 'Y')
 ON CONFLICT (VMS_CCTV_ID) DO NOTHING;
+
+-- 5-1) 관제 학습용 픽업 후보 클립 (MNG_CLIP_MASTER / MNG_CLIP_EVNT_LST) — Phase 2 로컬 검증.
+--   외부 관제 DB 없이도 POST /v1/dev/batch/scan 트리거가 JOB_DMND_YN='Y' 클립을 픽업해
+--   LS_DATA_RAW 적재 + VideoIngestedEvent 발행 경로를 탈 수 있게 시드한다.
+--   - CLIP_ID 는 'DEV-CLIP-' 접두사 고정(멱등키 = LS_DATA_RAW.VMS_CLIP_ID, 위 정리 블록 LIKE 삭제 대상).
+--   - VMS_CCTV_ID 는 위 (5) MNG_RESOURCE_CCTV 시드값(CCTV-001~003) 참조 — 미존재 CCTV 매핑 방지.
+--   - FILE_PATH 비공백(실파일 부재 허용 — 픽업·적재·이벤트 발행 검증 목적. 비식별 단계의 'F' 처리는 정상 흐름).
+--   - VDO_LEN_SEC 는 ms 단위(30000ms→30s 변환 적재). EVNT_ID 당 EVNT_LST 1행만 두어 findFirstByEvntId 비결정성 회피.
+--   - 복합 PK (EVNT_ID, CLIP_TYPE_CD) ON CONFLICT DO NOTHING — 부팅 반복 멱등.
+INSERT INTO MNG_CLIP_MASTER
+    (EVNT_ID, CLIP_TYPE_CD, CLIP_ID, LCLGV_CD, FILE_NM, FILE_PATH, FILE_FMT,
+     VDO_LEN_SEC, CLIP_STTS_CD, CRT_DT, JOB_DMND_YN, VMS_CCTV_ID) VALUES
+    ('DEV-EVT-9101', 'ORIGINAL', 'DEV-CLIP-9101', '11110', 'clip-9101.mp4',
+     './storage/raw/seed/clip-9101.mp4', 'mp4', 30000, 'mediainfo_complete', now(), 'Y', 'CCTV-001'),
+    ('DEV-EVT-9102', 'ORIGINAL', 'DEV-CLIP-9102', '11110', 'clip-9102.mp4',
+     './storage/raw/seed/clip-9102.mp4', 'mp4', 30000, 'mediainfo_complete', now(), 'Y', 'CCTV-002'),
+    ('DEV-EVT-9103', 'ORIGINAL', 'DEV-CLIP-9103', '11110', 'clip-9103.mp4',
+     './storage/raw/seed/clip-9103.mp4', 'mp4', 30000, 'mediainfo_complete', now(), 'Y', 'CCTV-003')
+ON CONFLICT (EVNT_ID, CLIP_TYPE_CD) DO NOTHING;
+
+INSERT INTO MNG_CLIP_EVNT_LST (EVNT_ID, EVNT_TYPE_CD, SHT_DT) VALUES
+    ('DEV-EVT-9101', 'INTRUSION', now()),
+    ('DEV-EVT-9102', 'INTRUSION', now()),
+    ('DEV-EVT-9103', 'INTRUSION', now())
+ON CONFLICT (EVNT_ID, EVNT_TYPE_CD) DO NOTHING;
 
 -- 6) 라벨 마스터 (LS_LABEL) — CVAT-Like 라벨 풀 포팅 Phase 1
 INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, REG_DT) VALUES
@@ -122,6 +156,7 @@ SELECT 'MNG_ACCT_AUTHRT'        AS t, COUNT(*) AS n FROM MNG_ACCT_AUTHRT        
 UNION ALL SELECT 'MNG_ACCT_USER',         COUNT(*) FROM MNG_ACCT_USER         WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'MNG_ACCT_USER_AUTHRT',  COUNT(*) FROM MNG_ACCT_USER_AUTHRT  WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'MNG_RESOURCE_CCTV',     COUNT(*) FROM MNG_RESOURCE_CCTV     WHERE VMS_CCTV_ID LIKE 'CCTV-0%'
+UNION ALL SELECT 'MNG_CLIP_MASTER(dev)',  COUNT(*) FROM MNG_CLIP_MASTER       WHERE EVNT_ID LIKE 'DEV-EVT-%'
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, MNG_RESOURCE_CCTV=13, LS_LABEL=13
+-- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, MNG_RESOURCE_CCTV=13, MNG_CLIP_MASTER(dev)=3, LS_LABEL=13

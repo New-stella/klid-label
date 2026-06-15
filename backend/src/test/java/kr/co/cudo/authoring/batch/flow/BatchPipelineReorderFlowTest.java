@@ -107,7 +107,8 @@ class BatchPipelineReorderFlowTest {
         interpStep = mock(TrackInterpolationStep.class);
 
         // 실제 전이 서비스 — repo mock 이 실제 엔티티를 반환하므로 전이가 엔티티에 반영된다.
-        transitionService = new BatchTransitionService(statusRepository, videoRepository);
+        transitionService = new BatchTransitionService(statusRepository, videoRepository,
+                mock(kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository.class));
 
         // pre-marking 파이프라인: 실제 step 어댑터로 DeidentifyStep.run(raw) 호출 재현(execute → raw.markDeidentified).
         BatchPipeline preMarkingPipeline = new BatchPipeline(List.of(deidStepAdapter()));

@@ -14,6 +14,7 @@
 
 | # | 페이지 | 내용 |
 |---|--------|------|
+| 00 | [로컬 자족 실행 (외부 0개 테스트)](00-local-setup.md) | docker/native 기동, dev 토큰 인증, 시나리오별 검증 경로, 외부0개 토글 (ai-server CPU 실추론·RT-DETR) |
 | 01 | [시스템 개요](01-system-overview.md) | 목적·범위·범위 외·역할·기술스택·핵심 파이프라인 |
 | 02 | [아키텍처](02-architecture.md) | 모노레포·레이어·공통 인프라·ai-server 분리·듀얼 데이터소스 |
 | 03 | [인증 · 권한 · 역할](03-auth-roles.md) | JWT 인계, REVIEWER/WORKER/PORTAL_USER, 진입 |
