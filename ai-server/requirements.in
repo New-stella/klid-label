@@ -3,8 +3,8 @@
 #   - 이 파일을 수정한 뒤 아래 명령으로 requirements.txt(lock)를 재생성한다:
 #       .venv/bin/pip-compile --no-header --output-file requirements.txt requirements.in
 #   - requirements.txt 는 컴파일된 lock 이므로 직접 편집하지 말 것.
-#   - --generate-hashes 사용 금지: Dockerfile 이 requirements.txt 를 grep/sed 로
-#     munging(torch/torchvision strip + numpy<2 강제)하므로 --hash 와 충돌한다.
+#   - --generate-hashes 사용 금지: Dockerfile 이 requirements.txt 를 grep 으로
+#     munging(torch/torchvision strip — base 이미지가 torch 제공)하므로 --hash 와 충돌한다.
 # ============================================================================
 
 fastapi>=0.110.0

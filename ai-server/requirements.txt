@@ -3,13 +3,13 @@
 #   직접 편집 금지 — requirements.in 을 수정한 뒤 아래 명령으로 재컴파일하세요:
 #       .venv/bin/pip-compile --no-header --output-file requirements.txt requirements.in
 #
-# 해시(--hash) 없음: Dockerfile 이 이 파일을 grep/sed 로 munging 하므로 의도적으로
-#   --generate-hashes 를 쓰지 않습니다.
+# 해시(--hash) 없음: Dockerfile 이 이 파일을 grep 으로 munging(torch/torchvision strip)
+#   하므로 의도적으로 --generate-hashes 를 쓰지 않습니다.
 #     - Dockerfile: grep -ivE '^(torch|torchvision)\b' (base 이미지가 torch 제공)
-#                 + sed 's/^numpy.*/numpy<2/' (torch 2.0.x ABI 호환 위해 numpy<2 강제)
-# 주의(로컬/비-Docker 재현용): 아래 torch==2.12.0 / numpy==2.4.6 는 dev 환경 기준
-#   핀입니다. Docker 빌드 시에는 torch/torchvision 이 strip 되고 numpy 는 <2 로
-#   치환되므로 운영(Docker)과 핀이 다릅니다.
+# 주의(torch 핀): 아래 torch==2.12.0 / torchvision==0.27.0 는 dev 환경 기준 핀입니다.
+#   Docker 빌드 시에는 strip 되어 base 이미지(torch 2.4.1) 제공분을 쓰고, 운영(호스트
+#   venv)에서는 호스트 GPU 드라이버에 맞는 torch 휠을 별도 설치합니다. numpy 등 나머지는
+#   lock 대로 설치됩니다.
 # ============================================================================
 annotated-doc==0.0.4
     # via

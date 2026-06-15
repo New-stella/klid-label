@@ -1,12 +1,20 @@
 # syntax=docker/dockerfile:1
 # ============================================================================
-# klid-label ai-server (FastAPI) — GPU 추론 서버
-#   베이스: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
-#     - 호스트 NVIDIA 드라이버(515.x → CUDA 11.7 한계)에 맞춰 CUDA 11.7 토치 사용.
-#       CUDA 12.x 이미지는 "driver too old" 로 torch.cuda 비활성됨.
-#   설치 검증 목적이라 AI_MOCK_MODE=true 로 가중치 없이 기동 (가중치 부재 시 mock)
+# klid-label ai-server (FastAPI) — 로컬/설치 검증용 이미지
+#   ※ 운영 배포는 Docker 가 아님 — 호스트 venv + uvicorn 직접 설치
+#     (pip install -r requirements.txt). 이 Dockerfile 은 의존성 설치 정합성을
+#     검증하는 로컬 전용 이미지로, AI_MOCK_MODE=true 로 가중치 없이 기동한다.
+#
+#   베이스: pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime
+#     - torch 2.4.1 은 numpy 2.x ABI 로 빌드되어 numpy 2.x 와 호환된다.
+#       (구 base torch 2.0.1 은 numpy 1.x ABI 라 numpy<2 를 강제했고,
+#        그 결과 rtdetr 백엔드의 trackers(numpy>=2.0.2)가 설치 불가였다.)
+#       base 를 torch>=2.2 / numpy 2.x 호환으로 올려 rtdetr(trackers) 설치를 지원한다.
+#     - CUDA 12.x base 는 실제 GPU 추론 시 호스트 NVIDIA 드라이버 >=525/535 가
+#       필요하나, 본 이미지의 검증은 AI_MOCK_MODE=true 로 동작하므로 CUDA/GPU 가
+#       불필요하다. (GPU 미보유 호스트에서도 import·기동 검증 가능)
 # ============================================================================
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+FROM pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime
 
 WORKDIR /app
 
@@ -16,11 +24,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # torch/torchvision 은 베이스 이미지에 포함 — requirements 에서 제외하고 나머지만 설치.
-# numpy<2 고정: torch 2.0.x 는 numpy 1.x 로 컴파일되어 numpy 2.x 와 ABI 비호환.
+# numpy 는 requirements lock(numpy==2.4.6)이 관리한다 (base torch 가 numpy 2.x 호환).
 COPY requirements.txt ./requirements.txt
 RUN grep -ivE '^(torch|torchvision)\b' requirements.txt > requirements.runtime.txt \
-    && sed -i 's/^numpy.*/numpy<2/' requirements.runtime.txt \
-    && pip install --no-cache-dir 'numpy<2' -r requirements.runtime.txt
+    && pip install --no-cache-dir -r requirements.runtime.txt
 
 COPY app ./app
 
