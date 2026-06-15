@@ -68,7 +68,9 @@ public class SecurityConfig {
                     auth.requestMatchers("/v1/auth/role-claim").authenticated();
                     auth.requestMatchers("/health", "/actuator/health", "/actuator/health/**",
                                     "/actuator/info",
-                                    "/swagger-ui/**", "/v3/api-docs/**",
+                                    // springdoc 표준 진입 URL /swagger-ui.html 은 /swagger-ui/index.html 로
+                                    // 리다이렉트되기 전 Security 필터가 먼저 평가하므로 명시 허용 필요.
+                                    "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
                                     "/v1/auth/**", "/v1/portal/auth/**").permitAll();
                     // Phase 2 — 외부 시스템 결과 수신 webhook 3종.
                     // JWT 인증을 우회하고 HmacWebhookFilter 가 시그니처 검증을 단독 수행한다.

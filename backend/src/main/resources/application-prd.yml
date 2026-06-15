@@ -27,6 +27,14 @@ webhook:
       vlm: ${WEBHOOK_HMAC_SECRET_VLM:?WEBHOOK_HMAC_SECRET_VLM 환경변수가 필수입니다 (prd)}
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:?WEBHOOK_HMAC_SECRET_AUGMENT 환경변수가 필수입니다 (prd)}
 
+# 운영(prd) 환경 — API 문서/Swagger UI 노출 차단 (보안: 공격 표면 축소).
+#   springdoc 비활성 시 /v3/api-docs, /swagger-ui 모두 404 (SecurityConfig 의 permitAll 무력화).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 # Phase 12 — 운영 환경 actuator 최소 노출 (보안: env/beans/heapdump 차단)
 management:
   endpoints:

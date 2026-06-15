@@ -73,6 +73,21 @@ management:
       probes:
         enabled: true
 
+# Springdoc OpenAPI / Swagger UI — FE 개발 DX.
+#   - swagger-ui.persist-authorization: 브라우저 새로고침 후에도 Authorize 토큰 유지 (핵심 DX).
+#   - operations/tags-sorter: alpha — 엔드포인트/태그 알파벳 정렬로 탐색성 향상.
+#   - display-request-duration: 호출 소요 시간 표시.
+#   - 운영(prd)에서는 application-prd.yml 에서 api-docs/swagger-ui 모두 비활성화 (노출 차단).
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    persist-authorization: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true
+
 authoring:
   # Phase 1 (role-claim) — 관리자 공유 패스워드 BCrypt 해시 (cost ≥ 12).
   #   - 평문은 코드/yml 어디에도 보관 금지 (CWE-256). 해시만 보관.
