@@ -33,6 +33,20 @@ class Settings(BaseSettings):
     )
     ai_device: str = Field(default="cpu", description="cuda | cpu")
 
+    # 탐지 백엔드 선택 (전환 가능)
+    #  - "yolo"   (기본): ultralytics YOLOv8 + 내장 BoT-SORT — 현행 동작 비파괴 유지
+    #  - "rtdetr"       : RT-DETRv2 (transformers) + ByteTrack (supervision)
+    # 잘못된 값은 resolved_detector_backend() 에서 안전하게 "yolo" 로 정규화한다(서버 기동 안전).
+    detector_backend: str = Field(
+        default="yolo",
+        description='탐지/트래킹 백엔드. "yolo" | "rtdetr" (기본 yolo)',
+    )
+    # RT-DETR 모델 ID는 설정값(사용자 요청 입력 아님)이며, 알려진 화이트리스트만 허용한다.
+    rtdetr_model_id: str = Field(
+        default="PekingU/rtdetr_v2_r50vd",
+        description="RT-DETRv2 HuggingFace 모델 ID (설정 기반 — 임의 reflection 로드 금지)",
+    )
+
     # 보안/제한
     max_image_size_mb: int = Field(default=10, ge=1, le=100, description="image_b64 최대 크기(MB)")
 
@@ -57,6 +71,11 @@ class Settings(BaseSettings):
 
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
+
+    def resolved_detector_backend(self) -> str:
+        """알려진 백엔드만 반환 — 잘못된 값은 "yolo" 로 안전 폴백."""
+        backend = (self.detector_backend or "").strip().lower()
+        return backend if backend in {"yolo", "rtdetr"} else "yolo"
 
 
 _settings: Settings | None = None

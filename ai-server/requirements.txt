@@ -5,7 +5,12 @@ pydantic-settings>=2.2.0
 python-multipart>=0.0.9
 
 # AI 모델
+# 탐지 백엔드는 detector_backend 설정으로 전환:
+#  - yolo (기본): ultralytics YOLOv8 + 내장 BoT-SORT
+#  - rtdetr     : RT-DETRv2 (transformers) + ByteTrack (supervision)
 ultralytics>=8.2.0
+transformers>=4.48,<6   # RT-DETRv2 (RTDetrV2ForObjectDetection) — lazy import, rtdetr 백엔드 전용. RTDetrV2 도입 4.48+ / v6 미검증 차단
+supervision>=0.22,<0.30    # ByteTrack (MIT) — lazy import, rtdetr 트래킹 전용. ByteTrack 0.30 제거 예정 차단
 torch>=2.2.0
 torchvision>=0.17.0
 opencv-python>=4.9.0
