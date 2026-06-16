@@ -66,14 +66,14 @@ class AugmentRequestControllerTest {
     }
 
     @Test
-    @DisplayName("AugmentRequestController_유효한_요청_바디로_200_응답")
+    @DisplayName("AugmentRequestController_유효한_단일_요청_바디로_200_응답")
     void validRequestReturns200() throws Exception {
+        // 단일 선택 계약: 영상 1건 + 종류 1개
         seedStatus(8001L, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(8002L, LsRawDataStatus.STTS_APPROVED);
 
         String body = objectMapper.writeValueAsString(Map.of(
-                "videoIds", List.of(8001L, 8002L),
-                "types", List.of("WINTER", "NIGHT")
+                "videoIds", List.of(8001L),
+                "types", List.of("WINTER")
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -83,8 +83,42 @@ class AugmentRequestControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.jobId").isNumber())
-                .andExpect(jsonPath("$.data.videoCount").value(2))
-                .andExpect(jsonPath("$.data.typeCount").value(2));
+                .andExpect(jsonPath("$.data.videoCount").value(1))
+                .andExpect(jsonPath("$.data.typeCount").value(1));
+    }
+
+    @Test
+    @DisplayName("증강요청_영상_2건_이상_요청시_400")
+    void multipleVideoIdsReturns400() throws Exception {
+        // 단일 선택 계약 위반: 영상 2건 → @Size(max=1) 로 400
+        String body = objectMapper.writeValueAsString(Map.of(
+                "videoIds", List.of(8001L, 8002L),
+                "types", List.of("WINTER")
+        ));
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("증강요청_종류_2개_이상_요청시_400")
+    void multipleTypesReturns400() throws Exception {
+        // 단일 선택 계약 위반: 종류 2개 → @Size(max=1) 로 400
+        String body = objectMapper.writeValueAsString(Map.of(
+                "videoIds", List.of(8001L),
+                "types", List.of("WINTER", "NIGHT")
+        ));
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
     }
 
     @Test
@@ -153,13 +187,13 @@ class AugmentRequestControllerTest {
     }
 
     @Test
-    @DisplayName("AugmentRequestController_미검수_영상_포함_요청시_400_blockedVideoIds_포함")
+    @DisplayName("AugmentRequestController_미검수_영상_요청시_400_blockedVideoIds_포함")
     void notReviewedReturns400WithBlockedIds() throws Exception {
-        seedStatus(8201L, LsRawDataStatus.STTS_APPROVED);
+        // 단일 선택 계약: 미검수 영상 1건 요청 → NOT_REVIEWED + blockedVideoIds
         seedStatus(8202L, LsRawDataStatus.STTS_IN_REVIEW);
 
         String body = objectMapper.writeValueAsString(Map.of(
-                "videoIds", List.of(8201L, 8202L),
+                "videoIds", List.of(8202L),
                 "types", List.of("WINTER")
         ));
 
