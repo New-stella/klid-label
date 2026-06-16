@@ -27,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -38,8 +37,8 @@ import static org.mockito.Mockito.verify;
  * DevAutolabelTestService 단위 테스트 (Phase 3 — 단일 파이프라인 수렴 반영).
  *
  * <p>실제 파일 IO 는 JUnit {@link TempDir} 로 격리. 파이프라인 trigger 는
- * {@link DevPipelineRunner} mock 으로 대체한다. upload 는 프레임 존재 여부 분기 없이
- * 항상 {@code DevPipelineRunner.runAsync(rawSn, toggles)} 로 위임하며 응답은 PROCESSING 이다.
+ * {@link DevPipelineRunner} mock 으로 대체한다. upload 는 단계 토글/마킹 분기 없이
+ * 항상 단일 {@code DevPipelineRunner.runAsync(rawSn)} 로 위임하며 응답은 PROCESSING 이다.
  */
 class DevAutolabelTestServiceTest {
 
@@ -75,8 +74,7 @@ class DevAutolabelTestServiceTest {
                 "EVT_FALL",
                 "1168000000",
                 AutolabelTestRequest.PrvcType.ANONY,
-                Instant.parse("2024-05-01T12:00:00Z"),
-                null
+                Instant.parse("2024-05-01T12:00:00Z")
         );
     }
 
@@ -346,44 +344,7 @@ class DevAutolabelTestServiceTest {
     }
 
     @Test
-    @DisplayName("enabledStages_meta가_있으면_DevPipelineRunner에_그대로_전달")
-    void enabledStages_runner_전달() throws Exception {
-        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
-        given(cctvRepository.existsById(any())).willReturn(true);
-        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(303L));
-
-        java.util.Map<String, Boolean> toggles = new java.util.HashMap<>();
-        toggles.put("FRAME_EXTRACT", true);
-        toggles.put("DEIDENTIFY", false);
-        toggles.put("YOLO", true);
-        toggles.put("SAM2", false);
-
-        AutolabelTestRequest meta = new AutolabelTestRequest(
-                "TEST-CLIP-002", "CCTV-001", "EVT_FALL",
-                "1168000000", AutolabelTestRequest.PrvcType.ANONY,
-                Instant.parse("2024-05-01T12:00:00Z"),
-                toggles
-        );
-
-        DevAutolabelTestService localService = serviceWithProbe(path -> 60);
-        MultipartFile file = mp4File("ok.mp4", new byte[]{1, 2, 3});
-        localService.upload(file, meta);
-
-        // 비동기 호출이므로 awaitility 로 대기
-        await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
-            ArgumentCaptor<java.util.Map<String, Boolean>> mapCaptor =
-                    ArgumentCaptor.forClass(java.util.Map.class);
-            verify(devPipelineRunner).runAsync(eq(303L), mapCaptor.capture());
-            java.util.Map<String, Boolean> captured = mapCaptor.getValue();
-            assertThat(captured.get("FRAME_EXTRACT")).isTrue();
-            assertThat(captured.get("DEIDENTIFY")).isFalse();
-            assertThat(captured.get("YOLO")).isTrue();
-            assertThat(captured.get("SAM2")).isFalse();
-        });
-    }
-
-    @Test
-    @DisplayName("신규영상_업로드시_DevPipelineRunner_runAsync_위임_PROCESSING_반환")
+    @DisplayName("신규영상_업로드시_DevPipelineRunner_runAsync_단일_위임_PROCESSING_반환")
     void 신규영상_업로드시_runner_위임() throws Exception {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
         given(cctvRepository.existsById(any())).willReturn(true);
@@ -397,7 +358,8 @@ class DevAutolabelTestServiceTest {
         assertThat(response.rawSn()).isEqualTo(500L);
         assertThat(response.pipelineStatus()).isEqualTo("PROCESSING");
 
+        // 단계 토글/마킹 분기 없이 단일 runAsync(rawSn) 으로 위임한다.
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
-                verify(devPipelineRunner).runAsync(eq(500L), anyMap()));
+                verify(devPipelineRunner).runAsync(eq(500L)));
     }
 }

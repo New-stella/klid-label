@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
 import { AugmentTypeCard } from '@/features/augment/components/AugmentTypeCard';
 import { JobCard } from '@/features/augment/components/JobCard';
+import { ResolutionExportPanel } from '@/features/augment/components/ResolutionExportPanel';
 import { useRequestAugment } from '@/features/augment/hooks/useAugmentDecision';
 import { useAugmentJobs } from '@/features/augment/hooks/useAugmentJobs';
 import { AugmentType, type AugmentType as AT } from '@/features/augment/types';
@@ -25,8 +26,9 @@ import { useVideos } from '@/features/video/hooks/useVideos';
 import { FIXED_EVENT_TYPE_CODES, getEventTypeLabel } from '@/lib/eventTypeLabel';
 import { useUiStore } from '@/stores/useUiStore';
 
-// 외부 증강 위탁 3종만 — 해상도(RESOLUTION)는 증강 잡 경로가 아니라 영상 상세의
-// 해상도 export 섹션에서 직접 수행한다(CLAUDE.md SFR-06-03 / 설계 정합).
+// 외부 증강 위탁 3종만 — 해상도(RESOLUTION)는 증강 잡 경로가 아니라 증강 유형 선택과
+// 같은 레벨(형제)에 배치된 해상도 변경 패널(세로 구분자로 분할·단일 영상 선택)에서
+// 직접 수행한다(CLAUDE.md SFR-06-03 / 설계 정합).
 const ALL_TYPES: AT[] = [
   AugmentType.WINTER,
   AugmentType.NIGHT,
@@ -49,8 +51,9 @@ const DEFAULT_FILTERS: VideoFilterValues = {
  * SCR-AUG-001 데이터 증강 요청 (`/augment`).
  *
  * UI/UX §4-12 + V1.x:
- * - 증강 유형 3종 카드(겨울/야간/비). 해상도(RESOLUTION)는 증강이 아니라 영상 상세의
- *   해상도 export 섹션에서 직접 수행한다(SFR-06-03).
+ * - 증강 유형 3종 카드(겨울/야간/비). 해상도(RESOLUTION)는 증강이 아니라 증강 유형 선택과
+ *   같은 레벨(형제)에 세로 구분자로 분할 배치된 해상도 변경 패널(자체 단일 영상 선택기)에서
+ *   직접 수행한다(SFR-06-03). 두 기능은 별개임이 라벨·제목으로 유지된다.
  * - **검수 완료된 영상만 선택 가능** — 비활성/검색·이벤트 필터·페이징
  * - 비상시 ID 콤마 입력 fallback
  * - 최근 요청 이력 잡 카드 6건 그리드
@@ -207,7 +210,7 @@ export function AugmentRequestPage() {
     >
       <PageHeader
         title="데이터 증강 요청"
-        description="검수 완료(승인) 영상에 3종(겨울/야간/비) 증강을 요청합니다. 해상도 변환은 영상 상세 화면에서 제공됩니다."
+        description="검수 완료(승인) 영상에 3종(겨울/야간/비) 증강을 요청합니다. 해상도 변경(이미지셋 다운스케일)은 증강 유형 선택과 같은 영역에서 별도 기능으로 제공됩니다."
       />
 
       {/* SFR-07 안내 */}
@@ -218,41 +221,66 @@ export function AugmentRequestPage() {
         </p>
       </div>
 
-      {/* Step 1: 증강 유형 선택 */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">
-            1
-          </span>
-          <h2 className="text-base font-semibold text-gray-800">증강 유형 선택</h2>
-          {selectedTypes.size > 0 && (
-            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-              {selectedTypes.size}종 선택
+      {/*
+        Step 1: 증강 유형 선택 + 해상도 변경 — 같은 레벨(형제 블록)에 배치하고
+        세로 구분자('|' divider)로 분할. 넓은 화면(xl+)에서는 좌/우 2열로 나란히,
+        좁은 화면에서는 세로 스택(구분자는 수평선으로 전환)된다.
+        두 기능은 별개(증강 ≠ 해상도)이므로 각 블록의 제목·라벨은 그대로 유지한다.
+      */}
+      <div
+        className="flex flex-col gap-6 xl:flex-row xl:items-stretch xl:gap-0"
+        data-testid="augment-resolution-row"
+      >
+        {/* 증강 유형 선택 */}
+        <section className="space-y-4 xl:flex-1 xl:pr-8">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">
+              1
             </span>
+            <h2 className="text-base font-semibold text-gray-800">
+              증강 유형 선택
+            </h2>
+            {selectedTypes.size > 0 && (
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                {selectedTypes.size}종 선택
+              </span>
+            )}
+          </div>
+
+          <div
+            className="grid grid-cols-2 gap-4 md:grid-cols-3"
+            data-testid="augment-type-list"
+          >
+            {ALL_TYPES.map((t) => (
+              <AugmentTypeCard
+                key={t}
+                type={t}
+                selected={selectedTypes.has(t)}
+                onToggle={() => toggleType(t)}
+              />
+            ))}
+          </div>
+
+          {selectedTypes.size === 0 && (
+            <p className="flex items-center gap-1.5 text-xs text-amber-600">
+              <AlertCircle size={13} aria-hidden />
+              증강 유형을 하나 이상 선택하세요.
+            </p>
           )}
-        </div>
+        </section>
 
+        {/* 세로 구분자('|') — 장식 요소. 좁은 화면에선 수평선으로 분할 */}
         <div
-          className="grid grid-cols-2 gap-4 md:grid-cols-3"
-          data-testid="augment-type-list"
-        >
-          {ALL_TYPES.map((t) => (
-            <AugmentTypeCard
-              key={t}
-              type={t}
-              selected={selectedTypes.has(t)}
-              onToggle={() => toggleType(t)}
-            />
-          ))}
-        </div>
+          aria-hidden
+          data-testid="augment-resolution-divider"
+          className="border-t border-gray-200 xl:border-l xl:border-t-0"
+        />
 
-        {selectedTypes.size === 0 && (
-          <p className="flex items-center gap-1.5 text-xs text-amber-600">
-            <AlertCircle size={13} aria-hidden />
-            증강 유형을 하나 이상 선택하세요.
-          </p>
-        )}
-      </section>
+        {/* 해상도 변경 (증강과 별도 기능, 자체 단일 영상 선택기) — 같은 레벨 형제 */}
+        <div className="xl:flex-1 xl:pl-8">
+          <ResolutionExportPanel />
+        </div>
+      </div>
 
       {/* Step 2: 대상 영상 선택 */}
       <section className="space-y-4">

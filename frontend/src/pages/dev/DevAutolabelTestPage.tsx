@@ -17,11 +17,8 @@ import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
 import {
   EventTypeCd,
   PrvcType,
-  STAGE_KEYS,
   type AutolabelTestMeta,
   type AutolabelTestResult,
-  type EnabledStages,
-  type StageKey,
 } from '@/features/dev/types';
 
 // 허용 확장자 (BE 와 동일) — `accept` 속성으로 1차 가드. BE 가 본 검증 수행.
@@ -81,8 +78,6 @@ interface FormState {
   prvcTypeCd: PrvcType;
   /** datetime-local 형식 (`YYYY-MM-DDTHH:mm`) — 제출 시 ISO 로 변환. */
   capturedAtLocal: string;
-  /** 4단계 토글 — 기본 모두 ON. */
-  enabledStages: EnabledStages;
 }
 
 function initialForm(): FormState {
@@ -93,42 +88,16 @@ function initialForm(): FormState {
     localGovCd: '11680',
     prvcTypeCd: PrvcType.ANONY,
     capturedAtLocal: nowLocalDateTime(),
-    enabledStages: {
-      [STAGE_KEYS.FRAME_EXTRACT]: true,
-      [STAGE_KEYS.DEIDENTIFY]: true,
-      [STAGE_KEYS.YOLO]: true,
-      [STAGE_KEYS.SAM2]: true,
-    },
   };
 }
 
 /**
- * 토글 라벨 (한글).
- *
- * 표시 순서 = 신 파이프라인 순서: 비식별(선두) → 프레임추출(마킹위치) → YOLO → SAM2.
- * (전송 payload `enabledStages` 는 키-값 객체이므로 이 배열의 순서는 표시에만 영향.)
- */
-const STAGE_LABELS: ReadonlyArray<{ key: StageKey; label: string; hint: string }> = [
-  {
-    key: STAGE_KEYS.DEIDENTIFY,
-    label: '비식별',
-    hint: '비식별 API 호출 (파이프라인 선두 — OFF 시 건너뜀, 이 경우 프레임추출도 OFF 권장)',
-  },
-  {
-    key: STAGE_KEYS.FRAME_EXTRACT,
-    label: '프레임 추출',
-    hint: '합성 마킹 기반 프레임 추출 (마킹 위치)',
-  },
-  { key: STAGE_KEYS.YOLO, label: 'YOLO 자동 라벨', hint: '객체 탐지 + 트래킹 (원본 기준)' },
-  { key: STAGE_KEYS.SAM2, label: 'SAM2 세그멘테이션', hint: 'YOLO bbox 힌트 기반 세그멘테이션' },
-];
-
-/**
  * [개발/검수 전용] 영상 업로드 화면 (`/dev/autolabel-test`).
  *
- * REVIEWER 전용. 영상 파일 + 메타데이터 + 단계 토글 입력 →
- * BE `POST /api/v1/dev/autolabel-test` 호출 → rawSn 수신 후 영상 상세를 2초 간격으로 polling 하여
- * 파이프라인 진행 상황을 가시화한다. 라우터 path 와 endpoint URL 은 URL 호환성을 위해 유지.
+ * REVIEWER 전용. dev 업로드는 운영 시나리오 1:1 고정 플로우다 — 업로드 → 비식별(무조건)
+ * → MARKING_READY 정지. 단계 토글/마킹 직접 수행 분기는 없으며, 잔여 배치는 사용자가
+ * 마킹 화면에서 마킹→완료할 때만 트리거된다. 업로드 후 영상 상세를 2초 간격으로 polling 하여
+ * 상태를 가시화하며, 폴링 terminal 은 MARKING_READY(마킹 대기) 또는 FAILED 다.
  *
  * 보안:
  * - 파일 input `accept` 로 확장자 화이트리스트 1차 가드. BE 가 본 검증을 수행.
@@ -154,9 +123,8 @@ export function DevAutolabelTestPage() {
     },
   });
 
-  // 결과 영역 polling — rawSn 받은 이후, 영상 상태가 COMPLETED/FAILED 도달 전까지
-  // statusQuery 가 직전 응답을 보유하므로 terminal 도달 후 enabled 가 false 로 떨어져도
-  // videoDetail 캐시는 유지되어 화면 표시는 정상이다.
+  // 결과 영역 polling — rawSn 받은 이후, 영상 상태가 terminal(MARKING_READY/FAILED) 도달 전까지.
+  // 고정 플로우라 파이프라인은 MARKING_READY 에서 정지하며, 비식별 실패 시 FAILED 로 끝난다.
   const [terminalReached, setTerminalReached] = useState(false);
   const pollingEnabled = useMemo(() => {
     if (!result) return false;
@@ -165,8 +133,13 @@ export function DevAutolabelTestPage() {
 
   const statusQuery = useAutolabelStatus(result?.rawSn ?? null, pollingEnabled);
   const videoDetail = statusQuery.data ?? null;
+  // 성공 terminal: MARKING_READY — 고정 플로우의 정지점이다. dev 업로드 경로는 비식별
+  // 완료 후 MARKING_READY 에서 멈추며, 잔여 배치는 사용자가 마킹 화면에서 마킹→완료할 때만
+  // 진행된다. 따라서 업로드 경로에서 영상은 COMPLETED 로 가지 않는다. MARKING_READY 도달 시
+  // 마킹 대기 안내를 노출하고 폴링을 종료한다(무한 스피너 방지).
+  const reachedMarkingReady = videoDetail?.status === 'MARKING_READY';
   const reachedTerminal =
-    videoDetail?.status === 'COMPLETED' || videoDetail?.status === 'FAILED';
+    reachedMarkingReady || videoDetail?.status === 'FAILED';
 
   // terminal 도달 시 polling 즉시 중단 (불필요한 트래픽 차단)
   useEffect(() => {
@@ -205,19 +178,8 @@ export function DevAutolabelTestPage() {
       localGovCd: form.localGovCd.trim(),
       prvcTypeCd: form.prvcTypeCd,
       capturedAt: toIsoInstant(form.capturedAtLocal),
-      enabledStages: { ...form.enabledStages },
     };
     mutation.mutate({ file, meta });
-  };
-
-  const toggleStage = (key: StageKey) => {
-    setForm((s) => ({
-      ...s,
-      enabledStages: {
-        ...s.enabledStages,
-        [key]: !s.enabledStages[key],
-      },
-    }));
   };
 
   const handleReset = () => {
@@ -235,7 +197,7 @@ export function DevAutolabelTestPage() {
     <main className="space-y-6">
       <PageHeader
         title="영상 업로드"
-        description="영상 파일과 메타데이터를 입력해 프레임 추출 + 오토라벨링 파이프라인을 실행합니다. (개발/검수 전용)"
+        description="영상 파일과 메타데이터를 업로드하면 비식별 후 마킹 대기 상태로 진입합니다. 마킹 화면에서 마킹을 진행하면 잔여 배치가 실행됩니다. (개발/검수 전용)"
       />
 
       <Card title="파일 + 메타 입력" padding="lg">
@@ -405,46 +367,6 @@ export function DevAutolabelTestPage() {
             </div>
           </div>
 
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-body font-medium text-gray-700">
-              실행 단계 선택
-            </legend>
-            <div
-              role="group"
-              aria-label="배치 단계 토글"
-              className="grid grid-cols-1 gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:grid-cols-2"
-            >
-              {STAGE_LABELS.map((s) => {
-                const checked = form.enabledStages[s.key];
-                return (
-                  <label
-                    key={s.key}
-                    className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-gray-50"
-                    data-testid={`autolabel-stage-toggle-${s.key}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleStage(s.key)}
-                      disabled={mutation.isPending}
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="flex flex-col">
-                      <span className="text-body text-gray-800">{s.label}</span>
-                      <span className="text-sub text-gray-500">
-                        {s.hint} ({s.key})
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-            <span className="text-sub text-gray-500">
-              선택하지 않은 단계는 건너뜁니다. 의존 단계가 OFF 라도 강제 차단하지 않으며,
-              자연스럽게 빈 결과로 처리됩니다.
-            </span>
-          </fieldset>
-
           {errorMessage && (
             <div
               role="alert"
@@ -462,7 +384,7 @@ export function DevAutolabelTestPage() {
               loading={mutation.isPending}
               disabled={!isValid || mutation.isPending}
             >
-              실행
+              업로드
             </Button>
             <Button
               type="button"
@@ -479,7 +401,7 @@ export function DevAutolabelTestPage() {
       <TusUploadPanel />
 
       {result && (
-        <Card title="실행 결과" padding="lg">
+        <Card title="업로드 결과" padding="lg">
           <div className="space-y-3 text-sm">
             <div className="flex items-center gap-2">
               <span
@@ -493,6 +415,17 @@ export function DevAutolabelTestPage() {
               </span>
               {!reachedTerminal && <Spinner size="sm" label="파이프라인 진행 중" />}
             </div>
+
+            {reachedMarkingReady && (
+              <div
+                role="status"
+                data-testid="autolabel-marking-ready"
+                className="rounded-md border border-primary-200 bg-primary-50 px-3 py-2 text-sub text-primary-700"
+              >
+                업로드 완료 — 비식별 후 마킹 대기입니다. 마킹 화면에서 마킹을
+                진행하세요. (rawSn = {result.rawSn})
+              </div>
+            )}
 
             {videoDetail?.status === 'FAILED' && (
               <div
@@ -526,25 +459,18 @@ export function DevAutolabelTestPage() {
               </div>
             </div>
 
-            {videoDetail?.stages && videoDetail.stages.length > 0 && (
-              <ul className="flex flex-wrap gap-2 text-xs">
-                {videoDetail.stages.map((s) => (
-                  <li
-                    key={s.name}
-                    className="rounded-full bg-gray-100 px-2.5 py-1 text-gray-700"
-                  >
-                    {s.name} · {s.status} ({s.progress}%)
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="pt-2">
+            <div className="flex flex-wrap gap-4 pt-2">
               <Link
-                to={`/video/${result.rawSn}`}
+                to={`/marking/${result.rawSn}`}
                 className="text-sm font-medium text-primary-600 hover:underline"
               >
-                영상 상세 보기 →
+                마킹 화면으로 이동 →
+              </Link>
+              <Link
+                to="/video"
+                className="text-sm font-medium text-primary-600 hover:underline"
+              >
+                영상 목록 보기 →
               </Link>
             </div>
           </div>

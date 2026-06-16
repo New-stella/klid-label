@@ -5,6 +5,7 @@ export type BadgeStatus =
   | 'BATCH_COMPLETED'
   | 'BATCH_FAILED'
   | 'PENDING'
+  | 'MARKING_READY'
   | 'IN_PROGRESS'
   | 'PROCESSING'
   | 'REVIEW_PENDING'
@@ -27,6 +28,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   BATCH_COMPLETED: { label: '배치 완료', className: 'bg-green-100 text-green-700' },
   BATCH_FAILED: { label: '배치 실패', className: 'bg-red-100 text-red-700' },
   PENDING: { label: '대기', className: 'bg-gray-100 text-gray-600' },
+  MARKING_READY: { label: '마킹 대기', className: 'bg-blue-100 text-blue-700' },
   IN_PROGRESS: { label: '진행중', className: 'bg-blue-100 text-blue-700' },
   PROCESSING: { label: '처리중', className: 'bg-blue-100 text-blue-700' },
   REVIEW_PENDING: { label: '검수 대기', className: 'bg-yellow-100 text-yellow-700' },

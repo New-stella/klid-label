@@ -225,6 +225,149 @@ describe('AugmentRequestPage', () => {
     });
   });
 
+  it('SFR_06_03_해상도_변경_섹션이_증강과_별도로_노출_영상_선택_전엔_비활성', async () => {
+    mock.onGet('/augments').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 6 },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 7,
+            cctvName: 'CCTV-해상도',
+            vmsClipId: 'V7',
+            eventName: '쓰러짐',
+            eventTypeCd: 'FALL',
+            frameCount: 100,
+            status: 'COMPLETED',
+            capturedAt: '2026-05-01T12:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<AugmentRequestPage />);
+
+    // 해상도 변경 섹션 헤딩이 증강 카드와 별도로 노출된다
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: /해상도 변경/ }),
+      ).toBeInTheDocument();
+    });
+
+    // 영상 선택기(단일) 가 존재한다
+    const selector = screen.getByLabelText('해상도 변경 대상 영상 선택');
+    expect(selector).toBeInTheDocument();
+
+    // 영상 미선택 상태 — 실행 버튼이 노출되지 않거나 비활성
+    expect(
+      screen.queryByRole('button', { name: '해상도 변환 실행' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('SFR_06_03_해상도_변경_영상_선택시_실행_UI_활성화', async () => {
+    mock.onGet('/augments').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 6 },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 7,
+            cctvName: 'CCTV-해상도',
+            vmsClipId: 'V7',
+            eventName: '쓰러짐',
+            eventTypeCd: 'FALL',
+            frameCount: 100,
+            status: 'COMPLETED',
+            capturedAt: '2026-05-01T12:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<AugmentRequestPage />);
+
+    const selector = await screen.findByLabelText('해상도 변경 대상 영상 선택');
+    // 영상 목록 로드 완료(옵션 등장) 대기 후 선택
+    await screen.findByRole('option', { name: /CCTV-해상도/ });
+    await user.selectOptions(selector, '7');
+
+    // 영상 선택 후 해상도 변환 실행 UI 가 활성화된다
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: '해상도 변환 실행' }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('목표 해상도 선택')).toBeInTheDocument();
+  });
+
+  it('증강_유형과_해상도_변경이_같은_레벨로_구분자와_함께_노출', async () => {
+    mock.onGet('/augments').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 6 },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: {
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<AugmentRequestPage />);
+
+    // 같은 레벨 컨테이너(row)에 증강 유형 목록과 해상도 변경 패널이 함께 존재
+    const row = await screen.findByTestId('augment-resolution-row');
+    expect(row).toContainElement(screen.getByTestId('augment-type-list'));
+    await waitFor(() => {
+      expect(row).toContainElement(
+        screen.getByTestId('resolution-export-panel'),
+      );
+    });
+
+    // 시각적 구분자('|' divider)가 두 블록 사이에 존재(장식 — aria-hidden)
+    const divider = screen.getByTestId('augment-resolution-divider');
+    expect(row).toContainElement(divider);
+    expect(divider).toHaveAttribute('aria-hidden');
+
+    // 두 기능은 별개임 — 각 제목이 모두 유지
+    expect(
+      screen.getByRole('heading', { name: '증강 유형 선택' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /해상도 변경/ }),
+    ).toBeInTheDocument();
+  });
+
   it('잡_카드_5초_폴링_상태_변화_반영', async () => {
     let callCount = 0;
     mock.onGet('/augments').reply(() => {

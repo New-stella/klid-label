@@ -34,35 +34,15 @@ export const EventTypeCd = Object.freeze(
 export type EventTypeCd = EventTypeCode;
 
 /**
- * 배치 단계 토글 키 — BE `AutolabelTestRequest.STAGE_*` 와 1:1 매핑.
- *
- * 신 파이프라인 순서: DEIDENTIFY(선두·무조건, OFF 시 skip) → FRAME_EXTRACT(마킹 위치 추출)
- * → YOLO(원본 기준 탐지/트래킹) → SAM2(YOLO bbox 힌트 세그). 키 자체는 BE 계약 호환을 위해 유지하며,
- * 표시 순서는 화면(STAGE_LABELS)에서 신 순서로 정렬한다.
- */
-export const STAGE_KEYS = {
-  FRAME_EXTRACT: 'FRAME_EXTRACT',
-  DEIDENTIFY: 'DEIDENTIFY',
-  YOLO: 'YOLO',
-  SAM2: 'SAM2',
-} as const;
-export type StageKey = (typeof STAGE_KEYS)[keyof typeof STAGE_KEYS];
-
-/**
- * 단계 토글 맵 — 키: FRAME_EXTRACT/DEIDENTIFY/YOLO/SAM2, 값: ON/OFF.
- *
- * BE 는 누락 키를 {@code true} 로 처리한다. FE 는 항상 4개 키를 전송해 의도를 명확히 한다.
- */
-export type EnabledStages = Record<StageKey, boolean>;
-
-/**
- * 오토라벨 테스트 메타데이터.
+ * 오토라벨 테스트 메타데이터 (dev 업로드 단순화 — 운영 시나리오 1:1 고정 플로우).
  *
  * BE record `AutolabelTestRequest` 와 동일한 필드 + 검증.
  * - vmsClipId / cctvId: 영문/숫자/-/_ 1~64자
  * - localGovCd: 숫자 1~10자리
  * - capturedAt: ISO-8601 (`Date.toISOString()` 형식)
- * - enabledStages: 4단계 ON/OFF 토글. 누락 시 BE 가 모두 true 처리 (back-compat).
+ *
+ * dev 업로드는 업로드 → 비식별(무조건) → MARKING_READY 정지의 고정 플로우라 단계 토글
+ * (enabledStages)·마킹 직접 수행(manualMarking) 같은 분기 필드를 전송하지 않는다.
  *
  * `durationSec` 는 BE 가 ffprobe 로 업로드된 영상 파일에서 자동 추출하므로 FE 가 전송하지 않는다.
  */
@@ -74,8 +54,6 @@ export interface AutolabelTestMeta {
   prvcTypeCd: PrvcType;
   /** ISO-8601 Instant (예: `2026-05-12T10:00:00Z`) */
   capturedAt: string;
-  /** 단계 ON/OFF 토글 — 누락 시 BE 가 모두 실행 (선택 필드). */
-  enabledStages?: EnabledStages;
 }
 
 /** 업로드 + 파이프라인 트리거 응답. */
