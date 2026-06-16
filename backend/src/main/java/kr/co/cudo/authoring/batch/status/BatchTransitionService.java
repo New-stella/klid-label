@@ -2,6 +2,8 @@ package kr.co.cudo.authoring.batch.status;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,10 @@ public class BatchTransitionService {
 
     private final LsRawDataStatusRepository rawDataStatusRepository;
     private final VideoRepository videoRepository;
+    private final LsDeidentProcLogRepository procLogRepository;
+
+    /** 비식별 실패 기록의 고정 에러코드 — 외부 원문/원본경로/PII 비노출(CWE-209). */
+    public static final String DEIDENT_FAIL_PROC_REG_ID = "batch-deident-fail";
 
     /**
      * 배치 시작 — LS_RAW_DATA_STATUS.DATA_STTS_CD → PROCESSING.
@@ -86,6 +92,44 @@ public class BatchTransitionService {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markRawDataFailed(Long rawSn) {
         transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_FAILED);
+    }
+
+    /**
+     * 비식별 실패 기록을 <b>독립 커밋 트랜잭션</b>으로 영속한다 (라이브 검증 결함 수정).
+     *
+     * <p>{@code DeidentifyStep.run()/runMock()} 은 {@code REQUIRES_NEW} 트랜잭션이라, 실패 분기에서
+     * 인라인으로 {@code markDeidentified("F")} 한 뒤 예외를 던지면 그 트랜잭션이 전체 롤백되어 'F' 가
+     * 사라진다(DB 엔 'N' 만 남음). 따라서 실패 기록은 <b>반드시 별도 빈</b>의 본 {@code REQUIRES_NEW}
+     * 메서드로 위임해 run() 의 롤백과 독립적으로 커밋되게 한다(자기호출 금지 — self-invocation 은
+     * 프록시 우회로 새 트랜잭션이 열리지 않음).
+     *
+     * <p>수행: ① {@code LS_DATA_RAW.DE_IDENT_YN → 'F'} ② {@code LS_DEIDENT_PROC_LOG} FAIL 신규 저장.
+     * run() T1 에 저장됐던 REQUESTED procLog 는 롤백으로 소멸하므로, 커밋되는 FAIL 레코드를 여기서 남긴다.
+     * MARKING_READY 미전이는 그대로 유지된다(이 메서드는 상태 전이를 하지 않으며, run() T1 롤백으로
+     * 성공 위장이 발생하지 않는다).
+     *
+     * <p>보안(CWE-209): {@code errorCode}/{@code detail} 에 외부 API 원문 메시지·원본 경로·PII 를 담지
+     * 않는다(호출자가 고정 코드 + 예외 클래스명만 전달). 원본 경로는 procLog 의 ORGNL_FILE_PATH_NM(NOT NULL)
+     * 컬럼 컨벤션상 성공 경로와 동일하게 raw 의 저장 경로를 사용한다(에러 detail 에는 포함하지 않음).
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordDeidentFailure(Long rawSn, String errorCode, String detail) {
+        if (rawSn == null) {
+            return;
+        }
+        videoRepository.findById(rawSn).ifPresentOrElse(
+                r -> r.markDeidentified("F"),
+                () -> log.warn("[BatchTransition] raw video not found rawSn={} (deident-fail)", rawSn));
+
+        String orgnlPath = videoRepository.findById(rawSn)
+                .map(LsDataRaw::getRawFilePathNm)
+                .filter(p -> p != null && !p.isBlank())
+                .orElse("N/A");
+        LsDeidentProcLog failLog =
+                LsDeidentProcLog.request(rawSn, null, orgnlPath, DEIDENT_FAIL_PROC_REG_ID);
+        failLog.fail(errorCode, detail);
+        procLogRepository.save(failLog);
+        log.warn("[BatchTransition] deident failure recorded rawSn={} errCd={}", rawSn, errorCode);
     }
 
     private void transitionRawDataStatus(Long rawSn, String newStatus) {

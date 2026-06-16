@@ -7,7 +7,7 @@
 
 // 외부 증강 위탁 3종(WINTER/NIGHT/RAIN)만 — 해상도(RESOLUTION)는 증강이 아니라
 // 저작도구가 직접 수행하는 별도 기능이므로 증강 유형에서 제외한다(CLAUDE.md SFR-06-03).
-// 해상도 변환은 영상 상세 화면의 해상도 export 섹션에서 제공된다.
+// 해상도 변경은 데이터 증강 화면(/augment)의 해상도 변경 패널에서 별도 섹션으로 제공된다.
 export const AugmentType = {
   WINTER: 'WINTER',
   NIGHT: 'NIGHT',

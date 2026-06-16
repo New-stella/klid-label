@@ -45,9 +45,9 @@ import java.util.UUID;
  * </ul>
  *
  * <p>업로드된 영상은 LS_DATA_RAW row 를 생성한 뒤, 트랜잭션 커밋 이후
- * {@link DevPipelineRunner#runAsync(Long, Map)} 에 위임한다 (Phase 3 — 단일 파이프라인 수렴).
- * dev 경로는 더 이상 별도 경량 파이프라인을 쓰지 않고, 토글에 따라 비식별/합성 마킹/프레임 추출/
- * YOLO/SAM2 를 단일 프로덕션 {@code BatchOrchestrator} 로 실행한다. afterCommit 으로 호출해야
+ * {@link DevPipelineRunner#runAsync(Long)} 에 위임한다 (dev 업로드 단순화 — 운영 시나리오 1:1).
+ * dev 경로는 단계 토글/마킹 분기 없이 선두 비식별만 수행하고 MARKING_READY 에서 정지한다.
+ * 잔여 배치는 사용자가 마킹 화면에서 마킹→완료할 때만 트리거된다. afterCommit 으로 호출해야
  * 새 스레드에서 LS_DATA_RAW row 가 보인다(read-after-write 가시성).
  */
 @Slf4j
@@ -185,13 +185,12 @@ public class DevAutolabelTestService {
                 file.getSize(),
                 durationSec);
 
-        // Phase 3: dev 경로를 단일 프로덕션 파이프라인으로 수렴. 프레임 존재 분기 없이 항상
-        // DevPipelineRunner 에 위임한다 — 토글에 따라 비식별/합성 마킹/프레임 추출/YOLO/SAM2 를
-        // BatchOrchestrator 로 실행. 트랜잭션 커밋 이후에 호출해야 새 스레드에서 LsDataRaw row 가
-        // 보인다(read-after-write 가시성 — afterCommit 미사용 시 "영상 레코드가 없습니다" 발생).
-        // 예외 삼킴/실패 처리는 DevPipelineRunner(@Async) 내부에서 WARN 로깅으로 수행한다.
-        final Map<String, Boolean> stageToggles = meta.resolveEnabledStages();
-        Runnable triggerPipeline = () -> devPipelineRunner.runAsync(rawSn, stageToggles);
+        // dev 업로드 단순화: 단계 토글/마킹 분기 없이 단일 runAsync(rawSn) 에 위임한다.
+        // DevPipelineRunner 가 선두 비식별만 수행하고 MARKING_READY 에서 정지하며, 잔여 배치는
+        // 사용자가 마킹 화면에서 마킹→완료할 때만 트리거된다. 트랜잭션 커밋 이후에 호출해야 새
+        // 스레드에서 LsDataRaw row 가 보인다(read-after-write 가시성 — afterCommit 미사용 시
+        // "영상 레코드가 없습니다" 발생). 예외 삼킴/실패 처리는 DevPipelineRunner(@Async) 내부에서 WARN.
+        Runnable triggerPipeline = () -> devPipelineRunner.runAsync(rawSn);
 
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(

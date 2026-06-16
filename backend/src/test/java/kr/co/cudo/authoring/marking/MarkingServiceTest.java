@@ -69,7 +69,18 @@ class MarkingServiceTest {
         return new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
 
+    /** 비식별 완료(deIdntfYn='Y') 영상 — 마킹 가드 통과 대상. */
     private LsDataRaw stubRaw(Long rawSn, int durationSec) {
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "CLIP-" + rawSn, "CCTV-001", "EVT-A", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip_" + rawSn + ".mp4",
+                LocalDateTime.now(), durationSec);
+        raw.markDeidentified("Y");
+        return raw;
+    }
+
+    /** 비식별 미완료(deIdntfYn='N') 영상 — 마킹 가드에 걸려야 함. */
+    private LsDataRaw stubRawNotDeidentified(Long rawSn, int durationSec) {
         return LsDataRaw.createFromIngest(
                 "CLIP-" + rawSn, "CCTV-001", "EVT-A", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip_" + rawSn + ".mp4",
@@ -344,6 +355,42 @@ class MarkingServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    // ── 비식별 완료 가드 ("마킹은 비식별 완료 영상 대상" — CLAUDE.md) ──
+
+    @Test
+    @DisplayName("비식별_미완료_영상_마킹생성시_PRECONDITION_FAILED")
+    void createOnNonDeidentifiedVideoRejected() {
+        // given — deIdntfYn='N' 영상에 REVIEWER 가 마킹 생성 시도
+        Long rawSn = 30L;
+        LsDataRaw raw = stubRawNotDeidentified(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+
+        // when / then
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+    }
+
+    @Test
+    @DisplayName("비식별_완료_영상_마킹생성_정상_가드_통과")
+    void createOnDeidentifiedVideoPasses() {
+        // given — deIdntfYn='Y' 영상은 가드 통과
+        Long rawSn = 31L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        assertThat(result.markingMode()).isEqualTo("AUTO");
+        verify(markingRepository).save(any(LsMarking.class));
     }
 
     @Test

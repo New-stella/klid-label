@@ -37,7 +37,7 @@
   → deid 가드(deIdntfYn='Y' 검증) → @Async post-marking 배치 자동 시작
 ```
 
-- **deid 가드**: 비식별 미완료(`deIdntfYn != 'Y'`) 영상은 잔여 배치를 트리거하지 않는다(선두 비식별이 필수 선행 조건).
+- **deid 가드 (2중)**: ①**마킹 생성 단계** — `MarkingService.create` 가 비식별 미완료(`deIdntfYn != 'Y'`) 영상의 마킹 생성을 거부(`PRECONDITION_FAILED` 412, "비식별이 완료된 영상에서만 마킹할 수 있습니다."). ②**배치 진입 단계** — `MarkingBatchBridge` 가 비식별 미완료 영상의 잔여 배치 트리거를 차단. "마킹은 비식별 완료 영상 대상" 규칙을 생성·배치 두 지점에서 일관 강제한다.
 - 이후 배치는 비식별 단계를 제외한 post-marking 시퀀스(VLM→프레임추출→YOLO→SAM2→보간).
 
 코드: `MarkingCompletedEvent`, `MarkingBatchBridge`. 이후 파이프라인 → [07](07-batch-pipeline.md).

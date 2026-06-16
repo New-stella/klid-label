@@ -9,6 +9,7 @@ describe('StatusBadge', () => {
     'BATCH_COMPLETED',
     'BATCH_FAILED',
     'PENDING',
+    'MARKING_READY',
     'IN_PROGRESS',
     'REVIEW_PENDING',
     'REVIEWING',
@@ -34,6 +35,11 @@ describe('StatusBadge', () => {
     const el = screen.getByText('배치 실패');
     // danger 톤은 red 계열로 표현 (mock tonal pill)
     expect(el.className).toMatch(/text-red-700|bg-red-100/);
+  });
+
+  it('StatusBadge_MARKING_READY_는_마킹_대기_라벨_렌더', () => {
+    render(<StatusBadge status="MARKING_READY" />);
+    expect(screen.getByText('마킹 대기')).toBeInTheDocument();
   });
 
   it('StatusBadge_커스텀_label_사용', () => {

@@ -36,6 +36,9 @@ import java.util.List;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class MarkingService {
 
+    /** 비식별 완료 마킹 값 (LS_DATA_RAW.DE_IDENT_YN). */
+    private static final String DEIDENTIFIED = "Y";
+
     private final LsMarkingRepository markingRepository;
     private final VideoRepository videoRepository;
     private final LsTaskAssignmentRepository assignmentRepository;
@@ -58,6 +61,14 @@ public class MarkingService {
         // 1. 영상 존재 확인
         LsDataRaw raw = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+
+        // 1-1. 비식별 완료 가드 — "마킹은 비식별 완료(deIdntfYn='Y') 영상 대상" (CLAUDE.md).
+        // 마킹은 비식별 영상에서 수행하므로 미완료 영상은 거부한다. (MarkingBatchBridge 배치 진입
+        // 가드와 일관성 보강 — 생성 단계에서도 동일 규칙 강제.)
+        if (!DEIDENTIFIED.equals(raw.getDeIdntfYn())) {
+            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                    "비식별이 완료된 영상에서만 마킹할 수 있습니다.");
+        }
 
         // 2. 마킹 모드에 따른 처리
         String marksJson;

@@ -32,7 +32,12 @@ RUN grep -ivE '^(torch|torchvision)\b' requirements.txt > requirements.runtime.t
 COPY app ./app
 
 # 비루트 유저
-RUN useradd -r -m -d /home/app app && chown -R app:app /app
+# HF 캐시 디렉토리(/app/.hf-cache)를 app 소유로 미리 생성 — docker-compose.local.yml 의
+# named volume 이 이 마운트포인트의 소유권(app:app)을 빈 볼륨 초기화 시 상속하도록 한다.
+# (미생성 시 Docker 가 root 소유로 마운트포인트를 만들어 비루트 app 의 HF 다운로드가 권한 거부됨)
+RUN useradd -r -m -d /home/app app \
+    && mkdir -p /app/.hf-cache \
+    && chown -R app:app /app
 USER app
 
 EXPOSE 9300

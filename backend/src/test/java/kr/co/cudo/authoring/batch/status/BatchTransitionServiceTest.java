@@ -2,6 +2,8 @@ package kr.co.cudo.authoring.batch.status;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.review.service.ReviewStateMachine;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -28,13 +30,15 @@ class BatchTransitionServiceTest {
 
     private LsRawDataStatusRepository rawDataStatusRepository;
     private VideoRepository videoRepository;
+    private LsDeidentProcLogRepository procLogRepository;
     private BatchTransitionService service;
 
     @BeforeEach
     void setUp() {
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         videoRepository = mock(VideoRepository.class);
-        service = new BatchTransitionService(rawDataStatusRepository, videoRepository);
+        procLogRepository = mock(LsDeidentProcLogRepository.class);
+        service = new BatchTransitionService(rawDataStatusRepository, videoRepository, procLogRepository);
     }
 
     private LsRawDataStatus assignedStatus(Long rawSn) {
@@ -151,5 +155,40 @@ class BatchTransitionServiceTest {
 
         // then — 배치 진행을 막지 않음 (예외 없이 통과)
         verify(rawDataStatusRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("recordDeidentFailure_가_DE_IDNTF_YN을_F로_마킹하고_FAIL_procLog를_저장한다")
+    void recordDeidentFailure_marksF_andSavesFailLog() {
+        // given — 적재 직후 영상(deIdntfYn='N')
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-fail", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC,
+                "raw/fail.mp4", null, 60);
+        when(videoRepository.findById(11L)).thenReturn(Optional.of(raw));
+
+        // when
+        service.recordDeidentFailure(11L, "EXTERNAL_API_ERROR", "IllegalStateException");
+
+        // then — 'F' 마킹 + FAIL procLog 저장
+        assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+        org.mockito.ArgumentCaptor<LsDeidentProcLog> captor =
+                org.mockito.ArgumentCaptor.forClass(LsDeidentProcLog.class);
+        verify(procLogRepository).save(captor.capture());
+        LsDeidentProcLog saved = captor.getValue();
+        assertThat(saved.getProcSttsCd()).isEqualTo(LsDeidentProcLog.FAILED);
+        assertThat(saved.getDataRawSn()).isEqualTo(11L);
+        assertThat(saved.getErrorCd()).isEqualTo("EXTERNAL_API_ERROR");
+    }
+
+    @Test
+    @DisplayName("recordDeidentFailure_raw_row_없어도_FAIL_procLog는_NA경로로_저장된다")
+    void recordDeidentFailure_rawMissing_stillSavesLog() {
+        // given — 영상 row 없음
+        when(videoRepository.findById(404L)).thenReturn(Optional.empty());
+
+        // when / then — 예외 없이 FAIL procLog 저장(ORGNL_FILE_PATH_NM=N/A 폴백)
+        service.recordDeidentFailure(404L, "MOCK_SOURCE_MISSING", "source not found");
+
+        verify(procLogRepository).save(any(LsDeidentProcLog.class));
     }
 }

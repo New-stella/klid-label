@@ -1,0 +1,54 @@
+# ============================================================================
+# klid-label 로컬 외부 0개 자족 테스트 override
+#   사용: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+#   목적: 관제/포털/비식별/실VLM 등 외부 서버 0개로 전 시나리오를 띄워 검증.
+#   - ai-server: mock 이 아닌 CPU 실추론 + RT-DETR 백엔드 (GPU 불필요 — Mac 등 호환).
+#   - 호스트 절대경로(/data) 대신 named volume → 비-Linux/비-서버 환경에서도 기동.
+#   - 비식별은 backend local 프로파일의 mock-mode(application-local.yml)로 자동 no-op
+#     (실 비식별 서버 부재 — Phase 1). VLM 은 local 에서 enabled=false.
+#
+#   주의: ENV 환경변수를 dev/stg/prd 로 설정하지 말 것 (LocalProfileGuard + 비식별
+#         mock 게이트가 부트 차단). 상세는 docs/v2-wiki/00-local-setup.md.
+# ============================================================================
+
+services:
+  klid-postgres:
+    # /data 호스트 바인드 → named volume 으로 교체 (postgres-init 바인드는 유지 병합)
+    volumes:
+      - klid-pgdata:/var/lib/postgresql/data
+    # 방법 B(Native) 지원: 호스트 5432 발행 → native backend(127.0.0.1:5432)가 번들 DB에 접속.
+    #   base compose 는 전부 docker 내부 통신이라 미발행. local override 에서만 노출한다.
+    ports:
+      - "5432:5432"
+
+  klid-backend:
+    # 영상 저장소 /data 바인드 → named volume
+    volumes:
+      - klid-storage:/app/storage
+
+  klid-ai-server:
+    environment:
+      # mock 대신 실제 모델 로드 (CPU)
+      AI_MOCK_MODE: "false"
+      AI_DEVICE: cpu
+      # 탐지/트래킹 기본 백엔드: RT-DETRv2 (transformers, 첫 기동 시 HuggingFace 에서 ~100MB 다운로드 후 캐시)
+      DETECTOR_BACKEND: rtdetr
+      # HuggingFace 캐시를 named volume 에 고정 (컨테이너 사용자 무관, 재기동 시 재다운로드 방지)
+      HF_HOME: /app/.hf-cache
+    # nvidia 런타임 의존 제거 (GPU 없는 환경) — 기본 OCI 런타임 사용
+    runtime: runc
+    volumes:
+      # 로컬 가중치 마운트 (SAM2 sam2_t.pt 등). YOLO/SAM2 는 로컬 .pt, RT-DETR 은 HF 캐시 사용.
+      - ./ai-server/weights:/app/weights:ro
+      - klid-hf-cache:/app/.hf-cache
+    deploy:
+      resources:
+        limits:
+          # CPU 실추론(RT-DETR/SAM2) 메모리 여유 확보
+          memory: 4096m
+
+volumes:
+  klid-pgdata:
+  klid-storage:
+  klid-hf-cache:

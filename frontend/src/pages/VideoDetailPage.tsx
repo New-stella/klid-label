@@ -13,7 +13,6 @@ import { PrivacyBadge } from '@/components/common/PrivacyBadge';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tabs } from '@/components/common/Tabs';
-import { ResolutionExportSection } from '@/features/video/components/ResolutionExportSection';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useVideoLabels } from '@/features/video/hooks/useVideoLabels';
 import type { FramePreview, VideoDetail } from '@/features/video/types';
@@ -70,8 +69,6 @@ function InfoTab({ video }: { video: VideoDetail }) {
           </div>
         ))}
       </div>
-      {/* SFR-06-03 — 해상도 export 독립 UI (증강 아님, 저작도구 직접 수행) */}
-      <ResolutionExportSection rawSn={video.id} />
     </div>
   );
 }

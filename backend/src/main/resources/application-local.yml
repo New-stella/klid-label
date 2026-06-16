@@ -53,6 +53,12 @@ authoring:
   control:
     training-scan:
       enabled: false
+  # Phase 1 — local 전용 mock 비식별 모드. 외부 비식별 서버(localhost:9200) 없이
+  #   비식별 단계를 통과시켜 마킹·배치 e2e 를 해금한다. 원본을 비식별 경로로 복사만 수행(원본 보존).
+  #   local 외 프로파일에서 true 면 부트 거부(DeidentifyStep 게이팅).
+  integration:
+    deidentify:
+      mock-mode: true
   # HIGH-5 fix (OWASP A06): 로컬 FE 개발 서버 기본 허용
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174}
@@ -61,6 +67,11 @@ authoring:
   dev:
     autolabel-test:
       max-file-size: ${AUTHORING_DEV_AUTOLABEL_TEST_MAX_FILE_SIZE:524288000}
+    # [로컬 전용] dev-seed.sql(db/seed) 자동 적재 — bootRun(local) 시 별도 psql 수동 실행 불필요.
+    #   DevSeedRunner 가 Flyway 마이그레이션 이후 controlDataSource 에 멱등 적재한다.
+    #   @Profile("local") + 본 토글 이중 게이팅 — prd/dev/stg 에서는 절대 실행되지 않음.
+    seed:
+      enabled: ${AUTHORING_DEV_SEED_ENABLED:true}
 
 logging:
   level:

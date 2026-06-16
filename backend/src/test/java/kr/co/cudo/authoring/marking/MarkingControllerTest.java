@@ -65,11 +65,12 @@ class MarkingControllerTest {
         workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
         otherWorkerToken = JwtTestSupport.token(secret, "200", "WORKER", "INTERNAL", issuer, 60);
 
-        // 영상 시드
+        // 영상 시드 — 마킹은 비식별 완료(deIdntfYn='Y') 영상 대상이므로 시드도 비식별 완료로 둔다.
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "CLIP-MARKING-" + System.nanoTime(), "CCTV-001", "FIRE", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/marking-test.mp4",
                 LocalDateTime.now(), 60);
+        raw.markDeidentified("Y");
         raw = videoRepository.save(raw);
         rawSn = raw.getRawSn();
 

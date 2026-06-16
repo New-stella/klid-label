@@ -64,6 +64,14 @@ class AutolabelTestRequestValidationTest {
                 .anyMatch(c -> c.getPropertyPath().toString().equals("eventTypeCd"));
     }
 
+    @Test
+    @DisplayName("정상_필드_조합은_검증_통과_위반_없음")
+    void valid_request_passes() {
+        AutolabelTestRequest req = sample("EVT_FALL");
+        Set<ConstraintViolation<AutolabelTestRequest>> v = validator.validate(req);
+        assertThat(v).isEmpty();
+    }
+
     private AutolabelTestRequest sample(String eventTypeCd) {
         return new AutolabelTestRequest(
                 "TEST-CLIP-001",
@@ -71,8 +79,7 @@ class AutolabelTestRequestValidationTest {
                 eventTypeCd,
                 "11680",
                 AutolabelTestRequest.PrvcType.ANONY,
-                Instant.parse("2026-05-01T12:00:00Z"),
-                null
+                Instant.parse("2026-05-01T12:00:00Z")
         );
     }
 }

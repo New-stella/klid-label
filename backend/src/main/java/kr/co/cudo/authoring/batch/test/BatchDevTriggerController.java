@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.TrainingVideoIngestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -48,6 +49,24 @@ public class BatchDevTriggerController {
 
     private final BatchOrchestrator orchestrator;
     private final VideoRepository videoRepository;
+    private final TrainingVideoIngestService trainingVideoIngestService;
+
+    /**
+     * 관제 학습용 자동 적재 픽업을 1회 동기 실행한다 (외부 관제 DB 없이 로컬 검증용).
+     *
+     * <p>{@link TrainingVideoIngestService#scanAndIngest()} 를 그대로 호출한다 —
+     * {@code MNG_CLIP_MASTER.JOB_DMND_YN='Y'} 클립을 픽업해 {@code LS_DATA_RAW} 로 적재(PENDING)하고
+     * {@code VideoIngestedEvent} 를 발행하는 주기 배치({@code ControlTrainingVideoScanJob}) 와 동일한
+     * 경로를 REST 트리거로 노출한다. 픽업 대상이 없으면 0 건으로 200 응답한다(멱등).
+     *
+     * @return 이번 스캔에서 신규 적재된 건수
+     */
+    @PostMapping("/scan")
+    public ApiResponse<Integer> scan() {
+        int ingested = trainingVideoIngestService.scanAndIngest();
+        log.info("[BatchDevTrigger] scan triggered ingested={}", ingested);
+        return ApiResponse.ok(ingested);
+    }
 
     /**
      * 지정 rawSn 으로 전체 파이프라인을 동기 실행한다.
