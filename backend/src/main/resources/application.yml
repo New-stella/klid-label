@@ -105,6 +105,10 @@ authoring:
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
+  # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
+  #   - 실제 콜백 경로는 base + /v1/augments/result. 운영(dev/stg/prd)에서는 환경변수로 override.
+  webhook:
+    callback-base-url: ${WEBHOOK_CALLBACK_BASE_URL:http://localhost:8080/api}
   # TUS 1.0 재개 가능 업로드 (관리 화면 대용량 영상 적재).
   #   - max-file-size: 전체 파일 크기 상한(bytes). POST 시 Upload-Length 초과 즉시 413.
   #   - max-chunk-bytes: 단일 PATCH 청크 크기 상한(bytes). 본문은 64KB 버퍼로 스트리밍 기록(OOM 방어),

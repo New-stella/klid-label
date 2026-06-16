@@ -99,7 +99,8 @@ public class LsDataAug {
     private LsDataAug(Long srcSn, String augTypeCd, String augProcSttsCd,
                       BigDecimal lblIntgrtPct, String rejectRsn,
                       String dcsnUserNo, LocalDateTime dcsnDt,
-                      LocalDateTime regDt, String regUserNo) {
+                      LocalDateTime regDt, String regUserNo,
+                      String idempotencyKey, String externalJobId) {
         this.srcSn = srcSn;
         this.augTypeCd = augTypeCd;
         this.augProcSttsCd = augProcSttsCd;
@@ -109,6 +110,8 @@ public class LsDataAug {
         this.dcsnDt = dcsnDt;
         this.regDt = regDt;
         this.regUserNo = regUserNo;
+        this.idempotencyKey = idempotencyKey;
+        this.externalJobId = externalJobId;
         this.retryCount = 0;
     }
 
@@ -125,6 +128,26 @@ public class LsDataAug {
                 .lblIntgrtPct(lblIntgrtPct)
                 .regDt(LocalDateTime.now())
                 .regUserNo(regUserNo)
+                .build();
+    }
+
+    /**
+     * 콜백 충실 플로우 요청용 — PENDING 행을 멱등 키/외부 작업 ID 와 함께 단일 INSERT 로 적재한다
+     * (DEV_FIX MEDIUM-2: 이중 save 로 인한 IDMP_KEY=null orphan aug 경계 제거).
+     *
+     * <p>idempotencyKey 는 UUID 기반(dataAugSn 비의존)이므로 save 이전에 미리 발급해 행에 실어
+     * 한 번의 save 로 커밋한다.
+     */
+    public static LsDataAug createRequested(Long srcSn, String augTypeCd, String regUserNo,
+                                            String idempotencyKey, String externalJobId) {
+        return LsDataAug.builder()
+                .srcSn(srcSn)
+                .augTypeCd(augTypeCd)
+                .augProcSttsCd(STTS_PENDING)
+                .regDt(LocalDateTime.now())
+                .regUserNo(regUserNo)
+                .idempotencyKey(idempotencyKey)
+                .externalJobId(externalJobId)
                 .build();
     }
 

@@ -5,67 +5,265 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
+import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
+import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotencyRepository;
+import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
+/**
+ * 콜백 충실 플로우 Phase 1 — 증강 요청 서비스 테스트 (DEV_FIX).
+ *
+ * <p>request() 는 키를 실은 PENDING 행을 단일 save 한 뒤 건별 이벤트를 발행하고,
+ * 멱등 키 발급 + 외부 콜백은 {@code AugmentRequestBridge} 가 AFTER_COMMIT 에서 수행한다.
+ * 따라서 AFTER_COMMIT 발화를 검증하려면 <b>실제 커밋</b>이 필요하므로 본 테스트는
+ * {@code @Transactional} 롤백을 쓰지 않고 {@link TransactionTemplate} 로 커밋한 뒤
+ * 생성된 행/멱등 키를 명시적으로 정리한다.
+ */
 @SpringBootTest
 @ActiveProfiles("local")
-@Transactional("controlTransactionManager")
 class AugmentRequestServiceTest {
 
     @Autowired private AugmentRequestService service;
     @Autowired private LsRawDataStatusRepository statusRepository;
+    @Autowired private LsDataSrcRepository srcRepository;
+    @Autowired private LsDataAugRepository augRepository;
+    @Autowired private LsWebhookIdempotencyRepository idempotencyRepository;
+    @Autowired private WebhookIdempotencyLedger ledger;
+    @Autowired private PlatformTransactionManager controlTransactionManager;
 
     @MockBean private ExternalAugmentClient externalClient;
 
+    private TransactionTemplate tx;
     private TokenClaims reviewer;
     private TokenClaims worker;
 
+    /** 본 테스트가 직접 만든 rawSn 추적 — 커밋되므로 종료 시 직접 정리한다. */
+    private final List<Long> seededRawSns = new java.util.ArrayList<>();
+    private final List<Long> seededSrcSns = new java.util.ArrayList<>();
+    private final List<String> seededIdemKeys = new java.util.ArrayList<>();
+
+    /** 테스트 격리용 고유 rawSn 시퀀스 (다른 테스트 데이터와 충돌 회피). */
+    private static final AtomicLong RAW_SN_SEQ = new AtomicLong(990_000_000L);
+
     @BeforeEach
     void setup() {
+        tx = new TransactionTemplate(controlTransactionManager);
         reviewer = new TokenClaims("1",   Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         worker   = new TokenClaims("100", Role.WORKER,   Channel.INTERNAL, Instant.now().plusSeconds(3600));
-        statusRepository.deleteAll();
-        // 외부 통보는 기본적으로 성공 응답
-        given(externalClient.requestAugment(anyList(), anyList())).willReturn(true);
+        given(externalClient.requestAugment(anyLong(), anyString(), anyString(), anyString(), anyString()))
+                .willReturn(true);
+    }
+
+    @AfterEach
+    void cleanup() {
+        tx.executeWithoutResult(s -> {
+            for (Long srcSn : seededSrcSns) {
+                augRepository.findBySrcSnOrderByAugTypeCd(srcSn)
+                        .forEach(a -> {
+                            if (a.getIdempotencyKey() != null) seededIdemKeys.add(a.getIdempotencyKey());
+                            augRepository.delete(a);
+                        });
+                srcRepository.findById(srcSn).ifPresent(srcRepository::delete);
+            }
+            for (Long rawSn : seededRawSns) {
+                statusRepository.findByRawDataIdIn(List.of(rawSn))
+                        .forEach(statusRepository::delete);
+            }
+        });
+        // 멱등 키는 REQUIRES_NEW 로 이미 커밋됨 — 별도 트랜잭션에서 정리
+        tx.executeWithoutResult(s -> seededIdemKeys.forEach(k -> {
+            if (idempotencyRepository.existsById(k)) idempotencyRepository.deleteById(k);
+        }));
+        seededRawSns.clear();
+        seededSrcSns.clear();
+        seededIdemKeys.clear();
+    }
+
+    private long nextRawSn() {
+        return RAW_SN_SEQ.incrementAndGet();
     }
 
     private void seedStatus(Long rawDataId, String dataSttsCd) {
-        LsRawDataStatus status = LsRawDataStatus.initial(rawDataId);
-        status.transitionTo(dataSttsCd);
-        statusRepository.saveAndFlush(status);
+        tx.executeWithoutResult(s -> {
+            LsRawDataStatus status = LsRawDataStatus.initial(rawDataId);
+            status.transitionTo(dataSttsCd);
+            statusRepository.save(status);
+        });
+        seededRawSns.add(rawDataId);
     }
+
+    /** 영상(rawSn)에 대표 프레임을 적재하고 첫 프레임 srcSn 을 반환. */
+    private Long seedFrame(Long rawSn, int frameNo) {
+        Long srcSn = tx.execute(s -> srcRepository.save(
+                LsDataSrc.create(rawSn, frameNo, "/storage/raw/" + rawSn + "_" + frameNo + ".jpg", null))
+                .getSrcSn());
+        seededSrcSns.add(srcSn);
+        return srcSn;
+    }
+
+    private List<LsDataAug> augsOf(Long srcSn) {
+        return tx.execute(s -> augRepository.findBySrcSnOrderByAugTypeCd(srcSn));
+    }
+
+    // ============================================================
+    // 신규 RED — AFTER_COMMIT 고아 키 방지 / 단일 save
+    // ============================================================
+
+    @Test
+    @DisplayName("요청트랜잭션_커밋후_AFTER_COMMIT에서_ledger키가_발급된다")
+    void ledgerKeyIssuedAfterCommit() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.WINTER));
+
+        // when — 실제 커밋 → AFTER_COMMIT 발화
+        service.request(req, reviewer);
+
+        // then — 커밋 후 ledger 에 issued 로 기록됨
+        List<LsDataAug> augs = augsOf(frame);
+        assertThat(augs).hasSize(1);
+        String key = augs.get(0).getIdempotencyKey();
+        assertThat(key).isNotNull();
+        assertThat(ledger.isIssued(key)).isTrue();
+    }
+
+    @Test
+    @DisplayName("요청트랜잭션_롤백시_ledger키가_고아로_남지_않는다")
+    void noOrphanLedgerKeyOnRollback() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.NIGHT));
+
+        // when — request() 를 트랜잭션 안에서 호출 후 강제 롤백 (커밋 미발생)
+        List<String> capturedKeys = tx.execute(s -> {
+            service.request(req, reviewer);
+            // request() 가 생성한(아직 미커밋) aug 의 키 확보
+            List<String> keys = augRepository.findBySrcSnOrderByAugTypeCd(frame).stream()
+                    .map(LsDataAug::getIdempotencyKey).toList();
+            s.setRollbackOnly();
+            return keys;
+        });
+
+        // then — 롤백되었으므로 aug 행도 ledger 키도 남지 않는다 (고아 키 없음)
+        assertThat(augsOf(frame)).isEmpty();
+        capturedKeys.forEach(k -> {
+            if (k != null) seededIdemKeys.add(k); // 만에 하나 남으면 cleanup 안전망
+            assertThat(ledger.isIssued(k)).as("롤백된 요청의 멱등 키는 발급되지 않아야 한다").isFalse();
+        });
+        // 외부 콜백도 발생하지 않음
+        verify(externalClient, never())
+                .requestAugment(anyLong(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("aug는_단일_save로_idempotencyKey와_함께_저장된다")
+    void augSavedWithIdempotencyKeyInSingleSave() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.WINTER));
+
+        service.request(req, reviewer);
+
+        // then — 저장된 aug 는 처음부터 IDMP_KEY/OTSD_JOB_ID 를 보유 (중간 null 상태 없음)
+        List<LsDataAug> augs = augsOf(frame);
+        assertThat(augs).hasSize(1);
+        LsDataAug aug = augs.get(0);
+        assertThat(aug.getIdempotencyKey())
+                .isNotNull().matches("^[A-Za-z0-9_-]+$").hasSizeLessThanOrEqualTo(64);
+        assertThat(aug.getExternalJobId()).isNotNull().hasSizeLessThanOrEqualTo(128);
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
+    }
+
+    @Test
+    @DisplayName("AFTER_COMMIT에서_externalClient에_콜백컨텍스트가_전달된다")
+    void passesCallbackContextToExternalClientAfterCommit() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.RAIN));
+
+        service.request(req, reviewer);
+
+        ArgumentCaptor<Long> originAugSn = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<String> augType = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> idemKey = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> jobId = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> callbackUrl = ArgumentCaptor.forClass(String.class);
+        verify(externalClient, times(1)).requestAugment(
+                originAugSn.capture(), augType.capture(), idemKey.capture(),
+                jobId.capture(), callbackUrl.capture());
+
+        List<LsDataAug> augs = augsOf(frame);
+        assertThat(augs).hasSize(1);
+        LsDataAug aug = augs.get(0);
+        assertThat(originAugSn.getValue()).isEqualTo(aug.getDataAugSn());
+        assertThat(augType.getValue()).isEqualTo(LsDataAug.AUG_RAIN);
+        assertThat(idemKey.getValue()).isEqualTo(aug.getIdempotencyKey());
+        assertThat(jobId.getValue()).isEqualTo(aug.getExternalJobId());
+        assertThat(callbackUrl.getValue()).endsWith("/v1/augments/result");
+    }
+
+    // ============================================================
+    // 회귀 — 기존 동작 보존
+    // ============================================================
 
     @Test
     @DisplayName("AugmentRequestService_검수_완료_영상_3건_요청시_정상_jobId_반환")
     void requestSucceedsWhenAllVideosApproved() {
-        seedStatus(1001L, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(1002L, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(1003L, LsRawDataStatus.STTS_APPROVED);
+        Long r1 = nextRawSn(), r2 = nextRawSn(), r3 = nextRawSn();
+        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
+        seedStatus(r2, LsRawDataStatus.STTS_APPROVED);
+        seedStatus(r3, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(r1, 0);
+        seedFrame(r2, 0);
+        seedFrame(r3, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(1001L, 1002L, 1003L),
+                List.of(r1, r2, r3),
                 List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT, AugmentTypeCode.RAIN)
         );
 
@@ -78,16 +276,84 @@ class AugmentRequestServiceTest {
     }
 
     @Test
-    @DisplayName("AugmentRequestService_검수_미완료_영상_포함시_NOT_REVIEWED_blockedVideoIds_포함")
-    void rejectsWhenSomeVideosNotApproved() {
-        seedStatus(2001L, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(2002L, LsRawDataStatus.STTS_IN_REVIEW);
-        seedStatus(2003L, LsRawDataStatus.STTS_PENDING);
+    @DisplayName("증강요청시_영상종류별_LS_DATA_AUG가_PENDING으로_생성된다")
+    void createsPendingAugPerVideoAndType() {
+        Long r1 = nextRawSn(), r2 = nextRawSn();
+        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
+        seedStatus(r2, LsRawDataStatus.STTS_APPROVED);
+        Long frame1 = seedFrame(r1, 0);
+        Long frame2 = seedFrame(r2, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(2001L, 2002L, 2003L),
-                List.of(AugmentTypeCode.WINTER)
+                List.of(r1, r2),
+                List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT)
         );
+
+        service.request(req, reviewer);
+
+        List<LsDataAug> aug1 = augsOf(frame1);
+        List<LsDataAug> aug2 = augsOf(frame2);
+        assertThat(aug1).hasSize(2);
+        assertThat(aug2).hasSize(2);
+        assertThat(aug1).allSatisfy(a -> {
+            assertThat(a.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
+            assertThat(a.getSrcSn()).isEqualTo(frame1);
+        });
+        assertThat(aug1).extracting(LsDataAug::getAugTypeCd)
+                .containsExactlyInAnyOrder(LsDataAug.AUG_WINTER, LsDataAug.AUG_NIGHT);
+    }
+
+    @Test
+    @DisplayName("증강요청시_idempotencyKey가_발급된다")
+    void issuesIdempotencyKeyPerAug() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.WINTER));
+
+        service.request(req, reviewer);
+
+        List<LsDataAug> augs = augsOf(frame);
+        assertThat(augs).hasSize(1);
+        LsDataAug aug = augs.get(0);
+        assertThat(aug.getIdempotencyKey())
+                .isNotNull().matches("^[A-Za-z0-9_-]+$").hasSizeLessThanOrEqualTo(64);
+        assertThat(aug.getExternalJobId()).isNotNull().hasSizeLessThanOrEqualTo(128);
+        assertThat(ledger.isIssued(aug.getIdempotencyKey())).isTrue();
+    }
+
+    @Test
+    @DisplayName("프레임없는_영상은_건별로_격리되어_전체요청을_실패시키지_않는다")
+    void videoWithoutFrameIsIsolated() {
+        Long r1 = nextRawSn(), r2 = nextRawSn();
+        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
+        seedStatus(r2, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(r1, 0);
+        // r2 프레임 미적재
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(r1, r2), List.of(AugmentTypeCode.WINTER));
+
+        AugmentRequestResponse resp = service.request(req, reviewer);
+
+        assertThat(resp.jobId()).isNotNull();
+        assertThat(augsOf(frame)).hasSize(1);
+        verify(externalClient, times(1)).requestAugment(
+                anyLong(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("AugmentRequestService_검수_미완료_영상_포함시_NOT_REVIEWED_blockedVideoIds_포함")
+    void rejectsWhenSomeVideosNotApproved() {
+        Long r1 = nextRawSn(), r2 = nextRawSn(), r3 = nextRawSn();
+        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
+        seedStatus(r2, LsRawDataStatus.STTS_IN_REVIEW);
+        seedStatus(r3, LsRawDataStatus.STTS_PENDING);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(r1, r2, r3), List.of(AugmentTypeCode.WINTER));
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -99,20 +365,19 @@ class AugmentRequestServiceTest {
                     var details = (java.util.Map<String, Object>) ce.getDetails();
                     @SuppressWarnings("unchecked")
                     List<Long> blocked = (List<Long>) details.get("blockedVideoIds");
-                    assertThat(blocked).containsExactlyInAnyOrder(2002L, 2003L);
+                    assertThat(blocked).containsExactlyInAnyOrder(r2, r3);
                 });
     }
 
     @Test
     @DisplayName("AugmentRequestService_LsRawDataStatus_row가_없는_영상_포함시_NOT_REVIEWED")
     void rejectsWhenStatusRowMissing() {
-        seedStatus(3001L, LsRawDataStatus.STTS_APPROVED);
-        // 3002L row 없음 → 미검수로 간주
+        Long r1 = nextRawSn();
+        Long missing = nextRawSn(); // status row 없음
+        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(3001L, 3002L),
-                List.of(AugmentTypeCode.NIGHT)
-        );
+                List.of(r1, missing), List.of(AugmentTypeCode.NIGHT));
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -123,20 +388,21 @@ class AugmentRequestServiceTest {
                     var details = (java.util.Map<String, Object>) ce.getDetails();
                     @SuppressWarnings("unchecked")
                     List<Long> blocked = (List<Long>) details.get("blockedVideoIds");
-                    assertThat(blocked).containsExactly(3002L);
+                    assertThat(blocked).containsExactly(missing);
                 });
     }
 
     @Test
     @DisplayName("AugmentRequestService_videoIds_중복_입력시_distinct_처리되어_정상_진행")
     void distinctVideoIds() {
-        seedStatus(4001L, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(4002L, LsRawDataStatus.STTS_APPROVED);
+        Long r1 = nextRawSn(), r2 = nextRawSn();
+        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
+        seedStatus(r2, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(r1, 0);
+        seedFrame(r2, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(4001L, 4002L, 4001L, 4002L),
-                List.of(AugmentTypeCode.WINTER)
-        );
+                List.of(r1, r2, r1, r2), List.of(AugmentTypeCode.WINTER));
 
         AugmentRequestResponse resp = service.request(req, reviewer);
 
@@ -146,12 +412,13 @@ class AugmentRequestServiceTest {
     @Test
     @DisplayName("AugmentRequestService_types_중복_입력시_distinct_처리되어_정상_진행")
     void distinctTypes() {
-        seedStatus(5001L, LsRawDataStatus.STTS_APPROVED);
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(5001L),
-                List.of(AugmentTypeCode.WINTER, AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT)
-        );
+                List.of(raw),
+                List.of(AugmentTypeCode.WINTER, AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT));
 
         AugmentRequestResponse resp = service.request(req, reviewer);
 
@@ -161,30 +428,34 @@ class AugmentRequestServiceTest {
     @Test
     @DisplayName("AugmentRequestService_ExternalAugmentClient_실패시_트랜잭션_영향_없이_성공_응답")
     void externalFailureDoesNotBlockSuccess() {
-        seedStatus(6001L, LsRawDataStatus.STTS_APPROVED);
-        given(externalClient.requestAugment(anyList(), anyList()))
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+        given(externalClient.requestAugment(anyLong(), anyString(), anyString(), anyString(), anyString()))
                 .willThrow(new RuntimeException("외부 시스템 장애 (mock)"));
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(6001L),
-                List.of(AugmentTypeCode.WINTER)
-        );
+                List.of(raw), List.of(AugmentTypeCode.WINTER));
 
+        // when — 외부 호출은 AFTER_COMMIT 에서 실패하지만 요청 트랜잭션/응답에는 영향 없음
         AugmentRequestResponse resp = service.request(req, reviewer);
 
         assertThat(resp.jobId()).isNotNull();
         assertThat(resp.videoCount()).isEqualTo(1);
+        // aug 행과 멱등 키는 외부 실패와 무관하게 유지 (재시도 가능 양성 상태)
+        List<LsDataAug> augs = augsOf(frame);
+        assertThat(augs).hasSize(1);
+        assertThat(ledger.isIssued(augs.get(0).getIdempotencyKey())).isTrue();
     }
 
     @Test
     @DisplayName("AugmentRequestService_WORKER_요청시_FORBIDDEN")
     void workerCannotRequest() {
-        seedStatus(7001L, LsRawDataStatus.STTS_APPROVED);
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(7001L),
-                List.of(AugmentTypeCode.WINTER)
-        );
+                List.of(raw), List.of(AugmentTypeCode.WINTER));
 
         assertThatThrownBy(() -> service.request(req, worker))
                 .isInstanceOf(CustomException.class)

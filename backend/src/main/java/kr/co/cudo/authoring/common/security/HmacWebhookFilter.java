@@ -16,12 +16,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -82,7 +79,12 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
 
     static final String PATH_DEIDENTIFY = "/v1/deidentify/result";
     static final String PATH_VLM = "/v1/vlm/result";
-    static final String PATH_AUGMENT = "/v1/augments/result";
+    /**
+     * 증강 결과 콜백 경로 — <b>단일 진실원</b>.
+     * 요청측({@code AugmentRequestService})·dev 시뮬({@code DevAugmentCallbackSimulator})·검증 필터가
+     * 모두 이 상수를 참조해 경로 드리프트로 인한 401 회귀를 구조적으로 차단한다.
+     */
+    public static final String PATH_AUGMENT = "/v1/augments/result";
 
     private static final Pattern LOG_UNSAFE = Pattern.compile("[\\r\\n\\t]");
 
@@ -235,12 +237,14 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
         chain.doFilter(cached, response);
     }
 
-    /** HMAC-SHA256 → lowercase hex. */
-    static String hmacSha256Hex(String secret, String message) throws Exception {
-        Mac mac = Mac.getInstance(HMAC_ALGORITHM);
-        mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM));
-        byte[] raw = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
-        return HexFormat.of().formatHex(raw);
+    /**
+     * HMAC-SHA256 → lowercase hex.
+     *
+     * <p>서명 규칙은 {@link HmacSigner} 로 추출되어 서명 측(콜백 시뮬레이터)과 공유된다.
+     * 본 필터(검증 측)와 서명 측이 동일 코드를 사용해 서명 불일치 회귀를 구조적으로 차단한다.
+     */
+    static String hmacSha256Hex(String secret, String message) {
+        return HmacSigner.hex(secret, message);
     }
 
     private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {

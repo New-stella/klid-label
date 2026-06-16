@@ -59,6 +59,13 @@ authoring:
   integration:
     deidentify:
       mock-mode: true
+  # 콜백 충실 플로우 Phase 2 — local 에서는 외부 증강 시스템 대신 dev 콜백 시뮬레이터를 활성화한다.
+  #   - external.mode=dev → DevAugmentCallbackSimulator 빈 로드(외부 0 자족). 운영은 noop(기본).
+  #   - webhook.callback-base-url 은 application.yml 기본값(http://localhost:8080/api) 사용.
+  #     컨트롤러 매핑(/v1/augments/result) + context-path(/api) 정합 → 콜백 URL = .../api/v1/augments/result
+  augment:
+    external:
+      mode: ${AUGMENT_EXTERNAL_MODE:dev}
   # HIGH-5 fix (OWASP A06): 로컬 FE 개발 서버 기본 허용
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174}
@@ -72,6 +79,14 @@ authoring:
     #   @Profile("local") + 본 토글 이중 게이팅 — prd/dev/stg 에서는 절대 실행되지 않음.
     seed:
       enabled: ${AUTHORING_DEV_SEED_ENABLED:true}
+
+# 콜백 충실 플로우 Phase 2 — local 전용 webhook HMAC 시크릿(dev placeholder, 32B 이상).
+#   - dev 콜백 시뮬레이터(서명 측)와 HmacWebhookFilter(검증 측)가 동일 값을 사용해 자족 콜백을 통과시킨다.
+#   - 평문 운영 시크릿 아님. 운영(dev/stg/prd)은 WEBHOOK_HMAC_SECRET_AUGMENT 환경변수로 override 필수.
+webhook:
+  hmac:
+    secret:
+      augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:local-augment-callback-hmac-change-me-32bytes-min}
 
 logging:
   level:
