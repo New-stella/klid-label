@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -16,24 +16,23 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
-import { AugmentTypeCard } from '@/features/augment/components/AugmentTypeCard';
 import { JobCard } from '@/features/augment/components/JobCard';
-import { ResolutionExportPanel } from '@/features/augment/components/ResolutionExportPanel';
+import { ProcessKindCard } from '@/features/augment/components/ProcessKindCard';
+import { TargetResolutionSelect } from '@/features/augment/components/TargetResolutionSelect';
 import { useRequestAugment } from '@/features/augment/hooks/useAugmentDecision';
 import { useAugmentJobs } from '@/features/augment/hooks/useAugmentJobs';
-import { AugmentType, type AugmentType as AT } from '@/features/augment/types';
+import {
+  PROCESS_KINDS,
+  PROCESS_KIND_LABEL,
+  isAugmentKind,
+  type ProcessKind,
+} from '@/features/augment/types';
+import { useResolutionExport } from '@/features/video/hooks/useResolutionExport';
 import { useVideos } from '@/features/video/hooks/useVideos';
+import type { ResolutionPreset } from '@/features/video/types';
+import { ApiError } from '@/lib/api/errors';
 import { FIXED_EVENT_TYPE_CODES, getEventTypeLabel } from '@/lib/eventTypeLabel';
 import { useUiStore } from '@/stores/useUiStore';
-
-// 외부 증강 위탁 3종만 — 해상도(RESOLUTION)는 증강 잡 경로가 아니라 증강 유형 선택과
-// 같은 레벨(형제)에 배치된 해상도 변경 패널(세로 구분자로 분할·단일 영상 선택)에서
-// 직접 수행한다(CLAUDE.md SFR-06-03 / 설계 정합).
-const ALL_TYPES: AT[] = [
-  AugmentType.WINTER,
-  AugmentType.NIGHT,
-  AugmentType.RAIN,
-];
 
 const PAGE_SIZE = 20;
 
@@ -48,28 +47,32 @@ const DEFAULT_FILTERS: VideoFilterValues = {
 };
 
 /**
- * SCR-AUG-001 데이터 증강 요청 (`/augment`).
+ * SCR-AUG-001 데이터 증강 요청 (`/augment`) — 통합 단일 선택 UI.
  *
- * UI/UX §4-12 + V1.x:
- * - 증강 유형 3종 카드(겨울/야간/비). 해상도(RESOLUTION)는 증강이 아니라 증강 유형 선택과
- *   같은 레벨(형제)에 세로 구분자로 분할 배치된 해상도 변경 패널(자체 단일 영상 선택기)에서
- *   직접 수행한다(SFR-06-03). 두 기능은 별개임이 라벨·제목으로 유지된다.
- * - **검수 완료된 영상만 선택 가능** — 비활성/검색·이벤트 필터·페이징
- * - 비상시 ID 콤마 입력 fallback
- * - 최근 요청 이력 잡 카드 6건 그리드
+ * UI/UX §4-12 + V1.x (Phase 1 통합 재구성):
+ * - 처리 종류 카드 4개(겨울/야간/우천/해상도 변경)를 radiogroup 으로 **단일 선택**.
+ *   증강 3종은 외부 위탁 잡, 해상도 변경(RESOLUTION)은 저작도구 직접 수행(SFR-06-03).
+ * - 해상도 변경 종류를 고른 경우에만 타겟 해상도(1080P/720P/480P) 선택 UI 노출.
+ * - 대상 영상은 **1건 단일 선택**(라디오).
+ * - 종류를 바꾸면 타겟 해상도(preset)·결과 상태 초기화.
+ * - **검수 완료된 영상만 선택 가능** — 비활성/검색·이벤트 필터·페이징.
+ * - 최근 요청 이력 잡 카드 6건 그리드.
+ *
+ * Phase 1 범위는 선택 상태/렌더링까지. 실행(submit) 분기·API 호출은 Phase 2.
  *
  * 보안:
  * - REVIEWER 역할 검증 (라우터 + BE).
- * - videoIds는 number[]로 변환 후 전달 — 비숫자 입력 차단.
- * - types는 enum allowlist로 강제 (체크박스).
+ * - videoId 는 number 로 변환 후 전달 — 비숫자 입력 차단.
+ * - kind/preset 은 정의된 상수 집합(allowlist)으로만 좁힘 — 임의 문자열 분기 차단.
  */
 export function AugmentRequestPage() {
   const navigate = useNavigate();
   const pushToast = useUiStore((s) => s.pushToast);
 
-  const [selectedTypes, setSelectedTypes] = useState<Set<AT>>(new Set());
-  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(
-    new Set(),
+  const [selectedKind, setSelectedKind] = useState<ProcessKind | null>(null);
+  const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<ResolutionPreset | null>(
+    null,
   );
 
   // 필터: localFilters (입력 중), filters (적용된 값)
@@ -79,10 +82,8 @@ export function AugmentRequestPage() {
   const [page, setPage] = useState(0);
 
   // 검수 완료(승인) 영상만 — V1.x SFR-07 가드
-  // Phase 4 옵션 3: BE 페이징 사용 (size 20).
   // - dataSttsCd=COMPLETED: 배치 파이프라인 완료 (LS_DATA_RAW.DATA_STTS_CD)
   // - reviewStatusCd=APPROVED: 검수 승인 완료 (LS_RAW_DATA_STATUS.DATA_STTS_CD)
-  // 두 조건이 모두 만족된 영상만 증강 요청 대상으로 노출된다.
   const { data: videosPage, isLoading: videosLoading } = useVideos({
     page,
     size: PAGE_SIZE,
@@ -130,8 +131,9 @@ export function AugmentRequestPage() {
   const { mutate, isPending } = useRequestAugment({
     onSuccess: (resp) => {
       pushToast({ variant: 'success', message: '증강 요청 등록됨' });
-      setSelectedTypes(new Set());
-      setSelectedVideoIds(new Set());
+      setSelectedKind(null);
+      setSelectedVideoId(null);
+      setSelectedPreset(null);
       if (resp?.jobId) {
         navigate(`/augment/result/${resp.jobId}`);
       }
@@ -141,46 +143,51 @@ export function AugmentRequestPage() {
     },
   });
 
-  const finalVideoIds = useMemo(() => {
-    return Array.from(selectedVideoIds);
-  }, [selectedVideoIds]);
+  // 해상도 변환(SFR-06-03) — 저작도구 직접 수행. rawSn 은 mutate 시점에 canSubmit 가드로 보장.
+  // selectedVideoId 가 null 이면 0 을 넘기되 canSubmit 가 false 라 실제 호출은 차단된다.
+  const resolutionExport = useResolutionExport(selectedVideoId ?? 0);
+  const {
+    data: resolutionResult,
+    error: resolutionError,
+    reset: resetResolution,
+  } = resolutionExport;
 
-  const canSubmit =
-    finalVideoIds.length > 0 && selectedTypes.size > 0 && !isPending;
+  const isResolution = selectedKind === 'RESOLUTION';
+  const isPendingAny = isPending || resolutionExport.isPending;
 
-  const toggleType = (t: AT) => {
-    setSelectedTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t);
-      else next.add(t);
-      return next;
-    });
+  // radiogroup 로빙 tabindex/화살표 탐색용 카드 ref (a11y WCAG 4.1.2).
+  const kindCardRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // 종류 변경: 타겟 해상도(preset)·해상도 결과 상태 초기화 (AC4).
+  const handleSelectKind = (kind: ProcessKind) => {
+    setSelectedKind(kind);
+    setSelectedPreset(null);
+    resetResolution();
   };
 
-  const toggleVideo = (id: number) => {
-    setSelectedVideoIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  // 화살표 키로 카드 간 이동 + 선택 + 포커스 이동 (로빙 tabindex 패턴).
+  const handleKindKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    let nextIndex: number | null = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      nextIndex = (index + 1) % PROCESS_KINDS.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      nextIndex = (index - 1 + PROCESS_KINDS.length) % PROCESS_KINDS.length;
+    }
+    if (nextIndex === null) return;
+    e.preventDefault();
+    handleSelectKind(PROCESS_KINDS[nextIndex]);
+    kindCardRefs.current[nextIndex]?.focus();
   };
 
-  const pagedIds = pagedVideos.map((v) => v.id);
-  const allPagedSelected =
-    pagedIds.length > 0 && pagedIds.every((id) => selectedVideoIds.has(id));
-  const somePagedSelected = pagedIds.some((id) => selectedVideoIds.has(id));
+  // 미선택 상태면 첫 카드가 tab 진입점(0), 선택 상태면 선택된 카드만 0.
+  const kindTabIndex = (kind: ProcessKind, index: number) =>
+    selectedKind === null ? (index === 0 ? 0 : -1) : selectedKind === kind ? 0 : -1;
 
-  const togglePagedAll = () => {
-    setSelectedVideoIds((prev) => {
-      const next = new Set(prev);
-      if (allPagedSelected) {
-        pagedIds.forEach((id) => next.delete(id));
-      } else {
-        pagedIds.forEach((id) => next.add(id));
-      }
-      return next;
-    });
+  const selectVideo = (id: number) => {
+    setSelectedVideoId((prev) => (prev === id ? null : id));
   };
 
   const handleApplyFilters = (e: React.FormEvent) => {
@@ -193,15 +200,36 @@ export function AugmentRequestPage() {
     setFilters(DEFAULT_FILTERS);
   };
 
+  // 제출 가능 조건 — 종류·영상 선택 필수, 해상도 종류면 preset 필수.
+  const canSubmit =
+    selectedKind !== null &&
+    selectedVideoId !== null &&
+    (!isResolution || selectedPreset !== null) &&
+    !isPendingAny;
+
+  // 실행 분기 (R4): 증강 3종은 위탁 잡 요청(/augments/request),
+  // 해상도 변경은 저작도구 직접 수행(/videos/{rawSn}/resolution).
+  // kind/preset 은 allowlist 상수로만 좁혀(isAugmentKind/RESOLUTION_PRESETS) 임의 분기 차단.
   const handleSubmit = () => {
-    if (!canSubmit) return;
-    mutate({
-      videoIds: finalVideoIds,
-      types: Array.from(selectedTypes),
-    });
+    if (!canSubmit || selectedKind === null || selectedVideoId === null) return;
+    if (isAugmentKind(selectedKind)) {
+      // 증강: 성공 시 결과화면 네비게이션(useRequestAugment onSuccess).
+      mutate({
+        videoIds: [selectedVideoId],
+        types: [selectedKind],
+      });
+    } else if (selectedPreset !== null) {
+      // 해상도: 성공 시 결과 카드 inline 표시(아래 resolutionResult).
+      resolutionExport.mutate(selectedPreset);
+    }
   };
 
-  const totalEstimated = selectedTypes.size * finalVideoIds.length;
+  const resolutionErrorMessage =
+    resolutionError instanceof ApiError
+      ? resolutionError.userMessage
+      : resolutionError
+        ? '해상도 변환에 실패했습니다.'
+        : null;
 
   return (
     <section
@@ -210,79 +238,94 @@ export function AugmentRequestPage() {
     >
       <PageHeader
         title="데이터 증강 요청"
-        description="검수 완료(승인) 영상에 3종(겨울/야간/비) 증강을 요청합니다. 해상도 변경(이미지셋 다운스케일)은 증강 유형 선택과 같은 영역에서 별도 기능으로 제공됩니다."
+        description="검수 완료(승인) 영상 1건에 처리 종류(겨울/야간/우천 증강 또는 해상도 변경) 하나를 선택해 요청합니다."
       />
 
       {/* SFR-07 안내 */}
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
         <Info size={14} className="mt-0.5 shrink-0 text-blue-600" aria-hidden />
         <p className="text-xs text-blue-700">
-          증강 요청은 검수 완료(승인)된 영상만 가능합니다. 미승인 영상은 목록에 표시되지 않습니다.
+          처리 요청은 검수 완료(승인)된 영상만 가능합니다. 미승인 영상은 목록에 표시되지 않습니다.
         </p>
       </div>
 
-      {/*
-        Step 1: 증강 유형 선택 + 해상도 변경 — 같은 레벨(형제 블록)에 배치하고
-        세로 구분자('|' divider)로 분할. 넓은 화면(xl+)에서는 좌/우 2열로 나란히,
-        좁은 화면에서는 세로 스택(구분자는 수평선으로 전환)된다.
-        두 기능은 별개(증강 ≠ 해상도)이므로 각 블록의 제목·라벨은 그대로 유지한다.
-      */}
-      <div
-        className="flex flex-col gap-6 xl:flex-row xl:items-stretch xl:gap-0"
-        data-testid="augment-resolution-row"
-      >
-        {/* 증강 유형 선택 */}
-        <section className="space-y-4 xl:flex-1 xl:pr-8">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">
-              1
+      {/* Step 1: 처리 종류 선택 (단일 선택 카드 4개) */}
+      <section className="space-y-4" data-testid="process-kind-step">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">
+            1
+          </span>
+          <h2 className="text-base font-semibold text-gray-800">처리 종류 선택</h2>
+          {selectedKind && (
+            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+              {PROCESS_KIND_LABEL[selectedKind]}
             </span>
-            <h2 className="text-base font-semibold text-gray-800">
-              증강 유형 선택
-            </h2>
-            {selectedTypes.size > 0 && (
-              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                {selectedTypes.size}종 선택
-              </span>
+          )}
+        </div>
+
+        <div
+          role="radiogroup"
+          aria-label="처리 종류"
+          className="grid grid-cols-2 gap-4 md:grid-cols-4"
+          data-testid="process-kind-list"
+        >
+          {PROCESS_KINDS.map((kind, index) => (
+            <ProcessKindCard
+              key={kind}
+              ref={(el) => {
+                kindCardRefs.current[index] = el;
+              }}
+              kind={kind}
+              selected={selectedKind === kind}
+              tabIndex={kindTabIndex(kind, index)}
+              onSelect={() => handleSelectKind(kind)}
+              onKeyDown={(e) => handleKindKeyDown(e, index)}
+            />
+          ))}
+        </div>
+
+        {selectedKind === null && (
+          <p className="flex items-center gap-1.5 text-xs text-amber-600">
+            <AlertCircle size={13} aria-hidden />
+            처리 종류를 하나 선택하세요.
+          </p>
+        )}
+
+        {/* 해상도 변경 종류 선택 시에만 타겟 해상도 UI 노출 (AC3) */}
+        {isResolution && (
+          <div className="space-y-2" data-testid="target-resolution-block">
+            <p className="text-xs font-medium text-gray-600">타겟 해상도</p>
+            <TargetResolutionSelect
+              value={selectedPreset}
+              onChange={(p) => {
+                setSelectedPreset(p);
+                resetResolution();
+              }}
+              disabled={resolutionExport.isPending}
+            />
+
+            {/* 해상도 변환 실행 결과 (AC5) */}
+            {resolutionErrorMessage && (
+              <p role="alert" className="text-sm text-red-600">
+                {resolutionErrorMessage}
+              </p>
+            )}
+            {resolutionResult && (
+              <div
+                role="status"
+                data-testid="resolution-export-result"
+                className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800"
+              >
+                변환 완료 — {resolutionResult.srcW}×{resolutionResult.srcH} →{' '}
+                {resolutionResult.targetW}×{resolutionResult.targetH}, 프레임{' '}
+                {resolutionResult.frameCount}장 (export #{resolutionResult.exportSn})
+              </div>
             )}
           </div>
+        )}
+      </section>
 
-          <div
-            className="grid grid-cols-2 gap-4 md:grid-cols-3"
-            data-testid="augment-type-list"
-          >
-            {ALL_TYPES.map((t) => (
-              <AugmentTypeCard
-                key={t}
-                type={t}
-                selected={selectedTypes.has(t)}
-                onToggle={() => toggleType(t)}
-              />
-            ))}
-          </div>
-
-          {selectedTypes.size === 0 && (
-            <p className="flex items-center gap-1.5 text-xs text-amber-600">
-              <AlertCircle size={13} aria-hidden />
-              증강 유형을 하나 이상 선택하세요.
-            </p>
-          )}
-        </section>
-
-        {/* 세로 구분자('|') — 장식 요소. 좁은 화면에선 수평선으로 분할 */}
-        <div
-          aria-hidden
-          data-testid="augment-resolution-divider"
-          className="border-t border-gray-200 xl:border-l xl:border-t-0"
-        />
-
-        {/* 해상도 변경 (증강과 별도 기능, 자체 단일 영상 선택기) — 같은 레벨 형제 */}
-        <div className="xl:flex-1 xl:pl-8">
-          <ResolutionExportPanel />
-        </div>
-      </div>
-
-      {/* Step 2: 대상 영상 선택 */}
+      {/* Step 2: 대상 영상 선택 (단일 선택) */}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">
@@ -292,9 +335,9 @@ export function AugmentRequestPage() {
           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
             검수 완료 {totalElements}건
           </span>
-          {selectedVideoIds.size > 0 && (
+          {selectedVideoId !== null && (
             <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-              {selectedVideoIds.size}건 선택
+              #{selectedVideoId} 선택
             </span>
           )}
         </div>
@@ -370,7 +413,7 @@ export function AugmentRequestPage() {
           </div>
         </form>
 
-        {/* 영상 테이블 */}
+        {/* 영상 테이블 (단일 선택 라디오) */}
         {videosLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -393,20 +436,7 @@ export function AugmentRequestPage() {
             >
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="w-10 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      aria-label="현재 페이지 전체 선택"
-                      checked={allPagedSelected}
-                      ref={(el) => {
-                        if (el)
-                          el.indeterminate =
-                            !allPagedSelected && somePagedSelected;
-                      }}
-                      onChange={togglePagedAll}
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                  </th>
+                  <th className="w-10 px-3 py-2" />
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">
                     영상명 / CCTV
                   </th>
@@ -423,21 +453,22 @@ export function AugmentRequestPage() {
               </thead>
               <tbody>
                 {pagedVideos.map((v) => {
-                  const checked = selectedVideoIds.has(v.id);
+                  const checked = selectedVideoId === v.id;
                   return (
                     <tr
                       key={v.id}
                       className="cursor-pointer border-b border-gray-100 hover:bg-gray-50"
-                      onClick={() => toggleVideo(v.id)}
+                      onClick={() => selectVideo(v.id)}
                     >
                       <td className="px-3 py-2">
                         <input
-                          type="checkbox"
+                          type="radio"
+                          name="augment-target-video"
                           aria-label={`${v.cctvName} 선택`}
                           checked={checked}
-                          onChange={() => toggleVideo(v.id)}
+                          onChange={() => selectVideo(v.id)}
                           onClick={(e) => e.stopPropagation()}
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          className="h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500"
                         />
                       </td>
                       <td className="max-w-[260px] px-3 py-2">
@@ -506,16 +537,16 @@ export function AugmentRequestPage() {
           </div>
         )}
 
-        {/* 선택 액션 배지 */}
-        {selectedVideoIds.size > 0 && (
+        {/* 선택 액션 배지 (단일) */}
+        {selectedVideoId !== null && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3">
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                {selectedVideoIds.size}개 영상 선택됨
+                영상 #{selectedVideoId} 선택됨
               </span>
               <button
                 type="button"
-                onClick={() => setSelectedVideoIds(new Set())}
+                onClick={() => setSelectedVideoId(null)}
                 className="inline-flex items-center gap-1 text-xs text-gray-500 underline hover:text-gray-700"
               >
                 <X size={12} aria-hidden />
@@ -524,14 +555,10 @@ export function AugmentRequestPage() {
             </div>
           </div>
         )}
-
       </section>
 
       {/* 최근 요청 이력 */}
-      <section
-        aria-label="최근 요청 이력"
-        className="flex flex-col gap-3"
-      >
+      <section aria-label="최근 요청 이력" className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <History size={18} className="text-gray-500" aria-hidden />
@@ -547,7 +574,7 @@ export function AugmentRequestPage() {
         </div>
         {error && <ErrorState title="이력을 불러올 수 없습니다" />}
         {isLoading && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} height={92} />
             ))}
@@ -559,7 +586,7 @@ export function AugmentRequestPage() {
           ) : (
             <div
               data-testid="job-card-grid"
-              className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
             >
               {data.content.slice(0, 6).map((job) => (
                 <JobCard key={job.jobId} job={job} />
@@ -574,21 +601,19 @@ export function AugmentRequestPage() {
           <div className="text-sm text-gray-600">
             선택:{' '}
             <span className="font-semibold text-primary-600">
-              {selectedTypes.size}종
+              {selectedKind ? PROCESS_KIND_LABEL[selectedKind] : '종류 미선택'}
             </span>{' '}
             ×{' '}
             <span className="font-semibold text-primary-600">
-              {finalVideoIds.length}건
-            </span>{' '}
-            = 예상{' '}
-            <span className="font-bold text-gray-900">{totalEstimated}건</span>
+              {selectedVideoId !== null ? `영상 #${selectedVideoId}` : '영상 미선택'}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <Button
               variant="secondary"
               size="md"
               onClick={() => navigate(-1)}
-              disabled={isPending}
+              disabled={isPendingAny}
             >
               취소
             </Button>
@@ -597,11 +622,11 @@ export function AugmentRequestPage() {
               variant="primary"
               size="md"
               disabled={!canSubmit}
-              loading={isPending}
+              loading={isPendingAny}
               onClick={handleSubmit}
             >
               <Wand2 size={14} aria-hidden />
-              증강 요청
+              처리 요청
             </Button>
           </div>
         </div>
