@@ -51,9 +51,9 @@ DELETE FROM LS_DATA_RAW WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%';
 -- 관제 공유 클립 stub 시드(DEV-EVT-*) 정리 — 자식(EVNT_LST) → 부모(MASTER) 순.
 DELETE FROM MNG_CLIP_EVNT_LST WHERE EVNT_ID LIKE 'DEV-EVT-%';
 DELETE FROM MNG_CLIP_MASTER WHERE EVNT_ID LIKE 'DEV-EVT-%';
-DELETE FROM LS_LABEL WHERE LBL_NM IN
-    ('person','car','bicycle','motorbike','bus','truck','animal',
-     'fire','smoke','water','fallen-person','vehicle-accident','object');
+-- LS_LABEL 은 보존 대상 마스터(주석 §남기는 것) — 강제 DELETE 금지.
+--   기존 LS_DATA_LBL(다른 RAW_SN 범위)이 lbl_id 를 참조하면 FK 위반으로 시드 전체가 중단된다.
+--   재적재 멱등은 아래 INSERT 의 ON CONFLICT (LBL_NM) DO NOTHING 으로 보장한다.
 DELETE FROM MNG_ACCT_USER_AUTHRT WHERE USER_NO BETWEEN 1000 AND 9999;
 DELETE FROM MNG_ACCT_USER WHERE USER_NO BETWEEN 1000 AND 9999;
 
@@ -148,7 +148,8 @@ INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, RE
     ('water',            '#2980B9', 'POLYGON', 10, 'Y', 'seed', '2026-05-15 00:00:00'),
     ('fallen-person',    '#C0392B', 'BBOX',    11, 'Y', 'seed', '2026-05-15 00:00:00'),
     ('vehicle-accident', '#D35400', 'BBOX',    12, 'Y', 'seed', '2026-05-15 00:00:00'),
-    ('object',           '#95A5A6', 'BBOX',    13, 'Y', 'seed', '2026-05-15 00:00:00');
+    ('object',           '#95A5A6', 'BBOX',    13, 'Y', 'seed', '2026-05-15 00:00:00')
+ON CONFLICT (LBL_NM) DO NOTHING;
 
 -- 검증용 SELECT — 마스터 데이터만
 SELECT '=== SEED COMPLETE ===' AS marker;

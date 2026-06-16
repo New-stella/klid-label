@@ -17,6 +17,10 @@ services:
     # /data 호스트 바인드 → named volume 으로 교체 (postgres-init 바인드는 유지 병합)
     volumes:
       - klid-pgdata:/var/lib/postgresql/data
+    # 방법 B(Native) 지원: 호스트 5432 발행 → native backend(127.0.0.1:5432)가 번들 DB에 접속.
+    #   base compose 는 전부 docker 내부 통신이라 미발행. local override 에서만 노출한다.
+    ports:
+      - "5432:5432"
 
   klid-backend:
     # 영상 저장소 /data 바인드 → named volume
