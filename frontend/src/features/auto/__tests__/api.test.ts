@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { getAutoLabelSummary, getMeta, updateMeta } from '../api';
+import { getMeta, updateMeta } from '../api';
 
 describe('auto api', () => {
   let mock: MockAdapter;
@@ -14,40 +14,6 @@ describe('auto api', () => {
 
   afterEach(() => {
     mock.restore();
-  });
-
-  it('오토라벨_요약_조회_엔드포인트_video_id_경로', async () => {
-    // given
-    mock.onGet('/videos/42/auto-summary').reply(200, {
-      success: true,
-      data: {
-        videoId: 42,
-        totalFrames: 900,
-        totalLabels: 1500,
-        averageConfidence: 0.82,
-        vlmVerifiedCount: 1200,
-        vlmRejectedCount: 80,
-        buckets: [
-          { bucket: 'high', count: 1000, ratio: 0.66 },
-          { bucket: 'mid', count: 400, ratio: 0.27 },
-          { bucket: 'low', count: 100, ratio: 0.07 },
-        ],
-        classDistribution: [{ classId: 1, className: 'person', count: 800 }],
-        lowConfidenceFrames: [
-          { srcSn: 7, frameNo: 5, confidence: 0.55, thumbnailUrl: '/t/5.jpg' },
-        ],
-      },
-      message: null,
-      errorCode: null,
-    });
-
-    // when
-    const r = await getAutoLabelSummary(42);
-
-    // then
-    expect(r.videoId).toBe(42);
-    expect(r.buckets).toHaveLength(3);
-    expect(r.lowConfidenceFrames?.[0].confidence).toBe(0.55);
   });
 
   it('메타_조회시_BE_items_KV_응답을_vlmText로_결합', async () => {

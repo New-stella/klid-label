@@ -3,14 +3,14 @@
 > 출처: CLAUDE.md(작업 배정·작업 단위·완료 통지), R2 KLID-AT-SS-007, 코드(`review/`, `assignment/`)
 > 관련: [13 버전관리](13-version-control.md) · [15 관제서버 통지](15-control-notify.md)
 
-화면: `KLID-AT-SC-012`(작업 목록 `/task`), `SC-013`(작업 배정 `/task/assign`, REVIEWER), `SC-018`(검수 목록 `/review`), `SC-019`(검수 상세 `/review/:id`).
+화면: `KLID-AT-SC-012`(작업 목록 `/task` — 배정 동선 포함), `SC-018`(검수 목록 `/review`), `SC-019`(검수 상세 `/review/:id`). (구 `SC-013` 작업 배정 전용 페이지 `/task/assign`는 진입점 없는 중복으로 2026-06-17 deprecated·코드 제거 — 배정은 작업 목록/영상 목록에 통합 → [04 화면·IA](04-screens-ia.md))
 
 ## 12.1 작업 배정
 
 - **REVIEWER가 WORKER에게 영상 단위 배정** (ADMIN 권한이 REVIEWER에 통합)
 - `LS_TASK_ASSIGNMENT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 `LS_TASK_ASSIGN_HISTORY` 기록
 - 배정 이력 조회·재배정 권한도 REVIEWER 보유
-- **배정 진입 동선 2곳**: ①작업 배정 화면(SC-013 `/task/assign`) ②**영상 목록(SC-007 `/video/completed`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1
+- **배정 진입 동선 2곳**: ①**작업 목록(SC-012 `/task`)** — `UNASSIGNED`('미배정') 상태 필터 + 행/일괄 "배정" 버튼 ②**영상 목록(SC-007 `/video/completed`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1. (구 작업 배정 전용 페이지 `/task/assign`는 deprecated)
 - **두 화면 배정 시나리오 정합**: 배정자 표시·배정/재배정 토글·재배정 시 현재 배정자 사전선택·완료 영상 재배정 차단·성공 후 즉시 갱신을 작업 목록과 동일하게 적용. 영상 목록은 배정정보를 `GET /v1/videos`(VideoSummaryResponse) 응답으로 받으며, 산출 기준(현재 활성 LABELER 배정 1건)은 `TaskBoardService`와 동일
 - 코드: `assignment/AssignmentController`, `TaskBoardController`, FE `pages/VideoListPage.tsx`·`features/task/components/AssignModal.tsx`
 

@@ -71,11 +71,10 @@
 | SC-001/002 | 세션 인계 / 역할 클레임 | [03](03-auth-roles.md) |
 | SC-005 | 라벨링 캔버스 | [10](10-labeling.md) |
 | SC-006 | 마킹 | [06](06-marking.md) |
-| SC-007/008/009 | 영상 목록/현황/상세 | [05](05-video-management.md) |
+| SC-007/009 | 영상 목록/상세 | [05](05-video-management.md) |
 | SC-010 | 라벨 이력(버전) | [13](13-version-control.md) |
 | SC-011 | 대시보드 | [17](17-statistics.md) |
-| SC-012/013 | 작업 목록/배정 | [12](12-review-assignment.md) |
-| SC-014/015 | 오토라벨 요약 / VLM 메타 검토 | [11](11-ai-assisted.md)·[09](09-vlm-timeseries.md) |
+| SC-012 | 작업 목록 (배정 동선 포함) | [12](12-review-assignment.md) |
 | SC-018/019 | 검수 목록/상세 | [12](12-review-assignment.md) |
 | SC-020/021 | 작업자/전체 통계 | [17](17-statistics.md) |
 | SC-022/023 | 증강 요청/결과 | [14](14-augmentation.md) |

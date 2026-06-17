@@ -8,7 +8,7 @@
 - **내부 채널 (INTERNAL)**: `/` 하위 + AppLayout(LNB+GNB). 관제서버 JWT.
 - **포털 채널 (PORTAL)**: `/portal` 하위 + PortalLayout(모바일 친화, LNB 없음). 포털 JWT. → [16](16-portal.md)
 
-화면 ID 체계: **`KLID-AT-SC-NNN`** (SC=Screen). 활성 25개(deprecated 4 제외).
+화면 ID 체계: **`KLID-AT-SC-NNN`** (SC=Screen). 활성 22개(deprecated 7 제외).
 
 ## 4.2 내부 채널 화면
 
@@ -23,9 +23,6 @@
 | SC-010 | 라벨 이력(버전) | `/history/:videoId` | - | [13](13-version-control.md) |
 | SC-011 | 대시보드 | `/dashboard` | - | [17](17-statistics.md) |
 | SC-012 | 작업 목록 | `/task` | - | [12](12-review-assignment.md) |
-| SC-013 | 작업 배정 | `/task/assign` | REVIEWER | [12](12-review-assignment.md) |
-| SC-014 | 오토라벨 요약 | `/auto/:videoId` | - | [11](11-ai-assisted.md) |
-| SC-015 | VLM 메타 검토 | `/auto/:videoId/meta` | - | [09](09-vlm-timeseries.md) |
 | SC-018 | 검수 목록 | `/review` | REVIEWER | [12](12-review-assignment.md) |
 | SC-019 | 검수 상세 | `/review/:id` | REVIEWER | [12](12-review-assignment.md) |
 | SC-020 | 작업자 통계 | `/stat` | - | [17](17-statistics.md) |
@@ -42,7 +39,11 @@
 
 개발 전용: `/dev/login`(SC-004), `/dev/autolabel-test`(SC-027) — DEV 빌드만.
 
-> **SC-008 영상 처리 현황**(`/video/status`)은 **deprecated**(2026-06-17) — LNB·링크 진입점이 없는 orphan 화면이라 코드(`VideoStatusPage`·`useBatchStatus`·BE `GET /v1/batch/status`)와 함께 제거. '영상 처리 현황' LNB 메뉴는 SC-007(영상 목록)에 연결돼 있어 영향 없음.
+> **deprecated 화면 정리**(2026-06-17) — 진입점 없는 orphan/중복 화면을 코드·라우트와 함께 제거:
+> - **SC-008 영상 처리 현황**(`/video/status`) — LNB·링크 진입점 없는 orphan. '영상 처리 현황' LNB 메뉴는 SC-007(영상 목록)에 연결돼 영향 없음.
+> - **SC-014 오토라벨 요약**(`/auto/:videoId`) — 영상 상세(SC-009)의 인라인 `AutoLabelTab`으로 대체.
+> - **SC-015 VLM 메타 검토**(`/auto/:videoId/meta`) — 라벨링 캔버스(SC-005)의 시계열 메타 패널(`TimeseriesSidePanel`)로 대체.
+> - **SC-013 작업 배정**(`/task/assign`) — 작업 목록(SC-012, `UNASSIGNED` 필터 + `AssignModal`)·영상 목록(SC-007 인라인 배정)으로 대체.
 
 > SC-030~032(게시판)는 **R1 요구사항 외 추가 결정**(2026-06-05) — [20 게시판](20-notice-board.md) 참고.
 >

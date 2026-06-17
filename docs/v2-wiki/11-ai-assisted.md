@@ -3,7 +3,7 @@
 > 출처: R1 RQ-SFR-08-01/02, R2 KLID-AT-UC-004/005, CLAUDE.md, 코드(`batch/step`, `ai-server`, `common/util`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [10 라벨링](10-labeling.md)
 
-화면: `KLID-AT-SC-014`(오토라벨 요약 `/auto/:videoId`).
+화면: 오토라벨 요약은 **영상 상세(SC-009)의 인라인 `AutoLabelTab`**으로 제공. (구 `SC-014` 오토라벨 요약 전용 페이지 `/auto/:videoId`는 진입점 없는 orphan으로 2026-06-17 deprecated·코드 제거 → [04 화면·IA](04-screens-ia.md))
 
 ## 11.1 ai-server (내부 추론 서버)
 

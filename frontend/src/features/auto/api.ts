@@ -1,22 +1,11 @@
 // 오토라벨링/시계열 메타 도메인 API.
 //
-// 보안: srcSn/videoId는 number 타입 (path param). axios 자동 URL 인코딩.
+// 보안: srcSn는 number 타입 (path param). axios 자동 URL 인코딩.
 // IDOR/Mass Assignment 방어는 BE 책임 (FE는 분기만).
 
 import { apiClient } from '@/lib/api/client';
 
-import type {
-  AutoLabelSummary,
-  FrameMeta,
-  FrameMetaUpdateRequest,
-  MetaItem,
-} from './types';
-
-export function getAutoLabelSummary(videoId: number): Promise<AutoLabelSummary> {
-  return apiClient
-    .get<AutoLabelSummary>(`/videos/${videoId}/auto-summary`)
-    .then((r) => r.data);
-}
+import type { FrameMeta, FrameMetaUpdateRequest, MetaItem } from './types';
 
 /** BE 실제 응답: {@code { items: [{metaSn, metaKey, metaVal}] }} (영상 단위 K/V 목록, 0건 가능). */
 interface MetaApiResponse {

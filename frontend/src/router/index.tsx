@@ -26,9 +26,6 @@ const DashboardPage = lazy(() =>
 const TaskListPage = lazy(() =>
   import('@/pages/TaskListPage').then((m) => ({ default: m.TaskListPage })),
 );
-const TaskAssignPage = lazy(() =>
-  import('@/pages/TaskAssignPage').then((m) => ({ default: m.TaskAssignPage })),
-);
 const UserManagePage = lazy(() =>
   import('@/pages/manage/UserManagePage').then((m) => ({ default: m.UserManagePage })),
 );
@@ -39,11 +36,6 @@ const SystemSettingsPage = lazy(() =>
 // Phase 5 — 라벨링 캔버스 lazy 로드 (konva 분리)
 const LabelingPage = lazy(() =>
   import('@/pages/label/LabelingPage').then((m) => ({ default: m.LabelingPage })),
-);
-
-// Phase 7 — 오토라벨 결과 + 시계열 메타 lazy 로드
-const AutoLabelSummaryPage = lazy(() =>
-  import('@/pages/AutoLabelSummaryPage').then((m) => ({ default: m.AutoLabelSummaryPage })),
 );
 
 // Phase 8 — 히스토리·버전관리 lazy 로드
@@ -57,9 +49,6 @@ const ReviewListPage = lazy(() =>
 );
 const ReviewPage = lazy(() =>
   import('@/pages/ReviewPage').then((m) => ({ default: m.ReviewPage })),
-);
-const MetaReviewPage = lazy(() =>
-  import('@/pages/MetaReviewPage').then((m) => ({ default: m.MetaReviewPage })),
 );
 // Phase 10 — 데이터 증강 lazy 로드
 const AugmentRequestPage = lazy(() =>
@@ -249,14 +238,6 @@ export const router = createBrowserRouter([
               </InternalRoute>
             ),
           },
-          {
-            path: 'assign',
-            element: (
-              <InternalRoute allow={internalReviewerOnly}>
-                {withSuspense(<TaskAssignPage />)}
-              </InternalRoute>
-            ),
-          },
         ],
       },
       {
@@ -264,22 +245,6 @@ export const router = createBrowserRouter([
         element: (
           <InternalRoute allow={internalAllRoles}>
             {withSuspense(<MarkingPage />)}
-          </InternalRoute>
-        ),
-      },
-      {
-        path: 'auto/:videoId',
-        element: (
-          <InternalRoute allow={internalAllRoles}>
-            {withSuspense(<AutoLabelSummaryPage />)}
-          </InternalRoute>
-        ),
-      },
-      {
-        path: 'auto/:videoId/meta',
-        element: (
-          <InternalRoute allow={internalAllRoles}>
-            {withSuspense(<MetaReviewPage />)}
           </InternalRoute>
         ),
       },

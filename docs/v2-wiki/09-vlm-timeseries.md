@@ -26,12 +26,12 @@
 
 ## 9.3 메타 검수 (REVIEWER)
 
-화면: `KLID-AT-SC-015`(VLM 메타 검토 `/auto/:videoId/meta`)
+화면: 시계열 메타 검토·수정은 **라벨링 캔버스(SC-005) 우측 시계열 메타 패널(`TimeseriesSidePanel`)**에서 수행. (구 `SC-015` VLM 메타 검토 전용 페이지 `/auto/:videoId/meta`는 진입점 없는 orphan으로 2026-06-17 deprecated·코드 제거 → [04 화면·IA](04-screens-ia.md))
 
-- 적재된 시계열 메타(`LS_DATA_META`)를 **SCR-AUTO-002 화면에서 REVIEWER가 검토·수정**
+- 적재된 시계열 메타(`LS_DATA_META`)를 **REVIEWER가 검토·수정** (라벨링 화면 `useMeta`/`useUpdateMeta`)
 - 검수 상태 `LS_DATA_META_REVIEW.RVW_STTS_CD`: PENDING / APPROVED / REJECTED
 - 데이터마트 노출은 `RVW_STTS_CD='APPROVED'`만 (`V_COMPLETED_META`) → [18](18-database.md)
-- 코드: `meta/MetaController`, `frontend MetaReviewPage`
+- 코드: `meta/MetaController`, FE `features/label/components/TimeseriesSidePanel.tsx`
 
 ## 9.4 관련 데이터 (DB)
 
