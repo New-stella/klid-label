@@ -326,9 +326,10 @@ def test_정상_predictor_로드시_싱글톤(monkeypatch) -> None:
 
     class _Fake:
         @classmethod
-        def from_pretrained(cls, model_id):
+        def from_pretrained(cls, model_id, **kwargs):
             built["n"] += 1
             built["model_id"] = model_id
+            built["device"] = kwargs.get("device")
             return object()
 
     import types as _types
@@ -346,6 +347,41 @@ def test_정상_predictor_로드시_싱글톤(monkeypatch) -> None:
     assert built["n"] == 1  # 싱글톤 — 1회만 from_pretrained
     # 설정값 model_id 사용 (사용자 입력 reflection 아님)
     assert built["model_id"] == "facebook/sam2-hiera-tiny"
+
+
+@pytest.mark.parametrize("ai_device", ["cpu", "cuda"])
+def test_get_sam2_model이_from_pretrained에_ai_device를_전달함(monkeypatch, ai_device) -> None:
+    """버그수정: from_pretrained 가 device 기본 'cuda' 로 동작하므로 CPU 머신에서
+    Assertion(Torch not compiled with CUDA enabled) → mock 폴백된다.
+    settings.ai_device 를 명시 전달해 CPU 배포에서도 실모델이 로드되어야 한다.
+    """
+    monkeypatch.setenv("AI_MOCK_MODE", "false")
+    monkeypatch.setenv("AI_DEVICE", ai_device)
+    reload_settings()
+    sam2_loader.reset_sam2_model()
+
+    captured = {}
+
+    class _Fake:
+        @classmethod
+        def from_pretrained(cls, model_id, **kwargs):
+            captured["model_id"] = model_id
+            captured["device"] = kwargs.get("device")
+            return object()
+
+    import types as _types
+
+    fake_mod = _types.ModuleType("sam2.sam2_image_predictor")
+    fake_mod.SAM2ImagePredictor = _Fake  # type: ignore[attr-defined]
+    fake_pkg = _types.ModuleType("sam2")
+    monkeypatch.setitem(sys.modules, "sam2", fake_pkg)
+    monkeypatch.setitem(sys.modules, "sam2.sam2_image_predictor", fake_mod)
+
+    model = sam2_loader.get_sam2_model()
+    assert model is not None  # 실모델 로드 (mock 폴백 아님)
+    assert sam2_loader.get_sam2_mock_reason() is None
+    # device kwarg 가 설정값으로 전달됨 (기본 cuda 강제 방지)
+    assert captured["device"] == ai_device
 
 
 # ────────────────────────────────────────────────────────────────────

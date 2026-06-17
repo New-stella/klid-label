@@ -41,7 +41,10 @@ def get_sam2_model() -> Any | None:
         # lazy import — sam2/torch 는 이 호출 시점에만 로드 (import 부작용 방지)
         from sam2.sam2_image_predictor import SAM2ImagePredictor  # noqa: WPS433
 
-        predictor = SAM2ImagePredictor.from_pretrained(model_id)
+        # device 를 명시 전달 — Meta sam2 from_pretrained 기본값이 "cuda" 라
+        # CPU 전용/torch CUDA 미컴파일 환경에서 AssertionError 로 load_failed 폴백되는 것을 방지.
+        # device 값은 설정값(ai_device)만 — 사용자 입력 reflection 아님.
+        predictor = SAM2ImagePredictor.from_pretrained(model_id, device=settings.ai_device)
         _sam2_model = predictor
         _mock_reason = None
         logger.info("[SAM2] predictor loaded model_id=%s device=%s", model_id, settings.ai_device)
