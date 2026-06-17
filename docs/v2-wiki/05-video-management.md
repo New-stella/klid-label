@@ -57,6 +57,12 @@
 - `APPROVED` 전이 시 버전 스냅샷 + 관제 `TASK_COMPLETED` 통지
 - 영상 등록/상태 분리: `LS_RAW_DATA_ENROLLMENT`(등록) + `LS_RAW_DATA_STATUS`(상태)
 
+## 5.5.1 영상 목록에서 작업자 배정 (REVIEWER 동선)
+
+- **영상 목록(SC-007 `/video/completed`)에서 곧바로 작업자 배정 진입** — 구 정책('배정은 작업 배정 화면 `/task/assign`에서만')에서 확장. 마킹 전 배정 정책은 유지(마킹 주체·시점 변경 없음) → [12](12-review-assignment.md)
+- **REVIEWER 전용 노출** — 각 영상 행에 "배정" 버튼 + 1건 이상 선택 시 일괄 액션 바의 "일괄 배정" 버튼. `WORKER`에겐 행/일괄 배정 액션·액션 바 모두 미노출(FE `isReviewer` 게이팅, 실제 인가는 BE `@PreAuthorize` 1차 — CWE-285 심층방어)
+- 클릭 시 기존 작업자 선택 모달(`AssignModal`)을 **재사용**(단건=해당 영상 사전 선택, 일괄=`videoIds` 전달) → 기존 배정 API(`POST /v1/assignments`) 호출, 성공 시 영상 목록 자동 갱신. 신규 BE/모달 없음. 코드: `pages/VideoListPage.tsx`, `features/task/components/AssignModal.tsx`
+
 ## 5.6 관련 데이터 (DB)
 
 `LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·PARENT_RAW_SN), `LS_DATA_RAW_HSTRY`(상태 이력), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`/`LS_RAW_DATA_ENROLLMENT`. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).

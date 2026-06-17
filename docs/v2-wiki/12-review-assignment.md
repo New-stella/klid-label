@@ -10,7 +10,8 @@
 - **REVIEWER가 WORKER에게 영상 단위 배정** (ADMIN 권한이 REVIEWER에 통합)
 - `LS_TASK_ASSIGNMENT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 `LS_TASK_ASSIGN_HISTORY` 기록
 - 배정 이력 조회·재배정 권한도 REVIEWER 보유
-- 코드: `assignment/AssignmentController`, `TaskBoardController`
+- **배정 진입 동선 2곳**: ①작업 배정 화면(SC-013 `/task/assign`) ②**영상 목록(SC-007 `/video/completed`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1
+- 코드: `assignment/AssignmentController`, `TaskBoardController`, FE `pages/VideoListPage.tsx`·`features/task/components/AssignModal.tsx`
 
 ## 12.2 검수 (단일 승인)
 

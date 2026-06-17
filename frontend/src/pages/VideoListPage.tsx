@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, UserPlus, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/common/Button';
@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { StageBadge } from '@/components/common/StageBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { cn } from '@/lib/cn';
+import { AssignModal } from '@/features/task/components/AssignModal';
 import { VideoFilters } from '@/features/video/components/VideoFilters';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
@@ -19,6 +20,8 @@ import {
   videoListParamsToSearchParams,
 } from '@/features/video/parseVideoListParams';
 import type { VideoListParams } from '@/features/video/types';
+import { Role } from '@/lib/api/types';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 function formatDuration(seconds: number | undefined): string {
   if (!seconds) return '-';
@@ -45,6 +48,19 @@ export function VideoListPage() {
   const { data, isLoading, error, refetch } = useVideos(params);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
+  // 작업자 배정 — REVIEWER 전용 UX 게이팅(실제 권한 강제는 BE @PreAuthorize).
+  const claims = useAuthStore((s) => s.claims);
+  const role = claims?.role ?? Role.WORKER;
+  const isReviewer = role === Role.REVIEWER;
+
+  // AssignModal 상태 (단건 신규 배정 / 일괄 배정 재사용).
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignMode, setAssignMode] = useState<'assign' | 'bulk'>('assign');
+  const [assignTarget, setAssignTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+
   const updateParams = (next: VideoListParams) => {
     const sp = videoListParamsToSearchParams({ ...params, ...next });
     setSearchParams(sp, { replace: false });
@@ -69,6 +85,36 @@ export function VideoListPage() {
   const handleRefresh = () => {
     refetch();
     queryClient.invalidateQueries({ queryKey: ['videos'] });
+  };
+
+  const videoNameById = useMemo(() => {
+    const map: Record<number, string> = {};
+    rows.forEach((r) => {
+      map[r.id] = r.cctvName;
+    });
+    return map;
+  }, [rows]);
+
+  const openSingleAssign = (id: number, name: string) => {
+    if (!isReviewer) return;
+    setAssignTarget({ id, name });
+    setAssignMode('assign');
+    setAssignModalOpen(true);
+  };
+
+  const openBulkAssign = () => {
+    if (!isReviewer) return;
+    if (selected.size === 0) return;
+    setAssignTarget(null);
+    setAssignMode('bulk');
+    setAssignModalOpen(true);
+  };
+
+  // 배정 성공 후 선택 해제. 영상 목록 캐시는 useAssignTask 가 VIDEO_KEYS 무효화로 자동 갱신한다.
+  const handleAssignDone = () => {
+    setAssignModalOpen(false);
+    setAssignTarget(null);
+    setSelected(new Set());
   };
 
   const totalPages = Math.max(
@@ -98,10 +144,19 @@ export function VideoListPage() {
 
       {error && <ErrorState title="영상 목록을 불러올 수 없습니다" />}
 
-      {/* Bulk action bar */}
-      {selected.size > 0 && (
-        <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-sm">
+      {/* Bulk action bar — REVIEWER 전용. WORKER 에겐 액션 바 자체를 노출하지 않는다. */}
+      {isReviewer && selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-sm">
           <span className="font-medium text-primary-700">선택 {selected.size}건</span>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={openBulkAssign}
+            aria-label={`${selected.size}개 영상 작업자 일괄 배정`}
+          >
+            <Users size={14} aria-hidden />
+            {selected.size}개 일괄 배정
+          </Button>
         </div>
       )}
 
@@ -227,10 +282,27 @@ export function VideoListPage() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex gap-1">
+                        {isReviewer && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openSingleAssign(v.id, v.cctvName);
+                            }}
+                            aria-label={`${v.cctvName} 작업자 배정`}
+                          >
+                            <UserPlus size={12} aria-hidden />
+                            배정
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/video/${v.id}`)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/video/${v.id}`);
+                          }}
                         >
                           상세
                           <ChevronRight size={12} aria-hidden />
@@ -286,6 +358,22 @@ export function VideoListPage() {
             <ChevronRight size={16} aria-hidden />
           </button>
         </div>
+      )}
+
+      {/* 작업자 배정 모달 (REVIEWER 전용 — 단건 신규 / 일괄 재사용) */}
+      {isReviewer && (
+        <AssignModal
+          open={assignModalOpen}
+          onClose={() => setAssignModalOpen(false)}
+          task={null}
+          mode={assignMode}
+          onSuccess={handleAssignDone}
+          onBulkSuccess={handleAssignDone}
+          videoIds={assignMode === 'bulk' ? Array.from(selected) : []}
+          videoNameById={videoNameById}
+          videoId={assignMode === 'assign' ? (assignTarget?.id ?? undefined) : undefined}
+          videoName={assignMode === 'assign' ? assignTarget?.name : undefined}
+        />
       )}
     </div>
   );
