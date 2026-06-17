@@ -14,12 +14,16 @@
 
 ## 11.2 YOLO 오토라벨링
 
+> **탐지 백엔드**: `detector_backend` 설정으로 전환 — 기본 **YOLOX(ONNX Runtime, Apache-2.0)**, 대안 RT-DETRv2(transformers). 구 ultralytics YOLOv8(AGPL-3.0)은 제거됨. HTTP 경로(`/infer/yolo/predict`·`/track`)·응답 스키마·배치 단계명(`YoloAutolabelStep`)은 불변(계약 호환). 트래킹은 ByteTrack(roboflow trackers).
+
 - 배치 단계 `YoloAutolabelStep` — **원본 이미지에만** 객체 탐지
 - 프리셋 필터(이벤트 유형별 라벨) 적용, `track_id` 부여
 - 라벨 좌표는 동일 해상도이므로 **비식별본과 공유**(별도 실행 없음)
 - 출처/신뢰도는 `LS_DATA_LBL_AI_INFO`(`CONF_SCORE`)
 
 ## 11.3 SAM2 — VOS(추적) + 분할
+
+> **분할 백엔드**: **Meta 공식 sam2(Apache-2.0)** `SAM2ImagePredictor`(HF `facebook/sam2-hiera-tiny`). 구 ultralytics SAM(AGPL-3.0)은 제거됨. ai-server에서 `set_image`+`predict`(point/box) → 마스크를 `cv2.findContours`로 외곽 폴리곤 변환. HTTP 경로(`/infer/sam2/segment`·`/track`)·polygon 응답 스키마 불변(계약 호환).
 
 ### 객체 자동 추적 (RQ-SFR-08-01, UC-004)
 - 시작 프레임에서 객체를 박스/시드로 지정 → **SAM2 VOS**가 후속 프레임 위치(BBox)·경계(폴리곤) 자동 추적·갱신

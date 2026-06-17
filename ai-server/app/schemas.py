@@ -128,7 +128,9 @@ class Sam2SegmentRequest(BaseModel):
 
     image_b64: str = Field(..., min_length=1)
     points: list[list[float]] | None = Field(default=None, description="[[x, y], ...] 클릭 좌표")
-    box: list[float] | None = Field(default=None, description="[x1, y1, x2, y2]")
+    box: list[float] | None = Field(
+        default=None, min_length=4, max_length=4, description="[x1, y1, x2, y2]"
+    )
 
 
 class Sam2SegmentResponse(BaseModel):

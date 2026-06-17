@@ -23,9 +23,8 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 from app.image_utils import decode_image_b64, decode_image_b64_pil
-from app.models import rtdetr_loader, yolo_loader
+from app.models import rtdetr_loader, yolox_loader
 from app.models.detector_backend import DetectionResult, InferenceParams
-from app.models.yolo_loader import get_yolo_mock_reason, get_yolo_model
 from app.schemas import (
     Detection,
     YoloRequest,
@@ -44,42 +43,10 @@ _track_mock_warned: bool = False
 
 @router.post("/predict", response_model=YoloResponse)
 async def predict(req: YoloRequest) -> YoloResponse:
-    """객체 감지 — detector_backend 설정에 따라 yolo/rtdetr 로 dispatch."""
+    """객체 감지 — detector_backend 설정에 따라 yolox(기본)/rtdetr 로 dispatch."""
     if get_settings().resolved_detector_backend() == "rtdetr":
         return _predict_rtdetr(req)
-
-    model = get_yolo_model()
-
-    if model is None:
-        # mock mode 또는 가중치 미존재 / 로드 실패
-        width, height = decode_image_b64(req.image_b64)
-        reason = get_yolo_mock_reason() or _fallback_reason()
-        _warn_mock_once(reason)
-        logger.info(
-            "[YOLO][MOCK] predict reason=%s conf_threshold=%.2f imgsz=%d iou=%.2f image_size=%dx%d",
-            reason,
-            req.conf_threshold,
-            req.imgsz,
-            req.iou,
-            width,
-            height,
-        )
-        return _mock_predict(width, height, req.conf_threshold, reason)
-
-    # 실제 추론
-    img = decode_image_b64_pil(req.image_b64)
-    try:
-        logger.info(
-            "[YOLO] real predict conf_threshold=%.2f imgsz=%d iou=%.2f image_size=%dx%d",
-            req.conf_threshold,
-            req.imgsz,
-            req.iou,
-            img.width,
-            img.height,
-        )
-        return _run_inference(model, img, req.conf_threshold, req.imgsz, req.iou)
-    finally:
-        img.close()
+    return _predict_yolox(req)
 
 
 def _fallback_reason() -> str:
@@ -87,7 +54,7 @@ def _fallback_reason() -> str:
     return "env_mock" if get_settings().ai_mock_mode else "weights_missing"
 
 
-def _warn_mock_once(reason: str, backend: str = "yolo") -> None:
+def _warn_mock_once(reason: str, backend: str = "yolox") -> None:
     """프로세스 수명 동안 mock 응답이 처음 발생할 때 1회만 WARN 로그.
 
     backend 식별자를 접두사로 반영하여 RT-DETR mock 도 로그에서 구분되도록 한다.
@@ -101,39 +68,6 @@ def _warn_mock_once(reason: str, backend: str = "yolo") -> None:
             reason,
         )
         _mock_warned = True
-
-
-def _run_inference(
-    model: object, img: object, conf_threshold: float, imgsz: int, iou: float
-) -> YoloResponse:
-    """ultralytics YOLO 모델로 실제 추론을 수행한다."""
-    results = model(  # type: ignore[operator]
-        img, conf=conf_threshold, imgsz=imgsz, iou=iou, verbose=False
-    )
-
-    detections: list[Detection] = []
-    for result in results:
-        if result.boxes is None:
-            continue
-        boxes = result.boxes
-        names = result.names  # {class_id: class_name}
-
-        for i in range(len(boxes)):
-            xyxy = boxes.xyxy[i].tolist()   # [x1, y1, x2, y2] (float)
-            score = float(boxes.conf[i])
-            cls_id = int(boxes.cls[i])
-            label = names.get(cls_id, str(cls_id))
-
-            detections.append(
-                Detection(
-                    label=label,
-                    points=[xyxy[0], xyxy[1], xyxy[2], xyxy[3]],
-                    score=score,
-                )
-            )
-
-    logger.debug("[YOLO] real inference detections=%d", len(detections))
-    return YoloResponse(detections=detections, mock=False, source="model", mock_reason=None)
 
 
 def _mock_predict(
@@ -242,54 +176,86 @@ def _track_rtdetr(req: YoloTrackRequest) -> YoloTrackResponse:
 
 
 # ────────────────────────────────────────────────────────────────────
-# /track 엔드포인트 + YOLO(BoT-SORT) track 핸들러 (Phase 2)
-#   - 백엔드 설정에 따라 위 RT-DETR dispatch 또는 아래 YOLO model.track() 으로 분기
+# YOLOX 백엔드 dispatch (ONNX Runtime + ByteTrack) — 기본 백엔드
+#   _predict_rtdetr / _track_rtdetr 와 동형. yolox_loader 로만 치환했다.
+# ────────────────────────────────────────────────────────────────────
+
+def _predict_yolox(req: YoloRequest) -> YoloResponse:
+    """YOLOX predict dispatch — 미설치/가중치부재/로드실패 시 mock 응답(동일 사유 체계)."""
+    backend = yolox_loader.get_yolox_model()
+    if backend is None:
+        width, height = decode_image_b64(req.image_b64)
+        reason = yolox_loader.get_yolox_mock_reason() or _fallback_reason()
+        _warn_mock_once(reason, backend="yolox")
+        logger.info(
+            "[YOLOX][MOCK] predict reason=%s conf_threshold=%.2f imgsz=%d iou=%.2f image_size=%dx%d",
+            reason, req.conf_threshold, req.imgsz, req.iou, width, height,
+        )
+        return _mock_predict(width, height, req.conf_threshold, reason)
+
+    img = decode_image_b64_pil(req.image_b64)
+    try:
+        params = InferenceParams(
+            conf_threshold=req.conf_threshold, imgsz=req.imgsz, iou=req.iou
+        )
+        logger.info(
+            "[YOLOX] real predict conf_threshold=%.2f imgsz=%d iou=%.2f image_size=%dx%d",
+            req.conf_threshold, req.imgsz, req.iou, img.width, img.height,
+        )
+        detections = [_to_detection(d) for d in backend.predict(img, params)]
+        return YoloResponse(detections=detections, mock=False, source="model", mock_reason=None)
+    finally:
+        img.close()
+
+
+def _track_yolox(req: YoloTrackRequest) -> YoloTrackResponse:
+    """YOLOX track dispatch — clip_id 격리 + frame_index=0 리셋(동일 계약)."""
+    backend = yolox_loader.get_yolox_tracker(req.clip_id, reset=(req.frame_index == 0))
+    if backend is None:
+        reason = yolox_loader.get_yolox_mock_reason() or _fallback_reason()
+        _warn_track_mock_once(reason, backend="yolox")
+        logger.info(
+            "[YOLOX][MOCK] track reason=%s clip_id=%s frame_index=%d "
+            "conf_threshold=%.2f imgsz=%d iou=%.2f",
+            reason, req.clip_id, req.frame_index, req.conf_threshold, req.imgsz, req.iou,
+        )
+        return _mock_track(req, reason)
+
+    img = decode_image_b64_pil(req.image_b64)
+    try:
+        params = InferenceParams(
+            conf_threshold=req.conf_threshold,
+            imgsz=req.imgsz,
+            iou=req.iou,
+            clip_id=req.clip_id,
+            frame_index=req.frame_index,
+        )
+        logger.info(
+            "[YOLOX] real track clip_id=%s frame_index=%d conf_threshold=%.2f image_size=%dx%d",
+            req.clip_id, req.frame_index, req.conf_threshold, img.width, img.height,
+        )
+        detections = [_to_detection(d) for d in backend.track(img, params)]
+        return YoloTrackResponse(detections=detections, mock=False, source="model", mock_reason=None)
+    finally:
+        img.close()
+
+
+# ────────────────────────────────────────────────────────────────────
+# /track 엔드포인트 — 백엔드 설정에 따라 RT-DETR / YOLOX dispatch 로 분기
 # ────────────────────────────────────────────────────────────────────
 
 @router.post("/track", response_model=YoloTrackResponse)
 async def track(req: YoloTrackRequest) -> YoloTrackResponse:
     """clip_id 단위로 트래커 상태를 격리하며 같은 객체에 같은 track_id 부여.
 
-    detector_backend 설정에 따라 yolo(BoT-SORT)/rtdetr(ByteTrack) 로 dispatch.
+    detector_backend 설정에 따라 yolox(기본, ByteTrack)/rtdetr(ByteTrack) 로 dispatch.
     """
     if get_settings().resolved_detector_backend() == "rtdetr":
         return _track_rtdetr(req)
-
-    model = yolo_loader.get_yolo_tracker(req.clip_id, reset=(req.frame_index == 0))
-
-    if model is None:
-        reason = yolo_loader.get_yolo_mock_reason() or _fallback_reason()
-        _warn_track_mock_once(reason)
-        logger.info(
-            "[YOLO][MOCK] track reason=%s clip_id=%s frame_index=%d "
-            "conf_threshold=%.2f imgsz=%d iou=%.2f",
-            reason,
-            req.clip_id,
-            req.frame_index,
-            req.conf_threshold,
-            req.imgsz,
-            req.iou,
-        )
-        return _mock_track(req, reason)
-
-    img = decode_image_b64_pil(req.image_b64)
-    try:
-        logger.info(
-            "[YOLO] real track clip_id=%s frame_index=%d "
-            "conf_threshold=%.2f imgsz=%d iou=%.2f image_size=%dx%d",
-            req.clip_id,
-            req.frame_index,
-            req.conf_threshold,
-            req.imgsz,
-            img.width,
-            img.height,
-        )
-        return _run_track_inference(model, img, req)
-    finally:
-        img.close()
+    return _track_yolox(req)
 
 
-def _warn_track_mock_once(reason: str, backend: str = "yolo") -> None:
+def _warn_track_mock_once(reason: str, backend: str = "yolox") -> None:
     """프로세스 수명 동안 track mock 응답이 처음 발생할 때 1회만 WARN 로그.
 
     backend 식별자를 접두사로 반영하여 RT-DETR mock 도 로그에서 구분되도록 한다.
@@ -303,67 +269,6 @@ def _warn_track_mock_once(reason: str, backend: str = "yolo") -> None:
             reason,
         )
         _track_mock_warned = True
-
-
-def _run_track_inference(
-    model: object, img: object, req: YoloTrackRequest
-) -> YoloTrackResponse:
-    """ultralytics YOLO.track() 으로 실제 추론.
-
-    - persist=False: frame_index=0 (트래커 리셋 후 첫 프레임)
-    - persist=True : frame_index>0 (이전 호출의 트래커 상태 유지)
-    - tracker="botsort.yaml": ultralytics 패키지 동봉 BoT-SORT 기본 설정
-    """
-    results = model.track(  # type: ignore[attr-defined]
-        img,
-        conf=req.conf_threshold,
-        imgsz=req.imgsz,
-        iou=req.iou,
-        persist=(req.frame_index > 0),
-        tracker="botsort.yaml",
-        verbose=False,
-    )
-
-    detections: list[Detection] = []
-    for result in results:
-        if result.boxes is None:
-            continue
-        boxes = result.boxes
-        names = result.names
-        ids = boxes.id  # torch.Tensor | None — 저신뢰 detection 은 None 가능
-
-        for i in range(len(boxes)):
-            xyxy = boxes.xyxy[i].tolist()
-            score = float(boxes.conf[i])
-            cls_id = int(boxes.cls[i])
-            label = names.get(cls_id, str(cls_id))
-
-            # ids 자체가 None 이거나, 인덱스 i 의 값이 None/NaN 일 수 있음
-            track_id: int | None = None
-            if ids is not None:
-                try:
-                    track_id = int(ids[i])
-                except (TypeError, ValueError):
-                    track_id = None
-
-            detections.append(
-                Detection(
-                    label=label,
-                    points=[xyxy[0], xyxy[1], xyxy[2], xyxy[3]],
-                    score=score,
-                    track_id=track_id,
-                )
-            )
-
-    logger.debug(
-        "[YOLO] real track clip_id=%s frame_index=%d detections=%d",
-        req.clip_id,
-        req.frame_index,
-        len(detections),
-    )
-    return YoloTrackResponse(
-        detections=detections, mock=False, source="model", mock_reason=None
-    )
 
 
 def _mock_track(req: YoloTrackRequest, reason: str) -> YoloTrackResponse:

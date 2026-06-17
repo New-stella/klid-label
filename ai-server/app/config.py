@@ -34,12 +34,12 @@ class Settings(BaseSettings):
     ai_device: str = Field(default="cpu", description="cuda | cpu")
 
     # 탐지 백엔드 선택 (전환 가능)
-    #  - "yolo"   (기본): ultralytics YOLOv8 + 내장 BoT-SORT — 현행 동작 비파괴 유지
+    #  - "yolox"  (기본): YOLOX (ONNX Runtime) + ByteTrack — ultralytics 대체 신규 백엔드
     #  - "rtdetr"       : RT-DETRv2 (transformers) + ByteTrack (supervision)
-    # 잘못된 값은 resolved_detector_backend() 에서 안전하게 "yolo" 로 정규화한다(서버 기동 안전).
+    # 잘못된 값은 resolved_detector_backend() 에서 안전하게 "yolox" 로 정규화한다(서버 기동 안전).
     detector_backend: str = Field(
-        default="yolo",
-        description='탐지/트래킹 백엔드. "yolo" | "rtdetr" (기본 yolo)',
+        default="yolox",
+        description='탐지/트래킹 백엔드. "yolox" | "rtdetr" (기본 yolox)',
     )
     # RT-DETR 모델 ID는 설정값(사용자 요청 입력 아님)이며, 알려진 화이트리스트만 허용한다.
     rtdetr_model_id: str = Field(
@@ -51,15 +51,20 @@ class Settings(BaseSettings):
     max_image_size_mb: int = Field(default=10, ge=1, le=100, description="image_b64 최대 크기(MB)")
 
     # 모델 가중치 경로 (mock 모드에서는 무시)
-    # Phase 1: YOLO 가중치 우선순위 = yolo_weights_path → yolo_weights_fallback_path → mock(weights_missing)
-    yolo_weights_path: str = Field(default="./weights/yolov8m.pt")
-    yolo_weights_fallback_path: str = Field(
-        default="./weights/yolov8n.pt",
-        description=(
-            "yolo_weights_path 가 없을 때 fallback 으로 시도할 경로. "
-            "둘 다 없으면 mock 응답 (mock_reason=weights_missing)."
-        ),
+    # YOLOX ONNX 가중치 경로 (설정 기반 — 사용자 입력 reflection 금지).
+    # 부재 시 yolox_loader 는 mock 응답 (mock_reason=weights_missing).
+    yolox_weights_path: str = Field(
+        default="./weights/yolox_s.onnx",
+        description="YOLOX ONNX 모델 가중치 경로 (ONNX Runtime 세션 로드 대상).",
     )
+    # Meta 공식 sam2(Apache-2.0) HF 모델 ID (설정 기반 — 사용자 입력 reflection 금지).
+    # SAM2ImagePredictor.from_pretrained 로 HF 에서 자동 다운로드한다.
+    sam2_model_id: str = Field(
+        default="facebook/sam2-hiera-tiny",
+        description="Meta SAM2 HF 모델 ID (설정 기반 — 사용자 입력 reflection 금지)",
+    )
+    # 로컬 ckpt 대안 경로(HF 미사용/오프라인 시 후속 확장용). 현재 HF from_pretrained 경로를
+    # 우선 사용하므로 미사용 상태로 유지한다(Phase 4 에서 로컬 ckpt 폴백 검토).
     sam2_weights_path: str = Field(default="./weights/sam2_t.pt")
     vlm_model_name: str = Field(default="openai/clip-vit-base-patch32")
 
@@ -73,9 +78,9 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
 
     def resolved_detector_backend(self) -> str:
-        """알려진 백엔드만 반환 — 잘못된 값은 "yolo" 로 안전 폴백."""
+        """알려진 백엔드만 반환 — 잘못된 값은 "yolox" 로 안전 폴백."""
         backend = (self.detector_backend or "").strip().lower()
-        return backend if backend in {"yolo", "rtdetr"} else "yolo"
+        return backend if backend in {"yolox", "rtdetr"} else "yolox"
 
 
 _settings: Settings | None = None

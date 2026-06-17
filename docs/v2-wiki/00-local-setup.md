@@ -11,12 +11,12 @@
 | 인증 (관제/포털 토큰) | **자체 발급** | `POST /api/v1/dev/tokens` (HS256 동일 시크릿 서명) — 외부 발급 서버 불요 |
 | 시드 데이터 | **자동 적재** | `DevSeedRunner`(local)가 `db/seed/dev-seed.sql` 멱등 적재 |
 | 비식별 | **mock (no-op)** | 실 비식별 서버 부재 → `application-local.yml` 의 `deidentify.mock-mode=true`. 원본→비식별 경로 복사 + `DE_IDNTF_YN='Y'` |
-| ai-server (YOLO/SAM2/RT-DETR) | **CPU 실추론** | 가중치 동봉(`yolov8n.pt`/`sam2_t.pt`), RT-DETR 은 HF 캐시. GPU 불필요 |
+| ai-server (YOLOX/SAM2/RT-DETR) | **CPU 실추론** | 가중치: YOLOX ONNX(`yolox_s.onnx`) 동봉, SAM2 는 Meta HF(`facebook/sam2-hiera-tiny`), RT-DETR 은 HF 캐시. GPU 불필요 |
 | VLM 시계열 | **비활성 (NO-OP)** | `vlm.client.enabled=false`. 실로드 미구현 |
 | 관제 통지 / 증강 | **비활성 / mock** | `control-notify.enabled=false`, 증강 클라이언트 mock |
 | 관제 자동 적재 픽업 | **수동 트리거** | `POST /api/v1/dev/batch/scan` (REVIEWER 토큰) — 시드 클립 픽업 검증 |
 
-> **외부 0개 정의**: 관제/포털/비식별/실VLM 서버가 없다는 뜻. ai-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). RT-DETR 최초 기동 시에만 HuggingFace 에서 모델(~100MB)을 1회 받는다(이후 캐시로 오프라인).
+> **외부 0개 정의**: 관제/포털/비식별/실VLM 서버가 없다는 뜻. ai-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). RT-DETR·SAM2(Meta) 최초 기동 시에만 HuggingFace 에서 모델을 1회 받는다(이후 캐시로 오프라인). YOLOX 는 동봉 ONNX 가중치 사용.
 
 ---
 

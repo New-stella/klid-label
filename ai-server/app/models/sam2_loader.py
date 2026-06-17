@@ -1,14 +1,18 @@
 """
 SAM2 모델 싱글톤 로더.
 
-AI_MOCK_MODE=false + 가중치 파일 존재 시에만 실제 ultralytics SAM 모델 로드.
-가중치 없거나 mock 모드이면 None 반환 → 라우터에서 mock fallback.
+AI_MOCK_MODE=false 일 때만 Meta 공식 sam2(Apache-2.0) ``SAM2ImagePredictor`` 를
+HuggingFace ``from_pretrained`` 로 lazy 로드한다. mock 모드이거나 로드 실패 시
+None 반환 → 라우터에서 mock fallback (graceful).
+
+- sam2/torch 는 무거우므로 **lazy import** (이 모듈 import 시 미로드).
+- 모델 ID 는 설정값(``sam2_model_id``)만 사용 — 사용자 입력 reflection 금지.
+- import/로드 실패 시 크래시 금지 → load_failed 사유로 None.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from app.config import get_settings
@@ -17,10 +21,11 @@ logger = logging.getLogger(__name__)
 
 _sam2_model: Any | None = None
 _loaded: bool = False
+_mock_reason: str | None = None
 
 
 def get_sam2_model() -> Any | None:
-    global _sam2_model, _loaded
+    global _sam2_model, _loaded, _mock_reason
     if _loaded:
         return _sam2_model
 
@@ -28,29 +33,36 @@ def get_sam2_model() -> Any | None:
     if settings.ai_mock_mode:
         logger.info("[SAM2] mock mode — model load skipped")
         _loaded = True
+        _mock_reason = "env_mock"
         return None
 
-    weights_path = settings.sam2_weights_path
-    if not os.path.isfile(weights_path):
-        logger.warning("[SAM2] weights not found path=%s — fallback to mock", weights_path)
-        _loaded = True
-        return None
-
+    model_id = settings.sam2_model_id
     try:
-        from ultralytics import SAM  # noqa: WPS433 (lazy import — GPU 선택적 로드)
+        # lazy import — sam2/torch 는 이 호출 시점에만 로드 (import 부작용 방지)
+        from sam2.sam2_image_predictor import SAM2ImagePredictor  # noqa: WPS433
 
-        model = SAM(weights_path)
-        _sam2_model = model
-        _loaded = True
-        logger.info("[SAM2] model loaded path=%s device=%s", weights_path, settings.ai_device)
+        predictor = SAM2ImagePredictor.from_pretrained(model_id)
+        _sam2_model = predictor
+        _mock_reason = None
+        logger.info("[SAM2] predictor loaded model_id=%s device=%s", model_id, settings.ai_device)
     except Exception:
-        logger.exception("[SAM2] model load failed — fallback to mock")
+        # 미설치/다운로드 실패/로드 실패 모두 graceful — 서버 기동·요청 처리는 mock 으로 지속
+        logger.exception("[SAM2] predictor load failed — fallback to mock")
+        _sam2_model = None
+        _mock_reason = "load_failed"
+    finally:
         _loaded = True
 
     return _sam2_model
 
 
+def get_sam2_mock_reason() -> str | None:
+    """mock 응답 사유. None 이면 실제 predictor 사용 가능."""
+    return _mock_reason
+
+
 def reset_sam2_model() -> None:
-    global _sam2_model, _loaded
+    global _sam2_model, _loaded, _mock_reason
     _sam2_model = None
     _loaded = False
+    _mock_reason = None
