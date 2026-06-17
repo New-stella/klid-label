@@ -90,10 +90,16 @@ services:
       AI_DEVICE: ${AI_DEVICE:-cuda}
       # 탐지/트래킹 백엔드: yolox | rtdetr (기본 yolox, ONNX Runtime). 로컬 외부0개 실추론은 docker-compose.local.yml 가 rtdetr 로 override.
       DETECTOR_BACKEND: ${DETECTOR_BACKEND:-yolox}
+      # 실추론 모델 캐시 영속화 (재생성 간 HF(sam2/rtdetr) 재다운로드 방지)
+      HF_HOME: ${HF_HOME:-/app/.hf-cache}
     # nvidia 가 기본 런타임이므로 GPU 자동 가시. 명시적 예약도 추가(compose v2.18 지원).
     # GPU 없는 로컬(Mac 등)에서는 docker-compose.local.yml override(runtime: runc + AI_DEVICE=cpu)로 기동.
     # 자세한 로컬 자족 실행은 docs/v2-wiki/00-local-setup.md 참조.
     runtime: nvidia
+    # 실추론 가중치(yolox_s.onnx)·모델 캐시 마운트. 파일 부재 시 weights_missing mock 폴백(무해).
+    volumes:
+      - ./weights:/app/weights:ro
+      - ./hf-cache:/app/.hf-cache
     networks:
       - klid-net
     ports:
@@ -107,7 +113,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3072m
+          memory: 6144m  # CPU 실추론(torch+sam2+onnxruntime 모델 로드) 여유 — mock 시엔 미사용
 
   # Vite dev 서버로 기동 — import.meta.env.DEV=true 산출물(/dev/login 등 dev 기능 활성).
   # 프로덕션 빌드는 dev 라우트를 dead-code 제거하므로 dev 서버 사용이 필수.
