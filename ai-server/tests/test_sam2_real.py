@@ -1,24 +1,22 @@
 """
 SAM2 실제 추론 통합 테스트.
 
-weights/sam2_t.pt 가 없으면 자동 skip.
+sam2 패키지 설치 시 실모델 추론, 미설치면 skip.
 AI_MOCK_MODE=false 로 실행하므로 conftest autouse fixture를 재정의한다.
 """
 
 from __future__ import annotations
 
 import base64
+import importlib.util
 import io
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-WEIGHTS_PATH = Path(__file__).parent.parent / "weights" / "sam2_t.pt"
-
 pytestmark = pytest.mark.skipif(
-    not WEIGHTS_PATH.exists(),
-    reason="weights/sam2_t.pt 없음 — scripts/download-sam2-weights.sh 먼저 실행",
+    importlib.util.find_spec("sam2") is None,
+    reason="sam2(Meta) 미설치 — pip install 'SAM-2 @ git+https://github.com/facebookresearch/sam2.git' 후 실행",
 )
 
 
@@ -26,7 +24,7 @@ pytestmark = pytest.mark.skipif(
 def real_model_client(monkeypatch):
     """mock mode 비활성화 + 모델 싱글톤 초기화 → 실제 추론 클라이언트."""
     monkeypatch.setenv("AI_MOCK_MODE", "false")
-    monkeypatch.setenv("SAM2_WEIGHTS_PATH", str(WEIGHTS_PATH))
+    monkeypatch.setenv("AI_DEVICE", "cpu")
 
     from app.config import reload_settings
     from app.models.sam2_loader import reset_sam2_model

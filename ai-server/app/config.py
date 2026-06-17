@@ -63,9 +63,6 @@ class Settings(BaseSettings):
         default="facebook/sam2-hiera-tiny",
         description="Meta SAM2 HF 모델 ID (설정 기반 — 사용자 입력 reflection 금지)",
     )
-    # 로컬 ckpt 대안 경로(HF 미사용/오프라인 시 후속 확장용). 현재 HF from_pretrained 경로를
-    # 우선 사용하므로 미사용 상태로 유지한다(Phase 4 에서 로컬 ckpt 폴백 검토).
-    sam2_weights_path: str = Field(default="./weights/sam2_t.pt")
     vlm_model_name: str = Field(default="openai/clip-vit-base-patch32")
 
     # CORS
