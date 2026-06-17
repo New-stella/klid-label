@@ -128,6 +128,14 @@ class Sam2TrackServiceTest {
             trackLogger.detachAppender(logAppender);
             logAppender.stop();
         }
+        // 이 테스트는 @Transactional 이 아니라 LS_LABEL(person/car) 등을 실제 커밋한다. @BeforeEach 정리만으로는
+        // 마지막 메서드 실행 후 데이터가 공유 DB 에 잔존하여, 뒤에 실행되는 LabelMaster/LabelAttr 컨트롤러
+        // 테스트의 person/car 시드와 uk_ls_label_name UNIQUE 충돌을 일으킨다(테스트 순서 의존 오염).
+        // 자기 격리를 위해 커밋한 데이터를 사후에도 정리한다.
+        labelRepository.deleteAll();
+        authrtRepository.deleteAll();
+        srcRepository.deleteAll();
+        lsLabelRepository.deleteAll();
     }
 
     @Test

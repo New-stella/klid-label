@@ -61,6 +61,14 @@ class LabelAttrControllerTest {
         reviewerToken = JwtTestSupport.token(secret, "1001", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken   = JwtTestSupport.token(secret, "2001", "WORKER",   "INTERNAL", issuer, 60);
 
+        // [테스트 격리] DevSeedRunner(@Profile("local"), seed.enabled 기본 true)가 @SpringBootTest 부팅 시
+        // dev-seed.sql 의 LS_LABEL 마스터(person 등)를 공유 PostgreSQL Testcontainer 에 비트랜잭션 커밋한다.
+        // 잔존 행과 본 테스트의 person 재시드가 uk_ls_label_name UNIQUE 충돌을 일으키므로(테스트 순서 의존 오염),
+        // @Transactional 트랜잭션 내에서 FK 의존(LS_LABEL_ATTR → LS_LABEL) 순으로 비운 뒤 시드한다.
+        // 종료 시 롤백되어 dev-seed 행은 원복된다.
+        attrRepository.deleteAllInBatch();
+        labelRepository.deleteAllInBatch();
+
         LsLabel label = labelRepository.save(
                 LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed"));
         labelId = label.getLabelId();

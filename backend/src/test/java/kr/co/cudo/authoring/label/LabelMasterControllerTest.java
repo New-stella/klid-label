@@ -49,6 +49,14 @@ class LabelMasterControllerTest {
     void setUp() {
         reviewerToken = JwtTestSupport.token(secret, "1001", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken   = JwtTestSupport.token(secret, "2001", "WORKER",   "INTERNAL", issuer, 60);
+
+        // [테스트 격리] DevSeedRunner(@Profile("local"), seed.enabled 기본 true)가 @SpringBootTest 부팅 시
+        // dev-seed.sql 의 LS_LABEL 마스터(person/car 등 13건)를 공유 PostgreSQL Testcontainer 에 커밋한다.
+        // 이 행은 비트랜잭션 커밋이라 다른 컨텍스트 종료 후에도 잔존 → 본 테스트가 person/car 를 재시드하면
+        // uk_ls_label_name UNIQUE 충돌 + 목록 길이 단언(length()==1) 어긋남(테스트 순서 의존 오염)을 일으킨다.
+        // 본 클래스는 @Transactional("controlTransactionManager") 이므로, 트랜잭션 내에서 마스터 행을
+        // 비운 뒤 시드하면 각 테스트가 빈 LS_LABEL 을 전제로 동작하고, 종료 시 롤백되어 dev-seed 행은 원복된다.
+        labelRepository.deleteAllInBatch();
     }
 
     private ObjectNode body(String name, String color, String type, Integer sortNo) {
