@@ -72,6 +72,9 @@ class ReviewServiceEventPublishTest {
         when(labelRepository.countLabelsByRawSnIn(any())).thenReturn(Collections.emptyList());
         when(videoRepository.findEventInfoByRawSns(any())).thenReturn(Collections.emptyList());
         when(taskEventLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        // commitApproved 는 스냅샷 집계 결과(record)를 반환 — 기본은 스킵 없음.
+        when(versionService.commitApproved(anyLong(), any()))
+                .thenReturn(new VersionService.CommitResult(1, 0));
     }
 
     @Test
@@ -113,5 +116,75 @@ class ReviewServiceEventPublishTest {
 
         // then — SFR-08: 검수 승인 시점에 영상(rawSn) 단위 학습데이터 버전 스냅샷 생성.
         verify(versionService).commitApproved(eq(videoId), eq(actor));
+    }
+
+    @Test
+    @DisplayName("M2_스냅샷_스킵_발생시_WARN_로깅_경로_타고_승인은_정상_성공")
+    void approve_withSnapshotSkips_logsWarnAndStillSucceeds() {
+        // given — commitApproved 가 스킵 2건을 보고 (라벨 있으나 직렬화/크기초과로 누락된 프레임).
+        Long videoId = 100L;
+        TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        when(stts.getRawDataId()).thenReturn(videoId);
+        when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
+        when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
+        when(versionService.commitApproved(eq(videoId), eq(actor)))
+                .thenReturn(new VersionService.CommitResult(3, 2));
+
+        // ReviewService 로거에 인메모리 appender 부착 — WARN 발생 가시화 검증.
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ReviewService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            // when — 스킵이 있어도 승인은 정상 성공해야 한다(기존 동작 유지).
+            reviewService.approve(videoId, actor);
+
+            // then — 스냅샷 스킵 WARN 1건이 기록되고, 본문/PII 없이 영상 ID + 스킵 프레임 수만 노출한다.
+            boolean warned = appender.list.stream()
+                    .anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+                            && e.getFormattedMessage().contains("snapshot skips")
+                            && e.getFormattedMessage().contains("skippedFrames=2"));
+            assertThat(warned).as("스냅샷 스킵 발생 시 WARN 로그가 남아야 한다").isTrue();
+            // 승인 이벤트는 정상 발행 — 승인 자체는 계속 성공.
+            verify(eventPublisher).publishEvent(any(ReviewApprovedEvent.class));
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    @DisplayName("M2_스냅샷_스킵_없으면_WARN_미발생")
+    void approve_withoutSnapshotSkips_noWarn() {
+        // given — 스킵 0건 (기본 setUp 스텁).
+        Long videoId = 200L;
+        TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        when(stts.getRawDataId()).thenReturn(videoId);
+        when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
+        when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
+        when(versionService.commitApproved(eq(videoId), eq(actor)))
+                .thenReturn(new VersionService.CommitResult(5, 0));
+
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ReviewService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            // when
+            reviewService.approve(videoId, actor);
+
+            // then — 스킵이 없으므로 스냅샷 스킵 WARN 미발생.
+            boolean warned = appender.list.stream()
+                    .anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+                            && e.getFormattedMessage().contains("snapshot skips"));
+            assertThat(warned).as("스킵이 없으면 스냅샷 스킵 WARN 이 없어야 한다").isFalse();
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

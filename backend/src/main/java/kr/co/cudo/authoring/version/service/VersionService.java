@@ -118,10 +118,11 @@ public class VersionService {
      * <p>호출 컨텍스트: {@code ReviewService.approve()} 의 승인 트랜잭션 내부에서만 호출된다.
      * 인가는 호출 측(REVIEWER)에서 이미 검증되었으므로 프레임 단위 accessGuard 검증은 생략한다.
      *
-     * @return 새로 생성된 프레임 스냅샷 버전 개수 (멱등/빈 프레임 스킵은 제외)
+     * @return 스냅샷 생성/스킵 집계 ({@link CommitResult}). created=새로 생성된 프레임 스냅샷 수,
+     *         skipped=라벨이 있으나 직렬화/크기 초과로 스냅샷이 누락된 프레임 수(멱등/빈 프레임은 제외)
      */
     @Transactional("controlTransactionManager")
-    public int commitApproved(Long rawSn, TokenClaims actor) {
+    public CommitResult commitApproved(Long rawSn, TokenClaims actor) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
         }
@@ -134,7 +135,7 @@ public class VersionService {
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         if (frames.isEmpty()) {
             log.info("[Version] approved snapshot no frames rawSn={} actor={}", rawSn, actor.sub());
-            return 0;
+            return CommitResult.EMPTY;
         }
 
         // N+1 SELECT 회피 — 프레임 루프 내 findBySrcSn 반복 대신 단일 IN 쿼리로 라벨을 일괄 조회한 뒤
@@ -144,27 +145,57 @@ public class VersionService {
                 .collect(java.util.stream.Collectors.groupingBy(LsDataLbl::getSrcSn));
 
         int created = 0;
+        int skipped = 0;
         for (LsDataSrc frame : frames) {
             List<LsDataLbl> labels = labelsBySrcSn.getOrDefault(frame.getSrcSn(), List.of());
-            // 라벨이 없는 프레임은 스냅샷 미생성 (빈 버전 적재 방지).
+            // 라벨이 없는 프레임은 스냅샷 미생성 (빈 버전 적재 방지) — 스킵 집계에 포함하지 않는다.
             if (labels.isEmpty()) {
                 continue;
             }
-            if (snapshotFrameOnApprove(raw, frame, frames, labels, actor.sub())) {
+            FrameSnapshotOutcome outcome = snapshotFrameOnApprove(raw, frame, frames, labels, actor.sub());
+            if (outcome == FrameSnapshotOutcome.CREATED) {
                 created++;
+            } else if (outcome == FrameSnapshotOutcome.SKIPPED) {
+                // M-2 — 라벨이 있는데도 직렬화/크기 초과로 스냅샷이 누락된 프레임. 무음 누락 방지를 위해 집계한다.
+                skipped++;
             }
         }
-        log.info("[Version] approved snapshot rawSn={} frames={} created={} actor={}",
-                rawSn, frames.size(), created, actor.sub());
-        return created;
+        log.info("[Version] approved snapshot rawSn={} frames={} created={} skipped={} actor={}",
+                rawSn, frames.size(), created, skipped, actor.sub());
+        return new CommitResult(created, skipped);
+    }
+
+    /**
+     * M-2 — 검수 승인 스냅샷 생성 집계 결과.
+     *
+     * @param created 새로 생성된 프레임 스냅샷 버전 수 (멱등/빈 프레임 제외)
+     * @param skipped 라벨이 존재하지만 직렬화/크기 초과로 스냅샷이 누락된 프레임 수 (무음 누락 가시화 지표)
+     */
+    public record CommitResult(int created, int skipped) {
+        static final CommitResult EMPTY = new CommitResult(0, 0);
+
+        /** 라벨이 있는데도 스냅샷이 1건이라도 누락됐는지 — 승인 API 의 WARN 로깅 조건. */
+        public boolean hasSkips() {
+            return skipped > 0;
+        }
+    }
+
+    /** 단일 프레임 스냅샷 처리 결과: 생성/멱등 스킵/누락 스킵. */
+    private enum FrameSnapshotOutcome {
+        /** 새 active 버전 생성. */
+        CREATED,
+        /** 현재 active 와 동일 스냅샷이라 멱등 미생성(정상). */
+        IDEMPOTENT,
+        /** 라벨은 있으나 직렬화/크기 초과로 스냅샷 누락(가시화 대상). */
+        SKIPPED
     }
 
     /**
      * 단일 프레임의 현재 라벨을 승인 스냅샷으로 저장한다. 멱등(동일 active 해시) 시 미생성.
      *
-     * @return 새 버전을 생성했으면 true, 멱등으로 스킵했으면 false
+     * @return 처리 결과 — CREATED(생성) / IDEMPOTENT(멱등 미생성) / SKIPPED(직렬화·크기초과 누락)
      */
-    private boolean snapshotFrameOnApprove(LsDataRaw raw, LsDataSrc frame, List<LsDataSrc> siblings,
+    private FrameSnapshotOutcome snapshotFrameOnApprove(LsDataRaw raw, LsDataSrc frame, List<LsDataSrc> siblings,
                                            List<LsDataLbl> labels, String actorId) {
         LabelResponse snapshot = LabelResponse.of(frame, siblings, labels, objectMapper);
         // BE-4 — 라벨/폴리곤이 많은 프레임은 1MB 하드 한도(validatePayloadSize)에 걸려 승인 트랜잭션 전체가
@@ -179,11 +210,11 @@ public class VersionService {
             // 도달 시에도 승인 전체를 막지 않도록 해당 프레임만 스킵 + 경고(본문 미출력).
             log.error("[Version] approved snapshot too large after simplify srcSn={} reason={}",
                     frame.getSrcSn(), e.getMessage());
-            return false;
+            return FrameSnapshotOutcome.SKIPPED;
         } catch (Exception e) {
             // 직렬화 실패는 내부 오류 — 승인 자체를 막지 않도록 해당 프레임만 스킵 + 경고(본문 미출력).
             log.error("[Version] approved snapshot serialize failed srcSn={}", frame.getSrcSn(), e);
-            return false;
+            return FrameSnapshotOutcome.SKIPPED;
         }
         String versionHash = sha256Hex(payload);
 
@@ -194,13 +225,13 @@ public class VersionService {
         // 멱등 — 현재 active 가 동일 스냅샷이면 새 버전 생성하지 않음 (수정 없이 재승인).
         for (LsLabelVersion active : activeVersions) {
             if (versionHash.equals(active.getVersionHash())) {
-                return false;
+                return FrameSnapshotOutcome.IDEMPOTENT;
             }
         }
 
         saveActiveVersion(frame, raw, activeVersions, versionHash, payload,
                 LsLabelVersion.SAVE_REASON_APPROVED, actorId);
-        return true;
+        return FrameSnapshotOutcome.CREATED;
     }
 
     /**

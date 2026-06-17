@@ -38,7 +38,12 @@ public class MarkingController {
 
     private final MarkingService markingService;
 
-    @Operation(summary = "마킹 생성", description = "자동 또는 수동 모드로 영상 마킹을 생성합니다.")
+    @Operation(summary = "마킹 생성",
+            description = "자동 또는 수동 모드로 영상 마킹을 생성합니다. "
+                    + "[AUTO 모드 제약] 자동 마킹은 영상의 실제 FPS 를 사용하지 않고 30fps 로 고정 가정하여 "
+                    + "프레임 번호(durationSec×30)와 타임스탬프(frameIndex/30초)를 계산합니다. "
+                    + "30fps 가 아닌 영상은 마크 프레임/타임스탬프가 실제와 어긋날 수 있으므로, "
+                    + "정확한 프레임 정렬이 필요하면 수동(MANUAL) 모드를 사용하세요.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패"),

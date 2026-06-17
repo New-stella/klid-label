@@ -39,20 +39,41 @@ class BatchRetryQuartzJobTest {
     }
 
     @Test
-    @DisplayName("process가_예외를_throw하면_재시도큐를_재무장하여_영구잔존_방지")
-    void processThrows_reArmsRetryQueue() {
+    @DisplayName("M1_NOT_FOUND_영구실패시_재무장않고_큐에서제거_FAILED확정")
+    void processThrowsNotFound_clearsQueueNoReArm() {
         // given — rawSn 이 큐에 등록되고, pollReady 가 처리중(nextAttemptAt=null)으로 표시되도록 즉시 도래시킨다.
         Long rawSn = 100L;
         retryQueue.enqueueIfRetryable(rawSn); // attempt=1
         forceReady(rawSn);
-        // process 가 try 진입 전 예외(loadRaw NOT_FOUND 등)를 throw 하는 경로 시뮬레이션
+        // process 가 영상이 DB 에 없는 NOT_FOUND(영구 실패)를 throw 하는 경로 시뮬레이션
         when(orchestrator.process(rawSn))
                 .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+
+        // when — Job 실행 (pollReady → process throw NOT_FOUND → 영구 실패 → clear)
+        newJob().execute(null);
+
+        // then — 영구 실패이므로 재무장하지 않고 엔트리를 큐에서 제거(FAILED 확정) → 헛재시도 없음.
+        assertThat(retryQueue.rawEntries().get(rawSn))
+                .as("NOT_FOUND 영구 실패는 큐에서 제거되어 더 이상 재시도되지 않는다").isNull();
+        assertThat(retryQueue.retryCount(rawSn))
+                .as("재무장(enqueue 재호출)이 없으므로 attempt 증가 없음").isZero();
+    }
+
+    @Test
+    @DisplayName("M1_일시적_RuntimeException은_기존대로_재무장하여_영구잔존_방지")
+    void processThrowsTransient_reArmsRetryQueue() {
+        // given — rawSn 이 큐에 등록되고, pollReady 가 처리중(nextAttemptAt=null)으로 표시되도록 즉시 도래시킨다.
+        Long rawSn = 110L;
+        retryQueue.enqueueIfRetryable(rawSn); // attempt=1
+        forceReady(rawSn);
+        // process 가 일시적/예측 외 실패(영구 실패 아님)를 throw 하는 경로 시뮬레이션
+        when(orchestrator.process(rawSn))
+                .thenThrow(new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 서버 일시 오류"));
 
         // when — Job 실행 (pollReady → process throw → catch 재무장)
         newJob().execute(null);
 
-        // then — 엔트리가 제거/잔존이 아니라 재무장되어 nextAttemptAt 이 다시 채워진다.
+        // then — 영구 실패가 아니므로 재무장되어 nextAttemptAt 이 다시 채워진다.
         var entry = retryQueue.rawEntries().get(rawSn);
         assertThat(entry).as("엔트리가 잔존(=null처리중)으로 남지 않고 재무장돼야 한다").isNotNull();
         assertThat(entry.nextAttemptAt).as("nextAttemptAt 이 재무장되어 다음 pollReady 에서 다시 픽업 가능").isNotNull();

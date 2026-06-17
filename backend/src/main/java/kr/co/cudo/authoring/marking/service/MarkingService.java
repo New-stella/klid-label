@@ -163,11 +163,27 @@ public class MarkingService {
         log.info("[Marking] deleted rawSn={}, markingSn={}", rawSn, markingSn);
     }
 
-    /** 네이티브 FPS 상수 (30fps). */
-    private static final int NATIVE_FPS = 30;
+    /**
+     * 자동 마킹의 네이티브 FPS 가정값 (30fps).
+     *
+     * <p><b>M-3 — 30fps 고정 가정의 제약(중요):</b> 자동 마킹은 영상의 실제 FPS 를 조회하지 않고 30fps 로
+     * 가정하여 totalFrames(=durationSec×30)와 프레임 인덱스→타임스탬프(frameIndex/30)를 계산한다.
+     * {@code LS_DATA_RAW} 에는 FPS 컬럼이 없어 영상별 실 FPS 를 알 수 없기 때문이다. 따라서 30fps 가 아닌
+     * 영상(예: 25/60fps)은 자동 마킹의 마크 프레임 번호·타임스탬프가 실제 재생 위치와 어긋날 수 있다.
+     *
+     * <p>FPS 필드 신설은 LS_DATA_RAW 스키마/Flyway 마이그레이션 + 적재 파이프라인(메타 추출) 전반에
+     * 파급이 커서 본 후속 개선 범위에 포함하지 않는다. 현 단계에서는 가정을 명시(Javadoc + Swagger 설명)하고,
+     * 정확한 프레임 정렬이 필요하면 수동 모드(MANUAL)를 사용하도록 안내한다.
+     */
+    static final int NATIVE_FPS = 30;
 
     /**
      * 자동 모드: durationSec 기반 intervalFrames 간격으로 marks 자동 생성 (프레임 단위).
+     *
+     * <p><b>30fps 고정 가정(M-3):</b> 이 메서드는 영상의 실제 FPS 를 사용하지 않고 {@link #NATIVE_FPS}(30fps)
+     * 로 가정하여 totalFrames(=durationSec×30)와 각 프레임의 타임스탬프(frameIndex/30초)를 계산한다.
+     * {@code LS_DATA_RAW} 에 FPS 정보가 없기 때문이며, 30fps 가 아닌 영상에서는 마크 프레임/타임스탬프가
+     * 실제와 어긋날 수 있다. 정확한 프레임 정렬이 필요하면 수동 모드를 사용한다. (상세 사유는 {@link #NATIVE_FPS}.)
      *
      * <p>경계/널 처리:
      * <ul>
@@ -186,6 +202,7 @@ public class MarkingService {
                     "자동 마킹은 영상 길이(durationSec)가 1초 이상이어야 합니다.");
         }
         List<MarkItem> marks = new ArrayList<>();
+        // M-3 — 영상 실 FPS 를 알 수 없어 30fps 가정. 비-30fps 영상은 마크 프레임/타임스탬프가 어긋날 수 있다.
         int totalFrames = durationSec * NATIVE_FPS;
         for (int frameIndex = 0; frameIndex < totalFrames; frameIndex += intervalFrames) {
             double sec = frameIndex / (double) NATIVE_FPS;

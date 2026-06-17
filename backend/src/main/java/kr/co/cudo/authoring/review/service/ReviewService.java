@@ -379,7 +379,13 @@ public class ReviewService {
         }
         // SFR-08 — 검수 승인 확정 후 같은 트랜잭션에서 영상 전체 학습데이터 버전 스냅샷 생성.
         // APPROVED 전이/스냅샷이 함께 커밋되거나 함께 롤백되어 정합성을 유지한다.
-        versionService.commitApproved(stts.getRawDataId(), actor);
+        VersionService.CommitResult commit = versionService.commitApproved(stts.getRawDataId(), actor);
+        // M-2 — 라벨이 있는데도 직렬화/크기 초과로 스냅샷이 누락된 프레임이 있으면 운영자가 인지할 수 있도록
+        // WARN 으로 가시화한다(승인 자체는 기존대로 성공 처리). 라벨 본문/PII 는 출력하지 않는다(CWE-209/359).
+        if (commit.hasSkips()) {
+            log.warn("[Review] approved with snapshot skips videoId={} skippedFrames={} actor={}",
+                    videoId, commit.skipped(), actor.sub());
+        }
         log.info("[Review] approved videoId={} actor={}", videoId, actor.sub());
         eventPublisher.publishEvent(new ReviewApprovedEvent(
                 stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));

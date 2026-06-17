@@ -73,6 +73,9 @@ class AugmentNotifyIntegrationTest {
         when(labelRepository.countLabelsByRawSnIn(any())).thenReturn(Collections.emptyList());
         when(videoRepository.findEventInfoByRawSns(any())).thenReturn(Collections.emptyList());
         when(taskEventLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        // commitApproved 는 스냅샷 집계 결과(record)를 반환 — 기본은 스킵 없음(M-2).
+        when(versionService.commitApproved(any(), any()))
+                .thenReturn(new VersionService.CommitResult(1, 0));
     }
 
     @Test

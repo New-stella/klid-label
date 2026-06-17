@@ -140,7 +140,7 @@ class VersionServiceTest {
     void commitApprovedWritesSnapshotPerFrame() {
         seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
 
-        int created = versionService.commitApproved(rawSn, reviewer);
+        int created = versionService.commitApproved(rawSn, reviewer).created();
 
         assertThat(created).isEqualTo(1);
         List<LsLabelVersion> history = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
@@ -165,7 +165,7 @@ class VersionServiceTest {
         seedLabel(frame1, "car", "[[1.0,1.0],[2.0,2.0]]");
         // frame2 는 라벨 없음 → 스냅샷 미생성
 
-        int created = versionService.commitApproved(rawSn, reviewer);
+        int created = versionService.commitApproved(rawSn, reviewer).created();
 
         assertThat(created).isEqualTo(2);
         assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(1);
@@ -178,8 +178,8 @@ class VersionServiceTest {
     void commitApprovedReApprovalIsIdempotent() {
         seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
 
-        int firstCreated = versionService.commitApproved(rawSn, reviewer);
-        int secondCreated = versionService.commitApproved(rawSn, reviewer);
+        int firstCreated = versionService.commitApproved(rawSn, reviewer).created();
+        int secondCreated = versionService.commitApproved(rawSn, reviewer).created();
 
         assertThat(firstCreated).isEqualTo(1);
         assertThat(secondCreated).isEqualTo(0);
@@ -195,7 +195,7 @@ class VersionServiceTest {
         // 라벨 수정 후 재승인
         labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
         seedLabel(srcSn, "person", "[[20.0,20.0],[60.0,60.0]]");
-        int created = versionService.commitApproved(rawSn, reviewer);
+        int created = versionService.commitApproved(rawSn, reviewer).created();
 
         assertThat(created).isEqualTo(1);
         List<LsLabelVersion> all = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
@@ -213,7 +213,7 @@ class VersionServiceTest {
                 "CLIP-VER-EMPTY", "CCTV-001", "EVT-A", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/empty.mp4", LocalDateTime.now(), 30));
 
-        int created = versionService.commitApproved(empty.getRawSn(), reviewer);
+        int created = versionService.commitApproved(empty.getRawSn(), reviewer).created();
 
         assertThat(created).isZero();
     }
@@ -234,7 +234,7 @@ class VersionServiceTest {
         seedLabel(srcSn, "person", sb.toString());
 
         // when — 검수 승인 스냅샷 생성 (예외 없이 성공해야 함)
-        int created = versionService.commitApproved(rawSn, reviewer);
+        int created = versionService.commitApproved(rawSn, reviewer).created();
 
         // then — 스냅샷 1건 생성 + 단순화로 페이로드가 1MB 이하로 축소되어 저장됨
         assertThat(created).isEqualTo(1);
@@ -249,6 +249,36 @@ class VersionServiceTest {
         assertThat(payloadBytes)
                 .as("단순화 후 페이로드는 1MB 일반 한도 이하로 축소돼야 한다")
                 .isLessThanOrEqualTo(VersionService.MAX_PAYLOAD_BYTES);
+    }
+
+    @Test
+    @DisplayName("M2_정상_승인시_CommitResult_스킵0건_created정합_무음누락_없음")
+    void commitApprovedReportsZeroSkipsOnNormalApproval() {
+        // given — 정상 라벨 1건.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+
+        // when
+        VersionService.CommitResult result = versionService.commitApproved(rawSn, reviewer);
+
+        // then — 직렬화/크기 문제 없으므로 스킵 0건, created 1건, hasSkips=false.
+        assertThat(result.created()).isEqualTo(1);
+        assertThat(result.skipped()).isZero();
+        assertThat(result.hasSkips()).isFalse();
+    }
+
+    @Test
+    @DisplayName("M2_라벨없는_프레임만_있는_영상은_스킵집계에_포함되지_않음_빈프레임_제외")
+    void commitApprovedEmptyFramesAreNotCountedAsSkips() {
+        // given — 라벨이 없는 프레임만 (빈 프레임은 무음 누락이 아니라 정상 스킵 — skipped 집계 제외).
+        // 기본 srcSn 프레임에 라벨을 시드하지 않는다.
+
+        // when
+        VersionService.CommitResult result = versionService.commitApproved(rawSn, reviewer);
+
+        // then — created 0, 빈 프레임은 skipped 에 포함되지 않아 0건 → hasSkips=false (불필요 경고 방지).
+        assertThat(result.created()).isZero();
+        assertThat(result.skipped()).isZero();
+        assertThat(result.hasSkips()).isFalse();
     }
 
     @Test

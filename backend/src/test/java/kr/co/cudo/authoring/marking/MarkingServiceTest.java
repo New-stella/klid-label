@@ -474,4 +474,35 @@ class MarkingServiceTest {
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
         assertThat(result.marks()).noneMatch(m -> m.frameIndex() == 300);
     }
+
+    // ── M-3: 자동 마킹 30fps 고정 가정 명시 ──
+
+    @Test
+    @DisplayName("M3_자동마킹_30fps_고정가정_totalFrames와_타임스탬프가_30fps기준으로_계산")
+    void autoMarking_assumes30Fps() {
+        // given — 60초 영상, intervalFrames=30(=30fps 기준 1초 간격).
+        // M-3: 영상 실 FPS 와 무관하게 NATIVE_FPS(30) 로 totalFrames(=durationSec×30)와
+        // 타임스탬프(frameIndex/30초)를 계산한다는 가정을 고정값으로 검증한다.
+        Long rawSn = 50L;
+        LsDataRaw raw = stubRaw(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 30, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then — 60초 × 30fps = 1800 totalFrames, interval=30 → 60개(0..1770).
+        // 30fps 가정이 확정값임을 회귀 가드: 첫/둘째 프레임과 타임스탬프(30fps 기준)를 검증.
+        assertThat(result.marks()).hasSize(60);
+        assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
+        assertThat(result.marks().get(0).timestamp()).isEqualTo("00:00");
+        // frameIndex 30 은 30fps 기준 1초 → "00:01" (비-30fps 영상이면 실제와 어긋남 — 가정 명시 대상).
+        assertThat(result.marks().get(1).frameIndex()).isEqualTo(30);
+        assertThat(result.marks().get(1).timestamp()).isEqualTo("00:01");
+        // 마지막 프레임 1770 → 1770/30 = 59초 → "00:59".
+        assertThat(result.marks().get(59).frameIndex()).isEqualTo(1770);
+        assertThat(result.marks().get(59).timestamp()).isEqualTo("00:59");
+    }
 }
