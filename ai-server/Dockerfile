@@ -5,22 +5,21 @@
 #     (pip install -r requirements.txt). 이 Dockerfile 은 의존성 설치 정합성을
 #     검증하는 로컬 전용 이미지로, AI_MOCK_MODE=true 로 가중치 없이 기동한다.
 #
-#   베이스: pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime
-#     - torch 2.4.1 은 numpy 2.x ABI 로 빌드되어 numpy 2.x 와 호환된다.
-#       (구 base torch 2.0.1 은 numpy 1.x ABI 라 numpy<2 를 강제했고,
-#        그 결과 rtdetr 백엔드의 trackers(numpy>=2.0.2)가 설치 불가였다.)
-#       base 를 torch>=2.2 / numpy 2.x 호환으로 올려 rtdetr(trackers) 설치를 지원한다.
+#   베이스: pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime
+#     - torch 2.5.1 은 numpy 2.x ABI 호환 + Meta sam2(SAM-2) 의 torch>=2.5.1 요구를 충족한다.
+#       (구 base torch 2.4.1 은 sam2 의 torch>=2.5.1 미충족 → 설치 시 torch 재다운로드/충돌.
+#        torch 2.0.1 은 numpy 1.x ABI 라 numpy<2 강제로 trackers(numpy>=2.0.2) 설치 불가였다.)
+#       base 를 torch 2.5.1 / numpy 2.x 호환으로 올려 yolox(onnxruntime)·sam2·rtdetr 설치를 지원한다.
 #     - CUDA 12.x base 는 실제 GPU 추론 시 호스트 NVIDIA 드라이버 >=525/535 가
-#       필요하나, 본 이미지의 검증은 AI_MOCK_MODE=true 로 동작하므로 CUDA/GPU 가
-#       불필요하다. (GPU 미보유 호스트에서도 import·기동 검증 가능)
+#       필요하나, mock(AI_MOCK_MODE=true) 기동·이미지 빌드에는 CUDA/GPU 가 불필요하다.
 # ============================================================================
-FROM pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime
+FROM pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime
 
 WORKDIR /app
 
-# opencv 런타임 의존성(libGL 등) + curl(healthcheck)
+# opencv 런타임 의존성(libGL 등) + curl(healthcheck) + git(sam2 git+ 의존성 설치)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 curl \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 curl git \
     && rm -rf /var/lib/apt/lists/*
 
 # torch/torchvision 은 베이스 이미지에 포함 — requirements 에서 제외하고 나머지만 설치.

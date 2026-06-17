@@ -88,8 +88,8 @@ services:
     environment:
       AI_MOCK_MODE: ${AI_MOCK_MODE:-true}
       AI_DEVICE: ${AI_DEVICE:-cuda}
-      # 탐지/트래킹 백엔드: yolo | rtdetr (기본 yolo). 로컬 외부0개 실추론은 docker-compose.local.yml 가 rtdetr 로 override.
-      DETECTOR_BACKEND: ${DETECTOR_BACKEND:-yolo}
+      # 탐지/트래킹 백엔드: yolox | rtdetr (기본 yolox, ONNX Runtime). 로컬 외부0개 실추론은 docker-compose.local.yml 가 rtdetr 로 override.
+      DETECTOR_BACKEND: ${DETECTOR_BACKEND:-yolox}
     # nvidia 가 기본 런타임이므로 GPU 자동 가시. 명시적 예약도 추가(compose v2.18 지원).
     # GPU 없는 로컬(Mac 등)에서는 docker-compose.local.yml override(runtime: runc + AI_DEVICE=cpu)로 기동.
     # 자세한 로컬 자족 실행은 docs/v2-wiki/00-local-setup.md 참조.
