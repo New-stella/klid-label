@@ -18,7 +18,7 @@ python-multipart>=0.0.9
 #  - yolox (기본): YOLOX (ONNX Runtime) + ByteTrack
 #  - rtdetr      : RT-DETRv2 (transformers) + ByteTrack (roboflow trackers)
 onnxruntime>=1.17.0   # YOLOX ONNX 탐지 추론 (Apache-2.0) — lazy import
-sam2 @ git+https://github.com/facebookresearch/sam2.git   # Meta SAM2 세그멘테이션 (Apache-2.0) — lazy import, ultralytics SAM 대체
+SAM-2 @ git+https://github.com/facebookresearch/sam2.git   # Meta SAM2 세그멘테이션 (Apache-2.0, 배포명 SAM-2 / import명 sam2) — lazy import, ultralytics SAM 대체
 transformers>=4.48,<6   # RT-DETRv2 (RTDetrV2ForObjectDetection) — lazy import, rtdetr 백엔드 전용. RTDetrV2 도입 4.48+ / v6 미검증 차단
 trackers>=2.0    # ByteTrackTracker (Apache-2.0) — lazy import, rtdetr 트래킹 전용. supervision 0.30 에서 제거 예정인 sv.ByteTrack 대체
 supervision>=0.26    # sv.Detections 변환 전용 (trackers 호환) — lazy import. sv.ByteTrack 미사용이므로 <0.30 상한 제거. (trackers 가 supervision>=0.26.1 요구)
