@@ -61,6 +61,10 @@ export function CanvasShell({
   function handleLowConfidence(res: Sam2SegmentResponse) {
     setSegNotice(`낮은 신뢰도(${(res.score * 100).toFixed(0)}%) — 결과를 확인 후 적용하세요.`);
   }
+  // 폴리곤 커밋 실패(라벨 마스터 미로딩 등) — 그린 점은 유지되며 사용자에게 원인 안내.
+  function handleCommitError(message: string) {
+    setSegNotice(message);
+  }
 
   // 이미지 로드 (XSS: imageUrl은 BE 신뢰 도메인만).
   // 빈 imageUrl이면 로드 시도 생략 — placeholder 배경(bg-bgLight)만 노출.
@@ -126,6 +130,7 @@ export function CanvasShell({
             segment={segment}
             onMockWarning={handleMockWarning}
             onLowConfidence={handleLowConfidence}
+            onCommitError={handleCommitError}
           />
         </Layer>
       </Stage>

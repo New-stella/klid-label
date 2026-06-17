@@ -219,6 +219,39 @@ class VersionServiceTest {
     }
 
     @Test
+    @DisplayName("BE_4_대용량_폴리곤_라벨_검수승인_1MB_초과여도_단순화로_정상_스냅샷_생성")
+    void commitApprovedLargePolygonNotBlockedBy1MbLimit() {
+        // given — 1MB 를 넘는 대형 폴리곤 라벨(좌표 ~6만 점). 과거엔 validatePayloadSize(1MB) 하드 한도에
+        // 걸려 commitApproved 가 CustomException 을 던지고 approve 트랜잭션 전체가 롤백되어 검수 승인 자체가
+        // 차단됐다. BE-4 수정으로 1MB 초과 시 폴리곤 단순화(+10MB 상향 한도)를 적용해 정상 승인된다.
+        StringBuilder sb = new StringBuilder("[");
+        int pointCount = 60_000; // 점당 약 20+ 바이트 → 직렬화 시 1MB 초과
+        for (int i = 0; i < pointCount; i++) {
+            if (i > 0) sb.append(',');
+            sb.append("[").append(10000.0 + i).append(",").append(20000.0 + i).append("]");
+        }
+        sb.append("]");
+        seedLabel(srcSn, "person", sb.toString());
+
+        // when — 검수 승인 스냅샷 생성 (예외 없이 성공해야 함)
+        int created = versionService.commitApproved(rawSn, reviewer);
+
+        // then — 스냅샷 1건 생성 + 단순화로 페이로드가 1MB 이하로 축소되어 저장됨
+        assertThat(created).isEqualTo(1);
+        List<LsLabelVersion> history = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
+        assertThat(history).hasSize(1);
+        LsLabelVersion saved = history.get(0);
+        assertThat(saved.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_APPROVED);
+        assertThat(saved.getVersionHash()).hasSize(64).matches("[0-9a-f]+");
+        // 단순화 적용 후 페이로드는 원본(1MB 초과)보다 작아진다(좌표 상한 1000점 이하로 축소).
+        int payloadBytes = saved.getLabelPayload()
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        assertThat(payloadBytes)
+                .as("단순화 후 페이로드는 1MB 일반 한도 이하로 축소돼야 한다")
+                .isLessThanOrEqualTo(VersionService.MAX_PAYLOAD_BYTES);
+    }
+
+    @Test
     @DisplayName("존재하지_않는_영상_승인_스냅샷_시도시_NOT_FOUND")
     void commitApprovedUnknownRawNotFound() {
         assertThatThrownBy(() -> versionService.commitApproved(999_999L, reviewer))

@@ -96,7 +96,8 @@ class MarkingControllerTest {
                 .andExpect(jsonPath("$.data.intervalFrames").value(300))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.marks").isArray())
-                .andExpect(jsonPath("$.data.marks.length()").value(7)); // 60*30=1800 / 300 + 1 = 7개
+                // BE-1 off-by-one 수정: 60*30=1800 totalFrames, 0..1500 (1800/300=6개) — 끝 경계 1800 미포함
+                .andExpect(jsonPath("$.data.marks.length()").value(6));
 
         // DB 검증
         List<LsMarking> saved = markingRepository.findByRawSnOrderByRegDtDesc(rawSn);

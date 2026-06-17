@@ -34,6 +34,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -106,9 +107,11 @@ class MarkingServiceTest {
         assertThat(result.markingMode()).isEqualTo("AUTO");
         assertThat(result.eventName()).isEqualTo("화재");
         assertThat(result.intervalFrames()).isEqualTo(300);
-        // 30초 * 30fps = 900 totalFrames / 300 intervalFrames = 3 + 1(start) = 4개 마크
-        assertThat(result.marks()).hasSize(4);
+        // 30초 * 30fps = 900 totalFrames / 300 intervalFrames → 0, 300, 600 = 3개 마크
+        // (BE-1 off-by-one 수정: 끝 경계 프레임 900 은 미포함 — frameIndex < totalFrames)
+        assertThat(result.marks()).hasSize(3);
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
+        assertThat(result.marks().get(2).frameIndex()).isEqualTo(600);
         assertThat(result.status()).isEqualTo(LsMarking.STATUS_PENDING);
         verify(markingRepository).save(any(LsMarking.class));
     }
@@ -295,11 +298,12 @@ class MarkingServiceTest {
         // when
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
 
-        // then — 120초 * 30fps = 3600 totalFrames, 3600/30 + 1 = 121개 마크
-        assertThat(result.marks()).hasSize(121);
+        // then — 120초 * 30fps = 3600 totalFrames, 0..3570 (3600/30 = 120개)
+        // (BE-1 off-by-one 수정: 끝 경계 프레임 3600 은 미포함)
+        assertThat(result.marks()).hasSize(120);
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
         assertThat(result.marks().get(1).frameIndex()).isEqualTo(30);
-        assertThat(result.marks().get(120).frameIndex()).isEqualTo(3600);
+        assertThat(result.marks().get(119).frameIndex()).isEqualTo(3570);
     }
 
     @Test
@@ -317,11 +321,12 @@ class MarkingServiceTest {
         // when
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
 
-        // then — 120초 * 30fps = 3600 totalFrames, 3600/60 + 1 = 61개 마크
-        assertThat(result.marks()).hasSize(61);
+        // then — 120초 * 30fps = 3600 totalFrames, 0..3540 (3600/60 = 60개)
+        // (BE-1 off-by-one 수정: 끝 경계 프레임 3600 은 미포함)
+        assertThat(result.marks()).hasSize(60);
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
         assertThat(result.marks().get(1).frameIndex()).isEqualTo(60);
-        assertThat(result.marks().get(60).frameIndex()).isEqualTo(3600);
+        assertThat(result.marks().get(59).frameIndex()).isEqualTo(3540);
     }
 
     // ── I4 (CWE-639) 수평 권한 상승 가드 ──
@@ -408,5 +413,65 @@ class MarkingServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    // ── BE-1: generateAutoMarks 경계/널 처리 (public create() 경로로 검증) ──
+
+    @Test
+    @DisplayName("자동마킹_durationSec_null이면_INVALID_INPUT_단건퇴화방지")
+    void autoMarking_nullDuration_invalidInput() {
+        // given — durationSec=null 영상에 자동 마킹 시도 (과거: totalFrames=0 → frame 0 단건만 생성되던 퇴화)
+        Long rawSn = 40L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        org.springframework.test.util.ReflectionTestUtils.setField(raw, "durationSec", null);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+
+        // when / then — 퇴화(단건 생성) 대신 명시적 거부
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        // 퇴화 마킹이 저장되지 않았음을 보장
+        verify(markingRepository, never()).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("자동마킹_durationSec_0이하면_INVALID_INPUT")
+    void autoMarking_zeroDuration_invalidInput() {
+        // given — durationSec=0 영상
+        Long rawSn = 41L;
+        LsDataRaw raw = stubRaw(rawSn, 0);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+
+        // when / then
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(markingRepository, never()).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("자동마킹_끝경계프레임_미포함_off_by_one_검증")
+    void autoMarking_excludesBoundaryFrame() {
+        // given — 10초 * 30fps = 300 totalFrames, interval=300 → frame 0 만, 끝 경계 300 미포함
+        Long rawSn = 42L;
+        LsDataRaw raw = stubRaw(rawSn, 10);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then — frameIndex 300(=totalFrames) 은 포함되지 않는다 (frameIndex < totalFrames)
+        assertThat(result.marks()).hasSize(1);
+        assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
+        assertThat(result.marks()).noneMatch(m -> m.frameIndex() == 300);
     }
 }

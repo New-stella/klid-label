@@ -5,6 +5,8 @@ export interface VideoPlayerHandle {
   getCurrentTime: () => number;
   getCurrentFrame: (fps?: number) => number;
   seekTo: (timeSec: number) => void;
+  /** 메타데이터 로드 후 실제 영상 길이(초). 로드 전에는 0. */
+  getDuration: () => number;
 }
 
 interface VideoPlayerProps {
@@ -15,13 +17,18 @@ interface VideoPlayerProps {
    * 상위에서 서명 URL 을 재발급해 src 를 교체하는 데 사용한다.
    */
   onSrcError?: () => void;
+  /**
+   * onLoadedMetadata 로 실제 영상 길이(초)를 얻으면 호출.
+   * 상위(타임라인 등)에서 하드코딩 대신 실제 길이로 좌표를 계산하는 데 사용한다.
+   */
+  onDurationChange?: (sec: number) => void;
 }
 
 const NATIVE_FPS = 30;
 const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, className, onSrcError }, ref) {
+  function VideoPlayer({ src, className, onSrcError, onDurationChange }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -40,7 +47,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       seekTo: (timeSec: number) => {
         if (videoRef.current) videoRef.current.currentTime = timeSec;
       },
+      getDuration: () => videoRef.current?.duration ?? 0,
     }));
+
+    const handleLoadedMetadata = useCallback(() => {
+      const d = videoRef.current?.duration ?? 0;
+      setDuration(d);
+      // 유효한 길이일 때만 상위에 통지 (NaN/Infinity 방어 — 일부 스트림은 duration 미확정).
+      if (Number.isFinite(d) && d > 0) onDurationChange?.(d);
+    }, [onDurationChange]);
 
     const togglePlay = useCallback(() => {
       const v = videoRef.current;
@@ -67,7 +82,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           src={src}
           className="w-full rounded-lg bg-black"
           onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
-          onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
+          onLoadedMetadata={handleLoadedMetadata}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onError={() => onSrcError?.()}

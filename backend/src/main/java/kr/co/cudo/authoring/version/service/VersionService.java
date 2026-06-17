@@ -167,15 +167,24 @@ public class VersionService {
     private boolean snapshotFrameOnApprove(LsDataRaw raw, LsDataSrc frame, List<LsDataSrc> siblings,
                                            List<LsDataLbl> labels, String actorId) {
         LabelResponse snapshot = LabelResponse.of(frame, siblings, labels, objectMapper);
+        // BE-4 — 라벨/폴리곤이 많은 프레임은 1MB 하드 한도(validatePayloadSize)에 걸려 승인 트랜잭션 전체가
+        // 롤백되어 검수 승인 자체가 차단되던 결함을 수정한다. 비식별 신고(snapshotDeidentReport)와 동일하게
+        // 1MB 초과 시 폴리곤을 단순화하고 상향 한도(10MB)를 적용해 정상 승인이 차단되지 않게 한다.
+        // 페이로드 정합성·해시(versionHash) 로직과 APPROVED 전이/스냅샷 동시 커밋 원칙은 그대로 유지한다.
         String payload;
         try {
-            payload = objectMapper.writeValueAsString(snapshot);
+            payload = serializeSnapshotWithSimplification(snapshot, frame.getSrcSn());
+        } catch (CustomException e) {
+            // 단순화 후에도 상향 한도(10MB) 초과 — 정상 데이터(라벨당 좌표 상한 상류 적용)에서는 도달하지 않음.
+            // 도달 시에도 승인 전체를 막지 않도록 해당 프레임만 스킵 + 경고(본문 미출력).
+            log.error("[Version] approved snapshot too large after simplify srcSn={} reason={}",
+                    frame.getSrcSn(), e.getMessage());
+            return false;
         } catch (Exception e) {
             // 직렬화 실패는 내부 오류 — 승인 자체를 막지 않도록 해당 프레임만 스킵 + 경고(본문 미출력).
             log.error("[Version] approved snapshot serialize failed srcSn={}", frame.getSrcSn(), e);
             return false;
         }
-        validatePayloadSize(payload);
         String versionHash = sha256Hex(payload);
 
         // Race 직렬화 — ACTIVE 행 비관적 잠금.
@@ -511,14 +520,6 @@ public class VersionService {
         return matches.get(0);
     }
 
-    private void validatePayloadSize(String payload) {
-        int bytes = payload.getBytes(StandardCharsets.UTF_8).length;
-        if (bytes > MAX_PAYLOAD_BYTES) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "라벨 스냅샷 크기 초과 (최대 " + MAX_PAYLOAD_BYTES + " 바이트)");
-        }
-    }
-
     /**
      * R7-1 — 비식별 신고 전용 스냅샷 직렬화.
      *
@@ -530,16 +531,32 @@ public class VersionService {
     private String serializeDeidentSnapshot(Long rawSn, List<LsDataLbl> labels) {
         // LabelResponse 직렬화 중복 제거 — 1회 생성 후 재활용.
         LabelResponse response = LabelResponse.of(labels, objectMapper);
-        String payload = writeSnapshotOrThrow(rawSn, response);
+        return serializeSnapshotWithSimplification(response, rawSn);
+    }
+
+    /**
+     * BE-4 / R7-1 공통 — 라벨 스냅샷을 직렬화하되 1MB(일반 한도) 초과 시 폴리곤을 단순화한 뒤 상향
+     * 한도({@link #MAX_DEIDENT_PAYLOAD_BYTES} 10MB)를 적용한다.
+     *
+     * <p>검수 승인 스냅샷(commitApproved)과 비식별 신고 스냅샷(snapshotDeidentReport) 모두 이 경로를
+     * 사용한다. 라벨/폴리곤이 많은 영상에서 1MB 하드 한도로 정상 승인/신고가 차단되지 않도록,
+     * 단순화로 실질 크기를 줄이고 그래도 초과하면 10MB 까지 허용한다. DoS(CWE-770) 방어는 라벨당 좌표
+     * 상한({@link LabelService#MAX_POINTS_PER_LABEL})과 상류 가드로 유지되며 TEXT 컬럼이라 저장은 안전하다.
+     *
+     * @param response 직렬화할 라벨 스냅샷
+     * @param logId    로깅용 식별자(srcSn 또는 rawSn — 본문/PII 미포함)
+     * @return 직렬화된 페이로드 (10MB 초과 시 {@link CustomException}(INVALID_INPUT))
+     */
+    private String serializeSnapshotWithSimplification(LabelResponse response, Long logId) {
+        String payload = writeSnapshotOrThrow(logId, response);
         if (utf8Bytes(payload) <= MAX_PAYLOAD_BYTES) {
             return payload;
         }
         // 1MB 초과 — 폴리곤 단순화 후 재직렬화로 실질 크기 축소.
         LabelResponse simplified = simplifyPolygons(response);
-        payload = writeSnapshotOrThrow(rawSn, simplified);
+        payload = writeSnapshotOrThrow(logId, simplified);
         int bytes = utf8Bytes(payload);
-        log.info("[Version] deident-report snapshot simplified rawSn={} labels={} bytes={}",
-                rawSn, labels.size(), bytes);
+        log.info("[Version] snapshot simplified id={} bytes={}", logId, bytes);
         if (bytes > MAX_DEIDENT_PAYLOAD_BYTES) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "라벨 스냅샷 크기 초과 (최대 " + MAX_DEIDENT_PAYLOAD_BYTES + " 바이트)");
@@ -547,12 +564,12 @@ public class VersionService {
         return payload;
     }
 
-    private String writeSnapshotOrThrow(Long rawSn, LabelResponse snapshot) {
+    private String writeSnapshotOrThrow(Long logId, LabelResponse snapshot) {
         try {
             return objectMapper.writeValueAsString(snapshot);
         } catch (Exception e) {
-            // 직렬화 실패는 내부 오류 — 신고 흐름 전체를 안전하게 막기 위해 예외 전파(트랜잭션 롤백).
-            log.error("[Version] deident-report snapshot serialize failed rawSn={}", rawSn, e);
+            // 직렬화 실패는 내부 오류 — 흐름 전체를 안전하게 막기 위해 예외 전파(트랜잭션 롤백).
+            log.error("[Version] snapshot serialize failed id={}", logId, e);
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "라벨 스냅샷 직렬화에 실패했습니다.");
         }
     }

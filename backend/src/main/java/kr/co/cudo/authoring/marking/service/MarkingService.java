@@ -169,13 +169,25 @@ public class MarkingService {
     /**
      * 자동 모드: durationSec 기반 intervalFrames 간격으로 marks 자동 생성 (프레임 단위).
      *
-     * @param durationSec    영상 길이 (초)
+     * <p>경계/널 처리:
+     * <ul>
+     *   <li>{@code durationSec} 이 null 이거나 0 이하면 영상 길이를 알 수 없어 자동 마킹을 생성할 수 없으므로
+     *       {@link ErrorCode#INVALID_INPUT} 로 거부한다(과거: totalFrames=0 으로 frame 0 단 1건만 생성되는 퇴화 방지).</li>
+     *   <li>루프 상한은 {@code frameIndex < totalFrames} — totalFrames(예: 30fps·10초=300)는 존재하지 않는
+     *       끝 경계 프레임이므로 포함하지 않는다(off-by-one 수정).</li>
+     * </ul>
+     *
+     * @param durationSec    영상 길이 (초) — null/0 이하면 거부
      * @param intervalFrames 프레임 간격 (1 이상)
      */
     String generateAutoMarks(Integer durationSec, int intervalFrames) {
+        if (durationSec == null || durationSec <= 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "자동 마킹은 영상 길이(durationSec)가 1초 이상이어야 합니다.");
+        }
         List<MarkItem> marks = new ArrayList<>();
-        int totalFrames = (durationSec != null ? durationSec : 0) * NATIVE_FPS;
-        for (int frameIndex = 0; frameIndex <= totalFrames; frameIndex += intervalFrames) {
+        int totalFrames = durationSec * NATIVE_FPS;
+        for (int frameIndex = 0; frameIndex < totalFrames; frameIndex += intervalFrames) {
             double sec = frameIndex / (double) NATIVE_FPS;
             String timestamp = formatTimestamp((int) sec);
             marks.add(new MarkItem(frameIndex, timestamp));

@@ -40,7 +40,14 @@ public class BatchRetryQuartzJob implements Job {
         try {
             orchestrator.process(rawSn);
         } catch (RuntimeException e) {
-            log.error("[BatchRetry] unexpected failure rawSn={} err={}", rawSn, e.getMessage());
+            // process() 가 자체 catch 로 enqueueIfRetryable 을 호출하지 못하고 예외를 throw 하는 경로
+            // (예: loadRaw 의 NOT_FOUND, markRawDataProcessing 의 상태머신 위반 — try 블록 진입 전 단계)가
+            // 존재한다. pollReady() 가 이미 nextAttemptAt=null 로 "처리중" 표시했으므로, 여기서 재무장하지
+            // 않으면 엔트리가 영구 잔존하여 재시도가 무음 중단된다(BE-2). 따라서 예외 시 큐를 재무장한다.
+            // maxAttempts 초과면 enqueueIfRetryable 가 false 반환 → FAILED 고정(정상 종료).
+            boolean reArmed = retryQueue.enqueueIfRetryable(rawSn);
+            log.error("[BatchRetry] unexpected failure rawSn={} reArmed={} err={}",
+                    rawSn, reArmed, e.getMessage());
         }
     }
 }

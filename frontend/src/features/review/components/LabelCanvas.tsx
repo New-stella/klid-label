@@ -259,7 +259,9 @@ export function LabelCanvas({ frame }: LabelCanvasProps) {
         </div>
       )}
 
-      {frame && size.width > 0 && size.height > 0 && (
+      {/* 이미지 비동기 로드 전(imgW/imgH=0)에는 렌더하지 않는다 — getFitScale 이 scale≈0 을
+          반환해 strokeWidth(=base/scale)가 비정상적으로 커지는 문제를 방지. */}
+      {frame && size.width > 0 && size.height > 0 && imgW > 0 && imgH > 0 && (
         <Stage width={size.width} height={size.height}>
           {/* Layer 1 — 이미지 (정적, listening=false 로 hover 이벤트 격리) */}
           <Layer x={offsetX} y={offsetY} scaleX={scale} scaleY={scale} listening={false}>

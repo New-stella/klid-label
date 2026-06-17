@@ -1,7 +1,7 @@
 // react-konva 는 jsdom 에서 canvas 가 없어 실제 렌더되지 않으므로 mock 으로 컴포넌트 트리만 검증한다.
 
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 
 vi.mock('react-konva', () => {
   const React = require('react');
@@ -24,9 +24,54 @@ vi.mock('react-konva', () => {
   };
 });
 
+// useImageBlob 은 axios 인증 fetch 라 jsdom 에서 동작 불가 — 고정 blob URL 반환으로 대체.
+vi.mock('@/features/label/hooks/useImageBlob', () => ({
+  useImageBlob: () => ({ url: 'blob:mock-frame-image', loading: false, error: null }),
+}));
+
 import { LabelCanvas } from '../components/LabelCanvas';
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
 import type { FrameDetail, LabelItem } from '../types';
+
+// jsdom 의 Image 는 src 할당 시 load 이벤트를 발화하지 않으므로 stub 으로 제어한다.
+// loadShouldSucceed=false 면 onload 를 발화시키지 않아 "이미지 로드 전" 상태를 재현(FE-3).
+let loadShouldSucceed = true;
+const realImage = globalThis.Image;
+
+class MockImage {
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  crossOrigin: string | null = null;
+  naturalWidth = 0;
+  naturalHeight = 0;
+  private _src = '';
+  set src(value: string) {
+    this._src = value;
+    if (!value) return;
+    // 비동기 로드 흉내 — microtask 후 콜백.
+    queueMicrotask(() => {
+      if (loadShouldSucceed) {
+        this.naturalWidth = 640;
+        this.naturalHeight = 480;
+        this.onload?.();
+      } else {
+        // onload 미발화 — 컴포넌트는 imgW/imgH=0 상태 유지.
+      }
+    });
+  }
+  get src() {
+    return this._src;
+  }
+}
+
+beforeEach(() => {
+  loadShouldSucceed = true;
+  globalThis.Image = MockImage as unknown as typeof Image;
+});
+
+afterEach(() => {
+  globalThis.Image = realImage;
+});
 
 const bboxLabel: LabelItem = {
   id: 1,
@@ -150,6 +195,10 @@ describe('LabelCanvas', () => {
         labels: [bboxLabel],
       };
       const { container } = render(<LabelCanvas frame={frame} />);
+      // 이미지 비동기 로드(MockImage onload) 완료 후에야 Stage + 라벨 shape 가 렌더된다.
+      await waitFor(() => {
+        expect(container.querySelector('[data-konva="Rect"]')).not.toBeNull();
+      });
       // mock 된 react-konva 의 Rect 는 div[data-konva="Rect"] 로 렌더됨.
       const rect = container.querySelector('[data-konva="Rect"]') as HTMLElement | null;
       expect(rect).not.toBeNull();
@@ -193,5 +242,35 @@ describe('LabelCanvas', () => {
     expect(container.querySelector('[data-testid="review-label-canvas"]')).toBeInTheDocument();
     expect(errorSpy).not.toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+
+  it('FE3_이미지_로드_전에는_라벨_shape를_렌더하지_않는다', async () => {
+    // given: 컨테이너 크기는 확보되지만 이미지 onload 가 발화되지 않는 상태(imgW/imgH=0).
+    loadShouldSucceed = false;
+    const origDescW = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    const origDescH = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(HTMLDivElement.prototype, 'clientWidth', { configurable: true, get: () => 800 });
+    Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', { configurable: true, get: () => 600 });
+    try {
+      const frame: FrameDetail = {
+        srcSn: 1,
+        frameNo: 1,
+        imageUrl: '/api/v1/videos/1/frames/1/image',
+        labels: [bboxLabel],
+      };
+      // when
+      const { container } = render(<LabelCanvas frame={frame} />);
+      // then: 컨테이너는 렌더되지만 이미지 로드 전이라 Stage/라벨 shape(Rect)는 렌더되지 않는다.
+      // (getFitScale(0,0,..) scale 보정으로 strokeWidth 가 비정상 커지는 렌더를 차단)
+      await new Promise((r) => queueMicrotask(() => r(null)));
+      expect(container.querySelector('[data-testid="review-label-canvas"]')).toBeInTheDocument();
+      expect(container.querySelector('[data-konva="Stage"]')).toBeNull();
+      expect(container.querySelector('[data-konva="Rect"]')).toBeNull();
+    } finally {
+      if (origDescW) Object.defineProperty(HTMLDivElement.prototype, 'clientWidth', origDescW);
+      else delete (HTMLDivElement.prototype as unknown as Record<string, unknown>).clientWidth;
+      if (origDescH) Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', origDescH);
+      else delete (HTMLDivElement.prototype as unknown as Record<string, unknown>).clientHeight;
+    }
   });
 });

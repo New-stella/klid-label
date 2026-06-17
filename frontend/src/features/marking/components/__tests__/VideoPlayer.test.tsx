@@ -1,6 +1,6 @@
 import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { VideoPlayer, type VideoPlayerHandle } from '../VideoPlayer';
@@ -53,5 +53,50 @@ describe('VideoPlayer 배속 설정', () => {
     // then: 1x 버튼은 비활성 상태여야 한다
     const btn1x = screen.getByRole('button', { name: '1x' });
     expect(btn1x.className).not.toContain('bg-blue-600');
+  });
+});
+
+describe('VideoPlayer 영상 길이 노출 (FE-1)', () => {
+  function setVideoDuration(video: HTMLVideoElement, sec: number) {
+    Object.defineProperty(video, 'duration', { configurable: true, value: sec });
+  }
+
+  it('메타데이터_로드시_실제_길이로_onDurationChange_호출', () => {
+    // given
+    const onDurationChange = vi.fn();
+    render(<VideoPlayer src="/test.mp4" onDurationChange={onDurationChange} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+
+    // when: 실제 영상 길이(123.4s) 로드 후 loadedmetadata 발화
+    setVideoDuration(video, 123.4);
+    fireEvent.loadedMetadata(video);
+
+    // then: 실제 길이로 콜백 호출
+    expect(onDurationChange).toHaveBeenCalledWith(123.4);
+  });
+
+  it('duration이_NaN이면_onDurationChange_미호출(방어)', () => {
+    // given
+    const onDurationChange = vi.fn();
+    render(<VideoPlayer src="/test.mp4" onDurationChange={onDurationChange} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+
+    // when: 일부 스트림은 duration 이 NaN
+    setVideoDuration(video, NaN);
+    fireEvent.loadedMetadata(video);
+
+    // then: 잘못된 값은 통지하지 않는다
+    expect(onDurationChange).not.toHaveBeenCalled();
+  });
+
+  it('getDuration_imperative_handle로_실제_길이_반환', () => {
+    // given
+    const ref = createRef<VideoPlayerHandle>();
+    render(<VideoPlayer ref={ref} src="/test.mp4" />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    setVideoDuration(video, 88);
+
+    // then
+    expect(ref.current?.getDuration()).toBe(88);
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MarkingList } from '@/features/marking/components/MarkingList';
 import { MarkingTimeline } from '@/features/marking/components/MarkingTimeline';
@@ -11,6 +11,8 @@ import { useStreamUrl } from '@/features/video/hooks/useStreamUrl';
 import { useUiStore } from '@/stores/useUiStore';
 
 const NATIVE_FPS = 30;
+// 메타데이터 로드 전 타임라인 fallback 길이(초). 로드되면 실제값으로 대체된다.
+const FALLBACK_DURATION_SEC = 60;
 
 export function MarkingPage() {
   const { rawSn: rawSnParam } = useParams<{ rawSn: string }>();
@@ -19,6 +21,8 @@ export function MarkingPage() {
   const pushToast = useUiStore((s) => s.pushToast);
 
   const videoRef = useRef<VideoPlayerHandle>(null);
+  // 영상 메타데이터 로드 전에는 fallback(60s), 로드되면 실제 길이로 갱신.
+  const [durationSec, setDurationSec] = useState(FALLBACK_DURATION_SEC);
   const {
     mode, eventName, intervalFrames, localMarks, selectedMarkIndex,
     setMode, setEventName, setIntervalFrames, addMark, selectMark,
@@ -51,8 +55,14 @@ export function MarkingPage() {
 
   useEffect(() => {
     reset();
+    // 영상이 바뀌면 길이를 fallback 으로 되돌리고 새 영상 메타데이터 로드를 기다린다.
+    setDurationSec(FALLBACK_DURATION_SEC);
     return () => reset();
   }, [rawSn, reset]);
+
+  const handleDurationChange = useCallback((sec: number) => {
+    setDurationSec(sec);
+  }, []);
 
   const handleAddMarkAtCurrentTime = useCallback(() => {
     if (!videoRef.current) return;
@@ -113,7 +123,12 @@ export function MarkingPage() {
       <h1 className="text-lg font-semibold">마킹 — 영상 #{rawSn}</h1>
 
       {videoSrc ? (
-        <VideoPlayer ref={videoRef} src={videoSrc} onSrcError={handleStreamError} />
+        <VideoPlayer
+          ref={videoRef}
+          src={videoSrc}
+          onSrcError={handleStreamError}
+          onDurationChange={handleDurationChange}
+        />
       ) : (
         <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-black text-sm text-gray-400">
           영상을 불러오는 중…
@@ -122,7 +137,7 @@ export function MarkingPage() {
 
       <MarkingTimeline
         marks={localMarks}
-        durationSec={60}
+        durationSec={durationSec}
         selectedIndex={selectedMarkIndex}
         onSelect={selectMark}
       />

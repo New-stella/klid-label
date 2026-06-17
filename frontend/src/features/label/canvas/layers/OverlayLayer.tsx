@@ -33,6 +33,8 @@ interface OverlayLayerProps {
   onMockWarning?: (res: Sam2SegmentResponse) => void;
   /** 낮은 신뢰도(score < 0.3) 응답 수신 시 호출 — 적용 여부 안내. */
   onLowConfidence?: (res: Sam2SegmentResponse) => void;
+  /** 폴리곤 커밋이 라벨 마스터 미로딩 등으로 실패했을 때 사용자 안내 메시지 전달. */
+  onCommitError?: (message: string) => void;
 }
 
 interface BboxDraft {
@@ -60,6 +62,7 @@ export function OverlayLayer({
   segment,
   onMockWarning,
   onLowConfidence,
+  onCommitError,
 }: OverlayLayerProps) {
   const [bboxDraft, setBboxDraft] = useState<BboxDraft | null>(null);
   // SAM_SEGMENT 박스 드래그 draft (canvas 좌표).
@@ -106,7 +109,12 @@ export function OverlayLayer({
     });
   }
 
-  function commitPolygon(points: number[]) {
+  /**
+   * 폴리곤을 라벨로 커밋. 커밋에 성공하면 true, 검증 실패/라벨 마스터 미로딩 등으로
+   * no-op 이면 false 를 반환한다. 호출처는 성공 시에만 그리던 점을 비워야 한다
+   * (실패 시 점을 유지해 사용자가 그린 폴리곤이 조용히 사라지지 않도록).
+   */
+  function commitPolygon(points: number[]): boolean {
     const pts: number[] = [];
     for (let i = 0; i + 1 < points.length; i += 2) {
       const p = translateFromCanvas(geometry, points[i], points[i + 1]);
@@ -114,9 +122,13 @@ export function OverlayLayer({
       pts.push(c.x, c.y);
     }
     const valid = validatePolygonPoints(pts);
-    if (!valid) return;
+    if (!valid) return false;
     const def = resolveDefaultLabel(labelMasters ?? [], activeLabelId);
-    if (!def) return; // 라벨 마스터 없음 — 신규 라벨 생성 거부
+    if (!def) {
+      // 라벨 마스터 없음 — 신규 라벨 생성 거부. 사용자에게 원인 안내(점은 호출처에서 유지).
+      onCommitError?.('라벨 분류가 로딩되지 않아 폴리곤을 추가할 수 없습니다. 잠시 후 다시 시도하세요.');
+      return false;
+    }
     onLabelAdd?.({
       id: `tmp-${Date.now()}`,
       frameNo: 0,
@@ -125,6 +137,7 @@ export function OverlayLayer({
       source: 'MANUAL',
       shape: { type: 'POLYGON', points: valid },
     });
+    return true;
   }
 
   // 이미지 좌표 flat points 를 그대로 폴리곤으로 커밋 (SAM_SEGMENT 응답 적용 — 좌표 변환 불필요).
@@ -255,8 +268,8 @@ export function OverlayLayer({
           const next = [...polyPoints, p.x, p.y];
           const closed = closePolygonIfNear(next);
           if (closed.closed) {
-            commitPolygon(closed.points);
-            setPolyPoints([]);
+            // 커밋 성공 시에만 점 비움 — 실패(라벨 마스터 미로딩 등)면 점 유지.
+            if (commitPolygon(closed.points)) setPolyPoints([]);
           } else {
             setPolyPoints(next);
           }
@@ -264,9 +277,12 @@ export function OverlayLayer({
         onDblClick={() => {
           if (activeTool !== ToolTypeEnum.POLYGON) return;
           if (polyPoints.length >= 6) {
-            commitPolygon(polyPoints);
+            // 커밋 성공 시에만 점 비움 — 실패면 점 유지(조용한 소실 방지).
+            if (commitPolygon(polyPoints)) setPolyPoints([]);
+          } else {
+            // 점이 부족해 폴리곤이 될 수 없는 경우는 그리기 취소로 간주해 비운다.
+            setPolyPoints([]);
           }
-          setPolyPoints([]);
         }}
       />
     ) : null;
