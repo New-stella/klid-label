@@ -8,6 +8,7 @@ import { useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../hooks/useLabelMasters';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
+import { normalizeBox } from '../canvas/utils/canvasGeometry';
 import { shouldRenderVertexAnchors } from '../canvas/utils/polygonEdit';
 import type { Sam2TrackResponse } from '../api';
 import type { Label } from '../types';
@@ -129,7 +130,11 @@ export function ObjectAttributePanel({
     if (!Number.isFinite(num)) return;
     const clamped =
       field === 'left' || field === 'right' ? clampX(num) : clampY(num);
-    const nextShape = { ...target.shape, [field]: clamped };
+    const merged = { ...target.shape, [field]: clamped };
+    // left>right / top>bottom 역전 입력 시 음수 width/height Rect 가 생성되는 것을 방지하기 위해
+    // 저장 직전 정규화한다 (left<right, top<bottom 보장).
+    const norm = normalizeBox(merged.left, merged.top, merged.right, merged.bottom);
+    const nextShape = { ...merged, ...norm };
     updateLabel(target.id, { shape: nextShape });
   }
 

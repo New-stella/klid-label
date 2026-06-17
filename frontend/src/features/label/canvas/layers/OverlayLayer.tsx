@@ -322,11 +322,15 @@ export function OverlayLayer({
           {(() => {
             const dots = [];
             for (let i = 0; i + 1 < polyPoints.length; i += 2) {
+              const px = polyPoints[i];
+              const py = polyPoints[i + 1];
+              // 정점 좌표 기반 stable key — append-only 드래프트 정점이라 좌표가 정점 정체성을
+              // 안정적으로 식별한다 (flat index 단독보다 재정렬/리렌더에 강함).
               dots.push(
                 <Circle
-                  key={i}
-                  x={polyPoints[i]}
-                  y={polyPoints[i + 1]}
+                  key={`${px}:${py}`}
+                  x={px}
+                  y={py}
                   radius={4}
                   fill="#26A69A"
                   listening={false}

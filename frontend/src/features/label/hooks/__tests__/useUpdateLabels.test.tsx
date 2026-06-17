@@ -71,8 +71,11 @@ describe('useUpdateLabels — 저장 후 캐시 무효화', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    // 4개 키 전부 invalidate 호출되어야 함 (회귀 시 1개만 호출되던 것 → 4개로 확장)
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: LABEL_KEYS.all });
+    // 4개 도메인 키 전부 invalidate 호출되어야 함. 단 LABEL 은 저장한 프레임의 internal
+    // 키로 좁힌다 (FE-5 — 포털 캐시 churn 방지).
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: [...LABEL_KEYS.byFrame(123, 0), 'internal'],
+    });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: VIDEO_KEYS.all });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ASSIGNMENT_KEYS.all });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: REVIEW_KEYS.all });

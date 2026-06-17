@@ -118,9 +118,12 @@ describe('SaveCommitButton', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
-    // then — 4개 키 일괄 invalidate (회귀 가드)
+    // then — 4개 도메인 invalidate (회귀 가드). LABEL 은 저장한 프레임의 internal 키로
+    // 좁힌다 (FE-5 — 포털 캐시 churn 방지).
     await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: LABEL_KEYS.all });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: [...LABEL_KEYS.byFrame(123, 0), 'internal'],
+      });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: VIDEO_KEYS.all });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ASSIGNMENT_KEYS.all });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: REVIEW_KEYS.all });

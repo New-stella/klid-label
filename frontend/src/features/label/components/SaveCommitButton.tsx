@@ -19,9 +19,20 @@ interface SaveCommitButtonProps {
  * useUpdateLabels 훅을 통해 호출하여 저장 성공 시 LABEL/VIDEO/ASSIGNMENT/REVIEW 캐시를 일괄
  * invalidate 한다 — 프레임 왕복·작업 목록 진입 시 stale 노출 회귀 방지.
  *
- * portalMode 는 호출 측 의도를 명시하기 위해 prop 으로 유지하지만 FE 행위는 동일(단일 PUT)이다.
+ * ⚠️ portalMode 사용 주의 (오용 방지): 이 버튼은 **내부 전용** PUT /frames/{srcSn}/labels 를
+ *   호출한다(useUpdateLabels → putLabels). PORTAL 채널 사용자는 이 엔드포인트에서 403 을 받는다
+ *   (포털 작업본은 LS_PORTAL_USER_LABEL 별도 적재 — ADR-013, 포털은 버전관리/검수 미제공).
+ *   따라서 portalMode 는 "포털 저장을 이 버튼으로 수행한다"는 의미가 **아니다**. 포털 저장 동선이
+ *   생기면 별도 포털 저장 훅(예: putPortalLabels)을 받는 분기를 추가해야 한다. 현재 production
+ *   사용처가 없어 내부 PUT 동작을 유지하되, dev 환경에서 portalMode 로 마운트되면 경고를 남긴다.
  */
-export function SaveCommitButton({ srcSn, labels, portalMode: _portalMode, onSaved }: SaveCommitButtonProps) {
+export function SaveCommitButton({ srcSn, labels, portalMode = false, onSaved }: SaveCommitButtonProps) {
+  if (portalMode && import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[SaveCommitButton] portalMode=true 로 마운트됨 — 이 버튼은 내부 PUT 만 수행하며 포털 저장을 지원하지 않습니다(403 위험). 포털 저장 훅 분기가 필요합니다.',
+    );
+  }
   const [error, setError] = useState<string | null>(null);
   const clearDirty = useLabelStore((s) => s.clearDirty);
   const dirtyCount = useLabelStore((s) => s.dirtyLabels.size);

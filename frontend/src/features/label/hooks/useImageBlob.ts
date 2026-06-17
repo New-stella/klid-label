@@ -8,11 +8,12 @@
 //      → konva Image 가 해당 blob URL 을 로드.
 //
 // 라이프사이클:
-//  - srcSn 변경 시 새 blob 생성, 이전 blob 은 URL.revokeObjectURL 로 해제 (메모리 누수 방지)
-//  - 컴포넌트 unmount 시 cleanup 에서 동일 처리
+//  - srcSn 변경 시 새 blob 생성. 이전 blob URL 은 **새 URL 이 도착한 직후** 해제한다
+//    (즉시 revoke 하면 새 blob 도착 전 빈 캔버스 깜빡임 + Konva 가 revoke 된 blob 접근).
+//  - 컴포넌트 unmount 시에만 마지막 URL 을 즉시 해제 (메모리 누수 방지)
 //  - axios 자동 재시도 정책은 client.ts 에 위임
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { apiClient } from '@/lib/api/client';
 
@@ -53,8 +54,16 @@ export function useImageBlob(
   const raw = opts?.raw === true;
   const portalMode = opts?.portalMode === true;
 
+  // 현재 화면에 노출 중인 blob URL — 새 URL 이 도착할 때까지 revoke 를 지연시키기 위해
+  // ref 로 보관한다. effect cleanup 에서 즉시 revoke 하지 않는다.
+  const liveUrlRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (srcSn === undefined || !Number.isFinite(srcSn)) {
+      if (liveUrlRef.current) {
+        URL.revokeObjectURL(liveUrlRef.current);
+        liveUrlRef.current = null;
+      }
       setUrl(null);
       setError(null);
       setLoading(false);
@@ -62,7 +71,6 @@ export function useImageBlob(
     }
 
     let cancelled = false;
-    let createdUrl: string | null = null;
     setLoading(true);
     setError(null);
 
@@ -78,26 +86,44 @@ export function useImageBlob(
     apiClient
       .get<Blob>(path, config)
       .then((res) => {
-        if (cancelled) return;
         const blob = res.data as unknown as Blob;
-        createdUrl = URL.createObjectURL(blob);
-        setUrl(createdUrl);
+        const newUrl = URL.createObjectURL(blob);
+        if (cancelled) {
+          // 이 effect 가 이미 폐기됨(srcSn 전환/unmount) — 새 URL 은 사용되지 않으므로 즉시 해제.
+          URL.revokeObjectURL(newUrl);
+          return;
+        }
+        // 새 URL 이 도착했으니 이전 live URL 을 이제서야 해제한다 (깜빡임 방지).
+        const prev = liveUrlRef.current;
+        liveUrlRef.current = newUrl;
+        setUrl(newUrl);
         setLoading(false);
+        if (prev && prev !== newUrl) {
+          URL.revokeObjectURL(prev);
+        }
       })
       .catch((e: unknown) => {
         if (cancelled) return;
         setError(e instanceof Error ? e : new Error(String(e)));
-        setUrl(null);
         setLoading(false);
       });
 
+    // cleanup: 이번 요청만 취소한다. live URL 은 다음 URL 도착 시점에 해제하므로 여기서
+    // revoke 하지 않는다 (전환 중 빈 캔버스/Konva stale 접근 방지).
     return () => {
       cancelled = true;
-      if (createdUrl) {
-        URL.revokeObjectURL(createdUrl);
-      }
     };
   }, [srcSn, raw, portalMode]);
+
+  // 컴포넌트 완전 unmount 시점에만 마지막 live URL 을 즉시 해제 (메모리 누수 방지).
+  useEffect(() => {
+    return () => {
+      if (liveUrlRef.current) {
+        URL.revokeObjectURL(liveUrlRef.current);
+        liveUrlRef.current = null;
+      }
+    };
+  }, []);
 
   return { url, loading, error };
 }

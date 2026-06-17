@@ -217,10 +217,10 @@ describe('DevAutolabelTestPage', () => {
     expect(
       screen.getByRole('link', { name: /마킹 화면/ }),
     ).toHaveAttribute('href', '/marking/44444');
-    // 영상 목록 링크도 노출
+    // 영상 목록 링크도 노출 (FE-4 — `/video` 는 index 라우트가 없어 404. `/video/completed` 로 수정)
     expect(
       screen.getByRole('link', { name: /영상 목록/ }),
-    ).toHaveAttribute('href', '/video');
+    ).toHaveAttribute('href', '/video/completed');
     // 진행 스피너는 사라진다 (무한 폴링 방지 — terminal 도달)
     expect(
       screen.queryByLabelText('파이프라인 진행 중'),

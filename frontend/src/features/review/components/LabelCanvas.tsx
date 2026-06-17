@@ -61,15 +61,28 @@ function useImageElement(src: string | undefined): HTMLImageElement | null {
 /**
  * 라벨 카테고리별 번호 매핑 — `사람 #1`, `사람 #2` 형태로 표시하기 위함.
  * id 가 아닌 카테고리 내 순번을 매긴다.
+ *
+ * BE 응답에서 `id` 가 null/undefined 로 내려오는 데이터 정합 이슈가 있어도 안전하게 동작하도록
+ * 유효한 숫자 id 만 map 에 등록한다. null id 를 키로 넣으면 `map.get(id)` 가 오동작하거나
+ * 서로 다른 라벨이 같은 키(null)로 덮어써지는 문제가 생긴다.
  */
 function buildLabelIndexMap(labels: LabelItem[]): Map<number, number> {
   const counts: Record<string, number> = {};
   const map = new Map<number, number>();
   for (const l of labels) {
     counts[l.label] = (counts[l.label] ?? 0) + 1;
-    map.set(l.id, counts[l.label]);
+    if (typeof l.id === 'number' && Number.isFinite(l.id)) {
+      map.set(l.id, counts[l.label]);
+    }
   }
   return map;
+}
+
+/** 카테고리 순번을 `사람 #2` 형태의 접미사로 변환. 순번이 없으면(id null 등) "#" 생략. */
+function labelIndexSuffix(indexMap: Map<number, number>, id: number | null | undefined): string {
+  if (typeof id !== 'number' || !Number.isFinite(id)) return '';
+  const idx = indexMap.get(id);
+  return idx !== undefined ? ` #${idx}` : '';
 }
 
 interface ShapeProps {
@@ -288,9 +301,8 @@ export function LabelCanvas({ frame }: LabelCanvasProps) {
                   // 카드 텍스트는 사용자가 ReviewMemoPanel 에서 수정 가능.
                   if (issueMode) {
                     const labelMeta = labels.find((l) => l.id === id);
-                    const idx = indexMap.get(id) ?? 0;
                     const placeholder = labelMeta
-                      ? `${labelMeta.label} #${idx} 에 대한 이슈를 입력하세요`
+                      ? `${labelMeta.label}${labelIndexSuffix(indexMap, id)} 에 대한 이슈를 입력하세요`
                       : '이슈를 입력하세요';
                     addPendingIssue(placeholder, id);
                     return;
@@ -314,7 +326,8 @@ export function LabelCanvas({ frame }: LabelCanvasProps) {
           }}
           data-testid="review-label-chip"
         >
-          {hoverLabel.label} #{indexMap.get(hoverLabel.id) ?? 0}
+          {hoverLabel.label}
+          {labelIndexSuffix(indexMap, hoverLabel.id)}
         </div>
       )}
     </div>

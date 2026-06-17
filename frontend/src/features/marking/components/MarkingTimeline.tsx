@@ -27,7 +27,7 @@ export function MarkingTimeline({
         const pct = (mark.frameIndex / totalFrames) * 100;
         return (
           <button
-            key={`${mark.frameIndex}-${i}`}
+            key={mark.frameIndex}
             type="button"
             className={cn(
               'absolute top-0 h-full w-1 transition-colors',

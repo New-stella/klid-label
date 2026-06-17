@@ -93,6 +93,31 @@ describe('useImageBlob', () => {
     expect(mock.history.get[0].params).toEqual({ raw: true });
   });
 
+  it('srcSn_전환시_새_URL_도착_후_이전_URL_revoke_되고_그_전에는_유지된다', async () => {
+    // FE — 깜빡임/Konva stale 접근 방지: 새 blob 도착 전까지 이전 URL 을 revoke 하지 않는다.
+    mock.onGet('/frames/100/image').reply(200, new Blob(['a'], { type: 'image/jpeg' }));
+    mock.onGet('/frames/200/image').reply(200, new Blob(['bb'], { type: 'image/jpeg' }));
+
+    const { result, rerender } = renderHook(({ id }: { id: number }) => useImageBlob(id), {
+      initialProps: { id: 100 },
+    });
+
+    await waitFor(() => expect(result.current.url).not.toBeNull());
+    const firstUrl = result.current.url!;
+    // 첫 URL 은 아직 살아있어야 한다 (revoke 안 됨).
+    expect(revoked).not.toContain(firstUrl);
+
+    rerender({ id: 200 });
+
+    await waitFor(() => expect(result.current.url).not.toBe(firstUrl));
+    const secondUrl = result.current.url!;
+    expect(secondUrl).not.toBeNull();
+    // 새 URL 도착 후 이전 URL 이 revoke 되어야 한다.
+    await waitFor(() => expect(revoked).toContain(firstUrl));
+    // 새(현재) URL 은 여전히 살아있어야 한다.
+    expect(revoked).not.toContain(secondUrl);
+  });
+
   it('raw_옵션_미지정시_raw_쿼리_파라미터_미포함', async () => {
     mock.onGet('/frames/322/image').reply((config) => {
       // raw 파라미터가 없어야 함

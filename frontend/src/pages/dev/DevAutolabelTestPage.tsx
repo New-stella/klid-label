@@ -467,7 +467,7 @@ export function DevAutolabelTestPage() {
                 마킹 화면으로 이동 →
               </Link>
               <Link
-                to="/video"
+                to="/video/completed"
                 className="text-sm font-medium text-primary-600 hover:underline"
               >
                 영상 목록 보기 →
