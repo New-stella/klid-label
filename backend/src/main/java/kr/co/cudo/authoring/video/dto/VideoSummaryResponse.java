@@ -54,7 +54,14 @@ public record VideoSummaryResponse(
         // 마지막 수정 시각 (LS_DATA_RAW.UPD_DT)
         LocalDateTime updatedAt,
         // 검수 완료 시각 (LS_RAW_DATA_STATUS.UPD_DT) — dataSttsCd='APPROVED' 일 때만 노출, 그 외 null
-        LocalDateTime reviewCompletedAt
+        LocalDateTime reviewCompletedAt,
+        // 현재 활성 LABELER 배정 정보 (작업 목록 /v1/tasks/board 와 동일 산출 기준). 미배정 시 모두 null.
+        // 주의: 기존 status(배치/처리 단계)와 충돌 방지를 위해 배정 상태는 별도명 assignStatus 로 노출한다.
+        Long assignmentId,
+        Long workerId,
+        String workerName,
+        LocalDateTime assignedAt,
+        String assignStatus
 ) {
 
     /**
@@ -76,6 +83,17 @@ public record VideoSummaryResponse(
      * COMPLETED → "EXPORTED", FAILED → "FAILED" 로 매핑한다.
      */
     public record ExportInfo(String exportSttsCd, LocalDateTime exportedAt, String errorMessage) {}
+
+    /**
+     * 현재 활성 LABELER 배정 요약 (서비스 레이어에서 주입). 작업 목록(/v1/tasks/board)과 동일하게
+     * TASK_TYPE_CD='LABELER' 배정 중 REG_DT 가 가장 최근인 1건 기준으로 산출한다.
+     * 배정 상태(assignStatus)는 단순 "ASSIGNED" 고정 — LS_TASK_ASSIGNMENT 존재 자체가 활성 배정을 의미한다.
+     */
+    public record AssignmentInfo(Long assignmentId, Long workerId, String workerName, LocalDateTime assignedAt) {
+
+        /** LABELER 배정이 존재할 때의 노출용 상태값. */
+        public static final String STATUS_ASSIGNED = "ASSIGNED";
+    }
 
     /** 단순 매핑 — frameCount/cctvName 등은 0/fallback 으로 채움. */
     public static VideoSummaryResponse from(LsDataRaw e) {
@@ -112,6 +130,22 @@ public record VideoSummaryResponse(
             Long frameCount,
             ExportInfo exportInfo,
             LocalDateTime reviewCompletedAt
+    ) {
+        return from(e, cctvName, localGov, frameCount, exportInfo, reviewCompletedAt, null);
+    }
+
+    /**
+     * 보강 매핑 (export + 검수완료시각 + 현재 LABELER 배정 포함). assignmentInfo 가 null 이면
+     * 배정 관련 5개 필드(assignmentId/workerId/workerName/assignedAt/assignStatus)는 모두 null 로 응답한다.
+     */
+    public static VideoSummaryResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            ExportInfo exportInfo,
+            LocalDateTime reviewCompletedAt,
+            AssignmentInfo assignmentInfo
     ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
         String resolvedGov = (localGov != null && !localGov.isBlank())
@@ -161,7 +195,12 @@ public record VideoSummaryResponse(
                 exportedAt,
                 failureReason,
                 e.getMdfcnDt(),
-                reviewCompletedAt
+                reviewCompletedAt,
+                assignmentInfo != null ? assignmentInfo.assignmentId() : null,
+                assignmentInfo != null ? assignmentInfo.workerId() : null,
+                assignmentInfo != null ? assignmentInfo.workerName() : null,
+                assignmentInfo != null ? assignmentInfo.assignedAt() : null,
+                assignmentInfo != null ? AssignmentInfo.STATUS_ASSIGNED : null
         );
     }
 }

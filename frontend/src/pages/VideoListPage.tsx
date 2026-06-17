@@ -13,13 +13,14 @@ import { StageBadge } from '@/components/common/StageBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { cn } from '@/lib/cn';
 import { AssignModal } from '@/features/task/components/AssignModal';
+import type { Task } from '@/features/task/types';
 import { VideoFilters } from '@/features/video/components/VideoFilters';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
   parseVideoListParams,
   videoListParamsToSearchParams,
 } from '@/features/video/parseVideoListParams';
-import type { VideoListParams } from '@/features/video/types';
+import type { Video, VideoListParams } from '@/features/video/types';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -53,13 +54,18 @@ export function VideoListPage() {
   const role = claims?.role ?? Role.WORKER;
   const isReviewer = role === Role.REVIEWER;
 
-  // AssignModal 상태 (단건 신규 배정 / 일괄 배정 재사용).
+  // AssignModal 상태 (단건 신규 배정 / 재배정 / 일괄 배정 재사용 — TaskListPage 정합).
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assignMode, setAssignMode] = useState<'assign' | 'bulk'>('assign');
+  const [assignMode, setAssignMode] = useState<'assign' | 'reassign' | 'bulk'>(
+    'assign',
+  );
+  // 미배정 영상 단건 신규 배정용 (selectedTask=null 일 때 사용)
   const [assignTarget, setAssignTarget] = useState<{
     id: number;
     name: string;
   } | null>(null);
+  // 기존 배정 영상 재배정용 — AssignModal 이 읽는 task 형태로 매핑해 전달한다.
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const updateParams = (next: VideoListParams) => {
     const sp = videoListParamsToSearchParams({ ...params, ...next });
@@ -95,10 +101,31 @@ export function VideoListPage() {
     return map;
   }, [rows]);
 
+  // 미배정 영상 — 단건 신규 배정 모드.
   const openSingleAssign = (id: number, name: string) => {
     if (!isReviewer) return;
+    setSelectedTask(null);
     setAssignTarget({ id, name });
     setAssignMode('assign');
+    setAssignModalOpen(true);
+  };
+
+  // 기존 배정 영상 — 재배정 모드. AssignModal 이 읽는 task 필드
+  // (id=assignmentId / videoId / cctvName / workerId / workerName / status / assignedAt)로 매핑.
+  const openReassign = (v: Video) => {
+    if (!isReviewer || v.assignmentId == null || v.workerId == null) return;
+    const task: Task = {
+      id: v.assignmentId,
+      videoId: v.id,
+      cctvName: v.cctvName,
+      workerId: v.workerId,
+      workerName: v.workerName ?? '',
+      status: v.assignStatus ?? 'IN_PROGRESS',
+      assignedAt: v.assignedAt ?? '',
+    };
+    setSelectedTask(task);
+    setAssignTarget(null);
+    setAssignMode('reassign');
     setAssignModalOpen(true);
   };
 
@@ -110,11 +137,16 @@ export function VideoListPage() {
     setAssignModalOpen(true);
   };
 
-  // 배정 성공 후 선택 해제. 영상 목록 캐시는 useAssignTask 가 VIDEO_KEYS 무효화로 자동 갱신한다.
+  // 배정/재배정 성공 후 선택 해제. 영상 목록 캐시는 useAssignTask/useReassignTask 가
+  // VIDEO_KEYS 무효화로 자동 갱신하므로 행에 배정자명이 즉시 반영된다(R1).
   const handleAssignDone = () => {
     setAssignModalOpen(false);
     setAssignTarget(null);
+    setSelectedTask(null);
     setSelected(new Set());
+    // TaskListPage onSuccess 정합 — 배정/재배정 성공 시 작업 목록(/assignments)
+    // 캐시까지 무효화한다. 영상 목록(VIDEO_KEYS)은 mutation hook 이 갱신한다.
+    queryClient.invalidateQueries({ queryKey: ['assignments'] });
   };
 
   const totalPages = Math.max(
@@ -208,6 +240,9 @@ export function VideoListPage() {
                   처리 단계
                 </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  배정자
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   액션
                 </th>
               </tr>
@@ -216,7 +251,7 @@ export function VideoListPage() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-100">
-                    {Array.from({ length: 8 }).map((__, j) => (
+                    {Array.from({ length: 9 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton height={16} />
                       </td>
@@ -225,7 +260,7 @@ export function VideoListPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-12">
+                  <td colSpan={9} className="px-3 py-12">
                     <EmptyState message="해당하는 영상이 없습니다." />
                   </td>
                 </tr>
@@ -277,25 +312,55 @@ export function VideoListPage() {
                         <StatusBadge status={v.status} />
                       )}
                     </td>
+                    {/* 배정자 — 역할 무관 표시(TaskListPage 정합). 액션 버튼만 REVIEWER 전용. */}
+                    <td className="px-4 py-3">
+                      {v.workerName ? (
+                        <span className="text-sm text-gray-700">
+                          {v.workerName}
+                        </span>
+                      ) : (
+                        <span className="text-sm italic text-gray-400">
+                          미배정
+                        </span>
+                      )}
+                    </td>
                     <td
                       className="px-4 py-3"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex gap-1">
-                        {isReviewer && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openSingleAssign(v.id, v.cctvName);
-                            }}
-                            aria-label={`${v.cctvName} 작업자 배정`}
-                          >
-                            <UserPlus size={12} aria-hidden />
-                            배정
-                          </Button>
-                        )}
+                        {/* 배정 / 재배정 — REVIEWER 전용. workerId 유무로 분기(TaskListPage:654-683 정합).
+                            검수 승인 완료(workerId && assignStatus===COMPLETED) 행은 재배정 불가 —
+                            버튼 자체를 가린다. BE 가드(ASSIGNMENT_ALREADY_COMPLETED)와 짝을 이루는 UI 정합. */}
+                        {isReviewer &&
+                          !(v.workerId != null && v.assignStatus === 'COMPLETED') &&
+                          (v.workerId != null ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openReassign(v);
+                              }}
+                              aria-label={`${v.cctvName} 작업자 재배정`}
+                            >
+                              <RefreshCw size={12} aria-hidden />
+                              재배정
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openSingleAssign(v.id, v.cctvName);
+                              }}
+                              aria-label={`${v.cctvName} 작업자 배정`}
+                            >
+                              <UserPlus size={12} aria-hidden />
+                              배정
+                            </Button>
+                          ))}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -360,19 +425,25 @@ export function VideoListPage() {
         </div>
       )}
 
-      {/* 작업자 배정 모달 (REVIEWER 전용 — 단건 신규 / 일괄 재사용) */}
+      {/* 작업자 배정 모달 (REVIEWER 전용 — 단건 신규 / 재배정 / 일괄 재사용, TaskListPage 정합) */}
       {isReviewer && (
         <AssignModal
           open={assignModalOpen}
           onClose={() => setAssignModalOpen(false)}
-          task={null}
+          task={selectedTask}
           mode={assignMode}
           onSuccess={handleAssignDone}
           onBulkSuccess={handleAssignDone}
           videoIds={assignMode === 'bulk' ? Array.from(selected) : []}
           videoNameById={videoNameById}
-          videoId={assignMode === 'assign' ? (assignTarget?.id ?? undefined) : undefined}
-          videoName={assignMode === 'assign' ? assignTarget?.name : undefined}
+          videoId={
+            assignMode === 'assign' && !selectedTask
+              ? (assignTarget?.id ?? undefined)
+              : undefined
+          }
+          videoName={
+            assignMode === 'assign' && !selectedTask ? assignTarget?.name : undefined
+          }
         />
       )}
     </div>

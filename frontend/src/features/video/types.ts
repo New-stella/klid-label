@@ -1,6 +1,7 @@
 // 영상 도메인 타입 (BE OpenAPI 기반 alias)
 
 import type { BadgeStatus } from '@/components/common/StatusBadge';
+import type { AssignmentStatus } from '@/features/task/types';
 
 export interface VideoListParams {
   page?: number;
@@ -37,6 +38,14 @@ export interface Video {
   updatedAt?: string | null;
   // 검수 완료 시각 (LS_RAW_DATA_STATUS.UPD_DT) — 검수 상태가 APPROVED 일 때만, 그 외 null
   reviewCompletedAt?: string | null;
+  // LABELER 배정 정보 (BE VideoSummaryResponse — 미배정 영상은 모두 null/undefined).
+  // TaskListPage 배정 시나리오와 정합: 이 필드 유무로 배정/재배정 버튼을 분기하고
+  // AssignModal 재배정 모드에 현재 배정자를 사전선택한다.
+  assignmentId?: number;
+  workerId?: number;
+  workerName?: string;
+  assignedAt?: string;
+  assignStatus?: AssignmentStatus;
 }
 
 export interface FramePreview {

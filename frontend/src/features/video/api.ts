@@ -49,6 +49,13 @@ function normalizeVideo(v: RawVideo): Video {
     durationSec: v.durationSec,
     updatedAt: v.updatedAt ?? null,
     reviewCompletedAt: v.reviewCompletedAt ?? null,
+    // LABELER 배정 정보 (BE VideoSummaryResponse) — 미배정 영상은 모두 undefined.
+    // TaskListPage 정합: 배정/재배정 버튼 분기 + 재배정 모달 사전선택에 사용된다.
+    assignmentId: v.assignmentId,
+    workerId: v.workerId,
+    workerName: v.workerName,
+    assignedAt: v.assignedAt,
+    assignStatus: v.assignStatus,
   };
 }
 

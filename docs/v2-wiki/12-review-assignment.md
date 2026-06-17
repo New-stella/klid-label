@@ -11,6 +11,7 @@
 - `LS_TASK_ASSIGNMENT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 `LS_TASK_ASSIGN_HISTORY` 기록
 - 배정 이력 조회·재배정 권한도 REVIEWER 보유
 - **배정 진입 동선 2곳**: ①작업 배정 화면(SC-013 `/task/assign`) ②**영상 목록(SC-007 `/video/completed`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1
+- **두 화면 배정 시나리오 정합**: 배정자 표시·배정/재배정 토글·재배정 시 현재 배정자 사전선택·완료 영상 재배정 차단·성공 후 즉시 갱신을 작업 목록과 동일하게 적용. 영상 목록은 배정정보를 `GET /v1/videos`(VideoSummaryResponse) 응답으로 받으며, 산출 기준(현재 활성 LABELER 배정 1건)은 `TaskBoardService`와 동일
 - 코드: `assignment/AssignmentController`, `TaskBoardController`, FE `pages/VideoListPage.tsx`·`features/task/components/AssignModal.tsx`
 
 ## 12.2 검수 (단일 승인)

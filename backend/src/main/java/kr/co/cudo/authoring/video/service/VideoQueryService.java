@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.video.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -10,6 +12,8 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
+import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.entity.MngResourceCctv;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
@@ -24,8 +28,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,6 +46,8 @@ public class VideoQueryService {
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final LsTaskAssignmentRepository taskAssignmentRepository;
+    private final UserRepository userRepository;
 
     /**
      * 검수 상태 필터 입력 길이 상한 — 정상 enum 값(PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED)은
@@ -66,6 +74,7 @@ public class VideoQueryService {
         Map<String, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
         Map<Long, LocalDateTime> reviewCompletedAtMap = lookupReviewCompletedAt(page.getContent());
+        Map<Long, VideoSummaryResponse.AssignmentInfo> assignmentMap = lookupCurrentAssignments(page.getContent());
         // 각 영상별 frameCount 조회 (페이지당 최대 size 건수만큼). 향후 성능 이슈 시 단일 group-by 쿼리로 최적화.
         return page.map(e -> VideoSummaryResponse.from(
                 e,
@@ -73,8 +82,54 @@ public class VideoQueryService {
                 null,
                 srcRepository.countByRawSn(e.getRawSn()),
                 exportInfoMap.get(e.getRawSn()),
-                reviewCompletedAtMap.get(e.getRawSn())
+                reviewCompletedAtMap.get(e.getRawSn()),
+                assignmentMap.get(e.getRawSn())
         ));
+    }
+
+    /**
+     * 페이지 단위로 rawSn 들의 현재 활성 LABELER 배정을 batch 조회 (N+1 회피).
+     *
+     * <p>산출 기준은 작업 목록(TaskBoardService)과 100% 동일하다:
+     * TASK_TYPE_CD='LABELER' 배정을 REG_DT DESC 정렬로 IN 절 1회 조회하고, rawDataId 별 첫 매칭
+     * (= 가장 최근 REG_DT, putIfAbsent)만 현재 배정으로 채택한다 — 재배정 시 최신 배정자가 반영된다.
+     * 배정자 이름은 userNo 집합에 대해 1회 IN 쿼리(findByUserNoIn)로 batch lookup 한다.
+     *
+     * <p>LABELER 배정이 없는 영상은 Map 에서 누락 → DTO 의 배정 필드는 모두 null.
+     */
+    private Map<Long, VideoSummaryResponse.AssignmentInfo> lookupCurrentAssignments(List<LsDataRaw> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawSns = rows.stream().map(LsDataRaw::getRawSn).toList();
+        List<LsTaskAssignment> all = taskAssignmentRepository
+                .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(LsTaskAssignment.TASK_LABELER, rawSns);
+        if (all.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        // rawDataId 별 가장 최근(REG_DT DESC 첫 매칭) 1건만 현재 배정으로 채택.
+        Map<Long, LsTaskAssignment> latestByRaw = new HashMap<>();
+        Set<Long> userNos = new HashSet<>();
+        for (LsTaskAssignment a : all) {
+            if (a.getRawDataId() == null) {
+                continue;
+            }
+            if (latestByRaw.putIfAbsent(a.getRawDataId(), a) == null && a.getUserNo() != null) {
+                userNos.add(a.getUserNo());
+            }
+        }
+        Map<Long, String> nameByUserNo = userNos.isEmpty()
+                ? Collections.emptyMap()
+                : userRepository.findByUserNoIn(userNos).stream()
+                        .collect(Collectors.toMap(MngAcctUser::getUserNo, MngAcctUser::getUserNm));
+        Map<Long, VideoSummaryResponse.AssignmentInfo> map = new HashMap<>();
+        for (Map.Entry<Long, LsTaskAssignment> entry : latestByRaw.entrySet()) {
+            LsTaskAssignment a = entry.getValue();
+            String workerName = a.getUserNo() != null ? nameByUserNo.get(a.getUserNo()) : null;
+            map.put(entry.getKey(), new VideoSummaryResponse.AssignmentInfo(
+                    a.getAssignmentId(), a.getUserNo(), workerName, a.getRegDt()));
+        }
+        return map;
     }
 
     /**
