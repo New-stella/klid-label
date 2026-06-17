@@ -98,6 +98,8 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 
 > 시드 클립(`DEV-CLIP-*`)의 `FILE_PATH` 는 실파일이 없을 수 있어 픽업·적재·이벤트 발행까지 검증된다. 마킹/프레임 추출까지 끝까지 돌리려면 `POST /api/v1/dev/autolabel-test` 로 실제 영상을 업로드한다.
 
+> **스토리지 권한 (Docker 배포 필수)**: backend 컨테이너는 비루트(uid 999)로 실행되는데, host bind-mount `/data/klid/storage` 가 root 소유로 생성되면 영상 저장 경로(`raw/`)에 쓰지 못해 업로드가 `영상 파일 저장에 실패했습니다`(AccessDeniedException)로 실패한다. compose 의 **`klid-storage-init`(one-shot)** 서비스가 backend 기동 전 `mkdir -p raw/deidentified && chown -R 999:999` 로 자동 보정한다. 수동 보정이 필요하면: `chown -R 999:999 /data/klid/storage && chmod -R 775 /data/klid/storage`. backend Dockerfile 은 uid/gid 를 999 로 고정해 init 의 chown 과 정합한다.
+
 ---
 
 ## 외부 0개 토글 (요약)

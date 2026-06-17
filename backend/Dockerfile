@@ -28,8 +28,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 비루트 유저
-RUN groupadd -r app && useradd -r -g app -d /app app \
+# 비루트 유저 (uid/gid 999 고정 — 호스트 bind-mount storage 의 storage-init chown 999 와 정합)
+RUN groupadd -r -g 999 app && useradd -r -u 999 -g app -d /app app \
     && mkdir -p /app/storage/raw /app/storage/deidentified \
     && chown -R app:app /app
 

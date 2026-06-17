@@ -33,6 +33,16 @@ services:
         limits:
           memory: 512m
 
+  # 스토리지 디렉토리 프로비저닝(one-shot) — host bind-mount 가 root 소유로 생성돼 비루트(uid 999)
+  # backend 가 영상 저장 경로(raw/)에 못 쓰는 AccessDenied 방지. backend 기동 전 1회 mkdir+chown.
+  klid-storage-init:
+    image: busybox:1.36
+    container_name: klid-storage-init
+    command: sh -c "mkdir -p /storage/raw /storage/deidentified && chown -R 999:999 /storage && chmod -R 775 /storage"
+    volumes:
+      - /data/klid/storage:/storage
+    restart: "no"
+
   klid-backend:
     build:
       context: ./backend
@@ -43,6 +53,8 @@ services:
     depends_on:
       klid-postgres:
         condition: service_healthy
+      klid-storage-init:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
