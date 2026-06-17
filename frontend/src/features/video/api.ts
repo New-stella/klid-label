@@ -1,10 +1,9 @@
-// 영상 도메인 API — BE: /api/v1/videos, /videos/{id}, /api/v1/batch/status
+// 영상 도메인 API — BE: /api/v1/videos, /videos/{id}
 
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
 import type {
-  BatchStatus,
   FrameLabels,
   ResolutionExportResult,
   ResolutionPreset,
@@ -89,10 +88,6 @@ export function getVideo(id: number) {
           ((d as Record<string, unknown>)['updDt'] as string | undefined),
       } as VideoDetail;
     });
-}
-
-export function getBatchStatus() {
-  return apiClient.get<BatchStatus>('/batch/status').then((r) => r.data);
 }
 
 /**

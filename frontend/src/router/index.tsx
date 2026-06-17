@@ -15,9 +15,6 @@ import { AuthenticatedGuard, ChannelGuard, RoleGuard } from './guards';
 const VideoListPage = lazy(() =>
   import('@/pages/VideoListPage').then((m) => ({ default: m.VideoListPage })),
 );
-const VideoStatusPage = lazy(() =>
-  import('@/pages/VideoStatusPage').then((m) => ({ default: m.VideoStatusPage })),
-);
 const VideoDetailPage = lazy(() =>
   import('@/pages/VideoDetailPage').then((m) => ({ default: m.VideoDetailPage })),
 );
@@ -220,14 +217,6 @@ export const router = createBrowserRouter([
             element: (
               <InternalRoute allow={internalAllRoles}>
                 {withSuspense(<VideoListPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: 'status',
-            element: (
-              <InternalRoute allow={internalAllRoles}>
-                {withSuspense(<VideoStatusPage />)}
               </InternalRoute>
             ),
           },

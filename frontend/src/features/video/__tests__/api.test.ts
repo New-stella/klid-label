@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { getBatchStatus, getVideo, listVideos } from '../api';
+import { getVideo, listVideos } from '../api';
 
 describe('video api', () => {
   let mock: MockAdapter;
@@ -85,36 +85,4 @@ describe('video api', () => {
     expect(detail.cctvName).toBe('강남대로 CCTV');
   });
 
-  it('getBatchStatus_배치_현황_정상_파싱', async () => {
-    mock.onGet('/batch/status').reply(200, {
-      success: true,
-      data: {
-        items: [
-          {
-            rawSn: 1001,
-            stage: 'YOLO',
-            startedAt: '2026-05-07T10:00:00',
-            lastUpdatedAt: '2026-05-07T10:05:00',
-            retryCount: 0,
-            errorMessage: null,
-          },
-          {
-            rawSn: 1002,
-            stage: 'COMPLETED',
-            startedAt: '2026-05-07T09:00:00',
-            lastUpdatedAt: '2026-05-07T09:30:00',
-            retryCount: 0,
-            errorMessage: null,
-          },
-        ],
-      },
-      message: null,
-      errorCode: null,
-    });
-
-    const status = await getBatchStatus();
-    expect(status.items).toHaveLength(2);
-    expect(status.items[0].rawSn).toBe(1001);
-    expect(status.items[0].stage).toBe('YOLO');
-  });
 });

@@ -28,7 +28,6 @@ export const VIDEO_KEYS = {
   all: ['videos'] as const,
   list: (params: Record<string, unknown>) => [...VIDEO_KEYS.all, 'list', params] as const,
   detail: (id: number) => [...VIDEO_KEYS.all, 'detail', id] as const,
-  status: () => [...VIDEO_KEYS.all, 'status'] as const,
   streamUrl: (id: number) => [...VIDEO_KEYS.all, 'stream-url', id] as const,
 };
 

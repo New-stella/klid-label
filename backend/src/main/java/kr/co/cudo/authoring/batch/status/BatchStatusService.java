@@ -1,13 +1,11 @@
 package kr.co.cudo.authoring.batch.status;
 
-import kr.co.cudo.authoring.batch.dto.BatchStageProgress;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -68,25 +66,5 @@ public class BatchStatusService {
         return repository.findTopByDataRawSnOrderByRegDtDesc(rawSn)
                 .map(l -> BatchStage.valueOf(l.getStageCd()))
                 .orElse(BatchStage.PENDING);
-    }
-
-    @Transactional(value = "controlTransactionManager", readOnly = true)
-    public List<BatchStageProgress> recent(int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 100));
-        return repository.findTop100ByOrderByMdfcnDtDescRegDtDesc().stream()
-                .limit(safeLimit)
-                .map(this::toDto)
-                .toList();
-    }
-
-    private BatchStageProgress toDto(LsBatchProcLog e) {
-        return new BatchStageProgress(
-                e.getRawSn(),
-                e.getStageCd(),
-                e.getStartedAt(),
-                e.getUpdatedAt(),
-                e.getRetryCnt(),
-                e.getErrMsg()
-        );
     }
 }

@@ -1,6 +1,5 @@
 package kr.co.cudo.authoring.batch.status;
 
-import kr.co.cudo.authoring.batch.dto.BatchStageProgress;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,7 +8,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -127,26 +125,6 @@ class BatchStatusServiceTest {
         BatchStage result = svc.currentStage(6L);
 
         assertThat(result).isEqualTo(BatchStage.SAM2);
-    }
-
-    // ──────────────────────────────────────────────
-    // recent
-    // ──────────────────────────────────────────────
-
-    @Test
-    @DisplayName("recent_limit_적용_확인")
-    void recent_limit_적용_확인() {
-        LsBatchProcLog log1 = LsBatchProcLog.create(10L, BatchStage.YOLO);
-        LsBatchProcLog log2 = LsBatchProcLog.create(11L, BatchStage.SAM2);
-        LsBatchProcLog log3 = LsBatchProcLog.create(12L, BatchStage.COMPLETED);
-        when(repository.findTop100ByOrderByMdfcnDtDescRegDtDesc())
-                .thenReturn(List.of(log1, log2, log3));
-
-        List<BatchStageProgress> result = svc.recent(2);
-
-        assertThat(result).hasSize(2);
-        assertThat(result.get(0).rawSn()).isEqualTo(10L);
-        assertThat(result.get(1).rawSn()).isEqualTo(11L);
     }
 
     // ──────────────────────────────────────────────

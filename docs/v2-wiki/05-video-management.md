@@ -3,7 +3,7 @@
 > 출처: CLAUDE.md(배치 파이프라인·파일 업로드), 코드(`video/`, db migration), D9
 > 관련: [06 마킹](06-marking.md) · [07 배치 파이프라인](07-batch-pipeline.md) · [18 DB](18-database.md)
 
-화면: `KLID-AT-SC-007`(영상 목록 `/video/completed`), `SC-008`(처리 현황 `/video/status`), `SC-009`(영상 상세 `/video/:id`). 코드: `video/`(29 파일).
+화면: `KLID-AT-SC-007`(영상 목록 `/video/completed`), `SC-009`(영상 상세 `/video/:id`). 코드: `video/`. (구 `SC-008` 처리 현황 `/video/status`는 진입점 없는 orphan으로 2026-06-17 deprecated·코드 제거 → [04 화면·IA](04-screens-ia.md))
 
 ## 5.1 작업 단위 = 영상 1건
 

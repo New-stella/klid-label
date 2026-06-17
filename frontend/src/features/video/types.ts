@@ -86,20 +86,6 @@ export interface ResolutionExportResult {
   frameCount: number;
 }
 
-// BE: BatchStageProgress (GET /v1/batch/status → { items: [...] })
-export interface BatchStageProgress {
-  rawSn: number;
-  stage: string; // PENDING | FRAME_EXTRACT | DEIDENTIFY | YOLO | SAM2 | VLM_VERIFY | COMPLETED | FAILED
-  startedAt: string | null;
-  lastUpdatedAt: string | null;
-  retryCount: number;
-  errorMessage: string | null;
-}
-
-export interface BatchStatus {
-  items: BatchStageProgress[];
-}
-
 export interface LabelObject {
   id: string;
   labelCode: string;

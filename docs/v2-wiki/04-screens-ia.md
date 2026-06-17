@@ -8,7 +8,7 @@
 - **내부 채널 (INTERNAL)**: `/` 하위 + AppLayout(LNB+GNB). 관제서버 JWT.
 - **포털 채널 (PORTAL)**: `/portal` 하위 + PortalLayout(모바일 친화, LNB 없음). 포털 JWT. → [16](16-portal.md)
 
-화면 ID 체계: **`KLID-AT-SC-NNN`** (SC=Screen). 활성 26개(deprecated 3 제외).
+화면 ID 체계: **`KLID-AT-SC-NNN`** (SC=Screen). 활성 25개(deprecated 4 제외).
 
 ## 4.2 내부 채널 화면
 
@@ -19,7 +19,6 @@
 | SC-005 | 라벨링 캔버스 | `/label/:id` | WORKER/REVIEWER | [10](10-labeling.md) |
 | SC-006 | 마킹 | `/marking/:rawSn` | WORKER/REVIEWER | [06](06-marking.md) |
 | SC-007 | 영상 목록 | `/video/completed` | - | [05](05-video-management.md) |
-| SC-008 | 영상 처리 현황 | `/video/status` | - | [05](05-video-management.md) |
 | SC-009 | 영상 상세 | `/video/:id` | - | [05](05-video-management.md) |
 | SC-010 | 라벨 이력(버전) | `/history/:videoId` | - | [13](13-version-control.md) |
 | SC-011 | 대시보드 | `/dashboard` | - | [17](17-statistics.md) |
@@ -42,6 +41,8 @@
 | SC-032 | 게시판 작성/수정 (모달) | (SC-030/031 내) | REVIEWER | [20](20-notice-board.md) |
 
 개발 전용: `/dev/login`(SC-004), `/dev/autolabel-test`(SC-027) — DEV 빌드만.
+
+> **SC-008 영상 처리 현황**(`/video/status`)은 **deprecated**(2026-06-17) — LNB·링크 진입점이 없는 orphan 화면이라 코드(`VideoStatusPage`·`useBatchStatus`·BE `GET /v1/batch/status`)와 함께 제거. '영상 처리 현황' LNB 메뉴는 SC-007(영상 목록)에 연결돼 있어 영향 없음.
 
 > SC-030~032(게시판)는 **R1 요구사항 외 추가 결정**(2026-06-05) — [20 게시판](20-notice-board.md) 참고.
 >
