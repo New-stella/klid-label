@@ -84,15 +84,18 @@ def _should_mock() -> bool:
 def _mock_reason() -> str:
     """mock 응답 사유를 결정한다.
 
-    MEDIUM-4 fix: 이전 구현은 ``ai_mock_mode=False`` + 모델 인스턴스 정상일 때
-    (이 경로는 ``_should_mock()`` 정의상 진입 불가) "env_mock" 을 반환해
-    yolo_loader 패턴과 어긋났다. 가중치 부재 시 ``weights_missing`` 을
-    반환하도록 정정한다.
+    이슈2 fix: loader 가 추적한 실제 사유(``get_sam2_mock_reason()``)를 우선 위임한다.
+    yolo/rtdetr 라우터와 동일하게, sam2 미설치/로드실패(``load_failed``)인데도
+    ``weights_missing`` 으로 오표기되던 문제를 정정한다.
 
-    - ai_mock_mode=True            → "env_mock"
-    - ai_mock_mode=False + 모델 None → "weights_missing"
-    - (도달 불가) 기타              → "weights_missing" 로 보수적 fallback
+    - loader 사유가 있으면 그 값 (env_mock | weights_missing | load_failed)
+    - 없으면(get_sam2_model 미호출 등) ai_mock_mode→env_mock, else weights_missing 폴백
     """
+    from app.models.sam2_loader import get_sam2_mock_reason
+
+    reason = get_sam2_mock_reason()
+    if reason is not None:
+        return reason
     if get_settings().ai_mock_mode:
         return "env_mock"
     return "weights_missing"
@@ -118,44 +121,118 @@ def reset_mock_warn_flag() -> None:
 
 
 # ────────────────────────────────────────────────────────────────────
-# 실제 추론
+# 실제 추론 (Meta 공식 sam2 SAM2ImagePredictor)
 # ────────────────────────────────────────────────────────────────────
 
-def _real_segment(model: Any, req: Sam2SegmentRequest) -> Sam2SegmentResponse:
-    """ultralytics SAM으로 실제 세그멘테이션 수행."""
-    pil_image = decode_image_b64_pil(req.image_b64)
-    try:
-        if req.box and len(req.box) == 4:
-            results = model.predict(pil_image, bboxes=[req.box], verbose=False)
-        elif req.points:
-            labels = [[1] * len(req.points)]
-            results = model.predict(pil_image, points=[req.points], labels=labels, verbose=False)
-        else:
-            w, h = pil_image.width, pil_image.height
-            results = model.predict(
-                pil_image, points=[[[w / 2, h / 2]]], labels=[[1]], verbose=False
-            )
+def _pil_to_rgb_np(pil_image: Any) -> Any:
+    """PIL 이미지를 numpy RGB (H, W, 3) 로 변환."""
+    import numpy as np  # noqa: WPS433 (lazy — 추론 경로에서만 필요)
 
-        if results and results[0].masks is not None and len(results[0].masks.xy) > 0:
-            polygon = results[0].masks.xy[0].tolist()
-            score = float(results[0].masks.data[0].max().item())
-            logger.info(
-                "[SAM2] segment real polygon_pts=%d score=%.3f", len(polygon), score
-            )
-            return Sam2SegmentResponse(
-                polygon=polygon,
-                score=min(score, 1.0),
-                mock=False,
-                source="model",
-                mock_reason=None,
-            )
+    return np.asarray(pil_image.convert("RGB"))
+
+
+def _mask_to_polygon(mask: Any) -> tuple[list[list[float]], float] | None:
+    """binary/float mask (H, W) → 최대 면적 외곽 polygon + 면적.
+
+    cv2.findContours(RETR_EXTERNAL, CHAIN_APPROX_SIMPLE) 로 외곽 윤곽을 뽑아
+    가장 큰 contour 를 ``[[x, y], ...]`` float 좌표로 반환한다.
+    contour 가 없으면(빈/비정상 마스크) 예외 대신 None 을 반환해 호출자가
+    mock fallback 하도록 한다 (보안 가드 — graceful).
+    """
+    import cv2  # noqa: WPS433 (lazy — opencv 추론 경로 전용)
+    import numpy as np  # noqa: WPS433
+
+    try:
+        bin_mask = (np.asarray(mask) > 0.5).astype(np.uint8)
+        contours, _ = cv2.findContours(
+            bin_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        if not contours:
+            return None
+        largest = max(contours, key=cv2.contourArea)
+        area = float(cv2.contourArea(largest))
+        pts = largest.reshape(-1, 2)
+        if len(pts) < 3:
+            # 이슈5: 점/선 수준 윤곽(폴리곤 미성립)은 skip — 추적성 위해 debug 로그
+            logger.debug("[SAM2] contour pts=%d (<3) — polygon skip", len(pts))
+            return None
+        polygon = [[float(x), float(y)] for x, y in pts]
+        return polygon, area
+    except Exception:  # noqa: BLE001 — graceful: 변환 실패는 mock fallback (에러 무시 아님)
+        logger.warning("[SAM2] mask→polygon 변환 실패 — mock fallback", exc_info=True)
+        return None
+
+
+def _predict_masks(model: Any, np_img: Any, *, box: Any = None, points: Any = None) -> Any:
+    """SAM2ImagePredictor 로 set_image 후 predict — (masks, scores) 반환."""
+    import numpy as np  # noqa: WPS433
+
+    model.set_image(np_img)
+    if box is not None:
+        masks, scores, _ = model.predict(
+            box=np.asarray(box, dtype=np.float32), multimask_output=False
+        )
+    else:
+        coords = np.asarray(points, dtype=np.float32)
+        labels = np.ones((len(points),), dtype=np.int32)
+        masks, scores, _ = model.predict(
+            point_coords=coords, point_labels=labels, multimask_output=False
+        )
+    return masks, scores
+
+
+def _best_mask_polygon(masks: Any, scores: Any) -> tuple[list[list[float]], float] | None:
+    """(N,H,W) 마스크 중 최고 score 마스크 → polygon + clamp score."""
+    import numpy as np  # noqa: WPS433
+
+    arr = np.asarray(masks)
+    sc = np.asarray(scores).reshape(-1)
+    if arr.ndim == 2:  # (H, W) 단일 마스크 방어
+        arr = arr[None, ...]
+    if arr.shape[0] == 0 or sc.shape[0] == 0:
+        return None
+    best = int(np.argmax(sc))
+    converted = _mask_to_polygon(arr[best])
+    if converted is None:
+        return None
+    polygon, _area = converted
+    # 이슈3: SAM2 score 는 음수 가능 → ge=0.0 위반(pydantic 500) 방지로 하한 clamp
+    score = max(0.0, min(float(sc[best]), 1.0))
+    return polygon, score
+
+
+def _real_segment(model: Any, req: Sam2SegmentRequest) -> Sam2SegmentResponse:
+    """Meta sam2 SAM2ImagePredictor 로 실제 세그멘테이션 수행."""
+    pil_image = decode_image_b64_pil(req.image_b64)
+    width, height = pil_image.width, pil_image.height
+    try:
+        np_img = _pil_to_rgb_np(pil_image)
+        if req.box and len(req.box) == 4:
+            masks, scores = _predict_masks(model, np_img, box=req.box)
+        elif req.points:
+            masks, scores = _predict_masks(model, np_img, points=req.points)
+        else:
+            center = [[width / 2, height / 2]]
+            masks, scores = _predict_masks(model, np_img, points=center)
+    except Exception:  # noqa: BLE001 — graceful: 추론 실패는 mock fallback (크래시 금지)
+        logger.exception("[SAM2] segment real predict 실패 — mock fallback")
+        _warn_mock_once("segment", "empty_mask")
+        return _mock_segment(width, height, req, "empty_mask")
     finally:
         pil_image.close()
 
-    # 마스크가 비어있으면 mock으로 fallback
+    result = _best_mask_polygon(masks, scores)
+    if result is not None:
+        polygon, score = result
+        logger.info("[SAM2] segment real polygon_pts=%d score=%.3f", len(polygon), score)
+        return Sam2SegmentResponse(
+            polygon=polygon, score=score, mock=False, source="model", mock_reason=None
+        )
+
+    # 마스크가 비거나 contour 없으면 mock 으로 fallback
     logger.warning("[SAM2] segment real returned no mask — mock fallback")
     _warn_mock_once("segment", "empty_mask")
-    return _mock_segment(pil_image.width, pil_image.height, req, "empty_mask")
+    return _mock_segment(width, height, req, "empty_mask")
 
 
 def _real_track(model: Any, req: Sam2TrackRequest) -> Sam2TrackResponse:
@@ -166,27 +243,41 @@ def _real_track(model: Any, req: Sam2TrackRequest) -> Sam2TrackResponse:
 
     pil_image = decode_image_b64_pil(req.next_image_b64)
     try:
-        results = model.predict(pil_image, bboxes=[bbox], verbose=False)
-
-        if results and results[0].masks is not None and len(results[0].masks.xy) > 0:
-            polygon = results[0].masks.xy[0].tolist()
-            score = float(results[0].masks.data[0].max().item())
-            logger.info(
-                "[SAM2] track real track_id=%s polygon_pts=%d score=%.3f",
-                req.track_id,
-                len(polygon),
-                score,
-            )
-            return Sam2TrackResponse(
-                track_id=req.track_id,
-                polygon=polygon,
-                score=min(score, 1.0),
-                mock=False,
-                source="model",
-                mock_reason=None,
-            )
+        np_img = _pil_to_rgb_np(pil_image)
+        masks, scores = _predict_masks(model, np_img, box=bbox)
+    except Exception:  # noqa: BLE001 — graceful: 추론 실패는 이전 폴리곤 mock fallback (크래시 금지)
+        logger.exception(
+            "[SAM2] track real predict 실패 track_id=%s — prev polygon fallback", req.track_id
+        )
+        _warn_mock_once("track", "empty_mask")
+        return Sam2TrackResponse(
+            track_id=req.track_id,
+            polygon=[list(p) for p in req.prev_polygon],
+            score=0.5,
+            mock=True,
+            source="mock",
+            mock_reason="empty_mask",
+        )
     finally:
         pil_image.close()
+
+    result = _best_mask_polygon(masks, scores)
+    if result is not None:
+        polygon, score = result
+        logger.info(
+            "[SAM2] track real track_id=%s polygon_pts=%d score=%.3f",
+            req.track_id,
+            len(polygon),
+            score,
+        )
+        return Sam2TrackResponse(
+            track_id=req.track_id,
+            polygon=polygon,
+            score=score,
+            mock=False,
+            source="model",
+            mock_reason=None,
+        )
 
     # 마스크 없으면 이전 폴리곤 그대로 반환 (mock fallback)
     logger.warning("[SAM2] track real returned no mask — prev polygon fallback")

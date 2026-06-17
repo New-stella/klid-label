@@ -65,7 +65,8 @@ klid-la-test-v0/
 
 ### AI 추론 서버 (ai-server)
 - Python 3.11 + FastAPI
-- ultralytics (YOLO), torch/torchvision (SAM2), opencv-python
+- **YOLOX (onnxruntime, Apache-2.0)** 탐지, **Meta SAM2 (Apache-2.0)** 분할, RT-DETRv2 (transformers) + ByteTrack(trackers), torch/torchvision, opencv-python
+- **라이선스 정책**: ultralytics(AGPL-3.0) 미사용 — 탐지/세그멘테이션 모두 permissive(MIT/Apache-2.0) 백엔드로 구성. 모델 무거운 의존(onnxruntime/sam2/transformers)은 lazy import
 - 역할: 경량 추론 전용. 상태·인증·DB 없음. Spring Boot가 오케스트레이션 주체
 
 ### 프론트엔드

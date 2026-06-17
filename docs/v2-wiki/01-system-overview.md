@@ -42,7 +42,7 @@ AI 기반 지방정부 CCTV 관제지원시스템(2차)의 **학습데이터 저
 Java 17 · Spring Boot 3.3 · Gradle 8 · Spring Data JPA(Hibernate 6) + **QueryDSL 5.1** · Spring Security + **JJWT 0.12** · **Flyway 10**(PostgreSQL, `klid_at` 스키마) · **Spring Boot Quartz**(PostgreSQL JobStore) · **Resilience4j** · WebFlux WebClient · **net.bramp.ffmpeg** · Caffeine · MapStruct/Lombok · **Micrometer + Prometheus** · Springdoc OpenAPI · JUnit5 + Testcontainers.
 
 ### AI 추론 서버 (ai-server)
-Python 3.11 + FastAPI · ultralytics(YOLO) · torch/torchvision(SAM2) · opencv. **경량 추론 전용, stateless, 인증/DB 없음** — Spring Boot가 오케스트레이션. (외부가 아니라 저작도구 내부 구성요소)
+Python 3.11 + FastAPI · **YOLOX(ONNX Runtime, Apache-2.0)** 탐지 · **Meta SAM2(Apache-2.0)** 분할 · RT-DETR(transformers) · onnxruntime · torch · opencv. **경량 추론 전용, stateless, 인증/DB 없음** — Spring Boot가 오케스트레이션. (외부가 아니라 저작도구 내부 구성요소) · 라이선스: AGPL(ultralytics) 미사용 — 전부 permissive(MIT/Apache-2.0)로 구성
 
 ### 프론트엔드
 React 18 + TypeScript 5 + Vite 5 · TanStack Query v5 · Zustand · React Router v6 · axios · Tailwind · **konva.js**(CVAT canvas-drawing 포팅).

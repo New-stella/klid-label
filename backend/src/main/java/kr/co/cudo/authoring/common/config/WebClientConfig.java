@@ -87,6 +87,28 @@ public class WebClientConfig {
     }
 
     /**
+     * 콜백 충실 플로우 Phase 2 — dev 콜백 시뮬레이터용 WebClient.
+     *
+     * <p>외부 0(자족) 로컬에서 {@code DevAugmentCallbackSimulator} 가 자기 자신(저작도구)의 콜백
+     * 엔드포인트로 HMAC 서명 결과를 POST 한다. base-url 은 서버 설정값만 사용(사용자 입력 X, CWE-918).
+     *
+     * <p>응답 지연이 @Async 스레드를 점유하지 않도록 10s response timeout 을 적용한다.
+     * 추가로 connect timeout(5s)을 두어, 로컬 콜백 서버 미기동 시 TCP 연결 단계에서 무한 대기로
+     * batchAsyncExecutor 풀이 점유되는 것을 방지한다(reactor-netty CONNECT_TIMEOUT_MILLIS).
+     */
+    @Bean(name = "augmentCallbackWebClient")
+    public WebClient augmentCallbackWebClient(
+            @Value("${authoring.webhook.callback-base-url:http://localhost:8080/api}") String baseUrl) {
+        reactor.netty.http.client.HttpClient httpClient = reactor.netty.http.client.HttpClient.create()
+                .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+                .responseTimeout(java.time.Duration.ofSeconds(10));
+        return WebClient.builder()
+                .baseUrl(baseUrl)
+                .clientConnector(new org.springframework.http.client.reactive.ReactorClientHttpConnector(httpClient))
+                .build();
+    }
+
+    /**
      * 외부 호출 baseUrl 의 SSRF / cleartext / placeholder 위험을 검증한다.
      *
      * @throws IllegalStateException 검증 실패 시 (Spring Bean 생성 실패 → fail-closed)

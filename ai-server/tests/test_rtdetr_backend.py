@@ -1,8 +1,8 @@
 """전환 가능한 탐지 백엔드(RT-DETR) 테스트.
 
-detector_backend = "yolo" | "rtdetr" 설정으로 탐지/트래킹 백엔드를 선택한다.
+detector_backend = "yolox" | "rtdetr" 설정으로 탐지/트래킹 백엔드를 선택한다.
 
-- yolo (기본): ultralytics YOLOv8 + BoT-SORT (기존 코드 그대로 보존)
+- yolox (기본): YOLOX(ONNX Runtime) + ByteTrack — ultralytics YOLOv8 을 대체한 기본 백엔드
 - rtdetr (신규): RT-DETRv2 (transformers) + ByteTrack (supervision)
 
 transformers/supervision 는 무겁고 본 환경에 미설치이므로:
@@ -44,29 +44,29 @@ def _reset_state():
 # 설정값
 # ────────────────────────────────────────────────────────────────────
 
-def test_config_detector_backend_기본값은_yolo() -> None:
-    """기본 backend 는 yolo — 현행 동작 비파괴 유지."""
+def test_config_detector_backend_기본값은_yolox() -> None:
+    """기본 backend 는 yolox — ultralytics YOLO 를 대체한 신규 기본 백엔드."""
     from app.config import Settings
 
     settings = Settings(_env_file=None)
-    assert settings.detector_backend == "yolo"
+    assert settings.detector_backend == "yolox"
     assert settings.rtdetr_model_id == "PekingU/rtdetr_v2_r50vd"
 
 
-def test_config_detector_backend_잘못된_값이면_yolo로_폴백(monkeypatch) -> None:
-    """MEDIUM: 잘못된 detector_backend 값은 안전하게 yolo 로 정규화 (서버 기동 안전)."""
+def test_config_detector_backend_잘못된_값이면_yolox로_폴백(monkeypatch) -> None:
+    """MEDIUM: 잘못된 detector_backend 값은 안전하게 yolox 로 정규화 (서버 기동 안전)."""
     monkeypatch.setenv("DETECTOR_BACKEND", "garbage")
     settings = reload_settings()
     # 정규화된 접근자는 항상 알려진 백엔드만 반환
-    assert settings.resolved_detector_backend() == "yolo"
+    assert settings.resolved_detector_backend() == "yolox"
 
 
 # ────────────────────────────────────────────────────────────────────
-# 기본 yolo 백엔드 — 기존 동작 유지 (회귀 0)
+# 기본 yolox 백엔드 — 기존 동작 유지 (회귀 0)
 # ────────────────────────────────────────────────────────────────────
 
-def test_기본_backend_yolo면_기존_predict_동작_유지된다(small_png_b64: str, monkeypatch) -> None:
-    """detector_backend 미설정(기본 yolo) + AI_MOCK_MODE=true → 기존 env_mock 응답."""
+def test_기본_backend_yolox면_기존_predict_동작_유지된다(small_png_b64: str, monkeypatch) -> None:
+    """detector_backend 미설정(기본 yolox) + AI_MOCK_MODE=true → 기존 env_mock 응답."""
     monkeypatch.delenv("DETECTOR_BACKEND", raising=False)
     reload_settings()
 
@@ -81,15 +81,15 @@ def test_기본_backend_yolo면_기존_predict_동작_유지된다(small_png_b64
     assert set(body["detections"][0].keys()) == {"label", "points", "score", "track_id"}
 
 
-def test_기본_backend_yolo는_transformers를_import하지_않는다(monkeypatch, small_png_b64: str) -> None:
-    """yolo 경로는 transformers 를 절대 import 하지 않아야 한다 (무거운 deps 회피)."""
+def test_기본_backend_yolox는_transformers를_import하지_않는다(monkeypatch, small_png_b64: str) -> None:
+    """기본(yolox) 경로는 transformers 를 절대 import 하지 않아야 한다 (rtdetr 전용 deps 회피)."""
     monkeypatch.delenv("DETECTOR_BACKEND", raising=False)
     reload_settings()
-    # transformers import 를 폭발하는 가짜로 막아둔다 — yolo 경로가 건드리면 즉시 실패
+    # transformers import 를 폭발하는 가짜로 막아둔다 — 기본(yolox) 경로가 건드리면 즉시 실패
     boom = types.ModuleType("transformers")
 
     def _explode(*_a, **_k):
-        raise AssertionError("yolo 경로에서 transformers 를 import 하면 안 된다")
+        raise AssertionError("기본(yolox) 경로에서 transformers 를 import 하면 안 된다")
 
     boom.__getattr__ = _explode  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "transformers", boom)

@@ -15,6 +15,43 @@ export const AugmentType = {
 } as const;
 export type AugmentType = (typeof AugmentType)[keyof typeof AugmentType];
 
+// 통합 처리 종류 — 증강 화면(SCR-AUG-001)의 단일 선택 카드 모델.
+// 증강 3종(WINTER/NIGHT/RAIN)에 더해 해상도 변경(RESOLUTION)을 같은 카드 그리드에서
+// 라디오(단일 선택)로 고른다. RESOLUTION 은 증강 잡 경로가 아닌 저작도구 직접 수행
+// 기능(SFR-06-03)이므로, 실행 분기는 isAugmentKind 타입가드로 좁혀 처리한다(Phase 2).
+export const PROCESS_KINDS = ['WINTER', 'NIGHT', 'RAIN', 'RESOLUTION'] as const;
+export type ProcessKind = (typeof PROCESS_KINDS)[number];
+
+export const PROCESS_KIND_LABEL: Record<ProcessKind, string> = {
+  WINTER: '겨울',
+  NIGHT: '야간',
+  RAIN: '우천',
+  RESOLUTION: '해상도 변경',
+};
+
+export const PROCESS_KIND_ICON: Record<ProcessKind, string> = {
+  WINTER: '❄️',
+  NIGHT: '🌙',
+  RAIN: '🌧',
+  RESOLUTION: '🖼️',
+};
+
+export const PROCESS_KIND_DESCRIPTION: Record<ProcessKind, string> = {
+  WINTER: '눈/설경 효과로 영상을 변환합니다.',
+  NIGHT: '저조도 야간 환경으로 영상을 변환합니다.',
+  RAIN: '강우 효과로 영상을 변환합니다.',
+  RESOLUTION: '표준 하위 해상도 이미지셋으로 다운스케일합니다.',
+};
+
+/**
+ * 증강(외부 위탁) 종류인지 좁히는 타입가드 — AugmentType 값 집합 기반 positive 검사.
+ * 부정 조건(RESOLUTION 제외)이 아니라 화이트리스트로 판정해 PROCESS_KINDS 확장 시
+ * 새 비-증강 종류가 증강으로 오분기되는 것을 막는다.
+ */
+const AUGMENT_KIND_SET = new Set<string>(Object.values(AugmentType));
+export const isAugmentKind = (k: ProcessKind): k is AugmentType =>
+  AUGMENT_KIND_SET.has(k);
+
 export const AugmentJobStatus = {
   REQUESTED: 'REQUESTED',
   IN_PROGRESS: 'IN_PROGRESS',

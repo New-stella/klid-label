@@ -1,22 +1,13 @@
-# ============================================================================
-# 이 파일은 requirements.in 에서 pip-compile 로 생성된 lock 입니다.
-#   직접 편집 금지 — requirements.in 을 수정한 뒤 아래 명령으로 재컴파일하세요:
-#       .venv/bin/pip-compile --no-header --output-file requirements.txt requirements.in
-#
-# 해시(--hash) 없음: Dockerfile 이 이 파일을 grep 으로 munging(torch/torchvision strip)
-#   하므로 의도적으로 --generate-hashes 를 쓰지 않습니다.
-#     - Dockerfile: grep -ivE '^(torch|torchvision)\b' (base 이미지가 torch 제공)
-# 주의(torch 핀): 아래 torch==2.12.0 / torchvision==0.27.0 는 dev 환경 기준 핀입니다.
-#   Docker 빌드 시에는 strip 되어 base 이미지(torch 2.4.1) 제공분을 쓰고, 운영(호스트
-#   venv)에서는 호스트 GPU 드라이버에 맞는 torch 휠을 별도 설치합니다. numpy 등 나머지는
-#   lock 대로 설치됩니다.
-# ============================================================================
 annotated-doc==0.0.4
     # via
     #   fastapi
     #   typer
 annotated-types==0.7.0
     # via pydantic
+antlr4-python3-runtime==4.9.3
+    # via
+    #   hydra-core
+    #   omegaconf
 anyio==4.13.0
     # via
     #   httpx
@@ -46,6 +37,8 @@ filelock==3.29.4
     # via
     #   huggingface-hub
     #   torch
+flatbuffers==25.12.19
+    # via onnxruntime
 fonttools==4.63.0
     # via matplotlib
 fsspec==2026.4.0
@@ -70,6 +63,8 @@ huggingface-hub==1.19.0
     # via
     #   tokenizers
     #   transformers
+hydra-core==1.3.3
+    # via sam-2
 idna==3.18
     # via
     #   anyio
@@ -77,6 +72,8 @@ idna==3.18
     #   requests
 iniconfig==2.3.0
     # via pytest
+iopath==0.1.10
+    # via sam-2
 jinja2==3.1.6
     # via torch
 kiwisolver==1.5.0
@@ -86,9 +83,7 @@ markdown-it-py==4.2.0
 markupsafe==3.0.3
     # via jinja2
 matplotlib==3.11.0
-    # via
-    #   supervision
-    #   ultralytics
+    # via supervision
 mdurl==0.1.2
     # via markdown-it-py
 mpmath==1.3.0
@@ -100,43 +95,44 @@ numpy==2.4.6
     #   -r requirements.in
     #   contourpy
     #   matplotlib
+    #   onnxruntime
     #   opencv-python
+    #   sam-2
     #   scipy
     #   supervision
     #   torchvision
     #   trackers
     #   transformers
-    #   ultralytics
-    #   ultralytics-thop
-nvidia-ml-py==13.610.43
-    # via ultralytics
+omegaconf==2.3.1
+    # via hydra-core
+onnxruntime==1.27.0
+    # via -r requirements.in
 opencv-python==4.13.0.92
     # via
     #   -r requirements.in
     #   supervision
     #   trackers
-    #   ultralytics
 packaging==26.2
     # via
     #   huggingface-hub
+    #   hydra-core
     #   matplotlib
+    #   onnxruntime
     #   pytest
     #   transformers
 pillow==12.2.0
     # via
     #   -r requirements.in
     #   matplotlib
+    #   sam-2
     #   supervision
     #   torchvision
-    #   ultralytics
 pluggy==1.6.0
     # via pytest
-polars==1.41.2
-    # via ultralytics
-polars-runtime-32==1.41.2
-    # via polars
-psutil==7.2.2
-    # via ultralytics
+portalocker==3.2.0
+    # via iopath
+protobuf==7.35.1
+    # via onnxruntime
 pydantic==2.13.4
     # via
     #   -r requirements.in
@@ -171,9 +167,9 @@ python-multipart==0.0.32
 pyyaml==6.0.3
     # via
     #   huggingface-hub
+    #   omegaconf
     #   supervision
     #   transformers
-    #   ultralytics
     #   uvicorn
 regex==2026.5.9
     # via transformers
@@ -181,18 +177,18 @@ requests==2.34.2
     # via
     #   supervision
     #   trackers
-    #   ultralytics
 rich==15.0.0
     # via
     #   trackers
     #   typer
 safetensors==0.8.0
     # via transformers
+sam-2 @ git+https://github.com/facebookresearch/sam2.git
+    # via -r requirements.in
 scipy==1.17.1
     # via
     #   supervision
     #   trackers
-    #   ultralytics
 shellingham==1.5.4
     # via typer
 six==1.17.0
@@ -210,16 +206,17 @@ tokenizers==0.22.2
 torch==2.12.0
     # via
     #   -r requirements.in
+    #   sam-2
     #   torchvision
-    #   ultralytics
-    #   ultralytics-thop
 torchvision==0.27.0
     # via
     #   -r requirements.in
-    #   ultralytics
+    #   sam-2
 tqdm==4.68.2
     # via
     #   huggingface-hub
+    #   iopath
+    #   sam-2
     #   supervision
     #   transformers
 trackers==2.4.0
@@ -235,6 +232,7 @@ typing-extensions==4.15.0
     #   anyio
     #   fastapi
     #   huggingface-hub
+    #   iopath
     #   pydantic
     #   pydantic-core
     #   pytest-asyncio
@@ -246,10 +244,6 @@ typing-inspection==0.4.2
     #   fastapi
     #   pydantic
     #   pydantic-settings
-ultralytics==8.4.67
-    # via -r requirements.in
-ultralytics-thop==2.0.20
-    # via ultralytics
 urllib3==2.7.0
     # via requests
 uvicorn[standard]==0.49.0
