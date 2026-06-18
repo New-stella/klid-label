@@ -182,18 +182,17 @@ portal:
 #  - enabled=true 기본 (비식별 단일 경로 = KPST 폴링. 레거시 동기 SPI/콜백 경로는 제거됨).
 #    킬스위치로 필드는 유지 — local 자족 환경은 authoring.integration.deidentify.mock-mode=true 사용.
 #    KPST_DEID_ENABLED=false 로 내리면 위탁이 비활성화되며, mock 도 아니면 DeidentifyStep 이 설정 오류로 거부한다.
-#  - base-url: KPST 테스트/운영 서버 주소(HTTPS 필수). 평문 커밋 금지 → 환경변수 사용.
+#  - base-url: KPST 테스트/운영 서버 주소(http/https 자동 분기 — 내부망은 http, 외부는 https+사설CA). 평문 커밋 금지 → 환경변수 사용.
 #  - ca-cert-path: KPST 자체 CA(ca.crt) 경로. enabled=true 시 필수(미설정 → 기동 실패 fail-closed, CWE-295).
 #  - creator-id / export-path-base / req-user-id: /project, /retrieve_progress 호출 시 기본값.
 kpst:
   deid:
     enabled: ${KPST_DEID_ENABLED:true}
+    # 전송은 base-url 스키마로 자동 분기한다 — 내부망 http://IP:port(평문, 격리 전제) 또는 https+사설CA 둘 다 지원.
     base-url: ${KPST_DEID_BASE_URL:https://localhost:9201}
-    # M-2(운영 안전성): enabled=true 인 dev/stg/prd 에서 CA cert 경로 미설정 시 "조용한 빈값→불명확 에러"가
-    #   아니라 부팅 시점에 명확한 메시지로 fail-closed 하도록 필수화한다(:? 구문).
-    #   이 값은 KpstWebClientConfig(@ConditionalOnProperty(kpst.deid.enabled=true)) 빈에서만 참조되므로,
-    #   local/test(enabled=false)에서는 빈이 로드되지 않아 :? 가 트리거되지 않는다(부팅 정상).
-    ca-cert-path: ${KPST_DEID_CA_CERT_PATH:?KPST CA cert path is required when kpst.deid.enabled=true (set KPST_DEID_CA_CERT_PATH)}
+    # ca-cert 는 https 일 때만 필요하다(KpstWebClientConfig 가 스키마로 조건부 강제). https 인데 비었거나 못
+    #   읽으면 부팅 시점에 fail-closed(CWE-295). http 배포는 cert 없이 부팅돼야 하므로 선택값(빈 기본)으로 둔다.
+    ca-cert-path: ${KPST_DEID_CA_CERT_PATH:}
     creator-id: ${KPST_DEID_CREATOR_ID:authoring}
     export-path-base: ${KPST_DEID_EXPORT_PATH_BASE:/share/Deid-data/export/}
     req-user-id: ${KPST_DEID_REQ_USER_ID:authoring}

@@ -23,22 +23,29 @@ import java.nio.file.Path;
 import java.time.Duration;
 
 /**
- * ㈜KPST 비식별 솔루션 연동용 TLS WebClient 설정 — Phase 1 신설.
+ * ㈜KPST 비식별 솔루션 연동용 WebClient 설정 — Phase 1 신설.
  *
- * <p>KPST 서버는 <b>자체 CA 발급</b> 인증서를 사용한다(규격 §22.1). 시스템 기본 신뢰 체인이 아닌,
- * 제공받은 {@code ca.crt} 로 서버를 검증하도록 reactor-netty {@link HttpClient} 에 커스텀
- * {@link SslContext} 를 주입한다.
- *
- * <h3>보안 (CWE-295 Improper Certificate Validation)</h3>
+ * <p>KPST 전송은 배포 환경에 따라 두 가지 방식을 모두 지원하며 base-url 의 <b>스키마로 자동 분기</b>한다:
  * <ul>
- *   <li>{@code kpst.deid.ca-cert-path} 미설정/파일 없음 → 빈 생성 실패(fail-closed). 신뢰 우회 없음.</li>
+ *   <li><b>{@code http://IP:port}</b> — 내부망 격리 전제의 평문 전송. SSL 미적용, ca-cert 불요.</li>
+ *   <li><b>{@code https://host:port}</b> — KPST <b>자체 CA 발급</b> 인증서 사용(규격 §22.1). 시스템 기본
+ *       신뢰 체인이 아닌, 제공받은 {@code ca.crt} 로 서버를 검증하도록 reactor-netty {@link HttpClient} 에
+ *       커스텀 {@link SslContext} 를 주입한다.</li>
+ * </ul>
+ *
+ * <h3>보안 (CWE-295 Improper Certificate Validation) — https 경로</h3>
+ * <ul>
+ *   <li>https 인데 {@code kpst.deid.ca-cert-path} 미설정/파일 없음 → 빈 생성 실패(fail-closed). 신뢰 우회 없음.</li>
  *   <li>인증서 검증을 끄지 않는다(InsecureTrustManager/TrustAll 미사용). ca.crt 기반 검증만 수행.</li>
  *   <li>hostname verification(endpoint identification)은 reactor-netty 기본값으로 활성이며 끄지
  *       않는다 — 인증서 CN/SAN 이 대상 호스트와 불일치하면 handshake 가 실패한다.</li>
  * </ul>
  *
+ * <h3>http 경로</h3>
+ * 평문 전송은 내부망 격리를 전제로 허용하며, 기동 시 1회 WARN 로그로 평문 사용을 알린다. ca-cert 는 불요다.
+ *
  * <h3>SSRF (CWE-918)</h3>
- * base-url 은 application.yml 설정값만 사용한다. HTTPS 스키마를 강제한다.
+ * base-url 은 application.yml 설정값만 사용한다. http/https 스키마만 허용하고 그 외는 거부한다.
  *
  * <p>{@code kpst.deid.enabled=true} 일 때만 빈을 생성한다(기본 false). local/dev 에서 ca.crt 미보유
  * 환경의 기동/테스트 컨텍스트 영향을 막기 위함이며, 실 연동(dev/stg/prd)은 환경변수로 활성화한다.
@@ -57,6 +64,9 @@ public class KpstWebClientConfig {
     private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(60);
     /** 업로드 응답 타임아웃 — 대용량 멀티파트 전송 대비 여유. */
     private static final Duration UPLOAD_RESPONSE_TIMEOUT = Duration.ofMinutes(10);
+
+    /** 평문 HTTP 경고 로그를 기동 시 1회만 출력하기 위한 가드(3개 빈이 동일 config 인스턴스 공유). */
+    private volatile boolean plaintextWarned = false;
 
     @Bean(name = "kpstDeidWebClient")
     public WebClient kpstDeidWebClient(
@@ -78,13 +88,16 @@ public class KpstWebClientConfig {
     public HttpClient kpstDeidProgressHttpClient(
             @Value("${kpst.deid.base-url}") String baseUrl,
             @Value("${kpst.deid.ca-cert-path:}") String caCertPath) {
-        validateHttps(baseUrl);
-        SslContext sslContext = buildSslContext(caCertPath);
-        return HttpClient.create()
+        boolean https = isHttps(baseUrl);
+        HttpClient client = HttpClient.create()
                 .baseUrl(baseUrl.trim())
-                .secure(spec -> spec.sslContext(sslContext))
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
                 .responseTimeout(RESPONSE_TIMEOUT);
+        if (https) {
+            SslContext sslContext = buildSslContext(caCertPath);
+            client = client.secure(spec -> spec.sslContext(sslContext));
+        }
+        return client;
     }
 
     /**
@@ -98,21 +111,23 @@ public class KpstWebClientConfig {
     }
 
     private WebClient buildClient(String baseUrl, String caCertPath, Duration responseTimeout) {
-        validateHttps(baseUrl);
-        SslContext sslContext = buildSslContext(caCertPath);
-        // reactor-netty 는 기본적으로 TLS endpoint identification(hostname verification, CWE-295)을
-        // 활성화한다 — sslContext 에 TrustAll/InsecureTrustManager 를 주입하지 않으므로 잘못된 CN
-        // 인증서 서버와는 handshake 가 실패한다(fail-closed). 아래 타임아웃은 방화벽 drop 시 무기한
-        // 블록을 막는 Netty 레벨 안전망이다.
+        boolean https = isHttps(baseUrl);
+        // 아래 타임아웃은 방화벽 drop 시 무기한 블록을 막는 Netty 레벨 안전망이다(http/https 공통).
         HttpClient httpClient = HttpClient.create()
-                .secure(spec -> spec.sslContext(sslContext))
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
                 .responseTimeout(responseTimeout);
+        if (https) {
+            // reactor-netty 는 기본적으로 TLS endpoint identification(hostname verification, CWE-295)을
+            // 활성화한다 — sslContext 에 TrustAll/InsecureTrustManager 를 주입하지 않으므로 잘못된 CN
+            // 인증서 서버와는 handshake 가 실패한다(fail-closed).
+            SslContext sslContext = buildSslContext(caCertPath);
+            httpClient = httpClient.secure(spec -> spec.sslContext(sslContext));
+        }
         ExchangeStrategies strategies = ExchangeStrategies.builder()
                 .codecs((ClientCodecConfigurer c) -> c.defaultCodecs().maxInMemorySize(MAX_IN_MEMORY_BYTES))
                 .build();
         return WebClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(baseUrl.trim())
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .exchangeStrategies(strategies)
                 .build();
@@ -145,8 +160,15 @@ public class KpstWebClientConfig {
         }
     }
 
-    /** SSRF/cleartext 방어 — base-url 은 HTTPS 스키마만 허용(자체 CA TLS 전제). */
-    private void validateHttps(String baseUrl) {
+    /**
+     * base-url 스키마를 검증하고 https 여부를 반환한다.
+     *
+     * <p>{@code http}·{@code https} 만 허용한다(내부망 평문 또는 자체 CA TLS). 그 외 스키마(file/ftp/gopher 등)·
+     * 스키마 없음·빈값은 거부한다(SSRF/cleartext 방어). http 인 경우 기동 시 1회 WARN 로그로 평문 전송을 알린다.
+     *
+     * @return https 면 true, http 면 false
+     */
+    private boolean isHttps(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalStateException("kpst.deid.base-url 가 비어있습니다.");
         }
@@ -154,12 +176,23 @@ public class KpstWebClientConfig {
         try {
             uri = URI.create(baseUrl.trim());
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("kpst.deid.base-url 형식이 올바르지 않습니다: " + baseUrl, e);
+            // CWE-209: 예외 메시지에 원문(시크릿/경로 포함 가능) 미노출.
+            throw new IllegalStateException("kpst.deid.base-url 형식이 올바르지 않습니다 (설정을 확인하세요).", e);
         }
-        String scheme = uri.getScheme();
-        if (scheme == null || !"https".equalsIgnoreCase(scheme)) {
-            throw new IllegalStateException(
-                    "kpst.deid.base-url 은 HTTPS 스키마만 허용됩니다 (현재: " + scheme + "). 자체 CA TLS 전제.");
+        String scheme = uri.getScheme() == null ? null : uri.getScheme().toLowerCase();
+        if ("https".equals(scheme)) {
+            return true;
         }
+        if ("http".equals(scheme)) {
+            // 평문 전송 — 내부망 격리 전제. 기동 시 1회만, host:port 만 로그(전체 경로/시크릿 금지).
+            if (!plaintextWarned) {
+                plaintextWarned = true;
+                log.warn("[Kpst] 평문 HTTP 전송 — 내부망 격리 전제. baseUrl scheme=http host={}:{}",
+                        uri.getHost(), uri.getPort());
+            }
+            return false;
+        }
+        throw new IllegalStateException(
+                "kpst.deid.base-url 은 http/https 스키마만 허용됩니다 (현재 scheme=" + scheme + ").");
     }
 }

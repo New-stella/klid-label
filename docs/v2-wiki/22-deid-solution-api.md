@@ -17,8 +17,8 @@
 ### 프로토콜·공통 규격
 | 항목 | 내용 |
 |------|------|
-| 프로토콜 | HTTPS (TLS 1.2/1.3) |
-| TLS 인증서 | **자체 CA 발급** — 클라이언트는 제공받은 `ca.crt`로 서버 검증 |
+| 프로토콜 | **전송: 내부망 http(IP) 또는 https+사설CA — base-url 스키마로 자동 분기.** https 만 ca-cert 필수 |
+| TLS 인증서 | https 일 때 **자체 CA 발급** — 클라이언트는 제공받은 `ca.crt`로 서버 검증. 내부망 평문 http(IP:port) 배포 시 ca-cert 불요 |
 | 문자 인코딩 | UTF-8 |
 | 컨텐츠 타입 | 기본 `application/json` / 파일 업로드 `multipart/form-data` / 파일 다운로드 파일 응답 |
 
@@ -366,5 +366,6 @@ DB 저장(`db_save=1`)이며 프로젝트 상태가 **수동 대상(state=3)**�
 - ✅ **폴링 주기(구현)**: 배치 파이프라인([07](07-batch-pipeline.md))의 비식별 단계가 `retrieve_progress` 폴링 + `procState`(state=2) 판정으로 완료를 감지 — `KpstDeidentPollJob`(Quartz, `@DisallowConcurrentExecution`, 최대 시도 240회/180분 타임아웃 → 타임아웃 시 `DE_IDENT_YN='F'`)로 구현됨
 - ⏳ **수동 비식별 연계(후속, 미구현)**: `manual_deid_info`(state=3) + `dataset_frames`(base64+bbox)는 [08 비식별 누락 신고](08-deidentification.md)의 수동 비식별 워크플로(외부 솔루션 수동 처리)와 연결 가능 — 추후 협의
 - ⏳ **검출 집계 활용(후속, 미구현)**: `retrieve_report`의 faceCount/lpCount는 비식별 처리 이력(`LS_DEIDENT_PROC_LOG`) 기록에 활용 가능 — 추후 협의
-- ✅ **TLS 자체 CA(구현)**: `KpstWebClientConfig`가 `ca.crt` 신뢰 저장소를 구성한 전용 WebClient 제공 (시스템 기본 신뢰 체인 아님)
+- ✅ **전송 스키마 분기(구현)**: `KpstWebClientConfig`가 base-url 스키마로 자동 분기 — **내부망 `http://IP:port`(평문, 격리 전제, 기동 시 1회 WARN) 또는 `https`+사설CA 둘 다 지원**. https 만 `ca.crt` 필수(없으면 fail-closed, CWE-295), http 는 ca-cert 불요. `ftp`/스키마 없음은 거부
+- ✅ **TLS 자체 CA(구현, https 경로)**: https 일 때 `KpstWebClientConfig`가 `ca.crt` 신뢰 저장소를 구성한 전용 WebClient 제공 (시스템 기본 신뢰 체인 아님, hostname 검증 유지). 이 경로의 TLS 신뢰·hostname 검증·fail-closed 는 약화 없음
 - ✅ **RAW_SN ↔ 솔루션 prj_id/dataset_id 매핑(구현)**: `LS_DEIDENT_PROC_LOG`에 V64 마이그레이션으로 `KPST_PRJ_ID`/`KPST_DATASET_ID`/`POLL_STTS_CD` 컬럼 추가. 영상 1건=KPST 프로젝트 1개로 운영(1:1)
