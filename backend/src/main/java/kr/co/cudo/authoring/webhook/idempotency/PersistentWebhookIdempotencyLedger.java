@@ -22,7 +22,7 @@ import java.util.Optional;
  * <p>채널 추정: 이 영속 ledger 는 호출 경로(서비스) 가 명시적으로 채널을 주입하지 않는다.
  * Phase 2 단독 도입 시 추정 가능한 채널은 ResultService 호출자가 결정하지만,
  * 인터페이스 호환을 위해 채널 정보는 발급 시점에 별도로 알 수 없으면 "UNKNOWN" 으로 기록한다.
- * 운영에서는 클라이언트(VlmClient/DeidentifyClient/...) 발급 시 채널을 명시할 수 있도록 후속 보강 가능.
+ * 운영에서는 클라이언트(VlmClient/ExternalAugmentClient/...) 발급 시 채널을 명시할 수 있도록 후속 보강 가능.
  */
 @Slf4j
 @Component
@@ -41,7 +41,7 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
     }
 
     /**
-     * Phase 3 — channel 명시 발급 기록. 호출자(DeidentifyClient/VlmClient)가 채널을 명시한다.
+     * Phase 3 — channel 명시 발급 기록. 호출자(VlmClient/ExternalAugmentClient)가 채널을 명시한다.
      */
     @Override
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)

@@ -81,21 +81,6 @@ class WebhookRequestSizeLimitTest {
                     .doesNotContain("augType");
         }
     }
-
-    @Test
-    @DisplayName("DeidentifyResultRequest_processedRegions_1000_초과_시_검증_실패")
-    void processedRegionsOver1000_violates() {
-        List<DeidentifyResultRequest.ProcessedRegion> regions = new ArrayList<>(1001);
-        for (int i = 0; i < 1001; i++) {
-            regions.add(new DeidentifyResultRequest.ProcessedRegion("F" + i, "BOX", 0, 0, 10, 10));
-        }
-        DeidentifyResultRequest req = new DeidentifyResultRequest(
-                "K1", "EXT1", "SUCCESS", 1L, null, regions);
-
-        Set<ConstraintViolation<DeidentifyResultRequest>> violations = validator.validate(req);
-
-        assertThat(violations)
-                .extracting(v -> v.getPropertyPath().toString())
-                .contains("processedRegions");
-    }
+    // (UC018 — 비식별은 KPST 폴링으로 단일화되어 DeidentifyResultRequest 콜백 DTO 가 제거됨.
+    //  관련 processedRegions 상한 검증 케이스도 함께 제거. VLM·증강 상한 검증은 위에서 유지.)
 }

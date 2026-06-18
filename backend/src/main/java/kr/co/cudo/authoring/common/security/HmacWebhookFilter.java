@@ -27,8 +27,8 @@ import java.util.regex.Pattern;
 /**
  * Webhook HMAC 시그니처 검증 필터 — Phase 2 신설, Phase 2 보강 (DEV_FIX H-4/M-1) 강화.
  *
- * <p>외부 시스템(Deidentify SW / 외부 VLM 서비스 / 외부 증강 시스템) 의 결과 인계
- * 콜백을 인증한다. JWT 와 분리된 별도 인증 경로로, /v1/[deidentify|vlm|augments]/result 경로에만 적용된다.
+ * <p>외부 시스템(외부 VLM 서비스 / 외부 증강 시스템) 의 결과 인계
+ * 콜백을 인증한다. JWT 와 분리된 별도 인증 경로로, /v1/[vlm|augments]/result 경로에만 적용된다.
  *
  * <h3>인증 헤더</h3>
  * <ul>
@@ -38,7 +38,6 @@ import java.util.regex.Pattern;
  *
  * <h3>경로별 시크릿</h3>
  * <ul>
- *   <li>{@code /v1/deidentify/result} -- {@code webhook.hmac.secret.deidentify}</li>
  *   <li>{@code /v1/vlm/result} -- {@code webhook.hmac.secret.vlm}</li>
  *   <li>{@code /v1/augments/result} -- {@code webhook.hmac.secret.augment}</li>
  * </ul>
@@ -77,7 +76,6 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
     /** Rate limit: failureTrackers 메모리 hard cap — DEV_FIX 2차 (CWE-770 resource exhaustion). */
     public static final int MAX_FAILURE_TRACKERS = 4096;
 
-    static final String PATH_DEIDENTIFY = "/v1/deidentify/result";
     static final String PATH_VLM = "/v1/vlm/result";
     /**
      * 증강 결과 콜백 경로 — <b>단일 진실원</b>.
@@ -99,17 +97,14 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
     private final Map<String, FailureTracker> failureTrackers = new ConcurrentHashMap<>();
 
     public HmacWebhookFilter(ObjectMapper objectMapper,
-                             @Value("${webhook.hmac.secret.deidentify:}") String secretDeidentify,
                              @Value("${webhook.hmac.secret.vlm:}") String secretVlm,
                              @Value("${webhook.hmac.secret.augment:}") String secretAugment,
                              @Value("${webhook.hmac.timestamp-window-seconds:300}") long windowSeconds) {
         this.objectMapper = objectMapper;
         // DEV_FIX M-1: 시크릿이 설정되었는데 32B 미만이면 부팅 차단 (빈 시크릿은 fail-closed 그대로)
-        ensureMinSecretStrength("webhook.hmac.secret.deidentify", secretDeidentify);
         ensureMinSecretStrength("webhook.hmac.secret.vlm", secretVlm);
         ensureMinSecretStrength("webhook.hmac.secret.augment", secretAugment);
         this.pathToSecret = Map.of(
-                PATH_DEIDENTIFY, secretDeidentify == null ? "" : secretDeidentify,
                 PATH_VLM, secretVlm == null ? "" : secretVlm,
                 PATH_AUGMENT, secretAugment == null ? "" : secretAugment
         );

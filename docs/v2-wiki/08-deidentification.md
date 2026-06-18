@@ -1,9 +1,9 @@
 # 08. 비식별화
 
-> 출처: R1 RQ-SFR-09-01~05, R2 KLID-AT-UC-011/016, CLAUDE.md, 코드(`deident/`, `webhook/DeidentifyResultController`)
+> 출처: R1 RQ-SFR-09-01~05, R2 KLID-AT-UC-011/016, CLAUDE.md, 코드(`batch/step/DeidentifyStep`, `batch/service/KpstDeidentService`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [19 외부 시스템](19-external-security-cvat.md) · [22 비식별 솔루션 API 명세](22-deid-solution-api.md)
 
-> ✅ **KPST 폴링 어댑터 구현 완료(2026-06-10)**: 실제 KPST API([22 명세](22-deid-solution-api.md))의 폴링 모델(`POST /upload`→`POST /project`→`GET /retrieve_progress` 폴링→`GET /download`)을 `KpstDeidentifyClient`+`KpstDeidentPollJob`(Quartz)로 구현. `kpst.deid.enabled` 토글로 기존 동기/콜백 경로(아래 8.2)와 **병행**(기본 false). 영상 1건=프로젝트 1개. (갭 상세·명세 정본은 [22.1](22-deid-solution-api.md#221-연동-개요) 비교표 참조.)
+> ✅ **KPST 폴링 단일 경로 확정(UC018, 2026-06-18)**: 비식별 확정은 실제 KPST API([22 명세](22-deid-solution-api.md))의 폴링 모델(`POST /upload`→`POST /project`→`GET /retrieve_progress` 폴링→`GET /download`)로 **단일화**되었다(`KpstDeidentifyClient`+`KpstDeidentPollJob`(Quartz)). **레거시 동기 SPI(`DeidentifyClient`)와 결과 콜백 수신 경로(`POST /v1/deidentify/result`)는 제거**되었다(레거시 폴백 없음). `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**)하며, local 자족 환경은 `authoring.integration.deidentify.mock-mode=true` 의 mock 복사 경로를 사용한다. 영상 1건=프로젝트 1개. (명세 정본은 [22.1](22-deid-solution-api.md#221-연동-개요) 참조.)
 
 ## 8.1 개요
 
@@ -19,10 +19,12 @@
 
 ## 8.2 연동 흐름
 
-**[KPST 폴링 경로]** (`kpst.deid.enabled=true`)
+비식별 확정 경로는 **KPST 폴링 단일 경로**다(`kpst.deid.enabled=true`, 기본). local 자족 환경만 mock 복사 경로를 사용한다.
+
+**[KPST 폴링 경로]** (`kpst.deid.enabled=true`, 기본)
 ```
-[배치] DeidentifyStep 위탁 → KpstDeidentService(upload→project, WAITING)
-        ↓ (영상 1건 = KPST 프로젝트 1개)
+[배치] DeidentifyStep.run → KpstDeidentService.submit(upload→project, WAITING)
+        ↓ (영상 1건 = KPST 프로젝트 1개. DE_IDENT_YN 미전이 — 완료 대기)
 [폴링] KpstDeidentPollJob(Quartz) GET /retrieve_progress 반복 폴링
         ↓ state=2(완료) 감지
 GET /download → 결과 파일 검증(0바이트/미존재 시 Y 전이 차단)
@@ -31,21 +33,20 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + dataSttsCd=MARKING_READY + 작업락 해제 + 신�
    타임아웃 시 DE_IDENT_YN='F'
 ```
 
-**[콜백 경로]** (`kpst.deid.enabled=false` 또는 콜백형 솔루션용 — 병행 유지)
+**[local mock 경로]** (`authoring.integration.deidentify.mock-mode=true`, local 전용)
 ```
-[배치/요청] DeidentifyClient(Resilience4j, ~70s) → 외부 비식별 API (동기 위탁)
-   요청: {원본 경로, 출력 경로(STORAGE_DEIDENTIFIED_PATH 하위), 멱등키}
-        ↓ 비동기
-[콜백] POST /v1/deidentify/result (HMAC + idempotencyKey)
-   수신: {멱등키, 외부 작업 ID, 처리 상태(SUCCESS/FAILED/PARTIAL), RAW_SN, 비식별 파일 경로, 처리 영역 목록}
-        ↓
-결과 경로 검증 → LS_DATA_RAW.DE_IDENT_YN='Y' 마킹 + LS_DEIDENT_PROC_LOG 이력 저장
+[배치] DeidentifyStep.runMock → 원본을 STORAGE_DEIDENTIFIED_PATH 하위로 atomic 복사(원본 보존)
+        ↓ (외부 미접촉)
+LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
+   원본 부재 시 'F' 마킹(성공 위장 금지, REQUIRES_NEW 독립 커밋)
 ```
 
-- 멱등키(미지정 시 자동 발급)로 중복 인계 방지, 외부 작업 ID UNIQUE 로 콜백 upsert
-- 실패 시 `DE_IDENT_YN='F'` + 재시도 큐, 원본 보존
+> ⚠ **레거시 동기 SPI/콜백 경로 제거(UC018)**: 구 `DeidentifyClient`(동기 위탁) + `POST /v1/deidentify/result` 콜백 수신(`DeidentifyResultController`/`DeidentifyResultService`/`DeidentifyResultRequest`) 경로는 제거되었다. mock 도 아니고 KPST 서비스도 없으면(설정 오류) `DeidentifyStep` 은 레거시 폴백 대신 명확한 설정 오류 예외(내부 정보 미노출)로 처리한다.
+
+- 실패 시 `DE_IDENT_YN='F'`, 원본 보존. 재비식별은 외부 솔루션 수동 처리(자동 재비식별 큐 없음).
 - 코드(폴링 경로): `KpstDeidentifyClient`, `KpstWebClientConfig`(자체CA TLS), `batch/service/KpstDeidentService`/`KpstDeidentTxService`, `batch/scheduler/KpstDeidentPollJob`
-- 코드(콜백 경로): `DeidentifyClient`, `batch/step/DeidentifyStep`(토글 분기), `webhook/DeidentifyResultController`/`DeidentifyResultService`
+- 코드(트리거/mock): `batch/step/DeidentifyStep`(mock/KPST/설정오류 3분기)
+- 공유 인프라(무변경): `HmacWebhookFilter`/`HmacSigner` + VLM(`/v1/vlm/result`)·증강(`/v1/augments/result`) 콜백은 그대로 유지
 
 ## 8.3 처리 이력 (RQ-SFR-09-03)
 

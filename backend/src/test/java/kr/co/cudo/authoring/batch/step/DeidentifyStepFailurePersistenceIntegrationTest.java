@@ -2,9 +2,6 @@ package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
-import kr.co.cudo.authoring.common.client.DeidentifyClient;
-import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
-import kr.co.cudo.authoring.common.client.dto.DeidentifyResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -13,10 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
-import reactor.core.publisher.Mono;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,34 +19,28 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
 /**
  * 라이브 검증 결함 회귀 — DeidentifyStep 실패 경로의 {@code DE_IDENT_YN='F'} 영속 검증.
  *
- * <p><b>근본 원인</b>: {@code run()}/{@code runMock()} 은 {@code REQUIRES_NEW} 트랜잭션이다.
- * 실패 분기에서 인라인으로 {@code markDeidentified("F")} + {@code procLog.fail(...)} 한 직후
- * {@code CustomException} 을 던지면, RuntimeException 전파로 Spring 이 그 트랜잭션을 전체
- * 롤백한다 → 'F' 와 FAIL 기록이 함께 롤백되어 DB 에는 {@code DE_IDENT_YN='N'} 만 남는다.
+ * <p>UC018 경로 단일화 후 레거시 동기 SPI 경로는 제거되었으므로, 본 테스트는 <b>local mock 경로</b>
+ * (원본 부재 → 실패)에서 실패 기록이 REQUIRES_NEW 롤백과 독립 커밋되는지 검증한다.
  *
- * <p>따라서 <b>mock-verify 로는 잡히지 않는다</b>(메모리상 엔티티엔 'F' 가 찍혀 보임). 실제
- * 트랜잭션 경계 위에서만 롤백을 재현할 수 있어 Testcontainers PG + 실제
- * controlTransactionManager 로 검증한다.
+ * <p><b>근본 원인</b>: {@code runMock()} 은 {@code REQUIRES_NEW} 트랜잭션이다. 실패 분기에서 인라인으로
+ * {@code markDeidentified("F")} + {@code procLog.fail(...)} 한 직후 {@code CustomException} 을 던지면,
+ * RuntimeException 전파로 Spring 이 그 트랜잭션을 전체 롤백한다 → 'F' 와 FAIL 기록이 함께 롤백된다.
  *
- * <p>수정 방향: 실패 기록을 {@code run()} 의 REQUIRES_NEW 롤백과 독립적으로 커밋되는 별도 빈의
- * {@code REQUIRES_NEW} 메서드로 위임한다. 본 테스트는 {@code run()} 이 던진 뒤 <b>별도 조회
- * 트랜잭션</b>(findById)에서 'F' 가 살아있는지(=커밋됨)를 단언한다.
+ * <p>수정 방향: 실패 기록을 별도 빈({@code BatchTransitionService})의 {@code REQUIRES_NEW} 메서드로
+ * 위임해 독립 커밋한다. 본 테스트는 {@code run()} 이 던진 뒤 별도 조회 트랜잭션에서 'F' 가 살아있는지
+ * (=커밋됨)를 단언한다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
-        "kpst.deid.enabled=false"
+        // 테스트 기본(application-local.yml): kpst.deid.enabled=false + deidentify.mock-mode=true → mock 경로.
+        "authoring.integration.deidentify.mock-mode=true"
 })
 class DeidentifyStepFailurePersistenceIntegrationTest {
-
-    @MockBean
-    private DeidentifyClient deidentifyClient;
 
     @Autowired
     private DeidentifyStep deidentifyStep;
@@ -70,17 +59,12 @@ class DeidentifyStepFailurePersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("외부비식별_호출실패시_DE_IDNTF_YN이_F로_DB에_영속된다 — REQUIRES_NEW 롤백과 독립 커밋")
-    void externalFailure_persistsFFlag() throws Exception {
-        // given — 실제 적재된 영상(deIdntfYn='N', PENDING)
-        Path rawFile = Files.createTempFile("ext-fail-raw", ".mp4");
-        Files.writeString(rawFile, "raw");
-        LsDataRaw raw = saveRaw(rawFile.toString());
+    @DisplayName("mock_원본부재시_DE_IDNTF_YN이_F로_DB에_영속된다 — REQUIRES_NEW 롤백과 독립 커밋")
+    void missingSource_persistsFFlag() {
+        // given — 실제 적재된 영상(deIdntfYn='N', PENDING). 원본 파일은 존재하지 않는 경로.
+        String missing = "/var/raw/no-such-" + System.nanoTime() + ".mp4";
+        LsDataRaw raw = saveRaw(missing);
         Long rawSn = raw.getRawSn();
-
-        // 외부 비식별 호출이 빈 응답(resultPath=null) → IllegalStateException → 실패 분기
-        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
-                .thenReturn(Mono.just(new DeidentifyResponse("FAIL", null)));
 
         // when — run() 실패(CustomException). run() 의 REQUIRES_NEW 는 롤백됨.
         assertThatThrownBy(() -> deidentifyStep.run(raw))
@@ -94,16 +78,12 @@ class DeidentifyStepFailurePersistenceIntegrationTest {
     }
 
     @Test
-    @DisplayName("실패시_procLog에_FAIL_기록이_DB에_영속된다")
-    void externalFailure_persistsProcLogFail() throws Exception {
+    @DisplayName("mock_실패시_procLog에_FAIL_기록이_DB에_영속된다")
+    void missingSource_persistsProcLogFail() {
         // given
-        Path rawFile = Files.createTempFile("ext-fail-proclog", ".mp4");
-        Files.writeString(rawFile, "raw");
-        LsDataRaw raw = saveRaw(rawFile.toString());
+        String missing = "/var/raw/no-such-" + System.nanoTime() + ".mp4";
+        LsDataRaw raw = saveRaw(missing);
         Long rawSn = raw.getRawSn();
-
-        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
-                .thenReturn(Mono.just(new DeidentifyResponse("FAIL", null)));
 
         // when
         assertThatThrownBy(() -> deidentifyStep.run(raw))
@@ -117,31 +97,27 @@ class DeidentifyStepFailurePersistenceIntegrationTest {
         LsDeidentProcLog failLog = logs.stream()
                 .filter(l -> LsDeidentProcLog.FAILED.equals(l.getProcSttsCd()))
                 .findFirst().orElseThrow();
-        assertThat(failLog.getErrorMsg()).doesNotContain(rawFile.toString());
+        assertThat(failLog.getErrorMsg()).doesNotContain(missing);
         assertThat(failLog.getErrorMsg()).doesNotContain("/var/raw");
     }
 
     @Test
-    @DisplayName("성공경로_회귀 — 정상 응답이면 Y 전이 + 결과경로 반환(무변경)")
+    @DisplayName("mock_성공경로_회귀 — 원본 존재 시 Y 전이 + 비식별경로 복사(무변경)")
     void successPath_regression() throws Exception {
-        // given
+        // given — 실제 원본 파일 존재.
         Path rawFile = Files.createTempFile("ok-raw", ".mp4");
-        Files.writeString(rawFile, "raw");
+        Files.writeString(rawFile, "raw-bytes");
         LsDataRaw raw = saveRaw(rawFile.toString());
         Long rawSn = raw.getRawSn();
-
-        Path deidBase = Path.of(deidPath).toAbsolutePath().normalize();
-        Path resultPath = deidBase.resolve("videos").resolve(String.valueOf(rawSn)).resolve("deidentified.mp4");
-        Files.createDirectories(resultPath.getParent());
-        Files.writeString(resultPath, "MASKED");
-        when(deidentifyClient.deidentify(any(DeidentifyRequest.class)))
-                .thenReturn(Mono.just(new DeidentifyResponse("OK", resultPath.toString())));
 
         // when
         String returned = deidentifyStep.run(raw);
 
-        // then — 무변경 성공 회귀
-        assertThat(returned).isEqualTo(resultPath.toString());
+        // then — 비식별 결과가 storage.deidentified-path 하위에 복사되고 Y 전이.
+        Path deidBase = Path.of(deidPath).toAbsolutePath().normalize();
+        Path expected = deidBase.resolve("videos").resolve(String.valueOf(rawSn)).resolve("deidentified.mp4");
+        assertThat(returned).isEqualTo(expected.toString());
+        assertThat(Files.readString(expected)).isEqualTo("raw-bytes");
         assertThat(videoRepository.findById(rawSn).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
     }
 }

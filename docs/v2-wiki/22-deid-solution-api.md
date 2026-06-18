@@ -22,16 +22,18 @@
 | 문자 인코딩 | UTF-8 |
 | 컨텐츠 타입 | 기본 `application/json` / 파일 업로드 `multipart/form-data` / 파일 다운로드 파일 응답 |
 
-### ⚠ 현행 저작도구 설계와의 갭 (Critical)
+### 실제 KPST API 특성 (Critical)
 
-| 관점 | 현행 코드·위키 가정 ([08](08-deidentification.md)) | 실제 KPST API (본 명세) |
-|------|--------------------------------------------|------------------------|
-| 결과 수신 | 외부가 **콜백**(`POST /v1/deidentify/result`, HMAC + 멱등키) 푸시 | **콜백 없음** — `GET /retrieve_progress` **폴링** 후 `GET /download` |
-| 작업 단위 | 영상 1건 위탁 요청 | **프로젝트**(영상 1~50개 묶음) 생성 후 일괄 처리 |
-| 파일 전달 | 공유 경로 기반 위탁 | `POST /upload`(multipart)로 솔루션 서버에 직접 업로드 |
-| 결과 파일 | 콜백 페이로드의 경로 | export_path 아래 `'원본명-mask.mp4'` 또는 `GET /download` 첨부 다운로드 |
+| 관점 | 실제 KPST API (본 명세) |
+|------|------------------------|
+| 결과 수신 | **콜백 없음** — `GET /retrieve_progress` **폴링** 후 `GET /download` |
+| 작업 단위 | **프로젝트**(영상 1~50개 묶음) 생성 후 일괄 처리. 저작도구는 영상 1건=프로젝트 1개로 운영 |
+| 파일 전달 | `POST /upload`(multipart)로 솔루션 서버에 직접 업로드 |
+| 결과 파일 | export_path 아래 `'원본명-mask.mp4'` 또는 `GET /download` 첨부 다운로드 |
 
-→ ✅ **폴링 어댑터 구현 완료(2026-06-10)**: `KpstDeidentifyClient`(핵심 6 엔드포인트, 자체CA TLS) + `KpstDeidentService`/`KpstDeidentTxService` + `KpstDeidentPollJob`(Quartz)로 재설계됨. `kpst.deid.enabled` 토글(기본 false)로 기존 콜백 경로(`DeidentifyResultController`)와 **병행**. 영상 1건=프로젝트 1개, 매핑은 `LS_DEIDENT_PROC_LOG`(V64 KPST_PRJ_ID/DATASET_ID/POLL_STTS_CD). 본 페이지는 명세 정본 역할.
+→ ✅ **폴링 단일 경로 확정(UC018, 2026-06-18)**: `KpstDeidentifyClient`(핵심 6 엔드포인트, 자체CA TLS) + `KpstDeidentService`/`KpstDeidentTxService` + `KpstDeidentPollJob`(Quartz)가 **비식별 확정의 유일한 경로**다. `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**)하되, **레거시 동기 SPI(`DeidentifyClient`)·결과 콜백 수신(`POST /v1/deidentify/result` = `DeidentifyResultController`/`DeidentifyResultService`/`DeidentifyResultRequest`) 경로는 제거**되었다(레거시 폴백 없음). local 자족 환경은 `authoring.integration.deidentify.mock-mode=true` 의 mock 복사 경로를 사용한다. 영상 1건=프로젝트 1개, 매핑은 `LS_DEIDENT_PROC_LOG`(V64 KPST_PRJ_ID/DATASET_ID/POLL_STTS_CD). 본 페이지는 명세 정본 역할.
+
+> 참고 — HMAC 웹훅 인프라(`HmacWebhookFilter`/`HmacSigner`)와 VLM(`/v1/vlm/result`)·증강(`/v1/augments/result`) 콜백은 **그대로 유지**된다. 비식별 전용 콜백 경로(`/v1/deidentify/result`)와 `webhook.hmac.secret.deidentify` 설정 키만 제거되었다.
 
 ## 22.2 API 엔드포인트 요약 (13종)
 

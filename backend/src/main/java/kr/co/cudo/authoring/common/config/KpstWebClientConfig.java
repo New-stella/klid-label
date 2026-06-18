@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.common.config;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -42,6 +43,7 @@ import java.time.Duration;
  * <p>{@code kpst.deid.enabled=true} 일 때만 빈을 생성한다(기본 false). local/dev 에서 ca.crt 미보유
  * 환경의 기동/테스트 컨텍스트 영향을 막기 위함이며, 실 연동(dev/stg/prd)은 환경변수로 활성화한다.
  */
+@Slf4j
 @Configuration
 @ConditionalOnProperty(prefix = "kpst.deid", name = "enabled", havingValue = "true")
 public class KpstWebClientConfig {
@@ -124,8 +126,10 @@ public class KpstWebClientConfig {
         }
         Path path = Path.of(caCertPath.trim());
         if (!Files.isReadable(path)) {
+            // CWE-209: 사용자/로그 노출 메시지에 절대경로 미포함. 경로는 진단용 DEBUG 로그로만.
+            log.debug("[Kpst] ca-cert path not readable path={}", path);
             throw new IllegalStateException(
-                    "kpst.deid.ca-cert-path 파일을 읽을 수 없습니다: " + path + " (CWE-295 fail-closed).");
+                    "kpst.deid.ca-cert-path 파일을 읽을 수 없습니다 (경로 설정을 확인하세요). (CWE-295 fail-closed)");
         }
         try (InputStream ca = Files.newInputStream(path)) {
             return SslContextBuilder.forClient()
@@ -134,7 +138,10 @@ public class KpstWebClientConfig {
         } catch (SSLException e) {
             throw new IllegalStateException("KPST ca.crt 로 SslContext 구성 실패 (인증서 형식 확인).", e);
         } catch (IOException e) {
-            throw new IllegalStateException("KPST ca.crt 읽기 실패: " + path, e);
+            // CWE-209: 절대경로 미노출. 진단용 경로는 DEBUG 로그로만 남긴다.
+            log.debug("[Kpst] ca-cert read failed path={}", path, e);
+            throw new IllegalStateException(
+                    "KPST ca.crt 읽기에 실패했습니다 (경로 설정을 확인하세요).", e);
         }
     }
 

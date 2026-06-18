@@ -72,11 +72,11 @@ public class SecurityConfig {
                                     // 리다이렉트되기 전 Security 필터가 먼저 평가하므로 명시 허용 필요.
                                     "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
                                     "/v1/auth/**", "/v1/portal/auth/**").permitAll();
-                    // Phase 2 — 외부 시스템 결과 수신 webhook 3종.
+                    // 외부 시스템 결과 수신 webhook — VLM·증강 2종.
                     // JWT 인증을 우회하고 HmacWebhookFilter 가 시그니처 검증을 단독 수행한다.
                     // 시크릿 미설정 시 fail-closed 로 401 (HmacWebhookFilter 내부).
+                    // (UC018 — 비식별은 KPST 폴링으로 단일화되어 /v1/deidentify/result 콜백 경로를 제거함.)
                     auth.requestMatchers(
-                            "/v1/deidentify/result",
                             "/v1/vlm/result",
                             "/v1/augments/result").permitAll();
                     if (devTokenEndpointEnabled) {

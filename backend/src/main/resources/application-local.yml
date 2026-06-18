@@ -59,6 +59,13 @@ authoring:
   integration:
     deidentify:
       mock-mode: true
+
+# UC018 — local 은 mock-mode 로 비식별을 자족 처리하므로 KPST 폴링 경로를 끈다(킬스위치 false).
+#   ca.crt 미보유 local 환경에서 KpstWebClientConfig(fail-closed) 가 기동 실패하는 것을 방지.
+#   실 연동(dev/stg/prd)은 application.yml 기본값 enabled=true + KPST_DEID_CA_CERT_PATH 로 활성화된다.
+kpst:
+  deid:
+    enabled: false
   # 콜백 충실 플로우 Phase 2 — local 에서는 외부 증강 시스템 대신 dev 콜백 시뮬레이터를 활성화한다.
   #   - external.mode=dev → DevAugmentCallbackSimulator 빈 로드(외부 0 자족). 운영은 noop(기본).
   #   - webhook.callback-base-url 은 application.yml 기본값(http://localhost:8080/api) 사용.

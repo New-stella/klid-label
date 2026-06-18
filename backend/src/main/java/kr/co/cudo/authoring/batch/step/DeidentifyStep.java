@@ -8,9 +8,6 @@ import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.service.KpstDeidentService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
-import kr.co.cudo.authoring.common.client.DeidentifyClient;
-import kr.co.cudo.authoring.common.client.dto.DeidentifyRequest;
-import kr.co.cudo.authoring.common.client.dto.DeidentifyResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
@@ -33,24 +30,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.time.Duration;
 import java.util.Arrays;
 
 /**
  * 비식별화 단계.
  * <p>
- * Phase 2 정책 (V2):
- *  - 영상 단위로 비식별 호출.
- *  - 외부 비식별 API 입력은 원본 영상, 출력은 비식별 영상.
- *  - 결과 영상 경로는 LS_DEIDENT_REPORT.DE_IDNTF_FILE_PATH_NM 에만 저장.
- *  - 원본 filePath 는 절대 변경되지 않는다 — 원본 보존 원칙.
+ * 경로 단일화 (UC018): 비식별 확정은 KPST 폴링으로 단일화되었다. 레거시 동기 SPI(DeidentifyClient)
+ * 경로는 제거되었으며, 본 단계가 취할 수 있는 경로는 아래 두 가지뿐이다.
+ *  - ① {@code mockMode}(local 전용): 외부 호출 없이 원본을 비식별 경로로 복사.
+ *  - ② KPST 위탁({@code kpst.deid.enabled=true}): {@link KpstDeidentService#submit} 위탁만 수행하고
+ *       완료(다운로드→Y전이)는 폴링 잡이 담당.
+ * 둘 다 아닌 경우(mock 아님 + KPST 서비스 미주입)는 설정 오류로 간주하고 명확한 예외를 던진다
+ * (레거시 폴백 없음, 내부 정보 미노출).
  * <p>
- * 실패 처리:
- *  - 비식별 API 실패 (5xx, 타임아웃) → DE_IDNTF_YN='F' 마킹 + 원본 보존.
+ * 공통 정책 (V2):
+ *  - 영상 단위로 비식별. 출력은 비식별 영상이며 원본 filePath 는 절대 변경되지 않는다 — 원본 보존 원칙.
+ *  - 결과 영상 경로는 LS_DEIDENT_REPORT.DE_IDNTF_FILE_PATH_NM 에만 저장.
  * <p>
  * 보안:
- *  - SSRF (CWE-918): DeidentifyClient 가 application.yml 의 base-url 사용. 사용자 입력으로 URL 구성 금지.
- *  - Path Manipulation (CWE-22): 출력 경로는 storage.deidentified-path 기반.
+ *  - SSRF (CWE-918)/경로순회 (CWE-22): URL/CA 신뢰체인·다운로드 경로 검증은 KPST 클라이언트가 방어.
+ *    mock 출력 경로는 storage.deidentified-path 기반으로 base 이탈을 차단한다.
  * <p>
  * Phase 1 — local 전용 mock 비식별 모드:
  *  - {@code authoring.integration.deidentify.mock-mode=true}(application-local.yml 만) 일 때,
@@ -67,7 +66,6 @@ public class DeidentifyStep implements BatchStep {
     private static final String MOCK_TMP_PREFIX = ".tmp_";
     private static final String MOCK_ERROR_CODE = "MOCK_SOURCE_MISSING";
 
-    private final DeidentifyClient deidentifyClient;
     private final VideoRepository videoRepository;
     private final LsDeidentProcLogRepository procLogRepository;
     /** Phase 3 — 재비식별 성공 시 OPEN 신고를 RESOLVED 로 일괄 전이. */
@@ -91,8 +89,11 @@ public class DeidentifyStep implements BatchStep {
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
 
-    /** UC018 — KPST 폴링 경로 토글. true 면 위탁만, false(기본) 면 기존 동기 경로 유지. */
-    @Value("${kpst.deid.enabled:false}")
+    /**
+     * UC018 — KPST 폴링 경로 토글(킬스위치). 기본 true(KPST 단일 경로).
+     * false 로 내리면 KPST 위탁이 비활성화되고, mock 도 아니면 설정 오류로 거부된다(레거시 폴백 없음).
+     */
+    @Value("${kpst.deid.enabled:true}")
     private boolean kpstEnabled;
 
     /**
@@ -104,8 +105,7 @@ public class DeidentifyStep implements BatchStep {
 
     private Path baseDeidentifiedPath;
 
-    public DeidentifyStep(DeidentifyClient deidentifyClient,
-                          VideoRepository videoRepository,
+    public DeidentifyStep(VideoRepository videoRepository,
                           LsDeidentProcLogRepository procLogRepository,
                           DeidentReportService deidentReportService,
                           NotificationService notificationService,
@@ -113,7 +113,6 @@ public class DeidentifyStep implements BatchStep {
                           @Autowired(required = false) KpstDeidentService kpstDeidentService,
                           Environment environment,
                           BatchTransitionService batchTransitionService) {
-        this.deidentifyClient = deidentifyClient;
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
         this.deidentReportService = deidentReportService;
@@ -173,9 +172,15 @@ public class DeidentifyStep implements BatchStep {
     }
 
     /**
-     * 영상을 비식별 호출한다.
-     * - REQUIRES_NEW 트랜잭션: 호출 실패 시에도 src 레코드는 유지.
-     * - 외부 호출은 Resilience4j (DeidentifyClient 내부) + 60s timeout.
+     * 영상 비식별을 트리거한다 — KPST 단일 경로(또는 local mock).
+     * <p>
+     * 경로 결정(우선순위):
+     *  1. {@code mockMode}(local 전용): 외부 호출 없이 원본을 비식별 경로로 복사.
+     *  2. KPST 위탁({@code kpstEnabled} + 서비스 주입): {@link KpstDeidentService#submit} 위탁만 수행.
+     *     DE_IDNTF_YN 미전이(완료 대기), MARKING_READY 미전이 — 완료는 폴링 잡이 담당.
+     *  3. 그 외(설정 오류): 레거시 동기 폴백 없음 → 명확한 설정 오류 예외(내부 정보 미노출).
+     * <p>
+     * REQUIRES_NEW 트랜잭션: 위탁 실패 시에도 src 레코드는 유지된다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public String run(LsDataRaw raw) {
@@ -183,63 +188,20 @@ public class DeidentifyStep implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
         // Phase 1 — local 전용 mock 경로: 외부 비식별 서버 없이 원본을 비식별 경로로 복사한다.
-        // kpst/외부 호출 분기보다 앞에 둔다(mock 활성 시 외부 미접촉).
+        // KPST 위탁 분기보다 앞에 둔다(mock 활성 시 외부 미접촉).
         if (mockMode) {
             return runMock(raw);
         }
-        // UC018 — KPST 폴링 경로: 위탁(upload→project)만 수행하고 완료(다운로드→Y전이)는 폴링 잡이 담당.
-        // DE_IDNTF_YN 미전이(완료 대기), MARKING_READY 미전이. 토글 false(기본)면 기존 동기 경로 유지.
+        // UC018 — KPST 폴링 경로(기본): 위탁(upload→project)만 수행하고 완료(다운로드→Y전이)는 폴링 잡이 담당.
         if (kpstEnabled && kpstDeidentService != null) {
             kpstDeidentService.submit(raw);
             return null;
         }
-        LsDeidentProcLog procLog = procLogRepository.save(
-                LsDeidentProcLog.request(raw.getRawSn(), null, raw.getRawFilePathNm(), "batch"));
-
-        try {
-            Path target = resolveSafeTargetPath(raw.getRawSn());
-            DeidentifyResponse resp = deidentifyClient
-                    .deidentify(new DeidentifyRequest(raw.getRawFilePathNm(), target.toString()))
-                    .block(Duration.ofSeconds(70));
-            if (resp == null || resp.resultPath() == null) {
-                throw new IllegalStateException("비식별 응답이 비어있음 rawSn=" + raw.getRawSn());
-            }
-            Path returned = Paths.get(resp.resultPath()).toAbsolutePath().normalize();
-            if (!returned.startsWith(baseDeidentifiedPath)) {
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        "비식별 결과 경로가 허용된 저장 경로를 벗어납니다 rawSn=" + raw.getRawSn());
-            }
-            LsDataRaw managed = videoRepository.findById(raw.getRawSn())
-                    .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "raw not found"));
-            managed.markDeidentified("Y");
-            procLog.succeed(resp.resultPath());
-
-            if (workLockService.isRawLocked(managed.getRawSn())) {
-                workLockService.releaseRaw(managed.getRawSn(), "batch", "DEIDENT_SUCCEEDED");
-            }
-            if (deidentReportService != null) {
-                // TODO(R1 v1.14): 자동(배치) 재비식별 경로의 일괄 RESOLVED 와 수동 resolve(resolveManually) 가
-                //   동일 영상에 대해 경쟁할 수 있다. 둘 다 OPEN→RESOLVED 멱등 전이라 데이터 정합은 유지되나,
-                //   장기적으로 재처리 경로를 수동 단일화(외부 솔루션) 로 정리할지 검토 필요.
-                deidentReportService.resolveOpenReports(managed.getRawSn());
-            }
-            if (notificationService != null) {
-                notificationService.notifyReviewersOnLockRelease(managed);
-            }
-            log.info("[Batch][Deid] succeeded rawSn={}", raw.getRawSn());
-            return resp.resultPath();
-        } catch (RuntimeException e) {
-            // CWE-209: 외부 비식별 API 의 원문 메시지(e.getMessage())는 내부 구현/경로/스키마를 노출할 수
-            //          있으므로 DB/로그에 저장하지 않는다. 고정 에러코드 + 예외 클래스명만 보존한다.
-            // 라이브 검증 결함 수정: 실패 기록('F' + procLog FAIL)을 별도 빈의 REQUIRES_NEW 트랜잭션으로
-            //   커밋한다. 본 run() 의 REQUIRES_NEW 는 throw 로 롤백되지만, 이 커밋은 살아남아 'F' 가 영속된다.
-            batchTransitionService.recordDeidentFailure(
-                    raw.getRawSn(), "EXTERNAL_API_ERROR", e.getClass().getSimpleName());
-            log.error("[Batch][Deid] failed rawSn={} errType={}", raw.getRawSn(), e.getClass().getSimpleName());
-            // 원문 메시지는 진단용으로 DEBUG 에서만(운영 비노출). 예외 객체 자체는 상위 핸들러가 처리.
-            log.debug("[Batch][Deid] failure detail rawSn={}", raw.getRawSn(), e);
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 호출 실패", e);
-        }
+        // 설정 오류 — mock 도 아니고 KPST 서비스도 주입되지 않았다. 레거시 폴백은 제거되었으므로
+        // 임의 동작 대신 명확히 거부한다(CWE-209: 내부 구현/경로 미노출, 고정 메시지만).
+        log.error("[Batch][Deid] no deidentify path available rawSn={} kpstEnabled={} kpstService={}",
+                raw.getRawSn(), kpstEnabled, kpstDeidentService != null);
+        throw new CustomException(ErrorCode.INTERNAL_ERROR, "비식별 경로가 구성되지 않았습니다.");
     }
 
     /**

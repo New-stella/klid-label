@@ -37,7 +37,6 @@ import static org.mockito.Mockito.verify;
  */
 class HmacWebhookFilterTest {
 
-    private static final String SECRET_DEIDENTIFY = "deidentify-secret-32bytes-min-len!!";
     private static final String SECRET_VLM = "vlm-secret-32bytes-min-len-aaaaaaa!";
     private static final String SECRET_AUGMENT = "augment-secret-32bytes-min-len-bbb!";
 
@@ -47,13 +46,13 @@ class HmacWebhookFilterTest {
     @BeforeEach
     void setup() {
         objectMapper = new ObjectMapper();
-        filter = new HmacWebhookFilter(objectMapper, SECRET_DEIDENTIFY, SECRET_VLM, SECRET_AUGMENT, 300L);
+        filter = new HmacWebhookFilter(objectMapper, SECRET_VLM, SECRET_AUGMENT, 300L);
     }
 
     @Test
-    @DisplayName("POST_v1_deidentify_result_HMAC_헤더_없으면_401")
-    void deidentifyMissingHmacHeader_returns401() throws Exception {
-        MockHttpServletRequest req = postRequest("/v1/deidentify/result", "{\"x\":1}");
+    @DisplayName("POST_v1_vlm_result_HMAC_헤더_없으면_401")
+    void vlmMissingHmacHeader_returns401() throws Exception {
+        MockHttpServletRequest req = postRequest("/v1/vlm/result", "{\"x\":1}");
         // 헤더 미설정
         MockHttpServletResponse res = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
@@ -83,12 +82,12 @@ class HmacWebhookFilterTest {
     }
 
     @Test
-    @DisplayName("POST_v1_deidentify_result_replay_시간초과_시_401")
-    void deidentifyReplayTimestampExceeded_returns401() throws Exception {
+    @DisplayName("POST_v1_vlm_result_replay_시간초과_시_401")
+    void vlmReplayTimestampExceeded_returns401() throws Exception {
         String body = "{\"k\":1}";
         long ts = System.currentTimeMillis() - 10 * 60 * 1000L; // 10분 전
-        String sig = hmacHex(SECRET_DEIDENTIFY, ts + "." + body);
-        MockHttpServletRequest req = postRequest("/v1/deidentify/result", body);
+        String sig = hmacHex(SECRET_VLM, ts + "." + body);
+        MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=" + sig);
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -123,7 +122,7 @@ class HmacWebhookFilterTest {
     @DisplayName("시크릿_미설정_경로는_fail_closed_401")
     void missingSecret_failsClosed() throws Exception {
         // 모든 시크릿 빈 문자열로 새 필터 생성
-        HmacWebhookFilter noSecretFilter = new HmacWebhookFilter(objectMapper, "", "", "", 300L);
+        HmacWebhookFilter noSecretFilter = new HmacWebhookFilter(objectMapper, "", "", 300L);
         String body = "{}";
         long ts = System.currentTimeMillis();
         MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
@@ -143,12 +142,12 @@ class HmacWebhookFilterTest {
     void bodyOver1MB_returns413() throws Exception {
         // DEV_FIX H-4: 1MB 초과 본문은 413 Payload Too Large
         byte[] big = new byte[(int) HmacWebhookFilter.MAX_WEBHOOK_BODY_BYTES + 1];
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/deidentify/result");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/vlm/result");
         req.setContent(big);
         req.setContentType("application/json");
         long ts = System.currentTimeMillis();
         req.addHeader("X-Timestamp", String.valueOf(ts));
-        req.addHeader("X-Signature", "hmac-sha256=" + hmacHex(SECRET_DEIDENTIFY, ts + "." + new String(big, StandardCharsets.UTF_8)));
+        req.addHeader("X-Signature", "hmac-sha256=" + hmacHex(SECRET_VLM, ts + "." + new String(big, StandardCharsets.UTF_8)));
         MockHttpServletResponse res = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
 
@@ -190,7 +189,7 @@ class HmacWebhookFilterTest {
         long ts = System.currentTimeMillis();
         FilterChain chain = mock(FilterChain.class);
         for (int i = 0; i < 5; i++) {
-            MockHttpServletRequest req = postRequest("/v1/deidentify/result", body);
+            MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
             req.setRemoteAddr("10.0.0.99");
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=deadbeefwronghex" + i);
@@ -199,7 +198,7 @@ class HmacWebhookFilterTest {
             assertThat(res.getStatus()).isEqualTo(401);
         }
         // 6번째 호출 — rate limit 적용으로 429
-        MockHttpServletRequest req6 = postRequest("/v1/deidentify/result", body);
+        MockHttpServletRequest req6 = postRequest("/v1/vlm/result", body);
         req6.setRemoteAddr("10.0.0.99");
         req6.addHeader("X-Timestamp", String.valueOf(ts));
         req6.addHeader("X-Signature", "hmac-sha256=anyhex");
@@ -214,7 +213,7 @@ class HmacWebhookFilterTest {
     @DisplayName("HmacWebhookFilter_시크릿_32바이트_미만_시_부팅_실패")
     void shortSecret_failsBoot() {
         // DEV_FIX M-1: 32B 미만 시크릿은 BeanInitializationException
-        assertThatThrownBy(() -> new HmacWebhookFilter(objectMapper, "short", "vlm-secret-32bytes-min-len-aaaaaaa!", "augment-secret-32bytes-min-len-bbb!", 300L))
+        assertThatThrownBy(() -> new HmacWebhookFilter(objectMapper, "short", "augment-secret-32bytes-min-len-bbb!", 300L))
                 .isInstanceOf(BeanInitializationException.class)
                 .hasMessageContaining("M-1");
     }
@@ -231,7 +230,7 @@ class HmacWebhookFilterTest {
         // 4097 개의 서로 다른 IP 로 실패 요청 — 동일 윈도우 내라 만료 정리만으로는 제거 안 됨
         int totalIps = HmacWebhookFilter.MAX_FAILURE_TRACKERS + 1;
         for (int i = 0; i < totalIps; i++) {
-            MockHttpServletRequest req = postRequest("/v1/deidentify/result", body);
+            MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
             req.setRemoteAddr("10.99." + (i / 256) + "." + (i % 256));
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=wronghex" + i);

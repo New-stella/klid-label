@@ -42,10 +42,21 @@ authoring:
     # 관제 학습용 영상 픽업 스캔 잡 — 테스트에서는 Quartz 트리거 등록 비활성화 (batch 와 동일 격리).
     training-scan:
       enabled: false
+  # UC018 — 테스트 기본은 mock-mode 비식별(외부 KPST 서버 부재 환경 자족). KPST 토글 ON 검증이
+  #   필요한 테스트는 @TestPropertySource(kpst.deid.enabled=true) 로 개별 활성화한다.
+  integration:
+    deidentify:
+      mock-mode: true
   # 스트림 단기 서명 URL 검증 — 서명 발급/검증은 fail-closed 라 테스트에서도 시크릿이 설정되어야 동작한다.
   # 최소 32B(256bit) 이상 (StreamUrlSigner.MIN_SECRET_BYTES).
   stream:
     sign-secret: ${STREAM_SIGN_SECRET:test-stream-sign-secret-change-me-32bytes-min}
+
+# UC018 — 테스트 기본은 KPST 폴링 OFF (ca.crt 미보유 환경 보호 — KpstWebClientConfig fail-closed 회피).
+#   KPST 토글 ON 검증 테스트는 @TestPropertySource(kpst.deid.enabled=true)+test-ca.crt 로 개별 활성화한다.
+kpst:
+  deid:
+    enabled: false
 
 logging:
   level:
