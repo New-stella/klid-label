@@ -267,6 +267,8 @@ public class KpstDeidentService {
         if (prj.dsStatus() == null || prj.dsStatus().isEmpty()) {
             return false;
         }
-        return prj.dsStatus().stream().allMatch(d -> d.procState() == PROC_STATE_COMPLETED);
+        // procState 가 null 이면 처리 미시작(실서버는 미시작 시 null 반환) — 미완료로 취급(NPE 방지).
+        return prj.dsStatus().stream()
+                .allMatch(d -> d.procState() != null && d.procState() == PROC_STATE_COMPLETED);
     }
 }

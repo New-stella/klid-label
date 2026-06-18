@@ -201,6 +201,54 @@ class KpstDeidentServiceTest {
         verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
     }
 
+    @Test
+    @DisplayName("미시작_null_procState_데이터셋이_있으면_완료로_오판하지_않고_진행중으로_판정한다")
+    void pollNullProcStateIsInProgress() {
+        LsDeidentProcLog procLog = submittedProcLog();
+        // ds[0]=완료(2), ds[1]=미시작(null) → null 가드가 없으면 NPE 또는 오판. 진행중이어야 한다.
+        KpstProgressResponse.DsStatus done = new KpstProgressResponse.DsStatus(
+                202L, "a.mp4", 2, 100.0, 5400, "t0", "t1");
+        KpstProgressResponse.DsStatus notStarted = new KpstProgressResponse.DsStatus(
+                203L, "b.mp4", null, 0.0, null, "None", "None");
+        KpstProgressResponse.PrjStatus prj = new KpstProgressResponse.PrjStatus(
+                101L, "raw9001", 50.0, 2, List.of(done, notStarted));
+        KpstProgressResponse progress = new KpstProgressResponse("success",
+                new KpstProgressResponse.Data(1, List.of(prj)));
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L))).thenReturn(progress);
+
+        service.pollOne(procLog);
+
+        // null(미시작)을 완료로 오판/NPE 없이 진행중 위임.
+        verify(kpstClient, never()).download(any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService).recordPollingProgress(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("모든_데이터셋이_procState2면_완료감지하여_download를_수행한다")
+    void pollAllStateTwoCompletes() throws Exception {
+        LsDeidentProcLog procLog = submittedProcLog();
+        KpstProgressResponse.DsStatus a = new KpstProgressResponse.DsStatus(
+                202L, "a.mp4", 2, 100.0, 5400, "t0", "t1");
+        KpstProgressResponse.DsStatus b = new KpstProgressResponse.DsStatus(
+                203L, "b.mp4", 2, 100.0, 5400, "t0", "t1");
+        KpstProgressResponse.PrjStatus prj = new KpstProgressResponse.PrjStatus(
+                101L, "raw9001", 100.0, 2, List.of(a, b));
+        KpstProgressResponse progress = new KpstProgressResponse("success",
+                new KpstProgressResponse.Data(1, List.of(prj)));
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L))).thenReturn(progress);
+        Path saved = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4");
+        java.nio.file.Files.createDirectories(saved.getParent());
+        java.nio.file.Files.writeString(saved, "MASKED");
+        when(kpstClient.download(eq(202L), any(Path.class), any(Path.class))).thenReturn(saved);
+
+        service.pollOne(procLog);
+
+        verify(kpstClient).download(eq(202L), any(Path.class), any(Path.class));
+        verify(txService).finishDownloadAndComplete(
+                eq(9001L), eq(1L), eq(202L), eq(saved.toString()));
+    }
+
     // ────────────────────────── 폴링 진행중 ──────────────────────────
 
     @Test

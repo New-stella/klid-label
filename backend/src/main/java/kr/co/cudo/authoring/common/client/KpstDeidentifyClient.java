@@ -5,7 +5,9 @@ import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOper
 import io.github.resilience4j.reactor.retry.RetryOperator;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryRegistry;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.common.client.dto.KpstDeleteResponse;
+import kr.co.cudo.authoring.common.client.dto.KpstProgressRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
@@ -24,6 +26,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -99,15 +102,19 @@ public class KpstDeidentifyClient {
 
     private final WebClient webClient;
     private final WebClient uploadWebClient;
+    private final HttpClient progressHttpClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final CircuitBreaker circuitBreaker;
     private final Retry retry;
 
     public KpstDeidentifyClient(@Qualifier("kpstDeidWebClient") WebClient webClient,
                                 @Qualifier("kpstDeidUploadWebClient") WebClient uploadWebClient,
+                                @Qualifier("kpstDeidProgressHttpClient") HttpClient progressHttpClient,
                                 @Qualifier("kpstDeidCircuitBreaker") CircuitBreaker circuitBreaker,
                                 RetryRegistry retryRegistry) {
         this.webClient = webClient;
         this.uploadWebClient = uploadWebClient;
+        this.progressHttpClient = progressHttpClient;
         this.circuitBreaker = circuitBreaker;
         this.retry = retryRegistry.retry("kpstDeid");
     }
@@ -222,23 +229,44 @@ public class KpstDeidentifyClient {
     }
 
     /**
-     * 진행 상황 조회 — {@code GET /retrieve_progress}.
+     * 진행 상황 조회 — {@code GET /retrieve_progress} (JSON 바디 필수).
      *
-     * <p>규격상 필터는 요청 본문(JSON)으로 전달되나, GET 바디는 클라이언트/프록시 호환성이 낮아
-     * 동등한 쿼리 파라미터(reqUserId/prjId)로 전달한다(서버가 양쪽을 수용). 본문 전달이 강제되면
-     * 후속 DEV 과제에서 전환한다.
+     * <p>실서버는 GET 요청에도 JSON 바디 필터(reqUserId/prjId)를 강제하며, 쿼리 전용 호출은
+     * {@code HTTP 400 (Invalid JSON body)} 로 거부됨을 실서버에서 확인했다. 따라서 reqUserId/prjId 를
+     * JSON 바디({@link KpstProgressRequest})로 전송한다(서버가 camelCase 키 수용).
+     *
+     * <p>전송 경로(중요): Spring {@code WebClient.method(GET).bodyValue(...)} 는 reactor-netty 가 GET
+     * 바디 바이트를 실제로 전송하지 않아(서버가 본문을 무기한 대기 → 타임아웃) 동작하지 않는다.
+     * 따라서 바디 전송이 가능한 저수준 {@code HttpClient.request(GET).send(...)} 경로로 전송하고,
+     * 응답 JSON 을 {@link KpstProgressResponse} 로 역직렬화한다. Resilience4j retry/circuitBreaker·
+     * timeout·onErrorMap·blockOptional 파이프라인 구조는 그대로 유지한다.
      *
      * @param reqUserId 요청자 ID (필수)
      * @param prjId     프로젝트 ID 필터 (필수 — 폴링 시 단일 프로젝트 대상)
      */
     public KpstProgressResponse retrieveProgress(String reqUserId, Long prjId) {
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder.path(PATH_RETRIEVE_PROGRESS)
-                        .queryParam("reqUserId", reqUserId)
-                        .queryParam("prjId", prjId)
-                        .build())
-                .retrieve()
-                .bodyToMono(KpstProgressResponse.class)
+        byte[] payload = serializeProgressRequest(new KpstProgressRequest(reqUserId, prjId));
+        return progressHttpClient
+                .headers(h -> {
+                    h.set(io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE,
+                            MediaType.APPLICATION_JSON_VALUE);
+                    // GET 은 기본적으로 바디리스로 인코딩된다 — Content-Length 를 명시해야 Netty 가
+                    // 바디 바이트를 프레이밍·전송한다(서버의 JSON 바디 필수 요구 충족).
+                    h.set(io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH, payload.length);
+                })
+                .request(io.netty.handler.codec.http.HttpMethod.GET)
+                .uri(PATH_RETRIEVE_PROGRESS)
+                .send((req, out) -> out.sendByteArray(Mono.just(payload)))
+                .responseSingle((resp, content) -> content.asByteArray()
+                        .defaultIfEmpty(new byte[0])
+                        .map(body -> {
+                            int status = resp.status().code();
+                            if (status < 200 || status >= 300) {
+                                // 본문 원문은 노출하지 않는다(CWE-209) — 상태 코드만 매핑.
+                                throw mapStatus(status);
+                            }
+                            return deserializeProgress(body);
+                        }))
                 .timeout(DEFAULT_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
@@ -246,6 +274,23 @@ public class KpstDeidentifyClient {
                 .blockOptional(DEFAULT_TIMEOUT)
                 .orElseThrow(() -> new CustomException(ErrorCode.EXTERNAL_API_ERROR,
                         "비식별 진행 조회 응답이 비어있습니다."));
+    }
+
+    private byte[] serializeProgressRequest(KpstProgressRequest request) {
+        try {
+            return objectMapper.writeValueAsBytes(request);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "비식별 진행 조회 요청 직렬화에 실패했습니다.");
+        }
+    }
+
+    private KpstProgressResponse deserializeProgress(byte[] body) {
+        try {
+            return objectMapper.readValue(body, KpstProgressResponse.class);
+        } catch (IOException e) {
+            // 본문 원문은 노출하지 않는다(CWE-209) — 예외 종류만 변환.
+            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 진행 조회 응답 파싱에 실패했습니다.");
+        }
     }
 
     /**
@@ -399,17 +444,22 @@ public class KpstDeidentifyClient {
         }
         if (e instanceof WebClientResponseException ex) {
             int status = ex.getStatusCode().value();
-            log.warn("[KpstDeid] external error status={} type={}", status, e.getClass().getSimpleName());
-            ErrorCode code = switch (status) {
-                case 400 -> ErrorCode.INVALID_INPUT;
-                case 403 -> ErrorCode.FORBIDDEN;
-                case 404 -> ErrorCode.NOT_FOUND;
-                case 409 -> ErrorCode.CONFLICT;
-                default -> ErrorCode.EXTERNAL_API_ERROR;
-            };
-            return new CustomException(code, "비식별 솔루션 호출 실패(status=" + status + ")");
+            return mapStatus(status);
         }
         log.warn("[KpstDeid] external call failed type={}", e.getClass().getSimpleName());
         return new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 솔루션 호출에 실패했습니다.");
+    }
+
+    /** HTTP 상태 코드 → 내부 표준 예외(CWE-209: 원문/스택트레이스 미노출, 상태 코드만 매핑). */
+    private CustomException mapStatus(int status) {
+        log.warn("[KpstDeid] external error status={}", status);
+        ErrorCode code = switch (status) {
+            case 400 -> ErrorCode.INVALID_INPUT;
+            case 403 -> ErrorCode.FORBIDDEN;
+            case 404 -> ErrorCode.NOT_FOUND;
+            case 409 -> ErrorCode.CONFLICT;
+            default -> ErrorCode.EXTERNAL_API_ERROR;
+        };
+        return new CustomException(code, "비식별 솔루션 호출 실패(status=" + status + ")");
     }
 }

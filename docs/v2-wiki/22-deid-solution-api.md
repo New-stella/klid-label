@@ -171,7 +171,7 @@ curl --cacert ca.crt -X POST https://<IP>:<Port>/upload \
 
 ### 22.3.6 진행 상황 조회 — `GET /retrieve_progress`
 
-조건에 맞는 프로젝트의 전체/파일별 진행률과 상태 조회. **요청 본문(JSON)으로 필터 전달, 필터 최소 1개 필요.**
+조건에 맞는 프로젝트의 전체/파일별 진행률과 상태 조회. **GET 요청이라도 JSON 바디로 필터를 강제하며(필터 최소 1개 필요), 쿼리 파라미터 전용 호출은 `400 (Invalid JSON body)`로 거부됨이 실서버에서 확인됨.** 클라이언트(`KpstDeidentifyClient.retrieveProgress`)는 `reqUserId`/`prjId`를 JSON 바디로 전송한다.
 
 **요청 파라미터**
 | 필드 | 타입 | 필수 | 설명 |
@@ -195,7 +195,7 @@ curl --cacert ca.crt -X POST https://<IP>:<Port>/upload \
 | `prjStatus[].createId / exportPath` | string | 생성자 / 내보내기 경로 |
 | `prjStatus[].dsCount` | int | 데이터셋(파일) 수 |
 | `dsStatus[].dsId / fileName` | int/string | 데이터셋 ID / 파일명 |
-| `dsStatus[].procState` | int | 처리 상태 코드 |
+| `dsStatus[].procState` | int | 처리 상태 코드 — **실서버 빌드 기준 완료=`2`(아래 §22.4 문서 표와 상이). 미시작 시 `null` 반환** |
 | `dsStatus[].progressRate` | float | 파일별 진행률 |
 | `dsStatus[].totalFrame` | int | 총 프레임 수 |
 | `dsStatus[].startTime/endTime` | datetime | 처리 시작/종료 시각 |

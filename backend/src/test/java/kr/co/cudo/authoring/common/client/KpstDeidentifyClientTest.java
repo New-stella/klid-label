@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -41,6 +42,16 @@ class KpstDeidentifyClientTest {
     private MockWebServer server;
     private CircuitBreaker circuitBreaker;
 
+    /**
+     * 진행조회(GET+JSON 바디) 전용 모킹 서버 — JDK 내장 {@link com.sun.net.httpserver.HttpServer}.
+     * MockWebServer 4.12 는 {@code GET + body} 를 서버 측에서 거부하므로 진행조회만 이 서버로 모킹한다.
+     */
+    private com.sun.net.httpserver.HttpServer progressServer;
+    /** 진행조회 서버가 마지막으로 수신한 요청(메서드/경로/바디) — 단언용. */
+    private volatile String progressMethod;
+    private volatile String progressPath;
+    private volatile String progressBody;
+
     @TempDir
     Path tempDir;
 
@@ -55,23 +66,69 @@ class KpstDeidentifyClientTest {
                                 .minimumNumberOfCalls(5)
                                 .build())
                 .circuitBreaker("kpstDeid");
+        progressServer = com.sun.net.httpserver.HttpServer.create(
+                new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        progressServer.start();
     }
 
     @AfterEach
     void tearDown() throws IOException {
         server.shutdown();
+        if (progressServer != null) {
+            progressServer.stop(0);
+        }
     }
 
     private WebClient webClient() {
         return WebClient.builder().baseUrl(server.url("/").toString()).build();
     }
 
+    /**
+     * 진행조회 전용 — GET 바디 전송이 가능한 저수준 reactor-netty HttpClient.
+     *
+     * <p>base-url 은 {@link #progressServer}(JDK 내장 HttpServer)를 가리킨다. MockWebServer 4.12 는
+     * {@code GET + body} 요청을 서버 측에서 {@code IllegalArgumentException("Request must not have a
+     * body")} 으로 거부해(요청 자체를 읽지 못함) 진행조회 시나리오를 모킹할 수 없다 — 프로덕션 결함이
+     * 아니라 MockWebServer 의 하네스 한계다. 따라서 진행조회만 GET 바디를 정상 수신하는 JDK 내장
+     * HttpServer 로 모킹한다. read-timeout 을 짧게 둬 어떤 경우에도 무한 대기하지 않는다.
+     */
+    private HttpClient progressHttpClient() {
+        String base = "http://" + progressServer.getAddress().getHostString()
+                + ":" + progressServer.getAddress().getPort();
+        return HttpClient.create().baseUrl(base)
+                .responseTimeout(Duration.ofSeconds(5));
+    }
+
     private RetryRegistry singleAttempt() {
         return RetryRegistry.of(RetryConfig.custom().maxAttempts(1).build());
     }
 
+    /**
+     * 진행조회 서버에 {@code /retrieve_progress} 핸들러를 설치한다.
+     *
+     * <p>핸들러는 메서드/바디와 무관하게 요청 바디 전문을 읽어 기록({@link #progressMethod}/
+     * {@link #progressPath}/{@link #progressBody})한 뒤 즉시 200 + 주어진 JSON 을 응답한다. 바디를
+     * 끝까지 소비하므로 GET+body 요청도 정상 수신되며(클라이언트 read-timeout 없음), 기록된 바디로
+     * "reqUserId/prjId 가 JSON 바디로 전송됨" 을 단언할 수 있다.
+     */
+    private void installProgressDispatcher(String jsonBody) {
+        byte[] respBytes = jsonBody.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        progressServer.createContext("/retrieve_progress", exchange -> {
+            try (exchange) {
+                progressMethod = exchange.getRequestMethod();
+                progressPath = exchange.getRequestURI().getPath();
+                progressBody = new String(exchange.getRequestBody().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, respBytes.length);
+                exchange.getResponseBody().write(respBytes);
+            }
+        });
+    }
+
     private KpstDeidentifyClient client() {
-        return new KpstDeidentifyClient(webClient(), webClient(), circuitBreaker, singleAttempt());
+        return new KpstDeidentifyClient(
+                webClient(), webClient(), progressHttpClient(), circuitBreaker, singleAttempt());
     }
 
     @Test
@@ -153,12 +210,10 @@ class KpstDeidentifyClientTest {
     @Test
     @DisplayName("진행률_조회에서_dataset_procState를_파싱한다")
     void retrieveProgress() {
-        server.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/json")
-                .setBody("{\"result\":\"success\",\"data\":{\"prjCount\":1,\"prjStatus\":[{"
-                        + "\"prjId\":279,\"prjName\":\"projectA\",\"progressRate\":42.5,\"dsCount\":2,"
-                        + "\"dsStatus\":[{\"dsId\":1270,\"fileName\":\"sample1.mp4\",\"procState\":2,"
-                        + "\"progressRate\":100.0,\"totalFrame\":5400}]}]}}"));
+        installProgressDispatcher("{\"result\":\"success\",\"data\":{\"prjCount\":1,\"prjStatus\":[{"
+                + "\"prjId\":279,\"prjName\":\"projectA\",\"progressRate\":42.5,\"dsCount\":2,"
+                + "\"dsStatus\":[{\"dsId\":1270,\"fileName\":\"sample1.mp4\",\"procState\":2,"
+                + "\"progressRate\":100.0,\"totalFrame\":5400}]}]}}");
 
         KpstProgressResponse resp = client().retrieveProgress("user01", 279L);
 
@@ -169,6 +224,43 @@ class KpstDeidentifyClientTest {
         assertThat(ds.dsId()).isEqualTo(1270L);
         assertThat(ds.procState()).isEqualTo(2);
         assertThat(ds.totalFrame()).isEqualTo(5400);
+    }
+
+    @Test
+    @DisplayName("진행조회는_쿼리가_아니라_JSON바디로_reqUserId와_prjId를_전송한다")
+    void retrieveProgressSendsJsonBody() {
+        // given: 실서버는 GET 이라도 JSON 바디 필터를 강제(쿼리 전용은 400 Invalid JSON body).
+        installProgressDispatcher("{\"result\":\"success\",\"data\":{\"prjCount\":1,\"prjStatus\":[{"
+                + "\"prjId\":279,\"prjName\":\"projectA\",\"progressRate\":100.0,\"dsCount\":1,"
+                + "\"dsStatus\":[{\"dsId\":1270,\"fileName\":\"s.mp4\",\"procState\":2,"
+                + "\"progressRate\":100.0,\"totalFrame\":5400}]}]}}");
+
+        // when
+        client().retrieveProgress("user01", 279L);
+
+        // then: 메서드는 GET, 경로는 쿼리스트링 없이 /retrieve_progress, 서버가 수신한 바디에 필터가 실린다.
+        assertThat(progressMethod).isEqualTo("GET");
+        assertThat(progressPath).isEqualTo("/retrieve_progress");
+        assertThat(progressBody).contains("\"reqUserId\":\"user01\"");
+        assertThat(progressBody).contains("\"prjId\":279");
+    }
+
+    @Test
+    @DisplayName("진행조회_미시작_데이터셋의_null_procState와_None시각을_안전하게_역직렬화한다")
+    void retrieveProgressDeserializesNullFields() {
+        // given: 실서버는 처리 미시작 시 procState:null, totalFrame:null, startTime:"None" 을 반환.
+        //  primitive 였다면 FAIL_ON_NULL_FOR_PRIMITIVES 로 역직렬화가 깨짐 — boxed 로 안전 처리.
+        installProgressDispatcher("{\"result\":\"success\",\"data\":{\"prjCount\":1,\"prjStatus\":[{"
+                + "\"prjId\":279,\"prjName\":\"projectA\",\"progressRate\":0.0,\"dsCount\":1,"
+                + "\"dsStatus\":[{\"dsId\":1270,\"fileName\":\"s.mp4\",\"procState\":null,"
+                + "\"progressRate\":0.0,\"totalFrame\":null,\"startTime\":\"None\",\"endTime\":\"None\"}]}]}}");
+
+        KpstProgressResponse resp = client().retrieveProgress("user01", 279L);
+
+        KpstProgressResponse.DsStatus ds = resp.data().prjStatus().get(0).dsStatus().get(0);
+        assertThat(ds.procState()).isNull();
+        assertThat(ds.totalFrame()).isNull();
+        assertThat(ds.startTime()).isEqualTo("None");
     }
 
     @Test
@@ -359,7 +451,7 @@ class KpstDeidentifyClientTest {
         Path f = Files.writeString(tempDir.resolve("ok.mp4"), "video-bytes");
 
         KpstDeidentifyClient retryClient = new KpstDeidentifyClient(
-                webClient(), webClient(), circuitBreaker,
+                webClient(), webClient(), progressHttpClient(), circuitBreaker,
                 RetryRegistry.of(RetryConfig.custom().maxAttempts(2).build()));
         KpstUploadResponse resp = retryClient.upload(List.of(f), "projectA");
 

@@ -64,6 +64,28 @@ public class KpstWebClientConfig {
     }
 
     /**
+     * 진행조회({@code GET /retrieve_progress}) 전용 reactor-netty {@link HttpClient} 빈.
+     *
+     * <p>KPST 실서버는 GET 요청에도 JSON 바디 필터를 강제하나, Spring {@code WebClient} 의
+     * {@code method(GET).bodyValue(...)} 는 reactor-netty 가 GET 바디 바이트를 전송하지 않아(서버가
+     * 본문을 무기한 대기 → 타임아웃) 동작하지 않는다. 따라서 본 빈은 바디 전송이 가능한 저수준
+     * {@code HttpClient.request(GET).send(...)} 경로를 위해 base-url 을 고정 적용해 제공한다.
+     * TLS 자체 CA 신뢰·연결/응답 타임아웃은 {@link #kpstDeidWebClient} 와 동일 구성이다.
+     */
+    @Bean(name = "kpstDeidProgressHttpClient")
+    public HttpClient kpstDeidProgressHttpClient(
+            @Value("${kpst.deid.base-url}") String baseUrl,
+            @Value("${kpst.deid.ca-cert-path:}") String caCertPath) {
+        validateHttps(baseUrl);
+        SslContext sslContext = buildSslContext(caCertPath);
+        return HttpClient.create()
+                .baseUrl(baseUrl.trim())
+                .secure(spec -> spec.sslContext(sslContext))
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
+                .responseTimeout(RESPONSE_TIMEOUT);
+    }
+
+    /**
      * 업로드 전용 WebClient — 동일 TLS 신뢰 구성. 대용량 멀티파트 전송 시 별도 튜닝 여지를 위해 분리.
      */
     @Bean(name = "kpstDeidUploadWebClient")
