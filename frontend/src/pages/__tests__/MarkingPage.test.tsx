@@ -33,7 +33,7 @@ vi.mock('@/features/marking/components/VideoPlayer', () => ({
 
 function setRole(role: 'REVIEWER' | 'WORKER', sub = 'u-7') {
   useAuthStore.setState({
-    token: 'tok',
+    token: 'sample-token',
     claims: { sub, role, channel: 'INTERNAL', exp: 9999999999 },
   });
 }
@@ -49,7 +49,7 @@ describe('MarkingPage', () => {
     useUiStore.setState({ toasts: [] });
     // <video> 서명 URL 발급 mock — 모든 테스트 공통.
     mock.onGet(/\/videos\/42\/stream-url/).reply(200, {
-      url: '/api/v1/videos/42/stream?exp=9999999999&sig=deadbeef',
+      url: '/api/v1/videos/42/stream?exp=9999999999&sig=testsig',
       expiresAt: 9999999999,
       ttlSeconds: 60,
     });
@@ -91,12 +91,9 @@ describe('MarkingPage', () => {
       expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
     });
 
-    // when: 이벤트명 입력 후 "자동" 모드에서 제출
+    // when: "자동" 모드에서 제출 (이벤트명 입력 없음 — evntTypeCd 자동 소싱)
     const user = userEvent.setup();
-    const eventInput = screen.getByPlaceholderText('이벤트명');
     await user.click(screen.getByText('자동'));
-    await user.clear(eventInput);
-    await user.type(eventInput, '화재');
 
     // "마킹 완료" 버튼 클릭
     const submitBtn = screen.getByRole('button', { name: /마킹 완료/ });
@@ -117,6 +114,8 @@ describe('MarkingPage', () => {
     // 과거엔 `markingMode` 를 보내 BE @NotBlank mode 검증에 걸려 항상 400 이 발생했다.
     expect(postBody.mode).toBe('AUTO');
     expect(postBody).not.toHaveProperty('markingMode');
+    // 이벤트명은 영상의 evntTypeCd 에서 서버가 자동 소싱하므로 요청 페이로드에 없어야 한다.
+    expect(postBody).not.toHaveProperty('eventName');
   });
 
   it('I2_수동모드_제출시_요청_페이로드_mode_MANUAL_marks_직렬화', async () => {
@@ -148,12 +147,9 @@ describe('MarkingPage', () => {
       expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
     });
 
-    // when: 수동 모드 + 이벤트명 입력 + 마킹 1건 추가 후 제출
+    // when: 수동 모드 + 마킹 1건 추가 후 제출 (이벤트명 입력 없음 — 자동 소싱)
     const user = userEvent.setup();
     await user.click(screen.getByText('수동'));
-    const eventInput = screen.getByPlaceholderText('이벤트명');
-    await user.clear(eventInput);
-    await user.type(eventInput, '침입');
     // 수동 마킹 1건 추가 (스토어 직접 주입 — VideoPlayer stub 으로 키 이벤트 경로 우회)
     useMarkingStore.getState().addMark({ frameIndex: 0, timestamp: '00:00' });
 
@@ -165,7 +161,60 @@ describe('MarkingPage', () => {
       expect(postBody.mode).toBe('MANUAL');
     });
     expect(postBody).not.toHaveProperty('markingMode');
+    expect(postBody).not.toHaveProperty('eventName');
     expect(postBody.marks).toEqual([{ frameIndex: 0, timestamp: '00:00' }]);
+  });
+
+  it('이벤트유형없는영상_400응답시_에러토스트_표시_및_이동안함', async () => {
+    // given: WORKER 로그인 + 마킹 저장 API 가 400(INVALID_INPUT) 반환
+    // (evntTypeCd 가 null/blank 인 영상에서 BE 가 내려주는 응답)
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    mock.onPost(/\/videos\/42\/markings/).reply(400, {
+      success: false,
+      data: null,
+      message: '이벤트 유형이 지정되지 않은 영상입니다.',
+      errorCode: 'INVALID_INPUT',
+    });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    await waitFor(() => {
+      expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
+    });
+
+    // when: 자동 모드 제출 → BE 400
+    const user = userEvent.setup();
+    await user.click(screen.getByText('자동'));
+    await user.click(screen.getByRole('button', { name: /마킹 완료/ }));
+
+    // then: 에러 토스트(variant:'error')가 추가되어야 한다 (BE 메시지 노출)
+    await waitFor(() => {
+      const toasts = useUiStore.getState().toasts;
+      expect(
+        toasts.some(
+          (t) => t.variant === 'error' && t.message.includes('이벤트 유형'),
+        ),
+      ).toBe(true);
+    });
+
+    // then: 실패 시 /task 로 이동하지 않는다
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('저장된_마킹_목록이_렌더되지_않는다', async () => {
+    // given: WORKER 로그인 — 마킹 목록(MarkingList) 은 더 이상 화면에 표시되지 않는다.
+    setRole('WORKER');
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    await waitFor(() => {
+      expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
+    });
+
+    // then: "저장된 마킹" 섹션 헤더가 없어야 한다.
+    expect(screen.queryByText('저장된 마킹')).not.toBeInTheDocument();
+    expect(screen.queryByText('저장된 마킹이 없습니다.')).not.toBeInTheDocument();
   });
 
   it('I3_재생전_서명URL_발급후_video_src에_서명URL_설정', async () => {
@@ -181,7 +230,7 @@ describe('MarkingPage', () => {
     await waitFor(() => {
       const stub = screen.getByTestId('video-player-stub');
       expect(stub.getAttribute('data-src')).toBe(
-        '/api/v1/videos/42/stream?exp=9999999999&sig=deadbeef',
+        '/api/v1/videos/42/stream?exp=9999999999&sig=testsig',
       );
     });
   });

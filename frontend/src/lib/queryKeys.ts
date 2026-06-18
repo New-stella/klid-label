@@ -108,7 +108,6 @@ export const AUTOLABEL_KEYS = {
 
 export const MARKING_KEYS = {
   all: ['markings'] as const,
-  byVideo: (rawSn: number) => [...MARKING_KEYS.all, 'video', rawSn] as const,
 };
 
 export const STAT_KEYS = {

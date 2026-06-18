@@ -3,10 +3,8 @@ import type { MarkingMode } from '../types';
 
 interface MarkingToolbarProps {
   mode: MarkingMode;
-  eventName: string;
   intervalFrames: number;
   onModeChange: (mode: MarkingMode) => void;
-  onEventNameChange: (name: string) => void;
   onIntervalFramesChange: (frames: number) => void;
   onSubmit: () => void;
   onClear: () => void;
@@ -17,10 +15,8 @@ interface MarkingToolbarProps {
 
 export function MarkingToolbar({
   mode,
-  eventName,
   intervalFrames,
   onModeChange,
-  onEventNameChange,
   onIntervalFramesChange,
   onSubmit,
   onClear,
@@ -28,6 +24,10 @@ export function MarkingToolbar({
   markCount,
   className,
 }: MarkingToolbarProps) {
+  // 이벤트명은 영상의 evntTypeCd 에서 자동 소싱되므로 입력 가드가 없다.
+  // 완료 버튼 비활성화 기준: 수동=마크 0건, 자동=intervalFrames 무효(1 미만).
+  const disabled =
+    submitting || (mode === 'MANUAL' ? markCount === 0 : intervalFrames < 1);
   return (
     <div className={cn('flex flex-wrap items-center gap-3 p-3 bg-white border rounded-lg', className)}>
       <div className="flex items-center gap-1">
@@ -52,14 +52,6 @@ export function MarkingToolbar({
           수동
         </button>
       </div>
-
-      <input
-        type="text"
-        placeholder="이벤트명"
-        value={eventName}
-        onChange={(e) => onEventNameChange(e.target.value)}
-        className="w-40 rounded border px-2 py-1.5 text-sm"
-      />
 
       {mode === 'AUTO' && (
         <label className="flex items-center gap-1 text-sm text-gray-600">
@@ -93,10 +85,10 @@ export function MarkingToolbar({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={submitting || !eventName.trim()}
+          disabled={disabled}
           className={cn(
             'rounded px-4 py-1.5 text-sm font-medium text-white transition-colors',
-            submitting || !eventName.trim()
+            disabled
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700',
           )}

@@ -70,6 +70,14 @@ public class MarkingService {
                     "비식별이 완료된 영상에서만 마킹할 수 있습니다.");
         }
 
+        // 1-2. 이벤트명 자동 소싱 (API-047 계약 변경) — 더 이상 요청으로 받지 않고
+        // 영상의 이벤트 유형(EVNT_TYPE_CD)을 그대로 사용한다. 미지정 영상은 마킹 불가.
+        String eventName = raw.getEvntTypeCd();
+        if (eventName == null || eventName.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "이벤트 유형이 지정되지 않은 영상은 마킹할 수 없습니다.");
+        }
+
         // 2. 마킹 모드에 따른 처리
         String marksJson;
         if ("AUTO".equals(req.mode())) {
@@ -89,8 +97,8 @@ public class MarkingService {
         // 3. Entity 생성 + 저장
         Long actorNo = parseUserNo(actor.sub());
         LsMarking marking = "AUTO".equals(req.mode())
-                ? LsMarking.createAuto(rawSn, req.eventName(), req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo)
-                : LsMarking.createManual(rawSn, req.eventName(), raw.getRawFilePathNm(), marksJson, actorNo);
+                ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo)
+                : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo);
         markingRepository.save(marking);
 
         log.info("[Marking] created rawSn={}, mode={}, markingSn={}", rawSn, req.mode(), marking.getMarkingSn());

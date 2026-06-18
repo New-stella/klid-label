@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { MarkingList } from '@/features/marking/components/MarkingList';
 import { MarkingTimeline } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
-import { useCreateMarking, useDeleteMarking, useMarkings } from '@/features/marking/hooks/useMarkings';
+import { useCreateMarking } from '@/features/marking/hooks/useMarkings';
+import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { useMarkingStore } from '@/features/marking/store';
 import type { MarkItem, MarkingMode } from '@/features/marking/types';
 import { useStreamUrl } from '@/features/video/hooks/useStreamUrl';
@@ -24,8 +24,8 @@ export function MarkingPage() {
   // 영상 메타데이터 로드 전에는 fallback(60s), 로드되면 실제 길이로 갱신.
   const [durationSec, setDurationSec] = useState(FALLBACK_DURATION_SEC);
   const {
-    mode, eventName, intervalFrames, localMarks, selectedMarkIndex,
-    setMode, setEventName, setIntervalFrames, addMark, selectMark,
+    mode, intervalFrames, localMarks, selectedMarkIndex,
+    setMode, setIntervalFrames, addMark, selectMark,
     removeSelectedMark, clearMarks, reset,
   } = useMarkingStore();
 
@@ -43,15 +43,24 @@ export function MarkingPage() {
     });
   }, [refetchStreamUrl]);
 
-  const { data: savedMarkings = [] } = useMarkings(rawSn);
   const createMutation = useCreateMarking(rawSn, {
     onSuccess: () => {
       clearMarks();
       pushToast({ variant: 'success', message: '마킹이 제출되었습니다. 배치 처리가 시작됩니다.' });
       navigate('/task');
     },
+    // 이벤트 유형(evntTypeCd)이 없는 영상이면 BE 가 400(INVALID_INPUT)을 내린다.
+    // onError 가 없으면 조용히 실패하므로 에러 토스트로 사용자에게 알린다.
+    onError: (err) => {
+      pushToast({
+        variant: 'error',
+        message: extractBeMessage(
+          err,
+          '마킹 생성에 실패했습니다. 이벤트 유형이 없는 영상일 수 있습니다.',
+        ),
+      });
+    },
   });
-  const deleteMutation = useDeleteMarking(rawSn);
 
   useEffect(() => {
     reset();
@@ -74,22 +83,22 @@ export function MarkingPage() {
   }, [addMark]);
 
   const handleSubmit = useCallback(() => {
-    if (!eventName.trim() || rawSn === undefined) return;
+    if (rawSn === undefined) return;
+    // 이벤트명은 영상의 evntTypeCd 에서 서버가 자동 소싱하므로 요청에 포함하지 않는다.
     if (mode === 'AUTO') {
+      if (!intervalFrames || intervalFrames < 1) return;
       createMutation.mutate({
-        eventName: eventName.trim(),
         mode: 'AUTO',
         intervalFrames,
       });
     } else {
       if (localMarks.length === 0) return;
       createMutation.mutate({
-        eventName: eventName.trim(),
         mode: 'MANUAL',
         marks: localMarks,
       });
     }
-  }, [eventName, mode, intervalFrames, localMarks, rawSn, createMutation]);
+  }, [mode, intervalFrames, localMarks, rawSn, createMutation]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -144,10 +153,8 @@ export function MarkingPage() {
 
       <MarkingToolbar
         mode={mode}
-        eventName={eventName}
         intervalFrames={intervalFrames}
         onModeChange={(m: MarkingMode) => setMode(m)}
-        onEventNameChange={setEventName}
         onIntervalFramesChange={setIntervalFrames}
         onSubmit={handleSubmit}
         onClear={clearMarks}
@@ -176,12 +183,6 @@ export function MarkingPage() {
           </div>
         </div>
       )}
-
-      <MarkingList
-        markings={savedMarkings}
-        onDelete={(sn) => deleteMutation.mutate(sn)}
-        deleting={deleteMutation.isPending}
-      />
     </div>
   );
 }

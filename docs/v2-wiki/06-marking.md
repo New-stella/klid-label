@@ -10,6 +10,7 @@
 영상에서 **이벤트(관심 시점)를 자동/수동으로 표시**하는 단계. 마킹 결과는 외부 VLM 시계열 콜백 트리거가 되고, FFmpeg 프레임 추출 위치의 기준이 된다.
 
 - 마킹 결과 = **이벤트명 + 영상 경로 + marks 배열** (`LS_MARKING.MARK_CN` JSON)
+- **이벤트명은 수동 입력하지 않는다** — 영상의 이벤트 유형(`LS_DATA_RAW.EVNT_TYPE_CD`, 적재 시 MNG_CLIP_EVNT_LST 조인으로 보존)을 서버가 자동 소싱해 `LS_MARKING.EVNT_NM` 에 채운다(API-047 계약 변경). 이벤트 유형이 미지정(null/blank)인 영상은 마킹할 수 없다(`INVALID_INPUT` 400). VLM 전달 페이로드 형식은 무변경(자동 소싱된 값을 `EVNT_NM` 으로 그대로 전달)
 - 마킹 대상: **비식별 영상** (구현됨, NFR-001 v1.5). 적재 직후 선두 비식별이 완료(`LsDataRaw.dataSttsCd=MARKING_READY`, `deIdntfYn='Y'`)된 영상만 마킹 진입 → [08](08-deidentification.md)
 
 ## 6.2 자동 / 수동 모드
@@ -26,6 +27,9 @@
 - **비식별 영상** 스트리밍 재생 (`GET /v1/videos/{rawSn}/stream`, HTTP Range — 항상 비식별 영상 서빙, 비식별 미완료 시 NOT_FOUND 로 원본 노출 차단) → [05](05-video-management.md#53-영상-스트리밍)
 - **배속 설정 0.25x ~ 4x**
 - **키보드 단축키**: `Space`(마킹), `Del`(삭제), `Enter`(완료)
+- **이벤트명 입력란 없음** — 영상의 이벤트 유형(`EVNT_TYPE_CD`)에서 자동 소싱(6.1)
+- **'저장된 마킹 목록'(MarkingList) 없음** — 화면은 현재 작업 중 마크(타임라인/마크 칩)만 표시. GET/DELETE 마킹 API 는 백엔드에 유지하나 마킹 화면은 사용하지 않음
+- **완료 버튼 활성 조건**: 수동=마크 1건 이상, 자동=intervalFrames 유효(1 이상)
 - 비식별 누락 신고: 라벨링 단계(srcSn 기준)는 구현됨, **마킹 단계(rawSn 기준 `POST /v1/videos/{rawSn}/deident-report`)는 planned(미구현)** → [08](08-deidentification.md#84-누락-신고-rq-sfr-09-03-uc-016)
 
 ## 6.4 마킹 완료 → 배치 자동 시작

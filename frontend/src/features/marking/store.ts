@@ -3,13 +3,11 @@ import type { MarkItem, MarkingMode } from './types';
 
 interface MarkingState {
   mode: MarkingMode;
-  eventName: string;
   intervalFrames: number;
   localMarks: MarkItem[];
   selectedMarkIndex: number | null;
 
   setMode: (mode: MarkingMode) => void;
-  setEventName: (name: string) => void;
   setIntervalFrames: (frames: number) => void;
   addMark: (mark: MarkItem) => void;
   removeMark: (index: number) => void;
@@ -21,13 +19,11 @@ interface MarkingState {
 
 export const useMarkingStore = create<MarkingState>((set, get) => ({
   mode: 'MANUAL',
-  eventName: '',
   intervalFrames: 30,
   localMarks: [],
   selectedMarkIndex: null,
 
   setMode: (mode) => set({ mode, localMarks: [], selectedMarkIndex: null }),
-  setEventName: (name) => set({ eventName: name }),
   setIntervalFrames: (frames) => set({ intervalFrames: Math.max(1, frames) }),
 
   addMark: (mark) => {
@@ -58,7 +54,6 @@ export const useMarkingStore = create<MarkingState>((set, get) => ({
   reset: () =>
     set({
       mode: 'MANUAL',
-      eventName: '',
       intervalFrames: 30,
       localMarks: [],
       selectedMarkIndex: null,

@@ -98,14 +98,15 @@ class MarkingServiceTest {
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // intervalFrames=300 (30fps * 10sec)
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
 
         // then
         assertThat(result.markingMode()).isEqualTo("AUTO");
-        assertThat(result.eventName()).isEqualTo("화재");
+        // 이벤트명은 요청이 아니라 영상의 evntTypeCd(EVT-A)에서 자동 소싱된다.
+        assertThat(result.eventName()).isEqualTo("EVT-A");
         assertThat(result.intervalFrames()).isEqualTo(300);
         // 30초 * 30fps = 900 totalFrames / 300 intervalFrames → 0, 300, 600 = 3개 마크
         // (BE-1 off-by-one 수정: 끝 경계 프레임 900 은 미포함 — frameIndex < totalFrames)
@@ -132,14 +133,15 @@ class MarkingServiceTest {
                 new MarkItem(10, "00:05"),
                 new MarkItem(50, "00:10")
         );
-        MarkingRequest req = new MarkingRequest("침입", "MANUAL", null, marks);
+        MarkingRequest req = new MarkingRequest("MANUAL", null, marks);
 
         // when
         MarkingResponse result = markingService.create(rawSn, req, worker());
 
         // then
         assertThat(result.markingMode()).isEqualTo("MANUAL");
-        assertThat(result.eventName()).isEqualTo("침입");
+        // 이벤트명은 영상의 evntTypeCd(EVT-A)에서 자동 소싱된다.
+        assertThat(result.eventName()).isEqualTo("EVT-A");
         assertThat(result.intervalFrames()).isNull();
         assertThat(result.marks()).hasSize(2);
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(10);
@@ -206,7 +208,7 @@ class MarkingServiceTest {
         // given
         Long rawSn = 999L;
         when(videoRepository.findById(rawSn)).thenReturn(Optional.empty());
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 30, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 30, null);
 
         // when / then
         assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
@@ -272,7 +274,7 @@ class MarkingServiceTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when
         markingService.create(rawSn, req, reviewer());
@@ -293,7 +295,7 @@ class MarkingServiceTest {
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // intervalFrames=30 (1초 단위)
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 30, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 30, null);
 
         // when
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
@@ -316,7 +318,7 @@ class MarkingServiceTest {
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // intervalFrames=60 (2초 단위)
-        MarkingRequest req = new MarkingRequest("침입", "AUTO", 60, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 60, null);
 
         // when
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
@@ -338,7 +340,7 @@ class MarkingServiceTest {
         Long rawSn = 7L;
         when(assignmentRepository.existsByUserNoAndTaskTypeCdAndRawDataId(100L, LsTaskAssignment.TASK_LABELER, rawSn))
                 .thenReturn(false);
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then — 영상 조회 이전에 FORBIDDEN
         assertThatThrownBy(() -> markingService.create(rawSn, req, worker()))
@@ -372,7 +374,7 @@ class MarkingServiceTest {
         LsDataRaw raw = stubRawNotDeidentified(rawSn, 60);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
         assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
@@ -390,12 +392,52 @@ class MarkingServiceTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
 
         assertThat(result.markingMode()).isEqualTo("AUTO");
         verify(markingRepository).save(any(LsMarking.class));
+    }
+
+    // ── 이벤트명 자동 소싱 (API-047) ──
+
+    @Test
+    @DisplayName("이벤트유형_null인_영상_마킹생성시_INVALID_INPUT")
+    void createOnVideoWithoutEventTypeRejected() {
+        // given — evntTypeCd 가 null 인 비식별 완료 영상
+        Long rawSn = 60L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        org.springframework.test.util.ReflectionTestUtils.setField(raw, "evntTypeCd", null);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when / then — 이벤트 유형 미지정 영상은 마킹 불가
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(markingRepository, never()).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("이벤트유형_blank인_영상_마킹생성시_INVALID_INPUT")
+    void createOnVideoWithBlankEventTypeRejected() {
+        // given — evntTypeCd 가 공백인 비식별 완료 영상
+        Long rawSn = 61L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        org.springframework.test.util.ReflectionTestUtils.setField(raw, "evntTypeCd", "   ");
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when / then
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(markingRepository, never()).save(any(LsMarking.class));
     }
 
     @Test
@@ -406,7 +448,7 @@ class MarkingServiceTest {
         LsDataRaw raw = stubRaw(rawSn, 60);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 0, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 0, null);
 
         // when / then
         assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
@@ -426,7 +468,7 @@ class MarkingServiceTest {
         org.springframework.test.util.ReflectionTestUtils.setField(raw, "durationSec", null);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then — 퇴화(단건 생성) 대신 명시적 거부
         assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
@@ -445,7 +487,7 @@ class MarkingServiceTest {
         LsDataRaw raw = stubRaw(rawSn, 0);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
         assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
@@ -464,7 +506,7 @@ class MarkingServiceTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
@@ -488,7 +530,7 @@ class MarkingServiceTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 30, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 30, null);
 
         // when
         MarkingResponse result = markingService.create(rawSn, req, reviewer());

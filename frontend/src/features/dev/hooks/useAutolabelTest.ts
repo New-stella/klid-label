@@ -1,7 +1,12 @@
 import { useMutation } from '@tanstack/react-query';
 
+import { extractBeMessage } from '@/lib/api/extractBeMessage';
+
 import { uploadAutolabelTest } from '../api';
 import type { AutolabelTestMeta, AutolabelTestResult } from '../types';
+
+// 공용 에러 메시지 추출기를 재노출 — 기존 import 경로(useAutolabelTest) 호환 유지.
+export { extractBeMessage };
 
 export interface UseAutolabelTestOptions {
   onSuccess?: (data: AutolabelTestResult) => void;
@@ -30,32 +35,3 @@ export function useAutolabelTest(opts?: UseAutolabelTestOptions) {
   });
 }
 
-/**
- * BE 가 ApiResponse.message 로 내려준 사람 친화적 에러 메시지를 안전하게 추출한다.
- *
- * - `ApiError.userMessage` 또는 `ApiError.message` 우선
- * - axios 에러 형태(`err.response.data.message`) 보조
- * - 위 두 경로 모두 미존재 시 fallback
- *
- * 보안: BE GlobalExceptionHandler 가 내부 경로/스택트레이스를 미노출하도록 보장.
- * 본 함수는 추출만 담당하고, JSX 렌더링은 React 자동 이스케이프에 위임 (XSS 방어).
- */
-export function extractBeMessage(err: unknown, fallback: string): string {
-  if (typeof err === 'object' && err !== null) {
-    // ApiError (lib/api/errors.ts) — userMessage/message 우선
-    const e = err as { userMessage?: unknown; message?: unknown; response?: { data?: unknown } };
-    if (typeof e.userMessage === 'string' && e.userMessage.trim() !== '') {
-      return e.userMessage;
-    }
-    if (typeof e.message === 'string' && e.message.trim() !== '' && e.message !== 'ApiError') {
-      return e.message;
-    }
-    // axios 원본 응답 (인터셉터 우회 케이스 대비)
-    const data = e.response?.data;
-    if (typeof data === 'object' && data !== null && 'message' in data) {
-      const m = (data as { message?: unknown }).message;
-      if (typeof m === 'string' && m.trim() !== '') return m;
-    }
-  }
-  return fallback;
-}

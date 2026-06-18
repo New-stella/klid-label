@@ -6,10 +6,8 @@ import { MarkingToolbar } from '../MarkingToolbar';
 describe('MarkingToolbar intervalFrames', () => {
   const defaultProps = {
     mode: 'AUTO' as const,
-    eventName: '화재',
     intervalFrames: 30,
     onModeChange: vi.fn(),
-    onEventNameChange: vi.fn(),
     onIntervalFramesChange: vi.fn(),
     onSubmit: vi.fn(),
     onClear: vi.fn(),
@@ -33,5 +31,37 @@ describe('MarkingToolbar intervalFrames', () => {
 
     // then: max 속성이 3600 이어야 한다
     expect(input).toHaveAttribute('max', '3600');
+  });
+
+  it('이벤트명_입력란이_없다_자동소싱', () => {
+    // given — 이벤트명은 영상의 evntTypeCd 에서 자동 소싱되므로 입력란이 없어야 한다.
+    render(<MarkingToolbar {...defaultProps} />);
+
+    // when & then
+    expect(screen.queryByPlaceholderText('이벤트명')).not.toBeInTheDocument();
+  });
+
+  it('자동모드_완료버튼_활성화_intervalFrames유효', () => {
+    // given — 이벤트명 가드가 사라졌으므로 자동 모드는 intervalFrames 유효 시 활성화.
+    render(<MarkingToolbar {...defaultProps} />);
+
+    // when & then
+    expect(screen.getByRole('button', { name: /마킹 완료/ })).toBeEnabled();
+  });
+
+  it('수동모드_완료버튼_마크0건이면_비활성화', () => {
+    // given
+    render(<MarkingToolbar {...defaultProps} mode="MANUAL" markCount={0} />);
+
+    // when & then
+    expect(screen.getByRole('button', { name: /마킹 완료/ })).toBeDisabled();
+  });
+
+  it('수동모드_완료버튼_마크1건이상이면_활성화', () => {
+    // given
+    render(<MarkingToolbar {...defaultProps} mode="MANUAL" markCount={1} />);
+
+    // when & then
+    expect(screen.getByRole('button', { name: /마킹 완료/ })).toBeEnabled();
   });
 });

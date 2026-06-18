@@ -82,7 +82,7 @@ class MarkingControllerTest {
     @DisplayName("POST_마킹_자동모드_생성_201")
     void createAutoMode201() throws Exception {
         // given — intervalFrames=300 (30fps * 10sec), durationSec=60
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
         mockMvc.perform(post("/v1/videos/" + rawSn + "/markings")
@@ -92,7 +92,8 @@ class MarkingControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.markingMode").value("AUTO"))
-                .andExpect(jsonPath("$.data.eventName").value("화재"))
+                // 이벤트명은 요청이 아니라 영상의 evntTypeCd(FIRE)에서 자동 소싱된다.
+                .andExpect(jsonPath("$.data.eventName").value("FIRE"))
                 .andExpect(jsonPath("$.data.intervalFrames").value(300))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.marks").isArray())
@@ -114,7 +115,7 @@ class MarkingControllerTest {
                 new MarkItem(150, "00:05"),
                 new MarkItem(300, "00:10")
         );
-        MarkingRequest req = new MarkingRequest("침입", "MANUAL", null, marks);
+        MarkingRequest req = new MarkingRequest("MANUAL", null, marks);
 
         // when / then
         mockMvc.perform(post("/v1/videos/" + rawSn + "/markings")
@@ -124,7 +125,8 @@ class MarkingControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.markingMode").value("MANUAL"))
-                .andExpect(jsonPath("$.data.eventName").value("침입"))
+                // 이벤트명은 영상의 evntTypeCd(FIRE)에서 자동 소싱된다.
+                .andExpect(jsonPath("$.data.eventName").value("FIRE"))
                 .andExpect(jsonPath("$.data.marks.length()").value(3))
                 .andExpect(jsonPath("$.data.marks[0].frameIndex").value(0))
                 .andExpect(jsonPath("$.data.marks[2].frameIndex").value(300));
@@ -199,7 +201,7 @@ class MarkingControllerTest {
     void createNonExistentVideo404() throws Exception {
         // given
         Long nonExistentRawSn = 999999L;
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 10, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 10, null);
 
         // when / then
         mockMvc.perform(post("/v1/videos/" + nonExistentRawSn + "/markings")
@@ -211,13 +213,20 @@ class MarkingControllerTest {
     }
 
     @Test
-    @DisplayName("POST_eventName_빈값_400")
-    void createBlankEventName400() throws Exception {
-        // given
-        MarkingRequest req = new MarkingRequest("", "AUTO", 10, null);
+    @DisplayName("POST_이벤트유형_미지정_영상_400")
+    void createOnVideoWithoutEventType400() throws Exception {
+        // given — evntTypeCd 가 없는 비식별 완료 영상 (이벤트 유형 자동 소싱 불가)
+        LsDataRaw noEventRaw = LsDataRaw.createFromIngest(
+                "CLIP-NOEVT-" + System.nanoTime(), "CCTV-003", null, "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/noevt.mp4",
+                LocalDateTime.now(), 60);
+        noEventRaw.markDeidentified("Y");
+        noEventRaw = videoRepository.save(noEventRaw);
 
-        // when / then
-        mockMvc.perform(post("/v1/videos/" + rawSn + "/markings")
+        MarkingRequest req = new MarkingRequest("AUTO", 10, null);
+
+        // when / then — 이벤트 유형 미지정 영상은 마킹 불가(400)
+        mockMvc.perform(post("/v1/videos/" + noEventRaw.getRawSn() + "/markings")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -229,7 +238,7 @@ class MarkingControllerTest {
     @DisplayName("미인증_요청_401")
     void unauthenticated401() throws Exception {
         // given
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 10, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 10, null);
 
         // when / then — Authorization 헤더 없이 요청
         mockMvc.perform(post("/v1/videos/" + rawSn + "/markings")
@@ -244,7 +253,7 @@ class MarkingControllerTest {
     @DisplayName("I4_타인배정_영상_마킹생성_미배정_WORKER_403")
     void createMarkingUnassignedWorkerForbidden() throws Exception {
         // given — otherWorkerToken(sub=200) 은 이 영상의 LABELER 가 아니다 (배정자는 sub=100)
-        MarkingRequest req = new MarkingRequest("화재", "AUTO", 300, null);
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then — 미배정 WORKER 의 마킹 생성은 403
         mockMvc.perform(post("/v1/videos/" + rawSn + "/markings")
@@ -288,7 +297,7 @@ class MarkingControllerTest {
     @DisplayName("I4_본인배정_영상_마킹생성_WORKER_201")
     void createMarkingAssignedWorkerOk() throws Exception {
         // given — workerToken(sub=100) 본인 배정 영상
-        MarkingRequest req = new MarkingRequest("침입", "MANUAL", null,
+        MarkingRequest req = new MarkingRequest("MANUAL", null,
                 List.of(new MarkItem(0, "00:00")));
 
         // when / then — 본인 배정 WORKER 의 마킹 생성은 201
