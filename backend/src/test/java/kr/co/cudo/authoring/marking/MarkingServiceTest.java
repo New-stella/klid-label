@@ -150,59 +150,6 @@ class MarkingServiceTest {
     }
 
     @Test
-    @DisplayName("마킹_조회_정상_영상별_목록")
-    void listMarkings() {
-        // given
-        Long rawSn = 1L;
-        LsDataRaw raw = stubRaw(rawSn, 30);
-        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
-
-        LsMarking m1 = LsMarking.createAuto(rawSn, "화재", 5, "/path", "[]", 1L);
-        LsMarking m2 = LsMarking.createManual(rawSn, "침입", "/path", "[]", 1L);
-        when(markingRepository.findByRawSnOrderByRegDtDesc(rawSn)).thenReturn(List.of(m1, m2));
-
-        // when
-        List<MarkingResponse> result = markingService.list(rawSn, reviewer());
-
-        // then
-        assertThat(result).hasSize(2);
-    }
-
-    @Test
-    @DisplayName("마킹_단건_조회_정상")
-    void getSingleMarking() {
-        // given
-        Long rawSn = 1L;
-        Long markingSn = 10L;
-        LsMarking marking = LsMarking.createAuto(rawSn, "화재", 5, "/path", "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]", 1L);
-        when(markingRepository.findById(markingSn)).thenReturn(Optional.of(marking));
-
-        // when
-        MarkingResponse result = markingService.get(rawSn, markingSn, reviewer());
-
-        // then
-        assertThat(result.eventName()).isEqualTo("화재");
-        assertThat(result.rawSn()).isEqualTo(rawSn);
-    }
-
-    @Test
-    @DisplayName("마킹_단건_조회_다른영상_마킹이면_FORBIDDEN")
-    void getMarkingDifferentVideoForbidden() {
-        // given
-        Long rawSn = 1L;
-        Long otherRawSn = 999L;
-        Long markingSn = 10L;
-        LsMarking marking = LsMarking.createAuto(otherRawSn, "화재", 5, "/path", "[]", 1L);
-        when(markingRepository.findById(markingSn)).thenReturn(Optional.of(marking));
-
-        // when / then
-        assertThatThrownBy(() -> markingService.get(rawSn, markingSn, reviewer()))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
-    }
-
-    @Test
     @DisplayName("미존재_영상_마킹생성시_NOT_FOUND")
     void createNonExistentVideoNotFound() {
         // given
@@ -215,54 +162,6 @@ class MarkingServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("미존재_마킹_조회시_NOT_FOUND")
-    void getNonExistentMarkingNotFound() {
-        // given
-        Long rawSn = 1L;
-        Long markingSn = 999L;
-        when(markingRepository.findById(markingSn)).thenReturn(Optional.empty());
-
-        // when / then
-        assertThatThrownBy(() -> markingService.get(rawSn, markingSn, reviewer()))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("마킹_삭제_정상")
-    void deleteMarking() {
-        // given
-        Long rawSn = 1L;
-        Long markingSn = 10L;
-        LsMarking marking = LsMarking.createAuto(rawSn, "화재", 5, "/path", "[]", 1L);
-        when(markingRepository.findById(markingSn)).thenReturn(Optional.of(marking));
-
-        // when
-        markingService.delete(rawSn, markingSn);
-
-        // then
-        verify(markingRepository).delete(marking);
-    }
-
-    @Test
-    @DisplayName("마킹_삭제_다른영상_마킹이면_FORBIDDEN")
-    void deleteMarkingDifferentVideoForbidden() {
-        // given
-        Long rawSn = 1L;
-        Long otherRawSn = 999L;
-        Long markingSn = 10L;
-        LsMarking marking = LsMarking.createAuto(otherRawSn, "화재", 5, "/path", "[]", 1L);
-        when(markingRepository.findById(markingSn)).thenReturn(Optional.of(marking));
-
-        // when / then
-        assertThatThrownBy(() -> markingService.delete(rawSn, markingSn))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -344,21 +243,6 @@ class MarkingServiceTest {
 
         // when / then — 영상 조회 이전에 FORBIDDEN
         assertThatThrownBy(() -> markingService.create(rawSn, req, worker()))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
-    }
-
-    @Test
-    @DisplayName("I4_미배정_WORKER_마킹목록조회_FORBIDDEN")
-    void listUnassignedWorkerForbidden() {
-        // given — WORKER(100) 가 미배정 영상의 마킹 목록 조회 시도
-        Long rawSn = 8L;
-        when(assignmentRepository.existsByUserNoAndTaskTypeCdAndRawDataId(100L, LsTaskAssignment.TASK_LABELER, rawSn))
-                .thenReturn(false);
-
-        // when / then
-        assertThatThrownBy(() -> markingService.list(rawSn, worker()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);

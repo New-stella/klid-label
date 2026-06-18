@@ -110,30 +110,6 @@ public class MarkingService {
     }
 
     /**
-     * 영상별 마킹 목록 조회. 본인 배정 검증 (CWE-639 수평 권한 상승 차단).
-     */
-    public List<MarkingResponse> list(Long rawSn, TokenClaims actor) {
-        requireAssignedOrReviewer(rawSn, actor);
-        videoRepository.findById(rawSn)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
-        return markingRepository.findByRawSnOrderByRegDtDesc(rawSn)
-                .stream().map(m -> MarkingResponse.from(m, objectMapper)).toList();
-    }
-
-    /**
-     * 마킹 단건 조회. 본인 배정 검증(CWE-639 수평 권한 상승) + rawSn 일치 검증(IDOR).
-     */
-    public MarkingResponse get(Long rawSn, Long markingSn, TokenClaims actor) {
-        requireAssignedOrReviewer(rawSn, actor);
-        LsMarking marking = markingRepository.findById(markingSn)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "마킹을 찾을 수 없습니다."));
-        if (!marking.getRawSn().equals(rawSn)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "해당 영상의 마킹이 아닙니다.");
-        }
-        return MarkingResponse.from(marking, objectMapper);
-    }
-
-    /**
      * 영상 단위 접근 가드 (CWE-639 수평 권한 상승 차단).
      *
      * <p>REVIEWER 는 전체 허용. WORKER 는 본인이 LABELER 로 배정된 rawSn 만 허용한다.
@@ -155,20 +131,6 @@ public class MarkingService {
         if (!assigned) {
             throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정된 영상의 마킹만 접근할 수 있습니다.");
         }
-    }
-
-    /**
-     * 마킹 삭제. rawSn 일치 검증 (CWE-639 IDOR 방어).
-     */
-    @Transactional("controlTransactionManager")
-    public void delete(Long rawSn, Long markingSn) {
-        LsMarking marking = markingRepository.findById(markingSn)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "마킹을 찾을 수 없습니다."));
-        if (!marking.getRawSn().equals(rawSn)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "해당 영상의 마킹이 아닙니다.");
-        }
-        markingRepository.delete(marking);
-        log.info("[Marking] deleted rawSn={}, markingSn={}", rawSn, markingSn);
     }
 
     /**

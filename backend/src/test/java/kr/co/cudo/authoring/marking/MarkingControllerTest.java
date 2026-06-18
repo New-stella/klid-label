@@ -26,8 +26,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -133,70 +131,6 @@ class MarkingControllerTest {
     }
 
     @Test
-    @DisplayName("GET_마킹_목록_조회_200")
-    void listMarkings200() throws Exception {
-        // given — 마킹 2건 시드
-        markingRepository.save(LsMarking.createAuto(rawSn, "화재", 10, "/path", "[]", 1L));
-        markingRepository.save(LsMarking.createManual(rawSn, "침입", "/path",
-                "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]", 1L));
-
-        // when / then
-        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings")
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.length()").value(2));
-    }
-
-    @Test
-    @DisplayName("GET_마킹_단건_조회_200")
-    void getSingleMarking200() throws Exception {
-        // given
-        LsMarking marking = markingRepository.save(
-                LsMarking.createAuto(rawSn, "화재", 5, "/path",
-                        "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]", 1L));
-
-        // when / then
-        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings/" + marking.getMarkingSn())
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.markingSn").value(marking.getMarkingSn()))
-                .andExpect(jsonPath("$.data.eventName").value("화재"));
-    }
-
-    @Test
-    @DisplayName("DELETE_마킹_삭제_REVIEWER_200")
-    void deleteByReviewer200() throws Exception {
-        // given
-        LsMarking marking = markingRepository.save(
-                LsMarking.createAuto(rawSn, "화재", 5, "/path", "[]", 1L));
-
-        // when / then
-        mockMvc.perform(delete("/v1/videos/" + rawSn + "/markings/" + marking.getMarkingSn())
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-
-        // DB 검증
-        assertThat(markingRepository.findById(marking.getMarkingSn())).isEmpty();
-    }
-
-    @Test
-    @DisplayName("DELETE_마킹_삭제_WORKER_403")
-    void deleteByWorker403() throws Exception {
-        // given
-        LsMarking marking = markingRepository.save(
-                LsMarking.createAuto(rawSn, "화재", 5, "/path", "[]", 1L));
-
-        // when / then
-        mockMvc.perform(delete("/v1/videos/" + rawSn + "/markings/" + marking.getMarkingSn())
-                        .header("Authorization", "Bearer " + workerToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-    }
-
-    @Test
     @DisplayName("POST_미존재_영상_마킹_404")
     void createNonExistentVideo404() throws Exception {
         // given
@@ -268,32 +202,6 @@ class MarkingControllerTest {
     }
 
     @Test
-    @DisplayName("I4_타인배정_영상_마킹조회_미배정_WORKER_403")
-    void listMarkingsUnassignedWorkerForbidden() throws Exception {
-        // given — 영상에 마킹 1건 시드, otherWorkerToken(sub=200) 은 미배정
-        markingRepository.save(LsMarking.createAuto(rawSn, "화재", 10, "/path", "[]", 1L));
-
-        // when / then — 미배정 WORKER 의 목록 조회는 403 (마킹 노출 차단)
-        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings")
-                        .header("Authorization", "Bearer " + otherWorkerToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-    }
-
-    @Test
-    @DisplayName("I4_본인배정_영상_마킹조회_WORKER_200")
-    void listMarkingsAssignedWorkerOk() throws Exception {
-        // given — workerToken(sub=100) 은 setUp 에서 LABELER 배정됨, 마킹 1건 시드
-        markingRepository.save(LsMarking.createAuto(rawSn, "화재", 10, "/path", "[]", 1L));
-
-        // when / then — 본인 배정 WORKER 의 목록 조회는 200
-        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings")
-                        .header("Authorization", "Bearer " + workerToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(1));
-    }
-
-    @Test
     @DisplayName("I4_본인배정_영상_마킹생성_WORKER_201")
     void createMarkingAssignedWorkerOk() throws Exception {
         // given — workerToken(sub=100) 본인 배정 영상
@@ -309,33 +217,4 @@ class MarkingControllerTest {
                 .andExpect(jsonPath("$.success").value(true));
     }
 
-    @Test
-    @DisplayName("I4_REVIEWER_는_미배정여부_무관_마킹조회_200")
-    void listMarkingsReviewerOkRegardlessOfAssignment() throws Exception {
-        // given — 마킹 1건 시드, REVIEWER 는 배정 없이도 전체 허용
-        markingRepository.save(LsMarking.createAuto(rawSn, "화재", 10, "/path", "[]", 1L));
-
-        // when / then
-        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings")
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(1));
-    }
-
-    @Test
-    @DisplayName("GET_단건_다른영상_마킹_접근시_403_IDOR_방어")
-    void getMarkingDifferentVideo403() throws Exception {
-        // given — 다른 영상에 생성된 마킹
-        LsDataRaw otherRaw = videoRepository.save(LsDataRaw.createFromIngest(
-                "CLIP-OTHER-" + System.nanoTime(), "CCTV-002", "EVT", "11680",
-                LsDataRaw.PRVC_TYPE_ANONY, "/other.mp4", LocalDateTime.now(), 30));
-        LsMarking otherMarking = markingRepository.save(
-                LsMarking.createAuto(otherRaw.getRawSn(), "화재", 5, "/path", "[]", 1L));
-
-        // when / then — rawSn 과 다른 영상의 marking 접근
-        mockMvc.perform(get("/v1/videos/" + rawSn + "/markings/" + otherMarking.getMarkingSn())
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-    }
 }
