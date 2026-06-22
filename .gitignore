@@ -58,3 +58,6 @@ frontend/vite.config.js
 frontend/vitest.config.d.ts
 frontend/vitest.config.js
 frontend/*.tsbuildinfo
+
+# 설계 산출물 hwpx 변환본 (바이너리·대용량 — 레포 제외, 로컬/별도 공유)
+docs/design/hwpx/
