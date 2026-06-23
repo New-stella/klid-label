@@ -278,7 +278,10 @@ export function LabelingPage() {
     try {
       await updateLabels(labels);
       clearDirty();
-      pushToast({ variant: 'success', message: portalMode ? '저장됨' : '저장됨 · 버전 기록됨' });
+      // 저장은 작업본 임시저장(LS_DATA_LBL upsert)만 수행 — 버전/히스토리 스냅샷은 검수 승인
+      // 시점에 BE 가 생성한다(CLAUDE.md 2계층, SFR-08). 따라서 '버전 기록됨' 등 사실과 다른
+      // 문구를 쓰지 않고 양쪽 채널 모두 '저장됨' 으로 통일한다.
+      pushToast({ variant: 'success', message: '저장됨' });
     } catch (e) {
       pushToast({
         variant: 'error',
