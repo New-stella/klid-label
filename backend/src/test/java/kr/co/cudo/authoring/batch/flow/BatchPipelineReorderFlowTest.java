@@ -122,7 +122,23 @@ class BatchPipelineReorderFlowTest {
 
         ingestBridge = new IngestDeidentifyBridge(deidentifyRunner);
         markingBridge = new MarkingBatchBridge(
-                statusRepository, batchStatusService, asyncBatchRunner, videoRepository);
+                transitionService, batchStatusService, asyncBatchRunner, videoRepository);
+
+        // D1/D2 — 브리지가 호출하는 조건부 원자 전이를 인메모리로 재현한다. statusRepository.findById 가
+        // 반환하는 작업 상태 엔티티가 SKIP 대상(BATCH_QUEUED/PROCESSING/COMPLETED)이 아니면 BATCH_QUEUED 로
+        // 전이하고 영향 행수 1, 그렇지 않으면 0 을 돌려준다(실제 단일 SQL UPDATE 의미를 모사).
+        doAnswer(inv -> {
+            Long rawSn = inv.getArgument(0);
+            @SuppressWarnings("unchecked")
+            java.util.Collection<String> skip = (java.util.Collection<String>) inv.getArgument(2);
+            Optional<LsRawDataStatus> opt = statusRepository.findById(rawSn);
+            if (opt.isEmpty() || skip.contains(opt.get().getDataSttsCd())) {
+                return 0;
+            }
+            opt.get().markBatchQueued();
+            return 1;
+        }).when(statusRepository).transitionToBatchQueuedIfNotSkipped(
+                any(), eq(LsRawDataStatus.STTS_BATCH_QUEUED), any());
 
         // 기본: frame extractor 가 1 프레임 반환 (FRAME_EXTRACT 가드 통과).
         when(frameExtractor.extractByMarks(any(LsDataRaw.class), any()))

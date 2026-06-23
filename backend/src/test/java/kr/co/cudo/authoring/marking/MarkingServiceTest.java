@@ -70,13 +70,25 @@ class MarkingServiceTest {
         return new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
 
-    /** 비식별 완료(deIdntfYn='Y') 영상 — 마킹 가드 통과 대상. */
+    /** 비식별 완료(deIdntfYn='Y') + 마킹 준비(MARKING_READY) 영상 — 마킹 가드 통과 대상. */
     private LsDataRaw stubRaw(Long rawSn, int durationSec) {
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "CLIP-" + rawSn, "CCTV-001", "EVT-A", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip_" + rawSn + ".mp4",
                 LocalDateTime.now(), durationSec);
         raw.markDeidentified("Y");
+        raw.markMarkingReady();
+        return raw;
+    }
+
+    /** 비식별 완료 + 지정한 배치 단계(DATA_STTS_CD) 영상 — 배치 단계 가드 검증용. */
+    private LsDataRaw stubRawWithStage(Long rawSn, int durationSec, String dataSttsCd) {
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "CLIP-" + rawSn, "CCTV-001", "EVT-A", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip_" + rawSn + ".mp4",
+                LocalDateTime.now(), durationSec);
+        raw.markDeidentified("Y");
+        raw.changeStatus(dataSttsCd);
         return raw;
     }
 
@@ -280,6 +292,63 @@ class MarkingServiceTest {
 
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
 
+        assertThat(result.markingMode()).isEqualTo("AUTO");
+        verify(markingRepository).save(any(LsMarking.class));
+    }
+
+    // ── 배치 단계(LsDataRaw.DATA_STTS_CD) 역전 차단 가드 (fail-fast) ──
+
+    @Test
+    @DisplayName("이미_COMPLETED_인_영상_마킹_생성_요청은_PRECONDITION_FAILED")
+    void createOnCompletedVideoRejected() {
+        // given — 배치 완료(COMPLETED) 영상에 마킹 생성 시도 (직접 호출로 도달 가능한 역전 경로)
+        Long rawSn = 70L;
+        LsDataRaw raw = stubRawWithStage(rawSn, 60, LsDataRaw.DATA_STTS_COMPLETED);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when / then — 재마킹 거부, 마킹 저장 안 됨
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        verify(markingRepository, never()).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("이미_PROCESSING_인_영상_마킹_생성_요청은_PRECONDITION_FAILED")
+    void createOnProcessingVideoRejected() {
+        // given — 배치 진행 중(PROCESSING) 영상
+        Long rawSn = 71L;
+        LsDataRaw raw = stubRawWithStage(rawSn, 60, LsDataRaw.DATA_STTS_PROCESSING);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when / then
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        verify(markingRepository, never()).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("MARKING_READY_영상_마킹_생성은_성공")
+    void createOnMarkingReadyVideoSucceeds() {
+        // given — 비식별 완료 + MARKING_READY 영상의 최초 마킹(회귀 가드)
+        Long rawSn = 72L;
+        LsDataRaw raw = stubRaw(rawSn, 30); // stubRaw 는 MARKING_READY 로 전이됨
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then
         assertThat(result.markingMode()).isEqualTo("AUTO");
         verify(markingRepository).save(any(LsMarking.class));
     }

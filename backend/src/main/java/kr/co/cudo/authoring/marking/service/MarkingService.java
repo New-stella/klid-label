@@ -70,6 +70,16 @@ public class MarkingService {
                     "비식별이 완료된 영상에서만 마킹할 수 있습니다.");
         }
 
+        // 1-1b. 배치 단계 가드 — 마킹은 MARKING_READY 단계 영상만 허용한다(fail-fast).
+        // 이미 배치가 진행중(PROCESSING)/완료(COMPLETED)인 영상에 직접 마킹 요청이 들어오면, 마킹 완료
+        // 이벤트가 배치를 재트리거해 LS_DATA_RAW.DATA_STTS_CD 가 COMPLETED→PROCESSING 으로 역전된다.
+        // 생성 단계에서 거부해 역전을 원천 차단한다(MarkingBatchBridge 의 재트리거 가드와 이중 방어).
+        // 정상 재처리(비식별 신고→재비식별 성공)는 영상을 다시 MARKING_READY 로 되돌리므로 본 가드를 통과한다.
+        if (!LsDataRaw.DATA_STTS_MARKING_READY.equals(raw.getDataSttsCd())) {
+            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                    "이미 처리된 영상은 재마킹할 수 없습니다.");
+        }
+
         // 1-2. 이벤트명 자동 소싱 (API-047 계약 변경) — 더 이상 요청으로 받지 않고
         // 영상의 이벤트 유형(EVNT_TYPE_CD)을 그대로 사용한다. 미지정 영상은 마킹 불가.
         String eventName = raw.getEvntTypeCd();

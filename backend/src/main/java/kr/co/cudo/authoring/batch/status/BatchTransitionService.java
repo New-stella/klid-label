@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+
 /**
  * 배치 작업 상태 전이를 DB 에 영속하는 전용 서비스.
  *
@@ -153,6 +155,32 @@ public class BatchTransitionService {
         failLog.fail(errorCode, detail);
         procLogRepository.save(failLog);
         log.warn("[BatchTransition] deident failure recorded rawSn={} errCd={}", rawSn, errorCode);
+    }
+
+    /**
+     * 배치 트리거 멱등성 보장용 조건부 원자 전이 (D1/D2 수정).
+     *
+     * <p>{@link kr.co.cudo.authoring.marking.listener.MarkingBatchBridge} 의
+     * {@code @TransactionalEventListener(AFTER_COMMIT)} 는 활성
+     * 트랜잭션 밖에서 실행되어 엔티티 dirty-write 가 영속되지 않는다(D1). 또한 동일 rawSn 에 마킹
+     * 이벤트가 거의 동시에 2회 오면 두 브리지가 모두 가드를 통과해 배치를 2회 트리거할 수 있다(D2).
+     *
+     * <p>이를 막기 위해 작업 상태 전이를 <b>단일 조건부 UPDATE</b>(check-and-set)로 수행한다. 현재
+     * 작업 상태가 SKIP 대상(BATCH_QUEUED/PROCESSING/COMPLETED)이 아닐 때만 BATCH_QUEUED 로 전이하며,
+     * DB 가 동시 UPDATE 를 직렬화하므로 정확히 1건만 전이에 성공(영향 행수 1)하고 나머지는 skip(0)된다.
+     * 본 메서드는 {@code REQUIRES_NEW} 로 즉시 커밋되어 영속이 보장된다.
+     *
+     * @return {@code true}=이번 호출이 BATCH_QUEUED 전이에 성공(트리거 권한 획득), {@code false}=이미
+     *         진행 중이거나 작업 상태 row 미존재(skip)
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean tryClaimBatchQueued(Long rawSn, Collection<String> skipStatuses) {
+        if (rawSn == null) {
+            return false;
+        }
+        int affected = rawDataStatusRepository.transitionToBatchQueuedIfNotSkipped(
+                rawSn, LsRawDataStatus.STTS_BATCH_QUEUED, skipStatuses);
+        return affected == 1;
     }
 
     private void transitionRawDataStatus(Long rawSn, String newStatus) {

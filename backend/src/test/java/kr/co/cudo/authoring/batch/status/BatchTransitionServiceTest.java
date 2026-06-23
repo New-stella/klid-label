@@ -233,4 +233,56 @@ class BatchTransitionServiceTest {
 
         verify(procLogRepository).save(any(LsDeidentProcLog.class));
     }
+
+    // ── D1/D2 조건부 원자 전이(tryClaimBatchQueued) ──
+
+    @Test
+    @DisplayName("브리지가_BATCH_QUEUED_전이를_영속한다 — 조건부UPDATE_영향행수1이면_true")
+    void tryClaimBatchQueued_affectedOne_returnsTrue_andPersists() {
+        // given — 조건부 UPDATE 가 1행 영향(전이 성공)
+        java.util.Set<String> skip = java.util.Set.of(
+                LsRawDataStatus.STTS_BATCH_QUEUED,
+                LsRawDataStatus.STTS_PROCESSING,
+                LsRawDataStatus.STTS_COMPLETED);
+        when(rawDataStatusRepository.transitionToBatchQueuedIfNotSkipped(
+                40L, LsRawDataStatus.STTS_BATCH_QUEUED, skip)).thenReturn(1);
+
+        // when
+        boolean claimed = service.tryClaimBatchQueued(40L, skip);
+
+        // then — 전이 권한 획득 + UPDATE 가 즉시 커밋되어 영속(AFTER_COMMIT dirty-write 비영속 결함 차단)
+        assertThat(claimed).isTrue();
+        verify(rawDataStatusRepository)
+                .transitionToBatchQueuedIfNotSkipped(40L, LsRawDataStatus.STTS_BATCH_QUEUED, skip);
+    }
+
+    @Test
+    @DisplayName("이미_진행중이면_조건부UPDATE_영향행수0_으로_false_반환 — 멱등성(D2)")
+    void tryClaimBatchQueued_affectedZero_returnsFalse() {
+        // given — 조건부 UPDATE 가 0행 영향(이미 SKIP 상태이거나 row 없음)
+        java.util.Set<String> skip = java.util.Set.of(
+                LsRawDataStatus.STTS_BATCH_QUEUED,
+                LsRawDataStatus.STTS_PROCESSING,
+                LsRawDataStatus.STTS_COMPLETED);
+        when(rawDataStatusRepository.transitionToBatchQueuedIfNotSkipped(
+                41L, LsRawDataStatus.STTS_BATCH_QUEUED, skip)).thenReturn(0);
+
+        // when
+        boolean claimed = service.tryClaimBatchQueued(41L, skip);
+
+        // then — 전이 실패(skip)
+        assertThat(claimed).isFalse();
+    }
+
+    @Test
+    @DisplayName("rawSn_null이면_UPDATE_미수행_false")
+    void tryClaimBatchQueued_nullRawSn_false() {
+        // when
+        boolean claimed = service.tryClaimBatchQueued(null, java.util.Set.of());
+
+        // then
+        assertThat(claimed).isFalse();
+        verify(rawDataStatusRepository, never())
+                .transitionToBatchQueuedIfNotSkipped(any(), any(), any());
+    }
 }
