@@ -40,11 +40,23 @@ public class BatchTransitionService {
     public static final String DEIDENT_FAIL_PROC_REG_ID = "batch-deident-fail";
 
     /**
-     * 배치 시작 — LS_RAW_DATA_STATUS.DATA_STTS_CD → PROCESSING.
+     * 배치 시작 — 작업(워크플로우) 상태 LS_RAW_DATA_STATUS.DATA_STTS_CD → PROCESSING,
+     * 배치 단계 상태 LS_DATA_RAW.DATA_STTS_CD → PROCESSING (Bug 2 — '처리중' 도입).
+     *
+     * <p>두 컬럼을 같은 타이밍에 전이한다. 작업 상태 row 는 배정 시점 lazy 생성이라 적재 직후엔
+     * 없을 수 있으나, 마킹 완료로 배치가 시작되는 시점에는 배정·작업 상태 row 가 존재한다.
+     * 영상(LS_DATA_RAW) row 는 항상 존재하므로 MARKING_READY → PROCESSING 으로 전이해
+     * 마킹 완료~배치 완료 구간이 "처리중"으로 표시되게 한다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markRawDataProcessing(Long rawSn) {
+        if (rawSn == null) {
+            return;
+        }
         transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_PROCESSING);
+        videoRepository.findById(rawSn).ifPresentOrElse(
+                LsDataRaw::markProcessing,
+                () -> log.warn("[BatchTransition] raw video not found rawSn={} (processing)", rawSn));
     }
 
     /**
@@ -61,9 +73,12 @@ public class BatchTransitionService {
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markRawDataCompleted(Long rawSn) {
+        if (rawSn == null) {
+            return;
+        }
         transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_ASSIGNED);
         videoRepository.findById(rawSn).ifPresentOrElse(
-                r -> r.changeStatus("COMPLETED"),
+                LsDataRaw::markCompleted,
                 () -> log.warn("[BatchTransition] raw video not found rawSn={} (completed)", rawSn));
     }
 
@@ -85,13 +100,21 @@ public class BatchTransitionService {
     }
 
     /**
-     * 배치 실패 — LS_RAW_DATA_STATUS.DATA_STTS_CD → FAILED.
-     * 영상(LS_DATA_RAW) 상태는 BatchStatusService.markFailed 와 별개로,
-     * 작업 상태 row 만 FAILED 로 전이한다.
+     * 배치 실패 — 작업(워크플로우) 상태 LS_RAW_DATA_STATUS.DATA_STTS_CD → FAILED,
+     * 배치 단계 상태 LS_DATA_RAW.DATA_STTS_CD → FAILED (Bug 2 — MARKING_READY 고착 방지).
+     *
+     * <p>기존엔 작업 상태 row 만 FAILED 로 바꾸고 LS_DATA_RAW.DATA_STTS_CD 는 손대지 않아,
+     * 영상 처리 현황이 영구 MARKING_READY("마킹 대기")로 고착되던 결함을 수정한다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markRawDataFailed(Long rawSn) {
+        if (rawSn == null) {
+            return;
+        }
         transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_FAILED);
+        videoRepository.findById(rawSn).ifPresentOrElse(
+                LsDataRaw::markBatchFailed,
+                () -> log.warn("[BatchTransition] raw video not found rawSn={} (batch-failed)", rawSn));
     }
 
     /**

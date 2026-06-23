@@ -372,10 +372,13 @@ class BatchPipelineReorderFlowTest {
         // when
         BatchStage result = orchestrator.process(rawSn);
 
-        // then — 작업 상태 FAILED, 배치 단계 상태는 COMPLETED 로 전이되지 않음(MARKING_READY 유지).
+        // then — 작업 상태 FAILED, 배치 단계 상태도 FAILED (Bug 2 — MARKING_READY 고착 금지).
+        //        배치 시작 시 PROCESSING 으로 전이됐다가 실패로 FAILED 가 되며, COMPLETED 로는 전이되지 않는다.
         assertThat(result).isEqualTo(BatchStage.FAILED);
         assertThat(stts.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_FAILED);
-        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_FAILED);
+        assertThat(raw.getDataSttsCd()).isNotEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(raw.getDataSttsCd()).isNotEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
         verify(batchStatusService).markFailed(eq(rawSn), any(RuntimeException.class));
         verify(batchStatusService, never()).markCompleted(rawSn);
     }

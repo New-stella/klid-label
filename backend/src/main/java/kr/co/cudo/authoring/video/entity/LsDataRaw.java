@@ -40,6 +40,24 @@ public class LsDataRaw {
      */
     public static final String DATA_STTS_MARKING_READY = "MARKING_READY";
 
+    /**
+     * 마킹 완료로 트리거된 배치가 진행 중인 상태 (Bug 2 — '처리중' 도입).
+     * <p>흐름: MARKING_READY → (배치 시작) PROCESSING → (성공) COMPLETED / (실패) FAILED.
+     * 이 상태가 없으면 마킹 완료~배치 완료 구간 내내 MARKING_READY("마킹 대기")로 남아
+     * 사용자가 "마킹 안 됨"으로 오인한다.
+     */
+    public static final String DATA_STTS_PROCESSING = "PROCESSING";
+
+    /** 배치 완료(성공) — 배치 단계 종결 상태. */
+    public static final String DATA_STTS_COMPLETED = "COMPLETED";
+
+    /**
+     * 배치 실패 상태 (Bug 2 — MARKING_READY 고착 방지).
+     * <p>배치 실패 시 LS_DATA_RAW.DATA_STTS_CD 가 MARKING_READY 로 남아 영구 "마킹 대기"로
+     * 고착되던 결함을 막기 위해 도입. PROCESSING → FAILED 로 전이한다.
+     */
+    public static final String DATA_STTS_FAILED = "FAILED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "RAW_SN")
@@ -185,6 +203,32 @@ public class LsDataRaw {
      */
     public void markMarkingReady() {
         changeStatus(DATA_STTS_MARKING_READY);
+    }
+
+    /**
+     * 마킹 완료로 트리거된 배치 시작 시 배치 단계 상태를 PROCESSING("처리중")으로 전이 (Bug 2).
+     * <p>원본 rawFilePathNm 은 절대 변경되지 않는다 (원본 보존 원칙).
+     */
+    public void markProcessing() {
+        changeStatus(DATA_STTS_PROCESSING);
+    }
+
+    /**
+     * 배치 실패 시 배치 단계 상태를 FAILED("실패")로 전이 (Bug 2 — MARKING_READY 고착 방지).
+     * <p>원본 rawFilePathNm 은 절대 변경되지 않는다 (원본 보존 원칙).
+     */
+    public void markBatchFailed() {
+        changeStatus(DATA_STTS_FAILED);
+    }
+
+    /**
+     * 배치 완료(성공) 시 배치 단계 상태를 COMPLETED("완료")로 전이.
+     * <p>매직 스트링 제거 — {@link #DATA_STTS_COMPLETED} 상수를 사용하며,
+     * {@code markProcessing()}/{@code markBatchFailed()} 와 동일한 도메인 메서드 형식으로 통일한다.
+     * 원본 rawFilePathNm 은 절대 변경되지 않는다 (원본 보존 원칙).
+     */
+    public void markCompleted() {
+        changeStatus(DATA_STTS_COMPLETED);
     }
 
     /** 배치 상태 코드 갱신 (PROCESSING / COMPLETED / FAILED). */

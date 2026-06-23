@@ -91,6 +91,49 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     List<LsDataLbl> findAllByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * 영상(rawSn)의 모든 라벨을 AI 메타(LS_DATA_LBL_AI_INFO)와 함께 단일 LATERAL 조인으로 조회.
+     *
+     * <p>auto/manual 구분({@code AUTO_LBL_YN})과 신뢰도({@code CONF_SCORE})는 LS_DATA_LBL 본체가
+     * 아닌 AI_INFO 에 저장되므로(LsDataLbl 의 두 필드는 {@code @Transient}), 오토라벨 결과 화면이
+     * 정확한 값을 N+1 없이 얻으려면 두 테이블을 함께 조회해야 한다. AI_INFO row 가 없는 수동 라벨은
+     * autoLblYn/confScore 가 null 로 투영된다.
+     *
+     * <p><b>최신 행 선택(Bug — MAX 의미 오류 수정)</b>: 한 라벨에 {@code AUTO_LBL_YN='Y'} 인 AI_INFO
+     * 가 여러 건일 수 있다(예: VLM 신뢰도 갱신으로 conf_score 가 바뀐 새 row 적재). 이때 화면은
+     * <b>가장 최근</b> 신뢰도를 보여야 하므로 {@code MAX(conf_score)}(=가장 높은 값)가 아니라
+     * <b>최신 행</b>의 값을 골라야 한다. PostgreSQL {@code LATERAL} 서브쿼리로 라벨당
+     * {@code MDFCN_DT} desc(없으면 {@code REG_DT} desc, 동률 시 PK desc) 1행만 가져온다.
+     * {@code LATERAL ... WHERE AUTO_LBL_YN='Y'}({@link LsDataLbl#AUTO_YES})로 한정하고, 매칭 row 가
+     * 없는 수동 라벨은 LEFT JOIN miss(null)로 둔다. PK(LBL_SN)만으로 라벨이 결정되므로 GROUP BY/
+     * labelNm 집계 없이 라벨당 1행이 보장된다.
+     *
+     * <p>파라미터 바인딩({@code :rawSn})만 사용 — 문자열 연결 없음(CWE-89 회귀 방지). 복합 인덱스
+     * {@code idx_ls_data_lbl_ai_info_lbl_auto(data_lbl_sn, auto_lbl_yn)}(Flyway V65)가 LATERAL
+     * 술어를 인덱스로 처리한다.
+     */
+    @Query(value = """
+            SELECT l.LBL_SN          AS lblSn,
+                   l.LBL_NM          AS labelNm,
+                   latest.AUTO_LBL_YN AS autoLblYn,
+                   latest.CONF_SCORE  AS confScore
+              FROM LS_DATA_LBL l
+              JOIN LS_DATA_SRC s ON l.SRC_SN = s.SRC_SN
+              LEFT JOIN LATERAL (
+                   SELECT ai.AUTO_LBL_YN, ai.CONF_SCORE
+                     FROM LS_DATA_LBL_AI_INFO ai
+                    WHERE ai.DATA_LBL_SN = l.LBL_SN
+                      AND ai.AUTO_LBL_YN = 'Y'
+                    ORDER BY ai.MDFCN_DT DESC NULLS LAST,
+                             ai.REG_DT DESC,
+                             ai.DATA_LBL_AI_INFO_SN DESC
+                    LIMIT 1
+              ) latest ON TRUE
+             WHERE s.RAW_SN = :rawSn
+             ORDER BY l.LBL_SN ASC
+            """, nativeQuery = true)
+    List<AutoLabelInfoProjection> findAutoLabelInfoByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 영상(rawSn)에 속한 모든 프레임의 자동 라벨(autoLblYn='Y')을 일괄 삭제.
      * 오토라벨링 테스트 재실행 시 idempotent 보장 용도.
      */

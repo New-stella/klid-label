@@ -53,6 +53,7 @@ class BatchTransitionServiceTest {
         // given
         LsRawDataStatus stts = assignedStatus(1L);
         when(rawDataStatusRepository.findById(1L)).thenReturn(Optional.of(stts));
+        when(videoRepository.findById(1L)).thenReturn(Optional.empty());
 
         // when
         service.markRawDataProcessing(1L);
@@ -60,6 +61,25 @@ class BatchTransitionServiceTest {
         // then — dirty checking 에 의존하지 않고 명시적으로 save 호출
         assertThat(stts.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_PROCESSING);
         verify(rawDataStatusRepository).save(stts);
+    }
+
+    @Test
+    @DisplayName("마킹완료로_배치가_시작되면_LsDataRaw_dataSttsCd_가_PROCESSING_으로_전이된다")
+    void markRawDataProcessing_LS_DATA_RAW_PROCESSING() {
+        // given — 마킹 완료 후 MARKING_READY 인 영상
+        LsRawDataStatus stts = assignedStatus(20L);
+        when(rawDataStatusRepository.findById(20L)).thenReturn(Optional.of(stts));
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-20", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC,
+                "raw/20.mp4", null, 60);
+        raw.markMarkingReady();
+        when(videoRepository.findById(20L)).thenReturn(Optional.of(raw));
+
+        // when — 배치 시작
+        service.markRawDataProcessing(20L);
+
+        // then — 배치 단계 상태(LS_DATA_RAW.DATA_STTS_CD) = PROCESSING
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_PROCESSING);
     }
 
     @Test
@@ -109,6 +129,7 @@ class BatchTransitionServiceTest {
         // given
         LsRawDataStatus stts = assignedStatus(3L);
         when(rawDataStatusRepository.findById(3L)).thenReturn(Optional.of(stts));
+        when(videoRepository.findById(3L)).thenReturn(Optional.empty());
 
         // when
         service.markRawDataFailed(3L);
@@ -116,6 +137,27 @@ class BatchTransitionServiceTest {
         // then
         assertThat(stts.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_FAILED);
         verify(rawDataStatusRepository).save(stts);
+    }
+
+    @Test
+    @DisplayName("배치_실패_시_dataSttsCd_가_FAILED_로_전이된다(MARKING_READY_고착_금지)")
+    void markRawDataFailed_LS_DATA_RAW_FAILED_고착금지() {
+        // given — 배치 진행 중(PROCESSING) 인 영상 (마킹 완료 후 처리중)
+        LsRawDataStatus stts = assignedStatus(21L);
+        when(rawDataStatusRepository.findById(21L)).thenReturn(Optional.of(stts));
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-21", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC,
+                "raw/21.mp4", null, 60);
+        raw.markMarkingReady();
+        raw.markProcessing();
+        when(videoRepository.findById(21L)).thenReturn(Optional.of(raw));
+
+        // when — 배치 실패
+        service.markRawDataFailed(21L);
+
+        // then — LS_DATA_RAW.DATA_STTS_CD = FAILED (MARKING_READY 로 고착되지 않음)
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_FAILED);
+        assertThat(raw.getDataSttsCd()).isNotEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
     }
 
     @Test

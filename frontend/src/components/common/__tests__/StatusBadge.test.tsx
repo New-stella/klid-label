@@ -42,6 +42,22 @@ describe('StatusBadge', () => {
     expect(screen.getByText('마킹 대기')).toBeInTheDocument();
   });
 
+  it('StatusBadge_PROCESSING_는_처리중_라벨_렌더', () => {
+    // Bug 2 — 마킹 완료~배치 완료 구간 '처리중' 표시
+    render(<StatusBadge status="PROCESSING" />);
+    const el = screen.getByText('처리중');
+    expect(el).toBeInTheDocument();
+    expect(el.className).toMatch(/bg-blue-100|text-blue-700/);
+  });
+
+  it('StatusBadge_FAILED_는_실패_라벨_렌더', () => {
+    // Bug 2 — 배치 실패 시 '실패' 표시 (MARKING_READY 고착 금지)
+    render(<StatusBadge status="FAILED" />);
+    const el = screen.getByText('실패');
+    expect(el).toBeInTheDocument();
+    expect(el.className).toMatch(/bg-red-100|text-red-700/);
+  });
+
   it('StatusBadge_커스텀_label_사용', () => {
     render(<StatusBadge status="COMPLETED" label="완료됨" />);
     expect(screen.getByText('완료됨')).toBeInTheDocument();

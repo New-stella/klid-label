@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.repository.AutoLabelInfoProjection;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -218,21 +219,28 @@ public class VideoQueryService {
     /**
      * 영상별 오토라벨 결과 조회 — FE FrameLabels 매핑.
      * rawSn 영상이 없거나 라벨이 없으면 빈 objects 반환 (404 던지지 않음).
-     * autoLblYn='Y' 는 createdBy='auto', 'N' 은 'manual' 로 매핑.
+     *
+     * <p>auto/manual 구분과 신뢰도는 {@code LS_DATA_LBL} 본체가 아닌 {@code LS_DATA_LBL_AI_INFO}
+     * 에 저장된다(LsDataLbl 의 autoLblYn/confScore 는 {@code @Transient} 라 DB 조회 시 항상 null).
+     * 따라서 라벨과 AI 메타를 단일 LEFT JOIN 쿼리(N+1 금지)로 함께 조회해, AUTO_LBL_YN='Y' 인
+     * AI_INFO 가 있는 라벨은 createdBy='auto' + 실제 conf_score, 그 외는 'manual' 로 매핑한다.
      */
     public AutoLabelResultResponse getAutoLabels(Long rawSn) {
         videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "rawSn=" + rawSn));
-        List<LsDataLbl> labels = lblRepository.findAllByRawSn(rawSn);
+        List<AutoLabelInfoProjection> labels = lblRepository.findAutoLabelInfoByRawSn(rawSn);
         List<AutoLabelResultResponse.LabelObjectDto> objects = labels.stream()
-                .map(l -> new AutoLabelResultResponse.LabelObjectDto(
-                        String.valueOf(l.getLblSn()),
-                        l.getLabelNm(),
-                        l.getLabelNm(),
-                        DEFAULT_LABEL_COLOR,
-                        l.getConfScore() == null ? null : l.getConfScore().doubleValue(),
-                        LsDataLbl.AUTO_YES.equals(l.getAutoLblYn()) ? "auto" : "manual"
-                ))
+                .map(l -> {
+                    boolean isAuto = LsDataLbl.AUTO_YES.equals(l.getAutoLblYn());
+                    return new AutoLabelResultResponse.LabelObjectDto(
+                            String.valueOf(l.getLblSn()),
+                            l.getLabelNm(),
+                            l.getLabelNm(),
+                            DEFAULT_LABEL_COLOR,
+                            l.getConfScore() == null ? null : l.getConfScore().doubleValue(),
+                            isAuto ? "auto" : "manual"
+                    );
+                })
                 .toList();
         return new AutoLabelResultResponse(rawSn, objects);
     }
