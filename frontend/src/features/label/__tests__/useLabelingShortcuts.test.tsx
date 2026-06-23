@@ -54,6 +54,51 @@ describe('useLabelingShortcuts', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
   });
 
+  // Bug #3 회귀 — 한글 IME 활성 시 물리 키 B/P/S/G/T 가 ㅠ/ㅔ/ㄴ/ㅎ/ㅅ 로 들어와도
+  // e.code(물리 키) 매칭으로 도구 전환이 동작해야 한다. (e.key 가 IME 변환된 한글이어도 무관)
+  it('한글IME_물리키_KeyB_누르면_BBOX_e_key_가_ㅠ_여도', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('ㅠ', { code: 'KeyB' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX);
+  });
+
+  it('한글IME_물리키_KeyP_누르면_POLYGON_e_key_가_ㅔ_여도', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('ㅔ', { code: 'KeyP' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.POLYGON);
+  });
+
+  it('한글IME_물리키_KeyG_누르면_SAM_SEGMENT_e_key_가_ㅎ_여도', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('ㅎ', { code: 'KeyG' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
+  });
+
+  it('한글IME_물리키_KeyT_누르면_TRACK_e_key_가_ㅅ_여도', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('ㅅ', { code: 'KeyT' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
+  });
+
+  // IME 조합 중(isComposing/Process)에는 한글 문자가 매칭되지 않아야 하지만,
+  // 물리 키 e.code 매칭은 여전히 도구 전환을 허용한다(가장 안전한 동작).
+  it('IME조합중_Process_여도_물리키_KeyS_는_SELECT_로_인식', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    useLabelStore.getState().setActiveTool(ToolType.BBOX);
+    act(() => press('Process', { code: 'KeyS' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+  });
+
+  // 숫자 키(1~9)는 IME 변환 대상이 아니므로 종전대로 동작해야 한다(회귀 가드).
+  it('숫자키는_종전대로_동작_회귀_가드', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    // 라벨 마스터가 없으면 setActiveLabelId 가 호출되지 않으므로 도구만 변하지 않음을 확인.
+    useLabelStore.getState().setActiveTool(ToolType.BBOX);
+    act(() => press('1'));
+    // 숫자키는 도구를 바꾸지 않는다.
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX);
+  });
+
   it('단축키_Ctrl+S_저장_트리거', () => {
     const onSave = vi.fn();
     renderHook(() => useLabelingShortcuts({ onSave }), { wrapper: makeWrapper() });

@@ -15,6 +15,19 @@ export interface ShortcutHandlers {
 const ZOOM_STEP = 1.2;
 
 /**
+ * 도구 단축키 매핑. 물리 키 `e.code`(KeyB 등)를 1순위로 매칭해 한글 IME/키보드 레이아웃과
+ * 무관하게 동작하게 한다. `e.key`(라틴 'b'/'B' 등) 폴백을 함께 유지해 기존 라틴 키보드·테스트
+ * 회귀를 방지한다.
+ */
+const TOOL_SHORTCUTS = [
+  { code: 'KeyB', keys: ['b', 'B'], tool: ToolType.BBOX },
+  { code: 'KeyP', keys: ['p', 'P'], tool: ToolType.POLYGON },
+  { code: 'KeyS', keys: ['s', 'S'], tool: ToolType.SELECT },
+  { code: 'KeyG', keys: ['g', 'G'], tool: ToolType.SAM_SEGMENT },
+  { code: 'KeyT', keys: ['t', 'T'], tool: ToolType.TRACK },
+] as const;
+
+/**
  * UI/UX §4-6 라벨링 단축키.
  * - B: BBOX 도구 / P: POLYGON / S: SELECT / G: SAM 분할 / T: TRACK
  * - ←/→: 프레임 이동
@@ -83,27 +96,23 @@ export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
 
       // 단일 키 (Ctrl 없는 경우)
       if (!meta && !e.altKey) {
+        // 도구 단축키 — 물리 키 e.code 1순위 매칭(IME/레이아웃 무관). 라틴 e.key 폴백.
+        // IME 조합 중에는 e.key 가 변환된 한글(또는 'Process')이라 문자 매칭이 깨지지만,
+        // e.code 는 물리 키이므로 도구 전환은 항상 인식된다.
+        const composing = e.isComposing || e.key === 'Process';
+        for (const t of TOOL_SHORTCUTS) {
+          const codeMatch = e.code === t.code;
+          const keyMatch = !composing && (t.keys as readonly string[]).includes(e.key);
+          if (codeMatch || keyMatch) {
+            setActiveTool(t.tool);
+            return;
+          }
+        }
+
+        // IME 조합 중에는 나머지 문자 단축키(E/줌 등)도 스킵 — 단, 위에서 도구 e.code 는 이미 처리됨.
+        if (composing) return;
+
         switch (e.key) {
-          case 'b':
-          case 'B':
-            setActiveTool(ToolType.BBOX);
-            return;
-          case 'p':
-          case 'P':
-            setActiveTool(ToolType.POLYGON);
-            return;
-          case 's':
-          case 'S':
-            setActiveTool(ToolType.SELECT);
-            return;
-          case 'g':
-          case 'G':
-            setActiveTool(ToolType.SAM_SEGMENT);
-            return;
-          case 't':
-          case 'T':
-            setActiveTool(ToolType.TRACK);
-            return;
           case 'e':
           case 'E':
             handlers.onToggleEdit?.();
