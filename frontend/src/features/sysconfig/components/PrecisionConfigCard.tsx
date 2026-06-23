@@ -103,7 +103,10 @@ export function PrecisionConfigCard({ configs }: Props) {
             <span>낮음 (0.25)</span>
             <span>높음 (0.80)</span>
           </div>
-          <p className="text-xs text-gray-400">값이 높을수록 확신도가 높은 객체만 인식합니다.</p>
+          <p className="text-xs text-gray-400">
+            값이 높을수록 확신도가 높은 객체만 인식해 오탐이 줄지만 놓치는 객체가 늘 수 있습니다.
+            (YOLO 추론의 Confidence Threshold 와 동일한 설정값입니다.)
+          </p>
           {errors.YOLO_CONF_THRESHOLD && (
             <p className="text-xs text-red-500" role="alert">
               {errors.YOLO_CONF_THRESHOLD.message}
@@ -134,7 +137,8 @@ export function PrecisionConfigCard({ configs }: Props) {
             <span>거침 (50.0)</span>
           </div>
           <p className="text-xs text-gray-400">
-            값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해집니다 (점 수 증가).
+            값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해지고(점 수 증가), 클수록 경계가 단순해져
+            점 수가 줄어듭니다. (0~50px)
           </p>
           {errors.POLYGON_SIMPLIFY_TOLERANCE && (
             <p className="text-xs text-red-500" role="alert">

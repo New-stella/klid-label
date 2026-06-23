@@ -41,6 +41,13 @@ describe('YoloConfigCard', () => {
     expect(iou.value).toBe('50');
   });
 
+  it('각_필드의_help_설명_텍스트_렌더', () => {
+    renderWithProviders(<YoloConfigCard configs={baseConfigs} />);
+    expect(screen.getByText(/객체로 인식할 최소 확신도/)).toBeInTheDocument();
+    expect(screen.getByText(/저장·내보내기 해상도와는 무관/)).toBeInTheDocument();
+    expect(screen.getByText(/겹치는 박스를 중복으로 제거/)).toBeInTheDocument();
+  });
+
   it('정상_입력_+_저장_클릭_시_PUT_API_3회_호출', async () => {
     const calls: Array<{ key: string; value: number }> = [];
     // BE 정합: PUT /manage/configs/{key} body: { value }

@@ -91,6 +91,10 @@ export function BatchConfigCard({ configs }: Props) {
             <span>10s</span>
             <span>300s</span>
           </div>
+          <p className="text-xs text-gray-400">
+            배치 파이프라인이 신규 영상을 픽업해 처리하는 주기입니다. 짧을수록 새 영상이 빨리
+            처리되지만 서버·GPU 부하가 커집니다. (10~300초)
+          </p>
         </div>
 
         {/* 동시 처리 수 */}
@@ -112,6 +116,10 @@ export function BatchConfigCard({ configs }: Props) {
             <span>1</span>
             <span>8</span>
           </div>
+          <p className="text-xs text-gray-400">
+            동시에 병렬 처리할 영상 수입니다. 높일수록 처리량이 늘지만 GPU 메모리·자원 경합이
+            커집니다. (1~8)
+          </p>
         </div>
       </div>
     </form>

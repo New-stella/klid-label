@@ -103,6 +103,10 @@ export function YoloConfigCard({ configs }: Props) {
             <span>0.25</span>
             <span>0.80</span>
           </div>
+          <p className="text-xs text-gray-400">
+            객체로 인식할 최소 확신도입니다. 높이면 확실한 객체만 잡아 오탐이 줄지만 놓침(미탐)이
+            늘고, 낮추면 더 많이 잡지만 오탐이 늘어납니다. (0.25~0.80)
+          </p>
           {errors.YOLO_CONF_THRESHOLD && (
             <p className="text-xs text-red-500" role="alert">
               {errors.YOLO_CONF_THRESHOLD.message}
@@ -126,7 +130,12 @@ export function YoloConfigCard({ configs }: Props) {
             className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
             {...register('YOLO_IMGSZ', { valueAsNumber: true })}
           />
-          <p className="text-xs text-gray-400">320 ~ 1920, 32 의 배수 (ultralytics 권장)</p>
+          <p className="text-xs text-gray-400">
+            YOLO 모델에 입력하는 추론 해상도(px)입니다. 프레임이 이 크기로 리사이즈되어 추론되고
+            결과 좌표는 원본 해상도로 환산됩니다. 크게 하면 작은 객체 탐지 정확도가 올라가지만 추론
+            속도가 느려지고 GPU 메모리를 더 사용합니다. 32의 배수여야 하며(ultralytics 권장),
+            저장·내보내기 해상도와는 무관합니다. (320~1920px, 기본 1280)
+          </p>
           {errors.YOLO_IMGSZ && (
             <p className="text-xs text-red-500" role="alert">
               {errors.YOLO_IMGSZ.message}
@@ -156,6 +165,10 @@ export function YoloConfigCard({ configs }: Props) {
             <span>0.25</span>
             <span>0.80</span>
           </div>
+          <p className="text-xs text-gray-400">
+            겹치는 박스를 중복으로 제거(NMS)하는 기준입니다. 낮추면 겹친 박스를 더 적극적으로 합쳐
+            중복이 줄고, 높이면 인접한 객체를 더 많이 남깁니다. (0.25~0.80)
+          </p>
           {errors.YOLO_IOU && (
             <p className="text-xs text-red-500" role="alert">
               {errors.YOLO_IOU.message}

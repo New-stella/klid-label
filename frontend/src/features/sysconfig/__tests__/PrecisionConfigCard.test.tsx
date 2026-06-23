@@ -37,6 +37,12 @@ describe('PrecisionConfigCard (FEAT-007 라벨링 정밀도)', () => {
     expect(tolerance.value).toBe('1');
   });
 
+  it('각_컨트롤의_help_설명_텍스트_렌더', () => {
+    renderWithProviders(<PrecisionConfigCard configs={baseConfigs} />);
+    expect(screen.getByText(/Confidence Threshold 와 동일한 설정값/)).toBeInTheDocument();
+    expect(screen.getByText(/클수록 경계가 단순해져/)).toBeInTheDocument();
+  });
+
   it('값_변경_후_저장_클릭시_두_키_PUT_호출', async () => {
     const calls: Array<{ key: string; value: string }> = [];
     mock.onPut(/\/manage\/configs\/.+/).reply((config) => {
