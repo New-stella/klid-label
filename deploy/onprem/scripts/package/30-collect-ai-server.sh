@@ -64,6 +64,8 @@ ok "[ai-server] 소스 수집: ${OUT}/app"
 
 # ---- 2) sam2 VCS 의존성 → 소스 vendor ----
 info "[ai-server] sam2 git clone (VCS 의존성 오프라인화)..."
+# facebookresearch/sam2 는 태그가 없어 full clone 후 SHA 체크아웃한다 — 첫 수집 시
+# 수 분 소요될 수 있다(.git 은 vendor/번들 전에 제거한다, 아래 rm -rf .git 참고).
 # 재현성 경고: SAM2_GIT_REF 미설정이면 기본 브랜치 HEAD 를 받게 되어 빌드마다 달라질 수 있다.
 if [[ -z "${SAM2_GIT_REF:-}" ]]; then
   warn "[ai-server] SAM2_GIT_REF 미설정 — 기본 브랜치 HEAD 를 받습니다(재현성 보장 안 됨)."
@@ -72,7 +74,17 @@ if [[ -z "${SAM2_GIT_REF:-}" ]]; then
     || die "[ai-server] SAM2_GIT_REF 를 versions.sh 에 고정한 뒤 다시 실행하세요."
 fi
 rm -rf "${SAM2_OUT}/sam2-src"
-git clone --depth 1 ${SAM2_GIT_REF:+--branch "${SAM2_GIT_REF}"} "${SAM2_GIT_URL}" "${SAM2_OUT}/sam2-src"
+if [[ -n "${SAM2_GIT_REF:-}" ]]; then
+  # SAM2_GIT_REF 는 40자 커밋 SHA(브랜치/태그 아님) → clone 후 정확한 커밋으로 checkout.
+  #   --branch 는 브랜치/태그만 받으므로 SHA 에는 쓸 수 없다. 전체 clone 후 checkout 한다.
+  git clone "${SAM2_GIT_URL}" "${SAM2_OUT}/sam2-src"
+  ( cd "${SAM2_OUT}/sam2-src" && git checkout --quiet "${SAM2_GIT_REF}" ) \
+    || die "[ai-server] sam2 커밋 체크아웃 실패: ${SAM2_GIT_REF} (versions.sh 의 SAM2_GIT_REF 확인)"
+  info "[ai-server] sam2 ref 고정: ${SAM2_GIT_REF}"
+else
+  # 핀 미설정 — 기본 브랜치 HEAD(재현성 보장 안 됨, 위에서 confirm 받음).
+  git clone --depth 1 "${SAM2_GIT_URL}" "${SAM2_OUT}/sam2-src"
+fi
 # .git 제거(용량 절감) — 소스 디렉토리만 필요
 rm -rf "${SAM2_OUT}/sam2-src/.git"
 ok "[ai-server] sam2 소스 vendor: ${SAM2_OUT}/sam2-src"

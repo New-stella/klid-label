@@ -10,7 +10,23 @@ set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 source "${SELF_DIR}/../lib/common.sh"
+# shellcheck source=../lib/versions.sh
+source "${SELF_DIR}/../lib/versions.sh"
 require_root
+
+# verify_first_tarball <dir> <algo> <expected> <label>
+#   설치 직전, 번들 디렉토리의 단일 tar.gz 무결성을 기대 체크섬과 대조(fail-closed).
+#   기대값이 비어있으면(미검증) 강한 warn 후 진행. SHA256SUMS 묶음 검증과 독립적.
+verify_first_tarball() {
+  local dir="$1" algo="$2" expected="$3" label="$4"
+  shopt -s nullglob; local t=("${dir}"/*.tar.gz); shopt -u nullglob
+  [[ "${#t[@]}" -ge 1 ]] || return 0   # tar.gz 없으면(예: caddy 단일 바이너리) 건너뜀
+  if [[ "${algo}" == "sha512" ]]; then
+    verify_file_sha512 "${t[0]}" "${expected}" "${label}"
+  else
+    verify_file_sha256 "${t[0]}" "${expected}" "${label}"
+  fi
+}
 
 : "${KLID_PREFIX:?install.sh 에서 호출되어야 합니다}"
 ONPREM="$(onprem_root)"
@@ -41,12 +57,14 @@ extract_tar_flatten() {
 
 # ---- JRE ----
 info "[runtime] JRE 설치 → ${RT}/jre"
+verify_first_tarball "${ONPREM}/runtimes/jdk" sha256 "${TEMURIN_JRE_SHA256:-}" "Temurin JRE ${TEMURIN_JRE_VERSION}"
 extract_tar_flatten "${ONPREM}/runtimes/jdk" "${RT}/jre"
 [[ -x "${RT}/jre/bin/java" ]] || die "JRE 설치 실패: ${RT}/jre/bin/java 없음"
 ok "[runtime] java: $("${RT}/jre/bin/java" -version 2>&1 | head -n1)"
 
 # ---- Python (standalone) ----
 info "[runtime] Python 설치 → ${RT}/python"
+verify_first_tarball "${ONPREM}/runtimes/python" sha256 "${PYTHON_STANDALONE_SHA256:-}" "CPython ${PYTHON_STANDALONE_VERSION}"
 extract_tar_flatten "${ONPREM}/runtimes/python" "${RT}/python"
 PYBIN=""
 for cand in "${RT}/python/bin/python3.11" "${RT}/python/bin/python3" "${RT}/python/python/bin/python3"; do
@@ -61,6 +79,8 @@ shopt -s nullglob
 caddy_tars=("${ONPREM}/runtimes/caddy"/*.tar.gz)
 shopt -u nullglob
 if [[ "${#caddy_tars[@]}" -ge 1 ]]; then
+  # Caddy 공식 SHA256 미발행 → tar.gz 는 SHA512(공식)로 검증.
+  verify_file_sha512 "${caddy_tars[0]}" "${CADDY_SHA512:-}" "Caddy ${CADDY_VERSION}"
   tmp="$(mktemp -d)"
   # tar/install 실패로 조기 종료해도 임시 디렉토리가 잔류하지 않도록 EXIT 트랩 등록.
   trap 'rm -rf "${tmp:-}"' EXIT
@@ -69,7 +89,11 @@ if [[ "${#caddy_tars[@]}" -ge 1 ]]; then
   rm -rf "${tmp}"
   trap - EXIT
 elif [[ -f "${ONPREM}/runtimes/caddy/caddy" ]]; then
-  install -m 0755 "${ONPREM}/runtimes/caddy/caddy" "${RT}/caddy/caddy"
+  # 사전 배치된 단일 caddy 바이너리 경로는 공식 SHA512(tar.gz 기준)로 무결성 검증이 불가하다.
+  # 수집(40-collect-runtimes.sh)은 항상 tar.gz 를 받으므로 이 경로는 정상 흐름에서 도달하지 않는다.
+  # 검증 불가한 바이너리를 그대로 설치하지 않도록 fail-closed 로 거부한다.
+  die "검증 불가한 단일 caddy 바이너리는 지원하지 않습니다(공식 SHA512 는 tar.gz 기준).
+     → 공식 tar.gz(caddy_${CADDY_VERSION}_linux_amd64.tar.gz)를 runtimes/caddy/ 에 두고 다시 실행하세요."
 else
   die "Caddy 바이너리를 찾을 수 없습니다: ${ONPREM}/runtimes/caddy/"
 fi

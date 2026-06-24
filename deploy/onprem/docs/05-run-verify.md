@@ -60,6 +60,26 @@ ls -al /var/log/klid
 curl -fsS http://127.0.0.1:8080/api/actuator/health
 ```
 
+## 비식별(KPST) 연동 스모크
+
+비식별은 파이프라인 선두 필수 단계라 동거 KPST 연동을 확인한다(04-configuration.md B 절 확정 정책).
+
+- **부팅 통과 자체가 1차 확인**: https base-url + CA 미설정이면 fail-closed 로 기동 실패한다.
+  backend 가 정상 기동했다면 KPST SSL 컨텍스트 구성은 통과한 것이다.
+- **KPST 도달 확인**(설치값 IP/PORT 로 치환):
+
+  ```bash
+  # http 격리망: 단순 연결/헬스(엔드포인트는 KPST 제공값)
+  curl -fsS http://<KPST_IP>:<PORT>/   # 또는 KPST 헬스 경로
+
+  # https + 사설 CA: CA 로 검증 연결
+  curl -fsS --cacert /etc/klid/kpst-ca.crt https://<KPST_IP>:<PORT>/
+  ```
+
+- **end-to-end 전이 확인**(운영 시나리오): 관제 학습용 설정 영상 1건이 적재(`LS_DATA_RAW` PENDING)된 뒤
+  선두 비식별이 돌면 해당 영상의 `DE_IDENT_YN='Y'`(비식별 완료) + `DATA_STTS_CD=MARKING_READY` 로 전이된다.
+  계속 `DE_IDENT_YN='F'` 면 KPST 연동/주소/CA 를 점검한다 → [06-troubleshooting.md](06-troubleshooting.md).
+
 ## 재시작 / 정지
 
 ```bash

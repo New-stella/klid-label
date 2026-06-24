@@ -25,30 +25,41 @@ CADDY_OUT="${ONPREM}/runtimes/caddy"
 require_cmd curl
 ensure_dir "${JDK_OUT}" "${PY_OUT}" "${CADDY_OUT}"
 
-# download <url> <dest_dir> — 멱등(이미 있으면 생략)
+# download <url> <dest_dir> — 멱등(이미 있으면 생략). 받은 파일 경로를 stdout 으로 출력.
 download() {
   local url="$1" dest_dir="$2"
   local fname; fname="$(basename "${url%%\?*}")"
   local out="${dest_dir}/${fname}"
   if [[ -s "${out}" ]]; then
-    info "이미 존재(생략): ${out}"
+    info "이미 존재(생략): ${out}" >&2
+    printf '%s\n' "${out}"
     return 0
   fi
-  info "다운로드: ${url}"
+  info "다운로드: ${url}" >&2
   curl -fL --retry 3 --proto '=https' -o "${out}.part" "${url}" \
     && mv "${out}.part" "${out}" \
     || { rm -f "${out}.part"; die "다운로드 실패: ${url}"; }
-  ok "수집: ${out}  ($(du -h "${out}" | cut -f1))"
+  ok "수집: ${out}  ($(du -h "${out}" | cut -f1))" >&2
+  printf '%s\n' "${out}"
 }
 
+# 다운로드 직후 공식 체크섬과 대조한다(fail-closed). 미검증(빈 값)이면 강한 warn 후 진행.
 info "[runtimes] Temurin JRE ${TEMURIN_JRE_VERSION}..."
-download "${TEMURIN_JRE_URL}" "${JDK_OUT}"
+JRE_FILE="$(download "${TEMURIN_JRE_URL}" "${JDK_OUT}")"
+verify_file_sha256 "${JRE_FILE}" "${TEMURIN_JRE_SHA256:-}" "Temurin JRE ${TEMURIN_JRE_VERSION}"
 
 info "[runtimes] CPython standalone ${PYTHON_STANDALONE_VERSION}..."
-download "${PYTHON_STANDALONE_URL}" "${PY_OUT}"
+PY_FILE="$(download "${PYTHON_STANDALONE_URL}" "${PY_OUT}")"
+verify_file_sha256 "${PY_FILE}" "${PYTHON_STANDALONE_SHA256:-}" "CPython ${PYTHON_STANDALONE_VERSION}"
 
 info "[runtimes] Caddy ${CADDY_VERSION}..."
-download "${CADDY_URL}" "${CADDY_OUT}"
+CADDY_FILE="$(download "${CADDY_URL}" "${CADDY_OUT}")"
+# Caddy 는 공식 SHA256 미발행 → SHA256 가 비어있으면 SHA512(공식)로 검증.
+if [[ -n "${CADDY_SHA256:-}" ]]; then
+  verify_file_sha256 "${CADDY_FILE}" "${CADDY_SHA256}" "Caddy ${CADDY_VERSION}"
+else
+  verify_file_sha512 "${CADDY_FILE}" "${CADDY_SHA512:-}" "Caddy ${CADDY_VERSION}"
+fi
 
 sha256_write "${JDK_OUT}"
 sha256_write "${PY_OUT}"

@@ -15,24 +15,32 @@ BUILD_NODE_MAJOR="20"       # frontend vite build 용
 BUILD_PYTHON_MINOR="3.11"   # ai-server pip download 용 (대상과 동일 마이너)
 
 # ---- 대상 서버 런타임(번들 대상) ----
-# Eclipse Temurin JRE 17 (linux x64, glibc). 헤드리스 JRE 로 충분.
-# TODO(확인필요): 정확한 패치 버전·체크섬은 https://adoptium.net/temurin/releases/?os=linux&arch=x64&package=jre&version=17
-#                에서 확인 후 갱신. 아래는 안정 LTS 패치 예시값.
-TEMURIN_JRE_VERSION="17.0.13+11"
-TEMURIN_JRE_URL="https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jre_x64_linux_hotspot_17.0.13_11.tar.gz"
+# Eclipse Temurin JRE 17 (linux x64, glibc, hotspot). 헤드리스 JRE 로 충분.
+# 검증: 2026-06-24, 출처 https://api.adoptium.net/v3/assets/latest/17/hotspot?os=linux&architecture=x64&image_type=jre
+#   (release_name jdk-17.0.19+10, package.checksum = sha256)
+TEMURIN_JRE_VERSION="17.0.19+10"
+TEMURIN_JRE_URL="https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.19%2B10/OpenJDK17U-jre_x64_linux_hotspot_17.0.19_10.tar.gz"
+TEMURIN_JRE_SHA256="adb5a2364baa51de1ef91bb9911f5a61d24b045fe1d6647cb8050272a3a8ee75"
 
 # python-build-standalone — 격리된 CPython 3.11 (linux x86_64, glibc, gnu)
-# install-only 빌드(불필요 빌드 산출물 제외). 정확한 릴리스 태그는 아래 저장소에서 확인.
-# TODO(확인필요): 최신 릴리스 태그/파일명·체크섬은
-#   https://github.com/astral-sh/python-build-standalone/releases 에서 확인 후 갱신.
-PYTHON_STANDALONE_TAG="20241016"
-PYTHON_STANDALONE_VERSION="3.11.10"
-PYTHON_STANDALONE_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-unknown-linux-gnu-install_only.tar.gz"
+# install_only 빌드(불필요 빌드 산출물 제외).
+# 검증: 2026-06-24, 출처 https://github.com/astral-sh/python-build-standalone/releases/tag/20260623
+#   SHA256 출처: 동 릴리스 SHA256SUMS (cpython-3.11.15+20260623-...-install_only.tar.gz 행)
+PYTHON_STANDALONE_TAG="20260623"
+PYTHON_STANDALONE_VERSION="3.11.15"
+PYTHON_STANDALONE_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260623/cpython-3.11.15+20260623-x86_64-unknown-linux-gnu-install_only.tar.gz"
+PYTHON_STANDALONE_SHA256="60295e3e703b48c270e8d8c685195b8d5c2f0b8a596c1a910d7e24a2cc55afdd"
 
 # Caddy 정적 바이너리 (linux amd64) — 프론트 정적 서빙 + /api 리버스프록시
-# TODO(확인필요): 최신 안정 버전/체크섬은 https://github.com/caddyserver/caddy/releases 에서 확인.
-CADDY_VERSION="2.8.4"
-CADDY_URL="https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz"
+# 검증: 2026-06-24, 출처 https://github.com/caddyserver/caddy/releases/tag/v2.11.4
+# ※ Caddy 공식 체크섬 파일(caddy_2.11.4_checksums.txt)은 SHA-512 만 제공한다(SHA256 미발행).
+#   따라서 tar.gz 무결성은 CADDY_SHA512(아래, 공식값)로 검증한다. CADDY_SHA256 은 의도적으로 비움.
+CADDY_VERSION="2.11.4"
+CADDY_URL="https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_amd64.tar.gz"
+CADDY_SHA256=""   # Caddy 는 공식 SHA256 미발행 — SHA512 로 검증(아래)
+# 출처: caddy_2.11.4_checksums.txt (caddy_2.11.4_linux_amd64.tar.gz 행, SHA-512)
+# 공식 caddy_2.11.4_checksums.txt 와 대조 일치 확인: 2026-06-24
+CADDY_SHA512="8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9"
 
 # ---- ai-server torch CPU 인덱스 ----
 # pip download 시 CUDA wheel(거대) 대신 CPU wheel 을 받기 위한 인덱스.
@@ -40,14 +48,27 @@ PYTORCH_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"
 
 # requirements.txt lock 기준 torch 버전(참고). pip download 가 lock 을 그대로 따른다.
 #   torch==2.12.0, torchvision==0.27.0 (ai-server/requirements.txt 확인값)
-# CPU 인덱스에 동일 버전 wheel 이 없으면 pip 가 에러를 낸다 →
-#   06-troubleshooting.md "torch CPU" 절 참고(인덱스에 존재하는 인접 버전으로 lock 조정).
+# 검증: 2026-06-24, CPU 인덱스에 cp311 x86_64 wheel 존재 확인
+#   - torch-2.12.0+cpu-cp311-cp311-manylinux_2_28_x86_64.whl
+#   - torchvision-0.27.0+cpu-cp311-cp311-manylinux_2_28_x86_64.whl
+#   (출처: https://download.pytorch.org/whl/cpu/torch/ , .../torchvision/)
+#   → lock 핀 그대로 CPU 인덱스에서 받을 수 있다. 인접 버전 조정 불필요.
+# 만약 향후 lock 의 torch 버전이 CPU 인덱스에 없으면 06-troubleshooting.md "torch CPU" 절 참고.
+#
+# CPU 핀(참고/문서용): lock 버전이 CPU 인덱스에 존재함을 확인했으므로 lock 값과 동일하다.
+# 수집 스크립트는 기본적으로 lock 에서 핀을 추출하지만, lock 의 torch 가 CPU 인덱스에 없는
+# 상황에서만 troubleshooting 절차에 따라 아래 값으로 대체한다(sam2 의 torch>=2.5.1 하한 충족).
+TORCH_CPU_PIN="torch==2.12.0"
+TORCHVISION_CPU_PIN="torchvision==0.27.0"
 
 # ---- sam2 VCS 의존성 ----
 # requirements.txt: sam-2 @ git+https://github.com/facebookresearch/sam2.git
 SAM2_GIT_URL="https://github.com/facebookresearch/sam2.git"
-# TODO(확인필요): 재현성을 위해 특정 커밋/태그로 고정 권장. 빈 값이면 기본 브랜치 HEAD.
-SAM2_GIT_REF=""
+# 재현성을 위해 기본 브랜치(main) HEAD 커밋을 40자 전체 SHA 로 고정.
+# 핀: 2026-06-24 — facebookresearch/sam2 main HEAD (committed 2024-12-16, 저장소에 태그 없음)
+#   출처: https://api.github.com/repos/facebookresearch/sam2/commits/main
+# ※ SHA(브랜치/태그가 아님)이므로 collect 스크립트는 clone 후 git checkout 으로 처리한다.
+SAM2_GIT_REF="2b90b9f5ceec907a1c18123530e92e794ad901a4"
 
 # ---- HuggingFace 모델(선택 — DETECTOR_BACKEND=rtdetr 또는 SAM2 사용 시) ----
 # yolox(yolox_s.onnx)만 쓰면 HF 모델 prefetch 불필요.

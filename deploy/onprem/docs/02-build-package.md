@@ -37,6 +37,12 @@ PYTHON_BIN=python3.11 ./scripts/package.sh
 
 각 디렉토리에 `SHA256SUMS` 가 생성되어 전송 무결성을 검증한다.
 
+> **런타임 공식 체크섬 검증(fail-closed)**: `40-collect-runtimes.sh` 는 JRE/Python/Caddy tar.gz 를
+> 받은 직후 `scripts/lib/versions.sh` 의 공식 체크섬과 대조한다(불일치 시 즉시 중단). 설치 단계
+> `11-install-runtimes.sh` 도 압축 해제 직전 동일 검증을 한 번 더 수행한다. 이는 디렉토리 단위
+> `SHA256SUMS`(전송 무결성)와 별개의 **출처(공급망) 무결성** 검증이다.
+> Caddy 는 공식 SHA256 을 발행하지 않으므로(SHA-512 만 제공) tar.gz 는 `CADDY_SHA512` 로 검증한다.
+
 ## ★ 복사 대상 파일/라이브러리 명세표
 
 ### backend
@@ -71,15 +77,17 @@ PYTHON_BIN=python3.11 ./scripts/package.sh
 
 | 무엇 | 어디서 수집 | 번들 위치 | 대략 용량 |
 |------|-------------|-----------|:---------:|
-| Temurin JRE 17 | adoptium (versions.sh URL) | `runtimes/jdk/*.tar.gz` | ~45MB |
-| CPython 3.11 standalone | python-build-standalone | `runtimes/python/*.tar.gz` | ~30MB |
-| Caddy | caddyserver releases | `runtimes/caddy/*.tar.gz` | ~30MB |
+| Temurin JRE 17 (17.0.19+10) | adoptium (versions.sh URL) | `runtimes/jdk/*.tar.gz` | ~45MB |
+| CPython 3.11 standalone (3.11.15) | python-build-standalone (태그 20260623) | `runtimes/python/*.tar.gz` | ~30MB |
+| Caddy (2.11.4) | caddyserver releases | `runtimes/caddy/*.tar.gz` | ~30MB |
 | ffmpeg/libgl1/libglib2.0-0/curl `.deb` | apt-get download | `syspkgs/deb/*.deb` | 수십 MB |
 
 ## 함정 요약(반드시 인지)
 
 - **torch CPU**: 기본 PyPI 는 CUDA wheel(거대)을 준다. 스크립트는 PyTorch CPU 인덱스에서 받는다.
-  CPU 인덱스에 lock 버전(예: torch==2.12.0) wheel 이 없으면 실패 → 06-troubleshooting "torch CPU" 절.
+  현재 lock 버전 `torch==2.12.0` / `torchvision==0.27.0` 의 **cp311 x86_64 CPU wheel 이 CPU 인덱스에
+  존재함을 확인**(2026-06-24)했으므로 lock 그대로 받힌다. 향후 lock 의 torch 버전이 CPU 인덱스에
+  없을 때만 실패하며 그 경우 → 06-troubleshooting "torch CPU" 절.
 - **sam-2**: requirements 의 `git+https://.../sam2.git` 는 폐쇄망에서 설치 불가 → git 소스를 vendor 해
   설치 시 로컬 경로로 처리한다. Dockerfile 은 torch 를 strip 했지만 **베어메탈은 torch 도 설치**한다.
 - **HF 모델**: yolox 백엔드만 쓰면 불필요. rtdetr/SAM2 사용 시 `PREFETCH_HF=1` 로 미리 받아야 폐쇄망에서 동작.

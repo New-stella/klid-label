@@ -13,21 +13,54 @@
 
 ## torch CPU — 버전/인덱스 문제
 
-증상: `30-collect-ai-server.sh` 의 torch CPU 다운로드 실패(예: `torch==2.12.0` 가 CPU 인덱스에 없음).
+> **현재 상태(2026-06-24 확인)**: lock 의 `torch==2.12.0` / `torchvision==0.27.0` 의 cp311 x86_64
+> CPU wheel 이 PyTorch CPU 인덱스에 **존재**한다
+> (`torch-2.12.0+cpu-cp311-cp311-manylinux_2_28_x86_64.whl`,
+> `torchvision-0.27.0+cpu-cp311-cp311-manylinux_2_28_x86_64.whl`).
+> 따라서 기본 수집 경로로 그대로 받힌다. 아래는 **lock 버전이 향후 CPU 인덱스에서 사라졌을 때**의 절차다.
+
+증상: `30-collect-ai-server.sh` 의 torch CPU 다운로드 실패(예: `torch==X.Y.Z` 가 CPU 인덱스에 없음).
 
 원인: requirements lock 의 torch/torchvision 버전이 PyTorch CPU 인덱스(`download.pytorch.org/whl/cpu`)에
 존재하지 않을 수 있다(lock 은 CUDA/기본 인덱스 기준 핀일 수 있음).
 
-해결:
-- CPU 인덱스에 존재하는 인접 버전으로 조정. 인덱스에서 가용 버전 확인 후
-  `scripts/lib/versions.sh` 또는 requirements 의 핀을 맞춘다.
-- 또는 빌드머신에서 직접:
-  ```bash
-  python3.11 -m pip download --dest vendor/wheels \
-    --index-url https://download.pytorch.org/whl/cpu \
-    torch torchvision    # 버전 핀 없이 CPU 인덱스 최신 호환본
-  ```
-  단, sam2 가 요구하는 torch 하한(소스 기준 torch>=2.5.1)을 충족해야 한다.
+해결(앱 requirements.txt 는 건드리지 않고 수집/문서 레벨로 해결):
+
+1. CPU 인덱스에서 가용한 인접 버전 확인:
+   ```bash
+   # 인덱스 HTML 에서 cp311 x86_64 CPU wheel 목록 확인
+   curl -fsSL https://download.pytorch.org/whl/cpu/torch/ \
+     | grep -oiE 'torch-2\.[0-9]+\.[0-9]+%2Bcpu-cp311-cp311-manylinux[^"]*x86_64\.whl' | sort -uV
+   curl -fsSL https://download.pytorch.org/whl/cpu/torchvision/ \
+     | grep -oiE 'torchvision-0\.[0-9]+\.[0-9]+%2Bcpu-cp311-cp311-manylinux[^"]*x86_64\.whl' | sort -uV
+   ```
+   (sam2 가 요구하는 torch 하한 `torch>=2.5.1` 을 충족하는 버전을 고른다.)
+
+2. `scripts/lib/versions.sh` 의 권장 핀을 가용 버전으로 갱신:
+   ```bash
+   # 예: 인접 버전이 2.11.0 / 0.26.0 이라면
+   TORCH_CPU_PIN="torch==2.11.0"
+   TORCHVISION_CPU_PIN="torchvision==0.26.0"
+   ```
+
+3. **torch/torchvision 만** 그 핀으로 받고 **나머지 lock 은 유지**한다. 일반 wheel 은 이미 받힌 상태에서
+   torch 계열만 별도로 보강(requirements.txt 미변경):
+   ```bash
+   cd deploy/onprem
+   # versions.sh 의 핀을 사용해 torch 계열만 CPU 인덱스에서 추가 수집
+   . scripts/lib/versions.sh
+   python3.11 -m pip download --dest vendor/wheels \
+     --index-url https://download.pytorch.org/whl/cpu \
+     "${TORCH_CPU_PIN}" "${TORCHVISION_CPU_PIN}"
+   # 체크섬 재생성(전송 무결성)
+   ( cd vendor/wheels && find . -type f ! -name SHA256SUMS -print0 \
+       | sort -z | xargs -0 sha256sum > SHA256SUMS )
+   ```
+   대상 설치(`13-install-ai-server.sh`)는 `--no-index --find-links vendor/wheels` 로 설치하므로
+   requirements 의 핀과 다른 torch 버전이 wheels 에 있으면 의존성 충돌이 날 수 있다. 그때는
+   대상에서 `pip install --no-index --find-links vendor/wheels` 시
+   `torch torchvision` 만 명시 핀으로 먼저 깔거나, 빌드머신에서 requirements 핀과 동일 버전을
+   확보하는 것이 안전하다(앱 lock 변경은 별도 협의 대상).
 
 ## sam2 설치 실패
 
@@ -36,7 +69,9 @@
 해결:
 - SAM2 분할/Track 을 쓰지 않으면 무시 가능(yolox 탐지/오토라벨링은 동작).
 - 쓰려면: sam2 빌드 의존(torch 등)이 wheels 에 있어야 한다. torch CPU 수집이 선행됐는지 확인.
-- 재현성 위해 `versions.sh` 의 `SAM2_GIT_REF` 를 특정 커밋으로 고정 후 재수집 권장.
+- 재현성: `versions.sh` 의 `SAM2_GIT_REF` 가 main HEAD 커밋(`2b90b9f5...`, 2024-12-16)으로 고정돼 있다.
+  `30-collect-ai-server.sh` 는 이 SHA 로 clone 후 `git checkout` 한다(브랜치/태그가 아니므로 `--branch` 불가).
+  다른 커밋으로 바꾸려면 이 값만 교체 후 재수집.
 
 ## ffmpeg / ffprobe 없음
 
@@ -88,7 +123,14 @@
 해결: 관제 공유 스키마가 대상 DB 에 준비됐는지 확인. 온프렘 자체 DB 면 공유 테이블 사전 생성 필요
 (관제 인프라/DBA 협의). 04-configuration.md D 절 참고.
 
-## backend 부팅 실패 — 비식별 설정오류
+## 비식별 설정오류 / KPST 연동
 
-증상: `DeidentifyStep` 설정오류 거부(KPST disabled + mock 아님).
-해결: 04-configuration.md B 절 "비식별 자족 기동 주의" 참고 — KPST 연동(①) 또는 앱 보강(②) 결정 필요.
+비식별 정책은 **KPST 동거 연동으로 확정**(04-configuration.md B 절). 끄거나 mock 우회는 prd 미지원.
+
+- **부팅 실패 — 비식별 설정오류**: `DeidentifyStep` 설정오류 거부(`KPST_DEID_ENABLED=false` + mock 아님).
+  → `KPST_DEID_ENABLED=true` 로 두고 동거 KPST 주소/CA 를 설정한다.
+- **부팅 실패 — KPST SSL(fail-closed)**: `KPST_DEID_BASE_URL` 이 `https://` 인데
+  `KPST_DEID_CA_CERT_PATH` 미설정·읽기실패(CWE-295). → 사설 CA(ca.crt) 경로를 채우거나, 격리망이면
+  `http://IP:PORT` 평문 + CA 비움.
+- **영상이 비식별 'F' 로 남음 / 마킹·프레임추출 차단**: KPST 도달 불가 또는 주소/포트 오설정.
+  → 05-run-verify.md "비식별(KPST) 연동 스모크"로 KPST 도달을 확인하고 `KPST_DEID_BASE_URL` 점검.

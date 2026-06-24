@@ -101,6 +101,66 @@ sha256_write() {
   ok "체크섬 기록: ${dir}/SHA256SUMS"
 }
 
+# ----------------------------------------------------------------------------
+# 단일 파일 체크섬 검증 (fail-closed)
+# ----------------------------------------------------------------------------
+# _hash_file <algo> <file> — 파일의 해시(소문자 hex)를 stdout 으로 출력.
+#   algo: sha256 | sha512
+_hash_file() {
+  local algo="$1" file="$2"
+  if command -v "${algo}sum" >/dev/null 2>&1; then
+    "${algo}sum" "${file}" | awk '{print tolower($1)}'
+  elif command -v shasum >/dev/null 2>&1; then
+    local bits="256"; [[ "${algo}" == "sha512" ]] && bits="512"
+    shasum -a "${bits}" "${file}" | awk '{print tolower($1)}'
+  else
+    die "해시 도구를 찾을 수 없습니다 (${algo}sum / shasum)."
+  fi
+}
+
+# verify_file_sha256 <file> <expected> [<label>]
+#   - expected 비어있음 → 강한 warn 후 진행(미검증). 비대화/CI 에서도 안전.
+#   - 일치 → ok, 불일치 → die(fail-closed).
+verify_file_sha256() {
+  local file="$1" expected="$2" label="${3:-$(basename "${file}")}"
+  [[ -f "${file}" ]] || die "체크섬 검증 대상 파일 없음: ${file}"
+  if [[ -z "${expected}" ]]; then
+    warn "⚠ [무결성 미검증] ${label}: 기대 SHA256 이 비어있습니다(versions.sh 의 *_SHA256 미설정)."
+    warn "  공급망 무결성을 위해 공식 체크섬을 versions.sh 에 채우는 것을 강력히 권장합니다."
+    return 0
+  fi
+  local actual; actual="$(_hash_file sha256 "${file}")"
+  expected="$(printf '%s' "${expected}" | tr '[:upper:]' '[:lower:]')"
+  if [[ "${actual}" == "${expected}" ]]; then
+    ok "체크섬 일치(SHA256): ${label}" >&2   # $() 캡처 컨텍스트 오염 방지(방어적)
+  else
+    die "체크섬 불일치(SHA256): ${label}
+       기대: ${expected}
+       실제: ${actual}
+     → 다운로드가 변조/손상되었을 수 있습니다. 파일을 삭제하고 다시 받으세요."
+  fi
+}
+
+# verify_file_sha512 <file> <expected> [<label>] — Caddy 처럼 공식 SHA512 만 있는 경우.
+verify_file_sha512() {
+  local file="$1" expected="$2" label="${3:-$(basename "${file}")}"
+  [[ -f "${file}" ]] || die "체크섬 검증 대상 파일 없음: ${file}"
+  if [[ -z "${expected}" ]]; then
+    warn "⚠ [무결성 미검증] ${label}: 기대 SHA512 이 비어있습니다."
+    return 0
+  fi
+  local actual; actual="$(_hash_file sha512 "${file}")"
+  expected="$(printf '%s' "${expected}" | tr '[:upper:]' '[:lower:]')"
+  if [[ "${actual}" == "${expected}" ]]; then
+    ok "체크섬 일치(SHA512): ${label}" >&2   # $() 캡처 컨텍스트 오염 방지(방어적)
+  else
+    die "체크섬 불일치(SHA512): ${label}
+       기대: ${expected}
+       실제: ${actual}
+     → 다운로드가 변조/손상되었을 수 있습니다. 파일을 삭제하고 다시 받으세요."
+  fi
+}
+
 # sha256_verify <dir> — SHA256SUMS 와 대조 검증
 sha256_verify() {
   local dir="$1"

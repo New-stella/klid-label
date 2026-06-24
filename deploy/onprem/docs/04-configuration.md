@@ -55,45 +55,53 @@
 
 ---
 
-## B. 외부 연동 경로 vs 자족 경로 (★ 핵심 결정)
+## B. 외부 연동 경로 (★ 비식별은 KPST 동거 연동으로 확정)
 
-backend 는 4개 외부 시스템과 연동할 수 있다. 온프렘에 외부가 없으면 토글로 끈다.
+backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동거 연동이 확정 정책**이고,
+나머지(관제통지/VLM/증강)는 온프렘에 외부가 없으면 토글로 끈다.
 
-| 외부 시스템 | 토글(env) | 외부 있을 때 | 외부 없을 때(자족) |
-|-------------|-----------|--------------|--------------------|
-| 관제 outbound 통지 | `CONTROL_NOTIFY_ENABLED` | `true` + `CONTROL_NOTIFY_URL` | `false` (기본) |
-| 외부 VLM 시계열 | `VLM_CLIENT_ENABLED` | `true` + `VLM_SERVICE_URL`/`TOKEN` | `false` (기본) |
-| 외부 증강 | (콜백 수신, HMAC 시크릿만) | 시크릿 세팅 | 시크릿만 채워 부팅 통과 |
-| KPST 비식별(폴링) | `KPST_DEID_ENABLED` | `true` + base-url(+https면 CA) | (아래 ★ 주의) |
+| 외부 시스템 | 토글(env) | 설정 |
+|-------------|-----------|------|
+| **KPST 비식별(폴링)** | `KPST_DEID_ENABLED` | **항상 true(확정)** + base-url(+https면 CA). 끄거나 mock 우회 미지원 |
+| 관제 outbound 통지 | `CONTROL_NOTIFY_ENABLED` | 외부 있으면 `true` + `CONTROL_NOTIFY_URL`, 없으면 `false`(기본) |
+| 외부 VLM 시계열 | `VLM_CLIENT_ENABLED` | 외부 있으면 `true` + `VLM_SERVICE_URL`/`TOKEN`, 없으면 `false`(기본) |
+| 외부 증강 | (콜백 수신, HMAC 시크릿만) | 콜백 안 받아도 HMAC 시크릿만 채워 부팅 통과 |
 
-### ★ 비식별(KPST) — prd 자족 기동 주의
+### ★ 비식별(KPST) — 동거 설치·연동 (확정)
 
-비식별은 파이프라인 **선두 필수 단계**라 자족 기동에 가장 민감하다. 정리:
+비식별은 파이프라인 **선두 필수 단계**다. 운영 정책은 **① KPST 비식별 서버를 폐쇄망에 함께
+설치하고 backend 가 폴링으로 연동**하는 것으로 확정됐다.
 
-- **경로 ① 외부 연동(prd, KPST 있음)**: `KPST_DEID_ENABLED=true`,
-  `KPST_DEID_BASE_URL=https://IP:PORT` + `KPST_DEID_CA_CERT_PATH=/path/ca.crt`(https 면 필수, fail-closed),
-  또는 내부망 평문 `http://IP:PORT`(CA 불요). 가장 권장.
+- **전제**: KPST 비식별 서버 자체는 **외부 시스템 — 본 설치 패키지에 포함되지 않는다.**
+  고객이 폐쇄망에 KPST 를 별도 설치하고, 본 패키지는 backend ↔ KPST **연동 설정·절차만** 제공한다.
+  (01-prerequisites.md "대상 서버 요구사항"에 KPST 접근 가능 전제가 추가돼 있다.)
 
-- **경로 ② 외부 없음(자족)**: application 코드상 자족 비식별(`integration.deidentify.mock-mode=true`)은
-  **application-local.yml 에만** 정의돼 있다. 그리고 `local` 프로파일은 `LocalProfileGuard` 가
-  비-local(운영) 호스트에서 부팅을 거부한다. 즉 **prd 로는 외부 비식별 없이 "통과"시키는 설정 경로가
-  현재 코드에 없다.** `KPST_DEID_ENABLED=false` 이고 mock 도 아니면 `DeidentifyStep` 이 설정오류로 거부한다.
-  → 따라서 외부 비식별이 전혀 없는 폐쇄망이라면 다음 중 하나가 필요하다:
-    1. KPST(또는 동등) 비식별 서버를 폐쇄망 내에 함께 두고 경로 ①로 연동,
-    2. 또는 backend 코드에 "prd 에서도 mock/disable 비식별을 허용"하는 설정을 추가(앱 변경 = 본 패키지 범위 밖, 후속).
+- **연동 env**:
 
-  > **TODO(확인필요)**: 운영 정책상 폐쇄망에 비식별 서버를 함께 둘지(①), 아니면 비식별 토글을 prd 에서
-  > 허용하도록 앱을 보강할지(②) 결정 필요. 본 설치 패키지는 코드를 바꾸지 않으므로 단정하지 않는다.
+  | 변수 | 의미 / 기본 |
+  |------|-------------|
+  | `KPST_DEID_ENABLED` | **항상 `true`**(기본). 폴링 위탁 단일 경로 |
+  | `KPST_DEID_BASE_URL` | 동거 KPST 주소. `https://IP:PORT`(CA 필수) **또는** `http://IP:PORT`(격리망 평문, CA 불요). 본 패키지 템플릿 기본값 `https://127.0.0.1:9201`(Spring 코드 기본은 `localhost`이나 `env.template`을 진실원으로 봄) → 실주소로 교체 |
+  | `KPST_DEID_CA_CERT_PATH` | **https 일 때만 필수**. KPST 사설 CA(ca.crt) 경로. https 인데 비었거나 못 읽으면 **부팅 fail-closed**(CWE-295). http 면 비워둔다 |
+  | `KPST_DEID_CREATOR_ID` | 기본 `authoring`. `/project` 호출 기본값 |
+  | `KPST_DEID_REQ_USER_ID` | 기본 `authoring`. `/retrieve_progress` 호출 기본값 |
+  | `KPST_DEID_EXPORT_PATH_BASE` | 기본 `/share/Deid-data/export/`. 비식별 결과 export 경로 베이스 |
+  | `KPST_DEID_POLL_INTERVAL_SEC` | 기본 30. 폴링 주기(초) |
+  | `KPST_DEID_POLL_MAX_ATTEMPTS` | 기본 240. 시도 횟수 타임아웃 |
+  | `KPST_DEID_POLL_TIMEOUT_MINUTES` | 기본 180. 경과 시간 타임아웃(분) |
+  | `DEIDENTIFY_API_URL` | 기본 `http://localhost:9200`. 실 비식별 호출엔 안 쓰이고 **헬스 인디케이터가 핑**하는 주소 — KPST 헬스 엔드포인트 또는 무해한 기본값으로 둔다 |
 
-### KPST 관련 env
+  > **https / http 분기**: base-url 스키마로 전송 방식이 자동 분기된다(KpstWebClientConfig).
+  > `https://` → `KPST_DEID_CA_CERT_PATH` **필수**(미설정·읽기실패 시 부팅 실패). `http://`(격리망 평문) → CA **생략**.
 
-| 변수 | 의미 |
-|------|------|
-| `KPST_DEID_ENABLED` | 기본 true. 폴링 위탁 on/off |
-| `KPST_DEID_BASE_URL` | `https://...`(CA 필수) 또는 `http://...`(평문, 격리망) |
-| `KPST_DEID_CA_CERT_PATH` | https 일 때 필수(미설정·읽기실패 시 부팅 fail-closed) |
-| `KPST_DEID_CREATOR_ID`/`REQ_USER_ID`/`EXPORT_PATH_BASE` | 호출 기본값 |
-| `KPST_DEID_POLL_*` | 폴링 주기/타임아웃 |
+- **⚠ 비식별 없이 부팅(mock/disable)은 prd 비권장·미지원**: prd 에는 mock/disable 우회 경로가 없다.
+  `mock-mode=true` 자족 비식별은 application-local.yml 전용이고 `local` 프로파일은 `LocalProfileGuard`
+  가 운영 호스트에서 거부한다. `KPST_DEID_ENABLED=false` 이고 mock 도 아니면 `DeidentifyStep` 이
+  설정오류로 거부한다. **비식별을 끄면 PII 노출 + 마킹/프레임추출 차단**이므로 KPST 동거 연동을 반드시 갖춘다.
+
+- **미연동 시 증상·진단**: 영상이 비식별 실패(`DE_IDENT_YN='F'`) 상태로 남고, 비식별 미완료라 마킹
+  스트리밍/프레임추출이 차단된다. 부팅 거부·연결 실패 진단은
+  [06-troubleshooting.md "비식별 설정오류 / KPST 연동"](06-troubleshooting.md) 참고.
 
 ---
 

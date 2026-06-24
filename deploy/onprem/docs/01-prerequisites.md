@@ -40,7 +40,8 @@ macOS/Windows/ARM 빌드머신에서 수집하면 폐쇄망에서 동작하지 �
 | 메모리 | backend(JVM, MaxRAMPercentage 75%) + ai-server(torch CPU) 고려해 충분히(권장 ≥ 8GB) |
 | 디스크 | 앱·런타임·모델 + 영상 저장소. 영상 규모에 비례(저장소 별도 산정) |
 | PostgreSQL | **16** 접속 정보(host/port/db/user/pw). control(klid_system) + portal 2개 DB |
-| 네트워크 | 같은 호스트 내 80/8080/9300/5432 사용. 외부 인바운드는 80만 노출 권장 |
+| **KPST 비식별 서버** | **폐쇄망에 별도 설치·접근 가능**해야 함(본 패키지 비포함, 외부 시스템). backend 가 폴링 연동(http 또는 https+사설CA). 비식별은 파이프라인 선두 필수 단계라 prd 에서 끄거나 mock 우회 불가 — 04-configuration.md B 절 참고 |
+| 네트워크 | 같은 호스트 내 80/8080/9300/5432 + KPST 비식별 포트(예 9201) 도달. 외부 인바운드는 80만 노출 권장 |
 
 ### 런타임 시스템 패키지(대상 서버)
 

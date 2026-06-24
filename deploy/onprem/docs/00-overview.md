@@ -10,14 +10,21 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
   (브라우저)│  (정적 dist)            (backend, Java17)            (ai-server, Py3.11)│
             │       │                       │                                        │
             │       └─ SPA(dist)            ├─► PostgreSQL :5432 (control + portal)   │
-            │                               └─► FFmpeg / 저장소(/var/lib/klid)        │
-            └────────────────────────────────────────────────────────────────────────┘
+            │                               ├─► FFmpeg / 저장소(/var/lib/klid)        │
+            │                               └─► KPST 비식별 서버 (폴링, 외부 동거)    │
+            └───────────────────────────────────────│────────────────────────────────┘
+                                                     ▼
+                              ┌─ KPST 비식별 서버 (폐쇄망 별도 설치, 본 패키지 비포함) ─┐
+                              │   backend 가 폴링으로 위탁/결과 회수 (http 또는 https+CA) │
+                              └──────────────────────────────────────────────────────────┘
 ```
 
 - **frontend (Caddy)**: React+Vite 정적 빌드(`dist`)를 80포트로 서빙하고, `/api/*` 를 backend 로 리버스프록시.
 - **backend (Spring Boot)**: 인증/DB/오케스트레이션/라벨 CRUD/배치. context-path `/api`, 포트 8080.
   control DB(klid_system) + portal DB 2개 DataSource. Flyway 로 LS_* 테이블 자동 생성/검증.
 - **ai-server (FastAPI)**: YOLOX(onnxruntime CPU)/SAM2/RT-DETR 추론만. 상태·인증·DB 없음. 포트 9300.
+- **KPST 비식별 서버 (외부 동거)**: 폐쇄망에 **별도 설치**(본 패키지 비포함). backend 가 폴링으로
+  비식별을 위탁하고 결과를 회수한다. 비식별은 파이프라인 선두 필수 단계라 prd 에서 끄거나 mock 우회 불가.
 
 ## 데이터 흐름(요약)
 
@@ -25,8 +32,8 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 2. 적재 직후 선두 **비식별** → 마킹 → VLM 시계열(콜백) → FFmpeg 프레임추출 → YOLO/SAM2 오토라벨링.
 3. 라벨링/검수 → 검수 승인 시 라벨 스냅샷(`LS_LABEL_VERSION`) + (옵션)관제 outbound 통지.
 
-> 외부 시스템(비식별 KPST / 관제통지 / VLM / 증강)은 토글로 on/off 한다. 온프렘에 외부가 없으면
-> 04-configuration.md "외부 연동 경로 vs 자족 경로"를 따른다.
+> **비식별(KPST)은 폐쇄망 동거 연동이 확정 정책**(끄거나 mock 우회 불가). 나머지 외부(관제통지 / VLM /
+> 증강)는 토글로 on/off 한다. 상세는 04-configuration.md B 절 "외부 연동 경로 / 비식별(KPST) 동거 연동" 참고.
 
 ## 포트맵
 
@@ -36,6 +43,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 | backend | 8080 | `GET /api/actuator/health/liveness` |
 | ai-server | 9300 | `GET /health` |
 | PostgreSQL | 5432 | — |
+| KPST 비식별(외부 동거) | 설치값(예 9201) | KPST 제공(http 또는 https+사설CA) |
 
 ## 패키지 디렉토리 의미
 
