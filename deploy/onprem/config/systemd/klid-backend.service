@@ -1,0 +1,40 @@
+# klid-backend — Spring Boot 메인 애플리케이션 (Java 17)
+#   설치 시 @KLID_*@ 플레이스홀더가 치환된다(install/12-install-backend.sh).
+[Unit]
+Description=klid-label backend (Spring Boot)
+Documentation=file:@KLID_PREFIX@/../deploy/onprem/docs/05-run-verify.md
+# DB·ai-server 준비 후 기동되도록 정렬(동일 호스트 PostgreSQL/ai-server 가정).
+#   외부 DB 면 network-online 만으로 충분 — postgresql.service 가 없으면 무시된다.
+After=network-online.target postgresql.service klid-ai-server.service
+Wants=network-online.target
+Requires=klid-ai-server.service
+
+[Service]
+Type=simple
+User=@KLID_USER@
+Group=@KLID_GROUP@
+WorkingDirectory=@KLID_PREFIX@/app
+EnvironmentFile=@KLID_ETC@/backend.env
+# JAVA_OPTS 는 backend.env 에서 주입(없으면 빈 값).
+ExecStart=@KLID_PREFIX@/runtime/jre/bin/java $JAVA_OPTS -jar @KLID_PREFIX@/app/klid-backend.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=10
+# 기동/종료 여유(대용량 컨텍스트·Flyway 마이그레이션)
+TimeoutStartSec=180
+TimeoutStopSec=30
+# 로그 — journald + 식별 태그
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=klid-backend
+
+# ---- 하드닝 ----
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+# 데이터/로그 쓰기 허용 경로
+ReadWritePaths=@KLID_LOG@ @KLID_DATA@
+
+[Install]
+WantedBy=multi-user.target

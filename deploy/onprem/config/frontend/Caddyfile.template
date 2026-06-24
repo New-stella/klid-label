@@ -1,0 +1,52 @@
+# ============================================================================
+# Caddyfile — klid-label 프론트 정적 서빙 + /api 리버스프록시
+#   설치 시 @WEB_ROOT@ 는 /opt/klid/web/dist 로 치환된다.
+#
+#   - :80 에서 SPA(dist) 서빙
+#   - /api/* 는 backend(127.0.0.1:8080)로 프록시 (backend context-path=/api)
+#   - 보안 헤더 + 대용량 업로드(512m) + 영상 스트림(버퍼링 off, 타임아웃 연장)
+#
+#   ※ Caddy 자동 HTTPS(ACME)는 폐쇄망에서 불가하므로 사용하지 않는다(:80 평문).
+#     외부 노출 시 사내 TLS 종단(역방향 프록시/로드밸런서)을 앞단에 둔다.
+# ============================================================================
+
+{
+	# 폐쇄망: 자동 HTTPS 비활성(인증서 발급 시도 차단), admin API 비활성
+	auto_https off
+	admin off
+}
+
+:80 {
+	root * @WEB_ROOT@
+	encode gzip
+
+	# 보안 헤더 (nginx.conf 와 동일 정책)
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		-Server
+		# 앞단에서 TLS 종단(HTTPS)을 둘 경우에만 아래 HSTS 를 주석 해제한다(평문 :80 에서는 금지).
+		# Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	# 대용량 업로드(TUS) — backend 한도와 정렬
+	request_body {
+		max_size 512MB
+	}
+
+	# API 프록시 — backend context-path 가 /api 이므로 경로 그대로 전달
+	#   FE 는 VITE_API_BASE_URL=/api/v1 로 호출 → /api/v1/... → backend /api + /v1/...
+	@api path /api/*
+	reverse_proxy @api 127.0.0.1:8080 {
+		# 영상 스트림(Range)/대용량 응답 — 버퍼링 끄고 타임아웃 연장
+		flush_interval -1
+		transport http {
+			read_timeout 300s
+			write_timeout 300s
+		}
+	}
+
+	# SPA fallback — 정적 파일 우선, 없으면 index.html
+	try_files {path} /index.html
+	file_server
+}

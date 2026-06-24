@@ -1,0 +1,21 @@
+# klid-label 온프렘 설치 패키지
+#
+# 이 파일은 패키지 자체의 버전·메타 placeholder 다.
+# 실제 수집 시점/커밋은 package.sh 가 VERSION.built 로 별도 기록한다.
+
+package_name=klid-label-onprem
+package_format=baremetal-systemd-offline
+target_platform=linux/x86_64 (glibc, CPU-only)
+
+# 구성 요소(소스 기준 — 정확한 산출 버전은 빌드 시점 기준)
+backend_runtime=Java 17 (Temurin JRE)
+ai_server_runtime=Python 3.11
+frontend_build=node 20 / Vite (정적 dist)
+reverse_proxy=Caddy 2.x (대안: nginx)
+database=PostgreSQL 16 (외부/별도 준비)
+
+# 포트맵
+port_backend=8080      # context-path=/api, liveness=/api/actuator/health/liveness
+port_ai_server=9300    # /health
+port_frontend=80       # Caddy (SPA + /api 프록시)
+port_postgres=5432

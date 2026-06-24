@@ -1,0 +1,46 @@
+# ============================================================================
+# nginx.conf — (대안) 기존 nginx 보유 서버용 사이트 설정
+#   USE_NGINX=1 로 설치 시 /opt/klid/web/nginx.conf 로 배치된다(서비스 자동 등록 X).
+#
+#   원본 frontend/nginx.conf 와의 차이:
+#     - root: 컨테이너 경로(/usr/share/nginx/html) → 베어메탈 설치 경로
+#     - proxy_pass: http://klid-backend:8080 → http://127.0.0.1:8080
+#
+#   적용: 이 server 블록을 기존 nginx 의 sites-available/ 또는 conf.d/ 에 반영 후
+#         nginx -t && systemctl reload nginx
+# ============================================================================
+server {
+    listen       80;
+    server_name  _;
+    root         /opt/klid/web/dist;
+    index        index.html;
+
+    # 보안 헤더
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    # 앞단에서 TLS 종단(HTTPS)을 둘 경우에만 아래 HSTS 를 주석 해제한다(평문 :80 에서는 금지).
+    # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # 대용량 업로드(TUS) 허용 — backend 한도와 정렬
+    client_max_body_size 512m;
+
+    # API 프록시 — backend context-path 가 /api 이므로 경로 그대로 전달.
+    #   FE 는 VITE_API_BASE_URL=/api/v1 로 호출 → /api/v1/... → backend /api + /v1/...
+    location /api/ {
+        proxy_pass         http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        # 영상 스트림(Range) / 대용량 응답
+        proxy_buffering    off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # SPA fallback
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

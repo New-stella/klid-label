@@ -1,0 +1,35 @@
+# klid-frontend — Caddy 정적 서빙 + /api 리버스프록시
+#   설치 시 @KLID_*@ / @KLID_CADDY@ 플레이스홀더가 치환된다(install/14-install-frontend.sh).
+[Unit]
+Description=klid-label frontend (Caddy static + reverse proxy)
+After=network-online.target klid-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@KLID_USER@
+Group=@KLID_GROUP@
+WorkingDirectory=@KLID_PREFIX@/web
+# Caddy 데이터/설정 디렉토리를 설치 경로 하위로 고정(비루트 사용자 권한)
+Environment=XDG_DATA_HOME=@KLID_PREFIX@/web/.caddy-data
+Environment=XDG_CONFIG_HOME=@KLID_PREFIX@/web/.caddy-config
+ExecStart=@KLID_CADDY@ run --config @KLID_PREFIX@/web/Caddyfile --adapter caddyfile
+ExecReload=@KLID_CADDY@ reload --config @KLID_PREFIX@/web/Caddyfile --adapter caddyfile
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=klid-frontend
+
+# ---- 하드닝 ----
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=@KLID_PREFIX@/web/.caddy-data @KLID_PREFIX@/web/.caddy-config
+# 80 포트 바인딩: 14-install-frontend.sh 가 caddy 바이너리에 setcap 을 부여한다.
+# AmbientCapabilities 로도 보강(setcap 불가 환경 대비).
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
