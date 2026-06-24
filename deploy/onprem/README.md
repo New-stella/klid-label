@@ -1,7 +1,9 @@
 # klid-label 온프렘(폐쇄망) 설치 패키지
 
-학습데이터 저작도구(backend + ai-server + frontend)를 **인터넷이 없는 폐쇄망(에어갭) 리눅스 서버**에
+학습데이터 저작도구(backend + ai-server + frontend)를 **인터넷이 없는 폐쇄망(에어갭) Rocky Linux 9 서버**에
 **Docker 없이 베어메탈 + systemd**로 설치하기 위한 자족 패키지다.
+
+> 타깃 OS: **Rocky Linux 9** (RHEL 9 계열, x86_64, glibc 2.34, dnf/rpm). 시스템 의존성은 RPM + 정적 ffmpeg.
 
 > 이 폴더(`deploy/onprem/`)를 **빌드머신에서 한 번 채운 뒤** 폐쇄망 서버로 통째로 가져가면 설치된다.
 
@@ -10,13 +12,13 @@
 ## 5단계 요약
 
 ```
-[빌드머신 — 인터넷 O, 대상과 동일 Linux x86_64]
+[빌드머신 — 인터넷 O. wheel·RPM 은 rockylinux:9 환경에서 수집]
   1) ./scripts/package.sh
-       └ backend jar · frontend dist · pip wheel(torch CPU) · 런타임 · .deb · 모델 수집
+       └ backend jar · frontend dist · pip wheel(torch CPU) · 런타임 · ffmpeg 정적 · RPM · 모델 수집
 
   2) deploy/onprem/ 폴더 전체를 USB/전송 매체로 복사
 
-[대상 서버 — 폐쇄망, Linux x86_64 CPU]
+[대상 서버 — 폐쇄망, Rocky Linux 9 x86_64 CPU]
   3) sudo ./scripts/install.sh
        └ 런타임 설치 → backend → ai-server → frontend → (옵션)DB 초기화
 
@@ -42,9 +44,9 @@ curl -fsS http://127.0.0.1/                                      # frontend(Cadd
 | **빌드머신** | 필요 | 모든 의존성 수집·빌드 | `./scripts/package.sh` |
 | **대상 서버** | 불필요 | 오프라인 설치·구동 | `sudo ./scripts/install.sh` |
 
-> ★ **빌드머신은 대상 서버와 동일한 OS/아키텍처(Linux x86_64, glibc)** 여야 한다.
-> pip wheel(manylinux)·`.deb`·런타임 바이너리·glibc 정합 때문이며, macOS/Windows/ARM 빌드머신
-> 산출물은 폐쇄망 x86_64 리눅스에서 동작하지 않는다. (01-prerequisites.md 참고)
+> ★ **pip wheel·RPM 수집은 Rocky Linux 9 (x86_64, glibc 2.34) 환경**에서 해야 한다.
+> manylinux wheel·RPM·glibc 정합 때문이며, macOS/Windows/ARM 에서 받은 wheel/RPM 은 동작하지 않는다.
+> (jar/FE dist/런타임 tarball/ffmpeg 정적은 OS 무관 — 02-build-package.md 구분표 참고)
 
 ---
 
@@ -62,7 +64,7 @@ curl -fsS http://127.0.0.1/                                      # frontend(Cadd
 ## 설치 후 디렉토리 레이아웃
 
 ```
-/opt/klid/runtime/{jre,python,caddy}   번들 런타임
+/opt/klid/runtime/{jre,python,caddy,ffmpeg}   번들 런타임(ffmpeg 정적 포함)
 /opt/klid/app/klid-backend.jar         backend 실행 jar
 /opt/klid/ai/{venv,app,weights,.hf-cache}  ai-server
 /opt/klid/web/{dist,Caddyfile}         frontend
@@ -109,5 +111,5 @@ deploy/onprem/
 ├── runtimes/{jdk,python,caddy}/
 ├── vendor/{wheels,sam2}/
 ├── models/{weights,hf-cache}/
-└── syspkgs/deb/
+└── syspkgs/{rpm,ffmpeg}/                 # Rocky 9 RPM + ffmpeg 정적 tarball
 ```

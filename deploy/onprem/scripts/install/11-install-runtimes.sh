@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ============================================================================
-# 11-install-runtimes.sh — [대상 서버] 번들 런타임 설치(JRE/Python/Caddy)
-#   + 시스템 패키지(.deb) 오프라인 설치(ffmpeg/libgl1/libglib2.0-0/curl)
+# 11-install-runtimes.sh — [대상 서버 / Rocky Linux 9] 번들 런타임 설치
+#   JRE/Python/Caddy + ffmpeg 정적 바이너리 + 시스템 RPM(opencv 런타임 의존)
+#
+#   타깃 OS = Rocky Linux 9 (RHEL 9 계열, x86_64, glibc 2.34, dnf/rpm).
+#     - ffmpeg/ffprobe : syspkgs/ffmpeg/ 의 정적 tarball 을 /opt/klid/runtime/ffmpeg 로 설치.
+#     - RPM(mesa-libGL 등) : syspkgs/rpm/*.rpm 오프라인 설치(dnf 우선, rpm 폴백).
 #
 #   외부 네트워크 호출 없음. 모든 산출물은 runtimes/, syspkgs/ 번들에서 사용.
 # ============================================================================
@@ -31,7 +35,7 @@ verify_first_tarball() {
 : "${KLID_PREFIX:?install.sh 에서 호출되어야 합니다}"
 ONPREM="$(onprem_root)"
 RT="${KLID_PREFIX}/runtime"
-ensure_dir "${RT}/jre" "${RT}/python" "${RT}/caddy"
+ensure_dir "${RT}/jre" "${RT}/python" "${RT}/caddy" "${RT}/ffmpeg/bin"
 
 # extract_single <src_dir> <dest_dir> — src_dir 의 단일 tar.gz 를 dest 로 풀고
 #                                       최상위 1단계 디렉토리를 평탄화
@@ -99,21 +103,62 @@ else
 fi
 ok "[runtime] caddy: $("${RT}/caddy/caddy" version 2>&1 | head -n1)"
 
-# ---- 시스템 패키지(.deb) 오프라인 설치 ----
+# ---- ffmpeg/ffprobe (정적 바이너리) ----
+# Rocky 9 base/AppStream 에 ffmpeg 가 없으므로 정적 바이너리를 번들·배치한다.
+# BtbN linux64-lgpl tarball(LGPL — 지방정부 납품 GPL 회피, 디코드 전용으로 충분)은 .tar.xz 이며
+# 내부 bin/ 에 ffmpeg·ffprobe 가 있다.
+info "[runtime] ffmpeg 설치 → ${RT}/ffmpeg"
 shopt -s nullglob
-debs=("${ONPREM}/syspkgs/deb"/*.deb)
+ff_tars=("${ONPREM}/syspkgs/ffmpeg"/*.tar.xz "${ONPREM}/syspkgs/ffmpeg"/*.tar.gz)
 shopt -u nullglob
-if [[ "${#debs[@]}" -ge 1 ]]; then
-  if command -v dpkg >/dev/null 2>&1; then
-    info "[runtime] 시스템 패키지(.deb) 오프라인 설치: ${#debs[@]} 개"
-    # 의존성 순서 문제는 dpkg 반복 + apt-get -f(로컬 캐시) 없이도 -i 묶음 설치로 대개 해소.
-    dpkg -i "${debs[@]}" || dpkg -i "${debs[@]}" || warn "[runtime] dpkg -i 일부 미해결 — 06-troubleshooting.md 참고"
+if [[ "${#ff_tars[@]}" -ge 1 ]]; then
+  # 공식 SHA256 으로 무결성 검증(fail-closed; 미검증이면 강한 warn 후 진행).
+  verify_file_sha256 "${ff_tars[0]}" "${FFMPEG_STATIC_SHA256:-}" "ffmpeg static ${FFMPEG_STATIC_VERSION:-}"
+  ff_tmp="$(mktemp -d)"
+  trap 'rm -rf "${ff_tmp:-}"' EXIT
+  case "${ff_tars[0]}" in
+    *.tar.xz) tar -xJf "${ff_tars[0]}" -C "${ff_tmp}" ;;
+    *)        tar -xzf "${ff_tars[0]}" -C "${ff_tmp}" ;;
+  esac
+  # tarball 어디에 있든 ffmpeg/ffprobe 실행 파일을 찾아 배치(보통 <root>/bin/).
+  ff_bin="$(find "${ff_tmp}" -type f -name ffmpeg  | head -n1)"
+  fp_bin="$(find "${ff_tmp}" -type f -name ffprobe | head -n1)"
+  [[ -n "${ff_bin}" && -n "${fp_bin}" ]] || die "ffmpeg/ffprobe 바이너리를 tarball 에서 찾지 못했습니다: ${ff_tars[0]}"
+  install -m 0755 "${ff_bin}" "${RT}/ffmpeg/bin/ffmpeg"
+  install -m 0755 "${fp_bin}" "${RT}/ffmpeg/bin/ffprobe"
+  rm -rf "${ff_tmp}"; trap - EXIT
+  ok "[runtime] ffmpeg: $("${RT}/ffmpeg/bin/ffmpeg" -version 2>&1 | head -n1)"
+else
+  warn "[runtime] 번들된 ffmpeg 정적 바이너리 없음(syspkgs/ffmpeg/*.tar.xz)."
+  warn "          backend FFmpegStep(프레임추출·duration) 가 실패할 수 있습니다."
+  warn "          빌드머신에서 50-collect-syspkgs.sh 를 다시 실행해 수집하세요."
+fi
+
+# ---- 시스템 RPM(opencv 런타임 의존: mesa-libGL/libglvnd-glx/glib2) 오프라인 설치 ----
+shopt -s nullglob
+rpms=("${ONPREM}/syspkgs/rpm"/*.rpm)
+shopt -u nullglob
+if [[ "${#rpms[@]}" -ge 1 ]]; then
+  if command -v dnf >/dev/null 2>&1; then
+    info "[runtime] 시스템 RPM 오프라인 설치(dnf): ${#rpms[@]} 개"
+    # --disablerepo='*' 로 외부 네트워크 미접근. 의존성은 번들된 RPM 들로 로컬 해소.
+    # --setopt=gpgcheck=0: 무결성은 번들 SHA256SUMS 로 이미 검증 — repo/GPG 메타가 부재한
+    #   최소 Rocky 9 폐쇄망 이미지에서 GPG 키 부재로 dnf install 이 실패하지 않도록 비활성.
+    # 폴백 rpm -Uvh 에는 --nodeps 를 쓰지 않는다(의존성 깨짐 위험 — 번들 RPM 로 의존 해소 기대).
+    dnf install -y --disablerepo='*' --setopt=gpgcheck=0 "${rpms[@]}" \
+      || rpm -Uvh --replacepkgs "${rpms[@]}" \
+      || warn "[runtime] RPM 설치 일부 미해결 — 06-troubleshooting.md 참고"
+  elif command -v rpm >/dev/null 2>&1; then
+    info "[runtime] 시스템 RPM 오프라인 설치(rpm): ${#rpms[@]} 개"
+    # 이미 설치돼 있어도 무해하도록 --replacepkgs. 멱등.
+    rpm -Uvh --replacepkgs "${rpms[@]}" \
+      || warn "[runtime] rpm -Uvh 일부 미해결 — 06-troubleshooting.md 참고"
   else
-    warn "[runtime] dpkg 없음 — .deb 설치 생략. ffmpeg/libgl1/libglib2.0-0 를 수동 설치하세요."
+    warn "[runtime] dnf/rpm 없음 — RPM 설치 생략. mesa-libGL/glib2 를 수동 설치하세요."
   fi
 else
-  warn "[runtime] 번들된 .deb 없음 — 대상 OS 에 ffmpeg/ffprobe/libgl1/libglib2.0-0/curl 가"
-  warn "          이미 설치돼 있어야 합니다(없으면 backend ffmpeg·ai-server opencv 가 실패)."
+  warn "[runtime] 번들된 RPM 없음 — 대상 OS 에 mesa-libGL/libglvnd-glx/glib2 가 이미 설치돼"
+  warn "          있어야 합니다(없으면 ai-server opencv import: libGL.so.1 가 실패)."
 fi
 
 # 런타임 위치 기록(다음 스크립트가 참조)
@@ -121,5 +166,7 @@ fi
   echo "KLID_JAVA=${RT}/jre/bin/java"
   echo "KLID_PYTHON=${PYBIN}"
   echo "KLID_CADDY=${RT}/caddy/caddy"
+  echo "KLID_FFMPEG=${RT}/ffmpeg/bin/ffmpeg"
+  echo "KLID_FFPROBE=${RT}/ffmpeg/bin/ffprobe"
 } > "${KLID_PREFIX}/runtime/runtime.env"
 ok "[runtime] 런타임 경로 기록: ${KLID_PREFIX}/runtime/runtime.env"

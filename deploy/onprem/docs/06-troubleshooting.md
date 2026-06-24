@@ -73,19 +73,37 @@
   `30-collect-ai-server.sh` 는 이 SHA 로 clone 후 `git checkout` 한다(브랜치/태그가 아니므로 `--branch` 불가).
   다른 커밋으로 바꾸려면 이 값만 교체 후 재수집.
 
-## ffmpeg / ffprobe 없음
+## ffmpeg / ffprobe 없음 (Rocky 9: 정적 바이너리)
 
-증상: backend 프레임 추출/duration 추출 실패(`ffmpeg`/`ffprobe` not found).
+증상: backend 프레임 추출/duration 추출 실패(`ffmpeg`/`ffprobe` not found 또는 Permission denied).
 
-해결:
-- 데비안: `syspkgs/deb/` 에 ffmpeg `.deb` 가 포함됐는지 확인 → `sudo dpkg -i syspkgs/deb/*.deb`.
-- 비데비안: `sudo dnf install ffmpeg`(미러 필요). 또는 backend.env `FFMPEG_BIN`/`FFPROBE_BIN` 에 절대경로.
+해결(Rocky 9 는 정적 바이너리 번들이 정석 — base/AppStream 에 ffmpeg RPM 이 없음):
+- 번들은 **LGPL 빌드**(BtbN `linux64-lgpl`)다 — 지방정부 납품 GPL 회피용. native H.264/HEVC 디코더를
+  포함하므로 프레임 추출(디코드)·duration 추출에 충분하다(인코딩 미사용 → GPL 코덱 불필요).
+- 설치 확인: `ls -l /opt/klid/runtime/ffmpeg/bin/` → `ffmpeg`/`ffprobe` 가 있고 `chmod +x`(0755) 인지.
+  없으면 `syspkgs/ffmpeg/*.tar.xz` 가 번들됐는지 확인 후 `11-install-runtimes.sh` 재실행.
+- 권한 오류면: `sudo chmod +x /opt/klid/runtime/ffmpeg/bin/ffmpeg /opt/klid/runtime/ffmpeg/bin/ffprobe`.
+- 경로 확인: `backend.env` 의 `FFMPEG_BIN=/opt/klid/runtime/ffmpeg/bin/ffmpeg`(절대경로) 인지.
+  systemd 유닛 PATH 에도 `…/ffmpeg/bin` 이 추가돼 있어 bare 이름으로도 잡힌다.
+- 직접 보강: 정적 바이너리를 `/opt/klid/runtime/ffmpeg/bin/` 에 두고 `chmod +x` 후 재기동.
 
 ## libGL / opencv (`ImportError: libGL.so.1`)
 
-증상: ai-server 기동 시 opencv import 실패.
+증상: ai-server 기동 시 opencv import 실패(`libGL.so.1: cannot open shared object file`).
 
-해결: `libgl1`, `libglib2.0-0` 설치(데비안 `.deb` 또는 RHEL `mesa-libGL glib2`).
+해결(Rocky 9 AppStream RPM):
+- 번들 RPM 설치 확인: `rpm -q mesa-libGL libglvnd-glx glib2`.
+- 누락 시 오프라인 설치: `sudo dnf install -y --disablerepo='*' --setopt=gpgcheck=0 syspkgs/rpm/*.rpm`
+  (폴백 `sudo rpm -Uvh --replacepkgs syspkgs/rpm/*.rpm`).
+- **`GPG check FAILED` / `public key is not installed` 로 dnf install 실패 시**: 최소 Rocky 9 이미지에
+  GPG 키가 없을 때 발생한다. 무결성은 번들 `SHA256SUMS` 로 이미 검증되므로
+  `--setopt=gpgcheck=0` 을 붙여 설치한다(`11-install-runtimes.sh` 가 이미 이 옵션으로 설치).
+- **`rpm -Uvh` 폴백은 의존성 자동해소를 못 한다** — 정상 경로는 dnf(로컬 의존 해소)다. 폴백이
+  `Failed dependencies` 로 실패하면 번들 RPM 세트가 불완전한 것이니, 빌드머신에서
+  `50-collect-syspkgs.sh` 로 전이 의존성까지 포함해 재수집한 RPM 세트를 점검하라.
+- 사내 미러가 있으면: `sudo dnf install -y mesa-libGL libglvnd-glx glib2`.
+- 번들이 비었으면 rockylinux:9 컨테이너에서 `dnf download --resolve mesa-libGL libglvnd-glx glib2` 로
+  받아 `syspkgs/rpm/` 에 채워 재설치(02-build-package.md 참고).
 
 ## glibc 불일치 (`version 'GLIBC_2.xx' not found`)
 

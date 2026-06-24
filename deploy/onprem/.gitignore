@@ -9,6 +9,7 @@ artifacts/frontend/dist/
 artifacts/ai-server/app/
 artifacts/ai-server/tests/
 artifacts/ai-server/requirements.txt
+artifacts/ai-server/requirements.in
 
 # 런타임 바이너리
 runtimes/jdk/*
@@ -23,7 +24,10 @@ vendor/sam2/sam2-src/
 models/weights/*
 models/hf-cache/*
 
-# 시스템 패키지
+# 시스템 패키지 (Rocky 9: RPM + 정적 ffmpeg). 데비안 폴백(.deb)도 무시.
+syspkgs/rpm/*.rpm
+syspkgs/rpm/README-collect-on-rocky9.txt
+syspkgs/ffmpeg/*
 syspkgs/deb/*.deb
 
 # 체크섬·메타

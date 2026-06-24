@@ -1,8 +1,13 @@
 # 02. [빌드머신] 패키지 수집
 
-인터넷이 되는 빌드머신(대상과 동일 Linux x86_64)에서 1회 실행한다.
+타깃은 **Rocky Linux 9 (x86_64, glibc 2.34)** 다. 수집은 두 부류로 나뉜다:
 
-## 실행
+- **OS 무관 산출물**(jar·FE dist·런타임 tarball·ffmpeg 정적·sam2·yolox): mac 등 어떤 빌드머신에서도 OK.
+- **OS 종속 산출물**(pip wheel·RPM): 반드시 **Rocky 9(rockylinux:9 컨테이너/머신)+인터넷**에서 수집.
+
+가장 간단한 길은 **전부 rockylinux:9 컨테이너에서 한 번에 수집**하는 것이다(아래 "Rocky 9 컨테이너 수집").
+
+## 실행 (Rocky 9 환경에서 전체 수집)
 
 ```bash
 cd deploy/onprem
@@ -12,7 +17,7 @@ cd deploy/onprem
 옵션:
 
 ```bash
-# 데비안 .deb 수집 생략(비데비안 빌드머신 또는 대상이 직접 설치)
+# 시스템 의존성(RPM/ffmpeg) 수집 생략
 SKIP_SYSPKGS=1 ./scripts/package.sh
 
 # HF 모델(rtdetr/sam2)도 사전 다운로드(DETECTOR_BACKEND=rtdetr 또는 SAM2 사용 시)
@@ -33,15 +38,57 @@ PYTHON_BIN=python3.11 ./scripts/package.sh
 | 2 | `package/20-build-frontend.sh` | `npm ci && npm run build` → `artifacts/frontend/dist` (VITE_* 빌드 주입) |
 | 3 | `package/30-collect-ai-server.sh` | `app/` 소스 + pip wheel(torch CPU) + sam2 소스 + yolox 가중치 (+옵션 HF) |
 | 4 | `package/40-collect-runtimes.sh` | Temurin JRE17 / CPython 3.11 standalone / Caddy (tar.gz) |
-| 5 | `package/50-collect-syspkgs.sh` | (데비안) ffmpeg/libgl1/libglib2.0-0/curl `.deb` |
+| 5 | `package/50-collect-syspkgs.sh` | **ffmpeg 정적 tarball**(`syspkgs/ffmpeg/`) + **Rocky 9 RPM**(`mesa-libGL`/`libglvnd-glx`/`glib2` → `syspkgs/rpm/`) |
 
 각 디렉토리에 `SHA256SUMS` 가 생성되어 전송 무결성을 검증한다.
 
-> **런타임 공식 체크섬 검증(fail-closed)**: `40-collect-runtimes.sh` 는 JRE/Python/Caddy tar.gz 를
-> 받은 직후 `scripts/lib/versions.sh` 의 공식 체크섬과 대조한다(불일치 시 즉시 중단). 설치 단계
-> `11-install-runtimes.sh` 도 압축 해제 직전 동일 검증을 한 번 더 수행한다. 이는 디렉토리 단위
-> `SHA256SUMS`(전송 무결성)와 별개의 **출처(공급망) 무결성** 검증이다.
+> **50 단계의 자동 분기**: ffmpeg 정적 바이너리는 curl 만 있으면 어디서든 받는다(공식 SHA256 검증).
+> RPM 은 `dnf`/`yum` 이 있을 때만 `dnf download --resolve` 로 받고, 없으면(mac 등) **graceful SKIP** +
+> "rockylinux:9 컨테이너에서 수집" 안내를 남긴다(데비안 빌드머신이면 `.deb` 폴백). 기본 경로는 Rocky 9(rpm).
+
+## Rocky 9 컨테이너 수집 (권장 — wheel·RPM 정합)
+
+mac/다른 OS 빌드머신에서 jar/FE dist/런타임/ffmpeg 까지 만든 뒤, **wheel·RPM 만** Rocky 9 컨테이너에서
+채우거나, 처음부터 전부 컨테이너에서 수집한다. 예(전체 수집):
+
+```bash
+cd deploy/onprem
+docker run --rm -v "$PWD/../..:/work" -w /work/deploy/onprem rockylinux:9 bash -lc '
+  dnf -y install dnf-plugins-core java-17-openjdk-devel nodejs python3.11 git curl tar xz findutils && \
+  ./scripts/package.sh
+'
+```
+
+RPM 만 별도로 채우려면(50 단계가 mac 에서 SKIP 한 경우):
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work rockylinux:9 bash -lc '
+  dnf -y install dnf-plugins-core && \
+  dnf download --resolve --alldeps --downloaddir syspkgs/rpm \
+    mesa-libGL libglvnd-glx glib2 && \
+  ( cd syspkgs/rpm && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS )
+'
+```
+
+### 어디서 무엇을 채우나 (산출물별 빌드머신)
+
+| 산출물 | 위치 | OS 종속? | 어디서 수집 |
+|--------|------|:--------:|-------------|
+| backend jar | `artifacts/backend/` | 무관 | mac/Linux 어디서나(JDK17) |
+| frontend dist | `artifacts/frontend/dist/` | 무관 | mac/Linux 어디서나(Node20) |
+| 런타임 JRE/Python/Caddy | `runtimes/` | 무관(linux tarball) | mac/Linux 어디서나(curl) |
+| **ffmpeg 정적** | `syspkgs/ffmpeg/` | **무관(정적)** | mac/Linux 어디서나(curl) |
+| sam2 소스 / yolox 가중치 | `vendor/sam2/`, `models/weights/` | 무관 | mac/Linux 어디서나(git/curl) |
+| **pip wheel(torch CPU 등)** | `vendor/wheels/` | **Rocky 9 정합** | **rockylinux:9 컨테이너/머신** |
+| **시스템 RPM(mesa-libGL 등)** | `syspkgs/rpm/` | **Rocky 9 정합** | **rockylinux:9 컨테이너/머신**(`dnf download`) |
+
+> **런타임/ffmpeg 공식 체크섬 검증(fail-closed)**: `40-collect-runtimes.sh`(JRE/Python/Caddy)와
+> `50-collect-syspkgs.sh`(ffmpeg 정적)는 tarball 을 받은 직후 `scripts/lib/versions.sh` 의 공식
+> 체크섬과 대조한다(불일치 시 즉시 중단). 설치 단계 `11-install-runtimes.sh` 도 압축 해제 직전
+> 동일 검증을 한 번 더 수행한다. 이는 디렉토리 단위 `SHA256SUMS`(전송 무결성)와 별개의
+> **출처(공급망) 무결성** 검증이다.
 > Caddy 는 공식 SHA256 을 발행하지 않으므로(SHA-512 만 제공) tar.gz 는 `CADDY_SHA512` 로 검증한다.
+> ffmpeg 정적은 BtbN 의 dated autobuild 태그(불변 자산)의 `checksums.sha256` 값으로 검증한다.
 
 ## ★ 복사 대상 파일/라이브러리 명세표
 
@@ -73,14 +120,15 @@ PYTHON_BIN=python3.11 ./scripts/package.sh
 | YOLOX 가중치 | `ai-server/weights/yolox_s.onnx` | `models/weights/yolox_s.onnx` | ~35MB |
 | (옵션) HF 모델 | HuggingFace Hub | `models/hf-cache/` | 모델별 수백 MB |
 
-### 런타임 / 시스템 패키지
+### 런타임 / 시스템 의존성
 
 | 무엇 | 어디서 수집 | 번들 위치 | 대략 용량 |
 |------|-------------|-----------|:---------:|
 | Temurin JRE 17 (17.0.19+10) | adoptium (versions.sh URL) | `runtimes/jdk/*.tar.gz` | ~45MB |
 | CPython 3.11 standalone (3.11.15) | python-build-standalone (태그 20260623) | `runtimes/python/*.tar.gz` | ~30MB |
 | Caddy (2.11.4) | caddyserver releases | `runtimes/caddy/*.tar.gz` | ~30MB |
-| ffmpeg/libgl1/libglib2.0-0/curl `.deb` | apt-get download | `syspkgs/deb/*.deb` | 수십 MB |
+| **ffmpeg 정적 (n7.1.5)** | BtbN FFmpeg-Builds (versions.sh URL) | `syspkgs/ffmpeg/*.tar.xz` | ~40MB |
+| **RPM: mesa-libGL/libglvnd-glx/glib2** | `dnf download`(Rocky 9) | `syspkgs/rpm/*.rpm` | 수~수십 MB |
 
 ## 함정 요약(반드시 인지)
 

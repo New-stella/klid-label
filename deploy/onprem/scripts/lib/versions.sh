@@ -31,6 +31,24 @@ PYTHON_STANDALONE_VERSION="3.11.15"
 PYTHON_STANDALONE_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260623/cpython-3.11.15+20260623-x86_64-unknown-linux-gnu-install_only.tar.gz"
 PYTHON_STANDALONE_SHA256="60295e3e703b48c270e8d8c685195b8d5c2f0b8a596c1a910d7e24a2cc55afdd"
 
+# ffmpeg/ffprobe 정적 바이너리 (linux64, LGPL) — backend FFmpegStep(net.bramp 래퍼)용
+#   ★ Rocky Linux 9 정책: ffmpeg 는 base/AppStream 에 없고 RPM Fusion/EPEL 미러가 필요해
+#     폐쇄망에서 의존성 지옥에 빠진다. 따라서 정적 코덱 바이너리를 번들한다.
+#   ★ 라이선스: LGPL 빌드를 쓴다(지방정부 납품 — GPL 의무 회피). LGPL 빌드는 native H.264/HEVC
+#     디코더를 포함하므로 프레임 추출(디코드)·duration 추출에 충분하다. 우리는 인코딩을 하지 않으며
+#     GPL 코덱(libx264/x265 = 인코더)은 불필요하다.
+#   ★ glibc: BtbN 빌드는 glibc 에 동적 링크(약 glibc 2.31 기반 빌드), 코덱만 정적 링크된다.
+#     Rocky 9 의 glibc 2.34 는 상위호환이므로 정상 동작한다(빌드 glibc ≤ 대상 glibc).
+#   BtbN FFmpeg-Builds 의 "dated autobuild" 태그는 자산이 불변(immutable)이라 재현 가능하다
+#   ("latest" 태그는 매일 덮어써져 체크섬이 바뀌므로 핀에 부적합 — dated 태그를 쓴다).
+#   linux64-lgpl(비-shared) = 코덱 정적 링크. 압축은 .tar.xz (수집/설치 스크립트가 xz 로 해제).
+#   검증: 2026-06-24, 출처 https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-06-23-13-52
+#     SHA256 출처: 동 릴리스 checksums.sha256 의 (ffmpeg-n7.1.5-linux64-lgpl-7.1.tar.xz 행)
+#     공식 checksums.sha256 와 대조 일치 확인: 2026-06-24
+FFMPEG_STATIC_VERSION="n7.1.5"
+FFMPEG_STATIC_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-23-13-52/ffmpeg-n7.1.5-linux64-lgpl-7.1.tar.xz"
+FFMPEG_STATIC_SHA256="86821c89fcde7adf381005329dc696a02fa99ba2bc5b6f0a4fac3dafc247e1b2"
+
 # Caddy 정적 바이너리 (linux amd64) — 프론트 정적 서빙 + /api 리버스프록시
 # 검증: 2026-06-24, 출처 https://github.com/caddyserver/caddy/releases/tag/v2.11.4
 # ※ Caddy 공식 체크섬 파일(caddy_2.11.4_checksums.txt)은 SHA-512 만 제공한다(SHA256 미발행).

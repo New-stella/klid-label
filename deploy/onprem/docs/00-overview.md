@@ -57,7 +57,8 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 | `runtimes/{jdk,python,caddy}` | package.sh | 대상 서버 런타임 바이너리(tar.gz) |
 | `models/weights` | package.sh | `yolox_s.onnx` |
 | `models/hf-cache` | package.sh(옵션) | HF 모델 캐시(rtdetr/sam2 사용 시) |
-| `syspkgs/deb` | package.sh(데비안) | ffmpeg/libgl1/libglib2.0-0/curl `.deb` |
+| `syspkgs/ffmpeg` | package.sh | ffmpeg/ffprobe 정적 바이너리 tarball(`.tar.xz`) |
+| `syspkgs/rpm` | package.sh(Rocky 9 `dnf download`) | `mesa-libGL`/`libglvnd-glx`/`glib2` RPM (opencv 런타임 의존) |
 | `config/*` | (정적) | env 템플릿·systemd 유닛·프록시 설정 |
 | `scripts/*` | (정적) | 수집/설치 스크립트 |
 

@@ -15,6 +15,9 @@ User=@KLID_USER@
 Group=@KLID_GROUP@
 WorkingDirectory=@KLID_PREFIX@/app
 EnvironmentFile=@KLID_ETC@/backend.env
+# 번들 ffmpeg 정적 바이너리 경로를 PATH 에 추가(net.bramp ffmpeg 래퍼가 bare 이름으로
+#   찾을 때 대비). backend.env 의 FFMPEG_BIN/FFPROBE_BIN 절대경로가 우선이다.
+Environment=PATH=@KLID_PREFIX@/runtime/ffmpeg/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # JAVA_OPTS 는 backend.env 에서 주입(없으면 빈 값).
 ExecStart=@KLID_PREFIX@/runtime/jre/bin/java $JAVA_OPTS -jar @KLID_PREFIX@/app/klid-backend.jar
 SuccessExitStatus=143

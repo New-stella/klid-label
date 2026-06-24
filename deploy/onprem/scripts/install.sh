@@ -68,7 +68,7 @@ chmod 750 "${KLID_ETC}"
 
 # ---- 패키지 무결성 검증(선택, SHA256SUMS 존재 시) ----
 for d in artifacts/backend artifacts/frontend/dist vendor/wheels models/weights \
-         runtimes/jdk runtimes/python runtimes/caddy syspkgs/deb; do
+         runtimes/jdk runtimes/python runtimes/caddy syspkgs/rpm syspkgs/ffmpeg; do
   # SHA256SUMS 가 없으면 검증 생략, 있으면 sha256_verify 가 불일치 시 die —
   # 손상 파일이 조용히 설치되지 않도록 || true 는 두지 않는다.
   if [[ -f "${ONPREM_ROOT}/${d}/SHA256SUMS" ]]; then
