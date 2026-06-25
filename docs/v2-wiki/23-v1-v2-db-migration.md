@@ -42,7 +42,7 @@ v2 `ls_data_raw`는 **15컬럼으로 매우 슬림**, v1은 48컬럼. 대부분 
 | (없음) | `prvc_type_cd` **NOT NULL(16)** | 기본값 부여 필요 |
 | `RAW_FILE_PATH`(1000) | `raw_file_path_nm`(500) | ⚠ 길이 축소 — 경로 500자 초과분 확인 |
 | `SHT_DT` | `sht_dt` | datetime→timestamp |
-| `VDO_LEN`(int) | `vdo_len_sec` | 직접 |
+| `VDO_LEN`(int, **ms**) | `vdo_len_sec`(초) **+** `vdo_len_ms`(신설) | ⚠ **단위변환 + 원본보존** — VDO_LEN 은 밀리초(실측: `VDO_LEN/(FRM_CNT/FPS)=1000`, 1993/2006건). `vdo_len_sec`=÷1000(초, V2 계약), 원본 ms 는 신설 `vdo_len_ms`(**Flyway V67**, nullable, 이관본만)에 보존. 직접 복사 시 1000배 오적재. 원본은 시간단위 CCTV 영상이라 초값 수천이 정상 |
 | (상태 추정) | `data_stts_cd` **NOT NULL(32)** | 이관본은 `COMPLETED`/`APPROVED` 등 고정 부여 |
 | `REG_DT`/`MDFCN_DT` | `reg_dt`/`mdfcn_dt` | 직접 |
 | `AI_CRT_YN`(증강여부) | (없음) | `parent_raw_sn`로 증강추적하나 v1 부모링크 없음 → 버림 |

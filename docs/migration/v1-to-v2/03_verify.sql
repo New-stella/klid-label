@@ -114,4 +114,10 @@ FROM ls_data_aug g WHERE g.data_aug_sn >= :aug_off
 SELECT count(*) AS approved_migrated_videos
 FROM ls_raw_data_status s WHERE s.raw_data_id >= :raw_off AND s.data_stts_cd='APPROVED';
 
-\echo '== 검증 끝. [2]~[7] 핵심 + [9]~[12] 확장 이 모두 OK 여야 정상. (라벨 손실은 02 의 5-b fail-closed 가드가 사전 차단) =='
+-- 14) vdo_len_sec 단위 sanity — ms 미변환(÷1000 누락) 적재 탐지
+--     참 길이 최대 ~152,200초(시간단위 CCTV). 1,000,000초(≈278h) 초과 = ms 그대로 들어온 것
+\echo '== [14] vdo_len_sec 단위 sanity (0 이어야 OK — 초과 시 ÷1000 누락 의심) =='
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: vdo_len_sec ms 미변환 의심 '||count(*) END
+FROM ls_data_raw WHERE raw_sn >= :raw_off AND vdo_len_sec > 1000000;
+
+\echo '== 검증 끝. [2]~[7],[14] 핵심 + [9]~[12] 확장 이 모두 OK 여야 정상. (라벨 손실은 02 의 5-b fail-closed 가드가 사전 차단) =='

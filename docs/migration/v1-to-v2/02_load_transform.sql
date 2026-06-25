@@ -141,7 +141,7 @@ WHERE l.data_raw_sn IN (SELECT data_raw_sn FROM stg_raw);
 -- ---------------------------------------------------------------------
 INSERT INTO ls_data_raw(
   raw_sn, vms_clip_id, vms_cctv_id, evnt_type_cd, lclgv_cd,
-  prvc_type_cd, prvc_yn, de_ident_yn, raw_file_path_nm, sht_dt, vdo_len_sec,
+  prvc_type_cd, prvc_yn, de_ident_yn, raw_file_path_nm, sht_dt, vdo_len_sec, vdo_len_ms,
   data_stts_cd, reg_dt)
 SELECT r.data_raw_sn + :raw_off,
        'LEGACY-' || r.data_raw_sn,
@@ -152,7 +152,8 @@ SELECT r.data_raw_sn + :raw_off,
        COALESCE(NULLIF(r.de_idntf_yn,''), 'N'),
        left(r.raw_file_path, 500),
        pg_temp.mig_ts(r.sht_dt),
-       floor(NULLIF(r.vdo_len,'')::numeric)::int,   -- 소수 표기 방어
+       floor(NULLIF(r.vdo_len,'')::numeric / 1000)::int,  -- vdo_len_sec(초): VDO_LEN(ms) ÷1000 (실측 VDO_LEN/(FRM_CNT/FPS)=1000)
+       floor(NULLIF(r.vdo_len,'')::numeric)::bigint,      -- vdo_len_ms: 원본 ms 보존(fidelity, V67 컬럼)
        'COMPLETED',                                 -- 배치단계: 이관본은 완료로 마감
        COALESCE(pg_temp.mig_ts(r.reg_dt), now())
 FROM stg_raw r
