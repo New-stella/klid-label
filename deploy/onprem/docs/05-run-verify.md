@@ -2,10 +2,14 @@
 
 ## 기동 순서
 
-의존 순서대로 ai-server → backend → frontend 로 켠다(유닛에도 의존성이 박혀 있다).
+의존 순서대로 **PostgreSQL → ai-server → backend → frontend** 로 켠다(유닛에도 의존성이 박혀 있다).
+번들 PG 를 설치했다면 `10-install-postgresql.sh` 가 이미 `postgresql-16` 을 `enable --now` 해 둔다.
 
 ```bash
 sudo systemctl daemon-reload
+
+# (번들 PG 사용 시) DB 가 떠 있는지 먼저 확인 — backend 전에 기동되어야 한다.
+systemctl is-active postgresql-16    # active 가 아니면: sudo systemctl enable --now postgresql-16
 
 # enable + 즉시 시작 (한 번에)
 sudo systemctl enable --now klid-ai-server
@@ -13,14 +17,55 @@ sudo systemctl enable --now klid-backend
 sudo systemctl enable --now klid-frontend
 ```
 
-> backend 는 유닛에 `Requires=klid-ai-server` + `After=postgresql.service` 가 있어, ai-server/DB
-> 준비 후 기동된다. backend 첫 기동 시 Flyway 마이그레이션으로 시작이 다소 길 수 있다(TimeoutStartSec=180).
+> backend 유닛은 `Requires=klid-ai-server` + `After=postgresql.service klid-ai-server.service` 라
+> ai-server 준비 후 기동된다. backend 첫 기동 시 Flyway 가 LS_*·MNG_*·QRTZ_* 스키마를 자동
+> 부트스트랩(`CREATE TABLE IF NOT EXISTS`)하므로 시작이 다소 길 수 있다(TimeoutStartSec=180).
+>
+> ℹ **번들 PG 의 유닛명은 `postgresql-16.service`** 라 backend 유닛의 `After=postgresql.service`
+> (이름 불일치)만으로는 부팅 순서 보장이 안 된다. 이를 위해 **번들 PG 사용 시
+> `10-install-postgresql.sh` 가 설치 말미에 drop-in 을 자동 생성**해 실제 유닛명으로 순서를 묶는다
+> (외부 PG 사용 시엔 생성하지 않는다):
+>
+> ```ini
+> # /etc/systemd/system/klid-backend.service.d/10-pg16-after.conf  (자동 생성)
+> [Unit]
+> After=postgresql-16.service
+> Wants=postgresql-16.service
+> ```
+>
+> 따라서 별도 수동 조치는 불필요하다. 생성 여부는 아래로 확인한다:
+>
+> ```bash
+> cat /etc/systemd/system/klid-backend.service.d/10-pg16-after.conf
+> systemctl show klid-backend -p After | tr ' ' '\n' | grep postgresql-16
+> ```
 
 ## 상태 확인
 
 ```bash
 systemctl status klid-ai-server klid-backend klid-frontend --no-pager
 ```
+
+## PostgreSQL 스모크 (번들 PG)
+
+```bash
+# 서비스 active 확인
+systemctl is-active postgresql-16
+
+# 접속 확인(앱 유저로 control/portal DB 접속) — 비밀번호는 backend.env 와 동일
+PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system -c '\conninfo'
+PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d portal      -c '\conninfo'
+
+# (backend 기동 후) Flyway 가 스키마를 자동 생성했는지 — LS_*/MNG_*/QRTZ_* 테이블 확인
+PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
+  -c "\dt" | grep -iE 'ls_data_raw|mng_clip_master|qrtz_'
+# flyway_schema_history 도 생성된다(마이그레이션 이력)
+PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
+  -c "select version, description, success from flyway_schema_history order by installed_rank;"
+```
+
+> backend 로그(`journalctl -u klid-backend`)에 Flyway `Migrating schema ... to version 2`,
+> `Successfully applied N migration(s)` 가 보이면 스키마 자동 부트스트랩이 성공한 것이다.
 
 ## 헬스체크 (스모크)
 

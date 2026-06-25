@@ -93,6 +93,28 @@ CADDY_SHA256=""   # Caddy 는 공식 SHA256 미발행 — SHA512 로 검증(아�
 # 공식 caddy_2.11.4_checksums.txt 와 대조 일치 확인: 2026-06-24
 CADDY_SHA512="8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9"
 
+# ---- PostgreSQL 16 (PGDG, Rocky 9 오프라인 번들) ----
+#   ★ 번들 PG 는 "옵션"이다(USE_BUNDLED_POSTGRES=1 기본). 타깃에 이미 PG 가 있으면 끈다(=0).
+#   ★ DB 스키마는 backend Flyway 가 자동 부트스트랩한다(V2__phase3_video_queue_quartz.sql 가
+#     LS_*·MNG_*·QRTZ_* 를 CREATE TABLE IF NOT EXISTS 로 생성, flyway.enabled=true). 따라서
+#     PG 사전요건은 "빈 DB 2개(control/portal) + 접속 사용자"뿐이다(관제 스키마 사전 적재 불필요).
+#   수집(55-collect-postgresql.sh)은 dnf/yum 환경에서만 수행되며, 비-RHEL(mac)은 graceful SKIP 한다.
+#   설치(10-install-postgresql.sh)는 syspkgs/postgresql/*.rpm 을 오프라인(--disablerepo='*')으로 설치한다.
+#
+#   PGDG repo 추가:    dnf install -y ${PGDG_REPO_RPM_URL}
+#   내장 모듈 비활성:  dnf -qy module disable postgresql
+#   수집 패키지:       ${POSTGRES_RPM_PKGS[*]}
+#   initdb:            /usr/pgsql-16/bin/postgresql-16-setup initdb
+#   서비스:            postgresql-16
+#
+#   ⚠ PGDG repo RPM 은 "...repo-latest.noarch.rpm" 이라 URL 자체가 가변(latest) → 버전 고정 체크섬
+#     핀이 불가하다. 수집 스크립트는 repo RPM 을 한 번 설치해 PGDG repo 메타만 추가하고 그것으로
+#     PG16 RPM 을 받는다. 받은 PG16 *.rpm 의 전송 무결성은 syspkgs/postgresql/SHA256SUMS 로 검증한다.
+POSTGRES_MAJOR="16"
+PGDG_REPO_RPM_URL="https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+# 받을 PG16 RPM(전이 의존성은 dnf download --resolve --alldeps 가 함께 받는다).
+POSTGRES_RPM_PKGS=(postgresql16-server postgresql16 postgresql16-libs postgresql16-contrib)
+
 # ---- ai-server torch CPU 인덱스 ----
 # pip download 시 CUDA wheel(거대) 대신 CPU wheel 을 받기 위한 인덱스.
 PYTORCH_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"

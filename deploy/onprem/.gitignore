@@ -29,6 +29,10 @@ syspkgs/rpm/*.rpm
 syspkgs/rpm/README-collect-on-rocky9.txt
 syspkgs/ffmpeg/*
 
+# PostgreSQL 16 RPM (PGDG, 번들 PG 옵션) — 대용량이라 git 제외. 55-collect-postgresql.sh 가 채운다.
+syspkgs/postgresql/*.rpm
+syspkgs/postgresql/README-collect-on-rocky9.txt
+
 # 오프라인 빌드 키트(소스 재빌드용) — 대용량이라 git 제외. 60-collect-buildtools.sh 가 채운다.
 buildtools/jdk/*
 buildtools/node/*

@@ -20,6 +20,9 @@ cd deploy/onprem
 # 시스템 의존성(RPM/ffmpeg) 수집 생략
 SKIP_SYSPKGS=1 ./scripts/package.sh
 
+# 번들 PG16 RPM 수집 생략(타깃에 이미 PostgreSQL 이 있을 때)
+SKIP_POSTGRES=1 ./scripts/package.sh
+
 # HF 모델(rtdetr/sam2)도 사전 다운로드(DETECTOR_BACKEND=rtdetr 또는 SAM2 사용 시)
 PREFETCH_HF=1 ./scripts/package.sh
 
@@ -39,6 +42,7 @@ PYTHON_BIN=python3.11 ./scripts/package.sh
 | 3 | `package/30-collect-ai-server.sh` | `app/` 소스 + pip wheel(torch CPU) + sam2 소스 + yolox 가중치 (+옵션 HF) |
 | 4 | `package/40-collect-runtimes.sh` | Temurin JRE17 / CPython 3.11 standalone / Caddy (tar.gz) |
 | 5 | `package/50-collect-syspkgs.sh` | **ffmpeg 정적 tarball**(`syspkgs/ffmpeg/`) + **Rocky 9 RPM**(`mesa-libGL`/`libglvnd-glx`/`glib2` → `syspkgs/rpm/`) |
+| 5.5 | `package/55-collect-postgresql.sh` | **(옵션·기본 ON)** PGDG **PostgreSQL 16 RPM**(postgresql16-server 등 +전이 의존 → `syspkgs/postgresql/`). `SKIP_POSTGRES=1` 로 생략. dnf 없으면 graceful SKIP |
 | 6 | `package/60-collect-buildtools.sh` | **오프라인 빌드 키트**: JDK17 full + Node20 + Gradle 8.8 + **populated gradle-home** + **frontend node_modules** + `src/` 소스 (소스 재빌드용) |
 
 각 디렉토리에 `SHA256SUMS` 가 생성되어 전송 무결성을 검증한다.
@@ -116,6 +120,23 @@ docker run --rm -v "$PWD:/work" -w /work rockylinux:9 bash -lc '
 '
 ```
 
+PostgreSQL 16 RPM 만 별도로 채우려면(55 단계가 mac 에서 SKIP 한 경우 — 번들 PG 사용 시):
+
+```bash
+docker run --rm -v "$PWD/../..:/work" -w /work/deploy/onprem rockylinux:9 bash -lc '
+  dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm && \
+  dnf -qy module disable postgresql && \
+  dnf download --resolve --alldeps --downloaddir syspkgs/postgresql \
+    postgresql16-server postgresql16 postgresql16-libs postgresql16-contrib && \
+  ( cd syspkgs/postgresql && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS )
+'
+```
+
+> **PGDG repo 핀 한계**: PGDG repo RPM 은 `...repo-latest.noarch.rpm`(가변 latest)이라 버전 고정
+> 체크섬 핀이 불가하다. `55-collect-postgresql.sh` 는 repo RPM 으로 PGDG repo 메타만 추가하고
+> 받은 PG16 *.rpm 의 전송 무결성은 `syspkgs/postgresql/SHA256SUMS` 로 검증한다.
+> 타깃에 이미 PG 가 있으면 `SKIP_POSTGRES=1`(수집)·`USE_BUNDLED_POSTGRES=0`(설치)로 번들 PG 를 끈다.
+
 ### 어디서 무엇을 채우나 (산출물별 빌드머신)
 
 | 산출물 | 위치 | OS 종속? | 어디서 수집 |
@@ -127,6 +148,7 @@ docker run --rm -v "$PWD:/work" -w /work rockylinux:9 bash -lc '
 | sam2 소스 / yolox 가중치 | `vendor/sam2/`, `models/weights/` | 무관 | mac/Linux 어디서나(git/curl) |
 | **pip wheel(torch CPU 등)** | `vendor/wheels/` | **Rocky 9 정합** | **rockylinux:9 컨테이너/머신** |
 | **시스템 RPM(mesa-libGL 등)** | `syspkgs/rpm/` | **Rocky 9 정합** | **rockylinux:9 컨테이너/머신**(`dnf download`) |
+| **PostgreSQL 16 RPM(옵션)** | `syspkgs/postgresql/` | **Rocky 9 정합** | **rockylinux:9 컨테이너/머신**(PGDG repo + `dnf download`). 타깃에 PG 있으면 `SKIP_POSTGRES=1` |
 
 > **런타임/ffmpeg 공식 체크섬 검증(fail-closed)**: `40-collect-runtimes.sh`(JRE/Python/Caddy)와
 > `50-collect-syspkgs.sh`(ffmpeg 정적)는 tarball 을 받은 직후 `scripts/lib/versions.sh` 의 공식
@@ -175,6 +197,7 @@ docker run --rm -v "$PWD:/work" -w /work rockylinux:9 bash -lc '
 | Caddy (2.11.4) | caddyserver releases | `runtimes/caddy/*.tar.gz` | ~30MB |
 | **ffmpeg 정적 (n7.1.5)** | BtbN FFmpeg-Builds (versions.sh URL) | `syspkgs/ffmpeg/*.tar.xz` | ~40MB |
 | **RPM: mesa-libGL/libglvnd-glx/glib2** | `dnf download`(Rocky 9) | `syspkgs/rpm/*.rpm` | 수~수십 MB |
+| **(옵션) PostgreSQL 16 RPM** | PGDG repo + `dnf download`(Rocky 9) | `syspkgs/postgresql/*.rpm` | 수십 MB |
 
 ## 함정 요약(반드시 인지)
 

@@ -100,8 +100,8 @@ deploy/onprem/
 ├── docs/        00~07 단계별 가이드
 ├── scripts/
 │   ├── lib/{common.sh, versions.sh}
-│   ├── package.sh + package/{10..60}     # [빌드머신] 수집(60=오프라인 빌드 키트)
-│   ├── install.sh + install/{11..15}     # [대상 서버] 설치
+│   ├── package.sh + package/{10..60}     # [빌드머신] 수집(55=PG16, 60=오프라인 빌드 키트)
+│   ├── install.sh + install/{10..15}     # [대상 서버] 설치(10=번들 PG16, 옵션)
 │   ├── install/build-from-source.sh      # [대상 서버] 소스 오프라인 재빌드
 │   └── uninstall.sh
 ├── config/
@@ -115,5 +115,5 @@ deploy/onprem/
 ├── src/{backend,frontend,ai-server}/         # 빌드용 소스(60단계가 채움)
 ├── vendor/{wheels,sam2}/
 ├── models/{weights,hf-cache}/
-└── syspkgs/{rpm,ffmpeg}/                 # Rocky 9 RPM + ffmpeg 정적 tarball
+└── syspkgs/{rpm,ffmpeg,postgresql}/     # Rocky 9 RPM + ffmpeg 정적 + (옵션)PG16 RPM
 ```

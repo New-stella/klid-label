@@ -51,7 +51,7 @@
 | CPU/GPU | **CPU only** (GPU/CUDA 불필요 — torch/onnxruntime CPU) |
 | 메모리 | backend(JVM, MaxRAMPercentage 75%) + ai-server(torch CPU) 고려해 충분히(권장 ≥ 8GB) |
 | 디스크 | 앱·런타임·모델 + 영상 저장소. 영상 규모에 비례(저장소 별도 산정) |
-| PostgreSQL | **16** 접속 정보(host/port/db/user/pw). control(klid_system) + portal 2개 DB |
+| PostgreSQL | **16**. ① 번들 PG16 오프라인 설치(`USE_BUNDLED_POSTGRES=1`, 기본) **또는** ② 외부 기존 PG 사용(`=0`)+접속 정보(host/port/db/user/pw). 어느 쪽이든 **빈 DB 2개**(control=klid_system, portal)+사용자만 준비하면 됨 — 스키마는 backend Flyway 가 자동 생성 |
 | **KPST 비식별 서버** | **폐쇄망에 별도 설치·접근 가능**해야 함(본 패키지 비포함, 외부 시스템). backend 가 폴링 연동(http 또는 https+사설CA). 비식별은 파이프라인 선두 필수 단계라 prd 에서 끄거나 mock 우회 불가 — 04-configuration.md B 절 참고 |
 | 네트워크 | 같은 호스트 내 80/8080/9300/5432 + KPST 비식별 포트(예 9201) 도달. 외부 인바운드는 80만 노출 권장 |
 
@@ -67,10 +67,23 @@ ai-server/backend 가 런타임에 의존하는 것 — 모두 패키지에 번�
 > 처리하고, libGL/glib2 는 AppStream RPM 으로 처리한다. 번들이 비어 있으면 install.sh 가 경고를 낸다
 > (그 경우 대상에 사전 설치되어 있어야 함) — 06-troubleshooting 참고.
 
-### PostgreSQL 준비
+### PostgreSQL 준비 — 두 경로
 
-- control DB(`klid_system`)와 portal DB(`portal`), 앱 유저(`klid_user` 등)와 비밀번호.
-- 스키마/LS_* 테이블은 backend 가 기동 시 **Flyway 로 자동 생성**(추가 작업 불필요).
-- 단, 관제 공유 테이블(`MNG_*`/`QRTZ_*`)은 `ddl-auto=validate` 로 **검증만** 하므로, 온프렘이
-  자체 DB 를 운영하면 해당 공유 스키마도 사전 준비되어 있어야 한다(없으면 기동 실패).
-  → 03-install.md / 04-configuration.md DB 절 참고.
+PG 는 **두 경로** 중 하나로 운영한다(설치 토글 `USE_BUNDLED_POSTGRES`):
+
+1. **① 번들 PG16 오프라인 설치(기본, `USE_BUNDLED_POSTGRES=1`)** — 패키지에 PGDG PG16 RPM 을
+   번들하고 `10-install-postgresql.sh` 가 오프라인 설치(initdb + `postgresql.conf`/`pg_hba.conf` +
+   `postgresql-16` 서비스 기동)한다. 별도 PG 준비 불필요. (수집: `55-collect-postgresql.sh`)
+2. **② 외부 기존 PG 사용(`USE_BUNDLED_POSTGRES=0`)** — 타깃에 이미 PostgreSQL 이 있으면 번들 PG 설치를
+   건너뛰고, `backend.env` 의 `CONTROL_DB_*`/`PORTAL_DB_*` 가 그 PG 를 가리키게 둔다.
+
+어느 경로든 사전요건은 동일하다:
+
+- **빈 DB 2개** — control DB(`klid_system`)와 portal DB(`portal`), 앱 유저(`klid_user` 등)와 비밀번호.
+- **스키마/테이블은 backend 가 기동 시 Flyway 로 자동 부트스트랩**한다(추가 작업 불필요).
+  V2 마이그레이션이 LS_*·**MNG_***·**QRTZ_*** 전 스키마를 `CREATE TABLE IF NOT EXISTS` 로 생성하며
+  (`spring.flyway.enabled=true`, prd 포함), `ddl-auto=validate` 는 Flyway 가 만든 스키마를 검증만 한다.
+- 즉 **관제 없는 폐쇄망의 신규 빈 DB 면 저작도구가 MNG_*/QRTZ_* 까지 전부 자동 생성**한다 —
+  관제 스키마를 사전 적재할 필요가 없다. 관제가 이미 채운 공유 테이블이 있는 경우에만
+  `IF NOT EXISTS` 로 그대로 공유한다.
+  → 03-install.md / 04-configuration.md DB 절 / 05-run-verify.md 참고.

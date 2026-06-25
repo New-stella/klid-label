@@ -12,6 +12,9 @@ sudo ./scripts/install.sh
 옵션:
 
 ```bash
+# 외부(기존) PostgreSQL 사용 — 번들 PG16 설치 생략
+sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh
+
 # DB 자동 생성 단계 생략(DBA 가 이미 준비한 경우)
 sudo SKIP_DB_INIT=1 ./scripts/install.sh
 
@@ -27,13 +30,19 @@ sudo KLID_PREFIX=/opt/klid KLID_USER=klid ./scripts/install.sh
 | 단계 | 스크립트 | 동작 |
 |------|----------|------|
 | 0 | `install.sh` | `klid` 사용자/그룹 + 디렉토리 생성, SHA256 무결성 검증 |
-| 1 | `install/11-install-runtimes.sh` | JRE/Python/Caddy + **ffmpeg 정적** 설치 + **RPM**(mesa-libGL/glib2) 오프라인 설치 |
-| 2 | `install/12-install-backend.sh` | jar 배치 + `backend.env` + systemd 유닛 |
-| 3 | `install/13-install-ai-server.sh` | venv + `pip --no-index` 설치 + 모델 배치 + 유닛 |
-| 4 | `install/14-install-frontend.sh` | dist 배치 + Caddyfile + 유닛 (+ 80포트 setcap) |
-| 5 | `install/15-init-db.sh` | (옵션) DB/유저 생성 안내 또는 수행 |
+| 1 | `install/10-install-postgresql.sh` | **(옵션·기본 ON)** 번들 PG16 RPM 오프라인 설치 + initdb + `postgresql.conf`/`pg_hba.conf` + `postgresql-16` 기동. `USE_BUNDLED_POSTGRES=0` 이면 전체 스킵(외부 PG) |
+| 2 | `install/11-install-runtimes.sh` | JRE/Python/Caddy + **ffmpeg 정적** 설치 + **RPM**(mesa-libGL/glib2) 오프라인 설치 |
+| 3 | `install/12-install-backend.sh` | jar 배치 + `backend.env` + systemd 유닛 |
+| 4 | `install/13-install-ai-server.sh` | venv + `pip --no-index` 설치 + 모델 배치 + 유닛 |
+| 5 | `install/14-install-frontend.sh` | dist 배치 + Caddyfile + 유닛 (+ 80포트 setcap) |
+| 6 | `install/15-init-db.sh` | (옵션) control/portal **DB·유저** 생성 안내 또는 수행 (테이블 생성 아님) |
+
+> **PG vs DB/유저 vs 테이블 — 역할 분담**: 단계 1(`10`)은 **PG 엔진 설치+기동**, 단계 6(`15`)은
+> **control/portal DB·앱 유저 생성**, **테이블/스키마는 backend 가 기동 시 Flyway 로 자동 생성**한다
+> (LS_*·MNG_*·QRTZ_* `CREATE TABLE IF NOT EXISTS`). 셋은 중복 없이 연계된다.
 
 설치는 **멱등**하다(재실행 안전). 이미 존재하는 `*.env` 는 덮어쓰지 않아 사용자 편집을 보존한다.
+번들 PG 단계도 멱등하다(이미 설치/initdb 된 경우 해당 작업을 건너뛴다).
 
 ## 오프라인 설치 보장
 
@@ -41,6 +50,8 @@ sudo KLID_PREFIX=/opt/klid KLID_USER=klid ./scripts/install.sh
 - 런타임: 번들 tar.gz 압축 해제만.
 - ffmpeg: 번들 정적 tarball 을 `/opt/klid/runtime/ffmpeg/bin/` 로 풀어 배치(인터넷 미접근).
 - RPM: `dnf install -y --disablerepo='*' syspkgs/rpm/*.rpm`(폴백 `rpm -Uvh --replacepkgs`)로 로컬 설치.
+- **PostgreSQL 16**: `dnf install -y --disablerepo='*' --setopt=gpgcheck=0 syspkgs/postgresql/*.rpm`
+  (폴백 `rpm -Uvh`)로 로컬 설치. PGDG 미러/인터넷 미접근. 전이 의존성은 번들 RPM 으로 해소.
 
 ## 설치 후 즉시 할 일
 
@@ -58,5 +69,9 @@ sudo KLID_PREFIX=/opt/klid KLID_USER=klid ./scripts/install.sh
   `backend.env` 의 `FFMPEG_BIN`/`FFPROBE_BIN` 에 절대경로를 지정한다.
 - **RPM(libGL/glib2) 누락**: 사내 미러가 있으면 `sudo dnf install -y mesa-libGL libglvnd-glx glib2`.
   폐쇄망이면 rockylinux:9 컨테이너에서 `dnf download --resolve` 로 받아 `syspkgs/rpm/` 에 채워 재설치.
+- **PG16 RPM 누락(`syspkgs/postgresql/` 비어 있음)**: 타깃에 이미 PG 가 있으면
+  `sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh` 로 외부 PG 를 쓴다. 번들이 필요하면
+  rockylinux:9 컨테이너에서 PGDG repo 추가 후 `dnf download --resolve --alldeps` 로 받아
+  `syspkgs/postgresql/` 에 채워 재실행한다(02-build-package.md / 55-collect-postgresql.sh 참고).
 
 ffmpeg/ffprobe 가 없으면 backend FFmpegStep(프레임추출·duration)이, libGL.so.1 이 없으면 ai-server opencv 가 실패한다.

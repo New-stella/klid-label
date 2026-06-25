@@ -135,11 +135,43 @@
 증상: prd 부팅 시 `WEBHOOK_HMAC_SECRET_VLM 환경변수가 필수입니다 (prd)`.
 해결: `backend.env` 의 `WEBHOOK_HMAC_SECRET_VLM`/`_AUGMENT` 를 강한 값으로 채움(`openssl rand -hex 32`).
 
+## PostgreSQL 번들 설치 (오프라인)
+
+번들 PG16(`USE_BUNDLED_POSTGRES=1`, 기본)을 `10-install-postgresql.sh` 가 설치한다. 흔한 실패:
+
+- **RPM 누락 / 설치 스킵**: `syspkgs/postgresql/*.rpm` 이 비어 있으면 설치를 건너뛴다(안내 출력).
+  타깃에 이미 PG 가 있으면 `sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh`. 번들이 필요하면
+  rockylinux:9 컨테이너에서 PG16 RPM 을 받아 `syspkgs/postgresql/` 에 채운다(55-collect-postgresql.sh).
+- **`GPG check FAILED` / `public key is not installed`**: 폐쇄망 Rocky 9 에 PGDG GPG 키가 없을 때.
+  무결성은 번들 `SHA256SUMS` 로 이미 검증되므로 `--setopt=gpgcheck=0` 으로 설치한다
+  (`10-install-postgresql.sh` 가 이미 이 옵션 사용). 수동 폴백: `sudo rpm -Uvh --replacepkgs syspkgs/postgresql/*.rpm`.
+- **initdb 위치/실패**: PGDG PG16 의 데이터 디렉토리는 `/var/lib/pgsql/16/data`,
+  초기화는 `/usr/pgsql-16/bin/postgresql-16-setup initdb` 다(base RHEL `postgresql-setup` 과 경로가 다름).
+  이미 초기화돼 있으면(`/var/lib/pgsql/16/data/PG_VERSION` 존재) 스크립트가 건너뛴다. 실패 시 데이터
+  디렉토리 권한(`postgres:postgres`)·디스크 공간을 확인한다.
+- **접속 거부(`no pg_hba.conf entry` / `password authentication failed`)**: `10` 스크립트는
+  `pg_hba.conf` 에 `127.0.0.1/32`·`::1/128` 을 `scram-sha-256` 으로 허용한다. backend 가 다른 대역에서
+  접속하면 `PG_HBA_EXTRA_CIDR=<대역>`·`PG_LISTEN_ADDRESSES='*'` 로 재설치하거나 두 conf 를 직접 수정 후
+  `sudo systemctl reload postgresql-16`. 비밀번호 오류면 `15-init-db.sh` 로 만든 앱 유저 비밀번호와
+  `backend.env` 의 `*_DB_PASSWORD` 일치를 확인한다.
+- **서비스 미기동**: `systemctl status postgresql-16` / `journalctl -u postgresql-16`. 기동 후
+  `sudo systemctl enable --now postgresql-16`.
+
 ## backend 부팅 실패 — DB validate
 
-증상: Hibernate `ddl-auto=validate` 가 `MNG_*`/`QRTZ_*` 테이블/컬럼 부재로 실패.
-해결: 관제 공유 스키마가 대상 DB 에 준비됐는지 확인. 온프렘 자체 DB 면 공유 테이블 사전 생성 필요
-(관제 인프라/DBA 협의). 04-configuration.md D 절 참고.
+증상: Hibernate `ddl-auto=validate` 가 `MNG_*`/`QRTZ_*`(또는 LS_*) 테이블/컬럼 부재로 실패.
+
+원인/해결:
+- **정상 흐름에선 거의 발생하지 않는다.** backend 는 기동 시 Flyway(`spring.flyway.enabled=true`,
+  prd 포함)로 V2 마이그레이션을 먼저 적용해 LS_*·MNG_*·QRTZ_* 를 `CREATE TABLE IF NOT EXISTS` 로 만든 뒤
+  validate 한다. 즉 **빈 DB 면 저작도구가 전 스키마를 자동 부트스트랩**하므로 관제 스키마를 사전
+  적재할 필요가 없다(04-configuration.md D 절).
+- 그래도 validate 가 실패하면 Flyway 가 **꺼졌거나 마이그레이션이 적용되지 않은** 경우다:
+  - `journalctl -u klid-backend` 에서 Flyway 로그(`Migrating schema ... to version 2`)가 보이는지 확인.
+  - 안 보이면 앱 유저에게 **DDL 권한**(해당 DB OWNER)이 있는지 확인 —
+    `15-init-db.sh` 는 `CREATE DATABASE ... OWNER <앱유저>` 로 만들어 OWNER 권한을 준다.
+  - 관제가 이미 채운 공유 테이블과 **컬럼 스키마가 다르면** validate 가 불일치로 실패할 수 있다.
+    이 경우 관제 인프라/DBA 와 스키마 정합을 협의한다(이는 "사전 적재 필요"가 아니라 "정합 충돌").
 
 ## 비식별 설정오류 / KPST 연동
 

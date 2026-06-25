@@ -19,7 +19,7 @@
 | 변수 | 필수 | 의미 / 기본 |
 |------|:----:|-------------|
 | `SPRING_PROFILES_ACTIVE` | ★ | 운영 권장 `prd`. local 은 LocalProfileGuard 가 비-local 호스트에서 거부 |
-| `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립 |
+| `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립. 스키마는 Flyway 자동 생성(D 절) |
 | `CONTROL_DB_USERNAME/PASSWORD` | ★ | control DB 자격 |
 | `PORTAL_DB_HOST/PORT/NAME` | ★ | portal DB |
 | `PORTAL_DB_USERNAME/PASSWORD` | ★ | portal DB 자격 |
@@ -129,11 +129,29 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 
 ## D. DB 준비
 
-- 스키마/LS_* 테이블은 backend 가 기동 시 **Flyway 로 자동 생성·검증**(`spring.flyway.enabled=true`,
-  `ddl-auto=validate`). 별도 DDL 실행 불필요.
-- DBA 가 준비할 것: control/portal **DB·앱 유저·비밀번호**(backend.env 와 일치).
-- 관제 공유 테이블(`MNG_*`/`QRTZ_*`)은 validate 로 참조만 한다. 온프렘 자체 DB 면 사전 준비 필요.
-- 자동 생성 보조: `sudo DB_INIT_RUN=1 PGUSER=postgres PGPASSWORD=... DB_APP_PASSWORD=... ./scripts/install/15-init-db.sh`
+### PostgreSQL 엔진 — 번들 vs 외부 (설치 토글)
+
+| 토글(install.sh 인자) | 의미 |
+|-----------------------|------|
+| `USE_BUNDLED_POSTGRES=1` (기본) | 번들 PG16 을 오프라인 설치(`10-install-postgresql.sh`): RPM 설치 + initdb + `postgresql.conf`(`listen_addresses`/port) + `pg_hba.conf`(127.0.0.1/::1 scram-sha-256) + `postgresql-16` 기동 |
+| `USE_BUNDLED_POSTGRES=0` | 외부(기존) PG 사용 — 번들 PG 설치 생략. `CONTROL_DB_*`/`PORTAL_DB_*` 가 그 PG 를 가리키게 둠 |
+
+> 동일 호스트가 아닌 외부 PG 면 `pg_hba.conf`/`listen_addresses` 는 그 PG 운영 주체가 관리한다.
+> 번들 PG 를 다른 대역에서 접속시키려면 `PG_HBA_EXTRA_CIDR=10.0.0.0/8 PG_LISTEN_ADDRESSES='*'` 등으로
+> `10-install-postgresql.sh` 에 주입한다.
+
+### 스키마는 Flyway 가 자동 부트스트랩 — 관제 스키마 사전 적재 불필요
+
+- **테이블/스키마는 backend 가 기동 시 Flyway 로 자동 생성**한다(`spring.flyway.enabled=true`, prd 포함).
+  V2 마이그레이션이 LS_*·**MNG_***·**QRTZ_*** 전 스키마를 `CREATE TABLE IF NOT EXISTS` 로 만든다.
+  `ddl-auto=validate` 는 Flyway 가 만든 스키마를 검증만 한다. **별도 DDL 실행 불필요.**
+- 따라서 **관제 없는 폐쇄망의 신규 빈 DB 면 저작도구가 MNG_*/QRTZ_* 까지 전부 자동 생성**한다 —
+  관제 스키마를 사전 적재할 필요가 없다. 관제가 이미 채운 공유 테이블이 있는 경우에만 `IF NOT EXISTS`
+  로 그대로 공유한다.
+- DBA(또는 `15-init-db.sh`)가 준비할 것은 **빈 DB 2개 + 앱 유저·비밀번호**뿐(backend.env 와 일치):
+  control(`klid_system`) / portal(`portal`).
+- DB·유저 자동 생성 보조: `sudo DB_INIT_RUN=1 PGUSER=postgres PGPASSWORD=... DB_APP_PASSWORD=... ./scripts/install/15-init-db.sh`
+  (번들 PG 를 같은 호스트에 설치했다면 `PGHOST=127.0.0.1`. 테이블은 만들지 않음 — backend Flyway 담당.)
 
 ## E. 시크릿 생성 치트시트
 

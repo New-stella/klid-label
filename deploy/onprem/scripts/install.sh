@@ -4,10 +4,11 @@ set -euo pipefail
 # install.sh — [대상 서버 / 폐쇄망] klid-label 오프라인 설치 오케스트레이터
 #
 #   root 로 실행한다. 외부 네트워크 호출은 전혀 하지 않는다(모든 의존성은 번들).
-#   런타임 설치 → backend → ai-server → frontend → (옵션)DB 초기화 순서.
+#   (옵션)PostgreSQL → 런타임 설치 → backend → ai-server → frontend → (옵션)DB 초기화 순서.
 #
 #   사용법:
 #     sudo ./scripts/install.sh
+#     sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh  # 외부(기존) PG 사용 — 번들 PG 설치 생략
 #     sudo SKIP_DB_INIT=1 ./scripts/install.sh    # DB 생성 단계 생략(이미 준비됨)
 #
 #   설치 레이아웃(고정):
@@ -37,6 +38,8 @@ export KLID_USER="${KLID_USER:-klid}"
 export KLID_GROUP="${KLID_GROUP:-klid}"
 export ONPREM_ROOT
 export SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
+# 번들 PostgreSQL 사용 여부(기본 1). 0 이면 외부(기존) PG 를 쓰고 10-install-postgresql.sh 가 스킵.
+export USE_BUNDLED_POSTGRES="${USE_BUNDLED_POSTGRES:-1}"
 
 info "================================================================"
 info " klid-label 온프렘 설치 (대상 서버)"
@@ -68,7 +71,8 @@ chmod 750 "${KLID_ETC}"
 
 # ---- 패키지 무결성 검증(선택, SHA256SUMS 존재 시) ----
 for d in artifacts/backend artifacts/frontend/dist vendor/wheels models/weights \
-         runtimes/jdk runtimes/python runtimes/caddy syspkgs/rpm syspkgs/ffmpeg; do
+         runtimes/jdk runtimes/python runtimes/caddy syspkgs/rpm syspkgs/ffmpeg \
+         syspkgs/postgresql; do
   # SHA256SUMS 가 없으면 검증 생략, 있으면 sha256_verify 가 불일치 시 die —
   # 손상 파일이 조용히 설치되지 않도록 || true 는 두지 않는다.
   if [[ -f "${ONPREM_ROOT}/${d}/SHA256SUMS" ]]; then
@@ -77,6 +81,7 @@ for d in artifacts/backend artifacts/frontend/dist vendor/wheels models/weights 
 done
 
 STEPS=(
+  "10-install-postgresql.sh"
   "11-install-runtimes.sh"
   "12-install-backend.sh"
   "13-install-ai-server.sh"

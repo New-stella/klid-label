@@ -18,6 +18,7 @@ set -euo pipefail
 #   사용법:
 #     ./scripts/package.sh                   # 전체 단계 수집(빌드 키트 포함)
 #     SKIP_SYSPKGS=1 ./scripts/package.sh    # 시스템 의존성(RPM/ffmpeg) 수집 생략
+#     SKIP_POSTGRES=1 ./scripts/package.sh   # 번들 PG16 RPM 수집 생략(타깃에 이미 PG 있을 때)
 #     PREFETCH_HF=1 ./scripts/package.sh     # HF 모델(rtdetr/sam2)도 사전 다운로드
 #     SKIP_BUILDTOOLS=1 ./scripts/package.sh # 오프라인 빌드 키트(buildtools/+src/) 수집 생략
 #
@@ -63,6 +64,7 @@ STEPS=(
   "30-collect-ai-server.sh"
   "40-collect-runtimes.sh"
   "50-collect-syspkgs.sh"
+  "55-collect-postgresql.sh"
 )
 # 오프라인 빌드 키트(소스 재빌드용) — 기본 포함, SKIP_BUILDTOOLS=1 로 끌 수 있다.
 if [[ "${SKIP_BUILDTOOLS:-0}" == "1" ]]; then
