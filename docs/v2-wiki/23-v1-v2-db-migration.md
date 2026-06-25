@@ -103,14 +103,24 @@ v1과 v2의 좌표 JSON 표현이 **서로 다르다**(실측 확인). 단순 �
 
 ## 3. GAP 정책 — 확정 (2026-06-25 결정)
 
-### GAP① — `vms_clip_id` = 관제 `MNG_CLIP_MASTER.CLIP_ID` (런타임 정합)
+### GAP① — `vms_clip_id`: 합성키가 주 경로 (조인 커버리지 검증 결과)
 
-**확정: 관제 CLIP_ID를 조인으로 복구. 미매칭(수동 업로드)만 합성키.**
+**확정: 합성키(`LEGACY-{DATA_RAW_SN}`)가 주 경로. 관제 조인은 극소수(6~17건)만 보조 적용.**
 
-- **런타임 로직(정합 기준)**: 운영에선 경로 추출을 하지 않는다. `ControlTrainingVideoScanJob` 이 `MNG_CLIP_MASTER` 에서 `JOB_DMND_YN='Y'` 클립을 픽업 → `TrainingVideoIngestTx`(`:78`)가 `vmsClipId = clip.getClipId()` 로 **관제 CLIP_ID를 그대로** 적재(UK 멱등키, CLIP_ID null이면 skip). 따라서 `vms_clip_id` 는 항상 관제 `MNG_CLIP_MASTER.CLIP_ID` 다.
-- `vms_clip_id` ≠ `data_raw_sn`. 후자는 저작도구 내부 PK, 전자는 관제 네임스페이스(별개).
-- **v1 영상 2부류**: ① **관제 클립 유래**(`…_CLIP_20251105_2058_clip-raw.mp4`) — `MNG_CLIP_MASTER`(clip-raw 1,226건)에 존재, 파일명↔`CLIP_ID` 조인으로 실값 복구 → 런타임과 동일, 재수신 시 upsert. ② **수동 업로드**(`대구동구1.mp4` 등) — 관제 클립 없음 → 합성키(`LEGACY-{sn}`) + 출처 표시(이 부류는 v2에선 TUS 수동 업로드 경로에 해당).
-- `vms_cctv_id`(NOT NULL) 미채움분은 관제 매칭 시 `MNG_CLIP_MASTER.VMS_CCTV_ID` 사용, 없으면 기본값.
+**조인 커버리지 전수 검증(2026-06-25):**
+
+| 항목 | 수치 |
+|------|------|
+| 전체 영상 | 2,008 |
+| 라벨 달린 영상(이관 핵심 대상) | **1,814** |
+| CLIP_토큰 보유 → `MNG_CLIP_MASTER` 실조인 | **17** (라벨 달린 것 중 **6**) |
+| → 관제 미연결(별도 학습셋) | **1,808 / 1,814 ≈ 99.7%** |
+
+- **사실**: 라벨 달린 v1 영상은 거의 전부 **관제 클립 스캔 경로를 거치지 않은 큐레이션 라벨링 데이터셋**이다. 파일명이 `대구동구1.mp4`·`대전2.mp4`·CCTV추출명(`(A-24-1-고정1)…^20240717-070000_….mp4`)이고 `VMS_CCTV_ID`도 NULL. `MNG_CLIP_MASTER.CLIP_ID(clip-raw 1,226건)` 와 매칭되는 건 6~17건뿐.
+- **런타임 로직과의 관계**: 운영 적재(`ControlTrainingVideoScanJob`→`TrainingVideoIngestTx:78` `vmsClipId=clip.getClipId()`, UK 멱등키)에선 `vms_clip_id`가 항상 관제 CLIP_ID지만, **이 레거시 라벨셋은 그 흐름 밖**이라 적용되지 않는다. → 그래서 합성키가 불가피.
+- **방식**: 전 이관 영상에 `vms_clip_id = 'LEGACY-' || DATA_RAW_SN` (UK 충돌 0, 출처 추적). 조인되는 17건은 선택적으로 실 CLIP_ID 사용 가능하나 영향 미미.
+- `vms_cctv_id`(NOT NULL)는 대부분 NULL(라벨셋) → 기본값(예 `'UNKNOWN'`) 부여.
+- `vms_clip_id` ≠ `data_raw_sn`: 후자는 저작도구 내부 PK, 전자는 관제 네임스페이스(합성키로 대체).
 
 ### GAP② — 라벨 클래스: 의미 매핑 + 신규 추가, 타입은 v1 유지
 
@@ -148,8 +158,9 @@ v1과 v2의 좌표 JSON 표현이 **서로 다르다**(실측 확인). 단순 �
 2) 라벨 클래스 매핑표 적재 (LS_PJT_LBL 24 → ls_label: 의미 dedupe + 신규 6종 INSERT
    (asphalt/other/fighting_person + BBOX형 fire/smoke) + lbl_id 대응표)
 3) 영상 이관 (LS_DATA_RAW → ls_data_raw, raw_sn 재발번 + 대응표):
-   vms_clip_id = MNG_CLIP_MASTER.CLIP_ID 조인 복구(관제 유래) / 미매칭은 LEGACY-{sn};
-   메타(코덱·GPS 등)는 이관 제외(GAP③)
+   vms_clip_id = 'LEGACY-'||DATA_RAW_SN (주 경로, 1808/1814) / 조인되는 17건만 실 CLIP_ID 선택;
+   vms_cctv_id 미채움은 기본값; 메타(코덱·GPS 등)는 이관 제외(GAP③).
+   대상 영상은 라벨 보유 1,814건 중심(전체 2,008 중 무라벨 194건 이관 여부는 선택)
 4) 프레임 이관 (LS_DATA_SRC → ls_data_src, raw 대응표로 재연결, src_sn 대응표)
 5) 라벨 이관 (LS_DATA_LBL → ls_data_lbl: src/lbl 대응표 재연결
    + POINT 포맷 변환 + lbl_type_cd/lbl_nm 비정규화 복사)
