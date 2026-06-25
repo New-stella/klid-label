@@ -10,13 +10,15 @@
 | PostgreSQL (control + portal) | **필수** (번들/로컬) | MNG_*·QRTZ_* 는 Flyway 가 로컬에 stub 생성 — 관제 실DB 불요 |
 | 인증 (관제/포털 토큰) | **자체 발급** | `POST /api/v1/dev/tokens` (HS256 동일 시크릿 서명) — 외부 발급 서버 불요 |
 | 시드 데이터 | **자동 적재** | `DevSeedRunner`(local)가 `db/seed/dev-seed.sql` 멱등 적재 |
-| 비식별 | **mock (no-op)** | 실 비식별 서버 부재 → `application-local.yml` 의 `deidentify.mock-mode=true`. 원본→비식별 경로 복사 + `DE_IDNTF_YN='Y'` |
+| 비식별 | **실 KPST 연동 (기본)** | `application-local.yml` 기본값이 KPST API 연동 테스트 서버 실연동(`mock-mode=false`, `kpst.deid.enabled=true`, `base-url=http://222.118.130.251:9989`, 계정 `authoring`). **내부망 접근 필요.** 오프라인 자족이 필요하면 `DEIDENTIFY_MOCK_MODE=true`(+`KPST_DEID_ENABLED=false`)로 mock 복사(원본→비식별 경로 복사 + `DE_IDNTF_YN='Y'`) 전환 |
 | ai-server (YOLOX/SAM2/RT-DETR) | **CPU 실추론** | 가중치: YOLOX ONNX(`yolox_s.onnx`) 동봉, SAM2 는 Meta HF(`facebook/sam2-hiera-tiny`), RT-DETR 은 HF 캐시. GPU 불필요 |
 | VLM 시계열 | **비활성 (NO-OP)** | `vlm.client.enabled=false`. 실로드 미구현 |
 | 관제 통지 / 증강 | **비활성 / mock** | `control-notify.enabled=false`, 증강 클라이언트 mock |
 | 관제 자동 적재 픽업 | **수동 트리거** | `POST /api/v1/dev/batch/scan` (REVIEWER 토큰) — 시드 클립 픽업 검증 |
 
-> **외부 0개 정의**: 관제/포털/비식별/실VLM 서버가 없다는 뜻. ai-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). RT-DETR·SAM2(Meta) 최초 기동 시에만 HuggingFace 에서 모델을 1회 받는다(이후 캐시로 오프라인). YOLOX 는 동봉 ONNX 가중치 사용.
+> **외부 0개 정의**: 관제/포털/실VLM 서버가 없다는 뜻. ai-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). RT-DETR·SAM2(Meta) 최초 기동 시에만 HuggingFace 에서 모델을 1회 받는다(이후 캐시로 오프라인). YOLOX 는 동봉 ONNX 가중치 사용.
+>
+> ⚠ **비식별은 예외 — 기본값이 실 KPST 연동(외부)으로 변경됨**: local 도 KPST API 연동 테스트 서버(`222.118.130.251:9989`, 내부망 http)에 실제 연동한다. 즉 비식별 단계만은 "외부 0개"가 아니며 **내부망 접근이 필요**하다. 완전 오프라인 자족이 필요하면 `DEIDENTIFY_MOCK_MODE=true` + `KPST_DEID_ENABLED=false` 로 기존 mock 복사 모드로 되돌린다. (현재 KPST 테스트 서버 마스킹 엔진이 잡을 `procState 99`(에러)로 실패시킬 수 있어, 연동은 되어도 비식별 결과물이 안 나올 수 있다 — 연결·업로드·프로젝트·폴링 API 는 정상.)
 
 ---
 
@@ -107,7 +109,8 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | 토글 | 로컬 값 | 의미 |
 |------|--------|------|
 | `SPRING_PROFILES_ACTIVE` | local | 자립 기동 + mock/시드 게이팅 |
-| (`application-local.yml`) `deidentify.mock-mode` | true | 비식별 no-op (실서버 부재) |
+| (`application-local.yml`) `deidentify.mock-mode` (`DEIDENTIFY_MOCK_MODE`) | **false (기본)** | 실 KPST 연동. `true` 면 mock no-op 복사로 전환 |
+| `KPST_DEID_ENABLED` / `KPST_DEID_BASE_URL` | true / `http://222.118.130.251:9989` | KPST 폴링 경로 + 테스트 서버 주소(내부망 http, ca-cert 불요) |
 | `AI_MOCK_MODE` / `AI_DEVICE` | false / cpu | ai-server 실추론 (GPU 불필요) |
 | `DETECTOR_BACKEND` | rtdetr | 탐지/트래킹 기본 백엔드 (yolo 로 전환 가능) |
 | `VLM_CLIENT_ENABLED` | false | VLM NO-OP |
@@ -121,4 +124,4 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 - **RT-DETR 최초 1회 인터넷 필요** — `PekingU/rtdetr_v2_r50vd`(~100MB) HF 다운로드. 이후 캐시(`HF_HOME=/app/.hf-cache`)로 오프라인. 다운로드 실패 시 자동 mock fallback(기동 무중단). 완전 오프라인을 원하면 `DETECTOR_BACKEND=yolo`(로컬 `.pt`).
 - **GPU 옵트인** — GPU 환경은 `AI_DEVICE=cuda` + override 없이 `docker-compose.yml`(runtime nvidia).
 - **VLM 실추론 미지원** — 항상 mock. local 에선 `enabled=false` 라 무관.
-- **비식별 mock 은 local 전용** — `DEIDENTIFY` 단계는 원본을 비식별 경로로 복사만 하며, 운영(비-local 프로파일/`ENV`=dev·stg·prd)에서는 부트 차단되어 절대 동작하지 않는다(`LocalProfileGuard` + mock 게이트). 운영에 local 프로파일을 띄우지 말 것.
+- **local/dev 비식별 기본 = 실 KPST 연동** — `application-local.yml`·`application-dev.yml` 기본값이 KPST API 연동 테스트 서버 실연동이다(`222.118.130.251:9989`, 내부망 http, ca-cert 불요, 계정 `authoring`). **내부망 접근이 없으면 비식별 단계가 실패('F')한다.** 오프라인 자족 검증은 `DEIDENTIFY_MOCK_MODE=true`(+`KPST_DEID_ENABLED=false`)로 mock 복사 모드 전환 — `mock-mode=true` 는 순수 local 프로파일에서만 허용(비-local/`ENV`=dev·stg·prd 에서 true 면 `DeidentifyStep` 부트 차단). 운영(prd)은 `application.yml` 기본 + 배포 환경변수로 별도 설정한다.

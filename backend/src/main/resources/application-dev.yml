@@ -25,6 +25,13 @@ authoring:
     upload:
       enabled: true
 
+# UC018 — dev 는 KPST API 연동 테스트 서버에 실제 연동한다(mock 아님).
+#   enabled 는 application.yml 기본값(true), 계정도 기본값(creator-id/req-user-id=authoring) 사용.
+#   내부망 http 평문이라 ca-cert 불요. base-url 은 KPST_DEID_BASE_URL 로 override 가능.
+kpst:
+  deid:
+    base-url: ${KPST_DEID_BASE_URL:http://222.118.130.251:9989}
+
 logging:
   level:
     root: INFO

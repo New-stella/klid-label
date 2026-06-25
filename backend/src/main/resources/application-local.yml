@@ -53,12 +53,12 @@ authoring:
   control:
     training-scan:
       enabled: false
-  # Phase 1 — local 전용 mock 비식별 모드. 외부 비식별 서버(localhost:9200) 없이
-  #   비식별 단계를 통과시켜 마킹·배치 e2e 를 해금한다. 원본을 비식별 경로로 복사만 수행(원본 보존).
-  #   local 외 프로파일에서 true 면 부트 거부(DeidentifyStep 게이팅).
+  # local 비식별 — 기본값으로 KPST API 연동 테스트 서버에 실제 연동한다(mock 아님).
+  #   오프라인/외부0 자족 검증이 필요하면 DEIDENTIFY_MOCK_MODE=true 로 mock 복사 모드(원본→비식별 경로 복사)로 전환.
+  #   mock-mode=true 는 순수 local 프로파일에서만 허용(DeidentifyStep 게이팅) — 그 외 프로파일에서 true 면 부트 거부.
   integration:
     deidentify:
-      mock-mode: true
+      mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
   # HIGH-5 fix (OWASP A06): 로컬 FE 개발 서버 기본 허용.
   #   SecurityConfig 가 ${authoring.cors.allowed-origins} 를 읽으므로 반드시 authoring 하위에 위치해야 한다.
   #   (과거 kpst 하위 오배치 → authoring.cors.allowed-origins 가 빈 기본값으로 남아 브라우저 Origin
@@ -81,12 +81,13 @@ authoring:
     seed:
       enabled: ${AUTHORING_DEV_SEED_ENABLED:true}
 
-# UC018 — local 은 mock-mode 로 비식별을 자족 처리하므로 KPST 폴링 경로를 끈다(킬스위치 false).
-#   ca.crt 미보유 local 환경에서 KpstWebClientConfig(fail-closed) 가 기동 실패하는 것을 방지.
-#   실 연동(dev/stg/prd)은 application.yml 기본값 enabled=true + KPST_DEID_CA_CERT_PATH 로 활성화된다.
+# UC018 — local 도 KPST API 연동 테스트 서버에 실제 연동한다(기본). 내부망 http 평문이라 ca-cert 불요.
+#   계정은 application.yml 기본값(creator-id/req-user-id=authoring) 사용. base-url 은 KPST_DEID_BASE_URL 로 override.
+#   오프라인 자족이 필요하면 KPST_DEID_ENABLED=false + DEIDENTIFY_MOCK_MODE=true 로 mock 복사 모드로 전환.
 kpst:
   deid:
-    enabled: false
+    enabled: ${KPST_DEID_ENABLED:true}
+    base-url: ${KPST_DEID_BASE_URL:http://222.118.130.251:9989}
   # 콜백 충실 플로우 Phase 2 — local 에서는 외부 증강 시스템 대신 dev 콜백 시뮬레이터를 활성화한다.
   #   - external.mode=dev → DevAugmentCallbackSimulator 빈 로드(외부 0 자족). 운영은 noop(기본).
   #   - webhook.callback-base-url 은 application.yml 기본값(http://localhost:8080/api) 사용.
