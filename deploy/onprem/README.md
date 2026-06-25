@@ -69,7 +69,8 @@ curl -fsS http://127.0.0.1/                                      # frontend(Cadd
 /opt/klid/ai/{venv,app,weights,.hf-cache}  ai-server
 /opt/klid/web/{dist,Caddyfile}         frontend
 /etc/klid/{backend.env,ai-server.env}  환경설정 (chmod 640, root:klid)
-/var/lib/klid/storage/{raw,deidentified}  영상 저장
+/nas-storage/...                       영상·프레임 저장 (NAS 마운트, STORAGE_RAW_PATH)
+/var/lib/klid                          런타임 데이터(저장소 외)
 /var/log/klid                          로그
 서비스 사용자: klid (system, nologin)
 ```

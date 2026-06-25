@@ -80,3 +80,21 @@ psql -h <pg_host> -p 15432 -U klid_user -d klid_system -f 03_verify.sql
 - **LS_RAW_DATA_STATUS / 검수완료 플래그**: 본 스크립트는 `ls_data_raw`+프레임+라벨만 적재한다. 이관 영상을 **검수완료(APPROVED)로 데이터마트 View에 노출**하려면 `LS_RAW_DATA_STATUS` 적재가 추가로 필요(운영 결정 — 04 옵션 참조).
 - **파일 실체(영상/프레임 이미지)**: DB 경로만 이관한다. NAS 실파일 이전은 별도 절차.
 - 실데이터는 본 분석(개발 v1)과 라벨 클래스·건수가 다를 수 있으므로 **STEP 5 검증 + 의미 매핑 검토는 필수**.
+
+## 5. NAS 경로 정합 (배포 노트 — Critical)
+
+이관되는 영상/프레임 경로는 **v1 절대경로 그대로**(`/nas-storage/...`)다. v2 코드는 이미지 서빙 시 `baseRawPath.resolve(경로)` 후 **`startsWith(STORAGE_RAW_PATH)` 가드**(CWE-22 경로순회 방어)를 적용하므로, **저장된 절대경로가 `STORAGE_RAW_PATH` 로 시작해야** 서빙된다.
+
+- **v1 실제 경로 트리**:
+  - 관제 클립(공용): `/nas-storage/data/clip/gov/{raw,preview}/...`
+  - 저작도구 영상: `/nas-storage/label-studio/{raw,upload}/...`
+  - 프레임 원천: `/nas-storage/label-studio/src/{프로젝트번호}/...`
+  - 프레임 비식별: `/nas-storage/label-studio/bkup/{...}/...`
+- **현재 on-prem 기본값(불일치)**: `STORAGE_RAW_PATH=/var/lib/klid/storage/raw`, `STORAGE_DEIDENTIFIED_PATH=/var/lib/klid/storage/deidentified`
+  (`deploy/onprem/config/backend/env.template`). → `/nas-storage/...` 절대경로가 가드를 통과 못 해 **이미지/영상 서빙이 NOT_FOUND/FORBIDDEN** 된다.
+
+### 배포 시 조치 (둘 중 하나)
+1. **`STORAGE_RAW_PATH` 를 NAS 루트로 정합** (권장): 실제 NAS 마운트 루트(예: `/nas-storage`)로 설정 → v1 두 트리(`data/clip/gov`·`label-studio`)를 모두 덮어 절대경로가 가드를 통과. `STORAGE_DEIDENTIFIED_PATH` 도 비식별 프레임 실제 위치에 맞게 설정.
+2. **이관 시 경로 재작성**: NAS 마운트 구조를 바꿀 수 없으면, 적재 단계에서 `raw_file_path`/`src_file_path` 의 prefix 를 v2 베이스로 치환(스크립트 보강 필요).
+
+> ⚠ v2 자체 정합도 확인 필요: `TrainingVideoIngestTx` 는 관제 `MNG_CLIP_MASTER.FILE_PATH`(=`/nas-storage/...`)를 그대로 `rawFilePathNm` 에 저장하는 반면, `FfmpegFrameExtractor` 는 추출 프레임을 `STORAGE_RAW_PATH` 베이스에 쓴다. 적재 영상과 추출 프레임이 같은 베이스를 공유하도록 **운영 경로 규칙을 단일화**해야 가드가 일관되게 통과한다.

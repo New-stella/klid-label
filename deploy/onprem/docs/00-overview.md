@@ -10,7 +10,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
   (브라우저)│  (정적 dist)            (backend, Java17)            (ai-server, Py3.11)│
             │       │                       │                                        │
             │       └─ SPA(dist)            ├─► PostgreSQL :5432 (control + portal)   │
-            │                               ├─► FFmpeg / 저장소(/var/lib/klid)        │
+            │                               ├─► FFmpeg / 저장소(NAS /nas-storage)      │
             │                               └─► KPST 비식별 서버 (폴링, 외부 동거)    │
             └───────────────────────────────────────│────────────────────────────────┘
                                                      ▼
@@ -67,4 +67,4 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 ## 설치 후 레이아웃
 
 README.md "설치 후 디렉토리 레이아웃" 참고. 핵심: 앱은 `/opt/klid`, 설정은 `/etc/klid`,
-데이터는 `/var/lib/klid`, 로그는 `/var/log/klid`, 서비스 사용자는 `klid`.
+영상·프레임 저장은 NAS 마운트(`STORAGE_RAW_PATH`, 기본 `/nas-storage`), 그 외 런타임 데이터는 `/var/lib/klid`, 로그는 `/var/log/klid`, 서비스 사용자는 `klid`.

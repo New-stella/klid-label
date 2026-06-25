@@ -9,7 +9,7 @@ cd deploy/onprem
 sudo ./scripts/uninstall.sh
 ```
 
-보존되는 것: `/etc/klid`(env), `/var/lib/klid`(영상 저장소), `/var/log/klid`(로그).
+보존되는 것: `/etc/klid`(env), `/var/lib/klid`(런타임 데이터), `/var/log/klid`(로그), 그리고 **NAS 영상 저장소**(`STORAGE_RAW_PATH`, 기본 `/nas-storage`) — 제거 스크립트는 NAS 를 건드리지 않는다(마운트 해제·삭제는 운영자 수동).
 
 ## 완전 제거 (PURGE)
 

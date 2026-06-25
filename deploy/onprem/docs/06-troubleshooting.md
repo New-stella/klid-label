@@ -127,8 +127,11 @@
 ## 권한 오류
 
 증상: 저장소/캐시 쓰기 권한 거부.
-해결: `/var/lib/klid`, `/opt/klid/ai/.hf-cache` 등이 `klid:klid` 소유인지 확인
+해결: 로컬 데이터·캐시(`/var/lib/klid`, `/opt/klid/ai/.hf-cache`)는 `klid:klid` 소유인지 확인
 (`sudo chown -R klid:klid /var/lib/klid /opt/klid`).
+영상 저장소는 **NAS 마운트**(`STORAGE_RAW_PATH`, 기본 `/nas-storage`)다 — ① 마운트 확인
+(`mountpoint /nas-storage`) ② `klid` 쓰기 가능 확인(`sudo runuser -u klid -- test -w /nas-storage`).
+**NAS 전체에 `chown -R` 금지**(기존 v1 대용량 파일 소유권 훼손) — v2 가 쓰는 하위 디렉터리만 권한 부여.
 
 ## backend 부팅 실패 — webhook HMAC
 

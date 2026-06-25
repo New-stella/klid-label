@@ -36,8 +36,9 @@ NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
 PrivateTmp=true
-# 데이터/로그 쓰기 허용 경로
-ReadWritePaths=@KLID_LOG@ @KLID_DATA@
+# 데이터/로그 쓰기 허용 경로 + 영상·프레임 NAS 저장소(STORAGE_RAW_PATH/DEIDENTIFIED).
+# ProtectSystem=full 하에서 이 목록에 없는 경로는 쓰기 불가 — NAS 저장소가 빠지면 프레임 저장 실패.
+ReadWritePaths=@KLID_LOG@ @KLID_DATA@ @STORAGE_RAW_PATH@ @STORAGE_DEIDENTIFIED_PATH@
 
 [Install]
 WantedBy=multi-user.target

@@ -17,7 +17,8 @@ set -euo pipefail
 #     /opt/klid/ai                           ai-server venv + app + 모델
 #     /opt/klid/web                          frontend dist + Caddyfile
 #     /etc/klid/*.env                        환경설정(chmod 600)
-#     /var/lib/klid/storage/{raw,deidentified}  데이터
+#     /nas-storage/...                       영상·프레임 저장(NAS 마운트, STORAGE_RAW_PATH)
+#     /var/lib/klid                          런타임 데이터(저장소 외)
 #     /var/log/klid                          로그
 #     서비스 사용자: klid
 # ============================================================================
@@ -36,6 +37,9 @@ export KLID_DATA="${KLID_DATA:-/var/lib/klid}"
 export KLID_LOG="${KLID_LOG:-/var/log/klid}"
 export KLID_USER="${KLID_USER:-klid}"
 export KLID_GROUP="${KLID_GROUP:-klid}"
+# 영상/프레임 저장 베이스 — NAS 마운트(env.template 와 동일 기본값). 로컬 디스크 아님.
+export STORAGE_RAW_PATH="${STORAGE_RAW_PATH:-/nas-storage}"
+export STORAGE_DEIDENTIFIED_PATH="${STORAGE_DEIDENTIFIED_PATH:-/nas-storage}"
 export ONPREM_ROOT
 export SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 # 번들 PostgreSQL 사용 여부(기본 1). 0 이면 외부(기존) PG 를 쓰고 10-install-postgresql.sh 가 스킵.
@@ -64,10 +68,35 @@ fi
 
 ensure_dir "${KLID_PREFIX}" "${KLID_PREFIX}/runtime" \
            "${KLID_ETC}" \
-           "${KLID_DATA}/storage/raw" "${KLID_DATA}/storage/deidentified" \
+           "${KLID_DATA}" \
            "${KLID_LOG}"
 chown -R "${KLID_USER}:${KLID_GROUP}" "${KLID_DATA}" "${KLID_LOG}"
 chmod 750 "${KLID_ETC}"
+
+# ---- 영상 저장소(NAS) 검증 ----
+# 영상/프레임은 NAS 마운트(STORAGE_RAW_PATH/STORAGE_DEIDENTIFIED_PATH)에 저장된다 — 로컬 디스크 아님.
+# 관제 적재·v1→v2 이관본의 절대경로(/nas-storage/...)가 이 베이스로 시작해야 서빙된다(startsWith 가드).
+# NAS 는 사전 마운트가 전제: mkdir 시 마운트포인트가 가려질 수 있고, chown -R 은 기존 v1 대용량
+# 파일 소유권을 훼손하므로 둘 다 하지 않는다. 존재·쓰기권한만 검증한다(부재여도 설치는 계속 — 서비스 기동 전 마운트).
+# 운영자가 backend.env 에서 경로를 커스텀했으면 그 값으로 검증(install 검증경로 ↔ 런타임경로 일치).
+if [ -f "${KLID_ETC}/backend.env" ]; then
+  # cut 으로 값 추출 후 xargs 로 공백 trim + 둘러싼 따옴표 제거.
+  # 공백-only/빈값/빈따옴표("")는 빈문자가 되어 아래 [ -n ] 에서 export 스킵 → 기본값 유지.
+  _env_raw="$(grep -E '^[[:space:]]*STORAGE_RAW_PATH=' "${KLID_ETC}/backend.env" | tail -1 | cut -d= -f2- | xargs 2>/dev/null || true)"
+  _env_deid="$(grep -E '^[[:space:]]*STORAGE_DEIDENTIFIED_PATH=' "${KLID_ETC}/backend.env" | tail -1 | cut -d= -f2- | xargs 2>/dev/null || true)"
+  [ -n "${_env_raw}" ]  && export STORAGE_RAW_PATH="${_env_raw}"
+  [ -n "${_env_deid}" ] && export STORAGE_DEIDENTIFIED_PATH="${_env_deid}"
+  info "backend.env 의 저장소 경로 사용: raw=${STORAGE_RAW_PATH} deid=${STORAGE_DEIDENTIFIED_PATH}"
+fi
+for sp in "${STORAGE_RAW_PATH}" "${STORAGE_DEIDENTIFIED_PATH}"; do
+  if [ ! -d "${sp}" ]; then
+    warn "영상 저장소가 아직 없습니다: ${sp} — **서비스 기동 전** NAS 를 이 경로로 마운트해야 영상/프레임이 저장·서빙된다."
+  elif ! runuser -u "${KLID_USER}" -- test -w "${sp}" 2>/dev/null; then
+    warn "${KLID_USER} 가 ${sp} 에 쓸 수 없습니다 — NAS 의 해당 하위 디렉터리만 ${KLID_USER} 쓰기 가능하도록 권한 부여(전체 chown -R 금지)."
+  else
+    ok "영상 저장소(NAS) 확인: ${sp}"
+  fi
+done
 
 # ---- 패키지 무결성 검증(선택, SHA256SUMS 존재 시) ----
 for d in artifacts/backend artifacts/frontend/dist vendor/wheels models/weights \

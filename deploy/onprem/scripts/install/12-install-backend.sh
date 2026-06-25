@@ -41,6 +41,8 @@ sed \
   -e "s#@KLID_ETC@#${KLID_ETC}#g" \
   -e "s#@KLID_LOG@#${KLID_LOG}#g" \
   -e "s#@KLID_DATA@#${KLID_DATA}#g" \
+  -e "s#@STORAGE_RAW_PATH@#${STORAGE_RAW_PATH:-/nas-storage}#g" \
+  -e "s#@STORAGE_DEIDENTIFIED_PATH@#${STORAGE_DEIDENTIFIED_PATH:-/nas-storage}#g" \
   "${UNIT_SRC}" > "${UNIT_DST}"
 chmod 0644 "${UNIT_DST}"
 ok "[backend] systemd 유닛 설치: ${UNIT_DST}"

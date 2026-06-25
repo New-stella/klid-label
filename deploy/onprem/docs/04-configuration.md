@@ -44,14 +44,21 @@
 
 | 변수 | 필수 | 의미 / 기본 |
 |------|:----:|-------------|
-| `STORAGE_RAW_PATH` | ★ | 원본 영상 경로(기본 `/var/lib/klid/storage/raw`) |
-| `STORAGE_DEIDENTIFIED_PATH` | ★ | 비식별 영상 경로 |
+| `STORAGE_RAW_PATH` | ★ | 원본 영상·프레임 저장 베이스. **NAS 마운트 루트와 일치 필수**(기본 `/nas-storage`). v2 가 DB 절대경로를 이 베이스 기준 startsWith 가드로 검증해 서빙 — 관제 적재·v1 이관본(`/nas-storage/...`)이 이 베이스로 시작해야 정상 서빙(불일치 시 NOT_FOUND) |
+| `STORAGE_DEIDENTIFIED_PATH` | ★ | 비식별 영상·프레임 저장 베이스(기본 `/nas-storage`). 위와 동일 — NAS 마운트 루트와 일치 |
 | `AI_SERVER_URL` | ★ | 기본 `http://127.0.0.1:9300` |
 | `CORS_ALLOWED_ORIGINS` | · | 동일 출처면 비움. 다른 도메인 호출 시 allowlist |
 | `FFMPEG_BIN`/`FFPROBE_BIN`/`FFMPEG_THREADS` | · | 기본 `ffmpeg`/`ffprobe`/2 |
 | `BATCH_ENABLED`/`BATCH_INTERVAL_SEC` | · | 기본 true/60 |
 | `TRAINING_SCAN_ENABLED` | · | 관제 학습용 픽업 스캔. 공유 DB 없으면 false 권장 |
 | `JAVA_OPTS` | · | 기본 `-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul` |
+
+> ⚠ **`STORAGE_RAW_PATH`/`STORAGE_DEIDENTIFIED_PATH` 변경 시**: 이 경로는 systemd 유닛의 `ReadWritePaths`(`ProtectSystem=full` 하 쓰기 허용 목록)에도 박힌다. env 만 바꾸면 쓰기가 차단되므로 **반드시 재설치(또는 유닛 갱신) 후 재로드**:
+> ```
+> sudo STORAGE_RAW_PATH=/새경로 ./scripts/install.sh   # 유닛 ReadWritePaths 재치환
+> sudo systemctl daemon-reload && sudo systemctl restart klid-backend
+> ```
+> 또한 NAS 를 해당 경로로 **미리 마운트**해야 한다(설치는 부재해도 warn 후 계속되나, 서비스가 영상을 못 쓴다). DB 에 저장된 절대경로가 이 베이스로 시작해야 서빙된다(startsWith 가드).
 
 ---
 
