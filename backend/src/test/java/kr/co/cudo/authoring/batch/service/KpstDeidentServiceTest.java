@@ -303,6 +303,78 @@ class KpstDeidentServiceTest {
         verify(txService).completeDeidentification(9001L, "/deid/9001/deidentified.mp4");
     }
 
+    @Test
+    @DisplayName("M1_completeDeidentification_검증실패시_비REDEIDENT면_markRawDeidentFailed로_F를_별도커밋한다")
+    void completeFailureCommitsFForBatch() {
+        // 콜백/배치 경로(REQ_KIND null) — 파일 무효로 tx 가 예외. F-마킹이 별도 커밋되어야 한다(M-1).
+        LsDeidentProcLog batchLog = submittedProcLog(); // REQ_KIND null
+        when(procLogRepository.findAllByDataRawSnOrderByReqDtDesc(9001L)).thenReturn(List.of(batchLog));
+        org.mockito.Mockito.doThrow(new CustomException(ErrorCode.INVALID_INPUT, "invalid"))
+                .when(txService).completeDeidentification(eq(9001L), any());
+
+        assertThatThrownBy(() -> service.completeDeidentification(9001L, "/deid/x.mp4"))
+                .isInstanceOf(CustomException.class);
+
+        verify(txService).markRawDeidentFailed(9001L);
+    }
+
+    @Test
+    @DisplayName("M1_completeDeidentification_검증실패라도_REDEIDENT면_markRawDeidentFailed_미호출_폴링경로종결위임")
+    void completeFailureSkipsFForRedeident() {
+        LsDeidentProcLog redeidentLog = submittedProcLog();
+        redeidentLog.markRedeident();
+        when(procLogRepository.findAllByDataRawSnOrderByReqDtDesc(9001L)).thenReturn(List.of(redeidentLog));
+        org.mockito.Mockito.doThrow(new CustomException(ErrorCode.INVALID_INPUT, "invalid"))
+                .when(txService).completeDeidentification(eq(9001L), any());
+
+        assertThatThrownBy(() -> service.completeDeidentification(9001L, "/deid/x.mp4"))
+                .isInstanceOf(CustomException.class);
+
+        // REDEIDENT 는 폴링 경로(failRedeidentCompletion)가 종결 — 여기선 F-마킹 보정하지 않는다.
+        verify(txService, never()).markRawDeidentFailed(any());
+    }
+
+    @Test
+    @DisplayName("REDEIDENT_attach실패_무한재폴링안되고_terminal도달_failRedeidentCompletion위임_재throw안함")
+    void pollRedeidentAttachFailureTerminatesNotRepoll() throws Exception {
+        // 완료 감지 후 finishDownloadAndComplete(REDEIDENT) 가 attach 실패로 예외 → 메인 롤백.
+        // 폴링은 failRedeidentCompletion(별도 커밋)으로 terminal 종결하고 예외를 재throw 하지 않는다
+        // (재throw 시 procLog 가 WAITING/POLLING 으로 남아 무한 재폴링).
+        LsDeidentProcLog procLog = submittedProcLog();
+        procLog.markRedeident();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(2, 202L));
+        Path saved = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4");
+        java.nio.file.Files.createDirectories(saved.getParent());
+        java.nio.file.Files.writeString(saved, "MASKED");
+        when(kpstClient.download(eq(202L), any(Path.class), any(Path.class))).thenReturn(saved);
+        org.mockito.Mockito.doThrow(new CustomException(ErrorCode.INVALID_INPUT, "해상도 불일치"))
+                .when(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), any());
+
+        // 재throw 하면 안 됨 — terminal 종결 후 정상 반환.
+        service.pollOne(procLog);
+
+        verify(txService).failRedeidentCompletion(eq(1L), eq(9001L), any());
+    }
+
+    @Test
+    @DisplayName("비REDEIDENT_완료후처리실패는_여전히_예외전파_failRedeidentCompletion미호출_회귀")
+    void pollBatchCompletionFailureStillThrows() throws Exception {
+        LsDeidentProcLog procLog = submittedProcLog(); // REQ_KIND null
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(2, 202L));
+        Path saved = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4");
+        java.nio.file.Files.createDirectories(saved.getParent());
+        java.nio.file.Files.writeString(saved, "MASKED");
+        when(kpstClient.download(eq(202L), any(Path.class), any(Path.class))).thenReturn(saved);
+        org.mockito.Mockito.doThrow(new CustomException(ErrorCode.INVALID_INPUT, "boom"))
+                .when(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), any());
+
+        // 기존 BATCH 경로는 현행 유지 — 예외 전파(잡이 건별 격리), REDEIDENT 종결 핸들러 미호출.
+        assertThatThrownBy(() -> service.pollOne(procLog)).isInstanceOf(CustomException.class);
+        verify(txService, never()).failRedeidentCompletion(any(), any(), any());
+    }
+
     private static void setField(Object target, String name, Object value) {
         try {
             Field f = findField(target.getClass(), name);

@@ -9,7 +9,7 @@
 |------|------|
 | DBMS | **PostgreSQL** |
 | 스키마 | `klid_at` |
-| 마이그레이션 | **Flyway** (V0~V56, 70+ 테이블/뷰) |
+| 마이그레이션 | **Flyway** (V0~V69, 70+ 테이블/뷰) |
 | 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** 9개 `ddl-auto=validate` 참조, Quartz `QRTZ_*` |
 | DDL | PostgreSQL 표준 문법 (MariaDB 문법 금지), `ddl-auto=validate` 고정 |
 
@@ -50,7 +50,7 @@
 | `LS_DATA_AUG` (V8) | 증강 데이터 (AUG_PROC_STTS_CD) | [14](14-augmentation.md) |
 | `LS_DATA_AUG_RVW` (V25) / `LS_DATA_AUG_LBL_MAP` (V26) | 증강 검수 / 라벨 매핑 | [14](14-augmentation.md) |
 | `LS_RESOLUTION_EXPORT` (V55) | 해상도 변경 기록 | [14](14-augmentation.md) |
-| `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29) | 비식별 누락 신고 / 처리 이력 | [08](08-deidentification.md) |
+| `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29, `REQ_KIND_CD` BATCH/REDEIDENT V68) | 비식별 누락 신고 / 처리 이력(배치·검수완료재비식별 분기) | [08](08-deidentification.md) |
 
 ### 작업 · 상태 · 운영
 | 테이블 | 용도 | 위키 |
@@ -60,7 +60,7 @@
 | `LS_TASK_EVENT_LOG` (V36) | 작업 이벤트 로그 | [12](12-review-assignment.md) |
 | `LS_BATCH_PROC_LOG` (V12) | 배치 단계 로그 (STAGE_CD, RES_PAYLOAD_CN) | [07](07-batch-pipeline.md) |
 | `LS_SYSTEM_CONFIG` (V11) | 시스템 설정 (화이트리스트 key/value) | [10](10-labeling.md) |
-| `LS_AUTH_WORK_LOCK` (V22) | 비식별 재진행 중 잠금 | [08](08-deidentification.md) |
+| `LS_AUTH_WORK_LOCK` (V22, 동일영상 활성락 1건 partial unique index V69) | 비식별 재진행 중 잠금(동시 이중 위탁 차단) | [08](08-deidentification.md) |
 | `LS_WEBHOOK_IDEMPOTENCY` (V39) | 웹훅 멱등성 | [19](19-external-security-cvat.md) |
 | `LS_CONTROL_NOTIFY_FALLBACK` (V44) / `LS_GITEA_FALLBACK_QUEUE` (V41) | 통지 / Gitea 실패 재시도 | [15](15-control-notify.md)·[13](13-version-control.md) |
 | `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 | [16](16-portal.md) |
@@ -75,7 +75,7 @@
 | View | 내용 |
 |------|------|
 | `V_COMPLETED_VIDEO` | 영상 메타 + 원본 경로 + 검수 완료 일시 (PARENT_RAW_SN 증강 추적) |
-| `V_COMPLETED_FRAME` | 프레임 페어 (FILE_PATH=원본, SRC_BKUP_FILE_PATH=비식별) |
+| `V_COMPLETED_FRAME` | 프레임 페어 (`ORIGINAL_PATH`=원본, `DEIDENTIFIED_PATH`=비식별; 실DB 별칭 확인 2026-06-25. 원천 컬럼 `LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`) |
 | `V_COMPLETED_LABEL` + `V_COMPLETED_LABEL_ATTR` | 라벨 좌표·마스터 코드 + 속성값 |
 | `V_COMPLETED_META` | 시계열 메타 (RVW_STTS_CD='APPROVED'만) |
 

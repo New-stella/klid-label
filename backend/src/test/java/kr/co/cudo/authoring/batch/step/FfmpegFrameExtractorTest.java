@@ -77,6 +77,14 @@ class FfmpegFrameExtractorTest {
                 recordedSeekMillis.add(seekMillis);
                 Files.write(outputFrame, ("frame-seek-" + seekMillis).getBytes());
             }
+            @Override
+            public void writeFrameByNumber(Path sourceVideo, Path outputFrame, int frameNo) throws IOException {
+                // FfmpegFrameExtractor(seek 경로)는 frame-exact 를 사용하지 않음 — no-op.
+                if (outputFrame.getParent() != null && !Files.exists(outputFrame.getParent())) {
+                    Files.createDirectories(outputFrame.getParent());
+                }
+                Files.write(outputFrame, ("frame-no-" + frameNo).getBytes());
+            }
         };
 
         sourceVideo = tmp.resolve("clip.mp4");

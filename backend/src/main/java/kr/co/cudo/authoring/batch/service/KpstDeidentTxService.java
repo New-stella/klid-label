@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.service;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.batch.step.DeidentFrameAttacher;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
@@ -42,6 +43,7 @@ public class KpstDeidentTxService {
     private final DeidentReportService deidentReportService;
     private final NotificationService notificationService;
     private final WorkLockService workLockService;
+    private final DeidentFrameAttacher deidentFrameAttacher;
 
     /** 다운로드 완료 — datasetId 보충 + DOWNLOADED/SUCCEEDED 전이. */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
@@ -64,11 +66,14 @@ public class KpstDeidentTxService {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void finishDownloadAndComplete(Long rawSn, Long procLogSn, Long datasetId, String deidFilePath) {
         verifyDeidFile(rawSn, deidFilePath);
-        procLogRepository.findById(procLogSn).ifPresent(p -> {
-            p.recordDatasetId(datasetId);
-            p.markDownloaded(deidFilePath);
-        });
-        applyCompletion(rawSn, deidFilePath);
+        LsDeidentProcLog procLog = procLogRepository.findById(procLogSn).orElse(null);
+        boolean redeident = procLog != null && procLog.isRedeident();
+        if (procLog != null) {
+            procLog.recordDatasetId(datasetId);
+            procLog.markDownloaded(deidFilePath);
+        }
+        // REQ_KIND 분기 — REDEIDENT 는 검수완료(APPROVED) 유지 + 프레임 attach, 기존 BATCH 는 현행 유지.
+        applyCompletion(rawSn, deidFilePath, redeident);
     }
 
     /**
@@ -81,6 +86,44 @@ public class KpstDeidentTxService {
                 .ifPresent(p -> p.fail("DEIDENT_INCOMPLETE", "deid file invalid"));
         videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
         log.warn("[KpstDeid] poll incomplete download rawSn={}", rawSn);
+    }
+
+    /**
+     * REDEIDENT 완료 후처리 실패 종결 — DEV_FIX HIGH(결함1·결함2·M-1).
+     *
+     * <p>완료 감지 후 프레임 attach/검증 실패(해상도 불일치 등)는 KPST 비식별 자체는 성공했고 우리측
+     * 후처리만 실패한 경우다. 재다운로드·재attach 를 반복해도 같은 입력이라 무의미하므로 <b>즉시 terminal
+     * 종결</b>한다. 본 메서드는 메인 완료 트랜잭션({@link #finishDownloadAndComplete})이 롤백된 뒤 별도
+     * {@code REQUIRES_NEW} 로 cross-bean 호출되어, 아래를 실제 커밋한다(롤백 분리).
+     *
+     * <ul>
+     *   <li>procLog → FAILED + POLL_FAILED(terminal) — {@code findByPollSttsCdIn([WAITING,POLLING])}
+     *       에서 제외되어 무한 재폴링이 멈춘다(결함2).</li>
+     *   <li>de_ident_yn → 'F' — Y 미전이(라벨/검수상태는 attach 가 롤백되어 불변, APPROVED 유지).</li>
+     *   <li>작업락 해제(있을 때만) — 재요청이 가능해진다(결함1, fail-closed→재처리 허용).</li>
+     * </ul>
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void failRedeidentCompletion(Long procLogSn, Long rawSn, String errType) {
+        procLogRepository.findById(procLogSn)
+                .ifPresent(p -> p.fail("REDEIDENT_ATTACH_FAILED", errType));
+        videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
+        if (workLockService.isRawLocked(rawSn)) {
+            workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_FAILED");
+        }
+        log.warn("[KpstDeid] redeident completion failed rawSn={} errType={} — terminal FAILED, lock released",
+                rawSn, errType);
+    }
+
+    /**
+     * raw 'F' 마킹만 별도 커밋 — M-1 보정. {@link #completeDeidentification} 내부 {@code verifyDeidFile}
+     * 의 F-마킹은 예외 전파 시 같은 REQUIRES_NEW 트랜잭션이 롤백되어 취소된다. 비-REDEIDENT 경로의 파일
+     * 무효 실패에서 F-마킹이 실제 커밋되도록 본 메서드(별도 REQUIRES_NEW)로 보정한다(라벨/상태 불변).
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void markRawDeidentFailed(Long rawSn) {
+        videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
+        log.warn("[KpstDeid] mark raw deident F rawSn={}", rawSn);
     }
 
     /** 진행중 — datasetId 보충 + 시도 증가. */
@@ -127,11 +170,27 @@ public class KpstDeidentTxService {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void completeDeidentification(Long rawSn, String deidFilePath) {
         verifyDeidFile(rawSn, deidFilePath);
-        applyCompletion(rawSn, deidFilePath);
+        // 콜백 경로는 procLogSn 미상 — rawSn 기준 최신 procLog 의 REQ_KIND 로 분기.
+        boolean redeident = procLogRepository.findAllByDataRawSnOrderByReqDtDesc(rawSn).stream()
+                .findFirst()
+                .map(LsDeidentProcLog::isRedeident)
+                .orElse(false);
+        applyCompletion(rawSn, deidFilePath, redeident);
     }
 
-    /** Y/MARKING_READY/락해제/신고해소/알림 적용(파일 검증 통과 후). */
-    private void applyCompletion(Long rawSn, String deidFilePath) {
+    /** REQ_KIND 분기 — REDEIDENT 면 검수완료 유지 경로, 아니면 기존 배치 완료 경로. */
+    private void applyCompletion(Long rawSn, String deidFilePath, boolean redeident) {
+        if (redeident) {
+            applyRedeidentCompletion(rawSn, deidFilePath);
+        } else {
+            applyBatchCompletion(rawSn);
+        }
+    }
+
+    /**
+     * 기존 배치 비식별 완료 경로 — Y/MARKING_READY/락해제/신고해소/알림 적용(현행 무변경, 회귀 금지).
+     */
+    private void applyBatchCompletion(Long rawSn) {
         LsDataRaw managed = videoRepository.findById(rawSn).orElse(null);
         if (managed == null) {
             log.warn("[KpstDeid] raw not found rawSn={} (complete) — skip", rawSn);
@@ -149,6 +208,40 @@ public class KpstDeidentTxService {
             notificationService.notifyReviewersOnLockRelease(managed);
         }
         log.info("[KpstDeid] completed rawSn={}", rawSn);
+    }
+
+    /**
+     * 검수완료(APPROVED) 영상 재비식별 완료 경로 (Phase 3 / R1 강등 금지) — 비식별 프레임 attach +
+     * DE_IDNTF_YN='Y' + PRVC 정정 + 락해제만 수행한다.
+     *
+     * <p><b>R1(APPROVED 강등 금지)</b>: {@code markMarkingReady()}/상태머신 전이/MarkingCompletedEvent/
+     * BatchOrchestrator 를 절대 호출하지 않는다. LS_RAW_DATA_STATUS(검수 워크플로우 상태)는 건드리지 않아
+     * APPROVED 가 유지된다. 마킹 단계로의 재진입을 만들지 않으므로 검수 완료 작업이 라벨링/마킹으로
+     * 되돌아가지 않는다.
+     *
+     * <p>{@link DeidentFrameAttacher} 가 해상도 불일치/추출 실패 시 예외를 던지면 그대로 전파되어 본
+     * REQUIRES_NEW 트랜잭션 전체가 롤백된다 → DE_IDNTF_YN 미변경, 라벨/검수상태(APPROVED) 불변.
+     * 롤백된 예외는 폴링 오케스트레이터({@link KpstDeidentService#pollOne})가 받아
+     * {@link #failRedeidentCompletion}(별도 REQUIRES_NEW)로 terminal 종결한다 — procLog FAILED + 락 해제로
+     * 무한 재폴링/영구 잠금을 차단한다(DEV_FIX 결함1·결함2). 따라서 성공 시에만 여기서 락을 해제한다.
+     */
+    private void applyRedeidentCompletion(Long rawSn, String deidFilePath) {
+        LsDataRaw managed = videoRepository.findById(rawSn).orElse(null);
+        if (managed == null) {
+            log.warn("[KpstDeid] raw not found rawSn={} (redeident) — skip", rawSn);
+            return;
+        }
+        // 1) 비식별 프레임 attach — 해상도 불일치 시 예외 전파(전체 롤백). 라벨 보존(같은 SRC 행 갱신).
+        deidentFrameAttacher.attachDeidentFrames(managed, Paths.get(deidFilePath));
+        // 2) 비식별 완료 마킹.
+        managed.markDeidentified("Y");
+        // 3) PRVC 정정 — UNKNOWN(미상)이면 PRVC 로 확정.
+        managed.correctPrvcTypeIfUnknown();
+        // 4) 작업락 해제(있을 때만). MARKING_READY/상태전이/알림은 호출하지 않는다(APPROVED 유지).
+        if (workLockService.isRawLocked(rawSn)) {
+            workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_SUCCEEDED");
+        }
+        log.info("[KpstDeid] redeident completed rawSn={}", rawSn);
     }
 
     /**

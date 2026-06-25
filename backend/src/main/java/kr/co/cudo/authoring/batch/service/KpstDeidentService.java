@@ -118,12 +118,27 @@ public class KpstDeidentService {
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public LsDeidentProcLog submit(LsDataRaw raw) {
+        return submit(raw, false);
+    }
+
+    /**
+     * KPST 위탁 — {@code redeident=true} 면 검수완료 재비식별(REDEIDENT) 경로로 procLog 를 표시한다.
+     *
+     * <p>표시값(REQ_KIND_CD=REDEIDENT)은 폴링 완료 시점({@link KpstDeidentTxService}) 의 분기에 사용되어,
+     * 완료 처리가 비식별 프레임 attach + APPROVED 유지(상태 강등 금지) 경로를 타도록 한다. 기존 배치 경로
+     * ({@code redeident=false})는 무영향(REQ_KIND_CD=null)이다.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public LsDeidentProcLog submit(LsDataRaw raw, boolean redeident) {
         if (raw == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
         Long rawSn = raw.getRawSn();
-        LsDeidentProcLog procLog = procLogRepository.save(
-                LsDeidentProcLog.request(rawSn, null, raw.getRawFilePathNm(), "batch"));
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(rawSn, null, raw.getRawFilePathNm(), "batch");
+        if (redeident) {
+            procLog.markRedeident();
+        }
+        procLog = procLogRepository.save(procLog);
         try {
             String subdir = projectName(rawSn);
             List<Path> files = List.of(Paths.get(raw.getRawFilePathNm()));
@@ -193,8 +208,22 @@ public class KpstDeidentService {
                 log.warn("[KpstDeid] poll incomplete deid file rawSn={} prjId={}", rawSn, prjId);
                 return;
             }
-            txService.finishDownloadAndComplete(rawSn, procLogSn, datasetId, deidPathStr);
-            log.info("[KpstDeid] poll completed rawSn={} prjId={} datasetId={}", rawSn, prjId, datasetId);
+            try {
+                txService.finishDownloadAndComplete(rawSn, procLogSn, datasetId, deidPathStr);
+                log.info("[KpstDeid] poll completed rawSn={} prjId={} datasetId={}", rawSn, prjId, datasetId);
+            } catch (RuntimeException e) {
+                // DEV_FIX HIGH(결함1·결함2): 완료 감지 후 후처리(REDEIDENT 프레임 attach 등) 실패는 메인
+                // 완료 트랜잭션이 롤백되어 procLog 가 WAITING/POLLING 으로 복귀 → 무한 재폴링 + 락 영구잠금.
+                // REDEIDENT 경로는 즉시 terminal 종결(별도 REQUIRES_NEW 커밋)로 재폴링/잠금을 끊는다.
+                // (KPST 비식별 자체는 성공, 우리측 후처리 실패 → 재시도 무의미.) 비-REDEIDENT 는 현행 유지.
+                if (procLog.isRedeident()) {
+                    txService.failRedeidentCompletion(procLogSn, rawSn, e.getClass().getSimpleName());
+                    log.warn("[KpstDeid] poll redeident completion failed rawSn={} prjId={} errType={}",
+                            rawSn, prjId, e.getClass().getSimpleName());
+                    return;
+                }
+                throw e;
+            }
         } else {
             // 진행중 — datasetId 보충 + 시도 증가 + 타임아웃 검사.
             txService.recordPollingProgress(procLogSn, ds.dsId());
@@ -229,7 +258,26 @@ public class KpstDeidentService {
      * 콜백/폴링 양 경로가 호출한다.
      */
     public void completeDeidentification(Long rawSn, String deidFilePath) {
-        txService.completeDeidentification(rawSn, deidFilePath);
+        try {
+            txService.completeDeidentification(rawSn, deidFilePath);
+        } catch (RuntimeException e) {
+            // M-1: completeDeidentification(REQUIRES_NEW) 내부의 verifyDeidFile F-마킹은 예외 전파 시 같은
+            // 트랜잭션이 롤백되어 취소된다(조용한 실패). 비-REDEIDENT(콜백/배치) 경로의 파일 무효 실패에서
+            // F-마킹이 실제 커밋되도록 별도 REQUIRES_NEW 로 보정한다. REDEIDENT 는 폴링 경로(failRedeident
+            // Completion)가 종결하므로 여기서 보정하지 않는다.
+            if (!isRedeidentLog(rawSn)) {
+                txService.markRawDeidentFailed(rawSn);
+            }
+            throw e;
+        }
+    }
+
+    /** rawSn 기준 최신 procLog 가 REDEIDENT 경로인지 — 콜백 경로 F-마킹 보정 대상 판정용(M-1). */
+    private boolean isRedeidentLog(Long rawSn) {
+        return procLogRepository.findAllByDataRawSnOrderByReqDtDesc(rawSn).stream()
+                .findFirst()
+                .map(LsDeidentProcLog::isRedeident)
+                .orElse(false);
     }
 
     // ────────────────────────────── helpers ──────────────────────────────

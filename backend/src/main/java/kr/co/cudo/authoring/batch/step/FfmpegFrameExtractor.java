@@ -258,5 +258,17 @@ public class FfmpegFrameExtractor implements BatchStep {
     public interface FrameWriter {
         boolean sourceExists(Path sourceVideo);
         void writeFrame(Path sourceVideo, Path outputFrame, long seekMillis) throws IOException;
+
+        /**
+         * 프레임 <b>번호</b>로 직접 추출(frame-exact). seek/fps 변환 없이 디코더 프레임 인덱스
+         * {@code frameNo} 에 정확히 해당하는 프레임 1장을 추출한다.
+         * <p>
+         * 비식별 영상은 원본에 마스킹만 한 것이라 프레임 시퀀스가 동일하므로,
+         * "원본 N번 프레임"과 "비식별 N번 프레임"은 같은 장면이다. fps 가정에 의존하지 않아
+         * 출처별 frm_no 의미 차이로 인한 좌표 어긋남을 구조적으로 제거한다.
+         *
+         * @param frameNo 0-base 디코더 프레임 인덱스. 음수면 IOException.
+         */
+        void writeFrameByNumber(Path sourceVideo, Path outputFrame, int frameNo) throws IOException;
     }
 }

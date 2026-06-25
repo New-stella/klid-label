@@ -29,6 +29,12 @@ public class LsDataRaw {
     public static final String PRVC_TYPE_ANONY = "ANONY";
     public static final String PRVC_TYPE_PRVC = "PRVC";
     public static final String PRVC_TYPE_PSDO = "PSDO";
+    /**
+     * 개인정보 처리 유형 미상 — 마이그레이션/외부 적재로 분류가 확정되지 않은 영상의 잠정값.
+     * 검수완료 재비식별(REDEIDENT)이 수행되면 개인정보 처리가 실제로 일어난 것이므로
+     * {@link #correctPrvcTypeIfUnknown()} 가 PRVC 로 정정한다.
+     */
+    public static final String PRVC_TYPE_UNKNOWN = "UNKNOWN";
 
     public static final String STATUS_PENDING = "PENDING";
 
@@ -238,6 +244,25 @@ public class LsDataRaw {
         }
         this.dataSttsCd = dataSttsCd;
         this.mdfcnDt = LocalDateTime.now();
+    }
+
+    /**
+     * 검수완료 재비식별(REDEIDENT) 수행 시 개인정보 처리 유형 정정 — UNKNOWN(미상)이면 PRVC 로 보정.
+     *
+     * <p>재비식별을 실제로 수행했다는 것은 개인정보 처리가 일어났다는 의미이므로, 분류가 미상이던
+     * 영상의 PRVC_TYPE_CD 를 PRVC 로 확정하고 PRVC_YN(파생값)도 함께 재산출한다. 이미 분류가
+     * 확정된(ANONY/PRVC/PSDO) 영상은 변경하지 않는다(멱등·원본 보존).
+     *
+     * @return UNKNOWN→PRVC 정정이 실제 일어났으면 true.
+     */
+    public boolean correctPrvcTypeIfUnknown() {
+        if (PRVC_TYPE_UNKNOWN.equals(this.prvcTypeCd)) {
+            this.prvcTypeCd = PRVC_TYPE_PRVC;
+            this.prvcYn = derivePrvcYn(this.prvcTypeCd);
+            this.mdfcnDt = LocalDateTime.now();
+            return true;
+        }
+        return false;
     }
 
     /** PRVC_TYPE_CD 기반 PRVC_YN 산출 (단일 진실의 원천). */

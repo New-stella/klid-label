@@ -16,6 +16,12 @@ public class LsDeidentProcLog {
     public static final String SUCCEEDED = "SUCCEEDED";
     public static final String FAILED = "FAILED";
 
+    /**
+     * 요청 종류(REQ_KIND_CD) — 비식별 처리 경로 구분. null=기존 배치 비식별 경로(무영향),
+     * {@code REDEIDENT}=검수완료 영상 재비식별(Approved Re-deidentification) 경로.
+     */
+    public static final String REQ_KIND_REDEIDENT = "REDEIDENT";
+
     /** 폴링 상태(POLL_STTS_CD) — KPST 위탁 후 다운로드까지의 폴링 진행 단계. null=콜백 경로/미사용. */
     public static final String POLL_WAITING = "WAITING";
     public static final String POLL_POLLING = "POLLING";
@@ -85,6 +91,10 @@ public class LsDeidentProcLog {
     /** 폴링 시도 횟수(타임아웃 판정용). */
     @Column(name = "POLL_ATTEMPT_CNT")
     private Integer pollAttemptCnt;
+
+    /** 요청 종류: null=기존 배치 비식별 경로, {@link #REQ_KIND_REDEIDENT}=검수완료 재비식별 경로. */
+    @Column(name = "REQ_KIND_CD", length = 20)
+    private String reqKindCd;
 
     @Column(name = "REG_ID", length = 30)
     private String regId;
@@ -191,5 +201,15 @@ public class LsDeidentProcLog {
         this.errorMsg = errorMsg;
         this.resDt = LocalDateTime.now();
         this.mdfcnDt = this.resDt;
+    }
+
+    /** 검수완료 재비식별 경로 여부. null(기존 배치 경로)이면 false. */
+    public boolean isRedeident() {
+        return REQ_KIND_REDEIDENT.equals(reqKindCd);
+    }
+
+    /** 이 로그를 검수완료 재비식별 경로로 표시한다. */
+    public void markRedeident() {
+        this.reqKindCd = REQ_KIND_REDEIDENT;
     }
 }

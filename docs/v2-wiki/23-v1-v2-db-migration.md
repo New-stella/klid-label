@@ -287,7 +287,17 @@ v1 이슈는 (pjt,raw,src) + 스레드(`UP_DATA_ISSUE_SN`). v2 는 **루트 이�
 
 ---
 
+## 7. 이관 후속 — 비식별 미완 영상(`de_ident_yn='N'`) 처리
+
+이관된 라벨 영상은 대부분 `de_ident_yn='N'`(비식별 미완, 비식별 프레임 경로 없음)이다. 이 상태는 PRVC/PSDO 서빙 정책상 프레임 서빙 NOT_FOUND·민감영상 노출 위험을 유발한다. **검수완료 영상 재비식별(Approved Re-deidentification)** 기능이 이 정공법 해법이다:
+
+- REVIEWER가 `POST /v1/videos/{rawSn}/redeident` 호출 → KPST 영상단위 비식별 → 기존 프레임 `frm_no` 위치로 비식별 프레임 추출·attach(**라벨 무변경**) → `de_ident_yn='Y'` + `prvc_type_cd` 'UNKNOWN'→'PRVC' 정정 + **APPROVED 유지**.
+- 전제 `de_ident_yn != 'Y'` 가드가 이관 영상(frm_no=실프레임번호)만 대상화하고 v2 네이티브(frm_no=추출순번)는 배제 → 좌표 정합 보장.
+- 상세: [08 비식별화 §8.6](08-deidentification.md)
+- ⚠ 전제: 이관 영상 `raw_file_path_nm`(NAS 절대경로) 파일 접근 + `STORAGE_*_PATH` 경로 정합(runbook §5) 선행 필요.
+
 ## 관련 문서
+- [08 비식별화](08-deidentification.md) — 검수완료 재비식별(이관 비식별 미완 영상 해법)
 - [18 데이터베이스](18-database.md) — v2 테이블·View 상세
 - [v1-wiki 15 데이터베이스](../v1-wiki/15-database.md) — v1 설계서 기준(실DB와 일부 상이, 본 문서가 실측 정정)
 - [migration runbook](../migration/v1-to-v2/README.md) — 폐쇄망 실행 절차(export→반입→적재→검증)

@@ -59,6 +59,62 @@ public class BrampFfmpegFrameWriter implements FfmpegFrameExtractor.FrameWriter 
                 seekMillis, Files.size(outputFrame), outputFrame.getFileName());
     }
 
+    @Override
+    public void writeFrameByNumber(Path sourceVideo, Path outputFrame, int frameNo) throws IOException {
+        if (frameNo < 0) {
+            throw new IOException("프레임 번호가 음수입니다: frameNo=" + frameNo);
+        }
+        if (outputFrame.getParent() != null && !Files.exists(outputFrame.getParent())) {
+            Files.createDirectories(outputFrame.getParent());
+        }
+
+        boolean extracted = runFfmpegByFrameNo(sourceVideo, outputFrame, frameNo);
+
+        if (!extracted || !Files.exists(outputFrame) || Files.size(outputFrame) < 100) {
+            throw new IOException("프레임 추출 실패(frame-exact): frameNo=" + frameNo
+                    + " src=" + sourceVideo.getFileName());
+        }
+        log.info("[Batch][FrameWriter] extracted frame-exact frameNo={} size={}B path={}",
+                frameNo, Files.size(outputFrame), outputFrame.getFileName());
+    }
+
+    /**
+     * 프레임 번호 직접 추출. {@code select=eq(n\,<frameNo>)} 필터로 디코더 프레임 인덱스에
+     * 정확히 해당하는 프레임 1장만 통과시키고 {@code -frames:v 1 -vsync 0} 로 1장 저장한다.
+     * fps 변환·seek 가정 없음 → 프레임 시퀀스 동일한 비식별 영상에서 좌표 정합 보장.
+     * <p>
+     * CWE-78: ProcessBuilder 리스트 방식으로 인자를 분리 전달, 문자열 조합 없음.
+     */
+    private boolean runFfmpegByFrameNo(Path sourceVideo, Path outputFrame, int frameNo) {
+        Process process = null;
+        try {
+            ProcessBuilder pb = new ProcessBuilder(List.of(
+                    binary, "-y",
+                    "-i", sourceVideo.toAbsolutePath().toString(),
+                    "-vf", "select=eq(n\\," + frameNo + ")",
+                    "-frames:v", "1",
+                    "-vsync", "0",
+                    "-q:v", "2",
+                    outputFrame.toAbsolutePath().toString()
+            ));
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            process = pb.start();
+            int exitCode = process.waitFor();
+            return exitCode == 0 && Files.exists(outputFrame) && Files.size(outputFrame) >= 100;
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            log.error("[Batch][FrameWriter] ffmpeg frame-exact error: {}", e.getMessage());
+            return false;
+        } finally {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
+        }
+    }
+
     private boolean runFfmpeg(Path sourceVideo, Path outputFrame, double seekSeconds) {
         // MEDIUM-4 fix: InterruptedException 등 중도 종료 시 ffmpeg 좀비 프로세스 방지 →
         // process 를 try 밖에 선언하고 finally 에서 destroyForcibly() 보장.
