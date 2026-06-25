@@ -69,13 +69,28 @@ public class DeidentFrameAttacher {
     /**
      * 비식별 영상에서 기존 프레임 frm_no 번호 프레임을 직접 추출해 같은 LS_DATA_SRC 행에 attach.
      *
-     * @param raw       대상 영상 메타 (rawSn 사용)
-     * @param deidVideo 비식별 완료 영상 경로 (존재 + 크기>0 이어야 함)
-     * @return attach 처리한 프레임 수. 0건/전부 skip 이면 0.
+     * <p><b>단일 트랜잭션 진입점(self-invocation 제거)</b>: 본 메서드만 {@code @Transactional}
+     * REQUIRES_NEW 를 갖는다. 과거 2-arg 오버로드가 3-arg 를 {@code this.}self-invoke 하던 구조는
+     * Spring AOP 프록시가 내부 호출을 가로채지 못해 3-arg 의 트랜잭션이 무력화되는 혼동을 유발했다.
+     * 프로덕션 유일 호출처({@link KpstDeidentTxService#applyRedeidentCompletion})가 본 3-arg 를
+     * cross-bean 으로 직접 호출하므로 REQUIRES_NEW 경계가 정상 적용되고, 예외 시 전체 롤백된다.
+     *
+     * <p><b>재비식별(SC-009) 정합 — 개인정보 누락 프레임 교체</b>: 초기 파이프라인
+     * {@link FfmpegFrameExtractor} 가 추출 시 이미 비식별 프레임도 생성하므로 검수완료(APPROVED) 영상은
+     * 모든 프레임에 {@code de_idntf_src_file_path_nm} 이 이미 설정돼 있다. 재비식별 시 멱등 skip 이 동작하면
+     * 전 프레임이 skip 되어 비식별 프레임이 옛 것(개인정보 누락 잔존) 그대로 남는다. 이를 막기 위해
+     * {@code refreshExisting=true} 면 멱등 skip 을 우회하여 모든 프레임을 새 비식별 영상으로 재추출해
+     * 같은 위치({@code frames/deid/{rawSn}})를 덮어쓰며 갱신한다(경로 재기록 포함).
+     *
+     * @param raw             대상 영상 메타 (rawSn 사용)
+     * @param deidVideo       비식별 완료 영상 경로 (존재 + 크기>0 이어야 함)
+     * @param refreshExisting true 면 이미 deident 경로가 있는 프레임도 강제 재추출(재비식별).
+     *                        false 면 기존 멱등 동작(deident 경로 없는 프레임만 attach).
+     * @return attach/재추출 처리한 프레임 수. 0건/전부 skip 이면 0.
      * @throws CustomException 비식별 영상 부재/0바이트, 해상도 측정 불가/불일치, 추출 실패 시 → 전체 롤백.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public int attachDeidentFrames(LsDataRaw raw, Path deidVideo) {
+    public int attachDeidentFrames(LsDataRaw raw, Path deidVideo, boolean refreshExisting) {
         if (raw == null || raw.getRawSn() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "영상 메타가 비어있습니다.");
         }
@@ -100,7 +115,10 @@ public class DeidentFrameAttacher {
         try {
             for (LsDataSrc src : frames) {
                 // 4. 멱등 — 이미 비식별 경로가 있는 프레임은 skip.
-                if (src.getDeIdntfSrcFilePathNm() != null && !src.getDeIdntfSrcFilePathNm().isBlank()) {
+                //    단 refreshExisting(재비식별, SC-009)이면 skip 을 우회해 강제 재추출(개인정보 누락 프레임 교체).
+                if (!refreshExisting
+                        && src.getDeIdntfSrcFilePathNm() != null
+                        && !src.getDeIdntfSrcFilePathNm().isBlank()) {
                     continue;
                 }
                 int frameNo = src.getFrameNo();
@@ -151,7 +169,8 @@ public class DeidentFrameAttacher {
         int[] deidDim = imageResizer.readDimensions(deidFrameFile);
         if (origDim == null || deidDim == null
                 || origDim.length < 2 || deidDim.length < 2
-                || origDim[0] <= 0 || origDim[1] <= 0) {
+                || origDim[0] <= 0 || origDim[1] <= 0
+                || deidDim[0] <= 0 || deidDim[1] <= 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "원본/비식별 프레임 해상도를 측정할 수 없습니다 rawSn=" + rawSn);
         }

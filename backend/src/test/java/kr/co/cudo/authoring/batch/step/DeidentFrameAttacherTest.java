@@ -145,7 +145,7 @@ class DeidentFrameAttacherTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0, s1));
 
         DeidentFrameAttacher attacher = newAttacher();
-        int count = attacher.attachDeidentFrames(newRaw(), deidVideo);
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, false);
 
         assertThat(count).isEqualTo(2);
         // frm_no 번호로 직접 추출됨 (fps 변환 없음)
@@ -169,7 +169,7 @@ class DeidentFrameAttacherTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0, s1));
 
         DeidentFrameAttacher attacher = newAttacher();
-        attacher.attachDeidentFrames(newRaw(), deidVideo);
+        attacher.attachDeidentFrames(newRaw(), deidVideo, false);
 
         // 옛 스킴(frames/{rawSn}) 이 아니라 frames/deid/{rawSn} 하위여야 한다 — 원본 frames/raw 와 충돌 0.
         assertThat(s0.getDeIdntfSrcFilePathNm().replace('\\', '/')).contains("/frames/deid/9001/");
@@ -188,7 +188,7 @@ class DeidentFrameAttacherTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
 
         DeidentFrameAttacher attacher = newAttacher();
-        attacher.attachDeidentFrames(newRaw(), deidVideo);
+        attacher.attachDeidentFrames(newRaw(), deidVideo, false);
 
         // 원본 프레임 경로(srcFilePathNm)와 비식별 프레임 경로(deIdntfSrcFilePathNm)는 서로 다른 파일이어야 한다.
         assertThat(s0.getDeIdntfSrcFilePathNm()).isNotEqualTo(s0.getSrcFilePathNm());
@@ -223,7 +223,7 @@ class DeidentFrameAttacherTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
 
         DeidentFrameAttacher attacher = newAttacher();
-        attacher.attachDeidentFrames(newRaw(), deidVideo);
+        attacher.attachDeidentFrames(newRaw(), deidVideo, false);
 
         // 생성자 파라미터·필드에 라벨 관련 의존이 없음을 리플렉션으로 단언(컴파일+런타임 보장)
         boolean hasLabelDependency = java.util.Arrays.stream(
@@ -242,7 +242,7 @@ class DeidentFrameAttacherTest {
 
         DeidentFrameAttacher attacher = newAttacher();
 
-        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo))
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, false))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");
@@ -261,7 +261,7 @@ class DeidentFrameAttacherTest {
 
         DeidentFrameAttacher attacher = newAttacher();
 
-        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo))
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, false))
                 .isInstanceOf(CustomException.class);
         assertThat(s0.getDeIdntfSrcFilePathNm()).isNull();
     }
@@ -276,7 +276,43 @@ class DeidentFrameAttacherTest {
 
         DeidentFrameAttacher attacher = newAttacher();
 
-        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo))
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, false))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+        assertThat(s0.getDeIdntfSrcFilePathNm()).isNull();
+    }
+
+    @Test
+    @DisplayName("비식별프레임_해상도0x0_측정불가시_fail_closed_INVALID_INPUT_롤백")
+    void deidDimZero_failClosed() throws IOException {
+        LsDataSrc s0 = newSrc(101L, 0);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
+        // 비식별 출력 프레임이 0x0 으로 측정됨(손상/0바이트 등) → 불일치가 아니라 "측정 불가"로 대칭 처리되어야 한다.
+        deidDim = new int[]{0, 0};
+
+        DeidentFrameAttacher attacher = newAttacher();
+
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, false))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    assertThat(((CustomException) e).getErrorCode().name()).isEqualTo("INVALID_INPUT");
+                    // 측정 불가(fail-closed) 분기 — 불일치 메시지가 아닌 측정 불가 메시지.
+                    assertThat(e.getMessage()).contains("측정할 수 없습니다");
+                });
+        assertThat(s0.getDeIdntfSrcFilePathNm()).isNull();
+    }
+
+    @Test
+    @DisplayName("비식별프레임_높이만0_측정불가시_fail_closed_INVALID_INPUT")
+    void deidDimHeightZero_failClosed() throws IOException {
+        LsDataSrc s0 = newSrc(101L, 0);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
+        deidDim = new int[]{1920, 0}; // 폭은 정상, 높이만 0 → 측정 불가로 대칭 처리
+
+        DeidentFrameAttacher attacher = newAttacher();
+
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, false))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");
@@ -292,7 +328,7 @@ class DeidentFrameAttacherTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0, s1));
 
         DeidentFrameAttacher attacher = newAttacher();
-        int count = attacher.attachDeidentFrames(newRaw(), deidVideo);
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, false);
 
         // s0 skip, s1 만 처리 → 1
         assertThat(count).isEqualTo(1);
@@ -312,7 +348,7 @@ class DeidentFrameAttacherTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0, s1, s2));
 
         DeidentFrameAttacher attacher = newAttacher();
-        int count = attacher.attachDeidentFrames(newRaw(), deidVideo);
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, false);
 
         assertThat(count).isEqualTo(2);
         assertThat(recordedFrameNos).containsExactly(0, 9); // 5 는 skip
@@ -327,7 +363,7 @@ class DeidentFrameAttacherTest {
         Path absent = tmp.resolve("nope.mp4");
         DeidentFrameAttacher attacher = newAttacher();
 
-        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), absent))
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), absent, false))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");
@@ -340,7 +376,7 @@ class DeidentFrameAttacherTest {
         Files.write(empty, new byte[]{});
         DeidentFrameAttacher attacher = newAttacher();
 
-        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), empty))
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), empty, false))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");
@@ -352,7 +388,7 @@ class DeidentFrameAttacherTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of());
 
         DeidentFrameAttacher attacher = newAttacher();
-        int count = attacher.attachDeidentFrames(newRaw(), deidVideo);
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, false);
 
         assertThat(count).isZero();
     }
@@ -367,10 +403,91 @@ class DeidentFrameAttacherTest {
 
         DeidentFrameAttacher attacher = newAttacher();
 
-        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo))
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, false))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INTERNAL_ERROR");
+    }
+
+    // ============================================================
+    // 재비식별(SC-009) — refreshExisting=true 강제 재생성 (개인정보 누락 프레임 교체)
+    // ============================================================
+
+    @Test
+    @DisplayName("재비식별_refreshExisting_true시_이미deid경로있어도_전프레임_재추출되어_attach수가_프레임수와_같다")
+    void refreshExisting_forcesReextractionOfAllAlreadyAttachedFrames() throws IOException {
+        // 모든 프레임에 이미 deident 경로가 설정된 상태(초기 파이프라인 FfmpegFrameExtractor 가 attachDeidPath 한 케이스).
+        LsDataSrc s0 = newSrc(101L, 0);
+        s0.attachDeidPath("/old/frames/deid/9001/frame-0.jpg");
+        LsDataSrc s1 = newSrc(102L, 5);
+        s1.attachDeidPath("/old/frames/deid/9001/frame-5.jpg");
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0, s1));
+
+        DeidentFrameAttacher attacher = newAttacher();
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, true);
+
+        // 멱등 skip 우회 — 전 프레임이 새 비식별 영상으로 재추출됨(0 아님).
+        assertThat(count).isEqualTo(2);
+        // frameWriter 가 프레임마다 호출됨(frm_no 번호로 직접 추출).
+        assertThat(recordedFrameNos).containsExactly(0, 5);
+        // 경로가 새 비식별 위치(frames/deid/9001)로 재기록됨 — 옛 경로 잔존 금지.
+        assertThat(s0.getDeIdntfSrcFilePathNm().replace('\\', '/')).contains("/frames/deid/9001/");
+        assertThat(s1.getDeIdntfSrcFilePathNm().replace('\\', '/')).contains("/frames/deid/9001/");
+    }
+
+    @Test
+    @DisplayName("재비식별_refreshExisting_false시는_기존멱등_보존_이미deid경로있으면_skip_attach0")
+    void refreshExisting_false_preservesIdempotentSkip() throws IOException {
+        LsDataSrc s0 = newSrc(101L, 0);
+        s0.attachDeidPath("/old/frames/deid/9001/frame-0.jpg");
+        LsDataSrc s1 = newSrc(102L, 5);
+        s1.attachDeidPath("/old/frames/deid/9001/frame-5.jpg");
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0, s1));
+
+        DeidentFrameAttacher attacher = newAttacher();
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, false);
+
+        // 전부 skip — 기존 멱등 동작 유지.
+        assertThat(count).isZero();
+        assertThat(recordedFrameNos).isEmpty();
+        assertThat(s0.getDeIdntfSrcFilePathNm()).isEqualTo("/old/frames/deid/9001/frame-0.jpg");
+        assertThat(s1.getDeIdntfSrcFilePathNm()).isEqualTo("/old/frames/deid/9001/frame-5.jpg");
+    }
+
+    @Test
+    @DisplayName("초기attach_deid경로없는프레임은_refreshExisting_무관하게_attach된다")
+    void unattachedFramesAttachedRegardlessOfRefreshFlag() throws IOException {
+        LsDataSrc a0 = newSrc(101L, 0); // deid 경로 없음
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(a0));
+        DeidentFrameAttacher attacher = newAttacher();
+        int withFalse = attacher.attachDeidentFrames(newRaw(), deidVideo, false);
+        assertThat(withFalse).isEqualTo(1);
+        assertThat(a0.getDeIdntfSrcFilePathNm()).isNotBlank();
+
+        // 새 미처리 프레임으로 refreshExisting=true 검증
+        recordedFrameNos.clear();
+        LsDataSrc a1 = newSrc(102L, 7); // deid 경로 없음
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(a1));
+        int withTrue = attacher.attachDeidentFrames(newRaw(), deidVideo, true);
+        assertThat(withTrue).isEqualTo(1);
+        assertThat(a1.getDeIdntfSrcFilePathNm()).isNotBlank();
+        assertThat(recordedFrameNos).containsExactly(7);
+    }
+
+    @Test
+    @DisplayName("재비식별_refreshExisting_true_해상도불일치_여전히_fail_closed_롤백")
+    void refreshExisting_resolutionGuardStillEnforced() throws IOException {
+        deidDim = new int[]{1280, 720}; // 비식별 출력이 원본(1920x1080)과 다름
+        LsDataSrc s0 = newSrc(101L, 0);
+        s0.attachDeidPath("/old/frames/deid/9001/frame-0.jpg");
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
+
+        DeidentFrameAttacher attacher = newAttacher();
+
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, true))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
     }
 
     @Test
@@ -384,7 +501,7 @@ class DeidentFrameAttacherTest {
 
         DeidentFrameAttacher attacher = newAttacher();
 
-        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo))
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, false))
                 .isInstanceOf(CustomException.class);
         assertThat(s0.getDeIdntfSrcFilePathNm()).isNull();
     }

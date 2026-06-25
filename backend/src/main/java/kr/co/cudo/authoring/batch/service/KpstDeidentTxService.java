@@ -231,8 +231,16 @@ public class KpstDeidentTxService {
             log.warn("[KpstDeid] raw not found rawSn={} (redeident) — skip", rawSn);
             return;
         }
-        // 1) 비식별 프레임 attach — 해상도 불일치 시 예외 전파(전체 롤백). 라벨 보존(같은 SRC 행 갱신).
-        deidentFrameAttacher.attachDeidentFrames(managed, Paths.get(deidFilePath));
+        // 1) 비식별 프레임 attach — 재비식별(SC-009)은 refreshExisting=true 로 기존 비식별 프레임을 강제
+        //    재추출해 새 비식별본으로 교체한다(개인정보 누락 프레임 교체). 초기 파이프라인이 이미 모든 프레임에
+        //    deident 경로를 설정해두므로 멱등 skip 이면 갱신이 무력화된다. 해상도 불일치 시 예외 전파(전체 롤백).
+        //    라벨 보존(같은 SRC 행 갱신).
+        int attached = deidentFrameAttacher.attachDeidentFrames(managed, Paths.get(deidFilePath), true);
+        // 1-1) 정합 신호 — 재비식별은 프레임이 있어야 정상이다. 0건이면 데이터 정합 확인이 필요한
+        //      비정상 신호로 WARN(예외로 막지는 않는다 — frames 자체가 없는 영상도 있을 수 있음).
+        if (attached == 0) {
+            log.warn("[KpstDeid] redeident attached 0 frames rawSn={} — 재비식별 프레임 0건, 데이터 정합 확인 필요", rawSn);
+        }
         // 2) 비식별 완료 마킹.
         managed.markDeidentified("Y");
         // 3) PRVC 정정 — UNKNOWN(미상)이면 PRVC 로 확정.

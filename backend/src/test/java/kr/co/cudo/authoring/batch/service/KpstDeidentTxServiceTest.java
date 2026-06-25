@@ -24,6 +24,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -300,7 +301,7 @@ class KpstDeidentTxServiceTest {
 
         tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
 
-        verify(deidentFrameAttacher).attachDeidentFrames(eq(raw), any());
+        verify(deidentFrameAttacher).attachDeidentFrames(eq(raw), any(), eq(true));
     }
 
     @Test
@@ -319,6 +320,23 @@ class KpstDeidentTxServiceTest {
     }
 
     @Test
+    @DisplayName("REDEIDENT완료_attach가_0건이어도_예외없이_Y전이된다_WARN만_LOW방어")
+    void redeidentZeroAttachStillCompletesWithWarn() {
+        LsDeidentProcLog p = redeidentSubmitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        // attach 처리 프레임 0건(frames 없는 영상 등) — 예외로 막지 않고 Y 전이는 진행(WARN 신호만).
+        when(deidentFrameAttacher.attachDeidentFrames(eq(raw), any(), eq(true))).thenReturn(0);
+
+        tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
+
+        // 0건이어도 Y 전이 + 락 해제 흐름은 정상 진행(예외 미발생).
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+        verify(deidentFrameAttacher).attachDeidentFrames(eq(raw), any(), eq(true));
+    }
+
+    @Test
     @DisplayName("REDEIDENT_해상도불일치_완료시_예외전파되고_Y전이_PRVC정정_락해제_미수행_롤백")
     void redeidentResolutionMismatchRollsBack() {
         LsDeidentProcLog p = redeidentSubmitted();
@@ -327,7 +345,7 @@ class KpstDeidentTxServiceTest {
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
         // Attacher 가 해상도 불일치로 예외 → 전파 → 메인 완료 트랜잭션 전체 롤백. 종결(락해제/FAILED)은
         // 폴링 오케스트레이터가 failRedeidentCompletion 으로 별도 커밋한다(아래 별도 테스트로 검증).
-        when(deidentFrameAttacher.attachDeidentFrames(eq(raw), any()))
+        when(deidentFrameAttacher.attachDeidentFrames(eq(raw), any(), eq(true)))
                 .thenThrow(new CustomException(ErrorCode.INVALID_INPUT, "해상도 불일치"));
 
         assertThatThrownBy(() -> tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile()))
@@ -399,7 +417,7 @@ class KpstDeidentTxServiceTest {
         assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
         verify(deidentReportService, times(1)).resolveOpenReports(9001L);
         verify(notificationService, times(1)).notifyReviewersOnLockRelease(raw);
-        verify(deidentFrameAttacher, never()).attachDeidentFrames(any(), any());
+        verify(deidentFrameAttacher, never()).attachDeidentFrames(any(), any(), anyBoolean());
     }
 
     private static void setField(Object target, String name, Object value) {
