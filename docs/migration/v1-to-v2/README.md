@@ -107,11 +107,10 @@ psql -h <pg_host> -p 15432 -U klid_user -d klid_system \
   - 저작도구 영상: `/nas-storage/label-studio/{raw,upload}/...`
   - 프레임 원천: `/nas-storage/label-studio/src/{프로젝트번호}/...`
   - 프레임 비식별: `/nas-storage/label-studio/bkup/{...}/...`
-- **현재 on-prem 기본값(불일치)**: `STORAGE_RAW_PATH=/var/lib/klid/storage/raw`, `STORAGE_DEIDENTIFIED_PATH=/var/lib/klid/storage/deidentified`
-  (`deploy/onprem/config/backend/env.template`). → `/nas-storage/...` 절대경로가 가드를 통과 못 해 **이미지/영상 서빙이 NOT_FOUND/FORBIDDEN** 된다.
+- **현재 on-prem 기본값(정합 완료)**: `STORAGE_RAW_PATH=/nas-storage`, `STORAGE_DEIDENTIFIED_PATH=/nas-storage`
+  (`deploy/onprem/config/backend/env.template`, NAS 마운트 모델로 정합됨). → v1 두 트리(`data/clip/gov`·`label-studio`)의 `/nas-storage/...` 절대경로가 `startsWith` 가드를 통과해 정상 서빙된다. **두 값을 서로 다르게 분리하면 v1 절대경로 서빙이 깨지므로 동일 유지가 의도된 설정이다.**
 
-### 배포 시 조치 (둘 중 하나)
-1. **`STORAGE_RAW_PATH` 를 NAS 루트로 정합** (권장): 실제 NAS 마운트 루트(예: `/nas-storage`)로 설정 → v1 두 트리(`data/clip/gov`·`label-studio`)를 모두 덮어 절대경로가 가드를 통과. `STORAGE_DEIDENTIFIED_PATH` 도 비식별 프레임 실제 위치에 맞게 설정.
-2. **이관 시 경로 재작성**: NAS 마운트 구조를 바꿀 수 없으면, 적재 단계에서 `raw_file_path`/`src_file_path` 의 prefix 를 v2 베이스로 치환(스크립트 보강 필요).
+### 배포 시 확인
+- env.template 기본값(`/nas-storage`)을 실제 NAS 마운트 루트와 일치시키기만 하면 된다. v1 절대경로가 그대로 가드를 통과하므로 별도 경로 재작성 스크립트는 불필요.
 
-> ⚠ v2 자체 정합도 확인 필요: `TrainingVideoIngestTx` 는 관제 `MNG_CLIP_MASTER.FILE_PATH`(=`/nas-storage/...`)를 그대로 `rawFilePathNm` 에 저장하는 반면, `FfmpegFrameExtractor` 는 추출 프레임을 `STORAGE_RAW_PATH` 베이스에 쓴다. 적재 영상과 추출 프레임이 같은 베이스를 공유하도록 **운영 경로 규칙을 단일화**해야 가드가 일관되게 통과한다.
+> ✅ v2 자체 정합 — 해소됨: `TrainingVideoIngestTx` 는 관제 `MNG_CLIP_MASTER.FILE_PATH`(=`/nas-storage/...`)를 그대로 `rawFilePathNm` 에 **기록만** 하고, 추출 프레임은 `FfmpegFrameExtractor`/`DeidentFrameAttacher` 가 `{base}/frames/{raw|deid}/{rawSn}` 로 **원본·비식별을 별 서브디렉토리로 분기 저장**한다. 두 base 가 동일(`/nas-storage`)해도 원본 프레임(`frames/raw`)과 비식별 프레임(`frames/deid`)이 충돌하지 않으며(이전엔 같은 `frames/{rawSn}` 에 써서 원본이 덮어써졌음 — 수정 완료), `startsWith` 가드도 base 하위라 일관 통과한다. 영상 파일은 비식별본만 `videos/{rawSn}/deidentified.mp4` 로 기록되고 원본은 NAS 절대경로 기록만이라 애초에 충돌 구조가 아니다.

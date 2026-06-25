@@ -79,7 +79,7 @@
 | `V_COMPLETED_LABEL` + `V_COMPLETED_LABEL_ATTR` | 라벨 좌표·마스터 코드 + 속성값 |
 | `V_COMPLETED_META` | 시계열 메타 (RVW_STTS_CD='APPROVED'만) |
 
-> 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 수신 후 RAW_SN으로 4 View SELECT → 영상 1건=1 row UPSERT. 비식별 경로는 `STORAGE_RAW_PATH`→`STORAGE_DEIDENTIFIED_PATH` 컨벤션 치환으로 도출(View 미포함). → [15](15-control-notify.md)
+> 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 수신 후 RAW_SN으로 4 View SELECT → 영상 1건=1 row UPSERT. 비식별 **영상** 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 적재값 사용(문자열 치환 도출 아님, View 미포함). 비식별 **프레임** 경로는 `V_COMPLETED_FRAME.DEIDENTIFIED_PATH`(=`LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`)에 직접 노출되며, 신규 추출은 원본 `{base}/frames/raw/{rawSn}`·비식별 `{base}/frames/deid/{rawSn}` 로 분기 저장돼 `STORAGE_RAW_PATH==STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`)여도 충돌하지 않는다. → [15](15-control-notify.md)
 
 ## 18.4 관제서버 소유 MNG_* (읽기 전용 9개)
 
