@@ -174,6 +174,32 @@ class Sam2SegmentStepTest {
     }
 
     @Test
+    @DisplayName("Sam2Step_nested_POINT_CN_BBOX_라벨을_읽어_정상_SegmentJob_생성_DEV_FIX_회귀")
+    void nestedBboxPointCnReadByParseBbox() {
+        // given — Phase 1 좌표 정규화로 YOLO 가 nested [[x1,y1],[x2,y2]] 로 저장한 BBOX 라벨
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(21L))
+                .thenReturn(List.of(newSrc(20L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
+                .thenReturn(List.of(newBbox(20L, "person", "[[1.0,2.0],[3.0,4.0]]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.88)));
+
+        // when
+        int saved = step.run(21L, List.of());
+
+        // then — nested POINT_CN 도 flat box prompt 로 변환되어 SAM2 가 호출되고 POLYGON 저장
+        assertThat(saved).isEqualTo(1);
+        ArgumentCaptor<Sam2Request> reqCaptor = ArgumentCaptor.forClass(Sam2Request.class);
+        verify(aiServerClient, times(1)).segment(reqCaptor.capture());
+        // SAM2 box prompt 는 flat [x1,y1,x2,y2] 여야 한다.
+        assertThat(reqCaptor.getValue().box()).containsExactly(1.0, 2.0, 3.0, 4.0);
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        verify(lblRepository, times(1)).save(captor.capture());
+        assertThat(captor.getValue().getLblTypeCd()).isEqualTo("POLYGON");
+        assertThat(captor.getValue().getLabelNm()).isEqualTo("person");
+    }
+
+    @Test
     @DisplayName("Sam2Step_DB_BBOX_있으면_SAM2_호출_후_POLYGON_저장")
     void dbBboxTriggersSam2() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(2L))

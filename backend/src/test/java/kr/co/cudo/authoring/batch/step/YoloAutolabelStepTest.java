@@ -170,6 +170,42 @@ class YoloAutolabelStepTest {
     }
 
     @Test
+    @DisplayName("YOLO_bbox_오토라벨_저장시_POINT_CN이_nested형식")
+    void autoBboxPointCnIsNested() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        step.run(1L);
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        // 수동 라벨과 동일한 정규형 nested [[x1,y1],[x2,y2]] 로 저장되어야 한다.
+        assertThat(captor.getValue().getPointCn()).isEqualTo("[[1.0,2.0],[3.0,4.0]]");
+    }
+
+    @Test
+    @DisplayName("YOLO_detection_points_홀수길이면_INVALID_INPUT으로_래핑되어_배치추적_DEV_FIX")
+    void oddLengthPointsWrappedAsInvalidInput() {
+        // given — 외부 ai-server 가 홀수 길이 좌표를 반환 (비정상 입력)
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0), 0.92)
+                ))));
+
+        // when / then — flatToPoints 의 IllegalArgumentException 이 CustomException(INVALID_INPUT) 로 래핑
+        assertThatThrownBy(() -> step.run(1L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+    }
+
+    @Test
     @DisplayName("YOLO_검출_결과_없으면_라벨_미저장")
     void noDetectionsNoSaves() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(2L))

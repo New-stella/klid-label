@@ -158,6 +158,28 @@ class TaskQueryServiceTest {
     }
 
     @Test
+    @DisplayName("getLabels_nested_POINT_CN_그대로_포워딩")
+    void getLabels_nestedPointCn_forwardedAsIs() {
+        // given -- 요구 R3: write-time 정규화 + V66 백필 후 DB 의 POINT_CN 은 항상 nested [[x,y],...].
+        //          관제-facing raw-forwarder 는 파싱 없이 그대로 노출해야 한다(회귀 가드).
+        String nestedPoints = "[[10,10],[50,50]]";
+        when(videoRepository.findById(100L)).thenReturn(Optional.of(sampleRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(100L)).thenReturn(List.of(frame0, frame1));
+
+        LsDataLbl nestedLabel = createLabel(10L, "BBOX", "person", nestedPoints);
+        setField(nestedLabel, "lblSn", 1L);
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of(nestedLabel));
+
+        // when
+        List<TaskLabelsResponse> result = taskQueryService.getLabels(100L, List.of(10L));
+
+        // then -- nested 입력이 nested 그대로 노출 (flat 변환·파싱 없음)
+        assertThat(result).hasSize(1);
+        TaskLabelsResponse.LabelItem item = result.get(0).labels().get(0);
+        assertThat(item.points()).isEqualTo(nestedPoints);
+    }
+
+    @Test
     @DisplayName("getLabels_frameIds_필터_적용")
     void getLabels_filteredByFrameIds() {
         // given

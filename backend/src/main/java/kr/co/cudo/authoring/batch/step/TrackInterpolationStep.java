@@ -17,6 +17,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.LabelPointSerializer;
+import kr.co.cudo.authoring.common.util.Point;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -184,8 +186,10 @@ public class TrackInterpolationStep implements BatchStep {
      *
      * <p>지원 포맷 (자체 시스템 산출물):
      * <ul>
-     *   <li>{@code [x1,y1,x2,y2]} — flat 4-double (YoloAutolabelStep 의 serialize(d.points()) 결과)</li>
-     *   <li>{@code [[x1,y1],[x2,y2]]} — 2x2 nested (수동 라벨 호환 — Phase 6 LabelPointSerializer 산출)</li>
+     *   <li>{@code [[x1,y1],[x2,y2]]} — 2x2 nested. <b>현재 write 포맷</b> (Phase 1 좌표 정규화
+     *       이후 YoloAutolabelStep·수동 라벨·{@link #serializeBbox} 가 모두 이 형식으로 저장).</li>
+     *   <li>{@code [x1,y1,x2,y2]} — flat 4-double. <b>레거시 기존 데이터</b>(Phase 1 좌표 정규화 이전
+     *       YOLO 가 저장한 row)와의 호환을 위해 계속 읽는다.</li>
      * </ul>
      *
      * @throws IllegalArgumentException 포맷이 위 둘 중 어느 것도 아닐 때 (size&lt;4)
@@ -225,21 +229,23 @@ public class TrackInterpolationStep implements BatchStep {
                     return new Bbox(x1, y1, x2, y2);
                 }
             }
-            throw new IllegalArgumentException("BBOX 형식이 올바르지 않습니다: " + pointsJson);
+            // CWE-117: 예외 메시지에 원본 pointsJson 전문 미노출.
+            throw new IllegalArgumentException("BBOX 형식이 올바르지 않습니다");
         } catch (JsonProcessingException ex) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "BBOX 파싱 실패", ex);
         }
     }
 
     /**
-     * 보간된 {@link Bbox} 를 YoloAutolabelStep 과 동일한 flat 4-double 포맷으로 직렬화한다.
-     * {@code [x1, y1, x2, y2]}.
+     * 보간된 {@link Bbox} 를 수동 라벨과 동일한 정규형 nested 포맷으로 직렬화한다.
+     * {@code [[x1, y1], [x2, y2]]} (Phase 1 좌표 정규화).
+     *
+     * <p>{@link #parseBbox} 는 flat/nested 양쪽을 계속 읽으므로 같은 배치 내 레거시 flat 과
+     * 신규 nested 가 혼재해도 보간 사이클이 정상 동작한다.
      */
     private String serializeBbox(Bbox b) {
-        try {
-            return objectMapper.writeValueAsString(List.of(b.left(), b.top(), b.right(), b.bottom()));
-        } catch (JsonProcessingException ex) {
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "BBOX 직렬화 실패", ex);
-        }
+        return LabelPointSerializer.toJson(
+                List.of(new Point(b.left(), b.top()), new Point(b.right(), b.bottom())),
+                objectMapper);
     }
 }

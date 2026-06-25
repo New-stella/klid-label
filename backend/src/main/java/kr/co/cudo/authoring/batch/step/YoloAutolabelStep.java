@@ -1,6 +1,5 @@
 package kr.co.cudo.authoring.batch.step;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
@@ -18,6 +17,7 @@ import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
@@ -224,8 +224,21 @@ public class YoloAutolabelStep implements BatchStep {
                         LogSanitizer.sanitize(d.label()), labelId);
                 if (toggle.bbox()) {
                     BigDecimal score = BigDecimal.valueOf(d.score()).setScale(4, RoundingMode.HALF_UP);
+                    // Phase 1 좌표 정규화: 평탄 [x1,y1,x2,y2] → 정규형 nested [[x1,y1],[x2,y2]]
+                    // 로 저장하여 수동 라벨과 동일한 POINT_CN 포맷 유지.
+                    // DEV_FIX: flatToPoints 의 IllegalArgumentException(홀수/null 원소) 을 배치 실패 추적
+                    // 경로로 통일하여 CustomException(INVALID_INPUT) 로 래핑한다. 메시지에 원본 좌표 미노출.
+                    String pointCn;
+                    try {
+                        pointCn = LabelPointSerializer.toJson(
+                                LabelPointSerializer.flatToPoints(d.points()), objectMapper);
+                    } catch (IllegalArgumentException e) {
+                        log.error("[Batch][Yolo] invalid bbox points srcSn={} err={}",
+                                src.getSrcSn(), LogSanitizer.sanitize(e.getMessage()));
+                        throw new CustomException(ErrorCode.INVALID_INPUT, "YOLO bbox 좌표 형식 오류", e);
+                    }
                     LsDataLbl saved = lblRepository.save(LsDataLbl.createAutoBbox(
-                            src.getSrcSn(), labelId, d.label(), serialize(d.points()), score, trackIdStr));
+                            src.getSrcSn(), labelId, d.label(), pointCn, score, trackIdStr));
                     aiInfoRepository.save(LsDataLblAiInfo.create(saved.getLblSn(), rawSn, src.getSrcSn(),
                             LsDataLblAiInfo.SRC_YOLO, score, "batch"));
                     bboxSaved++;
@@ -316,14 +329,6 @@ public class YoloAutolabelStep implements BatchStep {
         } catch (IOException e) {
             // HIGH-2 fix (CWE-209): 내부 경로 노출 금지.
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 파일 읽기 실패", e);
-        }
-    }
-
-    private String serialize(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "points 직렬화 실패", e);
         }
     }
 }

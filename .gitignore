@@ -61,3 +61,6 @@ frontend/*.tsbuildinfo
 
 # 설계 산출물 hwpx 변환본 (바이너리·대용량 — 레포 제외, 로컬/별도 공유)
 docs/design/hwpx/
+
+.claude-plan.md
+.claude-progress.md

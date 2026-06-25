@@ -192,18 +192,39 @@ class TrackInterpolationStepTest {
         ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
         verify(lblRepository).saveAll(captor.capture());
 
-        // frame 2 (srcSn=4002) 의 좌표 검증 — flat 4-double 포맷
+        // frame 2 (srcSn=4002) 의 좌표 검증 — 정규형 nested [[x1,y1],[x2,y2]] 포맷
         LsDataLbl mid = captor.getValue().stream()
                 .filter(r -> r.getSrcSn() == 4002L)
                 .findFirst()
                 .orElseThrow();
-        List<Double> pts = objectMapper.readValue(mid.getPointCn(),
-                new com.fasterxml.jackson.core.type.TypeReference<List<Double>>() {});
-        assertThat(pts).hasSize(4);
-        assertThat(pts.get(0)).isCloseTo(20.0, within(1e-6));
-        assertThat(pts.get(1)).isCloseTo(20.0, within(1e-6));
-        assertThat(pts.get(2)).isCloseTo(120.0, within(1e-6));
-        assertThat(pts.get(3)).isCloseTo(120.0, within(1e-6));
+        List<List<Double>> pts = objectMapper.readValue(mid.getPointCn(),
+                new com.fasterxml.jackson.core.type.TypeReference<List<List<Double>>>() {});
+        assertThat(pts).hasSize(2);
+        assertThat(pts.get(0).get(0)).isCloseTo(20.0, within(1e-6));
+        assertThat(pts.get(0).get(1)).isCloseTo(20.0, within(1e-6));
+        assertThat(pts.get(1).get(0)).isCloseTo(120.0, within(1e-6));
+        assertThat(pts.get(1).get(1)).isCloseTo(120.0, within(1e-6));
+    }
+
+    @Test
+    @DisplayName("트랙보간_serializeBbox가_nested형식_반환")
+    void interpolatedRowsAreNestedFormat() {
+        // frame 0, 4 — 사이 1,2,3 보간 → 모든 보간 row 가 nested [[x,y],[x,y]] 로 저장
+        List<LsDataSrc> frames = framesOf(909L, 9500L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(909L)).thenReturn(frames);
+        LsDataLbl at0 = autoBboxAt(9500L, "car", "1", 0, 0, 100, 100);
+        LsDataLbl at4 = autoBboxAt(9504L, "car", "1", 40, 40, 140, 140);
+        when(lblRepository.findAutoBboxWithTrackId(909L)).thenReturn(List.of(at0, at4));
+
+        int saved = step.run(909L);
+
+        assertThat(saved).isEqualTo(3);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+        // 모든 보간 row 의 POINT_CN 이 nested 배열 형식이어야 한다.
+        assertThat(captor.getValue())
+                .allMatch(r -> r.getPointCn().startsWith("[[") && r.getPointCn().endsWith("]]"));
     }
 
     @Test

@@ -41,6 +41,39 @@ public final class LabelPointSerializer {
         }
     }
 
+    /**
+     * 평탄 좌표 리스트 {@code [x1, y1, x2, y2, ...]} 를 정규형 {@link Point} 쌍 리스트로 변환한다.
+     *
+     * <p>오토라벨(YOLO)/트랙 보간이 산출하는 평탄 좌표를 수동 라벨과 동일한
+     * 정규형 nested {@code [[x,y], ...]} 로 저장하기 위한 write-time 정규화 헬퍼.
+     *
+     * <p>입력 검증 (CWE-20): 외부 ai-server 좌표에서 유래할 수 있으므로 비정상 길이(홀수)를
+     * 명확히 거부한다.
+     *
+     * @param flat 짝수 길이 평탄 좌표 (null/빈 입력은 빈 리스트 반환)
+     * @return 2개씩 묶인 {@link Point} 리스트 (불변 X — 호출부 가공 허용)
+     * @throws IllegalArgumentException 길이가 홀수이거나 원소에 null 이 포함될 때
+     */
+    public static List<Point> flatToPoints(List<? extends Number> flat) {
+        if (flat == null || flat.isEmpty()) {
+            return List.of();
+        }
+        if (flat.size() % 2 != 0) {
+            throw new IllegalArgumentException("평탄 좌표 배열은 짝수 길이여야 합니다: " + flat.size());
+        }
+        List<Point> result = new ArrayList<>(flat.size() / 2);
+        for (int i = 0; i < flat.size(); i += 2) {
+            Number x = flat.get(i);
+            Number y = flat.get(i + 1);
+            if (x == null || y == null) {
+                // CWE-20 fail-closed: 외부 ai-server 좌표에 null 원소가 섞이면 NPE 대신 명확히 거부.
+                throw new IllegalArgumentException("좌표 원소에 null 포함");
+            }
+            result.add(new Point(x.doubleValue(), y.doubleValue()));
+        }
+        return result;
+    }
+
     /** JSON 배열 문자열 → Point 리스트. null/빈 입력은 빈 리스트. */
     public static List<Point> fromJson(String json, ObjectMapper objectMapper) {
         if (json == null || json.isBlank() || "[]".equals(json.trim())) {
@@ -50,10 +83,11 @@ public final class LabelPointSerializer {
         try {
             root = objectMapper.readTree(json);
         } catch (Exception e) {
-            throw new IllegalArgumentException("좌표 역직렬화 실패: " + e.getMessage(), e);
+            // CWE-117: 예외 메시지에 원본 JSON 전문 미노출.
+            throw new IllegalArgumentException("좌표 역직렬화 실패", e);
         }
         if (!root.isArray()) {
-            throw new IllegalArgumentException("좌표는 배열이어야 합니다: " + json);
+            throw new IllegalArgumentException("좌표는 배열이어야 합니다");
         }
         if (root.isEmpty()) {
             return List.of();
@@ -65,7 +99,7 @@ public final class LabelPointSerializer {
         if (first.isArray()) {
             for (JsonNode pair : root) {
                 if (!pair.isArray() || pair.size() != 2) {
-                    throw new IllegalArgumentException("좌표는 [x, y] 형태여야 합니다: " + pair);
+                    throw new IllegalArgumentException("좌표는 [x, y] 형태여야 합니다");
                 }
                 result.add(new Point(pair.get(0).asDouble(), pair.get(1).asDouble()));
             }
@@ -75,7 +109,7 @@ public final class LabelPointSerializer {
         if (first.isObject() && first.has("x") && first.has("y")) {
             for (JsonNode obj : root) {
                 if (!obj.isObject() || !obj.has("x") || !obj.has("y")) {
-                    throw new IllegalArgumentException("좌표 객체는 {x,y} 형태여야 합니다: " + obj);
+                    throw new IllegalArgumentException("좌표 객체는 {x,y} 형태여야 합니다");
                 }
                 result.add(new Point(obj.get("x").asDouble(), obj.get("y").asDouble()));
             }
@@ -96,6 +130,6 @@ public final class LabelPointSerializer {
             }
             return result;
         }
-        throw new IllegalArgumentException("좌표 형식을 인식할 수 없습니다: " + json);
+        throw new IllegalArgumentException("좌표 형식을 인식할 수 없습니다");
     }
 }

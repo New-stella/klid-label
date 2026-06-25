@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
@@ -19,7 +18,9 @@ import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -284,15 +285,34 @@ public class Sam2SegmentStep implements BatchStep {
         }
     }
 
+    /**
+     * 저장된 BBOX 라벨의 POINT_CN 을 SAM2 box prompt 가 기대하는 평탄 {@code [x1,y1,x2,y2]} 로 변환한다.
+     *
+     * <p>DEV_FIX: Phase 1 좌표 정규화로 YOLO 가 BBOX 를 nested {@code [[x1,y1],[x2,y2]]} 로 저장한다.
+     * 이전 {@code TypeReference<List<Double>>} flat 전용 파싱은 nested 입력에서 실패하는 회귀가 있었다.
+     * {@link LabelPointSerializer#fromJson}(flat·nested·object-array 3변종 흡수)으로 {@link Point}
+     * 리스트를 얻은 뒤 {@code (x, y)} 순으로 평탄화한다.
+     *
+     * @return SAM2 가 기대하는 평탄 좌표. 파싱 불가/빈 입력은 {@code null} (box 없이 호출).
+     */
     private List<Double> parseBbox(String pointsJson) {
         if (pointsJson == null) {
             return null;
         }
         try {
-            // MEDIUM-3 fix: raw type 대신 TypeReference 사용 → 역직렬화 타입 안전성 확보.
-            return objectMapper.readValue(pointsJson, new TypeReference<List<Double>>() {});
-        } catch (JsonProcessingException e) {
-            log.warn("[Batch][Sam2] bbox 파싱 실패 — box 없이 호출: {}", e.getMessage());
+            List<Point> points = LabelPointSerializer.fromJson(pointsJson, objectMapper);
+            if (points.isEmpty()) {
+                return null;
+            }
+            List<Double> flat = new ArrayList<>(points.size() * 2);
+            for (Point p : points) {
+                flat.add(p.x());
+                flat.add(p.y());
+            }
+            return flat;
+        } catch (IllegalArgumentException e) {
+            // 좌표 형식 인식 실패 — box 없이 SAM2 호출 (메시지에 원본 JSON 미노출, CWE-117/209).
+            log.warn("[Batch][Sam2] bbox 파싱 실패 — box 없이 호출: {}", LogSanitizer.sanitize(e.getMessage()));
             return null;
         }
     }

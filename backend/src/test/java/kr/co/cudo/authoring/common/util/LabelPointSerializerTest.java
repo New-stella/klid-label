@@ -80,4 +80,43 @@ class LabelPointSerializerTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("짝수");
     }
+
+    // ─── Phase 1 — flatToPoints: 평탄 좌표를 정규형 Point 쌍으로 변환 ───
+
+    @Test
+    @DisplayName("flatToPoints_짝수평탄을_Point쌍으로_변환")
+    void flatToPointsEvenLength() {
+        List<Point> points = LabelPointSerializer.flatToPoints(List.of(10, 20, 30, 40));
+
+        assertThat(points).containsExactly(new Point(10.0, 20.0), new Point(30.0, 40.0));
+    }
+
+    @Test
+    @DisplayName("flatToPoints_홀수길이면_IllegalArgumentException")
+    void flatToPointsOddLengthThrows() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> LabelPointSerializer.flatToPoints(List.of(10, 20, 30)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("짝수");
+    }
+
+    @Test
+    @DisplayName("flatToPoints_null과_빈리스트는_빈Point리스트")
+    void flatToPointsNullAndEmpty() {
+        assertThat(LabelPointSerializer.flatToPoints(null)).isEmpty();
+        assertThat(LabelPointSerializer.flatToPoints(List.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("flatToPoints_원소에_null_포함시_IllegalArgumentException_fail_closed")
+    void flatToPointsNullElementThrows() {
+        // given — 외부 ai-server 좌표에 null 원소가 섞여 들어온 비정상 입력 [1.0, null, 3.0, 4.0]
+        List<Double> withNull = java.util.Arrays.asList(1.0, null, 3.0, 4.0);
+
+        // when / then — NPE 가 아닌 명확한 IllegalArgumentException 으로 fail-closed
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> LabelPointSerializer.flatToPoints(withNull))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("null");
+    }
 }
