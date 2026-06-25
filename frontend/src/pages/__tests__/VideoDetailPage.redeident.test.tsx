@@ -23,6 +23,10 @@ function setRole(role: 'REVIEWER' | 'WORKER') {
   });
 }
 
+// BE 실제 응답 형태를 모사한다:
+//   - status/dataSttsCd = 배치단계(LS_DATA_RAW.DATA_STTS_CD) — 종착이 COMPLETED 라 절대 APPROVED 가 아님.
+//   - reviewSttsCd = 검수상태(LS_RAW_DATA_STATUS.DATA_STTS_CD) — APPROVED 가 검수완료 진실원.
+// SC-009 재비식별 버튼 노출은 reviewSttsCd 로 판정해야 한다(과거엔 status 로 판정해 영구 미노출 결함).
 function mockVideo(mock: MockAdapter, overrides: Record<string, unknown>) {
   mock.onGet('/videos/42').reply(200, {
     success: true,
@@ -30,7 +34,8 @@ function mockVideo(mock: MockAdapter, overrides: Record<string, unknown>) {
       rawSn: 42,
       vmsCctvId: 'CCTV-42',
       evntTypeCd: 'FIGHT',
-      dataSttsCd: 'PENDING',
+      status: 'COMPLETED',
+      dataSttsCd: 'COMPLETED',
       regDt: '2026-06-01T10:00:00',
       framePreviews: [],
       ...overrides,
@@ -63,18 +68,40 @@ describe('VideoDetailPage 재비식별 버튼 (SC-009)', () => {
     useAuthStore.getState().clear();
   });
 
-  it('REVIEWER_APPROVED_미비식별_영상에_재비식별_버튼_노출', async () => {
+  it('REVIEWER_검수완료_미비식별_영상에_재비식별_버튼_노출', async () => {
     setRole('REVIEWER');
-    mockVideo(mock, { dataSttsCd: 'APPROVED', deIdntfYn: 'N' });
+    mockVideo(mock, { reviewSttsCd: 'APPROVED', deIdntfYn: 'N' });
     renderPage();
 
     await waitFor(() => expect(screen.getByText('CCTV-42')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: REDEIDENT_LABEL })).toBeInTheDocument();
   });
 
+  // 버그 재현(회귀 가드): 배치단계 status 는 종착 COMPLETED 라 절대 APPROVED 가 아니지만,
+  // 검수상태 reviewSttsCd 는 APPROVED. 과거엔 status 로 판정해 버튼이 영구 미노출됐다.
+  // reviewSttsCd 로 판정하므로 버튼이 노출되어야 한다(status='COMPLETED' 인데도).
+  it('배치단계_COMPLETED_지만_검수완료_APPROVED_미비식별이면_버튼_노출', async () => {
+    setRole('REVIEWER');
+    mockVideo(mock, { status: 'COMPLETED', reviewSttsCd: 'APPROVED', deIdntfYn: 'N' });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('CCTV-42')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: REDEIDENT_LABEL })).toBeInTheDocument();
+  });
+
+  // 회귀 가드(역방향): status 가 'APPROVED' 처럼 보여도 reviewSttsCd 가 비-APPROVED 면 미노출.
+  it('status_가_APPROVED_라도_reviewSttsCd_비APPROVED_면_버튼_숨김', async () => {
+    setRole('REVIEWER');
+    mockVideo(mock, { status: 'APPROVED', reviewSttsCd: 'IN_REVIEW', deIdntfYn: 'N' });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('CCTV-42')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: REDEIDENT_LABEL })).not.toBeInTheDocument();
+  });
+
   it('WORKER_는_재비식별_버튼_숨김', async () => {
     setRole('WORKER');
-    mockVideo(mock, { dataSttsCd: 'APPROVED', deIdntfYn: 'N' });
+    mockVideo(mock, { reviewSttsCd: 'APPROVED', deIdntfYn: 'N' });
     renderPage();
 
     await waitFor(() => expect(screen.getByText('CCTV-42')).toBeInTheDocument());
@@ -83,16 +110,16 @@ describe('VideoDetailPage 재비식별 버튼 (SC-009)', () => {
 
   it('이미_비식별된_영상_deIdntfYn_Y_이면_버튼_숨김', async () => {
     setRole('REVIEWER');
-    mockVideo(mock, { dataSttsCd: 'APPROVED', deIdntfYn: 'Y' });
+    mockVideo(mock, { reviewSttsCd: 'APPROVED', deIdntfYn: 'Y' });
     renderPage();
 
     await waitFor(() => expect(screen.getByText('CCTV-42')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: REDEIDENT_LABEL })).not.toBeInTheDocument();
   });
 
-  it('비APPROVED_영상이면_버튼_숨김', async () => {
+  it('검수미완료_영상이면_버튼_숨김', async () => {
     setRole('REVIEWER');
-    mockVideo(mock, { dataSttsCd: 'PENDING', deIdntfYn: 'N' });
+    mockVideo(mock, { reviewSttsCd: 'PENDING', deIdntfYn: 'N' });
     renderPage();
 
     await waitFor(() => expect(screen.getByText('CCTV-42')).toBeInTheDocument());
@@ -102,7 +129,7 @@ describe('VideoDetailPage 재비식별 버튼 (SC-009)', () => {
   it('버튼_클릭_확인시_POST_호출_성공토스트', async () => {
     const user = userEvent.setup();
     setRole('REVIEWER');
-    mockVideo(mock, { dataSttsCd: 'APPROVED', deIdntfYn: 'N' });
+    mockVideo(mock, { reviewSttsCd: 'APPROVED', deIdntfYn: 'N' });
     mock.onPost('/videos/42/redeident').reply(202, {
       success: true,
       data: { rawSn: 42, procLogSn: 7, kpstPrjId: 3, status: 'ACCEPTED' },
@@ -130,7 +157,7 @@ describe('VideoDetailPage 재비식별 버튼 (SC-009)', () => {
   it('409_응답시_에러_토스트', async () => {
     const user = userEvent.setup();
     setRole('REVIEWER');
-    mockVideo(mock, { dataSttsCd: 'APPROVED', deIdntfYn: 'N' });
+    mockVideo(mock, { reviewSttsCd: 'APPROVED', deIdntfYn: 'N' });
     mock.onPost('/videos/42/redeident').reply(409, {
       success: false,
       data: null,
@@ -153,7 +180,7 @@ describe('VideoDetailPage 재비식별 버튼 (SC-009)', () => {
   it('403_응답시_권한없음_에러_토스트', async () => {
     const user = userEvent.setup();
     setRole('REVIEWER');
-    mockVideo(mock, { dataSttsCd: 'APPROVED', deIdntfYn: 'N' });
+    mockVideo(mock, { reviewSttsCd: 'APPROVED', deIdntfYn: 'N' });
     mock.onPost('/videos/42/redeident').reply(403, {
       success: false,
       data: null,

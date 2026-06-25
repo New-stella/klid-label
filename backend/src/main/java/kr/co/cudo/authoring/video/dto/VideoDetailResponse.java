@@ -21,6 +21,9 @@ public record VideoDetailResponse(
         String localGov,
         Long frameCount,
         String status,
+        // 검수 상태 — LS_RAW_DATA_STATUS.DATA_STTS_CD (APPROVED=검수완료). 상태 row 없으면 null.
+        // status(=배치단계 LS_DATA_RAW.DATA_STTS_CD)와 출처·의미가 다른 별도 필드다.
+        String reviewSttsCd,
         // BE 원본 필드
         Long rawSn,
         String vmsClipId,
@@ -43,11 +46,11 @@ public record VideoDetailResponse(
     public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
 
     public static VideoDetailResponse from(LsDataRaw e) {
-        return from(e, null, null, 0L, Collections.emptyList());
+        return from(e, null, null, 0L, Collections.emptyList(), null);
     }
 
     public static VideoDetailResponse from(LsDataRaw e, String cctvName, String localGov, Long frameCount) {
-        return from(e, cctvName, localGov, frameCount, Collections.emptyList());
+        return from(e, cctvName, localGov, frameCount, Collections.emptyList(), null);
     }
 
     public static VideoDetailResponse from(
@@ -56,6 +59,17 @@ public record VideoDetailResponse(
             String localGov,
             Long frameCount,
             List<FramePreviewDto> framePreviews
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, null);
+    }
+
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd
     ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
         String resolvedGov = (localGov != null && !localGov.isBlank()) ? localGov : e.getLclgvCd();
@@ -69,6 +83,7 @@ public record VideoDetailResponse(
                 resolvedGov,
                 resolvedFrame,
                 e.getDataSttsCd(),
+                reviewSttsCd,
                 e.getRawSn(),
                 e.getVmsClipId(),
                 e.getVmsCctvId(),

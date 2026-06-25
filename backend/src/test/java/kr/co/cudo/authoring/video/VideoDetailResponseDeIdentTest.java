@@ -5,6 +5,8 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -59,5 +61,35 @@ class VideoDetailResponseDeIdentTest {
 
         // then
         assertThat(response.deIdntfYn()).isEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("검수상태_미전달_시_reviewSttsCd_는_null_이다")
+    void reviewSttsCd_notProvided_isNull() {
+        // given — 기존 오버로드(검수상태 인자 없음)
+        LsDataRaw entity = raw();
+
+        // when
+        VideoDetailResponse response = VideoDetailResponse.from(entity, "카메라", "지자체", 5L);
+
+        // then — status(배치단계)는 채워지나 검수상태는 별도 필드로 null
+        assertThat(response.reviewSttsCd()).isNull();
+        assertThat(response.status()).isEqualTo(entity.getDataSttsCd());
+    }
+
+    @Test
+    @DisplayName("검수완료_APPROVED_전달_시_status_와_별개로_reviewSttsCd_에_노출된다")
+    void reviewSttsCd_approved_isExposedSeparatelyFromStatus() {
+        // given — 배치단계 status 와 무관하게 검수완료(APPROVED) 를 전달
+        LsDataRaw entity = raw();
+
+        // when
+        VideoDetailResponse response = VideoDetailResponse.from(
+                entity, "카메라", "지자체", 5L, Collections.emptyList(), "APPROVED");
+
+        // then — 배치단계(status)는 entity 값 그대로, 검수상태(reviewSttsCd)는 APPROVED 로 분리 노출
+        assertThat(response.reviewSttsCd()).isEqualTo("APPROVED");
+        assertThat(response.status()).isEqualTo(entity.getDataSttsCd());
+        assertThat(response.status()).isNotEqualTo("APPROVED");
     }
 }

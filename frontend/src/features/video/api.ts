@@ -33,6 +33,7 @@ type RawVideo = Partial<Video> & {
   regDt?: string;
   prvcTypeCd?: string;
   deIdntfYn?: string;
+  reviewSttsCd?: string;
 };
 
 function normalizeVideo(v: RawVideo): Video {
@@ -54,6 +55,9 @@ function normalizeVideo(v: RawVideo): Video {
     // BE 실제 응답 키는 deIdntfYn (deIdentYn 아님). SC-009 재비식별 버튼 노출 조건.
     // BE 가 코드값('Y'|'N'|'F')만 내려주므로 리터럴 유니온으로 캐스팅.
     deIdntfYn: v.deIdntfYn as Video['deIdntfYn'],
+    // 검수 상태(LS_RAW_DATA_STATUS.DATA_STTS_CD) — SC-009 재비식별 버튼 노출 판정 필드.
+    // status(배치단계)와 별개. 상태 row 없으면 BE 가 null → undefined.
+    reviewSttsCd: v.reviewSttsCd ?? undefined,
     // LABELER 배정 정보 (BE VideoSummaryResponse) — 미배정 영상은 모두 undefined.
     // TaskListPage 정합: 배정/재배정 버튼 분기 + 재배정 모달 사전선택에 사용된다.
     assignmentId: v.assignmentId,

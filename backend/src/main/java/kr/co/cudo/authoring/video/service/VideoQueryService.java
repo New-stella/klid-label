@@ -213,7 +213,14 @@ public class VideoQueryService {
                         "/v1/frames/" + src.getSrcSn() + "/image"
                 ))
                 .toList();
-        return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews);
+        // 검수 상태(reviewSttsCd) = LS_RAW_DATA_STATUS.DATA_STTS_CD (진실원).
+        // status(=배치단계 LS_DATA_RAW.DATA_STTS_CD)와 출처가 다르므로 별도 조회해 노출한다.
+        // 상태 row 가 없으면 미검수로 간주(null). ApprovedRedeidentService.isReviewApproved 와 동일 조회 패턴.
+        String reviewSttsCd = rawDataStatusRepository.findByRawDataIdIn(List.of(entity.getRawSn())).stream()
+                .findFirst()
+                .map(LsRawDataStatus::getDataSttsCd)
+                .orElse(null);
+        return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd);
     }
 
     /**

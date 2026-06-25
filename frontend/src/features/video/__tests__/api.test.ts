@@ -85,6 +85,58 @@ describe('video api', () => {
     expect(detail.cctvName).toBe('강남대로 CCTV');
   });
 
+  it('getVideo_reviewSttsCd_정상_매핑_배치단계_status_와_별개', async () => {
+    // given: BE 가 배치단계 status=COMPLETED + 검수상태 reviewSttsCd=APPROVED 를 내려준다.
+    mock.onGet('/videos/9').reply(200, {
+      success: true,
+      data: {
+        id: 9,
+        cctvName: 'CCTV-9',
+        vmsClipId: 'VMS-9',
+        status: 'COMPLETED',
+        reviewSttsCd: 'APPROVED',
+        capturedAt: '2026-05-01T12:00:00Z',
+        frameCount: 100,
+        duration: 30,
+        fileSizeMb: 5,
+        resolution: '1920x1080',
+        framePreviews: [],
+        deIdntfYn: 'N',
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when / then: 배치단계 status 와 검수상태 reviewSttsCd 가 독립적으로 매핑된다.
+    const detail = await getVideo(9);
+    expect(detail.status).toBe('COMPLETED');
+    expect(detail.reviewSttsCd).toBe('APPROVED');
+  });
+
+  it('getVideo_reviewSttsCd_미존재시_undefined', async () => {
+    // given: BE 응답에 reviewSttsCd 키가 없는 영상 (검수 상태 row 부재 → BE null).
+    mock.onGet('/videos/10').reply(200, {
+      success: true,
+      data: {
+        id: 10,
+        cctvName: 'CCTV-10',
+        vmsClipId: 'VMS-10',
+        status: 'PENDING',
+        capturedAt: '2026-05-01T12:00:00Z',
+        frameCount: 0,
+        duration: 30,
+        fileSizeMb: 5,
+        resolution: '1920x1080',
+        framePreviews: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const detail = await getVideo(10);
+    expect(detail.reviewSttsCd).toBeUndefined();
+  });
+
   it('M1_getVideo_deIdntfYn_정상_매핑', async () => {
     // given: BE 가 비식별 완료('Y') 코드를 내려준다.
     mock.onGet('/videos/7').reply(200, {

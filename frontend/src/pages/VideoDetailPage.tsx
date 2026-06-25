@@ -326,10 +326,12 @@ export function VideoDetailPage() {
   const { data, isLoading, error } = useVideoDetail(validId);
 
   // SC-009 재비식별 버튼 노출 가드: REVIEWER + 검수완료(APPROVED) + 비식별 미완(deIdntfYn !== 'Y').
-  // 권한 가드는 UX 편의일 뿐 — 실제 강제는 BE(403).
+  // 검수완료 판정은 reviewSttsCd(=LS_RAW_DATA_STATUS.DATA_STTS_CD, 진실원)로 한다.
+  //   ※ status(=배치단계 LS_DATA_RAW.DATA_STTS_CD)는 종착이 COMPLETED 라 절대 APPROVED 가 되지 않으므로
+  //     status 로 판정하면 버튼이 영구 미노출된다(과거 결함). 권한 가드는 UX 편의일 뿐 — 실제 강제는 BE(403).
   const role = useAuthStore((s) => s.claims?.role ?? null);
   const canReDeident =
-    role === Role.REVIEWER && data?.status === 'APPROVED' && data?.deIdntfYn !== 'Y';
+    role === Role.REVIEWER && data?.reviewSttsCd === 'APPROVED' && data?.deIdntfYn !== 'Y';
 
   if (validId === null) {
     return <ErrorState title="잘못된 영상 ID" message="유효한 영상 ID가 필요합니다." />;
