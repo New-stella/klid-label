@@ -13,9 +13,12 @@ import { PrivacyBadge } from '@/components/common/PrivacyBadge';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tabs } from '@/components/common/Tabs';
+import { RedeidentButton } from '@/features/video/components/RedeidentButton';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useVideoLabels } from '@/features/video/hooks/useVideoLabels';
 import type { FramePreview, VideoDetail } from '@/features/video/types';
+import { Role } from '@/lib/api/types';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 function formatDuration(seconds: number | undefined): string {
   if (!seconds) return '-';
@@ -322,6 +325,12 @@ export function VideoDetailPage() {
   const validId = Number.isFinite(numericId) && numericId > 0 ? numericId : null;
   const { data, isLoading, error } = useVideoDetail(validId);
 
+  // SC-009 재비식별 버튼 노출 가드: REVIEWER + 검수완료(APPROVED) + 비식별 미완(deIdntfYn !== 'Y').
+  // 권한 가드는 UX 편의일 뿐 — 실제 강제는 BE(403).
+  const role = useAuthStore((s) => s.claims?.role ?? null);
+  const canReDeident =
+    role === Role.REVIEWER && data?.status === 'APPROVED' && data?.deIdntfYn !== 'Y';
+
   if (validId === null) {
     return <ErrorState title="잘못된 영상 ID" message="유효한 영상 ID가 필요합니다." />;
   }
@@ -374,14 +383,17 @@ export function VideoDetailPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <h2 className="text-lg font-bold text-gray-900">{data.cctvName}</h2>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => navigate(`/history/${data.id}`)}
-                  >
-                    <GitBranch size={14} aria-hidden />
-                    버전관리로 이동
-                  </Button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {canReDeident && <RedeidentButton rawSn={data.id} />}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => navigate(`/history/${data.id}`)}
+                    >
+                      <GitBranch size={14} aria-hidden />
+                      버전관리로 이동
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-1.5">
                   <EventTypeBadge eventType={data.eventTypeCd ?? data.eventName ?? ''} size="md" />

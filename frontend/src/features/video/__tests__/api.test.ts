@@ -85,4 +85,58 @@ describe('video api', () => {
     expect(detail.cctvName).toBe('강남대로 CCTV');
   });
 
+  it('M1_getVideo_deIdntfYn_정상_매핑', async () => {
+    // given: BE 가 비식별 완료('Y') 코드를 내려준다.
+    mock.onGet('/videos/7').reply(200, {
+      success: true,
+      data: {
+        id: 7,
+        cctvName: 'CCTV-7',
+        vmsClipId: 'VMS-7',
+        status: 'APPROVED',
+        capturedAt: '2026-05-01T12:00:00Z',
+        frameCount: 100,
+        duration: 30,
+        fileSizeMb: 5,
+        resolution: '1920x1080',
+        framePreviews: [],
+        deIdntfYn: 'Y',
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when / then: normalizeVideo 가 deIdntfYn 을 매핑해 노출한다.
+    const detail = await getVideo(7);
+    expect(detail.deIdntfYn).toBe('Y');
+  });
+
+  it('L1_getVideo_deIdntfYn_미존재시_undefined_재비식별_대상', async () => {
+    // given: BE 응답에 deIdntfYn 키가 없는 영상 (미처리/구버전 응답).
+    mock.onGet('/videos/8').reply(200, {
+      success: true,
+      data: {
+        id: 8,
+        cctvName: 'CCTV-8',
+        vmsClipId: 'VMS-8',
+        status: 'APPROVED',
+        capturedAt: '2026-05-01T12:00:00Z',
+        frameCount: 100,
+        duration: 30,
+        fileSizeMb: 5,
+        resolution: '1920x1080',
+        framePreviews: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when: deIdntfYn 미존재
+    const detail = await getVideo(8);
+
+    // then: undefined → 노출 가드(deIdntfYn !== 'Y')에서 재비식별 버튼 노출 대상으로 의도됨.
+    expect(detail.deIdntfYn).toBeUndefined();
+    expect(detail.deIdntfYn !== 'Y').toBe(true);
+  });
+
 });

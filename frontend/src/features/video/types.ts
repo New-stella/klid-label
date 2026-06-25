@@ -38,6 +38,9 @@ export interface Video {
   updatedAt?: string | null;
   // 검수 완료 시각 (LS_RAW_DATA_STATUS.UPD_DT) — 검수 상태가 APPROVED 일 때만, 그 외 null
   reviewCompletedAt?: string | null;
+  // 비식별 처리 여부 (BE LS_DATA_RAW.DE_IDENT_YN → 응답 키 deIdntfYn).
+  // 'Y'=비식별 완료, 'N'=미처리, 'F'=실패. SC-009 재비식별 버튼 노출 조건에 사용.
+  deIdntfYn?: 'Y' | 'N' | 'F';
   // LABELER 배정 정보 (BE VideoSummaryResponse — 미배정 영상은 모두 null/undefined).
   // TaskListPage 배정 시나리오와 정합: 이 필드 유무로 배정/재배정 버튼을 분기하고
   // AssignModal 재배정 모드에 현재 배정자를 사전선택한다.
@@ -93,6 +96,15 @@ export interface ResolutionExportResult {
   targetW: number;
   targetH: number;
   frameCount: number;
+}
+
+// SC-009 — 영상 재비식별 요청 (POST /v1/videos/{rawSn}/redeident, REVIEWER).
+// BE 가 비식별 재처리를 비동기 접수 → 200/202 + status='ACCEPTED'.
+export interface RedeidentResult {
+  rawSn: number;
+  procLogSn?: number;
+  kpstPrjId?: number;
+  status: string;
 }
 
 export interface LabelObject {

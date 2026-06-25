@@ -5,6 +5,7 @@ import type { PageResponse } from '@/lib/api/types';
 
 import type {
   FrameLabels,
+  RedeidentResult,
   ResolutionExportResult,
   ResolutionPreset,
   Video,
@@ -31,6 +32,7 @@ type RawVideo = Partial<Video> & {
   dataSttsCd?: string;
   regDt?: string;
   prvcTypeCd?: string;
+  deIdntfYn?: string;
 };
 
 function normalizeVideo(v: RawVideo): Video {
@@ -49,6 +51,9 @@ function normalizeVideo(v: RawVideo): Video {
     durationSec: v.durationSec,
     updatedAt: v.updatedAt ?? null,
     reviewCompletedAt: v.reviewCompletedAt ?? null,
+    // BE 실제 응답 키는 deIdntfYn (deIdentYn 아님). SC-009 재비식별 버튼 노출 조건.
+    // BE 가 코드값('Y'|'N'|'F')만 내려주므로 리터럴 유니온으로 캐스팅.
+    deIdntfYn: v.deIdntfYn as Video['deIdntfYn'],
     // LABELER 배정 정보 (BE VideoSummaryResponse) — 미배정 영상은 모두 undefined.
     // TaskListPage 정합: 배정/재배정 버튼 분기 + 재배정 모달 사전선택에 사용된다.
     assignmentId: v.assignmentId,
@@ -70,14 +75,20 @@ export function listVideos(params: VideoListParams) {
 
 export function getVideo(id: number) {
   return apiClient
-    .get<RawVideo & Partial<VideoDetail> & { durationSec?: number; regDt?: string; updDt?: string }>(
-      `/videos/${id}`,
-    )
+    .get<
+      RawVideo &
+        Partial<VideoDetail> & {
+          durationSec?: number;
+          regDt?: string;
+          updDt?: string;
+        }
+    >(`/videos/${id}`)
     .then((r) => {
       const base = normalizeVideo(r.data);
       const d = r.data;
       return {
         ...base,
+        // deIdntfYn(SC-009 재비식별 노출 조건)은 normalizeVideo 가 매핑하므로 별도 스프레드 제거.
         duration: d.duration ?? d.durationSec ?? 0,
         fileSizeMb: d.fileSizeMb ?? 0,
         resolution: d.resolution ?? '',
@@ -134,5 +145,20 @@ export function getVideoLabels(videoId: number | string) {
 export function changeResolution(rawSn: number, preset: ResolutionPreset) {
   return apiClient
     .post<ResolutionExportResult>(`/videos/${rawSn}/resolution`, { preset })
+    .then((r) => r.data);
+}
+
+/**
+ * 영상 재비식별 요청 (SC-009) — BE: POST /api/v1/videos/{rawSn}/redeident (REVIEWER).
+ *
+ * <p>검수완료(APPROVED)됐으나 비식별 미완인 영상을 다시 비식별 처리한다.
+ * BE 가 비동기로 접수 → 200/202 + status='ACCEPTED'. 라벨·검수상태는 보존.
+ *
+ * 보안: rawSn 은 숫자 path 파라미터로만 전달 — 문자열 직접 연결/사용자 입력 삽입 없음.
+ * 권한(REVIEWER)·상태(APPROVED·미비식별)·작업락은 BE 가 403/404/409 로 강제한다.
+ */
+export function requestRedeident(rawSn: number) {
+  return apiClient
+    .post<RedeidentResult>(`/videos/${rawSn}/redeident`)
     .then((r) => r.data);
 }
