@@ -24,11 +24,10 @@ vendor/sam2/sam2-src/
 models/weights/*
 models/hf-cache/*
 
-# 시스템 패키지 (Rocky 9: RPM + 정적 ffmpeg). 데비안 폴백(.deb)도 무시.
+# 시스템 패키지 (Rocky 9: RPM + 정적 ffmpeg).
 syspkgs/rpm/*.rpm
 syspkgs/rpm/README-collect-on-rocky9.txt
 syspkgs/ffmpeg/*
-syspkgs/deb/*.deb
 
 # 오프라인 빌드 키트(소스 재빌드용) — 대용량이라 git 제외. 60-collect-buildtools.sh 가 채운다.
 buildtools/jdk/*

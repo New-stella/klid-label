@@ -90,7 +90,7 @@ SKIP_BUILDTOOLS=1 ./scripts/package.sh
 
 > **50 단계의 자동 분기**: ffmpeg 정적 바이너리는 curl 만 있으면 어디서든 받는다(공식 SHA256 검증).
 > RPM 은 `dnf`/`yum` 이 있을 때만 `dnf download --resolve` 로 받고, 없으면(mac 등) **graceful SKIP** +
-> "rockylinux:9 컨테이너에서 수집" 안내를 남긴다(데비안 빌드머신이면 `.deb` 폴백). 기본 경로는 Rocky 9(rpm).
+> "rockylinux:9 컨테이너에서 수집" 안내를 남긴다(타깃은 Rocky 9/RPM 단일 경로).
 
 ## Rocky 9 컨테이너 수집 (권장 — wheel·RPM 정합)
 

@@ -3,7 +3,7 @@
 ## ★ 타깃 OS — Rocky Linux 9 (RHEL 9 계열, x86_64, glibc 2.34)
 
 이 패키지는 **Rocky Linux 9**(RHEL 9 계열, x86_64, glibc 2.34, dnf/rpm)를 대상으로 한다.
-시스템 의존성은 **RPM 기반**으로 수집·설치한다(데비안 `.deb` 아님).
+시스템 의존성은 **RPM 기반**으로 수집·설치한다.
 
 - 런타임(JRE17/Python standalone/Caddy)·pip wheel(torch manylinux_2_28)은 glibc 2.34 호환이라 그대로 쓴다.
 - **ffmpeg 는 정적 바이너리**로 번들한다 — Rocky 9 base/AppStream 에 ffmpeg 가 없고

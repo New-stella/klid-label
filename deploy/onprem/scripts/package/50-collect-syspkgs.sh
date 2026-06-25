@@ -16,8 +16,7 @@ set -euo pipefail
 #     A) ffmpeg 정적 tarball → syspkgs/ffmpeg/   (OS 무관, curl 만 있으면 됨 — mac 포함)
 #     B) RPM (mesa-libGL 등)  → syspkgs/rpm/      (dnf/yum 환경에서만 — 없으면 graceful SKIP)
 #
-#   ★ 비-Rocky(데비안 등) 빌드머신 호환: dnf 가 없고 apt 가 있으면 .deb 분기로 폴백한다.
-#     기본 경로는 Rocky 9(rpm). dnf/apt 둘 다 없으면(mac 등) RPM 단계만 SKIP 한다
+#   ★ 비-RHEL 빌드머신(mac 등 dnf/yum 없음): RPM 단계만 graceful SKIP 한다
 #     — 이 경우 rockylinux:9 컨테이너에서 RPM 을 별도 수집해야 한다(02-build-package.md 참고).
 # ============================================================================
 
@@ -30,7 +29,6 @@ source "${SELF_DIR}/../lib/versions.sh"
 ONPREM="$(onprem_root)"
 RPM_OUT="${ONPREM}/syspkgs/rpm"
 FFMPEG_OUT="${ONPREM}/syspkgs/ffmpeg"
-DEB_OUT="${ONPREM}/syspkgs/deb"   # 데비안 폴백 시에만 사용
 ensure_dir "${RPM_OUT}" "${FFMPEG_OUT}"
 
 if [[ "${SKIP_SYSPKGS:-0}" == "1" ]]; then
@@ -67,8 +65,6 @@ sha256_write "${FFMPEG_OUT}"
 #   - libglvnd-glx  : GLX 디스패치(mesa-libGL 의존 보강)
 #   - glib2         : libglib-2.0.so.0 (opencv/그래픽 스택 의존)
 RPM_PKGS=(mesa-libGL libglvnd-glx glib2)
-# 데비안 폴백 시 대응 패키지
-DEB_PKGS=(libgl1 libglib2.0-0 libglvnd0)
 
 collect_rpm() {
   local dl_tool=""
@@ -103,35 +99,10 @@ collect_rpm() {
   return 0
 }
 
-collect_deb() {
-  # 데비안/우분투 빌드머신 폴백(.deb). 기본 경로 아님.
-  command -v apt-get >/dev/null 2>&1 && command -v dpkg >/dev/null 2>&1 || return 1
-  ensure_dir "${DEB_OUT}"
-  info "[syspkgs] (데비안 폴백) .deb 수집: ${DEB_PKGS[*]}"
-  apt-get update -qq || warn "apt-get update 경고(무시 가능) — 캐시로 진행"
-  local deplist="${DEB_PKGS[*]}"
-  if command -v apt-rdepends >/dev/null 2>&1; then
-    local rdeps
-    rdeps="$(apt-rdepends "${DEB_PKGS[@]}" 2>/dev/null | grep -v '^ ' | sort -u || true)"
-    [[ -n "${rdeps}" ]] && deplist="${rdeps}"
-  fi
-  # shellcheck disable=SC2086
-  ( cd "${DEB_OUT}" && apt-get download ${deplist} ) \
-    || warn "[syspkgs] 일부 .deb download 실패 — 수동 설치 안내 참고"
-  local count
-  count="$(ls -1 "${DEB_OUT}"/*.deb 2>/dev/null | wc -l | tr -d ' ')"
-  ok "[syspkgs] .deb 수집: ${DEB_OUT}  (${count} 개)"
-  [[ "${count}" -gt 0 ]] && sha256_write "${DEB_OUT}" || true
-  return 0
-}
-
 if collect_rpm; then
   :
-elif collect_deb; then
-  warn "[syspkgs] dnf 없음 → 데비안(.deb) 폴백으로 수집했습니다. 타깃이 Rocky 9 면 RPM 이 필요합니다."
-  warn "  타깃 Rocky 9 용 RPM 은 rockylinux:9 컨테이너에서 별도 수집하세요(02-build-package.md)."
 else
-  warn "[syspkgs] dnf/yum/apt 가 없는 빌드머신(예: macOS) — RPM 수집을 건너뜁니다(graceful SKIP)."
+  warn "[syspkgs] dnf/yum 이 없는 빌드머신(예: macOS) — RPM 수집을 건너뜁니다(graceful SKIP)."
   warn "  타깃 Rocky 9 용 RPM 은 rockylinux:9 컨테이너에서 수집해야 합니다. 예:"
   warn "    docker run --rm -v \"\$PWD:/work\" -w /work rockylinux:9 \\"
   warn "      bash -c 'dnf -y install dnf-plugins-core && \\"
