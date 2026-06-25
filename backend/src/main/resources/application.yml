@@ -170,6 +170,17 @@ authoring:
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  # [개발/검수 전용] dev 로그인(/v1/dev/tokens)·dev 업로드(/v1/dev/autolabel-test) 토글.
+  #   - 기본 false(fail-closed) — 미설정 시 prd 든 어디든 빈 부재로 endpoint 미노출.
+  #   - DevTokenController/Service·DevAutolabelTest*·DevPipelineRunner 가 @ConditionalOnProperty 로 게이팅,
+  #     SecurityConfig 도 authoring.dev.login.enabled 를 읽어 permitAll 매처를 조건부 추가한다.
+  #   - 관제서버 미기동 폐쇄망 bring-up 시에만 DEV_LOGIN_ENABLED/DEV_UPLOAD_ENABLED=true 로 켠다.
+  #     켜지면 기동 시 DevToggleStartupWarner 가 WARN 경고. local/dev/stg 는 각 프로파일 yml 에서 true override.
+  dev:
+    login:
+      enabled: ${DEV_LOGIN_ENABLED:false}
+    upload:
+      enabled: ${DEV_UPLOAD_ENABLED:false}
 
 # Phase 11 — 포털 채널 TUS 업로드 정책
 portal:

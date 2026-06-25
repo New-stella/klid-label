@@ -9,7 +9,7 @@ import kr.co.cudo.authoring.dev.dto.DevTokenRequest;
 import kr.co.cudo.authoring.dev.dto.DevTokenResponse;
 import kr.co.cudo.authoring.dev.service.DevTokenService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,16 +20,18 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * [개발/검수 전용] 테스트 JWT 발급 API.
  *
- * <p>운영(prd) 환경에서는 {@code @Profile("!prd")} 로 빈 자체가 등록되지 않아 endpoint 가 노출되지 않는다 (404).
+ * <p>{@code authoring.dev.login.enabled=true}(env {@code DEV_LOGIN_ENABLED}) 일 때만 빈이 등록되어
+ * endpoint 가 노출된다. 미설정/false 면 prd·dev 무관하게 빈 부재(404) — <b>fail-closed</b>.
+ * local/dev/stg 프로파일은 yml 기본값으로 true 라 기존 동작이 유지된다.
  *
- * <p>SecurityConfig 에서도 환경에 따라 {@code /v1/dev/**} 매처가 조건부로 permitAll 된다.
+ * <p>SecurityConfig 도 같은 프로퍼티를 읽어 {@code /v1/dev/tokens} permitAll 매처를 조건부로 추가한다.
  */
 @Tag(name = "dev-token",
-        description = "[개발/검수 전용] 테스트 JWT 발급. ⚠ 운영(prd) 환경에서는 비활성화되어 endpoint 가 존재하지 않습니다.")
+        description = "[개발/검수 전용] 테스트 JWT 발급. ⚠ authoring.dev.login.enabled=true 일 때만 노출됩니다 (기본 비활성).")
 @RestController
 @RequestMapping("/v1/dev")
 @RequiredArgsConstructor
-@Profile("!prd")
+@ConditionalOnProperty(prefix = "authoring.dev.login", name = "enabled", havingValue = "true")
 public class DevTokenController {
 
     private final DevTokenService devTokenService;

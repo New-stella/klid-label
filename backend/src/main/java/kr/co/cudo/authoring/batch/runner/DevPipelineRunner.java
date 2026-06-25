@@ -5,7 +5,7 @@ import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,7 +16,8 @@ import java.util.Optional;
 /**
  * [개발/검수 전용] dev 업로드 경로의 선두 비식별 실행기 (운영 시나리오 1:1 고정 플로우).
  *
- * <p>운영(prd) 환경에서는 {@code @Profile("!prd")} 로 빈 자체가 등록되지 않는다.
+ * <p>{@code authoring.dev.upload.enabled=true} 일 때만 빈이 등록된다 (dev 업로드 endpoint 와 동일 키 —
+ * 업로드 afterCommit 으로 호출되므로 함께 켜지고 함께 꺼져야 컨텍스트 의존이 깨지지 않는다).
  *
  * <p>dev 업로드는 {@code VideoIngestedEvent} 가 없으므로 이 러너가 선두 비식별을 직접 수행한다.
  * 플로우는 <b>비식별(무조건) → MARKING_READY 전이 → 정지</b> 로 고정된다. 합성 마킹 생성과
@@ -34,7 +35,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
-@Profile("!prd")
+@ConditionalOnProperty(prefix = "authoring.dev.upload", name = "enabled", havingValue = "true")
 public class DevPipelineRunner {
 
     private final DeidentifyStep deidentifyStep;

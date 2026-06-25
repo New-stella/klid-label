@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -46,8 +45,11 @@ public class SecurityConfig {
                                                     CorsConfigurationSource corsConfigurationSource) throws Exception {
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(keyResolver, issuerValidator);
 
-        // 개발/검수 전용 토큰 발급 endpoint — 운영(prd) 에서는 매처 자체를 추가하지 않음 (endpoint 도 @Profile("!prd") 로 부재 → 404).
-        boolean devTokenEndpointEnabled = !environment.acceptsProfiles(Profiles.of("prd"));
+        // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
+        // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).
+        // 기본 false(fail-closed) — 미설정/false 면 매처 부재 + 빈 부재로 endpoint 미노출.
+        boolean devTokenEndpointEnabled =
+                Boolean.parseBoolean(environment.getProperty("authoring.dev.login.enabled", "false"));
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -82,7 +84,8 @@ public class SecurityConfig {
                     if (devTokenEndpointEnabled) {
                         // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음.
                         // - /v1/dev/tokens: 부트스트랩 토큰 발급 → permitAll (로컬 인증 불가 방지, 토큰 진입점).
-                        //   prd 노출은 @Profile("!prd") + devTokenEndpointEnabled 이중 차단으로 보호.
+                        //   prd 노출은 @ConditionalOnProperty(authoring.dev.login.enabled) (DevTokenController/Service 빈 부재)
+                        //   + devTokenEndpointEnabled(permitAll 매처 부재) 이중 차단으로 보호. 기본 false(fail-closed).
                         // (DEV_FIX CWE-862: /v1/dev/batch/** 는 permitAll 제거 — 아래 /v1/dev/** REVIEWER
                         //  가드가 적용되어 dev/stg/local 에서도 인증 없이 파이프라인/스캔 트리거 불가.
                         //  Phase 3: /v1/dev/autolabel/** 은퇴, dev 업로드 /v1/dev/autolabel-test 도 동일 REVIEWER 가드.)

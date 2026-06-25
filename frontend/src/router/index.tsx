@@ -8,6 +8,8 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { SessionIngressPage } from '@/features/auth/SessionIngressPage';
 import { Role } from '@/lib/api/types';
+import { isDevLoginEnabled } from '@/lib/devLogin';
+import { isDevUploadEnabled } from '@/lib/devUpload';
 
 import { AuthenticatedGuard, ChannelGuard, RoleGuard } from './guards';
 
@@ -146,11 +148,12 @@ function PortalRoute({ children }: { children: ReactNode }) {
   );
 }
 
-// DEV 빌드에서만 `/dev/login` 라우트를 노출.
-// import.meta.env.DEV 는 빌드 시 상수로 치환되므로, prod 에서는 if 블록 전체가 dead-code 로
-// 제거되어 DevLoginPage 청크 자체가 산출물에 포함되지 않는다.
+// DEV 빌드 또는 빌드타임 플래그 VITE_DEV_LOGIN_ENABLED=true 일 때만 `/dev/login` 라우트를 노출.
+// 관제서버 미기동 폐쇄망 bring-up 시 prod 빌드에서도 켤 수 있다 (기본 OFF, fail-closed).
+// 플래그가 false/미설정인 prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevLoginPage 청크
+// 자체가 산출물에 포함되지 않는다.
 const devOnlyRoutes: Array<{ path: string; element: ReactNode }> = [];
-if (import.meta.env.DEV) {
+if (isDevLoginEnabled()) {
   const DevLoginPage = lazy(() =>
     import('@/features/auth/DevLoginPage').then((m) => ({ default: m.DevLoginPage })),
   );
@@ -161,13 +164,26 @@ if (import.meta.env.DEV) {
 }
 
 // [개발/검수 전용] 오토라벨 테스트 페이지 — REVIEWER 만 진입.
-// BE endpoint 가 `@Profile("!prd")` 격리되어 있어 prd 환경에서도 라우트는 마운트되지만
-// 호출 시 404 가 반환된다. UI 노출은 REVIEWER 로 제한.
-const DevAutolabelTestPage = lazy(() =>
-  import('@/pages/dev/DevAutolabelTestPage').then((m) => ({
-    default: m.DevAutolabelTestPage,
-  })),
-);
+// DEV 빌드 또는 빌드타임 플래그 VITE_DEV_UPLOAD_ENABLED=true 일 때만 라우트를 노출 (isDevLoginEnabled 와 대칭).
+// 플래그 false/미설정인 prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevAutolabelTestPage 청크
+// 자체가 산출물에 포함되지 않는다. 실제 게이팅은 BE DEV_UPLOAD_ENABLED 런타임 토글이 결정(라우트만 존재,
+// BE off 면 /v1/dev/autolabel-test 호출 시 차단). UI 노출은 추가로 REVIEWER 로 제한.
+const devUploadRoutes: Array<{ path: string; element: ReactNode }> = [];
+if (isDevUploadEnabled()) {
+  const DevAutolabelTestPage = lazy(() =>
+    import('@/pages/dev/DevAutolabelTestPage').then((m) => ({
+      default: m.DevAutolabelTestPage,
+    })),
+  );
+  devUploadRoutes.push({
+    path: 'dev/autolabel-test',
+    element: (
+      <InternalRoute allow={internalReviewerOnly}>
+        {withSuspense(<DevAutolabelTestPage />)}
+      </InternalRoute>
+    ),
+  });
+}
 
 export const router = createBrowserRouter([
   // 진입/공통 — Layout 없이 직접 매칭
@@ -412,15 +428,8 @@ export const router = createBrowserRouter([
           </InternalRoute>
         ),
       },
-      // [개발/검수 전용] 오토라벨 테스트 — REVIEWER 만 진입.
-      {
-        path: 'dev/autolabel-test',
-        element: (
-          <InternalRoute allow={internalReviewerOnly}>
-            {withSuspense(<DevAutolabelTestPage />)}
-          </InternalRoute>
-        ),
-      },
+      // [개발/검수 전용] 오토라벨 테스트 — REVIEWER 만 진입 (DEV_UPLOAD_ENABLED 토글로 빌드 포함 결정).
+      ...devUploadRoutes,
 
       { path: '*', element: <AppErrorPage status={404} /> },
     ],

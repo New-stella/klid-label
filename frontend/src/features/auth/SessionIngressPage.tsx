@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Spinner } from '@/components/common/Spinner';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { isDevLoginEnabled } from '@/lib/devLogin';
 
 import { detectChannel, redirectToUpstream } from './redirectToUpstream';
 import { resolveToken } from './tokenIngress';
@@ -31,12 +32,13 @@ export function SessionIngressPage() {
     if (ranRef.current) return;
     ranRef.current = true;
 
-    // 인증 실패 fallback: DEV 는 /dev/login, 운영은 upstream redirect → 실패 시 에러 메시지.
+    // 인증 실패 fallback: dev 로그인 노출 시 /dev/login, 운영은 upstream redirect → 실패 시 에러 메시지.
+    // (DEV 빌드 또는 VITE_DEV_LOGIN_ENABLED=true 폐쇄망 bring-up 빌드에서만 /dev/login 으로 보낸다.)
     const handleAuthFailure = (
       channel: ReturnType<typeof detectChannel>,
       message: string,
     ) => {
-      if (import.meta.env.DEV) {
+      if (isDevLoginEnabled()) {
         navigate('/dev/login', { replace: true });
         return;
       }

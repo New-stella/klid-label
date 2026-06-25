@@ -12,7 +12,7 @@ import kr.co.cudo.authoring.dev.dto.AutolabelTestRequest;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestResponse;
 import kr.co.cudo.authoring.dev.service.DevAutolabelTestService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,8 +24,8 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * [개발/검수 전용] 영상 파일 + 메타데이터 업로드 → 오토라벨 파이프라인 즉시 트리거 endpoint.
  *
- * <p>운영(prd) 환경에서는 {@code @Profile("!prd")} 로 빈 자체가 등록되지 않아 endpoint 가 부재한다.
- * 추가로 {@code @PreAuthorize("hasRole('REVIEWER')")} 로 권한 가드.
+ * <p>{@code authoring.dev.upload.enabled=true}(env {@code DEV_UPLOAD_ENABLED}) 일 때만 빈이 등록되어
+ * endpoint 가 노출된다 (기본 false, fail-closed). 추가로 {@code @PreAuthorize("hasRole('REVIEWER')")} 권한 가드.
  *
  * <p>다음 보안 가드를 두 레이어에서 이중 적용한다:
  * <ul>
@@ -34,11 +34,11 @@ import org.springframework.web.multipart.MultipartFile;
  * </ul>
  */
 @Tag(name = "dev-autolabel-test",
-        description = "[개발/검수 전용] 영상 업로드 + 오토라벨 파이프라인 트리거. ⚠ 운영(prd) 미노출.")
+        description = "[개발/검수 전용] 영상 업로드 + 오토라벨 파이프라인 트리거. ⚠ authoring.dev.upload.enabled=true 일 때만 노출 (기본 비활성).")
 @RestController
 @RequestMapping("/v1/dev/autolabel-test")
 @RequiredArgsConstructor
-@Profile("!prd")
+@ConditionalOnProperty(prefix = "authoring.dev.upload", name = "enabled", havingValue = "true")
 public class DevAutolabelTestController {
 
     private final DevAutolabelTestService devAutolabelTestService;

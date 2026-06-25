@@ -36,6 +36,12 @@ authoring:
   # 다른 통합테스트의 테이블 상태를 오염시키지 않도록 격리한다. DevSeedRunner 전용 테스트는
   # @TestPropertySource(authoring.dev.seed.enabled=true) 로 개별 활성화한다.
   dev:
+    # dev 로그인/업로드 토글 — 테스트(local)는 ON 유지(기존 @Profile("!prd") 동작과 동일).
+    #   DevTokenController/Service·DevAutolabelTest*·DevPipelineRunner 빈 등록 + /v1/dev/tokens permitAll.
+    login:
+      enabled: true
+    upload:
+      enabled: true
     seed:
       enabled: false
   control:

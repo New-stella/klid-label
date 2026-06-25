@@ -148,3 +148,24 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 - 기본: `config/frontend/Caddyfile.template` → 설치 시 `/opt/klid/web/Caddyfile`. `:80` SPA + `/api/*`→127.0.0.1:8080.
   폐쇄망이라 Caddy 자동 HTTPS 는 끔(`auto_https off`). 외부 노출 시 사내 TLS 종단을 앞단에.
 - 대안: `USE_NGINX=1` 설치 시 `config/frontend/nginx.conf.template`(proxy_pass 127.0.0.1:8080) 배치.
+
+---
+
+## G. 관제서버 미기동 브링업 (개발/임시)
+
+관제서버가 아직 안 떠 토큰 인입(JWT)·학습용 영상 적재가 불가능한 초기 브링업 단계에서, dev 토글로
+임시 로그인과 테스트 영상 업로드를 켜 파이프라인을 검증할 수 있다.
+
+> ⚠ **dev 로그인은 인증 없이 임의 role 토큰을 발급한다.** 운영 정상화 후 반드시 아래 세 토글을 모두
+> 미설정(OFF)으로 원복하고 backend 를 재기동한다. 온프렘 FE 번들은 dev 라우트를 dist 에 포함하되
+> 실제 게이팅은 BE 런타임 토글이 결정하므로(BE off 면 `/v1/dev/*` 404), env 원복만으로 차단된다.
+
+1. `/etc/klid/backend.env` 에 세 토글 설정 후 재기동:
+   ```
+   DEV_LOGIN_ENABLED=true
+   DEV_UPLOAD_ENABLED=true
+   SPRING_SERVLET_MULTIPART_ENABLED=true   # ★ 안 켜면 업로드 415/파싱불가
+   ```
+2. 브라우저에서 `/dev/login` 진입 → **REVIEWER** 토큰 발급.
+3. `/dev/autolabel-test` 에서 테스트 영상 업로드 → 파이프라인(선두 비식별 → 마킹대기) 진행 확인.
+4. **운영 정상화 후**: 위 세 토글을 backend.env 에서 미설정(삭제/주석)하고 재기동 → dev 경로 차단.

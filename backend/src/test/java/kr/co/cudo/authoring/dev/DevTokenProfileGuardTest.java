@@ -17,10 +17,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * 개발/검수 전용 토큰 발급 빈은 운영(prd) 프로파일에서 미등록 — endpoint 자체가 부재하여 404 처리됨.
+ * 개발/검수 전용 토큰 발급 빈은 {@code authoring.dev.login.enabled} 프로퍼티로만 게이팅된다.
+ *
+ * <p>기존 {@code @Profile("!prd")} → {@code @ConditionalOnProperty} 전환.
+ * 관제서버 미기동 폐쇄망 bring-up 을 위해 prd 에서도 env({@code DEV_LOGIN_ENABLED=true}) 로
+ * 켤 수 있어야 한다. 단 <b>기본값은 false(fail-closed)</b> 라 미설정 시 prd 든 dev 든 빈 부재.
  *
  * <p>{@link ApplicationContextRunner} 로 슬림 컨텍스트만 띄워 빈 등록 여부를 검증한다.
- * 운영 환경 yml(DB/외부 API ENV 변수 다수 필요)을 우회하기 위함.
  */
 class DevTokenProfileGuardTest {
 
@@ -31,17 +34,33 @@ class DevTokenProfileGuardTest {
         return io.jsonwebtoken.security.Keys.hmacShaKeyFor(material.getBytes(StandardCharsets.UTF_8));
     }
 
-    @Test
-    @DisplayName("prd_프로파일에서는_DevTokenController_DevTokenService_빈_미등록")
-    void devTokenBeansAbsentWhenPrd() {
+    private ApplicationContextRunner runner() {
         SecretKey key = newRandomKey();
-        new ApplicationContextRunner()
+        return new ApplicationContextRunner()
                 .withUserConfiguration(DevTokenController.class, DevTokenService.class)
-                .withBean(JwtKeyResolver.class, () -> () -> key)
+                .withBean(JwtKeyResolver.class, () -> (JwtKeyResolver) () -> key)
                 .withBean(UserRepository.class, () -> mock(UserRepository.class))
+                .withPropertyValues("authoring.jwt.allowed-issuers=klid-auth");
+    }
+
+    @Test
+    @DisplayName("dev_login_enabled_미설정이면_DevToken_빈_미등록_failClosed")
+    void devTokenBeansAbsentWhenPropertyMissing() {
+        runner()
+                .withPropertyValues("spring.profiles.active=prd")
+                .run(ctx -> {
+                    assertThat(ctx).doesNotHaveBean(DevTokenController.class);
+                    assertThat(ctx).doesNotHaveBean(DevTokenService.class);
+                });
+    }
+
+    @Test
+    @DisplayName("dev_login_enabled_false면_DevToken_빈_미등록")
+    void devTokenBeansAbsentWhenFalse() {
+        runner()
                 .withPropertyValues(
-                        "spring.profiles.active=prd",
-                        "authoring.jwt.allowed-issuers=klid-auth"
+                        "spring.profiles.active=dev",
+                        "authoring.dev.login.enabled=false"
                 )
                 .run(ctx -> {
                     assertThat(ctx).doesNotHaveBean(DevTokenController.class);
@@ -50,52 +69,26 @@ class DevTokenProfileGuardTest {
     }
 
     @Test
-    @DisplayName("local_프로파일에서는_DevTokenController_DevTokenService_빈_등록")
-    void devTokenBeansPresentWhenLocal() {
-        SecretKey key = newRandomKey();
-        new ApplicationContextRunner()
-                .withUserConfiguration(DevTokenController.class, DevTokenService.class)
-                .withBean(JwtKeyResolver.class, () -> () -> key)
-                .withBean(UserRepository.class, () -> mock(UserRepository.class))
+    @DisplayName("dev_login_enabled_true면_prd_프로파일에서도_DevToken_빈_등록")
+    void devTokenBeansPresentWhenEnabledEvenInPrd() {
+        runner()
+                .withPropertyValues(
+                        "spring.profiles.active=prd",
+                        "authoring.dev.login.enabled=true"
+                )
+                .run(ctx -> {
+                    assertThat(ctx).hasSingleBean(DevTokenController.class);
+                    assertThat(ctx).hasSingleBean(DevTokenService.class);
+                });
+    }
+
+    @Test
+    @DisplayName("dev_login_enabled_true면_local_프로파일에서도_DevToken_빈_등록")
+    void devTokenBeansPresentWhenEnabledInLocal() {
+        runner()
                 .withPropertyValues(
                         "spring.profiles.active=local",
-                        "authoring.jwt.allowed-issuers=klid-auth"
-                )
-                .run(ctx -> {
-                    assertThat(ctx).hasSingleBean(DevTokenController.class);
-                    assertThat(ctx).hasSingleBean(DevTokenService.class);
-                });
-    }
-
-    @Test
-    @DisplayName("dev_프로파일에서도_빈_등록_운영만_차단")
-    void devTokenBeansPresentWhenDev() {
-        SecretKey key = newRandomKey();
-        new ApplicationContextRunner()
-                .withUserConfiguration(DevTokenController.class, DevTokenService.class)
-                .withBean(JwtKeyResolver.class, () -> () -> key)
-                .withBean(UserRepository.class, () -> mock(UserRepository.class))
-                .withPropertyValues(
-                        "spring.profiles.active=dev",
-                        "authoring.jwt.allowed-issuers=klid-auth"
-                )
-                .run(ctx -> {
-                    assertThat(ctx).hasSingleBean(DevTokenController.class);
-                    assertThat(ctx).hasSingleBean(DevTokenService.class);
-                });
-    }
-
-    @Test
-    @DisplayName("stg_프로파일에서도_빈_등록_운영만_차단")
-    void devTokenBeansPresentWhenStg() {
-        SecretKey key = newRandomKey();
-        new ApplicationContextRunner()
-                .withUserConfiguration(DevTokenController.class, DevTokenService.class)
-                .withBean(JwtKeyResolver.class, () -> () -> key)
-                .withBean(UserRepository.class, () -> mock(UserRepository.class))
-                .withPropertyValues(
-                        "spring.profiles.active=stg",
-                        "authoring.jwt.allowed-issuers=klid-auth"
+                        "authoring.dev.login.enabled=true"
                 )
                 .run(ctx -> {
                     assertThat(ctx).hasSingleBean(DevTokenController.class);

@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.probe.FFmpegProbeResult;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -33,7 +33,7 @@ import java.util.UUID;
 /**
  * [개발/검수 전용] 영상 업로드 + 오토라벨 파이프라인 트리거 서비스.
  *
- * <p>운영(prd) 환경에서는 {@code @Profile("!prd")} 로 빈 자체가 등록되지 않는다.
+ * <p>{@code authoring.dev.upload.enabled=true} 일 때만 빈이 등록된다 (기본 false, fail-closed).
  *
  * <p>보안:
  * <ul>
@@ -52,7 +52,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@Profile("!prd")
+@ConditionalOnProperty(prefix = "authoring.dev.upload", name = "enabled", havingValue = "true")
 public class DevAutolabelTestService {
 
     /** CWE-434 영상 확장자 allowlist (소문자 비교). */

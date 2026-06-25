@@ -10,6 +10,20 @@ spring:
       username: ${PORTAL_DB_USERNAME}
       password: ${PORTAL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
+  # dev 업로드(/v1/dev/autolabel-test) multipart 파싱 활성화 — 공통 yml 의 false(TUS 호환) override.
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 500MB
+      max-request-size: 500MB
+
+# [개발/검수 전용] dev 로그인/업로드 토글 — stg 는 항상 ON(기존 @Profile("!prd") 동작 유지).
+authoring:
+  dev:
+    login:
+      enabled: true
+    upload:
+      enabled: true
 
 logging:
   level:

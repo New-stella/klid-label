@@ -12,7 +12,7 @@ import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -25,7 +25,7 @@ import java.util.Optional;
 /**
  * [개발/검수 전용] 테스트 JWT 발급 서비스.
  *
- * <p>운영(prd) 환경에서는 {@code @Profile("!prd")} 로 빈 자체가 등록되지 않는다.
+ * <p>{@code authoring.dev.login.enabled=true} 일 때만 빈이 등록된다 (기본 false, fail-closed).
  *
  * <p>보안:
  * <ul>
@@ -38,7 +38,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
-@Profile("!prd")
+@ConditionalOnProperty(prefix = "authoring.dev.login", name = "enabled", havingValue = "true")
 public class DevTokenService {
 
     private static final int DEFAULT_EXP_SECONDS = 3600;

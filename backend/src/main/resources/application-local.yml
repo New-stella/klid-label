@@ -68,6 +68,11 @@ authoring:
   # [개발/검수 전용] /v1/dev/autolabel-test 업로드 한도 (bytes) — 500MB 기본.
   #   서비스 레이어에서 multipart 한도와 별개로 이중 가드. (authoring.dev.* — kpst 오배치 동반 교정)
   dev:
+    # [개발/검수 전용] dev 로그인/업로드 토글 — local 은 항상 ON(기존 @Profile("!prd") 와 동일 동작 유지).
+    login:
+      enabled: true
+    upload:
+      enabled: true
     autolabel-test:
       max-file-size: ${AUTHORING_DEV_AUTOLABEL_TEST_MAX_FILE_SIZE:524288000}
     # [로컬 전용] dev-seed.sql(db/seed) 자동 적재 — bootRun(local) 시 별도 psql 수동 실행 불필요.
