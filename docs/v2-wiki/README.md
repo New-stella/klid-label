@@ -37,6 +37,7 @@
 | 20 | [게시판 (공지·가이드라인)](20-notice-board.md) | 공지 CRUD, DRAFT/발행, 고정, 첨부, 권한 — R1 외 추가 |
 | 21 | [이슈 소통 채널](21-issue-channel.md) | 검수자↔작업자 문의 스레드, 상태 머신, 반려 통합 — R1 외 추가 |
 | 22 | [비식별화 솔루션 API 연동 명세](22-deid-solution-api.md) | KPST 외부 API 13종 명세 전사(v1.0), 폴링 모델, 코드·상태 정의 |
+| 23 | [v1→v2 DB 이관 분석 (영상·라벨)](23-v1-v2-db-migration.md) | MariaDB(klid)→PostgreSQL(klid_system_246) **영상 목록+라벨 결과** 실DB 검증 매핑, POINT 좌표 포맷 변환, ID 재연결, 결정 필요 GAP 3종 |
 
 ---
 
@@ -63,6 +64,7 @@
 | 외부 시스템 연동 / 보안 / CVAT 포팅 | [19](19-external-security-cvat.md) |
 | 게시판 (공지/가이드라인, 첨부) | [20](20-notice-board.md) |
 | 이슈 소통 (문의/답변/해소, 반려 스레드) | [21](21-issue-channel.md) |
+| v1(MariaDB)→v2(PostgreSQL) DB 이관 분석 | [23](23-v1-v2-db-migration.md) |
 
 ### 화면 ID(`KLID-AT-SC-*`) → 페이지
 
