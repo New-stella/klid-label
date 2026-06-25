@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Set;
 
 /**
  * KPST 비식별 솔루션 폴링 오케스트레이션 서비스 (Phase 3 / UC018).
@@ -57,8 +58,20 @@ import java.util.List;
 @ConditionalOnProperty(prefix = "kpst.deid", name = "enabled", havingValue = "true")
 public class KpstDeidentService {
 
-    /** KPST 데이터셋 처리 완료 상태 코드 (§22.4). */
+    /** KPST 데이터셋 처리 완료 상태 코드 (실서버 빌드 기준 — §22.4 위키 "완료=2"). */
     public static final int PROC_STATE_COMPLETED = 2;
+
+    /**
+     * KPST 데이터셋 터미널-실패 상태 코드 집합 — 이 상태면 타임아웃을 기다리지 않고 즉시 'F' 종결.
+     *
+     * <ul>
+     *   <li>{@code 99} — 2026-06-25 실서버 KPST 라이브 테스트에서 마스킹 실패 잡이 모두
+     *       {@code procState:99, progressRate:0.0} 으로 반환된 실측 확인 에러 sentinel(문서표 0~6 밖).</li>
+     *   <li>{@code 4, 5, 6} — PDF §2.5.2 표 기준 실행중지/오류/정지(실측 미확인).</li>
+     * </ul>
+     * <p>{@code 0/1/3} 및 그 외 미지 코드는 진행중(타임아웃 바운드)으로 유지한다(완료=2 만 완료).
+     */
+    static final Set<Integer> PROC_STATE_TERMINAL_FAILED = Set.of(4, 5, 6, 99);
     /** 비식별 다운로드 결과 파일명. */
     private static final String DEID_FILE_NAME = "deidentified.mp4";
 
@@ -194,6 +207,19 @@ public class KpstDeidentService {
             return;
         }
         Long datasetId = procLog.getKpstDatasetId() != null ? procLog.getKpstDatasetId() : ds.dsId();
+        // 터미널-실패 우선 판정(완료보다 앞) — 다중 데이터셋이면 하나라도 실패면 즉시 'F' 종결.
+        // 에러 sentinel(99 실측)·정지(4/5/6 문서표)를 진행중으로 보지 않아 타임아웃(180분) 대기를 끊는다.
+        if (anyDatasetFailed(progress)) {
+            // REDEIDENT 는 락 해제 포함 종결(영구잠금 방지), 기존 배치는 failPolling 으로 'F' + 락 해제.
+            if (procLog.isRedeident()) {
+                txService.failRedeidentCompletion(procLogSn, rawSn, "PROC_STATE_FAILED");
+                log.warn("[KpstDeid] poll terminal-failed (redeident) rawSn={} prjId={}", rawSn, prjId);
+            } else {
+                txService.failPolling(procLogSn, rawSn);
+                log.warn("[KpstDeid] poll terminal-failed rawSn={} prjId={}", rawSn, prjId);
+            }
+            return;
+        }
         // M-3: 다중 데이터셋이면 전체 완료(AND)여야 완료로 판정 — 부분완료 오판 방지.
         if (allDatasetsCompleted(progress)) {
             if (datasetId == null) {
@@ -297,6 +323,25 @@ public class KpstDeidentService {
             return null;
         }
         return prj.dsStatus().get(0);
+    }
+
+    /**
+     * 프로젝트의 데이터셋 중 하나라도 터미널-실패({@link #PROC_STATE_TERMINAL_FAILED})인지.
+     *
+     * <p>완료(AND) 판정보다 먼저 호출되어 "하나라도 실패 → 실패" 가 우선한다(다중 데이터셋 안전).
+     * procState 가 null(미시작)이면 실패가 아니며, 데이터셋이 비어있으면 실패 아님(진행중 흐름 유지).
+     */
+    private boolean anyDatasetFailed(KpstProgressResponse progress) {
+        if (progress == null || progress.data() == null
+                || progress.data().prjStatus() == null || progress.data().prjStatus().isEmpty()) {
+            return false;
+        }
+        KpstProgressResponse.PrjStatus prj = progress.data().prjStatus().get(0);
+        if (prj.dsStatus() == null || prj.dsStatus().isEmpty()) {
+            return false;
+        }
+        return prj.dsStatus().stream()
+                .anyMatch(d -> d.procState() != null && PROC_STATE_TERMINAL_FAILED.contains(d.procState()));
     }
 
     /**

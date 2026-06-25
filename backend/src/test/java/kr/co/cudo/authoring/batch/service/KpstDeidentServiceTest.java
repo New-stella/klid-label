@@ -249,6 +249,128 @@ class KpstDeidentServiceTest {
                 eq(9001L), eq(1L), eq(202L), eq(saved.toString()));
     }
 
+    // ────────────────────────── 폴링 터미널-실패 fast-fail ──────────────────────────
+
+    @Test
+    @DisplayName("procState99_에러sentinel이면_타임아웃대기없이_즉시_failPolling으로_F처리한다")
+    void pollProcState99FastFailsImmediately() {
+        // given — 실측 확인된 에러 sentinel 99 (progressRate 0, totalFrame 정상)
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(99, 202L));
+
+        // when
+        service.pollOne(procLog);
+
+        // then — 타임아웃 카운터를 기다리지 않고 즉시 종결. download/완료 금지.
+        verify(kpstClient, never()).download(any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService).failPolling(eq(1L), eq(9001L));
+        verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong());
+        verify(txService, never()).recordPollingProgress(any(), any());
+    }
+
+    @Test
+    @DisplayName("procState5_정지상태면_즉시_failPolling으로_F처리한다")
+    void pollProcState5FastFailsImmediately() {
+        // given — PDF §2.5.2 표상 정지(실측 미확인) 5
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(5, 202L));
+
+        // when
+        service.pollOne(procLog);
+
+        // then
+        verify(txService).failPolling(eq(1L), eq(9001L));
+        verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    @DisplayName("procState4_실행중지상태면_즉시_failPolling으로_F처리한다")
+    void pollProcState4FastFailsImmediately() {
+        // given — PDF §2.5.2 표상 실행중지(실측 미확인) 4
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(4, 202L));
+
+        // when
+        service.pollOne(procLog);
+
+        // then — 타임아웃 대기 없이 즉시 종결. download/완료/시도증가 금지.
+        verify(kpstClient, never()).download(any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService).failPolling(eq(1L), eq(9001L));
+        verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong());
+        verify(txService, never()).recordPollingProgress(any(), any());
+    }
+
+    @Test
+    @DisplayName("procState6_실행정지상태면_즉시_failPolling으로_F처리한다")
+    void pollProcState6FastFailsImmediately() {
+        // given — PDF §2.5.2 표상 실행정지(실측 미확인) 6
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(6, 202L));
+
+        // when
+        service.pollOne(procLog);
+
+        // then — 타임아웃 대기 없이 즉시 종결. download/완료/시도증가 금지.
+        verify(kpstClient, never()).download(any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService).failPolling(eq(1L), eq(9001L));
+        verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong());
+        verify(txService, never()).recordPollingProgress(any(), any());
+    }
+
+    @Test
+    @DisplayName("다중데이터셋_2와99가_섞이면_완료로_오판하지않고_즉시_F처리한다")
+    void pollMultiDatasetWithFailureFastFails() {
+        // given — ds[0]=완료(2), ds[1]=실패(99). 하나라도 실패면 실패가 우선.
+        LsDeidentProcLog procLog = submittedProcLog();
+        KpstProgressResponse.DsStatus done = new KpstProgressResponse.DsStatus(
+                202L, "a.mp4", 2, 100.0, 5400, "t0", "t1");
+        KpstProgressResponse.DsStatus failed = new KpstProgressResponse.DsStatus(
+                203L, "b.mp4", 99, 0.0, 5400, "t0", "t1");
+        KpstProgressResponse.PrjStatus prj = new KpstProgressResponse.PrjStatus(
+                101L, "raw9001", 50.0, 2, List.of(done, failed));
+        KpstProgressResponse progress = new KpstProgressResponse("success",
+                new KpstProgressResponse.Data(1, List.of(prj)));
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L))).thenReturn(progress);
+
+        // when
+        service.pollOne(procLog);
+
+        // then — 완료 오판 금지, 즉시 F.
+        verify(kpstClient, never()).download(any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService).failPolling(eq(1L), eq(9001L));
+    }
+
+    @Test
+    @DisplayName("REDEIDENT경로의_터미널실패는_락해제포함_failRedeidentCompletion으로_종결한다")
+    void pollRedeidentTerminalFailReleasesLock() {
+        // given — REDEIDENT procLog 가 procState 99 → 락 영구잠금 방지 위해 failRedeidentCompletion 종결
+        LsDeidentProcLog procLog = submittedProcLog();
+        procLog.markRedeident();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(99, 202L));
+
+        // when
+        service.pollOne(procLog);
+
+        // then — 락 해제 포함 종결(failRedeidentCompletion), failPolling 미사용.
+        verify(txService).failRedeidentCompletion(eq(1L), eq(9001L), any());
+        verify(txService, never()).failPolling(any(), any());
+        verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong());
+    }
+
     // ────────────────────────── 폴링 진행중 ──────────────────────────
 
     @Test
