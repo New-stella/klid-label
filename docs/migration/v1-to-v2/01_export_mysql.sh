@@ -25,12 +25,34 @@ run "SELECT DATA_SRC_SN, DATA_RAW_SN, FRM_NO, SRC_FILE_PATH, SRC_BKUP_FILE_PATH,
      FROM LS_DATA_SRC" > "$OUT/src.tsv"
 
 echo "[export] LS_DATA_LBL -> $OUT/lbl.tsv"
-run "SELECT DATA_LBL_SN, DATA_RAW_SN, DATA_SRC_SN, LBL_SN, TRCK_ID, POINT, REG_DT, MDFCN_DT
+# REG_ID = 라벨 작성자(작업자) — 영상별 LABELER 배정 도출용(확장 스코프 B)
+run "SELECT DATA_LBL_SN, DATA_RAW_SN, DATA_SRC_SN, LBL_SN, TRCK_ID, POINT, REG_DT, MDFCN_DT, REG_ID
      FROM LS_DATA_LBL" > "$OUT/lbl.tsv"
 
 echo "[export] LS_PJT_LBL -> $OUT/pjt_lbl.tsv"
 run "SELECT LBL_SN, LBL_ID, PRC_TYPE_CD, LBL_NM, LBL_COLR, SORT_SEQ
      FROM LS_PJT_LBL" > "$OUT/pjt_lbl.tsv"
 
+# ---------------------------------------------------------------------
+# 확장 스코프(프로젝트→영상 단위): 검수/완료 상태 · 이슈 · 증강(레거시)
+#   배정(B)은 별도 테이블 export 불필요 — 위 lbl.tsv 의 REG_ID(작성자)에서 도출.
+# ---------------------------------------------------------------------
+echo "[export] LS_PJT_DATA_STTS -> $OUT/stts.tsv"
+# (PJT_SN,DATA_RAW_SN) 단위 작업/검수 상태 → 02 에서 PJT 제거 후 영상 단위로 수렴(상태 우선순위)
+run "SELECT PJT_SN, DATA_RAW_SN, PJT_DATA_STTS_CD, STP_CYCL, IGI_CYCL, REG_DT, MDFCN_DT
+     FROM LS_PJT_DATA_STTS" > "$OUT/stts.tsv"
+
+echo "[export] LS_DATA_ISSUE -> $OUT/issue.tsv"
+run "SELECT DATA_ISSUE_SN, UP_DATA_ISSUE_SN, DATA_RAW_SN, DATA_SRC_SN, ISSUE_TYPE_CD,
+            ISSUE_DTL_CD, RJCT_DTL_CD, ISSUE_CN, USE_YN, REG_ID, REG_DT
+     FROM LS_DATA_ISSUE" > "$OUT/issue.tsv"
+
+echo "[export] LS_DATA_AUG -> $OUT/aug.tsv"
+# v1 내부 증강(BRIGHT/DARK/LR…) — v2 외부 생성형(WINTER/NIGHT/RAIN)과 의미 상이 → 레거시 적재(GAP④)
+run "SELECT DATA_AUG_SN, DATA_RAW_SN, DATA_SRC_SN, PJT_AUG_OPT_CD, AUG_PROC_STTS_CD,
+            AUG_FILE_PATH, REG_ID, REG_DT
+     FROM LS_DATA_AUG" > "$OUT/aug.tsv"
+
 echo "[export] done. files (헤더 없음, \\copy FORMAT text 로 바로 적재):"
-wc -l "$OUT"/raw.tsv "$OUT"/src.tsv "$OUT"/lbl.tsv "$OUT"/pjt_lbl.tsv
+wc -l "$OUT"/raw.tsv "$OUT"/src.tsv "$OUT"/lbl.tsv "$OUT"/pjt_lbl.tsv \
+      "$OUT"/stts.tsv "$OUT"/issue.tsv "$OUT"/aug.tsv

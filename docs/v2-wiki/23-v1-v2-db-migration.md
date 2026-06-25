@@ -1,6 +1,6 @@
-# v1(MariaDB) → v2(PostgreSQL) 이관 분석 — 영상 목록 + 라벨링 결과
+# v1(MariaDB) → v2(PostgreSQL) 이관 분석 — 프로젝트 단위 → 영상 단위
 
-> **범위(확정)**: 전체 데이터 이관이 아니라 **① 영상 목록 ② 라벨링 결과** 두 가지만 받는다. 나머지(프로젝트·사용자·검수·증강·통계·게시판 등)는 이관 대상 아님.
+> **범위(확정·2026-06-25 확장)**: **① 영상 목록 ② 라벨링 결과**(핵심, §1~5) + **③ 검수/완료 상태 ④ 작업자 배정 ⑤ 이슈 ⑥ 증강(레거시)**(확장 스코프, §6). 모두 v1 **프로젝트 단위 → v2 영상(RAW_SN) 단위로 collapse** 한다. 제외: 프로젝트 메타 자체·사용자 계정(공용 MNG)·통계·게시판·라벨 이력(168만)·시계열 메타(v1 0건).
 > **데이터 출처(실DB 검증)**: v1 = `nt sql klid` → MySQL `192.168.102.102:13307/klid_system`, v2 = `nt sql klid_system_246` → PostgreSQL `192.168.102.246:15432/klid_system`(스키마 `public`). 본 문서의 컬럼·건수·JSON 포맷은 **2026-06-25 실DB 조회로 확정**.
 > 구조 정본은 `backend/.../db/migration/V*.sql`(v2) — 충돌 시 코드 우선.
 
@@ -186,6 +186,108 @@ v1과 v2의 좌표 JSON 표현이 **서로 다르다**(실측 확인). 단순 �
 
 ---
 
+## 6. 확장 스코프 — 프로젝트 단위 → 영상 단위 collapse (2026-06-25 확정)
+
+### 6-0. v1 프로젝트 구조와 collapse 원리
+
+v1 은 **프로젝트(`LS_PJT`, 8개)** 를 작업 관리 단위로 썼다. 영상은 `LS_PJT_DATA_MPNG(AUTHRT_SN,PJT_SN,DATA_RAW_SN)` 로 프로젝트에 매핑되고, 상태·배정·이슈·증강이 모두 `PJT_SN` 을 키에 포함한다. v2 는 **프로젝트 개념을 폐지**(V34 `drop_pjt_id_columns`, V35 `drop_ls_pjt`)하고 **영상(`RAW_SN`) 단위**로 작업한다.
+
+**collapse 가 거의 무손실인 이유(실측):**
+
+| 사실 | 수치 | 함의 |
+|------|------|------|
+| 영상↔프로젝트 매핑(`LS_PJT_DATA_MPNG`) | 1,534 영상=1 PJT, **3 영상만 2 PJT** | 데이터 차원에서 프로젝트 중복은 극소 |
+| 라벨/프레임은 이미 `DATA_RAW_SN` 직접 보유 | — | **`PJT_SN` 만 버리면 영상 단위 평탄화 완료** |
+| 상태(`LS_PJT_DATA_STTS`)의 cross-PJT 충돌 | 5 영상(예: raw 1 = `DONE`∧`FAIL`) | **상태 우선순위 규칙**으로만 해소 |
+| 프로젝트 미매핑 영상 | **471** (aigen 업로드/미배정) | 상태·배정 없는 영상 = 데이터마트 미노출(정상) |
+
+> 핵심 위험은 차원 축소 자체가 아니라 **상태 충돌 해소**와 **배정 차원의 부재**(아래 6-B)다.
+
+### 6-A. 검수/완료 상태 — `LS_PJT_DATA_STTS` → `ls_raw_data_status`
+
+| v1 (pjt,raw) | v2 (raw) | 변환 |
+|------|------|------|
+| `DATA_RAW_SN` | `raw_data_id`(=raw_sn) | 영상 대응표 |
+| `PJT_DATA_STTS_CD` | `data_stts_cd`(32) | **상태 매핑(아래)** |
+| `STP_CYCL`/`IGI_CYCL` | `stp_cycl`/`igi_cycl` | 직접(NULL→0) |
+| `MDFCN_DT`/`REG_DT` | `upd_dt` | COALESCE |
+| (없음) | `ver` | 1 |
+| `PJT_SN` | (없음) | **버림(collapse)** |
+
+**상태코드 매핑 + cross-PJT 우선순위**(가장 진행된 상태 채택):
+
+| v1 `PJT_DATA_STTS_CD` | v2 `data_stts_cd` | rank | v1 실측 건수(영상) |
+|------|------|:--:|--:|
+| `DONE`(최종완료)·`REVIEW`(검수완료) | **`APPROVED`** | 6 | 1,811 |
+| `PROCESS`(가공완료) | `IN_REVIEW` | 5 | 0 |
+| `ASSIGN`(배정완료) | `ASSIGNED` | 4 | 6 |
+| `REJECT`(검수반려) | `REJECTED` | 3 | 1 |
+| `WAIT`/`PENDING`/`PROC` | `PENDING` | 2 | 0 |
+| `FAIL`(변환오류) | `FAILED` | 1 | 1 |
+
+> 예: raw 1 은 PJT별 `DONE`+`FAIL` → rank 6(APPROVED) 채택. **이 적재가 데이터마트 노출을 만든다** — `V_COMPLETED_*` View 는 `LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'` 만 노출(V52 확인). 별도 일괄 APPROVED 처리 불필요(실제 상태 보존, 사용자 결정).
+
+### 6-B. 작업자 배정 — 라벨 작성자에서 도출 (⚠ 차원 부재)
+
+**문제**: v1 에는 **영상별 배정 테이블이 없다.** `LS_PJT_USER_AUTHRT` 는 *프로젝트 멤버십*(누가 이 프로젝트에 참여 가능한가)이지 *영상별 담당*이 아니다. 이를 영상으로 naive 확장하면 `프로젝트 멤버 × 프로젝트 영상` = **WORKER 34,039 + REVIEWER 31,766 ≈ 67K행 오배정**(영상마다 멤버 전원이 배정됨).
+
+**결정(사용자 확정)**: 실제 라벨을 만든 사람 = `LS_DATA_LBL.REG_ID` 를 그 영상의 `LABELER` 로 배정한다(영상별 ≈1인, 정확).
+
+| v1 | v2 `ls_task_assignment` | 변환 |
+|------|------|------|
+| `LS_DATA_LBL.REG_ID`(영상별 distinct) | `user_no` | `REG_ID`(varchar) → `mng_acct_user.user_id` → `user_no`(bigint) |
+| `LS_DATA_LBL.DATA_RAW_SN` | `raw_data_id` | 영상 대응표 |
+| — | `task_type_cd` | 고정 `'LABELER'` |
+| min(`REG_DT`) | `reg_dt` | 영상별 최초 작성시각 |
+| (자기) | `reg_user_no` | 이관 시 자기 배정으로 기록 |
+
+- **user 식별 GAP**: v1 `MNG_ACCT_USER.USER_ID` 는 varchar(`label1`,`reviewer01`…)이고 **숫자 id 없음**. v2 `mng_acct_user` 는 `user_no`(bigint) + `user_id`(varchar) 둘 다 보유 → `user_id` 조인으로 해소. 미등록 작성자는 **soft skip**(배정만 누락, 상태·라벨은 정상) + NOTICE 보고.
+- 검수자(REVIEWER) 배정은 v1 에 영상별 근거가 없어 **이관하지 않음**(운영 재배정). 라벨 작성자 22명/1,814 영상 기준.
+
+### 6-C. 증강 — `LS_DATA_AUG` → `ls_data_aug` (레거시·GAP④)
+
+**GAP④ — 의미 불일치**: v1 증강은 **내부 영상처리**(`PJT_AUG_OPT_CD`: `BRIGHT`/`DARK`/`LR`/`LR_BRIGHT`/`LR_DARK` = 밝기·좌우반전, 프레임 이미지 변형). v2 증강은 **외부 생성형 3종**(`aug_type_cd`: `WINTER`/`NIGHT`/`RAIN`, 외부 job)이다. **대응 코드가 없다.**
+
+| v1 (pjt,raw,src) | v2 `ls_data_aug` | 변환 |
+|------|------|------|
+| `DATA_SRC_SN` | `src_sn` | 프레임 대응표(매칭분만) |
+| `PJT_AUG_OPT_CD` | `aug_type_cd`(20) | **타입코드 보존**(BRIGHT/DARK/LR…) — v2 앱 미인식 가능 |
+| `AUG_PROC_STTS_CD` | `aug_proc_stts_cd` | 직접(SUCCESS/PENDING/FAIL) |
+| `AUG_FILE_PATH` | **(컬럼 부재)** | ⚠ **손실** — 증강 발생 사실만 보존 |
+| `PJT_SN`,`DATA_RAW_SN` | (없음) | 버림(src→frame→raw 도출) |
+
+> **결정(사용자 확정)**: 레거시로 적재(이력 보존). 215행. v2 외부 증강 모델과 의미가 다르고 파일경로가 손실되므로 **참고용 이력**으로 본다.
+
+### 6-D. 이슈 — `LS_DATA_ISSUE` → `ls_data_issue` + `ls_issue_comment`
+
+v1 이슈는 (pjt,raw,src) + 스레드(`UP_DATA_ISSUE_SN`). v2 는 **루트 이슈(`ls_data_issue`)와 답글(`ls_issue_comment`)을 분리**.
+
+| v1 | v2 | 변환 |
+|------|------|------|
+| `DATA_ISSUE_SN`(루트, UP IS NULL) | `ls_data_issue.data_issue_sn` | 오프셋 |
+| `DATA_ISSUE_SN`(답글, UP NOT NULL) | `ls_issue_comment` | `data_issue_sn`=부모(`UP_*`)+offset |
+| `DATA_RAW_SN`/`DATA_SRC_SN` | `data_raw_sn`/`src_sn`(nullable) | 대응표(프레임 미매칭 시 NULL) |
+| `ISSUE_TYPE_CD`(REJECT/ISSUE) | `issue_type_cd` | 직접 |
+| `USE_YN` | `issue_stts_cd` | 유도: Y→`OPEN`, N→`RESOLVED` |
+| `ISSUE_CN`(+`RJCT_DTL_CD`+`ISSUE_DTL_CD`) | `issue_rsn`(1000) | 상세코드는 본문에 접미(v2 상세컬럼 부재) |
+| `REG_ID` | `reported_user_no`/`author_no`(varchar50) | 직접 |
+| (없음) | `author_role_cd`(답글) | 기본 `'WORKER'`(v1 미보유) |
+| `PJT_SN` | (없음) | 버림 |
+
+### 6-E. 확장 스코프 한눈 + 잔여 GAP
+
+| 도메인 | v1 → v2 | 행수 | collapse 방식 | 잔여 GAP |
+|------|------|--:|------|------|
+| A 상태 | `LS_PJT_DATA_STTS`→`ls_raw_data_status` | 1,823 | (pjt,raw)→raw, 상태 우선순위 | cross-PJT 충돌 5건 우선순위로 해소 |
+| B 배정 | `LS_DATA_LBL.REG_ID`→`ls_task_assignment` | ≈1,814 | 라벨 작성자=LABELER | user_id 미등록 soft skip / REVIEWER 미이관 |
+| C 증강 | `LS_DATA_AUG`→`ls_data_aug` | 215 | src 대응표 | ④ 타입 의미 불일치 + 파일경로 손실 |
+| D 이슈 | `LS_DATA_ISSUE`→`ls_data_issue`+`ls_issue_comment` | 135 | 루트/답글 분리 | 상세코드 본문 접미, 역할 기본값 |
+
+> **구현**: `docs/migration/v1-to-v2/{01_export_mysql.sh,02_load_transform.sql,03_verify.sql}` §7~§10(02) + [8]~[13](03)에 반영. 단일 트랜잭션·멱등(오프셋 PK)·검증 게이트 동일 정책.
+
+---
+
 ## 관련 문서
 - [18 데이터베이스](18-database.md) — v2 테이블·View 상세
 - [v1-wiki 15 데이터베이스](../v1-wiki/15-database.md) — v1 설계서 기준(실DB와 일부 상이, 본 문서가 실측 정정)
+- [migration runbook](../migration/v1-to-v2/README.md) — 폐쇄망 실행 절차(export→반입→적재→검증)

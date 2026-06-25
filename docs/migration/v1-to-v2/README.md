@@ -19,13 +19,23 @@
 
 ---
 
-## 1. 사전 결정 사항 (분석 문서 §3에서 확정)
+## 1. 사전 결정 사항 (분석 문서 §3·§6에서 확정)
 
+### 핵심 데이터 (영상·프레임·라벨)
 - **GAP① vms_clip_id**: `LEGACY-{DATA_RAW_SN}` 합성키(주 경로). `vms_cctv_id` 미채움은 `UNKNOWN`. (관제 클립 조인은 0.3%뿐이라 미적용)
 - **GAP② 라벨 클래스**: 의미 매핑 + v2에 없는 클래스 자동 신규 추가, **타입(BBOX/POLYGON) v1 유지**. 라벨 손실 0.
 - **GAP③ 영상 메타**: 코덱·해상도·FPS·GPS 등 **이관 안 함**(공용 MNG가 진실원).
 - **좌표 변환**: v1 BBOX `{x,y,width,height}` → v2 `[[x,y],[x+w,y+h]]`, v1 POLYGON `[{x,y},…]` → v2 `[[x,y],…]`.
 - **ID 매핑**: 영상·라벨은 오프셋(`+offset`), 프레임·라벨클래스는 **명시 대응표**(프레임은 (영상,프레임) 중복 dedup, 클래스는 이름+타입 dedup).
+
+### 확장 스코프 — 프로젝트 단위 → 영상 단위 (§6에서 확정)
+> v1 은 **프로젝트(`LS_PJT`) 단위로 파일·작업을 관리**(영상↔프로젝트 = `LS_PJT_DATA_MPNG`, 상태·배정도 프로젝트 종속)했다. v2 는 **영상(`RAW_SN`) 단위**(프로젝트 개념 폐지 — V34/V35 에서 `LS_PJT` 제거)다. 아래는 그 **차원 축소(collapse)** 결정이다.
+
+- **A. 검수/완료 상태**: `LS_PJT_DATA_STTS`(pjt,raw) → `ls_raw_data_status`(raw). 동일 영상이 여러 PJT면 **가장 진행된 상태**를 채택. `DONE→APPROVED`(데이터마트 노출), `ASSIGN→ASSIGNED`, `REJECT→REJECTED`, `FAIL→FAILED`.
+- **B. 작업자 배정**: V1 은 영상별 배정이 없고 프로젝트 멤버십(`LS_PJT_USER_AUTHRT`)만 있다(naive 확장 시 ~67K 오배정). → **실제 라벨 작성자(`LS_DATA_LBL.REG_ID`)를 영상별 `LABELER` 로 배정**. `user_id`→`mng_acct_user.user_no` 매핑, 미매칭은 soft skip(보고).
+- **C. 증강 (레거시·GAP④)**: `LS_DATA_AUG`(v1 내부 BRIGHT/DARK/LR) → `ls_data_aug`. v2 모델(외부 생성형 WINTER/NIGHT/RAIN)과 **의미 불일치**라 타입코드 보존 적재. ⚠ v2 에 파일경로 컬럼 부재 → `AUG_FILE_PATH` 손실(증강 발생 사실만 보존).
+- **D. 이슈**: `LS_DATA_ISSUE`(pjt,raw,src, 스레드) → 루트는 `ls_data_issue`, 답글은 `ls_issue_comment`. PJT 제거, raw/src 대응표 재연결.
+- **ID 매핑(확장)**: 상태는 `raw_data_id = raw_sn`(공유), 배정/이슈/증강은 별도 오프셋(`asgn_off`/`issue_off`/`aug_off`).
 
 ---
 
@@ -45,10 +55,10 @@ SELECT DISTINCT LBL_ID, PRC_TYPE_CD FROM LS_PJT_LBL ORDER BY LBL_ID;
 # 산출물: ./out/*.tsv  (JSON POINT 보존 위해 CSV 아닌 TSV)
 bash 01_export_mysql.sh <v1_host> <v1_port> <v1_user> klid_system ./out
 ```
-> `01_export_mysql.sh` 는 4개 테이블(`LS_DATA_RAW`, `LS_DATA_SRC`, `LS_DATA_LBL`, `LS_PJT_LBL`)을 TSV로 떨군다. NULL은 `\N`(psql `\copy` 기본 NULL 표기).
+> `01_export_mysql.sh` 는 **7개 TSV**를 떨군다 — 핵심 4개(`raw`/`src`/`lbl`/`pjt_lbl`) + 확장 3개(`stts`=`LS_PJT_DATA_STTS`, `issue`=`LS_DATA_ISSUE`, `aug`=`LS_DATA_AUG`). 배정(B)은 별도 export 없이 `lbl.tsv` 의 `REG_ID`(작성자)에서 도출. NULL은 `\N`(psql `\copy` 기본 NULL 표기).
 
 ### STEP 2 — 파일 반입
-`./out/*.tsv` 를 승인 절차로 PG 호스트로 이동(USB 등). 4개 파일.
+`./out/*.tsv` 를 승인 절차로 PG 호스트로 이동(USB 등). 7개 파일.
 
 ### STEP 3·4 — PG 스테이징 적재 + 변환 (PostgreSQL 측)
 ```bash
@@ -56,14 +66,21 @@ bash 01_export_mysql.sh <v1_host> <v1_port> <v1_user> klid_system ./out
 psql -h <pg_host> -p 15432 -U klid_user -d klid_system \
   -v dir="$(pwd)/out" \
   -v raw_off=1000000 -v src_off=10000000 -v lbl_off=100000000 \
+  -v asgn_off=200000000 -v issue_off=300000000 -v aug_off=400000000 \
   -f 02_load_transform.sql
 ```
 > 오프셋은 **현재 v2 max PK보다 크게**(충돌 회피). 기본값은 여유 있게 잡음. 실행 전 `02_load_transform.sql` 상단의 **`mig_label_name_map` 의미 매핑**을 환경 데이터에 맞게 검토·수정한다(예: `fallen_person→fallen-person`, `two_wheeler→motorbike`).
+> **확장 스코프 전제**: 배정(B)·이슈 작성자는 `mng_acct_user.user_id`(=v1 `REG_ID`/`USER_ID`)가 v2 에 적재돼 있어야 매칭된다. 비어 있으면 배정은 누락(NOTICE 보고)되며 상태·라벨 이관은 정상 진행된다.
 
 ### STEP 5 — 검증
 ```bash
-psql -h <pg_host> -p 15432 -U klid_user -d klid_system -f 03_verify.sql
+psql -h <pg_host> -p 15432 -U klid_user -d klid_system \
+  -v raw_off=1000000 -v src_off=10000000 -v lbl_off=100000000 \
+  -v asgn_off=200000000 -v issue_off=300000000 -v aug_off=400000000 \
+  -f 03_verify.sql
 ```
+> 03_verify.sql 도 6개 오프셋 변수를 **02 와 동일하게** 넘겨야 한다(미전달 시 WHERE 절 오작동으로 검증 무효).
+
 모든 검증 항목이 `OK` 여야 한다. `FAIL` 이면 롤백(스테이징·이관분 삭제) 후 원인 교정.
 
 ---
@@ -76,8 +93,8 @@ psql -h <pg_host> -p 15432 -U klid_user -d klid_system -f 03_verify.sql
 
 ## 4. 범위 / 주의
 
-- **대상**: 라벨 보유 영상만 적재(무라벨 영상은 스크립트 `:only_labeled` 토글). 프레임·라벨은 그 영상에 종속분만.
-- **LS_RAW_DATA_STATUS / 검수완료 플래그**: 본 스크립트는 `ls_data_raw`+프레임+라벨만 적재한다. 이관 영상을 **검수완료(APPROVED)로 데이터마트 View에 노출**하려면 `LS_RAW_DATA_STATUS` 적재가 추가로 필요(운영 결정 — 04 옵션 참조).
+- **대상**: 라벨 보유 영상만 적재(무라벨 영상은 스크립트 `:only_labeled` 토글). 프레임·라벨·상태·배정·이슈·증강은 그 영상에 종속분만.
+- **LS_RAW_DATA_STATUS / 검수완료 플래그 (확장 스코프 A로 해결됨)**: 이제 02 §7 이 `LS_PJT_DATA_STTS` 의 실제 상태를 `ls_raw_data_status` 로 이관한다. v1 `DONE`(최종완료) → `APPROVED` 로 매핑되어 **데이터마트 View(`DATA_STTS_CD='APPROVED'` 필터)에 자동 노출**된다. 별도 일괄 APPROVED 처리 불필요(실제 상태 보존).
 - **파일 실체(영상/프레임 이미지)**: DB 경로만 이관한다. NAS 실파일 이전은 별도 절차.
 - 실데이터는 본 분석(개발 v1)과 라벨 클래스·건수가 다를 수 있으므로 **STEP 5 검증 + 의미 매핑 검토는 필수**.
 

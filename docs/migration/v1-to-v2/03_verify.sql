@@ -1,5 +1,7 @@
 -- =====================================================================
--- v1 → v2 영상·라벨 이관 검증. 실행: psql ... -v raw_off=1000000 -v src_off=10000000 -v lbl_off=100000000 -f 03_verify.sql
+-- v1 → v2 영상·라벨 이관 검증.
+-- 실행: psql ... -v raw_off=1000000 -v src_off=10000000 -v lbl_off=100000000 \
+--               -v asgn_off=200000000 -v issue_off=300000000 -v aug_off=400000000 -f 03_verify.sql
 -- 모든 행이 OK 여야 한다. FAIL 이면 02 트랜잭션을 롤백(또는 cleanup) 후 원인 교정.
 -- =====================================================================
 \pset footer off
@@ -53,4 +55,63 @@ SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: denorm mismatch '||count(*) EN
 FROM ls_data_lbl l JOIN ls_label c ON c.lbl_id = l.lbl_id
 WHERE l.lbl_sn >= :lbl_off AND (l.lbl_type_cd <> c.lbl_type_cd OR l.lbl_nm <> c.lbl_nm);
 
-\echo '== 검증 끝. [2]~[7] 이 모두 OK 여야 정상. (라벨 손실은 02 트랜잭션의 5-b fail-closed 가드가 사전 차단) =='
+-- =====================================================================
+-- 확장 스코프 검증 (상태 A · 배정 B · 이슈 D · 증강 C)
+-- =====================================================================
+
+-- 8) 확장 스코프 적재 건수
+\echo '== [8] 확장 스코프 적재 건수 =='
+SELECT 'ls_raw_data_status' AS t, count(*) FROM ls_raw_data_status WHERE raw_data_id >= :raw_off
+UNION ALL SELECT 'ls_task_assignment', count(*) FROM ls_task_assignment WHERE assignment_id >= :asgn_off
+UNION ALL SELECT 'ls_data_issue',      count(*) FROM ls_data_issue      WHERE data_issue_sn >= :issue_off
+UNION ALL SELECT 'ls_issue_comment',   count(*) FROM ls_issue_comment   WHERE issue_comment_sn >= :issue_off
+UNION ALL SELECT 'ls_data_aug',        count(*) FROM ls_data_aug        WHERE data_aug_sn >= :aug_off;
+
+-- 9) 상태 FK/도메인 검사 — 모든 상태행의 raw_data_id 가 이관 영상에 존재 + 코드 유효
+\echo '== [9] 상태(A) 정합 (0 이어야 OK) =='
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: orphan status raw_data_id '||count(*) END
+FROM ls_raw_data_status s WHERE s.raw_data_id >= :raw_off
+  AND NOT EXISTS (SELECT 1 FROM ls_data_raw r WHERE r.raw_sn = s.raw_data_id);
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: bad data_stts_cd '||count(*) END
+FROM ls_raw_data_status s WHERE s.raw_data_id >= :raw_off
+  AND s.data_stts_cd NOT IN ('APPROVED','IN_REVIEW','ASSIGNED','REJECTED','PENDING','FAILED');
+-- 영상당 상태 1행(중복 수렴 검증)
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: dup status per raw '||count(*) END
+FROM (SELECT raw_data_id FROM ls_raw_data_status WHERE raw_data_id >= :raw_off
+      GROUP BY raw_data_id HAVING count(*)>1) d;
+
+-- 10) 배정(B) 정합 — 모든 배정의 raw_data_id 존재 + (raw,user,type) 유일
+\echo '== [10] 배정(B) 정합 (0 이어야 OK) =='
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: orphan assign raw '||count(*) END
+FROM ls_task_assignment a WHERE a.assignment_id >= :asgn_off
+  AND NOT EXISTS (SELECT 1 FROM ls_data_raw r WHERE r.raw_sn = a.raw_data_id);
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: dup assign '||count(*) END
+FROM (SELECT raw_data_id, user_no, task_type_cd FROM ls_task_assignment WHERE assignment_id >= :asgn_off
+      GROUP BY raw_data_id, user_no, task_type_cd HAVING count(*)>1) d;
+-- (정보) 배정 누락 영상 — 라벨은 있으나 작성자 user_id 미등록으로 배정 안 된 영상 수
+\echo '== [10b] (정보) 배정 없는 이관영상 수 — user_id 미매칭/REG_ID NULL 영향, 손실 아님 =='
+SELECT count(*) AS unassigned_migrated_videos
+FROM ls_data_raw r WHERE r.raw_sn >= :raw_off
+  AND NOT EXISTS (SELECT 1 FROM ls_task_assignment a WHERE a.raw_data_id = r.raw_sn);
+
+-- 11) 이슈(D) 정합 — raw 존재 + 답글의 부모 루트 존재(고아 댓글 0)
+\echo '== [11] 이슈(D) 정합 (0 이어야 OK) =='
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: orphan issue raw '||count(*) END
+FROM ls_data_issue i WHERE i.data_issue_sn >= :issue_off
+  AND NOT EXISTS (SELECT 1 FROM ls_data_raw r WHERE r.raw_sn = i.data_raw_sn);
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: orphan comment(parent missing) '||count(*) END
+FROM ls_issue_comment c WHERE c.issue_comment_sn >= :issue_off
+  AND NOT EXISTS (SELECT 1 FROM ls_data_issue i WHERE i.data_issue_sn = c.data_issue_sn);
+
+-- 12) 증강(C) 정합 — 모든 증강의 src_sn 이 이관 프레임에 존재(고아 0)
+\echo '== [12] 증강(C) 정합 (0 이어야 OK) =='
+SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: orphan aug src '||count(*) END
+FROM ls_data_aug g WHERE g.data_aug_sn >= :aug_off
+  AND NOT EXISTS (SELECT 1 FROM ls_data_src s WHERE s.src_sn = g.src_sn);
+
+-- 13) 데이터마트 노출 sanity — APPROVED 상태 이관영상 수(데이터마트 View 노출 대상)
+\echo '== [13] (정보) 데이터마트 노출(APPROVED) 이관영상 수 =='
+SELECT count(*) AS approved_migrated_videos
+FROM ls_raw_data_status s WHERE s.raw_data_id >= :raw_off AND s.data_stts_cd='APPROVED';
+
+\echo '== 검증 끝. [2]~[7] 핵심 + [9]~[12] 확장 이 모두 OK 여야 정상. (라벨 손실은 02 의 5-b fail-closed 가드가 사전 차단) =='
