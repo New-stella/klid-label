@@ -16,11 +16,44 @@ BUILD_PYTHON_MINOR="3.11"   # ai-server pip download 용 (대상과 동일 마�
 
 # ---- 대상 서버 런타임(번들 대상) ----
 # Eclipse Temurin JRE 17 (linux x64, glibc, hotspot). 헤드리스 JRE 로 충분.
+# ★ JRE 는 "설치 런타임"(대상 서버 backend 실행)용이다. 소스 빌드용 JDK(javac 포함)는
+#   아래 JDK17_FULL_* 핀(별개)을 쓴다 — 둘 다 유지한다(혼동 금지).
 # 검증: 2026-06-24, 출처 https://api.adoptium.net/v3/assets/latest/17/hotspot?os=linux&architecture=x64&image_type=jre
 #   (release_name jdk-17.0.19+10, package.checksum = sha256)
 TEMURIN_JRE_VERSION="17.0.19+10"
 TEMURIN_JRE_URL="https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.19%2B10/OpenJDK17U-jre_x64_linux_hotspot_17.0.19_10.tar.gz"
 TEMURIN_JRE_SHA256="adb5a2364baa51de1ef91bb9911f5a61d24b045fe1d6647cb8050272a3a8ee75"
+
+# ============================================================================
+# ---- 오프라인 빌드 키트(buildtools/) — 타깃에서 "소스 재빌드" 용 ----
+#   사전 빌드 아티팩트(jar/dist)와 별개로, 폐쇄망 타깃(Rocky 9)에서 소스를
+#   인터넷 없이 재빌드하기 위한 빌드 도구다. 의존성 캐시(gradle-home/node_modules)
+#   까지 함께 번들해야 오프라인 빌드가 닫힌다(60-collect-buildtools.sh 참조).
+# ============================================================================
+
+# Eclipse Temurin JDK 17 full (linux x64, glibc, hotspot) — javac 포함, gradle bootJar 용.
+#   위 TEMURIN_JRE 와 동일 릴리스(jdk-17.0.19+10)의 image_type=jdk 자산이다(JRE 와 별개 파일).
+# 검증: 2026-06-25, 출처 https://api.adoptium.net/v3/assets/latest/17/hotspot?os=linux&architecture=x64&image_type=jdk
+#   (release_name jdk-17.0.19+10, package.checksum = sha256, package.name 아래 URL 의 basename)
+JDK17_FULL_VERSION="17.0.19+10"
+JDK17_FULL_URL="https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.19%2B10/OpenJDK17U-jdk_x64_linux_hotspot_17.0.19_10.tar.gz"
+JDK17_FULL_SHA256="d8afc263758141a66e0e3aafc321e783f7016696f4eaea067d340a269037d331"
+
+# Node.js 20 (linux x64, tar.xz) — frontend vite build 용. BUILD_NODE_MAJOR=20 과 정합.
+#   최신 20.x LTS(v20.20.2). nodejs.org/dist 의 dated 자산은 불변이라 재현 가능.
+# 검증: 2026-06-25, 출처 https://nodejs.org/dist/v20.20.2/SHASUMS256.txt
+#   (node-v20.20.2-linux-x64.tar.xz 행)
+NODE20_VERSION="20.20.2"
+NODE20_URL="https://nodejs.org/dist/v20.20.2/node-v20.20.2-linux-x64.tar.xz"
+NODE20_SHA256="df770b2a6f130ed8627c9782c988fda9669fa23898329a61a871e32f965e007d"
+
+# Gradle 8.8 (bin zip) — backend 빌드 도구. backend 가 gradle 8.8 사용 확인:
+#   backend/gradle/wrapper/gradle-wrapper.properties → gradle-8.8-bin.zip
+#   backend/Dockerfile → FROM gradle:8.8-jdk17, backend/gradle.lockfile 존재.
+# 검증: 2026-06-25, 출처(공식) https://services.gradle.org/distributions/gradle-8.8-bin.zip.sha256
+GRADLE_DIST_VERSION="8.8"
+GRADLE_DIST_URL="https://services.gradle.org/distributions/gradle-8.8-bin.zip"
+GRADLE_DIST_SHA256="a4b4158601f8636cdeeab09bd76afb640030bb5b144aafe261a5e8af027dc612"
 
 # python-build-standalone — 격리된 CPython 3.11 (linux x86_64, glibc, gnu)
 # install_only 빌드(불필요 빌드 산출물 제외).

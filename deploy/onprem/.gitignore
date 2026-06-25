@@ -30,6 +30,15 @@ syspkgs/rpm/README-collect-on-rocky9.txt
 syspkgs/ffmpeg/*
 syspkgs/deb/*.deb
 
+# 오프라인 빌드 키트(소스 재빌드용) — 대용량이라 git 제외. 60-collect-buildtools.sh 가 채운다.
+buildtools/jdk/*
+buildtools/node/*
+buildtools/gradle/*
+buildtools/gradle-home/*
+buildtools/frontend-node_modules.tar.gz
+# 빌드용 소스 사본(src/) — repo 본체와 중복이라 git 제외(.gitkeep 만 보존).
+src/*
+
 # 체크섬·메타
 **/SHA256SUMS
 VERSION.built

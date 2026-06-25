@@ -39,8 +39,54 @@ PYTHON_BIN=python3.11 ./scripts/package.sh
 | 3 | `package/30-collect-ai-server.sh` | `app/` 소스 + pip wheel(torch CPU) + sam2 소스 + yolox 가중치 (+옵션 HF) |
 | 4 | `package/40-collect-runtimes.sh` | Temurin JRE17 / CPython 3.11 standalone / Caddy (tar.gz) |
 | 5 | `package/50-collect-syspkgs.sh` | **ffmpeg 정적 tarball**(`syspkgs/ffmpeg/`) + **Rocky 9 RPM**(`mesa-libGL`/`libglvnd-glx`/`glib2` → `syspkgs/rpm/`) |
+| 6 | `package/60-collect-buildtools.sh` | **오프라인 빌드 키트**: JDK17 full + Node20 + Gradle 8.8 + **populated gradle-home** + **frontend node_modules** + `src/` 소스 (소스 재빌드용) |
 
 각 디렉토리에 `SHA256SUMS` 가 생성되어 전송 무결성을 검증한다.
+
+## 오프라인 빌드 키트(60단계) — 타깃에서 "소스 재빌드"
+
+기존 1~5단계는 **사전 빌드 아티팩트(jar/dist)** 만 번들한다. 폐쇄망 타깃에서 인터넷 없이
+**소스에서 재빌드**까지 가능하게 하려면 6단계(`60-collect-buildtools.sh`)가 추가로 다음을 채운다.
+빌드 도구 바이너리만으로는 부족하고 **의존성 캐시까지** 번들해야 오프라인 빌드가 닫힌다.
+
+| 산출물 | 번들 위치 | 비고 |
+|--------|-----------|------|
+| Temurin JDK17 full(javac 포함) | `buildtools/jdk/*.tar.gz` | 설치 런타임 JRE 와 별개(빌드용). `versions.sh` 의 `JDK17_FULL_*` |
+| Node 20 | `buildtools/node/*.tar.xz` | `versions.sh` 의 `NODE20_*` (BUILD_NODE_MAJOR=20 정합) |
+| Gradle 8.8 dist | `buildtools/gradle/*.zip` | backend 가 gradle 8.8 사용(wrapper/Dockerfile/lockfile 확인). `GRADLE_DIST_*` |
+| **populated gradle-home** | `buildtools/gradle-home/` | `GRADLE_USER_HOME` 에 전 의존 jar 캐시(플랫폼 무관). `--offline` 빌드 전제 |
+| **frontend node_modules** | `buildtools/frontend-node_modules.tar.gz` | **⚠ Linux x64 전용**(esbuild 등 plat 바이너리). mac 산출물 금지 |
+| 빌드용 소스 | `src/{backend,frontend,ai-server}` | `.git`/`node_modules`/`build`/`dist` 제외, 플랫폼 무관 |
+
+> **node_modules 는 반드시 Linux x64 에서 수집**한다(esbuild·rollup 등 네이티브 바이너리 포함).
+> `60-collect-buildtools.sh` 는 `uname -s` 가 `Darwin`(mac)이면 node_modules populate 단계만
+> **경고 후 SKIP** 하고 나머지(JDK/Node/Gradle/gradle-home/src)는 진행한다. mac 에서 키트를 만들었다면
+> **node_modules 만 rockylinux:9 컨테이너에서 별도로 채워야** 한다(아래 예).
+
+```bash
+# (mac 등에서 node_modules 가 SKIP 된 경우) Rocky 9 컨테이너에서 node_modules 만 채우기
+cd deploy/onprem
+docker run --rm -v "$PWD/../..:/work" -w /work/deploy/onprem rockylinux:9 bash -lc '
+  dnf -y install nodejs git tar gzip && \
+  SKIP_GRADLE_HOME=1 SKIP_SRC=1 ./scripts/package/60-collect-buildtools.sh
+'
+```
+
+> **gradle-home populate 도 인터넷 필요**: `60` 단계는 `backend` 에서 `GRADLE_USER_HOME` 를
+> `buildtools/gradle-home` 으로 지정해 `bootJar -x test` 를 한 번 실행하며 전 의존성을 내려받아
+> 캐시를 채운다. 따라서 이 단계는 빌드머신(인터넷 O)에서만 동작한다. 그 후 락/임시 파일은 정리된다.
+
+### 빌드 키트 끄기
+
+사전 빌드 아티팩트만으로 충분하면(소스 재빌드 불필요) 빌드 키트 수집을 생략할 수 있다.
+
+```bash
+SKIP_BUILDTOOLS=1 ./scripts/package.sh
+```
+
+`60-collect-buildtools.sh` 자체에도 세부 토글이 있다(`SKIP_NODE_MODULES=1`, `SKIP_GRADLE_HOME=1`, `SKIP_SRC=1`).
+
+> 타깃에서의 소스 재빌드 절차는 **[docs/08-build-from-source.md](08-build-from-source.md)** 참고.
 
 > **50 단계의 자동 분기**: ffmpeg 정적 바이너리는 curl 만 있으면 어디서든 받는다(공식 SHA256 검증).
 > RPM 은 `dnf`/`yum` 이 있을 때만 `dnf download --resolve` 로 받고, 없으면(mac 등) **graceful SKIP** +

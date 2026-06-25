@@ -16,9 +16,14 @@ set -euo pipefail
 #     - JDK17 / Node20 / Python3.11 / git 이 설치되어 있어야 한다.
 #
 #   사용법:
-#     ./scripts/package.sh                 # 전체 단계 수집
-#     SKIP_SYSPKGS=1 ./scripts/package.sh  # 시스템 의존성(RPM/ffmpeg) 수집 생략
-#     PREFETCH_HF=1 ./scripts/package.sh   # HF 모델(rtdetr/sam2)도 사전 다운로드
+#     ./scripts/package.sh                   # 전체 단계 수집(빌드 키트 포함)
+#     SKIP_SYSPKGS=1 ./scripts/package.sh    # 시스템 의존성(RPM/ffmpeg) 수집 생략
+#     PREFETCH_HF=1 ./scripts/package.sh     # HF 모델(rtdetr/sam2)도 사전 다운로드
+#     SKIP_BUILDTOOLS=1 ./scripts/package.sh # 오프라인 빌드 키트(buildtools/+src/) 수집 생략
+#
+#   ★ 빌드 키트(60단계)는 폐쇄망 타깃에서 "소스 재빌드"를 가능케 한다(사전 빌드 jar/dist 와
+#     별개). node_modules 는 Linux x64 전용(esbuild 등 plat 바이너리)이라 mac 에서는 SKIP 된다.
+#     상세는 docs/02-build-package.md / docs/08-build-from-source.md 참고.
 # ============================================================================
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,6 +64,12 @@ STEPS=(
   "40-collect-runtimes.sh"
   "50-collect-syspkgs.sh"
 )
+# 오프라인 빌드 키트(소스 재빌드용) — 기본 포함, SKIP_BUILDTOOLS=1 로 끌 수 있다.
+if [[ "${SKIP_BUILDTOOLS:-0}" == "1" ]]; then
+  warn "오프라인 빌드 키트 수집 생략(SKIP_BUILDTOOLS=1) — 사전 빌드 아티팩트만 번들합니다."
+else
+  STEPS+=("60-collect-buildtools.sh")
+fi
 
 for step in "${STEPS[@]}"; do
   script="${PKG_DIR}/${step}"

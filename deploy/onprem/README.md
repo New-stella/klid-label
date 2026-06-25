@@ -88,6 +88,7 @@ curl -fsS http://127.0.0.1/                                      # frontend(Cadd
 | [docs/05-run-verify.md](docs/05-run-verify.md) | 서비스 기동 순서 · 헬스체크 · 스모크 |
 | [docs/06-troubleshooting.md](docs/06-troubleshooting.md) | 오프라인 설치 흔한 실패와 해결 |
 | [docs/07-uninstall-rollback.md](docs/07-uninstall-rollback.md) | 제거/롤백 |
+| [docs/08-build-from-source.md](docs/08-build-from-source.md) | [대상 서버] 인터넷 없이 **소스에서 재빌드**(빌드 키트) + 사전빌드 vs 소스빌드 선택 |
 
 ---
 
@@ -99,16 +100,19 @@ deploy/onprem/
 ├── docs/        00~07 단계별 가이드
 ├── scripts/
 │   ├── lib/{common.sh, versions.sh}
-│   ├── package.sh + package/{10..50}     # [빌드머신] 수집
+│   ├── package.sh + package/{10..60}     # [빌드머신] 수집(60=오프라인 빌드 키트)
 │   ├── install.sh + install/{11..15}     # [대상 서버] 설치
+│   ├── install/build-from-source.sh      # [대상 서버] 소스 오프라인 재빌드
 │   └── uninstall.sh
 ├── config/
 │   ├── backend/env.template
 │   ├── ai-server/env.template
 │   ├── frontend/{Caddyfile.template, nginx.conf.template}
 │   └── systemd/{klid-backend,klid-ai-server,klid-frontend}.service
-├── artifacts/{backend,frontend,ai-server}/   # package.sh 가 채움
+├── artifacts/{backend,frontend,ai-server}/   # package.sh 가 채움(사전 빌드)
 ├── runtimes/{jdk,python,caddy}/
+├── buildtools/{jdk,node,gradle,gradle-home}/ # 오프라인 빌드 키트(소스 재빌드용)
+├── src/{backend,frontend,ai-server}/         # 빌드용 소스(60단계가 채움)
 ├── vendor/{wheels,sam2}/
 ├── models/{weights,hf-cache}/
 └── syspkgs/{rpm,ffmpeg}/                 # Rocky 9 RPM + ffmpeg 정적 tarball
