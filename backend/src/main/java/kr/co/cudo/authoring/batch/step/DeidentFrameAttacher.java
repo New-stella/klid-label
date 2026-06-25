@@ -34,6 +34,11 @@ import java.util.List;
  * <p><b>책임 분리</b>: 이 컴포넌트는 프레임 attach 전용이다. de_idntf_yn/prvc/상태 전이·KPST 호출·락은
  * 상위 서비스(Phase 3) 책임이며 여기서 다루지 않는다. 라벨 레포에는 접근하지 않는다(생성자 의존 없음).
  *
+ * <p><b>경로 스킴(스킴 A) 통일</b>: 비식별 프레임 출력 디렉토리는 {@code {baseDeidPath}/frames/deid/{rawSn}}
+ * 로, {@link FfmpegFrameExtractor} 의 초기 비식별 추출 경로({@link FrameKind#DEID})와 <b>동일 위치</b>다.
+ * 재비식별은 같은 위치를 갱신하는 것이 의도된 의미이며, 구 스킴({@code frames/{rawSn}}) 으로 추출된
+ * 원본 프레임을 덮어쓸 위험을 제거한다. 세그먼트 문자열은 {@link FrameKind} 가 단일 정의한다.
+ *
  * <p>보안:
  * <ul>
  *   <li>Path Manipulation (CWE-22): 출력 경로는 deidentified base 기반 + Path.normalize + base 검증.</li>
@@ -156,9 +161,16 @@ public class DeidentFrameAttacher {
         }
     }
 
-    /** base/frames/{rawSn} 디렉토리를 안전 해석 (Path Manipulation 방어). */
+    /**
+     * {@code baseDeidPath/frames/deid/{rawSn}} 디렉토리를 안전 해석 (Path Manipulation 방어, CWE-22).
+     * <p>
+     * 스킴 A 통일: {@link FfmpegFrameExtractor} 의 초기 비식별 추출과 동일하게 {@link FrameKind#DEID}
+     * 세그먼트를 사용해, 원본 프레임({@code frames/raw}) 과 디렉토리가 충돌하지 않는다.
+     * {@code frames/deid} 도 base 하위이므로 startsWith 가드를 통과한다.
+     */
     private Path resolveSafeOutputDir(Long rawSn) {
-        Path resolved = baseDeidPath.resolve("frames").resolve(String.valueOf(rawSn)).normalize();
+        Path resolved = baseDeidPath.resolve("frames").resolve(FrameKind.DEID.getSegment())
+                .resolve(String.valueOf(rawSn)).normalize();
         if (!resolved.startsWith(baseDeidPath)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "프레임 출력 경로가 허용된 저장 경로를 벗어납니다.");
         }

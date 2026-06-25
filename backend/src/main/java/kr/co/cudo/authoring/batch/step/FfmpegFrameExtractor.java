@@ -146,7 +146,7 @@ public class FfmpegFrameExtractor implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "원본 영상을 찾을 수 없습니다: rawSn=" + raw.getRawSn());
         }
-        Path rawOutputDir = resolveSafeOutputDir(baseRawPath, raw.getRawSn());
+        Path rawOutputDir = resolveSafeOutputDir(baseRawPath, raw.getRawSn(), FrameKind.RAW);
 
         // 저장된 최신 성공 비식별 로그에서 비식별 영상 경로를 조회 (self-lookup).
         String deidVideoPath = deidentProcLogRepository.findLatestSuccessByDataRawSn(raw.getRawSn())
@@ -160,7 +160,7 @@ public class FfmpegFrameExtractor implements BatchStep {
             Path deidPath = Paths.get(deidVideoPath);
             if (frameWriter.sourceExists(deidPath)) {
                 deidSource = deidPath;
-                deidOutputDir = resolveSafeOutputDir(baseDeidPath, raw.getRawSn());
+                deidOutputDir = resolveSafeOutputDir(baseDeidPath, raw.getRawSn(), FrameKind.DEID);
             } else {
                 // deIdntfYn="Y" 인데 비식별 파일이 부재 — 비정상 상황. RAW only 로 graceful 진행.
                 log.warn("[Batch][FrameExtract] deid video missing rawSn={} path={} — RAW only",
@@ -215,11 +215,15 @@ public class FfmpegFrameExtractor implements BatchStep {
 
     /**
      * base 하위에 영상별 디렉토리를 안전하게 생성.
-     * - resolved 가 base 외부로 빠지면 거부 (Path Manipulation 방어).
+     * - resolved 가 base 외부로 빠지면 거부 (Path Manipulation 방어, CWE-22).
      * - Phase 2: base 인자화 — RAW(baseRawPath) / DEID(baseDeidPath) 양쪽에서 사용.
+     * - 스킴 A: {@code {base}/frames/{kind}/{rawSn}} — kind(raw/deid) 서브세그먼트로 분기하여
+     *   두 base 가 동일 경로여도 원본/비식별 프레임 디렉토리가 충돌하지 않는다.
+     *   {@code frames/raw}·{@code frames/deid} 모두 base 하위이므로 startsWith 가드를 통과한다.
      */
-    private static Path resolveSafeOutputDir(Path base, Long rawSn) {
-        Path resolved = base.resolve("frames").resolve(String.valueOf(rawSn)).normalize();
+    private static Path resolveSafeOutputDir(Path base, Long rawSn, FrameKind kind) {
+        Path resolved = base.resolve("frames").resolve(kind.getSegment())
+                .resolve(String.valueOf(rawSn)).normalize();
         if (!resolved.startsWith(base)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "프레임 출력 경로가 허용된 저장 경로를 벗어납니다.");
         }

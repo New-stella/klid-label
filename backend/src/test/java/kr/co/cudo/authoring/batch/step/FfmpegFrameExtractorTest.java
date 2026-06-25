@@ -105,6 +105,13 @@ class FfmpegFrameExtractorTest {
                 frameWriter, tmp.toString(), deidBase.toString());
     }
 
+    /** 운영 설정 재현: 원본·비식별 base 가 동일 경로(/nas-storage 등)로 주입된 extractor. */
+    private FfmpegFrameExtractor newExtractorSameBase() {
+        Path shared = tmp.resolve("nas-storage");
+        return new FfmpegFrameExtractor(srcRepository, hstryRepository, deidentProcLogRepository,
+                frameWriter, shared.toString(), shared.toString());
+    }
+
     /** deIdntfYn 기본 "Y" (비식별 완료) 영상. */
     private LsDataRaw newRaw(int durationSec) {
         return newRaw(durationSec, "Y");
@@ -171,7 +178,8 @@ class FfmpegFrameExtractorTest {
         assertThat(frames).hasSize(2);
         // 원본 + 비식별 2벌 — 같은 row 의 deIdntfSrcFilePathNm 에 비식별 경로
         assertThat(frames).allMatch(f -> f.getDeIdntfSrcFilePathNm() != null);
-        assertThat(frames).allMatch(f -> f.getSrcFilePathNm().contains("frames"));
+        // 스킴 A 회귀 탐지: 원본 프레임은 frames/raw 하위에 생성된다.
+        assertThat(frames).allMatch(f -> f.getSrcFilePathNm().replace('\\', '/').contains("/frames/raw/"));
         // raw 2회 + deid 2회 = 총 4회 writeFrame 호출
         assertThat(recordedSeekMillis).hasSize(4);
     }
@@ -253,10 +261,133 @@ class FfmpegFrameExtractorTest {
 
         extractor.extractByMarks(newRaw(60), marks);
 
-        Path manifest = tmp.resolve("frames").resolve("9001").resolve("manifest.jsonl");
+        // 스킴 A: 원본 manifest 는 frames/raw/{rawSn} 하위에 생성된다.
+        Path manifest = tmp.resolve("frames").resolve("raw").resolve("9001").resolve("manifest.jsonl");
         assertThat(Files.exists(manifest)).isTrue();
         long lineCount = Files.readAllLines(manifest).size();
         // header 3 + key frames 2 = 5
         assertThat(lineCount).isEqualTo(5);
+    }
+
+    // ============================================================
+    // 경로 충돌 버그 수정 (스킴 A): 원본=frames/raw, 비식별=frames/deid
+    // ============================================================
+
+    @Test
+    @DisplayName("동일_base_주입돼도_원본과_비식별_프레임_경로가_달라_디스크_덮어쓰기_없음")
+    void extractByMarks_sameBase_rawAndDeidPathsDoNotCollide() throws IOException {
+        Path deidVideo = tmp.resolve("clip-deid.mp4");
+        Files.write(deidVideo, new byte[]{0, 0, 0});
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
+                .thenReturn(Optional.of(succeededLog(deidVideo.toString())));
+
+        // 원본·비식별 base 가 동일(/nas-storage) — 버그 트리거 설정.
+        FfmpegFrameExtractor extractor = newExtractorSameBase();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05"));
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        assertThat(frames).hasSize(2);
+        // 수용기준 2: 저장값 src_file_path_nm != de_idntf_src_file_path_nm
+        for (LsDataSrc f : frames) {
+            assertThat(f.getSrcFilePathNm()).isNotNull();
+            assertThat(f.getDeIdntfSrcFilePathNm()).isNotNull();
+            assertThat(f.getSrcFilePathNm()).isNotEqualTo(f.getDeIdntfSrcFilePathNm());
+            // 스킴 A 세그먼트 분기 확인
+            assertThat(f.getSrcFilePathNm().replace('\\', '/')).contains("/frames/raw/9001/");
+            assertThat(f.getDeIdntfSrcFilePathNm().replace('\\', '/')).contains("/frames/deid/9001/");
+        }
+
+        // 수용기준 1: 실제 디스크에서도 두 파일이 별개로 공존(덮어쓰기 0).
+        // FrameWriter stub 은 원본/비식별 모두 같은 더미 콘텐츠("frame-seek-{ms}")를 쓰므로,
+        // 만약 두 경로가 같은 파일을 가리켰다면(스킴 충돌) 마지막 쓰기 1개만 남고 별개 파일이 아니게 된다.
+        // → 디스크상 실경로(toRealPath)가 서로 다름을 단언해 "덮어쓰기 0" 을 실제로 입증한다.
+        for (LsDataSrc f : frames) {
+            Path rawFile = Path.of(f.getSrcFilePathNm());
+            Path deidFile = Path.of(f.getDeIdntfSrcFilePathNm());
+            assertThat(rawFile).exists();
+            assertThat(deidFile).exists();
+            // 같은 inode/실경로면 한쪽이 다른쪽을 덮어쓴 것 — 서로 다른 실제 파일이어야 한다.
+            assertThat(rawFile.toRealPath()).isNotEqualTo(deidFile.toRealPath());
+        }
+        // 영상 2벌이 모두 별개 파일이므로 디스크상 프레임 파일 총수는 4개(raw 2 + deid 2)다(덮어쓰기 0).
+        long distinctFrameFiles = frames.stream()
+                .flatMap(f -> java.util.stream.Stream.of(f.getSrcFilePathNm(), f.getDeIdntfSrcFilePathNm()))
+                .map(Path::of)
+                .map(p -> {
+                    try {
+                        return p.toRealPath();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .distinct()
+                .count();
+        assertThat(distinctFrameFiles).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("동일_base_라도_원본_프레임은_frames_raw_하위에_생성된다")
+    void extractByMarks_sameBase_rawFramesUnderFramesRaw() throws IOException {
+        FfmpegFrameExtractor extractor = newExtractorSameBase();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"));
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        assertThat(frames).hasSize(1);
+        Path manifest = tmp.resolve("nas-storage").resolve("frames").resolve("raw")
+                .resolve("9001").resolve("manifest.jsonl");
+        assertThat(Files.exists(manifest)).isTrue();
+        assertThat(frames.get(0).getSrcFilePathNm().replace('\\', '/')).contains("/frames/raw/9001/");
+    }
+
+    @Test
+    @DisplayName("정상_rawSn은_base하위로_정규화되어_가드_통과_후_추출된다")
+    void resolveSafeOutputDir_normalRawSn_passesGuardAndExtracts() {
+        // rawSn 은 Long 이라 실제 "../" 경로 순회는 도달 불가하다(dead defense). 따라서 이 테스트는
+        // 거부가 아니라 "정상 rawSn 이 base 하위로 정규화되어 가드를 통과한다"는 회귀 없음만 검증한다.
+        // base 이탈(거부) 분기의 startsWith 가드 동작 자체는 resolveSafeOutputDir_bothKindsStayUnderBase 가
+        // base 하위 정규화를 직접 단언해 커버한다.
+        FfmpegFrameExtractor extractor = newExtractorSameBase();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"));
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+        assertThat(frames).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("경로순회_가드_raw와_deid_세그먼트_모두_base_하위로_정규화되어_통과한다")
+    void resolveSafeOutputDir_bothKindsStayUnderBase() throws Exception {
+        FfmpegFrameExtractor extractor = newExtractorSameBase();
+        java.lang.reflect.Method m = FfmpegFrameExtractor.class.getDeclaredMethod(
+                "resolveSafeOutputDir", Path.class, Long.class, FrameKind.class);
+        m.setAccessible(true);
+
+        Path base = tmp.resolve("nas-storage").toAbsolutePath().normalize();
+
+        // 스킴 A: frames/raw·frames/deid 모두 base 하위 → startsWith(base) 가드 통과(회귀 없음).
+        Path rawDir = (Path) m.invoke(extractor, base, 9001L, FrameKind.RAW);
+        Path deidDir = (Path) m.invoke(extractor, base, 9001L, FrameKind.DEID);
+
+        assertThat(rawDir.startsWith(base)).isTrue();
+        assertThat(deidDir.startsWith(base)).isTrue();
+        assertThat(rawDir.toString().replace('\\', '/')).endsWith("/frames/raw/9001");
+        assertThat(deidDir.toString().replace('\\', '/')).endsWith("/frames/deid/9001");
+        // 두 출력 디렉토리는 동일 base 라도 서로 다르다(충돌 0).
+        assertThat(rawDir).isNotEqualTo(deidDir);
+    }
+
+    @Test
+    @DisplayName("비식별_소스_부재시_RAW만_저장하고_비식별경로_미저장_회귀없음_동일base")
+    void extractByMarks_sameBase_noDeidVideo_rawOnlyNoDeidPath() {
+        // deIdntfYn=Y 이나 procLog 없음 → RAW only graceful.
+        FfmpegFrameExtractor extractor = newExtractorSameBase();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"));
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        assertThat(frames).hasSize(1);
+        assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
+        assertThat(frames.get(0).getSrcFilePathNm().replace('\\', '/')).contains("/frames/raw/9001/");
     }
 }

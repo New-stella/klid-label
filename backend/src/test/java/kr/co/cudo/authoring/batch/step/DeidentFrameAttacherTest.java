@@ -157,6 +157,65 @@ class DeidentFrameAttacherTest {
         org.mockito.Mockito.verify(srcRepository, org.mockito.Mockito.never()).save(any());
     }
 
+    // ============================================================
+    // 경로 스킴(스킴 A) 통일: 비식별 프레임은 frames/deid/{rawSn} 하위 (FfmpegFrameExtractor DEID 와 동일 위치)
+    // ============================================================
+
+    @Test
+    @DisplayName("비식별프레임은_frames_deid_rawSn_하위에_써진다_스킴A통일")
+    void deidFramesWrittenUnderFramesDeid() throws IOException {
+        LsDataSrc s0 = newSrc(101L, 0);
+        LsDataSrc s1 = newSrc(102L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0, s1));
+
+        DeidentFrameAttacher attacher = newAttacher();
+        attacher.attachDeidentFrames(newRaw(), deidVideo);
+
+        // 옛 스킴(frames/{rawSn}) 이 아니라 frames/deid/{rawSn} 하위여야 한다 — 원본 frames/raw 와 충돌 0.
+        assertThat(s0.getDeIdntfSrcFilePathNm().replace('\\', '/')).contains("/frames/deid/9001/");
+        assertThat(s1.getDeIdntfSrcFilePathNm().replace('\\', '/')).contains("/frames/deid/9001/");
+        // 실제 디스크에도 frames/deid/9001 디렉토리에 써졌다.
+        for (Path written : writtenFrames) {
+            assertThat(written.toString().replace('\\', '/')).contains("/frames/deid/9001/");
+            assertThat(written).exists();
+        }
+    }
+
+    @Test
+    @DisplayName("비식별_출력경로는_원본프레임_경로와_다르다_덮어쓰기위험제거")
+    void deidPathDiffersFromOriginalFramePath() throws IOException {
+        LsDataSrc s0 = newSrc(101L, 0);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
+
+        DeidentFrameAttacher attacher = newAttacher();
+        attacher.attachDeidentFrames(newRaw(), deidVideo);
+
+        // 원본 프레임 경로(srcFilePathNm)와 비식별 프레임 경로(deIdntfSrcFilePathNm)는 서로 다른 파일이어야 한다.
+        assertThat(s0.getDeIdntfSrcFilePathNm()).isNotEqualTo(s0.getSrcFilePathNm());
+        Path deidFile = Path.of(s0.getDeIdntfSrcFilePathNm());
+        Path origFile = Path.of(s0.getSrcFilePathNm());
+        assertThat(deidFile).exists();
+        assertThat(origFile).exists();
+        assertThat(deidFile.toRealPath()).isNotEqualTo(origFile.toRealPath());
+    }
+
+    @Test
+    @DisplayName("CWE22_비식별출력경로는_baseDeidPath_하위로_정규화되어_가드통과")
+    void deidOutputDirStaysUnderBaseDeidPath() throws Exception {
+        Path deidBase = tmp.resolve("deid").toAbsolutePath().normalize();
+        DeidentFrameAttacher attacher = new DeidentFrameAttacher(
+                srcRepository, frameWriter, imageResizer, deidBase.toString());
+
+        java.lang.reflect.Method m = DeidentFrameAttacher.class.getDeclaredMethod(
+                "resolveSafeOutputDir", Long.class);
+        m.setAccessible(true);
+        Path outputDir = (Path) m.invoke(attacher, 9001L);
+
+        // frames/deid 세그먼트를 추가해도 base 하위라 startsWith 가드를 통과한다(거부 분기 회귀 없음).
+        assertThat(outputDir.startsWith(deidBase)).isTrue();
+        assertThat(outputDir.toString().replace('\\', '/')).endsWith("/frames/deid/9001");
+    }
+
     @Test
     @DisplayName("라벨은_변경되지_않는다")
     void labels_untouched() throws IOException {
