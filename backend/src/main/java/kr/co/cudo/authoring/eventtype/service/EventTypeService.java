@@ -14,9 +14,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * 이벤트 타입 라벨 매핑·필터 옵션 제공 서비스 (Phase 2).
@@ -120,11 +124,66 @@ public class EventTypeService {
     }
 
     /**
+     * 영상 상세 EV-코드 → 카테고리 키 역인덱스 (Phase 4a).
+     *
+     * <p>관제 마스터 전체({@code findAll}) 1회 로드로 (EV-코드 → EVNT_CLS_CD+EVNT_CTGRY_CD) 맵을
+     * 구성한다. 수집/비수집·ignore 무관 모든 등록 코드를 담아 영상 EV-코드의 카테고리 도출에 쓴다
+     * (프리셋은 categoryKey 로 저장되므로 매칭 전 변환이 필요). {@code @Cacheable} 로 역인덱스를
+     * 캐시해 매 변환마다 재구성·재조회하지 않는다(near-immutable 관제 코드 체계).
+     */
+    @Cacheable(value = CacheConfig.CACHE_EVENT_TYPE, key = "'codeToCategoryKey'")
+    public Map<String, String> codeToCategoryKey() {
+        Map<String, String> index = new HashMap<>();
+        for (MngExEvntType type : evntTypeRepository.findAll()) {
+            index.put(type.getEvntTypeCd(), categoryKey(type));
+        }
+        return index;
+    }
+
+    /**
+     * 영상 상세 EV-코드(예 {@code EV03000102}) → 카테고리 키(예 {@code "030001"}) 변환.
+     *
+     * <p>프리셋은 categoryKey 단위로 저장되므로, 영상의 상세 EV-코드를 카테고리 키로 변환한 뒤
+     * 프리셋 매칭에 사용한다. 관제 미등록 코드/null/blank 는 빈 Optional 을 반환한다(fail-safe —
+     * 호출자가 프리셋 미적용으로 처리). 역인덱스는 {@code @Cacheable} 캐시를 경유한다.
+     */
+    public Optional<String> categoryKeyOf(String evntTypeCd) {
+        if (evntTypeCd == null || evntTypeCd.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(codeToCategoryKeyViaProxy().get(evntTypeCd));
+    }
+
+    /**
+     * 유효 카테고리 키 집합 — {@link #filterOptions()} 의 categoryKey 집합(수집대상·non-ignore 9종).
+     *
+     * <p>프리셋 {@code eventTypeCd} 검증에 사용한다(드롭다운에 노출되는 카테고리만 프리셋 매핑 허용).
+     * {@code filterOptions()} 캐시를 경유하므로 별도 DB 재조회가 없다.
+     */
+    public Set<String> validCategoryKeys() {
+        Set<String> keys = new LinkedHashSet<>();
+        for (EventTypeResponse option : filterOptionsViaProxy()) {
+            keys.add(option.categoryKey());
+        }
+        return keys;
+    }
+
+    /**
      * {@code codeLabelMap()} 을 캐시 프록시({@link #self}) 경유로 호출해 @Cacheable 적중을 보장한다.
      * 컨테이너 밖(self==null)에서는 프록시/캐시가 없으므로 this 로 폴백한다.
      */
     private Map<String, String> labelMapViaProxy() {
         return (self != null ? self : this).codeLabelMap();
+    }
+
+    /** {@link #codeToCategoryKey()} 를 캐시 프록시 경유로 호출(@Cacheable 적중). self==null 시 this 폴백. */
+    private Map<String, String> codeToCategoryKeyViaProxy() {
+        return (self != null ? self : this).codeToCategoryKey();
+    }
+
+    /** {@link #filterOptions()} 를 캐시 프록시 경유로 호출(@Cacheable 적중). self==null 시 this 폴백. */
+    private List<EventTypeResponse> filterOptionsViaProxy() {
+        return (self != null ? self : this).filterOptions();
     }
 
     /**

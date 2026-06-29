@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
@@ -213,6 +214,49 @@ class EventTypeServiceTest {
         // then — 상세행이 라벨을 덮어쓰지 않고 카테고리명행 '쓰러짐' 으로 도출
         assertThat(service.filterOptions().get(0).label()).isEqualTo("쓰러짐");
         assertThat(service.resolveLabel("EV02000201")).isEqualTo("쓰러짐");
+    }
+
+    @Test
+    @DisplayName("categoryKeyOf_상세코드를_카테고리키로_변환한다")
+    void categoryKeyOfConvertsDetailCode() {
+        // given — 마스터 전체(findAll)에 교통사고(03,0001) 상세코드 EV03000102 포함
+        List<MngExEvntType> all = List.of(
+                type("EV03000101", "03", "0001", "Y"),
+                type("EV03000102", "03", "0001", "Y"),
+                type("EV01000101", "01", "0001", "Y")
+        );
+        when(typeRepository.findAll()).thenReturn(all);
+
+        // when / then — 상세 EV-코드 → categoryKey(cls+ctgry)
+        assertThat(service.categoryKeyOf("EV03000102")).contains("030001");
+        assertThat(service.categoryKeyOf("EV01000101")).contains("010001");
+    }
+
+    @Test
+    @DisplayName("categoryKeyOf_미등록코드_null_blank는_빈Optional_failsafe")
+    void categoryKeyOfUnknownReturnsEmpty() {
+        // given — mock 엔티티(when 스텁 포함) 생성을 thenReturn 인자 밖에서 먼저 한다(UnfinishedStubbing 회피).
+        List<MngExEvntType> all = List.of(type("EV03000101", "03", "0001", "Y"));
+        when(typeRepository.findAll()).thenReturn(all);
+
+        // when / then — 미등록/null/blank 는 빈 Optional
+        assertThat(service.categoryKeyOf("EV99999999")).isEmpty();
+        assertThat(service.categoryKeyOf(null)).isEmpty();
+        assertThat(service.categoryKeyOf("  ")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("validCategoryKeys_filterOptions의_categoryKey집합을_반환한다")
+    void validCategoryKeysReturnsFilterOptionCategoryKeys() {
+        // given — 침수(010001)/산사태(010002)/화재(020001) + ignore(08) + 매핑
+        seedTypical();
+
+        // when
+        Set<String> keys = service.validCategoryKeys();
+
+        // then — filterOptions 의 categoryKey 집합(ignore 08 제외)
+        assertThat(keys).containsExactlyInAnyOrder("010001", "010002", "020001");
+        assertThat(keys).noneMatch(k -> k.startsWith("08"));
     }
 
     @Test

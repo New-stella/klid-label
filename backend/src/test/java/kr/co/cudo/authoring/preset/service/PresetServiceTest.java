@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.preset.service;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.preset.dto.LabelCodeOptionDto;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset.LabelCodeSpec;
@@ -13,22 +15,33 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class PresetServiceTest {
 
+    /** Phase 4a: 프리셋 매핑은 관제 categoryKey 로 검증된다(EVT_* 폐기). */
+    private static final String CK_FLOOD = "010001";   // 침수
+    private static final String CK_FIRE = "020001";    // 화재
+
     private LsLabelPresetRepository repository;
+    private EventTypeService eventTypeService;
     private PresetService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(LsLabelPresetRepository.class);
-        service = new PresetService(repository);
+        eventTypeService = mock(EventTypeService.class);
+        // 유효 categoryKey 집합 — 비빈값 검증 경로에서만 호출되므로 lenient.
+        lenient().when(eventTypeService.validCategoryKeys())
+                .thenReturn(Set.of(CK_FLOOD, CK_FIRE));
+        service = new PresetService(repository, eventTypeService);
     }
 
     private static List<LabelCodeOptionDto> bothOptions(String... codes) {
@@ -43,7 +56,7 @@ class PresetServiceTest {
                 .thenThrow(new DataIntegrityViolationException("UK_LS_LABEL_PRESET_EVNT"));
 
         assertThatThrownBy(() ->
-                service.create("새 프리셋", "desc", bothOptions("PERSON"), "EVT_FALL"))
+                service.create("새 프리셋", "desc", bothOptions("PERSON"), CK_FLOOD))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> {
                     CustomException ce = (CustomException) ex;
@@ -62,7 +75,7 @@ class PresetServiceTest {
                 .thenThrow(new DataIntegrityViolationException("UK_LS_LABEL_PRESET_EVNT"));
 
         assertThatThrownBy(() ->
-                service.update(1L, "기존", "", bothOptions("PERSON"), "EVT_FALL"))
+                service.update(1L, "기존", "", bothOptions("PERSON"), CK_FLOOD))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> {
                     CustomException ce = (CustomException) ex;
@@ -77,9 +90,9 @@ class PresetServiceTest {
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        LsLabelPreset saved = service.create("화재", "fire preset", bothOptions("FIRE"), "EVT_FIRE");
+        LsLabelPreset saved = service.create("화재", "fire preset", bothOptions("FIRE"), CK_FIRE);
 
-        assertThat(saved.getEventTypeCd()).isEqualTo("EVT_FIRE");
+        assertThat(saved.getEventTypeCd()).isEqualTo(CK_FIRE);
         assertThat(saved.codeValues()).containsExactly("FIRE");
     }
 
@@ -111,9 +124,44 @@ class PresetServiceTest {
     }
 
     @Test
+    @DisplayName("프리셋_저장시_유효_categoryKey면_통과_미유효면_400")
+    void validateEventTypeAgainstCategoryKeys() {
+        when(repository.existsByPresetNm(any())).thenReturn(false);
+        when(repository.saveAndFlush(any(LsLabelPreset.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // 유효 categoryKey → 통과
+        assertThat(service.create("유효", "", bothOptions("PERSON"), CK_FLOOD).getEventTypeCd())
+                .isEqualTo(CK_FLOOD);
+        // 빈값/공백 → 이벤트 무관 프리셋 허용(null 정규화)
+        assertThat(service.create("빈값", "", bothOptions("PERSON"), "").getEventTypeCd()).isNull();
+
+        // 구 EVT_* 코드 → 400 INVALID_INPUT
+        assertThatThrownBy(() -> service.create("구코드", "", bothOptions("PERSON"), "EVT_FALL"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        // 미등록 categoryKey → 400
+        assertThatThrownBy(() -> service.create("미등록", "", bothOptions("PERSON"), "999999"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("update_도_미유효_categoryKey면_400_저장차단")
+    void updateRejectsInvalidCategoryKey() {
+        // update 는 findById 이전에 검증되어야 한다 — 미유효면 조회 없이 400.
+        assertThatThrownBy(() -> service.update(1L, "이름", "", bothOptions("PERSON"), "EVT_FALL"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
     @DisplayName("clone_은_eventTypeCd를_상속하지_않는다_UNIQUE_충돌_회피")
     void cloneDoesNotInheritEventMapping() {
-        LsLabelPreset src = LsLabelPreset.create("원본", "desc", List.of("PERSON"), "EVT_FALL");
+        LsLabelPreset src = LsLabelPreset.create("원본", "desc", List.of("PERSON"), CK_FLOOD);
         when(repository.findById(1L)).thenReturn(Optional.of(src));
         when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.save(any(LsLabelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -136,7 +184,7 @@ class PresetServiceTest {
                 new LabelCodeOptionDto("VEHICLE", true, true)
         );
 
-        LsLabelPreset saved = service.create("혼합", "mixed", options, "EVT_FALL");
+        LsLabelPreset saved = service.create("혼합", "mixed", options, CK_FLOOD);
 
         assertThat(saved.getCodes()).hasSize(2);
         LsLabelPresetCode person = saved.getCodes().get(0);

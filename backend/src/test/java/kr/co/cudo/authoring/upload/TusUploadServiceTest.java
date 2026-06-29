@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.upload;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.upload.dto.TusCreateCommand;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.repository.LsTusUploadRepository;
@@ -55,10 +56,14 @@ class TusUploadServiceTest {
     @TempDir
     Path storageDir;
 
+    /** Phase 4a: 관제 마스터에 등록된 상세 EV-코드(침수 카테고리). */
+    private static final String VALID_EVENT_CODE = "EV01000101";
+
     private LsTusUploadRepository repository;
     private VideoRepository videoRepository;
     private MngResourceCctvRepository cctvRepository;
     private ApplicationEventPublisher eventPublisher;
+    private EventTypeService eventTypeService;
     private TusUploadService service;
     private final AtomicLong rawSnSeq = new AtomicLong(1000);
 
@@ -68,6 +73,10 @@ class TusUploadServiceTest {
         videoRepository = mock(VideoRepository.class);
         cctvRepository = mock(MngResourceCctvRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        eventTypeService = mock(EventTypeService.class);
+        // 등록 EV-코드만 categoryKey 변환 성공 — 미등록/위조 코드는 기본(빈 Optional)으로 거부.
+        when(eventTypeService.categoryKeyOf(VALID_EVENT_CODE))
+                .thenReturn(Optional.of("010001"));
 
         when(cctvRepository.existsById(anyString())).thenReturn(true);
         when(videoRepository.findByVmsClipId(anyString())).thenReturn(Optional.empty());
@@ -79,7 +88,7 @@ class TusUploadServiceTest {
 
         // duration probe stub — ffprobe 대체, 항상 60초 반환.
         service = new TusUploadService(repository, videoRepository, cctvRepository,
-                storageDir.toString(), MAX_SIZE, eventPublisher, path -> 60);
+                storageDir.toString(), MAX_SIZE, eventPublisher, eventTypeService, path -> 60);
     }
 
     @AfterEach
@@ -89,7 +98,7 @@ class TusUploadServiceTest {
 
     private TusCreateCommand cmd(long length) {
         return new TusCreateCommand(length, "clip.mp4", "VMS-1", "CCTV-1",
-                "EVT_FALL", "1168000000", "ANONY", Instant.parse("2024-05-01T12:00:00Z"));
+                VALID_EVENT_CODE, "1168000000", "ANONY", Instant.parse("2024-05-01T12:00:00Z"));
     }
 
     // ======================== 정상 흐름 ========================
@@ -145,7 +154,7 @@ class TusUploadServiceTest {
             }
         };
         service = new TusUploadService(repository, videoRepository, cctvRepository,
-                storageDir.toString(), MAX_SIZE, eventPublisher, path -> 60);
+                storageDir.toString(), MAX_SIZE, eventPublisher, eventTypeService, path -> 60);
         byte[] full = withMp4Head(10);
         UUID id = service.createSession(OWNER, cmd(10));
 
@@ -243,7 +252,7 @@ class TusUploadServiceTest {
     void pathTraversalForcedUuid() {
         // given — 경로 순회 시도 파일명
         TusCreateCommand evil = new TusCreateCommand(10, "../../../etc/passwd.mp4",
-                "VMS-2", "CCTV-1", "EVT_FALL", "1168000000", "ANONY",
+                "VMS-2", "CCTV-1", VALID_EVENT_CODE, "1168000000", "ANONY",
                 Instant.parse("2024-05-01T12:00:00Z"));
         UUID id = service.createSession(OWNER, evil);
 
@@ -335,12 +344,12 @@ class TusUploadServiceTest {
     void tooManyConcurrentSessions() {
         service.createSession(OWNER, cmd(10));
         service.createSession(OWNER, new TusCreateCommand(10, "b.mp4", "VMS-B", "CCTV-1",
-                "EVT_FALL", "1168000000", "ANONY", Instant.parse("2024-05-01T12:00:00Z")));
+                VALID_EVENT_CODE, "1168000000", "ANONY", Instant.parse("2024-05-01T12:00:00Z")));
         service.createSession(OWNER, new TusCreateCommand(10, "c.mp4", "VMS-C", "CCTV-1",
-                "EVT_FALL", "1168000000", "ANONY", Instant.parse("2024-05-01T12:00:00Z")));
+                VALID_EVENT_CODE, "1168000000", "ANONY", Instant.parse("2024-05-01T12:00:00Z")));
         // 4번째 → 429
         assertThatThrownBy(() -> service.createSession(OWNER, new TusCreateCommand(10, "d.mp4",
-                "VMS-D", "CCTV-1", "EVT_FALL", "1168000000", "ANONY",
+                "VMS-D", "CCTV-1", VALID_EVENT_CODE, "1168000000", "ANONY",
                 Instant.parse("2024-05-01T12:00:00Z"))))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -354,7 +363,7 @@ class TusUploadServiceTest {
     void chunkExceedsMaxChunkBytes() throws Exception {
         // given — 청크 상한 8바이트로 서비스 구성, 10바이트 단일 청크 전송
         TusUploadService capped = new TusUploadService(repository, videoRepository, cctvRepository,
-                storageDir.toString(), MAX_SIZE, 8L, eventPublisher, path -> 60);
+                storageDir.toString(), MAX_SIZE, 8L, eventPublisher, eventTypeService, path -> 60);
         byte[] full = withMp4Head(10);
         UUID id = capped.createSession(OWNER, cmd(10));
 
@@ -374,7 +383,7 @@ class TusUploadServiceTest {
     void chunkWithinCapStreamsOk() {
         // given — 상한 32바이트, 8바이트 mp4 단일 청크 → 완료
         TusUploadService capped = new TusUploadService(repository, videoRepository, cctvRepository,
-                storageDir.toString(), MAX_SIZE, 32L, eventPublisher, path -> 60);
+                storageDir.toString(), MAX_SIZE, 32L, eventPublisher, eventTypeService, path -> 60);
         byte[] full = withMp4Head(8);
         UUID id = capped.createSession(OWNER, cmd(8));
 
@@ -448,7 +457,7 @@ class TusUploadServiceTest {
     @DisplayName("LOW_localGovCd_숫자아님_세션생성시_400")
     void invalidLocalGovCdRejectedOnCreate() {
         TusCreateCommand cmd = new TusCreateCommand(10, "clip.mp4", "VMS-G", "CCTV-1",
-                "EVT_FALL", "11A8", "ANONY", Instant.parse("2024-05-01T12:00:00Z"));
+                VALID_EVENT_CODE, "11A8", "ANONY", Instant.parse("2024-05-01T12:00:00Z"));
         assertThatThrownBy(() -> service.createSession(OWNER, cmd))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -459,7 +468,7 @@ class TusUploadServiceTest {
     @DisplayName("LOW_prvcTypeCd_enum밖이면_세션생성시_400")
     void invalidPrvcTypeCdRejectedOnCreate() {
         TusCreateCommand cmd = new TusCreateCommand(10, "clip.mp4", "VMS-P", "CCTV-1",
-                "EVT_FALL", "1168000000", "BOGUS", Instant.parse("2024-05-01T12:00:00Z"));
+                VALID_EVENT_CODE, "1168000000", "BOGUS", Instant.parse("2024-05-01T12:00:00Z"));
         assertThatThrownBy(() -> service.createSession(OWNER, cmd))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -467,8 +476,9 @@ class TusUploadServiceTest {
     }
 
     @Test
-    @DisplayName("LOW_eventTypeCd_패턴밖이면_세션생성시_400")
+    @DisplayName("Phase4a_eventTypeCd_관제미등록코드면_세션생성시_400")
     void invalidEventTypeCdRejectedOnCreate() {
+        // 구 EVT_* 코드/임의 문자열은 categoryKeyOf 가 빈 Optional → 400.
         TusCreateCommand cmd = new TusCreateCommand(10, "clip.mp4", "VMS-E", "CCTV-1",
                 "EVT_HACK", "1168000000", "ANONY", Instant.parse("2024-05-01T12:00:00Z"));
         assertThatThrownBy(() -> service.createSession(OWNER, cmd))
@@ -478,9 +488,19 @@ class TusUploadServiceTest {
     }
 
     @Test
-    @DisplayName("LOW_정상메타_세션생성_통과_회귀가드")
-    void validMetaAcceptedOnCreate() {
+    @DisplayName("Phase4a_eventTypeCd_관제등록_EV코드면_세션생성_통과")
+    void validControlEventCodeAcceptedOnCreate() {
+        // VALID_EVENT_CODE(EV01000101)는 categoryKeyOf 가 present → 통과 (회귀 가드).
         UUID id = service.createSession(OWNER, cmd(10));
+        assertThat(repository.findById(id)).isPresent();
+    }
+
+    @Test
+    @DisplayName("Phase4a_eventTypeCd_빈값이면_세션생성_통과_이벤트미설정허용")
+    void blankEventCodeAcceptedOnCreate() {
+        TusCreateCommand cmd = new TusCreateCommand(10, "clip.mp4", "VMS-B", "CCTV-1",
+                "", "1168000000", "ANONY", Instant.parse("2024-05-01T12:00:00Z"));
+        UUID id = service.createSession(OWNER, cmd);
         assertThat(repository.findById(id)).isPresent();
     }
 

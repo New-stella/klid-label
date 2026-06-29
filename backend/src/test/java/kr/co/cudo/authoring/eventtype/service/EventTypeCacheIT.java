@@ -108,6 +108,31 @@ class EventTypeCacheIT {
     }
 
     @Test
+    @DisplayName("categoryKeyOf_역인덱스가_캐시되어_반복조회시_repository_재조회_안한다")
+    void categoryKeyOfReverseIndexCached() {
+        // given — categoryKeyOf 는 codeToCategoryKey()(@Cacheable)를 self 프록시 경유로 호출해야 한다.
+        // self-invocation 이면 프록시 우회로 매 변환마다 findAll() 이 재실행된다(회귀 가드).
+        var cache = cacheManager.getCache("eventType");
+        assertThat(cache).isNotNull();
+        cache.clear();
+        List<MngExEvntType> all = List.of(
+                type("EV03000102", "03", "0001", "Y"),
+                type("EV01000101", "01", "0001", "Y"));
+        when(typeRepository.findAll()).thenReturn(all);
+
+        // when — 여러 번 변환 호출(캐시 워밍 후 추가 조회 0)
+        var first = eventTypeService.categoryKeyOf("EV03000102");
+        var second = eventTypeService.categoryKeyOf("EV01000101");
+        var third = eventTypeService.categoryKeyOf("EV99999999");
+
+        // then — 변환 정상 + repository 조회는 최초 1회만
+        assertThat(first).contains("030001");
+        assertThat(second).contains("010001");
+        assertThat(third).isEmpty();
+        verify(typeRepository, times(1)).findAll();
+    }
+
+    @Test
     @DisplayName("resolveLabel_반복호출시_codeLabelMap캐시가_적중해_repository_재조회_안한다")
     void resolveLabelHitsCodeLabelMapCache() {
         // given — resolveLabel 은 codeLabelMap()(@Cacheable)을 self 프록시 경유로 호출해야 한다.
