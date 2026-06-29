@@ -151,6 +151,53 @@ INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, RE
     ('object',           '#95A5A6', 'BBOX',    13, 'Y', 'seed', '2026-05-15 00:00:00')
 ON CONFLICT (LBL_NM) DO NOTHING;
 
+-- 7) 관제 이벤트 타입 마스터 (MNG_EX_EVNT_TYPE) — 실 klid_system 조회로 확정한 실데이터.
+--   라벨 도출 전환(EVT_* enum → EV* 관제코드)의 토대. CLCT_EVNT_NM 은 수집 키워드(라벨 아님).
+--   수집대상(CLCT_YN='Y') 14종 — EV08000101(배회, ignore 대분류 08)은 제외.
+--   + 폴백 테스트용 비수집 1종 EV07000201(CLCT_YN='N', 카테고리 '기타 상황').
+--   복합 아님(PK=EVNT_TYPE_CD) ON CONFLICT DO NOTHING — 부팅 반복 멱등.
+INSERT INTO MNG_EX_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLS_CD, EVNT_CTGRY_CD, CLCT_EVNT_NM, CLCT_YN) VALUES
+    ('EV01000101', '01', '0001', '범람,수위,위험수위,호우,홍수', 'Y'),
+    ('EV01000102', '01', '0001', '', 'Y'),
+    ('EV01000103', '01', '0001', '', 'Y'),
+    ('EV01000201', '01', '0002', '산사태', 'Y'),
+    ('EV02000101', '02', '0001', '산불발생,산불', 'Y'),
+    ('EV02000102', '02', '0001', '화재,차량화재,기타화재,고층건물,일반화재(일반주택,근린생활시설 등),차량화재(일반도로),차량화재(터널 및 지하도로),연기,불꽃,폭발', 'Y'),
+    ('EV02000201', '02', '0002', '쓰러짐', 'Y'),
+    ('EV02000501', '02', '0005', '파손', 'Y'),
+    ('EV03000101', '03', '0001', '교통사고,차량 사고', 'Y'),
+    ('EV03000102', '03', '0001', '', 'Y'),
+    ('EV03000103', '03', '0001', '', 'Y'),
+    ('EV05000101', '05', '0001', '싸움,아동학대(기타),교제폭력,폭력,강력범죄,통보(폭력)', 'Y'),
+    ('EV05000201', '05', '0002', '흉기소지', 'Y'),
+    ('EV05000701', '05', '0007', '납치,납치감금,실종(실종아동 등)', 'Y'),
+    ('EV07000201', '07', '0002', '기타 상황(비수집 폴백 테스트용 — 실 키워드 다수, seed 는 대표값)', 'N')
+ON CONFLICT (EVNT_TYPE_CD) DO NOTHING;
+
+-- 7-1) 관제 이벤트 타입 매핑 (MNG_EX_EVNT_TYPE_MAP) — 라벨(한글명) 소스.
+--   CD_TYPE='02' 카테고리명행(DTL_EVNT/EVNT_TYPE_CD=''): 위 코드들의 (cls, ctgry) 카테고리 한글명.
+--   CD_TYPE='01' 대분류명행(EVNT_CTGRY_CD/DTL_EVNT/EVNT_TYPE_CD=''): 대분류 한글명.
+--   복합 PK(CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD) ON CONFLICT DO NOTHING.
+INSERT INTO MNG_EX_EVNT_TYPE_MAP (CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD, EVNT_NM, USE_YN) VALUES
+    -- 대분류명행 (CD_TYPE='01')
+    ('01', '01', '', '', '', '자연재난', 'Y'),
+    ('01', '02', '', '', '', '생활안전', 'Y'),
+    ('01', '03', '', '', '', '교통안전', 'Y'),
+    ('01', '05', '', '', '', '범죄안전', 'Y'),
+    ('01', '07', '', '', '', '기타', 'Y'),
+    -- 카테고리명행 (CD_TYPE='02')
+    ('02', '01', '0001', '', '', '침수(범람)', 'Y'),
+    ('02', '01', '0002', '', '', '산사태', 'Y'),
+    ('02', '02', '0001', '', '', '화재', 'Y'),
+    ('02', '02', '0002', '', '', '쓰러짐', 'Y'),
+    ('02', '02', '0005', '', '', '파손', 'Y'),
+    ('02', '03', '0001', '', '', '교통사고', 'Y'),
+    ('02', '05', '0001', '', '', '싸움', 'Y'),
+    ('02', '05', '0002', '', '', '흉기소지', 'Y'),
+    ('02', '05', '0007', '', '', '납치(유괴)', 'Y'),
+    ('02', '07', '0002', '', '', '기타 상황', 'Y')
+ON CONFLICT (CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD) DO NOTHING;
+
 -- 검증용 SELECT — 마스터 데이터만
 SELECT '=== SEED COMPLETE ===' AS marker;
 SELECT 'MNG_ACCT_AUTHRT'        AS t, COUNT(*) AS n FROM MNG_ACCT_AUTHRT        WHERE AUTHRT_CD IN ('REVIEWER','WORKER','PORTAL_USER')
@@ -158,6 +205,8 @@ UNION ALL SELECT 'MNG_ACCT_USER',         COUNT(*) FROM MNG_ACCT_USER         WH
 UNION ALL SELECT 'MNG_ACCT_USER_AUTHRT',  COUNT(*) FROM MNG_ACCT_USER_AUTHRT  WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'MNG_RESOURCE_CCTV',     COUNT(*) FROM MNG_RESOURCE_CCTV     WHERE VMS_CCTV_ID LIKE 'CCTV-0%'
 UNION ALL SELECT 'MNG_CLIP_MASTER(dev)',  COUNT(*) FROM MNG_CLIP_MASTER       WHERE EVNT_ID LIKE 'DEV-EVT-%'
+UNION ALL SELECT 'MNG_EX_EVNT_TYPE(Y)',   COUNT(*) FROM MNG_EX_EVNT_TYPE      WHERE CLCT_YN = 'Y'
+UNION ALL SELECT 'MNG_EX_EVNT_TYPE_MAP',  COUNT(*) FROM MNG_EX_EVNT_TYPE_MAP  WHERE CD_TYPE IN ('01','02')
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, MNG_RESOURCE_CCTV=13, MNG_CLIP_MASTER(dev)=3, LS_LABEL=13
+-- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, MNG_RESOURCE_CCTV=13, MNG_CLIP_MASTER(dev)=3, LS_LABEL=13, MNG_EX_EVNT_TYPE(Y)=14, MNG_EX_EVNT_TYPE_MAP=15
