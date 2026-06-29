@@ -7,7 +7,6 @@ import { Input } from '@/components/common/Input';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Radio } from '@/components/common/Radio';
 import { Spinner } from '@/components/common/Spinner';
-import { EVENT_TYPES } from '@/constants/eventTypes';
 import {
   extractBeMessage,
   useAutolabelTest,
@@ -15,6 +14,7 @@ import {
 import { useAutolabelStatus } from '@/features/dev/hooks/useAutolabelStatus';
 import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
 import {
+  DEV_EVENT_TYPES,
   EventTypeCd,
   PrvcType,
   type AutolabelTestMeta,
@@ -25,9 +25,9 @@ import {
 const ACCEPT_MIME =
   'video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi';
 
-/** SFR 6종 이벤트 옵션 (코드 → 한글). SoT `EVENT_TYPES` 에서 도출. */
+/** [dev 전용] EVT_ 6종 이벤트 옵션 — dev 업로드 BE 계약(EVT_ 패턴) 정합. */
 const EVENT_OPTIONS: ReadonlyArray<{ value: EventTypeCd; label: string }> =
-  EVENT_TYPES.map((e) => ({
+  DEV_EVENT_TYPES.map((e) => ({
     value: e.code,
     label: `${e.label} (${e.code})`,
   }));

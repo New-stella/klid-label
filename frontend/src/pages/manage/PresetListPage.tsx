@@ -7,10 +7,11 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
+import { useEventTypes } from '@/features/eventType/hooks';
 import { PresetEditModal } from '@/features/preset/components/PresetEditModal';
 import { usePresetActions } from '@/features/preset/hooks/usePresetActions';
 import { usePresets } from '@/features/preset/hooks/usePresets';
-import { EVENT_TYPE_LABELS, type Preset, type PresetForm } from '@/features/preset/types';
+import { type Preset, type PresetForm } from '@/features/preset/types';
 import { ApiError } from '@/lib/api/errors';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -27,6 +28,13 @@ const PAGE_SIZE = 10;
  */
 export function PresetListPage() {
   const { data, isLoading, error } = usePresets();
+  // 프리셋은 categoryKey 를 eventTypeCd 로 저장하므로 categoryKey→label 맵으로 해석한다
+  // (EV-코드 맵 useEventTypeLabels 는 categoryKey 를 못 풀어 원문 노출되는 회귀가 있었음).
+  const { data: eventTypeOptions } = useEventTypes();
+  const catLabel = useMemo(
+    () => new Map((eventTypeOptions ?? []).map((o) => [o.categoryKey, o.label])),
+    [eventTypeOptions],
+  );
   const { create, update, remove } = usePresetActions();
   const pushToast = useUiStore((s) => s.pushToast);
   const role = useAuthStore((s) => s.claims?.role);
@@ -176,7 +184,7 @@ export function PresetListPage() {
                           data-testid={`preset-event-${preset.id}`}
                           title={`매핑 이벤트: ${preset.eventTypeCd}`}
                         >
-                          {EVENT_TYPE_LABELS[preset.eventTypeCd] ?? preset.eventTypeCd}
+                          {catLabel.get(preset.eventTypeCd) ?? preset.eventTypeCd}
                         </span>
                       ) : (
                         <span

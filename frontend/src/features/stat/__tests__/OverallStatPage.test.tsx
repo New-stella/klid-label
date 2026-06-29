@@ -29,8 +29,17 @@ const sample = {
     approved: 4,
     rejected: 5,
   },
+  // BE 카테고리 분포 9항목 (eventTypeCd=categoryKey, label=카테고리 한글명).
   eventDistribution: [
-    { eventTypeCd: 'FALL', label: '낙상', count: 100 },
+    { eventTypeCd: '010001', label: '침수(범람)', count: 100 },
+    { eventTypeCd: '010002', label: '산사태', count: 90 },
+    { eventTypeCd: '020001', label: '화재', count: 80 },
+    { eventTypeCd: '020002', label: '쓰러짐', count: 70 },
+    { eventTypeCd: '030001', label: '파손', count: 60 },
+    { eventTypeCd: '040001', label: '교통사고', count: 50 },
+    { eventTypeCd: '050001', label: '싸움', count: 40 },
+    { eventTypeCd: '060001', label: '흉기소지', count: 30 },
+    { eventTypeCd: '070001', label: '납치(유괴)', count: 20 },
   ],
   workers: [
     { userId: 1, name: '홍길동', labeled: 100, reviewed: 50, approvalRate: 95.0 },
@@ -72,12 +81,16 @@ describe('OverallStatPage', () => {
     expect(container.querySelectorAll('progress')).toHaveLength(0);
   });
 
-  it('이벤트_분포_6종_고정', async () => {
+  it('이벤트_분포_BE_9항목_순회_렌더', async () => {
     setRole('REVIEWER');
     renderWithProviders(<OverallStatPage />);
 
     const grid = await screen.findByTestId('event-distribution-grid');
-    expect(within(grid).getAllByRole('listitem')).toHaveLength(6);
+    // 분포는 비동기 데이터 로드 후 렌더 — 항목 등장까지 대기
+    const items = await within(grid).findAllByRole('listitem');
+    expect(items).toHaveLength(9);
+    expect(within(grid).getByText('침수(범람)')).toBeInTheDocument();
+    expect(within(grid).getByText('납치(유괴)')).toBeInTheDocument();
   });
 
   it('처리_현황_5_카드_노출', async () => {

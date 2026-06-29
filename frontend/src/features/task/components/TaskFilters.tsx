@@ -3,7 +3,6 @@ import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import type { Worker } from '@/features/task/types';
-import { getEventTypeLabel } from '@/lib/eventTypeLabel';
 
 export interface TaskFilterValues {
   q: string;
@@ -26,7 +25,7 @@ interface TaskFiltersProps {
   /** REVIEWER만 작업자 select 노출 */
   showAssigneeSelect: boolean;
   workers: Worker[];
-  /** 영상의 이벤트 유형 옵션 (videos에서 unique). */
+  /** 영상의 이벤트 유형 옵션 (videos 의 eventName 에서 unique — 이미 한글 표시명). */
   eventTypes: string[];
 }
 
@@ -123,7 +122,7 @@ export function TaskFilters({
           <option value="">전체</option>
           {eventTypes.map((et) => (
             <option key={et} value={et}>
-              {getEventTypeLabel(et)}
+              {et}
             </option>
           ))}
         </select>

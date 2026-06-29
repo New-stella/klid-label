@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-import { EVENT_TYPE_CODES, type EventTypeCode } from '@/constants/eventTypes';
-
 /**
  * 프리셋 zod 스키마 (Critical 보안 — 입력 검증).
  *
@@ -9,17 +7,14 @@ import { EVENT_TYPE_CODES, type EventTypeCode } from '@/constants/eventTypes';
  * - 설명: 0~500자 (optional)
  * - 라벨 코드: 영문/숫자/_ 1~32자, 1~20개
  * - 라벨 옵션 (Phase 3): 각 항목 BBOX/POLYGON 중 최소 하나는 true (둘 다 false 거부)
- * - 이벤트 타입 코드: SoT 6 종(EVT_FALL/EVT_VIOLENCE/EVT_ACCIDENT/EVT_ABNORMAL/EVT_FLOOD/EVT_FIRE)
- *   또는 빈 문자열 (BE PresetRequest 검증과 동일)
+ * - 이벤트 타입 코드: 관제 카테고리 키(categoryKey, 예 "010001") 또는 빈 문자열(미매핑).
+ *   유효 카테고리 검증은 서버(BE PresetRequest 4a)에 위임한다 — FE 는 길이·형식만 가드한다.
  */
 
 const LABEL_CODE_REGEX = /^[A-Za-z0-9_]{1,32}$/;
 
-// SoT 6 종 코드만 허용 + 빈 문자열 (미매핑).
-const EVENT_TYPE_CD_ALLOWED: ReadonlySet<string> = new Set<string>([
-  ...EVENT_TYPE_CODES,
-  '',
-]);
+// categoryKey 형식 가드 (UX 1차 — 빈값 허용, 영문/숫자 1~32자). 유효성 최종 판정은 BE.
+const EVENT_TYPE_CD_REGEX = /^[A-Za-z0-9_]{1,32}$/;
 
 /** 라벨 코드별 BBOX/POLYGON 옵션 — 둘 다 false 거부. */
 export const labelCodeOptionSchema = z
@@ -56,7 +51,7 @@ export const presetSchema = z
     eventTypeCd: z
       .string()
       .max(32, '32자 이하')
-      .refine((v) => EVENT_TYPE_CD_ALLOWED.has(v), {
+      .refine((v) => v === '' || EVENT_TYPE_CD_REGEX.test(v), {
         message: '지원하지 않는 이벤트 타입입니다',
       })
       .optional(),
@@ -111,4 +106,5 @@ export type PresetFormInput = z.input<typeof presetSchema>;
 export type PresetFormOutput = z.output<typeof presetSchema>;
 // 레거시 alias.
 export type PresetFormValues = PresetFormInput;
-export type AllowedEventTypeCd = EventTypeCode | '';
+/** 매핑 이벤트 타입 값 — categoryKey 문자열 또는 빈 문자열(미매핑). */
+export type AllowedEventTypeCd = string;

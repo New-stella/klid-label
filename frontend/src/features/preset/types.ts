@@ -3,8 +3,6 @@
 // Phase 3 (V1.7) — 각 라벨 코드별 BBOX/POLYGON 옵션 지원.
 // `labelCodes` 는 레거시 호환 필드로 유지 (PresetListPage 등 카드 표시용).
 
-import { EVENT_TYPES } from '@/constants/eventTypes';
-
 /**
  * 라벨 코드별 어노테이션 타입 옵션.
  * - BBOX 또는 POLYGON 중 최소 하나는 true 여야 함 (둘 다 false 는 schema/BE 에서 거부)
@@ -54,19 +52,3 @@ export const PRESET_LABEL_SUGGESTIONS = [
   { code: 'FALLEN', name: '쓰러진 사람' },
 ] as const;
 
-/**
- * 이벤트 타입 옵션 — 프리셋 1:1 매핑용.
- *
- * SoT: {@code @/constants/eventTypes}. EVT_TRASH 제거, ABNORMAL/FLOOD 포함 6 종.
- * 라벨은 SoT 한글 라벨을 그대로 노출 (UI 표시 통일).
- */
-export const EVENT_TYPE_OPTIONS: ReadonlyArray<{ code: string; name: string }> =
-  EVENT_TYPES.map((e) => ({ code: e.code, name: e.label }));
-
-/** 이벤트 코드 → 한글 라벨 매핑 (목록/카드 표시용). SoT 기반. */
-export const EVENT_TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze(
-  EVENT_TYPE_OPTIONS.reduce<Record<string, string>>((acc, e) => {
-    acc[e.code] = e.name;
-    return acc;
-  }, {}),
-);

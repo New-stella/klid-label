@@ -1,7 +1,5 @@
 // 통계 도메인 타입 — UI/UX §4-11 통계
 
-import type { EventTypeCd } from '@/features/dashboard/types';
-
 /** 작업자 통계 — KPI + 일별/월별 — mock WorkerStat 정합 */
 export interface WorkerStatSummary {
   workerId: string;
@@ -36,8 +34,8 @@ export interface OverallStatSummary {
     rejected: number;
   };
 
-  /** 이벤트 분포 6종 고정 */
-  eventDistribution: { eventTypeCd: EventTypeCd; label: string; count: number }[];
+  /** 이벤트 분포 — BE 카테고리 항목(eventTypeCd=categoryKey, label, count)을 그대로 순회 */
+  eventDistribution: { eventTypeCd: string; label: string; count: number }[];
 
   /** 작업자별 통계 */
   workers: {

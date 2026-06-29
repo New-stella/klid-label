@@ -1,11 +1,34 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import MockAdapter from 'axios-mock-adapter';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PresetEditModal } from '@/features/preset/components/PresetEditModal';
 import type { Preset } from '@/features/preset/types';
+import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
+// 관제 마스터 기반 카테고리 옵션 (value=categoryKey, 표시=label).
+const CATEGORIES = [
+  { categoryKey: '010001', label: '침수(범람)', memberCodes: ['EV01000101'] },
+  { categoryKey: '020002', label: '쓰러짐', memberCodes: ['EV02000201'] },
+  { categoryKey: '040001', label: '교통사고', memberCodes: ['EV04000101'] },
+];
+
 describe('PresetEditModal', () => {
+  let mock: MockAdapter;
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+    mock.onGet('/event-types').reply(200, {
+      success: true,
+      data: CATEGORIES,
+      message: null,
+      errorCode: null,
+    });
+  });
+
+  afterEach(() => mock.restore());
+
   it('초기값_라벨_코드_렌더링', () => {
     const initial: Preset = {
       id: 1,
@@ -46,26 +69,25 @@ describe('PresetEditModal', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('이벤트_타입_select_옵션_표시', () => {
+  it('이벤트_타입_select_옵션_9카테고리_label로_표시', async () => {
     renderWithProviders(
       <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />,
     );
 
     const select = screen.getByLabelText(/매핑 이벤트 타입/);
     expect(select).toBeInTheDocument();
-    // 미선택 옵션 + SoT 6 종 (EVT_FALL/VIOLENCE/ACCIDENT/ABNORMAL/FLOOD/FIRE)
+    // 미선택 옵션 + 관제 카테고리(label 표시) — API 로드 후 노출
     expect(screen.getByRole('option', { name: /선택 안 함/ })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /EVT_FALL/ })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /EVT_VIOLENCE/ })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /EVT_ACCIDENT/ })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /EVT_ABNORMAL/ })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /EVT_FLOOD/ })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /EVT_FIRE/ })).toBeInTheDocument();
-    // EVT_TRASH 는 SoT 에서 제거됨 (V1.8 — 6 종 운영)
-    expect(screen.queryByRole('option', { name: /EVT_TRASH/ })).toBeNull();
+    expect(
+      await screen.findByRole('option', { name: '침수(범람)' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '쓰러짐' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '교통사고' })).toBeInTheDocument();
+    // 하드코딩 EVT_ 코드는 옵션에 노출되지 않는다.
+    expect(screen.queryByRole('option', { name: /EVT_/ })).toBeNull();
   });
 
-  it('초기값_eventTypeCd_select_반영', () => {
+  it('초기값_eventTypeCd_categoryKey_select_반영', async () => {
     const initial: Preset = {
       id: 2,
       name: '낙상',
@@ -74,7 +96,7 @@ describe('PresetEditModal', () => {
       labelCodeOptions: [
         { code: 'PERSON', bboxEnabled: true, polygonEnabled: true },
       ],
-      eventTypeCd: 'EVT_FALL',
+      eventTypeCd: '020002',
       createdAt: '2026-05-01T00:00:00Z',
       updatedAt: '2026-05-10T00:00:00Z',
     };
@@ -82,11 +104,13 @@ describe('PresetEditModal', () => {
       <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
     );
 
+    // 옵션 로드 후 select value 가 categoryKey 로 반영
+    await screen.findByRole('option', { name: '쓰러짐' });
     const select = screen.getByLabelText(/매핑 이벤트 타입/) as HTMLSelectElement;
-    expect(select.value).toBe('EVT_FALL');
+    await waitFor(() => expect(select.value).toBe('020002'));
   });
 
-  it('eventTypeCd_선택값이_onSubmit_payload에_포함', async () => {
+  it('프리셋_저장시_categoryKey가_payload에_담긴다', async () => {
     const onSubmit = vi.fn();
     renderWithProviders(
       <PresetEditModal open onClose={() => undefined} onSubmit={onSubmit} />,
@@ -97,8 +121,10 @@ describe('PresetEditModal', () => {
     });
     // 빠른 추가에서 PERSON 클릭
     fireEvent.click(screen.getByRole('button', { name: /\+ PERSON/ }));
+    // 옵션 로드 대기 후 categoryKey 선택
+    await screen.findByRole('option', { name: '쓰러짐' });
     fireEvent.change(screen.getByLabelText(/매핑 이벤트 타입/), {
-      target: { value: 'EVT_FALL' },
+      target: { value: '020002' },
     });
     fireEvent.click(screen.getByText('만들기'));
 
@@ -108,7 +134,7 @@ describe('PresetEditModal', () => {
     expect(onSubmit.mock.calls[0]![0]).toMatchObject({
       name: '낙상 표준',
       labelCodes: ['PERSON'],
-      eventTypeCd: 'EVT_FALL',
+      eventTypeCd: '020002',
     });
   });
 

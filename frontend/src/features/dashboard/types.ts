@@ -1,15 +1,15 @@
 // 대시보드 도메인 타입
 
-export type EventTypeCd =
-  | 'FALL'
-  | 'VIOLENCE'
-  | 'TRAFFIC_ACCIDENT'
-  | 'ABNORMAL_BEHAVIOR'
-  | 'FLOOD'
-  | 'WILDFIRE';
+/**
+ * 이벤트 분포 항목의 식별자 — 관제 카테고리 키(EVNT_CLS_CD+EVNT_CTGRY_CD, 예 "020002").
+ * 하드코딩 약어 union(FALL 등)을 폐지하고 BE 가 내려주는 categoryKey 문자열을 그대로 사용한다.
+ */
+export type EventTypeCd = string;
 
 export interface EventDistribution {
-  eventTypeCd: EventTypeCd;
+  /** 카테고리 키(categoryKey). BE EventDistributionItem.eventTypeCd 와 1:1. */
+  eventTypeCd: string;
+  /** 카테고리 한글명 (BE 제공). */
   label: string;
   count: number;
 }
