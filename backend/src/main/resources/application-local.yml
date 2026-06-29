@@ -55,7 +55,7 @@ authoring:
       enabled: false
   # local 비식별 — 기본값으로 KPST API 연동 테스트 서버에 실제 연동한다(mock 아님).
   #   오프라인/외부0 자족 검증이 필요하면 DEIDENTIFY_MOCK_MODE=true 로 mock 복사 모드(원본→비식별 경로 복사)로 전환.
-  #   mock-mode=true 는 순수 local 프로파일에서만 허용(DeidentifyStep 게이팅) — 그 외 프로파일에서 true 면 부트 거부.
+  #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — local/dev/stg 는 허용, prd 에서 true 면 부트 거부.
   integration:
     deidentify:
       mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
