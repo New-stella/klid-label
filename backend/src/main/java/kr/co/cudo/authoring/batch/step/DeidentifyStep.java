@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
@@ -89,6 +90,17 @@ public class DeidentifyStep implements BatchStep {
      * 자기호출(self-invocation) 이 아닌 별도 빈이어야 REQUIRES_NEW 가 실제 신규 트랜잭션을 연다.
      */
     private final BatchTransitionService batchTransitionService;
+    /**
+     * 자기참조 프록시 공급자 (DEV_FIX — self-invocation 트랜잭션 부재 수정).
+     * <p>{@link #execute(BatchContext)} 가 {@link #run(LsDataRaw)} 을 <b>프록시 경유</b>로 호출해
+     * {@code @Transactional(REQUIRES_NEW)} 가 실제 신규 트랜잭션을 열도록 한다. 직접 자기호출은
+     * Spring AOP 프록시를 우회해 트랜잭션이 열리지 않아, 적재 경로({@code AsyncDeidentifyRunner.runAsync},
+     * 무트랜잭션)에서 mock 영속(DE_IDNTF_YN='Y', procLog SUCCEEDED)이 커밋되지 않던 결함을 막는다.
+     * <p>{@link ObjectProvider} 는 호출 시점에 지연 해석되므로 자기 빈 순환 의존이 생성 시점에 발생하지 않는다.
+     * 단위 테스트에서 빈을 수동 생성(provider=null)하는 경우 {@code this} 로 폴백한다(프록시 없이 직접 호출 —
+     * 리포지토리가 mock 이라 트랜잭션 불필요).
+     */
+    private final ObjectProvider<DeidentifyStep> selfProvider;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
@@ -116,7 +128,8 @@ public class DeidentifyStep implements BatchStep {
                           WorkLockService workLockService,
                           @Autowired(required = false) KpstDeidentService kpstDeidentService,
                           Environment environment,
-                          BatchTransitionService batchTransitionService) {
+                          BatchTransitionService batchTransitionService,
+                          ObjectProvider<DeidentifyStep> selfProvider) {
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
         this.deidentReportService = deidentReportService;
@@ -125,6 +138,7 @@ public class DeidentifyStep implements BatchStep {
         this.kpstDeidentService = kpstDeidentService;
         this.environment = environment;
         this.batchTransitionService = batchTransitionService;
+        this.selfProvider = selfProvider;
     }
 
     @PostConstruct
@@ -187,7 +201,15 @@ public class DeidentifyStep implements BatchStep {
      */
     @Override
     public void execute(BatchContext ctx) {
-        run(ctx.getRaw());
+        // DEV_FIX — run() 을 프록시 경유로 호출해 @Transactional(REQUIRES_NEW) 가 실제 트랜잭션을 연다.
+        // 적재 경로(AsyncDeidentifyRunner.runAsync, 무트랜잭션)에서 직접 자기호출은 프록시를 우회해
+        // 트랜잭션이 열리지 않아 mock 영속(DE_IDNTF_YN='Y'/procLog SUCCEEDED)이 커밋되지 않던 결함 차단.
+        // 단위 테스트(수동 생성, provider=null)는 this 로 폴백(리포지토리 mock — 트랜잭션 불필요).
+        DeidentifyStep self = (selfProvider != null) ? selfProvider.getObject() : this;
+        DeidentResult result = self.run(ctx.getRaw());
+        // 동기 완료(mock) 여부를 컨텍스트에 실어 호출자(AsyncDeidentifyRunner)가 조건부 전이하게 한다.
+        // void execute() 라 run() 반환을 직접 못 받으므로 컨텍스트로 브릿지한다(상태머신 단일화).
+        ctx.markDeidentCompleted(result.completed());
     }
 
     /**
@@ -200,21 +222,25 @@ public class DeidentifyStep implements BatchStep {
      *  3. 그 외(설정 오류): 레거시 동기 폴백 없음 → 명확한 설정 오류 예외(내부 정보 미노출).
      * <p>
      * REQUIRES_NEW 트랜잭션: 위탁 실패 시에도 src 레코드는 유지된다.
+     *
+     * @return 동기 완료(mock)면 {@link DeidentResult#completed}, 외부 위탁(KPST)이면 {@link DeidentResult#deferred}.
+     *         호출자는 completed 일 때만 MARKING_READY 로 전이한다(지연이면 폴링이 단일 지점에서 전이).
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public String run(LsDataRaw raw) {
+    public DeidentResult run(LsDataRaw raw) {
         if (raw == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
         // Phase 1 — local 전용 mock 경로: 외부 비식별 서버 없이 원본을 비식별 경로로 복사한다.
         // KPST 위탁 분기보다 앞에 둔다(mock 활성 시 외부 미접촉).
         if (mockMode) {
-            return runMock(raw);
+            return DeidentResult.completed(runMock(raw));
         }
         // UC018 — KPST 폴링 경로(기본): 위탁(upload→project)만 수행하고 완료(다운로드→Y전이)는 폴링 잡이 담당.
+        // 제출 직후에는 MARKING_READY 로 전이하지 않는다(DE_IDNTF_YN='N' 유지) — deferred 반환으로 호출자가 전이를 건너뛴다.
         if (kpstEnabled && kpstDeidentService != null) {
             kpstDeidentService.submit(raw);
-            return null;
+            return DeidentResult.deferred();
         }
         // 설정 오류 — mock 도 아니고 KPST 서비스도 주입되지 않았다. 레거시 폴백은 제거되었으므로
         // 임의 동작 대신 명확히 거부한다(CWE-209: 내부 구현/경로 미노출, 고정 메시지만).

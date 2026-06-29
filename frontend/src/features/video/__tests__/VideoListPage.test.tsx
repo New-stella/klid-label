@@ -462,4 +462,67 @@ describe('VideoListPage', () => {
       expect(last?.params).toMatchObject({ cctvNameKeyword: '강남' });
     });
   });
+
+  // Phase 3 — 비식별 상태 배지 (deidentStatus 우선 표시, AC3-FE)
+  it('비식별_진행중_영상은_목록에서_비식별진행중_배지가_표시된다', async () => {
+    setRole('WORKER');
+    // status=COMPLETED 여도 deidentStatus 가 우선해 '비식별 진행중' 을 표시한다(precedence).
+    mockVideosOnce(mock, {
+      content: [
+        { ...UNASSIGNED_VIDEO, status: 'COMPLETED', deidentStatus: 'IN_PROGRESS', deIdntfYn: 'N' },
+      ],
+    });
+
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+    // 처리단계 배지는 테이블 행 범위로 한정해 조회(상태 필터 드롭다운의 '완료' 옵션과 구분).
+    const row = screen.getByText('강남대로 CCTV').closest('tr');
+    const scoped = within(row ?? document.body);
+    expect(scoped.getByText('비식별 진행중')).toBeInTheDocument();
+    // dataSttsCd 기반 '완료' 배지보다 우선 → 행 내 '완료' 미노출
+    expect(scoped.queryByText('완료')).not.toBeInTheDocument();
+  });
+
+  it('비식별_실패_영상은_비식별실패_배지가_표시된다', async () => {
+    setRole('WORKER');
+    mockVideosOnce(mock, {
+      content: [
+        { ...UNASSIGNED_VIDEO, status: 'COMPLETED', deidentStatus: 'FAILED', deIdntfYn: 'F' },
+      ],
+    });
+
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+    const row = screen.getByText('강남대로 CCTV').closest('tr');
+    const scoped = within(row ?? document.body);
+    expect(scoped.getByText('비식별 실패')).toBeInTheDocument();
+    expect(scoped.queryByText('완료')).not.toBeInTheDocument();
+  });
+
+  it('비식별_완료(DONE)_영상은_기존_dataSttsCd_배지가_표시된다', async () => {
+    setRole('WORKER');
+    mockVideosOnce(mock, {
+      content: [
+        { ...UNASSIGNED_VIDEO, status: 'COMPLETED', deidentStatus: 'DONE', deIdntfYn: 'Y' },
+      ],
+    });
+
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+    const row = screen.getByText('강남대로 CCTV').closest('tr');
+    const scoped = within(row ?? document.body);
+    // DONE → 기존 StageBadge('완료') 유지, 비식별 배지는 미노출
+    expect(scoped.getByText('완료')).toBeInTheDocument();
+    expect(scoped.queryByText('비식별 진행중')).not.toBeInTheDocument();
+    expect(scoped.queryByText('비식별 실패')).not.toBeInTheDocument();
+  });
 });

@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.repository.AutoLabelInfoProjection;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -44,8 +45,9 @@ class VideoQueryServiceAutoLabelTest {
         LsRawDataStatusRepository rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         LsTaskAssignmentRepository taskAssignmentRepository = mock(LsTaskAssignmentRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
+        LsDeidentProcLogRepository deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         service = new VideoQueryService(videoRepository, cctvRepository, srcRepository, lblRepository,
-                rawDataStatusRepository, taskAssignmentRepository, userRepository);
+                rawDataStatusRepository, taskAssignmentRepository, userRepository, deidentProcLogRepository);
     }
 
     private LsDataRaw raw(Long rawSn) {

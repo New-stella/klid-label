@@ -14,7 +14,9 @@ export type BadgeStatus =
   | 'COMPLETED'
   | 'APPROVED'
   | 'REJECTED'
-  | 'FAILED';
+  | 'FAILED'
+  | 'DEIDENT_IN_PROGRESS'
+  | 'DEIDENT_FAILED';
 
 export interface StatusBadgeProps {
   status: BadgeStatus | string;
@@ -38,6 +40,9 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   APPROVED: { label: '승인', className: 'bg-green-100 text-green-700' },
   REJECTED: { label: '반려', className: 'bg-red-100 text-red-700' },
   FAILED: { label: '실패', className: 'bg-red-100 text-red-700' },
+  // Phase 3 — 비식별 처리 상태 (deidentStatus 기반). 진행중=정보(파랑), 실패=경고(빨강).
+  DEIDENT_IN_PROGRESS: { label: '비식별 진행중', className: 'bg-blue-100 text-blue-700' },
+  DEIDENT_FAILED: { label: '비식별 실패', className: 'bg-red-100 text-red-700' },
 };
 
 const FALLBACK = { label: '', className: 'bg-gray-100 text-gray-600' };

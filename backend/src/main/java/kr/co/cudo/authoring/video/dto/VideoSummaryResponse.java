@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.video.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 
 import java.time.LocalDateTime;
@@ -24,6 +25,8 @@ import java.util.Map;
  *   <li>{@code lastExportFailureReason} = FAILED 일 때 사유 (그 외 null)</li>
  *   <li>{@code updatedAt} = {@code updDt} (마지막 수정 시각; 미수정이면 null)</li>
  *   <li>{@code reviewCompletedAt} = {@code LsRawDataStatus.UPD_DT} (검수 상태가 APPROVED 일 때만; 그 외 null)</li>
+ *   <li>{@code deIdntfYn} = {@code LsDataRaw.deIdntfYn} (비식별 처리 코드 'Y'/'F'/'N')</li>
+ *   <li>{@code deidentStatus} = 비식별 진행 상태 파생값 (IN_PROGRESS/FAILED/DONE/NONE)</li>
  * </ul>
  * 기존 필드는 backward-compat 유지.
  */
@@ -61,7 +64,12 @@ public record VideoSummaryResponse(
         Long workerId,
         String workerName,
         LocalDateTime assignedAt,
-        String assignStatus
+        String assignStatus,
+        // 비식별 상태 (LS_DATA_RAW.DE_IDENT_YN + LS_DEIDENT_PROC_LOG 최신행 파생). 추가 전용 — 기존 필드 무영향.
+        @Schema(description = "비식별 처리 코드 — 'Y'(완료)/'F'(실패)/'N'(미수행)")
+        String deIdntfYn,
+        @Schema(description = "비식별 진행 상태 — IN_PROGRESS/FAILED/DONE/NONE")
+        String deidentStatus
 ) {
 
     /**
@@ -83,6 +91,30 @@ public record VideoSummaryResponse(
      * COMPLETED → "EXPORTED", FAILED → "FAILED" 로 매핑한다.
      */
     public record ExportInfo(String exportSttsCd, LocalDateTime exportedAt, String errorMessage) {}
+
+    /**
+     * 비식별 진행 상태 코드 — FE Badge 매핑용. 매직스트링 대신 상수로 관리한다.
+     * <ul>
+     *   <li>{@code DONE}        = 비식별 완료(deIdntfYn='Y') → 마킹 진입 가능</li>
+     *   <li>{@code FAILED}      = 비식별 실패(deIdntfYn='F' 또는 최신 procLog FAILED)</li>
+     *   <li>{@code IN_PROGRESS} = 비식별 진행 중(최신 procLog REQUESTED/WAITING/POLLING)</li>
+     *   <li>{@code NONE}        = 미수행(procLog 없음 & deIdntfYn='N')</li>
+     * </ul>
+     */
+    public static final class DeidentStatus {
+        public static final String IN_PROGRESS = "IN_PROGRESS";
+        public static final String FAILED = "FAILED";
+        public static final String DONE = "DONE";
+        public static final String NONE = "NONE";
+
+        private DeidentStatus() {}
+    }
+
+    /**
+     * 비식별 상태 요약 (서비스 레이어에서 LS_DATA_RAW.DE_IDENT_YN + 최신 LS_DEIDENT_PROC_LOG 로 파생해 주입).
+     * {@code deidentStatus} 는 {@link DeidentStatus} 의 코드값.
+     */
+    public record DeidentInfo(String deIdntfYn, String deidentStatus) {}
 
     /**
      * 현재 활성 LABELER 배정 요약 (서비스 레이어에서 주입). 작업 목록(/v1/tasks/board)과 동일하게
@@ -147,6 +179,23 @@ public record VideoSummaryResponse(
             LocalDateTime reviewCompletedAt,
             AssignmentInfo assignmentInfo
     ) {
+        return from(e, cctvName, localGov, frameCount, exportInfo, reviewCompletedAt, assignmentInfo, null);
+    }
+
+    /**
+     * 보강 매핑 (export + 검수완료시각 + LABELER 배정 + 비식별 상태 포함). deidentInfo 가 null 이면
+     * deIdntfYn 은 엔티티 값으로, deidentStatus 는 {@link DeidentStatus#NONE} fallback 으로 응답한다.
+     */
+    public static VideoSummaryResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            ExportInfo exportInfo,
+            LocalDateTime reviewCompletedAt,
+            AssignmentInfo assignmentInfo,
+            DeidentInfo deidentInfo
+    ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
         String resolvedGov = (localGov != null && !localGov.isBlank())
                 ? localGov
@@ -200,7 +249,9 @@ public record VideoSummaryResponse(
                 assignmentInfo != null ? assignmentInfo.workerId() : null,
                 assignmentInfo != null ? assignmentInfo.workerName() : null,
                 assignmentInfo != null ? assignmentInfo.assignedAt() : null,
-                assignmentInfo != null ? AssignmentInfo.STATUS_ASSIGNED : null
+                assignmentInfo != null ? AssignmentInfo.STATUS_ASSIGNED : null,
+                deidentInfo != null ? deidentInfo.deIdntfYn() : e.getDeIdntfYn(),
+                deidentInfo != null ? deidentInfo.deidentStatus() : DeidentStatus.NONE
         );
     }
 }

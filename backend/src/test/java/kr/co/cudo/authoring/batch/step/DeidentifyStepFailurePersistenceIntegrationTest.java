@@ -111,12 +111,13 @@ class DeidentifyStepFailurePersistenceIntegrationTest {
         Long rawSn = raw.getRawSn();
 
         // when
-        String returned = deidentifyStep.run(raw);
+        DeidentResult returned = deidentifyStep.run(raw);
 
-        // then — 비식별 결과가 storage.deidentified-path 하위에 복사되고 Y 전이.
+        // then — 비식별 결과가 storage.deidentified-path 하위에 복사되고 Y 전이(동기 완료).
         Path deidBase = Path.of(deidPath).toAbsolutePath().normalize();
         Path expected = deidBase.resolve("videos").resolve(String.valueOf(rawSn)).resolve("deidentified.mp4");
-        assertThat(returned).isEqualTo(expected.toString());
+        assertThat(returned.completed()).isTrue();
+        assertThat(returned.deidFilePath()).isEqualTo(expected.toString());
         assertThat(Files.readString(expected)).isEqualTo("raw-bytes");
         assertThat(videoRepository.findById(rawSn).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
     }

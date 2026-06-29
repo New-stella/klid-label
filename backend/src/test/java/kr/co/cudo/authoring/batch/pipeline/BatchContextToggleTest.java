@@ -66,4 +66,23 @@ class BatchContextToggleTest {
         assertThat(ctx.isStageEnabled(BatchStage.YOLO)).isTrue();
         assertThat(ctx.isStageEnabled(BatchStage.FRAME_EXTRACT)).isTrue();
     }
+
+    @Test
+    @DisplayName("deidentCompleted_기본값은_false — 미완료/지연 기본")
+    void deidentCompletedDefaultsFalse() {
+        BatchContext ctx = new BatchContext(4L, rawWith(4L));
+
+        // 기본값 false: KPST 위탁(지연)은 제출만 하므로 false 로 남아 조기 MARKING_READY 전이를 막는다.
+        assertThat(ctx.isDeidentCompleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("markDeidentCompleted_false후_false유지 — 명시적 미완료 기록도 false")
+    void markDeidentCompletedFalseStaysFalse() {
+        BatchContext ctx = new BatchContext(5L, rawWith(5L));
+
+        ctx.markDeidentCompleted(false);
+
+        assertThat(ctx.isDeidentCompleted()).isFalse();
+    }
 }

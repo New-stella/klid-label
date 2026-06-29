@@ -33,6 +33,7 @@ type RawVideo = Partial<Video> & {
   regDt?: string;
   prvcTypeCd?: string;
   deIdntfYn?: string;
+  deidentStatus?: string;
   reviewSttsCd?: string;
 };
 
@@ -55,6 +56,8 @@ function normalizeVideo(v: RawVideo): Video {
     // BE 실제 응답 키는 deIdntfYn (deIdentYn 아님). SC-009 재비식별 버튼 노출 조건.
     // BE 가 코드값('Y'|'N'|'F')만 내려주므로 리터럴 유니온으로 캐스팅.
     deIdntfYn: v.deIdntfYn as Video['deIdntfYn'],
+    // 비식별 처리 상태(Phase 2 응답) — 목록 배지 우선표시 + 마킹 진입 차단 판정.
+    deidentStatus: v.deidentStatus as Video['deidentStatus'],
     // 검수 상태(LS_RAW_DATA_STATUS.DATA_STTS_CD) — SC-009 재비식별 버튼 노출 판정 필드.
     // status(배치단계)와 별개. 상태 row 없으면 BE 가 null → undefined.
     reviewSttsCd: v.reviewSttsCd ?? undefined,

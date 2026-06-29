@@ -8,6 +8,8 @@ import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { useMarkingStore } from '@/features/marking/store';
 import type { MarkItem, MarkingMode } from '@/features/marking/types';
 import { useStreamUrl } from '@/features/video/hooks/useStreamUrl';
+import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
+import { isMarkingBlocked } from '@/features/video/types';
 import { useUiStore } from '@/stores/useUiStore';
 
 const NATIVE_FPS = 30;
@@ -28,6 +30,10 @@ export function MarkingPage() {
     setMode, setIntervalFrames, addMark, selectMark,
     removeSelectedMark, clearMarks, reset,
   } = useMarkingStore();
+
+  // AC4 백스톱 — URL 직접 진입 시 비식별 미완료면 마킹 화면 진입을 막는다.
+  // (BE MarkingService 의 deIdntfYn='Y' 가드가 최종 백스톱이며, 여기선 UX 선차단.)
+  const { data: videoDetail } = useVideoDetail(rawSn ?? null);
 
   // <video> 는 Authorization 헤더를 못 붙이므로 단기 서명 URL 을 발급받아 src 로 사용한다.
   const { data: streamUrl, refetch: refetchStreamUrl } = useStreamUrl(rawSn);
@@ -123,6 +129,23 @@ export function MarkingPage() {
 
   if (rawSn === undefined || isNaN(rawSn)) {
     return <div className="p-8 text-center text-gray-500">잘못된 영상 ID입니다.</div>;
+  }
+
+  // 비식별 미완료 영상은 마킹 진입 차단(백스톱) — 영상 상세가 로드되어 미완료가 확정될 때만.
+  if (videoDetail && isMarkingBlocked(videoDetail)) {
+    return (
+      <div
+        role="alert"
+        className="mx-auto max-w-3xl space-y-2 p-8 text-center"
+      >
+        <h1 className="text-lg font-semibold text-gray-800">
+          마킹 — 영상 #{rawSn}
+        </h1>
+        <p className="text-sm text-gray-500">
+          비식별 완료 후 마킹이 가능합니다.
+        </p>
+      </div>
+    );
   }
 
   const videoSrc = streamUrl?.url ?? '';

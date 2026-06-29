@@ -43,6 +43,15 @@ public class BatchContext {
     private List<MarkItem> marks = List.of();
     /** YOLO 단계가 채움 — SAM2 단계로 전달할 인메모리 BBOX 힌트. */
     private List<BbHint> hints = List.of();
+    /**
+     * DEIDENTIFY 단계가 채움 — 비식별이 <b>동기 완료(mock, DE_IDNTF_YN='Y')</b> 되었는지 여부.
+     *
+     * <p>기본 {@code false}(미완료/지연). 외부 위탁(KPST)은 제출만 하고 지연되므로 false 로 남고,
+     * 완료(MARKING_READY 전이)는 폴링 잡이 단일 지점에서 수행한다. 선두 비식별 러너
+     * ({@code AsyncDeidentifyRunner})는 이 값이 {@code true} 일 때만 MARKING_READY 로 전이한다 —
+     * 비식별 미완료 상태의 dataSttsCd 조기 전이(NOT_FOUND 스트림)를 차단한다.
+     */
+    private boolean deidentCompleted = false;
 
     /** 프로덕션 기본 — 토글 없음(전 stage enabled). 기존 호출부 100% 보존. */
     public BatchContext(Long rawSn, LsDataRaw raw) {
@@ -105,5 +114,15 @@ public class BatchContext {
 
     public void setHints(List<BbHint> hints) {
         this.hints = hints == null ? List.of() : hints;
+    }
+
+    /** 비식별이 동기 완료(mock)되었는지 — 선두 비식별 러너의 조건부 MARKING_READY 전이 판단용. */
+    public boolean isDeidentCompleted() {
+        return deidentCompleted;
+    }
+
+    /** DEIDENTIFY 단계가 run() 결과(completed)를 기록한다. */
+    public void markDeidentCompleted(boolean deidentCompleted) {
+        this.deidentCompleted = deidentCompleted;
     }
 }

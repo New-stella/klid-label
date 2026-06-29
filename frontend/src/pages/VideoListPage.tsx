@@ -304,7 +304,12 @@ export function VideoListPage() {
                       <PrivacyBadge privacyType={v.privacyTypeCd ?? ''} size="sm" />
                     </td>
                     <td className="px-4 py-3">
-                      {v.status === 'COMPLETED' ? (
+                      {/* Phase 3 — 비식별 진행중/실패는 dataSttsCd 기반 배지보다 우선 표시(AC3-FE). */}
+                      {v.deidentStatus === 'IN_PROGRESS' ? (
+                        <StatusBadge status="DEIDENT_IN_PROGRESS" />
+                      ) : v.deidentStatus === 'FAILED' ? (
+                        <StatusBadge status="DEIDENT_FAILED" />
+                      ) : v.status === 'COMPLETED' ? (
                         <StageBadge stage="COMPLETED" status="COMPLETED" />
                       ) : v.status === 'FAILED' ? (
                         <StageBadge stage="FAILED" status="FAILED" />

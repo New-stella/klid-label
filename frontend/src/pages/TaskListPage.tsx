@@ -37,7 +37,7 @@ import type {
   TaskListParams,
 } from '@/features/task/types';
 import { useUsers } from '@/features/user/hooks/useUsers';
-import type { Video } from '@/features/video/types';
+import { isMarkingBlocked, type Video } from '@/features/video/types';
 import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -255,6 +255,9 @@ export function TaskListPage() {
           frameCount: 0,
           status: 'COMPLETED' as BadgeStatus,
           capturedAt: t.assignedAt,
+          // 마킹 진입 차단(AC4) 판정에 필요 — BE 미전송 시 undefined → 차단 안 함(BE 백스톱).
+          deIdntfYn: t.deIdntfYn,
+          deidentStatus: t.deidentStatus as Video['deidentStatus'],
         },
         task: t,
         rowStatus: t.status,
@@ -294,6 +297,8 @@ export function TaskListPage() {
         frameCount: it.frameCount ?? 0,
         status: 'COMPLETED' as BadgeStatus,
         capturedAt: it.capturedAt ?? '',
+        deIdntfYn: it.deIdntfYn ?? undefined,
+        deidentStatus: (it.deidentStatus ?? undefined) as Video['deidentStatus'],
       };
       return {
         id: String(it.videoId),
@@ -712,6 +717,18 @@ export function TaskListPage() {
                                   aria-label={`작업 시작 ${r.videoName}`}
                                 >
                                   <Play size={14} aria-hidden /> 작업
+                                </Button>
+                              ) : isMarkingBlocked(r.video) ? (
+                                // AC4 — 비식별 미완료 영상은 마킹 진입 차단(버튼 비활성 + 사유 안내).
+                                // 색상만이 아닌 텍스트/aria 라벨로 사유 전달(component.md 접근성).
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled
+                                  title="비식별 완료 후 마킹 가능"
+                                  aria-label={`마킹 불가 (비식별 완료 후 가능) ${r.videoName}`}
+                                >
+                                  <ListTodo size={14} aria-hidden /> 마킹
                                 </Button>
                               ) : (
                                 <Button

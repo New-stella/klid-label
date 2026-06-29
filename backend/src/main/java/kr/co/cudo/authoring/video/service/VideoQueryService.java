@@ -5,9 +5,11 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.AutoLabelInfoProjection;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
@@ -49,6 +51,7 @@ public class VideoQueryService {
     private final LsRawDataStatusRepository rawDataStatusRepository;
     private final LsTaskAssignmentRepository taskAssignmentRepository;
     private final UserRepository userRepository;
+    private final LsDeidentProcLogRepository deidentProcLogRepository;
 
     /**
      * 검수 상태 필터 입력 길이 상한 — 정상 enum 값(PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED)은
@@ -73,19 +76,95 @@ public class VideoQueryService {
             page = videoRepository.findAll(pageable);
         }
         Map<String, String> cctvNameMap = lookupCctvNames(page.getContent());
+        Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
         Map<Long, LocalDateTime> reviewCompletedAtMap = lookupReviewCompletedAt(page.getContent());
         Map<Long, VideoSummaryResponse.AssignmentInfo> assignmentMap = lookupCurrentAssignments(page.getContent());
-        // 각 영상별 frameCount 조회 (페이지당 최대 size 건수만큼). 향후 성능 이슈 시 단일 group-by 쿼리로 최적화.
+        Map<Long, VideoSummaryResponse.DeidentInfo> deidentMap = lookupDeidentInfos(page.getContent());
         return page.map(e -> VideoSummaryResponse.from(
                 e,
                 cctvNameMap.get(e.getVmsCctvId()),
                 null,
-                srcRepository.countByRawSn(e.getRawSn()),
+                frameCountMap.getOrDefault(e.getRawSn(), 0L),
                 exportInfoMap.get(e.getRawSn()),
                 reviewCompletedAtMap.get(e.getRawSn()),
-                assignmentMap.get(e.getRawSn())
+                assignmentMap.get(e.getRawSn()),
+                deidentMap.get(e.getRawSn())
         ));
+    }
+
+    /**
+     * 페이지 단위로 rawSn 들의 프레임 개수를 단일 GROUP BY 쿼리로 batch 조회 (N+1 회피).
+     *
+     * <p>{@link LsDataSrcRepository#countByRawSnsGrouped}({@code [rawSn, frameCount]} Object 배열) 결과를
+     * Map 으로 변환한다. 프레임이 0건인 영상은 결과에 포함되지 않으므로 caller 가 0L 폴백 처리한다.
+     */
+    private Map<Long, Long> lookupFrameCounts(List<LsDataRaw> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawSns = rows.stream().map(LsDataRaw::getRawSn).toList();
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : srcRepository.countByRawSnsGrouped(rawSns)) {
+            map.put((Long) row[0], (Long) row[1]);
+        }
+        return map;
+    }
+
+    /**
+     * 페이지 단위로 rawSn 들의 비식별 상태를 한 번의 batch 조회로 파생한다 (N+1 회피).
+     *
+     * <p>각 rawSn 의 최신 LS_DEIDENT_PROC_LOG 1행을 IN 절 1회로 조회({@code findLatestByDataRawSnIn})하고,
+     * LS_DATA_RAW.DE_IDENT_YN 과 결합해 deidentStatus 를 파생한다. 우선순위는 {@link #deriveDeidentStatus} 참조.
+     */
+    private Map<Long, VideoSummaryResponse.DeidentInfo> lookupDeidentInfos(List<LsDataRaw> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawSns = rows.stream().map(LsDataRaw::getRawSn).toList();
+        Map<Long, LsDeidentProcLog> latestByRaw = deidentProcLogRepository.findLatestByDataRawSnIn(rawSns).stream()
+                .collect(Collectors.toMap(LsDeidentProcLog::getDataRawSn, p -> p, (a, b) -> a));
+        Map<Long, VideoSummaryResponse.DeidentInfo> map = new HashMap<>();
+        for (LsDataRaw raw : rows) {
+            String status = deriveDeidentStatus(raw, latestByRaw.get(raw.getRawSn()));
+            map.put(raw.getRawSn(), new VideoSummaryResponse.DeidentInfo(raw.getDeIdntfYn(), status));
+        }
+        return map;
+    }
+
+    /**
+     * 영상 1건의 비식별 상태 파생 (우선순위 — 'Y' 최우선):
+     * <ol>
+     *   <li>deIdntfYn=='Y' → DONE (완료, 마킹 진입 가능)</li>
+     *   <li>deIdntfYn=='F' 또는 최신 procLog FAILED → FAILED</li>
+     *   <li>최신 procLog 진행중(REQUESTED / POLL WAITING|POLLING) → IN_PROGRESS</li>
+     *   <li>그 외(procLog 없음 & deIdntfYn=='N') → NONE</li>
+     * </ol>
+     *
+     * <p>SUCCEEDED/DOWNLOADED procLog + deIdntfYn='N' 비정상 상태도 NONE 에 해당하나, 정상
+     * 트랜잭션(markDeidentified('Y')+procLog.succeed() 동일 커밋)에서는 발생하지 않는다.
+     */
+    private String deriveDeidentStatus(LsDataRaw raw, LsDeidentProcLog latestLog) {
+        String yn = raw.getDeIdntfYn();
+        if ("Y".equals(yn)) {
+            return VideoSummaryResponse.DeidentStatus.DONE;
+        }
+        if ("F".equals(yn) || (latestLog != null && LsDeidentProcLog.FAILED.equals(latestLog.getProcSttsCd()))) {
+            return VideoSummaryResponse.DeidentStatus.FAILED;
+        }
+        if (latestLog != null && isDeidentInProgress(latestLog)) {
+            return VideoSummaryResponse.DeidentStatus.IN_PROGRESS;
+        }
+        return VideoSummaryResponse.DeidentStatus.NONE;
+    }
+
+    /** 최신 procLog 가 진행 중인지: PROC_STTS=REQUESTED 또는 POLL_STTS=WAITING/POLLING. */
+    private boolean isDeidentInProgress(LsDeidentProcLog log) {
+        if (LsDeidentProcLog.REQUESTED.equals(log.getProcSttsCd())) {
+            return true;
+        }
+        String poll = log.getPollSttsCd();
+        return LsDeidentProcLog.POLL_WAITING.equals(poll) || LsDeidentProcLog.POLL_POLLING.equals(poll);
     }
 
     /**
@@ -253,17 +332,26 @@ public class VideoQueryService {
     }
 
     /**
-     * 페이지 단위로 사용된 VMS_CCTV_ID 들을 한 번에 조회해 N+1 회피.
+     * 페이지 단위로 사용된 VMS_CCTV_ID 들을 단일 IN 쿼리(findAllById)로 batch 조회해 N+1 회피.
+     *
+     * <p>존재하는 CCTV 만 매핑하며, CCTV_NM 이 null 이어도 그대로 map 에 담는다 — DTO 변환 시
+     * cctvName 이 null/blank 이면 vmsCctvId 로 폴백하므로 기존 동작과 동일하다.
      * MngResourceCctv 가 비어 있는 환경(local/test mock)에서는 빈 맵 반환.
      */
     private Map<String, String> lookupCctvNames(List<LsDataRaw> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Set<String> ids = rows.stream()
+                .map(LsDataRaw::getVmsCctvId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
         Map<String, String> map = new HashMap<>();
-        for (LsDataRaw r : rows) {
-            if (r.getVmsCctvId() == null || map.containsKey(r.getVmsCctvId())) {
-                continue;
-            }
-            cctvRepository.findById(r.getVmsCctvId())
-                    .ifPresent(c -> map.put(r.getVmsCctvId(), c.getCctvNm()));
+        for (MngResourceCctv c : cctvRepository.findAllById(ids)) {
+            map.put(c.getVmsCctvId(), c.getCctvNm());
         }
         return map;
     }

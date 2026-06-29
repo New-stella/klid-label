@@ -65,9 +65,16 @@ public class AsyncDeidentifyRunner {
             for (BatchStep step : preMarkingPipeline.steps()) {
                 step.execute(ctx);
             }
-            // 비식별 성공 → 마킹 단계 진입 가능 상태 전이 (REQUIRES_NEW).
-            batchTransitionService.markRawDataMarkingReady(rawSn);
-            log.info("[AsyncDeidentifyRunner] deidentify completed rawSn={}", rawSn);
+            // 상태머신 단일화: 비식별이 동기 완료(mock, DE_IDNTF_YN='Y')된 경우에만 MARKING_READY 로 전이한다.
+            // KPST 위탁(지연)은 제출만 하고 완료되지 않았으므로 여기서 전이하지 않는다 — 완료(MARKING_READY)는
+            // 폴링 잡(KpstDeidentTxService.applyBatchCompletion)이 단일 지점에서 수행한다(조기 전이 차단).
+            if (ctx.isDeidentCompleted()) {
+                batchTransitionService.markRawDataMarkingReady(rawSn);
+                log.info("[AsyncDeidentifyRunner] deidentify completed rawSn={}", rawSn);
+            } else {
+                log.info("[AsyncDeidentifyRunner] deidentify submitted (deferred) rawSn={} — MARKING_READY 는 폴링 완료 시 전이",
+                        rawSn);
+            }
         } catch (RuntimeException e) {
             // 실패 시 deIdntfYn='F' 는 DeidentifyStep 이 별도 커밋 트랜잭션(BatchTransitionService
             // .recordDeidentFailure, REQUIRES_NEW)으로 기록한다 — run() 롤백과 독립 영속.

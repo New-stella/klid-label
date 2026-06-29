@@ -54,13 +54,14 @@ class DeidentifyStepKpstDisabledIntegrationTest {
                 LsDataRaw.PRVC_TYPE_PRVC, rawFile.toString(), null, 60));
 
         // when — mock 비식별 경로 실행
-        String returned = deidentifyStep.run(raw);
+        DeidentResult returned = deidentifyStep.run(raw);
 
-        // then — 비식별 결과가 storage.deidentified-path 하위에 복사되고 즉시 Y 전이.
+        // then — 비식별 결과가 storage.deidentified-path 하위에 복사되고 즉시 Y 전이(동기 완료).
         Path deidBase = Path.of(deidPath).toAbsolutePath().normalize();
         Path expected = deidBase.resolve("videos").resolve(String.valueOf(raw.getRawSn()))
                 .resolve("deidentified.mp4");
-        assertThat(returned).isEqualTo(expected.toString());
+        assertThat(returned.completed()).isTrue();
+        assertThat(returned.deidFilePath()).isEqualTo(expected.toString());
         assertThat(videoRepository.findById(raw.getRawSn()).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
     }
 }

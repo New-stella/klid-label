@@ -88,9 +88,10 @@ class DeidentifyStepTest {
 
     private DeidentifyStep newStep(boolean kpstEnabled, boolean mockMode,
                                    KpstDeidentService kpstService, Environment env) {
+        // selfProvider=null — 단위 테스트는 프록시 없이 execute()→this.run() 직접 호출(리포지토리 mock).
         DeidentifyStep s = new DeidentifyStep(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, kpstService, env,
-                batchTransitionService);
+                batchTransitionService, null);
         setField(s, "deidPath", baseDeid.toString());
         setField(s, "kpstEnabled", kpstEnabled);
         setField(s, "mockMode", mockMode);
@@ -130,11 +131,13 @@ class DeidentifyStepTest {
 
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
 
-        String result = kpstStep.run(raw);
+        DeidentResult result = kpstStep.run(raw);
 
         // 위탁 경로: KpstDeidentService.submit 호출. DE_IDNTF_YN 미전이(완료 대기) — 폴링 잡이 나중에 Y 전이.
+        // 반환은 deferred(지연) — 호출자가 MARKING_READY 로 조기 전이하지 않도록 completed=false.
         verify(kpst).submit(raw);
-        assertThat(result).isNull();
+        assertThat(result.completed()).isFalse();
+        assertThat(result.deidFilePath()).isNull();
         assertThat(raw.getDeIdntfYn()).isNotEqualTo("Y");
     }
 
@@ -217,7 +220,7 @@ class DeidentifyStepTest {
         LsDataRaw raw = newRawWithRealSource("video-bytes");
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
 
-        String result = mockStep.run(raw);
+        DeidentResult result = mockStep.run(raw);
 
         Path target = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
                 .toAbsolutePath().normalize();
@@ -229,7 +232,9 @@ class DeidentifyStepTest {
         // 원본 보존 — 무변경(복사만).
         assertThat(Files.readString(Path.of(raw.getRawFilePathNm()))).isEqualTo("video-bytes");
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
-        assertThat(result).isEqualTo(target.toString());
+        // 동기 완료 — completed=true + 비식별 산출물 경로 보유(호출자가 즉시 MARKING_READY 전이).
+        assertThat(result.completed()).isTrue();
+        assertThat(result.deidFilePath()).isEqualTo(target.toString());
     }
 
     @Test
@@ -305,7 +310,7 @@ class DeidentifyStepTest {
     private DeidentifyStep newMockStepWith(Environment env) {
         DeidentifyStep s = new DeidentifyStep(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, null, env,
-                batchTransitionService);
+                batchTransitionService, null);
         setField(s, "deidPath", baseDeid.toString());
         setField(s, "kpstEnabled", false);
         setField(s, "mockMode", true);
