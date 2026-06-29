@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.video.entity.MngExEvntTypeMap;
 import kr.co.cudo.authoring.video.entity.MngExEvntTypeMapId;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,5 +40,6 @@ public interface MngExEvntTypeMapRepository extends JpaRepository<MngExEvntTypeM
     @Query("SELECT m FROM MngExEvntTypeMap m"
             + " WHERE m.cdType = '02' AND m.dtlEvnt = '' AND m.evntTypeCd = ''"
             + " AND m.evntClsCd = :evntClsCd AND m.evntCtgryCd = :evntCtgryCd")
-    Optional<MngExEvntTypeMap> findCategoryLabel(String evntClsCd, String evntCtgryCd);
+    Optional<MngExEvntTypeMap> findCategoryLabel(@Param("evntClsCd") String evntClsCd,
+                                                 @Param("evntCtgryCd") String evntCtgryCd);
 }

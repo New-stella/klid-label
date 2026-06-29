@@ -23,6 +23,8 @@ import java.util.List;
  *       반복되던 DB 조회를 캐시. 한번 생성된 비식별 경로는 안정적이라 5분 TTL. 미완료(null)
  *       결과는 {@code @Cacheable(unless="#result==null")} 로 캐시하지 않아 async 비식별 완료 후
  *       stale NOT_FOUND 가 유지되지 않는다.</li>
+ *   <li><b>eventType</b> — 관제 이벤트 타입 필터 옵션·코드라벨 맵(Phase 2). 관제 코드 체계는
+ *       near-immutable 이라 반복 조회 시 MNG_* READ 를 피하도록 장수명(6h) 캐시. 인자 없는 단순 키.</li>
  * </ul>
  */
 @Configuration
@@ -31,6 +33,7 @@ public class CacheConfig {
 
     public static final String CACHE_SYSCONFIG = "sysconfig";
     public static final String CACHE_STREAM_DEID = "stream-deid";
+    public static final String CACHE_EVENT_TYPE = "eventType";
 
     @Bean
     public CacheManager cacheManager() {
@@ -46,8 +49,14 @@ public class CacheConfig {
                         .expireAfterWrite(Duration.ofMinutes(5))
                         .build());
 
+        CaffeineCache eventType = new CaffeineCache(CACHE_EVENT_TYPE,
+                Caffeine.newBuilder()
+                        .maximumSize(50)
+                        .expireAfterWrite(Duration.ofHours(6))
+                        .build());
+
         SimpleCacheManager manager = new SimpleCacheManager();
-        manager.setCaches(List.of(sysconfig, streamDeid));
+        manager.setCaches(List.of(sysconfig, streamDeid, eventType));
         return manager;
     }
 }
