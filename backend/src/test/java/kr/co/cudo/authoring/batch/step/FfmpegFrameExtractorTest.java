@@ -390,4 +390,64 @@ class FfmpegFrameExtractorTest {
         assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
         assertThat(frames.get(0).getSrcFilePathNm().replace('\\', '/')).contains("/frames/raw/9001/");
     }
+
+    // ============================================================
+    // Phase 2: VDO_FRM_NO(실제 영상 프레임 위치) 배선 — FRM_NO(순번)와 의미 구분
+    // ============================================================
+
+    @Test
+    @DisplayName("마킹추출시_VDO_FRM_NO에_mark_frameIndex가_저장된다")
+    void extractByMarks_videoFrameNoStoresMarkFrameIndex() {
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(
+                new MarkItem(0, "00:00"),
+                new MarkItem(150, "00:05"),
+                new MarkItem(300, "00:10")
+        );
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        assertThat(frames).hasSize(3);
+        // videoFrameNo = mark.frameIndex() (실제 영상 위치) 그대로 저장
+        assertThat(frames.get(0).getVideoFrameNo()).isEqualTo(0);
+        assertThat(frames.get(1).getVideoFrameNo()).isEqualTo(150);
+        assertThat(frames.get(2).getVideoFrameNo()).isEqualTo(300);
+    }
+
+    @Test
+    @DisplayName("마킹추출시_FRM_NO는_여전히_추출순번이다")
+    void extractByMarks_frameNoRemainsSequence() {
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(
+                new MarkItem(0, "00:00"),
+                new MarkItem(150, "00:05"),
+                new MarkItem(300, "00:10")
+        );
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // 회귀 보호: FRM_NO 는 루프 인덱스(0,1,2) — YoloAutolabelStep ordering 의존.
+        assertThat(frames.get(0).getFrameNo()).isZero();
+        assertThat(frames.get(1).getFrameNo()).isEqualTo(1);
+        assertThat(frames.get(2).getFrameNo()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("듬성듬성한_마크_frameIndex_100과_250도_VDO_FRM_NO엔_실제값_FRM_NO엔_0과_1")
+    void extractByMarks_sparseMarks_distinguishSeqFromActual() {
+        FfmpegFrameExtractor extractor = newExtractor();
+        // 순번(0,1) ≠ 실제 영상 위치(100,250) 를 명확히 구분.
+        List<MarkItem> marks = List.of(
+                new MarkItem(100, "00:03"),
+                new MarkItem(250, "00:08")
+        );
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        assertThat(frames).hasSize(2);
+        assertThat(frames.get(0).getFrameNo()).isZero();
+        assertThat(frames.get(0).getVideoFrameNo()).isEqualTo(100);
+        assertThat(frames.get(1).getFrameNo()).isEqualTo(1);
+        assertThat(frames.get(1).getVideoFrameNo()).isEqualTo(250);
+    }
 }

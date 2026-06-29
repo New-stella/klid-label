@@ -277,6 +277,12 @@ class AugmentResultServiceTest {
         return src;
     }
 
+    private LsDataSrc newSrcWithVideoFrameNo(Long srcSn, Long rawSn, int frameNo, Integer videoFrameNo) {
+        LsDataSrc src = LsDataSrc.create(rawSn, frameNo, videoFrameNo, rawSn + "/frame-" + frameNo + ".jpg", null);
+        setField(src, "srcSn", srcSn);
+        return src;
+    }
+
     private LsDataAug newAugWithSrc(Long augSn, Long srcSn, String type) throws Exception {
         LsDataAug aug = LsDataAug.createPending(srcSn, type, BigDecimal.valueOf(0.95), "registrar");
         Field f = LsDataAug.class.getDeclaredField("dataAugSn");
@@ -516,6 +522,68 @@ class AugmentResultServiceTest {
         assertThat(second).isFalse();
         // 멱등 스킵된 2차 호출에서는 추가 매핑 저장 없음 (1차에서만 0건 — 라벨 없음)
         verify(augLblMapRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("증강복사_프레임은_부모의_videoFrameNo를_그대로_갖는다")
+    void augmentCopy_carriesParentVideoFrameNo() throws Exception {
+        ledger.recordIssued("K-VFN", "EXT-VFN");
+        LsDataRaw parentRaw = newRaw(120L);
+        LsDataSrc frame0 = newSrcWithVideoFrameNo(600L, 120L, 0, 100);
+        LsDataSrc frame1 = newSrcWithVideoFrameNo(601L, 120L, 1, 250);
+        LsDataAug aug = newAugWithSrc(45L, 600L, "WINTER");
+
+        when(augRepository.findById(45L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(600L)).thenReturn(Optional.of(frame0));
+        when(videoRepository.findById(120L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(120L)).thenReturn(List.of(frame0, frame1));
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
+        when(metaRepository.findByRawSn(120L)).thenReturn(List.of());
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-VFN", "EXT-VFN", "SUCCESS", 45L, "WINTER",
+                "/storage/augment/winter.mp4");
+
+        service.handle(req);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataSrc>> captor = ArgumentCaptor.forClass(List.class);
+        verify(srcRepository).saveAll(captor.capture());
+        List<LsDataSrc> copied = captor.getValue();
+        assertThat(copied).hasSize(2);
+        // 부모의 videoFrameNo(실제 영상 위치) carry-over
+        assertThat(copied.get(0).getVideoFrameNo()).isEqualTo(100);
+        assertThat(copied.get(1).getVideoFrameNo()).isEqualTo(250);
+    }
+
+    @Test
+    @DisplayName("부모_videoFrameNo가_null이면_증강복사본도_null")
+    void augmentCopy_nullParentVideoFrameNo_staysNull() throws Exception {
+        ledger.recordIssued("K-VFN-NULL", "EXT-VFNN");
+        LsDataRaw parentRaw = newRaw(121L);
+        // 4인자 create → videoFrameNo null (backfill 범위 외)
+        LsDataSrc frame0 = newSrc(610L, 121L, 0);
+        LsDataAug aug = newAugWithSrc(46L, 610L, "NIGHT");
+
+        when(augRepository.findById(46L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(610L)).thenReturn(Optional.of(frame0));
+        when(videoRepository.findById(121L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(121L)).thenReturn(List.of(frame0));
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
+        when(metaRepository.findByRawSn(121L)).thenReturn(List.of());
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                "K-VFN-NULL", "EXT-VFNN", "SUCCESS", 46L, "NIGHT",
+                "/storage/augment/night.mp4");
+
+        service.handle(req);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataSrc>> captor = ArgumentCaptor.forClass(List.class);
+        verify(srcRepository).saveAll(captor.capture());
+        assertThat(captor.getValue().get(0).getVideoFrameNo()).isNull();
     }
 
     private LsDataAug newAug(Long sn, String type, String status) throws Exception {

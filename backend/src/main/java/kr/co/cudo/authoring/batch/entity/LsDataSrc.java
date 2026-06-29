@@ -16,7 +16,8 @@ import java.time.LocalDateTime;
 /**
  * LS_DATA_SRC: 영상에서 추출한 키프레임 (FRAME_EXTRACT 단계 산출).
  *  - rawSn: LS_DATA_RAW FK (객체 참조 대신 ID 참조)
- *  - frameNo: 프레임 인덱스 (0-base)
+ *  - frameNo: 추출 순번 (마킹 추출 loop index, 0-base)
+ *  - videoFrameNo: 실제 영상 내 디코더 0-base 프레임 위치 (FRM_NO 와 의미 구분, nullable).
  *  - srcFilePathNm: 원본 프레임 이미지 경로
  *  - deIdntfSrcFilePathNm: 비식별 영상에서 추출한 동일 프레임 경로.
  *
@@ -40,6 +41,10 @@ public class LsDataSrc {
     @Column(name = "FRM_NO", nullable = false)
     private Integer frameNo;
 
+    /** 실제 영상 내 디코더 0-base 프레임 위치. FRM_NO(추출순번)와 의미 구분 — 재비식별 재추출용. nullable. */
+    @Column(name = "VDO_FRM_NO", nullable = true)
+    private Integer videoFrameNo;
+
     @Column(name = "SRC_FILE_PATH_NM", nullable = false, length = 500)
     private String srcFilePathNm;
 
@@ -56,19 +61,31 @@ public class LsDataSrc {
     private LocalDateTime updDt;
 
     @Builder
-    private LsDataSrc(Long rawSn, Integer frameNo, String srcFilePathNm, LocalDateTime shtDt) {
+    private LsDataSrc(Long rawSn, Integer frameNo, Integer videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
         this.rawSn = rawSn;
         this.frameNo = frameNo;
+        this.videoFrameNo = videoFrameNo;
         this.srcFilePathNm = srcFilePathNm;
         this.shtDt = shtDt;
         this.regDt = LocalDateTime.now();
     }
 
-    /** 원본(RAW) 프레임 row 생성. */
+    /** 원본(RAW) 프레임 row 생성 (videoFrameNo 미지정 = null). */
     public static LsDataSrc create(Long rawSn, int frameNo, String srcFilePathNm, LocalDateTime shtDt) {
         return LsDataSrc.builder()
                 .rawSn(rawSn)
                 .frameNo(frameNo)
+                .srcFilePathNm(srcFilePathNm)
+                .shtDt(shtDt)
+                .build();
+    }
+
+    /** 원본(RAW) 프레임 row 생성 (실제 영상 프레임 위치 videoFrameNo 보존). */
+    public static LsDataSrc create(Long rawSn, int frameNo, Integer videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
+        return LsDataSrc.builder()
+                .rawSn(rawSn)
+                .frameNo(frameNo)
+                .videoFrameNo(videoFrameNo)
                 .srcFilePathNm(srcFilePathNm)
                 .shtDt(shtDt)
                 .build();

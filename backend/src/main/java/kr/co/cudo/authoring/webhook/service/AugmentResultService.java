@@ -141,7 +141,7 @@ public class AugmentResultService {
         // 프레임 일괄 복사 (saveAll batch)
         List<LsDataSrc> parentFrames = srcRepository.findByRawSnOrderByFrameNoAsc(parentRaw.getRawSn());
         List<LsDataSrc> newFrames = parentFrames.stream()
-                .map(f -> LsDataSrc.create(newRaw.getRawSn(), f.getFrameNo(), f.getSrcFilePathNm(), f.getShtDt()))
+                .map(f -> LsDataSrc.create(newRaw.getRawSn(), f.getFrameNo(), f.getVideoFrameNo(), f.getSrcFilePathNm(), f.getShtDt()))
                 .toList();
         List<LsDataSrc> savedFrames = srcRepository.saveAll(newFrames);
 
