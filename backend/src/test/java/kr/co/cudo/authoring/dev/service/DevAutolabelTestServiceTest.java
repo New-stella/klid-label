@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestRequest;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestResponse;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -45,6 +46,7 @@ class DevAutolabelTestServiceTest {
     private VideoRepository videoRepository;
     private MngResourceCctvRepository cctvRepository;
     private DevPipelineRunner devPipelineRunner;
+    private EventTypeService eventTypeService;
 
     private DevAutolabelTestService service;
 
@@ -52,16 +54,22 @@ class DevAutolabelTestServiceTest {
     Path storageRoot;
 
     private static final long MAX_FILE_SIZE = 524_288_000L; // 500MB
+    /** dev 업로드 도구가 받는 관제 상세 EV-코드 (쓰러짐 카테고리 020002 의 대표 코드). */
+    private static final String VALID_EV_CODE = "EV02000201";
 
     @BeforeEach
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         cctvRepository = mock(MngResourceCctvRepository.class);
         devPipelineRunner = mock(DevPipelineRunner.class);
+        eventTypeService = mock(EventTypeService.class);
+        // 기본: 유효 EV-코드는 관제 마스터에 등록되어 categoryKey 를 반환한다.
+        given(eventTypeService.categoryKeyOf(VALID_EV_CODE)).willReturn(Optional.of("020002"));
         service = new DevAutolabelTestService(
                 videoRepository,
                 cctvRepository,
                 devPipelineRunner,
+                eventTypeService,
                 storageRoot.toString(),
                 MAX_FILE_SIZE
         );
@@ -71,7 +79,7 @@ class DevAutolabelTestServiceTest {
         return new AutolabelTestRequest(
                 "TEST-CLIP-001",
                 "CCTV-001",
-                "EVT_FALL",
+                VALID_EV_CODE,
                 "1168000000",
                 AutolabelTestRequest.PrvcType.ANONY,
                 Instant.parse("2024-05-01T12:00:00Z")
@@ -85,7 +93,7 @@ class DevAutolabelTestServiceTest {
     /** rawSn 값을 채워 save 가 정상 반환하도록 한다. */
     private LsDataRaw savedRaw(Long rawSn) {
         LsDataRaw raw = LsDataRaw.createFromIngest(
-                "TEST-CLIP-001", "CCTV-001", "EVT_FALL", "1168000000",
+                "TEST-CLIP-001", "CCTV-001", VALID_EV_CODE, "1168000000",
                 "ANONY", "autolabel-test/x.mp4", null, 60);
         setRawSn(raw, rawSn);
         return raw;
@@ -163,7 +171,7 @@ class DevAutolabelTestServiceTest {
     void 파일크기_초과() {
         // maxFileSize 를 4 bytes 로 매우 작게 설정
         DevAutolabelTestService smallLimitService = new DevAutolabelTestService(
-                videoRepository, cctvRepository, devPipelineRunner,
+                videoRepository, cctvRepository, devPipelineRunner, eventTypeService,
                 storageRoot.toString(), 4L);
 
         MultipartFile file = mp4File("big.mp4", new byte[]{1, 2, 3, 4, 5});
@@ -208,6 +216,41 @@ class DevAutolabelTestServiceTest {
         MultipartFile file = mp4File("sample.mp4", new byte[]{1, 2});
 
         assertThatThrownBy(() -> service.upload(file, validMeta()))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(videoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("AutolabelTest_eventTypeCd_관제EV코드면_통과")
+    void eventTypeCd_관제등록코드_통과() throws Exception {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(cctvRepository.existsById(any())).willReturn(true);
+        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(77L));
+        // VALID_EV_CODE 는 setUp 에서 categoryKey 반환하도록 stub.
+
+        MultipartFile file = mp4File("ok.mp4", new byte[]{1, 2, 3});
+        AutolabelTestResponse response = service.upload(file, validMeta());
+
+        assertThat(response.rawSn()).isEqualTo(77L);
+        verify(eventTypeService).categoryKeyOf(VALID_EV_CODE);
+    }
+
+    @Test
+    @DisplayName("AutolabelTest_eventTypeCd_관제미등록코드면_400_저장안됨")
+    void eventTypeCd_관제미등록코드_400() {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(cctvRepository.existsById(any())).willReturn(true);
+        // 미등록 EV-코드 — categoryKeyOf 가 빈 Optional 반환.
+        given(eventTypeService.categoryKeyOf("EV09999999")).willReturn(Optional.empty());
+
+        AutolabelTestRequest meta = new AutolabelTestRequest(
+                "TEST-CLIP-001", "CCTV-001", "EV09999999", "1168000000",
+                AutolabelTestRequest.PrvcType.ANONY, Instant.parse("2024-05-01T12:00:00Z"));
+        MultipartFile file = mp4File("unknown.mp4", new byte[]{1, 2, 3});
+
+        assertThatThrownBy(() -> service.upload(file, meta))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
 
@@ -265,7 +308,7 @@ class DevAutolabelTestServiceTest {
     /** durationProbe 주입형 서비스 — ffprobe 의존 격리. */
     private DevAutolabelTestService serviceWithProbe(DevAutolabelTestService.DurationProbe probe) {
         return new DevAutolabelTestService(
-                videoRepository, cctvRepository, devPipelineRunner,
+                videoRepository, cctvRepository, devPipelineRunner, eventTypeService,
                 storageRoot.toString(), MAX_FILE_SIZE, "ffprobe", probe);
     }
 

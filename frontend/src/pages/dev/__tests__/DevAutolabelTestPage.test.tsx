@@ -30,11 +30,26 @@ function readBlobAsText(blob: Blob): Promise<string> {
  *
  * 보안 검증: file 입력은 `accept` 화이트리스트, BE message 는 자동 이스케이프되어 표시.
  */
+// 관제 이벤트 타입 카테고리 옵션 — useEventTypes() 소스. select value=categoryKey,
+// 제출 payload eventTypeCd=memberCodes[0].
+const EVENT_CATEGORIES = [
+  { categoryKey: '020002', label: '쓰러짐', memberCodes: ['EV02000201'] },
+  { categoryKey: '050001', label: '싸움', memberCodes: ['EV05000101'] },
+  { categoryKey: '030001', label: '교통사고', memberCodes: ['EV03000101'] },
+];
+
 describe('DevAutolabelTestPage', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
+    // 이벤트 타입 카테고리 옵션 — 화면 select + 제출 EV-코드 변환에 필요.
+    mock.onGet('/event-types').reply(200, {
+      success: true,
+      data: EVENT_CATEGORIES,
+      message: null,
+      errorCode: null,
+    });
     useAuthStore.setState({
       token: 'tok',
       claims: {
@@ -145,7 +160,9 @@ describe('DevAutolabelTestPage', () => {
     const meta = JSON.parse(metaText);
     expect(meta.vmsClipId).toMatch(/^test-/);
     expect(meta.cctvId).toBe('CCTV-001');
-    expect(meta.eventTypeCd).toBe('EVT_FALL');
+    // 카테고리(첫 옵션 020002) → 대표 EV-코드(memberCodes[0]) 전송 — 구 EVT_* 미전송.
+    expect(meta.eventTypeCd).toBe('EV02000201');
+    expect(meta.eventTypeCd).not.toMatch(/^EVT_/);
     expect(meta.localGovCd).toBe('11680');
     expect(meta.prvcTypeCd).toBe('ANONY');
     // durationSec 는 BE 가 ffprobe 로 자동 추출 → FE meta 에 포함되지 않음
@@ -355,6 +372,82 @@ describe('DevAutolabelTestPage', () => {
         screen.getByTestId('autolabel-pipeline-failed'),
       ).toHaveTextContent('파이프라인 실행에 실패했습니다');
     });
+  });
+
+  it('dev_업로드_이벤트_select가_관제카테고리를_렌더하고_제출시_EV코드를_보낸다', async () => {
+    const user = userEvent.setup();
+    let capturedMeta: Record<string, unknown> | null = null;
+    mock.onPost('/dev/autolabel-test').reply(async (config) => {
+      const fd = config.data as FormData;
+      const blob = fd.get('meta') as Blob;
+      capturedMeta = JSON.parse(await readBlobAsText(blob));
+      return [
+        200,
+        {
+          success: true,
+          data: {
+            rawSn: 33333,
+            savedFilePath: 'autolabel-test/cat.mp4',
+            pipelineStatus: 'PROCESSING',
+            startedAt: 1715520000000,
+          },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+    mock.onGet(/\/videos\/\d+$/).reply(200, {
+      success: true,
+      data: {
+        id: 33333,
+        rawSn: 33333,
+        cctvName: 'CCTV-001',
+        vmsClipId: 'test-cat',
+        frameCount: 0,
+        status: 'MARKING_READY',
+        capturedAt: '2026-05-12T10:00:00Z',
+        duration: 60,
+        fileSizeMb: 10,
+        resolution: '1920x1080',
+        framePreviews: [],
+        stages: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<DevAutolabelTestPage />);
+
+    // 메인 폼의 이벤트 select (TusUploadPanel 에도 동일 라벨 select 가 있어 id 로 한정).
+    const select = document.getElementById(
+      'autolabel-test-event',
+    ) as HTMLSelectElement;
+    // 관제 카테고리 옵션이 렌더된다 (구 EVT_* 옵션 부재).
+    await waitFor(() => {
+      const labels = Array.from(select.options).map((o) => o.textContent);
+      expect(labels).toEqual(
+        expect.arrayContaining(['쓰러짐', '싸움', '교통사고']),
+      );
+    });
+    expect(
+      Array.from(select.options).some((o) => /EVT_/.test(o.value)),
+    ).toBe(false);
+
+    // 교통사고(030001) 선택 → 제출 시 EV03000101 전송.
+    await user.selectOptions(select, '030001');
+
+    const file = new File(['v'], 'cat.mp4', { type: 'video/mp4' });
+    const fileInput = document.getElementById(
+      'autolabel-test-file',
+    ) as HTMLInputElement;
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: '업로드' }));
+
+    await waitFor(() => {
+      expect(capturedMeta).not.toBeNull();
+    });
+    const sentMeta = capturedMeta as unknown as Record<string, unknown>;
+    expect(sentMeta.eventTypeCd).toBe('EV03000101');
   });
 
   it('BE_409_vmsClipId_중복_메시지_표시', async () => {

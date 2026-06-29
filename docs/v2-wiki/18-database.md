@@ -85,6 +85,17 @@
 
 `MNG_ACCT_USER`, `MNG_ACCT_AUTHRT`, `MNG_ACCT_USER_AUTHRT`, `MNG_CLIP_MASTER`, `MNG_RESOURCE_CCTV`, `MNG_EX_EVNT_TYPE`, `MNG_EX_EVNT_TYPE_MAP`, `MNG_EX_LOCAL_GOV`, `MNG_CLIP_SCHEDULE_QUE`(배치 큐).
 
+### 18.4.1 이벤트 타입 진실원 — `MNG_EX_EVNT_TYPE` / `MNG_EX_EVNT_TYPE_MAP` (SoT)
+
+영상 이벤트 타입의 **단일 진실원(SoT)** 은 관제 소유 `MNG_EX_EVNT_TYPE`(+`MNG_EX_EVNT_TYPE_MAP` 라벨)다. 저작도구는 READ 연동(`@Immutable`, `ddl-auto=validate`)하며 자체 마스터 테이블을 두지 않는다. (구 `EvntType` enum 6종/`EVT_*` 하드코딩은 **폐기·삭제**됨 — 관제 실코드와 어긋났던 잔재.)
+
+- **코드 체계**: `EVNT_TYPE_CD` = `EV` + 대분류(2) + 카테고리(2) + 상세(2), 예 `EV02000201`. 3단계 계층(`EVNT_CLS_CD` 대분류 / `EVNT_CTGRY_CD` 카테고리 / 상세). `CLCT_YN`=수집여부.
+- **라벨**: `MNG_EX_EVNT_TYPE_MAP` (`CD_TYPE`='01' 대분류명 / '02' 카테고리명, 5컬럼 복합 PK `CD_TYPE+EVNT_CLS_CD+EVNT_CTGRY_CD+DTL_EVNT+EVNT_TYPE_CD`).
+- **저작도구 노출 정책**: 라벨 해석(매핑)은 **전체 코드** 대상(들어오는 어떤 EV-코드든 한글명), 필터/선택 드롭다운은 **`CLCT_YN='Y'` 중 대분류≠08(ignore) = 9 카테고리**(상세 14코드를 카테고리로 dedup). 구현: `eventtype/service/EventTypeService`(`filterOptions`/`codeLabelMap`/`categoryKeyOf`, Caffeine 캐시) + `GET /api/v1/event-types`·`/labels`.
+- **저장 단위**: 영상 `LS_DATA_RAW.EVNT_TYPE_CD`=상세 EV-코드(관제 적재값), 프리셋 `LS_LABEL_PRESET.EVNT_TYPE_CD`=categoryKey. 프리셋 매칭은 영상 EV-코드를 categoryKey로 변환 후 조회(`PresetLabelLookupService`).
+- **마이그레이션**: 구 `EVT_*` 잔존 데이터는 V72(`V72__migrate_preset_evnt_type_to_category.sql`)가 프리셋→categoryKey, 영상→대표 EV-코드로 정정(멱등·운영 no-op). 관제 신규 코드 추가는 관제가 관리(저작도구 마이그레이션 없음).
+- 실제 스키마는 LogiCraft **ERD-024**(관제 공유 클립 ERD)에 진실원 기록(MNG_* prefix 규칙으로 D8/D9 산출물 비대상). ※ ERD-024에 두 테이블 모델 추가는 후속 정합 권장.
+
 ## 18.5 Quartz
 
 `QRTZ_*` (JobStore, PostgreSQLDelegate, BYTEA) — 배치 스케줄 상태. → [07](07-batch-pipeline.md).

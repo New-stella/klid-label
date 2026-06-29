@@ -12,39 +12,14 @@ export const PrvcType = {
 export type PrvcType = (typeof PrvcType)[keyof typeof PrvcType];
 
 /**
- * [개발/검수 전용] 오토라벨 테스트 업로드 이벤트 옵션 — EVT_ 코드 6 종.
- *
- * 운영 이벤트 타입은 관제 마스터(카테고리/EV-코드)로 전환됐으나, dev 업로드 엔드포인트
- * (`AutolabelTestRequest`)는 BE 검증 패턴 `^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$`
- * 를 그대로 유지한다(미변경 BE 계약). 따라서 dev 화면은 본 고정 EVT_ 코드를 dev 전용 fixture 로
- * 로컬 정의해 전송한다 — 운영 이벤트 타입(관제 마스터 전환)과 분리한다.
- *
- * FE 입력은 화이트리스트 select 로 노출해 임의 문자열 주입을 1차 차단한다(BE 가 2차 검증).
- */
-export const DEV_EVENT_TYPES = [
-  { code: 'EVT_FALL', label: '쓰러짐' },
-  { code: 'EVT_VIOLENCE', label: '폭력' },
-  { code: 'EVT_ACCIDENT', label: '교통사고' },
-  { code: 'EVT_ABNORMAL', label: '이상행동(유괴)' },
-  { code: 'EVT_FLOOD', label: '침수' },
-  { code: 'EVT_FIRE', label: '산불' },
-] as const;
-
-export type EventTypeCd = (typeof DEV_EVENT_TYPES)[number]['code'];
-
-export const EventTypeCd = Object.freeze(
-  DEV_EVENT_TYPES.reduce<Record<EventTypeCd, EventTypeCd>>((acc, e) => {
-    acc[e.code] = e.code;
-    return acc;
-  }, {} as Record<EventTypeCd, EventTypeCd>),
-);
-
-/**
  * 오토라벨 테스트 메타데이터 (dev 업로드 단순화 — 운영 시나리오 1:1 고정 플로우).
  *
  * BE record `AutolabelTestRequest` 와 동일한 필드 + 검증.
  * - vmsClipId / cctvId: 영문/숫자/-/_ 1~64자
  * - localGovCd: 숫자 1~10자리
+ * - eventTypeCd: 관제 마스터 상세 EV-코드 (예 `EV02000201`). 화면 select 는 카테고리(9종)를
+ *   고르게 하고 제출 시 그 카테고리의 대표 EV-코드(`memberCodes[0]`)를 전송한다 — 테스트 영상이
+ *   실제 영상처럼 EV-코드를 갖도록 해 오토라벨 프리셋 매칭(EV-코드→categoryKey→프리셋) 흐름 검증.
  * - capturedAt: ISO-8601 (`Date.toISOString()` 형식)
  *
  * dev 업로드는 업로드 → 비식별(무조건) → MARKING_READY 정지의 고정 플로우라 단계 토글
@@ -55,7 +30,8 @@ export const EventTypeCd = Object.freeze(
 export interface AutolabelTestMeta {
   vmsClipId: string;
   cctvId: string;
-  eventTypeCd: EventTypeCd | string;
+  /** 관제 상세 EV-코드 (EV + 숫자 8자리). */
+  eventTypeCd: string;
   localGovCd: string;
   prvcTypeCd: PrvcType;
   /** ISO-8601 Instant (예: `2026-05-12T10:00:00Z`) */

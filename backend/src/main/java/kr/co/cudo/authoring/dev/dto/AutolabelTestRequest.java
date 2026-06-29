@@ -37,11 +37,15 @@ public record AutolabelTestRequest(
         @Pattern(regexp = "^[A-Za-z0-9_-]{1,64}$", message = "cctvId 는 영문/숫자/-/_ 1~64자만 허용됩니다.")
         String cctvId,
 
-        @Schema(description = "이벤트 타입 코드 (SoT 6종: EVT_FALL/EVT_VIOLENCE/EVT_ACCIDENT/EVT_ABNORMAL/EVT_FLOOD/EVT_FIRE)",
-                example = "EVT_FALL", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = """
+                관제 마스터(MNG_EX_EVNT_TYPE) 상세 이벤트 코드 — 형식 EVxxxxxxxx (EV + 숫자 8자리).
+                예: EV02000201(쓰러짐)/EV05000101(싸움)/EV03000101(교통사고). dev 업로드 도구는 이 코드를
+                LS_DATA_RAW 에 적재해 오토라벨 프리셋 매칭(EV-코드→categoryKey→프리셋) 흐름을 시험한다.
+                형식만 @Pattern 으로 1차 가드하고, 실제 관제 등록 여부는 서비스(EventTypeService)에서 검증한다(미등록 400).""",
+                example = "EV02000201", requiredMode = Schema.RequiredMode.REQUIRED)
         @NotBlank(message = "eventTypeCd 는 필수입니다.")
-        @Pattern(regexp = "^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$",
-                message = "지원하지 않는 이벤트 타입입니다")
+        @Pattern(regexp = "^EV[0-9]{8}$",
+                message = "이벤트 타입 코드 형식이 올바르지 않습니다 (EV + 숫자 8자리).")
         String eventTypeCd,
 
         @Schema(description = "지자체 코드 (숫자)", example = "1168000000",
