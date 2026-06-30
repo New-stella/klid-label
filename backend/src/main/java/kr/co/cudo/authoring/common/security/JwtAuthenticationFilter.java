@@ -93,6 +93,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // R5-1: ROLE_* + CHANNEL_* 권한 부여 → SecurityConfig 가 채널 격리를 인가 단계에서 강제.
                 // channel 클레임 없는 토큰은 위에서 INTERNAL 로 기본값 처리(fail-closed: 내부 사용자 호환).
+                // 불변(LOW 2-1): JWT 발급 경로는 ROLE_*/CHANNEL_* authority 만 부여한다. 서명 스트림 전용
+                // STREAM_SIGNED(StreamSignatureFilter.AUTHORITY_STREAM_SIGNED) 권한은 여기서 절대 부여하지
+                // 않으므로, 사용자는 어떤 토큰(sub 위장 포함)으로도 /stream 인가를 획득할 수 없다(CWE-863).
                 List<SimpleGrantedAuthority> authorities = new ArrayList<>();
                 if (role != null) {
                     authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name()));

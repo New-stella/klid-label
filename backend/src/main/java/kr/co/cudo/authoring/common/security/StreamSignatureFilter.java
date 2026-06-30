@@ -45,9 +45,20 @@ public class StreamSignatureFilter extends OncePerRequestFilter {
     private static final String STREAM_CHANNEL_AUTHORITY = "CHANNEL_" + Channel.INTERNAL.name();
 
     /**
-     * 서명 인증 컨텍스트의 합성 principal subject.
+     * 서명 인증 시 부여하는 전용 authority — {@code /stream} 인가 판정의 단일 출처.
+     *
+     * <p>이 권한은 <b>오직 본 필터</b>(유효 HMAC 서명 검증 통과 시)만 부여한다. JWT 발급 경로
+     * ({@link JwtAuthenticationFilter})는 {@code ROLE_*}/{@code CHANNEL_*} authority 만 부여하므로
+     * 사용자는 어떤 토큰으로도 {@code STREAM_SIGNED} 를 절대 합성할 수 없다. 따라서 {@code /stream}
+     * 인가를 sub(subject) 값 비교가 아닌 이 권한 보유 여부로 판정하면 sub-스푸핑 의존이 제거된다(CWE-863).
+     */
+    public static final String AUTHORITY_STREAM_SIGNED = "STREAM_SIGNED";
+
+    /**
+     * 서명 인증 컨텍스트의 합성 principal subject (식별/로깅용).
      * <p>서명 URL 은 role-gated {@code /stream-url} 발급을 거친 정당 경로이므로 역할 권한 없이도 스트림을 허용해야 한다.
-     * VideoController#streamVideo 의 {@code @PreAuthorize} 가 이 값으로 서명 경로를 식별해 통과시킨다(관찰-1 단일 출처).
+     * 인가 판정은 더 이상 이 값에 의존하지 않으며({@link #AUTHORITY_STREAM_SIGNED} 권한으로 전환), 합성 principal
+     * 의 식별자로만 유지한다.
      */
     public static final String STREAM_SIGNED_PRINCIPAL = "stream-signed";
 
@@ -103,8 +114,11 @@ public class StreamSignatureFilter extends OncePerRequestFilter {
         // u 미존재(레거시 URL)면 빈 문자열로 검증 — signer 가 null/"" 를 동일하게 정규화한다.
         String userNo = request.getParameter("u");
         if (signer.verify(rawSn, exp, sig, userNo)) {
-            List<SimpleGrantedAuthority> authorities =
-                    List.of(new SimpleGrantedAuthority(STREAM_CHANNEL_AUTHORITY));
+            // CHANNEL_INTERNAL: /v1/** 채널 격리 통과용. STREAM_SIGNED: /stream 인가 전용 권한
+            // (이 권한은 본 필터만 부여 — 사용자 토큰으로는 합성 불가).
+            List<SimpleGrantedAuthority> authorities = List.of(
+                    new SimpleGrantedAuthority(STREAM_CHANNEL_AUTHORITY),
+                    new SimpleGrantedAuthority(AUTHORITY_STREAM_SIGNED));
             // principal 은 합성 식별자 — 역할/채널 클레임은 channel(INTERNAL)만 부여.
             TokenClaims claims = new TokenClaims(STREAM_SIGNED_PRINCIPAL, null, Channel.INTERNAL, null);
             UsernamePasswordAuthenticationToken auth =

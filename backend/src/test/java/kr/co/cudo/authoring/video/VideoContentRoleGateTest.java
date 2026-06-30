@@ -55,6 +55,15 @@ class VideoContentRoleGateTest {
         return JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
     }
 
+    /**
+     * sub-스푸핑 토큰 — subject 를 합성 식별자("stream-signed")로 위장한 정상 서명 JWT.
+     * <p>INTERNAL 채널이라 sub 가 비숫자면 LS 역할 미해석(role=null)이 되어 STREAM_SIGNED 권한은
+     * 부여되지 않는다. 인가가 principal.sub() 값에 의존하면 이 토큰이 /stream 게이트를 뚫는다(취약).
+     */
+    private String spoofedStreamSubToken() {
+        return JwtTestSupport.token(secret, "stream-signed", "REVIEWER", "INTERNAL", issuer, 60);
+    }
+
     @Test
     @DisplayName("미배정_role_null_사용자는_영상목록_403")
     void unassignedForbiddenOnVideoList() throws Exception {
@@ -98,6 +107,16 @@ class VideoContentRoleGateTest {
         // when/then: 역할 게이트는 통과하고 데이터 부재로 404 (403/401 아님)
         mockMvc.perform(get("/v1/videos/999999/stream").header("Authorization", "Bearer " + workerToken()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("STREAM_SIGNED_권한없는_sub_stream_가짜접근_차단")
+    void spoofedStreamSubForbiddenOnStream() throws Exception {
+        // given: subject 를 합성 식별자("stream-signed")로 위장한 정상 서명 JWT (서명 쿼리는 없음)
+        // when/then: /stream 인가가 sub 값이 아닌 STREAM_SIGNED 권한 기반이므로 위장은 무력 → 403
+        //   (JWT 발급 경로는 ROLE_*/CHANNEL_* 만 부여, STREAM_SIGNED 권한은 절대 합성 불가)
+        mockMvc.perform(get("/v1/videos/1/stream").header("Authorization", "Bearer " + spoofedStreamSubToken()))
+                .andExpect(status().isForbidden());
     }
 
     @Test

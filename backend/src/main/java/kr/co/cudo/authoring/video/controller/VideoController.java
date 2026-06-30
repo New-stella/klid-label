@@ -214,9 +214,10 @@ public class VideoController {
     @GetMapping("/{rawSn}/stream")
     // 관찰-1: 역할 미배정(role=null) 차단. 단 서명 URL 스트림 경로는 예외로 허용한다 —
     // 서명은 role-gated /stream-url 발급(+userNo 바인딩)을 거친 정당 경로이므로 role=null 은 서명을 얻을 수 없다.
-    // StreamSignatureFilter 가 합성 principal(STREAM_SIGNED_PRINCIPAL)로 인증하므로 그 경우만 통과시킨다.
-    @PreAuthorize("hasAnyRole('REVIEWER','WORKER') "
-            + "or principal.sub() == T(kr.co.cudo.authoring.common.security.StreamSignatureFilter).STREAM_SIGNED_PRINCIPAL")
+    // LOW 2-1: sub(subject) 값 비교(sub-스푸핑 의존) 대신 STREAM_SIGNED 권한 보유로 판정한다.
+    // 이 권한은 StreamSignatureFilter 가 유효 서명 검증 시에만 부여하며, JWT 발급 경로
+    // (JwtAuthenticationFilter)는 ROLE_*/CHANNEL_* 만 부여하므로 사용자가 절대 합성할 수 없다(CWE-863).
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER') or hasAuthority('STREAM_SIGNED')")
     public ResponseEntity<ResourceRegion> streamVideo(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
             @RequestHeader HttpHeaders headers) throws IOException {
