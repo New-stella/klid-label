@@ -57,7 +57,7 @@ class BatchDevScanIntegrationTest {
 
     /** REVIEWER + INTERNAL 채널 토큰 — /v1/dev/batch/** 는 REVIEWER 인증 필수. */
     private String reviewerToken() {
-        return JwtTestSupport.token(secret, "dev-reviewer", "REVIEWER", "INTERNAL", issuer, 60);
+        return JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
     }
 
     @BeforeEach
@@ -179,7 +179,7 @@ class BatchDevScanIntegrationTest {
     @DisplayName("WORKER_토큰은_403으로_거부된다")
     void scanWithWorkerTokenIsForbidden() throws Exception {
         // given — REVIEWER 가 아닌 WORKER 토큰
-        String workerToken = JwtTestSupport.token(secret, "dev-worker", "WORKER", "INTERNAL", issuer, 60);
+        String workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
 
         // when / then — REVIEWER 미보유 → 403
         mockMvc.perform(post("/v1/dev/batch/scan")

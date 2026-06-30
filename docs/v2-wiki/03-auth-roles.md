@@ -8,7 +8,8 @@
 - 저작도구는 **독립 로그인 UI 없음** — 관제서버(내부)/포털 서버(외부)가 발급한 **JWT 토큰을 인계**받는다.
 - 관제서버와 **동일 도메인 운영** → 브라우저 스토리지(localStorage/sessionStorage) 공유로 JWT 전달. URL 쿼리(`?token=`) 미사용.
 - 두 채널 모두 **동일 JWT 발급 서버** → 단일 검증 로직(`JwtAuthenticationFilter`).
-- 토큰 `role` + `channel` 클레임으로 권한 분기 (`@PreAuthorize("hasRole('REVIEWER')")`).
+- 토큰 `channel` 클레임으로 채널(INTERNAL/PORTAL) 분기. **저작도구 인가 역할(REVIEWER/WORKER/PORTAL_USER)은 JWT `role` 클레임이 아니라 저작도구 소유 `LS_USER_ROLE`(USER_NO→역할)에서 조회**한다 — JWT는 식별·인증(sub·channel·exp·서명) 전담, 인가 역할은 LS 전담(`@PreAuthorize("hasRole('REVIEWER')")`). INTERNAL 채널은 `UserRoleResolver`(Caffeine 캐시 TTL 60s)로 LS 조회, PORTAL 채널은 `PORTAL_USER` 고정.
+  - (역할 분리 리팩토링 2026-06) 실제 관제 JWT의 `role` 클레임은 관제 역할(SYSTEM_ADMIN/LEARN_MANAGER 등)이라 저작도구 역할과 무관하므로, 저작도구 인가는 LS 기준으로 일원화했다. 역할 변경 시 캐시는 트랜잭션 커밋 후(AFTER_COMMIT) evict.
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트.
 
 화면: `KLID-AT-SC-001`(세션 인계 진입 `/ingress`) → channel 클레임으로 `/portal` 또는 `/dashboard` 라우팅. `KLID-AT-SC-002`(역할 클레임 `/role-claim`) — role 미부여 시 진입.
@@ -22,6 +23,8 @@
 | 포털 회원 | `PORTAL_USER` | (외부 채널) 데이터마트 영상 선택, 기존 라벨 확인·수정·저장, 본인 데이터 다운로드 |
 
 > **ADMIN 폐지** — 모든 관리 권한이 REVIEWER에 통합. UI 호칭 '검수자', 관리 화면 URL `/manage/*`.
+
+> **역할 저장·부여 (역할 분리 2026-06)**: 저작도구 역할은 저작도구 소유 `LS_USER_ROLE`(USER_NO→ROLE_CD) 에 저장·조회한다. 관제 계정 테이블(`MNG_ACCT_USER_AUTHRT`)에는 **쓰지 않는다**(아키텍처 가드 테스트로 강제). 역할 부여/변경은 `PATCH /v1/users/{userNo}`(REVIEWER), 첫 역할 부트스트랩은 `POST /v1/auth/role-claim`(관리자 PW + rate limit). LS 역할 미배정 사용자는 보호 엔드포인트 403(fail-closed).
 
 ## 3.3 권한 경계 (보안)
 

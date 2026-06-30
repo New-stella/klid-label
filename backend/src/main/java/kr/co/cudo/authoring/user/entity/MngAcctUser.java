@@ -14,8 +14,9 @@ import java.time.LocalDateTime;
 /**
  * 사용자 마스터 엔티티 — 관제서버팀 공유 테이블 `MNG_ACCT_USER`.
  *
- * <p>{@code @Immutable} 로 JPA dirty checking 갱신은 비활성. 활성/비활성 상태 변경은
- * Repository 의 {@code @Modifying} UPDATE 쿼리({@code UserRepository.updateUseYn})로 수행한다.
+ * <p>{@code @Immutable} 로 JPA dirty checking 갱신은 비활성 — 관제 소유 테이블이라 저작도구는
+ * READ 전용으로 사용한다(useYn/사용자 식별 읽기). 역할 분리 리팩토링 Phase 2 에서 활성/비활성
+ * 쓰기 경로는 제거됐고, 저작도구 역할은 {@code LS_USER_ROLE} 에서 관리한다.
  */
 @Entity
 @Table(name = "MNG_ACCT_USER")

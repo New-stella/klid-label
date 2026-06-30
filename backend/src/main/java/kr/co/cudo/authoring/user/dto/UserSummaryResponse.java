@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  *   <li>{@code loginId}   = {@code userId}</li>
  *   <li>{@code name}      = {@code userNm}</li>
  *   <li>{@code email}     = {@code userEmail}</li>
- *   <li>{@code role}      = MNG_ACCT_USER_AUTHRT 의 AUTHRT_CD (없으면 'WORKER' 기본값)</li>
+ *   <li>{@code role}      = LS_USER_ROLE 의 ROLE_CD (LS 역할 없으면 null 미배정 — 기본값 부여 안 함)</li>
  *   <li>{@code active}    = ('Y' == useYn)</li>
  *   <li>{@code createdAt} = {@code regDt}</li>
  * </ul>
@@ -37,14 +37,17 @@ public record UserSummaryResponse(
         String useYn,
         LocalDateTime regDt
 ) {
-    /** 단순 매핑 — role 은 기본값 'WORKER'. */
+    /** 단순 매핑 — 역할 미주입(null 미배정). */
     public static UserSummaryResponse from(MngAcctUser user) {
-        return from(user, "WORKER");
+        return from(user, null);
     }
 
-    /** 보강 매핑 — 서비스 레이어에서 권한 코드를 함께 주입. */
+    /**
+     * 보강 매핑 — 서비스 레이어에서 LS_USER_ROLE 권한 코드를 함께 주입.
+     * LS 역할이 없으면 {@code roleCode} 는 null(미배정)이며 기본값을 부여하지 않는다.
+     */
     public static UserSummaryResponse from(MngAcctUser user, String roleCode) {
-        String resolvedRole = (roleCode != null && !roleCode.isBlank()) ? roleCode : "WORKER";
+        String resolvedRole = (roleCode != null && !roleCode.isBlank()) ? roleCode : null;
         boolean isActive = "Y".equals(user.getUseYn());
         return new UserSummaryResponse(
                 user.getUserNo(),

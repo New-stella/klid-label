@@ -119,9 +119,9 @@ public class UserController {
     }
 
     @Operation(
-            summary = "사용자 활성/비활성 + 역할 변경 (REVIEWER)",
-            description = "REVIEWER 전용. useYn(Y|N) 또는 role(REVIEWER|WORKER|PORTAL_USER) 중 1개 이상 제공. " +
-                    "두 필드 모두 화이트리스트 정규식으로 검증되며 미제공 필드는 변경되지 않는다."
+            summary = "사용자 역할 변경 (REVIEWER)",
+            description = "REVIEWER 전용. role(REVIEWER|WORKER|PORTAL_USER)을 저작도구 소유 LS_USER_ROLE 에 변경한다. " +
+                    "화이트리스트 정규식으로 검증되며 role 미제공 시 변경되지 않는다. (활성/비활성 토글은 관제 소유라 제외)"
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),

@@ -58,6 +58,7 @@
 | `LS_RAW_DATA_ENROLLMENT` / `LS_RAW_DATA_STATUS` (V36) | 영상 등록 / 진행 상태 | [05](05-video-management.md) |
 | `LS_TASK_ASSIGNMENT` / `LS_TASK_ASSIGN_HISTORY` (V36) | 작업 배정 / 재배정 이력 | [12](12-review-assignment.md) |
 | `LS_TASK_EVENT_LOG` (V36) | 작업 이벤트 로그 | [12](12-review-assignment.md) |
+| `LS_USER_ROLE` (V75) | 저작도구 라벨링 역할 매핑 (USER_NO→ROLE_CD: REVIEWER/WORKER/PORTAL_USER) — 인가 역할 단일 진실원. 관제 `MNG_ACCT_USER_AUTHRT` 대체(역할 분리 2026-06) | [03](03-auth-roles.md) |
 | `LS_BATCH_PROC_LOG` (V12) | 배치 단계 로그 (STAGE_CD, RES_PAYLOAD_CN) | [07](07-batch-pipeline.md) |
 | `LS_SYSTEM_CONFIG` (V11) | 시스템 설정 (화이트리스트 key/value) | [10](10-labeling.md) |
 | `LS_AUTH_WORK_LOCK` (V22, 동일영상 활성락 1건 partial unique index V69) | 비식별 재진행 중 잠금(동시 이중 위탁 차단) | [08](08-deidentification.md) |
@@ -84,6 +85,8 @@
 ## 18.4 관제서버 소유 MNG_* (읽기 전용 9개)
 
 `MNG_ACCT_USER`, `MNG_ACCT_AUTHRT`, `MNG_ACCT_USER_AUTHRT`, `MNG_CLIP_MASTER`, `MNG_RESOURCE_CCTV`, `MNG_EX_EVNT_TYPE`, `MNG_EX_EVNT_TYPE_MAP`, `MNG_EX_LOCAL_GOV`, `MNG_CLIP_SCHEDULE_QUE`(배치 큐).
+
+> **역할 분리 (2026-06)**: 과거 저작도구가 쓰던 `MNG_ACCT_USER`(useYn UPDATE)·`MNG_ACCT_USER_AUTHRT`(역할 delete/insert)는 이제 **저작도구 쓰기 0건**이다. `MNG_ACCT_USER`는 사용자 식별 READ 전용(`@Immutable`), `MNG_ACCT_USER_AUTHRT`는 저작도구 미사용(역할은 `LS_USER_ROLE`로 분리). 아키텍처 가드 테스트(`MngAcctWriteGuardTest`)로 회귀 차단.
 
 ### 18.4.1 이벤트 타입 진실원 — `MNG_EX_EVNT_TYPE` / `MNG_EX_EVNT_TYPE_MAP` (SoT)
 

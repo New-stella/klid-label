@@ -35,6 +35,7 @@ public class SecurityConfig {
 
     private final JwtKeyResolver keyResolver;
     private final JwtIssuerValidator issuerValidator;
+    private final UserRoleResolver userRoleResolver;
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
@@ -43,7 +44,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                     CorsConfigurationSource corsConfigurationSource) throws Exception {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(keyResolver, issuerValidator);
+        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver);
 
         // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
         // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).

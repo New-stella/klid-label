@@ -129,10 +129,12 @@ class DevTokenControllerTest {
     @Test
     @DisplayName("발급된_토큰을_GET_v1_me_호출시_정상_인증")
     void issuedTokenWorksOnMeEndpoint() throws Exception {
+        // Phase 3 — /me 의 role 은 LS_USER_ROLE(sub=1 → REVIEWER) 에서 해석된다(JWT role 클레임 아님).
+        // 따라서 dev 토큰 sub 도 시드된 숫자 userNo(1) 로 발급해야 인가 역할이 REVIEWER 로 해석된다.
         Map<String, Object> body = Map.of(
                 "role", "REVIEWER",
                 "channel", "INTERNAL",
-                "userNo", "test-001",
+                "userNo", "1",
                 "name", "검수자A"
         );
 
@@ -152,7 +154,7 @@ class DevTokenControllerTest {
 
         mockMvc.perform(get("/v1/me").header("Authorization", authHeader))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.userId").value("test-001"))
+                .andExpect(jsonPath("$.data.userId").value("1"))
                 .andExpect(jsonPath("$.data.role").value("REVIEWER"))
                 .andExpect(jsonPath("$.data.channel").value("INTERNAL"))
                 .andExpect(jsonPath("$.data.name").value("검수자A"));

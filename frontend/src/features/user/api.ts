@@ -31,17 +31,17 @@ export function getUser(id: number) {
 }
 
 /**
- * 사용자 수정 요청 — 활성/비활성(useYn) + 역할(role). 두 필드 모두 선택.
- * 값은 화이트리스트 리터럴 유니온으로 타입 단계에서 허용 값 외 전송을 차단.
+ * 사용자 수정 요청 — 역할(role)만. 값은 화이트리스트 리터럴 유니온으로
+ * 타입 단계에서 허용 값 외 전송을 차단.
+ * 활성/비활성(useYn)은 관제서버 책임으로 이관되어 저작도구에서 변경하지 않는다.
  */
 export interface UserUpdatePayload {
-  useYn?: 'Y' | 'N';
   role?: 'REVIEWER' | 'WORKER' | 'PORTAL_USER';
 }
 
 /**
- * 사용자 활성/비활성 + 역할 변경 (REVIEWER 전용).
- * BE 가 @Pattern 화이트리스트로 useYn(Y|N)·role(REVIEWER|WORKER|PORTAL_USER) 검증.
+ * 사용자 역할 변경 (REVIEWER 전용).
+ * BE 가 @Pattern 화이트리스트로 role(REVIEWER|WORKER|PORTAL_USER) 검증.
  */
 export function updateUser(userNo: number, payload: UserUpdatePayload) {
   return apiClient.patch(`/users/${userNo}`, payload).then((r) => r.data);

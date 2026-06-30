@@ -73,7 +73,8 @@ public class VideoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패")
     })
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    // 관찰-1: 역할 미배정(role=null) INTERNAL 사용자의 영상 콘텐츠 노출 차단. REVIEWER/WORKER 만 허용.
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<Page<VideoSummaryResponse>> list(
             @PageableDefault(size = 20) Pageable pageable,
             @Parameter(description = "데이터 상태 코드 필터 (예: BATCH_COMPLETED, BATCH_PROCESSING, PENDING, BATCH_FAILED)")
@@ -120,7 +121,8 @@ public class VideoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음")
     })
     @GetMapping("/{rawSn}")
-    @PreAuthorize("isAuthenticated()")
+    // 관찰-1: 역할 미배정(role=null) 차단. (후속: WORKER 본인 배정 영상 한정 IDOR 검증은 Phase 5+)
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<VideoDetailResponse> getOne(@Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
         return ApiResponse.ok(videoQueryService.getOne(rawSn));
     }
@@ -134,7 +136,8 @@ public class VideoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패")
     })
     @GetMapping("/{rawSn}/labels/auto")
-    @PreAuthorize("isAuthenticated()")
+    // 관찰-1: 역할 미배정(role=null) 차단.
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<AutoLabelResultResponse> getAutoLabels(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
         return ApiResponse.ok(videoQueryService.getAutoLabels(rawSn));
@@ -181,7 +184,8 @@ public class VideoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "서명 발급 비활성화(서버 시크릿 미설정)")
     })
     @GetMapping("/{rawSn}/stream-url")
-    @PreAuthorize("isAuthenticated()")
+    // 관찰-1: 역할 미배정(role=null) 차단. 서명 URL 도 콘텐츠 접근 경로이므로 동일 게이트.
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<kr.co.cudo.authoring.video.dto.StreamUrlResponse> streamUrl(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
             @AuthenticationPrincipal TokenClaims actor) {
@@ -208,7 +212,11 @@ public class VideoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상/파일 없음")
     })
     @GetMapping("/{rawSn}/stream")
-    @PreAuthorize("isAuthenticated()")
+    // 관찰-1: 역할 미배정(role=null) 차단. 단 서명 URL 스트림 경로는 예외로 허용한다 —
+    // 서명은 role-gated /stream-url 발급(+userNo 바인딩)을 거친 정당 경로이므로 role=null 은 서명을 얻을 수 없다.
+    // StreamSignatureFilter 가 합성 principal(STREAM_SIGNED_PRINCIPAL)로 인증하므로 그 경우만 통과시킨다.
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER') "
+            + "or principal.sub() == T(kr.co.cudo.authoring.common.security.StreamSignatureFilter).STREAM_SIGNED_PRINCIPAL")
     public ResponseEntity<ResourceRegion> streamVideo(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
             @RequestHeader HttpHeaders headers) throws IOException {
@@ -232,7 +240,8 @@ public class VideoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상/프레임/파일 없음 또는 비식별 미완료")
     })
     @GetMapping("/{rawSn}/frames/{frameNo}/image")
-    @PreAuthorize("isAuthenticated()")
+    // 관찰-1: 역할 미배정(role=null) 차단.
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ResponseEntity<Resource> getFrameImage(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
             @Parameter(description = "프레임 번호 (0-base)", required = true, example = "0")

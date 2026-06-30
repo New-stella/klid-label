@@ -25,6 +25,11 @@ import java.util.List;
  *       stale NOT_FOUND 가 유지되지 않는다.</li>
  *   <li><b>eventType</b> — 관제 이벤트 타입 필터 옵션·코드라벨 맵(Phase 2). 관제 코드 체계는
  *       near-immutable 이라 반복 조회 시 MNG_* READ 를 피하도록 장수명(6h) 캐시. 인자 없는 단순 키.</li>
+ *   <li><b>userRole</b> — 저작도구 인가 역할(LS_USER_ROLE) 해석(역할 분리 Phase 3). 매 요청마다
+ *       JwtAuthenticationFilter 가 sub(userNo)→역할을 조회하므로 짧은 TTL(60s)로 캐시한다. 키는
+ *       userNo(Long). 역할 변경/부여 시 {@code UserRoleResolver.evict(userNo)} 를 트랜잭션
+ *       AFTER_COMMIT 에 호출해 즉시 무효화한다(강등 지연 방지). null(미배정/조회실패) 결과는
+ *       {@code @Cacheable(unless="#result==null")} 로 캐시하지 않아 stale 무권한이 고정되지 않는다.</li>
  * </ul>
  */
 @Configuration
@@ -34,6 +39,7 @@ public class CacheConfig {
     public static final String CACHE_SYSCONFIG = "sysconfig";
     public static final String CACHE_STREAM_DEID = "stream-deid";
     public static final String CACHE_EVENT_TYPE = "eventType";
+    public static final String CACHE_USER_ROLE = "userRole";
 
     @Bean
     public CacheManager cacheManager() {
@@ -55,8 +61,14 @@ public class CacheConfig {
                         .expireAfterWrite(Duration.ofHours(6))
                         .build());
 
+        CaffeineCache userRole = new CaffeineCache(CACHE_USER_ROLE,
+                Caffeine.newBuilder()
+                        .maximumSize(500)
+                        .expireAfterWrite(Duration.ofSeconds(60))
+                        .build());
+
         SimpleCacheManager manager = new SimpleCacheManager();
-        manager.setCaches(List.of(sysconfig, streamDeid, eventType));
+        manager.setCaches(List.of(sysconfig, streamDeid, eventType, userRole));
         return manager;
     }
 }

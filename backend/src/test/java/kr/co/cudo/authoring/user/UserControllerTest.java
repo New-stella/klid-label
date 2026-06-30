@@ -11,7 +11,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.springframework.http.MediaType;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -90,5 +93,66 @@ class UserControllerTest {
                         .param("size", "200")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("WORKER가_PATCH_users_userNo_호출시_403")
+    void workerForbiddenOnUserPatch() throws Exception {
+        String workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
+        mockMvc.perform(patch("/v1/users/101")
+                        .header("Authorization", "Bearer " + workerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"REVIEWER\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("REVIEWER가_PATCH_users_role_화이트리스트_위반시_400")
+    void reviewerPatchInvalidRoleRejected() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("REVIEWER가_PATCH_users_미존재_userNo_404")
+    void reviewerPatchMissingUser() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+        mockMvc.perform(patch("/v1/users/9999")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"WORKER\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("REVIEWER가_PATCH_users_role_변경시_200_역할_반영")
+    void reviewerPatchChangesRole() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+        // 시드: userNo=100 은 WORKER → REVIEWER 로 변경
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"REVIEWER\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.userNo").value(100))
+                .andExpect(jsonPath("$.data.role").value("REVIEWER"));
+    }
+
+    @Test
+    @DisplayName("REVIEWER가_PATCH_users_role_미제공시_200_역할_미변경")
+    void reviewerPatchWithoutRoleKeepsRole() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+        // role 없이 알 수 없는 필드만 전송 → 무시되고 역할 미변경 (시드 userNo=100 은 WORKER)
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"useYn\":\"Y\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("WORKER"));
     }
 }

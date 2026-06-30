@@ -44,6 +44,13 @@ public class StreamSignatureFilter extends OncePerRequestFilter {
     /** 서명 인증 시 부여하는 합성 authority — 채널 격리(/v1/**) 통과용. 역할 권한은 부여하지 않는다. */
     private static final String STREAM_CHANNEL_AUTHORITY = "CHANNEL_" + Channel.INTERNAL.name();
 
+    /**
+     * 서명 인증 컨텍스트의 합성 principal subject.
+     * <p>서명 URL 은 role-gated {@code /stream-url} 발급을 거친 정당 경로이므로 역할 권한 없이도 스트림을 허용해야 한다.
+     * VideoController#streamVideo 의 {@code @PreAuthorize} 가 이 값으로 서명 경로를 식별해 통과시킨다(관찰-1 단일 출처).
+     */
+    public static final String STREAM_SIGNED_PRINCIPAL = "stream-signed";
+
     private final StreamUrlSigner signer;
 
     public StreamSignatureFilter(StreamUrlSigner signer) {
@@ -99,7 +106,7 @@ public class StreamSignatureFilter extends OncePerRequestFilter {
             List<SimpleGrantedAuthority> authorities =
                     List.of(new SimpleGrantedAuthority(STREAM_CHANNEL_AUTHORITY));
             // principal 은 합성 식별자 — 역할/채널 클레임은 channel(INTERNAL)만 부여.
-            TokenClaims claims = new TokenClaims("stream-signed", null, Channel.INTERNAL, null);
+            TokenClaims claims = new TokenClaims(STREAM_SIGNED_PRINCIPAL, null, Channel.INTERNAL, null);
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(claims, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);
