@@ -163,7 +163,9 @@ class FfmpegFrameExtractorTest {
     @Test
     @DisplayName("V2_마킹_기반_추출_비식별_영상_포함_2벌")
     void extractByMarks_withDeidVideo_attachesBothPaths() throws IOException {
-        Path deidVideo = tmp.resolve("clip-deid.mp4");
+        // 프로덕션 현실: 비식별 영상은 비식별 base({deidBase}/videos/{rawSn}) 하위에 존재한다.
+        Path deidVideo = tmp.resolve("deid").resolve("videos").resolve("9001").resolve("clip-deid.mp4");
+        Files.createDirectories(deidVideo.getParent());
         Files.write(deidVideo, new byte[]{0, 0, 0});
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
                 .thenReturn(Optional.of(succeededLog(deidVideo.toString())));
@@ -182,6 +184,29 @@ class FfmpegFrameExtractorTest {
         assertThat(frames).allMatch(f -> f.getSrcFilePathNm().replace('\\', '/').contains("/frames/raw/"));
         // raw 2회 + deid 2회 = 총 4회 writeFrame 호출
         assertThat(recordedSeekMillis).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("MEDsec_비식별경로가_base밖이면_fail_closed로_RAW만추출_비식별경로_미저장")
+    void extractByMarks_deidPathOutsideBase_failClosedRawOnly() throws IOException {
+        // MED-sec: DB/외부 오염으로 비식별 경로가 비식별 base 밖을 가리키면, 존재하더라도 비식별 입력으로
+        // 쓰지 않고 RAW only(fail-closed). 원본 fallback(out-of-base 경로를 그대로 입력) 차단.
+        Path outside = tmp.resolve("outside").resolve("evil-deid.mp4");
+        Files.createDirectories(outside.getParent());
+        Files.write(outside, new byte[]{0, 0, 0});
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
+                .thenReturn(Optional.of(succeededLog(outside.toString())));
+
+        FfmpegFrameExtractor extractor = newExtractor(); // 비식별 base = tmp/deid
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"));
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        assertThat(frames).hasSize(1);
+        // base 밖 비식별 경로는 채택되지 않는다 — 비식별 경로 미저장(RAW only).
+        assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
+        // 비식별용 writeFrame 미수행 — raw 1회만.
+        assertThat(recordedSeekMillis).hasSize(1);
     }
 
     @Test
@@ -212,7 +237,8 @@ class FfmpegFrameExtractorTest {
     @Test
     @DisplayName("프레임추출이_저장된_비식별경로를_읽어_2벌_추출한다")
     void extractByMarks_readsStoredDeidPath_extractsBoth() throws IOException {
-        Path deidVideo = tmp.resolve("stored-deid.mp4");
+        Path deidVideo = tmp.resolve("deid").resolve("videos").resolve("9001").resolve("stored-deid.mp4");
+        Files.createDirectories(deidVideo.getParent());
         Files.write(deidVideo, new byte[]{0, 0, 0});
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
                 .thenReturn(Optional.of(succeededLog(deidVideo.toString())));
@@ -276,7 +302,9 @@ class FfmpegFrameExtractorTest {
     @Test
     @DisplayName("동일_base_주입돼도_원본과_비식별_프레임_경로가_달라_디스크_덮어쓰기_없음")
     void extractByMarks_sameBase_rawAndDeidPathsDoNotCollide() throws IOException {
-        Path deidVideo = tmp.resolve("clip-deid.mp4");
+        // 동일 base(/nas-storage) 하위에 비식별 영상 존재 — 프로덕션 현실 반영.
+        Path deidVideo = tmp.resolve("nas-storage").resolve("videos").resolve("9001").resolve("clip-deid.mp4");
+        Files.createDirectories(deidVideo.getParent());
         Files.write(deidVideo, new byte[]{0, 0, 0});
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
                 .thenReturn(Optional.of(succeededLog(deidVideo.toString())));

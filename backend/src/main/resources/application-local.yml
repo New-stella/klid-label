@@ -53,12 +53,12 @@ authoring:
   control:
     training-scan:
       enabled: false
-  # local 비식별 — 기본값으로 KPST API 연동 테스트 서버에 실제 연동한다(mock 아님).
-  #   오프라인/외부0 자족 검증이 필요하면 DEIDENTIFY_MOCK_MODE=true 로 mock 복사 모드(원본→비식별 경로 복사)로 전환.
+  # local 비식별 — 기본 mock 모드. KPST 미호출, 원본을 비식별 경로로 복사하는 mock 비식별로 자족 동작한다.
+  #   실 KPST 연동이 필요하면 DEIDENTIFY_MOCK_MODE=false 로 전환(KPST API 연동 테스트 서버에 실제 위탁).
   #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — local/dev/stg 는 허용, prd 에서 true 면 부트 거부.
   integration:
     deidentify:
-      mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
+      mock-mode: ${DEIDENTIFY_MOCK_MODE:true}
   # HIGH-5 fix (OWASP A06): 로컬 FE 개발 서버 기본 허용.
   #   SecurityConfig 가 ${authoring.cors.allowed-origins} 를 읽으므로 반드시 authoring 하위에 위치해야 한다.
   #   (과거 kpst 하위 오배치 → authoring.cors.allowed-origins 가 빈 기본값으로 남아 브라우저 Origin
@@ -81,9 +81,9 @@ authoring:
     seed:
       enabled: ${AUTHORING_DEV_SEED_ENABLED:true}
 
-# UC018 — local 도 KPST API 연동 테스트 서버에 실제 연동한다(기본). 내부망 http 평문이라 ca-cert 불요.
+# UC018 — local 은 기본 mock 비식별(위 mock-mode=true)이라 아래 kpst.deid.* 는 미사용이다(mock 우선).
+#   실 KPST 연동 시(DEIDENTIFY_MOCK_MODE=false) 사용 — 내부망 http 평문이라 ca-cert 불요.
 #   계정은 application.yml 기본값(creator-id/req-user-id=authoring) 사용. base-url 은 KPST_DEID_BASE_URL 로 override.
-#   오프라인 자족이 필요하면 KPST_DEID_ENABLED=false + DEIDENTIFY_MOCK_MODE=true 로 mock 복사 모드로 전환.
 kpst:
   deid:
     enabled: ${KPST_DEID_ENABLED:true}

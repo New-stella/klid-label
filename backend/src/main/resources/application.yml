@@ -196,7 +196,7 @@ portal:
 #    KPST_DEID_ENABLED=false 로 내리면 위탁이 비활성화되며, mock 도 아니면 DeidentifyStep 이 설정 오류로 거부한다.
 #  - base-url: KPST 테스트/운영 서버 주소(http/https 자동 분기 — 내부망은 http, 외부는 https+사설CA). 평문 커밋 금지 → 환경변수 사용.
 #  - ca-cert-path: KPST 자체 CA(ca.crt) 경로. enabled=true 시 필수(미설정 → 기동 실패 fail-closed, CWE-295).
-#  - creator-id / export-path-base / req-user-id: /project, /retrieve_progress 호출 시 기본값.
+#  - creator-id / req-user-id: /project, /retrieve_progress 호출 시 기본값.
 kpst:
   deid:
     enabled: ${KPST_DEID_ENABLED:true}
@@ -206,7 +206,6 @@ kpst:
     #   읽으면 부팅 시점에 fail-closed(CWE-295). http 배포는 cert 없이 부팅돼야 하므로 선택값(빈 기본)으로 둔다.
     ca-cert-path: ${KPST_DEID_CA_CERT_PATH:}
     creator-id: ${KPST_DEID_CREATOR_ID:authoring}
-    export-path-base: ${KPST_DEID_EXPORT_PATH_BASE:/share/Deid-data/export/}
     req-user-id: ${KPST_DEID_REQ_USER_ID:authoring}
     # UC018 — 완료감지 폴링 잡 (enabled=true 일 때만 트리거 등록).
     poll-interval-sec: ${KPST_DEID_POLL_INTERVAL_SEC:30}        # 폴링 주기(초)

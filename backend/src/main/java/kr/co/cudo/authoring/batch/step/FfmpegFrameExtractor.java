@@ -157,8 +157,13 @@ public class FfmpegFrameExtractor implements BatchStep {
         Path deidSource = null;
         Path deidOutputDir = null;
         if (deidVideoPath != null) {
-            Path deidPath = Paths.get(deidVideoPath);
-            if (frameWriter.sourceExists(deidPath)) {
+            Path deidPath = Paths.get(deidVideoPath).normalize();
+            if (!deidPath.startsWith(baseDeidPath)) {
+                // MED-sec: 비식별 영상 경로가 비식별 base 밖 — 외부 응답·DB 오염 등 신뢰불가 경로.
+                // VideoStreamService.resolveSafe 와 대칭으로 fail-closed: 비식별 입력으로 쓰지 않고
+                // 미존재처럼 RAW only 진행(원본 fallback 차단, 경로 원문 미노출).
+                log.warn("[Batch][FrameExtract] deid path outside base rawSn={} — RAW only", raw.getRawSn());
+            } else if (frameWriter.sourceExists(deidPath)) {
                 deidSource = deidPath;
                 deidOutputDir = resolveSafeOutputDir(baseDeidPath, raw.getRawSn(), FrameKind.DEID);
             } else {

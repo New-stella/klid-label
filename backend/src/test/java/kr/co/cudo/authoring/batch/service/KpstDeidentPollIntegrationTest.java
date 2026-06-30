@@ -9,7 +9,6 @@ import kr.co.cudo.authoring.common.client.KpstDeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
-import kr.co.cudo.authoring.common.client.dto.KpstUploadResponse;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -21,8 +20,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,6 +58,22 @@ import static org.mockito.Mockito.when;
         "kpst.deid.poll-interval-sec=3600"
 })
 class KpstDeidentPollIntegrationTest {
+
+    /** 비식별 저장 base — KPST 가 결과를 직접 쓰는 곳(no-copy). 정적 임시 디렉토리(빈 생성 시점 해석). */
+    private static final Path DEID_BASE;
+
+    static {
+        try {
+            DEID_BASE = Files.createTempDirectory("kpst-poll-deid-base");
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    @DynamicPropertySource
+    static void deidPath(DynamicPropertyRegistry registry) {
+        registry.add("authoring.storage.deidentified-path", DEID_BASE::toString);
+    }
 
     @TempDir
     Path tmp;
@@ -116,16 +134,18 @@ class KpstDeidentPollIntegrationTest {
                 new KpstProgressResponse.Data(1, List.of(prj)));
     }
 
-    /** download 스텁 — 실제 임시 mp4 파일을 base 하위에 생성하고 그 경로를 반환한다. */
-    private void stubDownloadWritesRealFile() {
-        when(kpstClient.download(any(), any(Path.class), any(Path.class))).thenAnswer(inv -> {
-            Path baseDir = inv.getArgument(1);
-            Path relative = inv.getArgument(2);
-            Path target = baseDir.resolve(relative).normalize();
+    /**
+     * no-copy: KPST 가 export_path({base}/videos/{rawSn}/) 에 직접 쓴 결과를 시뮬레이션한다.
+     * 완료 폴링 시 서비스는 진행조회 응답 fileName 으로 이 경로를 회수(복사 없음)한다.
+     */
+    private void prepareDeidResultFile(Long rawSn, String fileName) {
+        try {
+            Path target = DEID_BASE.resolve("videos").resolve(String.valueOf(rawSn)).resolve(fileName);
             Files.createDirectories(target.getParent());
             Files.writeString(target, "MASKED-VIDEO-BYTES");
-            return target;
-        });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
@@ -137,12 +157,8 @@ class KpstDeidentPollIntegrationTest {
         workLockRepository.save(LsAuthWorkLock.lockRawForRedeident(rawSn, "worker-1"));
         reportRepository.save(LsDeidentReport.createReport(rawSn, 100L, "개인정보 노출"));
 
-        when(kpstClient.upload(any(), any())).thenReturn(new KpstUploadResponse(
-                "success", new KpstUploadResponse.Data(
-                        "/share/upload/raw/", List.of("clip.mp4"), 1)));
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
                 .thenReturn(new KpstProjectResponse("success", 101L));
-        stubDownloadWritesRealFile();
 
         // when 1 — 위탁: WAITING + prjId 영속, DE_IDENT_YN 미전이
         LsDeidentProcLog submitted = kpstDeidentService.submit(raw);
@@ -162,7 +178,8 @@ class KpstDeidentPollIntegrationTest {
         assertThat(afterPoll1.getPollAttemptCnt()).isGreaterThanOrEqualTo(1);
         assertThat(afterPoll1.getKpstDatasetId()).isEqualTo(202L);
 
-        // when 3 — 2차 폴링: 완료(state=2) → download → DOWNLOADED/SUCCEEDED + Y/MARKING_READY
+        // when 3 — 2차 폴링: 완료(state=2) → 응답 fileName 회수(no-copy) → DOWNLOADED/SUCCEEDED + Y/MARKING_READY
+        prepareDeidResultFile(rawSn, "clip.mp4"); // KPST 가 export_path 에 직접 쓴 결과 시뮬레이션
         when(kpstClient.retrieveProgress(any(), eq(101L))).thenReturn(progressWith(2, 202L));
         kpstDeidentService.pollOne(procLogRepository.findById(procLogSn).orElseThrow());
 
@@ -192,8 +209,6 @@ class KpstDeidentPollIntegrationTest {
         // given — 위탁 완료(WAITING)된 영상. pollMaxAttempts=2 로 2회 폴링 시 타임아웃.
         LsDataRaw raw = persistRaw();
         Long rawSn = raw.getRawSn();
-        when(kpstClient.upload(any(), any())).thenReturn(new KpstUploadResponse(
-                "success", new KpstUploadResponse.Data("/share/upload/raw/", List.of("clip.mp4"), 1)));
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
                 .thenReturn(new KpstProjectResponse("success", 101L));
         LsDeidentProcLog submitted = kpstDeidentService.submit(raw);
@@ -216,8 +231,6 @@ class KpstDeidentPollIntegrationTest {
     void restartReloadsWaitingTargets() {
         // given — 위탁된 WAITING 건 (재기동 시 인메모리 상태 없이 DB 에서 복원)
         LsDataRaw raw = persistRaw();
-        when(kpstClient.upload(any(), any())).thenReturn(new KpstUploadResponse(
-                "success", new KpstUploadResponse.Data("/share/upload/raw/", List.of("clip.mp4"), 1)));
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
                 .thenReturn(new KpstProjectResponse("success", 101L));
         LsDeidentProcLog submitted = kpstDeidentService.submit(raw);

@@ -24,14 +24,19 @@
 
 ### 실제 KPST API 특성 (Critical)
 
-| 관점 | 실제 KPST API (본 명세) |
+| 관점 | 저작도구 실제 연동 (공유 마운트 모델) |
 |------|------------------------|
-| 결과 수신 | **콜백 없음** — `GET /retrieve_progress` **폴링** 후 `GET /download` |
+| 결과 수신 | **콜백 없음** — `GET /retrieve_progress` **폴링** 후 산출물 경로를 **응답 `dsStatus.fileName` 으로 회수**(다운로드 없음) |
 | 작업 단위 | **프로젝트**(영상 1~50개 묶음) 생성 후 일괄 처리. 저작도구는 영상 1건=프로젝트 1개로 운영 |
-| 파일 전달 | `POST /upload`(multipart)로 솔루션 서버에 직접 업로드 |
-| 결과 파일 | export_path 아래 `'원본명-mask.mp4'` 또는 `GET /download` 첨부 다운로드 |
+| 파일 전달 | **업로드 없음** — `POST /project` 에 `input_path`=원본 디렉터리(공유 마운트), `files`=[원본 파일명] 을 직접 참조 |
+| 결과 파일 | KPST 가 `export_path` 에 직접 산출. 저작도구는 `export_path`=`{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/` 로 지정해 **우리 저장소에 바로 쓰게** 하고, 완료 응답 `fileName` 으로 그 경로를 `DE_IDNTF_FILE_PATH_NM` 에 기록(복사 없음) |
 
-→ ✅ **폴링 단일 경로 확정(UC018, 2026-06-18)**: `KpstDeidentifyClient`(핵심 6 엔드포인트, 자체CA TLS) + `KpstDeidentService`/`KpstDeidentTxService` + `KpstDeidentPollJob`(Quartz)가 **비식별 확정의 유일한 경로**다. `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**)하되, **레거시 동기 SPI(`DeidentifyClient`)·결과 콜백 수신(`POST /v1/deidentify/result` = `DeidentifyResultController`/`DeidentifyResultService`/`DeidentifyResultRequest`) 경로는 제거**되었다(레거시 폴백 없음). local 자족 환경은 `authoring.integration.deidentify.mock-mode=true` 의 mock 복사 경로를 사용한다. 영상 1건=프로젝트 1개, 매핑은 `LS_DEIDENT_PROC_LOG`(V64 KPST_PRJ_ID/DATASET_ID/POLL_STTS_CD). 본 페이지는 명세 정본 역할.
+→ ✅ **공유 마운트 단일 모델 확정(2026-06-30)**: 저작도구의 KPST 연동은 **공유 마운트 경로 참조**(『API 연동 테스트』 v1.0 2026.06.17, 테스트 서버 기준)로 단일화됐다. `KpstDeidentifyClient` 는 **핵심 4 엔드포인트(`GET /`·`POST /project`·`GET /retrieve_progress`·`POST /delete_project_id`)** 만 사용한다 — `POST /upload`·`GET /download` 는 KPST 서버에 존재하나 **저작도구는 사용하지 않는다**(공유 마운트로 입력 참조·결과 직접 산출). `KpstDeidentService`/`KpstDeidentTxService` + `KpstDeidentPollJob`(Quartz)가 비식별 확정 경로다.
+- **입력**: `input_path` = 원본(`rawFilePathNm`, 관제 NAS 절대경로)의 부모 디렉터리(끝 `/`) — KPST 가 공유 마운트에서 READ.
+- **출력(no-copy)**: `export_path` = `{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/`(submit 전 `createDirectories`) → KPST 가 결과를 우리 base 에 직접 WRITE. 완료(`procState=2`) 시 응답 `dsStatus.fileName`(외부값 → 경로 정화 CWE-22)으로 `{base}/videos/{rawSn}/{fileName}` 을 `DE_IDNTF_FILE_PATH_NM` 에 기록. 산출 경로가 base 하위라 스트리밍(`VideoStreamService.resolveSafe`)·프레임추출(`FfmpegFrameExtractor`, 컬럼 READ) 정합. **복사·`-mask` 구성·`/download` 없음.**
+- `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**). 레거시 동기 SPI(`DeidentifyClient`)·결과 콜백 수신 경로는 제거됐다(폴백 없음). **local/dev 는 `authoring.integration.deidentify.mock-mode=true`(원본 복사 mock, KPST 미호출) 기본**, stg/prd 는 공유 마운트 실연동. 매핑은 `LS_DEIDENT_PROC_LOG`(V64 KPST_PRJ_ID/DATASET_ID/POLL_STTS_CD). 본 페이지는 명세 정본 역할.
+
+> ※ §22.3.2(`/upload`)·§22.3.12(`/download`)·§22.5(업로드 표준 흐름)는 **KPST 서버 API 레퍼런스로 보존**하되, 저작도구는 이를 호출하지 않는다(공유 마운트 모델). 구 업로드 모델(`/upload`→`/project`→`/download`)은 폐기됐다.
 
 > 참고 — HMAC 웹훅 인프라(`HmacWebhookFilter`/`HmacSigner`)와 VLM(`/v1/vlm/result`)·증강(`/v1/augments/result`) 콜백은 **그대로 유지**된다. 비식별 전용 콜백 경로(`/v1/deidentify/result`)와 `webhook.hmac.secret.deidentify` 설정 키만 제거되었다.
 
@@ -363,6 +368,7 @@ DB 저장(`db_save=1`)이며 프로젝트 상태가 **수동 대상(state=3)**�
 
 ## 22.6 저작도구 연동 시사점 (내부 메모 — 명세 외)
 
+- ✅ **공유 마운트 입출력(구현, no-copy)**: `submit` 은 `input_path`=원본 부모 디렉터리·`export_path`=`{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/` 로 `POST /project` 직접 참조(업로드 없음). 완료 시 응답 `dsStatus.fileName`(경로 정화 CWE-22)으로 산출 경로를 `DE_IDNTF_FILE_PATH_NM` 에 기록(다운로드·복사 없음). `/upload`·`/download` 미사용. 완료 분기의 회수/정화 실패와 타임아웃은 비-REDEIDENT `failPolling`/REDEIDENT `failRedeidentCompletion`(작업락 해제 포함)으로 **terminal 종결**해 무한 재폴링·락 영구잠금을 차단
 - ✅ **폴링 주기(구현)**: 배치 파이프라인([07](07-batch-pipeline.md))의 비식별 단계가 `retrieve_progress` 폴링 + `procState`(state=2) 판정으로 완료를 감지 — `KpstDeidentPollJob`(Quartz, `@DisallowConcurrentExecution`, 최대 시도 240회/180분 타임아웃 → 타임아웃 시 `DE_IDENT_YN='F'`)로 구현됨
 - ⏳ **수동 비식별 연계(후속, 미구현)**: `manual_deid_info`(state=3) + `dataset_frames`(base64+bbox)는 [08 비식별 누락 신고](08-deidentification.md)의 수동 비식별 워크플로(외부 솔루션 수동 처리)와 연결 가능 — 추후 협의
 - ⏳ **검출 집계 활용(후속, 미구현)**: `retrieve_report`의 faceCount/lpCount는 비식별 처리 이력(`LS_DEIDENT_PROC_LOG`) 기록에 활용 가능 — 추후 협의

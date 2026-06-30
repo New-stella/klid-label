@@ -227,7 +227,7 @@ klid-la-test-v0/
   - `V_COMPLETED_LABEL` + `V_COMPLETED_LABEL_ATTR` : 라벨 좌표·마스터 코드 + 라벨 속성값
   - `V_COMPLETED_META` : 시계열 메타 (`RVW_STTS_CD='APPROVED'` 만)
 - 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 통지 수신 후 RAW_SN 으로 4 View 단순 SELECT → 영상 1건=1 row UPSERT
-- 비식별 영상 파일 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 에 적재된 값을 사용(문자열 치환 도출 아님, View 미포함). `STORAGE_RAW_PATH==STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`, 의도된 동일 설정)여도 영상은 비식별본만 `videos/{rawSn}/deidentified.mp4` 에 저작도구가 기록하고 원본은 관제 NAS 절대경로를 기록만 하므로 충돌 없음
+- 비식별 영상 파일 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 에 적재된 값을 사용(문자열 치환 도출 아님, View 미포함). `STORAGE_RAW_PATH==STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`, 의도된 동일 설정)여도 영상은 비식별본만 `videos/{rawSn}/` 하위(mock=저작도구가 `deidentified.mp4` 기록 / KPST 공유마운트=KPST 가 `export_path` 에 직접 산출, 응답 `fileName` 으로 경로 기록)에 위치하고 원본은 관제 NAS 절대경로를 기록만 하므로 충돌 없음
 - 모두 `CREATE OR REPLACE VIEW` 라 멱등 — Flyway 재실행해도 안전
 
 ## CVAT 포팅 전략

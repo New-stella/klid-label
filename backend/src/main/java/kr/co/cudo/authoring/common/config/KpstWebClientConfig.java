@@ -62,10 +62,8 @@ public class KpstWebClientConfig {
     private static final int CONNECT_TIMEOUT_MILLIS = 10_000;
     /** 일반(폴링/연결확인) 응답 타임아웃 — 클라이언트 timeout() 의 안전망(Netty 레벨). */
     private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(60);
-    /** 업로드 응답 타임아웃 — 대용량 멀티파트 전송 대비 여유. */
-    private static final Duration UPLOAD_RESPONSE_TIMEOUT = Duration.ofMinutes(10);
 
-    /** 평문 HTTP 경고 로그를 기동 시 1회만 출력하기 위한 가드(3개 빈이 동일 config 인스턴스 공유). */
+    /** 평문 HTTP 경고 로그를 기동 시 1회만 출력하기 위한 가드(2개 빈이 동일 config 인스턴스 공유). */
     private volatile boolean plaintextWarned = false;
 
     @Bean(name = "kpstDeidWebClient")
@@ -98,16 +96,6 @@ public class KpstWebClientConfig {
             client = client.secure(spec -> spec.sslContext(sslContext));
         }
         return client;
-    }
-
-    /**
-     * 업로드 전용 WebClient — 동일 TLS 신뢰 구성. 대용량 멀티파트 전송 시 별도 튜닝 여지를 위해 분리.
-     */
-    @Bean(name = "kpstDeidUploadWebClient")
-    public WebClient kpstDeidUploadWebClient(
-            @Value("${kpst.deid.base-url}") String baseUrl,
-            @Value("${kpst.deid.ca-cert-path:}") String caCertPath) {
-        return buildClient(baseUrl, caCertPath, UPLOAD_RESPONSE_TIMEOUT);
     }
 
     private WebClient buildClient(String baseUrl, String caCertPath, Duration responseTimeout) {

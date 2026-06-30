@@ -3,7 +3,7 @@
 > 출처: R1 RQ-SFR-09-01~05, R2 KLID-AT-UC-011/016, CLAUDE.md, 코드(`batch/step/DeidentifyStep`, `batch/service/KpstDeidentService`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [19 외부 시스템](19-external-security-cvat.md) · [22 비식별 솔루션 API 명세](22-deid-solution-api.md)
 
-> ✅ **KPST 폴링 단일 경로 확정(UC018, 2026-06-18)**: 비식별 확정은 실제 KPST API([22 명세](22-deid-solution-api.md))의 폴링 모델(`POST /upload`→`POST /project`→`GET /retrieve_progress` 폴링→`GET /download`)로 **단일화**되었다(`KpstDeidentifyClient`+`KpstDeidentPollJob`(Quartz)). **레거시 동기 SPI(`DeidentifyClient`)와 결과 콜백 수신 경로(`POST /v1/deidentify/result`)는 제거**되었다(레거시 폴백 없음). `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**)하며, local 자족 환경은 `authoring.integration.deidentify.mock-mode=true` 의 mock 복사 경로를 사용한다. 영상 1건=프로젝트 1개. (명세 정본은 [22.1](22-deid-solution-api.md#221-연동-개요) 참조.)
+> ✅ **KPST 공유 마운트 단일 경로 확정(2026-06-30)**: 비식별 확정은 실제 KPST API([22 명세](22-deid-solution-api.md))의 **공유 마운트 no-copy 모델**(`POST /project`[input_path=원본 디렉터리, export_path=우리 base]→`GET /retrieve_progress` 폴링→완료 응답 `fileName` 으로 경로 회수)로 **단일화**되었다(`KpstDeidentifyClient`+`KpstDeidentPollJob`(Quartz)). **`POST /upload`·`GET /download` 는 미사용**(공유 마운트로 입력 참조·결과 직접 산출). **레거시 동기 SPI(`DeidentifyClient`)와 결과 콜백 수신 경로(`POST /v1/deidentify/result`)는 제거**되었다(레거시 폴백 없음). `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**)하며, **local/dev 는 `authoring.integration.deidentify.mock-mode=true`(원본 복사 mock, KPST 미호출) 기본**, stg/prd 는 공유 마운트 실연동. 영상 1건=프로젝트 1개. (명세 정본은 [22.1](22-deid-solution-api.md#221-연동-개요) 참조.)
 
 ## 8.1 개요
 
@@ -23,11 +23,11 @@
 
 **[KPST 폴링 경로]** (`kpst.deid.enabled=true`, 기본)
 ```
-[배치] DeidentifyStep.run → KpstDeidentService.submit(upload→project, WAITING)
-        ↓ (영상 1건 = KPST 프로젝트 1개. DE_IDENT_YN 미전이 — 완료 대기)
+[배치] DeidentifyStep.run → KpstDeidentService.submit(project만 — input_path=원본 디렉터리, export_path={base}/videos/{rawSn}/, WAITING)
+        ↓ (영상 1건 = KPST 프로젝트 1개. DE_IDENT_YN 미전이 — 완료 대기. upload 없음)
 [폴링] KpstDeidentPollJob(Quartz) GET /retrieve_progress 반복 폴링
         ↓ state=2(완료) 감지
-GET /download → 결과 파일 검증(0바이트/미존재 시 Y 전이 차단)
+응답 dsStatus.fileName 으로 산출 경로 회수(no-copy) → 결과 파일 검증(0바이트/미존재 시 Y 전이 차단)
         ↓ (KpstDeidentTxService.finishDownloadAndComplete, REQUIRES_NEW 원자화)
 LS_DATA_RAW.DE_IDENT_YN='Y' + dataSttsCd=MARKING_READY + 작업락 해제 + 신고 해소
    타임아웃 시 DE_IDENT_YN='F'
