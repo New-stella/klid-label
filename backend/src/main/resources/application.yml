@@ -27,6 +27,13 @@ spring:
           time_zone: Asia/Seoul
         order_inserts: true
         order_updates: true
+  datasource:
+    control:
+      # 이중화 동시 마이그레이션 안전장치 — Flyway/앱 DDL 이 락 미획득 시 무한 대기하지 않고
+      # 30초 후 실패하게 한다(이중화 노드가 동시에 flyway_schema_history 생성 시 10분+ 멈춤 방지).
+      # @ConfigurationProperties(spring.datasource.control) 로 HikariCP 에 바인딩되어
+      # Flyway 가 빌려 쓰는 @Primary controlDataSource 커넥션에도 적용된다.
+      connection-init-sql: SET lock_timeout = '30000'
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -45,7 +52,11 @@ spring:
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
       org.quartz.jobStore.useProperties: 'true'
       org.quartz.jobStore.misfireThreshold: '60000'
-      org.quartz.jobStore.isClustered: 'false'
+      # 이중화(HA) 노드만 true — local/dev 단일 인스턴스는 false 유지.
+      # true 시 2노드가 QRTZ_LOCKS 행 락으로 조율되어 각 트리거를 1회만 발화한다.
+      # ⚠ 클러스터 모드는 노드 클럭 동기화(NTP) 필수.
+      org.quartz.jobStore.isClustered: ${QUARTZ_CLUSTERED:false}
+      org.quartz.jobStore.clusterCheckinInterval: ${QUARTZ_CHECKIN_MS:20000}
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration

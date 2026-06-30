@@ -24,7 +24,10 @@ SuccessExitStatus=143
 Restart=on-failure
 RestartSec=10
 # 기동/종료 여유(대용량 컨텍스트·Flyway 마이그레이션)
-TimeoutStartSec=180
+#  - 첫 노드가 Flyway 마이그레이션 중 systemd 에 강제 종료되면 DB 트랜잭션/락이
+#    orphan 으로 남아 두 번째 노드가 무한 대기한다. 이중화 첫 기동(73개 마이그레이션
+#    + QRTZ_LOCKS 락 조율) 여유를 위해 600s 로 상향.
+TimeoutStartSec=600
 TimeoutStopSec=30
 # 로그 — journald + 식별 태그
 StandardOutput=journal
