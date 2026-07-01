@@ -13,6 +13,7 @@
 | 2026-07-01 | 3.0 | 시험항목 및 처리절차·예상결과 및 검증방법을 코드·D8/D9 기반 다단계 절차·테이블/컬럼/상태 검증 수준으로 상세화 | - | - |
 | 2026-07-01 | 4.0 | 시험항목 및 처리절차를 실제 UI/기능 시험 절차(번호 단계+':' 상세, D2 근거)로 재작성, UI 없는 배치/내부 케이스는 기능 트리거 절차로 표기 | - | - |
 | 2026-07-01 | 4.1 | 시험항목 및 처리절차에서 불필요한 API 엔드포인트 제거, 예상결과 및 검증방법의 DB 항목을 INSERT 서술 → 확인 SELECT 쿼리로 전환(D8/D9 실측 키) | - | - |
+| 2026-07-01 | 4.2 | 관련 프로그램 ID를 D3 컴포넌트설계서 인터페이스 ID(KLID-AT-IF-NNN) 기준으로 기입, 외부 연계 컴포넌트는 D4 송수신 프로그램 ID 병기 | - | - |
 
 ### 헤더
 
@@ -30,7 +31,7 @@
 | 단위시험ID | KLID-AT-UT-001 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-07-01 / RQ-SFR-11-05 · UC KLID-AT-UC-001] 생성형 AI 학습데이터 자동생성(증강 요청) | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-001 | 관련 프로그램 ID | AugmentRequestController, AugmentRequestService |
+| 관련 컴포넌트 ID | KLID-AT-CO-001 | 관련 프로그램 ID | KLID-AT-IF-001 증강 요청·IF-002 외부 증강 연동 (D4 송신 프로그램: 증강위탁, II-005) |
 > 출처: D11 UT-03(외부 증강). 증강 요청·결과 묶음 조회 케이스. RQ-SFR-11-05는 07-01과 동일 기능이라 통합.
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -42,7 +43,7 @@
 | 단위시험ID | KLID-AT-UT-002 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-07-02 · UC KLID-AT-UC-002] 생성 라벨 무결성 유지·증강 결과 수신 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-002 | 관련 프로그램 ID | LabelIntegrityCalculator |
+| 관련 컴포넌트 ID | KLID-AT-CO-002 | 관련 프로그램 ID | KLID-AT-IF-003 증강 결과 수신 (D4 수신 프로그램: 증강결과수신, II-006) |
 > 출처: D11 UT-03(외부 증강) 중 라벨 보존율 계산 케이스. + UT-20(외부 콜백 웹훅, UC-002 증강 결과 수신·등록) 새영상 생성·라벨 복사 케이스 추가(UC-002 수신·등록 직접 검증).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -56,7 +57,7 @@
 | 단위시험ID | KLID-AT-UT-003 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-06-03 · UC KLID-AT-UC-003] 이미지 확대·축소·해상도 변경 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-003 | 관련 프로그램 ID | VideoResolutionService, VideoResolutionController, Java2DImageResizer |
+| 관련 컴포넌트 ID | KLID-AT-CO-003 | 관련 프로그램 ID | KLID-AT-IF-004 해상도 변경 |
 > 출처: D11 UT-22(영상·스트리밍·해상도). 해상도 변경(다운스케일 이미지셋, SFR-06-03) 케이스만 추출(영상 목록·스트리밍·서명 URL은 인프라/공통으로 제외).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -69,7 +70,7 @@
 | 단위시험ID | KLID-AT-UT-004 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-08-01 · UC KLID-AT-UC-004] 라벨링 정확도(위치·경계) 향상 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-004 | 관련 프로그램 ID | TrackInterpolator·TrackInterpolationStep(UT-11) / YoloAutolabelStep(UT-09) |
+| 관련 컴포넌트 ID | KLID-AT-CO-004 | 관련 프로그램 ID | KLID-AT-IF-005 객체 추적·IF-006 AI 추론 연동 |
 > 출처: D11 UT-11(트랙 보간, 직접 UC-004) + UT-09(오토라벨링 YOLO, 간접 UC-004 — SFR-08 라벨링 핵심이므로 포함).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -83,7 +84,7 @@
 | 단위시험ID | KLID-AT-UT-005 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-08-02 · UC KLID-AT-UC-005] 객체 외곽경계 자동밀착 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-005 | 관련 프로그램 ID | Sam2SegmentStep, BbHint |
+| 관련 컴포넌트 ID | KLID-AT-CO-005 | 관련 프로그램 ID | KLID-AT-IF-007 외곽 분할·IF-006 AI 추론 연동 |
 > 출처: D11 UT-10(배치 단계 — SAM2 분할).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -96,7 +97,7 @@
 | 단위시험ID | KLID-AT-UT-006 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-08-03 · UC KLID-AT-UC-006] 라벨링 정밀도 조절 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-006 | 관련 프로그램 ID | SystemConfigController, ConfigKeys, PolygonSimplifyConfig |
+| 관련 컴포넌트 ID | KLID-AT-CO-006 | 관련 프로그램 ID | KLID-AT-IF-008 시스템 설정 |
 > 출처: D11 UT-26(시스템 설정) 중 POLYGON_SIMPLIFY_TOLERANCE(정밀도 설정값) 케이스만 추출(YOLO 파라미터·배치 주기 설정은 인프라/공통으로 제외).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -109,7 +110,7 @@
 | 단위시험ID | KLID-AT-UT-007 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-08-04 · UC KLID-AT-UC-007·009] 버전관리·변경이력 추적 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-007 | 관련 프로그램 ID | VersionService, LsDataLblHstryRepository |
+| 관련 컴포넌트 ID | KLID-AT-CO-007 | 관련 프로그램 ID | KLID-AT-IF-009 버전 스냅샷·IF-011 관제 통지 연동 (D4 송신 프로그램: 관제통지, II-007) |
 > 출처: D11 UT-18(버전관리) 중 검수 승인 스냅샷·이력 케이스. + UT-19(관제 통지, UC-009 검수 완료·수정 통지) 통지 케이스 추가. UC-009는 08-04·08-05 공통이며 KLID-AT-UT-008 블록도 동일 UC-009를 실현한다(케이스는 본 블록에 집약).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -125,7 +126,7 @@
 | 단위시험ID | KLID-AT-UT-008 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-08-05 · UC KLID-AT-UC-008·009] 버전 비교·복구 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-008 | 관련 프로그램 ID | VersionController, VersionService |
+| 관련 컴포넌트 ID | KLID-AT-CO-008 | 관련 프로그램 ID | KLID-AT-IF-010 버전 비교·복구 |
 > 출처: D11 UT-18(버전관리) 중 diff/롤백 케이스. (UC-009 검수 완료·수정 통지 케이스는 KLID-AT-UT-007 블록에 집약 — 중복 회피.)
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -138,7 +139,7 @@
 | 단위시험ID | KLID-AT-UT-010 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-07-03 · UC KLID-AT-UC-010] 생성 데이터 활용여부 선택(증강 검수) | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-010 | 관련 프로그램 ID | AugmentReviewService, AugmentController |
+| 관련 컴포넌트 ID | KLID-AT-CO-010 | 관련 프로그램 ID | KLID-AT-IF-012 증강 활용 검수 (활용 결정 외부 동기화 IF-002) |
 > 출처: D11 UT-03(외부 증강) 중 수락/반려 검수 케이스.
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -151,7 +152,7 @@
 | 단위시험ID | KLID-AT-UT-011 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-09-01 / RQ-SFR-09-02 / RQ-SFR-11-06 · UC KLID-AT-UC-011] 비식별 처리·API 연동 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-011 | 관련 프로그램 ID | DeidentifyStep, DeidentifyClient |
+| 관련 컴포넌트 ID | KLID-AT-CO-011 | 관련 프로그램 ID | KLID-AT-IF-013 비식별 처리·IF-014 외부 비식별 연동 (D4 송신 프로그램: 비식별위탁 II-001·비식별진행폴링 II-002) |
 > 출처: D11 UT-07(배치 단계 — 비식별). RQ-SFR-11-06은 09-01과 동일 기능이라 통합.
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -164,7 +165,7 @@
 | 단위시험ID | KLID-AT-UT-013 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-09-04 · UC KLID-AT-UC-013] 비식별 옵션 설정 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-013 | 관련 프로그램 ID | SystemConfigController, SystemConfigService, LsSystemConfig (D3 CO-013) |
+| 관련 컴포넌트 ID | KLID-AT-CO-013 | 관련 프로그램 ID | KLID-AT-IF-008 시스템 설정 (비식별 옵션 설정 변경) |
 > **⚠ 설계 케이스(구현·테스트 후속)** — D3 CO-013은 비식별 옵션 설정을 **SystemConfig 메커니즘**(SystemConfigController/Service·LsSystemConfig, IF-008 비식별 옵션 설정 변경)으로 실현하도록 설계돼 있다. SystemConfig 의 설정 저장·화이트리스트 검증·권한·캐시 메커니즘 자체는 **실코드로 구현·검증됨**(KLID-AT-UT-006 블록 `KLID-AT-UT-006-01` POLYGON_SIMPLIFY_TOLERANCE 등 UT-26 실케이스). 다만 **비식별 마스킹 옵션 키(마스킹 타입·범위·출력 화질·포맷)는 현재 `ConfigKeys` 미등록**이고, 비식별 옵션은 `KpstProjectRequest.withDefaults()` 기본값(masking_type=0·db_save=0·masking_range=1·exp_quality=0·exp_format=1)으로 고정돼 위탁된다(사용자 설정 미연동). 따라서 아래는 **D11 실코드 추출이 아닌 설계 케이스**이며, 비식별 옵션 키 등록 시 UT-26 패턴과 동일하게 실테스트로 승격한다. (케이스 ID는 본 절차서 자체 채번 — D11 UT 출처 없음.)
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -176,7 +177,7 @@
 | 단위시험ID | KLID-AT-UT-016 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-09-03 / RQ-SFR-09-05 · UC KLID-AT-UC-016] 비식별 결과 검토·연동확인 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-016 | 관련 프로그램 ID | DeidentReportController, DeidentReportService |
+| 관련 컴포넌트 ID | KLID-AT-CO-016 | 관련 프로그램 ID | KLID-AT-IF-015 비식별 신고 |
 > 출처: D11 UT-15(비식별 누락 신고). 신고→락+라벨 스냅샷 후 삭제, 수동 비식별 후 resolve 케이스.
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -189,7 +190,7 @@
 | 단위시험ID | KLID-AT-UT-018 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-11-04 · UC KLID-AT-UC-018] 영상 적재(관제 학습용 설정) | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-018 | 관련 프로그램 ID | TrainingVideoIngestService, ControlTrainingVideoScanJob |
+| 관련 컴포넌트 ID | KLID-AT-CO-018 | 관련 프로그램 ID | KLID-AT-IF-016 학습용 적재 |
 > 출처: UC-018(영상 적재 관제 학습용 설정)은 D11에 별도 UT 블록이 없으나 백엔드 실테스트(TrainingVideoIngestServiceTest·ControlTrainingVideoScanJobTest)가 존재하여 적재 케이스(실코드 출처·D11 미수록)를 추가했다. 적재(TUS 업로드, D11 UT-23)는 관제 학습용 설정 기반 적재로 대체되는 폐지 예정 경로(CLAUDE.md)라 TUS 업로드(UT-23)는 제외.
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -201,7 +202,7 @@
 | 단위시험ID | KLID-AT-UT-019 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-11-04 · UC KLID-AT-UC-019] 이벤트 마킹(자동/수동) | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-019 | 관련 프로그램 ID | MarkingController, MarkingService, LsMarking |
+| 관련 컴포넌트 ID | KLID-AT-CO-019 | 관련 프로그램 ID | KLID-AT-IF-017 이벤트 마킹 |
 > 출처: D11 UT-13(마킹). 비식별 영상 자동(프레임간격)/수동(이벤트시점) 마킹 케이스.
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -214,7 +215,7 @@
 | 단위시험ID | KLID-AT-UT-021 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-11-08 / RQ-SFR-16 / RQ-SFR-17 · UC KLID-AT-UC-021] 라벨링·이미지/영상 가공(라벨 편집) | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-021 | 관련 프로그램 ID | LabelController, LabelService, LsDataLbl |
+| 관련 컴포넌트 ID | KLID-AT-CO-021 | 관련 프로그램 ID | KLID-AT-IF-018 라벨 편집 |
 > 출처: D11 UT-14(라벨링) 중 프레임 라벨 편집(임시저장 upsert)·검증 케이스(SAM2 분할/Track은 08-01·08-02 블록에서 다룸).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -226,7 +227,7 @@
 | 단위시험ID | KLID-AT-UT-022 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-11-10 · UC KLID-AT-UC-022] VLM 시계열 메타 검토 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-022 | 관련 프로그램 ID | MetaService |
+| 관련 컴포넌트 ID | KLID-AT-CO-022 | 관련 프로그램 ID | KLID-AT-IF-019 시계열 결과 수신·IF-020 메타 검토 (D4 수신 프로그램: VLM결과수신, II-004) |
 > 출처: D11 UT-16(외부 VLM 메타 검토 승인/반려).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
@@ -238,7 +239,7 @@
 | 단위시험ID | KLID-AT-UT-023 | | |
 |---|---|---|---|
 | 설명 | [RQ-SFR-11-10 · UC KLID-AT-UC-023] 검수 승인·반려 | | |
-| 관련 컴포넌트 ID | KLID-AT-CO-023 | 관련 프로그램 ID | ReviewService |
+| 관련 컴포넌트 ID | KLID-AT-CO-023 | 관련 프로그램 ID | KLID-AT-IF-021 검수 처리 |
 > 출처: D11 UT-17(검수 승인/반려).
 
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
