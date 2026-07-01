@@ -15,6 +15,7 @@
 | 2026-07-01 | 4.1 | 시험항목 및 처리절차에서 불필요한 API 엔드포인트 제거, 예상결과 및 검증방법의 DB 항목을 INSERT 서술 → 확인 SELECT 쿼리로 전환(D8/D9 실측 키) | - | - |
 | 2026-07-01 | 4.2 | 관련 프로그램 ID를 D3 컴포넌트설계서 인터페이스 ID(KLID-AT-IF-NNN) 기준으로 기입, 외부 연계 컴포넌트는 D4 송수신 프로그램 ID 병기 | - | - |
 | 2026-07-01 | 4.3 | UT-002 라벨 보존율 계산 케이스(구 002-01) 제거 — 계산기(LabelIntegrityCalculator)가 실제 실행 흐름에 미연동(호출처 없음)이라 기능 정상동작 시험 대상 아님. 002-02·03 → 002-01·02 재번호 | - | - |
+| 2026-07-01 | 4.4 | UT-004-02 보간 저장 검증에 좌표 값 대조 SELECT 추가 — 건수 확인만으로는 저장된 보간 좌표의 선형 정확성을 검증 못 해 값 대조 보강 | - | - |
 
 ### 헤더
 
@@ -76,7 +77,7 @@
 | 케이스 ID | 케이스 명 | 작업 권한 | 시험 데이터 | 시험항목 및 처리절차 | 예상결과 및 검증방법 | 시험 결과 |
 |---------|---------|---------|-----------|---------|--------------|------|
 | KLID-AT-UT-004-01 | 두 키프레임 5~10 사이 6 7 8 9 프레임 선형 보간 / 세 키프레임 각 구간 독립 보간 | - | 키프레임 2~3개 | 1. 트랙 보간 도메인 로직 단위 실행(화면 조작 없음) <br>2. 키프레임 5·10(outside=false) 목록 구성 후 사이 프레임 선형 보간 계산 <br>: 순수 계산 로직 단위 시험 — 키프레임 3개 입력 시 각 구간(5~10, 10~N) 독립 보간, 반환값으로 확인 | · 반환 Map(frame→Bbox)에 6/7/8/9 선형 보간값 산출 <br>· 키프레임 자체(5·10) 포함, `outside=true` 이후·마지막 키프레임 이후 propagate 없음 <br>· 검증: 순수 도메인 로직 단위테스트 — 반환 Map 좌표 계산 일치 | |
-| KLID-AT-UT-004-02 | 같은 trackId 5~10 프레임 BBOX 2개 있으면 6 7 8 9 프레임 보간 4건 저장 | - | trackId 키프레임 | 1. 오토라벨 파이프라인의 트랙 보간 Step 실행(rawSn 대상) <br>2. 같은 trackId 자동 BBOX 키프레임(5·10) 사이 프레임을 보간해 저장 <br>: 배치 Step 단위 시험 — 키프레임은 건너뛰고 사이 프레임(6~9)만 자동 라벨 생성, DB 저장으로 확인 | · `SELECT COUNT(*) FROM LS_DATA_LBL WHERE TRCK_ID={대상 trackId} AND AUTO_LBL_YN='Y' AND LBL_TYPE_CD='BBOX'` → 4건(CONF_SCORE=0·POINT_CN nested) <br>· `SELECT COUNT(*) FROM LS_DATA_LBL_AI_INFO WHERE LBL_SRC_CD='INTERPOLATE' AND DATA_RAW_SN={대상 rawSn}` → 4건(DATA_SRC_SN 매핑) <br>· 검증: 위 조회 4건 + SRC_SN(frameNo 6/7/8/9) 매핑 | |
+| KLID-AT-UT-004-02 | 같은 trackId 5~10 프레임 BBOX 2개 있으면 6 7 8 9 프레임 보간 4건 저장 | - | trackId 키프레임 | 1. 오토라벨 파이프라인의 트랙 보간 Step 실행(rawSn 대상) <br>2. 같은 trackId 자동 BBOX 키프레임(5·10) 사이 프레임을 보간해 저장 <br>: 배치 Step 단위 시험 — 키프레임은 건너뛰고 사이 프레임(6~9)만 자동 라벨 생성, DB 저장으로 확인 | · `SELECT COUNT(*) FROM LS_DATA_LBL WHERE TRCK_ID={대상 trackId} AND AUTO_LBL_YN='Y' AND LBL_TYPE_CD='BBOX'` → 4건(CONF_SCORE=0·POINT_CN nested) <br>· `SELECT COUNT(*) FROM LS_DATA_LBL_AI_INFO WHERE LBL_SRC_CD='INTERPOLATE' AND DATA_RAW_SN={대상 rawSn}` → 4건(DATA_SRC_SN 매핑) <br>· `SELECT SRC_SN, POINT_CN FROM LS_DATA_LBL WHERE TRCK_ID = :trackId AND AUTO_LBL_YN = 'Y' ORDER BY SRC_SN` → 6·7·8·9 프레임 POINT_CN 좌표가 키프레임 5·10 BBOX의 프레임 위치별 **선형 보간값(중간값)** 과 일치 <br>· 검증: 위 조회 4건 + SRC_SN(frameNo 6/7/8/9) 매핑 + 저장 좌표가 선형 보간값과 일치(건수뿐 아니라 좌표 값 대조) | |
 | KLID-AT-UT-004-03 | YOLO 검출 결과는 AUTO_LBL_YN Y + BBOX 타입 + score 0~1 저장 | - | 검출 응답 | 1. 오토라벨 파이프라인의 YOLO 검출 Step 실행(rawSn 대상) <br>2. 프레임별 AI 추론 서버 YOLO 호출 후 검출 결과를 자동 라벨로 저장 <br>: 배치 Step 단위 시험 — 검출 BBOX·신뢰도(0~1) 자동 라벨 생성, DB 저장으로 확인 | · `SELECT AUTO_LBL_YN, LBL_TYPE_CD, CONF_SCORE FROM LS_DATA_LBL WHERE SRC_SN={대상 프레임 srcSn}` → AUTO_LBL_YN='Y'·LBL_TYPE_CD='BBOX'·CONF_SCORE 0.0~1.0 <br>· `SELECT LBL_SRC_CD, CONF_SCORE FROM LS_DATA_LBL_AI_INFO WHERE DATA_SRC_SN={대상 프레임 srcSn}` → LBL_SRC_CD='YOLO'·CONF_SCORE 존재 <br>· 검증: 위 조회 행 필드 값 일치 | |
 
 ## 단위시험 KLID-AT-UT-005
