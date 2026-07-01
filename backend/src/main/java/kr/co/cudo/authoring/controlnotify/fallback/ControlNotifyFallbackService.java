@@ -96,6 +96,39 @@ public class ControlNotifyFallbackService {
     }
 
     /**
+     * 즉시 발송 성공 관찰 행 적재.
+     *
+     * <p>{@code STTS_CD=SUCCEEDED}(터미널) + {@code SEND_RSLT_CD=SUCCESS} 행을 INSERT 해
+     * 성공 발송을 DB 로 관찰 가능하게 한다. 터미널 상태라 재시도 잡·depth 게이지에 영향 없음.
+     *
+     * <p>CWE-362: 동일 {@code idmpKey} 중복(다중 인스턴스) 시 unique 충돌을 삼켜 멱등 반환.
+     *
+     * @return 적재된 idempotencyKey. enabled=false 면 {@link Optional#empty()}.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public Optional<String> recordImmediateSuccess(String idempotencyKey,
+                                                   String eventType,
+                                                   Long rawSn,
+                                                   String payloadJson) {
+        if (!enabled) {
+            return Optional.empty();
+        }
+        try {
+            LsControlNotifyFallback entity =
+                    LsControlNotifyFallback.succeeded(idempotencyKey, eventType, rawSn, payloadJson);
+            repository.save(entity);
+            log.info("[ControlNotifyFallback] send success recorded eventType={} rawSn={} key={}",
+                    eventType, rawSn, idempotencyKey);
+            incrementCounter("control.notify.fallback.send_success");
+            return Optional.of(idempotencyKey);
+        } catch (DataIntegrityViolationException e) {
+            // 동일 idempotencyKey 충돌 -- 이미 적재됨. 멱등 반환.
+            log.info("[ControlNotifyFallback] success row already recorded (idempotent) key={}", idempotencyKey);
+            return Optional.of(idempotencyKey);
+        }
+    }
+
+    /**
      * 재시도 항목을 RETRYING 으로 변경.
      *
      * <p>CWE-362 -- 원자 CAS UPDATE. 멀티 인스턴스 동시 실행 시 한 인스턴스만 성공.

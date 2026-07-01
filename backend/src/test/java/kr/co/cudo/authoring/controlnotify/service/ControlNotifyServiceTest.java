@@ -94,6 +94,69 @@ class ControlNotifyServiceTest {
         verify(fallbackService).enqueuePending(anyString(), eq("TASK_MODIFIED"), eq(200L), anyString());
     }
 
+    // --- 발송 결과 관찰 적재 (SEND_RSLT_CD=SUCCESS) ---
+
+    @Test
+    @DisplayName("즉시_통지_성공시_SEND_RSLT_SUCCESS_행이_적재된다")
+    void sendCompleted_success_recordsImmediateSuccess() {
+        // given
+        ReviewApprovedEvent event = new ReviewApprovedEvent(100L, 1L, Instant.now());
+        when(client.sendTaskCompleted(any())).thenReturn(Mono.empty());
+
+        // when
+        svc.sendCompleted(event);
+
+        // then — 발송 성공 → SUCCEEDED/SUCCESS 관찰 행 적재, 폴백 큐(pending)는 미적재.
+        verify(fallbackService).recordImmediateSuccess(anyString(), eq("TASK_COMPLETED"), eq(100L), anyString());
+        verify(fallbackService, never()).enqueuePending(anyString(), anyString(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("즉시_통지_실패시_PENDING_FAILED로_폴백큐_적재되고_성공행은_미적재")
+    void sendCompleted_failure_noSuccessRecord() {
+        // given
+        ReviewApprovedEvent event = new ReviewApprovedEvent(100L, 1L, Instant.now());
+        when(client.sendTaskCompleted(any())).thenReturn(Mono.error(new RuntimeException("connection refused")));
+
+        // when
+        svc.sendCompleted(event);
+
+        // then
+        verify(fallbackService).enqueuePending(anyString(), eq("TASK_COMPLETED"), eq(100L), anyString());
+        verify(fallbackService, never()).recordImmediateSuccess(anyString(), anyString(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("Modified_즉시_통지_성공시_SEND_RSLT_SUCCESS_행이_적재된다")
+    void sendModified_success_recordsImmediateSuccess() {
+        // given
+        when(client.sendTaskModified(any())).thenReturn(Mono.empty());
+
+        // when
+        svc.sendModified(200L, List.of(10L), List.of("LABEL_ADDED"));
+
+        // then
+        verify(fallbackService).recordImmediateSuccess(anyString(), eq("TASK_MODIFIED"), eq(200L), anyString());
+    }
+
+    @Test
+    @DisplayName("관찰_적재_실패해도_통지성공_metrics는_유지된다")
+    void sendCompleted_recordFailure_doesNotBreakNotification() {
+        // given — 통지 자체는 성공했으나 관찰 행 INSERT 가 예외.
+        ReviewApprovedEvent event = new ReviewApprovedEvent(100L, 1L, Instant.now());
+        when(client.sendTaskCompleted(any())).thenReturn(Mono.empty());
+        when(fallbackService.recordImmediateSuccess(anyString(), anyString(), any(), anyString()))
+                .thenThrow(new RuntimeException("db down"));
+
+        // when — 예외가 밖으로 전파되지 않아야 한다.
+        svc.sendCompleted(event);
+
+        // then — 통지 성공 메트릭은 유지, 실패 메트릭/폴백 큐 적재는 없음.
+        verify(metrics).incrementCompletedSuccess();
+        verify(metrics, never()).incrementCompletedFailed();
+        verify(fallbackService, never()).enqueuePending(anyString(), anyString(), any(), anyString());
+    }
+
     // --- Phase 5: 메트릭 호출 검증 ---
 
     @Test

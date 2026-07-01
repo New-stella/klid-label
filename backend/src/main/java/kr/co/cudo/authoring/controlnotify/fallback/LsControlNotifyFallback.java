@@ -40,6 +40,10 @@ public class LsControlNotifyFallback {
     public static final String STATUS_SUCCEEDED = "SUCCEEDED";
     public static final String STATUS_DEAD_LETTER = "DEAD_LETTER";
 
+    /** 발송 결과 코드 — STTS_CD(큐 처리 상태)와 분리된 순수 발송 결과. */
+    public static final String SEND_RSLT_SUCCESS = "SUCCESS";
+    public static final String SEND_RSLT_FAILED = "FAILED";
+
     /** 기본 최대 재시도 횟수. */
     public static final int DEFAULT_MAX_RETRY = 5;
 
@@ -68,6 +72,10 @@ public class LsControlNotifyFallback {
 
     @Column(name = "STTS_CD", length = 16, nullable = false)
     private String sttsCd;
+
+    /** 발송 결과 코드 — SUCCESS/FAILED. 과거 행은 NULL 가능(관찰 미기록). */
+    @Column(name = "SEND_RSLT_CD", length = 16)
+    private String sendRsltCd;
 
     @Column(name = "LAST_ERR_MSG_CN", length = 2000)
     private String lastErrMsg;
@@ -113,10 +121,34 @@ public class LsControlNotifyFallback {
         q.rtryCnt = 0;
         q.maxRtryCnt = DEFAULT_MAX_RETRY;
         q.sttsCd = STATUS_PENDING;
+        // 즉시 발송 실패로 폴백 큐 진입 → 발송 결과는 FAILED.
+        q.sendRsltCd = SEND_RSLT_FAILED;
         LocalDateTime now = LocalDateTime.now();
         q.nextRtryDt = now;
         q.regDt = now;
         q.mdfcnDt = now;
+        return q;
+    }
+
+    /**
+     * 즉시 발송 성공 관찰용 정적 팩토리.
+     *
+     * <p>{@code STTS_CD=SUCCEEDED}(터미널) + {@code SEND_RSLT_CD=SUCCESS} 로 적재해
+     * 재시도 잡(STTS_CD=PENDING)·depth 게이지(PENDING+RETRYING) 대상에서 제외된다.
+     *
+     * @param idempotencyKey 중복 방지 키 (필수)
+     * @param eventType      이벤트 타입 — TASK_COMPLETED / TASK_MODIFIED (필수)
+     * @param rawSn          영상 단위 식별자 (필수)
+     * @param payload        JSON 직렬화된 페이로드 (필수)
+     */
+    public static LsControlNotifyFallback succeeded(String idempotencyKey,
+                                                    String eventType,
+                                                    Long rawSn,
+                                                    String payload) {
+        LsControlNotifyFallback q = pending(idempotencyKey, eventType, rawSn, payload);
+        q.sttsCd = STATUS_SUCCEEDED;
+        q.sendRsltCd = SEND_RSLT_SUCCESS;
+        q.nextRtryDt = null;
         return q;
     }
 
@@ -129,6 +161,7 @@ public class LsControlNotifyFallback {
     /** 성공. */
     public void markSucceeded() {
         this.sttsCd = STATUS_SUCCEEDED;
+        this.sendRsltCd = SEND_RSLT_SUCCESS;
         this.nextRtryDt = null;
         this.mdfcnDt = LocalDateTime.now();
     }
@@ -144,6 +177,8 @@ public class LsControlNotifyFallback {
         this.rtryCnt += 1;
         // CWE-117 + CWE-209: 제어문자 + 토큰/URL 마스킹 후 저장.
         this.lastErrMsg = sanitizeError(error);
+        // 재시도 실패 → 발송 결과는 FAILED (PENDING 복귀·DEAD_LETTER 공통).
+        this.sendRsltCd = SEND_RSLT_FAILED;
         LocalDateTime now = LocalDateTime.now();
         if (this.rtryCnt > this.maxRtryCnt) {
             this.sttsCd = STATUS_DEAD_LETTER;

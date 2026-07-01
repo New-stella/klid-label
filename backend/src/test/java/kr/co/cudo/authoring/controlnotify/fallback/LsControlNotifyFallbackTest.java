@@ -66,6 +66,79 @@ class LsControlNotifyFallbackTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    // ---------- SEND_RSLT_CD (발송 결과 관찰) ----------
+
+    @Test
+    @DisplayName("pending_정적팩토리는_SEND_RSLT_FAILED로_생성된다")
+    void pendingSetsSendResultFailed() {
+        // given / when
+        LsControlNotifyFallback q = LsControlNotifyFallback.pending(
+                "k", "TASK_COMPLETED", 1L, "{}");
+
+        // then — 즉시 발송 실패 → 폴백 큐 진입이므로 발송 결과는 FAILED.
+        assertThat(q.getSendRsltCd()).isEqualTo(LsControlNotifyFallback.SEND_RSLT_FAILED);
+    }
+
+    @Test
+    @DisplayName("succeeded_정적팩토리는_STTS_SUCCEEDED_SEND_RSLT_SUCCESS로_생성된다")
+    void succeededFactoryCreatesTerminalSuccess() {
+        // given / when — 즉시 발송 성공 관찰 행.
+        LsControlNotifyFallback q = LsControlNotifyFallback.succeeded(
+                "notify-ok-1", "TASK_COMPLETED", 100L, "{\"eventType\":\"TASK_COMPLETED\"}");
+
+        // then
+        assertThat(q.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_SUCCEEDED);
+        assertThat(q.getSendRsltCd()).isEqualTo(LsControlNotifyFallback.SEND_RSLT_SUCCESS);
+        assertThat(q.getNextRtryDt()).isNull();
+        assertThat(q.getIdmpKey()).isEqualTo("notify-ok-1");
+        assertThat(q.getRawSn()).isEqualTo(100L);
+    }
+
+    @Test
+    @DisplayName("즉시성공_행은_재시도_잡_조회대상_및_depth_게이지에서_제외된다")
+    void succeededRowExcludedFromRetryAndDepth() {
+        // given / when
+        LsControlNotifyFallback q = LsControlNotifyFallback.succeeded(
+                "notify-ok-2", "TASK_MODIFIED", 200L, "{}");
+
+        // then — 재시도 잡 조회(STTS_CD=PENDING) / depth 게이지(PENDING+RETRYING) 어디에도 안 잡힘.
+        assertThat(q.getSttsCd())
+                .isNotEqualTo(LsControlNotifyFallback.STATUS_PENDING)
+                .isNotEqualTo(LsControlNotifyFallback.STATUS_RETRYING);
+    }
+
+    @Test
+    @DisplayName("markSucceeded_재시도성공시_SEND_RSLT_SUCCESS로_갱신")
+    void markSucceededSetsSendResultSuccess() {
+        // given
+        LsControlNotifyFallback q = LsControlNotifyFallback.pending(
+                "k", "TASK_COMPLETED", 1L, "{}");
+
+        // when
+        q.markSucceeded();
+
+        // then
+        assertThat(q.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_SUCCEEDED);
+        assertThat(q.getSendRsltCd()).isEqualTo(LsControlNotifyFallback.SEND_RSLT_SUCCESS);
+    }
+
+    @Test
+    @DisplayName("failAndSchedule_재시도최종실패시_DEAD_LETTER_SEND_RSLT_FAILED")
+    void failAndScheduleDeadLetterSetsSendResultFailed() {
+        // given
+        LsControlNotifyFallback q = LsControlNotifyFallback.pending(
+                "k", "TASK_COMPLETED", 1L, "{}");
+
+        // when -- 6회 실패 (max 5 초과)
+        for (int i = 0; i < 6; i++) {
+            q.failAndSchedule("err-" + i);
+        }
+
+        // then
+        assertThat(q.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_DEAD_LETTER);
+        assertThat(q.getSendRsltCd()).isEqualTo(LsControlNotifyFallback.SEND_RSLT_FAILED);
+    }
+
     // ---------- 상태 전이 ----------
 
     @Test
