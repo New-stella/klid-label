@@ -4,12 +4,11 @@ import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
-import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
+import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,19 +21,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 3: VlmResultService 마킹 상태 전이 테스트.
+ * VlmResultService 마킹 상태 전이 테스트.
  *
- * <p>VLM 결과 수신 시 VLM_REQUESTED 상태의 마킹이 VLM_COMPLETED 로 전이되는지 검증한다.
+ * <p>VLM 결과 수신 시 VLM_REQUESTED 상태의 마킹이 VLM_COMPLETED 로 전이되고,
+ * failed 콜백 시 VLM_FAILED 로 전이(고착 해제, DEV_FIX #5)되는지 검증한다.
  */
 @ExtendWith(MockitoExtension.class)
 class VlmResultServiceMarkingTest {
@@ -54,14 +55,21 @@ class VlmResultServiceMarkingTest {
         ledger.clear();
     }
 
-    private LsDataRaw newRaw(Long rawSn) throws Exception {
-        LsDataRaw raw = LsDataRaw.createFromIngest(
-                "CLIP-" + rawSn, "CCTV-1", "EVT-1", "LCL-1",
-                LsDataRaw.PRVC_TYPE_ANONY, "/storage/raw/" + rawSn + ".mp4", null, 30);
-        Field f = LsDataRaw.class.getDeclaredField("rawSn");
-        f.setAccessible(true);
-        f.set(raw, rawSn);
-        return raw;
+    private void stubCompletedFlow(Long rawSn) {
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(metaRepository.findByRawSnAndMetaKeyIn(eq(rawSn), any())).thenReturn(List.of());
+        AtomicLong seq = new AtomicLong(1000L);
+        lenient().when(metaRepository.saveAll(anyList())).thenAnswer(inv -> {
+            List<LsDataMeta> arg = inv.getArgument(0);
+            for (LsDataMeta m : arg) {
+                if (m.getMetaSn() == null) {
+                    Field f = LsDataMeta.class.getDeclaredField("metaSn");
+                    f.setAccessible(true);
+                    f.set(m, seq.incrementAndGet());
+                }
+            }
+            return arg;
+        });
     }
 
     private LsMarking createMarkingWithStatus(Long rawSn, String status) {
@@ -78,19 +86,10 @@ class VlmResultServiceMarkingTest {
 
     @Test
     @DisplayName("VLM_결과_수신시_마킹_상태_VLM_COMPLETED_전이")
-    void vlmResult_transitionsMarkingToCompleted() throws Exception {
+    void vlmResult_transitionsMarkingToCompleted() {
         // given
-        ledger.recordIssued("K-M1", "EXT-M1");
-        LsDataRaw raw = newRaw(600L);
-        when(videoRepository.findById(600L)).thenReturn(Optional.of(raw));
-        when(metaRepository.findByRawSnAndMetaKey(any(), any())).thenReturn(Optional.empty());
-        when(metaRepository.save(any(LsDataMeta.class))).thenAnswer(inv -> {
-            LsDataMeta m = inv.getArgument(0);
-            Field f = LsDataMeta.class.getDeclaredField("metaSn");
-            f.setAccessible(true);
-            f.set(m, 999L);
-            return m;
-        });
+        ledger.recordIssued("K-M1", LsWebhookIdempotency.CHANNEL_VLM, "EXT-M1", 600L);
+        stubCompletedFlow(600L);
 
         LsMarking marking = createMarkingWithStatus(600L, LsMarking.STATUS_VLM_REQUESTED);
         assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
@@ -99,8 +98,8 @@ class VlmResultServiceMarkingTest {
                 .thenReturn(List.of(marking));
 
         VlmResultRequest req = new VlmResultRequest(
-                "K-M1", "EXT-M1", "SUCCESS", 600L,
-                List.of(new VlmResultRequest.MetaItem("scene", "rainy")),
+                "K-M1", "completed",
+                List.of(new VlmResultRequest.Segment(0, 8, "rainy")),
                 null);
 
         // when
@@ -113,27 +112,18 @@ class VlmResultServiceMarkingTest {
 
     @Test
     @DisplayName("VLM_결과_수신시_VLM_REQUESTED_마킹만_전이")
-    void vlmResult_onlyTransitionsVlmRequestedMarkings() throws Exception {
+    void vlmResult_onlyTransitionsVlmRequestedMarkings() {
         // given
-        ledger.recordIssued("K-M2", "EXT-M2");
-        LsDataRaw raw = newRaw(601L);
-        when(videoRepository.findById(601L)).thenReturn(Optional.of(raw));
-        when(metaRepository.findByRawSnAndMetaKey(any(), any())).thenReturn(Optional.empty());
-        when(metaRepository.save(any(LsDataMeta.class))).thenAnswer(inv -> {
-            LsDataMeta m = inv.getArgument(0);
-            Field f = LsDataMeta.class.getDeclaredField("metaSn");
-            f.setAccessible(true);
-            f.set(m, 1000L);
-            return m;
-        });
+        ledger.recordIssued("K-M2", LsWebhookIdempotency.CHANNEL_VLM, "EXT-M2", 601L);
+        stubCompletedFlow(601L);
 
         // PENDING 상태 마킹은 findByRawSnAndSttsCd 결과에 포함되지 않으므로 전이 대상 아님
         when(markingRepository.findByRawSnAndSttsCd(601L, LsMarking.STATUS_VLM_REQUESTED))
                 .thenReturn(Collections.emptyList());
 
         VlmResultRequest req = new VlmResultRequest(
-                "K-M2", "EXT-M2", "SUCCESS", 601L,
-                List.of(new VlmResultRequest.MetaItem("density", "high")),
+                "K-M2", "completed",
+                List.of(new VlmResultRequest.Segment(8, 16, "high")),
                 null);
 
         // when
@@ -146,27 +136,18 @@ class VlmResultServiceMarkingTest {
 
     @Test
     @DisplayName("마킹_없는_영상_VLM_결과_수신시_정상_동작")
-    void vlmResult_noMarking_stillWorksNormally() throws Exception {
+    void vlmResult_noMarking_stillWorksNormally() {
         // given
-        ledger.recordIssued("K-M3", "EXT-M3");
-        LsDataRaw raw = newRaw(602L);
-        when(videoRepository.findById(602L)).thenReturn(Optional.of(raw));
-        when(metaRepository.findByRawSnAndMetaKey(any(), any())).thenReturn(Optional.empty());
-        when(metaRepository.save(any(LsDataMeta.class))).thenAnswer(inv -> {
-            LsDataMeta m = inv.getArgument(0);
-            Field f = LsDataMeta.class.getDeclaredField("metaSn");
-            f.setAccessible(true);
-            f.set(m, 1001L);
-            return m;
-        });
+        ledger.recordIssued("K-M3", LsWebhookIdempotency.CHANNEL_VLM, "EXT-M3", 602L);
+        stubCompletedFlow(602L);
 
         // 마킹이 전혀 없는 영상
         when(markingRepository.findByRawSnAndSttsCd(602L, LsMarking.STATUS_VLM_REQUESTED))
                 .thenReturn(Collections.emptyList());
 
         VlmResultRequest req = new VlmResultRequest(
-                "K-M3", "EXT-M3", "SUCCESS", 602L,
-                List.of(new VlmResultRequest.MetaItem("weather", "clear")),
+                "K-M3", "completed",
+                List.of(new VlmResultRequest.Segment(0, 4, "clear")),
                 null);
 
         // when
@@ -174,7 +155,29 @@ class VlmResultServiceMarkingTest {
 
         // then
         assertThat(applied).isTrue();
-        verify(metaRepository).save(any(LsDataMeta.class));
-        verify(reviewRepository).save(any(LsDataMetaReview.class));
+        verify(metaRepository).saveAll(anyList());
+        verify(reviewRepository).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("failed_콜백_수신시_VLM_REQUESTED_마킹을_VLM_FAILED로_전이_고착해제")
+    void failedCallback_transitionsMarkingToFailed() {
+        // given — VLM_REQUESTED 에 머물던 마킹이 실패 콜백으로 dead-lock 되지 않아야 함(#5)
+        ledger.recordIssued("K-M4", LsWebhookIdempotency.CHANNEL_VLM, "EXT-M4", 603L);
+        LsMarking marking = createMarkingWithStatus(603L, LsMarking.STATUS_VLM_REQUESTED);
+        when(markingRepository.findByRawSnAndSttsCd(603L, LsMarking.STATUS_VLM_REQUESTED))
+                .thenReturn(List.of(marking));
+
+        VlmResultRequest req = new VlmResultRequest(
+                "K-M4", "failed", null,
+                new VlmResultRequest.VlmError("VLM_TIMEOUT", "분석 지연"));
+
+        // when
+        boolean applied = service.handle(req);
+
+        // then — 마킹은 VLM_REQUESTED 고착이 아니라 VLM_FAILED 종료 상태
+        assertThat(applied).isTrue();
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_FAILED);
+        assertThat(ledger.isProcessed("K-M4")).isTrue();
     }
 }

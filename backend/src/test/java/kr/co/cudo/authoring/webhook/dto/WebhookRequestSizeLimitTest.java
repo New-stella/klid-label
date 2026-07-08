@@ -38,20 +38,19 @@ class WebhookRequestSizeLimitTest {
     }
 
     @Test
-    @DisplayName("VlmResultRequest_vlmMetaItems_500_초과_시_검증_실패")
-    void vlmMetaItemsOver500_violates() {
-        List<VlmResultRequest.MetaItem> items = new ArrayList<>(501);
+    @DisplayName("VlmResultRequest_results_500_초과_시_검증_실패")
+    void vlmResultsOver500_violates() {
+        List<VlmResultRequest.Segment> items = new ArrayList<>(501);
         for (int i = 0; i < 501; i++) {
-            items.add(new VlmResultRequest.MetaItem("k" + i, "v"));
+            items.add(new VlmResultRequest.Segment(i, i + 1, "v"));
         }
-        VlmResultRequest req = new VlmResultRequest(
-                "K1", "EXT1", "SUCCESS", 1L, items, null);
+        VlmResultRequest req = new VlmResultRequest("REQ-1", "completed", items, null);
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
         assertThat(violations)
                 .extracting(v -> v.getPropertyPath().toString())
-                .contains("vlmMetaItems");
+                .contains("results");
     }
 
     @Test

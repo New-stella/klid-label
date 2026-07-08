@@ -2,8 +2,6 @@ package kr.co.cudo.authoring.webhook;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import kr.co.cudo.authoring.common.security.HmacWebhookFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,18 +24,19 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * Phase 2 — HmacWebhookFilter 단위 테스트.
+ * HmacWebhookFilter 단위 테스트 — 증강 콜백(/v1/augments/result) HMAC 검증.
  *
- * <p>시나리오 방어 검증:
- *  - S-1 (HMAC 없이 호출): 시그니처/timestamp 헤더 없으면 401
- *  - S-6 (replay): timestamp 윈도우 밖이면 401
+ * <p>VLM 콜백(/v1/vlm/result)은 벤더 v2.0.1 무서명 규격 → HMAC 대상에서 제거(2026-07-07 승인).
+ * 따라서 VLM 경로는 서명 없이도 필터를 통과(shouldNotFilter)해야 한다.
+ *
+ * <p>시나리오 방어 검증(증강 경로):
+ *  - 시그니처/timestamp 헤더 없으면 401
+ *  - replay(timestamp 윈도우 밖) 401
  *  - fail-closed: 시크릿 미설정 시 401
  *  - 정상: 올바른 시그니처는 통과 (FilterChain.doFilter 호출)
- *  - 시그니처 불일치 401
  */
 class HmacWebhookFilterTest {
 
-    private static final String SECRET_VLM = "vlm-secret-32bytes-min-len-aaaaaaa!";
     private static final String SECRET_AUGMENT = "augment-secret-32bytes-min-len-bbb!";
 
     private ObjectMapper objectMapper;
@@ -46,14 +45,28 @@ class HmacWebhookFilterTest {
     @BeforeEach
     void setup() {
         objectMapper = new ObjectMapper();
-        filter = new HmacWebhookFilter(objectMapper, SECRET_VLM, SECRET_AUGMENT, 300L);
+        filter = new HmacWebhookFilter(objectMapper, SECRET_AUGMENT, 300L);
     }
 
     @Test
-    @DisplayName("POST_v1_vlm_result_HMAC_헤더_없으면_401")
-    void vlmMissingHmacHeader_returns401() throws Exception {
-        MockHttpServletRequest req = postRequest("/v1/vlm/result", "{\"x\":1}");
-        // 헤더 미설정
+    @DisplayName("HMAC_서명_없이도_vlm_콜백_수신됨")
+    void vlmPath_passesThroughWithoutHmac() throws Exception {
+        // VLM 경로는 HMAC 대상에서 제거 — 서명 헤더 없이도 다음 체인으로 통과해야 함
+        MockHttpServletRequest req = postRequest("/v1/vlm/result",
+                "{\"request_id\":\"REQ-1\",\"status\":\"completed\",\"results\":[]}");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isNotEqualTo(401);
+        verify(chain, times(1)).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("POST_v1_augments_result_HMAC_헤더_없으면_401")
+    void augmentMissingHmacHeader_returns401() throws Exception {
+        MockHttpServletRequest req = postRequest("/v1/augments/result", "{\"x\":1}");
         MockHttpServletResponse res = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
 
@@ -65,11 +78,11 @@ class HmacWebhookFilterTest {
     }
 
     @Test
-    @DisplayName("POST_v1_vlm_result_HMAC_시그니처_틀리면_401")
-    void vlmInvalidSignature_returns401() throws Exception {
+    @DisplayName("POST_v1_augments_result_HMAC_시그니처_틀리면_401")
+    void augmentInvalidSignature_returns401() throws Exception {
         String body = "{\"idempotencyKey\":\"K1\"}";
         long ts = System.currentTimeMillis();
-        MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
+        MockHttpServletRequest req = postRequest("/v1/augments/result", body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=deadbeefnotmatching");
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -82,12 +95,12 @@ class HmacWebhookFilterTest {
     }
 
     @Test
-    @DisplayName("POST_v1_vlm_result_replay_시간초과_시_401")
-    void vlmReplayTimestampExceeded_returns401() throws Exception {
+    @DisplayName("POST_v1_augments_result_replay_시간초과_시_401")
+    void augmentReplayTimestampExceeded_returns401() throws Exception {
         String body = "{\"k\":1}";
         long ts = System.currentTimeMillis() - 10 * 60 * 1000L; // 10분 전
-        String sig = hmacHex(SECRET_VLM, ts + "." + body);
-        MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
+        String sig = hmacHex(SECRET_AUGMENT, ts + "." + body);
+        MockHttpServletRequest req = postRequest("/v1/augments/result", body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=" + sig);
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -113,7 +126,6 @@ class HmacWebhookFilterTest {
 
         filter.doFilter(req, res, chain);
 
-        // 401이 아니어야 함 (정상 통과)
         assertThat(res.getStatus()).isNotEqualTo(401);
         verify(chain, times(1)).doFilter(any(), any());
     }
@@ -121,11 +133,10 @@ class HmacWebhookFilterTest {
     @Test
     @DisplayName("시크릿_미설정_경로는_fail_closed_401")
     void missingSecret_failsClosed() throws Exception {
-        // 모든 시크릿 빈 문자열로 새 필터 생성
-        HmacWebhookFilter noSecretFilter = new HmacWebhookFilter(objectMapper, "", "", 300L);
+        HmacWebhookFilter noSecretFilter = new HmacWebhookFilter(objectMapper, "", 300L);
         String body = "{}";
         long ts = System.currentTimeMillis();
-        MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
+        MockHttpServletRequest req = postRequest("/v1/augments/result", body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=anyvalue");
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -140,14 +151,13 @@ class HmacWebhookFilterTest {
     @Test
     @DisplayName("HmacWebhookFilter_본문_1MB_초과_시_413")
     void bodyOver1MB_returns413() throws Exception {
-        // DEV_FIX H-4: 1MB 초과 본문은 413 Payload Too Large
         byte[] big = new byte[(int) HmacWebhookFilter.MAX_WEBHOOK_BODY_BYTES + 1];
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/vlm/result");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/augments/result");
         req.setContent(big);
         req.setContentType("application/json");
         long ts = System.currentTimeMillis();
         req.addHeader("X-Timestamp", String.valueOf(ts));
-        req.addHeader("X-Signature", "hmac-sha256=" + hmacHex(SECRET_VLM, ts + "." + new String(big, StandardCharsets.UTF_8)));
+        req.addHeader("X-Signature", "hmac-sha256=" + hmacHex(SECRET_AUGMENT, ts + "." + new String(big, StandardCharsets.UTF_8)));
         MockHttpServletResponse res = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
 
@@ -158,10 +168,135 @@ class HmacWebhookFilterTest {
     }
 
     @Test
+    @DisplayName("vlm_콜백_본문_4MB_초과_시_413_역직렬화_전_조기거부")
+    void vlmBodyOverCap_returns413() throws Exception {
+        byte[] big = new byte[(int) HmacWebhookFilter.MAX_VLM_BODY_BYTES + 1];
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/vlm/result");
+        req.setContent(big);
+        req.setContentType("application/json");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(413);
+        verify(chain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("chunked_무_Content_Length_대용량_본문은_역직렬화_전_거부")
+    void vlmChunkedNoContentLength_rejectedBeforeDeserialize() throws Exception {
+        // 재현: Transfer-Encoding chunked → Content-Length 없음(getContentLengthLong == -1).
+        // 과거엔 -1 이 size-cap 을 우회해 전체 스트림을 힙에 버퍼링(OOM) 했다.
+        // 이제는 역직렬화(본문 버퍼링) 이전에 411(Length Required)로 조기 거부해야 한다.
+        byte[] big = new byte[(int) HmacWebhookFilter.MAX_VLM_BODY_BYTES + 1];
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/vlm/result") {
+            @Override
+            public long getContentLengthLong() { return -1L; }
+            @Override
+            public int getContentLength() { return -1; }
+        };
+        req.setContent(big);
+        req.setContentType("application/json");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(411);
+        verify(chain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("vlm_콜백_실제_스트림은_상한까지만_읽고_중단_bounded_read")
+    void vlmBoundedRead_stopsAtCap() throws Exception {
+        // Content-Length 를 작게 위조하고 실제 스트림은 상한의 8배(32MB)를 흘려도,
+        // bounded read 가 상한 초과 즉시 중단해야 한다(전량 버퍼 금지 → OOM 방지).
+        long cap = HmacWebhookFilter.MAX_VLM_BODY_BYTES;
+        int streamLen = (int) (cap * 8);
+        final int[] bytesRead = {0};
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/vlm/result") {
+            @Override
+            public long getContentLengthLong() { return 10L; } // 위조: 작게 신고
+            @Override
+            public int getContentLength() { return 10; }
+            @Override
+            public jakarta.servlet.ServletInputStream getInputStream() {
+                return new jakarta.servlet.ServletInputStream() {
+                    private int pos = 0;
+                    @Override public boolean isFinished() { return pos >= streamLen; }
+                    @Override public boolean isReady() { return true; }
+                    @Override public void setReadListener(jakarta.servlet.ReadListener l) { }
+                    @Override public int read() {
+                        if (pos >= streamLen) return -1;
+                        pos++;
+                        bytesRead[0]++;
+                        return 'a';
+                    }
+                    @Override public int read(byte[] b, int off, int len) {
+                        if (pos >= streamLen) return -1;
+                        int n = Math.min(len, streamLen - pos);
+                        java.util.Arrays.fill(b, off, off + n, (byte) 'a');
+                        pos += n;
+                        bytesRead[0] += n;
+                        return n;
+                    }
+                };
+            }
+        };
+        req.setContentType("application/json");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(413);
+        verify(chain, never()).doFilter(any(), any());
+        // 상한 + 한 청크(여유) 이내에서 읽기를 멈춰야 함 — 전량(32MB) 소비 금지.
+        assertThat((long) bytesRead[0])
+                .as("bounded read 는 상한 초과 즉시 중단해야 한다 (전량 버퍼 금지)")
+                .isLessThanOrEqualTo(cap + 64 * 1024);
+    }
+
+    @Test
+    @DisplayName("vlm_콜백_Content_Length_위조해도_스트림_상한_초과시_413")
+    void vlmBodySpoofedContentLength_returns413() throws Exception {
+        byte[] big = new byte[(int) HmacWebhookFilter.MAX_VLM_BODY_BYTES + 1];
+        // Content-Length 를 작게 위조해도 실제 스트림 길이로 캡되어야 함
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/vlm/result") {
+            @Override
+            public long getContentLengthLong() { return 10L; }
+        };
+        req.setContent(big);
+        req.setContentType("application/json");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(413);
+        verify(chain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("vlm_콜백_정상_크기_본문은_서명없이_통과")
+    void vlmNormalBody_passesThrough() throws Exception {
+        MockHttpServletRequest req = postRequest("/v1/vlm/result",
+                "{\"request_id\":\"REQ-1\",\"status\":\"completed\",\"results\":[]}");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isNotEqualTo(413);
+        assertThat(res.getStatus()).isNotEqualTo(401);
+        verify(chain, times(1)).doFilter(any(), any());
+    }
+
+    @Test
     @DisplayName("HmacWebhookFilter_Content_Length_누락_시_401")
     void missingContentLength_returns401() throws Exception {
-        // DEV_FIX H-4: Content-Length 누락(-1) 은 401
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/vlm/result") {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/augments/result") {
             @Override
             public long getContentLengthLong() { return -1L; }
             @Override
@@ -171,7 +306,7 @@ class HmacWebhookFilterTest {
         req.setContentType("application/json");
         long ts = System.currentTimeMillis();
         req.addHeader("X-Timestamp", String.valueOf(ts));
-        req.addHeader("X-Signature", "hmac-sha256=" + hmacHex(SECRET_VLM, ts + ".{}"));
+        req.addHeader("X-Signature", "hmac-sha256=" + hmacHex(SECRET_AUGMENT, ts + ".{}"));
         MockHttpServletResponse res = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
 
@@ -184,12 +319,11 @@ class HmacWebhookFilterTest {
     @Test
     @DisplayName("HmacWebhookFilter_시그니처_실패_분당_5회_초과_시_60초_backoff")
     void rateLimit_after5Failures() throws Exception {
-        // DEV_FIX H-4: 동일 IP 에서 인증 실패 5회 누적 시 6번째 호출은 429
         String body = "{\"k\":1}";
         long ts = System.currentTimeMillis();
         FilterChain chain = mock(FilterChain.class);
         for (int i = 0; i < 5; i++) {
-            MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
+            MockHttpServletRequest req = postRequest("/v1/augments/result", body);
             req.setRemoteAddr("10.0.0.99");
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=deadbeefwronghex" + i);
@@ -197,8 +331,7 @@ class HmacWebhookFilterTest {
             filter.doFilter(req, res, chain);
             assertThat(res.getStatus()).isEqualTo(401);
         }
-        // 6번째 호출 — rate limit 적용으로 429
-        MockHttpServletRequest req6 = postRequest("/v1/vlm/result", body);
+        MockHttpServletRequest req6 = postRequest("/v1/augments/result", body);
         req6.setRemoteAddr("10.0.0.99");
         req6.addHeader("X-Timestamp", String.valueOf(ts));
         req6.addHeader("X-Signature", "hmac-sha256=anyhex");
@@ -212,8 +345,7 @@ class HmacWebhookFilterTest {
     @Test
     @DisplayName("HmacWebhookFilter_시크릿_32바이트_미만_시_부팅_실패")
     void shortSecret_failsBoot() {
-        // DEV_FIX M-1: 32B 미만 시크릿은 BeanInitializationException
-        assertThatThrownBy(() -> new HmacWebhookFilter(objectMapper, "short", "augment-secret-32bytes-min-len-bbb!", 300L))
+        assertThatThrownBy(() -> new HmacWebhookFilter(objectMapper, "short", 300L))
                 .isInstanceOf(BeanInitializationException.class)
                 .hasMessageContaining("M-1");
     }
@@ -221,16 +353,13 @@ class HmacWebhookFilterTest {
     @Test
     @DisplayName("HmacWebhookFilter_FailureTracker_4096_초과_시_hard_cap_적용")
     void failureTrackers_hardCap() throws Exception {
-        // DEV_FIX 2차 H-4 부분: 공격자가 매우 짧은 시간에 다수의 다른 IP 로 실패 요청을 보내면
-        // 윈도우 만료 항목 정리만으로는 무한 증가 가능 → 4096 초과 시 가장 오래된 항목 강제 evict.
         String body = "{\"k\":1}";
         long ts = System.currentTimeMillis();
         FilterChain chain = mock(FilterChain.class);
 
-        // 4097 개의 서로 다른 IP 로 실패 요청 — 동일 윈도우 내라 만료 정리만으로는 제거 안 됨
         int totalIps = HmacWebhookFilter.MAX_FAILURE_TRACKERS + 1;
         for (int i = 0; i < totalIps; i++) {
-            MockHttpServletRequest req = postRequest("/v1/vlm/result", body);
+            MockHttpServletRequest req = postRequest("/v1/augments/result", body);
             req.setRemoteAddr("10.99." + (i / 256) + "." + (i % 256));
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=wronghex" + i);
@@ -238,7 +367,6 @@ class HmacWebhookFilterTest {
             filter.doFilter(req, res, chain);
         }
 
-        // failureTrackers 크기는 cap 이하여야 함
         Field f = HmacWebhookFilter.class.getDeclaredField("failureTrackers");
         f.setAccessible(true);
         java.util.Map<?, ?> trackers = (java.util.Map<?, ?>) f.get(filter);
@@ -257,7 +385,6 @@ class HmacWebhookFilterTest {
 
         filter.doFilter(req, res, chain);
 
-        // HMAC 헤더 없어도 통과해야 함 — webhook 경로가 아니므로
         verify(chain, times(1)).doFilter(any(), any());
     }
 

@@ -46,13 +46,23 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
     @Override
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void recordIssued(String idempotencyKey, String channel, String externalJobId) {
+        recordIssued(idempotencyKey, channel, externalJobId, null);
+    }
+
+    /**
+     * VLM describe 콜백 정합 — channel + rawSn 명시 발급 기록.
+     * 위탁 요청 시 {@code (request_id, rawSn)} 매핑을 영속해 결과 수신부의 역조회를 지원한다.
+     */
+    @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
         String safeChannel = (channel == null || channel.isBlank()) ? CHANNEL_UNKNOWN : channel;
         try {
             if (repository.existsById(idempotencyKey)) {
                 return; // 불변 보장 — 이미 발급된 키는 다시 기록하지 않음
             }
-            repository.save(LsWebhookIdempotency.issue(idempotencyKey, safeChannel, externalJobId));
+            repository.save(LsWebhookIdempotency.issue(idempotencyKey, safeChannel, externalJobId, rawSn));
         } catch (DataIntegrityViolationException e) {
             // 동시 발급 — 멱등 반환
             log.debug("[WebhookLedger] recordIssued unique violation (idempotent)");
@@ -81,14 +91,44 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
         }
     }
 
+    /**
+     * VLM 결과 수신 등 side-effect 와 원자적으로 커밋되어야 하는 경로용 — 호출자 트랜잭션에 참여(REQUIRED).
+     * 정상 흐름에서는 이미 ISSUED 로 발급된 행을 dirty-update 하므로 INSERT/DIVE 가 없다.
+     * 예외 발생 시 catch 하지 않고 전파하여 outer 트랜잭션과 함께 롤백되게 한다(데이터 유실 방지, C-1).
+     */
+    @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRED)
+    public void markProcessedInTx(String idempotencyKey, String externalJobId) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return;
+        LsWebhookIdempotency entity = repository.findById(idempotencyKey)
+                .orElseGet(() -> LsWebhookIdempotency.issue(idempotencyKey, CHANNEL_UNKNOWN, externalJobId));
+        entity.markProcessed(externalJobId);
+        repository.save(entity);
+    }
+
     @Override
     @Transactional(value = "controlTransactionManager", readOnly = true, propagation = Propagation.SUPPORTS)
     public Optional<Entry> lookup(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return Optional.empty();
-        return repository.findById(idempotencyKey)
-                .map(e -> new Entry(
-                        LsWebhookIdempotency.STATE_PROCESSED.equals(e.getSttsCd()) ? State.PROCESSED : State.ISSUED,
-                        e.getOtsdJobId()));
+        return repository.findById(idempotencyKey).map(this::toEntry);
+    }
+
+    /**
+     * 처리 목적 조회 — 비관적 락(FOR UPDATE)으로 동일 idempotencyKey 동시 콜백을 직렬화한다(CWE-362).
+     * 호출자 트랜잭션에 참여(REQUIRED)해야 락이 해당 트랜잭션 커밋까지 유지된다.
+     */
+    @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRED)
+    public Optional<Entry> lookupForProcessing(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return Optional.empty();
+        return repository.findByIdmpKeyForUpdate(idempotencyKey).map(this::toEntry);
+    }
+
+    private Entry toEntry(LsWebhookIdempotency e) {
+        return new Entry(
+                LsWebhookIdempotency.STATE_PROCESSED.equals(e.getSttsCd()) ? State.PROCESSED : State.ISSUED,
+                e.getOtsdJobId(),
+                e.getRawSn());
     }
 
     /**

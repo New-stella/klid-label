@@ -25,8 +25,13 @@ import java.time.LocalDateTime;
  *
  * <h3>상태 전이</h3>
  * <pre>
- *   PENDING ──▶ VLM_REQUESTED ──▶ VLM_COMPLETED
+ *   PENDING ──▶ VLM_REQUESTED ──┬─▶ VLM_COMPLETED
+ *                               └─▶ VLM_FAILED (VLM describe 실패 콜백 수신 시)
  * </pre>
+ *
+ * <p>{@code VLM_FAILED} 는 {@code VLM_REQUESTED} 고착(dead-lock)을 해제하는 <b>종결 실패 상태</b>다.
+ * 실패 콜백을 받고도 {@code VLM_REQUESTED} 에 방치하면 마킹이 영구 고착된다.
+ * 이 상태를 소비해 자동 재요청/복구하는 잡은 아직 <b>미구현</b>이며, 수동/후속 재처리 대상이다(DEV_FIX 2차 #3).
  */
 @Entity
 @Table(name = "LS_MARKING")
@@ -39,6 +44,7 @@ public class LsMarking {
     public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_VLM_REQUESTED = "VLM_REQUESTED";
     public static final String STATUS_VLM_COMPLETED = "VLM_COMPLETED";
+    public static final String STATUS_VLM_FAILED = "VLM_FAILED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -151,15 +157,36 @@ public class LsMarking {
         return m;
     }
 
-    /** VLM 요청 발송 상태 전이. */
-    public void markVlmRequested() {
+    /**
+     * VLM 요청 발송 상태 전이 — {@code PENDING} 에서만 {@code VLM_REQUESTED} 로 전이한다.
+     *
+     * <p>이미 {@code VLM_REQUESTED}/{@code VLM_COMPLETED}/{@code VLM_FAILED} 인 마킹은 <b>no-op</b>
+     * (상태 유지)다. retry 로 파이프라인이 MARKING 부터 전량 재실행될 때 {@code VLM_COMPLETED} 마킹을
+     * {@code VLM_REQUESTED} 로 덮어써 유효 META 를 가진 마킹이 고착되는 durable 역행을 원천 차단한다.
+     *
+     * @return 실제로 전이가 발생하면 {@code true}, no-op 이면 {@code false}
+     */
+    public boolean markVlmRequested() {
+        if (!STATUS_PENDING.equals(this.sttsCd)) {
+            return false;
+        }
         this.sttsCd = STATUS_VLM_REQUESTED;
         this.mdfcnDt = LocalDateTime.now();
+        return true;
     }
 
     /** VLM 처리 완료 상태 전이. */
     public void markVlmCompleted() {
         this.sttsCd = STATUS_VLM_COMPLETED;
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
+    /**
+     * VLM describe 실패 상태 전이 — 실패 콜백 수신 시 VLM_REQUESTED 고착을 해제한다.
+     * 배치 파이프라인이 재요청/복구를 판단할 수 있는 종료 상태로 남긴다.
+     */
+    public void markVlmFailed() {
+        this.sttsCd = STATUS_VLM_FAILED;
         this.mdfcnDt = LocalDateTime.now();
     }
 

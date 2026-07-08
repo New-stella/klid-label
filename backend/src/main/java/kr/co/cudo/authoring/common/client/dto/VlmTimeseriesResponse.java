@@ -1,30 +1,35 @@
 package kr.co.cudo.authoring.common.client.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 외부 VLM 서비스 위탁 응답 DTO — Phase 1 신설.
+ * 외부 VLM describe 위탁 동기 응답 DTO — 벤더 확정 계약(v2.0.1) 정합 (Phase 2).
  *
- * <p>비동기 위탁 패턴이므로 본 응답은 **수락(Acknowledge)** 만 의미한다.
- * 실제 시계열 메타 결과는 Phase 2 의 {@code POST /v1/vlm/result} webhook 으로 전달된다.
+ * <p>describe 는 비동기 위탁이므로 동기 응답은 <b>수락(Acknowledge)</b> 만 의미한다.
+ * 실제 시계열 메타 결과는 {@code POST /v1/vlm/result} 콜백으로 전달된다.
  *
- * <p>DEV_FIX-1: 외부 응답 무결성 보호용으로 {@link JsonIgnoreProperties}{@code (ignoreUnknown=true)} 적용.
- * 외부 시스템이 추가 필드를 보내도 역직렬화는 실패하지 않으며, 알려진 필드만 안전하게 매핑된다.
- * 값 자체에 대한 화이트리스트/길이/패턴 검증은 {@code VlmClient.validateResponse} 에서 수행한다.
+ * <p>동기 응답 스키마: <pre>{ "request_id": "...", "status": "accepted" }</pre>
+ * 구 규격의 {@code externalJobId} 는 describe 응답에 존재하지 않는다 — 상관관계는 {@code request_id} 로만 성립한다.
  *
- * @param externalJobId  외부 시스템이 발급한 작업 ID — {@code LS_BATCH_PROC_LOG} 에 저장하여 결과 매핑에 사용.
- * @param idempotencyKey 본 도구가 발급한 멱등 키 — 요청과 1:1 대응 검증용.
- * @param status         외부 시스템의 작업 상태 (예: "ACCEPTED", "QUEUED", "REJECTED", "SKIPPED").
- *                       enabled=false 또는 stub 모드에서는 "SKIPPED" 반환.
+ * <p>{@link JsonIgnoreProperties}{@code (ignoreUnknown=true)}: 벤더가 추가 필드를 보내도 역직렬화는
+ * 실패하지 않으며 알려진 필드만 매핑한다. 값 검증(status="accepted" + request_id echo)은
+ * {@code VlmClient} 에서 수행한다.
+ *
+ * @param requestId 위탁 요청과 동일해야 하는 상관키(echo). 불일치 시 EXTERNAL_API_ERROR.
+ * @param status    수락 상태 — "accepted" 만 정상. 그 외/누락은 EXTERNAL_API_ERROR.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record VlmTimeseriesResponse(
-        String externalJobId,
-        String idempotencyKey,
-        String status
+        @JsonProperty("request_id") String requestId,
+        @JsonProperty("status") String status
 ) {
-    /** 외부 위탁 비활성 / stub 모드에서 반환하는 sentinel. */
-    public static VlmTimeseriesResponse skipped(String idempotencyKey) {
-        return new VlmTimeseriesResponse(null, idempotencyKey, "SKIPPED");
+
+    /** describe 수락 상태 값. */
+    public static final String STATUS_ACCEPTED = "accepted";
+
+    /** 외부 위탁 비활성(enabled=false)/stub 모드에서 반환하는 sentinel. */
+    public static VlmTimeseriesResponse skipped(String requestId) {
+        return new VlmTimeseriesResponse(requestId, "skipped");
     }
 }

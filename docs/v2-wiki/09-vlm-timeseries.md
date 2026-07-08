@@ -1,13 +1,14 @@
 # 09. VLM 시계열 메타
 
-> 출처: CLAUDE.md(VLM 연동·범위 외), R2 KLID-AT-SS-005, 코드(`VlmClient`, `batch/step/VlmTimeseriesStep`, `webhook/VlmResultController`, `meta/`)
+> 출처: CLAUDE.md(VLM 연동·범위 외), R2 KLID-AT-SS-005, **외부 확정 계약 `docs/video_vlm_api_ v2.0.1.docx`(IntelliVIX AI연구소, 2026-06-15)**, 코드(`VlmClient`, `batch/step/VlmTimeseriesStep`, `webhook/VlmResultController`, `meta/`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [12 검수](12-review-assignment.md)
 
 ## 9.1 범위 — 연동만
 
 - **VLM 모델 본체(학습·파인튜닝·프롬프트 관리)는 외부 시스템 책임** (범위 외)
 - 저작도구는 **외부 VLM 서비스를 호출해 시계열 정보를 획득하는 연동**만 보유
-- `ai-server/app/routers/vlm.py`는 외부 VLM 호출 어댑터 (현재 mock 응답 가능)
+- 외부 벤더 = **IntelliVIX Video VLM API** (확정 계약 v2.0.1). 아래 §9.5 참조
+- `ai-server/app/routers/vlm.py`(`POST /infer/vlm/verify-objects`)는 **내부 객체검증**용으로 이 외부 벤더와 무관(별개 경로, 현재 mock)
 
 ## 9.2 연동 흐름
 
@@ -36,3 +37,32 @@
 ## 9.4 관련 데이터 (DB)
 
 `LS_DATA_META` (`META_KEY`/`META_VL`/`EXTERNAL_JOB_ID`), `LS_DATA_META_HSTRY`(변경 이력), `LS_DATA_META_REVIEW`(검수 상태). → [18](18-database.md).
+
+## 9.5 외부 확정 계약 — IntelliVIX Video VLM API v2.0.1
+
+> 원문: `docs/video_vlm_api_ v2.0.1.docx` (IntelliVIX AI연구소, 2026-06-15 "일치도 추가 및 시작/종료 시간 제거"). 비동기 콜백 모델.
+
+**엔드포인트 3종**
+
+| 기능 | Endpoint | 콜백 결과 형식 |
+|------|----------|---------------|
+| 이벤트 검증 | `POST /v1/videovlm/verify` | `results:{accuracy, description}` (accuracy=일치도) |
+| 상황 묘사 | `POST /v1/videovlm/describe` | `results:[{start_sec, end_sec, description}]` (구간 배열) |
+| 상태 체크 | `GET /v1/videovlm/status` | `{status:"ready"|"busy"}` |
+
+**요청 규격**: `{request_id, event_type, media:{type(image|video), source_type(path|upload), path, frame_policy:{mode(frame_interval|frame_selected), framerate, selected_frames≤8}}, callback_url}`. 동기응답 `{request_id, status:"accepted"}` → 완료 후 요청의 `callback_url`로 결과 POST. 실패 콜백 `{request_id, status:"failed", error:{code, message}}`.
+- `event_type` enum 6종: `fire`·`fall`·`violence`·`flooding`·`car_accident`·`kidnapping`
+- video는 `frame_policy` 필수. 추론 1회 최대 8프레임, 초과 시 sliding window(size=stride=8)
+- `source_type=upload`은 multipart, `=path`는 파일경로
+- 인증 헤더는 규격서에 **미명시**
+
+## 9.6 구현 정합 상태 — ⚠ 미정렬 (계약 확정 전 스텁)
+
+현재 `VlmClient`/`VlmResultService`는 **계약 확정 전 추정으로 작성된 스텁**이라 §9.5 규격과 3계층 모두 어긋난다. `VLM_CLIENT_ENABLED` 기본 `false`라 프로덕션 영향은 없으나, 실연동 전 재정렬 필요.
+
+**연동 차단 블로커 3종**
+1. **`callback_url` 미전송** — `VlmTimeseriesStep.java:134`가 `callbackUrl=null`로 요청 → 벤더가 콜백 보낼 대상 없음
+2. **동기응답 검증 거부** — 우리는 `externalJobId`(필수)+`status∈{ACCEPTED,QUEUED,...}` 요구, 벤더는 `{request_id, status:"accepted"}`(소문자·externalJobId 없음)
+3. **콜백 HMAC 불일치** — 우리 `POST /v1/vlm/result`는 `X-Signature`/`X-Timestamp` 강제, 벤더 규격은 인증 미명시 → 콜백 401 위험
+
+**기타 불일치**: 단일 `/v1/timeseries/submit`(하드코딩 추정) vs verify/describe 2종 / `eventName`(자유) vs `event_type`(enum) / `frame_policy` 미전송 / 콜백 필드 `idempotencyKey·rawSn·vlmMetaItems[{metaKey,metaVal}]` vs `request_id·results{accuracy|start_sec,end_sec,description}`. describe 구간(초 단위) ↔ 우리 `metaKey`(frameIndex) 변환 필요.

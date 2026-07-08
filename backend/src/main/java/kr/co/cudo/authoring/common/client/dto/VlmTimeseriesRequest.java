@@ -1,38 +1,77 @@
 package kr.co.cudo.authoring.common.client.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.util.List;
+
 /**
- * 외부 VLM 서비스(시계열 메타 분석) 위탁 요청 DTO — Phase 1 신설, Phase 3 마킹 필드 확장.
+ * 외부 VLM 서비스 위탁 요청 DTO — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) describe 규격 정합 (Phase 2).
  *
- * <p>ccarch {@code if-vlm-timeseries-spi} (Outbound 비동기 시계열 분석 위탁) 정의에 따라
- * 영상 1건의 시계열 메타 추출을 외부 시스템에 위탁할 때 사용하는 요청 페이로드다.
+ * <p>{@code POST /v1/videovlm/describe} 요청 본문. 시간구간별 자연어 서술(시계열 메타) 추출을
+ * 외부 VLM 서비스에 위탁한다. 결과는 {@code POST /v1/vlm/result} 콜백으로 비동기 수신한다.
  *
- * <p>실제 외부 서비스 계약(URL/스키마/인증)이 미확정이므로 본 DTO는 최소 필드만 정의한다.
- * 외부 계약 확정 시 필드 추가는 가능하나 기존 필드 제거/이름 변경은 금지(backward-compat).
+ * <h3>전송 JSON 스키마 (describe)</h3>
+ * <pre>
+ * {
+ *   "request_id": "1f0d...-uuid",
+ *   "media": {
+ *     "type": "video",
+ *     "source_type": "path",
+ *     "path": "/data/videos/deid.mp4",
+ *     "frame_policy": { "mode": "frame_interval", "framerate": 25 }
+ *   },
+ *   "callback_url": "http://저작도구/api/v1/vlm/result"
+ * }
+ * </pre>
  *
- * <p><b>결과 계약(기대):</b> 시계열 메타는 본 요청의 {@code marks(frameIndex)} 에 정렬된
- * <b>마킹별 자연어 서술</b>로 콜백 수신한다(고정 속성 스키마 아님). 즉 각 결과 항목은
- * "해당 시점(frameIndex) → 자연어 설명"이며, 수신측 {@code VlmResultRequest.MetaItem} 으로 매핑된다.
+ * <p><b>상관관계</b>: 콜백 바디에는 rawSn 이 없다. 위탁 시 발급한 {@code request_id} 를
+ * {@code WebhookIdempotencyLedger} 에 (request_id → rawSn) 매핑으로 등록해 두고, 콜백 수신부가
+ * {@code resolveRawSn(request_id)} 로 역조회한다. rawSn/eventName/marks 는 describe 규격 밖이므로
+ * 본 요청 바디에 포함하지 않는다(벤더 계약 준수).
  *
- * @param rawSn          저작도구 내 영상 식별자 (LS_DATA_RAW.RAW_SN). 결과 매핑에 사용.
- * @param videoUri       외부 시스템이 접근 가능한 영상 위치 (HTTPS / S3 / NFS 경로 등).
- *                       외부 시스템이 본 URI 로 영상을 fetch 한다.
- * @param idempotencyKey 멱등 키 — 외부 시스템 중복 인계 방지. 본 도구가 발급해 헤더에도 동일 값 사용.
- * @param callbackUrl    결과 수신용 webhook URL — Phase 2 결과 수신 콜백 컨트롤러 주소.
- * @param eventName      Phase 3 신규 — 마킹 이벤트명 (null 가능 — 마킹 없으면 null).
- * @param marks          Phase 3 신규 — 마킹 JSON [{frameIndex, timestamp}] (null 가능 — 마킹 없으면 null).
+ * @param requestId   위탁 요청 식별자(=상관키). UUIDv4 로 발급(예측 불가). 콜백이 echo 로 되돌려 준다.
+ * @param media       분석 대상 미디어 서술(type/source_type/path/frame_policy).
+ * @param callbackUrl 결과 수신 webhook URL — 본 도구 고정 base URL + {@code /v1/vlm/result}(사용자 입력 미반영, SSRF 차단).
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record VlmTimeseriesRequest(
-        Long rawSn,
-        String videoUri,
-        String idempotencyKey,
-        String callbackUrl,
-        String eventName,
-        String marks
+        @JsonProperty("request_id") String requestId,
+        @JsonProperty("media") Media media,
+        @JsonProperty("callback_url") String callbackUrl
 ) {
+
+    /** describe 미디어 서술 — 비식별 영상 경로 기반 path 소스. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Media(
+            @JsonProperty("type") String type,
+            @JsonProperty("source_type") String sourceType,
+            @JsonProperty("path") String path,
+            @JsonProperty("frame_policy") FramePolicy framePolicy
+    ) {}
+
+    /** describe 프레임 정책 — 기본 frame_interval + framerate. selected_frames 는 미사용 시 생략. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record FramePolicy(
+            @JsonProperty("mode") String mode,
+            @JsonProperty("framerate") Integer framerate,
+            @JsonProperty("selected_frames") List<Integer> selectedFrames
+    ) {}
+
     /**
-     * 기존 4파라미터 호환 생성자 — eventName, marks 가 null 인 요청 생성.
+     * frame_interval 정책 describe 요청 팩토리 — 마킹/이벤트 미입력 규격(eventName/marks 미전송).
+     *
+     * @param requestId   상관키(UUIDv4).
+     * @param path        비식별 영상 경로.
+     * @param framerate   프레임 간격 정책의 framerate.
+     * @param callbackUrl 결과 수신 콜백 URL(고정 base + /v1/vlm/result).
      */
-    public VlmTimeseriesRequest(Long rawSn, String videoUri, String idempotencyKey, String callbackUrl) {
-        this(rawSn, videoUri, idempotencyKey, callbackUrl, null, null);
+    public static VlmTimeseriesRequest ofFrameInterval(
+            String requestId, String path, int framerate, String callbackUrl) {
+        return new VlmTimeseriesRequest(
+                requestId,
+                new Media("video", "path", path,
+                        new FramePolicy("frame_interval", framerate, null)),
+                callbackUrl);
     }
 }

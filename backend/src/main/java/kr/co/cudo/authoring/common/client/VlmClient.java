@@ -19,56 +19,41 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * 외부 VLM 시계열 메타 분석 서비스 위탁 클라이언트 — Phase 1 신설.
+ * 외부 VLM describe 위탁 클라이언트 — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) 정합 (Phase 2).
  *
- * <p>ccarch {@code if-vlm-timeseries-spi} (Outbound 비동기 시계열 분석 위탁) 인터페이스
- * 구현체. 본 클라이언트는 영상 1건의 시계열 메타 분석을 외부 시스템에 비동기 위탁하고,
- * 외부가 발급한 작업 ID 를 받아 반환한다. 실제 결과는 Phase 2 의 결과 수신 webhook 으로 전달된다.
+ * <p>{@code POST /v1/videovlm/describe} 로 시계열 메타 분석을 비동기 위탁하고, 동기 응답으로
+ * 수락({@code status="accepted"}) 여부만 확인한다. 실제 결과는 {@code POST /v1/vlm/result} 콜백으로 수신한다.
  *
  * <h3>설계 원칙</h3>
  * <ul>
- *   <li><b>비동기 위탁</b>: 본 클라이언트는 "요청 수락" 만 동기로 확인. 결과는 webhook.</li>
- *   <li><b>멱등성</b>: <b>idempotencyKey 발급 책임은 본 클라이언트가 단일화</b>한다.
- *       호출자가 null/blank 를 넘기면 UUID 로 자동 발급하고, 제공하면 그대로 사용한다.
- *       Resilience4j Retry 는 동일 Mono 를 재구독하므로 재시도 시 같은 키가 유지된다.</li>
- *   <li><b>토글</b>: {@code vlm.client.enabled=false} (기본값) 일 때 외부 호출 없이
- *       즉시 {@link VlmTimeseriesResponse#skipped(String)} 반환 — local/dev 환경 영향 0건.</li>
- *   <li><b>회복성</b>: Resilience4j Retry(max 3, exp backoff) + CircuitBreaker(50%/10) 적용.
- *       타임아웃은 WebClient {@code .timeout(...)} 으로 Reactor 네이티브 처리 — Resilience4j
- *       TimeLimiter 는 미사용 (DEV_FIX-1: 단일 출처 원칙).</li>
- *   <li><b>보안</b>: 외부 시스템 인증은 정적 Bearer 토큰({@code vlm.client.token}).
- *       URL/토큰은 코드에 하드코딩 금지 — 환경변수만 사용.
- *       URL SSRF/HTTPS 검증은 {@code WebClientConfig.validateExternalUrl} 에서 수행.
- *       외부 응답의 {@code externalJobId}/{@code status} 는 길이·패턴·화이트리스트로 검증.
- *       로그 출력 시 {@link #safeForLog(String)} 로 CRLF/탭 sanitize (CWE-117 Log Injection).</li>
+ *   <li><b>비동기 위탁</b>: 동기 응답은 "수락" 만 확인. 결과는 콜백.</li>
+ *   <li><b>상관관계</b>: 상관키는 {@code request_id}(요청 바디). describe 응답에 externalJobId 는 없다.
+ *       호출자(Step)가 request_id 를 발급/주입하며, 응답의 request_id echo 일치를 본 클라이언트가 검증한다.
+ *       (Step 이 request_id 를 ledger(request_id→rawSn)에 먼저 등록해 콜백 역조회를 성립시킨다.)</li>
+ *   <li><b>토글</b>: {@code vlm.client.enabled=false}(기본) 일 때 외부 호출 없이 즉시
+ *       {@link VlmTimeseriesResponse#skipped(String)} 반환 — local/dev 영향 0건.</li>
+ *   <li><b>회복성</b>: Resilience4j Retry(exp backoff) + CircuitBreaker. 타임아웃은 WebClient
+ *       {@code .timeout(...)} 으로 Reactor 네이티브 처리(단일 출처).</li>
+ *   <li><b>보안</b>: URL/토큰 하드코딩 금지(환경변수). URL SSRF/HTTPS 검증은 {@code WebClientConfig}.
+ *       응답 request_id echo + status 화이트리스트 검증. 로그 출력 전 {@link #safeForLog(String)}
+ *       로 CRLF/탭 sanitize(CWE-117).</li>
  * </ul>
  */
 @Slf4j
 @Component
 public class VlmClient {
 
-    /** 외부 위탁 요청 본문 경로 — ccarch SPI 명세 기준. 외부 계약 확정 시 환경변수로 분리 가능. */
-    static final String SUBMIT_PATH = "/v1/timeseries/submit";
+    /** 외부 위탁 요청 경로 — 벤더 확정 계약(v2.0.1) describe 엔드포인트. */
+    static final String DESCRIBE_PATH = "/v1/videovlm/describe";
 
-    /** 멱등 헤더 — 외부 시스템이 동일 키 재인계 시 중복 처리 회피용. */
-    static final String IDEMPOTENCY_HEADER = "X-Idempotency-Key";
+    /** 수락 상태 화이트리스트 — describe 동기 응답은 "accepted" 만 정상(CWE-20). */
+    private static final String STATUS_ACCEPTED = VlmTimeseriesResponse.STATUS_ACCEPTED;
 
-    /** 응답 externalJobId 최대 길이. 외부 시스템이 비정상적으로 긴 값을 보내는 케이스 차단. */
-    private static final int MAX_EXTERNAL_JOB_ID_LENGTH = 128;
-
-    /** 응답 externalJobId 허용 문자 패턴 — 영숫자 + dash + underscore. */
-    private static final Pattern EXTERNAL_JOB_ID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]+$");
-
-    /** 응답 status 화이트리스트. 그 외 값은 차단 (CWE-20 입력 검증). */
-    private static final Set<String> ALLOWED_STATUSES =
-            Set.of("ACCEPTED", "QUEUED", "REJECTED", "SKIPPED");
-
-    /** 로그 sanitize 패턴 — CR/LF/TAB 제거 (CWE-117 Log Injection 차단). */
+    /** 로그 sanitize 패턴 — CR/LF/TAB 제거(CWE-117 Log Injection 차단). */
     private static final Pattern LOG_UNSAFE_CHARS = Pattern.compile("[\\r\\n\\t]");
 
     private final WebClient webClient;
@@ -90,49 +75,44 @@ public class VlmClient {
     }
 
     /**
-     * 시계열 메타 분석을 외부 VLM 서비스에 비동기 위탁한다.
+     * 시계열 메타 분석을 외부 VLM describe 로 비동기 위탁한다.
      *
-     * <p>enabled=false 면 외부 호출 없이 즉시 SKIPPED 응답을 반환한다 (NO-OP).
+     * <p>enabled=false 면 외부 호출 없이 즉시 SKIPPED 응답을 반환한다(NO-OP).
      * enabled=true 면 Retry + CircuitBreaker + 응답 무결성 검증이 적용된 외부 호출을 수행한다.
      *
-     * @param request 위탁 요청. {@code idempotencyKey} 가 null/blank 이면 UUID 로 자동 발급.
-     * @return 외부 시스템의 수락 응답 (externalJobId + idempotencyKey + status)
+     * @param request describe 요청 바디. {@code request_id} 가 null/blank 이면 방어적으로 UUID 자동 발급.
+     * @return 외부 시스템 수락 응답 (request_id echo + status)
      */
     public Mono<VlmTimeseriesResponse> submitTimeseries(VlmTimeseriesRequest request) {
         Objects.requireNonNull(request, "request must not be null");
-        String idemKey = resolveIdempotencyKey(request.idempotencyKey());
+        String requestId = resolveRequestId(request.requestId());
         VlmTimeseriesRequest enriched = new VlmTimeseriesRequest(
-                request.rawSn(), request.videoUri(), idemKey, request.callbackUrl(),
-                request.eventName(), request.marks());
+                requestId, request.media(), request.callbackUrl());
 
         if (!enabled) {
-            log.info("[Vlm] timeseries skipped (disabled) rawSn={} idempotencyKey={}",
-                    enriched.rawSn(), idemKey);
-            return Mono.just(VlmTimeseriesResponse.skipped(idemKey));
+            log.info("[Vlm] describe skipped (disabled) request_id={}", safeForLog(requestId));
+            return Mono.just(VlmTimeseriesResponse.skipped(requestId));
         }
 
-        log.info("[Vlm] timeseries submit rawSn={} idempotencyKey={}",
-                enriched.rawSn(), idemKey);
+        log.info("[Vlm] describe submit request_id={}", safeForLog(requestId));
         return webClient.post()
-                .uri(SUBMIT_PATH)
-                .header(IDEMPOTENCY_HEADER, idemKey)
+                .uri(DESCRIBE_PATH)
                 .bodyValue(enriched)
                 .retrieve()
                 .bodyToMono(VlmTimeseriesResponse.class)
                 .timeout(timeout)
-                .map(this::validateResponse)
+                .map(resp -> validateResponse(resp, requestId))
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }
 
     /**
-     * 호출자가 idempotencyKey 를 제공하지 않으면 UUID 로 발급.
+     * 호출자가 request_id 를 제공하지 않으면 UUIDv4 로 방어적 발급.
      *
-     * <p>DEV_FIX-1: 멱등 키 발급 책임을 본 클라이언트로 단일화. 호출자(Step)는 null 만
-     * 전달하면 자동 발급된다. Resilience4j Retry 는 동일 Mono 를 재구독하므로 재시도 시
-     * 같은 키가 헤더·페이로드 양쪽에 그대로 유지된다.
+     * <p>정상 흐름에서는 Step 이 request_id 를 발급/등록하므로 여기서는 주입값을 그대로 사용한다.
+     * Resilience4j Retry 는 동일 Mono 를 재구독하므로 재시도 시 같은 request_id 가 바디에 유지된다.
      */
-    private String resolveIdempotencyKey(String provided) {
+    private String resolveRequestId(String provided) {
         if (provided == null || provided.isBlank()) {
             return UUID.randomUUID().toString();
         }
@@ -140,36 +120,30 @@ public class VlmClient {
     }
 
     /**
-     * 외부 응답 무결성 검증 — DEV_FIX-1 신설.
+     * describe 동기 응답 무결성 검증 — 벤더 규격 정합.
      *
-     * <p>외부 시스템이 신뢰 영역 밖이므로 응답 값은 모두 화이트리스트/길이/패턴으로 검증한다.
-     * 검증 실패 시 {@link CustomException}{@code (EXTERNAL_API_ERROR)} 로 변환되어
-     * Resilience4j Retry 가 재시도하거나 최종적으로 BatchOrchestrator FAILED 경로로 흐른다.
+     * <p>외부 시스템은 신뢰 영역 밖이므로 응답을 검증한다:
+     * <ol>
+     *   <li>request_id echo 일치 — 상관관계 위조/혼선 차단.</li>
+     *   <li>status == "accepted" — 수락 화이트리스트(CWE-20).</li>
+     * </ol>
+     * 검증 실패 시 {@link CustomException}{@code (EXTERNAL_API_ERROR)} 로 변환되어 Retry/FAILED 경로로 흐른다.
      *
      * @return 검증을 통과한 응답 그대로 반환
      */
-    private VlmTimeseriesResponse validateResponse(VlmTimeseriesResponse resp) {
+    private VlmTimeseriesResponse validateResponse(VlmTimeseriesResponse resp, String expectedRequestId) {
         if (resp == null) {
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "VLM 응답이 null 입니다.");
+            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "VLM describe 응답이 null 입니다.");
         }
-        String jobId = resp.externalJobId();
-        if (jobId == null || jobId.isBlank()) {
+        String echoed = resp.requestId();
+        if (echoed == null || !echoed.equals(expectedRequestId)) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "VLM 응답 externalJobId 가 비어있습니다.");
-        }
-        if (jobId.length() > MAX_EXTERNAL_JOB_ID_LENGTH) {
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "VLM 응답 externalJobId 가 허용 길이("
-                            + MAX_EXTERNAL_JOB_ID_LENGTH + ") 를 초과했습니다.");
-        }
-        if (!EXTERNAL_JOB_ID_PATTERN.matcher(jobId).matches()) {
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "VLM 응답 externalJobId 형식이 올바르지 않습니다.");
+                    "VLM describe 응답 request_id echo 가 일치하지 않습니다: " + safeForLog(echoed));
         }
         String status = resp.status();
-        if (status == null || !ALLOWED_STATUSES.contains(status)) {
+        if (!STATUS_ACCEPTED.equals(status)) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "VLM 응답 status 가 허용 목록 밖입니다: " + safeForLog(status));
+                    "VLM describe 응답 status 가 accepted 가 아닙니다: " + safeForLog(status));
         }
         return resp;
     }
@@ -177,9 +151,7 @@ public class VlmClient {
     /**
      * 로그 출력용 외부 입력 sanitize — CWE-117 Log Injection 차단.
      *
-     * <p>외부 응답 값({@code externalJobId}, {@code status} 등) 을 로그에 출력하기 전 호출.
-     * CR/LF/TAB 을 {@code _} 로 치환하여 다중 로그라인 위조를 방지한다.
-     * 본 도구가 발급한 값(UUID idempotencyKey, 내부 rawSn) 은 sanitize 불필요.
+     * <p>외부 응답 값(request_id echo, status) 을 로그에 출력하기 전 호출. CR/LF/TAB 을 {@code _} 로 치환한다.
      */
     public static String safeForLog(String s) {
         if (s == null) return "null";

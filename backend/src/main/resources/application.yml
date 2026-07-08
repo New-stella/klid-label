@@ -116,6 +116,9 @@ authoring:
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
+    # 마킹 스트림 Range 요청당 반환 상한(bytes). 기본 8MB — 값이 작으면(구 1MB) 4배속 재생 시
+    # 재요청 폭증으로 버벅임 발생. 1MB 미만 설정은 코드가 안전 기본값(8MB)으로 폴백한다.
+    stream-chunk-size: ${STORAGE_STREAM_CHUNK_SIZE:8388608}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/augments/result. 운영(dev/stg/prd)에서는 환경변수로 override.
   webhook:
@@ -294,17 +297,21 @@ vlm:
     url: ${VLM_SERVICE_URL:http://localhost:9400}
     token: ${VLM_SERVICE_TOKEN:}
     timeout-seconds: 10
+    # describe frame_policy — frame_interval 정책의 framerate (벤더 확정 계약 v2.0.1).
+    frame-policy:
+      framerate: ${VLM_FRAME_POLICY_FRAMERATE:25}
 
-# 외부 시스템 결과 수신 webhook HMAC 시크릿 — VLM·증강 2종.
-#  - 경로별 시크릿 분리 (/v1/vlm/result, /v1/augments/result).
+# 외부 시스템 결과 수신 webhook HMAC 시크릿 — 증강 콜백 전용.
+#  - 경로별 시크릿 (/v1/augments/result).
 #  - 시크릿 미설정 시 fail-closed (HmacWebhookFilter 가 401 반환) — 빈 키 회피 차단.
 #  - timestamp-window-seconds: replay 방지용 ±윈도우 (기본 300s).
 #  - 평문 커밋 금지: ${WEBHOOK_HMAC_SECRET_*} 환경변수만 허용.
 #  - (UC018 — 비식별은 KPST 폴링으로 단일화되어 deidentify 콜백 시크릿 키를 제거함.)
+#  - VLM describe 콜백(/v1/vlm/result)은 벤더 확정 계약(v2.0.1) 무서명 규격 —
+#    HMAC 대상에서 제거하고 request_id 발급 게이트로 무단 주입을 차단함(2026-07-07 승인).
 webhook:
   hmac:
     secret:
-      vlm: ${WEBHOOK_HMAC_SECRET_VLM:}
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:}
     timestamp-window-seconds: ${WEBHOOK_HMAC_TIMESTAMP_WINDOW:300}
 

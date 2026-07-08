@@ -16,10 +16,11 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * VLM 시계열 결과 콜백 계약 명확화 — MetaItem 은 "마킹별 자연어 서술".
+ * VLM describe 콜백 DTO 계약 검증 — 벤더 확정 계약(v2.0.1) 정합.
  *
- * <p>각 항목은 metaKey(=시계열 정렬 키, frameIndex 권장) → metaVal(=해당 시점 자연어 서술)이다.
- * 자연어 서술이 핵심이므로 빈 metaVal 은 무의미 → {@code @NotBlank} 로 거부한다 (CWE-20 입력 검증 강화).
+ * <p>성공: {@code {request_id, status:"completed", results:[{start_sec,end_sec,description}]}}
+ * <p>실패: {@code {request_id, status:"failed", error:{code,message}}}
+ * <p>completed↔results / failed↔error 상호 조건은 {@code @AssertTrue} 로 강제한다 (CWE-20).
  */
 class VlmResultRequestMetaItemTest {
 
@@ -38,27 +39,13 @@ class VlmResultRequestMetaItemTest {
         if (factory != null) factory.close();
     }
 
-    private VlmResultRequest reqWith(List<VlmResultRequest.MetaItem> items) {
-        return new VlmResultRequest("K1", "EXT1", "SUCCESS", 1L, items, null);
-    }
-
     @Test
-    @DisplayName("MetaItem_metaVal_빈값이면_검증실패")
-    void metaValBlank_violates() {
-        VlmResultRequest req = reqWith(List.of(new VlmResultRequest.MetaItem("0", "  ")));
-
-        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
-
-        assertThat(violations)
-                .extracting(v -> v.getPropertyPath().toString())
-                .anyMatch(p -> p.contains("metaVal"));
-    }
-
-    @Test
-    @DisplayName("MetaItem_metaVal_자연어_정상통과")
-    void metaValNaturalLanguage_passes() {
-        VlmResultRequest req = reqWith(List.of(
-                new VlmResultRequest.MetaItem("0", "사람이 도로를 무단횡단")));
+    @DisplayName("completed_results_정상_통과")
+    void completedWithResults_passes() {
+        VlmResultRequest req = new VlmResultRequest(
+                "REQ-1", "completed",
+                List.of(new VlmResultRequest.Segment(0, 8, "사람이 도로를 무단횡단")),
+                null);
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
@@ -66,66 +53,178 @@ class VlmResultRequestMetaItemTest {
     }
 
     @Test
-    @DisplayName("MetaItem_metaKey_빈값이면_검증실패")
-    void metaKeyBlank_violates() {
-        VlmResultRequest req = reqWith(List.of(new VlmResultRequest.MetaItem("", "사람이 도로를 무단횡단")));
+    @DisplayName("completed인데_results_빈배열이면_검증실패")
+    void completedWithEmptyResults_violates() {
+        VlmResultRequest req = new VlmResultRequest("REQ-1", "completed", List.of(), null);
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
         assertThat(violations)
                 .extracting(v -> v.getPropertyPath().toString())
-                .anyMatch(p -> p.contains("metaKey"));
+                .anyMatch(p -> p.contains("resultsPresentWhenCompleted"));
     }
 
     @Test
-    @DisplayName("VlmResultRequest_마킹별_자연어_항목_역직렬화_정상")
-    void deserialize_markBasedNaturalLanguageItems() throws Exception {
+    @DisplayName("failed_error_정상_통과")
+    void failedWithError_passes() {
+        VlmResultRequest req = new VlmResultRequest(
+                "REQ-F", "failed", null,
+                new VlmResultRequest.VlmError("VLM_TIMEOUT", "분석 지연"));
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations).isEmpty();
+    }
+
+    @Test
+    @DisplayName("failed인데_error_누락이면_검증실패")
+    void failedWithoutError_violates() {
+        VlmResultRequest req = new VlmResultRequest("REQ-F", "failed", null, null);
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(p -> p.contains("errorPresentWhenFailed"));
+    }
+
+    @Test
+    @DisplayName("status_화이트리스트_밖이면_검증실패")
+    void invalidStatus_violates() {
+        VlmResultRequest req = new VlmResultRequest(
+                "REQ-1", "SUCCESS",
+                List.of(new VlmResultRequest.Segment(0, 8, "서술")),
+                null);
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(p -> p.contains("status"));
+    }
+
+    @Test
+    @DisplayName("request_id_빈값이면_검증실패")
+    void blankRequestId_violates() {
+        VlmResultRequest req = new VlmResultRequest(
+                "  ", "completed",
+                List.of(new VlmResultRequest.Segment(0, 8, "서술")),
+                null);
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(p -> p.contains("requestId"));
+    }
+
+    @Test
+    @DisplayName("Segment_description_빈값이면_검증실패")
+    void blankDescription_violates() {
+        VlmResultRequest req = new VlmResultRequest(
+                "REQ-1", "completed",
+                List.of(new VlmResultRequest.Segment(0, 8, "  ")),
+                null);
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(p -> p.contains("description"));
+    }
+
+    @Test
+    @DisplayName("Segment_start_sec_음수면_검증실패")
+    void negativeStartSec_violates() {
+        VlmResultRequest req = new VlmResultRequest(
+                "REQ-1", "completed",
+                List.of(new VlmResultRequest.Segment(-1, 8, "서술")),
+                null);
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(p -> p.contains("startSec"));
+    }
+
+    @Test
+    @DisplayName("Segment_end_sec가_start_sec보다_작으면_검증실패_역전구간")
+    void endBeforeStart_violates() {
+        VlmResultRequest req = new VlmResultRequest(
+                "REQ-1", "completed",
+                List.of(new VlmResultRequest.Segment(16, 8, "역전 구간")),
+                null);
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(p -> p.contains("rangeOrdered"));
+    }
+
+    @Test
+    @DisplayName("Segment_end_sec_상한_초과시_검증실패")
+    void endSecOverMax_violates() {
+        VlmResultRequest req = new VlmResultRequest(
+                "REQ-1", "completed",
+                List.of(new VlmResultRequest.Segment(0, (int) (VlmResultRequest.Segment.MAX_SEC + 1), "과대 구간")),
+                null);
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(p -> p.contains("endSec"));
+    }
+
+    @Test
+    @DisplayName("describe_콜백_completed_JSON_역직렬화_정상")
+    void deserialize_completedSnakeCase() throws Exception {
         String json = """
                 {
-                  "idempotencyKey": "K1",
-                  "externalJobId": "EXT1",
-                  "status": "SUCCESS",
-                  "rawSn": 1,
-                  "vlmMetaItems": [
-                    {"metaKey": "0",  "metaVal": "사람이 도로를 무단횡단"},
-                    {"metaKey": "90", "metaVal": "차량이 정지선 침범"}
+                  "request_id": "REQ-1",
+                  "status": "completed",
+                  "results": [
+                    {"start_sec": 0, "end_sec": 8,  "description": "사람이 도로를 무단횡단"},
+                    {"start_sec": 8, "end_sec": 16, "description": "차량이 정지선 침범"}
                   ]
                 }
                 """;
 
         VlmResultRequest req = MAPPER.readValue(json, VlmResultRequest.class);
 
-        assertThat(req.vlmMetaItems()).hasSize(2);
-        assertThat(req.vlmMetaItems().get(0).metaKey()).isEqualTo("0");
-        assertThat(req.vlmMetaItems().get(0).metaVal()).isEqualTo("사람이 도로를 무단횡단");
-        assertThat(req.vlmMetaItems().get(1).metaKey()).isEqualTo("90");
-        assertThat(req.vlmMetaItems().get(1).metaVal()).isEqualTo("차량이 정지선 침범");
+        assertThat(req.requestId()).isEqualTo("REQ-1");
+        assertThat(req.status()).isEqualTo("completed");
+        assertThat(req.results()).hasSize(2);
+        assertThat(req.results().get(0).startSec()).isEqualTo(0);
+        assertThat(req.results().get(0).endSec()).isEqualTo(8);
+        assertThat(req.results().get(0).metaKey()).isEqualTo("0-8");
+        assertThat(req.results().get(1).metaKey()).isEqualTo("8-16");
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
         assertThat(violations).isEmpty();
     }
 
     @Test
-    @DisplayName("MetaItem_metaVal_2000자_경계_정상통과")
-    void metaValMaxSize_passes() {
-        String maxVal = "가".repeat(2000);
-        VlmResultRequest req = reqWith(List.of(new VlmResultRequest.MetaItem("0", maxVal)));
+    @DisplayName("describe_콜백_failed_JSON_역직렬화_정상")
+    void deserialize_failedSnakeCase() throws Exception {
+        String json = """
+                {
+                  "request_id": "REQ-F",
+                  "status": "failed",
+                  "error": {"code": "VLM_TIMEOUT", "message": "분석 서버 응답 지연"}
+                }
+                """;
+
+        VlmResultRequest req = MAPPER.readValue(json, VlmResultRequest.class);
+
+        assertThat(req.requestId()).isEqualTo("REQ-F");
+        assertThat(req.status()).isEqualTo("failed");
+        assertThat(req.error()).isNotNull();
+        assertThat(req.error().code()).isEqualTo("VLM_TIMEOUT");
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
-
         assertThat(violations).isEmpty();
-    }
-
-    @Test
-    @DisplayName("MetaItem_metaVal_2000자_초과_시_검증실패")
-    void metaValOverMaxSize_violates() {
-        String overVal = "가".repeat(2001);
-        VlmResultRequest req = reqWith(List.of(new VlmResultRequest.MetaItem("0", overVal)));
-
-        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
-
-        assertThat(violations)
-                .extracting(v -> v.getPropertyPath().toString())
-                .anyMatch(p -> p.contains("metaVal"));
     }
 }

@@ -27,13 +27,22 @@ public class InMemoryWebhookIdempotencyLedger implements WebhookIdempotencyLedge
     @Override
     public void recordIssued(String idempotencyKey, String externalJobId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
-        ledger.putIfAbsent(idempotencyKey, new Entry(State.ISSUED, externalJobId));
+        ledger.putIfAbsent(idempotencyKey, new Entry(State.ISSUED, externalJobId, null));
+    }
+
+    @Override
+    public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return;
+        ledger.putIfAbsent(idempotencyKey, new Entry(State.ISSUED, externalJobId, rawSn));
     }
 
     @Override
     public void markProcessed(String idempotencyKey, String externalJobId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
-        ledger.put(idempotencyKey, new Entry(State.PROCESSED, externalJobId));
+        // rawSn 매핑은 PROCESSED 전이 후에도 보존 (발급 시점 매핑 유지)
+        Entry prev = ledger.get(idempotencyKey);
+        Long rawSn = prev == null ? null : prev.rawSn();
+        ledger.put(idempotencyKey, new Entry(State.PROCESSED, externalJobId, rawSn));
     }
 
     @Override
