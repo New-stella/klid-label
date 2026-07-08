@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.step.DeidentFrameAttacher;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
@@ -44,6 +45,7 @@ public class KpstDeidentTxService {
     private final NotificationService notificationService;
     private final WorkLockService workLockService;
     private final DeidentFrameAttacher deidentFrameAttacher;
+    private final StreamMetaCacheEvictor streamMetaCacheEvictor;
 
     /**
      * 다운로드 완료 + 비식별 완료(Y 전이)를 단일 REQUIRES_NEW 트랜잭션으로 원자화 — DEV_FIX HIGH/MEDIUM(M-1).
@@ -247,6 +249,9 @@ public class KpstDeidentTxService {
         if (workLockService.isRawLocked(rawSn)) {
             workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_SUCCEEDED");
         }
+        // 5) 스트림 메타 캐시 무효화 (HIGH — 무결성/privacy) — 재비식별로 비식별본이 교체(동일 경로
+        //    in-place 교체 시 옛 contentLength 로 Range 경계 오류·재생 잘림 가능)되었으므로 커밋 후 무효화.
+        streamMetaCacheEvictor.evictAfterCommit(rawSn);
         log.info("[KpstDeid] redeident completed rawSn={}", rawSn);
     }
 

@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -74,6 +75,7 @@ public class DeidentReportService {
     private final LsRawDataStatusRepository rawDataStatusRepository;
     private final LsDataLblHstryRepository lblHstryRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final StreamMetaCacheEvictor streamMetaCacheEvictor;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
@@ -126,6 +128,10 @@ public class DeidentReportService {
         }
         raw.markDeidentified("F");
 
+        // 6-1) 스트림 메타 캐시 무효화 (HIGH — privacy) — 'F' 전이가 커밋 후 즉시 반영되어
+        //      옛 비식별본(노출본)이 stream-meta TTL 동안 계속 서빙되지 않도록 한다.
+        streamMetaCacheEvictor.evictAfterCommit(rawSn);
+
         // 7) REVIEWER 알림
         notificationService.notifyReviewersOnDeidentReport(raw, reporterNo, reason);
 
@@ -163,6 +169,9 @@ public class DeidentReportService {
 
         report.resolve();
         workLockService.releaseRaw(report.getRawSn(), actor.sub(), "MANUAL_DEIDENT_DONE");
+
+        // 외부 수동 재비식별로 비식별본이 교체되었을 수 있으므로 스트림 메타 캐시를 커밋 후 무효화.
+        streamMetaCacheEvictor.evictAfterCommit(report.getRawSn());
 
         log.info("[DeidentReport] resolved-manually rprtSn={} rawSn={} actor={}",
                 rprtSn, report.getRawSn(), actor.sub());
@@ -217,6 +226,8 @@ public class DeidentReportService {
             r.resolve();
         }
         workLockService.releaseRaw(rawSn, "system", "DEIDENT_SUCCEEDED");
+        // 배치/스텝 자동 재비식별 성공으로 비식별본이 교체되었으므로 스트림 메타 캐시를 커밋 후 무효화.
+        streamMetaCacheEvictor.evictAfterCommit(rawSn);
         if (!opens.isEmpty()) {
             log.info("[DeidentReport] resolved rawSn={} count={}", rawSn, opens.size());
         }

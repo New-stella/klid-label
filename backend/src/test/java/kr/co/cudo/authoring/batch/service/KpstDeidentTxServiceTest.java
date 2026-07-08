@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.step.DeidentFrameAttacher;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
@@ -48,6 +49,7 @@ class KpstDeidentTxServiceTest {
     private NotificationService notificationService;
     private WorkLockService workLockService;
     private DeidentFrameAttacher deidentFrameAttacher;
+    private StreamMetaCacheEvictor streamMetaCacheEvictor;
     private KpstDeidentTxService tx;
 
     @BeforeEach
@@ -58,8 +60,10 @@ class KpstDeidentTxServiceTest {
         notificationService = mock(NotificationService.class);
         workLockService = mock(WorkLockService.class);
         deidentFrameAttacher = mock(DeidentFrameAttacher.class);
+        streamMetaCacheEvictor = mock(StreamMetaCacheEvictor.class);
         tx = new KpstDeidentTxService(videoRepository, procLogRepository,
-                deidentReportService, notificationService, workLockService, deidentFrameAttacher);
+                deidentReportService, notificationService, workLockService, deidentFrameAttacher,
+                streamMetaCacheEvictor);
     }
 
     private LsDataRaw newRaw() {
@@ -331,6 +335,8 @@ class KpstDeidentTxServiceTest {
         tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
 
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+        // 재비식별 완료(비식별본 교체) 후 스트림 메타 캐시 무효화 훅 호출.
+        verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
     }
 
     @Test
@@ -460,6 +466,10 @@ class KpstDeidentTxServiceTest {
         verify(deidentReportService, times(1)).resolveOpenReports(9001L);
         verify(notificationService, times(1)).notifyReviewersOnLockRelease(raw);
         verify(deidentFrameAttacher, never()).attachDeidentFrames(any(), any(), anyBoolean());
+        // 최초 배치 완료(비-재비식별)는 비식별본 교체가 아니므로 스트림 메타 캐시를 무효화하지 않는다
+        // ("재비식별만 evict" 의도 고정). 배치 경로의 신고 해소는 DeidentReportService.resolveOpenReports
+        // 내부에서 evict 하며, TxService 자체는 여기서 evict 하지 않는다.
+        verify(streamMetaCacheEvictor, never()).evictAfterCommit(any());
     }
 
     private static void setField(Object target, String name, Object value) {
