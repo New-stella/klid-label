@@ -151,7 +151,9 @@ services:
     ports:
       - "13000:5174"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:5174/ || exit 1"]
+      # 컨테이너 내부 localhost 는 ::1(IPv6) 우선 해석 → Vite(0.0.0.0 IPv4 bind)에 connection refused.
+      # 127.0.0.1 로 IPv4 강제해 false-unhealthy 방지.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5174/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
