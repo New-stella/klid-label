@@ -74,16 +74,16 @@ class DevAugmentCallbackSimulatorTest {
 
         // when
         simulator.requestAugment(originAugSn, "WINTER", "key-001", "job-001",
-                "http://localhost:8080/api/v1/augments/result");
+                "http://localhost:8080/api/v1/aug/callback");
 
         // then
         byte[] sentBody = captureSentBody();
         AugmentResultRequest decoded = objectMapper.readValue(sentBody, AugmentResultRequest.class);
-        assertThat(decoded.status()).isEqualTo("SUCCESS");
-        assertThat(decoded.originAugSn()).isEqualTo(42L);
-        assertThat(decoded.augType()).isEqualTo("WINTER");
-        assertThat(decoded.idempotencyKey()).isEqualTo("key-001");
-        assertThat(decoded.externalJobId()).isEqualTo("job-001");
+        assertThat(decoded.augProcStsCd()).isEqualTo("SUCCESS");
+        assertThat(decoded.dataAugSn()).isEqualTo(42L);
+        assertThat(decoded.augTypeCd()).isEqualTo("WINTER");
+        // 외부 시스템이 콜백 시점 otsd_job_id 를 부여하는 것을 시뮬(= 요청 시 발급한 externalJobId echo)
+        assertThat(decoded.otsdJobId()).isEqualTo("job-001");
     }
 
     @Test
@@ -91,7 +91,7 @@ class DevAugmentCallbackSimulatorTest {
     void generatesSignatureThatPassesFilterRule() throws Exception {
         // when
         simulator.requestAugment(7L, "RAIN", "key-xyz", "job-xyz",
-                "http://localhost:8080/api/v1/augments/result");
+                "http://localhost:8080/api/v1/aug/callback");
 
         // then — 캡처한 timestamp·body 로 재계산한 서명이 전송된 서명과 일치(필터 검증 규칙과 동일)
         String sentSignature = captureHeader(HmacWebhookFilter.SIGNATURE_HEADER);
@@ -109,7 +109,7 @@ class DevAugmentCallbackSimulatorTest {
     void signedBodyEqualsSentBodyByteForByte() throws Exception {
         // when
         simulator.requestAugment(99L, "NIGHT", "key-eq", "job-eq",
-                "http://localhost:8080/api/v1/augments/result");
+                "http://localhost:8080/api/v1/aug/callback");
 
         // then — 전송된 timestamp+body 로 계산한 서명이 전송 서명과 일치하면, 서명 대상 == 전송 본문 동일성 보장
         String sentSignature = captureHeader(HmacWebhookFilter.SIGNATURE_HEADER);
@@ -132,7 +132,7 @@ class DevAugmentCallbackSimulatorTest {
 
         // when — 예외가 전파되지 않아야 함
         boolean result = simulator.requestAugment(1L, "WINTER", "k", "j",
-                "http://localhost:8080/api/v1/augments/result");
+                "http://localhost:8080/api/v1/aug/callback");
 
         // then
         assertThat(result).isFalse();

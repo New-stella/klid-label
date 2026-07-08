@@ -91,7 +91,7 @@ kpst:
   # 콜백 충실 플로우 Phase 2 — local 에서는 외부 증강 시스템 대신 dev 콜백 시뮬레이터를 활성화한다.
   #   - external.mode=dev → DevAugmentCallbackSimulator 빈 로드(외부 0 자족). 운영은 noop(기본).
   #   - webhook.callback-base-url 은 application.yml 기본값(http://localhost:8080/api) 사용.
-  #     컨트롤러 매핑(/v1/augments/result) + context-path(/api) 정합 → 콜백 URL = .../api/v1/augments/result
+  #     컨트롤러 매핑(/v1/aug/callback) + context-path(/api) 정합 → 콜백 URL = .../api/v1/aug/callback
   augment:
     external:
       mode: ${AUGMENT_EXTERNAL_MODE:dev}

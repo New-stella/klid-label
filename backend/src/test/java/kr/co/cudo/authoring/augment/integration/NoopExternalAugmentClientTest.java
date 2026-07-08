@@ -18,7 +18,7 @@ class NoopExternalAugmentClientTest {
     void noopReturnsAckWithoutExternalCall() {
         // when — 콜백 컨텍스트 전달 (실제 외부 호출 없음)
         boolean ack = client.requestAugment(
-                10L, "WINTER", "abc-123_KEY", "job-001", "http://localhost:8080/api/v1/augments/result");
+                10L, "WINTER", "abc-123_KEY", "job-001", "http://localhost:8080/api/v1/aug/callback");
 
         // then — ack true, 부수효과 없음
         assertThat(ack).isTrue();

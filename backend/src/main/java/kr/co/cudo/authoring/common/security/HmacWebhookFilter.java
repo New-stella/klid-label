@@ -27,10 +27,10 @@ import java.util.regex.Pattern;
  * Webhook HMAC 시그니처 검증 필터 — Phase 2 신설, Phase 2 보강 (DEV_FIX H-4/M-1) 강화.
  *
  * <p>외부 증강 시스템의 결과 인계 콜백을 인증한다. JWT 와 분리된 별도 인증 경로로,
- * {@code /v1/augments/result} 경로에만 적용된다.
+ * {@code /v1/aug/callback} 경로에만 적용된다.
  *
  * <p><b>VLM 콜백 제외</b>: 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) describe 콜백은
- * 서명 헤더가 없는 규격이라 {@code /v1/vlm/result} 는 HMAC 대상에서 제거되었다(2026-07-07 승인).
+ * 서명 헤더가 없는 규격이라 {@code /v1/vlm/callback} 는 HMAC 대상에서 제거되었다(2026-07-07 승인).
  * VLM 콜백의 무단 주입은 {@code VlmResultService} 의 request_id 발급 게이트로 차단한다.
  *
  * <h3>인증 헤더</h3>
@@ -41,7 +41,7 @@ import java.util.regex.Pattern;
  *
  * <h3>경로별 시크릿</h3>
  * <ul>
- *   <li>{@code /v1/augments/result} -- {@code webhook.hmac.secret.augment}</li>
+ *   <li>{@code /v1/aug/callback} -- {@code webhook.hmac.secret.augment}</li>
  * </ul>
  *
  * <h3>보안 가드</h3>
@@ -83,14 +83,14 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
      * 요청측({@code AugmentRequestService})·dev 시뮬({@code DevAugmentCallbackSimulator})·검증 필터가
      * 모두 이 상수를 참조해 경로 드리프트로 인한 401 회귀를 구조적으로 차단한다.
      */
-    public static final String PATH_AUGMENT = "/v1/augments/result";
+    public static final String PATH_AUGMENT = "/v1/aug/callback";
 
     /**
      * VLM describe 콜백 경로 — 벤더 규격상 <b>무서명</b>이라 HMAC 대상이 아니다.
      * 다만 무인증 상태에서 대용량 본문(pre-auth DoS)을 막기 위해 본 필터에서 <b>본문 크기 상한만</b> 적용한다
      * (DEV_FIX #2, CWE-770). HMAC/timestamp/rate-limit 은 적용하지 않는다.
      */
-    public static final String PATH_VLM = "/v1/vlm/result";
+    public static final String PATH_VLM = "/v1/vlm/callback";
 
     /**
      * VLM 콜백 본문 하드 상한 — 4MB. 정상 최대치(results 500개 × description 2000자, UTF-8 다바이트)를
@@ -117,7 +117,7 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
         this.objectMapper = objectMapper;
         // DEV_FIX M-1: 시크릿이 설정되었는데 32B 미만이면 부팅 차단 (빈 시크릿은 fail-closed 그대로)
         ensureMinSecretStrength("webhook.hmac.secret.augment", secretAugment);
-        // VLM 콜백(/v1/vlm/result)은 벤더 규격상 무서명 — HMAC 대상에서 제거(2026-07-07 승인).
+        // VLM 콜백(/v1/vlm/callback)은 벤더 규격상 무서명 — HMAC 대상에서 제거(2026-07-07 승인).
         this.pathToSecret = Map.of(
                 PATH_AUGMENT, secretAugment == null ? "" : secretAugment
         );

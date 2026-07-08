@@ -24,6 +24,10 @@ def test_yolo_predict_mock_모드시_응답에_mock_true_포함(small_png_b64: s
     assert body["source"] == "mock"
     # AI_MOCK_MODE=true (conftest 강제) → env_mock 사유
     assert body["mock_reason"] == "env_mock"
+    # 연동정의서 표준 래퍼 필드 (성공 응답)
+    assert body["success"] is True
+    assert body["message"] == "성공"
+    assert body["error_code"] is None
 
 
 def test_sam2_segment_mock_모드시_응답에_mock_true_포함(small_png_b64: str) -> None:
@@ -36,6 +40,10 @@ def test_sam2_segment_mock_모드시_응답에_mock_true_포함(small_png_b64: s
     assert body["mock"] is True
     assert body["source"] == "mock"
     assert body["mock_reason"] == "env_mock"
+    # 연동정의서 표준 래퍼 필드 (성공 응답)
+    assert body["success"] is True
+    assert body["message"] == "성공"
+    assert body["error_code"] is None
 
 
 def test_sam2_track_mock_모드시_응답에_mock_true_포함(small_png_b64: str) -> None:

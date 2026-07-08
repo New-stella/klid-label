@@ -54,30 +54,30 @@ class WebhookRequestSizeLimitTest {
     }
 
     @Test
-    @DisplayName("AugmentResultRequest_augType_RESOLUTION_은_검증_거부")
+    @DisplayName("AugmentResultRequest_augTypeCd_RESOLUTION_은_검증_거부")
     void augTypeResolution_violates() {
         AugmentResultRequest req = new AugmentResultRequest(
-                "K1", "EXT1", "SUCCESS", 1L, "RESOLUTION", null);
+                1L, "EXT1", "RESOLUTION", "SUCCESS", null);
 
         Set<ConstraintViolation<AugmentResultRequest>> violations = validator.validate(req);
 
         assertThat(violations)
                 .extracting(v -> v.getPropertyPath().toString())
-                .contains("augType");
+                .contains("augTypeCd");
     }
 
     @Test
-    @DisplayName("AugmentResultRequest_augType_WINTER_NIGHT_RAIN_은_정상")
+    @DisplayName("AugmentResultRequest_augTypeCd_WINTER_NIGHT_RAIN_은_정상")
     void augTypeWhitelist_passes() {
         for (String t : new String[]{"WINTER", "NIGHT", "RAIN"}) {
             AugmentResultRequest req = new AugmentResultRequest(
-                    "K1", "EXT1", "SUCCESS", 1L, t, null);
+                    1L, "EXT1", t, "SUCCESS", null);
 
             Set<ConstraintViolation<AugmentResultRequest>> violations = validator.validate(req);
 
             assertThat(violations)
                     .extracting(v -> v.getPropertyPath().toString())
-                    .doesNotContain("augType");
+                    .doesNotContain("augTypeCd");
         }
     }
     // (UC018 — 비식별은 KPST 폴링으로 단일화되어 DeidentifyResultRequest 콜백 DTO 가 제거됨.

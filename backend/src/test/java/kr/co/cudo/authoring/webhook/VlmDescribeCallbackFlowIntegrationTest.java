@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>위탁부(VlmTimeseriesStep)가 {@code ledger.recordIssued(request_id, CHANNEL_VLM, null, rawSn)}
  * 로 매핑을 등록하는 배선을 그대로 재현한 뒤, 벤더 규격의 describe 콜백을 실제 엔드포인트
- * {@code POST /v1/vlm/result}(무서명) 로 전송하여 필터 → 컨트롤러 → 서비스 경로가
+ * {@code POST /v1/vlm/callback}(무서명) 로 전송하여 필터 → 컨트롤러 → 서비스 경로가
  * request_id 로 rawSn 을 역조회해 {@code LS_DATA_META} 에 적재하는지 단언한다.
  *
  * <h3>검증(HIGH 폐쇄)</h3>

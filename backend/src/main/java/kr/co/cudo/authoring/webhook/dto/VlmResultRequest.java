@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * 외부 VLM describe 콜백 페이로드 — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) 정합.
  *
- * <p>{@code POST /v1/vlm/result} 요청 본문. 콜백 규격(docs/v2-wiki/09-vlm-timeseries.md §9.5/§9.6):
+ * <p>{@code POST /v1/vlm/callback} 요청 본문. 콜백 규격(docs/v2-wiki/09-vlm-timeseries.md §9.5/§9.6):
  * <pre>
  * // 성공
  * { "request_id": "...", "status": "completed",

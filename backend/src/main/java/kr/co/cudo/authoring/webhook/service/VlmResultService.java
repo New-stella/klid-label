@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 /**
  * 외부 VLM 시계열 메타 결과 인계 처리 서비스 — Phase 1 (콜백 수신부).
  *
- * <p>{@code POST /v1/vlm/result} 의 진입 후 호출된다.
+ * <p>{@code POST /v1/vlm/callback} 의 진입 후 호출된다.
  * 적재: {@link LsDataMeta} (K/V) + {@link LsDataMetaReview} 검수 큐(PENDING).
  *
  * <h3>트랜잭션 원자성 (DEV_FIX C-1)</h3>

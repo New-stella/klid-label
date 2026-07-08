@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
  * 외부 VLM describe 위탁 클라이언트 — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) 정합 (Phase 2).
  *
  * <p>{@code POST /v1/videovlm/describe} 로 시계열 메타 분석을 비동기 위탁하고, 동기 응답으로
- * 수락({@code status="accepted"}) 여부만 확인한다. 실제 결과는 {@code POST /v1/vlm/result} 콜백으로 수신한다.
+ * 수락({@code status="accepted"}) 여부만 확인한다. 실제 결과는 {@code POST /v1/vlm/callback} 콜백으로 수신한다.
  *
  * <h3>설계 원칙</h3>
  * <ul>

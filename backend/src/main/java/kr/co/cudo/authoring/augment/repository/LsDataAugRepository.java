@@ -29,4 +29,10 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
      * UNIQUE 제약 (uk_aug_idempotency_key) 위반 후 재조회 경로에서 사용.
      */
     Optional<LsDataAug> findByIdempotencyKey(String idempotencyKey);
+
+    /**
+     * 증강 콜백 재전송 멱등 앵커 — 외부 작업 ID(OTSD_JOB_ID) 조회.
+     * UNIQUE 제약 (uk_aug_external_job_id) 위반(동시/오배송 재전송) 후 재조회 경로에서 사용.
+     */
+    Optional<LsDataAug> findByExternalJobId(String externalJobId);
 }

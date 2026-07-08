@@ -80,8 +80,8 @@ public class SecurityConfig {
                     // 시크릿 미설정 시 fail-closed 로 401 (HmacWebhookFilter 내부).
                     // (UC018 — 비식별은 KPST 폴링으로 단일화되어 /v1/deidentify/result 콜백 경로를 제거함.)
                     auth.requestMatchers(
-                            "/v1/vlm/result",
-                            "/v1/augments/result").permitAll();
+                            "/v1/vlm/callback",
+                            "/v1/aug/callback").permitAll();
                     if (devTokenEndpointEnabled) {
                         // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음.
                         // - /v1/dev/tokens: 부트스트랩 토큰 발급 → permitAll (로컬 인증 불가 방지, 토큰 진입점).

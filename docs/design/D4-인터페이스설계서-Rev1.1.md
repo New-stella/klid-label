@@ -110,12 +110,12 @@
 
 #### KLID-AT-II-004 — VLM 시계열 결과 콜백 수신
 
-> **인터페이스 설명**: 외부 VLM 서비스가 생성한 시계열 메타 결과를 콜백으로 수신해 적재하고 검수 대기열에 진입시킨다. 콜백 진위 검증(메시지 인증)과 멱등 처리를 적용한다. **API(수신): `POST /v1/vlm/result`** (HMAC 인증).
+> **인터페이스 설명**: 외부 VLM 서비스가 생성한 시계열 메타 결과를 콜백으로 수신해 적재하고 검수 대기열에 진입시킨다. 콜백 진위 검증(메시지 인증)과 멱등 처리를 적용한다. **API(수신): `POST /v1/vlm/callback`** (HMAC 인증).
 
 <table>
 <tr><td rowspan="2">인터페이스 번호</td><td colspan="5" align="center"><b>데이터송신시스템</b></td><td rowspan="2">송신 프로그램 ID</td><td colspan="5" align="center"><b>데이터수신시스템</b></td><td rowspan="2">수신 프로그램 ID</td><td rowspan="2">속성 설명</td></tr>
 <tr><td>시스템명</td><td>데이터 저장소명</td><td>속성명</td><td>데이터타입(필수여부)</td><td>길이</td><td>데이터 저장소명</td><td>속성명</td><td>데이터타입(필수여부)</td><td>길이</td><td>시스템명</td></tr>
-<tr><td rowspan="7">KLID-AT-II-004</td><td rowspan="7">외부 VLM 시계열 메타 서비스</td><td rowspan="7">VLM 시계열 결과 (외부 VLM POST /v1/vlm/result)</td><td>rawSn (영상 식별자)</td><td>long (필수)</td><td>-</td><td rowspan="7">VLM시계열생성</td><td rowspan="7">LS_DATA_META (시계열 메타) · LS_DATA_META_REVIEW (메타 검수큐)</td><td>RAW_SN (영상 식별자)</td><td>BIGINT (필수)</td><td>-</td><td rowspan="7">학습데이터 저작도구</td><td rowspan="7">VLM결과수신</td><td>분석 대상 영상 식별자.</td></tr>
+<tr><td rowspan="7">KLID-AT-II-004</td><td rowspan="7">외부 VLM 시계열 메타 서비스</td><td rowspan="7">VLM 시계열 결과 (외부 VLM POST /v1/vlm/callback)</td><td>rawSn (영상 식별자)</td><td>long (필수)</td><td>-</td><td rowspan="7">VLM시계열생성</td><td rowspan="7">LS_DATA_META (시계열 메타) · LS_DATA_META_REVIEW (메타 검수큐)</td><td>RAW_SN (영상 식별자)</td><td>BIGINT (필수)</td><td>-</td><td rowspan="7">학습데이터 저작도구</td><td rowspan="7">VLM결과수신</td><td>분석 대상 영상 식별자.</td></tr>
 <tr><td>vlmMetaItems[].metaKey (시계열 정렬 키)</td><td>string (필수)</td><td>64</td><td>META_KEY (메타 키)</td><td>VARCHAR (필수)</td><td>64</td><td>시계열 정렬 키(마킹 frameIndex). (RAW_SN, META_KEY) UNIQUE.</td></tr>
 <tr><td>vlmMetaItems[].metaVal (자연어 서술)</td><td>string (필수)</td><td>2000</td><td>META_VL (메타 값)</td><td>VARCHAR (필수)</td><td>2000</td><td>해당 시점의 자연어 서술(항목별 1행 적재).</td></tr>
 <tr><td>idempotencyKey (멱등 키)</td><td>string (필수)</td><td>64</td><td>IDMP_KEY (멱등 키)</td><td>VARCHAR (필수)</td><td>64</td><td>원래 위탁 요청 멱등 키(중복 차단).</td></tr>
@@ -144,17 +144,16 @@
 
 #### KLID-AT-II-006 — 증강 결과 콜백 수신
 
-> **인터페이스 설명**: 외부 증강 시스템의 증강 결과를 콜백으로 수신해 새 영상으로 등록(원본 참조)하고 원본 라벨을 복사한 뒤 검수 대기를 시작한다. 콜백 진위 검증(메시지 인증)과 멱등 처리를 적용한다. **API(수신): `POST /v1/augments/result`** (HMAC 인증).
+> **인터페이스 설명**: 외부 증강 시스템의 증강 결과를 콜백으로 수신해 새 영상으로 등록(원본 참조)하고 원본 라벨을 복사한 뒤 검수 대기를 시작한다. 콜백 진위 검증(메시지 인증)과 멱등 처리를 적용한다. **API(수신): `POST /v1/aug/callback`** (HMAC 인증).
 
 <table>
 <tr><td rowspan="2">인터페이스 번호</td><td colspan="5" align="center"><b>데이터송신시스템</b></td><td rowspan="2">송신 프로그램 ID</td><td colspan="5" align="center"><b>데이터수신시스템</b></td><td rowspan="2">수신 프로그램 ID</td><td rowspan="2">속성 설명</td></tr>
 <tr><td>시스템명</td><td>데이터 저장소명</td><td>속성명</td><td>데이터타입(필수여부)</td><td>길이</td><td>데이터 저장소명</td><td>속성명</td><td>데이터타입(필수여부)</td><td>길이</td><td>시스템명</td></tr>
-<tr><td rowspan="6">KLID-AT-II-006</td><td rowspan="6">외부 생성형 AI(증강) 시스템</td><td rowspan="6">증강 생성 결과 (외부 증강 POST /v1/augments/result)</td><td>originAugSn (원본 증강 SN)</td><td>long (필수)</td><td>-</td><td rowspan="6">증강생성</td><td rowspan="6">LS_DATA_AUG (증강 데이터) · LS_DATA_RAW (신규 영상)</td><td>DATA_AUG_SN (증강 행 PK)</td><td>BIGINT (필수)</td><td>-</td><td rowspan="6">학습데이터 저작도구</td><td rowspan="6">증강결과수신</td><td>사전 등록 증강 행 PK로 매칭(원본 참조 = PARENT_RAW_SN 연계).</td></tr>
-<tr><td>augType (증강 유형)</td><td>string (필수)</td><td>-</td><td>AUG_TYPE_CD (증강 유형)</td><td>VARCHAR (필수)</td><td>20</td><td>적용된 증강 유형(WINTER/NIGHT/RAIN).</td></tr>
-<tr><td>resultFilePath (결과 영상 경로)</td><td>string (필수)</td><td>1000</td><td>RAW_FILE_PATH_NM (영상 경로)</td><td>VARCHAR (필수)</td><td>500</td><td>생성된 증강 영상 경로 → 신규 RAW_SN 영상으로 등록(SSRF 검증).</td></tr>
-<tr><td>status (처리 상태)</td><td>string (필수)</td><td>-</td><td>AUG_PROC_STTS_CD (증강 처리 상태)</td><td>VARCHAR (필수)</td><td>20</td><td>처리 상태(SUCCESS/FAILED/PARTIAL).</td></tr>
-<tr><td>idempotencyKey (멱등 키)</td><td>string (필수)</td><td>64</td><td>IDMP_KEY (멱등 키)</td><td>VARCHAR (필수)</td><td>64</td><td>원래 위탁 요청 멱등 키(중복 차단).</td></tr>
-<tr><td>externalJobId (외부 작업 ID)</td><td>string (필수)</td><td>128</td><td>OTSD_JOB_ID (외부 작업 ID)</td><td>VARCHAR (필수)</td><td>128</td><td>외부 증강 시스템 작업 ID.</td></tr>
+<tr><td rowspan="5">KLID-AT-II-006</td><td rowspan="5">외부 생성형 AI(증강) 시스템</td><td rowspan="5">증강 생성 결과 (외부 증강 POST /v1/aug/callback)</td><td>data_aug_sn (증강 행 식별자)</td><td>long (필수)</td><td>-</td><td rowspan="5">증강생성</td><td rowspan="5">LS_DATA_AUG (증강 데이터) · LS_DATA_RAW (신규 영상)</td><td>DATA_AUG_SN (증강 행 PK)</td><td>BIGINT (필수)</td><td>-</td><td rowspan="5">학습데이터 저작도구</td><td rowspan="5">증강결과수신</td><td>사전 등록 증강 행 PK로 매칭(원본 참조 = PARENT_RAW_SN 연계). 재전송 중복 차단(멱등) 기준.</td></tr>
+<tr><td>aug_type_cd (증강 유형)</td><td>string (필수)</td><td>-</td><td>AUG_TYPE_CD (증강 유형)</td><td>VARCHAR (필수)</td><td>20</td><td>적용된 증강 유형(WINTER/NIGHT/RAIN).</td></tr>
+<tr><td>raw_file_path_nm (결과 영상 경로)</td><td>string (필수)</td><td>1000</td><td>RAW_FILE_PATH_NM (영상 경로)</td><td>VARCHAR (필수)</td><td>500</td><td>생성된 증강 영상 경로 → 신규 RAW_SN 영상으로 등록(SSRF 검증).</td></tr>
+<tr><td>aug_proc_sts_cd (처리 상태)</td><td>string (필수)</td><td>-</td><td>AUG_PROC_STTS_CD (증강 처리 상태)</td><td>VARCHAR (필수)</td><td>20</td><td>처리 상태(SUCCESS/FAILED/PARTIAL).</td></tr>
+<tr><td>otsd_job_id (외부 작업 ID)</td><td>string (필수)</td><td>128</td><td>OTSD_JOB_ID (외부 작업 ID)</td><td>VARCHAR (필수)</td><td>128</td><td>외부 증강 시스템 작업 ID. 별도 멱등키 필드 제거 — 재전송 중복 차단(멱등)은 본 값(UNIQUE)으로 수행.</td></tr>
 </table>
 
 > **동기 응답**: 저작도구 → 외부 증강 시스템. 수신 확인 결과 코드(VARCHAR). 수신 후 새 영상을 등록(원본 참조)하고 원본 라벨을 복사한 뒤 검수 대기로 시작한다. 증강 종류는 WINTER/NIGHT/RAIN만 허용. 콜백 진위 검증(메시지 인증) + 멱등 처리.

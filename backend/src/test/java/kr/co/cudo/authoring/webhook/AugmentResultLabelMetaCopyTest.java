@@ -11,8 +11,6 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
-import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
-import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.service.AugmentResultService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,7 +53,6 @@ class AugmentResultLabelMetaCopyTest {
     @Mock LsDataLblRepository lblRepository;
     @Mock LsDataMetaRepository metaRepository;
     @Mock kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository augLblMapRepository;
-    private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private AugmentResultService service;
     private final AtomicLong rawSnSeq = new AtomicLong(9000);
@@ -63,9 +60,8 @@ class AugmentResultLabelMetaCopyTest {
 
     @BeforeEach
     void setup() {
-        service = new AugmentResultService(augRepository, ledger,
+        service = new AugmentResultService(augRepository,
                 videoRepository, srcRepository, lblRepository, metaRepository, augLblMapRepository);
-        ledger.clear();
 
         // save mocks — ID 자동 채번
         when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
@@ -139,7 +135,6 @@ class AugmentResultLabelMetaCopyTest {
     @DisplayName("증강_성공시_원본_라벨_내용이_새_프레임에_정확히_복사됨")
     void 증강_성공시_원본_라벨_내용이_새_프레임에_정확히_복사됨() {
         // given — 원본 영상(100L), 프레임 1개(srcSn=200L), 라벨 1건
-        ledger.recordIssued("K-LBL-COPY", "EXT-LC");
         LsDataRaw parentRaw = newRaw(100L);
         LsDataSrc originSrc = newSrc(200L, 100L, 0);
         LsDataAug aug = newAugWithSrc(20L, 200L, "WINTER");
@@ -155,7 +150,7 @@ class AugmentResultLabelMetaCopyTest {
         when(metaRepository.findByRawSn(100L)).thenReturn(List.of());
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-LBL-COPY", "EXT-LC", "SUCCESS", 20L, "WINTER",
+                20L, "EXT-LC", "WINTER", "SUCCESS",
                 "/storage/augment/winter.mp4");
 
         // when
@@ -183,7 +178,6 @@ class AugmentResultLabelMetaCopyTest {
     @DisplayName("증강_성공시_원본_메타가_새_영상에_정확히_복사됨")
     void 증강_성공시_원본_메타가_새_영상에_정확히_복사됨() {
         // given — 원본 영상(101L), 메타 2건
-        ledger.recordIssued("K-META-COPY", "EXT-MC");
         LsDataRaw parentRaw = newRaw(101L);
         LsDataSrc originSrc = newSrc(300L, 101L, 0);
         LsDataAug aug = newAugWithSrc(21L, 300L, "NIGHT");
@@ -199,7 +193,7 @@ class AugmentResultLabelMetaCopyTest {
         when(metaRepository.findByRawSn(101L)).thenReturn(List.of(meta1, meta2));
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-META-COPY", "EXT-MC", "SUCCESS", 21L, "NIGHT",
+                21L, "EXT-MC", "NIGHT", "SUCCESS",
                 "/storage/augment/night.mp4");
 
         // when
@@ -228,7 +222,6 @@ class AugmentResultLabelMetaCopyTest {
     @DisplayName("원본에_라벨_없으면_라벨_복사_스킵_정상_완료")
     void 원본에_라벨_없으면_라벨_복사_스킵_정상_완료() {
         // given — 원본에 라벨 0건
-        ledger.recordIssued("K-NO-LBL", "EXT-NL");
         LsDataRaw parentRaw = newRaw(102L);
         LsDataSrc originSrc = newSrc(400L, 102L, 0);
         LsDataAug aug = newAugWithSrc(22L, 400L, "RAIN");
@@ -241,7 +234,7 @@ class AugmentResultLabelMetaCopyTest {
         when(metaRepository.findByRawSn(102L)).thenReturn(List.of());
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-NO-LBL", "EXT-NL", "SUCCESS", 22L, "RAIN",
+                22L, "EXT-NL", "RAIN", "SUCCESS",
                 "/storage/augment/rain.mp4");
 
         // when
@@ -259,7 +252,6 @@ class AugmentResultLabelMetaCopyTest {
     @DisplayName("원본에_메타_없으면_메타_복사_스킵_정상_완료")
     void 원본에_메타_없으면_메타_복사_스킵_정상_완료() {
         // given — 원본에 메타 0건
-        ledger.recordIssued("K-NO-META", "EXT-NM");
         LsDataRaw parentRaw = newRaw(103L);
         LsDataSrc originSrc = newSrc(500L, 103L, 0);
         LsDataAug aug = newAugWithSrc(23L, 500L, "RAIN");
@@ -272,7 +264,7 @@ class AugmentResultLabelMetaCopyTest {
         when(metaRepository.findByRawSn(103L)).thenReturn(List.of());
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-NO-META", "EXT-NM", "SUCCESS", 23L, "RAIN",
+                23L, "EXT-NM", "RAIN", "SUCCESS",
                 "/storage/augment/rain-no-meta.mp4");
 
         // when
@@ -290,7 +282,6 @@ class AugmentResultLabelMetaCopyTest {
     @DisplayName("복수_프레임_라벨이_올바른_신규_프레임에_매핑됨")
     void 복수_프레임_라벨이_올바른_신규_프레임에_매핑됨() {
         // given — 원본 2프레임(srcSn 600,601), 각 프레임에 라벨 1건씩
-        ledger.recordIssued("K-MULTI", "EXT-MF");
         LsDataRaw parentRaw = newRaw(104L);
         LsDataSrc frame0 = newSrc(600L, 104L, 0);
         LsDataSrc frame1 = newSrc(601L, 104L, 1);
@@ -309,7 +300,7 @@ class AugmentResultLabelMetaCopyTest {
         when(metaRepository.findByRawSn(104L)).thenReturn(List.of());
 
         AugmentResultRequest req = new AugmentResultRequest(
-                "K-MULTI", "EXT-MF", "SUCCESS", 24L, "WINTER",
+                24L, "EXT-MF", "WINTER", "SUCCESS",
                 "/storage/augment/winter-multi.mp4");
 
         // when

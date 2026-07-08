@@ -19,18 +19,18 @@ import java.util.Map;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/v1/augments")
+@RequestMapping("/v1/aug")
 public class AugmentResultController {
 
     private final AugmentResultService service;
 
-    @PostMapping("/result")
+    @PostMapping("/callback")
     public ResponseEntity<ApiResponse<Map<String, Object>>> receive(
             @Valid @RequestBody AugmentResultRequest request) {
         boolean applied = service.handle(request);
         Map<String, Object> body = Map.of(
                 "applied", applied,
-                "idempotencyKey", request.idempotencyKey()
+                "otsdJobId", request.otsdJobId()
         );
         return ResponseEntity.ok(ApiResponse.ok(body));
     }

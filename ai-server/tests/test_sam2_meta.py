@@ -404,7 +404,16 @@ def test_mock_모드에서_segment_track_정상_polygon_응답(monkeypatch) -> N
     seg = client.post("/infer/sam2/segment", json={"image_b64": img, "points": [[32.0, 32.0]]})
     assert seg.status_code == 200
     sbody = seg.json()
-    assert set(sbody.keys()) == {"polygon", "score", "mock", "source", "mock_reason"}
+    assert set(sbody.keys()) == {
+        "polygon",
+        "score",
+        "mock",
+        "source",
+        "mock_reason",
+        "success",
+        "message",
+        "error_code",
+    }
     assert len(sbody["polygon"]) >= 3
     assert 0.0 <= sbody["score"] <= 1.0
 

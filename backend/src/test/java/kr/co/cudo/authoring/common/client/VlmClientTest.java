@@ -71,7 +71,7 @@ class VlmClientTest {
     private VlmTimeseriesRequest describeReq(String requestId) {
         return VlmTimeseriesRequest.ofFrameInterval(
                 requestId, "/data/videos/deid.mp4", 25,
-                "http://localhost:8080/api/v1/vlm/result");
+                "http://localhost:8080/api/v1/vlm/callback");
     }
 
     @Test
@@ -102,7 +102,7 @@ class VlmClientTest {
         assertThat(body).contains("\"frame_policy\"");
         assertThat(body).contains("\"mode\":\"frame_interval\"");
         assertThat(body).contains("\"framerate\":25");
-        assertThat(body).contains("\"callback_url\":\"http://localhost:8080/api/v1/vlm/result\"");
+        assertThat(body).contains("\"callback_url\":\"http://localhost:8080/api/v1/vlm/callback\"");
         // describe 규격 밖 필드 미전송 (R9)
         assertThat(body).doesNotContain("eventName");
         assertThat(body).doesNotContain("marks");

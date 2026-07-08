@@ -37,7 +37,7 @@ import java.util.UUID;
  * VLM describe 시계열 메타 위탁 단계 — 벤더 확정 계약(v2.0.1) describe 규격 정합 (Phase 2).
  *
  * <p>{@code POST /v1/videovlm/describe} 로 <b>비식별 영상</b>의 시계열 메타 분석을 외부에 위탁하고,
- * 결과는 {@code POST /v1/vlm/result} 콜백으로 수신한다.
+ * 결과는 {@code POST /v1/vlm/callback} 콜백으로 수신한다.
  *
  * <h3>상관관계 배선 (결함1/2 폐쇄, 핵심)</h3>
  * <p>describe 콜백 바디에는 rawSn 이 없다. 위탁 직전 발급한 {@code request_id} 를

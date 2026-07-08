@@ -78,8 +78,10 @@ public class DevAugmentCallbackSimulator implements ExternalAugmentClient {
     public boolean requestAugment(Long originAugSn, String augType, String idempotencyKey,
                                   String externalJobId, String callbackUrl) {
         try {
+            // 연동정의서 정합 — data_aug_sn/otsd_job_id/aug_type_cd/aug_proc_sts_cd/raw_file_path_nm.
+            // 외부 시스템이 콜백 시점 otsd_job_id 를 부여하는 것을 시뮬레이션(=요청 시 발급한 externalJobId echo).
             AugmentResultRequest payload = new AugmentResultRequest(
-                    idempotencyKey, externalJobId, SIMULATED_STATUS, originAugSn, augType, null);
+                    originAugSn, externalJobId, augType, SIMULATED_STATUS, null);
 
             // 직렬화 1회 — 서명 대상 문자열과 전송 본문을 동일 문자열로 유지(바이트 동일 보장).
             String body = objectMapper.writeValueAsString(payload);

@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * 외부 VLM describe 위탁 동기 응답 DTO — 벤더 확정 계약(v2.0.1) 정합 (Phase 2).
  *
  * <p>describe 는 비동기 위탁이므로 동기 응답은 <b>수락(Acknowledge)</b> 만 의미한다.
- * 실제 시계열 메타 결과는 {@code POST /v1/vlm/result} 콜백으로 전달된다.
+ * 실제 시계열 메타 결과는 {@code POST /v1/vlm/callback} 콜백으로 전달된다.
  *
  * <p>동기 응답 스키마: <pre>{ "request_id": "...", "status": "accepted" }</pre>
  * 구 규격의 {@code externalJobId} 는 describe 응답에 존재하지 않는다 — 상관관계는 {@code request_id} 로만 성립한다.

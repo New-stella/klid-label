@@ -9,7 +9,7 @@ import java.util.List;
  * 외부 VLM 서비스 위탁 요청 DTO — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) describe 규격 정합 (Phase 2).
  *
  * <p>{@code POST /v1/videovlm/describe} 요청 본문. 시간구간별 자연어 서술(시계열 메타) 추출을
- * 외부 VLM 서비스에 위탁한다. 결과는 {@code POST /v1/vlm/result} 콜백으로 비동기 수신한다.
+ * 외부 VLM 서비스에 위탁한다. 결과는 {@code POST /v1/vlm/callback} 콜백으로 비동기 수신한다.
  *
  * <h3>전송 JSON 스키마 (describe)</h3>
  * <pre>
@@ -21,7 +21,7 @@ import java.util.List;
  *     "path": "/data/videos/deid.mp4",
  *     "frame_policy": { "mode": "frame_interval", "framerate": 25 }
  *   },
- *   "callback_url": "http://저작도구/api/v1/vlm/result"
+ *   "callback_url": "http://저작도구/api/v1/vlm/callback"
  * }
  * </pre>
  *
@@ -32,7 +32,7 @@ import java.util.List;
  *
  * @param requestId   위탁 요청 식별자(=상관키). UUIDv4 로 발급(예측 불가). 콜백이 echo 로 되돌려 준다.
  * @param media       분석 대상 미디어 서술(type/source_type/path/frame_policy).
- * @param callbackUrl 결과 수신 webhook URL — 본 도구 고정 base URL + {@code /v1/vlm/result}(사용자 입력 미반영, SSRF 차단).
+ * @param callbackUrl 결과 수신 webhook URL — 본 도구 고정 base URL + {@code /v1/vlm/callback}(사용자 입력 미반영, SSRF 차단).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record VlmTimeseriesRequest(
@@ -64,7 +64,7 @@ public record VlmTimeseriesRequest(
      * @param requestId   상관키(UUIDv4).
      * @param path        비식별 영상 경로.
      * @param framerate   프레임 간격 정책의 framerate.
-     * @param callbackUrl 결과 수신 콜백 URL(고정 base + /v1/vlm/result).
+     * @param callbackUrl 결과 수신 콜백 URL(고정 base + /v1/vlm/callback).
      */
     public static VlmTimeseriesRequest ofFrameInterval(
             String requestId, String path, int framerate, String callbackUrl) {

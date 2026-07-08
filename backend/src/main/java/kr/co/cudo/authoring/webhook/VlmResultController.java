@@ -28,7 +28,7 @@ public class VlmResultController {
 
     private final VlmResultService service;
 
-    @PostMapping("/result")
+    @PostMapping("/callback")
     public ResponseEntity<ApiResponse<Map<String, Object>>> receive(
             @Valid @RequestBody VlmResultRequest request) {
         boolean applied = service.handle(request);

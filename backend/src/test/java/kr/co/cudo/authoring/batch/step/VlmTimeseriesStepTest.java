@@ -109,7 +109,7 @@ class VlmTimeseriesStepTest {
         assertThat(req.media().path()).isEqualTo("/data/deid/200.mp4");
         assertThat(req.media().framePolicy().mode()).isEqualTo("frame_interval");
         assertThat(req.media().framePolicy().framerate()).isEqualTo(25);
-        assertThat(req.callbackUrl()).endsWith("/v1/vlm/result");
+        assertThat(req.callbackUrl()).endsWith("/v1/vlm/callback");
     }
 
     @Test
