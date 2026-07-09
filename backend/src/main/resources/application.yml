@@ -37,6 +37,13 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+    # baseline-version=0 필수 — V0__init.sql 은 placeholder 주석뿐이므로 baseline 을 0 으로 잡아야
+    # 실제 마이그레이션 V1+ 가 전부 실행된다. 미설정 시 Flyway 기본 baseline-version=1 이라,
+    # 인프라/관제가 MNG_*/QRTZ_* 를 먼저 provisioning 한 non-empty + flyway_schema_history 無 상태
+    # (온프렘 앱 첫 기동)에서 baseline-on-migrate 가 발동해 V1 을 스킵 → LS_PJT_* 테이블 미생성 →
+    # V5/V34 가 "relation ... does not exist" 로 실패한다. 이미 이력이 있는 기존 DB 는 baseline 자체가
+    # 미발동하므로 이 값과 무관(영향 0).
+    baseline-version: 0
     locations: classpath:db/migration
   quartz:
     # JDBC JobStore — controlDataSource(@Primary) 를 통해 기존 QRTZ_* 테이블 공유.
