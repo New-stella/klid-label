@@ -151,7 +151,7 @@ class NoticeControllerTest {
     }
 
     @Test
-    @DisplayName("발행_처리시_PUB_STTS_CD가_PUBLISHED이고_PUB_DT가_설정됨")
+    @DisplayName("발행_처리시_PBLCN_STTS_CD가_PUBLISHED이고_PBLCN_DT가_설정됨")
     void publishSetsStatusAndDate() throws Exception {
         long id = createNotice("발행대상", "body", false);
 
@@ -163,7 +163,7 @@ class NoticeControllerTest {
     }
 
     @Test
-    @DisplayName("이미_발행된_공지_재발행시_PUB_DT_불변")
+    @DisplayName("이미_발행된_공지_재발행시_PBLCN_DT_불변")
     void republishKeepsPubDt() throws Exception {
         long id = createAndPublish("멱등발행", "body", false);
         LocalDateTimeHolder first = new LocalDateTimeHolder(
@@ -244,7 +244,7 @@ class NoticeControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
     }
 
-    /** PUB_DT 의 첫 발행 시각을 캡처해 멱등 비교에 사용하는 소형 홀더. */
+    /** PBLCN_DT 의 첫 발행 시각을 캡처해 멱등 비교에 사용하는 소형 홀더. */
     private static final class LocalDateTimeHolder {
         private final java.time.LocalDateTime value;
 

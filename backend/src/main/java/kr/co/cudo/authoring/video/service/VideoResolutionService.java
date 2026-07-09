@@ -149,7 +149,7 @@ public class VideoResolutionService {
                 return persister.persist(parent, preset, outputDir.toString(),
                         srcW, srcH, targetW, targetH, frameCount, regId);
             } catch (DataIntegrityViolationException e) {
-                // UK(DATA_RAW_SN, TARGET_RES_CD) 최종 방어 — 동시 요청 경합 (HIGH-②)
+                // UK(DATA_RAW_SN, GOAL_RES_CD) 최종 방어 — 동시 요청 경합 (HIGH-②)
                 deleteDirQuietly(outputDir);
                 throw new CustomException(ErrorCode.CONFLICT,
                         "동일 영상에 해당 해상도 변경 결과가 이미 존재합니다.");
@@ -279,7 +279,7 @@ public class VideoResolutionService {
 
     /**
      * 출력 디렉토리를 storageRawPath base 하위 결정론적 경로로 해석 + normalize 검증 (CWE-22, HIGH-①).
-     * {@code <storageRawPath>/resolution/<rawSn>/<TARGET_RES_CD>/}.
+     * {@code <storageRawPath>/resolution/<rawSn>/<GOAL_RES_CD>/}.
      */
     private Path resolveSafeOutputDir(Path base, Long rawSn, String preset) {
         Path resolved = base.resolve("resolution")

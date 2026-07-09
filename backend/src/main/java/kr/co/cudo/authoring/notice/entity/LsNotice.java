@@ -45,10 +45,10 @@ public class LsNotice {
     private String pinYn;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "PUB_STTS_CD", nullable = false, length = 16)
+    @Column(name = "PBLCN_STTS_CD", nullable = false, length = 16)
     private PublishStatus pubStatus;
 
-    @Column(name = "PUB_DT")
+    @Column(name = "PBLCN_DT")
     private LocalDateTime pubDt;
 
     @Column(name = "REG_ID", length = 64, updatable = false)
@@ -105,8 +105,8 @@ public class LsNotice {
     }
 
     /**
-     * 발행 처리. 이미 PUBLISHED 면 no-op(멱등) — PUB_DT 불변.
-     * 아니면 PUBLISHED 로 전이하고 PUB_DT 를 현재 시각으로 설정한다.
+     * 발행 처리. 이미 PUBLISHED 면 no-op(멱등) — PBLCN_DT 불변.
+     * 아니면 PUBLISHED 로 전이하고 PBLCN_DT 를 현재 시각으로 설정한다.
      */
     public void publish() {
         if (this.pubStatus == PublishStatus.PUBLISHED) {
@@ -118,7 +118,7 @@ public class LsNotice {
 
     /**
      * 발행 취소. 이미 DRAFT 면 no-op(멱등).
-     * 아니면 DRAFT 로 전이하고 PUB_DT 를 null 로 초기화한다.
+     * 아니면 DRAFT 로 전이하고 PBLCN_DT 를 null 로 초기화한다.
      */
     public void unpublish() {
         if (this.pubStatus == PublishStatus.DRAFT) {

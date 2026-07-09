@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p><b>정책 변경(R1)</b>: LsDataRaw·프레임·라벨·속성값·메타 복사를 전부 제거하고
  * {@link LsResolutionExport} 1행만 INSERT 한다. 신규 영상(RAW_SN)·라벨·메타는 생성하지 않는다.
- * 동시 요청 UK 경합은 DB UNIQUE(DATA_RAW_SN, TARGET_RES_CD)로 최종 방어한다(HIGH-②).
+ * 동시 요청 UK 경합은 DB UNIQUE(DATA_RAW_SN, GOAL_RES_CD)로 최종 방어한다(HIGH-②).
  */
 @Slf4j
 @Component

@@ -118,7 +118,7 @@ public class NoticeController {
         noticeService.delete(id);
     }
 
-    @Operation(summary = "공지 발행 (REVIEWER)", description = "멱등 — 이미 발행된 공지는 PUB_DT 불변.")
+    @Operation(summary = "공지 발행 (REVIEWER)", description = "멱등 — 이미 발행된 공지는 PBLCN_DT 불변.")
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<NoticeResponse> publish(@PathVariable long id) {
