@@ -28,7 +28,11 @@ public interface WebhookIdempotencyLedger {
         PROCESSED
     }
 
-    record Entry(State state, String externalJobId) {}
+    /**
+     * @param rawSn 위탁 요청 대상 영상의 RAW_SN. 콜백 바디에 rawSn 이 없는 규격(예: VLM describe 콜백)에서
+     *              request_id 로 rawSn 을 역조회하기 위한 슬롯. 매핑이 없으면 null.
+     */
+    record Entry(State state, String externalJobId, Long rawSn) {}
 
     /**
      * 외부 위탁 시 발급한 idempotencyKey 를 등록한다.
@@ -51,12 +55,64 @@ public interface WebhookIdempotencyLedger {
     }
 
     /**
+     * VLM describe 콜백 정합 — channel + rawSn 명시 발급 기록.
+     *
+     * <p>콜백 바디에 rawSn 이 없는 규격(VLM describe: {@code request_id} 만 전달)에서는
+     * 위탁 요청 시 {@code (request_id, rawSn)} 매핑을 여기에 등록해 두고,
+     * 결과 수신부가 {@link #resolveRawSn(String)} 로 역조회한다.
+     *
+     * <p>디폴트 구현은 rawSn 을 버리고 3-인자 시그니처로 위임한다(구 호환).
+     * 명시 구현체({@link InMemoryWebhookIdempotencyLedger}/{@link PersistentWebhookIdempotencyLedger})는 rawSn 을 영속한다.
+     */
+    default void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
+        recordIssued(idempotencyKey, channel, externalJobId);
+    }
+
+    /**
+     * request_id(=idempotencyKey) 로 위탁 대상 영상의 rawSn 을 역조회한다.
+     * 발급 기록이 없거나 rawSn 매핑이 없으면 empty.
+     */
+    default Optional<Long> resolveRawSn(String idempotencyKey) {
+        return lookup(idempotencyKey).flatMap(e -> Optional.ofNullable(e.rawSn()));
+    }
+
+    /**
      * 처리 완료 마킹 — 이후 동일 키 재인계는 멱등 200 OK 로 응답되도록 한다.
      * UNIQUE 제약 위반(동시 호출)은 멱등 반환 (예외 미발생).
+     *
+     * <p><b>트랜잭션 경계</b>: 영속 구현은 {@code REQUIRES_NEW} 로 독립 커밋한다(Augment 콜백 경로 유지).
+     * 콜백 side-effect 와 <b>원자적</b>으로 커밋/롤백해야 하는 경로(VLM 결과 수신)는
+     * {@link #markProcessedInTx(String, String)} 를 사용한다.
      */
     void markProcessed(String idempotencyKey, String externalJobId);
 
+    /**
+     * 처리 완료 마킹 — <b>호출자의 트랜잭션에 참여</b>한다(REQUIRED). CWE-362/데이터 유실 차단.
+     *
+     * <p>콜백 처리(META upsert·검수큐·마킹 전이)와 동일 트랜잭션에서 마지막에 호출되어,
+     * 이후 커밋이 실패하면 원장 PROCESSED 전이도 함께 롤백된다 → 벤더 재전송으로 복구 가능.
+     * 독립 커밋({@link #markProcessed})은 outer 롤백 시 PROCESSED 만 남아 결과가 영구 유실될 수 있다.
+     *
+     * <p>디폴트 구현(in-memory)은 트랜잭션이 없으므로 {@link #markProcessed} 와 동일 동작.
+     */
+    default void markProcessedInTx(String idempotencyKey, String externalJobId) {
+        markProcessed(idempotencyKey, externalJobId);
+    }
+
     Optional<Entry> lookup(String idempotencyKey);
+
+    /**
+     * 처리 목적의 원장 조회 — 영속 구현은 행 <b>비관적 락(FOR UPDATE)</b>으로 조회하여
+     * 동일 idempotencyKey 의 동시 콜백을 직렬화한다(TOCTOU/검수큐 중복 적재 차단, CWE-362).
+     *
+     * <p>반드시 활성 트랜잭션 안에서 호출한다(콜백 처리 트랜잭션 시작 직후 1회). 반환된 Entry 로
+     * 발급 여부(존재)·처리 여부(state)·rawSn 을 재사용하여 중복 SELECT 를 제거한다.
+     *
+     * <p>디폴트 구현(in-memory)은 락 없이 {@link #lookup} 과 동일.
+     */
+    default Optional<Entry> lookupForProcessing(String idempotencyKey) {
+        return lookup(idempotencyKey);
+    }
 
     /** 발급 여부만 빠르게 확인. */
     default boolean isIssued(String idempotencyKey) {

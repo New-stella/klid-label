@@ -45,7 +45,7 @@ public class StatsController {
 
     @Operation(
             summary = "대시보드 요약 (REVIEWER/WORKER)",
-            description = "처리 대기/완료/반려 KPI + 이미지·영상 누적 + 6종 이벤트 분포 + 내 작업(WORKER 만 채움)"
+            description = "처리 대기/완료/반려 KPI + 이미지·영상 누적 + 관제 카테고리 기준 이벤트 분포(9종) + 내 작업(WORKER 만 채움)"
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -83,7 +83,7 @@ public class StatsController {
 
     @Operation(
             summary = "전체 구축 현황 (REVIEWER 전용) — placeholder",
-            description = "누적 이미지/영상 카드 + 처리 현황 5 카드 + 6종 이벤트 분포 + 작업자별 표(빈 배열)."
+            description = "누적 이미지/영상 카드 + 처리 현황 5 카드 + 관제 카테고리 기준 이벤트 분포(9종) + 작업자별 표(빈 배열)."
     )
     @GetMapping("/overall")
     @PreAuthorize("hasRole('REVIEWER')")

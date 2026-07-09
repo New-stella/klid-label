@@ -68,7 +68,7 @@ class SecurityConfigChannelTest {
     @DisplayName("INTERNAL_채널_토큰으로_포털_API_호출시_403")
     void internalChannelForbiddenOnPortal() throws Exception {
         // given: INTERNAL 채널 토큰 (REVIEWER)
-        String token = JwtTestSupport.token(secret, "rev-1", "REVIEWER", "INTERNAL", issuer, 60);
+        String token = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         // when/then: 포털 전용 API 는 채널 격리로 403
         mockMvc.perform(get("/v1/portal/test").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
@@ -78,7 +78,7 @@ class SecurityConfigChannelTest {
     @DisplayName("INTERNAL_채널_REVIEWER_토큰으로_내부_관리_API_접근_허용")
     void internalChannelAllowedOnManage() throws Exception {
         // given: INTERNAL 채널 REVIEWER
-        String token = JwtTestSupport.token(secret, "rev-2", "REVIEWER", "INTERNAL", issuer, 60);
+        String token = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         // when/then: 내부 관리 API 200 유지
         mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
@@ -88,7 +88,7 @@ class SecurityConfigChannelTest {
     @DisplayName("channel_클레임_없는_토큰은_INTERNAL_간주되어_내부_API_접근_허용")
     void noChannelClaimTreatedAsInternal() throws Exception {
         // given: channel 클레임 없는 REVIEWER 토큰 (기존 내부 사용자 토큰 호환)
-        String token = JwtTestSupport.token(secret, "legacy-1", "REVIEWER", null, issuer, 60);
+        String token = JwtTestSupport.token(secret, "1", "REVIEWER", null, issuer, 60);
         // when/then: fail-closed 정책상 무클레임=INTERNAL → 내부 API 접근 허용
         mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());

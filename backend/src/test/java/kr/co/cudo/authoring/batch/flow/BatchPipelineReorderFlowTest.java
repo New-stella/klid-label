@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.batch.runner.AsyncBatchRunner;
 import kr.co.cudo.authoring.batch.runner.AsyncDeidentifyRunner;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.batch.step.DeidentResult;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
@@ -175,9 +176,15 @@ class BatchPipelineReorderFlowTest {
                 markingLoad, vlmAdapter, frameAdapter, yoloAdapter, sam2Adapter, interpAdapter));
     }
 
-    /** pre-marking 단계 어댑터 — DeidentifyStep.run(raw) 호출(=raw.markDeidentified('Y')) 재현. */
+    /**
+     * pre-marking 단계 어댑터 — 실제 {@link DeidentifyStep#execute} 동작 재현:
+     * run(raw) 호출 후 완료 여부(completed)를 컨텍스트에 실어 호출자의 조건부 전이를 구동한다.
+     */
     private BatchStep deidStepAdapter() {
-        return simpleAdapter(BatchStage.DEIDENTIFY, ctx -> deidentifyStep.run(ctx.getRaw()));
+        return simpleAdapter(BatchStage.DEIDENTIFY, ctx -> {
+            DeidentResult result = deidentifyStep.run(ctx.getRaw());
+            ctx.markDeidentCompleted(result.completed());
+        });
     }
 
     private interface Body {
@@ -235,7 +242,7 @@ class BatchPipelineReorderFlowTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         doAnswer(inv -> {
             ((LsDataRaw) inv.getArgument(0)).markDeidentified("Y");
-            return "deid/path.mp4";
+            return DeidentResult.completed("deid/path.mp4");
         }).when(deidentifyStep).run(raw);
 
         LsRawDataStatus stts = LsRawDataStatus.initial(rawSn);
@@ -302,7 +309,7 @@ class BatchPipelineReorderFlowTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         doAnswer(inv -> {
             ((LsDataRaw) inv.getArgument(0)).markDeidentified("Y");
-            return "deid/path.mp4";
+            return DeidentResult.completed("deid/path.mp4");
         }).when(deidentifyStep).run(raw);
 
         LsRawDataStatus stts = LsRawDataStatus.initial(rawSn); // 작업 상태: PENDING 시작

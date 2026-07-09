@@ -10,8 +10,9 @@ import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.JwtKeyResolver;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.user.entity.LsUserRole;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
-import kr.co.cudo.authoring.user.repository.MngAcctUserAuthrtRepository;
+import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,11 +28,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -49,7 +48,8 @@ class RoleClaimServiceTest {
     private RoleClaimService service;
     private SecretKey key;
     private UserRepository userRepository;
-    private MngAcctUserAuthrtRepository authrtRepository;
+    private LsUserRoleRepository lsUserRoleRepository;
+    private kr.co.cudo.authoring.common.security.UserRoleResolver userRoleResolver;
     private String adminPlaintext;
 
     @BeforeEach
@@ -62,7 +62,8 @@ class RoleClaimServiceTest {
         JwtKeyResolver resolver = () -> key;
 
         userRepository = mock(UserRepository.class);
-        authrtRepository = mock(MngAcctUserAuthrtRepository.class);
+        lsUserRoleRepository = mock(LsUserRoleRepository.class);
+        userRoleResolver = mock(kr.co.cudo.authoring.common.security.UserRoleResolver.class);
 
         // 테스트 사용자(userNo=1001)는 무권한 상태로 존재.
         MngAcctUser user = mock(MngAcctUser.class);
@@ -70,8 +71,9 @@ class RoleClaimServiceTest {
         when(user.getUserNm()).thenReturn("테스트사용자");
         when(userRepository.findByUserNo(1001L)).thenReturn(Optional.of(user));
 
-        doNothing().when(authrtRepository).deleteByUserNo(anyLong());
-        doNothing().when(authrtRepository).insertAuthrt(anyLong(), anyString(), any());
+        // 기본 — LS 역할 미보유(미배정) 상태. upsert 는 1행 영향.
+        when(lsUserRoleRepository.findByUserNo(anyLong())).thenReturn(Optional.empty());
+        when(lsUserRoleRepository.upsertRole(anyLong(), anyString())).thenReturn(1);
 
         // 테스트 admin 평문 — SecureRandom 으로 동적 생성. 해시만 서비스에 주입.
         byte[] pwBytes = new byte[24];
@@ -79,11 +81,15 @@ class RoleClaimServiceTest {
         adminPlaintext = Base64.getUrlEncoder().withoutPadding().encodeToString(pwBytes);
         String bcryptHash = new BCryptPasswordEncoder(12).encode(adminPlaintext);
 
-        service = new RoleClaimService(userRepository, authrtRepository, resolver, bcryptHash, "klid-auth");
+        service = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver, bcryptHash, "klid-auth");
     }
 
     private TokenClaims actor(String sub, Role role) {
         return new TokenClaims(sub, role, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+    }
+
+    private TokenClaims portalActor(String sub, Role role) {
+        return new TokenClaims(sub, role, Channel.PORTAL, Instant.now().plusSeconds(3600));
     }
 
     private String wrongPassword() {
@@ -94,7 +100,7 @@ class RoleClaimServiceTest {
     }
 
     @Test
-    @DisplayName("권한_없는_사용자가_정확한_admin_password로_WORKER_부여_성공_+_새토큰_반환")
+    @DisplayName("role_claim_자가부여시_LS에_역할이_기록된다_WORKER_+_새토큰_반환")
     void claimWorkerSuccess() {
         RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
 
@@ -112,8 +118,19 @@ class RoleClaimServiceTest {
         assertThat(claims.get("channel", String.class)).isEqualTo("INTERNAL");
         assertThat(claims.getIssuer()).isEqualTo("klid-auth");
 
-        verify(authrtRepository, times(1)).deleteByUserNo(1001L);
-        verify(authrtRepository, times(1)).insertAuthrt(eq(1001L), eq("WORKER"), any());
+        // LS_USER_ROLE 원자 upsert 로만 기록 (MNG_ACCT_USER_AUTHRT 쓰기 0건).
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(1001L), eq("WORKER"));
+    }
+
+    @Test
+    @DisplayName("성공시_evict_호출_verify")
+    void claimSuccessEvictsCache() {
+        // 자가부여 성공 시 인가 역할 캐시 무효화 (no-tx: 즉시 evict 분기)
+        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
+
+        service.claim(req, actor("1001", null));
+
+        verify(userRoleResolver).evict(1001L);
     }
 
     @Test
@@ -127,7 +144,22 @@ class RoleClaimServiceTest {
         Claims claims = Jwts.parser().verifyWith(key).build()
                 .parseSignedClaims(res.accessToken()).getPayload();
         assertThat(claims.get("role", String.class)).isEqualTo("REVIEWER");
-        verify(authrtRepository).insertAuthrt(eq(1001L), eq("REVIEWER"), any());
+        verify(lsUserRoleRepository).upsertRole(eq(1001L), eq("REVIEWER"));
+    }
+
+    @Test
+    @DisplayName("role_claim_이미_LS역할보유시_409_CONFLICT_JWT_role_없어도")
+    void alreadyHasLsRoleReturns409() {
+        // JWT role 은 비어있지만(stale token) LS_USER_ROLE 에 이미 역할 존재.
+        when(lsUserRoleRepository.findByUserNo(1001L))
+                .thenReturn(Optional.of(LsUserRole.of(1001L, "WORKER")));
+        RoleClaimRequest req = new RoleClaimRequest(Role.REVIEWER, adminPlaintext);
+
+        assertThatThrownBy(() -> service.claim(req, actor("1001", null)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+
+        verify(lsUserRoleRepository, times(0)).upsertRole(anyLong(), anyString());
     }
 
     @Test
@@ -139,8 +171,7 @@ class RoleClaimServiceTest {
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED));
 
-        verify(authrtRepository, times(0)).deleteByUserNo(anyLong());
-        verify(authrtRepository, times(0)).insertAuthrt(anyLong(), anyString(), any());
+        verify(lsUserRoleRepository, times(0)).upsertRole(anyLong(), anyString());
     }
 
     @Test
@@ -161,6 +192,20 @@ class RoleClaimServiceTest {
         assertThatThrownBy(() -> service.claim(req, actor("1001", Role.REVIEWER)))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    @DisplayName("포털채널_actor는_role없어도_409_CONFLICT_교차채널_상승차단")
+    void portalChannelActorReturns409() {
+        // H-1 — PORTAL_USER(channel=PORTAL) actor 가 role==null 이어도 INTERNAL WORKER/REVIEWER
+        // 자가부여를 시도하면 fail-closed 화이트리스트로 거절한다 (교차채널 권한상승 차단).
+        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
+
+        assertThatThrownBy(() -> service.claim(req, portalActor("1001", null)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+
+        verify(lsUserRoleRepository, times(0)).upsertRole(anyLong(), anyString());
     }
 
     @Test
@@ -234,7 +279,7 @@ class RoleClaimServiceTest {
     @DisplayName("BCrypt_해시가_빈문자열이면_항상_401")
     void emptyAdminHashAlwaysReturns401() {
         JwtKeyResolver resolver = () -> key;
-        RoleClaimService empty = new RoleClaimService(userRepository, authrtRepository, resolver, "", "klid-auth");
+        RoleClaimService empty = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver, "", "klid-auth");
         RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
 
         assertThatThrownBy(() -> empty.claim(req, actor("1001", null)))
@@ -247,7 +292,7 @@ class RoleClaimServiceTest {
     void rejectNonBcryptHashAtBoot() {
         JwtKeyResolver resolver = () -> key;
         assertThatThrownBy(() ->
-                new RoleClaimService(userRepository, authrtRepository, resolver, "plaintext-not-bcrypt", "klid-auth")
+                new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver, "plaintext-not-bcrypt", "klid-auth")
         ).isInstanceOf(IllegalStateException.class);
     }
 

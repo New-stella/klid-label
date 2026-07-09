@@ -5,10 +5,12 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.entity.MngResourceCctv;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
@@ -34,6 +36,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -53,6 +57,7 @@ class VideoListAssignmentBatchLookupTest {
     @Mock private LsRawDataStatusRepository rawDataStatusRepository;
     @Mock private LsTaskAssignmentRepository taskAssignmentRepository;
     @Mock private UserRepository userRepository;
+    @Mock private LsDeidentProcLogRepository deidentProcLogRepository;
 
     @InjectMocks private VideoQueryService videoQueryService;
 
@@ -71,11 +76,70 @@ class VideoListAssignmentBatchLookupTest {
         return a;
     }
 
+    private LsDataRaw videoWithCctv(long rawSn, String cctvId) {
+        LsDataRaw e = LsDataRaw.createFromIngest(
+                "CLIP-" + rawSn, cctvId, "EVT-FIRE", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/c" + rawSn + ".mp4",
+                LocalDateTime.now(), 30);
+        org.springframework.test.util.ReflectionTestUtils.setField(e, "rawSn", rawSn);
+        return e;
+    }
+
     private MngAcctUser user(long userNo, String name) {
         MngAcctUser u = org.mockito.Mockito.mock(MngAcctUser.class);
         given(u.getUserNo()).willReturn(userNo);
         given(u.getUserNm()).willReturn(name);
         return u;
+    }
+
+    private MngResourceCctv cctv(String id, String name) {
+        MngResourceCctv c = mock(MngResourceCctv.class);
+        given(c.getVmsCctvId()).willReturn(id);
+        given(c.getCctvNm()).willReturn(name);
+        return c;
+    }
+
+    @Test
+    @DisplayName("영상목록_조회는_frameCount와_cctv명_조회에서_N+1이_발생하지_않는다")
+    void noNPlusOneForFrameCountAndCctv() {
+        // given: 영상 5건 — 각기 다른 CCTV
+        int size = 5;
+        List<LsDataRaw> rows = IntStream.rangeClosed(1, size)
+                .mapToObj(i -> videoWithCctv(i, "CCTV-00" + i)).toList();
+        Pageable pageable = PageRequest.of(0, size);
+        Page<LsDataRaw> page = new PageImpl<>(rows, pageable, size);
+        given(videoRepository.findAll(any(Pageable.class))).willReturn(page);
+
+        // frameCount batch: rawSn i → count i*10 (리스트 선생성 — 중첩 stubbing 회피)
+        List<Object[]> frameCounts = IntStream.rangeClosed(1, size)
+                .mapToObj(i -> new Object[]{(long) i, (long) (i * 10)})
+                .toList();
+        given(srcRepository.countByRawSnsGrouped(anyCollection())).willReturn(frameCounts);
+        // cctv batch: 각 CCTV 명 (mock 빌드를 given 밖에서 수행)
+        List<MngResourceCctv> cctvs = IntStream.rangeClosed(1, size)
+                .mapToObj(i -> cctv("CCTV-00" + i, "CCTV명" + i))
+                .toList();
+        given(cctvRepository.findAllById(anyCollection())).willReturn(cctvs);
+
+        given(videoRepository.findLatestExportsByRawSns(anyCollection())).willReturn(List.of());
+        given(rawDataStatusRepository.findByRawDataIdIn(anyCollection())).willReturn(List.of());
+        given(taskAssignmentRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(anyString(), anyCollection()))
+                .willReturn(List.of());
+
+        // when
+        Page<VideoSummaryResponse> result = videoQueryService.list(pageable, null, null);
+
+        // then: frameCount/cctv 모두 batch 1회, 건별 조회 금지
+        verify(srcRepository, times(1)).countByRawSnsGrouped(anyCollection());
+        verify(srcRepository, never()).countByRawSn(anyLong());
+        verify(cctvRepository, times(1)).findAllById(anyCollection());
+        verify(cctvRepository, never()).findById(anyString());
+
+        // 값 보존: frameCount 매핑, cctvName 매핑
+        assertThat(result.getContent().get(0).frameCount()).isEqualTo(10L);
+        assertThat(result.getContent().get(0).cctvName()).isEqualTo("CCTV명1");
+        assertThat(result.getContent().get(4).frameCount()).isEqualTo(50L);
+        assertThat(result.getContent().get(4).cctvName()).isEqualTo("CCTV명5");
     }
 
     @Test

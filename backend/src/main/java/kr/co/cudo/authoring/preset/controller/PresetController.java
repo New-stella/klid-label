@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -48,7 +47,9 @@ import java.util.List;
  *   <li>RequestBody 는 DTO ({@link PresetRequest}) 로 강제 — Mass Assignment 방어.</li>
  *   <li>입력 검증: 이름 1~64자, description 최대 500자, labelCodeOptions/labelCodes 둘 중 하나 1~20개 필수
  *       (각 코드 1~32자, 둘 다 false 인 옵션은 거부),
- *       eventTypeCd 는 SoT 6종({@code ^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$}) 또는 null/빈 문자열.</li>
+ *       eventTypeCd 는 관제 유효 categoryKey(9종, {@code EventTypeService.validCategoryKeys()}) 또는
+ *       null/빈 문자열. categoryKey 는 동적 집합이라 @Pattern 정적 검증이 불가하므로 PresetService 가
+ *       서비스 호출로 동적 검증한다(미유효 시 400 INVALID_INPUT).</li>
  *   <li>JSON unknown 필드는 ignore — 클라이언트 호환성.</li>
  * </ul>
  *
@@ -187,9 +188,7 @@ public class PresetController {
             List<@Valid LabelCodeOptionDto> labelCodeOptions,
             @Size(max = MAX_LABEL_CODES, message = "라벨 코드는 최대 " + MAX_LABEL_CODES + "개까지 허용합니다")
             List<@NotBlank @Size(max = 32) String> labelCodes,
-            @Pattern(regexp = "^$|^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$",
-                    message = "지원하지 않는 이벤트 타입입니다")
-            @Size(max = 32)
+            @Size(max = 32, message = "이벤트 타입 코드는 32자 이하여야 합니다")
             String eventTypeCd
     ) {
         /**

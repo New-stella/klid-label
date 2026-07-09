@@ -75,6 +75,9 @@ class YoloResponse(BaseModel):
         default=None,
         description='mock 응답인 경우 사유. "env_mock" | "weights_missing" | "load_failed"',
     )
+    success: bool = Field(default=True, description="성공 여부")
+    message: str = Field(default="성공", description="응답 메시지")
+    error_code: str | None = Field(default=None, description="에러 코드(성공 시 null)")
 
 
 class YoloTrackRequest(BaseModel):
@@ -117,6 +120,9 @@ class YoloTrackResponse(BaseModel):
         default=None,
         description='mock 응답인 경우 사유. "env_mock" | "weights_missing" | "load_failed"',
     )
+    success: bool = Field(default=True, description="성공 여부")
+    message: str = Field(default="성공", description="응답 메시지")
+    error_code: str | None = Field(default=None, description="에러 코드(성공 시 null)")
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -141,6 +147,9 @@ class Sam2SegmentResponse(BaseModel):
     mock: bool = Field(default=False, description="mock 응답이면 True")
     source: str = Field(default="model", description='"mock" | "model"')
     mock_reason: str | None = Field(default=None)
+    success: bool = Field(default=True, description="성공 여부")
+    message: str = Field(default="성공", description="응답 메시지")
+    error_code: str | None = Field(default=None, description="에러 코드(성공 시 null)")
 
 
 class Sam2TrackRequest(BaseModel):

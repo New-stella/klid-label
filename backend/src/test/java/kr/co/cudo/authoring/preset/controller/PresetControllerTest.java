@@ -195,6 +195,60 @@ class PresetControllerTest {
     }
 
     @Test
+    @DisplayName("프리셋_저장시_유효_categoryKey면_201")
+    void createWithValidCategoryKeySucceeds() throws Exception {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("name", "침수 프리셋 " + System.nanoTime());
+        body.put("description", "phase4a");
+        ArrayNode opts = body.putArray("labelCodeOptions");
+        opts.add(option("PERSON", true, true));
+        body.put("eventTypeCd", "010001");  // 관제 유효 categoryKey(침수)
+
+        mockMvc.perform(post("/v1/manage/presets")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.eventTypeCd").value("010001"));
+    }
+
+    @Test
+    @DisplayName("프리셋_저장시_구_EVT코드면_400_INVALID_INPUT")
+    void createWithLegacyEvtCodeReturns400() throws Exception {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("name", "구코드 거부 " + System.nanoTime());
+        body.put("description", "");
+        ArrayNode opts = body.putArray("labelCodeOptions");
+        opts.add(option("PERSON", true, true));
+        body.put("eventTypeCd", "EVT_FALL");  // 폐기된 EVT_* 코드
+
+        mockMvc.perform(post("/v1/manage/presets")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("프리셋_저장시_미등록_categoryKey면_400_INVALID_INPUT")
+    void createWithUnknownCategoryKeyReturns400() throws Exception {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("name", "미등록 거부 " + System.nanoTime());
+        body.put("description", "");
+        ArrayNode opts = body.putArray("labelCodeOptions");
+        opts.add(option("PERSON", true, true));
+        body.put("eventTypeCd", "999999");  // 마스터에 없는 categoryKey
+
+        mockMvc.perform(post("/v1/manage/presets")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
     @DisplayName("PresetController_POST_옵션_code_가_빈_문자열이면_400_INVALID_INPUT")
     void createWithBlankCodeReturns400() throws Exception {
         ObjectNode body = objectMapper.createObjectNode();

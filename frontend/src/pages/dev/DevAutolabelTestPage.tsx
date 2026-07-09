@@ -7,15 +7,14 @@ import { Input } from '@/components/common/Input';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Radio } from '@/components/common/Radio';
 import { Spinner } from '@/components/common/Spinner';
-import { EVENT_TYPES } from '@/constants/eventTypes';
 import {
   extractBeMessage,
   useAutolabelTest,
 } from '@/features/dev/hooks/useAutolabelTest';
 import { useAutolabelStatus } from '@/features/dev/hooks/useAutolabelStatus';
+import { useEventTypes } from '@/features/eventType/hooks';
 import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
 import {
-  EventTypeCd,
   PrvcType,
   type AutolabelTestMeta,
   type AutolabelTestResult,
@@ -24,13 +23,6 @@ import {
 // 허용 확장자 (BE 와 동일) — `accept` 속성으로 1차 가드. BE 가 본 검증 수행.
 const ACCEPT_MIME =
   'video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi';
-
-/** SFR 6종 이벤트 옵션 (코드 → 한글). SoT `EVENT_TYPES` 에서 도출. */
-const EVENT_OPTIONS: ReadonlyArray<{ value: EventTypeCd; label: string }> =
-  EVENT_TYPES.map((e) => ({
-    value: e.code,
-    label: `${e.label} (${e.code})`,
-  }));
 
 const PRVC_OPTIONS: ReadonlyArray<{ value: PrvcType; label: string; hint: string }> = [
   {
@@ -73,7 +65,12 @@ function defaultVmsClipId(): string {
 interface FormState {
   vmsClipId: string;
   cctvId: string;
-  eventTypeCd: EventTypeCd;
+  /**
+   * 관제 이벤트 카테고리 키(EVNT_CLS_CD+EVNT_CTGRY_CD, 예 "020002"). select 의 value 다.
+   * 제출 시 이 카테고리의 대표 EV-코드(memberCodes[0])로 변환해 eventTypeCd 로 전송한다.
+   * 옵션 로드 전에는 빈 문자열이며 로드 완료 시 첫 카테고리로 초기화된다.
+   */
+  categoryKey: string;
   localGovCd: string;
   prvcTypeCd: PrvcType;
   /** datetime-local 형식 (`YYYY-MM-DDTHH:mm`) — 제출 시 ISO 로 변환. */
@@ -84,7 +81,7 @@ function initialForm(): FormState {
   return {
     vmsClipId: defaultVmsClipId(),
     cctvId: 'CCTV-001',
-    eventTypeCd: EventTypeCd.EVT_FALL,
+    categoryKey: '',
     localGovCd: '11680',
     prvcTypeCd: PrvcType.ANONY,
     capturedAtLocal: nowLocalDateTime(),
@@ -110,6 +107,26 @@ export function DevAutolabelTestPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<AutolabelTestResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // 관제 이벤트 타입 카테고리 옵션(9종). 사용자는 카테고리를 고르고, 제출 시 대표 EV-코드를 보낸다.
+  const eventTypesQuery = useEventTypes();
+  const eventOptions = useMemo(
+    () => eventTypesQuery.data ?? [],
+    [eventTypesQuery.data],
+  );
+
+  // 옵션 로드 완료 시 첫 카테고리로 기본 선택 (선택 전 빈 값 → 제출 불가 가드).
+  useEffect(() => {
+    if (eventOptions.length > 0 && !form.categoryKey) {
+      setForm((s) => ({ ...s, categoryKey: eventOptions[0].categoryKey }));
+    }
+  }, [eventOptions, form.categoryKey]);
+
+  // 선택된 카테고리의 대표 EV-코드 — 제출 payload 의 eventTypeCd.
+  const selectedEventCode = useMemo(() => {
+    const opt = eventOptions.find((o) => o.categoryKey === form.categoryKey);
+    return opt?.memberCodes[0] ?? '';
+  }, [eventOptions, form.categoryKey]);
 
   const mutation = useAutolabelTest({
     onSuccess: (data) => {
@@ -152,11 +169,12 @@ export function DevAutolabelTestPage() {
     if (!file) return false;
     if (!form.vmsClipId.trim()) return false;
     if (!form.cctvId.trim()) return false;
-    if (!form.eventTypeCd) return false;
+    // 카테고리 선택 + 대표 EV-코드 해석 가능해야 제출 허용.
+    if (!form.categoryKey || !selectedEventCode) return false;
     if (!form.localGovCd.trim()) return false;
     if (!form.capturedAtLocal) return false;
     return true;
-  }, [file, form]);
+  }, [file, form, selectedEventCode]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const next = e.target.files?.[0] ?? null;
@@ -174,7 +192,8 @@ export function DevAutolabelTestPage() {
     const meta: AutolabelTestMeta = {
       vmsClipId: form.vmsClipId.trim(),
       cctvId: form.cctvId.trim(),
-      eventTypeCd: form.eventTypeCd,
+      // 카테고리 → 대표 EV-코드 변환 후 전송 (관제 영상과 동일한 상세 코드).
+      eventTypeCd: selectedEventCode,
       localGovCd: form.localGovCd.trim(),
       prvcTypeCd: form.prvcTypeCd,
       capturedAt: toIsoInstant(form.capturedAtLocal),
@@ -264,26 +283,30 @@ export function DevAutolabelTestPage() {
                 htmlFor="autolabel-test-event"
                 className="text-body font-medium text-gray-700"
               >
-                eventTypeCd <span className="text-danger">*</span>
+                이벤트 타입 <span className="text-danger">*</span>
               </label>
               <select
                 id="autolabel-test-event"
-                value={form.eventTypeCd}
+                value={form.categoryKey}
                 onChange={(e) =>
-                  setForm((s) => ({
-                    ...s,
-                    eventTypeCd: e.target.value as EventTypeCd,
-                  }))
+                  setForm((s) => ({ ...s, categoryKey: e.target.value }))
                 }
-                disabled={mutation.isPending}
+                disabled={mutation.isPending || eventOptions.length === 0}
                 className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               >
-                {EVENT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
+                {eventOptions.length === 0 && (
+                  <option value="">이벤트 타입 로딩 중…</option>
+                )}
+                {eventOptions.map((o) => (
+                  <option key={o.categoryKey} value={o.categoryKey}>
                     {o.label}
                   </option>
                 ))}
               </select>
+              <span className="text-sub text-gray-500">
+                관제 카테고리 선택 → 대표 EV-코드
+                {selectedEventCode ? ` (${selectedEventCode})` : ''} 전송
+              </span>
             </div>
             <Input
               label="localGovCd"

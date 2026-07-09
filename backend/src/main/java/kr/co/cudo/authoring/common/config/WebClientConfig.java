@@ -98,7 +98,7 @@ public class WebClientConfig {
      */
     @Bean(name = "augmentCallbackWebClient")
     public WebClient augmentCallbackWebClient(
-            @Value("${authoring.webhook.callback-base-url:http://localhost:8080/api}") String baseUrl) {
+            @Value(WebhookCallbackDefaults.VALUE_EXPRESSION) String baseUrl) {
         reactor.netty.http.client.HttpClient httpClient = reactor.netty.http.client.HttpClient.create()
                 .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
                 .responseTimeout(java.time.Duration.ofSeconds(10));

@@ -20,11 +20,11 @@ spring:
 # 운영(prd) 환경에서는 webhook HMAC 시크릿 환경변수 미설정 시 부팅 차단.
 # Spring 의 `${VAR:?msg}` 구문은 placeholder 미설정 시 BeanCreationException 으로 부팅 실패.
 # 빈 문자열 fallback(application.yml) 을 덮어쓰기 위해 prd 프로파일에서 별도 명시.
-# (UC018 — 비식별은 KPST 폴링으로 단일화되어 deidentify 콜백 시크릿 키를 제거함. VLM·증강만 유지.)
+# (UC018 — 비식별은 KPST 폴링으로 단일화되어 deidentify 콜백 시크릿 키를 제거함.)
+# (VLM describe 콜백은 벤더 v2.0.1 무서명 규격 — HMAC 제거, request_id 발급 게이트로 대체. 증강만 유지.)
 webhook:
   hmac:
     secret:
-      vlm: ${WEBHOOK_HMAC_SECRET_VLM:?WEBHOOK_HMAC_SECRET_VLM 환경변수가 필수입니다 (prd)}
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:?WEBHOOK_HMAC_SECRET_AUGMENT 환경변수가 필수입니다 (prd)}
 
 # 운영(prd) 환경 — API 문서/Swagger UI 노출 차단 (보안: 공격 표면 축소).

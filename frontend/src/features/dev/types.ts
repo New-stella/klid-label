@@ -3,11 +3,6 @@
 // BE: kr.co.cudo.authoring.dev.dto.AutolabelTestRequest / AutolabelTestResponse 와 1:1 미러.
 // 운영(prd) 환경에서는 endpoint 가 부재하므로 본 타입은 dev/local/stg 채널에서만 사용된다.
 
-import {
-  EVENT_TYPES,
-  type EventTypeCode,
-} from '@/constants/eventTypes';
-
 /** 개인정보 유형 — LsDataRaw.PRVC_TYPE_CD 와 매핑. */
 export const PrvcType = {
   ANONY: 'ANONY',
@@ -17,28 +12,14 @@ export const PrvcType = {
 export type PrvcType = (typeof PrvcType)[keyof typeof PrvcType];
 
 /**
- * 이벤트 타입 코드 — SoT 6 종.
- *
- * BE 검증 패턴 `^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$` 를 만족하는 값만 허용.
- * FE 입력 화면에서는 화이트리스트 select 로 노출하여 임의 문자열 주입을 1차 차단한다
- * (XSS·SQL Injection 방어 — BE 가 본 검증을 수행하므로 FE 는 UX 가드 용도).
- *
- * SoT: {@code @/constants/eventTypes} 의 {@code EVENT_TYPES}.
- */
-export const EventTypeCd = Object.freeze(
-  EVENT_TYPES.reduce<Record<EventTypeCode, EventTypeCode>>((acc, e) => {
-    acc[e.code] = e.code;
-    return acc;
-  }, {} as Record<EventTypeCode, EventTypeCode>),
-);
-export type EventTypeCd = EventTypeCode;
-
-/**
  * 오토라벨 테스트 메타데이터 (dev 업로드 단순화 — 운영 시나리오 1:1 고정 플로우).
  *
  * BE record `AutolabelTestRequest` 와 동일한 필드 + 검증.
  * - vmsClipId / cctvId: 영문/숫자/-/_ 1~64자
  * - localGovCd: 숫자 1~10자리
+ * - eventTypeCd: 관제 마스터 상세 EV-코드 (예 `EV02000201`). 화면 select 는 카테고리(9종)를
+ *   고르게 하고 제출 시 그 카테고리의 대표 EV-코드(`memberCodes[0]`)를 전송한다 — 테스트 영상이
+ *   실제 영상처럼 EV-코드를 갖도록 해 오토라벨 프리셋 매칭(EV-코드→categoryKey→프리셋) 흐름 검증.
  * - capturedAt: ISO-8601 (`Date.toISOString()` 형식)
  *
  * dev 업로드는 업로드 → 비식별(무조건) → MARKING_READY 정지의 고정 플로우라 단계 토글
@@ -49,7 +30,8 @@ export type EventTypeCd = EventTypeCode;
 export interface AutolabelTestMeta {
   vmsClipId: string;
   cctvId: string;
-  eventTypeCd: EventTypeCd | string;
+  /** 관제 상세 EV-코드 (EV + 숫자 8자리). */
+  eventTypeCd: string;
   localGovCd: string;
   prvcTypeCd: PrvcType;
   /** ISO-8601 Instant (예: `2026-05-12T10:00:00Z`) */

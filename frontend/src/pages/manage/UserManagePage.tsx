@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 
 import { Button } from '@/components/common/Button';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DataTable, type DataTableColumn } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Input } from '@/components/common/Input';
@@ -21,13 +20,14 @@ import { useUiStore } from '@/stores/useUiStore';
 /**
  * SCR-MANAGE-USERS 사용자 관리 (V1.x mock 시각 정합).
  *
- * 진행 범위: 조회 + 검색/필터 + 활성/비활성 토글 + 역할/상태 수정 (PATCH /v1/users/{userNo}).
+ * 진행 범위: 조회 + 검색/필터 + 역할 수정 (PATCH /v1/users/{userNo}).
+ * 활성/비활성(useYn)은 관제서버 책임으로 이관 — 저작도구는 상태를 읽기(배지)로만 표시한다.
  *
  * 보안:
  * - REVIEWER만 진입 (RoleGuard) / BE @PreAuthorize("hasRole('REVIEWER')") 이중 방어
  * - 검색어는 axios params로만 (XSS/Injection 방지)
- * - useYn/role 은 TypeScript 리터럴 유니온 + BE @Pattern 화이트리스트로 이중 검증
- * - 상태 변경/역할 변경은 ConfirmDialog 또는 Modal 한 단계 거쳐 실수 방지
+ * - role 은 TypeScript 리터럴 유니온 + BE @Pattern 화이트리스트로 이중 검증
+ * - 역할 변경은 Modal 한 단계 거쳐 실수 방지
  */
 const ROLE_LABEL: Record<Role, string> = {
   [Role.REVIEWER]: '검수자',
@@ -60,14 +60,12 @@ export function UserManagePage() {
   const [keywordInput, setKeywordInput] = useState(searchParams.get('keyword') ?? '');
   const [roleFilter, setRoleFilter] = useState<'' | Role>('');
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('');
-  const [pendingToggle, setPendingToggle] = useState<User | null>(null);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editRole, setEditRole] = useState<Role>(Role.WORKER);
-  const [editActive, setEditActive] = useState<boolean>(true);
   const pushToast = useUiStore((s) => s.pushToast);
   const queryClient = useQueryClient();
 
-  // PATCH /v1/users/{userNo} — 활성/비활성 + 역할 변경 통합 mutation.
+  // PATCH /v1/users/{userNo} — 역할 변경 mutation.
   const updateMutation = useMutation({
     mutationFn: ({ userNo, payload }: { userNo: number; payload: UserUpdatePayload }) =>
       updateUser(userNo, payload),
@@ -110,19 +108,9 @@ export function UserManagePage() {
     updateParams({ keyword: keywordInput.trim() || undefined, page: 0 });
   };
 
-  const handleConfirmToggle = () => {
-    if (!pendingToggle) return;
-    const willActivate = !pendingToggle.active;
-    updateMutation.mutate(
-      { userNo: pendingToggle.id, payload: { useYn: willActivate ? 'Y' : 'N' } },
-      { onSettled: () => setPendingToggle(null) },
-    );
-  };
-
   const handleEditOpen = (u: User) => {
     setEditUser(u);
     setEditRole(u.role);
-    setEditActive(u.active);
   };
 
   const handleEditSave = () => {
@@ -132,10 +120,7 @@ export function UserManagePage() {
     if (editRole !== editUser.role) {
       payload.role = editRole as UserUpdatePayload['role'];
     }
-    if (editActive !== editUser.active) {
-      payload.useYn = editActive ? 'Y' : 'N';
-    }
-    if (!payload.role && !payload.useYn) {
+    if (!payload.role) {
       // 변경 사항 없음 — 모달만 닫는다.
       setEditUser(null);
       return;
@@ -235,21 +220,6 @@ export function UserManagePage() {
             }}
           >
             수정
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPendingToggle(u);
-            }}
-            className={
-              u.active
-                ? 'text-red-500 hover:bg-red-50 hover:text-red-700'
-                : 'text-green-600 hover:bg-green-50'
-            }
-          >
-            {u.active ? '비활성화' : '활성화'}
           </Button>
         </div>
       ),
@@ -361,20 +331,6 @@ export function UserManagePage() {
         rowKey={(u) => u.id ?? u.loginId ?? '_'}
         onPageChange={(p) => updateParams({ page: p })}
       />
-      <ConfirmDialog
-        open={!!pendingToggle}
-        title={pendingToggle?.active ? '사용자 비활성화' : '사용자 활성화'}
-        description={
-          pendingToggle
-            ? `${pendingToggle.name}(${pendingToggle.loginId})을(를) ${pendingToggle.active ? '비활성화' : '활성화'}하시겠습니까?`
-            : ''
-        }
-        variant={pendingToggle?.active ? 'danger' : 'primary'}
-        confirmLabel={pendingToggle?.active ? '비활성화' : '활성화'}
-        loading={updateMutation.isPending}
-        onConfirm={handleConfirmToggle}
-        onCancel={() => setPendingToggle(null)}
-      />
       <Modal
         open={!!editUser}
         onClose={() => setEditUser(null)}
@@ -419,23 +375,6 @@ export function UserManagePage() {
               <option value={Role.REVIEWER}>검수자</option>
               <option value={Role.WORKER}>작업자</option>
               <option value={Role.PORTAL_USER}>포털</option>
-            </select>
-          </div>
-          <div>
-            <label
-              htmlFor="edit-user-status"
-              className="mb-1 block text-sub font-medium text-gray-700"
-            >
-              상태
-            </label>
-            <select
-              id="edit-user-status"
-              value={editActive ? 'active' : 'inactive'}
-              onChange={(e) => setEditActive(e.target.value === 'active')}
-              className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-body focus-visible:ring-2 focus-visible:ring-primary-500"
-            >
-              <option value="active">활성</option>
-              <option value="inactive">비활성</option>
             </select>
           </div>
         </div>

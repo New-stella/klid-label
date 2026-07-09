@@ -45,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>요청 측(LS_DATA_AUG PENDING + ledger.recordIssued) 사전조건을 갖춘 뒤,
  * {@link HmacSigner} 로 서명한 {@link AugmentResultRequest}(SUCCESS) 를 실제 콜백 엔드포인트
- * {@code POST /v1/augments/result}(context-path /api 정합) 로 전송해 필터 → 컨트롤러 → handle
+ * {@code POST /v1/aug/callback}(context-path /api 정합) 로 전송해 필터 → 컨트롤러 → handle
  * 경로 전체가 신규 영상을 생성하는지 단언한다.
  *
  * <h3>검증 (HIGH 폐쇄)</h3>
@@ -159,7 +159,7 @@ class AugmentCallbackFlowIntegrationTest {
     void signedCallbackCreatesPendingChildVideo() throws Exception {
         Seed s = seedOriginWithAug("NEW", "WINTER", "AUGCB-K-NEW", "AUGCB-J-NEW");
         AugmentResultRequest payload = new AugmentResultRequest(
-                "AUGCB-K-NEW", "AUGCB-J-NEW", "SUCCESS", s.aug().getDataAugSn(), "WINTER",
+                s.aug().getDataAugSn(), "AUGCB-J-NEW", "WINTER", "SUCCESS",
                 "/storage/augment/AUGCB-NEW.mp4");
         byte[] body = bodyBytes(payload);
         String ts = Long.toString(System.currentTimeMillis());
@@ -185,7 +185,7 @@ class AugmentCallbackFlowIntegrationTest {
     void framesAndLabelsCopiedWithCoordinates() throws Exception {
         Seed s = seedOriginWithAug("COPY", "NIGHT", "AUGCB-K-COPY", "AUGCB-J-COPY");
         AugmentResultRequest payload = new AugmentResultRequest(
-                "AUGCB-K-COPY", "AUGCB-J-COPY", "SUCCESS", s.aug().getDataAugSn(), "NIGHT",
+                s.aug().getDataAugSn(), "AUGCB-J-COPY", "NIGHT", "SUCCESS",
                 "/storage/augment/AUGCB-COPY.mp4");
         byte[] body = bodyBytes(payload);
         String ts = Long.toString(System.currentTimeMillis());
@@ -222,7 +222,7 @@ class AugmentCallbackFlowIntegrationTest {
     void childVideoVisibleInListAsPending() throws Exception {
         Seed s = seedOriginWithAug("LIST", "RAIN", "AUGCB-K-LIST", "AUGCB-J-LIST");
         AugmentResultRequest payload = new AugmentResultRequest(
-                "AUGCB-K-LIST", "AUGCB-J-LIST", "SUCCESS", s.aug().getDataAugSn(), "RAIN",
+                s.aug().getDataAugSn(), "AUGCB-J-LIST", "RAIN", "SUCCESS",
                 "/storage/augment/AUGCB-LIST.mp4");
         byte[] body = bodyBytes(payload);
         String ts = Long.toString(System.currentTimeMillis());
@@ -252,7 +252,7 @@ class AugmentCallbackFlowIntegrationTest {
     void duplicateIdempotencyKeyDoesNotCreateDuplicate() throws Exception {
         Seed s = seedOriginWithAug("DUP", "WINTER", "AUGCB-K-DUP", "AUGCB-J-DUP");
         AugmentResultRequest payload = new AugmentResultRequest(
-                "AUGCB-K-DUP", "AUGCB-J-DUP", "SUCCESS", s.aug().getDataAugSn(), "WINTER",
+                s.aug().getDataAugSn(), "AUGCB-J-DUP", "WINTER", "SUCCESS",
                 "/storage/augment/AUGCB-DUP.mp4");
         byte[] body = bodyBytes(payload);
 
@@ -287,7 +287,7 @@ class AugmentCallbackFlowIntegrationTest {
     void invalidSignatureRejectedWith401() throws Exception {
         Seed s = seedOriginWithAug("BADSIG", "NIGHT", "AUGCB-K-BAD", "AUGCB-J-BAD");
         AugmentResultRequest payload = new AugmentResultRequest(
-                "AUGCB-K-BAD", "AUGCB-J-BAD", "SUCCESS", s.aug().getDataAugSn(), "NIGHT", null);
+                s.aug().getDataAugSn(), "AUGCB-J-BAD", "NIGHT", "SUCCESS", null);
         byte[] body = bodyBytes(payload);
         String ts = Long.toString(System.currentTimeMillis());
 
@@ -307,7 +307,7 @@ class AugmentCallbackFlowIntegrationTest {
     @DisplayName("CALLBACK_PATH가_필터_요청측_시뮬_3곳에서_동일하다")
     void callbackPathSingleSourceOfTruth() {
         // 필터 PATH_AUGMENT 단일 출처. 요청측/시뮬은 이 값을 참조하거나 동일 리터럴이어야 한다.
-        assertThat(HmacWebhookFilter.PATH_AUGMENT).isEqualTo("/v1/augments/result");
+        assertThat(HmacWebhookFilter.PATH_AUGMENT).isEqualTo("/v1/aug/callback");
         assertThat(kr.co.cudo.authoring.augment.service.AugmentRequestService.CALLBACK_PATH)
                 .isEqualTo(HmacWebhookFilter.PATH_AUGMENT);
         assertThat(kr.co.cudo.authoring.augment.dev.DevAugmentCallbackSimulator.CALLBACK_PATH)

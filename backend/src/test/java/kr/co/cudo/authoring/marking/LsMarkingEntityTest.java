@@ -78,6 +78,55 @@ class LsMarkingEntityTest {
     }
 
     @Test
+    @DisplayName("PENDING에서만_VLM_REQUESTED로_전이_그외_no_op")
+    void markVlmRequestedGuard() {
+        // given — PENDING 이면 전이(true)
+        LsMarking pending = LsMarking.createAuto(1L, "화재", 5, "/path", "[]", 1L);
+
+        // when
+        boolean t1 = pending.markVlmRequested();
+
+        // then
+        assertThat(t1).isTrue();
+        assertThat(pending.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
+
+        // given — 이미 VLM_COMPLETED 는 역행하지 않음(no-op)
+        LsMarking completed = LsMarking.createAuto(1L, "화재", 5, "/path", "[]", 1L);
+        completed.markVlmRequested();
+        completed.markVlmCompleted();
+
+        // when
+        boolean t2 = completed.markVlmRequested();
+
+        // then
+        assertThat(t2).isFalse();
+        assertThat(completed.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
+
+        // given — 이미 VLM_REQUESTED 는 재대입 no-op
+        LsMarking requested = LsMarking.createAuto(1L, "화재", 5, "/path", "[]", 1L);
+        requested.markVlmRequested();
+
+        // when
+        boolean t3 = requested.markVlmRequested();
+
+        // then
+        assertThat(t3).isFalse();
+        assertThat(requested.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
+
+        // given — 이미 VLM_FAILED 는 역행하지 않음(no-op)
+        LsMarking failed = LsMarking.createAuto(1L, "화재", 5, "/path", "[]", 1L);
+        failed.markVlmRequested();
+        failed.markVlmFailed();
+
+        // when
+        boolean t4 = failed.markVlmRequested();
+
+        // then
+        assertThat(t4).isFalse();
+        assertThat(failed.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_FAILED);
+    }
+
+    @Test
     @DisplayName("markVlmCompleted_상태전이")
     void markVlmCompletedTransition() {
         // given

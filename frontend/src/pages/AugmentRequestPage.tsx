@@ -31,7 +31,6 @@ import { useResolutionExport } from '@/features/video/hooks/useResolutionExport'
 import { useVideos } from '@/features/video/hooks/useVideos';
 import type { ResolutionPreset } from '@/features/video/types';
 import { ApiError } from '@/lib/api/errors';
-import { FIXED_EVENT_TYPE_CODES, getEventTypeLabel } from '@/lib/eventTypeLabel';
 import { useUiStore } from '@/stores/useUiStore';
 
 const PAGE_SIZE = 20;
@@ -97,7 +96,15 @@ export function AugmentRequestPage() {
     [pageContent],
   );
 
-  const eventTypeOptions = FIXED_EVENT_TYPE_CODES;
+  // 이벤트 옵션 — 현재 페이지 승인 영상의 eventName(한글 표시명)에서 unique 수집.
+  // 하드코딩 코드 목록을 폐지하고 실제 데이터 기반으로 노출 → 필터(eventName 비교)와 정합.
+  const eventTypeOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(approvedPage.map((v) => v.eventName).filter((n): n is string => !!n)),
+      ),
+    [approvedPage],
+  );
 
   // 클라이언트 필터 (현재 페이지 한정 — BE 검색 강화는 후속 PR)
   const pagedVideos = useMemo(() => {
@@ -391,7 +398,7 @@ export function AugmentRequestPage() {
               <option value="">전체</option>
               {eventTypeOptions.map((et) => (
                 <option key={et} value={et}>
-                  {getEventTypeLabel(et)}
+                  {et}
                 </option>
               ))}
             </select>

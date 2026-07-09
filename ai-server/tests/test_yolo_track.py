@@ -54,6 +54,10 @@ def test_track_mock_모드_결정적_track_id_1_반환(small_png_b64: str) -> No
     assert body["mock"] is True
     assert body["source"] == "mock"
     assert body["mock_reason"] == "env_mock"
+    # 연동정의서 표준 래퍼 필드 (성공 응답)
+    assert body["success"] is True
+    assert body["message"] == "성공"
+    assert body["error_code"] is None
     assert len(body["detections"]) == 1
     det = body["detections"][0]
     assert det["label"] == "person"

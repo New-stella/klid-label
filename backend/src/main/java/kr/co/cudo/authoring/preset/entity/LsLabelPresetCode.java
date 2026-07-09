@@ -29,14 +29,14 @@ public class LsLabelPresetCode {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "CODE_SN")
+    @Column(name = "CD_SN")
     private Long codeSn;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "PRESET_ID", nullable = false)
     private LsLabelPreset preset;
 
-    @Column(name = "CODE", nullable = false, length = 32)
+    @Column(name = "LBL_CD", nullable = false, length = 32)
     private String code;
 
     @Column(name = "SORT_SEQ", nullable = false)

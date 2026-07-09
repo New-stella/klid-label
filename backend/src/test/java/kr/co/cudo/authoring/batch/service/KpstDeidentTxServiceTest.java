@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.step.DeidentFrameAttacher;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
@@ -48,6 +49,7 @@ class KpstDeidentTxServiceTest {
     private NotificationService notificationService;
     private WorkLockService workLockService;
     private DeidentFrameAttacher deidentFrameAttacher;
+    private StreamMetaCacheEvictor streamMetaCacheEvictor;
     private KpstDeidentTxService tx;
 
     @BeforeEach
@@ -58,8 +60,10 @@ class KpstDeidentTxServiceTest {
         notificationService = mock(NotificationService.class);
         workLockService = mock(WorkLockService.class);
         deidentFrameAttacher = mock(DeidentFrameAttacher.class);
+        streamMetaCacheEvictor = mock(StreamMetaCacheEvictor.class);
         tx = new KpstDeidentTxService(videoRepository, procLogRepository,
-                deidentReportService, notificationService, workLockService, deidentFrameAttacher);
+                deidentReportService, notificationService, workLockService, deidentFrameAttacher,
+                streamMetaCacheEvictor);
     }
 
     private LsDataRaw newRaw() {
@@ -182,20 +186,6 @@ class KpstDeidentTxServiceTest {
     }
 
     @Test
-    @DisplayName("다운로드완료_위임시_DOWNLOADED_SUCCEEDED_datasetId가_기록된다")
-    void finishDownloadRecords() {
-        LsDeidentProcLog p = submitted();
-        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
-
-        tx.finishDownload(1L, 202L, "/deid/9001/deidentified.mp4");
-
-        assertThat(p.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_DOWNLOADED);
-        assertThat(p.getProcSttsCd()).isEqualTo(LsDeidentProcLog.SUCCEEDED);
-        assertThat(p.getKpstDatasetId()).isEqualTo(202L);
-        assertThat(p.getDeIdntfFilePathNm()).isEqualTo("/deid/9001/deidentified.mp4");
-    }
-
-    @Test
     @DisplayName("폴링진행_위임시_POLLING_시도증가_datasetId보충")
     void recordPollingProgress() {
         LsDeidentProcLog p = submitted();
@@ -238,6 +228,62 @@ class KpstDeidentTxServiceTest {
         assertThat(timedOut).isTrue();
         assertThat(p.getProcSttsCd()).isEqualTo(LsDeidentProcLog.FAILED);
         assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("markTimeoutIfExpired_REDEIDENT_타임아웃이면_락해제한다")
+    void timeoutRedeidentReleasesLock() {
+        // HIGH-2: REDEIDENT 건이 끝내 procState=2 미도달(타임아웃)이면 'F' 마킹만으로는 작업락이 영구 잔존.
+        // 타임아웃 F 마킹 시 락 보유면 releaseRaw 도 수행하여 재요청 가능하게 한다(영구 잠금 방지).
+        LsDeidentProcLog p = redeidentSubmitted();
+        setField(p, "pollAttemptCnt", 3);
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        when(workLockService.isRawLocked(9001L)).thenReturn(true);
+
+        boolean timedOut = tx.markTimeoutIfExpired(1L, 3, 60L);
+
+        assertThat(timedOut).isTrue();
+        assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+        assertThat(p.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_FAILED);
+        verify(workLockService).releaseRaw(eq(9001L), eq("batch"), eq("REDEIDENT_TIMEOUT"));
+    }
+
+    @Test
+    @DisplayName("markTimeoutIfExpired_REDEIDENT_타임아웃이고_락미보유면_release미호출하지만_F전이_terminal도달")
+    void timeoutRedeidentNoLockStillTerminal() {
+        // 락 미보유 케이스도 안전 — release 미호출하되 F + terminal 도달.
+        LsDeidentProcLog p = redeidentSubmitted();
+        setField(p, "pollAttemptCnt", 3);
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        when(workLockService.isRawLocked(9001L)).thenReturn(false);
+
+        boolean timedOut = tx.markTimeoutIfExpired(1L, 3, 60L);
+
+        assertThat(timedOut).isTrue();
+        assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+        assertThat(p.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_FAILED);
+        verify(workLockService, never()).releaseRaw(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("markTimeoutIfExpired_비REDEIDENT_타임아웃은_락해제_안한다")
+    void timeoutNonRedeidentDoesNotReleaseLock() {
+        // 회귀(HIGH-2): 배치 경로(REQ_KIND null)는 락이 없으므로 isRawLocked 조회/releaseRaw 미수행.
+        LsDeidentProcLog p = submitted(); // REQ_KIND null
+        setField(p, "pollAttemptCnt", 3);
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+
+        boolean timedOut = tx.markTimeoutIfExpired(1L, 3, 60L);
+
+        assertThat(timedOut).isTrue();
+        assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+        verify(workLockService, never()).releaseRaw(any(), any(), any());
     }
 
     @Test
@@ -289,6 +335,8 @@ class KpstDeidentTxServiceTest {
         tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
 
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+        // 재비식별 완료(비식별본 교체) 후 스트림 메타 캐시 무효화 훅 호출.
+        verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
     }
 
     @Test
@@ -418,6 +466,10 @@ class KpstDeidentTxServiceTest {
         verify(deidentReportService, times(1)).resolveOpenReports(9001L);
         verify(notificationService, times(1)).notifyReviewersOnLockRelease(raw);
         verify(deidentFrameAttacher, never()).attachDeidentFrames(any(), any(), anyBoolean());
+        // 최초 배치 완료(비-재비식별)는 비식별본 교체가 아니므로 스트림 메타 캐시를 무효화하지 않는다
+        // ("재비식별만 evict" 의도 고정). 배치 경로의 신고 해소는 DeidentReportService.resolveOpenReports
+        // 내부에서 evict 하며, TxService 자체는 여기서 evict 하지 않는다.
+        verify(streamMetaCacheEvictor, never()).evictAfterCommit(any());
     }
 
     private static void setField(Object target, String name, Object value) {

@@ -64,9 +64,10 @@ class DeidentifyStepTest {
         notificationService = mock(NotificationService.class);
         workLockService = mock(WorkLockService.class);
         batchTransitionService = mock(BatchTransitionService.class);
-        // 기본 environment 는 순수 local 프로파일 + ENV 미설정(개발자 머신) — mock 게이팅 음성(정상) 케이스.
+        // 기본 environment 는 순수 local 프로파일 + ENV 미설정(개발자 머신) — mock 게이팅 허용(정상) 케이스.
+        //   prd 미해당이므로 acceptsProfiles(prd)=false 로 둔다(production 의 유일한 acceptsProfiles 호출 대상은 prd).
         environment = mock(Environment.class);
-        when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(true);
+        when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(false);
         when(environment.getActiveProfiles()).thenReturn(new String[]{"local"});
         when(environment.getProperty("ENV")).thenReturn(null);
 
@@ -87,9 +88,10 @@ class DeidentifyStepTest {
 
     private DeidentifyStep newStep(boolean kpstEnabled, boolean mockMode,
                                    KpstDeidentService kpstService, Environment env) {
+        // selfProvider=null — 단위 테스트는 프록시 없이 execute()→this.run() 직접 호출(리포지토리 mock).
         DeidentifyStep s = new DeidentifyStep(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, kpstService, env,
-                batchTransitionService);
+                batchTransitionService, null);
         setField(s, "deidPath", baseDeid.toString());
         setField(s, "kpstEnabled", kpstEnabled);
         setField(s, "mockMode", mockMode);
@@ -129,11 +131,13 @@ class DeidentifyStepTest {
 
         LsDataRaw raw = newRaw(LsDataRaw.PRVC_TYPE_PRVC);
 
-        String result = kpstStep.run(raw);
+        DeidentResult result = kpstStep.run(raw);
 
         // 위탁 경로: KpstDeidentService.submit 호출. DE_IDNTF_YN 미전이(완료 대기) — 폴링 잡이 나중에 Y 전이.
+        // 반환은 deferred(지연) — 호출자가 MARKING_READY 로 조기 전이하지 않도록 completed=false.
         verify(kpst).submit(raw);
-        assertThat(result).isNull();
+        assertThat(result.completed()).isFalse();
+        assertThat(result.deidFilePath()).isNull();
         assertThat(raw.getDeIdntfYn()).isNotEqualTo("Y");
     }
 
@@ -216,7 +220,7 @@ class DeidentifyStepTest {
         LsDataRaw raw = newRawWithRealSource("video-bytes");
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
 
-        String result = mockStep.run(raw);
+        DeidentResult result = mockStep.run(raw);
 
         Path target = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
                 .toAbsolutePath().normalize();
@@ -228,7 +232,9 @@ class DeidentifyStepTest {
         // 원본 보존 — 무변경(복사만).
         assertThat(Files.readString(Path.of(raw.getRawFilePathNm()))).isEqualTo("video-bytes");
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
-        assertThat(result).isEqualTo(target.toString());
+        // 동기 완료 — completed=true + 비식별 산출물 경로 보유(호출자가 즉시 MARKING_READY 전이).
+        assertThat(result.completed()).isTrue();
+        assertThat(result.deidFilePath()).isEqualTo(target.toString());
     }
 
     @Test
@@ -295,101 +301,168 @@ class DeidentifyStepTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // mock-mode 프로파일 게이팅 (HIGH-1) — 운영 노출 차단
+    // mock-mode 프로파일 게이팅 — prd(운영)만 차단, local/dev/stg 허용 (프라이버시 경계 완화)
+    //   배경: KPST 미준비로 dev/stg 에서 mock 비식별로 파이프라인을 굴려야 함.
+    //   가드: prd 는 fail-closed 로 끝까지 차단(프로파일/ENV/혼합 모두).
     // ─────────────────────────────────────────────────────────────────────────────
 
-    @Test
-    @DisplayName("mock_mode_true인데_prd프로파일이면_초기화_부트가_거부된다")
-    void mockMode_nonLocalProfile_rejectsBoot() {
-        Environment prdEnv = mock(Environment.class);
-        when(prdEnv.acceptsProfiles(any(Profiles.class))).thenReturn(false);
-        when(prdEnv.getActiveProfiles()).thenReturn(new String[]{"prd"});
-        when(prdEnv.getProperty("ENV")).thenReturn(null);
-        DeidentifyStep prdStep = new DeidentifyStep(videoRepository, procLogRepository,
-                deidentReportService, notificationService, workLockService, null, prdEnv,
-                batchTransitionService);
-        setField(prdStep, "deidPath", baseDeid.toString());
-        setField(prdStep, "kpstEnabled", false);
-        setField(prdStep, "mockMode", true);
+    /** 주어진 environment 로 mock-mode 활성 step 을 구성(초기화 전 상태). */
+    private DeidentifyStep newMockStepWith(Environment env) {
+        DeidentifyStep s = new DeidentifyStep(videoRepository, procLogRepository,
+                deidentReportService, notificationService, workLockService, null, env,
+                batchTransitionService, null);
+        setField(s, "deidPath", baseDeid.toString());
+        setField(s, "kpstEnabled", false);
+        setField(s, "mockMode", true);
+        return s;
+    }
 
-        assertThatThrownBy(() -> invoke(prdStep, "initBasePath"))
+    /** acceptsPrd = production 의 유일한 acceptsProfiles 호출 대상(prd) 이 active 인지. */
+    private Environment envWith(String[] activeProfiles, String envVar, boolean acceptsPrd) {
+        Environment e = mock(Environment.class);
+        when(e.acceptsProfiles(any(Profiles.class))).thenReturn(acceptsPrd);
+        when(e.getActiveProfiles()).thenReturn(activeProfiles);
+        when(e.getProperty("ENV")).thenReturn(envVar);
+        return e;
+    }
+
+    @Test
+    @DisplayName("prd_프로파일에서_mock활성시_부팅거부")
+    void prd_프로파일에서_mock활성시_부팅거부() {
+        Environment env = envWith(new String[]{"prd"}, null, true);
+
+        assertThatThrownBy(() -> invoke(newMockStepWith(env), "initBasePath"))
                 .getRootCause()
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("local");
+                .hasMessageContaining("prd");
     }
 
     @Test
-    @DisplayName("mock_mode_true_이고_active프로파일에_dev가_섞이면_부트거부된다")
-    void mockMode_localMixedWithNonLocalProfile_rejectsBoot() {
-        Environment mixedEnv = mock(Environment.class);
-        when(mixedEnv.acceptsProfiles(any(Profiles.class))).thenReturn(true);
-        when(mixedEnv.getActiveProfiles()).thenReturn(new String[]{"local", "dev"});
-        when(mixedEnv.getProperty("ENV")).thenReturn(null);
-        DeidentifyStep mixedStep = new DeidentifyStep(videoRepository, procLogRepository,
-                deidentReportService, notificationService, workLockService, null, mixedEnv,
-                batchTransitionService);
-        setField(mixedStep, "deidPath", baseDeid.toString());
-        setField(mixedStep, "kpstEnabled", false);
-        setField(mixedStep, "mockMode", true);
+    @DisplayName("ENV가_prd면_mock활성시_부팅거부")
+    void ENV가_prd면_mock활성시_부팅거부() {
+        // 프로파일은 비어도 ENV=prd 면 거부 — 우회 방지(fail-closed).
+        Environment env = envWith(new String[]{}, "prd", false);
 
-        assertThatThrownBy(() -> invoke(mixedStep, "initBasePath"))
+        assertThatThrownBy(() -> invoke(newMockStepWith(env), "initBasePath"))
                 .getRootCause()
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("local");
+                .hasMessageContaining("prd");
     }
 
     @Test
-    @DisplayName("mock_mode_true_이고_ENV가_prd면_부트거부된다")
-    void mockMode_envPrd_rejectsBoot() {
-        Environment envPrd = mock(Environment.class);
-        when(envPrd.acceptsProfiles(any(Profiles.class))).thenReturn(true);
-        when(envPrd.getActiveProfiles()).thenReturn(new String[]{"local"});
-        when(envPrd.getProperty("ENV")).thenReturn("prd");
-        DeidentifyStep envPrdStep = new DeidentifyStep(videoRepository, procLogRepository,
-                deidentReportService, notificationService, workLockService, null, envPrd,
-                batchTransitionService);
-        setField(envPrdStep, "deidPath", baseDeid.toString());
-        setField(envPrdStep, "kpstEnabled", false);
-        setField(envPrdStep, "mockMode", true);
+    @DisplayName("prd와_dev가_섞인_active프로파일이면_거부")
+    void prd와_dev가_섞인_active프로파일이면_거부() {
+        // 혼합 프로파일에 prd 가 하나라도 섞이면 거부 — 우회 방지(fail-closed).
+        Environment env = envWith(new String[]{"prd", "dev"}, null, false);
 
-        assertThatThrownBy(() -> invoke(envPrdStep, "initBasePath"))
+        assertThatThrownBy(() -> invoke(newMockStepWith(env), "initBasePath"))
                 .getRootCause()
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("local");
+                .hasMessageContaining("prd");
     }
 
     @Test
-    @DisplayName("mock_mode_true_이고_순수_local_이며_ENV_미설정이면_통과된다")
-    void mockMode_pureLocalEnvUnset_passesBoot() {
-        Environment pureLocal = mock(Environment.class);
-        when(pureLocal.acceptsProfiles(any(Profiles.class))).thenReturn(true);
-        when(pureLocal.getActiveProfiles()).thenReturn(new String[]{"local"});
-        when(pureLocal.getProperty("ENV")).thenReturn(null);
-        DeidentifyStep pureLocalStep = new DeidentifyStep(videoRepository, procLogRepository,
-                deidentReportService, notificationService, workLockService, null, pureLocal,
-                batchTransitionService);
-        setField(pureLocalStep, "deidPath", baseDeid.toString());
-        setField(pureLocalStep, "kpstEnabled", false);
-        setField(pureLocalStep, "mockMode", true);
+    @DisplayName("dev_프로파일에서_mock활성시_부팅허용")
+    void dev_프로파일에서_mock활성시_부팅허용() {
+        Environment env = envWith(new String[]{"dev"}, null, false);
 
-        invoke(pureLocalStep, "initBasePath");
+        invoke(newMockStepWith(env), "initBasePath"); // 예외 없음
     }
 
     @Test
-    @DisplayName("mock_mode_true_이고_ENV가_local이면_통과된다")
-    void mockMode_envLocal_passesBoot() {
-        Environment envLocal = mock(Environment.class);
-        when(envLocal.acceptsProfiles(any(Profiles.class))).thenReturn(true);
-        when(envLocal.getActiveProfiles()).thenReturn(new String[]{"local"});
-        when(envLocal.getProperty("ENV")).thenReturn("local");
-        DeidentifyStep envLocalStep = new DeidentifyStep(videoRepository, procLogRepository,
-                deidentReportService, notificationService, workLockService, null, envLocal,
-                batchTransitionService);
-        setField(envLocalStep, "deidPath", baseDeid.toString());
-        setField(envLocalStep, "kpstEnabled", false);
-        setField(envLocalStep, "mockMode", true);
+    @DisplayName("stg_프로파일에서_mock활성시_부팅허용")
+    void stg_프로파일에서_mock활성시_부팅허용() {
+        Environment env = envWith(new String[]{"stg"}, null, false);
 
-        invoke(envLocalStep, "initBasePath");
+        invoke(newMockStepWith(env), "initBasePath"); // 예외 없음
+    }
+
+    @Test
+    @DisplayName("local_프로파일에서_mock활성시_부팅허용")
+    void local_프로파일에서_mock활성시_부팅허용() {
+        Environment env = envWith(new String[]{"local"}, null, false);
+
+        invoke(newMockStepWith(env), "initBasePath"); // 예외 없음(기존 동작 회귀 보호)
+    }
+
+    // ── fail-closed(allowlist) 회귀 방지: 미식별/비표준/대소문자 우회/공백/혼합은 모두 거부 ──
+
+    @Test
+    @DisplayName("ENV가_PRD_대문자여도_거부")
+    void ENV가_PRD_대문자여도_거부() {
+        // 대소문자 우회 방지 — active 는 허용(local)이라도 ENV=PRD 면 fail-closed 거부.
+        Environment env = envWith(new String[]{"local"}, "PRD", false);
+
+        assertThatThrownBy(() -> invoke(newMockStepWith(env), "initBasePath"))
+                .getRootCause()
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("ENV가_공백포함_prd여도_거부")
+    void ENV가_공백포함_prd여도_거부() {
+        // trim 검증 — 앞뒤 공백이 섞인 prd 도 정규화 후 거부.
+        Environment env = envWith(new String[]{"local"}, "  prd  ", false);
+
+        assertThatThrownBy(() -> invoke(newMockStepWith(env), "initBasePath"))
+                .getRootCause()
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("local과_prd가_섞인_active프로파일이면_거부")
+    void local과_prd가_섞인_active프로파일이면_거부() {
+        // 허용값(local)에 비허용값(prd)이 하나라도 섞이면 거부 — 혼합 우회 방지.
+        Environment env = envWith(new String[]{"local", "prd"}, null, false);
+
+        assertThatThrownBy(() -> invoke(newMockStepWith(env), "initBasePath"))
+                .getRootCause()
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("비표준_환경라벨(production)이면_거부")
+    void 비표준_환경라벨_production이면_거부() {
+        // allow-by-default 회귀 방지(fail-closed 핵심) — prd 로 인식 안 되는 비표준 라벨도 거부.
+        Environment env = envWith(new String[]{"production"}, null, false);
+
+        assertThatThrownBy(() -> invoke(newMockStepWith(env), "initBasePath"))
+                .getRootCause()
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("active프로파일_미설정이면_거부")
+    void active프로파일_미설정이면_거부() {
+        // 모호(미식별) → fail-closed 거부. 프로파일도 ENV 도 없으면 mock 부팅 불가.
+        Environment env = envWith(new String[]{}, null, false);
+
+        assertThatThrownBy(() -> invoke(newMockStepWith(env), "initBasePath"))
+                .getRootCause()
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("dev_프로파일에서_mock활성_부팅시_비식별경고_WARN로그를_1줄_남긴다")
+    void dev_프로파일_mock활성_부팅시_WARN로그_1줄() {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(DeidentifyStep.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            Environment env = envWith(new String[]{"dev"}, null, false);
+            invoke(newMockStepWith(env), "initBasePath");
+
+            long warnCount = appender.list.stream()
+                    .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                    .filter(e -> e.getFormattedMessage().contains("non-local"))
+                    .count();
+            assertThat(warnCount).isEqualTo(1);
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 
     private static void setField(Object target, String name, Object value) {

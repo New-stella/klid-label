@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.dev.controller.DevAutolabelTestController;
 import kr.co.cudo.authoring.dev.service.DevAutolabelTestService;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +34,7 @@ class DevUploadPropertyGuardTest {
                         DevPipelineRunner.class)
                 .withBean(VideoRepository.class, () -> mock(VideoRepository.class))
                 .withBean(MngResourceCctvRepository.class, () -> mock(MngResourceCctvRepository.class))
+                .withBean(EventTypeService.class, () -> mock(EventTypeService.class))
                 .withBean(DeidentifyStep.class, () -> mock(DeidentifyStep.class))
                 .withBean(BatchTransitionService.class, () -> mock(BatchTransitionService.class));
     }

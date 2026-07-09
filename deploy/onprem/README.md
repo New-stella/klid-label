@@ -90,6 +90,8 @@ curl -fsS http://127.0.0.1/                                      # frontend(Cadd
 | [docs/06-troubleshooting.md](docs/06-troubleshooting.md) | 오프라인 설치 흔한 실패와 해결 |
 | [docs/07-uninstall-rollback.md](docs/07-uninstall-rollback.md) | 제거/롤백 |
 | [docs/08-build-from-source.md](docs/08-build-from-source.md) | [대상 서버] 인터넷 없이 **소스에서 재빌드**(빌드 키트) + 사전빌드 vs 소스빌드 선택 |
+| [docs/09-operations-runbook.md](docs/09-operations-runbook.md) | **운영 런북(관리자 매뉴얼)** — 프로세스 상태 확인·장애 유형별 조치·로그·정기 점검 |
+| [docs/10-backup-dr.md](docs/10-backup-dr.md) | **백업 및 재해복구(DR)** — DB/설정/저장소 백업 대상·주기·복원·전체 서버 DR·RPO/RTO |
 
 ---
 

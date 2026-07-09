@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.step.DeidentFrameAttacher;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
@@ -44,20 +45,12 @@ public class KpstDeidentTxService {
     private final NotificationService notificationService;
     private final WorkLockService workLockService;
     private final DeidentFrameAttacher deidentFrameAttacher;
-
-    /** 다운로드 완료 — datasetId 보충 + DOWNLOADED/SUCCEEDED 전이. */
-    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public void finishDownload(Long procLogSn, Long datasetId, String deidFilePath) {
-        procLogRepository.findById(procLogSn).ifPresent(p -> {
-            p.recordDatasetId(datasetId);
-            p.markDownloaded(deidFilePath);
-        });
-    }
+    private final StreamMetaCacheEvictor streamMetaCacheEvictor;
 
     /**
      * 다운로드 완료 + 비식별 완료(Y 전이)를 단일 REQUIRES_NEW 트랜잭션으로 원자화 — DEV_FIX HIGH/MEDIUM(M-1).
      *
-     * <p>기존 {@code finishDownload}(DOWNLOADED) → {@code completeDeidentification}(Y) 의 2분리 트랜잭션은
+     * <p>기존 2분리 트랜잭션(DOWNLOADED → Y) 은
      * 사이 크래시 시 DOWNLOADED 이나 Y 미전이인 영구 stuck 행을 남겼다(재폴링 대상도 아님). 본 메서드는
      * procLog DOWNLOADED/SUCCEEDED 전이와 raw Y/MARKING_READY 전이를 한 트랜잭션에 묶어 stuck 창을 제거한다.
      * 비식별 파일 실재(존재 + >0바이트) 검증은 {@link #completeDeidentification} 가 수행하므로 불완전
@@ -152,10 +145,17 @@ public class KpstDeidentTxService {
         if (!attemptExceeded && !elapsedExceeded) {
             return false;
         }
+        Long rawSn = procLog.getDataRawSn();
         procLog.fail("DEIDENT_TIMEOUT", "polling timeout");
-        videoRepository.findById(procLog.getDataRawSn()).ifPresent(v -> v.markDeidentified("F"));
-        log.warn("[KpstDeid] poll timeout rawSn={} attempts={}",
-                procLog.getDataRawSn(), procLog.getPollAttemptCnt());
+        videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
+        // DEV_FIX HIGH-2: REDEIDENT 건이 끝내 procState=2 미도달(타임아웃)이면 위탁 시 잡은 작업락이 영구 잔존
+        // 한다(완료/실패 분기를 안 타므로). 타임아웃 'F' 마킹 시 락 보유면 해제하여 재요청을 허용한다.
+        // 비-REDEIDENT(배치)는 락 자체가 없어 무영향.
+        if (procLog.isRedeident() && workLockService.isRawLocked(rawSn)) {
+            workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_TIMEOUT");
+        }
+        log.warn("[KpstDeid] poll timeout rawSn={} attempts={} redeident={}",
+                rawSn, procLog.getPollAttemptCnt(), procLog.isRedeident());
         return true;
     }
 
@@ -249,6 +249,9 @@ public class KpstDeidentTxService {
         if (workLockService.isRawLocked(rawSn)) {
             workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_SUCCEEDED");
         }
+        // 5) 스트림 메타 캐시 무효화 (HIGH — 무결성/privacy) — 재비식별로 비식별본이 교체(동일 경로
+        //    in-place 교체 시 옛 contentLength 로 Range 경계 오류·재생 잘림 가능)되었으므로 커밋 후 무효화.
+        streamMetaCacheEvictor.evictAfterCommit(rawSn);
         log.info("[KpstDeid] redeident completed rawSn={}", rawSn);
     }
 

@@ -46,6 +46,7 @@ public class ControlNotifyService {
             client.sendTaskCompleted(payload).block(ControlNotifyClient.BLOCK_TIMEOUT);
             log.info("[ControlNotify] TASK_COMPLETED sent rawSn={}", event.rawSn());
             metrics.incrementCompletedSuccess();
+            recordSendSuccess(payload.requestId(), "TASK_COMPLETED", event.rawSn(), payload);
         } catch (Exception e) {
             log.warn("[ControlNotify] TASK_COMPLETED failed rawSn={} reason={}",
                     event.rawSn(), e.getClass().getSimpleName());
@@ -64,11 +65,28 @@ public class ControlNotifyService {
             client.sendTaskModified(payload).block(ControlNotifyClient.BLOCK_TIMEOUT);
             log.info("[ControlNotify] TASK_MODIFIED sent rawSn={} frames={}", rawSn, frameIds.size());
             metrics.incrementModifiedSuccess();
+            recordSendSuccess(payload.requestId(), "TASK_MODIFIED", rawSn, payload);
         } catch (Exception e) {
             log.warn("[ControlNotify] TASK_MODIFIED failed rawSn={}", rawSn);
             fallbackService.enqueuePending(payload.requestId(), "TASK_MODIFIED",
                     rawSn, serializePayload(payload));
             metrics.incrementModifiedFailed();
+        }
+    }
+
+    /**
+     * 발송 성공 관찰 행(SEND_RSLT_CD=SUCCESS) 적재.
+     *
+     * <p>예외 격리: 관찰 적재가 실패해도 통지 성공(metrics·정상 반환)은 유지되도록
+     * 예외를 삼키고 warn 로그만 남긴다 — 별도 REQUIRES_NEW 트랜잭션으로 커밋되므로
+     * 상위 통지 흐름과 롤백 경계가 분리된다.
+     */
+    private void recordSendSuccess(String requestId, String eventType, Long rawSn, Object payload) {
+        try {
+            fallbackService.recordImmediateSuccess(requestId, eventType, rawSn, serializePayload(payload));
+        } catch (Exception e) {
+            log.warn("[ControlNotify] send-success record failed (notification kept) rawSn={} reason={}",
+                    rawSn, e.getClass().getSimpleName());
         }
     }
 

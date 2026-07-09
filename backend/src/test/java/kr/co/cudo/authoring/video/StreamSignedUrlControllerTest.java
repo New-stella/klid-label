@@ -76,6 +76,8 @@ class StreamSignedUrlControllerTest {
                 "CLIP-" + uniq, "CCTV-STREAM", "EVT_FALL", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, relPath,
                 LocalDateTime.now(), 30);
+        // 비식별 완료 상태('Y') — 서명 URL 발급/스트림 게이트(DE_IDNTF_YN='Y' 요구) 통과 전제.
+        raw.markDeidentified("Y");
         raw = rawRepository.save(raw);
         rawSn = raw.getRawSn();
 

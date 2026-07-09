@@ -80,7 +80,15 @@ def test_predict_응답이_기존_YoloResponse_스키마_필드와_동일함(sma
     )
     assert res.status_code == 200
     body = res.json()
-    assert set(body.keys()) == {"detections", "mock", "source", "mock_reason"}
+    assert set(body.keys()) == {
+        "detections",
+        "mock",
+        "source",
+        "mock_reason",
+        "success",
+        "message",
+        "error_code",
+    }
     det = body["detections"][0]
     assert set(det.keys()) == {"label", "points", "score", "track_id"}
 
@@ -93,7 +101,15 @@ def test_track_응답이_기존_YoloTrackResponse_스키마_필드와_동일함(
     )
     assert res.status_code == 200
     body = res.json()
-    assert set(body.keys()) == {"detections", "mock", "source", "mock_reason"}
+    assert set(body.keys()) == {
+        "detections",
+        "mock",
+        "source",
+        "mock_reason",
+        "success",
+        "message",
+        "error_code",
+    }
 
 
 def test_mock_모드_predict_track_정상_응답(small_png_b64: str) -> None:
@@ -160,7 +176,15 @@ def test_rtdetr_backend로_전환시에도_predict_track_정상(
         # rtdetr 도 mock 모드면 env_mock 동일 사유 체계
         assert p.json()["mock"] is True
         assert t.json()["mock"] is True
-        assert set(p.json().keys()) == {"detections", "mock", "source", "mock_reason"}
+        assert set(p.json().keys()) == {
+            "detections",
+            "mock",
+            "source",
+            "mock_reason",
+            "success",
+            "message",
+            "error_code",
+        }
     finally:
         monkeypatch.delenv("DETECTOR_BACKEND", raising=False)
         reload_settings()

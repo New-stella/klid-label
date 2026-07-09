@@ -14,9 +14,14 @@ const samplePayload = {
   rejectedCount: 3,
   cumulativeImageCount: 50000,
   cumulativeVideoCount: 1500,
+  // BE 카테고리 분포 응답 (eventTypeCd=categoryKey, label=카테고리 한글명).
   eventDistribution: [
-    { eventTypeCd: 'FALL', label: '쓰러짐', count: 80 },
-    { eventTypeCd: 'VIOLENCE', label: '폭력', count: 50 },
+    { eventTypeCd: '010001', label: '침수(범람)', count: 80 },
+    { eventTypeCd: '020001', label: '화재', count: 50 },
+    { eventTypeCd: '020002', label: '쓰러짐', count: 40 },
+    { eventTypeCd: '040001', label: '교통사고', count: 30 },
+    { eventTypeCd: '050001', label: '싸움', count: 20 },
+    { eventTypeCd: '070001', label: '납치(유괴)', count: 10 },
   ],
   myTask: {
     pendingCount: 1,
@@ -90,8 +95,8 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('영상 데이터 개수')).toBeInTheDocument();
 
-    // 데이터 로드 후 6종 이벤트 라벨 노출 (이미지+영상 카드 양쪽 모두 있어 getAllByText 사용)
-    const labels = ['쓰러짐', '폭력', '교통사고', '이상행동(유괴)', '침수', '산불'];
+    // 데이터 로드 후 BE 카테고리 라벨 노출 (이미지+영상 카드 양쪽 모두 있어 getAllByText 사용)
+    const labels = ['침수(범람)', '화재', '쓰러짐', '교통사고', '싸움', '납치(유괴)'];
     for (const l of labels) {
       await waitFor(() => {
         expect(screen.getAllByText(l).length).toBeGreaterThan(0);

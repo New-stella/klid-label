@@ -15,10 +15,10 @@ import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +31,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * 비식별화 단계.
@@ -51,10 +53,11 @@ import java.util.Arrays;
  *  - SSRF (CWE-918)/경로순회 (CWE-22): URL/CA 신뢰체인·다운로드 경로 검증은 KPST 클라이언트가 방어.
  *    mock 출력 경로는 storage.deidentified-path 기반으로 base 이탈을 차단한다.
  * <p>
- * Phase 1 — local 전용 mock 비식별 모드:
- *  - {@code authoring.integration.deidentify.mock-mode=true}(application-local.yml 만) 일 때,
- *    외부 비식별 서버(localhost:9200) 없이 원본을 비식별 경로로 복사하여 단계를 통과시킨다.
- *  - 보안(HIGH-1): mock-mode=true 인데 local 프로파일이 아니면 부트 거부 — 운영 노출 차단.
+ * Phase 1 — mock 비식별 모드(local/dev/stg 허용, prd 차단):
+ *  - {@code authoring.integration.deidentify.mock-mode=true} 일 때, 외부 비식별 서버(localhost:9200)
+ *    없이 원본을 비식별 경로로 복사하여 단계를 통과시킨다. KPST 미준비 동안 dev/stg 파이프라인 가동용.
+ *  - 보안(HIGH-1): mock-mode=true 인데 prd(운영) 프로파일/ENV 이면 부트 거부 — 운영 노출 차단(fail-closed).
+ *    dev/stg 등 비-local 에서 활성 시 시작 WARN 1줄로 추적성 확보.
  *  - 정합성(HIGH-2): 원본 부재 시 'Y' 위장 금지 — 'F' 마킹 + 실패(MARKING_READY 미전이).
  *  - 무결성(HIGH-3): 임시파일 복사 후 atomic move — 부분 복사 손상 방지, 재실행 멱등.
  */
@@ -65,6 +68,8 @@ public class DeidentifyStep implements BatchStep {
     /** mock 복사 임시파일 접미사 — 완료 시 atomic move 로 정식 경로 전환. */
     private static final String MOCK_TMP_PREFIX = ".tmp_";
     private static final String MOCK_ERROR_CODE = "MOCK_SOURCE_MISSING";
+    /** mock-mode 허용 프로파일(소문자) — 이 집합으로 수렴할 때만 부팅(allowlist, fail-closed). */
+    private static final Set<String> ALLOWED_MOCK_PROFILES = Set.of("local", "dev", "stg");
 
     private final VideoRepository videoRepository;
     private final LsDeidentProcLogRepository procLogRepository;
@@ -85,6 +90,17 @@ public class DeidentifyStep implements BatchStep {
      * 자기호출(self-invocation) 이 아닌 별도 빈이어야 REQUIRES_NEW 가 실제 신규 트랜잭션을 연다.
      */
     private final BatchTransitionService batchTransitionService;
+    /**
+     * 자기참조 프록시 공급자 (DEV_FIX — self-invocation 트랜잭션 부재 수정).
+     * <p>{@link #execute(BatchContext)} 가 {@link #run(LsDataRaw)} 을 <b>프록시 경유</b>로 호출해
+     * {@code @Transactional(REQUIRES_NEW)} 가 실제 신규 트랜잭션을 열도록 한다. 직접 자기호출은
+     * Spring AOP 프록시를 우회해 트랜잭션이 열리지 않아, 적재 경로({@code AsyncDeidentifyRunner.runAsync},
+     * 무트랜잭션)에서 mock 영속(DE_IDNTF_YN='Y', procLog SUCCEEDED)이 커밋되지 않던 결함을 막는다.
+     * <p>{@link ObjectProvider} 는 호출 시점에 지연 해석되므로 자기 빈 순환 의존이 생성 시점에 발생하지 않는다.
+     * 단위 테스트에서 빈을 수동 생성(provider=null)하는 경우 {@code this} 로 폴백한다(프록시 없이 직접 호출 —
+     * 리포지토리가 mock 이라 트랜잭션 불필요).
+     */
+    private final ObjectProvider<DeidentifyStep> selfProvider;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
@@ -97,8 +113,8 @@ public class DeidentifyStep implements BatchStep {
     private boolean kpstEnabled;
 
     /**
-     * Phase 1 — local 전용 mock 비식별 토글. true 면 외부 호출 대신 원본을 비식별 경로로 복사.
-     * 기본 false(운영 안전). application-local.yml 에서만 true.
+     * Phase 1 — mock 비식별 토글(local/dev/stg 허용, prd 차단). true 면 외부 호출 대신 원본을 비식별 경로로 복사.
+     * 기본 false(운영 안전). {@code DEIDENTIFY_MOCK_MODE} 환경변수로 dev/stg 에서 토글 가능.
      */
     @Value("${authoring.integration.deidentify.mock-mode:false}")
     private boolean mockMode;
@@ -112,7 +128,8 @@ public class DeidentifyStep implements BatchStep {
                           WorkLockService workLockService,
                           @Autowired(required = false) KpstDeidentService kpstDeidentService,
                           Environment environment,
-                          BatchTransitionService batchTransitionService) {
+                          BatchTransitionService batchTransitionService,
+                          ObjectProvider<DeidentifyStep> selfProvider) {
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
         this.deidentReportService = deidentReportService;
@@ -121,39 +138,55 @@ public class DeidentifyStep implements BatchStep {
         this.kpstDeidentService = kpstDeidentService;
         this.environment = environment;
         this.batchTransitionService = batchTransitionService;
+        this.selfProvider = selfProvider;
     }
 
     @PostConstruct
     void initBasePath() {
         this.baseDeidentifiedPath = Paths.get(deidPath).toAbsolutePath().normalize();
-        // HIGH-1 (보안): mock-mode 는 순수 local 프로파일 전용. 양성 확인(positive assertion) 게이트 —
-        //   "local 이 active 인가" 만 보는 음성 게이트는 active 에 비-local 이 섞이거나
-        //   ENV=dev/stg/prd 인 운영 배포에서 우회될 수 있으므로, 아래 3개를 모두 만족해야만 통과한다.
+        // HIGH-1 (보안): mock-mode 는 prd(운영) 만 차단하고 local/dev/stg 는 허용한다.
+        //   KPST 미준비 동안 dev/stg 에서 mock 비식별로 파이프라인을 굴리기 위한 의도적 완화.
+        //   prd 는 어떤 경로(프로파일/ENV/혼합)로도 mock 이 켜지지 않도록 fail-closed 로 차단한다.
         if (mockMode) {
-            assertPureLocalForMock();
+            assertMockAllowedProfile();
         }
     }
 
     /**
-     * mock-mode 허용 조건(모두 충족 필수). 하나라도 위반 시 부트 거부(fail-closed).
-     *  1. local 프로파일이 active.
-     *  2. active 프로파일에 비-local 이 하나도 섞이지 않음.
-     *  3. ENV 환경변수가 미설정이거나 "local" (dev/stg/prd 등 비-local 이면 거부).
-     * <p>ENV 는 {@link Environment#getProperty(String)}(systemEnvironment PropertySource) 로 읽어
-     *    Environment mock 으로 검증 가능하게 한다. 메시지에 PII/원본경로 없음.
+     * mock-mode 허용 게이트 — <b>allowlist(fail-closed)</b>: 모든 신호가 허용 프로파일
+     * {@link #ALLOWED_MOCK_PROFILES}(local/dev/stg)로 수렴할 때만 mock 부팅을 통과시킨다.
+     * 그 외(미식별/비표준/prd)는 전부 거부한다 — allow-by-default(fail-open) 위험 차단.
+     * <p>거부 조건(하나라도 해당 시 IllegalStateException):
+     *  1. active 프로파일이 비어 있음(미설정 → 모호 → 거부).
+     *  2. active 프로파일에 ALLOWED 가 아닌 값이 하나라도 섞임(prd/production/prod/임의 라벨, 혼합 포함 → 거부).
+     *  3. ENV 환경변수가 설정돼 있고(trim, non-blank) ALLOWED 에 없음(prd/production/prod/임의 → 거부).
+     *     ENV 미설정/blank 는 허용(프로파일만으로 판정).
+     * <p>비-local(dev/stg) 에서 활성 시 추적용 WARN 1줄을 남긴다(원본 영상이 비식별본으로 서빙됨, 임시).
+     *    ENV 는 {@link Environment#getProperty(String)} 로 읽어 Environment mock 으로 검증 가능하게 한다.
+     *    메시지에는 프로파일/ENV 값만 노출(PII/원본경로 없음 — CWE-209).
      */
-    private void assertPureLocalForMock() {
-        boolean localActive = environment.acceptsProfiles(Profiles.of("local"));
-        boolean hasNonLocalProfile = Arrays.stream(environment.getActiveProfiles())
-                .anyMatch(p -> !"local".equalsIgnoreCase(p));
+    private void assertMockAllowedProfile() {
+        String[] active = environment.getActiveProfiles();
         String env = environment.getProperty("ENV");
-        boolean envIsNonLocal = env != null && !env.isBlank() && !"local".equalsIgnoreCase(env.trim());
+        String envNormalized = (env == null) ? null : env.trim();
 
-        if (!localActive || hasNonLocalProfile || envIsNonLocal) {
+        boolean noActiveProfile = active.length == 0;
+        boolean activeHasDisallowed = Arrays.stream(active)
+                .anyMatch(p -> !ALLOWED_MOCK_PROFILES.contains(p.trim().toLowerCase(Locale.ROOT)));
+        boolean envDisallowed = envNormalized != null && !envNormalized.isBlank()
+                && !ALLOWED_MOCK_PROFILES.contains(envNormalized.toLowerCase(Locale.ROOT));
+
+        if (noActiveProfile || activeHasDisallowed || envDisallowed) {
             throw new IllegalStateException(
-                    "deidentify mock-mode 는 순수 local 프로파일(ENV 미설정/local)에서만 허용됩니다. activeProfiles="
-                            + Arrays.toString(environment.getActiveProfiles())
+                    "deidentify mock-mode 는 허용 프로파일(local/dev/stg)이 확인될 때만 부팅됩니다(fail-closed). activeProfiles="
+                            + Arrays.toString(active)
                             + ", ENV=" + (env == null ? "<unset>" : env));
+        }
+
+        boolean localActive = Arrays.stream(active).anyMatch(p -> "local".equalsIgnoreCase(p));
+        if (!localActive) {
+            log.warn("[Batch][Deid] mock-mode active on non-local profile: 원본 영상이 비식별본으로 서빙됨(임시) activeProfiles={}",
+                    Arrays.toString(active));
         }
     }
 
@@ -168,7 +201,15 @@ public class DeidentifyStep implements BatchStep {
      */
     @Override
     public void execute(BatchContext ctx) {
-        run(ctx.getRaw());
+        // DEV_FIX — run() 을 프록시 경유로 호출해 @Transactional(REQUIRES_NEW) 가 실제 트랜잭션을 연다.
+        // 적재 경로(AsyncDeidentifyRunner.runAsync, 무트랜잭션)에서 직접 자기호출은 프록시를 우회해
+        // 트랜잭션이 열리지 않아 mock 영속(DE_IDNTF_YN='Y'/procLog SUCCEEDED)이 커밋되지 않던 결함 차단.
+        // 단위 테스트(수동 생성, provider=null)는 this 로 폴백(리포지토리 mock — 트랜잭션 불필요).
+        DeidentifyStep self = (selfProvider != null) ? selfProvider.getObject() : this;
+        DeidentResult result = self.run(ctx.getRaw());
+        // 동기 완료(mock) 여부를 컨텍스트에 실어 호출자(AsyncDeidentifyRunner)가 조건부 전이하게 한다.
+        // void execute() 라 run() 반환을 직접 못 받으므로 컨텍스트로 브릿지한다(상태머신 단일화).
+        ctx.markDeidentCompleted(result.completed());
     }
 
     /**
@@ -181,21 +222,25 @@ public class DeidentifyStep implements BatchStep {
      *  3. 그 외(설정 오류): 레거시 동기 폴백 없음 → 명확한 설정 오류 예외(내부 정보 미노출).
      * <p>
      * REQUIRES_NEW 트랜잭션: 위탁 실패 시에도 src 레코드는 유지된다.
+     *
+     * @return 동기 완료(mock)면 {@link DeidentResult#completed}, 외부 위탁(KPST)이면 {@link DeidentResult#deferred}.
+     *         호출자는 completed 일 때만 MARKING_READY 로 전이한다(지연이면 폴링이 단일 지점에서 전이).
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public String run(LsDataRaw raw) {
+    public DeidentResult run(LsDataRaw raw) {
         if (raw == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
         // Phase 1 — local 전용 mock 경로: 외부 비식별 서버 없이 원본을 비식별 경로로 복사한다.
         // KPST 위탁 분기보다 앞에 둔다(mock 활성 시 외부 미접촉).
         if (mockMode) {
-            return runMock(raw);
+            return DeidentResult.completed(runMock(raw));
         }
         // UC018 — KPST 폴링 경로(기본): 위탁(upload→project)만 수행하고 완료(다운로드→Y전이)는 폴링 잡이 담당.
+        // 제출 직후에는 MARKING_READY 로 전이하지 않는다(DE_IDNTF_YN='N' 유지) — deferred 반환으로 호출자가 전이를 건너뛴다.
         if (kpstEnabled && kpstDeidentService != null) {
             kpstDeidentService.submit(raw);
-            return null;
+            return DeidentResult.deferred();
         }
         // 설정 오류 — mock 도 아니고 KPST 서비스도 주입되지 않았다. 레거시 폴백은 제거되었으므로
         // 임의 동작 대신 명확히 거부한다(CWE-209: 내부 구현/경로 미노출, 고정 메시지만).

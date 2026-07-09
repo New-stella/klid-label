@@ -19,21 +19,10 @@ import { ProgressBar } from '@/components/common/ProgressBar';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 import { useDashboardSummary } from '@/features/dashboard/hooks/useDashboardSummary';
-import type { EventTypeCd } from '@/features/dashboard/types';
 import { useTasks } from '@/features/task/hooks/useTasks';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
-
-// mock 정합 — 6종 이벤트 고정 라벨 매핑 (BE EventTypeCd → 한글)
-const EVENT_LABELS: { code: EventTypeCd; label: string }[] = [
-  { code: 'FALL', label: '쓰러짐' },
-  { code: 'VIOLENCE', label: '폭력' },
-  { code: 'TRAFFIC_ACCIDENT', label: '교통사고' },
-  { code: 'ABNORMAL_BEHAVIOR', label: '이상행동(유괴)' },
-  { code: 'FLOOD', label: '침수' },
-  { code: 'WILDFIRE', label: '산불' },
-];
 
 function formatDuration(seconds: number | undefined): string {
   if (!seconds) return '-';
@@ -88,17 +77,11 @@ export function DashboardPage() {
     isWorker && userId ? { workerId: userId, size: 5 } : { size: 0 },
   );
 
-  // 이벤트 분포를 코드 → count 맵으로
-  // distMap: 영상 단위 — "영상 데이터 개수" 카드용
-  // imageDistMap: 프레임(이미지) 단위 — "이미지 데이터 개수" 카드용 (BE 미제공 시 distMap fallback)
-  const distMap = new Map<string, number>();
-  for (const d of data?.eventDistribution ?? []) {
-    distMap.set(d.eventTypeCd, d.count);
-  }
-  const imageDistMap = new Map<string, number>();
-  for (const d of data?.imageDistribution ?? data?.eventDistribution ?? []) {
-    imageDistMap.set(d.eventTypeCd, d.count);
-  }
+  // 이벤트 분포 — BE 카테고리 항목(eventTypeCd=categoryKey, label, count)을 그대로 순회 렌더.
+  // videoDistribution: 영상 단위 — "영상 데이터 개수" 카드용
+  // imageDistribution: 프레임(이미지) 단위 — "이미지 데이터 개수" 카드용 (BE 미제공 시 영상 분포 fallback)
+  const videoDistribution = data?.eventDistribution ?? [];
+  const imageDistribution = data?.imageDistribution ?? data?.eventDistribution ?? [];
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['stat'] });
@@ -191,15 +174,15 @@ export function DashboardPage() {
               </div>
               <div className="border-t border-gray-200 pt-3">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {EVENT_LABELS.map((e) => (
+                  {imageDistribution.map((e) => (
                     <div
-                      key={e.code}
-                      data-event-type={e.code}
+                      key={e.eventTypeCd}
+                      data-event-type={e.eventTypeCd}
                       className="flex justify-between text-xs"
                     >
                       <span className="text-gray-500">{e.label}</span>
                       <span className="tabular-nums font-medium text-gray-800">
-                        {(imageDistMap.get(e.code) ?? 0).toLocaleString('ko-KR')}
+                        {e.count.toLocaleString('ko-KR')}
                       </span>
                     </div>
                   ))}
@@ -219,11 +202,11 @@ export function DashboardPage() {
               </div>
               <div className="border-t border-gray-200 pt-3">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {EVENT_LABELS.map((e) => (
-                    <div key={e.code} className="flex justify-between text-xs">
+                  {videoDistribution.map((e) => (
+                    <div key={e.eventTypeCd} className="flex justify-between text-xs">
                       <span className="text-gray-500">{e.label}</span>
                       <span className="tabular-nums font-medium text-gray-800">
-                        {(distMap.get(e.code) ?? 0).toLocaleString('ko-KR')}
+                        {e.count.toLocaleString('ko-KR')}
                       </span>
                     </div>
                   ))}

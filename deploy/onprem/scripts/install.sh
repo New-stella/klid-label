@@ -117,6 +117,9 @@ STEPS=(
   "14-install-frontend.sh"
 )
 [[ "${SKIP_DB_INIT:-0}" == "1" ]] || STEPS+=("15-init-db.sh")
+# 16: db/schema.sql 로드 (SPRING_FLYWAY_ENABLED=false 운영). SCHEMA_LOAD_RUN=1 일 때만
+#     실제 로드, 아니면 수동 안내만. Flyway 부트스트랩 구성이면 SKIP_SCHEMA_LOAD=1 로 생략.
+[[ "${SKIP_DB_INIT:-0}" == "1" ]] || STEPS+=("16-load-schema.sh")
 
 for step in "${STEPS[@]}"; do
   script="${SELF_DIR}/install/${step}"

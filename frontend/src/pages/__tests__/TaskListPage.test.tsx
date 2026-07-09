@@ -1037,4 +1037,90 @@ describe('TaskListPage', () => {
       screen.queryByRole('button', { name: /마킹 시작 CCTV-HAS-FRAME-51/ }),
     ).not.toBeInTheDocument();
   });
+
+  // Phase 3 — 비식별 미완료 영상 마킹 진입 차단 (AC4)
+  it('비식별_미완료_영상은_마킹_진입_버튼이_비활성화된다', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 301,
+            videoId: 61,
+            cctvName: 'CCTV-DEIDENT-PENDING',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-27T10:00:00Z',
+            // firstSrcSn 없음 → 마킹 버튼 경로. deIdntfYn 미완료 → 진입 차단.
+            deIdntfYn: 'N',
+            deidentStatus: 'IN_PROGRESS',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-DEIDENT-PENDING')).toBeInTheDocument();
+    });
+
+    // 마킹 버튼은 존재하되 비활성화 + 차단 사유가 접근성 라벨에 포함된다.
+    const markBtn = screen.getByRole('button', { name: /마킹 불가.*CCTV-DEIDENT-PENDING/ });
+    expect(markBtn).toBeDisabled();
+    // 클릭해도 navigate 되지 않는다.
+    const user = userEvent.setup();
+    await user.click(markBtn);
+    expect(navigateMock).not.toHaveBeenCalledWith('/marking/61');
+  });
+
+  it('비식별_완료_영상은_마킹_화면으로_진입할_수_있다', async () => {
+    setRole('WORKER');
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 302,
+            videoId: 62,
+            cctvName: 'CCTV-DEIDENT-DONE',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-27T10:00:00Z',
+            // firstSrcSn 없음 → 마킹 버튼 경로. deIdntfYn='Y' → 진입 허용.
+            deIdntfYn: 'Y',
+            deidentStatus: 'DONE',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-DEIDENT-DONE')).toBeInTheDocument();
+    });
+
+    const markBtn = screen.getByRole('button', { name: /마킹 시작 CCTV-DEIDENT-DONE/ });
+    expect(markBtn).toBeEnabled();
+
+    const user = userEvent.setup();
+    await user.click(markBtn);
+    expect(navigateMock).toHaveBeenCalledWith('/marking/62');
+  });
 });

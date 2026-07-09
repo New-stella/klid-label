@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.runner;
 
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.batch.step.DeidentResult;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -59,15 +60,32 @@ class DevPipelineRunnerTest {
     }
 
     @Test
-    @DisplayName("비식별_실행후_MARKING_READY_전이만_수행하고_정지")
-    void deidentifyThenMarkingReadyOnly() {
+    @DisplayName("mock_모드_비식별_동기완료시_run직후_MARKING_READY로_전이")
+    void mockSyncCompletedTransitionsMarkingReady() {
         LsDataRaw raw = rawWith(RAW_SN);
         given(videoRepository.findById(RAW_SN)).willReturn(Optional.of(raw));
+        // mock 동기 완료 — completed=true 반환.
+        given(deidentifyStep.run(raw)).willReturn(DeidentResult.completed("/deid/videos/700/deidentified.mp4"));
 
         runner.runAsync(RAW_SN);
 
         verify(deidentifyStep).run(raw);
         verify(transitionService).markRawDataMarkingReady(RAW_SN);
+    }
+
+    @Test
+    @DisplayName("KPST_모드_비식별_제출직후_MARKING_READY로_전이되지_않고_PENDING_유지")
+    void kpstDeferredDoesNotTransitionMarkingReady() {
+        LsDataRaw raw = rawWith(RAW_SN);
+        given(videoRepository.findById(RAW_SN)).willReturn(Optional.of(raw));
+        // KPST 위탁(지연) — completed=false 반환. 제출만 했을 뿐 비식별 미완료(DE_IDNTF_YN='N').
+        given(deidentifyStep.run(raw)).willReturn(DeidentResult.deferred());
+
+        runner.runAsync(RAW_SN);
+
+        verify(deidentifyStep).run(raw);
+        // 조기 전이 차단: 제출 직후에는 MARKING_READY 로 전이하지 않는다(폴링 완료가 단일 지점에서 전이).
+        verify(transitionService, never()).markRawDataMarkingReady(any());
     }
 
     @Test

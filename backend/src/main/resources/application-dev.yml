@@ -24,10 +24,16 @@ authoring:
       enabled: true
     upload:
       enabled: true
+  # dev 비식별 — 기본 mock 모드. KPST 미호출, 원본을 비식별 경로로 복사하는 mock 비식별로 자족 동작한다.
+  #   실 KPST 연동은 DEIDENTIFY_MOCK_MODE=false 로 전환(KPST API 연동 테스트 서버에 실제 위탁).
+  #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — local/dev/stg 는 허용, prd 에서 true 면 부트 거부.
+  integration:
+    deidentify:
+      mock-mode: ${DEIDENTIFY_MOCK_MODE:true}
 
-# UC018 — dev 는 KPST API 연동 테스트 서버에 실제 연동한다(mock 아님).
-#   enabled 는 application.yml 기본값(true), 계정도 기본값(creator-id/req-user-id=authoring) 사용.
-#   내부망 http 평문이라 ca-cert 불요. base-url 은 KPST_DEID_BASE_URL 로 override 가능.
+# UC018 — dev 는 기본 mock 비식별(위 mock-mode=true)이라 아래 kpst.deid.* 는 미사용이다(mock 우선).
+#   실 KPST 연동 시(DEIDENTIFY_MOCK_MODE=false) 사용 — enabled 는 application.yml 기본값(true), 계정도
+#   기본값(creator-id/req-user-id=authoring) 사용. 내부망 http 평문이라 ca-cert 불요. base-url 은 override 가능.
 kpst:
   deid:
     base-url: ${KPST_DEID_BASE_URL:http://222.118.130.251:9989}

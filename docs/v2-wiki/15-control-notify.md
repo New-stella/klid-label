@@ -23,8 +23,12 @@
   → ControlNotifyEventListener
   → ControlNotifyDebouncer (짧은 시간 내 다수 변경 → 디바운스 후 1회)
   → ControlNotifyClient (idempotency + Resilience4j) → 관제서버 inbound SPI (비동기 push)
-  → 실패 시 dead-letter/재등록 큐 (LS_CONTROL_NOTIFY_FALLBACK + Quartz Job)
+  → 발송 결과를 LS_CONTROL_NOTIFY_FALLBACK 에 적재:
+      · 즉시 성공 → STTS_CD=SUCCEEDED + SEND_RSLT_CD=SUCCESS 터미널 행(재시도 큐 미진입, 관찰용)
+      · 실패      → STTS_CD=PENDING + SEND_RSLT_CD=FAILED → dead-letter/재등록 큐 (Quartz Job 재시도)
 ```
+
+> **발송 상태 관찰(V77)**: `STTS_CD`(큐 처리 상태)와 `SEND_RSLT_CD`(발송 결과 SUCCESS/FAILED)를 분리해, 즉시 성공 발송도 DB로 관찰 가능. `SELECT SEND_RSLT_CD FROM LS_CONTROL_NOTIFY_FALLBACK WHERE RAW_SN=? AND IDMP_KEY=?` → `'SUCCESS'`. 성공 관찰 행은 `SUCCEEDED` 터미널이라 재시도 잡·depth 게이지(`STTS_CD IN PENDING,RETRYING`)에서 제외.
 
 ## 15.3 관제서버 조회 패턴
 
@@ -39,4 +43,4 @@
 
 ## 15.5 관련 데이터 (DB)
 
-`LS_CONTROL_NOTIFY_FALLBACK`(통지 실패 재시도), `LS_RAW_DATA_STATUS`(완료 상태). 페이로드: `TaskCompletedPayload`/`TaskModifiedPayload`. → [18](18-database.md).
+`LS_CONTROL_NOTIFY_FALLBACK`(통지 재시도 큐 + 발송 결과 상태 — `STTS_CD` 큐 처리 / `SEND_RSLT_CD` 성공·실패 관찰, V77), `LS_RAW_DATA_STATUS`(완료 상태). 페이로드: `TaskCompletedPayload`/`TaskModifiedPayload`. → [18](18-database.md).

@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestRequest;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestResponse;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -67,6 +68,8 @@ public class DevAutolabelTestService {
     private final VideoRepository videoRepository;
     private final MngResourceCctvRepository cctvRepository;
     private final DevPipelineRunner devPipelineRunner;
+    /** Phase 5: 이벤트 코드 검증을 관제 마스터 기반(상세 EV-코드 등록 여부)으로 전환 — TusUploadService 와 동일 SoT. */
+    private final EventTypeService eventTypeService;
     private final Path storageRawPath;
     private final long maxFileSize;
     private final String ffprobePath;
@@ -82,11 +85,12 @@ public class DevAutolabelTestService {
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
             DevPipelineRunner devPipelineRunner,
+            EventTypeService eventTypeService,
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
             @Value("${authoring.dev.autolabel-test.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.ffmpeg.ffprobe-binary:ffprobe}") String ffprobePath
     ) {
-        this(videoRepository, cctvRepository, devPipelineRunner,
+        this(videoRepository, cctvRepository, devPipelineRunner, eventTypeService,
                 storageRawPath, maxFileSize, ffprobePath, null);
     }
 
@@ -98,6 +102,7 @@ public class DevAutolabelTestService {
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
             DevPipelineRunner devPipelineRunner,
+            EventTypeService eventTypeService,
             String storageRawPath,
             long maxFileSize,
             String ffprobePath,
@@ -106,6 +111,7 @@ public class DevAutolabelTestService {
         this.videoRepository = videoRepository;
         this.cctvRepository = cctvRepository;
         this.devPipelineRunner = devPipelineRunner;
+        this.eventTypeService = eventTypeService;
         this.storageRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.maxFileSize = maxFileSize;
         this.ffprobePath = ffprobePath;
@@ -113,18 +119,19 @@ public class DevAutolabelTestService {
     }
 
     /**
-     * 기존 테스트 시그니처 호환용 (5-인자 생성자) — ffprobe 의존 없이 고정 duration(60s) 을
-     * 반환하는 stub probe 를 주입한다. 신규 테스트는 7-인자 생성자로 {@link DurationProbe}
+     * 기존 테스트 시그니처 호환용 (6-인자 생성자) — ffprobe 의존 없이 고정 duration(60s) 을
+     * 반환하는 stub probe 를 주입한다. 신규 테스트는 8-인자 생성자로 {@link DurationProbe}
      * 를 직접 주입해 정확한 검증을 수행한다.
      */
     public DevAutolabelTestService(
             VideoRepository videoRepository,
             MngResourceCctvRepository cctvRepository,
             DevPipelineRunner devPipelineRunner,
+            EventTypeService eventTypeService,
             String storageRawPath,
             long maxFileSize
     ) {
-        this(videoRepository, cctvRepository, devPipelineRunner,
+        this(videoRepository, cctvRepository, devPipelineRunner, eventTypeService,
                 storageRawPath, maxFileSize, "ffprobe", path -> 60);
     }
 
@@ -241,6 +248,15 @@ public class DevAutolabelTestService {
         if (!cctvRepository.existsById(meta.cctvId())) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "등록되지 않은 CCTV 입니다.");
+        }
+        // Phase 5: 이벤트 코드 — @Pattern 으로 형식(EV+숫자8)만 1차 가드된 상태. 여기서 관제 마스터
+        // 등록 여부를 2차 검증한다(TusUploadService 와 동일 SoT). categoryKeyOf 가 빈 Optional 이면
+        // 관제 미등록 코드 → 400. (CWE-20 입력 검증 — dev 도구도 미등록 코드 거부)
+        String eventTypeCd = meta.eventTypeCd();
+        if (eventTypeCd != null && !eventTypeCd.isBlank()
+                && eventTypeService.categoryKeyOf(eventTypeCd).isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "지원하지 않는 이벤트 타입입니다.");
         }
     }
 

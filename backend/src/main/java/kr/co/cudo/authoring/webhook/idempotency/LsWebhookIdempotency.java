@@ -46,6 +46,13 @@ public class LsWebhookIdempotency {
     @Column(name = "OTSD_JOB_ID", length = 128)
     private String otsdJobId;
 
+    /**
+     * 위탁 요청 대상 영상의 RAW_SN — VLM describe 콜백 정합용.
+     * 콜백 바디가 request_id 만 전달하는 규격에서 request_id→rawSn 역조회에 사용된다. 매핑 없으면 null.
+     */
+    @Column(name = "RAW_SN")
+    private Long rawSn;
+
     @Column(name = "APLY_DT")
     private LocalDateTime aplyDt;
 
@@ -56,6 +63,10 @@ public class LsWebhookIdempotency {
     private LocalDateTime mdfcnDt;
 
     public static LsWebhookIdempotency issue(String idempotencyKey, String channel, String externalJobId) {
+        return issue(idempotencyKey, channel, externalJobId, null);
+    }
+
+    public static LsWebhookIdempotency issue(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("idempotencyKey 는 필수입니다.");
         }
@@ -67,6 +78,7 @@ public class LsWebhookIdempotency {
         entity.chnlCd = channel;
         entity.sttsCd = STATE_ISSUED;
         entity.otsdJobId = externalJobId;
+        entity.rawSn = rawSn;
         LocalDateTime now = LocalDateTime.now();
         entity.regDt = now;
         entity.mdfcnDt = now;

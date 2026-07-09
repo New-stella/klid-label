@@ -6,10 +6,8 @@ import kr.co.cudo.authoring.user.repository.dto.WorkerWithTaskCount;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -26,8 +24,12 @@ public interface UserRepository extends JpaRepository<MngAcctUser, Long> {
     List<MngAcctUser> findByUserNoIn(java.util.Collection<Long> userNos);
 
     /**
-     * WORKER 권한을 가진 활성 사용자 목록과 활성 라벨러 태스크 개수를 단일 쿼리로 조회한다.
-     * N+1 방지: 사용자별 LS_TASK_ASSIGNMENT GROUP BY COUNT 를 LEFT JOIN.
+     * WORKER 역할을 가진 활성 사용자 목록과 활성 라벨러 태스크 개수를 단일 쿼리로 조회한다.
+     *
+     * <p>역할 분리 리팩토링 Phase 2 — WORKER 집계는 저작도구 소유 {@code LS_USER_ROLE}
+     * (ROLE_CD='WORKER') INNER JOIN 으로 산정한다. useYn 은 쓰기만 제거됐고 읽기/필터는
+     * 관제 {@code MNG_ACCT_USER.USE_YN='Y'} 값을 그대로 사용해 비활성 사용자를 제외한다.
+     * N+1 방지: 사용자별 LS_TASK_ASSIGNMENT 활성 카운트를 상관 서브쿼리로 산정.
      */
     @Query("""
             SELECT new kr.co.cudo.authoring.user.repository.dto.WorkerWithTaskCount(
@@ -35,9 +37,9 @@ public interface UserRepository extends JpaRepository<MngAcctUser, Long> {
                 (SELECT COUNT(a) FROM kr.co.cudo.authoring.assignment.entity.LsTaskAssignment a
                   WHERE a.userNo = u.userNo AND a.taskTypeCd = 'LABELER')
             )
-            FROM MngAcctUser u, MngAcctUserAuthrt ua
-            WHERE u.userNo = ua.id.userNo
-              AND ua.id.authrtCd = 'WORKER'
+            FROM MngAcctUser u, LsUserRole r
+            WHERE u.userNo = r.userNo
+              AND r.roleCd = 'WORKER'
               AND u.useYn = 'Y'
             ORDER BY u.userNo ASC
             """)
@@ -56,30 +58,4 @@ public interface UserRepository extends JpaRepository<MngAcctUser, Long> {
                     OR LOWER(u.userEmail) LIKE LOWER(CONCAT('%', :keyword, '%')))
             """)
     Page<MngAcctUser> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
-
-    /**
-     * 주어진 userNo 목록에 해당하는 권한 매핑을 조회 (N+1 방지용).
-     * 우선순위가 높은 권한이 앞에 오도록 정렬 (REVIEWER > WORKER > PORTAL_USER > etc).
-     */
-    @Query("""
-            SELECT ua FROM MngAcctUserAuthrt ua
-             WHERE ua.id.userNo IN :userNos
-             ORDER BY
-               CASE ua.id.authrtCd
-                   WHEN 'REVIEWER'    THEN 1
-                   WHEN 'WORKER'      THEN 2
-                   WHEN 'PORTAL_USER' THEN 3
-                   ELSE 9
-               END ASC
-            """)
-    List<kr.co.cudo.authoring.user.entity.MngAcctUserAuthrt> findAuthrtsByUserNos(@Param("userNos") List<Long> userNos);
-
-    /**
-     * 활성/비활성 상태 변경 — 엔티티가 {@code @Immutable} 이므로 {@code @Modifying} UPDATE 로 수행.
-     * useYn 은 Controller/DTO 단계 {@code @Pattern} 화이트리스트(Y/N)로 사전 검증된 값만 도달한다.
-     */
-    @Modifying
-    @Transactional("controlTransactionManager")
-    @Query("UPDATE MngAcctUser u SET u.useYn = :useYn, u.updDt = CURRENT_TIMESTAMP WHERE u.userNo = :userNo")
-    int updateUseYn(@Param("userNo") Long userNo, @Param("useYn") String useYn);
 }

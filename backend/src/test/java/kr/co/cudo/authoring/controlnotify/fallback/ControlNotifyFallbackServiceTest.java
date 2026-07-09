@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.controlnotify.fallback;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
@@ -92,6 +93,59 @@ class ControlNotifyFallbackServiceTest {
 
         // then
         assertThat(result).contains("dup-1");
+    }
+
+    // ---------- recordImmediateSuccess (발송 성공 관찰 적재) ----------
+
+    @Test
+    @DisplayName("recordImmediateSuccess_SUCCEEDED_SUCCESS_행_적재")
+    void recordImmediateSuccess_savesTerminalSuccessRow() {
+        // given
+        ArgumentCaptor<LsControlNotifyFallback> captor =
+                ArgumentCaptor.forClass(LsControlNotifyFallback.class);
+        ControlNotifyFallbackService svc = new ControlNotifyFallbackService(repository, true, null);
+
+        // when
+        Optional<String> result =
+                svc.recordImmediateSuccess("ok-1", "TASK_COMPLETED", 100L, "{}");
+
+        // then
+        assertThat(result).contains("ok-1");
+        verify(repository).save(captor.capture());
+        LsControlNotifyFallback saved = captor.getValue();
+        assertThat(saved.getSttsCd()).isEqualTo(LsControlNotifyFallback.STATUS_SUCCEEDED);
+        assertThat(saved.getSendRsltCd()).isEqualTo(LsControlNotifyFallback.SEND_RSLT_SUCCESS);
+    }
+
+    @Test
+    @DisplayName("recordImmediateSuccess_disabled시_empty_반환")
+    void recordImmediateSuccess_disabled_empty() {
+        // given
+        ControlNotifyFallbackService svc = new ControlNotifyFallbackService(repository, false, null);
+
+        // when
+        Optional<String> result =
+                svc.recordImmediateSuccess("ok-1", "TASK_COMPLETED", 100L, "{}");
+
+        // then
+        assertThat(result).isEmpty();
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("recordImmediateSuccess_중복키_충돌시_멱등_처리")
+    void recordImmediateSuccess_duplicateKey_idempotent() {
+        // given
+        when(repository.save(any(LsControlNotifyFallback.class)))
+                .thenThrow(new DataIntegrityViolationException("uk_idempotency_key"));
+        ControlNotifyFallbackService svc = new ControlNotifyFallbackService(repository, true, null);
+
+        // when
+        Optional<String> result =
+                svc.recordImmediateSuccess("dup-ok", "TASK_MODIFIED", 200L, "{}");
+
+        // then — 예외 전파 없이 멱등 반환.
+        assertThat(result).contains("dup-ok");
     }
 
     @Test

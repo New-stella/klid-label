@@ -12,6 +12,7 @@ import { cn } from '@/lib/cn';
 
 interface LabelHeaderProps {
   cctvName?: string;
+  /** 영상의 EV-코드 또는 한글 라벨(eventName). EventTypeBadge 로 전달 — categoryKey 금지. */
   eventType?: string;
   currentFrame: number;
   totalFrames: number;

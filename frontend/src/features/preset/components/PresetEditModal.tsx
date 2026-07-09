@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+import { useEventTypes } from '@/features/eventType/hooks';
 
 import {
   presetSchema,
@@ -12,7 +13,6 @@ import {
   type PresetFormOutput,
 } from '../schemas';
 import {
-  EVENT_TYPE_OPTIONS,
   PRESET_LABEL_SUGGESTIONS,
   type LabelCodeOption,
   type Preset,
@@ -51,6 +51,8 @@ export function PresetEditModal({
   submitting,
 }: PresetEditModalProps) {
   const isEdit = !!initial;
+  // 매핑 이벤트 옵션 — 관제 마스터 기반 9 카테고리 (value=categoryKey, 표시=label).
+  const { data: eventTypes } = useEventTypes();
 
   const {
     register,
@@ -91,6 +93,14 @@ export function PresetEditModal({
     }
     setNewCode('');
   }, [open, initial, reset]);
+
+  // 이벤트 옵션은 비동기 로드되므로, 옵션 준비 후 initial 의 매핑값(categoryKey)을 select 에 재반영한다.
+  // (옵션이 아직 없을 때 reset 하면 native select 가 빈 값으로 남는 문제 보정 — 운영/테스트 공통)
+  useEffect(() => {
+    if (open && initial && eventTypes) {
+      setValue('eventTypeCd', initial.eventTypeCd ?? '');
+    }
+  }, [open, initial, eventTypes, setValue]);
 
   const setOptions = (opts: LabelCodeOption[]) => {
     setValue('labelCodeOptions', opts, { shouldValidate: true, shouldDirty: true });
@@ -249,9 +259,9 @@ export function PresetEditModal({
             {...register('eventTypeCd')}
           >
             <option value="">선택 안 함 (-)</option>
-            {EVENT_TYPE_OPTIONS.map((o) => (
-              <option key={o.code} value={o.code}>
-                {o.code} — {o.name}
+            {(eventTypes ?? []).map((o) => (
+              <option key={o.categoryKey} value={o.categoryKey}>
+                {o.label}
               </option>
             ))}
           </select>

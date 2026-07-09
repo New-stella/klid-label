@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
+import { useEventTypes } from '@/features/eventType/hooks';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
 import type { TusMetadata } from '@/features/upload/api/tusClient';
 
@@ -26,7 +27,8 @@ function nowLocalDateTime(): string {
 interface TusFormState {
   vmsClipId: string;
   cctvId: string;
-  eventTypeCd: string;
+  /** 관제 이벤트 카테고리 키(select value). 제출 시 대표 EV-코드(memberCodes[0])로 변환. */
+  categoryKey: string;
   localGovCd: string;
   prvcTypeCd: string;
   capturedAtLocal: string;
@@ -36,7 +38,7 @@ function initialForm(): TusFormState {
   return {
     vmsClipId: `tus-${Date.now()}`,
     cctvId: 'CCTV-001',
-    eventTypeCd: 'EVT_FALL',
+    categoryKey: '',
     localGovCd: '11680',
     prvcTypeCd: 'ANONY',
     capturedAtLocal: nowLocalDateTime(),
@@ -59,17 +61,36 @@ export function TusUploadPanel() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const upload = useTusUpload();
 
+  // 관제 이벤트 타입 카테고리 옵션(9종) — DevAutolabelTestPage 와 동일 관제화.
+  const eventTypesQuery = useEventTypes();
+  const eventOptions = useMemo(
+    () => eventTypesQuery.data ?? [],
+    [eventTypesQuery.data],
+  );
+
+  useEffect(() => {
+    if (eventOptions.length > 0 && !form.categoryKey) {
+      setForm((s) => ({ ...s, categoryKey: eventOptions[0].categoryKey }));
+    }
+  }, [eventOptions, form.categoryKey]);
+
+  // 선택 카테고리 → 대표 EV-코드 (제출 메타의 eventTypeCd).
+  const selectedEventCode = useMemo(() => {
+    const opt = eventOptions.find((o) => o.categoryKey === form.categoryKey);
+    return opt?.memberCodes[0] ?? '';
+  }, [eventOptions, form.categoryKey]);
+
   const meta: TusMetadata = useMemo(
     () => ({
       filename: file?.name,
       vmsClipId: form.vmsClipId.trim(),
       cctvId: form.cctvId.trim(),
-      eventTypeCd: form.eventTypeCd,
+      eventTypeCd: selectedEventCode,
       localGovCd: form.localGovCd.trim(),
       prvcTypeCd: form.prvcTypeCd,
       capturedAt: toIsoInstant(form.capturedAtLocal),
     }),
-    [file, form],
+    [file, form, selectedEventCode],
   );
 
   const isUploading = upload.status === 'uploading';
@@ -138,6 +159,32 @@ export function TusUploadPanel() {
             disabled={isUploading}
             autoComplete="off"
           />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="tus-event" className="text-body font-medium text-gray-700">
+            이벤트 타입 <span className="text-danger">*</span>
+          </label>
+          <select
+            id="tus-event"
+            value={form.categoryKey}
+            onChange={(e) => setForm((s) => ({ ...s, categoryKey: e.target.value }))}
+            disabled={isUploading || eventOptions.length === 0}
+            className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+          >
+            {eventOptions.length === 0 && (
+              <option value="">이벤트 타입 로딩 중…</option>
+            )}
+            {eventOptions.map((o) => (
+              <option key={o.categoryKey} value={o.categoryKey}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-sub text-gray-500">
+            관제 카테고리 선택 → 대표 EV-코드
+            {selectedEventCode ? ` (${selectedEventCode})` : ''} 전송
+          </span>
         </div>
 
         {/* 진행률 */}

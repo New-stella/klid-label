@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -76,6 +77,7 @@ class DeidentReportServiceTest {
     private LsRawDataStatusRepository rawDataStatusRepository;
     private LsDataLblHstryRepository lblHstryRepository;
     private ApplicationEventPublisher eventPublisher;
+    private StreamMetaCacheEvictor streamMetaCacheEvictor;
     private DeidentReportService service;
 
     private TokenClaims workerActor;
@@ -96,10 +98,12 @@ class DeidentReportServiceTest {
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         lblHstryRepository = mock(LsDataLblHstryRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        streamMetaCacheEvictor = mock(StreamMetaCacheEvictor.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService, versionService,
                 labelRepository, attrValRepository, aiInfoRepository,
-                rawDataStatusRepository, lblHstryRepository, eventPublisher);
+                rawDataStatusRepository, lblHstryRepository, eventPublisher,
+                streamMetaCacheEvictor);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -173,6 +177,8 @@ class DeidentReportServiceTest {
         verify(labelRepository).deleteAllByRawSn(9001L);
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
         verify(workLockService).lockRawForRedeident(9001L, "100");
+        // 신고('F') 후 스트림 메타 캐시 무효화 훅 호출(커밋 후 옛 노출본 서빙 차단).
+        verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
     }
 
     @Test
@@ -462,6 +468,8 @@ class DeidentReportServiceTest {
         assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
         assertThat(rep.getResolvedDt()).isNotNull();
         verify(workLockService).releaseRaw(eq(9700L), anyString(), anyString());
+        // 수동 재비식별 완료로 비식별본이 교체될 수 있으므로 커밋 후 스트림 메타 캐시 무효화 훅 호출.
+        verify(streamMetaCacheEvictor).evictAfterCommit(9700L);
     }
 
     @Test
@@ -546,6 +554,8 @@ class DeidentReportServiceTest {
         assertThat(r2.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
         assertThat(r1.getResolvedDt()).isNotNull();
         verify(workLockService).releaseRaw(9100L, "system", "DEIDENT_SUCCEEDED");
+        // 배치 자동 재비식별 성공으로 비식별본이 교체되었으므로 커밋 후 스트림 메타 캐시 무효화 훅 호출.
+        verify(streamMetaCacheEvictor).evictAfterCommit(9100L);
     }
 
     @Test

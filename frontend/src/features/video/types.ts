@@ -3,6 +3,40 @@
 import type { BadgeStatus } from '@/components/common/StatusBadge';
 import type { AssignmentStatus } from '@/features/task/types';
 
+// 비식별 처리 상태 (BE Phase 2 응답 키 deidentStatus).
+// enum 금지(frontend-coding-style) → as const 객체로 관리.
+//  - IN_PROGRESS : 비식별 진행중 (마킹 진입 차단)
+//  - FAILED      : 비식별 실패  (마킹 진입 차단)
+//  - DONE        : 비식별 완료  (기존 dataSttsCd 배지 유지)
+//  - NONE        : 비식별 대상 없음/미시작 (기존 dataSttsCd 배지 유지)
+export const DEIDENT_STATUS = {
+  IN_PROGRESS: 'IN_PROGRESS',
+  FAILED: 'FAILED',
+  DONE: 'DONE',
+  NONE: 'NONE',
+} as const;
+export type DeidentStatus = (typeof DEIDENT_STATUS)[keyof typeof DEIDENT_STATUS];
+
+/**
+ * 마킹 진입 차단 여부 — 비식별이 "확정적으로 미완료" 일 때만 true.
+ *
+ * <p>deidentStatus(IN_PROGRESS/FAILED) 또는 deIdntfYn('N'/'F') 신호가 있으면 차단한다.
+ * 정보가 없으면(undefined) 차단하지 않는다 — BE MarkingService(deIdntfYn='Y' 가드)가
+ * 백스톱이므로 FE 는 알 수 있는 경우에만 UX 로 선차단한다(fail-open for UX, BE fail-closed).
+ */
+export function isMarkingBlocked(v: {
+  deidentStatus?: DeidentStatus | string | null;
+  deIdntfYn?: string | null;
+}): boolean {
+  if (
+    v.deidentStatus === DEIDENT_STATUS.IN_PROGRESS ||
+    v.deidentStatus === DEIDENT_STATUS.FAILED
+  ) {
+    return true;
+  }
+  return v.deIdntfYn === 'N' || v.deIdntfYn === 'F';
+}
+
 export interface VideoListParams {
   page?: number;
   size?: number;
@@ -41,6 +75,9 @@ export interface Video {
   // 비식별 처리 여부 (BE LS_DATA_RAW.DE_IDENT_YN → 응답 키 deIdntfYn).
   // 'Y'=비식별 완료, 'N'=미처리, 'F'=실패. SC-009 재비식별 버튼 노출 조건에 사용.
   deIdntfYn?: 'Y' | 'N' | 'F';
+  // 비식별 처리 상태 (BE Phase 2 응답 키 deidentStatus).
+  // 목록 처리단계 배지(진행중/실패 우선 표시) + 마킹 진입 차단 판정에 사용.
+  deidentStatus?: DeidentStatus;
   // 검수 상태 (BE LS_RAW_DATA_STATUS.DATA_STTS_CD → 응답 키 reviewSttsCd).
   // status(=배치단계 LS_DATA_RAW.DATA_STTS_CD)와 출처·의미가 다르다.
   // 'APPROVED'=검수완료. SC-009 재비식별 버튼 노출은 이 필드로 판정한다(status 아님).

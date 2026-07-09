@@ -69,22 +69,25 @@ class StatsControllerTest {
     }
 
     @Test
-    @DisplayName("이벤트_분포는_6종_모두_포함_데이터_없으면_0")
-    void eventDistributionAlwaysContainsSixCodes() throws Exception {
+    @DisplayName("이벤트_분포는_관제_9종_카테고리_모두_포함_데이터_없으면_0")
+    void eventDistributionAlwaysContainsControlCategories() throws Exception {
         String workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
 
+        // Phase 3 — 분포는 EventTypeService.filterOptions() 의 관제 카테고리(EV-코드 기반,
+        // CLCT_YN='Y' AND cls!='08', categoryKey 오름차순)로 집계한다. dev-seed 기준 9 카테고리:
+        // 침수(범람)/산사태/화재/쓰러짐/파손/교통사고/싸움/흉기소지/납치(유괴).
+        // eventTypeCd 값의 의미가 UI약어("FALL")에서 categoryKey("010001")로 변경됨.
         mockMvc.perform(get("/v1/stats/summary")
                         .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.eventDistribution.length()").value(6))
-                .andExpect(jsonPath("$.data.eventDistribution[0].eventTypeCd").value("FALL"))
-                .andExpect(jsonPath("$.data.eventDistribution[0].label").value("쓰러짐"))
-                .andExpect(jsonPath("$.data.eventDistribution[1].eventTypeCd").value("VIOLENCE"))
-                .andExpect(jsonPath("$.data.eventDistribution[2].eventTypeCd").value("TRAFFIC_ACCIDENT"))
-                .andExpect(jsonPath("$.data.eventDistribution[3].eventTypeCd").value("ABNORMAL_BEHAVIOR"))
-                .andExpect(jsonPath("$.data.eventDistribution[4].eventTypeCd").value("FLOOD"))
-                .andExpect(jsonPath("$.data.eventDistribution[5].eventTypeCd").value("WILDFIRE"))
-                // 데이터 없으면 0
+                .andExpect(jsonPath("$.data.eventDistribution.length()").value(9))
+                .andExpect(jsonPath("$.data.eventDistribution[0].eventTypeCd").value("010001"))
+                .andExpect(jsonPath("$.data.eventDistribution[0].label").value("침수(범람)"))
+                .andExpect(jsonPath("$.data.eventDistribution[3].eventTypeCd").value("020002"))
+                .andExpect(jsonPath("$.data.eventDistribution[3].label").value("쓰러짐"))
+                // 비수집 카테고리(기타 상황 070002)는 그리드에 포함되지 않는다
+                .andExpect(jsonPath("$.data.eventDistribution[?(@.eventTypeCd=='070002')]").isEmpty())
+                // 데이터 없으면(clean seed) 0
                 .andExpect(jsonPath("$.data.eventDistribution[0].count").value(0));
     }
 

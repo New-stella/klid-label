@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.runner;
 
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchPipeline;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
@@ -15,6 +16,7 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -66,14 +68,51 @@ class AsyncDeidentifyRunnerTest {
     }
 
     @Test
-    @DisplayName("비식별_성공시_MARKING_READY_전이")
-    void successTransitionsMarkingReady() {
+    @DisplayName("mock_모드_비식별_동기완료시_run직후_MARKING_READY로_전이")
+    void mockSyncCompletedTransitionsMarkingReady() {
         when(videoRepository.findById(2L)).thenReturn(Optional.of(raw(LsDataRaw.PRVC_TYPE_PRVC)));
+        // mock 동기 완료 — DeidentifyStep.execute() 가 컨텍스트에 completed=true 를 실어준 상황을 모사.
+        doAnswer(inv -> {
+            BatchContext ctx = inv.getArgument(0);
+            ctx.markDeidentCompleted(true);
+            return null;
+        }).when(deidStep).execute(any());
 
         runner.runAsync(2L);
 
         verify(deidStep).execute(any());
         verify(batchTransitionService).markRawDataMarkingReady(eq(2L));
+    }
+
+    @Test
+    @DisplayName("KPST_모드_비식별_제출직후_MARKING_READY로_전이되지_않고_PENDING_유지")
+    void kpstDeferredDoesNotTransitionMarkingReady() {
+        when(videoRepository.findById(2L)).thenReturn(Optional.of(raw(LsDataRaw.PRVC_TYPE_PRVC)));
+        // KPST 위탁(지연) — execute() 가 completed=false 를 남긴 상황을 모사(제출만, 비식별 미완료).
+        doAnswer(inv -> {
+            BatchContext ctx = inv.getArgument(0);
+            ctx.markDeidentCompleted(false);
+            return null;
+        }).when(deidStep).execute(any());
+
+        runner.runAsync(2L);
+
+        verify(deidStep).execute(any());
+        // 조기 전이 차단: 제출 직후에는 MARKING_READY 로 전이하지 않는다(폴링 완료가 단일 지점에서 전이).
+        verify(batchTransitionService, never()).markRawDataMarkingReady(any());
+    }
+
+    @Test
+    @DisplayName("execute가_완료신호를_안주면_기본_false라_MARKING_READY_미전이")
+    void executeWithoutCompletionSignalDoesNotTransition() {
+        when(videoRepository.findById(4L)).thenReturn(Optional.of(raw(LsDataRaw.PRVC_TYPE_PRVC)));
+        // execute() 가 ctx.markDeidentCompleted 를 전혀 호출하지 않는 경우 — BatchContext 기본값 false.
+        // (mock 인 deidStep.execute 는 기본적으로 아무 동작도 하지 않으므로 ctx 는 미완료로 남는다.)
+
+        runner.runAsync(4L);
+
+        verify(deidStep).execute(any());
+        verify(batchTransitionService, never()).markRawDataMarkingReady(any());
     }
 
     @Test

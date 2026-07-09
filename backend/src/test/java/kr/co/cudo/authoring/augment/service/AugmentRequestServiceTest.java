@@ -244,7 +244,7 @@ class AugmentRequestServiceTest {
         assertThat(augType.getValue()).isEqualTo(LsDataAug.AUG_RAIN);
         assertThat(idemKey.getValue()).isEqualTo(aug.getIdempotencyKey());
         assertThat(jobId.getValue()).isEqualTo(aug.getExternalJobId());
-        assertThat(callbackUrl.getValue()).endsWith("/v1/augments/result");
+        assertThat(callbackUrl.getValue()).endsWith("/v1/aug/callback");
     }
 
     // ============================================================

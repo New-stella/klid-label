@@ -2,11 +2,11 @@ package kr.co.cudo.authoring.stats.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
-import kr.co.cudo.authoring.common.eventtype.EvntType;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.stats.dto.DashboardSummaryResponse;
 import kr.co.cudo.authoring.stats.dto.EventDistributionItem;
 import kr.co.cudo.authoring.stats.dto.MyTaskBreakdown;
@@ -56,39 +56,6 @@ import java.util.TreeMap;
 @Transactional(readOnly = true)
 public class StatsService {
 
-    /**
-     * UI 6 종 이벤트 코드 → SoT 한글 라벨 (frontend types.ts EventTypeCd 와 동기).
-     * 순서가 보장되어야 하므로 (UI 그리드 6 칸 고정 순서) 불변 List 로 보관한다.
-     * Map.copyOf 는 hash 순서로 변환되어 순서가 깨진다 — 사용 금지.
-     *
-     * <p>약어 코드는 외부 API 계약(FE 통계 그리드 코드)이라 유지하되, 한글 라벨은
-     * {@link EvntType#getLabel()} SoT 값을 그대로 사용해 일관성을 보장한다.
-     */
-    private static final List<EventLabel> EVENT_LABELS = List.of(
-            new EventLabel("FALL", EvntType.EVT_FALL.getLabel()),
-            new EventLabel("VIOLENCE", EvntType.EVT_VIOLENCE.getLabel()),
-            new EventLabel("TRAFFIC_ACCIDENT", EvntType.EVT_ACCIDENT.getLabel()),
-            new EventLabel("ABNORMAL_BEHAVIOR", EvntType.EVT_ABNORMAL.getLabel()),
-            new EventLabel("FLOOD", EvntType.EVT_FLOOD.getLabel()),
-            new EventLabel("WILDFIRE", EvntType.EVT_FIRE.getLabel())
-    );
-
-    /**
-     * UI 코드(FE EventTypeCd) → DB 시드 코드(EVT_ 접두사) 매핑.
-     * LS_DATA_RAW.EVNT_TYPE_CD 가 실제 'EVT_FALL' 등으로 저장되므로 카운트 조회 시 변환 필요.
-     */
-    private static final Map<String, String> UI_CODE_TO_DB_CODE = Map.of(
-            "FALL", EvntType.EVT_FALL.getCode(),
-            "VIOLENCE", EvntType.EVT_VIOLENCE.getCode(),
-            "TRAFFIC_ACCIDENT", EvntType.EVT_ACCIDENT.getCode(),
-            "ABNORMAL_BEHAVIOR", EvntType.EVT_ABNORMAL.getCode(),
-            "FLOOD", EvntType.EVT_FLOOD.getCode(),
-            "WILDFIRE", EvntType.EVT_FIRE.getCode()
-    );
-
-    private record EventLabel(String code, String label) {
-    }
-
     /** SCR-STAT-001 일별 차트 윈도우. */
     private static final int DAILY_WINDOW_DAYS = 30;
     /** SCR-STAT-001 월별 표 윈도우. */
@@ -104,6 +71,7 @@ public class StatsService {
     private final VideoRepository videoRepository;
     private final LsTaskAssignmentRepository authrtRepository;
     private final UserRepository userRepository;
+    private final EventTypeService eventTypeService;
 
     /**
      * 대시보드 요약을 조립한다. actor 가 null 이거나 인증 정보가 없는 경우(테스트 등)는
@@ -158,16 +126,39 @@ public class StatsService {
     }
 
     /**
-     * 6 종 이벤트 라벨을 항상 모두 포함시켜 반환한다 (없으면 0).
-     * UI 가 그리드 6 칸 고정이므로 누락 코드가 있어도 0 카운트로 채워준다.
+     * 이벤트 분포 그리드를 관제 코드 체계 기준으로 집계한다 (Phase 3 재설계).
+     *
+     * <p>입력 {@code rawByEvCode} 의 키는 {@code LS_DATA_RAW.EVNT_TYPE_CD} 실제 저장값인
+     * 관제 EV-코드(예 {@code EV02000201}), 값은 카운트다.
+     *
+     * <p>{@link EventTypeService#filterOptions()} 가 반환하는 각 카테고리(침수/산사태/화재/쓰러짐/
+     * 파손/교통사고/싸움/흉기소지/납치 등)에 대해, 그 카테고리의 {@code memberCodes}(상세 EV-코드들)
+     * 카운트를 raw 에서 합산한다. raw 에 없는 코드는 0. 카테고리 순서는 filterOptions 의 안정 순서
+     * (categoryKey 오름차순)를 그대로 유지해 그리드 칸 순서를 고정한다.
+     *
+     * <p><b>비수집 코드 제외 정책</b>: 비수집(CLCT_YN='N') 코드(예 기타 상황 EV07000201)와 ignore
+     * 대분류('08')는 filterOptions 에 포함되지 않으므로 자연히 그리드에서 제외된다 — 필터 옵션
+     * 14종 정책과 일관. raw 에 비수집 코드 카운트가 있어도 어떤 카테고리에도 합산되지 않는다.
+     *
+     * <p>반환 {@link EventDistributionItem} 의 첫 필드({@code eventTypeCd})는 UI 약어 코드가 아닌
+     * categoryKey(예 {@code "020002"})를 담는다 (DTO 구조 유지, 값 의미만 변경).
      */
-    private List<EventDistributionItem> buildDistribution(Map<String, Long> raw) {
-        return EVENT_LABELS.stream()
-                .map(e -> new EventDistributionItem(
-                        e.code(),
-                        e.label(),
-                        raw.getOrDefault(UI_CODE_TO_DB_CODE.getOrDefault(e.code(), e.code()), 0L)))
+    private List<EventDistributionItem> buildDistribution(Map<String, Long> rawByEvCode) {
+        return eventTypeService.filterOptions().stream()
+                .map(opt -> new EventDistributionItem(
+                        opt.categoryKey(),
+                        opt.label(),
+                        sumMemberCounts(rawByEvCode, opt.memberCodes())))
                 .toList();
+    }
+
+    /** 카테고리 소속 EV-코드들의 raw 카운트를 합산한다. 미존재 코드는 0. */
+    private long sumMemberCounts(Map<String, Long> rawByEvCode, List<String> memberCodes) {
+        long sum = 0L;
+        for (String code : memberCodes) {
+            sum += rawByEvCode.getOrDefault(code, 0L);
+        }
+        return sum;
     }
 
     private Map<String, Long> toMap(List<CountRow> rows) {

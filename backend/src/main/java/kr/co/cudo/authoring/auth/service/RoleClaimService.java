@@ -9,8 +9,9 @@ import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.JwtKeyResolver;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.security.UserRoleResolver;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
-import kr.co.cudo.authoring.user.repository.MngAcctUserAuthrtRepository;
+import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -59,7 +62,8 @@ public class RoleClaimService {
     private static final long ISSUED_TOKEN_TTL_SECONDS = 3600L;
 
     private final UserRepository userRepository;
-    private final MngAcctUserAuthrtRepository authrtRepository;
+    private final LsUserRoleRepository lsUserRoleRepository;
+    private final UserRoleResolver userRoleResolver;
     private final JwtKeyResolver keyResolver;
     private final PasswordEncoder passwordEncoder;
     private final String adminPasswordHash;
@@ -70,13 +74,15 @@ public class RoleClaimService {
 
     public RoleClaimService(
             UserRepository userRepository,
-            MngAcctUserAuthrtRepository authrtRepository,
+            LsUserRoleRepository lsUserRoleRepository,
+            UserRoleResolver userRoleResolver,
             JwtKeyResolver keyResolver,
             @Value("${authoring.auth.admin-claim-password-hash}") String adminPasswordHash,
             @Value("${authoring.jwt.issuer:klid-auth}") String issuer
     ) {
         this.userRepository = userRepository;
-        this.authrtRepository = authrtRepository;
+        this.lsUserRoleRepository = lsUserRoleRepository;
+        this.userRoleResolver = userRoleResolver;
         this.keyResolver = keyResolver;
         this.passwordEncoder = new BCryptPasswordEncoder();
         if (adminPasswordHash == null || adminPasswordHash.isBlank()) {
@@ -107,8 +113,10 @@ public class RoleClaimService {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "PORTAL_USER 역할은 본 API 로 부여할 수 없습니다.");
         }
-        // 이미 권한이 부여된 사용자(WORKER/REVIEWER) → 409 CONFLICT.
-        if (actor.role() == Role.WORKER || actor.role() == Role.REVIEWER) {
+        // CWE-863 — fail-closed 화이트리스트: INTERNAL 채널 + 역할 미보유(role==null) actor 만 허용.
+        // PORTAL_USER(channel=PORTAL) 의 교차채널 자가부여(INTERNAL WORKER/REVIEWER 상승)와 이미
+        // 권한 보유자(WORKER/REVIEWER)를 모두 거절한다. (deny-by-default)
+        if (actor.channel() != Channel.INTERNAL || actor.role() != null) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 권한이 부여된 사용자입니다.");
         }
 
@@ -139,9 +147,27 @@ public class RoleClaimService {
         }
         MngAcctUser user = userOpt.get();
 
-        // 권한 매핑 갱신 — 기존 row 삭제 후 신규 INSERT (역할 단일화).
-        authrtRepository.deleteByUserNo(userNo);
-        authrtRepository.insertAuthrt(userNo, req.role().name(), java.time.LocalDateTime.now());
+        // CWE-863 — JWT role 이 비어있어도(stale token) 저작도구 소유 역할이 이미 있으면 409.
+        if (lsUserRoleRepository.findByUserNo(userNo).isPresent()) {
+            throw new CustomException(ErrorCode.CONFLICT, "이미 권한이 부여된 사용자입니다.");
+        }
+
+        // 역할 부여 — LS_USER_ROLE 원자 upsert (역할 단일화, PK race 안전).
+        lsUserRoleRepository.upsertRole(userNo, req.role().name());
+
+        // Phase 3 — 인가 역할 캐시 무효화(AFTER_COMMIT). 직전까지 무권한(null)이라 캐시엔 항목이
+        // 없을(unless=null) 가능성이 크지만, 일관성을 위해 부여 시에도 커밋 후 evict 한다.
+        final long evictUserNo = userNo;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    userRoleResolver.evict(evictUserNo);
+                }
+            });
+        } else {
+            userRoleResolver.evict(evictUserNo);
+        }
 
         // 새 토큰 발급 — channel=INTERNAL (관제 채널 본 API 진입 사용자), role=신규.
         String token = issueInternalToken(userNo, req.role(), user.getUserNm());
@@ -202,8 +228,8 @@ public class RoleClaimService {
         return trimmed.replaceAll("[\\r\\n\\t]", "_");
     }
 
-    /** 테스트용 — 상태 초기화. */
-    public void resetAttempts() {
+    /** 테스트용 — 상태 초기화. 패키지 내부(테스트 전용)로만 노출한다. */
+    void resetAttempts() {
         attempts.clear();
     }
 

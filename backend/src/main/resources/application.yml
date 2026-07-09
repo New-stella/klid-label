@@ -27,9 +27,23 @@ spring:
           time_zone: Asia/Seoul
         order_inserts: true
         order_updates: true
+  datasource:
+    control:
+      # 이중화 동시 마이그레이션 안전장치 — Flyway/앱 DDL 이 락 미획득 시 무한 대기하지 않고
+      # 30초 후 실패하게 한다(이중화 노드가 동시에 flyway_schema_history 생성 시 10분+ 멈춤 방지).
+      # @ConfigurationProperties(spring.datasource.control) 로 HikariCP 에 바인딩되어
+      # Flyway 가 빌려 쓰는 @Primary controlDataSource 커넥션에도 적용된다.
+      connection-init-sql: SET lock_timeout = '30000'
   flyway:
     enabled: true
     baseline-on-migrate: true
+    # baseline-version=0 필수 — V0__init.sql 은 placeholder 주석뿐이므로 baseline 을 0 으로 잡아야
+    # 실제 마이그레이션 V1+ 가 전부 실행된다. 미설정 시 Flyway 기본 baseline-version=1 이라,
+    # 인프라/관제가 MNG_*/QRTZ_* 를 먼저 provisioning 한 non-empty + flyway_schema_history 無 상태
+    # (온프렘 앱 첫 기동)에서 baseline-on-migrate 가 발동해 V1 을 스킵 → LS_PJT_* 테이블 미생성 →
+    # V5/V34 가 "relation ... does not exist" 로 실패한다. 이미 이력이 있는 기존 DB 는 baseline 자체가
+    # 미발동하므로 이 값과 무관(영향 0).
+    baseline-version: 0
     locations: classpath:db/migration
   quartz:
     # JDBC JobStore — controlDataSource(@Primary) 를 통해 기존 QRTZ_* 테이블 공유.
@@ -45,7 +59,11 @@ spring:
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
       org.quartz.jobStore.useProperties: 'true'
       org.quartz.jobStore.misfireThreshold: '60000'
-      org.quartz.jobStore.isClustered: 'false'
+      # 이중화(HA) 노드만 true — local/dev 단일 인스턴스는 false 유지.
+      # true 시 2노드가 QRTZ_LOCKS 행 락으로 조율되어 각 트리거를 1회만 발화한다.
+      # ⚠ 클러스터 모드는 노드 클럭 동기화(NTP) 필수.
+      org.quartz.jobStore.isClustered: ${QUARTZ_CLUSTERED:false}
+      org.quartz.jobStore.clusterCheckinInterval: ${QUARTZ_CHECKIN_MS:20000}
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
@@ -105,8 +123,11 @@ authoring:
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
+    # 마킹 스트림 Range 요청당 반환 상한(bytes). 기본 8MB — 값이 작으면(구 1MB) 4배속 재생 시
+    # 재요청 폭증으로 버벅임 발생. 1MB 미만 설정은 코드가 안전 기본값(8MB)으로 폴백한다.
+    stream-chunk-size: ${STORAGE_STREAM_CHUNK_SIZE:8388608}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
-  #   - 실제 콜백 경로는 base + /v1/augments/result. 운영(dev/stg/prd)에서는 환경변수로 override.
+  #   - 실제 콜백 경로는 base + /v1/aug/callback. 운영(dev/stg/prd)에서는 환경변수로 override.
   webhook:
     callback-base-url: ${WEBHOOK_CALLBACK_BASE_URL:http://localhost:8080/api}
   # TUS 1.0 재개 가능 업로드 (관리 화면 대용량 영상 적재).
@@ -129,9 +150,10 @@ authoring:
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}
       timeout-ms: 30000
-      # Phase 1 — mock-mode 는 application-local.yml 에서만 true 로 켠다. 공통 yml 에서 env 오버라이드
-      #   (${DEIDENTIFY_MOCK_MODE:...}) 를 제거해 비-local 환경에서 env 로 강제 활성화하는 경로를 차단(HIGH-1).
-      #   미설정 기본값 false 는 @Value("${...:false}") 가 제공. DeidentifyStep 게이트가 순수 local 만 추가 검증.
+      # Phase 1 — mock-mode 토글(KPST 미준비 동안 dev/stg 파이프라인 가동용). 기본 false(운영 안전).
+      #   DeidentifyStep 게이트가 prd(운영) 프로파일/ENV 만 fail-closed 로 차단하고 local/dev/stg 는 허용한다(HIGH-1).
+      #   dev/stg 에서 true 로 켜려면 DEIDENTIFY_MOCK_MODE=true. prd 에서 true 면 부트 거부.
+      mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
     ai-server:
       base-url: ${AI_SERVER_URL:http://localhost:9300}
       timeout-ms: 60000
@@ -195,7 +217,7 @@ portal:
 #    KPST_DEID_ENABLED=false 로 내리면 위탁이 비활성화되며, mock 도 아니면 DeidentifyStep 이 설정 오류로 거부한다.
 #  - base-url: KPST 테스트/운영 서버 주소(http/https 자동 분기 — 내부망은 http, 외부는 https+사설CA). 평문 커밋 금지 → 환경변수 사용.
 #  - ca-cert-path: KPST 자체 CA(ca.crt) 경로. enabled=true 시 필수(미설정 → 기동 실패 fail-closed, CWE-295).
-#  - creator-id / export-path-base / req-user-id: /project, /retrieve_progress 호출 시 기본값.
+#  - creator-id / req-user-id: /project, /retrieve_progress 호출 시 기본값.
 kpst:
   deid:
     enabled: ${KPST_DEID_ENABLED:true}
@@ -205,7 +227,6 @@ kpst:
     #   읽으면 부팅 시점에 fail-closed(CWE-295). http 배포는 cert 없이 부팅돼야 하므로 선택값(빈 기본)으로 둔다.
     ca-cert-path: ${KPST_DEID_CA_CERT_PATH:}
     creator-id: ${KPST_DEID_CREATOR_ID:authoring}
-    export-path-base: ${KPST_DEID_EXPORT_PATH_BASE:/share/Deid-data/export/}
     req-user-id: ${KPST_DEID_REQ_USER_ID:authoring}
     # UC018 — 완료감지 폴링 잡 (enabled=true 일 때만 트리거 등록).
     poll-interval-sec: ${KPST_DEID_POLL_INTERVAL_SEC:30}        # 폴링 주기(초)
@@ -283,17 +304,21 @@ vlm:
     url: ${VLM_SERVICE_URL:http://localhost:9400}
     token: ${VLM_SERVICE_TOKEN:}
     timeout-seconds: 10
+    # describe frame_policy — frame_interval 정책의 framerate (벤더 확정 계약 v2.0.1).
+    frame-policy:
+      framerate: ${VLM_FRAME_POLICY_FRAMERATE:25}
 
-# 외부 시스템 결과 수신 webhook HMAC 시크릿 — VLM·증강 2종.
-#  - 경로별 시크릿 분리 (/v1/vlm/result, /v1/augments/result).
+# 외부 시스템 결과 수신 webhook HMAC 시크릿 — 증강 콜백 전용.
+#  - 경로별 시크릿 (/v1/aug/callback).
 #  - 시크릿 미설정 시 fail-closed (HmacWebhookFilter 가 401 반환) — 빈 키 회피 차단.
 #  - timestamp-window-seconds: replay 방지용 ±윈도우 (기본 300s).
 #  - 평문 커밋 금지: ${WEBHOOK_HMAC_SECRET_*} 환경변수만 허용.
 #  - (UC018 — 비식별은 KPST 폴링으로 단일화되어 deidentify 콜백 시크릿 키를 제거함.)
+#  - VLM describe 콜백(/v1/vlm/callback)은 벤더 확정 계약(v2.0.1) 무서명 규격 —
+#    HMAC 대상에서 제거하고 request_id 발급 게이트로 무단 주입을 차단함(2026-07-07 승인).
 webhook:
   hmac:
     secret:
-      vlm: ${WEBHOOK_HMAC_SECRET_VLM:}
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:}
     timestamp-window-seconds: ${WEBHOOK_HMAC_TIMESTAMP_WINDOW:300}
 

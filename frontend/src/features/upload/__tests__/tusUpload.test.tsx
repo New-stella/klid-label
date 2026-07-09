@@ -10,7 +10,8 @@ const META: TusMetadata = {
   filename: 'clip.mp4',
   vmsClipId: 'VMS-1',
   cctvId: 'CCTV-1',
-  eventTypeCd: 'EVT_FALL',
+  // 관제 상세 EV-코드 (구 EVT_* → 관제화). TUS 클라이언트는 메타를 그대로 전달만 한다.
+  eventTypeCd: 'EV02000201',
   localGovCd: '1168000000',
   prvcTypeCd: 'ANONY',
   capturedAt: '2024-05-01T12:00:00Z',

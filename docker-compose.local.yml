@@ -22,10 +22,25 @@ services:
     ports:
       - "5432:5432"
 
+  klid-storage-init:
+    # /data 호스트 바인드 → backend 와 동일 named volume 으로 교체.
+    #   base 는 /data/klid/storage(호스트)를 init 하지만 local 의 backend 는 named volume(klid-storage)을
+    #   쓰므로 서로 다른 위치를 가리키는 누락 버그였다. Mac/비-서버에서 호스트 바인드 미공유로 마운트 거부되고,
+    #   설령 Linux 라도 backend 가 쓰는 볼륨을 init 하지 못한다. 같은 named volume 을 init 하도록 정정.
+    volumes:
+      - klid-storage:/storage
+
   klid-backend:
     # 영상 저장소 /data 바인드 → named volume
     volumes:
       - klid-storage:/app/storage
+    environment:
+      # 로컬 FE dev 서버는 docker 매핑 포트 13000 으로 서빙된다(klid-frontend ports 13000:5174).
+      #   base 의 .env CORS_ALLOWED_ORIGINS 는 5173/5174/3000 만 포함해 브라우저 Origin
+      #   http://localhost:13000 이 Spring CorsFilter 403("Invalid CORS request")으로 거부되고
+      #   POST /v1/dev/tokens(dev 로그인)가 막힌다. compose environment 가 env_file 보다 우선하므로
+      #   여기서 13000(+127.0.0.1 변형)을 포함해 오버라이드한다(자족 로컬 기동 전제).
+      CORS_ALLOWED_ORIGINS: "http://localhost:13000,http://127.0.0.1:13000,http://localhost:5174,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5174,http://127.0.0.1:5173,http://127.0.0.1:3000"
 
   klid-ai-server:
     environment:

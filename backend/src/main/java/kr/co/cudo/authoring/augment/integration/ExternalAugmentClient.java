@@ -36,7 +36,7 @@ public interface ExternalAugmentClient {
      * @param augType       증강 유형 (WINTER/NIGHT/RAIN)
      * @param idempotencyKey 본 도구가 발급한 멱등 키 (^[A-Za-z0-9_-]+$, ≤64)
      * @param externalJobId 외부 작업 식별자 (≤128)
-     * @param callbackUrl   결과 회신 URL (예: http://host/api/v1/augments/result)
+     * @param callbackUrl   결과 회신 URL (예: http://host/api/v1/aug/callback)
      * @return 외부 시스템 ack 여부
      */
     boolean requestAugment(Long originAugSn, String augType, String idempotencyKey,

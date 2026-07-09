@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.upload.service;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.upload.dto.TusCreateCommand;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.repository.LsTusUploadRepository;
@@ -73,6 +74,8 @@ public class TusUploadService {
     private final DurationProbe durationProbe;
     /** Phase 2: 적재 완료 시 VideoIngestedEvent 발행 → 선두 비식별 트리거. */
     private final ApplicationEventPublisher eventPublisher;
+    /** Phase 4a: 이벤트 코드 검증을 관제 마스터 기반(상세 EV-코드 등록 여부)으로 전환. */
+    private final EventTypeService eventTypeService;
 
     /**
      * 프로덕션 생성자 — Spring 컴포넌트 스캔이 주입한다.
@@ -91,9 +94,10 @@ public class TusUploadService {
             @Value("${authoring.upload.tus.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.upload.tus.max-chunk-bytes:16777216}") long maxChunkBytes,
             ApplicationEventPublisher eventPublisher,
+            EventTypeService eventTypeService,
             DurationProbeFfprobe ffprobeProbe) {
         this(uploadRepository, videoRepository, cctvRepository, storageRawPath, maxFileSize,
-                maxChunkBytes, eventPublisher, (DurationProbe) ffprobeProbe);
+                maxChunkBytes, eventPublisher, eventTypeService, (DurationProbe) ffprobeProbe);
     }
 
     /** 테스트용 — DurationProbe + ApplicationEventPublisher 직접 주입 (청크 상한 기본값 적용). */
@@ -104,9 +108,10 @@ public class TusUploadService {
             String storageRawPath,
             long maxFileSize,
             ApplicationEventPublisher eventPublisher,
+            EventTypeService eventTypeService,
             DurationProbe durationProbe) {
         this(uploadRepository, videoRepository, cctvRepository, storageRawPath, maxFileSize,
-                DEFAULT_MAX_CHUNK_BYTES, eventPublisher, durationProbe);
+                DEFAULT_MAX_CHUNK_BYTES, eventPublisher, eventTypeService, durationProbe);
     }
 
     /** 테스트용 — DurationProbe + 청크 상한 + ApplicationEventPublisher 직접 주입. */
@@ -118,6 +123,7 @@ public class TusUploadService {
             long maxFileSize,
             long maxChunkBytes,
             ApplicationEventPublisher eventPublisher,
+            EventTypeService eventTypeService,
             DurationProbe durationProbe) {
         this.uploadRepository = uploadRepository;
         this.videoRepository = videoRepository;
@@ -126,6 +132,7 @@ public class TusUploadService {
         this.maxFileSize = maxFileSize;
         this.maxChunkBytes = maxChunkBytes > 0 ? maxChunkBytes : DEFAULT_MAX_CHUNK_BYTES;
         this.eventPublisher = eventPublisher;
+        this.eventTypeService = eventTypeService;
         this.durationProbe = durationProbe;
     }
 
@@ -425,8 +432,6 @@ public class TusUploadService {
     /** 보안 LOW: 코드성 메타 사전 검증 패턴 (AutolabelTestRequest 의 @Pattern 과 동일 SoT). */
     private static final java.util.regex.Pattern LOCAL_GOV_CD_PATTERN =
             java.util.regex.Pattern.compile("^[0-9]{1,10}$");
-    private static final java.util.regex.Pattern EVENT_TYPE_CD_PATTERN =
-            java.util.regex.Pattern.compile("^EVT_(FALL|VIOLENCE|ACCIDENT|ABNORMAL|FLOOD|FIRE)$");
     /** prvcTypeCd allowlist — LsDataRaw 의 PRVC_TYPE_* 상수와 정합. */
     private static final Set<String> ALLOWED_PRVC_TYPES = Set.of("ANONY", "PRVC", "PSDO");
 
@@ -444,7 +449,11 @@ public class TusUploadService {
         if (cmd.localGovCd() == null || !LOCAL_GOV_CD_PATTERN.matcher(cmd.localGovCd()).matches()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "localGovCd 는 숫자 1~10자리만 허용됩니다.");
         }
-        if (cmd.eventTypeCd() == null || !EVENT_TYPE_CD_PATTERN.matcher(cmd.eventTypeCd()).matches()) {
+        // Phase 4a: EVT_* 하드코딩 제거 — 관제 마스터에 등록된 상세 EV-코드만 허용(빈값/null 은 미설정 허용).
+        // categoryKeyOf 가 빈 Optional 이면 관제 미등록 코드 → 400.
+        String eventTypeCd = cmd.eventTypeCd();
+        if (eventTypeCd != null && !eventTypeCd.isBlank()
+                && eventTypeService.categoryKeyOf(eventTypeCd).isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "지원하지 않는 이벤트 타입입니다.");
         }
         if (cmd.prvcTypeCd() == null || !ALLOWED_PRVC_TYPES.contains(cmd.prvcTypeCd())) {

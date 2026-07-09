@@ -31,13 +31,14 @@ class SessionControllerTest {
     @Test
     @DisplayName("INTERNAL_채널_REVIEWER_토큰으로_me_API_호출시_사용자_정보_반환")
     void meReturnsClaims() throws Exception {
+        // Phase 3 — role 은 LS_USER_ROLE(sub=1 → REVIEWER)에서 해석된다. JWT role 클레임이 아님.
         String token = JwtTestSupport.tokenWithName(
-                secret, "user-1", "REVIEWER", "INTERNAL", issuer, "검수자A", 60);
+                secret, "1", "REVIEWER", "INTERNAL", issuer, "검수자A", 60);
 
         mockMvc.perform(get("/v1/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.userId").value("user-1"))
+                .andExpect(jsonPath("$.data.userId").value("1"))
                 .andExpect(jsonPath("$.data.role").value("REVIEWER"))
                 .andExpect(jsonPath("$.data.channel").value("INTERNAL"))
                 .andExpect(jsonPath("$.data.name").value("검수자A"));

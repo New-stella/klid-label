@@ -1,4 +1,4 @@
-import { lazy, ReactNode, Suspense } from 'react';
+import { ReactNode, Suspense } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 
 import { AppErrorPage } from '@/components/common/AppErrorPage';
@@ -12,98 +12,99 @@ import { isDevLoginEnabled } from '@/lib/devLogin';
 import { isDevUploadEnabled } from '@/lib/devUpload';
 
 import { AuthenticatedGuard, ChannelGuard, RoleGuard } from './guards';
+import { lazyWithRetry } from './lazyWithRetry';
 
 // Phase 3 — 영상 도메인 + 대시보드 lazy 로드 (코드 스플리팅)
-const VideoListPage = lazy(() =>
+const VideoListPage = lazyWithRetry(() =>
   import('@/pages/VideoListPage').then((m) => ({ default: m.VideoListPage })),
 );
-const VideoDetailPage = lazy(() =>
+const VideoDetailPage = lazyWithRetry(() =>
   import('@/pages/VideoDetailPage').then((m) => ({ default: m.VideoDetailPage })),
 );
-const DashboardPage = lazy(() =>
+const DashboardPage = lazyWithRetry(() =>
   import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
 
 // Phase 4 — 작업 배정 + 사용자 관리 + 시스템 설정 lazy 로드
-const TaskListPage = lazy(() =>
+const TaskListPage = lazyWithRetry(() =>
   import('@/pages/TaskListPage').then((m) => ({ default: m.TaskListPage })),
 );
-const UserManagePage = lazy(() =>
+const UserManagePage = lazyWithRetry(() =>
   import('@/pages/manage/UserManagePage').then((m) => ({ default: m.UserManagePage })),
 );
-const SystemSettingsPage = lazy(() =>
+const SystemSettingsPage = lazyWithRetry(() =>
   import('@/pages/manage/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })),
 );
 
 // Phase 5 — 라벨링 캔버스 lazy 로드 (konva 분리)
-const LabelingPage = lazy(() =>
+const LabelingPage = lazyWithRetry(() =>
   import('@/pages/label/LabelingPage').then((m) => ({ default: m.LabelingPage })),
 );
 
 // Phase 8 — 히스토리·버전관리 lazy 로드
-const HistoryPage = lazy(() =>
+const HistoryPage = lazyWithRetry(() =>
   import('@/pages/HistoryPage').then((m) => ({ default: m.HistoryPage })),
 );
 
 // Phase 9 — 검수 워크플로우 lazy 로드
-const ReviewListPage = lazy(() =>
+const ReviewListPage = lazyWithRetry(() =>
   import('@/pages/ReviewListPage').then((m) => ({ default: m.ReviewListPage })),
 );
-const ReviewPage = lazy(() =>
+const ReviewPage = lazyWithRetry(() =>
   import('@/pages/ReviewPage').then((m) => ({ default: m.ReviewPage })),
 );
 // Phase 10 — 데이터 증강 lazy 로드
-const AugmentRequestPage = lazy(() =>
+const AugmentRequestPage = lazyWithRetry(() =>
   import('@/pages/AugmentRequestPage').then((m) => ({
     default: m.AugmentRequestPage,
   })),
 );
-const AugmentResultPage = lazy(() =>
+const AugmentResultPage = lazyWithRetry(() =>
   import('@/pages/AugmentResultPage').then((m) => ({
     default: m.AugmentResultPage,
   })),
 );
 
 // Phase 11 — 포털 채널 (데이터마트 영상 선택 + 간편 라벨링, ADR-013) lazy 로드
-const PortalHomePage = lazy(() =>
+const PortalHomePage = lazyWithRetry(() =>
   import('@/pages/portal/PortalHomePage').then((m) => ({ default: m.PortalHomePage })),
 );
-const PortalLabelingPage = lazy(() =>
+const PortalLabelingPage = lazyWithRetry(() =>
   import('@/pages/portal/PortalLabelingPage').then((m) => ({ default: m.PortalLabelingPage })),
 );
 
 // Phase 12 — 통계 + 프리셋 lazy 로드 (recharts 별도 청크)
-const WorkerStatPage = lazy(() =>
+const WorkerStatPage = lazyWithRetry(() =>
   import('@/pages/WorkerStatPage').then((m) => ({ default: m.WorkerStatPage })),
 );
-const OverallStatPage = lazy(() =>
+const OverallStatPage = lazyWithRetry(() =>
   import('@/pages/OverallStatPage').then((m) => ({ default: m.OverallStatPage })),
 );
-const PresetListPage = lazy(() =>
+const PresetListPage = lazyWithRetry(() =>
   import('@/pages/manage/PresetListPage').then((m) => ({ default: m.PresetListPage })),
 );
 // G-1 — 비식별 신고 관리 (REVIEWER 전용) lazy 로드
-const DeidentReportListPage = lazy(() =>
+const DeidentReportListPage = lazyWithRetry(() =>
   import('@/pages/manage/DeidentReportListPage').then((m) => ({
     default: m.DeidentReportListPage,
   })),
 );
 
 // V2.0 Phase 7 — 마킹 화면 lazy 로드
-const MarkingPage = lazy(() =>
+const MarkingPage = lazyWithRetry(() =>
   import('@/pages/MarkingPage').then((m) => ({ default: m.MarkingPage })),
 );
 
 // Phase 3 — 게시판(공지) 목록/상세 lazy 로드
-const NoticeListPage = lazy(() =>
+const NoticeListPage = lazyWithRetry(() =>
   import('@/pages/NoticeListPage').then((m) => ({ default: m.NoticeListPage })),
 );
-const NoticeDetailPage = lazy(() =>
+const NoticeDetailPage = lazyWithRetry(() =>
   import('@/pages/NoticeDetailPage').then((m) => ({ default: m.NoticeDetailPage })),
 );
 
 // Phase 2 — 권한 자가 부여 화면 (role 미부여 사용자 진입점) lazy 로드
-const RoleClaimPage = lazy(() =>
+const RoleClaimPage = lazyWithRetry(() =>
   import('@/pages/RoleClaimPage').then((m) => ({ default: m.RoleClaimPage })),
 );
 
@@ -154,7 +155,7 @@ function PortalRoute({ children }: { children: ReactNode }) {
 // 자체가 산출물에 포함되지 않는다.
 const devOnlyRoutes: Array<{ path: string; element: ReactNode }> = [];
 if (isDevLoginEnabled()) {
-  const DevLoginPage = lazy(() =>
+  const DevLoginPage = lazyWithRetry(() =>
     import('@/features/auth/DevLoginPage').then((m) => ({ default: m.DevLoginPage })),
   );
   devOnlyRoutes.push({
@@ -170,7 +171,7 @@ if (isDevLoginEnabled()) {
 // BE off 면 /v1/dev/autolabel-test 호출 시 차단). UI 노출은 추가로 REVIEWER 로 제한.
 const devUploadRoutes: Array<{ path: string; element: ReactNode }> = [];
 if (isDevUploadEnabled()) {
-  const DevAutolabelTestPage = lazy(() =>
+  const DevAutolabelTestPage = lazyWithRetry(() =>
     import('@/pages/dev/DevAutolabelTestPage').then((m) => ({
       default: m.DevAutolabelTestPage,
     })),

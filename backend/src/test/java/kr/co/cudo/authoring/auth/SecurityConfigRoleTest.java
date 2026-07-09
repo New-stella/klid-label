@@ -31,7 +31,8 @@ class SecurityConfigRoleTest {
     @Test
     @DisplayName("INTERNAL_채널_REVIEWER_토큰으로_manage_API_접근_가능")
     void reviewerAccessesManage() throws Exception {
-        String token = JwtTestSupport.token(secret, "user-1", "REVIEWER", "INTERNAL", issuer, 60);
+        // Phase 3 — 인가 역할은 LS_USER_ROLE 에서 해석되므로 시드된 숫자 sub(1=REVIEWER) 사용.
+        String token = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
     }
@@ -39,7 +40,8 @@ class SecurityConfigRoleTest {
     @Test
     @DisplayName("WORKER_토큰으로_manage_API_호출시_403")
     void workerForbiddenOnManage() throws Exception {
-        String token = JwtTestSupport.token(secret, "user-2", "WORKER", "INTERNAL", issuer, 60);
+        // 100=WORKER (LS 시드). WORKER 역할이라 manage(REVIEWER 전용) 접근 시 403.
+        String token = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
         mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
     }

@@ -23,6 +23,30 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // lazy 라우트에서만 import 되는 무거운 의존성을 dev 서버 기동 시 미리 prebundle 해
+  // 런타임 재최적화(optimized-deps 재생성 → `?v=` 해시 교체)를 줄인다. 재최적화 순간
+  // 발생하던 `Failed to fetch dynamically imported module` 동적 import 실패의 트리거 감소책.
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@tanstack/react-query',
+      'konva',
+      'react-konva', // 라벨링 캔버스 — lazy 라우트에서만 import돼 첫 방문 시 재최적화 유발하는 주범
+      'recharts', // 통계 차트 — lazy 청크
+      'axios',
+      'zustand',
+      'zod',
+      'react-hook-form',
+      '@hookform/resolvers/zod',
+      'date-fns',
+      'dayjs',
+      'clsx',
+      'tailwind-merge',
+      'lucide-react',
+    ],
+  },
   server: {
     port: 5174,
     strictPort: true,

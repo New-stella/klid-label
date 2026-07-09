@@ -217,6 +217,58 @@ describe('MarkingPage', () => {
     expect(screen.queryByText('저장된 마킹이 없습니다.')).not.toBeInTheDocument();
   });
 
+  it('비식별_미완료_영상_직접진입시_마킹차단_백스톱_안내', async () => {
+    // given: WORKER 가 URL 직접 진입. 영상 상세가 비식별 미완료(deIdntfYn!=='Y').
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        id: 42,
+        rawSn: 42,
+        cctvName: 'CCTV-42',
+        deIdntfYn: 'N',
+        deidentStatus: 'IN_PROGRESS',
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when: 마킹 화면 진입
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    // then: 차단 안내가 노출되고 영상 플레이어/툴바는 렌더되지 않는다(백스톱).
+    await waitFor(() => {
+      expect(screen.getByText(/비식별 완료 후 마킹/)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('video-player-stub')).not.toBeInTheDocument();
+  });
+
+  it('비식별_완료_영상_직접진입시_마킹화면_정상_렌더', async () => {
+    // given: 비식별 완료(deIdntfYn='Y') 영상 — 백스톱이 막지 않는다.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        id: 42,
+        rawSn: 42,
+        cctvName: 'CCTV-42',
+        deIdntfYn: 'Y',
+        deidentStatus: 'DONE',
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    await waitFor(() => {
+      expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/비식별 완료 후 마킹/)).not.toBeInTheDocument();
+  });
+
   it('I3_재생전_서명URL_발급후_video_src에_서명URL_설정', async () => {
     // given: WORKER 로그인 + stream-url 발급 mock (beforeEach)
     setRole('WORKER');

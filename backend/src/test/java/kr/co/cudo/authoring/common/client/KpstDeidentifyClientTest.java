@@ -8,7 +8,6 @@ import io.github.resilience4j.retry.RetryRegistry;
 import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
-import kr.co.cudo.authoring.common.client.dto.KpstUploadResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -25,7 +24,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -128,7 +126,7 @@ class KpstDeidentifyClientTest {
 
     private KpstDeidentifyClient client() {
         return new KpstDeidentifyClient(
-                webClient(), webClient(), progressHttpClient(), circuitBreaker, singleAttempt());
+                webClient(), progressHttpClient(), circuitBreaker, singleAttempt());
     }
 
     @Test
@@ -144,39 +142,17 @@ class KpstDeidentifyClientTest {
     }
 
     @Test
-    @DisplayName("업로드_응답의_inputPath와_files를_파싱한다")
-    void upload() throws IOException, InterruptedException {
-        server.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/json")
-                .setBody("{\"result\":\"success\",\"data\":{"
-                        + "\"inputPath\":\"/share/Deid-data/upload/projectA/\","
-                        + "\"files\":[\"sample1.mp4\",\"sample2.mp4\"],\"count\":2}}"));
-        Path f1 = Files.writeString(tempDir.resolve("sample1.mp4"), "v1");
-        Path f2 = Files.writeString(tempDir.resolve("sample2.mp4"), "v2");
-
-        KpstUploadResponse resp = client().upload(List.of(f1, f2), "projectA");
-
-        assertThat(resp.result()).isEqualTo("success");
-        assertThat(resp.data().inputPath()).isEqualTo("/share/Deid-data/upload/projectA/");
-        assertThat(resp.data().files()).containsExactly("sample1.mp4", "sample2.mp4");
-        assertThat(resp.data().count()).isEqualTo(2);
-        RecordedRequest rec = server.takeRequest(2, TimeUnit.SECONDS);
-        assertThat(rec).isNotNull();
-        assertThat(rec.getPath()).isEqualTo("/upload");
-        assertThat(rec.getHeader("Content-Type")).startsWith("multipart/form-data");
-    }
-
-    @Test
     @DisplayName("프로젝트_생성_응답에서_prjId를_획득한다")
     void createProject() throws InterruptedException {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"result\":\"success\",\"prj_id\":279}"));
 
+        // shared-mount 모델: input_path = 원본 부모 디렉터리, export_path = 우리 비식별 base/videos/{rawSn}/.
         KpstProjectRequest req = KpstProjectRequest.withDefaults(
                 "projectA", "user01",
-                "/share/Deid-data/export/projectA/",
-                "/share/Deid-data/upload/projectA/",
+                "/nas-storage/videos/9001/",
+                "/nas-storage/raw/9001/",
                 List.of("sample1.mp4", "sample2.mp4"));
         KpstProjectResponse resp = client().createProject(req);
 
@@ -188,7 +164,7 @@ class KpstDeidentifyClientTest {
         // 스네이크케이스 직렬화 검증
         String body = rec.getBody().readUtf8();
         assertThat(body).contains("\"project_name\":\"projectA\"");
-        assertThat(body).contains("\"input_path\":\"/share/Deid-data/upload/projectA/\"");
+        assertThat(body).contains("\"input_path\":\"/nas-storage/raw/9001/\"");
         assertThat(body).contains("\"exp_format\":1");
     }
 
@@ -201,7 +177,7 @@ class KpstDeidentifyClientTest {
                 .setBody("{\"result\":\"fail\",\"message\":\"Project already exists\"}"));
 
         KpstProjectRequest req = KpstProjectRequest.withDefaults(
-                "projectA", "user01", "/export/", "/upload/", List.of("a.mp4"));
+                "projectA", "user01", "/nas-storage/videos/9002/", "/nas-storage/raw/9002/", List.of("a.mp4"));
 
         assertThatThrownBy(() -> client().createProject(req))
                 .isInstanceOf(CustomException.class);
@@ -264,34 +240,6 @@ class KpstDeidentifyClientTest {
     }
 
     @Test
-    @DisplayName("다운로드가_mask파일을_지정_base경로_안에_저장한다")
-    void download() throws IOException {
-        byte[] payload = "MASKED-VIDEO-BYTES".getBytes();
-        okio.Buffer buf = new okio.Buffer().write(payload);
-        server.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/octet-stream")
-                .setBody(buf));
-        // target 은 base 기준 상대 경로 (절대경로는 거부 — CWE-22)
-        Path target = Path.of("sample1-mask.mp4");
-
-        Path saved = client().download(1270L, tempDir, target);
-
-        assertThat(saved).exists();
-        assertThat(Files.readAllBytes(saved)).isEqualTo(payload);
-    }
-
-    @Test
-    @DisplayName("다운로드_저장경로가_base를_벗어나면_차단한다")
-    void downloadPathTraversalBlocked() {
-        Path escape = Path.of("../escape-mask.mp4");
-
-        assertThatThrownBy(() -> client().download(1270L, tempDir, escape))
-                .isInstanceOf(CustomException.class);
-        // base 이탈은 외부 호출 이전에 차단되어야 한다 (요청 발생 X)
-        assertThat(server.getRequestCount()).isZero();
-    }
-
-    @Test
     @DisplayName("프로젝트_삭제가_id와_userId를_전송한다")
     void deleteProject() throws InterruptedException {
         server.enqueue(new MockResponse()
@@ -308,184 +256,7 @@ class KpstDeidentifyClientTest {
         assertThat(body).contains("\"user_id\":\"user01\"");
     }
 
-    // ===== DEV_FIX 보강 — HIGH/MEDIUM/LOW 결함 재현/검증 =====
-
-    @Test
-    @DisplayName("다운로드_중_에러시_부분파일이_남지_않는다")
-    void downloadErrorLeavesNoPartialFile() {
-        // given: 본문 일부를 보낸 뒤 연결을 끊어 다운로드를 실패시킨다.
-        server.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/octet-stream")
-                .setBody("PARTIAL")
-                .setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY));
-        Path target = Path.of("err-mask.mp4");
-
-        // when / then: 예외 발생 + 결과/임시 파일 모두 잔존하지 않아야 한다.
-        assertThatThrownBy(() -> client().download(1270L, tempDir, target))
-                .isInstanceOf(CustomException.class);
-        assertThat(tempDir.resolve("err-mask.mp4")).doesNotExist();
-        assertThat(tempDir.resolve("err-mask.mp4.part")).doesNotExist();
-    }
-
-    @Test
-    @DisplayName("다운로드_결과가_0바이트면_실패로_처리하고_파일을_남기지_않는다")
-    void downloadZeroByteRejected() {
-        // given: 본문 없이 200 — 0바이트 산출물(불완전 비식별).
-        server.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/octet-stream")
-                .setBody(new okio.Buffer()));
-        Path target = Path.of("zero-mask.mp4");
-
-        // when / then: 0바이트는 거부, 결과/임시 파일 모두 잔존 금지.
-        assertThatThrownBy(() -> client().download(1270L, tempDir, target))
-                .isInstanceOf(CustomException.class);
-        assertThat(tempDir.resolve("zero-mask.mp4")).doesNotExist();
-        assertThat(tempDir.resolve("zero-mask.mp4.part")).doesNotExist();
-    }
-
-    @Test
-    @DisplayName("다운로드_성공시_임시파일이_atomic_move된다")
-    void downloadSuccessAtomicMove() throws IOException {
-        byte[] payload = "MASKED-VIDEO-BYTES".getBytes();
-        okio.Buffer buf = new okio.Buffer().write(payload);
-        server.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/octet-stream")
-                .setBody(buf));
-        Path target = Path.of("atomic-mask.mp4");
-
-        Path saved = client().download(1270L, tempDir, target);
-
-        assertThat(saved).exists();
-        assertThat(Files.readAllBytes(saved)).isEqualTo(payload);
-        // 임시(.part) 파일은 move 후 남지 않아야 한다.
-        assertThat(tempDir.resolve("atomic-mask.mp4.part")).doesNotExist();
-    }
-
-    @Test
-    @DisplayName("다운로드_절대경로_target은_거부된다")
-    void downloadAbsoluteTargetRejected() {
-        Path absolute = tempDir.resolve("abs-mask.mp4").toAbsolutePath();
-
-        assertThatThrownBy(() -> client().download(1270L, tempDir, absolute))
-                .isInstanceOf(CustomException.class);
-        assertThat(server.getRequestCount()).isZero();
-    }
-
-    @Test
-    @DisplayName("업로드_파일이_50개_초과면_거부된다")
-    void uploadTooManyFilesRejected() throws IOException {
-        List<Path> files = new ArrayList<>();
-        for (int i = 0; i < 51; i++) {
-            files.add(Files.writeString(tempDir.resolve("v" + i + ".mp4"), "x"));
-        }
-
-        assertThatThrownBy(() -> client().upload(files, "projectA"))
-                .isInstanceOf(CustomException.class);
-        assertThat(server.getRequestCount()).isZero();
-    }
-
-    @Test
-    @DisplayName("업로드_파일목록이_비어있으면_거부된다")
-    void uploadEmptyFilesRejected() {
-        assertThatThrownBy(() -> client().upload(List.of(), "projectA"))
-                .isInstanceOf(CustomException.class);
-        assertThat(server.getRequestCount()).isZero();
-    }
-
-    @Test
-    @DisplayName("업로드_허용되지_않은_확장자는_거부된다")
-    void uploadBadExtensionRejected() throws IOException {
-        Path bad = Files.writeString(tempDir.resolve("evil.exe"), "x");
-
-        assertThatThrownBy(() -> client().upload(List.of(bad), "projectA"))
-                .isInstanceOf(CustomException.class);
-        assertThat(server.getRequestCount()).isZero();
-    }
-
-    @Test
-    @DisplayName("업로드_존재하지_않는_파일은_거부된다")
-    void uploadMissingFileRejected() {
-        Path missing = tempDir.resolve("nope.mp4");
-
-        assertThatThrownBy(() -> client().upload(List.of(missing), "projectA"))
-                .isInstanceOf(CustomException.class);
-        assertThat(server.getRequestCount()).isZero();
-    }
-
-    @Test
-    @DisplayName("업로드_subdir_부정문자는_거부된다")
-    void uploadBadSubdirRejected() throws IOException {
-        Path f = Files.writeString(tempDir.resolve("ok.mp4"), "x");
-
-        assertThatThrownBy(() -> client().upload(List.of(f), "../escape"))
-                .isInstanceOf(CustomException.class);
-        assertThatThrownBy(() -> client().upload(List.of(f), "a/b"))
-                .isInstanceOf(CustomException.class);
-        assertThat(server.getRequestCount()).isZero();
-    }
-
-    @Test
-    @DisplayName("업로드_정상_subdir과_한글은_허용된다")
-    void uploadValidSubdirAllowed() throws IOException, InterruptedException {
-        server.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/json")
-                .setBody("{\"result\":\"success\",\"data\":{\"inputPath\":\"/p/\",\"files\":[\"ok.mp4\"],\"count\":1}}"));
-        Path f = Files.writeString(tempDir.resolve("ok.mp4"), "x");
-
-        KpstUploadResponse resp = client().upload(List.of(f), "프로젝트-01_a");
-
-        assertThat(resp.result()).isEqualTo("success");
-        RecordedRequest rec = server.takeRequest(2, TimeUnit.SECONDS);
-        assertThat(rec).isNotNull();
-    }
-
-    @Test
-    @DisplayName("업로드_재시도_시에도_multipart가_재발행된다")
-    void uploadRetryReissuesMultipart() throws IOException, InterruptedException {
-        // 첫 응답은 끊고, 두 번째는 정상. retry=2 클라이언트로 재구독 시 바디가 재전송되는지 검증.
-        server.enqueue(new MockResponse()
-                .setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AT_START));
-        server.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/json")
-                .setBody("{\"result\":\"success\",\"data\":{\"inputPath\":\"/p/\",\"files\":[\"ok.mp4\"],\"count\":1}}"));
-        Path f = Files.writeString(tempDir.resolve("ok.mp4"), "video-bytes");
-
-        KpstDeidentifyClient retryClient = new KpstDeidentifyClient(
-                webClient(), webClient(), progressHttpClient(), circuitBreaker,
-                RetryRegistry.of(RetryConfig.custom().maxAttempts(2).build()));
-        KpstUploadResponse resp = retryClient.upload(List.of(f), "projectA");
-
-        assertThat(resp.result()).isEqualTo("success");
-        // 두 번째(재발행) 요청 본문에 파일 파트가 실려야 한다.
-        RecordedRequest first = server.takeRequest(2, TimeUnit.SECONDS);
-        RecordedRequest second = server.takeRequest(2, TimeUnit.SECONDS);
-        RecordedRequest withBody = (second != null && second.getBodySize() > 0) ? second : first;
-        assertThat(withBody).isNotNull();
-        assertThat(withBody.getBody().readUtf8()).contains("video-bytes");
-    }
-
-    @Test
-    @DisplayName("다운로드_저장경로_심링크는_거부된다")
-    void downloadSymlinkParentRejected() throws IOException {
-        // given: base(tempDir) 내부에 base 외부(externalDir)를 가리키는 심볼릭 링크 디렉터리를 만든다.
-        //  - TempDir 기준 상대 구성으로 macOS /var→/private/var 정규화 영향 없이 검증.
-        Path externalDir = Files.createDirectories(tempDir.getParent().resolve("kpst-ext-" + System.nanoTime()));
-        Path linkDir = tempDir.resolve("linkdir");
-        try {
-            Files.createSymbolicLink(linkDir, externalDir);
-        } catch (UnsupportedOperationException | IOException e) {
-            // 심링크 미지원 환경(권한/파일시스템)에서는 검증 불가 — 스킵.
-            org.junit.jupiter.api.Assumptions.assumeTrue(false, "symlink not supported");
-            return;
-        }
-        // 저장 경로가 심링크 디렉터리를 타면(부모가 심링크) verifyRealPathWithinBase 가 거부해야 한다.
-        Path target = Path.of("linkdir", "mask.mp4");
-
-        // when / then: base 외부를 가리키는 심링크 경로는 차단되고 외부 호출도 발생하지 않는다(CWE-22).
-        assertThatThrownBy(() -> client().download(1270L, tempDir, target))
-                .isInstanceOf(CustomException.class);
-        assertThat(server.getRequestCount()).isZero();
-    }
+    // ===== DEV_FIX 보강 — 삭제 경로 검증 =====
 
     @Test
     @DisplayName("프로젝트_삭제_result_fail이면_예외")

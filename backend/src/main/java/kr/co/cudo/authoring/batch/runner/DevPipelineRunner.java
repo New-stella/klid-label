@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.runner;
 
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.batch.step.DeidentResult;
 import kr.co.cudo.authoring.batch.step.DeidentifyStep;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -65,10 +66,16 @@ public class DevPipelineRunner {
         }
 
         try {
-            // 선두 비식별(무조건) — 성공 시에만 MARKING_READY 전이. 실패 시 예외 삼킴 + WARN.
-            deidentifyStep.run(raw);
-            transitionService.markRawDataMarkingReady(rawSn);
-            log.info("[DevPipelineRunner] deidentify done — stopped at MARKING_READY rawSn={}", rawSn);
+            // 선두 비식별(무조건). 상태머신 단일화: 동기 완료(mock)일 때만 MARKING_READY 전이.
+            // KPST 위탁(지연)은 제출만 하므로 전이하지 않고 폴링 완료가 단일 지점에서 전이한다(조기 전이 차단).
+            DeidentResult result = deidentifyStep.run(raw);
+            if (result.completed()) {
+                transitionService.markRawDataMarkingReady(rawSn);
+                log.info("[DevPipelineRunner] deidentify done — stopped at MARKING_READY rawSn={}", rawSn);
+            } else {
+                log.info("[DevPipelineRunner] deidentify submitted (deferred) rawSn={} — MARKING_READY 는 폴링 완료 시 전이",
+                        rawSn);
+            }
         } catch (RuntimeException e) {
             // @Async 이므로 예외 삼킴 + WARN. 재시도 큐 미사용(외부 수동 재비식별 정책).
             log.warn("[DevPipelineRunner] dev deidentify failed rawSn={} cause={}",

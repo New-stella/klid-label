@@ -38,17 +38,19 @@ AI 기반 지방정부 CCTV 관제지원시스템(2차)의 **학습데이터 저
 
 ## 1.4 기술 스택
 
+> 정확한 lock 기준 버전·설치 경로 전체표는 **D5 아키텍처설계서 §2-5 소프트웨어 구성요소 종류·버전·설치 경로**를 정본으로 한다. 아래는 요약이며 버전은 빌드/lockfile 기준이다.
+
 ### 백엔드 (Spring Boot)
-Java 17 · Spring Boot 3.3 · Gradle 8 · Spring Data JPA(Hibernate 6) + **QueryDSL 5.1** · Spring Security + **JJWT 0.12** · **Flyway 10**(PostgreSQL, `klid_at` 스키마) · **Spring Boot Quartz**(PostgreSQL JobStore) · **Resilience4j** · WebFlux WebClient · **net.bramp.ffmpeg** · Caffeine · MapStruct/Lombok · **Micrometer + Prometheus** · Springdoc OpenAPI · JUnit5 + Testcontainers.
+Java 17(Temurin) · **Spring Boot 3.3.0**(내장 톰캣, 컨텍스트 `/api`) · Gradle 8.8 · Spring Data JPA(Hibernate **6.5.2**) + **QueryDSL 5.1.0** · Spring Security **6.3.0** + **JJWT 0.12.6** · **Flyway**(플러그인 10.13.0 / 런타임 10.10.0, PostgreSQL, `klid_at` 스키마) · **Spring Boot Quartz**(2.3.2, PostgreSQL JobStore) · **Resilience4j 2.2.0** · WebFlux WebClient · **net.bramp.ffmpeg 0.8.0** · Caffeine 3.1.8 · MapStruct 1.5.5/Lombok 1.18.32 · **Micrometer 1.13 + Prometheus** · Springdoc OpenAPI 2.5.0 · JUnit5 + Testcontainers.
 
 ### AI 추론 서버 (ai-server)
-Python 3.11 + FastAPI · **YOLOX(ONNX Runtime, Apache-2.0)** 탐지 · **Meta SAM2(Apache-2.0)** 분할 · RT-DETR(transformers) · onnxruntime · torch · opencv. **경량 추론 전용, stateless, 인증/DB 없음** — Spring Boot가 오케스트레이션. (외부가 아니라 저작도구 내부 구성요소) · 라이선스: AGPL(ultralytics) 미사용 — 전부 permissive(MIT/Apache-2.0)로 구성
+Python 3.11(base 이미지 종속) + **FastAPI 0.137**(uvicorn 0.49) · **YOLOX(ONNX Runtime 1.27, Apache-2.0)** 탐지 · **Meta SAM2(Apache-2.0)** 분할 · RT-DETR(transformers 5.12) · torch **2.5.1**(도커)/2.12(lock) · opencv 4.13. **경량 추론 전용, stateless, 인증/DB 없음** — Spring Boot가 오케스트레이션. (외부가 아니라 저작도구 내부 구성요소) · 라이선스: AGPL(ultralytics) 미사용 — 전부 permissive(MIT/Apache-2.0)로 구성
 
 ### 프론트엔드
-React 18 + TypeScript 5 + Vite 5 · TanStack Query v5 · Zustand · React Router v6 · axios · Tailwind · **konva.js**(CVAT canvas-drawing 포팅).
+React 18.3.1 + TypeScript 5.9 + Vite 5.4 · TanStack Query v5 · Zustand 4.5 · React Router v6.30 · axios 1.x · Tailwind 3.4 · **konva.js 9.3**(CVAT canvas-drawing 포팅) · Node 20 빌드 런타임.
 
 ### DB
-**PostgreSQL** · `klid_at` 스키마 — 저작도구 전용 **LS_*** 자체 소유, 관제서버 **MNG_*** 9개 `validate` 참조, Quartz `QRTZ_*`. 상세 → [18](18-database.md).
+**PostgreSQL 16**(**외부 인프라 제공 · 저작도구 미운영**, 온프렘 번들은 폐쇄망 단독 설치 옵션) · `klid_at` 스키마 — 저작도구 전용 **LS_*** 스키마 자체 소유·접속만 담당, 관제서버 **MNG_*** 9개 `validate` 참조(관제 인프라도 PG 정합), Quartz `QRTZ_*`. DB 서버 가용성·백업/복구는 DB 운영 주체 책임. 상세 → [18](18-database.md).
 
 ## 1.5 핵심 파이프라인
 

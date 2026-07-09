@@ -53,18 +53,18 @@ authoring:
   control:
     training-scan:
       enabled: false
-  # local 비식별 — 기본값으로 KPST API 연동 테스트 서버에 실제 연동한다(mock 아님).
-  #   오프라인/외부0 자족 검증이 필요하면 DEIDENTIFY_MOCK_MODE=true 로 mock 복사 모드(원본→비식별 경로 복사)로 전환.
-  #   mock-mode=true 는 순수 local 프로파일에서만 허용(DeidentifyStep 게이팅) — 그 외 프로파일에서 true 면 부트 거부.
+  # local 비식별 — 기본 mock 모드. KPST 미호출, 원본을 비식별 경로로 복사하는 mock 비식별로 자족 동작한다.
+  #   실 KPST 연동이 필요하면 DEIDENTIFY_MOCK_MODE=false 로 전환(KPST API 연동 테스트 서버에 실제 위탁).
+  #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — local/dev/stg 는 허용, prd 에서 true 면 부트 거부.
   integration:
     deidentify:
-      mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
+      mock-mode: ${DEIDENTIFY_MOCK_MODE:true}
   # HIGH-5 fix (OWASP A06): 로컬 FE 개발 서버 기본 허용.
   #   SecurityConfig 가 ${authoring.cors.allowed-origins} 를 읽으므로 반드시 authoring 하위에 위치해야 한다.
   #   (과거 kpst 하위 오배치 → authoring.cors.allowed-origins 가 빈 기본값으로 남아 브라우저 Origin
   #    http://localhost:5174 가 Spring CorsFilter 의 403 "Invalid CORS request" 로 거부되던 버그를 교정)
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:13000,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:13000}
   # [개발/검수 전용] /v1/dev/autolabel-test 업로드 한도 (bytes) — 500MB 기본.
   #   서비스 레이어에서 multipart 한도와 별개로 이중 가드. (authoring.dev.* — kpst 오배치 동반 교정)
   dev:
@@ -81,9 +81,9 @@ authoring:
     seed:
       enabled: ${AUTHORING_DEV_SEED_ENABLED:true}
 
-# UC018 — local 도 KPST API 연동 테스트 서버에 실제 연동한다(기본). 내부망 http 평문이라 ca-cert 불요.
+# UC018 — local 은 기본 mock 비식별(위 mock-mode=true)이라 아래 kpst.deid.* 는 미사용이다(mock 우선).
+#   실 KPST 연동 시(DEIDENTIFY_MOCK_MODE=false) 사용 — 내부망 http 평문이라 ca-cert 불요.
 #   계정은 application.yml 기본값(creator-id/req-user-id=authoring) 사용. base-url 은 KPST_DEID_BASE_URL 로 override.
-#   오프라인 자족이 필요하면 KPST_DEID_ENABLED=false + DEIDENTIFY_MOCK_MODE=true 로 mock 복사 모드로 전환.
 kpst:
   deid:
     enabled: ${KPST_DEID_ENABLED:true}
@@ -91,7 +91,7 @@ kpst:
   # 콜백 충실 플로우 Phase 2 — local 에서는 외부 증강 시스템 대신 dev 콜백 시뮬레이터를 활성화한다.
   #   - external.mode=dev → DevAugmentCallbackSimulator 빈 로드(외부 0 자족). 운영은 noop(기본).
   #   - webhook.callback-base-url 은 application.yml 기본값(http://localhost:8080/api) 사용.
-  #     컨트롤러 매핑(/v1/augments/result) + context-path(/api) 정합 → 콜백 URL = .../api/v1/augments/result
+  #     컨트롤러 매핑(/v1/aug/callback) + context-path(/api) 정합 → 콜백 URL = .../api/v1/aug/callback
   augment:
     external:
       mode: ${AUGMENT_EXTERNAL_MODE:dev}

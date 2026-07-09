@@ -5,8 +5,6 @@ import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
 import { SimpleBarChart } from '@/components/charts/SimpleBarChart';
 import { SimplePieChart } from '@/components/charts/SimplePieChart';
-import { eventTypeLabel } from '@/constants/eventTypes';
-import type { EventTypeCd } from '@/features/dashboard/types';
 import { downloadReport } from '@/features/stat/api';
 import { WorkerStatsTable } from '@/features/stat/components/WorkerStatsTable';
 import { useOverallStat } from '@/features/stat/hooks/useOverallStat';
@@ -17,19 +15,21 @@ import { useUiStore } from '@/stores/useUiStore';
  *
  * 회귀 방지 (UI/UX §4-11):
  * - 누적 카드 영역(cumulative-cards)은 KpiCard만 사용 — ProgressBar / progressbar role / `%` 텍스트 / `<progress>` 절대 미노출
- * - 이벤트 분포는 6종 고정 슬롯 (데이터 누락 시에도 6개 `<li>` 렌더)
+ * - 이벤트 분포는 BE 카테고리 항목(eventTypeCd=categoryKey, label, count)을 그대로 순회 렌더
  * - 처리 현황 5 카드: 대기/진행중/검수 대기/승인/반려
  */
 
-// 이벤트 6종 고정 슬롯 — 데이터 누락 시에도 6개 렌더 (UI/UX §4-3)
-// 한글 라벨은 SoT `eventTypeLabel` 사용 (constants/eventTypes).
-const FIXED_EVENT_TYPES: { code: EventTypeCd; label: string; color: string }[] = [
-  { code: 'FALL', label: eventTypeLabel('FALL'), color: '#a855f7' },
-  { code: 'VIOLENCE', label: eventTypeLabel('VIOLENCE'), color: '#ef4444' },
-  { code: 'TRAFFIC_ACCIDENT', label: eventTypeLabel('TRAFFIC_ACCIDENT'), color: '#3b82f6' },
-  { code: 'ABNORMAL_BEHAVIOR', label: eventTypeLabel('ABNORMAL_BEHAVIOR'), color: '#f59e0b' },
-  { code: 'FLOOD', label: eventTypeLabel('FLOOD'), color: '#06b6d4' },
-  { code: 'WILDFIRE', label: eventTypeLabel('WILDFIRE'), color: '#dc2626' },
+// 분포 차트 색상 팔레트 — 카테고리 코드에 하드매핑하지 않고 순회 순서(인덱스) 기반으로 배정한다.
+const EVENT_COLOR_PALETTE = [
+  '#a855f7',
+  '#ef4444',
+  '#3b82f6',
+  '#f59e0b',
+  '#06b6d4',
+  '#dc2626',
+  '#10b981',
+  '#6366f1',
+  '#ec4899',
 ];
 
 export function OverallStatPage() {
@@ -76,14 +76,11 @@ export function OverallStatPage() {
     pending,
   };
 
-  // 이벤트 분포 — 6종 고정 슬롯에 매핑
-  const eventCountMap = new Map<EventTypeCd, number>();
-  for (const e of data?.eventDistribution ?? []) eventCountMap.set(e.eventTypeCd, e.count);
-
-  const EVENT_DIST = FIXED_EVENT_TYPES.map((t) => ({
-    label: t.label,
-    value: eventCountMap.get(t.code) ?? 0,
-    color: t.color,
+  // 이벤트 분포 — BE 카테고리 항목을 그대로 순회, 색상은 인덱스 기반 팔레트로 배정
+  const EVENT_DIST = (data?.eventDistribution ?? []).map((e, i) => ({
+    label: e.label,
+    value: e.count,
+    color: EVENT_COLOR_PALETTE[i % EVENT_COLOR_PALETTE.length] ?? '#6366f1',
   }));
 
   const eventTotal = EVENT_DIST.reduce((s, d) => s + d.value, 0);
@@ -190,7 +187,7 @@ export function OverallStatPage() {
         <h2 className="text-sm font-semibold text-gray-700 mb-4">이벤트 유형 분포</h2>
         <div className="flex items-center gap-8">
           <SimplePieChart data={EVENT_DIST} size={160} showLegend />
-          {/* 가로막대 — 6종 고정 슬롯 (UI/UX §4-3 회귀 방지) */}
+          {/* 가로막대 — BE 카테고리 분포(eventTypeCd=categoryKey, label, count)를 그대로 순회 렌더 */}
           <ul
             data-testid="event-distribution-grid"
             aria-label="이벤트 분포"

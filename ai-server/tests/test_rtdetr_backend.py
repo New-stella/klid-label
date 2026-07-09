@@ -328,7 +328,15 @@ def test_predict_track_응답_스키마_필드가_변경되지_않는다(small_p
     monkeypatch.setenv("AI_MOCK_MODE", "true")
     reload_settings()
 
-    expected_top = {"detections", "mock", "source", "mock_reason"}
+    expected_top = {
+        "detections",
+        "mock",
+        "source",
+        "mock_reason",
+        "success",
+        "message",
+        "error_code",
+    }
     expected_det = {"label", "points", "score", "track_id"}
 
     pred = client.post(
@@ -357,7 +365,15 @@ def test_schemas_불변_필드와_타입_확인() -> None:
 
     assert set(YoloRequest.model_fields) == {"image_b64", "conf_threshold", "imgsz", "iou"}
     assert set(Detection.model_fields) == {"label", "points", "score", "track_id"}
-    assert set(YoloResponse.model_fields) == {"detections", "mock", "source", "mock_reason"}
+    assert set(YoloResponse.model_fields) == {
+        "detections",
+        "mock",
+        "source",
+        "mock_reason",
+        "success",
+        "message",
+        "error_code",
+    }
     assert set(YoloTrackRequest.model_fields) == {
         "image_b64",
         "clip_id",
@@ -366,7 +382,15 @@ def test_schemas_불변_필드와_타입_확인() -> None:
         "imgsz",
         "iou",
     }
-    assert set(YoloTrackResponse.model_fields) == {"detections", "mock", "source", "mock_reason"}
+    assert set(YoloTrackResponse.model_fields) == {
+        "detections",
+        "mock",
+        "source",
+        "mock_reason",
+        "success",
+        "message",
+        "error_code",
+    }
 
 
 # ────────────────────────────────────────────────────────────────────

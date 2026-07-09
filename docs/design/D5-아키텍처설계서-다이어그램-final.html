@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>D5 아키텍처 설계서 — 다이어그램 (정적 HTML)</title>
+<style>
+  * { box-sizing: border-box; }
+  body{ margin:0; padding:40px 24px 80px;
+    font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Noto Sans KR','Segoe UI',sans-serif;
+    color:#1f2937; background:#f8fafc; line-height:1.6; }
+  .wrap{max-width:1120px; margin:0 auto;}
+  header.doc{ background:#ffffff; border:1px solid #e5e7eb; border-radius:16px; padding:28px 32px; margin-bottom:32px; }
+  header.doc h1{margin:0 0 6px; font-size:26px;}
+  header.doc .sub{color:#6b7280; font-size:14px; margin:0 0 18px;}
+  .meta{display:grid; grid-template-columns:repeat(4,auto); gap:8px 28px; font-size:13px;}
+  .meta b{color:#334155;} .meta span{color:#6b7280;}
+  section.card{ background:#ffffff; border:1px solid #e5e7eb; border-radius:16px; padding:28px 32px; margin-bottom:28px; }
+  h2{font-size:20px; margin:0 0 4px; display:flex; align-items:center; gap:10px;}
+  h2 .no{ display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:#334155; color:#ffffff; font-size:14px; font-weight:700; }
+  .lead{color:#374151; font-size:14.5px; margin:12px 0 20px;}
+  .svgbox{width:100%; overflow-x:auto; border:1px solid #e5e7eb; border-radius:12px; background:#ffffff; padding:8px;}
+  svg{display:block; width:100%; height:auto;}
+  .legend{display:flex; flex-wrap:wrap; gap:16px 28px; margin-top:16px; font-size:13px; color:#374151;}
+  .legend .item{display:flex; align-items:center; gap:8px;}
+  .legend .swatch{display:inline-block; width:34px; height:0; border-top-width:2px; border-top-style:solid; position:relative;}
+  .legend .swatch.solid{border-top-color:#334155;}
+  .legend .swatch.dash-amber{border-top-color:#b45309; border-top-style:dashed;}
+  .legend .swatch.dash-purple{border-top-color:#7c3aed; border-top-style:dashed;}
+  .legend .swatch::after{content:"\25B6"; position:absolute; right:-9px; top:-9px; font-size:10px;}
+  .legend .swatch.solid::after{color:#334155;}
+  .legend .swatch.dash-amber::after{color:#b45309;}
+  .legend .swatch.dash-purple::after{color:#7c3aed;}
+  table.conn{width:100%; border-collapse:collapse; margin-top:20px; font-size:13px;}
+  table.conn th, table.conn td{border:1px solid #e5e7eb; padding:9px 12px; text-align:left; vertical-align:top;}
+  table.conn th{background:#f1f5f9; color:#334155; font-weight:600; white-space:nowrap;}
+  table.conn td.dir{white-space:nowrap; font-weight:600; color:#2563eb;}
+  .pill{display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600;}
+  .pill.out{background:#eff6ff; color:#2563eb;}
+  .pill.in{background:#f0fdf4; color:#059669;}
+  footer.note{color:#6b7280; font-size:12.5px; text-align:center; margin-top:24px; line-height:1.8;}
+  @media print{ body{background:#ffffff; padding:0;} section.card, header.doc{break-inside:avoid;} .svgbox{overflow:visible;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc">
+    <h1>D5 아키텍처 설계서 — 다이어그램</h1>
+    <p class="sub">AI 기반 지방정부 CCTV 관제지원시스템(2차) · 학습데이터 저작도구 &nbsp;|&nbsp; 정적 HTML 시각화 (색 채움 박스 · 화살표/그림자)</p>
+    <div class="meta">
+      <div><b>시스템명</b> <span>CCTV 관제지원시스템(2차)</span></div>
+      <div><b>서브시스템</b> <span>학습데이터 저작도구</span></div>
+      <div><b>단계</b> <span>설계</span></div>
+      <div><b>버전</b> <span>1.2 (2026-07-03)</span></div>
+    </div>
+  </header>
+
+  <!-- ================= 1. 소프트웨어 아키텍처 ================= -->
+  <section class="card">
+    <h2><span class="no">1</span> 소프트웨어 아키텍처 (레이어드)</h2>
+    <p class="lead">
+      표현·업무·데이터 계층을 분리한 <b>레이어드(Layered) 아키텍처</b>의 모듈형 단일 애플리케이션이다.
+      표현 계층은 업무 계층의 REST 인터페이스만 호출하고, 업무 계층은 컨트롤러 → 서비스 → 리포지토리의 단방향 의존으로 구성한다.
+      AI 추론 연산은 <b>내부 추론 서버</b>(별도 프로세스, 무상태)로 분리해 GPU 자원을 격리한다.
+    </p>
+
+    <div class="svgbox">
+      <svg viewBox="0 0 1080 940" role="img" aria-label="소프트웨어 아키텍처 레이어드 다이어그램"
+           font-family="'Malgun Gothic','Apple SD Gothic Neo',sans-serif">
+        <defs>
+          <marker id="arw" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#334155"/></marker>
+          <marker id="arwP" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#7c3aed"/></marker>
+          <marker id="arwA" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#b45309"/></marker>
+          <filter id="sh" x="-6%" y="-8%" width="112%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.6" flood-color="#0f172a" flood-opacity="0.18"/></filter>
+        </defs>
+
+        <!-- Bands -->
+        <rect x="30"  y="24"  width="1020" height="100" rx="14" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+        <rect x="30"  y="150" width="1020" height="560" rx="14" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+        <rect x="30"  y="736" width="480"  height="180" rx="14" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+        <rect x="700" y="736" width="350"  height="180" rx="14" fill="#faf5ff" stroke="#e9d5ff" stroke-width="1.5"/>
+        <text x="46"  y="44"  font-size="13" font-weight="700" fill="#2563eb">표현 계층 (Presentation)</text>
+        <text x="46"  y="170" font-size="13" font-weight="700" fill="#b45309">업무 계층 (Business)</text>
+        <text x="46"  y="756" font-size="13" font-weight="700" fill="#059669">데이터 계층 (Data)</text>
+        <text x="716" y="756" font-size="13" font-weight="700" fill="#7c3aed">AI 추론 (내부 추론 서버)</text>
+
+        <!-- Presentation -->
+        <rect x="400" y="50" width="280" height="54" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="540" y="73" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">웹 프론트엔드</text>
+        <text x="540" y="92" text-anchor="middle" font-size="11.5" fill="#1e40af">라벨링 캔버스 · 검수 · 관리 · 마킹 화면</text>
+
+        <!-- Business core -->
+        <rect x="410" y="176" width="260" height="46" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="540" y="196" text-anchor="middle" font-size="14" font-weight="700" fill="#92400e">컨트롤러</text>
+        <text x="540" y="213" text-anchor="middle" font-size="11.5" fill="#b45309">요청 수신 · 표준 응답 · 검증</text>
+
+        <rect x="410" y="246" width="260" height="46" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="540" y="266" text-anchor="middle" font-size="14" font-weight="700" fill="#92400e">서비스</text>
+        <text x="540" y="283" text-anchor="middle" font-size="11.5" fill="#b45309">업무 로직 · 트랜잭션 · 상태 전이</text>
+
+        <rect x="70" y="330" width="220" height="56" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="180" y="353" text-anchor="middle" font-size="14" font-weight="700" fill="#92400e">리포지토리</text>
+        <text x="180" y="371" text-anchor="middle" font-size="11.5" fill="#b45309">영속성 접근(ORM · 동적 질의)</text>
+
+        <rect x="745" y="318" width="285" height="66" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="887" y="341" text-anchor="middle" font-size="14" font-weight="700" fill="#92400e">배치 파이프라인</text>
+        <text x="887" y="359" text-anchor="middle" font-size="11.5" fill="#b45309">비식별→마킹→시계열→프레임추출</text>
+        <text x="887" y="374" text-anchor="middle" font-size="11.5" fill="#b45309">→오토라벨링→트랙보간 (1건/분)</text>
+
+        <!-- 공통 인프라 group -->
+        <rect x="330" y="432" width="380" height="252" rx="12" fill="#fffdf5" stroke="#d97706" stroke-width="1.4" stroke-dasharray="5 4"/>
+        <text x="346" y="452" font-size="12" font-weight="700" fill="#b45309">공통 인프라</text>
+        <rect x="350" y="470" width="172" height="62" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="436" y="494" text-anchor="middle" font-size="14" font-weight="700" fill="#854d0e">인증 · 인가 필터</text>
+        <text x="436" y="512" text-anchor="middle" font-size="11.5" fill="#a16207">JWT 검증 · 역할/채널</text>
+        <rect x="528" y="470" width="164" height="62" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="610" y="494" text-anchor="middle" font-size="14" font-weight="700" fill="#854d0e">표준 응답</text>
+        <text x="610" y="512" text-anchor="middle" font-size="11.5" fill="#a16207">예외 처리</text>
+        <rect x="350" y="546" width="172" height="62" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="436" y="570" text-anchor="middle" font-size="14" font-weight="700" fill="#854d0e">듀얼 데이터소스</text>
+        <text x="436" y="588" text-anchor="middle" font-size="11.5" fill="#a16207">관제 참조 / 포털</text>
+        <rect x="528" y="546" width="164" height="62" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="610" y="570" text-anchor="middle" font-size="14" font-weight="700" fill="#854d0e">로깅·메트릭·추적ID</text>
+        <text x="610" y="588" text-anchor="middle" font-size="11.5" fill="#a16207">민감정보 마스킹</text>
+
+        <!-- 연동 클라이언트 group -->
+        <rect x="745" y="432" width="285" height="252" rx="12" fill="#fffdf5" stroke="#d97706" stroke-width="1.4" stroke-dasharray="5 4"/>
+        <text x="761" y="452" font-size="12" font-weight="700" fill="#b45309">연동 클라이언트 (장애 차단 적용)</text>
+        <rect x="763" y="472" width="250" height="72" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="888" y="502" text-anchor="middle" font-size="14" font-weight="700" fill="#854d0e">외부 연동 클라이언트</text>
+        <text x="888" y="521" text-anchor="middle" font-size="11.5" fill="#a16207">비식별 · 시계열 · 증강 · 관제통지</text>
+        <rect x="763" y="560" width="250" height="72" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="888" y="590" text-anchor="middle" font-size="14" font-weight="700" fill="#854d0e">추론 호출 클라이언트</text>
+        <text x="888" y="609" text-anchor="middle" font-size="11.5" fill="#a16207">내부 추론 서버 호출</text>
+
+        <!-- Data: DB cylinder -->
+        <path d="M70,782 a95,12 0 0 1 190,0 v76 a95,12 0 0 1 -190,0 z" fill="#dcfce7" stroke="#10b981" stroke-width="1.5" filter="url(#sh)"/>
+        <ellipse cx="165" cy="782" rx="95" ry="12" fill="#dcfce7" stroke="#10b981" stroke-width="1.5"/>
+        <text x="165" y="828" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">관계형 DB</text>
+        <text x="165" y="846" text-anchor="middle" font-size="11.5" fill="#047857">전용 스키마 + 공유 참조</text>
+
+        <rect x="290" y="772" width="200" height="110" rx="10" fill="#dcfce7" stroke="#10b981" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="390" y="820" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">파일 스토리지</text>
+        <text x="390" y="838" text-anchor="middle" font-size="11.5" fill="#047857">원본/비식별 영상·프레임 2벌</text>
+
+        <!-- AI server -->
+        <rect x="730" y="772" width="290" height="110" rx="10" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5" filter="url(#sh)"/>
+        <text x="875" y="812" text-anchor="middle" font-size="14" font-weight="700" fill="#5b21b6">내부 추론 서버</text>
+        <text x="875" y="831" text-anchor="middle" font-size="11.5" fill="#6d28d9">객체탐지(YOLO) · 세그멘테이션(SAM2)</text>
+        <text x="875" y="847" text-anchor="middle" font-size="11.5" fill="#6d28d9">무상태 · GPU 수평 확장</text>
+
+        <!-- Edges -->
+        <path d="M540,104 L540,174" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#arw)"/>
+        <text x="548" y="142" font-size="10.5" font-weight="500" fill="#475569">REST/JSON</text>
+        <path d="M540,222 L540,244" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#arw)"/>
+        <path d="M470,292 L470,310 L180,310 L180,328" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#arw)"/>
+        <path d="M610,292 L610,310 L887,310 L887,316" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#arw)"/>
+        <path d="M540,292 L540,302 L312,302 L312,758 L390,758 L390,770" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#arw)"/>
+        <text x="318" y="744" font-size="10.5" font-weight="500" fill="#475569">파일 I/O</text>
+        <path d="M520,292 L520,430" fill="none" stroke="#b45309" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arwA)"/>
+        <text x="524" y="360" font-size="10.5" font-weight="500" fill="#b45309">공통 기능</text>
+        <path d="M180,386 L180,768" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#arw)"/>
+        <text x="186" y="560" font-size="10.5" font-weight="500" fill="#475569">ORM</text>
+        <path d="M887,384 L887,430" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#arw)"/>
+        <text x="893" y="410" font-size="10.5" font-weight="500" fill="#475569">연동 호출</text>
+        <path d="M888,632 L888,700 L875,700 L875,770" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arwP)"/>
+        <text x="893" y="726" font-size="10.5" font-weight="500" fill="#7c3aed">프로세스 경계 · 60초</text>
+      </svg>
+    </div>
+
+    <div class="legend">
+      <div class="item"><span class="swatch solid"></span> 동기 호출 (REST/JSON · ORM·동적질의 · 파일 I/O)</div>
+      <div class="item"><span class="swatch dash-amber"></span> 공통 기능 사용 (횡단 관심사)</div>
+      <div class="item"><span class="swatch dash-purple"></span> 프로세스 경계 호출 (내부 추론 서버 · 60초 타임아웃 · 장애 차단)</div>
+    </div>
+  </section>
+
+  <!-- ================= 2. 시스템 아키텍처 ================= -->
+  <section class="card">
+    <h2><span class="no">2</span> 시스템 아키텍처</h2>
+    <p class="lead">
+      개발 대상시스템(학습데이터 저작도구)은 단일 인스턴스 애플리케이션 서버를 중심으로 <b>내부 추론 서버</b>(GPU 워커, 수평 확장)·관계형 DB·파일 스토리지로 구성한다.
+      애플리케이션 서버와 내부 추론 서버는 같은 <b>내부 운영 영역</b>이며, 외부 연동 시스템 5종(비식별 서버·외부 VLM·외부 증강 AI·관제서버·포털 DB)과는 <b>시스템·인터페이스 경계</b>를 두고 연동한다(모두 온프레미스 내부망의 별도 서버/시스템 — 인터넷·보안 경계가 아님).
+    </p>
+
+    <div class="svgbox">
+      <svg viewBox="0 0 1080 820" role="img" aria-label="시스템 아키텍처 다이어그램"
+           font-family="'Malgun Gothic','Apple SD Gothic Neo',sans-serif">
+        <defs>
+          <marker id="s_arw" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#334155"/></marker>
+          <marker id="s_out" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#2563eb"/></marker>
+          <marker id="s_in" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#059669"/></marker>
+          <filter id="sh2" x="-6%" y="-8%" width="112%" height="120%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.6" flood-color="#0f172a" flood-opacity="0.18"/></filter>
+        </defs>
+
+        <!-- USER -->
+        <rect x="300" y="28" width="420" height="60" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5" filter="url(#sh2)"/>
+        <text x="510" y="52" text-anchor="middle" font-size="14" font-weight="700" fill="#334155">사용자 단말 — 검수자 · 작업자 · 포털 회원</text>
+        <text x="510" y="72" text-anchor="middle" font-size="11.5" fill="#475569">웹 브라우저 · 표준 HTTPS</text>
+
+        <!-- SYS group -->
+        <rect x="30" y="150" width="630" height="560" rx="16" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.6"/>
+        <text x="48" y="176" font-size="13" font-weight="700" fill="#2563eb">학습데이터 저작도구 (개발 대상 · 내부 운영 영역)</text>
+
+        <!-- EXT group -->
+        <rect x="730" y="150" width="320" height="560" rx="16" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.6"/>
+        <text x="748" y="176" font-size="13" font-weight="700" fill="#dc2626">연동 시스템 (타 시스템 소유 · 온프렘 내부망)</text>
+
+        <!-- internal boxes -->
+        <rect x="60" y="198" width="250" height="58" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5" filter="url(#sh2)"/>
+        <text x="185" y="222" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">웹 프론트엔드 서버</text>
+        <text x="185" y="240" text-anchor="middle" font-size="11.5" fill="#1e40af">정적 자원 서빙</text>
+
+        <rect x="60" y="300" width="250" height="80" rx="10" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5" filter="url(#sh2)"/>
+        <text x="185" y="330" text-anchor="middle" font-size="14" font-weight="700" fill="#3730a3">내부 추론 서버</text>
+        <text x="185" y="348" text-anchor="middle" font-size="11.5" fill="#4338ca">객체탐지 · 세그멘테이션</text>
+        <text x="185" y="364" text-anchor="middle" font-size="11.5" fill="#4338ca">GPU 워커 · 수평 확장</text>
+
+        <!-- internal DB cylinder -->
+        <path d="M60,482 v96 a125,13 0 0 0 250,0 v-96" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5" filter="url(#sh2)"/>
+        <ellipse cx="185" cy="482" rx="125" ry="13" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="185" y="524" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">관계형 DB</text>
+        <text x="185" y="542" text-anchor="middle" font-size="11.5" fill="#1e40af">저작도구 전용 스키마</text>
+
+        <!-- APP hub -->
+        <rect x="370" y="235" width="260" height="300" rx="12" fill="#bfdbfe" stroke="#2563eb" stroke-width="2" filter="url(#sh2)"/>
+        <text x="500" y="330" text-anchor="middle" font-size="15" font-weight="700" fill="#1e3a8a">애플리케이션 서버</text>
+        <text x="500" y="352" text-anchor="middle" font-size="11.5" fill="#1e40af">기본 단일 인스턴스</text>
+        <text x="500" y="369" text-anchor="middle" font-size="11.5" fill="#1e40af">스케줄러 내장 (1건/분)</text>
+        <text x="500" y="392" text-anchor="middle" font-size="11.5" fill="#1e40af">이중화 시 Quartz</text>
+        <text x="500" y="408" text-anchor="middle" font-size="11.5" fill="#1e40af">클러스터링 옵션</text>
+
+        <!-- STORE -->
+        <rect x="370" y="572" width="250" height="100" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5" filter="url(#sh2)"/>
+        <text x="495" y="616" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">파일 스토리지</text>
+        <text x="495" y="634" text-anchor="middle" font-size="11.5" fill="#1e40af">원본 · 비식별 영상/프레임 2벌</text>
+
+        <!-- external boxes -->
+        <rect x="758" y="198" width="266" height="56" rx="10" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5" filter="url(#sh2)"/>
+        <text x="891" y="230" text-anchor="middle" font-size="14" font-weight="700" fill="#991b1b">비식별 서버</text>
+
+        <rect x="758" y="270" width="266" height="56" rx="10" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5" filter="url(#sh2)"/>
+        <text x="891" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#991b1b">외부 VLM 서비스</text>
+        <text x="891" y="312" text-anchor="middle" font-size="11.5" fill="#b91c1c">시계열 메타</text>
+
+        <rect x="758" y="342" width="266" height="64" rx="10" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5" filter="url(#sh2)"/>
+        <text x="891" y="368" text-anchor="middle" font-size="14" font-weight="700" fill="#991b1b">외부 증강 AI</text>
+        <text x="891" y="386" text-anchor="middle" font-size="11.5" fill="#b91c1c">WINTER / NIGHT / RAIN / 해상도</text>
+
+        <rect x="758" y="424" width="266" height="72" rx="10" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5" filter="url(#sh2)"/>
+        <text x="891" y="452" text-anchor="middle" font-size="14" font-weight="700" fill="#991b1b">관제서버</text>
+        <text x="891" y="470" text-anchor="middle" font-size="11.5" fill="#b91c1c">JWT 발급 · 공유 테이블 · 통지 수신</text>
+
+        <!-- external PORTAL cylinder -->
+        <path d="M758,524 v72 a133,12 0 0 0 266,0 v-72" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5" filter="url(#sh2)"/>
+        <ellipse cx="891" cy="524" rx="133" ry="12" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="891" y="566" text-anchor="middle" font-size="14" font-weight="700" fill="#991b1b">포털 DB</text>
+        <text x="891" y="584" text-anchor="middle" font-size="11.5" fill="#b91c1c">데이터마트 적재 소스</text>
+
+        <!-- edges -->
+        <path d="M440,88 L440,120 L185,120 L185,196" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#s_arw)"/>
+        <text x="196" y="112" font-size="11" font-weight="500" fill="#475569">HTTPS · JWT 인계</text>
+        <path d="M310,228 L340,228 L340,270 L368,270" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#s_arw)"/>
+        <text x="316" y="258" font-size="11" font-weight="500" fill="#475569">REST/JSON</text>
+        <path d="M370,338 L312,340" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#s_arw)"/>
+        <text x="316" y="332" font-size="11" font-weight="500" fill="#475569">내부망 60초</text>
+        <path d="M370,470 L312,478" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#s_arw)"/>
+        <path d="M500,535 L500,570" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#s_arw)"/>
+
+        <path d="M630,270 L694,270 L694,226 L756,226" fill="none" stroke="#2563eb" stroke-width="1.7" marker-end="url(#s_out)"/>
+        <text x="640" y="262" font-size="11" font-weight="600" fill="#2563eb">비식별 요청</text>
+        <path d="M630,300 L756,300" fill="none" stroke="#2563eb" stroke-width="1.7" marker-end="url(#s_out)"/>
+        <text x="642" y="294" font-size="11" font-weight="600" fill="#2563eb">시계열 45초 · 콜백</text>
+        <path d="M630,340 L700,340 L700,376 L756,376" fill="none" stroke="#2563eb" stroke-width="1.7" marker-end="url(#s_out)"/>
+        <text x="640" y="356" font-size="11" font-weight="600" fill="#2563eb">증강 요청 · 콜백</text>
+        <path d="M630,442 L756,448" fill="none" stroke="#2563eb" stroke-width="1.7" marker-end="url(#s_out)"/>
+        <text x="640" y="436" font-size="11" font-weight="600" fill="#2563eb">완료/수정 통지 ▶</text>
+        <path d="M756,476 L688,482 L688,502 L632,502" fill="none" stroke="#059669" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#s_in)"/>
+        <text x="634" y="499" font-size="11" font-weight="600" fill="#059669">◀ 상세 조회 (API)</text>
+        <path d="M630,516 L712,516 L712,556 L756,556" fill="none" stroke="#2563eb" stroke-width="1.7" marker-end="url(#s_out)"/>
+        <text x="640" y="540" font-size="11" font-weight="600" fill="#2563eb">라벨/메타 Load</text>
+
+        <!-- caption (경계 성격) -->
+        <text x="30" y="748" font-size="11.5" font-weight="600" fill="#475569">※ 연동 시스템 5종 = 온프레미스 내부망의 별도 서버/시스템(타 시스템 소유). 저작도구와는 인터넷·보안 네트워크 경계가 아니라</text>
+        <text x="30" y="768" font-size="11.5" font-weight="600" fill="#475569">&#160;&#160;&#160;시스템·인터페이스 경계다 — 관제서버는 동일 도메인·공유 DB, 포털은 외부 채널로 포털 DB 직접 접속. 방향·타임아웃은 아래 연동 목록 표 참조.</text>
+      </svg>
+    </div>
+
+    <table class="conn">
+      <thead>
+        <tr><th>연동 대상</th><th>방향</th><th>프로토콜 / 조건</th><th>내용</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>사용자 단말 → 웹 프론트엔드</td><td class="dir">→</td><td>HTTPS</td><td>관제/포털 발급 JWT를 브라우저 공유 스토리지로 인계 → 요청 헤더로 전달</td></tr>
+        <tr><td>웹 프론트엔드 → 애플리케이션</td><td class="dir">→</td><td>REST/JSON</td><td>표준 응답 래퍼 기반 API 호출</td></tr>
+        <tr><td>애플리케이션 → 내부 추론 서버</td><td class="dir">→</td><td>내부망 · 60초 타임아웃</td><td>객체탐지·세그멘테이션 추론 (장애 차단 적용)</td></tr>
+        <tr><td>애플리케이션 ↔ DB / 스토리지</td><td class="dir">→</td><td>ORM · 파일 I/O</td><td>전용 스키마 영속 + 원본·비식별 2벌 저장</td></tr>
+        <tr><td>애플리케이션 → 비식별 서버</td><td class="dir"><span class="pill out">out</span></td><td>HTTP</td><td>비식별 요청</td></tr>
+        <tr><td>애플리케이션 → 외부 VLM</td><td class="dir"><span class="pill out">out</span></td><td>HTTP · 45초</td><td>시계열 요청 + 결과 콜백 수신</td></tr>
+        <tr><td>애플리케이션 → 외부 증강 AI</td><td class="dir"><span class="pill out">out</span></td><td>HTTP</td><td>증강 요청 + 결과 콜백 수신 (WINTER/NIGHT/RAIN/해상도)</td></tr>
+        <tr><td>애플리케이션 → 관제서버</td><td class="dir"><span class="pill out">out</span></td><td>단방향 outbound</td><td>완료/수정 통지 (메타·요약만, 본문·토큰 미포함)</td></tr>
+        <tr><td>관제서버 → 애플리케이션</td><td class="dir"><span class="pill in">in</span></td><td>서버 간 API</td><td>통지 수신 후 상세 데이터 조회 호출</td></tr>
+        <tr><td>애플리케이션 → 포털 DB</td><td class="dir"><span class="pill out">out</span></td><td>DB Load</td><td>데이터마트 라벨/메타 Load (단방향)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer class="note">
+    본 문서는 <b>docs/design/D5-아키텍처설계서.md</b> §1·§2 Mermaid 다이어그램의 정적 HTML 렌더 대체본입니다. (색 채움 박스 + 화살표/그림자 · 문서 삽입은 동봉 PNG 권장)<br/>
+    요구사항·구현방안(§3 NFR 표)은 원본 마크다운 문서를 참조하십시오. · 버전 1.2 (2026-07-03)
+  </footer>
+
+</div>
+</body>
+</html>

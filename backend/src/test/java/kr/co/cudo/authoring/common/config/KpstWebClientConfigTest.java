@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   <li>https → 자체 CA(ca.crt) 필수. 비었거나 못 읽으면 fail-closed 예외(CWE-295 보존).</li>
  *   <li>그 외 스키마(ftp 등)·스키마 없음·빈값 → 거부 예외.</li>
  * </ul>
- * 3개 빈(kpstDeidWebClient · kpstDeidProgressHttpClient · kpstDeidUploadWebClient)이 동일하게 분기한다.
+ * 2개 빈(kpstDeidWebClient · kpstDeidProgressHttpClient)이 동일하게 분기한다.
  */
 class KpstWebClientConfigTest {
 
@@ -24,25 +24,23 @@ class KpstWebClientConfigTest {
     private final KpstWebClientConfig cfg = new KpstWebClientConfig();
 
     @Test
-    @DisplayName("Kpst_http_내부망IP_ca_cert_빈값_시_3개빈_생성성공_SSL미적용")
+    @DisplayName("Kpst_http_내부망IP_ca_cert_빈값_시_2개빈_생성성공_SSL미적용")
     void httpWithoutCaCertCreatesBeans() {
         // given — 내부망 평문 http base-url + ca-cert 빈값
         String httpUrl = "http://10.20.30.40:9989";
-        // when / then — SSL/ca-cert 불요로 3개 빈 모두 예외 없이 생성
+        // when / then — SSL/ca-cert 불요로 2개 빈 모두 예외 없이 생성
         assertThat(cfg.kpstDeidWebClient(httpUrl, "")).isNotNull();
         assertThat(cfg.kpstDeidProgressHttpClient(httpUrl, "")).isNotNull();
-        assertThat(cfg.kpstDeidUploadWebClient(httpUrl, "")).isNotNull();
     }
 
     @Test
-    @DisplayName("Kpst_https_유효한_ca_cert_시_3개빈_생성성공_SSL적용")
+    @DisplayName("Kpst_https_유효한_ca_cert_시_2개빈_생성성공_SSL적용")
     void httpsWithValidCaCertCreatesBeans() {
         // given — https base-url + 유효 ca-cert
         String httpsUrl = "https://kpst-host:9201";
         // when / then
         assertThat(cfg.kpstDeidWebClient(httpsUrl, VALID_CA)).isNotNull();
         assertThat(cfg.kpstDeidProgressHttpClient(httpsUrl, VALID_CA)).isNotNull();
-        assertThat(cfg.kpstDeidUploadWebClient(httpsUrl, VALID_CA)).isNotNull();
     }
 
     @Test
@@ -55,8 +53,6 @@ class KpstWebClientConfigTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("ca-cert");
         assertThatThrownBy(() -> cfg.kpstDeidProgressHttpClient(httpsUrl, ""))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.kpstDeidUploadWebClient(httpsUrl, ""))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -90,7 +86,7 @@ class KpstWebClientConfigTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> cfg.kpstDeidWebClient("", ""))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.kpstDeidUploadWebClient("   ", ""))
+        assertThatThrownBy(() -> cfg.kpstDeidProgressHttpClient("   ", ""))
                 .isInstanceOf(IllegalStateException.class);
     }
 }

@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.preset.service;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.preset.dto.LabelCodeOptionDto;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset.LabelCodeSpec;
@@ -35,6 +36,7 @@ public class PresetService {
     private static final String MSG_EVENT_CONFLICT = "이미 다른 프리셋에 매핑된 이벤트입니다";
 
     private final LsLabelPresetRepository presetRepository;
+    private final EventTypeService eventTypeService;
 
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<LsLabelPreset> list() {
@@ -44,6 +46,7 @@ public class PresetService {
     @Transactional("controlTransactionManager")
     public LsLabelPreset create(String name, String description,
                                 List<LabelCodeOptionDto> options, String eventTypeCd) {
+        validateEventType(eventTypeCd);
         if (presetRepository.existsByPresetNm(name)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 프리셋 이름입니다.");
         }
@@ -54,6 +57,7 @@ public class PresetService {
     @Transactional("controlTransactionManager")
     public LsLabelPreset update(long id, String name, String description,
                                 List<LabelCodeOptionDto> options, String eventTypeCd) {
+        validateEventType(eventTypeCd);
         LsLabelPreset preset = presetRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프리셋을 찾을 수 없습니다."));
         if (presetRepository.existsByPresetNmAndPresetIdNot(name, id)) {
@@ -91,6 +95,22 @@ public class PresetService {
                 .toList();
         LsLabelPreset copy = LsLabelPreset.createWithOptions(baseName, src.getExpln(), specs, null);
         return presetRepository.save(copy);
+    }
+
+    /**
+     * 프리셋 이벤트 매핑값 검증 (Phase 4a) — 빈값(이벤트 무관 프리셋)은 허용,
+     * 비빈값은 관제 유효 categoryKey({@link EventTypeService#validCategoryKeys()})여야 한다.
+     *
+     * <p>@Pattern(EVT_*) 정적 검증을 대체하는 동적 검증(CWE-20). 드롭다운에 노출되는 관제
+     * 카테고리(9종)만 프리셋 매핑을 허용하고, 그 밖의 값(구 EVT_* 코드·임의 문자열)은 400 으로 거부한다.
+     */
+    private void validateEventType(String eventTypeCd) {
+        if (eventTypeCd == null || eventTypeCd.isBlank()) {
+            return;
+        }
+        if (!eventTypeService.validCategoryKeys().contains(eventTypeCd)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "지원하지 않는 이벤트 타입입니다");
+        }
     }
 
     /** insert 시점 UNIQUE 위반(이벤트 중복) 을 CONFLICT 로 변환. */

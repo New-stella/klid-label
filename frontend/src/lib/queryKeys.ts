@@ -115,3 +115,13 @@ export const STAT_KEYS = {
   worker: (userId: number | string) => [...STAT_KEYS.all, 'worker', userId] as const,
   overall: () => [...STAT_KEYS.all, 'overall'] as const,
 };
+
+/**
+ * 이벤트 타입 — BE GET /v1/event-types (필터 옵션), /v1/event-types/labels (코드→라벨 맵).
+ * near-immutable 이라 한 세션 1회만 페치한다 (hooks staleTime: Infinity).
+ */
+export const EVENT_TYPE_KEYS = {
+  all: ['eventTypes'] as const,
+  options: () => [...EVENT_TYPE_KEYS.all, 'options'] as const,
+  labels: () => [...EVENT_TYPE_KEYS.all, 'labels'] as const,
+};

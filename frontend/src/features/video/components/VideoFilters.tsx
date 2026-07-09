@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { useEventTypes } from '@/features/eventType/hooks';
 
 import type { VideoListParams } from '../types';
 
@@ -18,21 +19,13 @@ const STATUS_OPTIONS = [
   { value: 'FAILED', label: '실패' },
 ];
 
-const EVENT_OPTIONS = [
-  { value: '', label: '전체 이벤트' },
-  { value: 'FALL', label: '쓰러짐' },
-  { value: 'VIOLENCE', label: '폭력' },
-  { value: 'TRAFFIC_ACCIDENT', label: '교통사고' },
-  { value: 'ABNORMAL_BEHAVIOR', label: '이상행동(유괴)' },
-  { value: 'FLOOD', label: '침수' },
-  { value: 'WILDFIRE', label: '산불' },
-];
-
 /**
  * mock 정합 — 한 줄 그리드 형태(검색 + 상태 + 이벤트 + 시작/종료 + 조회/초기화).
  * 보안: 모든 입력은 controlled state — XSS 방지를 위해 텍스트 노드만 렌더.
  */
 export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
+  // 이벤트 드롭다운 옵션 — 관제 마스터 기반 9 카테고리 (value=categoryKey, 표시=label).
+  const { data: eventTypes, isLoading: eventTypesLoading } = useEventTypes();
   const [keyword, setKeyword] = useState(initial.cctvNameKeyword ?? '');
   const [status, setStatus] = useState(initial.dataSttsCd ?? '');
   const [eventTypeCd, setEventTypeCd] = useState(initial.eventTypeCd ?? '');
@@ -118,10 +111,18 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
           id="video-event"
           value={eventTypeCd}
           onChange={(e) => setEventTypeCd(e.target.value)}
-          className="py-1.5 px-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          disabled={eventTypesLoading}
+          aria-busy={eventTypesLoading}
+          className="py-1.5 px-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:text-gray-400"
         >
-          {EVENT_OPTIONS.map((et) => (
-            <option key={et.value} value={et.value}>
+          <option value="">전체 이벤트</option>
+          {eventTypesLoading && (
+            <option value="" disabled>
+              로딩 중…
+            </option>
+          )}
+          {(eventTypes ?? []).map((et) => (
+            <option key={et.categoryKey} value={et.categoryKey}>
               {et.label}
             </option>
           ))}

@@ -32,6 +32,12 @@ export interface Task {
    */
   eventName?: string;
   eventTypeCd?: string;
+  /**
+   * 비식별 처리 여부/상태 (BE LS_DATA_RAW.DE_IDENT_YN / deidentStatus).
+   * 마킹 진입 차단(AC4) 판정용 — 'Y'/DONE 이 아니면 WORKER 마킹 버튼을 비활성화한다.
+   */
+  deIdntfYn?: 'Y' | 'N' | 'F';
+  deidentStatus?: string;
 }
 
 export interface Assignment {
@@ -77,6 +83,9 @@ export interface TaskBoardItem {
   // REVIEWER 배정 (left-join)
   reviewerId: number | null;
   reviewerName: string | null;
+  // 비식별 처리 여부/상태 (마킹 진입 차단 판정 — AC4). BE 미전송 시 null/undefined.
+  deIdntfYn?: 'Y' | 'N' | 'F' | null;
+  deidentStatus?: string | null;
 }
 
 export interface TaskBoardParams {
