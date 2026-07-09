@@ -1,6 +1,7 @@
 import { useId, type KeyboardEvent, type ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface TabItem {
   value: string;
@@ -60,7 +61,8 @@ export function Tabs({
               onClick={() => onChange(item.value)}
               onKeyDown={(e) => handleKey(e, idx)}
               className={cn(
-                '-mb-px border-b-2 px-4 py-2.5 text-sm transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-40',
+                '-mb-px inline-flex min-h-11 items-center border-b-2 px-4 py-2.5 text-sm transition-colors duration-100 disabled:opacity-40',
+                KRDS_FOCUS,
                 selected
                   ? 'border-primary-500 text-primary-600 font-medium'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',

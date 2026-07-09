@@ -62,4 +62,26 @@ describe('StatusBadge', () => {
     render(<StatusBadge status="COMPLETED" label="완료됨" />);
     expect(screen.getByText('완료됨')).toBeInTheDocument();
   });
+
+  it('StatusBadge_상태별_색과_아이콘_텍스트_병기', () => {
+    // KRDS: 색만으로 상태 구분 금지 — 색+아이콘(svg)+텍스트 3중 병기 검증
+    const cases: BadgeStatus[] = [
+      'COMPLETED',
+      'FAILED',
+      'IN_PROGRESS',
+      'REVIEWING',
+      'PENDING',
+    ];
+    cases.forEach((s) => {
+      const { container, unmount } = render(<StatusBadge status={s} />);
+      const badge = container.querySelector(`[data-status="${s}"]`) as HTMLElement;
+      // 아이콘(svg) 존재
+      expect(badge.querySelector('svg')).toBeInTheDocument();
+      // 텍스트 라벨 존재
+      expect((badge.textContent ?? '').trim().length).toBeGreaterThan(0);
+      // 색상 토큰 유지
+      expect(badge.className).toMatch(/bg-(blue|green|yellow|red|gray|purple)-(50|100|200)/);
+      unmount();
+    });
+  });
 });

@@ -55,4 +55,21 @@ describe('Button', () => {
     render(<Button fullWidth>전체</Button>);
     expect(screen.getByRole('button').className).toMatch(/w-full/);
   });
+
+  it('Button_키보드_포커스시_3px_링과_2px_offset', () => {
+    // given/when: 기본 버튼 렌더 (KRDS focus 유틸 적용 대상)
+    render(<Button>저장</Button>);
+    const cls = screen.getByRole('button').className;
+    // then: focus-visible 시 3px ring + 2px offset + primary 색
+    expect(cls).toMatch(/focus-visible:ring-\[3px\]/);
+    expect(cls).toMatch(/focus-visible:ring-offset-2/);
+    expect(cls).toMatch(/focus-visible:ring-primary/);
+  });
+
+  it('Button_md_터치타깃_최소_44px', () => {
+    // given/when: 기본 사이즈(md) 버튼
+    render(<Button>확인</Button>);
+    // then: 최소 높이 44px(min-h-11) 확보
+    expect(screen.getByRole('button').className).toMatch(/min-h-11/);
+  });
 });

@@ -1,6 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ComponentType, type ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { Spinner } from './Spinner';
 
@@ -32,9 +33,12 @@ const variantClass: Record<ButtonVariant, string> = {
 };
 
 const sizeClass: Record<ButtonSize, string> = {
+  // KRDS 터치 타깃 44x44px 규칙: md/lg 는 min-h-11(44px) 보장.
+  // sm 은 밀집 UI(테이블 액션 등) 전용 컴팩트 예외 — 44px 미만 허용하되
+  // 단독 터치 타깃으로 쓸 때는 md 이상 사용을 권장한다.
   sm: 'text-xs px-3 py-1.5 gap-1.5',
-  md: 'h-10 px-4 text-btn-label gap-2',
-  lg: 'px-5 py-2.5 text-btn-label gap-2',
+  md: 'min-h-11 px-4 text-btn-label gap-2',
+  lg: 'min-h-11 px-5 py-2.5 text-btn-label gap-2',
 };
 
 const iconSize: Record<ButtonSize, string> = {
@@ -67,7 +71,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={isDisabled}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed',
+        'inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-100 disabled:cursor-not-allowed',
+        KRDS_FOCUS,
         variantClass[variant],
         sizeClass[size],
         fullWidth && 'w-full',

@@ -48,6 +48,19 @@ describe('Modal', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('IconButton_44x44_보장', () => {
+    // given/when: 모달의 아이콘 전용 닫기 버튼
+    render(
+      <Modal open onClose={() => {}} title="제목">
+        본문
+      </Modal>,
+    );
+    const closeBtn = screen.getByRole('button', { name: '닫기' });
+    // then: 아이콘 전용 버튼은 44x44(h-11 w-11) 터치타깃 확보
+    expect(closeBtn.className).toMatch(/h-11/);
+    expect(closeBtn.className).toMatch(/w-11/);
+  });
+
   it('Modal_포커스_트랩_Tab_순환', async () => {
     const user = userEvent.setup();
     render(

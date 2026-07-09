@@ -2,6 +2,7 @@ import { type ReactNode, useMemo } from 'react';
 import { ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { EmptyState } from './EmptyState';
 import { Pagination } from './Pagination';
@@ -108,17 +109,20 @@ export function DataTable<T>({
           <thead className="bg-gray-50">
             <tr className="border-b border-gray-200">
               {selection && (
-                <th scope="col" className="w-10 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    aria-label="전체 선택"
-                    checked={allSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = !allSelected && someSelected;
-                    }}
-                    onChange={handleSelectAll}
-                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500"
-                  />
+                <th scope="col" className="w-12 px-2 py-1">
+                  {/* KRDS 44px 클릭영역: 시각 크기(h-4 w-4)는 유지하고 label 래퍼로 히트영역 확장 */}
+                  <label className="mx-auto flex h-11 w-11 cursor-pointer items-center justify-center">
+                    <input
+                      type="checkbox"
+                      aria-label="전체 선택"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = !allSelected && someSelected;
+                      }}
+                      onChange={handleSelectAll}
+                      className={cn('h-4 w-4 rounded border-gray-300 text-primary-600', KRDS_FOCUS)}
+                    />
+                  </label>
                 </th>
               )}
               {columns.map((col) => {
@@ -145,7 +149,10 @@ export function DataTable<T>({
                       <button
                         type="button"
                         onClick={() => handleSort(col.key)}
-                        className="inline-flex items-center gap-1 hover:text-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500"
+                        className={cn(
+                          'inline-flex items-center gap-1 hover:text-primary-600',
+                          KRDS_FOCUS,
+                        )}
                       >
                         <span>{col.header}</span>
                         {isSorted ? (
@@ -211,16 +218,19 @@ export function DataTable<T>({
                       >
                         {selection && (
                           <td
-                            className="px-4 py-3"
+                            className="px-2 py-1"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <input
-                              type="checkbox"
-                              aria-label="행 선택"
-                              checked={checked}
-                              onChange={() => handleSelectRow(row)}
-                              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500"
-                            />
+                            {/* KRDS 44px 클릭영역: 시각 크기 유지, label 래퍼로 히트영역 확장 */}
+                            <label className="mx-auto flex h-11 w-11 cursor-pointer items-center justify-center">
+                              <input
+                                type="checkbox"
+                                aria-label="행 선택"
+                                checked={checked}
+                                onChange={() => handleSelectRow(row)}
+                                className={cn('h-4 w-4 rounded border-gray-300 text-primary-600', KRDS_FOCUS)}
+                              />
+                            </label>
                           </td>
                         )}
                         {columns.map((col) => (

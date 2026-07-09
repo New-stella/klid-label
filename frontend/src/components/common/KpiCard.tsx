@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface KpiCardProps {
   label: ReactNode;
@@ -39,8 +40,7 @@ export function KpiCard({
       onClick={onClick}
       className={cn(
         'flex w-full items-start justify-between rounded-lg border border-gray-200 bg-white px-6 py-5 text-left shadow-sm transition-colors',
-        onClick &&
-          'cursor-pointer hover:border-primary-400 focus-visible:ring-2 focus-visible:ring-primary-500',
+        onClick && cn('cursor-pointer hover:border-primary-400', KRDS_FOCUS),
         className,
       )}
     >

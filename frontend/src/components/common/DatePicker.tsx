@@ -3,6 +3,7 @@ import { format, parse, isValid } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface DatePickerProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> {
@@ -55,7 +56,8 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(function
         aria-describedby={errorId ?? hintId}
         title={localizedDisplay}
         className={cn(
-          'h-10 w-full rounded-md border bg-white px-3 text-body text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:bg-gray-50 disabled:opacity-60',
+          'h-11 w-full rounded-md border bg-white px-3 text-body text-gray-900 outline-none disabled:bg-gray-50 disabled:opacity-60',
+          KRDS_FOCUS,
           error
             ? 'border-danger focus-visible:border-danger'
             : 'border-gray-300 focus-visible:border-primary-500',

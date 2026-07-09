@@ -2,6 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 
+// 폰트 자가호스팅(self-host) — npm 패키지의 로컬 woff2 만 사용, 런타임 폰트 CDN 요청 0.
+// 두 CSS 모두 @font-face src 가 상대경로 woff2 이며 Vite 가 해시 에셋으로 번들한다.
+// dynamic-subset: unicode-range 로 필요한 서브셋만 로드(font-display:swap 내장).
+import 'pretendard/dist/web/static/pretendard-dynamic-subset.css';
+import 'd2coding/d2coding-subset.css';
+
 import { App } from './App';
 import { ToastProvider } from './components/common/ToastProvider';
 import { queryClient } from './lib/queryClient';

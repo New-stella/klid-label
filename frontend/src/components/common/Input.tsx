@@ -1,6 +1,7 @@
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -40,7 +41,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
           className={cn(
-            'h-10 w-full rounded-lg border bg-white px-3 text-body text-gray-900 outline-none transition-colors duration-100 placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-primary-500 disabled:bg-gray-50 disabled:opacity-60',
+            'h-11 w-full rounded-lg border bg-white px-3 text-body text-gray-900 outline-none transition-colors duration-100 placeholder:text-gray-400 disabled:bg-gray-50 disabled:opacity-60',
+            KRDS_FOCUS,
             error
               ? 'border-danger focus-visible:border-danger'
               : 'border-gray-300 focus-visible:border-primary-500',

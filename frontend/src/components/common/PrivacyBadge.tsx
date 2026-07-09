@@ -1,6 +1,11 @@
+import { Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
+import type { ComponentType } from 'react';
+
 import { cn } from '@/lib/cn';
 
 export type PrivacyType = 'PRVC' | 'PSDO' | 'ANONY' | string;
+
+type IconType = ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
 
 interface PrivacyBadgeProps {
   privacyType: PrivacyType;
@@ -21,6 +26,14 @@ const LABEL_MAP: Record<string, string> = {
   ANONY: '비식별',
 };
 
+// KRDS: 색만으로 구분 금지 → 등급별 아이콘 병기.
+//  - PRVC(개인정보, 위험) = ShieldAlert · PSDO(가명, 부분보호) = Shield · ANONY(비식별, 안전) = ShieldCheck
+const ICON_MAP: Record<string, IconType> = {
+  PRVC: ShieldAlert,
+  PSDO: Shield,
+  ANONY: ShieldCheck,
+};
+
 const SIZE_CLASSES = {
   sm: 'text-xs px-2 py-0.5',
   md: 'text-sm px-2.5 py-1',
@@ -35,16 +48,18 @@ const SIZE_CLASSES = {
 export function PrivacyBadge({ privacyType, size = 'sm', className }: PrivacyBadgeProps) {
   const label = LABEL_MAP[privacyType] ?? privacyType;
   const tone = TONE_MAP[privacyType] ?? 'bg-gray-100 text-gray-600';
+  const Icon = ICON_MAP[privacyType] ?? Shield;
 
   return (
     <span
       className={cn(
-        'inline-flex items-center font-medium rounded-full',
+        'inline-flex items-center gap-1 font-medium rounded-full',
         tone,
         SIZE_CLASSES[size],
         className,
       )}
     >
+      <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
       {label}
     </span>
   );

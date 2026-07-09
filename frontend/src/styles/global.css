@@ -11,12 +11,47 @@
 
   body {
     margin: 0;
+    /* KRDS 본문 타이포: 17px+ / line-height 1.6+ (Pretendard, weight 300 이하 미사용) */
     font-family:
       'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
       Arial, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-    color: #111827;
-    background-color: #f9fafb;
+    font-size: 17px;
+    line-height: 1.6;
+    font-weight: 400;
+    color: var(--krds-color-text, #1e252d);
+    background-color: var(--krds-color-bg, #fafbfc);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* KRDS 디자인 토큰 — 컴포넌트에서 var() 로 참조 가능하도록 노출.
+   Tailwind 토큰과 값 동기화(회귀 방지). */
+:root {
+  /* color */
+  --krds-color-primary: #0f4c97;
+  --krds-color-secondary: #1850d7;
+  --krds-color-success: #117c44;
+  --krds-color-warning: #c25700;
+  --krds-color-danger: #d1322c;
+  --krds-color-info: #0f4c97;
+  --krds-color-text: #1e252d; /* neutral-900 */
+  --krds-color-text-sub: #5a6573; /* neutral-600 */
+  --krds-color-bg: #fafbfc; /* neutral-50 */
+  --krds-color-border: #e1e5ea; /* neutral-200 */
+  /* radius */
+  --krds-radius-sm: 4px;
+  --krds-radius-md: 6px;
+  --krds-radius-lg: 8px;
+  --krds-radius-full: 9999px;
+  /* shadow */
+  --krds-shadow-sm: 0 1px 2px rgba(14, 21, 40, 0.06);
+  --krds-shadow-md: 0 4px 10px rgba(14, 21, 40, 0.08);
+  --krds-shadow-lg: 0 10px 24px rgba(14, 21, 40, 0.12);
+  /* motion */
+  --krds-motion-duration: 200ms;
+  --krds-motion-duration-fast: 120ms;
+  --krds-motion-duration-slow: 320ms;
+  --krds-motion-standard: cubic-bezier(0.2, 0, 0, 1);
+  --krds-motion-emphasized: cubic-bezier(0.3, 0, 0, 1);
 }

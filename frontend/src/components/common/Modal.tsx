@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface ModalProps {
   open: boolean;
@@ -119,7 +120,10 @@ export function Modal({
           type="button"
           onClick={onClose}
           aria-label="닫기"
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors focus-visible:ring-2 focus-visible:ring-primary-500"
+          className={cn(
+            'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
+            KRDS_FOCUS,
+          )}
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

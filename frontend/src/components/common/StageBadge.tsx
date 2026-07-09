@@ -1,3 +1,6 @@
+import { CheckCircle2, Clock, Loader2, Search, XCircle } from 'lucide-react';
+import type { ComponentType } from 'react';
+
 import { cn } from '@/lib/cn';
 
 export interface StageBadgeProps {
@@ -41,17 +44,30 @@ function toneClasses(stage: string, status?: string): string {
   return 'bg-yellow-100 text-yellow-700';
 }
 
+type IconType = ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
+
+// KRDS: 색만으로 구분 금지 → 톤과 동일 의미의 아이콘을 병기.
+function stageIcon(stage: string, status?: string): { Icon: IconType; spin?: boolean } {
+  if (status === 'COMPLETED' || status === 'DONE') return { Icon: CheckCircle2 };
+  if (status === 'FAILED' || status === 'FAIL') return { Icon: XCircle };
+  if (stage === 'VLM_VERIFY' || stage === 'VLM') return { Icon: Search };
+  if (status === 'IN_PROGRESS' || status === 'PROGRESS') return { Icon: Loader2, spin: true };
+  return { Icon: Clock };
+}
+
 export function StageBadge({ stage, status, size = 'sm', className }: StageBadgeProps) {
   const label = STAGE_LABEL[stage] ?? stage;
+  const { Icon, spin } = stageIcon(stage, status);
   return (
     <span
       className={cn(
-        'inline-flex items-center font-medium rounded-full',
+        'inline-flex items-center gap-1 font-medium rounded-full',
         toneClasses(stage, status),
         SIZE_CLASSES[size],
         className,
       )}
     >
+      <Icon className={cn('h-3 w-3 shrink-0', spin && 'animate-spin')} aria-hidden="true" />
       {label}
     </span>
   );
