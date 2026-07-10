@@ -182,7 +182,7 @@ public class AugmentResultService {
                 .toList();
         metaRepository.saveAll(copiedMetas);
 
-        log.info("[Webhook][Augment] new video created rawSn={} parentRawSn={} augType={} frames={} labels={} metas={}",
+        log.info("[Webhook][Augment] new video created rawSn={} orgnlRawSn={} augType={} frames={} labels={} metas={}",
                 newRaw.getRawSn(), parentRaw.getRawSn(), req.augTypeCd(),
                 parentFrames.size(), copiedLabelCount, parentMetas.size());
     }

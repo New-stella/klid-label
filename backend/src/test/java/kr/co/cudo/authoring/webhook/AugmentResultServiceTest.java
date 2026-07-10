@@ -271,7 +271,7 @@ class AugmentResultServiceTest {
     }
 
     @Test
-    @DisplayName("V2_증강_SUCCESS_시_새_RAW_SN_생성_PARENT_RAW_SN_참조")
+    @DisplayName("V2_증강_SUCCESS_시_새_RAW_SN_생성_ORGNL_RAW_SN_참조")
     void successCreatesNewVideoWithParentRef() throws Exception {
         LsDataRaw parentRaw = newRaw(100L);
         LsDataSrc originSrc = newSrc(200L, 100L, 0);
@@ -294,7 +294,7 @@ class AugmentResultServiceTest {
         ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
         verify(videoRepository).save(rawCaptor.capture());
         LsDataRaw newRaw = rawCaptor.getValue();
-        assertThat(newRaw.getParentRawSn()).isEqualTo(100L);
+        assertThat(newRaw.getOrgnlRawSn()).isEqualTo(100L);
         assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
         assertThat(newRaw.getRawFilePathNm()).isEqualTo("/storage/augment/winter.mp4");
     }

@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 /**
  * H3 — 증강 새 영상의 검수 완료 시 관제서버 통지(ReviewApprovedEvent) 발행 검증.
  *
- * <p>증강으로 생성된 새 영상(parentRawSn != null)도 기존 검수 흐름을 따르므로,
+ * <p>증강으로 생성된 새 영상(orgnlRawSn != null)도 기존 검수 흐름을 따르므로,
  * approve() 호출 시 ReviewApprovedEvent 가 <b>새 영상의 rawSn</b>으로 발행되어야 한다.
  * 별도 코드 추가 없이 기존 흐름이 자동 적용되는지 확인한다.
  */
@@ -81,7 +81,7 @@ class AugmentNotifyIntegrationTest {
     @Test
     @DisplayName("증강_새영상_검수_완료시_ReviewApprovedEvent_새영상_rawSn으로_발행")
     void 증강_새영상_검수_완료시_ReviewApprovedEvent_발행() {
-        // given — 증강으로 생성된 새 영상 (rawSn=9001, parentRawSn=100)
+        // given — 증강으로 생성된 새 영상 (rawSn=9001, orgnlRawSn=100)
         Long augmentedVideoId = 9001L;
         TokenClaims reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL,
                 Instant.now().plusSeconds(3600));

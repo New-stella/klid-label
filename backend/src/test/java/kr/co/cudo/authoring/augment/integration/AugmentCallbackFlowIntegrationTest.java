@@ -141,13 +141,13 @@ class AugmentCallbackFlowIntegrationTest {
 
     private long countByParent(Long parentRawSn) {
         return videoRepository.findAll().stream()
-                .filter(r -> parentRawSn.equals(r.getParentRawSn()))
+                .filter(r -> parentRawSn.equals(r.getOrgnlRawSn()))
                 .count();
     }
 
     private LsDataRaw findChildOf(Long parentRawSn) {
         return videoRepository.findAll().stream()
-                .filter(r -> parentRawSn.equals(r.getParentRawSn()))
+                .filter(r -> parentRawSn.equals(r.getOrgnlRawSn()))
                 .findFirst()
                 .orElse(null);
     }
@@ -175,7 +175,7 @@ class AugmentCallbackFlowIntegrationTest {
 
         LsDataRaw child = findChildOf(s.parentRaw().getRawSn());
         assertThat(child).as("신규 증강 영상이 생성되어야 함").isNotNull();
-        assertThat(child.getParentRawSn()).isEqualTo(s.parentRaw().getRawSn());
+        assertThat(child.getOrgnlRawSn()).isEqualTo(s.parentRaw().getRawSn());
         assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
         assertThat(child.getRawFilePathNm()).isEqualTo("/storage/augment/AUGCB-NEW.mp4");
     }

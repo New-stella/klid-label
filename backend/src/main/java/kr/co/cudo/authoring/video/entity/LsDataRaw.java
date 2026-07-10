@@ -99,8 +99,8 @@ public class LsDataRaw {
     @Column(name = "VDO_LEN_SEC")
     private Integer durationSec;
 
-    @Column(name = "PARENT_RAW_SN")
-    private Long parentRawSn;
+    @Column(name = "ORGNL_RAW_SN")
+    private Long orgnlRawSn;
 
     @Column(name = "DATA_STTS_CD", nullable = false, length = 32)
     private String dataSttsCd;
@@ -159,7 +159,7 @@ public class LsDataRaw {
         raw.rawFilePathNm = rawFilePathNm;
         raw.shtDt = parent.getShtDt();
         raw.durationSec = parent.getDurationSec();
-        raw.parentRawSn = parent.getRawSn();
+        raw.orgnlRawSn = parent.getRawSn();
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
         return raw;
