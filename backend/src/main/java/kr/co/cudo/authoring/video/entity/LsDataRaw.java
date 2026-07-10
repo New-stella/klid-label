@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.video.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -85,9 +87,11 @@ public class LsDataRaw {
     private String prvcTypeCd;
 
     @Column(name = "PRVC_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String prvcYn;
 
     @Column(name = "DE_IDENT_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String deIdntfYn;
 
     @Column(name = "RAW_FILE_PATH_NM", nullable = false, length = 500)

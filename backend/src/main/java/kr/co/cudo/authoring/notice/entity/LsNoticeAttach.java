@@ -45,7 +45,7 @@ public class LsNoticeAttach {
     @Column(name = "STORE_FILE_NM", nullable = false, length = 255)
     private String storeFileNm;
 
-    @Column(name = "FILE_PATH", nullable = false, length = 500)
+    @Column(name = "FILE_PATH", nullable = false, length = 1000)
     private String filePath;
 
     @Column(name = "FILE_SZ", nullable = false)

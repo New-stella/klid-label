@@ -121,7 +121,7 @@ public class DeidentFrameAttacher {
                         && !src.getDeIdntfSrcFilePathNm().isBlank()) {
                     continue;
                 }
-                int frameNo = src.getFrameNo();
+                int frameNo = Math.toIntExact(src.getFrameNo());
                 Path deidFrameFile = resolveSafeFrameFile(outputDir, frameNo);
 
                 // frame-exact: frm_no 번호로 직접 추출(fps 무관). 비식별=원본 프레임 시퀀스 동일.

@@ -197,7 +197,7 @@ public class FfmpegFrameExtractor implements BatchStep {
                     LocalDateTime capturedAt = raw.getShtDt() == null
                             ? null : raw.getShtDt().plus(Duration.ofMillis(seekMillis));
                     LsDataSrc src = srcRepository.save(
-                            LsDataSrc.create(raw.getRawSn(), i, mark.frameIndex(), frameFile.toString(), capturedAt));
+                            LsDataSrc.create(raw.getRawSn(), i, (long) mark.frameIndex(), frameFile.toString(), capturedAt));
                     hstryRepository.save(LsDataSrcHstry.recordCreated(src.getSrcSn()));
 
                     if (deidSource != null && deidOutputDir != null) {

@@ -34,7 +34,7 @@ public class LsWebhookIdempotency {
     public static final String CHANNEL_AUGMENT = "AUGMENT";
 
     @Id
-    @Column(name = "IDMP_KEY", length = 64, nullable = false)
+    @Column(name = "IDMP_KEY", length = 128, nullable = false)
     private String idmpKey;
 
     @Column(name = "CHNL_CD", length = 32, nullable = false)
@@ -43,7 +43,7 @@ public class LsWebhookIdempotency {
     @Column(name = "STTS_CD", length = 16, nullable = false)
     private String sttsCd;
 
-    @Column(name = "OTSD_JOB_ID", length = 128)
+    @Column(name = "OTSD_JOB_ID", length = 200)
     private String otsdJobId;
 
     /**

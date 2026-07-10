@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.preset.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -10,9 +11,12 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.AssertTrue;
+import kr.co.cudo.authoring.common.converter.YesNoConverter;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 프리셋 라벨 코드 (Aggregate 내부 엔티티).
@@ -42,12 +46,16 @@ public class LsLabelPresetCode {
     @Column(name = "SORT_SEQ", nullable = false)
     private int sortOrder;
 
-    /** BBOX 어노테이션 활성 여부 (V16). */
-    @Column(name = "BBOX_ENABLED", nullable = false)
+    /** BBOX 어노테이션 활성 여부 (V16 BOOLEAN → V85 CHAR(1) 여부C1, YesNoConverter 로 boolean 유지). */
+    @Column(name = "BBOX_ENABLED", nullable = false, length = 1)
+    @Convert(converter = YesNoConverter.class)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private boolean bboxEnabled;
 
-    /** POLYGON 어노테이션 활성 여부 (V16). */
-    @Column(name = "POLYGON_ENABLED", nullable = false)
+    /** POLYGON 어노테이션 활성 여부 (V16 BOOLEAN → V85 CHAR(1) 여부C1, YesNoConverter 로 boolean 유지). */
+    @Column(name = "POLYGON_ENABLED", nullable = false, length = 1)
+    @Convert(converter = YesNoConverter.class)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private boolean polygonEnabled;
 
     private LsLabelPresetCode(LsLabelPreset preset, String code, int sortOrder,

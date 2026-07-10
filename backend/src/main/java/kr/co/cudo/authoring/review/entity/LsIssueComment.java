@@ -41,7 +41,7 @@ public class LsIssueComment {
     @Column(name = "AUTHOR_ROLE_CD", length = 20, nullable = false)
     private String authorRoleCd;
 
-    @Column(name = "CMNT_CN", length = 1000, nullable = false)
+    @Column(name = "CMNT_CN", length = 4000, nullable = false)
     private String cmntCn;
 
     @Column(name = "REG_DT", nullable = false)

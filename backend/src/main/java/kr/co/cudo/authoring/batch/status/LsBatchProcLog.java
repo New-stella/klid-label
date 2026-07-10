@@ -54,13 +54,13 @@ public class LsBatchProcLog {
     @Column(name = "ERR_CD", length = 50)
     private String errorCd;
 
-    @Column(name = "ERR_MSG_CN", length = 1000)
+    @Column(name = "ERR_MSG_CN", length = 4000)
     private String errorMsg;
 
-    @Column(name = "REQ_PAYLOAD_CN")
+    @Column(name = "REQ_PAYLOAD_CN", columnDefinition = "TEXT")
     private String reqPayloadCn;
 
-    @Column(name = "RES_PAYLOAD_CN")
+    @Column(name = "RES_PAYLOAD_CN", columnDefinition = "TEXT")
     private String resPayloadCn;
 
     @Column(name = "REG_ID", length = 30)

@@ -39,11 +39,11 @@ public class LsDataSrc {
     private Long rawSn;
 
     @Column(name = "FRM_NO", nullable = false)
-    private Integer frameNo;
+    private Long frameNo;
 
     /** 실제 영상 내 디코더 0-base 프레임 위치. FRM_NO(추출순번)와 의미 구분 — 재비식별 재추출용. nullable. */
     @Column(name = "VDO_FRM_NO", nullable = true)
-    private Integer videoFrameNo;
+    private Long videoFrameNo;
 
     @Column(name = "SRC_FILE_PATH_NM", nullable = false, length = 500)
     private String srcFilePathNm;
@@ -61,7 +61,7 @@ public class LsDataSrc {
     private LocalDateTime updDt;
 
     @Builder
-    private LsDataSrc(Long rawSn, Integer frameNo, Integer videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
+    private LsDataSrc(Long rawSn, Long frameNo, Long videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
         this.rawSn = rawSn;
         this.frameNo = frameNo;
         this.videoFrameNo = videoFrameNo;
@@ -71,7 +71,7 @@ public class LsDataSrc {
     }
 
     /** 원본(RAW) 프레임 row 생성 (videoFrameNo 미지정 = null). */
-    public static LsDataSrc create(Long rawSn, int frameNo, String srcFilePathNm, LocalDateTime shtDt) {
+    public static LsDataSrc create(Long rawSn, long frameNo, String srcFilePathNm, LocalDateTime shtDt) {
         return LsDataSrc.builder()
                 .rawSn(rawSn)
                 .frameNo(frameNo)
@@ -81,7 +81,7 @@ public class LsDataSrc {
     }
 
     /** 원본(RAW) 프레임 row 생성 (실제 영상 프레임 위치 videoFrameNo 보존). */
-    public static LsDataSrc create(Long rawSn, int frameNo, Integer videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
+    public static LsDataSrc create(Long rawSn, long frameNo, Long videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
         return LsDataSrc.builder()
                 .rawSn(rawSn)
                 .frameNo(frameNo)

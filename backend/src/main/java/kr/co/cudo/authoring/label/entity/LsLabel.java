@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.label.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -56,6 +58,7 @@ public class LsLabel {
     private Integer sortSeq;
 
     @Column(name = "USE_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String useYn;
 
     @Column(name = "REG_ID", length = 30)

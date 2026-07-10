@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.version.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -59,6 +61,7 @@ public class LsLabelVersion {
     private String saveReasonCd;
 
     @Column(name = "ACTVTN_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String activeYn;
 
     @Column(name = "REG_ID", length = 30)

@@ -54,7 +54,7 @@ public class LsMarking {
     @Column(name = "RAW_SN", nullable = false)
     private Long rawSn;
 
-    @Column(name = "EVNT_NM", nullable = false, length = 100)
+    @Column(name = "EVNT_NM", nullable = false, length = 200)
     private String evntNm;
 
     @Column(name = "MARK_MODE_CD", nullable = false, length = 16)

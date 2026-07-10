@@ -93,7 +93,7 @@ public class SeedImageRunner implements CommandLineRunner {
                         target,
                         raw.getEvntTypeCd(),
                         raw.getVmsCctvId(),
-                        src.getFrameNo(),
+                        Math.toIntExact(src.getFrameNo()),
                         src.getShtDt());
                 if (made) {
                     created++;

@@ -256,7 +256,7 @@ class AugmentResultServiceTest {
         return src;
     }
 
-    private LsDataSrc newSrcWithVideoFrameNo(Long srcSn, Long rawSn, int frameNo, Integer videoFrameNo) {
+    private LsDataSrc newSrcWithVideoFrameNo(Long srcSn, Long rawSn, int frameNo, Long videoFrameNo) {
         LsDataSrc src = LsDataSrc.create(rawSn, frameNo, videoFrameNo, rawSn + "/frame-" + frameNo + ".jpg", null);
         setField(src, "srcSn", srcSn);
         return src;
@@ -479,8 +479,8 @@ class AugmentResultServiceTest {
     @DisplayName("증강복사_프레임은_부모의_videoFrameNo를_그대로_갖는다")
     void augmentCopy_carriesParentVideoFrameNo() throws Exception {
         LsDataRaw parentRaw = newRaw(120L);
-        LsDataSrc frame0 = newSrcWithVideoFrameNo(600L, 120L, 0, 100);
-        LsDataSrc frame1 = newSrcWithVideoFrameNo(601L, 120L, 1, 250);
+        LsDataSrc frame0 = newSrcWithVideoFrameNo(600L, 120L, 0, 100L);
+        LsDataSrc frame1 = newSrcWithVideoFrameNo(601L, 120L, 1, 250L);
         LsDataAug aug = newAugWithSrc(45L, 600L, "WINTER");
 
         when(augRepository.findById(45L)).thenReturn(Optional.of(aug));

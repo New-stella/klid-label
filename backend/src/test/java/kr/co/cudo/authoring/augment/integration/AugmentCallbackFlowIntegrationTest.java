@@ -204,7 +204,7 @@ class AugmentCallbackFlowIntegrationTest {
         List<LsDataSrc> childFrames = srcRepository.findByRawSnOrderByFrameNoAsc(child.getRawSn());
         assertThat(childFrames).hasSize(2);
         assertThat(childFrames).extracting(LsDataSrc::getFrameNo)
-                .containsExactly(0, 1);
+                .containsExactly(0L, 1L);
 
         // 라벨 복사 — 원본 frame0 의 라벨 1건이 신규 frame0 으로 좌표 그대로 복사
         LsDataSrc childFrame0 = childFrames.get(0);

@@ -118,8 +118,8 @@ public class TrackInterpolationStep implements BatchStep {
         Map<Integer, Long> frameToSrcSn = new HashMap<>(totalFrames);
         Map<Long, Integer> srcSnToFrame = new HashMap<>(totalFrames);
         for (LsDataSrc s : frames) {
-            frameToSrcSn.put(s.getFrameNo(), s.getSrcSn());
-            srcSnToFrame.put(s.getSrcSn(), s.getFrameNo());
+            frameToSrcSn.put(Math.toIntExact(s.getFrameNo()), s.getSrcSn());
+            srcSnToFrame.put(s.getSrcSn(), Math.toIntExact(s.getFrameNo()));
         }
 
         List<LsDataLbl> candidates = lblRepository.findAutoBboxWithTrackId(rawSn);

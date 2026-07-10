@@ -39,7 +39,7 @@ public record LabelResponse(
     /** 동일 영상 내 형제 프레임 식별자. */
     public record SiblingFrame(Long srcSn, Integer frameNo) {
         public static SiblingFrame from(LsDataSrc src) {
-            return new SiblingFrame(src.getSrcSn(), src.getFrameNo());
+            return new SiblingFrame(src.getSrcSn(), Math.toIntExact(src.getFrameNo()));
         }
     }
 
@@ -167,7 +167,7 @@ public record LabelResponse(
                 .toList();
         return new LabelResponse(
                 current.getSrcSn(),
-                current.getFrameNo(),
+                Math.toIntExact(current.getFrameNo()),
                 current.getRawSn(),
                 frameImageType,
                 lockSttsCd,

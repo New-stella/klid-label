@@ -33,7 +33,7 @@ public class LsDataLblHstry {
     @Column(name = "SRC_SN", nullable = false)
     private Long srcSn;
 
-    @Column(name = "REGISTERED_AT", nullable = false)
+    @Column(name = "REG_AT", nullable = false)
     private LocalDateTime registeredAt;
 
     /**

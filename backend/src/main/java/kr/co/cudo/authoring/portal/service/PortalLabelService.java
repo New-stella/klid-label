@@ -236,7 +236,7 @@ public class PortalLabelService {
 
         List<PortalFrameLabelsResponse.Sibling> siblings =
                 srcRepository.findByRawSnOrderByFrameNoAsc(rawSn).stream()
-                        .map(s -> new PortalFrameLabelsResponse.Sibling(s.getSrcSn(), s.getFrameNo()))
+                        .map(s -> new PortalFrameLabelsResponse.Sibling(s.getSrcSn(), Math.toIntExact(s.getFrameNo())))
                         .toList();
 
         List<LsPortalUserLabel> mine =
@@ -263,7 +263,7 @@ public class PortalLabelService {
                     .toList();
         }
 
-        return new PortalFrameLabelsResponse(frame.getFrameNo(), srcSn, rawSn, siblings, items);
+        return new PortalFrameLabelsResponse(Math.toIntExact(frame.getFrameNo()), srcSn, rawSn, siblings, items);
     }
 
     /** 좌표 JSON 문자열 → [[x,y],...] 중첩 리스트. 파싱 실패 시 빈 리스트(fail-secure). */

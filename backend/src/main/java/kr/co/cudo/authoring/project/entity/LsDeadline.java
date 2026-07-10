@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.project.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -24,12 +26,15 @@ public class LsDeadline {
     private LocalDateTime ddlnDt;
 
     @Column(name = "ANONY_INCL_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String anonyInclYn;
 
     @Column(name = "PSDO_INCL_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String psdoInclYn;
 
     @Column(name = "PRVC_INCL_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String prvcInclYn;
 
     @Column(name = "REG_DT", nullable = false)

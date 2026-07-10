@@ -303,7 +303,7 @@ public class ReviewService {
             String imageUrl = "/api/v1/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image";
             details.add(new FrameDetailResponse(
                     src.getSrcSn(),
-                    src.getFrameNo(),
+                    Math.toIntExact(src.getFrameNo()),
                     imageUrl,
                     labelMap.getOrDefault(src.getSrcSn(), Collections.emptyList())
             ));
