@@ -41,10 +41,10 @@ class AugmentControllerTest {
     }
 
     @Test
-    @DisplayName("AugmentController_4종_증강_결과_묶음_조회_정렬_올바름_WINTER_NIGHT_RAIN_RESOLUTION")
-    void findBySrcSnSortedByEnumOrder() throws Exception {
+    @DisplayName("AugmentController_srcSn_지정시_영상단위_잡카드_1건_types_정렬_WINTER_NIGHT_RAIN_RESOLUTION")
+    void findBySrcSnReturnsSingleJobWithSortedTypes() throws Exception {
         Long srcSn = 700L;
-        // 의도적으로 알파벳/생성 순서와 다르게 저장
+        // 의도적으로 알파벳/생성 순서와 다르게 저장 — 같은 srcSn(영상) 은 1개 잡 카드로 그룹핑
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_RESOLUTION, new BigDecimal("88.00"), "system"));
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER,     new BigDecimal("90.00"), "system"));
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_RAIN,       new BigDecimal("85.50"), "system"));
@@ -54,11 +54,16 @@ class AugmentControllerTest {
                         .param("srcSn", srcSn.toString())
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(4))
-                .andExpect(jsonPath("$.data[0].augTypeCd").value("WINTER"))
-                .andExpect(jsonPath("$.data[1].augTypeCd").value("NIGHT"))
-                .andExpect(jsonPath("$.data[2].augTypeCd").value("RAIN"))
-                .andExpect(jsonPath("$.data[3].augTypeCd").value("RESOLUTION"));
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].videoCount").value(1))
+                .andExpect(jsonPath("$.data.content[0].jobId").value(700))
+                .andExpect(jsonPath("$.data.content[0].videoId").value(700))
+                .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"))
+                .andExpect(jsonPath("$.data.content[0].types.length()").value(4))
+                .andExpect(jsonPath("$.data.content[0].types[0]").value("WINTER"))
+                .andExpect(jsonPath("$.data.content[0].types[1]").value("NIGHT"))
+                .andExpect(jsonPath("$.data.content[0].types[2]").value("RAIN"))
+                .andExpect(jsonPath("$.data.content[0].types[3]").value("RESOLUTION"));
     }
 
     @Test
@@ -71,12 +76,14 @@ class AugmentControllerTest {
                         .param("srcSn", srcSn.toString())
                         .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(1));
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].types[0]").value("WINTER"));
     }
 
     @Test
-    @DisplayName("AugmentController_srcSn_미지정시_전체_페이징_응답")
+    @DisplayName("AugmentController_srcSn_미지정시_영상단위_그룹_페이징_응답")
     void listAllPagedWhenSrcSnMissing() throws Exception {
+        // 서로 다른 srcSn(영상) 2건 → 잡 카드 2건
         repository.save(LsDataAug.createPending(800L, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
         repository.save(LsDataAug.createPending(801L, LsDataAug.AUG_NIGHT,  new BigDecimal("85.00"), "system"));
 
@@ -84,6 +91,7 @@ class AugmentControllerTest {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(2))
-                .andExpect(jsonPath("$.data.content").isArray());
+                .andExpect(jsonPath("$.data.content").isArray())
+                .andExpect(jsonPath("$.data.content[0].videoCount").value(1));
     }
 }

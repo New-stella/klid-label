@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kr.co.cudo.authoring.augment.dto.AugmentJobResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse;
@@ -48,13 +49,15 @@ public class AugmentController {
     private final AugmentRequestService requestService;
 
     /**
-     * 증강 결과 조회.
-     * - srcSn 지정 시: 원본 영상의 4종 증강 결과 묶음 (목록)
-     * - srcSn 미지정 시: 전체 증강 결과 페이징 (REVIEWER 의 검수 화면용)
+     * 증강 잡 카드(영상 단위 그룹) 조회 — FE {@code AugmentJob} 계약 정합.
+     * - srcSn 미지정 시: 전체 증강을 영상 단위로 그룹핑한 잡 카드 페이징
+     * - srcSn 지정 시: 해당 원본 영상의 잡 카드만 Page 로 반환 (필터)
+     *
+     * <p>두 분기 모두 {@code Page<AugmentJobResponse>} 를 반환한다(FE listAugmentJobs 동일 타입 기대).
      */
     @Operation(
-            summary = "증강 결과 조회",
-            description = "srcSn 지정 시 4종 묶음 배열, 미지정 시 전체 페이징. REVIEWER/WORKER 가능."
+            summary = "증강 잡 카드 조회",
+            description = "영상 단위로 그룹핑한 잡 카드 페이징. srcSn 지정 시 해당 영상만 필터. REVIEWER/WORKER 가능."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -64,8 +67,11 @@ public class AugmentController {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
-    public ApiResponse<?> list(
-            @Parameter(description = "원본 영상 PK (없으면 전체 페이징)", example = "1") @RequestParam(required = false) Long srcSn,
+    public ApiResponse<org.springframework.data.domain.Page<AugmentJobResponse>> list(
+            @Parameter(description = "필터용 대표프레임 ID. 이 값은 LS_DATA_SRC.SRC_SN(원본 영상 대표프레임 PK)이며, "
+                    + "응답의 videoId(=원본 RAW_SN)와 다른 도메인 값이다. job.videoId(RAW_SN)를 이 파라미터로 넘기면 "
+                    + "조용히 다른 영상이 조회되니 절대 혼용 금지. 없으면 전체 페이징.", example = "1")
+            @RequestParam(required = false) Long srcSn,
             @Parameter(description = "페이지 번호 (0-based, srcSn 미지정 시 사용)", example = "0") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "페이지 크기 (max 100)", example = "20") @RequestParam(defaultValue = "20") int size) {
         if (srcSn != null) {

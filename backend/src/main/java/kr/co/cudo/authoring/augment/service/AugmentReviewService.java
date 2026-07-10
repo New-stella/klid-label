@@ -1,26 +1,37 @@
 package kr.co.cudo.authoring.augment.service;
 
+import kr.co.cudo.authoring.augment.dto.AugmentJobResponse;
+import kr.co.cudo.authoring.augment.dto.AugmentJobStatus;
 import kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Phase 9 — 데이터 증강 검수 (V1.5 SFR-07).
@@ -50,25 +61,194 @@ public class AugmentReviewService {
 
     private final LsDataAugRepository repository;
     private final LsDataAugRvwRepository reviewRepository;
+    private final LsDataSrcRepository srcRepository;
+    private final VideoRepository videoRepository;
     private final ExternalAugmentClient externalClient;
 
     /**
-     * REVIEWER/WORKER 의 증강 결과 전체 페이징 조회 (srcSn 미지정 시 화면용 목록).
+     * 증강 잡 카드(영상 단위 그룹) 전체 페이징 조회 — FE {@code AugmentJob} 계약 정합.
+     *
+     * <p>(1) distinct 대표프레임 SRC_SN 을 MIN(REG_DT) 최신순으로 페이징 → (2) 해당 SRC_SN 들의
+     * 증강 row 를 일괄 로드 → (3) 영상 단위(SRC_SN 그룹)로 재구성한다. 페이지 전체가 소수의
+     * 일괄 조회(row/rawSn/cctv/review)로 처리되어 N+1 이 발생하지 않는다(성능 규칙 준수).
      */
-    public Page<AugmentSummaryResponse> listAll(Pageable pageable) {
-        return repository.findAllByOrderByRegDtDesc(pageable)
-                .map(this::toResponse);
+    public Page<AugmentJobResponse> listAll(Pageable pageable) {
+        Page<Long> srcPage = repository.findDistinctSrcSnGroupsOrderByMinRegDtDesc(pageable);
+        List<Long> orderedSrcSns = srcPage.getContent();
+        if (orderedSrcSns.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, srcPage.getTotalElements());
+        }
+        List<AugmentJobResponse> jobs = buildJobs(orderedSrcSns, repository.findBySrcSnIn(orderedSrcSns));
+        return new PageImpl<>(jobs, pageable, srcPage.getTotalElements());
     }
 
     /**
-     * 원본 영상(srcSn)에 대한 4종 증강 결과 묶음 조회.
-     * UI 표시 순서(WINTER → NIGHT → RAIN → RESOLUTION)로 정렬.
+     * 원본 영상(srcSn) 필터 — 해당 영상의 잡 카드만 Page 로 반환(FE {@code AugmentJob} 계약 정합).
+     * 매핑되는 증강 row 가 없으면 빈 Page.
+     *
+     * <p><b>도메인 주의:</b> {@code srcSn} 은 리터럴 LS_DATA_SRC.SRC_SN(대표프레임 ID)이며,
+     * 응답 {@link AugmentJobResponse#videoId()}(=원본 RAW_SN)와 다른 도메인 값이다.
+     * job.videoId(RAW_SN)를 이 파라미터로 넘기면 조용히 다른 영상이 조회되므로 혼용 금지.
      */
-    public List<AugmentSummaryResponse> findBySource(Long srcSn) {
-        return repository.findBySrcSnOrderByAugTypeCd(srcSn).stream()
-                .sorted(Comparator.comparingInt(a -> AUG_ORDER.getOrDefault(a.getAugTypeCd(), 99)))
-                .map(this::toResponse)
+    public Page<AugmentJobResponse> findBySource(Long srcSn) {
+        List<LsDataAug> rows = repository.findBySrcSnOrderByAugTypeCd(srcSn);
+        if (rows.isEmpty()) {
+            return new PageImpl<>(List.of(), PageRequest.of(0, 1), 0);
+        }
+        List<AugmentJobResponse> jobs = buildJobs(List.of(srcSn), rows);
+        return new PageImpl<>(jobs, PageRequest.of(0, Math.max(jobs.size(), 1)), jobs.size());
+    }
+
+    // ============================================================
+    // 증강 잡 카드 그룹핑 (영상 단위 = 대표프레임 SRC_SN 그룹)
+    // ============================================================
+
+    /**
+     * 대표프레임 SRC_SN 그룹 순서를 유지하며 잡 카드 목록을 구성한다.
+     *
+     * @param orderedSrcSns 표시 순서가 확정된 SRC_SN 목록 (1차 페이징 결과)
+     * @param rows          orderedSrcSns 에 속하는 전체 증강 row (2차 일괄 조회 결과)
+     */
+    private List<AugmentJobResponse> buildJobs(List<Long> orderedSrcSns, List<LsDataAug> rows) {
+        Map<Long, List<LsDataAug>> bySrc = new LinkedHashMap<>();
+        for (LsDataAug row : rows) {
+            bySrc.computeIfAbsent(row.getSrcSn(), k -> new ArrayList<>()).add(row);
+        }
+
+        // SRC_SN → RAW_SN 역매핑 (매핑 부재 시 폴백 없음 — 아래 videoId 산출에서 SRC_SN 폴백)
+        Map<Long, Long> rawBySrc = loadRawSnBySrcSn(bySrc.keySet());
+        // RAW_SN → CCTV 명 (매핑 부재/시드 없음 시 null)
+        Map<Long, String> cctvByRaw = loadCctvNames(rawBySrc.values());
+        // DATA_AUG_SN → 검수 완료 일시 (completedAt 산출용)
+        Map<Long, LocalDateTime> reviewDtByAug = loadReviewDates(rows);
+
+        List<AugmentJobResponse> jobs = new ArrayList<>(orderedSrcSns.size());
+        for (Long srcSn : orderedSrcSns) {
+            List<LsDataAug> group = bySrc.get(srcSn);
+            if (group == null || group.isEmpty()) {
+                continue;
+            }
+            jobs.add(toJob(srcSn, group, rawBySrc, cctvByRaw, reviewDtByAug));
+        }
+        return jobs;
+    }
+
+    private AugmentJobResponse toJob(Long srcSn, List<LsDataAug> group,
+                                     Map<Long, Long> rawBySrc, Map<Long, String> cctvByRaw,
+                                     Map<Long, LocalDateTime> reviewDtByAug) {
+        // videoId/jobId = 원본 RAW_SN (매핑 부재 시 SRC_SN 폴백 — 데이터 유실 방지). jobId == videoId.
+        Long rawSn = rawBySrc.get(srcSn);
+        Long videoId = rawSn != null ? rawSn : srcSn;
+        // FE AugmentJob.cctvName 은 비-옵셔널 String. RAW_SN 매핑/CCTV 시드 부재 시에도
+        // null 을 반환하면 FE 검색/정렬의 null.toLowerCase() 크래시 위험 → 안전 폴백으로 항상 non-null.
+        String cctvName = resolveCctvName(rawSn, cctvByRaw);
+
+        List<String> types = group.stream()
+                .map(LsDataAug::getAugTypeCd)
+                .distinct()
+                .sorted(Comparator.comparingInt(t -> AUG_ORDER.getOrDefault(t, 99)))
                 .toList();
+
+        AugmentJobStatus status = aggregateStatus(group);
+
+        LocalDateTime requestedAt = group.stream()
+                .map(LsDataAug::getRegDt)
+                .filter(java.util.Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+
+        LocalDateTime completedAt = null;
+        if (status == AugmentJobStatus.COMPLETED) {
+            completedAt = group.stream()
+                    .map(a -> reviewDtByAug.get(a.getDataAugSn()))
+                    .filter(java.util.Objects::nonNull)
+                    .max(Comparator.naturalOrder())
+                    .orElse(requestedAt); // 검수 일시 유실 시 요청 일시로 폴백(null 회피)
+        }
+
+        return new AugmentJobResponse(videoId, videoId, cctvName, types,
+                status.name(), requestedAt, completedAt, 1);
+    }
+
+    /**
+     * 그룹(영상) 상태 집계 — {@link AugmentJobStatus} 규칙:
+     * dead-letter 존재 → FAILED, 전부 종료 → COMPLETED, 일부 종료 → IN_PROGRESS, 전부 PENDING → REQUESTED.
+     */
+    private AugmentJobStatus aggregateStatus(List<LsDataAug> group) {
+        boolean anyFailed = group.stream().anyMatch(a -> a.getDeadLetterAt() != null);
+        if (anyFailed) {
+            return AugmentJobStatus.FAILED;
+        }
+        long terminal = group.stream().filter(a -> isTerminal(a.getAugProcSttsCd())).count();
+        if (terminal == group.size()) {
+            return AugmentJobStatus.COMPLETED;
+        }
+        if (terminal > 0) {
+            return AugmentJobStatus.IN_PROGRESS;
+        }
+        return AugmentJobStatus.REQUESTED;
+    }
+
+    /** 종료(검수 완료) 상태 여부 — AUG_PROC_STTS_CD = ACCEPTED/REJECTED. */
+    private boolean isTerminal(String augProcSttsCd) {
+        return LsDataAug.STTS_ACCEPTED.equals(augProcSttsCd)
+                || LsDataAug.STTS_REJECTED.equals(augProcSttsCd);
+    }
+
+    /** CCTV 명 폴백값 — RAW_SN 매핑/CCTV 시드 부재 시 FE 비-옵셔널 계약 보호용. */
+    private static final String CCTV_NAME_FALLBACK = "(이름 없음)";
+
+    /** CCTV 명 산출 — 매핑/시드 부재 또는 blank 시 항상 non-null 폴백 반환. */
+    private String resolveCctvName(Long rawSn, Map<Long, String> cctvByRaw) {
+        String name = rawSn != null ? cctvByRaw.get(rawSn) : null;
+        return (name != null && !name.isBlank()) ? name : CCTV_NAME_FALLBACK;
+    }
+
+    /** SRC_SN → RAW_SN 역매핑 일괄 조회. */
+    private Map<Long, Long> loadRawSnBySrcSn(Collection<Long> srcSns) {
+        Map<Long, Long> result = new HashMap<>();
+        if (srcSns.isEmpty()) {
+            return result;
+        }
+        for (Object[] row : srcRepository.findRawSnBySrcSnIn(srcSns)) {
+            result.put((Long) row[0], (Long) row[1]);
+        }
+        return result;
+    }
+
+    /** RAW_SN → CCTV 명 일괄 조회 (cctvNm null/blank 시 vmsCctvId 폴백). */
+    private Map<Long, String> loadCctvNames(Collection<Long> rawSns) {
+        Map<Long, String> result = new HashMap<>();
+        Set<Long> distinct = new java.util.HashSet<>(rawSns);
+        if (distinct.isEmpty()) {
+            return result;
+        }
+        for (Object[] row : videoRepository.findCctvNamesByRawSns(distinct)) {
+            Long rawSn = (Long) row[0];
+            String cctvNm = (String) row[1];
+            String vmsCctvId = (String) row[2];
+            String name = (cctvNm != null && !cctvNm.isBlank()) ? cctvNm : vmsCctvId;
+            result.put(rawSn, name);
+        }
+        return result;
+    }
+
+    /** DATA_AUG_SN → 최신 검수 일시(RVW_DT) 일괄 조회 (completedAt 산출용). */
+    private Map<Long, LocalDateTime> loadReviewDates(List<LsDataAug> rows) {
+        Map<Long, LocalDateTime> result = new HashMap<>();
+        List<Long> augSns = rows.stream().map(LsDataAug::getDataAugSn).toList();
+        if (augSns.isEmpty()) {
+            return result;
+        }
+        for (LsDataAugRvw rvw : reviewRepository.findByDataAugSnIn(augSns)) {
+            LocalDateTime rvwDt = rvw.getRvwDt();
+            if (rvwDt == null) {
+                continue;
+            }
+            result.merge(rvw.getDataAugSn(), rvwDt,
+                    (a, b) -> a.isAfter(b) ? a : b);
+        }
+        return result;
     }
 
     /**
@@ -126,11 +306,6 @@ public class AugmentReviewService {
     private static String sanitize(String value) {
         if (value == null) return null;
         return value.replace('\n', '_').replace('\r', '_');
-    }
-
-    private AugmentSummaryResponse toResponse(LsDataAug aug) {
-        return AugmentSummaryResponse.from(aug,
-                reviewRepository.findLatestByDataAugSn(aug.getDataAugSn()).orElse(null));
     }
 
     private LsDataAugRvw loadOrCreateReview(LsDataAug aug, String actorId) {
