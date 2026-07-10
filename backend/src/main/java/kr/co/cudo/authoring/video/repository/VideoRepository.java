@@ -93,10 +93,9 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     /**
      * 영상(rawSn) 별 최신 내보내기 요약.
      *
-     * <p>V34 (PJT_ID 제거) 이후 LS_DATA_SET 에 영상(RAW_DATA_ID) 매핑 컬럼이 없으므로
-     * 영상별 export 매핑은 더 이상 의미가 없다. 본 메서드는 항상 빈 결과를 반환한다.
-     *
-     * <p>향후 LS_DATA_SET 에 RAW_DATA_ID 매핑 컬럼이 추가되면 이 쿼리를 복원해야 한다.
+     * <p>V34 (PJT_ID 제거) 이후 export 소스 테이블(LS_DATA_SET)에 영상(RAW_DATA_ID) 매핑 컬럼이
+     * 없어 영상별 export 매핑은 사문화됐고, V86 에서 해당 테이블은 삭제됐다(Export 는 저작도구 범위 외).
+     * 본 메서드는 API 응답 계약(exportStatus 등) 호환을 위해 stub 으로 남되 항상 빈 결과를 반환한다.
      */
     default List<VideoExportProjection> findLatestExportsByRawSns(Collection<Long> rawSns) {
         if (rawSns == null || rawSns.isEmpty()) {
