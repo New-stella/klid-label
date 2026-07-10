@@ -198,6 +198,40 @@ class LabelControllerTest {
     }
 
     @Test
+    @DisplayName("LabelController_라벨명_81자_입력시_INVALID_INPUT_400")
+    void oversizeLabelNameRejected() throws Exception {
+        // V93 — LBL_NM 80 축소 동반 입력 가드(@Size(max=80)). 80 초과 라벨명은 @Valid 가 400 으로 차단.
+        String label81 = "a".repeat(81);
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", null, label81,
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("LabelController_라벨명_80자_경계_입력은_정상_저장")
+    void boundaryLabelNameAccepted() throws Exception {
+        // 경계값 80자는 통과해야 함 (off-by-one 회귀 방지).
+        String label80 = "b".repeat(80);
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", null, label80,
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1));
+    }
+
+    @Test
     @DisplayName("LabelController_라벨_조회_GET_정상")
     void getLabelsByFrame() throws Exception {
         // Phase 6 — 자동 라벨이 응답에 autoLblYn='Y' 로 보이려면 LS_DATA_LBL + LS_DATA_LBL_AI_INFO 모두 시드 필요.

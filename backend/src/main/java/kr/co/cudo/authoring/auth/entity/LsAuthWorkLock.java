@@ -29,7 +29,7 @@ public class LsAuthWorkLock {
     @Column(name = "WORK_LOCK_SN")
     private Long workLockSn;
 
-    @Column(name = "LOCK_TARGET_CD", nullable = false, length = 20)
+    @Column(name = "LCK_TARGET_CD", nullable = false, length = 20)
     private String lockTargetCd;
 
     @Column(name = "DATA_RAW_SN")
@@ -38,10 +38,10 @@ public class LsAuthWorkLock {
     @Column(name = "DATA_SRC_SN")
     private Long dataSrcSn;
 
-    @Column(name = "LOCK_STTS_CD", nullable = false, length = 20)
+    @Column(name = "LCK_STTS_CD", nullable = false, length = 20)
     private String lockSttsCd;
 
-    @Column(name = "LOCK_ID", nullable = false, length = 64)
+    @Column(name = "LCK_ID", nullable = false, length = 64)
     private String lockId;
 
     @Column(name = "LOCK_OWNER_ID", length = 30)

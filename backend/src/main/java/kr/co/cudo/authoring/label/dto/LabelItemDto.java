@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.label.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -19,7 +20,7 @@ public record LabelItemDto(
         @NotBlank @Pattern(regexp = "BBOX|POLYGON|SEGMENT|TRACK",
                 message = "lblTypeCd 는 BBOX/POLYGON/SEGMENT/TRACK 중 하나여야 합니다.") String lblTypeCd,
         Long labelId,
-        @NotBlank String label,
+        @NotBlank @Size(max = 80) String label,
         @NotEmpty List<List<Double>> points,
         String autoLblYn   // 응답 전용 (요청 시 무시, REVIEWER 도 변경 불가 — Mass Assignment 방어)
 ) {

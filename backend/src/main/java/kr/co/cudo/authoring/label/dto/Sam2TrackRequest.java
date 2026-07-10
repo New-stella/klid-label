@@ -19,7 +19,7 @@ public record Sam2TrackRequest(
         @NotNull Long srcSn,
         @NotBlank String trackId,
         @NotEmpty @Size(min = 3, max = 1000) List<List<Double>> prevPolygon,
-        @NotBlank String label,
+        @NotBlank @Size(max = 80) String label,
         @NotEmpty @Size(max = 50) List<Long> nextSrcSns
 ) {
 }

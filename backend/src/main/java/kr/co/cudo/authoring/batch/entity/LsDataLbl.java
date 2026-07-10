@@ -72,7 +72,7 @@ public class LsDataLbl {
      * LS_LABEL FK 도입(V32) 이후 labelId 사용 권장.
      * 호환 위해 유지. 응답에서는 LS_LABEL.LABEL_NM (labelName) 을 우선 노출.
      */
-    @Column(name = "LBL_NM", nullable = false, length = 255)
+    @Column(name = "LBL_NM", nullable = false, length = 80)
     private String labelNm;
 
     // MariaDB → PostgreSQL: @Lob + String 은 PG 에서 large object(oid/CLOB) 타입으로 매핑되어

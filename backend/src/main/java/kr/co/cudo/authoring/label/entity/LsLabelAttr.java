@@ -46,7 +46,7 @@ public class LsLabelAttr {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ATTR_ID")
+    @Column(name = "ATRB_ID")
     private Long attrId;
 
     @Column(name = "LBL_ID", nullable = false)
