@@ -54,7 +54,7 @@ public class LsLabelVersion {
     @Column(name = "LBL_PAYLOAD", columnDefinition = "TEXT")
     private String labelPayload;
 
-    @Column(name = "VERSION_NO", nullable = false)
+    @Column(name = "VER_NO", nullable = false)
     private int versionNo;
 
     @Column(name = "SAVE_REASON_CD", length = 20)

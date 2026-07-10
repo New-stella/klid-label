@@ -63,7 +63,7 @@ public class LsDeidentProcLog {
     @Column(name = "REQ_DT", nullable = false)
     private LocalDateTime reqDt;
 
-    @Column(name = "RESP_DT")
+    @Column(name = "RSPNS_DT")
     private LocalDateTime resDt;
 
     @Column(name = "ERR_CD", length = 50)

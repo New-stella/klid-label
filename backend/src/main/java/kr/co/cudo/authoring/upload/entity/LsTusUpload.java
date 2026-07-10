@@ -84,7 +84,7 @@ public class LsTusUpload {
     @Column(name = "RAW_SN")
     private Long rawSn;
 
-    @Column(name = "EXPD_DT", nullable = false)
+    @Column(name = "EXPRY_DT", nullable = false)
     private LocalDateTime expiresAt;
 
     @Version

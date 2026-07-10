@@ -43,7 +43,7 @@ public class LsDataLblAiInfo {
     @Column(name = "LBL_SRC_CD", nullable = false, length = 20)
     private String lblSrcCd;
 
-    @Column(name = "MODEL_NM", length = 100)
+    @Column(name = "MDL_NM", length = 100)
     private String modelNm;
 
     @Column(name = "MDL_VER", length = 50)

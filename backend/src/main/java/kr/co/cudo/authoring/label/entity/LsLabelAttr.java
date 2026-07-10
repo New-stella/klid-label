@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>(LABEL_ID, ATTR_NM) UNIQUE — DB 레벨 + Service 레벨 이중 가드.</li>
+ *   <li>(LBL_ID, ATRB_NM) UNIQUE — DB 레벨 + Service 레벨 이중 가드.</li>
  *   <li>INPUT_TYPE_CD: SELECT / CHECKBOX / RADIO / NUMBER / TEXT.</li>
  *   <li>INPUT_TYPE_CD 가 SELECT/CHECKBOX/RADIO 면 VALUES_CN 필수 (Service 검증).</li>
  *   <li>MUTABLE_YN='Y' 면 프레임마다 다른 값 허용. 'N' 이면 트랙 단위 고정 (강제는 향후 Phase).</li>
@@ -52,7 +52,7 @@ public class LsLabelAttr {
     @Column(name = "LBL_ID", nullable = false)
     private Long labelId;
 
-    @Column(name = "ATTR_NM", nullable = false, length = 64)
+    @Column(name = "ATRB_NM", nullable = false, length = 64)
     private String attrNm;
 
     @Column(name = "INPUT_TYPE_CD", nullable = false, length = 16)

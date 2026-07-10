@@ -29,7 +29,7 @@ public class LsIssueComment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ISSUE_COMMENT_SN")
+    @Column(name = "CMNT_SN")
     private Long issueCommentSn;
 
     @Column(name = "DATA_ISSUE_SN", nullable = false)

@@ -32,7 +32,7 @@ public class LsNoticeAttach {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ATTACH_SN")
+    @Column(name = "ATCH_FILE_SN")
     private Long attachSn;
 
     /** 소속 공지 PK — Aggregate 간 ID 참조 (객체 참조 금지). */
@@ -42,7 +42,7 @@ public class LsNoticeAttach {
     @Column(name = "ORGNL_FILE_NM", nullable = false, length = 255)
     private String orgnlFileNm;
 
-    @Column(name = "STORE_FILE_NM", nullable = false, length = 255)
+    @Column(name = "STRG_FILE_NM", nullable = false, length = 255)
     private String storeFileNm;
 
     @Column(name = "FILE_PATH", nullable = false, length = 1000)

@@ -47,16 +47,16 @@ public class LsAuthWorkLock {
     @Column(name = "LOCK_OWNER_ID", length = 30)
     private String lockOwnerId;
 
-    @Column(name = "LOCK_DT", nullable = false)
+    @Column(name = "LCK_DT", nullable = false)
     private LocalDateTime lockDt;
 
-    @Column(name = "EXPD_DT")
+    @Column(name = "EXPRY_DT")
     private LocalDateTime expireDt;
 
-    @Column(name = "RELEASE_DT")
+    @Column(name = "RMV_DT")
     private LocalDateTime releaseDt;
 
-    @Column(name = "RELEASE_RSN", length = 500)
+    @Column(name = "RMV_RSN", length = 500)
     private String releaseRsn;
 
     @Column(name = "REG_ID", length = 30)

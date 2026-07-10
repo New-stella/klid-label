@@ -157,7 +157,7 @@ public class LsDataAug {
 
     /**
      * 검수 결과를 LsDataAug.augProcSttsCd 에도 동기 반영 (DB 설계서 라인 162-169 호환).
-     * 상세 audit 컬럼(LBL_INTGRT_PCT/REJECT_RSN/DCSN_USER_NO/DCSN_DT)은 LS_DATA_AUG_RVW 에서 관리.
+     * 상세 audit 컬럼(LBL_INTGRT_PCT/RJCT_RSN/DCSN_USER_NO/DCSN_DT)은 LS_DATA_AUG_RVW 에서 관리.
      */
     public void applyReviewStatus(String newStatus) {
         if (newStatus == null

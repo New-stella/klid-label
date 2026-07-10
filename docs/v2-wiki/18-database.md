@@ -66,10 +66,12 @@
 | `LS_CONTROL_NOTIFY_FALLBACK` (V44, `SEND_RSLT_CD` 발송결과 컬럼 V77) / `LS_GITEA_FALLBACK_QUEUE` (V41) | 통지 재시도 큐 + 발송 결과 상태 관찰(`STTS_CD`=큐 처리 PENDING/RETRYING/SUCCEEDED/DEAD_LETTER, `SEND_RSLT_CD`=SUCCESS/FAILED — 즉시 성공도 SUCCEEDED+SUCCESS 터미널 행으로 적재) / Gitea 실패 재시도 | [15](15-control-notify.md)·[13](13-version-control.md) |
 | `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 | [16](16-portal.md) |
 | `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, UPEND_FIX_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
-| `LS_TUS_UPLOAD` (V59) | TUS 1.0 재개 가능 업로드 세션 — `UPLOAD_ID`(UUID PK)/`USER_NO`(소유자)/`UPLOAD_LENGTH`/`UPLOAD_OFFSET`(예약어 OFFSET 회피)/`STATUS`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPIRES_AT`(+24h TTL)/`VERSION`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
+| `LS_TUS_UPLOAD` (V59, 표준용어 rename V88·V90) | TUS 1.0 재개 가능 업로드 세션 — `ULD_ID`(UUID PK)/`USER_NO`(소유자)/`ULD_LEN`/`ULD_OFFSET`(예약어 OFFSET 회피)/`STTS_CD`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPRY_DT`(+24h TTL, 공공 만료일시)/`VER`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
 | `LS_DATA_ISSUE` (V5) / `LS_DEADLINE`·`LS_META` (V36) | 품질 이슈 / 데드라인·전역 메타 | — |
 
 > 구 `LS_DATA_SET` (V8, 학습데이터셋 Export용)은 **범위 외 orphan 테이블로 판정되어 삭제**됨(V86) — 엔티티·활성쿼리·View·FK 참조 0건 검증. 학습데이터셋 Export는 CLAUDE.md 범위 외(관제/데이터마트 책임).
+
+> **공공 우선(gov-first) 표준용어 rename (V90·V91, 2026-07-10)**: 공공 표준용어에 동일 한글용어가 존재하는 컬럼 15건을 공공약어로 정합 — `EXPD_DT→EXPRY_DT`(LS_AUTH_WORK_LOCK·LS_TUS_UPLOAD), `RESP_DT→RSPNS_DT`, `REJECT_RSN→RJCT_RSN`(×2), `MODEL_NM→MDL_NM`, `VERSION_NO→VER_NO`, `REPORT_DT→DCLR_DT`, `ISSUE_COMMENT_SN→CMNT_SN`, `ATTACH_SN→ATCH_FILE_SN`, `STORE_FILE_NM→STRG_FILE_NM`, `LOCK_DT→LCK_DT`, `RELEASE_DT→RMV_DT`, `RELEASE_RSN→RMV_RSN`, `ATTR_NM→ATRB_NM`(V91, `V_COMPLETED_LABEL_ATTR` 뷰 재생성 — 출력 별칭 `ATTR_NAME` 불변). Java 필드명·JSON 계약은 불변(물리 컬럼만 rename).
 
 ## 18.3 데이터마트 적재용 View (V52)
 

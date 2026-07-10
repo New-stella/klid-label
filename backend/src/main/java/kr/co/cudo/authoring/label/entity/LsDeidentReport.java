@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  * LS_DEIDENT_REPORT: 사용자(라벨러)의 비식별 누락 신고 전용 테이블.
  *
  * <p>DB 설계서 §8 기준 — 시스템 비식별 처리 이력은 {@code LS_DEIDENT_PROC_LOG} 로 분리됨.
- * 본 테이블은 REPORTER_NO/RSN/REPORT_STTS_CD/REPORT_DT/RESOLVED_DT 만 보유한다.
+ * 본 테이블은 REPORTER_NO/RSN/REPORT_STTS_CD/DCLR_DT/RESOLVED_DT 만 보유한다.
  */
 @Entity
 @Table(name = "LS_DEIDENT_REPORT")
@@ -51,7 +51,7 @@ public class LsDeidentReport {
     @Column(name = "REPORT_STTS_CD", length = 16)
     private String reportSttsCd;
 
-    @Column(name = "REPORT_DT")
+    @Column(name = "DCLR_DT")
     private LocalDateTime reportDt;
 
     @Column(name = "RESOLVED_DT")
