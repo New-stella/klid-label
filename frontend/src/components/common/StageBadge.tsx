@@ -1,3 +1,6 @@
+import { CheckCircle2, Clock, Loader2, Search, XCircle } from 'lucide-react';
+import type { ComponentType } from 'react';
+
 import { cn } from '@/lib/cn';
 
 export interface StageBadgeProps {
@@ -34,24 +37,38 @@ const SIZE_CLASSES = {
  * - 대기 등 그 외 → 노랑(YOLO/SAM2/프레임추출 등 진행 단계 강조용)
  */
 function toneClasses(stage: string, status?: string): string {
-  if (status === 'COMPLETED' || status === 'DONE') return 'bg-green-100 text-green-700';
-  if (status === 'FAILED' || status === 'FAIL') return 'bg-red-100 text-red-700';
+  if (status === 'COMPLETED' || status === 'DONE') return 'bg-success/10 text-success';
+  if (status === 'FAILED' || status === 'FAIL') return 'bg-danger/10 text-danger';
+  // KRDS 예외: VLM 단계 purple 은 범주 구분색(특수 단계 강조, 상태 의미 아님) — 토큰 획일화 제외.
   if (stage === 'VLM_VERIFY' || stage === 'VLM') return 'bg-purple-100 text-purple-700';
-  if (status === 'IN_PROGRESS' || status === 'PROGRESS') return 'bg-blue-100 text-blue-700';
-  return 'bg-yellow-100 text-yellow-700';
+  if (status === 'IN_PROGRESS' || status === 'PROGRESS') return 'bg-info/10 text-info';
+  return 'bg-warning/10 text-warning';
+}
+
+type IconType = ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
+
+// KRDS: 색만으로 구분 금지 → 톤과 동일 의미의 아이콘을 병기.
+function stageIcon(stage: string, status?: string): { Icon: IconType; spin?: boolean } {
+  if (status === 'COMPLETED' || status === 'DONE') return { Icon: CheckCircle2 };
+  if (status === 'FAILED' || status === 'FAIL') return { Icon: XCircle };
+  if (stage === 'VLM_VERIFY' || stage === 'VLM') return { Icon: Search };
+  if (status === 'IN_PROGRESS' || status === 'PROGRESS') return { Icon: Loader2, spin: true };
+  return { Icon: Clock };
 }
 
 export function StageBadge({ stage, status, size = 'sm', className }: StageBadgeProps) {
   const label = STAGE_LABEL[stage] ?? stage;
+  const { Icon, spin } = stageIcon(stage, status);
   return (
     <span
       className={cn(
-        'inline-flex items-center font-medium rounded-full',
+        'inline-flex items-center gap-1 font-medium rounded-full',
         toneClasses(stage, status),
         SIZE_CLASSES[size],
         className,
       )}
     >
+      <Icon className={cn('h-3 w-3 shrink-0', spin && 'animate-spin')} aria-hidden="true" />
       {label}
     </span>
   );

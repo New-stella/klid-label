@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface PaginationProps {
   page: number; // 0-based
@@ -36,8 +37,11 @@ export function Pagination({
   const isFirst = safePage === 0;
   const isLast = safePage >= totalPages - 1;
 
-  const baseBtn =
-    'inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sub text-gray-600 hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-primary-500';
+  // KRDS 터치 타깃 44x44px: 페이지 버튼 h-11 min-w-11 로 확장.
+  const baseBtn = cn(
+    'inline-flex h-11 min-w-11 items-center justify-center rounded-md px-2 text-sub text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40',
+    KRDS_FOCUS,
+  );
 
   return (
     <nav

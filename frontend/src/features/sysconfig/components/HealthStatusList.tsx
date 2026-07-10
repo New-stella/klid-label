@@ -26,15 +26,15 @@ function statusLabel(status: HealthStatus) {
 }
 
 function statusBadgeClass(status: HealthStatus) {
-  if (status === 'UP') return 'bg-green-100 text-green-700';
-  if (status === 'OUT_OF_SERVICE') return 'bg-yellow-100 text-yellow-700';
-  return 'bg-red-100 text-red-700';
+  if (status === 'UP') return 'bg-success/10 text-success';
+  if (status === 'OUT_OF_SERVICE') return 'bg-warning/10 text-warning';
+  return 'bg-danger/10 text-danger';
 }
 
 function rowBgClass(status: HealthStatus) {
-  if (status === 'UP') return 'border-green-200 bg-green-50';
-  if (status === 'OUT_OF_SERVICE') return 'border-yellow-200 bg-yellow-50';
-  return 'border-red-200 bg-red-50';
+  if (status === 'UP') return 'border-success/30 bg-success/10';
+  if (status === 'OUT_OF_SERVICE') return 'border-warning/30 bg-warning/10';
+  return 'border-danger/30 bg-danger/10';
 }
 
 /**
@@ -47,7 +47,7 @@ export function HealthStatusList() {
     <Card
       title="외부 연동 상태"
       actions={
-        <span className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2.5 py-1">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-info bg-info/10 border border-info/20 rounded-full px-2.5 py-1">
           <Eye size={12} />
           실시간 모니터링
         </span>
@@ -76,9 +76,9 @@ export function HealthStatusList() {
                   >
                     <div className="flex items-center gap-3">
                       {up ? (
-                        <Wifi size={16} className="text-green-600 shrink-0" />
+                        <Wifi size={16} className="text-success shrink-0" />
                       ) : (
-                        <WifiOff size={16} className="text-red-500 shrink-0" />
+                        <WifiOff size={16} className="text-danger shrink-0" />
                       )}
                       <div>
                         <p className="text-sm font-medium text-gray-800">
@@ -117,9 +117,9 @@ export function HealthStatusList() {
               <div className={['flex items-center justify-between p-3 rounded-lg border', rowBgClass(data.status)].join(' ')}>
                 <div className="flex items-center gap-3">
                   {isUp(data.status) ? (
-                    <Wifi size={16} className="text-green-600 shrink-0" />
+                    <Wifi size={16} className="text-success shrink-0" />
                   ) : (
-                    <WifiOff size={16} className="text-red-500 shrink-0" />
+                    <WifiOff size={16} className="text-danger shrink-0" />
                   )}
                   <p className="text-sm font-medium text-gray-800">전체 상태</p>
                 </div>

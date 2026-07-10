@@ -104,8 +104,8 @@ export function SessionIngressPage() {
         role="alert"
         aria-live="assertive"
       >
-        <div className="max-w-sm rounded-lg border border-red-200 bg-red-50 p-6 text-center shadow-sm">
-          <p className="text-sm font-medium text-red-700">{errorMessage}</p>
+        <div className="max-w-sm rounded-lg border border-danger/30 bg-danger/10 p-6 text-center shadow-sm">
+          <p className="text-sm font-medium text-danger">{errorMessage}</p>
         </div>
       </div>
     );

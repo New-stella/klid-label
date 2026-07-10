@@ -13,7 +13,7 @@ export interface PresetCodeChipProps {
 const BASE_CLASS =
   'inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-xs font-medium';
 const VALID_CLASS = 'border-primary-300 text-primary-700';
-const INVALID_CLASS = 'border-red-500 text-red-700';
+const INVALID_CLASS = 'border-danger text-danger';
 
 /**
  * 프리셋 라벨 코드 chip — 코드 + BBOX/POLYGON 체크박스 + 삭제 버튼.
@@ -69,7 +69,7 @@ export function PresetCodeChip({
       <button
         type="button"
         onClick={onRemove}
-        className="ml-1 text-gray-400 transition-colors hover:text-red-500"
+        className="ml-1 text-gray-400 transition-colors hover:text-danger"
         aria-label={`${option.code} 삭제`}
       >
         <Trash2 className="h-3 w-3" aria-hidden />

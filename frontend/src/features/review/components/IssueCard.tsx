@@ -34,8 +34,8 @@ export function IssueCard({ issue, issueType, issueStatus, commentCount }: Issue
               className={cn(
                 'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
                 issueType === ISSUE_TYPE.REJECTION
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-blue-100 text-blue-700',
+                  ? 'bg-danger/10 text-danger'
+                  : 'bg-info/10 text-info',
               )}
             >
               {ISSUE_TYPE_LABEL[issueType]}
@@ -47,9 +47,10 @@ export function IssueCard({ issue, issueType, issueStatus, commentCount }: Issue
               className={cn(
                 'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
                 issueStatus === ISSUE_STATUS.RESOLVED
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-success/10 text-success'
                   : issueStatus === ISSUE_STATUS.ANSWERED
-                    ? 'bg-purple-100 text-purple-700'
+                    ? // KRDS 예외: '답변됨' purple 은 범주 구분색(성공/대기와 구별되는 별도 상태) — 토큰 획일화 제외.
+                      'bg-purple-100 text-purple-700'
                     : 'bg-gray-100 text-gray-600',
               )}
             >

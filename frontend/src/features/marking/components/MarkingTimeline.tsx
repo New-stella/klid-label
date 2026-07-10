@@ -31,7 +31,7 @@ export function MarkingTimeline({
             type="button"
             className={cn(
               'absolute top-0 h-full w-1 transition-colors',
-              selectedIndex === i ? 'bg-blue-600' : 'bg-blue-400 hover:bg-blue-500',
+              selectedIndex === i ? 'bg-primary-600' : 'bg-primary-400 hover:bg-primary-500',
             )}
             style={{ left: `${pct}%` }}
             onClick={() => onSelect(i)}

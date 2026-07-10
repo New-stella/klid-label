@@ -8,6 +8,7 @@ import { DailyCompletionChart } from '@/features/stat/components/DailyCompletion
 import { useWorkerStat } from '@/features/stat/hooks/useWorkerStat';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { Role } from '@/lib/api/types';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
@@ -43,8 +44,8 @@ export function WorkerStatPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
-            <BarChart2 size={20} className="text-blue-600" aria-hidden />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-info/10">
+            <BarChart2 size={20} className="text-info" aria-hidden />
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">작업자 통계</h1>
@@ -58,7 +59,7 @@ export function WorkerStatPage() {
           <select
             value={selectedWorkerId ?? String(workers[0]?.id ?? '')}
             onChange={(e) => setSelectedWorkerId(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={`rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm ${KRDS_FOCUS}`}
             aria-label="작업자 선택"
           >
             {workers.map((w) => (
@@ -86,22 +87,22 @@ export function WorkerStatPage() {
             <KpiCard
               label="완료 작업"
               value={data?.completed ?? 0}
-              icon={<CheckCircle className="h-4 w-4 text-green-500" aria-hidden />}
+              icon={<CheckCircle className="h-4 w-4 text-success" aria-hidden />}
             />
             <KpiCard
               label="진행 중"
               value={data?.inProgress ?? 0}
-              icon={<Clock className="h-4 w-4 text-yellow-500" aria-hidden />}
+              icon={<Clock className="h-4 w-4 text-warning" aria-hidden />}
             />
             <KpiCard
               label="반려"
               value={data?.rejected ?? 0}
-              icon={<XCircle className="h-4 w-4 text-red-500" aria-hidden />}
+              icon={<XCircle className="h-4 w-4 text-danger" aria-hidden />}
             />
             <KpiCard
               label="총 라벨 수"
               value={data?.labelCount ?? 0}
-              icon={<Tag className="h-4 w-4 text-blue-500" aria-hidden />}
+              icon={<Tag className="h-4 w-4 text-info" aria-hidden />}
             />
           </>
         )}
@@ -124,7 +125,7 @@ export function WorkerStatPage() {
               <p
                 className={[
                   'text-xl font-bold tabular-nums',
-                  rejectPct !== null && rejectPct > 10 ? 'text-red-600' : 'text-gray-900',
+                  rejectPct !== null && rejectPct > 10 ? 'text-danger' : 'text-gray-900',
                 ].join(' ')}
               >
                 {rejectPct === null ? '—' : `${rejectPct.toFixed(1)}%`}
@@ -165,7 +166,7 @@ export function WorkerStatPage() {
                 <td className="px-3 py-2 text-right tabular-nums">
                   {m.completed.toLocaleString('ko-KR')}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-red-500">
+                <td className="px-3 py-2 text-right tabular-nums text-danger">
                   {m.rejected.toLocaleString('ko-KR')}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">

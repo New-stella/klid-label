@@ -105,7 +105,7 @@ export function DarkToolbar({ onSave, portalMode = false }: DarkToolbarProps) {
               className={cn(
                 'w-10 h-10 rounded-lg flex items-center justify-center transition-colors',
                 isActive
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-primary-600 text-white'
                   : 'text-gray-300 hover:bg-gray-700 hover:text-white',
               )}
             >

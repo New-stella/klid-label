@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { Role } from '@/lib/api/types';
 
@@ -119,8 +120,9 @@ export function Lnb() {
                   className={({ isActive }) =>
                     cn(
                       'flex items-center mx-2 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                      KRDS_FOCUS,
                       isActive
-                        ? 'border-l-2 border-primary-500 bg-primary-50 pl-[10px] text-primary-700'
+                        ? 'border-l-2 border-primary-500 bg-primary-50 pl-2.5 text-primary-700'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                     )
                   }

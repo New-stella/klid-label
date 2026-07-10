@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { NoticeEditModal } from '@/features/notice/components/NoticeEditModal';
 import { useNoticeActions } from '@/features/notice/hooks/useNoticeActions';
 import { useNotices } from '@/features/notice/hooks/useNotices';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import {
   noticeListParamsToSearchParams,
   parseNoticeListParams,
@@ -122,7 +123,7 @@ export function NoticeListPage() {
           onChange={(e) =>
             setFieldInput(toNoticeSearchField(e.target.value) ?? NoticeSearchField.ALL)
           }
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`}
         >
           {FIELD_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -140,7 +141,7 @@ export function NoticeListPage() {
           onChange={(e) => setKeywordInput(e.target.value)}
           placeholder="검색어를 입력하세요"
           maxLength={100}
-          className="flex-1 min-w-[180px] text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`flex-1 min-w-[180px] text-sm border border-gray-300 rounded-lg px-3 py-2 ${KRDS_FOCUS}`}
         />
         <Button type="submit" variant="secondary" size="sm" leftIcon={Search}>
           검색
@@ -195,6 +196,7 @@ export function NoticeListPage() {
                     onClick={() => navigate(`/notice/${n.id}`)}
                     className={cn(
                       'cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50',
+                      // KRDS 예외: 고정 pinned amber 는 강조 accent(상태 아님) — 토큰 획일화 제외(의도적 유지).
                       n.pinned && 'bg-amber-50/40',
                     )}
                   >
@@ -228,7 +230,7 @@ export function NoticeListPage() {
                           className={cn(
                             'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
                             n.pubStatus === NoticePubStatus.PUBLISHED
-                              ? 'bg-green-100 text-green-700'
+                              ? 'bg-success/10 text-success'
                               : 'bg-gray-100 text-gray-600',
                           )}
                         >

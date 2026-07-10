@@ -363,7 +363,7 @@ export function LabelingPage() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-blue-600 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
           >
             뒤로 가기
           </button>
@@ -410,7 +410,7 @@ export function LabelingPage() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-blue-600 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
           >
             뒤로 가기
           </button>
@@ -432,7 +432,7 @@ export function LabelingPage() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-blue-600 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
           >
             뒤로 가기
           </button>
@@ -603,7 +603,7 @@ export function LabelingPage() {
                 onClick={() => setRightTab('objects')}
                 className={
                   rightTab === 'objects'
-                    ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-blue-500'
+                    ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
                     : 'flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
                 }
               >
@@ -619,7 +619,7 @@ export function LabelingPage() {
                 onClick={() => setRightTab('issues')}
                 className={
                   rightTab === 'issues'
-                    ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-blue-500'
+                    ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
                     : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
                 }
               >
@@ -627,7 +627,7 @@ export function LabelingPage() {
                 {unresolvedInquiries > 0 && (
                   <span
                     data-testid="issue-tab-badge"
-                    className="inline-flex min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+                    className="inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
                     aria-label={`미해소 문의 ${unresolvedInquiries}건`}
                   >
                     {unresolvedInquiries}

@@ -1,3 +1,5 @@
+import { Tag } from 'lucide-react';
+
 import { useEventTypeLabels } from '@/features/eventType/hooks';
 import { cn } from '@/lib/cn';
 import { labelOf } from '@/lib/eventTypeLabel';
@@ -21,6 +23,7 @@ interface EventTypeBadgeProps {
 }
 
 // 카테고리 한글명 → 색상 (cosmetic). 미매핑 라벨은 회색 폴백 — 색상은 표시 보조용일 뿐.
+// KRDS 예외: 범주 구분색(이벤트 카테고리 7색, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
 const EVENT_COLORS: Record<string, string> = {
   쓰러짐: 'bg-purple-100 text-purple-700',
   폭력: 'bg-red-100 text-red-700',
@@ -52,15 +55,18 @@ export function EventTypeBadge({ eventType, size = 'sm', className }: EventTypeB
   const label = eventType ? labelOf(labelMap, eventType) : '';
   const colorClass = EVENT_COLORS[label] ?? 'bg-gray-100 text-gray-600';
 
+  // KRDS: 색만으로 구분 금지 → 카테고리 색상은 보조용이므로 라벨(텍스트)에 태그 아이콘을 병기.
+  // 빈 입력은 아이콘 없이 빈 뱃지 유지.
   return (
     <span
       className={cn(
-        'inline-flex items-center font-medium rounded-full',
+        'inline-flex items-center gap-1 font-medium rounded-full',
         colorClass,
         SIZE_CLASSES[size],
         className,
       )}
     >
+      {label && <Tag className="h-3 w-3 shrink-0" aria-hidden="true" />}
       {label}
     </span>
   );

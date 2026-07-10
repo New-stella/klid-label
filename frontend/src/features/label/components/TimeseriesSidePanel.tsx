@@ -77,7 +77,7 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
             type="button"
             onClick={handleSave}
             disabled={!dirty || updateMutation.isPending}
-            className="w-full rounded bg-blue-600 text-white text-sm py-1.5 disabled:bg-gray-500 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+            className="w-full rounded bg-primary-600 text-white text-sm py-1.5 disabled:bg-gray-500 disabled:cursor-not-allowed hover:bg-primary-500 transition-colors"
           >
             {updateMutation.isPending ? '저장 중...' : '저장'}
           </button>

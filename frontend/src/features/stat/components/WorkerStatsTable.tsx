@@ -102,10 +102,10 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
               return (
                 <tr key={r.userId} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-800">{r.name}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-green-700">
+                  <td className="px-4 py-3 text-right tabular-nums text-success">
                     {r.labeled.toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-yellow-600">
+                  <td className="px-4 py-3 text-right tabular-nums text-warning">
                     {r.reviewed.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
@@ -121,7 +121,7 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
                       <span
                         className={[
                           'tabular-nums text-xs font-medium',
-                          rejectRate > 10 ? 'text-red-600' : 'text-gray-600',
+                          rejectRate > 10 ? 'text-danger' : 'text-gray-600',
                         ].join(' ')}
                       >
                         {rejectRate.toFixed(1)}%

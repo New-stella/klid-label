@@ -14,6 +14,7 @@ import { updateUser, type UserUpdatePayload } from '@/features/user/api';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import type { User, UserListParams } from '@/features/user/types';
 import { Role } from '@/lib/api/types';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { USER_KEYS } from '@/lib/queryKeys';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -36,6 +37,7 @@ const ROLE_LABEL: Record<Role, string> = {
 };
 
 // 역할별 컬러 배지 — mock 시각 정합
+// KRDS 예외: 범주 구분색(역할 구분, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
 const ROLE_BADGE_CLASS: Record<Role, string> = {
   [Role.REVIEWER]: 'bg-amber-100 text-amber-700',
   [Role.WORKER]: 'bg-blue-100 text-blue-700',
@@ -186,7 +188,7 @@ export function UserManagePage() {
         <span
           className={
             u.active
-              ? 'inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-sub font-medium text-green-700'
+              ? 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-sub font-medium text-success'
               : 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500'
           }
         >
@@ -271,7 +273,7 @@ export function UserManagePage() {
             id="user-role-filter"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value as '' | Role)}
-            className="h-10 rounded-md border border-gray-300 bg-white px-3 text-body focus-visible:ring-2 focus-visible:ring-primary-500"
+            className={`h-10 rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
             aria-label="역할 필터"
           >
             {ROLE_FILTER_OPTIONS.map((o) => (
@@ -294,7 +296,7 @@ export function UserManagePage() {
             onChange={(e) =>
               setStatusFilter(e.target.value as '' | 'active' | 'inactive')
             }
-            className="h-10 rounded-md border border-gray-300 bg-white px-3 text-body focus-visible:ring-2 focus-visible:ring-primary-500"
+            className={`h-10 rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
             aria-label="상태 필터"
           >
             {STATUS_FILTER_OPTIONS.map((o) => (
@@ -370,7 +372,7 @@ export function UserManagePage() {
               id="edit-user-role"
               value={editRole}
               onChange={(e) => setEditRole(e.target.value as Role)}
-              className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-body focus-visible:ring-2 focus-visible:ring-primary-500"
+              className={`h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
             >
               <option value={Role.REVIEWER}>검수자</option>
               <option value={Role.WORKER}>작업자</option>

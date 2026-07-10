@@ -150,7 +150,7 @@ export function LabelHeader({
           aria-label="저장"
           type="button"
           data-testid="label-header-save"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Save size={14} />
           {saving ? '저장 중...' : '저장'}

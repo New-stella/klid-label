@@ -80,7 +80,7 @@ export function DarkFrameSlider({
         onClick={() => onSelect(Math.max(0, currentIndex - 1))}
         disabled={currentIndex === 0}
         aria-label="이전 프레임"
-        className="p-1 rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
       >
         <ChevronLeft size={16} />
       </button>
@@ -89,7 +89,7 @@ export function DarkFrameSlider({
         type="button"
         onClick={handlePlayToggle}
         aria-label={isPlaying ? '정지' : '재생'}
-        className="p-1 rounded text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
       >
         {isPlaying ? <Pause size={16} /> : <Play size={16} />}
       </button>
@@ -101,7 +101,7 @@ export function DarkFrameSlider({
         value={currentIndex}
         onChange={(e) => onSelect(Number(e.target.value))}
         aria-label="프레임 슬라이더"
-        className="flex-1 accent-blue-500 h-1.5"
+        className="flex-1 accent-primary-500 h-1.5"
       />
 
       <button
@@ -109,7 +109,7 @@ export function DarkFrameSlider({
         onClick={() => onSelect(Math.min(max, currentIndex + 1))}
         disabled={currentIndex >= max}
         aria-label="다음 프레임"
-        className="p-1 rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
       >
         <ChevronRight size={16} />
       </button>

@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom';
 
+import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
+
 interface AppErrorPageProps {
   status?: 403 | 404 | 500;
   message?: string;
@@ -20,7 +23,10 @@ export function AppErrorPage({ status = 404, message }: AppErrorPageProps) {
       {message && <p className="mt-2 text-body text-gray-500">{message}</p>}
       <Link
         to="/"
-        className="mt-6 text-primary-600 underline hover:text-primary-700 transition-colors"
+        className={cn(
+          'mt-6 rounded text-primary-600 underline hover:text-primary-700 transition-colors',
+          KRDS_FOCUS,
+        )}
       >
         메인으로 이동
       </Link>

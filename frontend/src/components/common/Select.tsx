@@ -1,6 +1,8 @@
 import { forwardRef, useId, type SelectHTMLAttributes } from 'react';
+import { AlertCircle } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface SelectOption {
   value: string;
@@ -46,7 +48,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         className={cn(
-          'h-10 w-full rounded-md border bg-white px-3 text-body text-gray-900 outline-none transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-primary-500 disabled:bg-gray-50 disabled:opacity-60',
+          'h-11 w-full rounded-md border bg-white px-3 text-body text-gray-900 outline-none transition-colors duration-100 disabled:bg-gray-50 disabled:opacity-60',
+          KRDS_FOCUS,
           error
             ? 'border-danger focus-visible:border-danger'
             : 'border-gray-300 focus-visible:border-primary-500',
@@ -66,7 +69,12 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         ))}
       </select>
       {error ? (
-        <span id={errorId} role="alert" className="text-sub text-danger">
+        <span
+          id={errorId}
+          role="alert"
+          className="flex items-center gap-1 text-sub text-danger"
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {error}
         </span>
       ) : hint ? (

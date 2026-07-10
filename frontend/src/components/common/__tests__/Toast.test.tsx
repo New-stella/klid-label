@@ -30,6 +30,15 @@ describe('Toast', () => {
     expect(onDismiss).toHaveBeenCalledWith('t-1');
   });
 
+  it('Toast_에러_아이콘_노출', () => {
+    // KRDS: 색만으로 구분 금지 — error 변형은 아이콘(svg)+텍스트 병기
+    const { container } = render(
+      <Toast id="e-1" variant="error" message="실패" onDismiss={vi.fn()} />,
+    );
+    expect(container.querySelector('svg')).toBeInTheDocument();
+    expect(screen.getByText('실패')).toBeInTheDocument();
+  });
+
   it('Toast_durationMs_지정시_해당_시점에_dismiss', () => {
     const onDismiss = vi.fn();
     render(

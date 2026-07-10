@@ -79,7 +79,7 @@ export function HistoryPage() {
             data-testid="history-frame-select"
             value={selectedSrcSn}
             onChange={(e) => setSelectedSrcSn(Number(e.target.value))}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
           >
             {frames.map((f) => (
               <option key={f.srcSn} value={f.srcSn}>

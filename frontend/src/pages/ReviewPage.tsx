@@ -230,7 +230,7 @@ export function ReviewPage() {
         data-testid="review-canvas-readonly"
         aria-label="검수 캔버스 (읽기 전용)"
       >
-        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-yellow-600/90 px-2 py-1 text-xs font-medium text-white">
+        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-warning/90 px-2 py-1 text-xs font-medium text-white">
           읽기 전용
         </div>
         <LabelCanvas frame={frameList?.frames?.[currentFrameIdx] ?? null} />

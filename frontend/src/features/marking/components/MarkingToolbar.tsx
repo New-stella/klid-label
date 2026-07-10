@@ -36,7 +36,7 @@ export function MarkingToolbar({
           onClick={() => onModeChange('AUTO')}
           className={cn(
             'px-3 py-1.5 rounded text-sm font-medium transition-colors',
-            mode === 'AUTO' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+            mode === 'AUTO' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
           )}
         >
           자동
@@ -46,7 +46,7 @@ export function MarkingToolbar({
           onClick={() => onModeChange('MANUAL')}
           className={cn(
             'px-3 py-1.5 rounded text-sm font-medium transition-colors',
-            mode === 'MANUAL' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+            mode === 'MANUAL' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
           )}
         >
           수동
@@ -90,7 +90,7 @@ export function MarkingToolbar({
             'rounded px-4 py-1.5 text-sm font-medium text-white transition-colors',
             disabled
               ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700',
+              : 'bg-primary-600 hover:bg-primary-700',
           )}
         >
           {submitting ? '저장 중...' : '마킹 완료'}

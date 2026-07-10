@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus } from 'lucide-react';
+import { AlertCircle, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useEventTypes } from '@/features/eventType/hooks';
 
 import {
@@ -202,20 +203,23 @@ export function PresetEditModal({
             className="block text-sm font-medium text-gray-700"
             htmlFor="preset-name"
           >
-            프리셋 이름 <span className="text-red-500">*</span>
+            프리셋 이름 <span className="text-danger">*</span>
           </label>
           <input
             id="preset-name"
             type="text"
             placeholder="예: 교통사고 표준 프리셋"
             className={[
-              'w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500',
-              errors.name ? 'border-red-400' : 'border-gray-300',
+              `w-full text-sm border rounded-lg px-3 py-2 ${KRDS_FOCUS}`,
+              errors.name ? 'border-danger' : 'border-gray-300',
             ].join(' ')}
             {...register('name')}
           />
           {errors.name?.message && (
-            <p className="text-xs text-red-500">{errors.name.message}</p>
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {errors.name.message}
+            </p>
           )}
         </div>
 
@@ -231,11 +235,14 @@ export function PresetEditModal({
             id="preset-desc"
             placeholder="프리셋에 대한 설명을 입력하세요."
             rows={2}
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={`w-full text-sm border border-gray-300 rounded-lg px-3 py-2 resize-none ${KRDS_FOCUS}`}
             {...register('description')}
           />
           {errors.description?.message && (
-            <p className="text-xs text-red-500">{errors.description.message}</p>
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {errors.description.message}
+            </p>
           )}
         </div>
 
@@ -253,8 +260,8 @@ export function PresetEditModal({
           <select
             id="preset-event"
             className={[
-              'w-full text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500',
-              errors.eventTypeCd ? 'border-red-400' : 'border-gray-300',
+              `w-full text-sm border rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`,
+              errors.eventTypeCd ? 'border-danger' : 'border-gray-300',
             ].join(' ')}
             {...register('eventTypeCd')}
           >
@@ -266,7 +273,10 @@ export function PresetEditModal({
             ))}
           </select>
           {errors.eventTypeCd?.message && (
-            <p className="text-xs text-red-500">{errors.eventTypeCd.message}</p>
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {errors.eventTypeCd.message}
+            </p>
           )}
           <p className="text-xs text-gray-400">
             동일 이벤트는 1개 프리셋에만 매핑됩니다. 이미 다른 프리셋이 매핑된 경우 저장 시 안내됩니다.
@@ -276,7 +286,7 @@ export function PresetEditModal({
         {/* Label codes */}
         <div className="space-y-3">
           <label className="block text-sm font-medium text-gray-700">
-            라벨 항목 <span className="text-red-500">*</span>
+            라벨 항목 <span className="text-danger">*</span>
             <span
               className="ml-1 font-normal text-gray-400"
               data-testid="preset-labels-count"
@@ -313,7 +323,7 @@ export function PresetEditModal({
                 }
               }}
               placeholder="라벨 코드 입력 (Enter로 추가)"
-              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className={`flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 ${KRDS_FOCUS}`}
               aria-label="라벨 코드 입력"
             />
             <Button
@@ -329,12 +339,14 @@ export function PresetEditModal({
           </div>
 
           {errors.labelCodeOptions?.message && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.labelCodeOptions.message}
             </p>
           )}
           {hasInvalidOption && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               BBOX 또는 POLYGON 중 최소 하나는 활성화해야 합니다.
             </p>
           )}

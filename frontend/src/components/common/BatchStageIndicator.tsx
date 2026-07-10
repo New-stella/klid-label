@@ -22,21 +22,21 @@ const STAGE_LABEL: Record<string, string> = {
 function StageIcon({ status }: { status: BatchStageStatus }) {
   if (status === 'DONE') {
     return (
-      <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full bg-success flex items-center justify-center">
         <Check size={14} className="text-white" aria-hidden />
       </div>
     );
   }
   if (status === 'PROGRESS') {
     return (
-      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full bg-info flex items-center justify-center">
         <Loader2 size={14} className="text-white animate-spin" aria-hidden />
       </div>
     );
   }
   if (status === 'FAIL') {
     return (
-      <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full bg-danger flex items-center justify-center">
         <X size={14} className="text-white" aria-hidden />
       </div>
     );
@@ -49,7 +49,7 @@ function StageIcon({ status }: { status: BatchStageStatus }) {
 }
 
 function connectorColor(status: BatchStageStatus): string {
-  if (status === 'DONE') return 'bg-green-400';
+  if (status === 'DONE') return 'bg-success';
   return 'bg-gray-200';
 }
 

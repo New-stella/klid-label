@@ -29,8 +29,8 @@ describe('VideoPlayer 배속 설정', () => {
     // when
     const btn1x = screen.getByRole('button', { name: '1x' });
 
-    // then: 1x 버튼이 활성 스타일(bg-blue-600)을 가져야 한다
-    expect(btn1x.className).toContain('bg-blue-600');
+    // then: 1x 버튼이 활성 스타일(bg-primary-600)을 가져야 한다
+    expect(btn1x.className).toContain('bg-primary-600');
   });
 
   it('배속_버튼_클릭시_playbackRate_변경', async () => {
@@ -48,11 +48,11 @@ describe('VideoPlayer 배속 설정', () => {
     expect(video.playbackRate).toBe(2);
 
     // then: 2x 버튼이 활성 상태여야 한다
-    expect(btn2x.className).toContain('bg-blue-600');
+    expect(btn2x.className).toContain('bg-primary-600');
 
     // then: 1x 버튼은 비활성 상태여야 한다
     const btn1x = screen.getByRole('button', { name: '1x' });
-    expect(btn1x.className).not.toContain('bg-blue-600');
+    expect(btn1x.className).not.toContain('bg-primary-600');
   });
 });
 

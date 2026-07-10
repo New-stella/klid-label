@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Video } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -11,6 +12,7 @@ const ROLE_LABEL: Record<string, string> = {
   PORTAL_USER: '포털',
 };
 
+// KRDS 예외: 범주 구분색(역할 구분, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
 const ROLE_COLOR: Record<string, string> = {
   REVIEWER: 'bg-cyan-100 text-cyan-700',
   WORKER: 'bg-blue-100 text-blue-700',
@@ -33,7 +35,7 @@ export function Gnb() {
     <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-gray-200 flex items-center px-4">
       {/* Left: Logo */}
       <div className="flex items-center gap-2.5 w-60 shrink-0">
-        <Link to="/dashboard" className="flex items-center gap-2.5">
+        <Link to="/dashboard" className={cn('flex items-center gap-2.5 rounded-md', KRDS_FOCUS)}>
           <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-600">
             <Video size={16} className="text-white" aria-hidden />
           </span>

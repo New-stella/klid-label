@@ -53,16 +53,16 @@ export function DangerActions() {
 
   return (
     <>
-      <div className="rounded-lg border border-red-200 bg-white px-6 py-4 space-y-4 shadow-sm">
+      <div className="rounded-lg border border-danger/30 bg-white px-6 py-4 space-y-4 shadow-sm">
         {/* 운영 도구 이관 예정 안내 배너 */}
-        <div className="flex items-start gap-2 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3">
-          <AlertTriangle size={16} className="text-yellow-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-yellow-800 leading-relaxed">
+        <div className="flex items-start gap-2 rounded-lg bg-warning/10 border border-warning/30 px-4 py-3">
+          <AlertTriangle size={16} className="text-warning shrink-0 mt-0.5" />
+          <p className="text-xs text-warning leading-relaxed">
             위험 액션은 별도 운영 도구로 이관 예정입니다. 본 화면에서는 데모 동작만 수행됩니다.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 text-red-600">
+        <div className="flex items-center gap-2 text-danger">
           <AlertTriangle size={16} />
           <h3 className="text-sm font-semibold">위험 구역</h3>
         </div>

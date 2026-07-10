@@ -55,4 +55,34 @@ describe('Button', () => {
     render(<Button fullWidth>전체</Button>);
     expect(screen.getByRole('button').className).toMatch(/w-full/);
   });
+
+  it('Button_키보드_포커스시_3px_링과_2px_offset', () => {
+    // given/when: 기본 버튼 렌더 (KRDS focus 유틸 적용 대상)
+    render(<Button>저장</Button>);
+    const cls = screen.getByRole('button').className;
+    // then: focus-visible 시 3px ring + 2px offset + primary 색
+    expect(cls).toMatch(/focus-visible:ring-\[3px\]/);
+    expect(cls).toMatch(/focus-visible:ring-offset-2/);
+    expect(cls).toMatch(/focus-visible:ring-primary/);
+  });
+
+  it('Button_md_터치타깃_최소_44px', () => {
+    // given/when: 기본 사이즈(md) 버튼
+    render(<Button>확인</Button>);
+    // then: 최소 높이 44px(min-h-11) 확보
+    expect(screen.getByRole('button').className).toMatch(/min-h-11/);
+  });
+
+  it('Button_danger_hover_어두워짐', () => {
+    // given/when: danger variant 버튼
+    render(<Button variant="danger">삭제</Button>);
+    const cls = screen.getByRole('button').className;
+    // then: 눌림 피드백은 primary(600→700→800, 어두워짐)와 동일 방향이어야 한다.
+    //  - hover/active 가 밝아지는 옛 `/90 → /80` 반전 패턴은 제거되어야 함.
+    expect(cls).not.toMatch(/hover:bg-danger\/90/);
+    expect(cls).not.toMatch(/active:bg-danger\/80/);
+    // brightness(<100%) 필터로 어두워지는 방향 확보 (active 가 hover 보다 더 어둡다).
+    expect(cls).toMatch(/hover:brightness-95/);
+    expect(cls).toMatch(/active:brightness-90/);
+  });
 });

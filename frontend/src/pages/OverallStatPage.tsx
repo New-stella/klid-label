@@ -158,11 +158,13 @@ export function OverallStatPage() {
           className="grid grid-cols-5 gap-3"
         >
           {[
+            // 처리 현황 카운터 — KRDS 의미상태색 토큰 (완료=success, 처리중=info, 실패=danger, 대기=warning).
+            //  ※ 아래 이벤트분포 파이/바 차트 팔레트(EVENT_COLOR_PALETTE)는 데이터시각화라 토큰 획일화 제외·불변.
             { label: '전체', value: batchStats.total, color: 'text-gray-800' },
-            { label: '완료', value: batchStats.completed, color: 'text-green-600' },
-            { label: '처리중', value: batchStats.processing, color: 'text-blue-600' },
-            { label: '실패', value: batchStats.failed, color: 'text-red-600' },
-            { label: '대기', value: batchStats.pending, color: 'text-yellow-600' },
+            { label: '완료', value: batchStats.completed, color: 'text-success' },
+            { label: '처리중', value: batchStats.processing, color: 'text-info' },
+            { label: '실패', value: batchStats.failed, color: 'text-danger' },
+            { label: '대기', value: batchStats.pending, color: 'text-warning' },
           ].map((s) => (
             <div key={s.label} className="text-center bg-gray-50 rounded-lg p-3">
               <p className={['text-xl font-bold tabular-nums', s.color].join(' ')}>

@@ -158,7 +158,7 @@ export function ObjectAttributePanel({
             aria-label="라벨 선택"
             value={target.classId}
             onChange={handleLabelChange}
-            className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
             {resolvedAvailable.map((al) => (
               <option key={al.id} value={al.id}>
@@ -280,7 +280,7 @@ function NumberField({
         aria-label={label}
         value={Number.isFinite(value) ? value : ''}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
       />
     </label>
   );

@@ -38,6 +38,21 @@ describe('NoticeEditModal', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it('NoticeEditModal_에러_아이콘', async () => {
+    // given: 제목 미입력 상태로 저장 → 검증 에러 발생
+    renderWithProviders(
+      <NoticeEditModal open onClose={() => undefined} onSubmit={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByLabelText(/내용/), {
+      target: { value: '본문 내용' },
+    });
+    fireEvent.click(screen.getByText('작성'));
+
+    // then: 에러 메시지에 아이콘(svg)이 병기되어 색만으로 의존하지 않는다.
+    const alert = await screen.findByRole('alert');
+    expect(alert.querySelector('svg')).toBeInTheDocument();
+  });
+
   it('정상_입력시_onSubmit_payload_전달', async () => {
     const onSubmit = vi.fn();
     renderWithProviders(

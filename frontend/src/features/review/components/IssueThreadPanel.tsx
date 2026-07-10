@@ -83,7 +83,7 @@ export function IssueThreadPanel({ rawSn, mode, dark = false }: IssueThreadPanel
         <h2 className={cn('text-section-title font-semibold', textBase)}>이슈 스레드</h2>
         <span
           data-testid="unresolved-inquiry-count"
-          className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-100 px-1.5 py-0.5 text-sub font-medium text-red-700"
+          className="inline-flex min-w-5 items-center justify-center rounded-full bg-danger/10 px-1.5 py-0.5 text-sub font-medium text-danger"
           aria-label={`미해소 문의 ${unresolvedInquiryCount}건`}
         >
           {unresolvedInquiryCount}
@@ -271,8 +271,8 @@ function ThreadCard({
           className={cn(
             'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
             thread.issueTypeCd === ISSUE_TYPE.REJECTION
-              ? 'bg-red-100 text-red-700'
-              : 'bg-blue-100 text-blue-700',
+              ? 'bg-danger/10 text-danger'
+              : 'bg-info/10 text-info',
           )}
           data-testid={`issue-type-badge-${thread.issueSn}`}
         >
@@ -282,7 +282,7 @@ function ThreadCard({
           className={cn(
             'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
             thread.issueSttsCd === ISSUE_STATUS.RESOLVED
-              ? 'bg-green-100 text-green-700'
+              ? 'bg-success/10 text-success'
               : thread.issueSttsCd === ISSUE_STATUS.ANSWERED
                 ? 'bg-purple-100 text-purple-700'
                 : 'bg-gray-100 text-gray-600',
@@ -328,7 +328,7 @@ function ThreadCard({
       {conflictMsg && (
         <p
           data-testid={`thread-conflict-${thread.issueSn}`}
-          className="text-sub text-amber-700"
+          className="text-sub text-warning"
           role="status"
         >
           {conflictMsg}
@@ -382,7 +382,7 @@ function ThreadCard({
                 type="button"
                 data-testid={`resolve-button-${thread.issueSn}`}
                 onClick={() => resolve(thread.issueSn)}
-                className="inline-flex items-center rounded border border-green-600 px-3 py-1 text-sub font-medium text-green-700 hover:bg-green-50"
+                className="inline-flex items-center rounded border border-success px-3 py-1 text-sub font-medium text-success hover:bg-success/10"
               >
                 해소
               </button>

@@ -14,6 +14,7 @@ import {
 import { useAutolabelStatus } from '@/features/dev/hooks/useAutolabelStatus';
 import { useEventTypes } from '@/features/eventType/hooks';
 import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import {
   PrvcType,
   type AutolabelTestMeta,
@@ -292,7 +293,7 @@ export function DevAutolabelTestPage() {
                   setForm((s) => ({ ...s, categoryKey: e.target.value }))
                 }
                 disabled={mutation.isPending || eventOptions.length === 0}
-                className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                className={`h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
               >
                 {eventOptions.length === 0 && (
                   <option value="">이벤트 타입 로딩 중…</option>
@@ -371,7 +372,7 @@ export function DevAutolabelTestPage() {
                   setForm((s) => ({ ...s, capturedAtLocal: e.target.value }))
                 }
                 disabled={mutation.isPending}
-                className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                className={`h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
               />
               <span className="text-sub text-gray-500">
                 촬영 시각 (브라우저 로컬 → BE 전송 시 ISO-8601 UTC 로 변환)
@@ -394,7 +395,7 @@ export function DevAutolabelTestPage() {
             <div
               role="alert"
               data-testid="autolabel-error"
-              className="rounded-md border border-danger/30 bg-red-50 px-3 py-2 text-sub text-danger"
+              className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger"
             >
               {errorMessage}
             </div>
@@ -454,7 +455,7 @@ export function DevAutolabelTestPage() {
               <div
                 role="alert"
                 data-testid="autolabel-pipeline-failed"
-                className="rounded-md border border-danger/40 bg-red-50 px-3 py-2 text-sub text-danger"
+                className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sub text-danger"
               >
                 파이프라인 실행에 실패했습니다. BE 로그를 확인해주세요. (rawSn ={' '}
                 {result.rawSn})

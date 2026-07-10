@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface PopoverProps {
   trigger: ReactNode;
@@ -52,7 +53,10 @@ export function Popover({
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        className={cn(
+          'inline-flex min-h-11 min-w-11 items-center justify-center rounded-md',
+          KRDS_FOCUS,
+        )}
       >
         {trigger}
       </button>

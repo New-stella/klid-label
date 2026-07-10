@@ -210,7 +210,7 @@ describe('PresetEditModal', () => {
       fireEvent.click(poly);
 
       const chip = screen.getByTestId('preset-chip-PERSON');
-      expect(chip.className).toMatch(/border-red-500|border-red-400/);
+      expect(chip.className).toMatch(/border-danger/);
     });
 
     it('PresetEditModal_모든_chip_정상일_때_저장_버튼_활성화', () => {

@@ -19,7 +19,7 @@ export function SimpleBarChart({
   data,
   height = 200,
   xAxisInterval = 0,
-  color = '#6366f1',
+  color = '#0F4C97',
 }: SimpleBarChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
