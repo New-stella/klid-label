@@ -35,6 +35,16 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     List<Object[]> findFirstSrcSnGroupedByRawSn(@Param("rawSns") Collection<Long> rawSns);
 
     /**
+     * 프레임 SRC_SN → 원본영상 RAW_SN 역매핑 일괄 조회 (N+1 회피).
+     *
+     * <p>증강 잡 카드(영상 단위 그룹)에서 LS_DATA_AUG.SRC_SN(대표프레임) 을 원본영상 RAW_SN 으로
+     * 환원하기 위한 용도. 결과는 {@code [srcSn, rawSn]} Object 배열 리스트. 빈 인자는 빈 결과.
+     */
+    @Query("select s.srcSn as srcSn, s.rawSn as rawSn "
+            + "from LsDataSrc s where s.srcSn in :srcSns")
+    List<Object[]> findRawSnBySrcSnIn(@Param("srcSns") Collection<Long> srcSns);
+
+    /**
      * 영상별 프레임 개수를 한 번에 조회 (N+1 회피).
      *
      * <p>TaskBoardService.list 의 page.map 람다에서 각 row 마다 countByRawSn(...) 을 호출하면
