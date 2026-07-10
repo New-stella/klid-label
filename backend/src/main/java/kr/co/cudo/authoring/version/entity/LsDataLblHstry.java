@@ -33,13 +33,13 @@ public class LsDataLblHstry {
     @Column(name = "SRC_SN", nullable = false)
     private Long srcSn;
 
-    @Column(name = "REG_AT", nullable = false)
-    private LocalDateTime registeredAt;
+    @Column(name = "REG_DT", nullable = false)
+    private LocalDateTime regDt;
 
     /**
      * 라벨 삭제 이력 기록 — 비식별 누락 신고 시 영상 전체 라벨 삭제 직전 호출.
      *
-     * <p>매핑된 컬럼(LBL_SN / SRC_SN / REGISTERED_AT)만 기록한다. PK(LBL_HSTRY_SN)는 IDENTITY 자동 생성.
+     * <p>매핑된 컬럼(LBL_SN / SRC_SN / REG_DT)만 기록한다. PK(LBL_HSTRY_SN)는 IDENTITY 자동 생성.
      * <p>보안(Privacy, CWE-359): 라벨 식별자만 보존하며 신고 사유·행위자 토큰 등 PII 는 저장하지 않는다
      * (사유는 LS_DEIDENT_REPORT, 복원 본문은 LS_LABEL_VERSION 스냅샷이 보존).
      *
@@ -50,7 +50,7 @@ public class LsDataLblHstry {
         LsDataLblHstry h = new LsDataLblHstry();
         h.lblSn = lblSn;
         h.srcSn = srcSn;
-        h.registeredAt = LocalDateTime.now();
+        h.regDt = LocalDateTime.now();
         return h;
     }
 }

@@ -275,7 +275,7 @@ class DeidentReportServiceTest {
         assertThat(saved).extracting(LsDataLblHstry::getLblSn).containsExactlyInAnyOrder(401L, 402L);
         assertThat(saved).allSatisfy(h -> {
             assertThat(h.getSrcSn()).isEqualTo(40L);
-            assertThat(h.getRegisteredAt()).isNotNull();
+            assertThat(h.getRegDt()).isNotNull();
         });
 
         // 이력 기록은 라벨 본문 삭제보다 먼저 (부분 실패 시 이력만 남는 정합성 깨짐 방지, 동일 트랜잭션).

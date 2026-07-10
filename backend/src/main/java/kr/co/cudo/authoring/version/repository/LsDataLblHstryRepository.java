@@ -10,6 +10,6 @@ import java.util.List;
 public interface LsDataLblHstryRepository extends JpaRepository<LsDataLblHstry, Long> {
 
     /** 프레임 단위 버전 목록 — 최신순. */
-    List<LsDataLblHstry> findBySrcSnOrderByRegisteredAtDesc(Long srcSn);
+    List<LsDataLblHstry> findBySrcSnOrderByRegDtDesc(Long srcSn);
 
 }

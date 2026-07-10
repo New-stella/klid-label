@@ -45,7 +45,7 @@ class LsDataLblHstryRepositoryTest {
         assertThat(saved.getLblHstrySn()).isNotNull();
         assertThat(saved.getLblSn()).isEqualTo(401L);
         assertThat(saved.getSrcSn()).isEqualTo(40L);
-        assertThat(saved.getRegisteredAt()).isNotNull();
+        assertThat(saved.getRegDt()).isNotNull();
     }
 
     @Test
@@ -58,7 +58,7 @@ class LsDataLblHstryRepositoryTest {
         repository.flush();
 
         // when
-        List<LsDataLblHstry> found = repository.findBySrcSnOrderByRegisteredAtDesc(50L);
+        List<LsDataLblHstry> found = repository.findBySrcSnOrderByRegDtDesc(50L);
 
         // then — 해당 프레임 이력만 2건, 다른 프레임(40L)은 미포함
         assertThat(found).hasSize(2);
