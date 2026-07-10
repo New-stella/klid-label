@@ -1,3 +1,4 @@
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import {
   RESOLUTION_PRESETS,
   RESOLUTION_PRESET_LABEL,
@@ -46,7 +47,7 @@ export function TargetResolutionSelect({
         value={value ?? ''}
         onChange={handleChange}
         disabled={disabled}
-        className="max-w-md rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        className={`max-w-md rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 ${KRDS_FOCUS}`}
       >
         <option value="" disabled>
           해상도를 선택하세요

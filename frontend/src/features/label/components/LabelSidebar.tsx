@@ -70,7 +70,7 @@ export function LabelSidebar() {
             className={
               'flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left transition-colors ' +
               (isActive
-                ? 'bg-blue-600 text-white'
+                ? 'bg-primary-600 text-white'
                 : 'text-gray-200 hover:bg-gray-700 hover:text-white')
             }
           >

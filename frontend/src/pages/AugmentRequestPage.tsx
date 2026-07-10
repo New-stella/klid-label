@@ -31,6 +31,7 @@ import { useResolutionExport } from '@/features/video/hooks/useResolutionExport'
 import { useVideos } from '@/features/video/hooks/useVideos';
 import type { ResolutionPreset } from '@/features/video/types';
 import { ApiError } from '@/lib/api/errors';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUiStore } from '@/stores/useUiStore';
 
 const PAGE_SIZE = 20;
@@ -249,9 +250,9 @@ export function AugmentRequestPage() {
       />
 
       {/* SFR-07 안내 */}
-      <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
-        <Info size={14} className="mt-0.5 shrink-0 text-blue-600" aria-hidden />
-        <p className="text-xs text-blue-700">
+      <div className="flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2.5">
+        <Info size={14} className="mt-0.5 shrink-0 text-info" aria-hidden />
+        <p className="text-xs text-info">
           처리 요청은 검수 완료(승인)된 영상만 가능합니다. 미승인 영상은 목록에 표시되지 않습니다.
         </p>
       </div>
@@ -264,7 +265,7 @@ export function AugmentRequestPage() {
           </span>
           <h2 className="text-base font-semibold text-gray-800">처리 종류 선택</h2>
           {selectedKind && (
-            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+            <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
               {PROCESS_KIND_LABEL[selectedKind]}
             </span>
           )}
@@ -292,7 +293,7 @@ export function AugmentRequestPage() {
         </div>
 
         {selectedKind === null && (
-          <p className="flex items-center gap-1.5 text-xs text-amber-600">
+          <p className="flex items-center gap-1.5 text-xs text-warning">
             <AlertCircle size={13} aria-hidden />
             처리 종류를 하나 선택하세요.
           </p>
@@ -313,7 +314,7 @@ export function AugmentRequestPage() {
 
             {/* 해상도 변환 실행 결과 (AC5) */}
             {resolutionErrorMessage && (
-              <p role="alert" className="text-sm text-red-600">
+              <p role="alert" className="text-sm text-danger">
                 {resolutionErrorMessage}
               </p>
             )}
@@ -321,7 +322,7 @@ export function AugmentRequestPage() {
               <div
                 role="status"
                 data-testid="resolution-export-result"
-                className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800"
+                className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
               >
                 변환 완료 — {resolutionResult.srcW}×{resolutionResult.srcH} →{' '}
                 {resolutionResult.targetW}×{resolutionResult.targetH}, 프레임{' '}
@@ -343,7 +344,7 @@ export function AugmentRequestPage() {
             검수 완료 {totalElements}건
           </span>
           {selectedVideoId !== null && (
-            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+            <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
               #{selectedVideoId} 선택
             </span>
           )}
@@ -376,7 +377,7 @@ export function AugmentRequestPage() {
                   setLocalFilters((p) => ({ ...p, q: e.target.value }))
                 }
                 placeholder="검색어 입력"
-                className="w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className={`w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm ${KRDS_FOCUS}`}
               />
             </div>
           </div>
@@ -393,7 +394,7 @@ export function AugmentRequestPage() {
               onChange={(e) =>
                 setLocalFilters((p) => ({ ...p, eventType: e.target.value }))
               }
-              className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className={`rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
             >
               <option value="">전체</option>
               {eventTypeOptions.map((et) => (
@@ -548,7 +549,7 @@ export function AugmentRequestPage() {
         {selectedVideoId !== null && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3">
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+              <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
                 영상 #{selectedVideoId} 선택됨
               </span>
               <button

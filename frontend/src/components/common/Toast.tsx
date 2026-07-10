@@ -13,9 +13,9 @@ export interface ToastProps {
 }
 
 const variantClass: Record<ToastVariant, string> = {
-  success: 'bg-green-600 text-white',
-  error: 'bg-red-600 text-white',
-  warning: 'bg-yellow-500 text-white',
+  success: 'bg-success text-white',
+  error: 'bg-danger text-white',
+  warning: 'bg-warning text-white',
   info: 'bg-primary-600 text-white',
 };
 

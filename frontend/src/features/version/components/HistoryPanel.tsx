@@ -331,13 +331,13 @@ function CommitList({
           ? [
               'px-3 py-2 transition-colors',
               isSelected
-                ? 'border-l-2 border-blue-400 bg-gray-800'
+                ? 'border-l-2 border-primary-400 bg-gray-800'
                 : 'hover:bg-gray-800',
             ].join(' ')
           : [
               'px-4 py-3 transition-colors',
               isSelected
-                ? 'border-l-2 border-blue-500 bg-blue-50'
+                ? 'border-l-2 border-primary-500 bg-primary-50'
                 : 'hover:bg-gray-50',
             ].join(' ');
         return (
@@ -351,7 +351,7 @@ function CommitList({
                 type="checkbox"
                 checked={isChecked}
                 onChange={(e) => onCheck(commit.commitSha, e.target.checked)}
-                className="mt-0.5 shrink-0 accent-blue-600"
+                className="mt-0.5 shrink-0 accent-primary-600"
                 aria-label={`커밋 ${commit.shortHash} 선택`}
               />
               <button
@@ -364,18 +364,21 @@ function CommitList({
                   <code
                     className={
                       dark
-                        ? 'rounded bg-gray-800 px-1.5 py-0.5 font-mono text-xs text-blue-300'
-                        : 'rounded bg-blue-50 px-1.5 py-0.5 font-mono text-xs text-blue-700'
+                        ? 'rounded bg-gray-800 px-1.5 py-0.5 font-mono text-xs text-primary-300'
+                        : 'rounded bg-primary-50 px-1.5 py-0.5 font-mono text-xs text-primary-700'
                     }
                   >
                     {commit.shortHash}
                   </code>
+                  {/* '최신'=success(추가/성공 의미), '현재'=info 로 라이트측은 KRDS 토큰화 완료.
+                      다크 분기(bg-green-900/bg-blue-900)는 KRDS 토큰에 다크 전용 셰이드가 없어
+                      다크 배경 대비 확보를 위해 raw shade 유지 — 의도적 예외. */}
                   {isLatest && (
                     <span
                       className={
                         dark
                           ? 'inline-flex items-center rounded-full bg-green-900 px-2 py-0.5 text-xs font-medium text-green-200'
-                          : 'inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700'
+                          : 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success'
                       }
                     >
                       최신
@@ -386,7 +389,7 @@ function CommitList({
                       className={
                         dark
                           ? 'inline-flex items-center rounded-full bg-blue-900 px-2 py-0.5 text-xs font-medium text-blue-200'
-                          : 'inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700'
+                          : 'inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info'
                       }
                     >
                       현재

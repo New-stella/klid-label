@@ -35,12 +35,12 @@ describe('DiffViewer', () => {
     const modified = screen.getByTestId('diff-row-MODIFIED-obj-2');
     const removed = screen.getByTestId('diff-row-REMOVED-obj-3');
 
-    // ADDED → green 계열
-    expect(added.className).toMatch(/green/);
-    // MODIFIED → yellow 계열
-    expect(modified.className).toMatch(/yellow/);
-    // REMOVED → red 계열
-    expect(removed.className).toMatch(/red/);
+    // ADDED → success 토큰
+    expect(added.className).toMatch(/success/);
+    // MODIFIED → warning 토큰
+    expect(modified.className).toMatch(/warning/);
+    // REMOVED → danger 토큰
+    expect(removed.className).toMatch(/danger/);
   });
 
   it('diff_없을때_EmptyState_표시', () => {

@@ -107,11 +107,12 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
             {pendingIssues.map((p, idx) => (
               <article
                 key={`pending-${idx}`}
-                className="flex flex-col gap-1 rounded border border-yellow-600/60 bg-gray-900 p-3"
+                className="flex flex-col gap-1 rounded border border-warning/60 bg-gray-900 p-3"
                 data-testid={`memo-issue-pending-${idx}`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sub font-medium text-yellow-400">
+                  {/* 미저장(주의) 상태 강조 — KRDS warning 토큰 */}
+                  <span className="text-sub font-medium text-warning">
                     {p.labelId != null
                       ? `라벨 #${p.labelId} (미저장)`
                       : '신규 이슈 (미저장)'}

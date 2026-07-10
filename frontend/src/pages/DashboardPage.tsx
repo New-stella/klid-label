@@ -120,8 +120,8 @@ export function DashboardPage() {
               label="처리 대기"
               value={data?.pendingCount ?? 0}
               unit="건"
-              icon={<Film size={22} className="text-yellow-600" aria-hidden />}
-              iconBgClassName="bg-yellow-50"
+              icon={<Film size={22} className="text-warning" aria-hidden />}
+              iconBgClassName="bg-warning/10"
             />
             <KpiCard
               label="처리 완료"
@@ -130,11 +130,11 @@ export function DashboardPage() {
               icon={
                 <CheckCircle2
                   size={22}
-                  className="text-green-600"
+                  className="text-success"
                   aria-hidden
                 />
               }
-              iconBgClassName="bg-green-50"
+              iconBgClassName="bg-success/10"
             />
             {isWorker && (
               <KpiCard
@@ -148,15 +148,15 @@ export function DashboardPage() {
                     aria-hidden
                   />
                 }
-                iconBgClassName="bg-blue-50"
+                iconBgClassName="bg-info/10"
               />
             )}
             <KpiCard
               label="반려 건수"
               value={data?.rejectedCount ?? 0}
               unit="건"
-              icon={<XCircle size={22} className="text-red-600" aria-hidden />}
-              iconBgClassName="bg-red-50"
+              icon={<XCircle size={22} className="text-danger" aria-hidden />}
+              iconBgClassName="bg-danger/10"
             />
           </>
         )}

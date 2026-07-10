@@ -3,6 +3,7 @@ import { Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 export interface BreadcrumbItem {
   label: ReactNode;
@@ -24,7 +25,10 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
             <Fragment key={`${idx}-${typeof item.label === 'string' ? item.label : ''}`}>
               <li className="inline-flex items-center">
                 {item.href && !isLast ? (
-                  <Link to={item.href} className="hover:text-primary-600 transition-colors">
+                  <Link
+                    to={item.href}
+                    className={cn('rounded hover:text-primary-600 transition-colors', KRDS_FOCUS)}
+                  >
                     {item.label}
                   </Link>
                 ) : (

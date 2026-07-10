@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import type { Worker } from '@/features/task/types';
 
 export interface TaskFilterValues {
@@ -98,7 +99,7 @@ export function TaskFilters({
             value={local.q}
             onChange={(e) => setLocal((p) => ({ ...p, q: e.target.value }))}
             placeholder="검색어 입력"
-            className="w-full rounded-md border border-gray-300 py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={`w-full rounded-md border border-gray-300 py-1.5 pl-8 pr-3 text-sm ${KRDS_FOCUS}`}
           />
         </div>
       </div>
@@ -117,7 +118,7 @@ export function TaskFilters({
           onChange={(e) =>
             setLocal((p) => ({ ...p, eventType: e.target.value }))
           }
-          className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
         >
           <option value="">전체</option>
           {eventTypes.map((et) => (
@@ -142,7 +143,7 @@ export function TaskFilters({
           onChange={(e) =>
             setLocal((p) => ({ ...p, status: e.target.value }))
           }
-          className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
         >
           {(showAssigneeSelect ? STATUSES_FULL : STATUSES_WORKER).map((s) => (
             <option key={s.value} value={s.value}>
@@ -167,7 +168,7 @@ export function TaskFilters({
             onChange={(e) =>
               setLocal((p) => ({ ...p, assigneeId: e.target.value }))
             }
-            className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
           >
             <option key="__all__" value="">전체 작업자</option>
             {workers.map((w, idx) => (

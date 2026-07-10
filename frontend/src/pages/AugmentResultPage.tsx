@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { Spinner } from '@/components/common/Spinner';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tabs } from '@/components/common/Tabs';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { DecisionCard } from '@/features/augment/components/DecisionCard';
 import {
   useAcceptAugment,
@@ -109,10 +110,10 @@ export function AugmentResultPage() {
 
   const integrityToneClass =
     summary && summary.labelIntegrity >= 95
-      ? 'text-green-600'
+      ? 'text-success'
       : summary && summary.labelIntegrity >= 85
-        ? 'text-yellow-500'
-        : 'text-red-500';
+        ? 'text-warning'
+        : 'text-danger';
 
   return (
     <section className="flex flex-col gap-4" data-testid="augment-result-page">
@@ -189,16 +190,16 @@ export function AugmentResultPage() {
           {/* PROCESSING 배너 */}
           {summary.status === 'PROCESSING' && (
             <div
-              className="flex items-center gap-3 rounded border border-blue-200 bg-blue-50 p-4"
+              className="flex items-center gap-3 rounded border border-info/30 bg-info/10 p-4"
               role="status"
               data-testid="augment-result-processing"
             >
               <Spinner size="sm" />
               <div>
-                <p className="text-body font-semibold text-blue-700">
+                <p className="text-body font-semibold text-info">
                   증강 처리 중입니다...
                 </p>
-                <p className="text-sub text-blue-500">
+                <p className="text-sub text-info">
                   잠시 후 자동으로 결과가 표시됩니다.
                 </p>
               </div>
@@ -208,15 +209,15 @@ export function AugmentResultPage() {
           {/* FAILED 배너 */}
           {summary.status === 'FAILED' && (
             <div
-              className="flex flex-wrap items-center justify-between gap-3 rounded border border-red-200 bg-red-50 p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded border border-danger/30 bg-danger/10 p-4"
               role="alert"
               data-testid="augment-result-failed"
             >
               <div>
-                <p className="text-body font-semibold text-red-700">
+                <p className="text-body font-semibold text-danger">
                   증강 처리 실패
                 </p>
-                <p className="text-sub text-red-500">
+                <p className="text-sub text-danger">
                   AI 서버 응답 오류 또는 리소스 부족으로 처리가 중단되었습니다.
                 </p>
               </div>
@@ -264,7 +265,7 @@ export function AugmentResultPage() {
               type="button"
               onClick={() => setShowAll(true)}
               data-testid="augment-result-show-more"
-              className="self-start text-body text-accent underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className={`self-start text-body text-accent underline ${KRDS_FOCUS}`}
             >
               더 보기 ({groupedByVideo.size - VISIBLE_INITIAL}건)
             </button>

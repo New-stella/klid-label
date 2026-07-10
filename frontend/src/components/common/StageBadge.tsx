@@ -37,11 +37,12 @@ const SIZE_CLASSES = {
  * - 대기 등 그 외 → 노랑(YOLO/SAM2/프레임추출 등 진행 단계 강조용)
  */
 function toneClasses(stage: string, status?: string): string {
-  if (status === 'COMPLETED' || status === 'DONE') return 'bg-green-100 text-green-700';
-  if (status === 'FAILED' || status === 'FAIL') return 'bg-red-100 text-red-700';
+  if (status === 'COMPLETED' || status === 'DONE') return 'bg-success/10 text-success';
+  if (status === 'FAILED' || status === 'FAIL') return 'bg-danger/10 text-danger';
+  // KRDS 예외: VLM 단계 purple 은 범주 구분색(특수 단계 강조, 상태 의미 아님) — 토큰 획일화 제외.
   if (stage === 'VLM_VERIFY' || stage === 'VLM') return 'bg-purple-100 text-purple-700';
-  if (status === 'IN_PROGRESS' || status === 'PROGRESS') return 'bg-blue-100 text-blue-700';
-  return 'bg-yellow-100 text-yellow-700';
+  if (status === 'IN_PROGRESS' || status === 'PROGRESS') return 'bg-info/10 text-info';
+  return 'bg-warning/10 text-warning';
 }
 
 type IconType = ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;

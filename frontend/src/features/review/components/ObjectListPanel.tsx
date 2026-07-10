@@ -51,6 +51,7 @@ function groupLabels(labels: LabelItem[]): GroupedLabel[] {
     }));
 }
 
+// KRDS 예외: 범주 구분색(라벨 타입 BBOX/POLYGON/SEGMENT/TRACK, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
 const TYPE_BADGE_CLASS: Record<LabelType, string> = {
   BBOX: 'bg-blue-900/50 text-blue-200 border-blue-700/50',
   POLYGON: 'bg-purple-900/50 text-purple-200 border-purple-700/50',
@@ -168,7 +169,7 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
                   const rowClass = [
                     'flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs',
                     isSelected
-                      ? 'bg-blue-900/40 text-white ring-1 ring-blue-500'
+                      ? 'bg-primary-900/40 text-white ring-1 ring-primary-500'
                       : isHover
                         ? 'bg-gray-700/60 text-gray-100'
                         : 'text-gray-300 hover:bg-gray-700/40',

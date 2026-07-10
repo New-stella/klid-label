@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Skeleton } from '@/components/common/Skeleton';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { useWorkers } from '@/features/user/hooks/useWorkers';
 import { Role } from '@/lib/api/types';
@@ -225,7 +227,7 @@ export function AssignModal({
               {previewIds.map((vid) => (
                 <span
                   key={vid}
-                  className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"
+                  className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info"
                 >
                   {videoNameById[vid] ?? `#${vid}`}
                 </span>
@@ -266,7 +268,7 @@ export function AssignModal({
             htmlFor="assign-worker"
             className="text-sm font-medium text-gray-700"
           >
-            작업자 <span className="text-red-500">*</span>
+            작업자 <span className="text-danger">*</span>
           </label>
           {workersLoading ? (
             <Skeleton height={36} />
@@ -279,7 +281,7 @@ export function AssignModal({
                 setErrors({});
               }}
               disabled={isPending}
-              className="w-full py-2 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-400"
+              className={`w-full py-2 px-3 text-sm border border-gray-300 rounded-md disabled:bg-gray-50 disabled:text-gray-400 ${KRDS_FOCUS}`}
             >
               <option value="">작업자 선택</option>
               {(workers ?? []).map((w) => (
@@ -292,10 +294,13 @@ export function AssignModal({
             </select>
           )}
           {errors['workerId'] && (
-            <p className="text-xs text-red-500">{errors['workerId']}</p>
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {errors['workerId']}
+            </p>
           )}
           {isReassign && task && workerId !== '' && Number(workerId) === task.workerId && (
-            <p className="text-xs text-amber-600">
+            <p className="text-xs text-warning">
               현재 배정된 작업자와 동일합니다. 다른 작업자를 선택해주세요.
             </p>
           )}
@@ -317,7 +322,7 @@ export function AssignModal({
                 setReviewerId(e.target.value ? Number(e.target.value) : '')
               }
               disabled={isPending}
-              className="w-full py-2 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-400"
+              className={`w-full py-2 px-3 text-sm border border-gray-300 rounded-md disabled:bg-gray-50 disabled:text-gray-400 ${KRDS_FOCUS}`}
             >
               <option value="">검수자 선택 (선택)</option>
               {reviewers.map((r) => (

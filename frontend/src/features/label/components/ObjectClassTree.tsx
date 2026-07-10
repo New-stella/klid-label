@@ -82,7 +82,7 @@ export function ObjectClassTree({ labels }: ObjectClassTreeProps) {
                     className={cn(
                       'flex items-stretch gap-2 pl-3 pr-2 py-1 text-xs group',
                       isSelected
-                        ? 'bg-blue-600/30 text-white'
+                        ? 'bg-primary-600/30 text-white'
                         : 'text-gray-300 hover:bg-gray-700',
                     )}
                   >

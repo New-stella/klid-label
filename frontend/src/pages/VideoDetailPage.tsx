@@ -18,6 +18,7 @@ import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useVideoLabels } from '@/features/video/hooks/useVideoLabels';
 import type { FramePreview, VideoDetail } from '@/features/video/types';
 import { Role } from '@/lib/api/types';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 function formatDuration(seconds: number | undefined): string {
@@ -104,7 +105,7 @@ function FramePreviewTab({
             type="button"
             onClick={() => setLightboxFrame(f)}
             aria-label={`프레임 ${f.frameNo} 상세 보기`}
-            className="relative group rounded-md overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={`relative group rounded-md overflow-hidden ${KRDS_FOCUS}`}
           >
             <AuthImage
               srcSn={f.srcSn}
@@ -115,7 +116,7 @@ function FramePreviewTab({
             />
             {f.hasIssue && (
               <span
-                className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500"
+                className="absolute top-1 right-1 w-2 h-2 rounded-full bg-danger"
                 role="img"
                 aria-label="이슈 있음"
               />
@@ -191,7 +192,7 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
   if (isError) {
     return (
       <div className="mt-4 flex flex-col items-center justify-center py-12 gap-2">
-        <p className="text-red-500 text-sm">오토라벨 결과를 불러올 수 없습니다.</p>
+        <p className="text-danger text-sm">오토라벨 결과를 불러올 수 없습니다.</p>
         <p className="text-gray-400 text-xs">잠시 후 다시 시도해 주세요.</p>
       </div>
     );
@@ -249,10 +250,12 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
 
       {/* 신뢰도 분포 */}
       {(() => {
+        // 신뢰도 버킷 색 — KRDS 의미상태색 토큰 (고=success, 중=warning, 저=danger).
+        // ※ 아래 라벨별 분포 막대의 `backgroundColor: color`(l.color ?? '#4ECDC4')는 라벨 고유색이라 불변.
         const buckets = [
-          { label: '0.9+', count: high, color: 'bg-green-500' },
-          { label: '0.7~0.9', count: mid, color: 'bg-yellow-400' },
-          { label: '<0.7', count: low, color: 'bg-red-400' },
+          { label: '0.9+', count: high, color: 'bg-success' },
+          { label: '0.7~0.9', count: mid, color: 'bg-warning' },
+          { label: '<0.7', count: low, color: 'bg-danger' },
         ];
         const max = Math.max(...buckets.map((b) => b.count), 1);
         return (

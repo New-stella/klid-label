@@ -1,4 +1,5 @@
 import { forwardRef, useId, type TextareaHTMLAttributes } from 'react';
+import { AlertCircle } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
@@ -50,7 +51,12 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         {...rest}
       />
       {error ? (
-        <span id={errorId} role="alert" className="text-sub text-danger">
+        <span
+          id={errorId}
+          role="alert"
+          className="flex items-center gap-1 text-sub text-danger"
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {error}
         </span>
       ) : hint ? (

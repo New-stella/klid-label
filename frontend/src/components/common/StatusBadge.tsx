@@ -41,23 +41,24 @@ interface StatusConfig {
 //  - 진행/처리 = 스피너(Loader2)     · 검수중 = 돋보기(Search)  · 대기 = 시계(Clock)
 // UI/UX §3.4 9종 상태 — mock modern blue tone (soft tonal pill) + BE alias
 const statusConfig: Record<string, StatusConfig> = {
-  BATCH_PROCESSING: { label: '배치 처리중', className: 'bg-blue-100 text-blue-700', icon: Loader2, spin: true },
-  BATCH_COMPLETED: { label: '배치 완료', className: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  BATCH_FAILED: { label: '배치 실패', className: 'bg-red-100 text-red-700', icon: XCircle },
+  BATCH_PROCESSING: { label: '배치 처리중', className: 'bg-info/10 text-info', icon: Loader2, spin: true },
+  BATCH_COMPLETED: { label: '배치 완료', className: 'bg-success/10 text-success', icon: CheckCircle2 },
+  BATCH_FAILED: { label: '배치 실패', className: 'bg-danger/10 text-danger', icon: XCircle },
   PENDING: { label: '대기', className: 'bg-gray-100 text-gray-600', icon: Clock },
-  MARKING_READY: { label: '마킹 대기', className: 'bg-blue-100 text-blue-700', icon: Clock },
-  IN_PROGRESS: { label: '진행중', className: 'bg-blue-100 text-blue-700', icon: Loader2, spin: true },
-  PROCESSING: { label: '처리중', className: 'bg-blue-100 text-blue-700', icon: Loader2, spin: true },
-  REVIEW_PENDING: { label: '검수 대기', className: 'bg-yellow-100 text-yellow-700', icon: Clock },
+  MARKING_READY: { label: '마킹 대기', className: 'bg-info/10 text-info', icon: Clock },
+  IN_PROGRESS: { label: '진행중', className: 'bg-info/10 text-info', icon: Loader2, spin: true },
+  PROCESSING: { label: '처리중', className: 'bg-info/10 text-info', icon: Loader2, spin: true },
+  REVIEW_PENDING: { label: '검수 대기', className: 'bg-warning/10 text-warning', icon: Clock },
+  // KRDS 예외: '검수중' purple 은 범주 구분색(성공/실패/경고 어디에도 속하지 않는 별도 상태) — 토큰 획일화 제외.
   REVIEWING: { label: '검수중', className: 'bg-purple-100 text-purple-700', icon: Search },
   IN_REVIEW: { label: '검수중', className: 'bg-purple-100 text-purple-700', icon: Search },
-  COMPLETED: { label: '완료', className: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  APPROVED: { label: '승인', className: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  REJECTED: { label: '반려', className: 'bg-red-100 text-red-700', icon: XCircle },
-  FAILED: { label: '실패', className: 'bg-red-100 text-red-700', icon: XCircle },
+  COMPLETED: { label: '완료', className: 'bg-success/10 text-success', icon: CheckCircle2 },
+  APPROVED: { label: '승인', className: 'bg-success/10 text-success', icon: CheckCircle2 },
+  REJECTED: { label: '반려', className: 'bg-danger/10 text-danger', icon: XCircle },
+  FAILED: { label: '실패', className: 'bg-danger/10 text-danger', icon: XCircle },
   // Phase 3 — 비식별 처리 상태 (deidentStatus 기반). 진행중=정보(파랑), 실패=경고(빨강).
-  DEIDENT_IN_PROGRESS: { label: '비식별 진행중', className: 'bg-blue-100 text-blue-700', icon: Loader2, spin: true },
-  DEIDENT_FAILED: { label: '비식별 실패', className: 'bg-red-100 text-red-700', icon: XCircle },
+  DEIDENT_IN_PROGRESS: { label: '비식별 진행중', className: 'bg-info/10 text-info', icon: Loader2, spin: true },
+  DEIDENT_FAILED: { label: '비식별 실패', className: 'bg-danger/10 text-danger', icon: XCircle },
 };
 
 const FALLBACK: StatusConfig = { label: '', className: 'bg-gray-100 text-gray-600', icon: Clock };

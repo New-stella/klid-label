@@ -13,9 +13,9 @@ export interface ProgressBarProps {
 
 const TONE_CLASSES: Record<ProgressTone, string> = {
   primary: 'bg-primary-500',
-  success: 'bg-green-500',
-  warning: 'bg-yellow-400',
-  danger: 'bg-red-500',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
 };
 
 const SIZE_CLASSES: Record<ProgressSize, string> = {

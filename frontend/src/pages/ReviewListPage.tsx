@@ -189,8 +189,8 @@ export function ReviewListPage() {
         <KpiCard
           label="검수 대기"
           value={kpi.pending}
-          icon={<Hourglass size={22} className="text-yellow-600" aria-hidden />}
-          iconBgClassName="bg-yellow-50"
+          icon={<Hourglass size={22} className="text-warning" aria-hidden />}
+          iconBgClassName="bg-warning/10"
         />
         <KpiCard
           label="검수중"
@@ -201,14 +201,14 @@ export function ReviewListPage() {
         <KpiCard
           label="승인"
           value={kpi.completed}
-          icon={<CheckCircle2 size={22} className="text-green-600" aria-hidden />}
-          iconBgClassName="bg-green-50"
+          icon={<CheckCircle2 size={22} className="text-success" aria-hidden />}
+          iconBgClassName="bg-success/10"
         />
         <KpiCard
           label="반려"
           value={kpi.rejected}
-          icon={<XCircle size={22} className="text-red-600" aria-hidden />}
-          iconBgClassName="bg-red-50"
+          icon={<XCircle size={22} className="text-danger" aria-hidden />}
+          iconBgClassName="bg-danger/10"
         />
       </div>
 

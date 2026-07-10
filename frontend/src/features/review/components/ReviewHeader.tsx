@@ -10,6 +10,7 @@
 import { X } from 'lucide-react';
 
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import type { ReviewStatus } from '../types';
 
@@ -61,7 +62,7 @@ export function ReviewHeader({
       <button
         type="button"
         onClick={onClose}
-        className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        className={`rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-800 hover:text-white ${KRDS_FOCUS}`}
         aria-label="검수 페이지 닫기"
       >
         <X size={18} />

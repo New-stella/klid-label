@@ -467,20 +467,20 @@ export function TaskListPage() {
         <KpiCard
           label="진행중"
           value={kpi.inProgress}
-          icon={<Play size={22} className="text-green-600" aria-hidden />}
-          iconBgClassName="bg-green-50"
+          icon={<Play size={22} className="text-success" aria-hidden />}
+          iconBgClassName="bg-success/10"
         />
         <KpiCard
           label="검수대기"
           value={kpi.reviewPending}
-          icon={<Flame size={22} className="text-yellow-600" aria-hidden />}
-          iconBgClassName="bg-yellow-50"
+          icon={<Flame size={22} className="text-warning" aria-hidden />}
+          iconBgClassName="bg-warning/10"
         />
         <KpiCard
           label="반려"
           value={kpi.rejected}
-          icon={<ArrowDown size={22} className="text-red-600" aria-hidden />}
-          iconBgClassName="bg-red-50"
+          icon={<ArrowDown size={22} className="text-danger" aria-hidden />}
+          iconBgClassName="bg-danger/10"
         />
       </div>
 
@@ -491,7 +491,7 @@ export function TaskListPage() {
           className="flex items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3"
         >
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-info/10 text-info">
               {selectedVideoIds.size}개 선택됨
             </span>
             <button

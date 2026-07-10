@@ -91,7 +91,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           <button
             type="button"
             onClick={togglePlay}
-            className="rounded px-3 py-1 bg-gray-100 hover:bg-gray-200 transition-colors"
+            className="min-h-11 rounded px-3 bg-gray-100 hover:bg-gray-200 transition-colors"
           >
             {playing ? '일시정지' : '재생'}
           </button>
@@ -102,8 +102,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                 type="button"
                 onClick={() => changeSpeed(rate)}
                 className={cn(
-                  'px-1.5 py-0.5 rounded text-xs',
-                  playbackRate === rate ? 'bg-blue-600 text-white' : 'bg-gray-100',
+                  // 세그먼트(배속) 컨트롤 — 재생 버튼과 동일하게 KRDS 최소 터치 높이(min-h-11) 확보.
+                  'inline-flex min-h-11 items-center justify-center px-2 rounded text-xs',
+                  playbackRate === rate ? 'bg-primary-600 text-white' : 'bg-gray-100',
                 )}
               >
                 {rate}x

@@ -126,8 +126,8 @@ export function PresetListPage() {
       <PageHeader
         title={
           <span className="inline-flex items-center gap-2">
-            <span className="inline-flex items-center justify-center rounded-lg bg-orange-50 p-2">
-              <Layers className="h-5 w-5 text-orange-500" aria-hidden />
+            <span className="inline-flex items-center justify-center rounded-lg bg-primary-50 p-2">
+              <Layers className="h-5 w-5 text-primary-600" aria-hidden />
             </span>
             <span>프리셋 관리</span>
           </span>
@@ -180,7 +180,7 @@ export function PresetListPage() {
                       <h3 className="text-sm font-semibold text-gray-900">{preset.name}</h3>
                       {preset.eventTypeCd ? (
                         <span
-                          className="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-700"
+                          className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-medium text-primary-700"
                           data-testid={`preset-event-${preset.id}`}
                           title={`매핑 이벤트: ${preset.eventTypeCd}`}
                         >
@@ -217,7 +217,7 @@ export function PresetListPage() {
                         size="sm"
                         onClick={() => setPendingDelete(preset)}
                         aria-label="삭제"
-                        className="text-danger hover:bg-red-50"
+                        className="text-danger hover:bg-danger/10"
                       >
                         <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
                         삭제

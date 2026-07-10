@@ -7,9 +7,9 @@ interface DiffViewerProps {
 }
 
 const typeStyle: Record<DiffType, string> = {
-  ADDED: 'bg-green-50 border-l-4 border-green-500 text-green-900',
-  MODIFIED: 'bg-yellow-50 border-l-4 border-yellow-500 text-yellow-900',
-  REMOVED: 'bg-red-50 border-l-4 border-red-500 text-red-900',
+  ADDED: 'bg-success/10 border-l-4 border-success text-success',
+  MODIFIED: 'bg-warning/10 border-l-4 border-warning text-warning',
+  REMOVED: 'bg-danger/10 border-l-4 border-danger text-danger',
 };
 
 const typeLabel: Record<DiffType, string> = {

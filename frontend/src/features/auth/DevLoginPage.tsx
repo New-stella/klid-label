@@ -181,7 +181,7 @@ export function DevLoginPage() {
         <header className="mb-4">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold text-neutral-900">Dev Login</h1>
-            <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+            <span className="rounded bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
               DEV 빌드 전용
             </span>
           </div>
@@ -254,7 +254,7 @@ export function DevLoginPage() {
           <div
             role="alert"
             aria-live="assertive"
-            className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+            className="mb-4 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
           >
             {errorMessage}
           </div>

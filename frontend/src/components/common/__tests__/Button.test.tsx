@@ -72,4 +72,17 @@ describe('Button', () => {
     // then: 최소 높이 44px(min-h-11) 확보
     expect(screen.getByRole('button').className).toMatch(/min-h-11/);
   });
+
+  it('Button_danger_hover_어두워짐', () => {
+    // given/when: danger variant 버튼
+    render(<Button variant="danger">삭제</Button>);
+    const cls = screen.getByRole('button').className;
+    // then: 눌림 피드백은 primary(600→700→800, 어두워짐)와 동일 방향이어야 한다.
+    //  - hover/active 가 밝아지는 옛 `/90 → /80` 반전 패턴은 제거되어야 함.
+    expect(cls).not.toMatch(/hover:bg-danger\/90/);
+    expect(cls).not.toMatch(/active:bg-danger\/80/);
+    // brightness(<100%) 필터로 어두워지는 방향 확보 (active 가 hover 보다 더 어둡다).
+    expect(cls).toMatch(/hover:brightness-95/);
+    expect(cls).toMatch(/active:brightness-90/);
+  });
 });

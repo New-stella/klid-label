@@ -54,8 +54,8 @@ export function KpiCard({
           <div
             className={cn(
               'mt-1.5 flex items-center gap-1 text-xs font-medium',
-              trend.delta > 0 && 'text-green-600',
-              trend.delta < 0 && 'text-red-500',
+              trend.delta > 0 && 'text-success',
+              trend.delta < 0 && 'text-danger',
               trend.delta === 0 && 'text-gray-500',
             )}
           >

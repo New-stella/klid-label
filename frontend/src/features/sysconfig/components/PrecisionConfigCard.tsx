@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Save } from 'lucide-react';
+import { AlertCircle, Save } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -108,7 +108,8 @@ export function PrecisionConfigCard({ configs }: Props) {
             (YOLO 추론의 Confidence Threshold 와 동일한 설정값입니다.)
           </p>
           {errors.YOLO_CONF_THRESHOLD && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.YOLO_CONF_THRESHOLD.message}
             </p>
           )}
@@ -141,7 +142,8 @@ export function PrecisionConfigCard({ configs }: Props) {
             점 수가 줄어듭니다. (0~50px)
           </p>
           {errors.POLYGON_SIMPLIFY_TOLERANCE && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.POLYGON_SIMPLIFY_TOLERANCE.message}
             </p>
           )}

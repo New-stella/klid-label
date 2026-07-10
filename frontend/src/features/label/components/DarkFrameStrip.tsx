@@ -55,7 +55,7 @@ function FrameThumbnail({
       onClick={() => onSelect(index)}
       className={cn(
         'relative shrink-0 rounded overflow-hidden border-2 transition-all bg-black',
-        isSelected ? 'border-blue-500 scale-105' : 'border-transparent hover:border-gray-500',
+        isSelected ? 'border-primary-500 scale-105' : 'border-transparent hover:border-gray-500',
       )}
       style={{ width: 80, height: 45 }}
       aria-label={`프레임 ${frameNo}`}

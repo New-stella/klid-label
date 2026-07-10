@@ -162,6 +162,7 @@ export function NoticeDetailPage() {
       <article className="rounded-lg border border-gray-200 bg-white shadow-sm">
         <header className="border-b border-gray-100 px-6 py-5">
           <div className="flex items-center gap-2">
+            {/* KRDS 예외: 고정 pinned amber 는 강조 accent(상태 아님) — 토큰 획일화 제외(의도적 유지). */}
             {notice.pinned && (
               <span
                 className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700"
@@ -176,7 +177,7 @@ export function NoticeDetailPage() {
                 className={cn(
                   'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
                   isPublished
-                    ? 'bg-green-100 text-green-700'
+                    ? 'bg-success/10 text-success'
                     : 'bg-gray-100 text-gray-600',
                 )}
               >

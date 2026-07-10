@@ -29,10 +29,10 @@ export function ErrorState({
       )}
     >
       <div
-        className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-red-50"
+        className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-danger/10"
         aria-hidden="true"
       >
-        <AlertTriangle className="h-7 w-7 text-red-500" />
+        <AlertTriangle className="h-7 w-7 text-danger" />
       </div>
       <p className="text-section-title text-gray-900">{title}</p>
       <p className="text-body text-gray-500">{message}</p>

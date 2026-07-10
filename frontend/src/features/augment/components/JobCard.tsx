@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { type AugmentJob, type AugmentJobStatus, type AugmentType } from '../types';
 
@@ -39,7 +40,7 @@ export function JobCard({ job }: JobCardProps) {
       onClick={handleOpen}
       data-testid={`job-card-${job.jobId}`}
       data-status={job.status}
-      className="flex flex-col gap-2 rounded border border-border bg-white p-3 text-left shadow-sm transition-colors duration-100 hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className={`flex flex-col gap-2 rounded border border-border bg-white p-3 text-left shadow-sm transition-colors duration-100 hover:border-accent ${KRDS_FOCUS}`}
     >
       <div className="flex items-center justify-between">
         <span className="text-section-title text-primary">{job.cctvName}</span>

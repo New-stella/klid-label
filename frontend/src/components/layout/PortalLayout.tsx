@@ -5,6 +5,8 @@
 
 import { Link, Outlet } from 'react-router-dom';
 
+import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 import { Footer } from './Footer';
@@ -17,7 +19,10 @@ export function PortalLayout() {
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6">
         <Link
           to="/portal"
-          className="text-section-title font-bold text-gray-900 hover:text-primary-600 transition-colors"
+          className={cn(
+            'rounded-md text-section-title font-bold text-gray-900 hover:text-primary-600 transition-colors',
+            KRDS_FOCUS,
+          )}
         >
           AI 학습데이터 포털
         </Link>

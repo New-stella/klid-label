@@ -5,6 +5,7 @@ import { Clock, History as HistoryIcon, X } from 'lucide-react';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { Skeleton } from '@/components/common/Skeleton';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { ASSIGNMENT_KEYS } from '@/lib/queryKeys';
 
 import { getAssignmentHistory } from '../api';
@@ -141,7 +142,7 @@ export function HistoryDrawer({
               type="button"
               onClick={onClose}
               aria-label="배정 이력 닫기"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-primary-500"
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 ${KRDS_FOCUS}`}
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -166,7 +167,7 @@ export function HistoryDrawer({
               <Skeleton height={56} />
             </div>
           ) : isError ? (
-            <p className="text-sm text-red-500">이력을 불러올 수 없습니다.</p>
+            <p className="text-sm text-danger">이력을 불러올 수 없습니다.</p>
           ) : !data || data.length === 0 ? (
             <EmptyState
               icon={<HistoryIcon size={28} aria-hidden />}
@@ -206,20 +207,22 @@ export function HistoryDrawer({
 }
 
 /**
- * eventType 별 좌측 dot 색상 (Tailwind class).
+ * eventType 별 좌측 dot 색상 (Tailwind class) — KRDS 의미상태색 토큰.
+ * 액션의 상태 의미로 매핑한다: APPROVE=성공(success), REJECT=실패(danger),
+ * REASSIGN=주의(warning), ASSIGN/SUBMIT=정보/주요(primary·info). 원시 팔레트 미사용.
  */
-function dotClass(code: TaskEventType): string {
+export function dotClass(code: TaskEventType): string {
   switch (code) {
     case 'ASSIGN':
-      return 'bg-green-500';
+      return 'bg-primary-600';
     case 'REASSIGN':
-      return 'bg-orange-500';
+      return 'bg-warning';
     case 'SUBMIT':
-      return 'bg-blue-500';
+      return 'bg-info';
     case 'APPROVE':
-      return 'bg-emerald-600';
+      return 'bg-success';
     case 'REJECT':
-      return 'bg-red-500';
+      return 'bg-danger';
     default:
       return 'bg-gray-400';
   }

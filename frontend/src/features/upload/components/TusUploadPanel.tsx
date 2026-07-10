@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useEventTypes } from '@/features/eventType/hooks';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
 import type { TusMetadata } from '@/features/upload/api/tusClient';
@@ -170,7 +171,7 @@ export function TusUploadPanel() {
             value={form.categoryKey}
             onChange={(e) => setForm((s) => ({ ...s, categoryKey: e.target.value }))}
             disabled={isUploading || eventOptions.length === 0}
-            className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            className={`h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
           >
             {eventOptions.length === 0 && (
               <option value="">이벤트 타입 로딩 중…</option>
@@ -216,7 +217,7 @@ export function TusUploadPanel() {
           <div
             role="alert"
             data-testid="tus-error"
-            className="rounded-md border border-danger/30 bg-red-50 px-3 py-2 text-sub text-danger"
+            className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger"
           >
             {upload.error}
           </div>
@@ -225,7 +226,7 @@ export function TusUploadPanel() {
         {upload.status === 'completed' && (
           <div
             data-testid="tus-completed"
-            className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sub text-green-700"
+            className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sub text-success"
           >
             업로드 완료 — 영상 등록(LS_DATA_RAW)이 생성되었습니다.
           </div>

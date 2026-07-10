@@ -10,6 +10,7 @@ import { Tag, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { KpiCard } from '@/components/common/KpiCard';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import type { DatamartVideo } from '@/features/portal/api';
 import { useDatamartVideos } from '@/features/portal/hooks/useDatamartVideos';
 
@@ -38,11 +39,11 @@ export function PortalHomePage() {
 
   return (
     <div className="flex flex-col">
-      {/* Hero 섹션 — orange gradient */}
-      <section className="bg-gradient-to-br from-orange-500 to-orange-600 px-6 py-10 text-white">
+      {/* Hero 섹션 — KRDS Don't(그라데이션·brand 대면적 금지) 준수: 단색 neutral 배경 */}
+      <section className="border-b border-gray-200 bg-gray-100 px-6 py-10">
         <div className="mx-auto max-w-4xl">
-          <h1 className="mb-2 text-page-title">AI 학습데이터 작성 포털</h1>
-          <p className="text-body text-orange-50">데이터마트 영상 선택, 간편 라벨링</p>
+          <h1 className="mb-2 text-page-title text-gray-900">AI 학습데이터 작성 포털</h1>
+          <p className="text-body text-gray-600">데이터마트 영상 선택, 간편 라벨링</p>
         </div>
       </section>
 
@@ -58,13 +59,13 @@ export function PortalHomePage() {
           <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">이용 방법</h2>
           <article className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-orange-500" aria-hidden />
+              <Tag className="h-4 w-4 text-primary-600" aria-hidden />
               <h2 className="text-section-title text-gray-800">라벨링</h2>
             </div>
             <p className="text-sub text-gray-500">선택한 영상에 라벨을 추가하세요</p>
             <p className="text-body text-gray-600">
               라벨링 가능{' '}
-              <span className="font-semibold text-orange-600">{totalVideos}건</span>
+              <span className="font-semibold text-primary-700">{totalVideos}건</span>
             </p>
             {/* WCAG 2.1.1 키보드 접근성: 영상이 없으면 진입 대상이 없어 비활성이지만, native
                 `disabled` 는 Tab 순서에서 제거된다(R5 지적). `aria-disabled` 로 포커스 순서는 유지하되
@@ -74,9 +75,9 @@ export function PortalHomePage() {
               aria-disabled={!hasVideos || undefined}
               onClick={onStart}
               className={
-                'mt-auto flex w-full items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-sub font-medium text-white transition-colors hover:bg-orange-600 ' +
+                'mt-auto flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sub font-medium text-white transition-colors hover:bg-primary-700 ' +
                 (!hasVideos
-                  ? 'cursor-not-allowed opacity-50 aria-disabled:hover:bg-orange-500'
+                  ? 'cursor-not-allowed opacity-50 aria-disabled:hover:bg-primary-600'
                   : '')
               }
             >
@@ -103,7 +104,7 @@ export function PortalHomePage() {
                     type="button"
                     data-testid="datamart-video-item"
                     onClick={() => goToLabel(v.firstSrcSn)}
-                    className="flex w-full flex-col gap-1 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                    className={`flex w-full flex-col gap-1 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 ${KRDS_FOCUS}`}
                   >
                     <span className="text-section-title text-gray-800">{v.title}</span>
                     <span className="text-sub text-gray-500">

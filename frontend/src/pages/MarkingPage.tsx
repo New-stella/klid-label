@@ -196,7 +196,7 @@ export function MarkingPage() {
                 onClick={() => selectMark(i)}
                 className={`rounded px-2 py-1 text-xs transition-colors ${
                   selectedMarkIndex === i
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-primary-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >

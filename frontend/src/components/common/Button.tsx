@@ -27,7 +27,9 @@ const variantClass: Record<ButtonVariant, string> = {
   outline:
     'bg-white text-primary-600 border border-primary-600 hover:bg-primary-50 active:bg-primary-100 disabled:text-primary-300 disabled:border-primary-200',
   danger:
-    'bg-danger text-white hover:bg-red-600 active:bg-red-700 disabled:bg-red-300',
+    // 눌림 피드백은 primary(600→700→800)와 동일하게 "어두워지는" 방향으로 통일.
+    // 옛 `/90 → /80` 은 오히려 옅어져(밝아져) 방향이 반전됐었다 → brightness 필터로 정정.
+    'bg-danger text-white hover:brightness-95 active:brightness-90 disabled:bg-danger/40',
   ghost:
     'bg-transparent text-gray-600 hover:bg-gray-100 active:bg-gray-200 disabled:text-gray-400',
 };

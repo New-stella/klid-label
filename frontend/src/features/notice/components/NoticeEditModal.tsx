@@ -1,12 +1,13 @@
 // 화면ID: KLID-AT-SC-032 — 공지 작성/수정 모달 (REVIEWER 전용)
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Paperclip, Trash2, Upload } from 'lucide-react';
+import { AlertCircle, Paperclip, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 import { Modal } from '@/components/common/Modal';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { noticeSchema, type NoticeFormValues } from '../schemas';
 import type { Notice, NoticeAttach, NoticeForm } from '../types';
@@ -132,20 +133,21 @@ export function NoticeEditModal({
             className="block text-sm font-medium text-gray-700"
             htmlFor="notice-title"
           >
-            제목 <span className="text-red-500">*</span>
+            제목 <span className="text-danger">*</span>
           </label>
           <input
             id="notice-title"
             type="text"
             placeholder="공지 제목을 입력하세요 (최대 200자)"
             className={[
-              'w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500',
-              errors.title ? 'border-red-400' : 'border-gray-300',
+              `w-full text-sm border rounded-lg px-3 py-2 ${KRDS_FOCUS}`,
+              errors.title ? 'border-danger' : 'border-gray-300',
             ].join(' ')}
             {...register('title')}
           />
           {errors.title?.message && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.title.message}
             </p>
           )}
@@ -157,20 +159,21 @@ export function NoticeEditModal({
             className="block text-sm font-medium text-gray-700"
             htmlFor="notice-content"
           >
-            내용 <span className="text-red-500">*</span>
+            내용 <span className="text-danger">*</span>
           </label>
           <textarea
             id="notice-content"
             placeholder="공지 내용을 입력하세요."
             rows={8}
             className={[
-              'w-full text-sm border rounded-lg px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-primary-500',
-              errors.content ? 'border-red-400' : 'border-gray-300',
+              `w-full text-sm border rounded-lg px-3 py-2 resize-y ${KRDS_FOCUS}`,
+              errors.content ? 'border-danger' : 'border-gray-300',
             ].join(' ')}
             {...register('content')}
           />
           {errors.content?.message && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.content.message}
             </p>
           )}
@@ -225,7 +228,7 @@ export function NoticeEditModal({
                         type="button"
                         aria-label={`${a.fileName} 삭제`}
                         onClick={() => onDeleteAttachment(a)}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-danger/10 hover:text-danger transition-colors"
                       >
                         <Trash2 size={14} aria-hidden />
                       </button>

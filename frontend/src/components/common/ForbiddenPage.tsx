@@ -11,6 +11,7 @@ const ROLE_LABEL: Record<string, string> = {
   PORTAL_USER: '포털',
 };
 
+// KRDS 예외: 범주 구분색(역할 구분, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
 const ROLE_COLOR: Record<string, string> = {
   REVIEWER: 'bg-cyan-100 text-cyan-700',
   WORKER: 'bg-blue-100 text-blue-700',
@@ -26,8 +27,8 @@ export function ForbiddenPage() {
       role="alert"
       className="flex min-h-full flex-col items-center justify-center py-20 px-6"
     >
-      <div className="flex items-center justify-center w-20 h-20 rounded-full bg-red-50 mb-6">
-        <Lock size={36} className="text-red-400" />
+      <div className="flex items-center justify-center w-20 h-20 rounded-full bg-danger/10 mb-6">
+        <Lock size={36} className="text-danger" />
       </div>
       <h1 className="text-xl font-bold text-gray-800 mb-2">
         이 화면에 접근할 수 없습니다

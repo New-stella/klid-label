@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useEventTypes } from '@/features/eventType/hooks';
 
 import type { VideoListParams } from '../types';
@@ -78,7 +79,7 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="검색어 입력"
             maxLength={100}
-            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={`w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
           />
         </div>
       </div>
@@ -92,7 +93,7 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
           id="video-status"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="py-1.5 px-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
         >
           {STATUS_OPTIONS.map((s) => (
             <option key={s.value} value={s.value}>
@@ -113,7 +114,7 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
           onChange={(e) => setEventTypeCd(e.target.value)}
           disabled={eventTypesLoading}
           aria-busy={eventTypesLoading}
-          className="py-1.5 px-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:text-gray-400"
+          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400 ${KRDS_FOCUS}`}
         >
           <option value="">전체 이벤트</option>
           {eventTypesLoading && (
@@ -139,7 +140,7 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
           type="date"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
-          className="py-1.5 px-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -151,7 +152,7 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
           type="date"
           value={to}
           onChange={(e) => setTo(e.target.value)}
-          className="py-1.5 px-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
         />
       </div>
 

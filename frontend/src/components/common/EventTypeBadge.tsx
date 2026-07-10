@@ -23,6 +23,7 @@ interface EventTypeBadgeProps {
 }
 
 // 카테고리 한글명 → 색상 (cosmetic). 미매핑 라벨은 회색 폴백 — 색상은 표시 보조용일 뿐.
+// KRDS 예외: 범주 구분색(이벤트 카테고리 7색, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
 const EVENT_COLORS: Record<string, string> = {
   쓰러짐: 'bg-purple-100 text-purple-700',
   폭력: 'bg-red-100 text-red-700',

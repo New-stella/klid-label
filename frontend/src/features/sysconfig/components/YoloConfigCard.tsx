@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Save } from 'lucide-react';
+import { AlertCircle, Save } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { useUpdateConfig } from '../hooks/useUpdateConfig';
@@ -108,7 +109,8 @@ export function YoloConfigCard({ configs }: Props) {
             늘고, 낮추면 더 많이 잡지만 오탐이 늘어납니다. (0.25~0.80)
           </p>
           {errors.YOLO_CONF_THRESHOLD && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.YOLO_CONF_THRESHOLD.message}
             </p>
           )}
@@ -127,7 +129,7 @@ export function YoloConfigCard({ configs }: Props) {
             max={1920}
             step={32}
             aria-invalid={errors.YOLO_IMGSZ ? 'true' : 'false'}
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className={`w-full text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`}
             {...register('YOLO_IMGSZ', { valueAsNumber: true })}
           />
           <p className="text-xs text-gray-400">
@@ -137,7 +139,8 @@ export function YoloConfigCard({ configs }: Props) {
             저장·내보내기 해상도와는 무관합니다. (320~1920px, 기본 1280)
           </p>
           {errors.YOLO_IMGSZ && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.YOLO_IMGSZ.message}
             </p>
           )}
@@ -170,7 +173,8 @@ export function YoloConfigCard({ configs }: Props) {
             중복이 줄고, 높이면 인접한 객체를 더 많이 남깁니다. (0.25~0.80)
           </p>
           {errors.YOLO_IOU && (
-            <p className="text-xs text-red-500" role="alert">
+            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.YOLO_IOU.message}
             </p>
           )}

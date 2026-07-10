@@ -2,6 +2,7 @@ import { forwardRef } from 'react';
 import { Check } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import {
   PROCESS_KIND_DESCRIPTION,
@@ -48,7 +49,7 @@ export const ProcessKindCard = forwardRef<
       data-testid={`process-kind-${kind}`}
       className={cn(
         'group relative flex flex-col items-start gap-2 rounded-lg border bg-white p-4 text-left transition-all',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1',
+        KRDS_FOCUS,
         'disabled:cursor-not-allowed disabled:opacity-50',
         selected
           ? 'border-primary-500 bg-primary-50 shadow-sm ring-1 ring-primary-300'
