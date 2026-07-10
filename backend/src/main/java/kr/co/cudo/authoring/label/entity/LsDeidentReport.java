@@ -41,6 +41,10 @@ public class LsDeidentReport {
     @Column(name = "REPORTER_NO")
     private Long reporterNo;
 
+    /**
+     * 신고 상세사유 — 반려사유(1000)급 상세 필요로 VARCHAR(1000) 유지.
+     * 단순 사유(500, 예: LS_TASK_EVENT_LOG.RSN)와 도메인 구분.
+     */
     @Column(name = "RSN", length = 1000)
     private String rsn;
 

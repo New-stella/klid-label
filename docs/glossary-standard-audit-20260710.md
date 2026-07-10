@@ -43,8 +43,8 @@
 
 | # | 컬럼 | 현재 | 형제/표준 | 판정 | 제안 |
 |---|------|------|----------|------|------|
-| N1 | `LS_DATA_AUG.REJECT_RSN` | `VARCHAR(500)` | 형제 `LS_DATA_AUG_RVW`·`LS_DATA_META_REVIEW.REJECT_RSN`=**1000**, 표준 반려사유=**V1000** | **✅ 수정 완료** | **V87** 500→1000 (build GREEN·ddl-validate PASS) |
-| N2 | `LS_DEIDENT_REPORT.RSN` | `VARCHAR(1000)` | 형제 `LS_TASK_EVENT_LOG.RSN`=**500**, 표준 사유=**V500** | **검토(정책)** | 사유(500) vs 반려사유(1000) 구분 정리 후 통일 |
+| N1 | `LS_DATA_AUG.REJECT_RSN` | `VARCHAR(500)` | 형제=**1000**, 표준 반려사유=**V1000** | **✅ 레거시 DROP 완료** | V87(500→1000) → **V88 DROP**(미사용 @Transient 레거시, 반려사유는 `LsDataAugRvw`가 담당) |
+| N2 | `LS_DEIDENT_REPORT.RSN` | `VARCHAR(1000)` | 형제 `LS_TASK_EVENT_LOG.RSN`=**500**, 표준 사유=**V500** | **✅ 결정: 1000 유지+문서화** | 신고 상세사유=반려사유(1000)급. 엔티티 주석으로 도메인 구분 명문화 (스키마 무변경) |
 
 > N1 반영 시 확인된 사실: `LsDataAug.rejectRsn` 은 **`@Transient`(미매핑)** 이고 실제 반려사유 영속은 `LsDataAugRvw.REJECT_RSN`(이미 1000)이 담당 → `LS_DATA_AUG.REJECT_RSN` 은 audit 이관 후 **미사용 레거시 물리 컬럼**. V87 은 표준 정합 위생 조치이며, 엔티티 변경은 불필요(영속 동작 변경·설계 역행 회피). 이 컬럼 자체는 장기적으로 **DROP 검토 후보**. N2는 "사유(500)"/"반려사유(1000)" 도메인 구분 정책 결정 후 통일.
 
@@ -52,12 +52,17 @@
 
 ---
 
-## 3. 미결 후속 (선행 감사 baseline에서 이월 — 본 재감사와 동일)
+## 3. 이번 반영 완료 (V88) + 잔여 후속
 
-`reports/glossary-db-audit-detail-2026-07-10.md` §5 및 진행 메모 기준 잔여:
-- **`LS_TUS_UPLOAD` 통삭제**(BE `upload/` 패키지+API+테이블 + FE `features/upload/`·DevAutolabelTestPage) — 폐지예정 테이블. 비표준 약어 9건이 여기 집중 → **표준화가 아니라 제거가 정답**. dev 오토라벨 테스트 의존 있어 고영향·별도 승인.
-- **D8/D9 폐쇄망 문서(Word/HWP) 수동 반영** (가이드 `reports/D8D9-표준정합-수정가이드-2026-07-10.md`).
-- **`docs/v2-wiki/18-database.md`** 에 `LS_DATA_SET` 제거 반영.
+**✅ 2026-07-10 반영 완료 (V88, build GREEN·code-reviewer 9.5/10·ddl-validate PASS):**
+- **`LS_TUS_UPLOAD` 유지 + 컬럼 10종 표준 rename** + VMS_CLIP_ID 64→128 (~~통삭제~~ 철회, dev 오토라벨 테스트 사용). Repository JPQL 필드명 기반이라 무영향.
+- **`LS_DATA_AUG.REJECT_RSN` DROP** (미사용 @Transient 레거시).
+- **REG_USER_NO·RSN 주석 문서화** (토큰 sub 문자열 / 신고 상세사유 1000 근거).
+- **D8/D9 설계문서(.md) + 표준정합 수정가이드 동기화**: `docs/design-full/D8·D9-*.md` + `reports/D8D9-표준정합-수정가이드-2026-07-10.md`(§F rename·§G drop 추가).
+
+**잔여 후속:**
+- **D8/D9 폐쇄망 HWP 수동 반영** — 위 갱신된 가이드(§F·§G 포함)대로 `docs/design-full/*.hwpx` 에 수기 적용.
+- `docs/v2-wiki/18-database.md` 에 `LS_DATA_SET` 제거 + TUS rename 반영.
 - LOW: `LsDataSrcRepository.findByRawSnAndFrameNo` Integer→Long.
 
 ---
@@ -68,7 +73,9 @@
 1. 선행 결과(96%+ 정합, 오탐 debunk, V83~V86 반영)를 **독립적으로 재확인**.
 2. 선행 감사가 놓친 **내부 길이 불일치 2건(N1·N2)** 신규 포착.
 
-→ **실질 신규 작업 = N1(`LS_DATA_AUG.REJECT_RSN` 500→1000) 뿐** (N2는 정책 결정, 나머지는 이월 후속). 대규모 rename/추가는 필요 없음.
+3. 사용자 결정 반영: `LS_TUS_UPLOAD` **유지+컬럼 rename**(삭제 철회), `REJECT_RSN` 레거시 **DROP**, N2 **1000 유지+문서화** — 전부 V88 반영 완료.
+
+→ 코드 정합은 **완료**. 잔여는 폐쇄망 HWP 수기 반영뿐(가이드 갱신됨).
 
 ---
 

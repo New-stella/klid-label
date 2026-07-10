@@ -70,6 +70,10 @@ public class LsDataAug {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
+    /**
+     * 토큰 sub(문자열) 저장 — 비숫자 sub 허용(JwtAuthenticationFilter.parseUserNo fail-closed)이라
+     * 의도적으로 VARCHAR. 숫자 BIGINT 아님.
+     */
     @Column(name = "REG_USER_NO", length = 50)
     private String regUserNo;
 

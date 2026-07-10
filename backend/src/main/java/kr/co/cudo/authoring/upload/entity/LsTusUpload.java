@@ -42,53 +42,53 @@ public class LsTusUpload {
     public static final long TTL_HOURS = 24L;
 
     @Id
-    @Column(name = "UPLOAD_ID", nullable = false, updatable = false)
+    @Column(name = "ULD_ID", nullable = false, updatable = false)
     private UUID uploadId;
 
     @Column(name = "USER_NO", nullable = false, length = 64)
     private String userNo;
 
-    @Column(name = "UPLOAD_LENGTH", nullable = false)
+    @Column(name = "ULD_LEN", nullable = false)
     private long uploadLength;
 
-    @Column(name = "UPLOAD_OFFSET", nullable = false)
+    @Column(name = "ULD_OFFSET", nullable = false)
     private long uploadOffset;
 
-    @Column(name = "STATUS", nullable = false, length = 16)
+    @Column(name = "STTS_CD", nullable = false, length = 16)
     private String status;
 
     @Column(name = "FILE_PATH", nullable = false, length = 500)
     private String filePath;
 
-    @Column(name = "FILE_NAME", length = 255)
+    @Column(name = "FILE_NM", length = 255)
     private String fileName;
 
-    @Column(name = "VMS_CLIP_ID", length = 64)
+    @Column(name = "VMS_CLIP_ID", length = 128)
     private String vmsClipId;
 
     @Column(name = "CCTV_ID", length = 64)
     private String cctvId;
 
-    @Column(name = "EVENT_TYPE_CD", length = 32)
+    @Column(name = "EVNT_TYPE_CD", length = 32)
     private String eventTypeCd;
 
-    @Column(name = "LOCAL_GOV_CD", length = 10)
+    @Column(name = "LCLGV_CD", length = 10)
     private String localGovCd;
 
     @Column(name = "PRVC_TYPE_CD", length = 8)
     private String prvcTypeCd;
 
-    @Column(name = "CAPTURED_AT")
+    @Column(name = "SHT_DT")
     private LocalDateTime capturedAt;
 
     @Column(name = "RAW_SN")
     private Long rawSn;
 
-    @Column(name = "EXPIRES_AT", nullable = false)
+    @Column(name = "EXPD_DT", nullable = false)
     private LocalDateTime expiresAt;
 
     @Version
-    @Column(name = "VERSION", nullable = false)
+    @Column(name = "VER", nullable = false)
     private long version;
 
     @Column(name = "REG_DT", nullable = false)
