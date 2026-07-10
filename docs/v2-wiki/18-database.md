@@ -20,7 +20,7 @@
 ### 영상 · 프레임 · 라벨
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, PARENT_RAW_SN). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료) | [05](05-video-management.md) |
+| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, ORGNL_RAW_SN — V82 rename, 구 PARENT_RAW_SN·데이터마트 뷰 외부계약명만 유지). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료) | [05](05-video-management.md) |
 | `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
 | `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로) | [07](07-batch-pipeline.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |
@@ -50,7 +50,7 @@
 | `LS_DATA_AUG` (V8) | 증강 데이터 (AUG_PROC_STTS_CD) | [14](14-augmentation.md) |
 | `LS_DATA_AUG_RVW` (V25) / `LS_DATA_AUG_LBL_MAP` (V26) | 증강 검수 / 라벨 매핑 | [14](14-augmentation.md) |
 | `LS_RESOLUTION_EXPORT` (V55) | 해상도 변경 기록 | [14](14-augmentation.md) |
-| `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29, `REQ_KIND_CD` BATCH/REDEIDENT V68) | 비식별 누락 신고 / 처리 이력(배치·검수완료재비식별 분기) | [08](08-deidentification.md) |
+| `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29, `REQ_KND_CD` BATCH/REDEIDENT V68 도입·V83 rename REQ_KIND_CD→REQ_KND_CD) | 비식별 누락 신고 / 처리 이력(배치·검수완료재비식별 분기) | [08](08-deidentification.md) |
 
 ### 작업 · 상태 · 운영
 | 테이블 | 용도 | 위키 |
@@ -67,7 +67,9 @@
 | `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 | [16](16-portal.md) |
 | `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, UPEND_FIX_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
 | `LS_TUS_UPLOAD` (V59) | TUS 1.0 재개 가능 업로드 세션 — `UPLOAD_ID`(UUID PK)/`USER_NO`(소유자)/`UPLOAD_LENGTH`/`UPLOAD_OFFSET`(예약어 OFFSET 회피)/`STATUS`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPIRES_AT`(+24h TTL)/`VERSION`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
-| `LS_DATA_ISSUE` (V5) / `LS_DATA_SET` (V8) / `LS_DEADLINE`·`LS_META` (V36) | 품질 이슈 / 데이터셋 / 데드라인·전역 메타 | — |
+| `LS_DATA_ISSUE` (V5) / `LS_DEADLINE`·`LS_META` (V36) | 품질 이슈 / 데드라인·전역 메타 | — |
+
+> 구 `LS_DATA_SET` (V8, 학습데이터셋 Export용)은 **범위 외 orphan 테이블로 판정되어 삭제**됨(V86) — 엔티티·활성쿼리·View·FK 참조 0건 검증. 학습데이터셋 Export는 CLAUDE.md 범위 외(관제/데이터마트 책임).
 
 ## 18.3 데이터마트 적재용 View (V52)
 

@@ -34,7 +34,7 @@
 → ✅ **공유 마운트 단일 모델 확정(2026-06-30)**: 저작도구의 KPST 연동은 **공유 마운트 경로 참조**(『API 연동 테스트』 v1.0 2026.06.17, 테스트 서버 기준)로 단일화됐다. `KpstDeidentifyClient` 는 **핵심 4 엔드포인트(`GET /`·`POST /project`·`GET /retrieve_progress`·`POST /delete_project_id`)** 만 사용한다 — `POST /upload`·`GET /download` 는 KPST 서버에 존재하나 **저작도구는 사용하지 않는다**(공유 마운트로 입력 참조·결과 직접 산출). `KpstDeidentService`/`KpstDeidentTxService` + `KpstDeidentPollJob`(Quartz)가 비식별 확정 경로다.
 - **입력**: `input_path` = 원본(`rawFilePathNm`, 관제 NAS 절대경로)의 부모 디렉터리(끝 `/`) — KPST 가 공유 마운트에서 READ.
 - **출력(no-copy)**: `export_path` = `{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/`(submit 전 `createDirectories`) → KPST 가 결과를 우리 base 에 직접 WRITE. 완료(`procState=2`) 시 응답 `dsStatus.fileName`(외부값 → 경로 정화 CWE-22)으로 `{base}/videos/{rawSn}/{fileName}` 을 `DE_IDNTF_FILE_PATH_NM` 에 기록. 산출 경로가 base 하위라 스트리밍(`VideoStreamService.resolveSafe`)·프레임추출(`FfmpegFrameExtractor`, 컬럼 READ) 정합. **복사·`-mask` 구성·`/download` 없음.**
-- `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**). 레거시 동기 SPI(`DeidentifyClient`)·결과 콜백 수신 경로는 제거됐다(폴백 없음). **local/dev 는 `authoring.integration.deidentify.mock-mode=true`(원본 복사 mock, KPST 미호출) 기본**, stg/prd 는 공유 마운트 실연동. 매핑은 `LS_DEIDENT_PROC_LOG`(V64 KPST_PRJ_ID/DATASET_ID/POLL_STTS_CD). 본 페이지는 명세 정본 역할.
+- `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**). 레거시 동기 SPI(`DeidentifyClient`)·결과 콜백 수신 경로는 제거됐다(폴백 없음). **local/dev 는 `authoring.integration.deidentify.mock-mode=true`(원본 복사 mock, KPST 미호출) 기본**, stg/prd 는 공유 마운트 실연동. 매핑은 `LS_DEIDENT_PROC_LOG`(V64 도입, V83 rename: DE_IDNTF_PJT_ID/DE_IDNTF_DATST_ID/POLL_STTS_CD). 본 페이지는 명세 정본 역할.
 
 > ※ §22.3.2(`/upload`)·§22.3.12(`/download`)·§22.5(업로드 표준 흐름)는 **KPST 서버 API 레퍼런스로 보존**하되, 저작도구는 이를 호출하지 않는다(공유 마운트 모델). 구 업로드 모델(`/upload`→`/project`→`/download`)은 폐기됐다.
 
@@ -374,4 +374,4 @@ DB 저장(`db_save=1`)이며 프로젝트 상태가 **수동 대상(state=3)**�
 - ⏳ **검출 집계 활용(후속, 미구현)**: `retrieve_report`의 faceCount/lpCount는 비식별 처리 이력(`LS_DEIDENT_PROC_LOG`) 기록에 활용 가능 — 추후 협의
 - ✅ **전송 스키마 분기(구현)**: `KpstWebClientConfig`가 base-url 스키마로 자동 분기 — **내부망 `http://IP:port`(평문, 격리 전제, 기동 시 1회 WARN) 또는 `https`+사설CA 둘 다 지원**. https 만 `ca.crt` 필수(없으면 fail-closed, CWE-295), http 는 ca-cert 불요. `ftp`/스키마 없음은 거부
 - ✅ **TLS 자체 CA(구현, https 경로)**: https 일 때 `KpstWebClientConfig`가 `ca.crt` 신뢰 저장소를 구성한 전용 WebClient 제공 (시스템 기본 신뢰 체인 아님, hostname 검증 유지). 이 경로의 TLS 신뢰·hostname 검증·fail-closed 는 약화 없음
-- ✅ **RAW_SN ↔ 솔루션 prj_id/dataset_id 매핑(구현)**: `LS_DEIDENT_PROC_LOG`에 V64 마이그레이션으로 `KPST_PRJ_ID`/`KPST_DATASET_ID`/`POLL_STTS_CD` 컬럼 추가. 영상 1건=KPST 프로젝트 1개로 운영(1:1)
+- ✅ **RAW_SN ↔ 솔루션 prj_id/dataset_id 매핑(구현)**: `LS_DEIDENT_PROC_LOG`에 V64 마이그레이션으로 `DE_IDNTF_PJT_ID`/`DE_IDNTF_DATST_ID`/`POLL_STTS_CD` 컬럼 추가(V83 rename: KPST_PRJ_ID→DE_IDNTF_PJT_ID, KPST_DATASET_ID→DE_IDNTF_DATST_ID). 영상 1건=KPST 프로젝트 1개로 운영(1:1)
