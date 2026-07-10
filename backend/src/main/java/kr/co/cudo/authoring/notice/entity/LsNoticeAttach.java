@@ -39,10 +39,10 @@ public class LsNoticeAttach {
     @Column(name = "NOTICE_SN", nullable = false)
     private Long noticeSn;
 
-    @Column(name = "ORGNL_FILE_NM", nullable = false, length = 255)
+    @Column(name = "ORGNL_FILE_NM", nullable = false, length = 300)
     private String orgnlFileNm;
 
-    @Column(name = "STRG_FILE_NM", nullable = false, length = 255)
+    @Column(name = "STRG_FILE_NM", nullable = false, length = 300)
     private String storeFileNm;
 
     @Column(name = "FILE_PATH", nullable = false, length = 1000)

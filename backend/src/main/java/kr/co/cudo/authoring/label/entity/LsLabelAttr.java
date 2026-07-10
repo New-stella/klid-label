@@ -52,7 +52,7 @@ public class LsLabelAttr {
     @Column(name = "LBL_ID", nullable = false)
     private Long labelId;
 
-    @Column(name = "ATRB_NM", nullable = false, length = 64)
+    @Column(name = "ATRB_NM", nullable = false, length = 100)
     private String attrNm;
 
     @Column(name = "INPUT_TYPE_CD", nullable = false, length = 16)

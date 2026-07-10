@@ -56,7 +56,7 @@ public class LsAuthWorkLock {
     @Column(name = "RMV_DT")
     private LocalDateTime releaseDt;
 
-    @Column(name = "RMV_RSN", length = 500)
+    @Column(name = "RMV_RSN", length = 4000)
     private String releaseRsn;
 
     @Column(name = "REG_ID", length = 30)

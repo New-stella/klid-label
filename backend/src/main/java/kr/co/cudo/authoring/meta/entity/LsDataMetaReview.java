@@ -68,7 +68,7 @@ public class LsDataMetaReview {
     @Column(name = "RVW_DT")
     private LocalDateTime rvwDt;
 
-    @Column(name = "RJCT_RSN", length = 1000)
+    @Column(name = "RJCT_RSN", length = 4000)
     private String rejectRsn;
 
     @Column(name = "REG_ID", length = 30)

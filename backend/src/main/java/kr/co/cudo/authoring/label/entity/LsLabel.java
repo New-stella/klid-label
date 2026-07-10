@@ -45,7 +45,7 @@ public class LsLabel {
     @Column(name = "LBL_ID")
     private Long labelId;
 
-    @Column(name = "LBL_NM", nullable = false, length = 64)
+    @Column(name = "LBL_NM", nullable = false, length = 80)
     private String labelNm;
 
     @Column(name = "COLR_VL", nullable = false, length = 7)
