@@ -197,7 +197,7 @@ klid-la-test-v0/
 - **MASK ↔ RLE ↔ Polygon 변환** 포팅 (portable-modules/02)
 
 ### 증강 = 새 영상
-- 증강 결과는 **새 영상(RAW_SN) 생성** — 원본과 다른 영상 ID. `LS_DATA_RAW.ORGNL_RAW_SN`(V82 rename, 구 `PARENT_RAW_SN` — 표준단어 ORGNL=원본)으로 원본(부모) 참조. **용어 표준**: `RAW`=원시(RAW_SN·LS_DATA_RAW 자체), `ORGNL`=원본(파생물의 부모/소스). 단 데이터마트 뷰 `V_COMPLETED_VIDEO` 출력 컬럼은 관제서버 계약 보존 위해 `ORGNL_RAW_SN AS PARENT_RAW_SN` alias로 **외부 계약명 PARENT_RAW_SN 유지**(내부=ORGNL_RAW_SN, 외부=PARENT_RAW_SN)
+- 증강 결과는 **새 영상(RAW_SN) 생성** — 원본과 다른 영상 ID. `LS_DATA_RAW.ORGNL_RAW_SN`(V82 rename, 구 `PARENT_RAW_SN` — 표준단어 ORGNL=원본)으로 원본(부모) 참조. **용어 표준**: `RAW`=원시(RAW_SN·LS_DATA_RAW 자체), `ORGNL`=원본(파생물의 부모/소스). 데이터마트 뷰 `V_COMPLETED_VIDEO` 출력 컬럼도 **`ORGNL_RAW_SN` 로 통일**(외부 소비자 부재로 구 `PARENT_RAW_SN` 외부 계약명 폐지 — V95. 내부·외부 모두 ORGNL_RAW_SN)
 - 원본 영상의 라벨/메타 JSON을 새 영상에 **복사** (외부 증강 3종은 해상도 동일 — 좌표 그대로 복사)
 - **해상도 변경(SFR-06-03)은 증강이 아님 — 저작도구 직접 수행**: 표준 하위 해상도 화이트리스트(RES_1080P/RES_720P/RES_480P)로 **프레임 이미지셋만 다운스케일** 제공. 업스케일(목표 ≥ 원본 높이) 400 거부, 영상(비디오) 재생성 없음, **라벨 좌표 미제공**(변환·복사 안 함), 새 영상(RAW_SN) 미생성 — 결과는 `LS_RESOLUTION_EXPORT` 1행으로 추적(UK: 원본 RAW_SN + 해상도)
 - 새 영상은 **미검수(PENDING) 상태**로 시작 → 작업자 배정 → 수정 → 검수 (기존 플로우 동일)
