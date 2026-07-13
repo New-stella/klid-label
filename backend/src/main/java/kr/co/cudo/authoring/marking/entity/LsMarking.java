@@ -69,6 +69,20 @@ public class LsMarking {
     @Column(name = "MARK_CN", nullable = false, columnDefinition = "TEXT")
     private String markCn;
 
+    /**
+     * 마킹 시점에 고정(pin)된 실 프레임레이트 — TOCTOU 제거의 핵심(M-3 후속 근본 수정).
+     *
+     * <p>마킹 생성 시 {@code VideoFpsResolver.resolveFps} 로 얻은 fps 를 이 컬럼에 저장한다.
+     * 프레임추출({@code FfmpegFrameExtractor})은 fps 를 재조회하지 않고 이 pin 값을 읽어
+     * {@code seekMillis} 를 계산하므로, 마킹이 {@code frameIndex} 를 산출할 때 쓴 fps 와
+     * 추출이 쓰는 fps 가 <b>동일 레코드의 동일 값</b>으로 구조적으로 일치한다(정합성 불변식).
+     *
+     * <p>{@code null} 허용: 이 컬럼 도입 이전에 생성된 기존 행은 값이 없으므로, 추출이
+     * {@code resolveFps} 폴백을 사용한다(하위호환·fail-safe).
+     */
+    @Column(name = "FPS")
+    private Double fps;
+
     @Column(name = "STTS_CD", nullable = false, length = 16)
     private String sttsCd;
 
@@ -93,6 +107,20 @@ public class LsMarking {
      */
     public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
                                         String videoPath, String marksJson, Long createdBy) {
+        return createAuto(rawSn, eventName, intervalFrames, videoPath, marksJson, createdBy, null);
+    }
+
+    /**
+     * 자동 모드 마킹 생성 (fps pin 포함) — TOCTOU 제거용.
+     *
+     * <p>{@code fps} 는 마킹 시점에 해석한 실 프레임레이트다. 프레임추출이 이 값을 재조회 없이
+     * 사용하여 마킹↔추출 fps 를 구조적으로 일치시킨다. 미상 폴백값(30.0)을 넘겨도 되고,
+     * 아예 {@code null} 을 넘기면 추출이 조회 폴백을 쓴다(하위호환).
+     *
+     * @param fps 마킹 시점 고정 프레임레이트 (nullable — null 이면 추출이 resolveFps 폴백)
+     */
+    public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
+                                        String videoPath, String marksJson, Long createdBy, Double fps) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
         }
@@ -113,6 +141,7 @@ public class LsMarking {
         m.frmeIntvNocs = intervalFrames;
         m.videoFilePathNm = videoPath;
         m.markCn = marksJson;
+        m.fps = fps;
         m.sttsCd = STATUS_PENDING;
         m.createdBy = createdBy;
         LocalDateTime now = LocalDateTime.now();
@@ -132,6 +161,20 @@ public class LsMarking {
      */
     public static LsMarking createManual(Long rawSn, String eventName,
                                           String videoPath, String marksJson, Long createdBy) {
+        return createManual(rawSn, eventName, videoPath, marksJson, createdBy, null);
+    }
+
+    /**
+     * 수동 모드 마킹 생성 (fps pin 포함) — TOCTOU 제거용.
+     *
+     * <p>수동 모드는 marks 가 사용자 지정 frameIndex 이지만, 추출 단계는 모드와 무관하게
+     * frameIndex→seekMillis 변환에 fps 를 쓴다. 따라서 수동 마킹도 fps 를 고정 저장해
+     * 추출이 재조회 없이 동일 값을 사용하게 한다.
+     *
+     * @param fps 마킹 시점 고정 프레임레이트 (nullable — null 이면 추출이 resolveFps 폴백)
+     */
+    public static LsMarking createManual(Long rawSn, String eventName,
+                                          String videoPath, String marksJson, Long createdBy, Double fps) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
         }
@@ -149,6 +192,7 @@ public class LsMarking {
         m.frmeIntvNocs = null;
         m.videoFilePathNm = videoPath;
         m.markCn = marksJson;
+        m.fps = fps;
         m.sttsCd = STATUS_PENDING;
         m.createdBy = createdBy;
         LocalDateTime now = LocalDateTime.now();

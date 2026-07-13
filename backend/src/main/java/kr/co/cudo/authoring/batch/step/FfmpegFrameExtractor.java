@@ -13,7 +13,9 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.ManifestJsonlWriter;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -55,9 +57,6 @@ import java.util.Optional;
 @Component
 public class FfmpegFrameExtractor implements BatchStep {
 
-    /** 영상 네이티브 프레임레이트 가정값. MarkItem.frameIndex 는 이 fps 기준. */
-    static final int NATIVE_VIDEO_FPS = 30;
-
     /** 비식별 완료 마커 코드 (LsDataRaw.deIdntfYn). */
     private static final String DEIDENTIFIED = "Y";
 
@@ -65,6 +64,11 @@ public class FfmpegFrameExtractor implements BatchStep {
     private final LsDataSrcHstryRepository hstryRepository;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final FrameWriter frameWriter;
+    /**
+     * 단일 fps 소스 — MarkItem.frameIndex → seekMillis 변환에 실 fps(video.fps)를 사용한다(M-3 수정).
+     * 마킹 단계(MarkingService)와 동일 resolveFps 경로라 frameIndex↔seekMillis 가 정합한다.
+     */
+    private final VideoFpsResolver fpsResolver;
     private final Path baseRawPath;
     /** Phase 2: 비식별 프레임 출력 base 경로 (영상 2벌 보관 정책). */
     private final Path baseDeidPath;
@@ -73,12 +77,14 @@ public class FfmpegFrameExtractor implements BatchStep {
                                 LsDataSrcHstryRepository hstryRepository,
                                 LsDeidentProcLogRepository deidentProcLogRepository,
                                 FrameWriter frameWriter,
+                                VideoFpsResolver fpsResolver,
                                 @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
                                 @Value("${authoring.storage.deidentified-path:./storage/deidentified}") String storageDeidPath) {
         this.srcRepository = srcRepository;
         this.hstryRepository = hstryRepository;
         this.deidentProcLogRepository = deidentProcLogRepository;
         this.frameWriter = frameWriter;
+        this.fpsResolver = fpsResolver;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.baseDeidPath = Paths.get(storageDeidPath).toAbsolutePath().normalize();
     }
@@ -114,7 +120,13 @@ public class FfmpegFrameExtractor implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "마킹 데이터가 없습니다. rawSn=" + rawSn);
         }
-        List<LsDataSrc> frames = extractByMarks(ctx.getRaw(), marks);
+        // TOCTOU 제거 — 마킹이 pin 한 fps 를 재조회 없이 사용한다. marks 는 최신 마킹(markings.get(0))의
+        // markCn 에서 파싱되므로(MarkingLoadStep), 동일 마킹의 fps 를 pin 값으로 넘긴다. ctx.markings 는
+        // MARKING 단계가 이미 로드했으므로 여기서 추가 조회가 없다(N+1 없음). pin 이 null(기존 데이터)이면
+        // extractByMarks 가 resolveFps 로 폴백한다(하위호환).
+        List<LsMarking> markings = ctx.getMarkings();
+        Double pinnedFps = markings.isEmpty() ? null : markings.get(0).getFps();
+        List<LsDataSrc> frames = extractByMarks(ctx.getRaw(), marks, pinnedFps);
         if (frames.isEmpty()) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR,
                     "프레임 추출 결과가 0건입니다 rawSn=" + rawSn);
@@ -122,13 +134,32 @@ public class FfmpegFrameExtractor implements BatchStep {
     }
 
     /**
-     * 마킹 위치 기반 프레임 추출.
+     * 마킹 위치 기반 프레임 추출 (fps pin 미지정 — resolveFps 폴백).
      * marks 의 frameIndex 에 해당하는 프레임만 추출한다 (원본 + 비식별 2벌).
      * marks 가 비어있으면 INVALID_INPUT. 비식별 미완료 영상이면 INVALID_INPUT.
      * 비식별 영상 경로는 저장된 최신 성공 비식별 로그에서 조회한다.
+     *
+     * <p>이 2-인자 진입점은 <b>하위호환</b>용이다 — 마킹의 pin 된 fps 가 없을 때(구 데이터/테스트) 호출되며
+     * {@code fpsResolver.resolveFps} 로 fps 를 조회한다. 프로덕션 파이프라인({@link #execute})은
+     * 마킹 pin 을 넘기는 3-인자 오버로드를 사용한다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public List<LsDataSrc> extractByMarks(LsDataRaw raw, List<MarkItem> marks) {
+        return extractByMarks(raw, marks, null);
+    }
+
+    /**
+     * 마킹 위치 기반 프레임 추출 (fps pin 지원 — TOCTOU 제거).
+     *
+     * <p>{@code pinnedFps} 는 마킹 시점에 확정된 실 프레임레이트다. 유효(non-null·유한·&gt;0)하면
+     * {@code resolveFps} 재조회 없이 그대로 사용하여, 마킹이 frameIndex 를 산출할 때 쓴 fps 와 추출이
+     * seekMillis 를 계산할 때 쓰는 fps 를 <b>동일 레코드의 동일 값</b>으로 일치시킨다(정합성 불변식).
+     * {@code null}/비정상이면 (구 데이터·fail-safe) {@code resolveFps} 폴백한다.
+     *
+     * @param pinnedFps 마킹 pin fps (nullable — null 이면 resolveFps 폴백)
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public List<LsDataSrc> extractByMarks(LsDataRaw raw, List<MarkItem> marks, Double pinnedFps) {
         if (raw == null || raw.getRawFilePathNm() == null || raw.getRawFilePathNm().isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "영상 메타가 비어있습니다.");
         }
@@ -177,6 +208,15 @@ public class FfmpegFrameExtractor implements BatchStep {
                     raw.getRawSn());
         }
 
+        // TOCTOU 제거 — frameIndex → seekMillis 변환에 마킹이 pin 한 fps 를 최우선 사용한다. 마킹과
+        // 동일 레코드의 동일 값이므로, 마킹이 frameIndex 를 산출할 때 쓴 fps 와 구조적으로 정확히 일치한다.
+        // pin 이 없으면(구 데이터·null) resolveFps 폴백 → 그래도 미상 시 30.0 이라 기존 결과와 동일(무회귀).
+        //
+        // 무회귀 주의: seekMillis 는 Math.round(frameIndex*1000.0/fps) 로 계산한다. 구 정수절삭
+        // (frameIndex*1000/30) 대비 ≤1ms 차이가 날 수 있으나, ffmpeg 는 seek 위치에서 최근접 프레임으로
+        // snap 하므로 실제 선택되는 프레임은 불변이다(정확도 개선 — 구 절삭으로 되돌리지 않는다).
+        double fps = effectiveFps(pinnedFps, raw.getRawSn());
+
         List<LsDataSrc> saved = new ArrayList<>(marks.size());
         try {
             ensureDir(rawOutputDir);
@@ -189,7 +229,7 @@ public class FfmpegFrameExtractor implements BatchStep {
                 for (int i = 0; i < marks.size(); i++) {
                     MarkItem mark = marks.get(i);
                     Path frameFile = rawOutputDir.resolve("frame-" + i + ".jpg");
-                    long seekMillis = mark.frameIndex() * 1000L / NATIVE_VIDEO_FPS;
+                    long seekMillis = Math.round(mark.frameIndex() * 1000.0 / fps);
                     frameWriter.writeFrame(source, frameFile, seekMillis);
                     String checksum = checksumOf(frameFile);
                     mw.writeKeyFrame(i, seekMillis, checksum);
@@ -233,6 +273,20 @@ public class FfmpegFrameExtractor implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "프레임 출력 경로가 허용된 저장 경로를 벗어납니다.");
         }
         return resolved;
+    }
+
+    /**
+     * 추출에 쓸 실효 fps 결정 — 마킹이 pin 한 fps 를 최우선 사용(TOCTOU 제거).
+     *
+     * <p>{@code pinnedFps} 가 유효(non-null·유한·&gt;0)하면 재조회 없이 그대로 사용한다. null 또는
+     * 비정상(NaN/Infinity/≤0)이면 (구 데이터 하위호환·fail-safe) {@code resolveFps} 로 폴백한다.
+     * 폴백도 미상 시 {@code VideoFpsResolver.DEFAULT_FPS}(30.0)라 무회귀.
+     */
+    private double effectiveFps(Double pinnedFps, Long rawSn) {
+        if (pinnedFps != null && Double.isFinite(pinnedFps) && pinnedFps > 0) {
+            return pinnedFps;
+        }
+        return fpsResolver.resolveFps(rawSn);
     }
 
     private void ensureDir(Path dir) throws IOException {

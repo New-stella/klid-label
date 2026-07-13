@@ -90,19 +90,39 @@ class BatchStepExecuteTest {
     // --- FRAME_EXTRACT ---
 
     @Test
-    @DisplayName("FRAME_execute_marks있으면_extractByMarks_호출_stage_FRAME_EXTRACT")
+    @DisplayName("FRAME_execute_marks있으면_extractByMarks_pin전달_호출_stage_FRAME_EXTRACT")
     void frameExecuteWithMarks() {
         FfmpegFrameExtractor real = mock(FfmpegFrameExtractor.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        doReturn(List.of(mock(LsDataSrc.class))).when(real).extractByMarks(any(LsDataRaw.class), any());
+        // execute 는 3-인자(pin) 오버로드로 위임한다.
+        doReturn(List.of(mock(LsDataSrc.class))).when(real).extractByMarks(any(LsDataRaw.class), any(), any());
 
         LsDataRaw raw = rawWith(3L);
         BatchContext ctx = new BatchContext(3L, raw);
         ctx.setMarks(List.of(mark(0)));
+        // 마킹이 pin 한 fps(25.0)를 execute 가 3-인자로 그대로 넘기는지 검증.
+        LsMarking pinned = LsMarking.createAuto(3L, "fire", 5, "p.mp4", "[]", 1L, 25.0);
+        ctx.setMarkings(List.of(pinned));
 
         real.execute(ctx);
 
         assertThat(real.stage()).isEqualTo(BatchStage.FRAME_EXTRACT);
-        verify(real).extractByMarks(eq(raw), any());
+        verify(real).extractByMarks(eq(raw), any(), eq(25.0));
+    }
+
+    @Test
+    @DisplayName("FRAME_execute_마킹pin_null이면_3인자에_null_전달")
+    void frameExecuteWithMarksNullPin() {
+        FfmpegFrameExtractor real = mock(FfmpegFrameExtractor.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        doReturn(List.of(mock(LsDataSrc.class))).when(real).extractByMarks(any(LsDataRaw.class), any(), any());
+
+        LsDataRaw raw = rawWith(33L);
+        BatchContext ctx = new BatchContext(33L, raw);
+        ctx.setMarks(List.of(mark(0)));
+        // markings 미설정(빈 리스트) → pin 없음 → null 전달(하위호환 폴백 경로).
+
+        real.execute(ctx);
+
+        verify(real).extractByMarks(eq(raw), any(), eq((Double) null));
     }
 
     @Test
@@ -115,14 +135,14 @@ class BatchStepExecuteTest {
         assertThatThrownBy(() -> real.execute(ctx))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode().name()).isEqualTo("INVALID_INPUT"));
-        verify(real, never()).extractByMarks(any(), any());
+        verify(real, never()).extractByMarks(any(), any(), any());
     }
 
     @Test
     @DisplayName("FRAME_execute_추출결과_0건이면_INTERNAL_ERROR")
     void frameExecuteEmptyFrames() {
         FfmpegFrameExtractor real = mock(FfmpegFrameExtractor.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        doReturn(List.of()).when(real).extractByMarks(any(LsDataRaw.class), any());
+        doReturn(List.of()).when(real).extractByMarks(any(LsDataRaw.class), any(), any());
 
         BatchContext ctx = new BatchContext(5L, rawWith(5L));
         ctx.setMarks(List.of(mark(0)));

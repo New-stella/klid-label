@@ -6,9 +6,12 @@ import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcHstryRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,7 +29,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -44,6 +50,7 @@ class FfmpegFrameExtractorTest {
     private LsDataSrcRepository srcRepository;
     private LsDataSrcHstryRepository hstryRepository;
     private LsDeidentProcLogRepository deidentProcLogRepository;
+    private VideoFpsResolver fpsResolver;
     private FfmpegFrameExtractor.FrameWriter frameWriter;
     private Path sourceVideo;
     private List<Long> recordedSeekMillis;
@@ -64,6 +71,11 @@ class FfmpegFrameExtractorTest {
 
         // 기본: 비식별 성공 로그 없음 (테스트별로 stub override).
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(any())).thenReturn(Optional.empty());
+
+        // 기본 fps: 미상 폴백(30.0) — 기존 seekMillis 테스트(frameIndex*1000/30)를 그대로 통과시킨다.
+        // 실 fps 검증 테스트는 특정 rawSn 에 대해 override 한다.
+        fpsResolver = mock(VideoFpsResolver.class);
+        when(fpsResolver.resolveFps(anyLong())).thenReturn(30.0);
 
         recordedSeekMillis = new ArrayList<>();
         frameWriter = new FfmpegFrameExtractor.FrameWriter() {
@@ -102,14 +114,14 @@ class FfmpegFrameExtractorTest {
     private FfmpegFrameExtractor newExtractor() {
         Path deidBase = tmp.resolve("deid");
         return new FfmpegFrameExtractor(srcRepository, hstryRepository, deidentProcLogRepository,
-                frameWriter, tmp.toString(), deidBase.toString());
+                frameWriter, fpsResolver, tmp.toString(), deidBase.toString());
     }
 
     /** 운영 설정 재현: 원본·비식별 base 가 동일 경로(/nas-storage 등)로 주입된 extractor. */
     private FfmpegFrameExtractor newExtractorSameBase() {
         Path shared = tmp.resolve("nas-storage");
         return new FfmpegFrameExtractor(srcRepository, hstryRepository, deidentProcLogRepository,
-                frameWriter, shared.toString(), shared.toString());
+                frameWriter, fpsResolver, shared.toString(), shared.toString());
     }
 
     /** deIdntfYn 기본 "Y" (비식별 완료) 영상. */
@@ -460,6 +472,58 @@ class FfmpegFrameExtractorTest {
         assertThat(frames.get(2).getFrameNo()).isEqualTo(2);
     }
 
+    // ============================================================
+    // M-3 수정: 실 fps(video.fps) 기반 seekMillis + 미상 폴백 무회귀 + 정합성(S1)
+    // ============================================================
+
+    @Test
+    @DisplayName("M3_seekMillis_실fps25_정확_frameIndex50이_2000ms")
+    void extractByMarks_realFps25_seekMillisAccurate() {
+        // given — 저장된 실 fps=25 (resolver override)
+        when(fpsResolver.resolveFps(9001L)).thenReturn(25.0);
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(50, "00:02"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then — seekMillis = round(frameIndex*1000/25): 0ms, 2000ms.
+        // 30fps 고정이었다면 50*1000/30=1666ms 였을 것 — 실 fps 사용을 값으로 입증.
+        assertThat(frames).hasSize(2);
+        assertThat(recordedSeekMillis).containsExactly(0L, 2000L);
+    }
+
+    @Test
+    @DisplayName("M3_seekMillis_fps미상_30폴백_기존과_동일_무회귀")
+    void extractByMarks_fpsAbsent_fallback30_noRegression() {
+        // given — resolver 기본 stub(30.0 폴백) 사용
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05"), new MarkItem(300, "00:10"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then — 기존 30fps 고정 결과(frameIndex*1000/30)와 동일: 0, 5000, 10000ms.
+        assertThat(frames).hasSize(3);
+        assertThat(recordedSeekMillis).containsExactly(0L, 5000L, 10000L);
+    }
+
+    @Test
+    @DisplayName("S1_정합성_실fps25에서_마킹타임스탬프2초와_추출seekMillis2000ms가_일치")
+    void extractByMarks_consistencyWithMarkingAt25Fps() {
+        // given — S1: 마킹이 25fps 로 frameIndex=50 → timestamp "00:02"(2초)를 산출했다면,
+        // 추출도 동일 resolveFps(25.0) 단일 경로로 seekMillis 를 계산하므로 2000ms(=2초)로 일치해야 한다.
+        when(fpsResolver.resolveFps(9001L)).thenReturn(25.0);
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(50, "00:02"));
+
+        // when
+        extractor.extractByMarks(newRaw(60), marks);
+
+        // then — frameIndex 50 @ 25fps = 2000ms. 마킹 timestamp(2초)와 왕복 정합.
+        assertThat(recordedSeekMillis).containsExactly(2000L);
+    }
+
     @Test
     @DisplayName("듬성듬성한_마크_frameIndex_100과_250도_VDO_FRM_NO엔_실제값_FRM_NO엔_0과_1")
     void extractByMarks_sparseMarks_distinguishSeqFromActual() {
@@ -477,5 +541,84 @@ class FfmpegFrameExtractorTest {
         assertThat(frames.get(0).getVideoFrameNo()).isEqualTo(100);
         assertThat(frames.get(1).getFrameNo()).isEqualTo(1);
         assertThat(frames.get(1).getVideoFrameNo()).isEqualTo(250);
+    }
+
+    // ============================================================
+    // TOCTOU 근본 수정: 마킹이 pin 한 fps 사용 (추출이 재조회하지 않음)
+    // ============================================================
+
+    @Test
+    @DisplayName("TOCTOU_마킹이pin한30fps_사용_그사이video_fps60적재돼도_재조회안하고_pin30으로_계산")
+    void extractByMarks_usesPinnedFps_notReQueriedValue() {
+        // given — 이전 S1 테스트는 resolver 단일 mock 값이라 TOCTOU 를 못 잡았다. 여기서는 pin(30)과
+        // 재조회값(60)을 서로 다르게 두어 반증한다: 마킹은 30 폴백으로 frameIndex 를 산출했는데, 그 사이
+        // video.fps=60 이 적재되어 resolveFps 가 60 을 반환하는 상황을 재현한다.
+        when(fpsResolver.resolveFps(9001L)).thenReturn(60.0); // 마킹↔추출 사이 실 fps 적재됨
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05"));
+
+        // when — 마킹이 pin 한 30.0 을 명시 전달
+        extractor.extractByMarks(newRaw(60), marks, 30.0);
+
+        // then — pin 30 으로 계산: 0ms, 5000ms. (60 으로 재조회했다면 0, 2500ms 였을 것.)
+        assertThat(recordedSeekMillis).containsExactly(0L, 5000L);
+        // 핵심: pin 이 유효하므로 resolveFps 재조회를 하지 않는다(구조적 TOCTOU 소멸).
+        verify(fpsResolver, never()).resolveFps(anyLong());
+    }
+
+    @Test
+    @DisplayName("TOCTOU_execute경로_마킹pin30이_video_fps60보다_우선_적용")
+    void execute_usesPinnedFpsFromMarking_overResolver() {
+        // given — 실제 파이프라인 경로(execute): ctx.markings 의 최신 마킹이 pin 한 fps 를 써야 한다.
+        when(fpsResolver.resolveFps(9001L)).thenReturn(60.0); // 추출 시점에 실 fps 가 이미 적재됨
+        FfmpegFrameExtractor extractor = newExtractor();
+        LsDataRaw raw = newRaw(60);
+
+        // 마킹은 과거 30 폴백으로 생성됐다고 가정 → fps=30 pin. marks 는 그 30fps 기준 frameIndex.
+        LsMarking marking = LsMarking.createAuto(9001L, "EVT", 150, sourceVideo.toString(),
+                "[{\"frameIndex\":0,\"timestamp\":\"00:00\"},{\"frameIndex\":150,\"timestamp\":\"00:05\"}]",
+                1L, 30.0);
+        BatchContext ctx = new BatchContext(9001L, raw);
+        ctx.setMarkings(List.of(marking));
+        ctx.setMarks(List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05")));
+
+        // when
+        extractor.execute(ctx);
+
+        // then — pin 30 적용: 0ms, 5000ms (60 재조회였다면 0, 2500ms).
+        assertThat(recordedSeekMillis).containsExactly(0L, 5000L);
+        verify(fpsResolver, never()).resolveFps(anyLong());
+    }
+
+    @Test
+    @DisplayName("마킹pin이_null이면_resolveFps로_폴백한다_하위호환")
+    void extractByMarks_nullPin_fallsBackToResolver() {
+        // given — 구 데이터(pin 없음) → resolveFps 폴백. resolver 는 실 fps 25 반환.
+        when(fpsResolver.resolveFps(9001L)).thenReturn(25.0);
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(50, "00:02"));
+
+        // when — pin=null
+        extractor.extractByMarks(newRaw(60), marks, null);
+
+        // then — resolveFps(25) 폴백 적용: 0ms, 2000ms.
+        assertThat(recordedSeekMillis).containsExactly(0L, 2000L);
+        verify(fpsResolver).resolveFps(9001L);
+    }
+
+    @Test
+    @DisplayName("60fps_마킹pin_frameIndex120이_2000ms로_정확계산")
+    void extractByMarks_pinned60Fps_seekMillisAccurate() {
+        // given — 60fps pin. resolver 는 다른 값(30)을 두어도 pin 이 우선임을 함께 검증.
+        when(fpsResolver.resolveFps(9001L)).thenReturn(30.0);
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(120, "00:02"));
+
+        // when — 60fps pin
+        extractor.extractByMarks(newRaw(60), marks, 60.0);
+
+        // then — frameIndex 120 @ 60fps = 2000ms. (30fps 였다면 4000ms.)
+        assertThat(recordedSeekMillis).containsExactly(0L, 2000L);
+        verify(fpsResolver, never()).resolveFps(anyLong());
     }
 }

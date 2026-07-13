@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -44,6 +45,11 @@ public class MarkingService {
     private final LsTaskAssignmentRepository assignmentRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    /**
+     * 단일 fps 소스 — 자동 마킹의 30fps 고정 가정(M-3)을 실 fps 로 대체.
+     * 여기서 해석한 fps 를 마킹 레코드에 pin 하여 추출단계가 재조회 없이 동일 값을 쓰게 한다(TOCTOU 제거).
+     */
+    private final VideoFpsResolver fpsResolver;
 
     /**
      * 마킹 생성.
@@ -88,13 +94,22 @@ public class MarkingService {
                     "이벤트 유형이 지정되지 않은 영상은 마킹할 수 없습니다.");
         }
 
-        // 2. 마킹 모드에 따른 처리
+        // 2. 마킹 시점에 실 fps 를 확정(pin) — TOCTOU 제거의 핵심.
+        //    M-3 이전에는 자동마킹과 프레임추출이 각자 다른 시점에 resolveFps 를 재조회했다. Phase 2 의
+        //    video.fps 메타 적재(ingest AFTER_COMMIT @Async)가 두 시점 사이에 완료되면, 마킹은 30 폴백으로
+        //    frameIndex 를, 추출은 실 fps 로 seekMillis 를 계산해 프레임이 어긋났다(TOCTOU).
+        //    이제 마킹 생성 시 해석한 fps 를 마킹 레코드에 저장하고, FfmpegFrameExtractor 가 재조회 대신
+        //    이 pin 값을 읽어 계산하므로 마킹↔추출이 구조적으로 동일 값을 사용한다(정합성 불변식).
+        //    미상 시 30.0 폴백이라 기존 동작과 동일(무회귀). AUTO 는 marks 산출에도 이 fps 를 쓴다.
+        double fps = fpsResolver.resolveFps(rawSn);
+
+        // 3. 마킹 모드에 따른 처리
         String marksJson;
         if ("AUTO".equals(req.mode())) {
             if (req.intervalFrames() == null || req.intervalFrames() <= 0) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "자동 모드에서 intervalFrames 는 1 이상이어야 합니다.");
             }
-            marksJson = generateAutoMarks(raw.getDurationSec(), req.intervalFrames());
+            marksJson = generateAutoMarks(raw.getDurationSec(), req.intervalFrames(), fps);
         } else if ("MANUAL".equals(req.mode())) {
             if (req.marks() == null || req.marks().isEmpty()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "수동 모드에서 marks 는 필수입니다.");
@@ -104,18 +119,18 @@ public class MarkingService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "mode 는 AUTO 또는 MANUAL 이어야 합니다.");
         }
 
-        // 3. Entity 생성 + 저장
+        // 4. Entity 생성 + 저장 — 해석한 fps 를 마킹에 pin 하여 추출단계가 재조회 없이 동일 값을 사용하게 한다.
         Long actorNo = parseUserNo(actor.sub());
         LsMarking marking = "AUTO".equals(req.mode())
-                ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo)
-                : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo);
+                ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo, fps)
+                : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo, fps);
         markingRepository.save(marking);
 
         log.info("[Marking] created rawSn={}, mode={}, markingSn={}", rawSn, req.mode(), marking.getMarkingSn());
 
         eventPublisher.publishEvent(new MarkingCompletedEvent(rawSn, marking.getMarkingSn()));
 
-        // 4. 응답
+        // 5. 응답
         return MarkingResponse.from(marking, objectMapper);
     }
 
@@ -144,26 +159,17 @@ public class MarkingService {
     }
 
     /**
-     * 자동 마킹의 네이티브 FPS 가정값 (30fps).
+     * 자동 모드: durationSec·실 fps 기반 intervalFrames 간격으로 marks 자동 생성 (프레임 단위).
      *
-     * <p><b>M-3 — 30fps 고정 가정의 제약(중요):</b> 자동 마킹은 영상의 실제 FPS 를 조회하지 않고 30fps 로
-     * 가정하여 totalFrames(=durationSec×30)와 프레임 인덱스→타임스탬프(frameIndex/30)를 계산한다.
-     * {@code LS_DATA_RAW} 에는 FPS 컬럼이 없어 영상별 실 FPS 를 알 수 없기 때문이다. 따라서 30fps 가 아닌
-     * 영상(예: 25/60fps)은 자동 마킹의 마크 프레임 번호·타임스탬프가 실제 재생 위치와 어긋날 수 있다.
+     * <p><b>M-3 수정 — 실 fps 사용:</b> 과거에는 영상의 실제 FPS 를 조회하지 않고 30fps 로 고정 가정하여
+     * totalFrames·타임스탬프를 계산했다. NIA export Phase 2 가 {@code LS_DATA_META.video.fps} 에 실
+     * 프레임레이트를 적재하므로, 이제 {@link VideoFpsResolver#resolveFps(Long)} 가 해석한 실 fps 를 인자로
+     * 받아 계산한다. fps 미상 시 resolver 가 30.0 으로 폴백하므로 기존 동작과 동일하다(무회귀).
      *
-     * <p>FPS 필드 신설은 LS_DATA_RAW 스키마/Flyway 마이그레이션 + 적재 파이프라인(메타 추출) 전반에
-     * 파급이 커서 본 후속 개선 범위에 포함하지 않는다. 현 단계에서는 가정을 명시(Javadoc + Swagger 설명)하고,
-     * 정확한 프레임 정렬이 필요하면 수동 모드(MANUAL)를 사용하도록 안내한다.
-     */
-    static final int NATIVE_FPS = 30;
-
-    /**
-     * 자동 모드: durationSec 기반 intervalFrames 간격으로 marks 자동 생성 (프레임 단위).
-     *
-     * <p><b>30fps 고정 가정(M-3):</b> 이 메서드는 영상의 실제 FPS 를 사용하지 않고 {@link #NATIVE_FPS}(30fps)
-     * 로 가정하여 totalFrames(=durationSec×30)와 각 프레임의 타임스탬프(frameIndex/30초)를 계산한다.
-     * {@code LS_DATA_RAW} 에 FPS 정보가 없기 때문이며, 30fps 가 아닌 영상에서는 마크 프레임/타임스탬프가
-     * 실제와 어긋날 수 있다. 정확한 프레임 정렬이 필요하면 수동 모드를 사용한다. (상세 사유는 {@link #NATIVE_FPS}.)
+     * <p><b>반올림 정책:</b> 분수 fps(예: 29.97) 를 지원하기 위해 double 로 계산하되,
+     * {@code totalFrames = Math.round(durationSec × fps)} 로 프레임 총수를 반올림한다. 타임스탬프는
+     * {@code frameIndex / fps}(초)를 정수 초로 절단(mm:ss 표기)한다. 추출 단계의 seekMillis 도 동일
+     * fps·동일 Math.round 정책을 쓰므로 마킹↔추출이 정합한다.
      *
      * <p>경계/널 처리:
      * <ul>
@@ -175,17 +181,18 @@ public class MarkingService {
      *
      * @param durationSec    영상 길이 (초) — null/0 이하면 거부
      * @param intervalFrames 프레임 간격 (1 이상)
+     * @param fps            영상 실 프레임레이트 (미상 시 호출자가 폴백값 30.0 을 전달) — 양수
      */
-    String generateAutoMarks(Integer durationSec, int intervalFrames) {
+    String generateAutoMarks(Integer durationSec, int intervalFrames, double fps) {
         if (durationSec == null || durationSec <= 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "자동 마킹은 영상 길이(durationSec)가 1초 이상이어야 합니다.");
         }
         List<MarkItem> marks = new ArrayList<>();
-        // M-3 — 영상 실 FPS 를 알 수 없어 30fps 가정. 비-30fps 영상은 마크 프레임/타임스탬프가 어긋날 수 있다.
-        int totalFrames = durationSec * NATIVE_FPS;
+        // M-3 수정 — 실 fps(video.fps, 미상 시 30.0 폴백)로 totalFrames 를 반올림 계산(분수 fps 지원).
+        int totalFrames = (int) Math.round(durationSec * fps);
         for (int frameIndex = 0; frameIndex < totalFrames; frameIndex += intervalFrames) {
-            double sec = frameIndex / (double) NATIVE_FPS;
+            double sec = frameIndex / fps;
             String timestamp = formatTimestamp((int) sec);
             marks.add(new MarkItem(frameIndex, timestamp));
         }
