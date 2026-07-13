@@ -239,3 +239,114 @@
 ```
 
 > ⚠️ 이 스케치는 초안. 실제 구현 전 §4 갭 6~7건을 팀에서 확정해야 함. 특히 좌표 규약(1)·프레임 설명(2)·라벨 매핑(4)은 blocker.
+
+---
+
+## 6. 필드 출처(Provenance) & NIA JSON Export 조달 전략 (2026-07-13 추가)
+
+> 근거: 1차 DB 설계 wiki `docs/v1-wiki/15-database.md`(MySQL `KLID-AI-DB-001`) + 2차 MNG_* 공유 엔티티 실 컬럼.
+> 목적: "2차 데이터로 NIA/1차 형식 JSON을 산출(export)할 수 있는가"에 답하기 위해 **각 필드의 원 출처**와 **2차 조달 경로**를 확정.
+
+### 6-1. 1차는 메타를 전부 DB 컬럼으로 보유했다
+
+1차 원천 테이블 **`LS_DATA_SRC`**(PK `DATA_RAW_SN`, "CCTV 클립 영상의 모든 메타데이터 관리")가 NIA `video` 블록을 거의 그대로 컬럼으로 가짐:
+
+| NIA/1차 JSON | 1차 DB 컬럼 |
+|---|---|
+| file_name / type / format / codec | `RAW_FILE_NM` / `RAW_DATA_TYPE_CD` / `FILE_FMT` / `VDO_CDC` |
+| frames / width / height / resolution | `FRM_CNT` / `WDTH` / `HGT` / `RSLTN` |
+| date_created / location(+촬영인원) | `SHT_DT` / `SHT_LC`(+`SHT_PRSN`) |
+| stdg_cd | `LCLGV_CD` |
+| **coordinates** | **`WGS84_LAT`/`WGS84_LOT` decimal(10,7)** |
+| **weather / time_of_day / season** | **`WTHR_CD` / `HR_TYPE_CD` / `SESN_CD`** (코드 컬럼) |
+| event_name / levels | `EVNT_NM` / `EVNT_TYPE_CD`(+`EVNT_END_DT`) |
+| cctv_mng_no / data_source | `VMS_CCTV_ID` / `CLCT_SRC` |
+| anonymity / privacy / ai_generated | `DE_IDNTF_YN` / `PRVC_YN` / `AI_CRT_YN` |
+| (AI 생성 프롬프트) | `PROMPT_CN` |
+| fps | ❌ 원천 컬럼 없음 → `FPS_TYPE_CD`(`LS_PJT_STG_PRC`/`LS_PJT_DATA_STTS` 가공설정) |
+| dataset(identifier/name/counts) | `LS_PJT`(PJT_ID/PJT_NM/GOAL_QTY/VER) + `LS_PJT_DATA_STATS` |
+| categories | `LS_PJT_LBL`(LBL_NM/LBL_CLR/PRC_TYPE_CD/**UP_LBL_SN 계층**) |
+| annotations(track/속성) | `LS_DATA_LBL_HSTRY`(TRCK_ID/`ATRB` JSON/ACTION_TYPE_CD) |
+
+> ⚠️ v1은 MySQL·프로젝트 중심, v2는 PostgreSQL·영상 단위 → 스키마가 직접 매핑되지 않음. 위는 "1차엔 이 메타가 DB에 있었다"는 출처 확인용.
+
+### 6-2. 2차 Export 조달 전략 — 갭은 3층으로 축소
+
+앞 §4에서 "스키마 보강 6종"이라 했으나, **대부분은 MNG_* 조인으로 해결되어 2차 DB 보강조차 불필요**하다.
+
+**① 🟢 MNG_* 조인으로 즉시 해결 (저장 불필요, export 쿼리에서 JOIN)**
+
+| NIA 필드 | MNG_* 출처 |
+|---|---|
+| **coordinates** | `MNG_RESOURCE_CCTV.WGS84_LAT/WGS84_LOT` |
+| cctv_name / resolution | `MNG_RESOURCE_CCTV.CCTV_NM` / `RESOLUTION` |
+| location / stdg_cd | `MNG_CLIP_MASTER.LCLGV_CD` + `MNG_EX_LOCAL_GOV.SIDO_NM/SGG_NM` |
+| file_name / length / format | `MNG_CLIP_MASTER.FILE_NM` / `VDO_LEN_SEC` / `FILE_FMT` |
+| event_name / levels | `MNG_CLIP_EVNT_LST.EVNT_TYPE_CD` + `MNG_EX_EVNT_TYPE`(EVNT_CLS_CD/EVNT_CTGRY_CD 계층) |
+| cctv_mng_no | `VMS_CCTV_ID` |
+
+**② 🟡 ffprobe로만 조달 (MNG·1차원천에도 fps 컬럼 없음)**
+- `fps` / `bit_rate` / `codec(VDO_CDC)` / `aspect_ratio` / `pixel` / `filesize` → 적재 시 ffprobe 1회 추출 → `LS_DATA_META`(`video.*`) 적재.
+
+**③ 🟡 파생·수기 (자동 출처 없음)**
+- `time_of_day` / `season` → `SHT_DT`에서 결정론적 파생(시각/월).
+- `weather` → **자동 출처 전무** (1차 `LS_DATA_SRC.WTHR_CD` 있었으나 획득경로 불명, 본 프레임 샘플도 `""` 빈값) → 사실상 무시 or 수기.
+- `image.description`(프레임별) → 작업자 수기 입력 (§4-2 갭 유지 — 저장위치 신설 필요).
+
+### 6-3. 정정 이력 (supersession)
+
+- §4-2 "coordinates 미보유 → CCTV 마스터엔 주소만" → **오류.** `MNG_RESOURCE_CCTV.WGS84_LAT/WGS84_LOT` 실재. **정정: MNG_* 조인으로 조달 가능.**
+- §4 "weather/time_of_day/season = META 필요" → time_of_day·season은 `SHT_DT` 파생, weather만 무출처로 축소.
+- 결론: **NIA JSON export의 진짜 blocker는 (a) ffprobe 기술스펙 5종 (b) 프레임별 description 2건으로 축소.** 나머지는 MNG_* 조인 + SHT_DT 파생으로 해결.
+
+---
+
+## 7. 권위 명세서(cudo Excel v2.0) 정합 + 조달 전략 확정 (2026-07-13)
+
+> **정본(SoT)**: `AI기반CCTV_어노테이션 포맷 및 데이터 구조_v2.0_20251120.xlsx` (cudo 작성, NIA 가이드라인 맞춤화 + COCO_DATASET 기반).
+> 시트: `데이터구조`(필드↔TABLE·COLUMN·cudo전달유무 매핑) + `구문규칙검사`(NIA 구문정확성 검증).
+> 본 §7은 그 정본과 우리 실제 스키마의 차이를 반영하고 **조달 전략을 JOIN(조인)으로 확정**한다.
+
+### 7-1. 명세서가 확정한 사실 (본 문서 분석과 일치)
+
+- weather=`WTHR_CD`·time_of_day=`HR_TYPE_CD`·season=`SESN_CD` → **전부 "불가 · UI로 처리"**(자동 출처 없음, 수기). §6-2 ③과 일치.
+- cctv_height/azimuth → 비고 **"cudo 자원관리 테이블(MNG_RESOURCE) 참조, key-value map으로 가져오기"** → **MNG_* 조인 명시**. §6-2 ①과 일치.
+- coordinates=`WGS84_LAT/WGS84_LOT`, cctv_name=`CCTV_NM` → 조달 가능.
+
+### 7-2. ⚠️ 명세서 `LS_DATA_RAW.COLUMN` ↔ 우리 실제 스키마 차이
+
+명세서는 대부분을 `LS_DATA_RAW` 컬럼으로 매핑하나(=적재 모델), **아래 컬럼은 현재 우리 `LS_DATA_RAW`에 없음.** 우리는 **조인 전략을 택하므로 이 컬럼들을 신설하지 않고** 다른 소스에서 조달한다.
+
+| 명세서 요구 컬럼 | 우리 실제 | 조인 전략에서의 조달 |
+|---|---|---|
+| `FILE_FMT`(type) | 없음 | `MNG_CLIP_MASTER.FILE_FMT` 조인 |
+| `VDO_CDC`(format/codec)·`FILE_SZ`·`FPS`·`ASPRT_RT`·`BIT` | 없음 | **ffprobe** 추출 → `LS_DATA_META`(`video.*`) |
+| `WDTH`·`HGT`·`RSLTN`(width/height/resolution) | 없음 | `MNG_RESOURCE_CCTV.RESOLUTION` 조인(+파싱) or ffprobe |
+| `WTHR_CD`·`HR_TYPE_CD`·`SESN_CD` | 없음 | weather=UI 수기 / time_of_day·season=`SHT_DT` 파생 |
+| `CCTV_NM`·`WGS84_LAT/LOT` | MNG_RESOURCE_CCTV 보유 | `MNG_RESOURCE_CCTV` 조인 |
+| `EVNT_NM`·`MNTR_CN` | 없음(EVNT_TYPE_CD만) | `MNG_CLIP_EVNT_LST`+`MNG_EX_EVNT_TYPE` 조인 / event_log는 미보유 |
+| `AI_CERT_YN`(ai_generated) | 없음 | `ORGNL_RAW_SN` 유무로 파생 |
+
+**명칭 매핑(조인/직렬화 시 alias):** `DATA_RAW_SN`→`RAW_SN`, `RAW_FILE_NM`→`RAW_FILE_PATH_NM`, `VDO_LEN`→`VDO_LEN_SEC`, `DE_IDNTF_YN`→`DE_IDENT_YN`.
+
+### 7-3. 확정 전략 — JOIN (컬럼 신설 최소)
+
+> **결정(2026-07-13, 사용자)**: 명세서의 "LS_DATA_RAW 적재(materialize)" 모델 대신 **조인 전략**을 채택. LS_DATA_RAW에 ~16컬럼을 신설하지 않고, export 시점에 MNG_* 조인 + ffprobe 메타 + SHT_DT 파생으로 조달한다.
+
+**조달 계층 (JSON `video` 블록 기준):**
+
+| 계층 | 필드 | 소스 |
+|---|---|---|
+| 🟢 우리 LS_DATA_RAW 기존 | id·filename·date_created·length·cctv_mng_no·stdg_cd·anonymity/pseudonymity/privacy_included·ai_generated | `RAW_SN`·`RAW_FILE_PATH_NM`·`SHT_DT`·`VDO_LEN_SEC`·`VMS_CCTV_ID`·`LCLGV_CD`·`PRVC_YN`/`DE_IDENT_YN`·`ORGNL_RAW_SN` |
+| 🟢 MNG_* 조인 | type(FILE_FMT)·cctv_name·coordinates·resolution·location·event_name/levels | `MNG_CLIP_MASTER`·`MNG_RESOURCE_CCTV`·`MNG_CLIP_EVNT_LST`+`MNG_EX_EVNT_TYPE`·`MNG_EX_LOCAL_GOV` |
+| 🟡 ffprobe → LS_DATA_META | fps·format(codec)·bit_rate·aspect_ratio·pixel·filesize | 적재 시 1회 추출, `video.*` 키 적재 |
+| 🟡 SHT_DT 파생 | time_of_day·season | 촬영일시 시각/월 계산 |
+| 🔴 UI 수기 | weather·image.description(프레임별) | 라벨/검수 화면 입력 (description은 SRC 단위 저장위치 신설 필요) |
+
+**남은 blocker (조인 전략에서도):**
+1. **ffprobe 메타 적재** — **신규 인프라 아님.** ffprobe 통합은 이미 있음(`VideoProbe` 포트 + `BrampVideoProbe`, 설정 `authoring.ffprobe.binary`). 현재 `-show_entries stream=width,height`(→`Dimensions`)만 추출하며 해상도 변경(SFR-07-02)에만 사용. **확장안**: `-show_entries`에 `stream=...,codec_name,r_frame_rate,bit_rate,duration format=size,bit_rate,format_name` 추가 + `Dimensions`→`VideoMeta` 확장 → **적재 시(TrainingVideoIngest/Deidentify 선두) 1회 호출해 `LS_DATA_META(video.*)` 적재.** 이걸로 fps·format(codec)·bit_rate·filesize·pixel·length 일괄 획득.
+   - ⚠️ 프레임 추출기(`FfmpegFrameExtractor`)는 현재 probe 없이 **fps 30 고정 가정**(`NATIVE_VIDEO_FPS=30`, 결함 M-3). 실 probe 도입 시 **M-3(비-30fps 영상 마킹 시점 어긋남) 결함도 동시 해결**되는 보너스.
+2. **프레임별 description** — LS_DATA_META는 RAW 키 → SRC(프레임) 단위 텍스트 저장위치 신설 필요.
+3. **event_log(MNTR_CN)** — 미보유, 관제일지 소스 확인 필요.
+
+> categories의 keypoints/skeleton/supercategory, annotations의 keypoints는 명세서엔 있으나 우리 라벨 모델 미지원(범위 밖 가능 — 본 사업 대상 라벨이 bbox/polygon 위주면 무해).
