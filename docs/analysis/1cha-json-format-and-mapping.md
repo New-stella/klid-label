@@ -350,3 +350,22 @@
 3. **event_log(MNTR_CN)** — 미보유, 관제일지 소스 확인 필요.
 
 > categories의 keypoints/skeleton/supercategory, annotations의 keypoints는 명세서엔 있으나 우리 라벨 모델 미지원(범위 밖 가능 — 본 사업 대상 라벨이 bbox/polygon 위주면 무해).
+
+### 7-4. ⚠️ 포털향 예외 — JOIN 성립 안 함, 전용 메타 테이블(materialize) 필요 (2026-07-13 사용자 지적)
+
+§7-3의 JOIN 전략은 **`LS_DATA_META`+`MNG_*`+`LS_DATA_RAW`가 모두 control DB(klid_at)에 있다는 전제**다. 그러나 **포털은 별도 물리 포털 DB**(`common.datasource.PortalDataSourceConfig`, `portalEntityManagerFactory`, `PORTAL_DB_*`)에서 Load하므로 **control DB 테이블을 크로스-DB JOIN할 수 없다.**
+
+| 경로 | DB | 전략 |
+|---|---|---|
+| 내부 데이터마트 export (구현됨) | control DB | 🟢 JOIN — V_COMPLETED_* + MNG_* 조인 |
+| **포털향 export (미구현/future)** | **포털 DB(분리)** | 🔴 **materialize — 저장된 전용 메타 테이블 필요** |
+
+- 즉 포털이 NIA 메타를 소비하려면 video.* 메타(MNG 유래 cctv_name·coords 포함)를 **포털이 접근 가능한 저장 테이블로 적재(materialize)** 해야 한다. 이는 cudo 명세서(Excel v2.0)의 "LS_DATA_RAW 적재" 모델 방향과 맞닿는다.
+- **JOIN 결정을 뒤집는 것은 아님**: 내부 데이터마트 경로엔 JOIN 유지, **포털 경로에만 materialize 예외** 적용(이원화).
+
+### 7-5. 🔒 제약 — 새 테이블/컬럼은 표준용어 준수 (구속 지시, 2026-07-13)
+
+§7-4의 포털향 메타 테이블(또는 컬럼)을 설계·생성할 때는 **반드시 표준용어를 준수**한다:
+- **LogiCraft program glossary** + **gov(공공) 표준용어**를 조회해 물리명(약어)·논리명을 정합시킨다(예: 좌표=`WGS84_LAT/LOT`, 코덱=`VDO_CDC`, 프레임레이트=표준약어 확인 후).
+- 소유권 규칙 준수: 타인/공공 등록분 무단 수정 금지(본인 등록분만). 신규 용어는 등록 후 사용.
+- 이 제약은 향후 이 프로젝트의 **모든 신규 LS_* 테이블/컬럼 생성**에 일반 적용된다.
