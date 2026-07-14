@@ -51,6 +51,10 @@ public class LsDataSrc {
     @Column(name = "DE_IDNTF_SRC_FILE_PATH_NM", length = 1000)
     private String deIdntfSrcFilePathNm;
 
+    /** 프레임 설명(작업자 수기, NIA image.description 조달원). null = 미입력/삭제. */
+    @Column(name = "FRM_EXPLN", length = 1000)
+    private String frmExpln;
+
     @Column(name = "SHT_DT")
     private LocalDateTime shtDt;
 
@@ -101,5 +105,14 @@ public class LsDataSrc {
 
     public String getDeidFilePath() {
         return deIdntfSrcFilePathNm;
+    }
+
+    /**
+     * 프레임 설명(작업자 수기 자연어)을 갱신한다. @Setter 금지 — 비즈니스 메서드로 상태 변경.
+     * <p>blank/null 은 설명 삭제로 간주하여 null 로 정규화한다(데이터마트 NULL 노출 일관성).
+     */
+    public void updateDescription(String description) {
+        this.frmExpln = (description == null || description.isBlank()) ? null : description;
+        this.updDt = LocalDateTime.now();
     }
 }

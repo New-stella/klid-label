@@ -22,6 +22,7 @@ import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
+import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
@@ -685,6 +686,8 @@ export function LabelingPage() {
                   }
                 />
               </div>
+              {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. 내부 채널만 렌더 */}
+              {!portalMode && <FrameDescriptionPanel srcSn={data?.srcSn} />}
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 포털 라벨링에는 미노출, 내부 채널만 렌더 */}
               {!portalMode && <TimeseriesSidePanel srcSn={data?.srcSn} />}
             </div>
