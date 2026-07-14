@@ -17,19 +17,39 @@
 ## 19.1 🟡 검토/추가 후보 (실제 갭 — 의사결정 필요)
 
 > 추가 여부는 **요구사항(R1, `docs/design/`) 확정에 따름**. 아래는 "v1엔 있었으나 v2에 없음 → 필요하면 추가" 후보다. 각 항목 추가 전 R1 요구사항 매핑부터 확인할 것.
+> **갱신(2026-07-14)**: [21 사용자 화면 가이드](21-user-screen-guide.md)의 화면 단위 세부(SC-003~018) + v2 BE/FE 코드 재조사로 신규 갭 다수 확인. 아래를 **P1~P3 우선순위 + BE/FE 실구현 상태**로 재정리한다. **제외 조건**(사용자 결정 2026-07-14): ⛔ 영상/이미지 업로드·AI 생성(관제/포털 담당) · ⛔ 프로젝트 관리(→ 영상관리로 대체) — 갭 대상 아님(§19.3).
 
-- [ ] **스켈레톤 / 키포인트 라벨 도구** — v1은 관절 포인트 정의 + 골격 그리기 지원([07](07-labeling-tools.md#스켈레톤-skeleton)). v2 라벨 타입은 BBOX/POLYGON/POINT 중심이며 스켈레톤 골격 정의 도구 없음.
-  - 판단 기준: **포즈/행동 탐지 학습데이터가 요구사항에 있는가?** 없으면 불필요.
-- [ ] **이미지 자동 분류** — v1은 추출 프레임을 메타(이벤트/시간/날씨/계절/위치) 기반 자동 카테고리화([06](06-video-frame-pipeline.md#이미지-자동-분류)). v2는 메타는 보유하나 자동 분류 UI/로직 명시 없음.
-  - 판단 기준: 대량 프레임 탐색 편의가 필요한가? `LS_DATA_RAW`/`LS_DATA_META` 필터로 부분 대체 가능.
-- [x] **검수자 ↔ 작업자 이슈 소통 채널** — ✅ **v2 구현 완료 (2026-06-05, R1 요구사항 외 추가 구현)** — `LS_DATA_ISSUE` 확장(INQUIRY 타입·OPEN/ANSWERED/RESOLVED 상태)+`LS_ISSUE_COMMENT`(V57), `/v1/videos/{rawSn}/issues`·`/v1/issues/{issueSn}/*` API, 라벨링·검수 화면 이슈 스레드 탭. 상세: [v2-wiki 21 이슈 소통 채널](../v2-wiki/21-issue-channel.md)
-  - v1 대비: 반려 이력과 **통합 스레드** + 상태 머신·낙관적 잠금. v1의 "폐기 요청"은 검수 반려 플로우로 수렴(미별도 구현).
-- [x] **게시판 (공지/가이드라인 배포)** — ✅ **v2 구현 완료 (2026-06-05, R1 요구사항 외 추가 구현)** — `LS_NOTICE`/`LS_NOTICE_ATTACH`(V56), `/v1/notices*` API, SC-030/031/032 화면. 상세: [v2-wiki 20 게시판](../v2-wiki/20-notice-board.md)
-  - v1 대비: DRAFT/발행 상태 전이 + 첨부 보안 강화(allowlist·UUID·경로검증). 연습장은 별도 후보로 잔존.
-- [ ] **연습장 (라벨링 연습 환경)** — v1 신규 작업자 온보딩용([13](13-board-practice.md)). v2 없음.
-  - 판단 기준: 작업자 교육/숙련 환경이 필요한가? (낮은 우선순위)
+### 🔴 P1 — 라벨링 생산성·정확도 직접 영향
 
-> 위 5개가 "추가 검토" 실질 후보였고, **게시판·이슈 소통 채널은 2026-06-05 구현 완료**(잔여 후보 3개: 스켈레톤·이미지 자동 분류·연습장). 그 외 v1 기능은 아래처럼 **이미 대체됐거나 범위 외**라 추가 대상이 아니다.
+- [ ] **이미지 조절 패널** — SC-005. 밝기/대비/투명도/작업(라벨) 투명도 슬라이더 전무(FE). 클라이언트 렌더링만이라 FE 단독 구현 가능.
+- [ ] **라벨 복사/붙여넣기 (Ctrl+C/V·전체복사·좌표 +10 offset)** — SC-004. BE·FE 모두 없음(증강용 `LsDataLbl.copy`만 존재). 프레임 간 반복작업 핵심 편의.
+- [ ] **트랙 번호 변경/머지 (merge/split)** — SC-004. `trackId` 저장·SAM2 Track 전파는 있으나 **병합/번호변경 로직·엔드포인트·UI 없음**. 가려졌다 재등장한 객체 연결 불가.
+- [ ] **프레임 테두리 4색 체계** — 전 화면 공통(저장=연두/반려=주황/확인요청=빨강/현재=강조). FE는 현재+이슈 플래그 2색만(`DarkFrameStrip.tsx`). 작업 진행 가시성 핵심.
+- [ ] **라벨링 단축키 정합** — 매뉴얼 Rev.1.1 확정셋(W/A/S/D·폴리곤 F/Q·R 삭제·T 표시숨김)과 v2 실장(화살표/Del/Ctrl+S)이 불일치. **정합 결정 필요**(차이표: [21 §21.9](21-user-screen-guide.md#219-크로스컷-규칙-전-화면-공통)).
+
+### 🟡 P2 — 보조/편의
+
+- [ ] **회전 / Fit(초기화) / 영역 확대 도구** — 서포트 도구. FE 줌만, 회전 하드코딩 미노출·Fit/드래그 확대 없음.
+- [ ] **캔버스 그리드 오버레이** — 라벨링 도구. FE 없음(작은 편의).
+- [ ] **객체 잠금/숨김 아이콘** — 객체/라벨 탭. FE 목록만, 잠금·숨김 토글 없음.
+- [ ] **YOLO 오토라벨 수동 트리거 버튼** — SC-004. BE 배치는 구현, 라벨링 화면 툴바엔 SAM만 노출(YOLO 수동 버튼은 dev 페이지만).
+- [ ] **커스텀 메타 라디오형 입력** — SC-006/011. 이미지 description·라벨 속성(SELECT/RADIO)은 구현, 프레임 메타의 사용자정의 라디오형 없음.
+- [ ] **트랙 보간 POLYGON/POLYLINE** — BE BBOX simple 보간만. `TrackInterpolator.java:38` "후속 Phase" 미구현.
+- [ ] **통계 CSV 리포트 실데이터** — `/v1/stats/report`가 헤더만 반환하는 placeholder(`StatsController.java:110`). 집계 로직 미구현.
+
+### 🟢 P3 — 낮은 우선순위
+
+- [ ] **이미지 자동 분류** — 메타(이벤트/시간/날씨/계절) 기반 프레임 자동 카테고리화. v2는 `TimeOfDaySeasonDeriver`(주야간/계절 파생)만, 메타 필터로 부분 대체 가능.
+- [ ] **연습장 (라벨링 연습 환경)** — SC-016. BE·FE 전무. 신규 작업자 온보딩용([13](13-board-practice.md)).
+- [ ] **프레임 폐기(discard) 워크플로** — 관리자 확인요청 처리의 "폐기". v2는 검수 반려로 수렴(부분 대체) — 프레임 단위 폐기 별도 미구현.
+
+### ✅ 완료 (이전 후보 중 구현됨)
+
+- [x] **키포인트/스켈레톤 라벨링 (17-keypoint COCO 포즈)** — ✅ **구현 완료 (2026-07-14, 4-Phase)** — BE: `common/util/{KeypointSerializer,KeypointPoint,KeypointSkeleton}.java`(삼중값 17×[x,y,v]·COCO-17 상수 17이름·19엣지), `LsDataLbl` SKELETON 타입, `LabelService` validate/serialize, `VersionService` 스냅샷/롤백/diff, `LabelMaster` SKELETON regex, `V_COMPLETED_LABEL` pass-through(IT). FE: konva 17점 배치·개별 드래그·스켈레톤 렌더·가시성(`canvas/layers/{LabelsLayer,OverlayLayer}.tsx`·`utils/keypointHelpers.ts`), 툴바 버튼·단축키(K)·serialize/undo 딥클론(`useLabelStore.ts`), `ObjectAttributePanel`. 커밋 `dc31e82`→`23a8cae`→`8b10cd0`→`4fa9e03`, 전 Phase QA GREEN. **범위 제외(후속)**: 프레임 간 보간/추적(Phase 6)·COCO-pose JSON 파일 조립(외부)·YOLO-pose 자동추정·포털(ADR-013). 설계: auto-memory `keypoint-labeling-design`.
+- [x] **검수자 ↔ 작업자 이슈 소통 채널** — ✅ **구현 완료 (2026-06-05)** — `LS_DATA_ISSUE` 확장(INQUIRY·OPEN/ANSWERED/RESOLVED)+`LS_ISSUE_COMMENT`(V57), `/v1/videos/{rawSn}/issues`·`/v1/issues/{issueSn}/*` API, 이슈 스레드 탭(`IssueThreadPanel.tsx`). 상세: [v2-wiki 21](../v2-wiki/21-issue-channel.md). ※ 관리자 확인요청은 INQUIRY 타입으로 커버.
+- [x] **게시판 (공지/가이드라인 배포)** — ✅ **구현 완료 (2026-06-05)** — `LS_NOTICE`/`LS_NOTICE_ATTACH`(V56), `/v1/notices*` API, 목록/상세/편집 화면. 상세: [v2-wiki 20](../v2-wiki/20-notice-board.md).
+
+> **요약**: 잔여 후보를 P1 5종 + P2 7종 + P3 3종으로 재정리. **키포인트 라벨링은 2026-07-14 4-Phase 구현 완료**(BE+FE, 프레임 간 보간만 후속). 복사/붙여넣기·트랙 머지는 BE·FE 모두 신규 필요. 그 외 v1 기능은 §19.2·§19.3처럼 **이미 대체됐거나 범위 외**라 추가 대상이 아니다.
 
 ---
 
@@ -81,5 +101,6 @@
 
 ### 관련 페이지
 - 전체 비교: [18 v1 ↔ v2 비교](18-v1-v2-comparison.md)
+- 화면 단위 상세(SC-ID·입출력 param·단축키·프레임 색상): [21 사용자 화면 가이드](21-user-screen-guide.md)
 - v1 기능 상세: [05 프로젝트](05-project-management.md) · [07 라벨링](07-labeling-tools.md) · [09 검수](09-review-workflow.md) · [13 게시판·연습장](13-board-practice.md)
 - v2 정본: 루트 [`CLAUDE.md`](../../CLAUDE.md) · [`docs/design/`](../design/)
