@@ -22,7 +22,7 @@
 |--------|------|------|
 | `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, ORGNL_RAW_SN — V82 rename, 구 PARENT_RAW_SN·데이터마트 뷰 외부계약명만 유지). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료) | [05](05-video-management.md) |
 | `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
-| `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로) | [07](07-batch-pipeline.md) |
+| `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로, `FRM_EXPLN` 프레임설명 V103 — NIA image.description 작업자 수기) | [07](07-batch-pipeline.md)·[10](10-labeling.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |
 | `LS_DATA_LBL` (V4) | 라벨 (좌표·트랙ID·LABEL_NM, 작업 중 임시저장) | [10](10-labeling.md) |
 | `LS_DATA_LBL_AI_INFO` (V23) | AI 라벨 출처(YOLO/SAM2/VLM)·신뢰도 CONF_SCORE | [11](11-ai-assisted.md) |
@@ -43,6 +43,14 @@
 | `LS_MARKING` (V45) | 마킹 (MARK_MODE_CD, FRME_INTV_NOCS, MARK_CN JSON) | [06](06-marking.md) |
 | `LS_DATA_META` (V4) | 시계열 메타 (META_KEY/VL, EXTERNAL_JOB_ID) | [09](09-vlm-timeseries.md) |
 | `LS_DATA_META_HSTRY` (V4) / `LS_DATA_META_REVIEW` (V5) | 메타 이력 / 검수 | [09](09-vlm-timeseries.md) |
+
+### 데이터마트 통합 메타 스냅샷 (포털향, V97~)
+| 테이블 | 용도 | 위키 |
+|--------|------|------|
+| `LS_DATASET_VIDEO_META` (V97, 부분 유니크 인덱스 V99) | 검수완료(APPROVED) 시점 영상 메타 **동결 스냅샷**(1영상=1행 컬럼형, `SNPSHT_HASH` 멱등·`ACTIVE_YN` append-only). 표준용어 컬럼(VDO_CDC·FPS·BIT_RT·ASPRT_RT·RESL·WGS84_LAT/LOT·SESN_CD·DAY_NGT_CD 등). control DB 단일 진실원(SoT). `ReviewService.approve()` 트랜잭션 편승 materialize + 기존 APPROVED 백필(ApplicationRunner). MNG_* live JOIN 제거로 동결 무결성 | — |
+| `LS_META_REPL_OUTBOX` (V98) | 포털(별도 물리 DB) 단방향 복제 outbox(PENDING/DONE/DEAD/SUPERSEDED, at-least-once, 멱등키 RAW_SN+SNPSHT_HASH). XA 부재 대응 — 승인과 분리된 워커가 복제 | — |
+
+> 포털 복제본 테이블은 `db/portal/V1`(Flyway `db/migration` 스캔 밖 — 포털 DB에 수동 프로비저닝, 워커 graceful probe). 순서 보증은 단일 인스턴스+`@DisallowConcurrentExecution` 전제(스케일아웃 시 재설계 필요).
 
 ### 증강 · 비식별 · 해상도
 | 테이블 | 용도 | 위키 |
@@ -79,10 +87,10 @@
 
 | View | 내용 |
 |------|------|
-| `V_COMPLETED_VIDEO` | 영상 메타 + 원본 경로 + 검수 완료 일시 (PARENT_RAW_SN 증강 추적) |
-| `V_COMPLETED_FRAME` | 프레임 페어 (`ORIGINAL_PATH`=원본, `DEIDENTIFIED_PATH`=비식별; 실DB 별칭 확인 2026-06-25. 원천 컬럼 `LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`) |
+| `V_COMPLETED_VIDEO` | 영상 메타 + 원본 경로 + 검수 완료 일시. **재구성(V101·V102)**: `LS_DATASET_VIDEO_META`(ACTIVE_YN='Y') 동결 스냅샷 기반 + 라이브 APPROVED 게이트. 기존 출력 컬럼 alias 보존(관제 무영향) + 신규 메타 18컬럼(cctv명·좌표·코덱·fps·해상도 등) 추가 |
+| `V_COMPLETED_FRAME` | 프레임 페어 (`ORIGINAL_PATH`=원본, `DEIDENTIFIED_PATH`=비식별; 원천 `LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`) + **`DESCRIPTION`(V104, `FRM_EXPLN` 프레임설명, 하위호환 끝 추가)** |
 | `V_COMPLETED_LABEL` + `V_COMPLETED_LABEL_ATTR` | 라벨 좌표·마스터 코드 + 속성값 |
-| `V_COMPLETED_META` | 시계열 메타 (RVW_STTS_CD='APPROVED'만) |
+| `V_COMPLETED_META` | 시계열 메타 (RVW_STTS_CD='APPROVED'만). V101에서 `video.*` 기술메타 6키 제외(통합 스냅샷 `V_COMPLETED_VIDEO`로 이관) — VLM/외부 시계열만 노출 |
 
 > 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 수신 후 RAW_SN으로 4 View SELECT → 영상 1건=1 row UPSERT. 비식별 **영상** 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 적재값 사용(문자열 치환 도출 아님, View 미포함). 비식별 **프레임** 경로는 `V_COMPLETED_FRAME.DEIDENTIFIED_PATH`(=`LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`)에 직접 노출되며, 신규 추출은 원본 `{base}/frames/raw/{rawSn}`·비식별 `{base}/frames/deid/{rawSn}` 로 분기 저장돼 `STORAGE_RAW_PATH==STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`)여도 충돌하지 않는다. → [15](15-control-notify.md)
 
