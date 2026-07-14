@@ -15,6 +15,12 @@ import {
   useFrameDescription,
   useUpdateFrameDescription,
 } from '../hooks/useFrameDescription';
+import {
+  MetaCharCount,
+  MetaSection,
+  META_SAVE_BUTTON_CLASS,
+  META_TEXTAREA_CLASS,
+} from './MetaSection';
 
 export interface FrameDescriptionPanelProps {
   srcSn: number | undefined;
@@ -24,7 +30,6 @@ const TEXTAREA_ID = 'frame-description-input';
 const MAX_LEN = 1000;
 
 export function FrameDescriptionPanel({ srcSn }: FrameDescriptionPanelProps) {
-  const [open, setOpen] = useState(true);
   const { data, isLoading } = useFrameDescription(srcSn);
   const update = useUpdateFrameDescription(srcSn);
 
@@ -47,52 +52,37 @@ export function FrameDescriptionPanel({ srcSn }: FrameDescriptionPanelProps) {
   };
 
   return (
-    <div className="border-t border-gray-700">
+    <MetaSection title="프레임 설명">
+      <label htmlFor={TEXTAREA_ID} className="sr-only">
+        프레임 설명 입력
+      </label>
+      <textarea
+        id={TEXTAREA_ID}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        disabled={srcSn === undefined || isLoading || update.isPending}
+        maxLength={MAX_LEN}
+        rows={4}
+        aria-label="프레임 설명 입력"
+        placeholder="이 프레임의 상황을 자연어로 설명하세요"
+        className={META_TEXTAREA_CLASS}
+      />
+      <MetaCharCount current={text.length} max={MAX_LEN} />
+
+      {update.isError && (
+        <p className="text-xs text-red-400" role="alert">
+          설명 저장에 실패했습니다. 다시 시도해 주세요.
+        </p>
+      )}
+
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide hover:bg-gray-700/50 transition-colors"
-        aria-expanded={open}
+        onClick={handleSave}
+        disabled={!canSave}
+        className={META_SAVE_BUTTON_CLASS}
       >
-        <span>프레임 설명</span>
-        <span className="text-gray-500" aria-hidden="true">
-          {open ? '▾' : '▸'}
-        </span>
+        {update.isPending ? '저장 중...' : '저장'}
       </button>
-
-      {open && (
-        <div className="px-2 pb-2 space-y-2">
-          <label htmlFor={TEXTAREA_ID} className="sr-only">
-            프레임 설명 입력
-          </label>
-          <textarea
-            id={TEXTAREA_ID}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={srcSn === undefined || isLoading || update.isPending}
-            maxLength={MAX_LEN}
-            rows={4}
-            aria-label="프레임 설명 입력"
-            placeholder="이 프레임의 상황을 자연어로 설명하세요"
-            className="w-full resize-y rounded border border-gray-600 bg-gray-800 text-gray-100 text-sm p-2 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-60"
-          />
-
-          {update.isError && (
-            <p className="text-xs text-red-400" role="alert">
-              설명 저장에 실패했습니다. 다시 시도해 주세요.
-            </p>
-          )}
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className="w-full rounded bg-primary-600 text-white text-sm py-1.5 disabled:bg-gray-500 disabled:cursor-not-allowed hover:bg-primary-500 transition-colors"
-          >
-            {update.isPending ? '저장 중...' : '저장'}
-          </button>
-        </div>
-      )}
-    </div>
+    </MetaSection>
   );
 }

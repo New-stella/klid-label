@@ -213,13 +213,17 @@ export function LabelingPage() {
   // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  // 우측 패널 탭 — 객체 / 이슈(검수자↔작업자 소통). 이슈 스레드는 INTERNAL 채널만.
-  const [rightTab, setRightTab] = useState<'objects' | 'issues'>('objects');
+  // 우측 패널 탭 — 객체 / 메타 / 이슈(검수자↔작업자 소통). 이슈 스레드는 INTERNAL 채널만.
+  //   객체 = 객체 목록 + 속성 / 메타 = 프레임 설명 + 시계열 메타(VLM) / 이슈 = 이슈 스레드
+  const [rightTab, setRightTab] = useState<'objects' | 'meta' | 'issues'>('objects');
   // 이슈는 영상 단위(rawSn) — videoId(LS_DATA_RAW.RAW_SN)만 사용.
   // srcSn(프레임 PK) 폴백 금지: 프레임 PK를 영상 ID 자리에 넣으면 잘못된 영상의 이슈 조회/404.
   // videoId 부재 시 이슈 탭 비노출.
   const issueRawSn = data?.videoId;
   const showIssues = !portalMode && issueRawSn !== undefined;
+  // 메타 탭(프레임 설명 + 시계열 메타)은 내부 채널만 노출 — 포털은 VLM/메타 미제공(ADR-013).
+  const showMeta = !portalMode;
+  const hasTabs = showMeta || showIssues;
   const { data: issueThreads } = useIssueThreads(showIssues ? issueRawSn : undefined);
   const unresolvedInquiries = (issueThreads ?? []).filter(
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
@@ -596,9 +600,9 @@ export function LabelingPage() {
           )}
         </div>
 
-        {/* 우측 패널 — 탭(객체 / 이슈). 이슈 탭은 INTERNAL 채널만 노출. */}
+        {/* 우측 패널 — 탭(객체 / 메타 / 이슈). 메타·이슈 탭은 INTERNAL 채널만 노출. */}
         <div className="w-72 flex flex-col bg-gray-800 border-l border-gray-700 overflow-hidden shrink-0">
-          {showIssues && (
+          {hasTabs && (
             <div
               className="flex shrink-0 border-b border-gray-700"
               role="tablist"
@@ -620,31 +624,51 @@ export function LabelingPage() {
               >
                 객체
               </button>
-              <button
-                type="button"
-                role="tab"
-                id="right-tab-issues"
-                aria-selected={rightTab === 'issues'}
-                aria-controls="right-panel-issues"
-                data-testid="right-tab-issues"
-                onClick={() => setRightTab('issues')}
-                className={
-                  rightTab === 'issues'
-                    ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
-                    : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
-                }
-              >
-                이슈
-                {unresolvedInquiries > 0 && (
-                  <span
-                    data-testid="issue-tab-badge"
-                    className="inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
-                    aria-label={`미해소 문의 ${unresolvedInquiries}건`}
-                  >
-                    {unresolvedInquiries}
-                  </span>
-                )}
-              </button>
+              {showMeta && (
+                <button
+                  type="button"
+                  role="tab"
+                  id="right-tab-meta"
+                  aria-selected={rightTab === 'meta'}
+                  aria-controls="right-panel-meta"
+                  data-testid="right-tab-meta"
+                  onClick={() => setRightTab('meta')}
+                  className={
+                    rightTab === 'meta'
+                      ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
+                      : 'flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                  }
+                >
+                  메타
+                </button>
+              )}
+              {showIssues && (
+                <button
+                  type="button"
+                  role="tab"
+                  id="right-tab-issues"
+                  aria-selected={rightTab === 'issues'}
+                  aria-controls="right-panel-issues"
+                  data-testid="right-tab-issues"
+                  onClick={() => setRightTab('issues')}
+                  className={
+                    rightTab === 'issues'
+                      ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
+                      : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                  }
+                >
+                  이슈
+                  {unresolvedInquiries > 0 && (
+                    <span
+                      data-testid="issue-tab-badge"
+                      className="inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
+                      aria-label={`미해소 문의 ${unresolvedInquiries}건`}
+                    >
+                      {unresolvedInquiries}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
           )}
 
@@ -658,10 +682,23 @@ export function LabelingPage() {
             >
               <IssueThreadPanel rawSn={issueRawSn} mode="worker" dark />
             </div>
+          ) : showMeta && rightTab === 'meta' ? (
+            <div
+              className="flex-1 flex flex-col overflow-y-auto"
+              data-testid="label-meta-panel"
+              role="tabpanel"
+              id="right-panel-meta"
+              aria-labelledby="right-tab-meta"
+            >
+              {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. */}
+              <FrameDescriptionPanel srcSn={data?.srcSn} />
+              {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
+              <TimeseriesSidePanel srcSn={data?.srcSn} />
+            </div>
           ) : (
             <div
               className="flex-1 flex flex-col overflow-hidden"
-              {...(showIssues
+              {...(hasTabs
                 ? {
                     role: 'tabpanel',
                     id: 'right-panel-objects',
@@ -696,10 +733,6 @@ export function LabelingPage() {
                   }
                 />
               </div>
-              {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. 내부 채널만 렌더 */}
-              {!portalMode && <FrameDescriptionPanel srcSn={data?.srcSn} />}
-              {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 포털 라벨링에는 미노출, 내부 채널만 렌더 */}
-              {!portalMode && <TimeseriesSidePanel srcSn={data?.srcSn} />}
             </div>
           )}
         </div>
