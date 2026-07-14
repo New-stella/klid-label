@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Circle, Line, Rect } from 'react-konva';
+import { Circle, Line, Rect, Text } from 'react-konva';
 import type Konva from 'konva';
 
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -7,14 +7,16 @@ import { useLabelStore } from '@/stores/useLabelStore';
 import { useLabelMasters } from '../../hooks/useLabelMasters';
 import type { Sam2SegmentRequest, Sam2SegmentResponse } from '../../api';
 import type { Label, ToolType } from '../../types';
-import { ToolType as ToolTypeEnum } from '../../types';
+import { COCO_SKELETON, KEYPOINT_NAMES, ToolType as ToolTypeEnum } from '../../types';
 import { isValidBox, normalizeBox } from '../utils/canvasGeometry';
 import {
   clampToImage,
   translateFromCanvas,
+  translateToCanvas,
   type Geometry,
   type Point,
 } from '../utils/coordinateTransformer';
+import { skeletonEdgeToCanvasLine } from '../utils/keypointHelpers';
 import { closePolygonIfNear, simplifyPolygon, validatePolygonPoints } from '../utils/polygonHelpers';
 
 import { resolveDefaultLabel } from './resolveDefaultLabel';
@@ -68,6 +70,8 @@ export function OverlayLayer({
   // SAM_SEGMENT 박스 드래그 draft (canvas 좌표).
   const [segDraft, setSegDraft] = useState<BboxDraft | null>(null);
   const [polyPoints, setPolyPoints] = useState<number[]>([]);
+  // KEYPOINT 순차 배치 draft — 배치된 관절(이미지 좌표) 0..17 개. 17개 채워지면 커밋.
+  const [kptDraft, setKptDraft] = useState<{ x: number; y: number; v: number }[]>([]);
 
   // SAM_SEGMENT: 박스 드래그 후 발생하는 click 이벤트가 포인트로 잘못 처리되지 않도록 억제.
   const segSuppressClickRef = useRef(false);
@@ -80,6 +84,10 @@ export function OverlayLayer({
     if (activeTool !== ToolTypeEnum.SAM_SEGMENT) {
       setSegDraft(null);
       segSuppressClickRef.current = false;
+    }
+    // KEYPOINT 도구를 벗어나면 진행 중 배치 draft 폐기(부분 배치 조용한 소실 방지 겸 초기화).
+    if (activeTool !== ToolTypeEnum.KEYPOINT) {
+      setKptDraft([]);
     }
   }, [activeTool]);
 
@@ -162,6 +170,44 @@ export function OverlayLayer({
     });
   }
 
+  /**
+   * 배치 완료된 17 관절(이미지 좌표 삼중값)을 KEYPOINT 라벨로 커밋.
+   * 라벨 마스터 미로딩 시 no-op(false) + 사용자 안내. 성공 시 true.
+   */
+  function commitKeypoints(kps: { x: number; y: number; v: number }[]): boolean {
+    const def = resolveDefaultLabel(labelMasters ?? [], activeLabelId);
+    if (!def) {
+      onCommitError?.('라벨 분류가 로딩되지 않아 키포인트를 추가할 수 없습니다. 잠시 후 다시 시도하세요.');
+      return false;
+    }
+    onLabelAdd?.({
+      id: `tmp-${Date.now()}`,
+      frameNo: 0,
+      classId: def.labelId,
+      className: def.name,
+      source: 'MANUAL',
+      shape: { type: 'KEYPOINT', keypoints: kps },
+    });
+    return true;
+  }
+
+  // KEYPOINT: 캡처 Rect 클릭마다 현재 관절 1점 배치. 17점 채워지면 커밋.
+  function handleKeypointClick() {
+    if (kptDraft.length >= KEYPOINT_NAMES.length) return; // 이미 17점(커밋 대기) — 추가 무시
+    const cp = pointerCanvas();
+    if (!cp) return;
+    const img = clampToImage(geometry, translateFromCanvas(geometry, cp.x, cp.y));
+    // 기본 가시성 v=2(가시). 비가시/미표기 전환은 커밋 후 편집 단계에서 처리.
+    const next = [...kptDraft, { x: img.x, y: img.y, v: 2 }];
+    if (next.length >= KEYPOINT_NAMES.length) {
+      // 커밋 성공 시에만 draft 비움 — 실패(라벨 마스터 미로딩)면 유지해 재시도 허용.
+      if (commitKeypoints(next)) setKptDraft([]);
+      else setKptDraft(next);
+    } else {
+      setKptDraft(next);
+    }
+  }
+
   // === SAM2 분할(SAM_SEGMENT) ===
   // 응답 폴리곤([[x,y],...] image px)을 기존 폴리곤 적용 흐름으로 추가.
   // mock=true 면 자동 적용 차단 + 경고 콜백, score 낮으면 안내 콜백.
@@ -202,7 +248,8 @@ export function OverlayLayer({
   const captureRect =
     activeTool === ToolTypeEnum.BBOX ||
     activeTool === ToolTypeEnum.POLYGON ||
-    activeTool === ToolTypeEnum.SAM_SEGMENT ? (
+    activeTool === ToolTypeEnum.SAM_SEGMENT ||
+    activeTool === ToolTypeEnum.KEYPOINT ? (
       <Rect
         x={0}
         y={0}
@@ -260,6 +307,10 @@ export function OverlayLayer({
               return;
             }
             handleSegmentClick();
+            return;
+          }
+          if (activeTool === ToolTypeEnum.KEYPOINT) {
+            handleKeypointClick();
             return;
           }
           if (activeTool !== ToolTypeEnum.POLYGON) return;
@@ -340,6 +391,46 @@ export function OverlayLayer({
             return dots;
           })()}
         </>
+      )}
+      {/* KEYPOINT 배치 draft — 부분 스켈레톤 Line + 배치된 관절 Circle + 다음 관절 가이드. */}
+      {activeTool === ToolTypeEnum.KEYPOINT && kptDraft.length > 0 && (
+        <>
+          {COCO_SKELETON.map((edge, i) => {
+            const line = skeletonEdgeToCanvasLine(geometry, kptDraft, edge);
+            return line ? (
+              <Line
+                key={`kpt-draft-edge-${i}`}
+                points={line}
+                stroke="#26A69A"
+                strokeWidth={2}
+                listening={false}
+              />
+            ) : null;
+          })}
+          {kptDraft.map((kp, i) => {
+            const c = translateToCanvas(geometry, kp.x, kp.y);
+            return (
+              <Circle
+                key={`kpt-draft-${i}`}
+                x={c.x}
+                y={c.y}
+                radius={4}
+                fill="#26A69A"
+                listening={false}
+              />
+            );
+          })}
+        </>
+      )}
+      {activeTool === ToolTypeEnum.KEYPOINT && kptDraft.length < KEYPOINT_NAMES.length && (
+        <Text
+          x={8}
+          y={8}
+          text={`다음 관절: ${KEYPOINT_NAMES[kptDraft.length]} (${kptDraft.length + 1}/${KEYPOINT_NAMES.length})`}
+          fontSize={14}
+          fill="#26A69A"
+          listening={false}
+        />
       )}
     </>
   );

@@ -11,8 +11,60 @@ export const ShapeType = {
   BBOX: 'BBOX',
   POLYGON: 'POLYGON',
   MASK: 'MASK',
+  KEYPOINT: 'KEYPOINT',
 } as const;
 export type ShapeType = (typeof ShapeType)[keyof typeof ShapeType];
+
+/**
+ * COCO-17 관절명 — BE `common/util/KeypointSkeleton.java` 의 KEYPOINT_NAMES 와
+ * 값·순서 정확히 일치해야 한다(불일치 시 스켈레톤 렌더가 깨짐). 인덱스 0-based.
+ */
+export const KEYPOINT_NAMES = [
+  'nose',
+  'left_eye',
+  'right_eye',
+  'left_ear',
+  'right_ear',
+  'left_shoulder',
+  'right_shoulder',
+  'left_elbow',
+  'right_elbow',
+  'left_wrist',
+  'right_wrist',
+  'left_hip',
+  'right_hip',
+  'left_knee',
+  'right_knee',
+  'left_ankle',
+  'right_ankle',
+] as const;
+export type KeypointName = (typeof KEYPOINT_NAMES)[number];
+
+/**
+ * COCO-17 스켈레톤 엣지 19쌍 — BE `KeypointSkeleton.SKELETON_EDGES` 와 일치.
+ * 관절 번호는 **1-indexed**(keypoints 배열 접근 시 -1 필요).
+ */
+export const COCO_SKELETON = [
+  [16, 14],
+  [14, 12],
+  [17, 15],
+  [15, 13],
+  [12, 13],
+  [6, 12],
+  [7, 13],
+  [6, 7],
+  [6, 8],
+  [7, 9],
+  [8, 10],
+  [9, 11],
+  [2, 3],
+  [1, 2],
+  [1, 3],
+  [2, 4],
+  [3, 5],
+  [4, 6],
+  [5, 7],
+] as const;
 
 /**
  * 라벨 원천 코드 — BE LS_DATA_LBL.LBL_SRC_CD 와 1:1.
@@ -53,7 +105,18 @@ export interface MaskShape {
   height?: number;
 }
 
-export type Shape = BBoxShape | PolygonShape | MaskShape;
+/**
+ * Keypoint(휴먼 포즈): COCO-17 관절을 삼중값 {x,y,v} 배열로 저장(정확히 17개).
+ * - x,y: 이미지 픽셀 좌표
+ * - v: 가시성 (0=미표기 / 1=비가시 / 2=가시). BE POINT_CN 삼중값과 1:1.
+ * 인덱스 순서는 {@link KEYPOINT_NAMES}, 연결 토폴로지는 {@link COCO_SKELETON}(1-indexed).
+ */
+export interface KeypointShape {
+  type: 'KEYPOINT';
+  keypoints: { x: number; y: number; v: number }[];
+}
+
+export type Shape = BBoxShape | PolygonShape | MaskShape | KeypointShape;
 
 export interface Label {
   id: string; // 클라이언트 임시 ID 또는 BE 발급 ID
@@ -100,6 +163,7 @@ export interface Label {
  * - PAN: 캔버스 팬
  * - TRACK: SAM2 자동 추적 (Phase 6)
  * - SAM_SEGMENT: SAM2 클릭/박스 분할 — 클릭(포인트)/드래그(박스)로 객체 지목 → BE 프록시 폴리곤 (Phase 4)
+ * - KEYPOINT: COCO-17 휴먼 포즈 — 17점 순차 클릭 배치 후 커밋 (Phase 3)
  */
 export const ToolType = {
   SELECT: 'SELECT',
@@ -110,6 +174,7 @@ export const ToolType = {
   MASK_BRUSH: 'MASK_BRUSH',
   MASK_ERASER: 'MASK_ERASER',
   SAM_SEGMENT: 'SAM_SEGMENT',
+  KEYPOINT: 'KEYPOINT',
 } as const;
 export type ToolType = (typeof ToolType)[keyof typeof ToolType];
 

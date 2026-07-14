@@ -5,10 +5,17 @@ import type Konva from 'konva';
 import { useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../../hooks/useLabelMasters';
-import type { Label } from '../../types';
+import type { KeypointShape, Label } from '../../types';
+import { COCO_SKELETON } from '../../types';
 import { getLabelDisplayColor } from '../../utils/labelColor';
 import { canvasRectToImageBox } from '../utils/bboxEdit';
-import { translateToCanvas, type Geometry } from '../utils/coordinateTransformer';
+import {
+  clampToImage,
+  translateFromCanvas,
+  translateToCanvas,
+  type Geometry,
+} from '../utils/coordinateTransformer';
+import { skeletonEdgeToCanvasLine, visibilityStyle } from '../utils/keypointHelpers';
 import {
   imagePointsToCanvas,
   movePolygonByCanvasDelta,
@@ -111,6 +118,21 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
     updateLabel(id, { shape: { type: 'POLYGON', points: moved } });
   }
 
+  /**
+   * 키포인트 관절 앵커 dragEnd — 드래그한 index 관절의 x/y 만 이미지 좌표로 갱신(경계 클램프).
+   * 가시성(v)·다른 관절은 보존. 불변성 유지를 위해 새 배열/객체 생성.
+   */
+  function commitKeypointDrag(
+    id: string,
+    keypoints: KeypointShape['keypoints'],
+    index: number,
+    node: Konva.Node,
+  ) {
+    const img = clampToImage(geometry, translateFromCanvas(geometry, node.x(), node.y()));
+    const next = keypoints.map((kp, i) => (i === index ? { ...kp, x: img.x, y: img.y } : kp));
+    updateLabel(id, { shape: { type: 'KEYPOINT', keypoints: next } });
+  }
+
   return (
     <>
       {labels.map((label) => {
@@ -189,6 +211,52 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                   );
                   return acc;
                 }, [])}
+            </Fragment>
+          );
+        }
+        if (label.shape.type === 'KEYPOINT') {
+          const keypoints = label.shape.keypoints;
+          // 선택 + 비잠금 시 각 관절 개별 드래그로 좌표 수정 가능.
+          const draggable = !readOnly && isSelected;
+          return (
+            <Fragment key={label.id}>
+              {/* 스켈레톤 연결선 (COCO_SKELETON 19엣지, v=0 끝점은 숨김). */}
+              {COCO_SKELETON.map((edge, i) => {
+                const line = skeletonEdgeToCanvasLine(geometry, keypoints, edge);
+                if (!line) return null;
+                return (
+                  <Line
+                    key={`${label.id}-edge-${i}`}
+                    points={line}
+                    stroke={stroke}
+                    strokeWidth={strokeWidth}
+                    dash={dash}
+                    listening={false}
+                  />
+                );
+              })}
+              {/* 관절 마커 — 가시성별 불투명도/점선, 개별 draggable. */}
+              {keypoints.map((kp, i) => {
+                const c = translateToCanvas(geometry, kp.x, kp.y);
+                const vs = visibilityStyle(kp.v);
+                return (
+                  <Circle
+                    key={`${label.id}-kpt-${i}`}
+                    x={c.x}
+                    y={c.y}
+                    radius={5}
+                    fill={stroke}
+                    stroke="#FFFFFF"
+                    strokeWidth={1}
+                    opacity={vs.opacity}
+                    dash={vs.dash}
+                    draggable={draggable}
+                    onClick={() => selectLabel(label.id)}
+                    onTap={() => selectLabel(label.id)}
+                    onDragEnd={(e) => commitKeypointDrag(label.id, keypoints, i, e.target)}
+                  />
+                );
+              })}
             </Fragment>
           );
         }

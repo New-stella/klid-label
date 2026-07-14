@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { Label, ToolType } from '@/features/label/types';
+import type { Label, Shape, ToolType } from '@/features/label/types';
 import { ToolType as ToolTypeEnum } from '@/features/label/types';
 
 interface UndoSnapshot {
@@ -57,8 +57,22 @@ function clampZoom(z: number): number {
   return Math.min(Math.max(z, MIN_ZOOM), MAX_ZOOM);
 }
 
+/**
+ * shape 딥클론 — 중첩 배열(POLYGON.points / KEYPOINT.keypoints)까지 새로 생성.
+ * 얕은 복사({...shape})면 배열 참조가 스냅샷과 공유돼 in-place 변형 시 undo/redo 가 오염된다.
+ */
+function cloneShape(shape: Shape): Shape {
+  if (shape.type === 'KEYPOINT') {
+    return { type: 'KEYPOINT', keypoints: shape.keypoints.map((kp) => ({ ...kp })) };
+  }
+  if (shape.type === 'POLYGON') {
+    return { type: 'POLYGON', points: [...shape.points] };
+  }
+  return { ...shape };
+}
+
 function snapshot(labels: Label[]): UndoSnapshot {
-  return { labels: labels.map((l) => ({ ...l, shape: { ...l.shape } })) };
+  return { labels: labels.map((l) => ({ ...l, shape: cloneShape(l.shape) })) };
 }
 
 export const useLabelStore = create<LabelState>((set, get) => ({

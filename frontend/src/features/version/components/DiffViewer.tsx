@@ -66,5 +66,8 @@ function formatShape(shape: LabelDiff['before'] | LabelDiff['after']): string {
   if (shape.type === 'POLYGON') {
     return `POLYGON ${shape.points.length / 2}점`;
   }
+  if (shape.type === 'KEYPOINT') {
+    return `KEYPOINT ${shape.keypoints.length}관절`;
+  }
   return `MASK ${shape.width ?? '-'}x${shape.height ?? '-'}`;
 }
