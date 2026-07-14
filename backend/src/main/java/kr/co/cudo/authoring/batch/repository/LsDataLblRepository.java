@@ -154,6 +154,26 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     void deleteByRawSnAutoLbl(@Param("rawSn") Long rawSn);
 
     /**
+     * 프레임(srcSn) 단위 자동 라벨(autoLblYn='Y') 의 LBL_SN 목록.
+     * <p>Phase 3 — YOLO 온라인 수동 트리거 재실행 idempotency 용. 자동 라벨(AI_INFO 존재)만 대상이며
+     * 수동 라벨(AI_INFO 없음)은 목록에서 제외되어 절대 삭제되지 않는다. 호출자는 반환된 PK 로
+     * 자식(AI_INFO) → 부모(LBL) 순서로 bulk delete 하여 FK 고아를 방지한다
+     * ({@link TrackInterpolationStep} 의 보간 idempotency 와 동일 패턴). 고정 리터럴 'Y' 만 사용
+     * (외부 입력 없음 — CWE-89 무관, 파라미터 바인딩 {@code :srcSn} 만).
+     */
+    @Query("""
+            SELECT l.lblSn
+              FROM LsDataLbl l
+             WHERE l.srcSn = :srcSn
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.autoLblYn = 'Y'
+               )
+            """)
+    List<Long> findAutoLblSnsBySrcSn(@Param("srcSn") Long srcSn);
+
+    /**
      * 영상(rawSn)에 속한 모든 프레임의 라벨(자동+수동 전체)을 일괄 삭제 (R1 v1.14 — 비식별 신고 시).
      * <p>1건씩 삭제 금지(수천 건 가능) — 단일 DELETE…WHERE SRC_SN IN(서브쿼리) 로 처리.
      * 호출 전 ATTR_VAL/AI_INFO 자식 row 를 먼저 삭제해 FK 고아를 방지한다.

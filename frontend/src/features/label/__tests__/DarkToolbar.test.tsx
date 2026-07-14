@@ -56,3 +56,42 @@ describe('DarkToolbar — 키포인트 도구', () => {
     expect(screen.queryByRole('button', { name: 'SAM 분할' })).not.toBeInTheDocument();
   });
 });
+
+describe('DarkToolbar — YOLO 오토라벨', () => {
+  beforeEach(() => {
+    useLabelStore.getState().reset();
+  });
+
+  it('onAutolabel_핸들러_지정시_YOLO_버튼_렌더_및_클릭_호출', () => {
+    const onAutolabel = vi.fn();
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} onAutolabel={onAutolabel} />);
+    const btn = screen.getByRole('button', { name: 'YOLO 오토라벨' });
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(onAutolabel).toHaveBeenCalledTimes(1);
+  });
+
+  it('onAutolabel_미지정시_YOLO_버튼_미노출', () => {
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'YOLO 오토라벨' })).not.toBeInTheDocument();
+  });
+
+  it('진행중이면_YOLO_버튼_비활성화되어_중복클릭_방지', () => {
+    const onAutolabel = vi.fn();
+    renderWithProviders(
+      <DarkToolbar onSave={vi.fn()} onAutolabel={onAutolabel} isAutolabeling />,
+    );
+    const btn = screen.getByRole('button', { name: 'YOLO 오토라벨' });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('aria-busy', 'true');
+    fireEvent.click(btn);
+    expect(onAutolabel).not.toHaveBeenCalled();
+  });
+
+  it('portalMode에서_YOLO_오토라벨_버튼_숨김_ADR_013', () => {
+    renderWithProviders(
+      <DarkToolbar onSave={vi.fn()} onAutolabel={vi.fn()} portalMode />,
+    );
+    expect(screen.queryByRole('button', { name: 'YOLO 오토라벨' })).not.toBeInTheDocument();
+  });
+});

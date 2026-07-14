@@ -30,6 +30,7 @@ import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
+import { useAutolabel } from '@/features/label/hooks/useAutolabel';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
@@ -330,6 +331,36 @@ export function LabelingPage() {
     }
   };
 
+  // Phase 3 — YOLO 오토라벨 수동 트리거. 포털은 미제공(ADR-013 — 버튼 자체 미노출).
+  // 성공 시 BE 가 저장한 자동 라벨을 재조회(useLabels)하여 캔버스에 반영. mock 응답은 자동적용 차단.
+  const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn);
+  const handleAutolabel = async () => {
+    if (!currentFrame) return;
+    if (isLocked) {
+      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 오토라벨할 수 없습니다.' });
+      return;
+    }
+    try {
+      const res = await autolabel();
+      if (!res) return;
+      if (res.mock) {
+        pushToast({
+          variant: 'warning',
+          message: 'AI 서버가 mock 모드입니다 — 자동 라벨이 적용되지 않았습니다.',
+        });
+        return;
+      }
+      // 저장된 자동 라벨 재조회 → useLabels 가 data 갱신 시 setLabels 로 캔버스 반영.
+      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(currentFrame.srcSn) });
+      pushToast({ variant: 'success', message: `YOLO 오토라벨 ${res.savedCount}건 적용됨` });
+    } catch (e) {
+      pushToast({
+        variant: 'error',
+        message: e instanceof Error ? e.message : 'YOLO 오토라벨 실패',
+      });
+    }
+  };
+
   // dirty 가드 — X(닫기) 클릭 시 미저장 변경이 있으면 확인 다이얼로그.
   // 권한/role 가드 redirect 경로(잘못된 ID / 라벨 조회 실패)에는 적용하지 않음 — 보안상 즉시 차단 유지.
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -612,7 +643,12 @@ export function LabelingPage() {
 
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
       <div className="flex flex-1 overflow-hidden">
-        <DarkToolbar onSave={handleSave} portalMode={portalMode} />
+        <DarkToolbar
+          onSave={handleSave}
+          portalMode={portalMode}
+          onAutolabel={handleAutolabel}
+          isAutolabeling={isAutolabeling}
+        />
         <LabelSidebar keypointPlacingIndex={keypointPlacingIndex} />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}

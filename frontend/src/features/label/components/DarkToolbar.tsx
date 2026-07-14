@@ -4,11 +4,13 @@
 //       / [구분선] / 삭제(Del) / 실행취소(Ctrl+Z) / [구분선] / 저장(Ctrl+S)
 
 import {
+  Loader2,
   MousePointer2,
   Pentagon,
   PersonStanding,
   RotateCcw,
   Route,
+  ScanSearch,
   Save,
   Sparkles,
   Square,
@@ -28,6 +30,13 @@ interface DarkToolbarProps {
    * 내부 /frames/{id}/sam2-* 엔드포인트도 PORTAL 채널 403 이다.
    */
   portalMode?: boolean;
+  /**
+   * Phase 3 — YOLO 오토라벨 수동 트리거 핸들러. 미지정 시 버튼 미노출.
+   * ADR-013 — 포털 모드에서는 항상 숨김(BE /frames/{id}/autolabel 도 PORTAL 채널 403).
+   */
+  onAutolabel?: () => void;
+  /** YOLO 오토라벨 요청 진행 중 — 버튼 로딩/비활성 표시 + 중복 클릭 방지. */
+  isAutolabeling?: boolean;
 }
 
 interface ToolItem {
@@ -44,6 +53,10 @@ interface ActionItem {
   label: string;
   shortcut: string;
   action: () => void;
+  /** ADR-013 — 포털 모드에서 숨김 대상 액션(오토라벨 등). */
+  portalHidden?: boolean;
+  /** 진행 중 표시 — 스피너 + 비활성. */
+  busy?: boolean;
 }
 
 interface DividerItem {
@@ -52,7 +65,12 @@ interface DividerItem {
 
 type Item = ToolItem | ActionItem | DividerItem;
 
-export function DarkToolbar({ onSave, portalMode = false }: DarkToolbarProps) {
+export function DarkToolbar({
+  onSave,
+  portalMode = false,
+  onAutolabel,
+  isAutolabeling = false,
+}: DarkToolbarProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
   const undo = useLabelStore((s) => s.undo);
@@ -72,15 +90,33 @@ export function DarkToolbar({ onSave, portalMode = false }: DarkToolbarProps) {
     { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: 'G' },
     { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: 'T' },
     { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: '키포인트', shortcut: 'K' },
+    // Phase 3 — YOLO 오토라벨 수동 트리거(액션). 핸들러가 주어질 때만 노출, 포털 숨김(ADR-013).
+    ...(onAutolabel
+      ? [
+          {
+            kind: 'action' as const,
+            icon: ScanSearch,
+            label: 'YOLO 오토라벨',
+            shortcut: 'Y',
+            action: onAutolabel,
+            portalHidden: true,
+            busy: isAutolabeling,
+          },
+        ]
+      : []),
     { kind: 'divider' },
     { kind: 'action', icon: Trash2, label: '삭제', shortcut: 'Del', action: handleDelete },
     { kind: 'action', icon: RotateCcw, label: '실행취소', shortcut: 'Ctrl+Z', action: undo },
     { kind: 'divider' },
     { kind: 'action', icon: Save, label: '저장', shortcut: 'Ctrl+S', action: onSave },
   ];
-  const items: Item[] = allItems.filter(
-    (item) => !(portalMode && item.kind === 'tool' && PORTAL_HIDDEN_TOOLS.includes(item.tool)),
-  );
+  const items: Item[] = allItems.filter((item) => {
+    if (!portalMode) return true;
+    // ADR-013 — 포털에서 오토라벨/키포인트 관련 도구·액션 숨김.
+    if (item.kind === 'tool') return !PORTAL_HIDDEN_TOOLS.includes(item.tool);
+    if (item.kind === 'action') return !item.portalHidden;
+    return true;
+  });
 
   return (
     <div
@@ -92,7 +128,8 @@ export function DarkToolbar({ onSave, portalMode = false }: DarkToolbarProps) {
         if (item.kind === 'divider') {
           return <div key={idx} className="w-8 h-px bg-gray-600 my-1" />;
         }
-        const Icon = item.icon;
+        const busy = item.kind === 'action' && item.busy === true;
+        const Icon = busy ? Loader2 : item.icon;
         const isActive = item.kind === 'tool' && activeTool === item.tool;
         const handleClick =
           item.kind === 'action' ? item.action : () => setActiveTool(item.tool);
@@ -102,16 +139,19 @@ export function DarkToolbar({ onSave, portalMode = false }: DarkToolbarProps) {
             <button
               type="button"
               onClick={handleClick}
+              disabled={busy}
               aria-label={item.label}
               aria-pressed={isActive}
+              aria-busy={busy}
               className={cn(
                 'w-10 h-10 rounded-lg flex items-center justify-center transition-colors',
                 isActive
                   ? 'bg-primary-600 text-white'
                   : 'text-gray-300 hover:bg-gray-700 hover:text-white',
+                busy && 'opacity-60 cursor-not-allowed',
               )}
             >
-              <Icon size={18} />
+              <Icon size={18} className={cn(busy && 'animate-spin')} />
             </button>
             {/* Tooltip — group-hover로 우측에 노출 */}
             <div className="absolute left-12 top-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">

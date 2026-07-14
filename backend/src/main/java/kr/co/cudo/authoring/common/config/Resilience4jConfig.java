@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.common.config;
 
+import io.github.resilience4j.bulkhead.Bulkhead;
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.springframework.context.annotation.Bean;
@@ -42,5 +44,16 @@ public class Resilience4jConfig {
     @Bean(name = "kpstDeidCircuitBreaker")
     public CircuitBreaker kpstDeidCircuitBreaker(CircuitBreakerRegistry registry) {
         return registry.circuitBreaker("kpstDeid");
+    }
+
+    /**
+     * Phase 3 — YOLO 오토라벨 <b>온라인(수동 트리거)</b> 경로 전용 Bulkhead (F-2 동시성 제한).
+     * <p>인스턴스명 {@code aiOnline} 은 application.yml resilience4j.bulkhead 설정 키와 일치.
+     * 배치 YOLO 경로({@code AiServerClient} 공유 CircuitBreaker/Retry)와 <b>격리</b>되어 온라인 트리거만
+     * 동시 호출 수를 제한한다 — Tomcat 스레드 고갈 방어. 초과 시 {@code BulkheadFullException} → 429.
+     */
+    @Bean(name = "aiOnlineBulkhead")
+    public Bulkhead aiOnlineBulkhead(BulkheadRegistry registry) {
+        return registry.bulkhead("aiOnline");
     }
 }

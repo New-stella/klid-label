@@ -294,6 +294,14 @@ resilience4j:
       # (업로드/다운로드 10m, 그 외 45s 단일 출처: KpstDeidentifyClient 상수)
       # vlmClient TimeLimiter 미사용 — WebClient `.timeout(...)` 으로 Reactor 네이티브 처리.
       # 타임아웃 단일 출처: vlm.client.timeout-seconds (아래)
+  bulkhead:
+    instances:
+      # Phase 3 — YOLO 오토라벨 온라인(수동 트리거) 경로 전용 동시 호출 제한 (F-2).
+      #  - 배치 YOLO 경로와 격리(온라인 트리거만 제한). 초과 시 BulkheadFullException → 429.
+      #  - max-wait-duration=0: 대기 없이 즉시 거부(fail-fast) — Tomcat 스레드 점유 최소화.
+      aiOnline:
+        max-concurrent-calls: 4
+        max-wait-duration: 0
 
 # Phase 1 — 외부 VLM 시계열 메타 분석 서비스 위탁 클라이언트.
 #  - enabled=false 기본값 (local/dev 환경 영향 0건). stg/prd 실 연동 확정 시 환경변수로 활성화.

@@ -374,3 +374,36 @@ export function requestSam2Segment(
     .post<Sam2SegmentResponse>(`/frames/${srcSn}/sam2-segment`, { srcSn, ...payload })
     .then((r) => r.data);
 }
+
+/** YOLO 오토라벨 수동 트리거로 저장된 라벨 요약. */
+export interface AutolabelItem {
+  lblSn: number;
+  /** LS_LABEL FK — 미매칭 시 null. */
+  labelId: number | null;
+  label: string;
+  /** BBOX 평탄 좌표 [x1, y1, x2, y2] (image px). */
+  points: number[];
+  /** 신뢰도 0.0 ~ 1.0 (null 가능). */
+  score: number | null;
+  /** 트래커 객체 ID — 단일 프레임 트리거이므로 연속성 미보장(null 가능). */
+  trackId: number | null;
+}
+
+export interface AutolabelResponse {
+  srcSn: number;
+  /** 저장된 BBOX 라벨 개수 (mock 응답이면 0). */
+  savedCount: number;
+  /** ai-server mock 응답 여부 — true 면 저장하지 않으며 FE 는 자동 적용을 차단해야 한다. */
+  mock: boolean;
+  labels: AutolabelItem[];
+}
+
+/**
+ * YOLO 오토라벨 수동 실행 요청.
+ * BE: POST /frames/{srcSn}/autolabel
+ *
+ * 보안: srcSn 은 path 파라미터(axios 자동 인코딩). IDOR·작업락·좌표검증·포털 차단은 BE 책임(ADR-013).
+ */
+export function requestAutolabel(srcSn: number): Promise<AutolabelResponse> {
+  return apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`).then((r) => r.data);
+}
