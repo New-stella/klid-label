@@ -32,6 +32,7 @@
 | 18 | [v1 ↔ v2 비교](18-v1-v2-comparison.md) | **현재 프로젝트와의 차이 · v1 전용 · v2 전용 기능** |
 | 19 | [v2 갭/마이그레이션 체크리스트](19-v2-gap-checklist.md) | **v1→v2 추가 후보 체크리스트** (대체됨/범위외/검토후보 분류) |
 | 20 | [외부 시스템](20-external-systems.md) | **v2 연동 외부 시스템 + 범위 외 시스템** (관제·포털·비식별·VLM·증강) |
+| 21 | [사용자 화면 가이드](21-user-screen-guide.md) | **화면 단위 통합 뷰** — SC-001~020 화면별 개요·입출력 param·처리로직·레이아웃·조작절차 (3종 원본 종합) |
 
 ---
 
@@ -53,6 +54,9 @@
 | 생성형 AI (Text/Image to Image/Video) | [12](12-generative-ai.md) |
 | 프레임 분할 (초당/분당/시간당 FPS) | [06](06-video-frame-pipeline.md#프레임-분할-배정) |
 | 대시보드 통계 / 엑셀 다운로드 | [10](10-dashboard-statistics.md) |
+| 화면별 상세(SC-ID·입출력 param·조작 절차) | [21](21-user-screen-guide.md) |
+| 화면 ID 3종 대조(SC ↔ SKKLID-UI ↔ 매뉴얼) | [21 §21.1](21-user-screen-guide.md#211-세-문서의-화면-대조-교차-참조) |
+| 프레임 테두리 색상 · 상태천이표(M/N) | [21 §21.9](21-user-screen-guide.md#219-크로스컷-규칙-전-화면-공통) |
 | **v2와의 차이 / v1·v2 전용 기능** | [18](18-v1-v2-comparison.md) |
 | **v1→v2 추가 후보 체크리스트** | [19](19-v2-gap-checklist.md) |
 | **외부 시스템 (연동/범위 외)** | [20](20-external-systems.md) |

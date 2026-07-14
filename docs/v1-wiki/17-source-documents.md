@@ -20,6 +20,18 @@
 
 > 통합설계서 `.docx` 버전도 [`sources/KLID-AI-저작도구_통합설계서.md.docx`](sources/KLID-AI-저작도구_통합설계서.md.docx)에 존재.
 
+### 17.1.1 원본 PDF (docs/1차)
+
+아래 3종은 위 HWP 원본의 **PDF 배포본**으로 [`docs/1차/`](../1차/)에 보관된다. HWP 대비 텍스트·표·화면 캡처 추출이 온전해, **화면별 입출력 param 스펙·조작 절차**를 [21 사용자 화면 가이드](21-user-screen-guide.md)로 종합했다.
+
+| 원본 PDF (docs/1차) | 대응 분석본 | 반영 |
+|------|------|------|
+| KLID-AI-사용자 인터페이스 설계서 V1.1_250722.pdf (D2, 46p) | [사용자 인터페이스 설계서](sources/KLID-AI-사용자인터페이스설계서_V1_1_분석.md) | [21](21-user-screen-guide.md) (SC-001~020 + param 스펙)·[07](07-labeling-tools.md)·[12](12-generative-ai.md) |
+| KLID_IM_UI, UX설계서_학습 저작도구 시스템.pdf (화면정의서, 83p) | [화면정의서](sources/KLID_IM_UI-UX설계서_학습저작도구시스템_분석.md) | [21](21-user-screen-guide.md) (레이아웃·단축키·프레임 색상)·[04](04-menu-ia-screens.md)·[07](07-labeling-tools.md)·[09](09-review-workflow.md)·[10](10-dashboard-statistics.md) |
+| KLID_TE_학습 및 저작도구 시스템 매뉴얼 (관리자) Rev. 1.0.pdf (71p) | [관리자 매뉴얼](sources/KLID_TE_관리자매뉴얼_분석.md) | [21](21-user-screen-guide.md) (조작 절차·확정 단축키·증강)·[05](05-project-management.md)·[06](06-video-frame-pipeline.md)·[11](11-augmentation-export.md) |
+
+> **D2 §2.1 목록 vs §3 실제 화면 불일치**: 목록은 SC-001~018(18개)이나 §3에는 SC-019·SC-020(작업자 배정 목록/팝업)이 추가돼 실제 20개. V1.1 개정("작업자 할당·작업 분배 보완")의 흔적이며 목록 미반영. 상세는 [21 §21.1](21-user-screen-guide.md#211-세-문서의-화면-대조-교차-참조).
+
 ## 17.2 문서 신뢰도 / 주의
 
 - **컴포넌트설계서·클래스설계서**: HWP 원본의 이진 포맷·다이어그램으로 인해 **텍스트 추출이 불완전**. 메서드 시그니처·시퀀스 다이어그램 세부는 원본 HWP 참조 필요. 작성일 표기(2018/2011)는 선행/템플릿 문서 흔적으로 보이며 본 프로젝트 시점과 불일치.
