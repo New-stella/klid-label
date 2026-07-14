@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.common.exception;
 
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -89,6 +90,21 @@ public class GlobalExceptionHandler {
         log.warn("[Exception] type mismatch param={}", e.getName());
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT, "파라미터 형식이 올바르지 않습니다: " + e.getName()));
+    }
+
+    /**
+     * DB 무결성 제약 위반(unique/FK 등)을 409 CONFLICT 로 정규화한다.
+     * <p>대표 사례: 배타 작업락(V69 partial unique index)의 check-then-act 경합에서 패자의 락 INSERT 가
+     * 원자적으로 거부될 때(트랙 병합·재비식별 동시 요청). 이 핸들러가 없으면 {@code Exception.class} 가
+     * 잡아 500 으로 응답되어 정상적인 동시성 충돌을 서버 장애로 오인하게 된다.
+     * (CWE-209 가드 — 제약명/SQL/스키마 등 내부 상세는 메시지에 노출하지 않고 원인 클래스명만 로깅.)
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        log.warn("[Exception] data integrity violation cause={}",
+                e.getMostSpecificCause().getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.CONFLICT.status())
+                .body(ApiResponse.error(ErrorCode.CONFLICT, "이미 처리 중이거나 충돌하는 요청입니다."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

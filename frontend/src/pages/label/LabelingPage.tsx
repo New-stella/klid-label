@@ -20,6 +20,7 @@ import { DarkToolbar } from '@/features/label/components/DarkToolbar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
+import { mergeTracks } from '@/features/label/api';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
@@ -145,6 +146,8 @@ export function LabelingPage() {
   const addLabel = useLabelStore((s) => s.addLabel);
   const reset = useLabelStore((s) => s.reset);
   const toggleLabelVisibility = useLabelStore((s) => s.toggleLabelVisibility);
+  const copyLabels = useLabelStore((s) => s.copyLabels);
+  const pasteLabels = useLabelStore((s) => s.pasteLabels);
 
   // BE 의 LabelResponse.siblings 로 영상 전체 프레임 표시.
   // 메인 캔버스(currentFrame)는 imageBlobUrl(현재 프레임)만 채우고, strip 의 다른 프레임 썸네일은
@@ -361,6 +364,27 @@ export function LabelingPage() {
     }
   };
 
+  // Phase 4 — 트랙 번호 변경(rename) 영속. 미사용 번호로의 병합=rename 이므로 mergeTracks 재사용.
+  // ObjectClassTree 가 store(trackId) 를 낙관적 갱신하고, 여기서 BE 재보간까지 반영 후 재조회한다.
+  const handleRenameTrack = async (fromTrackId: string, toTrackId: string) => {
+    const rawSn = data?.videoId;
+    if (rawSn === undefined) return;
+    if (isLocked) {
+      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 트랙을 변경할 수 없습니다.' });
+      return;
+    }
+    try {
+      await mergeTracks(rawSn, fromTrackId, toTrackId);
+      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(rawSn) });
+      pushToast({ variant: 'success', message: `트랙 번호 변경됨 (#${fromTrackId} → #${toTrackId})` });
+    } catch (e) {
+      pushToast({
+        variant: 'error',
+        message: e instanceof Error ? e.message : '트랙 번호 변경 실패 (겹치는 프레임일 수 있습니다)',
+      });
+    }
+  };
+
   // dirty 가드 — X(닫기) 클릭 시 미저장 변경이 있으면 확인 다이얼로그.
   // 권한/role 가드 redirect 경로(잘못된 ID / 라벨 조회 실패)에는 적용하지 않음 — 보안상 즉시 차단 유지.
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -425,6 +449,34 @@ export function LabelingPage() {
       onToggleVisibility: () => {
         const id = useLabelStore.getState().selectedLabelId;
         if (id) toggleLabelVisibility(id);
+      },
+      // Ctrl+C(선택)/Ctrl+Shift+C(전체) — 라벨 복사. 빈 선택/프레임이면 no-op 토스트.
+      onCopyLabels: ({ onlySelected }) => {
+        const n = copyLabels({ onlySelected, sourceRawSn: data?.videoId ?? null });
+        pushToast(
+          n === 0
+            ? { variant: 'warning', message: '복사할 라벨이 없습니다.' }
+            : { variant: 'success', message: `라벨 ${n}건 복사됨` },
+        );
+      },
+      // Ctrl+V/Ctrl+Shift+V — 현재 프레임에 붙여넣기. 잠금 영상은 차단.
+      onPasteLabels: () => {
+        if (isLocked) {
+          pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 붙여넣을 수 없습니다.' });
+          return;
+        }
+        if (!currentFrame) return;
+        const n = pasteLabels({
+          frameNo: currentFrame.frameNo,
+          sourceRawSn: data?.videoId ?? null,
+          imageWidth: currentFrame.imageWidth,
+          imageHeight: currentFrame.imageHeight,
+        });
+        pushToast(
+          n === 0
+            ? { variant: 'warning', message: '붙여넣을 라벨이 없습니다.' }
+            : { variant: 'success', message: `라벨 ${n}건 붙여넣음` },
+        );
       },
     },
     // ADR-013 — 포털 모드에서는 오토라벨/키포인트 단축키 게이팅(툴바 숨김과 정합).
@@ -789,7 +841,7 @@ export function LabelingPage() {
                 <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
                   객체 목록
                 </div>
-                <ObjectClassTree labels={labels} />
+                <ObjectClassTree labels={labels} onRenameTrack={handleRenameTrack} />
               </div>
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">

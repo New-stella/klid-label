@@ -107,6 +107,21 @@ public class TrackInterpolationStep implements BatchStep {
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public int run(Long rawSn) {
+        return interpolate(rawSn);
+    }
+
+    /**
+     * 트랙 보간 본체 — <b>호출자의 트랜잭션에 참여</b>한다(별도 tx 경계 없음).
+     * <p>파이프라인 진입점 {@link #run(Long)}(REQUIRES_NEW)이 위임하며, 트랙 병합
+     * (TrackMergeService) 이 <b>trackId UPDATE 와 재보간을 같은 트랜잭션으로 묶어 원자성</b>을
+     * 확보하기 위해 이 메서드를 직접 호출한다(재보간 실패 시 병합까지 함께 롤백). 자기호출이라
+     * 트랜잭션 어드바이스가 없어 항상 caller tx 로 실행되며, 재보간 전 Hibernate auto-flush 로
+     * 병합된 trackId 를 즉시 관측한다.
+     *
+     * @param rawSn LS_DATA_RAW.RAW_SN
+     * @return 저장된 보간 row 수 (0 이상). 영상 프레임이 없거나 보간 대상이 없으면 0.
+     */
+    public int interpolate(Long rawSn) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }

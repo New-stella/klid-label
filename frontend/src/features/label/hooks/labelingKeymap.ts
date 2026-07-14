@@ -76,6 +76,13 @@ export const SHORTCUT_KEYMAP: readonly ShortcutBinding[] = [
   { id: 'edit.save', key: 's', ctrl: true, kind: 'action', label: '저장' },
   { id: 'edit.undo', key: 'z', ctrl: true, kind: 'action', label: '실행취소' },
   { id: 'edit.redo', key: 'z', ctrl: true, shift: true, kind: 'action', label: '재실행' },
+  // ── 복사/붙여넣기 (Phase 4) ──────────────────────────────────────
+  // Ctrl+C: 선택 라벨 복사 / Ctrl+Shift+C: 프레임 전체 복사
+  { id: 'clipboard.copy', key: 'c', code: 'KeyC', ctrl: true, kind: 'action', label: '선택 복사' },
+  { id: 'clipboard.copyAll', key: 'c', code: 'KeyC', ctrl: true, shift: true, kind: 'action', label: '전체 복사' },
+  // Ctrl+V / Ctrl+Shift+V: 현재 프레임에 붙여넣기(별칭)
+  { id: 'clipboard.paste', key: 'v', code: 'KeyV', ctrl: true, kind: 'action', label: '붙여넣기' },
+  { id: 'clipboard.paste', key: 'v', code: 'KeyV', ctrl: true, shift: true, kind: 'action', label: '붙여넣기(전체)' },
   ...DIGIT_BINDINGS,
 ];
 

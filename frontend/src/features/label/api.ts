@@ -407,3 +407,33 @@ export interface AutolabelResponse {
 export function requestAutolabel(srcSn: number): Promise<AutolabelResponse> {
   return apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`).then((r) => r.data);
 }
+
+/** BE TrackMergeResponse 와 1:1. */
+export interface TrackMergeResponse {
+  rawSn: number;
+  fromTrackId: string;
+  toTrackId: string;
+  reassignedLabelCount: number;
+  /** 재보간이 실제 자동 트랙에 적용됐는지(수동/SEGMENT/SKELETON 이면 false). */
+  interpolationApplied: boolean;
+  interpolatedRowCount: number;
+}
+
+/**
+ * 트랙 병합/이름변경(Phase 4).
+ * BE: POST /v1/videos/{rawSn}/tracks/merge  — body: { fromTrackId, toTrackId }
+ *
+ * <p>트랙 번호 변경(rename)은 미사용 번호로의 병합과 동일하므로 이 엔드포인트를 재사용한다.
+ * BE 가 원 키프레임 trackId 재지정 + 재보간 + APPROVED 통지를 원자적으로 처리한다.
+ *
+ * 보안: rawSn 은 path(axios 자동 인코딩), from/to 는 body. IDOR·배타 락·겹침(409)·포털 차단은 BE 책임.
+ */
+export function mergeTracks(
+  rawSn: number,
+  fromTrackId: string,
+  toTrackId: string,
+): Promise<TrackMergeResponse> {
+  return apiClient
+    .post<TrackMergeResponse>(`/videos/${rawSn}/tracks/merge`, { fromTrackId, toTrackId })
+    .then((r) => r.data);
+}

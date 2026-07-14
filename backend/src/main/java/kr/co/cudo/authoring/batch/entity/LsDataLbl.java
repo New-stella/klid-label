@@ -277,6 +277,21 @@ public class LsDataLbl {
                 .build();
     }
 
+    /**
+     * Phase 4 트랙 병합 — 트랙 ID 재지정(다른 트랙으로 이관). 좌표/라벨/타입은 불변.
+     * <p>{@code TrackMergeService} 가 fromTrack 의 원 키프레임을 toTrack 으로 옮길 때 사용한다.
+     * 좌표를 건드리지 않으므로 IDOR/좌표검증 재수행 불필요(같은 영상 내 재그룹핑).
+     *
+     * @param newTrackId 병합 대상 트랙 ID (NotBlank — 빈 값이면 트랙 소실 방지 위해 거부)
+     */
+    public void reassignTrack(String newTrackId) {
+        if (newTrackId == null || newTrackId.isBlank()) {
+            throw new IllegalArgumentException("병합 대상 TRCK_ID 는 필수입니다.");
+        }
+        this.trackId = newTrackId;
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
     /** VLM 객체 검증 결과 등 신뢰도만 갱신. 0.0~1.0 범위 강제. */
     public void updateConfScore(BigDecimal newScore) {
         this.confScore = clampScore(newScore);

@@ -30,6 +30,10 @@ export interface ShortcutHandlers {
   onPolygonAddPoint?: () => void;
   /** Q — 폴리곤 자동완료 */
   onPolygonComplete?: () => void;
+  /** Ctrl+C / Ctrl+Shift+C — 라벨 복사 (onlySelected: 선택만 vs 전체) */
+  onCopyLabels?: (opts: { onlySelected: boolean }) => void;
+  /** Ctrl+V / Ctrl+Shift+V — 현재 프레임에 붙여넣기 */
+  onPasteLabels?: () => void;
 }
 
 export interface ShortcutOptions {
@@ -142,6 +146,15 @@ export function useLabelingShortcuts(
           return;
         case 'edit.redo':
           redo();
+          return;
+        case 'clipboard.copy':
+          handlers.onCopyLabels?.({ onlySelected: true });
+          return;
+        case 'clipboard.copyAll':
+          handlers.onCopyLabels?.({ onlySelected: false });
+          return;
+        case 'clipboard.paste':
+          handlers.onPasteLabels?.();
           return;
         case 'zoom.in':
           setZoom(useLabelStore.getState().zoom * ZOOM_STEP);

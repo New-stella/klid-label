@@ -298,6 +298,22 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     List<LsDataLbl> findAutoBboxWithTrackId(@Param("rawSn") Long rawSn);
 
     /**
+     * 영상(rawSn) 내 특정 트랙(trackId)에 속한 모든 라벨(자동+수동, 전 타입) 조회 — 트랙 병합.
+     * <p>{@link #findAutoBboxWithTrackId}(자동 BBOX/POLYGON 한정)와 달리 존재 확인·겹침 계산·
+     * trackId 재지정을 위해 <b>수동/SEGMENT/SKELETON 을 포함한 전체</b>를 반환한다. 보간 산출물
+     * 구분은 caller 가 {@link #findInterpolatedLblSnsByRawSn} 와 대조해 수행한다.
+     * 파라미터 바인딩({@code :rawSn}, {@code :trackId})만 사용 — 문자열 연결 없음(CWE-89 무관).
+     */
+    @Query("""
+            SELECT l
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.trackId = :trackId
+            """)
+    List<LsDataLbl> findByRawSnAndTrackId(@Param("rawSn") Long rawSn, @Param("trackId") String trackId);
+
+    /**
      * 영상(rawSn) 의 기존 보간 생성 라벨(LS_DATA_LBL_AI_INFO.LBL_SRC_CD='INTERPOLATE') 의 LBL_SN 목록.
      * <p>트랙 보간 재실행 시 idempotent 보장용 — 기존 보간 row 를 삭제 후 재삽입하기 위해 대상 PK 를 먼저 조회한다.
      * 보간 여부는 LS_DATA_LBL 본체 컬럼이 아닌 AI_INFO 에 저장되므로(lblSrcCd @Transient) AI_INFO 로 식별한다.
