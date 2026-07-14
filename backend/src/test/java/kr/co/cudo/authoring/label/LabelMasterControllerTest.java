@@ -115,6 +115,37 @@ class LabelMasterControllerTest {
     }
 
     @Test
+    @DisplayName("POST_SKELETON_타입_REVIEWER_201")
+    void postLabel_SKELETON_201() throws Exception {
+        ObjectNode req = body("human-pose", "#2ECC71", "SKELETON", 3);
+
+        mockMvc.perform(post("/v1/manage/labels")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.type").value("SKELETON"));
+
+        assertThat(labelRepository.existsByLabelNm("human-pose")).isTrue();
+    }
+
+    @Test
+    @DisplayName("마스터_알수없는_타입은_400")
+    void postLabel_알수없는타입_400() throws Exception {
+        ObjectNode req = body("mystery", "#2ECC71", "UNKNOWN", 1);
+
+        mockMvc.perform(post("/v1/manage/labels")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+
+        assertThat(labelRepository.existsByLabelNm("mystery")).isFalse();
+    }
+
+    @Test
     @DisplayName("POST_WORKER_403")
     void postLabel_WORKER_403() throws Exception {
         ObjectNode req = body("person", "#E74C3C", "BBOX", 1);

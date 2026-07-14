@@ -65,6 +65,32 @@ class LabelMasterServiceTest {
     }
 
     @Test
+    @DisplayName("SKELETON_타입_마스터_등록_성공")
+    void create_SKELETON타입_성공() {
+        when(repository.existsByLabelNm("human-pose")).thenReturn(false);
+        when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LabelMasterResponse res = service.create(req("human-pose", "#2ECC71", "SKELETON", 3), "1001");
+
+        ArgumentCaptor<LsLabel> captor = ArgumentCaptor.forClass(LsLabel.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getLabelTypeCd()).isEqualTo("SKELETON");
+        assertThat(res.type()).isEqualTo("SKELETON");
+        assertThat(res.name()).isEqualTo("human-pose");
+    }
+
+    @Test
+    @DisplayName("기존_BBOX_POLYGON_POINT_마스터_등록_회귀없음")
+    void create_기존타입_회귀없음() {
+        when(repository.existsByLabelNm(any())).thenReturn(false);
+        when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(service.create(req("box", "#E74C3C", "BBOX", 1), "1001").type()).isEqualTo("BBOX");
+        assertThat(service.create(req("poly", "#3498DB", "POLYGON", 2), "1001").type()).isEqualTo("POLYGON");
+        assertThat(service.create(req("pt", "#F1C40F", "POINT", 3), "1001").type()).isEqualTo("POINT");
+    }
+
+    @Test
     @DisplayName("생성_중복_이름_시_CONFLICT_예외")
     void create_중복이름_CONFLICT() {
         when(repository.existsByLabelNm("person")).thenReturn(true);

@@ -20,7 +20,8 @@ import java.time.LocalDateTime;
 /**
  * LS_DATA_LBL: 현재 라벨 좌표/속성.
  *  - srcSn: LS_DATA_SRC FK (프레임 단위)
- *  - lblTypeCd: BBOX / POLYGON / SEGMENT / TRACK
+ *  - lblTypeCd: BBOX / POLYGON / SEGMENT / TRACK / SKELETON
+ *    (SKELETON = 17-keypoint COCO 포즈 — POINT_CN 에 삼중값 [[x,y,v], x17], KeypointSerializer type-route)
  *  - pointCn: 좌표 직렬화 (Jackson 안전 모드 — enableDefaultTyping 사용 금지)
  *
  * 자동/수동 여부, 모델명, 신뢰도, 보간 출처 등 저작도구 전용 AI 메타는
