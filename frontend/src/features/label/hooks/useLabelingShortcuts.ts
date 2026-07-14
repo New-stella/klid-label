@@ -3,13 +3,22 @@ import { useEffect, useMemo } from 'react';
 import { useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from './useLabelMasters';
-import { ToolType } from '../types';
+import { PORTAL_HIDDEN_TOOLS, ToolType } from '../types';
 
 export interface ShortcutHandlers {
   onPrevFrame?: () => void;
   onNextFrame?: () => void;
   onSave?: () => void;
   onToggleEdit?: () => void;
+}
+
+export interface ShortcutOptions {
+  /**
+   * ADR-013 — 포털 모드에서는 오토라벨/키포인트 미제공.
+   * true 이면 PORTAL_HIDDEN_TOOLS(SAM_SEGMENT/TRACK/KEYPOINT) 단축키를 비활성화한다
+   * (툴바 숨김과 정합, 키보드 우회 활성화 차단).
+   */
+  portalMode?: boolean;
 }
 
 const ZOOM_STEP = 1.2;
@@ -25,11 +34,12 @@ const TOOL_SHORTCUTS = [
   { code: 'KeyS', keys: ['s', 'S'], tool: ToolType.SELECT },
   { code: 'KeyG', keys: ['g', 'G'], tool: ToolType.SAM_SEGMENT },
   { code: 'KeyT', keys: ['t', 'T'], tool: ToolType.TRACK },
+  { code: 'KeyK', keys: ['k', 'K'], tool: ToolType.KEYPOINT },
 ] as const;
 
 /**
  * UI/UX §4-6 라벨링 단축키.
- * - B: BBOX 도구 / P: POLYGON / S: SELECT / G: SAM 분할 / T: TRACK
+ * - B: BBOX 도구 / P: POLYGON / S: SELECT / G: SAM 분할 / T: TRACK / K: KEYPOINT
  * - ←/→: 프레임 이동
  * - Ctrl+Z: undo / Ctrl+Shift+Z: redo
  * - Ctrl+S: 저장 (preventDefault)
@@ -39,7 +49,11 @@ const TOOL_SHORTCUTS = [
  *
  * 보안: input/textarea/contentEditable 포커스 상태에서는 단축키 무시 (텍스트 입력 보호).
  */
-export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
+export function useLabelingShortcuts(
+  handlers: ShortcutHandlers = {},
+  options: ShortcutOptions = {},
+): void {
+  const { portalMode = false } = options;
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
   const undo = useLabelStore((s) => s.undo);
   const redo = useLabelStore((s) => s.redo);
@@ -101,6 +115,8 @@ export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
         // e.code 는 물리 키이므로 도구 전환은 항상 인식된다.
         const composing = e.isComposing || e.key === 'Process';
         for (const t of TOOL_SHORTCUTS) {
+          // ADR-013 — 포털 모드에서는 오토라벨/키포인트 도구 단축키 게이팅(툴바 숨김과 정합).
+          if (portalMode && PORTAL_HIDDEN_TOOLS.includes(t.tool)) continue;
           const codeMatch = e.code === t.code;
           const keyMatch = !composing && (t.keys as readonly string[]).includes(e.key);
           if (codeMatch || keyMatch) {
@@ -158,5 +174,5 @@ export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handlers, setActiveTool, undo, redo, removeLabel, setZoom, setActiveLabelId, sortedLabelIds]);
+  }, [handlers, portalMode, setActiveTool, undo, redo, removeLabel, setZoom, setActiveLabelId, sortedLabelIds]);
 }

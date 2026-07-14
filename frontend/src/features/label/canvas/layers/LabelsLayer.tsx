@@ -15,7 +15,7 @@ import {
   translateToCanvas,
   type Geometry,
 } from '../utils/coordinateTransformer';
-import { skeletonEdgeToCanvasLine, visibilityStyle } from '../utils/keypointHelpers';
+import { cycleVisibility, skeletonEdgeToCanvasLine, visibilityStyle } from '../utils/keypointHelpers';
 import {
   imagePointsToCanvas,
   movePolygonByCanvasDelta,
@@ -130,6 +130,21 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
   ) {
     const img = clampToImage(geometry, translateFromCanvas(geometry, node.x(), node.y()));
     const next = keypoints.map((kp, i) => (i === index ? { ...kp, x: img.x, y: img.y } : kp));
+    updateLabel(id, { shape: { type: 'KEYPOINT', keypoints: next } });
+  }
+
+  /**
+   * 키포인트 관절 Alt+클릭 — 해당 index 관절의 가시성(v) 을 2→1→0→2 순환(R7).
+   * 좌표·다른 관절은 보존. 일반 클릭은 라벨 선택으로 위임(클릭/드래그 충돌 회피).
+   */
+  function commitKeypointVisibility(
+    id: string,
+    keypoints: KeypointShape['keypoints'],
+    index: number,
+  ) {
+    const next = keypoints.map((kp, i) =>
+      i === index ? { ...kp, v: cycleVisibility(kp.v) } : kp,
+    );
     updateLabel(id, { shape: { type: 'KEYPOINT', keypoints: next } });
   }
 
@@ -251,7 +266,14 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                     opacity={vs.opacity}
                     dash={vs.dash}
                     draggable={draggable}
-                    onClick={() => selectLabel(label.id)}
+                    onClick={(e) => {
+                      // Alt+클릭 = 가시성 순환(편집 가능 시), 일반 클릭 = 선택.
+                      if (!readOnly && e.evt?.altKey) {
+                        commitKeypointVisibility(label.id, keypoints, i);
+                        return;
+                      }
+                      selectLabel(label.id);
+                    }}
                     onTap={() => selectLabel(label.id)}
                     onDragEnd={(e) => commitKeypointDrag(label.id, keypoints, i, e.target)}
                   />

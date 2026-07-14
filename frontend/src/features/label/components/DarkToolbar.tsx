@@ -6,6 +6,7 @@
 import {
   MousePointer2,
   Pentagon,
+  PersonStanding,
   RotateCcw,
   Route,
   Save,
@@ -17,7 +18,7 @@ import {
 import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
 
-import { ToolType } from '../types';
+import { PORTAL_HIDDEN_TOOLS, ToolType } from '../types';
 
 interface DarkToolbarProps {
   onSave: () => void;
@@ -62,23 +63,24 @@ export function DarkToolbar({ onSave, portalMode = false }: DarkToolbarProps) {
     if (selectedId) removeLabel(selectedId);
   };
 
-  const items: Item[] = [
+  // ADR-013 — 포털 모드에서는 PORTAL_HIDDEN_TOOLS(SAM 분할/추적·키포인트) 도구를 제외
+  // (단축키 게이팅 useLabelingShortcuts 와 동일 정책 소스).
+  const allItems: Item[] = [
     { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: '선택', shortcut: 'S' },
     { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩박스', shortcut: 'B' },
     { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: '폴리곤', shortcut: 'P' },
-    // R17 이슈3 — SAM2 분할/추적은 포털 모드에서 제외 (ADR-013)
-    ...(portalMode
-      ? []
-      : ([
-          { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: 'G' },
-          { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: 'T' },
-        ] as Item[])),
+    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: 'G' },
+    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: 'T' },
+    { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: '키포인트', shortcut: 'K' },
     { kind: 'divider' },
     { kind: 'action', icon: Trash2, label: '삭제', shortcut: 'Del', action: handleDelete },
     { kind: 'action', icon: RotateCcw, label: '실행취소', shortcut: 'Ctrl+Z', action: undo },
     { kind: 'divider' },
     { kind: 'action', icon: Save, label: '저장', shortcut: 'Ctrl+S', action: onSave },
   ];
+  const items: Item[] = allItems.filter(
+    (item) => !(portalMode && item.kind === 'tool' && PORTAL_HIDDEN_TOOLS.includes(item.tool)),
+  );
 
   return (
     <div

@@ -287,6 +287,28 @@ function NumberField({
 }
 
 function CoordsReadonly({ target }: { target: Label }) {
+  if (target.shape.type === 'KEYPOINT') {
+    const kps = target.shape.keypoints;
+    const visible = kps.filter((k) => k.v === 2).length;
+    const occluded = kps.filter((k) => k.v === 1).length;
+    const unlabeled = kps.filter((k) => k.v === 0).length;
+    return (
+      <div className="flex flex-col gap-1">
+        <Field label="좌표" value={<span>키포인트 {kps.length}관절</span>} />
+        <Field
+          label="가시성"
+          value={
+            <span>
+              가시 {visible} · 비가시 {occluded} · 미표기 {unlabeled}
+            </span>
+          }
+        />
+        <p className="text-[11px] text-gray-400">
+          관절을 Alt+클릭하면 가시성(가시→비가시→미표기)이 순환됩니다.
+        </p>
+      </div>
+    );
+  }
   if (target.shape.type === 'POLYGON') {
     const points = target.shape.points;
     // 임계 초과 폴리곤은 꼭짓점 앵커를 렌더하지 않으므로(렉 방지) 전체 이동만 가능함을 안내.

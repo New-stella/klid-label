@@ -47,6 +47,18 @@ describe('useLabelingShortcuts', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.POLYGON);
   });
 
+  it('단축키_K_누르면_activeTool_KEYPOINT', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('k'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
+  });
+
+  it('한글IME_물리키_KeyK_누르면_KEYPOINT_e_key_가_ㅏ_여도', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('ㅏ', { code: 'KeyK' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
+  });
+
   it('단축키_S_누르면_SELECT', () => {
     renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
     useLabelStore.getState().setActiveTool(ToolType.BBOX);
@@ -149,6 +161,44 @@ describe('useLabelingShortcuts', () => {
     // SELECT 그대로 유지
     expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
     document.body.removeChild(input);
+  });
+
+  // ADR-013 — 포털 모드에서는 KEYPOINT/SAM_SEGMENT/TRACK 단축키가 게이팅되어
+  // 키보드 우회 활성화가 불가해야 한다(툴바 숨김과 정합).
+  it('포털모드_단축키_K로_KEYPOINT_활성화_안됨', () => {
+    renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
+    act(() => press('k'));
+    expect(useLabelStore.getState().activeTool).not.toBe(ToolType.KEYPOINT);
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+  });
+
+  it('포털모드_G_T도_비활성', () => {
+    renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
+    act(() => press('g'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+    act(() => press('t'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+    // 물리 키(IME) 우회도 차단.
+    act(() => press('ㅏ', { code: 'KeyK' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+  });
+
+  it('포털모드_B_P_S_기본도구는_정상동작', () => {
+    renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
+    act(() => press('b'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX);
+    act(() => press('p'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.POLYGON);
+  });
+
+  it('비포털_K_G_T_단축키_정상동작_회귀없음', () => {
+    renderHook(() => useLabelingShortcuts({}, { portalMode: false }), { wrapper: makeWrapper() });
+    act(() => press('k'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
+    act(() => press('g'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
+    act(() => press('t'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
   });
 
   it('Del_누르면_선택된_라벨_삭제', () => {

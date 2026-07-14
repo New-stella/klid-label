@@ -343,11 +343,15 @@ export function LabelingPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirtyCount]);
 
-  useLabelingShortcuts({
-    onPrevFrame: () => jumpTo(Math.max(0, frameIdx - 1)),
-    onNextFrame: () => jumpTo(Math.min(frames.length - 1, frameIdx + 1)),
-    onSave: handleSave,
-  });
+  useLabelingShortcuts(
+    {
+      onPrevFrame: () => jumpTo(Math.max(0, frameIdx - 1)),
+      onNextFrame: () => jumpTo(Math.min(frames.length - 1, frameIdx + 1)),
+      onSave: handleSave,
+    },
+    // ADR-013 — 포털 모드에서는 오토라벨/키포인트 단축키 게이팅(툴바 숨김과 정합).
+    { portalMode },
+  );
 
   const [canvasRef, canvasSize] = useContainerSize<HTMLDivElement>();
 

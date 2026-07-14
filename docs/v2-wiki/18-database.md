@@ -24,14 +24,14 @@
 | `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
 | `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로, `FRM_EXPLN` 프레임설명 V103 — NIA image.description 작업자 수기) | [07](07-batch-pipeline.md)·[10](10-labeling.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |
-| `LS_DATA_LBL` (V4) | 라벨 (좌표·트랙ID·LABEL_NM, 작업 중 임시저장) | [10](10-labeling.md) |
+| `LS_DATA_LBL` (V4) | 라벨 (좌표·트랙ID·LABEL_NM, 작업 중 임시저장). `LBL_TYPE_CD`: BBOX/POLYGON/SEGMENT/TRACK/**SKELETON**. `POINT_CN`(JSON): BBOX=`[[l,t],[r,b]]`·POLYGON=`[[x,y],…]` 2튜플. **SKELETON=COCO-17 휴먼 포즈 17×`[x,y,v]` 삼중값**(정확히 17개, v∈{0=미표기,1=비가시,2=가시}) — type-routed 직렬화로 2튜플 경로와 격리 | [10](10-labeling.md) |
 | `LS_DATA_LBL_AI_INFO` (V23) | AI 라벨 출처(YOLO/SAM2/VLM)·신뢰도 CONF_SCORE | [11](11-ai-assisted.md) |
 | `LS_DATA_LBL_ATTR_VAL` (V33) | 라벨 속성값 | [10](10-labeling.md) |
 
 ### 라벨 마스터 · 프리셋 · 버전
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_LABEL` (V31) | 라벨 마스터 (LABEL_NM, COLR_VL, LABEL_TYPE_CD) | [10](10-labeling.md) |
+| `LS_LABEL` (V31) | 라벨 마스터 (LABEL_NM, COLR_VL, LABEL_TYPE_CD: BBOX/POLYGON/POINT/SKELETON) | [10](10-labeling.md) |
 | `LS_LABEL_ATTR` (V33) | 라벨 속성 정의 (INPUT_TYPE_CD, MUTABLE_YN) | [10](10-labeling.md) |
 | `LS_LABEL_PRESET` / `LS_LABEL_PRESET_CODE` (V13) | 프리셋 마스터 / 라벨 코드 | [10](10-labeling.md) |
 | `LS_LABEL_VERSION` (V24) | 라벨 버전 스냅샷 (VERSION_HASH, SAVE_REASON_CD, ACTVTN_YN) | [13](13-version-control.md) |

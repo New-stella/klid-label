@@ -81,6 +81,19 @@ export function normalizeLabel(raw: any): Label {
         : [];
       return { type: 'POLYGON', points: flat };
     }
+    // KEYPOINT(BE lblTypeCd='SKELETON') — points 는 17×[x,y,v] 삼중값.
+    // FE KeypointShape.keypoints({x,y,v}[]) 로 복원. v 는 {0,1,2} 로 클램프(범위 밖 → 0).
+    if (lblType === 'SKELETON' || lblType === 'KEYPOINT') {
+      const keypoints = Array.isArray(points)
+        ? points.map((p: any) => {
+            const arr = Array.isArray(p) ? p : [];
+            const vNum = Number(arr[2]);
+            const v = vNum === 2 ? 2 : vNum === 1 ? 1 : 0;
+            return { x: Number(arr[0]) || 0, y: Number(arr[1]) || 0, v };
+          })
+        : [];
+      return { type: 'KEYPOINT', keypoints };
+    }
     return { type: 'MASK' };
   })();
 
@@ -220,7 +233,12 @@ function serializeLabel(lbl: Label): object {
         ? Number(lbl.id)
         : null;
 
-  const lblTypeCd = lbl.shape.type === 'MASK' ? 'SEGMENT' : lbl.shape.type;
+  const lblTypeCd =
+    lbl.shape.type === 'MASK'
+      ? 'SEGMENT'
+      : lbl.shape.type === 'KEYPOINT'
+        ? 'SKELETON'
+        : lbl.shape.type;
 
   let points: number[][];
   if (lbl.shape.type === 'BBOX') {
@@ -234,6 +252,9 @@ function serializeLabel(lbl: Label): object {
     for (let i = 0; i + 1 < flat.length; i += 2) {
       points.push([flat[i], flat[i + 1]]);
     }
+  } else if (lbl.shape.type === 'KEYPOINT') {
+    // 17×[x,y,v] 삼중값 — BE POINT_CN SKELETON 포맷.
+    points = lbl.shape.keypoints.map((k) => [k.x, k.y, k.v]);
   } else {
     points = [];
   }

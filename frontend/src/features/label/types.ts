@@ -178,6 +178,16 @@ export const ToolType = {
 } as const;
 export type ToolType = (typeof ToolType)[keyof typeof ToolType];
 
+/**
+ * 포털 모드에서 제외되는 도구 목록 (ADR-013: 포털은 오토라벨/키포인트 미제공).
+ * 툴바 숨김(DarkToolbar)과 단축키 게이팅(useLabelingShortcuts)의 단일 정책 소스.
+ */
+export const PORTAL_HIDDEN_TOOLS: readonly ToolType[] = [
+  ToolType.SAM_SEGMENT,
+  ToolType.TRACK,
+  ToolType.KEYPOINT,
+];
+
 export interface FrameSummary {
   frameNo: number;
   srcSn: number; // BE LS_DATA_RAW.SRC_SN

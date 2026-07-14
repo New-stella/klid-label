@@ -28,7 +28,8 @@ import java.time.LocalDateTime;
  * <ul>
  *   <li>LBL_NM UNIQUE — DB 레벨 + Service 레벨 이중 가드. (V34: PJT_ID 제거됨)</li>
  *   <li>COLR_VL 은 대문자 {@code #RRGGBB} hex (소문자 거부 — DTO 검증).</li>
- *   <li>LBL_TYPE_CD 는 BBOX / POLYGON / POINT 중 하나 (DTO 검증).</li>
+ *   <li>LBL_TYPE_CD 는 BBOX / POLYGON / POINT / SKELETON 중 하나 (DTO 검증).
+ *       SKELETON = COCO-17 휴먼 포즈 키포인트 카테고리.</li>
  *   <li>SORT_SEQ 는 목록 정렬용 (ASC).</li>
  * </ul>
  */
@@ -87,7 +88,7 @@ public class LsLabel {
      *
      * @param labelNm      라벨 이름 (1~64자, UNIQUE)
      * @param colrVl       색상값 (대문자 #RRGGBB)
-     * @param labelTypeCd  BBOX / POLYGON / POINT
+     * @param labelTypeCd  BBOX / POLYGON / POINT / SKELETON (SKELETON=COCO-17 키포인트)
      * @param sortSeq      정렬 순서 (null 허용 — 0 으로 정규화)
      * @param regId        등록자 ID (선택)
      */

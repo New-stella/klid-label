@@ -55,6 +55,47 @@ describe('labelMaster api', () => {
     expect(list[0].useYn).toBe('Y');
   });
 
+  it('SKELETON_타입_라벨마스터_수용', async () => {
+    mock.onGet('/manage/labels').reply(200, {
+      success: true,
+      data: [
+        {
+          labelId: 9,
+          name: '보행자포즈',
+          color: '#22C55E',
+          type: 'SKELETON',
+          sortNo: 9,
+          useYn: 'Y',
+        },
+      ],
+      message: null,
+      errorCode: null,
+    });
+    const list = await fetchLabelMasters();
+    expect(list).toHaveLength(1);
+    expect(list[0].type).toBe('SKELETON');
+  });
+
+  it('알수없는_타입은_BBOX로_폴백', async () => {
+    mock.onGet('/manage/labels').reply(200, {
+      success: true,
+      data: [
+        {
+          labelId: 10,
+          name: '이상',
+          color: '#000000',
+          type: 'UNKNOWN_XYZ',
+          sortNo: 10,
+          useYn: 'Y',
+        },
+      ],
+      message: null,
+      errorCode: null,
+    });
+    const list = await fetchLabelMasters();
+    expect(list[0].type).toBe('BBOX');
+  });
+
   it('빈_배열_응답도_정상_처리', async () => {
     mock.onGet('/manage/labels').reply(200, {
       success: true,

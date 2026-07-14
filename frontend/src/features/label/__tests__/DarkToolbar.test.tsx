@@ -32,3 +32,27 @@ describe('DarkToolbar — SAM2 도구', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
   });
 });
+
+describe('DarkToolbar — 키포인트 도구', () => {
+  beforeEach(() => {
+    useLabelStore.getState().reset();
+  });
+
+  it('키포인트_버튼이_렌더된다', () => {
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} />);
+    expect(screen.getByRole('button', { name: '키포인트' })).toBeInTheDocument();
+  });
+
+  it('키포인트_클릭_시_activeTool이_KEYPOINT로_전환된다', () => {
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: '키포인트' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
+  });
+
+  it('툴바_portalMode에서_키포인트_숨김', () => {
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} portalMode />);
+    expect(screen.queryByRole('button', { name: '키포인트' })).not.toBeInTheDocument();
+    // SAM 도구도 포털에서 숨김(회귀 가드)
+    expect(screen.queryByRole('button', { name: 'SAM 분할' })).not.toBeInTheDocument();
+  });
+});

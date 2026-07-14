@@ -8,7 +8,12 @@ import type { Label } from '@/features/label/types';
 
 import { savePortalUserLabel, type PortalUserLabelRequest } from '../api';
 
-/** FE Label → BE PortalUserLabelRequest 직렬화 (points 는 JSON 문자열). */
+/**
+ * FE Label → BE PortalUserLabelRequest 직렬화 (points 는 JSON 문자열).
+ * ADR-013 — 포털은 키포인트를 생성하지 않으며(단축키·툴바 게이팅으로 도달 불가), BE
+ * PortalLabelService 는 2-튜플 전용 검증이라 SKELETON 을 거부한다. 따라서 KEYPOINT
+ * 직렬화 분기는 두지 않는다.
+ */
 function serialize(rawSn: number, srcSn: number, lbl: Label): PortalUserLabelRequest {
   const lblTypeCd = lbl.shape.type === 'MASK' ? 'SEGMENT' : lbl.shape.type;
   let points: number[][];

@@ -65,6 +65,30 @@ describe('ObjectAttributePanel', () => {
     expect(screen.queryByText(/꼭짓점 편집은 비활성화/)).not.toBeInTheDocument();
   });
 
+  it('ObjectAttributePanel_KEYPOINT_좌표표시_Mask아님', () => {
+    const keypoints = Array.from({ length: 17 }, (_, i) => ({
+      x: i,
+      y: i,
+      v: i < 10 ? 2 : i < 14 ? 1 : 0,
+    }));
+    const kpLabel: Label = {
+      id: 'kp',
+      frameNo: 1,
+      classId: 2,
+      className: 'person',
+      source: 'MANUAL',
+      shape: { type: 'KEYPOINT', keypoints },
+    };
+    useLabelStore.getState().reset();
+    useLabelStore.getState().setLabels([kpLabel]);
+    useLabelStore.getState().selectLabel('kp');
+    renderWithProviders(<ObjectAttributePanel labels={[kpLabel]} />);
+    // "Mask" 로 오표시되면 안 되고, 키포인트 요약이 표시되어야 한다.
+    expect(screen.queryByText('Mask')).not.toBeInTheDocument();
+    expect(screen.getByText(/키포인트/)).toBeInTheDocument();
+    expect(screen.getByText(/17/)).toBeInTheDocument();
+  });
+
   it('정점_많은_폴리곤은_꼭짓점_편집_비활성_안내문구', () => {
     const points: number[] = [];
     for (let i = 0; i < 150; i += 1) points.push(i, i);

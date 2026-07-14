@@ -34,6 +34,16 @@ export function visibilityStyle(v: number): KeypointVisibilityStyle {
 }
 
 /**
+ * 가시성(v) 순환 — Alt+클릭 시 2(가시) → 1(비가시) → 0(미표기) → 2 로 회전.
+ * 항상 {0,1,2} 안에서만 돌아 범위를 벗어나지 않는다(입력 검증 가드).
+ */
+export function cycleVisibility(v: number): number {
+  if (v === 2) return 1;
+  if (v === 1) return 0;
+  return 2;
+}
+
+/**
  * 스켈레톤 엣지(1-indexed 관절 번호쌍)를 canvas Line 좌표 [x1,y1,x2,y2] 로 변환.
  * - 두 끝점 중 하나라도 미배치(인덱스 밖) 또는 v=0(미표기) 이면 null(선 숨김).
  * 부분 배치(draft) 중에도 안전하게 호출 가능.
