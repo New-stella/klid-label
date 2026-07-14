@@ -17,6 +17,8 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.common.util.KeypointPoint;
+import kr.co.cudo.authoring.common.util.KeypointSerializer;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.common.util.PolygonSimplifier;
@@ -200,7 +202,8 @@ public class LabelService {
             // 신규 라벨(id == null)은 점 개수 상한을 강제(CWE-770 DoS 방어). 수동 드로잉/정상 SAM2 결과는
             // 모두 상한 이하이며, SAM2 분할/추적 서비스가 적재 전 simplify 하므로 1000점 초과 신규 입력은 비정상.
             // 기존 라벨(id != null)은 상한 초과여도 저장 직전 simplify 로 보존한다(ISSUE-1, 아래 capPoints).
-            validatePoints(item.points(), item.id() == null);
+            // SKELETON 은 삼중값(17점·v∈{0,1,2}) 전용 검증으로 type-route (기존 2-튜플 경로 불변).
+            validatePoints(item.lblTypeCd(), item.points(), item.id() == null);
         }
 
         // Phase 2 — labelId 사전 검증 (입력에 포함된 모든 labelId 의 존재 + USE_YN='Y' 확인).
@@ -217,7 +220,8 @@ public class LabelService {
         List<LsDataLbl> result = new ArrayList<>();
         for (LabelItemDto item : req.items()) {
             // ISSUE-1: 저장 직전 점 개수 상한 적용 (SAM2 적재 폴리곤 등 1000점 초과도 simplify 후 저장).
-            String pointsJson = LabelPointSerializer.toJson(capPoints(item.points()), objectMapper);
+            // SKELETON 은 KeypointSerializer 삼중값 경로로 직렬화 (기존 2-튜플 toJson 경로 불변).
+            String pointsJson = serializePoints(item.lblTypeCd(), item.points());
             if (item.id() != null && idIndex.containsKey(item.id())) {
                 LsDataLbl found = idIndex.get(item.id());
                 if (!found.getSrcSn().equals(srcSn)) {
@@ -318,9 +322,14 @@ public class LabelService {
      * 강제 없이 통과시키고 저장 직전 {@link #capPoints}(Douglas-Peucker simplify)로 줄인다.
      * 신규 입력에 상한을 유지함으로써 CWE-770(과대 좌표 DoS) 방어는 보존된다.
      */
-    private void validatePoints(List<List<Double>> points, boolean enforceMaxPoints) {
+    private void validatePoints(String lblTypeCd, List<List<Double>> points, boolean enforceMaxPoints) {
         if (points == null || points.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "points 가 비어있습니다.");
+        }
+        // SKELETON(키포인트 포즈): 삼중값 전용 검증 경로 (기존 2-튜플 경로와 격리).
+        if (LsDataLbl.TYPE_SKELETON.equals(lblTypeCd)) {
+            validateSkeletonPoints(points);
+            return;
         }
         if (enforceMaxPoints && points.size() > MAX_POINTS_PER_LABEL) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
@@ -337,6 +346,74 @@ public class LabelService {
                         "좌표는 0 이상이어야 합니다 (x=" + x + ", y=" + y + ")");
             }
         }
+    }
+
+    /**
+     * SKELETON(17-keypoint COCO 포즈) 삼중값 검증 (CWE-20 입력 방어선).
+     * <ul>
+     *   <li>points 개수 = 정확히 {@value KeypointSerializer#KEYPOINT_COUNT}</li>
+     *   <li>각 원소 크기 = 정확히 3 ([x, y, v])</li>
+     *   <li>v ∈ {0, 1, 2}</li>
+     *   <li>x, y ≥ 0 (v=0 미표기 점은 x,y=0 허용 — 0 은 음수 아님)</li>
+     * </ul>
+     * 위반 시 400(INVALID_INPUT) fail-secure.
+     */
+    private void validateSkeletonPoints(List<List<Double>> points) {
+        if (points.size() != KeypointSerializer.KEYPOINT_COUNT) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "SKELETON 키포인트는 정확히 " + KeypointSerializer.KEYPOINT_COUNT + " 개여야 합니다.");
+        }
+        for (List<Double> triplet : points) {
+            if (triplet == null || triplet.size() != KeypointSerializer.TRIPLET_SIZE) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "키포인트는 [x, y, v] 형태여야 합니다.");
+            }
+            // CWE-20: JSON-valid 하지만 원소가 null 인 경우([[10,20,null],...])는 Double→double
+            // 언박싱 NPE(→GlobalExceptionHandler catch-all 500)를 유발한다. 언박싱 전에 400 으로
+            // fail-secure 거부하여 계약(형식 위반=400)과 일치시킨다.
+            Double xBox = triplet.get(0);
+            Double yBox = triplet.get(1);
+            Double vBox = triplet.get(2);
+            if (xBox == null || yBox == null || vBox == null) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "키포인트 좌표에 null 원소가 있습니다.");
+            }
+            double x = xBox;
+            double y = yBox;
+            double vRaw = vBox;
+            int v = (int) vRaw;
+            if (v != vRaw || v < KeypointSerializer.VISIBILITY_MIN || v > KeypointSerializer.VISIBILITY_MAX) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "가시성 v 는 0/1/2 중 하나여야 합니다.");
+            }
+            if (x < 0 || y < 0) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "좌표는 0 이상이어야 합니다 (x=" + x + ", y=" + y + ")");
+            }
+        }
+    }
+
+    /**
+     * 저장용 좌표 직렬화 — {@code LBL_TYPE_CD} 기반 type-route.
+     * <ul>
+     *   <li>SKELETON: {@link KeypointSerializer#toJson} 삼중값 [[x,y,v], x17] (v 보존)</li>
+     *   <li>그 외(BBOX/POLYGON/SEGMENT/TRACK): 기존 2-튜플 {@link LabelPointSerializer#toJson} + capPoints simplify (불변)</li>
+     * </ul>
+     */
+    private String serializePoints(String lblTypeCd, List<List<Double>> points) {
+        if (LsDataLbl.TYPE_SKELETON.equals(lblTypeCd)) {
+            return KeypointSerializer.toJson(toKeypoints(points), objectMapper);
+        }
+        return LabelPointSerializer.toJson(capPoints(points), objectMapper);
+    }
+
+    /** 삼중값 nested 리스트 [[x,y,v],...] → KeypointPoint 리스트 (검증 통과 후 호출). */
+    private static List<KeypointPoint> toKeypoints(List<List<Double>> nested) {
+        List<KeypointPoint> out = new ArrayList<>(nested.size());
+        for (List<Double> t : nested) {
+            out.add(new KeypointPoint(t.get(0), t.get(1), (int) (double) t.get(2)));
+        }
+        return out;
     }
 
     private static List<Point> toPoints(List<List<Double>> nested) {

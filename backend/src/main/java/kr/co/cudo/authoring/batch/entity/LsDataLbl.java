@@ -40,6 +40,8 @@ public class LsDataLbl {
     public static final String TYPE_POLYGON = "POLYGON";
     public static final String TYPE_SEGMENT = "SEGMENT";
     public static final String TYPE_TRACK = "TRACK";
+    /** 17-keypoint COCO 포즈. POINT_CN 에 삼중값 [[x,y,v], x17] 저장 (KeypointSerializer type-route). */
+    public static final String TYPE_SKELETON = "SKELETON";
 
     /** Phase 3 트랙 보간: LBL_SRC_CD 값 — 트랙 보간으로 자동 생성된 row. */
     public static final String SRC_INTERPOLATED = "INTERPOLATED";

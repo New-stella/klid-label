@@ -119,6 +119,24 @@ class VersionServiceTest {
         labelRepository.save(LsDataLbl.createManual(frameSn, "BBOX", null, label, pointsJson, 100L));
     }
 
+    private void seedSkeletonLabel(Long frameSn, String label, String pointsJson) {
+        labelRepository.save(LsDataLbl.createManual(
+                frameSn, LsDataLbl.TYPE_SKELETON, null, label, pointsJson, 100L));
+    }
+
+    /** v 를 지정한 17-keypoint SKELETON 좌표 JSON ([[x,y,v],x17]). */
+    private static String skeleton17Points(java.util.function.IntUnaryOperator vByIndex) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < 17; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append('[').append(i * 2.0).append(',').append(i * 3.0)
+                    .append(',').append(vByIndex.applyAsInt(i)).append(']');
+        }
+        return sb.append(']').toString();
+    }
+
     /** 영상(rawSn) 검수 상태를 지정값으로 적재 — APPROVED 롤백 통지 조건 검증용. */
     private void seedRawStatus(String stts) {
         LsRawDataStatus status = LsRawDataStatus.initial(rawSn);
@@ -355,6 +373,35 @@ class VersionServiceTest {
         assertThat(after.get(0).getLabelNm()).isEqualTo("person");
         List<List<Double>> pts = LabelResponse.Item.from(after.get(0), null, null, objectMapper).points();
         assertThat(pts).containsExactly(List.of(10.0, 10.0), List.of(50.0, 50.0));
+    }
+
+    @Test
+    @DisplayName("롤백_SKELETON_v_보존")
+    void rollbackPreservesSkeletonVisibility() throws Exception {
+        // given — SKELETON 라벨 1건(17 삼중값, v 0/1/2 순환)으로 승인 스냅샷 v1 생성.
+        seedSkeletonLabel(srcSn, "person", skeleton17Points(i -> i % 3));
+        versionService.commitApproved(rawSn, reviewer);
+        String v1Hash = approvedSnapshotHash();
+
+        // 이후 라벨을 v 전부 0 인 다른 삼중값으로 교체 (v 변경이 복원으로 되돌려지는지 확인용).
+        labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
+        seedSkeletonLabel(srcSn, "person", skeleton17Points(i -> 0));
+
+        // when — v1 스냅샷으로 롤백 (parseSnapshotLabels → replaceFrameLabels 복원 경로 실행).
+        versionService.rollback(v1Hash, srcSn, reviewer);
+
+        // then — 복원된 LS_DATA_LBL 의 POINT_CN 삼중값 v 가 원본(0/1/2 순환)과 동일.
+        List<LsDataLbl> after = labelRepository.findBySrcSn(srcSn);
+        assertThat(after).hasSize(1);
+        com.fasterxml.jackson.databind.JsonNode pts = objectMapper.readTree(after.get(0).getPointCn());
+        assertThat(pts.isArray()).isTrue();
+        assertThat(pts.size()).isEqualTo(17);
+        for (int i = 0; i < 17; i++) {
+            assertThat(pts.get(i).size()).isEqualTo(3);
+            assertThat(pts.get(i).get(0).asDouble()).isEqualTo(i * 2.0);
+            assertThat(pts.get(i).get(1).asDouble()).isEqualTo(i * 3.0);
+            assertThat(pts.get(i).get(2).asInt()).isEqualTo(i % 3);
+        }
     }
 
     @Test
@@ -685,6 +732,62 @@ class VersionServiceTest {
         assertThat(only.before().right()).isEqualTo(50.0);
         assertThat(only.after().left()).isEqualTo(15.0);
         assertThat(only.after().right()).isEqualTo(55.0);
+    }
+
+    /** kp0 의 v 만 지정하고 나머지 좌표(x,y)는 항상 동일한 17-keypoint SKELETON 스냅샷 payload. */
+    private static String skeletonDiffPayload(int kp0Visibility) {
+        StringBuilder sb = new StringBuilder(
+                "{\"frameNo\":3,\"items\":[{\"id\":77,\"lblTypeCd\":\"SKELETON\",\"label\":\"person\",\"points\":[");
+        for (int i = 0; i < 17; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            int v = (i == 0) ? kp0Visibility : (i % 3);
+            sb.append('[').append(i * 2.0).append(',').append(i * 3.0).append(',').append(v).append(']');
+        }
+        return sb.append("]}]}").toString();
+    }
+
+    @Test
+    @DisplayName("버전diff_SKELETON_v만_바뀌면_MODIFIED_감지")
+    void diffSkeletonVisibilityOnlyChangeDetected() {
+        // x,y 는 완전히 동일하고 kp0 의 v(가시성)만 2 → 1 로 바뀐 두 APPROVED 스냅샷.
+        String fromHash = "aaaa0001aaaa0001aaaa0001aaaa0001aaaa0001";
+        String toHash   = "bbbb0002bbbb0002bbbb0002bbbb0002bbbb0002";
+        seed(fromHash, skeletonDiffPayload(2), 1, false);
+        seed(toHash, skeletonDiffPayload(1), 2, true);
+
+        DiffResponseDto resp = versionService.diff(fromHash, toHash, workerAssigned);
+
+        assertThat(resp.labels()).hasSize(1);
+        assertThat(resp.labels().get(0).type()).isEqualTo(LabelDiffDto.DiffType.MODIFIED);
+        assertThat(resp.labels().get(0).objectId()).isEqualTo("77");
+    }
+
+    @Test
+    @DisplayName("버전diff_SKELETON_v_동일이면_변화없음_회귀가드")
+    void diffSkeletonIdenticalReturnsEmpty() {
+        String fromHash = "cccc0003cccc0003cccc0003cccc0003cccc0003";
+        String toHash   = "dddd0004dddd0004dddd0004dddd0004dddd0004";
+        String same = skeletonDiffPayload(2);
+        seed(fromHash, same, 1, false);
+        seed(toHash, same, 2, true);
+
+        assertThat(versionService.diff(fromHash, toHash, workerAssigned).labels()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("버전diff_기존BBOX_2튜플_회귀없음")
+    void diffBboxTwoTupleRegressionUnchanged() {
+        // non-SKELETON diff 는 v 확장의 영향을 받지 않아야 한다: 동일 2-튜플 → 변화 없음.
+        String bbox = "{\"frameNo\":1,\"items\":[{\"id\":9,\"lblTypeCd\":\"BBOX\",\"label\":\"car\","
+                + "\"points\":[[1.0,1.0],[2.0,2.0]]}]}";
+        String fromHash = "eeee0005eeee0005eeee0005eeee0005eeee0005";
+        String toHash   = "ffff0006ffff0006ffff0006ffff0006ffff0006";
+        seed(fromHash, bbox, 1, false);
+        seed(toHash, bbox, 2, true);
+
+        assertThat(versionService.diff(fromHash, toHash, workerAssigned).labels()).isEmpty();
     }
 
     @Test

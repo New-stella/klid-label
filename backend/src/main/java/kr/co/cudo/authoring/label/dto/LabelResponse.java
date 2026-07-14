@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.common.util.KeypointPoint;
+import kr.co.cudo.authoring.common.util.KeypointSerializer;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.label.entity.LsLabel;
@@ -63,11 +65,7 @@ public record LabelResponse(
          * <p>{@code label} 필드(LS_DATA_LBL.LABEL 텍스트)는 호환 위해 그대로 노출 — FE 는 labelName/color 우선 사용.
          */
         public static Item from(LsDataLbl entity, LsDataLblAiInfo aiInfo, LsLabel lsLabel, ObjectMapper objectMapper) {
-            List<Point> parsed = LabelPointSerializer.fromJson(entity.getPointCn(), objectMapper);
-            List<List<Double>> nested = new ArrayList<>(parsed.size());
-            for (Point p : parsed) {
-                nested.add(List.of(p.x(), p.y()));
-            }
+            List<List<Double>> nested = parsePoints(entity.getLblTypeCd(), entity.getPointCn(), objectMapper);
             return new Item(
                     entity.getLblSn(),
                     entity.getLblTypeCd(),
@@ -81,6 +79,30 @@ public record LabelResponse(
                     entity.getTrackId(),
                     aiInfo != null ? aiInfo.getLblSrcCd() : null
             );
+        }
+
+        /**
+         * 좌표 파싱 — {@code LBL_TYPE_CD} 기반 type-route.
+         * <ul>
+         *   <li>SKELETON: {@link KeypointSerializer#fromJson} 삼중값 [[x,y,v], x17] (v 보존 — 응답/스냅샷 무손실)</li>
+         *   <li>그 외(BBOX/POLYGON/SEGMENT/TRACK): 기존 2-튜플 {@link LabelPointSerializer#fromJson} (불변)</li>
+         * </ul>
+         */
+        private static List<List<Double>> parsePoints(String lblTypeCd, String pointCn, ObjectMapper objectMapper) {
+            if (LsDataLbl.TYPE_SKELETON.equals(lblTypeCd)) {
+                List<KeypointPoint> kps = KeypointSerializer.fromJson(pointCn, objectMapper);
+                List<List<Double>> nested = new ArrayList<>(kps.size());
+                for (KeypointPoint kp : kps) {
+                    nested.add(List.of(kp.x(), kp.y(), (double) kp.v()));
+                }
+                return nested;
+            }
+            List<Point> parsed = LabelPointSerializer.fromJson(pointCn, objectMapper);
+            List<List<Double>> nested = new ArrayList<>(parsed.size());
+            for (Point p : parsed) {
+                nested.add(List.of(p.x(), p.y()));
+            }
+            return nested;
         }
     }
 

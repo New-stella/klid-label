@@ -246,7 +246,10 @@ public class PortalLabelService {
         // R17 이슈2 — points 가 비어있는(NULL/공백/빈 좌표) user-label 행은 제외 (로드 방어).
         // 검증 우회로 생성된 stale row(point_cn NULL) 가 빈 라벨로 반환되어 FE 렌더 크래시 → navigate(-1)
         // 튕김을 유발하던 회귀를 차단한다. 저장 경로는 @NotBlank pointsJson 으로 1차 차단.
+        // 포털은 키포인트(SKELETON)를 제공하지 않으므로(ADR-013) SKELETON 라벨은 skip 한다.
+        // 삼중값 좌표를 2-튜플 parsePoints 로 파싱하면 붕괴(500)하므로 사전 필터로 차단한다.
         List<LsPortalUserLabel> mineWithPoints = mine.stream()
+                .filter(u -> !LsDataLbl.TYPE_SKELETON.equals(u.getLblTypeCd()))
                 .filter(u -> !parsePoints(u.getPointCn()).isEmpty())
                 .toList();
         if (!mineWithPoints.isEmpty()) {
@@ -257,6 +260,7 @@ public class PortalLabelService {
                     .toList();
         } else {
             items = lblRepository.findBySrcSn(srcSn).stream()
+                    .filter(l -> !LsDataLbl.TYPE_SKELETON.equals(l.getLblTypeCd()))
                     .map(l -> new PortalFrameLabelsResponse.Item(
                             l.getLblSn(), l.getLblTypeCd(), l.getLabelNm(),
                             parsePoints(l.getPointCn())))
@@ -266,13 +270,25 @@ public class PortalLabelService {
         return new PortalFrameLabelsResponse(Math.toIntExact(frame.getFrameNo()), srcSn, rawSn, siblings, items);
     }
 
-    /** 좌표 JSON 문자열 → [[x,y],...] 중첩 리스트. 파싱 실패 시 빈 리스트(fail-secure). */
+    /**
+     * 좌표 JSON 문자열 → [[x,y],...] 중첩 리스트. 파싱 실패 시 빈 리스트(fail-secure).
+     *
+     * <p>SKELETON 삼중값 등 2-튜플이 아닌 형식이 유입되면 {@link LabelPointSerializer} 가
+     * 예외를 던지므로, 여기서 방어적으로 catch 하여 빈 리스트를 반환한다(500 차단). 상위 스트림에서
+     * SKELETON 을 사전 skip 하지만, 방어선을 이중으로 둔다(포털 키포인트 미제공 — ADR-013).
+     */
     private List<List<Double>> parsePoints(String pointsJson) {
-        List<kr.co.cudo.authoring.common.util.Point> parsed =
-                kr.co.cudo.authoring.common.util.LabelPointSerializer.fromJson(pointsJson, objectMapper);
-        return parsed.stream()
-                .map(p -> List.of(p.x(), p.y()))
-                .toList();
+        try {
+            List<kr.co.cudo.authoring.common.util.Point> parsed =
+                    kr.co.cudo.authoring.common.util.LabelPointSerializer.fromJson(pointsJson, objectMapper);
+            return parsed.stream()
+                    .map(p -> List.of(p.x(), p.y()))
+                    .toList();
+        } catch (RuntimeException e) {
+            // 형식 위반(삼중값/손상 JSON) — 내부 오류가 아닌 데이터 형식 문제. 빈 좌표로 안전 처리.
+            log.warn("[Portal] label points parse skipped reason={}", e.getClass().getSimpleName());
+            return List.of();
+        }
     }
 
     /**
