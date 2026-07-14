@@ -5,11 +5,12 @@ import type Konva from 'konva';
 import { useLabelStore } from '@/stores/useLabelStore';
 
 import type { FrameSummary, Label } from '../types';
+import { useSam2Segment } from '../hooks/useSam2Segment';
+import type { Sam2SegmentResponse } from '../api';
+
 import { ImageLayer } from './layers/ImageLayer';
 import { LabelsLayer } from './layers/LabelsLayer';
 import { OverlayLayer } from './layers/OverlayLayer';
-import { useSam2Segment } from '../hooks/useSam2Segment';
-import type { Sam2SegmentResponse } from '../api';
 import { buildGeometry } from './utils/canvasGeometry';
 import type { Geometry } from './utils/coordinateTransformer';
 import { zoomToPoint } from './utils/zoomToPoint';
@@ -22,6 +23,12 @@ export interface CanvasShellProps {
   onLabelAdd?: (label: Label) => void;
   /** 편집 잠금 (작업락/포털 읽기 제약 등) — LabelsLayer 이동/리사이즈 비활성. */
   readOnly?: boolean;
+  /**
+   * KEYPOINT 순차 배치 진행 인덱스(0~16) 변경 보고 — 미진행/완료 시 null.
+   * 가이드는 좌측 라벨 패널에서 렌더하므로 CanvasShell 은 OverlayLayer 의 보고를
+   * 상위(LabelingPage)로 그대로 전달만 한다(state 리프팅).
+   */
+  onKeypointPlacingChange?: (placingIndex: number | null) => void;
 }
 
 // 스토어 clampZoom 과 동일 한계 — 휠 줌도 같은 범위로 제한.
@@ -41,6 +48,7 @@ export function CanvasShell({
   labels,
   onLabelAdd,
   readOnly = false,
+  onKeypointPlacingChange,
 }: CanvasShellProps) {
   const stageRef = useRef<Konva.Stage | null>(null);
   const zoom = useLabelStore((s) => s.zoom);
@@ -131,6 +139,7 @@ export function CanvasShell({
             onMockWarning={handleMockWarning}
             onLowConfidence={handleLowConfidence}
             onCommitError={handleCommitError}
+            onKeypointPlacingChange={onKeypointPlacingChange}
           />
         </Layer>
       </Stage>

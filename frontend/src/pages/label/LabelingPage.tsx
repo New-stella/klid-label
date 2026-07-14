@@ -355,6 +355,11 @@ export function LabelingPage() {
 
   const [canvasRef, canvasSize] = useContainerSize<HTMLDivElement>();
 
+  // KEYPOINT 순차 배치 진행 인덱스(0~16) — OverlayLayer→CanvasShell 이 보고.
+  // 가이드는 좌측 라벨 패널(LabelSidebar) 내부에서 렌더하므로 캔버스와 패널의 공통 부모인
+  // 이 페이지로 state 를 리프팅한다. 미진행/완료 시 null → 가이드 미표시.
+  const [keypointPlacingIndex, setKeypointPlacingIndex] = useState<number | null>(null);
+
   // 잘못된 ID — 풀스크린 다크 에러
   if (Number.isNaN(numericId)) {
     return (
@@ -561,7 +566,7 @@ export function LabelingPage() {
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
       <div className="flex flex-1 overflow-hidden">
         <DarkToolbar onSave={handleSave} portalMode={portalMode} />
-        <LabelSidebar />
+        <LabelSidebar keypointPlacingIndex={keypointPlacingIndex} />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}
         <div
@@ -583,6 +588,7 @@ export function LabelingPage() {
                 labels={labels}
                 readOnly={isLocked}
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
+                onKeypointPlacingChange={setKeypointPlacingIndex}
               />
             </Suspense>
           ) : (

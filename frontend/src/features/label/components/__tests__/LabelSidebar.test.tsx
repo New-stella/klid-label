@@ -93,6 +93,35 @@ describe('LabelSidebar', () => {
     });
   });
 
+  it('키포인트_배치중_가이드가_좌측패널_내부에_표시', async () => {
+    // given — 라벨 목록 + KEYPOINT 배치 진행(placingIndex=2)
+    mock.onGet('/manage/labels').reply(200, samplePayload);
+    renderWithProviders(<LabelSidebar keypointPlacingIndex={2} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('사람')).toBeInTheDocument();
+    });
+
+    // then — 라벨 네비게이션(패널) 내부에 키포인트 가이드가 렌더된다.
+    const panel = screen.getByRole('navigation', { name: '라벨 마스터' });
+    const guide = screen.getByRole('group', { name: '키포인트 배치 가이드' });
+    expect(panel).toContainElement(guide);
+    expect(screen.getByTestId('kpt-guide-caption')).toHaveTextContent('3/17');
+  });
+
+  it('키포인트_미배치_null이면_가이드_미표시', async () => {
+    // given — placingIndex 기본(null)
+    mock.onGet('/manage/labels').reply(200, samplePayload);
+    renderWithProviders(<LabelSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByText('사람')).toBeInTheDocument();
+    });
+
+    // then — 가이드 미표시
+    expect(screen.queryByRole('group', { name: '키포인트 배치 가이드' })).toBeNull();
+  });
+
   it('현재_activeLabelId_라벨_시각적_강조', async () => {
     mock.onGet('/manage/labels').reply(200, samplePayload);
     useLabelStore.getState().setActiveLabelId(2);

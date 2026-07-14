@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Circle, Line, Rect, Text } from 'react-konva';
+import { Circle, Line, Rect } from 'react-konva';
 import type Konva from 'konva';
 
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -37,6 +37,11 @@ interface OverlayLayerProps {
   onLowConfidence?: (res: Sam2SegmentResponse) => void;
   /** 폴리곤 커밋이 라벨 마스터 미로딩 등으로 실패했을 때 사용자 안내 메시지 전달. */
   onCommitError?: (message: string) => void;
+  /**
+   * KEYPOINT 순차 배치 중 "지금 찍을 관절"의 0-based 인덱스(0~16)를 상위에 보고.
+   * 배치 미진행(툴 비활성) 또는 17점 완료 시 null. 캔버스 밖 인체 다이어그램 가이드 연동용.
+   */
+  onKeypointPlacingChange?: (placingIndex: number | null) => void;
 }
 
 interface BboxDraft {
@@ -65,6 +70,7 @@ export function OverlayLayer({
   onMockWarning,
   onLowConfidence,
   onCommitError,
+  onKeypointPlacingChange,
 }: OverlayLayerProps) {
   const [bboxDraft, setBboxDraft] = useState<BboxDraft | null>(null);
   // SAM_SEGMENT 박스 드래그 draft (canvas 좌표).
@@ -90,6 +96,24 @@ export function OverlayLayer({
       setKptDraft([]);
     }
   }, [activeTool]);
+
+  // 콜백을 ref 에 보관해 인라인 함수 전달에도 보고 effect 가 매 렌더 재실행되지 않도록 한다.
+  const placingChangeRef = useRef(onKeypointPlacingChange);
+  placingChangeRef.current = onKeypointPlacingChange;
+  // 마지막으로 보고한 값 — 동일 값 중복 보고(불필요 setState) 억제. 초기값 null 로 시작.
+  const lastPlacingRef = useRef<number | null>(null);
+
+  // "지금 찍을 관절" 인덱스를 상위(다이어그램 가이드)로 보고. 배치 미진행/완료 시 null.
+  useEffect(() => {
+    const placing =
+      activeTool === ToolTypeEnum.KEYPOINT && kptDraft.length < KEYPOINT_NAMES.length
+        ? kptDraft.length
+        : null;
+    if (placing !== lastPlacingRef.current) {
+      lastPlacingRef.current = placing;
+      placingChangeRef.current?.(placing);
+    }
+  }, [activeTool, kptDraft.length]);
 
   function pointerCanvas(): Point | null {
     const stage = stageRef.current;
@@ -421,16 +445,6 @@ export function OverlayLayer({
             );
           })}
         </>
-      )}
-      {activeTool === ToolTypeEnum.KEYPOINT && kptDraft.length < KEYPOINT_NAMES.length && (
-        <Text
-          x={8}
-          y={8}
-          text={`다음 관절: ${KEYPOINT_NAMES[kptDraft.length]} (${kptDraft.length + 1}/${KEYPOINT_NAMES.length})`}
-          fontSize={14}
-          fill="#26A69A"
-          listening={false}
-        />
       )}
     </>
   );
