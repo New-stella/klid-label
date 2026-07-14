@@ -21,6 +21,7 @@ import { DeidentReportButton } from '@/features/label/components/DeidentReportBu
 import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
+import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
 import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
@@ -142,6 +143,7 @@ export function LabelingPage() {
   const clearDirty = useLabelStore((s) => s.clearDirty);
   const addLabel = useLabelStore((s) => s.addLabel);
   const reset = useLabelStore((s) => s.reset);
+  const toggleLabelVisibility = useLabelStore((s) => s.toggleLabelVisibility);
 
   // BE 의 LabelResponse.siblings 로 영상 전체 프레임 표시.
   // 메인 캔버스(currentFrame)는 imageBlobUrl(현재 프레임)만 채우고, strip 의 다른 프레임 썸네일은
@@ -228,6 +230,39 @@ export function LabelingPage() {
   const unresolvedInquiries = (issueThreads ?? []).filter(
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
   ).length;
+
+  // 프레임 썸네일 4색 상태(21 §21.9) — issueThreads 를 REJECTION/INQUIRY 타입별 srcSn 집합으로
+  // 가공해 DarkFrameStrip 에 주입한다. resolveFrameStatus 우선순위: 현재>확인요청>반려>저장.
+  // srcSn 이 null 인 영상 단위 이슈(프레임 미지정)는 특정 썸네일에 귀속할 수 없어 제외한다.
+  const rejectionSrcSns = useMemo(() => {
+    const set = new Set<number>();
+    for (const t of issueThreads ?? []) {
+      if (t.issueTypeCd === 'REJECTION' && t.srcSn != null) set.add(t.srcSn);
+    }
+    return set;
+  }, [issueThreads]);
+  const inquirySrcSns = useMemo(() => {
+    const set = new Set<number>();
+    for (const t of issueThreads ?? []) {
+      // 미해소 문의만 빨강 강조(해소된 문의는 더 이상 주의 대상 아님).
+      if (t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED' && t.srcSn != null) {
+        set.add(t.srcSn);
+      }
+    }
+    return set;
+  }, [issueThreads]);
+  // 저장된 프레임(라벨 존재) 집합 — BE LabelResponse.siblings[].hasLabel 로 형제 프레임 전체를 판정.
+  // 현재 프레임은 resolveFrameStatus 에서 CURRENT 가 우선하므로 SAVED 로 덮이지 않고, 저장된 형제
+  // 프레임(현재 아님)만 연두(SAVED)로 표시된다 → 4색 전부 실동작.
+  // 현재 프레임은 응답 labels 가 로드된 즉시(hasLabel 반영 전 경합 대비) 함께 포함해 정합을 보장한다.
+  const savedSrcSns = useMemo(() => {
+    const set = new Set<number>();
+    for (const s of data?.siblings ?? []) {
+      if (s.hasLabel) set.add(s.srcSn);
+    }
+    if (data && Array.isArray(data.labels) && data.labels.length > 0) set.add(data.srcSn);
+    return set;
+  }, [data]);
 
   // 비식별 누락 신고 — 영상 잠금 상태 추적.
   // 1) BE 응답 lockSttsCd='LOCKED_FOR_REDEIDENT' → 진입 시 잠금
@@ -349,9 +384,17 @@ export function LabelingPage() {
 
   useLabelingShortcuts(
     {
+      // W/S — 첫/끝 프레임 (기존 프레임 네비 로직 재사용).
+      onFirstFrame: () => jumpTo(0),
+      onLastFrame: () => jumpTo(frames.length - 1),
       onPrevFrame: () => jumpTo(Math.max(0, frameIdx - 1)),
       onNextFrame: () => jumpTo(Math.min(frames.length - 1, frameIdx + 1)),
       onSave: handleSave,
+      // T — 선택된 라벨의 표시/숨김 토글 (세션 상태, 캔버스에서 렌더 skip).
+      onToggleVisibility: () => {
+        const id = useLabelStore.getState().selectedLabelId;
+        if (id) toggleLabelVisibility(id);
+      },
     },
     // ADR-013 — 포털 모드에서는 오토라벨/키포인트 단축키 게이팅(툴바 숨김과 정합).
     { portalMode },
@@ -733,6 +776,10 @@ export function LabelingPage() {
                   }
                 />
               </div>
+              {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함). */}
+              <div className="shrink-0 border-t border-gray-700 p-2">
+                <ImageAdjustPanel />
+              </div>
             </div>
           )}
         </div>
@@ -759,6 +806,9 @@ export function LabelingPage() {
             frames={frames}
             currentIndex={frameIdx}
             onSelect={jumpTo}
+            rejectionSrcSns={rejectionSrcSns}
+            inquirySrcSns={inquirySrcSns}
+            savedSrcSns={savedSrcSns}
             portalMode={portalMode}
           />
         </div>

@@ -168,8 +168,24 @@ public class LabelService {
         Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(labels);
         // Phase 2 — labelName/color 는 LS_LABEL 에서 채움 (N+1 회피 일괄 lookup)
         Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(labels);
+        // R5 — 형제 프레임별 라벨 존재 여부(hasLabel) — 프레임 strip SAVED(연두) 판정용. 프레임 수와
+        // 무관하게 IN 절 1회로 라벨 보유 프레임 집합을 조회한다(N+1 금지).
+        Set<Long> labeledSrcSns = resolveLabeledSrcSns(siblings);
         return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, objectMapper);
+                aiInfoMap, lsLabelMap, labeledSrcSns, objectMapper);
+    }
+
+    /**
+     * R5 — 형제 프레임 목록 중 라벨이 1건 이상 존재하는 프레임 srcSn 집합.
+     * N+1 회피: 프레임마다 COUNT 하지 않고 단일 IN 쿼리({@code findDistinctSrcSnsWithLabelIn}) 1회.
+     * 빈 목록이면 Repository 호출 skip.
+     */
+    private Set<Long> resolveLabeledSrcSns(List<LsDataSrc> siblings) {
+        if (siblings == null || siblings.isEmpty()) {
+            return Set.of();
+        }
+        List<Long> srcSns = siblings.stream().map(LsDataSrc::getSrcSn).toList();
+        return new HashSet<>(labelRepository.findDistinctSrcSnsWithLabelIn(srcSns));
     }
 
     /** Phase 3 — actor + raw 요청 여부 → frameImageType 결정 (단일 진실의 원천). */
@@ -260,13 +276,15 @@ public class LabelService {
         Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(result);
         // Phase 2 — 응답 labelName/color enrichment.
         Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(result);
+        // R5 — 저장 직후 응답에도 형제 프레임 hasLabel 반영(방금 저장한 프레임 포함). IN 절 1회(N+1 금지).
+        Set<Long> labeledSrcSns = resolveLabeledSrcSns(siblings);
 
         // 라벨 저장(임시저장)은 LS_DATA_LBL upsert + 작업본 갱신만 수행한다.
         // 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은 검수 승인(APPROVED) 시점에만 생성한다(SFR-08).
         // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
 
         return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, objectMapper);
+                aiInfoMap, lsLabelMap, labeledSrcSns, objectMapper);
     }
 
     /**

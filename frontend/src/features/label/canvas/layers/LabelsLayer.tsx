@@ -58,6 +58,8 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const selectLabel = useLabelStore((s) => s.selectLabel);
   const updateLabel = useLabelStore((s) => s.updateLabel);
+  // Phase 2 (T 표시/숨김) — 가시성 숨김 라벨은 렌더 skip.
+  const hiddenLabelIds = useLabelStore((s) => s.hiddenLabelIds);
   // labelMasters 는 staleTime 5분 캐시 — LabelSidebar/OverlayLayer 와 동일 쿼리 공유.
   // 로드 실패/지연 중에도 label.color enrichment 만으로 정상 동작.
   const { data: labelMasters } = useLabelMasters();
@@ -151,6 +153,9 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
   return (
     <>
       {labels.map((label) => {
+        // 가시성 숨김 라벨은 렌더 생략 (T 토글). Transformer 는 선택+BBOX 조건이라
+        // 숨긴 라벨을 선택 상태로 두어도 editable 대상이 사라져 무해하다.
+        if (hiddenLabelIds.has(label.id)) return null;
         const isSelected = label.id === selectedId;
         const baseColor = getLabelDisplayColor(label, labelMasters);
         const stroke = isSelected ? '#FF3D71' : baseColor;

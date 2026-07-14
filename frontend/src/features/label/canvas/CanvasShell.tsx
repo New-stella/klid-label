@@ -57,6 +57,8 @@ export function CanvasShell({
   const activeTool = useLabelStore((s) => s.activeTool);
   const setZoom = useLabelStore((s) => s.setZoom);
   const setPan = useLabelStore((s) => s.setPan);
+  // Phase 2c — 이미지 조절(밝기/대비 필터 + 레이어 투명도). 세션 전용 상태.
+  const imageAdjust = useLabelStore((s) => s.imageAdjust);
 
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
   // SAM2 클릭/박스 분할 — 진행 중 무시 + 프레임 전환 stale 폐기 가드 포함.
@@ -124,12 +126,12 @@ export function CanvasShell({
     <div className="relative" data-testid="canvas-shell">
       <Stage ref={stageRef} width={width} height={height} className="bg-bgLight" onWheel={handleWheel}>
         <Layer listening={false} name="image-layer">
-          {imageEl && <ImageLayer image={imageEl} geometry={geometry} />}
+          {imageEl && <ImageLayer image={imageEl} geometry={geometry} adjust={imageAdjust} />}
         </Layer>
-        <Layer name="labels-layer">
+        <Layer name="labels-layer" opacity={imageAdjust.labelOpacity}>
           <LabelsLayer labels={labels} geometry={geometry} readOnly={readOnly} />
         </Layer>
-        <Layer name="overlay-layer">
+        <Layer name="overlay-layer" opacity={imageAdjust.activeOpacity}>
           <OverlayLayer
             geometry={geometry}
             activeTool={activeTool}

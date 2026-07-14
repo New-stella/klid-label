@@ -23,6 +23,15 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
      */
     List<LsDataLbl> findBySrcSnIn(Collection<Long> srcSns);
 
+    /**
+     * 주어진 프레임(srcSn) 집합 중 라벨이 1건 이상 존재하는 srcSn 만 DISTINCT 로 조회 — 단일 쿼리(N+1 금지).
+     * <p>R5 프레임 strip 의 SAVED(연두) 상태 판정용. 형제 프레임별 라벨 존재 여부를 프레임 수만큼
+     * 개별 COUNT 하지 않고 IN 절 1회로 라벨 보유 프레임 집합을 얻는다. 파라미터 바인딩({@code :srcSns})만
+     * 사용 — 문자열 연결 없음(CWE-89 무관). 빈 컬렉션 입력 시 빈 결과.
+     */
+    @Query("SELECT DISTINCT l.srcSn FROM LsDataLbl l WHERE l.srcSn IN :srcSns")
+    List<Long> findDistinctSrcSnsWithLabelIn(@Param("srcSns") Collection<Long> srcSns);
+
     @Query("""
             SELECT l
               FROM LsDataLbl l

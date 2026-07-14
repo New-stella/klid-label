@@ -7,6 +7,28 @@ interface UndoSnapshot {
   labels: Label[];
 }
 
+/**
+ * 이미지 조절(밝기/대비/투명도) 세션 상태 (Phase 2c).
+ * 영속 계층 없음 — zustand 인메모리라 새 세션/reset 시 원본값 복원.
+ * - brightness: konva Brighten 필터 값 (-1..1, 0=원본)
+ * - contrast: konva Contrast 필터 값 (-100..100, 0=원본)
+ * - labelOpacity: 라벨 레이어 불투명도 (0..1)
+ * - activeOpacity: 작업(오버레이) 레이어 불투명도 (0..1)
+ */
+export interface ImageAdjust {
+  brightness: number;
+  contrast: number;
+  labelOpacity: number;
+  activeOpacity: number;
+}
+
+export const DEFAULT_IMAGE_ADJUST: ImageAdjust = {
+  brightness: 0,
+  contrast: 0,
+  labelOpacity: 1,
+  activeOpacity: 1,
+};
+
 interface LabelState {
   // 도구/선택
   activeTool: ToolType;
@@ -33,6 +55,15 @@ interface LabelState {
   undoStack: UndoSnapshot[];
   redoStack: UndoSnapshot[];
 
+  // 이미지 조절 (세션 전용 — 영속 안 함)
+  imageAdjust: ImageAdjust;
+
+  /**
+   * 가시성 숨김 라벨 ID 집합 (세션 전용 — 영속 안 함, Phase 2 T 표시/숨김).
+   * 여기 든 라벨은 LabelsLayer 렌더에서 skip. setLabels/reset 시 초기화.
+   */
+  hiddenLabelIds: Set<string>;
+
   // Actions
   setActiveTool: (tool: ToolType) => void;
   selectLabel: (id: string | null) => void;
@@ -46,6 +77,9 @@ interface LabelState {
   undo: () => void;
   redo: () => void;
   clearDirty: () => void;
+  setImageAdjust: (patch: Partial<ImageAdjust>) => void;
+  resetImageAdjust: () => void;
+  toggleLabelVisibility: (id: string) => void;
   reset: () => void;
 }
 
@@ -86,6 +120,8 @@ export const useLabelStore = create<LabelState>((set, get) => ({
   panY: 0,
   undoStack: [],
   redoStack: [],
+  imageAdjust: { ...DEFAULT_IMAGE_ADJUST },
+  hiddenLabelIds: new Set<string>(),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   selectLabel: (id) => set({ selectedLabelId: id }),
@@ -98,6 +134,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
       undoStack: [],
       redoStack: [],
       selectedLabelId: null,
+      hiddenLabelIds: new Set<string>(),
     }),
 
   addLabel: (label) => {
@@ -159,6 +196,19 @@ export const useLabelStore = create<LabelState>((set, get) => ({
 
   clearDirty: () => set({ dirtyLabels: new Set<string>() }),
 
+  setImageAdjust: (patch) =>
+    set({ imageAdjust: { ...get().imageAdjust, ...patch } }),
+
+  resetImageAdjust: () => set({ imageAdjust: { ...DEFAULT_IMAGE_ADJUST } }),
+
+  // 불변성 유지 — 기존 Set 을 변형하지 않고 새 Set 을 생성해 구독자 재렌더 보장.
+  toggleLabelVisibility: (id) => {
+    const next = new Set(get().hiddenLabelIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    set({ hiddenLabelIds: next });
+  },
+
   reset: () =>
     set({
       activeTool: ToolTypeEnum.SELECT,
@@ -171,5 +221,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
       panY: 0,
       undoStack: [],
       redoStack: [],
+      imageAdjust: { ...DEFAULT_IMAGE_ADJUST },
+      hiddenLabelIds: new Set<string>(),
     }),
 }));

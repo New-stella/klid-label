@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 라벨 조회/수정 결과.
@@ -38,10 +39,21 @@ public record LabelResponse(
         List<Item> items
 ) {
 
-    /** 동일 영상 내 형제 프레임 식별자. */
-    public record SiblingFrame(Long srcSn, Integer frameNo) {
+    /**
+     * 동일 영상 내 형제 프레임 식별자.
+     *
+     * <p>hasLabel: 해당 프레임(srcSn)에 저장된 라벨(LS_DATA_LBL)이 1건 이상 존재하는지 여부.
+     * FE 프레임 strip 이 SAVED(연두) 상태를 표시하는 데 사용한다(신규 DB 컬럼 없음 — 라벨 존재 여부 파생).
+     * 라벨 존재 정보를 주입하지 않는 레거시 경로는 {@code from(src)} 로 false 로 둔다(하위호환).
+     */
+    public record SiblingFrame(Long srcSn, Integer frameNo, boolean hasLabel) {
+        /** 라벨 존재 여부 미지정 — hasLabel=false (컨텍스트 없는 레거시 경로 호환). */
         public static SiblingFrame from(LsDataSrc src) {
-            return new SiblingFrame(src.getSrcSn(), Math.toIntExact(src.getFrameNo()));
+            return from(src, false);
+        }
+
+        public static SiblingFrame from(LsDataSrc src, boolean hasLabel) {
+            return new SiblingFrame(src.getSrcSn(), Math.toIntExact(src.getFrameNo()), hasLabel);
         }
     }
 
@@ -165,6 +177,7 @@ public record LabelResponse(
      * Phase 2 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO + LS_LABEL 결합 응답.
      * <p>{@code lsLabelMap} 키: {@code LS_LABEL.labelId}. 라벨 마스터 매칭 안 되는 엔티티는 labelName/color=null.
      * <p>LabelService 가 한 번의 일괄 lookup({@code findAllById})으로 맵을 구성하여 전달 — N+1 회피.
+     * <p>hasLabel 정보 없이 호출되는 경로 — 모든 형제 프레임 hasLabel=false (빈 집합 위임).
      */
     public static LabelResponse of(LsDataSrc current,
                                    List<LsDataSrc> siblings,
@@ -174,9 +187,29 @@ public record LabelResponse(
                                    Map<Long, LsDataLblAiInfo> aiInfoMap,
                                    Map<Long, LsLabel> lsLabelMap,
                                    ObjectMapper objectMapper) {
+        return of(current, siblings, entities, frameImageType, lockSttsCd, aiInfoMap, lsLabelMap,
+                Set.of(), objectMapper);
+    }
+
+    /**
+     * R5 — 형제 프레임별 라벨 존재 플래그(hasLabel) 포함 결합 응답.
+     * <p>{@code labeledSrcSns}: 라벨이 1건 이상 존재하는 프레임 srcSn 집합. LabelService 가 단일
+     * IN 쿼리({@code findDistinctSrcSnsWithLabelIn})로 조회하여 전달 — 프레임 수와 무관한 1쿼리(N+1 금지).
+     * 각 형제 프레임의 hasLabel 은 이 집합의 포함 여부로 결정된다.
+     */
+    public static LabelResponse of(LsDataSrc current,
+                                   List<LsDataSrc> siblings,
+                                   List<LsDataLbl> entities,
+                                   String frameImageType,
+                                   String lockSttsCd,
+                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
+                                   Map<Long, LsLabel> lsLabelMap,
+                                   Set<Long> labeledSrcSns,
+                                   ObjectMapper objectMapper) {
+        Set<Long> safeLabeled = labeledSrcSns == null ? Set.of() : labeledSrcSns;
         List<SiblingFrame> siblingDtos = new ArrayList<>(siblings.size());
         for (LsDataSrc s : siblings) {
-            siblingDtos.add(SiblingFrame.from(s));
+            siblingDtos.add(SiblingFrame.from(s, safeLabeled.contains(s.getSrcSn())));
         }
         Map<Long, LsDataLblAiInfo> safeAiMap = aiInfoMap == null ? Map.of() : aiInfoMap;
         Map<Long, LsLabel> safeLabelMap = lsLabelMap == null ? Map.of() : lsLabelMap;

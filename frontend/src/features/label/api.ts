@@ -199,6 +199,8 @@ export function getLabels(
         ? d.siblings.map((s) => ({
             srcSn: Number(s.srcSn),
             frameNo: Number(s.frameNo),
+            // R5 — 라벨 저장된 프레임 여부(SAVED 연두 판정). BE 미주입 시 false.
+            hasLabel: s.hasLabel === true,
           }))
         : [];
       // frameImageType — 화이트리스트 검증 (BE 응답 신뢰하되, 알 수 없는 값은 undefined)

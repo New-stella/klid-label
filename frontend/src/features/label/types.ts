@@ -204,6 +204,12 @@ export interface FrameSummary {
 export interface SiblingFrame {
   srcSn: number;
   frameNo: number;
+  /**
+   * 해당 프레임(srcSn)에 저장된 라벨(LS_DATA_LBL)이 1건 이상 존재하는지 여부.
+   * BE LabelResponse.SiblingFrame.hasLabel 과 1:1 — 프레임 strip SAVED(연두) 상태 판정용.
+   * 레거시/미주입 응답은 undefined → false 취급.
+   */
+  hasLabel?: boolean;
 }
 
 /**
