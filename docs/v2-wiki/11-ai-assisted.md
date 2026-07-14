@@ -21,6 +21,13 @@
 - 라벨 좌표는 동일 해상도이므로 **비식별본과 공유**(별도 실행 없음)
 - 출처/신뢰도는 `LS_DATA_LBL_AI_INFO`(`CONF_SCORE`)
 
+### 온디맨드 YOLO 객체 추적 — `POST /v1/frames/{srcSn}/yolo-track` (인터랙티브)
+- 배치 자동라벨링과 **별개의 온디맨드 경로** — 라벨러가 정렬된 프레임 시퀀스(`srcSn` 시작 + `nextSrcSns` 후속, 최대 50)를 지정하면 ai-server `/infer/yolo/track`을 프레임별 프록시하여 검출(`label`/`points[x1,y1,x2,y2]`/`score`/`track_id`)을 프레임별로 반환
+- **순수 조회(DB 미저장)** — 결과는 FE가 받아 기존 `PUT /v1/frames/{srcSn}/labels`로 저장(배치 `YoloAutolabelStep`과 중복 저장 방지)
+- 트래커 격리: `clip_id = {rawSn}:{요청 UUID}`(요청 단위 격리 — 동일 영상 동시 추적 간섭 방지), `frame_index` 0-base(첫 프레임 트래커 리셋)
+- 방어: 본인 미배정 IDOR 차단(시작+모든 후속 프레임), path/body `srcSn` 불일치 400(CWE-345), 시퀀스 교차 영상(RAW_SN) 혼입 400, `nextSrcSns` 상한 50(CWE-770), 응답 좌표 검증(CWE-20). ai-server 연동 실패 502
+- REVIEWER/WORKER. 코드: `YoloTrackService`·`LabelController#yoloTrack` (LogiCraft `API-123`)
+
 ## 11.3 SAM2 — VOS(추적) + 분할
 
 > **분할 백엔드**: **Meta 공식 sam2(Apache-2.0)** `SAM2ImagePredictor`(HF `facebook/sam2-hiera-tiny`). 구 ultralytics SAM(AGPL-3.0)은 제거됨. ai-server에서 `set_image`+`predict`(point/box) → 마스크를 `cv2.findContours`로 외곽 폴리곤 변환. HTTP 경로(`/infer/sam2/segment`·`/track`)·polygon 응답 스키마 불변(계약 호환).

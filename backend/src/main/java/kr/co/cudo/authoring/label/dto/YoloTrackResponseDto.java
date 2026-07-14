@@ -27,7 +27,7 @@ public record YoloTrackResponseDto(List<FrameDetections> frames) {
     public record Detected(
             String label,
             List<Double> points,
-            double score,
+            Double score,
             Integer trackId
     ) {
     }

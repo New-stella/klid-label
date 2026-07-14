@@ -95,7 +95,7 @@ public class LabelController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "ai-server 연동 실패 (서킷 브레이커)")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502", description = "ai-server 연동 실패 / 잘못된 응답")
     })
     @PostMapping("/{srcSn}/sam2-track")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")

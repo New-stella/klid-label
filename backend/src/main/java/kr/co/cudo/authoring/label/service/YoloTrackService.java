@@ -14,16 +14,12 @@ import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 인터랙티브 YOLO 객체 트랙 추론 서비스 (온디맨드 프록시).
@@ -36,15 +32,15 @@ import java.util.List;
  * <ol>
  *   <li>정렬된 프레임 시퀀스 = [srcSn] + nextSrcSns.</li>
  *   <li>frameIndex 0 = 시작 프레임(트래커 리셋), 1..N = 후속 프레임.</li>
- *   <li>각 프레임 이미지를 base64 로 인코딩하여 ai-server {@code /infer/yolo/track} 프록시.</li>
- *   <li>동일 clipId({@code String.valueOf(rawSn)}) 로 트래커 상태를 영상 단위로 격리.</li>
+ *   <li>각 프레임 이미지를 {@link FrameImageEncoder} 로 base64 인코딩하여 ai-server {@code /infer/yolo/track} 프록시.</li>
+ *   <li>요청 단위 고유 clipId({@code rawSn:UUID})로 트래커 상태를 요청마다 격리(동시 요청 간섭 방지).</li>
  * </ol>
  *
  * <p>보안:
  * <ul>
  *   <li>IDOR (CWE-639): 시작 + 모든 후속 프레임에 {@link LabelAccessGuard} 검증.</li>
  *   <li>교차 영상 혼입 방지: 시퀀스 각 프레임의 rawSn 이 시작 프레임과 동일한지 검증(트래커 무결성).</li>
- *   <li>Path Traversal (CWE-22): storage.raw-path 기준 경로 범위 내로 제한.</li>
+ *   <li>Path Traversal (CWE-22): {@link FrameImageEncoder} 가 storage.raw-path 기준 경로 범위 내로 제한.</li>
  *   <li>입력 검증 (CWE-20): ai-server 응답 points 4개(x1,y1,x2,y2)·비음수 검증.</li>
  *   <li>Log Injection (CWE-117): 외부 유래 라벨명 {@link LogSanitizer} 로 CRLF 제거.</li>
  *   <li>Info Leak (CWE-209): 내부 경로·스택트레이스 클라이언트 노출 금지.</li>
@@ -67,9 +63,7 @@ public class YoloTrackService {
     private final LsDataSrcRepository srcRepository;
     private final LabelAccessGuard accessGuard;
     private final SystemConfigService systemConfigService;
-
-    @Value("${authoring.storage.raw-path:./storage/raw}")
-    private String storageRawPath;
+    private final FrameImageEncoder frameImageEncoder;
 
     public YoloTrackResponseDto track(YoloTrackRequest req, TokenClaims actor) {
         // IDOR 차단 (CWE-639): 시작 + 모든 후속 프레임 접근 권한을 ai 호출 이전에 검증.
@@ -80,15 +74,15 @@ public class YoloTrackService {
 
         LsDataSrc startSrc = srcRepository.findById(req.srcSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "시작 프레임을 찾을 수 없습니다."));
-        // 모든 프레임이 동일 영상(rawSn)에 속한다는 전제 — 트래커 상태 격리 키.
-        final String clipId = String.valueOf(startSrc.getRawSn());
+        // 요청 단위 고유 clipId — 동일 rawSn 에 대한 동시 트랙 요청이 ai-server 트래커 상태를
+        // 상호 간섭(frameIndex=0 리셋이 상대 세션 초기화)하지 않도록 요청마다 격리한다.
+        // 한 요청 내 모든 프레임은 이 동일 clipId 를 공유(트래킹 연속성). UUID 는 격리용(보안 토큰 아님).
+        final String clipId = startSrc.getRawSn() + ":" + UUID.randomUUID();
 
         // YOLO 추론 파라미터 1회 조회 (fail-safe — YoloAutolabelStep 과 동일 규칙).
         double conf = readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
         int imgsz = readInt(ConfigKeys.YOLO_IMGSZ, DEFAULT_IMGSZ);
         double iou = readDoublePercent(ConfigKeys.YOLO_IOU, DEFAULT_IOU);
-
-        Path baseDir = Path.of(storageRawPath).toAbsolutePath().normalize();
 
         List<Long> sequence = new ArrayList<>(req.nextSrcSns().size() + 1);
         sequence.add(req.srcSn());
@@ -109,7 +103,7 @@ public class YoloTrackService {
                         "시퀀스 프레임이 시작 프레임과 다른 영상에 속합니다: srcSn=" + sn);
             }
 
-            String imageB64 = encodeImageToBase64(baseDir, src.getSrcFilePathNm());
+            String imageB64 = frameImageEncoder.encodeToBase64(src.getSrcFilePathNm());
 
             YoloResponse resp;
             try {
@@ -143,9 +137,18 @@ public class YoloTrackService {
         List<YoloTrackResponseDto.Detected> out = new ArrayList<>(resp.detections().size());
         for (YoloResponse.Detection d : resp.detections()) {
             validateBbox(d.points());
-            out.add(new YoloTrackResponseDto.Detected(d.label(), d.points(), d.score(), d.trackId()));
+            out.add(new YoloTrackResponseDto.Detected(
+                    d.label(), d.points(), clampScore(d.score()), d.trackId()));
         }
         return out;
+    }
+
+    /** ai 응답 score 를 [0.0, 1.0] 로 clamp. NaN 은 null (Sam2TrackService.clampScore 와 동일 규칙). */
+    private Double clampScore(double raw) {
+        if (Double.isNaN(raw)) {
+            return null;
+        }
+        return Math.max(0.0, Math.min(1.0, raw));
     }
 
     /** 외부 응답 좌표 검증 (CWE-20) — 정확히 4개(x1,y1,x2,y2)이고 모두 0 이상. */
@@ -159,32 +162,6 @@ public class YoloTrackService {
                 throw new CustomException(ErrorCode.INVALID_INPUT,
                         "YOLO 응답 좌표는 0 이상이어야 합니다.");
             }
-        }
-    }
-
-    /** Path Traversal (CWE-22) 방어 — 기준 디렉토리 외부 접근 차단. */
-    private Path resolveSafe(Path baseDir, String relativePath) {
-        if (relativePath == null || relativePath.isBlank()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "이미지 경로가 비어있습니다.");
-        }
-        Path resolved = baseDir.resolve(relativePath).normalize();
-        if (!resolved.startsWith(baseDir)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "허용되지 않은 경로입니다.");
-        }
-        return resolved;
-    }
-
-    /** 프레임 이미지를 읽어 base64 인코딩. ai-server 입력용. CWE-209: 내부 경로 미노출. */
-    private String encodeImageToBase64(Path baseDir, String filePath) {
-        Path imagePath = resolveSafe(baseDir, filePath);
-        if (!Files.exists(imagePath)) {
-            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일을 찾을 수 없습니다.");
-        }
-        try {
-            byte[] bytes = Files.readAllBytes(imagePath);
-            return Base64.getEncoder().encodeToString(bytes);
-        } catch (IOException e) {
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 읽기 실패");
         }
     }
 

@@ -155,8 +155,10 @@ class YoloTrackServiceTest {
         assertThat(calls.get(0).frameIndex()).isEqualTo(0);
         assertThat(calls.get(1).frameIndex()).isEqualTo(1);
         assertThat(calls.get(2).frameIndex()).isEqualTo(2);
-        assertThat(calls).allSatisfy(c ->
-                assertThat(c.clipId()).isEqualTo(String.valueOf(rawSn)));
+        // A-1: 요청 단위 고유 clipId — rawSn 접두 + 요청 내 모든 프레임이 동일 clipId 공유.
+        String firstClipId = calls.get(0).clipId();
+        assertThat(firstClipId).startsWith(rawSn + ":");
+        assertThat(calls).allSatisfy(c -> assertThat(c.clipId()).isEqualTo(firstClipId));
 
         // DB 저장 없음
         assertThat(labelRepository.findBySrcSn(src1)).isEmpty();
@@ -261,6 +263,30 @@ class YoloTrackServiceTest {
         assertThatThrownBy(() -> yoloTrackService.track(req, reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("aiserver_score_1_초과면_1_0_으로_clamp")
+    void scoreAboveOneClamped() {
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(
+                new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 1.2, 1)))));
+        YoloTrackRequest req = new YoloTrackRequest(src0, List.of(src1));
+
+        YoloTrackResponseDto res = yoloTrackService.track(req, reviewer);
+        assertThat(res.frames().get(0).detections().get(0).score()).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("aiserver_score_음수면_0_0_으로_clamp")
+    void negativeScoreClamped() {
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(
+                new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), -0.1, 1)))));
+        YoloTrackRequest req = new YoloTrackRequest(src0, List.of(src1));
+
+        YoloTrackResponseDto res = yoloTrackService.track(req, reviewer);
+        assertThat(res.frames().get(0).detections().get(0).score()).isEqualTo(0.0);
     }
 
     @Test
