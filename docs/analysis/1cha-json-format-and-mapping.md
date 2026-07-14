@@ -408,3 +408,120 @@
 - **View 재구성(확정)**: `V_COMPLETED_VIDEO`를 통합 테이블(ACTIVE_YN='Y') 기반으로 재정의(출력 컬럼 alias 보존 = 관제 소비자 무영향 + 신규 메타 컬럼 추가, MNG_* live JOIN 제거로 동결 무결성). `V_COMPLETED_META`는 VLM/시계열 KV만 유지(기술메타는 통합 테이블로 이동). FRAME/LABEL은 불변. 프레임별 description(blocker #2, SRC 단위)은 별개 후속.
 - **표준용어(§7-5 준수, LogiCraft 실조회 2026-07-13)**: **전 컬럼 표준용어 기등록 — 🆕 신규 등록 0종.** program: VDO·FPS·CDC·BIT·RESL·SESN·DAY_NGT·WDTH·DURT·ASPRT(종횡) / gov: SZ·RT·LAT·LOT·HGT·WTHR·EXPLN. 프로젝트는 program glossary 우선(사업 표준)이라 **해상도=`RESL`**(1차 legacy `RSLTN` 아님), **계절=`SESN`**·시간대=`DAY_NGT`·화면비=`ASPRT_RT`(전부 기존 코드/1차 term과 정합, drift 아님). 표준용어 선행 부담 없음.
 - **범위**: 설계 확정만. 표준용어 등록·DDL·materialize 어댑터·outbox 복제·View 재정의는 후속 구현(WBS Phase 1~4는 `.claude-design.md §2`).
+
+---
+
+## 8. ★최종본(v1.3) → 우리 프로젝트 Table/Column 매핑 (2026-07-14)
+
+> **정본(SoT) 갱신**: 어노테이션 포맷 최종본 = **`docs/AI기반CCTV_어노테이션 포맷 및 데이터 구조_v1.3_20260303.xlsx`**(시트 `데이터구조` 1개, 사용자 확정 2026-07-14). 이전 §7 인용 `v2.0_20251120`은 **폐기(최종 아님)**. **핵심**: v1.3은 `TABLE`/`COLUMN` 열이 없는 **순수 포맷 스펙**(대신 `항목출처` prose) — 즉 **DB 매핑은 우리 몫**이며 아래가 그 매핑이다.
+> **근거**: 실제 구현 코드 실측 — `LS_DATASET_VIDEO_META`(V97), `DatasetVideoMetaSnapshotService`, `DatasetMetaSourceRepository`(MNG_* 조인 쿼리), `LsDataSrc`(V103 FRM_EXPLN). 컬럼명은 추정 아닌 **코드 확인값**.
+
+### 8-1. `video` 블록 → `LS_DATASET_VIDEO_META` (동결 저장) + 조달 소스
+
+> 저장 = APPROVED 시점 동결 컬럼(`LS_DATASET_VIDEO_META.*`). 조달 = 그 값이 오는 실제 소스.
+
+| v1.3 필드 | 저장 컬럼 | 조달 소스 | 상태 |
+|---|---|---|---|
+| id | (RAW_SN 식별, 직렬화 시 발번) | `LS_DATA_RAW.RAW_SN`(+`VMS_CLIP_ID`) | ✅ |
+| filename | `RAW_FILE_PATH_NM` | `LS_DATA_RAW.RAW_FILE_PATH_NM` | ✅ |
+| date_created | `SHT_DT` | `LS_DATA_RAW.SHT_DT` | ✅ |
+| type(데이터형식) | `FILE_FMT` | `MNG_CLIP_MASTER.FILE_FMT` 조인 | ✅ |
+| format(코덱) | `VDO_CDC` | `LS_DATA_META` `video.codec`(ffprobe) | ✅ |
+| filesize | `FILE_SZ` | `LS_DATA_META` `video.filesize` | ✅ |
+| length | `VDO_LEN_SEC` | `LS_DATA_RAW.VDO_LEN_SEC`(ms→초) | ✅ ※v1.3 예시 "10M" 표기는 무시(초 저장) |
+| fps | `FPS` | `LS_DATA_META` `video.fps` | ✅ |
+| aspect_ratio | `ASPRT_RT` | `RESL`(WxH) 파싱 파생(w/h) | ✅ |
+| width | `VDO_WDTH` | `RESL` 파싱(`video.resolution`) | ✅ |
+| height | `VDO_HGT` | `RESL` 파싱 | ✅ |
+| resolution | `RESL` | `LS_DATA_META` `video.resolution` | ✅ |
+| coordinates | `WGS84_LAT`·`WGS84_LOT` | `MNG_RESOURCE_CCTV.WGS84_LAT/LOT` 조인 | ✅ |
+| location(촬영지역) | `SIDO_NM`·`SGG_NM`(+`LCLGV_CD`) | `MNG_EX_LOCAL_GOV` via `LCLGV_CD` | ✅ |
+| cctv_name | `CCTV_NM` | `MNG_RESOURCE_CCTV.CCTV_NM` 조인 | ✅ |
+| cctv_mng_no | `VMS_CCTV_ID` | `LS_DATA_RAW.VMS_CCTV_ID` | ✅ |
+| anonymity·pseudonymity | `PRVC_TYPE_CD`(비식별 유형) | `LS_DATA_RAW.PRVC_TYPE_CD` | ✅ |
+| privacy_included | `PRVC_YN` | `LS_DATA_RAW.PRVC_YN` | ✅ |
+| event_id 🆕 | `EVNT_TYPE_CD` | `LS_DATA_RAW.EVNT_TYPE_CD` | ✅(코드로 대응) |
+| event_name | `EVNT_NM` | `MNG_EX_EVNT_TYPE_MAP`(CD_TYPE='02' 카테고리명) 조인 | ✅ |
+| time_of_day | `DAY_NGT_CD` | `SHT_DT` 파생(시각) | ✅ |
+| season | `SESN_CD` | `SHT_DT` 파생(월) | ✅ |
+| license_id | — (미저장) | COCO 라이선스, 미보유 → 상수/빈값 | 무해(선택) |
+| **bit**(비트값) | `BIT_RT` | `LS_DATA_META` `video.bit_rate`(ffprobe) | ✅ **비트레이트로 확정**(사용자 2026-07-14). ⚠️v1.3 예시 `"24bit"`는 색심도 표기처럼 보이니 그 표기만 cudo 확인 권장 |
+| **frames**(총프레임수) | — (신설 필요) | `VDO_LEN_SEC×FPS` 파생 또는 ffprobe `nb_frames`(현재 미적재) | 🟡 파생 필요 |
+| **pixel**(화소) | — (신설 필요) | **`MNG_RESOURCE_CCTV.CCTV_PXL`**(CCTV화소 M) 조인 or `RESL` 대체 | 🟢 MNG_* 조달 |
+| **weather**(v1.3=필수!) | `WTHR_NM` | **`MNG_CLIP_EVNT_LST.WTHR_CD`(날씨 코드) 컬럼 존재** — 단 1차 실측 빈값이라 미populate 가능성 → populate 시 조인, 아니면 UI 수기(fallback) | 🟢/🔴 **소스 존재, populate 확인 필요** |
+| **og_cd**(기관코드) 🆕 | — (신설 필요) | **`MNG_RESOURCE_CCTV.OG_CD`(기관코드) — 정확 일치 실컬럼 확인** | 🟢 MNG_* 조달 확정 |
+| cctv_height | — (신설 필요) | **`MNG_RESOURCE_CCTV.CCTV_HGT`(높이 m) 실컬럼 확인** | 🟢 MNG_* 조달 확정 |
+| cctv_azimuth | — (신설 필요) | **`MNG_RESOURCE_CCTV.MAIN_SURV_PAN_ANG`(주감시방향값 도) 실컬럼 확인** | 🟢 MNG_* 조달 확정 |
+| **event_log**(관제일지) | — (신설 필요) | **`MNG_CLIP_EVNT_LST.MNTR_CN`(관제 일지) — 정확 일치 실컬럼 확인** | 🟢 MNG_* 조달 확정 |
+
+> 참고: 저장 테이블엔 v1.3에 없는 `ORGNL_RAW_SN`·`AI_CRT_YN`(증강 파생)·`DE_IDENT_YN`도 있음(export 스코프 밖이면 직렬화 시 생략).
+
+> **⚠️ 조달원 DB 실측(2026-07-14, `klid_system` MNG_* INFORMATION_SCHEMA 조회)**: 우리 JPA 엔티티(`MngResourceCctv`·`MngClipEvntLst`)는 **필요 컬럼만 매핑한 부분 프로젝션**이라 그동안 안 보였을 뿐, 관제 실테이블엔 아래 컬럼이 **모두 실재**. 사용된 컬럼만 프로젝션·조인 쿼리에 추가하면 조달된다(관제 소유 READ). 확인된 실컬럼:
+> - `MNG_RESOURCE_CCTV`: **`OG_CD`(기관코드)**·`OG_NM`(기관명)·**`CCTV_HGT`(높이 m)**·**`MAIN_SURV_PAN_ANG`(주감시방향값=방위각)**·`MAIN_SURV_TILT_ANG`(상하향)·**`CCTV_PXL`(화소)**·`CAM_RSLTN`(카메라해상도)·`CCTV_MNG_NO`(관리번호)·`SIDO_NM/SGG_NM/SIDO_CD/SGG_CD`(지자체)·`WGS84_LAT/LOT`.
+> - `MNG_CLIP_EVNT_LST`: **`MNTR_CN`(관제 일지=event_log)**·**`WTHR_CD`(날씨)**·`SESN_CD`(계절)·`HR_TYPE_CD`(시간유형)·`EVNT_NM`·`EVNT_SRC`·`PRVC_TYPE_CD`·`SHT_EQMT/SHT_PRSN/SHT_LC`·`LCNS`.
+> - `MNG_CLIP_MASTER`: `FILE_SZ`(파일크기=filesize 대안)·`FILE_FMT`·`VDO_LEN_SEC`·`CTGRY_NM`(카테고리명).
+> - 방위각/높이 전수검색 결과: `MNG_RESOURCE_CCTV.CCTV_HGT`·`MAIN_SURV_PAN_ANG`(도)만 유효. **cctv_azimuth=`MAIN_SURV_PAN_ANG`**(주감시 좌우방향각)으로 매핑.
+
+### 8-2. `image`(프레임) 블록 → `LS_DATA_SRC`
+
+| v1.3 필드 | 우리 컬럼 | 비고 |
+|---|---|---|
+| id | `LS_DATA_SRC.SRC_SN` | |
+| file_name | `SRC_FILE_PATH_NM`(원본) / `DE_IDNTF_SRC_FILE_PATH_NM`(비식별) | |
+| date_captured | `SHT_DT` | |
+| video_id | `RAW_SN`(조인키) | video_id → RAW_SN 룩업 |
+| type(확장자) | `SRC_FILE_PATH_NM` 확장자 파생 | |
+| frame_num | `VDO_FRM_NO`(디코더 0-base) 또는 `FRM_NO`(추출순번) | ⚠️ v1.3 "영상 내 프레임 순서"=`VDO_FRM_NO` 의미에 근접 — export 규약 확정 필요 |
+| **description** | `FRM_EXPLN`(V103, VARCHAR 1000) | ✅ SFR-09 정식필드, blocker#2 구현완료 |
+| width·height | — (영상 공통) | SRC 별도 컬럼 없음 → `LS_DATASET_VIDEO_META.VDO_WDTH/HGT` 참조 |
+| license_id | — | COCO |
+| **anonymity·pseudonymity·privacy_included**(프레임 단위) | — (미저장) | v1.3은 프레임 단위 개인정보 플래그 신설 → 현재 SRC에 없음 | 🟡 갭 |
+
+### 8-3. `annotations` 블록 → `LS_DATA_LBL`
+
+| v1.3 필드 | 우리 컬럼 | 변환/비고 |
+|---|---|---|
+| id | `LS_DATA_LBL.LBL_SN` | |
+| image_id | `LS_DATA_LBL.SRC_SN` | 프레임 FK(정통 COCO — v1.3에서 정식화) |
+| category_id | `LBL_ID`(+`LBL_NM`) | 라벨 어휘 매핑표 §3-5 적용 |
+| track_id | `TRCK_ID` | 빈문자→NULL 정규화 |
+| bbox `[x,y,w,h]` | `POINT_CN` + `LBL_TYPE_CD='BBOX'` | **좌표 변환 필수**(flat→nested, §4-1) |
+| polygon | `POINT_CN` + `LBL_TYPE_CD='POLYGON'` | |
+| keypoints | — (미지원) | `LBL_TYPE_CD`는 BBOX/POLYGON/POINT까지 | 🟡 갭 |
+| text | — → `LS_DATA_META` | 라벨 아님 → 메타 |
+
+### 8-4. `categories` 블록 → `LS_LABEL`(마스터)
+
+| v1.3 필드 | 우리 컬럼 | 비고 |
+|---|---|---|
+| id | `LS_LABEL.LBL_ID` | |
+| name | `LBL_NM` | |
+| type(bbox/polygon/keypoints/text) | `LBL_TYPE_CD`(BBOX/POLYGON/POINT) | keypoints/text 미지원 |
+| supercategory | — (미지원) | 🟡 갭 |
+| keypoints·skeleton | — (미지원) | 🟡 갭(포즈 데이터 유입 시 확장) |
+
+### 8-5. `info`·`dataset`·`licences`·`type`
+
+| 블록 | 우리 대응 | 비고 |
+|---|---|---|
+| info(year/version/description/date_created) | 미저장 → export 시 상수 생성 | 데이터셋 생성 메타(COCO) |
+| dataset(identifier/name/src_path/label_path) | `LS_PJT`/`LS_PJT_DATA_STATS` 개념(1차) | 2차는 영상 단위 — 프로젝트 카운트 개념 약함, export 조립 시 발번 |
+| licences(id/name/url) | 미보유 | 상수/빈배열 |
+| type | 상수 `"instances"` | v1.3 표기 준수 |
+
+### 8-6. v1.3 갭 요약 (구현 대비) — DB 실측 반영(2026-07-14)
+
+> **검증 근거**: ①1차 wiki DB(`LS_DATA_SRC`) — og_cd·event_log·bit **1차 원천엔 부재**(MNG_*/ffprobe 유래). ②**`klid_system` MNG_* 실스키마 조회** — 아래 컬럼 **전부 실재 확인**(우리 JPA 부분 프로젝션이라 코드엔 미노출).
+
+현 구현(`LS_DATASET_VIDEO_META`)이 v1.3 대비 남은 조치 — **대부분 MNG_* 실컬럼으로 해소**:
+
+1. ✅ **bit = 비트레이트 확정** — 우리 `BIT_RT`(ffprobe `video.bit_rate`)와 정합. v1.3 예시 `"24bit"` 표기만 cudo 확인 권장.
+2. 🟢 **og_cd → `MNG_RESOURCE_CCTV.OG_CD`(기관코드) 정확 일치** — 프로젝션/조인 + 통합테이블 컬럼 신설만.
+3. 🟢 **event_log → `MNG_CLIP_EVNT_LST.MNTR_CN`(관제 일지) 정확 일치** — 동상.
+4. 🟢 **cctv_height → `CCTV_HGT` / cctv_azimuth → `MAIN_SURV_PAN_ANG` / pixel → `CCTV_PXL`** — 전부 `MNG_RESOURCE_CCTV` 실컬럼.
+5. 🟢/🔴 **weather → `MNG_CLIP_EVNT_LST.WTHR_CD` 컬럼 존재** — 단 1차 실측 빈값이라 **populate 확인 필요**(populate면 조인, 아니면 사용자 지시대로 UI 수기 fallback).
+6. 🟡 **frames** — `VDO_LEN_SEC×FPS` 파생 또는 ffprobe `nb_frames`(미적재).
+7. 🟡 **프레임 단위 개인정보 플래그**(image.*) — SRC 미저장 / **keypoints/skeleton/supercategory** 라벨 모델 미지원([[keypoint-labeling-design]]).
+8. ✅ **정합 확인**: image.description(=`FRM_EXPLN`), event_id(=`EVNT_TYPE_CD`)+event_name(=`EVNT_NM`), 좌표·해상도·시간/계절 파생.
+
+> **결론(갱신)**: v1.3 매핑의 조달원이 **거의 전부 확정**됐다 — 기존 저장분(`LS_DATASET_VIDEO_META`/`LS_DATA_SRC`) + **MNG_* 실컬럼 조인**(og_cd·event_log·cctv_height·azimuth·pixel) + ffprobe(bit) + 파생. 진짜 미결은 **weather populate 여부**·frames 파생·프레임 개인정보/포즈 라벨 확장뿐. 구현 과제 = 통합테이블에 MNG 조인 컬럼 추가 + 스냅샷 어댑터/조인 쿼리 확장(관제 READ).
