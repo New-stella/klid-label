@@ -174,6 +174,28 @@ public class LsDataLbl {
     }
 
     /**
+     * 트랙 보간으로 자동 생성된 POLYGON 라벨 — 폴리곤 트랙 보간(R1 SFR-08-01).
+     * <p>{@code LBL_SRC_CD='INTERPOLATED'}, {@code AUTO_LBL_YN='Y'}, {@code LBL_TYPE_CD='POLYGON'} 고정.
+     * {@link #createAutoInterpolatedBbox} 와 동일 정책이며 타입만 POLYGON 이다.
+     *
+     * @param pointsJson 보간된 폴리곤 정점 JSON ({@code [[x,y], ...]} 정규형)
+     */
+    public static LsDataLbl createAutoInterpolatedPolygon(Long srcSn, Long labelId, String label, String pointsJson,
+                                                          BigDecimal confScore, String trackId) {
+        return LsDataLbl.builder()
+                .srcSn(srcSn)
+                .lblTypeCd(TYPE_POLYGON)
+                .labelId(labelId)
+                .label(label)
+                .pointsJson(pointsJson)
+                .autoLblYn(AUTO_YES)
+                .confScore(confScore)
+                .trackId(trackId)
+                .lblSrcCd(SRC_INTERPOLATED)
+                .build();
+    }
+
+    /**
      * 트랙 보간으로 자동 생성된 BBOX 라벨 — Phase 3.
      * <p>{@code LBL_SRC_CD='INTERPOLATED'}, {@code AUTO_LBL_YN='Y'}, {@code LBL_TYPE_CD='BBOX'} 고정.
      * trackId 는 원본 detection 과 동일한 값으로 전달되어야 한다 (FE 가 같은 트랙으로 인식하도록).

@@ -8,6 +8,8 @@ import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.interpolation.Bbox;
 import kr.co.cudo.authoring.batch.interpolation.Keyframe;
+import kr.co.cudo.authoring.batch.interpolation.PolyKeyframe;
+import kr.co.cudo.authoring.batch.interpolation.PolyshapeMatcher;
 import kr.co.cudo.authoring.batch.interpolation.TrackInterpolator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
@@ -122,6 +124,16 @@ public class TrackInterpolationStep implements BatchStep {
             srcSnToFrame.put(s.getSrcSn(), Math.toIntExact(s.getFrameNo()));
         }
 
+        // 재실행 idempotency — 기존 보간 생성 row 를 먼저 삭제(중복 INSERT 방지).
+        // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순서로 삭제해 FK 고아 방지.
+        List<Long> staleInterpolated = lblRepository.findInterpolatedLblSnsByRawSn(rawSn);
+        if (!staleInterpolated.isEmpty()) {
+            aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
+            lblRepository.deleteAllByIdInBatch(staleInterpolated);
+            log.info("[Batch][Interpolation] cleared stale interpolated rows rawSn={} count={}",
+                    rawSn, staleInterpolated.size());
+        }
+
         List<LsDataLbl> candidates = lblRepository.findAutoBboxWithTrackId(rawSn);
         if (candidates.isEmpty()) {
             log.info("[Batch][Interpolation] no interpolation candidates rawSn={}", rawSn);
@@ -135,35 +147,14 @@ public class TrackInterpolationStep implements BatchStep {
         List<LsDataLbl> newRows = new ArrayList<>();
         for (Map.Entry<String, List<LsDataLbl>> entry : byTrackId.entrySet()) {
             String trackId = entry.getKey();
-            List<LsDataLbl> sorted = entry.getValue().stream()
-                    .filter(l -> srcSnToFrame.containsKey(l.getSrcSn()))
-                    .sorted(Comparator.comparingInt(l -> srcSnToFrame.get(l.getSrcSn())))
-                    .toList();
-            if (sorted.isEmpty()) {
-                continue;
-            }
-            String label = sorted.get(0).getLabelNm();
-            List<Keyframe> keyframes = sorted.stream()
-                    .map(l -> new Keyframe(
-                            srcSnToFrame.get(l.getSrcSn()),
-                            parseBbox(l.getPointCn()),
-                            false))
-                    .toList();
-            Map<Integer, Bbox> interpolated = INTERPOLATOR.interpolate(keyframes, totalFrames);
-            Set<Integer> existingFrames = keyframes.stream()
-                    .map(Keyframe::frame)
-                    .collect(Collectors.toSet());
-            for (Map.Entry<Integer, Bbox> ie : interpolated.entrySet()) {
-                int frame = ie.getKey();
-                if (existingFrames.contains(frame)) {
-                    continue;  // 키프레임 자체는 skip
-                }
-                Long srcSn = frameToSrcSn.get(frame);
-                if (srcSn == null) {
-                    continue;  // 안전망 — 매핑 안 되는 프레임은 skip
-                }
-                newRows.add(LsDataLbl.createAutoInterpolatedBbox(
-                        srcSn, null, label, serializeBbox(ie.getValue()), BigDecimal.ZERO, trackId));
+            try {
+                newRows.addAll(interpolateTrack(trackId, entry.getValue(),
+                        srcSnToFrame, frameToSrcSn, totalFrames));
+            } catch (Exception ex) {
+                // 부분 실패 격리 — 한 트랙의 파싱/보간 예외가 같은 rawSn 의 다른 정상 트랙까지
+                // 롤백하지 않도록 트랙 단위로 격리 후 skip. (예외 무시 아님 — WARN 로깅.)
+                log.warn("[Batch][Interpolation] track skipped rawSn={} trackId={} reason={}",
+                        rawSn, trackId, ex.getMessage());
             }
         }
 
@@ -179,6 +170,97 @@ public class TrackInterpolationStep implements BatchStep {
         log.info("[Batch][Interpolation] saved rawSn={} tracks={} interpolatedRows={}",
                 rawSn, byTrackId.size(), newRows.size());
         return newRows.size();
+    }
+
+    /**
+     * 단일 트랙을 타입별로 라우팅하여 보간 row 를 산출한다.
+     * <p>트랙 내 {@code LBL_TYPE_CD} 가 혼재(distinct &gt; 1)하면 안전하게 skip(WARN).
+     * BBOX 는 선형 보간, POLYGON 은 polyshape 보간. (POLYLINE 은 현재 DB 코드값 미도입.)
+     */
+    private List<LsDataLbl> interpolateTrack(String trackId, List<LsDataLbl> labels,
+                                             Map<Long, Integer> srcSnToFrame,
+                                             Map<Integer, Long> frameToSrcSn,
+                                             int totalFrames) {
+        List<LsDataLbl> sorted = labels.stream()
+                .filter(l -> srcSnToFrame.containsKey(l.getSrcSn()))
+                .sorted(Comparator.comparingInt(l -> srcSnToFrame.get(l.getSrcSn())))
+                .toList();
+        if (sorted.isEmpty()) {
+            return List.of();
+        }
+        List<String> types = sorted.stream().map(LsDataLbl::getLblTypeCd).distinct().toList();
+        if (types.size() > 1) {
+            log.warn("[Batch][Interpolation] mixed label types in track trackId={} types={} -> skip",
+                    trackId, types);
+            return List.of();
+        }
+        String type = types.get(0);
+        String label = sorted.get(0).getLabelNm();
+        if (LsDataLbl.TYPE_POLYGON.equals(type)) {
+            return interpolatePolygonTrack(trackId, label, sorted, srcSnToFrame, frameToSrcSn, totalFrames);
+        }
+        return interpolateBboxTrack(trackId, label, sorted, srcSnToFrame, frameToSrcSn, totalFrames);
+    }
+
+    private List<LsDataLbl> interpolateBboxTrack(String trackId, String label, List<LsDataLbl> sorted,
+                                                 Map<Long, Integer> srcSnToFrame,
+                                                 Map<Integer, Long> frameToSrcSn, int totalFrames) {
+        List<Keyframe> keyframes = sorted.stream()
+                .map(l -> new Keyframe(srcSnToFrame.get(l.getSrcSn()), parseBbox(l.getPointCn()), false))
+                .toList();
+        Map<Integer, Bbox> interpolated = INTERPOLATOR.interpolate(keyframes, totalFrames);
+        Set<Integer> existingFrames = keyframes.stream().map(Keyframe::frame).collect(Collectors.toSet());
+        List<LsDataLbl> rows = new ArrayList<>();
+        for (Map.Entry<Integer, Bbox> ie : interpolated.entrySet()) {
+            int frame = ie.getKey();
+            if (existingFrames.contains(frame)) {
+                continue;  // 키프레임 자체는 skip
+            }
+            Long srcSn = frameToSrcSn.get(frame);
+            if (srcSn == null) {
+                continue;  // 안전망 — 매핑 안 되는 프레임은 skip
+            }
+            rows.add(LsDataLbl.createAutoInterpolatedBbox(
+                    srcSn, null, label, serializeBbox(ie.getValue()), BigDecimal.ZERO, trackId));
+        }
+        return rows;
+    }
+
+    private List<LsDataLbl> interpolatePolygonTrack(String trackId, String label, List<LsDataLbl> sorted,
+                                                    Map<Long, Integer> srcSnToFrame,
+                                                    Map<Integer, Long> frameToSrcSn, int totalFrames) {
+        List<PolyKeyframe> keyframes = sorted.stream()
+                .map(l -> new PolyKeyframe(srcSnToFrame.get(l.getSrcSn()), parsePolygon(l.getPointCn()), false))
+                .toList();
+        // closed=true (폐곡선). 정점 개수/좌표 검증 실패 시 IllegalArgumentException → 호출부(run)가 트랙 단위 skip.
+        Map<Integer, List<Point>> interpolated = INTERPOLATOR.interpolatePolyshape(keyframes, totalFrames, true);
+        Set<Integer> existingFrames = keyframes.stream().map(PolyKeyframe::frame).collect(Collectors.toSet());
+        List<LsDataLbl> rows = new ArrayList<>();
+        for (Map.Entry<Integer, List<Point>> ie : interpolated.entrySet()) {
+            int frame = ie.getKey();
+            if (existingFrames.contains(frame)) {
+                continue;  // 키프레임 자체는 skip
+            }
+            Long srcSn = frameToSrcSn.get(frame);
+            if (srcSn == null) {
+                continue;  // 안전망 — 매핑 안 되는 프레임은 skip
+            }
+            rows.add(LsDataLbl.createAutoInterpolatedPolygon(
+                    srcSn, null, label, LabelPointSerializer.toJson(ie.getValue(), objectMapper),
+                    BigDecimal.ZERO, trackId));
+        }
+        return rows;
+    }
+
+    /**
+     * POLYGON pointsJson 을 정점 목록으로 파싱. 정규형/평탄/객체배열 모두 {@link LabelPointSerializer#fromJson} 로 흡수.
+     * <p>빈 정점열이면 이후 {@link PolyshapeMatcher} 가 정점 개수 미달로 거부한다(호출부에서 트랙 skip).
+     */
+    private List<Point> parsePolygon(String pointsJson) {
+        if (pointsJson == null || pointsJson.isBlank()) {
+            throw new IllegalArgumentException("POLYGON pointsJson 이 비어있습니다.");
+        }
+        return LabelPointSerializer.fromJson(pointsJson, objectMapper);
     }
 
     /**

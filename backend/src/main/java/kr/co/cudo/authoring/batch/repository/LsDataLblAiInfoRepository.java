@@ -36,6 +36,14 @@ public interface LsDataLblAiInfoRepository extends JpaRepository<LsDataLblAiInfo
                          @Param("source") String source,
                          @Param("actor") String actor);
 
+    /**
+     * 일괄 물리 삭제 — 진짜 bulk DELETE (파생 delete 의 SELECT-후-엔티티별-remove N+1 회피).
+     * <p>재실행 idempotency 경로에서 stale 보간 AI_INFO 를 한 번의 DELETE 로 제거한다.
+     * 벌크 삭제 대상 엔티티는 이 트랜잭션에서 사전 로드되지 않고, 삭제 후 재삽입 row 는
+     * 새 {@code dataLblSn} 으로 INSERT 되므로 영속성 컨텍스트 stale 참조가 없다
+     * (→ {@code clearAutomatically} 불필요).</p>
+     */
     @Modifying
-    void deleteByDataLblSnIn(Collection<Long> dataLblSns);
+    @Query("DELETE FROM LsDataLblAiInfo ai WHERE ai.dataLblSn IN :dataLblSns")
+    int deleteByDataLblSnIn(@Param("dataLblSns") Collection<Long> dataLblSns);
 }

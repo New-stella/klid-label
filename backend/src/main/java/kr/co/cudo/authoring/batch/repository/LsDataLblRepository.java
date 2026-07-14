@@ -240,14 +240,18 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
                                            @Param("threshold") java.math.BigDecimal threshold);
 
     /**
-     * 영상(rawSn)에 속한 자동 BBOX 라벨 중 trackId 가 있는 row 만 조회. — Phase 3 트랙 보간.
+     * 영상(rawSn)에 속한 자동 트랙 라벨(BBOX/POLYGON) 중 trackId 가 있는 row 만 조회. — 트랙 보간.
      * <p>보간 대상 정의:
      * <ul>
      *   <li>{@code AUTO_LBL_YN='Y'} — 자동 라벨링 결과만</li>
-     *   <li>{@code LBL_TYPE_CD='BBOX'} — POLYGON/SEGMENT 는 보간 범위 외</li>
+     *   <li>{@code LBL_TYPE_CD IN ('BBOX','POLYGON')} — BBOX 선형 + POLYGON polyshape 보간 대상.
+     *       SEGMENT/MASK/SKELETON 은 보간 범위 외(TrackInterpolationStep 이 타입별로 라우팅).
+     *       (POLYLINE 은 현재 DB 코드값 미도입 — 필요 시 화이트리스트에 추가)</li>
      *   <li>{@code TRACK_ID IS NOT NULL} — 트래커 저신뢰 detection 은 보간 대상 외</li>
      * </ul>
-     * <p>같은 영상의 모든 트랙을 단일 IN 쿼리로 가져와 N+1 회피.
+     * <p>같은 영상의 모든 트랙을 단일 IN 쿼리로 가져와 N+1 회피. 타입 화이트리스트는 고정 리터럴이라
+     * 외부 입력이 섞이지 않는다(CWE-89 무관 — 파라미터 바인딩 {@code :rawSn} 만 사용).
+     * <p>메서드명은 하위호환 위해 유지(BBOX 전용 시절 이름). 실제 반환은 BBOX+POLYGON.
      */
     @Query("""
             SELECT l
@@ -259,8 +263,27 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
                     WHERE ai.dataLblSn = l.lblSn
                       AND ai.autoLblYn = 'Y'
                )
-               AND l.lblTypeCd = 'BBOX'
+               AND l.lblTypeCd IN ('BBOX', 'POLYGON')
                AND l.trackId IS NOT NULL
             """)
     List<LsDataLbl> findAutoBboxWithTrackId(@Param("rawSn") Long rawSn);
+
+    /**
+     * 영상(rawSn) 의 기존 보간 생성 라벨(LS_DATA_LBL_AI_INFO.LBL_SRC_CD='INTERPOLATE') 의 LBL_SN 목록.
+     * <p>트랙 보간 재실행 시 idempotent 보장용 — 기존 보간 row 를 삭제 후 재삽입하기 위해 대상 PK 를 먼저 조회한다.
+     * 보간 여부는 LS_DATA_LBL 본체 컬럼이 아닌 AI_INFO 에 저장되므로(lblSrcCd @Transient) AI_INFO 로 식별한다.
+     * 고정 리터럴 'INTERPOLATE' 만 사용(외부 입력 없음 — CWE-89 무관).
+     */
+    @Query("""
+            SELECT l.lblSn
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.lblSrcCd = 'INTERPOLATE'
+               )
+            """)
+    List<Long> findInterpolatedLblSnsByRawSn(@Param("rawSn") Long rawSn);
 }
