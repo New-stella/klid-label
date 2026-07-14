@@ -53,6 +53,10 @@ authoring:
   control:
     training-scan:
       enabled: false
+  # local/test 에서는 포털 메타 복제 워커 잡도 비활성화 (Quartz 잡 미등록 — 테스트가 워커를 직접 호출).
+  #   운영(dev/stg/prd)은 application.yml 기본값(enabled 미설정=matchIfMissing=true)으로 활성화된다.
+  meta-replication:
+    enabled: false
   # local 비식별 — 기본 mock 모드. KPST 미호출, 원본을 비식별 경로로 복사하는 mock 비식별로 자족 동작한다.
   #   실 KPST 연동이 필요하면 DEIDENTIFY_MOCK_MODE=false 로 전환(KPST API 연동 테스트 서버에 실제 위탁).
   #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — local/dev/stg 는 허용, prd 에서 true 면 부트 거부.

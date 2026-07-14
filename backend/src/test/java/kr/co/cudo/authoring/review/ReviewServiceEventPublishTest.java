@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
+import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import kr.co.cudo.authoring.review.service.ReviewService;
@@ -43,6 +44,7 @@ class ReviewServiceEventPublishTest {
     private ReviewRepository reviewRepository;
     private ApplicationEventPublisher eventPublisher;
     private VersionService versionService;
+    private DatasetVideoMetaSnapshotService datasetVideoMetaSnapshotService;
     private ReviewService reviewService;
 
     @BeforeEach
@@ -59,11 +61,12 @@ class ReviewServiceEventPublishTest {
         ObjectMapper objectMapper = new ObjectMapper();
         eventPublisher = mock(ApplicationEventPublisher.class);
         versionService = mock(VersionService.class);
+        datasetVideoMetaSnapshotService = mock(DatasetVideoMetaSnapshotService.class);
 
         reviewService = new ReviewService(
                 reviewRepository, issueRepository, authrtRepository, taskEventLogRepository,
                 stateMachine, srcRepository, labelRepository, videoRepository, userRepository,
-                objectMapper, eventPublisher, versionService);
+                objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService);
 
         // enrichOne 헬퍼에서 N+1 회피 lookup 들이 빈 결과를 반환하도록
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());
@@ -116,6 +119,45 @@ class ReviewServiceEventPublishTest {
 
         // then — SFR-08: 검수 승인 시점에 영상(rawSn) 단위 학습데이터 버전 스냅샷 생성.
         verify(versionService).commitApproved(eq(videoId), eq(actor));
+    }
+
+    @Test
+    @DisplayName("approve_성공시_통합메타_동결_materialize_호출됨")
+    void approve_triggersDatasetMetaMaterialize() {
+        // given
+        Long videoId = 100L;
+        TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        when(stts.getRawDataId()).thenReturn(videoId);
+        when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
+        when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
+
+        // when
+        reviewService.approve(videoId, actor);
+
+        // then — Phase 2: 승인 트랜잭션 내에서 통합 메타 동결(materialize) 호출.
+        verify(datasetVideoMetaSnapshotService).materialize(eq(videoId));
+    }
+
+    @Test
+    @DisplayName("materialize_실패시_approve_예외_전파_동일트랜잭션_롤백")
+    void approve_rollsBackWhenMaterializeFails() {
+        // given — 통합 메타 동결이 실패(런타임 예외)한다.
+        Long videoId = 100L;
+        TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        when(stts.getRawDataId()).thenReturn(videoId);
+        when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
+        when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
+        org.mockito.Mockito.doThrow(new IllegalStateException("materialize boom"))
+                .when(datasetVideoMetaSnapshotService).materialize(eq(videoId));
+
+        // when / then — 예외가 승인 메서드 밖으로 전파되어야 한다(동일 트랜잭션이 함께 롤백됨).
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> reviewService.approve(videoId, actor))
+                .isInstanceOf(IllegalStateException.class);
+        // 승인 완료 이벤트는 materialize 이후 단계라 발행되지 않는다(부분 확정 방지).
+        org.mockito.Mockito.verify(eventPublisher, org.mockito.Mockito.never())
+                .publishEvent(any(ReviewApprovedEvent.class));
     }
 
     @Test

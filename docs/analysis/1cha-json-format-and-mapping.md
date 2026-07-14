@@ -329,6 +329,33 @@
 
 **명칭 매핑(조인/직렬화 시 alias):** `DATA_RAW_SN`→`RAW_SN`, `RAW_FILE_NM`→`RAW_FILE_PATH_NM`, `VDO_LEN`→`VDO_LEN_SEC`, `DE_IDNTF_YN`→`DE_IDENT_YN`.
 
+#### 7-2-1. 1차본 가이드라인 필드 → 2차 조달점 정합표 — "어디서 맞추나" (2026-07-14)
+
+> 근거: `docs/데이터 품질 관리 가이드라인.xlsx`(**1차 산출물**, 시트 `사진2`, COCO_DATASET 기반 — §7 정본 v2.0 명세서와 동일 스펙군의 1차 사본).
+> **성격**: 이 xlsx의 `TABLE`/`COLUMN` 열은 **1차 시스템 스키마 기준**이다. 2차(본 저작도구)와 테이블·컬럼이 다른 것은 **오류가 아니라 정상** — 1차와 2차는 별개 스키마(1차 MySQL·프로젝트 중심 ↔ 2차 PostgreSQL·영상 단위, §6-1)다.
+> **목적**: 따라서 "원안이 틀렸다"가 아니라, **각 JSON 필드를 2차 어디서 맞추나(조달점)** 를 필드 의미(semantic) 기준으로 확정한다. 결론은 §7-3(JOIN)·§7-6(`LS_DATASET_VIDEO_META`)로 귀결되며, 아직 못 맞추는 것만 **OPEN**으로 남긴다.
+
+| JSON 필드 | 1차 기준 출처(참고 — 2차와 상이 정상) | ✅ 2차 조달점 (어디서 맞추나) | 상태 |
+|---|---|---|---|
+| `length` | 1차 `LCNS` 표기 | `LS_DATA_RAW.VDO_LEN_SEC` (ms→초) | 확정 |
+| `filename`·`date_created`·`stdg_cd` | 1차 `RAW_FILE_NM`·`SHT_DT`·`LCLGV_CD` | `LS_DATA_RAW.RAW_FILE_PATH_NM`·`SHT_DT`·`LCLGV_CD` | 확정 |
+| `pseudonymity`·`anonymity`·`privacy_included` | 1차 개인정보 플래그(`PRVC_YN_DE_IDNTF_YN` 병기) | `LS_DATA_RAW.PRVC_YN`(개인정보)·`PRVC_TYPE_CD`(가명·익명 유형) | 확정 |
+| `ai_generated` | 1차 `AI_CERT_YN` | `ORGNL_RAW_SN` 유무로 파생 | 확정 |
+| `cctv_mng_no` | 1차 표기 혼재 | `LS_DATA_RAW.VMS_CCTV_ID` | 확정 |
+| `type`(FILE_FMT)·`location` | 1차 `FILE_FMT`·지역 | `MNG_CLIP_MASTER` 조인(+`MNG_EX_LOCAL_GOV`) | 확정(조인) |
+| `cctv_name`·`coordinates`·`cctv_azimuth`·`resolution`·`width`·`height` | 1차 `CCTV_NM`·`WGS84_LAT/LOT`·방위각·해상도 | `MNG_RESOURCE_CCTV` 조인(방위각·좌표=key-value, §7-1) | 확정(조인) |
+| `event_name`·`event_level1~3` | 1차 `EVNT_NM`·`EVNT_TYPE_CD` | `MNG_CLIP_EVNT_LST`+`MNG_EX_EVNT_TYPE` 계층 조인 | 확정(조인) |
+| `fps`·`format(codec)`·`bit_rate`·`aspect_ratio`·`pixel`·`filesize` | 1차 컬럼 표기(`VDO_LEN`·`ASPRT_RT` 등) | **ffprobe** 추출 → `LS_DATA_META(video.*)` | 확정(ffprobe) |
+| `season`·`time_of_day` | 1차 `SESN_CD`·`HR_TYPE_CD` 코드 컬럼 | `SHT_DT` 파생(월/시각) → 표준약어 `SESN`·`DAY_NGT` | 확정(파생) |
+| `dataset.*`(counts) | 1차 프로젝트 레벨 | `LS_PJT`·`LS_PJT_DATA_STATS` (영상단위 아님, §6-1) | 확정 |
+| `weather` | 1차 `WTHR_CD` (획득경로 불명, 샘플도 빈값) | ❌ 자동 출처 없음 → UI 수기 | **OPEN** |
+| `event_log` | 1차 `MNTR_CN` | ❌ 미보유 → 관제일지 소스 확인 필요 | **OPEN** |
+| `image.description`(프레임별) | 1차 image/annotation 텍스트 | ❌ SRC(프레임) 단위 저장위치 없음 | **OPEN**(blocker #2) |
+
+부수 관찰: 최상위 `type` 값이 1차본엔 `"instances"`(복수)이나 1차 실제 산출물(`00000048.json`)은 `"instance"`(단수, §1). 가이드라인 표기 ↔ 실제 출력 불일치이므로 export 직렬화 시 실측값 기준으로 확정.
+
+> **"어디서 맞추나" 요약**: 대부분 **MNG_\* 조인 / ffprobe / SHT_DT 파생**으로 2차에서 맞춰진다. 아직 정합점을 못 정한 것은 **`weather`·`event_log`·프레임별 `description` 3건(OPEN)** 뿐. 1차의 `TABLE`/`COLUMN`은 1차 스키마라 참고만 하고, 판단 기준은 **필드 의미 → 2차 소스 매핑**이다.
+
 ### 7-3. 확정 전략 — JOIN (컬럼 신설 최소)
 
 > **결정(2026-07-13, 사용자)**: 명세서의 "LS_DATA_RAW 적재(materialize)" 모델 대신 **조인 전략**을 채택. LS_DATA_RAW에 ~16컬럼을 신설하지 않고, export 시점에 MNG_* 조인 + ffprobe 메타 + SHT_DT 파생으로 조달한다.
@@ -361,7 +388,8 @@
 | **포털향 export (미구현/future)** | **포털 DB(분리)** | 🔴 **materialize — 저장된 전용 메타 테이블 필요** |
 
 - 즉 포털이 NIA 메타를 소비하려면 video.* 메타(MNG 유래 cctv_name·coords 포함)를 **포털이 접근 가능한 저장 테이블로 적재(materialize)** 해야 한다. 이는 cudo 명세서(Excel v2.0)의 "LS_DATA_RAW 적재" 모델 방향과 맞닿는다.
-- **JOIN 결정을 뒤집는 것은 아님**: 내부 데이터마트 경로엔 JOIN 유지, **포털 경로에만 materialize 예외** 적용(이원화).
+
+> **📌 방향 수정(2026-07-13) — 이원화 → 일원화(단일 materialize)**: "내부=JOIN / 포털=materialize" 이원화보다, **내부·포털이 모두 단일 저장 메타 테이블을 읽는 일원화**로 간다(사용자 결정). 이유: ①로직 1벌이라 관리·정합 유리 ②**학습데이터는 snapshot(동결) 의미가 맞음** — JOIN(live)은 MNG_* 변경 시 과거 확정 데이터셋 메타까지 흔들리나, 구축 시점 snapshot은 데이터셋 무결성에 부합. **형태 확정 = A. 전용 컬럼형 테이블**(glossary 표준약어 컬럼, cudo Excel v2.0 방향 — 사용자 결정 2026-07-13). B(`LS_DATA_META` EAV 확장) 반려: EAV엔 표준화할 물리 컬럼이 없어 "컬럼 표준용어" 지시와 부딪히고, 포털/외부는 1영상=1행 컬럼형 소비를 기대. 비용: MNG 필드 snapshot 적재 단계 신설 + `V_COMPLETED_*` View를 그 테이블 기반으로 재구성(출력 컬럼 유지 시 관제 소비자 무영향). **이미 구현된 JOIN 경로(feat/nia-export 66cae8c)는 유효하며 일원화는 향후 리팩터 대상.** (미구현/backlog)
 
 ### 7-5. 🔒 제약 — 새 테이블/컬럼은 표준용어 준수 (구속 지시, 2026-07-13)
 
@@ -369,3 +397,14 @@
 - **LogiCraft program glossary** + **gov(공공) 표준용어**를 조회해 물리명(약어)·논리명을 정합시킨다(예: 좌표=`WGS84_LAT/LOT`, 코덱=`VDO_CDC`, 프레임레이트=표준약어 확인 후).
 - 소유권 규칙 준수: 타인/공공 등록분 무단 수정 금지(본인 등록분만). 신규 용어는 등록 후 사용.
 - 이 제약은 향후 이 프로젝트의 **모든 신규 LS_* 테이블/컬럼 생성**에 일반 적용된다.
+
+### 7-6. ✅ 확정 설계 — 통합 메타 테이블 `LS_DATASET_VIDEO_META` (2026-07-13, /cc-design)
+
+> 설계 산출물: `.claude-design.md`(전체 상세). 본 절은 §7-4 방향수정(일원화 materialize)의 **구체 설계 확정** 요약.
+
+- **형태(확정)**: 영상 1건=1행 컬럼형 물리 테이블 `LS_DATASET_VIDEO_META`(약 37컬럼). `video.*` 블록을 APPROVED 시점에 flatten·동결. 소스 = LS_DATA_RAW + LS_DATA_META(video.* ffprobe, 66cae8c) + MNG_* 조인 + SHT_DT 파생.
+- **물리 배치(확정, 대안 A)**: control DB(klid_at)를 **단일 진실원(SoT)**, 포털 DB는 **outbox 단방향 복제본**. 근거: control↔포털 물리 분리 + **XA/2PC 부재**로 dual-write(안 C) 불가 → `ReviewService.approve()` control-local 단일 트랜잭션에 materialize를 편승시켜 "동결=APPROVED 커밋" 원자성 확보. (이원화 안 B는 사용자 기피 일원화 위배로 반려.)
+- **스냅샷 트리거(확정)**: `ReviewService.approve()` — `LS_LABEL_VERSION` 라벨 스냅샷과 **동일 트랜잭션**. 멱등키 `SNPSHT_HASH`(SHA-256), UK `(RAW_SN, SNPSHT_HASH)`, `ACTIVE_YN` append-only 이력. 재승인 시 신규 행 + `TASK_MODIFIED` 통지 연계.
+- **View 재구성(확정)**: `V_COMPLETED_VIDEO`를 통합 테이블(ACTIVE_YN='Y') 기반으로 재정의(출력 컬럼 alias 보존 = 관제 소비자 무영향 + 신규 메타 컬럼 추가, MNG_* live JOIN 제거로 동결 무결성). `V_COMPLETED_META`는 VLM/시계열 KV만 유지(기술메타는 통합 테이블로 이동). FRAME/LABEL은 불변. 프레임별 description(blocker #2, SRC 단위)은 별개 후속.
+- **표준용어(§7-5 준수, LogiCraft 실조회 2026-07-13)**: **전 컬럼 표준용어 기등록 — 🆕 신규 등록 0종.** program: VDO·FPS·CDC·BIT·RESL·SESN·DAY_NGT·WDTH·DURT·ASPRT(종횡) / gov: SZ·RT·LAT·LOT·HGT·WTHR·EXPLN. 프로젝트는 program glossary 우선(사업 표준)이라 **해상도=`RESL`**(1차 legacy `RSLTN` 아님), **계절=`SESN`**·시간대=`DAY_NGT`·화면비=`ASPRT_RT`(전부 기존 코드/1차 term과 정합, drift 아님). 표준용어 선행 부담 없음.
+- **범위**: 설계 확정만. 표준용어 등록·DDL·materialize 어댑터·outbox 복제·View 재정의는 후속 구현(WBS Phase 1~4는 `.claude-design.md §2`).

@@ -60,11 +60,13 @@ class AugmentNotifyIntegrationTest {
         ObjectMapper objectMapper = new ObjectMapper();
         eventPublisher = mock(ApplicationEventPublisher.class);
         VersionService versionService = mock(VersionService.class);
+        kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService datasetVideoMetaSnapshotService =
+                mock(kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService.class);
 
         reviewService = new ReviewService(
                 reviewRepository, issueRepository, authrtRepository, taskEventLogRepository,
                 stateMachine, srcRepository, labelRepository, videoRepository, userRepository,
-                objectMapper, eventPublisher, versionService);
+                objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService);
 
         // enrichOne lookup stubs — 빈 결과
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());
