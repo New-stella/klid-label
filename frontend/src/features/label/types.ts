@@ -179,14 +179,16 @@ export const ToolType = {
 export type ToolType = (typeof ToolType)[keyof typeof ToolType];
 
 /**
- * 포털 모드에서 제외되는 도구 목록 (ADR-013: 포털은 오토라벨/키포인트 미제공).
- * 툴바 숨김(DarkToolbar)과 단축키 게이팅(useLabelingShortcuts)의 단일 정책 소스.
+ * 포털 모드에서 제외되는 도구 목록.
+ *
+ * Phase 9 (ADR-013 override) — 포털에 SAM2 인터랙티브 분할·자동추적·키포인트를 허용한다
+ * (포털 전용 `/v1/portal/frames/**` 경로, persist 없이 좌표만 + 저장은 LS_PORTAL_USER_LABEL 단방향).
+ * 따라서 SAM_SEGMENT·TRACK·KEYPOINT 는 더 이상 숨기지 않는다(빈 목록).
+ *
+ * YOLO 파이프라인 오토라벨만 계속 포털 미제공 — DarkToolbar 액션의 독립 `portalHidden` 플래그로 숨긴다
+ * (본 목록과 무관). 툴바 숨김(DarkToolbar)과 단축키 게이팅(useLabelingShortcuts)의 단일 정책 소스.
  */
-export const PORTAL_HIDDEN_TOOLS: readonly ToolType[] = [
-  ToolType.SAM_SEGMENT,
-  ToolType.TRACK,
-  ToolType.KEYPOINT,
-];
+export const PORTAL_HIDDEN_TOOLS: readonly ToolType[] = [];
 
 export interface FrameSummary {
   frameNo: number;

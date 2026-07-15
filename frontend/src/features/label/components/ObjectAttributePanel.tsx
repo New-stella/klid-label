@@ -61,6 +61,11 @@ export interface ObjectAttributePanelProps {
     srcSn: number | undefined;
     nextSrcSns: number[];
     onTracked?: (res: Sam2TrackResponse) => void;
+    /**
+     * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 추적(persist 없이 좌표만).
+     * 내부 경로는 PORTAL 채널 403 이므로 호출 금지.
+     */
+    portalMode?: boolean;
   };
 }
 
@@ -225,6 +230,7 @@ export function ObjectAttributePanel({
             trackId={target.trackId ?? String(target.id ?? '')}
             nextSrcSns={track.nextSrcSns}
             onCompleted={track.onTracked}
+            portalMode={track.portalMode}
           />
           {track.nextSrcSns.length === 0 && (
             <p className="mt-1 text-[11px] text-gray-400">후속 프레임이 없어 추적할 수 없습니다.</p>

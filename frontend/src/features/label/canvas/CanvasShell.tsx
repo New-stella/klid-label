@@ -29,6 +29,11 @@ export interface CanvasShellProps {
    * 상위(LabelingPage)로 그대로 전달만 한다(state 리프팅).
    */
   onKeypointPlacingChange?: (placingIndex: number | null) => void;
+  /**
+   * Phase 9 — 포털 모드. SAM2 분할 요청을 포털 전용 /portal/frames/{id}/sam2-segment 경로로 보낸다
+   * (persist 없이 좌표만). 내부 /frames/{id}/sam2-segment 는 PORTAL 채널 403 이므로 포털에서 호출 금지.
+   */
+  portalMode?: boolean;
 }
 
 // 상위(LabelingPage)가 키보드 단축키(F/Q)로 폴리곤 편집을 명령할 수 있도록 OverlayLayer 의
@@ -54,6 +59,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     onLabelAdd,
     readOnly = false,
     onKeypointPlacingChange,
+    portalMode = false,
   }: CanvasShellProps,
   ref,
 ) {
@@ -69,7 +75,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
 
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
   // SAM2 클릭/박스 분할 — 진행 중 무시 + 프레임 전환 stale 폐기 가드 포함.
-  const { segment } = useSam2Segment(frame.srcSn);
+  const { segment } = useSam2Segment(frame.srcSn, portalMode);
   const [segNotice, setSegNotice] = useState<string | null>(null);
 
   function handleMockWarning(_res: Sam2SegmentResponse) {

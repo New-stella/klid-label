@@ -81,8 +81,9 @@ export function DarkToolbar({
     if (selectedId) removeLabel(selectedId);
   };
 
-  // ADR-013 — 포털 모드에서는 PORTAL_HIDDEN_TOOLS(SAM 분할/추적·키포인트) 도구를 제외
-  // (단축키 게이팅 useLabelingShortcuts 와 동일 정책 소스).
+  // Phase 9 — 포털에 SAM 분할/추적·키포인트 도구 제공(PORTAL_HIDDEN_TOOLS 현재 비어있음).
+  // 오토라벨(YOLO) 액션만 포털 숨김 유지(ADR-013 — 데이터마트 영상 오토라벨 미제공).
+  // (단축키 게이팅 useLabelingShortcuts 와 동일 정책 소스.)
   const allItems: Item[] = [
     { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: '선택', shortcut: 'S' },
     { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩박스', shortcut: 'B' },
@@ -112,7 +113,7 @@ export function DarkToolbar({
   ];
   const items: Item[] = allItems.filter((item) => {
     if (!portalMode) return true;
-    // ADR-013 — 포털에서 오토라벨/키포인트 관련 도구·액션 숨김.
+    // Phase 9 — 포털 숨김 도구는 PORTAL_HIDDEN_TOOLS(현재 비어있음)로만 관리. 오토라벨 액션만 portalHidden.
     if (item.kind === 'tool') return !PORTAL_HIDDEN_TOOLS.includes(item.tool);
     if (item.kind === 'action') return !item.portalHidden;
     return true;

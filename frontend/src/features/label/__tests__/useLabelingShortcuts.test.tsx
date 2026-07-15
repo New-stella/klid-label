@@ -267,22 +267,19 @@ describe('useLabelingShortcuts (Rev.1.1 재배치)', () => {
     document.body.removeChild(input);
   });
 
-  // ── 포털 게이팅 (ADR-013, 유지) ─────────────────────────────────
-  it('포털모드_K로_KEYPOINT_활성화_안됨', () => {
+  // ── 포털 SAM2/키포인트 허용 (Phase 9, ADR-013 override) ─────────────
+  it('포털모드_K로_KEYPOINT_활성화됨_Phase9', () => {
     renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
     act(() => press('k'));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
   });
 
-  it('포털모드_G_와_Shift_T도_비활성', () => {
+  it('포털모드_G_와_Shift_T도_활성_Phase9', () => {
     renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
     act(() => press('g'));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
     act(() => press('T', { shiftKey: true }));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
-    // 물리 키(IME) 우회도 차단.
-    act(() => press('ㅏ', { code: 'KeyK' }));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
   });
 
   it('포털모드_B_P_기본도구는_정상동작', () => {

@@ -61,6 +61,13 @@ class PortalUserLabelServiceTest {
             setField(e, "userLblSn", 1L);
             return e;
         });
+
+        // Phase 9 이슈4 — saveUserLabel 이 APPROVED 게이트를 거치므로 저장 대상 rawSn(100L)을 APPROVED 로 스텁.
+        // (content 검증 케이스가 게이트가 아닌 검증 경로에 도달하도록.)
+        kr.co.cudo.authoring.assignment.entity.LsRawDataStatus approved =
+                kr.co.cudo.authoring.assignment.entity.LsRawDataStatus.initial(100L);
+        approved.transitionTo(kr.co.cudo.authoring.assignment.entity.LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(100L)).thenReturn(java.util.Optional.of(approved));
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -125,6 +132,61 @@ class PortalUserLabelServiceTest {
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[]");
 
         // when/then: INVALID_INPUT 으로 거부, 저장 미수행 (fail-closed)
+        assertThatThrownBy(() -> service.saveUserLabel(req, alice))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+        verify(userLabelRepository, never()).save(any());
+    }
+
+    // ─── Phase 9: 포털 키포인트(SKELETON) 저장 ───
+
+    private static String skeletonJson(int count) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < count; i++) {
+            if (i > 0) sb.append(',');
+            sb.append('[').append(i).append(',').append(i).append(",2]");
+        }
+        return sb.append(']').toString();
+    }
+
+    @Test
+    @DisplayName("Phase9_포털_키포인트_SKELETON_17점_정상_저장")
+    void saveUserLabel_skeleton_valid_saved() {
+        PortalUserLabelRequest req = new PortalUserLabelRequest(
+                100L, 10L, "SKELETON", "person", skeletonJson(17));
+
+        PortalUserLabelResponse resp = service.saveUserLabel(req, alice);
+
+        assertThat(resp.lblTypeCd()).isEqualTo("SKELETON");
+        ArgumentCaptor<LsPortalUserLabel> captor = ArgumentCaptor.forClass(LsPortalUserLabel.class);
+        verify(userLabelRepository).save(captor.capture());
+        assertThat(captor.getValue().getLblTypeCd()).isEqualTo("SKELETON");
+        // 내부 LS_DATA_LBL 재사용 금지 — 포털 전용 테이블에만 적재.
+        verify(lblRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Phase9_포털_키포인트_SKELETON_점개수_불일치_400_저장안함")
+    void saveUserLabel_skeleton_wrongCount_rejected() {
+        // 16점(≠17) — 조용히 통과시키지 않고 명시적 400 (#6 fail-closed)
+        PortalUserLabelRequest req = new PortalUserLabelRequest(
+                100L, 10L, "SKELETON", "person", skeletonJson(16));
+
+        assertThatThrownBy(() -> service.saveUserLabel(req, alice))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+        verify(userLabelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Phase9_포털_키포인트_SKELETON_형식위반_400_저장안함")
+    void saveUserLabel_skeleton_malformed_rejected() {
+        // 2-튜플([x,y]) 형식은 SKELETON(삼중값) 계약 위반 → 400
+        PortalUserLabelRequest req = new PortalUserLabelRequest(
+                100L, 10L, "SKELETON", "person", "[[1,2],[3,4]]");
+
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())

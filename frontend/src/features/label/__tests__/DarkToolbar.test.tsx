@@ -49,11 +49,12 @@ describe('DarkToolbar — 키포인트 도구', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
   });
 
-  it('툴바_portalMode에서_키포인트_숨김', () => {
+  it('툴바_portalMode에서_키포인트_및_SAM_노출_Phase9', () => {
+    // Phase 9 (ADR-013 override) — 포털에 SAM2 분할/추적·키포인트 허용 → 노출.
     renderWithProviders(<DarkToolbar onSave={vi.fn()} portalMode />);
-    expect(screen.queryByRole('button', { name: '키포인트' })).not.toBeInTheDocument();
-    // SAM 도구도 포털에서 숨김(회귀 가드)
-    expect(screen.queryByRole('button', { name: 'SAM 분할' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '키포인트' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'SAM 분할' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'SAM 추적' })).toBeInTheDocument();
   });
 });
 

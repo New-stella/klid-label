@@ -19,9 +19,9 @@
 | 폴리곤 | `PolygonTool` | 다각형 경계 |
 | 마스크 브러시 | `MaskBrushTool` | 손으로 칠하는 영역 |
 | 마스크 지우개 | `MaskEraserTool` | 마스크 삭제 |
-| SAM2 추적(VOS) | `Sam2TrackTool` | 시작 프레임 지정 후 후속 프레임 자동 추적·분할 → [11](11-ai-assisted.md) |
-| SAM2 분할(밀착) | 캔버스 API | 클릭/박스 프롬프트 → 외곽 폴리곤 자동 생성(단축키 G) → [11](11-ai-assisted.md) |
-| 키포인트(포즈) | `OverlayLayer`/`LabelsLayer` | COCO-17 관절 순차 배치(단축키 K) + 관절별 드래그 이동 + 스켈레톤 19선 렌더. 관절 **Alt+클릭** 시 가시성 순환(가시 2→비가시 1→미표기 0). 삼중값 `[x,y,v]`로 저장(`SKELETON`). 포털 모드 미노출(ADR-013) |
+| SAM2 추적(VOS) | `Sam2TrackTool` | 시작 프레임 지정 후 후속 프레임 자동 추적·분할 → [11](11-ai-assisted.md). **Phase 9: 포털도 제공** — `portalMode`면 `/v1/portal/frames/{id}/sam2-track`(persist 없이 좌표만) |
+| SAM2 분할(밀착) | 캔버스 API | 클릭/박스 프롬프트 → 외곽 폴리곤 자동 생성(단축키 G) → [11](11-ai-assisted.md). **Phase 9: 포털도 제공** — `portalMode`면 `/v1/portal/frames/{id}/sam2-segment`(persist 없이 좌표만) |
+| 키포인트(포즈) | `OverlayLayer`/`LabelsLayer` | COCO-17 관절 순차 배치(단축키 K) + 관절별 드래그 이동 + 스켈레톤 19선 렌더. 관절 **Alt+클릭** 시 가시성 순환(가시 2→비가시 1→미표기 0). 삼중값 `[x,y,v]`로 저장(`SKELETON`). **Phase 9(ADR-013 override): 포털도 노출** — 포털은 `LS_PORTAL_USER_LABEL` 단방향 저장(17점 삼중값 검증) |
 | 팬 / 선택 | `PanTool` / `SelectTool` | 이동 / 선택·편집 |
 
 캔버스 구성: `CanvasShell`, `DarkFrameSlider`(프레임 타임라인), `LabelSidebar`, `ToolBar`, `ObjectClassTree`, `ObjectAttributePanel`.

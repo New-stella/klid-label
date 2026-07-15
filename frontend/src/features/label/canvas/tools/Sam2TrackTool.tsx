@@ -23,6 +23,11 @@ export interface Sam2TrackToolProps {
   /** 후속 프레임 SRC_SN 전체 리스트. 50개 초과 시 hook 이 청크로 분할 순차 호출. 비어있으면 비활성. */
   nextSrcSns: number[];
   onCompleted?: (res: Sam2TrackResponse) => void;
+  /**
+   * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 추적(persist 없이 좌표만).
+   * 내부 /frames/{id}/sam2-track 은 LS_DATA_LBL persist + PORTAL 채널 403 이므로 포털에서 호출 금지.
+   */
+  portalMode?: boolean;
 }
 
 /**
@@ -35,12 +40,14 @@ export function Sam2TrackTool({
   trackId,
   nextSrcSns,
   onCompleted,
+  portalMode = false,
 }: Sam2TrackToolProps) {
   // 청크 순차 추적 진행 상태 (누적 프레임 / 전체) + 부분/전체 실패 메시지.
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const mutation = useSam2Track(srcSn, {
+    portalMode,
     onProgress: (done, total) => setProgress({ done, total }),
     onSuccess: (data) => {
       onCompleted?.(data);

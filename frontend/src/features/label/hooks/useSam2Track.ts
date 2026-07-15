@@ -9,6 +9,11 @@ export interface UseSam2TrackOptions {
   onError?: (err: unknown) => void;
   /** 청크 순차 추적 진행률 — (누적 추적 프레임 수, 전체 대상 수). 청크 완료마다 호출. */
   onProgress?: (done: number, total: number) => void;
+  /**
+   * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 호출(persist 없이 좌표만).
+   * 내부 /frames/{id}/sam2-track 은 LS_DATA_LBL 에 persist + PORTAL 채널 403 이므로 포털에서 호출 금지.
+   */
+  portalMode?: boolean;
 }
 
 /**
@@ -24,7 +29,7 @@ export function useSam2Track(srcSn: number | undefined, options: UseSam2TrackOpt
       if (srcSn === undefined) {
         return Promise.reject(new Error('srcSn is required'));
       }
-      return sam2TrackAllChunks(srcSn, payload, options.onProgress);
+      return sam2TrackAllChunks(srcSn, payload, options.onProgress, options.portalMode ?? false);
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: LABEL_KEYS.all });

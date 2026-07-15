@@ -13,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -127,5 +128,49 @@ class PortalLabelControllerTest {
         mockMvc.perform(get("/v1/portal/datamart/videos")
                         .header("Authorization", "Bearer " + reviewerInternalToken))
                 .andExpect(status().isForbidden());
+    }
+
+    // ─── Phase 9: 포털 SAM2 채널 경계 (CRITICAL #3) ───
+
+    private static final String TRACK_BODY = """
+            {"srcSn":9999,"trackId":"t-1","prevPolygon":[[10,10],[30,30],[10,30]],
+             "label":"person","nextSrcSns":[10000]}""";
+    private static final String SEGMENT_BODY = """
+            {"srcSn":9999,"points":[[10,10]]}""";
+
+    @Test
+    @DisplayName("포털_토큰_내부_sam2track_및_autolabel_여전히_403")
+    void portalTokenBlockedFromInternalSam2AndAutolabel() throws Exception {
+        // 내부 /v1/frames/** 는 INTERNAL 채널만 — PORTAL 토큰은 채널 불일치로 403 (persist 경로 물리 차단).
+        mockMvc.perform(post("/v1/frames/9999/sam2-track")
+                        .header("Authorization", "Bearer " + alicePortalToken)
+                        .contentType("application/json").content(TRACK_BODY))
+                .andExpect(status().isForbidden());
+
+        // YOLO 오토라벨(파이프라인) 도 포털 403 유지.
+        mockMvc.perform(post("/v1/frames/9999/autolabel")
+                        .header("Authorization", "Bearer " + alicePortalToken)
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("포털전용_sam2segment_INTERNAL_채널_토큰_403")
+    void portalSam2_internalChannel_forbidden() throws Exception {
+        // /v1/portal/frames/** 는 PORTAL 채널 + PORTAL_USER 만. INTERNAL REVIEWER 토큰은 채널 불일치 → 403.
+        mockMvc.perform(post("/v1/portal/frames/9999/sam2-segment")
+                        .header("Authorization", "Bearer " + reviewerInternalToken)
+                        .contentType("application/json").content(SEGMENT_BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("포털전용_sam2segment_PORTAL토큰은_비403_프레임미존재시_404")
+    void portalSam2_portalChannel_allowed() throws Exception {
+        // PORTAL 채널 통과 — 프레임 미존재이므로 404(비-403). 채널 격리가 막지 않음을 확인.
+        mockMvc.perform(post("/v1/portal/frames/9999/sam2-segment")
+                        .header("Authorization", "Bearer " + alicePortalToken)
+                        .contentType("application/json").content(SEGMENT_BODY))
+                .andExpect(status().is(org.hamcrest.Matchers.not(org.hamcrest.Matchers.equalTo(403))));
     }
 }

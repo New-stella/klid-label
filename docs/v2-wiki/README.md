@@ -30,7 +30,7 @@
 | 13 | [버전관리](13-version-control.md) | 라벨 스냅샷, diff, rollback |
 | 14 | [데이터 증강 · 해상도 변경](14-augmentation.md) | 외부 증강 위탁·검수, 무결성, 다운스케일 |
 | 15 | [관제서버 통지](15-control-notify.md) | TASK_COMPLETED/MODIFIED, fallback, 조회 API |
-| 16 | [포털](16-portal.md) | 데이터마트 영상 선택, 사용자 라벨 별도 적재 |
+| 16 | [포털](16-portal.md) | 데이터마트 영상 선택, 사용자 라벨 별도 적재, SAM2 인터랙티브·자동추적·키포인트(Phase 9, 좌표만·LS_PORTAL_USER_LABEL 단방향) |
 | 17 | [통계 · 대시보드](17-statistics.md) | 작업자/전체 통계, CSV 리포트 |
 | 18 | [데이터베이스](18-database.md) | LS_* 테이블, V_COMPLETED_* View, 마이그레이션 |
 | 19 | [외부 시스템 · 보안 · CVAT 포팅 · 설계문서](19-external-security-cvat.md) | 연동 클라이언트, 보안, CVAT 모듈, R/D 카탈로그 |

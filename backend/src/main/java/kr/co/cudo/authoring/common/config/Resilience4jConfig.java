@@ -56,4 +56,15 @@ public class Resilience4jConfig {
     public Bulkhead aiOnlineBulkhead(BulkheadRegistry registry) {
         return registry.bulkhead("aiOnline");
     }
+
+    /**
+     * Phase 9 — 포털 SAM2 인터랙티브 추론(세그/추적) 경로 전용 Bulkhead (HIGH #4 자원 격리).
+     * <p>인스턴스명 {@code portalSam2} 는 application.yml resilience4j.bulkhead 설정 키와 일치.
+     * 내부 온라인 AI 경로({@code aiOnline})와 <b>격리</b>되어 외부 포털 트래픽이 내부 라벨링 작업의
+     * AI 자원을 잠식하지 못하도록 동시 호출 수를 독립 제한한다 — 초과 시 {@code BulkheadFullException} → 429.
+     */
+    @Bean(name = "portalSam2Bulkhead")
+    public Bulkhead portalSam2Bulkhead(BulkheadRegistry registry) {
+        return registry.bulkhead("portalSam2");
+    }
 }

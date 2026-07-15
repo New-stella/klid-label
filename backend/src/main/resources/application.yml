@@ -311,6 +311,22 @@ resilience4j:
       aiOnline:
         max-concurrent-calls: 4
         max-wait-duration: 0
+      # Phase 9 — 포털 SAM2 인터랙티브 추론(세그/추적) 전용 동시 호출 제한 (HIGH #4 자원 격리).
+      #  - 내부 aiOnline 경로와 격리 — 외부 포털 트래픽이 내부 AI 자원을 잠식하지 못하게 독립 제한.
+      #  - 초과 시 BulkheadFullException → 429. max-wait-duration=0: 즉시 거부(fail-fast).
+      portalSam2:
+        max-concurrent-calls: 4
+        max-wait-duration: 0
+  ratelimiter:
+    configs:
+      # Phase 9 이슈3 (CWE-770) — 포털 SAM2 사용자별(portalUserNo) 요청량 제한 config.
+      #  - per-user 이름(portalSam2-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
+      #  - limit-refresh-period(1m) 당 limit-for-period(30) 회 허용. 초과 시 429 (즉시 거부).
+      #  - timeout-duration=0: permit 부재 시 대기 없이 즉시 거부(fail-fast) — 스레드 점유 최소화.
+      portalSam2:
+        limit-for-period: 30
+        limit-refresh-period: 1m
+        timeout-duration: 0
 
 # Phase 1 — 외부 VLM 시계열 메타 분석 서비스 위탁 클라이언트.
 #  - enabled=false 기본값 (local/dev 환경 영향 0건). stg/prd 실 연동 확정 시 환경변수로 활성화.

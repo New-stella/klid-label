@@ -333,9 +333,13 @@ export interface Sam2TrackResponse {
 export function requestSam2Track(
   srcSn: number,
   payload: Sam2TrackRequest,
+  // Phase 9 — portalMode=true 면 포털 전용 /portal/frames/{id}/sam2-track 로 분기(persist 없이 좌표만).
+  // 내부 /frames/{id}/sam2-track 은 서버에서 LS_DATA_LBL 에 persist 하며 PORTAL 채널 403 이므로 호출 금지.
+  portalMode = false,
 ): Promise<Sam2TrackResponse> {
+  const base = portalMode ? '/portal/frames' : '/frames';
   return apiClient
-    .post<Sam2TrackResponse>(`/frames/${srcSn}/sam2-track`, { srcSn, ...payload })
+    .post<Sam2TrackResponse>(`${base}/${srcSn}/sam2-track`, { srcSn, ...payload })
     .then((r) => r.data);
 }
 
@@ -391,6 +395,8 @@ export async function sam2TrackAllChunks(
   startSrcSn: number,
   payload: Sam2TrackRequest,
   onProgress?: (done: number, total: number) => void,
+  // Phase 9 — 포털 모드면 모든 청크를 포털 전용 경로로 호출(내부 persist 경로 미사용).
+  portalMode = false,
 ): Promise<Sam2TrackResponse> {
   const { trackId, label, nextSrcSns } = payload;
   const total = nextSrcSns.length;
@@ -413,12 +419,16 @@ export async function sam2TrackAllChunks(
     const chunk = chunks[c];
     let res: Sam2TrackResponse;
     try {
-      res = await requestSam2Track(curStartSrcSn, {
-        trackId,
-        prevPolygon: curPrevPolygon,
-        label,
-        nextSrcSns: chunk,
-      });
+      res = await requestSam2Track(
+        curStartSrcSn,
+        {
+          trackId,
+          prevPolygon: curPrevPolygon,
+          label,
+          nextSrcSns: chunk,
+        },
+        portalMode,
+      );
     } catch (err) {
       // 부분 실패: 지금까지 성공한 청크 결과를 보존해 에러로 표면화(전부 롤백하지 않음).
       throw new Sam2TrackChunkError(err, accumulated, c, chunks.length);
@@ -478,9 +488,13 @@ export interface Sam2SegmentResponse {
 export function requestSam2Segment(
   srcSn: number,
   payload: Omit<Sam2SegmentRequest, 'srcSn'>,
+  // Phase 9 — portalMode=true 면 포털 전용 /portal/frames/{id}/sam2-segment 로 분기(persist 없이 좌표만).
+  // 내부 /frames/{id}/sam2-segment 는 PORTAL 채널 403 이므로 포털에서 호출 금지.
+  portalMode = false,
 ): Promise<Sam2SegmentResponse> {
+  const base = portalMode ? '/portal/frames' : '/frames';
   return apiClient
-    .post<Sam2SegmentResponse>(`/frames/${srcSn}/sam2-segment`, { srcSn, ...payload })
+    .post<Sam2SegmentResponse>(`${base}/${srcSn}/sam2-segment`, { srcSn, ...payload })
     .then((r) => r.data);
 }
 

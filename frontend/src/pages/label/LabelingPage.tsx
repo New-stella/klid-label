@@ -734,6 +734,7 @@ export function LabelingPage() {
                 readOnly={isLocked}
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
                 onKeypointPlacingChange={setKeypointPlacingIndex}
+                portalMode={portalMode}
               />
             </Suspense>
           ) : (
@@ -859,19 +860,17 @@ export function LabelingPage() {
                 </div>
                 <ObjectAttributePanel
                   labels={labels}
-                  // R16/ADR-013 — 포털은 SAM2 오토 트래킹 미제공(내부 /frames/{id}/sam2-* 는 PORTAL 채널 403).
-                  // 포털 모드에서는 track 컨텍스트를 전달하지 않아 SAM2 자동추적 UI 자체를 미노출.
-                  track={
-                    portalMode
-                      ? undefined
-                      : {
-                          srcSn: data?.srcSn,
-                          nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
-                          onTracked: () => {
-                            pushToast({ variant: 'success', message: 'SAM2 자동추적 완료' });
-                          },
-                        }
-                  }
+                  // Phase 9 (ADR-013 override) — 포털도 SAM2 자동추적 허용. 단 포털은 포털 전용
+                  // /portal/frames/{id}/sam2-track 경로로 호출(persist 없이 좌표만) — portalMode 로 분기한다.
+                  // 내부 /frames/{id}/sam2-track 은 PORTAL 채널 403 이므로 절대 호출하지 않는다.
+                  track={{
+                    srcSn: data?.srcSn,
+                    nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
+                    portalMode,
+                    onTracked: () => {
+                      pushToast({ variant: 'success', message: 'SAM2 자동추적 완료' });
+                    },
+                  }}
                 />
               </div>
               {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함). */}

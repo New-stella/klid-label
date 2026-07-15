@@ -26,7 +26,8 @@ describe('useSam2Segment', () => {
       res.value = await result.current.segment({ points: [[10, 10]] });
     });
 
-    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] });
+    // Phase 9 — 3번째 인자 portalMode(기본 false)로 내부 경로 호출.
+    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] }, false);
     expect(res.value?.polygon).toHaveLength(3);
   });
 
@@ -46,7 +47,27 @@ describe('useSam2Segment', () => {
       await result.current.segment({ box: [5, 5, 40, 40] });
     });
 
-    expect(spy).toHaveBeenCalledWith(5001, { box: [5, 5, 40, 40] });
+    expect(spy).toHaveBeenCalledWith(5001, { box: [5, 5, 40, 40] }, false);
+  });
+
+  it('포털모드시_portalMode_true로_요청_Phase9', async () => {
+    // Phase 9 — 포털 모드면 requestSam2Segment 3번째 인자(portalMode)=true 로 포털 전용 경로 호출.
+    const spy = vi.spyOn(api, 'requestSam2Segment').mockResolvedValue({
+      polygon: [
+        [1, 1],
+        [2, 2],
+        [1, 2],
+      ],
+      score: 0.8,
+      mock: false,
+    });
+    const { result } = renderHook(() => useSam2Segment(5001, true));
+
+    await act(async () => {
+      await result.current.segment({ points: [[10, 10]] });
+    });
+
+    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] }, true);
   });
 
   it('진행중_재클릭_무시', async () => {
