@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { Circle, Line, Rect } from 'react-konva';
 import type Konva from 'konva';
 
@@ -50,6 +57,18 @@ interface BboxDraft {
 }
 
 /**
+ * OverlayLayer 가 상위(CanvasShell→LabelingPage)에 노출하는 명령 핸들.
+ * 폴리곤 편집 state 가 OverlayLayer 내부에 캡슐화돼 있어, 키보드 단축키(F/Q)가
+ * 마우스 클릭과 동일한 폴리곤 로직을 호출할 수 있도록 imperative handle 로 중계한다.
+ */
+export interface OverlayLayerHandle {
+  /** F — 현재 포인터 위치를 폴리곤 점으로 추가(마우스 클릭과 동일 경로). POLYGON 도구 아니면 no-op. */
+  addPointAtPointer: () => void;
+  /** Q — 진행 중 폴리곤을 커밋. 점이 부족하면 no-op(draft 유지 — 오조작 방지). */
+  completePolygon: () => void;
+}
+
+/**
  * 활성 도구의 임시 그리기 오버레이.
  * - BBOX: pointerdown → drag → pointerup 으로 박스 생성
  * - POLYGON: 클릭으로 점 추가, dblclick 또는 시작점 근접 시 닫기
@@ -61,17 +80,20 @@ interface BboxDraft {
 /** SAM2 분할 자동 적용 차단 임계 — 이 미만이면 낮은 신뢰도 안내. */
 const SAM_LOW_CONFIDENCE_THRESHOLD = 0.3;
 
-export function OverlayLayer({
-  geometry,
-  activeTool,
-  onLabelAdd,
-  stageRef,
-  segment,
-  onMockWarning,
-  onLowConfidence,
-  onCommitError,
-  onKeypointPlacingChange,
-}: OverlayLayerProps) {
+export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(function OverlayLayer(
+  {
+    geometry,
+    activeTool,
+    onLabelAdd,
+    stageRef,
+    segment,
+    onMockWarning,
+    onLowConfidence,
+    onCommitError,
+    onKeypointPlacingChange,
+  }: OverlayLayerProps,
+  ref,
+) {
   const [bboxDraft, setBboxDraft] = useState<BboxDraft | null>(null);
   // SAM_SEGMENT 박스 드래그 draft (canvas 좌표).
   const [segDraft, setSegDraft] = useState<BboxDraft | null>(null);
@@ -94,6 +116,10 @@ export function OverlayLayer({
     // KEYPOINT 도구를 벗어나면 진행 중 배치 draft 폐기(부분 배치 조용한 소실 방지 겸 초기화).
     if (activeTool !== ToolTypeEnum.KEYPOINT) {
       setKptDraft([]);
+    }
+    // POLYGON 도구를 벗어나면 진행 중 폴리곤 draft 초기화(다른 도구로 전환 시 스테일 점 잔존 방지).
+    if (activeTool !== ToolTypeEnum.POLYGON) {
+      setPolyPoints([]);
     }
   }, [activeTool]);
 
@@ -171,6 +197,48 @@ export function OverlayLayer({
     });
     return true;
   }
+
+  /**
+   * 진행 중 폴리곤에 canvas 좌표 1점을 추가한다. 시작점 근접 시 자동 닫힘 → 커밋 시도.
+   * 마우스 클릭(onClick)과 키보드 F(addPointAtPointer)가 공유하는 단일 경로.
+   */
+  function addPolygonPointAt(cp: Point) {
+    const next = [...polyPoints, cp.x, cp.y];
+    const closed = closePolygonIfNear(next);
+    if (closed.closed) {
+      // 커밋 성공 시에만 점 비움 — 실패(라벨 마스터 미로딩 등)면 점 유지.
+      if (commitPolygon(closed.points)) setPolyPoints([]);
+    } else {
+      setPolyPoints(next);
+    }
+  }
+
+  /**
+   * 진행 중 폴리곤 커밋 시도(점 3개 이상 + 검증 통과 시에만). 성공하면 draft 를 비우고 true 를 반환한다.
+   * 점이 부족하거나 커밋 실패면 draft 를 건드리지 않고 false 를 반환한다.
+   * 마우스 dblclick(finish)과 키보드 Q(completePolygon)가 공유한다.
+   */
+  function tryCommitPolygon(): boolean {
+    if (polyPoints.length < 6) return false;
+    if (commitPolygon(polyPoints)) {
+      setPolyPoints([]);
+      return true;
+    }
+    return false;
+  }
+
+  useImperativeHandle(ref, () => ({
+    addPointAtPointer() {
+      if (activeTool !== ToolTypeEnum.POLYGON) return; // 폴리곤 도구 아니면 무시
+      const cp = pointerCanvas();
+      if (!cp) return;
+      addPolygonPointAt(cp);
+    },
+    completePolygon() {
+      // 점 부족이면 tryCommitPolygon 이 no-op(draft 유지). 마우스 dblclick 과 달리 취소로 비우지 않음.
+      tryCommitPolygon();
+    },
+  }));
 
   // 이미지 좌표 flat points 를 그대로 폴리곤으로 커밋 (SAM_SEGMENT 응답 적용 — 좌표 변환 불필요).
   function commitImagePolygon(imagePoints: number[]) {
@@ -340,24 +408,13 @@ export function OverlayLayer({
           if (activeTool !== ToolTypeEnum.POLYGON) return;
           const p = pointerCanvas();
           if (!p) return;
-          const next = [...polyPoints, p.x, p.y];
-          const closed = closePolygonIfNear(next);
-          if (closed.closed) {
-            // 커밋 성공 시에만 점 비움 — 실패(라벨 마스터 미로딩 등)면 점 유지.
-            if (commitPolygon(closed.points)) setPolyPoints([]);
-          } else {
-            setPolyPoints(next);
-          }
+          addPolygonPointAt(p);
         }}
         onDblClick={() => {
           if (activeTool !== ToolTypeEnum.POLYGON) return;
-          if (polyPoints.length >= 6) {
-            // 커밋 성공 시에만 점 비움 — 실패면 점 유지(조용한 소실 방지).
-            if (commitPolygon(polyPoints)) setPolyPoints([]);
-          } else {
-            // 점이 부족해 폴리곤이 될 수 없는 경우는 그리기 취소로 간주해 비운다.
-            setPolyPoints([]);
-          }
+          // 커밋 시도 후 점이 부족(폴리곤 불가)이면 그리기 취소로 간주해 draft 를 비운다.
+          // (커밋 성공/실패는 tryCommitPolygon 내부에서 처리 — 실패 시 점 유지, 부족 시에만 여기서 취소)
+          if (!tryCommitPolygon() && polyPoints.length < 6) setPolyPoints([]);
         }}
       />
     ) : null;
@@ -448,4 +505,4 @@ export function OverlayLayer({
       )}
     </>
   );
-}
+});

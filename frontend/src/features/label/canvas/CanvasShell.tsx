@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
 
@@ -10,7 +10,7 @@ import type { Sam2SegmentResponse } from '../api';
 
 import { ImageLayer } from './layers/ImageLayer';
 import { LabelsLayer } from './layers/LabelsLayer';
-import { OverlayLayer } from './layers/OverlayLayer';
+import { OverlayLayer, type OverlayLayerHandle } from './layers/OverlayLayer';
 import { buildGeometry } from './utils/canvasGeometry';
 import type { Geometry } from './utils/coordinateTransformer';
 import { zoomToPoint } from './utils/zoomToPoint';
@@ -31,6 +31,10 @@ export interface CanvasShellProps {
   onKeypointPlacingChange?: (placingIndex: number | null) => void;
 }
 
+// 상위(LabelingPage)가 키보드 단축키(F/Q)로 폴리곤 편집을 명령할 수 있도록 OverlayLayer 의
+// imperative handle 을 그대로 재-노출한다. 편집 state 는 OverlayLayer 내부에 캡슐화된 채 유지된다.
+export type { OverlayLayerHandle } from './layers/OverlayLayer';
+
 // 스토어 clampZoom 과 동일 한계 — 휠 줌도 같은 범위로 제한.
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
@@ -41,15 +45,18 @@ const WHEEL_ZOOM_FACTOR = 1.1;
  * react-konva Stage 컨테이너.
  * Layer 분리 원칙: ImageLayer는 imageUrl 변경 시에만 재렌더 (라벨 변경 시 X).
  */
-export function CanvasShell({
-  frame,
-  width,
-  height,
-  labels,
-  onLabelAdd,
-  readOnly = false,
-  onKeypointPlacingChange,
-}: CanvasShellProps) {
+export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(function CanvasShell(
+  {
+    frame,
+    width,
+    height,
+    labels,
+    onLabelAdd,
+    readOnly = false,
+    onKeypointPlacingChange,
+  }: CanvasShellProps,
+  ref,
+) {
   const stageRef = useRef<Konva.Stage | null>(null);
   const zoom = useLabelStore((s) => s.zoom);
   const panX = useLabelStore((s) => s.panX);
@@ -133,6 +140,7 @@ export function CanvasShell({
         </Layer>
         <Layer name="overlay-layer" opacity={imageAdjust.activeOpacity}>
           <OverlayLayer
+            ref={ref}
             geometry={geometry}
             activeTool={activeTool}
             onLabelAdd={onLabelAdd}
@@ -155,4 +163,4 @@ export function CanvasShell({
       )}
     </div>
   );
-}
+});

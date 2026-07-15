@@ -56,13 +56,10 @@ export const SHORTCUT_KEYMAP: readonly ShortcutBinding[] = [
 
   // ── 액션 ────────────────────────────────────────────────────────
   { id: 'label.toggleVisibility', key: 't', code: 'KeyT', kind: 'action', label: '라벨 표시/숨김' },
-  // ⚠️ 후속 배선 대기(Phase 2 descope): F/Q 폴리곤 점추가/자동완료는 OverlayLayer 의 폴리곤
-  // 편집 상태가 컴포넌트 내부에 캡슐화돼 있어 LabelingPage 에서 단순 prop 배선이 불가하다.
-  // OverlayLayer state 리프팅/imperative handle 구조 리팩터가 선행돼야 실동작한다.
-  // 키맵 항목은 유지하되(문서/충돌감사 일관성), LabelingPage 는 아직 onPolygon* 핸들러를
-  // 전달하지 않으므로 현재는 no-op 이다. 상세는 .claude-plan.md Phase 2 하단 참조.
-  { id: 'polygon.addPoint', key: 'f', code: 'KeyF', kind: 'action', label: '폴리곤 점 추가(후속 배선 대기)' },
-  { id: 'polygon.complete', key: 'q', code: 'KeyQ', kind: 'action', label: '폴리곤 자동완료(후속 배선 대기)' },
+  // F/Q 폴리곤 점추가/자동완료 — OverlayLayer imperative handle(addPointAtPointer/completePolygon)로
+  // 배선 완료. LabelingPage 가 CanvasShell ref 를 통해 마우스와 동일한 폴리곤 로직을 호출한다.
+  { id: 'polygon.addPoint', key: 'f', code: 'KeyF', kind: 'action', label: '폴리곤 점 추가' },
+  { id: 'polygon.complete', key: 'q', code: 'KeyQ', kind: 'action', label: '폴리곤 자동완료' },
   { id: 'label.delete', key: 'r', code: 'KeyR', kind: 'action', label: '객체 삭제' },
   { id: 'label.delete', key: 'delete', kind: 'action', label: '객체 삭제(Del)' },
   { id: 'label.delete', key: 'backspace', kind: 'action', label: '객체 삭제(Backspace)' },

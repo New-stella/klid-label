@@ -36,6 +36,7 @@ import { useLabels } from '@/features/label/hooks/useLabels';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
 import type { FrameSummary } from '@/features/label/types';
+import type { OverlayLayerHandle } from '@/features/label/canvas/layers/OverlayLayer';
 import { useSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { useReview } from '@/features/review/hooks/useReview';
 import { HistoryPanel } from '@/features/version/components/HistoryPanel';
@@ -437,6 +438,10 @@ export function LabelingPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirtyCount]);
 
+  // 폴리곤 편집(F/Q 단축키) 명령 핸들 — CanvasShell 이 OverlayLayer 의 imperative handle 을 중계.
+  // 편집 state 는 OverlayLayer 내부 캡슐화를 유지하고, 상위는 이 ref 로 마우스와 동일 로직을 호출한다.
+  const canvasHandleRef = useRef<OverlayLayerHandle | null>(null);
+
   useLabelingShortcuts(
     {
       // W/S — 첫/끝 프레임 (기존 프레임 네비 로직 재사용).
@@ -450,6 +455,10 @@ export function LabelingPage() {
         const id = useLabelStore.getState().selectedLabelId;
         if (id) toggleLabelVisibility(id);
       },
+      // F/Q — 폴리곤 점 추가 / 완성. OverlayLayer 의 imperative handle 로 마우스와 동일 로직 호출.
+      // 폴리곤 도구가 아니거나 진행 중 점이 부족하면 핸들 내부에서 no-op 처리한다.
+      onPolygonAddPoint: () => canvasHandleRef.current?.addPointAtPointer(),
+      onPolygonComplete: () => canvasHandleRef.current?.completePolygon(),
       // Ctrl+C(선택)/Ctrl+Shift+C(전체) — 라벨 복사. 빈 선택/프레임이면 no-op 토스트.
       onCopyLabels: ({ onlySelected }) => {
         const n = copyLabels({ onlySelected, sourceRawSn: data?.videoId ?? null });
@@ -717,6 +726,7 @@ export function LabelingPage() {
               }
             >
               <CanvasShell
+                ref={canvasHandleRef}
                 frame={currentFrame}
                 width={canvasSize.width || 1280}
                 height={canvasSize.height || 720}
