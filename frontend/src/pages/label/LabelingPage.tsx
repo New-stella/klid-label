@@ -368,6 +368,10 @@ export function LabelingPage() {
   // Phase 4 — 트랙 번호 변경(rename) 영속. 미사용 번호로의 병합=rename 이므로 mergeTracks 재사용.
   // ObjectClassTree 가 store(trackId) 를 낙관적 갱신하고, 여기서 BE 재보간까지 반영 후 재조회한다.
   const handleRenameTrack = async (fromTrackId: string, toTrackId: string) => {
+    // Phase 10(축소) — 포털은 트랙 데이터모델 부재(프레임별 단건)라 rename/머지 미제공.
+    // 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이므로 조기 return.
+    // 버튼 숨김(ObjectClassTree portalMode)과 함께 이중 안전 가드.
+    if (portalMode) return;
     const rawSn = data?.videoId;
     if (rawSn === undefined) return;
     if (isLocked) {
@@ -852,7 +856,11 @@ export function LabelingPage() {
                 <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
                   객체 목록
                 </div>
-                <ObjectClassTree labels={labels} onRenameTrack={handleRenameTrack} />
+                <ObjectClassTree
+                  labels={labels}
+                  onRenameTrack={handleRenameTrack}
+                  portalMode={portalMode}
+                />
               </div>
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">

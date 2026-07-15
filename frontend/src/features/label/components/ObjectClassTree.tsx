@@ -18,9 +18,19 @@ interface ObjectClassTreeProps {
    * 상태(store)만 갱신하고 다음 저장 시 반영한다.
    */
   onRenameTrack?: (fromTrackId: string, toTrackId: string) => void;
+  /**
+   * Phase 10(축소) — 포털 채널 여부. 포털 라벨은 트랙 데이터모델 부재(프레임별 단건)라
+   * rename/머지가 불가능하므로, true 면 트랙 번호 변경(연필) 진입 자체를 숨긴다.
+   * 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이라 절대 호출하지 않는다.
+   */
+  portalMode?: boolean;
 }
 
-export function ObjectClassTree({ labels, onRenameTrack }: ObjectClassTreeProps) {
+export function ObjectClassTree({
+  labels,
+  onRenameTrack,
+  portalMode = false,
+}: ObjectClassTreeProps) {
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const selectLabel = useLabelStore((s) => s.selectLabel);
   const removeLabel = useLabelStore((s) => s.removeLabel);
@@ -176,7 +186,8 @@ export function ObjectClassTree({ labels, onRenameTrack }: ObjectClassTreeProps)
                         <span className="text-gray-500 text-xs uppercase">{shapeType}</span>
                       </button>
                     )}
-                    {renamingId !== obj.id && (
+                    {/* Phase 10(축소) — 포털은 트랙 rename/머지 미제공(데이터모델 부재)이라 연필 버튼 숨김. */}
+                    {!portalMode && renamingId !== obj.id && (
                       <button
                         type="button"
                         onClick={(e) => {

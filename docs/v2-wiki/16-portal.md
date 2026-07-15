@@ -32,6 +32,7 @@
 | **SAM2 인터랙티브 분할·자동추적 (Phase 9)** | ✓ (포털 전용 경로, persist 없이 좌표만) |
 | **키포인트(SKELETON) 라벨 (Phase 9)** | ✓ (LS_PORTAL_USER_LABEL 단방향) |
 | YOLO 파이프라인 오토라벨 | ✗ |
+| **트랙 rename/머지 (Phase 10)** | ✗ (포털 라벨은 트랙 데이터모델 부재 — 프레임별 단건) |
 | VLM·버전관리·검수 | ✗ |
 | 업로드 | ✗ |
 
@@ -41,6 +42,14 @@
 > 단방향** 적재만 이뤄진다(원본·데이터마트 미수정). **YOLO 파이프라인 오토라벨만 계속 포털 미제공**
 > (내부 `/v1/frames/{id}/autolabel` 은 PORTAL 채널 403). 내부 SAM2 경로(`/v1/frames/{id}/sam2-*`)는 서버에서
 > 즉시 persist 하므로 포털에 개방하지 않는다(채널 경계 유지).
+
+> **Phase 10(축소) — 포털 트랙 rename/머지 미제공**: 포털 라벨은 **트랙 데이터모델이 없다**
+> (`LS_PORTAL_USER_LABEL`에 trackId 컬럼 부재, `/v1/portal/frames/{srcSn}/labels` 로더가 trackId 를 null
+> 로 스트리핑, SAM2 자동추적의 trackId 는 FE 세션 opaque 로 미저장 = 프레임별 단건). 따라서 트랙 단위
+> rename/머지가 데이터모델상 불가하므로 **포털에서 트랙 번호 변경(연필) UI 를 숨긴다**. 내부 전용
+> `mergeTracks`(`POST /v1/videos/{rawSn}/tracks/merge`, `@PreAuthorize(REVIEWER,WORKER)` + `/v1/**`
+> `CHANNEL_INTERNAL` 매처)는 PORTAL 채널 403 이므로 절대 호출하지 않는다(FE 이중 안전: `ObjectClassTree`
+> `portalMode` 로 버튼 숨김 + `handleRenameTrack` 조기 return). 내부(REVIEWER/WORKER) rename/머지는 무변경.
 
 ## 16.4 포털 라벨링 API (PORTAL_USER 전용 — PORTAL 채널 토큰만, R16)
 
@@ -70,7 +79,8 @@
 - 포털 라벨링 화면은 LabelingPage 재사용 + `portalMode` 분기: 데이터 경로(라벨/이미지/저장)는 포털 전용 API.
   **Phase 9** — SAM2 분할/자동추적·키포인트 도구는 노출하되 호출 URL을 `portalMode`면 `/v1/portal/frames/...` +
   포털 user-label 저장(`LS_PORTAL_USER_LABEL`)으로 분기(내부 `/v1/frames/...` 미호출). YOLO 오토라벨·검수제출·
-  히스토리·VLM 메타·비식별 신고는 계속 미노출 (ADR-013)
+  히스토리·VLM 메타·비식별 신고는 계속 미노출 (ADR-013). **Phase 10** — 트랙 rename/머지(연필 버튼)도
+  미노출(트랙 데이터모델 부재 — 프레임별 단건)
 - **포털 홈(PortalHomePage)**: `GET /v1/portal/datamart/videos` 로 데이터마트 노출 영상을 카드 목록(반응형 1~2열)으로
   렌더. 카드/"시작하기" 선택 시 `/portal/label/{firstSrcSn}` 으로 진입. 영상 0건이면 빈 상태 + "시작하기" `aria-disabled`
   (native disabled 미사용 — WCAG 2.1.1 키보드 포커스 순서 유지). 카드는 `<button>` 시맨틱으로 키보드 접근 가능

@@ -1,7 +1,8 @@
 // SCR-LABEL-001 우측 상단 객체 트리 — Phase 5 trackId 시각화 정합 테스트.
 
 import { screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
 import { useLabelStore } from '@/stores/useLabelStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -151,6 +152,41 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     expect(manual.textContent ?? '').not.toContain('🔗');
     expect(interp.textContent ?? '').toContain('🔗');
     expect(interp.textContent ?? '').not.toContain('🤖');
+  });
+
+  // Phase 10(축소) — 포털은 트랙 데이터모델 부재(프레임별 단건)라 rename/머지 미제공.
+  // 연필(트랙 번호 변경) 진입 자체를 포털 모드에서 차단한다.
+  it('포털모드_트랙_rename_버튼_미노출', () => {
+    useLabelStore.getState().reset();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '42' })];
+    renderWithProviders(<ObjectClassTree labels={labels} portalMode onRenameTrack={vi.fn()} />);
+
+    // 연필(트랙 번호 변경) 버튼이 DOM 에 존재하지 않아야 한다(opacity-0 노출 여부와 무관).
+    expect(screen.queryByLabelText(/트랙 번호 변경$/)).toBeNull();
+    // 객체 선택/삭제 등 기본 기능은 그대로 노출 — 회귀 가드.
+    expect(screen.getByLabelText(/#42 선택$/)).toBeInTheDocument();
+    expect(screen.getByLabelText('객체 삭제')).toBeInTheDocument();
+  });
+
+  it('비포털_rename_기존동작_유지', async () => {
+    useLabelStore.getState().reset();
+    const onRenameTrack = vi.fn();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '42' })];
+    // portalMode 미지정(기본 false) — 내부(REVIEWER/WORKER) 모드.
+    renderWithProviders(<ObjectClassTree labels={labels} onRenameTrack={onRenameTrack} />);
+
+    const user = userEvent.setup();
+    // 연필 버튼 노출 확인 후 rename 진입.
+    const pencil = screen.getByLabelText(/트랙 번호 변경$/);
+    await user.click(pencil);
+
+    const input = screen.getByLabelText('트랙 번호 입력');
+    await user.clear(input);
+    await user.type(input, '7');
+    await user.click(screen.getByLabelText('트랙 번호 저장'));
+
+    // 서버 트랙(current=42 != null)의 rename → 내부 콜백(mergeTracks 배선) 호출.
+    expect(onRenameTrack).toHaveBeenCalledWith('42', '7');
   });
 
   it('shapeType 표시 회귀 방지 — BBOX/POLYGON', () => {
