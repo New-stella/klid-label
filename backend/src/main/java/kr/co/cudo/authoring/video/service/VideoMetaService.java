@@ -38,6 +38,24 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class VideoMetaService {
 
+    /**
+     * {@code LS_DATA_META.META_KEY} — video.* 기술메타 키 접두.
+     *
+     * <p>이 접두를 가진 키({@code video.fps/codec/bit_rate/duration_ms/filesize/resolution})는
+     * <b>이 서비스가 증강 파일에서 ffprobe 로 소유</b>한다. 증강 신규 RAW 의 메타를 부모에서 복사할 때
+     * ({@code AugmentFrameExtractionService}) 이 접두 키는 반드시 제외해야 한다 — 부모 파일 고유값
+     * (파일크기·코덱·재생시간)을 다른 인코딩의 증강 파일 RAW 에 복사하면 논리 오손이고,
+     * 메타러너 upsert 와 (RAW_SN, META_KEY) UNIQUE 충돌 레이스를 일으킨다(CWE-362).
+     */
+    public static final String KEY_PREFIX = "video.";
+
+    /**
+     * 해당 metaKey 가 {@code video.*} 기술메타(메타러너 소유)인지 판정한다. 증강 메타 복사 제외 필터에 사용.
+     */
+    public static boolean isTechnicalKey(String metaKey) {
+        return metaKey != null && metaKey.startsWith(KEY_PREFIX);
+    }
+
     /** {@code LS_DATA_META.META_KEY} — video.* 기술메타 키. */
     static final String KEY_FPS = "video.fps";
     static final String KEY_CODEC = "video.codec";

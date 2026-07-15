@@ -621,4 +621,79 @@ class FfmpegFrameExtractorTest {
         assertThat(recordedSeekMillis).containsExactly(0L, 2000L);
         verify(fpsResolver, never()).resolveFps(anyLong());
     }
+
+    // ============================================================
+    // Phase 11: extractByFrameNumbers — 증강 프레임 번호 기반 재추출
+    // ============================================================
+
+    @Test
+    @DisplayName("Phase11_신규RAW_deIdntfYn_N상태에서_프레임번호로_재추출_성공_순환의존없음")
+    void extractByFrameNumbers_worksWhenNotDeidentified() {
+        // 증강 신규 RAW 는 재추출 성공 전까지 deIdntfYn='N'. 게이트 재사용 없이 재추출돼야 한다(순환의존 차단).
+        FfmpegFrameExtractor extractor = newExtractor();
+        LsDataRaw newRaw = newRaw(60, "N");
+
+        List<LsDataSrc> frames = extractor.extractByFrameNumbers(newRaw, List.of(100L, 250L));
+
+        assertThat(frames).hasSize(2);
+        // FRM_NO 는 추출 순번(0,1), VDO_FRM_NO 는 요청 프레임 번호(100,250).
+        assertThat(frames.get(0).getFrameNo()).isZero();
+        assertThat(frames.get(0).getVideoFrameNo()).isEqualTo(100);
+        assertThat(frames.get(1).getFrameNo()).isEqualTo(1);
+        assertThat(frames.get(1).getVideoFrameNo()).isEqualTo(250);
+        // 증강본은 RAW=DEID 동일 취급 — 원본 1벌만(비식별 경로 미저장).
+        assertThat(frames).allMatch(f -> f.getDeIdntfSrcFilePathNm() == null);
+        // frames/raw 하위에 생성.
+        assertThat(frames).allMatch(f -> f.getSrcFilePathNm().replace('\\', '/').contains("/frames/raw/"));
+    }
+
+    @Test
+    @DisplayName("Phase11_증강소스_파일부재시_INVALID_INPUT")
+    void extractByFrameNumbers_sourceNotExist_rejected() {
+        // 존재하지 않는 증강 파일 경로 — 소스 존재만 확인하는 가드에서 거부.
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-x", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_ANONY, tmp.resolve("no-such-aug.mp4").toString(), null, 60);
+        setField(raw, "rawSn", 9001L);
+        FfmpegFrameExtractor extractor = newExtractor();
+
+        assertThatThrownBy(() -> extractor.extractByFrameNumbers(raw, List.of(0L)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+    }
+
+    @Test
+    @DisplayName("Phase11_빈_프레임번호_리스트_INVALID_INPUT")
+    void extractByFrameNumbers_emptyList_rejected() {
+        FfmpegFrameExtractor extractor = newExtractor();
+
+        assertThatThrownBy(() -> extractor.extractByFrameNumbers(newRaw(60, "N"), List.of()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+    }
+
+    @Test
+    @DisplayName("Phase11_프레임추출_IOException시_all_or_nothing_INTERNAL_ERROR")
+    void extractByFrameNumbers_ioException_throwsInternalError() {
+        FfmpegFrameExtractor.FrameWriter throwingWriter = new FfmpegFrameExtractor.FrameWriter() {
+            @Override
+            public boolean sourceExists(Path sourceVideo) { return true; }
+            @Override
+            public void writeFrame(Path sourceVideo, Path outputFrame, long seekMillis) { }
+            @Override
+            public void writeFrameByNumber(Path sourceVideo, Path outputFrame, int frameNo) throws IOException {
+                throw new IOException("ffmpeg 실패 frameNo=" + frameNo);
+            }
+        };
+        Path deidBase = tmp.resolve("deid");
+        FfmpegFrameExtractor extractor = new FfmpegFrameExtractor(srcRepository, hstryRepository,
+                deidentProcLogRepository, throwingWriter, fpsResolver, tmp.toString(), deidBase.toString());
+
+        assertThatThrownBy(() -> extractor.extractByFrameNumbers(newRaw(60, "N"), List.of(0L, 1L)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INTERNAL_ERROR");
+    }
 }
