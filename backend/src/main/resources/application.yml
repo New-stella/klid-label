@@ -187,6 +187,15 @@ authoring:
     training-scan:
       enabled: ${TRAINING_SCAN_ENABLED:true}
       interval-sec: ${TRAINING_SCAN_INTERVAL_SEC:60}
+  # R4 — 만료 작업락(LS_AUTH_WORK_LOCK) sweeper.
+  #  - enabled: 운영(dev/stg/prd) 기본 true. local/test 는 override false (스케줄러 발화 억제).
+  #  - interval-ms: sweep 주기(ms). 기본 10분. 만료(lockRaw=1h/redeident=6h) 대비 충분히 촘촘.
+  #  - 2노드 Active-Active 에서 양 노드 발화해도 건별 조건부·멱등 release 라 안전.
+  work-lock:
+    sweep:
+      enabled: ${WORK_LOCK_SWEEP_ENABLED:true}
+      interval-ms: ${WORK_LOCK_SWEEP_INTERVAL_MS:600000}
+      initial-delay-ms: ${WORK_LOCK_SWEEP_INITIAL_DELAY_MS:60000}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
