@@ -340,6 +340,115 @@ export function requestSam2Track(
 }
 
 /**
+ * SAM2 Track 청크 크기 — BE Sam2TrackRequest `@Size(max = 50)` 안전상한(CWE-770 방어)과 정합.
+ * 한 번의 요청에 실을 수 있는 nextSrcSns 최대 개수. 이 값을 넘기면 BE 가 400 을 반환하므로
+ * FE 는 반드시 이 크기 이하로 분할해 순차 호출한다.
+ */
+export const SAM2_TRACK_CHUNK_SIZE = 50;
+
+/**
+ * 청크 순차 추적 중 특정 청크에서 실패했음을 나타내는 에러.
+ * 이미 성공한 청크의 추적 결과(`partial`)를 보존해 부분 성공을 유지할 수 있게 한다(롤백 금지).
+ */
+export class Sam2TrackChunkError extends Error {
+  /** 실패 시점까지 누적된(=성공 확정된) 추적 결과. */
+  readonly partial: Sam2TrackedItem[];
+  /** 정상 완료된 청크 수. */
+  readonly completedChunks: number;
+  /** 전체 청크 수. */
+  readonly totalChunks: number;
+
+  constructor(
+    cause: unknown,
+    partial: Sam2TrackedItem[],
+    completedChunks: number,
+    totalChunks: number,
+  ) {
+    super('SAM2 자동추적 일부 청크 실패', { cause });
+    this.name = 'Sam2TrackChunkError';
+    this.partial = partial;
+    this.completedChunks = completedChunks;
+    this.totalChunks = totalChunks;
+  }
+}
+
+/**
+ * nextSrcSns 를 {@link SAM2_TRACK_CHUNK_SIZE} 이하 청크로 분할해 순차 추적한다(폴리곤 전파 체인).
+ *
+ * - 청크 1: startSrcSn = 초기 시작 프레임, prevPolygon = 초기 폴리곤.
+ * - 청크 N(>1): startSrcSn = 직전 청크 마지막 프레임의 srcSn, prevPolygon = 직전 청크 마지막
+ *   추적 폴리곤(points). 이렇게 마지막 추적 결과를 다음 청크의 시작 프롬프트로 이어붙인다.
+ * - 모든 청크의 tracked 를 누적해 하나의 응답으로 합산 반환한다.
+ *
+ * 부분 실패 시 이미 성공한 청크 결과를 담은 {@link Sam2TrackChunkError} 를 throw 한다(롤백하지 않음).
+ * 각 청크는 50개 이하이므로 BE `@Size(max=50)` 상한을 항상 만족한다(안전상한 유지).
+ *
+ * @param startSrcSn 최초 시작 프레임 SRC_SN
+ * @param payload    trackId/label/prevPolygon + 전체 nextSrcSns
+ * @param onProgress (누적 추적 프레임 수, 전체 대상 수) 진행률 콜백 — 청크 완료마다 호출
+ */
+export async function sam2TrackAllChunks(
+  startSrcSn: number,
+  payload: Sam2TrackRequest,
+  onProgress?: (done: number, total: number) => void,
+): Promise<Sam2TrackResponse> {
+  const { trackId, label, nextSrcSns } = payload;
+  const total = nextSrcSns.length;
+  const accumulated: Sam2TrackedItem[] = [];
+
+  if (total === 0) {
+    return { tracked: [] };
+  }
+
+  // 50개 이하 청크로 분할. slice(step) 는 음수/과대 인덱스가 발생하지 않아 안전(CWE-20).
+  const chunks: number[][] = [];
+  for (let i = 0; i < total; i += SAM2_TRACK_CHUNK_SIZE) {
+    chunks.push(nextSrcSns.slice(i, i + SAM2_TRACK_CHUNK_SIZE));
+  }
+
+  let curStartSrcSn = startSrcSn;
+  let curPrevPolygon = payload.prevPolygon;
+
+  for (let c = 0; c < chunks.length; c += 1) {
+    const chunk = chunks[c];
+    let res: Sam2TrackResponse;
+    try {
+      res = await requestSam2Track(curStartSrcSn, {
+        trackId,
+        prevPolygon: curPrevPolygon,
+        label,
+        nextSrcSns: chunk,
+      });
+    } catch (err) {
+      // 부분 실패: 지금까지 성공한 청크 결과를 보존해 에러로 표면화(전부 롤백하지 않음).
+      throw new Sam2TrackChunkError(err, accumulated, c, chunks.length);
+    }
+
+    // 불변성 유지 — 새 배열로 누적하지 않고 push 는 로컬 누적기에만 적용(외부 인자 미변경).
+    accumulated.push(...res.tracked);
+    onProgress?.(accumulated.length, total);
+
+    const isLastChunk = c === chunks.length - 1;
+    if (!isLastChunk) {
+      const last = res.tracked[res.tracked.length - 1];
+      if (!last) {
+        // 다음 청크로 이어갈 폴리곤이 없음 — 이어붙이기 불가로 부분 실패 처리.
+        throw new Sam2TrackChunkError(
+          new Error('빈 추적 응답으로 다음 청크를 이어갈 수 없습니다'),
+          accumulated,
+          c + 1,
+          chunks.length,
+        );
+      }
+      curStartSrcSn = last.srcSn;
+      curPrevPolygon = last.points;
+    }
+  }
+
+  return { tracked: accumulated };
+}
+
+/**
  * SAM2 클릭/박스 분할 요청 페이로드.
  * points 또는 box 중 정확히 하나만 제공 (BE 가 배타 검증 — 400).
  */

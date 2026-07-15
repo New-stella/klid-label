@@ -9,8 +9,31 @@ import MockAdapter from 'axios-mock-adapter';
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
-import { requestSam2Track } from '../api';
+import {
+  requestSam2Track,
+  sam2TrackAllChunks,
+  Sam2TrackChunkError,
+  SAM2_TRACK_CHUNK_SIZE,
+  type Sam2TrackedItem,
+} from '../api';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
+
+/** nextSrcSns 각 프레임에 대해 결정적 tracked item 을 만든다 (srcSn 기반 폴리곤). */
+function trackedFor(nextSrcSns: number[]): Sam2TrackedItem[] {
+  return nextSrcSns.map((s) => ({
+    srcSn: s,
+    trackId: 't-1',
+    label: 'person',
+    points: [
+      [s, 0],
+      [s, 1],
+      [s, 2],
+    ],
+    score: 0.8,
+  }));
+}
+
+const TRACK_PATH_RE = /\/frames\/(\d+)\/sam2-track/;
 
 const TRACKED_OK = {
   success: true,
@@ -66,6 +89,169 @@ describe('SAM2 Track', () => {
 
       expect(res.tracked).toHaveLength(1);
       expect(res.tracked[0].srcSn).toBe(2);
+    });
+  });
+
+  describe('sam2TrackAllChunks_청크분할_순차호출', () => {
+    it('상수는_BE_Size_상한과_정합한다', () => {
+      expect(SAM2_TRACK_CHUNK_SIZE).toBe(50);
+    });
+
+    it('120개_후속프레임은_50_50_20_3청크로_분할되고_폴리곤이_체인된다', async () => {
+      const next = Array.from({ length: 120 }, (_, i) => 201 + i); // 201..320
+      const captured: { path: number; body: Record<string, unknown> }[] = [];
+      mock.onPost(TRACK_PATH_RE).reply((config) => {
+        const path = Number(TRACK_PATH_RE.exec(config.url ?? '')![1]);
+        const body = JSON.parse((config.data as string) ?? '{}');
+        captured.push({ path, body });
+        return [
+          200,
+          {
+            success: true,
+            data: { tracked: trackedFor(body.nextSrcSns as number[]) },
+            message: null,
+            errorCode: null,
+          },
+        ];
+      });
+
+      const res = await sam2TrackAllChunks(1000, {
+        trackId: 't-1',
+        prevPolygon: TRIANGLE,
+        label: 'person',
+        nextSrcSns: next,
+      });
+
+      // 3개 청크로 분할
+      expect(captured).toHaveLength(3);
+      expect((captured[0].body.nextSrcSns as number[]).length).toBe(50);
+      expect((captured[1].body.nextSrcSns as number[]).length).toBe(50);
+      expect((captured[2].body.nextSrcSns as number[]).length).toBe(20);
+
+      // 청크1: 시작 srcSn = 초기값 1000, prevPolygon = 원 폴리곤
+      expect(captured[0].path).toBe(1000);
+      expect(captured[0].body.prevPolygon).toEqual(TRIANGLE);
+
+      // 청크2: 시작 srcSn = 청크1 마지막 프레임(250), prevPolygon = 250 추적 폴리곤
+      expect(captured[1].path).toBe(250);
+      expect(captured[1].body.prevPolygon).toEqual([
+        [250, 0],
+        [250, 1],
+        [250, 2],
+      ]);
+
+      // 청크3: 시작 srcSn = 청크2 마지막 프레임(300)
+      expect(captured[2].path).toBe(300);
+      expect(captured[2].body.prevPolygon).toEqual([
+        [300, 0],
+        [300, 1],
+        [300, 2],
+      ]);
+
+      // 모든 청크 결과 누적
+      expect(res.tracked).toHaveLength(120);
+      expect(res.tracked[0].srcSn).toBe(201);
+      expect(res.tracked[119].srcSn).toBe(320);
+    });
+
+    it('30개_후속프레임은_단일_청크로_1회만_호출한다', async () => {
+      const next = Array.from({ length: 30 }, (_, i) => i + 2);
+      let count = 0;
+      mock.onPost(TRACK_PATH_RE).reply((config) => {
+        count += 1;
+        const body = JSON.parse((config.data as string) ?? '{}');
+        return [
+          200,
+          { success: true, data: { tracked: trackedFor(body.nextSrcSns as number[]) }, message: null, errorCode: null },
+        ];
+      });
+
+      const res = await sam2TrackAllChunks(1, {
+        trackId: 't-1',
+        prevPolygon: TRIANGLE,
+        label: 'person',
+        nextSrcSns: next,
+      });
+      expect(count).toBe(1);
+      expect(res.tracked).toHaveLength(30);
+    });
+
+    it('정확히_50개_후속프레임은_단일_청크', async () => {
+      const next = Array.from({ length: 50 }, (_, i) => i + 2);
+      let count = 0;
+      mock.onPost(TRACK_PATH_RE).reply((config) => {
+        count += 1;
+        const body = JSON.parse((config.data as string) ?? '{}');
+        return [
+          200,
+          { success: true, data: { tracked: trackedFor(body.nextSrcSns as number[]) }, message: null, errorCode: null },
+        ];
+      });
+
+      const res = await sam2TrackAllChunks(1, {
+        trackId: 't-1',
+        prevPolygon: TRIANGLE,
+        label: 'person',
+        nextSrcSns: next,
+      });
+      expect(count).toBe(1);
+      expect(res.tracked).toHaveLength(50);
+    });
+
+    it('빈_후속프레임은_요청없이_빈결과를_반환', async () => {
+      let count = 0;
+      mock.onPost(TRACK_PATH_RE).reply(() => {
+        count += 1;
+        return [200, { success: true, data: { tracked: [] }, message: null, errorCode: null }];
+      });
+
+      const res = await sam2TrackAllChunks(1, {
+        trackId: 't-1',
+        prevPolygon: TRIANGLE,
+        label: 'person',
+        nextSrcSns: [],
+      });
+      expect(count).toBe(0);
+      expect(res.tracked).toEqual([]);
+    });
+
+    it('2번째_청크_실패시_1번째_청크_결과는_유지되고_에러가_표면화된다', async () => {
+      const next = Array.from({ length: 80 }, (_, i) => 201 + i); // 201..280 → [201..250], [251..280]
+      mock.onPost('/frames/1000/sam2-track').reply((config) => {
+        const body = JSON.parse((config.data as string) ?? '{}');
+        return [
+          200,
+          { success: true, data: { tracked: trackedFor(body.nextSrcSns as number[]) }, message: null, errorCode: null },
+        ];
+      });
+      // 청크2 시작 프레임 = 250 → 400 실패
+      mock.onPost('/frames/250/sam2-track').reply(400, {
+        success: false,
+        data: null,
+        message: 'nextSrcSns 검증 실패',
+        errorCode: 'INVALID_INPUT',
+      });
+
+      let error: unknown;
+      try {
+        await sam2TrackAllChunks(1000, {
+          trackId: 't-1',
+          prevPolygon: TRIANGLE,
+          label: 'person',
+          nextSrcSns: next,
+        });
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(Sam2TrackChunkError);
+      const ce = error as Sam2TrackChunkError;
+      // 1번째 청크(50프레임) 결과는 유지 — 롤백 없음
+      expect(ce.partial).toHaveLength(50);
+      expect(ce.partial[0].srcSn).toBe(201);
+      expect(ce.partial[49].srcSn).toBe(250);
+      expect(ce.completedChunks).toBe(1);
+      expect(ce.totalChunks).toBe(2);
     });
   });
 
