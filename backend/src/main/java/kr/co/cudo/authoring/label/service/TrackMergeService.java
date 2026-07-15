@@ -28,8 +28,9 @@ import java.util.stream.Collectors;
 /**
  * Phase 4 — 트랙 병합 서비스.
  *
- * <p>{@code fromTrackId} 의 원 키프레임(보간 산출물 제외)을 {@code toTrackId} 로 재지정한 뒤 영상
- * 전체를 재보간하여 트랙 두 개를 하나로 합친다.
+ * <p>{@code fromTrackId} 의 원 키프레임(보간 산출물 제외)을 {@code toTrackId} 로 재지정한 뒤 병합
+ * 트랙({@code toTrackId})만 재보간하여 트랙 두 개를 하나로 합친다. stale 보간 산출물 정리는
+ * {@code {fromTrackId, toTrackId}} 양쪽에 적용하되 재생성은 {@code toTrackId} 만(락 유지시간 단축).
  *
  * <h2>방어(HIGH 시나리오)</h2>
  * <ol>
@@ -44,7 +45,7 @@ import java.util.stream.Collectors;
  *       침묵 덮어쓰기 위험 → 병합 전 교집합 계산해 겹치면 409(겹침 frame 목록 메시지).</li>
  *   <li><b>보간 산출물 제외</b>: fromTrack 라벨 중 INTERPOLATE 산출물은 재지정 대상에서 제외(원 키프레임만
  *       이관). 기존 보간 row 는 재보간 idempotency 정리 단계가 삭제한다.</li>
- *   <li><b>원자성</b>: trackId UPDATE + 재보간을 <b>같은 트랜잭션</b>으로 실행({@link TrackInterpolationStep#interpolate}
+ *   <li><b>원자성</b>: trackId UPDATE + 재보간을 <b>같은 트랜잭션</b>으로 실행({@link TrackInterpolationStep#interpolateSingleTrack}
  *       는 caller tx 참여) → 재보간 실패 시 병합까지 롤백. 통지(TASK_MODIFIED) 실패는 병합을 롤백하지
  *       않는다(AFTER_COMMIT + try-catch, dead-letter 재사용).</li>
  * </ol>
@@ -131,17 +132,16 @@ public class TrackMergeService {
         }
         labelRepository.saveAll(fromKeyframes);
 
-        // [3] interpolationApplied — 재지정 후 자동 BBOX/POLYGON 트랙만 재보간 대상. 수동/SEGMENT/SKELETON 이면 false.
-        // (findAutoBboxWithTrackId 는 auto+BBOX/POLYGON+trackId 한정. Hibernate auto-flush 로 위 UPDATE 관측.)
-        boolean interpolationApplied = labelRepository.findAutoBboxWithTrackId(rawSn).stream()
-                .anyMatch(l -> toTrackId.equals(l.getTrackId()));
+        // [3] interpolationApplied — 재지정 후 병합 트랙(toTrackId)에 자동 BBOX/POLYGON 후보가 있으면 재보간 대상.
+        // 수동/SEGMENT/SKELETON 이면 false. findAutoBboxByRawSnAndTrackId 는 toTrackId 로 DB 레벨 한정하며
+        // Hibernate auto-flush 로 위 UPDATE(reassign)를 즉시 관측한다.
+        boolean interpolationApplied = !labelRepository.findAutoBboxByRawSnAndTrackId(rawSn, toTrackId).isEmpty();
 
         // [4] 원자성 — 같은 트랜잭션에서 재보간. 실패 시 예외 전파 → 병합(UPDATE)까지 롤백.
-        // [MED 범위] 현재는 rawSn 의 <b>영상 전체 트랙</b>을 재보간한다(interpolate(rawSn)) — 병합된
-        // toTrackId 만 재보간하는 최적화는 idempotency 삭제/후보 조회가 raw 단위로 설계된 공용 경로라
-        // 부담이 커 보류(무리한 리팩터 금지). 락 유지 시간은 전체 재보간에 비례하며, 트랙 수가 많은
-        // 영상에서 길어질 수 있다(응답 interpolatedRowCount·아래 로그로 관측). 후속: .claude-plan.md.
-        int interpolatedRows = trackInterpolationStep.interpolate(rawSn);
+        // 병합된 toTrackId 만 재보간(interpolateSingleTrack)해 락 유지시간을 단축한다(영상 전체 재보간 대체).
+        // stale 보간 산출물 정리는 {fromTrackId, toTrackId} 양쪽에 적용(reassign 후 fromTrackId 보간 고아
+        // 방지) — 재생성은 toTrackId 만. 결과 좌표는 전체 재보간과 동일(보간 폭은 영상 전체 프레임 기준 유지).
+        int interpolatedRows = trackInterpolationStep.interpolateSingleTrack(rawSn, toTrackId, fromTrackId);
 
         log.info("[TrackMerge] merged rawSn={} from={} to={} reassigned={} interpApplied={} interpRows={}",
                 rawSn, fromTrackId, toTrackId, fromKeyframes.size(), interpolationApplied, interpolatedRows);

@@ -188,6 +188,83 @@ public class TrackInterpolationStep implements BatchStep {
     }
 
     /**
+     * 단일 트랙 재보간 — 트랙 병합(TrackMergeService) 후 <b>병합 트랙(toTrackId) 하나만</b> 재보간해
+     * 락 유지시간을 단축한다. 결과 좌표는 {@link #interpolate}(영상 전체 재보간)와 <b>동일</b>하다
+     * (동일한 <b>영상 전체 프레임</b> 매핑 + 동일한 트랙별 보간기 재사용 — 보간 폭 불변).
+     *
+     * <h2>이름은 toTrackId 재보간이나 stale 정리는 from+to 양쪽이다</h2>
+     * {@code doMerge} 가 {@code reassignTrack(toTrackId)} 을 <b>원 키프레임에만</b> 적용하므로,
+     * fromTrackId 로 생성됐던 기존 INTERPOLATE 산출물 row 는 trackId 가 여전히 fromTrackId 인 채 남는다.
+     * toTrackId 만 지우면 이 fromTrackId 보간 산출물이 <b>고아로 영구 잔존</b>(유령 라벨·카운트 부풀림·
+     * 검수 스냅샷 오염)하므로, stale 삭제 대상은 반드시 {@code {fromTrackId, toTrackId}} 양쪽이다.
+     * 재보간 후보는 reassign 후 fromTrackId 가 0건이므로 toTrackId 만이다.
+     *
+     * <h2>트랜잭션 — caller(머지) tx 참여</h2>
+     * {@link #interpolate} 와 동일하게 <b>트랜잭션 경계 없이</b> caller tx 에 참여한다(@Transactional
+     * 미부착). 재보간 실패 시 머지 UPDATE(reassign)까지 롤백되어 <b>원자성</b>을 유지하기 위함이며,
+     * 전체 경로의 per-track try/catch 격리와 달리 여기서는 예외를 삼키지 않는다(머지 롤백 유도).
+     *
+     * @param rawSn       LS_DATA_RAW.RAW_SN
+     * @param toTrackId   병합 대상(재보간) 트랙 ID
+     * @param fromTrackId 병합 소스 트랙 ID — stale 보간 산출물 정리 대상에만 포함(재보간 후보 아님)
+     * @return 저장된 보간 row 수 (0 이상). 영상 프레임이 없거나 보간 후보가 없으면 0.
+     */
+    public int interpolateSingleTrack(Long rawSn, String toTrackId, String fromTrackId) {
+        if (rawSn == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
+        }
+
+        // stale 정리 — 후보 존재 여부와 무관하게 항상 선행. from+to 양쪽 보간 산출물 제거(고아 방지).
+        // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순서로 삭제해 FK 고아 방지.
+        List<Long> staleInterpolated = lblRepository.findInterpolatedLblSnsByRawSnAndTrackId(
+                rawSn, List.of(fromTrackId, toTrackId));
+        if (!staleInterpolated.isEmpty()) {
+            aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
+            lblRepository.deleteAllByIdInBatch(staleInterpolated);
+            log.info("[Batch][Interpolation] cleared stale interpolated rows (single-track) rawSn={} from={} to={} count={}",
+                    rawSn, fromTrackId, toTrackId, staleInterpolated.size());
+        }
+
+        // 프레임 매핑 — HIGH #2: 보간 폭 보존 위해 항상 영상 전체 프레임 사용(트랙만 필터). totalFrames 축소 금지.
+        List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
+        if (frames.isEmpty()) {
+            log.info("[Batch][Interpolation] no frames (single-track) rawSn={}", rawSn);
+            return 0;
+        }
+        int totalFrames = frames.size();
+        Map<Integer, Long> frameToSrcSn = new HashMap<>(totalFrames);
+        Map<Long, Integer> srcSnToFrame = new HashMap<>(totalFrames);
+        for (LsDataSrc s : frames) {
+            frameToSrcSn.put(Math.toIntExact(s.getFrameNo()), s.getSrcSn());
+            srcSnToFrame.put(s.getSrcSn(), Math.toIntExact(s.getFrameNo()));
+        }
+
+        // 후보 — toTrackId 단건만(reassign 후 fromTrackId 후보 0건). 위 stale 삭제가 auto-flush 로 선반영됨.
+        List<LsDataLbl> candidates = lblRepository.findAutoBboxByRawSnAndTrackId(rawSn, toTrackId);
+        if (candidates.isEmpty()) {
+            log.info("[Batch][Interpolation] no candidates (single-track) rawSn={} to={}", rawSn, toTrackId);
+            return 0;
+        }
+
+        // 공통부 재사용 — BBOX/POLYGON 라우팅 + 타입 혼재 skip 가드 포함. 전체 경로와 동일 로직(좌표 동일 보장).
+        // 전체 경로의 per-track try/catch 격리와 달리 예외를 전파해 머지 원자성을 유지한다.
+        List<LsDataLbl> newRows = interpolateTrack(toTrackId, candidates, srcSnToFrame, frameToSrcSn, totalFrames);
+
+        if (!newRows.isEmpty()) {
+            Iterable<LsDataLbl> savedRows = lblRepository.saveAll(newRows);
+            List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
+            for (LsDataLbl row : savedRows) {
+                aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), rawSn, row.getSrcSn(),
+                        LsDataLblAiInfo.SRC_INTERPOLATE, row.getConfScore(), "batch"));
+            }
+            aiInfoRepository.saveAll(aiInfos);
+        }
+        log.info("[Batch][Interpolation] saved (single-track) rawSn={} to={} interpolatedRows={}",
+                rawSn, toTrackId, newRows.size());
+        return newRows.size();
+    }
+
+    /**
      * 단일 트랙을 타입별로 라우팅하여 보간 row 를 산출한다.
      * <p>트랙 내 {@code LBL_TYPE_CD} 가 혼재(distinct &gt; 1)하면 안전하게 skip(WARN).
      * BBOX 는 선형 보간, POLYGON 은 polyshape 보간. (POLYLINE 은 현재 DB 코드값 미도입.)

@@ -298,6 +298,29 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     List<LsDataLbl> findAutoBboxWithTrackId(@Param("rawSn") Long rawSn);
 
     /**
+     * {@link #findAutoBboxWithTrackId} 의 <b>단일 트랙 한정</b> 변형 — 트랙 병합 후 병합 트랙(toTrackId)만
+     * 재보간(락 유지시간 단축)하기 위한 후보 조회. 보간 대상 정의(AUTO_LBL_YN='Y' + BBOX/POLYGON +
+     * TRACK_ID NOT NULL)는 전체 경로와 동일하며 {@code AND l.trackId = :trackId} 로 <b>DB 레벨</b>에서
+     * 한정한다(in-memory 필터 금지 — {@code IX_LS_DATA_LBL_TRCK_ID} 활용). 전체 경로 메서드는 무변경.
+     * 파라미터 바인딩({@code :rawSn}, {@code :trackId})만 사용 — 문자열 연결 없음(CWE-89 무관).
+     */
+    @Query("""
+            SELECT l
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.autoLblYn = 'Y'
+               )
+               AND l.lblTypeCd IN ('BBOX', 'POLYGON')
+               AND l.trackId = :trackId
+            """)
+    List<LsDataLbl> findAutoBboxByRawSnAndTrackId(@Param("rawSn") Long rawSn,
+                                                  @Param("trackId") String trackId);
+
+    /**
      * 영상(rawSn) 내 특정 트랙(trackId)에 속한 모든 라벨(자동+수동, 전 타입) 조회 — 트랙 병합.
      * <p>{@link #findAutoBboxWithTrackId}(자동 BBOX/POLYGON 한정)와 달리 존재 확인·겹침 계산·
      * trackId 재지정을 위해 <b>수동/SEGMENT/SKELETON 을 포함한 전체</b>를 반환한다. 보간 산출물
@@ -331,4 +354,30 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
                )
             """)
     List<Long> findInterpolatedLblSnsByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * {@link #findInterpolatedLblSnsByRawSn} 의 <b>트랙 집합 한정</b> 변형 — 트랙 병합 후 stale 보간
+     * 산출물을 병합 관련 트랙({@code {fromTrackId, toTrackId}})만 정리하기 위한 삭제 대상 조회.
+     * {@code AND l.trackId IN :trackIds} 로 <b>DB 레벨</b>에서 한정한다(in-memory 필터 금지).
+     *
+     * <p><b>from+to 양쪽을 넘겨야 하는 이유</b>: 병합은 reassignTrack(toTrackId)을 <b>원 키프레임에만</b>
+     * 적용하므로 fromTrackId 로 생성됐던 기존 INTERPOLATE 산출물 row 는 trackId 가 여전히 fromTrackId
+     * 인 채 남는다. toTrackId 만 지우면 이 fromTrackId 보간 산출물이 <b>고아로 영구 잔존</b>(유령 라벨·
+     * 카운트 부풀림·검수 스냅샷 오염)한다. 전체 경로 메서드는 무변경. 빈 컬렉션 입력 시 빈 결과.
+     * 고정 리터럴 'INTERPOLATE' + 파라미터 바인딩({@code :rawSn}, {@code :trackIds})만 — CWE-89 무관.
+     */
+    @Query("""
+            SELECT l.lblSn
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.trackId IN :trackIds
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.lblSrcCd = 'INTERPOLATE'
+               )
+            """)
+    List<Long> findInterpolatedLblSnsByRawSnAndTrackId(@Param("rawSn") Long rawSn,
+                                                       @Param("trackIds") Collection<String> trackIds);
 }

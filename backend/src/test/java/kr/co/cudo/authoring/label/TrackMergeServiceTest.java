@@ -103,8 +103,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_FROM)).thenReturn(List.of(from));
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(to));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
-        when(labelRepository.findAutoBboxWithTrackId(RAW_SN)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolate(RAW_SN)).thenReturn(3);
+        when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
+        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(3);
 
         // when
         TrackMergeResponse res = service.merge(RAW_SN, T_FROM, T_TO, worker());
@@ -118,7 +118,7 @@ class TrackMergeServiceTest {
         InOrder order = inOrder(workLockService, labelRepository, trackInterpolationStep);
         order.verify(workLockService).lockRawExclusiveInNewTx(eq(RAW_SN), anyString());
         order.verify(labelRepository).saveAll(anyList());
-        order.verify(trackInterpolationStep).interpolate(RAW_SN);
+        order.verify(trackInterpolationStep).interpolateSingleTrack(RAW_SN, T_TO, T_FROM);
         order.verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
     }
 
@@ -156,7 +156,7 @@ class TrackMergeServiceTest {
         assertThat(ex.getMessage()).contains("10");
         // 겹침이면 어떤 변경/재보간도 하지 않는다
         verify(labelRepository, never()).saveAll(anyList());
-        verify(trackInterpolationStep, never()).interpolate(anyLong());
+        verify(trackInterpolationStep, never()).interpolateSingleTrack(anyLong(), anyString(), anyString());
         verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
     }
 
@@ -169,8 +169,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_FROM)).thenReturn(List.of(origin, interpolated));
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(3L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of(2L));
-        when(labelRepository.findAutoBboxWithTrackId(RAW_SN)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolate(RAW_SN)).thenReturn(2);
+        when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
+        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(2);
 
         TrackMergeResponse res = service.merge(RAW_SN, T_FROM, T_TO, worker());
 
@@ -191,8 +191,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_FROM)).thenReturn(List.of(lbl(1L, 10L, T_FROM)));
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
-        when(labelRepository.findAutoBboxWithTrackId(RAW_SN)).thenReturn(List.of());
-        when(trackInterpolationStep.interpolate(RAW_SN)).thenReturn(0);
+        when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of());
+        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(0);
 
         TrackMergeResponse res = service.merge(RAW_SN, T_FROM, T_TO, worker());
 
@@ -207,8 +207,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_FROM)).thenReturn(List.of(lbl(1L, 10L, T_FROM)));
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
-        when(labelRepository.findAutoBboxWithTrackId(RAW_SN)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolate(RAW_SN)).thenThrow(new RuntimeException("boom"));
+        when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
+        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenThrow(new RuntimeException("boom"));
 
         // 재보간 예외는 흡수되지 않고 전파되어야 트랜잭션이 롤백된다 (원자성)
         assertThatThrownBy(() -> service.merge(RAW_SN, T_FROM, T_TO, worker()))
@@ -223,8 +223,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_FROM)).thenReturn(List.of(lbl(1L, 10L, T_FROM)));
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
-        when(labelRepository.findAutoBboxWithTrackId(RAW_SN)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolate(RAW_SN)).thenReturn(1);
+        when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
+        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(1);
         doThrow(new RuntimeException("notify down")).when(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
 
         // 통지 실패는 병합 롤백 사유가 아니다 — 정상 응답 + 재지정 저장 유지
@@ -240,8 +240,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_FROM)).thenReturn(List.of(lbl(1L, 10L, T_FROM)));
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
-        when(labelRepository.findAutoBboxWithTrackId(RAW_SN)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolate(RAW_SN)).thenReturn(1);
+        when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
+        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(1);
 
         service.merge(RAW_SN, T_FROM, T_TO, worker());
         verify(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
@@ -253,8 +253,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_FROM)).thenReturn(List.of(lbl(1L, 10L, T_FROM)));
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
-        when(labelRepository.findAutoBboxWithTrackId(RAW_SN)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolate(RAW_SN)).thenReturn(1);
+        when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
+        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(1);
         when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of());
 
         service.merge(RAW_SN, T_FROM, T_TO, worker());
