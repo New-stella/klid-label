@@ -70,7 +70,11 @@ public class PortalSam2Controller {
             @Valid @RequestBody Sam2SegmentRequest req,
             @AuthenticationPrincipal TokenClaims actor) {
         requireMatchingSrcSn(srcSn, req.srcSn());
-        return ApiResponse.ok(portalSam2Service.segment(req, actor));
+        // 내부 mock(모델 미로드) 시 빈 폴리곤 → 안내 message 세팅(내부 경로와 동일 처리).
+        Sam2SegmentResponse res = portalSam2Service.segment(req, actor);
+        return res.isEmpty()
+                ? ApiResponse.ok(res, Sam2SegmentResponse.MOCK_UNAVAILABLE_MESSAGE)
+                : ApiResponse.ok(res);
     }
 
     /** path 의 srcSn 과 body 의 srcSn 불일치 시 거부 (CWE-345). */

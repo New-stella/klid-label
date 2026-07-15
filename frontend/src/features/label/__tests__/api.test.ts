@@ -3,7 +3,15 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { getLabels, normalizeLabel, putLabels, reportDeidentMiss } from '../api';
+import {
+  getLabels,
+  normalizeLabel,
+  putLabels,
+  reportDeidentMiss,
+  requestAutolabel,
+  requestSam2Segment,
+} from '../api';
+import type { AutolabelResponse, Sam2SegmentResponse } from '../api';
 import { saveAndCommit } from '../SaveCommitFlow';
 import type { KeypointShape, Label } from '../types';
 
@@ -417,6 +425,69 @@ describe('label api', () => {
 
     const res = await getLabels(904);
     expect(res.lockSttsCd == null).toBe(true);
+  });
+
+  describe('SAM2 세그/오토라벨 mock 재배선 (message 보존)', () => {
+    it('requestSam2Segment_빈폴리곤_mock응답의_ApiResponse_message를_보존', async () => {
+      mock.onPost('/frames/7/sam2-segment').reply(200, {
+        success: true,
+        data: { polygon: [], score: 0 },
+        message: 'AI 모델 미로드 — 결과 신뢰 불가',
+        errorCode: null,
+      });
+
+      const res = await requestSam2Segment(7, { points: [[1, 2]] });
+      expect(res.polygon).toEqual([]);
+      expect(res.message).toBe('AI 모델 미로드 — 결과 신뢰 불가');
+    });
+
+    it('requestSam2Segment_정상응답이면_message_null', async () => {
+      mock.onPost('/frames/8/sam2-segment').reply(200, {
+        success: true,
+        data: { polygon: [[1, 1], [2, 2], [1, 2]], score: 0.9 },
+        message: null,
+        errorCode: null,
+      });
+
+      const res = await requestSam2Segment(8, { box: [1, 1, 2, 2] });
+      expect(res.polygon).toHaveLength(3);
+      expect(res.message ?? null).toBeNull();
+    });
+
+    it('requestAutolabel_내부mock응답의_ApiResponse_message를_보존', async () => {
+      mock.onPost('/frames/9/autolabel').reply(200, {
+        success: true,
+        data: { srcSn: 9, savedCount: 0, labels: [] },
+        message: 'AI 모델 미로드 — 결과 신뢰 불가',
+        errorCode: null,
+      });
+
+      const res = await requestAutolabel(9);
+      expect(res.savedCount).toBe(0);
+      expect(res.message).toBe('AI 모델 미로드 — 결과 신뢰 불가');
+    });
+
+    it('응답타입에_mock필드_없음_런타임_확인', async () => {
+      // 컴파일타임: Sam2SegmentResponse/AutolabelResponse 에 mock 필드가 없다(tsc 가드).
+      // 런타임: 실제 반환 객체에도 mock 프로퍼티가 없음.
+      mock.onPost('/frames/10/sam2-segment').reply(200, {
+        success: true,
+        data: { polygon: [], score: 0 },
+        message: null,
+        errorCode: null,
+      });
+      const seg: Sam2SegmentResponse = await requestSam2Segment(10, { points: [[1, 1]] });
+      expect('mock' in seg).toBe(false);
+
+      mock.onPost('/frames/11/autolabel').reply(200, {
+        success: true,
+        data: { srcSn: 11, savedCount: 0, labels: [] },
+        message: null,
+        errorCode: null,
+      });
+      const auto: AutolabelResponse = await requestAutolabel(11);
+      expect('mock' in auto).toBe(false);
+    });
   });
 
   describe('reportDeidentMiss', () => {

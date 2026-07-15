@@ -11,7 +11,7 @@ afterEach(() => {
 const okResponse: api.AutolabelResponse = {
   srcSn: 5001,
   savedCount: 2,
-  mock: false,
+  message: null,
   labels: [
     { lblSn: 1, labelId: 10, label: 'person', points: [1, 2, 3, 4], score: 0.9, trackId: 3 },
     { lblSn: 2, labelId: null, label: 'car', points: [5, 6, 7, 8], score: 0.8, trackId: null },
@@ -68,11 +68,12 @@ describe('useAutolabel', () => {
     });
   });
 
-  it('mock_응답도_그대로_반환되어_FE가_차단_판단', async () => {
+  it('mock_응답은_message포함_그대로_반환되어_FE가_차단_판단', async () => {
+    // 내부 mock → BE 가 ApiResponse.message 세팅 + savedCount 0. FE 는 message 유무로 경고 분기.
     vi.spyOn(api, 'requestAutolabel').mockResolvedValue({
       ...okResponse,
       savedCount: 0,
-      mock: true,
+      message: 'AI 모델 미로드 — 결과 신뢰 불가',
       labels: [],
     });
     const { result } = renderHook(() => useAutolabel(5001));
@@ -82,7 +83,7 @@ describe('useAutolabel', () => {
       out.value = await result.current.autolabel();
     });
 
-    expect(out.value?.mock).toBe(true);
+    expect(out.value?.message).toBe('AI 모델 미로드 — 결과 신뢰 불가');
     expect(out.value?.savedCount).toBe(0);
   });
 });

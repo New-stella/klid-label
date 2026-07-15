@@ -133,6 +133,21 @@ class PortalSam2ServiceTest {
     }
 
     @Test
+    @DisplayName("PortalSam2_내부mock이면_빈폴리곤과_안내메시지_반환")
+    void segment_mock_returnsEmptyPolygon() {
+        seedApprovedFrame(SRC_SN);
+        // 포털 경로도 내부 mock 응답이면 빈 폴리곤으로 반환하여 자동적용 차단(내부 경로와 동일 처리).
+        when(aiServerClient.segment(any())).thenReturn(Mono.just(new Sam2Response(
+                List.of(List.of(1.0, 1.0), List.of(2.0, 2.0), List.of(1.0, 2.0)),
+                0.5, true, "mock", "weights_missing")));
+
+        Sam2SegmentResponse res = service.segment(segReq(), portalUser);
+
+        assertThat(res.polygon()).isEmpty();
+        assertThat(res.score()).isZero();
+    }
+
+    @Test
     @DisplayName("포털_비APPROVED_srcSn_SAM2_거부")
     void segment_notApproved_forbidden() {
         LsDataSrc frame = LsDataSrc.create(RAW_SN, 0, "300.jpg", null);

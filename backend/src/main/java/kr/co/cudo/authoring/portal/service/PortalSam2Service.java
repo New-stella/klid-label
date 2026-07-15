@@ -112,11 +112,17 @@ public class PortalSam2Service {
         if (aiRes == null || aiRes.polygon() == null) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "SAM2 segment 응답이 비어있습니다.");
         }
+        // mock 안전장치(내부 경로와 동일): 내부 mock 응답은 빈 폴리곤으로 반환 → FE 자동적용 차단.
+        // 컨트롤러가 ApiResponse.message 에 안내를 세팅한다.
+        if (aiRes.mock()) {
+            log.warn("[Portal][Sam2Segment] mock response — return empty srcSn={}", req.srcSn());
+            return Sam2SegmentResponse.empty();
+        }
         validatePolygon(aiRes.polygon());
 
-        log.info("[Portal][Sam2Segment] srcSn={} points={} mock={}",
-                req.srcSn(), aiRes.polygon().size(), aiRes.mock());
-        return new Sam2SegmentResponse(aiRes.polygon(), aiRes.score(), aiRes.mock());
+        log.info("[Portal][Sam2Segment] srcSn={} points={}",
+                req.srcSn(), aiRes.polygon().size());
+        return new Sam2SegmentResponse(aiRes.polygon(), aiRes.score());
     }
 
     /**

@@ -115,6 +115,12 @@ public class Sam2SegmentService {
         if (aiRes == null || aiRes.polygon() == null) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "SAM2 segment 응답이 비어있습니다.");
         }
+        // mock 안전장치: 내부 mock 응답(모델 미로드)은 좌표를 신뢰할 수 없으므로 빈 폴리곤으로 반환한다.
+        // FE 는 빈 결과를 받으면 자동 적용할 대상이 없어 차단되고, 컨트롤러가 안내 message 를 세팅한다.
+        if (aiRes.mock()) {
+            log.warn("[Sam2Segment] mock response — return empty srcSn={}", req.srcSn());
+            return Sam2SegmentResponse.empty();
+        }
         // 외부 응답 신뢰 금지 — 정점 수 + 좌표 상한 검증 (CWE-20).
         validatePolygon(aiRes.polygon(), imgWidth, imgHeight);
 
@@ -135,9 +141,9 @@ public class Sam2SegmentService {
         }
 
         double score = clampScore(aiRes.score());
-        log.info("[Sam2Segment] segmented srcSn={} points={} score={} mock={}",
-                req.srcSn(), outPolygon.size(), score, aiRes.mock());
-        return new Sam2SegmentResponse(outPolygon, score, aiRes.mock());
+        log.info("[Sam2Segment] segmented srcSn={} points={} score={}",
+                req.srcSn(), outPolygon.size(), score);
+        return new Sam2SegmentResponse(outPolygon, score);
     }
 
     /**

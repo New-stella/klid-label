@@ -347,11 +347,10 @@ export function LabelingPage() {
     try {
       const res = await autolabel();
       if (!res) return;
-      if (res.mock) {
-        pushToast({
-          variant: 'warning',
-          message: 'AI 서버가 mock 모드입니다 — 자동 라벨이 적용되지 않았습니다.',
-        });
+      // 내부 mock(모델 미로드) 시 BE 가 ApiResponse.message 를 세팅한다 → 경고 토스트로 자동적용 차단 안내.
+      // message 가 없으면 정상 응답이며, savedCount=0 이어도 "0건 적용됨"(성공 스타일)로 안내한다.
+      if (res.message) {
+        pushToast({ variant: 'warning', message: res.message });
         return;
       }
       // 저장된 자동 라벨 재조회 → useLabels 가 data 갱신 시 setLabels 로 캔버스 반영.

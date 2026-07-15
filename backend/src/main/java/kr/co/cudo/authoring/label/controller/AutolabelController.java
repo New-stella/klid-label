@@ -54,6 +54,10 @@ public class AutolabelController {
     public ApiResponse<AutolabelResponse> autolabel(
             @Parameter(description = "프레임 PK", required = true, example = "1") @PathVariable Long srcSn,
             @AuthenticationPrincipal TokenClaims actor) {
-        return ApiResponse.ok(autolabelOnlineService.autolabel(srcSn, actor));
+        // 내부 mock(모델 미로드) 시 안내 message 세팅 → FE 가 mock 경고와 정상 "0건 검출" 을 구분(SAM2 세그와 대칭).
+        AutolabelOnlineService.AutolabelOutcome outcome = autolabelOnlineService.autolabel(srcSn, actor);
+        return outcome.mock()
+                ? ApiResponse.ok(outcome.response(), AutolabelResponse.MOCK_UNAVAILABLE_MESSAGE)
+                : ApiResponse.ok(outcome.response());
     }
 }

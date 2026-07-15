@@ -137,7 +137,11 @@ public class LabelController {
                     kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "path 의 srcSn 과 body 의 srcSn 이 다릅니다.");
         }
-        return ApiResponse.ok(sam2SegmentService.segment(req, actor));
+        // 내부 mock(모델 미로드) 시 서비스가 빈 폴리곤을 반환한다 → 안내 message 세팅(자동적용 차단 신호).
+        Sam2SegmentResponse res = sam2SegmentService.segment(req, actor);
+        return res.isEmpty()
+                ? ApiResponse.ok(res, Sam2SegmentResponse.MOCK_UNAVAILABLE_MESSAGE)
+                : ApiResponse.ok(res);
     }
 
     @Operation(

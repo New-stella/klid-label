@@ -136,7 +136,7 @@ class AutolabelControllerTest {
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.savedCount").value(1))
-                .andExpect(jsonPath("$.data.mock").value(false));
+                .andExpect(jsonPath("$.data.mock").doesNotExist());
     }
 
     @Test

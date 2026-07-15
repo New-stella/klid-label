@@ -475,12 +475,15 @@ export interface Sam2SegmentRequest {
 }
 
 export interface Sam2SegmentResponse {
-  /** 폐곡선 폴리곤 [[x, y], ...] (image px). */
+  /** 폐곡선 폴리곤 [[x, y], ...] (image px). mock(모델 미로드) 이면 빈 배열 → FE 자동 적용 차단 신호. */
   polygon: number[][];
   /** 신뢰도 0.0 ~ 1.0. */
   score: number;
-  /** ai-server mock 응답(모델 미로드/AI_MOCK_MODE) 여부 — true 면 FE 가 경고 + 자동 적용 차단. */
-  mock: boolean;
+  /**
+   * BE ApiResponse.message — mock(모델 미로드) 시 "AI 모델 미로드 …" 안내가 실린다.
+   * 빈 폴리곤과 함께 자동 적용 차단 + 경고 표시 신호로 사용(별도 mock 플래그 없음).
+   */
+  message?: string | null;
 }
 
 /**
@@ -499,7 +502,8 @@ export function requestSam2Segment(
   const base = portalMode ? '/portal/frames' : '/frames';
   return apiClient
     .post<Sam2SegmentResponse>(`${base}/${srcSn}/sam2-segment`, { srcSn, ...payload })
-    .then((r) => r.data);
+    // message 보존: 인터셉터가 unwrap 한 ApiResponse.message 를 data 에 병합해 FE 가 mock 안내를 읽을 수 있게 한다.
+    .then((r) => ({ ...r.data, message: r.message ?? null }));
 }
 
 /** YOLO 오토라벨 수동 트리거로 저장된 라벨 요약. */
@@ -520,8 +524,11 @@ export interface AutolabelResponse {
   srcSn: number;
   /** 저장된 BBOX 라벨 개수 (mock 응답이면 0). */
   savedCount: number;
-  /** ai-server mock 응답 여부 — true 면 저장하지 않으며 FE 는 자동 적용을 차단해야 한다. */
-  mock: boolean;
+  /**
+   * BE ApiResponse.message — 내부 mock(모델 미로드) 시 안내가 실린다.
+   * message 가 있으면 FE 는 자동 적용을 차단하고 경고를 표시한다(정상 "0건 검출"과 구분).
+   */
+  message?: string | null;
   labels: AutolabelItem[];
 }
 
@@ -532,7 +539,10 @@ export interface AutolabelResponse {
  * 보안: srcSn 은 path 파라미터(axios 자동 인코딩). IDOR·작업락·좌표검증·포털 차단은 BE 책임(ADR-013).
  */
 export function requestAutolabel(srcSn: number): Promise<AutolabelResponse> {
-  return apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`).then((r) => r.data);
+  return apiClient
+    .post<AutolabelResponse>(`/frames/${srcSn}/autolabel`)
+    // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고 토스트로 분기하기 위함.
+    .then((r) => ({ ...r.data, message: r.message ?? null }));
 }
 
 /** BE TrackMergeResponse 와 1:1. */

@@ -148,10 +148,10 @@ class AutolabelOnlineServiceTest {
     void autolabelSavesBboxWithManualSource() {
         stubAi(oneDetection());
 
-        AutolabelResponse res = service.autolabel(SRC_SN, worker);
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
 
-        assertThat(res.savedCount()).isEqualTo(1);
         assertThat(res.mock()).isFalse();
+        assertThat(res.response().savedCount()).isEqualTo(1);
 
         ArgumentCaptor<LsDataLbl> lblCap = ArgumentCaptor.forClass(LsDataLbl.class);
         verify(lblRepository).save(lblCap.capture());
@@ -256,17 +256,28 @@ class AutolabelOnlineServiceTest {
     }
 
     @Test
-    @DisplayName("mock_응답시_DB저장_안하고_플래그만_반환")
+    @DisplayName("AutolabelOnline_mock응답이면_DB저장_스킵되고_savedCount0")
     void mockResponseNotPersisted() {
+        // 내부 YoloResponse.mock()=true 를 계속 읽어 skip-save 가드 유지 — FE DTO 에 mock 필드가
+        // 없어도 savedCount=0 이 미저장 신호. (학습데이터 오염 방지 안전장치 회귀)
         stubAi(new YoloResponse(
                 List.of(new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 0.9, 3)),
                 true, "mock", "weights_missing"));
 
-        AutolabelResponse res = service.autolabel(SRC_SN, worker);
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
 
         assertThat(res.mock()).isTrue();
-        assertThat(res.savedCount()).isZero();
+        assertThat(res.response().savedCount()).isZero();
+        assertThat(res.response().labels()).isEmpty();
         verify(lblRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("AutolabelResponse에_mock필드가_없다")
+    void autolabelResponseHasNoMockField() {
+        boolean hasMock = java.util.Arrays.stream(AutolabelResponse.class.getRecordComponents())
+                .anyMatch(rc -> rc.getName().equals("mock"));
+        assertThat(hasMock).isFalse();
     }
 
     @Test
@@ -274,9 +285,10 @@ class AutolabelOnlineServiceTest {
     void noDetectionsSavesNothing() {
         stubAi(new YoloResponse(List.of()));
 
-        AutolabelResponse res = service.autolabel(SRC_SN, worker);
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
 
-        assertThat(res.savedCount()).isZero();
+        assertThat(res.mock()).isFalse();
+        assertThat(res.response().savedCount()).isZero();
         verify(lblRepository, never()).save(any());
     }
 
@@ -294,7 +306,7 @@ class AutolabelOnlineServiceTest {
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
-            Future<AutolabelResponse> first = pool.submit(() -> service.autolabel(SRC_SN, worker));
+            Future<?> first = pool.submit(() -> service.autolabel(SRC_SN, worker));
             assertThat(aiEntered.await(3, TimeUnit.SECONDS)).isTrue();
 
             // 두 번째 요청은 in-flight 락에 막혀 CONFLICT.
@@ -421,7 +433,7 @@ class AutolabelOnlineServiceTest {
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
-            Future<AutolabelResponse> first = pool.submit(() -> service.autolabel(SRC_SN, worker));
+            Future<?> first = pool.submit(() -> service.autolabel(SRC_SN, worker));
             assertThat(entered.await(3, TimeUnit.SECONDS)).isTrue();
 
             // 두 번째 요청(다른 프레임)은 bulkhead full → 즉시 거부(TOO_MANY_REQUESTS, 429).

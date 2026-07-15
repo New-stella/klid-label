@@ -8,6 +8,18 @@ import { ApiError } from './errors';
 import type { ApiResponse } from './types';
 
 
+// ApiResponse.message 를 unwrap 후에도 보존하기 위한 타입 확장 — 인터셉터가 data 를 꺼내면서
+// 함께 message 를 응답 객체에 실어준다(예: SAM2/오토라벨 mock 안내). 런타임 영향 없는 optional 필드.
+// 타입 파라미터는 axios 원본 선언(any)과 동일해야 병합된다(TS2428).
+declare module 'axios' {
+  /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+  export interface AxiosResponse<T = any, D = any> {
+    /** BE ApiResponse.message — 인터셉터가 data unwrap 시 함께 보존. */
+    message?: string | null;
+  }
+  /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+}
+
 // 보안: VITE_API_BASE_URL은 환경변수에서만 로드 (사용자 입력 금지)
 const baseURL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
 
@@ -32,7 +44,7 @@ apiClient.interceptors.response.use(
       if (body.success === false) {
         throw ApiError.fromBody(body, res.status);
       }
-      return { ...res, data: body.data };
+      return { ...res, data: body.data, message: body.message };
     }
     return res;
   },

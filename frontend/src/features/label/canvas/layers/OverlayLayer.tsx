@@ -302,10 +302,12 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
 
   // === SAM2 분할(SAM_SEGMENT) ===
   // 응답 폴리곤([[x,y],...] image px)을 기존 폴리곤 적용 흐름으로 추가.
-  // mock=true 면 자동 적용 차단 + 경고 콜백, score 낮으면 안내 콜백.
+  // 빈 폴리곤(모델 미로드/mock) 이면 자동 적용 차단 + 경고 콜백, score 낮으면 안내 콜백.
   function applySegmentResult(res: Sam2SegmentResponse | null) {
     if (!res) return; // 폐기(진행 중 무시 / 프레임 전환 stale)
-    if (res.mock) {
+    // mock(모델 미로드) 신호 = 빈 폴리곤. 저신뢰(score) 분기보다 먼저 판정해야
+    // "낮은 신뢰도(0%)" 로 오분류되지 않고 올바른 안내(message)가 표시된다.
+    if (res.polygon.length === 0) {
       onMockWarning?.(res);
       return; // 자동 적용 차단 — 사용자 확인 후만 적용
     }

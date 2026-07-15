@@ -78,8 +78,9 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
   const { segment } = useSam2Segment(frame.srcSn, portalMode);
   const [segNotice, setSegNotice] = useState<string | null>(null);
 
-  function handleMockWarning(_res: Sam2SegmentResponse) {
-    setSegNotice('AI 모델 미로드 — 결과 신뢰 불가. 자동 적용이 차단되었습니다.');
+  function handleMockWarning(res: Sam2SegmentResponse) {
+    // BE ApiResponse.message(고정 상수)를 우선 노출. 미제공 시 폴백 문구. (텍스트 렌더 — XSS 무관)
+    setSegNotice(res.message ?? 'AI 모델 미로드 — 결과 신뢰 불가. 자동 적용이 차단되었습니다.');
   }
   function handleLowConfidence(res: Sam2SegmentResponse) {
     setSegNotice(`낮은 신뢰도(${(res.score * 100).toFixed(0)}%) — 결과를 확인 후 적용하세요.`);

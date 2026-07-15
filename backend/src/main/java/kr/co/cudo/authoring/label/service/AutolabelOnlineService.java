@@ -93,10 +93,20 @@ public class AutolabelOnlineService {
     private final Set<Long> inFlight = ConcurrentHashMap.newKeySet();
 
     /**
+     * 오토라벨 오케스트레이션 결과 — <b>내부 전용</b>(FE-facing DTO 아님).
+     *
+     * <p>{@code mock} 은 ai-server 내부 mock(모델 미로드) 여부로, 컨트롤러가 이를 읽어
+     * {@code ApiResponse.message} 에 안내를 세팅한다(SAM2 세그와 대칭). {@link AutolabelResponse}
+     * 자체에는 mock 플래그를 두지 않아 FE 계약을 불변으로 유지한다.
+     */
+    public record AutolabelOutcome(AutolabelResponse response, boolean mock) {
+    }
+
+    /**
      * 오토라벨 오케스트레이션 — <b>non-transactional</b>. AI 블로킹 호출을 트랜잭션 밖에서 수행하고
      * 저장만 {@link AutolabelPersistService}(짧은 트랜잭션)에 위임한다(F-1).
      */
-    public AutolabelResponse autolabel(Long srcSn, TokenClaims actor) {
+    public AutolabelOutcome autolabel(Long srcSn, TokenClaims actor) {
         // 1) IDOR 최우선 — 본인 배정 프레임 검증 후 프레임 획득(rawSn/경로 확보). (non-tx: 단순 스칼라 조회)
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
         Long rawSn = src.getRawSn();
@@ -117,11 +127,13 @@ public class AutolabelOnlineService {
             List<YoloResponse.Detection> detections =
                     (resp == null || resp.detections() == null) ? List.of() : resp.detections();
 
-            // mock 응답: DB 저장하지 않고 플래그만 반환 (학습데이터 오염 방지, FE 자동적용 차단).
+            // mock 안전장치: 내부 YoloResponse.mock() 을 계속 읽어 DB 저장을 스킵한다(학습데이터 오염 방지).
+            // FE 계약(AutolabelResponse)에는 mock 플래그가 없으므로 savedCount=0 + 빈 labels 로 미저장을 신호한다.
             if (mock) {
                 log.warn("[Autolabel] mock response — skip persist srcSn={} source={} reason={}",
                         srcSn, LogSanitizer.sanitize(resp.source()), LogSanitizer.sanitize(resp.mockReason()));
-                return new AutolabelResponse(srcSn, 0, true, List.of());
+                // mock 신호를 컨트롤러로 전달 → ApiResponse.message 에 안내 세팅(자동적용 차단). savedCount=0 skip-save 유지.
+                return new AutolabelOutcome(new AutolabelResponse(srcSn, 0, List.of()), true);
             }
 
             // 5) 좌표 검증 — 하나라도 비정상이면 저장 없이 400(부분 저장 방지, fail-closed).
@@ -131,7 +143,7 @@ public class AutolabelOnlineService {
 
             // 6) 저장 — 짧은 control 트랜잭션(삭제+삽입 원자성 + TOCTOU 잠금 재확인)에 위임.
             List<AutolabelResponse.Item> items = persistService.persist(srcSn, rawSn, detections, actor);
-            return new AutolabelResponse(srcSn, items.size(), false, items);
+            return new AutolabelOutcome(new AutolabelResponse(srcSn, items.size(), items), false);
         } finally {
             inFlight.remove(srcSn);
         }
