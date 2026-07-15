@@ -3,7 +3,7 @@
 #   사용: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 #
 #   목적: 관제/포털/비식별/실VLM 등 외부 서버 0개로 전 시나리오를 띄워 검증.
-#   - ai-server: mock 이 아닌 CPU 실추론 + RT-DETR 백엔드 (GPU 불필요 — Mac 등 호환).
+#   - ai-server: mock 이 아닌 CPU 실추론 + YOLOX 탐지(onnxruntime) (GPU 불필요 — Mac 등 호환).
 #   - 호스트 절대경로(/data) 대신 named volume → 비-Linux/비-서버 환경에서도 기동.
 #   - 비식별은 backend local 프로파일의 mock-mode(application-local.yml)로 자동 no-op
 #     (실 비식별 서버 부재 — Phase 1). VLM 은 local 에서 enabled=false.
@@ -59,7 +59,7 @@ services:
     deploy:
       resources:
         limits:
-          # CPU 실추론(RT-DETR/SAM2) 메모리 여유 확보
+          # CPU 실추론(YOLOX/SAM2) 메모리 여유 확보
           memory: 4096m
 
 volumes:
