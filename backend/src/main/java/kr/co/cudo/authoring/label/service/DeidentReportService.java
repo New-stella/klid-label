@@ -94,8 +94,14 @@ public class DeidentReportService {
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
         Long reporterNo = accessGuard.parseUserNo(actor.sub());
 
-        // 2) 영상 로드
-        LsDataRaw raw = videoRepository.findById(src.getRawSn())
+        // 2) 영상 로드 — 부모 RAW 행을 PESSIMISTIC_WRITE(SELECT … FOR UPDATE)로 잠금 조회한다
+        //    (HIGH — PII TOCTOU 차단). 비잠금 findById 로 읽으면 read→markDeidentified('F') flush 사이
+        //    창에서 동시 증강 콜백(AugmentResultService.createAugmentedVideo)의 findByRawSnForUpdate 가
+        //    아직 커밋된 'Y' 를 읽어 PII 파생 증강본을 'Y'+MARKING_READY 로 확정·스트리밍하는 사고가 난다
+        //    (CWE-359). read 시점부터 커밋까지 부모 row 잠금을 유지하면, 증강 tx 는 신고가 'F' 를 커밋할
+        //    때까지 같은 row 에서 직렬화되어 대기 후 'F' 를 관측→자식 생성을 게이트에서 보류한다.
+        //    본 서비스는 @Transactional("controlTransactionManager")(readOnly 아님) 안이므로 락이 유지된다.
+        LsDataRaw raw = videoRepository.findByRawSnForUpdate(src.getRawSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
         Long rawSn = raw.getRawSn();
 

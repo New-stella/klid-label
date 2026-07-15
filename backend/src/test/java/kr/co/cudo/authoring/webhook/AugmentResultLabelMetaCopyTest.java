@@ -53,6 +53,8 @@ class AugmentResultLabelMetaCopyTest {
     @Mock LsDataLblRepository lblRepository;
     @Mock LsDataMetaRepository metaRepository;
     @Mock kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository augLblMapRepository;
+    @Mock kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository deidentProcLogRepository;
+    @Mock kr.co.cudo.authoring.batch.runner.AsyncVideoMetaRunner asyncVideoMetaRunner;
 
     private AugmentResultService service;
     private final AtomicLong rawSnSeq = new AtomicLong(9000);
@@ -61,7 +63,8 @@ class AugmentResultLabelMetaCopyTest {
     @BeforeEach
     void setup() {
         service = new AugmentResultService(augRepository,
-                videoRepository, srcRepository, lblRepository, metaRepository, augLblMapRepository);
+                videoRepository, srcRepository, lblRepository, metaRepository, augLblMapRepository,
+                deidentProcLogRepository, asyncVideoMetaRunner);
 
         // save mocks — ID 자동 채번
         when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
@@ -109,6 +112,8 @@ class AugmentResultLabelMetaCopyTest {
                 "clip-" + rawSn, "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_ANONY, "/storage/raw/" + rawSn + ".mp4", null, 60);
         setField(raw, "rawSn", rawSn);
+        // R8 — createAugmentedVideo 가 콜백 처리 시점에 부모 DE_IDNTF_YN='Y' 를 재확인하므로 부모를 비식별 완료로 둔다.
+        raw.markDeidentified("Y");
         return raw;
     }
 
@@ -125,7 +130,7 @@ class AugmentResultLabelMetaCopyTest {
     }
 
     private void stubAugAccept(Long augSn, LsDataAug aug) {
-        when(augRepository.findById(augSn)).thenReturn(Optional.of(aug));
+        when(augRepository.findByDataAugSnForUpdate(augSn)).thenReturn(Optional.of(aug));
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -144,7 +149,7 @@ class AugmentResultLabelMetaCopyTest {
 
         stubAugAccept(20L, aug);
         when(srcRepository.findById(200L)).thenReturn(Optional.of(originSrc));
-        when(videoRepository.findById(100L)).thenReturn(Optional.of(parentRaw));
+        when(videoRepository.findByRawSnForUpdate(100L)).thenReturn(Optional.of(parentRaw));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(100L)).thenReturn(List.of(originSrc));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of(originalLabel));
         when(metaRepository.findByRawSn(100L)).thenReturn(List.of());
@@ -187,7 +192,7 @@ class AugmentResultLabelMetaCopyTest {
 
         stubAugAccept(21L, aug);
         when(srcRepository.findById(300L)).thenReturn(Optional.of(originSrc));
-        when(videoRepository.findById(101L)).thenReturn(Optional.of(parentRaw));
+        when(videoRepository.findByRawSnForUpdate(101L)).thenReturn(Optional.of(parentRaw));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(101L)).thenReturn(List.of(originSrc));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
         when(metaRepository.findByRawSn(101L)).thenReturn(List.of(meta1, meta2));
@@ -228,7 +233,7 @@ class AugmentResultLabelMetaCopyTest {
 
         stubAugAccept(22L, aug);
         when(srcRepository.findById(400L)).thenReturn(Optional.of(originSrc));
-        when(videoRepository.findById(102L)).thenReturn(Optional.of(parentRaw));
+        when(videoRepository.findByRawSnForUpdate(102L)).thenReturn(Optional.of(parentRaw));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(102L)).thenReturn(List.of(originSrc));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
         when(metaRepository.findByRawSn(102L)).thenReturn(List.of());
@@ -258,7 +263,7 @@ class AugmentResultLabelMetaCopyTest {
 
         stubAugAccept(23L, aug);
         when(srcRepository.findById(500L)).thenReturn(Optional.of(originSrc));
-        when(videoRepository.findById(103L)).thenReturn(Optional.of(parentRaw));
+        when(videoRepository.findByRawSnForUpdate(103L)).thenReturn(Optional.of(parentRaw));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(103L)).thenReturn(List.of(originSrc));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
         when(metaRepository.findByRawSn(103L)).thenReturn(List.of());
@@ -294,7 +299,7 @@ class AugmentResultLabelMetaCopyTest {
 
         stubAugAccept(24L, aug);
         when(srcRepository.findById(600L)).thenReturn(Optional.of(frame0));
-        when(videoRepository.findById(104L)).thenReturn(Optional.of(parentRaw));
+        when(videoRepository.findByRawSnForUpdate(104L)).thenReturn(Optional.of(parentRaw));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(104L)).thenReturn(List.of(frame0, frame1));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of(lbl0, lbl1));
         when(metaRepository.findByRawSn(104L)).thenReturn(List.of());

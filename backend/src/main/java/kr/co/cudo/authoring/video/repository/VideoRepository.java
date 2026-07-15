@@ -1,10 +1,12 @@
 package kr.co.cudo.authoring.video.repository;
 
+import jakarta.persistence.LockModeType;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +21,22 @@ import java.util.Optional;
 public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
 
     Optional<LsDataRaw> findByVmsClipId(String vmsClipId);
+
+    /**
+     * 부모 RAW 행을 {@link LockModeType#PESSIMISTIC_WRITE}(SELECT … FOR UPDATE)로 잠금 조회한다
+     * (HIGH #1 — 증강본 비식별 게이트 TOCTOU 차단).
+     *
+     * <p>증강 콜백은 부모의 {@code DE_IDNTF_YN='Y'} 를 확인한 뒤 증강본을 {@code MARKING_READY}(스트리밍
+     * 가능)로 확정한다. 이 확인~커밋 사이에 동시 비식별 신고({@code DeidentReportService.report})가 부모를
+     * {@code 'F'} 로 전이시키면, 신고로 노출본으로 되돌아간 부모에서 파생된 PII 증강본이 스트리밍되는 사고가
+     * 났다(CWE-359). 신고 경로는 부모 RAW 행을 {@code markDeidentified('F')} 로 UPDATE 하므로, 본 행 잠금이
+     * 신고의 UPDATE 와 같은 row 에서 경합한다. 증강 tx 가 먼저 잠그면 {@code 'Y'} 를 고정한 채 커밋할 때까지
+     * 신고 UPDATE 가 직렬화되고, 신고가 먼저 {@code 'F'} 를 커밋하면 증강은 잠금 획득 후 {@code 'F'} 를 읽고
+     * 생성을 보류한다. 잠금은 caller {@code @Transactional} 종료까지 유지된다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM LsDataRaw r WHERE r.rawSn = :rawSn")
+    Optional<LsDataRaw> findByRawSnForUpdate(@Param("rawSn") Long rawSn);
 
     Page<LsDataRaw> findAllByOrderByRegDtDesc(Pageable pageable);
 

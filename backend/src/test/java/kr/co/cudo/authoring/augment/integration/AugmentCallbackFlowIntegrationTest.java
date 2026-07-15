@@ -83,6 +83,7 @@ class AugmentCallbackFlowIntegrationTest {
     @Autowired private LsDataMetaRepository metaRepository;
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private WebhookIdempotencyLedger ledger;
+    @Autowired private kr.co.cudo.authoring.video.service.VideoStreamService videoStreamService;
 
     @Value("${authoring.jwt.secret}") private String jwtSecret;
     @Value("${authoring.jwt.issuer}") private String jwtIssuer;
@@ -110,6 +111,10 @@ class AugmentCallbackFlowIntegrationTest {
                 "AUGCB-" + clipSuffix, "CCTV-AUGCB", "EVT", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/AUGCB-" + clipSuffix + ".mp4",
                 LocalDateTime.now(), 30));
+        // R8 — 부모는 비식별 완료 영상. createAugmentedVideo 가 콜백 처리 시점에 부모 DE_IDNTF_YN='Y' 를
+        // 재확인하므로(PII 노출 차단), 정상 파생 시드는 부모를 비식별 완료로 둔다.
+        parent.markDeidentified("Y");
+        parent = videoRepository.save(parent);
         LsDataSrc frame0 = srcRepository.save(
                 LsDataSrc.create(parent.getRawSn(), 0, parent.getRawSn() + "/f0.jpg", null));
         LsDataSrc frame1 = srcRepository.save(
@@ -155,8 +160,8 @@ class AugmentCallbackFlowIntegrationTest {
     // ─── 테스트 ─────────────────────────────────────────────
 
     @Test
-    @DisplayName("서명된_콜백수신시_신규영상이_PARENT_RAW_SN원본_PENDING으로_생성된다")
-    void signedCallbackCreatesPendingChildVideo() throws Exception {
+    @DisplayName("서명된_콜백수신시_신규영상이_ORGNL_RAW_SN원본_MARKING_READY로_생성된다")
+    void signedCallbackCreatesMarkingReadyChildVideo() throws Exception {
         Seed s = seedOriginWithAug("NEW", "WINTER", "AUGCB-K-NEW", "AUGCB-J-NEW");
         AugmentResultRequest payload = new AugmentResultRequest(
                 s.aug().getDataAugSn(), "AUGCB-J-NEW", "WINTER", "SUCCESS",
@@ -176,8 +181,16 @@ class AugmentCallbackFlowIntegrationTest {
         LsDataRaw child = findChildOf(s.parentRaw().getRawSn());
         assertThat(child).as("신규 증강 영상이 생성되어야 함").isNotNull();
         assertThat(child.getOrgnlRawSn()).isEqualTo(s.parentRaw().getRawSn());
-        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
+        // R8 — 재비식별 skip 대신 비식별 완료 불변식 재현: 새 영상은 MARKING_READY + DE_IDNTF_YN='Y' 로 진입.
+        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(child.getDeIdntfYn()).isEqualTo("Y");
         assertThat(child.getRawFilePathNm()).isEqualTo("/storage/augment/AUGCB-NEW.mp4");
+
+        // HIGH-1 — 마킹 스트림이 가능하도록 SUCCESS procLog 가 같은 트랜잭션에 남아야 한다.
+        // resolveDeidPath 가 null 이면(procLog 부재) 스트리밍이 NOT_FOUND 로 거부돼 마킹 불가.
+        assertThat(videoStreamService.resolveDeidPath(child.getRawSn()))
+                .as("증강본 마킹 스트림을 위한 비식별 결과 경로가 도출되어야 함")
+                .isEqualTo("/storage/augment/AUGCB-NEW.mp4");
     }
 
     @Test
@@ -218,8 +231,8 @@ class AugmentCallbackFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("생성된_증강영상이_영상리스트조회에_PENDING으로_노출된다")
-    void childVideoVisibleInListAsPending() throws Exception {
+    @DisplayName("생성된_증강영상이_영상리스트조회에_MARKING_READY로_노출된다")
+    void childVideoVisibleInListAsMarkingReady() throws Exception {
         Seed s = seedOriginWithAug("LIST", "RAIN", "AUGCB-K-LIST", "AUGCB-J-LIST");
         AugmentResultRequest payload = new AugmentResultRequest(
                 s.aug().getDataAugSn(), "AUGCB-J-LIST", "RAIN", "SUCCESS",
@@ -237,14 +250,14 @@ class AugmentCallbackFlowIntegrationTest {
         LsDataRaw child = findChildOf(s.parentRaw().getRawSn());
         assertThat(child).isNotNull();
 
-        // GET /v1/videos?dataSttsCd=PENDING — 신규 영상이 PENDING 으로 노출
-        mockMvc.perform(get("/v1/videos?dataSttsCd=PENDING&page=0&size=100")
+        // GET /v1/videos?dataSttsCd=MARKING_READY — 신규 영상이 마킹 진입 상태로 노출(R8)
+        mockMvc.perform(get("/v1/videos?dataSttsCd=MARKING_READY&page=0&size=100")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[?(@.id == " + child.getRawSn() + ")]").exists())
                 .andExpect(jsonPath("$.data.content[?(@.id == " + child.getRawSn()
-                        + ")].dataSttsCd").value(org.hamcrest.Matchers.hasItem(LsDataRaw.STATUS_PENDING)));
+                        + ")].dataSttsCd").value(org.hamcrest.Matchers.hasItem(LsDataRaw.DATA_STTS_MARKING_READY)));
     }
 
     @Test

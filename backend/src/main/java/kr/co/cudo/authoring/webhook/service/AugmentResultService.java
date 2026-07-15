@@ -7,9 +7,12 @@ import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.batch.runner.AsyncVideoMetaRunner;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.ExternalUrlValidator;
@@ -21,6 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.HashMap;
 import java.util.List;
@@ -65,6 +70,17 @@ public class AugmentResultService {
     private final LsDataLblRepository lblRepository;
     private final LsDataMetaRepository metaRepository;
     private final LsDataAugLblMapRepository augLblMapRepository;
+    /**
+     * R8 — 증강본 비식별 완료 불변식 재현용. 증강본은 이미 비식별된 소스 파생이므로 재비식별(DeidentifyStep)은
+     * 우회하되, {@link VideoStreamService#resolveDeidPath} 가 요구하는 SUCCESS procLog 를 같은 트랜잭션에
+     * 남겨 마킹 스트리밍이 가능하도록 한다.
+     */
+    private final LsDeidentProcLogRepository deidentProcLogRepository;
+    /**
+     * R8 — 증강본 기술메타(ffprobe) 추출 트리거. {@code VideoIngestedEvent} 미발행 경로라 메타추출 브리지가
+     * 스킵되므로 증강 생성 커밋 후 직접 호출한다(비식별은 트리거하지 않음 — 재비식별 skip 유지).
+     */
+    private final AsyncVideoMetaRunner asyncVideoMetaRunner;
 
     /**
      * @return true = 신규 적재 / false = 재전송 멱등 스킵(신규 영상 미생성)
@@ -74,13 +90,17 @@ public class AugmentResultService {
         // 1) SSRF — raw_file_path_nm
         validateFilePath(req.rawFilePathNm());
 
-        // 2) 대상 증강 행 조회 (data_aug_sn = 요청 시 발급된 LS_DATA_AUG PK)
-        LsDataAug aug = augRepository.findById(req.dataAugSn())
+        // 2) 대상 증강 행 조회 (data_aug_sn = 요청 시 발급된 LS_DATA_AUG PK).
+        //    MED #2 — 같은 dataAugSn 동시 콜백을 직렬화하기 위해 PESSIMISTIC_WRITE(FOR UPDATE)로 잠금 조회한다.
+        //    이렇게 해야 아래 1차 앵커(non-PENDING skip)의 read-then-act 가 원자적이 되어, 서로 다른
+        //    otsd_job_id 를 가진 동시 콜백이 둘 다 PENDING 을 통과해 이중 영상을 만드는 창이 닫힌다.
+        LsDataAug aug = augRepository.findByDataAugSnForUpdate(req.dataAugSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "증강 행을 찾을 수 없습니다: dataAugSn=" + req.dataAugSn()));
 
         // 3) 재전송 멱등 방어(1차 앵커) — 이미 종결(non-PENDING)된 행이면 재전송이다 → skip.
-        //    순차 재전송(webhook 재시도)은 여기서 완전히 차단되어 중복 영상이 생성되지 않는다.
+        //    순차 재전송(webhook 재시도) + 위 행 잠금으로 직렬화된 동시 콜백 후행은 여기서 차단되어
+        //    중복 영상이 생성되지 않는다.
         if (!LsDataAug.STTS_PENDING.equals(aug.getAugProcSttsCd())) {
             log.info("[Webhook][Augment] duplicate result skipped dataAugSn={} otsdJobId={} state={}",
                     req.dataAugSn(), safe(req.otsdJobId()), safe(aug.getAugProcSttsCd()));
@@ -125,8 +145,16 @@ public class AugmentResultService {
     }
 
     /**
-     * V2.0 — 증강 성공 시 새 영상(RAW_SN) 생성 + 원본 프레임/라벨/메타 복사.
-     * 새 영상은 PENDING 상태로 시작하여 기존 배정/검수 흐름을 따른다.
+     * V2.0/R8 — 증강 성공 시 새 영상(RAW_SN) 생성 + 원본 프레임/라벨/메타 복사 + 비식별 완료 불변식 재현.
+     *
+     * <p><b>단일 트랜잭션 원자성 (Critical)</b>: 본 메서드는 {@link #handle} 의 트랜잭션에 참여해야 한다.
+     * {@code REQUIRES_NEW} 로 분리하면 안 된다 — 새 영상/프레임/라벨/메타 복사와 비식별 완료 불변식
+     * (DE_IDNTF_YN='Y' + SUCCESS procLog + MARKING_READY)이 한 커밋으로 원자 확정돼야, 부분 실패 시
+     * 반쪽짜리 증강본(스트리밍 불가/PII 노출)이 남지 않는다. {@code private} 유지로 자기호출 우회를 강제한다.
+     *
+     * <p><b>R8 재비식별 skip</b>: 증강본은 이미 비식별된 소스에서 파생됐으므로 {@code DeidentifyStep} 을
+     * 우회한다. 다만 마킹/라벨링 진입을 위해 비식별 완료와 동치인 상태({@code MARKING_READY})와
+     * SUCCESS procLog 를 같은 트랜잭션에 남긴다.
      */
     private void createAugmentedVideo(LsDataAug aug, AugmentResultRequest req) {
         LsDataSrc originSrc = srcRepository.findById(aug.getSrcSn()).orElse(null);
@@ -134,9 +162,32 @@ public class AugmentResultService {
             log.warn("[Webhook][Augment] originSrc not found srcSn={} — skip video creation", aug.getSrcSn());
             return;
         }
-        LsDataRaw parentRaw = videoRepository.findById(originSrc.getRawSn()).orElse(null);
+        // HIGH #1 — 부모 RAW 를 PESSIMISTIC_WRITE(FOR UPDATE)로 재조회해 잠근다. 아래 DE_IDNTF_YN 게이트
+        // 검사~증강본 커밋을 동시 비식별 신고(DeidentReportService.report 의 부모 markDeidentified('F') UPDATE)와
+        // 같은 row 에서 직렬화한다. 이 잠금이 없으면 검사('Y')와 커밋 사이 창에 신고가 부모를 'F' 로 전이시켜
+        // PII 파생 증강본이 'Y'+MARKING_READY 로 확정·스트리밍되는 TOCTOU 사고가 난다(CWE-359).
+        LsDataRaw parentRaw = videoRepository.findByRawSnForUpdate(originSrc.getRawSn()).orElse(null);
         if (parentRaw == null) {
             log.warn("[Webhook][Augment] parentRaw not found rawSn={} — skip video creation", originSrc.getRawSn());
+            return;
+        }
+
+        // HIGH — R8: "이미 비식별된 소스 파생" 전제를 <b>요청 시점이 아닌 콜백 처리 시점</b>에 재검증한다.
+        // 위 행 잠금 하에서 읽으므로, 동시 신고가 'F' 를 먼저 커밋했으면 여기서 'F' 를 관측하고 생성을 보류한다.
+        // 부모가 신고('F')/미수행('N') 등으로 DE_IDNTF_YN != 'Y' 이면 증강본은 비식별 보장이 없는 소스에서
+        // 나온 것이므로 생성을 보류한다(BLOCKED). 이렇게 하면 신고로 노출본으로 되돌아간 부모에서 파생된
+        // 증강본이 마킹 스트림으로 노출되는 PII 사고를 차단한다(CWE-359).
+        if (!"Y".equals(parentRaw.getDeIdntfYn())) {
+            log.warn("[Webhook][Augment] parent not deidentified — blocking augmented video parentRawSn={} deIdntfYn={}",
+                    parentRaw.getRawSn(), safe(parentRaw.getDeIdntfYn()));
+            return;
+        }
+
+        // 프레임 조회 — MED 가드: 프레임이 없으면 라벨링 대상이 없는 빈 증강본이므로 생성 보류.
+        List<LsDataSrc> parentFrames = srcRepository.findByRawSnOrderByFrameNoAsc(parentRaw.getRawSn());
+        if (parentFrames.isEmpty()) {
+            log.warn("[Webhook][Augment] parent has no frames — blocking augmented video parentRawSn={}",
+                    parentRaw.getRawSn());
             return;
         }
 
@@ -144,7 +195,6 @@ public class AugmentResultService {
         LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(parentRaw, filePath, req.augTypeCd()));
 
         // 프레임 일괄 복사 (saveAll batch)
-        List<LsDataSrc> parentFrames = srcRepository.findByRawSnOrderByFrameNoAsc(parentRaw.getRawSn());
         List<LsDataSrc> newFrames = parentFrames.stream()
                 .map(f -> LsDataSrc.create(newRaw.getRawSn(), f.getFrameNo(), f.getVideoFrameNo(), f.getSrcFilePathNm(), f.getShtDt()))
                 .toList();
@@ -182,9 +232,51 @@ public class AugmentResultService {
                 .toList();
         metaRepository.saveAll(copiedMetas);
 
-        log.info("[Webhook][Augment] new video created rawSn={} orgnlRawSn={} augType={} frames={} labels={} metas={}",
+        // R8 — 재비식별 skip 대신 비식별 완료 불변식을 같은 트랜잭션에 원자 재현(DeidentifyStep 성공 경로 동치):
+        //  1) DE_IDNTF_YN='Y'  2) SUCCESS procLog  3) MARKING_READY.
+        // 증강본은 이미 비식별된 소스 파생이라 산출 영상 자체가 비식별본이며, 비식별 결과 경로 = 증강본 파일 경로다.
+        // 이 불변식이 없으면 VideoStreamService.resolveDeidPath 가 스트리밍을 NOT_FOUND 로 거부해 마킹이 불가하다.
+        markAugmentedAsDeidentified(newRaw, filePath);
+
+        // 메타추출(정석) — VideoIngestedEvent 미발행으로 스킵되는 ffprobe 기술메타(fps/해상도/길이)를 보충한다.
+        // 재비식별은 절대 트리거하지 않는다(비식별 skip 유지) — AsyncVideoMetaRunner 직접 호출만 수행.
+        triggerMetaExtractionAfterCommit(newRaw.getRawSn());
+
+        log.info("[Webhook][Augment] new video created rawSn={} orgnlRawSn={} augType={} frames={} labels={} metas={} dataStts={}",
                 newRaw.getRawSn(), parentRaw.getRawSn(), req.augTypeCd(),
-                parentFrames.size(), copiedLabelCount, parentMetas.size());
+                parentFrames.size(), copiedLabelCount, parentMetas.size(), newRaw.getDataSttsCd());
+    }
+
+    /**
+     * 증강본을 비식별 완료 상태로 확정 — DeidentifyStep 성공 경로의 원자 불변식 재현(R8).
+     * <p>DE_IDNTF_YN='Y' + SUCCESS procLog(비식별 결과 경로=증강본 파일 경로) + MARKING_READY 를
+     * {@link #createAugmentedVideo} 트랜잭션 내에서 함께 확정한다.
+     */
+    private void markAugmentedAsDeidentified(LsDataRaw newRaw, String filePath) {
+        newRaw.markDeidentified("Y");
+        newRaw.markMarkingReady();
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(newRaw.getRawSn(), null, filePath, "aug-callback");
+        procLog.succeed(filePath);
+        deidentProcLogRepository.save(procLog);
+    }
+
+    /**
+     * 증강본 메타추출을 <b>커밋 이후</b>에 트리거한다. 메타추출({@link AsyncVideoMetaRunner#runAsync})은
+     * REQUIRES_NEW 독립 트랜잭션에서 새 RAW_SN 을 재조회하므로, 외부 트랜잭션 커밋 전에 호출하면 새 영상이
+     * 아직 보이지 않아 메타추출이 스킵되는 레이스가 생긴다. 트랜잭션 동기화가 활성이면 AFTER_COMMIT 으로 미룬다.
+     * 동기화 미활성(단위 테스트 등)이면 직접 호출로 폴백한다.
+     */
+    private void triggerMetaExtractionAfterCommit(Long newRawSn) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    asyncVideoMetaRunner.runAsync(newRawSn);
+                }
+            });
+        } else {
+            asyncVideoMetaRunner.runAsync(newRawSn);
+        }
     }
 
     /**
