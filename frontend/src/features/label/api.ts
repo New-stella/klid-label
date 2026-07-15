@@ -443,10 +443,14 @@ export async function sam2TrackAllChunks(
       const last = res.tracked[res.tracked.length - 1];
       if (!last) {
         // 다음 청크로 이어갈 폴리곤이 없음 — 이어붙이기 불가로 부분 실패 처리.
+        // BE 계약상 성공 응답의 tracked 는 요청 nextSrcSns 개수만큼 채워지므로 도달 불가하나,
+        // 향후 계약 변경(빈 tracked 허용) 대비 방어. completedChunks 는 실패 catch 분기와
+        // 동일하게 '결과를 낸 완료 청크 수(c)' 로 통일 — 빈 결과 청크는 완료로 세지 않아
+        // 실패구간 안내가 실제 완료/실패 청크와 일치한다.
         throw new Sam2TrackChunkError(
           new Error('빈 추적 응답으로 다음 청크를 이어갈 수 없습니다'),
           accumulated,
-          c + 1,
+          c,
           chunks.length,
         );
       }

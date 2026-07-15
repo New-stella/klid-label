@@ -253,6 +253,37 @@ describe('SAM2 Track', () => {
       expect(ce.completedChunks).toBe(1);
       expect(ce.totalChunks).toBe(2);
     });
+
+    it('실패구간_completedChunks_라벨이_실제_완료청크와_일치', async () => {
+      // given — 80프레임 = 2청크. 첫 청크(1000)가 빈 tracked 반환 → 다음 청크 이어붙이기 불가.
+      // 이 방어 분기의 completedChunks 는 실패 catch 분기와 동일하게 '결과를 낸 완료 청크 수'여야 한다.
+      const next = Array.from({ length: 80 }, (_, i) => 201 + i); // 201..280 → 2청크
+      mock.onPost('/frames/1000/sam2-track').reply(200, {
+        success: true,
+        data: { tracked: [] }, // 빈 응답 — BE 계약상 도달 불가하나 계약 변경 대비 방어
+        message: null,
+        errorCode: null,
+      });
+
+      let error: unknown;
+      try {
+        await sam2TrackAllChunks(1000, {
+          trackId: 't-1',
+          prevPolygon: TRIANGLE,
+          label: 'person',
+          nextSrcSns: next,
+        });
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(Sam2TrackChunkError);
+      const ce = error as Sam2TrackChunkError;
+      // 첫 청크가 빈 결과 → 실제 완료(결과 있는) 청크 = 0. 실패 catch 분기(c)와 일관.
+      expect(ce.partial).toHaveLength(0);
+      expect(ce.completedChunks).toBe(0);
+      expect(ce.totalChunks).toBe(2);
+    });
   });
 
   describe('Sam2TrackTool_컴포넌트', () => {
