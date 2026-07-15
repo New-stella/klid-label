@@ -123,9 +123,16 @@ authoring:
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
+    # 학습데이터 파일 산출(export) 루트 — {labeling_root}/{RAW_SN}/v{n}/{orgnl|deid}/ 구조.
+    #   DatasetExportPathResolver 가 이 값을 정규화된 절대경로 base 로 삼아 CWE-22 이탈을 차단한다.
+    labeling-path: ${STORAGE_LABELING_PATH:./storage/labeling}
     # 마킹 스트림 Range 요청당 반환 상한(bytes). 기본 8MB — 값이 작으면(구 1MB) 4배속 재생 시
     # 재요청 폭증으로 버벅임 발생. 1MB 미만 설정은 코드가 안전 기본값(8MB)으로 폴백한다.
     stream-chunk-size: ${STORAGE_STREAM_CHUNK_SIZE:8388608}
+  # 학습데이터 파일 산출(export) 기능 토글 — 검수 승인 시 라벨링 산출물 파일 저장 활성화 여부.
+  #   Phase 1 은 인프라(추적 테이블·경로 리졸버)만 도입하며, 실제 파일 쓰기/승인 연동은 후속 Phase.
+  dataset-export:
+    enabled: ${DATASET_EXPORT_ENABLED:true}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/aug/callback. 운영(dev/stg/prd)에서는 환경변수로 override.
   webhook:

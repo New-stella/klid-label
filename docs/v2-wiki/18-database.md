@@ -36,6 +36,7 @@
 | `LS_LABEL_PRESET` / `LS_LABEL_PRESET_CODE` (V13) | 프리셋 마스터 / 라벨 코드 | [10](10-labeling.md) |
 | `LS_LABEL_VERSION` (V24) | 라벨 버전 스냅샷 (VERSION_HASH, SAVE_REASON_CD, ACTVTN_YN) | [13](13-version-control.md) |
 | `LS_DATA_LBL_HSTRY` | 라벨 변경 이력 | [13](13-version-control.md) |
+| `LS_DATASET_EXPORT` (V105, CONTENT_HASH V106) | 검수 승인(APPROVED) 시 학습데이터 **파일 산출 추적·버전 원장**. 영상(DATA_RAW_SN) 단위 export 누적(EXPORT_VER_NO=count+1, UK(DATA_RAW_SN,EXPORT_VER_NO)), EXPORT_STTS_CD(SUCCEEDED/FAILED), CONTENT_HASH(라벨+프레임설명+영상메타 SHA-256 멱등키). 실제 산출: `{labeling_root}/{RAW_SN}/v{n}/orgnl\|deid/` (승인 AFTER_COMMIT @Async, API 없음) | [24](24-dataset-export.md) |
 
 ### 메타 · 마킹
 | 테이블 | 용도 | 위키 |

@@ -1,7 +1,9 @@
 # 13. 버전관리
 
 > 출처: R1 RQ-SFR-08-04/05, R2 KLID-AT-UC-007/008, CLAUDE.md(라벨링·버전관리), 코드(`version/`)
-> 관련: [12 검수](12-review-assignment.md) · [15 관제서버 통지](15-control-notify.md)
+> 관련: [12 검수](12-review-assignment.md) · [15 관제서버 통지](15-control-notify.md) · [24 학습데이터 파일 산출](24-dataset-export.md)
+
+> **레이어 구분**: 본 페이지의 `LS_LABEL_VERSION`(DB 라벨 스냅샷)과 별개로, 검수 승인 시 확정 라벨을 **디스크 물리 파일**(프레임 이미지 + NIA COCO JSON)로 산출하는 기능은 [24 학습데이터 파일 산출](24-dataset-export.md) 참고.
 
 화면: `KLID-AT-SC-010`(라벨 이력 `/history/:videoId`). 코드: `version/`(11 파일).
 
