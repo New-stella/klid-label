@@ -23,7 +23,7 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 from app.image_utils import decode_image_b64, decode_image_b64_pil
-from app.models import rtdetr_loader, yolox_loader
+from app.models import yolox_loader
 from app.models.detector_backend import DetectionResult, InferenceParams
 from app.schemas import (
     Detection,
@@ -43,9 +43,7 @@ _track_mock_warned: bool = False
 
 @router.post("/predict", response_model=YoloResponse)
 async def predict(req: YoloRequest) -> YoloResponse:
-    """객체 감지 — detector_backend 설정에 따라 yolox(기본)/rtdetr 로 dispatch."""
-    if get_settings().resolved_detector_backend() == "rtdetr":
-        return _predict_rtdetr(req)
+    """객체 감지 — YOLOX (ONNX Runtime) 단일 백엔드."""
     return _predict_yolox(req)
 
 
@@ -55,10 +53,7 @@ def _fallback_reason() -> str:
 
 
 def _warn_mock_once(reason: str, backend: str = "yolox") -> None:
-    """프로세스 수명 동안 mock 응답이 처음 발생할 때 1회만 WARN 로그.
-
-    backend 식별자를 접두사로 반영하여 RT-DETR mock 도 로그에서 구분되도록 한다.
-    """
+    """프로세스 수명 동안 mock 응답이 처음 발생할 때 1회만 WARN 로그."""
     global _mock_warned
     if not _mock_warned:
         logger.warning(
@@ -104,7 +99,7 @@ def reset_mock_warn_flag() -> None:
 
 
 # ────────────────────────────────────────────────────────────────────
-# RT-DETR 백엔드 dispatch (transformers + ByteTrack)
+# YOLOX 백엔드 dispatch (ONNX Runtime + ByteTrack) — 단일 백엔드
 # ────────────────────────────────────────────────────────────────────
 
 def _to_detection(d: DetectionResult) -> Detection:
@@ -116,69 +111,6 @@ def _to_detection(d: DetectionResult) -> Detection:
         track_id=d.track_id,
     )
 
-
-def _predict_rtdetr(req: YoloRequest) -> YoloResponse:
-    """RT-DETR predict dispatch — 미설치/로드실패 시 mock 응답(yolo 와 동일 사유 체계)."""
-    backend = rtdetr_loader.get_rtdetr_model()
-    if backend is None:
-        width, height = decode_image_b64(req.image_b64)
-        reason = rtdetr_loader.get_rtdetr_mock_reason() or _fallback_reason()
-        _warn_mock_once(reason, backend="rtdetr")
-        logger.info(
-            "[RTDETR][MOCK] predict reason=%s conf_threshold=%.2f imgsz=%d image_size=%dx%d",
-            reason, req.conf_threshold, req.imgsz, width, height,
-        )
-        return _mock_predict(width, height, req.conf_threshold, reason)
-
-    img = decode_image_b64_pil(req.image_b64)
-    try:
-        # iou 는 RT-DETR(NMS-free)에서 미사용, imgsz 는 processor resize 힌트로만 사용
-        params = InferenceParams(conf_threshold=req.conf_threshold, imgsz=req.imgsz, iou=req.iou)
-        logger.info(
-            "[RTDETR] real predict conf_threshold=%.2f imgsz=%d image_size=%dx%d",
-            req.conf_threshold, req.imgsz, img.width, img.height,
-        )
-        detections = [_to_detection(d) for d in backend.predict(img, params)]
-        return YoloResponse(detections=detections, mock=False, source="model", mock_reason=None)
-    finally:
-        img.close()
-
-
-def _track_rtdetr(req: YoloTrackRequest) -> YoloTrackResponse:
-    """RT-DETR track dispatch — clip_id 격리 + frame_index=0 리셋(yolo track 동일 계약)."""
-    backend = rtdetr_loader.get_rtdetr_tracker(req.clip_id, reset=(req.frame_index == 0))
-    if backend is None:
-        reason = rtdetr_loader.get_rtdetr_mock_reason() or _fallback_reason()
-        _warn_track_mock_once(reason, backend="rtdetr")
-        logger.info(
-            "[RTDETR][MOCK] track reason=%s clip_id=%s frame_index=%d",
-            reason, req.clip_id, req.frame_index,
-        )
-        return _mock_track(req, reason)
-
-    img = decode_image_b64_pil(req.image_b64)
-    try:
-        params = InferenceParams(
-            conf_threshold=req.conf_threshold,
-            imgsz=req.imgsz,
-            iou=req.iou,
-            clip_id=req.clip_id,
-            frame_index=req.frame_index,
-        )
-        logger.info(
-            "[RTDETR] real track clip_id=%s frame_index=%d conf_threshold=%.2f image_size=%dx%d",
-            req.clip_id, req.frame_index, req.conf_threshold, img.width, img.height,
-        )
-        detections = [_to_detection(d) for d in backend.track(img, params)]
-        return YoloTrackResponse(detections=detections, mock=False, source="model", mock_reason=None)
-    finally:
-        img.close()
-
-
-# ────────────────────────────────────────────────────────────────────
-# YOLOX 백엔드 dispatch (ONNX Runtime + ByteTrack) — 기본 백엔드
-#   _predict_rtdetr / _track_rtdetr 와 동형. yolox_loader 로만 치환했다.
-# ────────────────────────────────────────────────────────────────────
 
 def _predict_yolox(req: YoloRequest) -> YoloResponse:
     """YOLOX predict dispatch — 미설치/가중치부재/로드실패 시 mock 응답(동일 사유 체계)."""
@@ -241,25 +173,20 @@ def _track_yolox(req: YoloTrackRequest) -> YoloTrackResponse:
 
 
 # ────────────────────────────────────────────────────────────────────
-# /track 엔드포인트 — 백엔드 설정에 따라 RT-DETR / YOLOX dispatch 로 분기
+# /track 엔드포인트 — YOLOX (ByteTrack) 단일 백엔드
 # ────────────────────────────────────────────────────────────────────
 
 @router.post("/track", response_model=YoloTrackResponse)
 async def track(req: YoloTrackRequest) -> YoloTrackResponse:
     """clip_id 단위로 트래커 상태를 격리하며 같은 객체에 같은 track_id 부여.
 
-    detector_backend 설정에 따라 yolox(기본, ByteTrack)/rtdetr(ByteTrack) 로 dispatch.
+    YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드.
     """
-    if get_settings().resolved_detector_backend() == "rtdetr":
-        return _track_rtdetr(req)
     return _track_yolox(req)
 
 
 def _warn_track_mock_once(reason: str, backend: str = "yolox") -> None:
-    """프로세스 수명 동안 track mock 응답이 처음 발생할 때 1회만 WARN 로그.
-
-    backend 식별자를 접두사로 반영하여 RT-DETR mock 도 로그에서 구분되도록 한다.
-    """
+    """프로세스 수명 동안 track mock 응답이 처음 발생할 때 1회만 WARN 로그."""
     global _track_mock_warned
     if not _track_mock_warned:
         logger.warning(

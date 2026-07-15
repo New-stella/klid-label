@@ -23,7 +23,7 @@ SKIP_SYSPKGS=1 ./scripts/package.sh
 # 번들 PG16 RPM 수집 생략(타깃에 이미 PostgreSQL 이 있을 때)
 SKIP_POSTGRES=1 ./scripts/package.sh
 
-# HF 모델(rtdetr/sam2)도 사전 다운로드(DETECTOR_BACKEND=rtdetr 또는 SAM2 사용 시)
+# HF 모델(SAM2)도 사전 다운로드(SAM2 사용 시 — 탐지 YOLOX 는 동봉 ONNX 라 불필요)
 PREFETCH_HF=1 ./scripts/package.sh
 
 # frontend 빌드 시점 변수 override (기본 /api/v1, all)
@@ -207,7 +207,7 @@ docker run --rm -v "$PWD/../..:/work" -w /work/deploy/onprem rockylinux:9 bash -
   없을 때만 실패하며 그 경우 → 06-troubleshooting "torch CPU" 절.
 - **sam-2**: requirements 의 `git+https://.../sam2.git` 는 폐쇄망에서 설치 불가 → git 소스를 vendor 해
   설치 시 로컬 경로로 처리한다. Dockerfile 은 torch 를 strip 했지만 **베어메탈은 torch 도 설치**한다.
-- **HF 모델**: yolox 백엔드만 쓰면 불필요. rtdetr/SAM2 사용 시 `PREFETCH_HF=1` 로 미리 받아야 폐쇄망에서 동작.
+- **HF 모델**: 탐지(YOLOX)는 동봉 ONNX 라 불필요. SAM2 사용 시에만 `PREFETCH_HF=1` 로 미리 받아야 폐쇄망에서 동작.
 
 ## 전송
 

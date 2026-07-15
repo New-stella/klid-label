@@ -1,8 +1,7 @@
-"""YOLO 라우터 백엔드 dispatch 테스트 (Phase 2).
+"""YOLO 라우터 dispatch 테스트 (Phase 12 — YOLOX 단일 백엔드).
 
-detector_backend 설정에 따라:
-- 기본(yolox): yolox_loader 경로로 predict/track dispatch
-- rtdetr: rtdetr_loader 경로로 dispatch (회귀 보장)
+탐지/트래킹은 YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드로 일원화됨
+(구 RT-DETR 백엔드는 torch↔torchaudio ABI 불일치로 제거).
 
 HTTP 경로·응답 스키마(YoloResponse/YoloTrackResponse/Detection)는 불변(AC5).
 모든 검증은 mock 모드(conftest AI_MOCK_MODE=true)에서 수행한다.
@@ -14,30 +13,22 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.routers.yolo as yolo_router
-from app.config import reload_settings
 from app.main import app
-from app.models import rtdetr_loader, yolox_loader
+from app.models import yolox_loader
 
 client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def _force_yolox_backend(monkeypatch: pytest.MonkeyPatch):
-    """기본 yolox 경로 검증 — 로컬 .env 의 rtdetr 오버라이드를 차단한다.
-
-    rtdetr 회귀 테스트는 본문에서 다시 setenv("rtdetr")+reload 로 덮어쓴다.
-    """
-    monkeypatch.setenv("DETECTOR_BACKEND", "yolox")
-    reload_settings()
+def _reset_yolox():
+    """매 테스트마다 YOLOX 싱글톤/트래커 상태 초기화."""
     yolox_loader.reset_yolox_model()
     yolox_loader.reset_yolox_trackers()
     yield
-    monkeypatch.delenv("DETECTOR_BACKEND", raising=False)
-    reload_settings()
 
 
 # ────────────────────────────────────────────────────────────────────
-# 기본 백엔드(yolox) dispatch
+# YOLOX dispatch
 # ────────────────────────────────────────────────────────────────────
 
 def test_detector_backend_기본값에서_predict가_yolox_경로로_dispatch됨(
@@ -150,41 +141,29 @@ def test_yolo_loader_모듈이_삭제됨() -> None:
 
 
 # ────────────────────────────────────────────────────────────────────
-# rtdetr 백엔드 회귀 (dispatch 분기 보존)
+# RT-DETR 제거 검증 (YOLOX 단일화)
 # ────────────────────────────────────────────────────────────────────
 
-def test_rtdetr_backend로_전환시에도_predict_track_정상(
-    small_png_b64: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """detector_backend=rtdetr 로 전환해도 predict/track 정상 응답(회귀)."""
-    monkeypatch.setenv("DETECTOR_BACKEND", "rtdetr")
-    reload_settings()
-    rtdetr_loader.reset_rtdetr_model()
-    rtdetr_loader.reset_rtdetr_trackers()
-    yolo_router.reset_mock_warn_flag()
+def test_rtdetr_loader_모듈이_삭제됨() -> None:
+    """rtdetr_loader.py 가 더 이상 존재하지 않는다 (import 실패해야 함)."""
+    with pytest.raises(ModuleNotFoundError):
+        import app.models.rtdetr_loader  # noqa: F401
 
-    try:
-        p = client.post(
-            "/infer/yolo/predict",
-            json={"image_b64": small_png_b64, "conf_threshold": 0.25},
-        )
-        t = client.post(
-            "/infer/yolo/track",
-            json={"image_b64": small_png_b64, "clip_id": "vid-rt", "frame_index": 0},
-        )
-        assert p.status_code == 200 and t.status_code == 200
-        # rtdetr 도 mock 모드면 env_mock 동일 사유 체계
-        assert p.json()["mock"] is True
-        assert t.json()["mock"] is True
-        assert set(p.json().keys()) == {
-            "detections",
-            "mock",
-            "source",
-            "mock_reason",
-            "success",
-            "message",
-            "error_code",
-        }
-    finally:
-        monkeypatch.delenv("DETECTOR_BACKEND", raising=False)
-        reload_settings()
+
+def test_app_routers_yolo에_rtdetr_import가_없음() -> None:
+    """yolo.py 소스에 rtdetr / detector_backend 분기 잔존이 0건이어야 한다."""
+    from pathlib import Path
+
+    src = Path(yolo_router.__file__).read_text(encoding="utf-8")
+    assert "rtdetr" not in src.lower()
+    assert "resolved_detector_backend" not in src
+
+
+def test_config에_detector_backend_설정이_없음() -> None:
+    """config.Settings 에서 detector_backend/rtdetr 설정이 제거됨."""
+    from app.config import Settings
+
+    fields = Settings.model_fields
+    assert "detector_backend" not in fields
+    assert "rtdetr_model_id" not in fields
+    assert not hasattr(Settings, "resolved_detector_backend")

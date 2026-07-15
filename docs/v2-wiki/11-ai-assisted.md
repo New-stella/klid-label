@@ -14,7 +14,7 @@
 
 ## 11.2 YOLO 오토라벨링
 
-> **탐지 백엔드**: `detector_backend` 설정으로 전환 — 기본 **YOLOX(ONNX Runtime, Apache-2.0)**, 대안 RT-DETRv2(transformers). 구 ultralytics YOLOv8(AGPL-3.0)은 제거됨. HTTP 경로(`/infer/yolo/predict`·`/track`)·응답 스키마·배치 단계명(`YoloAutolabelStep`)은 불변(계약 호환). 트래킹은 ByteTrack(roboflow trackers).
+> **탐지 백엔드**: **YOLOX(ONNX Runtime, Apache-2.0) 단일 백엔드**. 구 ultralytics YOLOv8(AGPL-3.0)·RT-DETRv2(transformers) 백엔드는 제거됨(torch↔torchaudio ABI 불일치로 YOLOX 로 통합). HTTP 경로(`/infer/yolo/predict`·`/track`)·응답 스키마·배치 단계명(`YoloAutolabelStep`)은 불변(계약 호환). 트래킹은 ByteTrack(roboflow trackers).
 
 - 배치 단계 `YoloAutolabelStep` — **원본 이미지에만** 객체 탐지
 - 프리셋 필터(이벤트 유형별 라벨) 적용, `track_id` 부여

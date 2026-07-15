@@ -85,7 +85,7 @@ def _mock_reason() -> str:
     """mock 응답 사유를 결정한다.
 
     이슈2 fix: loader 가 추적한 실제 사유(``get_sam2_mock_reason()``)를 우선 위임한다.
-    yolo/rtdetr 라우터와 동일하게, sam2 미설치/로드실패(``load_failed``)인데도
+    yolo 라우터와 동일하게, sam2 미설치/로드실패(``load_failed``)인데도
     ``weights_missing`` 으로 오표기되던 문제를 정정한다.
 
     - loader 사유가 있으면 그 값 (env_mock | weights_missing | load_failed)

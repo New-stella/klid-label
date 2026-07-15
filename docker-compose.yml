@@ -100,9 +100,8 @@ services:
     environment:
       AI_MOCK_MODE: ${AI_MOCK_MODE:-true}
       AI_DEVICE: ${AI_DEVICE:-cuda}
-      # 탐지/트래킹 백엔드: yolox | rtdetr (기본 yolox, ONNX Runtime). 로컬 외부0개 실추론은 docker-compose.local.yml 가 rtdetr 로 override.
-      DETECTOR_BACKEND: ${DETECTOR_BACKEND:-yolox}
-      # 실추론 모델 캐시 영속화 (재생성 간 HF(sam2/rtdetr) 재다운로드 방지)
+      # 탐지/트래킹 백엔드는 YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드.
+      # 실추론 모델 캐시 영속화 (재생성 간 HF(sam2) 재다운로드 방지)
       HF_HOME: ${HF_HOME:-/app/.hf-cache}
     # nvidia 가 기본 런타임이므로 GPU 자동 가시. 명시적 예약도 추가(compose v2.18 지원).
     # GPU 없는 로컬(Mac 등)에서는 docker-compose.local.yml override(runtime: runc + AI_DEVICE=cpu)로 기동.

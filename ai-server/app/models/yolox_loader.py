@@ -1,7 +1,7 @@
 """YOLOX(ONNX Runtime) 탐지 백엔드 로더 + 영상 단위 트래커 LRU/TTL 캐시.
 
-ultralytics YOLOv8 을 대체하는 YOLOX 백엔드. yolo_loader / rtdetr_loader 와 동형 계약을
-가진다(싱글톤 모델 공유 + clip 별 경량 ByteTrack 트래커 + mock 사유 + LRU/TTL).
+ultralytics YOLOv8 을 대체하는 YOLOX 단일 탐지 백엔드(싱글톤 모델 공유 +
+clip 별 경량 ByteTrack 트래커 + mock 사유 + LRU/TTL).
 
 YOLOX 후처리 (ultralytics 와의 차이):
 - YOLOX 공식 ONNX export(tools/export_onnx.py)의 **표준 출력은 raw grid(미디코드)**이며,
@@ -11,7 +11,7 @@ YOLOX 후처리 (ultralytics 와의 차이):
 - decode_in_inference=True 로 export 한 모델은 이미 디코드된 [cx,cy,w,h] 절대좌표를 내므로
   decoded=True 로 grid decode 를 건너뛴다. 분기는 명시적 인자(decoded)로만 한다(휴리스틱 없음).
 
-mock 사유 (yolo/rtdetr 와 동일 체계):
+mock 사유:
 - "env_mock"        : AI_MOCK_MODE=true 환경변수 강제
 - "weights_missing" : ONNX 가중치 파일 부재
 - "load_failed"     : onnxruntime 미설치 또는 세션 로드 중 예외
@@ -332,7 +332,7 @@ class _YoloxBackend:
 
 
 class _YoloxTrackerHandle:
-    """clip_id 별 경량 트래커 상태 핸들 (rtdetr_loader._RtdetrTrackerHandle 패턴).
+    """clip_id 별 경량 트래커 상태 핸들.
 
     무거운 YOLOX 세션은 보유하지 않고 **싱글톤 모델을 공유**하며, 자신은 clip 전용
     ByteTrackTracker 상태만 보유한다. track() 시 공유 세션으로 탐지 후 자신의 트래커로
@@ -461,7 +461,7 @@ def _evict_lru_locked() -> None:
 def get_yolox_tracker(clip_id: str, reset: bool) -> Any | None:
     """clip_id 별 격리 YOLOX 트래커 핸들. mock 모드면 None 반환 (호출자가 mock 처리).
 
-    yolo_loader.get_yolo_tracker / rtdetr_loader.get_rtdetr_tracker 와 동일 계약:
+    트래커 핸들 계약:
     - reset=True 또는 clip_id 미캐시 → 새 핸들
     - 호출 시 TTL 만료 lazy expiration + LRU max 초과 제거
     - threading.Lock 으로 동시성 보호

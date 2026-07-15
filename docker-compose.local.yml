@@ -47,14 +47,13 @@ services:
       # mock 대신 실제 모델 로드 (CPU)
       AI_MOCK_MODE: "false"
       AI_DEVICE: cpu
-      # 탐지/트래킹 기본 백엔드: RT-DETRv2 (transformers, 첫 기동 시 HuggingFace 에서 ~100MB 다운로드 후 캐시)
-      DETECTOR_BACKEND: rtdetr
-      # HuggingFace 캐시를 named volume 에 고정 (컨테이너 사용자 무관, 재기동 시 재다운로드 방지)
+      # 탐지/트래킹 백엔드는 YOLOX (ONNX Runtime, 로컬 yolox_s.onnx 가중치, 오프라인 CPU 동작).
+      # HuggingFace 캐시를 named volume 에 고정 (SAM2 등, 재기동 시 재다운로드 방지)
       HF_HOME: /app/.hf-cache
     # nvidia 런타임 의존 제거 (GPU 없는 환경) — 기본 OCI 런타임 사용
     runtime: runc
     volumes:
-      # 로컬 가중치 마운트 (SAM2 sam2_t.pt 등). YOLO/SAM2 는 로컬 .pt, RT-DETR 은 HF 캐시 사용.
+      # 로컬 가중치 마운트 (YOLOX yolox_s.onnx, SAM2 sam2_t.pt 등).
       - ./ai-server/weights:/app/weights:ro
       - klid-hf-cache:/app/.hf-cache
     deploy:

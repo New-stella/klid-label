@@ -1,9 +1,9 @@
-"""전환 가능한 탐지 백엔드 공통 추상화.
+"""탐지 백엔드 공통 추상화 (YOLOX 백엔드가 사용).
 
-두 백엔드(YOLO / RT-DETR)가 공유하는 중립 자료형과 헬퍼를 정의한다.
+탐지 백엔드가 공유하는 중립 자료형과 헬퍼를 정의한다.
 - DetectionResult: 백엔드 비종속 탐지 결과 (라우터가 schemas.Detection 으로 변환)
 - DetectorBackend: predict/track 인터페이스 (Protocol)
-- coco_label_from_id: RT-DETR id2label → ultralytics 와 동일 의미의 COCO 라벨 매핑
+- coco_label_from_id: class_id → COCO 라벨 매핑
 
 schemas.py 의 스키마/HTTP 경로는 절대 변경하지 않는다 — 이 모듈은 내부 표현일 뿐이고,
 라우터에서 schemas.Detection 으로 매핑되어 기존 응답 계약을 그대로 유지한다.
@@ -20,8 +20,8 @@ class InferenceParams:
     """추론 파라미터 (백엔드 비종속).
 
     - conf_threshold: 신뢰도 임계값
-    - imgsz: 입력 해상도 힌트. RT-DETR 에서는 processor resize 힌트로만 사용된다(의미 변경).
-    - iou: NMS IoU. RT-DETR 은 NMS-free 라 미사용(호환 위해 필드 유지).
+    - imgsz: 입력 해상도 힌트 (YOLOX 전처리 리사이즈)
+    - iou: NMS IoU (YOLOX 클래스별 NMS)
     - clip_id / frame_index: track 시 트래커 격리/리셋용
     """
 
@@ -59,9 +59,9 @@ class DetectorBackend(Protocol):
 
 
 # ────────────────────────────────────────────────────────────────────
-# COCO id2label — RT-DETR(COCO 80 class) → ultralytics 와 동일 의미 라벨
+# COCO id2label — class_id(COCO 80 class) → 표준 COCO 라벨
 # ────────────────────────────────────────────────────────────────────
-# RT-DETR 의 transformers config 가 id2label 을 제공하면 그대로 우선 사용한다.
+# 모델이 id2label 을 제공하면 그대로 우선 사용한다.
 # 제공되지 않는(혹은 키가 없는) 경우를 위해 표준 COCO 80 라벨을 fallback 으로 둔다.
 # ultralytics YOLOv8 의 COCO names 와 동일 명칭이므로 person/car 등 의미가 일치한다.
 COCO_ID2LABEL: dict[int, str] = {
@@ -88,7 +88,7 @@ COCO_ID2LABEL: dict[int, str] = {
 def coco_label_from_id(class_id: int, id2label: dict[int, str] | None) -> str:
     """class_id → 라벨 문자열.
 
-    transformers 모델 config 의 id2label 이 있으면 우선 사용하고,
+    모델 config 의 id2label 이 있으면 우선 사용하고,
     없으면 표준 COCO 80 라벨로 매핑한다. 둘 다 미스면 문자열화한 id 반환.
     """
     if id2label and class_id in id2label:

@@ -120,13 +120,11 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 |------|:----:|-------------|
 | `AI_MOCK_MODE` | · | 기본 false(실제 추론). true=고정 mock |
 | `AI_DEVICE` | ★ | `cpu` (GPU 없음) |
-| `DETECTOR_BACKEND` | · | `yolox`(기본, onnx CPU) \| `rtdetr`(HF 모델 필요) |
-| `RTDETR_MODEL_ID` | · | 기본 `PekingU/rtdetr_v2_r50vd` |
-| `YOLOX_WEIGHTS_PATH` | · | 기본 `/opt/klid/ai/weights/yolox_s.onnx` |
+| `YOLOX_WEIGHTS_PATH` | · | 기본 `/opt/klid/ai/weights/yolox_s.onnx` (탐지 YOLOX 단일 백엔드, ONNX Runtime) |
 | `SAM2_MODEL_ID` | · | 기본 `facebook/sam2-hiera-tiny`(SAM2 사용 시 HF 캐시 필요) |
 | `VLM_MODEL_NAME` | · | 기본 `openai/clip-vit-base-patch32` |
 | `HF_HOME` | · | 오프라인 HF 캐시(기본 `/opt/klid/ai/.hf-cache`) |
-| `HF_HUB_OFFLINE`/`TRANSFORMERS_OFFLINE` | · | 폐쇄망 권장 1 (rtdetr/sam2 캐시 완비 시) |
+| `HF_HUB_OFFLINE`/`TRANSFORMERS_OFFLINE` | · | 폐쇄망 권장 1 (SAM2 캐시 완비 시) |
 | `MAX_IMAGE_SIZE_MB` | · | 기본 10 (1~100) |
 | `CORS_ALLOW_ORIGINS` | · | 기본 `http://127.0.0.1:8080`(env.template, 동일 호스트 backend). 다른 호스트 분리 시 해당 주소로 조정 |
 
