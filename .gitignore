@@ -64,3 +64,22 @@ docs/design/hwpx/
 
 .claude-plan.md
 .claude-progress.md
+.claude-design.md
+# 변형 접미사 붙은 하네스 산출물 (.claude-plan.deident-*, .claude-design.keypoint-* 등)
+.claude-plan.*
+.claude-design.*
+
+# 로그 (빌드/테스트 출력 캡처)
+*.log
+
+# 루트 스크래치 스크린샷 (검증 중 캡처 — d5-*.png, keypoint-*.png, label-*.png 등)
+/*.png
+
+# E2E 테스트 산출물
+frontend/test-results/
+frontend/playwright-report/
+
+# 문서 자동 백업본 (타임스탬프 접미사)
+*.bak-*
+.bak-*/
+docs/design/backup/
