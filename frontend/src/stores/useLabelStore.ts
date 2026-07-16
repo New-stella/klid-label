@@ -173,6 +173,8 @@ interface LabelState {
   removeLabel: (id: string) => void;
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
+  /** 프레임 전환/초기 진입 시 뷰를 fit(zoom=1)·중앙(pan=0)으로 되돌린다(라벨/undo 는 보존). */
+  resetView: () => void;
   undo: () => void;
   redo: () => void;
   clearDirty: () => void;
@@ -203,11 +205,14 @@ interface LabelState {
   reset: () => void;
 }
 
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 8;
+// fit(zoom=1) 을 최소 배율 바닥으로 둔다. zoom<1 이면 이미지가 fit 아래로 축소돼
+// 캔버스 사방에 어두운 여백이 생기므로(버그) 허용하지 않는다. zoom=1 이 곧 한 축을
+// 꽉 채우는 fit 상태이며, 그 이상(줌인)만 허용한다.
+export const MIN_ZOOM = 1.0;
+export const MAX_ZOOM = 8;
 const MAX_UNDO = 50;
 
-function clampZoom(z: number): number {
+export function clampZoom(z: number): number {
   return Math.min(Math.max(z, MIN_ZOOM), MAX_ZOOM);
 }
 
@@ -292,6 +297,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
 
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
   setPan: (x, y) => set({ panX: x, panY: y }),
+  resetView: () => set({ zoom: 1, panX: 0, panY: 0 }),
 
   undo: () => {
     const { undoStack, labels, redoStack } = get();

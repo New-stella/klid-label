@@ -1,6 +1,7 @@
 // 커서 기준 줌(zoom-to-point) 순수 계산 — R17 이슈6.
 // Stage onWheel 에서 호출. clampZoom 동일 한계를 인자로 받아 스토어와 정책 일치.
 
+import { clampPan } from './canvasGeometry';
 import type { Geometry, Point } from './coordinateTransformer';
 import { clamp } from './coordinateTransformer';
 
@@ -43,8 +44,12 @@ export function zoomToPoint(
   const nextLeft = pointer.x - ix * nextScale;
   const nextTop = pointer.y - iy * nextScale;
 
-  const panX = nextLeft - (geom.canvas.width - geom.image.width * nextScale) / 2;
-  const panY = nextTop - (geom.canvas.height - geom.image.height * nextScale) / 2;
+  const rawPanX = nextLeft - (geom.canvas.width - geom.image.width * nextScale) / 2;
+  const rawPanY = nextTop - (geom.canvas.height - geom.image.height * nextScale) / 2;
+
+  // 여백 방지: 줌 결과 pan 을 클램프해 이미지가 캔버스를 덮도록(반대편 빈 공간 차단).
+  // buildGeometry 도 동일 클램프를 적용하므로 store pan 과 렌더 geometry 가 일치한다.
+  const { panX, panY } = clampPan(geom.image, geom.canvas, nextScale, rawPanX, rawPanY);
 
   return { zoom: nextZoom, panX, panY };
 }
