@@ -46,9 +46,12 @@
 
 ### image 블록 주요 필드
 - `file_name` = `frame-{frameNo}.jpg`, `frame_num` = frameNo, `width`/`height` = 영상 메타 해상도.
+- `orign_file_name` = **산출 종류별 원천 소스 파일 basename** — orgnl 은 `LS_DATA_SRC.SRC_FILE_PATH_NM`, deid 는 `DE_IDNTF_SRC_FILE_PATH_NM` 의 basename.
 - `description` = `LS_DATA_SRC.FRM_EXPLN`(작업자 수기 프레임 설명). 미입력 시 null.
 - `anonymity` = **orgnl → `N`, deid → `Y`** (산출 종류로 결정).
 - `pseudonymity` = 영상 개인정보 유형이 `PSDO` 이면 `Y`, 아니면 `N`.
+
+> **orgnl ↔ deid JSON 델타(소비측 주의)**: 같은 프레임의 원본/비식별 JSON 은 **`anonymity`(N/Y) 와 `orign_file_name`(원천 소스 파일명)** 만 다르다. **`file_name`(`frame-{n}.jpg`)·`frame_num`·좌표·`annotations`·해상도·`description` 은 동일**하다(동일 basename 은 원본↔비식별 페어링을 위한 의도된 설계이며, 두 벌은 폴더 경로 `orgnl/`·`deid/` 로 구분된다). 즉 "이미지 파일명이 다르다"가 아니라 "**폴더와 anonymity·원천파일명이 다르다**"가 정확한 서술이다.
 
 ### annotations 블록 (타입별)
 - `BBOX`/`TRACK` → `bbox=[x, y, w, h]` (POINT_CN min/max 바운딩, 픽셀 그대로).
@@ -86,7 +89,8 @@
 
 - 사용된 `LS_LABEL` → `NiaCategory`(id·name·type). type: BBOX/TRACK→`bbox`, POLYGON/SEGMENT→`polygon`, POINT/SKELETON→`keypoints`.
 - keypoints 타입 카테고리에는 COCO-17 관절명(`keypoints`)과 스켈레톤 엣지(`skeleton`)를 주입한다(`KeypointSkeleton`).
-- **⚠ SKELETON_EDGES 는 1-indexed(COCO 표준 관절 번호쌍)** 이다. 관절명 리스트(`KEYPOINT_NAMES`)는 0-based 이지만, 스켈레톤 엣지 표기는 **1-based** 다(xlsx 예시가 0-indexed 로 표기한 것과 다름 — 소비측 오독 방지). 두 표기가 섞이지 않도록 주의.
+- **⚠ SKELETON_EDGES 는 1-indexed(COCO 표준 관절 번호쌍)** 이다. 관절명 리스트(`KEYPOINT_NAMES`)는 0-based 인덱스로 접근하지만, 스켈레톤 엣지의 관절 번호는 **1-based**(예: `[16,14]` = 16번 left_ankle ↔ 14번 left_knee, 배열 접근 시 −1)다. 이는 COCO person-keypoints 표준 토폴로지와 정확히 일치하며 BE `KeypointSkeleton.SKELETON_EDGES` ↔ FE `COCO_SKELETON` 이 동일 값으로 잠겨 있다(FE 테스트 `keypointConstants.test.ts` 로 parity 검증, 렌더러는 `keypoints[a−1]` 로 소비).
+  - **정본 대조**: xlsx v1.3 은 `skeleton` 필드를 "키포인트 연결 정보(`number[]`)"로만 선언하고 **index base(0/1)를 규정하지 않는다**(구체 예시 없음). 따라서 저작도구는 사실상 표준인 **COCO 1-indexed** 를 채택한다 — xlsx 와 모순되지 않는다. 외부 소비측(관제 데이터마트)은 skeleton 관절 번호를 **1-based** 로 해석해야 한다(off-by-one 방지).
 
 ## 24.6 멱등 · 버전 누적
 
