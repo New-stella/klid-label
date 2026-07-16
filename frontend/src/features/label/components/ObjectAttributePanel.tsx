@@ -47,7 +47,11 @@ export interface ObjectAttributePanelProps {
    * Phase 8: 미제공 시 useLabelMasters() 응답을 자동 사용.
    */
   availableLabels?: AvailableLabel[];
-  /** 좌표 clamp용 이미지 크기 */
+  /**
+   * 좌표 clamp용 이미지 실측 크기(네이티브 픽셀). 이미지 로드 전이면 undefined —
+   * 이 경우 상한 clamp 를 적용하지 않는다(하드코딩 1920/1080 으로 잘못 자르지 않기 위함).
+   * 하한 0 은 항상 유지. 로드 후 실측값이 오면 우/하단 경계로 clamp.
+   */
   imageWidth?: number;
   imageHeight?: number;
   /**
@@ -76,8 +80,8 @@ export interface ObjectAttributePanelProps {
 export function ObjectAttributePanel({
   labels,
   availableLabels,
-  imageWidth = 1920,
-  imageHeight = 1080,
+  imageWidth,
+  imageHeight,
   track,
 }: ObjectAttributePanelProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
@@ -115,11 +119,15 @@ export function ObjectAttributePanel({
   // 객체 식별자: trackId 가 있으면 우선, 없으면 라벨 id 앞 8자 (UUID/short hash 가독성)
   const objectNumber = target.trackId ?? String(target.id ?? '').slice(0, 8);
 
+  // 실측 크기 미확정(undefined) 시 상한 clamp 미적용 — 하한 0 만 유지. 실측값이 있으면
+  // 우/하단 경계(width-1 / height-1)로 clamp 해 이미지 밖 좌표·데이터 손실을 방지한다.
   function clampX(v: number): number {
-    return Math.max(0, Math.min(imageWidth - 1, v));
+    const lower = Math.max(0, v);
+    return imageWidth != null ? Math.min(imageWidth - 1, lower) : lower;
   }
   function clampY(v: number): number {
-    return Math.max(0, Math.min(imageHeight - 1, v));
+    const lower = Math.max(0, v);
+    return imageHeight != null ? Math.min(imageHeight - 1, lower) : lower;
   }
 
   function handleLabelChange(e: React.ChangeEvent<HTMLSelectElement>) {

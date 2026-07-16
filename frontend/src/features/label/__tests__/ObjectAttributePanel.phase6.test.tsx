@@ -114,6 +114,48 @@ describe('ObjectAttributePanel Phase 6 완성', () => {
     }
   });
 
+  it('비1080_프레임_H하단_1400입력이_실측기준_유지_1079로_잘리지않음', () => {
+    // 회귀: 1920×1440 프레임에서 하드코딩 1080 clamp 로 bottom=1400 이 1079 로 묵음 잘리던 버그.
+    useLabelStore.getState().setLabels([sampleAuto]);
+    useLabelStore.getState().selectLabel('auto1');
+    renderWithProviders(
+      <ObjectAttributePanel labels={[sampleAuto]} imageWidth={1920} imageHeight={1440} />,
+    );
+    const hInput = screen.getByLabelText('H 하단') as HTMLInputElement;
+    fireEvent.change(hInput, { target: { value: '1400' } });
+    const updated = useLabelStore.getState().labels.find((l) => l.id === 'auto1');
+    if (updated?.shape.type === 'BBOX') {
+      expect(updated.shape.bottom).toBe(1400); // 1079 아님
+    }
+  });
+
+  it('비1080_프레임_H하단_초과입력은_실측_1440경계로_clamp', () => {
+    useLabelStore.getState().setLabels([sampleAuto]);
+    useLabelStore.getState().selectLabel('auto1');
+    renderWithProviders(
+      <ObjectAttributePanel labels={[sampleAuto]} imageWidth={1920} imageHeight={1440} />,
+    );
+    const hInput = screen.getByLabelText('H 하단') as HTMLInputElement;
+    fireEvent.change(hInput, { target: { value: '2000' } });
+    const updated = useLabelStore.getState().labels.find((l) => l.id === 'auto1');
+    if (updated?.shape.type === 'BBOX') {
+      expect(updated.shape.bottom).toBe(1439); // imageHeight - 1
+    }
+  });
+
+  it('실측_dims_미확정시_상한_하드코딩1080_clamp_미적용', () => {
+    // 이미지 로드 전(imageWidth/Height undefined) — 상한 clamp 미적용, 하한 0 만 유지.
+    useLabelStore.getState().setLabels([sampleAuto]);
+    useLabelStore.getState().selectLabel('auto1');
+    renderWithProviders(<ObjectAttributePanel labels={[sampleAuto]} />);
+    const hInput = screen.getByLabelText('H 하단') as HTMLInputElement;
+    fireEvent.change(hInput, { target: { value: '1400' } });
+    const updated = useLabelStore.getState().labels.find((l) => l.id === 'auto1');
+    if (updated?.shape.type === 'BBOX') {
+      expect(updated.shape.bottom).toBe(1400); // 1079 로 잘리지 않음
+    }
+  });
+
   it('trackId 있는 객체는 헤더에 #{trackId} 표시', () => {
     const withTrack: Label = { ...sampleAuto, trackId: '42' };
     useLabelStore.getState().setLabels([withTrack]);

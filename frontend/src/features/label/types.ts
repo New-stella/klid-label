@@ -195,8 +195,14 @@ export interface FrameSummary {
   srcSn: number; // BE LS_DATA_RAW.SRC_SN
   thumbnailUrl: string;
   imageUrl: string;
-  imageWidth: number;
-  imageHeight: number;
+  /**
+   * 프레임 네이티브 픽셀 크기(선택). BE 가 제공하지 않으면 undefined.
+   * 캔버스 렌더 geometry 는 이 값이 아니라 로드된 이미지의 naturalWidth/Height(실측)를 사용한다
+   * — 하드코딩/부정확한 힌트로 인한 좌표 어긋남·이미지 스트레치를 방지하기 위함.
+   * (붙여넣기 좌표 clamp 등 보조 용도로만 남겨둠. 미확정이면 clamp 는 하한 0 만 적용.)
+   */
+  imageWidth?: number;
+  imageHeight?: number;
 }
 
 /**

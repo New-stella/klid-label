@@ -30,13 +30,28 @@ import { CanvasShell } from '../CanvasShell';
 import { useLabelStore } from '@/stores/useLabelStore';
 import type { FrameSummary } from '../../types';
 
+// jsdom 은 실제 이미지를 로드하지 않으므로, naturalWidth/Height 를 갖춘 로드 완료를 동기
+// 시뮬레이션한다. CanvasShell 은 이제 하드코딩이 아닌 로드된 이미지의 실측 네이티브 픽셀로
+// geometry 를 산출하므로(좌표 어긋남 버그 수정), 휠 줌 검증에도 로드된 이미지가 전제된다.
+class FakeImage {
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  crossOrigin = '';
+  naturalWidth = 100;
+  naturalHeight = 100;
+  set src(_value: string) {
+    // onload 는 src 설정 이전에 할당되므로(CanvasShell) 동기 발화 가능 → geometry 즉시 확정.
+    this.onload?.();
+  }
+}
+vi.stubGlobal('Image', FakeImage as unknown as typeof Image);
+
 const frame: FrameSummary = {
   frameNo: 1,
   srcSn: 1,
   thumbnailUrl: '',
-  imageUrl: '',
-  imageWidth: 100,
-  imageHeight: 100,
+  // 실측 크기(naturalWidth/Height=100)는 FakeImage 가 공급 — imageUrl 은 로드 트리거용 non-empty.
+  imageUrl: 'blob:mock-frame',
 };
 
 // preventDefault 추적용 wheel evt 빌더 — react-konva 는 evt.evt 에 native event 를 둔다.

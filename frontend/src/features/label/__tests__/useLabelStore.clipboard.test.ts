@@ -125,6 +125,36 @@ describe('useLabelStore clipboard (복사/붙여넣기)', () => {
     expect(labels[1].shape).toMatchObject({ left: 10, top: 10, right: 15, bottom: 15 });
   });
 
+  it('붙여넣기_상한_실측경계로_clamp_비1080_dims', () => {
+    const store = useLabelStore.getState();
+    // 1920×1440 프레임 경계 근처 라벨 — 실측 dims 로 상한 clamp 되어야 한다.
+    store.setLabels([bbox('1', 1900, 1420, 1910, 1435)]);
+    store.copyLabels();
+    // 동일좌표 → +offset → {1910,1430,1920,1445} → clamp(1920,1440).
+    store.pasteLabels({ frameNo: 1, imageWidth: 1920, imageHeight: 1440 });
+    const labels = useLabelStore.getState().labels;
+    const added = labels[labels.length - 1];
+    if (added.shape.type === 'BBOX') {
+      expect(added.shape.right).toBeLessThanOrEqual(1920);
+      expect(added.shape.bottom).toBeLessThanOrEqual(1440);
+      // 하단이 실측 경계(1440)로 유지 — 하드코딩 1080 이었다면 1080 으로 잘렸을 값.
+      expect(added.shape.bottom).toBe(1440);
+      expect(added.shape.bottom).toBeGreaterThan(1080);
+    }
+  });
+
+  it('붙여넣기_실측_dims_미확정시_상한_미적용_하한만', () => {
+    const store = useLabelStore.getState();
+    store.setLabels([bbox('1', 1900, 1420, 1910, 1435)]);
+    store.copyLabels();
+    // imageWidth/Height 미전달(이미지 미로드) → 상한 clamp 미적용, 하한 0 만.
+    store.pasteLabels({ frameNo: 1 });
+    const labels = useLabelStore.getState().labels;
+    const added = labels[labels.length - 1];
+    // +offset 그대로 — 1080 등 하드코딩 상한으로 잘리지 않음.
+    expect(added.shape).toMatchObject({ left: 1910, top: 1430, right: 1920, bottom: 1445 });
+  });
+
   it('붙여넣기_undo_통째_취소', () => {
     const store = useLabelStore.getState();
     store.setLabels([bbox('1', 0, 0, 10, 10)]);
