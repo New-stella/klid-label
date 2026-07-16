@@ -114,7 +114,11 @@ export function ObjectClassTree({
                 const isAuto = obj.source !== 'MANUAL';
                 // Phase 4: 보간 우선 → 자동 → 수동 순.
                 const sourceIcon = isInterpolated ? '🔗' : isAuto ? '🤖' : '✏️';
-                const objNumber = obj.trackId ?? idx + 1;
+                // 순번(#N)은 목록 내 안정적 순서 식별자(=idx+1)로만 유지한다.
+                // track_id 와 섞지 않는다 — track_id 는 아래 별도 chip 으로 명확히 표기.
+                const objNumber = idx + 1;
+                // track_id 원값(있으면 실제 트랙 ID, 없으면 null → "미부여" 표기).
+                const trackId = obj.trackId ?? null;
                 const barColor = trackIdToColor(obj.trackId);
                 return (
                   <div
@@ -135,7 +139,8 @@ export function ObjectClassTree({
                     {renamingId === obj.id ? (
                       <div className="flex-1 flex items-center gap-1">
                         <span aria-hidden>{sourceIcon}</span>
-                        <span className="truncate text-gray-300">{displayName} #</span>
+                        {/* 편집 대상이 track_id 임을 UI 에서 명확히 — 라벨을 "트랙 ID"로 표기(문구 통일). */}
+                        <span className="truncate text-gray-300">트랙 ID</span>
                         <input
                           type="text"
                           value={draft}
@@ -147,7 +152,7 @@ export function ObjectClassTree({
                             else if (e.key === 'Escape') setRenamingId(null);
                           }}
                           className="w-16 bg-gray-800 border border-gray-600 rounded px-1 text-xs text-white"
-                          aria-label="트랙 번호 입력"
+                          aria-label="트랙 ID 입력"
                         />
                         <button
                           type="button"
@@ -156,7 +161,7 @@ export function ObjectClassTree({
                             commitRename(obj);
                           }}
                           className="text-green-400 hover:text-green-300"
-                          aria-label="트랙 번호 저장"
+                          aria-label="트랙 ID 저장"
                         >
                           <Check size={12} />
                         </button>
@@ -167,7 +172,7 @@ export function ObjectClassTree({
                             setRenamingId(null);
                           }}
                           className="text-gray-400 hover:text-gray-200"
-                          aria-label="트랙 번호 변경 취소"
+                          aria-label="트랙 ID 변경 취소"
                         >
                           <X size={12} />
                         </button>
@@ -183,6 +188,25 @@ export function ObjectClassTree({
                         <span className="flex-1 truncate">
                           {displayName} #{objNumber}
                         </span>
+                        {/* track_id 별도 chip — 순번(#N)과 시각적으로 구분(작은 글씨/별도 배경).
+                            값이 있으면 실제 track_id, 없으면 "미부여"를 명시적으로 표기. */}
+                        {trackId != null ? (
+                          <span
+                            title={`트랙 ID ${trackId}`}
+                            aria-label={`트랙 ID ${trackId}`}
+                            className="shrink-0 rounded bg-primary-600/40 px-1 text-[10px] font-medium text-primary-100"
+                          >
+                            T:{trackId}
+                          </span>
+                        ) : (
+                          <span
+                            title="트랙 ID 미부여"
+                            aria-label="트랙 ID 미부여"
+                            className="shrink-0 text-[10px] text-gray-500"
+                          >
+                            T:—
+                          </span>
+                        )}
                         <span className="text-gray-500 text-xs uppercase">{shapeType}</span>
                       </button>
                     )}
@@ -195,7 +219,7 @@ export function ObjectClassTree({
                           startRename(obj);
                         }}
                         className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-300 transition-opacity"
-                        aria-label={`${displayName} #${objNumber} 트랙 번호 변경`}
+                        aria-label={`${displayName} #${objNumber} 트랙 ID 변경`}
                       >
                         <Pencil size={12} />
                       </button>

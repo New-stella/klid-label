@@ -110,13 +110,13 @@ describe('포털모드_rename_핸들러_내부API_미호출', () => {
   it('포털모드_트랙_rename_버튼_미노출_및_mergeTracks_미호출', async () => {
     renderPortalLabel();
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
-    // 객체 트리가 렌더될 때까지 대기(라벨 로드 후 #42 선택 버튼 노출).
+    // 객체 트리가 렌더될 때까지 대기(라벨 로드 후 #1 선택 버튼 노출 — 순번은 index, track_id 42 는 별도 chip).
     await waitFor(() =>
-      expect(screen.getByLabelText(/#42 선택$/)).toBeInTheDocument(),
+      expect(screen.getByLabelText(/#1 선택$/)).toBeInTheDocument(),
     );
 
-    // 이중 안전 ① — 포털 모드에서 연필(트랙 번호 변경) 버튼 진입 자체 차단.
-    expect(screen.queryByLabelText(/트랙 번호 변경$/)).toBeNull();
+    // 이중 안전 ① — 포털 모드에서 연필(트랙 ID 변경) 버튼 진입 자체 차단.
+    expect(screen.queryByLabelText(/트랙 ID 변경$/)).toBeNull();
     // 이중 안전 ② — 내부 전용 mergeTracks(/v1/videos/**/tracks/merge, PORTAL 403) 절대 미호출.
     expect(mergeTracksSpy).not.toHaveBeenCalled();
   });
