@@ -2,44 +2,69 @@ import { useEffect, useMemo } from 'react';
 
 import { useLabelStore } from '@/stores/useLabelStore';
 
+import { PORTAL_HIDDEN_TOOLS } from '../types';
+
 import { useLabelMasters } from './useLabelMasters';
-import { ToolType } from '../types';
+import {
+  SHORTCUT_KEYMAP,
+  comboSignature,
+  type ShortcutBinding,
+} from './labelingKeymap';
 
 export interface ShortcutHandlers {
+  /** W — 첫 프레임 */
+  onFirstFrame?: () => void;
+  /** A / ← — 이전 프레임 */
   onPrevFrame?: () => void;
+  /** S — 끝 프레임 */
+  onLastFrame?: () => void;
+  /** D / → — 다음 프레임 */
   onNextFrame?: () => void;
+  /** Ctrl+S — 저장 */
   onSave?: () => void;
+  /** E — 편집 모드 토글 */
   onToggleEdit?: () => void;
+  /** T — 라벨 표시/숨김 */
+  onToggleVisibility?: () => void;
+  /** F — 폴리곤 점 추가 */
+  onPolygonAddPoint?: () => void;
+  /** Q — 폴리곤 자동완료 */
+  onPolygonComplete?: () => void;
+  /** Ctrl+C / Ctrl+Shift+C — 라벨 복사 (onlySelected: 선택만 vs 전체) */
+  onCopyLabels?: (opts: { onlySelected: boolean }) => void;
+  /** Ctrl+V / Ctrl+Shift+V — 현재 프레임에 붙여넣기 */
+  onPasteLabels?: () => void;
+}
+
+export interface ShortcutOptions {
+  /**
+   * ADR-013 — 포털 모드에서는 오토라벨/키포인트 미제공.
+   * true 이면 PORTAL_HIDDEN_TOOLS(SAM_SEGMENT/TRACK/KEYPOINT) 단축키를 비활성화한다
+   * (툴바 숨김과 정합, 키보드 우회 활성화 차단).
+   */
+  portalMode?: boolean;
 }
 
 const ZOOM_STEP = 1.2;
 
 /**
- * 도구 단축키 매핑. 물리 키 `e.code`(KeyB 등)를 1순위로 매칭해 한글 IME/키보드 레이아웃과
- * 무관하게 동작하게 한다. `e.key`(라틴 'b'/'B' 등) 폴백을 함께 유지해 기존 라틴 키보드·테스트
- * 회귀를 방지한다.
- */
-const TOOL_SHORTCUTS = [
-  { code: 'KeyB', keys: ['b', 'B'], tool: ToolType.BBOX },
-  { code: 'KeyP', keys: ['p', 'P'], tool: ToolType.POLYGON },
-  { code: 'KeyS', keys: ['s', 'S'], tool: ToolType.SELECT },
-  { code: 'KeyG', keys: ['g', 'G'], tool: ToolType.SAM_SEGMENT },
-  { code: 'KeyT', keys: ['t', 'T'], tool: ToolType.TRACK },
-] as const;
-
-/**
- * UI/UX §4-6 라벨링 단축키.
- * - B: BBOX 도구 / P: POLYGON / S: SELECT / G: SAM 분할 / T: TRACK
- * - ←/→: 프레임 이동
- * - Ctrl+Z: undo / Ctrl+Shift+Z: redo
- * - Ctrl+S: 저장 (preventDefault)
- * - +/-: 줌
- * - Del/Backspace: 선택 라벨 삭제
- * - E: 편집 모드 토글 (외부 핸들러)
+ * 라벨링 단축키 — 관리자 매뉴얼 Rev.1.1 확정셋 (21 §21.9).
+ * 키맵은 {@link SHORTCUT_KEYMAP} 단일 소스에서 파생하며, 충돌은 auditKeymapConflicts 테스트가 검증한다.
  *
- * 보안: input/textarea/contentEditable 포커스 상태에서는 단축키 무시 (텍스트 입력 보호).
+ * 주요 배치:
+ * - W/A/S/D: 프레임 첫/이전/끝/다음 (화살표 ←/→ 호환 유지)
+ * - B/P: BBOX/Polygon · G: SAM 분할 · K: 키포인트 · **Shift+T**: SAM 추적 · Esc: 선택
+ * - T: 라벨 표시/숨김 · F/Q: 폴리곤 점추가/자동완료 · R·Del: 삭제
+ * - Ctrl+S: 저장 · Ctrl+Z / Ctrl+Shift+Z: undo/redo · +/-: 줌 · 1~9: 라벨 · E: 편집 토글
+ *
+ * IME 견고성: 문자 키는 물리 키 `e.code`(KeyB 등) 1순위 매칭으로 한글 IME/레이아웃과 무관하게 동작.
+ * 보안: input/textarea/contentEditable 포커스 시 단축키 무시(텍스트 입력 보호).
  */
-export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
+export function useLabelingShortcuts(
+  handlers: ShortcutHandlers = {},
+  options: ShortcutOptions = {},
+): void {
+  const { portalMode = false } = options;
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
   const undo = useLabelStore((s) => s.undo);
   const redo = useLabelStore((s) => s.redo);
@@ -63,6 +88,91 @@ export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
   }, [labelMasters]);
 
   useEffect(() => {
+    /** 이벤트가 바인딩과 매칭되는지 — 물리 code 우선, IME 조합 아닐 때 e.key 폴백. */
+    function matches(e: KeyboardEvent, b: ShortcutBinding, composing: boolean): boolean {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (Boolean(b.ctrl) !== ctrl) return false;
+      if (Boolean(b.shift) !== e.shiftKey) return false;
+      if (e.altKey) return false;
+      const codeMatch = b.code !== undefined && e.code === b.code;
+      const keyMatch = !composing && e.key.toLowerCase() === b.key;
+      return codeMatch || keyMatch;
+    }
+
+    function run(binding: ShortcutBinding, e: KeyboardEvent): void {
+      switch (binding.id) {
+        case 'tool.bbox':
+        case 'tool.polygon':
+        case 'tool.samSegment':
+        case 'tool.keypoint':
+        case 'tool.track':
+        case 'tool.select':
+          if (binding.tool) setActiveTool(binding.tool);
+          return;
+        case 'frame.first':
+          handlers.onFirstFrame?.();
+          return;
+        case 'frame.prev':
+          handlers.onPrevFrame?.();
+          return;
+        case 'frame.last':
+          handlers.onLastFrame?.();
+          return;
+        case 'frame.next':
+          handlers.onNextFrame?.();
+          return;
+        case 'label.toggleVisibility':
+          handlers.onToggleVisibility?.();
+          return;
+        case 'polygon.addPoint':
+          handlers.onPolygonAddPoint?.();
+          return;
+        case 'polygon.complete':
+          handlers.onPolygonComplete?.();
+          return;
+        case 'label.delete': {
+          const id = useLabelStore.getState().selectedLabelId;
+          if (id) removeLabel(id);
+          return;
+        }
+        case 'edit.toggle':
+          handlers.onToggleEdit?.();
+          return;
+        case 'edit.save':
+          handlers.onSave?.();
+          return;
+        case 'edit.undo':
+          undo();
+          return;
+        case 'edit.redo':
+          redo();
+          return;
+        case 'clipboard.copy':
+          handlers.onCopyLabels?.({ onlySelected: true });
+          return;
+        case 'clipboard.copyAll':
+          handlers.onCopyLabels?.({ onlySelected: false });
+          return;
+        case 'clipboard.paste':
+          handlers.onPasteLabels?.();
+          return;
+        case 'zoom.in':
+          setZoom(useLabelStore.getState().zoom * ZOOM_STEP);
+          return;
+        case 'zoom.out':
+          setZoom(useLabelStore.getState().zoom / ZOOM_STEP);
+          return;
+        case 'label.digit': {
+          const idx = Number(e.key) - 1;
+          const labelId = sortedLabelIds[idx];
+          if (labelId !== undefined) setActiveLabelId(labelId);
+          return;
+        }
+        default:
+          return;
+      }
+    }
+
     function handler(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
       if (
@@ -74,89 +184,24 @@ export function useLabelingShortcuts(handlers: ShortcutHandlers = {}): void {
         return;
       }
 
-      const meta = e.ctrlKey || e.metaKey;
+      // IME 조합 중에는 e.key 가 변환된 한글/'Process' 라 문자 매칭이 깨지므로 물리 code 만 신뢰.
+      const composing = e.isComposing || e.key === 'Process';
 
-      // Ctrl+S
-      if (meta && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        handlers.onSave?.();
+      for (const binding of SHORTCUT_KEYMAP) {
+        // ADR-013 — 포털 모드에서는 오토라벨/키포인트 도구 단축키 게이팅(툴바 숨김과 정합).
+        if (portalMode && binding.tool && PORTAL_HIDDEN_TOOLS.includes(binding.tool)) continue;
+        if (!matches(e, binding, composing)) continue;
+        // Ctrl 조합(저장/undo/redo)은 브라우저 기본 동작 차단.
+        if (binding.ctrl) e.preventDefault();
+        run(binding, e);
         return;
-      }
-
-      // Ctrl+Shift+Z = redo, Ctrl+Z = undo
-      if (meta && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          redo();
-        } else {
-          undo();
-        }
-        return;
-      }
-
-      // 단일 키 (Ctrl 없는 경우)
-      if (!meta && !e.altKey) {
-        // 도구 단축키 — 물리 키 e.code 1순위 매칭(IME/레이아웃 무관). 라틴 e.key 폴백.
-        // IME 조합 중에는 e.key 가 변환된 한글(또는 'Process')이라 문자 매칭이 깨지지만,
-        // e.code 는 물리 키이므로 도구 전환은 항상 인식된다.
-        const composing = e.isComposing || e.key === 'Process';
-        for (const t of TOOL_SHORTCUTS) {
-          const codeMatch = e.code === t.code;
-          const keyMatch = !composing && (t.keys as readonly string[]).includes(e.key);
-          if (codeMatch || keyMatch) {
-            setActiveTool(t.tool);
-            return;
-          }
-        }
-
-        // IME 조합 중에는 나머지 문자 단축키(E/줌 등)도 스킵 — 단, 위에서 도구 e.code 는 이미 처리됨.
-        if (composing) return;
-
-        switch (e.key) {
-          case 'e':
-          case 'E':
-            handlers.onToggleEdit?.();
-            return;
-          case 'ArrowLeft':
-            handlers.onPrevFrame?.();
-            return;
-          case 'ArrowRight':
-            handlers.onNextFrame?.();
-            return;
-          case '+':
-          case '=': {
-            const cur = useLabelStore.getState().zoom;
-            setZoom(cur * ZOOM_STEP);
-            return;
-          }
-          case '-':
-          case '_': {
-            const cur = useLabelStore.getState().zoom;
-            setZoom(cur / ZOOM_STEP);
-            return;
-          }
-          case 'Delete':
-          case 'Backspace': {
-            const id = useLabelStore.getState().selectedLabelId;
-            if (id) removeLabel(id);
-            return;
-          }
-          default: {
-            // 단축키 1~9 — 라벨 마스터 sortNo asc N번째 활성화.
-            if (e.key.length === 1 && e.key >= '1' && e.key <= '9') {
-              const idx = Number(e.key) - 1;
-              const labelId = sortedLabelIds[idx];
-              if (labelId !== undefined) {
-                setActiveLabelId(labelId);
-              }
-            }
-            return;
-          }
-        }
       }
     }
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handlers, setActiveTool, undo, redo, removeLabel, setZoom, setActiveLabelId, sortedLabelIds]);
+  }, [handlers, portalMode, setActiveTool, undo, redo, removeLabel, setZoom, setActiveLabelId, sortedLabelIds]);
 }
+
+// 재-export: 키맵/충돌 감사 유틸을 훅 소비처가 함께 참조할 수 있게 한다.
+export { SHORTCUT_KEYMAP, comboSignature };

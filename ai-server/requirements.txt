@@ -59,10 +59,8 @@ httpx==0.28.1
     # via
     #   -r requirements.in
     #   huggingface-hub
-huggingface-hub==1.19.0
-    # via
-    #   tokenizers
-    #   transformers
+huggingface-hub==1.21.0
+    # via -r requirements.in
 hydra-core==1.3.3
     # via sam-2
 idna==3.18
@@ -102,7 +100,6 @@ numpy==2.4.6
     #   supervision
     #   torchvision
     #   trackers
-    #   transformers
 omegaconf==2.3.1
     # via hydra-core
 onnxruntime==1.27.0
@@ -119,7 +116,6 @@ packaging==26.2
     #   matplotlib
     #   onnxruntime
     #   pytest
-    #   transformers
 pillow==12.2.0
     # via
     #   -r requirements.in
@@ -169,10 +165,7 @@ pyyaml==6.0.3
     #   huggingface-hub
     #   omegaconf
     #   supervision
-    #   transformers
     #   uvicorn
-regex==2026.5.9
-    # via transformers
 requests==2.34.2
     # via
     #   supervision
@@ -181,8 +174,6 @@ rich==15.0.0
     # via
     #   trackers
     #   typer
-safetensors==0.8.0
-    # via transformers
 sam-2 @ git+https://github.com/facebookresearch/sam2.git
     # via -r requirements.in
 scipy==1.17.1
@@ -201,8 +192,6 @@ supervision==0.28.0
     #   trackers
 sympy==1.14.0
     # via torch
-tokenizers==0.22.2
-    # via transformers
 torch==2.12.0
     # via
     #   -r requirements.in
@@ -218,15 +207,10 @@ tqdm==4.68.2
     #   iopath
     #   sam-2
     #   supervision
-    #   transformers
 trackers==2.4.0
     # via -r requirements.in
-transformers==5.12.0
-    # via -r requirements.in
 typer==0.25.1
-    # via
-    #   huggingface-hub
-    #   transformers
+    # via huggingface-hub
 typing-extensions==4.15.0
     # via
     #   anyio

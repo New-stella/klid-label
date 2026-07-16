@@ -19,7 +19,7 @@ set -euo pipefail
 #     ./scripts/package.sh                   # 전체 단계 수집(빌드 키트 포함)
 #     SKIP_SYSPKGS=1 ./scripts/package.sh    # 시스템 의존성(RPM/ffmpeg) 수집 생략
 #     SKIP_POSTGRES=1 ./scripts/package.sh   # 번들 PG16 RPM 수집 생략(타깃에 이미 PG 있을 때)
-#     PREFETCH_HF=1 ./scripts/package.sh     # HF 모델(rtdetr/sam2)도 사전 다운로드
+#     PREFETCH_HF=1 ./scripts/package.sh     # HF 모델(sam2)도 사전 다운로드
 #     SKIP_BUILDTOOLS=1 ./scripts/package.sh # 오프라인 빌드 키트(buildtools/+src/) 수집 생략
 #
 #   ★ 빌드 키트(60단계)는 폐쇄망 타깃에서 "소스 재빌드"를 가능케 한다(사전 빌드 jar/dist 와

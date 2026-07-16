@@ -11,12 +11,12 @@
 | 인증 (관제/포털 토큰) | **자체 발급** | `POST /api/v1/dev/tokens` (HS256 동일 시크릿 서명) — 외부 발급 서버 불요 |
 | 시드 데이터 | **자동 적재** | `DevSeedRunner`(local)가 `db/seed/dev-seed.sql` 멱등 적재 |
 | 비식별 | **실 KPST 연동 (기본)** | `application-local.yml` 기본값이 KPST API 연동 테스트 서버 실연동(`mock-mode=false`, `kpst.deid.enabled=true`, `base-url=http://222.118.130.251:9989`, 계정 `authoring`). **내부망 접근 필요.** 오프라인 자족이 필요하면 `DEIDENTIFY_MOCK_MODE=true`(+`KPST_DEID_ENABLED=false`)로 mock 복사(원본→비식별 경로 복사 + `DE_IDNTF_YN='Y'`) 전환 |
-| ai-server (YOLOX/SAM2/RT-DETR) | **CPU 실추론** | 가중치: YOLOX ONNX(`yolox_s.onnx`) 동봉, SAM2 는 Meta HF(`facebook/sam2-hiera-tiny`), RT-DETR 은 HF 캐시. GPU 불필요 |
+| ai-server (YOLOX/SAM2) | **CPU 실추론** | 가중치: YOLOX ONNX(`yolox_s.onnx`) 동봉, SAM2 는 Meta HF(`facebook/sam2-hiera-tiny`). 탐지는 YOLOX 단일 백엔드(onnxruntime). GPU 불필요 |
 | VLM 시계열 | **비활성 (NO-OP)** | `vlm.client.enabled=false`. 실로드 미구현 |
 | 관제 통지 / 증강 | **비활성 / mock** | `control-notify.enabled=false`, 증강 클라이언트 mock |
 | 관제 자동 적재 픽업 | **수동 트리거** | `POST /api/v1/dev/batch/scan` (REVIEWER 토큰) — 시드 클립 픽업 검증 |
 
-> **외부 0개 정의**: 관제/포털/실VLM 서버가 없다는 뜻. ai-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). RT-DETR·SAM2(Meta) 최초 기동 시에만 HuggingFace 에서 모델을 1회 받는다(이후 캐시로 오프라인). YOLOX 는 동봉 ONNX 가중치 사용.
+> **외부 0개 정의**: 관제/포털/실VLM 서버가 없다는 뜻. ai-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). SAM2(Meta) 최초 기동 시에만 HuggingFace 에서 모델을 1회 받는다(이후 캐시로 오프라인). 탐지용 YOLOX 는 동봉 ONNX 가중치를 사용하므로 다운로드가 없다.
 >
 > ⚠ **비식별은 예외 — 기본값이 실 KPST 연동(외부)으로 변경됨**: local 도 KPST API 연동 테스트 서버(`222.118.130.251:9989`, 내부망 http)에 실제 연동한다. 즉 비식별 단계만은 "외부 0개"가 아니며 **내부망 접근이 필요**하다. 완전 오프라인 자족이 필요하면 `DEIDENTIFY_MOCK_MODE=true` + `KPST_DEID_ENABLED=false` 로 기존 mock 복사 모드로 되돌린다. (현재 KPST 테스트 서버 마스킹 엔진이 잡을 `procState 99`(에러)로 실패시킬 수 있어, 연동은 되어도 비식별 결과물이 안 나올 수 있다 — 연결·업로드·프로젝트·폴링 API 는 정상.)
 
@@ -36,7 +36,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
 
 `docker-compose.local.yml` 가 적용하는 것:
-- ai-server: `AI_MOCK_MODE=false` + `AI_DEVICE=cpu` + `DETECTOR_BACKEND=rtdetr` + `runtime: runc`(nvidia 제거) + 가중치/HF 캐시 마운트
+- ai-server: `AI_MOCK_MODE=false` + `AI_DEVICE=cpu` + `runtime: runc`(nvidia 제거) + 가중치/HF 캐시 마운트 (탐지는 YOLOX 단일)
 - postgres/backend: `/data` 호스트 절대경로 → named volume (비-Linux 호환)
 
 | 서비스 | URL |
@@ -62,10 +62,10 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d klid-post
 cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'
 #   (필요 시 프레임 이미지: --args='--spring.profiles.active=local,seed-image-gen')
 
-# 3) ai-server (CPU 실추론 + RT-DETR)
+# 3) ai-server (CPU 실추론 — 탐지 YOLOX 단일)
 cd ai-server && python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # AI_MOCK_MODE=false, AI_DEVICE=cpu, DETECTOR_BACKEND=rtdetr
+cp .env.example .env          # AI_MOCK_MODE=false, AI_DEVICE=cpu (탐지 YOLOX 단일 — 동봉 ONNX)
 uvicorn app.main:app --host 0.0.0.0 --port 9300
 
 # 4) frontend
@@ -96,7 +96,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | 포털 (데이터마트 Load·사용자 라벨) | 포털 (PORTAL_USER) | 0 |
 | 마킹 (비식별 영상 스트리밍) | 마킹 화면 — 비식별 mock 으로 `DE_IDNTF_YN='Y'` 선행 필요 | 0 (mock) |
 | 관제 자동 적재 픽업 | `POST /api/v1/dev/batch/scan` (REVIEWER) → 시드 클립 LS_DATA_RAW 적재 | 0 |
-| 배치/오토라벨 (RT-DETR·SAM2) | 업로드 `POST /api/v1/dev/autolabel-test` 또는 `POST /api/v1/dev/batch/trigger?rawSn=` | ai-server(내부, 실추론) |
+| 배치/오토라벨 (YOLOX·SAM2) | 업로드 `POST /api/v1/dev/autolabel-test` 또는 `POST /api/v1/dev/batch/trigger?rawSn=` | ai-server(내부, 실추론) |
 
 > 시드 클립(`DEV-CLIP-*`)의 `FILE_PATH` 는 실파일이 없을 수 있어 픽업·적재·이벤트 발행까지 검증된다. 마킹/프레임 추출까지 끝까지 돌리려면 `POST /api/v1/dev/autolabel-test` 로 실제 영상을 업로드한다.
 
@@ -111,8 +111,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | `SPRING_PROFILES_ACTIVE` | local | 자립 기동 + mock/시드 게이팅 |
 | (`application-local.yml`) `deidentify.mock-mode` (`DEIDENTIFY_MOCK_MODE`) | **false (기본)** | 실 KPST 연동. `true` 면 mock no-op 복사로 전환 |
 | `KPST_DEID_ENABLED` / `KPST_DEID_BASE_URL` | true / `http://222.118.130.251:9989` | KPST 폴링 경로 + 테스트 서버 주소(내부망 http, ca-cert 불요) |
-| `AI_MOCK_MODE` / `AI_DEVICE` | false / cpu | ai-server 실추론 (GPU 불필요) |
-| `DETECTOR_BACKEND` | rtdetr | 탐지/트래킹 기본 백엔드 (yolo 로 전환 가능) |
+| `AI_MOCK_MODE` / `AI_DEVICE` | false / cpu | ai-server 실추론 (GPU 불필요). 탐지는 YOLOX 단일 |
 | `VLM_CLIENT_ENABLED` | false | VLM NO-OP |
 | `CONTROL_NOTIFY_ENABLED` | false | 관제 통지 빈 미등록 |
 | `BATCH_ENABLED` / `TRAINING_SCAN_ENABLED` | false | Quartz 자동 트리거 off (scan 은 수동) |
@@ -121,7 +120,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 
 ## 주의 / 한계
 
-- **RT-DETR 최초 1회 인터넷 필요** — `PekingU/rtdetr_v2_r50vd`(~100MB) HF 다운로드. 이후 캐시(`HF_HOME=/app/.hf-cache`)로 오프라인. 다운로드 실패 시 자동 mock fallback(기동 무중단). 완전 오프라인을 원하면 `DETECTOR_BACKEND=yolo`(로컬 `.pt`).
+- **탐지는 YOLOX 단일 백엔드** — 동봉 ONNX 가중치(`yolox_s.onnx`)를 ONNX Runtime 으로 로드하므로 탐지용 모델 다운로드가 없다(완전 오프라인). 가중치 부재 시 자동 mock fallback(기동 무중단). SAM2(Meta)만 최초 1회 HF 다운로드가 필요하며 이후 캐시(`HF_HOME=/app/.hf-cache`)로 오프라인.
 - **GPU 옵트인** — GPU 환경은 `AI_DEVICE=cuda` + override 없이 `docker-compose.yml`(runtime nvidia).
 - **VLM 실추론 미지원** — 항상 mock. local 에선 `enabled=false` 라 무관.
 - **local/dev 비식별 기본 = 실 KPST 연동** — `application-local.yml`·`application-dev.yml` 기본값이 KPST API 연동 테스트 서버 실연동이다(`222.118.130.251:9989`, 내부망 http, ca-cert 불요, 계정 `authoring`). **내부망 접근이 없으면 비식별 단계가 실패('F')한다.** 오프라인 자족 검증은 `DEIDENTIFY_MOCK_MODE=true`(+`KPST_DEID_ENABLED=false`)로 mock 복사 모드 전환 — `mock-mode=true` 는 순수 local 프로파일에서만 허용(비-local/`ENV`=dev·stg·prd 에서 true 면 `DeidentifyStep` 부트 차단). 운영(prd)은 `application.yml` 기본 + 배포 환경변수로 별도 설정한다.

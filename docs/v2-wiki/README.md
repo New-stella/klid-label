@@ -30,7 +30,7 @@
 | 13 | [버전관리](13-version-control.md) | 라벨 스냅샷, diff, rollback |
 | 14 | [데이터 증강 · 해상도 변경](14-augmentation.md) | 외부 증강 위탁·검수, 무결성, 다운스케일 |
 | 15 | [관제서버 통지](15-control-notify.md) | TASK_COMPLETED/MODIFIED, fallback, 조회 API |
-| 16 | [포털](16-portal.md) | 데이터마트 영상 선택, 사용자 라벨 별도 적재 |
+| 16 | [포털](16-portal.md) | 데이터마트 영상 선택, 사용자 라벨 별도 적재, SAM2 인터랙티브·자동추적·키포인트(Phase 9, 좌표만·LS_PORTAL_USER_LABEL 단방향) |
 | 17 | [통계 · 대시보드](17-statistics.md) | 작업자/전체 통계, CSV 리포트 |
 | 18 | [데이터베이스](18-database.md) | LS_* 테이블, V_COMPLETED_* View, 마이그레이션 |
 | 19 | [외부 시스템 · 보안 · CVAT 포팅 · 설계문서](19-external-security-cvat.md) | 연동 클라이언트, 보안, CVAT 모듈, R/D 카탈로그 |
@@ -38,6 +38,7 @@
 | 21 | [이슈 소통 채널](21-issue-channel.md) | 검수자↔작업자 문의 스레드, 상태 머신, 반려 통합 — R1 외 추가 |
 | 22 | [비식별화 솔루션 API 연동 명세](22-deid-solution-api.md) | KPST 외부 API 13종 명세 전사(v1.0), 폴링 모델, 코드·상태 정의 |
 | 23 | [v1→v2 DB 이관 분석 (영상·라벨)](23-v1-v2-db-migration.md) | MariaDB(klid)→PostgreSQL(klid_system_246) **영상 목록+라벨 결과** 실DB 검증 매핑, POINT 좌표 포맷 변환, ID 재연결, 결정 필요 GAP 3종 |
+| 24 | [검수 승인 시 학습데이터 파일 산출](24-dataset-export.md) | 승인 AFTER_COMMIT 트리거(API 없음), `{RAW_SN}/v{n}/orgnl\|deid/` 폴더, NIA COCO 확장 JSON(8키·video 매핑·미보유 null·SKELETON 1-indexed), 콘텐츠 해시 멱등·버전 누적, LS_DATASET_EXPORT |
 
 ---
 
@@ -65,6 +66,7 @@
 | 게시판 (공지/가이드라인, 첨부) | [20](20-notice-board.md) |
 | 이슈 소통 (문의/답변/해소, 반려 스레드) | [21](21-issue-channel.md) |
 | v1(MariaDB)→v2(PostgreSQL) DB 이관 분석 | [23](23-v1-v2-db-migration.md) |
+| 검수 승인 시 학습데이터 파일 산출(orgnl/deid, NIA COCO JSON) | [24](24-dataset-export.md) |
 
 ### 화면 ID(`KLID-AT-SC-*`) → 페이지
 

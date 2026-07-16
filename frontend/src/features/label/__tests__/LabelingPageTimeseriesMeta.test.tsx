@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 vi.mock('react-konva', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -65,7 +66,7 @@ describe('LabelingPage 시계열 메타 사이드패널', () => {
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
     useAuthStore.setState({
-      token: 'tok',
+      token: 'dummy-tok',
       claims: { sub: '10', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
     });
     mock.onGet('/frames/300/labels').reply(200, labelsPayload(300));
@@ -79,17 +80,20 @@ describe('LabelingPage 시계열 메타 사이드패널', () => {
     useAuthStore.getState().clear();
   });
 
-  it('LabelingPage_사이드패널에_시계열_메타_렌더링', async () => {
+  it('LabelingPage_메타탭에_시계열_메타_렌더링', async () => {
     // given
+    const user = userEvent.setup();
     renderWithProviders(<LabelingPage />, {
       initialEntries: ['/label/300'],
       routes: [{ path: '/label/:id', element: <LabelingPage /> }],
     });
 
-    // when — 라벨링 페이지 로딩 완료
+    // when — 라벨링 페이지 로딩 완료 후 '메타' 탭으로 전환
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('right-tab-meta')).toBeInTheDocument());
+    await user.click(screen.getByTestId('right-tab-meta'));
 
-    // then — "시계열 메타" 토글 버튼이 존재
+    // then — 메타 탭에 "시계열 메타" 토글 버튼이 존재
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /시계열 메타/ })).toBeInTheDocument();
     });

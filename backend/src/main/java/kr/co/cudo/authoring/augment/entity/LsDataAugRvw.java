@@ -45,7 +45,7 @@ public class LsDataAugRvw {
     @Column(name = "LBL_INTGRT_PCT", precision = 5, scale = 2)
     private BigDecimal lblIntgrtPct;
 
-    @Column(name = "REJECT_RSN", length = 1000)
+    @Column(name = "RJCT_RSN", length = 4000)
     private String rejectRsn;
 
     @Column(name = "RVW_ID", length = 30)
@@ -54,13 +54,13 @@ public class LsDataAugRvw {
     @Column(name = "RVW_DT")
     private LocalDateTime rvwDt;
 
-    @Column(name = "REG_ID", length = 30)
+    @Column(name = "REG_ID", length = 64)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "MDFCN_ID", length = 30)
+    @Column(name = "MDFCN_ID", length = 64)
     private String mdfcnId;
 
     @Column(name = "MDFCN_DT")

@@ -1,8 +1,7 @@
-"""ByteTrack(roboflow `trackers`) 공용 헬퍼 — RT-DETR / YOLOX 백엔드 공유.
+"""ByteTrack(roboflow `trackers`) 공용 헬퍼 — YOLOX 탐지 백엔드 트래킹.
 
-rtdetr_loader 안에 있던 모듈 레벨 private 헬퍼(`_new_bytetrack_tracker`,
-`_apply_bytetrack`)를 두 탐지 백엔드(RT-DETR·YOLOX)가 동일하게 재사용하도록
-공용 모듈로 추출한 것이다. **동작은 추출 전과 100% 동일**하다.
+모듈 레벨 private 헬퍼(`_new_bytetrack_tracker`, `_apply_bytetrack`)를
+YOLOX 백엔드의 트래킹(track_id 부여)에서 사용한다.
 
 성능/마이그레이션 배경:
 - supervision 0.30 에서 제거 예정인 sv.ByteTrack(update_with_detections) 대신

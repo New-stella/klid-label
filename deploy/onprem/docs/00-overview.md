@@ -23,7 +23,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 - **backend (Spring Boot)**: 인증/DB/오케스트레이션/라벨 CRUD/배치. context-path `/api`, 포트 8080.
   control DB(klid_system) + portal DB 2개 DataSource. Flyway 로 LS_*·MNG_*·QRTZ_* 스키마 자동
   부트스트랩(`CREATE TABLE IF NOT EXISTS`) — 빈 DB 면 관제 스키마 사전 적재 불필요.
-- **ai-server (FastAPI)**: YOLOX(onnxruntime CPU)/SAM2/RT-DETR 추론만. 상태·인증·DB 없음. 포트 9300.
+- **ai-server (FastAPI)**: YOLOX(onnxruntime CPU, 탐지 단일 백엔드)/SAM2 추론만. 상태·인증·DB 없음. 포트 9300.
 - **KPST 비식별 서버 (외부 동거)**: 폐쇄망에 **별도 설치**(본 패키지 비포함). backend 가 폴링으로
   비식별을 위탁하고 결과를 회수한다. 비식별은 파이프라인 선두 필수 단계라 prd 에서 끄거나 mock 우회 불가.
 
@@ -57,7 +57,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 | `vendor/sam2/sam2-src` | package.sh | sam2 git 소스(VCS 의존성 오프라인화) |
 | `runtimes/{jdk,python,caddy}` | package.sh | 대상 서버 런타임 바이너리(tar.gz) |
 | `models/weights` | package.sh | `yolox_s.onnx` |
-| `models/hf-cache` | package.sh(옵션) | HF 모델 캐시(rtdetr/sam2 사용 시) |
+| `models/hf-cache` | package.sh(옵션) | HF 모델 캐시(SAM2 사용 시) |
 | `syspkgs/ffmpeg` | package.sh | ffmpeg/ffprobe 정적 바이너리 tarball(`.tar.xz`) |
 | `syspkgs/rpm` | package.sh(Rocky 9 `dnf download`) | `mesa-libGL`/`libglvnd-glx`/`glib2` RPM (opencv 런타임 의존) |
 | `syspkgs/postgresql` | package.sh(옵션, PGDG `dnf download`) | PostgreSQL 16 RPM (번들 PG, `USE_BUNDLED_POSTGRES=1` 시 설치) |

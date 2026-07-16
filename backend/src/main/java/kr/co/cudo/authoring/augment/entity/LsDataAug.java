@@ -70,6 +70,10 @@ public class LsDataAug {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
+    /**
+     * 토큰 sub(문자열) 저장 — 비숫자 sub 허용(JwtAuthenticationFilter.parseUserNo fail-closed)이라
+     * 의도적으로 VARCHAR. 숫자 BIGINT 아님.
+     */
     @Column(name = "REG_USER_NO", length = 50)
     private String regUserNo;
 
@@ -77,14 +81,14 @@ public class LsDataAug {
      * Phase 4 비동기 표준 컬럼 — webhook 인계 원래 위탁 요청 식별자.
      * UNIQUE 제약 (uk_aug_idempotency_key) — 동시 인계 race 차단.
      */
-    @Column(name = "IDMP_KEY", length = 64)
+    @Column(name = "IDMP_KEY", length = 128)
     private String idempotencyKey;
 
     /**
      * Phase 4 비동기 표준 컬럼 — 외부 시스템 작업 ID.
      * UNIQUE 제약 (uk_aug_external_job_id).
      */
-    @Column(name = "OTSD_JOB_ID", length = 128)
+    @Column(name = "OTSD_JOB_ID", length = 200)
     private String externalJobId;
 
     /** Phase 4 비동기 표준 컬럼 — 재시도 횟수. */
@@ -153,7 +157,7 @@ public class LsDataAug {
 
     /**
      * 검수 결과를 LsDataAug.augProcSttsCd 에도 동기 반영 (DB 설계서 라인 162-169 호환).
-     * 상세 audit 컬럼(LBL_INTGRT_PCT/REJECT_RSN/DCSN_USER_NO/DCSN_DT)은 LS_DATA_AUG_RVW 에서 관리.
+     * 상세 audit 컬럼(LBL_INTGRT_PCT/RJCT_RSN/DCSN_USER_NO/DCSN_DT)은 LS_DATA_AUG_RVW 에서 관리.
      */
     public void applyReviewStatus(String newStatus) {
         if (newStatus == null

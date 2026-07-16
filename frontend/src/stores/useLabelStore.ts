@@ -1,11 +1,126 @@
 import { create } from 'zustand';
 
-import type { Label, ToolType } from '@/features/label/types';
+import type { Label, Shape, ToolType } from '@/features/label/types';
 import { ToolType as ToolTypeEnum } from '@/features/label/types';
 
 interface UndoSnapshot {
   labels: Label[];
 }
+
+/**
+ * 복사/붙여넣기 클립보드 (Phase 4, 세션 전용 — 영속 안 함).
+ * - labels: 복사 시점의 라벨 딥클론 스냅샷
+ * - sourceRawSn: 복사 원본 영상(videoId). 크로스영상 붙여넣기 판정용.
+ *   null 이면 원본 영상 미상 → 안전하게 trackId 를 이관하지 않는다.
+ */
+export interface ClipboardEntry {
+  labels: Label[];
+  sourceRawSn: number | null;
+}
+
+/** 붙여넣기 시 완전동일 좌표 충돌을 피하기 위한 offset(px). */
+export const PASTE_OFFSET = 10;
+
+let pasteSeq = 0;
+
+function nextPasteId(): string {
+  pasteSeq += 1;
+  return `paste-${Date.now().toString(36)}-${pasteSeq}`;
+}
+
+/** shape 좌표를 (dx, dy) 만큼 평행이동한 새 shape 반환(불변). */
+function offsetShape(shape: Shape, dx: number, dy: number): Shape {
+  if (shape.type === 'BBOX') {
+    return {
+      type: 'BBOX',
+      left: shape.left + dx,
+      top: shape.top + dy,
+      right: shape.right + dx,
+      bottom: shape.bottom + dy,
+    };
+  }
+  if (shape.type === 'POLYGON') {
+    return {
+      type: 'POLYGON',
+      points: shape.points.map((v, i) => (i % 2 === 0 ? v + dx : v + dy)),
+    };
+  }
+  if (shape.type === 'KEYPOINT') {
+    return {
+      type: 'KEYPOINT',
+      keypoints: shape.keypoints.map((kp) => ({ ...kp, x: kp.x + dx, y: kp.y + dy })),
+    };
+  }
+  return { ...shape };
+}
+
+/** 좌표를 이미지 경계 [0, w]/[0, h] 로 clamp 한 새 shape 반환(불변). w/h 미지정 시 원본 유지. */
+function clampShape(shape: Shape, w?: number, h?: number): Shape {
+  const cx = (v: number) => (w != null ? Math.min(Math.max(v, 0), w) : Math.max(v, 0));
+  const cy = (v: number) => (h != null ? Math.min(Math.max(v, 0), h) : Math.max(v, 0));
+  if (shape.type === 'BBOX') {
+    return {
+      type: 'BBOX',
+      left: cx(shape.left),
+      top: cy(shape.top),
+      right: cx(shape.right),
+      bottom: cy(shape.bottom),
+    };
+  }
+  if (shape.type === 'POLYGON') {
+    return {
+      type: 'POLYGON',
+      points: shape.points.map((v, i) => (i % 2 === 0 ? cx(v) : cy(v))),
+    };
+  }
+  if (shape.type === 'KEYPOINT') {
+    return {
+      type: 'KEYPOINT',
+      keypoints: shape.keypoints.map((kp) => ({ ...kp, x: cx(kp.x), y: cy(kp.y) })),
+    };
+  }
+  return { ...shape };
+}
+
+/** 두 shape 의 좌표가 완전 동일한지 비교(붙여넣기 offset 판정용). */
+function shapeEquals(a: Shape, b: Shape): boolean {
+  if (a.type !== b.type) return false;
+  if (a.type === 'BBOX' && b.type === 'BBOX') {
+    return a.left === b.left && a.top === b.top && a.right === b.right && a.bottom === b.bottom;
+  }
+  if (a.type === 'POLYGON' && b.type === 'POLYGON') {
+    return a.points.length === b.points.length && a.points.every((v, i) => v === b.points[i]);
+  }
+  if (a.type === 'KEYPOINT' && b.type === 'KEYPOINT') {
+    return (
+      a.keypoints.length === b.keypoints.length &&
+      a.keypoints.every((kp, i) => kp.x === b.keypoints[i].x && kp.y === b.keypoints[i].y && kp.v === b.keypoints[i].v)
+    );
+  }
+  return false;
+}
+
+/**
+ * 이미지 조절(밝기/대비/투명도) 세션 상태 (Phase 2c).
+ * 영속 계층 없음 — zustand 인메모리라 새 세션/reset 시 원본값 복원.
+ * - brightness: konva Brighten 필터 값 (-1..1, 0=원본)
+ * - contrast: konva Contrast 필터 값 (-100..100, 0=원본)
+ * - labelOpacity: 라벨 레이어 불투명도 (0..1)
+ * - activeOpacity: 작업(오버레이) 레이어 불투명도 (0..1)
+ */
+export interface ImageAdjust {
+  brightness: number;
+  contrast: number;
+  labelOpacity: number;
+  activeOpacity: number;
+}
+
+export const DEFAULT_IMAGE_ADJUST: ImageAdjust = {
+  brightness: 0,
+  contrast: 0,
+  labelOpacity: 1,
+  activeOpacity: 1,
+};
 
 interface LabelState {
   // 도구/선택
@@ -33,6 +148,21 @@ interface LabelState {
   undoStack: UndoSnapshot[];
   redoStack: UndoSnapshot[];
 
+  // 이미지 조절 (세션 전용 — 영속 안 함)
+  imageAdjust: ImageAdjust;
+
+  /**
+   * 가시성 숨김 라벨 ID 집합 (세션 전용 — 영속 안 함, Phase 2 T 표시/숨김).
+   * 여기 든 라벨은 LabelsLayer 렌더에서 skip. setLabels/reset 시 초기화.
+   */
+  hiddenLabelIds: Set<string>;
+
+  /**
+   * 복사/붙여넣기 클립보드 (Phase 4, 세션 전용). 프레임/영상 이동(setLabels/reset)에도
+   * 유지되어 크로스프레임·크로스영상 붙여넣기를 지원한다. 명시적 copy 시에만 교체.
+   */
+  clipboard: ClipboardEntry | null;
+
   // Actions
   setActiveTool: (tool: ToolType) => void;
   selectLabel: (id: string | null) => void;
@@ -46,6 +176,30 @@ interface LabelState {
   undo: () => void;
   redo: () => void;
   clearDirty: () => void;
+  setImageAdjust: (patch: Partial<ImageAdjust>) => void;
+  resetImageAdjust: () => void;
+  toggleLabelVisibility: (id: string) => void;
+
+  /**
+   * 라벨 복사 — 선택 라벨(onlySelected=true, 선택 없으면 전체) 또는 전체를 클립보드에 딥클론 저장.
+   * @returns 복사된 라벨 수 (0 이면 no-op — 호출측 토스트)
+   */
+  copyLabels: (opts?: { onlySelected?: boolean; sourceRawSn?: number | null }) => number;
+
+  /**
+   * 클립보드 라벨을 현재 프레임에 붙여넣기.
+   *  - 빈 클립보드 → 0 (no-op)
+   *  - 크로스영상(sourceRawSn 불일치) → trackId/serverId 제거, 좌표/라벨만 이관
+   *  - 완전동일 좌표가 현재 프레임에 있으면 +PASTE_OFFSET 이동 후 이미지 경계 clamp
+   * @returns 붙여넣은 라벨 수
+   */
+  pasteLabels: (opts: {
+    frameNo: number;
+    sourceRawSn?: number | null;
+    imageWidth?: number;
+    imageHeight?: number;
+  }) => number;
+
   reset: () => void;
 }
 
@@ -57,8 +211,22 @@ function clampZoom(z: number): number {
   return Math.min(Math.max(z, MIN_ZOOM), MAX_ZOOM);
 }
 
+/**
+ * shape 딥클론 — 중첩 배열(POLYGON.points / KEYPOINT.keypoints)까지 새로 생성.
+ * 얕은 복사({...shape})면 배열 참조가 스냅샷과 공유돼 in-place 변형 시 undo/redo 가 오염된다.
+ */
+function cloneShape(shape: Shape): Shape {
+  if (shape.type === 'KEYPOINT') {
+    return { type: 'KEYPOINT', keypoints: shape.keypoints.map((kp) => ({ ...kp })) };
+  }
+  if (shape.type === 'POLYGON') {
+    return { type: 'POLYGON', points: [...shape.points] };
+  }
+  return { ...shape };
+}
+
 function snapshot(labels: Label[]): UndoSnapshot {
-  return { labels: labels.map((l) => ({ ...l, shape: { ...l.shape } })) };
+  return { labels: labels.map((l) => ({ ...l, shape: cloneShape(l.shape) })) };
 }
 
 export const useLabelStore = create<LabelState>((set, get) => ({
@@ -72,6 +240,9 @@ export const useLabelStore = create<LabelState>((set, get) => ({
   panY: 0,
   undoStack: [],
   redoStack: [],
+  imageAdjust: { ...DEFAULT_IMAGE_ADJUST },
+  hiddenLabelIds: new Set<string>(),
+  clipboard: null,
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   selectLabel: (id) => set({ selectedLabelId: id }),
@@ -84,6 +255,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
       undoStack: [],
       redoStack: [],
       selectedLabelId: null,
+      hiddenLabelIds: new Set<string>(),
     }),
 
   addLabel: (label) => {
@@ -145,6 +317,73 @@ export const useLabelStore = create<LabelState>((set, get) => ({
 
   clearDirty: () => set({ dirtyLabels: new Set<string>() }),
 
+  setImageAdjust: (patch) =>
+    set({ imageAdjust: { ...get().imageAdjust, ...patch } }),
+
+  resetImageAdjust: () => set({ imageAdjust: { ...DEFAULT_IMAGE_ADJUST } }),
+
+  // 불변성 유지 — 기존 Set 을 변형하지 않고 새 Set 을 생성해 구독자 재렌더 보장.
+  toggleLabelVisibility: (id) => {
+    const next = new Set(get().hiddenLabelIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    set({ hiddenLabelIds: next });
+  },
+
+  copyLabels: (opts) => {
+    const { labels, selectedLabelId } = get();
+    const onlySelected = opts?.onlySelected ?? false;
+    const picked =
+      onlySelected && selectedLabelId
+        ? labels.filter((l) => l.id === selectedLabelId)
+        : labels;
+    if (picked.length === 0) {
+      return 0; // 빈 선택/빈 프레임 — no-op (호출측 토스트)
+    }
+    // 딥클론 — 이후 캔버스 편집이 클립보드 스냅샷을 오염시키지 않도록 shape 까지 새로 생성.
+    const snap = picked.map((l) => ({ ...l, shape: cloneShape(l.shape) }));
+    set({ clipboard: { labels: snap, sourceRawSn: opts?.sourceRawSn ?? null } });
+    return snap.length;
+  },
+
+  pasteLabels: (opts) => {
+    const clip = get().clipboard;
+    if (!clip || clip.labels.length === 0) {
+      return 0; // 빈 클립보드 — no-op (호출측 토스트)
+    }
+    const prev = get().labels;
+    // 크로스영상: 원본 영상과 현재 영상이 다르면 trackId/serverId 제거(좌표·라벨만 이관).
+    const crossVideo =
+      clip.sourceRawSn != null &&
+      opts.sourceRawSn != null &&
+      clip.sourceRawSn !== opts.sourceRawSn;
+
+    const pasted: Label[] = clip.labels.map((src) => {
+      // 완전동일 좌표가 현재 프레임에 이미 있으면 +offset 후 경계 clamp.
+      const duplicate = prev.some((p) => shapeEquals(p.shape, src.shape));
+      const shifted = duplicate ? offsetShape(src.shape, PASTE_OFFSET, PASTE_OFFSET) : src.shape;
+      const shape = clampShape(shifted, opts.imageWidth, opts.imageHeight);
+      const base: Label = {
+        ...src,
+        id: nextPasteId(),
+        serverId: undefined, // 신규 라벨 — BE INSERT 대상
+        frameNo: opts.frameNo,
+        shape,
+      };
+      if (crossVideo) {
+        base.trackId = null; // 영상별 트랙 연속성 없음 — 이관 금지
+      }
+      return base;
+    });
+
+    const dirty = new Set(get().dirtyLabels);
+    pasted.forEach((l) => dirty.add(l.id));
+    // 붙여넣기 전체를 단일 undo 스냅샷으로 — 한 번의 undo 로 통째 취소.
+    const undoStack = [...get().undoStack, snapshot(prev)].slice(-MAX_UNDO);
+    set({ labels: [...prev, ...pasted], dirtyLabels: dirty, undoStack, redoStack: [] });
+    return pasted.length;
+  },
+
   reset: () =>
     set({
       activeTool: ToolTypeEnum.SELECT,
@@ -157,5 +396,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
       panY: 0,
       undoStack: [],
       redoStack: [],
+      imageAdjust: { ...DEFAULT_IMAGE_ADJUST },
+      hiddenLabelIds: new Set<string>(),
     }),
 }));

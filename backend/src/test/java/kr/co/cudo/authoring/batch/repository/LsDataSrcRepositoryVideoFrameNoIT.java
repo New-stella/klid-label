@@ -44,7 +44,7 @@ class LsDataSrcRepositoryVideoFrameNoIT {
         // given — frameNo(추출순번)=0, videoFrameNo(실 영상 프레임 위치)=1500 인 프레임 row
         long rawSn = System.nanoTime();
         LocalDateTime now = LocalDateTime.now();
-        LsDataSrc src = LsDataSrc.create(rawSn, 0, 1500, "/frames/raw/" + rawSn + "/000000.jpg", now);
+        LsDataSrc src = LsDataSrc.create(rawSn, 0, 1500L, "/frames/raw/" + rawSn + "/000000.jpg", now);
 
         // when — 실 PostgreSQL 에 저장 후 같은 srcSn 으로 재조회
         LsDataSrc saved = repository.saveAndFlush(src);

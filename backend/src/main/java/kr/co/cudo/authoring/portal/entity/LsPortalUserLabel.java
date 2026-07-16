@@ -41,7 +41,7 @@ public class LsPortalUserLabel {
     @Column(name = "LBL_TYPE_CD", nullable = false, length = 16)
     private String lblTypeCd;
 
-    @Column(name = "LBL_NM", length = 255)
+    @Column(name = "LBL_NM", length = 80)
     private String labelNm;
 
     @Column(name = "POINT_CN", columnDefinition = "TEXT")

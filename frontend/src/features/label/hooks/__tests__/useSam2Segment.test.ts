@@ -17,7 +17,6 @@ describe('useSam2Segment', () => {
         [1, 2],
       ],
       score: 0.9,
-      mock: false,
     });
     const { result } = renderHook(() => useSam2Segment(5001));
 
@@ -26,7 +25,8 @@ describe('useSam2Segment', () => {
       res.value = await result.current.segment({ points: [[10, 10]] });
     });
 
-    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] });
+    // Phase 9 — 3번째 인자 portalMode(기본 false)로 내부 경로 호출.
+    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] }, false);
     expect(res.value?.polygon).toHaveLength(3);
   });
 
@@ -38,7 +38,6 @@ describe('useSam2Segment', () => {
         [1, 2],
       ],
       score: 0.8,
-      mock: false,
     });
     const { result } = renderHook(() => useSam2Segment(5001));
 
@@ -46,7 +45,26 @@ describe('useSam2Segment', () => {
       await result.current.segment({ box: [5, 5, 40, 40] });
     });
 
-    expect(spy).toHaveBeenCalledWith(5001, { box: [5, 5, 40, 40] });
+    expect(spy).toHaveBeenCalledWith(5001, { box: [5, 5, 40, 40] }, false);
+  });
+
+  it('포털모드시_portalMode_true로_요청_Phase9', async () => {
+    // Phase 9 — 포털 모드면 requestSam2Segment 3번째 인자(portalMode)=true 로 포털 전용 경로 호출.
+    const spy = vi.spyOn(api, 'requestSam2Segment').mockResolvedValue({
+      polygon: [
+        [1, 1],
+        [2, 2],
+        [1, 2],
+      ],
+      score: 0.8,
+    });
+    const { result } = renderHook(() => useSam2Segment(5001, true));
+
+    await act(async () => {
+      await result.current.segment({ points: [[10, 10]] });
+    });
+
+    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] }, true);
   });
 
   it('진행중_재클릭_무시', async () => {
@@ -67,7 +85,7 @@ describe('useSam2Segment', () => {
     await waitFor(() => expect(result.current.isSegmenting).toBe(true));
 
     // 진행 중 두 번째 요청 → 무시(null) + API 추가 호출 없음
-    let second: api.Sam2SegmentResponse | null = { polygon: [], score: 1, mock: false };
+    let second: api.Sam2SegmentResponse | null = { polygon: [], score: 1 };
     await act(async () => {
       second = await result.current.segment({ points: [[20, 20]] });
     });
@@ -76,7 +94,7 @@ describe('useSam2Segment', () => {
 
     // 첫 요청 해결
     await act(async () => {
-      resolveFirst({ polygon: [[1, 1], [2, 2], [1, 2]], score: 0.9, mock: false });
+      resolveFirst({ polygon: [[1, 1], [2, 2], [1, 2]], score: 0.9 });
       await firstPromise;
     });
     expect(result.current.isSegmenting).toBe(false);
@@ -104,9 +122,9 @@ describe('useSam2Segment', () => {
     rerender({ srcSn: 9999 });
 
     // 응답 도착 — 요청 시점(5001) ≠ 현재(9999) → 폐기(null)
-    let res: api.Sam2SegmentResponse | null = { polygon: [[1, 1]], score: 1, mock: false };
+    let res: api.Sam2SegmentResponse | null = { polygon: [[1, 1]], score: 1 };
     await act(async () => {
-      resolveReq({ polygon: [[1, 1], [2, 2], [1, 2]], score: 0.9, mock: false });
+      resolveReq({ polygon: [[1, 1], [2, 2], [1, 2]], score: 0.9 });
       res = await pending;
     });
     expect(res).toBeNull();
@@ -115,7 +133,7 @@ describe('useSam2Segment', () => {
   it('srcSn_미지정시_null', async () => {
     const spy = vi.spyOn(api, 'requestSam2Segment');
     const { result } = renderHook(() => useSam2Segment(undefined));
-    let res: api.Sam2SegmentResponse | null = { polygon: [], score: 1, mock: false };
+    let res: api.Sam2SegmentResponse | null = { polygon: [], score: 1 };
     await act(async () => {
       res = await result.current.segment({ points: [[10, 10]] });
     });

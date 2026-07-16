@@ -1,7 +1,9 @@
 # 13. 버전관리
 
 > 출처: R1 RQ-SFR-08-04/05, R2 KLID-AT-UC-007/008, CLAUDE.md(라벨링·버전관리), 코드(`version/`)
-> 관련: [12 검수](12-review-assignment.md) · [15 관제서버 통지](15-control-notify.md)
+> 관련: [12 검수](12-review-assignment.md) · [15 관제서버 통지](15-control-notify.md) · [24 학습데이터 파일 산출](24-dataset-export.md)
+
+> **레이어 구분**: 본 페이지의 `LS_LABEL_VERSION`(DB 라벨 스냅샷)과 별개로, 검수 승인 시 확정 라벨을 **디스크 물리 파일**(프레임 이미지 + NIA COCO JSON)로 산출하는 기능은 [24 학습데이터 파일 산출](24-dataset-export.md) 참고.
 
 화면: `KLID-AT-SC-010`(라벨 이력 `/history/:videoId`). 코드: `version/`(11 파일).
 
@@ -15,7 +17,7 @@
 
 - **검수 승인(APPROVED) 시점에만** 스냅샷 생성 (`SAVE_REASON_CD='APPROVED'`)
 - 라벨 임시저장 단계는 스냅샷 미생성 (`LS_DATA_LBL` upsert만)
-- 저장 데이터: `{DATA_RAW_SN, DATA_SRC_SN, LABEL_PAYLOAD(JSON), VERSION_HASH, VERSION_NO, SAVE_REASON_CD, ACTVTN_YN, REG_ID/REG_DT}`
+- 저장 데이터: `{DATA_RAW_SN, DATA_SRC_SN, LABEL_PAYLOAD(JSON), VERSION_HASH, VER_NO(V90 rename, 구 VERSION_NO), SAVE_REASON_CD, ACTVTN_YN, REG_ID/REG_DT}`
 - 변경이력은 `LS_DATA_LBL_HSTRY` 병행
 
 ## 13.3 diff (비교)

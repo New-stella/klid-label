@@ -27,7 +27,7 @@ public class LsSystemConfig {
     @Column(name = "STNG_KEY", length = 100, nullable = false)
     private String configKey;
 
-    @Column(name = "STNG_VALUE", length = 500)
+    @Column(name = "STNG_VALUE", length = 4000)
     private String configVl;
 
     @Column(name = "STNG_TYPE_CD", length = 20, nullable = false)
@@ -36,7 +36,7 @@ public class LsSystemConfig {
     @Column(name = "EXPLN", length = 500)
     private String expln;
 
-    @Column(name = "MDFR_ID", length = 50)
+    @Column(name = "MDFR_ID", length = 64)
     private String mdfrId;
 
     @Column(name = "MDFCN_DT", nullable = false)

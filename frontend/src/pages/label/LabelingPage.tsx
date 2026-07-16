@@ -20,18 +20,23 @@ import { DarkToolbar } from '@/features/label/components/DarkToolbar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
+import { mergeTracks } from '@/features/label/api';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
+import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
+import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
+import { useAutolabel } from '@/features/label/hooks/useAutolabel';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
 import type { FrameSummary } from '@/features/label/types';
+import type { OverlayLayerHandle } from '@/features/label/canvas/layers/OverlayLayer';
 import { useSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { useReview } from '@/features/review/hooks/useReview';
 import { HistoryPanel } from '@/features/version/components/HistoryPanel';
@@ -141,6 +146,9 @@ export function LabelingPage() {
   const clearDirty = useLabelStore((s) => s.clearDirty);
   const addLabel = useLabelStore((s) => s.addLabel);
   const reset = useLabelStore((s) => s.reset);
+  const toggleLabelVisibility = useLabelStore((s) => s.toggleLabelVisibility);
+  const copyLabels = useLabelStore((s) => s.copyLabels);
+  const pasteLabels = useLabelStore((s) => s.pasteLabels);
 
   // BE 의 LabelResponse.siblings 로 영상 전체 프레임 표시.
   // 메인 캔버스(currentFrame)는 imageBlobUrl(현재 프레임)만 채우고, strip 의 다른 프레임 썸네일은
@@ -212,17 +220,54 @@ export function LabelingPage() {
   // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  // 우측 패널 탭 — 객체 / 이슈(검수자↔작업자 소통). 이슈 스레드는 INTERNAL 채널만.
-  const [rightTab, setRightTab] = useState<'objects' | 'issues'>('objects');
+  // 우측 패널 탭 — 객체 / 메타 / 이슈(검수자↔작업자 소통). 이슈 스레드는 INTERNAL 채널만.
+  //   객체 = 객체 목록 + 속성 / 메타 = 프레임 설명 + 시계열 메타(VLM) / 이슈 = 이슈 스레드
+  const [rightTab, setRightTab] = useState<'objects' | 'meta' | 'issues'>('objects');
   // 이슈는 영상 단위(rawSn) — videoId(LS_DATA_RAW.RAW_SN)만 사용.
   // srcSn(프레임 PK) 폴백 금지: 프레임 PK를 영상 ID 자리에 넣으면 잘못된 영상의 이슈 조회/404.
   // videoId 부재 시 이슈 탭 비노출.
   const issueRawSn = data?.videoId;
   const showIssues = !portalMode && issueRawSn !== undefined;
+  // 메타 탭(프레임 설명 + 시계열 메타)은 내부 채널만 노출 — 포털은 VLM/메타 미제공(ADR-013).
+  const showMeta = !portalMode;
+  const hasTabs = showMeta || showIssues;
   const { data: issueThreads } = useIssueThreads(showIssues ? issueRawSn : undefined);
   const unresolvedInquiries = (issueThreads ?? []).filter(
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
   ).length;
+
+  // 프레임 썸네일 4색 상태(21 §21.9) — issueThreads 를 REJECTION/INQUIRY 타입별 srcSn 집합으로
+  // 가공해 DarkFrameStrip 에 주입한다. resolveFrameStatus 우선순위: 현재>확인요청>반려>저장.
+  // srcSn 이 null 인 영상 단위 이슈(프레임 미지정)는 특정 썸네일에 귀속할 수 없어 제외한다.
+  const rejectionSrcSns = useMemo(() => {
+    const set = new Set<number>();
+    for (const t of issueThreads ?? []) {
+      if (t.issueTypeCd === 'REJECTION' && t.srcSn != null) set.add(t.srcSn);
+    }
+    return set;
+  }, [issueThreads]);
+  const inquirySrcSns = useMemo(() => {
+    const set = new Set<number>();
+    for (const t of issueThreads ?? []) {
+      // 미해소 문의만 빨강 강조(해소된 문의는 더 이상 주의 대상 아님).
+      if (t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED' && t.srcSn != null) {
+        set.add(t.srcSn);
+      }
+    }
+    return set;
+  }, [issueThreads]);
+  // 저장된 프레임(라벨 존재) 집합 — BE LabelResponse.siblings[].hasLabel 로 형제 프레임 전체를 판정.
+  // 현재 프레임은 resolveFrameStatus 에서 CURRENT 가 우선하므로 SAVED 로 덮이지 않고, 저장된 형제
+  // 프레임(현재 아님)만 연두(SAVED)로 표시된다 → 4색 전부 실동작.
+  // 현재 프레임은 응답 labels 가 로드된 즉시(hasLabel 반영 전 경합 대비) 함께 포함해 정합을 보장한다.
+  const savedSrcSns = useMemo(() => {
+    const set = new Set<number>();
+    for (const s of data?.siblings ?? []) {
+      if (s.hasLabel) set.add(s.srcSn);
+    }
+    if (data && Array.isArray(data.labels) && data.labels.length > 0) set.add(data.srcSn);
+    return set;
+  }, [data]);
 
   // 비식별 누락 신고 — 영상 잠금 상태 추적.
   // 1) BE 응답 lockSttsCd='LOCKED_FOR_REDEIDENT' → 진입 시 잠금
@@ -290,6 +335,60 @@ export function LabelingPage() {
     }
   };
 
+  // Phase 3 — YOLO 오토라벨 수동 트리거. 포털은 미제공(ADR-013 — 버튼 자체 미노출).
+  // 성공 시 BE 가 저장한 자동 라벨을 재조회(useLabels)하여 캔버스에 반영. mock 응답은 자동적용 차단.
+  const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn);
+  const handleAutolabel = async () => {
+    if (!currentFrame) return;
+    if (isLocked) {
+      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 오토라벨할 수 없습니다.' });
+      return;
+    }
+    try {
+      const res = await autolabel();
+      if (!res) return;
+      // 내부 mock(모델 미로드) 시 BE 가 ApiResponse.message 를 세팅한다 → 경고 토스트로 자동적용 차단 안내.
+      // message 가 없으면 정상 응답이며, savedCount=0 이어도 "0건 적용됨"(성공 스타일)로 안내한다.
+      if (res.message) {
+        pushToast({ variant: 'warning', message: res.message });
+        return;
+      }
+      // 저장된 자동 라벨 재조회 → useLabels 가 data 갱신 시 setLabels 로 캔버스 반영.
+      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(currentFrame.srcSn) });
+      pushToast({ variant: 'success', message: `YOLO 오토라벨 ${res.savedCount}건 적용됨` });
+    } catch (e) {
+      pushToast({
+        variant: 'error',
+        message: e instanceof Error ? e.message : 'YOLO 오토라벨 실패',
+      });
+    }
+  };
+
+  // Phase 4 — 트랙 번호 변경(rename) 영속. 미사용 번호로의 병합=rename 이므로 mergeTracks 재사용.
+  // ObjectClassTree 가 store(trackId) 를 낙관적 갱신하고, 여기서 BE 재보간까지 반영 후 재조회한다.
+  const handleRenameTrack = async (fromTrackId: string, toTrackId: string) => {
+    // Phase 10(축소) — 포털은 트랙 데이터모델 부재(프레임별 단건)라 rename/머지 미제공.
+    // 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이므로 조기 return.
+    // 버튼 숨김(ObjectClassTree portalMode)과 함께 이중 안전 가드.
+    if (portalMode) return;
+    const rawSn = data?.videoId;
+    if (rawSn === undefined) return;
+    if (isLocked) {
+      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 트랙을 변경할 수 없습니다.' });
+      return;
+    }
+    try {
+      await mergeTracks(rawSn, fromTrackId, toTrackId);
+      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(rawSn) });
+      pushToast({ variant: 'success', message: `트랙 번호 변경됨 (#${fromTrackId} → #${toTrackId})` });
+    } catch (e) {
+      pushToast({
+        variant: 'error',
+        message: e instanceof Error ? e.message : '트랙 번호 변경 실패 (겹치는 프레임일 수 있습니다)',
+      });
+    }
+  };
+
   // dirty 가드 — X(닫기) 클릭 시 미저장 변경이 있으면 확인 다이얼로그.
   // 권한/role 가드 redirect 경로(잘못된 ID / 라벨 조회 실패)에는 적용하지 않음 — 보안상 즉시 차단 유지.
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -342,13 +441,66 @@ export function LabelingPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirtyCount]);
 
-  useLabelingShortcuts({
-    onPrevFrame: () => jumpTo(Math.max(0, frameIdx - 1)),
-    onNextFrame: () => jumpTo(Math.min(frames.length - 1, frameIdx + 1)),
-    onSave: handleSave,
-  });
+  // 폴리곤 편집(F/Q 단축키) 명령 핸들 — CanvasShell 이 OverlayLayer 의 imperative handle 을 중계.
+  // 편집 state 는 OverlayLayer 내부 캡슐화를 유지하고, 상위는 이 ref 로 마우스와 동일 로직을 호출한다.
+  const canvasHandleRef = useRef<OverlayLayerHandle | null>(null);
+
+  useLabelingShortcuts(
+    {
+      // W/S — 첫/끝 프레임 (기존 프레임 네비 로직 재사용).
+      onFirstFrame: () => jumpTo(0),
+      onLastFrame: () => jumpTo(frames.length - 1),
+      onPrevFrame: () => jumpTo(Math.max(0, frameIdx - 1)),
+      onNextFrame: () => jumpTo(Math.min(frames.length - 1, frameIdx + 1)),
+      onSave: handleSave,
+      // T — 선택된 라벨의 표시/숨김 토글 (세션 상태, 캔버스에서 렌더 skip).
+      onToggleVisibility: () => {
+        const id = useLabelStore.getState().selectedLabelId;
+        if (id) toggleLabelVisibility(id);
+      },
+      // F/Q — 폴리곤 점 추가 / 완성. OverlayLayer 의 imperative handle 로 마우스와 동일 로직 호출.
+      // 폴리곤 도구가 아니거나 진행 중 점이 부족하면 핸들 내부에서 no-op 처리한다.
+      onPolygonAddPoint: () => canvasHandleRef.current?.addPointAtPointer(),
+      onPolygonComplete: () => canvasHandleRef.current?.completePolygon(),
+      // Ctrl+C(선택)/Ctrl+Shift+C(전체) — 라벨 복사. 빈 선택/프레임이면 no-op 토스트.
+      onCopyLabels: ({ onlySelected }) => {
+        const n = copyLabels({ onlySelected, sourceRawSn: data?.videoId ?? null });
+        pushToast(
+          n === 0
+            ? { variant: 'warning', message: '복사할 라벨이 없습니다.' }
+            : { variant: 'success', message: `라벨 ${n}건 복사됨` },
+        );
+      },
+      // Ctrl+V/Ctrl+Shift+V — 현재 프레임에 붙여넣기. 잠금 영상은 차단.
+      onPasteLabels: () => {
+        if (isLocked) {
+          pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 붙여넣을 수 없습니다.' });
+          return;
+        }
+        if (!currentFrame) return;
+        const n = pasteLabels({
+          frameNo: currentFrame.frameNo,
+          sourceRawSn: data?.videoId ?? null,
+          imageWidth: currentFrame.imageWidth,
+          imageHeight: currentFrame.imageHeight,
+        });
+        pushToast(
+          n === 0
+            ? { variant: 'warning', message: '붙여넣을 라벨이 없습니다.' }
+            : { variant: 'success', message: `라벨 ${n}건 붙여넣음` },
+        );
+      },
+    },
+    // ADR-013 — 포털 모드에서는 오토라벨/키포인트 단축키 게이팅(툴바 숨김과 정합).
+    { portalMode },
+  );
 
   const [canvasRef, canvasSize] = useContainerSize<HTMLDivElement>();
+
+  // KEYPOINT 순차 배치 진행 인덱스(0~16) — OverlayLayer→CanvasShell 이 보고.
+  // 가이드는 좌측 라벨 패널(LabelSidebar) 내부에서 렌더하므로 캔버스와 패널의 공통 부모인
+  // 이 페이지로 state 를 리프팅한다. 미진행/완료 시 null → 가이드 미표시.
+  const [keypointPlacingIndex, setKeypointPlacingIndex] = useState<number | null>(null);
 
   // 잘못된 ID — 풀스크린 다크 에러
   if (Number.isNaN(numericId)) {
@@ -555,8 +707,13 @@ export function LabelingPage() {
 
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
       <div className="flex flex-1 overflow-hidden">
-        <DarkToolbar onSave={handleSave} portalMode={portalMode} />
-        <LabelSidebar />
+        <DarkToolbar
+          onSave={handleSave}
+          portalMode={portalMode}
+          onAutolabel={handleAutolabel}
+          isAutolabeling={isAutolabeling}
+        />
+        <LabelSidebar keypointPlacingIndex={keypointPlacingIndex} />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}
         <div
@@ -572,12 +729,15 @@ export function LabelingPage() {
               }
             >
               <CanvasShell
+                ref={canvasHandleRef}
                 frame={currentFrame}
                 width={canvasSize.width || 1280}
                 height={canvasSize.height || 720}
                 labels={labels}
                 readOnly={isLocked}
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
+                onKeypointPlacingChange={setKeypointPlacingIndex}
+                portalMode={portalMode}
               />
             </Suspense>
           ) : (
@@ -585,9 +745,9 @@ export function LabelingPage() {
           )}
         </div>
 
-        {/* 우측 패널 — 탭(객체 / 이슈). 이슈 탭은 INTERNAL 채널만 노출. */}
+        {/* 우측 패널 — 탭(객체 / 메타 / 이슈). 메타·이슈 탭은 INTERNAL 채널만 노출. */}
         <div className="w-72 flex flex-col bg-gray-800 border-l border-gray-700 overflow-hidden shrink-0">
-          {showIssues && (
+          {hasTabs && (
             <div
               className="flex shrink-0 border-b border-gray-700"
               role="tablist"
@@ -609,31 +769,51 @@ export function LabelingPage() {
               >
                 객체
               </button>
-              <button
-                type="button"
-                role="tab"
-                id="right-tab-issues"
-                aria-selected={rightTab === 'issues'}
-                aria-controls="right-panel-issues"
-                data-testid="right-tab-issues"
-                onClick={() => setRightTab('issues')}
-                className={
-                  rightTab === 'issues'
-                    ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
-                    : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
-                }
-              >
-                이슈
-                {unresolvedInquiries > 0 && (
-                  <span
-                    data-testid="issue-tab-badge"
-                    className="inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
-                    aria-label={`미해소 문의 ${unresolvedInquiries}건`}
-                  >
-                    {unresolvedInquiries}
-                  </span>
-                )}
-              </button>
+              {showMeta && (
+                <button
+                  type="button"
+                  role="tab"
+                  id="right-tab-meta"
+                  aria-selected={rightTab === 'meta'}
+                  aria-controls="right-panel-meta"
+                  data-testid="right-tab-meta"
+                  onClick={() => setRightTab('meta')}
+                  className={
+                    rightTab === 'meta'
+                      ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
+                      : 'flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                  }
+                >
+                  메타
+                </button>
+              )}
+              {showIssues && (
+                <button
+                  type="button"
+                  role="tab"
+                  id="right-tab-issues"
+                  aria-selected={rightTab === 'issues'}
+                  aria-controls="right-panel-issues"
+                  data-testid="right-tab-issues"
+                  onClick={() => setRightTab('issues')}
+                  className={
+                    rightTab === 'issues'
+                      ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
+                      : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                  }
+                >
+                  이슈
+                  {unresolvedInquiries > 0 && (
+                    <span
+                      data-testid="issue-tab-badge"
+                      className="inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
+                      aria-label={`미해소 문의 ${unresolvedInquiries}건`}
+                    >
+                      {unresolvedInquiries}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
           )}
 
@@ -647,10 +827,23 @@ export function LabelingPage() {
             >
               <IssueThreadPanel rawSn={issueRawSn} mode="worker" dark />
             </div>
+          ) : showMeta && rightTab === 'meta' ? (
+            <div
+              className="flex-1 flex flex-col overflow-y-auto"
+              data-testid="label-meta-panel"
+              role="tabpanel"
+              id="right-panel-meta"
+              aria-labelledby="right-tab-meta"
+            >
+              {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. */}
+              <FrameDescriptionPanel srcSn={data?.srcSn} />
+              {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
+              <TimeseriesSidePanel srcSn={data?.srcSn} />
+            </div>
           ) : (
             <div
               className="flex-1 flex flex-col overflow-hidden"
-              {...(showIssues
+              {...(hasTabs
                 ? {
                     role: 'tabpanel',
                     id: 'right-panel-objects',
@@ -662,7 +855,11 @@ export function LabelingPage() {
                 <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
                   객체 목록
                 </div>
-                <ObjectClassTree labels={labels} />
+                <ObjectClassTree
+                  labels={labels}
+                  onRenameTrack={handleRenameTrack}
+                  portalMode={portalMode}
+                />
               </div>
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
@@ -670,23 +867,23 @@ export function LabelingPage() {
                 </div>
                 <ObjectAttributePanel
                   labels={labels}
-                  // R16/ADR-013 — 포털은 SAM2 오토 트래킹 미제공(내부 /frames/{id}/sam2-* 는 PORTAL 채널 403).
-                  // 포털 모드에서는 track 컨텍스트를 전달하지 않아 SAM2 자동추적 UI 자체를 미노출.
-                  track={
-                    portalMode
-                      ? undefined
-                      : {
-                          srcSn: data?.srcSn,
-                          nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
-                          onTracked: () => {
-                            pushToast({ variant: 'success', message: 'SAM2 자동추적 완료' });
-                          },
-                        }
-                  }
+                  // Phase 9 (ADR-013 override) — 포털도 SAM2 자동추적 허용. 단 포털은 포털 전용
+                  // /portal/frames/{id}/sam2-track 경로로 호출(persist 없이 좌표만) — portalMode 로 분기한다.
+                  // 내부 /frames/{id}/sam2-track 은 PORTAL 채널 403 이므로 절대 호출하지 않는다.
+                  track={{
+                    srcSn: data?.srcSn,
+                    nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
+                    portalMode,
+                    onTracked: () => {
+                      pushToast({ variant: 'success', message: 'SAM2 자동추적 완료' });
+                    },
+                  }}
                 />
               </div>
-              {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 포털 라벨링에는 미노출, 내부 채널만 렌더 */}
-              {!portalMode && <TimeseriesSidePanel srcSn={data?.srcSn} />}
+              {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함). */}
+              <div className="shrink-0 border-t border-gray-700 p-2">
+                <ImageAdjustPanel />
+              </div>
             </div>
           )}
         </div>
@@ -713,6 +910,9 @@ export function LabelingPage() {
             frames={frames}
             currentIndex={frameIdx}
             onSelect={jumpTo}
+            rejectionSrcSns={rejectionSrcSns}
+            inquirySrcSns={inquirySrcSns}
+            savedSrcSns={savedSrcSns}
             portalMode={portalMode}
           />
         </div>

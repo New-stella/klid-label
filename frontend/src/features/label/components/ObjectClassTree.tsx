@@ -1,7 +1,7 @@
 // SCR-LABEL-001 우측 상단 객체 트리 (mock 정합 — 분류별 그룹화 + 펼치기 + bbox/polygon 표시).
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Pencil, Trash2, X } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -12,14 +12,54 @@ import { trackIdToColor } from '../utils/trackColor';
 
 interface ObjectClassTreeProps {
   labels: Label[];
+  /**
+   * 트랙 번호 변경 저장 콜백(Phase 4). (fromTrackId, toTrackId).
+   * 부모가 mergeTracks API(미사용 번호로의 병합=이름변경)로 배선한다. 미지정 시 클라이언트
+   * 상태(store)만 갱신하고 다음 저장 시 반영한다.
+   */
+  onRenameTrack?: (fromTrackId: string, toTrackId: string) => void;
+  /**
+   * Phase 10(축소) — 포털 채널 여부. 포털 라벨은 트랙 데이터모델 부재(프레임별 단건)라
+   * rename/머지가 불가능하므로, true 면 트랙 번호 변경(연필) 진입 자체를 숨긴다.
+   * 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이라 절대 호출하지 않는다.
+   */
+  portalMode?: boolean;
 }
 
-export function ObjectClassTree({ labels }: ObjectClassTreeProps) {
+export function ObjectClassTree({
+  labels,
+  onRenameTrack,
+  portalMode = false,
+}: ObjectClassTreeProps) {
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const selectLabel = useLabelStore((s) => s.selectLabel);
   const removeLabel = useLabelStore((s) => s.removeLabel);
+  const updateLabel = useLabelStore((s) => s.updateLabel);
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // 트랙 번호 인라인 편집 상태 — 편집 중인 라벨 id 와 입력 draft.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+
+  const startRename = (obj: Label) => {
+    setRenamingId(obj.id);
+    setDraft(String(obj.trackId ?? ''));
+  };
+
+  const commitRename = (obj: Label) => {
+    const next = draft.trim();
+    const current = obj.trackId ?? null;
+    setRenamingId(null);
+    // 빈 값/무변경은 no-op.
+    if (!next || next === (current ?? '')) return;
+    // 같은 트랙(current)의 모든 라벨 trackId 를 일괄 변경(트랙 단위 rename). current 가 null(트랙
+    // 미부여)이면 이 라벨만 신규 trackId 부여.
+    const targets = current != null ? labels.filter((l) => l.trackId === current) : [obj];
+    targets.forEach((l) => updateLabel(l.id, { trackId: next }));
+    // 서버 트랙(current!=null)일 때만 영속(미사용 번호로의 병합=rename). 클라이언트 신규 부여는
+    // 다음 일괄 저장에서 반영.
+    if (current != null) onRenameTrack?.(current, next);
+  };
 
   const groups = useMemo(() => {
     const map = new Map<string, Label[]>();
@@ -92,18 +132,74 @@ export function ObjectClassTree({ labels }: ObjectClassTreeProps) {
                       className="inline-block w-1 shrink-0 rounded-sm"
                       style={{ backgroundColor: barColor }}
                     />
-                    <button
-                      type="button"
-                      onClick={() => selectLabel(obj.id)}
-                      className="flex-1 flex items-center gap-2 text-left"
-                      aria-label={`${displayName} #${objNumber} 선택`}
-                    >
-                      <span aria-hidden>{sourceIcon}</span>
-                      <span className="flex-1 truncate">
-                        {displayName} #{objNumber}
-                      </span>
-                      <span className="text-gray-500 text-xs uppercase">{shapeType}</span>
-                    </button>
+                    {renamingId === obj.id ? (
+                      <div className="flex-1 flex items-center gap-1">
+                        <span aria-hidden>{sourceIcon}</span>
+                        <span className="truncate text-gray-300">{displayName} #</span>
+                        <input
+                          type="text"
+                          value={draft}
+                          autoFocus
+                          onChange={(e) => setDraft(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitRename(obj);
+                            else if (e.key === 'Escape') setRenamingId(null);
+                          }}
+                          className="w-16 bg-gray-800 border border-gray-600 rounded px-1 text-xs text-white"
+                          aria-label="트랙 번호 입력"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            commitRename(obj);
+                          }}
+                          className="text-green-400 hover:text-green-300"
+                          aria-label="트랙 번호 저장"
+                        >
+                          <Check size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingId(null);
+                          }}
+                          className="text-gray-400 hover:text-gray-200"
+                          aria-label="트랙 번호 변경 취소"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => selectLabel(obj.id)}
+                        className="flex-1 flex items-center gap-2 text-left"
+                        aria-label={`${displayName} #${objNumber} 선택`}
+                      >
+                        <span aria-hidden>{sourceIcon}</span>
+                        <span className="flex-1 truncate">
+                          {displayName} #{objNumber}
+                        </span>
+                        <span className="text-gray-500 text-xs uppercase">{shapeType}</span>
+                      </button>
+                    )}
+                    {/* Phase 10(축소) — 포털은 트랙 rename/머지 미제공(데이터모델 부재)이라 연필 버튼 숨김. */}
+                    {!portalMode && renamingId !== obj.id && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startRename(obj);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-300 transition-opacity"
+                        aria-label={`${displayName} #${objNumber} 트랙 번호 변경`}
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => {

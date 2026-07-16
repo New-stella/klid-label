@@ -131,19 +131,19 @@ if [[ -f "${AI_SRC}/weights/yolox_s.onnx" ]]; then
   cp "${AI_SRC}/weights/yolox_s.onnx" "${WEIGHTS_OUT}/yolox_s.onnx"
   ok "[ai-server] 가중치 수집: ${WEIGHTS_OUT}/yolox_s.onnx  ($(du -h "${WEIGHTS_OUT}/yolox_s.onnx" | cut -f1))"
 else
-  warn "[ai-server] yolox 가중치 없음: ${AI_SRC}/weights/yolox_s.onnx — DETECTOR_BACKEND=yolox 사용 시 필요"
+  warn "[ai-server] yolox 가중치 없음: ${AI_SRC}/weights/yolox_s.onnx — 탐지(YOLOX 단일) 실행에 필요"
 fi
 
 # ---- 5) (옵션) HF 모델 prefetch ----
-# DETECTOR_BACKEND=rtdetr 또는 SAM2(클릭/박스 분할)를 쓰면 HF 모델이 필요하다.
-# yolox 만 쓰면 생략 가능(기본 생략).
+# SAM2(클릭/박스 분할·Track)를 쓰면 HF 모델이 필요하다.
+# 탐지(YOLOX)는 HF 불필요 — SAM2 미사용이면 생략 가능(기본 생략).
 if [[ "${PREFETCH_HF:-0}" == "1" ]]; then
   info "[ai-server] HF 모델 prefetch (HF_HOME=${HF_OUT})..."
   if "${PYBIN}" -c 'import huggingface_hub' 2>/dev/null; then
     HF_HOME="${HF_OUT}" "${PYBIN}" - <<PY || warn "HF prefetch 일부 실패 — 사용 백엔드에 따라 무시 가능"
 import os
 from huggingface_hub import snapshot_download
-for mid in ["${HF_SAM2_MODEL_ID}", "${HF_RTDETR_MODEL_ID}"]:
+for mid in ["${HF_SAM2_MODEL_ID}"]:
     print("download:", mid)
     snapshot_download(repo_id=mid)
 PY
@@ -152,7 +152,7 @@ PY
     warn "huggingface_hub 미설치 — HF prefetch 생략. 먼저 'pip install huggingface_hub' 후 PREFETCH_HF=1 재실행."
   fi
 else
-  info "[ai-server] HF 모델 prefetch 생략(PREFETCH_HF=1 로 활성화). yolox 백엔드만 쓰면 불필요."
+  info "[ai-server] HF 모델 prefetch 생략(PREFETCH_HF=1 로 활성화). SAM2 미사용이면 불필요(탐지=YOLOX 단일)."
 fi
 
 # ---- 무결성 체크섬 ----

@@ -143,7 +143,6 @@ SAM2_GIT_URL="https://github.com/facebookresearch/sam2.git"
 # ※ SHA(브랜치/태그가 아님)이므로 collect 스크립트는 clone 후 git checkout 으로 처리한다.
 SAM2_GIT_REF="2b90b9f5ceec907a1c18123530e92e794ad901a4"
 
-# ---- HuggingFace 모델(선택 — DETECTOR_BACKEND=rtdetr 또는 SAM2 사용 시) ----
-# yolox(yolox_s.onnx)만 쓰면 HF 모델 prefetch 불필요.
+# ---- HuggingFace 모델(선택 — SAM2 분할/Track 사용 시) ----
+# 탐지는 YOLOX 단일(yolox_s.onnx)이라 HF 모델 prefetch 는 SAM2 만 대상.
 HF_SAM2_MODEL_ID="facebook/sam2-hiera-tiny"
-HF_RTDETR_MODEL_ID="PekingU/rtdetr_v2_r50vd"

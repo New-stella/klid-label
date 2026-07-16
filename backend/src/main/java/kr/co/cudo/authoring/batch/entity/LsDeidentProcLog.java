@@ -48,7 +48,7 @@ public class LsDeidentProcLog {
      * 외부 시스템(Deidentify SW)의 작업 ID — Phase 2 보강 (DEV_FIX H-3).
      * UNIQUE 제약으로 동일 externalJobId 재인계 시 upsert 단일 row 갱신을 보장한다.
      */
-    @Column(name = "OTSD_JOB_ID", length = 128)
+    @Column(name = "OTSD_JOB_ID", length = 200)
     private String externalJobId;
 
     @Column(name = "ORGNL_FILE_PATH_NM", length = 1000, nullable = false)
@@ -63,21 +63,21 @@ public class LsDeidentProcLog {
     @Column(name = "REQ_DT", nullable = false)
     private LocalDateTime reqDt;
 
-    @Column(name = "RESP_DT")
+    @Column(name = "RSPNS_DT")
     private LocalDateTime resDt;
 
     @Column(name = "ERR_CD", length = 50)
     private String errorCd;
 
-    @Column(name = "ERR_MSG_CN", length = 1000)
+    @Column(name = "ERR_MSG_CN", length = 4000)
     private String errorMsg;
 
-    /** KPST 프로젝트 ID — 영상 1건 = 프로젝트 1개 (Phase 2 폴링 연동). */
-    @Column(name = "KPST_PRJ_ID")
+    /** KPST 프로젝트 ID — 영상 1건 = 프로젝트 1개 (Phase 2 폴링 연동). 물리 컬럼: DE_IDNTF_PJT_ID(V83). */
+    @Column(name = "DE_IDNTF_PJT_ID")
     private Long kpstPrjId;
 
-    /** KPST 데이터셋 ID — 파일 단위 (Phase 2 폴링 연동). */
-    @Column(name = "KPST_DATASET_ID")
+    /** KPST 데이터셋 ID — 파일 단위 (Phase 2 폴링 연동). 물리 컬럼: DE_IDNTF_DATST_ID(V83). */
+    @Column(name = "DE_IDNTF_DATST_ID")
     private Long kpstDatasetId;
 
     /** 폴링 상태: WAITING/POLLING/DOWNLOADED. null=콜백 경로 또는 미사용. */
@@ -88,21 +88,21 @@ public class LsDeidentProcLog {
     @Column(name = "POLL_LAST_DT")
     private LocalDateTime pollLastDt;
 
-    /** 폴링 시도 횟수(타임아웃 판정용). */
-    @Column(name = "POLL_ATTEMPT_CNT")
+    /** 폴링 시도 횟수(타임아웃 판정용). 물리 컬럼: POLL_ATMPT_CNT(V83). */
+    @Column(name = "POLL_ATMPT_CNT")
     private Integer pollAttemptCnt;
 
-    /** 요청 종류: null=기존 배치 비식별 경로, {@link #REQ_KIND_REDEIDENT}=검수완료 재비식별 경로. */
-    @Column(name = "REQ_KIND_CD", length = 20)
+    /** 요청 종류: null=기존 배치 비식별 경로, {@link #REQ_KIND_REDEIDENT}=검수완료 재비식별 경로. 물리 컬럼: REQ_KND_CD(V83). */
+    @Column(name = "REQ_KND_CD", length = 20)
     private String reqKindCd;
 
-    @Column(name = "REG_ID", length = 30)
+    @Column(name = "REG_ID", length = 64)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "MDFCN_ID", length = 30)
+    @Column(name = "MDFCN_ID", length = 64)
     private String mdfcnId;
 
     @Column(name = "MDFCN_DT")

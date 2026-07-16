@@ -9,7 +9,7 @@
 #     - torch 2.5.1 은 numpy 2.x ABI 호환 + Meta sam2(SAM-2) 의 torch>=2.5.1 요구를 충족한다.
 #       (구 base torch 2.4.1 은 sam2 의 torch>=2.5.1 미충족 → 설치 시 torch 재다운로드/충돌.
 #        torch 2.0.1 은 numpy 1.x ABI 라 numpy<2 강제로 trackers(numpy>=2.0.2) 설치 불가였다.)
-#       base 를 torch 2.5.1 / numpy 2.x 호환으로 올려 yolox(onnxruntime)·sam2·rtdetr 설치를 지원한다.
+#       base 를 torch 2.5.1 / numpy 2.x 호환으로 올려 yolox(onnxruntime)·sam2 설치를 지원한다.
 #     - CUDA 12.x base 는 실제 GPU 추론 시 호스트 NVIDIA 드라이버 >=525/535 가
 #       필요하나, mock(AI_MOCK_MODE=true) 기동·이미지 빌드에는 CUDA/GPU 가 불필요하다.
 # ============================================================================

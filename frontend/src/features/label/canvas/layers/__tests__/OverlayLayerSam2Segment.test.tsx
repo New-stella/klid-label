@@ -62,7 +62,6 @@ describe('OverlayLayer — SAM2 클릭/박스 분할(SAM_SEGMENT)', () => {
     const segment = vi.fn().mockResolvedValue({
       polygon: [[10, 10], [20, 20], [10, 20]],
       score: 0.9,
-      mock: false,
     });
     const { container } = render(
       <OverlayLayer
@@ -81,7 +80,6 @@ describe('OverlayLayer — SAM2 클릭/박스 분할(SAM_SEGMENT)', () => {
     const segment = vi.fn().mockResolvedValue({
       polygon: [[10, 10], [20, 20], [10, 20]],
       score: 0.9,
-      mock: false,
     });
     // mousedown(10,10) → mousemove(40,40) → mouseup(40,40)
     const ref = makeStageRef(10, 10);
@@ -103,7 +101,6 @@ describe('OverlayLayer — SAM2 클릭/박스 분할(SAM_SEGMENT)', () => {
     const segment = vi.fn().mockResolvedValue({
       polygon: [[10, 10], [20, 20], [10, 20]],
       score: 0.9,
-      mock: false,
     });
     const onLabelAdd = vi.fn();
     const { container } = render(
@@ -122,14 +119,16 @@ describe('OverlayLayer — SAM2 클릭/박스 분할(SAM_SEGMENT)', () => {
     expect(label.classId).toBe(7);
   });
 
-  it('mock_응답시_경고_표시_및_자동적용_차단', async () => {
+  it('빈폴리곤_응답이면_자동적용_차단되고_message경고_표시', async () => {
+    // mock(모델 미로드) 신호 = 빈 폴리곤 + BE message. 별도 mock 플래그 없이 재배선.
     const segment = vi.fn().mockResolvedValue({
-      polygon: [[10, 10], [20, 20], [10, 20]],
-      score: 0.5,
-      mock: true,
+      polygon: [],
+      score: 0,
+      message: 'AI 모델 미로드 — 결과 신뢰 불가',
     });
     const onLabelAdd = vi.fn();
     const onMockWarning = vi.fn();
+    const onLowConfidence = vi.fn();
     const { container } = render(
       <OverlayLayer
         geometry={geom}
@@ -138,11 +137,42 @@ describe('OverlayLayer — SAM2 클릭/박스 분할(SAM_SEGMENT)', () => {
         segment={segment}
         onLabelAdd={onLabelAdd}
         onMockWarning={onMockWarning}
+        onLowConfidence={onLowConfidence}
       />,
     );
     fireEvent.click(findRect(container));
     await waitFor(() => expect(onMockWarning).toHaveBeenCalledTimes(1));
-    // 자동 적용 차단 — onLabelAdd 호출되지 않음.
+    // 경고 콜백에 BE message 가 전달돼 정확한 안내가 뜬다.
+    expect(onMockWarning.mock.calls[0][0].message).toBe('AI 모델 미로드 — 결과 신뢰 불가');
+    // 자동 적용 차단 — onLabelAdd 호출되지 않음. 저신뢰로 오분류되지 않음.
+    expect(onLabelAdd).not.toHaveBeenCalled();
+    expect(onLowConfidence).not.toHaveBeenCalled();
+  });
+
+  it('저신뢰(비어있지않은_폴리곤)_는_낮은신뢰도_안내로_빈폴리곤과_구분', async () => {
+    // score 낮지만 폴리곤이 있는 경우 → 낮은 신뢰도 안내(빈폴리곤=mock 과 별개 분기).
+    const segment = vi.fn().mockResolvedValue({
+      polygon: [[10, 10], [20, 20], [10, 20]],
+      score: 0.1,
+      message: null,
+    });
+    const onLabelAdd = vi.fn();
+    const onMockWarning = vi.fn();
+    const onLowConfidence = vi.fn();
+    const { container } = render(
+      <OverlayLayer
+        geometry={geom}
+        activeTool={ToolType.SAM_SEGMENT}
+        stageRef={makeStageRef(15, 25)}
+        segment={segment}
+        onLabelAdd={onLabelAdd}
+        onMockWarning={onMockWarning}
+        onLowConfidence={onLowConfidence}
+      />,
+    );
+    fireEvent.click(findRect(container));
+    await waitFor(() => expect(onLowConfidence).toHaveBeenCalledTimes(1));
+    expect(onMockWarning).not.toHaveBeenCalled();
     expect(onLabelAdd).not.toHaveBeenCalled();
   });
 

@@ -71,4 +71,4 @@
 
 `LS_BATCH_PROC_LOG`(단계별 로그·`STAGE_CD`·`RES_PAYLOAD_CN`), `LS_DATA_RAW.dataSttsCd`(PENDING→MARKING_READY→COMPLETED), `LS_DEIDENT_PROC_LOG`(비식별 경로 self-lookup 출처), `LS_RAW_DATA_STATUS`. → [18](18-database.md).
 
-> **비식별 완료 분기 (REQ_KIND_CD)**: KPST 비식별 완료 처리는 `LS_DEIDENT_PROC_LOG.REQ_KIND_CD`로 분기한다 — 기존 **BATCH**(신규 영상 파이프라인)는 `MARKING_READY` 전이(현행), **REDEIDENT**(검수완료 영상 재비식별)는 상태 전이 없이 비식별 프레임 attach만(APPROVED 유지). → [08 §8.6](08-deidentification.md).
+> **비식별 완료 분기 (REQ_KND_CD)**: KPST 비식별 완료 처리는 `LS_DEIDENT_PROC_LOG.REQ_KND_CD`로 분기한다 — 기존 **BATCH**(신규 영상 파이프라인)는 `MARKING_READY` 전이(현행), **REDEIDENT**(검수완료 영상 재비식별)는 상태 전이 없이 비식별 프레임 attach만(APPROVED 유지). → [08 §8.6](08-deidentification.md).

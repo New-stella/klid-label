@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.batch.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -41,7 +43,7 @@ public class LsDataLblAiInfo {
     @Column(name = "LBL_SRC_CD", nullable = false, length = 20)
     private String lblSrcCd;
 
-    @Column(name = "MODEL_NM", length = 100)
+    @Column(name = "MDL_NM", length = 100)
     private String modelNm;
 
     @Column(name = "MDL_VER", length = 50)
@@ -51,15 +53,16 @@ public class LsDataLblAiInfo {
     private BigDecimal confScore;
 
     @Column(name = "AUTO_LBL_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String autoLblYn;
 
-    @Column(name = "REG_ID", length = 30)
+    @Column(name = "REG_ID", length = 64)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "MDFCN_ID", length = 30)
+    @Column(name = "MDFCN_ID", length = 64)
     private String mdfcnId;
 
     @Column(name = "MDFCN_DT")

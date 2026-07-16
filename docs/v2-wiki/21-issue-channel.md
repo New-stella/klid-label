@@ -18,7 +18,7 @@
 | 테이블 | 내용 |
 |--------|------|
 | `LS_DATA_ISSUE` (확장) | +`ISSUE_TYPE_CD`(REJECTION/INQUIRY) +`ISSUE_STTS_CD`(OPEN/ANSWERED/RESOLVED) +`SRC_SN`(프레임 단위 문의, nullable, partial index) +`VERSION`(낙관적 잠금). 기존 반려 행은 backfill로 REJECTION/RESOLVED. 코드값 CHECK 제약 |
-| `LS_ISSUE_COMMENT` (신규) | ISSUE_COMMENT_SN(PK), DATA_ISSUE_SN, AUTHOR_NO, AUTHOR_ROLE_CD(WORKER/REVIEWER, CHECK), CMNT_CN(1000자), REG_DT. INDEX(DATA_ISSUE_SN, AUTHOR_NO) |
+| `LS_ISSUE_COMMENT` (신규) | CMNT_SN(PK, V90 rename 구 ISSUE_COMMENT_SN), DATA_ISSUE_SN, AUTHOR_NO, AUTHOR_ROLE_CD(WORKER/REVIEWER, CHECK), CMNT_CN(1000자), REG_DT. INDEX(DATA_ISSUE_SN, AUTHOR_NO) |
 
 - 마이그레이션은 **3단계**(nullable ADD → backfill → NOT NULL+DEFAULT)로 롤링 중 기존 reject 경로 무중단
 - `작성자(AUTHOR_NO/REPORTED_USER_NO)·역할은 요청 바디가 아닌 JWT 클레임에서만 도출` (CWE-915 Mass Assignment 방어)

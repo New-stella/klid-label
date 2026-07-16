@@ -16,7 +16,6 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import reload_settings
 from app.main import app
 from app.models import yolox_loader
 
@@ -24,15 +23,11 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def _force_yolox_backend(monkeypatch: pytest.MonkeyPatch):
-    """로컬 .env 가 DETECTOR_BACKEND=rtdetr 를 줄 수 있으므로 yolox 경로를 명시 선택한다."""
-    monkeypatch.setenv("DETECTOR_BACKEND", "yolox")
-    reload_settings()
+def _reset_yolox():
+    """매 테스트마다 YOLOX 싱글톤/트래커 상태 초기화 (탐지 백엔드는 YOLOX 단일)."""
     yolox_loader.reset_yolox_model()
     yolox_loader.reset_yolox_trackers()
     yield
-    monkeypatch.delenv("DETECTOR_BACKEND", raising=False)
-    reload_settings()
 
 
 # ────────────────────────────────────────────────────────────────────

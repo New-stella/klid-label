@@ -8,8 +8,24 @@ import type { Label } from '@/features/label/types';
 
 import { savePortalUserLabel, type PortalUserLabelRequest } from '../api';
 
-/** FE Label → BE PortalUserLabelRequest 직렬화 (points 는 JSON 문자열). */
+/**
+ * FE Label → BE PortalUserLabelRequest 직렬화 (points 는 JSON 문자열).
+ *
+ * Phase 9 (ADR-013 override) — 포털에 키포인트(SKELETON) 라벨을 허용한다. KEYPOINT shape 는
+ * 삼중값 [[x,y,v], x17] 로 직렬화하고 lblTypeCd='SKELETON' 으로 보낸다. BE PortalLabelService 는
+ * SKELETON 을 삼중값 전용 경로로 검증(17점·v∈{0,1,2})하며 LS_PORTAL_USER_LABEL 에만 적재(단방향).
+ */
 function serialize(rawSn: number, srcSn: number, lbl: Label): PortalUserLabelRequest {
+  if (lbl.shape.type === 'KEYPOINT') {
+    const points = lbl.shape.keypoints.map((kp) => [kp.x, kp.y, kp.v]);
+    return {
+      sourceRawSn: rawSn,
+      sourceSrcSn: srcSn,
+      lblTypeCd: 'SKELETON',
+      label: lbl.className,
+      points: JSON.stringify(points),
+    };
+  }
   const lblTypeCd = lbl.shape.type === 'MASK' ? 'SEGMENT' : lbl.shape.type;
   let points: number[][];
   if (lbl.shape.type === 'BBOX') {

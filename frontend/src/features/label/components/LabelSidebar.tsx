@@ -13,8 +13,17 @@ import { useMemo } from 'react';
 import { useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../hooks/useLabelMasters';
+import { KeypointGuide } from './KeypointGuide';
 
-export function LabelSidebar() {
+interface LabelSidebarProps {
+  /**
+   * KEYPOINT 순차 배치 진행 인덱스(0~16). 배치 중일 때만 하단에 키포인트 가이드 렌더.
+   * 미진행/완료 시 null → 가이드 미표시.
+   */
+  keypointPlacingIndex?: number | null;
+}
+
+export function LabelSidebar({ keypointPlacingIndex = null }: LabelSidebarProps) {
   const { data, isLoading, isError } = useLabelMasters();
   const activeLabelId = useLabelStore((s) => s.activeLabelId);
   const setActiveLabelId = useLabelStore((s) => s.setActiveLabelId);
@@ -95,6 +104,10 @@ export function LabelSidebar() {
           </button>
         );
       })}
+
+      {/* 키포인트(COCO-17) 순차 배치 가이드 — 배치 중일 때만 라벨 목록 아래에 표시.
+          과거 캔버스 오버레이는 좁은 폭에서 잘려 폐기 → 항상-보이는 좌측 패널로 이동. */}
+      <KeypointGuide placingIndex={keypointPlacingIndex} />
     </aside>
   );
 }

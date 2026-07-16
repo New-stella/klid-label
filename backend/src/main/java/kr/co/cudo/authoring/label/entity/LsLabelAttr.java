@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.label.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -22,7 +24,7 @@ import java.time.LocalDateTime;
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>(LABEL_ID, ATTR_NM) UNIQUE — DB 레벨 + Service 레벨 이중 가드.</li>
+ *   <li>(LBL_ID, ATRB_NM) UNIQUE — DB 레벨 + Service 레벨 이중 가드.</li>
  *   <li>INPUT_TYPE_CD: SELECT / CHECKBOX / RADIO / NUMBER / TEXT.</li>
  *   <li>INPUT_TYPE_CD 가 SELECT/CHECKBOX/RADIO 면 VALUES_CN 필수 (Service 검증).</li>
  *   <li>MUTABLE_YN='Y' 면 프레임마다 다른 값 허용. 'N' 이면 트랙 단위 고정 (강제는 향후 Phase).</li>
@@ -44,13 +46,13 @@ public class LsLabelAttr {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ATTR_ID")
+    @Column(name = "ATRB_ID")
     private Long attrId;
 
     @Column(name = "LBL_ID", nullable = false)
     private Long labelId;
 
-    @Column(name = "ATTR_NM", nullable = false, length = 64)
+    @Column(name = "ATRB_NM", nullable = false, length = 100)
     private String attrNm;
 
     @Column(name = "INPUT_TYPE_CD", nullable = false, length = 16)
@@ -63,21 +65,23 @@ public class LsLabelAttr {
     private String dfltVl;
 
     @Column(name = "MUTABLE_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String mutableYn;
 
     @Column(name = "SORT_SEQ", nullable = false)
     private Integer sortSeq;
 
     @Column(name = "USE_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String useYn;
 
-    @Column(name = "REG_ID", length = 30)
+    @Column(name = "REG_ID", length = 64)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false, updatable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "MDFCN_ID", length = 30)
+    @Column(name = "MDFCN_ID", length = 64)
     private String mdfcnId;
 
     @Column(name = "MDFCN_DT")

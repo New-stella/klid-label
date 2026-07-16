@@ -24,7 +24,11 @@ export interface UseSam2SegmentResult {
  * - 진행 중 재요청 무시 (isSegmenting 플래그).
  * - 프레임 전환 후 도착한 응답 폐기 (요청 시점 srcSn vs 현재 srcSn).
  */
-export function useSam2Segment(srcSn: number | undefined): UseSam2SegmentResult {
+export function useSam2Segment(
+  srcSn: number | undefined,
+  // Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-segment 경로로 요청(내부 경로 미호출).
+  portalMode = false,
+): UseSam2SegmentResult {
   const [isSegmenting, setIsSegmenting] = useState(false);
   // 최신 srcSn 을 ref 로 추적 — 비동기 응답 도착 시점에 stale 비교.
   const currentSrcSnRef = useRef<number | undefined>(srcSn);
@@ -40,7 +44,7 @@ export function useSam2Segment(srcSn: number | undefined): UseSam2SegmentResult 
       inflightRef.current = true;
       setIsSegmenting(true);
       try {
-        const res = await requestSam2Segment(requestedSrcSn, payload);
+        const res = await requestSam2Segment(requestedSrcSn, payload, portalMode);
         // 프레임 전환 후 도착한 응답이면 폐기.
         if (currentSrcSnRef.current !== requestedSrcSn) return null;
         return res;
@@ -49,7 +53,7 @@ export function useSam2Segment(srcSn: number | undefined): UseSam2SegmentResult 
         setIsSegmenting(false);
       }
     },
-    [srcSn],
+    [srcSn, portalMode],
   );
 
   return { isSegmenting, segment };

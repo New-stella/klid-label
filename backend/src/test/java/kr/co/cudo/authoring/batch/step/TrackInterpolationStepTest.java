@@ -85,6 +85,13 @@ class TrackInterpolationStepTest {
         return lbl;
     }
 
+    /** 헬퍼 — POLYGON 라벨 생성 (autoLblYn=Y, trackId 보유). pointsJson 은 nested [[x,y],...]. */
+    private LsDataLbl autoPolygonAt(long srcSn, String label, String trackId, String pointsJson) {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(srcSn, null, label, pointsJson, BigDecimal.valueOf(0.9), trackId);
+        setField(lbl, "lblTypeCd", "POLYGON");
+        return lbl;
+    }
+
     private static void setField(Object target, String name, Object value) {
         try {
             Field f = target.getClass().getDeclaredField(name);
@@ -348,6 +355,139 @@ class TrackInterpolationStepTest {
         step.run(911L);
 
         verify(aiInfoRepository, never()).saveAll(any());
+    }
+
+    // ─── 폴리곤 트랙 보간 (R1 SFR-08-01) ───
+
+    @Test
+    @DisplayName("POLYGON_트랙_두_키프레임_사이_폴리곤_보간_저장")
+    void polygonTrackInterpolated() {
+        // frame 0 삼각형 → frame 4 로 (12,0) 평행이동. 사이 1,2,3 보간 → 3건
+        List<LsDataSrc> frames = framesOf(920L, 12000L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(920L)).thenReturn(frames);
+
+        LsDataLbl at0 = autoPolygonAt(12000L, "person", "p1", "[[0,0],[10,0],[5,10]]");
+        LsDataLbl at4 = autoPolygonAt(12004L, "person", "p1", "[[12,0],[22,0],[17,10]]");
+        when(lblRepository.findAutoBboxWithTrackId(920L)).thenReturn(List.of(at0, at4));
+
+        int saved = step.run(920L);
+
+        assertThat(saved).isEqualTo(3);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+        List<LsDataLbl> rows = captor.getValue();
+        assertThat(rows)
+                .hasSize(3)
+                .allMatch(r -> "POLYGON".equals(r.getLblTypeCd()))
+                .allMatch(r -> "INTERPOLATED".equals(r.getLblSrcCd()))
+                .allMatch(r -> "p1".equals(r.getTrackId()))
+                .allMatch(r -> r.getPointCn().startsWith("[[") && r.getPointCn().endsWith("]]"));
+        assertThat(rows).extracting(LsDataLbl::getSrcSn)
+                .containsExactlyInAnyOrder(12001L, 12002L, 12003L);
+    }
+
+    @Test
+    @DisplayName("POLYGON_정점개수_상이_두_키프레임도_보간_완료_(좌표꼬임없음)")
+    void polygonVariableVertexInterpolated() {
+        // frame 0 삼각형(3) → frame 2 사각형(4). 중간 프레임 정점 max=4
+        List<LsDataSrc> frames = framesOf(921L, 12100L, 3);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(921L)).thenReturn(frames);
+
+        LsDataLbl at0 = autoPolygonAt(12100L, "car", "p2", "[[0,0],[10,0],[5,10]]");
+        LsDataLbl at2 = autoPolygonAt(12102L, "car", "p2", "[[0,0],[10,0],[10,10],[0,10]]");
+        when(lblRepository.findAutoBboxWithTrackId(921L)).thenReturn(List.of(at0, at2));
+
+        int saved = step.run(921L);
+
+        assertThat(saved).isEqualTo(1);  // frame 1
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+        assertThat(captor.getValue().get(0).getLblTypeCd()).isEqualTo("POLYGON");
+    }
+
+    @Test
+    @DisplayName("POLYGON_트랙_시작전_종료후_propagate_없음")
+    void polygonNoPropagateOutsideTrackSpan() {
+        // 10 프레임 영상, POLYGON 키프레임 frame 3, 6 → 4,5 만 보간, 0..2 / 7..9 propagate 없음
+        List<LsDataSrc> frames = framesOf(922L, 12200L, 10);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(922L)).thenReturn(frames);
+
+        LsDataLbl at3 = autoPolygonAt(12203L, "person", "p3", "[[0,0],[10,0],[5,10]]");
+        LsDataLbl at6 = autoPolygonAt(12206L, "person", "p3", "[[6,0],[16,0],[11,10]]");
+        when(lblRepository.findAutoBboxWithTrackId(922L)).thenReturn(List.of(at3, at6));
+
+        int saved = step.run(922L);
+
+        assertThat(saved).isEqualTo(2);  // frames 4,5
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).extracting(LsDataLbl::getSrcSn)
+                .containsExactlyInAnyOrder(12204L, 12205L)
+                .doesNotContain(12200L, 12201L, 12202L, 12207L, 12208L, 12209L);
+    }
+
+    @Test
+    @DisplayName("트랙내_타입혼재_(BBOX+POLYGON)_안전_skip")
+    void mixedTypeTrackSkipped() {
+        List<LsDataSrc> frames = framesOf(923L, 12300L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(923L)).thenReturn(frames);
+
+        // 같은 trackId "mix" 에 BBOX + POLYGON 혼재 → skip
+        LsDataLbl bbox0 = autoBboxAt(12300L, "person", "mix", 0, 0, 10, 10);
+        LsDataLbl poly4 = autoPolygonAt(12304L, "person", "mix", "[[0,0],[10,0],[5,10]]");
+        when(lblRepository.findAutoBboxWithTrackId(923L)).thenReturn(List.of(bbox0, poly4));
+
+        int saved = step.run(923L);
+
+        assertThat(saved).isEqualTo(0);
+        verify(lblRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("한트랙_예외_다른트랙_보간은_저장됨_(부분실패_격리)")
+    void oneTrackFailsOthersStillSaved() {
+        List<LsDataSrc> frames = framesOf(924L, 12400L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(924L)).thenReturn(frames);
+
+        // 정상 BBOX 트랙 "ok": frame 0,2 → 1 보간
+        LsDataLbl ok0 = autoBboxAt(12400L, "car", "ok", 0, 0, 10, 10);
+        LsDataLbl ok2 = autoBboxAt(12402L, "car", "ok", 20, 20, 30, 30);
+        // 손상 POLYGON 트랙 "bad": 정점 2개(면적없음) → PolyshapeMatcher 예외 → 트랙 skip
+        LsDataLbl bad0 = autoPolygonAt(12400L, "person", "bad", "[[0,0],[10,0]]");
+        LsDataLbl bad2 = autoPolygonAt(12402L, "person", "bad", "[[5,5],[15,5]]");
+        when(lblRepository.findAutoBboxWithTrackId(924L))
+                .thenReturn(List.of(ok0, ok2, bad0, bad2));
+
+        int saved = step.run(924L);
+
+        // 정상 트랙 1건만 저장, 손상 트랙은 격리되어 전체 롤백 없음
+        assertThat(saved).isEqualTo(1);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
+        assertThat(captor.getValue().get(0).getTrackId()).isEqualTo("ok");
+    }
+
+    @Test
+    @DisplayName("재실행_idempotency_기존_보간row_삭제후_재삽입")
+    void idempotentClearsStaleInterpolatedRows() {
+        List<LsDataSrc> frames = framesOf(925L, 12500L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(925L)).thenReturn(frames);
+        when(lblRepository.findInterpolatedLblSnsByRawSn(925L)).thenReturn(List.of(111L, 222L));
+
+        LsDataLbl at0 = autoBboxAt(12500L, "car", "1", 0, 0, 10, 10);
+        LsDataLbl at2 = autoBboxAt(12502L, "car", "1", 20, 20, 30, 30);
+        when(lblRepository.findAutoBboxWithTrackId(925L)).thenReturn(List.of(at0, at2));
+
+        step.run(925L);
+
+        // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순 삭제 검증
+        verify(aiInfoRepository).deleteByDataLblSnIn(List.of(111L, 222L));
+        verify(lblRepository).deleteAllByIdInBatch(List.of(111L, 222L));
     }
 
     @Test

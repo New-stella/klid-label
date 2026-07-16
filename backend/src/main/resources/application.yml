@@ -123,9 +123,22 @@ authoring:
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
+    # 학습데이터 파일 산출(export) 루트 — {labeling_root}/{RAW_SN}/v{n}/{orgnl|deid}/ 구조.
+    #   DatasetExportPathResolver 가 이 값을 정규화된 절대경로 base 로 삼아 CWE-22 이탈을 차단한다.
+    labeling-path: ${STORAGE_LABELING_PATH:./storage/labeling}
     # 마킹 스트림 Range 요청당 반환 상한(bytes). 기본 8MB — 값이 작으면(구 1MB) 4배속 재생 시
     # 재요청 폭증으로 버벅임 발생. 1MB 미만 설정은 코드가 안전 기본값(8MB)으로 폴백한다.
     stream-chunk-size: ${STORAGE_STREAM_CHUNK_SIZE:8388608}
+  # 학습데이터 파일 산출(export) 기능 토글 — 검수 승인 시 라벨링 산출물 파일 저장 활성화 여부.
+  #   Phase 1 은 인프라(추적 테이블·경로 리졸버)만 도입하며, 실제 파일 쓰기/승인 연동은 후속 Phase.
+  dataset-export:
+    enabled: ${DATASET_EXPORT_ENABLED:true}
+    # stale PENDING 정리 잡 — 파일 쓰기/상태 마감 전 크래시로 PENDING 고착된 export 를 주기 회수(FAILED 마감, 파일 삭제 없음).
+    #   enabled=false 시 잡 미등록(test/local 격리). interval-sec 간격 tick, stale-minutes 초과 PENDING 만 대상.
+    pending-sweep:
+      enabled: ${DATASET_EXPORT_SWEEP_ENABLED:true}
+      interval-sec: ${DATASET_EXPORT_SWEEP_INTERVAL_SEC:600}
+      stale-minutes: ${DATASET_EXPORT_SWEEP_STALE_MINUTES:30}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/aug/callback. 운영(dev/stg/prd)에서는 환경변수로 override.
   webhook:
@@ -187,6 +200,15 @@ authoring:
     training-scan:
       enabled: ${TRAINING_SCAN_ENABLED:true}
       interval-sec: ${TRAINING_SCAN_INTERVAL_SEC:60}
+  # R4 — 만료 작업락(LS_AUTH_WORK_LOCK) sweeper.
+  #  - enabled: 운영(dev/stg/prd) 기본 true. local/test 는 override false (스케줄러 발화 억제).
+  #  - interval-ms: sweep 주기(ms). 기본 10분. 만료(lockRaw=1h/redeident=6h) 대비 충분히 촘촘.
+  #  - 2노드 Active-Active 에서 양 노드 발화해도 건별 조건부·멱등 release 라 안전.
+  work-lock:
+    sweep:
+      enabled: ${WORK_LOCK_SWEEP_ENABLED:true}
+      interval-ms: ${WORK_LOCK_SWEEP_INTERVAL_MS:600000}
+      initial-delay-ms: ${WORK_LOCK_SWEEP_INITIAL_DELAY_MS:60000}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
@@ -294,6 +316,30 @@ resilience4j:
       # (업로드/다운로드 10m, 그 외 45s 단일 출처: KpstDeidentifyClient 상수)
       # vlmClient TimeLimiter 미사용 — WebClient `.timeout(...)` 으로 Reactor 네이티브 처리.
       # 타임아웃 단일 출처: vlm.client.timeout-seconds (아래)
+  bulkhead:
+    instances:
+      # Phase 3 — YOLO 오토라벨 온라인(수동 트리거) 경로 전용 동시 호출 제한 (F-2).
+      #  - 배치 YOLO 경로와 격리(온라인 트리거만 제한). 초과 시 BulkheadFullException → 429.
+      #  - max-wait-duration=0: 대기 없이 즉시 거부(fail-fast) — Tomcat 스레드 점유 최소화.
+      aiOnline:
+        max-concurrent-calls: 4
+        max-wait-duration: 0
+      # Phase 9 — 포털 SAM2 인터랙티브 추론(세그/추적) 전용 동시 호출 제한 (HIGH #4 자원 격리).
+      #  - 내부 aiOnline 경로와 격리 — 외부 포털 트래픽이 내부 AI 자원을 잠식하지 못하게 독립 제한.
+      #  - 초과 시 BulkheadFullException → 429. max-wait-duration=0: 즉시 거부(fail-fast).
+      portalSam2:
+        max-concurrent-calls: 4
+        max-wait-duration: 0
+  ratelimiter:
+    configs:
+      # Phase 9 이슈3 (CWE-770) — 포털 SAM2 사용자별(portalUserNo) 요청량 제한 config.
+      #  - per-user 이름(portalSam2-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
+      #  - limit-refresh-period(1m) 당 limit-for-period(30) 회 허용. 초과 시 429 (즉시 거부).
+      #  - timeout-duration=0: permit 부재 시 대기 없이 즉시 거부(fail-fast) — 스레드 점유 최소화.
+      portalSam2:
+        limit-for-period: 30
+        limit-refresh-period: 1m
+        timeout-duration: 0
 
 # Phase 1 — 외부 VLM 시계열 메타 분석 서비스 위탁 클라이언트.
 #  - enabled=false 기본값 (local/dev 환경 영향 0건). stg/prd 실 연동 확정 시 환경변수로 활성화.

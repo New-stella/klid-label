@@ -12,12 +12,24 @@ import { cn } from '@/lib/cn';
 import { useImageBlob } from '../hooks/useImageBlob';
 import type { FrameSummary } from '../types';
 
+import {
+  FRAME_STATUS_BORDER,
+  resolveFrameStatus,
+  type FrameStatus,
+} from './frameStatus';
+
 interface DarkFrameStripProps {
   frames: FrameSummary[];
   currentIndex: number;
   onSelect: (index: number) => void;
-  /** 검수 시점 이슈 표시용 frameNo 집합 */
+  /** 검수 시점 이슈 표시용 frameNo 집합 (🚩 아이콘) */
   issueFrameNos?: Set<number>;
+  /** 반려(REJECTION) 프레임 srcSn 집합 — 주황 테두리 (21 §21.9). */
+  rejectionSrcSns?: Set<number>;
+  /** 확인요청(INQUIRY) 프레임 srcSn 집합 — 빨강 테두리. */
+  inquirySrcSns?: Set<number>;
+  /** 라벨 저장된 프레임 srcSn 집합 — 연두 테두리. */
+  savedSrcSns?: Set<number>;
   /** R16 — 포털 모드면 썸네일도 포털 전용 이미지 엔드포인트로 fetch (내부 API 403 회피). */
   portalMode?: boolean;
 }
@@ -27,6 +39,7 @@ interface FrameThumbnailProps {
   frameNo: number;
   index: number;
   isSelected: boolean;
+  status: FrameStatus;
   hasIssue: boolean;
   onSelect: (index: number) => void;
   portalMode?: boolean;
@@ -41,6 +54,7 @@ function FrameThumbnail({
   frameNo,
   index,
   isSelected,
+  status,
   hasIssue,
   onSelect,
   portalMode,
@@ -52,10 +66,11 @@ function FrameThumbnail({
       role="option"
       aria-selected={isSelected}
       data-frame-index={index}
+      data-frame-status={status}
       onClick={() => onSelect(index)}
       className={cn(
         'relative shrink-0 rounded overflow-hidden border-2 transition-all bg-black',
-        isSelected ? 'border-primary-500 scale-105' : 'border-transparent hover:border-gray-500',
+        FRAME_STATUS_BORDER[status],
       )}
       style={{ width: 80, height: 45 }}
       aria-label={`프레임 ${frameNo}`}
@@ -89,6 +104,9 @@ export function DarkFrameStrip({
   currentIndex,
   onSelect,
   issueFrameNos,
+  rejectionSrcSns,
+  inquirySrcSns,
+  savedSrcSns,
   portalMode,
 }: DarkFrameStripProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -121,18 +139,27 @@ export function DarkFrameStrip({
       role="listbox"
       aria-label="프레임 목록"
     >
-      {frames.map((f, idx) => (
-        <FrameThumbnail
-          key={f.srcSn ?? f.frameNo}
-          srcSn={f.srcSn}
-          frameNo={f.frameNo}
-          index={idx}
-          isSelected={idx === currentIndex}
-          hasIssue={issueFrameNos?.has(f.frameNo) ?? false}
-          onSelect={onSelect}
-          portalMode={portalMode}
-        />
-      ))}
+      {frames.map((f, idx) => {
+        const status = resolveFrameStatus({
+          isCurrent: idx === currentIndex,
+          hasInquiry: inquirySrcSns?.has(f.srcSn) ?? false,
+          hasRejection: rejectionSrcSns?.has(f.srcSn) ?? false,
+          hasLabel: savedSrcSns?.has(f.srcSn) ?? false,
+        });
+        return (
+          <FrameThumbnail
+            key={f.srcSn ?? f.frameNo}
+            srcSn={f.srcSn}
+            frameNo={f.frameNo}
+            index={idx}
+            isSelected={idx === currentIndex}
+            status={status}
+            hasIssue={issueFrameNos?.has(f.frameNo) ?? false}
+            onSelect={onSelect}
+            portalMode={portalMode}
+          />
+        );
+      })}
     </div>
   );
 }

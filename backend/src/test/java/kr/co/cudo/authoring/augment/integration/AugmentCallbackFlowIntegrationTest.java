@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.common.security.HmacSigner;
 import kr.co.cudo.authoring.common.security.HmacWebhookFilter;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -17,6 +18,7 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -31,10 +34,13 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -48,11 +54,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code POST /v1/aug/callback}(context-path /api 정합) 로 전송해 필터 → 컨트롤러 → handle
  * 경로 전체가 신규 영상을 생성하는지 단언한다.
  *
+ * <h3>Phase 11 — 프레임 재추출 비동기 전환</h3>
+ * <p>증강 프레임은 이제 부모 프레임을 <b>복사</b>하지 않고 증강 파일에서 <b>재추출</b>(비동기)한다.
+ * 따라서 동기 콜백 커밋 직후 신규 RAW 는 PENDING·deIdntfYn='N' 이며, 프레임/라벨/MARKING_READY/procLog
+ * 는 async 러너({@link kr.co.cudo.authoring.webhook.runner.AsyncAugmentFrameRunner}) 성공 후에만
+ * 관측된다. 본 IT 는 ffmpeg 바이너리 의존을 격리하기 위해 {@link FfmpegFrameExtractor.FrameWriter}
+ * 를 @MockBean 으로 대체(재추출 성공 시뮬)하고, {@link Awaitility} 로 async 완료를 기다린 뒤 단언한다.
+ *
  * <h3>검증 (HIGH 폐쇄)</h3>
  * <ul>
- *   <li>신규 LsDataRaw 생성: PARENT_RAW_SN=원본 rawSn, dataSttsCd=PENDING</li>
- *   <li>원본 프레임/라벨이 신규 영상으로 좌표 그대로 복사(건수·pointCn 일치)</li>
- *   <li>신규 영상이 영상 리스트(GET /v1/videos)에 PENDING 으로 노출</li>
+ *   <li>신규 LsDataRaw 생성: ORGNL_RAW_SN=원본 rawSn</li>
+ *   <li>async 성공 후 신규 영상 MARKING_READY + DE_IDNTF_YN='Y' + SUCCESS procLog</li>
+ *   <li>증강 파일에서 재추출된 프레임에 원본 라벨이 좌표 그대로 복사(건수·pointCn 일치)</li>
+ *   <li>신규 영상이 영상 리스트(GET /v1/videos)에 MARKING_READY 로 노출</li>
  *   <li>멱등: 동일 idempotencyKey 재수신 → 200 + 신규 영상 중복 생성 없음</li>
  *   <li>잘못된 서명 → 401</li>
  *   <li>CALLBACK_PATH 단일 출처(필터 PATH_AUGMENT) 회귀 가드</li>
@@ -70,6 +84,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class AugmentCallbackFlowIntegrationTest {
 
+    /**
+     * ffmpeg 바이너리 격리 — 증강 파일에서의 frame-exact 재추출을 성공 시뮬한다.
+     * sourceExists=true, writeFrameByNumber=no-op(예외 없음) → extractByFrameNumbers 가 전량 성공한다.
+     */
+    @MockBean private FfmpegFrameExtractor.FrameWriter frameWriter;
+
     /** 테스트 전용 HMAC 시크릿 값 — @TestPropertySource 와 동일 값을 공유한다. */
     private static final String HMAC_KEY_VALUE = "augment-it-secret-32bytes-min-len-aa!!";
     /** 콜백 경로 — 필터 PATH_AUGMENT 단일 출처 정합. */
@@ -83,6 +103,7 @@ class AugmentCallbackFlowIntegrationTest {
     @Autowired private LsDataMetaRepository metaRepository;
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private WebhookIdempotencyLedger ledger;
+    @Autowired private kr.co.cudo.authoring.video.service.VideoStreamService videoStreamService;
 
     @Value("${authoring.jwt.secret}") private String jwtSecret;
     @Value("${authoring.jwt.issuer}") private String jwtIssuer;
@@ -92,6 +113,20 @@ class AugmentCallbackFlowIntegrationTest {
     @BeforeEach
     void setup() {
         reviewerToken = JwtTestSupport.token(jwtSecret, "1", "REVIEWER", "INTERNAL", jwtIssuer, 60);
+        // 증강 파일 재추출 성공 시뮬 — 소스 존재 true, 프레임 쓰기는 no-op(예외 없음).
+        when(frameWriter.sourceExists(any())).thenReturn(true);
+    }
+
+    /** async 프레임 재추출이 완료되어 신규 RAW 가 MARKING_READY + DE_IDNTF_YN='Y' 로 확정될 때까지 대기. */
+    private LsDataRaw awaitFinalizedChild(Long parentRawSn) {
+        Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
+                .until(() -> {
+                    LsDataRaw c = findChildOf(parentRawSn);
+                    return c != null
+                            && LsDataRaw.DATA_STTS_MARKING_READY.equals(c.getDataSttsCd())
+                            && "Y".equals(c.getDeIdntfYn());
+                });
+        return findChildOf(parentRawSn);
     }
 
     // ─── 시드 헬퍼 ─────────────────────────────────────────────
@@ -110,10 +145,15 @@ class AugmentCallbackFlowIntegrationTest {
                 "AUGCB-" + clipSuffix, "CCTV-AUGCB", "EVT", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/AUGCB-" + clipSuffix + ".mp4",
                 LocalDateTime.now(), 30));
+        // R8 — 부모는 비식별 완료 영상. createAugmentedVideo 가 콜백 처리 시점에 부모 DE_IDNTF_YN='Y' 를
+        // 재확인하므로(PII 노출 차단), 정상 파생 시드는 부모를 비식별 완료로 둔다.
+        parent.markDeidentified("Y");
+        parent = videoRepository.save(parent);
+        // Phase 11 — 재추출은 videoFrameNo(디코더 프레임 번호) 기준이므로 부모 프레임에 실제 프레임 번호를 부여.
         LsDataSrc frame0 = srcRepository.save(
-                LsDataSrc.create(parent.getRawSn(), 0, parent.getRawSn() + "/f0.jpg", null));
+                LsDataSrc.create(parent.getRawSn(), 0, 0L, parent.getRawSn() + "/f0.jpg", null));
         LsDataSrc frame1 = srcRepository.save(
-                LsDataSrc.create(parent.getRawSn(), 1, parent.getRawSn() + "/f1.jpg", null));
+                LsDataSrc.create(parent.getRawSn(), 1, 30L, parent.getRawSn() + "/f1.jpg", null));
         LsDataLbl label = lblRepository.save(LsDataLbl.createAutoBbox(
                 frame0.getSrcSn(), null, "person", "[10,20,30,40]",
                 BigDecimal.valueOf(0.9), null));
@@ -141,13 +181,13 @@ class AugmentCallbackFlowIntegrationTest {
 
     private long countByParent(Long parentRawSn) {
         return videoRepository.findAll().stream()
-                .filter(r -> parentRawSn.equals(r.getParentRawSn()))
+                .filter(r -> parentRawSn.equals(r.getOrgnlRawSn()))
                 .count();
     }
 
     private LsDataRaw findChildOf(Long parentRawSn) {
         return videoRepository.findAll().stream()
-                .filter(r -> parentRawSn.equals(r.getParentRawSn()))
+                .filter(r -> parentRawSn.equals(r.getOrgnlRawSn()))
                 .findFirst()
                 .orElse(null);
     }
@@ -155,8 +195,8 @@ class AugmentCallbackFlowIntegrationTest {
     // ─── 테스트 ─────────────────────────────────────────────
 
     @Test
-    @DisplayName("서명된_콜백수신시_신규영상이_PARENT_RAW_SN원본_PENDING으로_생성된다")
-    void signedCallbackCreatesPendingChildVideo() throws Exception {
+    @DisplayName("서명된_콜백수신시_신규영상이_ORGNL_RAW_SN원본_MARKING_READY로_생성된다")
+    void signedCallbackCreatesMarkingReadyChildVideo() throws Exception {
         Seed s = seedOriginWithAug("NEW", "WINTER", "AUGCB-K-NEW", "AUGCB-J-NEW");
         AugmentResultRequest payload = new AugmentResultRequest(
                 s.aug().getDataAugSn(), "AUGCB-J-NEW", "WINTER", "SUCCESS",
@@ -173,11 +213,19 @@ class AugmentCallbackFlowIntegrationTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.applied").value(true));
 
-        LsDataRaw child = findChildOf(s.parentRaw().getRawSn());
+        // Phase 11 — 동기 커밋 직후엔 PENDING·deIdntfYn='N'. async 재추출 성공 후에만 MARKING_READY+Y 확정.
+        LsDataRaw child = awaitFinalizedChild(s.parentRaw().getRawSn());
         assertThat(child).as("신규 증강 영상이 생성되어야 함").isNotNull();
-        assertThat(child.getParentRawSn()).isEqualTo(s.parentRaw().getRawSn());
-        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
+        assertThat(child.getOrgnlRawSn()).isEqualTo(s.parentRaw().getRawSn());
+        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(child.getDeIdntfYn()).isEqualTo("Y");
         assertThat(child.getRawFilePathNm()).isEqualTo("/storage/augment/AUGCB-NEW.mp4");
+
+        // HIGH-1 — 마킹 스트림이 가능하도록 SUCCESS procLog 가 async 성공 커밋에 남아야 한다.
+        // resolveDeidPath 가 null 이면(procLog 부재) 스트리밍이 NOT_FOUND 로 거부돼 마킹 불가.
+        assertThat(videoStreamService.resolveDeidPath(child.getRawSn()))
+                .as("증강본 마킹 스트림을 위한 비식별 결과 경로가 도출되어야 함")
+                .isEqualTo("/storage/augment/AUGCB-NEW.mp4");
     }
 
     @Test
@@ -197,16 +245,20 @@ class AugmentCallbackFlowIntegrationTest {
                         .content(body))
                 .andExpect(status().isOk());
 
-        LsDataRaw child = findChildOf(s.parentRaw().getRawSn());
+        // Phase 11 — async 재추출 완료 대기 후 신규 영상의 프레임/라벨을 관측.
+        LsDataRaw child = awaitFinalizedChild(s.parentRaw().getRawSn());
         assertThat(child).isNotNull();
 
-        // 프레임 복사 — 원본 2건 → 신규 2건
+        // 프레임 재추출 — 원본 2건(videoFrameNo 0,30) → 증강 파일에서 신규 2건
         List<LsDataSrc> childFrames = srcRepository.findByRawSnOrderByFrameNoAsc(child.getRawSn());
         assertThat(childFrames).hasSize(2);
         assertThat(childFrames).extracting(LsDataSrc::getFrameNo)
-                .containsExactly(0, 1);
+                .containsExactly(0L, 1L);
+        // videoFrameNo 는 부모와 동일하게 실려야 재매핑 정합(0, 30).
+        assertThat(childFrames).extracting(LsDataSrc::getVideoFrameNo)
+                .containsExactly(0L, 30L);
 
-        // 라벨 복사 — 원본 frame0 의 라벨 1건이 신규 frame0 으로 좌표 그대로 복사
+        // 라벨 복사 — 원본 frame0(videoFrameNo 0)의 라벨 1건이 신규 frame0 으로 좌표 그대로 복사
         LsDataSrc childFrame0 = childFrames.get(0);
         List<LsDataLbl> childLabels = lblRepository.findBySrcSn(childFrame0.getSrcSn());
         assertThat(childLabels).hasSize(1);
@@ -218,8 +270,8 @@ class AugmentCallbackFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("생성된_증강영상이_영상리스트조회에_PENDING으로_노출된다")
-    void childVideoVisibleInListAsPending() throws Exception {
+    @DisplayName("생성된_증강영상이_영상리스트조회에_MARKING_READY로_노출된다")
+    void childVideoVisibleInListAsMarkingReady() throws Exception {
         Seed s = seedOriginWithAug("LIST", "RAIN", "AUGCB-K-LIST", "AUGCB-J-LIST");
         AugmentResultRequest payload = new AugmentResultRequest(
                 s.aug().getDataAugSn(), "AUGCB-J-LIST", "RAIN", "SUCCESS",
@@ -234,17 +286,18 @@ class AugmentCallbackFlowIntegrationTest {
                         .content(body))
                 .andExpect(status().isOk());
 
-        LsDataRaw child = findChildOf(s.parentRaw().getRawSn());
+        // Phase 11 — async 재추출 완료 후에만 MARKING_READY 로 노출된다.
+        LsDataRaw child = awaitFinalizedChild(s.parentRaw().getRawSn());
         assertThat(child).isNotNull();
 
-        // GET /v1/videos?dataSttsCd=PENDING — 신규 영상이 PENDING 으로 노출
-        mockMvc.perform(get("/v1/videos?dataSttsCd=PENDING&page=0&size=100")
+        // GET /v1/videos?dataSttsCd=MARKING_READY — 신규 영상이 마킹 진입 상태로 노출
+        mockMvc.perform(get("/v1/videos?dataSttsCd=MARKING_READY&page=0&size=100")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[?(@.id == " + child.getRawSn() + ")]").exists())
                 .andExpect(jsonPath("$.data.content[?(@.id == " + child.getRawSn()
-                        + ")].dataSttsCd").value(org.hamcrest.Matchers.hasItem(LsDataRaw.STATUS_PENDING)));
+                        + ")].dataSttsCd").value(org.hamcrest.Matchers.hasItem(LsDataRaw.DATA_STTS_MARKING_READY)));
     }
 
     @Test

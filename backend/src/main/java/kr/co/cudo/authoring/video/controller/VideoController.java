@@ -50,7 +50,7 @@ import java.io.IOException;
  * - WORKER 의 본인 배정 영상 한정 필터는 Phase 5+ 에서 어노테이션 화면 진입 시 적용.
  * - 본 Phase 는 페이징 검증 + 단건 조회만 제공.
  */
-@Tag(name = "Video", description = "영상(원본 raw) 조회 — REVIEWER/WORKER. WORKER는 향후 본인 배정 영상만 노출 예정.")
+@Tag(name = "Video", description = "영상(원시 raw) 조회 — REVIEWER/WORKER. WORKER는 향후 본인 배정 영상만 노출 예정.")
 @RestController
 @RequestMapping("/v1/videos")
 @RequiredArgsConstructor
@@ -259,15 +259,15 @@ public class VideoController {
 
     /**
      * 해상도 변경 — Phase 1 (RQ-SFR-06-03 v1.8/1.10).
-     * <p>검수 완료(APPROVED) 원본 영상의 프레임 이미지셋을 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로
+     * <p>검수 완료(APPROVED) 원시 영상의 프레임 이미지셋을 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로
      * 종횡비 보존 다운스케일한다. 영상(비디오) 재생성·라벨/메타 복사·새 영상(RAW_SN) 생성은 하지 않으며,
      * 산출물은 다운스케일 이미지셋 + LS_RESOLUTION_EXPORT 1행뿐이다. REVIEWER 만 호출 가능.
      */
     @Operation(
             summary = "해상도 변경 (REVIEWER)",
-            description = "검수 완료(APPROVED) 원본 영상의 프레임 이미지셋을 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로 " +
+            description = "검수 완료(APPROVED) 원시 영상의 프레임 이미지셋을 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로 " +
                     "종횡비 보존 다운스케일한다. 영상·라벨·메타·신규 영상 행은 생성하지 않으며 LS_RESOLUTION_EXPORT 1행만 기록한다. " +
-                    "업스케일(목표 ≥ 원본 높이)·증강본(PARENT_RAW_SN 보유)·프레임 0건·중복 요청은 거부된다."
+                    "업스케일(목표 ≥ 원본 높이)·증강본(ORGNL_RAW_SN 보유)·프레임 0건·중복 요청은 거부된다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 — exportSn + 타겟 해상도 + 프레임 개수 반환"),
@@ -281,7 +281,7 @@ public class VideoController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<ResolutionChangeResponse> changeResolution(
-            @Parameter(description = "원본 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
+            @Parameter(description = "원시 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
             @Valid @RequestBody ResolutionChangeRequest request,
             @AuthenticationPrincipal TokenClaims actor) {
         String regId = actor != null ? actor.sub() : null;

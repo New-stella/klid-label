@@ -1,8 +1,6 @@
 package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
@@ -17,7 +15,6 @@ import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
@@ -31,8 +28,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -215,32 +210,16 @@ public class YoloAutolabelStep implements BatchStep {
                     // 매핑 존재 + 허용 라벨에 미포함 → 노이즈 제거
                     continue;
                 }
-                // Phase 4: trackId 는 Integer (ai-server 의 ultralytics persist 트래커 부여).
-                // null 인 경우(저신뢰 detection fallback) 그대로 null 유지.
-                String trackIdStr = d.trackId() == null ? null : String.valueOf(d.trackId());
                 // Phase 6: ai-server 응답 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
                 Long labelId = labelMasterService.findLabelIdByName(d.label()).orElse(null);
                 log.info("[Batch][Yolo] mapped label name={} labelId={}",
                         LogSanitizer.sanitize(d.label()), labelId);
                 if (toggle.bbox()) {
-                    BigDecimal score = BigDecimal.valueOf(d.score()).setScale(4, RoundingMode.HALF_UP);
-                    // Phase 1 좌표 정규화: 평탄 [x1,y1,x2,y2] → 정규형 nested [[x1,y1],[x2,y2]]
-                    // 로 저장하여 수동 라벨과 동일한 POINT_CN 포맷 유지.
-                    // DEV_FIX: flatToPoints 의 IllegalArgumentException(홀수/null 원소) 을 배치 실패 추적
-                    // 경로로 통일하여 CustomException(INVALID_INPUT) 로 래핑한다. 메시지에 원본 좌표 미노출.
-                    String pointCn;
-                    try {
-                        pointCn = LabelPointSerializer.toJson(
-                                LabelPointSerializer.flatToPoints(d.points()), objectMapper);
-                    } catch (IllegalArgumentException e) {
-                        log.error("[Batch][Yolo] invalid bbox points srcSn={} err={}",
-                                src.getSrcSn(), LogSanitizer.sanitize(e.getMessage()));
-                        throw new CustomException(ErrorCode.INVALID_INPUT, "YOLO bbox 좌표 형식 오류", e);
-                    }
-                    LsDataLbl saved = lblRepository.save(LsDataLbl.createAutoBbox(
-                            src.getSrcSn(), labelId, d.label(), pointCn, score, trackIdStr));
-                    aiInfoRepository.save(LsDataLblAiInfo.create(saved.getLblSn(), rawSn, src.getSrcSn(),
-                            LsDataLblAiInfo.SRC_YOLO, score, "batch"));
+                    // Phase 3(online): 좌표 정규화 + BBOX/AI_INFO 저장은 배치·온라인 공용 헬퍼로 단일화.
+                    // 배치 출처 마커 REG_ID = "batch". 홀수/ null 좌표는 헬퍼가 INVALID_INPUT 으로 래핑.
+                    YoloLabelPersister.persistBbox(lblRepository, aiInfoRepository, objectMapper,
+                            src.getSrcSn(), rawSn, d.label(), labelId,
+                            d.points(), d.score(), d.trackId(), YoloLabelPersister.SOURCE_BATCH);
                     bboxSaved++;
                 }
                 if (toggle.polygon()) {

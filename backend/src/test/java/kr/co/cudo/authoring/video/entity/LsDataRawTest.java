@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LsDataRawTest {
 
     @Test
-    @DisplayName("createFromAugment_메타_계승_PENDING_상태_parentRawSn_참조")
+    @DisplayName("createFromAugment_메타_계승_PENDING_상태_orgnlRawSn_참조")
     void createFromAugmentInheritsMetaAndSetsParent() throws Exception {
         // given
         LsDataRaw parent = LsDataRaw.createFromIngest(
@@ -30,7 +30,7 @@ class LsDataRawTest {
         assertThat(augmented.getDurationSec()).isEqualTo(120);
 
         // then — 새 영상 고유 속성
-        assertThat(augmented.getParentRawSn()).isEqualTo(100L);
+        assertThat(augmented.getOrgnlRawSn()).isEqualTo(100L);
         assertThat(augmented.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
         assertThat(augmented.getRawFilePathNm()).isEqualTo("/storage/augment/winter.mp4");
         assertThat(augmented.getDeIdntfYn()).isEqualTo("N");

@@ -23,6 +23,15 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
      */
     List<LsDataLbl> findBySrcSnIn(Collection<Long> srcSns);
 
+    /**
+     * 주어진 프레임(srcSn) 집합 중 라벨이 1건 이상 존재하는 srcSn 만 DISTINCT 로 조회 — 단일 쿼리(N+1 금지).
+     * <p>R5 프레임 strip 의 SAVED(연두) 상태 판정용. 형제 프레임별 라벨 존재 여부를 프레임 수만큼
+     * 개별 COUNT 하지 않고 IN 절 1회로 라벨 보유 프레임 집합을 얻는다. 파라미터 바인딩({@code :srcSns})만
+     * 사용 — 문자열 연결 없음(CWE-89 무관). 빈 컬렉션 입력 시 빈 결과.
+     */
+    @Query("SELECT DISTINCT l.srcSn FROM LsDataLbl l WHERE l.srcSn IN :srcSns")
+    List<Long> findDistinctSrcSnsWithLabelIn(@Param("srcSns") Collection<Long> srcSns);
+
     @Query("""
             SELECT l
               FROM LsDataLbl l
@@ -145,6 +154,26 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     void deleteByRawSnAutoLbl(@Param("rawSn") Long rawSn);
 
     /**
+     * 프레임(srcSn) 단위 자동 라벨(autoLblYn='Y') 의 LBL_SN 목록.
+     * <p>Phase 3 — YOLO 온라인 수동 트리거 재실행 idempotency 용. 자동 라벨(AI_INFO 존재)만 대상이며
+     * 수동 라벨(AI_INFO 없음)은 목록에서 제외되어 절대 삭제되지 않는다. 호출자는 반환된 PK 로
+     * 자식(AI_INFO) → 부모(LBL) 순서로 bulk delete 하여 FK 고아를 방지한다
+     * ({@link TrackInterpolationStep} 의 보간 idempotency 와 동일 패턴). 고정 리터럴 'Y' 만 사용
+     * (외부 입력 없음 — CWE-89 무관, 파라미터 바인딩 {@code :srcSn} 만).
+     */
+    @Query("""
+            SELECT l.lblSn
+              FROM LsDataLbl l
+             WHERE l.srcSn = :srcSn
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.autoLblYn = 'Y'
+               )
+            """)
+    List<Long> findAutoLblSnsBySrcSn(@Param("srcSn") Long srcSn);
+
+    /**
      * 영상(rawSn)에 속한 모든 프레임의 라벨(자동+수동 전체)을 일괄 삭제 (R1 v1.14 — 비식별 신고 시).
      * <p>1건씩 삭제 금지(수천 건 가능) — 단일 DELETE…WHERE SRC_SN IN(서브쿼리) 로 처리.
      * 호출 전 ATTR_VAL/AI_INFO 자식 row 를 먼저 삭제해 FK 고아를 방지한다.
@@ -240,14 +269,18 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
                                            @Param("threshold") java.math.BigDecimal threshold);
 
     /**
-     * 영상(rawSn)에 속한 자동 BBOX 라벨 중 trackId 가 있는 row 만 조회. — Phase 3 트랙 보간.
+     * 영상(rawSn)에 속한 자동 트랙 라벨(BBOX/POLYGON) 중 trackId 가 있는 row 만 조회. — 트랙 보간.
      * <p>보간 대상 정의:
      * <ul>
      *   <li>{@code AUTO_LBL_YN='Y'} — 자동 라벨링 결과만</li>
-     *   <li>{@code LBL_TYPE_CD='BBOX'} — POLYGON/SEGMENT 는 보간 범위 외</li>
+     *   <li>{@code LBL_TYPE_CD IN ('BBOX','POLYGON')} — BBOX 선형 + POLYGON polyshape 보간 대상.
+     *       SEGMENT/MASK/SKELETON 은 보간 범위 외(TrackInterpolationStep 이 타입별로 라우팅).
+     *       (POLYLINE 은 현재 DB 코드값 미도입 — 필요 시 화이트리스트에 추가)</li>
      *   <li>{@code TRACK_ID IS NOT NULL} — 트래커 저신뢰 detection 은 보간 대상 외</li>
      * </ul>
-     * <p>같은 영상의 모든 트랙을 단일 IN 쿼리로 가져와 N+1 회피.
+     * <p>같은 영상의 모든 트랙을 단일 IN 쿼리로 가져와 N+1 회피. 타입 화이트리스트는 고정 리터럴이라
+     * 외부 입력이 섞이지 않는다(CWE-89 무관 — 파라미터 바인딩 {@code :rawSn} 만 사용).
+     * <p>메서드명은 하위호환 위해 유지(BBOX 전용 시절 이름). 실제 반환은 BBOX+POLYGON.
      */
     @Query("""
             SELECT l
@@ -259,8 +292,92 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
                     WHERE ai.dataLblSn = l.lblSn
                       AND ai.autoLblYn = 'Y'
                )
-               AND l.lblTypeCd = 'BBOX'
+               AND l.lblTypeCd IN ('BBOX', 'POLYGON')
                AND l.trackId IS NOT NULL
             """)
     List<LsDataLbl> findAutoBboxWithTrackId(@Param("rawSn") Long rawSn);
+
+    /**
+     * {@link #findAutoBboxWithTrackId} 의 <b>단일 트랙 한정</b> 변형 — 트랙 병합 후 병합 트랙(toTrackId)만
+     * 재보간(락 유지시간 단축)하기 위한 후보 조회. 보간 대상 정의(AUTO_LBL_YN='Y' + BBOX/POLYGON +
+     * TRACK_ID NOT NULL)는 전체 경로와 동일하며 {@code AND l.trackId = :trackId} 로 <b>DB 레벨</b>에서
+     * 한정한다(in-memory 필터 금지 — {@code IX_LS_DATA_LBL_TRCK_ID} 활용). 전체 경로 메서드는 무변경.
+     * 파라미터 바인딩({@code :rawSn}, {@code :trackId})만 사용 — 문자열 연결 없음(CWE-89 무관).
+     */
+    @Query("""
+            SELECT l
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.autoLblYn = 'Y'
+               )
+               AND l.lblTypeCd IN ('BBOX', 'POLYGON')
+               AND l.trackId = :trackId
+            """)
+    List<LsDataLbl> findAutoBboxByRawSnAndTrackId(@Param("rawSn") Long rawSn,
+                                                  @Param("trackId") String trackId);
+
+    /**
+     * 영상(rawSn) 내 특정 트랙(trackId)에 속한 모든 라벨(자동+수동, 전 타입) 조회 — 트랙 병합.
+     * <p>{@link #findAutoBboxWithTrackId}(자동 BBOX/POLYGON 한정)와 달리 존재 확인·겹침 계산·
+     * trackId 재지정을 위해 <b>수동/SEGMENT/SKELETON 을 포함한 전체</b>를 반환한다. 보간 산출물
+     * 구분은 caller 가 {@link #findInterpolatedLblSnsByRawSn} 와 대조해 수행한다.
+     * 파라미터 바인딩({@code :rawSn}, {@code :trackId})만 사용 — 문자열 연결 없음(CWE-89 무관).
+     */
+    @Query("""
+            SELECT l
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.trackId = :trackId
+            """)
+    List<LsDataLbl> findByRawSnAndTrackId(@Param("rawSn") Long rawSn, @Param("trackId") String trackId);
+
+    /**
+     * 영상(rawSn) 의 기존 보간 생성 라벨(LS_DATA_LBL_AI_INFO.LBL_SRC_CD='INTERPOLATE') 의 LBL_SN 목록.
+     * <p>트랙 보간 재실행 시 idempotent 보장용 — 기존 보간 row 를 삭제 후 재삽입하기 위해 대상 PK 를 먼저 조회한다.
+     * 보간 여부는 LS_DATA_LBL 본체 컬럼이 아닌 AI_INFO 에 저장되므로(lblSrcCd @Transient) AI_INFO 로 식별한다.
+     * 고정 리터럴 'INTERPOLATE' 만 사용(외부 입력 없음 — CWE-89 무관).
+     */
+    @Query("""
+            SELECT l.lblSn
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.lblSrcCd = 'INTERPOLATE'
+               )
+            """)
+    List<Long> findInterpolatedLblSnsByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * {@link #findInterpolatedLblSnsByRawSn} 의 <b>트랙 집합 한정</b> 변형 — 트랙 병합 후 stale 보간
+     * 산출물을 병합 관련 트랙({@code {fromTrackId, toTrackId}})만 정리하기 위한 삭제 대상 조회.
+     * {@code AND l.trackId IN :trackIds} 로 <b>DB 레벨</b>에서 한정한다(in-memory 필터 금지).
+     *
+     * <p><b>from+to 양쪽을 넘겨야 하는 이유</b>: 병합은 reassignTrack(toTrackId)을 <b>원 키프레임에만</b>
+     * 적용하므로 fromTrackId 로 생성됐던 기존 INTERPOLATE 산출물 row 는 trackId 가 여전히 fromTrackId
+     * 인 채 남는다. toTrackId 만 지우면 이 fromTrackId 보간 산출물이 <b>고아로 영구 잔존</b>(유령 라벨·
+     * 카운트 부풀림·검수 스냅샷 오염)한다. 전체 경로 메서드는 무변경. 빈 컬렉션 입력 시 빈 결과.
+     * 고정 리터럴 'INTERPOLATE' + 파라미터 바인딩({@code :rawSn}, {@code :trackIds})만 — CWE-89 무관.
+     */
+    @Query("""
+            SELECT l.lblSn
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.trackId IN :trackIds
+               AND EXISTS (
+                   SELECT 1 FROM LsDataLblAiInfo ai
+                    WHERE ai.dataLblSn = l.lblSn
+                      AND ai.lblSrcCd = 'INTERPOLATE'
+               )
+            """)
+    List<Long> findInterpolatedLblSnsByRawSnAndTrackId(@Param("rawSn") Long rawSn,
+                                                       @Param("trackIds") Collection<String> trackIds);
 }

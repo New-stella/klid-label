@@ -1,10 +1,12 @@
 package kr.co.cudo.authoring.augment.repository;
 
+import jakarta.persistence.LockModeType;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -54,4 +56,21 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
      * UNIQUE 제약 (uk_aug_external_job_id) 위반(동시/오배송 재전송) 후 재조회 경로에서 사용.
      */
     Optional<LsDataAug> findByExternalJobId(String externalJobId);
+
+    /**
+     * 증강 콜백 처리 진입점 — 대상 증강 행을 {@link LockModeType#PESSIMISTIC_WRITE}(SELECT … FOR UPDATE)로
+     * 잠금 조회한다 (MED #2 — 중복 콜백 레이스 차단).
+     *
+     * <p>1차 멱등 앵커(non-PENDING → skip)는 read-then-act 였다. 서로 다른 {@code otsd_job_id} 를 가진
+     * 동시 콜백(TxA/TxB)이 둘 다 PENDING 을 관측하고 통과하면 이중 영상이 생성됐고(2차 UNIQUE 앵커는
+     * job_id 가 다르면 미발동), 이 창을 닫기 위해 같은 {@code data_aug_sn} 을 행 잠금으로 직렬화한다.
+     * 선행 트랜잭션이 PENDING→ACCEPTED 로 커밋할 때까지 후행은 대기하고, 잠금 획득 후 non-PENDING 을
+     * 관측해 멱등 skip 한다. 잠금은 caller {@code @Transactional} 종료까지 유지된다.
+     *
+     * <p><b>락 순서(데드락 회피):</b> 콜백 경로는 항상 증강 행(본 메서드) → 부모 RAW 행
+     * ({@code VideoRepository.findByRawSnForUpdate})의 일관된 순서로만 잠근다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM LsDataAug a WHERE a.dataAugSn = :dataAugSn")
+    Optional<LsDataAug> findByDataAugSnForUpdate(@Param("dataAugSn") Long dataAugSn);
 }

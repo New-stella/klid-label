@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.video.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -85,9 +87,11 @@ public class LsDataRaw {
     private String prvcTypeCd;
 
     @Column(name = "PRVC_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String prvcYn;
 
     @Column(name = "DE_IDENT_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String deIdntfYn;
 
     @Column(name = "RAW_FILE_PATH_NM", nullable = false, length = 500)
@@ -99,8 +103,8 @@ public class LsDataRaw {
     @Column(name = "VDO_LEN_SEC")
     private Integer durationSec;
 
-    @Column(name = "PARENT_RAW_SN")
-    private Long parentRawSn;
+    @Column(name = "ORGNL_RAW_SN")
+    private Long orgnlRawSn;
 
     @Column(name = "DATA_STTS_CD", nullable = false, length = 32)
     private String dataSttsCd;
@@ -159,7 +163,7 @@ public class LsDataRaw {
         raw.rawFilePathNm = rawFilePathNm;
         raw.shtDt = parent.getShtDt();
         raw.durationSec = parent.getDurationSec();
-        raw.parentRawSn = parent.getRawSn();
+        raw.orgnlRawSn = parent.getRawSn();
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
         return raw;

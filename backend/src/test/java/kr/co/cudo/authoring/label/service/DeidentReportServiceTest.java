@@ -160,7 +160,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(1L, 9001L);
         LsDataRaw r = raw(9001L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
-        when(videoRepository.findById(9001L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9001L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9001L)).thenReturn(false);
         stubReportSave();
         stubApproved(9001L, false);
@@ -187,7 +187,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(2L, 9002L);
         LsDataRaw r = raw(9002L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(2L), any())).thenReturn(s);
-        when(videoRepository.findById(9002L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9002L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9002L)).thenReturn(false);
         stubReportSave();
         stubApproved(9002L, false);
@@ -210,7 +210,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(3L, 9003L);
         LsDataRaw r = raw(9003L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(3L), any())).thenReturn(s);
-        when(videoRepository.findById(9003L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9003L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9003L)).thenReturn(false);
         stubReportSave();
         stubApproved(9003L, false);
@@ -228,7 +228,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(4L, 9004L);
         LsDataRaw r = raw(9004L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(4L), any())).thenReturn(s);
-        when(videoRepository.findById(9004L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9004L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9004L)).thenReturn(false);
         stubReportSave();
         stubApproved(9004L, false);
@@ -255,7 +255,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(40L, 9040L);
         LsDataRaw r = raw(9040L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(40L), any())).thenReturn(s);
-        when(videoRepository.findById(9040L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9040L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9040L)).thenReturn(false);
         stubReportSave();
         stubApproved(9040L, false);
@@ -275,7 +275,7 @@ class DeidentReportServiceTest {
         assertThat(saved).extracting(LsDataLblHstry::getLblSn).containsExactlyInAnyOrder(401L, 402L);
         assertThat(saved).allSatisfy(h -> {
             assertThat(h.getSrcSn()).isEqualTo(40L);
-            assertThat(h.getRegisteredAt()).isNotNull();
+            assertThat(h.getRegDt()).isNotNull();
         });
 
         // 이력 기록은 라벨 본문 삭제보다 먼저 (부분 실패 시 이력만 남는 정합성 깨짐 방지, 동일 트랜잭션).
@@ -291,7 +291,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(41L, 9041L);
         LsDataRaw r = raw(9041L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(41L), any())).thenReturn(s);
-        when(videoRepository.findById(9041L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9041L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9041L)).thenReturn(false);
         stubReportSave();
         stubApproved(9041L, false);
@@ -312,7 +312,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(42L, 9042L);
         LsDataRaw r = raw(9042L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(42L), any())).thenReturn(s);
-        when(videoRepository.findById(9042L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9042L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9042L)).thenReturn(true);
 
         // when / then
@@ -327,7 +327,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(5L, 9005L);
         LsDataRaw r = raw(9005L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(5L), any())).thenReturn(s);
-        when(videoRepository.findById(9005L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9005L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9005L)).thenReturn(false);
         stubReportSave();
         stubApproved(9005L, true);
@@ -349,7 +349,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(6L, 9006L);
         LsDataRaw r = raw(9006L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(6L), any())).thenReturn(s);
-        when(videoRepository.findById(9006L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9006L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9006L)).thenReturn(false);
         stubReportSave();
         stubApproved(9006L, false);
@@ -367,7 +367,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(7L, 9007L);
         LsDataRaw r = raw(9007L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(7L), any())).thenReturn(s);
-        when(videoRepository.findById(9007L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9007L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9007L)).thenReturn(false);
         stubReportSave();
         stubApproved(9007L, false);
@@ -388,7 +388,7 @@ class DeidentReportServiceTest {
         LsDataSrc s = src(8L, 9008L);
         LsDataRaw r = raw(9008L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(8L), any())).thenReturn(s);
-        when(videoRepository.findById(9008L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9008L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9008L)).thenReturn(true);
 
         assertThatThrownBy(() -> service.report(8L, "재신고", workerActor))
@@ -406,7 +406,7 @@ class DeidentReportServiceTest {
     void unknownVideoNotFound() {
         LsDataSrc s = src(9L, 9999L);
         when(accessGuard.verifyAndGet(eq(9L), any())).thenReturn(s);
-        when(videoRepository.findById(9999L)).thenReturn(Optional.empty());
+        when(videoRepository.findByRawSnForUpdate(9999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.report(9L, "사유", workerActor))
                 .isInstanceOf(CustomException.class)
@@ -434,7 +434,7 @@ class DeidentReportServiceTest {
         LsDataRaw r = raw(9010L, LsDataRaw.PRVC_TYPE_PRVC);
         String originalPath = r.getRawFilePathNm();
         when(accessGuard.verifyAndGet(eq(10L), any())).thenReturn(s);
-        when(videoRepository.findById(9010L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9010L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9010L)).thenReturn(false);
         stubReportSave();
         stubApproved(9010L, false);

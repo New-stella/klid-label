@@ -38,7 +38,7 @@ class LsDataSrcTest {
         // given
         Long rawSn = 200L;
         int frameNo = 5;            // 추출 순번
-        Integer videoFrameNo = 1250; // 실제 영상 내 디코더 프레임 위치
+        Long videoFrameNo = 1250L; // 실제 영상 내 디코더 프레임 위치
         String path = "/frames/raw/200/000005.jpg";
         LocalDateTime shtDt = LocalDateTime.of(2026, 6, 29, 11, 0, 0);
 

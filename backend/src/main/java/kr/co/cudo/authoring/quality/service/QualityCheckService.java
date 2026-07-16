@@ -39,7 +39,11 @@ public class QualityCheckService {
      * 단일 프레임의 자동 라벨 vs 사람 라벨 비교.
      */
     public QualityCheckResult check(Long srcSn) {
-        List<LsDataLbl> all = labelRepository.findBySrcSn(srcSn);
+        // SKELETON(키포인트 포즈)은 삼중값 좌표라 2-튜플 toShape 파싱이 붕괴하고, IoU 박스/폴리곤
+        // 충돌 검출 대상도 아니므로 전 스트림에서 skip 한다(파싱 500 방지 + 오탐 방지).
+        List<LsDataLbl> all = labelRepository.findBySrcSn(srcSn).stream()
+                .filter(l -> !LsDataLbl.TYPE_SKELETON.equals(l.getLblTypeCd()))
+                .toList();
         List<QualityConflictDetector.LabelShape> autoShapes = all.stream()
                 .filter(l -> LsDataLbl.AUTO_YES.equals(l.getAutoLblYn()))
                 .map(this::toShape)

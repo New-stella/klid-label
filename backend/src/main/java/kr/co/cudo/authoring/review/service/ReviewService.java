@@ -27,6 +27,7 @@ import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
+import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
 import kr.co.cudo.authoring.version.service.VersionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,6 +76,8 @@ public class ReviewService {
     private final ApplicationEventPublisher eventPublisher;
     /** 검수 승인 시점에 영상 전체 학습데이터 버전 스냅샷(LS_LABEL_VERSION, SAVE_REASON=APPROVED)을 생성. */
     private final VersionService versionService;
+    /** 검수 승인 시점에 영상 메타를 통합 테이블(LS_DATASET_VIDEO_META)에 동결 적재(포털향 materialize). */
+    private final DatasetVideoMetaSnapshotService datasetVideoMetaSnapshotService;
 
     /**
      * 검수 워크플로우 상태별 페이징 목록 (REVIEWER 의 검수 목록 화면용).
@@ -303,7 +306,7 @@ public class ReviewService {
             String imageUrl = "/api/v1/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image";
             details.add(new FrameDetailResponse(
                     src.getSrcSn(),
-                    src.getFrameNo(),
+                    Math.toIntExact(src.getFrameNo()),
                     imageUrl,
                     labelMap.getOrDefault(src.getSrcSn(), Collections.emptyList())
             ));
@@ -386,6 +389,9 @@ public class ReviewService {
             log.warn("[Review] approved with snapshot skips videoId={} skippedFrames={} actor={}",
                     videoId, commit.skipped(), actor.sub());
         }
+        // 포털향 통합 메타 동결 — LS_LABEL_VERSION 스냅샷 직후, 같은 승인 트랜잭션에서 materialize.
+        // APPROVED 전이·버전 스냅샷·통합 메타 동결·outbox 가 원자적으로 함께 커밋/롤백된다(정합성 우선).
+        datasetVideoMetaSnapshotService.materialize(stts.getRawDataId());
         log.info("[Review] approved videoId={} actor={}", videoId, actor.sub());
         eventPublisher.publishEvent(new ReviewApprovedEvent(
                 stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));

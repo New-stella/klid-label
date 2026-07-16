@@ -197,7 +197,7 @@ klid-la-test-v0/
 - **MASK ↔ RLE ↔ Polygon 변환** 포팅 (portable-modules/02)
 
 ### 증강 = 새 영상
-- 증강 결과는 **새 영상(RAW_SN) 생성** — 원본과 다른 영상 ID. `LS_DATA_RAW.PARENT_RAW_SN`으로 원본 참조
+- 증강 결과는 **새 영상(RAW_SN) 생성** — 원본과 다른 영상 ID. `LS_DATA_RAW.ORGNL_RAW_SN`(V82 rename, 구 `PARENT_RAW_SN` — 표준단어 ORGNL=원본)으로 원본(부모) 참조. **용어 표준**: `RAW`=원시(RAW_SN·LS_DATA_RAW 자체), `ORGNL`=원본(파생물의 부모/소스). 데이터마트 뷰 `V_COMPLETED_VIDEO` 출력 컬럼도 **`ORGNL_RAW_SN` 로 통일**(외부 소비자 부재로 구 `PARENT_RAW_SN` 외부 계약명 폐지 — V95. 내부·외부 모두 ORGNL_RAW_SN)
 - 원본 영상의 라벨/메타 JSON을 새 영상에 **복사** (외부 증강 3종은 해상도 동일 — 좌표 그대로 복사)
 - **해상도 변경(SFR-06-03)은 증강이 아님 — 저작도구 직접 수행**: 표준 하위 해상도 화이트리스트(RES_1080P/RES_720P/RES_480P)로 **프레임 이미지셋만 다운스케일** 제공. 업스케일(목표 ≥ 원본 높이) 400 거부, 영상(비디오) 재생성 없음, **라벨 좌표 미제공**(변환·복사 안 함), 새 영상(RAW_SN) 미생성 — 결과는 `LS_RESOLUTION_EXPORT` 1행으로 추적(UK: 원본 RAW_SN + 해상도)
 - 새 영상은 **미검수(PENDING) 상태**로 시작 → 작업자 배정 → 수정 → 검수 (기존 플로우 동일)
@@ -275,9 +275,9 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - **비식별 누락 신고** (R1 v1.14 수동 흐름): 작업자가 개인정보 노출을 발견하면 신고 → 작업락 + **해당 영상(rawSn) 전체 라벨 삭제**(삭제 전 `LS_LABEL_VERSION`에 `SAVE_REASON='DEIDENT_REPORT'` 비활성 스냅샷 + `LS_DATA_LBL_HSTRY` 이력 보존) + `DE_IDENT_YN='F'`. 자동 재비식별 큐는 폐기 — 작업자/검수자가 **외부 솔루션으로 수동 비식별화** 후 `POST /v1/deident-reports/{rprtSn}/resolve`(WORKER 본인 배정/REVIEWER 전체)로 OPEN→RESOLVED 전이 + 작업락 해제. APPROVED 영상 신고 시 `TASK_MODIFIED` 통지 발행. **마킹 단계**(rawSn 기준, `POST /v1/videos/{rawSn}/deident-report` — 설계 타깃/planned) + **라벨링 단계**(srcSn 기준, `POST /v1/labels/{srcSn}/deident-report` — 구현됨) 양쪽 가능. 적재 테이블 `LS_DEIDENT_REPORT`
 
 ### 배치 성능
-- Spring Boot + Quartz는 **단일 인스턴스 서비스** 배포 (Docker/Pod 미사용, Quartz 클러스터 미적용)
-- Quartz 기반 1건/분 처리. ai-server GPU 자원 모니터링 포인트 확보
-- **ai-server(YOLO/SAM2)는 다중 인스턴스 수평 확장 가능** — GPU Worker 별도 프로세스로 운영
+- Spring Boot + Quartz는 **주 서버 2노드 Active-Active 이중화** 배포 — 관제서버와 동일 서버 공동 배치, 앱 2노드 동시 기동, **Quartz 클러스터링 적용**(PostgreSQL JobStore 락으로 잡 중복 방지). DB는 별도 DB 서버(이중화), 파일 스토리지는 별도 NAS 서버(공유 마운트) *(구 '단일 인스턴스·클러스터 미적용' 서술 대체 — 2026-07-14 배포 토폴로지 확정, D5 v1.10 정합)*
+- Quartz 기반 1건/분 처리. ai-server 추론 자원 모니터링 포인트 확보
+- **ai-server(YOLO/SAM2)는 주 서버 내 별도 프로세스(무상태)** — 필요 시 다중 프로세스 확장 가능
 - 배치 실패 시 재처리 정책 (최대 재시도 횟수, 실패 알림)
 
 ### DB 공유 주의

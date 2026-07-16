@@ -23,13 +23,15 @@ public class LsAuthWorkLock {
     public static final String STATUS_LOCKED = "LOCKED";
     public static final String STATUS_RELEASED = "RELEASED";
     public static final String REASON_REDEIDENT = "REDEIDENT";
+    /** Phase 4 트랙 병합 배타 락 사유. */
+    public static final String REASON_MERGE = "MERGE";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "WORK_LOCK_SN")
     private Long workLockSn;
 
-    @Column(name = "LOCK_TARGET_CD", nullable = false, length = 20)
+    @Column(name = "LCK_TARGET_CD", nullable = false, length = 20)
     private String lockTargetCd;
 
     @Column(name = "DATA_RAW_SN")
@@ -38,34 +40,34 @@ public class LsAuthWorkLock {
     @Column(name = "DATA_SRC_SN")
     private Long dataSrcSn;
 
-    @Column(name = "LOCK_STTS_CD", nullable = false, length = 20)
+    @Column(name = "LCK_STTS_CD", nullable = false, length = 20)
     private String lockSttsCd;
 
-    @Column(name = "LOCK_ID", nullable = false, length = 64)
+    @Column(name = "LCK_ID", nullable = false, length = 64)
     private String lockId;
 
     @Column(name = "LOCK_OWNER_ID", length = 30)
     private String lockOwnerId;
 
-    @Column(name = "LOCK_DT", nullable = false)
+    @Column(name = "LCK_DT", nullable = false)
     private LocalDateTime lockDt;
 
-    @Column(name = "EXPD_DT")
+    @Column(name = "EXPRY_DT")
     private LocalDateTime expireDt;
 
-    @Column(name = "RELEASE_DT")
+    @Column(name = "RMV_DT")
     private LocalDateTime releaseDt;
 
-    @Column(name = "RELEASE_RSN", length = 500)
+    @Column(name = "RMV_RSN", length = 4000)
     private String releaseRsn;
 
-    @Column(name = "REG_ID", length = 30)
+    @Column(name = "REG_ID", length = 64)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "MDFCN_ID", length = 30)
+    @Column(name = "MDFCN_ID", length = 64)
     private String mdfcnId;
 
     @Column(name = "MDFCN_DT")
@@ -80,6 +82,26 @@ public class LsAuthWorkLock {
         lock.lockOwnerId = ownerId;
         lock.lockDt = LocalDateTime.now();
         lock.expireDt = lock.lockDt.plusHours(6);
+        lock.regId = ownerId;
+        lock.regDt = lock.lockDt;
+        return lock;
+    }
+
+    /**
+     * 영상(rawSn) 배타 편집 락 — Phase 4 트랙 병합용. redeident 락과 동일하게 {@code TARGET_RAW}
+     * 이므로 {@code isRawLocked}(TARGET_RAW) 로 함께 관측되어 병합 중 라벨 편집·동시 병합·재비식별을
+     * 상호 차단한다. 사유만 MERGE 로 구분 기록한다.
+     */
+    public static LsAuthWorkLock lockRaw(Long rawSn, String ownerId, String reason) {
+        LsAuthWorkLock lock = new LsAuthWorkLock();
+        lock.lockTargetCd = TARGET_RAW;
+        lock.dataRawSn = rawSn;
+        lock.lockSttsCd = STATUS_LOCKED;
+        lock.lockId = UUID.randomUUID().toString();
+        lock.lockOwnerId = ownerId;
+        lock.releaseRsn = null;
+        lock.lockDt = LocalDateTime.now();
+        lock.expireDt = lock.lockDt.plusHours(1);
         lock.regId = ownerId;
         lock.regDt = lock.lockDt;
         return lock;

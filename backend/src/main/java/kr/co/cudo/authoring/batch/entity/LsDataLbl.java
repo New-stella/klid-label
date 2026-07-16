@@ -20,7 +20,8 @@ import java.time.LocalDateTime;
 /**
  * LS_DATA_LBL: 현재 라벨 좌표/속성.
  *  - srcSn: LS_DATA_SRC FK (프레임 단위)
- *  - lblTypeCd: BBOX / POLYGON / SEGMENT / TRACK
+ *  - lblTypeCd: BBOX / POLYGON / SEGMENT / TRACK / SKELETON
+ *    (SKELETON = 17-keypoint COCO 포즈 — POINT_CN 에 삼중값 [[x,y,v], x17], KeypointSerializer type-route)
  *  - pointCn: 좌표 직렬화 (Jackson 안전 모드 — enableDefaultTyping 사용 금지)
  *
  * 자동/수동 여부, 모델명, 신뢰도, 보간 출처 등 저작도구 전용 AI 메타는
@@ -40,6 +41,8 @@ public class LsDataLbl {
     public static final String TYPE_POLYGON = "POLYGON";
     public static final String TYPE_SEGMENT = "SEGMENT";
     public static final String TYPE_TRACK = "TRACK";
+    /** 17-keypoint COCO 포즈. POINT_CN 에 삼중값 [[x,y,v], x17] 저장 (KeypointSerializer type-route). */
+    public static final String TYPE_SKELETON = "SKELETON";
 
     /** Phase 3 트랙 보간: LBL_SRC_CD 값 — 트랙 보간으로 자동 생성된 row. */
     public static final String SRC_INTERPOLATED = "INTERPOLATED";
@@ -72,7 +75,7 @@ public class LsDataLbl {
      * LS_LABEL FK 도입(V32) 이후 labelId 사용 권장.
      * 호환 위해 유지. 응답에서는 LS_LABEL.LABEL_NM (labelName) 을 우선 노출.
      */
-    @Column(name = "LBL_NM", nullable = false, length = 255)
+    @Column(name = "LBL_NM", nullable = false, length = 80)
     private String labelNm;
 
     // MariaDB → PostgreSQL: @Lob + String 은 PG 에서 large object(oid/CLOB) 타입으로 매핑되어
@@ -171,6 +174,28 @@ public class LsDataLbl {
     }
 
     /**
+     * 트랙 보간으로 자동 생성된 POLYGON 라벨 — 폴리곤 트랙 보간(R1 SFR-08-01).
+     * <p>{@code LBL_SRC_CD='INTERPOLATED'}, {@code AUTO_LBL_YN='Y'}, {@code LBL_TYPE_CD='POLYGON'} 고정.
+     * {@link #createAutoInterpolatedBbox} 와 동일 정책이며 타입만 POLYGON 이다.
+     *
+     * @param pointsJson 보간된 폴리곤 정점 JSON ({@code [[x,y], ...]} 정규형)
+     */
+    public static LsDataLbl createAutoInterpolatedPolygon(Long srcSn, Long labelId, String label, String pointsJson,
+                                                          BigDecimal confScore, String trackId) {
+        return LsDataLbl.builder()
+                .srcSn(srcSn)
+                .lblTypeCd(TYPE_POLYGON)
+                .labelId(labelId)
+                .label(label)
+                .pointsJson(pointsJson)
+                .autoLblYn(AUTO_YES)
+                .confScore(confScore)
+                .trackId(trackId)
+                .lblSrcCd(SRC_INTERPOLATED)
+                .build();
+    }
+
+    /**
      * 트랙 보간으로 자동 생성된 BBOX 라벨 — Phase 3.
      * <p>{@code LBL_SRC_CD='INTERPOLATED'}, {@code AUTO_LBL_YN='Y'}, {@code LBL_TYPE_CD='BBOX'} 고정.
      * trackId 는 원본 detection 과 동일한 값으로 전달되어야 한다 (FE 가 같은 트랙으로 인식하도록).
@@ -250,6 +275,21 @@ public class LsDataLbl {
                 .pointsJson(original.getPointCn())
                 .trackId(original.getTrackId())
                 .build();
+    }
+
+    /**
+     * Phase 4 트랙 병합 — 트랙 ID 재지정(다른 트랙으로 이관). 좌표/라벨/타입은 불변.
+     * <p>{@code TrackMergeService} 가 fromTrack 의 원 키프레임을 toTrack 으로 옮길 때 사용한다.
+     * 좌표를 건드리지 않으므로 IDOR/좌표검증 재수행 불필요(같은 영상 내 재그룹핑).
+     *
+     * @param newTrackId 병합 대상 트랙 ID (NotBlank — 빈 값이면 트랙 소실 방지 위해 거부)
+     */
+    public void reassignTrack(String newTrackId) {
+        if (newTrackId == null || newTrackId.isBlank()) {
+            throw new IllegalArgumentException("병합 대상 TRCK_ID 는 필수입니다.");
+        }
+        this.trackId = newTrackId;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /** VLM 객체 검증 결과 등 신뢰도만 갱신. 0.0~1.0 범위 강제. */

@@ -110,12 +110,12 @@
 원인: 빌드머신 glibc > 대상 서버 glibc.
 해결: **대상 서버와 동일(또는 더 낮은) glibc 빌드머신**에서 재수집. 런타임 바이너리/whl 모두 영향.
 
-## HF 모델 못 찾음 (rtdetr/SAM2, 오프라인)
+## HF 모델 못 찾음 (SAM2, 오프라인)
 
 증상: `OSError: ... not found ... offline mode`.
 해결:
-- `DETECTOR_BACKEND=yolox` 면 HF 불필요 — yolox 로 변경.
-- rtdetr/SAM2 필요 시 빌드머신에서 `PREFETCH_HF=1 ./scripts/package.sh` 로 `models/hf-cache` 채워 재설치,
+- 탐지(YOLOX)는 동봉 ONNX 라 HF 불필요 — SAM2 만 HF 캐시가 필요하다.
+- SAM2 필요 시 빌드머신에서 `PREFETCH_HF=1 ./scripts/package.sh` 로 `models/hf-cache` 채워 재설치,
   ai-server.env `HF_HOME` 가 캐시 경로를 가리키는지 확인.
 
 ## 포트 충돌

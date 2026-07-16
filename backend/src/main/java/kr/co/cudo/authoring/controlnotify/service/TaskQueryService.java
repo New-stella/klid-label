@@ -162,6 +162,6 @@ public class TaskQueryService {
                 ))
                 .toList();
 
-        return new TaskLabelsResponse(frame.getSrcSn(), frame.getFrameNo(), items);
+        return new TaskLabelsResponse(frame.getSrcSn(), Math.toIntExact(frame.getFrameNo()), items);
     }
 }

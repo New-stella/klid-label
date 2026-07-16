@@ -3,7 +3,7 @@
 #   사용: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 #
 #   목적: 관제/포털/비식별/실VLM 등 외부 서버 0개로 전 시나리오를 띄워 검증.
-#   - ai-server: mock 이 아닌 CPU 실추론 + RT-DETR 백엔드 (GPU 불필요 — Mac 등 호환).
+#   - ai-server: mock 이 아닌 CPU 실추론 + YOLOX 탐지(onnxruntime) (GPU 불필요 — Mac 등 호환).
 #   - 호스트 절대경로(/data) 대신 named volume → 비-Linux/비-서버 환경에서도 기동.
 #   - 비식별은 backend local 프로파일의 mock-mode(application-local.yml)로 자동 no-op
 #     (실 비식별 서버 부재 — Phase 1). VLM 은 local 에서 enabled=false.
@@ -47,20 +47,19 @@ services:
       # mock 대신 실제 모델 로드 (CPU)
       AI_MOCK_MODE: "false"
       AI_DEVICE: cpu
-      # 탐지/트래킹 기본 백엔드: RT-DETRv2 (transformers, 첫 기동 시 HuggingFace 에서 ~100MB 다운로드 후 캐시)
-      DETECTOR_BACKEND: rtdetr
-      # HuggingFace 캐시를 named volume 에 고정 (컨테이너 사용자 무관, 재기동 시 재다운로드 방지)
+      # 탐지/트래킹 백엔드는 YOLOX (ONNX Runtime, 로컬 yolox_s.onnx 가중치, 오프라인 CPU 동작).
+      # HuggingFace 캐시를 named volume 에 고정 (SAM2 등, 재기동 시 재다운로드 방지)
       HF_HOME: /app/.hf-cache
     # nvidia 런타임 의존 제거 (GPU 없는 환경) — 기본 OCI 런타임 사용
     runtime: runc
     volumes:
-      # 로컬 가중치 마운트 (SAM2 sam2_t.pt 등). YOLO/SAM2 는 로컬 .pt, RT-DETR 은 HF 캐시 사용.
+      # 로컬 가중치 마운트 (YOLOX yolox_s.onnx, SAM2 sam2_t.pt 등).
       - ./ai-server/weights:/app/weights:ro
       - klid-hf-cache:/app/.hf-cache
     deploy:
       resources:
         limits:
-          # CPU 실추론(RT-DETR/SAM2) 메모리 여유 확보
+          # CPU 실추론(YOLOX/SAM2) 메모리 여유 확보
           memory: 4096m
 
 volumes:

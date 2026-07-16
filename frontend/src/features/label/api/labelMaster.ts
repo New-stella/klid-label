@@ -7,15 +7,29 @@
 
 import { apiClient } from '@/lib/api/client';
 
+/**
+ * 라벨 마스터 카테고리 타입 — BE `LabelMasterRequest` regex(BBOX|POLYGON|POINT|SKELETON)와 정합.
+ * - SKELETON: COCO-17 휴먼 포즈 키포인트 카테고리(Phase 2 BE 마스터 허용).
+ */
+export const LABEL_MASTER_TYPES = ['BBOX', 'POLYGON', 'POINT', 'SKELETON'] as const;
+export type LabelMasterType = (typeof LABEL_MASTER_TYPES)[number];
+
 export interface LabelMaster {
   labelId: number;
   name: string;
   /** #RRGGBB 형태 */
   color: string;
-  /** BBOX | POLYGON | ... — BE 검증 */
-  type: string;
+  /** BBOX | POLYGON | POINT | SKELETON — BE 검증. 알 수 없는 값은 BBOX 로 폴백. */
+  type: LabelMasterType;
   sortNo: number;
   useYn: 'Y' | 'N';
+}
+
+/** BE 응답 type 을 알려진 카테고리로 정규화. 미지의 값은 BBOX 로 안전 폴백. */
+function normalizeMasterType(raw: unknown): LabelMasterType {
+  return (LABEL_MASTER_TYPES as readonly string[]).includes(String(raw))
+    ? (String(raw) as LabelMasterType)
+    : 'BBOX';
 }
 
 /**
@@ -36,7 +50,7 @@ export async function fetchLabelMasters(): Promise<LabelMaster[]> {
     labelId: Number(m.labelId),
     name: String(m.name ?? ''),
     color: String(m.color ?? '#94A3B8'),
-    type: String(m.type ?? 'BBOX'),
+    type: normalizeMasterType(m.type),
     sortNo: Number.isFinite(Number(m.sortNo)) ? Number(m.sortNo) : Number.MAX_SAFE_INTEGER,
     useYn: m.useYn === 'N' ? 'N' : 'Y',
   }));

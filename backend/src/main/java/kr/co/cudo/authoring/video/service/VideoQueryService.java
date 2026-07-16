@@ -288,7 +288,7 @@ public class VideoQueryService {
                 .stream()
                 .map(src -> new VideoDetailResponse.FramePreviewDto(
                         src.getSrcSn(),
-                        src.getFrameNo(),
+                        Math.toIntExact(src.getFrameNo()),
                         "/v1/frames/" + src.getSrcSn() + "/image"
                 ))
                 .toList();

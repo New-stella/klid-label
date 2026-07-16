@@ -8,6 +8,8 @@ import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.interpolation.Bbox;
 import kr.co.cudo.authoring.batch.interpolation.Keyframe;
+import kr.co.cudo.authoring.batch.interpolation.PolyKeyframe;
+import kr.co.cudo.authoring.batch.interpolation.PolyshapeMatcher;
 import kr.co.cudo.authoring.batch.interpolation.TrackInterpolator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
@@ -105,6 +107,21 @@ public class TrackInterpolationStep implements BatchStep {
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public int run(Long rawSn) {
+        return interpolate(rawSn);
+    }
+
+    /**
+     * 트랙 보간 본체 — <b>호출자의 트랜잭션에 참여</b>한다(별도 tx 경계 없음).
+     * <p>파이프라인 진입점 {@link #run(Long)}(REQUIRES_NEW)이 위임하며, 트랙 병합
+     * (TrackMergeService) 이 <b>trackId UPDATE 와 재보간을 같은 트랜잭션으로 묶어 원자성</b>을
+     * 확보하기 위해 이 메서드를 직접 호출한다(재보간 실패 시 병합까지 함께 롤백). 자기호출이라
+     * 트랜잭션 어드바이스가 없어 항상 caller tx 로 실행되며, 재보간 전 Hibernate auto-flush 로
+     * 병합된 trackId 를 즉시 관측한다.
+     *
+     * @param rawSn LS_DATA_RAW.RAW_SN
+     * @return 저장된 보간 row 수 (0 이상). 영상 프레임이 없거나 보간 대상이 없으면 0.
+     */
+    public int interpolate(Long rawSn) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
@@ -118,8 +135,18 @@ public class TrackInterpolationStep implements BatchStep {
         Map<Integer, Long> frameToSrcSn = new HashMap<>(totalFrames);
         Map<Long, Integer> srcSnToFrame = new HashMap<>(totalFrames);
         for (LsDataSrc s : frames) {
-            frameToSrcSn.put(s.getFrameNo(), s.getSrcSn());
-            srcSnToFrame.put(s.getSrcSn(), s.getFrameNo());
+            frameToSrcSn.put(Math.toIntExact(s.getFrameNo()), s.getSrcSn());
+            srcSnToFrame.put(s.getSrcSn(), Math.toIntExact(s.getFrameNo()));
+        }
+
+        // 재실행 idempotency — 기존 보간 생성 row 를 먼저 삭제(중복 INSERT 방지).
+        // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순서로 삭제해 FK 고아 방지.
+        List<Long> staleInterpolated = lblRepository.findInterpolatedLblSnsByRawSn(rawSn);
+        if (!staleInterpolated.isEmpty()) {
+            aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
+            lblRepository.deleteAllByIdInBatch(staleInterpolated);
+            log.info("[Batch][Interpolation] cleared stale interpolated rows rawSn={} count={}",
+                    rawSn, staleInterpolated.size());
         }
 
         List<LsDataLbl> candidates = lblRepository.findAutoBboxWithTrackId(rawSn);
@@ -135,35 +162,14 @@ public class TrackInterpolationStep implements BatchStep {
         List<LsDataLbl> newRows = new ArrayList<>();
         for (Map.Entry<String, List<LsDataLbl>> entry : byTrackId.entrySet()) {
             String trackId = entry.getKey();
-            List<LsDataLbl> sorted = entry.getValue().stream()
-                    .filter(l -> srcSnToFrame.containsKey(l.getSrcSn()))
-                    .sorted(Comparator.comparingInt(l -> srcSnToFrame.get(l.getSrcSn())))
-                    .toList();
-            if (sorted.isEmpty()) {
-                continue;
-            }
-            String label = sorted.get(0).getLabelNm();
-            List<Keyframe> keyframes = sorted.stream()
-                    .map(l -> new Keyframe(
-                            srcSnToFrame.get(l.getSrcSn()),
-                            parseBbox(l.getPointCn()),
-                            false))
-                    .toList();
-            Map<Integer, Bbox> interpolated = INTERPOLATOR.interpolate(keyframes, totalFrames);
-            Set<Integer> existingFrames = keyframes.stream()
-                    .map(Keyframe::frame)
-                    .collect(Collectors.toSet());
-            for (Map.Entry<Integer, Bbox> ie : interpolated.entrySet()) {
-                int frame = ie.getKey();
-                if (existingFrames.contains(frame)) {
-                    continue;  // 키프레임 자체는 skip
-                }
-                Long srcSn = frameToSrcSn.get(frame);
-                if (srcSn == null) {
-                    continue;  // 안전망 — 매핑 안 되는 프레임은 skip
-                }
-                newRows.add(LsDataLbl.createAutoInterpolatedBbox(
-                        srcSn, null, label, serializeBbox(ie.getValue()), BigDecimal.ZERO, trackId));
+            try {
+                newRows.addAll(interpolateTrack(trackId, entry.getValue(),
+                        srcSnToFrame, frameToSrcSn, totalFrames));
+            } catch (Exception ex) {
+                // 부분 실패 격리 — 한 트랙의 파싱/보간 예외가 같은 rawSn 의 다른 정상 트랙까지
+                // 롤백하지 않도록 트랙 단위로 격리 후 skip. (예외 무시 아님 — WARN 로깅.)
+                log.warn("[Batch][Interpolation] track skipped rawSn={} trackId={} reason={}",
+                        rawSn, trackId, ex.getMessage());
             }
         }
 
@@ -179,6 +185,174 @@ public class TrackInterpolationStep implements BatchStep {
         log.info("[Batch][Interpolation] saved rawSn={} tracks={} interpolatedRows={}",
                 rawSn, byTrackId.size(), newRows.size());
         return newRows.size();
+    }
+
+    /**
+     * 단일 트랙 재보간 — 트랙 병합(TrackMergeService) 후 <b>병합 트랙(toTrackId) 하나만</b> 재보간해
+     * 락 유지시간을 단축한다. 결과 좌표는 {@link #interpolate}(영상 전체 재보간)와 <b>동일</b>하다
+     * (동일한 <b>영상 전체 프레임</b> 매핑 + 동일한 트랙별 보간기 재사용 — 보간 폭 불변).
+     *
+     * <h2>이름은 toTrackId 재보간이나 stale 정리는 from+to 양쪽이다</h2>
+     * {@code doMerge} 가 {@code reassignTrack(toTrackId)} 을 <b>원 키프레임에만</b> 적용하므로,
+     * fromTrackId 로 생성됐던 기존 INTERPOLATE 산출물 row 는 trackId 가 여전히 fromTrackId 인 채 남는다.
+     * toTrackId 만 지우면 이 fromTrackId 보간 산출물이 <b>고아로 영구 잔존</b>(유령 라벨·카운트 부풀림·
+     * 검수 스냅샷 오염)하므로, stale 삭제 대상은 반드시 {@code {fromTrackId, toTrackId}} 양쪽이다.
+     * 재보간 후보는 reassign 후 fromTrackId 가 0건이므로 toTrackId 만이다.
+     *
+     * <h2>트랜잭션 — caller(머지) tx 참여</h2>
+     * {@link #interpolate} 와 동일하게 <b>트랜잭션 경계 없이</b> caller tx 에 참여한다(@Transactional
+     * 미부착). 재보간 실패 시 머지 UPDATE(reassign)까지 롤백되어 <b>원자성</b>을 유지하기 위함이며,
+     * 전체 경로의 per-track try/catch 격리와 달리 여기서는 예외를 삼키지 않는다(머지 롤백 유도).
+     *
+     * @param rawSn       LS_DATA_RAW.RAW_SN
+     * @param toTrackId   병합 대상(재보간) 트랙 ID
+     * @param fromTrackId 병합 소스 트랙 ID — stale 보간 산출물 정리 대상에만 포함(재보간 후보 아님)
+     * @return 저장된 보간 row 수 (0 이상). 영상 프레임이 없거나 보간 후보가 없으면 0.
+     */
+    public int interpolateSingleTrack(Long rawSn, String toTrackId, String fromTrackId) {
+        if (rawSn == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
+        }
+
+        // stale 정리 — 후보 존재 여부와 무관하게 항상 선행. from+to 양쪽 보간 산출물 제거(고아 방지).
+        // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순서로 삭제해 FK 고아 방지.
+        List<Long> staleInterpolated = lblRepository.findInterpolatedLblSnsByRawSnAndTrackId(
+                rawSn, List.of(fromTrackId, toTrackId));
+        if (!staleInterpolated.isEmpty()) {
+            aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
+            lblRepository.deleteAllByIdInBatch(staleInterpolated);
+            log.info("[Batch][Interpolation] cleared stale interpolated rows (single-track) rawSn={} from={} to={} count={}",
+                    rawSn, fromTrackId, toTrackId, staleInterpolated.size());
+        }
+
+        // 프레임 매핑 — HIGH #2: 보간 폭 보존 위해 항상 영상 전체 프레임 사용(트랙만 필터). totalFrames 축소 금지.
+        List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
+        if (frames.isEmpty()) {
+            log.info("[Batch][Interpolation] no frames (single-track) rawSn={}", rawSn);
+            return 0;
+        }
+        int totalFrames = frames.size();
+        Map<Integer, Long> frameToSrcSn = new HashMap<>(totalFrames);
+        Map<Long, Integer> srcSnToFrame = new HashMap<>(totalFrames);
+        for (LsDataSrc s : frames) {
+            frameToSrcSn.put(Math.toIntExact(s.getFrameNo()), s.getSrcSn());
+            srcSnToFrame.put(s.getSrcSn(), Math.toIntExact(s.getFrameNo()));
+        }
+
+        // 후보 — toTrackId 단건만(reassign 후 fromTrackId 후보 0건). 위 stale 삭제가 auto-flush 로 선반영됨.
+        List<LsDataLbl> candidates = lblRepository.findAutoBboxByRawSnAndTrackId(rawSn, toTrackId);
+        if (candidates.isEmpty()) {
+            log.info("[Batch][Interpolation] no candidates (single-track) rawSn={} to={}", rawSn, toTrackId);
+            return 0;
+        }
+
+        // 공통부 재사용 — BBOX/POLYGON 라우팅 + 타입 혼재 skip 가드 포함. 전체 경로와 동일 로직(좌표 동일 보장).
+        // 전체 경로의 per-track try/catch 격리와 달리 예외를 전파해 머지 원자성을 유지한다.
+        List<LsDataLbl> newRows = interpolateTrack(toTrackId, candidates, srcSnToFrame, frameToSrcSn, totalFrames);
+
+        if (!newRows.isEmpty()) {
+            Iterable<LsDataLbl> savedRows = lblRepository.saveAll(newRows);
+            List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
+            for (LsDataLbl row : savedRows) {
+                aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), rawSn, row.getSrcSn(),
+                        LsDataLblAiInfo.SRC_INTERPOLATE, row.getConfScore(), "batch"));
+            }
+            aiInfoRepository.saveAll(aiInfos);
+        }
+        log.info("[Batch][Interpolation] saved (single-track) rawSn={} to={} interpolatedRows={}",
+                rawSn, toTrackId, newRows.size());
+        return newRows.size();
+    }
+
+    /**
+     * 단일 트랙을 타입별로 라우팅하여 보간 row 를 산출한다.
+     * <p>트랙 내 {@code LBL_TYPE_CD} 가 혼재(distinct &gt; 1)하면 안전하게 skip(WARN).
+     * BBOX 는 선형 보간, POLYGON 은 polyshape 보간. (POLYLINE 은 현재 DB 코드값 미도입.)
+     */
+    private List<LsDataLbl> interpolateTrack(String trackId, List<LsDataLbl> labels,
+                                             Map<Long, Integer> srcSnToFrame,
+                                             Map<Integer, Long> frameToSrcSn,
+                                             int totalFrames) {
+        List<LsDataLbl> sorted = labels.stream()
+                .filter(l -> srcSnToFrame.containsKey(l.getSrcSn()))
+                .sorted(Comparator.comparingInt(l -> srcSnToFrame.get(l.getSrcSn())))
+                .toList();
+        if (sorted.isEmpty()) {
+            return List.of();
+        }
+        List<String> types = sorted.stream().map(LsDataLbl::getLblTypeCd).distinct().toList();
+        if (types.size() > 1) {
+            log.warn("[Batch][Interpolation] mixed label types in track trackId={} types={} -> skip",
+                    trackId, types);
+            return List.of();
+        }
+        String type = types.get(0);
+        String label = sorted.get(0).getLabelNm();
+        if (LsDataLbl.TYPE_POLYGON.equals(type)) {
+            return interpolatePolygonTrack(trackId, label, sorted, srcSnToFrame, frameToSrcSn, totalFrames);
+        }
+        return interpolateBboxTrack(trackId, label, sorted, srcSnToFrame, frameToSrcSn, totalFrames);
+    }
+
+    private List<LsDataLbl> interpolateBboxTrack(String trackId, String label, List<LsDataLbl> sorted,
+                                                 Map<Long, Integer> srcSnToFrame,
+                                                 Map<Integer, Long> frameToSrcSn, int totalFrames) {
+        List<Keyframe> keyframes = sorted.stream()
+                .map(l -> new Keyframe(srcSnToFrame.get(l.getSrcSn()), parseBbox(l.getPointCn()), false))
+                .toList();
+        Map<Integer, Bbox> interpolated = INTERPOLATOR.interpolate(keyframes, totalFrames);
+        Set<Integer> existingFrames = keyframes.stream().map(Keyframe::frame).collect(Collectors.toSet());
+        List<LsDataLbl> rows = new ArrayList<>();
+        for (Map.Entry<Integer, Bbox> ie : interpolated.entrySet()) {
+            int frame = ie.getKey();
+            if (existingFrames.contains(frame)) {
+                continue;  // 키프레임 자체는 skip
+            }
+            Long srcSn = frameToSrcSn.get(frame);
+            if (srcSn == null) {
+                continue;  // 안전망 — 매핑 안 되는 프레임은 skip
+            }
+            rows.add(LsDataLbl.createAutoInterpolatedBbox(
+                    srcSn, null, label, serializeBbox(ie.getValue()), BigDecimal.ZERO, trackId));
+        }
+        return rows;
+    }
+
+    private List<LsDataLbl> interpolatePolygonTrack(String trackId, String label, List<LsDataLbl> sorted,
+                                                    Map<Long, Integer> srcSnToFrame,
+                                                    Map<Integer, Long> frameToSrcSn, int totalFrames) {
+        List<PolyKeyframe> keyframes = sorted.stream()
+                .map(l -> new PolyKeyframe(srcSnToFrame.get(l.getSrcSn()), parsePolygon(l.getPointCn()), false))
+                .toList();
+        // closed=true (폐곡선). 정점 개수/좌표 검증 실패 시 IllegalArgumentException → 호출부(run)가 트랙 단위 skip.
+        Map<Integer, List<Point>> interpolated = INTERPOLATOR.interpolatePolyshape(keyframes, totalFrames, true);
+        Set<Integer> existingFrames = keyframes.stream().map(PolyKeyframe::frame).collect(Collectors.toSet());
+        List<LsDataLbl> rows = new ArrayList<>();
+        for (Map.Entry<Integer, List<Point>> ie : interpolated.entrySet()) {
+            int frame = ie.getKey();
+            if (existingFrames.contains(frame)) {
+                continue;  // 키프레임 자체는 skip
+            }
+            Long srcSn = frameToSrcSn.get(frame);
+            if (srcSn == null) {
+                continue;  // 안전망 — 매핑 안 되는 프레임은 skip
+            }
+            rows.add(LsDataLbl.createAutoInterpolatedPolygon(
+                    srcSn, null, label, LabelPointSerializer.toJson(ie.getValue(), objectMapper),
+                    BigDecimal.ZERO, trackId));
+        }
+        return rows;
+    }
+
+    /**
+     * POLYGON pointsJson 을 정점 목록으로 파싱. 정규형/평탄/객체배열 모두 {@link LabelPointSerializer#fromJson} 로 흡수.
+     * <p>빈 정점열이면 이후 {@link PolyshapeMatcher} 가 정점 개수 미달로 거부한다(호출부에서 트랙 skip).
+     */
+    private List<Point> parsePolygon(String pointsJson) {
+        if (pointsJson == null || pointsJson.isBlank()) {
+            throw new IllegalArgumentException("POLYGON pointsJson 이 비어있습니다.");
+        }
+        return LabelPointSerializer.fromJson(pointsJson, objectMapper);
     }
 
     /**

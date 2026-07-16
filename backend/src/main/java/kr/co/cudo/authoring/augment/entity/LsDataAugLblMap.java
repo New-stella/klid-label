@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.augment.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -37,6 +39,7 @@ public class LsDataAugLblMap {
     private Long dataLblSn;
 
     @Column(name = "COORD_RECALC_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String coordRecalcYn;
 
     @Column(name = "SCALE_X", precision = 10, scale = 6)
@@ -45,7 +48,7 @@ public class LsDataAugLblMap {
     @Column(name = "SCALE_Y", precision = 10, scale = 6)
     private BigDecimal scaleY;
 
-    @Column(name = "REG_ID", length = 30)
+    @Column(name = "REG_ID", length = 64)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false)

@@ -64,6 +64,32 @@ class LsMarkingEntityTest {
     }
 
     @Test
+    @DisplayName("createAuto_6인자_오버로드는_fps_null_하위호환")
+    void createAuto6arg_fpsNull() {
+        // 구 6-인자 호출부(테스트/레거시) 는 fps 를 pin 하지 않는다 → null (추출이 resolveFps 폴백).
+        LsMarking marking = LsMarking.createAuto(1L, "화재", 5, "/path", "[]", 1L);
+        assertThat(marking.getFps()).isNull();
+    }
+
+    @Test
+    @DisplayName("createAuto_7인자_오버로드는_fps를_pin한다")
+    void createAuto7arg_pinsFps() {
+        // TOCTOU 제거: 마킹 시점 fps 를 저장(pin) → 추출이 재조회 없이 사용.
+        LsMarking marking = LsMarking.createAuto(1L, "화재", 5, "/path", "[]", 1L, 29.97);
+        assertThat(marking.getFps()).isEqualTo(29.97);
+    }
+
+    @Test
+    @DisplayName("createManual_6인자_fps_null_7인자_fps_pin")
+    void createManual_fpsPin() {
+        LsMarking noPin = LsMarking.createManual(2L, "침입", "/path", "[]", 2L);
+        assertThat(noPin.getFps()).isNull();
+
+        LsMarking pinned = LsMarking.createManual(2L, "침입", "/path", "[]", 2L, 60.0);
+        assertThat(pinned.getFps()).isEqualTo(60.0);
+    }
+
+    @Test
     @DisplayName("markVlmRequested_상태전이")
     void markVlmRequestedTransition() {
         // given

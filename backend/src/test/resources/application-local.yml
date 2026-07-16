@@ -32,6 +32,11 @@ authoring:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
   batch:
     enabled: false
+  # 학습데이터 산출 stale PENDING 정리 잡 — 테스트에서는 Quartz 트리거 등록 비활성화 (training-scan 과 동일 격리).
+  #   sweep 로직 검증은 DatasetExportPendingSweeper/TxService 를 단위·IT 에서 직접 호출한다.
+  dataset-export:
+    pending-sweep:
+      enabled: false
   # dev-seed.sql 자동 적재 Runner — 일반 테스트 컨텍스트에서는 비활성화하여 시드 INSERT/DELETE 가
   # 다른 통합테스트의 테이블 상태를 오염시키지 않도록 격리한다. DevSeedRunner 전용 테스트는
   # @TestPropertySource(authoring.dev.seed.enabled=true) 로 개별 활성화한다.
@@ -47,6 +52,11 @@ authoring:
   control:
     # 관제 학습용 영상 픽업 스캔 잡 — 테스트에서는 Quartz 트리거 등록 비활성화 (batch 와 동일 격리).
     training-scan:
+      enabled: false
+  # R4 — 만료 작업락 sweeper. 테스트 기본 비활성(@Scheduled 미발화). sweep 로직 검증은
+  #   WorkLockService.sweepExpiredLocks() 를 IT 에서 직접 호출한다(스케줄러 발화에 의존하지 않음).
+  work-lock:
+    sweep:
       enabled: false
   # UC018 — 테스트 기본은 mock-mode 비식별(외부 KPST 서버 부재 환경 자족). KPST 토글 ON 검증이
   #   필요한 테스트는 @TestPropertySource(kpst.deid.enabled=true) 로 개별 활성화한다.

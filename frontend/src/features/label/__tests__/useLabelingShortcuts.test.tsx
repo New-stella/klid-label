@@ -26,7 +26,7 @@ function makeWrapper() {
   );
 }
 
-describe('useLabelingShortcuts', () => {
+describe('useLabelingShortcuts (Rev.1.1 재배치)', () => {
   beforeEach(() => {
     useLabelStore.getState().reset();
   });
@@ -35,6 +35,7 @@ describe('useLabelingShortcuts', () => {
     vi.restoreAllMocks();
   });
 
+  // ── 도구 단축키 (유지) ──────────────────────────────────────────
   it('단축키_B_누르면_activeTool_BBOX', () => {
     renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
     act(() => press('b'));
@@ -47,58 +48,151 @@ describe('useLabelingShortcuts', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.POLYGON);
   });
 
-  it('단축키_S_누르면_SELECT', () => {
+  it('키포인트_K_유지', () => {
     renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
-    useLabelStore.getState().setActiveTool(ToolType.BBOX);
-    act(() => press('s'));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+    act(() => press('k'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
   });
 
-  // Bug #3 회귀 — 한글 IME 활성 시 물리 키 B/P/S/G/T 가 ㅠ/ㅔ/ㄴ/ㅎ/ㅅ 로 들어와도
-  // e.code(물리 키) 매칭으로 도구 전환이 동작해야 한다. (e.key 가 IME 변환된 한글이어도 무관)
+  it('SAM분할_G_유지', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('g'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
+  });
+
+  it('한글IME_물리키_KeyK_누르면_KEYPOINT_e_key_가_ㅏ_여도', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('ㅏ', { code: 'KeyK' }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
+  });
+
   it('한글IME_물리키_KeyB_누르면_BBOX_e_key_가_ㅠ_여도', () => {
     renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
     act(() => press('ㅠ', { code: 'KeyB' }));
     expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX);
   });
 
-  it('한글IME_물리키_KeyP_누르면_POLYGON_e_key_가_ㅔ_여도', () => {
+  // ── SAM 추적 재배치: T → Shift+T ────────────────────────────────
+  it('SAM추적_Shift_T로_재배치_T와_충돌없음', () => {
     renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
-    act(() => press('ㅔ', { code: 'KeyP' }));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.POLYGON);
-  });
-
-  it('한글IME_물리키_KeyG_누르면_SAM_SEGMENT_e_key_가_ㅎ_여도', () => {
-    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
-    act(() => press('ㅎ', { code: 'KeyG' }));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
-  });
-
-  it('한글IME_물리키_KeyT_누르면_TRACK_e_key_가_ㅅ_여도', () => {
-    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
-    act(() => press('ㅅ', { code: 'KeyT' }));
+    // 평문 T 는 더 이상 TRACK 을 활성화하지 않는다(도구 미변경).
+    act(() => press('t'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
+    // Shift+T 가 TRACK.
+    act(() => press('T', { shiftKey: true }));
     expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
   });
 
-  // IME 조합 중(isComposing/Process)에는 한글 문자가 매칭되지 않아야 하지만,
-  // 물리 키 e.code 매칭은 여전히 도구 전환을 허용한다(가장 안전한 동작).
-  it('IME조합중_Process_여도_물리키_KeyS_는_SELECT_로_인식', () => {
+  it('한글IME_물리키_Shift_KeyT_누르면_TRACK', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('ㅅ', { code: 'KeyT', shiftKey: true }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
+  });
+
+  it('평문_T_는_라벨표시숨김_핸들러_호출', () => {
+    const onToggleVisibility = vi.fn();
+    renderHook(() => useLabelingShortcuts({ onToggleVisibility }), { wrapper: makeWrapper() });
+    act(() => press('t'));
+    expect(onToggleVisibility).toHaveBeenCalledTimes(1);
+  });
+
+  // ── SELECT 도구 재배치: S → Esc (WASD 충돌 회피) ────────────────
+  it('Esc_누르면_SELECT_도구', () => {
     renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
     useLabelStore.getState().setActiveTool(ToolType.BBOX);
-    act(() => press('Process', { code: 'KeyS' }));
+    act(() => press('Escape'));
     expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
   });
 
-  // 숫자 키(1~9)는 IME 변환 대상이 아니므로 종전대로 동작해야 한다(회귀 가드).
-  it('숫자키는_종전대로_동작_회귀_가드', () => {
-    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
-    // 라벨 마스터가 없으면 setActiveLabelId 가 호출되지 않으므로 도구만 변하지 않음을 확인.
-    useLabelStore.getState().setActiveTool(ToolType.BBOX);
-    act(() => press('1'));
-    // 숫자키는 도구를 바꾸지 않는다.
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX);
+  // ── WASD 프레임 이동 (신규) ─────────────────────────────────────
+  it('WASD_프레임_이동_동작', () => {
+    const onFirstFrame = vi.fn();
+    const onPrevFrame = vi.fn();
+    const onLastFrame = vi.fn();
+    const onNextFrame = vi.fn();
+    renderHook(
+      () => useLabelingShortcuts({ onFirstFrame, onPrevFrame, onLastFrame, onNextFrame }),
+      { wrapper: makeWrapper() },
+    );
+    act(() => press('w'));
+    act(() => press('a'));
+    act(() => press('s'));
+    act(() => press('d'));
+    expect(onFirstFrame).toHaveBeenCalledTimes(1);
+    expect(onPrevFrame).toHaveBeenCalledTimes(1);
+    expect(onLastFrame).toHaveBeenCalledTimes(1);
+    expect(onNextFrame).toHaveBeenCalledTimes(1);
   });
 
+  it('한글IME_물리키_KeyD_프레임_다음이동', () => {
+    const onNextFrame = vi.fn();
+    renderHook(() => useLabelingShortcuts({ onNextFrame }), { wrapper: makeWrapper() });
+    act(() => press('ㅇ', { code: 'KeyD' }));
+    expect(onNextFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it('화살표_프레임_이동_호환유지', () => {
+    const onPrev = vi.fn();
+    const onNext = vi.fn();
+    renderHook(() => useLabelingShortcuts({ onPrevFrame: onPrev, onNextFrame: onNext }), {
+      wrapper: makeWrapper(),
+    });
+    act(() => press('ArrowLeft'));
+    act(() => press('ArrowRight'));
+    expect(onPrev).toHaveBeenCalledTimes(1);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  // ── 폴리곤 F/Q, 삭제 R/Del ──────────────────────────────────────
+  it('폴리곤_F_점추가_Q_자동완료_핸들러', () => {
+    const onPolygonAddPoint = vi.fn();
+    const onPolygonComplete = vi.fn();
+    renderHook(() => useLabelingShortcuts({ onPolygonAddPoint, onPolygonComplete }), {
+      wrapper: makeWrapper(),
+    });
+    act(() => press('f'));
+    act(() => press('q'));
+    expect(onPolygonAddPoint).toHaveBeenCalledTimes(1);
+    expect(onPolygonComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('R_또는_Del_선택라벨_삭제', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    const store = useLabelStore.getState();
+    act(() => {
+      store.addLabel({
+        id: 'x',
+        frameNo: 1,
+        classId: 1,
+        className: 'car',
+        source: 'MANUAL',
+        shape: { type: 'BBOX', left: 0, top: 0, right: 10, bottom: 10 },
+      });
+      useLabelStore.getState().selectLabel('x');
+    });
+    act(() => press('r'));
+    expect(useLabelStore.getState().labels).toHaveLength(0);
+  });
+
+  it('Del_누르면_선택된_라벨_삭제', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    const store = useLabelStore.getState();
+    act(() => {
+      store.addLabel({
+        id: 'y',
+        frameNo: 1,
+        classId: 1,
+        className: 'car',
+        source: 'MANUAL',
+        shape: { type: 'BBOX', left: 0, top: 0, right: 10, bottom: 10 },
+      });
+      useLabelStore.getState().selectLabel('y');
+    });
+    act(() => press('Delete'));
+    expect(useLabelStore.getState().labels).toHaveLength(0);
+  });
+
+  // ── 저장/undo (유지) ────────────────────────────────────────────
   it('단축키_Ctrl+S_저장_트리거', () => {
     const onSave = vi.fn();
     renderHook(() => useLabelingShortcuts({ onSave }), { wrapper: makeWrapper() });
@@ -106,14 +200,37 @@ describe('useLabelingShortcuts', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
-  it('단축키_화살표_프레임_이동', () => {
-    const onPrev = vi.fn();
-    const onNext = vi.fn();
-    renderHook(() => useLabelingShortcuts({ onPrevFrame: onPrev, onNextFrame: onNext }), { wrapper: makeWrapper() });
-    act(() => press('ArrowLeft'));
-    act(() => press('ArrowRight'));
-    expect(onPrev).toHaveBeenCalledTimes(1);
-    expect(onNext).toHaveBeenCalledTimes(1);
+  it('Ctrl+S_는_프레임_끝이동과_충돌없이_저장만', () => {
+    const onSave = vi.fn();
+    const onLastFrame = vi.fn();
+    renderHook(() => useLabelingShortcuts({ onSave, onLastFrame }), { wrapper: makeWrapper() });
+    act(() => press('s', { ctrlKey: true }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onLastFrame).not.toHaveBeenCalled();
+  });
+
+  // ── 줌 단축키 (US 키보드 회귀) ──────────────────────────────────
+  it('Shift_플러스_확대_줌_증가', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    const before = useLabelStore.getState().zoom;
+    act(() => press('+', { shiftKey: true }));
+    expect(useLabelStore.getState().zoom).toBeGreaterThan(before);
+  });
+
+  it('Shift_언더스코어_축소_줌_감소', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    const before = useLabelStore.getState().zoom;
+    act(() => press('_', { shiftKey: true }));
+    expect(useLabelStore.getState().zoom).toBeLessThan(before);
+  });
+
+  it('등호_하이픈_무수식_줌_동작', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => press('='));
+    expect(useLabelStore.getState().zoom).toBeGreaterThan(1);
+    act(() => press('-'));
+    act(() => press('-'));
+    expect(useLabelStore.getState().zoom).toBeLessThan(1.2);
   });
 
   it('Ctrl+Z_undo_트리거', () => {
@@ -146,26 +263,40 @@ describe('useLabelingShortcuts', () => {
       window.dispatchEvent(ev);
     });
 
-    // SELECT 그대로 유지
     expect(useLabelStore.getState().activeTool).toBe(ToolType.SELECT);
     document.body.removeChild(input);
   });
 
-  it('Del_누르면_선택된_라벨_삭제', () => {
-    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
-    const store = useLabelStore.getState();
-    act(() => {
-      store.addLabel({
-        id: 'x',
-        frameNo: 1,
-        classId: 1,
-        className: 'car',
-        source: 'MANUAL',
-        shape: { type: 'BBOX', left: 0, top: 0, right: 10, bottom: 10 },
-      });
-      useLabelStore.getState().selectLabel('x');
-    });
-    act(() => press('Delete'));
-    expect(useLabelStore.getState().labels).toHaveLength(0);
+  // ── 포털 SAM2/키포인트 허용 (Phase 9, ADR-013 override) ─────────────
+  it('포털모드_K로_KEYPOINT_활성화됨_Phase9', () => {
+    renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
+    act(() => press('k'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
+  });
+
+  it('포털모드_G_와_Shift_T도_활성_Phase9', () => {
+    renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
+    act(() => press('g'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
+    act(() => press('T', { shiftKey: true }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
+  });
+
+  it('포털모드_B_P_기본도구는_정상동작', () => {
+    renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
+    act(() => press('b'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX);
+    act(() => press('p'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.POLYGON);
+  });
+
+  it('비포털_K_G_ShiftT_단축키_정상동작_회귀없음', () => {
+    renderHook(() => useLabelingShortcuts({}, { portalMode: false }), { wrapper: makeWrapper() });
+    act(() => press('k'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
+    act(() => press('g'));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
+    act(() => press('T', { shiftKey: true }));
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
   });
 });

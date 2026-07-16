@@ -35,7 +35,7 @@ import java.util.stream.Stream;
 /**
  * 해상도 변경(RESOLUTION) 서비스 — Phase 1 (RQ-SFR-06-03 v1.8/1.10).
  *
- * <p><b>정책(R1)</b>: 검수 완료(APPROVED) 원본 영상의 프레임 이미지셋(LS_DATA_SRC.SRC_FILE_PATH_NM)을
+ * <p><b>정책(R1)</b>: 검수 완료(APPROVED) 원시 영상의 프레임 이미지셋(LS_DATA_SRC.SRC_FILE_PATH_NM)을
  * 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로 종횡비 보존 <b>다운스케일</b>한다. 영상(비디오)
  * 재생성·라벨 좌표 스케일 복사·새 PENDING 영상(LS_DATA_RAW) 생성은 하지 않으며, 산출물은
  * 다운스케일 이미지셋 + {@code LS_RESOLUTION_EXPORT} 1행뿐이다.
@@ -84,7 +84,7 @@ public class VideoResolutionService {
     /**
      * 해상도 변경 실행 — 검증 → 프레임 이미지 다운스케일(트랜잭션 밖) → EXPORT INSERT(REQUIRES_NEW).
      *
-     * @param rawSn   원본 영상 PK (검수 완료 + 비-증강본만 허용)
+     * @param rawSn   원시 영상 PK (검수 완료 + 비-증강본만 허용)
      * @param request 표준 하위 해상도 프리셋
      * @param regId   등록자(REVIEWER) 식별자 (감사 추적용)
      * @return EXPORT_SN + 원본/타겟 해상도 + 프레임 개수
@@ -236,7 +236,7 @@ public class VideoResolutionService {
                         "영상을 찾을 수 없습니다: rawSn=" + rawSn));
 
         // 중첩 증강 거부 — 이미 증강/리사이즈 산출물이면 원본 아님 (정책)
-        if (parent.getParentRawSn() != null) {
+        if (parent.getOrgnlRawSn() != null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 영상에만 해상도 변경 가능");
         }
 

@@ -458,7 +458,12 @@ public class VersionService {
             String lblTypeCd = item.path("lblTypeCd").asText(null);
             String label = item.path("label").asText(null);
             Long labelId = item.path("labelId").isIntegralNumber() ? item.get("labelId").asLong() : null;
-            result.add(new RestoredLabel(lblTypeCd, labelId, label, readSnapshotPoints(item.path("points"))));
+            // SKELETON 은 삼중값 [[x,y,v],x17] 이라 2-튜플 readSnapshotPoints 로는 v 가 유실된다.
+            // 롤백 round-trip 무손실을 위해 원본 points 노드 JSON 을 그대로 보존한다(type-route).
+            String rawPointsJson = LsDataLbl.TYPE_SKELETON.equals(lblTypeCd)
+                    ? item.path("points").toString() : null;
+            result.add(new RestoredLabel(lblTypeCd, labelId, label,
+                    readSnapshotPoints(item.path("points")), rawPointsJson));
         }
         return result;
     }
@@ -482,7 +487,10 @@ public class VersionService {
             String lblTypeCd = (r.lblTypeCd() == null || r.lblTypeCd().isBlank())
                     ? LsDataLbl.TYPE_BBOX : r.lblTypeCd();
             String label = (r.label() == null || r.label().isBlank()) ? "label" : r.label();
-            String pointsJson = LabelPointSerializer.toJson(r.points(), objectMapper);
+            // SKELETON 은 스냅샷의 원본 삼중값 JSON 을 그대로 복원(v 보존). 그 외는 기존 2-튜플 재직렬화(불변).
+            String pointsJson = (LsDataLbl.TYPE_SKELETON.equals(lblTypeCd) && r.rawPointsJson() != null)
+                    ? r.rawPointsJson()
+                    : LabelPointSerializer.toJson(r.points(), objectMapper);
             toCreate.add(LsDataLbl.createManual(
                     srcSn, lblTypeCd, r.labelId(), label, pointsJson, null));
         }
@@ -525,8 +533,13 @@ public class VersionService {
         return out;
     }
 
-    /** 롤백 시 스냅샷에서 복원할 라벨 1건 — 복원에 필요한 필드만(lbl_sn 은 재발급). 외부 노출 없음. */
-    private record RestoredLabel(String lblTypeCd, Long labelId, String label, List<Point> points) {
+    /**
+     * 롤백 시 스냅샷에서 복원할 라벨 1건 — 복원에 필요한 필드만(lbl_sn 은 재발급). 외부 노출 없음.
+     *
+     * @param rawPointsJson SKELETON 삼중값 원본 points JSON(v 보존용). 2-튜플 타입은 null.
+     */
+    private record RestoredLabel(String lblTypeCd, Long labelId, String label,
+                                 List<Point> points, String rawPointsJson) {
     }
 
     // ---------- 내부 ----------
@@ -704,21 +717,33 @@ public class VersionService {
             String id = idNode.asText();
             String lblTypeCd = item.path("lblTypeCd").asText(null);
             String label = item.path("label").asText(null);
-            List<List<Double>> points = readPoints(item.path("points"));
+            List<List<Double>> points = readPoints(item.path("points"), lblTypeCd);
             result.put(id, new LabelSnapshot(id, lblTypeCd, label, points, frameNo));
         }
         return result;
     }
 
-    private static List<List<Double>> readPoints(JsonNode pointsNode) {
+    /**
+     * 좌표 노드를 diff 비교용 nested 리스트로 읽는다.
+     *
+     * <p>SKELETON(키포인트 포즈)은 삼중값 [[x,y,v],...] 이므로 3번째 원소(v, 가시성)까지 읽어 비교
+     * 대상에 포함한다. v 만 바뀐 두 APPROVED 버전이 MODIFIED 로 감지되도록 하기 위함(v-blindness 수정).
+     * 그 외 타입(BBOX/POLYGON/SEGMENT/TRACK)은 기존과 동일하게 2-튜플 [x,y] 만 읽는다(경로 불변).
+     */
+    private static List<List<Double>> readPoints(JsonNode pointsNode, String lblTypeCd) {
         if (!pointsNode.isArray()) {
             return List.of();
         }
+        boolean skeleton = LsDataLbl.TYPE_SKELETON.equals(lblTypeCd);
         List<List<Double>> out = new ArrayList<>(pointsNode.size());
         for (JsonNode pair : pointsNode) {
             if (pair.isArray() && pair.size() >= 2
                     && pair.get(0).isNumber() && pair.get(1).isNumber()) {
-                out.add(List.of(pair.get(0).asDouble(), pair.get(1).asDouble()));
+                if (skeleton && pair.size() >= 3 && pair.get(2).isNumber()) {
+                    out.add(List.of(pair.get(0).asDouble(), pair.get(1).asDouble(), pair.get(2).asDouble()));
+                } else {
+                    out.add(List.of(pair.get(0).asDouble(), pair.get(1).asDouble()));
+                }
             }
         }
         return out;

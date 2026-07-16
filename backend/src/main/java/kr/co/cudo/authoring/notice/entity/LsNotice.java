@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.notice.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -42,6 +44,7 @@ public class LsNotice {
 
     /** 상단 고정 여부 — DB 컨벤션상 "Y"/"N" 문자열로 저장 (boolean 접근자는 {@link #isPinned()}). */
     @Column(name = "UPEND_FIX_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String pinYn;
 
     @Enumerated(EnumType.STRING)

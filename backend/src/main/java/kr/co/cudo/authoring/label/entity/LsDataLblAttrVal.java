@@ -35,17 +35,17 @@ public class LsDataLblAttrVal {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ATTR_VAL_ID")
+    @Column(name = "ATRB_VL_ID")
     private Long attrValId;
 
     @Column(name = "LBL_SN", nullable = false)
     private Long lblSn;
 
-    @Column(name = "ATTR_ID", nullable = false)
+    @Column(name = "ATRB_ID", nullable = false)
     private Long attrId;
 
-    /** H2 의 VALUE reserved keyword 회피 — 컬럼명은 ATTR_VL, Java 필드는 value 유지. */
-    @Column(name = "ATTR_VL", length = 1000)
+    /** H2 의 VALUE reserved keyword 회피 — 컬럼명은 ATRB_VL, Java 필드는 value 유지. */
+    @Column(name = "ATRB_VL", length = 1000)
     private String value;
 
     @Column(name = "REG_DT", nullable = false, updatable = false)

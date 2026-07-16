@@ -120,7 +120,6 @@ class Sam2SegmentServiceTest {
 
         assertThat(res.polygon()).hasSize(3);
         assertThat(res.score()).isEqualTo(0.92);
-        assertThat(res.mock()).isFalse();
 
         // ai-server 요청에는 points 가 실리고 box 는 null.
         ArgumentCaptor<Sam2Request> cap = ArgumentCaptor.forClass(Sam2Request.class);
@@ -186,16 +185,26 @@ class Sam2SegmentServiceTest {
     }
 
     @Test
-    @DisplayName("mock_응답시_BE응답에_mock_true_포함")
-    void mockResponsePropagated() {
+    @DisplayName("Sam2Segment_내부mock이면_빈폴리곤과_안내메시지_반환")
+    void mockResponseReturnsEmptyPolygon() {
+        // ai-server 내부 mock 응답(모델 미로드) — 좌표는 신뢰 불가하므로 빈 폴리곤으로 반환하여
+        // FE 자동적용을 차단한다(안내 message 는 컨트롤러가 ApiResponse.message 로 세팅).
         when(aiServerClient.segment(any())).thenReturn(Mono.just(new Sam2Response(
                 List.of(List.of(10.0, 10.0), List.of(20.0, 20.0), List.of(10.0, 20.0)),
                 0.5, true, "mock", "weights_missing")));
 
         Sam2SegmentResponse res = service.segment(pointReq(), reviewer);
 
-        assertThat(res.mock()).isTrue();
-        assertThat(res.polygon()).hasSize(3);
+        assertThat(res.polygon()).isEmpty();
+        assertThat(res.score()).isZero();
+    }
+
+    @Test
+    @DisplayName("Sam2SegmentResponse에_mock필드가_없다")
+    void sam2SegmentResponseHasNoMockField() {
+        boolean hasMock = java.util.Arrays.stream(Sam2SegmentResponse.class.getRecordComponents())
+                .anyMatch(rc -> rc.getName().equals("mock"));
+        assertThat(hasMock).isFalse();
     }
 
     @Test

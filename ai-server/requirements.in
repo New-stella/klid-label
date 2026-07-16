@@ -14,13 +14,12 @@ pydantic-settings>=2.2.0
 python-multipart>=0.0.9
 
 # AI 모델
-# 탐지 백엔드는 detector_backend 설정으로 전환:
-#  - yolox (기본): YOLOX (ONNX Runtime) + ByteTrack
-#  - rtdetr      : RT-DETRv2 (transformers) + ByteTrack (roboflow trackers)
+# 탐지 백엔드는 YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드로 일원화됨.
+# (구 RT-DETRv2(transformers) 백엔드는 torch↔torchaudio ABI 불일치로 제거)
 onnxruntime>=1.17.0   # YOLOX ONNX 탐지 추론 (Apache-2.0) — lazy import
 SAM-2 @ git+https://github.com/facebookresearch/sam2.git   # Meta SAM2 세그멘테이션 (Apache-2.0, 배포명 SAM-2 / import명 sam2) — lazy import, ultralytics SAM 대체
-transformers>=4.48,<6   # RT-DETRv2 (RTDetrV2ForObjectDetection) — lazy import, rtdetr 백엔드 전용. RTDetrV2 도입 4.48+ / v6 미검증 차단
-trackers>=2.0    # ByteTrackTracker (Apache-2.0) — lazy import, rtdetr 트래킹 전용. supervision 0.30 에서 제거 예정인 sv.ByteTrack 대체
+huggingface-hub>=0.24   # SAM2ImagePredictor.from_pretrained HF 다운로드용 (구 transformers 경유 전이의존이었으나 transformers 제거로 명시 추가)
+trackers>=2.0    # ByteTrackTracker (Apache-2.0) — lazy import, YOLOX 트래킹. supervision 0.30 에서 제거 예정인 sv.ByteTrack 대체
 supervision>=0.26    # sv.Detections 변환 전용 (trackers 호환) — lazy import. sv.ByteTrack 미사용이므로 <0.30 상한 제거. (trackers 가 supervision>=0.26.1 요구)
 torch>=2.2.0
 torchvision>=0.17.0

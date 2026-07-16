@@ -16,7 +16,9 @@ import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.marking.service.MarkingService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +36,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,8 +63,21 @@ class MarkingServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private VideoFpsResolver fpsResolver;
+
     @InjectMocks
     private MarkingService markingService;
+
+    /**
+     * 기본: fps 미상 → 30.0 폴백. 기존 자동마킹 테스트가 30fps 고정 가정으로 작성됐으므로 이 기본 stub 이
+     * 회귀를 방지한다. 실 fps 검증 테스트는 특정 rawSn 에 대해 개별 override 한다. (lenient — 자동마킹에
+     * 도달하지 않는 가드 테스트가 있어 strict 불필요 stub 예외 회피.)
+     */
+    @BeforeEach
+    void setUpFpsDefault() {
+        lenient().when(fpsResolver.resolveFps(anyLong())).thenReturn(VideoFpsResolver.DEFAULT_FPS);
+    }
 
     private TokenClaims reviewer() {
         return new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -470,14 +487,14 @@ class MarkingServiceTest {
         assertThat(result.marks()).noneMatch(m -> m.frameIndex() == 300);
     }
 
-    // ── M-3: 자동 마킹 30fps 고정 가정 명시 ──
+    // ── M-3: fps 미상 시 30 폴백 무회귀 (기존 30fps 고정 결과 보존) ──
 
     @Test
-    @DisplayName("M3_자동마킹_30fps_고정가정_totalFrames와_타임스탬프가_30fps기준으로_계산")
+    @DisplayName("M3_자동마킹_fps미상_30폴백_totalFrames와_타임스탬프가_30fps기준으로_계산")
     void autoMarking_assumes30Fps() {
         // given — 60초 영상, intervalFrames=30(=30fps 기준 1초 간격).
-        // M-3: 영상 실 FPS 와 무관하게 NATIVE_FPS(30) 로 totalFrames(=durationSec×30)와
-        // 타임스탬프(frameIndex/30초)를 계산한다는 가정을 고정값으로 검증한다.
+        // M-3 수정: fps 미상 시 resolver 가 30.0 으로 폴백하므로 totalFrames(=durationSec×30)와
+        // 타임스탬프(frameIndex/30초)가 기존 30fps 고정 결과와 동일함을 회귀 가드로 검증한다.
         Long rawSn = 50L;
         LsDataRaw raw = stubRaw(rawSn, 60);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
@@ -489,15 +506,148 @@ class MarkingServiceTest {
         MarkingResponse result = markingService.create(rawSn, req, reviewer());
 
         // then — 60초 × 30fps = 1800 totalFrames, interval=30 → 60개(0..1770).
-        // 30fps 가정이 확정값임을 회귀 가드: 첫/둘째 프레임과 타임스탬프(30fps 기준)를 검증.
+        // fps 미상(폴백 30.0)이라 30fps 기준 계산 — 무회귀 가드: 첫/둘째 프레임과 타임스탬프를 검증.
         assertThat(result.marks()).hasSize(60);
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
         assertThat(result.marks().get(0).timestamp()).isEqualTo("00:00");
-        // frameIndex 30 은 30fps 기준 1초 → "00:01" (비-30fps 영상이면 실제와 어긋남 — 가정 명시 대상).
+        // frameIndex 30 은 30fps 기준 1초 → "00:01".
         assertThat(result.marks().get(1).frameIndex()).isEqualTo(30);
         assertThat(result.marks().get(1).timestamp()).isEqualTo("00:01");
         // 마지막 프레임 1770 → 1770/30 = 59초 → "00:59".
         assertThat(result.marks().get(59).frameIndex()).isEqualTo(1770);
         assertThat(result.marks().get(59).timestamp()).isEqualTo("00:59");
+    }
+
+    // ── M-3 수정: 실 fps(video.fps) 사용 + 미상 폴백 무회귀 ──
+
+    @Test
+    @DisplayName("자동마킹_실fps25_totalFrames와_타임스탬프_25fps기준으로_정확계산")
+    void autoMarking_realFps25_computesWith25() {
+        // given — 60초 영상, 저장된 실 fps=25. resolver 가 25.0 을 반환.
+        Long rawSn = 80L;
+        LsDataRaw raw = stubRaw(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(fpsResolver.resolveFps(rawSn)).thenReturn(25.0);
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // intervalFrames=25 (25fps 기준 1초 간격)
+        MarkingRequest req = new MarkingRequest("AUTO", 25, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then — 60초 × 25fps = 1500 totalFrames, interval=25 → 60개(0..1475).
+        // 30fps 고정이었다면 1800/25=72개였을 것 — 실 fps 사용을 hasSize 로 입증.
+        assertThat(result.marks()).hasSize(60);
+        assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
+        assertThat(result.marks().get(0).timestamp()).isEqualTo("00:00");
+        // frameIndex 25 는 25fps 기준 정확히 1초 → "00:01".
+        assertThat(result.marks().get(1).frameIndex()).isEqualTo(25);
+        assertThat(result.marks().get(1).timestamp()).isEqualTo("00:01");
+        // S1 정합성 근거: frameIndex 50 → 50/25 = 2초 → "00:02" (추출 seekMillis 2000ms 와 왕복 일치).
+        assertThat(result.marks().get(2).frameIndex()).isEqualTo(50);
+        assertThat(result.marks().get(2).timestamp()).isEqualTo("00:02");
+        // 마지막 프레임 1475 → 1475/25 = 59초 → "00:59".
+        assertThat(result.marks().get(59).frameIndex()).isEqualTo(1475);
+        assertThat(result.marks().get(59).timestamp()).isEqualTo("00:59");
+    }
+
+    @Test
+    @DisplayName("자동마킹_fps미상이면_30폴백으로_기존과_동일_무회귀")
+    void autoMarking_fpsAbsent_fallback30_noRegression() {
+        // given — resolver 가 폴백(30.0)을 반환(기본 stub). 60초 영상, interval=30.
+        Long rawSn = 81L;
+        LsDataRaw raw = stubRaw(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        // fpsResolver 는 setUpFpsDefault 의 30.0 폴백을 그대로 사용.
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 30, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then — 30fps 고정이던 기존 결과와 정확히 동일 (60초×30=1800, 60개, 0..1770).
+        assertThat(result.marks()).hasSize(60);
+        assertThat(result.marks().get(1).frameIndex()).isEqualTo(30);
+        assertThat(result.marks().get(1).timestamp()).isEqualTo("00:01");
+        assertThat(result.marks().get(59).frameIndex()).isEqualTo(1770);
+    }
+
+    // ── TOCTOU 근본 수정: 마킹 시점 fps pin(저장) 검증 ──
+
+    @Test
+    @DisplayName("자동마킹_해석한실fps25가_마킹레코드에_pin되어_저장된다")
+    void autoMarking_pinsResolvedFps() {
+        // given — 저장된 실 fps=25 → 마킹 레코드에 25.0 이 pin 되어야 한다(추출이 재조회 없이 사용).
+        Long rawSn = 90L;
+        LsDataRaw raw = stubRaw(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(fpsResolver.resolveFps(rawSn)).thenReturn(25.0);
+        org.mockito.ArgumentCaptor<LsMarking> captor = org.mockito.ArgumentCaptor.forClass(LsMarking.class);
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 25, null);
+
+        // when
+        markingService.create(rawSn, req, reviewer());
+
+        // then — 저장된 마킹의 fps 가 pin(25.0)
+        verify(markingRepository).save(captor.capture());
+        assertThat(captor.getValue().getFps()).isEqualTo(25.0);
+    }
+
+    @Test
+    @DisplayName("수동마킹도_해석한fps가_마킹레코드에_pin된다")
+    void manualMarking_pinsResolvedFps() {
+        // given — 수동 마킹은 marks 산출에 fps 를 쓰지 않지만, 추출단계 정합을 위해 fps 를 pin 해야 한다.
+        Long rawSn = 91L;
+        LsDataRaw raw = stubRaw(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(fpsResolver.resolveFps(rawSn)).thenReturn(50.0);
+        org.mockito.ArgumentCaptor<LsMarking> captor = org.mockito.ArgumentCaptor.forClass(LsMarking.class);
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("MANUAL", null, List.of(new MarkItem(10, "00:00")));
+
+        // when
+        markingService.create(rawSn, req, reviewer());
+
+        // then
+        verify(markingRepository).save(captor.capture());
+        assertThat(captor.getValue().getFps()).isEqualTo(50.0);
+        assertThat(captor.getValue().getMarkModeCd()).isEqualTo(LsMarking.MODE_MANUAL);
+    }
+
+    @Test
+    @DisplayName("자동마킹_실fps60_totalFrames와_타임스탬프_60fps기준_정확계산_및_pin")
+    void autoMarking_realFps60_computesAndPins() {
+        // given — 60초 영상, 저장된 실 fps=60.
+        Long rawSn = 92L;
+        LsDataRaw raw = stubRaw(rawSn, 60);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(fpsResolver.resolveFps(rawSn)).thenReturn(60.0);
+        org.mockito.ArgumentCaptor<LsMarking> captor = org.mockito.ArgumentCaptor.forClass(LsMarking.class);
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // intervalFrames=60 (60fps 기준 1초 간격)
+        MarkingRequest req = new MarkingRequest("AUTO", 60, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then — 60초 × 60fps = 3600 totalFrames, interval=60 → 60개(0..3540).
+        assertThat(result.marks()).hasSize(60);
+        assertThat(result.marks().get(0).frameIndex()).isEqualTo(0);
+        assertThat(result.marks().get(0).timestamp()).isEqualTo("00:00");
+        // frameIndex 60 @ 60fps = 정확히 1초 → "00:01".
+        assertThat(result.marks().get(1).frameIndex()).isEqualTo(60);
+        assertThat(result.marks().get(1).timestamp()).isEqualTo("00:01");
+        // 마지막 3540 @ 60fps = 59초 → "00:59".
+        assertThat(result.marks().get(59).frameIndex()).isEqualTo(3540);
+        assertThat(result.marks().get(59).timestamp()).isEqualTo("00:59");
+        // fps 60.0 이 마킹에 pin 됨.
+        verify(markingRepository).save(captor.capture());
+        assertThat(captor.getValue().getFps()).isEqualTo(60.0);
     }
 }

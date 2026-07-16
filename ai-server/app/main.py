@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIdMiddleware
-from app.models import rtdetr_loader, yolox_loader
+from app.models import yolox_loader
 from app.models.sam2_loader import get_sam2_model
 from app.models.vlm_loader import get_vlm_model
 from app.routers import sam2, vlm, yolo
@@ -36,11 +36,8 @@ async def lifespan(_: FastAPI):
         settings.ai_device,
         settings.max_image_size_mb,
     )
-    # 탐지 백엔드 워밍업 — 설정된 백엔드(yolox 기본 / rtdetr)의 싱글톤을 미리 로드한다.
-    if settings.resolved_detector_backend() == "rtdetr":
-        rtdetr_loader.get_rtdetr_model()
-    else:
-        yolox_loader.get_yolox_model()
+    # 탐지 백엔드 워밍업 — YOLOX (ONNX Runtime) 싱글톤을 미리 로드한다.
+    yolox_loader.get_yolox_model()
     get_sam2_model()
     get_vlm_model()
     yield

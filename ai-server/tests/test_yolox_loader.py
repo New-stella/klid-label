@@ -5,7 +5,7 @@ onnxruntime 은 무겁고 본 환경에 미설치이므로:
 - onnxruntime/numpy 무거운 연산은 lazy import + monkeypatch 로 deps 없이 검증
 - 순수 후처리 함수(_yolox_postprocess / _nms)는 합성 numpy 텐서로 직접 단언
 
-불변 제약 (yolo_loader / rtdetr_loader 와 동형 계약):
+불변 제약 (YOLOX 단일 백엔드 계약):
 - mock 사유(env_mock/weights_missing/load_failed)
 - 트래커 LRU(10) + TTL(300s) + threading.Lock
 - import 시 onnxruntime 미로드 (lazy import)
@@ -29,7 +29,7 @@ from app.models.detector_backend import DetectionResult
 def _reset_state():
     yolox_loader.reset_yolox_model()
     yolox_loader.reset_yolox_trackers()
-    # 공용 bytetrack_util 의 WARN-once 플래그도 리셋 — rtdetr↔yolox 테스트 순서 의존(flaky) 방지.
+    # 공용 bytetrack_util 의 WARN-once 플래그도 리셋 — 테스트 순서 의존(flaky) 방지.
     bytetrack_util.reset_tracker_unavailable_warned()
     yield
     yolox_loader.reset_yolox_model()

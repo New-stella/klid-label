@@ -39,17 +39,21 @@ public class LsDataSrc {
     private Long rawSn;
 
     @Column(name = "FRM_NO", nullable = false)
-    private Integer frameNo;
+    private Long frameNo;
 
     /** 실제 영상 내 디코더 0-base 프레임 위치. FRM_NO(추출순번)와 의미 구분 — 재비식별 재추출용. nullable. */
     @Column(name = "VDO_FRM_NO", nullable = true)
-    private Integer videoFrameNo;
+    private Long videoFrameNo;
 
     @Column(name = "SRC_FILE_PATH_NM", nullable = false, length = 500)
     private String srcFilePathNm;
 
     @Column(name = "DE_IDNTF_SRC_FILE_PATH_NM", length = 1000)
     private String deIdntfSrcFilePathNm;
+
+    /** 프레임 설명(작업자 수기, NIA image.description 조달원). null = 미입력/삭제. */
+    @Column(name = "FRM_EXPLN", length = 1000)
+    private String frmExpln;
 
     @Column(name = "SHT_DT")
     private LocalDateTime shtDt;
@@ -61,7 +65,7 @@ public class LsDataSrc {
     private LocalDateTime updDt;
 
     @Builder
-    private LsDataSrc(Long rawSn, Integer frameNo, Integer videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
+    private LsDataSrc(Long rawSn, Long frameNo, Long videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
         this.rawSn = rawSn;
         this.frameNo = frameNo;
         this.videoFrameNo = videoFrameNo;
@@ -71,7 +75,7 @@ public class LsDataSrc {
     }
 
     /** 원본(RAW) 프레임 row 생성 (videoFrameNo 미지정 = null). */
-    public static LsDataSrc create(Long rawSn, int frameNo, String srcFilePathNm, LocalDateTime shtDt) {
+    public static LsDataSrc create(Long rawSn, long frameNo, String srcFilePathNm, LocalDateTime shtDt) {
         return LsDataSrc.builder()
                 .rawSn(rawSn)
                 .frameNo(frameNo)
@@ -81,7 +85,7 @@ public class LsDataSrc {
     }
 
     /** 원본(RAW) 프레임 row 생성 (실제 영상 프레임 위치 videoFrameNo 보존). */
-    public static LsDataSrc create(Long rawSn, int frameNo, Integer videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
+    public static LsDataSrc create(Long rawSn, long frameNo, Long videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
         return LsDataSrc.builder()
                 .rawSn(rawSn)
                 .frameNo(frameNo)
@@ -101,5 +105,14 @@ public class LsDataSrc {
 
     public String getDeidFilePath() {
         return deIdntfSrcFilePathNm;
+    }
+
+    /**
+     * 프레임 설명(작업자 수기 자연어)을 갱신한다. @Setter 금지 — 비즈니스 메서드로 상태 변경.
+     * <p>blank/null 은 설명 삭제로 간주하여 null 로 정규화한다(데이터마트 NULL 노출 일관성).
+     */
+    public void updateDescription(String description) {
+        this.frmExpln = (description == null || description.isBlank()) ? null : description;
+        this.updDt = LocalDateTime.now();
     }
 }

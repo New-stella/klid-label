@@ -14,9 +14,12 @@ import kr.co.cudo.authoring.label.dto.Sam2SegmentRequest;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentResponse;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
+import kr.co.cudo.authoring.label.dto.YoloTrackRequest;
+import kr.co.cudo.authoring.label.dto.YoloTrackResponseDto;
 import kr.co.cudo.authoring.label.service.LabelService;
 import kr.co.cudo.authoring.label.service.Sam2SegmentService;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
+import kr.co.cudo.authoring.label.service.YoloTrackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,7 +32,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Label", description = "라벨 CRUD 및 SAM2 Track 추론 — REVIEWER/WORKER. 본인 배정 프레임 검증(IDOR 방어) 적용.")
+@Tag(name = "Label", description = "라벨 CRUD 및 SAM2 Track / YOLO Track 추론 — REVIEWER/WORKER. 본인 배정 프레임 검증(IDOR 방어) 적용.")
 @RestController
 @RequestMapping("/v1/frames")
 @RequiredArgsConstructor
@@ -39,6 +42,7 @@ public class LabelController {
     private final LabelService labelService;
     private final Sam2TrackService sam2TrackService;
     private final Sam2SegmentService sam2SegmentService;
+    private final YoloTrackService yoloTrackService;
 
     @Operation(
             summary = "프레임 라벨 조회",
@@ -91,7 +95,7 @@ public class LabelController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "ai-server 연동 실패 (서킷 브레이커)")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502", description = "ai-server 연동 실패 / 잘못된 응답")
     })
     @PostMapping("/{srcSn}/sam2-track")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
@@ -133,6 +137,38 @@ public class LabelController {
                     kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "path 의 srcSn 과 body 의 srcSn 이 다릅니다.");
         }
-        return ApiResponse.ok(sam2SegmentService.segment(req, actor));
+        // 내부 mock(모델 미로드) 시 서비스가 빈 폴리곤을 반환한다 → 안내 message 세팅(자동적용 차단 신호).
+        Sam2SegmentResponse res = sam2SegmentService.segment(req, actor);
+        return res.isEmpty()
+                ? ApiResponse.ok(res, Sam2SegmentResponse.MOCK_UNAVAILABLE_MESSAGE)
+                : ApiResponse.ok(res);
+    }
+
+    @Operation(
+            summary = "YOLO 객체 트랙 추론",
+            description = "정렬된 프레임 시퀀스를 ai-server YOLO 트래커로 프록시하여 프레임별 객체 검출+trackId 를 받는다. "
+                    + "DB 저장은 하지 않으며(FE 가 PUT /labels 로 저장), 배치 자동라벨링과 별개의 온디맨드 경로다. "
+                    + "path srcSn 과 body srcSn 불일치 시 400 (CWE-345)."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패 / srcSn 불일치 (CWE-345)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (CWE-639 방어)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502", description = "ai-server 연동 실패 / 잘못된 응답")
+    })
+    @PostMapping("/{srcSn}/yolo-track")
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ApiResponse<YoloTrackResponseDto> yoloTrack(@Parameter(description = "시작 프레임 PK", required = true, example = "1") @PathVariable Long srcSn,
+                                                       @Valid @RequestBody YoloTrackRequest req,
+                                                       @AuthenticationPrincipal TokenClaims actor) {
+        // path 의 srcSn 과 body 의 srcSn 불일치 시 거부 (CWE-345).
+        if (!srcSn.equals(req.srcSn())) {
+            throw new kr.co.cudo.authoring.common.exception.CustomException(
+                    kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
+                    "path 의 srcSn 과 body 의 srcSn 이 다릅니다.");
+        }
+        return ApiResponse.ok(yoloTrackService.track(req, actor));
     }
 }

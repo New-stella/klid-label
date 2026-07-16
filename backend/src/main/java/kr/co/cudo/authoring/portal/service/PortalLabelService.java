@@ -9,6 +9,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.KeypointPoint;
+import kr.co.cudo.authoring.common.util.KeypointSerializer;
 import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.DatamartVideoResponse;
 import kr.co.cudo.authoring.portal.dto.PortalFrameLabelsResponse;
@@ -185,10 +187,23 @@ public class PortalLabelService {
     @Transactional("controlTransactionManager")
     public PortalUserLabelResponse saveUserLabel(PortalUserLabelRequest req, TokenClaims actor) {
         requireActor(actor);
-        // R17 이슈2 — @NotBlank 가 NULL/공백을 막더라도 빈 좌표 JSON('[]','[[]]')은 통과한다.
-        // 좌표가 0개로 파싱되는 라벨은 거부 (빈 라벨 row 생성 차단 — fail-closed).
-        if (parsePoints(req.points()).isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "points 좌표가 비어있습니다.");
+        // Phase 9 이슈4 — 저장 경로도 로드/이미지 서빙과 동일 인가(APPROVED 게이트) 적용.
+        // 비APPROVED sourceRawSn 은 애초에 포털에 노출되지 않으므로 저장도 거부(로드는 막고 저장만 허용하던
+        // 인가 비일관성 제거 — IDOR/무결성 방어).
+        if (!isExposedToDatamart(req.sourceRawSn())) {
+            log.warn("[Portal] user label save denied — video not approved rawSn={}", req.sourceRawSn());
+            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        }
+        // Phase 9 — 포털 키포인트(SKELETON) 저장 허용. 삼중값(17점 [x,y,v]) 전용 검증 경로로 type-route
+        // (기존 2-튜플 경로와 격리). 형식 위반/개수 불일치는 조용히 통과시키지 않고 명시적 400(#6 fail-closed).
+        if (LsDataLbl.TYPE_SKELETON.equals(req.lblTypeCd())) {
+            validateSkeletonPoints(req.points());
+        } else {
+            // R17 이슈2 — @NotBlank 가 NULL/공백을 막더라도 빈 좌표 JSON('[]','[[]]')은 통과한다.
+            // 좌표가 0개로 파싱되는 라벨은 거부 (빈 라벨 row 생성 차단 — fail-closed).
+            if (parsePoints(req.points()).isEmpty()) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "points 좌표가 비어있습니다.");
+            }
         }
         LsPortalUserLabel saved = userLabelRepository.save(
                 LsPortalUserLabel.create(actor.sub(), req.sourceRawSn(), req.sourceSrcSn(),
@@ -236,7 +251,7 @@ public class PortalLabelService {
 
         List<PortalFrameLabelsResponse.Sibling> siblings =
                 srcRepository.findByRawSnOrderByFrameNoAsc(rawSn).stream()
-                        .map(s -> new PortalFrameLabelsResponse.Sibling(s.getSrcSn(), s.getFrameNo()))
+                        .map(s -> new PortalFrameLabelsResponse.Sibling(s.getSrcSn(), Math.toIntExact(s.getFrameNo())))
                         .toList();
 
         List<LsPortalUserLabel> mine =
@@ -246,33 +261,113 @@ public class PortalLabelService {
         // R17 이슈2 — points 가 비어있는(NULL/공백/빈 좌표) user-label 행은 제외 (로드 방어).
         // 검증 우회로 생성된 stale row(point_cn NULL) 가 빈 라벨로 반환되어 FE 렌더 크래시 → navigate(-1)
         // 튕김을 유발하던 회귀를 차단한다. 저장 경로는 @NotBlank pointsJson 으로 1차 차단.
+        // Phase 9 — 포털 키포인트(SKELETON) 제공. 삼중값(17×[x,y,v])은 LBL_TYPE_CD 기반 type-route 로
+        // KeypointSerializer 로 파싱해 정상 반환하고, 그 외(BBOX/POLYGON)는 기존 2-튜플 경로로 파싱한다
+        // (내부 LabelResponse.Item.parsePoints 와 동일 라우팅). SKELETON skip 필터 제거 — 저장→로드
+        // round-trip 이 성립한다(구 ADR-013 SKELETON skip 폐지).
         List<LsPortalUserLabel> mineWithPoints = mine.stream()
-                .filter(u -> !parsePoints(u.getPointCn()).isEmpty())
+                .filter(u -> !parsePointsRouted(u.getLblTypeCd(), u.getPointCn()).isEmpty())
                 .toList();
         if (!mineWithPoints.isEmpty()) {
             items = mineWithPoints.stream()
                     .map(u -> new PortalFrameLabelsResponse.Item(
                             u.getUserLblSn(), u.getLblTypeCd(), u.getLabelNm(),
-                            parsePoints(u.getPointCn())))
+                            parsePointsRouted(u.getLblTypeCd(), u.getPointCn())))
                     .toList();
         } else {
             items = lblRepository.findBySrcSn(srcSn).stream()
                     .map(l -> new PortalFrameLabelsResponse.Item(
                             l.getLblSn(), l.getLblTypeCd(), l.getLabelNm(),
-                            parsePoints(l.getPointCn())))
+                            parsePointsRouted(l.getLblTypeCd(), l.getPointCn())))
+                    .filter(item -> !item.points().isEmpty())
                     .toList();
         }
 
-        return new PortalFrameLabelsResponse(frame.getFrameNo(), srcSn, rawSn, siblings, items);
+        return new PortalFrameLabelsResponse(Math.toIntExact(frame.getFrameNo()), srcSn, rawSn, siblings, items);
     }
 
-    /** 좌표 JSON 문자열 → [[x,y],...] 중첩 리스트. 파싱 실패 시 빈 리스트(fail-secure). */
+    /**
+     * Phase 9 — 포털 키포인트(SKELETON, 17-keypoint COCO 포즈) 삼중값 검증 (CWE-20 fail-closed).
+     *
+     * <p>내부 {@code LabelService.validateSkeletonPoints} 와 동일 규칙:
+     * <ul>
+     *   <li>points 개수 = 정확히 {@value KeypointSerializer#KEYPOINT_COUNT}</li>
+     *   <li>각 원소 = [x, y, v] (크기 3), v ∈ {0, 1, 2}, x/y ≥ 0</li>
+     * </ul>
+     * 형식 위반/개수 불일치/null 원소는 모두 400(INVALID_INPUT). 내부 {@code LabelBulkUpsertRequest}/
+     * {@code LS_DATA_LBL} 는 재사용하지 않고 포털 전용 {@code LS_PORTAL_USER_LABEL} 로만 적재한다.
+     */
+    private void validateSkeletonPoints(String pointsJson) {
+        List<KeypointPoint> kps;
+        try {
+            kps = KeypointSerializer.fromJson(pointsJson, objectMapper);
+        } catch (RuntimeException e) {
+            // 형식 위반(삼중값 아님/손상 JSON) — 조용히 저장하지 않고 명시적 400.
+            throw new CustomException(ErrorCode.INVALID_INPUT, "키포인트 좌표 형식이 올바르지 않습니다.");
+        }
+        if (kps.size() != KeypointSerializer.KEYPOINT_COUNT) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "SKELETON 키포인트는 정확히 " + KeypointSerializer.KEYPOINT_COUNT + " 개여야 합니다.");
+        }
+        for (KeypointPoint kp : kps) {
+            int v = kp.v();
+            if (v < KeypointSerializer.VISIBILITY_MIN || v > KeypointSerializer.VISIBILITY_MAX) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "가시성 v 는 0/1/2 중 하나여야 합니다.");
+            }
+            // Phase 9 이슈4 — NaN/Infinity 거부 (Phase3 autolabel Double.isFinite 패턴). 음수 검사 이전에 유한성 확인.
+            if (!Double.isFinite(kp.x()) || !Double.isFinite(kp.y())) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "좌표는 유한한 숫자여야 합니다.");
+            }
+            if (kp.x() < 0 || kp.y() < 0) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "좌표는 0 이상이어야 합니다.");
+            }
+        }
+    }
+
+    /**
+     * Phase 9 — 좌표 파싱 {@code LBL_TYPE_CD} 기반 type-route (내부 {@code LabelResponse.Item.parsePoints} 정합).
+     * <ul>
+     *   <li>SKELETON: {@link KeypointSerializer#fromJson} 삼중값 [[x,y,v], x17] (v 보존 — round-trip 무손실)</li>
+     *   <li>그 외(BBOX/POLYGON/SEGMENT/TRACK): 기존 2-튜플 {@link #parsePoints}</li>
+     * </ul>
+     * 형식 위반/손상 JSON 은 빈 리스트(fail-secure) — 상위 스트림에서 빈 항목을 걸러 500/렌더 크래시를 차단한다.
+     */
+    private List<List<Double>> parsePointsRouted(String lblTypeCd, String pointsJson) {
+        if (LsDataLbl.TYPE_SKELETON.equals(lblTypeCd)) {
+            try {
+                List<KeypointPoint> kps = KeypointSerializer.fromJson(pointsJson, objectMapper);
+                List<List<Double>> nested = new java.util.ArrayList<>(kps.size());
+                for (KeypointPoint kp : kps) {
+                    nested.add(List.of(kp.x(), kp.y(), (double) kp.v()));
+                }
+                return nested;
+            } catch (RuntimeException e) {
+                log.warn("[Portal] keypoint points parse skipped reason={}", e.getClass().getSimpleName());
+                return List.of();
+            }
+        }
+        return parsePoints(pointsJson);
+    }
+
+    /**
+     * 좌표 JSON 문자열 → [[x,y],...] 중첩 리스트 (2-튜플 전용). 파싱 실패 시 빈 리스트(fail-secure).
+     *
+     * <p>SKELETON 삼중값은 {@link #parsePointsRouted} 에서 {@link KeypointSerializer} 로 라우팅되며,
+     * 여기로 유입되면 {@link LabelPointSerializer} 가 예외를 던지므로 방어적으로 catch 하여 빈 리스트를
+     * 반환한다(500 차단).
+     */
     private List<List<Double>> parsePoints(String pointsJson) {
-        List<kr.co.cudo.authoring.common.util.Point> parsed =
-                kr.co.cudo.authoring.common.util.LabelPointSerializer.fromJson(pointsJson, objectMapper);
-        return parsed.stream()
-                .map(p -> List.of(p.x(), p.y()))
-                .toList();
+        try {
+            List<kr.co.cudo.authoring.common.util.Point> parsed =
+                    kr.co.cudo.authoring.common.util.LabelPointSerializer.fromJson(pointsJson, objectMapper);
+            return parsed.stream()
+                    .map(p -> List.of(p.x(), p.y()))
+                    .toList();
+        } catch (RuntimeException e) {
+            // 형식 위반(삼중값/손상 JSON) — 내부 오류가 아닌 데이터 형식 문제. 빈 좌표로 안전 처리.
+            log.warn("[Portal] label points parse skipped reason={}", e.getClass().getSimpleName());
+            return List.of();
+        }
     }
 
     /**

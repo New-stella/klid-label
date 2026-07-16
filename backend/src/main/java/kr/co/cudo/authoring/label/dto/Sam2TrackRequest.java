@@ -17,9 +17,10 @@ import java.util.List;
  */
 public record Sam2TrackRequest(
         @NotNull Long srcSn,
-        @NotBlank String trackId,
+        // CWE-117/20 — trackId 는 로그·ai 요청에 전달되므로 길이 상한(TRACK_ID VARCHAR(64) 정합)으로 제한.
+        @NotBlank @Size(max = 64) String trackId,
         @NotEmpty @Size(min = 3, max = 1000) List<List<Double>> prevPolygon,
-        @NotBlank String label,
+        @NotBlank @Size(max = 80) String label,
         @NotEmpty @Size(max = 50) List<Long> nextSrcSns
 ) {
 }

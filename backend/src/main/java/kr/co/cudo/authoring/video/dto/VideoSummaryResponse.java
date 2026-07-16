@@ -50,7 +50,7 @@ public record VideoSummaryResponse(
         String dataSttsCd,
         Integer durationSec,
         LocalDateTime regDt,
-        // 내보내기 상태 (영상↔프로젝트 매핑 → LS_DATA_SET 최신 1건 기반)
+        // 내보내기 상태 (구 LS_DATA_SET 기반 — V86 삭제됨, 소스 없어 항상 null. API 계약 유지용 필드)
         String exportStatus,
         LocalDateTime exportedAt,
         String lastExportFailureReason,
@@ -87,8 +87,9 @@ public record VideoSummaryResponse(
     );
     /**
      * 영상별 최신 내보내기 요약 정보 (서비스 레이어에서 주입).
-     * {@code exportSttsCd} 는 LS_DATA_SET 원본 코드(COMPLETED/FAILED) — DTO 변환 시
-     * COMPLETED → "EXPORTED", FAILED → "FAILED" 로 매핑한다.
+     * {@code exportSttsCd} 는 구 LS_DATA_SET 원본 코드(COMPLETED/FAILED) — DTO 변환 시
+     * COMPLETED → "EXPORTED", FAILED → "FAILED" 로 매핑한다. V86 에서 LS_DATA_SET 이 삭제되어
+     * 현재는 소스가 없어 실제 주입되지 않으나(항상 null), API 응답 계약 유지를 위해 형태만 남긴다.
      */
     public record ExportInfo(String exportSttsCd, LocalDateTime exportedAt, String errorMessage) {}
 

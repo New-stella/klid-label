@@ -1,0 +1,254 @@
+package kr.co.cudo.authoring.dataset.service;
+
+import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
+import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
+import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
+import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import javax.sql.DataSource;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Phase 2 materialize 어댑터 <b>실 DB(PostgreSQL Testcontainer) 통합 테스트</b>.
+ *
+ * <p>native 소스 조인(LS_DATA_RAW + LS_DATA_META video.* + MNG_*)의 별칭 매핑·서브쿼리 피벗과
+ * deactivate-then-insert + outbox 커밋 전 과정을 실 DB 로 검증한다(단위 테스트가 mock 으로 못 잡는
+ * SQL/컬럼 정합을 커버).
+ */
+@SpringBootTest
+@ActiveProfiles("local")
+class DatasetVideoMetaSnapshotServiceIT {
+
+    /** 이벤트 카테고리 라벨(MAP CD_TYPE='02'.EVNT_NM) — 동결 EVNT_NM 이 이 값이어야 한다. */
+    private static final String CATEGORY_LABEL = "보행자 감지";
+
+    /** 수집 키워드(MNG_EX_EVNT_TYPE.CLCT_EVNT_NM) — 라벨이 아니며 EVNT_NM 으로 새면 안 되는 값. */
+    private static final String CLCT_KEYWORD = "보행자,사람,횡단보도";
+
+    @Autowired
+    private DatasetVideoMetaSnapshotService service;
+
+    @Autowired
+    private LsDatasetVideoMetaRepository metaRepository;
+
+    @Autowired
+    private LsMetaReplOutboxRepository outboxRepository;
+
+    private final JdbcTemplate jdbc;
+    private final TransactionTemplate txTemplate;
+
+    // 시드 정리용 — 공유 컨테이너 오염(다른 테스트의 이벤트/CCTV 카운트 간섭) 방지.
+    private final java.util.List<Long> seededRawSns = new java.util.ArrayList<>();
+    private final java.util.List<String> seededCctvIds = new java.util.ArrayList<>();
+    private final java.util.List<String> seededLclgvCds = new java.util.ArrayList<>();
+    private final java.util.List<String> seededEvntCds = new java.util.ArrayList<>();
+
+    DatasetVideoMetaSnapshotServiceIT(
+            @Qualifier("controlDataSource") DataSource dataSource,
+            @Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager) {
+        this.jdbc = new JdbcTemplate(dataSource);
+        this.txTemplate = new TransactionTemplate(controlTxManager);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void cleanup() {
+        for (Long rawSn : seededRawSns) {
+            jdbc.update("DELETE FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ?", rawSn);
+            jdbc.update("DELETE FROM LS_DATASET_VIDEO_META WHERE RAW_SN = ?", rawSn);
+            jdbc.update("DELETE FROM LS_DATA_META WHERE RAW_SN = ?", rawSn);
+            jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
+        }
+        for (String cctvId : seededCctvIds) {
+            jdbc.update("DELETE FROM MNG_RESOURCE_CCTV WHERE VMS_CCTV_ID = ?", cctvId);
+        }
+        for (String lclgvCd : seededLclgvCds) {
+            jdbc.update("DELETE FROM MNG_EX_LOCAL_GOV WHERE LCLGV_CD = ?", lclgvCd);
+        }
+        for (String evntCd : seededEvntCds) {
+            jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", evntCd);
+        }
+        // 합성 카테고리명행(cls='A', ctgry='B001') 정리 — dev-seed 실코드('01'~'08')와 충돌 없음.
+        if (!seededEvntCds.isEmpty()) {
+            jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE_MAP "
+                    + "WHERE CD_TYPE = '02' AND EVNT_CLS_CD = 'A' AND EVNT_CTGRY_CD = 'B001'");
+        }
+    }
+
+    private long seedSource() {
+        // 고유 식별자로 충돌 방지.
+        long nano = System.nanoTime();
+        String clipId = "CLIP-" + nano;
+        String cctvId = "CCTV-" + nano;
+        String lclgvCd = "LG-" + (nano % 100000);
+        String evntCd = "EV-" + (nano % 100000);
+        seededCctvIds.add(cctvId);
+        seededLclgvCds.add(lclgvCd);
+        seededEvntCds.add(evntCd);
+
+        Long rawSn = jdbc.queryForObject(
+                "INSERT INTO LS_DATA_RAW (VMS_CLIP_ID, VMS_CCTV_ID, EVNT_TYPE_CD, LCLGV_CD, "
+                        + "PRVC_TYPE_CD, PRVC_YN, DE_IDENT_YN, RAW_FILE_PATH_NM, SHT_DT, VDO_LEN_SEC, "
+                        + "ORGNL_RAW_SN, DATA_STTS_CD, REG_DT) "
+                        + "VALUES (?, ?, ?, ?, 'PRVC', 'Y', 'Y', ?, ?, 30, NULL, 'APPROVED', ?) "
+                        + "RETURNING RAW_SN",
+                Long.class,
+                clipId, cctvId, evntCd, lclgvCd, "/nas/raw/" + nano + ".mp4",
+                LocalDateTime.of(2026, 1, 15, 22, 0), LocalDateTime.now());
+        seededRawSns.add(rawSn);
+
+        // MNG 공유 시드 — 조인 동결 검증용.
+        jdbc.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, WGS84_LAT, WGS84_LOT, USE_YN) "
+                + "VALUES (?, ?, ?, ?, 'Y')", cctvId, "교차로 CCTV", 37.5665000, 126.9780000);
+        jdbc.update("INSERT INTO MNG_EX_LOCAL_GOV (LCLGV_CD, SIDO_NM, SGG_NM, USE_YN) "
+                + "VALUES (?, '서울특별시', '중구', 'Y')", lclgvCd);
+        // CLCT_EVNT_NM 은 '수집 키워드'(라벨 아님) — 라벨은 MAP CD_TYPE='02' 의 EVNT_NM.
+        // 둘을 명확히 다른 값으로 시드해 동결 소스가 키워드가 아닌 카테고리 라벨을 조달함을 검증한다.
+        jdbc.update("INSERT INTO MNG_EX_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLS_CD, EVNT_CTGRY_CD, CLCT_EVNT_NM, CLCT_YN) "
+                + "VALUES (?, 'A', 'B001', ?, 'Y')", evntCd, CLCT_KEYWORD);
+        jdbc.update("INSERT INTO MNG_EX_EVNT_TYPE_MAP "
+                + "(CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD, EVNT_NM, USE_YN) "
+                + "VALUES ('02', 'A', 'B001', '', '', ?, 'Y') "
+                + "ON CONFLICT (CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD) DO NOTHING",
+                CATEGORY_LABEL);
+
+        // ffprobe video.* 기술메타(LS_DATA_META).
+        seedMeta(rawSn, "video.codec", "h264");
+        seedMeta(rawSn, "video.fps", "25");
+        seedMeta(rawSn, "video.bit_rate", "4000000");
+        seedMeta(rawSn, "video.duration_ms", "30000");
+        seedMeta(rawSn, "video.filesize", "15000000");
+        seedMeta(rawSn, "video.resolution", "1920x1080");
+        return rawSn;
+    }
+
+    private void seedMeta(Long rawSn, String key, String value) {
+        jdbc.update("INSERT INTO LS_DATA_META (RAW_SN, META_KEY, META_VL, RTRY_NMTM, REG_DT) "
+                + "VALUES (?, ?, ?, 0, ?)", rawSn, key, value, LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("승인시_통합메타_동결_적재_및_MNG조인_동결_및_outbox")
+    void materialize_freezesJoinedMetaAndEmitsOutbox() {
+        // given
+        long rawSn = seedSource();
+
+        // when
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+
+        // then — 활성 스냅샷 정확히 1건 + MNG 동결 + ffprobe 파생.
+        List<LsDatasetVideoMeta> active = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES));
+        assertThat(active).hasSize(1);
+        LsDatasetVideoMeta m = active.get(0);
+        assertThat(m.getCctvNm()).isEqualTo("교차로 CCTV");
+        assertThat(m.getWgs84Lat()).isEqualByComparingTo("37.5665000");
+        assertThat(m.getWgs84Lot()).isEqualByComparingTo("126.9780000");
+        assertThat(m.getSidoNm()).isEqualTo("서울특별시");
+        assertThat(m.getSggNm()).isEqualTo("중구");
+        assertThat(m.getEvntNm()).isEqualTo(CATEGORY_LABEL);   // MAP CD_TYPE='02' 라벨(수집 키워드 아님)
+        assertThat(m.getVdoCdc()).isEqualTo("h264");
+        assertThat(m.getFps()).isEqualByComparingTo("25");
+        assertThat(m.getBitRt()).isEqualTo(4_000_000L);
+        assertThat(m.getFileSz()).isEqualTo(15_000_000L);
+        assertThat(m.getResl()).isEqualTo("1920x1080");
+        assertThat(m.getVdoWdth()).isEqualTo(1920);
+        assertThat(m.getVdoHgt()).isEqualTo(1080);
+        assertThat(m.getAsprtRt()).isEqualByComparingTo("1.777778");
+        assertThat(m.getDayNgtCd()).isEqualTo("NGT");   // 22시
+        assertThat(m.getSesnCd()).isEqualTo("WINTER");  // 1월
+        assertThat(m.getAiCrtYn()).isEqualTo("N");      // orgnlRawSn null
+        assertThat(m.getSnpshtHash()).hasSize(64);
+
+        // outbox PENDING 1건 발행(같은 트랜잭션 커밋).
+        List<LsMetaReplOutbox> pending = txTemplate.execute(s ->
+                outboxRepository.findByStatusOrderByRegDtAsc(
+                        LsMetaReplOutbox.STATUS_PENDING, PageRequest.of(0, 50)));
+        assertThat(pending).anyMatch(o -> o.getRawSn().equals(rawSn)
+                && o.getSnpshtHash().equals(m.getSnpshtHash()));
+    }
+
+    @Test
+    @DisplayName("통합메타_EVNT_NM은_수집키워드가_아니라_카테고리라벨")
+    void materialize_freezesCategoryLabelNotCollectKeyword() {
+        // given — CLCT_EVNT_NM(수집 키워드) 과 카테고리 라벨(MAP CD_TYPE='02'.EVNT_NM)이 서로 다른 시드.
+        long rawSn = seedSource();
+
+        // when
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+
+        // then — 동결된 EVNT_NM 은 카테고리 라벨이며, 수집 키워드(CLCT_EVNT_NM)가 아니다.
+        LsDatasetVideoMeta m = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
+        assertThat(m.getEvntNm()).isEqualTo(CATEGORY_LABEL);
+        assertThat(m.getEvntNm()).isNotEqualTo(CLCT_KEYWORD);
+
+        // 소스 테이블에는 수집 키워드가 그대로 존재(라벨이 키워드를 덮어쓰지 않았음을 반대 방향으로 확인).
+        String seededKeyword = jdbc.queryForObject(
+                "SELECT et.CLCT_EVNT_NM FROM MNG_EX_EVNT_TYPE et "
+                        + "JOIN LS_DATA_RAW r ON r.EVNT_TYPE_CD = et.EVNT_TYPE_CD WHERE r.RAW_SN = ?",
+                String.class, rawSn);
+        assertThat(seededKeyword).isEqualTo(CLCT_KEYWORD);
+        assertThat(seededKeyword).isNotEqualTo(m.getEvntNm());
+    }
+
+    @Test
+    @DisplayName("수정_재승인시_옛_PENDING_outbox_SUPERSEDED_coalescing")
+    void materialize_supersedesPriorPendingOutbox() {
+        // given — 1차 승인으로 outbox O1(H1) PENDING 발행(아직 워커 미처리)
+        long rawSn = seedSource();
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+        String h1 = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES).get(0).getSnpshtHash());
+
+        // 소스 변경(해상도) → 다른 해시 H2 유도 후 2차 승인(수정)
+        jdbc.update("UPDATE LS_DATA_META SET META_VL = '1280x720' "
+                + "WHERE RAW_SN = ? AND META_KEY = 'video.resolution'", rawSn);
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+        String h2 = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES).get(0).getSnpshtHash());
+
+        // then — 해시가 실제로 바뀌었고, rawSn 당 PENDING outbox 는 최신(H2) 1건만, 옛(H1)은 SUPERSEDED
+        assertThat(h2).isNotEqualTo(h1);
+        Integer pending = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STATUS = 'PENDING'",
+                Integer.class, rawSn);
+        Integer superseded = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STATUS = 'SUPERSEDED'",
+                Integer.class, rawSn);
+        assertThat(pending).isEqualTo(1);
+        assertThat(superseded).isEqualTo(1);
+        String pendingHash = jdbc.queryForObject(
+                "SELECT SNPSHT_HASH FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STATUS = 'PENDING'",
+                String.class, rawSn);
+        assertThat(pendingHash).isEqualTo(h2);
+    }
+
+    @Test
+    @DisplayName("동일메타_재승인시_동일해시_멱등_활성1건")
+    void materialize_reapproval_isIdempotent() {
+        // given
+        long rawSn = seedSource();
+
+        // when — 같은 소스로 두 번 동결(재승인).
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+
+        // then — 스냅샷 행 1개(중복 없음), 활성 1건.
+        List<LsDatasetVideoMeta> all = txTemplate.execute(s -> metaRepository.findByRawSn(rawSn));
+        assertThat(all).hasSize(1);
+        assertThat(all).filteredOn(r -> r.getActiveYn().equals("Y")).hasSize(1);
+    }
+}

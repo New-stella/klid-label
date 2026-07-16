@@ -3,9 +3,17 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { getLabels, putLabels, reportDeidentMiss } from '../api';
+import {
+  getLabels,
+  normalizeLabel,
+  putLabels,
+  reportDeidentMiss,
+  requestAutolabel,
+  requestSam2Segment,
+} from '../api';
+import type { AutolabelResponse, Sam2SegmentResponse } from '../api';
 import { saveAndCommit } from '../SaveCommitFlow';
-import type { Label } from '../types';
+import type { KeypointShape, Label } from '../types';
 
 function bbox(id: string, frameNo: number): Label {
   return {
@@ -419,6 +427,69 @@ describe('label api', () => {
     expect(res.lockSttsCd == null).toBe(true);
   });
 
+  describe('SAM2 세그/오토라벨 mock 재배선 (message 보존)', () => {
+    it('requestSam2Segment_빈폴리곤_mock응답의_ApiResponse_message를_보존', async () => {
+      mock.onPost('/frames/7/sam2-segment').reply(200, {
+        success: true,
+        data: { polygon: [], score: 0 },
+        message: 'AI 모델 미로드 — 결과 신뢰 불가',
+        errorCode: null,
+      });
+
+      const res = await requestSam2Segment(7, { points: [[1, 2]] });
+      expect(res.polygon).toEqual([]);
+      expect(res.message).toBe('AI 모델 미로드 — 결과 신뢰 불가');
+    });
+
+    it('requestSam2Segment_정상응답이면_message_null', async () => {
+      mock.onPost('/frames/8/sam2-segment').reply(200, {
+        success: true,
+        data: { polygon: [[1, 1], [2, 2], [1, 2]], score: 0.9 },
+        message: null,
+        errorCode: null,
+      });
+
+      const res = await requestSam2Segment(8, { box: [1, 1, 2, 2] });
+      expect(res.polygon).toHaveLength(3);
+      expect(res.message ?? null).toBeNull();
+    });
+
+    it('requestAutolabel_내부mock응답의_ApiResponse_message를_보존', async () => {
+      mock.onPost('/frames/9/autolabel').reply(200, {
+        success: true,
+        data: { srcSn: 9, savedCount: 0, labels: [] },
+        message: 'AI 모델 미로드 — 결과 신뢰 불가',
+        errorCode: null,
+      });
+
+      const res = await requestAutolabel(9);
+      expect(res.savedCount).toBe(0);
+      expect(res.message).toBe('AI 모델 미로드 — 결과 신뢰 불가');
+    });
+
+    it('응답타입에_mock필드_없음_런타임_확인', async () => {
+      // 컴파일타임: Sam2SegmentResponse/AutolabelResponse 에 mock 필드가 없다(tsc 가드).
+      // 런타임: 실제 반환 객체에도 mock 프로퍼티가 없음.
+      mock.onPost('/frames/10/sam2-segment').reply(200, {
+        success: true,
+        data: { polygon: [], score: 0 },
+        message: null,
+        errorCode: null,
+      });
+      const seg: Sam2SegmentResponse = await requestSam2Segment(10, { points: [[1, 1]] });
+      expect('mock' in seg).toBe(false);
+
+      mock.onPost('/frames/11/autolabel').reply(200, {
+        success: true,
+        data: { srcSn: 11, savedCount: 0, labels: [] },
+        message: null,
+        errorCode: null,
+      });
+      const auto: AutolabelResponse = await requestAutolabel(11);
+      expect('mock' in auto).toBe(false);
+    });
+  });
+
   describe('reportDeidentMiss', () => {
     it('reportDeidentMiss_POST_labels_srcSn_deident_report_body_reason_포함', async () => {
       mock.onPost('/labels/555/deident-report').reply((config) => {
@@ -454,6 +525,99 @@ describe('label api', () => {
       });
 
       await expect(reportDeidentMiss(557, '사유')).rejects.toThrow();
+    });
+  });
+
+  describe('KEYPOINT(SKELETON) 직렬화/정규화', () => {
+    function keypointLabel(id: string): Label {
+      // 17관절 삼중값 — x,y 는 index 기반, v 는 2/1/0 을 섞어 왕복 보존 검증.
+      const keypoints = Array.from({ length: 17 }, (_, i) => ({
+        x: i * 2,
+        y: i * 3,
+        v: i % 3 === 0 ? 2 : i % 3 === 1 ? 1 : 0,
+      }));
+      return {
+        id,
+        frameNo: 1,
+        classId: 2,
+        className: 'person',
+        source: 'MANUAL',
+        shape: { type: 'KEYPOINT', keypoints },
+      };
+    }
+
+    it('serializeLabel_KEYPOINT_SKELETON_삼중값_직렬화', async () => {
+      const labels = [keypointLabel('kp-tmp')];
+      mock.onPut('/frames/778/labels').reply((config) => {
+        const body = JSON.parse(config.data ?? '{}');
+        const item = body.items[0];
+        expect(item.lblTypeCd).toBe('SKELETON');
+        expect(item.points).toHaveLength(17);
+        // 각 원소가 [x,y,v] 삼중값
+        expect(item.points[0]).toEqual([0, 0, 2]);
+        expect(item.points[1]).toEqual([2, 3, 1]);
+        expect(item.points[2]).toEqual([4, 6, 0]);
+        item.points.forEach((p: number[]) => expect(p).toHaveLength(3));
+        return [
+          200,
+          {
+            success: true,
+            data: { frameNo: 1, srcSn: 778, labels },
+            message: null,
+            errorCode: null,
+          },
+        ];
+      });
+      await putLabels(778, labels);
+      expect(mock.history.put).toHaveLength(1);
+    });
+
+    it('normalizeLabel_SKELETON_KeypointShape_복원', () => {
+      const raw = {
+        id: 55,
+        lblTypeCd: 'SKELETON',
+        label: 'person',
+        autoLblYn: 'N',
+        points: Array.from({ length: 17 }, (_, i) => [i * 2, i * 3, i % 3 === 0 ? 2 : i % 3 === 1 ? 1 : 0]),
+      };
+      const label = normalizeLabel(raw);
+      expect(label.shape.type).toBe('KEYPOINT');
+      const shape = label.shape as KeypointShape;
+      expect(shape.keypoints).toHaveLength(17);
+      expect(shape.keypoints[0]).toEqual({ x: 0, y: 0, v: 2 });
+      expect(shape.keypoints[1]).toEqual({ x: 2, y: 3, v: 1 });
+      expect(shape.keypoints[2]).toEqual({ x: 4, y: 6, v: 0 });
+    });
+
+    it('SKELETON_왕복_무손실_serialize_후_normalize', async () => {
+      const original = keypointLabel('kp-rt');
+      let captured: number[][] = [];
+      mock.onPut('/frames/779/labels').reply((config) => {
+        const body = JSON.parse(config.data ?? '{}');
+        captured = body.items[0].points;
+        return [
+          200,
+          { success: true, data: { frameNo: 1, srcSn: 779, labels: [] }, message: null, errorCode: null },
+        ];
+      });
+      await putLabels(779, [original]);
+      // BE round-trip 을 모사: 직렬화된 points 를 그대로 normalizeLabel 에 재입력.
+      const restored = normalizeLabel({ id: 55, lblTypeCd: 'SKELETON', label: 'person', autoLblYn: 'N', points: captured });
+      const shape = restored.shape as KeypointShape;
+      const origShape = original.shape as KeypointShape;
+      expect(shape.keypoints).toEqual(origShape.keypoints);
+    });
+
+    it('normalizeLabel_SKELETON_v_범위밖_값은_0_1_2로_클램프', () => {
+      const raw = {
+        id: 60,
+        lblTypeCd: 'SKELETON',
+        label: 'person',
+        autoLblYn: 'N',
+        points: Array.from({ length: 17 }, () => [10, 20, 5]), // v=5 (범위 밖)
+      };
+      const shape = normalizeLabel(raw).shape as KeypointShape;
+      shape.keypoints.forEach((kp) => expect([0, 1, 2]).toContain(kp.v));
     });
   });
 

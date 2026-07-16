@@ -91,13 +91,13 @@ class VideoResolutionServiceTest {
         }
     }
 
-    private LsDataRaw raw(Long rawSn, Long parentRawSn) {
+    private LsDataRaw raw(Long rawSn, Long orgnlRawSn) {
         LsDataRaw r = LsDataRaw.createFromIngest(
                 "clip-" + rawSn, "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_ANONY, rawSn + ".mp4", null, 60);
         setField(r, "rawSn", rawSn);
-        if (parentRawSn != null) {
-            setField(r, "parentRawSn", parentRawSn);
+        if (orgnlRawSn != null) {
+            setField(r, "orgnlRawSn", orgnlRawSn);
         }
         return r;
     }

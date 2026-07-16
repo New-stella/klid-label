@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { Circle, Line, Rect } from 'react-konva';
 import type Konva from 'konva';
 
@@ -7,14 +14,16 @@ import { useLabelStore } from '@/stores/useLabelStore';
 import { useLabelMasters } from '../../hooks/useLabelMasters';
 import type { Sam2SegmentRequest, Sam2SegmentResponse } from '../../api';
 import type { Label, ToolType } from '../../types';
-import { ToolType as ToolTypeEnum } from '../../types';
+import { COCO_SKELETON, KEYPOINT_NAMES, ToolType as ToolTypeEnum } from '../../types';
 import { isValidBox, normalizeBox } from '../utils/canvasGeometry';
 import {
   clampToImage,
   translateFromCanvas,
+  translateToCanvas,
   type Geometry,
   type Point,
 } from '../utils/coordinateTransformer';
+import { skeletonEdgeToCanvasLine } from '../utils/keypointHelpers';
 import { closePolygonIfNear, simplifyPolygon, validatePolygonPoints } from '../utils/polygonHelpers';
 
 import { resolveDefaultLabel } from './resolveDefaultLabel';
@@ -35,11 +44,28 @@ interface OverlayLayerProps {
   onLowConfidence?: (res: Sam2SegmentResponse) => void;
   /** 폴리곤 커밋이 라벨 마스터 미로딩 등으로 실패했을 때 사용자 안내 메시지 전달. */
   onCommitError?: (message: string) => void;
+  /**
+   * KEYPOINT 순차 배치 중 "지금 찍을 관절"의 0-based 인덱스(0~16)를 상위에 보고.
+   * 배치 미진행(툴 비활성) 또는 17점 완료 시 null. 캔버스 밖 인체 다이어그램 가이드 연동용.
+   */
+  onKeypointPlacingChange?: (placingIndex: number | null) => void;
 }
 
 interface BboxDraft {
   start: Point; // canvas 좌표
   current: Point;
+}
+
+/**
+ * OverlayLayer 가 상위(CanvasShell→LabelingPage)에 노출하는 명령 핸들.
+ * 폴리곤 편집 state 가 OverlayLayer 내부에 캡슐화돼 있어, 키보드 단축키(F/Q)가
+ * 마우스 클릭과 동일한 폴리곤 로직을 호출할 수 있도록 imperative handle 로 중계한다.
+ */
+export interface OverlayLayerHandle {
+  /** F — 현재 포인터 위치를 폴리곤 점으로 추가(마우스 클릭과 동일 경로). POLYGON 도구 아니면 no-op. */
+  addPointAtPointer: () => void;
+  /** Q — 진행 중 폴리곤을 커밋. 점이 부족하면 no-op(draft 유지 — 오조작 방지). */
+  completePolygon: () => void;
 }
 
 /**
@@ -54,20 +80,26 @@ interface BboxDraft {
 /** SAM2 분할 자동 적용 차단 임계 — 이 미만이면 낮은 신뢰도 안내. */
 const SAM_LOW_CONFIDENCE_THRESHOLD = 0.3;
 
-export function OverlayLayer({
-  geometry,
-  activeTool,
-  onLabelAdd,
-  stageRef,
-  segment,
-  onMockWarning,
-  onLowConfidence,
-  onCommitError,
-}: OverlayLayerProps) {
+export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(function OverlayLayer(
+  {
+    geometry,
+    activeTool,
+    onLabelAdd,
+    stageRef,
+    segment,
+    onMockWarning,
+    onLowConfidence,
+    onCommitError,
+    onKeypointPlacingChange,
+  }: OverlayLayerProps,
+  ref,
+) {
   const [bboxDraft, setBboxDraft] = useState<BboxDraft | null>(null);
   // SAM_SEGMENT 박스 드래그 draft (canvas 좌표).
   const [segDraft, setSegDraft] = useState<BboxDraft | null>(null);
   const [polyPoints, setPolyPoints] = useState<number[]>([]);
+  // KEYPOINT 순차 배치 draft — 배치된 관절(이미지 좌표) 0..17 개. 17개 채워지면 커밋.
+  const [kptDraft, setKptDraft] = useState<{ x: number; y: number; v: number }[]>([]);
 
   // SAM_SEGMENT: 박스 드래그 후 발생하는 click 이벤트가 포인트로 잘못 처리되지 않도록 억제.
   const segSuppressClickRef = useRef(false);
@@ -81,7 +113,33 @@ export function OverlayLayer({
       setSegDraft(null);
       segSuppressClickRef.current = false;
     }
+    // KEYPOINT 도구를 벗어나면 진행 중 배치 draft 폐기(부분 배치 조용한 소실 방지 겸 초기화).
+    if (activeTool !== ToolTypeEnum.KEYPOINT) {
+      setKptDraft([]);
+    }
+    // POLYGON 도구를 벗어나면 진행 중 폴리곤 draft 초기화(다른 도구로 전환 시 스테일 점 잔존 방지).
+    if (activeTool !== ToolTypeEnum.POLYGON) {
+      setPolyPoints([]);
+    }
   }, [activeTool]);
+
+  // 콜백을 ref 에 보관해 인라인 함수 전달에도 보고 effect 가 매 렌더 재실행되지 않도록 한다.
+  const placingChangeRef = useRef(onKeypointPlacingChange);
+  placingChangeRef.current = onKeypointPlacingChange;
+  // 마지막으로 보고한 값 — 동일 값 중복 보고(불필요 setState) 억제. 초기값 null 로 시작.
+  const lastPlacingRef = useRef<number | null>(null);
+
+  // "지금 찍을 관절" 인덱스를 상위(다이어그램 가이드)로 보고. 배치 미진행/완료 시 null.
+  useEffect(() => {
+    const placing =
+      activeTool === ToolTypeEnum.KEYPOINT && kptDraft.length < KEYPOINT_NAMES.length
+        ? kptDraft.length
+        : null;
+    if (placing !== lastPlacingRef.current) {
+      lastPlacingRef.current = placing;
+      placingChangeRef.current?.(placing);
+    }
+  }, [activeTool, kptDraft.length]);
 
   function pointerCanvas(): Point | null {
     const stage = stageRef.current;
@@ -140,6 +198,48 @@ export function OverlayLayer({
     return true;
   }
 
+  /**
+   * 진행 중 폴리곤에 canvas 좌표 1점을 추가한다. 시작점 근접 시 자동 닫힘 → 커밋 시도.
+   * 마우스 클릭(onClick)과 키보드 F(addPointAtPointer)가 공유하는 단일 경로.
+   */
+  function addPolygonPointAt(cp: Point) {
+    const next = [...polyPoints, cp.x, cp.y];
+    const closed = closePolygonIfNear(next);
+    if (closed.closed) {
+      // 커밋 성공 시에만 점 비움 — 실패(라벨 마스터 미로딩 등)면 점 유지.
+      if (commitPolygon(closed.points)) setPolyPoints([]);
+    } else {
+      setPolyPoints(next);
+    }
+  }
+
+  /**
+   * 진행 중 폴리곤 커밋 시도(점 3개 이상 + 검증 통과 시에만). 성공하면 draft 를 비우고 true 를 반환한다.
+   * 점이 부족하거나 커밋 실패면 draft 를 건드리지 않고 false 를 반환한다.
+   * 마우스 dblclick(finish)과 키보드 Q(completePolygon)가 공유한다.
+   */
+  function tryCommitPolygon(): boolean {
+    if (polyPoints.length < 6) return false;
+    if (commitPolygon(polyPoints)) {
+      setPolyPoints([]);
+      return true;
+    }
+    return false;
+  }
+
+  useImperativeHandle(ref, () => ({
+    addPointAtPointer() {
+      if (activeTool !== ToolTypeEnum.POLYGON) return; // 폴리곤 도구 아니면 무시
+      const cp = pointerCanvas();
+      if (!cp) return;
+      addPolygonPointAt(cp);
+    },
+    completePolygon() {
+      // 점 부족이면 tryCommitPolygon 이 no-op(draft 유지). 마우스 dblclick 과 달리 취소로 비우지 않음.
+      tryCommitPolygon();
+    },
+  }));
+
   // 이미지 좌표 flat points 를 그대로 폴리곤으로 커밋 (SAM_SEGMENT 응답 적용 — 좌표 변환 불필요).
   function commitImagePolygon(imagePoints: number[]) {
     const clamped: number[] = [];
@@ -162,12 +262,52 @@ export function OverlayLayer({
     });
   }
 
+  /**
+   * 배치 완료된 17 관절(이미지 좌표 삼중값)을 KEYPOINT 라벨로 커밋.
+   * 라벨 마스터 미로딩 시 no-op(false) + 사용자 안내. 성공 시 true.
+   */
+  function commitKeypoints(kps: { x: number; y: number; v: number }[]): boolean {
+    const def = resolveDefaultLabel(labelMasters ?? [], activeLabelId);
+    if (!def) {
+      onCommitError?.('라벨 분류가 로딩되지 않아 키포인트를 추가할 수 없습니다. 잠시 후 다시 시도하세요.');
+      return false;
+    }
+    onLabelAdd?.({
+      id: `tmp-${Date.now()}`,
+      frameNo: 0,
+      classId: def.labelId,
+      className: def.name,
+      source: 'MANUAL',
+      shape: { type: 'KEYPOINT', keypoints: kps },
+    });
+    return true;
+  }
+
+  // KEYPOINT: 캡처 Rect 클릭마다 현재 관절 1점 배치. 17점 채워지면 커밋.
+  function handleKeypointClick() {
+    if (kptDraft.length >= KEYPOINT_NAMES.length) return; // 이미 17점(커밋 대기) — 추가 무시
+    const cp = pointerCanvas();
+    if (!cp) return;
+    const img = clampToImage(geometry, translateFromCanvas(geometry, cp.x, cp.y));
+    // 기본 가시성 v=2(가시). 비가시/미표기 전환은 커밋 후 편집 단계에서 처리.
+    const next = [...kptDraft, { x: img.x, y: img.y, v: 2 }];
+    if (next.length >= KEYPOINT_NAMES.length) {
+      // 커밋 성공 시에만 draft 비움 — 실패(라벨 마스터 미로딩)면 유지해 재시도 허용.
+      if (commitKeypoints(next)) setKptDraft([]);
+      else setKptDraft(next);
+    } else {
+      setKptDraft(next);
+    }
+  }
+
   // === SAM2 분할(SAM_SEGMENT) ===
   // 응답 폴리곤([[x,y],...] image px)을 기존 폴리곤 적용 흐름으로 추가.
-  // mock=true 면 자동 적용 차단 + 경고 콜백, score 낮으면 안내 콜백.
+  // 빈 폴리곤(모델 미로드/mock) 이면 자동 적용 차단 + 경고 콜백, score 낮으면 안내 콜백.
   function applySegmentResult(res: Sam2SegmentResponse | null) {
     if (!res) return; // 폐기(진행 중 무시 / 프레임 전환 stale)
-    if (res.mock) {
+    // mock(모델 미로드) 신호 = 빈 폴리곤. 저신뢰(score) 분기보다 먼저 판정해야
+    // "낮은 신뢰도(0%)" 로 오분류되지 않고 올바른 안내(message)가 표시된다.
+    if (res.polygon.length === 0) {
       onMockWarning?.(res);
       return; // 자동 적용 차단 — 사용자 확인 후만 적용
     }
@@ -202,7 +342,8 @@ export function OverlayLayer({
   const captureRect =
     activeTool === ToolTypeEnum.BBOX ||
     activeTool === ToolTypeEnum.POLYGON ||
-    activeTool === ToolTypeEnum.SAM_SEGMENT ? (
+    activeTool === ToolTypeEnum.SAM_SEGMENT ||
+    activeTool === ToolTypeEnum.KEYPOINT ? (
       <Rect
         x={0}
         y={0}
@@ -262,27 +403,20 @@ export function OverlayLayer({
             handleSegmentClick();
             return;
           }
+          if (activeTool === ToolTypeEnum.KEYPOINT) {
+            handleKeypointClick();
+            return;
+          }
           if (activeTool !== ToolTypeEnum.POLYGON) return;
           const p = pointerCanvas();
           if (!p) return;
-          const next = [...polyPoints, p.x, p.y];
-          const closed = closePolygonIfNear(next);
-          if (closed.closed) {
-            // 커밋 성공 시에만 점 비움 — 실패(라벨 마스터 미로딩 등)면 점 유지.
-            if (commitPolygon(closed.points)) setPolyPoints([]);
-          } else {
-            setPolyPoints(next);
-          }
+          addPolygonPointAt(p);
         }}
         onDblClick={() => {
           if (activeTool !== ToolTypeEnum.POLYGON) return;
-          if (polyPoints.length >= 6) {
-            // 커밋 성공 시에만 점 비움 — 실패면 점 유지(조용한 소실 방지).
-            if (commitPolygon(polyPoints)) setPolyPoints([]);
-          } else {
-            // 점이 부족해 폴리곤이 될 수 없는 경우는 그리기 취소로 간주해 비운다.
-            setPolyPoints([]);
-          }
+          // 커밋 시도 후 점이 부족(폴리곤 불가)이면 그리기 취소로 간주해 draft 를 비운다.
+          // (커밋 성공/실패는 tryCommitPolygon 내부에서 처리 — 실패 시 점 유지, 부족 시에만 여기서 취소)
+          if (!tryCommitPolygon() && polyPoints.length < 6) setPolyPoints([]);
         }}
       />
     ) : null;
@@ -341,6 +475,36 @@ export function OverlayLayer({
           })()}
         </>
       )}
+      {/* KEYPOINT 배치 draft — 부분 스켈레톤 Line + 배치된 관절 Circle + 다음 관절 가이드. */}
+      {activeTool === ToolTypeEnum.KEYPOINT && kptDraft.length > 0 && (
+        <>
+          {COCO_SKELETON.map((edge, i) => {
+            const line = skeletonEdgeToCanvasLine(geometry, kptDraft, edge);
+            return line ? (
+              <Line
+                key={`kpt-draft-edge-${i}`}
+                points={line}
+                stroke="#26A69A"
+                strokeWidth={2}
+                listening={false}
+              />
+            ) : null;
+          })}
+          {kptDraft.map((kp, i) => {
+            const c = translateToCanvas(geometry, kp.x, kp.y);
+            return (
+              <Circle
+                key={`kpt-draft-${i}`}
+                x={c.x}
+                y={c.y}
+                radius={4}
+                fill="#26A69A"
+                listening={false}
+              />
+            );
+          })}
+        </>
+      )}
     </>
   );
-}
+});

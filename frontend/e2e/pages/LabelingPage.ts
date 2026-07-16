@@ -7,11 +7,41 @@ export class LabelingPage {
   readonly bboxToolBtn: Locator;
   readonly saveBtn: Locator;
 
+  // FrameDescriptionPanel (프레임 설명 입력 패널) — 우측 패널 하단.
+  readonly frameDescriptionTextarea: Locator;
+  readonly saveFrameDescriptionBtn: Locator;
+  readonly frameDescriptionError: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.canvas = page.getByTestId('canvas-shell');
     this.bboxToolBtn = page.locator('[aria-label="바운딩박스"]');
     this.saveBtn = page.getByTestId('label-header-save');
+
+    // textarea 는 <label htmlFor> + aria-label 로 접근성 이름 연결 (getByLabel 우선).
+    this.frameDescriptionTextarea = page.getByLabel('프레임 설명 입력', { exact: true });
+    // 저장 버튼은 textarea 직속 부모 div 안의 유일한 버튼 — 헤더/툴바의 '저장' 버튼과 구분하기 위해
+    // 패널 범위로 스코프한다 (헤더·툴바 '저장' 버튼은 accessible name 이 동일해 role 만으론 구별 불가).
+    this.saveFrameDescriptionBtn = this.frameDescriptionTextarea.locator('..').getByRole('button');
+    // 저장 실패 시 role="alert" 문구.
+    this.frameDescriptionError = page
+      .getByRole('alert')
+      .filter({ hasText: '설명 저장에 실패' });
+  }
+
+  /** 현재 프레임 설명 textarea 값. */
+  async getFrameDescriptionValue(): Promise<string> {
+    return this.frameDescriptionTextarea.inputValue();
+  }
+
+  /** 프레임 설명 입력 (기존 값 대체). */
+  async fillFrameDescription(text: string) {
+    await this.frameDescriptionTextarea.fill(text);
+  }
+
+  /** 프레임 설명 저장 버튼 클릭. */
+  async saveFrameDescription() {
+    await this.saveFrameDescriptionBtn.click();
   }
 
   /**
