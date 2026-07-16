@@ -32,6 +32,26 @@ describe('ObjectAttributePanel', () => {
     expect(screen.getByRole('status')).toHaveTextContent('낮은 신뢰도');
   });
 
+  it('트랙_ID_있는_객체는_트랙_ID_필드에_원값_표시', () => {
+    const tracked: Label = { ...labelLowConf, id: 't', trackId: '42' };
+    useLabelStore.getState().reset();
+    useLabelStore.getState().setLabels([tracked]);
+    useLabelStore.getState().selectLabel('t');
+    renderWithProviders(<ObjectAttributePanel labels={[tracked]} />);
+    // "트랙 ID" 라벨이 붙은 별도 필드에 track_id 원값(42) 노출.
+    expect(screen.getByText('트랙 ID')).toBeInTheDocument();
+    expect(screen.getByTestId('object-track-id')).toHaveTextContent('42');
+  });
+
+  it('트랙_ID_없는_객체는_미부여_표기', () => {
+    useLabelStore.getState().reset();
+    useLabelStore.getState().setLabels([labelLowConf]);
+    useLabelStore.getState().selectLabel('a');
+    renderWithProviders(<ObjectAttributePanel labels={[labelLowConf]} />);
+    expect(screen.getByText('트랙 ID')).toBeInTheDocument();
+    expect(screen.getByTestId('object-track-id')).toHaveTextContent('미부여');
+  });
+
   it('BBOX_좌표_표시', () => {
     useLabelStore.getState().reset();
     useLabelStore.getState().setLabels([labelLowConf]);
