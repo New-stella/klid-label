@@ -52,9 +52,11 @@ describe('canvasRectToImageBox — 캔버스 Rect → 이미지 BBOX', () => {
   });
 
   it('pan/zoom 이 적용된 geometry 에서도 정확히 환산된다', () => {
-    const g = geom(1, 30, -10); // left=30, top=-10, scale=2
-    // 캔버스 (30,-10) → 이미지 (0,0). 캔버스 (70,30) → 이미지 (20,20).
-    const box = canvasRectToImageBox(g, { x: 30, y: -10, width: 40, height: 40 });
+    // fit(zoom=1)에서는 pan 이 여백 방지 클램프로 항상 0(중앙)이므로, pan 이 유효한 줌인
+    // 상태(zoom=2, scale=4)로 검증한다. left=(200-400)/2+40=-60, top=(200-400)/2+20=-80.
+    const g = geom(2, 40, 20);
+    // 캔버스 (-60,-80) → 이미지 (0,0). 캔버스 (20,0) → 이미지 (20,20). (scale=4)
+    const box = canvasRectToImageBox(g, { x: -60, y: -80, width: 80, height: 80 });
     expect(box!.left).toBeCloseTo(0, 4);
     expect(box!.top).toBeCloseTo(0, 4);
     expect(box!.right).toBeCloseTo(20, 4);

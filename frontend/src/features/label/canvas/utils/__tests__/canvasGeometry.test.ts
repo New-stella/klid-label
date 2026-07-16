@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { clampZoom } from '@/stores/useLabelStore';
+
 import { translateFromCanvas, translateToCanvas } from '../coordinateTransformer';
-import { buildGeometry, isValidBox, normalizeBox } from '../canvasGeometry';
+import { buildGeometry, clampPan, isValidBox, normalizeBox } from '../canvasGeometry';
 
 describe('canvasGeometry', () => {
   it('buildGeometry_fit_scale_zoom_1_이미지가_캔버스에_맞음', () => {
@@ -76,6 +78,67 @@ describe('canvasGeometry', () => {
     expect(Number.isNaN(geom.top)).toBe(false);
     expect(Number.isFinite(geom.left)).toBe(true);
     expect(Number.isFinite(geom.top)).toBe(true);
+  });
+
+  it('clampZoom_fit바닥_fit미만_축소차단_사방여백_방지', () => {
+    // ① fit(zoom=1) 이 최소 배율 바닥 — fit 아래로 축소돼 사방 여백이 생기는 상태를 차단.
+    expect(clampZoom(0.5)).toBe(1);
+    expect(clampZoom(0.1)).toBe(1);
+    expect(clampZoom(1)).toBe(1);
+    expect(clampZoom(3)).toBe(3); // 줌인은 그대로
+    expect(clampZoom(99)).toBe(8); // 상한 유지
+  });
+
+  it('buildGeometry_zoom1_pan입력있어도_중앙정렬_pan0', () => {
+    // ③ zoom=1(fit)에서는 클램프 결과 pan=0 → 항상 중앙. 팬 입력이 있어도 밀리지 않는다.
+    const geom = buildGeometry({ width: 1920, height: 1080 }, { width: 960, height: 540 }, 1, 300, -200);
+    expect(geom.scale).toBeCloseTo(0.5, 5);
+    expect(geom.left).toBeCloseTo(0, 5);
+    expect(geom.top).toBeCloseTo(0, 5);
+  });
+
+  it('buildGeometry_줌인_사방끝까지_팬해도_이미지가_캔버스를_덮음_반대편여백없음', () => {
+    // ② 줌인(zoom=2) 상태에서 좌/우/상/하 극단 팬을 줘도 이미지 가장자리가 캔버스 안쪽으로
+    //    들어오지 않아야(=반대편에 빈 공간 없음). 이미지 100×100, 캔버스 200×200 → fit=2, scale=4.
+    const image = { width: 100, height: 100 };
+    const canvas = { width: 200, height: 200 };
+    const extremes = [
+      [100000, 0],
+      [-100000, 0],
+      [0, 100000],
+      [0, -100000],
+      [100000, -100000],
+    ];
+    for (const [px, py] of extremes) {
+      const geom = buildGeometry(image, canvas, 2, px, py, 0);
+      const scaledW = image.width * geom.scale; // 400
+      const scaledH = image.height * geom.scale; // 400
+      // 좌/상단이 캔버스 안쪽(양수)으로 못 들어옴 + 우/하단이 캔버스 경계 밖(덮음).
+      expect(geom.left).toBeLessThanOrEqual(1e-9);
+      expect(geom.left + scaledW).toBeGreaterThanOrEqual(canvas.width - 1e-9);
+      expect(geom.top).toBeLessThanOrEqual(1e-9);
+      expect(geom.top + scaledH).toBeGreaterThanOrEqual(canvas.height - 1e-9);
+    }
+  });
+
+  it('clampPan_letterbox축은_중앙유지_pan0', () => {
+    // ④ 이미지 100×50, 캔버스 200×200 → fit=2, scaledW=200(가로 꽉참)·scaledH=100(세로 letterbox).
+    //    큰 축(X)이 캔버스와 같으면(초과분 0) 중앙, 작은 축(Y, letterbox)은 팬 입력 무시하고 중앙.
+    const clamped = clampPan({ width: 100, height: 50 }, { width: 200, height: 200 }, 2, 500, 500);
+    expect(clamped.panX).toBe(0);
+    expect(clamped.panY).toBe(0);
+  });
+
+  it('clampPan_줌인축은_초과분_절반까지만_허용', () => {
+    // 이미지 100×100, 캔버스 200×200, scale=4 → scaledW=400, 초과분 절반 limit=(400-200)/2=100.
+    expect(clampPan({ width: 100, height: 100 }, { width: 200, height: 200 }, 4, 50, -50)).toEqual({
+      panX: 50,
+      panY: -50,
+    }); // 한계 내 → 그대로
+    expect(clampPan({ width: 100, height: 100 }, { width: 200, height: 200 }, 4, 999, -999)).toEqual({
+      panX: 100,
+      panY: -100,
+    }); // 한계로 클램프
   });
 
   it('normalizeBox_역순_좌표도_정상화', () => {

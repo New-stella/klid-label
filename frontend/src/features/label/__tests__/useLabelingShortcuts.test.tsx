@@ -218,6 +218,8 @@ describe('useLabelingShortcuts (Rev.1.1 재배치)', () => {
   });
 
   it('Shift_언더스코어_축소_줌_감소', () => {
+    // fit(=1) 이 최소 배율 바닥이므로 줌인된 상태(2)에서 축소가 감소하는지 검증한다.
+    useLabelStore.setState({ zoom: 2 });
     renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
     const before = useLabelStore.getState().zoom;
     act(() => press('_', { shiftKey: true }));

@@ -146,6 +146,7 @@ export function LabelingPage() {
   const clearDirty = useLabelStore((s) => s.clearDirty);
   const addLabel = useLabelStore((s) => s.addLabel);
   const reset = useLabelStore((s) => s.reset);
+  const resetView = useLabelStore((s) => s.resetView);
   const toggleLabelVisibility = useLabelStore((s) => s.toggleLabelVisibility);
   const copyLabels = useLabelStore((s) => s.copyLabels);
   const pasteLabels = useLabelStore((s) => s.pasteLabels);
@@ -197,9 +198,12 @@ export function LabelingPage() {
     { width: number; height: number } | undefined
   >(undefined);
   // 프레임 전환 시 이전 실측 크기 초기화 — 새 이미지 로드 완료 전까지 undefined(상한 clamp 미적용).
+  // 뷰(zoom/pan)도 fit(zoom=1)·중앙(pan=0)으로 리셋해, 이전 프레임의 줌인 상태가 이어져
+  // 새 프레임이 의도치 않게 확대/치우쳐 보이지 않게 한다(라벨/undo 스택은 setLabels 가 별도 관리).
   useEffect(() => {
     setFrameNaturalSize(undefined);
-  }, [currentFrame?.srcSn]);
+    resetView();
+  }, [currentFrame?.srcSn, resetView]);
   const handleImageSize = useCallback((width: number, height: number) => {
     setFrameNaturalSize({ width, height });
   }, []);

@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
 
-import { useLabelStore } from '@/stores/useLabelStore';
+import { useLabelStore, MIN_ZOOM, MAX_ZOOM } from '@/stores/useLabelStore';
 
 import type { FrameSummary, Label } from '../types';
 import { useSam2Segment } from '../hooks/useSam2Segment';
@@ -46,9 +46,8 @@ export interface CanvasShellProps {
 // imperative handle 을 그대로 재-노출한다. 편집 state 는 OverlayLayer 내부에 캡슐화된 채 유지된다.
 export type { OverlayLayerHandle } from './layers/OverlayLayer';
 
-// 스토어 clampZoom 과 동일 한계 — 휠 줌도 같은 범위로 제한.
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 8;
+// 휠 줌 한계는 스토어(useLabelStore)의 MIN_ZOOM/MAX_ZOOM 을 그대로 재사용 —
+// 상수 중복 정의로 인한 정책 드리프트 방지(fit=1.0 바닥, 8 상한).
 // 휠 한 틱당 줌 배율.
 const WHEEL_ZOOM_FACTOR = 1.1;
 

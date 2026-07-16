@@ -26,11 +26,16 @@ describe('useLabelStore', () => {
     expect(useLabelStore.getState().panX).toBe(50);
     expect(useLabelStore.getState().panY).toBe(30);
 
-    // 클램프 검증
+    // 클램프 검증 — 상한은 MAX_ZOOM(8)로 정확히 pin.
     store.setZoom(100);
-    expect(useLabelStore.getState().zoom).toBeLessThanOrEqual(8);
+    expect(useLabelStore.getState().zoom).toBe(8);
+    // fit 바닥 회귀 가드: fit(=1) 미만 값은 전부 1.0 으로 클램프돼야 한다(사방 여백 방지).
+    store.setZoom(0.5);
+    expect(useLabelStore.getState().zoom).toBe(1);
+    store.setZoom(0.1);
+    expect(useLabelStore.getState().zoom).toBe(1);
     store.setZoom(0);
-    expect(useLabelStore.getState().zoom).toBeGreaterThanOrEqual(0.1);
+    expect(useLabelStore.getState().zoom).toBe(1);
   });
 
   it('addLabel_시_dirtyLabels에_추가', () => {

@@ -2,12 +2,15 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { MIN_ZOOM as PROD_MIN_ZOOM, MAX_ZOOM as PROD_MAX_ZOOM } from '@/stores/useLabelStore';
+
 import { buildGeometry } from '../canvasGeometry';
 import { translateFromCanvas } from '../coordinateTransformer';
 import { zoomToPoint } from '../zoomToPoint';
 
 const CANVAS = { width: 200, height: 200 };
 const IMAGE = { width: 100, height: 100 };
+// 순수 함수의 minZoom 파라미터 분기 검증용(하한을 넘지 않는지) — 임의 하한.
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
 
@@ -55,5 +58,18 @@ describe('zoomToPoint — 커서 기준 줌 계산', () => {
     expect(next.zoom).toBe(MAX_ZOOM);
     expect(next.panX).toBeCloseTo(5, 5);
     expect(next.panY).toBeCloseTo(-3, 5);
+  });
+
+  // ── 프로덕션 floor(=store MIN_ZOOM=1.0) exercise — 호출부(CanvasShell)가 항상 넘기는 실제 하한 ──
+  it('프로덕션 하한(store MIN_ZOOM=1.0) — fit 미만 줌아웃이 1.0에서 바닥 + pan 0 유지', () => {
+    // fit(zoom=1)에서 강한 줌아웃(factor 0.1)을 시도해도 프로덕션 floor(1.0) 아래로 못 내려가고,
+    // clampPan 결합으로 pan 이 중앙(0)에 고정돼 사방 여백이 생기지 않아야 한다.
+    expect(PROD_MIN_ZOOM).toBe(1);
+    const before = geomOf(1);
+    const next = zoomToPoint(before, { x: 40, y: 160 }, 0.1, PROD_MIN_ZOOM, PROD_MAX_ZOOM);
+    expect(next.zoom).toBe(1); // fit 아래로 축소 불가
+    // scale=fit(2)*1 → scaledW=scaledH=200=canvas → clampPan 초과분 0 → 중앙 고정.
+    expect(next.panX).toBeCloseTo(0, 5);
+    expect(next.panY).toBeCloseTo(0, 5);
   });
 });

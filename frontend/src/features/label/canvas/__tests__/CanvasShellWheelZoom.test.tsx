@@ -84,6 +84,8 @@ describe('CanvasShell — 마우스 휠 줌', () => {
   });
 
   it('휠 다운(deltaY>0)에서 zoom 이 감소한다 (줌아웃)', () => {
+    // fit(=1) 이 바닥이므로 줌인된 상태(2)에서 시작해 줌아웃 감소를 검증한다.
+    useLabelStore.setState({ zoom: 2 });
     render(<CanvasShell frame={frame} width={200} height={200} labels={[]} />);
     const before = useLabelStore.getState().zoom;
     wheelHandler!(wheelEvt(100));
@@ -105,11 +107,11 @@ describe('CanvasShell — 마우스 휠 줌', () => {
     expect(useLabelStore.getState().zoom).toBeLessThanOrEqual(8);
   });
 
-  it('clamp 하한(0.1)을 넘지 않는다', () => {
-    useLabelStore.setState({ zoom: 0.1 });
+  it('clamp 하한(fit=1.0) 아래로 줌아웃되지 않는다 (사방 여백 방지)', () => {
+    // reset() 후 zoom=1(fit). 휠 다운을 반복해도 fit 아래로 축소되지 않아야 한다.
     render(<CanvasShell frame={frame} width={200} height={200} labels={[]} />);
     wheelHandler!(wheelEvt(100));
     wheelHandler!(wheelEvt(100));
-    expect(useLabelStore.getState().zoom).toBeGreaterThanOrEqual(0.1);
+    expect(useLabelStore.getState().zoom).toBeGreaterThanOrEqual(1);
   });
 });
