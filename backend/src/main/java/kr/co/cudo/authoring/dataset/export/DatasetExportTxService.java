@@ -77,7 +77,7 @@ public class DatasetExportTxService {
     }
 
     /**
-     * 산출에 필요한 입력(컨텍스트·프레임·콘텐츠 해시·직전 성공 해시)을 DB 재조회로 조립한다.
+     * 산출에 필요한 입력(컨텍스트·프레임·콘텐츠 해시·직전 성공/부분 해시=멱등 baseline)을 DB 재조회로 조립한다.
      *
      * <p>산출 불가(프레임 0건 또는 활성 영상 메타 부재)면 {@link Optional#empty()} 로 skip 을 알린다.
      */
@@ -116,16 +116,19 @@ public class DatasetExportTxService {
                     frame, labelsBySrc.getOrDefault(frame.getSrcSn(), List.of())));
         }
 
-        // 멱등 판정 키는 "최신 export 1건이 SUCCEEDED 인 경우"가 아니라 "최신 SUCCEEDED export"의 해시다.
-        // 최신이 FAILED/PENDING 이어도 그 이전 SUCCEEDED 해시를 쿼리 레벨 상태 필터로 정확히 찾는다
-        // (구 findFirst...OrderBy + filter 방식은 직전이 FAILED 면 null → 재산출 폭증하던 버그).
-        String lastSucceededHash = exportRepository
-                .findFirstByDataRawSnAndExportSttsCdOrderByExportVerNoDesc(
-                        rawSn, LsDatasetExport.STATUS_SUCCEEDED)
+        // 멱등 baseline 은 "직전 SUCCEEDED+PARTIAL export"의 해시다. 최신이 FAILED/PENDING 이어도
+        // 그 이전 성공/부분 산출 해시를 쿼리 레벨 상태 IN 필터로 정확히 찾는다("최신 1건 후 필터" 방식은
+        // 직전이 FAILED 면 null → 재산출 폭증). PARTIAL 을 포함하는 이유: 원천 이미지가 지속 부재해 매번
+        // PARTIAL 로 마감되는 영상을 무수정 재승인할 때 contentHash 가 직전 PARTIAL 과 같으면 재산출해도
+        // 같은 PARTIAL 결과라, skip 시켜 버전 무한 채번 + 이미지 무한 재복사(디스크 누적)를 막는다.
+        // FAILED(written==0)는 재시도 유도를 위해 baseline 에서 계속 제외.
+        String lastExportedHash = exportRepository
+                .findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(
+                        rawSn, List.of(LsDatasetExport.STATUS_SUCCEEDED, LsDatasetExport.STATUS_PARTIAL))
                 .map(LsDatasetExport::getContentHash)
                 .orElse(null);
 
-        return Optional.of(new ExportPreparation(ctx, frameContexts, contentHash, lastSucceededHash));
+        return Optional.of(new ExportPreparation(ctx, frameContexts, contentHash, lastExportedHash));
     }
 
     /**
@@ -153,10 +156,39 @@ public class DatasetExportTxService {
         exportRepository.findById(exportSn).ifPresent(e -> e.markSucceeded(frameCnt));
     }
 
+    /** 일부 산출 — PARTIAL 전이 + 정상 기록된 프레임 수 반영. */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void markPartial(long exportSn, int frameCnt) {
+        exportRepository.findById(exportSn).ifPresent(e -> e.markPartial(frameCnt));
+    }
+
     /** 산출 실패 — FAILED 전이(승인 트랜잭션과 무관, 별도 커밋). */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markFailed(long exportSn) {
         exportRepository.findById(exportSn).ifPresent(LsDatasetExport::markFailed);
+    }
+
+    /**
+     * cutoff 이전에 생성된 stale PENDING export 를 일괄 FAILED 로 마감한다(파일 삭제 없음, 상태만 회수).
+     *
+     * <p>파일 쓰기/상태 마감 전 크래시로 {@code PENDING} 에 고착된 잔재를 정리한다. 조회된 엔티티는
+     * 이 트랜잭션의 영속 컨텍스트에 있어 {@code markFailed} 후 dirty checking 으로 flush 된다.
+     * 대상은 stale-minutes 임계를 넘긴 소수 잔재뿐이라 엔티티 순회로 충분하다(대량 아님).
+     *
+     * <p>양성 race 무해: 정상 export 는 수 초 내 완료되므로 임계를 넘는 PENDING 은 크래시 잔재다.
+     * 설령 초장기 export 가 sweep 으로 FAILED 마킹돼도, 이후 그 export 의 정상 완료가 markSucceeded 로
+     * 최종 상태를 덮으므로(last-writer-wins) 무해하다.
+     *
+     * @param cutoff 이 시각 이전에 생성된 PENDING 만 회수
+     * @return FAILED 로 마감한 건수
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public int sweepStalePending(java.time.LocalDateTime cutoff) {
+        List<LsDatasetExport> stale = exportRepository.findByExportSttsCdAndRegDtBefore(
+                LsDatasetExport.STATUS_PENDING, cutoff);
+        stale.forEach(LsDatasetExport::markFailed);
+        // 엔티티는 영속 상태라 dirty checking 으로 flush 됨. 로그는 caller(sweeper)에서.
+        return stale.size();
     }
 
     /** 라벨에서 참조된 라벨 마스터(categories 원천)를 distinct labelId 로 일괄 로드. */

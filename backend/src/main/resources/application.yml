@@ -133,6 +133,12 @@ authoring:
   #   Phase 1 은 인프라(추적 테이블·경로 리졸버)만 도입하며, 실제 파일 쓰기/승인 연동은 후속 Phase.
   dataset-export:
     enabled: ${DATASET_EXPORT_ENABLED:true}
+    # stale PENDING 정리 잡 — 파일 쓰기/상태 마감 전 크래시로 PENDING 고착된 export 를 주기 회수(FAILED 마감, 파일 삭제 없음).
+    #   enabled=false 시 잡 미등록(test/local 격리). interval-sec 간격 tick, stale-minutes 초과 PENDING 만 대상.
+    pending-sweep:
+      enabled: ${DATASET_EXPORT_SWEEP_ENABLED:true}
+      interval-sec: ${DATASET_EXPORT_SWEEP_INTERVAL_SEC:600}
+      stale-minutes: ${DATASET_EXPORT_SWEEP_STALE_MINUTES:30}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/aug/callback. 운영(dev/stg/prd)에서는 환경변수로 override.
   webhook:

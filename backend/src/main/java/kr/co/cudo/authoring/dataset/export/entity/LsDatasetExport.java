@@ -59,7 +59,7 @@ public class LsDatasetExport {
 
     /**
      * 산출 시점 라벨 상태의 콘텐츠 해시(SHA-256 hex). 무수정 재승인 멱등 판정 키 —
-     * 직전 SUCCEEDED export 의 해시와 같으면 Phase 4 오케스트레이션이 재산출을 skip 한다.
+     * 직전 SUCCEEDED/PARTIAL(멱등 baseline) export 의 해시와 같으면 Phase 4 오케스트레이션이 재산출을 skip 한다.
      * Phase 1/3 경로(3-arg create)에서는 null 로 남을 수 있다(하위호환).
      */
     @Column(name = "CONTENT_HASH", length = 64)
@@ -98,6 +98,12 @@ public class LsDatasetExport {
     /** 산출 성공 전이 — 상태를 {@code SUCCEEDED} 로 바꾸고 산출 프레임 수를 반영한다. */
     public void markSucceeded(int frameCnt) {
         this.exportSttsCd = STATUS_SUCCEEDED;
+        this.frameCnt = frameCnt;
+    }
+
+    /** 일부 산출 전이 — 상태를 {@code PARTIAL} 로 바꾸고 정상 기록된 프레임 수를 반영한다. */
+    public void markPartial(int frameCnt) {
+        this.exportSttsCd = STATUS_PARTIAL;
         this.frameCnt = frameCnt;
     }
 
