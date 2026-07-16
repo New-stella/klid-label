@@ -174,6 +174,27 @@ describe('useLabelingShortcuts (Rev.1.1 재배치)', () => {
     expect(useLabelStore.getState().labels).toHaveLength(0);
   });
 
+  it('삭제_단축키는_잠금_선택라벨에_적용되지_않는다', () => {
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
+    act(() => {
+      useLabelStore.getState().addLabel({
+        id: 'locked',
+        frameNo: 1,
+        classId: 1,
+        className: 'car',
+        source: 'MANUAL',
+        shape: { type: 'BBOX', left: 0, top: 0, right: 10, bottom: 10 },
+      });
+      useLabelStore.getState().selectLabel('locked');
+      useLabelStore.getState().toggleLabelLock('locked');
+    });
+    act(() => press('Delete'));
+    // 잠금 라벨은 store 가드로 삭제 no-op — 라벨 유지.
+    expect(useLabelStore.getState().labels).toHaveLength(1);
+    act(() => press('r'));
+    expect(useLabelStore.getState().labels).toHaveLength(1);
+  });
+
   it('Del_누르면_선택된_라벨_삭제', () => {
     renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
     const store = useLabelStore.getState();

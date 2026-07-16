@@ -60,6 +60,8 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
   const updateLabel = useLabelStore((s) => s.updateLabel);
   // Phase 2 (T 표시/숨김) — 가시성 숨김 라벨은 렌더 skip.
   const hiddenLabelIds = useLabelStore((s) => s.hiddenLabelIds);
+  // Phase 3 R6 — 잠금 라벨은 선택/이동/리사이즈/꼭짓점 편집 차단.
+  const lockedLabelIds = useLabelStore((s) => s.lockedLabelIds);
   // labelMasters 는 staleTime 5분 캐시 — LabelSidebar/OverlayLayer 와 동일 쿼리 공유.
   // 로드 실패/지연 중에도 label.color enrichment 만으로 정상 동작.
   const { data: labelMasters } = useLabelMasters();
@@ -69,8 +71,10 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
   const transformerRef = useRef<Konva.Transformer | null>(null);
 
   const selectedLabel = labels.find((l) => l.id === selectedId) ?? null;
-  // BBOX 이고 잠금 아니면 이동/리사이즈 가능.
-  const editable = !readOnly && selectedLabel?.shape.type === 'BBOX';
+  // 개별 잠금(R6)된 선택 라벨은 Transformer 리사이즈 비활성.
+  const selectedLocked = selectedLabel != null && lockedLabelIds.has(selectedLabel.id);
+  // BBOX 이고 잠금(readOnly/개별잠금) 아니면 이동/리사이즈 가능.
+  const editable = !readOnly && !selectedLocked && selectedLabel?.shape.type === 'BBOX';
 
   useEffect(() => {
     const tr = transformerRef.current;
@@ -156,6 +160,8 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
         // 가시성 숨김 라벨은 렌더 생략 (T 토글). Transformer 는 선택+BBOX 조건이라
         // 숨긴 라벨을 선택 상태로 두어도 editable 대상이 사라져 무해하다.
         if (hiddenLabelIds.has(label.id)) return null;
+        // 개별 잠금 라벨 — 선택/이동/리사이즈/꼭짓점 편집을 차단(listening off + 핸들러 no-op).
+        const locked = lockedLabelIds.has(label.id);
         const isSelected = label.id === selectedId;
         const baseColor = getLabelDisplayColor(label, labelMasters);
         const stroke = isSelected ? '#FF3D71' : baseColor;
@@ -167,7 +173,7 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
         if (label.shape.type === 'BBOX') {
           const tl = translateToCanvas(geometry, label.shape.left, label.shape.top);
           const br = translateToCanvas(geometry, label.shape.right, label.shape.bottom);
-          const draggable = !readOnly && isSelected;
+          const draggable = !readOnly && !locked && isSelected;
           return (
             <Fragment key={label.id}>
               <Rect
@@ -179,9 +185,10 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                 stroke={stroke}
                 strokeWidth={strokeWidth}
                 dash={dash}
+                listening={!locked}
                 draggable={draggable}
-                onClick={() => selectLabel(label.id)}
-                onTap={() => selectLabel(label.id)}
+                onClick={() => !locked && selectLabel(label.id)}
+                onTap={() => !locked && selectLabel(label.id)}
                 onDragEnd={(e) => commitNode(label.id, e.target)}
                 onTransformEnd={(e) => commitNode(label.id, e.target)}
               />
@@ -193,9 +200,10 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
           const pts = imagePointsToCanvas(geometry, imagePoints);
           // 폴리곤 이동은 BBOX 와 동일 정책: 잠금 아니고 선택 시에만 draggable.
           // Transformer 스케일 리사이즈는 점 왜곡 때문에 폴리곤에 적용하지 않음 (이동 + 꼭짓점 편집만).
-          const draggable = !readOnly && isSelected;
+          const draggable = !readOnly && !locked && isSelected;
           // 선택 + 비잠금 + 점 수 임계 이하일 때만 꼭짓점 앵커 렌더 (대량 SAM2 폴리곤 렉 방지).
-          const showAnchors = isSelected && !readOnly && shouldRenderVertexAnchors(imagePoints);
+          const showAnchors =
+            isSelected && !readOnly && !locked && shouldRenderVertexAnchors(imagePoints);
           return (
             <Fragment key={label.id}>
               <Line
@@ -205,9 +213,10 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                 dash={dash}
                 closed
                 fill={`${stroke}33`}
+                listening={!locked}
                 draggable={draggable}
-                onClick={() => selectLabel(label.id)}
-                onTap={() => selectLabel(label.id)}
+                onClick={() => !locked && selectLabel(label.id)}
+                onTap={() => !locked && selectLabel(label.id)}
                 onDragEnd={(e) => commitPolygonMove(label.id, e.target, imagePoints)}
               />
               {showAnchors &&
@@ -236,8 +245,8 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
         }
         if (label.shape.type === 'KEYPOINT') {
           const keypoints = label.shape.keypoints;
-          // 선택 + 비잠금 시 각 관절 개별 드래그로 좌표 수정 가능.
-          const draggable = !readOnly && isSelected;
+          // 선택 + 비잠금(readOnly/개별잠금) 시 각 관절 개별 드래그로 좌표 수정 가능.
+          const draggable = !readOnly && !locked && isSelected;
           return (
             <Fragment key={label.id}>
               {/* 스켈레톤 연결선 (COCO_SKELETON 19엣지, v=0 끝점은 숨김). */}
@@ -271,7 +280,9 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                     opacity={vs.opacity}
                     dash={vs.dash}
                     draggable={draggable}
+                    listening={!locked}
                     onClick={(e) => {
+                      if (locked) return;
                       // Alt+클릭 = 가시성 순환(편집 가능 시), 일반 클릭 = 선택.
                       if (!readOnly && e.evt?.altKey) {
                         commitKeypointVisibility(label.id, keypoints, i);
@@ -279,7 +290,7 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                       }
                       selectLabel(label.id);
                     }}
-                    onTap={() => selectLabel(label.id)}
+                    onTap={() => !locked && selectLabel(label.id)}
                     onDragEnd={(e) => commitKeypointDrag(label.id, keypoints, i, e.target)}
                   />
                 );

@@ -1,10 +1,13 @@
 // SCR-LABEL-001 좌측 세로 도구바 (mock 정합 — 아이콘 only, w-14).
 //
-// 도구: 선택(S) / 바운딩박스(B) / 폴리곤(P) / SAM분할(G) / SAM추적(T)
+// 도구: 선택(Esc) / 바운딩박스(B) / 폴리곤(P) / SAM분할(G) / SAM추적(Shift+T) / 키포인트(K)
 //       / [구분선] / 삭제(Del) / 실행취소(Ctrl+Z) / [구분선] / 저장(Ctrl+S)
+// ★ 단축키 표기는 하드코딩하지 않고 SHORTCUT_KEYMAP(단일 출처)에서 formatBindingKeys 로 파생 —
+//   키맵과 툴팁이 100% 일치(오표기 0)하도록 보장한다.
 
 import {
   Loader2,
+  Maximize2,
   MousePointer2,
   Pentagon,
   PersonStanding,
@@ -20,7 +23,19 @@ import {
 import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
 
+import { formatBindingKeys } from '../hooks/labelingKeymap';
 import { PORTAL_HIDDEN_TOOLS, ToolType } from '../types';
+
+// 각 도구/액션 버튼의 단축키 툴팁은 SHORTCUT_KEYMAP 단일 출처에서 파생한다(하드코딩 오표기 근절).
+// 키맵 id ↔ 툴바 항목 매핑. YOLO 오토라벨은 키맵 미등록이라 별도 고정 표기('Y').
+const TOOL_KEYMAP_ID: Partial<Record<ToolType, string>> = {
+  [ToolType.SELECT]: 'tool.select',
+  [ToolType.BBOX]: 'tool.bbox',
+  [ToolType.POLYGON]: 'tool.polygon',
+  [ToolType.SAM_SEGMENT]: 'tool.samSegment',
+  [ToolType.TRACK]: 'tool.track',
+  [ToolType.KEYPOINT]: 'tool.keypoint',
+};
 
 interface DarkToolbarProps {
   onSave: () => void;
@@ -76,6 +91,8 @@ export function DarkToolbar({
   const undo = useLabelStore((s) => s.undo);
   const removeLabel = useLabelStore((s) => s.removeLabel);
   const selectedId = useLabelStore((s) => s.selectedLabelId);
+  // R3 — 수동 Fit(뷰 초기화): zoom=1·pan=0 으로 화면 맞춤 복귀.
+  const resetView = useLabelStore((s) => s.resetView);
 
   const handleDelete = () => {
     if (selectedId) removeLabel(selectedId);
@@ -84,14 +101,20 @@ export function DarkToolbar({
   // Phase 9 — 포털에 SAM 분할/추적·키포인트 도구 제공(PORTAL_HIDDEN_TOOLS 현재 비어있음).
   // 오토라벨(YOLO) 액션만 포털 숨김 유지(ADR-013 — 데이터마트 영상 오토라벨 미제공).
   // (단축키 게이팅 useLabelingShortcuts 와 동일 정책 소스.)
+  // 도구 단축키는 키맵에서 파생(TOOL_KEYMAP_ID). 액션 단축키도 키맵 id 로 파생.
+  const toolShortcut = (tool: ToolType): string => {
+    const id = TOOL_KEYMAP_ID[tool];
+    return id ? formatBindingKeys(id) : '';
+  };
   const allItems: Item[] = [
-    { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: '선택', shortcut: 'S' },
-    { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩박스', shortcut: 'B' },
-    { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: '폴리곤', shortcut: 'P' },
-    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: 'G' },
-    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: 'T' },
-    { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: '키포인트', shortcut: 'K' },
+    { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: '선택', shortcut: toolShortcut(ToolType.SELECT) },
+    { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩박스', shortcut: toolShortcut(ToolType.BBOX) },
+    { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: '폴리곤', shortcut: toolShortcut(ToolType.POLYGON) },
+    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: toolShortcut(ToolType.SAM_SEGMENT) },
+    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: toolShortcut(ToolType.TRACK) },
+    { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: '키포인트', shortcut: toolShortcut(ToolType.KEYPOINT) },
     // Phase 3 — YOLO 오토라벨 수동 트리거(액션). 핸들러가 주어질 때만 노출, 포털 숨김(ADR-013).
+    // YOLO 는 키맵 미등록(파이프라인 트리거)이라 표기는 고정 'Y'.
     ...(onAutolabel
       ? [
           {
@@ -106,10 +129,12 @@ export function DarkToolbar({
         ]
       : []),
     { kind: 'divider' },
-    { kind: 'action', icon: Trash2, label: '삭제', shortcut: 'Del', action: handleDelete },
-    { kind: 'action', icon: RotateCcw, label: '실행취소', shortcut: 'Ctrl+Z', action: undo },
+    { kind: 'action', icon: Trash2, label: '삭제', shortcut: formatBindingKeys('label.delete'), action: handleDelete },
+    { kind: 'action', icon: RotateCcw, label: '실행취소', shortcut: formatBindingKeys('edit.undo'), action: undo },
+    // R3 — 화면 맞춤(Fit): 프레임 전환 시 뷰 유지 정책과 짝을 이루는 수동 초기화 컨트롤(키맵 미배정).
+    { kind: 'action', icon: Maximize2, label: '화면 맞춤', shortcut: '', action: resetView },
     { kind: 'divider' },
-    { kind: 'action', icon: Save, label: '저장', shortcut: 'Ctrl+S', action: onSave },
+    { kind: 'action', icon: Save, label: '저장', shortcut: formatBindingKeys('edit.save'), action: onSave },
   ];
   const items: Item[] = allItems.filter((item) => {
     if (!portalMode) return true;
@@ -142,6 +167,8 @@ export function DarkToolbar({
               onClick={handleClick}
               disabled={busy}
               aria-label={item.label}
+              // 단축키를 title 로도 노출 — 키맵 파생(오표기 0), 마우스 호버/스크린리더 힌트.
+              title={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}
               aria-pressed={isActive}
               aria-busy={busy}
               className={cn(

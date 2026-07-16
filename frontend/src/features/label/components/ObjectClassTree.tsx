@@ -1,7 +1,18 @@
 // SCR-LABEL-001 우측 상단 객체 트리 (mock 정합 — 분류별 그룹화 + 펼치기 + bbox/polygon 표시).
 
 import { useMemo, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Pencil, Trash2, X } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Lock,
+  Pencil,
+  Trash2,
+  Unlock,
+  X,
+} from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -35,6 +46,11 @@ export function ObjectClassTree({
   const selectLabel = useLabelStore((s) => s.selectLabel);
   const removeLabel = useLabelStore((s) => s.removeLabel);
   const updateLabel = useLabelStore((s) => s.updateLabel);
+  // Phase 3 R6 — 객체 개별 표시/숨김 + 잠금.
+  const hiddenLabelIds = useLabelStore((s) => s.hiddenLabelIds);
+  const toggleLabelVisibility = useLabelStore((s) => s.toggleLabelVisibility);
+  const lockedLabelIds = useLabelStore((s) => s.lockedLabelIds);
+  const toggleLabelLock = useLabelStore((s) => s.toggleLabelLock);
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // 트랙 번호 인라인 편집 상태 — 편집 중인 라벨 id 와 입력 draft.
@@ -120,6 +136,9 @@ export function ObjectClassTree({
                 // track_id 원값(있으면 실제 트랙 ID, 없으면 null → "미부여" 표기).
                 const trackId = obj.trackId ?? null;
                 const barColor = trackIdToColor(obj.trackId);
+                // Phase 3 R6 — 개별 표시/숨김·잠금 상태.
+                const isHidden = hiddenLabelIds.has(obj.id);
+                const isLocked = lockedLabelIds.has(obj.id);
                 return (
                   <div
                     key={obj.id}
@@ -210,8 +229,39 @@ export function ObjectClassTree({
                         <span className="text-gray-500 text-xs uppercase">{shapeType}</span>
                       </button>
                     )}
-                    {/* Phase 10(축소) — 포털은 트랙 rename/머지 미제공(데이터모델 부재)이라 연필 버튼 숨김. */}
-                    {!portalMode && renamingId !== obj.id && (
+                    {/* 표시/숨김 토글(eye) — 상태 항상 노출. hiddenLabelIds 반영. */}
+                    {renamingId !== obj.id && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleLabelVisibility(obj.id);
+                        }}
+                        className="text-gray-400 hover:text-primary-300"
+                        aria-label={`${displayName} #${objNumber} ${isHidden ? '표시' : '숨김'}`}
+                        aria-pressed={isHidden}
+                      >
+                        {isHidden ? <EyeOff size={12} /> : <Eye size={12} />}
+                      </button>
+                    )}
+                    {/* 잠금 토글(lock) — 상태 항상 노출. lockedLabelIds 반영. */}
+                    {renamingId !== obj.id && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleLabelLock(obj.id);
+                        }}
+                        className="text-gray-400 hover:text-primary-300"
+                        aria-label={`${displayName} #${objNumber} ${isLocked ? '잠금 해제' : '잠금'}`}
+                        aria-pressed={isLocked}
+                      >
+                        {isLocked ? <Lock size={12} /> : <Unlock size={12} />}
+                      </button>
+                    )}
+                    {/* Phase 10(축소) — 포털은 트랙 rename/머지 미제공(데이터모델 부재)이라 연필 버튼 숨김.
+                        잠금(isLocked) 객체는 트랙 ID 변경 진입 차단. */}
+                    {!portalMode && renamingId !== obj.id && !isLocked && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -224,13 +274,21 @@ export function ObjectClassTree({
                         <Pencil size={12} />
                       </button>
                     )}
+                    {/* 잠금 객체는 삭제 차단(disabled + store 가드). */}
                     <button
                       type="button"
+                      disabled={isLocked}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (isLocked) return;
                         removeLabel(obj.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-opacity"
+                      className={cn(
+                        'text-gray-400 transition-opacity',
+                        isLocked
+                          ? 'opacity-30 cursor-not-allowed'
+                          : 'opacity-0 group-hover:opacity-100 hover:text-red-400',
+                      )}
                       aria-label="객체 삭제"
                     >
                       <Trash2 size={12} />
