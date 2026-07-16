@@ -34,12 +34,12 @@ class AutolabelMockMessageWiringTest {
     @DisplayName("오토라벨_내부mock이면_ApiResponse에_안내message_세팅")
     void mockSetsMessage() {
         AutolabelOnlineService service = mock(AutolabelOnlineService.class);
-        when(service.autolabel(any(), any())).thenReturn(
+        when(service.autolabel(any(), any(), any())).thenReturn(
                 new AutolabelOnlineService.AutolabelOutcome(
                         new AutolabelResponse(7L, 0, List.of()), true));
         AutolabelController controller = new AutolabelController(service);
 
-        ApiResponse<AutolabelResponse> res = controller.autolabel(7L, actor);
+        ApiResponse<AutolabelResponse> res = controller.autolabel(7L, null, actor);
 
         assertThat(res.success()).isTrue();
         assertThat(res.data().savedCount()).isZero();
@@ -50,14 +50,14 @@ class AutolabelMockMessageWiringTest {
     @DisplayName("오토라벨_정상이면_message_없음")
     void normalNoMessage() {
         AutolabelOnlineService service = mock(AutolabelOnlineService.class);
-        when(service.autolabel(any(), any())).thenReturn(
+        when(service.autolabel(any(), any(), any())).thenReturn(
                 new AutolabelOnlineService.AutolabelOutcome(
                         new AutolabelResponse(7L, 1, List.of(
                                 new AutolabelResponse.Item(1L, 10L, "person",
                                         List.of(1.0, 2.0, 3.0, 4.0), 0.9, 3))), false));
         AutolabelController controller = new AutolabelController(service);
 
-        ApiResponse<AutolabelResponse> res = controller.autolabel(7L, actor);
+        ApiResponse<AutolabelResponse> res = controller.autolabel(7L, null, actor);
 
         assertThat(res.data().savedCount()).isEqualTo(1);
         assertThat(res.message()).isNull();

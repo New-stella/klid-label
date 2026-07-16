@@ -21,6 +21,10 @@
 
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 
+import {
+  FRAME_STATUS_BORDER,
+  resolveFrameStatus,
+} from '@/features/label/components/frameStatus';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 
 import type { FrameDetail } from '../types';
@@ -29,6 +33,12 @@ interface FrameTimelineProps {
   frames: FrameDetail[];
   currentFrameIdx: number;
   onSelect: (idx: number) => void;
+  // R1 — 프레임 상태색은 미해소이슈·저장·현재만 반영한다.
+  // v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임 매핑 불가 → 주황(반려) 프레임색 미대상.
+  /** 미해소 문의 프레임 srcSn 집합 → 빨강 테두리 (R1). */
+  inquirySrcSns?: Set<number>;
+  /** 라벨 저장된 프레임 srcSn 집합 → 연두 테두리 (R1, 부가). */
+  savedSrcSns?: Set<number>;
 }
 
 const THUMB_WIDTH = 64;
@@ -76,6 +86,8 @@ export function FrameTimeline({
   frames,
   currentFrameIdx,
   onSelect,
+  inquirySrcSns,
+  savedSrcSns,
 }: FrameTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const total = frames.length;
@@ -167,6 +179,14 @@ export function FrameTimeline({
           // 표시 번호는 인덱스 기반 1-based — BE frameNo 의 0/1-base 차이에 무관하게
           // 헤더 카운터(`Frame N/total`)와 일관성을 유지한다.
           const displayNo = idx + 1;
+          // R1 — resolveFrameStatus 4색 엔진 재사용(현재 > 미해소이슈 > 저장 > 기본).
+          // hasRejection 은 항상 false — v2 반려는 영상 단위라 프레임 매핑 불가(주황 미대상).
+          const status = resolveFrameStatus({
+            isCurrent,
+            hasInquiry: inquirySrcSns?.has(f.srcSn) ?? false,
+            hasRejection: false,
+            hasLabel: savedSrcSns?.has(f.srcSn) ?? false,
+          });
           return (
             <button
               key={f.srcSn}
@@ -178,9 +198,7 @@ export function FrameTimeline({
               aria-label={`프레임 ${displayNo}`}
               className={[
                 'relative flex shrink-0 flex-col items-center gap-0.5 rounded border-2 p-0.5 transition-all',
-                isCurrent
-                  ? 'scale-105 border-primary-500'
-                  : 'border-transparent hover:border-gray-500',
+                FRAME_STATUS_BORDER[status],
               ].join(' ')}
             >
               <FrameTimelineThumbnail srcSn={f.srcSn} displayNo={displayNo} />

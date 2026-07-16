@@ -40,12 +40,10 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
 
     Page<LsDataRaw> findAllByOrderByRegDtDesc(Pageable pageable);
 
-    Page<LsDataRaw> findAllByDataSttsCdOrderByRegDtDesc(String dataSttsCd, Pageable pageable);
-
     /**
      * dataSttsCd 필터 — 정렬은 Pageable 의 Sort 로 위임한다 (정적 OrderBy 미적용).
      *
-     * <p>{@code findAllByDataSttsCdOrderByRegDtDesc} 는 정적 {@code regDt DESC} 가 Pageable Sort 보다
+     * <p>정적 {@code OrderByRegDtDesc} 파생 메서드는 정적 {@code regDt DESC} 가 Pageable Sort 보다
      * 우선해 외부 정렬 키(예: capturedAt→shtDt)가 보조 정렬로만 밀린다. 본 메서드는 컨트롤러가
      * allowlist 로 검증·매핑한 Sort 를 1차 정렬로 적용하기 위해 사용한다.
      */
@@ -71,6 +69,43 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Page<LsDataRaw> findAllWithReviewStatus(@Param("dataSttsCd") String dataSttsCd,
                                             @Param("reviewStatusCd") String reviewStatusCd,
                                             Pageable pageable);
+
+    /**
+     * REVIEWER 통합 작업 목록(SCR-TASK-001) — 배치 상태(dataSttsCd) 필터 + <b>워크플로 상태 우선순위 정렬</b>.
+     *
+     * <p>재작업(반려)·검수대기 건이 상단에 오도록 서버 정렬한다(R2 AC2). 정렬 기준은 화면에 표시되는
+     * 상태(= {@code TaskBoardService.mapBoardStatus}: LS_RAW_DATA_STATUS.DATA_STTS_CD + LABELER 배정 유무)와
+     * 정확히 일치한다:
+     * <pre>
+     *   반려(REJECTED)=0 &gt; 검수대기(PENDING·IN_REVIEW)=1 &gt; 배정/진행(ASSIGNED·null·기타 + 배정)=2
+     *     &gt; 미배정(LABELER 배정 없음)=3 &gt; 완료(APPROVED)=4
+     * </pre>
+     * 동순위는 {@code REG_DT DESC}(최신 우선) → {@code RAW_SN DESC} 로 tie-break 하여 페이지 경계에서도
+     * 서버 정렬이 일관된다.
+     *
+     * <p><b>미배정 우선</b>: mapBoardStatus 는 LABELER 배정이 없으면 상태와 무관하게 UNASSIGNED 로 표시하므로,
+     * CASE 도 {@code NOT EXISTS(LABELER)} 를 최우선으로 평가해 3(미배정)으로 확정한다. 워크플로 상태 row 는
+     * 배정 시점 lazy 생성되므로 LEFT JOIN 으로 결합해 미배정(status row 없음) 영상도 결과에 남긴다
+     * (INNER JOIN 이면 미배정 영상이 누락됨).
+     *
+     * <p>파라미터 바인딩만 사용({@code :dataSttsCd}) — SQL Injection 방어(CWE-89). CASE 내 상태 리터럴은
+     * 사용자 입력이 아닌 도메인 상수이므로 인젝션 표면 아님. 상태 row 는 PK(RAW_DATA_ID) 1:1 이라 LEFT JOIN
+     * 이 행을 증식시키지 않는다(Page 카운트 정합).
+     */
+    @Query(value = "SELECT v FROM LsDataRaw v " +
+            "LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn " +
+            "WHERE v.dataSttsCd = :dataSttsCd " +
+            "ORDER BY " +
+            "CASE WHEN NOT EXISTS (SELECT 1 FROM LsTaskAssignment a " +
+            "WHERE a.rawDataId = v.rawSn AND a.taskTypeCd = 'LABELER') THEN 3 " +
+            "WHEN s.dataSttsCd = 'REJECTED' THEN 0 " +
+            "WHEN s.dataSttsCd = 'PENDING' THEN 1 " +
+            "WHEN s.dataSttsCd = 'IN_REVIEW' THEN 1 " +
+            "WHEN s.dataSttsCd = 'APPROVED' THEN 4 " +
+            "ELSE 2 END ASC, " +
+            "v.regDt DESC, v.rawSn DESC",
+            countQuery = "SELECT COUNT(v) FROM LsDataRaw v WHERE v.dataSttsCd = :dataSttsCd")
+    Page<LsDataRaw> findBoardOrderByStatusPriority(@Param("dataSttsCd") String dataSttsCd, Pageable pageable);
 
     /**
      * 미배정(UNASSIGNED) 영상 목록 — 지정 배치 상태(dataSttsCd)이면서 LABELER 배정이 없는 영상만.

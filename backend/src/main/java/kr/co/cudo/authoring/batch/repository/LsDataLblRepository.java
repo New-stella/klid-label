@@ -337,6 +337,42 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     List<LsDataLbl> findByRawSnAndTrackId(@Param("rawSn") Long rawSn, @Param("trackId") String trackId);
 
     /**
+     * 영상(rawSn) 내 특정 트랙(trackId) 라벨 중 <b>프레임 번호(LS_DATA_SRC.FRAME_NO)가
+     * {@code fromFrameNo} 이상</b>인 라벨을 프레임 오름차순으로 조회 — R4 트랙 삭제 / R5 트랙 split.
+     *
+     * <p>{@code FRAME_NO} 는 LS_DATA_LBL 에 없고 LS_DATA_SRC 에만 있으므로 JOIN 으로 범위를 필터한다
+     * (자동+수동+보간 전 타입 포함). 삭제는 반환된 라벨의 {@code LBL_SN} 으로 자식(AI_INFO)→부모(LBL)
+     * 순서 bulk delete 하고, split 은 반환 라벨의 {@code TRCK_ID} 를 새 트랙으로 재지정한다.
+     * 파라미터 바인딩({@code :rawSn}, {@code :trackId}, {@code :fromFrameNo})만 사용 — 문자열 연결 없음(CWE-89 무관).
+     */
+    @Query("""
+            SELECT l
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.trackId = :trackId
+               AND s.frameNo >= :fromFrameNo
+             ORDER BY s.frameNo ASC
+            """)
+    List<LsDataLbl> findByRawSnAndTrackIdFromFrameNo(@Param("rawSn") Long rawSn,
+                                                     @Param("trackId") String trackId,
+                                                     @Param("fromFrameNo") Long fromFrameNo);
+
+    /**
+     * 영상(rawSn) 내 사용 중인 모든 트랙 ID(DISTINCT, NULL 제외) — R5 트랙 split 의 새 트랙 ID 채번용.
+     * <p>split 은 반환 목록에서 정수로 파싱 가능한 값의 최댓값+1 을 새 트랙 ID 로 부여해 영상 내 유니크를
+     * 보장한다. 파라미터 바인딩({@code :rawSn})만 사용 — 문자열 연결 없음(CWE-89 무관).
+     */
+    @Query("""
+            SELECT DISTINCT l.trackId
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.trackId IS NOT NULL
+            """)
+    List<String> findDistinctTrackIdsByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 영상(rawSn) 의 기존 보간 생성 라벨(LS_DATA_LBL_AI_INFO.LBL_SRC_CD='INTERPOLATE') 의 LBL_SN 목록.
      * <p>트랙 보간 재실행 시 idempotent 보장용 — 기존 보간 row 를 삭제 후 재삽입하기 위해 대상 PK 를 먼저 조회한다.
      * 보간 여부는 LS_DATA_LBL 본체 컬럼이 아닌 AI_INFO 에 저장되므로(lblSrcCd @Transient) AI_INFO 로 식별한다.

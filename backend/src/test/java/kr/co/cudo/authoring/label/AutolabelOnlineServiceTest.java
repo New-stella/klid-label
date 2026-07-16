@@ -324,6 +324,48 @@ class AutolabelOnlineServiceTest {
         }
     }
 
+    // ── Phase 4: 클래스 필터(R3 AC3) ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("classes_전달시_ai서버_YoloTrackRequest에_classes_포함")
+    void classesForwardedToAiRequest() {
+        stubAi(oneDetection());
+        ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
+                ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
+
+        service.autolabel(SRC_SN, worker, List.of("person", "car"));
+
+        verify(aiServerClient).predictYoloTrack(cap.capture());
+        assertThat(cap.getValue().classes()).containsExactly("person", "car");
+    }
+
+    @Test
+    @DisplayName("classes_없이_호출시_ai서버_요청_classes_null_전체검출_하위호환")
+    void noClassesMeansNullFilter() {
+        stubAi(oneDetection());
+        ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
+                ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
+
+        // 2-arg 오버로드(기존 호출자) → classes null.
+        service.autolabel(SRC_SN, worker);
+
+        verify(aiServerClient).predictYoloTrack(cap.capture());
+        assertThat(cap.getValue().classes()).isNull();
+    }
+
+    @Test
+    @DisplayName("classes_빈리스트면_null로_정규화_전체검출_footgun_방지")
+    void emptyClassesNormalizedToNull() {
+        stubAi(oneDetection());
+        ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
+                ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
+
+        service.autolabel(SRC_SN, worker, List.of());
+
+        verify(aiServerClient).predictYoloTrack(cap.capture());
+        assertThat(cap.getValue().classes()).isNull();
+    }
+
     // ── F-1: AI 호출 트랜잭션 밖 분리 ────────────────────────────────────────────
 
     @Test

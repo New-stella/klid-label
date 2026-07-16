@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -210,15 +211,33 @@ public class TrackInterpolationStep implements BatchStep {
      * @return 저장된 보간 row 수 (0 이상). 영상 프레임이 없거나 보간 후보가 없으면 0.
      */
     public int interpolateSingleTrack(Long rawSn, String toTrackId, String fromTrackId) {
+        return interpolateSingleTrackTouched(rawSn, toTrackId, fromTrackId).newRowCount();
+    }
+
+    /**
+     * {@link #interpolateSingleTrack} 와 동일 동작이되 <b>재보간이 실제로 건드린 프레임(srcSn) 집합</b>을
+     * 함께 반환한다 — R4 트랙 삭제 / R5 split 이 APPROVED 통지({@code TASK_MODIFIED} "변경 프레임 목록")에
+     * <b>재보간으로 삭제된 stale 보간 프레임 ∪ 새로 생성된 보간 프레임</b>을 union 해 데이터마트 드리프트를
+     * 막기 위함(계약 정합). 좌표·row 수 산출 로직은 완전히 동일하다.
+     *
+     * @return {@link TouchedFrames}: 새로 생성된 보간 row 수 + 터치된 srcSn 집합(삭제 stale ∪ 신규)
+     */
+    public TouchedFrames interpolateSingleTrackTouched(Long rawSn, String toTrackId, String fromTrackId) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
 
+        Set<Long> touched = new HashSet<>();
+
         // stale 정리 — 후보 존재 여부와 무관하게 항상 선행. from+to 양쪽 보간 산출물 제거(고아 방지).
+        // 삭제 전 대상 row 의 srcSn 을 touched 에 수집(통지 계약: 보간 제거된 프레임도 변경 프레임).
         // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순서로 삭제해 FK 고아 방지.
         List<Long> staleInterpolated = lblRepository.findInterpolatedLblSnsByRawSnAndTrackId(
                 rawSn, List.of(fromTrackId, toTrackId));
         if (!staleInterpolated.isEmpty()) {
+            for (LsDataLbl stale : lblRepository.findAllById(staleInterpolated)) {
+                touched.add(stale.getSrcSn());
+            }
             aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
             lblRepository.deleteAllByIdInBatch(staleInterpolated);
             log.info("[Batch][Interpolation] cleared stale interpolated rows (single-track) rawSn={} from={} to={} count={}",
@@ -229,7 +248,7 @@ public class TrackInterpolationStep implements BatchStep {
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         if (frames.isEmpty()) {
             log.info("[Batch][Interpolation] no frames (single-track) rawSn={}", rawSn);
-            return 0;
+            return new TouchedFrames(0, touched);
         }
         int totalFrames = frames.size();
         Map<Integer, Long> frameToSrcSn = new HashMap<>(totalFrames);
@@ -243,17 +262,18 @@ public class TrackInterpolationStep implements BatchStep {
         List<LsDataLbl> candidates = lblRepository.findAutoBboxByRawSnAndTrackId(rawSn, toTrackId);
         if (candidates.isEmpty()) {
             log.info("[Batch][Interpolation] no candidates (single-track) rawSn={} to={}", rawSn, toTrackId);
-            return 0;
+            return new TouchedFrames(0, touched);
         }
 
         // 공통부 재사용 — BBOX/POLYGON 라우팅 + 타입 혼재 skip 가드 포함. 전체 경로와 동일 로직(좌표 동일 보장).
-        // 전체 경로의 per-track try/catch 격리와 달리 예외를 전파해 머지 원자성을 유지한다.
+        // 전체 경로의 per-track try/catch 격리와 달리 예외를 전파해 머지/삭제/split 원자성을 유지한다.
         List<LsDataLbl> newRows = interpolateTrack(toTrackId, candidates, srcSnToFrame, frameToSrcSn, totalFrames);
 
         if (!newRows.isEmpty()) {
             Iterable<LsDataLbl> savedRows = lblRepository.saveAll(newRows);
             List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
             for (LsDataLbl row : savedRows) {
+                touched.add(row.getSrcSn());
                 aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), rawSn, row.getSrcSn(),
                         LsDataLblAiInfo.SRC_INTERPOLATE, row.getConfScore(), "batch"));
             }
@@ -261,7 +281,14 @@ public class TrackInterpolationStep implements BatchStep {
         }
         log.info("[Batch][Interpolation] saved (single-track) rawSn={} to={} interpolatedRows={}",
                 rawSn, toTrackId, newRows.size());
-        return newRows.size();
+        return new TouchedFrames(newRows.size(), touched);
+    }
+
+    /**
+     * 단일 트랙 재보간 결과 — 새로 생성된 보간 row 수({@code newRowCount})와 재보간이 삭제/생성으로
+     * 실제 건드린 프레임(srcSn) 집합({@code touchedSrcSns}). 후자는 APPROVED 통지의 변경 프레임 union 용.
+     */
+    public record TouchedFrames(int newRowCount, Set<Long> touchedSrcSns) {
     }
 
     /**

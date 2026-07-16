@@ -1,5 +1,8 @@
 // SCR-LABEL-001 하단 프레임 썸네일 strip (mock 정합 — 다크 톤, 80×45 thumb).
 //
+// 프레임 상태색은 확인요청(빨강)·저장(연두)·현재(강조)만 반영한다.
+// v2 반려는 영상 단위(REJECTION.srcSn=null)라 특정 프레임에 매핑 불가 → 주황(반려) 프레임색 미대상.
+//
 // 각 썸네일은 자체 useImageBlob(srcSn) 으로 BE 인증 fetch → blob URL 발급.
 // (썸네일 전용 API 가 아직 없어 본 이미지 엔드포인트 재사용 — Phase 6 별도 thumbnail API 도입 시 교체)
 // 보안: blob: URL 만 노출. img alt 텍스트는 자동 escape.
@@ -24,8 +27,6 @@ interface DarkFrameStripProps {
   onSelect: (index: number) => void;
   /** 검수 시점 이슈 표시용 frameNo 집합 (🚩 아이콘) */
   issueFrameNos?: Set<number>;
-  /** 반려(REJECTION) 프레임 srcSn 집합 — 주황 테두리 (21 §21.9). */
-  rejectionSrcSns?: Set<number>;
   /** 확인요청(INQUIRY) 프레임 srcSn 집합 — 빨강 테두리. */
   inquirySrcSns?: Set<number>;
   /** 라벨 저장된 프레임 srcSn 집합 — 연두 테두리. */
@@ -104,7 +105,6 @@ export function DarkFrameStrip({
   currentIndex,
   onSelect,
   issueFrameNos,
-  rejectionSrcSns,
   inquirySrcSns,
   savedSrcSns,
   portalMode,
@@ -143,7 +143,8 @@ export function DarkFrameStrip({
         const status = resolveFrameStatus({
           isCurrent: idx === currentIndex,
           hasInquiry: inquirySrcSns?.has(f.srcSn) ?? false,
-          hasRejection: rejectionSrcSns?.has(f.srcSn) ?? false,
+          // v2 반려는 영상 단위라 프레임 매핑 불가 → hasRejection 항상 false(주황 미대상).
+          hasRejection: false,
           hasLabel: savedSrcSns?.has(f.srcSn) ?? false,
         });
         return (

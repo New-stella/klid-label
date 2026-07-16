@@ -206,6 +206,85 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     expect(onRenameTrack).toHaveBeenCalledWith('42', '7');
   });
 
+  // R4/R5 — 트랙 삭제/분할 액션(현재 프레임 컨텍스트 기준).
+  it('트랙삭제_액션_확인다이얼로그_후_onDeleteTrack_trackId와_현재프레임No로_호출', async () => {
+    useLabelStore.getState().reset();
+    const onDeleteTrack = vi.fn();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '5' })];
+    renderWithProviders(
+      <ObjectClassTree labels={labels} onDeleteTrack={onDeleteTrack} currentFrameNo={10} />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/#1 트랙 삭제$/));
+    // 파괴적 안전 — 즉시 삭제하지 않고 확인 다이얼로그를 먼저 띄운다.
+    expect(onDeleteTrack).not.toHaveBeenCalled();
+    expect(screen.getByText(/되돌릴 수 없습니다/)).toBeInTheDocument();
+    // 확인(삭제) 클릭 시에만 현재 프레임(10) 기준으로 실제 삭제 콜백 실행.
+    await user.click(screen.getByRole('button', { name: '삭제' }));
+    expect(onDeleteTrack).toHaveBeenCalledWith('5', 10);
+  });
+
+  it('트랙삭제_확인다이얼로그_취소시_onDeleteTrack_미호출', async () => {
+    useLabelStore.getState().reset();
+    const onDeleteTrack = vi.fn();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '5' })];
+    renderWithProviders(
+      <ObjectClassTree labels={labels} onDeleteTrack={onDeleteTrack} currentFrameNo={10} />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/#1 트랙 삭제$/));
+    await user.click(screen.getByRole('button', { name: '취소' }));
+    expect(onDeleteTrack).not.toHaveBeenCalled();
+  });
+
+  it('트랙분할_액션_onSplitTrack_trackId와_현재프레임No로_호출', async () => {
+    useLabelStore.getState().reset();
+    const onSplitTrack = vi.fn();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '5' })];
+    renderWithProviders(
+      <ObjectClassTree labels={labels} onSplitTrack={onSplitTrack} currentFrameNo={4} />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/#1 트랙 분할$/));
+    expect(onSplitTrack).toHaveBeenCalledWith('5', 4);
+  });
+
+  it('trackId_없는_객체는_트랙삭제분할_액션_미노출', () => {
+    useLabelStore.getState().reset();
+    const labels: Label[] = [makeLabel({ id: 'a' })];
+    renderWithProviders(
+      <ObjectClassTree
+        labels={labels}
+        onDeleteTrack={vi.fn()}
+        onSplitTrack={vi.fn()}
+        currentFrameNo={0}
+      />,
+    );
+    // trackId 미부여 객체는 트랙 단위 액션이 없어야 한다(개별 라벨 삭제만).
+    expect(screen.queryByLabelText(/트랙 삭제$/)).toBeNull();
+    expect(screen.queryByLabelText(/트랙 분할$/)).toBeNull();
+    expect(screen.getByLabelText('객체 삭제')).toBeInTheDocument();
+  });
+
+  it('포털모드_트랙삭제분할_액션_미노출', () => {
+    useLabelStore.getState().reset();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '5' })];
+    renderWithProviders(
+      <ObjectClassTree
+        labels={labels}
+        portalMode
+        onDeleteTrack={vi.fn()}
+        onSplitTrack={vi.fn()}
+        currentFrameNo={0}
+      />,
+    );
+    expect(screen.queryByLabelText(/트랙 삭제$/)).toBeNull();
+    expect(screen.queryByLabelText(/트랙 분할$/)).toBeNull();
+  });
+
   it('shapeType 표시 회귀 방지 — BBOX/POLYGON', () => {
     useLabelStore.getState().reset();
     const labels: Label[] = [

@@ -151,4 +151,57 @@ class AutolabelControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.savedCount").value(1));
     }
+
+    // ── Phase 4: 클래스 필터(R3 AC3) ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("오토라벨_classes_전달시_ai서버_요청에_classes_포함되고_200")
+    void classesForwardedToAiServer() throws Exception {
+        var cap = org.mockito.ArgumentCaptor.forClass(
+                kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
+        when(aiServerClient.predictYoloTrack(any())).thenReturn(Mono.just(
+                new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 0.9, 3)))));
+
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/autolabel")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"classes\":[\"person\",\"car\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.savedCount").value(1));
+
+        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(cap.capture());
+        org.assertj.core.api.Assertions.assertThat(cap.getValue().classes())
+                .containsExactly("person", "car");
+    }
+
+    @Test
+    @DisplayName("오토라벨_body없이_호출해도_200_하위호환")
+    void noBodyBackwardCompatible() throws Exception {
+        when(aiServerClient.predictYoloTrack(any())).thenReturn(Mono.just(
+                new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 0.9, 3)))));
+
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/autolabel")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.savedCount").value(1));
+    }
+
+    @Test
+    @DisplayName("오토라벨_classes_과대리스트면_400_입력검증")
+    void oversizedClassesRejected() throws Exception {
+        StringBuilder sb = new StringBuilder("{\"classes\":[");
+        for (int i = 0; i < 101; i++) {
+            if (i > 0) sb.append(',');
+            sb.append("\"c").append(i).append('"');
+        }
+        sb.append("]}");
+
+        mockMvc.perform(post("/v1/frames/" + srcSn + "/autolabel")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(sb.toString()))
+                .andExpect(status().isBadRequest());
+    }
 }

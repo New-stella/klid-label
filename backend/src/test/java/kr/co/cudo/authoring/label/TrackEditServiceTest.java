@@ -1,0 +1,304 @@
+package kr.co.cudo.authoring.label;
+
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.auth.service.WorkLockService;
+import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
+import kr.co.cudo.authoring.batch.step.TrackInterpolationStep.TouchedFrames;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.security.Channel;
+import kr.co.cudo.authoring.common.security.Role;
+import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
+import kr.co.cudo.authoring.label.dto.TrackDeleteResponse;
+import kr.co.cudo.authoring.label.dto.TrackSplitResponse;
+import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
+import kr.co.cudo.authoring.label.service.LabelAccessGuard;
+import kr.co.cudo.authoring.label.service.TrackEditService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * TrackEditService 단위 테스트 (Mockito) — Phase 3 트랙 삭제(R4)/split(R5).
+ *
+ * <p>HIGH 시나리오 방어 검증: IDOR(401/403) · 트랙 부재(404) · 락 충돌(409) · FK 고아 방지(삭제 순서) ·
+ * 범위 밖 no-op · split 유니크 채번(max+1) · 좌표 불변 · 재보간 정합.
+ */
+class TrackEditServiceTest {
+
+    private static final Long RAW_SN = 9001L;
+    private static final String ACTOR_SUB = "1001";
+    private static final String TRACK = "t-1";
+
+    private LsDataLblRepository labelRepository;
+    private LsDataLblAiInfoRepository aiInfoRepository;
+    private LsDataLblAttrValRepository attrValRepository;
+    private LsDataAugLblMapRepository augLblMapRepository;
+    private LabelAccessGuard accessGuard;
+    private WorkLockService workLockService;
+    private TrackInterpolationStep trackInterpolationStep;
+    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ApplicationEventPublisher eventPublisher;
+    private TrackEditService service;
+
+    @BeforeEach
+    void setUp() {
+        labelRepository = mock(LsDataLblRepository.class);
+        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
+        attrValRepository = mock(LsDataLblAttrValRepository.class);
+        augLblMapRepository = mock(LsDataAugLblMapRepository.class);
+        accessGuard = mock(LabelAccessGuard.class);
+        workLockService = mock(WorkLockService.class);
+        trackInterpolationStep = mock(TrackInterpolationStep.class);
+        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        service = new TrackEditService(labelRepository, aiInfoRepository, attrValRepository, augLblMapRepository,
+                accessGuard, workLockService, trackInterpolationStep, rawDataStatusRepository, eventPublisher);
+        when(accessGuard.parseUserNo(any())).thenReturn(1001L);
+        // 재보간 기본 스텁 — 터치 프레임 없음. 개별 테스트가 필요 시 재정의.
+        when(trackInterpolationStep.interpolateSingleTrackTouched(anyLong(), anyString(), anyString()))
+                .thenReturn(new TouchedFrames(0, Set.of()));
+    }
+
+    private TokenClaims worker() {
+        return new TokenClaims(ACTOR_SUB, Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(600));
+    }
+
+    private LsDataLbl lbl(long lblSn, long srcSn, String trackId) {
+        LsDataLbl l = LsDataLbl.createAutoBbox(srcSn, null, "person", "[[1,1],[2,2]]", BigDecimal.ZERO, trackId);
+        ReflectionTestUtils.setField(l, "lblSn", lblSn);
+        return l;
+    }
+
+    private void approved() {
+        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
+        status.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+    }
+
+    // ---------- R4 트랙 삭제 ----------
+
+    @Test
+    @DisplayName("트랙삭제_지정프레임이후_해당트랙만_삭제_자식먼저_부모나중_재보간")
+    void 트랙삭제_성공_삭제순서_재보간() {
+        LsDataLbl f10 = lbl(11L, 110L, TRACK);
+        LsDataLbl f11 = lbl(12L, 111L, TRACK);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(lbl(1L, 100L, TRACK), f10, f11));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 10L)).thenReturn(List.of(f10, f11));
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, TRACK, TRACK))
+                .thenReturn(new TouchedFrames(2, Set.of()));
+
+        TrackDeleteResponse res = service.deleteTrackFrom(RAW_SN, TRACK, 10, worker());
+
+        assertThat(res.deletedCount()).isEqualTo(2);
+        assertThat(res.trackId()).isEqualTo(TRACK);
+        assertThat(res.fromFrameNo()).isEqualTo(10);
+        // FK 고아 방지 — 자식(ATTR_VAL) → 자식(AI_INFO) → 증강맵 → 부모(LBL) → 재보간. 락 선점/해제 순서.
+        InOrder order = inOrder(workLockService, attrValRepository, aiInfoRepository, augLblMapRepository,
+                labelRepository, trackInterpolationStep);
+        order.verify(workLockService).lockRawExclusiveInNewTx(eq(RAW_SN), anyString());
+        order.verify(attrValRepository).deleteByLblSnIn(List.of(11L, 12L));
+        order.verify(aiInfoRepository).deleteByDataLblSnIn(List.of(11L, 12L));
+        order.verify(augLblMapRepository).deleteByLabelReferencesIn(List.of(11L, 12L));
+        order.verify(labelRepository).deleteAllByIdInBatch(List.of(11L, 12L));
+        order.verify(trackInterpolationStep).interpolateSingleTrackTouched(RAW_SN, TRACK, TRACK);
+        order.verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙삭제_범위밖_deletedCount0_변경없음")
+    void 트랙삭제_범위밖_noop() {
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(lbl(1L, 100L, TRACK)));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 999L)).thenReturn(List.of());
+
+        TrackDeleteResponse res = service.deleteTrackFrom(RAW_SN, TRACK, 999, worker());
+
+        assertThat(res.deletedCount()).isZero();
+        verify(labelRepository, never()).deleteAllByIdInBatch(anyList());
+        verify(attrValRepository, never()).deleteByLblSnIn(anyList());
+        verify(trackInterpolationStep, never()).interpolateSingleTrackTouched(anyLong(), anyString(), anyString());
+        verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙삭제_존재하지않는_트랙_404_락해제")
+    void 트랙삭제_트랙부재_404() {
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of());
+
+        CustomException ex = catchThrowableOfType(
+                () -> service.deleteTrackFrom(RAW_SN, TRACK, 0, worker()), CustomException.class);
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND);
+        verify(labelRepository, never()).deleteAllByIdInBatch(anyList());
+        verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙삭제_타인배정_403_락_미획득")
+    void 트랙삭제_타인배정_403() {
+        doThrow(new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다."))
+                .when(accessGuard).verifyRawAccess(eq(RAW_SN), any());
+        CustomException ex = catchThrowableOfType(
+                () -> service.deleteTrackFrom(RAW_SN, TRACK, 0, worker()), CustomException.class);
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        verify(workLockService, never()).lockRawExclusiveInNewTx(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙삭제_잠금중_배타락_409_변경없음")
+    void 트랙삭제_락충돌_409() {
+        doThrow(new CustomException(ErrorCode.CONFLICT, "이미 편집/재처리 중인 영상입니다."))
+                .when(workLockService).lockRawExclusiveInNewTx(eq(RAW_SN), anyString());
+        CustomException ex = catchThrowableOfType(
+                () -> service.deleteTrackFrom(RAW_SN, TRACK, 0, worker()), CustomException.class);
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+        verify(labelRepository, never()).deleteAllByIdInBatch(anyList());
+        verify(workLockService, never()).releaseRawInNewTx(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙삭제_APPROVED_통지_변경프레임_삭제프레임∪재보간터치_union")
+    void 트랙삭제_APPROVED_통지() {
+        approved();
+        LsDataLbl f10 = lbl(11L, 110L, TRACK);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(f10));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 0L)).thenReturn(List.of(f10));
+        // 재보간이 삭제 프레임(110) 외 프레임(999)을 건드림 → 통지 union 대상.
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, TRACK, TRACK))
+                .thenReturn(new TouchedFrames(0, Set.of(999L)));
+
+        service.deleteTrackFrom(RAW_SN, TRACK, 0, worker());
+
+        ArgumentCaptor<TaskModifiedEvent> cap = ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher, org.mockito.Mockito.times(2)).publishEvent(cap.capture());
+        assertThat(cap.getAllValues()).allSatisfy(e -> assertThat(e.changeType()).isEqualTo("LABEL_DELETED"));
+        // 삭제 프레임(110) + 재보간 터치 프레임(999) 모두 통지(데이터마트 드리프트 방지).
+        assertThat(cap.getAllValues()).extracting(TaskModifiedEvent::srcSn).containsExactlyInAnyOrder(110L, 999L);
+    }
+
+    // ---------- R5 트랙 split ----------
+
+    @Test
+    @DisplayName("트랙split_atFrame이후_새trackId재지정_이전_원트랙유지_좌표불변")
+    void 트랙split_성공() {
+        LsDataLbl front = lbl(1L, 100L, TRACK);   // atFrameNo 이전 (이동 대상 아님)
+        LsDataLbl back = lbl(2L, 105L, TRACK);    // atFrameNo 이후 (이동 대상)
+        String pointsBefore = back.getPointCn();
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(front, back));
+        when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 5L)).thenReturn(List.of(back));
+        when(labelRepository.findDistinctTrackIdsByRawSn(RAW_SN)).thenReturn(List.of("3", "5"));
+
+        TrackSplitResponse res = service.splitTrack(RAW_SN, TRACK, 5, worker());
+
+        // 새 trackId = max(정수 트랙ID)+1 = 6
+        assertThat(res.newTrackId()).isEqualTo("6");
+        assertThat(res.originalTrackId()).isEqualTo(TRACK);
+        assertThat(res.movedCount()).isEqualTo(1);
+        // 이동 대상만 새 트랙, 이전 프레임은 원 트랙 유지, 좌표 불변.
+        assertThat(back.getTrackId()).isEqualTo("6");
+        assertThat(front.getTrackId()).isEqualTo(TRACK);
+        assertThat(back.getPointCn()).isEqualTo(pointsBefore);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(labelRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).containsExactly(back);
+    }
+
+    @Test
+    @DisplayName("트랙split_정수트랙없으면_새trackId_1")
+    void 트랙split_채번_정수없음() {
+        LsDataLbl back = lbl(2L, 105L, "abc");
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, "abc")).thenReturn(List.of(back));
+        when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, "abc", 0L)).thenReturn(List.of(back));
+        when(labelRepository.findDistinctTrackIdsByRawSn(RAW_SN)).thenReturn(List.of("abc"));
+
+        TrackSplitResponse res = service.splitTrack(RAW_SN, "abc", 0, worker());
+        assertThat(res.newTrackId()).isEqualTo("1");
+    }
+
+    @Test
+    @DisplayName("트랙split_경계밖_movedCount0_변경없음")
+    void 트랙split_경계밖_noop() {
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(lbl(1L, 100L, TRACK)));
+        when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 999L)).thenReturn(List.of());
+        when(labelRepository.findDistinctTrackIdsByRawSn(RAW_SN)).thenReturn(List.of("1"));
+
+        TrackSplitResponse res = service.splitTrack(RAW_SN, TRACK, 999, worker());
+
+        assertThat(res.movedCount()).isZero();
+        verify(labelRepository, never()).saveAll(anyList());
+        verify(trackInterpolationStep, never()).interpolateSingleTrackTouched(anyLong(), anyString(), anyString());
+        verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙split_보간산출물_이동제외_원키프레임만")
+    void 트랙split_보간제외() {
+        LsDataLbl keyframe = lbl(2L, 105L, TRACK);
+        LsDataLbl interpolated = lbl(3L, 106L, TRACK);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(keyframe, interpolated));
+        when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of(3L));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 5L))
+                .thenReturn(List.of(keyframe, interpolated));
+        when(labelRepository.findDistinctTrackIdsByRawSn(RAW_SN)).thenReturn(List.of("1"));
+
+        TrackSplitResponse res = service.splitTrack(RAW_SN, TRACK, 5, worker());
+
+        // 원 키프레임만 이동, 보간 산출물은 trackId 불변(재보간 정리단계가 처리).
+        assertThat(res.movedCount()).isEqualTo(1);
+        assertThat(keyframe.getTrackId()).isEqualTo("2");
+        assertThat(interpolated.getTrackId()).isEqualTo(TRACK);
+    }
+
+    @Test
+    @DisplayName("트랙split_존재하지않는_트랙_404")
+    void 트랙split_트랙부재_404() {
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of());
+        CustomException ex = catchThrowableOfType(
+                () -> service.splitTrack(RAW_SN, TRACK, 0, worker()), CustomException.class);
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND);
+        verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙split_미인증_401_락_미획득")
+    void 트랙split_미인증_401() {
+        doThrow(new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다."))
+                .when(accessGuard).verifyRawAccess(eq(RAW_SN), any());
+        CustomException ex = catchThrowableOfType(
+                () -> service.splitTrack(RAW_SN, TRACK, 0, worker()), CustomException.class);
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+        verify(workLockService, never()).lockRawExclusiveInNewTx(anyLong(), anyString());
+    }
+}

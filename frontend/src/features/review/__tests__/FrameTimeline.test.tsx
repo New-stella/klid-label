@@ -139,4 +139,65 @@ describe('FrameTimeline', () => {
     const counter = screen.getByTestId('frame-timeline-counter');
     expect(counter).toHaveTextContent('3 / 3');
   });
+
+  // ── R1 (검수 프레임 상태색) — resolveFrameStatus 재사용. 미해소이슈·저장·현재만 반영.
+  // v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임색(주황) 미대상 — 테스트도 미포함.
+  describe('R1 프레임 상태색', () => {
+    it('검수_프레임에_미해소이슈면_빨강_테두리', () => {
+      const frames = makeFrames(3);
+      render(
+        <FrameTimeline
+          frames={frames}
+          currentFrameIdx={0}
+          onSelect={() => {}}
+          inquirySrcSns={new Set([1002])}
+        />,
+      );
+      expect(
+        screen.getByTestId('frame-timeline-thumb-2').className,
+      ).toContain('border-red-500');
+    });
+
+    it('검수_프레임에_저장라벨이면_연두_테두리', () => {
+      const frames = makeFrames(3);
+      render(
+        <FrameTimeline
+          frames={frames}
+          currentFrameIdx={0}
+          onSelect={() => {}}
+          savedSrcSns={new Set([1001])}
+        />,
+      );
+      expect(
+        screen.getByTestId('frame-timeline-thumb-1').className,
+      ).toContain('border-green-400');
+    });
+
+    it('현재_프레임이_미해소이슈여도_현재강조가_우선', () => {
+      const frames = makeFrames(3);
+      render(
+        <FrameTimeline
+          frames={frames}
+          currentFrameIdx={1}
+          onSelect={() => {}}
+          inquirySrcSns={new Set([1001])}
+        />,
+      );
+      const thumb = screen.getByTestId('frame-timeline-thumb-1').className;
+      expect(thumb).toContain('border-primary-500');
+      expect(thumb).not.toContain('border-red-500');
+    });
+
+    it('이슈없으면_기본_테두리_무회귀', () => {
+      const frames = makeFrames(3);
+      render(
+        <FrameTimeline frames={frames} currentFrameIdx={0} onSelect={() => {}} />,
+      );
+      // 현재 아닌 일반 프레임(idx1) → 기본(transparent). 기존 동작 유지.
+      const thumb = screen.getByTestId('frame-timeline-thumb-1').className;
+      expect(thumb).toContain('border-transparent');
+      expect(thumb).not.toContain('border-red-500');
+      expect(thumb).not.toContain('border-green-400');
+    });
+  });
 });

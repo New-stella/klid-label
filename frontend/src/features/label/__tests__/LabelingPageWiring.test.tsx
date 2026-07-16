@@ -1,5 +1,6 @@
 // Phase 2 화면 배선 — LabelingPage 조립 검증.
-// ① ImageAdjustPanel 마운트 · ② DarkFrameStrip 4색(issueThreads REJECTION) · ⑤ T 표시/숨김 배선.
+// ① ImageAdjustPanel 마운트 · ② DarkFrameStrip 상태색(issueThreads 미해소 INQUIRY) · ⑤ T 표시/숨김 배선.
+// v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임색 미대상 → 프레임 상태색은 확인요청·저장·현재만.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { act, screen, waitFor } from '@testing-library/react';
@@ -28,7 +29,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore } from '@/stores/useLabelStore';
 
-// 현재 프레임 300(idx0) + 형제 301(idx1, REJECTION 이슈) + 형제 302(idx2, 라벨 저장됨=SAVED).
+// 현재 프레임 300(idx0) + 형제 301(idx1, 미해소 INQUIRY 이슈) + 형제 302(idx2, 라벨 저장됨=SAVED).
 // 300 도 hasLabel=true 지만 현재 프레임이므로 CURRENT 가 우선(SAVED 로 덮이지 않음).
 function labelsPayload() {
   return {
@@ -83,16 +84,16 @@ describe('LabelingPage Phase 2 화면 배선', () => {
       errorCode: null,
     });
     mock.onGet('/manage/labels').reply(200, { success: true, data: [], message: null, errorCode: null });
-    // 301 프레임에 REJECTION 이슈 → 주황 테두리 기대.
+    // 301 프레임에 미해소 INQUIRY(확인요청) 이슈 → 빨강 테두리 기대.
     mock.onGet('/videos/7/issues').reply(200, {
       success: true,
       data: [
         {
           issueSn: 1,
-          issueTypeCd: 'REJECTION',
+          issueTypeCd: 'INQUIRY',
           issueSttsCd: 'OPEN',
           srcSn: 301,
-          reason: '반려 사유',
+          reason: '확인 요청',
           reportedUserNo: null,
           regDt: '2026-07-14T00:00:00',
           comments: [],
@@ -118,14 +119,14 @@ describe('LabelingPage Phase 2 화면 배선', () => {
     });
   });
 
-  it('②_형제프레임301_REJECTION_주황_테두리_상태전달', async () => {
+  it('②_형제프레임301_미해소INQUIRY_빨강_테두리_상태전달', async () => {
     setup();
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
-    // DarkFrameStrip 의 프레임 301 썸네일(index 1)이 REJECTION 상태여야 한다.
+    // DarkFrameStrip 의 프레임 301 썸네일(index 1)이 INQUIRY 상태여야 한다.
     await waitFor(() => {
       const thumb = document.querySelector('[data-frame-index="1"]');
       expect(thumb).not.toBeNull();
-      expect(thumb?.getAttribute('data-frame-status')).toBe('REJECTION');
+      expect(thumb?.getAttribute('data-frame-status')).toBe('INQUIRY');
     });
     // 현재 프레임(index 0)은 CURRENT.
     const cur = document.querySelector('[data-frame-index="0"]');
@@ -152,11 +153,11 @@ describe('LabelingPage Phase 2 화면 배선', () => {
       expect(cur).not.toBeNull();
       expect(cur?.getAttribute('data-frame-status')).toBe('CURRENT');
     });
-    // 4색 실동작 검증 — CURRENT(0)/REJECTION(1)/SAVED(2) 세 상태가 동시에 렌더된다.
+    // 상태색 실동작 검증 — CURRENT(0)/INQUIRY(1)/SAVED(2) 세 상태가 동시에 렌더된다.
     const statuses = ['0', '1', '2'].map(
       (i) => document.querySelector(`[data-frame-index="${i}"]`)?.getAttribute('data-frame-status'),
     );
-    expect(statuses).toEqual(['CURRENT', 'REJECTION', 'SAVED']);
+    expect(statuses).toEqual(['CURRENT', 'INQUIRY', 'SAVED']);
   });
 
   it('⑤_T키_선택라벨_가시성_토글_배선', async () => {
