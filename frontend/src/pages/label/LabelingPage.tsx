@@ -8,7 +8,7 @@
 // 라우트는 AppLayout 밖에서 직접 매칭되므로 LNB/GNB 없는 풀스크린.
 // 보안: 사용자 입력 ID는 axios가 URL 인코딩. BE에서 IDOR/Mass Assignment 방어.
 
-import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -164,8 +164,8 @@ export function LabelingPage() {
           srcSn: data.srcSn,
           thumbnailUrl: imageBlobUrl ?? '',
           imageUrl: imageBlobUrl ?? '',
-          imageWidth: 1920,
-          imageHeight: 1080,
+          // imageWidth/Height 는 하드코딩하지 않는다 — 캔버스가 로드된 이미지의 실측
+          // naturalWidth/Height 를 geometry 기준으로 사용한다(좌표 어긋남/스트레치 방지).
         },
       ];
     }
@@ -177,8 +177,7 @@ export function LabelingPage() {
         srcSn: s.srcSn,
         thumbnailUrl: '',
         imageUrl: isCurrent ? (imageBlobUrl ?? '') : '',
-        imageWidth: 1920,
-        imageHeight: 1080,
+        // imageWidth/Height 하드코딩 제거 — 캔버스가 실측 naturalWidth/Height 사용.
       };
     });
   }, [data, imageBlobUrl]);
@@ -190,6 +189,20 @@ export function LabelingPage() {
     return idx >= 0 ? idx : 0;
   }, [frames, data]);
   const currentFrame = frames[frameIdx];
+
+  // 로드된 프레임 이미지의 실측 네이티브 픽셀 크기 — CanvasShell 이 이미지 onload 시 통지.
+  // 수치 좌표 편집(ObjectAttributePanel)·붙여넣기 clamp 가 캔버스 geometry 와 동일한 실측
+  // dims 를 쓰도록 상위로 리프팅한다(하드코딩 1920×1080 제거, 좌표 기준 통일).
+  const [frameNaturalSize, setFrameNaturalSize] = useState<
+    { width: number; height: number } | undefined
+  >(undefined);
+  // 프레임 전환 시 이전 실측 크기 초기화 — 새 이미지 로드 완료 전까지 undefined(상한 clamp 미적용).
+  useEffect(() => {
+    setFrameNaturalSize(undefined);
+  }, [currentFrame?.srcSn]);
+  const handleImageSize = useCallback((width: number, height: number) => {
+    setFrameNaturalSize({ width, height });
+  }, []);
 
   // 다른 프레임으로 이동 — URL 전환 (useLabels 가 재조회).
   // replace=true: history stack 에 push 하지 않음 — X(닫기) 버튼이 뒤로가기 시
@@ -481,8 +494,9 @@ export function LabelingPage() {
         const n = pasteLabels({
           frameNo: currentFrame.frameNo,
           sourceRawSn: data?.videoId ?? null,
-          imageWidth: currentFrame.imageWidth,
-          imageHeight: currentFrame.imageHeight,
+          // 실측 네이티브 dims 로 경계 clamp — 미확정(이미지 미로드) 시 undefined → 상한 미적용(하한 0 유지).
+          imageWidth: frameNaturalSize?.width,
+          imageHeight: frameNaturalSize?.height,
         });
         pushToast(
           n === 0
@@ -737,6 +751,7 @@ export function LabelingPage() {
                 readOnly={isLocked}
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
                 onKeypointPlacingChange={setKeypointPlacingIndex}
+                onImageSize={handleImageSize}
                 portalMode={portalMode}
               />
             </Suspense>
@@ -867,6 +882,9 @@ export function LabelingPage() {
                 </div>
                 <ObjectAttributePanel
                   labels={labels}
+                  // 실측 네이티브 dims 로 좌표 clamp — 미확정 시 undefined → 상한 미적용(하드코딩 1920/1080 제거).
+                  imageWidth={frameNaturalSize?.width}
+                  imageHeight={frameNaturalSize?.height}
                   // Phase 9 (ADR-013 override) — 포털도 SAM2 자동추적 허용. 단 포털은 포털 전용
                   // /portal/frames/{id}/sam2-track 경로로 호출(persist 없이 좌표만) — portalMode 로 분기한다.
                   // 내부 /frames/{id}/sam2-track 은 PORTAL 채널 403 이므로 절대 호출하지 않는다.

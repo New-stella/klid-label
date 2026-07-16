@@ -12,7 +12,7 @@ import { ImageLayer } from './layers/ImageLayer';
 import { LabelsLayer } from './layers/LabelsLayer';
 import { OverlayLayer, type OverlayLayerHandle } from './layers/OverlayLayer';
 import { buildGeometry } from './utils/canvasGeometry';
-import type { Geometry } from './utils/coordinateTransformer';
+import type { Geometry, Size } from './utils/coordinateTransformer';
 import { zoomToPoint } from './utils/zoomToPoint';
 
 export interface CanvasShellProps {
@@ -34,6 +34,12 @@ export interface CanvasShellProps {
    * (persist 없이 좌표만). 내부 /frames/{id}/sam2-segment 는 PORTAL 채널 403 이므로 포털에서 호출 금지.
    */
   portalMode?: boolean;
+  /**
+   * 로드된 프레임 이미지의 실측 네이티브 픽셀 크기 통지. 상위(LabelingPage)가 이 값을
+   * 수치 좌표 편집(ObjectAttributePanel)·붙여넣기 clamp 등 형제 경로에 배선해 좌표 기준을
+   * 캔버스 geometry 와 동일한 실측 크기로 통일한다. 이미지 미로드 시 미호출(상위는 undefined 유지).
+   */
+  onImageSize?: (width: number, height: number) => void;
 }
 
 // 상위(LabelingPage)가 키보드 단축키(F/Q)로 폴리곤 편집을 명령할 수 있도록 OverlayLayer 의
@@ -60,6 +66,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     readOnly = false,
     onKeypointPlacingChange,
     portalMode = false,
+    onImageSize,
   }: CanvasShellProps,
   ref,
 ) {
@@ -112,22 +119,35 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     };
   }, [frame.imageUrl]);
 
-  const geometry: Geometry = useMemo(
-    () =>
-      buildGeometry(
-        { width: frame.imageWidth, height: frame.imageHeight },
-        { width, height },
-        zoom,
-        panX,
-        panY,
-        0,
-      ),
-    [frame.imageWidth, frame.imageHeight, width, height, zoom, panX, panY],
-  );
+  // 캔버스 geometry 의 이미지 기준 크기 = 로드된 프레임 이미지의 실측 네이티브 픽셀(naturalWidth/Height).
+  // YOLO 오토라벨·수동 드로잉 좌표 모두 프레임 JPEG 네이티브 픽셀 기준이므로, 렌더 기준을 실측
+  // 네이티브로 맞춰야 좌표계가 일치하고 이미지 스트레치(왜곡)도 사라진다. (구: FrameSummary 의
+  // 하드코딩 1920×1080 사용 → 실제 해상도가 다르면 라벨이 어긋나던 버그)
+  const imageSize = useMemo<Size | null>(() => {
+    if (!imageEl) return null;
+    const w = imageEl.naturalWidth;
+    const h = imageEl.naturalHeight;
+    // 로드 완료 전/실패 시 naturalWidth/Height 는 0 → geometry 산출 보류(타이밍 가드).
+    if (w <= 0 || h <= 0) return null;
+    return { width: w, height: h };
+  }, [imageEl]);
+
+  // 실측 크기 미확정(이미지 미로드) 시 geometry=null → 라벨/오버레이 레이어 렌더를 보류해
+  // 0-division·잘못된 초기 배치를 차단한다. 이미지 로드 완료 후 정상 산출.
+  const geometry = useMemo<Geometry | null>(() => {
+    if (!imageSize) return null;
+    return buildGeometry(imageSize, { width, height }, zoom, panX, panY, 0);
+  }, [imageSize, width, height, zoom, panX, panY]);
+
+  // 실측 크기 확정 시 상위로 통지 → 수치 편집·붙여넣기 경로가 동일 실측 dims 를 공유.
+  useEffect(() => {
+    if (imageSize) onImageSize?.(imageSize.width, imageSize.height);
+  }, [imageSize, onImageSize]);
 
   // R17 이슈6: 마우스 휠 줌 — 커서 위치 중심(zoom-to-point). 페이지 스크롤 방지.
   function handleWheel(e: Konva.KonvaEventObject<WheelEvent>) {
     e.evt.preventDefault();
+    if (!geometry) return; // 이미지 미로드 시 줌 무시(geometry 미확정)
     const pointer = e.target.getStage()?.getPointerPosition();
     if (!pointer) return;
     const factor = e.evt.deltaY < 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR;
@@ -140,24 +160,29 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     <div className="relative" data-testid="canvas-shell">
       <Stage ref={stageRef} width={width} height={height} className="bg-bgLight" onWheel={handleWheel}>
         <Layer listening={false} name="image-layer">
-          {imageEl && <ImageLayer image={imageEl} geometry={geometry} adjust={imageAdjust} />}
+          {geometry && imageEl && (
+            <ImageLayer image={imageEl} geometry={geometry} adjust={imageAdjust} />
+          )}
         </Layer>
         <Layer name="labels-layer" opacity={imageAdjust.labelOpacity}>
-          <LabelsLayer labels={labels} geometry={geometry} readOnly={readOnly} />
+          {/* 타이밍 가드 — geometry(실측 크기) 확정 전에는 라벨을 그리지 않는다. */}
+          {geometry && <LabelsLayer labels={labels} geometry={geometry} readOnly={readOnly} />}
         </Layer>
         <Layer name="overlay-layer" opacity={imageAdjust.activeOpacity}>
-          <OverlayLayer
-            ref={ref}
-            geometry={geometry}
-            activeTool={activeTool}
-            onLabelAdd={onLabelAdd}
-            stageRef={stageRef}
-            segment={segment}
-            onMockWarning={handleMockWarning}
-            onLowConfidence={handleLowConfidence}
-            onCommitError={handleCommitError}
-            onKeypointPlacingChange={onKeypointPlacingChange}
-          />
+          {geometry && (
+            <OverlayLayer
+              ref={ref}
+              geometry={geometry}
+              activeTool={activeTool}
+              onLabelAdd={onLabelAdd}
+              stageRef={stageRef}
+              segment={segment}
+              onMockWarning={handleMockWarning}
+              onLowConfidence={handleLowConfidence}
+              onCommitError={handleCommitError}
+              onKeypointPlacingChange={onKeypointPlacingChange}
+            />
+          )}
         </Layer>
       </Stage>
       {segNotice && (

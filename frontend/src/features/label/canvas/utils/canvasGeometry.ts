@@ -15,6 +15,11 @@ export function buildGeometry(
   panY: number,
   angle = 0,
 ): Geometry {
+  // 이미지 실측 크기 미확정(로드 전 0/음수) 가드 — 0-division/NaN·잘못된 초기 배치 방지.
+  // 렌더 보류 신호로 scale=0 을 반환한다(호출측이 geometry 준비 여부로 활용 가능).
+  if (image.width <= 0 || image.height <= 0) {
+    return { image, canvas, scale: 0, top: canvas.height / 2, left: canvas.width / 2, angle };
+  }
   const fitScale = Math.min(canvas.width / image.width, canvas.height / image.height);
   const scale = fitScale * zoom;
   const scaledW = image.width * scale;
