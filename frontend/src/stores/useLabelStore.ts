@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { clampPan as clampPanByScale } from '@/features/label/canvas/utils/canvasGeometry';
 import type { Label, Shape, ToolType } from '@/features/label/types';
 import { ToolType as ToolTypeEnum } from '@/features/label/types';
 
@@ -158,6 +159,13 @@ interface LabelState {
   hiddenLabelIds: Set<string>;
 
   /**
+   * 편집 잠금 라벨 ID 집합 (세션 전용 — 영속 안 함, Phase 3 R6 개별 잠금).
+   * 여기 든 라벨은 선택/이동/리사이즈/꼭짓점 편집이 차단되며 updateLabel/removeLabel 도
+   * no-op(dirty/undo 미변화). setLabels/reset 시 초기화.
+   */
+  lockedLabelIds: Set<string>;
+
+  /**
    * 복사/붙여넣기 클립보드 (Phase 4, 세션 전용). 프레임/영상 이동(setLabels/reset)에도
    * 유지되어 크로스프레임·크로스영상 붙여넣기를 지원한다. 명시적 copy 시에만 교체.
    */
@@ -181,6 +189,7 @@ interface LabelState {
   setImageAdjust: (patch: Partial<ImageAdjust>) => void;
   resetImageAdjust: () => void;
   toggleLabelVisibility: (id: string) => void;
+  toggleLabelLock: (id: string) => void;
 
   /**
    * 라벨 복사 — 선택 라벨(onlySelected=true, 선택 없으면 전체) 또는 전체를 클립보드에 딥클론 저장.
@@ -217,6 +226,51 @@ export function clampZoom(z: number): number {
 }
 
 /**
+ * 팬(panX/panY) 클램프 — 확대(zoom>1)된 이미지가 뷰포트 밖으로 완전히 이탈하지 않도록 제한.
+ * fit(zoom=1)에서는 (0,0) 유지(no-op). 렌더 geometry 의 clampPan(scale 기반, canvasGeometry)과
+ * 동일 규칙을 재사용해 store pan 과 캔버스 배치가 항상 일치하도록 한다(좌표계 정합 유지).
+ * @param view  캔버스(Stage) CSS 픽셀 크기
+ * @param image 로드된 이미지 실측 네이티브 픽셀 크기
+ */
+export function clampPan(
+  panX: number,
+  panY: number,
+  zoom: number,
+  view: { w: number; h: number },
+  image: { w: number; h: number },
+): { x: number; y: number } {
+  if (view.w <= 0 || view.h <= 0 || image.w <= 0 || image.h <= 0) {
+    return { x: 0, y: 0 };
+  }
+  const fitScale = Math.min(view.w / image.w, view.h / image.h);
+  const scale = fitScale * zoom;
+  const { panX: cx, panY: cy } = clampPanByScale(
+    { width: image.w, height: image.h },
+    { width: view.w, height: view.h },
+    scale,
+    panX,
+    panY,
+  );
+  return { x: cx, y: cy };
+}
+
+/**
+ * 프레임 전환 시 뷰(zoom/pan) 리셋(fit) 여부 판정 — 순수 함수(부작용 없음).
+ *  - 이전 프레임 dims 미상(초기 진입)  → true(fit)
+ *  - 영상 변경(videoId 상이)          → true(fit)
+ *  - 이미지 해상도(width/height) 상이  → true(fit)
+ *  - 동일 영상 + 동일 해상도            → false(뷰 유지)
+ */
+export function shouldResetView(
+  prev: { videoId?: number; width: number; height: number } | null | undefined,
+  next: { videoId?: number; width: number; height: number },
+): boolean {
+  if (!prev) return true;
+  if (prev.videoId !== next.videoId) return true;
+  return prev.width !== next.width || prev.height !== next.height;
+}
+
+/**
  * shape 딥클론 — 중첩 배열(POLYGON.points / KEYPOINT.keypoints)까지 새로 생성.
  * 얕은 복사({...shape})면 배열 참조가 스냅샷과 공유돼 in-place 변형 시 undo/redo 가 오염된다.
  */
@@ -247,10 +301,16 @@ export const useLabelStore = create<LabelState>((set, get) => ({
   redoStack: [],
   imageAdjust: { ...DEFAULT_IMAGE_ADJUST },
   hiddenLabelIds: new Set<string>(),
+  lockedLabelIds: new Set<string>(),
   clipboard: null,
 
   setActiveTool: (tool) => set({ activeTool: tool }),
-  selectLabel: (id) => set({ selectedLabelId: id }),
+  // 잠금 라벨은 어떤 UI 진입점(캔버스/트리)에서도 선택 불가 — 불변식 일관 강제.
+  // 선택 해제(id=null)는 항상 허용. lock 토글은 selectLabel 을 거치지 않아 영향 없음.
+  selectLabel: (id) => {
+    if (id != null && get().lockedLabelIds.has(id)) return;
+    set({ selectedLabelId: id });
+  },
   setActiveLabelId: (id) => set({ activeLabelId: id }),
 
   setLabels: (labels) =>
@@ -261,6 +321,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
       redoStack: [],
       selectedLabelId: null,
       hiddenLabelIds: new Set<string>(),
+      lockedLabelIds: new Set<string>(),
     }),
 
   addLabel: (label) => {
@@ -272,6 +333,8 @@ export const useLabelStore = create<LabelState>((set, get) => ({
   },
 
   updateLabel: (id, patch) => {
+    // 잠금 라벨은 편집 차단 — dirty/undo 도 쌓이지 않도록 진입부에서 no-op.
+    if (get().lockedLabelIds.has(id)) return;
     const prev = get().labels;
     const dirty = new Set(get().dirtyLabels);
     dirty.add(id);
@@ -281,6 +344,8 @@ export const useLabelStore = create<LabelState>((set, get) => ({
   },
 
   removeLabel: (id) => {
+    // 잠금 라벨은 삭제 차단 — dirty/undo 미변화(no-op).
+    if (get().lockedLabelIds.has(id)) return;
     const prev = get().labels;
     const dirty = new Set(get().dirtyLabels);
     dirty.add(id);
@@ -334,6 +399,14 @@ export const useLabelStore = create<LabelState>((set, get) => ({
     if (next.has(id)) next.delete(id);
     else next.add(id);
     set({ hiddenLabelIds: next });
+  },
+
+  // 불변성 유지 — toggleLabelVisibility 와 동일하게 새 Set 생성(기존 Set 미변형).
+  toggleLabelLock: (id) => {
+    const next = new Set(get().lockedLabelIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    set({ lockedLabelIds: next });
   },
 
   copyLabels: (opts) => {
@@ -404,5 +477,6 @@ export const useLabelStore = create<LabelState>((set, get) => ({
       redoStack: [],
       imageAdjust: { ...DEFAULT_IMAGE_ADJUST },
       hiddenLabelIds: new Set<string>(),
+      lockedLabelIds: new Set<string>(),
     }),
 }));

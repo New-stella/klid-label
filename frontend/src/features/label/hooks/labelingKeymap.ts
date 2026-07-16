@@ -83,6 +83,51 @@ export const SHORTCUT_KEYMAP: readonly ShortcutBinding[] = [
   ...DIGIT_BINDINGS,
 ];
 
+/**
+ * 특수(비문자) 키의 사람 표기 — 툴바 툴팁/문서 힌트용.
+ * 단문자 키는 대문자화(b→B)로 처리하고, 여기 있는 키만 별도 라벨을 쓴다.
+ */
+const KEY_DISPLAY: Record<string, string> = {
+  escape: 'Esc',
+  delete: 'Del',
+  backspace: 'Backspace',
+  arrowleft: '←',
+  arrowright: '→',
+  arrowup: '↑',
+  arrowdown: '↓',
+};
+
+/** 단일 바인딩을 사람 표기('Shift+T','Ctrl+S','Esc','B')로 포맷. */
+function formatBinding(b: ShortcutBinding): string {
+  const parts: string[] = [];
+  if (b.ctrl) parts.push('Ctrl');
+  if (b.shift) parts.push('Shift');
+  const k = b.key.toLowerCase();
+  parts.push(KEY_DISPLAY[k] ?? (k.length === 1 ? k.toUpperCase() : k));
+  return parts.join('+');
+}
+
+/**
+ * 액션 id 의 대표 단축키를 사람 표기로 반환 — DarkToolbar 툴팁/문서 힌트가 키맵과 100% 일치하도록
+ * SHORTCUT_KEYMAP 단일 출처에서 파생한다. 하드코딩 툴팁(오표기) 근절용.
+ *
+ * 별칭 규칙: 같은 id 에 바인딩이 여럿이면(예: label.delete = r/delete/backspace)
+ * 이름있는 특수키(Esc/Del 등, KEY_DISPLAY 등재)를 대표로, 없으면 선언 순서상 첫 바인딩을 쓴다.
+ * 단 nav(프레임 이동)는 WASD 주키가 화살표 별칭(←/→)에 가려지지 않도록 **문자키를 우선**한다.
+ * 미등록 id 는 빈 문자열.
+ */
+export function formatBindingKeys(id: string): string {
+  const all = SHORTCUT_KEYMAP.filter((b) => b.id === id);
+  if (all.length === 0) return '';
+  // nav: A/D/W/S(단문자) 우선 — 화살표 별칭보다 주키를 대표로 노출.
+  if (all[0].kind === 'nav') {
+    const letter = all.find((b) => b.key.length === 1);
+    return formatBinding(letter ?? all[0]);
+  }
+  const named = all.find((b) => b.key.toLowerCase() in KEY_DISPLAY);
+  return formatBinding(named ?? all[0]);
+}
+
 /** 수식키 + 키 조합 서명 — 충돌 판정 및 매칭 정규화 기준. */
 export function comboSignature(b: Pick<ShortcutBinding, 'key' | 'ctrl' | 'shift'>): string {
   return `${b.ctrl ? 'C' : ''}${b.shift ? 'S' : ''}:${b.key.toLowerCase()}`;

@@ -2,7 +2,8 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
 
-import { useLabelStore, MIN_ZOOM, MAX_ZOOM } from '@/stores/useLabelStore';
+import { Spinner } from '@/components/common/Spinner';
+import { useLabelStore, MIN_ZOOM, MAX_ZOOM, clampPan } from '@/stores/useLabelStore';
 
 import type { FrameSummary, Label } from '../types';
 import { useSam2Segment } from '../hooks/useSam2Segment';
@@ -80,9 +81,74 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
   const imageAdjust = useLabelStore((s) => s.imageAdjust);
 
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
+  // 캔버스 이미지 로드 진행 상태(R7) — imageUrl 존재 & 로드 완료/실패 전이면 true → 중앙 스피너.
+  const [imageLoading, setImageLoading] = useState(false);
   // SAM2 클릭/박스 분할 — 진행 중 무시 + 프레임 전환 stale 폐기 가드 포함.
-  const { segment } = useSam2Segment(frame.srcSn, portalMode);
+  // isSegmenting: 요청 in-flight 진행 인디케이터(R7)용.
+  const { segment, isSegmenting } = useSam2Segment(frame.srcSn, portalMode);
   const [segNotice, setSegNotice] = useState<string | null>(null);
+
+  // R2 — 뷰 팬(스페이스+드래그 주 / 중클릭 드래그 부). 확대(zoom>1) 상태에서만 동작.
+  // 스페이스 눌림 중(또는 드래그 중)에는 드로잉/선택 레이어의 listening 을 꺼 기존 pointer
+  // 이벤트와 충돌을 원천 차단하고, 해제 시 복귀시킨다.
+  const spaceDownRef = useRef(false);
+  const [spaceDown, setSpaceDown] = useState(false);
+  const [panning, setPanning] = useState(false);
+  // 드래그 시작 시점의 포인터(캔버스 좌표)와 pan 스냅샷 — delta 누적 기준.
+  const panDragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(
+    null,
+  );
+  // rAF 배칭 — 팬 드래그 중 매 mousemove 마다 setPan(store write/redraw) 하지 않고 프레임당 1회
+  // 마지막 좌표만 커밋한다. 예약된 rAF 는 종료/언마운트/blur 정리 시 취소한다.
+  const panRafRef = useRef<number | null>(null);
+  const pendingPanRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const isSpaceKey = (e: KeyboardEvent) => e.code === 'Space' || e.key === ' ';
+    // 스페이스 홀드/진행 팬을 모두 해제(커서·레이어 listening 복귀). window blur(Alt+Tab)/
+    // 탭 숨김 시 spaceDown 이 true 로 고착돼 좌클릭 드로잉/선택이 먹통 되는 버그 방지에 공용 사용.
+    const releaseSpaceAndPan = () => {
+      spaceDownRef.current = false;
+      setSpaceDown(false);
+      if (panRafRef.current != null) {
+        cancelAnimationFrame(panRafRef.current);
+        panRafRef.current = null;
+      }
+      pendingPanRef.current = null;
+      panDragRef.current = null;
+      setPanning(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!isSpaceKey(e)) return;
+      // 입력 필드/편집영역 포커스 시에는 팬/스크롤 억제하지 않는다(텍스트 입력 보존).
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable) return;
+      spaceDownRef.current = true;
+      setSpaceDown(true);
+      e.preventDefault(); // 페이지 스페이스 스크롤 방지
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (!isSpaceKey(e)) return;
+      releaseSpaceAndPan();
+    };
+    const onBlur = () => releaseSpaceAndPan();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') releaseSpaceAndPan();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
+      // 언마운트 시 예약된 rAF 취소(누수/콜백 후 setState 방지).
+      if (panRafRef.current != null) cancelAnimationFrame(panRafRef.current);
+    };
+  }, []);
 
   function handleMockWarning(res: Sam2SegmentResponse) {
     // BE ApiResponse.message(고정 상수)를 우선 노출. 미제공 시 폴백 문구. (텍스트 렌더 — XSS 무관)
@@ -101,16 +167,24 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
   useEffect(() => {
     if (!frame.imageUrl) {
       setImageEl(null);
+      setImageLoading(false); // 빈 URL — placeholder 만 노출(스피너 없음).
       return;
     }
     let cancelled = false;
+    setImageLoading(true); // 로드 시작 → 중앙 스피너 표시.
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      if (!cancelled) setImageEl(img);
+      if (!cancelled) {
+        setImageEl(img);
+        setImageLoading(false);
+      }
     };
     img.onerror = () => {
-      if (!cancelled) setImageEl(null);
+      if (!cancelled) {
+        setImageEl(null);
+        setImageLoading(false); // 실패 시에도 스피너 해제(무한 로딩 방지).
+      }
     };
     img.src = frame.imageUrl;
     return () => {
@@ -155,19 +229,87 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     setPan(next.panX, next.panY);
   }
 
+  // 팬 시작 — 스페이스 눌림 또는 중클릭(button===1)일 때만. fit(zoom<=MIN_ZOOM)에선 no-op.
+  function handleMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (zoom <= MIN_ZOOM) return;
+    const isMiddle = e.evt.button === 1;
+    if (!spaceDownRef.current && !isMiddle) return;
+    e.evt.preventDefault();
+    const pointer = stageRef.current?.getPointerPosition();
+    if (!pointer) return;
+    panDragRef.current = { startX: pointer.x, startY: pointer.y, panX, panY };
+    setPanning(true);
+  }
+
+  function handleMouseMove() {
+    const drag = panDragRef.current;
+    if (!drag || !imageSize) return;
+    const pointer = stageRef.current?.getPointerPosition();
+    if (!pointer) return;
+    const nextPanX = drag.panX + (pointer.x - drag.startX);
+    const nextPanY = drag.panY + (pointer.y - drag.startY);
+    // 이미지가 뷰포트 밖으로 완전 이탈하지 않게 클램프(store clampPan — 렌더 geometry 와 동일 규칙).
+    const clamped = clampPan(
+      nextPanX,
+      nextPanY,
+      zoom,
+      { w: width, h: height },
+      { w: imageSize.width, h: imageSize.height },
+    );
+    // rAF 배칭 — 마지막 좌표만 보관하고 프레임당 1회 setPan. 매 mousemove store write/redraw 방지.
+    pendingPanRef.current = clamped;
+    if (panRafRef.current == null) {
+      panRafRef.current = requestAnimationFrame(() => {
+        panRafRef.current = null;
+        const p = pendingPanRef.current;
+        pendingPanRef.current = null;
+        if (p) setPan(p.x, p.y);
+      });
+    }
+  }
+
+  function endPan() {
+    if (!panDragRef.current) return;
+    panDragRef.current = null;
+    setPanning(false);
+    // 예약된 rAF 를 취소하고 마지막 좌표를 즉시 커밋(마지막 이동 드롭 방지).
+    if (panRafRef.current != null) {
+      cancelAnimationFrame(panRafRef.current);
+      panRafRef.current = null;
+    }
+    const p = pendingPanRef.current;
+    pendingPanRef.current = null;
+    if (p) setPan(p.x, p.y);
+  }
+
+  // 스페이스 눌림/드래그 중에는 드로잉·선택 pointer 이벤트를 억제(레이어 listening off) →
+  // 팬은 Stage 핸들러로만 처리되고, 해제 시 즉시 복귀한다.
+  const interactionSuppressed = spaceDown || panning;
+  const cursor = panning ? 'grabbing' : spaceDown ? 'grab' : undefined;
+
   return (
-    <div className="relative" data-testid="canvas-shell">
-      <Stage ref={stageRef} width={width} height={height} className="bg-bgLight" onWheel={handleWheel}>
+    <div className="relative" data-testid="canvas-shell" style={cursor ? { cursor } : undefined}>
+      <Stage
+        ref={stageRef}
+        width={width}
+        height={height}
+        className="bg-bgLight"
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={endPan}
+        onMouseLeave={endPan}
+      >
         <Layer listening={false} name="image-layer">
           {geometry && imageEl && (
             <ImageLayer image={imageEl} geometry={geometry} adjust={imageAdjust} />
           )}
         </Layer>
-        <Layer name="labels-layer" opacity={imageAdjust.labelOpacity}>
+        <Layer name="labels-layer" opacity={imageAdjust.labelOpacity} listening={!interactionSuppressed}>
           {/* 타이밍 가드 — geometry(실측 크기) 확정 전에는 라벨을 그리지 않는다. */}
           {geometry && <LabelsLayer labels={labels} geometry={geometry} readOnly={readOnly} />}
         </Layer>
-        <Layer name="overlay-layer" opacity={imageAdjust.activeOpacity}>
+        <Layer name="overlay-layer" opacity={imageAdjust.activeOpacity} listening={!interactionSuppressed}>
           {geometry && (
             <OverlayLayer
               ref={ref}
@@ -184,6 +326,27 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
           )}
         </Layer>
       </Stage>
+      {/* R7 — 캔버스 이미지 로드 중 중앙 스피너 오버레이(로드 완료/실패 시 해제). */}
+      {imageLoading && (
+        <div
+          data-testid="canvas-image-spinner"
+          role="status"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/20"
+        >
+          <Spinner size="lg" label="이미지 로딩 중" />
+        </div>
+      )}
+      {/* R7 — SAM2 분할 요청 in-flight 진행 인디케이터(완료/실패 시 해제). */}
+      {isSegmenting && (
+        <div
+          data-testid="sam2-progress"
+          role="status"
+          className="absolute top-2 left-2 z-10 flex items-center gap-2 rounded bg-black/70 px-3 py-1 text-xs text-white"
+        >
+          <Spinner size="sm" label="AI 분할 처리 중" />
+          <span>AI 분할 처리 중…</span>
+        </div>
+      )}
       {segNotice && (
         <div
           role="status"

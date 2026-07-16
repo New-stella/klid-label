@@ -7,6 +7,12 @@ interface DarkFrameSliderProps {
   currentIndex: number;
   totalFrames: number;
   onSelect: (index: number) => void;
+  /**
+   * R5 — 미저장 변경(dirty) 존재 여부. true 이면 자동 재생이 다음 프레임으로 넘어가려 할 때
+   * 재생을 정지하고 이동 요청을 1회만 위임한다(상위 LabelingPage 가 가드 모달 노출).
+   * 무한 팝업 방지를 위해 정지 후 인터벌을 종료한다. dirty 없으면 정상 자동 진행.
+   */
+  dirtyGuard?: boolean;
 }
 
 const PLAY_INTERVAL_MS = 500;
@@ -15,6 +21,7 @@ export function DarkFrameSlider({
   currentIndex,
   totalFrames,
   onSelect,
+  dirtyGuard = false,
 }: DarkFrameSliderProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -48,6 +55,17 @@ export function DarkFrameSlider({
         }
         return;
       }
+      // R5 — 미저장 변경이 있으면 자동 재생을 멈추고 이동 요청을 1회만 위임(상위 가드 모달).
+      // 정지 없이 계속 onSelect 를 쏘면 이동이 막힌 채 인터벌이 반복 발화(무한 팝업)한다.
+      if (dirtyGuard) {
+        setIsPlaying(false);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        onSelect(next);
+        return;
+      }
       onSelect(next);
     }, PLAY_INTERVAL_MS);
 
@@ -57,7 +75,7 @@ export function DarkFrameSlider({
         intervalRef.current = null;
       }
     };
-  }, [isPlaying, currentIndex, totalFrames, onSelect]);
+  }, [isPlaying, currentIndex, totalFrames, onSelect, dirtyGuard]);
 
   // 언마운트 시 정리
   useEffect(() => {

@@ -4,7 +4,7 @@
 // 중: Frame N/총 + 저장 상태(✓ 저장됨 / ● 편집 중)
 // 우: N개 객체 + [히스토리] (INTERNAL only) + [저장] + [검수제출] (WORKER only)
 
-import { GitBranch, Save, X } from 'lucide-react';
+import { GitBranch, HelpCircle, Save, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
@@ -42,6 +42,8 @@ interface LabelHeaderProps {
   onHistoryClick?: () => void;
   /** 인라인 패널 열림 상태 (aria-expanded 표기) — onHistoryClick 사용 시에만 의미 있음. */
   historyOpen?: boolean;
+  /** 단축키 도움말(치트시트) 열기 콜백. 지정 시 우측에 도움말(?) 버튼 노출. */
+  onHelpClick?: () => void;
 }
 
 export function LabelHeader({
@@ -62,6 +64,7 @@ export function LabelHeader({
   onClose,
   onHistoryClick,
   historyOpen = false,
+  onHelpClick,
 }: LabelHeaderProps) {
   const navigate = useNavigate();
   const handleClose = onClose ?? (() => navigate(-1));
@@ -116,6 +119,17 @@ export function LabelHeader({
           </span>
         )}
         {deidentReportButton}
+        {onHelpClick && (
+          <button
+            type="button"
+            onClick={onHelpClick}
+            aria-label="단축키 도움말"
+            data-testid="shortcut-help-button"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors border border-gray-600"
+          >
+            <HelpCircle size={14} />
+          </button>
+        )}
         {showHistory && videoId !== undefined && (
           onHistoryClick ? (
             <button

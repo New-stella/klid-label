@@ -29,6 +29,8 @@ import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel'
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
+import { FrameNavGuardModal } from '@/features/label/components/FrameNavGuardModal';
+import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useAutolabel } from '@/features/label/hooks/useAutolabel';
@@ -43,7 +45,7 @@ import { HistoryPanel } from '@/features/version/components/HistoryPanel';
 import { Role } from '@/lib/api/types';
 import { LABEL_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useLabelStore } from '@/stores/useLabelStore';
+import { useLabelStore, shouldResetView } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 
 // konva는 브라우저 전용 — lazy load로 초기 번들 분리
@@ -197,27 +199,96 @@ export function LabelingPage() {
   const [frameNaturalSize, setFrameNaturalSize] = useState<
     { width: number; height: number } | undefined
   >(undefined);
-  // 프레임 전환 시 이전 실측 크기 초기화 — 새 이미지 로드 완료 전까지 undefined(상한 clamp 미적용).
-  // 뷰(zoom/pan)도 fit(zoom=1)·중앙(pan=0)으로 리셋해, 이전 프레임의 줌인 상태가 이어져
-  // 새 프레임이 의도치 않게 확대/치우쳐 보이지 않게 한다(라벨/undo 스택은 setLabels 가 별도 관리).
+  // R3 — 뷰(zoom/pan) 유지 판정 기준: 마지막으로 뷰를 확정한 프레임의 (영상ID + 실측 해상도).
+  // 프레임 전환 effect 에서 무조건 resetView() 하던 방식을 제거하고, 새 이미지 로드 완료 시점
+  // (handleImageSize)에 이전 프레임과 영상·해상도를 비교해 유지/리셋을 결정한다.
+  const viewKeyRef = useRef<{ videoId?: number; width: number; height: number } | null>(null);
+  // handleImageSize 를 stable 하게 유지하기 위해 최신 videoId 를 ref 로 전달(렌더 순수성 위해 effect 로 동기화).
+  const videoIdRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    videoIdRef.current = data?.videoId;
+  }, [data?.videoId]);
+  // 프레임 전환 시 이전 실측 크기만 초기화 — 새 이미지 로드 완료 전까지 undefined(상한 clamp 미적용).
+  // 뷰 리셋은 여기서 하지 않는다(동일영상·동일해상도면 zoom/pan 유지). 판정은 handleImageSize.
   useEffect(() => {
     setFrameNaturalSize(undefined);
-    resetView();
-  }, [currentFrame?.srcSn, resetView]);
-  const handleImageSize = useCallback((width: number, height: number) => {
-    setFrameNaturalSize({ width, height });
-  }, []);
+  }, [currentFrame?.srcSn]);
+  const handleImageSize = useCallback(
+    (width: number, height: number) => {
+      setFrameNaturalSize({ width, height });
+      const videoId = videoIdRef.current;
+      const next = { videoId, width, height };
+      // 초기 진입/영상 변경/해상도 상이 → fit 리셋. 동일 영상+동일 해상도 → 뷰 유지(no reset).
+      if (shouldResetView(viewKeyRef.current, next)) {
+        resetView();
+      }
+      viewKeyRef.current = next;
+    },
+    [resetView],
+  );
 
-  // 다른 프레임으로 이동 — URL 전환 (useLabels 가 재조회).
+  // 다른 프레임으로 실제 이동 — URL 전환 (useLabels 가 재조회).
   // replace=true: history stack 에 push 하지 않음 — X(닫기) 버튼이 뒤로가기 시
   // 이전 프레임이 아닌 진입 이전 경로(작업 목록)로 빠져나가도록 한다.
-  const jumpTo = (idx: number) => {
+  const performJump = (idx: number) => {
     const target = frames[idx];
     if (!target || !data) return;
     if (target.srcSn !== data.srcSn) {
       navigate(`/label/${target.srcSn}`, { replace: true });
     }
   };
+
+  // R5 — 프레임 이동 미저장 가드. dirtyLabels.size>0 이면 확인 모달(저장 후 이동/저장 안 함/취소),
+  // 아니면 즉시 이동. 슬라이더/썸네일/단축키 프레임 이동이 모두 이 함수를 경유한다.
+  // navGuardTarget 에 대기 중인 이동 대상 인덱스를 보관한다(null = 가드 비활성).
+  const [navGuardTarget, setNavGuardTarget] = useState<number | null>(null);
+  const [navGuardSaving, setNavGuardSaving] = useState(false);
+  const requestJumpTo = (idx: number) => {
+    const target = frames[idx];
+    if (!target || !data) return;
+    // 같은 프레임(경계 클램프로 인한 no-op)은 가드 없이 무시.
+    if (target.srcSn === data.srcSn) return;
+    if (dirtyCount > 0) {
+      setNavGuardTarget(idx);
+    } else {
+      performJump(idx);
+    }
+  };
+  // 저장 후 이동 — 저장 성공 시에만 이동, 실패 시 이동 취소 + 에러 토스트(현재 프레임 유지).
+  const handleNavSaveAndMove = async () => {
+    if (navGuardTarget === null) return;
+    const targetIdx = navGuardTarget;
+    if (!currentFrame) {
+      setNavGuardTarget(null);
+      performJump(targetIdx);
+      return;
+    }
+    setNavGuardSaving(true);
+    try {
+      await updateLabels(labels);
+      clearDirty();
+      setNavGuardTarget(null);
+      performJump(targetIdx);
+    } catch (e) {
+      pushToast({
+        variant: 'error',
+        message: e instanceof Error ? e.message : '저장 실패',
+      });
+      setNavGuardTarget(null); // 이동 취소 — 현재 프레임 유지
+    } finally {
+      setNavGuardSaving(false);
+    }
+  };
+  // 저장 안 함 — 미저장 변경 폐기(clearDirty) 후 이동.
+  const handleNavDiscardAndMove = () => {
+    if (navGuardTarget === null) return;
+    const targetIdx = navGuardTarget;
+    clearDirty();
+    setNavGuardTarget(null);
+    performJump(targetIdx);
+  };
+  // 취소 — 현재 프레임 유지(변경/ dirty 보존).
+  const handleNavCancel = () => setNavGuardTarget(null);
 
   // 데이터 동기화 — data 변경 시 store 의 labels 를 갱신.
   // setLabels 내부에서 dirtyLabels/undoStack/redoStack/selectedLabelId 를 초기화하므로
@@ -236,6 +307,9 @@ export function LabelingPage() {
 
   // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // R4 — 단축키 치트시트(도움말) 모달 열림 상태. ?(shift+/) 단축키 또는 헤더 도움말 버튼으로 토글.
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
 
   // 우측 패널 탭 — 객체 / 메타 / 이슈(검수자↔작업자 소통). 이슈 스레드는 INTERNAL 채널만.
   //   객체 = 객체 목록 + 속성 / 메타 = 프레임 설명 + 시계열 메타(VLM) / 이슈 = 이슈 스레드
@@ -464,12 +538,14 @@ export function LabelingPage() {
 
   useLabelingShortcuts(
     {
-      // W/S — 첫/끝 프레임 (기존 프레임 네비 로직 재사용).
-      onFirstFrame: () => jumpTo(0),
-      onLastFrame: () => jumpTo(frames.length - 1),
-      onPrevFrame: () => jumpTo(Math.max(0, frameIdx - 1)),
-      onNextFrame: () => jumpTo(Math.min(frames.length - 1, frameIdx + 1)),
+      // W/S — 첫/끝 프레임 (미저장 가드 경유 — requestJumpTo).
+      onFirstFrame: () => requestJumpTo(0),
+      onLastFrame: () => requestJumpTo(frames.length - 1),
+      onPrevFrame: () => requestJumpTo(Math.max(0, frameIdx - 1)),
+      onNextFrame: () => requestJumpTo(Math.min(frames.length - 1, frameIdx + 1)),
       onSave: handleSave,
+      // ? — 단축키 치트시트 토글 (열림 상태는 페이지 state, 훅엔 콜백만 주입).
+      onToggleCheatSheet: () => setCheatSheetOpen((v) => !v),
       // T — 선택된 라벨의 표시/숨김 토글 (세션 상태, 캔버스에서 렌더 skip).
       onToggleVisibility: () => {
         const id = useLabelStore.getState().selectedLabelId;
@@ -510,7 +586,11 @@ export function LabelingPage() {
       },
     },
     // ADR-013 — 포털 모드에서는 오토라벨/키포인트 단축키 게이팅(툴바 숨김과 정합).
-    { portalMode },
+    // 모달(치트시트/프레임가드/닫기확인) 열림 중에는 단축키 억제 — 배경 프레임 이동·삭제 방지.
+    {
+      portalMode,
+      suspended: navGuardTarget !== null || cheatSheetOpen || closeConfirmOpen,
+    },
   );
 
   const [canvasRef, canvasSize] = useContainerSize<HTMLDivElement>();
@@ -640,6 +720,7 @@ export function LabelingPage() {
           data?.srcSn !== undefined ? () => setHistoryOpen((v) => !v) : undefined
         }
         historyOpen={historyOpen}
+        onHelpClick={() => setCheatSheetOpen(true)}
         deidentReportButton={
           canReportDeident && data?.srcSn !== undefined ? (
             <DeidentReportButton
@@ -722,6 +803,19 @@ export function LabelingPage() {
           </>
         }
       />
+
+      {/* R5 — 프레임 이동 미저장 가드(저장 후 이동 / 저장 안 함 / 취소). */}
+      <FrameNavGuardModal
+        open={navGuardTarget !== null}
+        dirtyCount={dirtyCount}
+        saving={navGuardSaving}
+        onSaveAndMove={handleNavSaveAndMove}
+        onDiscardAndMove={handleNavDiscardAndMove}
+        onCancel={handleNavCancel}
+      />
+
+      {/* R4 — 단축키 치트시트(도움말). ?(shift+/) 또는 헤더 도움말 버튼으로 토글. */}
+      <ShortcutCheatSheet open={cheatSheetOpen} onClose={() => setCheatSheetOpen(false)} />
 
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
       <div className="flex flex-1 overflow-hidden">
@@ -931,7 +1025,7 @@ export function LabelingPage() {
           <DarkFrameStrip
             frames={frames}
             currentIndex={frameIdx}
-            onSelect={jumpTo}
+            onSelect={requestJumpTo}
             rejectionSrcSns={rejectionSrcSns}
             inquirySrcSns={inquirySrcSns}
             savedSrcSns={savedSrcSns}
@@ -942,7 +1036,8 @@ export function LabelingPage() {
           <DarkFrameSlider
             currentIndex={frameIdx}
             totalFrames={Math.max(frames.length, 1)}
-            onSelect={jumpTo}
+            onSelect={requestJumpTo}
+            dirtyGuard={dirtyCount > 0}
           />
         </div>
       </div>
