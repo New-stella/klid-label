@@ -57,12 +57,15 @@
 - `APPROVED` 전이 시 버전 스냅샷 + 관제 `TASK_COMPLETED` 통지
 - 영상 등록/상태 분리: `LS_RAW_DATA_ENROLLMENT`(등록) + `LS_RAW_DATA_STATUS`(상태)
 
-## 5.5.1 영상 목록에서 작업자 배정 (REVIEWER 동선)
+## 5.5.1 영상 목록에서 마킹 진입 · 작업자 배정 (REVIEWER 동선)
 
-- **영상 목록(SC-007 `/video/completed`)에서 곧바로 작업자 배정 진입** — 구 정책('배정은 작업 배정 화면 `/task/assign`에서만')에서 확장. 마킹 전 배정 정책은 유지(마킹 주체·시점 변경 없음) → [12](12-review-assignment.md)
-- **REVIEWER 전용 노출** — 각 영상 행에 "배정" 버튼 + 1건 이상 선택 시 일괄 액션 바의 "일괄 배정" 버튼. `WORKER`에겐 행/일괄 배정 액션·액션 바 모두 미노출(FE `isReviewer` 게이팅, 실제 인가는 BE `@PreAuthorize` 1차 — CWE-285 심층방어)
-- 클릭 시 기존 작업자 선택 모달(`AssignModal`)을 **재사용**(단건=해당 영상 사전 선택, 일괄=`videoIds` 전달) → 기존 배정 API(`POST /v1/assignments`) 호출, 성공 시 영상 목록 자동 갱신. 신규 BE/모달 없음. 코드: `pages/VideoListPage.tsx`, `features/task/components/AssignModal.tsx`
-- **배정 시나리오는 작업 목록(SC-012)과 완전 정합**: ① 목록에 **배정자 컬럼** 표시(미배정/배정자명) ② 배정된 영상은 **"재배정" 버튼**으로 전환되고 클릭 시 **현재 배정자가 사전선택**된 재배정 모달(동일자 저장 비활성) ③ 검수 완료(`assignStatus='COMPLETED'`) 영상은 재배정 버튼 미노출(BE 완료 재배정 차단과 정합) ④ 배정/재배정 성공 시 `VIDEO_KEYS`·`['assignments']` 무효화로 행 즉시 갱신
+- **영상 목록(SC-007 `/video/completed`)에서 곧바로 마킹 진입** — 구 정책('배정은 작업 배정 화면 `/task/assign`에서만' → 이후 '행 인라인 배정')에서 재개편. 미배정 영상의 행 액션을 **"마킹" 버튼으로 통합**해, 자동(프레임 간격)/수동(작업자 배치)을 한 팝업에서 선택한다. 마킹 전 배정 정책은 유지(마킹 주체·시점 변경 없음) → [06](06-marking.md) · [12](12-review-assignment.md)
+- **"마킹" 버튼 노출 조건** — REVIEWER + **마킹 가능(`canMark`) 영상**에만 노출: `dataSttsCd==='MARKING_READY'` 이고 비식별이 미완료가 아닐 것(`isMarkingBlocked` 재사용 — deidentStatus IN_PROGRESS/FAILED·deIdntfYn 'N'/'F' 이면 차단). `PROCESSING/COMPLETED/FAILED/PENDING` 및 비식별 미완 영상은 미노출. `WORKER`에겐 행/일괄 액션·액션 바 모두 미노출(FE `isReviewer` 게이팅, 실제 인가는 BE `@PreAuthorize` 1차 — CWE-285 심층방어). 상태 판정은 순수 헬퍼(`features/marking/markingEligibility.ts` `canMark`/`isMarkingDone`)로 단일화
+- **"마킹" 클릭 → 자동/수동 선택 팝업**(`MarkingModal`):
+  - **자동** — 프레임 간격(`intervalFrames`, 정수 ≥1 FE 1차 검증) 입력 → 즉시 자동마킹 트리거(`POST /v1/videos/{rawSn}/markings`, `mode=AUTO`, **작업자 배치 없이**). 성공 시 영상 목록 무효화, 실패 시 BE 메시지 토스트. 이벤트명은 요청에 미포함(서버가 `EVNT_TYPE_CD` 자동 소싱 — API-047)
+  - **수동** — 기존 작업자 선택 모달(`AssignModal`, `mode='assign'`)로 흐름 전환 → 기존 배정 API(`POST /v1/assignments`) 호출. 신규 BE 없음. 코드: `features/marking/components/MarkingModal.tsx`, `features/marking/hooks/useMarkings.ts`(재사용), `features/task/components/AssignModal.tsx`(재사용)
+- **재배정은 별도 유지**(무회귀): 이미 배정된 영상(`workerId!=null`)은 **"재배정" 버튼**으로 전환되고 클릭 시 **현재 배정자가 사전선택**된 재배정 모달(동일자 저장 비활성). 검수 완료(`assignStatus='COMPLETED'`) 영상은 재배정·마킹 버튼 모두 미노출(BE 완료 재배정 차단과 정합). 마킹 성공/배정·재배정 성공 시 `VIDEO_KEYS.all`·`ASSIGNMENT_KEYS.all` 무효화로 행 즉시 갱신. 일괄 배정 바(다중 선택)는 유지
+- **배정 시나리오는 작업 목록(SC-012)과 정합**: 목록에 **배정자 컬럼** 표시(미배정/배정자명)
 - **배정정보는 `GET /v1/videos` 응답에 포함**: `VideoSummaryResponse`에 `assignmentId·workerId·workerName·assignedAt·assignStatus`(미배정 null). 산출 기준은 작업 목록(`TaskBoardService`)의 **현재 활성 LABELER 배정 1건**과 동일(재배정 시 최신 배정자, 배치 IN 조회로 N+1 회피). 코드: `video/dto/VideoSummaryResponse.java`, `video/service/VideoQueryService.java`
 
 ## 5.6 관련 데이터 (DB)
