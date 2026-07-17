@@ -55,7 +55,7 @@ public class LsControlNotifyFallback {
     @Column(name = "IDMP_KEY", length = 128, nullable = false, unique = true)
     private String idmpKey;
 
-    @Column(name = "EVNT_TYPE_CD", length = 32, nullable = false)
+    @Column(name = "EVNT_TYPE_CD", length = 20, nullable = false)
     private String eventTypeCd;
 
     @Column(name = "RAW_SN", nullable = false)

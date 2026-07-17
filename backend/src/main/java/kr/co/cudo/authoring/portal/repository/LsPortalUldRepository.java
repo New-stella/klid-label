@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * V107 포털 업로드 마스터 리포지토리 (control DB).
+ * 포털 업로드 마스터 리포지토리 (control DB).
  * <p>
  * 소유자 스코프 파생 쿼리만 노출 — 타 사용자 자산 접근(IDOR) 차단. 문자열 연결/자유양식
  * 쿼리 없이 파라미터 바인딩 파생 메서드만 사용한다.
@@ -96,4 +96,11 @@ public interface LsPortalUldRepository extends JpaRepository<LsPortalUld, Long> 
     @Query("SELECT u FROM LsPortalUld u WHERE u.uldSttsCd IN :statuses AND u.mdfcnDt < :cutoff")
     List<LsPortalUld> findStuck(@Param("statuses") List<String> statuses,
                                 @Param("cutoff") LocalDateTime cutoff);
+
+    /** 소유자 목록 조회(명시적 최신순) — Phase 1 IT 호환용. */
+    Page<LsPortalUld> findByPortalUserNoOrderByRegDtDesc(String portalUserNo, Pageable pageable);
+
+    /** 소유자 + 업로드 유형(IMAGE/VIDEO) 필터 목록 조회(명시적 최신순) — Phase 1 IT 호환용. */
+    Page<LsPortalUld> findByPortalUserNoAndUldTypeCdOrderByRegDtDesc(
+            String portalUserNo, String uldTypeCd, Pageable pageable);
 }

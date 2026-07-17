@@ -97,6 +97,8 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   const [bboxDraft, setBboxDraft] = useState<BboxDraft | null>(null);
   // SAM_SEGMENT 박스 드래그 draft (canvas 좌표).
   const [segDraft, setSegDraft] = useState<BboxDraft | null>(null);
+  // R6 — SAM_SEGMENT 다중 positive-click 누적(이미지 좌표). 확정(Enter/더블클릭) 시 1회 요청.
+  const [segPoints, setSegPoints] = useState<Point[]>([]);
   const [polyPoints, setPolyPoints] = useState<number[]>([]);
   // KEYPOINT 순차 배치 draft — 배치된 관절(이미지 좌표) 0..17 개. 17개 채워지면 커밋.
   const [kptDraft, setKptDraft] = useState<{ x: number; y: number; v: number }[]>([]);
@@ -104,13 +106,21 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   // SAM_SEGMENT: 박스 드래그 후 발생하는 click 이벤트가 포인트로 잘못 처리되지 않도록 억제.
   const segSuppressClickRef = useRef(false);
 
+  // R6 — 누적 클릭/확정·취소 핸들러를 ref 로 보관해 window 키보드 리스너가 최신 값을 참조하도록 한다
+  // (리스너는 activeTool 에만 재구독, 매 클릭마다 재구독 방지).
+  const segPointsRef = useRef<Point[]>([]);
+  segPointsRef.current = segPoints;
+  const confirmSegmentRef = useRef<() => void>(() => {});
+  const cancelSegmentRef = useRef<() => void>(() => {});
+
   const { data: labelMasters } = useLabelMasters();
   const activeLabelId = useLabelStore((s) => s.activeLabelId);
 
-  // 도구가 SAM_SEGMENT 가 아니게 되면 진행 중 분할 박스 draft 초기화.
+  // 도구가 SAM_SEGMENT 가 아니게 되면 진행 중 분할 박스 draft + 누적 클릭 초기화.
   useEffect(() => {
     if (activeTool !== ToolTypeEnum.SAM_SEGMENT) {
       setSegDraft(null);
+      setSegPoints([]);
       segSuppressClickRef.current = false;
     }
     // KEYPOINT 도구를 벗어나면 진행 중 배치 draft 폐기(부분 배치 조용한 소실 방지 겸 초기화).
@@ -121,6 +131,34 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     if (activeTool !== ToolTypeEnum.POLYGON) {
       setPolyPoints([]);
     }
+  }, [activeTool]);
+
+  // R6 — 프레임 전환 시 누적 클릭 초기화. segment 콜백은 useSam2Segment(srcSn) 에서 srcSn 마다
+  // 새 참조가 되므로 프레임 전환 신호로 사용한다(스테일 포인트 잔존 방지).
+  useEffect(() => {
+    setSegPoints([]);
+  }, [segment]);
+
+  // R6 — SAM_SEGMENT 진행 중 Enter=확정 / Esc=취소. 도구 활성 시에만 구독(자기완결).
+  useEffect(() => {
+    if (activeTool !== ToolTypeEnum.SAM_SEGMENT) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      // 입력 필드 포커스 중에는 텍스트 편집 보존(확정/취소 억제).
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable) return;
+      if (e.key === 'Enter') {
+        // 누적 포인트가 있을 때만 확정 + preventDefault. 비어 있으면 button/a/select 등
+        // 포커스 요소의 Enter 기본 동작(활성화)을 가로채지 않는다(a11y).
+        if (segPointsRef.current.length === 0) return;
+        e.preventDefault();
+        confirmSegmentRef.current();
+      } else if (e.key === 'Escape') {
+        cancelSegmentRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [activeTool]);
 
   // 콜백을 ref 에 보관해 인라인 함수 전달에도 보고 effect 가 매 렌더 재실행되지 않도록 한다.
@@ -323,13 +361,37 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     commitImagePolygon(flat);
   }
 
+  // R6 — 클릭 1회당 즉시 요청하지 않고 positive-click 을 누적한다.
+  // 연속 동일 좌표(더블클릭 등)는 스킵해 확정 시 중복 포인트를 만들지 않는다.
   function handleSegmentClick() {
-    if (!segment) return; // 미주입 — 안전 무시
     const cp = pointerCanvas();
     if (!cp) return;
     const img = clampToImage(geometry, translateFromCanvas(geometry, cp.x, cp.y));
-    void segment({ points: [[img.x, img.y]] }).then(applySegmentResult);
+    setSegPoints((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.x === img.x && last.y === img.y) return prev;
+      return [...prev, img];
+    });
   }
+
+  // R6 — 누적된 positive-click 전체로 segment 를 1회 요청하고 누적을 비운다(확정).
+  function confirmSegment() {
+    if (!segment) return; // 미주입 — 안전 무시
+    const pts = segPointsRef.current;
+    if (pts.length === 0) return;
+    const points = pts.map((p) => [p.x, p.y]);
+    setSegPoints([]);
+    void segment({ points }).then(applySegmentResult);
+  }
+
+  // R6 — 진행 중 누적 취소(Esc).
+  function cancelSegment() {
+    setSegPoints([]);
+  }
+
+  // 최신 확정/취소 핸들러를 ref 에 반영(window 리스너가 참조).
+  confirmSegmentRef.current = confirmSegment;
+  cancelSegmentRef.current = cancelSegment;
 
   function handleSegmentBox(start: Point, end: Point) {
     if (!segment) return;
@@ -413,6 +475,11 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
           addPolygonPointAt(p);
         }}
         onDblClick={() => {
+          if (activeTool === ToolTypeEnum.SAM_SEGMENT) {
+            // R6 — 더블클릭으로 누적 포인트 확정.
+            confirmSegment();
+            return;
+          }
           if (activeTool !== ToolTypeEnum.POLYGON) return;
           // 커밋 시도 후 점이 부족(폴리곤 불가)이면 그리기 취소로 간주해 draft 를 비운다.
           // (커밋 성공/실패는 tryCommitPolygon 내부에서 처리 — 실패 시 점 유지, 부족 시에만 여기서 취소)
@@ -448,6 +515,22 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
           listening={false}
         />
       )}
+      {/* R6 — SAM_SEGMENT 누적 positive-click 마커(확정 전 시각 피드백). */}
+      {segPoints.map((p, i) => {
+        const c = translateToCanvas(geometry, p.x, p.y);
+        return (
+          <Circle
+            key={`seg-pt-${p.x}:${p.y}:${i}`}
+            x={c.x}
+            y={c.y}
+            radius={4}
+            fill="#7E57C2"
+            stroke="#ffffff"
+            strokeWidth={1}
+            listening={false}
+          />
+        );
+      })}
       {polyPoints.length >= 4 && (
         <Line points={polyPoints} stroke="#26A69A" strokeWidth={2} dash={[4, 4]} listening={false} />
       )}

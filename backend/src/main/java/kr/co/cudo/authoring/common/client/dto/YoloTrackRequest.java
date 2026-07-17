@@ -1,6 +1,9 @@
 package kr.co.cudo.authoring.common.client.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.util.List;
 
 /**
  * ai-server YOLO Track 추론 요청 — Phase 3.
@@ -12,17 +15,25 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *  - conf_threshold  : 신뢰도 임계값 (0.0 ~ 1.0)
  *  - imgsz           : 추론 입력 해상도(px)
  *  - iou             : NMS IoU 임계값 (0.0 ~ 1.0)
+ *  - classes         : (Phase 4) 검출 대상 클래스 라벨(COCO 영문명) 화이트리스트. null 이면 전체 검출(미필터).
+ *                      null 시 {@code @JsonInclude(NON_NULL)} 로 직렬화에서 제외되어 ai-server 기본값(None=전체)과 정합.
  *
  * <p>BE 호출자는 {@code clipId = String.valueOf(rawSn)} 또는 video meta id 등 영상 고유값을 사용한다.
- * 본 record 는 Phase 3 단계에서는 정의만 추가되고, Phase 4 에서 {@link kr.co.cudo.authoring.batch.step.YoloAutolabelStep}
- * 가 실제 호출 경로로 전환한다.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record YoloTrackRequest(
         @JsonProperty("image_b64") String imageB64,
         @JsonProperty("clip_id") String clipId,
         @JsonProperty("frame_index") int frameIndex,
         @JsonProperty("conf_threshold") double confThreshold,
         @JsonProperty("imgsz") Integer imgsz,
-        @JsonProperty("iou") Double iou
+        @JsonProperty("iou") Double iou,
+        @JsonProperty("classes") List<String> classes
 ) {
+
+    /** 하위호환 — classes 미지정(전체 검출) 6-arg 생성자. 배치 경로 및 기존 호출자 유지. */
+    public YoloTrackRequest(String imageB64, String clipId, int frameIndex,
+                            double confThreshold, Integer imgsz, Double iou) {
+        this(imageB64, clipId, frameIndex, confThreshold, imgsz, iou, null);
+    }
 }

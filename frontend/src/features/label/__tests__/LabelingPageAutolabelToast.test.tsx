@@ -97,6 +97,8 @@ describe('LabelingPage — YOLO 오토라벨 토스트(mock message 재배선)',
     setup();
     const btn = await screen.findByRole('button', { name: 'YOLO 오토라벨' });
     await userEvent.click(btn);
+    // Phase 4 — 버튼 클릭은 클래스 선택 팝업을 연다. 미선택(전체) 상태로 실행.
+    await userEvent.click(await screen.findByRole('button', { name: '실행' }));
 
     await waitFor(() => {
       const toasts = useUiStore.getState().toasts;
@@ -124,6 +126,8 @@ describe('LabelingPage — YOLO 오토라벨 토스트(mock message 재배선)',
     setup();
     const btn = await screen.findByRole('button', { name: 'YOLO 오토라벨' });
     await userEvent.click(btn);
+    // Phase 4 — 클래스 선택 팝업에서 미선택(전체)으로 실행.
+    await userEvent.click(await screen.findByRole('button', { name: '실행' }));
 
     await waitFor(() => {
       const toasts = useUiStore.getState().toasts;

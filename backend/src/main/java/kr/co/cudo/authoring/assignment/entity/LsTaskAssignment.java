@@ -37,7 +37,7 @@ public class LsTaskAssignment {
     @Column(name = "RAW_DATA_ID", nullable = false)
     private Long rawDataId;
 
-    @Column(name = "TASK_TYPE_CD", nullable = false, length = 32)
+    @Column(name = "TASK_TYPE_CD", nullable = false, length = 20)
     private String taskTypeCd;
 
     @Column(name = "REG_USER_NO", nullable = false)

@@ -156,13 +156,17 @@ describe('ObjectAttributePanel Phase 6 완성', () => {
     }
   });
 
-  it('trackId 있는 객체는 헤더에 #{trackId} 표시', () => {
+  it('헤더 #N 은 trackId 를 표기하지 않고 중립 식별자(id 앞 8자)만 사용', () => {
     const withTrack: Label = { ...sampleAuto, trackId: '42' };
     useLabelStore.getState().setLabels([withTrack]);
     useLabelStore.getState().selectLabel('auto1');
     renderWithProviders(<ObjectAttributePanel labels={[withTrack]} />);
+    // 헤더는 track_id(42) 가 아니라 id 슬라이스(auto1) — track_id 와 역할 분리.
     const idSpan = screen.getByTestId('object-attribute-id');
-    expect(idSpan.textContent).toBe('#42');
+    expect(idSpan.textContent).toBe('#auto1');
+    expect(idSpan.textContent).not.toContain('42');
+    // track_id 는 신설 "트랙 ID" 필드가 전담.
+    expect(screen.getByTestId('object-track-id')).toHaveTextContent('42');
   });
 
   it('trackId 없는 객체는 헤더에 id 앞 8자 fallback', () => {

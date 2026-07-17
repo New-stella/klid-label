@@ -34,6 +34,8 @@ export interface ShortcutHandlers {
   onCopyLabels?: (opts: { onlySelected: boolean }) => void;
   /** Ctrl+V / Ctrl+Shift+V — 현재 프레임에 붙여넣기 */
   onPasteLabels?: () => void;
+  /** ?(shift+/) — 단축키 치트시트 토글 (도구/액션 디스패치와 무관한 별도 콜백) */
+  onToggleCheatSheet?: () => void;
 }
 
 export interface ShortcutOptions {
@@ -43,6 +45,12 @@ export interface ShortcutOptions {
    * (툴바 숨김과 정합, 키보드 우회 활성화 차단).
    */
   portalMode?: boolean;
+  /**
+   * 단축키 발화 일시 억제. 모달(치트시트/프레임가드/닫기확인)이 열린 동안 true 로 주면
+   * keydown 핸들러가 얼리리턴해 배경 프레임 이동·라벨 삭제 등 부작용을 막는다(? 토글 포함 전부 억제).
+   * 리스너 등록 자체는 유지하며 발화만 억제한다. 모달은 공통 Modal 의 ESC 로 닫힌다.
+   */
+  suspended?: boolean;
 }
 
 const ZOOM_STEP = 1.2;
@@ -64,7 +72,7 @@ export function useLabelingShortcuts(
   handlers: ShortcutHandlers = {},
   options: ShortcutOptions = {},
 ): void {
-  const { portalMode = false } = options;
+  const { portalMode = false, suspended = false } = options;
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
   const undo = useLabelStore((s) => s.undo);
   const redo = useLabelStore((s) => s.redo);
@@ -174,6 +182,8 @@ export function useLabelingShortcuts(
     }
 
     function handler(e: KeyboardEvent) {
+      // 모달 열림 등으로 억제 중이면 모든 단축키 발화 차단(배경 프레임 이동/삭제 방지).
+      if (suspended) return;
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -186,6 +196,13 @@ export function useLabelingShortcuts(
 
       // IME 조합 중에는 e.key 가 변환된 한글/'Process' 라 문자 매칭이 깨지므로 물리 code 만 신뢰.
       const composing = e.isComposing || e.key === 'Process';
+
+      // ?(shift+/) — 치트시트 토글. 도구/액션 키맵에 없는 별도 콜백이라 디스패치 루프 앞에서 처리.
+      // 수식키(Ctrl/Alt) 조합이 아닐 때만(순수 '?') 반응해 Ctrl+? 등 브라우저 단축키와 충돌 회피.
+      if (handlers.onToggleCheatSheet && e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        handlers.onToggleCheatSheet();
+        return;
+      }
 
       for (const binding of SHORTCUT_KEYMAP) {
         // ADR-013 — 포털 모드에서는 오토라벨/키포인트 도구 단축키 게이팅(툴바 숨김과 정합).
@@ -200,7 +217,7 @@ export function useLabelingShortcuts(
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handlers, portalMode, setActiveTool, undo, redo, removeLabel, setZoom, setActiveLabelId, sortedLabelIds]);
+  }, [handlers, portalMode, suspended, setActiveTool, undo, redo, removeLabel, setZoom, setActiveLabelId, sortedLabelIds]);
 }
 
 // 재-export: 키맵/충돌 감사 유틸을 훅 소비처가 함께 참조할 수 있게 한다.

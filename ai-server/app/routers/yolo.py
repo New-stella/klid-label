@@ -41,10 +41,28 @@ _mock_warned: bool = False
 _track_mock_warned: bool = False
 
 
+def _apply_class_filter(
+    detections: list[Detection], classes: list[str] | None
+) -> list[Detection]:
+    """검출 결과를 클래스 화이트리스트로 필터 (Phase 4 — R3 AC3).
+
+    - classes 가 None 또는 빈 리스트면 필터 미적용(전체 반환). 빈 리스트를 '전부 제외'로
+      해석하지 않는 이유: 실수로 전 결과가 사라지는 footgun 방지 + BE/FE 하위호환.
+    - 지정 시 detection.label(COCO 영문명) 이 목록에 포함된 결과만 통과.
+    실제/mock 응답 모두 동일 규칙으로 필터되어 경로에 무관하게 일관 동작한다.
+    """
+    if not classes:
+        return detections
+    wanted = set(classes)
+    return [d for d in detections if d.label in wanted]
+
+
 @router.post("/predict", response_model=YoloResponse)
 async def predict(req: YoloRequest) -> YoloResponse:
     """객체 감지 — YOLOX (ONNX Runtime) 단일 백엔드."""
-    return _predict_yolox(req)
+    resp = _predict_yolox(req)
+    resp.detections = _apply_class_filter(resp.detections, req.classes)
+    return resp
 
 
 def _fallback_reason() -> str:
@@ -182,7 +200,9 @@ async def track(req: YoloTrackRequest) -> YoloTrackResponse:
 
     YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드.
     """
-    return _track_yolox(req)
+    resp = _track_yolox(req)
+    resp.detections = _apply_class_filter(resp.detections, req.classes)
+    return resp
 
 
 def _warn_track_mock_once(reason: str, backend: str = "yolox") -> None:

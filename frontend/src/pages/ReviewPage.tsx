@@ -16,7 +16,7 @@
 // - REVIEWER 권한은 라우터 RoleGuard에서 검증.
 // - 라벨 데이터 접근(IDOR)은 BE에서 본인 배정 검증.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -31,6 +31,7 @@ import { RejectModal } from '@/features/review/components/RejectModal';
 import { ReviewActionBar } from '@/features/review/components/ReviewActionBar';
 import { ReviewHeader } from '@/features/review/components/ReviewHeader';
 import { ReviewMemoPanel } from '@/features/review/components/ReviewMemoPanel';
+import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { useReview } from '@/features/review/hooks/useReview';
 import {
   useApproveReview,
@@ -42,6 +43,7 @@ import {
   useReviewSelectionStore,
   type PendingIssue,
 } from '@/features/review/store/useReviewSelectionStore';
+import { ISSUE_STATUS, ISSUE_TYPE } from '@/features/review/types';
 import { useUiStore } from '@/stores/useUiStore';
 
 /**
@@ -105,6 +107,36 @@ export function ReviewPage() {
   const { data: review, isLoading, error } = useReview(reviewId);
   const { data: frameList } = useReviewFrames(review?.videoId);
   const { data: issues } = useReviewIssues(reviewId);
+  // R1 — 영상 단위 이슈 스레드로 프레임 상태색 srcSn 집합 산출.
+  // v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임 매핑 불가 → 주황(반려) 프레임색 미대상.
+  // 미해소이슈(빨강)·저장(연두)·현재(강조)만 반영한다.
+  const { data: issueThreads } = useIssueThreads(review?.videoId);
+
+  // 미해소(RESOLVED 아님) 문의(INQUIRY) 프레임 srcSn → 빨강.
+  const inquirySrcSns = useMemo(
+    () =>
+      new Set(
+        (issueThreads ?? [])
+          .filter(
+            (t) =>
+              t.issueTypeCd === ISSUE_TYPE.INQUIRY &&
+              t.issueSttsCd !== ISSUE_STATUS.RESOLVED &&
+              t.srcSn != null,
+          )
+          .map((t) => t.srcSn as number),
+      ),
+    [issueThreads],
+  );
+  // 라벨 저장된 프레임 srcSn → 연두(부가). 검수 프레임엔 hasLabel 없어 labels 로 판정.
+  const savedSrcSns = useMemo(
+    () =>
+      new Set(
+        (frameList?.frames ?? [])
+          .filter((f) => f.labels.length > 0)
+          .map((f) => f.srcSn),
+      ),
+    [frameList],
+  );
 
   const { mutate: doStart } = useStartReview({
     onSuccess: () => setDidStart(true),
@@ -284,6 +316,8 @@ export function ReviewPage() {
           frames={frameList?.frames ?? []}
           currentFrameIdx={currentFrameIdx}
           onSelect={setCurrentFrameIdx}
+          inquirySrcSns={inquirySrcSns}
+          savedSrcSns={savedSrcSns}
         />
         <ReviewActionBar
           status={review.status}

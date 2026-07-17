@@ -6,11 +6,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * V107 포털 업로드 라벨 리포지토리 (control DB).
+ * 포털 업로드 라벨 리포지토리 (control DB).
  * <p>
  * 모든 조회/삭제는 PORTAL_USER_NO 소유자 스코프로 강제(IDOR 차단). 파라미터 바인딩
  * 파생 쿼리만 사용한다. replace-all 저장 패턴을 위해 프레임 단위 삭제를 제공한다.
@@ -36,4 +37,19 @@ public interface LsPortalUldLblRepository extends JpaRepository<LsPortalUldLbl, 
 
     /** 업로드 전체 라벨(소유자 스코프) — export/조회 대비. */
     List<LsPortalUldLbl> findAllByUldSnAndPortalUserNo(Long uldSn, String portalUserNo);
+
+    // ===== Phase 1 IT 호환 파생 메서드 =====
+
+    /** 프레임 단위 소유자 라벨 조회(최신순). */
+    List<LsPortalUldLbl> findByUldFrmeSnAndPortalUserNoOrderByRegDtDesc(
+            Long uldFrmeSn, String portalUserNo);
+
+    /** 업로드 단위 소유자 라벨 조회(export 대비, 최신순). */
+    List<LsPortalUldLbl> findByUldSnAndPortalUserNoOrderByRegDtDesc(
+            Long uldSn, String portalUserNo);
+
+    /** 프레임 단위 소유자 라벨 전체 삭제(replace-all 저장 전 정리용) — 삭제 건수 반환. */
+    @Modifying
+    @Transactional(value = "controlTransactionManager")
+    long deleteByUldFrmeSnAndPortalUserNo(Long uldFrmeSn, String portalUserNo);
 }

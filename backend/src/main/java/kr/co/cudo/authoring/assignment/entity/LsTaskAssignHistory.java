@@ -41,7 +41,7 @@ public class LsTaskAssignHistory {
     @Column(name = "NEW_USER_NO", nullable = false)
     private Long newUserNo;
 
-    @Column(name = "TASK_TYPE_CD", nullable = false, length = 32)
+    @Column(name = "TASK_TYPE_CD", nullable = false, length = 20)
     private String taskTypeCd;
 
     @Column(name = "CHG_USER_NO", nullable = false)

@@ -234,16 +234,16 @@ authoring:
       enabled: ${DEV_UPLOAD_ENABLED:false}
 
 # Phase 11 — 포털 채널 TUS 업로드 정책
-# V107 — 포털 전용 이미지/영상 업로드 정책 (PortalUploadProperties 바인딩)
+# + 포털 전용 이미지/영상 업로드 정책 (PortalUploadProperties 바인딩)
 portal:
   upload:
     max-file-size-bytes: ${PORTAL_MAX_FILE_SIZE:5368709120}        # 5 GB (영상)
     allowed-extensions: ${PORTAL_ALLOWED_EXT:mp4,mov,avi}          # 영상 확장자 allowlist
     storage-path: ${PORTAL_STORAGE_PATH:${authoring.storage.raw-path:./storage/raw}/portal}
-    allowed-image-extensions: ${PORTAL_ALLOWED_IMG_EXT:jpg,jpeg,png}  # 이미지 확장자 allowlist
-    max-image-size-bytes: ${PORTAL_MAX_IMG_SIZE:20971520}         # 20 MB (이미지)
-    max-images-per-request: ${PORTAL_MAX_IMAGES_PER_REQ:50}       # 1회 요청 최대 이미지 수
-    max-frames: ${PORTAL_MAX_FRAMES:2000}                         # 영상 1건 최대 추출 프레임 수
+    allowed-image-extensions: ${PORTAL_ALLOWED_IMAGE_EXT:jpg,jpeg,png}  # 이미지 확장자 allowlist
+    max-image-size-bytes: ${PORTAL_MAX_IMAGE_SIZE:20971520}        # 20 MB (이미지 1장)
+    max-images-per-request: ${PORTAL_MAX_IMAGES_PER_REQUEST:50}    # 1회 요청 최대 이미지 수
+    max-frames: ${PORTAL_MAX_FRAMES:2000}                          # 영상 1건 최대 추출 프레임 수
 
 # UC018 — ㈜KPST 비식별 솔루션 폴링 연동 클라이언트 (docs/v2-wiki/22-deid-solution-api.md).
 #  - enabled=true 기본 (비식별 단일 경로 = KPST 폴링. 레거시 동기 SPI/콜백 경로는 제거됨).

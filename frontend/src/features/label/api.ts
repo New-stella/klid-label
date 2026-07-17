@@ -536,13 +536,23 @@ export interface AutolabelResponse {
  * YOLO 오토라벨 수동 실행 요청.
  * BE: POST /frames/{srcSn}/autolabel
  *
+ * @param classIds (Phase 4 — R3) 검출 대상 클래스(COCO 영문명) 화이트리스트. 미지정/빈 배열이면
+ *                 body 없이 호출(전체 검출, 하위호환). 지정 시 body {classes:[...]} 로 해당 클래스만 검출.
+ *
  * 보안: srcSn 은 path 파라미터(axios 자동 인코딩). IDOR·작업락·좌표검증·포털 차단은 BE 책임(ADR-013).
+ *       classes 크기/원소 길이 검증은 BE @Valid 에서 수행(과대 리스트 400).
  */
-export function requestAutolabel(srcSn: number): Promise<AutolabelResponse> {
-  return apiClient
-    .post<AutolabelResponse>(`/frames/${srcSn}/autolabel`)
-    // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고 토스트로 분기하기 위함.
-    .then((r) => ({ ...r.data, message: r.message ?? null }));
+export function requestAutolabel(
+  srcSn: number,
+  classIds?: string[],
+): Promise<AutolabelResponse> {
+  // 빈 배열/미지정은 body 없이(전체 검출) — 기존 호출 형태 유지(무회귀).
+  const post =
+    classIds && classIds.length > 0
+      ? apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`, { classes: classIds })
+      : apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`);
+  // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고 토스트로 분기하기 위함.
+  return post.then((r) => ({ ...r.data, message: r.message ?? null }));
 }
 
 /** BE TrackMergeResponse 와 1:1. */
@@ -572,5 +582,65 @@ export function mergeTracks(
 ): Promise<TrackMergeResponse> {
   return apiClient
     .post<TrackMergeResponse>(`/videos/${rawSn}/tracks/merge`, { fromTrackId, toTrackId })
+    .then((r) => r.data);
+}
+
+/** BE TrackDeleteResponse 와 1:1 (R4 트랙 삭제). */
+export interface TrackDeleteResponse {
+  rawSn: number;
+  trackId: string;
+  fromFrameNo: number;
+  /** 실제 삭제된 라벨 수(범위 밖이면 0). */
+  deletedCount: number;
+}
+
+/**
+ * 트랙 삭제 — 지정 프레임(fromFrameNo) 이후(포함) 프레임의 해당 트랙 라벨을 전부 삭제(R4).
+ * BE: DELETE /v1/videos/{rawSn}/tracks/{trackId}?fromFrameNo={n}
+ *
+ * <p>fromFrameNo 는 현재 보고 있는 프레임 번호를 전달한다(현재 프레임 이후 궤적 삭제).
+ * 보안: rawSn/trackId 는 path(axios 자동 인코딩), fromFrameNo 는 query. IDOR·배타 락·FK 고아 방지·
+ * 포털 차단은 BE 책임(ADR-013).
+ */
+export function deleteTrack(
+  rawSn: number,
+  trackId: string,
+  fromFrameNo: number,
+): Promise<TrackDeleteResponse> {
+  return apiClient
+    .delete<TrackDeleteResponse>(`/videos/${rawSn}/tracks/${encodeURIComponent(trackId)}`, {
+      params: { fromFrameNo },
+    })
+    .then((r) => r.data);
+}
+
+/** BE TrackSplitResponse 와 1:1 (R5 트랙 분할). */
+export interface TrackSplitResponse {
+  rawSn: number;
+  originalTrackId: string;
+  /** 분할로 새로 부여된 트랙 ID(영상 내 유니크 = max 정수 트랙ID + 1). */
+  newTrackId: string;
+  atFrameNo: number;
+  /** 새 트랙으로 이동된 원 키프레임 라벨 수(경계 밖이면 0). */
+  movedCount: number;
+}
+
+/**
+ * 트랙 분할(split) — atFrameNo 이후(포함) 프레임의 트랙 키프레임을 새 트랙 ID 로 분리(R5).
+ * BE: POST /v1/videos/{rawSn}/tracks/{trackId}/split  — body: { atFrameNo }
+ *
+ * <p>atFrameNo 는 현재 보고 있는 프레임 번호를 전달한다(현재 프레임 기준 분할). 좌표는 불변.
+ * 보안: rawSn/trackId 는 path(axios 자동 인코딩), atFrameNo 는 body. IDOR·배타 락·유니크 채번·
+ * 포털 차단은 BE 책임(ADR-013).
+ */
+export function splitTrack(
+  rawSn: number,
+  trackId: string,
+  atFrameNo: number,
+): Promise<TrackSplitResponse> {
+  return apiClient
+    .post<TrackSplitResponse>(`/videos/${rawSn}/tracks/${encodeURIComponent(trackId)}/split`, {
+      atFrameNo,
+    })
     .then((r) => r.data);
 }

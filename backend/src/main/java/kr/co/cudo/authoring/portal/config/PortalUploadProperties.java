@@ -1,17 +1,16 @@
 package kr.co.cudo.authoring.portal.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
-import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
 /**
- * V107 포털 전용 업로드 정책 바인딩 ({@code portal.upload.*}).
+ * 포털 전용 업로드 정책 바인딩 ({@code portal.upload.*}).
  * <p>
  * 생성자 바인딩(record) — 불변 + {@code @Setter} 미사용. 파일 크기/확장자 allowlist·개수·
  * 프레임 상한을 설정으로 강제해 무제한 소비(OWASP API4)와 위험 확장자 업로드를 예방한다.
+ * 빈 등록은 {@link PortalUploadConfig}(도메인 국소 {@code @EnableConfigurationProperties})가 담당한다.
  * <ul>
  *   <li>{@code maxFileSizeBytes} : 영상 파일 최대 크기(byte)</li>
  *   <li>{@code allowedExtensions} : 허용 영상 확장자 allowlist</li>
@@ -32,10 +31,4 @@ public record PortalUploadProperties(
         @DefaultValue("50") int maxImagesPerRequest,
         @DefaultValue("2000") int maxFrames
 ) {
-
-    /** 컴포넌트 스캔이 config 클래스를 등록하도록 하는 프로퍼티 활성화. (별도 앱 클래스 수정 불필요) */
-    @Configuration
-    @EnableConfigurationProperties(PortalUploadProperties.class)
-    static class Registrar {
-    }
 }

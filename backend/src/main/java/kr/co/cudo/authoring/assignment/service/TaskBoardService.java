@@ -67,7 +67,9 @@ public class TaskBoardService {
             // 신규 업로드(PENDING)·실패(FAILED) 영상도 포함 — FE 가 batchStatus 뱃지로 구분 표시.
             page = videoRepository.findUnassigned(pageable);
         } else {
-            page = videoRepository.findAllByDataSttsCdOrderByRegDtDesc(effectiveStatus, pageable);
+            // R2 AC2 — 재작업(반려)·검수대기 건이 상단에 오도록 워크플로 상태 우선순위로 서버 정렬한다
+            // (반려>검수대기>배정>미배정>완료 → REG_DT DESC → RAW_SN DESC). 배치 상태 필터·페이징은 불변.
+            page = videoRepository.findBoardOrderByStatusPriority(effectiveStatus, pageable);
         }
         List<LsDataRaw> rows = page.getContent();
         if (rows.isEmpty()) {

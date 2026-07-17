@@ -36,8 +36,10 @@ public final class ConfigKeys {
     public static final String POLYGON_SIMPLIFY_TOLERANCE = "POLYGON_SIMPLIFY_TOLERANCE";
 
     /**
-     * V107 (포털 전용 업로드) — 업로드 영상 프레임 추출 간격(초).
-     * NUMBER, 기본 5, 범위 1~600. 값이 클수록 추출 프레임이 줄어든다.
+     * 포털 전용 업로드 — 영상 프레임 추출 간격(초).
+     * <p>
+     * NUMBER 정수 1~600. 기본 5(V109 시드). 값이 클수록 추출 프레임이 줄어든다.
+     * {@code SystemConfigService.getInt} 로 조회.
      */
     public static final String PORTAL_UPLOAD_FRAME_INTERVAL_SEC = "portal.upload.frame-interval-sec";
 

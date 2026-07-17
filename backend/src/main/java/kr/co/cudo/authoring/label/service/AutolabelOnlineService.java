@@ -102,11 +102,18 @@ public class AutolabelOnlineService {
     public record AutolabelOutcome(AutolabelResponse response, boolean mock) {
     }
 
+    /** 하위호환 — 클래스 필터 미지정(전체 검출) 오버로드. */
+    public AutolabelOutcome autolabel(Long srcSn, TokenClaims actor) {
+        return autolabel(srcSn, actor, null);
+    }
+
     /**
      * 오토라벨 오케스트레이션 — <b>non-transactional</b>. AI 블로킹 호출을 트랜잭션 밖에서 수행하고
      * 저장만 {@link AutolabelPersistService}(짧은 트랜잭션)에 위임한다(F-1).
+     *
+     * @param classes 검출 대상 클래스 라벨(COCO 영문명) 화이트리스트 (Phase 4). null/빈 → 전체(미필터).
      */
-    public AutolabelOutcome autolabel(Long srcSn, TokenClaims actor) {
+    public AutolabelOutcome autolabel(Long srcSn, TokenClaims actor, List<String> classes) {
         // 1) IDOR 최우선 — 본인 배정 프레임 검증 후 프레임 획득(rawSn/경로 확보). (non-tx: 단순 스칼라 조회)
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
         Long rawSn = src.getRawSn();
@@ -122,7 +129,8 @@ public class AutolabelOnlineService {
         }
         try {
             // 4) ai-server YOLO 추론 (원본 프레임) — 트랜잭션 밖·bulkhead 제한. DB 커넥션 미점유.
-            YoloResponse resp = callAiServer(src, rawSn);
+            //    classes 지정 시 ai-server 가 해당 클래스만 검출(R3 AC3). null/빈 이면 전체.
+            YoloResponse resp = callAiServer(src, rawSn, normalizeClasses(classes));
             boolean mock = resp != null && resp.mock();
             List<YoloResponse.Detection> detections =
                     (resp == null || resp.detections() == null) ? List.of() : resp.detections();
@@ -149,8 +157,16 @@ public class AutolabelOnlineService {
         }
     }
 
+    /**
+     * null/빈 리스트를 전체(미필터) 신호인 null 로 정규화 — ai-server 로 빈 배열이 전달돼 전부 제외되는
+     * footgun 을 BE 단에서도 차단(FE·ai-server 와 동일 규칙).
+     */
+    private List<String> normalizeClasses(List<String> classes) {
+        return (classes == null || classes.isEmpty()) ? null : classes;
+    }
+
     /** ai-server YOLO 추론 호출 — 요청 단위 고유 clipId 로 트래커 상태 격리, bulkhead 로 동시성 제한(F-2). */
-    private YoloResponse callAiServer(LsDataSrc src, Long rawSn) {
+    private YoloResponse callAiServer(LsDataSrc src, Long rawSn, List<String> classes) {
         String imageB64 = frameImageEncoder.encodeToBase64(src.getSrcFilePathNm());
         double conf = readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
         int imgsz = readInt(ConfigKeys.YOLO_IMGSZ, DEFAULT_IMGSZ);
@@ -160,7 +176,7 @@ public class AutolabelOnlineService {
         try {
             // BulkheadOperator 를 최외곽에 두어 permit 을 블로킹 호출(재시도 포함) 전 구간에 걸쳐 점유.
             return aiServerClient.predictYoloTrack(
-                            new YoloTrackRequest(imageB64, clipId, 0, conf, imgsz, iou))
+                            new YoloTrackRequest(imageB64, clipId, 0, conf, imgsz, iou, classes))
                     .transformDeferred(BulkheadOperator.of(aiOnlineBulkhead))
                     .block(Duration.ofSeconds(70));
         } catch (BulkheadFullException e) {

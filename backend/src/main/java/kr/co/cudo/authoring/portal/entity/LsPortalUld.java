@@ -15,10 +15,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * V107 포털 전용 업로드 마스터 (LS_PORTAL_ULD).
+ * 포털 전용 업로드 마스터 (LS_PORTAL_ULD).
  * <p>
- * 포털 사용자가 직접 올린 이미지 1건 또는 영상 1건. 관제 학습용 적재 파이프라인과 분리된
- * 포털 전용 경로다. 상태 전이는 {@code @Setter} 대신 의미 있는 비즈니스 메서드로만 수행한다.
+ * 포털 사용자가 직접 올린 이미지 1건 또는 영상 1건. 데이터마트/원본(LS_DATA_RAW)과 무관한
+ * 포털 전용 작업본이며, 관제 학습용 적재 파이프라인과 분리된 경로다. 상태 전이는
+ * {@code @Setter} 대신 의미 있는 비즈니스 메서드로만 수행한다.
  * <ul>
  *   <li>UPLOADED : 업로드 완료(처리 대기)</li>
  *   <li>PROCESSING : 프레임 추출 등 후처리 중</li>
@@ -84,39 +85,36 @@ public class LsPortalUld {
     @Column(name = "MDFCN_DT", nullable = false)
     private LocalDateTime mdfcnDt;
 
+    private LsPortalUld(String portalUserNo, String uldTypeCd, String orgnlFileNm,
+                        String filePathNm, Long fileSz, String mimeTypeNm) {
+        this.portalUserNo = portalUserNo;
+        this.uldTypeCd = uldTypeCd;
+        this.orgnlFileNm = orgnlFileNm;
+        this.filePathNm = filePathNm;
+        this.fileSz = fileSz;
+        this.mimeTypeNm = mimeTypeNm;
+        this.uldSttsCd = STTS_UPLOADED;
+        LocalDateTime now = LocalDateTime.now();
+        this.regDt = now;
+        this.mdfcnDt = now;
+    }
+
     /** 이미지 업로드 생성 팩토리 — 초기 상태 UPLOADED. */
     public static LsPortalUld createImage(String portalUserNo, String orgnlFileNm,
                                           String filePathNm, Long fileSz, String mimeTypeNm) {
-        LsPortalUld entity = baseCreate(portalUserNo, TYPE_IMAGE, orgnlFileNm, filePathNm, fileSz, mimeTypeNm);
-        return entity;
+        return new LsPortalUld(portalUserNo, TYPE_IMAGE, orgnlFileNm, filePathNm, fileSz, mimeTypeNm);
     }
 
     /** 영상 업로드 생성 팩토리 — 초기 상태 UPLOADED. 프레임 추출 메타는 이후 markReady 로 채운다. */
     public static LsPortalUld createVideo(String portalUserNo, String orgnlFileNm,
                                           String filePathNm, Long fileSz, String mimeTypeNm) {
-        LsPortalUld entity = baseCreate(portalUserNo, TYPE_VIDEO, orgnlFileNm, filePathNm, fileSz, mimeTypeNm);
-        return entity;
-    }
-
-    private static LsPortalUld baseCreate(String portalUserNo, String uldTypeCd, String orgnlFileNm,
-                                          String filePathNm, Long fileSz, String mimeTypeNm) {
-        LsPortalUld entity = new LsPortalUld();
-        entity.portalUserNo = portalUserNo;
-        entity.uldTypeCd = uldTypeCd;
-        entity.orgnlFileNm = orgnlFileNm;
-        entity.filePathNm = filePathNm;
-        entity.fileSz = fileSz;
-        entity.mimeTypeNm = mimeTypeNm;
-        entity.uldSttsCd = STTS_UPLOADED;
-        LocalDateTime now = LocalDateTime.now();
-        entity.regDt = now;
-        entity.mdfcnDt = now;
-        return entity;
+        return new LsPortalUld(portalUserNo, TYPE_VIDEO, orgnlFileNm, filePathNm, fileSz, mimeTypeNm);
     }
 
     /** 후처리 시작 — UPLOADED → PROCESSING. */
     public void markProcessing() {
         this.uldSttsCd = STTS_PROCESSING;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /**
@@ -124,17 +122,19 @@ public class LsPortalUld {
      * 이미지는 메타가 null 일 수 있다.
      */
     public void markReady(Double vdoLenSec, Double fps, Integer frmeCnt) {
+        this.uldSttsCd = STTS_READY;
         this.vdoLenSec = vdoLenSec;
         this.fps = fps;
         this.frmeCnt = frmeCnt;
         this.failRsnCn = null;
-        this.uldSttsCd = STTS_READY;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /** 처리 실패 — → FAILED. 사유를 기록한다. */
     public void markFailed(String failRsnCn) {
-        this.failRsnCn = failRsnCn;
         this.uldSttsCd = STTS_FAILED;
+        this.failRsnCn = failRsnCn;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     @PrePersist
@@ -142,6 +142,7 @@ public class LsPortalUld {
         LocalDateTime now = LocalDateTime.now();
         if (this.regDt == null) this.regDt = now;
         if (this.mdfcnDt == null) this.mdfcnDt = now;
+        if (this.uldSttsCd == null) this.uldSttsCd = STTS_UPLOADED;
     }
 
     @PreUpdate

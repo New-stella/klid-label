@@ -75,7 +75,7 @@ public class LsDatasetVideoMeta {
     @Column(name = "VDO_LEN_SEC")
     private Integer vdoLenSec;
 
-    @Column(name = "LCLGV_CD", length = 32)
+    @Column(name = "LCLGV_CD", length = 20)
     private String lclgvCd;
 
     @Column(name = "PRVC_YN", length = 1)
@@ -93,7 +93,7 @@ public class LsDatasetVideoMeta {
     @JdbcTypeCode(SqlTypes.CHAR)
     private String aiCrtYn;
 
-    @Column(name = "EVNT_TYPE_CD", length = 32)
+    @Column(name = "EVNT_TYPE_CD", length = 20)
     private String evntTypeCd;
 
     // ---- MNG 동결 ----
@@ -119,7 +119,7 @@ public class LsDatasetVideoMeta {
     private String evntNm;
 
     // ---- ffprobe 기술 메타 ----
-    @Column(name = "VDO_CDC", length = 32)
+    @Column(name = "VDO_CDC", length = 20)
     private String vdoCdc;
 
     @Column(name = "FPS")
@@ -147,7 +147,7 @@ public class LsDatasetVideoMeta {
     @Column(name = "DAY_NGT_CD", length = 8)
     private String dayNgtCd;
 
-    @Column(name = "SESN_CD", length = 8)
+    @Column(name = "SESN_CD", length = 20)
     private String sesnCd;
 
     @Column(name = "WTHR_NM", length = 32)
@@ -160,7 +160,7 @@ public class LsDatasetVideoMeta {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "REG_ID", length = 64)
+    @Column(name = "REG_ID", length = 30)
     private String regId;
 
     @Builder

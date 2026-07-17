@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * V107 포털 업로드 프레임별 수동 라벨 (LS_PORTAL_ULD_LBL).
+ * 포털 업로드 프레임별 수동 라벨 (LS_PORTAL_ULD_LBL).
  * <p>
  * {@link LsPortalUserLabel}(데이터마트 영상 라벨) 패턴 준용 — 원본 미수정, 포털 사용자별 적재.
  * 프레임(ULD_FRME) 삭제 시 DB ON DELETE CASCADE 로 연쇄 삭제된다. 좌표 갱신은 의미 있는
@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LsPortalUldLbl {
 
+    /** 라벨 유형 코드. */
     public static final String TYPE_BBOX    = "BBOX";
     public static final String TYPE_POLYGON = "POLYGON";
 
@@ -59,25 +60,29 @@ public class LsPortalUldLbl {
     @Column(name = "MDFCN_DT", nullable = false)
     private LocalDateTime mdfcnDt;
 
+    private LsPortalUldLbl(String portalUserNo, Long uldSn, Long uldFrmeSn,
+                          String lblTypeCd, String lblNm, String pointCn) {
+        this.portalUserNo = portalUserNo;
+        this.uldSn = uldSn;
+        this.uldFrmeSn = uldFrmeSn;
+        this.lblTypeCd = lblTypeCd;
+        this.lblNm = lblNm;
+        this.pointCn = pointCn;
+        LocalDateTime now = LocalDateTime.now();
+        this.regDt = now;
+        this.mdfcnDt = now;
+    }
+
     public static LsPortalUldLbl create(String portalUserNo, Long uldSn, Long uldFrmeSn,
                                         String lblTypeCd, String lblNm, String pointCn) {
-        LsPortalUldLbl entity = new LsPortalUldLbl();
-        entity.portalUserNo = portalUserNo;
-        entity.uldSn = uldSn;
-        entity.uldFrmeSn = uldFrmeSn;
-        entity.lblTypeCd = lblTypeCd;
-        entity.lblNm = lblNm;
-        entity.pointCn = pointCn;
-        LocalDateTime now = LocalDateTime.now();
-        entity.regDt = now;
-        entity.mdfcnDt = now;
-        return entity;
+        return new LsPortalUldLbl(portalUserNo, uldSn, uldFrmeSn, lblTypeCd, lblNm, pointCn);
     }
 
     /** 라벨명/좌표 갱신 — 의미 있는 상태 변경 메서드. */
     public void updatePoints(String lblNm, String pointCn) {
         this.lblNm = lblNm;
         this.pointCn = pointCn;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     @PrePersist

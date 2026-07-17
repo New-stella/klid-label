@@ -107,20 +107,6 @@ describe('VideoListPage', () => {
     expect(screen.getByRole('button', { name: /상세/ })).toBeInTheDocument();
   });
 
-  it('REVIEWER로_접속하면_각_영상_행에_배정_버튼이_노출된다', async () => {
-    setRole('REVIEWER');
-    mockVideosOnce(mock);
-
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
-
-    await waitFor(() => {
-      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
-    });
-    expect(
-      screen.getByRole('button', { name: '강남대로 CCTV 작업자 배정' }),
-    ).toBeInTheDocument();
-  });
-
   it('배정된_영상은_배정자명이_컬럼에_표시된다', async () => {
     setRole('REVIEWER');
     mockVideosOnce(mock, { content: [ASSIGNED_VIDEO] });
@@ -134,7 +120,10 @@ describe('VideoListPage', () => {
     expect(screen.getByText('김작업')).toBeInTheDocument();
   });
 
-  it('미배정_영상은_미배정으로_표시되고_배정_버튼이_노출된다', async () => {
+  it('미배정_영상은_미배정으로_표시되고_재배정_버튼은_노출되지_않는다', async () => {
+    // 마킹 개편 후 단건 "배정" 버튼은 제거됨. 미배정 영상(검수완료 상태)은
+    // '미배정' 표기만 남고 재배정 버튼은 노출되지 않는다.
+    // (미배정 + MARKING_READY → "마킹" 버튼 노출은 pages/__tests__ 가 커버)
     setRole('REVIEWER');
     mockVideosOnce(mock, { content: [UNASSIGNED_VIDEO] });
 
@@ -144,10 +133,6 @@ describe('VideoListPage', () => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
     });
     expect(screen.getByText('미배정')).toBeInTheDocument();
-    // 미배정 → "배정" 버튼 (재배정 아님)
-    expect(
-      screen.getByRole('button', { name: '강남대로 CCTV 작업자 배정' }),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '강남대로 CCTV 작업자 재배정' }),
     ).not.toBeInTheDocument();
@@ -224,14 +209,18 @@ describe('VideoListPage', () => {
     expect(within(dialog).getByText(/김작업.*\(현재\)/)).toBeInTheDocument();
   });
 
-  it('배정_성공후_목록이_refetch되어_행이_갱신된다', async () => {
-    // 배정 mutation 의 VIDEO_KEYS 무효화 → /videos 재조회로 행이 갱신되는지 검증.
-    // 첫 응답=미배정, 배정 POST 성공 후 재조회=배정됨(김작업).
+  it('재배정_성공후_목록이_refetch되어_행이_갱신된다', async () => {
+    // 마킹 개편으로 단건 배정 경로는 제거됨 — handleAssignDone 의 refetch/무효화는
+    // 재배정(reassign) 경로로 여전히 유효하므로 재배정 트리거로 검증한다.
+    // 첫 응답=김작업(workerId 5), 재배정 PATCH 성공 후 재조회=박작업(workerId 6).
     setRole('REVIEWER');
     let videosCall = 0;
     mock.onGet('/videos').reply(() => {
       videosCall += 1;
-      const content = videosCall === 1 ? [UNASSIGNED_VIDEO] : [ASSIGNED_VIDEO];
+      const content =
+        videosCall === 1
+          ? [ASSIGNED_VIDEO]
+          : [{ ...ASSIGNED_VIDEO, workerId: 6, workerName: '박작업' }];
       return [
         200,
         {
@@ -242,10 +231,13 @@ describe('VideoListPage', () => {
         },
       ];
     });
-    mockAssignModalUsers(mock, [{ id: 5, name: '김작업', active: true }]);
-    mock.onPost('/assignments').reply(201, {
+    mockAssignModalUsers(mock, [
+      { id: 5, name: '김작업', active: true },
+      { id: 6, name: '박작업', active: true },
+    ]);
+    mock.onPatch('/assignments/77').reply(200, {
       success: true,
-      data: { id: 77, videoId: 1, workerId: 5, status: 'IN_PROGRESS', assignedAt: '2026-05-02T09:00:00Z' },
+      data: { id: 77, videoId: 1, workerId: 6, status: 'IN_PROGRESS', assignedAt: '2026-05-02T09:00:00Z' },
       message: null,
       errorCode: null,
     });
@@ -254,40 +246,43 @@ describe('VideoListPage', () => {
     renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
 
     await waitFor(() => {
-      expect(screen.getByText('미배정')).toBeInTheDocument();
+      expect(screen.getByText('김작업')).toBeInTheDocument();
     });
 
     await user.click(
-      screen.getByRole('button', { name: '강남대로 CCTV 작업자 배정' }),
+      screen.getByRole('button', { name: '강남대로 CCTV 작업자 재배정' }),
     );
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
-    // 작업자 선택 후 저장
+    // 현재(5)와 다른 작업자(6) 선택 후 저장 (동일 작업자면 저장 버튼 비활성)
     const dialog = screen.getByRole('dialog');
     const workerSelect = within(dialog).getByLabelText(/작업자/) as HTMLSelectElement;
-    await user.selectOptions(workerSelect, '5');
+    await user.selectOptions(workerSelect, '6');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
-    // 배정 성공 → VIDEO_KEYS 무효화 → /videos 재조회 → 배정자명 표시
+    // 재배정 성공 → VIDEO_KEYS 무효화 → /videos 재조회 → 새 배정자명 표시
     await waitFor(() => {
-      expect(screen.getByText('김작업')).toBeInTheDocument();
+      expect(screen.getByText('박작업')).toBeInTheDocument();
     });
-    expect(mock.history.post.length).toBeGreaterThanOrEqual(1);
+    expect(mock.history.patch.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('배정_성공후_assignments_쿼리가_무효화된다', async () => {
-    // TaskListPage onSuccess 정합 — 배정/재배정 성공 시 ['assignments'] 무효화로
-    // 작업 목록(/assignments) 캐시까지 갱신한다.
+  it('재배정_성공후_assignments_쿼리가_무효화된다', async () => {
+    // TaskListPage onSuccess 정합 — 재배정 성공 시 ['assignments'] 무효화로
+    // 작업 목록(/assignments) 캐시까지 갱신한다(handleAssignDone).
     setRole('REVIEWER');
-    mockVideosOnce(mock, { content: [UNASSIGNED_VIDEO] });
-    mockAssignModalUsers(mock, [{ id: 5, name: '김작업', active: true }]);
-    mock.onPost('/assignments').reply(201, {
+    mockVideosOnce(mock, { content: [ASSIGNED_VIDEO] });
+    mockAssignModalUsers(mock, [
+      { id: 5, name: '김작업', active: true },
+      { id: 6, name: '박작업', active: true },
+    ]);
+    mock.onPatch('/assignments/77').reply(200, {
       success: true,
       data: {
         id: 77,
         videoId: 1,
-        workerId: 5,
+        workerId: 6,
         status: 'IN_PROGRESS',
         assignedAt: '2026-05-02T09:00:00Z',
       },
@@ -305,48 +300,22 @@ describe('VideoListPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('미배정')).toBeInTheDocument();
+      expect(screen.getByText('김작업')).toBeInTheDocument();
     });
     await user.click(
-      screen.getByRole('button', { name: '강남대로 CCTV 작업자 배정' }),
+      screen.getByRole('button', { name: '강남대로 CCTV 작업자 재배정' }),
     );
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
     const dialog = screen.getByRole('dialog');
     const workerSelect = within(dialog).getByLabelText(/작업자/) as HTMLSelectElement;
-    await user.selectOptions(workerSelect, '5');
+    await user.selectOptions(workerSelect, '6');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['assignments'] });
     });
-  });
-
-  it('REVIEWER가_배정_버튼을_누르면_해당_영상이_선택된_채_AssignModal이_열린다', async () => {
-    setRole('REVIEWER');
-    mockVideosOnce(mock);
-    // AssignModal 이 REVIEWER 일 때 호출하는 작업자/검수자 API 빈 응답 stub
-    mockAssignModalUsers(mock);
-
-    const user = userEvent.setup();
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
-
-    await waitFor(() => {
-      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
-    });
-    await user.click(
-      screen.getByRole('button', { name: '강남대로 CCTV 작업자 배정' }),
-    );
-
-    // AssignModal(단건 신규 배정) 오픈 — 영상명이 모달 내부에 선택된 채 표시된다.
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-    expect(screen.getByText('작업 배정')).toBeInTheDocument();
-    // 모달 안에 대상 영상명(미리보기)이 표시
-    const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('강남대로 CCTV')).toBeInTheDocument();
   });
 
   it('WORKER로_접속하면_배정_버튼이_노출되지_않는다', async () => {

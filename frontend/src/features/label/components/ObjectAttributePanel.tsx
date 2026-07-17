@@ -116,8 +116,9 @@ export function ObjectAttributePanel({
 
   const lowConfidence = target.confidence !== undefined && target.confidence < 0.5;
   const sourceLabel = target.source === 'MANUAL' ? '수동' : '자동';
-  // 객체 식별자: trackId 가 있으면 우선, 없으면 라벨 id 앞 8자 (UUID/short hash 가독성)
-  const objectNumber = target.trackId ?? String(target.id ?? '').slice(0, 8);
+  // 헤더 식별자: 중립적 객체 식별자(라벨 id 앞 8자)만 사용한다. track_id 는 참조하지 않는다 —
+  // track_id 는 아래 신설 "트랙 ID" 필드가 전담하므로 헤더 #N 과 역할을 완전히 분리한다.
+  const objectNumber = String(target.id ?? '').slice(0, 8);
 
   // 실측 크기 미확정(undefined) 시 상한 clamp 미적용 — 하한 0 만 유지. 실측값이 있으면
   // 우/하단 경계(width-1 / height-1)로 clamp 해 이미지 밖 좌표·데이터 손실을 방지한다.
@@ -183,6 +184,17 @@ export function ObjectAttributePanel({
       ) : (
         <Field label="라벨" value={target.className ? `${target.className} (#${target.classId})` : '라벨 없음'} />
       )}
+
+      {/* 트랙 ID — 헤더의 objectNumber(식별자 fallback) 와 별개로, track_id 원값을 명확히 노출한다.
+          있으면 실제 track_id, 없으면(null/undefined) "미부여"로 명시. */}
+      <Field
+        label="트랙 ID"
+        value={
+          <span data-testid="object-track-id">
+            {target.trackId != null ? target.trackId : '미부여'}
+          </span>
+        }
+      />
 
       <Field
         label="생성출처"

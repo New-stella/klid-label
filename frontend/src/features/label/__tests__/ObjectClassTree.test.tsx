@@ -23,7 +23,7 @@ function makeLabel(over: Partial<Label> & Pick<Label, 'id'>): Label {
 }
 
 describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
-  it('trackId 있는 객체는 #{trackId} 표시', () => {
+  it('trackId 는 순번(#N)과 분리된 별도 chip(T:{trackId})으로 표시', () => {
     useLabelStore.getState().reset();
     const labels: Label[] = [
       makeLabel({ id: 'a', trackId: '42' }),
@@ -31,12 +31,20 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     ];
     renderWithProviders(<ObjectClassTree labels={labels} />);
 
-    // displayName 은 person → '사람' 등으로 매핑될 수 있으므로 #N 부분만 검증
-    expect(screen.getByText(/#42$/)).toBeInTheDocument();
-    expect(screen.getByText(/#99$/)).toBeInTheDocument();
+    // track_id 는 순번과 별개의 chip 으로 노출된다.
+    expect(screen.getByText('T:42')).toBeInTheDocument();
+    expect(screen.getByText('T:99')).toBeInTheDocument();
+    // 순번(#N)은 track_id 가 아니라 목록 내 index(1,2) — track_id 값(42/99)과 분리.
+    expect(screen.getByText(/#1$/)).toBeInTheDocument();
+    expect(screen.getByText(/#2$/)).toBeInTheDocument();
+    expect(screen.queryByText(/#42$/)).toBeNull();
+    expect(screen.queryByText(/#99$/)).toBeNull();
+    // 접근성: 트랙 ID 요소에 의미 있는 aria-label.
+    expect(screen.getByLabelText('트랙 ID 42')).toBeInTheDocument();
+    expect(screen.getByLabelText('트랙 ID 99')).toBeInTheDocument();
   });
 
-  it('trackId 없는 객체는 #{1, 2, 3} 그룹 순번 fallback', () => {
+  it('trackId 없는 객체는 순번(#N)=idx+1 유지 + 트랙 ID "미부여"(T:—) 표기', () => {
     useLabelStore.getState().reset();
     const labels: Label[] = [
       makeLabel({ id: 'a' }),
@@ -45,9 +53,13 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     ];
     renderWithProviders(<ObjectClassTree labels={labels} />);
 
+    // 순번은 안정적 index 로 유지.
     expect(screen.getByText(/#1$/)).toBeInTheDocument();
     expect(screen.getByText(/#2$/)).toBeInTheDocument();
     expect(screen.getByText(/#3$/)).toBeInTheDocument();
+    // track_id 미부여는 명시적으로 T:— + aria-label "트랙 ID 미부여".
+    expect(screen.getAllByText('T:—')).toHaveLength(3);
+    expect(screen.getAllByLabelText('트랙 ID 미부여')).toHaveLength(3);
   });
 
   it('각 행 좌측에 trackColor 컬러 바 표시', () => {
@@ -90,14 +102,15 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     expect(trackIdToColor('42')).toBe(trackIdToColor('42'));
   });
 
-  it('aria-label 도 trackId 우선으로 갱신', () => {
+  it('선택 버튼 aria-label 은 순번(#N=idx+1) 기준', () => {
     useLabelStore.getState().reset();
     const labels: Label[] = [makeLabel({ id: 'a', trackId: '42' })];
     renderWithProviders(<ObjectClassTree labels={labels} />);
 
-    // displayName 매핑은 labelColors 모듈 책임이므로 정규식으로만 검증
-    const btn = screen.getByLabelText(/#42 선택$/);
+    // 순번은 track_id(42) 가 아닌 index(1) — 선택 aria-label 은 #1.
+    const btn = screen.getByLabelText(/#1 선택$/);
     expect(btn).toBeInTheDocument();
+    expect(screen.queryByLabelText(/#42 선택$/)).toBeNull();
   });
 
   it('trackId 없는 객체는 회색 fallback 컬러 바', () => {
@@ -126,11 +139,13 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     ];
     renderWithProviders(<ObjectClassTree labels={labels} />);
 
-    const btn = screen.getByLabelText(/#7 선택$/);
+    // 순번은 index(1). track_id 7 은 별도 chip.
+    const btn = screen.getByLabelText(/#1 선택$/);
     expect(btn).toBeInTheDocument();
     // aria-hidden 인 아이콘 텍스트에 🔗 포함
     expect(btn.textContent ?? '').toContain('🔗');
     expect(btn.textContent ?? '').not.toContain('🤖');
+    expect(screen.getByText('T:7')).toBeInTheDocument();
   });
 
   it('DETECTED 자동 객체는 🤖, 수동은 ✏️, 보간은 🔗', () => {
@@ -161,14 +176,14 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     const labels: Label[] = [makeLabel({ id: 'a', trackId: '42' })];
     renderWithProviders(<ObjectClassTree labels={labels} portalMode onRenameTrack={vi.fn()} />);
 
-    // 연필(트랙 번호 변경) 버튼이 DOM 에 존재하지 않아야 한다(opacity-0 노출 여부와 무관).
-    expect(screen.queryByLabelText(/트랙 번호 변경$/)).toBeNull();
+    // 연필(트랙 ID 변경) 버튼이 DOM 에 존재하지 않아야 한다(opacity-0 노출 여부와 무관).
+    expect(screen.queryByLabelText(/트랙 ID 변경$/)).toBeNull();
     // 객체 선택/삭제 등 기본 기능은 그대로 노출 — 회귀 가드.
-    expect(screen.getByLabelText(/#42 선택$/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/#1 선택$/)).toBeInTheDocument();
     expect(screen.getByLabelText('객체 삭제')).toBeInTheDocument();
   });
 
-  it('비포털_rename_기존동작_유지', async () => {
+  it('비포털_rename_연필은_여전히_track_id를_편집', async () => {
     useLabelStore.getState().reset();
     const onRenameTrack = vi.fn();
     const labels: Label[] = [makeLabel({ id: 'a', trackId: '42' })];
@@ -176,17 +191,98 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     renderWithProviders(<ObjectClassTree labels={labels} onRenameTrack={onRenameTrack} />);
 
     const user = userEvent.setup();
-    // 연필 버튼 노출 확인 후 rename 진입.
-    const pencil = screen.getByLabelText(/트랙 번호 변경$/);
+    // 연필 버튼(트랙 ID 변경) 노출 확인 후 rename 진입.
+    const pencil = screen.getByLabelText(/트랙 ID 변경$/);
     await user.click(pencil);
 
-    const input = screen.getByLabelText('트랙 번호 입력');
+    // 편집 대상이 track_id 임이 UI 로 명확 — 입력의 aria-label/기본값이 track_id.
+    const input = screen.getByLabelText('트랙 ID 입력') as HTMLInputElement;
+    expect(input.value).toBe('42');
     await user.clear(input);
     await user.type(input, '7');
-    await user.click(screen.getByLabelText('트랙 번호 저장'));
+    await user.click(screen.getByLabelText('트랙 ID 저장'));
 
-    // 서버 트랙(current=42 != null)의 rename → 내부 콜백(mergeTracks 배선) 호출.
+    // 서버 트랙(current=42 != null)의 track_id rename → 내부 콜백(mergeTracks 배선) 호출.
     expect(onRenameTrack).toHaveBeenCalledWith('42', '7');
+  });
+
+  // R4/R5 — 트랙 삭제/분할 액션(현재 프레임 컨텍스트 기준).
+  it('트랙삭제_액션_확인다이얼로그_후_onDeleteTrack_trackId와_현재프레임No로_호출', async () => {
+    useLabelStore.getState().reset();
+    const onDeleteTrack = vi.fn();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '5' })];
+    renderWithProviders(
+      <ObjectClassTree labels={labels} onDeleteTrack={onDeleteTrack} currentFrameNo={10} />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/#1 트랙 삭제$/));
+    // 파괴적 안전 — 즉시 삭제하지 않고 확인 다이얼로그를 먼저 띄운다.
+    expect(onDeleteTrack).not.toHaveBeenCalled();
+    expect(screen.getByText(/되돌릴 수 없습니다/)).toBeInTheDocument();
+    // 확인(삭제) 클릭 시에만 현재 프레임(10) 기준으로 실제 삭제 콜백 실행.
+    await user.click(screen.getByRole('button', { name: '삭제' }));
+    expect(onDeleteTrack).toHaveBeenCalledWith('5', 10);
+  });
+
+  it('트랙삭제_확인다이얼로그_취소시_onDeleteTrack_미호출', async () => {
+    useLabelStore.getState().reset();
+    const onDeleteTrack = vi.fn();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '5' })];
+    renderWithProviders(
+      <ObjectClassTree labels={labels} onDeleteTrack={onDeleteTrack} currentFrameNo={10} />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/#1 트랙 삭제$/));
+    await user.click(screen.getByRole('button', { name: '취소' }));
+    expect(onDeleteTrack).not.toHaveBeenCalled();
+  });
+
+  it('트랙분할_액션_onSplitTrack_trackId와_현재프레임No로_호출', async () => {
+    useLabelStore.getState().reset();
+    const onSplitTrack = vi.fn();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '5' })];
+    renderWithProviders(
+      <ObjectClassTree labels={labels} onSplitTrack={onSplitTrack} currentFrameNo={4} />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/#1 트랙 분할$/));
+    expect(onSplitTrack).toHaveBeenCalledWith('5', 4);
+  });
+
+  it('trackId_없는_객체는_트랙삭제분할_액션_미노출', () => {
+    useLabelStore.getState().reset();
+    const labels: Label[] = [makeLabel({ id: 'a' })];
+    renderWithProviders(
+      <ObjectClassTree
+        labels={labels}
+        onDeleteTrack={vi.fn()}
+        onSplitTrack={vi.fn()}
+        currentFrameNo={0}
+      />,
+    );
+    // trackId 미부여 객체는 트랙 단위 액션이 없어야 한다(개별 라벨 삭제만).
+    expect(screen.queryByLabelText(/트랙 삭제$/)).toBeNull();
+    expect(screen.queryByLabelText(/트랙 분할$/)).toBeNull();
+    expect(screen.getByLabelText('객체 삭제')).toBeInTheDocument();
+  });
+
+  it('포털모드_트랙삭제분할_액션_미노출', () => {
+    useLabelStore.getState().reset();
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '5' })];
+    renderWithProviders(
+      <ObjectClassTree
+        labels={labels}
+        portalMode
+        onDeleteTrack={vi.fn()}
+        onSplitTrack={vi.fn()}
+        currentFrameNo={0}
+      />,
+    );
+    expect(screen.queryByLabelText(/트랙 삭제$/)).toBeNull();
+    expect(screen.queryByLabelText(/트랙 분할$/)).toBeNull();
   });
 
   it('shapeType 표시 회귀 방지 — BBOX/POLYGON', () => {

@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * V107 포털 업로드 프레임 리포지토리 (control DB).
+ * 포털 업로드 프레임 리포지토리 (control DB).
  * <p>
  * 프레임 자체에는 소유자 컬럼이 없으므로, 서비스 진입점 조회는 반드시 부모 업로드(LS_PORTAL_ULD)의
  * PORTAL_USER_NO 를 조인 검증하는 {@code ...Owner...} 메서드만 사용한다. uldSn 은 추측 가능한
@@ -62,4 +62,12 @@ public interface LsPortalUldFrmeRepository extends JpaRepository<LsPortalUldFrme
      * <p><b>경고: 사전 소유권 검증 필수 — 사용자 요청 서비스 진입점에서 직접 사용 금지.</b>
      */
     List<LsPortalUldFrme> findAllByUldSnOrderByFrmeNo(Long uldSn);
+
+    // ===== 소유권 미검증 원시 조회(내부/테스트 전용) — 서비스 진입점 직접 사용 금지 =====
+
+    /** 프레임 단건(원시). 소유권 검증은 호출측 책임. */
+    Optional<LsPortalUldFrme> findByUldFrmeSn(Long uldFrmeSn);
+
+    /** uldSn 경유 프레임 단건(프레임이 해당 업로드 소속인지 확인). 소유권 검증은 호출측 책임. */
+    Optional<LsPortalUldFrme> findByUldFrmeSnAndUldSn(Long uldFrmeSn, Long uldSn);
 }

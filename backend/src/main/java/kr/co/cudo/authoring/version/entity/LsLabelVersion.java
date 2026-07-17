@@ -64,7 +64,7 @@ public class LsLabelVersion {
     @JdbcTypeCode(SqlTypes.CHAR)
     private String activeYn;
 
-    @Column(name = "REG_ID", length = 64)
+    @Column(name = "REG_ID", length = 30)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false)
