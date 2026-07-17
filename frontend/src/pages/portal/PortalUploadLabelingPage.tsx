@@ -42,7 +42,7 @@ const CANVAS_FALLBACK_H = 600;
 const UPLOAD_TOOLS: { tool: ToolType; icon: typeof MousePointer2; label: string }[] = [
   { tool: Tool.SELECT, icon: MousePointer2, label: '선택' },
   { tool: Tool.PAN, icon: Hand, label: '이동' },
-  { tool: Tool.BBOX, icon: Square, label: '바운딩박스' },
+  { tool: Tool.BBOX, icon: Square, label: '바운딩 박스' },
   { tool: Tool.POLYGON, icon: Pentagon, label: '폴리곤' },
 ];
 

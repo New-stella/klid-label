@@ -265,7 +265,7 @@ describe('PortalUploadLabelingPage', () => {
     await waitFor(() => expect(screen.getByTestId('canvas-shell')).toBeInTheDocument());
 
     // 노출 도구: 선택/이동/바운딩박스/폴리곤만.
-    expect(screen.getByRole('button', { name: '바운딩박스' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '폴리곤' })).toBeInTheDocument();
     // 미노출: SAM 분할/추적, 키포인트, 오토라벨.
     expect(screen.queryByRole('button', { name: /SAM/i })).not.toBeInTheDocument();

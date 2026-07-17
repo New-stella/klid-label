@@ -41,9 +41,9 @@ export const SHORTCUT_KEYMAP: readonly ShortcutBinding[] = [
   // ── 도구 ────────────────────────────────────────────────────────
   { id: 'tool.bbox', key: 'b', code: 'KeyB', kind: 'tool', tool: ToolType.BBOX, label: 'BBOX 도구' },
   { id: 'tool.polygon', key: 'p', code: 'KeyP', kind: 'tool', tool: ToolType.POLYGON, label: 'Polygon 도구' },
-  { id: 'tool.samSegment', key: 'g', code: 'KeyG', kind: 'tool', tool: ToolType.SAM_SEGMENT, label: 'SAM 분할' },
-  { id: 'tool.keypoint', key: 'k', code: 'KeyK', kind: 'tool', tool: ToolType.KEYPOINT, label: '키포인트' },
-  { id: 'tool.track', key: 't', code: 'KeyT', shift: true, kind: 'tool', tool: ToolType.TRACK, label: 'SAM 추적' },
+  { id: 'tool.samSegment', key: 'g', code: 'KeyG', kind: 'tool', tool: ToolType.SAM_SEGMENT, label: 'AI 분할' },
+  { id: 'tool.keypoint', key: 'k', code: 'KeyK', kind: 'tool', tool: ToolType.KEYPOINT, label: '스켈레톤' },
+  { id: 'tool.track', key: 't', code: 'KeyT', shift: true, kind: 'tool', tool: ToolType.TRACK, label: 'AI 추적' },
   { id: 'tool.select', key: 'escape', kind: 'tool', tool: ToolType.SELECT, label: '선택 도구(닫기)' },
 
   // ── 프레임 이동 (WASD + 화살표 호환) ─────────────────────────────
@@ -71,7 +71,7 @@ export const SHORTCUT_KEYMAP: readonly ShortcutBinding[] = [
   { id: 'zoom.out', key: '-', kind: 'action', label: '축소' },
   { id: 'zoom.out', key: '_', shift: true, kind: 'action', label: '축소(_)' },
   { id: 'edit.save', key: 's', ctrl: true, kind: 'action', label: '저장' },
-  { id: 'edit.undo', key: 'z', ctrl: true, kind: 'action', label: '실행취소' },
+  { id: 'edit.undo', key: 'z', ctrl: true, kind: 'action', label: '실행 취소' },
   { id: 'edit.redo', key: 'z', ctrl: true, shift: true, kind: 'action', label: '재실행' },
   // ── 복사/붙여넣기 (Phase 4) ──────────────────────────────────────
   // Ctrl+C: 선택 라벨 복사 / Ctrl+Shift+C: 프레임 전체 복사

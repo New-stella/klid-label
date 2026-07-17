@@ -174,7 +174,7 @@ describe('ReviewListPage', () => {
     renderWithProviders(<ReviewListPage />, { initialEntries: ['/review'] });
 
     await waitFor(() => {
-      expect(screen.getByText('검수 대기 항목이 없습니다')).toBeInTheDocument();
+      expect(screen.getByText('검수요청 항목이 없습니다')).toBeInTheDocument();
     });
   });
 });

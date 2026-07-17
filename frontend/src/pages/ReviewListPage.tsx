@@ -26,7 +26,7 @@ import type { Review, ReviewListParams, ReviewStatus } from '@/features/review/t
  */
 const STATUS_OPTIONS: { value: '' | ReviewStatus; label: string }[] = [
   { value: '', label: '전체' },
-  { value: 'REVIEW_PENDING', label: '검수 대기' },
+  { value: 'REVIEW_PENDING', label: '검수요청' },
   { value: 'REVIEWING', label: '검수중' },
   { value: 'COMPLETED', label: '승인' },
   { value: 'REJECTED', label: '반려' },
@@ -187,7 +187,7 @@ export function ReviewListPage() {
       {/* KPI 4종 */}
       <div className="grid grid-cols-4 gap-4">
         <KpiCard
-          label="검수 대기"
+          label="검수요청"
           value={kpi.pending}
           icon={<Hourglass size={22} className="text-warning" aria-hidden />}
           iconBgClassName="bg-warning/10"
@@ -270,7 +270,7 @@ export function ReviewListPage() {
         size={params.size ?? 20}
         sort={params.sort}
         loading={isLoading}
-        emptyMessage="검수 대기 항목이 없습니다"
+        emptyMessage="검수요청 항목이 없습니다"
         rowKey={(r) => r.id}
         onPageChange={(p) => updateParams({ page: p })}
         onSortChange={(s) => updateParams({ sort: s, page: 0 })}

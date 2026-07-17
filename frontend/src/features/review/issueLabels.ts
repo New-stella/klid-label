@@ -5,7 +5,7 @@ import { ISSUE_STATUS, ISSUE_TYPE, type IssueStatus, type IssueType } from './ty
 
 export const ISSUE_TYPE_LABEL: Record<IssueType, string> = {
   [ISSUE_TYPE.REJECTION]: '반려',
-  [ISSUE_TYPE.INQUIRY]: '문의',
+  [ISSUE_TYPE.INQUIRY]: '검수자 확인 요청',
 };
 
 export const ISSUE_STATUS_LABEL: Record<IssueStatus, string> = {

@@ -17,8 +17,8 @@ const STAGE_LABEL: Record<string, string> = {
   FAILED: '실패',
   FRAME_EXTRACT: '프레임추출',
   DEIDENTIFY: '비식별화',
-  YOLO: 'YOLO',
-  SAM2: 'SAM2',
+  YOLO: 'AI 탐지',
+  SAM2: 'AI 분할',
   VLM_VERIFY: 'VLM',
   VLM: 'VLM',
 };

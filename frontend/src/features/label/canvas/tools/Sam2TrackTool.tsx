@@ -106,7 +106,7 @@ export function Sam2TrackTool({
         <div className="flex items-center gap-1">
           <div
             role="progressbar"
-            aria-label="SAM2 자동추적 진행"
+            aria-label="AI 추적 진행"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={progressPct}
@@ -127,7 +127,7 @@ export function Sam2TrackTool({
       {mutation.isSuccess && !isPending && (
         <div
           role="progressbar"
-          aria-label="SAM2 자동추적 완료"
+          aria-label="AI 추적 완료"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={100}

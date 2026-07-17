@@ -242,7 +242,7 @@ export function ObjectAttributePanel({
       {/* SAM2 자동추적 — TRACK 도구 활성 + 선택 라벨이 있을 때 노출. */}
       {track && activeTool === ToolType.TRACK && (
         <div className="mt-2 rounded bg-gray-700 p-2 text-xs text-gray-300">
-          <div className="mb-1 font-semibold text-gray-200">SAM2 자동추적</div>
+          <div className="mb-1 font-semibold text-gray-200">AI 추적</div>
           <Sam2TrackTool
             srcSn={track.srcSn}
             prevPolygon={shapeToPolygon(target.shape)}
@@ -320,7 +320,7 @@ function CoordsReadonly({ target }: { target: Label }) {
     const unlabeled = kps.filter((k) => k.v === 0).length;
     return (
       <div className="flex flex-col gap-1">
-        <Field label="좌표" value={<span>키포인트 {kps.length}관절</span>} />
+        <Field label="좌표" value={<span>스켈레톤 {kps.length}관절</span>} />
         <Field
           label="가시성"
           value={

@@ -13,7 +13,7 @@ describe('KeypointGuide', () => {
     const { container } = render(<KeypointGuide placingIndex={0} />);
 
     // then — 다이어그램(17원·19선) + 한글명 + N/17 + 인물기준 캡션이 패널 내 블록으로 표시
-    expect(screen.getByRole('group', { name: '키포인트 배치 가이드' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: '스켈레톤 배치 가이드' })).toBeInTheDocument();
     expect(container.querySelectorAll('[data-testid^="kpt-node-"]')).toHaveLength(17);
     expect(container.querySelectorAll('[data-testid^="kpt-edge-"]')).toHaveLength(19);
     expect(screen.getByTestId('kpt-guide-caption')).toHaveTextContent('1/17');
@@ -89,7 +89,7 @@ describe('KeypointGuide', () => {
     render(<KeypointGuide placingIndex={0} />);
 
     // then — 절대위치·오버레이·pointer-events 잔재 없음, 패널 폭(w-full) 사용
-    const group = screen.getByRole('group', { name: '키포인트 배치 가이드' });
+    const group = screen.getByRole('group', { name: '스켈레톤 배치 가이드' });
     expect(group.className).toContain('w-full');
     expect(group.className).not.toContain('absolute');
     expect(group.className).not.toContain('pointer-events-none');

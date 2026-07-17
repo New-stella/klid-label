@@ -105,7 +105,7 @@ export function PrecisionConfigCard({ configs }: Props) {
           </div>
           <p className="text-xs text-gray-400">
             값이 높을수록 확신도가 높은 객체만 인식해 오탐이 줄지만 놓치는 객체가 늘 수 있습니다.
-            (YOLO 추론의 Confidence Threshold 와 동일한 설정값입니다.)
+            (AI 탐지 추론의 Confidence Threshold 와 동일한 설정값입니다.)
           </p>
           {errors.YOLO_CONF_THRESHOLD && (
             <p className="flex items-center gap-1 text-xs text-danger" role="alert">

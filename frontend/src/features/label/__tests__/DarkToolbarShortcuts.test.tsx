@@ -20,13 +20,13 @@ describe('DarkToolbar — 단축키 툴팁 키맵 정합(R1)', () => {
 
     const cases: Array<[string, string]> = [
       ['선택', 'tool.select'], // Esc
-      ['바운딩박스', 'tool.bbox'], // B
+      ['바운딩 박스', 'tool.bbox'], // B
       ['폴리곤', 'tool.polygon'], // P
-      ['SAM 분할', 'tool.samSegment'], // G
-      ['SAM 추적', 'tool.track'], // Shift+T
-      ['키포인트', 'tool.keypoint'], // K
+      ['AI 분할', 'tool.samSegment'], // G
+      ['AI 추적', 'tool.track'], // Shift+T
+      ['스켈레톤', 'tool.keypoint'], // K
       ['삭제', 'label.delete'], // Del
-      ['실행취소', 'edit.undo'], // Ctrl+Z
+      ['실행 취소', 'edit.undo'], // Ctrl+Z
       ['저장', 'edit.save'], // Ctrl+S
     ];
 
@@ -49,7 +49,7 @@ describe('DarkToolbar — 단축키 툴팁 키맵 정합(R1)', () => {
 
   it('SAM추적_툴팁은_T가_아니라_Shift_T다', () => {
     renderWithProviders(<DarkToolbar onSave={vi.fn()} />);
-    const btn = screen.getByRole('button', { name: 'SAM 추적' });
+    const btn = screen.getByRole('button', { name: 'AI 추적' });
     expect(btn.getAttribute('title') ?? '').toContain('Shift+T');
   });
 });

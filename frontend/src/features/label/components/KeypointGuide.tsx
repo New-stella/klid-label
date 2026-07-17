@@ -46,11 +46,11 @@ export function KeypointGuide({ placingIndex }: KeypointGuideProps) {
   return (
     <div
       role="group"
-      aria-label="키포인트 배치 가이드"
+      aria-label="스켈레톤 배치 가이드"
       className="mt-2 w-full rounded-md bg-gray-900/60 p-2 text-white"
     >
       <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-        키포인트 가이드
+        스켈레톤 가이드
       </div>
       <svg
         viewBox="0 0 100 105"

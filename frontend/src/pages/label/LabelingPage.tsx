@@ -448,11 +448,11 @@ export function LabelingPage() {
       }
       // 저장된 자동 라벨 재조회 → useLabels 가 data 갱신 시 setLabels 로 캔버스 반영.
       queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(currentFrame.srcSn) });
-      pushToast({ variant: 'success', message: `YOLO 오토라벨 ${res.savedCount}건 적용됨` });
+      pushToast({ variant: 'success', message: `AI 탐지 ${res.savedCount}건 적용됨` });
     } catch (e) {
       pushToast({
         variant: 'error',
-        message: e instanceof Error ? e.message : 'YOLO 오토라벨 실패',
+        message: e instanceof Error ? e.message : 'AI 탐지 실패',
       });
     }
   };
@@ -1051,7 +1051,7 @@ export function LabelingPage() {
                     nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
                     portalMode,
                     onTracked: () => {
-                      pushToast({ variant: 'success', message: 'SAM2 자동추적 완료' });
+                      pushToast({ variant: 'success', message: 'AI 추적 완료' });
                     },
                   }}
                 />

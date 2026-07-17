@@ -53,7 +53,7 @@ export function AutolabelClassModal({ open, onClose, onConfirm }: AutolabelClass
     <Modal
       open={open}
       onClose={onClose}
-      title="YOLO 오토라벨 클래스 선택"
+      title="AI 탐지 클래스 선택"
       description="검출할 객체 종류를 선택하세요. 아무것도 선택하지 않으면 전체 클래스를 검출합니다."
       size="sm"
     >

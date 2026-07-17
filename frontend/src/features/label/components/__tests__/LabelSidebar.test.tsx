@@ -104,7 +104,7 @@ describe('LabelSidebar', () => {
 
     // then — 라벨 네비게이션(패널) 내부에 키포인트 가이드가 렌더된다.
     const panel = screen.getByRole('navigation', { name: '라벨 마스터' });
-    const guide = screen.getByRole('group', { name: '키포인트 배치 가이드' });
+    const guide = screen.getByRole('group', { name: '스켈레톤 배치 가이드' });
     expect(panel).toContainElement(guide);
     expect(screen.getByTestId('kpt-guide-caption')).toHaveTextContent('3/17');
   });
@@ -119,7 +119,7 @@ describe('LabelSidebar', () => {
     });
 
     // then — 가이드 미표시
-    expect(screen.queryByRole('group', { name: '키포인트 배치 가이드' })).toBeNull();
+    expect(screen.queryByRole('group', { name: '스켈레톤 배치 가이드' })).toBeNull();
   });
 
   it('현재_activeLabelId_라벨_시각적_강조', async () => {

@@ -30,6 +30,7 @@ import {
 } from '@/features/task/components/TaskFilters';
 import { useTaskBoard } from '@/features/task/hooks/useTaskBoard';
 import { useTasks } from '@/features/task/hooks/useTasks';
+import { TASK_STATUS_LABEL, type RowStatus } from '@/features/task/statusLabels';
 import type {
   AssignmentStatus,
   Task,
@@ -45,17 +46,6 @@ import { useAuthStore } from '@/stores/useAuthStore';
 const ROLE_LABEL: Record<string, string> = {
   REVIEWER: '검수자',
   WORKER: '작업자',
-};
-
-type RowStatus = AssignmentStatus | 'UNASSIGNED';
-
-const STATUS_LABEL: Record<RowStatus, string> = {
-  UNASSIGNED: '미배정',
-  PENDING: '대기',
-  IN_PROGRESS: '진행중',
-  REVIEW_PENDING: '검수대기',
-  COMPLETED: '완료',
-  REJECTED: '반려',
 };
 
 // AssignmentStatus → BadgeStatus 매핑 (UNASSIGNED는 PENDING으로)
@@ -465,13 +455,13 @@ export function TaskListPage() {
           iconBgClassName="bg-primary-50"
         />
         <KpiCard
-          label="진행중"
+          label="작업중"
           value={kpi.inProgress}
           icon={<Play size={22} className="text-success" aria-hidden />}
           iconBgClassName="bg-success/10"
         />
         <KpiCard
-          label="검수대기"
+          label="검수요청"
           value={kpi.reviewPending}
           icon={<Flame size={22} className="text-warning" aria-hidden />}
           iconBgClassName="bg-warning/10"
@@ -618,7 +608,7 @@ export function TaskListPage() {
                       <td className="px-4 py-3">
                         <StatusBadge
                           status={STATUS_BADGE_MAP[r.rowStatus]}
-                          label={STATUS_LABEL[r.rowStatus]}
+                          label={TASK_STATUS_LABEL[r.rowStatus]}
                         />
                       </td>
                       <td className="px-4 py-3">

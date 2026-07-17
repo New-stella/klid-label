@@ -14,8 +14,8 @@ const STAGE_ORDER: string[] = ['FRAME_EXTRACT', 'DEIDENTIFY', 'YOLO', 'SAM2', 'V
 const STAGE_LABEL: Record<string, string> = {
   FRAME_EXTRACT: '프레임추출',
   DEIDENTIFY: '비식별',
-  YOLO: 'YOLO',
-  SAM2: 'SAM2',
+  YOLO: 'AI 탐지',
+  SAM2: 'AI 분할',
   VLM_VERIFY: 'VLM',
 };
 

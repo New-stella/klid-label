@@ -307,7 +307,7 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   function commitKeypoints(kps: { x: number; y: number; v: number }[]): boolean {
     const def = resolveDefaultLabel(labelMasters ?? [], activeLabelId);
     if (!def) {
-      onCommitError?.('라벨 분류가 로딩되지 않아 키포인트를 추가할 수 없습니다. 잠시 후 다시 시도하세요.');
+      onCommitError?.('라벨 분류가 로딩되지 않아 스켈레톤을 추가할 수 없습니다. 잠시 후 다시 시도하세요.');
       return false;
     }
     onLabelAdd?.({

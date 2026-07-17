@@ -33,9 +33,9 @@ interface TaskFiltersProps {
 const STATUSES_FULL = [
   { value: '', label: '전체 상태' },
   { value: 'UNASSIGNED', label: '미배정' },
-  { value: 'PENDING', label: '대기' },
-  { value: 'IN_PROGRESS', label: '진행중' },
-  { value: 'REVIEW_PENDING', label: '검수대기' },
+  { value: 'PENDING', label: '배정 완료' },
+  { value: 'IN_PROGRESS', label: '작업중' },
+  { value: 'REVIEW_PENDING', label: '검수요청' },
   { value: 'COMPLETED', label: '완료' },
   { value: 'REJECTED', label: '반려' },
 ];

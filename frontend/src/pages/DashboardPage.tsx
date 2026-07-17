@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 import { useDashboardSummary } from '@/features/dashboard/hooks/useDashboardSummary';
 import { useTasks } from '@/features/task/hooks/useTasks';
+import { TASK_STATUS_LABEL } from '@/features/task/statusLabels';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -331,7 +332,10 @@ export function DashboardPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <StatusBadge status={t.status as BadgeStatus} />
+                            <StatusBadge
+                              status={t.status as BadgeStatus}
+                              label={TASK_STATUS_LABEL[t.status]}
+                            />
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2 min-w-[80px]">

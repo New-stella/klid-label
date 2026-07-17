@@ -122,6 +122,42 @@ describe('DashboardPage', () => {
     });
   });
 
+  it('내_작업_현황_task_PENDING_배지는_배정_완료로_표시', async () => {
+    // given: WORKER 의 최근 작업에 PENDING 상태 1건 (task 문맥)
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 1,
+            videoId: 10,
+            cctvName: 'CCTV-강남-001',
+            workerId: 1,
+            workerName: '작업자',
+            status: 'PENDING',
+            assignedAt: '2026-05-01T00:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 5,
+      },
+      message: null,
+      errorCode: null,
+    });
+    setRole('WORKER');
+
+    // when
+    renderWithProviders(<DashboardPage />);
+
+    // then: 공유 StatusBadge 기본값 '대기'가 아니라 task 문맥 '배정 완료'
+    await waitFor(() => {
+      expect(screen.getByText('배정 완료')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('대기')).not.toBeInTheDocument();
+  });
+
   it('I3_최근_완료_영상_API_오류시_빈상태가_아니라_오류_메시지와_재시도_노출', async () => {
     // given: 최근 완료 영상 API 가 500 으로 실패 (이전엔 빈 상태로 조용히 표시됨)
     mock.onGet('/videos').reply(500, {

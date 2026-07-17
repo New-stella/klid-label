@@ -27,7 +27,7 @@ interface Props {
 export function YoloConfigCard({ configs }: Props) {
   const pushToast = useUiStore((s) => s.pushToast);
   const { mutate, isPending } = useUpdateConfig({
-    onSuccess: () => pushToast({ variant: 'success', message: 'YOLO 설정 저장됨' }),
+    onSuccess: () => pushToast({ variant: 'success', message: 'AI 탐지 설정 저장됨' }),
     onError: () => pushToast({ variant: 'error', message: '저장에 실패했습니다' }),
   });
 
@@ -69,7 +69,7 @@ export function YoloConfigCard({ configs }: Props) {
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-5">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-          <h3 className="text-sm font-semibold text-gray-700">YOLO 추론 파라미터</h3>
+          <h3 className="text-sm font-semibold text-gray-700">AI 탐지 추론 파라미터</h3>
           <Button
             type="submit"
             variant="primary"
@@ -133,7 +133,7 @@ export function YoloConfigCard({ configs }: Props) {
             {...register('YOLO_IMGSZ', { valueAsNumber: true })}
           />
           <p className="text-xs text-gray-400">
-            YOLO 모델에 입력하는 추론 해상도(px)입니다. 프레임이 이 크기로 리사이즈되어 추론되고
+            AI 탐지 모델에 입력하는 추론 해상도(px)입니다. 프레임이 이 크기로 리사이즈되어 추론되고
             결과 좌표는 원본 해상도로 환산됩니다. 크게 하면 작은 객체 탐지 정확도가 올라가지만 추론
             속도가 느려지고 GPU 메모리를 더 사용합니다. 32의 배수여야 하며(ultralytics 권장),
             저장·내보내기 해상도와는 무관합니다. (320~1920px, 기본 1280)

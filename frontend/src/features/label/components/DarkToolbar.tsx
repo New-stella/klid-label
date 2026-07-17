@@ -108,11 +108,11 @@ export function DarkToolbar({
   };
   const allItems: Item[] = [
     { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: '선택', shortcut: toolShortcut(ToolType.SELECT) },
-    { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩박스', shortcut: toolShortcut(ToolType.BBOX) },
+    { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩 박스', shortcut: toolShortcut(ToolType.BBOX) },
     { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: '폴리곤', shortcut: toolShortcut(ToolType.POLYGON) },
-    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'SAM 분할', shortcut: toolShortcut(ToolType.SAM_SEGMENT) },
-    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'SAM 추적', shortcut: toolShortcut(ToolType.TRACK) },
-    { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: '키포인트', shortcut: toolShortcut(ToolType.KEYPOINT) },
+    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'AI 분할', shortcut: toolShortcut(ToolType.SAM_SEGMENT) },
+    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'AI 추적', shortcut: toolShortcut(ToolType.TRACK) },
+    { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: '스켈레톤', shortcut: toolShortcut(ToolType.KEYPOINT) },
     // Phase 3 — YOLO 오토라벨 수동 트리거(액션). 핸들러가 주어질 때만 노출, 포털 숨김(ADR-013).
     // YOLO 는 키맵 미등록(파이프라인 트리거)이라 표기는 고정 'Y'.
     ...(onAutolabel
@@ -120,7 +120,7 @@ export function DarkToolbar({
           {
             kind: 'action' as const,
             icon: ScanSearch,
-            label: 'YOLO 오토라벨',
+            label: 'AI 탐지',
             shortcut: 'Y',
             action: onAutolabel,
             portalHidden: true,
@@ -130,7 +130,7 @@ export function DarkToolbar({
       : []),
     { kind: 'divider' },
     { kind: 'action', icon: Trash2, label: '삭제', shortcut: formatBindingKeys('label.delete'), action: handleDelete },
-    { kind: 'action', icon: RotateCcw, label: '실행취소', shortcut: formatBindingKeys('edit.undo'), action: undo },
+    { kind: 'action', icon: RotateCcw, label: '실행 취소', shortcut: formatBindingKeys('edit.undo'), action: undo },
     // R3 — 화면 맞춤(Fit): 프레임 전환 시 뷰 유지 정책과 짝을 이루는 수동 초기화 컨트롤(키맵 미배정).
     { kind: 'action', icon: Maximize2, label: '화면 맞춤', shortcut: '', action: resetView },
     { kind: 'divider' },

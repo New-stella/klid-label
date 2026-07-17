@@ -110,16 +110,16 @@ describe('포털 채널 라벨링 미노출', () => {
     renderPortalLabel();
     // 로딩 화면도 labeling-page testid 를 갖는다 → 도구바가 실제 렌더될 때까지(바운딩박스 버튼) 대기.
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: '바운딩박스' })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeInTheDocument(),
     );
     // Phase 9 — 포털에서 SAM 분할/추적·키포인트가 노출된다.
-    expect(screen.getByRole('button', { name: 'SAM 분할' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'SAM 추적' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '키포인트' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI 분할' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI 추적' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '스켈레톤' })).toBeInTheDocument();
     // 기본 도구(바운딩박스/폴리곤)는 그대로 노출 — 회귀 가드.
-    expect(screen.getByRole('button', { name: '바운딩박스' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '폴리곤' })).toBeInTheDocument();
     // YOLO 파이프라인 오토라벨은 포털 미제공 — 계속 숨김(회귀 가드).
-    expect(screen.queryByRole('button', { name: 'YOLO 오토라벨' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'AI 탐지' })).toBeNull();
   });
 });

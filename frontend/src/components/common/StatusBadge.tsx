@@ -46,9 +46,9 @@ const statusConfig: Record<string, StatusConfig> = {
   BATCH_FAILED: { label: '배치 실패', className: 'bg-danger/10 text-danger', icon: XCircle },
   PENDING: { label: '대기', className: 'bg-gray-100 text-gray-600', icon: Clock },
   MARKING_READY: { label: '마킹 대기', className: 'bg-info/10 text-info', icon: Clock },
-  IN_PROGRESS: { label: '진행중', className: 'bg-info/10 text-info', icon: Loader2, spin: true },
+  IN_PROGRESS: { label: '작업중', className: 'bg-info/10 text-info', icon: Loader2, spin: true },
   PROCESSING: { label: '처리중', className: 'bg-info/10 text-info', icon: Loader2, spin: true },
-  REVIEW_PENDING: { label: '검수 대기', className: 'bg-warning/10 text-warning', icon: Clock },
+  REVIEW_PENDING: { label: '검수요청', className: 'bg-warning/10 text-warning', icon: Clock },
   // KRDS 예외: '검수중' purple 은 범주 구분색(성공/실패/경고 어디에도 속하지 않는 별도 상태) — 토큰 획일화 제외.
   REVIEWING: { label: '검수중', className: 'bg-purple-100 text-purple-700', icon: Search },
   IN_REVIEW: { label: '검수중', className: 'bg-purple-100 text-purple-700', icon: Search },

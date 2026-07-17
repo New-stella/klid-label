@@ -7,9 +7,9 @@ export interface MyTaskCardProps {
 /** WORKER 전용 — 내 작업 현황 카드 */
 export function MyTaskCard({ task }: MyTaskCardProps) {
   const items: { label: string; value: number }[] = [
-    { label: '대기', value: task.pendingCount },
-    { label: '진행중', value: task.inProgressCount },
-    { label: '검수 대기', value: task.reviewPendingCount },
+    { label: '배정 완료', value: task.pendingCount },
+    { label: '작업중', value: task.inProgressCount },
+    { label: '검수요청', value: task.reviewPendingCount },
     { label: '반려', value: task.rejectedCount },
   ];
   return (

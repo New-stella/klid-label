@@ -368,7 +368,7 @@ export class Sam2TrackChunkError extends Error {
     completedChunks: number,
     totalChunks: number,
   ) {
-    super('SAM2 자동추적 일부 청크 실패', { cause });
+    super('AI 추적 일부 청크 실패', { cause });
     this.name = 'Sam2TrackChunkError';
     this.partial = partial;
     this.completedChunks = completedChunks;

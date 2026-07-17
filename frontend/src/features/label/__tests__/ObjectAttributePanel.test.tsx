@@ -105,7 +105,7 @@ describe('ObjectAttributePanel', () => {
     renderWithProviders(<ObjectAttributePanel labels={[kpLabel]} />);
     // "Mask" 로 오표시되면 안 되고, 키포인트 요약이 표시되어야 한다.
     expect(screen.queryByText('Mask')).not.toBeInTheDocument();
-    expect(screen.getByText(/키포인트/)).toBeInTheDocument();
+    expect(screen.getByText(/스켈레톤/)).toBeInTheDocument();
     expect(screen.getByText(/17/)).toBeInTheDocument();
   });
 
