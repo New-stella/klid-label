@@ -73,7 +73,7 @@
 | `LS_AUTH_WORK_LOCK` (V22, 동일영상 활성락 1건 partial unique index V69) | 비식별 재진행 중 잠금(동시 이중 위탁 차단) | [08](08-deidentification.md) |
 | `LS_WEBHOOK_IDEMPOTENCY` (V39) | 웹훅 멱등성 | [19](19-external-security-cvat.md) |
 | `LS_CONTROL_NOTIFY_FALLBACK` (V44, `SEND_RSLT_CD` 발송결과 컬럼 V77) / `LS_GITEA_FALLBACK_QUEUE` (V41) | 통지 재시도 큐 + 발송 결과 상태 관찰(`STTS_CD`=큐 처리 PENDING/RETRYING/SUCCEEDED/DEAD_LETTER, `SEND_RSLT_CD`=SUCCESS/FAILED — 즉시 성공도 SUCCEEDED+SUCCESS 터미널 행으로 적재) / Gitea 실패 재시도 | [15](15-control-notify.md)·[13](13-version-control.md) |
-| `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 | [16](16-portal.md) |
+| `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 (데이터마트 영상 대상) | [16](16-portal.md) |
 | `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, UPEND_FIX_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
 | `LS_TUS_UPLOAD` (V59, 표준용어 rename V88·V90) | TUS 1.0 재개 가능 업로드 세션 — `ULD_ID`(UUID PK)/`USER_NO`(소유자)/`ULD_LEN`/`ULD_OFFSET`(예약어 OFFSET 회피)/`STTS_CD`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPRY_DT`(+24h TTL, 공공 만료일시)/`VER`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
 | `LS_DATA_ISSUE` (V5) / `LS_DEADLINE`·`LS_META` (V36) | 품질 이슈 / 데드라인·전역 메타 | — |
@@ -81,6 +81,19 @@
 > 구 `LS_DATA_SET` (V8, 학습데이터셋 Export용)은 **범위 외 orphan 테이블로 판정되어 삭제**됨(V86) — 엔티티·활성쿼리·View·FK 참조 0건 검증. 학습데이터셋 Export는 CLAUDE.md 범위 외(관제/데이터마트 책임).
 
 > **공공 우선(gov-first) 표준용어 rename (V90·V91, 2026-07-10)**: 공공 표준용어에 동일 한글용어가 존재하는 컬럼 15건을 공공약어로 정합 — `EXPD_DT→EXPRY_DT`(LS_AUTH_WORK_LOCK·LS_TUS_UPLOAD), `RESP_DT→RSPNS_DT`, `REJECT_RSN→RJCT_RSN`(×2), `MODEL_NM→MDL_NM`, `VERSION_NO→VER_NO`, `REPORT_DT→DCLR_DT`, `ISSUE_COMMENT_SN→CMNT_SN`, `ATTACH_SN→ATCH_FILE_SN`, `STORE_FILE_NM→STRG_FILE_NM`, `LOCK_DT→LCK_DT`, `RELEASE_DT→RMV_DT`, `RELEASE_RSN→RMV_RSN`, `ATTR_NM→ATRB_NM`(V91, `V_COMPLETED_LABEL_ATTR` 뷰 재생성 — 출력 별칭 `ATTR_NAME` 불변). Java 필드명·JSON 계약은 불변(물리 컬럼만 rename).
+
+### 포털 자산 업로드 (ADR-013 예외, V107~)
+
+> 포털 사용자(PORTAL_USER)가 **본인 이미지·영상을 직접 업로드**해 수동 라벨링(BBOX/POLYGON)하는 별도 경로. 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 **완전 분리**되며 오토라벨링·SAM2·VLM·검수·버전관리 미적용 → [16](16-portal.md)·[04](04-screens-ia.md).
+
+| 테이블 | 용도 | 위키 |
+|--------|------|------|
+| `LS_PORTAL_ULD` (V107) | 포털 업로드 자산 (소유자 USER_NO, 자산유형 IMAGE/VIDEO, 원본 파일명·경로, `STTS_CD`: `UPLOADED`→`PROCESSING`→`READY`\|`FAILED`). 이미지 20MB/장·50장/요청, 영상 5GB(mp4/mov/avi) | [16](16-portal.md) |
+| `LS_PORTAL_ULD_FRME` (V107) | 업로드 자산 프레임 (SEQUENCE PK, 프레임 경로). 영상은 고정 간격 추출(`LS_SYSTEM_CONFIG` `portal.upload.frame-interval-sec` 기본 5초, 상한 maxFrames 2000), 이미지는 1프레임 | [16](16-portal.md) |
+| `LS_PORTAL_ULD_LBL` (V107) | 업로드 자산 수동 라벨 (BBOX/POLYGON만, 좌표 JSON). 오토라벨 미적용 | [16](16-portal.md) |
+| `LS_PORTAL_TUS_ULD` (V108) | 포털 영상 TUS 1.0 재개 가능 업로드 세션 (소유자·오프셋·만료 등, 내부 `LS_TUS_UPLOAD`와 분리) | [16](16-portal.md) |
+
+> 신규 API `/v1/portal/uploads/**` (images·목록·상세·frames·image·삭제·tus·labels·export·file). 영상은 비식별 미적용(본인 데이터), 다운로드는 본인 데이터(JSON export/원본) 기준.
 
 ## 18.3 데이터마트 적재용 View (V52)
 

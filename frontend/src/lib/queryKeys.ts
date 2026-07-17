@@ -79,6 +79,9 @@ export const DEIDENT_REPORT_KEYS = {
 export const PORTAL_KEYS = {
   all: ['portal'] as const,
   uploads: (params: Record<string, unknown>) => [...PORTAL_KEYS.all, 'uploads', params] as const,
+  uploadDetail: (uldSn: number) => [...PORTAL_KEYS.all, 'upload-detail', uldSn] as const,
+  uploadFrameLabels: (uldFrmeSn: number) =>
+    [...PORTAL_KEYS.all, 'upload-frame-labels', uldFrmeSn] as const,
   datamartVideos: (params: Record<string, unknown>) =>
     [...PORTAL_KEYS.all, 'datamart-videos', params] as const,
 };

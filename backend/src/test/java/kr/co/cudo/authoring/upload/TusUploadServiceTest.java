@@ -525,6 +525,31 @@ class TusUploadServiceTest {
     }
 
     @Test
+    @DisplayName("관제_cancel과_PATCH_직렬화 — cancel이 락경로(findByUploadIdForUpdate)로 통일")
+    void cancelUsesPessimisticLockPath() {
+        // given — findById 를 쓰면 실패하고 findByUploadIdForUpdate(락 경로)만 동작하는 리포지토리.
+        // cancel 이 PATCH 와 동일한 락 경로를 사용해야 통과한다(락 경로 통일 회귀 가드).
+        repository = new InMemoryRepo() {
+            @Override
+            public Optional<LsTusUpload> findById(UUID id) {
+                throw new UnsupportedOperationException("cancel must use findByUploadIdForUpdate (lock path)");
+            }
+        };
+        service = new TusUploadService(repository, videoRepository, cctvRepository,
+                storageDir.toString(), MAX_SIZE, eventPublisher, eventTypeService, path -> 60);
+        UUID id = service.createSession(OWNER, cmd(10));
+        String filePath = repository.findByUploadIdForUpdate(id).orElseThrow().getFilePath();
+        assertThat(Files.exists(Path.of(filePath))).isTrue();
+
+        // when — cancel 은 락 경로로 세션을 조회해 취소한다(findById 미사용).
+        service.cancel(id, OWNER);
+
+        // then — 파일 삭제 + 행 제거(락 경로로 정상 취소).
+        assertThat(repository.findByUploadIdForUpdate(id)).isEmpty();
+        assertThat(Files.exists(Path.of(filePath))).isFalse();
+    }
+
+    @Test
     @DisplayName("DELETE_본인세션_취소시_임시파일삭제_행제거")
     void cancelDeletesFileAndRow() {
         UUID id = service.createSession(OWNER, cmd(10));

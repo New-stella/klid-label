@@ -39,13 +39,14 @@ afterEach(() => {
 });
 
 describe('PortalHomePage', () => {
-  it('포털_홈_라벨링_카드_표시_업로드_오토라벨_미노출', () => {
+  it('포털_홈_라벨링_카드_표시_내업로드_진입_오토라벨_미노출', () => {
     mockVideos([]);
     renderWithProviders(<PortalHomePage />);
 
-    // ADR-013: 라벨링 카드만 노출, 업로드·오토라벨 UI 미제공
+    // 라벨링 카드 + Phase 5 '내 업로드' 진입 링크 노출. 오토라벨/드롭존은 홈에 미노출(ADR-013 정신 유지).
     expect(screen.getByRole('heading', { name: '라벨링' })).toBeInTheDocument();
-    expect(screen.queryByText(/업로드/)).toBeNull();
+    const uploadLink = screen.getByRole('link', { name: /내 업로드/ });
+    expect(uploadLink).toHaveAttribute('href', expect.stringContaining('/portal/uploads'));
     expect(screen.queryByRole('button', { name: /오토라벨/ })).toBeNull();
     expect(screen.queryByTestId('upload-dropzone')).toBeNull();
   });

@@ -8,14 +8,14 @@
 #   운영 시크릿은 환경변수(JWT_SECRET, *_DB_PASSWORD)로 주입.
 # ============================================================================
 spring:
-  # [개발/검수 전용] /v1/dev/autolabel-test multipart 업로드용 — local 프로파일만 활성화.
-  #   상위 application.yml 에서 false (TUS 호환). local 에서 dev endpoint 사용 시 override.
-  #   prd 는 application.yml 의 enabled: false 가 유지되어 영향 없음.
+  # [개발/검수 전용] /v1/dev/autolabel-test 영상 multipart 업로드용 — 개당 500MB 허용.
+  #   상위 application.yml 은 이미 multipart enabled(포털 이미지 업로드). 여기선 dev 영상용으로 개당 한도만 상향.
+  #   요청 한도(max-request-size)는 포털 50장 업로드(≥1.1GB)를 수용하도록 상위와 정합(1200MB) 유지.
   servlet:
     multipart:
       enabled: true
       max-file-size: 500MB
-      max-request-size: 500MB
+      max-request-size: 1200MB
   datasource:
     control:
       jdbc-url: jdbc:postgresql://127.0.0.1:5432/klid_system

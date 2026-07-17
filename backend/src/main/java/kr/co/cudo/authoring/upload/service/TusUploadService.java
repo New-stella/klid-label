@@ -19,11 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -59,8 +56,6 @@ public class TusUploadService {
     private static final int MAX_DURATION_SEC = 7200;
     /** 사용자별 동시 진행 세션 상한 (HIGH-9). */
     private static final int MAX_CONCURRENT_IN_PROGRESS = 3;
-    /** HIGH-2: 청크 스트리밍 고정 버퍼 크기 (64KB) — 전체 byte[] 메모리 적재 회피. */
-    private static final int CHUNK_STREAM_BUFFER_BYTES = 64 * 1024;
     /** HIGH-2: 청크당 상한 기본값 (16MB) — 설정 미지정 시 사용. */
     static final long DEFAULT_MAX_CHUNK_BYTES = 16L * 1024 * 1024;
 
@@ -175,9 +170,8 @@ public class TusUploadService {
         String safeFileName = uploadId + "." + extension;
         Path absolutePath = resolveSafeStoragePath(safeFileName);
         try {
-            Files.createDirectories(absolutePath.getParent());
-            // 0바이트 임시 파일 생성 — 이후 PATCH 가 position write 로 누적.
-            Files.write(absolutePath, new byte[0]);
+            // 0바이트 임시 파일 생성 — 이후 PATCH 가 position write 로 누적(파일 I/O 코어 위임).
+            TusChunkStore.createEmptyFile(absolutePath);
         } catch (IOException e) {
             log.error("[Tus] temp file create failed uploadId={} causeType={}",
                     uploadId, e.getClass().getSimpleName());
@@ -295,7 +289,9 @@ public class TusUploadService {
 
     @Transactional("controlTransactionManager")
     public void cancel(UUID uploadId, String userNo) {
-        LsTusUpload session = uploadRepository.findById(uploadId)
+        // 시나리오 #11: cancel 도 PESSIMISTIC_WRITE 로 세션을 잠가 동일 세션의 PATCH 와 직렬화한다.
+        // (PATCH 는 findByUploadIdForUpdate 로 잠금 획득 — 락 경로 통일로 취소·청크쓰기 교차를 차단.)
+        LsTusUpload session = uploadRepository.findByUploadIdForUpdate(uploadId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다."));
         if (!session.isOwnedBy(userNo)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "본인의 업로드 세션이 아닙니다.");
@@ -354,79 +350,28 @@ public class TusUploadService {
     // ======================== 내부 헬퍼 ========================
 
     /**
-     * HIGH-2/HIGH-4: 청크 입력을 고정 64KB 버퍼 루프로 스트리밍하며 FileChannel 의 정확한
-     * 오프셋에 기록한다. 전체 byte[] 를 메모리에 적재하지 않으므로 OOM 위험이 없다.
-     *
-     * <p>누적 기록량이 {@code maxChunkBytes} 를 넘으면 즉시 413 + truncate 롤백한다(스트리밍
-     * 도중 클라이언트가 Content-Length 보다 더 보내는 경우 방어). 부분 쓰기 실패 시에는 기록
-     * 시작 오프셋으로 truncate 하고 offset 을 갱신하지 않아 재시도 시 동일 오프셋 재요청이 된다.
+     * HIGH-2/HIGH-4: 청크 원자적 기록을 파일 I/O 코어({@link TusChunkStore})에 위임한다.
+     * 트랜잭션/락/도메인 검증은 본 서비스가 담당하고, 순수 파일 I/O(스트리밍 write·상한·truncate
+     * 롤백)만 코어가 처리한다(관제/포털 공유).
      *
      * @return 기록 완료 후의 누적 오프셋
      */
     private long writeChunkAtomically(LsTusUpload session, long offset, InputStream chunk, long contentLength) {
-        Path file = Paths.get(session.getFilePath());
-        long written = 0L;
-        try (FileChannel ch = FileChannel.open(file, StandardOpenOption.WRITE)) {
-            ch.position(offset);
-            byte[] buf = new byte[CHUNK_STREAM_BUFFER_BYTES];
-            int r;
-            while (written < contentLength && (r = chunk.read(buf)) != -1) {
-                int toWrite = (int) Math.min(r, contentLength - written);
-                // HIGH-2: 스트리밍 누적 상한 — 한도 초과 시 413 + truncate 롤백.
-                if (written + toWrite > maxChunkBytes) {
-                    truncateTo(session.getFilePath(), offset);
-                    throw new CustomException(ErrorCode.PAYLOAD_TOO_LARGE,
-                            "청크 크기가 허용 한도(" + maxChunkBytes + " bytes) 를 초과했습니다.");
-                }
-                ch.write(java.nio.ByteBuffer.wrap(buf, 0, toWrite));
-                written += toWrite;
-            }
-            ch.force(true);
-        } catch (CustomException e) {
-            throw e;
-        } catch (IOException e) {
-            // 부분 쓰기 실패 → 기록 시작 오프셋으로 truncate, offset 미갱신.
-            truncateTo(session.getFilePath(), offset);
-            log.error("[Tus] chunk write failed uploadId={} causeType={}",
-                    session.getUploadId(), e.getClass().getSimpleName());
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "청크 저장에 실패했습니다.");
-        }
-        if (written != contentLength) {
-            truncateTo(session.getFilePath(), offset);
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "청크 본문 길이가 Content-Length 와 일치하지 않습니다.");
-        }
-        return offset + written;
+        return TusChunkStore.writeChunkAtomically(
+                Paths.get(session.getFilePath()), offset, chunk, contentLength, maxChunkBytes);
     }
 
     private void truncateTo(String path, long size) {
-        try (FileChannel ch = FileChannel.open(Paths.get(path), StandardOpenOption.WRITE)) {
-            ch.truncate(size);
-        } catch (IOException ignored) {
-            // best-effort
-        }
+        TusChunkStore.truncateTo(path, size);
     }
 
     /**
-     * 보안 LOW(CWE-22 심층방어): 삭제 직전 대상 경로가 storageRawPath 하위인지 재검증한다.
+     * 보안 LOW(CWE-22 심층방어): 삭제 직전 대상 경로가 storageRawPath 하위인지 재검증한다(코어 위임).
      * 저장 경로는 생성 시 UUID 강제(HIGH-7)로 storage 내부가 보장되나, 데이터 변조 등으로
-     * filePath 가 baseDir 밖을 가리키면 임의 파일 삭제로 이어질 수 있으므로 best-effort 삭제 전
-     * normalize().startsWith() 게이트를 둔다.
+     * filePath 가 baseDir 밖을 가리키면 임의 파일 삭제로 이어질 수 있으므로 root 게이트를 둔다.
      */
     private void deleteQuietly(String path) {
-        if (path == null || path.isBlank()) {
-            return;
-        }
-        Path target = Paths.get(path).toAbsolutePath().normalize();
-        if (!target.startsWith(storageRawPath)) {
-            log.warn("[Tus] delete blocked — path outside storage root");
-            return;
-        }
-        try {
-            Files.deleteIfExists(target);
-        } catch (IOException ignored) {
-            // best-effort
-        }
+        TusChunkStore.deleteQuietly(path, storageRawPath);
     }
 
     /** 보안 LOW: 코드성 메타 사전 검증 패턴 (AutolabelTestRequest 의 @Pattern 과 동일 SoT). */

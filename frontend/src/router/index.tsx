@@ -72,6 +72,16 @@ const PortalHomePage = lazyWithRetry(() =>
 const PortalLabelingPage = lazyWithRetry(() =>
   import('@/pages/portal/PortalLabelingPage').then((m) => ({ default: m.PortalLabelingPage })),
 );
+// Phase 5 — 포털 업로드 화면 (이미지 다중 업로드 + 영상 TUS + 자산 목록/삭제) lazy 로드
+const PortalUploadPage = lazyWithRetry(() =>
+  import('@/pages/portal/PortalUploadPage').then((m) => ({ default: m.PortalUploadPage })),
+);
+// Phase 6 — 포털 업로드 자산 라벨링 화면 (CanvasShell 조립 + export/원본 다운로드) lazy 로드
+const PortalUploadLabelingPage = lazyWithRetry(() =>
+  import('@/pages/portal/PortalUploadLabelingPage').then((m) => ({
+    default: m.PortalUploadLabelingPage,
+  })),
+);
 
 // Phase 12 — 통계 + 프리셋 lazy 로드 (recharts 별도 청크)
 const WorkerStatPage = lazyWithRetry(() =>
@@ -449,6 +459,14 @@ export const router = createBrowserRouter([
       {
         path: 'label/:id',
         element: <PortalRoute>{withSuspense(<PortalLabelingPage />)}</PortalRoute>,
+      },
+      {
+        path: 'uploads',
+        element: <PortalRoute>{withSuspense(<PortalUploadPage />)}</PortalRoute>,
+      },
+      {
+        path: 'uploads/:uldSn/label',
+        element: <PortalRoute>{withSuspense(<PortalUploadLabelingPage />)}</PortalRoute>,
       },
     ],
   },

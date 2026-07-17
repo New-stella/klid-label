@@ -12,9 +12,16 @@ spring:
         default-page-size: 20
   servlet:
     multipart:
-      # TUS 업로드는 application/offset+octet-stream (raw body) 사용 → multipart 비활성.
-      # 활성화 시 Spring 이 form data 로 파싱 시도하여 5GB 파일 메모리 적재 위험.
-      enabled: false
+      # 포털 이미지 업로드(multipart/form-data)는 전 프로파일(prd 포함)에서 동작해야 하므로 활성화.
+      # TUS 업로드는 application/offset+octet-stream (raw body) 이라 multipart resolver 가 개입하지 않는다
+      # (content-type 이 multipart/form-data 가 아니면 파싱하지 않음) → TUS 무영향.
+      # 한도: 이미지 개당 20MB(서비스 검증) → max-file-size 21MB 헤드룸, 요청당 최대 50장 → 50×21MB=1050MB + 헤드룸.
+      # max-request-size 는 1100MB 로 타이트하게 잡아 무제한 대용량 요청 자원 소진(OWASP API4)을 예방한다.
+      # file-size-threshold(1MB): 임계 초과분은 메모리 대신 임시파일로 스풀 — 다건 업로드 시 힙 소진 방지.
+      enabled: true
+      max-file-size: 21MB
+      max-request-size: 1100MB
+      file-size-threshold: 1MB
   jpa:
     open-in-view: false
     hibernate:
@@ -227,11 +234,16 @@ authoring:
       enabled: ${DEV_UPLOAD_ENABLED:false}
 
 # Phase 11 — 포털 채널 TUS 업로드 정책
+# V107 — 포털 전용 이미지/영상 업로드 정책 (PortalUploadProperties 바인딩)
 portal:
   upload:
-    max-file-size-bytes: ${PORTAL_MAX_FILE_SIZE:5368709120}        # 5 GB
-    allowed-extensions: ${PORTAL_ALLOWED_EXT:mp4,mov,avi}
+    max-file-size-bytes: ${PORTAL_MAX_FILE_SIZE:5368709120}        # 5 GB (영상)
+    allowed-extensions: ${PORTAL_ALLOWED_EXT:mp4,mov,avi}          # 영상 확장자 allowlist
     storage-path: ${PORTAL_STORAGE_PATH:${authoring.storage.raw-path:./storage/raw}/portal}
+    allowed-image-extensions: ${PORTAL_ALLOWED_IMG_EXT:jpg,jpeg,png}  # 이미지 확장자 allowlist
+    max-image-size-bytes: ${PORTAL_MAX_IMG_SIZE:20971520}         # 20 MB (이미지)
+    max-images-per-request: ${PORTAL_MAX_IMAGES_PER_REQ:50}       # 1회 요청 최대 이미지 수
+    max-frames: ${PORTAL_MAX_FRAMES:2000}                         # 영상 1건 최대 추출 프레임 수
 
 # UC018 — ㈜KPST 비식별 솔루션 폴링 연동 클라이언트 (docs/v2-wiki/22-deid-solution-api.md).
 #  - enabled=true 기본 (비식별 단일 경로 = KPST 폴링. 레거시 동기 SPI/콜백 경로는 제거됨).
@@ -338,6 +350,14 @@ resilience4j:
       #  - timeout-duration=0: permit 부재 시 대기 없이 즉시 거부(fail-fast) — 스레드 점유 최소화.
       portalSam2:
         limit-for-period: 30
+        limit-refresh-period: 1m
+        timeout-duration: 0
+      # V107 이슈8 (CWE-770) — 포털 이미지 업로드 사용자별(portalUserNo) 요청량 제한 config.
+      #  - per-user 이름(portalUpload-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
+      #  - limit-refresh-period(1m) 당 limit-for-period(60) 회 허용. 초과 시 429 (즉시 거부).
+      #    업로드는 다건 배치라 SAM2(30)보다 여유를 둔다. timeout-duration=0: 대기 없이 즉시 거부.
+      portalUpload:
+        limit-for-period: 60
         limit-refresh-period: 1m
         timeout-duration: 0
 
