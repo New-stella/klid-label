@@ -90,7 +90,7 @@ export function WorkerStatPage() {
               icon={<CheckCircle className="h-4 w-4 text-success" aria-hidden />}
             />
             <KpiCard
-              label="작업 중"
+              label="작업중"
               value={data?.inProgress ?? 0}
               icon={<Clock className="h-4 w-4 text-warning" aria-hidden />}
             />

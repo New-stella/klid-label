@@ -100,3 +100,31 @@ describe('VideoPlayer 영상 길이 노출 (FE-1)', () => {
     expect(ref.current?.getDuration()).toBe(88);
   });
 });
+
+describe('VideoPlayer 버퍼링 스피너', () => {
+  it('초기에는_버퍼링_스피너_미노출', () => {
+    // given
+    render(<VideoPlayer src="/test.mp4" />);
+
+    // then: 재생 시작 전에는 스피너가 없다
+    expect(screen.queryByTestId('video-buffering-spinner')).not.toBeInTheDocument();
+  });
+
+  it('waiting_이벤트시_스피너_노출_canplay시_해제', () => {
+    // given
+    render(<VideoPlayer src="/test.mp4" />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+
+    // when: 버퍼 고갈(waiting) 발화
+    fireEvent.waiting(video);
+
+    // then: 버퍼링 스피너가 노출된다
+    expect(screen.getByTestId('video-buffering-spinner')).toBeInTheDocument();
+
+    // when: 재생 가능(canplay) 발화
+    fireEvent.canPlay(video);
+
+    // then: 스피너가 해제된다
+    expect(screen.queryByTestId('video-buffering-spinner')).not.toBeInTheDocument();
+  });
+});

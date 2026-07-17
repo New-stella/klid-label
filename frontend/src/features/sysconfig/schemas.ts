@@ -39,7 +39,7 @@ export const yoloConfigSchema = z.object({
     .int('정수만 허용')
     .min(320, '320 ~ 1920 범위 내에서 입력해주세요')
     .max(1920, '320 ~ 1920 범위 내에서 입력해주세요')
-    .refine((v) => v % 32 === 0, { message: '32 의 배수만 허용 (ultralytics 권장)' }),
+    .refine((v) => v % 32 === 0, { message: '32의 배수만 허용' }),
   YOLO_IOU: z
     .number({ invalid_type_error: '숫자를 입력해주세요' })
     .int('정수만 허용')

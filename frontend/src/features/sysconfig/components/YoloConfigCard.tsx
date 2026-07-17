@@ -135,7 +135,7 @@ export function YoloConfigCard({ configs }: Props) {
           <p className="text-xs text-gray-400">
             AI 탐지 모델에 입력하는 추론 해상도(px)입니다. 프레임이 이 크기로 리사이즈되어 추론되고
             결과 좌표는 원본 해상도로 환산됩니다. 크게 하면 작은 객체 탐지 정확도가 올라가지만 추론
-            속도가 느려지고 GPU 메모리를 더 사용합니다. 32의 배수여야 하며(ultralytics 권장),
+            속도가 느려지고 GPU 메모리를 더 사용합니다. 탐지 모델 입력 규격상 32의 배수여야 하며,
             저장·내보내기 해상도와는 무관합니다. (320~1920px, 기본 1280)
           </p>
           {errors.YOLO_IMGSZ && (
