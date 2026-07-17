@@ -6,8 +6,8 @@
 // - 영상 목록 (카드/리스트, 반응형) → 카드 선택 시 /portal/label/{firstSrcSn} 이동
 // - 라벨링 카드 "시작하기" → 첫 영상 진입 (영상 0건이면 aria-disabled)
 
-import { Tag, Play } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Tag, Play, UploadCloud } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { KpiCard } from '@/components/common/KpiCard';
 import { KRDS_FOCUS } from '@/lib/focusRing';
@@ -44,6 +44,13 @@ export function PortalHomePage() {
         <div className="mx-auto max-w-4xl">
           <h1 className="mb-2 text-page-title text-gray-900">AI 학습데이터 작성 포털</h1>
           <p className="text-body text-gray-600">데이터마트 영상 선택, 간편 라벨링</p>
+          <Link
+            to="/portal/uploads"
+            className={`mt-4 inline-flex items-center gap-1.5 rounded-lg border border-primary-300 bg-white px-3 py-2 text-sub font-medium text-primary-700 transition-colors hover:bg-primary-50 ${KRDS_FOCUS}`}
+          >
+            <UploadCloud className="h-4 w-4" aria-hidden />
+            내 업로드
+          </Link>
         </div>
       </section>
 

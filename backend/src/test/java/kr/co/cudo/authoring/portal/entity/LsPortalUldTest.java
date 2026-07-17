@@ -17,16 +17,16 @@ class LsPortalUldTest {
         // given — 영상 업로드 생성(초기 UPLOADED)
         LsPortalUld video = LsPortalUld.createVideo(
                 "portal-user-1", "clip.mp4", "/portal/1/clip.mp4", 1_000L, "video/mp4");
-        assertThat(video.getUldSttsCd()).isEqualTo(LsPortalUld.STATUS_UPLOADED);
+        assertThat(video.getUldSttsCd()).isEqualTo(LsPortalUld.STTS_UPLOADED);
         assertThat(video.getUldTypeCd()).isEqualTo(LsPortalUld.TYPE_VIDEO);
 
         // when/then — 처리 시작
         video.markProcessing();
-        assertThat(video.getUldSttsCd()).isEqualTo(LsPortalUld.STATUS_PROCESSING);
+        assertThat(video.getUldSttsCd()).isEqualTo(LsPortalUld.STTS_PROCESSING);
 
         // when/then — 완료(길이/FPS/프레임 수 기록)
         video.markReady(30.0, 25.0, 150);
-        assertThat(video.getUldSttsCd()).isEqualTo(LsPortalUld.STATUS_READY);
+        assertThat(video.getUldSttsCd()).isEqualTo(LsPortalUld.STTS_READY);
         assertThat(video.getVdoLenSec()).isEqualTo(30.0);
         assertThat(video.getFps()).isEqualTo(25.0);
         assertThat(video.getFrmeCnt()).isEqualTo(150);
@@ -45,7 +45,7 @@ class LsPortalUldTest {
         image.markFailed("프레임 추출 실패");
 
         // then
-        assertThat(image.getUldSttsCd()).isEqualTo(LsPortalUld.STATUS_FAILED);
+        assertThat(image.getUldSttsCd()).isEqualTo(LsPortalUld.STTS_FAILED);
         assertThat(image.getFailRsnCn()).isEqualTo("프레임 추출 실패");
     }
 }

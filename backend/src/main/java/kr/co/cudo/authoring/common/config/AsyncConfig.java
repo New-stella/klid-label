@@ -45,4 +45,26 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * 포털 프레임 추출 전용 스레드풀 빈 (security M-3 — 관제 배치 풀과 자원 격리).
+     *
+     * <p>포털 사용자 업로드 영상의 ffmpeg 프레임 추출({@code PortalFrameExtractRunner})만 사용한다.
+     * 관제 배치({@code batchAsyncExecutor})와 풀을 공유하면 포털 트래픽이 관제 비식별/배치 스레드를
+     * 잠식할 수 있으므로 별도 풀로 분리한다. 큐가 가득 차면 {@link ThreadPoolExecutor.CallerRunsPolicy}
+     * 로 역압한다.
+     */
+    @Bean(name = "portalExtractExecutor")
+    public Executor portalExtractExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("portal-extract-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
 }

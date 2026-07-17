@@ -13,15 +13,19 @@ import { apiClient } from '@/lib/api/client';
 const TUS_VERSION = '1.0.0';
 /** 청크 크기 — 8MB (대용량 영상 재개 단위). */
 export const DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024;
+/** 기본 TUS endpoint base — 관제 내부 업로드(/uploads). 포털은 '/portal/uploads/tus' 주입. */
+export const DEFAULT_TUS_ENDPOINT = '/uploads';
 
+// 관제 내부 업로드 메타(vmsClipId 등)는 포털에서 미사용이라 모두 optional 로 둔다.
+// encodeMetadata 가 undefined/빈값을 필터링하므로 포털은 filename 만 전송한다(BE 요구 필드와 일치).
 export interface TusMetadata {
   filename?: string;
-  vmsClipId: string;
-  cctvId: string;
-  eventTypeCd: string;
-  localGovCd: string;
-  prvcTypeCd: string;
-  capturedAt: string; // ISO-8601
+  vmsClipId?: string;
+  cctvId?: string;
+  eventTypeCd?: string;
+  localGovCd?: string;
+  prvcTypeCd?: string;
+  capturedAt?: string; // ISO-8601
 }
 
 export interface TusUploadOptions {
@@ -32,6 +36,8 @@ export interface TusUploadOptions {
   onProgress?: (uploaded: number, total: number) => void;
   /** 일시정지 신호 — true 반환 시 다음 청크 전송을 멈추고 현재 offset 을 반환한다. */
   shouldPause?: () => boolean;
+  /** TUS endpoint base (기본 {@link DEFAULT_TUS_ENDPOINT}). 포털은 '/portal/uploads/tus'. */
+  endpointBase?: string;
 }
 
 export interface TusUploadResult {
@@ -70,9 +76,13 @@ function encodeMetadata(meta: TusMetadata): string {
     .join(',');
 }
 
-/** POST /uploads — 세션 생성. Location 헤더에서 uploadId 추출. */
-export async function createUpload(file: File, metadata: TusMetadata): Promise<string> {
-  const res = await apiClient.post('/uploads', null, {
+/** POST {base} — 세션 생성. Location 헤더에서 uploadId 추출. */
+export async function createUpload(
+  file: File,
+  metadata: TusMetadata,
+  endpointBase: string = DEFAULT_TUS_ENDPOINT,
+): Promise<string> {
+  const res = await apiClient.post(endpointBase, null, {
     headers: {
       'Tus-Resumable': TUS_VERSION,
       'Upload-Length': String(file.size),
@@ -92,22 +102,26 @@ export async function createUpload(file: File, metadata: TusMetadata): Promise<s
   return id;
 }
 
-/** HEAD /uploads/{id} — 재개를 위한 현재 offset 조회. */
-export async function fetchOffset(uploadId: string): Promise<number> {
-  const res = await apiClient.head(`/uploads/${encodeURIComponent(uploadId)}`, {
+/** HEAD {base}/{id} — 재개를 위한 현재 offset 조회. */
+export async function fetchOffset(
+  uploadId: string,
+  endpointBase: string = DEFAULT_TUS_ENDPOINT,
+): Promise<number> {
+  const res = await apiClient.head(`${endpointBase}/${encodeURIComponent(uploadId)}`, {
     headers: { 'Tus-Resumable': TUS_VERSION },
   });
   const raw = (res.headers['upload-offset'] ?? res.headers['Upload-Offset']) as string | undefined;
   return raw ? Number(raw) : 0;
 }
 
-/** PATCH /uploads/{id} — 단일 청크 append. 새 offset 반환. */
+/** PATCH {base}/{id} — 단일 청크 append. 새 offset 반환. */
 async function patchChunk(
   uploadId: string,
   offset: number,
   chunk: Blob,
+  endpointBase: string = DEFAULT_TUS_ENDPOINT,
 ): Promise<number> {
-  const res = await apiClient.patch(`/uploads/${encodeURIComponent(uploadId)}`, chunk, {
+  const res = await apiClient.patch(`${endpointBase}/${encodeURIComponent(uploadId)}`, chunk, {
     headers: {
       'Tus-Resumable': TUS_VERSION,
       'Upload-Offset': String(offset),
@@ -119,9 +133,12 @@ async function patchChunk(
   return raw ? Number(raw) : offset + chunk.size;
 }
 
-/** DELETE /uploads/{id} — 세션 취소. */
-export async function cancelUpload(uploadId: string): Promise<void> {
-  await apiClient.delete(`/uploads/${encodeURIComponent(uploadId)}`, {
+/** DELETE {base}/{id} — 세션 취소. */
+export async function cancelUpload(
+  uploadId: string,
+  endpointBase: string = DEFAULT_TUS_ENDPOINT,
+): Promise<void> {
+  await apiClient.delete(`${endpointBase}/${encodeURIComponent(uploadId)}`, {
     headers: { 'Tus-Resumable': TUS_VERSION },
   });
 }
@@ -135,15 +152,22 @@ export async function cancelUpload(uploadId: string): Promise<void> {
 export async function uploadFile(
   opts: TusUploadOptions & { resumeUploadId?: string },
 ): Promise<TusUploadResult> {
-  const { file, metadata, chunkSize = DEFAULT_CHUNK_SIZE, onProgress, shouldPause } = opts;
+  const {
+    file,
+    metadata,
+    chunkSize = DEFAULT_CHUNK_SIZE,
+    onProgress,
+    shouldPause,
+    endpointBase = DEFAULT_TUS_ENDPOINT,
+  } = opts;
 
   let uploadId = opts.resumeUploadId;
   let offset = 0;
   if (uploadId) {
     // 재개 — 서버 offset 으로 동기화 (네트워크 중단 후 신뢰 가능한 진실).
-    offset = await fetchOffset(uploadId);
+    offset = await fetchOffset(uploadId, endpointBase);
   } else {
-    uploadId = await createUpload(file, metadata);
+    uploadId = await createUpload(file, metadata, endpointBase);
   }
 
   onProgress?.(offset, file.size);
@@ -154,7 +178,7 @@ export async function uploadFile(
     }
     const end = Math.min(offset + chunkSize, file.size);
     const chunk = file.slice(offset, end);
-    offset = await patchChunk(uploadId, offset, chunk);
+    offset = await patchChunk(uploadId, offset, chunk, endpointBase);
     onProgress?.(offset, file.size);
   }
 

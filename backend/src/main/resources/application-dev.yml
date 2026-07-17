@@ -10,12 +10,13 @@ spring:
       username: ${PORTAL_DB_USERNAME}
       password: ${PORTAL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
-  # dev 업로드(/v1/dev/autolabel-test) multipart 파싱 활성화 — 공통 yml 의 false(TUS 호환) override.
+  # dev 업로드(/v1/dev/autolabel-test) 영상 multipart 개당 한도 상향(500MB). 공통 yml 이 이미 multipart 활성.
+  #   요청 한도는 포털 50장 업로드(≥1.1GB) 수용 위해 공통(1200MB)과 정합.
   servlet:
     multipart:
       enabled: true
       max-file-size: 500MB
-      max-request-size: 500MB
+      max-request-size: 1200MB
 
 # [개발/검수 전용] dev 로그인/업로드 토글 — dev 는 항상 ON(기존 @Profile("!prd") 동작 유지).
 authoring:

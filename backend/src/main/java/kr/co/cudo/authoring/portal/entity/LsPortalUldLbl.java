@@ -15,11 +15,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * V2.0 포털 업로드 프레임 위 수동 라벨 (LS_PORTAL_ULD_LBL).
+ * 포털 업로드 프레임별 수동 라벨 (LS_PORTAL_ULD_LBL).
  * <p>
- * {@link LsPortalUserLabel}(데이터마트 영상 위 라벨)과 별개로, 포털 사용자가 직접
- * 업로드한 프레임에 그린 BBOX/POLYGON 을 적재한다. FK(ULD_FRME_SN)는 DB
- * ON DELETE CASCADE 로 정리된다.
+ * {@link LsPortalUserLabel}(데이터마트 영상 라벨) 패턴 준용 — 원본 미수정, 포털 사용자별 적재.
+ * 프레임(ULD_FRME) 삭제 시 DB ON DELETE CASCADE 로 연쇄 삭제된다. 좌표 갱신은 의미 있는
+ * {@link #updatePoints(String, String)} 메서드로만 수행한다({@code @Setter} 금지).
  */
 @Entity
 @Table(name = "LS_PORTAL_ULD_LBL")
@@ -76,6 +76,13 @@ public class LsPortalUldLbl {
     public static LsPortalUldLbl create(String portalUserNo, Long uldSn, Long uldFrmeSn,
                                         String lblTypeCd, String lblNm, String pointCn) {
         return new LsPortalUldLbl(portalUserNo, uldSn, uldFrmeSn, lblTypeCd, lblNm, pointCn);
+    }
+
+    /** 라벨명/좌표 갱신 — 의미 있는 상태 변경 메서드. */
+    public void updatePoints(String lblNm, String pointCn) {
+        this.lblNm = lblNm;
+        this.pointCn = pointCn;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     @PrePersist

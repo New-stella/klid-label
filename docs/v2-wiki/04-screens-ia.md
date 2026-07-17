@@ -8,7 +8,7 @@
 - **내부 채널 (INTERNAL)**: `/` 하위 + AppLayout(LNB+GNB). 관제서버 JWT.
 - **포털 채널 (PORTAL)**: `/portal` 하위 + PortalLayout(모바일 친화, LNB 없음). 포털 JWT. → [16](16-portal.md)
 
-화면 ID 체계: **`KLID-AT-SC-NNN`** (SC=Screen). 활성 22개(deprecated 7 제외).
+화면 ID 체계: **`KLID-AT-SC-NNN`** (SC=Screen). 활성 24개(deprecated 7 제외).
 
 ## 4.2 내부 채널 화면
 
@@ -61,8 +61,12 @@
 |---------|-------|--------|
 | (홈) | 데이터마트 영상 선택 | `/portal` |
 | SC-029 | 포털 라벨링 | `/portal/label/:id` |
+| SC-034 | 포털 업로드 | `/portal/uploads` |
+| SC-035 | 포털 업로드 라벨링 | `/portal/uploads/:uldSn/label` |
 
 → [16 포털](16-portal.md)
+
+> **SC-034/035 포털 자산 업로드**(2026-07-17) — ADR-013 예외로 신설. 포털 사용자(PORTAL_USER)가 **본인 이미지(jpg/jpeg/png, 20MB/장·50장/요청)·영상(mp4/mov/avi, 5GB, TUS 재개 업로드)을 직접 업로드**해 수동 라벨링(BBOX/POLYGON만) 후 본인 데이터(JSON export/원본)를 다운로드한다. 업로드 자산은 신규 `LS_PORTAL_*` 테이블로 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 **완전 분리** — 오토라벨링·SAM2·VLM·검수·버전관리 미제공. 영상은 비식별 미적용(본인 데이터), 고정 간격 프레임 추출(`LS_SYSTEM_CONFIG` `portal.upload.frame-interval-sec` 기본 5초). 상태: `UPLOADED`→`PROCESSING`→`READY`\|`FAILED`. API `/v1/portal/uploads/**` → [16 포털](16-portal.md) · [18 DB](18-database.md).
 
 ## 4.4 deprecated 화면
 

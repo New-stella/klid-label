@@ -26,7 +26,13 @@ export interface UseTusUploadState {
  * - {@link pause} 다음 청크 경계에서 안전하게 멈춤(현재 offset 보존).
  * - {@link cancel} 세션 취소(BE 임시파일 삭제).
  */
-export function useTusUpload() {
+export interface UseTusUploadOptions {
+  /** TUS endpoint base (기본 관제 '/uploads'). 포털은 '/portal/uploads/tus'. */
+  endpointBase?: string;
+}
+
+export function useTusUpload(options: UseTusUploadOptions = {}) {
+  const { endpointBase } = options;
   const [state, setState] = useState<UseTusUploadState>({
     status: 'idle',
     progress: 0,
@@ -52,6 +58,7 @@ export function useTusUpload() {
           file,
           metadata,
           resumeUploadId,
+          endpointBase,
           onProgress: (uploaded, total) =>
             setState((s) => ({
               ...s,
@@ -77,7 +84,7 @@ export function useTusUpload() {
         throw err;
       }
     },
-    [],
+    [endpointBase],
   );
 
   const start = useCallback(
@@ -103,7 +110,7 @@ export function useTusUpload() {
     pauseRef.current = true;
     if (state.uploadId) {
       try {
-        await cancelUpload(state.uploadId);
+        await cancelUpload(state.uploadId, endpointBase);
       } catch {
         // best-effort — 세션은 BE TTL 정리 잡으로도 회수됨.
       }
@@ -116,7 +123,7 @@ export function useTusUpload() {
       uploadId: null,
       error: null,
     });
-  }, [state.uploadId]);
+  }, [state.uploadId, endpointBase]);
 
   return { ...state, start, resume, pause, cancel };
 }
