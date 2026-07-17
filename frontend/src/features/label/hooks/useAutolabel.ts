@@ -10,9 +10,10 @@ export interface UseAutolabelResult {
    * - srcSn 미지정 시 즉시 null.
    * - 진행 중이면 무시(중복 방지 — BE in-flight 409 이전 클라이언트 1차 가드).
    * - 응답 도착 시 요청 시점 srcSn 과 현재 srcSn 이 다르면 폐기(프레임 전환 stale 가드).
+   * @param classIds (Phase 4 — R3) 검출 대상 클래스(COCO 영문명). 미지정/빈 → 전체 검출(하위호환).
    * 반환: 적용 가능한 응답 또는 폐기/무시 시 null.
    */
-  autolabel: () => Promise<AutolabelResponse | null>;
+  autolabel: (classIds?: string[]) => Promise<AutolabelResponse | null>;
 }
 
 /**
@@ -29,22 +30,29 @@ export function useAutolabel(srcSn: number | undefined): UseAutolabelResult {
   currentSrcSnRef.current = srcSn;
   const inflightRef = useRef(false);
 
-  const autolabel = useCallback(async (): Promise<AutolabelResponse | null> => {
-    if (srcSn === undefined) return null;
-    if (inflightRef.current) return null; // 진행 중 신규 요청 무시
-    const requestedSrcSn = srcSn;
-    inflightRef.current = true;
-    setIsAutolabeling(true);
-    try {
-      const res = await requestAutolabel(requestedSrcSn);
-      // 프레임 전환 후 도착한 응답이면 폐기.
-      if (currentSrcSnRef.current !== requestedSrcSn) return null;
-      return res;
-    } finally {
-      inflightRef.current = false;
-      setIsAutolabeling(false);
-    }
-  }, [srcSn]);
+  const autolabel = useCallback(
+    async (classIds?: string[]): Promise<AutolabelResponse | null> => {
+      if (srcSn === undefined) return null;
+      if (inflightRef.current) return null; // 진행 중 신규 요청 무시
+      const requestedSrcSn = srcSn;
+      inflightRef.current = true;
+      setIsAutolabeling(true);
+      try {
+        // classIds 미지정 시 인자 없이 호출 — 기존 호출 형태 유지(무회귀).
+        const res =
+          classIds === undefined
+            ? await requestAutolabel(requestedSrcSn)
+            : await requestAutolabel(requestedSrcSn, classIds);
+        // 프레임 전환 후 도착한 응답이면 폐기.
+        if (currentSrcSnRef.current !== requestedSrcSn) return null;
+        return res;
+      } finally {
+        inflightRef.current = false;
+        setIsAutolabeling(false);
+      }
+    },
+    [srcSn],
+  );
 
   return { isAutolabeling, autolabel };
 }

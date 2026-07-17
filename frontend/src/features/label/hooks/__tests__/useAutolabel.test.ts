@@ -32,6 +32,29 @@ describe('useAutolabel', () => {
     expect(out.value?.savedCount).toBe(2);
   });
 
+  it('classIds_지정시_requestAutolabel에_classIds_전달', async () => {
+    const spy = vi.spyOn(api, 'requestAutolabel').mockResolvedValue(okResponse);
+    const { result } = renderHook(() => useAutolabel(5001));
+
+    await act(async () => {
+      await result.current.autolabel(['person', 'car']);
+    });
+
+    expect(spy).toHaveBeenCalledWith(5001, ['person', 'car']);
+  });
+
+  it('classIds_미지정(전체)시_인자없이_호출_무회귀', async () => {
+    const spy = vi.spyOn(api, 'requestAutolabel').mockResolvedValue(okResponse);
+    const { result } = renderHook(() => useAutolabel(5001));
+
+    await act(async () => {
+      await result.current.autolabel();
+    });
+
+    // 인자 없이 호출 — 기존 시그니처(srcSn 단독) 유지.
+    expect(spy).toHaveBeenCalledWith(5001);
+  });
+
   it('srcSn_미지정시_요청안하고_null반환', async () => {
     const spy = vi.spyOn(api, 'requestAutolabel');
     const { result } = renderHook(() => useAutolabel(undefined));

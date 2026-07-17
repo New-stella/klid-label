@@ -4,12 +4,14 @@ import MockAdapter from 'axios-mock-adapter';
 import { apiClient } from '@/lib/api/client';
 
 import {
+  deleteTrack,
   getLabels,
   normalizeLabel,
   putLabels,
   reportDeidentMiss,
   requestAutolabel,
   requestSam2Segment,
+  splitTrack,
 } from '../api';
 import type { AutolabelResponse, Sam2SegmentResponse } from '../api';
 import { saveAndCommit } from '../SaveCommitFlow';
@@ -467,6 +469,39 @@ describe('label api', () => {
       expect(res.message).toBe('AI 모델 미로드 — 결과 신뢰 불가');
     });
 
+    it('requestAutolabel_classIds_지정시_body에_classes_포함', async () => {
+      let sentBody: unknown = 'NONE';
+      mock.onPost('/frames/12/autolabel').reply((config) => {
+        sentBody = config.data ? JSON.parse(config.data) : null;
+        return [200, { success: true, data: { srcSn: 12, savedCount: 1, labels: [] }, message: null, errorCode: null }];
+      });
+
+      await requestAutolabel(12, ['person', 'car']);
+      expect(sentBody).toEqual({ classes: ['person', 'car'] });
+    });
+
+    it('requestAutolabel_classIds_미지정시_body_없음_무회귀', async () => {
+      let hadBody = true;
+      mock.onPost('/frames/13/autolabel').reply((config) => {
+        hadBody = config.data !== undefined && config.data !== null && config.data !== '';
+        return [200, { success: true, data: { srcSn: 13, savedCount: 0, labels: [] }, message: null, errorCode: null }];
+      });
+
+      await requestAutolabel(13);
+      expect(hadBody).toBe(false);
+    });
+
+    it('requestAutolabel_빈배열이면_body_없음_전체검출_footgun_방지', async () => {
+      let hadBody = true;
+      mock.onPost('/frames/14/autolabel').reply((config) => {
+        hadBody = config.data !== undefined && config.data !== null && config.data !== '';
+        return [200, { success: true, data: { srcSn: 14, savedCount: 0, labels: [] }, message: null, errorCode: null }];
+      });
+
+      await requestAutolabel(14, []);
+      expect(hadBody).toBe(false);
+    });
+
     it('응답타입에_mock필드_없음_런타임_확인', async () => {
       // 컴파일타임: Sam2SegmentResponse/AutolabelResponse 에 mock 필드가 없다(tsc 가드).
       // 런타임: 실제 반환 객체에도 mock 프로퍼티가 없음.
@@ -664,6 +699,59 @@ describe('label api', () => {
       const result = await saveAndCommit(777, [bbox('a', 1)], { portalMode: true });
       expect(calls).toEqual(['PUT']);
       expect(result.committed).toBeNull();
+    });
+  });
+
+  describe('트랙 삭제/분할 (R4/R5)', () => {
+    it('deleteTrack_DELETE_videos_tracks_fromFrameNo_쿼리파라미터', async () => {
+      let capturedUrl = '';
+      let capturedParams: Record<string, unknown> | undefined;
+      mock.onDelete('/videos/9001/tracks/5').reply((config) => {
+        capturedUrl = config.url ?? '';
+        capturedParams = config.params as Record<string, unknown>;
+        return [
+          200,
+          {
+            success: true,
+            data: { rawSn: 9001, trackId: '5', fromFrameNo: 10, deletedCount: 3 },
+            message: null,
+            errorCode: null,
+          },
+        ];
+      });
+
+      const res = await deleteTrack(9001, '5', 10);
+      expect(capturedUrl).toBe('/videos/9001/tracks/5');
+      expect(capturedParams).toEqual({ fromFrameNo: 10 });
+      expect(res.deletedCount).toBe(3);
+      expect(res.trackId).toBe('5');
+    });
+
+    it('splitTrack_POST_videos_tracks_split_body_atFrameNo', async () => {
+      let capturedBody: unknown;
+      mock.onPost('/videos/9001/tracks/5/split').reply((config) => {
+        capturedBody = JSON.parse(config.data as string);
+        return [
+          200,
+          {
+            success: true,
+            data: {
+              rawSn: 9001,
+              originalTrackId: '5',
+              newTrackId: '6',
+              atFrameNo: 4,
+              movedCount: 2,
+            },
+            message: null,
+            errorCode: null,
+          },
+        ];
+      });
+
+      const res = await splitTrack(9001, '5', 4);
+      expect(capturedBody).toEqual({ atFrameNo: 4 });
+      expect(res.newTrackId).toBe('6');
+      expect(res.movedCount).toBe(2);
     });
   });
 });

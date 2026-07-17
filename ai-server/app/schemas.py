@@ -40,6 +40,14 @@ class YoloRequest(BaseModel):
     conf_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
     imgsz: int = Field(default=1280, ge=320, le=1920, description="추론 입력 해상도(px)")
     iou: float = Field(default=0.5, ge=0.0, le=1.0, description="NMS IoU 임계값")
+    classes: Optional[list[str]] = Field(
+        default=None,
+        max_length=100,
+        description=(
+            "검출 대상 클래스 라벨 화이트리스트(COCO 영문명). None=전체(미필터). "
+            "빈 리스트도 전체로 처리. 지정 시 detection.label 이 목록에 포함된 결과만 반환"
+        ),
+    )
 
 
 class Detection(BaseModel):
@@ -102,6 +110,14 @@ class YoloTrackRequest(BaseModel):
     conf_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
     imgsz: int = Field(default=1280, ge=320, le=1920, description="추론 입력 해상도(px)")
     iou: float = Field(default=0.5, ge=0.0, le=1.0, description="NMS IoU 임계값")
+    classes: Optional[list[str]] = Field(
+        default=None,
+        max_length=100,
+        description=(
+            "검출 대상 클래스 라벨 화이트리스트(COCO 영문명). None=전체(미필터). "
+            "빈 리스트도 전체로 처리. 지정 시 detection.label 이 목록에 포함된 결과만 반환"
+        ),
+    )
 
 
 class YoloTrackResponse(BaseModel):

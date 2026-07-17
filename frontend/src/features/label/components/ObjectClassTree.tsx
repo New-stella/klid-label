@@ -7,13 +7,16 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  ListX,
   Lock,
   Pencil,
+  Scissors,
   Trash2,
   Unlock,
   X,
 } from 'lucide-react';
 
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
 
@@ -30,6 +33,21 @@ interface ObjectClassTreeProps {
    */
   onRenameTrack?: (fromTrackId: string, toTrackId: string) => void;
   /**
+   * 트랙 삭제 콜백(R4). (trackId, fromFrameNo). 현재 프레임(fromFrameNo) 이후 해당 트랙 궤적을 삭제한다.
+   * 부모가 deleteTrack API 로 배선한다. 미지정 시 트랙 삭제 액션을 숨긴다.
+   */
+  onDeleteTrack?: (trackId: string, fromFrameNo: number) => void;
+  /**
+   * 트랙 분할 콜백(R5). (trackId, atFrameNo). 현재 프레임(atFrameNo) 기준 트랙을 새 트랙으로 분할한다.
+   * 부모가 splitTrack API 로 배선한다. 미지정 시 트랙 분할 액션을 숨긴다.
+   */
+  onSplitTrack?: (trackId: string, atFrameNo: number) => void;
+  /**
+   * 현재 보고 있는 프레임 번호 — R4 삭제(fromFrameNo)/R5 분할(atFrameNo) 기준값. 트랙 삭제/분할은
+   * 이 프레임을 기준으로 동작한다. 미지정(undefined)이면 트랙 삭제/분할 액션을 노출하지 않는다.
+   */
+  currentFrameNo?: number;
+  /**
    * Phase 10(축소) — 포털 채널 여부. 포털 라벨은 트랙 데이터모델 부재(프레임별 단건)라
    * rename/머지가 불가능하므로, true 면 트랙 번호 변경(연필) 진입 자체를 숨긴다.
    * 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이라 절대 호출하지 않는다.
@@ -40,6 +58,9 @@ interface ObjectClassTreeProps {
 export function ObjectClassTree({
   labels,
   onRenameTrack,
+  onDeleteTrack,
+  onSplitTrack,
+  currentFrameNo,
   portalMode = false,
 }: ObjectClassTreeProps) {
   const selectedId = useLabelStore((s) => s.selectedLabelId);
@@ -56,6 +77,12 @@ export function ObjectClassTree({
   // 트랙 번호 인라인 편집 상태 — 편집 중인 라벨 id 와 입력 draft.
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  // R4 파괴적 안전 — 트랙 삭제(현재 프레임 이후 궤적)는 되돌릴 수 없으므로 확인 다이얼로그를 거친다.
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    trackId: string;
+    fromFrameNo: number;
+    label: string;
+  } | null>(null);
 
   const startRename = (obj: Label) => {
     setRenamingId(obj.id);
@@ -100,7 +127,8 @@ export function ObjectClassTree({
     setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
-    <div className="overflow-y-auto flex-1 text-sm">
+    <>
+      <div className="overflow-y-auto flex-1 text-sm">
       {groups.map(([className, items]) => {
         const isCollapsed = collapsed[className] ?? false;
         const color = getLabelColor(className);
@@ -274,6 +302,50 @@ export function ObjectClassTree({
                         <Pencil size={12} />
                       </button>
                     )}
+                    {/* R5 트랙 분할(split) — 현재 프레임 기준. 서버 트랙(trackId 있음)만 노출.
+                        개별 라벨 Trash2 와 구분되는 트랙 단위 액션. */}
+                    {!portalMode &&
+                      renamingId !== obj.id &&
+                      !isLocked &&
+                      trackId != null &&
+                      currentFrameNo != null &&
+                      onSplitTrack && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSplitTrack(trackId, currentFrameNo);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-300 transition-opacity"
+                          aria-label={`${displayName} #${objNumber} 트랙 분할`}
+                        >
+                          <Scissors size={12} />
+                        </button>
+                      )}
+                    {/* R4 트랙 삭제 — 현재 프레임 이후 궤적 삭제. 서버 트랙(trackId 있음)만 노출. */}
+                    {!portalMode &&
+                      renamingId !== obj.id &&
+                      !isLocked &&
+                      trackId != null &&
+                      currentFrameNo != null &&
+                      onDeleteTrack && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // 즉시 삭제하지 않고 확인 다이얼로그를 연다(파괴적 안전).
+                            setDeleteConfirm({
+                              trackId,
+                              fromFrameNo: currentFrameNo,
+                              label: `${displayName} #${objNumber}`,
+                            });
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-opacity"
+                          aria-label={`${displayName} #${objNumber} 트랙 삭제`}
+                        >
+                          <ListX size={12} />
+                        </button>
+                      )}
                     {/* 잠금 객체는 삭제 차단(disabled + store 가드). */}
                     <button
                       type="button"
@@ -299,6 +371,27 @@ export function ObjectClassTree({
           </div>
         );
       })}
-    </div>
+      </div>
+      {/* R4 파괴적 안전 — 트랙 삭제 확인. 확인 시에만 실제 삭제 콜백 실행(되돌릴 수 없음). */}
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        variant="danger"
+        title="트랙 삭제"
+        description={
+          deleteConfirm
+            ? `${deleteConfirm.label} 트랙의 현재 프레임 이후 궤적을 모두 삭제합니다. 되돌릴 수 없습니다.`
+            : ''
+        }
+        confirmLabel="삭제"
+        cancelLabel="취소"
+        onConfirm={() => {
+          if (deleteConfirm) {
+            onDeleteTrack?.(deleteConfirm.trackId, deleteConfirm.fromFrameNo);
+          }
+          setDeleteConfirm(null);
+        }}
+        onCancel={() => setDeleteConfirm(null)}
+      />
+    </>
   );
 }

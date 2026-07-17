@@ -16,11 +16,12 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
+import { AutolabelClassModal } from '@/features/label/components/AutolabelClassModal';
 import { DarkToolbar } from '@/features/label/components/DarkToolbar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
-import { mergeTracks } from '@/features/label/api';
+import { deleteTrack, mergeTracks, splitTrack } from '@/features/label/api';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
@@ -327,16 +328,9 @@ export function LabelingPage() {
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
   ).length;
 
-  // 프레임 썸네일 4색 상태(21 §21.9) — issueThreads 를 REJECTION/INQUIRY 타입별 srcSn 집합으로
-  // 가공해 DarkFrameStrip 에 주입한다. resolveFrameStatus 우선순위: 현재>확인요청>반려>저장.
-  // srcSn 이 null 인 영상 단위 이슈(프레임 미지정)는 특정 썸네일에 귀속할 수 없어 제외한다.
-  const rejectionSrcSns = useMemo(() => {
-    const set = new Set<number>();
-    for (const t of issueThreads ?? []) {
-      if (t.issueTypeCd === 'REJECTION' && t.srcSn != null) set.add(t.srcSn);
-    }
-    return set;
-  }, [issueThreads]);
+  // 프레임 썸네일 상태색 — issueThreads 를 INQUIRY srcSn 집합으로 가공해 DarkFrameStrip 에 주입한다.
+  // resolveFrameStatus 우선순위: 현재>확인요청(빨강)>저장(연두). srcSn 이 null 인 영상 단위 이슈는
+  // 특정 썸네일에 귀속할 수 없어 제외한다. v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임색 미대상.
   const inquirySrcSns = useMemo(() => {
     const set = new Set<number>();
     for (const t of issueThreads ?? []) {
@@ -429,14 +423,22 @@ export function LabelingPage() {
   // Phase 3 — YOLO 오토라벨 수동 트리거. 포털은 미제공(ADR-013 — 버튼 자체 미노출).
   // 성공 시 BE 가 저장한 자동 라벨을 재조회(useLabels)하여 캔버스에 반영. mock 응답은 자동적용 차단.
   const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn);
-  const handleAutolabel = async () => {
+  // Phase 4 — 클래스 선택 팝업(R3 AC3). 버튼 클릭 시 팝업을 열고, 확정 시 선택 클래스로 실행.
+  const [autolabelModalOpen, setAutolabelModalOpen] = useState(false);
+  const handleAutolabel = () => {
     if (!currentFrame) return;
     if (isLocked) {
       pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 오토라벨할 수 없습니다.' });
       return;
     }
+    setAutolabelModalOpen(true);
+  };
+  // 팝업 확정 → 선택 클래스(빈 배열=전체)로 오토라벨 실행. 빈 배열이면 useAutolabel 이 전체 검출로 요청.
+  const runAutolabel = async (classIds: string[]) => {
+    setAutolabelModalOpen(false);
+    if (!currentFrame) return;
     try {
-      const res = await autolabel();
+      const res = await autolabel(classIds);
       if (!res) return;
       // 내부 mock(모델 미로드) 시 BE 가 ApiResponse.message 를 세팅한다 → 경고 토스트로 자동적용 차단 안내.
       // message 가 없으면 정상 응답이며, savedCount=0 이어도 "0건 적용됨"(성공 스타일)로 안내한다.
@@ -476,6 +478,54 @@ export function LabelingPage() {
       pushToast({
         variant: 'error',
         message: e instanceof Error ? e.message : '트랙 번호 변경 실패 (겹치는 프레임일 수 있습니다)',
+      });
+    }
+  };
+
+  // R4 — 트랙 삭제(현재 프레임 이후 궤적). fromFrameNo 는 현재 보고 있는 프레임 번호.
+  const handleDeleteTrack = async (trackId: string, fromFrameNo: number) => {
+    if (portalMode) return;
+    const rawSn = data?.videoId;
+    if (rawSn === undefined) return;
+    if (isLocked) {
+      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 트랙을 편집할 수 없습니다.' });
+      return;
+    }
+    try {
+      const res = await deleteTrack(rawSn, trackId, fromFrameNo);
+      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(rawSn) });
+      pushToast({
+        variant: 'success',
+        message: `트랙 삭제됨 (T:${trackId}, ${res.deletedCount}건)`,
+      });
+    } catch (e) {
+      pushToast({
+        variant: 'error',
+        message: e instanceof Error ? e.message : '트랙 삭제 실패',
+      });
+    }
+  };
+
+  // R5 — 트랙 분할(현재 프레임 기준). atFrameNo 는 현재 보고 있는 프레임 번호.
+  const handleSplitTrack = async (trackId: string, atFrameNo: number) => {
+    if (portalMode) return;
+    const rawSn = data?.videoId;
+    if (rawSn === undefined) return;
+    if (isLocked) {
+      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 트랙을 편집할 수 없습니다.' });
+      return;
+    }
+    try {
+      const res = await splitTrack(rawSn, trackId, atFrameNo);
+      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(rawSn) });
+      pushToast({
+        variant: 'success',
+        message: `트랙 분할됨 (T:${trackId} → T:${res.newTrackId}, ${res.movedCount}건)`,
+      });
+    } catch (e) {
+      pushToast({
+        variant: 'error',
+        message: e instanceof Error ? e.message : '트랙 분할 실패',
       });
     }
   };
@@ -817,6 +867,13 @@ export function LabelingPage() {
       {/* R4 — 단축키 치트시트(도움말). ?(shift+/) 또는 헤더 도움말 버튼으로 토글. */}
       <ShortcutCheatSheet open={cheatSheetOpen} onClose={() => setCheatSheetOpen(false)} />
 
+      {/* Phase 4 — YOLO 오토라벨 클래스 선택 팝업(R3 AC3). 확정 시 선택 클래스(빈=전체)로 실행. */}
+      <AutolabelClassModal
+        open={autolabelModalOpen}
+        onClose={() => setAutolabelModalOpen(false)}
+        onConfirm={runAutolabel}
+      />
+
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
       <div className="flex flex-1 overflow-hidden">
         <DarkToolbar
@@ -971,6 +1028,9 @@ export function LabelingPage() {
                 <ObjectClassTree
                   labels={labels}
                   onRenameTrack={handleRenameTrack}
+                  onDeleteTrack={handleDeleteTrack}
+                  onSplitTrack={handleSplitTrack}
+                  currentFrameNo={currentFrame?.frameNo}
                   portalMode={portalMode}
                 />
               </div>
@@ -1026,7 +1086,6 @@ export function LabelingPage() {
             frames={frames}
             currentIndex={frameIdx}
             onSelect={requestJumpTo}
-            rejectionSrcSns={rejectionSrcSns}
             inquirySrcSns={inquirySrcSns}
             savedSrcSns={savedSrcSns}
             portalMode={portalMode}
