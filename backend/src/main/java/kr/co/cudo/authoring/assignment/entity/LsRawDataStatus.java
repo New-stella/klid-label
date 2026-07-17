@@ -34,7 +34,7 @@ public class LsRawDataStatus {
     @Column(name = "RAW_DATA_ID")
     private Long rawDataId;
 
-    @Column(name = "DATA_STTS_CD", nullable = false, length = 32)
+    @Column(name = "DATA_STTS_CD", nullable = false, length = 20)
     private String dataSttsCd;
 
     @Column(name = "STP_CYCL", nullable = false)

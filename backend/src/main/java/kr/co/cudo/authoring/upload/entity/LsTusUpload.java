@@ -69,10 +69,10 @@ public class LsTusUpload {
     @Column(name = "CCTV_ID", length = 64)
     private String cctvId;
 
-    @Column(name = "EVNT_TYPE_CD", length = 32)
+    @Column(name = "EVNT_TYPE_CD", length = 20)
     private String eventTypeCd;
 
-    @Column(name = "LCLGV_CD", length = 10)
+    @Column(name = "LCLGV_CD", length = 20)
     private String localGovCd;
 
     @Column(name = "PRVC_TYPE_CD", length = 8)

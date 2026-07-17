@@ -49,7 +49,7 @@ public class LsTaskEventLog {
     @Column(name = "RAW_DATA_ID", nullable = false)
     private Long rawDataId;
 
-    @Column(name = "EVNT_TYPE_CD", nullable = false, length = 32)
+    @Column(name = "EVNT_TYPE_CD", nullable = false, length = 20)
     private String eventTypeCd;
 
     @Column(name = "ACTOR_USER_NO", nullable = false)

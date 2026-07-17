@@ -77,10 +77,10 @@ public class LsDataRaw {
     @Column(name = "VMS_CCTV_ID", nullable = false, length = 64)
     private String vmsCctvId;
 
-    @Column(name = "EVNT_TYPE_CD", length = 32)
+    @Column(name = "EVNT_TYPE_CD", length = 20)
     private String evntTypeCd;
 
-    @Column(name = "LCLGV_CD", length = 32)
+    @Column(name = "LCLGV_CD", length = 20)
     private String lclgvCd;
 
     @Column(name = "PRVC_TYPE_CD", nullable = false, length = 16)
@@ -106,7 +106,7 @@ public class LsDataRaw {
     @Column(name = "ORGNL_RAW_SN")
     private Long orgnlRawSn;
 
-    @Column(name = "DATA_STTS_CD", nullable = false, length = 32)
+    @Column(name = "DATA_STTS_CD", nullable = false, length = 20)
     private String dataSttsCd;
 
     @Column(name = "REG_DT", nullable = false)

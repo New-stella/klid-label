@@ -36,7 +36,7 @@ public class LsSystemConfig {
     @Column(name = "EXPLN", length = 500)
     private String expln;
 
-    @Column(name = "MDFR_ID", length = 64)
+    @Column(name = "MDFR_ID", length = 30)
     private String mdfrId;
 
     @Column(name = "MDFCN_DT", nullable = false)

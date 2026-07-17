@@ -54,13 +54,13 @@ public class LsNotice {
     @Column(name = "PBLCN_DT")
     private LocalDateTime pubDt;
 
-    @Column(name = "REG_ID", length = 64, updatable = false)
+    @Column(name = "REG_ID", length = 30, updatable = false)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false, updatable = false)
     private LocalDateTime regDt;
 
-    @Column(name = "MDFR_ID", length = 64)
+    @Column(name = "MDFR_ID", length = 30)
     private String mdfrId;
 
     @Column(name = "MDFCN_DT", nullable = false)
