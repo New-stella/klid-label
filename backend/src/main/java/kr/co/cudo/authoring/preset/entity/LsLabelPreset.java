@@ -51,7 +51,7 @@ public class LsLabelPreset {
      * 매핑된 이벤트 타입 코드 (예: EVT_FALL). null = 미매핑.
      * <p>DB UNIQUE 제약(UK_LS_LABEL_PRESET_EVNT) — 이벤트 1개 = 프리셋 1개.
      */
-    @Column(name = "EVNT_TYPE_CD", length = 32)
+    @Column(name = "EVNT_TYPE_CD", length = 20)
     private String eventTypeCd;
 
     @Column(name = "REG_DT", nullable = false, updatable = false)

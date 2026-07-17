@@ -60,7 +60,7 @@ public class LsResolutionExport {
     @Column(name = "OUTPUT_DIR_PATH", nullable = false, length = 500)
     private String outputDirPath;
 
-    @Column(name = "REG_ID", length = 64)
+    @Column(name = "REG_ID", length = 30)
     private String regId;
 
     @Column(name = "REG_DT", nullable = false)

@@ -100,7 +100,7 @@ public class LsDataLbl {
      *  - 트래커가 저신뢰 detection 에 ID 미부여한 경우 (fallback)
      *  - V18 마이그레이션 이전 legacy row
      */
-    @Column(name = "TRCK_ID", length = 64)
+    @Column(name = "TRCK_ID", length = 30)
     private String trackId;
 
     /**
