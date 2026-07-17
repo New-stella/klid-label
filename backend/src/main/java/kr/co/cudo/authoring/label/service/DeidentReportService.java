@@ -182,6 +182,22 @@ public class DeidentReportService {
         report.resolve();
         workLockService.releaseRaw(report.getRawSn(), actor.sub(), "MANUAL_DEIDENT_DONE");
 
+        // B1 — 외부 솔루션 수동 비식별화가 완료되었으므로 DE_IDENT_YN 을 'F'→'Y' 로 복원한다.
+        // report() 가 신고 시 'F' 로 내린 값을 되돌리지 않으면 마킹 게이트(MarkingService.create 의
+        // deIdntfYn=='Y' 조건)가 영구 폐쇄되어 해당 영상의 재마킹이 불가능해진다. 자동 배치 경로
+        // (resolveOpenReports)는 DeidentifyStep 이 'Y' 로 복원하지만, 수동 경로에는 복원 주체가 없어
+        // 누락되던 결함(HIGH)을 수정한다. report() 와 동일하게 부모 RAW row 를 SELECT … FOR UPDATE 로
+        // 잠금 조회해 증강 콜백과의 TOCTOU(CWE-359)를 차단한다.
+        //
+        // 배치 단계 상태(DATA_STTS_CD)는 되감지 않는다(CWE-664 상태 역행 방지):
+        //  - 마킹 단계 신고는 report() 가 MARKING_READY 를 보존하므로 'Y' 복원만으로 게이트를 통과한다.
+        //  - COMPLETED/검수완료(APPROVED) 후기 단계 신고는 COMPLETED 를 유지해 배치 단계를 역행시키지 않는다.
+        videoRepository.findByRawSnForUpdate(report.getRawSn())
+                .ifPresentOrElse(
+                        raw -> raw.markDeidentified("Y"),
+                        () -> log.warn("[DeidentReport] raw video not found on resolve rawSn={}",
+                                report.getRawSn()));
+
         // 외부 수동 재비식별로 비식별본이 교체되었을 수 있으므로 스트림 메타 캐시를 커밋 후 무효화.
         streamMetaCacheEvictor.evictAfterCommit(report.getRawSn());
 

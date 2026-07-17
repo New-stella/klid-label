@@ -547,6 +547,61 @@ class DeidentReportServiceTest {
     }
 
     @Test
+    @DisplayName("비식별신고_수동해소시_deIdntfYn이_Y로_복원된다")
+    void resolveManuallyRestoresDeidentifiedFlag() {
+        // given — 신고로 DE_IDENT_YN='F' 내려간 영상.
+        LsDeidentReport rep = report(710L, 9710L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(710L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9710L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9710L)).thenReturn(Optional.of(r));
+
+        // when
+        service.resolveManually(710L, reviewerActor);
+
+        // then — 수동 비식별화 완료 → 'Y' 복원 (마킹 게이트 재개방).
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("비식별신고_수동해소후_마킹_생성이_허용된다")
+    void resolveManuallyReopensMarkingGate() {
+        // given — 마킹 단계 신고: dataSttsCd=MARKING_READY 유지, DE_IDENT_YN='F'.
+        LsDeidentReport rep = report(711L, 9711L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(711L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9711L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9711L)).thenReturn(Optional.of(r));
+
+        // when
+        service.resolveManually(711L, reviewerActor);
+
+        // then — 마킹 게이트 두 조건(deIdntfYn=='Y' && dataSttsCd==MARKING_READY) 모두 충족.
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+        assertThat(r.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+    }
+
+    @Test
+    @DisplayName("APPROVED_영상_신고_해소시_배치단계가_되감기지_않는다")
+    void resolveManuallyDoesNotRewindCompletedStage() {
+        // given — 검수완료(COMPLETED 배치 단계) 영상 신고 후 해소.
+        LsDeidentReport rep = report(712L, 9712L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(712L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9712L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_COMPLETED);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9712L)).thenReturn(Optional.of(r));
+
+        // when
+        service.resolveManually(712L, reviewerActor);
+
+        // then — 'Y' 복원은 하되 배치 단계는 COMPLETED 유지(MARKING_READY 역행 금지).
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+        assertThat(r.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
+    }
+
+    @Test
     @DisplayName("미인증_사용자_resolve_요청시_401")
     void resolveUnauthenticated() {
         assertThatThrownBy(() -> service.resolveManually(700L, null))
