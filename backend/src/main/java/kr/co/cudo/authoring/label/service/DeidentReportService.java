@@ -5,8 +5,10 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -31,6 +33,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -82,6 +91,7 @@ public class DeidentReportService {
     private final LsDataLblHstryRepository lblHstryRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
+    private final LsDeidentProcLogRepository procLogRepository;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
@@ -162,6 +172,8 @@ public class DeidentReportService {
      *   <li>신고 없음 → 404</li>
      *   <li>WORKER 타인 영상 → 403 (verifyRawAccess), REVIEWER 전체 허용</li>
      *   <li>OPEN 아니면 → 409 (이미 RESOLVED/DISMISSED 재-resolve 차단)</li>
+     *   <li>비식별 산출물 미검증 → 409 ({@link #verifyDeidentArtifact} — 실제 비식별 없이 resolve 시
+     *       PII 재노출 차단, fail-closed: report OPEN·작업락·'F' 유지)</li>
      * </ul>
      */
     public void resolveManually(Long rprtSn, TokenClaims actor) {
@@ -178,6 +190,12 @@ public class DeidentReportService {
         if (!LsDeidentReport.REPORT_OPEN.equals(report.getReportSttsCd())) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 처리된 신고입니다.");
         }
+
+        // 비식별 산출물 검증 게이트 (CWE-359) — 실제 외부 수동 비식별 없이 resolve 를 호출하면
+        // deIdntfYn 'F'→'Y' 복원으로 마킹 게이트·영상 스트리밍이 재개방되어 PII 가 재노출된다.
+        // resolve 진행(RESOLVED 전이/락해제/'Y' 복원) 전에 비식별 산출물 실재를 확인하고, 실패 시
+        // 즉시 거부한다. 예외 전파 시 트랜잭션이 롤백되어 report 는 OPEN, 작업락은 유지된다(fail-closed).
+        verifyDeidentArtifact(report);
 
         report.resolve();
         workLockService.releaseRaw(report.getRawSn(), actor.sub(), "MANUAL_DEIDENT_DONE");
@@ -263,6 +281,93 @@ public class DeidentReportService {
     }
 
     // ---------- 내부 ----------
+
+    /**
+     * 파일시스템/DB/앱 서버 간 클럭 스큐 완충값(초) — mtime 비교에만 적용한다.
+     * 통상 NTP 동기 오차 상한을 감안한 60초 관용으로, 신고시각-60초 이전에 마지막 수정된 파일은
+     * "신고 이후 교체"로 인정하지 않는다. procLog 완료시각 비교에는 적용하지 않는다(엄격 비교).
+     */
+    private static final long CLOCK_SKEW_TOLERANCE_SECONDS = 60L;
+
+    /**
+     * 비식별 산출물 검증 게이트 (CWE-359, fail-closed) — 수동 resolve 시 실제 비식별본이
+     * <b>신고 이후 재비식별</b>된 것일 때만 통과.
+     *
+     * <p>검증 절차:
+     * <ol>
+     *   <li>해당 rawSn 의 최신 성공(SUCCEEDED) 처리 이력에 비식별 파일 경로(DE_IDNTF_FILE_PATH_NM)가
+     *       기록되어 있는가 — 없으면 거부.</li>
+     *   <li>기록된 경로의 파일이 스토리지에 실존(정규 파일 + &gt;0바이트)하는가 — 아니면 거부.</li>
+     *   <li><b>시간 조건</b> — 아래 중 하나라도 충족해야 통과. 둘 다 신고 이전이면 신고를 유발한
+     *       그 비식별본으로 판단하여 거부한다.
+     *     <ul>
+     *       <li>(1) procLog 완료시각(RSPNS_DT, 없으면 REQ_DT) &gt; 신고시각 — 신고 후 자동 재비식별 성공 케이스.</li>
+     *       <li>(2) 비식별 파일 mtime &gt; 신고시각(±스큐) — 외부 도구가 파일을 제자리 교체한 케이스(주 경로).</li>
+     *     </ul>
+     *   </li>
+     * </ol>
+     *
+     * <p>시간 조건이 필요한 이유: {@code findLatestSuccessByDataRawSn} 가 반환하는 최신 성공 procLog 는
+     * <b>신고 이전 비식별본</b>(누출 신고를 유발한 그 파일 — 디스크에 실존·&gt;0바이트)일 수 있어, 파일 존재만으로는
+     * 실제 재비식별 없이 'Y' 복원이 통과된다. 외부 수동 재비식별은 파일을 <b>제자리 교체</b>할 뿐 새 procLog 를
+     * 삽입하지 않으므로 procLog 시각만으로는 판정 불가 — 그래서 파일 mtime 을 주 판정으로 사용한다.
+     *
+     * <p>경로는 <b>DB 에 적재된 값만</b> 사용한다(사용자 입력으로 경로를 구성하지 않음 — Path Manipulation 방지).
+     * 검증 실패 시 내부 경로를 노출하지 않는 안내 메시지로 409 를 던진다(외부 솔루션 비식별 완료 후 재시도 취지).
+     * 예외 전파 → 트랜잭션 롤백 → report OPEN 유지 + 작업락 유지 + deIdntfYn 'F' 유지(fail-closed).
+     */
+    private void verifyDeidentArtifact(LsDeidentReport report) {
+        Long rawSn = report.getRawSn();
+        LsDeidentProcLog procLog = procLogRepository.findLatestSuccessByDataRawSn(rawSn)
+                .orElseThrow(() -> deidentNotVerified(rawSn));
+        String deidPath = procLog.getDeIdntfFilePathNm();
+        if (deidPath == null || deidPath.isBlank()) {
+            throw deidentNotVerified(rawSn);
+        }
+
+        Path file;
+        boolean exists;
+        try {
+            file = Paths.get(deidPath);
+            exists = Files.isRegularFile(file) && Files.size(file) > 0;
+        } catch (IOException | InvalidPathException e) {
+            throw deidentNotVerified(rawSn);
+        }
+        if (!exists) {
+            throw deidentNotVerified(rawSn);
+        }
+
+        // 신고시각 — 시간 판정 불가(null)면 보수적으로 거부(fail-closed).
+        LocalDateTime reportTime = report.getReportDt();
+        if (reportTime == null) {
+            throw deidentNotVerified(rawSn);
+        }
+
+        // (1) procLog 완료시각 > 신고시각 (엄격 비교 — 신고를 유발한 옛 성공 이력을 배제).
+        LocalDateTime procTime = procLog.getResDt() != null ? procLog.getResDt() : procLog.getReqDt();
+        boolean procAfterReport = procTime != null && procTime.isAfter(reportTime);
+
+        // (2) 비식별 파일 mtime > 신고시각(-스큐) — 외부 도구 제자리 교체 감지(주 경로).
+        boolean fileAfterReport = false;
+        try {
+            LocalDateTime mtime = LocalDateTime.ofInstant(
+                    Files.getLastModifiedTime(file).toInstant(), ZoneId.systemDefault());
+            fileAfterReport = mtime.isAfter(reportTime.minusSeconds(CLOCK_SKEW_TOLERANCE_SECONDS));
+        } catch (IOException e) {
+            fileAfterReport = false;
+        }
+
+        if (!procAfterReport && !fileAfterReport) {
+            throw deidentNotVerified(rawSn);
+        }
+    }
+
+    /** 비식별 산출물 미검증 거부 예외 — 내부 경로 미노출, 외부 비식별 완료 후 재시도 안내. */
+    private CustomException deidentNotVerified(Long rawSn) {
+        log.warn("[DeidentReport] resolve blocked — deident artifact not verified rawSn={}", rawSn);
+        return new CustomException(ErrorCode.CONFLICT,
+                "비식별 산출물이 확인되지 않습니다. 외부 솔루션으로 비식별을 완료한 뒤 다시 시도하세요.");
+    }
 
     /**
      * 영상 전체 라벨 삭제 — 고아 방지 순서: ATTR_VAL → AI_INFO → LBL (모두 bulk delete, 1건씩 금지).

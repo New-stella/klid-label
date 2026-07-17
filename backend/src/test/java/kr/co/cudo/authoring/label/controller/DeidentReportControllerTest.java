@@ -6,7 +6,9 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.auth.repository.LsAuthWorkLockRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.label.dto.DeidentReportRequest;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
@@ -15,6 +17,7 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -24,6 +27,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -57,6 +62,9 @@ class DeidentReportControllerTest {
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private LsDeidentReportRepository reportRepository;
     @Autowired private LsAuthWorkLockRepository workLockRepository;
+    @Autowired private LsDeidentProcLogRepository procLogRepository;
+
+    @TempDir Path tempDir;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -86,6 +94,19 @@ class DeidentReportControllerTest {
 
         // 작업자 100 만 LABELER 배정 (101 미배정)
         authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
+
+        // resolve 검증 게이트(CWE-359) 통과 픽스처 — 외부 수동 비식별 산출물이 실재하는 상태를 재현한다:
+        // 실존하는 비식별 파일(>0바이트) + SUCCEEDED procLog(DE_IDNTF_FILE_PATH_NM 기록).
+        try {
+            Path deidFile = tempDir.resolve("deid-" + rawSn + ".mp4");
+            Files.write(deidFile, new byte[]{1, 2, 3});
+            LsDeidentProcLog procLog = LsDeidentProcLog.request(
+                    rawSn, "req-" + rawSn, "/var/raw/clip.mp4", "system");
+            procLog.succeed(deidFile.toString());
+            procLogRepository.save(procLog);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test

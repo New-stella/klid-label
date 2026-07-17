@@ -5,8 +5,10 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -28,13 +30,18 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -78,10 +85,14 @@ class DeidentReportServiceTest {
     private LsDataLblHstryRepository lblHstryRepository;
     private ApplicationEventPublisher eventPublisher;
     private StreamMetaCacheEvictor streamMetaCacheEvictor;
+    private LsDeidentProcLogRepository procLogRepository;
     private DeidentReportService service;
 
     private TokenClaims workerActor;
     private TokenClaims reviewerActor;
+
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp() {
@@ -99,11 +110,12 @@ class DeidentReportServiceTest {
         lblHstryRepository = mock(LsDataLblHstryRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         streamMetaCacheEvictor = mock(StreamMetaCacheEvictor.class);
+        procLogRepository = mock(LsDeidentProcLogRepository.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService, versionService,
                 labelRepository, attrValRepository, aiInfoRepository,
                 rawDataStatusRepository, lblHstryRepository, eventPublisher,
-                streamMetaCacheEvictor);
+                streamMetaCacheEvictor, procLogRepository);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -488,11 +500,29 @@ class DeidentReportServiceTest {
         return rep;
     }
 
+    /**
+     * 비식별 산출물 검증 게이트 통과용 픽스처 — 실존하는 임시 비식별 파일(>0바이트)을 만들고,
+     * 해당 rawSn 의 최신 성공 procLog 가 그 경로를 가리키도록 스텁한다.
+     */
+    private void stubDeidentArtifact(long rawSn) {
+        try {
+            Path deidFile = tempDir.resolve("deid-" + rawSn + ".mp4");
+            Files.write(deidFile, new byte[]{1, 2, 3});
+            LsDeidentProcLog procLog = LsDeidentProcLog.request(
+                    rawSn, "req-" + rawSn, "/orgnl/" + rawSn + ".mp4", "system");
+            procLog.succeed(deidFile.toString());
+            when(procLogRepository.findLatestSuccessByDataRawSn(rawSn)).thenReturn(Optional.of(procLog));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Test
     @DisplayName("수동_비식별화_완료시_신고가_RESOLVED로_전이되고_작업락_해제")
     void resolveManuallyTransitionsAndReleasesLock() {
         LsDeidentReport rep = report(700L, 9700L, LsDeidentReport.REPORT_OPEN);
         when(reportRepository.findById(700L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9700L);
 
         service.resolveManually(700L, reviewerActor);
 
@@ -539,6 +569,7 @@ class DeidentReportServiceTest {
     void reviewerCanResolveAnyReport() {
         LsDeidentReport rep = report(703L, 9703L, LsDeidentReport.REPORT_OPEN);
         when(reportRepository.findById(703L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9703L);
 
         service.resolveManually(703L, reviewerActor);
 
@@ -555,6 +586,7 @@ class DeidentReportServiceTest {
         LsDataRaw r = raw(9710L, LsDataRaw.PRVC_TYPE_PRVC);
         r.markDeidentified("F");
         when(videoRepository.findByRawSnForUpdate(9710L)).thenReturn(Optional.of(r));
+        stubDeidentArtifact(9710L);
 
         // when
         service.resolveManually(710L, reviewerActor);
@@ -573,6 +605,7 @@ class DeidentReportServiceTest {
         setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
         r.markDeidentified("F");
         when(videoRepository.findByRawSnForUpdate(9711L)).thenReturn(Optional.of(r));
+        stubDeidentArtifact(9711L);
 
         // when
         service.resolveManually(711L, reviewerActor);
@@ -592,6 +625,7 @@ class DeidentReportServiceTest {
         setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_COMPLETED);
         r.markDeidentified("F");
         when(videoRepository.findByRawSnForUpdate(9712L)).thenReturn(Optional.of(r));
+        stubDeidentArtifact(9712L);
 
         // when
         service.resolveManually(712L, reviewerActor);
@@ -599,6 +633,175 @@ class DeidentReportServiceTest {
         // then — 'Y' 복원은 하되 배치 단계는 COMPLETED 유지(MARKING_READY 역행 금지).
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
         assertThat(r.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
+    }
+
+    // ============================================================
+    // 비식별 산출물 검증 게이트 (CWE-359, fail-closed)
+    // ============================================================
+
+    @Test
+    @DisplayName("비식별파일_없이_resolve시_409_거부되고_deIdntfYn은_F유지_report는_OPEN유지")
+    void resolveWithoutDeidentFileRejectedAndFailClosed() {
+        // given — procLog 에 비식별 경로는 기록되어 있으나 실제 파일이 스토리지에 없음.
+        LsDeidentReport rep = report(720L, 9720L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(720L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9720L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.markDeidentified("F");
+        // 부재 파일 경로를 가리키는 procLog.
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(9720L, "req", "/orgnl/9720.mp4", "system");
+        procLog.succeed(tempDir.resolve("does-not-exist.mp4").toString());
+        when(procLogRepository.findLatestSuccessByDataRawSn(9720L)).thenReturn(Optional.of(procLog));
+
+        // when / then — 409 거부 (비식별 산출물 미검증).
+        assertThatThrownBy(() -> service.resolveManually(720L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        // fail-closed — report OPEN 유지, deIdntfYn 'F' 유지, 작업락 미해제, 'Y' 미복원.
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
+        assertThat(r.getDeIdntfYn()).isEqualTo("F");
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("procLog_기록없이_resolve시_거부된다")
+    void resolveWithoutProcLogRejected() {
+        // given — 해당 rawSn 의 성공 처리 이력(procLog)이 아예 없음.
+        LsDeidentReport rep = report(721L, 9721L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(721L)).thenReturn(Optional.of(rep));
+        when(procLogRepository.findLatestSuccessByDataRawSn(9721L)).thenReturn(Optional.empty());
+
+        // when / then — 409 거부.
+        assertThatThrownBy(() -> service.resolveManually(721L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("비식별파일_존재시_resolve성공_deIdntfYn_Y복원_마킹게이트_통과")
+    void resolveWithValidDeidentFileSucceeds() {
+        // given — 실존하는 비식별 파일(>0바이트) + 마킹 단계 신고.
+        LsDeidentReport rep = report(722L, 9722L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(722L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9722L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9722L)).thenReturn(Optional.of(r));
+        stubDeidentArtifact(9722L);
+
+        // when
+        service.resolveManually(722L, reviewerActor);
+
+        // then — 게이트 통과 → RESOLVED 전이 + 'Y' 복원 + 마킹 게이트 두 조건 충족.
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+        assertThat(r.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        verify(workLockService).releaseRaw(eq(9722L), anyString(), anyString());
+    }
+
+    // ------------------------------------------------------------
+    // 시간 조건 보강 (CWE-359) — 신고 이후 재비식별된 산출물만 통과
+    // ------------------------------------------------------------
+
+    @Test
+    @DisplayName("신고이전_비식별본만_존재시_resolve_거부된다")
+    void resolveWithPreReportArtifactRejected() throws Exception {
+        // given — 신고를 유발한 그 비식별본(신고 이전 mtime + 신고 이전 procLog)만 존재.
+        //         파일은 실존·>0바이트라 기존 존재 게이트는 통과하지만, 시간 조건에서 걸러져야 한다.
+        LsDeidentReport rep = report(730L, 9730L, LsDeidentReport.REPORT_OPEN);
+        LocalDateTime reportTime = LocalDateTime.now();
+        setField(rep, "reportDt", reportTime);
+        when(reportRepository.findById(730L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9730L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.markDeidentified("F");
+
+        Path deidFile = tempDir.resolve("pre-report-9730.mp4");
+        Files.write(deidFile, new byte[]{1, 2, 3});
+        // 파일 mtime 을 신고보다 10분 과거로 강제 (스큐 60초를 훨씬 넘는 과거).
+        Files.setLastModifiedTime(deidFile, FileTime.from(
+                reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(9730L, "req", "/orgnl/9730.mp4", "system");
+        procLog.succeed(deidFile.toString());
+        // procLog 완료시각도 신고 이전으로 강제 (옛 성공 이력).
+        setField(procLog, "resDt", reportTime.minusMinutes(10));
+        when(procLogRepository.findLatestSuccessByDataRawSn(9730L)).thenReturn(Optional.of(procLog));
+
+        // when / then — 신고 이후 재비식별 산출물 미확인 → 409 거부, fail-closed.
+        assertThatThrownBy(() -> service.resolveManually(730L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
+        assertThat(r.getDeIdntfYn()).isEqualTo("F");
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("신고이후_파일교체시_resolve_성공한다")
+    void resolveWithPostReportFileReplacementSucceeds() throws Exception {
+        // given — 외부 도구가 신고 이후 비식별본을 제자리 교체(mtime 최신). procLog 은 옛것(신고 이전).
+        LsDeidentReport rep = report(731L, 9731L, LsDeidentReport.REPORT_OPEN);
+        LocalDateTime reportTime = LocalDateTime.now().minusHours(1);
+        setField(rep, "reportDt", reportTime);
+        when(reportRepository.findById(731L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9731L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9731L)).thenReturn(Optional.of(r));
+
+        Path deidFile = tempDir.resolve("replaced-9731.mp4");
+        Files.write(deidFile, new byte[]{1, 2, 3}); // mtime = now (신고보다 1시간 후)
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(9731L, "req", "/orgnl/9731.mp4", "system");
+        procLog.succeed(deidFile.toString());
+        // 파일 교체는 새 procLog 를 만들지 않음 — 완료시각은 신고 이전(옛 성공 이력).
+        setField(procLog, "resDt", reportTime.minusMinutes(5));
+        when(procLogRepository.findLatestSuccessByDataRawSn(9731L)).thenReturn(Optional.of(procLog));
+
+        // when
+        service.resolveManually(731L, reviewerActor);
+
+        // then — mtime 조건으로 통과 → RESOLVED + 'Y' 복원.
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+        verify(workLockService).releaseRaw(eq(9731L), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("신고이후_자동재비식별_procLog가_있으면_성공한다")
+    void resolveWithPostReportProcLogSucceeds() throws Exception {
+        // given — 신고 이후 자동 재비식별 성공(procLog 완료시각 최신). 파일 mtime 은 신고 이전이어도 통과.
+        LsDeidentReport rep = report(732L, 9732L, LsDeidentReport.REPORT_OPEN);
+        LocalDateTime reportTime = LocalDateTime.now().minusHours(1);
+        setField(rep, "reportDt", reportTime);
+        when(reportRepository.findById(732L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9732L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9732L)).thenReturn(Optional.of(r));
+
+        Path deidFile = tempDir.resolve("auto-9732.mp4");
+        Files.write(deidFile, new byte[]{1, 2, 3});
+        // 파일 mtime 은 신고 이전으로 강제 (procLog 완료시각 단독으로 통과함을 격리 검증).
+        Files.setLastModifiedTime(deidFile, FileTime.from(
+                reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(9732L, "req", "/orgnl/9732.mp4", "system");
+        procLog.succeed(deidFile.toString());
+        // 신고 이후 자동 재비식별 성공 → 완료시각 최신.
+        setField(procLog, "resDt", LocalDateTime.now());
+        when(procLogRepository.findLatestSuccessByDataRawSn(9732L)).thenReturn(Optional.of(procLog));
+
+        // when
+        service.resolveManually(732L, reviewerActor);
+
+        // then — procLog 완료시각 조건으로 통과 → RESOLVED + 'Y' 복원.
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+        verify(workLockService).releaseRaw(eq(9732L), anyString(), anyString());
     }
 
     @Test
