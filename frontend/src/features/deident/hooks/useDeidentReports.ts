@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 
 import { DEIDENT_REPORT_KEYS } from '@/lib/queryKeys';
 
@@ -12,6 +17,8 @@ export function useDeidentReports(params: ListDeidentReportsParams = {}) {
   return useQuery({
     queryKey: DEIDENT_REPORT_KEYS.list(params as Record<string, unknown>),
     queryFn: () => listDeidentReports(params),
+    // 페이지/필터 전환 시 이전 목록 유지(빈 상태 깜빡임 방지).
+    placeholderData: keepPreviousData,
   });
 }
 

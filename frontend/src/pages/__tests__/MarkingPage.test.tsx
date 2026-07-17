@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
@@ -267,6 +267,41 @@ describe('MarkingPage', () => {
       expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
     });
     expect(screen.queryByText(/비식별 완료 후 마킹/)).not.toBeInTheDocument();
+  });
+
+  it('마킹_제출_pending_중_Enter_재호출시_추가_POST_미발생', async () => {
+    // given: WORKER 로그인. POST 는 응답을 지연(never-resolve)시켜 mutation 을 pending 상태로 고정.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    let postCount = 0;
+    mock.onPost(/\/videos\/42\/markings/).reply(() => {
+      postCount += 1;
+      // 응답을 확정하지 않아 createMutation.isPending 이 계속 true 로 유지된다.
+      return new Promise(() => {});
+    });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+    await waitFor(() => {
+      expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
+    });
+
+    // 수동 모드 + 마킹 1건 (Enter 제출 경로 활성 조건).
+    act(() => {
+      useMarkingStore.getState().setMode('MANUAL');
+      useMarkingStore.getState().addMark({ frameIndex: 3, timestamp: '00:00' });
+    });
+
+    // when: 첫 Enter → 마킹 POST 발화 후 pending 유지.
+    fireEvent.keyDown(window, { code: 'Enter' });
+    await waitFor(() => expect(postCount).toBe(1));
+
+    // when: pending 중 Enter 재입력 (연타 시뮬레이션).
+    fireEvent.keyDown(window, { code: 'Enter' });
+    // 재렌더/리스너 재등록 이후에도 추가 POST 가 발생하지 않아야 한다.
+    await new Promise((r) => setTimeout(r, 50));
+
+    // then: 중복 제출 가드로 POST 는 여전히 1회.
+    expect(postCount).toBe(1);
   });
 
   it('I3_재생전_서명URL_발급후_video_src에_서명URL_설정', async () => {

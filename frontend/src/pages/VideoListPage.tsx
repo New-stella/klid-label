@@ -49,7 +49,10 @@ export function VideoListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const params = useMemo(() => parseVideoListParams(searchParams), [searchParams]);
-  const { data, isLoading, error, refetch } = useVideos(params);
+  const { data, isLoading, isFetching, error, refetch } = useVideos(params);
+  // 페이지/필터 전환 재조회(keepPreviousData) 중에는 이전 목록을 살짝 흐리게 해 갱신 중임을 알린다.
+  // 초기 로딩(isLoading)은 스켈레톤이 담당하므로 제외한다.
+  const refetching = isFetching && !isLoading;
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   // 작업자 배정 — REVIEWER 전용 UX 게이팅(실제 권한 강제는 BE @PreAuthorize).
@@ -206,7 +209,11 @@ export function VideoListPage() {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div
+          className={`overflow-x-auto transition-opacity ${refetching ? 'opacity-60' : 'opacity-100'}`}
+          aria-busy={refetching || undefined}
+          data-fetching={refetching ? 'true' : undefined}
+        >
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">

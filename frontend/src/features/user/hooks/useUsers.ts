@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { USER_KEYS } from '@/lib/queryKeys';
 
@@ -19,5 +19,7 @@ export function useUsers(params: UserListParams, options: UseUsersOptions = {}) 
     queryKey: USER_KEYS.list(params as Record<string, unknown>),
     queryFn: () => listUsers(params),
     enabled,
+    // 페이지 전환 시 이전 목록 유지(빈 상태 깜빡임 방지).
+    placeholderData: keepPreviousData,
   });
 }

@@ -90,6 +90,9 @@ export function MarkingPage() {
 
   const handleSubmit = useCallback(() => {
     if (rawSn === undefined) return;
+    // 중복 제출 차단(FE 방어) — 제출 in-flight 중 Enter 연타/버튼 재클릭 시 마킹 POST 가 중복
+    // 발화하지 않도록 pending 을 선두에서 가드한다. (서버 idempotency 와 별개의 클라이언트 가드)
+    if (createMutation.isPending) return;
     // 이벤트명은 영상의 evntTypeCd 에서 서버가 자동 소싱하므로 요청에 포함하지 않는다.
     if (mode === 'AUTO') {
       if (!intervalFrames || intervalFrames < 1) return;

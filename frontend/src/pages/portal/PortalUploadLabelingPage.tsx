@@ -19,6 +19,7 @@ import {
   Square,
 } from 'lucide-react';
 
+import { Button } from '@/components/common/Button';
 import { Spinner } from '@/components/common/Spinner';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
@@ -103,7 +104,9 @@ export function PortalUploadLabelingPage() {
     return () => reset();
   }, [reset]);
 
-  const { url: imageUrl } = useUploadFrameImage(isReady ? uldFrmeSn : undefined);
+  const { url: imageUrl, loading: imageLoading } = useUploadFrameImage(
+    isReady ? uldFrmeSn : undefined,
+  );
   const labelsQuery = useUploadFrameLabels(
     isReady ? uldFrmeSn : undefined,
     currentFrame?.frmeNo ?? 0,
@@ -277,18 +280,16 @@ export function PortalUploadLabelingPage() {
           </label>
         )}
 
-        <button
+        <Button
           type="button"
+          variant="primary"
+          leftIcon={Save}
+          className="ml-auto"
+          loading={saveMutation.isPending}
           onClick={() => saveMutation.mutate(labels)}
-          disabled={saveMutation.isPending}
-          className={cn(
-            'ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary-600 px-4 py-2 text-btn-label text-white hover:bg-primary-700 disabled:opacity-50',
-            KRDS_FOCUS,
-          )}
         >
-          <Save className="h-4 w-4" aria-hidden="true" />
-          저장
-        </button>
+          {saveMutation.isPending ? '저장 중…' : '저장'}
+        </Button>
       </div>
 
       {/* 캔버스 */}
@@ -309,6 +310,16 @@ export function PortalUploadLabelingPage() {
         ) : (
           <div className="flex h-full items-center justify-center text-body text-gray-500">
             표시할 프레임이 없습니다.
+          </div>
+        )}
+        {/* 프레임 이미지 blob 로드 중 중앙 스피너 오버레이 — 로드 완료/실패 시 자동 해제. */}
+        {frame && imageLoading && (
+          <div
+            data-testid="upload-canvas-image-spinner"
+            role="status"
+            className="absolute inset-0 z-10 flex items-center justify-center bg-black/20"
+          >
+            <Spinner size="lg" label="이미지 로딩 중" />
           </div>
         )}
       </div>

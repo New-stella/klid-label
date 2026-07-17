@@ -138,7 +138,10 @@ export function AugmentRequestPage() {
   const { data, isLoading, error } = useAugmentJobs({ page: 0, size: 6 });
   const { mutate, isPending } = useRequestAugment({
     onSuccess: (resp) => {
-      pushToast({ variant: 'success', message: '증강 요청 등록됨' });
+      pushToast({
+        variant: 'success',
+        message: '증강 요청이 접수되었습니다 — 처리 현황에서 확인하세요',
+      });
       setSelectedKind(null);
       setSelectedVideoId(null);
       setSelectedPreset(null);

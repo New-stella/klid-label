@@ -248,6 +248,42 @@ describe('ReviewPage', () => {
     expect(result).toContain('- 이슈B (#5)');
   });
 
+  it('검수화면_프레임_로딩중_스피너_표시되고_프레임없음_문구_미표시', async () => {
+    // given: 검수 상세는 로드되지만 프레임 조회는 응답 지연(never-resolve) → framesLoading 유지.
+    mock.reset();
+    mock
+      .onGet('/reviews/10/issues')
+      .reply(200, { success: true, data: [], message: null, errorCode: null });
+    mock.onGet('/reviews/10').reply(200, {
+      success: true,
+      data: { ...baseReview, status: 'REVIEWING' },
+      message: null,
+      errorCode: null,
+    });
+    // 프레임 조회 pending → 캔버스 영역 로딩 스피너.
+    mock.onGet('/reviews/1/frames').reply(() => new Promise(() => {}));
+    // 이슈 스레드 등 부가 조회는 benign 응답(렌더 비차단).
+    mock
+      .onGet(/.*/)
+      .reply(200, { success: true, data: [], message: null, errorCode: null });
+
+    renderWithProviders(<ReviewPage />, {
+      initialEntries: ['/review/10'],
+      routes: [{ path: '/review/:id', element: <ReviewPage /> }],
+    });
+
+    // then: 캔버스 영역에 로딩 스피너 노출.
+    const loading = await screen.findByTestId('review-frames-loading');
+    // then: 캔버스 영역(main) 안에서 로딩 스피너가 렌더된다.
+    const main = screen.getByTestId('review-canvas-readonly');
+    expect(main).toContainElement(loading);
+    // then: 로딩 중 캔버스의 "프레임이 없습니다" 오표시(LabelCanvas empty)가 나타나지 않는다.
+    //  (하단 FrameTimeline 의 빈 상태 문구는 별개 컴포넌트로 본 항목 범위 밖.)
+    expect(
+      screen.queryByTestId('review-label-canvas-empty'),
+    ).not.toBeInTheDocument();
+  });
+
   it('검수_화면_캔버스_좌표_마커_컴포넌트_미사용', async () => {
     mock.onGet('/reviews/10').reply(200, {
       success: true,

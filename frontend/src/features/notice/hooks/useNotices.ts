@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { NOTICE_KEYS } from '@/lib/queryKeys';
 
@@ -15,6 +15,8 @@ export function useNotices(params: NoticeListParams) {
     queryKey: NOTICE_KEYS.list(params),
     queryFn: () => listNotices(params),
     staleTime: 30_000,
+    // 페이지 전환 시 이전 목록 유지(빈 상태 깜빡임 방지).
+    placeholderData: keepPreviousData,
   });
 }
 

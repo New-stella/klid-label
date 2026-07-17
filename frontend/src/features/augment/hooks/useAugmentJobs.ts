@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { AUGMENT_KEYS } from '@/lib/queryKeys';
 
@@ -14,5 +14,7 @@ export function useAugmentJobs(params: ListAugmentJobsParams = {}) {
     queryKey: AUGMENT_KEYS.list(params as Record<string, unknown>),
     queryFn: () => listAugmentJobs(params),
     refetchInterval: 5000,
+    // 페이지/필터 전환 시 이전 잡 카드 유지(빈 상태 깜빡임 방지).
+    placeholderData: keepPreviousData,
   });
 }

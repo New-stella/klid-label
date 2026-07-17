@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image as KonvaImage, Layer, Line, Rect, Stage } from 'react-konva';
 
+import { Spinner } from '@/components/common/Spinner';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 
 import type { FrameDetail, LabelItem } from '../types';
@@ -24,6 +25,12 @@ import { colorForLabel, fillForLabel } from '../utils/labelColor';
 
 interface LabelCanvasProps {
   frame: FrameDetail | null;
+  /**
+   * 프레임 목록 조회 진행 중 여부. true 면 캔버스 중앙 스피너를 노출하고 "프레임이 없습니다"
+   * 빈 상태 문구를 숨긴다(로딩=빈 상태 오인 방지). 상위(ReviewPage)가 useReviewFrames 의
+   * isLoading 을 배선한다.
+   */
+  loading?: boolean;
 }
 
 /**
@@ -194,7 +201,7 @@ function LabelShape(props: ShapeProps) {
  * - 라벨은 카테고리별 stroke 색상으로 오버레이.
  * - hover 시 strokeWidth 증가 + 라벨명 칩 표시.
  */
-export function LabelCanvas({ frame }: LabelCanvasProps) {
+export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(null);
@@ -227,7 +234,7 @@ export function LabelCanvas({ frame }: LabelCanvasProps) {
   // useImageBlob 가 axios(Bearer) 로 BE 인증 fetch → blob URL 발급. 직접 <img src=imageUrl> 호출은
   // 인증 헤더 누락(401) + context-path(/api) 미적용 위험이 있어 사용하지 않는다.
   // (REVIEWER 도 기본 DEID 이미지 사용 — 필요 시 추후 raw=true 옵션 추가)
-  const { url: imageBlobUrl } = useImageBlob(frame?.srcSn);
+  const { url: imageBlobUrl, loading: imageLoading } = useImageBlob(frame?.srcSn);
   const img = useImageElement(imageBlobUrl ?? undefined);
   const imgW = img?.naturalWidth ?? 0;
   const imgH = img?.naturalHeight ?? 0;
@@ -263,12 +270,36 @@ export function LabelCanvas({ frame }: LabelCanvasProps) {
         setHover(null);
       }}
     >
-      {!frame && (
+      {/* 프레임 목록 로딩 중 중앙 스피너 — 로드 전 "프레임이 없습니다" 오표시를 대체한다. */}
+      {loading && (
+        <div
+          data-testid="review-frames-loading"
+          role="status"
+          className="flex h-full w-full flex-col items-center justify-center gap-3 text-gray-300"
+        >
+          <Spinner label="프레임 로딩" />
+          <p className="text-sm">프레임 로드 중...</p>
+        </div>
+      )}
+
+      {!loading && !frame && (
         <div
           className="flex h-full w-full items-center justify-center text-sm text-gray-500"
           data-testid="review-label-canvas-empty"
         >
           프레임이 없습니다
+        </div>
+      )}
+
+      {/* 프레임 이미지 blob 로드 중 중앙 스피너 오버레이 (라벨링 CanvasShell 과 대칭).
+          로드 완료/실패 시 useImageBlob 이 loading=false 로 전이해 자동 해제된다. */}
+      {frame && imageLoading && (
+        <div
+          data-testid="review-canvas-image-spinner"
+          role="status"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/20"
+        >
+          <Spinner size="lg" label="이미지 로딩 중" />
         </div>
       )}
 

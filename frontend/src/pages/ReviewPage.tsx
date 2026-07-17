@@ -105,7 +105,9 @@ export function ReviewPage() {
 
   const pushToast = useUiStore((s) => s.pushToast);
   const { data: review, isLoading, error } = useReview(reviewId);
-  const { data: frameList } = useReviewFrames(review?.videoId);
+  const { data: frameList, isLoading: framesLoading } = useReviewFrames(
+    review?.videoId,
+  );
   const { data: issues } = useReviewIssues(reviewId);
   // R1 — 영상 단위 이슈 스레드로 프레임 상태색 srcSn 집합 산출.
   // v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임 매핑 불가 → 주황(반려) 프레임색 미대상.
@@ -265,7 +267,12 @@ export function ReviewPage() {
         <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-warning/90 px-2 py-1 text-xs font-medium text-white">
           읽기 전용
         </div>
-        <LabelCanvas frame={frameList?.frames?.[currentFrameIdx] ?? null} />
+        {/* 프레임 목록 로딩 중에는 LabelCanvas 가 스피너를 노출한다(loading prop) — 로드 전
+            "프레임이 없습니다" 오표시(로딩=빈 상태 혼동)를 제거한다. */}
+        <LabelCanvas
+          frame={frameList?.frames?.[currentFrameIdx] ?? null}
+          loading={framesLoading}
+        />
       </main>
 
       {/* Aside — 객체 목록 / 속성 패널 (Phase 4) + 메모 placeholder (Phase 6) */}

@@ -3,6 +3,7 @@ import { Activity, Film, Image, TrendingUp } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
+import { Skeleton } from '@/components/common/Skeleton';
 import { SimpleBarChart } from '@/components/charts/SimpleBarChart';
 import { SimplePieChart } from '@/components/charts/SimplePieChart';
 import { downloadReport } from '@/features/stat/api';
@@ -110,6 +111,20 @@ export function OverallStatPage() {
 
       {error && <ErrorState title="전체 통계를 불러올 수 없습니다" />}
 
+      {/* 로딩 중에는 0값(누적/처리 현황 카운트)을 실데이터로 오인시키지 않도록 스켈레톤을 노출한다.
+          (WorkerStatPage KPI 스켈레톤 패턴 재사용) */}
+      {isLoading ? (
+        <div data-testid="overall-stat-loading" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Skeleton height={120} className="w-full" />
+            <Skeleton height={120} className="w-full" />
+          </div>
+          <Skeleton height={120} className="w-full" />
+          <Skeleton height={240} className="w-full" />
+          <Skeleton height={240} className="w-full" />
+        </div>
+      ) : (
+        <>
       {/* 누적 이미지 / 영상 2카드 (UI/UX §4-11 — ProgressBar 절대 미노출) */}
       <div
         data-testid="cumulative-cards"
@@ -224,6 +239,8 @@ export function OverallStatPage() {
         </div>
         <WorkerStatsTable rows={data?.workers ?? []} loading={isLoading} />
       </div>
+        </>
+      )}
     </div>
   );
 }

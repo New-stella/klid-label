@@ -9,7 +9,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 
 function setRole(role: 'WORKER' | 'REVIEWER') {
   useAuthStore.setState({
-    token: 'fake',
+    token: 'dummy-token',
     claims: {
       sub: '11',
       role,
@@ -79,6 +79,21 @@ describe('OverallStatPage', () => {
     expect(within(cards).getByText('누적 영상')).toBeInTheDocument();
     // KpiCard 컴포넌트는 progress prop 자체가 없으므로 구조적으로 표시 불가
     expect(container.querySelectorAll('progress')).toHaveLength(0);
+  });
+
+  it('전체현황_로딩중_KPI_0값_미노출_스켈레톤', async () => {
+    // given: 통계 조회 응답을 지연(never-resolve)시켜 isLoading 을 유지.
+    setRole('REVIEWER');
+    mock.reset();
+    mock.onGet('/stats/overall').reply(() => new Promise(() => {}));
+
+    renderWithProviders(<OverallStatPage />);
+
+    // then: 스켈레톤이 노출된다.
+    await screen.findByTestId('overall-stat-loading');
+    // then: 로딩 중에는 0값을 담은 누적/처리 현황 카드가 노출되지 않는다(오표시 방지).
+    expect(screen.queryByTestId('cumulative-cards')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('processing-cards')).not.toBeInTheDocument();
   });
 
   it('이벤트_분포_BE_9항목_순회_렌더', async () => {

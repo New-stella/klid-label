@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { Spinner } from '@/components/common/Spinner';
 import { cn } from '@/lib/cn';
 
 export interface VideoPlayerHandle {
@@ -34,6 +35,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [playbackRate, setPlaybackRate] = useState(1);
+    // 버퍼링/탐색 중 스피너 — waiting/seeking 시 true, canplay/playing/seeked 시 false.
+    const [buffering, setBuffering] = useState(false);
 
     const changeSpeed = useCallback((rate: number) => {
       if (videoRef.current) videoRef.current.playbackRate = rate;
@@ -77,16 +80,34 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     return (
       <div className={cn('flex flex-col gap-2', className)}>
-        <video
-          ref={videoRef}
-          src={src}
-          className="w-full rounded-lg bg-black"
-          onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
-          onLoadedMetadata={handleLoadedMetadata}
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onError={() => onSrcError?.()}
-        />
+        <div className="relative w-full">
+          <video
+            ref={videoRef}
+            src={src}
+            className="w-full rounded-lg bg-black"
+            onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
+            onLoadedMetadata={handleLoadedMetadata}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onError={() => onSrcError?.()}
+            // 버퍼 고갈(waiting)·탐색(seeking) 시 스피너 노출, 재생 가능(canplay/playing)·
+            // 탐색 완료(seeked) 시 해제. 느린 네트워크에서 화면이 멈춘 이유를 사용자에게 알린다.
+            onWaiting={() => setBuffering(true)}
+            onSeeking={() => setBuffering(true)}
+            onCanPlay={() => setBuffering(false)}
+            onPlaying={() => setBuffering(false)}
+            onSeeked={() => setBuffering(false)}
+          />
+          {buffering && (
+            <div
+              data-testid="video-buffering-spinner"
+              role="status"
+              className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/30"
+            >
+              <Spinner size="lg" label="버퍼링 중" />
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-3 text-sm text-gray-600">
           <button
             type="button"

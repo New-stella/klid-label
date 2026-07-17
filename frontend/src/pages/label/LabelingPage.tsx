@@ -398,6 +398,9 @@ export function LabelingPage() {
   const saving = portalMode ? savingPortal : savingInternal;
   const handleSave = async () => {
     if (!currentFrame) return;
+    // 중복 제출 차단(FE 방어) — 저장 in-flight 중 Ctrl+S 연타/버튼 재클릭 시 라벨 PUT 이
+    // 중복 발화하지 않도록 saving(isPending) 을 선두에서 가드한다.
+    if (saving) return;
     if (isLocked) {
       pushToast({
         variant: 'error',
