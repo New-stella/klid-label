@@ -60,6 +60,7 @@ const MENU: MenuGroup[] = [
     items: [
       { label: '사용자 관리', path: '/manage/users', allow: ['REVIEWER'] },
       { label: '시스템 설정', path: '/manage/settings', allow: ['REVIEWER'] },
+      { label: '라벨 관리', path: '/manage/labels', allow: ['REVIEWER'] },
       { label: '프리셋 관리', path: '/manage/presets', allow: ['REVIEWER'] },
       { label: '비식별 신고', path: '/manage/deident-reports', allow: ['REVIEWER'] },
     ],

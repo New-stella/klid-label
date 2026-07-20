@@ -10,16 +10,22 @@ import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -29,14 +35,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@link DatasetExportService} 통합 테스트(PostgreSQL Testcontainer) — 실제 DB 재조회 로딩 경로와
  * 버전 누적/무수정 재승인 멱등을 검증한다.
  *
- * <p>원천 프레임 이미지 파일은 존재하지 않으므로 {@code FrameSource} 가 모두 skip 하여 written=0 이지만,
- * LS_DATASET_EXPORT 레코드 채번·상태 전이·콘텐츠 해시 영속·멱등 판정은 실 DB 로 검증된다(파일 쓰기
- * 자체는 {@code DatasetExportWriterTest} 가 커버).
+ * <p>원천 프레임(원본/비식별) 이미지 파일을 임시 스토리지 경로({@code build/tmp/dataset-export-it/raw|deid})에
+ * 시드하므로 {@code FrameSource} 가 두 kind 모두 resolve → written&gt;0 이 되어 v1 이 SUCCEEDED 로 마감된다.
+ * 이를 baseline 으로 LS_DATASET_EXPORT 레코드 채번·상태 전이·콘텐츠 해시 영속·무수정 재승인 멱등(skip)이
+ * 실 DB 로 검증된다(파일 쓰기 세부는 {@code DatasetExportWriterTest} 가 커버). {@code written==0 → FAILED}
+ * 견고성 분기는 단위 테스트({@code DatasetExportServiceTest}/{@code DatasetExportTxServiceTest})가 커버한다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
-@TestPropertySource(properties = "authoring.storage.labeling-path=build/tmp/dataset-export-it")
+@TestPropertySource(properties = {
+        "authoring.storage.labeling-path=build/tmp/dataset-export-it",
+        "authoring.storage.raw-path=build/tmp/dataset-export-it/raw",
+        "authoring.storage.deidentified-path=build/tmp/dataset-export-it/deid"
+})
 class DatasetExportServiceIT {
+
+    /** 모든 프레임이 공유하는 원본/비식별 원천 이미지의 base 상대 경로(base 하위 파일로 시드). */
+    private static final String FRAME_IMAGE_REL_PATH = "f0.jpg";
 
     @Autowired
     private DatasetExportService exportService;
@@ -51,11 +66,35 @@ class DatasetExportServiceIT {
     @Autowired
     private LsDatasetExportRepository exportRepository;
 
+    @Value("${authoring.storage.raw-path}")
+    private String rawStoragePath;
+    @Value("${authoring.storage.deidentified-path}")
+    private String deidStoragePath;
+
     private final TransactionTemplate txTemplate;
 
     DatasetExportServiceIT(
             @Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager) {
         this.txTemplate = new TransactionTemplate(controlTxManager);
+    }
+
+    /**
+     * 원본/비식별 원천 프레임 이미지 파일을 임시 스토리지 base 하위에 시드한다.
+     * 두 kind 모두 존재해야 v1 이 skip 0 → SUCCEEDED 로 마감되어 멱등 baseline 이 형성된다.
+     */
+    @BeforeEach
+    void seedFrameImages() throws IOException {
+        writeDummyImage(rawStoragePath, FRAME_IMAGE_REL_PATH);
+        writeDummyImage(deidStoragePath, FRAME_IMAGE_REL_PATH);
+    }
+
+    private void writeDummyImage(String basePath, String relPath) throws IOException {
+        Path target = Paths.get(basePath).toAbsolutePath().normalize().resolve(relPath);
+        Files.createDirectories(target.getParent());
+        if (!Files.exists(target)) {
+            // 최소 JPEG 시그니처(FF D8 FF) — resolveImage 는 존재/정규파일만 요구, 내용은 무관.
+            Files.write(target, new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
+        }
     }
 
     private long seedVideoWithLabel(String pointCn) {
@@ -73,8 +112,9 @@ class DatasetExportServiceIT {
                     .rawFilePathNm("raw/path.mp4")
                     .regDt(LocalDateTime.now())
                     .build());
-            LsDataSrc frame = srcRepository.save(
-                    LsDataSrc.create(rawSn, 0, "raw/f0.jpg", LocalDateTime.now()));
+            LsDataSrc frame = LsDataSrc.create(rawSn, 0, FRAME_IMAGE_REL_PATH, LocalDateTime.now());
+            frame.attachDeidPath(FRAME_IMAGE_REL_PATH); // 비식별 원천도 연결 → deid kind 도 written
+            frame = srcRepository.save(frame);
             labelRepository.save(LsDataLbl.createManual(
                     frame.getSrcSn(), "BBOX", null, "car", pointCn, null));
             return rawSn;
