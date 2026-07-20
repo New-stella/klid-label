@@ -317,8 +317,9 @@ public class VersionService {
      * 지정 버전(versionHash) 스냅샷으로 롤백한다.
      *
      * <p><b>롤백 시맨틱(완성):</b> 버전 행 active 전환에 더해 <b>대상 스냅샷의 라벨 본문을 작업본
-     * ({@code LS_DATA_LBL}) 으로 실제 복원</b>한다. 라벨링 캔버스(GET /frames/{srcSn}/labels)와
-     * 데이터마트 View(V_COMPLETED_LABEL — LS_DATA_LBL 기반)가 롤백 결과를 즉시 반영한다.
+     * ({@code LS_DATA_LBL}) 으로 실제 복원</b>한다. 라벨링 캔버스(GET /frames/{srcSn}/labels)가
+     * 롤백 결과를 즉시 반영하며, 검수 재승인 시 export 폴더 JSON(라벨 내용 진실원)에도 반영된다
+     * (V114 로 데이터마트 라벨 내용 뷰 V_COMPLETED_LABEL 은 제거되고 export 경로 노출로 대체됨).
      * <ol>
      *   <li>대상 스냅샷 페이로드(JSON)를 파싱해 해당 프레임(srcSn)의 라벨을 추출.</li>
      *   <li>해당 프레임의 기존 LS_DATA_LBL 을 삭제하고 스냅샷 라벨을 재생성(lbl_sn 재발급 허용).</li>
