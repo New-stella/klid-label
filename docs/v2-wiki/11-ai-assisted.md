@@ -44,7 +44,8 @@
 - `POST /v1/frames/{srcSn}/sam2-segment` (points 또는 box 정확히 1개, @AssertTrue 배타 검증)
 - 응답 폴리곤 좌표 검증(CWE-20) 후 Douglas-Peucker(`POLYGON_SIMPLIFY_TOLERANCE`) 단순화
 - 이미지 상한 20MB(413), mock 응답은 자동 적용 차단
-- 코드: `Sam2SegmentService`
+- **입력 방식(FE)**: 기본은 클릭으로 positive-point 를 누적한 뒤 Enter/더블클릭으로 1회 확정. AI Tool 팝업의 **"즉시 그리기"** 토글(기본 OFF)을 켜면 클릭마다 누적 점 전체로 즉시 분할해 **프리뷰 폴리곤**을 갱신(반복 정교화)하고, 확정 시 프리뷰를 커밋. 프리뷰 경로에도 mock(빈 폴리곤)/저신뢰 자동적용 차단이 동일 적용되며, 요청 세대 토큰·확정 큐잉으로 동일 프레임 in-flight 경합(마지막 클릭 누락·유령 프리뷰·조용한 소실)을 방지
+- 코드: `Sam2SegmentService`(BE), `OverlayLayer`/`AiToolModal`/`CanvasShell`(FE 즉시 프리뷰·토글)
 
 ## 11.4 트랙 보간 (CVAT 포팅)
 

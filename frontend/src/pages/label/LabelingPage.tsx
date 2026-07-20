@@ -480,6 +480,9 @@ export function LabelingPage() {
   const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn);
   // Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 버튼 클릭 시 팝업을 열고, 확정 시 실행.
   const [autolabelModalOpen, setAutolabelModalOpen] = useState(false);
+  // "즉시 그리기" 토글 — AI 분할 클릭마다 미리보기 즉시 그리기. 기본 OFF(false).
+  // AiToolModal 에서 토글하고 CanvasShell→OverlayLayer 의 immediateSegment 로 배선된다.
+  const [immediateDraw, setImmediateDraw] = useState(false);
   // R12 — 트랙 모드 선택 시 팝업의 형태(BBOX/POLYGON)·라벨을 기억해 Sam2TrackTool 요청에 배선한다.
   // 미지정이면 BE 기본(POLYGON) + 캔버스 선택 객체 클래스명을 라벨로 사용.
   const [trackShape, setTrackShape] = useState<DetectShapeType | undefined>(undefined);
@@ -1010,6 +1013,8 @@ export function LabelingPage() {
         onClose={() => setAutolabelModalOpen(false)}
         onConfirm={runAiTool}
         canTrack={nextSrcSns.length > 0}
+        immediateDraw={immediateDraw}
+        onImmediateDrawChange={setImmediateDraw}
       />
 
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
@@ -1046,6 +1051,7 @@ export function LabelingPage() {
                 onKeypointPlacingChange={setKeypointPlacingIndex}
                 onImageSize={handleImageSize}
                 portalMode={portalMode}
+                immediateSegment={immediateDraw}
               />
             </Suspense>
           ) : (
