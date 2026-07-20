@@ -93,6 +93,12 @@ const OverallStatPage = lazyWithRetry(() =>
 const PresetListPage = lazyWithRetry(() =>
   import('@/pages/manage/PresetListPage').then((m) => ({ default: m.PresetListPage })),
 );
+// Phase 3 — 라벨 마스터(클래스) 관리 (REVIEWER 전용) lazy 로드
+const LabelMasterManagePage = lazyWithRetry(() =>
+  import('@/pages/manage/LabelMasterManagePage').then((m) => ({
+    default: m.LabelMasterManagePage,
+  })),
+);
 // G-1 — 비식별 신고 관리 (REVIEWER 전용) lazy 로드
 const DeidentReportListPage = lazyWithRetry(() =>
   import('@/pages/manage/DeidentReportListPage').then((m) => ({
@@ -389,6 +395,14 @@ export const router = createBrowserRouter([
             element: (
               <InternalRoute allow={internalReviewerOnly}>
                 {withSuspense(<PresetListPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: 'labels',
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<LabelMasterManagePage />)}
               </InternalRoute>
             ),
           },

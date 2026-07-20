@@ -8,7 +8,7 @@
 - **내부 채널 (INTERNAL)**: `/` 하위 + AppLayout(LNB+GNB). 관제서버 JWT.
 - **포털 채널 (PORTAL)**: `/portal` 하위 + PortalLayout(모바일 친화, LNB 없음). 포털 JWT. → [16](16-portal.md)
 
-화면 ID 체계: **`KLID-AT-SC-NNN`** (SC=Screen). 활성 24개(deprecated 7 제외).
+화면 ID 체계: **`KLID-AT-SC-NNN`** (SC=Screen). 활성 25개(deprecated 7 제외).
 
 ## 4.2 내부 채널 화면
 
@@ -33,11 +33,14 @@
 | SC-025 | 시스템 설정 | `/manage/settings` | REVIEWER | [10](10-labeling.md#정밀도-설정) |
 | SC-026 | 프리셋 관리 | `/manage/presets` | REVIEWER | [10](10-labeling.md#라벨-프리셋) |
 | SC-033 | 비식별 신고 관리 | `/manage/deident-reports` | REVIEWER | [10](10-labeling.md) |
+| SC-036 | 라벨 관리 | `/manage/labels` | REVIEWER | [10](10-labeling.md) |
 | SC-030 | 게시판 목록 | `/notice` | WORKER/REVIEWER | [20](20-notice-board.md) |
 | SC-031 | 게시판 상세 | `/notice/:id` | WORKER/REVIEWER | [20](20-notice-board.md) |
 | SC-032 | 게시판 작성/수정 (모달) | (SC-030/031 내) | REVIEWER | [20](20-notice-board.md) |
 
 개발 전용: `/dev/login`(SC-004), `/dev/autolabel-test`(SC-027) — DEV 빌드만.
+
+> **SC-036 라벨 관리**(`/manage/labels`, 2026-07-20, REVIEWER 전용) — 1차 관리자매뉴얼 §4.1.3(라벨 생성)·§4.1.4(속성 설정)가 요구하는 **라벨 클래스(마스터)·속성 정의 관리 화면**. 그간 BE(`LabelMasterController`·`LabelAttrController`, `/v1/manage/labels/**`)만 완비되고 FE 화면이 없어 DB 직접 조작으로만 가능하던 갭을 해소. ①**라벨 마스터 목록/CRUD**: 라벨명·형태(BBOX/POLYGON/POINT/SKELETON)·색상(#RRGGBB)·정렬순 생성/수정/삭제(삭제는 확인 모달). ②**라벨별 속성 정의**: 행 선택 시 속성 정의 패널 노출 — 속성명·입력형식(SELECT/CHECKBOX/RADIO/NUMBER/TEXT)·선택항목(valuesJson, 선택형에서만 노출)·기본값·수정가능·정렬순 CRUD. 마스터 변경은 `LABEL_MASTER_KEYS` 무효화로 라벨링 캔버스(SC-005) 드롭다운·색상에 반영. 스켈레톤 포인트 정의는 COCO-17 고정상수라 미제공(화면 스코프 외). 기존 `/manage/*` 관리 화면(SC-024~026) 패턴·게이트 재사용.
 
 > **SC-005 라벨링 캔버스 도구**(2026-07-14) — BBOX·폴리곤·마스크·SAM2 분할/추적에 더해 **키포인트(COCO-17 휴먼 포즈, 단축키 K)** 도구 추가. 17관절 순차 배치 + 관절별 드래그 + 스켈레톤 렌더, 관절 Alt+클릭으로 가시성(가시/비가시/미표기) 순환. `SKELETON` 타입 삼중값 `[x,y,v]`로 저장. 포털 모드는 미노출(ADR-013 — 오토라벨/키포인트 미제공). 상세 → [10 라벨링](10-labeling.md#102-도구).
 >
