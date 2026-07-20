@@ -49,6 +49,19 @@ interface OverlayLayerProps {
    * 배치 미진행(툴 비활성) 또는 17점 완료 시 null. 캔버스 밖 인체 다이어그램 가이드 연동용.
    */
   onKeypointPlacingChange?: (placingIndex: number | null) => void;
+  /**
+   * AI 분할 즉시 그리기(프리뷰) 모드. true 면 SAM_SEGMENT 클릭 도구에서 클릭마다
+   * 누적 점 전체로 즉시 분할 요청 → 프리뷰 폴리곤을 오버레이하고, 확정(Enter/더블클릭) 시
+   * 프리뷰를 실제 라벨로 커밋한다. false(기본)면 "누적 후 확정 시 1회 요청" 기존 동작 유지.
+   */
+  immediateSegment?: boolean;
+  /**
+   * SAM2 분할 요청이 현재 in-flight 인지(useSam2Segment). 즉시 그리기 모드에서 확정(Enter/더블클릭)
+   * 시점에 재요청이 필요한데 in-flight 라면, useSam2Segment 의 inflight 가드가 재요청을 null 로
+   * 드롭시켜 아무것도 커밋되지 않는 "조용한 작업 소실"이 발생한다. 이 플래그가 true 면 확정을
+   * 큐잉했다가 false 로 풀리는 순간 최신 누적점 전체로 재요청→커밋한다.
+   */
+  isSegmenting?: boolean;
 }
 
 interface BboxDraft {
@@ -91,6 +104,8 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     onLowConfidence,
     onCommitError,
     onKeypointPlacingChange,
+    immediateSegment = false,
+    isSegmenting = false,
   }: OverlayLayerProps,
   ref,
 ) {
@@ -99,6 +114,11 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   const [segDraft, setSegDraft] = useState<BboxDraft | null>(null);
   // R6 — SAM_SEGMENT 다중 positive-click 누적(이미지 좌표). 확정(Enter/더블클릭) 시 1회 요청.
   const [segPoints, setSegPoints] = useState<Point[]>([]);
+  // 즉시 프리뷰 모드에서 마지막 유효 분할 결과 폴리곤(flat, 이미지 px). null=프리뷰 없음.
+  const [segPreview, setSegPreview] = useState<number[] | null>(null);
+  // 이월 MED — 확정 재요청이 in-flight 로 드롭될 상황에서 확정 의도를 큐잉(조용한 소실 방지).
+  // true=대기 중. isSegmenting 이 false 로 풀리면 effect 가 최신 누적점으로 재요청→커밋한다.
+  const [pendingConfirm, setPendingConfirm] = useState(false);
   const [polyPoints, setPolyPoints] = useState<number[]>([]);
   // KEYPOINT 순차 배치 draft — 배치된 관절(이미지 좌표) 0..17 개. 17개 채워지면 커밋.
   const [kptDraft, setKptDraft] = useState<{ x: number; y: number; v: number }[]>([]);
@@ -110,6 +130,14 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   // (리스너는 activeTool 에만 재구독, 매 클릭마다 재구독 방지).
   const segPointsRef = useRef<Point[]>([]);
   segPointsRef.current = segPoints;
+  // 즉시 프리뷰 모드 전용 — 확정 핸들러가 매 렌더 최신 프리뷰를 동기 참조하도록 미러링.
+  const segPreviewRef = useRef<number[] | null>(null);
+  segPreviewRef.current = segPreview;
+  // 즉시 프리뷰가 "몇 개의 누적점"으로 만들어졌는지(최신성 판정용). null=프리뷰 없음/미추적.
+  const segPreviewForCountRef = useRef<number | null>(null);
+  // 즉시 요청 세대 토큰. 즉시 요청마다 증가시켜 늦게 도착한(무효화된) 응답이 프리뷰를
+  // 되살리지 못하게 한다(확정/취소/도구·프레임 전환 시에도 증가시켜 무효화).
+  const segGenRef = useRef(0);
   const confirmSegmentRef = useRef<() => void>(() => {});
   const cancelSegmentRef = useRef<() => void>(() => {});
 
@@ -121,6 +149,9 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     if (activeTool !== ToolTypeEnum.SAM_SEGMENT) {
       setSegDraft(null);
       setSegPoints([]);
+      setSegPreview(null);
+      setPendingConfirm(false); // 확정 큐 취소(도구 전환 시 유령 커밋 방지)
+      segGenRef.current += 1; // 진행 중 프리뷰 응답 무효화(도구 전환 후 유령 방지)
       segSuppressClickRef.current = false;
     }
     // KEYPOINT 도구를 벗어나면 진행 중 배치 draft 폐기(부분 배치 조용한 소실 방지 겸 초기화).
@@ -137,7 +168,27 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   // 새 참조가 되므로 프레임 전환 신호로 사용한다(스테일 포인트 잔존 방지).
   useEffect(() => {
     setSegPoints([]);
+    setSegPreview(null);
+    setPendingConfirm(false); // 확정 큐 취소(프레임 전환 시 유령 커밋 방지)
+    segGenRef.current += 1; // 진행 중 프리뷰 응답 무효화(프레임 전환 후 유령 방지)
   }, [segment]);
+
+  // 이월 MED — 확정 큐 처리. 재요청이 in-flight 로 드롭될 상황(isSegmenting)에서 큐잉된 확정을,
+  // in-flight 가 풀리는 순간 최신 누적점 전체로 재요청→커밋한다(조용한 작업 소실 제거).
+  // 큐가 새 클릭/취소/도구·프레임 전환으로 취소되면 pendingConfirm=false 라 no-op.
+  useEffect(() => {
+    if (!pendingConfirm || isSegmenting) return;
+    const pts = segPointsRef.current;
+    setPendingConfirm(false);
+    segGenRef.current += 1; // 앞선 프리뷰 응답 무효화
+    setSegPoints([]);
+    setSegPreview(null);
+    if (pts.length === 0 || !segment) return;
+    const points = pts.map((p) => [p.x, p.y]);
+    void segment({ points }).then((r) => applySegmentResult(r, { asPreview: false }));
+    // applySegmentResult/segPointsRef 는 매 렌더 최신 참조 — deps 는 트리거 값만 둔다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingConfirm, isSegmenting, segment]);
 
   // R6 — SAM_SEGMENT 진행 중 Enter=확정 / Esc=취소. 도구 활성 시에만 구독(자기완결).
   useEffect(() => {
@@ -339,17 +390,28 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   }
 
   // === SAM2 분할(SAM_SEGMENT) ===
-  // 응답 폴리곤([[x,y],...] image px)을 기존 폴리곤 적용 흐름으로 추가.
+  // 응답 폴리곤([[x,y],...] image px)을 기존 폴리곤 적용 흐름으로 처리.
   // 빈 폴리곤(모델 미로드/mock) 이면 자동 적용 차단 + 경고 콜백, score 낮으면 안내 콜백.
-  function applySegmentResult(res: Sam2SegmentResponse | null) {
-    if (!res) return; // 폐기(진행 중 무시 / 프레임 전환 stale)
+  // asPreview=true(즉시 프리뷰 모드): 유효 폴리곤을 커밋하지 않고 프리뷰로만 표시.
+  // asPreview=false(기존): 유효 폴리곤을 라벨로 커밋.
+  // mock/저신뢰 게이팅은 두 모드 공통 — 프리뷰 모드에서도 자동 적용/표시 차단(프리뷰 해제).
+  function applySegmentResult(
+    res: Sam2SegmentResponse | null,
+    opts: { asPreview: boolean; gen?: number; pointCount?: number },
+  ) {
+    if (!res) return; // 폐기(진행 중 무시 / 프레임 전환 stale) — 프리뷰 유지(점은 이미 누적됨)
+    // 즉시 프리뷰 — 확정/취소/전환으로 세대가 증가(무효화)된 뒤 늦게 도착한 응답은 반영하지 않는다
+    // (이슈1b: 확정 후 유령 프리뷰 재생 방지). 세대가 부재한 비프리뷰(확정/박스) 경로는 통과.
+    if (opts.asPreview && opts.gen !== undefined && opts.gen !== segGenRef.current) return;
     // mock(모델 미로드) 신호 = 빈 폴리곤. 저신뢰(score) 분기보다 먼저 판정해야
     // "낮은 신뢰도(0%)" 로 오분류되지 않고 올바른 안내(message)가 표시된다.
     if (res.polygon.length === 0) {
+      if (opts.asPreview) setSegPreview(null); // 프리뷰 표시 차단
       onMockWarning?.(res);
       return; // 자동 적용 차단 — 사용자 확인 후만 적용
     }
     if (res.score < SAM_LOW_CONFIDENCE_THRESHOLD) {
+      if (opts.asPreview) setSegPreview(null); // 프리뷰 표시 차단
       onLowConfidence?.(res);
       return;
     }
@@ -357,36 +419,105 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     for (const pair of res.polygon) {
       if (pair.length >= 2) flat.push(pair[0], pair[1]);
     }
+    if (opts.asPreview) {
+      // 유효 폴리곤 → 프리뷰로만 표시(커밋 안 함). 확정 시 commitImagePolygon 으로 커밋.
+      // 이 프리뷰가 반영한 누적점 수를 기록(확정 시 최신성 판정용 — 이슈1a).
+      setSegPreview(flat);
+      segPreviewForCountRef.current = opts.pointCount ?? null;
+      return;
+    }
     // clampToImage + validatePolygonPoints + simplify — 기존 폴리곤 적용 흐름과 동일.
     commitImagePolygon(flat);
   }
 
-  // R6 — 클릭 1회당 즉시 요청하지 않고 positive-click 을 누적한다.
+  // R6 — 클릭 1회당 positive-click 을 누적한다. 즉시 프리뷰 모드면 누적 점 전체로 즉시 요청.
   // 연속 동일 좌표(더블클릭 등)는 스킵해 확정 시 중복 포인트를 만들지 않는다.
   function handleSegmentClick() {
     const cp = pointerCanvas();
     if (!cp) return;
+    // 새 클릭 = 사용자가 계속 그리는 중 → 대기 중이던 확정 큐 취소(사용자 의도 최신화).
+    setPendingConfirm(false);
     const img = clampToImage(geometry, translateFromCanvas(geometry, cp.x, cp.y));
-    setSegPoints((prev) => {
-      const last = prev[prev.length - 1];
-      if (last && last.x === img.x && last.y === img.y) return prev;
-      return [...prev, img];
-    });
+    // 현재 누적 점(segPointsRef 는 매 렌더 최신 동기화)에서 다음 누적 배열을 계산.
+    // 함수형 setState 업데이터는 이벤트 핸들러 내에서 동기 실행되지 않으므로(배칭),
+    // 즉시 요청에 필요한 nextPts 는 ref 로 확정한다.
+    const prev = segPointsRef.current;
+    const last = prev[prev.length - 1];
+    const nextPts = last && last.x === img.x && last.y === img.y ? prev : [...prev, img];
+    setSegPoints(nextPts);
+    // 즉시 프리뷰 모드: 누적 점 전체로 즉시 분할 요청 → 프리뷰 렌더.
+    // 진행 중이면 useSam2Segment 가 null 반환 → applySegmentResult no-op(점은 이미 누적).
+    // 세대(gen) + 요청 시점 누적점 수(pointCount)를 함께 발급해, 늦게 온 응답은 무효화하고
+    // 프리뷰의 최신성(확정 시 point-count 일치)을 판정한다.
+    if (immediateSegment && segment) {
+      const gen = (segGenRef.current += 1);
+      const pointCount = nextPts.length;
+      const points = nextPts.map((p) => [p.x, p.y]);
+      void segment({ points }).then((r) =>
+        applySegmentResult(r, { asPreview: true, gen, pointCount }),
+      );
+    }
   }
 
-  // R6 — 누적된 positive-click 전체로 segment 를 1회 요청하고 누적을 비운다(확정).
+  // R6 — 확정(Enter/더블클릭). 즉시 프리뷰 모드에서 프리뷰가 현재 누적점 전체를 반영하면
+  // 재요청 없이 커밋, 아니면(마지막 클릭 미반영/드롭/stale) 누적점 전체로 재요청 후 커밋.
+  // 확정 후 프리뷰/누적 초기화. OFF 경로는 기존 동작 불변.
   function confirmSegment() {
+    if (immediateSegment) {
+      const pts = segPointsRef.current;
+      // 빈-포인트 가드(이슈2) — Enter/더블클릭 공통. 유령 프리뷰만 남아 있으면 정리 후 무간섭.
+      if (pts.length === 0) {
+        if (segPreviewRef.current !== null) {
+          segGenRef.current += 1; // 진행 중 프리뷰 응답 무효화
+          setSegPreview(null);
+        }
+        return;
+      }
+      // 최신성(이슈1a) — 프리뷰가 현재 누적점 수를 반영할 때만 재요청 없이 직접 커밋.
+      if (
+        segPreviewRef.current !== null &&
+        segPreviewRef.current.length >= 6 &&
+        segPreviewForCountRef.current === pts.length
+      ) {
+        commitImagePolygon(segPreviewRef.current);
+        segGenRef.current += 1; // 진행 중 프리뷰 응답 무효화(이슈1b)
+        setSegPoints([]);
+        setSegPreview(null);
+        return;
+      }
+      // 프리뷰 부재/stale — 현재 누적점 전체로 재요청 후 그 결과를 커밋(항상 최신 전체 점 반영).
+      if (!segment) return; // 미주입 — 안전 무시
+      // 이월 MED — 재요청이 in-flight 로 드롭될 상황이면 조용히 소실하지 말고 확정을 큐잉한다.
+      // 누적점은 유지(시각 피드백 보존)하고 stale 프리뷰만 제거. isSegmenting 해제 시 effect 가 커밋.
+      if (isSegmenting) {
+        segGenRef.current += 1; // 앞선 프리뷰 응답 무효화(늦게 와도 유령 방지)
+        setSegPreview(null);
+        setPendingConfirm(true);
+        return;
+      }
+      segGenRef.current += 1; // 앞선 클릭의 프리뷰 응답 무효화(늦게 와도 유령 방지 — 이슈1b)
+      setSegPoints([]);
+      setSegPreview(null);
+      const points = pts.map((p) => [p.x, p.y]);
+      void segment({ points }).then((r) => applySegmentResult(r, { asPreview: false }));
+      return;
+    }
+    // OFF(누적 후 확정 1회 요청) 경로 — 기존 동작 불변.
     if (!segment) return; // 미주입 — 안전 무시
     const pts = segPointsRef.current;
     if (pts.length === 0) return;
     const points = pts.map((p) => [p.x, p.y]);
     setSegPoints([]);
-    void segment({ points }).then(applySegmentResult);
+    setSegPreview(null);
+    void segment({ points }).then((r) => applySegmentResult(r, { asPreview: false }));
   }
 
   // R6 — 진행 중 누적 취소(Esc).
   function cancelSegment() {
+    segGenRef.current += 1; // 진행 중 프리뷰 응답 무효화(취소 후 유령 방지)
     setSegPoints([]);
+    setSegPreview(null);
+    setPendingConfirm(false); // 확정 큐 취소
   }
 
   // 최신 확정/취소 핸들러를 ref 에 반영(window 리스너가 참조).
@@ -397,7 +528,7 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     if (!segment) return;
     const a = clampToImage(geometry, translateFromCanvas(geometry, start.x, start.y));
     const b = clampToImage(geometry, translateFromCanvas(geometry, end.x, end.y));
-    void segment({ box: [a.x, a.y, b.x, b.y] }).then(applySegmentResult);
+    void segment({ box: [a.x, a.y, b.x, b.y] }).then((r) => applySegmentResult(r, { asPreview: false }));
   }
 
   // === BBox 핸들러 (전체 캔버스 영역에 invisible Rect 캡처)
@@ -531,6 +662,24 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
           />
         );
       })}
+      {/* 즉시 프리뷰 모드 — AI 분할 결과 폴리곤을 확정 전 점선으로 미리 표시(커밋 전). */}
+      {activeTool === ToolTypeEnum.SAM_SEGMENT && segPreview && segPreview.length >= 6 && (
+        <Line
+          points={(() => {
+            const flat: number[] = [];
+            for (let i = 0; i + 1 < segPreview.length; i += 2) {
+              const c = translateToCanvas(geometry, segPreview[i], segPreview[i + 1]);
+              flat.push(c.x, c.y);
+            }
+            return flat;
+          })()}
+          closed
+          stroke="#FFB300"
+          strokeWidth={2}
+          dash={[6, 3]}
+          listening={false}
+        />
+      )}
       {polyPoints.length >= 4 && (
         <Line points={polyPoints} stroke="#26A69A" strokeWidth={2} dash={[4, 4]} listening={false} />
       )}

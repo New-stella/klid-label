@@ -41,6 +41,11 @@ export interface CanvasShellProps {
    * 캔버스 geometry 와 동일한 실측 크기로 통일한다. 이미지 미로드 시 미호출(상위는 undefined 유지).
    */
   onImageSize?: (width: number, height: number) => void;
+  /**
+   * "즉시 그리기" 토글 — AI 분할(SAM_SEGMENT) 클릭마다 즉시 미리보기를 그린다.
+   * OverlayLayer 의 immediateSegment 로 그대로 중계한다. 기본 OFF(false).
+   */
+  immediateSegment?: boolean;
 }
 
 // 상위(LabelingPage)가 키보드 단축키(F/Q)로 폴리곤 편집을 명령할 수 있도록 OverlayLayer 의
@@ -67,6 +72,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     onKeypointPlacingChange,
     portalMode = false,
     onImageSize,
+    immediateSegment = false,
   }: CanvasShellProps,
   ref,
 ) {
@@ -322,6 +328,8 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
               onLowConfidence={handleLowConfidence}
               onCommitError={handleCommitError}
               onKeypointPlacingChange={onKeypointPlacingChange}
+              immediateSegment={immediateSegment}
+              isSegmenting={isSegmenting}
             />
           )}
         </Layer>
