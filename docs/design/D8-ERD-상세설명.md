@@ -32,7 +32,7 @@
 
 **관계**
 - `LS_DATA_RAW ||--o{ LS_DATA_SRC` : 영상 1건 → 프레임 N개 추출
-- `LS_DATA_RAW ||--o{ LS_DATA_RAW` : **자기참조**(`PARENT_RAW_SN`) — 증강본이 원본 영상을 가리킴
+- `LS_DATA_RAW ||--o{ LS_DATA_RAW` : **자기참조**(`ORGNL_RAW_SN`) — 증강본이 원본 영상을 가리킴
 - 영상/프레임 → 각 이력, 영상 → 해상도 산출
 
 **설계 포인트**: `VMS_CLIP_ID` UK 기반 upsert(재수신 갱신), 원본 경로 불변 보존, 증강본은 별도 RAW_SN이되 부모를 자기참조로 추적.
@@ -177,7 +177,7 @@
 - `LS_DATA_RAW ||--o{ LS_DATA_AUG` : 원본 영상 → 증강
 - 증강 → 검수 / 라벨 매핑
 
-**설계 포인트**: 증강은 **새 영상(RAW_SN) 생성**(ERD-001의 `PARENT_RAW_SN`으로 원본 참조). 외부 3종은 해상도 동일이라 좌표 그대로 복사(`COORD_RECALC_YN='N'`). `IDMP_KEY`로 중복 수신 방지. 새 영상은 미검수(PENDING)로 시작.
+**설계 포인트**: 증강은 **새 영상(RAW_SN) 생성**(ERD-001의 `ORGNL_RAW_SN`으로 원본 참조). 외부 3종은 해상도 동일이라 좌표 그대로 복사(`COORD_RECALC_YN='N'`). `IDMP_KEY`로 중복 수신 방지. 새 영상은 미검수(PENDING)로 시작.
 
 ---
 
@@ -289,4 +289,4 @@
 
 ## 부록. design vs design-full 차이 (참고)
 
-이 문서는 `docs/design`(R1 핵심 범위, **14 ERD / 40 엔티티**) 기준이다. `docs/design-full`은 여기에 **ERD-015 영상 업로드 세션(LS_TUS_UPLOAD)**, **ERD-016 데이터마트 적재 View 5종(V_COMPLETED_*)** 을 더한 전체 개발범위본(**16 ERD / 45 엔티티**)이다. 데이터마트 소비 인터페이스나 TUS 업로드 세션까지 설명해야 하면 design-full 및 `D8-ERD-설명문.md`를 함께 참조한다.
+이 문서는 `docs/design`(R1 핵심 범위, **14 ERD / 40 엔티티**) 기준이다. `docs/design-full`은 여기에 **ERD-015 영상 업로드 세션(LS_TUS_UPLOAD)**, **ERD-016 데이터마트 적재 View 4종(V_COMPLETED_*, V114 재편)** 을 더한 전체 개발범위본(**16 ERD / 45 엔티티**)이다. 데이터마트 소비 인터페이스나 TUS 업로드 세션까지 설명해야 하면 design-full 및 `D8-ERD-설명문.md`를 함께 참조한다.

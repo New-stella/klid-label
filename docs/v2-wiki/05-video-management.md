@@ -9,7 +9,7 @@
 
 - 작업 식별자: **`LS_DATA_RAW.RAW_SN`** (프로젝트 개념 없음)
 - 영상 1건이 마킹→배치→라벨링→검수→통지의 단위
-- 증강 결과는 **새 영상**(`RAW_SN`, `PARENT_RAW_SN`=원본 참조) → [14](14-augmentation.md)
+- 증강 결과는 **새 영상**(`RAW_SN`, `ORGNL_RAW_SN`=원본 참조) → [14](14-augmentation.md)
 
 ## 5.2 영상 적재
 
@@ -70,4 +70,4 @@
 
 ## 5.6 관련 데이터 (DB)
 
-`LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·PARENT_RAW_SN), `LS_DATA_RAW_HSTRY`(상태 이력), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`/`LS_RAW_DATA_ENROLLMENT`. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).
+`LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·ORGNL_RAW_SN), `LS_DATA_RAW_HSTRY`(상태 이력), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`/`LS_RAW_DATA_ENROLLMENT`. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).
