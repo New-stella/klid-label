@@ -9,7 +9,7 @@ import { Play, Square } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 import { useSam2Track } from '../../hooks/useSam2Track';
-import { Sam2TrackChunkError, type Sam2TrackResponse } from '../../api';
+import { Sam2TrackChunkError, type DetectShapeType, type Sam2TrackedItem } from '../../api';
 
 export interface Sam2TrackToolProps {
   /** 시작 프레임 SRC_SN */
@@ -18,11 +18,26 @@ export interface Sam2TrackToolProps {
   prevPolygon: number[][] | undefined;
   /** 객체 라벨명 (BE NotBlank) */
   label: string | undefined;
+  /**
+   * (R12) 추적 라벨 override — AI Tool 팝업에서 라벨을 선택했으면 그 값을 우선한다.
+   * 미지정이면 캔버스 선택 객체의 클래스명(label)을 사용.
+   */
+  labelOverride?: string;
   /** 트랙 식별자 — 기존 trackId 또는 신규 클라이언트 발급 */
   trackId: string | undefined;
+  /**
+   * (R12) 추적 결과 형태 'BBOX'|'POLYGON'. AI Tool 팝업에서 "박스"를 고르면 'BBOX' 로 전달돼
+   * tracked 결과가 외접 박스로 반영된다. 미지정이면 요청에 shape 미포함(BE 기본 POLYGON).
+   */
+  shape?: DetectShapeType;
   /** 후속 프레임 SRC_SN 전체 리스트. 50개 초과 시 hook 이 청크로 분할 순차 호출. 비어있으면 비활성. */
   nextSrcSns: number[];
-  onCompleted?: (res: Sam2TrackResponse) => void;
+  /**
+   * 추적 성공(전체/부분) 시 성공분(tracked) 전달 — 호출측이 작업본 병합/토스트 수행(HIGH #7/#10).
+   * @param tracked 성공 확정 추적 결과
+   * @param partial true 면 일부 청크 실패(부분 성공)
+   */
+  onCompleted?: (tracked: Sam2TrackedItem[], partial: boolean) => void;
   /**
    * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 추적(persist 없이 좌표만).
    * 내부 /frames/{id}/sam2-track 은 LS_DATA_LBL persist + PORTAL 채널 403 이므로 포털에서 호출 금지.
@@ -37,11 +52,16 @@ export function Sam2TrackTool({
   srcSn,
   prevPolygon,
   label,
+  labelOverride,
   trackId,
+  shape,
   nextSrcSns,
   onCompleted,
   portalMode = false,
 }: Sam2TrackToolProps) {
+  // 팝업 라벨(labelOverride)이 있으면 우선, 없으면 캔버스 선택 객체 클래스(label).
+  const effectiveLabel =
+    labelOverride !== undefined && labelOverride.length > 0 ? labelOverride : label;
   // 청크 순차 추적 진행 상태 (누적 프레임 / 전체) + 부분/전체 실패 메시지.
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -49,11 +69,12 @@ export function Sam2TrackTool({
   const mutation = useSam2Track(srcSn, {
     portalMode,
     onProgress: (done, total) => setProgress({ done, total }),
-    onSuccess: (data) => {
-      onCompleted?.(data);
+    // 전체/부분 성공분을 그대로 상위로 전달 — 상위가 작업본 병합 + 경고 토스트를 담당.
+    onTracked: (tracked, partial) => {
+      onCompleted?.(tracked, partial);
     },
     onError: (err) => {
-      // 부분 실패: 이미 성공한 청크 결과는 hook 이 LABEL_KEYS 무효화로 반영. 실패 지점만 안내.
+      // 부분 실패: 성공분 병합은 상위(onCompleted, partial=true)가 수행. 여기선 실패 지점만 안내.
       if (err instanceof Sam2TrackChunkError && err.partial.length > 0) {
         setFailure(
           `${err.partial.length}개 프레임까지 추적 후 중단 (구간 ${err.completedChunks + 1}/${err.totalChunks} 실패)`,
@@ -68,20 +89,27 @@ export function Sam2TrackTool({
   const disabled =
     srcSn === undefined ||
     !hasPolygon ||
-    label === undefined ||
-    label.length === 0 ||
+    effectiveLabel === undefined ||
+    effectiveLabel.length === 0 ||
     trackId === undefined ||
     trackId.length === 0 ||
     nextSrcSns.length === 0;
   const isPending = mutation.isPending;
 
   const handleToggle = useCallback(() => {
-    if (disabled || !prevPolygon || label === undefined || trackId === undefined) return;
+    if (disabled || !prevPolygon || effectiveLabel === undefined || trackId === undefined) return;
     // 새 시도마다 진행률/실패 상태 초기화.
     setProgress({ done: 0, total: nextSrcSns.length });
     setFailure(null);
-    mutation.mutate({ trackId, prevPolygon, label, nextSrcSns });
-  }, [disabled, prevPolygon, label, trackId, nextSrcSns, mutation]);
+    // (R12) shape 배선 — 팝업에서 고른 형태(BBOX/POLYGON)를 요청에 포함. 미지정이면 BE 기본.
+    mutation.mutate({
+      trackId,
+      prevPolygon,
+      label: effectiveLabel,
+      nextSrcSns,
+      ...(shape ? { shape } : {}),
+    });
+  }, [disabled, prevPolygon, effectiveLabel, trackId, shape, nextSrcSns, mutation]);
 
   const progressPct =
     progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;

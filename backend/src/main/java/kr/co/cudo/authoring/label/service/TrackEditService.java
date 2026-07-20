@@ -19,6 +19,9 @@ import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.dto.TrackDeleteResponse;
 import kr.co.cudo.authoring.label.dto.TrackSplitResponse;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
+import kr.co.cudo.authoring.version.entity.LabelChangeKind;
+import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -66,6 +69,8 @@ public class TrackEditService {
     private final TrackInterpolationStep trackInterpolationStep;
     private final LsRawDataStatusRepository rawDataStatusRepository;
     private final ApplicationEventPublisher eventPublisher;
+    /** DEV_FIX — 트랙 삭제 시 LS_DATA_LBL_HSTRY DELETED 이력 기록(삭제 감사 완결성, bulkUpsert 와 동일 레포). */
+    private final LsDataLblHstryRepository lblHstryRepository;
 
     /**
      * R4 — 트랙 삭제. {@code fromFrameNo} 이후(포함) 프레임의 {@code trackId} 라벨을 전부 삭제한다.
@@ -101,6 +106,12 @@ public class TrackEditService {
 
         Set<Long> changedFrames = targets.stream().map(LsDataLbl::getSrcSn).collect(Collectors.toCollection(TreeSet::new));
         List<Long> lblSns = targets.stream().map(LsDataLbl::getLblSn).toList();
+
+        // DEV_FIX(삭제 감사 완결성) — 라벨 row 삭제 직전, 삭제 대상별로 LS_DATA_LBL_HSTRY DELETED 이력을
+        // saveAll 1회로 원자 기록한다(같은 @Transactional — 부분 실패 시 삭제·이력 함께 롤백, CWE-362).
+        // srcSn 은 라벨별 프레임(트랙이 여러 프레임에 걸치므로 각 라벨의 srcSn 을 정확히 사용).
+        // regId 는 행위자 ID 수준만 저장(bulkUpsert 와 동일 String.valueOf(actorNo)) — 토큰/PII 미저장(CWE-359).
+        recordDeletionHistory(targets, actorNo);
 
         // FK 고아 방지 — 자식(ATTR_VAL) → 자식(AI_INFO) → 부모(LBL) 순서. ATTR_VAL 은 실 FK
         // (FK_LS_DATA_LBL_ATTR_LBL, ON DELETE 없음)라 먼저 지우지 않으면 부모 삭제가 FK 위반 500 →
@@ -180,6 +191,19 @@ public class TrackEditService {
 
         notifyIfApproved(rawSn, changedFrames, actorNo, ChangeType.LABEL_UPDATED);
         return new TrackSplitResponse(rawSn, trackId, newTrackId, atFrameNo, movable.size());
+    }
+
+    /**
+     * 삭제 대상 라벨들의 DELETED 이력을 LS_DATA_LBL_HSTRY 에 일괄 기록(saveAll — 1건씩 save 금지).
+     * <p>라벨별 (lblSn, srcSn) 을 그대로 사용하고 regId 는 행위자 ID 수준만 저장한다. 신고 경로(recordDeletion,
+     * regId=null)와 달리 트랙 삭제는 배정 검증을 통과한 명시적 편집이라 행위자를 감사에 남긴다(회귀 없음).
+     */
+    private void recordDeletionHistory(List<LsDataLbl> targets, Long actorNo) {
+        String actorId = String.valueOf(actorNo);
+        List<LsDataLblHstry> histories = targets.stream()
+                .map(l -> LsDataLblHstry.recordChange(l.getLblSn(), l.getSrcSn(), LabelChangeKind.DELETED, actorId))
+                .toList();
+        lblHstryRepository.saveAll(histories);
     }
 
     /**

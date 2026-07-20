@@ -34,11 +34,12 @@ import java.util.List;
  *
  * <p><b>핵심 안전 설계 (CRITICAL — 위반 시 데이터마트 오염)</b>:
  * <ul>
- *   <li>내부 {@link kr.co.cudo.authoring.label.service.Sam2TrackService} 는 추적 결과를 즉시
- *       {@code LS_DATA_LBL} 에 persist 하므로 포털 채널에 개방할 수 없다(APPROVED 영상 내부 라벨 오염 →
- *       V_COMPLETED_LABEL 데이터마트 유출). 본 서비스는 <b>추론부만</b> 재사용하고 <b>DB 저장을 절대 하지
- *       않으며</b> 좌표(폴리곤/마스크)만 반환한다. 포털 사용자의 저장은 별도 {@code LS_PORTAL_USER_LABEL}
- *       (단방향)로만 이뤄진다.</li>
+ *   <li>내부 {@link kr.co.cudo.authoring.label.service.Sam2TrackService} 는 Phase 3 이후 추적 결과를
+ *       LS_DATA_LBL 에 <b>즉시 저장하지 않고 좌표만 반환</b>(draft)한다. 그럼에도 포털 채널은 인가·자원
+ *       경계가 달라(APPROVED 데이터마트 노출 영상 재검증·포털 전용 bulkhead/rate-limit) 내부 서비스를 그대로
+ *       개방하지 않고 본 서비스로 격리한다. 본 서비스도 마찬가지로 <b>DB 저장을 절대 하지 않으며</b>
+ *       좌표(폴리곤/마스크)만 반환하고, 포털 사용자의 저장은 별도 {@code LS_PORTAL_USER_LABEL}(단방향)로만
+ *       이뤄진다.</li>
  * </ul>
  *
  * <p><b>보안</b>:
@@ -128,8 +129,8 @@ public class PortalSam2Service {
     /**
      * 포털 SAM2 자동 추적 — 후속 프레임 폴리곤을 좌표로만 반환(persist 없음).
      *
-     * <p>내부 {@link kr.co.cudo.authoring.label.service.Sam2TrackService#track} 과 달리
-     * {@code labelRepository.save(...)} 를 절대 호출하지 않는다(CRITICAL — 내부 LS_DATA_LBL 불변).
+     * <p>내부 {@link kr.co.cudo.authoring.label.service.Sam2TrackService#track} 과 동일하게
+     * DB 저장을 하지 않고 좌표만 반환한다(Phase 3 — 내부·포털 모두 미저장, LS_DATA_LBL 불변).
      */
     public Sam2TrackResponseDto track(Sam2TrackRequest req, TokenClaims actor) {
         requireActor(actor);

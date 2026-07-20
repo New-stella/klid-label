@@ -2,7 +2,6 @@ package kr.co.cudo.authoring.label;
 
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
-import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -13,23 +12,15 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
+import kr.co.cudo.authoring.label.dto.AutolabelShape;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
-import kr.co.cudo.authoring.label.entity.LsLabel;
-import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -38,23 +29,31 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import reactor.core.publisher.Mono;
 
-import java.util.Optional;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * R12 (B) — SAM2 트랙 서비스 테스트. <b>미저장 전환</b>: propagation 결과를 저장하지 않고 좌표만 반환한다.
+ *
+ * <p>검증 초점:
+ * <ul>
+ *   <li>AC7 미저장 — track 후에도 {@code LS_DATA_LBL} 에 row 가 생기지 않는다.</li>
+ *   <li>IDOR(CWE-639) — 미배정 WORKER 는 403, ai 미호출.</li>
+ *   <li>R12 형태 — POLYGON(폴리곤 그대로) / BBOX(외접 bbox + 선택 라벨).</li>
+ * </ul>
+ */
 @SpringBootTest
 @ActiveProfiles("local")
 class Sam2TrackServiceTest {
@@ -63,12 +62,9 @@ class Sam2TrackServiceTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
-    @Autowired private LsLabelRepository lsLabelRepository;
 
     @MockBean private AiServerClient aiServerClient;
     @MockBean private LabelMasterService labelMasterService;
-
-    private ListAppender<ILoggingEvent> logAppender;
 
     private static Path tmpRawDir;
 
@@ -89,13 +85,10 @@ class Sam2TrackServiceTest {
 
     @BeforeEach
     void setup() throws IOException {
-        // 동일 영상의 3 프레임 시드.
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
-        lsLabelRepository.deleteAll();
         rawSn = 9001L;
-        // ai-server 로 전송할 base64 인코딩을 위해 실제 파일 생성 (상대 경로).
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
         Files.write(tmpRawDir.resolve("1.jpg"), new byte[]{0x03, 0x04});
         Files.write(tmpRawDir.resolve("2.jpg"), new byte[]{0x05, 0x06});
@@ -103,7 +96,6 @@ class Sam2TrackServiceTest {
         src1 = srcRepository.save(LsDataSrc.create(rawSn, 1, "1.jpg", LocalDateTime.now())).getSrcSn();
         src2 = srcRepository.save(LsDataSrc.create(rawSn, 2, "2.jpg", LocalDateTime.now())).getSrcSn();
 
-        // 작업자 100 만 rawSn 에 LABELER 배정 — IDOR 검증용
         authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
 
         Instant exp = Instant.now().plusSeconds(60);
@@ -111,178 +103,220 @@ class Sam2TrackServiceTest {
         workerAssigned = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, exp);
         workerNotAssigned = new TokenClaims("101", Role.WORKER, Channel.INTERNAL, exp);
 
-        // 기본 stub: 모든 라벨명 → 미매칭 (테스트별로 override)
         when(labelMasterService.findLabelIdByName(any())).thenReturn(Optional.empty());
-
-        // ListAppender — Sam2TrackService 로그 캡처
-        Logger trackLogger = (Logger) LoggerFactory.getLogger(Sam2TrackService.class);
-        logAppender = new ListAppender<>();
-        logAppender.start();
-        trackLogger.addAppender(logAppender);
     }
 
     @AfterEach
     void tearDown() {
-        if (logAppender != null) {
-            Logger trackLogger = (Logger) LoggerFactory.getLogger(Sam2TrackService.class);
-            trackLogger.detachAppender(logAppender);
-            logAppender.stop();
-        }
-        // 이 테스트는 @Transactional 이 아니라 LS_LABEL(person/car) 등을 실제 커밋한다. @BeforeEach 정리만으로는
-        // 마지막 메서드 실행 후 데이터가 공유 DB 에 잔존하여, 뒤에 실행되는 LabelMaster/LabelAttr 컨트롤러
-        // 테스트의 person/car 시드와 uk_ls_label_name UNIQUE 충돌을 일으킨다(테스트 순서 의존 오염).
-        // 자기 격리를 위해 커밋한 데이터를 사후에도 정리한다.
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
-        lsLabelRepository.deleteAll();
     }
 
-    @Test
-    @Disabled("TODO Phase 6: 신규 DB 설계 — autoLblYn/confScore/lblSrcCd 는 LS_DATA_LBL_AI_INFO 로 분리됨. LsDataLbl 에서 @Transient 이므로 persist 후 null. AI Info 조회 기반으로 재작성 필요.")
-    @DisplayName("Sam2TrackService_연속_프레임_동일_TRCK_ID_전파")
-    void trackPropagatesSameTrackId() {
-        // ai-server mock — 매 호출 시 동일 trackId 반환 + 좌표만 변동
-        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(
-                new Sam2TrackResponse("track-AAA",
-                        List.of(List.of(11.0, 12.0), List.of(31.0, 32.0), List.of(11.0, 32.0)),
-                        0.92)));
+    private void stubTrack(String trackId, List<List<Double>> polygon, double score) {
+        when(aiServerClient.track(any())).thenAnswer(inv ->
+                Mono.just(new Sam2TrackResponse(trackId, polygon, score)));
+    }
 
-        // 시작 라벨 = src0 의 POLYGON 1건 (TRCK_ID 컬럼 없으므로 LABEL 에 같이 묶음)
+    private List<List<Double>> square(double x1, double y1, double x2, double y2) {
+        return List.of(List.of(x1, y1), List.of(x2, y1), List.of(x2, y2), List.of(x1, y2));
+    }
+
+    // ── AC7 미저장 ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("추적은_DB에_저장하지_않고_좌표만_반환한다")
+    void trackReturnsCoordinatesWithoutPersisting() {
+        stubTrack("track-AAA", square(11, 12, 31, 32), 0.92);
+
         Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-AAA",
-                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
-                "person",
-                List.of(src1, src2));
+                square(10, 10, 30, 30), "person", List.of(src1, src2));
 
         Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
 
-        assertThat(res.tracked()).hasSize(2); // src1, src2 두 프레임 라벨 생성
+        assertThat(res.tracked()).hasSize(2);
         assertThat(res.tracked()).allSatisfy(item -> assertThat(item.trackId()).isEqualTo("track-AAA"));
-
-        // ai-server 가 정확히 2회 호출되었고, 동일 trackId 가 전파되었음.
-        ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest> cap =
-                ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest.class);
-        verify(aiServerClient, atLeast(2)).track(cap.capture());
-        assertThat(cap.getAllValues()).allSatisfy(r -> assertThat(r.trackId()).isEqualTo("track-AAA"));
-
-        // DB 에 저장된 라벨은 모두 AUTO_LBL_YN = 'Y' (SAM2 자동) + POLYGON 타입
-        List<LsDataLbl> savedSrc1 = labelRepository.findBySrcSn(src1);
-        List<LsDataLbl> savedSrc2 = labelRepository.findBySrcSn(src2);
-        assertThat(savedSrc1).hasSize(1).allSatisfy(l -> {
-            assertThat(l.getAutoLblYn()).isEqualTo("Y");
-            assertThat(l.getLblTypeCd()).isEqualTo("POLYGON");
-            assertThat(l.getLabelNm()).isEqualTo("person");
-        });
-        assertThat(savedSrc2).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("미배정_WORKER가_sam2_track_호출시_403_FORBIDDEN")
-    void notAssignedWorkerForbidden() {
-        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-XYZ",
-                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
-                "person",
-                List.of(src1, src2));
-
-        assertThatThrownBy(() -> sam2TrackService.track(req, workerNotAssigned))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
-
-        // ai-server 호출이 일어나지 않아야 함 (IDOR 차단이 ai 호출 이전).
-        verify(aiServerClient, never()).track(any());
-        // DB 에 라벨 INSERT 도 없어야 함.
+        // ★ 미저장 — LS_DATA_LBL 에 어떤 row 도 생기지 않아야 한다.
         assertThat(labelRepository.findBySrcSn(src1)).isEmpty();
         assertThat(labelRepository.findBySrcSn(src2)).isEmpty();
     }
 
     @Test
-    @DisplayName("배정된_WORKER는_sam2_track_정상_동작")
-    void assignedWorkerCanTrack() {
-        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(
-                new Sam2TrackResponse("track-OK",
-                        List.of(List.of(20.0, 20.0), List.of(40.0, 40.0), List.of(20.0, 40.0)),
-                        0.85)));
+    @DisplayName("배정된_WORKER는_sam2_track_정상동작하되_미저장")
+    void assignedWorkerCanTrackNoPersist() {
+        stubTrack("track-OK", square(20, 20, 40, 40), 0.85);
 
         Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-OK",
-                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
-                "car",
-                List.of(src1));
+                square(10, 10, 30, 30), "car", List.of(src1));
 
         Sam2TrackResponseDto res = sam2TrackService.track(req, workerAssigned);
 
         assertThat(res.tracked()).hasSize(1);
-        assertThat(labelRepository.findBySrcSn(src1)).hasSize(1);
+        assertThat(labelRepository.findBySrcSn(src1)).isEmpty();
+    }
+
+    // ── IDOR ─────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("미배정_WORKER가_sam2_track_호출시_403_FORBIDDEN_ai미호출")
+    void notAssignedWorkerForbidden() {
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-XYZ",
+                square(10, 10, 30, 30), "person", List.of(src1, src2));
+
+        assertThatThrownBy(() -> sam2TrackService.track(req, workerNotAssigned))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(aiServerClient, never()).track(any());
+        assertThat(labelRepository.findBySrcSn(src1)).isEmpty();
+    }
+
+    // ── R12 형태 ─────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("추적_shape가_폴리곤이면_폴리곤을_반환한다")
+    void polygonShapeReturnsPolygon() {
+        stubTrack("track-P", square(11, 12, 31, 32), 0.9);
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-P",
+                square(10, 10, 30, 30), "person", List.of(src1), AutolabelShape.POLYGON);
+
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
+
+        Sam2TrackResponseDto.TrackedItem item = res.tracked().get(0);
+        assertThat(item.shapeType()).isEqualTo("POLYGON");
+        assertThat(item.points()).hasSize(4);      // 폴리곤 정점
+        assertThat(item.label()).isEqualTo("person");
     }
 
     @Test
-    @DisplayName("Sam2Track_매핑된_라벨_labelId_저장")
-    void mappedLabelStoresLabelId() {
-        // LS_LABEL row 가 실제로 존재해야 FK 가 통과 (H2 DDL 에 FK_LS_DATA_LBL_LABEL).
-        Long personLabelId = lsLabelRepository.save(
-                LsLabel.create("person", "#FF0000", "POLYGON", 1, "test")).getLabelId();
-        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(personLabelId));
-        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(
-                new Sam2TrackResponse("track-ZZ",
-                        List.of(List.of(11.0, 12.0), List.of(31.0, 32.0), List.of(11.0, 32.0)),
-                        0.91)));
+    @DisplayName("추적_shape가_박스면_폴리곤_외접bbox로_반환하고_선택라벨을_부여한다")
+    void bboxShapeReturnsCircumscribedBbox() {
+        stubTrack("track-B", square(11, 12, 31, 42), 0.8);
 
-        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-ZZ",
-                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
-                "person",
-                List.of(src1));
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-B",
+                square(10, 10, 30, 30), "car", List.of(src1), AutolabelShape.BBOX);
 
-        sam2TrackService.track(req, reviewer);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
 
-        List<LsDataLbl> saved = labelRepository.findBySrcSn(src1);
-        assertThat(saved).hasSize(1);
-        assertThat(saved.get(0).getLabelId()).isEqualTo(personLabelId);
-        assertThat(saved.get(0).getLabelNm()).isEqualTo("person");
+        Sam2TrackResponseDto.TrackedItem item = res.tracked().get(0);
+        assertThat(item.shapeType()).isEqualTo("BBOX");
+        // 외접 bbox = [[minX,minY],[maxX,maxY]]
+        assertThat(item.points()).containsExactly(List.of(11.0, 12.0), List.of(31.0, 42.0));
+        assertThat(item.label()).isEqualTo("car");   // 선택 라벨 부여
     }
 
     @Test
-    @DisplayName("Sam2Track_미매칭_라벨_labelId_null")
-    void unmappedLabelStoresNullLabelId() {
-        when(labelMasterService.findLabelIdByName("unknown-label")).thenReturn(Optional.empty());
-        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(
-                new Sam2TrackResponse("track-NM",
-                        List.of(List.of(11.0, 12.0), List.of(31.0, 32.0), List.of(11.0, 32.0)),
-                        0.77)));
+    @DisplayName("추적_shape미지정이면_POLYGON_기본")
+    void defaultShapeIsPolygon() {
+        stubTrack("track-D", square(11, 12, 31, 32), 0.9);
 
-        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-NM",
-                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
-                "unknown-label",
-                List.of(src1));
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-D",
+                square(10, 10, 30, 30), "person", List.of(src1));
 
-        sam2TrackService.track(req, reviewer);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
 
-        List<LsDataLbl> saved = labelRepository.findBySrcSn(src1);
-        assertThat(saved).hasSize(1);
-        assertThat(saved.get(0).getLabelId()).isNull();
-        assertThat(saved.get(0).getLabelNm()).isEqualTo("unknown-label");
+        assertThat(res.tracked().get(0).shapeType()).isEqualTo("POLYGON");
     }
 
     @Test
-    @DisplayName("Sam2Track_매핑_로그_검증")
-    void mappingLogIsEmitted() {
-        Long carLabelId = lsLabelRepository.save(
-                LsLabel.create("car", "#00FF00", "POLYGON", 2, "test")).getLabelId();
-        when(labelMasterService.findLabelIdByName("car")).thenReturn(Optional.of(carLabelId));
+    @DisplayName("추적_박스형태_퇴화폴리곤은_해당프레임만_스킵한다")
+    void degenerateBboxSkippedNotAborted() {
+        // 폭/높이 0 인 퇴화 폴리곤 → BBOX 산출 불가 → 해당 프레임 스킵(예외 없음).
         when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(
-                new Sam2TrackResponse("track-LOG",
-                        List.of(List.of(11.0, 12.0), List.of(31.0, 32.0), List.of(11.0, 32.0)),
-                        0.88)));
+                new Sam2TrackResponse("track-DG",
+                        List.of(List.of(5.0, 5.0), List.of(5.0, 5.0), List.of(5.0, 5.0)), 0.7)));
 
-        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-LOG",
-                List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
-                "car",
-                List.of(src1));
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-DG",
+                square(10, 10, 30, 30), "person", List.of(src1), AutolabelShape.BBOX);
 
-        sam2TrackService.track(req, reviewer);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
 
-        assertThat(logAppender.list)
-                .anyMatch(e -> e.getLevel() == Level.INFO
-                        && e.getFormattedMessage().contains("[Batch][Sam2Track] mapped label")
-                        && e.getFormattedMessage().contains("name=car")
-                        && e.getFormattedMessage().contains("labelId=" + carLabelId));
+        assertThat(res.tracked()).isEmpty();   // 퇴화 프레임 스킵, 전체 추적은 정상 종료
+    }
+
+    // ── 외부 응답 검증 / 오류 경로 (coverage HIGH) ──────────────────────────────────
+
+    @Test
+    @DisplayName("sam2_track_ai호출실패시_502")
+    void aiCallFailure502() {
+        when(aiServerClient.track(any())).thenReturn(Mono.error(new RuntimeException("boom")));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-E",
+                square(10, 10, 30, 30), "person", List.of(src1));
+
+        assertThatThrownBy(() -> sam2TrackService.track(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
+    }
+
+    @Test
+    @DisplayName("sam2_track_ai응답_polygon_null이면_502")
+    void aiPolygonNull502() {
+        when(aiServerClient.track(any())).thenAnswer(inv ->
+                Mono.just(new Sam2TrackResponse("track-N", null, 0.9)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-N",
+                square(10, 10, 30, 30), "person", List.of(src1));
+
+        assertThatThrownBy(() -> sam2TrackService.track(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
+    }
+
+    @Test
+    @DisplayName("sam2_track_ai응답폴리곤_검증실패시_400")
+    void aiPolygonInvalid400() {
+        // 외부(ai-server) 응답도 불신 — 음수 좌표 폴리곤은 400.
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(new Sam2TrackResponse(
+                "track-I", List.of(List.of(-1.0, 5.0), List.of(5.0, 5.0), List.of(5.0, 10.0)), 0.9)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-I",
+                square(10, 10, 30, 30), "person", List.of(src1));
+
+        assertThatThrownBy(() -> sam2TrackService.track(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("sam2_track_prevPolygon_검증실패시_400")
+    void prevPolygonInvalid400() {
+        // 요청 prevPolygon 음수 좌표 → AI 호출 전 400.
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-PP",
+                List.of(List.of(-1.0, 2.0), List.of(3.0, 4.0), List.of(5.0, 6.0)),
+                "person", List.of(src1));
+
+        assertThatThrownBy(() -> sam2TrackService.track(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(aiServerClient, never()).track(any());
+    }
+
+    @Test
+    @DisplayName("sam2_track_시작프레임없으면_404")
+    void startFrameNotFound404() {
+        Sam2TrackRequest req = new Sam2TrackRequest(8888888L, "track-S",
+                square(10, 10, 30, 30), "person", List.of(src1));
+
+        assertThatThrownBy(() -> sam2TrackService.track(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
+        verify(aiServerClient, never()).track(any());
+    }
+
+    @Test
+    @DisplayName("sam2_track_후속프레임없으면_404")
+    void nextFrameNotFound404() {
+        when(aiServerClient.track(any())).thenAnswer(inv ->
+                Mono.just(new Sam2TrackResponse("track-NX", square(11, 12, 31, 32), 0.9)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-NX",
+                square(10, 10, 30, 30), "person", List.of(7777777L));
+
+        assertThatThrownBy(() -> sam2TrackService.track(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
+        verify(aiServerClient, never()).track(any());
     }
 }

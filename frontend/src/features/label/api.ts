@@ -7,6 +7,7 @@
 // IDOR/Mass Assignment 방어는 BE 책임.
 
 import { apiClient } from '@/lib/api/client';
+import type { PageResponse } from '@/lib/api/types';
 
 import type {
   FrameImageType,
@@ -261,7 +262,21 @@ function serializeLabel(lbl: Label): object {
     points = [];
   }
 
-  return { id, lblTypeCd, labelId: lbl.labelId ?? null, label: lbl.className, points };
+  const base = { id, lblTypeCd, labelId: lbl.labelId ?? null, label: lbl.className, points };
+
+  // R9 — 온라인 오토라벨(AI 탐지/추적) 출처 보존.
+  // 신규 삽입(id === null, 즉 BE INSERT 경로)이고 source 가 오토(≠MANUAL)일 때만 provenance 를 전송한다.
+  // 기존 저장 라벨(serverId → id !== null)은 BE 가 UPDATE 로 AUTO_LBL_YN 을 유지하므로 미전송,
+  // 수동(MANUAL) 라벨도 미전송(BE 가 AUTO_LBL_YN='N' 수동 저장). 민감 필드는 담지 않는다(Mass Assignment).
+  if (id === null && lbl.source && lbl.source !== 'MANUAL') {
+    return {
+      ...base,
+      source: lbl.source,
+      ...(lbl.confidence != null ? { confScore: lbl.confidence } : {}),
+      algorithm: lbl.source === 'AUTO_SAM2' ? 'SAM2' : 'YOLO',
+    };
+  }
+  return base;
 }
 
 /**
@@ -272,6 +287,78 @@ export function putLabels(srcSn: number, labels: Label[]): Promise<LabelsRespons
   return apiClient
     .put<LabelsResponse>(`/frames/${srcSn}/labels`, { items: labels.map(serializeLabel) })
     .then((r) => r.data);
+}
+
+/** 라벨 변경종류 — BE LabelChangeKind(LS_DATA_LBL_HSTRY.CHG_KIND_CD) 와 1:1. */
+export type LabelChangeKind = 'ADDED' | 'UPDATED' | 'DELETED';
+
+/**
+ * 라벨 변경 이력 항목 (Phase 2 BE LabelHistoryResponse 와 1:1).
+ * - lblHstrySn : 이력 PK (2차 정렬 tiebreaker)
+ * - lblSn      : 대상 라벨 LS_DATA_LBL.LBL_SN (삭제 이력은 null 가능)
+ * - changeKind : 변경종류 (ADDED/UPDATED/DELETED)
+ * - actor      : 작업자 식별자(REG_ID). 삭제 이력 경로는 null 가능
+ * - regDt      : 변경 일시 (ISO-8601)
+ * - label      : 라벨명 (생존 라벨만 채움 — 삭제 이력은 null)
+ */
+export interface LabelHistoryItem {
+  lblHstrySn: number;
+  lblSn: number | null;
+  changeKind: LabelChangeKind;
+  actor: string | null;
+  regDt: string;
+  label: string | null;
+}
+
+/** 변경종류 화이트리스트 정규화 — 알 수 없는 값은 UPDATED 로 폴백(방어). */
+function normalizeChangeKind(raw: unknown): LabelChangeKind {
+  return raw === 'ADDED' || raw === 'DELETED' ? raw : 'UPDATED';
+}
+
+/** BE 이력 응답 정규화 — 필드 누락/타입 방어. */
+function normalizeHistoryItem(raw: unknown): LabelHistoryItem {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const lblSn = r.lblSn;
+  return {
+    lblHstrySn: Number(r.lblHstrySn ?? 0),
+    lblSn: lblSn === null || lblSn === undefined ? null : Number(lblSn),
+    changeKind: normalizeChangeKind(r.changeKind),
+    actor: typeof r.actor === 'string' && r.actor.length > 0 ? r.actor : null,
+    regDt: typeof r.regDt === 'string' ? r.regDt : '',
+    label: typeof r.label === 'string' && r.label.length > 0 ? r.label : null,
+  };
+}
+
+/**
+ * 프레임(srcSn) 라벨 변경 이력 조회 (최신순 페이징).
+ * BE: GET /api/v1/frames/{srcSn}/label-history?page=&size=
+ *   → ApiResponse<Page<LabelHistoryResponse>> (서버 고정 정렬: REG_DT DESC, LBL_HSTRY_SN DESC)
+ *
+ * 보안:
+ *  - srcSn 은 path(axios 자동 인코딩), page/size 는 query 파라미터.
+ *  - size 상한(100)은 BE 가 클램프하나 FE 도 기본 20 으로 합리적 상한을 둔다(CWE-770).
+ *  - IDOR/인가(WORKER 본인 배정 프레임)는 BE 책임.
+ */
+export function getLabelHistory(
+  srcSn: number,
+  page = 0,
+  size = 20,
+): Promise<PageResponse<LabelHistoryItem>> {
+  return apiClient
+    .get<PageResponse<LabelHistoryItem>>(`/frames/${srcSn}/label-history`, {
+      params: { page, size },
+    })
+    .then((r) => {
+      const d = (r.data ?? {}) as Partial<PageResponse<LabelHistoryItem>>;
+      const content = Array.isArray(d.content) ? d.content.map(normalizeHistoryItem) : [];
+      return {
+        content,
+        totalElements: Number(d.totalElements ?? content.length),
+        totalPages: Number(d.totalPages ?? (content.length > 0 ? 1 : 0)),
+        number: Number(d.number ?? page),
+        size: Number(d.size ?? size),
+      };
+    });
 }
 
 /**
@@ -308,6 +395,8 @@ export interface Sam2TrackRequest {
   prevPolygon: number[][];
   label: string;
   nextSrcSns: number[];
+  /** (Phase 4) 추적 결과 형태 'BBOX'|'POLYGON'. 미지정이면 BE 기본 POLYGON. */
+  shape?: DetectShapeType;
 }
 
 /** BE Sam2TrackResponseDto.TrackedItem 와 1:1. */
@@ -317,6 +406,48 @@ export interface Sam2TrackedItem {
   label: string;
   points: number[][];
   score: number;
+  /** (Phase 4) 추적 결과 형태 — 미지정이면 POLYGON 로 간주. */
+  shapeType?: DetectShapeType;
+}
+
+/**
+ * 추적 item → FE Label 변환(작업본 병합용). points 는 [[x,y],...] 폴리곤(또는 박스 4점).
+ * shapeType='BBOX' 면 외접 박스로, 그 외(기본)는 POLYGON 으로 정규화한다.
+ */
+export function trackedItemToLabel(item: Sam2TrackedItem, frameNo: number): Label {
+  const isBbox = item.shapeType === 'BBOX';
+  // BBOX 형태면 추적 폴리곤의 외접 박스([[minX,minY],[maxX,maxY]])로 환원한다.
+  let points: number[][] = item.points;
+  if (isBbox && Array.isArray(item.points) && item.points.length > 0) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const p of item.points) {
+      const x = Number(p?.[0]) || 0;
+      const y = Number(p?.[1]) || 0;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    points = [
+      [minX, minY],
+      [maxX, maxY],
+    ];
+  }
+  const raw = {
+    id: null,
+    frameNo,
+    label: item.label,
+    lblTypeCd: isBbox ? 'BBOX' : 'POLYGON',
+    points,
+    autoLblYn: 'Y',
+    algorithm: 'SAM2',
+    confScore: item.score,
+    trackId: item.trackId,
+  };
+  return normalizeLabel(raw);
 }
 
 /** BE Sam2TrackResponseDto. */
@@ -398,7 +529,7 @@ export async function sam2TrackAllChunks(
   // Phase 9 — 포털 모드면 모든 청크를 포털 전용 경로로 호출(내부 persist 경로 미사용).
   portalMode = false,
 ): Promise<Sam2TrackResponse> {
-  const { trackId, label, nextSrcSns } = payload;
+  const { trackId, label, nextSrcSns, shape } = payload;
   const total = nextSrcSns.length;
   const accumulated: Sam2TrackedItem[] = [];
 
@@ -426,6 +557,8 @@ export async function sam2TrackAllChunks(
           prevPolygon: curPrevPolygon,
           label,
           nextSrcSns: chunk,
+          // (R12) 추적 결과 형태(BBOX/POLYGON)를 모든 청크에 전파 — 누락 시 BE 기본(POLYGON) 고정.
+          ...(shape ? { shape } : {}),
         },
         portalMode,
       );
@@ -506,23 +639,31 @@ export function requestSam2Segment(
     .then((r) => ({ ...r.data, message: r.message ?? null }));
 }
 
-/** YOLO 오토라벨 수동 트리거로 저장된 라벨 요약. */
+/** BE→FE 검출 형태 코드(오토라벨/추적 공통). */
+export type DetectShapeType = 'BBOX' | 'POLYGON';
+
+/** YOLO/SAM 오토라벨 수동 트리거 검출 요약(Phase 3 전환 — 미저장, lblSn 항상 null). */
 export interface AutolabelItem {
-  lblSn: number;
+  /** BE PK — Phase 3 전환으로 미저장이라 항상 null. */
+  lblSn: number | null;
   /** LS_LABEL FK — 미매칭 시 null. */
   labelId: number | null;
   label: string;
-  /** BBOX 평탄 좌표 [x1, y1, x2, y2] (image px). */
-  points: number[];
+  /** BBOX 평탄 좌표 [x1, y1, x2, y2] (image px). POLYGON 검출이면 생략 가능. */
+  points?: number[];
   /** 신뢰도 0.0 ~ 1.0 (null 가능). */
   score: number | null;
   /** 트래커 객체 ID — 단일 프레임 트리거이므로 연속성 미보장(null 가능). */
   trackId: number | null;
+  /** 검출 형태 — 미지정이면 BBOX 로 간주. */
+  shapeType?: DetectShapeType;
+  /** POLYGON 검출 좌표 [[x,y],...] (image px). shapeType='POLYGON' 일 때 사용. */
+  polygon?: number[][];
 }
 
 export interface AutolabelResponse {
   srcSn: number;
-  /** 저장된 BBOX 라벨 개수 (mock 응답이면 0). */
+  /** 검출 개수 (mock 응답이면 0). BE detectedCount 미러 — 저장하지 않으므로 savedCount 는 deprecated. */
   savedCount: number;
   /**
    * BE ApiResponse.message — 내부 mock(모델 미로드) 시 안내가 실린다.
@@ -533,26 +674,53 @@ export interface AutolabelResponse {
 }
 
 /**
- * YOLO 오토라벨 수동 실행 요청.
- * BE: POST /frames/{srcSn}/autolabel
+ * YOLO/SAM 오토라벨 수동 실행 요청.
+ * BE: POST /frames/{srcSn}/autolabel  — body {classes?, shape?}
  *
  * @param classIds (Phase 4 — R3) 검출 대상 클래스(COCO 영문명) 화이트리스트. 미지정/빈 배열이면
- *                 body 없이 호출(전체 검출, 하위호환). 지정 시 body {classes:[...]} 로 해당 클래스만 검출.
+ *                 classes 없이 호출(전체 검출, 하위호환). 지정 시 body {classes:[...]} 로 필터.
+ * @param shape    (Phase 4 — R? B) 검출 형태 'BBOX'|'POLYGON'. 미지정이면 body 에 shape 미포함(BE 기본 BBOX).
  *
- * 보안: srcSn 은 path 파라미터(axios 자동 인코딩). IDOR·작업락·좌표검증·포털 차단은 BE 책임(ADR-013).
- *       classes 크기/원소 길이 검증은 BE @Valid 에서 수행(과대 리스트 400).
+ * 보안: srcSn 은 path 파라미터(axios 자동 인코딩). shape 는 화이트리스트('BBOX'|'POLYGON')만 전달.
+ *       IDOR·작업락·좌표검증·포털 차단은 BE 책임(ADR-013). classes 크기 검증은 BE @Valid.
  */
 export function requestAutolabel(
   srcSn: number,
   classIds?: string[],
+  shape?: DetectShapeType,
 ): Promise<AutolabelResponse> {
-  // 빈 배열/미지정은 body 없이(전체 검출) — 기존 호출 형태 유지(무회귀).
+  const body: { classes?: string[]; shape?: DetectShapeType } = {};
+  if (classIds && classIds.length > 0) body.classes = classIds;
+  // 입력검증 — 화이트리스트 외 값은 무시(방어).
+  if (shape === 'BBOX' || shape === 'POLYGON') body.shape = shape;
+  // body 가 비면 인자 없이 호출 — 기존 호출 형태 유지(무회귀, api.test 정합).
   const post =
-    classIds && classIds.length > 0
-      ? apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`, { classes: classIds })
+    Object.keys(body).length > 0
+      ? apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`, body)
       : apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`);
   // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고 토스트로 분기하기 위함.
   return post.then((r) => ({ ...r.data, message: r.message ?? null }));
+}
+
+/**
+ * 오토라벨 검출 item → FE Label 변환(작업본 병합용). 미저장이므로 id='' → 병합 시 클라 id 부여.
+ * shapeType/polygon 을 normalizeLabel 이 이해하는 raw 형태로 매핑한다.
+ */
+export function autolabelItemToLabel(item: AutolabelItem, frameNo: number): Label {
+  const isPolygon = item.shapeType === 'POLYGON';
+  const raw = {
+    id: null, // 미저장 — 병합 액션이 클라 id 부여
+    frameNo,
+    labelId: item.labelId,
+    label: item.label,
+    lblTypeCd: isPolygon ? 'POLYGON' : 'BBOX',
+    points: isPolygon ? item.polygon : item.points,
+    autoLblYn: 'Y',
+    algorithm: isPolygon ? 'SAM2' : undefined,
+    confScore: item.score,
+    trackId: item.trackId,
+  };
+  return normalizeLabel(raw);
 }
 
 /** BE TrackMergeResponse 와 1:1. */

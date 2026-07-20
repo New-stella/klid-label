@@ -10,7 +10,7 @@ import { useLabelMasters } from '../hooks/useLabelMasters';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
 import { normalizeBox } from '../canvas/utils/canvasGeometry';
 import { shouldRenderVertexAnchors } from '../canvas/utils/polygonEdit';
-import type { Sam2TrackResponse } from '../api';
+import type { DetectShapeType, Sam2TrackedItem } from '../api';
 import type { Label } from '../types';
 import { ToolType } from '../types';
 
@@ -64,7 +64,12 @@ export interface ObjectAttributePanelProps {
   track?: {
     srcSn: number | undefined;
     nextSrcSns: number[];
-    onTracked?: (res: Sam2TrackResponse) => void;
+    /** 추적 성공분 콜백 — (tracked, partial). 상위가 작업본 병합/토스트 담당(미저장 병합). */
+    onTracked?: (tracked: Sam2TrackedItem[], partial: boolean) => void;
+    /** (R12) AI Tool 팝업에서 고른 추적 형태(BBOX/POLYGON). 미지정이면 BE 기본 POLYGON. */
+    shape?: DetectShapeType;
+    /** (R12) AI Tool 팝업에서 고른 추적 라벨명. 있으면 캔버스 선택 객체 클래스보다 우선. */
+    label?: string;
     /**
      * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 추적(persist 없이 좌표만).
      * 내부 경로는 PORTAL 채널 403 이므로 호출 금지.
@@ -247,6 +252,8 @@ export function ObjectAttributePanel({
             srcSn={track.srcSn}
             prevPolygon={shapeToPolygon(target.shape)}
             label={target.className}
+            labelOverride={track.label}
+            shape={track.shape}
             trackId={target.trackId ?? String(target.id ?? '')}
             nextSrcSns={track.nextSrcSns}
             onCompleted={track.onTracked}

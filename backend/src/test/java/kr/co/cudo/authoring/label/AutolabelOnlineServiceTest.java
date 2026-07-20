@@ -1,13 +1,9 @@
 package kr.co.cudo.authoring.label;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadConfig;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
-import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -17,7 +13,6 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.AutolabelResponse;
 import kr.co.cudo.authoring.label.service.AutolabelOnlineService;
-import kr.co.cudo.authoring.label.service.AutolabelPersistService;
 import kr.co.cudo.authoring.label.service.FrameImageEncoder;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
@@ -27,7 +22,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -46,38 +40,36 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 3 — YOLO 오토라벨 수동 트리거 온라인 서비스 단위 테스트 (순수 Mockito).
+ * Phase 1 — YOLO 오토라벨 수동(온라인) 트리거 서비스 단위 테스트 (순수 Mockito).
+ *
+ * <p><b>미저장 전환(Phase 1)</b>: 온라인 오토라벨은 DB 에 저장하지 않고 ai-server 검출 좌표만 반환한다
+ * (SAM2 분할과 동일 stateless 프록시). 저장 관련 검증(save/delete/선삭제)은 제거되고, 대신 "DB 미변경 +
+ * 좌표만 반환 + AI 후 작업락 TOCTOU 재확인" 을 검증한다.
  *
  * <p>HIGH 시나리오 방어:
  * <ul>
- *   <li>IDOR(CWE-639): accessGuard.verifyAndGet 를 ai 호출/저장 전 최우선 수행.</li>
- *   <li>잠금(작업락): isRawLocked → CONFLICT(409), ai 미호출.</li>
- *   <li>동시성: 진행 중 재요청 차단(in-flight) → CONFLICT.</li>
- *   <li>수동 라벨 보존: 삭제 대상은 findAutoLblSnsBySrcSn(auto 만).</li>
- *   <li>idempotent: 재실행 시 기존 auto 라벨 선삭제 후 재삽입.</li>
+ *   <li>IDOR(CWE-639): accessGuard.verifyAndGet 를 ai 호출 전 최우선 수행.</li>
+ *   <li>작업락(#3): isRawLocked → CONFLICT(409), ai 미호출.</li>
+ *   <li>TOCTOU(#4): AI 호출 완료 후 응답 조립 직전 isRawLocked 재확인 — 그사이 잠기면 좌표 미반환·409.</li>
+ *   <li>동시성(CWE-362): 진행 중 재요청 차단(in-flight) → CONFLICT. 400/502/409 모든 경로에서 락 해제.</li>
  * </ul>
- * <p>MED: 좌표 검증, 출처(MANUAL_TRIGGER) 저장, mock 응답은 DB 미저장, ai 타임아웃 502.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AutolabelOnlineServiceTest {
 
     @Mock private AiServerClient aiServerClient;
-    @Mock private LsDataLblRepository lblRepository;
-    @Mock private LsDataLblAiInfoRepository aiInfoRepository;
     @Mock private LabelAccessGuard accessGuard;
     @Mock private LabelMasterService labelMasterService;
     @Mock private SystemConfigService systemConfigService;
@@ -85,31 +77,20 @@ class AutolabelOnlineServiceTest {
     @Mock private FrameImageEncoder frameImageEncoder;
 
     private AutolabelOnlineService service;
-    private AutolabelPersistService persistService;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final AtomicLong lblSnSeq = new AtomicLong(1);
 
     private static final Long SRC_SN = 5001L;
     private static final Long RAW_SN = 9001L;
 
     private TokenClaims worker;
 
-    /** 저장 전담 트랜잭션 빈 — 실제 로직으로 위임(mock 리포지토리 주입)해 저장 동작 검증 유지. */
-    private AutolabelPersistService buildPersistService() {
-        return new AutolabelPersistService(lblRepository, aiInfoRepository,
-                labelMasterService, workLockService, objectMapper);
-    }
-
     /** 온라인 AI 경로 bulkhead — 기본은 넉넉한 크기(동시성 제한 테스트에서만 1로 재구성). */
     private AutolabelOnlineService buildService(Bulkhead bulkhead) {
         return new AutolabelOnlineService(aiServerClient, accessGuard, systemConfigService,
-                workLockService, frameImageEncoder, persistService, bulkhead);
+                workLockService, frameImageEncoder, labelMasterService, bulkhead);
     }
 
     @BeforeEach
     void setup() {
-        persistService = buildPersistService();
         Bulkhead defaultBulkhead = Bulkhead.of("aiOnlineTest", BulkheadConfig.custom()
                 .maxConcurrentCalls(25).maxWaitDuration(Duration.ZERO).build());
         service = buildService(defaultBulkhead);
@@ -123,15 +104,8 @@ class AutolabelOnlineServiceTest {
         when(systemConfigService.getInt(any())).thenReturn(null); // fallback conf/imgsz/iou
         when(labelMasterService.findLabelIdByName(anyString())).thenReturn(Optional.empty());
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(false);
-        when(lblRepository.findAutoLblSnsBySrcSn(SRC_SN)).thenReturn(List.of());
-        when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
-            LsDataLbl arg = inv.getArgument(0);
-            ReflectionTestUtils.setField(arg, "lblSn", lblSnSeq.getAndIncrement());
-            return arg;
-        });
 
-        Instant exp = Instant.now().plusSeconds(60);
-        worker = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, exp);
+        worker = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
 
     private void stubAi(YoloResponse resp) {
@@ -143,28 +117,80 @@ class AutolabelOnlineServiceTest {
                 new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 0.9, 3)));
     }
 
+    // ── 미저장 + 좌표만 반환 (AC7) ───────────────────────────────────────────────
+
     @Test
-    @DisplayName("오토라벨_정상_실행시_BBOX_저장하고_출처_MANUAL_TRIGGER")
-    void autolabelSavesBboxWithManualSource() {
+    @DisplayName("온라인_오토라벨은_DB에_저장하지_않고_좌표만_반환한다")
+    void detectsAndReturnsCoordinatesWithoutPersisting() {
         stubAi(oneDetection());
 
         AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
 
         assertThat(res.mock()).isFalse();
-        assertThat(res.response().savedCount()).isEqualTo(1);
-
-        ArgumentCaptor<LsDataLbl> lblCap = ArgumentCaptor.forClass(LsDataLbl.class);
-        verify(lblRepository).save(lblCap.capture());
-        assertThat(lblCap.getValue().getAutoLblYn()).isEqualTo("Y");
-        assertThat(lblCap.getValue().getLblTypeCd()).isEqualTo("BBOX");
-
-        var aiCap = ArgumentCaptor.forClass(kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo.class);
-        verify(aiInfoRepository).save(aiCap.capture());
-        assertThat(aiCap.getValue().getLblSrcCd())
-                .isEqualTo(kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo.SRC_YOLO);
-        // 출처 구분: 온라인 수동 트리거는 REG_ID = MANUAL_TRIGGER
-        assertThat(aiCap.getValue().getRegId()).isEqualTo("MANUAL_TRIGGER");
+        assertThat(res.response().detectedCount()).isEqualTo(1);
+        AutolabelResponse.Item item = res.response().labels().get(0);
+        // 검출 좌표 그대로 반환.
+        assertThat(item.label()).isEqualTo("person");
+        assertThat(item.points()).containsExactly(10.0, 10.0, 40.0, 60.0);
+        assertThat(item.score()).isEqualTo(0.9);
+        assertThat(item.trackId()).isEqualTo(3);
+        // 미저장 신호 — lblSn 은 항상 null (DB PK 미발급).
+        assertThat(item.lblSn()).isNull();
     }
+
+    @Test
+    @DisplayName("오토라벨_실행해도_기존_라벨_row가_삭제되지_않는다")
+    void doesNotTouchAnyLabelRow() {
+        // 미저장 전환으로 서비스는 라벨 리포지토리에 의존하지 않는다 — 작업락 조회만 수행.
+        // (실제 저장/선삭제 경로가 사라졌음을 아키텍처 수준에서 검증.)
+        boolean hasLblRepoDependency = java.util.Arrays.stream(
+                        AutolabelOnlineService.class.getDeclaredFields())
+                .anyMatch(f -> f.getType().getSimpleName().contains("Lbl")
+                        || f.getType().getSimpleName().contains("PersistService"));
+        assertThat(hasLblRepoDependency).isFalse();
+
+        stubAi(oneDetection());
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
+        assertThat(res.response().detectedCount()).isEqualTo(1);
+    }
+
+    // ── #4 TOCTOU: AI 호출 완료 후 작업락 재확인 ──────────────────────────────────
+
+    @Test
+    @DisplayName("AI호출_완료_후_작업락이_걸리면_409로_차단하고_좌표를_반환하지_않는다")
+    void toctouLockReCheckAfterAi() {
+        // given: 진입 시 잠금 체크는 false(통과), AI 호출 후 재확인 시 true(그 사이 비식별 신고가 잠금).
+        when(workLockService.isRawLocked(RAW_SN)).thenReturn(false, true);
+        stubAi(oneDetection());
+
+        // when / then: 재확인에서 잠금 감지 → CONFLICT. 좌표 반환 안 함(프라이버시 불변식 보호).
+        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
+
+        // AI 는 호출됐지만 응답은 조립되지 않음. 재진입 시 in-flight 락은 해제되어 있어야 한다.
+        verify(aiServerClient).predictYoloTrack(any());
+    }
+
+    @Test
+    @DisplayName("TOCTOU_409_이후_inflight_락이_해제되어_재요청_가능하다")
+    void toctouReleasesInFlight() {
+        // given: 1차 호출은 AI 성공 후 재확인에서 잠금(true) 감지 → 409. 2차 호출은 진입/재확인 모두 false.
+        //        (isRawLocked 호출 순서: 1차 진입=false, 1차 재확인=true, 2차 진입=false, 2차 재확인=false)
+        when(workLockService.isRawLocked(RAW_SN)).thenReturn(false, true, false, false);
+        stubAi(oneDetection());
+
+        // when: 1차 → TOCTOU 재확인에서 잠금 → CONFLICT.
+        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
+
+        // then: finally 로 in-flight 해제 → 같은 srcSn 2차 요청이 락 잔류 없이 정상 좌표 반환(해제 실증).
+        AutolabelOnlineService.AutolabelOutcome retry = service.autolabel(SRC_SN, worker);
+        assertThat(retry.response().detectedCount()).isEqualTo(1);
+    }
+
+    // ── #3 작업락(진입 전) ───────────────────────────────────────────────────────
 
     @Test
     @DisplayName("잠긴_영상_오토라벨_409_이고_ai_미호출")
@@ -176,8 +202,9 @@ class AutolabelOnlineServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
 
         verify(aiServerClient, never()).predictYoloTrack(any());
-        verify(lblRepository, never()).save(any());
     }
+
+    // ── IDOR ─────────────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("타인배정_프레임_오토라벨_403_이고_ai_미호출")
@@ -193,36 +220,11 @@ class AutolabelOnlineServiceTest {
         verify(workLockService, never()).isRawLocked(any());
     }
 
-    @Test
-    @DisplayName("수동라벨_존재시_오토라벨_재실행해도_수동라벨_보존_auto만_선삭제")
-    void manualLabelsPreservedOnRerun() {
-        // findAutoLblSnsBySrcSn 는 auto 라벨(700,701)만 반환 — 수동 라벨은 목록에 없음.
-        when(lblRepository.findAutoLblSnsBySrcSn(SRC_SN)).thenReturn(List.of(700L, 701L));
-        stubAi(oneDetection());
-
-        service.autolabel(SRC_SN, worker);
-
-        // 삭제는 auto 라벨(700,701)만 — 자식(AI_INFO) → 부모(LBL) 순서.
-        verify(aiInfoRepository).deleteByDataLblSnIn(List.of(700L, 701L));
-        verify(lblRepository).deleteAllByIdInBatch(List.of(700L, 701L));
-    }
+    // ── 좌표 검증(all-or-nothing) + in-flight 락 해제 ────────────────────────────
 
     @Test
-    @DisplayName("오토라벨_재실행_idempotent_기존_auto없으면_삭제_스킵하고_재삽입")
-    void idempotentRerunNoExistingAuto() {
-        when(lblRepository.findAutoLblSnsBySrcSn(SRC_SN)).thenReturn(List.of());
-        stubAi(oneDetection());
-
-        service.autolabel(SRC_SN, worker);
-
-        // 삭제 대상 없음 → deleteAllByIdInBatch 미호출, 신규 1건 저장.
-        verify(lblRepository, never()).deleteAllByIdInBatch(any());
-        verify(lblRepository).save(any());
-    }
-
-    @Test
-    @DisplayName("ai_응답_좌표_4개_아니면_INVALID_INPUT_저장안함")
-    void invalidBboxRejected() {
+    @DisplayName("좌표검증_실패시_400이며_inflight_락이_해제된다")
+    void invalidBboxReleasesInFlight() {
         stubAi(new YoloResponse(List.of(
                 new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0), 0.9, 3))));
 
@@ -230,7 +232,10 @@ class AutolabelOnlineServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
 
-        verify(lblRepository, never()).save(any());
+        // finally 로 in-flight 해제 → 정상 응답으로 재요청 가능(락 잔류 없음).
+        stubAi(oneDetection());
+        AutolabelOnlineService.AutolabelOutcome retry = service.autolabel(SRC_SN, worker);
+        assertThat(retry.response().detectedCount()).isEqualTo(1);
     }
 
     @Test
@@ -245,21 +250,74 @@ class AutolabelOnlineServiceTest {
     }
 
     @Test
-    @DisplayName("ai서버_타임아웃시_502_EXTERNAL_API_ERROR")
-    void aiTimeoutMapped() {
+    @DisplayName("ai_응답_좌표_NaN이면_INVALID_INPUT")
+    void nanBboxRejected() {
+        stubAi(new YoloResponse(List.of(
+                new YoloResponse.Detection("person", List.of(10.0, 10.0, Double.NaN, 60.0), 0.9, 3))));
+
+        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("ai_응답_좌표_Infinity면_INVALID_INPUT")
+    void infinityBboxRejected() {
+        stubAi(new YoloResponse(List.of(
+                new YoloResponse.Detection("person", List.of(10.0, 10.0, Double.POSITIVE_INFINITY, 60.0), 0.9, 3))));
+
+        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("ai_응답_좌표_순서역전_x2작거나같으면_INVALID_INPUT")
+    void degenerateBboxRejected() {
+        stubAi(new YoloResponse(List.of(
+                new YoloResponse.Detection("person", List.of(40.0, 10.0, 40.0, 60.0), 0.9, 3))));
+
+        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("좌표검증은_all_or_nothing_하나라도_비정상이면_전부_미반환")
+    void partialReturnForbidden() {
+        // 첫 detection 정상, 둘째 좌표 4개 아님 → 전체 400 (부분 반환 금지).
+        stubAi(new YoloResponse(List.of(
+                new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 0.9, 3),
+                new YoloResponse.Detection("car", List.of(1.0, 2.0, 3.0), 0.8, 1))));
+
+        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    // ── AI 실패 502 + in-flight 락 해제 ─────────────────────────────────────────
+
+    @Test
+    @DisplayName("AI_실패시_502이며_inflight_락이_해제된다")
+    void aiFailureReleasesInFlight() {
         when(aiServerClient.predictYoloTrack(any()))
                 .thenReturn(Mono.error(new RuntimeException("read timeout")));
 
         assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
+
+        // finally 로 in-flight 해제 → 재요청 가능.
+        stubAi(oneDetection());
+        AutolabelOnlineService.AutolabelOutcome retry = service.autolabel(SRC_SN, worker);
+        assertThat(retry.response().detectedCount()).isEqualTo(1);
     }
 
+    // ── mock 안전장치 ────────────────────────────────────────────────────────────
+
     @Test
-    @DisplayName("AutolabelOnline_mock응답이면_DB저장_스킵되고_savedCount0")
-    void mockResponseNotPersisted() {
-        // 내부 YoloResponse.mock()=true 를 계속 읽어 skip-save 가드 유지 — FE DTO 에 mock 필드가
-        // 없어도 savedCount=0 이 미저장 신호. (학습데이터 오염 방지 안전장치 회귀)
+    @DisplayName("mock_응답이면_빈_결과와_안내메시지를_반환한다")
+    void mockResponseReturnsEmpty() {
         stubAi(new YoloResponse(
                 List.of(new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 0.9, 3)),
                 true, "mock", "weights_missing"));
@@ -267,9 +325,8 @@ class AutolabelOnlineServiceTest {
         AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
 
         assertThat(res.mock()).isTrue();
-        assertThat(res.response().savedCount()).isZero();
+        assertThat(res.response().detectedCount()).isZero();
         assertThat(res.response().labels()).isEmpty();
-        verify(lblRepository, never()).save(any());
     }
 
     @Test
@@ -281,23 +338,37 @@ class AutolabelOnlineServiceTest {
     }
 
     @Test
-    @DisplayName("검출_없으면_저장0건_정상반환")
-    void noDetectionsSavesNothing() {
+    @DisplayName("검출_없으면_0건_정상반환")
+    void noDetectionsReturnsEmpty() {
         stubAi(new YoloResponse(List.of()));
 
         AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
 
         assertThat(res.mock()).isFalse();
-        assertThat(res.response().savedCount()).isZero();
-        verify(lblRepository, never()).save(any());
+        assertThat(res.response().detectedCount()).isZero();
+        assertThat(res.response().labels()).isEmpty();
     }
+
+    // ── 과도기 mirror ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("응답에_detectedCount와_savedCount가_동일값으로_노출된다")
+    void detectedCountMirrorsSavedCount() {
+        stubAi(oneDetection());
+
+        AutolabelResponse res = service.autolabel(SRC_SN, worker).response();
+
+        assertThat(res.detectedCount()).isEqualTo(1);
+        assertThat(res.savedCount()).isEqualTo(res.detectedCount());
+    }
+
+    // ── 동시 중복 트리거 차단(in-flight) ────────────────────────────────────────
 
     @Test
     @DisplayName("동일프레임_동시요청시_한쪽은_409_라벨중복_안됨")
     void concurrentDuplicateBlocked() throws Exception {
         CountDownLatch aiEntered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        // 첫 요청이 ai 호출 단계에서 대기하도록 — in-flight 락 점유 상태 유지.
         when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> {
             aiEntered.countDown();
             release.await(3, TimeUnit.SECONDS);
@@ -309,7 +380,6 @@ class AutolabelOnlineServiceTest {
             Future<?> first = pool.submit(() -> service.autolabel(SRC_SN, worker));
             assertThat(aiEntered.await(3, TimeUnit.SECONDS)).isTrue();
 
-            // 두 번째 요청은 in-flight 락에 막혀 CONFLICT.
             Future<?> second = pool.submit(() -> service.autolabel(SRC_SN, worker));
             assertThatThrownBy(second::get)
                     .cause()
@@ -346,7 +416,6 @@ class AutolabelOnlineServiceTest {
         ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
                 ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
 
-        // 2-arg 오버로드(기존 호출자) → classes null.
         service.autolabel(SRC_SN, worker);
 
         verify(aiServerClient).predictYoloTrack(cap.capture());
@@ -366,85 +435,14 @@ class AutolabelOnlineServiceTest {
         assertThat(cap.getValue().classes()).isNull();
     }
 
-    // ── F-1: AI 호출 트랜잭션 밖 분리 ────────────────────────────────────────────
+    // ── F-1: 오케스트레이션 비트랜잭셔널(커넥션 미점유) ─────────────────────────
 
     @Test
-    @DisplayName("AI호출_트랜잭션_밖_오케스트레이션_비트랜잭셔널이고_저장만_트랜잭셔널")
-    void aiCallOutsideTransaction() throws Exception {
-        // given: 오케스트레이션 메서드/클래스에는 @Transactional 이 없어야 한다(커넥션 미점유 — F-1).
+    @DisplayName("오케스트레이션은_비트랜잭셔널이다_AI블로킹동안_DB커넥션_미점유")
+    void orchestrationIsNonTransactional() throws Exception {
         var autolabelMethod = AutolabelOnlineService.class.getMethod("autolabel", Long.class, TokenClaims.class);
         assertThat(autolabelMethod.isAnnotationPresent(Transactional.class)).isFalse();
         assertThat(AutolabelOnlineService.class.isAnnotationPresent(Transactional.class)).isFalse();
-        // 저장 전담 메서드에는 @Transactional 이 있어야 한다(삭제+삽입 원자성 — 별도 빈으로 프록시 적용).
-        var persistMethod = AutolabelPersistService.class.getMethod(
-                "persist", Long.class, Long.class, List.class, TokenClaims.class);
-        assertThat(persistMethod.isAnnotationPresent(Transactional.class)).isTrue();
-
-        // when: AI 호출이 저장(DB write)보다 먼저 수행됨을 순서로 증명.
-        stubAi(oneDetection());
-        service.autolabel(SRC_SN, worker);
-
-        // then: 접근검증 → AI 호출 → 저장 순서 (AI 블로킹이 저장 트랜잭션 밖에서 선행).
-        InOrder ord = inOrder(accessGuard, aiServerClient, lblRepository);
-        ord.verify(accessGuard).verifyAndGet(eq(SRC_SN), any());
-        ord.verify(aiServerClient).predictYoloTrack(any());
-        ord.verify(lblRepository).save(any());
-    }
-
-    // ── #6 TOCTOU: 저장 직전 잠금 재확인 ─────────────────────────────────────────
-
-    @Test
-    @DisplayName("저장직전_잠금재확인_그사이_잠기면_409_저장안함")
-    void toctouLockReCheckOnPersist() {
-        // given: 오케스트레이션 잠금 체크는 false(통과), 저장 트랜잭션 재확인 시 true(그 사이 비식별 신고가 잠금).
-        when(workLockService.isRawLocked(RAW_SN)).thenReturn(false, true);
-        stubAi(oneDetection());
-
-        // when / then: 저장 직전 재확인에서 잠금 감지 → CONFLICT, 저장 없음(프라이버시 퍼지 불변식 보호).
-        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
-
-        verify(lblRepository, never()).save(any());
-    }
-
-    // ── #5 / F-4: NaN/Infinity 좌표 거부 ─────────────────────────────────────────
-
-    @Test
-    @DisplayName("ai_응답_좌표_NaN이면_INVALID_INPUT_저장안함")
-    void nanBboxRejected() {
-        stubAi(new YoloResponse(List.of(
-                new YoloResponse.Detection("person", List.of(10.0, 10.0, Double.NaN, 60.0), 0.9, 3))));
-
-        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
-
-        verify(lblRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("ai_응답_좌표_Infinity면_INVALID_INPUT_저장안함")
-    void infinityBboxRejected() {
-        stubAi(new YoloResponse(List.of(
-                new YoloResponse.Detection("person", List.of(10.0, 10.0, Double.POSITIVE_INFINITY, 60.0), 0.9, 3))));
-
-        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
-
-        verify(lblRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("ai_응답_좌표_순서역전_x2작거나같으면_INVALID_INPUT")
-    void degenerateBboxRejected() {
-        stubAi(new YoloResponse(List.of(
-                new YoloResponse.Detection("person", List.of(40.0, 10.0, 40.0, 60.0), 0.9, 3))));
-
-        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
     // ── F-2: 동시 호출 제한(bulkhead) ────────────────────────────────────────────
@@ -452,7 +450,6 @@ class AutolabelOnlineServiceTest {
     @Test
     @DisplayName("온라인_AI경로_동시_초과요청시_bulkhead_거부_429_TOO_MANY_REQUESTS")
     void bulkheadRejectsExcessConcurrent() throws Exception {
-        // given: maxConcurrentCalls=1 bulkhead 로 서비스 재구성. 서로 다른 프레임(in-flight 락 무관).
         Bulkhead bulkhead = Bulkhead.of("aiOnlineTest1", BulkheadConfig.custom()
                 .maxConcurrentCalls(1).maxWaitDuration(Duration.ZERO).build());
         service = buildService(bulkhead);
@@ -462,11 +459,9 @@ class AutolabelOnlineServiceTest {
         ReflectionTestUtils.setField(src2, "srcSn", srcSn2);
         when(accessGuard.verifyAndGet(eq(srcSn2), any())).thenReturn(src2);
         when(workLockService.isRawLocked(9002L)).thenReturn(false);
-        when(lblRepository.findAutoLblSnsBySrcSn(srcSn2)).thenReturn(List.of());
 
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        // 첫 요청이 AI 구독 상태에서 대기 → bulkhead permit(1개) 점유 유지.
         when(aiServerClient.predictYoloTrack(any())).thenReturn(Mono.fromCallable(() -> {
             entered.countDown();
             release.await(3, TimeUnit.SECONDS);
@@ -478,7 +473,6 @@ class AutolabelOnlineServiceTest {
             Future<?> first = pool.submit(() -> service.autolabel(SRC_SN, worker));
             assertThat(entered.await(3, TimeUnit.SECONDS)).isTrue();
 
-            // 두 번째 요청(다른 프레임)은 bulkhead full → 즉시 거부(TOO_MANY_REQUESTS, 429).
             Future<?> second = pool.submit(() -> service.autolabel(srcSn2, worker));
             assertThatThrownBy(second::get)
                     .cause()

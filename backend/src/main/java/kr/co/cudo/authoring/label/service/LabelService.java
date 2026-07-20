@@ -23,15 +23,24 @@ import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.common.util.PolygonSimplifier;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
+import kr.co.cudo.authoring.label.dto.LabelHistoryResponse;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
+import kr.co.cudo.authoring.version.entity.LabelChangeKind;
+import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,6 +58,8 @@ import java.util.stream.Collectors;
  *  - REVIEWER 는 모든 프레임 접근 가능 (검수 책임).
  *  - 좌표 검증 (CWE-20): 음수 좌표 차단, polygon 최대 1000 점 (CWE-770 DoS 방어).
  *  - Mass Assignment (CWE-915): autoLblYn 은 요청 DTO 에서 무시 (정책: 자동 라벨 수정 시에도 'Y' 유지).
+ *    R9 provenance(source/confScore/algorithm)는 신규 삽입 힌트로만 허용하고 값 검증(범위·화이트리스트)을
+ *    통과해야 하며, role/isAdmin 같은 민감 필드는 노출하지 않는다(내부 채널 한정 트러스트 경계).
  *
  * 라벨 저장(임시저장)은 LS_DATA_LBL upsert 만 수행한다. 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은
  * 검수 승인(APPROVED) 시점에 VersionService.commitApproved 로 생성한다(SFR-08).
@@ -73,6 +84,11 @@ public class LabelService {
     private final ApplicationEventPublisher eventPublisher;
     /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회. */
     private final LsRawDataStatusRepository rawDataStatusRepository;
+    /** Phase 2 — 라벨 변경 이력(ADDED/UPDATED/DELETED) 감사 기록/조회. */
+    private final LsDataLblHstryRepository labelHistoryRepository;
+
+    /** CWE-770 DoS — 라벨 히스토리 조회 페이지 크기 상한. */
+    public static final int MAX_HISTORY_PAGE_SIZE = 100;
 
     public LabelService(LsDataLblRepository labelRepository,
                         LsDataLblAiInfoRepository aiInfoRepository,
@@ -83,7 +99,8 @@ public class LabelService {
                         ObjectMapper objectMapper,
                         LsLabelRepository lsLabelRepository,
                         ApplicationEventPublisher eventPublisher,
-                        LsRawDataStatusRepository rawDataStatusRepository) {
+                        LsRawDataStatusRepository rawDataStatusRepository,
+                        LsDataLblHstryRepository labelHistoryRepository) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
@@ -94,6 +111,7 @@ public class LabelService {
         this.lsLabelRepository = lsLabelRepository;
         this.eventPublisher = eventPublisher;
         this.rawDataStatusRepository = rawDataStatusRepository;
+        this.labelHistoryRepository = labelHistoryRepository;
     }
 
     /**
@@ -198,9 +216,14 @@ public class LabelService {
 
     /**
      * 프레임 라벨 bulk upsert.
-     *  - id == null : 신규 INSERT (AUTO_LBL_YN='N')
-     *  - id != null : 기존 UPDATE (AUTO_LBL_YN 유지 — 자동 라벨이라도 'Y' 그대로)
+     *  - id == null : 신규 INSERT — source 가 AUTO 계열이면 AUTO_LBL_YN='Y' + LS_DATA_LBL_AI_INFO(신뢰도/알고리즘)
+     *                 기록(R9 온라인 오토라벨 출처 보존), 그 외(MANUAL/미지정)는 기존대로 수동 저장(AUTO_LBL_YN='N').
+     *  - id != null : 기존 UPDATE (AUTO_LBL_YN 유지 — 자동 라벨이라도 'Y' 그대로, provenance 힌트 무시)
      *  - 요청에 누락된 기존 라벨은 보존 (이번 Phase 정책 — 명시적 DELETE 엔드포인트 별도)
+     *
+     * <p>Mass Assignment(CWE-915) 트러스트 경계: provenance(source/confScore/algorithm)는 DTO @Valid 로
+     * 범위·화이트리스트 검증을 통과한 값만 반영하며, AUTO_LBL_YN 은 요청이 직접 지정하지 못하고 source 에서
+     * 서버가 파생한다(요청은 role/isAdmin 등 민감 필드를 담지 않음 — 내부 채널 REVIEWER/WORKER 한정).
      */
     @Transactional("controlTransactionManager")
     public LabelResponse bulkUpsert(Long srcSn, LabelBulkUpsertRequest req, TokenClaims actor) {
@@ -234,25 +257,49 @@ public class LabelService {
         }
 
         List<LsDataLbl> result = new ArrayList<>();
+        // Phase 2 — 라벨 변경 이력. 저장 판정과 동일 소스(item.id()==null=신규)로 종류를 결정하고,
+        // 검증·저장이 모두 통과한 뒤 동일 트랜잭션에서 saveAll 1회로 원자 기록한다(HIGH #1).
+        List<LsDataLblHstry> histories = new ArrayList<>();
+        String actorId = String.valueOf(actorNo);
         for (LabelItemDto item : req.items()) {
             // ISSUE-1: 저장 직전 점 개수 상한 적용 (SAM2 적재 폴리곤 등 1000점 초과도 simplify 후 저장).
             // SKELETON 은 KeypointSerializer 삼중값 경로로 직렬화 (기존 2-튜플 toJson 경로 불변).
             String pointsJson = serializePoints(item.lblTypeCd(), item.points());
             if (item.id() != null && idIndex.containsKey(item.id())) {
+                // idIndex 는 findBySrcSn(srcSn) 로만 채워지므로(현재 프레임 라벨) 이 분기의 라벨은 항상 srcSn 소유
+                // → found.getSrcSn().equals(srcSn) 는 언제나 참이라, 과거의 "다른 프레임 라벨이면 FORBIDDEN"
+                //   방어는 도달 불가한 죽은 코드였다(DEV_FIX 로 제거). IDOR 관점에서도 무위험:
+                //   진입부 accessGuard.verifyAndGet(srcSn) 로 현재 프레임 소유가 검증되고, 타 프레임/미존재 id 는
+                //   여기 진입하지 못한 채 else 로 흘러 '현재 프레임 신규 라벨(ADDED)'로 안전 처리된다(타 프레임 라벨 불변).
                 LsDataLbl found = idIndex.get(item.id());
-                if (!found.getSrcSn().equals(srcSn)) {
-                    // IDOR 추가 방어 — id 가 다른 프레임의 라벨이면 차단.
-                    throw new CustomException(ErrorCode.FORBIDDEN, "다른 프레임의 라벨 ID 입니다.");
-                }
                 // Phase 2 — labelId 가 null 이면 기존 값 유지, non-null 이면 검증 후 변경.
                 found.updateUserContent(item.lblTypeCd(), item.labelId(), item.label(), pointsJson);
                 result.add(found);
+                histories.add(LsDataLblHstry.recordChange(
+                        found.getLblSn(), srcSn, LabelChangeKind.UPDATED, actorId));
             } else {
-                LsDataLbl created = labelRepository.save(
-                        LsDataLbl.createManual(srcSn, item.lblTypeCd(), item.labelId(),
-                                item.label(), pointsJson, actorNo));
+                LsDataLbl created;
+                if (isAutoSource(item.source())) {
+                    // R9 — 온라인 오토라벨(AI 탐지/추적) 신규 삽입: AUTO_LBL_YN='Y' 로 저장하고
+                    // LS_DATA_LBL_AI_INFO 에 신뢰도·알고리즘을 기록해 출처를 보존한다(수동 둔갑·신뢰도 유실 방지).
+                    BigDecimal conf = toScore(item.confScore());
+                    created = labelRepository.save(buildAutoLabel(srcSn, item, pointsJson, conf));
+                    aiInfoRepository.save(LsDataLblAiInfo.create(
+                            created.getLblSn(), current.getRawSn(), srcSn,
+                            resolveAiSource(item), conf, actorId));
+                } else {
+                    created = labelRepository.save(
+                            LsDataLbl.createManual(srcSn, item.lblTypeCd(), item.labelId(),
+                                    item.label(), pointsJson, actorNo));
+                }
                 result.add(created);
+                histories.add(LsDataLblHstry.recordChange(
+                        created.getLblSn(), srcSn, LabelChangeKind.ADDED, actorId));
             }
+        }
+        // 감사 이력은 라벨 저장과 원자성이 필요하므로 @Async/AFTER_COMMIT 분리 없이 동일 트랜잭션 내 1회 저장.
+        if (!histories.isEmpty()) {
+            labelHistoryRepository.saveAll(histories);
         }
         log.info("[Label] bulkUpsert srcSn={} actor={} count={}", srcSn, actorNo, result.size());
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
@@ -285,6 +332,51 @@ public class LabelService {
 
         return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
                 aiInfoMap, lsLabelMap, labeledSrcSns, objectMapper);
+    }
+
+    /**
+     * Phase 2 — 프레임 단위 라벨 변경 이력 조회 (최신순 페이징).
+     * <ul>
+     *   <li>IDOR(CWE-639): 진입 시 {@link LabelAccessGuard#verifyAndGet} 재사용 — WORKER 는 본인 배정 프레임만.</li>
+     *   <li>CWE-770: 페이지 크기를 {@link #MAX_HISTORY_PAGE_SIZE} 로 클램프.</li>
+     *   <li>정렬: 요청 sort + LBL_HSTRY_SN DESC tiebreaker(동시각 순서 보정, MED #10).</li>
+     *   <li>N+1 회피: 페이지 라벨명 enrichment 는 생존 라벨만 IN 1회 lookup(삭제 이력은 label=null).</li>
+     * </ul>
+     */
+    public Page<LabelHistoryResponse> getHistory(Long srcSn, TokenClaims actor, Pageable pageable) {
+        accessGuard.verifyAndGet(srcSn, actor);
+        Pageable effective = cappedWithTiebreaker(pageable);
+        Page<LsDataLblHstry> page = labelHistoryRepository.findBySrcSn(srcSn, effective);
+        Map<Long, String> labelNames = resolveLabelNames(page.getContent());
+        return page.map(h -> LabelHistoryResponse.from(h,
+                h.getLblSn() == null ? null : labelNames.get(h.getLblSn())));
+    }
+
+    /**
+     * 페이지 크기 상한 클램프 + <b>서버 고정 정렬</b>(REG_DT DESC, LBL_HSTRY_SN DESC).
+     * <p>DEV_FIX(정렬 견고성): 클라이언트 {@code ?sort=<임의필드>} 는 무시한다. 예전엔 요청 sort 를
+     * 그대로 이어붙여(and) 매핑 불가 필드가 오면 {@code PropertyReferenceException}→500 이 발생할 수 있었다.
+     * 이력 조회 정렬 정책은 '최신순 + 동시각 tiebreaker' 하나뿐이므로 서버에서 고정해 500 을 원천 차단한다.
+     */
+    private Pageable cappedWithTiebreaker(Pageable pageable) {
+        int size = Math.min(pageable.getPageSize(), MAX_HISTORY_PAGE_SIZE);
+        Sort sort = Sort.by(Sort.Order.desc("regDt"), Sort.Order.desc("lblHstrySn"));
+        return PageRequest.of(pageable.getPageNumber(), size, sort);
+    }
+
+    /** 이력 페이지의 라벨명 enrichment — 생존 라벨만 IN 1회 lookup (삭제 이력은 미포함). */
+    private Map<Long, String> resolveLabelNames(List<LsDataLblHstry> histories) {
+        Set<Long> lblSns = new HashSet<>();
+        for (LsDataLblHstry h : histories) {
+            if (h.getLblSn() != null) {
+                lblSns.add(h.getLblSn());
+            }
+        }
+        if (lblSns.isEmpty()) {
+            return Map.of();
+        }
+        return labelRepository.findAllById(lblSns).stream()
+                .collect(Collectors.toMap(LsDataLbl::getLblSn, LsDataLbl::getLabelNm, (a, b) -> a));
     }
 
     /**
@@ -423,6 +515,51 @@ public class LabelService {
             return KeypointSerializer.toJson(toKeypoints(points), objectMapper);
         }
         return LabelPointSerializer.toJson(capPoints(points), objectMapper);
+    }
+
+    /** R9 — AUTO 계열 source 화이트리스트 (온라인 오토라벨 신규 삽입 분기 판정). */
+    private static final Set<String> AUTO_SOURCES = Set.of("AUTO_YOLO", "AUTO_SAM2");
+
+    /** source 가 AUTO 계열(온라인 오토라벨)인지 — 아니면(MANUAL/null) 기존 수동 저장 경로. */
+    private static boolean isAutoSource(String source) {
+        return source != null && AUTO_SOURCES.contains(source);
+    }
+
+    /**
+     * R9 — AUTO 신규 삽입용 {@link LsDataLbl} 생성. 형태(POLYGON/그 외)에 따라 AUTO 팩토리를 선택해
+     * AUTO_LBL_YN='Y' 로 만든다(온라인 오토라벨은 BBOX/POLYGON 만 산출). trackId 는 온라인 단발 검출이라 null.
+     */
+    private LsDataLbl buildAutoLabel(Long srcSn, LabelItemDto item, String pointsJson, BigDecimal conf) {
+        if (LsDataLbl.TYPE_POLYGON.equals(item.lblTypeCd())) {
+            return LsDataLbl.createAutoPolygon(srcSn, item.labelId(), item.label(), pointsJson, conf);
+        }
+        return LsDataLbl.createAutoBbox(srcSn, item.labelId(), item.label(), pointsJson, conf, null);
+    }
+
+    /**
+     * LS_DATA_LBL_AI_INFO.LBL_SRC_CD 결정 — algorithm 우선, 없으면 source 에서 파생.
+     * NOT NULL 컬럼이므로 항상 비-null 을 반환한다(fail-safe: 기본 YOLO).
+     */
+    private static String resolveAiSource(LabelItemDto item) {
+        String algo = item.algorithm();
+        if (algo != null && !algo.isBlank()) {
+            return normalizeAlgorithm(algo);
+        }
+        return "AUTO_SAM2".equals(item.source()) ? LsDataLblAiInfo.SRC_SAM2 : LsDataLblAiInfo.SRC_YOLO;
+    }
+
+    /** 화이트리스트 algorithm → AI_INFO LBL_SRC_CD 정규화(20자 이하 유지). 미지값은 fail-safe YOLO. */
+    private static String normalizeAlgorithm(String algo) {
+        return switch (algo) {
+            case "SAM2" -> LsDataLblAiInfo.SRC_SAM2;
+            case "RT-DETR" -> "RT-DETR";
+            default -> LsDataLblAiInfo.SRC_YOLO;
+        };
+    }
+
+    /** provenance confScore(Double) → BigDecimal(null 보존). 범위 강제는 DTO @Valid + AUTO 팩토리 clamp 이중. */
+    private static BigDecimal toScore(Double conf) {
+        return conf == null ? null : BigDecimal.valueOf(conf);
     }
 
     /** 삼중값 nested 리스트 [[x,y,v],...] → KeypointPoint 리스트 (검증 통과 후 호출). */

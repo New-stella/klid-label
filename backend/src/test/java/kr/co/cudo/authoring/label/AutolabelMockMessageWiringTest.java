@@ -34,7 +34,7 @@ class AutolabelMockMessageWiringTest {
     @DisplayName("오토라벨_내부mock이면_ApiResponse에_안내message_세팅")
     void mockSetsMessage() {
         AutolabelOnlineService service = mock(AutolabelOnlineService.class);
-        when(service.autolabel(any(), any(), any())).thenReturn(
+        when(service.autolabel(any(), any(), any(), any())).thenReturn(
                 new AutolabelOnlineService.AutolabelOutcome(
                         new AutolabelResponse(7L, 0, List.of()), true));
         AutolabelController controller = new AutolabelController(service);
@@ -50,7 +50,7 @@ class AutolabelMockMessageWiringTest {
     @DisplayName("오토라벨_정상이면_message_없음")
     void normalNoMessage() {
         AutolabelOnlineService service = mock(AutolabelOnlineService.class);
-        when(service.autolabel(any(), any(), any())).thenReturn(
+        when(service.autolabel(any(), any(), any(), any())).thenReturn(
                 new AutolabelOnlineService.AutolabelOutcome(
                         new AutolabelResponse(7L, 1, List.of(
                                 new AutolabelResponse.Item(1L, 10L, "person",
@@ -61,6 +61,22 @@ class AutolabelMockMessageWiringTest {
 
         assertThat(res.data().savedCount()).isEqualTo(1);
         assertThat(res.message()).isNull();
+    }
+
+    @Test
+    @DisplayName("폴리곤_상한초과_message가_ApiResponse에_그대로_세팅된다")
+    void polygonTruncatedMessageWired() {
+        AutolabelOnlineService service = mock(AutolabelOnlineService.class);
+        String msg = AutolabelResponse.polygonTruncatedMessage(30, 20);
+        when(service.autolabel(any(), any(), any(), any())).thenReturn(
+                new AutolabelOnlineService.AutolabelOutcome(
+                        new AutolabelResponse(7L, 20, List.of()), false, msg));
+        AutolabelController controller = new AutolabelController(service);
+
+        ApiResponse<AutolabelResponse> res = controller.autolabel(7L, null, actor);
+
+        // 폴리곤 안내 message 가 mock 안내보다 우선하며 그대로 노출된다.
+        assertThat(res.message()).isEqualTo(msg);
     }
 
     @Test

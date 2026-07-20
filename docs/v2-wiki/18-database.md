@@ -35,7 +35,7 @@
 | `LS_LABEL_ATTR` (V33) | 라벨 속성 정의 (INPUT_TYPE_CD, MUTABLE_YN) | [10](10-labeling.md) |
 | `LS_LABEL_PRESET` / `LS_LABEL_PRESET_CODE` (V13) | 프리셋 마스터 / 라벨 코드 | [10](10-labeling.md) |
 | `LS_LABEL_VERSION` (V24) | 라벨 버전 스냅샷 (VERSION_HASH, SAVE_REASON_CD, ACTVTN_YN) | [13](13-version-control.md) |
-| `LS_DATA_LBL_HSTRY` | 라벨 변경 이력 | [13](13-version-control.md) |
+| `LS_DATA_LBL_HSTRY` (V58, `CHG_KIND_CD`/`REG_ID` 확장 V112) | 라벨 변경 이력. **용도 확장(2026-07-20)**: 기존 '삭제 전용 감사'(비식별 신고 시 라벨 삭제 이력)에서 `CHG_KIND_CD`(ADDED/UPDATED/DELETED)·`REG_ID`(작업자) 컬럼을 추가해 **변경 이력 전반**으로 확장 — 라벨 저장(`bulkUpsert`)·트랙 삭제 시 동일 트랜잭션으로 기록(신규 컬럼 NULLABLE, 기존 row는 `DELETED`로 backfill). `GET /v1/frames/{srcSn}/label-history` 조회, 라벨링 화면(SC-005) '라벨 변경 이력' 패널에서 표시 | [10](10-labeling.md)·[13](13-version-control.md) |
 | `LS_DATASET_EXPORT` (V105, CONTENT_HASH V106) | 검수 승인(APPROVED) 시 학습데이터 **파일 산출 추적·버전 원장**. 영상(DATA_RAW_SN) 단위 export 누적(EXPORT_VER_NO=count+1, UK(DATA_RAW_SN,EXPORT_VER_NO)), EXPORT_STTS_CD(SUCCEEDED/FAILED), CONTENT_HASH(라벨+프레임설명+영상메타 SHA-256 멱등키). 실제 산출: `{labeling_root}/{RAW_SN}/v{n}/orgnl\|deid/` (승인 AFTER_COMMIT @Async, API 없음) | [24](24-dataset-export.md) |
 
 ### 메타 · 마킹

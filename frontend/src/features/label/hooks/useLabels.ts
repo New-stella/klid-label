@@ -25,5 +25,9 @@ export function useLabels(srcSn: number | undefined, portalMode = false) {
     queryFn: () => (portalMode ? getPortalLabels(srcSn as number) : getLabels(srcSn as number)),
     enabled: srcSn !== undefined,
     placeholderData: keepPreviousData,
+    // 미저장 병합/편집 보호(HIGH #2) — 창 포커스 복귀 시 자동 refetch 로 작업본을 덮어쓰지 않는다.
+    refetchOnWindowFocus: false,
+    // 짧은 staleTime 으로 동일 프레임 재진입 시 불필요한 재조회를 억제(작업 중 깜빡임/덮어쓰기 방지).
+    staleTime: 30_000,
   });
 }

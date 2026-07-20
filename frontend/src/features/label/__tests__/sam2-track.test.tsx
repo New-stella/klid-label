@@ -339,4 +339,111 @@ describe('SAM2 Track', () => {
       expect(toggle).toBeDisabled();
     });
   });
+
+  // R12 — 트랙 형태(박스/폴리곤)·라벨 배선.
+  describe('shape/label 배선', () => {
+    it('requestSam2Track_shape가_요청바디에_포함된다_BBOX', async () => {
+      let captured: Record<string, unknown> = {};
+      mock.onPost('/frames/777/sam2-track').reply((config) => {
+        captured = JSON.parse((config.data as string) ?? '{}');
+        return [200, TRACKED_OK];
+      });
+      await requestSam2Track(777, {
+        trackId: 't-1',
+        prevPolygon: TRIANGLE,
+        label: 'person',
+        nextSrcSns: [2],
+        shape: 'BBOX',
+      });
+      expect(captured.shape).toBe('BBOX');
+    });
+
+    it('sam2TrackAllChunks_shape가_각_청크요청에_전달된다', async () => {
+      const next = Array.from({ length: 60 }, (_, i) => 201 + i); // 50 + 10 = 2 청크
+      const shapes: unknown[] = [];
+      mock.onPost(TRACK_PATH_RE).reply((config) => {
+        const body = JSON.parse((config.data as string) ?? '{}');
+        shapes.push(body.shape);
+        return [
+          200,
+          { success: true, data: { tracked: trackedFor(body.nextSrcSns as number[]) }, message: null, errorCode: null },
+        ];
+      });
+      await sam2TrackAllChunks(1000, {
+        trackId: 't-1',
+        prevPolygon: TRIANGLE,
+        label: 'person',
+        nextSrcSns: next,
+        shape: 'BBOX',
+      });
+      expect(shapes).toHaveLength(2);
+      expect(shapes.every((s) => s === 'BBOX')).toBe(true);
+    });
+
+    it('Sam2TrackTool_shape_prop이_추적요청에_포함된다_박스선택시_BBOX', async () => {
+      let captured: Record<string, unknown> = {};
+      mock.onPost('/frames/55/sam2-track').reply((config) => {
+        captured = JSON.parse((config.data as string) ?? '{}');
+        return [200, TRACKED_OK];
+      });
+      renderWithProviders(
+        <Sam2TrackTool
+          srcSn={55}
+          prevPolygon={TRIANGLE}
+          label="person"
+          trackId="t-1"
+          shape="BBOX"
+          nextSrcSns={[56]}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      });
+      await waitFor(() => expect(captured.shape).toBe('BBOX'));
+    });
+
+    it('Sam2TrackTool_labelOverride가_캔버스객체_라벨보다_우선한다', async () => {
+      let captured: Record<string, unknown> = {};
+      mock.onPost('/frames/55/sam2-track').reply((config) => {
+        captured = JSON.parse((config.data as string) ?? '{}');
+        return [200, TRACKED_OK];
+      });
+      renderWithProviders(
+        <Sam2TrackTool
+          srcSn={55}
+          prevPolygon={TRIANGLE}
+          label="car"
+          labelOverride="person"
+          trackId="t-1"
+          nextSrcSns={[56]}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      });
+      await waitFor(() => expect(captured.label).toBe('person'));
+    });
+
+    it('Sam2TrackTool_shape_미지정시_요청바디에_shape없음', async () => {
+      let captured: Record<string, unknown> = {};
+      mock.onPost('/frames/55/sam2-track').reply((config) => {
+        captured = JSON.parse((config.data as string) ?? '{}');
+        return [200, TRACKED_OK];
+      });
+      renderWithProviders(
+        <Sam2TrackTool
+          srcSn={55}
+          prevPolygon={TRIANGLE}
+          label="person"
+          trackId="t-1"
+          nextSrcSns={[56]}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      });
+      await waitFor(() => expect(captured.label).toBe('person'));
+      expect(captured).not.toHaveProperty('shape');
+    });
+  });
 });

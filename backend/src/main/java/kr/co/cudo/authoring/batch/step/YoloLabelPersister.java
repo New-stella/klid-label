@@ -16,10 +16,11 @@ import java.util.List;
 /**
  * YOLO detection → LS_DATA_LBL(BBOX) + LS_DATA_LBL_AI_INFO 저장 공용 헬퍼.
  *
- * <p>배치({@link YoloAutolabelStep})와 온라인 수동 트리거
- * ({@code AutolabelOnlineService})가 <b>동일한 좌표 정규화·저장 로직</b>을 공유하도록 추출한다
- * (이원화 금지). 상태 없는 정적 유틸이며, 저장은 <b>호출자가 주입한</b> 리포지토리 인스턴스로 수행한다.
- * 따라서 각 호출자는 자신의 트랜잭션(@Transactional qualifier)/모킹 컨텍스트를 그대로 유지한다.
+ * <p><b>배치({@link YoloAutolabelStep}) 전용</b> 저장 헬퍼다. 온라인 수동 트리거
+ * ({@code AutolabelOnlineService})는 Phase 1 에서 <b>미저장(좌표만 반환)</b>으로 전환되어 더 이상 본
+ * Persister 를 사용하지 않는다 — 온라인 결과는 클라이언트가 작업본에 반영 후 저장 API(PUT /labels)로
+ * 확정한다. 상태 없는 정적 유틸이며, 저장은 <b>호출자가 주입한</b> 리포지토리 인스턴스로 수행한다.
+ * 따라서 호출자는 자신의 트랜잭션(@Transactional qualifier)/모킹 컨텍스트를 그대로 유지한다.
  *
  * <p>보안:
  * <ul>

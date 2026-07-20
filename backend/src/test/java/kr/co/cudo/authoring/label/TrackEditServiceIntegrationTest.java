@@ -75,7 +75,13 @@ class TrackEditServiceIntegrationTest {
         lblRepository.save(LsDataLbl.createAutoBbox(s2, null, "person", "[]", BigDecimal.ZERO, TRACK));
 
         // 자식 — 삭제 대상(frame>=1) 라벨에 AI_INFO + 실 FK 속성값(ATTR_VAL) 부착.
-        LsLabel master = labelMasterRepository.save(LsLabel.create("person", "#FF0000", "BBOX", 0, "test"));
+        // [테스트 격리] DevSeedRunnerTest 가 @TestPropertySource(seed.enabled=true) 로 부팅 시 dev-seed.sql 의
+        // "person" LS_LABEL 마스터를 공유 Testcontainers DB 에 커밋(ON CONFLICT DO NOTHING)한다. 본 IT 는
+        // @Transactional 이라 롤백되지만 그 커밋된 행은 남아 있어, 여기서 다시 save 하면 UK_LS_LABEL_NAME
+        // (V34 이후 LBL_NM 단독 UNIQUE) 위반이 된다(전체 스위트에서만 재현되는 순서 의존 flake). 누수된 마스터가
+        // 있으면 재사용(findOrCreate)해 순서 독립적으로 만든다 — 서비스 로직 변경 아님(테스트 셋업 한정).
+        LsLabel master = labelMasterRepository.findByLabelNmIgnoreCaseAndUseYn("person", "Y")
+                .orElseGet(() -> labelMasterRepository.save(LsLabel.create("person", "#FF0000", "BBOX", 0, "test")));
         LsLabelAttr attr = labelAttrRepository.save(
                 LsLabelAttr.create(master.getLabelId(), "색상", "TEXT", null, null, "Y", 0, "test"));
         attrValRepository.save(LsDataLblAttrVal.create(mid.getLblSn(), attr.getAttrId(), "빨강"));

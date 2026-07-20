@@ -5,6 +5,7 @@ import { apiClient } from '@/lib/api/client';
 
 import {
   deleteTrack,
+  getLabelHistory,
   getLabels,
   normalizeLabel,
   putLabels,
@@ -653,6 +654,122 @@ describe('label api', () => {
       };
       const shape = normalizeLabel(raw).shape as KeypointShape;
       shape.keypoints.forEach((kp) => expect([0, 1, 2]).toContain(kp.v));
+    });
+  });
+
+  describe('R9 provenance 전송 (serializeLabel)', () => {
+    function autoBbox(source: 'AUTO_YOLO' | 'AUTO_SAM2', confidence?: number): Label {
+      return {
+        id: 'tmp-auto', // 클라 임시 id (미저장) → 직렬화 id=null
+        frameNo: 1,
+        classId: 1,
+        className: 'person',
+        source,
+        confidence,
+        shape: { type: 'BBOX', left: 10, top: 20, right: 100, bottom: 80 },
+      };
+    }
+
+    it('serializeLabel_신규_오토라벨은_source_confidence를_전송한다', async () => {
+      const labels = [autoBbox('AUTO_YOLO', 0.91)];
+      mock.onPut('/frames/800/labels').reply((config) => {
+        const item = JSON.parse(config.data ?? '{}').items[0];
+        expect(item.id).toBeNull();
+        expect(item.source).toBe('AUTO_YOLO');
+        expect(item.confScore).toBe(0.91);
+        expect(item.algorithm).toBe('YOLO');
+        return [200, { success: true, data: { frameNo: 1, srcSn: 800, labels }, message: null, errorCode: null }];
+      });
+      await putLabels(800, labels);
+      expect(mock.history.put).toHaveLength(1);
+    });
+
+    it('serializeLabel_신규_AUTO_SAM2는_algorithm_SAM2를_전송한다', async () => {
+      const labels = [autoBbox('AUTO_SAM2', 0.5)];
+      mock.onPut('/frames/801/labels').reply((config) => {
+        const item = JSON.parse(config.data ?? '{}').items[0];
+        expect(item.source).toBe('AUTO_SAM2');
+        expect(item.algorithm).toBe('SAM2');
+        return [200, { success: true, data: { frameNo: 1, srcSn: 801, labels }, message: null, errorCode: null }];
+      });
+      await putLabels(801, labels);
+    });
+
+    it('serializeLabel_수동라벨은_provenance를_전송하지_않는다', async () => {
+      const labels = [bbox('tmp-manual', 1)]; // source: 'MANUAL'
+      mock.onPut('/frames/802/labels').reply((config) => {
+        const item = JSON.parse(config.data ?? '{}').items[0];
+        expect(item.source).toBeUndefined();
+        expect(item.confScore).toBeUndefined();
+        expect(item.algorithm).toBeUndefined();
+        return [200, { success: true, data: { frameNo: 1, srcSn: 802, labels }, message: null, errorCode: null }];
+      });
+      await putLabels(802, labels);
+    });
+
+    it('serializeLabel_기존저장라벨(serverId)은_provenance_미전송_기존동작', async () => {
+      // serverId 가 있으면 BE INSERT 가 아니라 UPDATE(id!=null) → provenance 미전송(AUTO_LBL_YN BE 유지).
+      const existing: Label = { ...autoBbox('AUTO_YOLO', 0.8), serverId: 555 };
+      mock.onPut('/frames/803/labels').reply((config) => {
+        const item = JSON.parse(config.data ?? '{}').items[0];
+        expect(item.id).toBe(555);
+        expect(item.source).toBeUndefined();
+        expect(item.confScore).toBeUndefined();
+        expect(item.algorithm).toBeUndefined();
+        return [200, { success: true, data: { frameNo: 1, srcSn: 803, labels: [existing] }, message: null, errorCode: null }];
+      });
+      await putLabels(803, [existing]);
+    });
+  });
+
+  describe('getLabelHistory 정규화 (coverage 보강)', () => {
+    it('getLabelHistory_미지_changeKind는_UPDATED로_폴백', async () => {
+      mock.onGet('/frames/810/label-history').reply(200, {
+        success: true,
+        data: {
+          content: [{ lblHstrySn: 1, lblSn: 10, changeKind: 'WHAT', actor: 'w1', regDt: '2026-07-20T10:00:00', label: 'car' }],
+          number: 0, size: 20, totalElements: 1, totalPages: 1,
+        },
+        message: null, errorCode: null,
+      });
+      const res = await getLabelHistory(810);
+      expect(res.content[0].changeKind).toBe('UPDATED');
+    });
+
+    it('getLabelHistory_필드_누락시_안전한_기본값으로_정규화', async () => {
+      mock.onGet('/frames/811/label-history').reply(200, {
+        success: true,
+        data: { content: [{}], number: 0, size: 20, totalElements: 1, totalPages: 1 },
+        message: null, errorCode: null,
+      });
+      const res = await getLabelHistory(811);
+      const item = res.content[0];
+      expect(item.lblHstrySn).toBe(0);
+      expect(item.lblSn).toBeNull();
+      expect(item.changeKind).toBe('UPDATED');
+      expect(item.actor).toBeNull();
+      expect(item.regDt).toBe('');
+      expect(item.label).toBeNull();
+    });
+
+    it('getLabelHistory_totalPages_누락시_content유무로_추정', async () => {
+      // content 有 → 1
+      mock.onGet('/frames/812/label-history').reply(200, {
+        success: true,
+        data: { content: [{ lblHstrySn: 1, changeKind: 'ADDED' }] },
+        message: null, errorCode: null,
+      });
+      const withContent = await getLabelHistory(812);
+      expect(withContent.totalPages).toBe(1);
+
+      // content 空 → 0
+      mock.onGet('/frames/813/label-history').reply(200, {
+        success: true,
+        data: { content: [] },
+        message: null, errorCode: null,
+      });
+      const empty = await getLabelHistory(813);
+      expect(empty.totalPages).toBe(0);
     });
   });
 

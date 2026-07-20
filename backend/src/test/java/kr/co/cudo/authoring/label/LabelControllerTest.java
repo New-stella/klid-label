@@ -473,6 +473,166 @@ class LabelControllerTest {
                 .andExpect(jsonPath("$.data.items[0].label").value("phase2-unmapped"));
     }
 
+    // --- R9: 온라인 오토라벨 출처(provenance) 보존 ---
+
+    @Test
+    @DisplayName("온라인_오토라벨_저장시_AUTO_LBL_YN_Y와_신뢰도가_보존된다")
+    void onlineAutolabelInsertPreservesAutoYesAndConfidence() throws Exception {
+        // given — 온라인 오토라벨(AI 탐지) 신규 라벨: id=null + source=AUTO_YOLO + confScore + algorithm.
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", null, "person",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null,
+                        "AUTO_YOLO", 0.87, "YOLO")
+        ));
+
+        // when / then — 응답 autoLblYn='Y' + lblSrcCd='YOLO' (AI_INFO 결합)
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"))
+                .andExpect(jsonPath("$.data.items[0].lblSrcCd").value(LsDataLblAiInfo.SRC_YOLO));
+
+        // DB 검증 — LS_DATA_LBL_AI_INFO row 가 신뢰도/알고리즘과 함께 기록됨.
+        List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
+        assertThat(saved).hasSize(1);
+        Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn());
+        assertThat(ai).isPresent();
+        assertThat(ai.get().getAutoLblYn()).isEqualTo("Y");
+        assertThat(ai.get().getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
+        assertThat(ai.get().getConfScore()).isNotNull();
+        assertThat(ai.get().getConfScore().doubleValue()).isEqualTo(0.87);
+    }
+
+    @Test
+    @DisplayName("온라인_오토라벨_POLYGON_SAM2_저장시_AUTO_LBL_YN_Y와_출처_SAM2_보존")
+    void onlineAutolabelPolygonSam2PreservesProvenance() throws Exception {
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "POLYGON", null, "car",
+                        List.of(List.of(0.0, 0.0), List.of(30.0, 0.0), List.of(30.0, 30.0)), null,
+                        "AUTO_SAM2", 0.72, "SAM2")
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"))
+                .andExpect(jsonPath("$.data.items[0].lblSrcCd").value(LsDataLblAiInfo.SRC_SAM2));
+
+        List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getLblTypeCd()).isEqualTo("POLYGON");
+        Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn());
+        assertThat(ai).isPresent();
+        assertThat(ai.get().getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_SAM2);
+    }
+
+    @Test
+    @DisplayName("수동_라벨_저장시_AUTO_LBL_YN_N으로_저장된다")
+    void manualLabelWithNoProvenanceStoredAsAutoNo() throws Exception {
+        // source 미지정(=수동) — AI_INFO 미기록, 응답 autoLblYn='N' (회귀 가드).
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", null, "person",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null,
+                        "MANUAL", null, null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].autoLblYn").value("N"));
+
+        List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
+        assertThat(saved).hasSize(1);
+        assertThat(aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("confScore가_범위밖_1_5이면_400")
+    void confScoreOutOfRangeRejected() throws Exception {
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", null, "person",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null,
+                        "AUTO_YOLO", 1.5, "YOLO")
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("algorithm이_화이트리스트밖이면_400")
+    void algorithmNotWhitelistedRejected() throws Exception {
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(null, "BBOX", null, "person",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null,
+                        "AUTO_YOLO", 0.5, "EVILNET")
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("provenance는_민감필드_role등을_바인딩하지_않는다")
+    void provenanceDoesNotBindSensitiveFields() throws Exception {
+        // Mass Assignment(CWE-915): 요청이 role/isAdmin 및 autoLblYn='Y' 를 실어도 무시되고
+        // source 미지정 → 수동(AUTO_LBL_YN='N') 저장. autoLblYn 은 요청으로 강제되지 않음.
+        String maliciousBody = """
+                {"items":[{"id":null,"lblTypeCd":"BBOX","label":"person",
+                  "points":[[10.0,10.0],[50.0,50.0]],
+                  "autoLblYn":"Y","role":"ADMIN","isAdmin":true,"password":"x"}]}
+                """;
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(maliciousBody))
+                .andExpect(status().isOk())
+                // 요청 autoLblYn='Y' 는 무시 — 수동 저장이므로 응답 'N'
+                .andExpect(jsonPath("$.data.items[0].autoLblYn").value("N"));
+
+        List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
+        assertThat(saved).hasSize(1);
+        // AI_INFO row 없음(수동) → 요청이 자동/신뢰도를 주입하지 못함.
+        assertThat(aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("기존저장_오토라벨_UPDATE시_AUTO_LBL_YN_유지")
+    void updatingExistingAutoLabelKeepsAutoYesEvenWithoutProvenance() throws Exception {
+        // given — 기존 AUTO 라벨(+AI_INFO) 시드
+        LsDataLbl auto = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car",
+                "[[5.0,5.0],[40.0,40.0]]", new BigDecimal("0.9000"), null));
+        Long autoId = auto.getLblSn();
+        aiInfoRepository.save(LsDataLblAiInfo.create(autoId, rawSn, srcSn,
+                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
+
+        // when — id 동봉 UPDATE (provenance 미지정) — AUTO_LBL_YN 유지되어야 함.
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(autoId, "BBOX", null, "car",
+                        List.of(List.of(15.0, 15.0), List.of(60.0, 60.0)), null)
+        ));
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"));
+
+        // AI_INFO 그대로 유지 (UPDATE 경로는 provenance 무변경)
+        Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(autoId);
+        assertThat(ai).isPresent();
+        assertThat(ai.get().getAutoLblYn()).isEqualTo("Y");
+        assertThat(ai.get().getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
+    }
+
     @Test
     @DisplayName("LabelController_라벨_조회시_videoId와_siblings_응답_포함")
     void getLabelsIncludesVideoIdAndSiblings() throws Exception {

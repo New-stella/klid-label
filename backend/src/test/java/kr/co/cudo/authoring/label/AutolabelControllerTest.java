@@ -126,7 +126,7 @@ class AutolabelControllerTest {
     }
 
     @Test
-    @DisplayName("오토라벨_본인배정_WORKER_200_저장")
+    @DisplayName("오토라벨_본인배정_WORKER_200_검출좌표반환")
     void workerAssignedOk() throws Exception {
         when(aiServerClient.predictYoloTrack(any())).thenReturn(Mono.just(
                 new YoloResponse(List.of(

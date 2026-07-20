@@ -1,19 +1,16 @@
 package kr.co.cudo.authoring.label.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.Sam2TrackResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.common.util.PolygonSimplifier;
+import kr.co.cudo.authoring.label.dto.AutolabelShape;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
@@ -21,46 +18,48 @@ import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Phase 6 — SAM2 트랙 서비스.
+ * Phase 6 / R12 — SAM2 트랙 서비스 (<b>DB 미저장 — 좌표만 반환</b>).
  *
- * 보안:
- *  - IDOR (CWE-639): 시작 프레임 + 모든 후속 프레임에 대해 LabelAccessGuard 검증.
- *  - 좌표 검증 (CWE-20): 요청 prevPolygon 및 ai-server 응답 polygon 둘 다 음수/형식 차단.
+ * <p><b>미저장 전환(사용자 확정)</b>: 이전에는 propagation 결과를 쓰기 트랜잭션 내 {@code labelRepository.save}
+ * 로 즉시 저장했으나, AI 탐지({@link AutolabelOnlineService})·포털 추적({@link kr.co.cudo.authoring.portal.service.PortalSam2Service})
+ * 과 동일하게 <b>좌표(draft)만 반환</b>하도록 통일한다. 클라이언트가 작업본에 병합 후 PUT /labels 로 확정한다.
+ * 트랙 병합({@code TrackMergeService})·보간({@code TrackInterpolator})은 이미 저장된 라벨을 대상으로 하므로
+ * 본 미저장 전환과 무관하다(회귀 없음).
  *
- * 동작:
- *  1) 시작 프레임 폴리곤 + trackId 를 ai-server `/infer/sam2/track` 에 전달.
- *  2) 응답으로 받은 폴리곤을 다음 프레임의 새 라벨로 INSERT (POLYGON, AUTO_LBL_YN='Y').
- *  3) 응답 폴리곤을 다시 prevPolygon 으로 사용하여 그 다음 프레임에 같은 trackId 로 전파.
+ * <p><b>비트랜잭셔널(F-1 커넥션풀 고갈 방지)</b>: DB write 가 없으므로 {@code @Transactional} 을 제거했다.
+ * AI 블로킹 호출 구간이 control HikariCP 커넥션을 점유하지 않는다.
  *
- * trackId 전파:
- *  - LS_DATA_LBL 에 별도 TRCK_ID 컬럼이 없으므로 본 Phase 에서는 LABEL 만 동일 라벨명으로 묶음.
- *  - 응답 DTO 에는 trackId 를 포함해 호출자가 클라이언트 캔버스에서 세션 동안 유지 가능.
+ * <p>보안:
+ * <ul>
+ *   <li>IDOR(CWE-639): 시작 프레임 + 모든 후속 프레임에 대해 {@link LabelAccessGuard#verifyAccess} 검증(AI 호출 전).</li>
+ *   <li>좌표 검증(CWE-20): 요청 prevPolygon 및 ai-server 응답 polygon 둘 다 음수/형식 차단.</li>
+ *   <li>정보노출(CWE-209): 예외 원문·내부 경로 비노출(LogSanitizer + 일반화 메시지).</li>
+ * </ul>
+ *
+ * <p>형태(R12): {@code shape=POLYGON}(기본) 이면 폴리곤을 그대로, {@code shape=BBOX} 면 폴리곤의 외접 bbox
+ * ([[minX,minY],[maxX,maxY]]) 를 산출해 반환한다. 퇴화 폴리곤(폭/높이 &lt; 1px)은 해당 프레임만 스킵(전체 추적 미중단).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(value = "controlTransactionManager")
 public class Sam2TrackService {
 
     private final AiServerClient aiServerClient;
-    private final LsDataLblRepository labelRepository;
     private final LsDataSrcRepository srcRepository;
     private final LabelAccessGuard accessGuard;
-    private final LabelMasterService labelMasterService;
     private final SystemConfigService systemConfigService;
-    private final ObjectMapper objectMapper;
     private final FrameImageEncoder frameImageEncoder;
 
     /** POLYGON_SIMPLIFY_TOLERANCE 조회 실패 시 폴백 epsilon(px). */
     private static final double DEFAULT_SIMPLIFY_TOLERANCE = 1.0;
+
+    /** 외접 bbox 퇴화 판정 최소 폭/높이(px) — 미만이면 해당 프레임 스킵. */
+    private static final double MIN_BBOX_EXTENT = 1.0;
 
     public Sam2TrackResponseDto track(Sam2TrackRequest req, TokenClaims actor) {
         // IDOR 차단: 시작 프레임에 대한 접근 권한 검증 (LabelService 와 동일 규칙).
@@ -68,7 +67,9 @@ public class Sam2TrackService {
         // 입력 좌표 검증 (CWE-20).
         validatePolygon(req.prevPolygon(), "prevPolygon");
 
-        // 시작 프레임 / 후속 프레임 모두 존재 검증.
+        AutolabelShape shape = req.shapeOrDefault();
+
+        // 시작 프레임 존재 검증.
         LsDataSrc startSrc = srcRepository.findById(req.srcSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "시작 프레임을 찾을 수 없습니다."));
 
@@ -111,34 +112,73 @@ public class Sam2TrackService {
             if (aiRes == null || aiRes.polygon() == null) {
                 throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "SAM2 track 응답이 비어있습니다.");
             }
-            // 외부 시스템 응답도 신뢰하지 않음 — 동일 좌표 검증 후 저장.
+            // 외부 시스템 응답도 신뢰하지 않음 — 동일 좌표 검증.
             validatePolygon(aiRes.polygon(), "ai-server polygon");
 
-            // DB 저장: POLYGON + AUTO_LBL_YN='Y' + confScore=ai 응답.
-            List<Point> rawPoints = new ArrayList<>(aiRes.polygon().size());
-            for (List<Double> p : aiRes.polygon()) {
-                rawPoints.add(new Point(p.get(0), p.get(1)));
-            }
             // FEAT-007: 경계 세밀함 적용 — epsilon 으로 폴리곤 점 감소(형태 보존).
-            List<Point> nextPoints = PolygonSimplifier.simplify(rawPoints, simplifyTolerance);
-            String pointsJson = LabelPointSerializer.toJson(nextPoints, objectMapper);
-            BigDecimal score = clampScore(aiRes.score());
-            // Phase 6: 요청 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
-            Long labelId = labelMasterService.findLabelIdByName(req.label()).orElse(null);
-            log.info("[Batch][Sam2Track] mapped label name={} labelId={}",
-                    LogSanitizer.sanitize(req.label()), labelId);
-            labelRepository.save(LsDataLbl.createAutoPolygon(nextSrcSn, labelId, req.label(), pointsJson, score));
+            List<List<Double>> simplifiedPolygon = simplify(aiRes.polygon(), simplifyTolerance);
 
-            tracked.add(new Sam2TrackResponseDto.TrackedItem(
-                    nextSrcSn, aiRes.trackId(), req.label(), aiRes.polygon(), aiRes.score()));
-
-            // 다음 루프의 prev → 이번 응답.
+            // 다음 루프의 prev → 이번(단순화 전) 응답. (전파 연속성은 원본 응답 폴리곤으로 유지)
             currentPolygon = aiRes.polygon();
             prevImageB64 = nextImageB64;
+
+            if (shape == AutolabelShape.BBOX) {
+                // R12: 외접 bbox 산출 — 퇴화(폭/높이 < 1px)면 해당 프레임만 스킵(전체 추적 미중단).
+                List<List<Double>> bbox = toCircumscribedBbox(simplifiedPolygon);
+                if (bbox == null) {
+                    log.warn("[Sam2Track] degenerate bbox skipped nextSrcSn={}", nextSrcSn);
+                    continue;
+                }
+                tracked.add(new Sam2TrackResponseDto.TrackedItem(
+                        nextSrcSn, aiRes.trackId(), req.label(), bbox, aiRes.score(),
+                        AutolabelShape.BBOX.name()));
+            } else {
+                tracked.add(new Sam2TrackResponseDto.TrackedItem(
+                        nextSrcSn, aiRes.trackId(), req.label(), simplifiedPolygon, aiRes.score(),
+                        AutolabelShape.POLYGON.name()));
+            }
         }
-        log.info("[Sam2Track] propagated trackId={} startSrc={} count={}",
-                req.trackId(), startSrc.getSrcSn(), tracked.size());
+        // CWE-117 — trackId 는 클라이언트 원문(CRLF 삽입 가능)이므로 로그 출력 전 정제.
+        log.info("[Sam2Track] propagated trackId={} startSrc={} shape={} count={} (no persist)",
+                LogSanitizer.sanitize(req.trackId()), startSrc.getSrcSn(), shape, tracked.size());
         return new Sam2TrackResponseDto(tracked);
+    }
+
+    /** epsilon 으로 폴리곤 단순화. 3점 미만으로 줄면 원본 유지(형태 보존). */
+    private List<List<Double>> simplify(List<List<Double>> polygon, double tolerance) {
+        List<Point> rawPoints = new ArrayList<>(polygon.size());
+        for (List<Double> p : polygon) {
+            rawPoints.add(new Point(p.get(0), p.get(1)));
+        }
+        List<Point> simplified = PolygonSimplifier.simplify(rawPoints, tolerance);
+        if (simplified.size() < 3) {
+            return polygon;
+        }
+        List<List<Double>> out = new ArrayList<>(simplified.size());
+        for (Point p : simplified) {
+            out.add(List.of(p.x(), p.y()));
+        }
+        return out;
+    }
+
+    /**
+     * 폴리곤 외접 bbox([[minX,minY],[maxX,maxY]]) 산출(R12).
+     * 폭/높이가 {@link #MIN_BBOX_EXTENT} 미만인 퇴화 폴리곤은 {@code null} (호출자가 프레임 스킵).
+     */
+    private List<List<Double>> toCircumscribedBbox(List<List<Double>> polygon) {
+        double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE;
+        double maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+        for (List<Double> p : polygon) {
+            double x = p.get(0), y = p.get(1);
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+        if ((maxX - minX) < MIN_BBOX_EXTENT || (maxY - minY) < MIN_BBOX_EXTENT) {
+            return null;
+        }
+        return List.of(List.of(minX, minY), List.of(maxX, maxY));
     }
 
     /** 좌표 검증 — 각 원소가 [x, y] 두 개이고 모두 0 이상인지. CWE-20. */
@@ -153,9 +193,9 @@ public class Sam2TrackService {
             }
             Double x = pair.get(0);
             Double y = pair.get(1);
-            if (x == null || y == null || x < 0 || y < 0) {
+            if (x == null || y == null || !Double.isFinite(x) || !Double.isFinite(y) || x < 0 || y < 0) {
                 throw new CustomException(ErrorCode.INVALID_INPUT,
-                        fieldName + " 좌표는 0 이상이어야 합니다 (x=" + x + ", y=" + y + ")");
+                        fieldName + " 좌표는 유한한 0 이상의 수여야 합니다.");
             }
         }
     }
@@ -171,11 +211,5 @@ public class Sam2TrackService {
             log.warn("[Sam2Track] POLYGON_SIMPLIFY_TOLERANCE 조회 실패 — 기본값 {} 사용", DEFAULT_SIMPLIFY_TOLERANCE);
             return DEFAULT_SIMPLIFY_TOLERANCE;
         }
-    }
-
-    private BigDecimal clampScore(double raw) {
-        if (Double.isNaN(raw)) return null;
-        double clamped = Math.max(0.0, Math.min(1.0, raw));
-        return BigDecimal.valueOf(clamped).setScale(4, RoundingMode.HALF_UP);
     }
 }

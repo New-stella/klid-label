@@ -16,13 +16,25 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
-import { AutolabelClassModal } from '@/features/label/components/AutolabelClassModal';
+import { AiToolModal } from '@/features/label/components/AiToolModal';
 import { DarkToolbar } from '@/features/label/components/DarkToolbar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { LabelSidebar } from '@/features/label/components/LabelSidebar';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
-import { deleteTrack, mergeTracks, splitTrack } from '@/features/label/api';
+import {
+  autolabelItemToLabel,
+  deleteTrack,
+  mergeTracks,
+  splitTrack,
+  trackedItemToLabel,
+  type DetectShapeType,
+  type Sam2TrackedItem,
+} from '@/features/label/api';
+import type { AiToolMode } from '@/features/label/components/AiToolModal';
+import { YOLO_CLASSES } from '@/features/label/constants/yoloClasses';
+import { ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
+import { LabelHistoryPanel } from '@/features/label/components/LabelHistoryPanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
 import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
@@ -38,7 +50,7 @@ import { useAutolabel } from '@/features/label/hooks/useAutolabel';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
-import type { FrameSummary } from '@/features/label/types';
+import type { FrameSummary, Label } from '@/features/label/types';
 import type { OverlayLayerHandle } from '@/features/label/canvas/layers/OverlayLayer';
 import { useSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { useReview } from '@/features/review/hooks/useReview';
@@ -148,6 +160,10 @@ export function LabelingPage() {
   const dirtyCount = useLabelStore((s) => s.dirtyLabels.size);
   const clearDirty = useLabelStore((s) => s.clearDirty);
   const addLabel = useLabelStore((s) => s.addLabel);
+  const mergeAutoLabels = useLabelStore((s) => s.mergeAutoLabels);
+  const stashPendingTracks = useLabelStore((s) => s.stashPendingTracks);
+  const drainPendingTracks = useLabelStore((s) => s.drainPendingTracks);
+  const setActiveTool = useLabelStore((s) => s.setActiveTool);
   const reset = useLabelStore((s) => s.reset);
   const resetView = useLabelStore((s) => s.resetView);
   const toggleLabelVisibility = useLabelStore((s) => s.toggleLabelVisibility);
@@ -295,9 +311,45 @@ export function LabelingPage() {
   // setLabels 내부에서 dirtyLabels/undoStack/redoStack/selectedLabelId 를 초기화하므로
   // 프레임 전환 시점에 별도 reset() 호출은 불필요하다. (cleanup 에서 reset 호출하면
   // 매 data 변경마다 store 가 완전 초기화돼 깜빡임/라벨 사라짐 회귀가 발생함)
+  //
+  // HIGH #2 — 오토라벨/추적 병합(미저장) 보호:
+  //  - 프레임 전환(srcSn 변경) 시점에만 setLabels 로 전체 교체한다.
+  //  - 같은 프레임 refetch(백그라운드) 로 도착한 data 는 미저장 편집(dirty>0)이 있으면 덮어쓰지 않는다.
+  //    (getState 로 최신 dirty 를 읽어 selector 재구독에 따른 stale 판단을 피한다.)
+  const lastLoadedSrcSnRef = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (data) setLabels(Array.isArray(data.labels) ? data.labels : []);
+    if (!data) return;
+    const nextLabels = Array.isArray(data.labels) ? data.labels : [];
+    const frameChanged = lastLoadedSrcSnRef.current !== data.srcSn;
+    if (frameChanged) {
+      lastLoadedSrcSnRef.current = data.srcSn;
+      setLabels(nextLabels);
+      return;
+    }
+    // 같은 프레임 재조회 — 미저장 병합/편집이 없을 때만 최신 서버 라벨로 동기화.
+    if (useLabelStore.getState().dirtyLabels.size === 0) {
+      setLabels(nextLabels);
+    }
   }, [data, setLabels]);
+
+  // R12 — 보류 추적 결과 drain. 위 setLabels effect 다음에 선언해 프레임 진입 시 setLabels(서버
+  // 라벨 로드 + dirty 초기화) 가 먼저 적용된 뒤 보류분을 병합하도록 순서를 보장한다(setLabels 가
+  // drain 병합을 덮지 않게). 진입 프레임(srcSn)에 보류가 있으면 mergeAutoLabels 로 dedup 병합한다
+  // — 기존 라벨 보존·중복 스킵이라 dirty 편집을 덮어쓰지 않는다. drain 후 해당 보류는 제거된다.
+  useEffect(() => {
+    const srcSn = data?.srcSn;
+    if (srcSn === undefined) return;
+    if (!useLabelStore.getState().pendingTracks[srcSn]) return;
+    const drained = drainPendingTracks(srcSn);
+    if (drained.length === 0) return;
+    const added = mergeAutoLabels(drained);
+    if (added > 0) {
+      pushToast({ variant: 'info', message: `보류된 AI 추적 ${added}건 적용됨` });
+    }
+    // data?.srcSn 만 의존 — 같은 프레임 refetch(data 객체 교체)에는 재실행되지 않아 이중 병합 없음.
+    // (drain 이 보류를 제거하므로 재실행돼도 no-op 이지만, 프레임 진입당 1회로 명확히 제한한다.)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.srcSn, drainPendingTracks, mergeAutoLabels, pushToast]);
 
   // 컴포넌트 unmount 시에만 store 를 완전 초기화 — 다른 화면으로 빠져나갈 때 잔존 상태 제거.
   useEffect(() => {
@@ -423,35 +475,117 @@ export function LabelingPage() {
     }
   };
 
-  // Phase 3 — YOLO 오토라벨 수동 트리거. 포털은 미제공(ADR-013 — 버튼 자체 미노출).
-  // 성공 시 BE 가 저장한 자동 라벨을 재조회(useLabels)하여 캔버스에 반영. mock 응답은 자동적용 차단.
+  // Phase 4 — AI Tool 수동 트리거. 포털은 오토라벨 미제공(ADR-013 — 버튼 자체 미노출).
+  // 검출 결과는 BE 미저장(Phase 3 전환) → 재조회가 아니라 작업본에 병합한다. mock 응답은 자동적용 차단.
   const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn);
-  // Phase 4 — 클래스 선택 팝업(R3 AC3). 버튼 클릭 시 팝업을 열고, 확정 시 선택 클래스로 실행.
+  // Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 버튼 클릭 시 팝업을 열고, 확정 시 실행.
   const [autolabelModalOpen, setAutolabelModalOpen] = useState(false);
+  // R12 — 트랙 모드 선택 시 팝업의 형태(BBOX/POLYGON)·라벨을 기억해 Sam2TrackTool 요청에 배선한다.
+  // 미지정이면 BE 기본(POLYGON) + 캔버스 선택 객체 클래스명을 라벨로 사용.
+  const [trackShape, setTrackShape] = useState<DetectShapeType | undefined>(undefined);
+  const [trackLabel, setTrackLabel] = useState<string | undefined>(undefined);
   const handleAutolabel = () => {
     if (!currentFrame) return;
     if (isLocked) {
-      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 오토라벨할 수 없습니다.' });
+      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 AI 도구를 사용할 수 없습니다.' });
       return;
     }
     setAutolabelModalOpen(true);
   };
-  // 팝업 확정 → 선택 클래스(빈 배열=전체)로 오토라벨 실행. 빈 배열이면 useAutolabel 이 전체 검출로 요청.
-  const runAutolabel = async (classIds: string[]) => {
+
+  // 후속 프레임 SRC_SN — 추적 대상(현재 프레임 이후 siblings). 트랙 실행 가능 여부 판정.
+  const nextSrcSns = useMemo(
+    () => frames.slice(frameIdx + 1).map((f) => f.srcSn),
+    [frames, frameIdx],
+  );
+
+  // R12 — 추적 성공분(tracked)을 srcSn 별로 분리해 반영한다(사일런트 데이터 유실 수정).
+  //  - tracked[].srcSn 은 현재가 아닌 후속(미래) 프레임 값이라, 과거 필터(=== data.srcSn)는 항상
+  //    빈 배열이 되어 병합 0건이었다(성공 토스트만 뜨는 사일런트 유실). 이를 아래로 교체한다:
+  //    · 현재 프레임(data.srcSn) 해당분 → 즉시 작업본 병합(기존 라벨 보존 + 중복 스킵).
+  //    · 다른(미래) 프레임 해당분 → 보류 캐시(pendingTracks)에 stash → 해당 프레임 진입 시 drain 병합.
+  const handleTracked = useCallback(
+    (tracked: Sam2TrackedItem[], partial: boolean) => {
+      if (!currentFrame) return;
+      const curSrcSn = data?.srcSn;
+      const forCurrent = tracked.filter((t) => t.srcSn === curSrcSn);
+      const forFuture = tracked.filter((t) => t.srcSn !== curSrcSn);
+
+      let applied = 0;
+      if (forCurrent.length > 0) {
+        applied += mergeAutoLabels(
+          forCurrent.map((t) => trackedItemToLabel(t, currentFrame.frameNo)),
+        );
+      }
+      if (forFuture.length > 0) {
+        // srcSn 별로 그룹화 — 각 미래 프레임 frameNo 로 Label 변환 후 보류에 stash.
+        const bySrcSn: Record<number, Label[]> = {};
+        for (const t of forFuture) {
+          const frameNo = frames.find((f) => f.srcSn === t.srcSn)?.frameNo ?? 0;
+          (bySrcSn[t.srcSn] ??= []).push(trackedItemToLabel(t, frameNo));
+        }
+        stashPendingTracks(bySrcSn);
+        applied += forFuture.length;
+      }
+
+      if (partial) {
+        const total = nextSrcSns.length || tracked.length;
+        pushToast({
+          variant: 'warning',
+          message: `${applied}/${total} 프레임만 추적됨 (일부 실패)`,
+        });
+      } else {
+        pushToast({ variant: 'success', message: `AI 추적 완료 (${applied}프레임)` });
+      }
+    },
+    [
+      currentFrame,
+      data?.srcSn,
+      frames,
+      nextSrcSns,
+      mergeAutoLabels,
+      stashPendingTracks,
+      pushToast,
+    ],
+  );
+
+  // AI Tool 확정 → 일반(단일 프레임 검출/분할) 또는 트랙(후속 프레임 추적) 실행.
+  const runAiTool = async (shape: DetectShapeType, classIds: string[], mode: AiToolMode) => {
     setAutolabelModalOpen(false);
     if (!currentFrame) return;
+    if (mode === 'track') {
+      // 트랙 모드 — TRACK 도구 활성화 + 팝업의 형태/라벨을 기억(R12 shape 배선). 실제 전파는
+      // 선택 객체 기준 Sam2TrackTool(속성 패널)에서 실행한다. 선택 객체가 없으면 안내한다.
+      setActiveTool(ToolType.TRACK);
+      // 팝업 형태(BBOX/POLYGON)를 기억해 track 요청에 포함 → BE 기본(POLYGON) 고정 방지.
+      setTrackShape(shape);
+      // 팝업에서 단일 라벨을 골랐으면 그 표시명을 track 라벨로 우선 사용(없으면 캔버스 객체 클래스).
+      const pickedLabel =
+        classIds.length > 0
+          ? YOLO_CLASSES.find((c) => c.id === classIds[0])?.label
+          : undefined;
+      setTrackLabel(pickedLabel);
+      pushToast({
+        variant: 'info',
+        message: '추적할 객체를 선택한 뒤 속성 패널에서 자동추적을 실행하세요.',
+      });
+      return;
+    }
     try {
-      const res = await autolabel(classIds);
+      const res = await autolabel(classIds, shape);
       if (!res) return;
-      // 내부 mock(모델 미로드) 시 BE 가 ApiResponse.message 를 세팅한다 → 경고 토스트로 자동적용 차단 안내.
-      // message 가 없으면 정상 응답이며, savedCount=0 이어도 "0건 적용됨"(성공 스타일)로 안내한다.
+      // 내부 mock(모델 미로드) 시 BE 가 ApiResponse.message 를 세팅 → 경고 토스트로 자동적용 차단.
       if (res.message) {
         pushToast({ variant: 'warning', message: res.message });
         return;
       }
-      // 저장된 자동 라벨 재조회 → useLabels 가 data 갱신 시 setLabels 로 캔버스 반영.
-      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(currentFrame.srcSn) });
-      pushToast({ variant: 'success', message: `AI 탐지 ${res.savedCount}건 적용됨` });
+      // 미저장 — 재조회(invalidate)/PUT 없이 검출 결과를 작업본에 병합(기존 라벨 보존 + 중복 스킵).
+      const detected = (res.labels ?? []).map((item) =>
+        autolabelItemToLabel(item, currentFrame.frameNo),
+      );
+      const added = mergeAutoLabels(detected);
+      const kind = shape === 'POLYGON' ? 'AI 분할' : 'AI 탐지';
+      pushToast({ variant: 'success', message: `${kind} ${added}건 적용됨` });
     } catch (e) {
       pushToast({
         variant: 'error',
@@ -870,11 +1004,12 @@ export function LabelingPage() {
       {/* R4 — 단축키 치트시트(도움말). ?(shift+/) 또는 헤더 도움말 버튼으로 토글. */}
       <ShortcutCheatSheet open={cheatSheetOpen} onClose={() => setCheatSheetOpen(false)} />
 
-      {/* Phase 4 — YOLO 오토라벨 클래스 선택 팝업(R3 AC3). 확정 시 선택 클래스(빈=전체)로 실행. */}
-      <AutolabelClassModal
+      {/* Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 확정 시 shape/classIds/mode 로 실행. */}
+      <AiToolModal
         open={autolabelModalOpen}
         onClose={() => setAutolabelModalOpen(false)}
-        onConfirm={runAutolabel}
+        onConfirm={runAiTool}
+        canTrack={nextSrcSns.length > 0}
       />
 
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
@@ -1012,6 +1147,8 @@ export function LabelingPage() {
               <FrameDescriptionPanel srcSn={data?.srcSn} />
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
               <TimeseriesSidePanel srcSn={data?.srcSn} />
+              {/* 라벨 변경 이력(LS_DATA_LBL_HSTRY: 추가/수정/삭제) — 버전 이력과 별개, 내부 채널만. */}
+              <LabelHistoryPanel srcSn={data?.srcSn} dark />
             </div>
           ) : (
             <div
@@ -1051,11 +1188,13 @@ export function LabelingPage() {
                   // 내부 /frames/{id}/sam2-track 은 PORTAL 채널 403 이므로 절대 호출하지 않는다.
                   track={{
                     srcSn: data?.srcSn,
-                    nextSrcSns: frames.slice(frameIdx + 1).map((f) => f.srcSn),
+                    nextSrcSns,
                     portalMode,
-                    onTracked: () => {
-                      pushToast({ variant: 'success', message: 'AI 추적 완료' });
-                    },
+                    // R12 — AI Tool 팝업에서 고른 형태/라벨을 track 요청에 배선(shape 미전달 시 BE 기본 POLYGON).
+                    shape: trackShape,
+                    label: trackLabel,
+                    // 미저장 병합 + 부분/전체 안내 토스트. tracked 는 후속 프레임 결과.
+                    onTracked: handleTracked,
                   }}
                 />
               </div>

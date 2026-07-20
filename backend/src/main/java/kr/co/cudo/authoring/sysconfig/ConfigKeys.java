@@ -43,12 +43,22 @@ public final class ConfigKeys {
      */
     public static final String PORTAL_UPLOAD_FRAME_INTERVAL_SEC = "portal.upload.frame-interval-sec";
 
+    /**
+     * 폴리곤 오토라벨(온라인) — 한 프레임에서 SAM 분할을 시도하는 YOLO 검출 박스 개수 상한.
+     * <p>
+     * NUMBER 정수 1~100, 기본 20(V113 시드). YOLO 가 상한을 초과해 검출하면 상한까지만 SAM 분할하고
+     * 나머지는 잘라 처리 예산·자원 소모를 제한한다(HIGH #1 / MED #5, CWE-770/400).
+     * {@code SystemConfigService.getInt} 로 조회. 조회 실패 시 서비스 폴백 기본값 사용(fail-safe).
+     */
+    public static final String AUTOLABEL_POLYGON_MAX_BOXES = "autolabel.polygon.max-boxes";
+
     /** 화이트리스트 — Service.update / getInt 진입 검증에 사용. */
     public static final Set<String> ALLOWED = Set.of(
             BATCH_INTERVAL_SEC, BATCH_CONCURRENCY,
             YOLO_CONF_THRESHOLD, YOLO_IMGSZ, YOLO_IOU,
             POLYGON_SIMPLIFY_TOLERANCE,
-            PORTAL_UPLOAD_FRAME_INTERVAL_SEC
+            PORTAL_UPLOAD_FRAME_INTERVAL_SEC,
+            AUTOLABEL_POLYGON_MAX_BOXES
     );
 
     /** NUMBER(정수) 키별 허용 범위 [min, max] (DB설계서 §5A.4 정책). */
@@ -58,7 +68,8 @@ public final class ConfigKeys {
             YOLO_CONF_THRESHOLD, new int[]{25, 80},
             YOLO_IMGSZ,          new int[]{320, 1920},
             YOLO_IOU,            new int[]{30, 80},
-            PORTAL_UPLOAD_FRAME_INTERVAL_SEC, new int[]{1, 600}
+            PORTAL_UPLOAD_FRAME_INTERVAL_SEC, new int[]{1, 600},
+            AUTOLABEL_POLYGON_MAX_BOXES, new int[]{1, 100}
     );
 
     /** DECIMAL(소수) 키별 허용 범위 [min, max]. */

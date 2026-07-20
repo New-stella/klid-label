@@ -46,6 +46,9 @@ export function useUpdateLabels(srcSn: number | undefined, options: UseUpdateLab
       // 저장한 프레임의 internal 라벨 키만 무효화 (포털 캐시 churn 방지).
       if (srcSn !== undefined) {
         qc.invalidateQueries({ queryKey: [...LABEL_KEYS.byFrame(srcSn, 0), 'internal'] });
+        // 저장 시 BE 가 LS_DATA_LBL_HSTRY 에 ADDED/UPDATED 이력을 기록하므로, 해당 프레임의
+        // 변경 이력 캐시(전체 페이지)를 무효화해 히스토리 패널이 새 이력을 즉시 반영하게 한다.
+        qc.invalidateQueries({ queryKey: LABEL_KEYS.historyByFrame(srcSn) });
       } else {
         qc.invalidateQueries({ queryKey: LABEL_KEYS.all });
       }

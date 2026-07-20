@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { clampPan as clampPanByScale } from '@/features/label/canvas/utils/canvasGeometry';
 import type { Label, Shape, ToolType } from '@/features/label/types';
 import { ToolType as ToolTypeEnum } from '@/features/label/types';
+import { mergeDetections, DEDUP_IOU_THRESHOLD } from '@/features/label/utils/labelDedup';
 
 interface UndoSnapshot {
   labels: Label[];
@@ -27,6 +28,18 @@ let pasteSeq = 0;
 function nextPasteId(): string {
   pasteSeq += 1;
   return `paste-${Date.now().toString(36)}-${pasteSeq}`;
+}
+
+let autolabelSeq = 0;
+
+/**
+ * 오토라벨/추적 병합 라벨의 클라이언트 임시 ID 생성(HIGH #1).
+ * BE 는 미저장이라 lblSn=null 을 주므로 id='' 충돌이 발생한다 — 여기서 유니크한 클라 id 를 부여한다.
+ * serverId(BE PK)는 별도 필드로만 보존하며, 미저장이므로 undefined 로 둔다.
+ */
+function nextAutolabelId(): string {
+  autolabelSeq += 1;
+  return `autolabel-${Date.now().toString(36)}-${autolabelSeq}`;
 }
 
 /** shape 좌표를 (dx, dy) 만큼 평행이동한 새 shape 반환(불변). */
@@ -171,6 +184,15 @@ interface LabelState {
    */
   clipboard: ClipboardEntry | null;
 
+  /**
+   * R12 — 미래 프레임 추적 결과 보류 캐시 (srcSn → Label[]).
+   * SAM2 자동추적 결과의 tracked[].srcSn 은 현재가 아닌 후속(미래) 프레임 값이라, 현재 프레임
+   * 작업본에 즉시 병합할 수 없다. 여기 srcSn 별로 stash 해 두고, 해당 프레임에 진입할 때
+   * drain 하여 그 프레임 작업본에 dedup 병합한다(사일런트 데이터 유실 방지).
+   * 프레임 전환(setLabels)에는 보존되고, reset(언마운트/영상 변경) 시에만 초기화된다.
+   */
+  pendingTracks: Record<number, Label[]>;
+
   // Actions
   setActiveTool: (tool: ToolType) => void;
   selectLabel: (id: string | null) => void;
@@ -210,6 +232,31 @@ interface LabelState {
     imageWidth?: number;
     imageHeight?: number;
   }) => number;
+
+  /**
+   * 오토라벨/추적 검출 결과를 현재 작업본에 병합(HIGH #1/#3/#4, MED #6).
+   *  - 기존 라벨을 보존한 채 detected 만 추가(refetch/전체교체 아님).
+   *  - 같은 클래스 + IoU≥임계값 중복은 mergeDetections 로 스킵.
+   *  - 병합 대상 각 라벨에 클라이언트 임시 id 부여(id 충돌 방지), serverId 는 미저장(undefined).
+   *  - 병합 전 1회만 undo 스냅샷 push(개별 addLabel 루프 금지), 병합 id 를 dirtyLabels 에 일괄 추가.
+   * @returns 실제 병합된 라벨 수(중복 전부 스킵 시 0 — 이때 undo/dirty 변화 없음).
+   */
+  mergeAutoLabels: (labels: Label[]) => number;
+
+  /**
+   * R12 — 미래 프레임 추적 결과를 srcSn 별로 보류 캐시에 stash(누적).
+   *  - 같은 srcSn 은 덮어쓰지 않고 뒤에 누적한다(여러 번 추적 시 합산).
+   *  - 각 보류 라벨에 유니크 클라이언트 임시 id 부여(id 충돌 방지), serverId 는 미저장(undefined).
+   *  - 불변 — 기존 pendingTracks/배열을 변형하지 않고 새 객체·배열 생성.
+   */
+  stashPendingTracks: (bySrcSn: Record<number, Label[]>) => void;
+
+  /**
+   * R12 — 지정 프레임(srcSn)의 보류 추적 라벨을 반환하고 보류 캐시에서 제거.
+   *  - 보류가 없으면 빈 배열 반환 + 캐시 불변(no-op).
+   *  - 반환한 라벨은 호출측이 mergeAutoLabels 로 dedup 병합한다(기존 라벨 보존).
+   */
+  drainPendingTracks: (srcSn: number) => Label[];
 
   reset: () => void;
 }
@@ -303,6 +350,7 @@ export const useLabelStore = create<LabelState>((set, get) => ({
   hiddenLabelIds: new Set<string>(),
   lockedLabelIds: new Set<string>(),
   clipboard: null,
+  pendingTracks: {},
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   // 잠금 라벨은 어떤 UI 진입점(캔버스/트리)에서도 선택 불가 — 불변식 일관 강제.
@@ -463,6 +511,49 @@ export const useLabelStore = create<LabelState>((set, get) => ({
     return pasted.length;
   },
 
+  mergeAutoLabels: (incoming) => {
+    const prev = get().labels;
+    // 중복 제거 — 기존 라벨/검출세트 내부 중복을 같은 클래스 + IoU 로 스킵.
+    const kept = mergeDetections(prev, incoming, DEDUP_IOU_THRESHOLD);
+    if (kept.length === 0) return 0; // 전부 중복 — undo/dirty 변화 없이 no-op.
+    // 클라이언트 임시 id 부여 + serverId 제거(미저장). 불변 — 새 객체 생성.
+    const merged: Label[] = kept.map((l) => ({
+      ...l,
+      id: nextAutolabelId(),
+      serverId: undefined,
+    }));
+    const dirty = new Set(get().dirtyLabels);
+    merged.forEach((l) => dirty.add(l.id));
+    // 병합 전체를 단일 undo 스냅샷으로 — 한 번의 undo 로 통째 취소(개별 addLabel 루프 금지).
+    const undoStack = [...get().undoStack, snapshot(prev)].slice(-MAX_UNDO);
+    set({ labels: [...prev, ...merged], dirtyLabels: dirty, undoStack, redoStack: [] });
+    return merged.length;
+  },
+
+  stashPendingTracks: (bySrcSn) => {
+    const prev = get().pendingTracks;
+    const next: Record<number, Label[]> = { ...prev };
+    for (const [key, list] of Object.entries(bySrcSn)) {
+      const srcSn = Number(key);
+      if (!Array.isArray(list) || list.length === 0) continue;
+      // 유니크 클라 id 부여 + serverId 제거(미저장). 불변 — 새 객체 생성.
+      const withIds = list.map((l) => ({ ...l, id: nextAutolabelId(), serverId: undefined }));
+      next[srcSn] = [...(next[srcSn] ?? []), ...withIds];
+    }
+    set({ pendingTracks: next });
+  },
+
+  drainPendingTracks: (srcSn) => {
+    const prev = get().pendingTracks;
+    const drained = prev[srcSn] ?? [];
+    if (drained.length === 0) return [];
+    // 불변 — 해당 키만 제거한 새 객체 생성.
+    const next: Record<number, Label[]> = { ...prev };
+    delete next[srcSn];
+    set({ pendingTracks: next });
+    return drained;
+  },
+
   reset: () =>
     set({
       activeTool: ToolTypeEnum.SELECT,
@@ -478,5 +569,6 @@ export const useLabelStore = create<LabelState>((set, get) => ({
       imageAdjust: { ...DEFAULT_IMAGE_ADJUST },
       hiddenLabelIds: new Set<string>(),
       lockedLabelIds: new Set<string>(),
+      pendingTracks: {},
     }),
 }));

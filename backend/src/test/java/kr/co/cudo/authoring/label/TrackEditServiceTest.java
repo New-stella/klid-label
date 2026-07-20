@@ -20,6 +20,8 @@ import kr.co.cudo.authoring.label.dto.TrackSplitResponse;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.label.service.TrackEditService;
+import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -68,6 +70,7 @@ class TrackEditServiceTest {
     private TrackInterpolationStep trackInterpolationStep;
     private LsRawDataStatusRepository rawDataStatusRepository;
     private ApplicationEventPublisher eventPublisher;
+    private LsDataLblHstryRepository lblHstryRepository;
     private TrackEditService service;
 
     @BeforeEach
@@ -81,8 +84,10 @@ class TrackEditServiceTest {
         trackInterpolationStep = mock(TrackInterpolationStep.class);
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        lblHstryRepository = mock(LsDataLblHstryRepository.class);
         service = new TrackEditService(labelRepository, aiInfoRepository, attrValRepository, augLblMapRepository,
-                accessGuard, workLockService, trackInterpolationStep, rawDataStatusRepository, eventPublisher);
+                accessGuard, workLockService, trackInterpolationStep, rawDataStatusRepository, eventPublisher,
+                lblHstryRepository);
         when(accessGuard.parseUserNo(any())).thenReturn(1001L);
         // 재보간 기본 스텁 — 터치 프레임 없음. 개별 테스트가 필요 시 재정의.
         when(trackInterpolationStep.interpolateSingleTrackTouched(anyLong(), anyString(), anyString()))
@@ -132,6 +137,45 @@ class TrackEditServiceTest {
         order.verify(labelRepository).deleteAllByIdInBatch(List.of(11L, 12L));
         order.verify(trackInterpolationStep).interpolateSingleTrackTouched(RAW_SN, TRACK, TRACK);
         order.verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙삭제시_삭제라벨마다_DELETED_히스토리가_saveAll1회로_기록된다")
+    void 트랙삭제_DELETED_히스토리_기록() {
+        LsDataLbl f10 = lbl(11L, 110L, TRACK);
+        LsDataLbl f11 = lbl(12L, 111L, TRACK);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(lbl(1L, 100L, TRACK), f10, f11));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 10L)).thenReturn(List.of(f10, f11));
+
+        service.deleteTrackFrom(RAW_SN, TRACK, 10, worker());
+
+        // 삭제 대상 2건 → DELETED 이력 2건, saveAll 1회(개별 save 반복 금지). 라벨별 (lblSn, srcSn) 정확 매핑.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLblHstry>> cap = ArgumentCaptor.forClass(List.class);
+        verify(lblHstryRepository, org.mockito.Mockito.times(1)).saveAll(cap.capture());
+        List<LsDataLblHstry> hist = cap.getValue();
+        assertThat(hist).hasSize(2);
+        assertThat(hist).allSatisfy(h -> {
+            assertThat(h.getChgKindCd()).isEqualTo("DELETED");
+            assertThat(h.getRegId()).isEqualTo("1001"); // String.valueOf(actorNo) — 행위자 감사
+        });
+        assertThat(hist).extracting(LsDataLblHstry::getLblSn).containsExactly(11L, 12L);
+        assertThat(hist).extracting(LsDataLblHstry::getSrcSn).containsExactly(110L, 111L);
+        // 원자성 — 이력 기록이 라벨 row 삭제(부모)보다 먼저(같은 tx).
+        InOrder order = inOrder(lblHstryRepository, labelRepository);
+        order.verify(lblHstryRepository).saveAll(anyList());
+        order.verify(labelRepository).deleteAllByIdInBatch(anyList());
+    }
+
+    @Test
+    @DisplayName("트랙삭제_범위밖_변경없으면_DELETED_히스토리도_없음")
+    void 트랙삭제_범위밖_히스토리없음() {
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(lbl(1L, 100L, TRACK)));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 999L)).thenReturn(List.of());
+
+        service.deleteTrackFrom(RAW_SN, TRACK, 999, worker());
+
+        verify(lblHstryRepository, never()).saveAll(anyList());
     }
 
     @Test

@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
+import kr.co.cudo.authoring.label.dto.LabelHistoryResponse;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentRequest;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentResponse;
@@ -21,6 +22,10 @@ import kr.co.cudo.authoring.label.service.Sam2SegmentService;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
 import kr.co.cudo.authoring.label.service.YoloTrackService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,6 +67,26 @@ public class LabelController {
             @RequestParam(name = "raw", defaultValue = "false") boolean raw,
             @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(labelService.getByFrame(srcSn, actor, raw));
+    }
+
+    @Operation(
+            summary = "프레임 라벨 변경 이력 조회",
+            description = "프레임(SRC_SN) 단위 라벨 변경 이력(ADDED/UPDATED/DELETED + 시각 + 작업자)을 최신순 페이징 조회. "
+                    + "WORKER 는 본인 배정 프레임만 접근 가능(CWE-639 방어). 기본 size=20, 최대 100(초과 시 100 클램프)."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (CWE-639 방어)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음")
+    })
+    @GetMapping("/{srcSn}/label-history")
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ApiResponse<Page<LabelHistoryResponse>> getLabelHistory(
+            @Parameter(description = "프레임 PK", required = true, example = "1") @PathVariable Long srcSn,
+            @PageableDefault(size = 20, sort = "regDt", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(labelService.getHistory(srcSn, actor, pageable));
     }
 
     @Operation(

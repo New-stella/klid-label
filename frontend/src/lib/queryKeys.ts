@@ -36,6 +36,11 @@ export const LABEL_KEYS = {
   byVideo: (videoId: number) => [...LABEL_KEYS.all, 'video', videoId] as const,
   byFrame: (videoId: number, frameNo: number) =>
     [...LABEL_KEYS.all, 'video', videoId, 'frame', frameNo] as const,
+  /** 프레임(srcSn) 라벨 변경 이력 — 전체 페이지 prefix (저장 후 일괄 invalidate 용). */
+  historyByFrame: (srcSn: number) => [...LABEL_KEYS.all, 'history', srcSn] as const,
+  /** 프레임(srcSn) 라벨 변경 이력 — 페이지별 캐시 키. */
+  history: (srcSn: number, page: number) =>
+    [...LABEL_KEYS.historyByFrame(srcSn), page] as const,
 };
 
 export const REVIEW_KEYS = {

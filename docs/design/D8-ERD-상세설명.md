@@ -50,12 +50,12 @@
 - `LS_DATA_META` — 영상 시계열 메타(VLM 등). `RAW_SN`에 붙는 키-값(`META_KEY`/`META_VL`).
 - `LS_DATA_META_HSTRY` — 메타 변경 이력.
 - `LS_DATA_META_REVIEW` — 메타 검토상태. `META_TYPE_CD`, `RVW_STTS_CD`(REVIEWER가 검토·승인).
-- `LS_DATA_LBL_HSTRY` — 라벨 삭제 이력(D1 `LsDataLblHstry`/DC-093). 비식별 누락 신고 시 영상 라벨을 일괄 삭제하기 전에 `LBL_SN`·`SRC_SN`·삭제 시점을 기록해 라벨 본문 삭제 후에도 이력을 보존한다. `LBL_SN`은 삭제될 라벨 참조라 **물리 FK 미설정**(라벨 삭제가 이력을 위반/cascade하지 않도록), `SRC_SN`(프레임)은 존속하므로 조회 인덱스만 둔다.
+- `LS_DATA_LBL_HSTRY` — 라벨 변경 이력(D1 `LsDataLblHstry`/DC-093). **용도 확장(V112, 2026-07-20)**: 기존에는 비식별 누락 신고 시 영상 라벨을 일괄 삭제하기 전 `LBL_SN`·`SRC_SN`·삭제 시점만 기록하는 '삭제 전용 감사'였으나, `CHG_KIND_CD`(변경종류: ADDED/UPDATED/DELETED)·`REG_ID`(작업자)를 추가해 라벨 저장(`bulkUpsert`) 시점의 추가·수정 이력까지 같은 트랜잭션에서 기록한다(신규 컬럼 NULLABLE, 기존 row는 `DELETED`로 backfill). 조회는 `GET /v1/frames/{srcSn}/label-history`. `LBL_SN`은 원본 라벨 참조라 **물리 FK 미설정**(라벨 삭제가 이력을 위반/cascade하지 않도록), `SRC_SN`(프레임)은 존속하므로 조회 인덱스만 둔다.
 
 **관계**
 - `LS_DATA_SRC ||--o{ LS_DATA_LBL` : 프레임 1개 → 라벨 N개
 - 라벨 → AI출처 / 속성값
-- `LS_DATA_SRC ||--o{ LS_DATA_LBL_HSTRY` : 프레임 → 라벨 삭제 이력 (`SRC_SN` 앵커, `LBL_SN`은 FK 미설정)
+- `LS_DATA_SRC ||--o{ LS_DATA_LBL_HSTRY` : 프레임 → 라벨 변경 이력 (`SRC_SN` 앵커, `LBL_SN`은 FK 미설정)
 - `LS_DATA_RAW ||--o{ LS_DATA_META` : 영상 → 메타 (라벨은 프레임, 메타는 영상 단위)
 - 메타 → 이력 / 검토상태
 
