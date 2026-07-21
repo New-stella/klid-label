@@ -102,3 +102,46 @@ export async function updateLabelAttr(
 export async function deleteLabelAttr(labelId: number, attrId: number): Promise<void> {
   await apiClient.delete(`/manage/labels/${labelId}/attrs/${attrId}`);
 }
+
+// ── 라벨 인스턴스(LS_DATA_LBL) 속성값 ─────────────────────────────────────────
+//
+// BE 계약 (REVIEWER/WORKER):
+//   GET /v1/labels/{lblSn}/attrs   (List<LabelAttrValueResponse> — 현재 저장값, 선택지 미포함)
+//   PUT /v1/labels/{lblSn}/attrs   ({ values: [{attrId, value}] } — (lblSn,attrId) UNIQUE upsert)
+//
+// 보안: upsert 본문은 {attrId,value} 만 전송(Mass Assignment 방어). value 는 문자열 —
+//       CHECKBOX 다중선택은 JSON 배열 문자열로 직렬화해 저장하고, 로드 시 parseValues 로 복원.
+
+/** 라벨 인스턴스의 속성 저장값(서버 표현). 선택지(valuesJson)는 정의 조회로만 제공됨. */
+export interface LabelAttrValue {
+  attrId: number;
+  name: string;
+  inputType: LabelAttrInputType;
+  value: string;
+}
+
+/** BE 값 응답 1건을 LabelAttrValue 로 정규화(누락/이상값 안전 폴백). */
+function normalizeValue(v: LabelAttrValue): LabelAttrValue {
+  return {
+    attrId: Number(v.attrId),
+    name: String(v.name ?? ''),
+    inputType: normalizeInputType(v.inputType),
+    value: v.value == null ? '' : String(v.value),
+  };
+}
+
+/** 특정 라벨 인스턴스(lblSn)의 속성 저장값 목록 조회. 비배열 응답은 빈 배열로 방어. */
+export async function getLabelAttrValues(lblSn: number): Promise<LabelAttrValue[]> {
+  const res = await apiClient.get<LabelAttrValue[]>(`/labels/${lblSn}/attrs`);
+  const data = res.data;
+  if (!Array.isArray(data)) return [];
+  return data.map(normalizeValue);
+}
+
+/** 속성값 upsert (PUT → 200). 허용 필드({attrId,value})만 전송. */
+export async function putLabelAttrValues(
+  lblSn: number,
+  values: { attrId: number; value: string }[],
+): Promise<void> {
+  await apiClient.put(`/labels/${lblSn}/attrs`, { values });
+}
