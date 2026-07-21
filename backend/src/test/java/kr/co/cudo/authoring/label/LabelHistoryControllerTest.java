@@ -44,13 +44,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Phase 2 — 라벨 변경 이력 기록/조회 통합 테스트 (V112 마이그레이션 위 실 PostgreSQL).
  *
+ * <p>V114 재구조화: "라벨 1건=1행" → "저장 이벤트=1행 + 종류별 건수". 한 번의 bulkUpsert 는
+ * 라벨 N건이어도 저장 이벤트 1건(addCnt/mdfcnCnt 집계)으로 기록된다.
+ *
  * <p>검증 범위:
  * <ul>
- *   <li>저장 경로(PUT /v1/frames/{srcSn}/labels)에서 ADDED/UPDATED 이력 원자 기록(HIGH #1).</li>
+ *   <li>저장 경로(PUT /v1/frames/{srcSn}/labels)에서 저장 이벤트 원자 기록(HIGH #1).</li>
  *   <li>조회 API(GET /v1/frames/{srcSn}/label-history) 최신순 페이징(HIGH #9).</li>
  *   <li>IDOR — 타인 배정 프레임 히스토리 조회 403(HIGH #8).</li>
  *   <li>페이지 크기 기본 20 / 상한 100 클램프(CWE-770).</li>
- *   <li>recordDeletion 회귀 없음 — chgKindCd='DELETED', regId=null(HIGH #7).</li>
+ *   <li>트랙 삭제 → 프레임 단위 DELETED 저장 이벤트(delCnt) 노출.</li>
  * </ul>
  */
 @SpringBootTest
@@ -106,7 +109,7 @@ class LabelHistoryControllerTest {
     }
 
     @Test
-    @DisplayName("라벨_신규저장시_ADDED_히스토리가_기록된다")
+    @DisplayName("라벨_신규저장시_ADDED_저장이벤트가_기록된다")
     void addedHistoryOnCreate() throws Exception {
         mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + workerAssignedToken)
@@ -116,30 +119,35 @@ class LabelHistoryControllerTest {
 
         List<LsDataLblHstry> hist = historyRepository.findBySrcSnOrderByRegDtDesc(srcSn);
         assertThat(hist).hasSize(1);
-        assertThat(hist.get(0).getChgKindCd()).isEqualTo("ADDED");
+        assertThat(hist.get(0).getAddCnt()).isEqualTo(1);
+        assertThat(hist.get(0).getMdfcnCnt()).isEqualTo(0);
         assertThat(hist.get(0).getRegId()).isEqualTo("100");
         assertThat(hist.get(0).getRegDt()).isNotNull();
-        // 신규 라벨 lblSn 이 이력에 연결됨
-        List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
-        assertThat(hist.get(0).getLblSn()).isEqualTo(saved.get(0).getLblSn());
+        assertThat(hist.get(0).getChgDtlCn()).contains("ADDED");
     }
 
     @Test
-    @DisplayName("라벨_수정저장시_UPDATED_히스토리가_기록된다")
+    @DisplayName("라벨_추가수정은_단일_저장이벤트로_묶인다")
     void updatedHistoryOnEdit() throws Exception {
         LsDataLbl seed = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car",
                 "[[5.0,5.0],[40.0,40.0]]", new BigDecimal("0.9000"), null));
 
+        // 기존 라벨 수정 1건 + 신규 라벨 1건을 한 요청으로 저장 → 단일 저장 이벤트(add=1, mdfcn=1).
+        LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
+                new LabelItemDto(seed.getLblSn(), "BBOX", null, "car",
+                        List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null),
+                new LabelItemDto(null, "BBOX", null, "person",
+                        List.of(List.of(1.0, 1.0), List.of(2.0, 2.0)), null)));
         mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + workerAssignedToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(newBboxRequest(seed.getLblSn(), "car"))))
+                        .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
         List<LsDataLblHstry> hist = historyRepository.findBySrcSnOrderByRegDtDesc(srcSn);
         assertThat(hist).hasSize(1);
-        assertThat(hist.get(0).getChgKindCd()).isEqualTo("UPDATED");
-        assertThat(hist.get(0).getLblSn()).isEqualTo(seed.getLblSn());
+        assertThat(hist.get(0).getMdfcnCnt()).isEqualTo(1);
+        assertThat(hist.get(0).getAddCnt()).isEqualTo(1);
         assertThat(hist.get(0).getRegId()).isEqualTo("100");
     }
 
@@ -168,7 +176,7 @@ class LabelHistoryControllerTest {
     @Test
     @DisplayName("히스토리_조회는_최신순_페이징으로_반환한다")
     void getHistoryReturnsLatestFirst() throws Exception {
-        // 3건 신규 저장 → ADDED 이력 3건
+        // 3건 신규를 한 요청으로 저장 → 저장 이벤트 1건(addCnt=3)
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
                 new LabelItemDto(null, "BBOX", null, "a", List.of(List.of(1.0, 1.0), List.of(2.0, 2.0)), null),
                 new LabelItemDto(null, "BBOX", null, "b", List.of(List.of(3.0, 3.0), List.of(4.0, 4.0)), null),
@@ -182,9 +190,9 @@ class LabelHistoryControllerTest {
         mockMvc.perform(get("/v1/frames/" + srcSn + "/label-history")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(3))
-                .andExpect(jsonPath("$.data.content.length()").value(3))
-                .andExpect(jsonPath("$.data.content[0].changeKind").value("ADDED"))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].addCnt").value(3))
                 .andExpect(jsonPath("$.data.content[0].actor").value("100"))
                 // 최신순 — LBL_HSTRY_SN DESC tiebreaker 로 첫 원소 PK 가 가장 큼
                 .andExpect(jsonPath("$.data.content[0].lblHstrySn")
@@ -218,9 +226,9 @@ class LabelHistoryControllerTest {
     }
 
     @Test
-    @DisplayName("트랙삭제시_DELETED_히스토리가_조회API에_노출된다")
+    @DisplayName("트랙삭제시_DELETED_저장이벤트가_조회API에_노출된다")
     void deletedHistoryExposedThroughApi() throws Exception {
-        // given — 라벨 저장(ADDED) 1건(트랙 없음) + 트랙 라벨(seed) 1건.
+        // given — 라벨 저장(ADDED 이벤트) 1건(트랙 없음) + 트랙 라벨(seed) 1건 직접 저장(이벤트 미기록).
         mockMvc.perform(put("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + workerAssignedToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -228,17 +236,16 @@ class LabelHistoryControllerTest {
                 .andExpect(status().isOk());
         labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car", "[]", BigDecimal.ZERO, "5"));
 
-        // when — 트랙 "5" 삭제 (WORKER 100 본인 배정). 삭제 감사 이력이 실제로 기록되어야 한다.
+        // when — 트랙 "5" 삭제 (WORKER 100 본인 배정). 삭제 감사 이벤트가 실제로 기록되어야 한다.
         TokenClaims worker100 = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(600));
         trackEditService.deleteTrackFrom(rawSn, "5", 0, worker100);
 
-        // then — GET label-history 응답에 DELETED 항목(regId=100)이 노출된다. ADDED + DELETED = 2건.
+        // then — ADDED 이벤트 + DELETED 이벤트 = 2건. content[0] 은 최신(DELETED, delCnt=1, actor=100).
         mockMvc.perform(get("/v1/frames/" + srcSn + "/label-history")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(2))
-                // 최신순 — DELETED 가 ADDED 보다 나중 기록(더 큰 PK) → content[0].
-                .andExpect(jsonPath("$.data.content[0].changeKind").value("DELETED"))
+                .andExpect(jsonPath("$.data.content[0].delCnt").value(1))
                 .andExpect(jsonPath("$.data.content[0].actor").value("100"));
     }
 
@@ -253,20 +260,19 @@ class LabelHistoryControllerTest {
                         .content(objectMapper.writeValueAsString(newBboxRequest(ghostId, "person"))))
                 .andExpect(status().isOk());
 
-        // 신규 라벨이 생성되고(요청 id 재사용 아님) ADDED 이력 1건.
+        // 신규 라벨이 생성되고(요청 id 재사용 아님) ADDED 저장 이벤트 1건.
         List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
         assertThat(saved).hasSize(1);
         assertThat(saved.get(0).getLblSn()).isNotEqualTo(ghostId);
         List<LsDataLblHstry> hist = historyRepository.findBySrcSnOrderByRegDtDesc(srcSn);
         assertThat(hist).hasSize(1);
-        assertThat(hist.get(0).getChgKindCd()).isEqualTo("ADDED");
-        assertThat(hist.get(0).getLblSn()).isEqualTo(saved.get(0).getLblSn());
+        assertThat(hist.get(0).getAddCnt()).isEqualTo(1);
     }
 
     @Test
     @DisplayName("히스토리조회_임의_sort파라미터는_무시되고_최신순_고정정렬된다")
     void arbitrarySortParamIgnoredNoServerError() throws Exception {
-        // 2건 저장 → ADDED 2건.
+        // 2건을 한 요청으로 저장 → 저장 이벤트 1건(addCnt=2).
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
                 new LabelItemDto(null, "BBOX", null, "a", List.of(List.of(1.0, 1.0), List.of(2.0, 2.0)), null),
                 new LabelItemDto(null, "BBOX", null, "b", List.of(List.of(3.0, 3.0), List.of(4.0, 4.0)), null)));
@@ -281,25 +287,9 @@ class LabelHistoryControllerTest {
                         .queryParam("sort", "notAField,asc")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(2))
-                // 최신순 고정 — content[0].lblHstrySn 이 content[1] 보다 큼(REG_DT DESC, LBL_HSTRY_SN DESC).
-                .andExpect(jsonPath("$.data.content[0].changeKind").value("ADDED"))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].addCnt").value(2))
                 .andExpect(jsonPath("$.data.content[0].lblHstrySn")
                         .value(org.hamcrest.Matchers.greaterThan(0)));
-    }
-
-    @Test
-    @DisplayName("비식별신고_삭제이력_recordDeletion_기록은_회귀없이_유지된다")
-    void recordDeletionRegressionKept() {
-        // DeidentReportService 무수정 경로가 사용하는 recordDeletion 팩토리 계약 검증:
-        // chgKindCd='DELETED' 자동세팅 + regId=null.
-        LsDataLblHstry saved = historyRepository.saveAndFlush(
-                LsDataLblHstry.recordDeletion(777L, srcSn));
-
-        assertThat(saved.getLblHstrySn()).isNotNull();
-        assertThat(saved.getChgKindCd()).isEqualTo("DELETED");
-        assertThat(saved.getRegId()).isNull();
-        assertThat(saved.getLblSn()).isEqualTo(777L);
-        assertThat(saved.getSrcSn()).isEqualTo(srcSn);
     }
 }

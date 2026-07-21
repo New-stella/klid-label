@@ -140,7 +140,7 @@ class TrackEditServiceTest {
     }
 
     @Test
-    @DisplayName("트랙삭제시_삭제라벨마다_DELETED_히스토리가_saveAll1회로_기록된다")
+    @DisplayName("트랙삭제_이력은_프레임당_DELETED_이벤트로_기록된다")
     void 트랙삭제_DELETED_히스토리_기록() {
         LsDataLbl f10 = lbl(11L, 110L, TRACK);
         LsDataLbl f11 = lbl(12L, 111L, TRACK);
@@ -149,22 +149,44 @@ class TrackEditServiceTest {
 
         service.deleteTrackFrom(RAW_SN, TRACK, 10, worker());
 
-        // 삭제 대상 2건 → DELETED 이력 2건, saveAll 1회(개별 save 반복 금지). 라벨별 (lblSn, srcSn) 정확 매핑.
+        // V114 — 서로 다른 2개 프레임(110/111) 삭제 → 프레임당 저장 이벤트 1건 = 이벤트 2건, saveAll 1회.
+        // 각 이벤트는 delCnt=1(add/mdfcn=0), regId=행위자, srcSn=해당 프레임.
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<LsDataLblHstry>> cap = ArgumentCaptor.forClass(List.class);
         verify(lblHstryRepository, org.mockito.Mockito.times(1)).saveAll(cap.capture());
         List<LsDataLblHstry> hist = cap.getValue();
         assertThat(hist).hasSize(2);
         assertThat(hist).allSatisfy(h -> {
-            assertThat(h.getChgKindCd()).isEqualTo("DELETED");
+            assertThat(h.getDelCnt()).isEqualTo(1);
+            assertThat(h.getAddCnt()).isEqualTo(0);
+            assertThat(h.getMdfcnCnt()).isEqualTo(0);
             assertThat(h.getRegId()).isEqualTo("1001"); // String.valueOf(actorNo) — 행위자 감사
+            assertThat(h.getChgDtlCn()).contains("DELETED");
         });
-        assertThat(hist).extracting(LsDataLblHstry::getLblSn).containsExactly(11L, 12L);
         assertThat(hist).extracting(LsDataLblHstry::getSrcSn).containsExactly(110L, 111L);
         // 원자성 — 이력 기록이 라벨 row 삭제(부모)보다 먼저(같은 tx).
         InOrder order = inOrder(lblHstryRepository, labelRepository);
         order.verify(lblHstryRepository).saveAll(anyList());
         order.verify(labelRepository).deleteAllByIdInBatch(anyList());
+    }
+
+    @Test
+    @DisplayName("트랙삭제_같은프레임_다건은_단일이벤트_delCnt집계로_기록된다")
+    void 트랙삭제_같은프레임_단일이벤트() {
+        LsDataLbl a = lbl(21L, 200L, TRACK);
+        LsDataLbl b = lbl(22L, 200L, TRACK); // 같은 프레임 200L
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(a, b));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 10L)).thenReturn(List.of(a, b));
+
+        service.deleteTrackFrom(RAW_SN, TRACK, 10, worker());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLblHstry>> cap = ArgumentCaptor.forClass(List.class);
+        verify(lblHstryRepository).saveAll(cap.capture());
+        List<LsDataLblHstry> hist = cap.getValue();
+        assertThat(hist).hasSize(1);
+        assertThat(hist.get(0).getSrcSn()).isEqualTo(200L);
+        assertThat(hist.get(0).getDelCnt()).isEqualTo(2);
     }
 
     @Test

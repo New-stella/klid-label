@@ -29,11 +29,21 @@ const payload = {
     content: [
       {
         lblHstrySn: 1,
-        lblSn: 10,
-        changeKind: 'ADDED',
-        actor: 'w1',
+        srcSn: 7,
         regDt: '2026-07-20T10:00:00',
-        label: 'person',
+        actor: 'w1',
+        addCnt: 1,
+        mdfcnCnt: 0,
+        delCnt: 0,
+        changes: [
+          {
+            lblSn: 10,
+            changeKind: 'ADDED',
+            labelName: 'person',
+            before: null,
+            after: { lblTypeCd: 'BBOX', labelId: 1, labelNm: 'person', pointCn: '[[0,0],[1,1]]' },
+          },
+        ],
       },
     ],
     number: 0,
@@ -64,7 +74,7 @@ describe('useLabelHistory', () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.content[0].label).toBe('person');
+    expect(result.current.data?.content[0].changes[0].labelName).toBe('person');
 
     // 캐시가 history 키로 격리되는지 확인
     const cached = qc.getQueryData(LABEL_KEYS.history(7, 2));

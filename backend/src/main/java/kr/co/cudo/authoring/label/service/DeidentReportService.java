@@ -17,6 +17,8 @@ import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
+import kr.co.cudo.authoring.version.entity.LabelChange;
+import kr.co.cudo.authoring.version.entity.LabelSnapshot;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.version.service.VersionService;
@@ -29,7 +31,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Phase 2 (R1 v1.14) — 비식별 누락 신고 워크플로우 서비스.
@@ -261,17 +267,24 @@ public class DeidentReportService {
     }
 
     /**
-     * 삭제 대상 라벨들의 삭제 이력을 LS_DATA_LBL_HSTRY 에 일괄 기록 (saveAll — 1건씩 save 금지).
+     * 삭제 대상 라벨들의 삭제 이력을 LS_DATA_LBL_HSTRY 에 <b>프레임(srcSn) 단위 저장 이벤트</b>로 기록(saveAll).
      *
-     * <p>매핑된 컬럼(LBL_SN / SRC_SN / REGISTERED_AT)만 기록한다. 사유·행위자 등 PII 는
-     * 저장하지 않으며(복원 본문은 LS_LABEL_VERSION 스냅샷, 사유는 LS_DEIDENT_REPORT 보존),
-     * 이력은 "어떤 라벨이 어느 프레임에서 삭제되었는가" 의 식별만 보존한다.
+     * <p>V114 재구조화: 영상 전체 삭제는 여러 프레임에 걸치므로 srcSn 으로 group by 하여 프레임당
+     * DELETED 이벤트 1건(delCnt = 프레임 내 삭제 건수) 을 남긴다. 신고 경로는 행위자 PII 를
+     * 저장하지 않으므로 regId=null(복원 본문은 LS_LABEL_VERSION 스냅샷, 사유는 LS_DEIDENT_REPORT 보존).
      */
     private void recordDeletionHistory(List<LsDataLbl> labels) {
-        List<LsDataLblHstry> histories = labels.stream()
-                .map(l -> LsDataLblHstry.recordDeletion(l.getLblSn(), l.getSrcSn()))
-                .toList();
-        lblHstryRepository.saveAll(histories);
+        Map<Long, List<LsDataLbl>> bySrc = labels.stream()
+                .collect(Collectors.groupingBy(LsDataLbl::getSrcSn, LinkedHashMap::new, Collectors.toList()));
+        List<LsDataLblHstry> events = new ArrayList<>();
+        bySrc.forEach((srcSn, group) -> {
+            List<LabelChange> changes = group.stream()
+                    .map(l -> LabelChange.deleted(l.getLblSn(), l.getLabelNm(),
+                            new LabelSnapshot(l.getLblTypeCd(), l.getLabelId(), l.getLabelNm(), l.getPointCn())))
+                    .toList();
+            events.add(LsDataLblHstry.recordSaveEvent(srcSn, null, changes));
+        });
+        lblHstryRepository.saveAll(events);
     }
 
     /**

@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.label;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
+import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -77,7 +78,7 @@ class LabelServiceKeypointTest {
         service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, rawDataStatusRepository,
-                mock(LsDataLblHstryRepository.class));
+                mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class));
 
         LsDataSrc src = LsDataSrc.create(RAW_SN, 0, "/raw/f0.jpg", null);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(src);

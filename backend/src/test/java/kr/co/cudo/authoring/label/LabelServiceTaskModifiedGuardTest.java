@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
+import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -76,7 +77,7 @@ class LabelServiceTaskModifiedGuardTest {
         service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, new ObjectMapper(),
                 lsLabelRepository, eventPublisher, rawDataStatusRepository,
-                mock(LsDataLblHstryRepository.class));
+                mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class));
     }
 
     private TokenClaims worker() {

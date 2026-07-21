@@ -722,21 +722,96 @@ describe('label api', () => {
     });
   });
 
-  describe('getLabelHistory 정규화 (coverage 보강)', () => {
-    it('getLabelHistory_미지_changeKind는_UPDATED로_폴백', async () => {
+  describe('getLabelHistory 정규화 (저장 이벤트 + changes 스키마)', () => {
+    it('getLabelHistory_이벤트와_changes_상세를_정규화한다', async () => {
+      // BE 신 스키마: LabelHistoryResponse{ lblHstrySn, srcSn, regDt, actor,
+      //   addCnt, mdfcnCnt, delCnt, changes: LabelChangeView[] }
       mock.onGet('/frames/810/label-history').reply(200, {
         success: true,
         data: {
-          content: [{ lblHstrySn: 1, lblSn: 10, changeKind: 'WHAT', actor: 'w1', regDt: '2026-07-20T10:00:00', label: 'car' }],
+          content: [
+            {
+              lblHstrySn: 3,
+              srcSn: 810,
+              regDt: '2026-07-20T10:00:00',
+              actor: 'w1',
+              addCnt: 1,
+              mdfcnCnt: 1,
+              delCnt: 1,
+              changes: [
+                {
+                  lblSn: 30,
+                  changeKind: 'ADDED',
+                  labelName: 'person',
+                  before: null,
+                  after: { lblTypeCd: 'BBOX', labelId: 1, labelNm: 'person', pointCn: '[[10,20],[100,80]]' },
+                },
+                {
+                  lblSn: 20,
+                  changeKind: 'UPDATED',
+                  labelName: 'car',
+                  before: { lblTypeCd: 'BBOX', labelId: 2, labelNm: 'car', pointCn: '[[0,0],[10,10]]' },
+                  after: { lblTypeCd: 'BBOX', labelId: 2, labelNm: 'truck', pointCn: '[[0,0],[20,20]]' },
+                },
+                {
+                  lblSn: null,
+                  changeKind: 'DELETED',
+                  labelName: 'bike',
+                  before: { lblTypeCd: 'POLYGON', labelId: 3, labelNm: 'bike', pointCn: '[[1,1],[2,2],[3,3]]' },
+                  after: null,
+                },
+              ],
+            },
+          ],
           number: 0, size: 20, totalElements: 1, totalPages: 1,
         },
         message: null, errorCode: null,
       });
       const res = await getLabelHistory(810);
-      expect(res.content[0].changeKind).toBe('UPDATED');
+      const item = res.content[0];
+      expect(item.lblHstrySn).toBe(3);
+      expect(item.srcSn).toBe(810);
+      expect(item.actor).toBe('w1');
+      expect(item.addCnt).toBe(1);
+      expect(item.mdfcnCnt).toBe(1);
+      expect(item.delCnt).toBe(1);
+      expect(item.changes).toHaveLength(3);
+      expect(item.changes[0].changeKind).toBe('ADDED');
+      expect(item.changes[0].before).toBeNull();
+      expect(item.changes[0].after?.labelNm).toBe('person');
+      expect(item.changes[1].changeKind).toBe('UPDATED');
+      expect(item.changes[1].before?.labelNm).toBe('car');
+      expect(item.changes[1].after?.labelNm).toBe('truck');
+      expect(item.changes[2].changeKind).toBe('DELETED');
+      expect(item.changes[2].after).toBeNull();
+      expect(item.changes[2].labelName).toBe('bike');
     });
 
-    it('getLabelHistory_필드_누락시_안전한_기본값으로_정규화', async () => {
+    it('getLabelHistory_changes_항목의_미지_changeKind는_UPDATED로_폴백', async () => {
+      mock.onGet('/frames/814/label-history').reply(200, {
+        success: true,
+        data: {
+          content: [
+            {
+              lblHstrySn: 1,
+              srcSn: 814,
+              regDt: '2026-07-20T10:00:00',
+              actor: 'w1',
+              addCnt: 0,
+              mdfcnCnt: 1,
+              delCnt: 0,
+              changes: [{ lblSn: 10, changeKind: 'WHAT', labelName: 'car', before: {}, after: {} }],
+            },
+          ],
+          number: 0, size: 20, totalElements: 1, totalPages: 1,
+        },
+        message: null, errorCode: null,
+      });
+      const res = await getLabelHistory(814);
+      expect(res.content[0].changes[0].changeKind).toBe('UPDATED');
+    });
+
+    it('getLabelHistory_이벤트_필드_누락시_안전한_기본값으로_정규화', async () => {
       mock.onGet('/frames/811/label-history').reply(200, {
         success: true,
         data: { content: [{}], number: 0, size: 20, totalElements: 1, totalPages: 1 },
@@ -745,18 +820,34 @@ describe('label api', () => {
       const res = await getLabelHistory(811);
       const item = res.content[0];
       expect(item.lblHstrySn).toBe(0);
-      expect(item.lblSn).toBeNull();
-      expect(item.changeKind).toBe('UPDATED');
+      expect(item.srcSn).toBe(0);
       expect(item.actor).toBeNull();
       expect(item.regDt).toBe('');
-      expect(item.label).toBeNull();
+      expect(item.addCnt).toBe(0);
+      expect(item.mdfcnCnt).toBe(0);
+      expect(item.delCnt).toBe(0);
+      // changes 누락/비배열 → 빈 배열로 방어
+      expect(item.changes).toEqual([]);
+    });
+
+    it('getLabelHistory_changes_비배열이면_빈배열로_방어', async () => {
+      mock.onGet('/frames/815/label-history').reply(200, {
+        success: true,
+        data: {
+          content: [{ lblHstrySn: 1, srcSn: 815, regDt: '2026-07-20T10:00:00', changes: 'oops' }],
+          number: 0, size: 20, totalElements: 1, totalPages: 1,
+        },
+        message: null, errorCode: null,
+      });
+      const res = await getLabelHistory(815);
+      expect(res.content[0].changes).toEqual([]);
     });
 
     it('getLabelHistory_totalPages_누락시_content유무로_추정', async () => {
       // content 有 → 1
       mock.onGet('/frames/812/label-history').reply(200, {
         success: true,
-        data: { content: [{ lblHstrySn: 1, changeKind: 'ADDED' }] },
+        data: { content: [{ lblHstrySn: 1, srcSn: 812, changes: [] }] },
         message: null, errorCode: null,
       });
       const withContent = await getLabelHistory(812);

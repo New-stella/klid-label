@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.common.util.KeypointPoint;
@@ -28,7 +29,8 @@ import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
-import kr.co.cudo.authoring.version.entity.LabelChangeKind;
+import kr.co.cudo.authoring.version.entity.LabelChange;
+import kr.co.cudo.authoring.version.entity.LabelSnapshot;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -86,6 +88,8 @@ public class LabelService {
     private final LsRawDataStatusRepository rawDataStatusRepository;
     /** Phase 2 — 라벨 변경 이력(ADDED/UPDATED/DELETED) 감사 기록/조회. */
     private final LsDataLblHstryRepository labelHistoryRepository;
+    /** Phase 2 full-replace — 삭제 라벨의 속성값(자식) 선삭제(FK 고아 방지). */
+    private final LsDataLblAttrValRepository attrValRepository;
 
     /** CWE-770 DoS — 라벨 히스토리 조회 페이지 크기 상한. */
     public static final int MAX_HISTORY_PAGE_SIZE = 100;
@@ -100,7 +104,8 @@ public class LabelService {
                         LsLabelRepository lsLabelRepository,
                         ApplicationEventPublisher eventPublisher,
                         LsRawDataStatusRepository rawDataStatusRepository,
-                        LsDataLblHstryRepository labelHistoryRepository) {
+                        LsDataLblHstryRepository labelHistoryRepository,
+                        LsDataLblAttrValRepository attrValRepository) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
@@ -112,6 +117,7 @@ public class LabelService {
         this.eventPublisher = eventPublisher;
         this.rawDataStatusRepository = rawDataStatusRepository;
         this.labelHistoryRepository = labelHistoryRepository;
+        this.attrValRepository = attrValRepository;
     }
 
     /**
@@ -215,11 +221,13 @@ public class LabelService {
     }
 
     /**
-     * 프레임 라벨 bulk upsert.
+     * 프레임 라벨 bulk upsert — <b>프레임 전체 교체(full-replace)</b>.
      *  - id == null : 신규 INSERT — source 가 AUTO 계열이면 AUTO_LBL_YN='Y' + LS_DATA_LBL_AI_INFO(신뢰도/알고리즘)
      *                 기록(R9 온라인 오토라벨 출처 보존), 그 외(MANUAL/미지정)는 기존대로 수동 저장(AUTO_LBL_YN='N').
      *  - id != null : 기존 UPDATE (AUTO_LBL_YN 유지 — 자동 라벨이라도 'Y' 그대로, provenance 힌트 무시)
-     *  - 요청에 누락된 기존 라벨은 보존 (이번 Phase 정책 — 명시적 DELETE 엔드포인트 별도)
+     *  - <b>요청에 빠진 기존 라벨은 실제 삭제(full-replace)</b> — FE 는 프레임 전체 라벨 세트를 전송하는 계약이다.
+     *    삭제 대상은 현재 프레임(existing=findBySrcSn(srcSn)) 소유 라벨에 한정하며, 자식(ATTR_VAL→AI_INFO)→
+     *    부모(LBL) 순으로 bulk 삭제해 FK 고아를 방지한다(HIGH #1/#2).
      *
      * <p>Mass Assignment(CWE-915) 트러스트 경계: provenance(source/confScore/algorithm)는 DTO @Valid 로
      * 범위·화이트리스트 검증을 통과한 값만 반영하며, AUTO_LBL_YN 은 요청이 직접 지정하지 못하고 source 에서
@@ -236,8 +244,12 @@ public class LabelService {
                     "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
         }
 
+        // LOW hardening — 동일 id 가 items 에 중복되면 last-value-wins 로 dedup 한다(같은 라벨 이중 처리·
+        // 카운트 중복 방지). id==null(신규)은 모두 유지, non-null id 는 마지막 항목만 유효(그 값이 최종 저장값).
+        List<LabelItemDto> items = dedupById(req.items());
+
         // 좌표 사전 검증 (트랜잭션 내부에서 한꺼번에 실패해도 롤백 — 여기선 명시적으로 미리 차단)
-        for (LabelItemDto item : req.items()) {
+        for (LabelItemDto item : items) {
             // 신규 라벨(id == null)은 점 개수 상한을 강제(CWE-770 DoS 방어). 수동 드로잉/정상 SAM2 결과는
             // 모두 상한 이하이며, SAM2 분할/추적 서비스가 적재 전 simplify 하므로 1000점 초과 신규 입력은 비정상.
             // 기존 라벨(id != null)은 상한 초과여도 저장 직전 simplify 로 보존한다(ISSUE-1, 아래 capPoints).
@@ -247,7 +259,7 @@ public class LabelService {
 
         // Phase 2 — labelId 사전 검증 (입력에 포함된 모든 labelId 의 존재 + USE_YN='Y' 확인).
         // N+1 회피: distinct labelId 1회 lookup. (응답 enrichment 는 저장 후 result 기준으로 다시 lookup 한다.)
-        validateAndLoadLabels(req.items());
+        validateAndLoadLabels(items);
 
         // 기존 라벨 인덱싱 (id 기반 수정용)
         List<LsDataLbl> existing = labelRepository.findBySrcSn(srcSn);
@@ -256,12 +268,20 @@ public class LabelService {
             idIndex.put(e.getLblSn(), e);
         }
 
+        // full-replace 델타 기준 — 요청에 담긴 non-null id(=생존 대상). 여기에 없는 existing 라벨은 삭제된다.
+        Set<Long> reqIds = new HashSet<>();
+        for (LabelItemDto item : items) {
+            if (item.id() != null) {
+                reqIds.add(item.id());
+            }
+        }
+
         List<LsDataLbl> result = new ArrayList<>();
-        // Phase 2 — 라벨 변경 이력. 저장 판정과 동일 소스(item.id()==null=신규)로 종류를 결정하고,
-        // 검증·저장이 모두 통과한 뒤 동일 트랜잭션에서 saveAll 1회로 원자 기록한다(HIGH #1).
-        List<LsDataLblHstry> histories = new ArrayList<>();
+        // V114 — 라벨 변경 이력. 저장 판정과 동일 소스(item.id()==null=신규)로 종류를 결정하고,
+        // 검증·저장·삭제가 모두 통과한 뒤 동일 트랜잭션에서 저장 이벤트 1건으로 원자 기록한다(HIGH #1).
+        List<LabelChange> changes = new ArrayList<>();
         String actorId = String.valueOf(actorNo);
-        for (LabelItemDto item : req.items()) {
+        for (LabelItemDto item : items) {
             // ISSUE-1: 저장 직전 점 개수 상한 적용 (SAM2 적재 폴리곤 등 1000점 초과도 simplify 후 저장).
             // SKELETON 은 KeypointSerializer 삼중값 경로로 직렬화 (기존 2-튜플 toJson 경로 불변).
             String pointsJson = serializePoints(item.lblTypeCd(), item.points());
@@ -272,11 +292,19 @@ public class LabelService {
                 //   진입부 accessGuard.verifyAndGet(srcSn) 로 현재 프레임 소유가 검증되고, 타 프레임/미존재 id 는
                 //   여기 진입하지 못한 채 else 로 흘러 '현재 프레임 신규 라벨(ADDED)'로 안전 처리된다(타 프레임 라벨 불변).
                 LsDataLbl found = idIndex.get(item.id());
+                // HIGH #3 — before 스냅샷은 반드시 updateUserContent 호출 前에 캡처한다(변경 전 값 보존).
+                LabelSnapshot before = snapshotOf(found);
                 // Phase 2 — labelId 가 null 이면 기존 값 유지, non-null 이면 검증 후 변경.
                 found.updateUserContent(item.lblTypeCd(), item.labelId(), item.label(), pointsJson);
                 result.add(found);
-                histories.add(LsDataLblHstry.recordChange(
-                        found.getLblSn(), srcSn, LabelChangeKind.UPDATED, actorId));
+                LabelSnapshot after = snapshotOf(found);
+                // R7 — 무변경 재저장 노이즈 차단: FE 계약이 '매 저장마다 프레임 전체 세트 전송'이라 실제로 바뀌지
+                //   않은 라벨도 UPDATE 분기로 들어온다. before/after 가 실질적으로 동일하면 UPDATED 이력을 남기지
+                //   않는다(같으면 mdfcnCnt 미증가 + 이력·통지 미발행). pointCn 은 재직렬화로 표현만 달라질 수
+                //   있어(5 vs 5.0) 수치 정규화 비교한다(snapshotsEqual 참조).
+                if (!snapshotsEqual(before, after)) {
+                    changes.add(LabelChange.updated(found.getLblSn(), found.getLabelNm(), before, after));
+                }
             } else {
                 LsDataLbl created;
                 if (isAutoSource(item.source())) {
@@ -293,21 +321,51 @@ public class LabelService {
                                     item.label(), pointsJson, actorNo));
                 }
                 result.add(created);
-                histories.add(LsDataLblHstry.recordChange(
-                        created.getLblSn(), srcSn, LabelChangeKind.ADDED, actorId));
+                changes.add(LabelChange.added(created.getLblSn(), created.getLabelNm(), snapshotOf(created)));
             }
         }
-        // 감사 이력은 라벨 저장과 원자성이 필요하므로 @Async/AFTER_COMMIT 분리 없이 동일 트랜잭션 내 1회 저장.
-        if (!histories.isEmpty()) {
-            labelHistoryRepository.saveAll(histories);
+
+        // full-replace 삭제 델타 — existing 중 요청(reqIds)에 없는 라벨이 삭제 대상.
+        // HIGH #2 — 삭제 대상은 반드시 existing(=findBySrcSn(srcSn), 현재 프레임 소유)에 한정되므로
+        //   타 프레임/타 영상 라벨은 절대 삭제되지 않는다(진입부 accessGuard 로 프레임 소유도 검증됨).
+        // HIGH #4 — delta 는 동일 트랜잭션 내에서 읽은 existing 기준으로 계산해 TOCTOU 창을 최소화한다.
+        //   프레임은 단일 WORKER 배정(accessGuard 소유 검증)이라 서로 다른 사용자의 동시 저장은 구조적으로
+        //   제한되며, 사후 추적은 아래 deleted 카운트 감사 로깅으로 남긴다(무거운 비관적 락/@Version 미도입).
+        List<LsDataLbl> toDelete = existing.stream()
+                .filter(e -> !reqIds.contains(e.getLblSn()))
+                .toList();
+        if (!toDelete.isEmpty()) {
+            List<Long> delSns = toDelete.stream().map(LsDataLbl::getLblSn).toList();
+            for (LsDataLbl d : toDelete) {
+                // HIGH #5/#6 — 삭제 前 before 스냅샷을 남겨 사후 복구 근거를 보존한다(after=null).
+                // 주의(의도): before 스냅샷은 LS_DATA_LBL 본문(타입/labelId/label명/좌표)만 담고 속성값
+                //   (LS_DATA_LBL_ATTR_VAL)은 포함하지 않는다. 삭제 감사·요약 용도이며, 라벨의 최종 복원 안전망은
+                //   검수 완료 시점 스냅샷(LS_LABEL_VERSION, 속성 포함 전체 JSON)이다.
+                changes.add(LabelChange.deleted(d.getLblSn(), d.getLabelNm(), snapshotOf(d)));
+            }
+            // HIGH #1 — FK 고아 방지 순서: 자식(ATTR_VAL) → 자식(AI_INFO) → 부모(LBL).
+            //   ATTR_VAL 은 실 FK(FK_LS_DATA_LBL_ATTR_LBL)라 먼저 지우지 않으면 부모 삭제가 FK 위반 500.
+            //   모두 bulk delete(N+1 회피 — DeidentReportService.deleteAllVideoLabels 와 동일 순서).
+            attrValRepository.deleteByLblSnIn(delSns);
+            aiInfoRepository.deleteByDataLblSnIn(delSns);
+            labelRepository.deleteAllByIdInBatch(delSns);
         }
-        log.info("[Label] bulkUpsert srcSn={} actor={} count={}", srcSn, actorNo, result.size());
+
+        // 감사 이력은 라벨 저장과 원자성이 필요하므로 @Async/AFTER_COMMIT 분리 없이 동일 트랜잭션 내 저장 이벤트 1건 기록.
+        // 무변경(changes 비면) 이벤트는 만들지 않는다(R7, LOW #12).
+        if (!changes.isEmpty()) {
+            labelHistoryRepository.save(LsDataLblHstry.recordSaveEvent(srcSn, actorId, changes));
+        }
+        // HIGH #2 — full-replace 대량 삭제 감사 로깅(민감정보 없이 카운트만 — PII/토큰 미출력).
+        log.info("[Label] bulkUpsert srcSn={} actor={} existing={} saved={} deleted={}",
+                srcSn, actorNo, existing.size(), result.size(), toDelete.size());
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
         // 검수 전(PENDING/ASSIGNED/IN_REVIEW/PROCESSING 등) 저장은 일반 작업이므로 통지 미발행.
-        if (isReviewApproved(current.getRawSn())) {
-            // bulkUpsert 는 신규 INSERT + 기존 UPDATE 를 한 배치에서 함께 처리하며(누락 라벨은 보존,
-            // 삭제 없음) 단일 (rawSn, srcSn) 이벤트로는 add/update 를 자명하게 구분할 수 없으므로
-            // 계약 표준값 LABEL_UPDATED 하나로 통일한다(억지 분기 금지).
+        // LOW #12 — 무변경(changes 비면) 이면 통지도 미발행.
+        if (!changes.isEmpty() && isReviewApproved(current.getRawSn())) {
+            // bulkUpsert 는 신규 INSERT + 기존 UPDATE + 삭제(full-replace)를 한 배치에서 함께 처리하며
+            // 단일 (rawSn, srcSn) 이벤트로는 종류를 자명하게 구분할 수 없으므로 계약 표준값
+            // LABEL_UPDATED 하나로 통일한다(억지 분기 금지 — 관제는 통지 수신 후 상세 API 로 재조회).
             eventPublisher.publishEvent(new TaskModifiedEvent(
                     current.getRawSn(), srcSn, ChangeType.LABEL_UPDATED, actorNo));
         }
@@ -346,10 +404,107 @@ public class LabelService {
     public Page<LabelHistoryResponse> getHistory(Long srcSn, TokenClaims actor, Pageable pageable) {
         accessGuard.verifyAndGet(srcSn, actor);
         Pageable effective = cappedWithTiebreaker(pageable);
-        Page<LsDataLblHstry> page = labelHistoryRepository.findBySrcSn(srcSn, effective);
-        Map<Long, String> labelNames = resolveLabelNames(page.getContent());
-        return page.map(h -> LabelHistoryResponse.from(h,
-                h.getLblSn() == null ? null : labelNames.get(h.getLblSn())));
+        // V114 — 저장 이벤트 행을 그대로 매핑(라벨명 enrichment 는 diff 페이로드로 이관 — Phase 2).
+        return labelHistoryRepository.findBySrcSn(srcSn, effective).map(LabelHistoryResponse::from);
+    }
+
+    /** 라벨 본문 → diff 스냅샷(before/after 값객체) 변환. */
+    private LabelSnapshot snapshotOf(LsDataLbl l) {
+        return new LabelSnapshot(l.getLblTypeCd(), l.getLabelId(), l.getLabelNm(), l.getPointCn());
+    }
+
+    /**
+     * LOW hardening — items 의 중복 {@code id} 를 last-value-wins 로 제거한다.
+     * <ul>
+     *   <li>id==null(신규 라벨)은 서로 구분 불가하므로 전부 유지한다.</li>
+     *   <li>동일 non-null id 가 여러 번 오면 <b>마지막 항목만</b> 유효(그 값이 최종 저장값). 원래 순서는 보존.</li>
+     * </ul>
+     * 중복이 없으면 입력과 동등한 리스트를 반환한다(오버헤드 최소).
+     */
+    private List<LabelItemDto> dedupById(List<LabelItemDto> src) {
+        Map<Long, Integer> lastIndex = new HashMap<>();
+        for (int i = 0; i < src.size(); i++) {
+            Long id = src.get(i).id();
+            if (id != null) {
+                lastIndex.put(id, i);
+            }
+        }
+        List<LabelItemDto> out = new ArrayList<>(src.size());
+        for (int i = 0; i < src.size(); i++) {
+            LabelItemDto it = src.get(i);
+            Long id = it.id();
+            // 신규(id==null)이거나, 해당 id 의 마지막 등장 위치면 채택.
+            if (id == null || lastIndex.get(id) == i) {
+                out.add(it);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * R7 — 두 라벨 스냅샷이 <b>실질적으로 동일</b>한지 판정(무변경 재저장 노이즈 차단).
+     * lblTypeCd/labelId/labelNm 은 값 동등, pointCn 은 표현차(부동소수 5 vs 5.0, int/double)를 흡수하기
+     * 위해 {@link #pointsEqual} 로 수치 정규화 비교한다.
+     */
+    private boolean snapshotsEqual(LabelSnapshot before, LabelSnapshot after) {
+        return java.util.Objects.equals(before.lblTypeCd(), after.lblTypeCd())
+                && java.util.Objects.equals(before.labelId(), after.labelId())
+                && java.util.Objects.equals(before.labelNm(), after.labelNm())
+                && pointsEqual(before.pointCn(), after.pointCn());
+    }
+
+    /**
+     * 좌표 JSON 두 개를 <b>수치 정규화</b> 후 비교한다. 문자열이 같으면 fast-path true.
+     * <p>재직렬화(예: 요청 {@code 5} → 저장 {@code 5.0})나 정수/실수 표현차만 다른 경우를 '무변경'으로
+     * 판정하기 위해, 양쪽을 동일 기준의 {@code List<List<Double>>} 로 정규화해 값 비교한다.
+     * <p>DEV_FIX(R7 레거시 포맷 흡수): 저장 포맷은 3종을 유효로 인정한다 —
+     * 정규 {@code [[x,y],...]} · 객체배열 {@code [{"x":,"y":},...]} · 평탄 {@code [x1,y1,x2,y2,...]}
+     * (Phase 1 정규화 이전 brownfield 데이터). before 가 레거시 포맷이면 예전 {@code List<List<Double>>}
+     * 단일 파싱은 예외→오탐(변경됨)이 되어 무변경 재저장이 UPDATED 이력/TASK_MODIFIED 를 유발했다.
+     * 이를 막기 위해 {@link LabelPointSerializer#fromJson}(3포맷 흡수)으로 양쪽을 정규 표현으로 통일해 비교한다.
+     * <p>SKELETON(삼중값 {@code [[x,y,v],...]})은 {@code fromJson}(2-튜플 파서)이 거부하므로 raw 숫자배열
+     * 파싱으로 폴백한다 — SKELETON 은 {@link KeypointSerializer} 결정적 직렬화라 대부분 fast-path 로 처리되며,
+     * 폴백은 기존 {@code List<List<Double>>} 비교와 동치라 회귀가 없다.
+     * <p>세 경로 모두 실패하는 <b>진짜 손상값</b>만 fail-safe 로 '다름'(false) 처리해 이력을 남긴다.
+     */
+    private boolean pointsEqual(String a, String b) {
+        if (java.util.Objects.equals(a, b)) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        List<List<Double>> na = normalizePoints(a);
+        List<List<Double>> nb = normalizePoints(b);
+        if (na == null || nb == null) {
+            // 정규화 실패(손상 JSON)는 안전하게 '변경됨'으로 간주 — 이력 유실 방지 fail-safe.
+            return false;
+        }
+        return na.equals(nb);
+    }
+
+    /**
+     * 좌표 문자열을 정규 {@code List<List<Double>>} 표현으로 파싱한다(비교 정규화 전용).
+     * <p>① {@link LabelPointSerializer#fromJson}(정규/객체배열/평탄 3포맷) → ② SKELETON 삼중값 등
+     * 2-튜플 파서로 못 읽는 포맷은 raw {@code List<List<Double>>} 파싱으로 폴백. 둘 다 실패면 손상값(null).
+     */
+    private List<List<Double>> normalizePoints(String json) {
+        try {
+            List<Point> points = LabelPointSerializer.fromJson(json, objectMapper);
+            List<List<Double>> out = new ArrayList<>(points.size());
+            for (Point p : points) {
+                out.add(List.of(p.x(), p.y()));
+            }
+            return out;
+        } catch (Exception ignore) {
+            // 2-튜플 파서 거부(예: SKELETON 삼중값) → raw 숫자배열로 폴백.
+        }
+        try {
+            var typeRef = new com.fasterxml.jackson.core.type.TypeReference<List<List<Double>>>() {};
+            return objectMapper.readValue(json, typeRef);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -362,21 +517,6 @@ public class LabelService {
         int size = Math.min(pageable.getPageSize(), MAX_HISTORY_PAGE_SIZE);
         Sort sort = Sort.by(Sort.Order.desc("regDt"), Sort.Order.desc("lblHstrySn"));
         return PageRequest.of(pageable.getPageNumber(), size, sort);
-    }
-
-    /** 이력 페이지의 라벨명 enrichment — 생존 라벨만 IN 1회 lookup (삭제 이력은 미포함). */
-    private Map<Long, String> resolveLabelNames(List<LsDataLblHstry> histories) {
-        Set<Long> lblSns = new HashSet<>();
-        for (LsDataLblHstry h : histories) {
-            if (h.getLblSn() != null) {
-                lblSns.add(h.getLblSn());
-            }
-        }
-        if (lblSns.isEmpty()) {
-            return Map.of();
-        }
-        return labelRepository.findAllById(lblSns).stream()
-                .collect(Collectors.toMap(LsDataLbl::getLblSn, LsDataLbl::getLabelNm, (a, b) -> a));
     }
 
     /**

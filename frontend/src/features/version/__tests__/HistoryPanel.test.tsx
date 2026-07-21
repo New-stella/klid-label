@@ -88,11 +88,21 @@ describe('HistoryPanel', () => {
         content: [
           {
             lblHstrySn: 5,
-            lblSn: 50,
-            changeKind: 'ADDED',
+            srcSn: 42,
             actor: 'worker-1',
             regDt: '2026-07-20T10:00:00',
-            label: 'person',
+            addCnt: 1,
+            mdfcnCnt: 0,
+            delCnt: 0,
+            changes: [
+              {
+                lblSn: 50,
+                changeKind: 'ADDED',
+                labelName: 'person',
+                before: null,
+                after: { lblTypeCd: 'BBOX', labelId: 1, labelNm: 'person', pointCn: '[[0,0],[1,1]]' },
+              },
+            ],
           },
         ],
         number: 0,
@@ -115,9 +125,11 @@ describe('HistoryPanel', () => {
     );
 
     // 변경 이력(저장) 내용이 바로 보인다 — 커밋 목록이 아니라.
+    // 저장 이벤트 카드의 요약 뱃지/작업자가 노출된다.
     await waitFor(() => {
-      expect(screen.getByText('person')).toBeInTheDocument();
+      expect(screen.getByText(/worker-1/)).toBeInTheDocument();
     });
+    expect(screen.getByText('추가 +1')).toBeInTheDocument();
     // 버전 탭을 누르기 전에는 커밋 목록이 보이지 않는다.
     expect(screen.queryByText('aaa111a')).not.toBeInTheDocument();
   });
