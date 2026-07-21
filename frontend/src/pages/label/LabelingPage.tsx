@@ -482,8 +482,10 @@ export function LabelingPage() {
   // "즉시 그리기" 토글 — AI 분할 클릭마다 미리보기 즉시 그리기. 기본 OFF(false).
   // AiToolModal 에서 토글하고 CanvasShell→OverlayLayer 의 immediateSegment 로 배선된다.
   const [immediateDraw, setImmediateDraw] = useState(false);
-  // R12 — 트랙 모드 선택 시 팝업의 형태(BBOX/POLYGON)·라벨을 기억해 Sam2TrackTool 요청에 배선한다.
-  // 미지정이면 BE 기본(POLYGON) + 캔버스 선택 객체 클래스명을 라벨로 사용.
+  // R12 — 트랙 모드 선택 시 팝업의 형태·라벨을 state 로 유지한다. 단 모달 형태는 더 이상
+  // BBOX/POLYGON 객체의 추적 출력 형태를 강제하지 않는다(확정 사양). 실제 출력 형태는
+  // ObjectAttributePanel 이 `shapeToDetectType(target.shape) ?? track.shape` 로 결정 —
+  // 즉 선택 객체 형태가 우선이고, trackShape 는 예외형태(MASK/KEYPOINT) 폴백 + 라벨 힌트 용도로만 유지.
   const [trackShape, setTrackShape] = useState<DetectShapeType | undefined>(undefined);
   const [trackLabel, setTrackLabel] = useState<string | undefined>(undefined);
   const handleAutolabel = () => {
@@ -559,7 +561,9 @@ export function LabelingPage() {
       // 트랙 모드 — TRACK 도구 활성화 + 팝업의 형태/라벨을 기억(R12 shape 배선). 실제 전파는
       // 선택 객체 기준 Sam2TrackTool(속성 패널)에서 실행한다. 선택 객체가 없으면 안내한다.
       setActiveTool(ToolType.TRACK);
-      // 팝업 형태(BBOX/POLYGON)를 기억해 track 요청에 포함 → BE 기본(POLYGON) 고정 방지.
+      // 출력 형태는 속성 패널(ObjectAttributePanel)에서 선택 객체 형태를 우선 적용한다
+      // (`shapeToDetectType(target.shape) ?? track.shape`). 여기서 기억하는 모달 형태는
+      // 예외형태(MASK/KEYPOINT) 폴백 + 라벨 힌트로만 사용되며 BBOX/POLYGON 출력을 바꾸지 않는다.
       setTrackShape(shape);
       // 팝업에서 단일 라벨을 골랐으면 그 표시명을 track 라벨로 우선 사용(없으면 캔버스 객체 클래스).
       const pickedLabel =
@@ -1193,7 +1197,9 @@ export function LabelingPage() {
                     srcSn: data?.srcSn,
                     nextSrcSns,
                     portalMode,
-                    // R12 — AI Tool 팝업에서 고른 형태/라벨을 track 요청에 배선(shape 미전달 시 BE 기본 POLYGON).
+                    // R12 — 출력 형태는 선택 객체 형태가 우선(ObjectAttributePanel 의
+                    // `shapeToDetectType(target.shape) ?? track.shape`). trackShape 는 예외형태
+                    // (MASK/KEYPOINT) 폴백 + 라벨 힌트로만 쓰이며 BBOX/POLYGON 출력을 바꾸지 않는다.
                     shape: trackShape,
                     label: trackLabel,
                     // 미저장 병합 + 부분/전체 안내 토스트. tracked 는 후속 프레임 결과.
