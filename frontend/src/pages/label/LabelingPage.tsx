@@ -34,7 +34,6 @@ import type { AiToolMode } from '@/features/label/components/AiToolModal';
 import { YOLO_CLASSES } from '@/features/label/constants/yoloClasses';
 import { ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
-import { LabelHistoryPanel } from '@/features/label/components/LabelHistoryPanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
 import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
@@ -1153,8 +1152,6 @@ export function LabelingPage() {
               <FrameDescriptionPanel srcSn={data?.srcSn} />
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
               <TimeseriesSidePanel srcSn={data?.srcSn} />
-              {/* 라벨 변경 이력(LS_DATA_LBL_HSTRY: 추가/수정/삭제) — 버전 이력과 별개, 내부 채널만. */}
-              <LabelHistoryPanel srcSn={data?.srcSn} dark />
             </div>
           ) : (
             <div

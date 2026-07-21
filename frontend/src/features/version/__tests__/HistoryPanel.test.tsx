@@ -38,11 +38,28 @@ const versionsPayload = {
   errorCode: null,
 };
 
+/** 라벨 변경 이력(LS_DATA_LBL_HSTRY) 빈 페이지 — 변경 이력 탭 기본 로드 노이즈 방지. */
+const emptyHistoryPayload = {
+  success: true,
+  data: { content: [], number: 0, size: 20, totalElements: 0, totalPages: 0 },
+  message: null,
+  errorCode: null,
+};
+
+/** 커밋 목록을 보려면 통합 히스토리 패널에서 "버전" 탭을 먼저 눌러야 한다. */
+async function openVersionsTab() {
+  const tab = await screen.findByTestId('history-tab-versions');
+  fireEvent.click(tab);
+}
+
 describe('HistoryPanel', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
+    // 기본 활성 탭(변경 이력)이 마운트 시 label-history 를 조회하므로 공통 빈 페이지 모킹.
+    // 구체 응답이 필요한 테스트는 mock.reset() 후 개별 재등록한다(먼저 등록 핸들러 우선 회피).
+    mock.onGet(/\/frames\/\d+\/label-history/).reply(200, emptyHistoryPayload);
   });
 
   afterEach(() => {
@@ -50,11 +67,86 @@ describe('HistoryPanel', () => {
     useAuthStore.getState().clear();
   });
 
+  it('두_개의_탭_변경_이력과_버전이_노출됨', async () => {
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+
+    expect(await screen.findByTestId('history-tab-changes')).toBeInTheDocument();
+    expect(screen.getByTestId('history-tab-versions')).toBeInTheDocument();
+  });
+
+  it('기본_활성_탭은_변경_이력_저장이다', async () => {
+    setRole('WORKER');
+    // beforeEach 의 공통 빈 label-history 모킹을 제거하고 구체 응답을 우선 등록.
+    mock.reset();
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/42/label-history').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            lblHstrySn: 5,
+            lblSn: 50,
+            changeKind: 'ADDED',
+            actor: 'worker-1',
+            regDt: '2026-07-20T10:00:00',
+            label: 'person',
+          },
+        ],
+        number: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+
+    // 변경 이력 탭이 기본 선택 상태(aria-selected=true)
+    const changesTab = await screen.findByTestId('history-tab-changes');
+    expect(changesTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('history-tab-versions')).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+
+    // 변경 이력(저장) 내용이 바로 보인다 — 커밋 목록이 아니라.
+    await waitFor(() => {
+      expect(screen.getByText('person')).toBeInTheDocument();
+    });
+    // 버전 탭을 누르기 전에는 커밋 목록이 보이지 않는다.
+    expect(screen.queryByText('aaa111a')).not.toBeInTheDocument();
+  });
+
+  it('버전_탭_클릭_시_커밋_목록이_노출됨', async () => {
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+
+    await openVersionsTab();
+
+    await waitFor(() => {
+      expect(screen.getByText('aaa111a')).toBeInTheDocument();
+    });
+    expect(screen.getByText('bbb222b')).toBeInTheDocument();
+    expect(screen.getByTestId('history-tab-versions')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
   it('REVIEWER가_버전_2건_렌더링하고_롤백_트리거가_노출됨', async () => {
     setRole('REVIEWER');
     mock.onGet('/frames/42/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPanel srcSn={42} />);
+
+    await openVersionsTab();
 
     await waitFor(() => {
       expect(screen.getByText('aaa111a')).toBeInTheDocument();
@@ -76,6 +168,8 @@ describe('HistoryPanel', () => {
     mock.onGet('/frames/42/versions').reply(200, versionsPayload);
 
     renderWithProviders(<HistoryPanel srcSn={42} />);
+
+    await openVersionsTab();
 
     await waitFor(() => {
       expect(screen.getByText('aaa111a')).toBeInTheDocument();
@@ -101,6 +195,8 @@ describe('HistoryPanel', () => {
     });
 
     renderWithProviders(<HistoryPanel srcSn={99} />);
+
+    await openVersionsTab();
 
     await waitFor(() => {
       expect(screen.getByText('아직 커밋된 버전이 없습니다.')).toBeInTheDocument();
@@ -135,6 +231,8 @@ describe('HistoryPanel', () => {
     });
 
     renderWithProviders(<HistoryPanel srcSn={42} />);
+
+    await openVersionsTab();
 
     await waitFor(() => {
       expect(screen.getByText('아직 커밋된 버전이 없습니다.')).toBeInTheDocument();
