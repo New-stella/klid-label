@@ -60,6 +60,13 @@ public class LsResolutionExport {
     @Column(name = "OUTPUT_DIR_PATH", nullable = false, length = 500)
     private String outputDirPath;
 
+    /**
+     * 파생영상 RAW_SN (LS_DATA_RAW.RAW_SN) — Phase 2. Phase 1(다운스케일 이미지셋만)은 새 RAW 를
+     * 만들지 않아 null. Phase 2 파생영상은 새 RAW 를 만들고 예약 시점 이후 {@link #attachNewRawSn} 로 연결한다.
+     */
+    @Column(name = "NEW_RAW_SN")
+    private Long newRawSn;
+
     @Column(name = "REG_ID", length = 30)
     private String regId;
 
@@ -81,9 +88,13 @@ public class LsResolutionExport {
         this.regDt = LocalDateTime.now();
     }
 
-    public static LsResolutionExport create(Long dataRawSn, String targetResCd, int orgnlW, int orgnlH,
-                                            int targetW, int targetH, int frameCnt,
-                                            String outputDirPath, String regId) {
+    /**
+     * Phase 2 — 파생영상 산출 <b>예약(reservation)</b> 행. 새 RAW/파일을 만들기 전에 먼저 INSERT 하여
+     * UNIQUE(DATA_RAW_SN, GOAL_RES_CD) 로 동일 (원본, 해상도) 동시요청 TOCTOU 를 차단한다. FRAME_CNT 는
+     * 예약 시점 0 으로 두고, 파생 확정({@link #updateFrameCnt}) 시 실제 프레임 수로 갱신한다.
+     */
+    public static LsResolutionExport createReservation(Long dataRawSn, String targetResCd, int orgnlW, int orgnlH,
+                                                       int targetW, int targetH, String outputDirPath, String regId) {
         return LsResolutionExport.builder()
                 .dataRawSn(dataRawSn)
                 .targetResCd(targetResCd)
@@ -91,9 +102,19 @@ public class LsResolutionExport {
                 .orgnlH(orgnlH)
                 .targetW(targetW)
                 .targetH(targetH)
-                .frameCnt(frameCnt)
+                .frameCnt(0)
                 .outputDirPath(outputDirPath)
                 .regId(regId)
                 .build();
+    }
+
+    /** 파생영상 RAW_SN 을 연결한다(예약 후 새 RAW 생성 시점). */
+    public void attachNewRawSn(Long newRawSn) {
+        this.newRawSn = newRawSn;
+    }
+
+    /** 파생 확정 시 실제 리스케일된 프레임 개수를 반영한다(예약 시 0 → 확정 시 실측). */
+    public void updateFrameCnt(int frameCnt) {
+        this.frameCnt = frameCnt;
     }
 }

@@ -27,9 +27,13 @@ import {
   isAugmentKind,
   type ProcessKind,
 } from '@/features/augment/types';
-import { useResolutionExport } from '@/features/video/hooks/useResolutionExport';
+import { useResolutionDerivative } from '@/features/video/hooks/useResolutionDerivative';
 import { useVideos } from '@/features/video/hooks/useVideos';
-import type { ResolutionPreset } from '@/features/video/types';
+import {
+  RESOLUTION_PRESETS,
+  RESOLUTION_PRESET_LABEL,
+  type ResolutionPreset,
+} from '@/features/video/types';
 import { ApiError } from '@/lib/api/errors';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUiStore } from '@/stores/useUiStore';
@@ -52,9 +56,11 @@ const DEFAULT_FILTERS: VideoFilterValues = {
  * UI/UX §4-12 + V1.x (Phase 1 통합 재구성):
  * - 처리 종류 카드 4개(겨울/야간/우천/해상도 변경)를 radiogroup 으로 **단일 선택**.
  *   증강 3종은 외부 위탁 잡, 해상도 변경(RESOLUTION)은 저작도구 직접 수행(SFR-06-03).
- * - 해상도 변경 종류를 고른 경우에만 타겟 해상도(1080P/720P/480P) 선택 UI 노출.
+ * - 해상도 변경 종류를 고른 경우에만 생성할 해상도(1080P/720P/480P) 선택 UI 노출.
+ *   3종 고정 기능이라 기본 전체 선택(다중)이며, 선택된 해상도별로 새 파생영상(RAW_SN)을
+ *   만들어 검수 파이프라인(검수 대기)에 넣는다(SFR-06-03, export 프레임셋 아님).
  * - 대상 영상은 **1건 단일 선택**(라디오).
- * - 종류를 바꾸면 타겟 해상도(preset)·결과 상태 초기화.
+ * - 종류를 바꾸면 생성할 해상도(전체 3종)·결과 상태 초기화.
  * - **검수 완료된 영상만 선택 가능** — 비활성/검색·이벤트 필터·페이징.
  * - 최근 요청 이력 잡 카드 6건 그리드.
  *
@@ -71,9 +77,10 @@ export function AugmentRequestPage() {
 
   const [selectedKind, setSelectedKind] = useState<ProcessKind | null>(null);
   const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState<ResolutionPreset | null>(
-    null,
-  );
+  // 해상도 변경은 3종 고정 기능이라 기본 전체 선택(다중). 불변성 위해 스프레드 복사.
+  const [selectedPresets, setSelectedPresets] = useState<ResolutionPreset[]>([
+    ...RESOLUTION_PRESETS,
+  ]);
 
   // 필터: localFilters (입력 중), filters (적용된 값)
   const [localFilters, setLocalFilters] =
@@ -144,7 +151,7 @@ export function AugmentRequestPage() {
       });
       setSelectedKind(null);
       setSelectedVideoId(null);
-      setSelectedPreset(null);
+      setSelectedPresets([...RESOLUTION_PRESETS]);
       if (resp?.jobId) {
         navigate(`/augment/result/${resp.jobId}`);
       }
@@ -154,25 +161,26 @@ export function AugmentRequestPage() {
     },
   });
 
-  // 해상도 변환(SFR-06-03) — 저작도구 직접 수행. rawSn 은 mutate 시점에 canSubmit 가드로 보장.
-  // selectedVideoId 가 null 이면 0 을 넘기되 canSubmit 가 false 라 실제 호출은 차단된다.
-  const resolutionExport = useResolutionExport(selectedVideoId ?? 0);
+  // 해상도 변경(SFR-06-03) — 저작도구 직접 수행: 목표 해상도별 새 파생영상(RAW_SN) 생성.
+  // rawSn 은 mutate 시점에 canSubmit 가드로 보장. selectedVideoId 가 null 이면 0 을 넘기되
+  // canSubmit 가 false 라 실제 호출은 차단된다.
+  const resolutionDerivative = useResolutionDerivative(selectedVideoId ?? 0);
   const {
     data: resolutionResult,
     error: resolutionError,
     reset: resetResolution,
-  } = resolutionExport;
+  } = resolutionDerivative;
 
   const isResolution = selectedKind === 'RESOLUTION';
-  const isPendingAny = isPending || resolutionExport.isPending;
+  const isPendingAny = isPending || resolutionDerivative.isPending;
 
   // radiogroup 로빙 tabindex/화살표 탐색용 카드 ref (a11y WCAG 4.1.2).
   const kindCardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // 종류 변경: 타겟 해상도(preset)·해상도 결과 상태 초기화 (AC4).
+  // 종류 변경: 생성할 해상도(전체 3종)·결과 상태 초기화 (AC4).
   const handleSelectKind = (kind: ProcessKind) => {
     setSelectedKind(kind);
-    setSelectedPreset(null);
+    setSelectedPresets([...RESOLUTION_PRESETS]);
     resetResolution();
   };
 
@@ -211,15 +219,15 @@ export function AugmentRequestPage() {
     setFilters(DEFAULT_FILTERS);
   };
 
-  // 제출 가능 조건 — 종류·영상 선택 필수, 해상도 종류면 preset 필수.
+  // 제출 가능 조건 — 종류·영상 선택 필수, 해상도 종류면 생성할 해상도 1개 이상 선택.
   const canSubmit =
     selectedKind !== null &&
     selectedVideoId !== null &&
-    (!isResolution || selectedPreset !== null) &&
+    (!isResolution || selectedPresets.length > 0) &&
     !isPendingAny;
 
   // 실행 분기 (R4): 증강 3종은 위탁 잡 요청(/augments/request),
-  // 해상도 변경은 저작도구 직접 수행(/videos/{rawSn}/resolution).
+  // 해상도 변경은 저작도구 직접 수행(/videos/{rawSn}/resolution → 파생영상 생성).
   // kind/preset 은 allowlist 상수로만 좁혀(isAugmentKind/RESOLUTION_PRESETS) 임의 분기 차단.
   const handleSubmit = () => {
     if (!canSubmit || selectedKind === null || selectedVideoId === null) return;
@@ -229,9 +237,23 @@ export function AugmentRequestPage() {
         videoIds: [selectedVideoId],
         types: [selectedKind],
       });
-    } else if (selectedPreset !== null) {
-      // 해상도: 성공 시 결과 카드 inline 표시(아래 resolutionResult).
-      resolutionExport.mutate(selectedPreset);
+    } else if (selectedPresets.length > 0) {
+      // 해상도: 성공 시 결과 카드 inline 표시(아래 resolutionResult) + 검수 대기 안내 토스트.
+      resolutionDerivative.mutate(selectedPresets, {
+        onSuccess: (data) => {
+          const created = data.derivatives.filter(
+            (d) => d.status === 'CREATED',
+          ).length;
+          const failed = data.derivatives.length - created;
+          pushToast({
+            variant: failed > 0 ? 'warning' : 'success',
+            message:
+              failed > 0
+                ? `해상도 파생영상 ${created}건 생성 — 검수 대기 (${failed}건 실패)`
+                : `해상도 파생영상 ${created}건 생성됨 — 검수 대기`,
+          });
+        },
+      });
     }
   };
 
@@ -239,8 +261,18 @@ export function AugmentRequestPage() {
     resolutionError instanceof ApiError
       ? resolutionError.userMessage
       : resolutionError
-        ? '해상도 변환에 실패했습니다.'
+        ? '해상도 변경에 실패했습니다.'
         : null;
+
+  // 파생영상 결과 요약 (부분/전부 실패 안내용).
+  const createdDerivatives =
+    resolutionResult?.derivatives.filter((d) => d.status === 'CREATED') ?? [];
+  const failedDerivatives =
+    resolutionResult?.derivatives.filter((d) => d.status === 'FAILED') ?? [];
+
+  // goalResCd → 표시 라벨 (화이트리스트 매핑, 미지 코드는 코드 그대로 노출).
+  const resLabel = (goalResCd: string) =>
+    (RESOLUTION_PRESET_LABEL as Record<string, string>)[goalResCd] ?? goalResCd;
 
   return (
     <section
@@ -302,20 +334,22 @@ export function AugmentRequestPage() {
           </p>
         )}
 
-        {/* 해상도 변경 종류 선택 시에만 타겟 해상도 UI 노출 (AC3) */}
+        {/* 해상도 변경 종류 선택 시에만 생성할 해상도 UI 노출 (AC3) */}
         {isResolution && (
           <div className="space-y-2" data-testid="target-resolution-block">
-            <p className="text-xs font-medium text-gray-600">타겟 해상도</p>
+            <p className="text-xs font-medium text-gray-600">
+              생성할 해상도 (파생영상)
+            </p>
             <TargetResolutionSelect
-              value={selectedPreset}
-              onChange={(p) => {
-                setSelectedPreset(p);
+              value={selectedPresets}
+              onChange={(presets) => {
+                setSelectedPresets(presets);
                 resetResolution();
               }}
-              disabled={resolutionExport.isPending}
+              disabled={resolutionDerivative.isPending}
             />
 
-            {/* 해상도 변환 실행 결과 (AC5) */}
+            {/* 해상도 변경 실행 결과 (AC5) — 검수 대기 파생영상 목록 */}
             {resolutionErrorMessage && (
               <p role="alert" className="text-sm text-danger">
                 {resolutionErrorMessage}
@@ -324,12 +358,38 @@ export function AugmentRequestPage() {
             {resolutionResult && (
               <div
                 role="status"
-                data-testid="resolution-export-result"
-                className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+                data-testid="resolution-derivative-result"
+                className="space-y-2 rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-sm"
               >
-                변환 완료 — {resolutionResult.srcW}×{resolutionResult.srcH} →{' '}
-                {resolutionResult.targetW}×{resolutionResult.targetH}, 프레임{' '}
-                {resolutionResult.frameCount}장 (export #{resolutionResult.exportSn})
+                <p className="font-medium text-success">
+                  파생영상 {createdDerivatives.length}건 생성됨 — 검수 대기
+                  {failedDerivatives.length > 0 &&
+                    ` (${failedDerivatives.length}건 실패)`}
+                </p>
+                <ul className="space-y-1">
+                  {resolutionResult.derivatives.map((d) => (
+                    <li
+                      key={d.goalResCd}
+                      className="flex items-center justify-between gap-3 text-xs"
+                    >
+                      <span className="text-gray-700">
+                        {resLabel(d.goalResCd)}
+                        <span className="ml-1 text-gray-400">
+                          ({d.targetW}×{d.targetH})
+                        </span>
+                      </span>
+                      {d.status === 'CREATED' ? (
+                        <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 font-medium text-info">
+                          검수 대기 (영상 #{d.rawSn})
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-danger/10 px-2 py-0.5 font-medium text-danger">
+                          실패
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>

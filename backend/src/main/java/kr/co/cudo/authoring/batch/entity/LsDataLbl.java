@@ -9,6 +9,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.LabelCoordinateScaler;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -273,6 +274,33 @@ public class LsDataLbl {
                 .labelId(original.getLabelId())
                 .label(original.getLabelNm())
                 .pointsJson(original.getPointCn())
+                .trackId(original.getTrackId())
+                .build();
+    }
+
+    /**
+     * Phase 1 (해상도 파생영상) — 좌표를 해상도 비율로 스케일한 복제본 반환.
+     * <p>원본 라벨의 영구 필드는 {@link #copyForNewSrc} 와 동일하게 복제하되, POINT_CN 만
+     * {@link LabelCoordinateScaler} 로 {@code scaleX}(x축)·{@code scaleY}(y축) 리스케일한다.
+     * {@code scaleX==scaleY==1.0} 이면 {@link #copyForNewSrc}(좌표 그대로) 와 등가다.
+     *
+     * @param newSrcSn 파생영상 프레임의 SRC_SN
+     * @param original 복사 원본 라벨(DB 로드 상태, null 금지)
+     * @param scaleX   x축 배율(양수)
+     * @param scaleY   y축 배율(양수)
+     */
+    public static LsDataLbl copyForNewSrcScaled(Long newSrcSn, LsDataLbl original, double scaleX, double scaleY) {
+        if (original == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "복사 원본 라벨이 null 입니다.");
+        }
+        String scaledPointCn = LabelCoordinateScaler.scalePointCn(
+                original.getPointCn(), original.getLblTypeCd(), scaleX, scaleY);
+        return LsDataLbl.builder()
+                .srcSn(newSrcSn)
+                .lblTypeCd(original.getLblTypeCd())
+                .labelId(original.getLabelId())
+                .label(original.getLabelNm())
+                .pointsJson(scaledPointCn)
                 .trackId(original.getTrackId())
                 .build();
     }
