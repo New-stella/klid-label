@@ -1,5 +1,9 @@
 -- =============================================================================
--- V114: LS_DATA_LBL_HSTRY 재구조화 — "라벨 1건=1행" → "저장 이벤트=1행 + diff 페이로드".
+-- V115: LS_DATA_LBL_HSTRY 재구조화 — "라벨 1건=1행" → "저장 이벤트=1행 + diff 페이로드".
+--
+-- 뷰 의존성: V114 슬림이 만든 V_COMPLETED_LABEL_CHANGE 뷰가 구 컬럼(LBL_SN/CHG_KIND_CD)을 참조하므로,
+--   컬럼 DROP 전에 뷰를 제거하고 맨 끝에서 저장이벤트 스키마로 재정의한다.
+--   (관제 연동 계약 변경 — 관제팀 협의 대상: 뷰 출력 컬럼이 변경점 종류→종류별 건수 + diff 로 교체됨.)
 --
 -- 배경: 구조가 라벨 단위(LBL_SN + CHG_KIND_CD) 라 한 번의 저장/삭제 행위가 라벨 수만큼
 --   여러 행으로 흩어졌다. 프레임 단위 저장 이벤트 1행으로 묶고, 종류별 건수(ADD/MDFCN/DEL)와
@@ -17,6 +21,9 @@
 -- PostgreSQL 표준 문법. LS_* 전용 테이블 — 관제팀 협의 불요. ddl-auto=validate 대상.
 -- (DROP COLUMN LBL_SN 시 이를 참조하던 IDX_LDLH_LBL 인덱스는 PostgreSQL 이 자동 삭제한다.)
 -- =============================================================================
+
+-- 0) 구 컬럼(LBL_SN/CHG_KIND_CD)에 의존하는 데이터마트 뷰 제거(컬럼 DROP 선행 — CASCADE 미사용).
+DROP VIEW IF EXISTS V_COMPLETED_LABEL_CHANGE;
 
 -- 1) 기존 라벨단위 이력 전량 폐기(개발 단계).
 DELETE FROM LS_DATA_LBL_HSTRY;
@@ -40,3 +47,30 @@ COMMENT ON COLUMN LS_DATA_LBL_HSTRY.ADD_CNT    IS '이 저장 이벤트의 추�
 COMMENT ON COLUMN LS_DATA_LBL_HSTRY.MDFCN_CNT  IS '이 저장 이벤트의 수정(UPDATED) 라벨 건수';
 COMMENT ON COLUMN LS_DATA_LBL_HSTRY.DEL_CNT    IS '이 저장 이벤트의 삭제(DELETED) 라벨 건수';
 COMMENT ON COLUMN LS_DATA_LBL_HSTRY.CHG_DTL_CN IS '변경 상세 diff — List<LabelChange> JSON 직렬화(TEXT)';
+
+
+-- -----------------------------------------------------------------------------
+-- 5) V_COMPLETED_LABEL_CHANGE 재정의 — 저장이벤트 스키마.
+--    V114 슬림이 만든 뷰를 저장이벤트 단위(종류별 건수 + diff)로 재정의(관제 연동 계약 변경 — 협의 대상).
+--    구 LBL_SN/CHG_KIND_CD 제거, ADD_CNT/MDFCN_CNT/DEL_CNT/CHG_DTL_CN 노출.
+--    RAW_SN 은 LS_DATA_SRC 조인으로 얻고, APPROVED 게이트(EXISTS LS_RAW_DATA_STATUS)는 그대로 유지.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW V_COMPLETED_LABEL_CHANGE AS
+SELECT
+    h.LBL_HSTRY_SN,
+    src.RAW_SN,
+    h.SRC_SN,
+    h.ADD_CNT,
+    h.MDFCN_CNT,
+    h.DEL_CNT,
+    h.CHG_DTL_CN,
+    h.REG_ID,
+    h.REG_DT
+FROM LS_DATA_LBL_HSTRY h
+INNER JOIN LS_DATA_SRC src ON src.SRC_SN = h.SRC_SN
+WHERE EXISTS (
+    SELECT 1
+      FROM LS_RAW_DATA_STATUS s
+     WHERE s.RAW_DATA_ID  = src.RAW_SN
+       AND s.DATA_STTS_CD = 'APPROVED'
+);
