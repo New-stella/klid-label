@@ -279,6 +279,9 @@ public class YoloAutolabelStep implements BatchStep {
      *   <li>매핑 존재 + 라벨이 맵에 있음 → 해당 토글</li>
      *   <li>매핑 존재 + 라벨이 맵에 없음 → {@code null} (노이즈 제거)</li>
      * </ul>
+     *
+     * <p>Phase 3: 토글 맵 키는 마스터 라벨명 정규화이며, 검출 라벨도 동일 규칙
+     * ({@link PresetLabelLookupService#normalizeLabelKey(String)})으로 정규화해 축을 일치시킨다.
      */
     private static AnnotationToggle resolveToggle(Optional<Map<String, AnnotationToggle>> togglesOpt,
                                                   String rawLabel) {
@@ -288,7 +291,7 @@ public class YoloAutolabelStep implements BatchStep {
         if (rawLabel == null) {
             return null;
         }
-        String normalized = rawLabel.trim().toLowerCase();
+        String normalized = PresetLabelLookupService.normalizeLabelKey(rawLabel);
         return togglesOpt.get().get(normalized);
     }
 

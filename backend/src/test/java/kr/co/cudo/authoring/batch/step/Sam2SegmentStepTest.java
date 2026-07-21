@@ -332,6 +332,58 @@ class Sam2SegmentStepTest {
         verify(lblRepository, times(1)).save(any());
     }
 
+    // ─── Phase 3: 토글 미포함 라벨 노이즈 제거 + 라벨명 정규화 (YOLO 와 대칭) ───
+
+    @Test
+    @DisplayName("Sam2Step_매핑에_없는_라벨은_SAM2_호출없이_노이즈제거된다")
+    void unmappedLabelDroppedAsNoise() {
+        // 도달 경로(실재): 프리셋 토글 맵에 "person" 만 존재하는데, DB 에는 프리셋에 없는 라벨명("car")의
+        // 레거시/수동 BBOX 가 남아있거나, YOLO→SAM2 사이 프리셋 변경 레이스로 미포함 라벨이 유입된 경우.
+        // resolveToggle 이 null 을 반환 → SAM2 미호출·POLYGON 미저장(노이즈 제거).
+        // YoloAutolabelStepTest 의 "car 필터링"(evtFallFiltersToPersonOnly)과 대칭 분기.
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(31L)).thenReturn(Optional.of(raw));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(31L))
+                .thenReturn(List.of(newSrc(30L)));
+        // 프리셋 토글 맵에 없는 "car" 라벨의 DB BBOX
+        when(lblRepository.findBySrcSnAndAutoLblYn(30L, "Y"))
+                .thenReturn(List.of(newBbox(30L, "car", "[1.0,2.0,3.0,4.0]")));
+
+        int saved = step.run(31L, List.of());
+
+        // 미포함 라벨은 SAM2 호출 없이 제거되어야 한다.
+        assertThat(saved).isZero();
+        verify(aiServerClient, never()).segment(any());
+        verify(lblRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Sam2Step_라벨명_대소문자공백_정규화되어_토글매칭된다")
+    void labelNameNormalizedForToggleMatch() {
+        // 경계: 토글 맵 키는 정규화된 "person" 이지만 DB BBOX 라벨명은 대소문자·공백 차이("  Person ").
+        // normalizeLabelKey(trim + 소문자)로 검출/DB 라벨을 정규화해 토글 축을 일치시키므로 SAM2 호출·
+        // POLYGON 저장이 이뤄진다. (YOLO 에는 대소문자 정규화 경계가 있으나 SAM2 엔 없던 갭.)
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(41L)).thenReturn(Optional.of(raw));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(41L))
+                .thenReturn(List.of(newSrc(40L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(40L, "Y"))
+                .thenReturn(List.of(newBbox(40L, "  Person ", "[1.0,2.0,3.0,4.0]")));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.88)));
+
+        int saved = step.run(41L, List.of());
+
+        // 정규화로 토글 매칭 성공 → SAM2 1회 호출, POLYGON 1건 저장.
+        assertThat(saved).isEqualTo(1);
+        verify(aiServerClient, times(1)).segment(any());
+        verify(lblRepository, times(1)).save(any());
+    }
+
     // ─── Phase 4: dedup 키에 trackId 반영 ───
 
     @Test

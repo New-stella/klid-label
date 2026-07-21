@@ -1,13 +1,22 @@
 package kr.co.cudo.authoring.batch.policy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
 import kr.co.cudo.authoring.eventtype.service.EventTypeService;
+import kr.co.cudo.authoring.label.dto.LabelMasterResponse;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset.LabelCodeSpec;
 import kr.co.cudo.authoring.preset.repository.LsLabelPresetRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -15,16 +24,29 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 4a — 프리셋은 관제 categoryKey 로 저장되고, 영상 이벤트는 상세 EV-코드다.
- * togglesFor 는 영상 EV-코드를 {@link EventTypeService#categoryKeyOf(String)} 로 categoryKey 로
- * 변환한 뒤 {@code findByEventTypeCd(categoryKey)} 로 프리셋을 찾아야 한다.
+ * Phase 3 — 오토라벨 경로 마스터 형태 정합.
+ *
+ * <p>togglesFor 는 프리셋 코드의 {@code labelId} 를 라벨 마스터로 배치 조회(N+1 금지)하여
+ * <b>마스터 라벨명(정규화)</b> 키의 토글 맵을 만든다. 토글의 bbox/polygon 은 마스터
+ * {@code LBL_TYPE_CD} 에서 {@link kr.co.cudo.authoring.label.domain.LabelGeometry} 로 강제 파생한다.
+ *
+ * <ul>
+ *   <li>BBOX → bbox only, POLYGON → polygon only, POINT/SKELETON → 둘 다 비활성.</li>
+ *   <li>labelId null(미연결) · 마스터 미존재/soft-delete 참조 코드 → 토글에서 제외.</li>
+ * </ul>
+ *
+ * <p>Phase 4a — 프리셋은 관제 categoryKey 로 저장되고 영상 이벤트는 상세 EV-코드다.
+ * togglesFor 는 EV-코드를 {@link EventTypeService#categoryKeyOf(String)} 로 변환 후 조회한다.
  */
 class PresetLabelLookupServiceTest {
 
@@ -35,24 +57,234 @@ class PresetLabelLookupServiceTest {
 
     private LsLabelPresetRepository presetRepository;
     private EventTypeService eventTypeService;
+    private LabelMasterService labelMasterService;
     private PresetLabelLookupService service;
+    private ListAppender<ILoggingEvent> logAppender;
+    private Logger serviceLogger;
 
     @BeforeEach
     void setUp() {
         presetRepository = mock(LsLabelPresetRepository.class);
         eventTypeService = mock(EventTypeService.class);
+        labelMasterService = mock(LabelMasterService.class);
         // 영상 EV-코드 → categoryKey 변환 기본 스텁(테스트별로 미사용이면 lenient).
         lenient().when(eventTypeService.categoryKeyOf(VIDEO_EV_CODE))
                 .thenReturn(Optional.of(CATEGORY_KEY));
-        service = new PresetLabelLookupService(presetRepository, eventTypeService);
+        service = new PresetLabelLookupService(presetRepository, eventTypeService, labelMasterService);
+
+        serviceLogger = (Logger) LoggerFactory.getLogger(PresetLabelLookupService.class);
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        serviceLogger.addAppender(logAppender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (serviceLogger != null && logAppender != null) {
+            serviceLogger.detachAppender(logAppender);
+            logAppender.stop();
+        }
+    }
+
+    /** labelId 연결 코드 스펙 (LBL_CD=null). */
+    private static LabelCodeSpec idSpec(long labelId) {
+        return new LabelCodeSpec(labelId, null);
+    }
+
+    private static LabelMasterResponse master(long labelId, String name, String type) {
+        return new LabelMasterResponse(labelId, name, "#112233", type, 0, "Y");
+    }
+
+    private LsLabelPreset presetWithCodes(LabelCodeSpec... specs) {
+        LsLabelPreset preset = LsLabelPreset.createWithOptions(
+                "침수 프리셋", "flood", List.of(specs), CATEGORY_KEY);
+        when(presetRepository.findByEventTypeCd(CATEGORY_KEY)).thenReturn(Optional.of(preset));
+        return preset;
+    }
+
+    @Test
+    @DisplayName("프리셋_labelId코드의_토글이_마스터_라벨명_키로_조회된다")
+    void togglesKeyedByMasterLabelName() {
+        presetWithCodes(idSpec(1L), idSpec(2L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                1L, master(1L, "Person", "BBOX"),
+                2L, master(2L, "Vehicle", "POLYGON")));
+
+        Optional<Map<String, AnnotationToggle>> result = service.togglesFor(VIDEO_EV_CODE);
+
+        assertThat(result).isPresent();
+        // 키는 마스터 라벨명 정규화(소문자/trim) — 검출 라벨(d.label())과 동일 축.
+        assertThat(result.get().keySet()).containsExactlyInAnyOrder("person", "vehicle");
+    }
+
+    @Test
+    @DisplayName("프리셋_코드_labelId를_배치조회한다_findLabelIdByName_반복금지_N플러스1_금지")
+    void batchLookupNoNPlusOne() {
+        presetWithCodes(idSpec(1L), idSpec(2L), idSpec(3L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                1L, master(1L, "Person", "BBOX"),
+                2L, master(2L, "Vehicle", "POLYGON"),
+                3L, master(3L, "Fallen", "BBOX")));
+
+        service.togglesFor(VIDEO_EV_CODE);
+
+        // 단건 findLabelIdByName 반복 금지 — findActiveByIds 1회 배치 조회.
+        verify(labelMasterService, times(1)).findActiveByIds(any());
+        verify(labelMasterService, never()).findLabelIdByName(anyString());
+    }
+
+    @Test
+    @DisplayName("마스터_형태_BBOX면_토글은_bbox만_활성")
+    void bboxMasterYieldsBboxOnlyToggle() {
+        presetWithCodes(idSpec(1L));
+        when(labelMasterService.findActiveByIds(any()))
+                .thenReturn(Map.of(1L, master(1L, "Person", "BBOX")));
+
+        AnnotationToggle toggle = service.togglesFor(VIDEO_EV_CODE).orElseThrow().get("person");
+
+        assertThat(toggle.bbox()).isTrue();
+        assertThat(toggle.polygon()).isFalse();
+    }
+
+    @Test
+    @DisplayName("마스터_형태_POLYGON이면_토글은_polygon만_활성")
+    void polygonMasterYieldsPolygonOnlyToggle() {
+        presetWithCodes(idSpec(2L));
+        when(labelMasterService.findActiveByIds(any()))
+                .thenReturn(Map.of(2L, master(2L, "Vehicle", "POLYGON")));
+
+        AnnotationToggle toggle = service.togglesFor(VIDEO_EV_CODE).orElseThrow().get("vehicle");
+
+        assertThat(toggle.bbox()).isFalse();
+        assertThat(toggle.polygon()).isTrue();
+    }
+
+    @Test
+    @DisplayName("마스터_형태_POINT_SKELETON이면_토글은_bbox_polygon_둘다_비활성")
+    void pointSkeletonMasterYieldsNoGeometryToggle() {
+        presetWithCodes(idSpec(3L), idSpec(4L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                3L, master(3L, "Nose", "POINT"),
+                4L, master(4L, "Pose", "SKELETON")));
+
+        Map<String, AnnotationToggle> map = service.togglesFor(VIDEO_EV_CODE).orElseThrow();
+
+        assertThat(map.get("nose").bbox()).isFalse();
+        assertThat(map.get("nose").polygon()).isFalse();
+        assertThat(map.get("pose").bbox()).isFalse();
+        assertThat(map.get("pose").polygon()).isFalse();
+    }
+
+    @Test
+    @DisplayName("미연결_labelId_null_코드는_오토라벨_토글에서_제외된다")
+    void unconnectedCodeExcludedFromToggles() {
+        // labelId 연결 코드(1) + 미연결 레거시 코드("LEGACY", labelId=null) 혼재.
+        presetWithCodes(idSpec(1L), new LabelCodeSpec("LEGACY"));
+        when(labelMasterService.findActiveByIds(any()))
+                .thenReturn(Map.of(1L, master(1L, "Person", "BBOX")));
+
+        Optional<Set<String>> keys = service.togglesFor(VIDEO_EV_CODE).map(Map::keySet);
+
+        assertThat(keys).isPresent();
+        // 연결된 Person 만 남고, 미연결 코드는 제외.
+        assertThat(keys.get()).containsExactly("person");
+    }
+
+    @Test
+    @DisplayName("soft_delete된_마스터를_참조하는_코드는_토글에서_제외된다")
+    void softDeletedMasterReferenceExcluded() {
+        presetWithCodes(idSpec(1L), idSpec(9L));
+        // 9L 은 soft-delete(USE_YN='N') → findActiveByIds 결과에 없음(활성만 반환).
+        when(labelMasterService.findActiveByIds(any()))
+                .thenReturn(Map.of(1L, master(1L, "Person", "BBOX")));
+
+        Optional<Set<String>> keys = service.togglesFor(VIDEO_EV_CODE).map(Map::keySet);
+
+        assertThat(keys).isPresent();
+        assertThat(keys.get()).containsExactly("person");
+    }
+
+    // ─── 무음 드롭 가시화 (경고 로그) ───
+
+    @Test
+    @DisplayName("정규화_키_충돌시_먼저삽입_코드가_이기고_드롭된_코드는_WARN_로그로_가시화된다")
+    void duplicateNormalizedKeyWarnsButFirstWins() {
+        // "Person"(BBOX) 과 "PERSON"(POLYGON) 은 정규화하면 둘 다 "person" — 키 충돌.
+        // 먼저 삽입된 코드(1L, BBOX)가 이기고, 나중 코드(2L)는 조용히 드롭 → WARN 로그로 가시화.
+        presetWithCodes(idSpec(1L), idSpec(2L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                1L, master(1L, "Person", "BBOX"),
+                2L, master(2L, "PERSON", "POLYGON")));
+
+        Map<String, AnnotationToggle> map = service.togglesFor(VIDEO_EV_CODE).orElseThrow();
+
+        // 첫 코드 우선 동작 유지 — person 은 BBOX(bbox=true, polygon=false) 하나만.
+        assertThat(map).containsOnlyKeys("person");
+        assertThat(map.get("person").bbox()).isTrue();
+        assertThat(map.get("person").polygon()).isFalse();
+
+        // 드롭이 WARN 으로 가시화되고 라벨명 키가 포함된다(민감정보 없음).
+        long warnCount = logAppender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .filter(e -> e.getFormattedMessage().contains("duplicate normalized label key"))
+                .filter(e -> e.getFormattedMessage().contains("key=person"))
+                .filter(e -> e.getFormattedMessage().contains("droppedLabelId=2"))
+                .count();
+        assertThat(warnCount).isGreaterThanOrEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("마스터_형태가_미지원_문자열이면_코드제외되고_WARN_로그로_가시화된다")
+    void unsupportedGeometryWarnsAndExcludes() {
+        // 마스터 CRUD API 가 4값을 강제하므로 정상 유입은 불가하나, 오염 데이터의 무음 드롭을 방어적 가시화.
+        presetWithCodes(idSpec(1L), idSpec(2L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                1L, master(1L, "Person", "BBOX"),
+                2L, master(2L, "Corrupt", "TRIANGLE")));
+
+        Map<String, AnnotationToggle> map = service.togglesFor(VIDEO_EV_CODE).orElseThrow();
+
+        // 미지원 형태 코드는 제외되고 정상 코드만 남는다.
+        assertThat(map).containsOnlyKeys("person");
+
+        long warnCount = logAppender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .filter(e -> e.getFormattedMessage().contains("unsupported label geometry"))
+                .filter(e -> e.getFormattedMessage().contains("labelId=2"))
+                .count();
+        assertThat(warnCount).isGreaterThanOrEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("모든_코드가_미연결이면_빈_Optional_failsafe")
+    void allUnconnectedReturnsEmpty() {
+        presetWithCodes(new LabelCodeSpec("A"), new LabelCodeSpec("B"));
+
+        Optional<Map<String, AnnotationToggle>> result = service.togglesFor(VIDEO_EV_CODE);
+
+        assertThat(result).isEmpty();
+        // labelId 가 하나도 없으면 마스터 배치 조회조차 하지 않는다.
+        verify(labelMasterService, never()).findActiveByIds(any());
+    }
+
+    @Test
+    @DisplayName("labelId는_있으나_활성_마스터가_하나도_없으면_빈_Optional_failsafe")
+    void noActiveMasterReturnsEmpty() {
+        presetWithCodes(idSpec(1L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of());
+
+        Optional<Map<String, AnnotationToggle>> result = service.togglesFor(VIDEO_EV_CODE);
+
+        assertThat(result).isEmpty();
     }
 
     @Test
     @DisplayName("프리셋매칭_영상_EV코드를_categoryKey로_변환해_프리셋을_찾는다")
     void togglesForConvertsEvCodeToCategoryKey() {
-        LsLabelPreset preset = LsLabelPreset.create(
-                "침수 프리셋", "침수", List.of("PERSON", "Fallen"), CATEGORY_KEY);
-        when(presetRepository.findByEventTypeCd(CATEGORY_KEY)).thenReturn(Optional.of(preset));
+        presetWithCodes(idSpec(1L), idSpec(3L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                1L, master(1L, "PERSON", "BBOX"),
+                3L, master(3L, "Fallen", "POLYGON")));
 
         Optional<Set<String>> result = service.togglesFor(VIDEO_EV_CODE).map(Map::keySet);
 
@@ -64,15 +296,33 @@ class PresetLabelLookupServiceTest {
     }
 
     @Test
+    @DisplayName("배치조회는_프리셋_코드의_labelId_집합으로_수행된다")
+    void batchLookupUsesPresetLabelIds() {
+        presetWithCodes(idSpec(1L), idSpec(2L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                1L, master(1L, "Person", "BBOX"),
+                2L, master(2L, "Vehicle", "POLYGON")));
+
+        service.togglesFor(VIDEO_EV_CODE);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Collection<Long>> captor =
+                ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(labelMasterService).findActiveByIds(captor.capture());
+        assertThat(captor.getValue()).containsExactlyInAnyOrder(1L, 2L);
+    }
+
+    // ─── fail-safe 경계 (기존 계약 보존) ───
+
+    @Test
     @DisplayName("프리셋매칭_미등록_EV코드는_빈Optional_failsafe")
     void unregisteredEvCodeReturnsEmpty() {
-        // categoryKeyOf 가 빈 Optional(미등록 코드) → 프리셋 조회 없이 fail-safe 빈 Optional.
         when(eventTypeService.categoryKeyOf("EV99999999")).thenReturn(Optional.empty());
 
         Optional<Map<String, AnnotationToggle>> result = service.togglesFor("EV99999999");
 
         assertThat(result).isEmpty();
-        verify(presetRepository, never()).findByEventTypeCd(org.mockito.ArgumentMatchers.any());
+        verify(presetRepository, never()).findByEventTypeCd(any());
     }
 
     @Test
@@ -81,8 +331,8 @@ class PresetLabelLookupServiceTest {
         Optional<Set<String>> result = service.togglesFor(null).map(Map::keySet);
 
         assertThat(result).isEmpty();
-        verify(eventTypeService, never()).categoryKeyOf(org.mockito.ArgumentMatchers.any());
-        verify(presetRepository, never()).findByEventTypeCd(org.mockito.ArgumentMatchers.any());
+        verify(eventTypeService, never()).categoryKeyOf(any());
+        verify(presetRepository, never()).findByEventTypeCd(any());
     }
 
     @Test
@@ -90,8 +340,8 @@ class PresetLabelLookupServiceTest {
     void blankEventReturnsEmptyWithoutQuery() {
         assertThat(service.togglesFor("").map(Map::keySet)).isEmpty();
         assertThat(service.togglesFor("   ").map(Map::keySet)).isEmpty();
-        verify(eventTypeService, never()).categoryKeyOf(org.mockito.ArgumentMatchers.any());
-        verify(presetRepository, never()).findByEventTypeCd(org.mockito.ArgumentMatchers.any());
+        verify(eventTypeService, never()).categoryKeyOf(any());
+        verify(presetRepository, never()).findByEventTypeCd(any());
     }
 
     @Test
@@ -116,46 +366,17 @@ class PresetLabelLookupServiceTest {
     }
 
     @Test
-    @DisplayName("togglesFor_가_이벤트별_옵션_맵을_반환")
-    void togglesForReturnsToggleMap() {
-        LsLabelPreset preset = LsLabelPreset.createWithOptions(
-                "침수 프리셋", "flood", List.of(
-                        new LabelCodeSpec("PERSON", true, false),
-                        new LabelCodeSpec("VEHICLE", true, true)
-                ), CATEGORY_KEY);
-        when(presetRepository.findByEventTypeCd(CATEGORY_KEY)).thenReturn(Optional.of(preset));
-
-        Optional<Map<String, AnnotationToggle>> result = service.togglesFor(VIDEO_EV_CODE);
-
-        assertThat(result).isPresent();
-        Map<String, AnnotationToggle> map = result.get();
-        assertThat(map).containsKeys("person", "vehicle");
-        assertThat(map.get("person").bbox()).isTrue();
-        assertThat(map.get("person").polygon()).isFalse();
-        assertThat(map.get("vehicle").bbox()).isTrue();
-        assertThat(map.get("vehicle").polygon()).isTrue();
-    }
-
-    @Test
-    @DisplayName("togglesFor_keySet_으로_라벨_집합_도출_가능")
-    void togglesForKeysMatchesLabelSet() {
-        LsLabelPreset preset = LsLabelPreset.createWithOptions(
-                "프리셋", "", List.of(
-                        new LabelCodeSpec("PERSON", true, false),
-                        new LabelCodeSpec("FALLEN", false, true)
-                ), CATEGORY_KEY);
-        when(presetRepository.findByEventTypeCd(CATEGORY_KEY)).thenReturn(Optional.of(preset));
-
-        Optional<Map<String, AnnotationToggle>> toggles = service.togglesFor(VIDEO_EV_CODE);
-
-        assertThat(toggles).isPresent();
-        assertThat(toggles.get().keySet()).containsExactlyInAnyOrder("person", "fallen");
-    }
-
-    @Test
     @DisplayName("AnnotationToggle_BOTH_상수는_둘다_활성")
     void annotationToggleBothConstant() {
         assertThat(AnnotationToggle.BOTH.bbox()).isTrue();
         assertThat(AnnotationToggle.BOTH.polygon()).isTrue();
+    }
+
+    @Test
+    @DisplayName("normalizeLabelKey_는_trim_소문자_정규화_null안전")
+    void normalizeLabelKeyRules() {
+        assertThat(PresetLabelLookupService.normalizeLabelKey("  Person ")).isEqualTo("person");
+        assertThat(PresetLabelLookupService.normalizeLabelKey("VEHICLE")).isEqualTo("vehicle");
+        assertThat(PresetLabelLookupService.normalizeLabelKey(null)).isNull();
     }
 }

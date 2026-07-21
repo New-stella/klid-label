@@ -11,8 +11,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * 라벨 마스터 응용 서비스.
@@ -92,6 +95,24 @@ public class LabelMasterService {
         }
         return labelRepository.findByLabelNmIgnoreCaseAndUseYn(name.trim(), USE_YN_ACTIVE)
                 .map(LsLabel::getLabelId);
+    }
+
+    /**
+     * 프리셋 코드 join·검증용 — 활성(USE_YN='Y') 라벨을 labelId 집합으로 일괄 조회한다(N+1 방지).
+     *
+     * <p>반환 Map 의 key 는 labelId. 요청 id 중 반환에 없는 것은 미존재 또는 soft delete 를 의미한다
+     * (호출자가 미연결/검증 실패로 처리).
+     *
+     * @param labelIds 조회할 labelId 집합 (null/빈값이면 빈 Map)
+     * @return labelId → 응답 DTO (라벨명/형태 포함)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Map<Long, LabelMasterResponse> findActiveByIds(Collection<Long> labelIds) {
+        if (labelIds == null || labelIds.isEmpty()) {
+            return Map.of();
+        }
+        return labelRepository.findByLabelIdInAndUseYn(labelIds, USE_YN_ACTIVE).stream()
+                .collect(Collectors.toMap(LsLabel::getLabelId, LabelMasterResponse::from));
     }
 
     /** Soft delete — USE_YN='N'. */

@@ -8,68 +8,50 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Phase 1 — LsLabelPresetCode 의 BBOX/POLYGON 토글 동작 검증.
+ * V117 — LsLabelPresetCode 의 코드/마스터 연결(LBL_ID) 동작 검증.
  *
- * <p>패키지 가시성 팩토리({@code of(preset, code, sortOrder, ...)})는
- * 같은 패키지에 있는 본 테스트에서 호출 가능하다.
+ * <p>형태(BBOX/POLYGON) 스냅샷은 제거되었고 형태는 라벨 마스터 LBL_TYPE_CD 가 소유한다.
+ * 패키지 가시성 팩토리({@code of(preset, code, sortOrder)})는 같은 패키지의 본 테스트에서 호출 가능하다.
  */
 class LsLabelPresetCodeTest {
 
     @Test
-    @DisplayName("LsLabelPresetCode_의_기본_팩토리는_bbox_polygon_모두_true")
-    void defaultFactoryEnablesBothAnnotations() {
+    @DisplayName("프리셋_생성시_코드는_LBL_CD로_저장되고_LBL_ID는_미연결_null")
+    void createdCodeStartsUnlinked() {
         LsLabelPreset preset = LsLabelPreset.create("기본", "", List.of("PERSON"), null);
 
         LsLabelPresetCode code = preset.getCodes().get(0);
 
-        assertThat(code.isBboxEnabled()).isTrue();
-        assertThat(code.isPolygonEnabled()).isTrue();
-        assertThat(code.isAtLeastOneEnabled()).isTrue();
+        assertThat(code.getCode()).isEqualTo("PERSON");
+        // V117: 마스터 연결(join)은 후속 Phase — 도메인 생성 시점엔 항상 미연결(null).
+        assertThat(code.getLabelId()).isNull();
     }
 
     @Test
-    @DisplayName("LsLabelPresetCode_새_팩토리는_지정한_토글값을_그대로_저장")
-    void explicitFactoryPersistsExactToggles() {
+    @DisplayName("팩토리는_코드와_정렬순서를_그대로_저장하고_LBL_ID는_null")
+    void factoryStoresCodeAndSortOrder() {
         LsLabelPreset preset = LsLabelPreset.create("프리셋", "", List.of(), null);
 
-        LsLabelPresetCode bboxOnly = LsLabelPresetCode.of(preset, "PERSON", 0, true, false);
-        LsLabelPresetCode polygonOnly = LsLabelPresetCode.of(preset, "VEHICLE", 1, false, true);
+        LsLabelPresetCode person = LsLabelPresetCode.of(preset, "PERSON", 0);
+        LsLabelPresetCode vehicle = LsLabelPresetCode.of(preset, "VEHICLE", 1);
 
-        assertThat(bboxOnly.isBboxEnabled()).isTrue();
-        assertThat(bboxOnly.isPolygonEnabled()).isFalse();
-        assertThat(polygonOnly.isBboxEnabled()).isFalse();
-        assertThat(polygonOnly.isPolygonEnabled()).isTrue();
+        assertThat(person.getCode()).isEqualTo("PERSON");
+        assertThat(person.getSortOrder()).isZero();
+        assertThat(person.getLabelId()).isNull();
+        assertThat(vehicle.getCode()).isEqualTo("VEHICLE");
+        assertThat(vehicle.getSortOrder()).isEqualTo(1);
+        assertThat(vehicle.getLabelId()).isNull();
     }
 
     @Test
-    @DisplayName("LsLabelPresetCode_의_AssertTrue_가_둘_다_false_면_실패")
-    void assertTrueRejectsBothDisabled() {
+    @DisplayName("updateSortOrder_는_정렬순서만_갱신한다")
+    void updateSortOrderChangesOnlyOrder() {
         LsLabelPreset preset = LsLabelPreset.create("프리셋", "", List.of(), null);
+        LsLabelPresetCode code = LsLabelPresetCode.of(preset, "PERSON", 0);
 
-        LsLabelPresetCode bothFalse = LsLabelPresetCode.of(preset, "PERSON", 0, false, false);
+        code.updateSortOrder(5);
 
-        assertThat(bothFalse.isAtLeastOneEnabled()).isFalse();
-    }
-
-    @Test
-    @DisplayName("LsLabelPresetCode_BOTH_또는_단일_활성_조합은_AssertTrue_통과")
-    void assertTrueAllowsAtLeastOneEnabled() {
-        LsLabelPreset preset = LsLabelPreset.create("프리셋", "", List.of(), null);
-
-        assertThat(LsLabelPresetCode.of(preset, "A", 0, true, true).isAtLeastOneEnabled()).isTrue();
-        assertThat(LsLabelPresetCode.of(preset, "B", 1, true, false).isAtLeastOneEnabled()).isTrue();
-        assertThat(LsLabelPresetCode.of(preset, "C", 2, false, true).isAtLeastOneEnabled()).isTrue();
-    }
-
-    @Test
-    @DisplayName("LsLabelPresetCode_기존_legacy_팩토리는_둘다_true_로_위임")
-    @SuppressWarnings("deprecation")
-    void legacyFactoryDelegatesToBoth() {
-        LsLabelPreset preset = LsLabelPreset.create("프리셋", "", List.of(), null);
-
-        LsLabelPresetCode code = LsLabelPresetCode.of(preset, "PERSON", 0, true, true);
-
-        assertThat(code.isBboxEnabled()).isTrue();
-        assertThat(code.isPolygonEnabled()).isTrue();
+        assertThat(code.getSortOrder()).isEqualTo(5);
+        assertThat(code.getCode()).isEqualTo("PERSON");
     }
 }

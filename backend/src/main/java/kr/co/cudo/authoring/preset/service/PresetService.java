@@ -3,25 +3,39 @@ package kr.co.cudo.authoring.preset.service;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.eventtype.service.EventTypeService;
-import kr.co.cudo.authoring.preset.dto.LabelCodeOptionDto;
+import kr.co.cudo.authoring.label.domain.LabelGeometry;
+import kr.co.cudo.authoring.label.dto.LabelMasterResponse;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
+import kr.co.cudo.authoring.preset.dto.PresetCodeView;
+import kr.co.cudo.authoring.preset.dto.PresetView;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset.LabelCodeSpec;
+import kr.co.cudo.authoring.preset.entity.LsLabelPresetCode;
 import kr.co.cudo.authoring.preset.repository.LsLabelPresetRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * 프리셋 도메인 응용 서비스.
  *
- * <p>입력 검증(중복 이름 등)은 본 서비스에서 수행하고, 도메인 상태 변경은
+ * <p>입력 검증(중복 이름·이벤트 타입·labelId 유효성)은 본 서비스에서 수행하고, 도메인 상태 변경은
  * Aggregate Root({@link LsLabelPreset}) 의 정적 팩토리/도메인 메서드에 위임한다.
  *
- * <p>Phase 1 — 라벨 코드별 BBOX/POLYGON 토글 옵션({@link LabelCodeOptionDto}) 을 받아
- * {@link LabelCodeSpec} 으로 변환하여 도메인에 전달한다.
+ * <p>Phase 2 — 프리셋 코드는 <b>labelId 기반</b>으로 지정된다. 라벨명·형태는 스냅샷을 저장하지 않고
+ * 조회 시 라벨 마스터(LS_LABEL)를 실시간 join 하여 파생한다(N+1 방지 위해 labelId 일괄 조회).
+ * <ul>
+ *   <li>create/update: 각 labelId 가 활성(USE_YN='Y') 마스터에 존재해야 한다 — 미존재/soft delete 는 400.</li>
+ *   <li>조회 응답: labelId 로 마스터를 join 하여 라벨명·형태 토글({@link LabelGeometry})을 파생.</li>
+ *   <li>미연결 코드(labelId null): 오류 없이 linked=false + legacy 코드 문자열로 노출(AC4).</li>
+ * </ul>
  *
  * <p>UNIQUE 제약 충돌(중복 이벤트 매핑) 은 race-safe 하게 DB 단에서만 차단되며,
  * 본 서비스가 {@link DataIntegrityViolationException} 을 {@link ErrorCode#CONFLICT} 로 변환한다.
@@ -37,34 +51,39 @@ public class PresetService {
 
     private final LsLabelPresetRepository presetRepository;
     private final EventTypeService eventTypeService;
+    private final LabelMasterService labelMasterService;
 
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public List<LsLabelPreset> list() {
-        return presetRepository.findAllByOrderByPresetIdDesc();
+    public List<PresetView> list() {
+        return toViews(presetRepository.findAllWithCodes());
     }
 
     @Transactional("controlTransactionManager")
-    public LsLabelPreset create(String name, String description,
-                                List<LabelCodeOptionDto> options, String eventTypeCd) {
+    public PresetView create(String name, String description,
+                             List<Long> labelIds, String eventTypeCd) {
         validateEventType(eventTypeCd);
         if (presetRepository.existsByPresetNm(name)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 프리셋 이름입니다.");
         }
-        LsLabelPreset preset = LsLabelPreset.createWithOptions(name, description, toSpecs(options), eventTypeCd);
-        return saveWithEventUniqueGuard(preset);
+        Map<Long, LabelMasterResponse> masters = resolveLabels(labelIds);
+        LsLabelPreset preset = LsLabelPreset.createWithOptions(
+                name, description, toSpecs(labelIds), eventTypeCd);
+        LsLabelPreset saved = saveWithEventUniqueGuard(preset);
+        return toView(saved, masters);
     }
 
     @Transactional("controlTransactionManager")
-    public LsLabelPreset update(long id, String name, String description,
-                                List<LabelCodeOptionDto> options, String eventTypeCd) {
+    public PresetView update(long id, String name, String description,
+                             List<Long> labelIds, String eventTypeCd) {
         validateEventType(eventTypeCd);
         LsLabelPreset preset = presetRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프리셋을 찾을 수 없습니다."));
         if (presetRepository.existsByPresetNmAndPresetIdNot(name, id)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 프리셋 이름입니다.");
         }
+        Map<Long, LabelMasterResponse> masters = resolveLabels(labelIds);
         preset.updateBasics(name, description);
-        preset.replaceCodes(toSpecs(options));
+        preset.replaceCodes(toSpecs(labelIds));
         preset.assignToEvent(eventTypeCd);
         // dirty-checking 으로 flush 시 UNIQUE 위반 가능 → 명시적 flush 로 throw 위치를 본 메서드 안으로 끌어온다.
         try {
@@ -72,7 +91,7 @@ public class PresetService {
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(ErrorCode.CONFLICT, MSG_EVENT_CONFLICT, e);
         }
-        return preset;
+        return toView(preset, masters);
     }
 
     @Transactional("controlTransactionManager")
@@ -84,17 +103,18 @@ public class PresetService {
     }
 
     @Transactional("controlTransactionManager")
-    public LsLabelPreset clone(long id) {
+    public PresetView clone(long id) {
         LsLabelPreset src = presetRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프리셋을 찾을 수 없습니다."));
         String baseName = resolveCloneName(src.getPresetNm());
         // 복제본은 이벤트 매핑 미상속 — 이벤트 UNIQUE 충돌을 피하기 위해 null 로 생성.
-        // 옵션은 원본과 동일하게 복사 (BBOX/POLYGON 토글 유지).
+        // 코드 목록(labelId/legacy 코드 포함)은 원본과 동일하게 복사한다.
         List<LabelCodeSpec> specs = src.getCodes().stream()
-                .map(c -> new LabelCodeSpec(c.getCode(), c.isBboxEnabled(), c.isPolygonEnabled()))
+                .map(c -> new LabelCodeSpec(c.getLabelId(), c.getCode()))
                 .toList();
         LsLabelPreset copy = LsLabelPreset.createWithOptions(baseName, src.getExpln(), specs, null);
-        return presetRepository.save(copy);
+        LsLabelPreset saved = presetRepository.save(copy);
+        return toView(saved);
     }
 
     /**
@@ -111,6 +131,44 @@ public class PresetService {
         if (!eventTypeService.validCategoryKeys().contains(eventTypeCd)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "지원하지 않는 이벤트 타입입니다");
         }
+    }
+
+    /**
+     * labelId 목록을 활성 마스터로 해석·검증한다(N+1 방지 위해 배치 1회 조회).
+     *
+     * <p>입력 순서를 보존하며 중복은 제거한다. 각 labelId 는 활성(USE_YN='Y') 마스터에 존재해야 하며,
+     * 미존재/soft delete labelId 는 {@link ErrorCode#INVALID_INPUT}(400) 으로 거부한다.
+     *
+     * @return labelId → 마스터 응답 (join·응답 조립 재사용)
+     */
+    private Map<Long, LabelMasterResponse> resolveLabels(List<Long> labelIds) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        if (labelIds != null) {
+            for (Long id : labelIds) {
+                if (id != null) {
+                    ids.add(id);
+                }
+            }
+        }
+        Map<Long, LabelMasterResponse> masters = labelMasterService.findActiveByIds(ids);
+        for (Long id : ids) {
+            if (!masters.containsKey(id)) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "존재하지 않거나 비활성 라벨입니다: labelId=" + id);
+            }
+        }
+        return masters;
+    }
+
+    /** labelId 목록 → 도메인 스펙(입력 순서 보존, null 제외). 코드 문자열(LBL_CD)은 저장하지 않는다. */
+    private static List<LabelCodeSpec> toSpecs(List<Long> labelIds) {
+        if (labelIds == null) {
+            return List.of();
+        }
+        return labelIds.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(id -> new LabelCodeSpec(id, null))
+                .toList();
     }
 
     /** insert 시점 UNIQUE 위반(이벤트 중복) 을 CONFLICT 로 변환. */
@@ -137,13 +195,58 @@ public class PresetService {
         throw new CustomException(ErrorCode.CONFLICT, "복제 이름 생성에 실패했습니다.");
     }
 
-    private static List<LabelCodeSpec> toSpecs(List<LabelCodeOptionDto> options) {
-        if (options == null) {
-            return List.of();
+    /** 단건 프리셋 → 뷰. 코드가 참조하는 labelId 를 일괄 조회하여 마스터를 join 한다. */
+    private PresetView toView(LsLabelPreset preset) {
+        return toViews(List.of(preset)).get(0);
+    }
+
+    /** 마스터 맵이 이미 확보된 경우(create/update) 재사용해 뷰를 조립한다. */
+    private static PresetView toView(LsLabelPreset preset, Map<Long, LabelMasterResponse> masters) {
+        List<PresetCodeView> codeViews = new ArrayList<>(preset.getCodes().size());
+        for (LsLabelPresetCode code : preset.getCodes()) {
+            codeViews.add(toCodeView(code, masters));
         }
-        return options.stream()
-                .filter(opt -> opt != null && opt.code() != null && !opt.code().isBlank())
-                .map(opt -> new LabelCodeSpec(opt.code(), opt.bboxEnabled(), opt.polygonEnabled()))
-                .toList();
+        return new PresetView(
+                preset.getPresetId(),
+                preset.getPresetNm(),
+                preset.getExpln(),
+                preset.getEventTypeCd(),
+                preset.getRegDt(),
+                preset.getMdfcnDt(),
+                codeViews
+        );
+    }
+
+    /** 프리셋 목록 → 뷰. 전체 코드의 labelId 를 한 번에 조회(배치)하여 코드-라벨 join N+1 을 방지한다. */
+    private List<PresetView> toViews(List<LsLabelPreset> presets) {
+        LinkedHashSet<Long> labelIds = new LinkedHashSet<>();
+        for (LsLabelPreset preset : presets) {
+            for (LsLabelPresetCode code : preset.getCodes()) {
+                if (code.getLabelId() != null) {
+                    labelIds.add(code.getLabelId());
+                }
+            }
+        }
+        Map<Long, LabelMasterResponse> masters = labelMasterService.findActiveByIds(labelIds);
+        List<PresetView> views = new ArrayList<>(presets.size());
+        for (LsLabelPreset preset : presets) {
+            views.add(toView(preset, masters));
+        }
+        return views;
+    }
+
+    /** 코드 1건을 마스터 join 결과로 파생한다. 미연결이면 linked=false + legacy 코드 노출(AC4). */
+    private static PresetCodeView toCodeView(LsLabelPresetCode code, Map<Long, LabelMasterResponse> masters) {
+        LabelMasterResponse master = code.getLabelId() == null ? null : masters.get(code.getLabelId());
+        boolean linked = master != null;
+        if (!linked) {
+            // 미연결(labelId null 또는 마스터 미존재/soft delete) — 오류 없이 legacy 코드로 노출.
+            return new PresetCodeView(code.getLabelId(), code.getCode(), code.getCode(), null, false, false, false);
+        }
+        Optional<LabelGeometry> geometry = LabelGeometry.from(master.type());
+        boolean bbox = geometry.map(LabelGeometry::bboxEnabled).orElse(false);
+        boolean polygon = geometry.map(LabelGeometry::polygonEnabled).orElse(false);
+        return new PresetCodeView(
+                code.getLabelId(), code.getCode(), master.name(), master.type(), true, bbox, polygon);
     }
 }

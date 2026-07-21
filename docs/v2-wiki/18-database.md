@@ -9,7 +9,7 @@
 |------|------|
 | DBMS | **PostgreSQL** |
 | 스키마 | `klid_at` |
-| 마이그레이션 | **Flyway** (V0~V69, 70+ 테이블/뷰) |
+| 마이그레이션 | **Flyway** (V0~V119, 70+ 테이블/뷰) |
 | 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** 9개 `ddl-auto=validate` 참조, Quartz `QRTZ_*` |
 | DDL | PostgreSQL 표준 문법 (MariaDB 문법 금지), `ddl-auto=validate` 고정 |
 
@@ -33,7 +33,7 @@
 |--------|------|------|
 | `LS_LABEL` (V31) | 라벨 마스터 (LABEL_NM, COLR_VL, LABEL_TYPE_CD: BBOX/POLYGON/POINT/SKELETON) | [10](10-labeling.md) |
 | `LS_LABEL_ATTR` (V33) | 라벨 속성 정의 (INPUT_TYPE_CD, MUTABLE_YN) | [10](10-labeling.md) |
-| `LS_LABEL_PRESET` / `LS_LABEL_PRESET_CODE` (V13) | 프리셋 마스터 / 라벨 코드 | [10](10-labeling.md) |
+| `LS_LABEL_PRESET` / `LS_LABEL_PRESET_CODE` (V13, **마스터 연동 V117~V119**) | 프리셋 마스터 / 라벨 코드. **`LS_LABEL_PRESET_CODE` 재설계(2026-07-21, V117~V119)**: 프리셋 코드가 라벨 마스터(`LS_LABEL`)를 **단일 진실원으로 실시간 참조**하도록 전환 — ①`LBL_ID`(BIGINT, FK→`LS_LABEL.LBL_ID`, **nullable=미연결 허용**) + FK 컬럼 인덱스 추가·이름 매칭 backfill(V117), ②형태 스냅샷 컬럼 `BBOX_ENABLED`/`POLYGON_ENABLED` **제거**(V117 — 형태는 마스터 `LBL_TYPE_CD` 소유: BBOX→bbox·POLYGON→polygon·POINT/SKELETON→도형 오토라벨 미적용, 프리셋 개별 토글 불가), ③`LBL_CD` **NOT NULL 제거**(V118 — labelId 기반 신규 행은 코드 미저장, 미연결 레거시 행만 표시용 코드 보유), ④부분 유니크 인덱스 `UK_LS_LABEL_PRESET_CODE_LBLID (PRESET_ID, LBL_ID) WHERE LBL_ID IS NOT NULL`(V119 — 동시 갱신 시 프리셋당 같은 labelId 중복 저장 방지, 위반은 409 CONFLICT). 라벨명·형태를 스냅샷하지 않고 조회·표시·오토라벨 사용 시점에 마스터에서 join하므로 마스터 변경이 신규·기존 프리셋에 즉시 반영. 마스터에 매칭 안 되는 코드(labelId null/비활성)는 오류 없이 **'미연결'** 표시(자동 생성/삭제 없음) | [10](10-labeling.md) |
 | `LS_LABEL_VERSION` (V24) | 라벨 버전 스냅샷 (VERSION_HASH, SAVE_REASON_CD, ACTVTN_YN) | [13](13-version-control.md) |
 | `LS_DATA_LBL_HSTRY` (V58, 확장 V112, **저장이벤트 재구조화 V114**) | 라벨 **저장 이벤트** 이력. **재구조화(2026-07-21, V114)**: 기존 '라벨 1건=1행'(구 `LBL_SN`·`CHG_KIND_CD` 라벨단위)에서 **'저장 이벤트=1행 + diff 페이로드'**(프레임 단위)로 전환. 컬럼: `LBL_HSTRY_SN`(PK, 저장이벤트 ID)·`SRC_SN`(프레임)·`REG_DT`(저장시각)·`REG_ID`(작업자, NULLABLE)·`ADD_CNT`/`MDFCN_CNT`/`DEL_CNT`(INTEGER NOT NULL DEFAULT 0, 추가/수정/삭제 건수)·`CHG_DTL_CN`(TEXT, 항목별 diff JSON — `{lblSn, changeKind, labelName, before, after}` 목록). **제거된 컬럼: `LBL_SN`·`CHG_KIND_CD`**(라벨단위→이벤트단위). 저장 클릭 1회=이력 1건(직전 저장 대비 이전값→새값 diff, 첫 저장은 전부 ADDED, 저장은 프레임 전체 교체라 요청에서 빠진 라벨은 실제 삭제+DELETED, 무변경 저장은 이력 미생성). 트랙 삭제·비식별 신고 삭제도 저장이벤트 모델로 프레임당 기록. `GET /v1/frames/{srcSn}/label-history` 조회, 라벨링 화면(SC-005) 히스토리 패널 '변경 이력' 탭에서 표시 | [10](10-labeling.md)·[13](13-version-control.md) |
 | `LS_DATASET_EXPORT` (V105, CONTENT_HASH V106) | 검수 승인(APPROVED) 시 학습데이터 **파일 산출 추적·버전 원장**. 영상(DATA_RAW_SN) 단위 export 누적(EXPORT_VER_NO=count+1, UK(DATA_RAW_SN,EXPORT_VER_NO)), EXPORT_STTS_CD(SUCCEEDED/FAILED), CONTENT_HASH(라벨+프레임설명+영상메타 SHA-256 멱등키). 실제 산출: `{labeling_root}/{RAW_SN}/v{n}/orgnl\|deid/` (승인 AFTER_COMMIT @Async, API 없음) | [24](24-dataset-export.md) |

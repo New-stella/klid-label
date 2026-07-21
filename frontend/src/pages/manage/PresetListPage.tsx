@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { useEventTypes } from '@/features/eventType/hooks';
+import { PresetCodeChip } from '@/features/preset/components/PresetCodeChip';
 import { PresetEditModal } from '@/features/preset/components/PresetEditModal';
 import { usePresetActions } from '@/features/preset/hooks/usePresetActions';
 import { usePresets } from '@/features/preset/hooks/usePresets';
@@ -24,7 +25,7 @@ const PAGE_SIZE = 10;
  *
  * - 2열 카드 그리드 + 클라이언트 페이지네이션 (10건/페이지)
  * - 프리셋 추가 / 수정 / 복사 / 삭제 (REVIEWER만)
- * - 라벨 항목 최대 6종 제한 (zod presetSchema)
+ * - 라벨 항목 1~20종 제한 (zod presetSchema.labelIds min(1).max(20))
  */
 export function PresetListPage() {
   const { data, isLoading, error } = usePresets();
@@ -168,7 +169,7 @@ export function PresetListPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {pageItems.map((preset) => {
-            const labelCodes = preset.labelCodes;
+            const codes = preset.codes;
             return (
               <div
                 key={preset.id}
@@ -226,18 +227,16 @@ export function PresetListPage() {
                   )}
                 </div>
 
-                {/* Label codes */}
+                {/* Label codes — 마스터 라벨명·형태 기준 표시(미연결은 배지 구분) */}
                 <div className="flex flex-wrap gap-1.5">
-                  {labelCodes.map((code) => (
-                    <span
-                      key={code}
-                      className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700"
-                    >
-                      {code}
-                    </span>
+                  {codes.map((code) => (
+                    <PresetCodeChip
+                      key={code.labelId ?? code.code ?? code.labelName}
+                      code={code}
+                    />
                   ))}
                   <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 tabular-nums">
-                    {labelCodes.length}개
+                    {codes.length}개
                   </span>
                 </div>
 

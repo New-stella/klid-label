@@ -262,7 +262,8 @@ public class Sam2SegmentStep implements BatchStep {
         if (rawLabel == null) {
             return null;
         }
-        String normalized = rawLabel.trim().toLowerCase();
+        // Phase 3: 토글 맵 키(마스터 라벨명 정규화)와 동일 규칙으로 검출 라벨을 정규화해 축을 일치시킨다.
+        String normalized = PresetLabelLookupService.normalizeLabelKey(rawLabel);
         return togglesOpt.get().get(normalized);
     }
 

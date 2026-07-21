@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,4 +31,10 @@ public interface LsLabelRepository extends JpaRepository<LsLabel, Long> {
      * LS_LABEL 마스터로 매핑할 때 사용. 대소문자 무시 + USE_YN 필터.
      */
     Optional<LsLabel> findByLabelNmIgnoreCaseAndUseYn(String labelNm, String useYn);
+
+    /**
+     * 프리셋 코드 join·검증용 — labelId 집합을 활성(USE_YN) 필터로 일괄 조회한다(N+1 방지).
+     * 반환에 없는 id 는 미존재 또는 soft delete(USE_YN='N') 를 의미한다.
+     */
+    List<LsLabel> findByLabelIdInAndUseYn(Collection<Long> labelIds, String useYn);
 }

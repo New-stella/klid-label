@@ -1,79 +1,43 @@
-import { Trash2 } from 'lucide-react';
-import { useId } from 'react';
+import { TYPE_LABEL } from '@/features/label/constants/labelTypes';
 
-import type { LabelCodeOption } from '../types';
+import type { PresetCode } from '../types';
 
 export interface PresetCodeChipProps {
-  option: LabelCodeOption;
-  onToggleBbox: () => void;
-  onTogglePolygon: () => void;
-  onRemove: () => void;
+  code: PresetCode;
 }
 
 const BASE_CLASS =
-  'inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-xs font-medium';
-const VALID_CLASS = 'border-primary-300 text-primary-700';
-const INVALID_CLASS = 'border-danger text-danger';
+  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium';
+const LINKED_CLASS = 'border-primary-300 bg-primary-50 text-primary-700';
+const UNLINKED_CLASS = 'border-amber-300 bg-amber-50 text-amber-700';
 
 /**
- * 프리셋 라벨 코드 chip — 코드 + BBOX/POLYGON 체크박스 + 삭제 버튼.
+ * 프리셋 라벨 코드 chip — 마스터 라벨명 + 형태(읽기 전용) 표시.
  *
- * 둘 다 off 인 경우 빨간 테두리로 시각 경고.
+ * - 연결(linked)된 코드: 마스터 라벨명 + 형태 배지.
+ * - 미연결(linked=false) 코드: legacy 라벨명 + '미연결' 배지(마스터에서 재선택 유도).
+ *
+ * 라벨명은 텍스트로만 렌더한다(XSS 방어 — dangerouslySetInnerHTML 미사용).
  */
-export function PresetCodeChip({
-  option,
-  onToggleBbox,
-  onTogglePolygon,
-  onRemove,
-}: PresetCodeChipProps) {
-  const bboxId = useId();
-  const polyId = useId();
-  const valid = option.bboxEnabled || option.polygonEnabled;
+export function PresetCodeChip({ code }: PresetCodeChipProps) {
+  const shape = code.labelType ? TYPE_LABEL[code.labelType] : null;
 
   return (
-    <div
-      data-testid={`preset-chip-${option.code}`}
-      className={[BASE_CLASS, valid ? VALID_CLASS : INVALID_CLASS].join(' ')}
+    <span
+      data-testid={`preset-chip-${code.labelId ?? code.code ?? code.labelName}`}
+      className={[BASE_CLASS, code.linked ? LINKED_CLASS : UNLINKED_CLASS].join(' ')}
     >
-      <span className="font-semibold">{option.code}</span>
-      <div className="flex items-center gap-2 text-[11px] text-gray-600">
-        <label
-          htmlFor={bboxId}
-          className="inline-flex items-center gap-1 cursor-pointer select-none"
-        >
-          <input
-            id={bboxId}
-            type="checkbox"
-            checked={option.bboxEnabled}
-            onChange={onToggleBbox}
-            aria-label={`${option.code} BBOX`}
-            className="h-3 w-3 rounded border-gray-300 text-primary-500 focus:ring-primary-400"
-          />
-          BBOX
-        </label>
-        <label
-          htmlFor={polyId}
-          className="inline-flex items-center gap-1 cursor-pointer select-none"
-        >
-          <input
-            id={polyId}
-            type="checkbox"
-            checked={option.polygonEnabled}
-            onChange={onTogglePolygon}
-            aria-label={`${option.code} POLYGON`}
-            className="h-3 w-3 rounded border-gray-300 text-primary-500 focus:ring-primary-400"
-          />
-          POLYGON
-        </label>
-      </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="ml-1 text-gray-400 transition-colors hover:text-danger"
-        aria-label={`${option.code} 삭제`}
-      >
-        <Trash2 className="h-3 w-3" aria-hidden />
-      </button>
-    </div>
+      <span className="font-semibold">{code.labelName}</span>
+      {code.linked && shape && (
+        <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-normal text-gray-600">
+          {shape}
+        </span>
+      )}
+      {!code.linked && (
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+          미연결
+        </span>
+      )}
+    </span>
   );
 }
