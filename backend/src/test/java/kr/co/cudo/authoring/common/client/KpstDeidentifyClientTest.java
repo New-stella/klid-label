@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -49,6 +50,9 @@ class KpstDeidentifyClientTest {
     private volatile String progressMethod;
     private volatile String progressPath;
     private volatile String progressBody;
+    /** 진행조회 서버가 수신한 요청 총 횟수 — 재시도 발생 여부 단언용(요청 카운트 방식). */
+    private final java.util.concurrent.atomic.AtomicInteger progressRequestCount =
+            new java.util.concurrent.atomic.AtomicInteger();
 
     @TempDir
     Path tempDir;
@@ -62,11 +66,14 @@ class KpstDeidentifyClientTest {
                                 .failureRateThreshold(50)
                                 .slidingWindowSize(10)
                                 .minimumNumberOfCalls(5)
+                                // K3: 4xx 비재시도 예외는 서킷 failure 로 집계하지 않는다(프로덕션 YAML 정합).
+                                .ignoreExceptions(NonRetryableExternalException.class)
                                 .build())
                 .circuitBreaker("kpstDeid");
         progressServer = com.sun.net.httpserver.HttpServer.create(
                 new java.net.InetSocketAddress("127.0.0.1", 0), 0);
         progressServer.start();
+        progressRequestCount.set(0);
     }
 
     @AfterEach
@@ -101,6 +108,20 @@ class KpstDeidentifyClientTest {
         return RetryRegistry.of(RetryConfig.custom().maxAttempts(1).build());
     }
 
+    /** 프로덕션 정합 재시도 레지스트리 — 3회 재시도하되 4xx 비재시도 예외는 무시(K3). */
+    private RetryRegistry tripleAttemptIgnoringNonRetryable() {
+        return RetryRegistry.of(RetryConfig.custom()
+                .maxAttempts(3)
+                .waitDuration(Duration.ofMillis(10))
+                .ignoreExceptions(NonRetryableExternalException.class)
+                .build());
+    }
+
+    private KpstDeidentifyClient clientWith(RetryRegistry registry) {
+        return new KpstDeidentifyClient(
+                webClient(), progressHttpClient(), circuitBreaker, registry);
+    }
+
     /**
      * 진행조회 서버에 {@code /retrieve_progress} 핸들러를 설치한다.
      *
@@ -113,6 +134,7 @@ class KpstDeidentifyClientTest {
         byte[] respBytes = jsonBody.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         progressServer.createContext("/retrieve_progress", exchange -> {
             try (exchange) {
+                progressRequestCount.incrementAndGet();
                 progressMethod = exchange.getRequestMethod();
                 progressPath = exchange.getRequestURI().getPath();
                 progressBody = new String(exchange.getRequestBody().readAllBytes(),
@@ -120,6 +142,22 @@ class KpstDeidentifyClientTest {
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, respBytes.length);
                 exchange.getResponseBody().write(respBytes);
+            }
+        });
+    }
+
+    /**
+     * 진행조회 서버가 항상 주어진 오류 상태코드({@code status})로 응답하도록 설치한다(빈 바디).
+     *
+     * <p>매 요청마다 {@link #progressRequestCount} 를 증가시키므로, 재시도가 발생하면 카운트가
+     * 그만큼 늘어난다 — "4xx 는 1회만(비재시도)" / "5xx 는 3회(재시도)" 를 요청 카운트로 단언한다.
+     */
+    private void installProgressStatusDispatcher(int status) {
+        progressServer.createContext("/retrieve_progress", exchange -> {
+            try (exchange) {
+                progressRequestCount.incrementAndGet();
+                exchange.getRequestBody().readAllBytes();
+                exchange.sendResponseHeaders(status, -1);
             }
         });
     }
@@ -254,6 +292,139 @@ class KpstDeidentifyClientTest {
         String body = rec.getBody().readUtf8();
         assertThat(body).contains("\"project_id\":279");
         assertThat(body).contains("\"user_id\":\"user01\"");
+    }
+
+    // ===== K3: 4xx 비재시도 분류 — 결정적 실패는 재시도·서킷집계 제외 =====
+
+    @Test
+    @DisplayName("K3_createProject_409는_재시도없이_1회요청_CONFLICT매핑_보존")
+    void createProject409NotRetriedConflictPreserved() {
+        // given — 결정적 4xx(409 중복) 응답 1건만 enqueue.
+        server.enqueue(new MockResponse()
+                .setResponseCode(409)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"result\":\"fail\",\"message\":\"Project already exists\"}"));
+        KpstProjectRequest req = KpstProjectRequest.withDefaults(
+                "projectA", "user01", "/nas-storage/videos/9002/", "/nas-storage/raw/9002/", List.of("a.mp4"));
+
+        // when / then — 3회 재시도 설정이라도 4xx 는 재시도되지 않고, 사용자-대면 CONFLICT 매핑이 보존된다.
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("K3_createProject_400은_재시도없이_1회요청_INVALID_INPUT매핑_보존")
+    void createProject400NotRetriedInvalidInputPreserved() {
+        server.enqueue(new MockResponse()
+                .setResponseCode(400)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"result\":\"fail\"}"));
+        KpstProjectRequest req = KpstProjectRequest.withDefaults(
+                "projectA", "user01", "/nas-storage/videos/9002/", "/nas-storage/raw/9002/", List.of("a.mp4"));
+
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("K3_createProject_500은_설정된_횟수만큼_재시도한다")
+    void createProject500Retried() {
+        // given — 일시적 5xx 는 3회 재시도 대상.
+        for (int i = 0; i < 3; i++) {
+            server.enqueue(new MockResponse().setResponseCode(500));
+        }
+        KpstProjectRequest req = KpstProjectRequest.withDefaults(
+                "projectA", "user01", "/nas-storage/videos/9002/", "/nas-storage/raw/9002/", List.of("a.mp4"));
+
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req))
+                .isInstanceOf(CustomException.class);
+        // 5xx 는 max-attempts(3) 만큼 재시도 → 3회 요청.
+        assertThat(server.getRequestCount()).isEqualTo(3);
+    }
+
+    // ===== K3 보강 — retrieveProgress(K1 폴링 의존 경로) + deleteProject 4xx/5xx 분류 =====
+    // retrieveProgress 는 raw reactor-netty HttpClient(kpstDeidProgressHttpClient) 경로다.
+    // 재시도 발생 여부는 진행조회 서버(JDK HttpServer)가 수신한 요청 카운트(progressRequestCount)로 단언한다.
+
+    @Test
+    @DisplayName("K3_retrieveProgress_400은_재시도없이_1회요청_INVALID_INPUT매핑_보존")
+    void retrieveProgress400NotRetriedInvalidInputPreserved() {
+        // given — 진행조회가 결정적 4xx(400)로 응답.
+        installProgressStatusDispatcher(400);
+
+        // when / then — 3회 재시도 설정이라도 4xx 는 재시도되지 않고, INVALID_INPUT 매핑이 보존된다.
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable())
+                .retrieveProgress("user01", 279L))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        // 요청 카운트 1 = 재시도 미발생.
+        assertThat(progressRequestCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("K3_retrieveProgress_404는_재시도없이_1회요청_NOT_FOUND매핑_보존")
+    void retrieveProgress404NotRetriedNotFoundPreserved() {
+        // given — 진행조회가 결정적 4xx(404)로 응답.
+        installProgressStatusDispatcher(404);
+
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable())
+                .retrieveProgress("user01", 279L))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.NOT_FOUND));
+        assertThat(progressRequestCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("K3_retrieveProgress_500은_설정된_횟수만큼_재시도한다")
+    void retrieveProgress500Retried() {
+        // given — 일시적 5xx 는 재시도 대상(대조군). 진행조회가 항상 500 응답.
+        installProgressStatusDispatcher(500);
+
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable())
+                .retrieveProgress("user01", 279L))
+                .isInstanceOf(CustomException.class);
+        // 5xx 는 max-attempts(3) 만큼 재시도 → 진행조회 서버가 3회 수신.
+        assertThat(progressRequestCount.get()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("K3_deleteProject_404는_재시도없이_1회요청_NOT_FOUND매핑_보존")
+    void deleteProject404NotRetriedNotFoundPreserved() {
+        // given — 삭제가 결정적 4xx(404)로 응답.
+        server.enqueue(new MockResponse()
+                .setResponseCode(404)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"result\":\"fail\",\"message\":\"Project not found\"}"));
+
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable())
+                .deleteProject(279L, "user01"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.NOT_FOUND));
+        // 4xx 는 재시도되지 않으므로 요청은 1회뿐.
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("K3_deleteProject_400은_재시도없이_1회요청_INVALID_INPUT매핑_보존")
+    void deleteProject400NotRetriedInvalidInputPreserved() {
+        server.enqueue(new MockResponse()
+                .setResponseCode(400)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"result\":\"fail\"}"));
+
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable())
+                .deleteProject(279L, "user01"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        assertThat(server.getRequestCount()).isEqualTo(1);
     }
 
     // ===== DEV_FIX 보강 — 삭제 경로 검증 =====

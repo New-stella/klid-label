@@ -61,20 +61,33 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "kpst.deid", name = "enabled", havingValue = "true")
 public class KpstDeidentService {
 
-    /** KPST 데이터셋 처리 완료 상태 코드 (실서버 빌드 기준 — §22.4 위키 "완료=2"). */
+    /**
+     * KPST 데이터셋 처리 완료 상태 코드 — procState 도메인 {@code 2 완료} (§22.4 위키 "완료=2").
+     * 진행조회 응답 {@code dsStatus.procState}(데이터셋 값) 판정 기준이다.
+     */
     public static final int PROC_STATE_COMPLETED = 2;
 
     /**
-     * KPST 데이터셋 터미널-실패 상태 코드 집합 — 이 상태면 타임아웃을 기다리지 않고 즉시 'F' 종결.
+     * KPST 데이터셋(procState) 터미널-실패 상태 코드 집합 — 이 상태면 타임아웃을 기다리지 않고 즉시 'F' 종결.
+     *
+     * <p><b>도메인 주의(K2)</b>: 본 집합은 진행조회 응답의 {@code dsStatus.procState}(데이터셋 코드)만
+     * 판정한다. procState 규격 코드는 {@code 0 대기중 · 1 실행중 · 2 완료 · 3 중지 · 4 삭제중 · 99 오류}
+     * 이며, 프로젝트 단위 {@code prjState}(0~6) 와는 별개 도메인이다(procState 에 5·6 은 존재하지 않음).
      *
      * <ul>
-     *   <li>{@code 99} — 2026-06-25 실서버 KPST 라이브 테스트에서 마스킹 실패 잡이 모두
-     *       {@code procState:99, progressRate:0.0} 으로 반환된 실측 확인 에러 sentinel(문서표 0~6 밖).</li>
-     *   <li>{@code 4, 5, 6} — PDF §2.5.2 표 기준 실행중지/오류/정지(실측 미확인).</li>
+     *   <li>{@code 3} — 중지: 사용자/시스템에 의해 중단된 데이터셋(재폴링해도 진행되지 않음).</li>
+     *   <li>{@code 4} — 삭제중: 데이터셋 삭제 진행(산출물 미기대).</li>
+     *   <li>{@code 99} — 오류: 2026-06-25 실서버 KPST 라이브 테스트에서 마스킹 실패 잡이 모두
+     *       {@code procState:99, progressRate:0.0} 으로 반환된 실측 확인 에러 sentinel.</li>
      * </ul>
-     * <p>{@code 0/1/3} 및 그 외 미지 코드는 진행중(타임아웃 바운드)으로 유지한다(완료=2 만 완료).
+     * <p>{@code null(미시작)/0(대기중)/1(실행중)} 및 그 외 미지 코드는 진행중(타임아웃 바운드)으로
+     * 유지한다(완료={@link #PROC_STATE_COMPLETED} 만 완료).
      */
-    static final Set<Integer> PROC_STATE_TERMINAL_FAILED = Set.of(4, 5, 6, 99);
+    static final int PROC_STATE_STOPPED = 3;   // 중지
+    static final int PROC_STATE_DELETING = 4;  // 삭제중
+    static final int PROC_STATE_ERROR = 99;    // 오류(실측 sentinel)
+    static final Set<Integer> PROC_STATE_TERMINAL_FAILED =
+            Set.of(PROC_STATE_STOPPED, PROC_STATE_DELETING, PROC_STATE_ERROR);
     /** 비식별 결과 저장 하위 디렉터리(우리 base 상대) — export_path/회수 경로 공통. */
     private static final String DIR_VIDEOS = "videos";
 
@@ -214,7 +227,21 @@ public class KpstDeidentService {
             txService.markTimeoutIfExpired(procLogSn, pollMaxAttempts, pollTimeoutMinutes);
             return;
         }
-        KpstProgressResponse progress = kpstClient.retrieveProgress(reqUserId, prjId);
+        KpstProgressResponse progress;
+        try {
+            progress = kpstClient.retrieveProgress(reqUserId, prjId);
+        } catch (RuntimeException e) {
+            // K1: KPST 지속 예외(5xx/커넥션거부/서킷오픈 CallNotPermittedException 등)가 나면
+            // 시도 카운터(recordPollingProgress)와 완료판정이 실행되지 않아, 잡이 예외를 삼키고 다음 틱에
+            // 동일 건을 재폴링하면 poll-timeout-minutes 경과 후에도 'F' 전이가 일어나지 않아 무기한 stuck 된다
+            // (raw PENDING·REDEIDENT 작업락 잔존). 예외 경로에서도 경과시간 기준 타임아웃을 반드시 평가해
+            // 초과 시 'F' 마킹(REDEIDENT 락 해제 포함 — markTimeoutIfExpired 내부 처리)하고, 아직 경과 전이면
+            // 이번 틱만 skip 하고 다음 폴링을 대기한다. CWE-209: 외부 원문/스택트레이스 미노출(예외 클래스명만).
+            boolean timedOut = txService.markTimeoutIfExpired(procLogSn, pollMaxAttempts, pollTimeoutMinutes);
+            log.warn("[KpstDeid] poll retrieveProgress failed rawSn={} prjId={} errType={} timedOut={}",
+                    rawSn, prjId, e.getClass().getSimpleName(), timedOut);
+            return;
+        }
         KpstProgressResponse.DsStatus ds = firstDataset(progress);
         if (ds == null) {
             // 아직 데이터셋 미생성 — 시도 증가 후 타임아웃 검사.
@@ -224,7 +251,7 @@ public class KpstDeidentService {
         }
         Long datasetId = procLog.getKpstDatasetId() != null ? procLog.getKpstDatasetId() : ds.dsId();
         // 터미널-실패 우선 판정(완료보다 앞) — 다중 데이터셋이면 하나라도 실패면 즉시 'F' 종결.
-        // 에러 sentinel(99 실측)·정지(4/5/6 문서표)를 진행중으로 보지 않아 타임아웃(180분) 대기를 끊는다.
+        // 오류 sentinel(99 실측)·중지(3)·삭제중(4)를 진행중으로 보지 않아 타임아웃(180분) 대기를 끊는다.
         if (anyDatasetFailed(progress)) {
             // REDEIDENT 는 락 해제 포함 종결(영구잠금 방지). 기존 배치는 위탁 시 작업락을 잡지 않으므로
             // failPolling('F' 마킹 + terminal, 락 해제 없음)으로 종결해도 무해하다(잠글 락 자체가 없음).

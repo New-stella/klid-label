@@ -44,6 +44,8 @@ class VlmClientTest {
                         .failureRateThreshold(50)
                         .slidingWindowSize(10)
                         .minimumNumberOfCalls(5)
+                        // V1: 4xx 비재시도 예외는 서킷 failure 로 집계하지 않는다(프로덕션 YAML 정합).
+                        .ignoreExceptions(NonRetryableExternalException.class)
                         .build());
     }
 
@@ -65,6 +67,15 @@ class VlmClientTest {
                 .maxAttempts(3)
                 .waitDuration(Duration.ofMillis(10))
                 .retryExceptions(RuntimeException.class)
+                .build());
+    }
+
+    /** 프로덕션 정합 재시도 레지스트리 — 3회 재시도하되 4xx 비재시도 예외는 무시(V1). */
+    private RetryRegistry tripleAttemptIgnoringNonRetryable() {
+        return RetryRegistry.of(RetryConfig.custom()
+                .maxAttempts(3)
+                .waitDuration(Duration.ofMillis(10))
+                .ignoreExceptions(NonRetryableExternalException.class)
                 .build());
     }
 
@@ -201,6 +212,37 @@ class VlmClientTest {
                 .isInstanceOf(RuntimeException.class);
 
         assertThat(server.getRequestCount()).isEqualTo(3);
+    }
+
+    // ===== V1: 4xx(400/422) 비재시도 분류 — 벤더 규격(§4.1) 비-일시적 오류 =====
+
+    @Test
+    @DisplayName("V1_400_형식오류는_재시도없이_1회요청_비재시도예외전파")
+    void badRequest400NotRetried() {
+        // given — 벤더 규격상 400(형식오류)은 비-일시적. 3회 재시도 설정이라도 재시도되지 않아야 한다.
+        retryRegistry = tripleAttemptIgnoringNonRetryable();
+        server.enqueue(new MockResponse().setResponseCode(400));
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+
+        // when / then
+        assertThatThrownBy(() -> client.submitTimeseries(describeReq("req-400"))
+                .block(Duration.ofSeconds(2)))
+                .isInstanceOf(NonRetryableExternalException.class);
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("V1_422_파라미터값오류도_재시도없이_1회요청")
+    void unprocessable422NotRetried() {
+        // given — 422(파라미터 값 오류)도 비-일시적.
+        retryRegistry = tripleAttemptIgnoringNonRetryable();
+        server.enqueue(new MockResponse().setResponseCode(422));
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+
+        assertThatThrownBy(() -> client.submitTimeseries(describeReq("req-422"))
+                .block(Duration.ofSeconds(2)))
+                .isInstanceOf(NonRetryableExternalException.class);
+        assertThat(server.getRequestCount()).isEqualTo(1);
     }
 
     @Test

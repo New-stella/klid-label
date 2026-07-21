@@ -202,7 +202,7 @@ curl --cacert ca.crt -X POST https://<IP>:<Port>/upload \
 | `prjStatus[].createId / exportPath` | string | 생성자 / 내보내기 경로 |
 | `prjStatus[].dsCount` | int | 데이터셋(파일) 수 |
 | `dsStatus[].dsId / fileName` | int/string | 데이터셋 ID / 파일명 |
-| `dsStatus[].procState` | int | 처리 상태 코드 — **실서버 빌드 기준 완료=`2`(아래 §22.4 문서 표와 상이). 미시작 시 `null` 반환** |
+| `dsStatus[].procState` | int | 데이터셋 처리 상태 코드(프로젝트 `prjState` 0~6 과 별개 도메인). **실서버 빌드 기준 완료=`2`(아래 §22.4 문서 표와 상이). 미시작 시 `null` 반환.** 저작도구 판정(`KpstDeidentService`): 완료=`2` / 진행중=`null`·`0`·`1` / **터미널 실패=`3`(중지)·`4`(삭제중)·`99`(오류)** → 즉시 `DE_IDENT_YN='F'` fast-fail. 구 `{4,5,6,99}`(prjState 값 오혼용) 폐기 |
 | `dsStatus[].progressRate` | float | 파일별 진행률 |
 | `dsStatus[].totalFrame` | int | 총 프레임 수 |
 | `dsStatus[].startTime/endTime` | datetime | 처리 시작/종료 시각 |
