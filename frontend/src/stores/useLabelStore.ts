@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import type { LabelChangeView, LabelSnapshotView } from '@/features/label/api';
 import { clampPan as clampPanByScale } from '@/features/label/canvas/utils/canvasGeometry';
 import type { Label, Shape, ToolType } from '@/features/label/types';
 import { ToolType as ToolTypeEnum } from '@/features/label/types';
@@ -40,6 +41,25 @@ let autolabelSeq = 0;
 function nextAutolabelId(): string {
   autolabelSeq += 1;
   return `autolabel-${Date.now().toString(36)}-${autolabelSeq}`;
+}
+
+let revertSeq = 0;
+
+/**
+ * "이 저장 되돌리기"에서 DELETED 를 되살릴 때(신규 삽입) 부여하는 클라이언트 임시 ID.
+ * 원 lblSn 은 이미 삭제됐으므로 serverId 없이 새 라벨로 추가한다 → 저장 시 BE INSERT.
+ */
+function nextRevertId(): string {
+  revertSeq += 1;
+  return `revert-${Date.now().toString(36)}-${revertSeq}`;
+}
+
+/** revertSaveEvent 결과 요약 — 호출측 토스트 분기용. */
+export interface RevertResult {
+  /** 실제 작업본에 역적용된 변경 항목 수. */
+  reverted: number;
+  /** 대상 라벨 부재/좌표복원 불가(SEGMENT 등)로 건너뛴 항목 수. */
+  skipped: number;
 }
 
 /** shape 좌표를 (dx, dy) 만큼 평행이동한 새 shape 반환(불변). */
@@ -242,6 +262,23 @@ interface LabelState {
    * @returns 실제 병합된 라벨 수(중복 전부 스킵 시 0 — 이때 undo/dirty 변화 없음).
    */
   mergeAutoLabels: (labels: Label[]) => number;
+
+  /**
+   * "이 저장 되돌리기" — 저장 이벤트의 changes[] 를 현재 작업본에 역적용(즉시 DB 저장 아님).
+   *  - UPDATED : 대상 라벨(serverId===lblSn)을 before 상태(좌표/타입/labelId/라벨명)로 복원.
+   *  - ADDED   : 대상 라벨(serverId===lblSn)을 작업본에서 제거.
+   *  - DELETED : before 내용을 신규 라벨로 추가(클라 임시 id, serverId 미저장 → 저장 시 INSERT).
+   *  - 현재 작업본에 대상이 없거나 좌표복원 불가(SEGMENT 등)면 해당 항목만 스킵(skipped 증가).
+   *  - 실제 역적용이 1건 이상일 때만 단일 undo 스냅샷 1회 push + dirty 일괄 표시(0건이면 no-op).
+   * @param changes 저장 이벤트의 라벨 단위 변경 목록(BE LabelChangeView[]).
+   * @param frameNo 현재 프레임 번호(복원/신규 라벨에 부여).
+   * @param toLabel before/after 스냅샷 → FE Label 변환기(api.snapshotToLabel). 복원 불가 시 null 반환.
+   */
+  revertSaveEvent: (
+    changes: LabelChangeView[],
+    frameNo: number,
+    toLabel: (snap: LabelSnapshotView | null, frameNo: number) => Label | null,
+  ) => RevertResult;
 
   /**
    * R12 — 미래 프레임 추적 결과를 srcSn 별로 보류 캐시에 stash(누적).
@@ -528,6 +565,87 @@ export const useLabelStore = create<LabelState>((set, get) => ({
     const undoStack = [...get().undoStack, snapshot(prev)].slice(-MAX_UNDO);
     set({ labels: [...prev, ...merged], dirtyLabels: dirty, undoStack, redoStack: [] });
     return merged.length;
+  },
+
+  revertSaveEvent: (changes, frameNo, toLabel) => {
+    const prev = get().labels;
+    // 불변 — 원본을 변형하지 않고 작업 사본에 역적용한 뒤 한 번에 커밋한다.
+    let next = [...prev];
+    const dirtyIds: string[] = [];
+    let reverted = 0;
+    let skipped = 0;
+
+    for (const change of changes) {
+      if (change.changeKind === 'UPDATED') {
+        // before 상태로 복원 — 대상은 현재 작업본의 serverId===lblSn 라벨.
+        if (change.lblSn == null) {
+          skipped += 1;
+          continue;
+        }
+        const idx = next.findIndex((l) => l.serverId === change.lblSn);
+        const restored = toLabel(change.before, frameNo);
+        if (idx < 0 || !restored) {
+          skipped += 1; // 작업본에 없음 or 좌표복원 불가(SEGMENT 등).
+          continue;
+        }
+        const target = next[idx];
+        next = next.map((l, i) =>
+          i === idx
+            ? {
+                ...l,
+                shape: restored.shape,
+                labelId: restored.labelId,
+                classId: restored.classId,
+                className: restored.className,
+                // color 도 before(restored) 값으로 정합 — getLabelDisplayColor 는
+                // label.color(hex) 를 최우선 참조하므로, labelId 만 되돌리고 기존 color 를
+                // 유지하면 stale 색이 남는다. restored.color(스냅샷엔 color 없음 → null)로
+                // 덮어써 색을 클리어하면 렌더가 복원된 labelId 로 마스터 색을 재파생한다.
+                color: restored.color,
+              }
+            : l,
+        );
+        dirtyIds.push(target.id);
+        reverted += 1;
+      } else if (change.changeKind === 'ADDED') {
+        // 추가됐던 라벨을 작업본에서 제거.
+        if (change.lblSn == null) {
+          skipped += 1;
+          continue;
+        }
+        const idx = next.findIndex((l) => l.serverId === change.lblSn);
+        if (idx < 0) {
+          skipped += 1;
+          continue;
+        }
+        dirtyIds.push(next[idx].id);
+        next = next.filter((_, i) => i !== idx);
+        reverted += 1;
+      } else {
+        // DELETED — before 내용을 신규 라벨로 되살린다(serverId 미저장 → 저장 시 INSERT).
+        const restored = toLabel(change.before, frameNo);
+        if (!restored) {
+          skipped += 1; // 좌표복원 불가(SEGMENT 등).
+          continue;
+        }
+        const id = nextRevertId();
+        next = [...next, { ...restored, id, serverId: undefined, frameNo }];
+        dirtyIds.push(id);
+        reverted += 1;
+      }
+    }
+
+    if (reverted === 0) {
+      // 역적용 0건 — undo/dirty 변화 없이 no-op(호출측이 안내 토스트).
+      return { reverted: 0, skipped };
+    }
+
+    const dirty = new Set(get().dirtyLabels);
+    dirtyIds.forEach((id) => dirty.add(id));
+    // 되돌리기 배치 전체를 단일 undo 스냅샷으로 — 한 번의 undo 로 통째 취소.
+    const undoStack = [...get().undoStack, snapshot(prev)].slice(-MAX_UNDO);
+    set({ labels: next, dirtyLabels: dirty, undoStack, redoStack: [] });
+    return { reverted, skipped };
   },
 
   stashPendingTracks: (bySrcSn) => {

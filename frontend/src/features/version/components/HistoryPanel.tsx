@@ -15,6 +15,7 @@ import { History, RotateCcw, X } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
+import type { LabelHistoryItem } from '@/features/label/api';
 import { LabelHistoryPanel } from '@/features/label/components/LabelHistoryPanel';
 import { DiffViewer } from '@/features/version/components/DiffViewer';
 import { RollbackConfirmModal } from '@/features/version/components/RollbackConfirmModal';
@@ -39,6 +40,11 @@ interface HistoryPanelProps {
    * 저장 직후 기대 화면을 노출. 버전 브라우징 전용 페이지는 'versions' 전달.
    */
   defaultTab?: HistoryTab;
+  /**
+   * "변경 이력"(저장 이벤트) 탭에서 저장을 현재 작업본에 되돌리기 요청 콜백.
+   * 라벨링 화면(작업본 컨텍스트)에서만 전달 — 버전 브라우징 전용 페이지는 미전달(버튼 미노출).
+   */
+  onRevert?: (item: LabelHistoryItem) => void;
 }
 
 function formatTime(iso: string | undefined): string {
@@ -59,6 +65,7 @@ export function HistoryPanel({
   onClose,
   dark = false,
   defaultTab = 'changes',
+  onRevert,
 }: HistoryPanelProps) {
   const role = useAuthStore((s) => s.claims?.role ?? null);
   const canRollback = role === Role.REVIEWER || role === Role.WORKER;
@@ -163,7 +170,7 @@ export function HistoryPanel({
           aria-labelledby="history-tab-changes"
           data-testid="history-changes-panel"
         >
-          <LabelHistoryPanel srcSn={srcSn} dark={dark} />
+          <LabelHistoryPanel srcSn={srcSn} dark={dark} onRevert={onRevert} />
         </div>
       ) : (
         // 버전(커밋) — LS_LABEL_VERSION 스냅샷 + diff + 롤백.
