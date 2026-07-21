@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
 import { type LabelMaster, type LabelMasterUpsert } from '@/features/label/api/labelMaster';
 import { LabelAttrDefPanel } from '@/features/label/components/LabelAttrDefPanel';
+import { TYPE_LABEL } from '@/features/label/constants/labelTypes';
 import {
   useCreateLabelMaster,
   useUpdateLabelMaster,
@@ -19,7 +20,6 @@ import { useUiStore } from '@/stores/useUiStore';
 
 import {
   LabelMasterFormModal,
-  TYPE_LABEL,
   emptyForm,
   toForm,
   validate,

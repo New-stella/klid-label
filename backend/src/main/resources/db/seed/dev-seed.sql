@@ -53,7 +53,8 @@ DELETE FROM MNG_CLIP_EVNT_LST WHERE EVNT_ID LIKE 'DEV-EVT-%';
 DELETE FROM MNG_CLIP_MASTER WHERE EVNT_ID LIKE 'DEV-EVT-%';
 -- LS_LABEL 은 보존 대상 마스터(주석 §남기는 것) — 강제 DELETE 금지.
 --   기존 LS_DATA_LBL(다른 RAW_SN 범위)이 lbl_id 를 참조하면 FK 위반으로 시드 전체가 중단된다.
---   재적재 멱등은 아래 INSERT 의 ON CONFLICT (LBL_NM) DO NOTHING 으로 보장한다.
+--   재적재 멱등은 아래 INSERT 의 ON CONFLICT ((LOWER(TRIM(LBL_NM)))) WHERE USE_YN='Y' DO NOTHING
+--   으로 보장한다(V121 로 all-rows exact UK 제거 후, 활성 CI 부분 인덱스 UK_LS_LABEL_NM_CI 를 추론 대상으로 사용).
 DELETE FROM LS_USER_ROLE WHERE USER_NO BETWEEN 1000 AND 9999;
 DELETE FROM MNG_ACCT_USER_AUTHRT WHERE USER_NO BETWEEN 1000 AND 9999;
 DELETE FROM MNG_ACCT_USER WHERE USER_NO BETWEEN 1000 AND 9999;
@@ -161,7 +162,7 @@ INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, RE
     ('fallen-person',    '#C0392B', 'BBOX',    11, 'Y', 'seed', '2026-05-15 00:00:00'),
     ('vehicle-accident', '#D35400', 'BBOX',    12, 'Y', 'seed', '2026-05-15 00:00:00'),
     ('object',           '#95A5A6', 'BBOX',    13, 'Y', 'seed', '2026-05-15 00:00:00')
-ON CONFLICT (LBL_NM) DO NOTHING;
+ON CONFLICT ((LOWER(TRIM(LBL_NM)))) WHERE USE_YN = 'Y' DO NOTHING;
 
 -- 7) 관제 이벤트 타입 마스터 (MNG_EX_EVNT_TYPE) — 실 klid_system 조회로 확정한 실데이터.
 --   라벨 도출 전환(EVT_* enum → EV* 관제코드)의 토대. CLCT_EVNT_NM 은 수집 키워드(라벨 아님).

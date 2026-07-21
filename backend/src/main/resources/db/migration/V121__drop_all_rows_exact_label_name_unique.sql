@@ -1,0 +1,25 @@
+-- =============================================================================
+-- V121: 라벨 마스터 이름 all-rows exact 유일 제약(UK_LS_LABEL_NAME) 제거.
+--
+-- 배경(확정 설계 Q1 정합): 라벨명 유일 범위 = 활성(USE_YN='Y')만, soft-delete 된
+--   이름은 재사용 허용. 그런데 V31 에서 UNIQUE(PJT_ID, LABEL_NM), V34 에서 축소된
+--   UNIQUE(LABEL_NM) (제약명 UK_LS_LABEL_NAME, V60 에서 컬럼 LABEL_NM→LBL_NM 리네임)
+--   은 all rows·대소문자 구분(exact) 유일이라 soft-delete 후 동일 exact 이름을
+--   재사용하지 못했다 — Q1 의 '재사용 허용'과 정면 배치(HIGH).
+--   또한 exact 위반 경로는 GlobalExceptionHandler 어느 분기에도 없어 500 으로 누출됐다
+--   (soft-delete 후 동일 exact 재생성 / 완전 동일 이름 동시 생성 패자).
+--
+-- 조치: all-rows exact 제약만 제거한다. 활성 유일성은 V120 의 활성 한정 함수형
+--   부분 유니크 인덱스(UK_LS_LABEL_NM_CI ON LOWER(TRIM(LBL_NM)) WHERE USE_YN='Y')가
+--   단독으로 강제한다. CI 인덱스는 대소문자/공백 변형을 포함하므로 exact 중복(활성)도
+--   당연히 차단된다. 따라서 exact 제약 제거로 활성 유일성이 약화되지 않으며, soft-delete
+--   행끼리 또는 soft-delete↔활성 간 동일 이름은 이제 허용된다(Q1 의도).
+--   동일 exact 이름 동시 생성 경합도 이제 CI 인덱스(uk_ls_label_nm_ci)만 위반하므로
+--   GlobalExceptionHandler 가 409 CONFLICT 로 정규화한다(구 exact 위반 500 누출 해소).
+--
+-- 멱등: DROP CONSTRAINT IF EXISTS. PostgreSQL 표준. 기존 데이터는 어떤 행도 UPDATE 하지
+--   않는다(제약 제거만). unquoted 식별자이므로 실제 저장 제약명은 소문자
+--   (uk_ls_label_name)로 관측된다.
+-- =============================================================================
+
+ALTER TABLE LS_LABEL DROP CONSTRAINT IF EXISTS UK_LS_LABEL_NAME;

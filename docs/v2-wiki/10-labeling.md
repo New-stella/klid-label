@@ -42,9 +42,10 @@
 
 화면: `KLID-AT-SC-026`(프리셋 관리 `/manage/presets`, REVIEWER)
 
-- 이벤트 유형별 라벨 자동 필터 (`PresetLabelLookupService`, BBOX/POLYGON 토글)
+- 이벤트 유형별 라벨 자동 필터 (`PresetLabelLookupService`)
 - `LS_LABEL_PRESET`(V13) + `LS_LABEL_PRESET_CODE` — 프리셋 마스터/내 라벨 코드
 - 코드: `preset/PresetController`
+- **라벨 마스터 단일 진실원 연동 (V117~V119, 2026-07-21)**: 프리셋 코드는 라벨명·형태를 스냅샷하지 않고 `LBL_ID`(FK→`LS_LABEL.LBL_ID`, nullable)로 라벨 마스터(`LS_LABEL`)를 실시간 참조한다. 조회·표시·오토라벨 사용 시점에 마스터에서 join하므로 **마스터에서 라벨명/형태를 바꾸면 신규·기존 프리셋 모두에 즉시 반영**된다. **형태는 마스터 `LBL_TYPE_CD`가 소유**(BBOX→bbox·POLYGON→polygon·POINT/SKELETON→도형 오토라벨 미적용) — 프리셋에서 형태 개별 토글은 불가(구 `BBOX_ENABLED`/`POLYGON_ENABLED` 컬럼 제거). 마스터에 매칭 안 되는 기존 코드는 오류 없이 **'미연결'**로 표시(자동 생성/삭제 없음). FE 프리셋 편집은 라벨을 **라벨 마스터 목록에서 선택**(하드코딩 라벨 제거)하고 요청은 labelId 기반, 형태는 마스터 기준 읽기전용 표시 + 미연결 배지. 오토라벨(AI 탐지/AI 분할) 경로도 프리셋↔검출 라벨 매칭을 마스터 라벨명 축으로 일원화 → [11](11-ai-assisted.md). 스키마 상세 → [18](18-database.md).
 
 ## 10.5 정밀도 설정 (RQ-SFR-08-03)
 

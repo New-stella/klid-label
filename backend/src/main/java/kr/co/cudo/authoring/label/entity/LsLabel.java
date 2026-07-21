@@ -10,7 +10,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,7 +25,10 @@ import java.time.LocalDateTime;
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>LBL_NM UNIQUE — DB 레벨 + Service 레벨 이중 가드. (V34: PJT_ID 제거됨)</li>
+ *   <li>LBL_NM 유일성 — 활성(USE_YN='Y') 한정 대소문자/공백 무시(LOWER(TRIM)) 유일.
+ *       DB 레벨은 V120 함수형 부분 유니크 인덱스(UK_LS_LABEL_NM_CI)가 단독 강제하고
+ *       Service 레벨(정규화 존재검사)이 이중 가드한다. all-rows exact 제약(UK_LS_LABEL_NAME)은
+ *       V121 에서 제거됨 — soft-delete 된 이름은 재사용 허용(Q1). (V34: PJT_ID 제거됨)</li>
  *   <li>COLR_VL 은 대문자 {@code #RRGGBB} hex (소문자 거부 — DTO 검증).</li>
  *   <li>LBL_TYPE_CD 는 BBOX / POLYGON / POINT / SKELETON 중 하나 (DTO 검증).
  *       SKELETON = COCO-17 휴먼 포즈 키포인트 카테고리.</li>
@@ -34,9 +36,11 @@ import java.time.LocalDateTime;
  * </ul>
  */
 @Entity
-@Table(name = "LS_LABEL", uniqueConstraints = {
-        @UniqueConstraint(name = "UK_LS_LABEL_NAME", columnNames = {"LBL_NM"})
-})
+// LBL_NM 유일성은 V120 활성 한정 함수형 부분 유니크 인덱스(UK_LS_LABEL_NM_CI ON
+// LOWER(TRIM(LBL_NM)) WHERE USE_YN='Y')가 강제한다. 함수형·부분 인덱스는 JPA
+// @UniqueConstraint 로 표현할 수 없어 어노테이션을 두지 않는다(all-rows exact 제약
+// UK_LS_LABEL_NAME 은 V121 에서 제거됨 — DB(ddl-auto=validate)와 정합).
+@Table(name = "LS_LABEL")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LsLabel {

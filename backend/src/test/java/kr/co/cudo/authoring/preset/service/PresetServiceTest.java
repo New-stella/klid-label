@@ -3,25 +3,33 @@ package kr.co.cudo.authoring.preset.service;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.eventtype.service.EventTypeService;
-import kr.co.cudo.authoring.preset.dto.LabelCodeOptionDto;
+import kr.co.cudo.authoring.label.dto.LabelMasterResponse;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
+import kr.co.cudo.authoring.preset.dto.PresetCodeView;
+import kr.co.cudo.authoring.preset.dto.PresetView;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset.LabelCodeSpec;
-import kr.co.cudo.authoring.preset.entity.LsLabelPresetCode;
 import kr.co.cudo.authoring.preset.repository.LsLabelPresetRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PresetServiceTest {
@@ -30,23 +38,46 @@ class PresetServiceTest {
     private static final String CK_FLOOD = "010001";   // 침수
     private static final String CK_FIRE = "020001";    // 화재
 
+    /** 활성 마스터 라벨 레지스트리 (id → 라벨명/형태). */
+    private static final Map<Long, LabelMasterResponse> KNOWN_LABELS = Map.of(
+            10L, master(10L, "PERSON", "BBOX"),
+            11L, master(11L, "VEHICLE", "POLYGON"),
+            12L, master(12L, "HEAD", "POINT"),
+            13L, master(13L, "POSE", "SKELETON")
+    );
+
     private LsLabelPresetRepository repository;
     private EventTypeService eventTypeService;
+    private LabelMasterService labelMasterService;
     private PresetService service;
+
+    private static LabelMasterResponse master(long id, String name, String type) {
+        return new LabelMasterResponse(id, name, "#FF0000", type, 0, "Y");
+    }
 
     @BeforeEach
     void setUp() {
         repository = mock(LsLabelPresetRepository.class);
         eventTypeService = mock(EventTypeService.class);
-        // 유효 categoryKey 집합 — 비빈값 검증 경로에서만 호출되므로 lenient.
+        labelMasterService = mock(LabelMasterService.class);
         lenient().when(eventTypeService.validCategoryKeys())
                 .thenReturn(Set.of(CK_FLOOD, CK_FIRE));
-        service = new PresetService(repository, eventTypeService);
+        // 요청 id 중 활성 마스터에 있는 것만 돌려준다(soft delete/미존재는 제외됨).
+        lenient().when(labelMasterService.findActiveByIds(anyCollection()))
+                .thenAnswer(inv -> {
+                    Collection<Long> ids = inv.getArgument(0);
+                    Map<Long, LabelMasterResponse> out = new LinkedHashMap<>();
+                    for (Long id : ids) {
+                        if (KNOWN_LABELS.containsKey(id)) {
+                            out.put(id, KNOWN_LABELS.get(id));
+                        }
+                    }
+                    return out;
+                });
+        service = new PresetService(repository, eventTypeService, labelMasterService);
     }
 
-    private static List<LabelCodeOptionDto> bothOptions(String... codes) {
-        return java.util.Arrays.stream(codes).map(LabelCodeOptionDto::both).toList();
-    }
+    // ----- 기존 계약 적응 -----
 
     @Test
     @DisplayName("동일_이벤트가_다른_프리셋에_이미_매핑되어_있으면_CONFLICT")
@@ -56,7 +87,7 @@ class PresetServiceTest {
                 .thenThrow(new DataIntegrityViolationException("UK_LS_LABEL_PRESET_EVNT"));
 
         assertThatThrownBy(() ->
-                service.create("새 프리셋", "desc", bothOptions("PERSON"), CK_FLOOD))
+                service.create("새 프리셋", "desc", List.of(10L), CK_FLOOD))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> {
                     CustomException ce = (CustomException) ex;
@@ -75,12 +106,9 @@ class PresetServiceTest {
                 .thenThrow(new DataIntegrityViolationException("UK_LS_LABEL_PRESET_EVNT"));
 
         assertThatThrownBy(() ->
-                service.update(1L, "기존", "", bothOptions("PERSON"), CK_FLOOD))
+                service.update(1L, "기존", "", List.of(10L), CK_FLOOD))
                 .isInstanceOf(CustomException.class)
-                .satisfies(ex -> {
-                    CustomException ce = (CustomException) ex;
-                    assertThat(ce.getErrorCode().name()).isEqualTo("CONFLICT");
-                });
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
     }
 
     @Test
@@ -90,10 +118,11 @@ class PresetServiceTest {
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        LsLabelPreset saved = service.create("화재", "fire preset", bothOptions("FIRE"), CK_FIRE);
+        PresetView saved = service.create("화재", "fire preset", List.of(10L), CK_FIRE);
 
-        assertThat(saved.getEventTypeCd()).isEqualTo(CK_FIRE);
-        assertThat(saved.codeValues()).containsExactly("FIRE");
+        assertThat(saved.eventTypeCd()).isEqualTo(CK_FIRE);
+        assertThat(saved.codes()).hasSize(1);
+        assertThat(saved.codes().get(0).labelId()).isEqualTo(10L);
     }
 
     @Test
@@ -103,9 +132,9 @@ class PresetServiceTest {
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        LsLabelPreset saved = service.create("미매핑", "", bothOptions("PERSON"), "  ");
+        PresetView saved = service.create("미매핑", "", List.of(10L), "  ");
 
-        assertThat(saved.getEventTypeCd()).isNull();
+        assertThat(saved.eventTypeCd()).isNull();
     }
 
     @Test
@@ -114,7 +143,7 @@ class PresetServiceTest {
         when(repository.existsByPresetNm("중복")).thenReturn(true);
 
         assertThatThrownBy(() ->
-                service.create("중복", "", bothOptions("PERSON"), null))
+                service.create("중복", "", List.of(10L), null))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> {
                     CustomException ce = (CustomException) ex;
@@ -130,19 +159,14 @@ class PresetServiceTest {
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        // 유효 categoryKey → 통과
-        assertThat(service.create("유효", "", bothOptions("PERSON"), CK_FLOOD).getEventTypeCd())
-                .isEqualTo(CK_FLOOD);
-        // 빈값/공백 → 이벤트 무관 프리셋 허용(null 정규화)
-        assertThat(service.create("빈값", "", bothOptions("PERSON"), "").getEventTypeCd()).isNull();
+        assertThat(service.create("유효", "", List.of(10L), CK_FLOOD).eventTypeCd()).isEqualTo(CK_FLOOD);
+        assertThat(service.create("빈값", "", List.of(10L), "").eventTypeCd()).isNull();
 
-        // 구 EVT_* 코드 → 400 INVALID_INPUT
-        assertThatThrownBy(() -> service.create("구코드", "", bothOptions("PERSON"), "EVT_FALL"))
+        assertThatThrownBy(() -> service.create("구코드", "", List.of(10L), "EVT_FALL"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
-        // 미등록 categoryKey → 400
-        assertThatThrownBy(() -> service.create("미등록", "", bothOptions("PERSON"), "999999"))
+        assertThatThrownBy(() -> service.create("미등록", "", List.of(10L), "999999"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -151,116 +175,200 @@ class PresetServiceTest {
     @Test
     @DisplayName("update_도_미유효_categoryKey면_400_저장차단")
     void updateRejectsInvalidCategoryKey() {
-        // update 는 findById 이전에 검증되어야 한다 — 미유효면 조회 없이 400.
-        assertThatThrownBy(() -> service.update(1L, "이름", "", bothOptions("PERSON"), "EVT_FALL"))
+        assertThatThrownBy(() -> service.update(1L, "이름", "", List.of(10L), "EVT_FALL"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
     @Test
-    @DisplayName("clone_은_eventTypeCd를_상속하지_않는다_UNIQUE_충돌_회피")
+    @DisplayName("clone_은_eventTypeCd를_상속하지_않고_코드를_복사한다")
     void cloneDoesNotInheritEventMapping() {
-        LsLabelPreset src = LsLabelPreset.create("원본", "desc", List.of("PERSON"), CK_FLOOD);
+        LsLabelPreset src = LsLabelPreset.createWithOptions(
+                "원본", "desc", List.of(new LabelCodeSpec(10L, null)), CK_FLOOD);
         when(repository.findById(1L)).thenReturn(Optional.of(src));
         when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.save(any(LsLabelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        LsLabelPreset copy = service.clone(1L);
+        PresetView copy = service.clone(1L);
 
-        assertThat(copy.getEventTypeCd()).isNull();
-        assertThat(copy.codeValues()).containsExactly("PERSON");
+        assertThat(copy.eventTypeCd()).isNull();
+        assertThat(copy.codes()).hasSize(1);
+        assertThat(copy.codes().get(0).labelId()).isEqualTo(10L);
     }
 
     @Test
-    @DisplayName("PresetService_create_시_옵션이_그대로_엔티티에_전파")
-    void createPropagatesTogglesToEntity() {
+    @DisplayName("update_존재하지않는_프리셋이면_NOT_FOUND")
+    void updateMissingPresetThrowsNotFound() {
+        when(repository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.update(404L, "이름", "", List.of(10L), null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("create_중복labelId_요청시_코드는_1건으로_저장된다")
+    void createDedupsDuplicateLabelId() {
         when(repository.existsByPresetNm(any())).thenReturn(false);
         when(repository.saveAndFlush(any(LsLabelPreset.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        List<LabelCodeOptionDto> options = List.of(
-                new LabelCodeOptionDto("PERSON", true, false),
-                new LabelCodeOptionDto("VEHICLE", true, true)
-        );
+        // 같은 labelId(10) 를 3번 넣어도 도메인 dedup 으로 코드는 1건이어야 한다.
+        PresetView saved = service.create("중복라벨", "", List.of(10L, 10L, 10L), null);
 
-        LsLabelPreset saved = service.create("혼합", "mixed", options, CK_FLOOD);
-
-        assertThat(saved.getCodes()).hasSize(2);
-        LsLabelPresetCode person = saved.getCodes().get(0);
-        LsLabelPresetCode vehicle = saved.getCodes().get(1);
-        assertThat(person.getCode()).isEqualTo("PERSON");
-        assertThat(person.isBboxEnabled()).isTrue();
-        assertThat(person.isPolygonEnabled()).isFalse();
-        assertThat(vehicle.getCode()).isEqualTo("VEHICLE");
-        assertThat(vehicle.isBboxEnabled()).isTrue();
-        assertThat(vehicle.isPolygonEnabled()).isTrue();
+        assertThat(saved.codes()).hasSize(1);
+        assertThat(saved.codes().get(0).labelId()).isEqualTo(10L);
     }
 
     @Test
-    @DisplayName("PresetService_update_시_옵션이_변경되면_replaceCodes_가_새_옵션으로_갱신")
-    void updateAppliesNewToggles() {
-        LsLabelPreset existing = LsLabelPreset.create("기존", "", List.of("PERSON", "VEHICLE"), null);
-        // 기존은 모두 BOTH (createWithStrings 경유)
-        assertThat(existing.getCodes().get(0).isBboxEnabled()).isTrue();
-        assertThat(existing.getCodes().get(0).isPolygonEnabled()).isTrue();
-
-        when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        when(repository.existsByPresetNmAndPresetIdNot(any(), any())).thenReturn(false);
-        when(repository.saveAndFlush(any(LsLabelPreset.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
-
-        List<LabelCodeOptionDto> newOptions = List.of(
-                new LabelCodeOptionDto("PERSON", true, false),  // BBOX only
-                new LabelCodeOptionDto("VEHICLE", false, true)  // POLYGON only
-        );
-        LsLabelPreset updated = service.update(1L, "기존", "", newOptions, null);
-
-        assertThat(updated.getCodes()).hasSize(2);
-        LsLabelPresetCode person = updated.getCodes().stream()
-                .filter(c -> c.getCode().equals("PERSON")).findFirst().orElseThrow();
-        LsLabelPresetCode vehicle = updated.getCodes().stream()
-                .filter(c -> c.getCode().equals("VEHICLE")).findFirst().orElseThrow();
-        assertThat(person.isBboxEnabled()).isTrue();
-        assertThat(person.isPolygonEnabled()).isFalse();
-        assertThat(vehicle.isBboxEnabled()).isFalse();
-        assertThat(vehicle.isPolygonEnabled()).isTrue();
-    }
-
-    @Test
-    @DisplayName("PresetService_create_빈_옵션이면_엔티티에_빈_코드_목록_저장")
-    void createWithEmptyOptionsResultsInEmptyCodes() {
-        when(repository.existsByPresetNm(any())).thenReturn(false);
-        when(repository.saveAndFlush(any(LsLabelPreset.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
-
-        LsLabelPreset saved = service.create("빈", "", List.of(), null);
-
-        assertThat(saved.getCodes()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("LabelCodeSpec_도메인_경유로_생성된_프리셋도_토글이_저장된다")
-    void domainCreateWithOptionsPersistsToggles() {
+    @DisplayName("list_labelId있지만_soft_delete된_마스터는_linked_false로_노출된다")
+    void listWithLabelIdButDeletedMasterShowsUnlinked() {
+        // labelId=77 은 저장돼 있으나 마스터 조회에서 활성 라벨로 나오지 않는다(soft delete/미존재).
         LsLabelPreset preset = LsLabelPreset.createWithOptions(
-                "직접", "", List.of(
-                        new LabelCodeSpec("A", true, false),
-                        new LabelCodeSpec("B", false, true)
-                ), null);
+                "half", "", List.of(new LabelCodeSpec(77L, null)), null);
+        when(repository.findAllWithCodes()).thenReturn(List.of(preset));
 
-        assertThat(preset.getCodes()).hasSize(2);
-        assertThat(preset.getCodes().get(0).isBboxEnabled()).isTrue();
-        assertThat(preset.getCodes().get(0).isPolygonEnabled()).isFalse();
-        assertThat(preset.getCodes().get(1).isBboxEnabled()).isFalse();
-        assertThat(preset.getCodes().get(1).isPolygonEnabled()).isTrue();
+        PresetCodeView code = service.list().get(0).codes().get(0);
+
+        assertThat(code.linked()).isFalse();
+        assertThat(code.labelId()).isEqualTo(77L);
+        assertThat(code.labelType()).isNull();
+        assertThat(code.bboxEnabled()).isFalse();
+        assertThat(code.polygonEnabled()).isFalse();
+    }
+
+    // ----- AC1: 스냅샷 아님 (마스터 실시간 조회) -----
+
+    @Test
+    @DisplayName("마스터_라벨명_변경후_프리셋조회시_변경된_라벨명이_반영된다")
+    void masterNameChangeIsReflectedOnRead() {
+        // 프리셋 코드는 labelId=10 만 저장(라벨명 미저장). 조회 시 마스터가 돌려주는 이름이 그대로 반영돼야 한다.
+        LsLabelPreset preset = LsLabelPreset.createWithOptions(
+                "p", "", List.of(new LabelCodeSpec(10L, null)), null);
+        when(repository.findAllWithCodes()).thenReturn(List.of(preset));
+        // 마스터가 '변경된 이름'을 돌려주도록 오버라이드.
+        when(labelMasterService.findActiveByIds(anyCollection()))
+                .thenReturn(Map.of(10L, master(10L, "사람_변경됨", "BBOX")));
+
+        List<PresetView> views = service.list();
+
+        assertThat(views).hasSize(1);
+        PresetCodeView code = views.get(0).codes().get(0);
+        assertThat(code.linked()).isTrue();
+        assertThat(code.labelName()).isEqualTo("사람_변경됨");
+    }
+
+    // ----- AC2 / R5: 형태 마스터 파생 -----
+
+    @Test
+    @DisplayName("마스터_형태_BBOX면_프리셋응답_토글이_bbox만_활성이다")
+    void bboxMasterEnablesBboxOnly() {
+        PresetCodeView view = codeViewFor(10L); // PERSON/BBOX
+        assertThat(view.labelType()).isEqualTo("BBOX");
+        assertThat(view.bboxEnabled()).isTrue();
+        assertThat(view.polygonEnabled()).isFalse();
     }
 
     @Test
-    @DisplayName("LabelCodeSpec_둘다_false_조합은_도메인이_즉시_거부")
-    void domainRejectsBothFalseSpec() {
-        assertThatThrownBy(() -> LsLabelPreset.createWithOptions(
-                "거부", "", List.of(new LabelCodeSpec("PERSON", false, false)), null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("최소 하나");
+    @DisplayName("마스터_형태_POLYGON이면_polygon만_활성이다")
+    void polygonMasterEnablesPolygonOnly() {
+        PresetCodeView view = codeViewFor(11L); // VEHICLE/POLYGON
+        assertThat(view.bboxEnabled()).isFalse();
+        assertThat(view.polygonEnabled()).isTrue();
+    }
+
+    @Test
+    @DisplayName("마스터_형태_POINT_SKELETON이면_두_토글_모두_비활성이다")
+    void pointAndSkeletonDisableBothToggles() {
+        PresetCodeView point = codeViewFor(12L);     // HEAD/POINT
+        PresetCodeView skeleton = codeViewFor(13L);  // POSE/SKELETON
+        assertThat(point.bboxEnabled()).isFalse();
+        assertThat(point.polygonEnabled()).isFalse();
+        assertThat(skeleton.bboxEnabled()).isFalse();
+        assertThat(skeleton.polygonEnabled()).isFalse();
+    }
+
+    // ----- AC4: 미연결 -----
+
+    @Test
+    @DisplayName("labelId가_null인_미연결코드는_linked_false와_legacy명으로_노출된다")
+    void unlinkedCodeShowsLegacyName() {
+        // labelId 없이 legacy 코드 문자열만 가진 프리셋(백필 미매칭 레거시).
+        LsLabelPreset preset = LsLabelPreset.create("legacy", "", List.of("OLD_CODE"), null);
+        when(repository.findAllWithCodes()).thenReturn(List.of(preset));
+
+        PresetCodeView code = service.list().get(0).codes().get(0);
+
+        assertThat(code.linked()).isFalse();
+        assertThat(code.labelId()).isNull();
+        assertThat(code.labelName()).isEqualTo("OLD_CODE");
+        assertThat(code.labelType()).isNull();
+        assertThat(code.bboxEnabled()).isFalse();
+        assertThat(code.polygonEnabled()).isFalse();
+    }
+
+    // ----- 검증: 마스터 없는/soft delete labelId -----
+
+    @Test
+    @DisplayName("마스터에_없는_labelId로_코드추가시_400")
+    void unknownLabelIdRejected() {
+        when(repository.existsByPresetNm(any())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.create("p", "", List.of(9999L), null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("soft_delete된(USE_YN_N)_labelId로_코드추가시_400")
+    void softDeletedLabelIdRejected() {
+        when(repository.existsByPresetNm(any())).thenReturn(false);
+        // findActiveByIds 는 활성 라벨만 돌려주므로 soft delete 된 id(77)는 결과에서 빠진다 → 400.
+        assertThatThrownBy(() -> service.create("p", "", List.of(77L), null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("음수_labelId는_검증에서_거부된다")
+    void negativeLabelIdRejected() {
+        when(repository.existsByPresetNm(any())).thenReturn(false);
+        assertThatThrownBy(() -> service.create("p", "", List.of(-1L), null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    // ----- HIGH: N+1 방지 (배치 조회 1회) -----
+
+    @Test
+    @DisplayName("프리셋_목록_조회시_코드_라벨_join이_N플러스1을_유발하지_않는다")
+    void listDoesNotTriggerNPlusOne() {
+        // 여러 프리셋 × 여러 코드라도 마스터 조회는 정확히 1회(배치)여야 한다.
+        LsLabelPreset p1 = LsLabelPreset.createWithOptions(
+                "p1", "", List.of(new LabelCodeSpec(10L, null), new LabelCodeSpec(11L, null)), null);
+        LsLabelPreset p2 = LsLabelPreset.createWithOptions(
+                "p2", "", List.of(new LabelCodeSpec(12L, null), new LabelCodeSpec(13L, null)), null);
+        when(repository.findAllWithCodes()).thenReturn(List.of(p1, p2));
+
+        List<PresetView> views = service.list();
+
+        assertThat(views).hasSize(2);
+        // 코드가 4건이어도 findActiveByIds 는 단 1회 호출(코드별 반복 조회 금지).
+        verify(labelMasterService, times(1)).findActiveByIds(anyCollection());
+    }
+
+    // ----- helper -----
+
+    /** labelId 1건짜리 프리셋을 list() 로 조회해 첫 코드 뷰를 얻는다. */
+    private PresetCodeView codeViewFor(long labelId) {
+        LsLabelPreset preset = LsLabelPreset.createWithOptions(
+                "p", "", List.of(new LabelCodeSpec(labelId, null)), null);
+        when(repository.findAllWithCodes()).thenReturn(List.of(preset));
+        return service.list().get(0).codes().get(0);
     }
 }

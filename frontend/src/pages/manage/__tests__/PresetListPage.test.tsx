@@ -14,14 +14,25 @@ const CATEGORIES = [
   { categoryKey: '020002', label: '쓰러짐', memberCodes: ['EV02000201'] },
 ];
 
+// Phase 4 — 프리셋 코드는 마스터 실시간 join 결과(labelId/labelName/labelType/linked)를 담는다.
 // 프리셋은 categoryKey 를 eventTypeCd 로 저장한다 (Phase 4a/4b 확정).
 const PRESETS = [
   {
     id: 1,
     name: '프리셋A',
     description: null,
-    labelCodes: ['PERSON'],
-    labelCodeOptions: [{ code: 'PERSON', bboxEnabled: true, polygonEnabled: true }],
+    labelCodes: ['사람'],
+    labelCodeOptions: [
+      {
+        labelId: 10,
+        code: null,
+        labelName: '사람',
+        labelType: 'BBOX',
+        linked: true,
+        bboxEnabled: true,
+        polygonEnabled: false,
+      },
+    ],
     eventTypeCd: '020002',
     createdAt: '2026-06-01T00:00:00',
     updatedAt: '2026-06-01T00:00:00',
@@ -30,8 +41,18 @@ const PRESETS = [
     id: 2,
     name: '프리셋B',
     description: null,
-    labelCodes: ['CAR'],
-    labelCodeOptions: [{ code: 'CAR', bboxEnabled: true, polygonEnabled: true }],
+    labelCodes: ['LEGACY_CAR'],
+    labelCodeOptions: [
+      {
+        labelId: null,
+        code: 'LEGACY_CAR',
+        labelName: 'LEGACY_CAR',
+        labelType: null,
+        linked: false,
+        bboxEnabled: false,
+        polygonEnabled: false,
+      },
+    ],
     eventTypeCd: null,
     createdAt: '2026-06-01T00:00:00',
     updatedAt: '2026-06-01T00:00:00',
@@ -69,5 +90,23 @@ describe('PresetListPage', () => {
     // then
     const badge = await screen.findByTestId('preset-event-2');
     expect(badge).toHaveTextContent('미매핑');
+  });
+
+  it('연결된_라벨은_마스터_라벨명과_형태로_표시된다', async () => {
+    // given / when
+    renderWithProviders(<PresetListPage />);
+
+    // then — labelName='사람' + 형태 배지 '바운딩박스'
+    expect(await screen.findByText('사람')).toBeInTheDocument();
+    expect(screen.getByText('바운딩박스')).toBeInTheDocument();
+  });
+
+  it('미연결_라벨은_미연결_배지로_구분된다', async () => {
+    // given / when
+    renderWithProviders(<PresetListPage />);
+
+    // then — legacy 코드명 + '미연결' 배지
+    expect(await screen.findByText('LEGACY_CAR')).toBeInTheDocument();
+    expect(screen.getByText('미연결')).toBeInTheDocument();
   });
 });
