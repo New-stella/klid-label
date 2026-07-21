@@ -30,7 +30,7 @@ import java.nio.file.Paths;
  * <ol>
  *   <li>부모 RAW {@code findByRawSnForUpdate} 비관적 잠금</li>
  *   <li>{@code deIdntfYn=='Y'} PII 게이트 재검증 (CWE-359 TOCTOU)</li>
- *   <li>UNIQUE(DATA_RAW_SN, GOAL_RES_CD) 예약행 INSERT — 동시 (원본,해상도) 요청 직렬화</li>
+ *   <li>UNIQUE(DATA_RAW_SN, GOAL_RESL_CD) 예약행 INSERT — 동시 (원본,해상도) 요청 직렬화</li>
  *   <li>새 RAW(PENDING) INSERT + EXPORT 에 newRawSn 연결</li>
  *   <li>AFTER_COMMIT 으로 {@link AsyncResolutionRunner} 비동기 확정 트리거</li>
  * </ol>
@@ -69,7 +69,7 @@ public class ResolutionReservationPersister {
         String derivativeVideoPath = resolveSafeDir(base,
                 "resolution/" + parent.getRawSn() + "/" + preset.name() + "/video/" + preset.name() + ".mp4").toString();
 
-        // UK(DATA_RAW_SN, GOAL_RES_CD) 조기 예약 — 새 RAW/파일 만들기 전에 INSERT + flush 로 위반 즉시 감지.
+        // UK(DATA_RAW_SN, GOAL_RESL_CD) 조기 예약 — 새 RAW/파일 만들기 전에 INSERT + flush 로 위반 즉시 감지.
         LsResolutionExport export;
         try {
             export = exportRepository.save(LsResolutionExport.createReservation(

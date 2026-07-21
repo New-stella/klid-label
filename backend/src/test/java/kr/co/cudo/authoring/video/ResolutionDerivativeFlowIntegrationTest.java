@@ -266,7 +266,7 @@ class ResolutionDerivativeFlowIntegrationTest {
         pool.shutdown();
         pool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
 
-        // UK(DATA_RAW_SN, GOAL_RES_CD) + 부모 잠금 → 정확히 1건만 파생 RAW 생성
+        // UK(DATA_RAW_SN, GOAL_RESL_CD) + 부모 잠금 → 정확히 1건만 파생 RAW 생성
         assertThat(childCount(parentRawSn))
                 .as("동일 parent+preset 동시요청은 1건만 생성되어야 함")
                 .isEqualTo(1L);

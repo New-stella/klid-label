@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>FRM_NO / VDO_FRM_NO : INTEGER → BIGINT (Integer 범위 초과 Long 값 저장·조회)</li>
  *   <li>CMNT_CN            : VARCHAR(1000) → VARCHAR(4000) (4000자 저장)</li>
- *   <li>REQ/RES_PAYLOAD_CN : TEXT (표준 정합, 대용량 저장)</li>
+ *   <li>REQ/RESP_PAYLOAD_CN : TEXT (표준 정합, 대용량 저장)</li>
  *   <li>IDMP_KEY           : VARCHAR(64) → VARCHAR(128) (128자 저장)</li>
  * </ul>
  */
@@ -78,8 +78,8 @@ class ColumnTypeAlignmentIT {
     }
 
     @Test
-    @DisplayName("REQ_RES_PAYLOAD_CN_TEXT_대용량_저장_성공")
-    void REQ_RES_PAYLOAD_CN_TEXT_대용량_저장_성공() {
+    @DisplayName("REQ_RESP_PAYLOAD_CN_TEXT_대용량_저장_성공")
+    void REQ_RESP_PAYLOAD_CN_TEXT_대용량_저장_성공() {
         // given — VARCHAR(4000) 를 초과하는 대용량 페이로드 (TEXT 컬럼 검증)
         String largePayload = "{\"data\":\"" + "z".repeat(10_000) + "\"}";
         LsBatchProcLog log = LsBatchProcLog.create(System.nanoTime(), BatchStage.VLM);

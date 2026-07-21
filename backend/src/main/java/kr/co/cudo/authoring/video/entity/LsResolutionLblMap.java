@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  * 배율(scaleX/scaleY)을 추적한다. 해상도 변경이므로 좌표 재계산이 항상 일어나 COORD_RECALC_YN='Y' 다.
  *
  * <p>{@code LS_DATA_AUG_LBL_MAP} 은 {@code DATA_AUG_SN NOT NULL} 이라 재사용하지 않는다(증강 이력/통계/
- * FE 오염 방지). RES_EXPORT_SN 으로 {@code LS_RESOLUTION_EXPORT} 산출 추적 행과 연결한다.
+ * FE 오염 방지). RESL_EXPORT_SN 으로 {@code LS_RESOLUTION_EXPORT} 산출 추적 행과 연결한다.
  */
 @Entity
 @Table(name = "LS_RESOLUTION_LBL_MAP")
@@ -35,10 +35,10 @@ public class LsResolutionLblMap {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "RES_LBL_MAP_SN")
+    @Column(name = "RESL_LBL_MAP_SN")
     private Long resLblMapSn;
 
-    @Column(name = "RES_EXPORT_SN", nullable = false)
+    @Column(name = "RESL_EXPORT_SN", nullable = false)
     private Long resExportSn;
 
     @Column(name = "ORGNL_DATA_LBL_SN")
