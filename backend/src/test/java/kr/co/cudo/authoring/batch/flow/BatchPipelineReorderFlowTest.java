@@ -117,7 +117,7 @@ class BatchPipelineReorderFlowTest {
 
         // post-marking 파이프라인: 실제 단계 순서(MARKING→VLM→FRAME_EXTRACT→YOLO→SAM2→INTERPOLATE).
         BatchPipeline postMarkingPipeline = postPipeline();
-        BatchRetryQueue retryQueue = new BatchRetryQueue(3, 60);
+        BatchRetryQueue retryQueue = new kr.co.cudo.authoring.batch.retry.InMemoryBatchRetryQueueDouble(3, 60);
         orchestrator = new BatchOrchestrator(
                 postMarkingPipeline, batchStatusService, transitionService, retryQueue, videoRepository);
 

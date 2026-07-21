@@ -12,7 +12,7 @@
 // - 모델명/내부 경로 등 기술 정보 미노출.
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, History } from 'lucide-react';
+import { ChevronDown, ChevronRight, History, RotateCcw } from 'lucide-react';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
@@ -28,6 +28,11 @@ interface LabelHistoryPanelProps {
   srcSn: number | undefined;
   /** 라벨링 화면(다크 테마)용. 기본 false. */
   dark?: boolean;
+  /**
+   * 저장 이벤트를 현재 작업본에 되돌리기(역적용) 요청 콜백. 지정 시 각 카드에 "되돌리기" 버튼 노출.
+   * 미지정(버전 브라우징 페이지 등 작업본 컨텍스트가 없는 곳)이면 버튼을 렌더하지 않는다.
+   */
+  onRevert?: (item: LabelHistoryItem) => void;
 }
 
 function formatTime(iso: string): string {
@@ -88,7 +93,7 @@ function SummaryBadges({ item, dark }: { item: LabelHistoryItem; dark: boolean }
   );
 }
 
-export function LabelHistoryPanel({ srcSn, dark = false }: LabelHistoryPanelProps) {
+export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistoryPanelProps) {
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -165,28 +170,47 @@ export function LabelHistoryPanel({ srcSn, dark = false }: LabelHistoryPanelProp
                 const Chevron = isOpen ? ChevronDown : ChevronRight;
                 return (
                   <li key={item.lblHstrySn} className="py-1 text-xs">
-                    <button
-                      type="button"
-                      aria-expanded={isOpen}
-                      aria-controls={detailId}
-                      onClick={() => toggle(item.lblHstrySn)}
-                      className={cn(
-                        'flex w-full items-start gap-1.5 rounded px-1 py-1 text-left',
-                        dark ? 'hover:bg-gray-800' : 'hover:bg-gray-50',
-                      )}
-                    >
-                      <Chevron
-                        size={13}
-                        aria-hidden="true"
-                        className={cn('mt-0.5 shrink-0', mutedText)}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <SummaryBadges item={item} dark={dark} />
-                        <span className={cn('mt-0.5 block truncate', mutedText)}>
-                          {item.actor ?? '시스템'} · {formatTime(item.regDt)}
+                    <div className="flex items-start gap-1">
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        aria-controls={detailId}
+                        onClick={() => toggle(item.lblHstrySn)}
+                        className={cn(
+                          'flex min-w-0 flex-1 items-start gap-1.5 rounded px-1 py-1 text-left',
+                          dark ? 'hover:bg-gray-800' : 'hover:bg-gray-50',
+                        )}
+                      >
+                        <Chevron
+                          size={13}
+                          aria-hidden="true"
+                          className={cn('mt-0.5 shrink-0', mutedText)}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <SummaryBadges item={item} dark={dark} />
+                          <span className={cn('mt-0.5 block truncate', mutedText)}>
+                            {item.actor ?? '시스템'} · {formatTime(item.regDt)}
+                          </span>
                         </span>
-                      </span>
-                    </button>
+                      </button>
+                      {onRevert && (
+                        <button
+                          type="button"
+                          aria-label="이 저장으로 되돌리기"
+                          title="이 저장으로 되돌리기"
+                          onClick={() => onRevert(item)}
+                          className={cn(
+                            'mt-0.5 inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium',
+                            dark
+                              ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800',
+                          )}
+                        >
+                          <RotateCcw size={12} aria-hidden="true" />
+                          되돌리기
+                        </button>
+                      )}
+                    </div>
                     {isOpen && (
                       <div id={detailId}>
                         <LabelChangeDetail changes={item.changes} dark={dark} />

@@ -42,4 +42,24 @@ public interface LsRawDataStatusRepository extends JpaRepository<LsRawDataStatus
     int transitionToBatchQueuedIfNotSkipped(@Param("rawSn") Long rawSn,
                                             @Param("queuedStatus") String queuedStatus,
                                             @Param("skipStatuses") Collection<String> skipStatuses);
+
+    /**
+     * 수동 배치 재처리 클레임용 조건부 원자 전이 (CWE-362, check-and-set).
+     *
+     * <p>작업 상태(DATA_STTS_CD)가 {@code fromStatus}(FAILED)일 때만 {@code toStatus}(PROCESSING)로
+     * 전이한다. 단일 SQL UPDATE 라 DB 가 동시 호출을 직렬화하므로, 동일 rawSn 에 수동 재기동/자동 폴러가
+     * 동시에 접근해도 정확히 1건만 영향 행수 1 을 받고 나머지는 0 을 받는다(이중 파이프라인 실행 차단).
+     *
+     * <p><b>주의(@Version 미증가)</b>: 벌크 UPDATE 라 {@code @Version}(VER)을 증가시키지 않는다. FAILED
+     * 상태는 라벨링/검수 윈도와 비중첩이라 낙관적 잠금 writer 와 충돌하지 않는다
+     * ({@link #transitionToBatchQueuedIfNotSkipped} 와 동일 제약).
+     *
+     * @return 영향 행수 (1=클레임 성공, 0=FAILED 아님/이미 다른 주체가 클레임/row 없음)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE LsRawDataStatus s SET s.dataSttsCd = :toStatus, s.updDt = CURRENT_TIMESTAMP "
+            + "WHERE s.rawDataId = :rawSn AND s.dataSttsCd = :fromStatus")
+    int claimReprocessFromFailed(@Param("rawSn") Long rawSn,
+                                 @Param("fromStatus") String fromStatus,
+                                 @Param("toStatus") String toStatus);
 }

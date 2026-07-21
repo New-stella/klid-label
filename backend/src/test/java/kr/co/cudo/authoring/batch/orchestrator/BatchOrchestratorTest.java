@@ -76,7 +76,7 @@ class BatchOrchestratorTest {
         sam2Step = mock(Sam2SegmentStep.class);
         trackInterpolationStep = mock(TrackInterpolationStep.class);
         statusService = mock(BatchStatusService.class);
-        retryQueue = new BatchRetryQueue(3, 60);
+        retryQueue = new kr.co.cudo.authoring.batch.retry.InMemoryBatchRetryQueueDouble(3, 60);
         videoRepository = mock(VideoRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
         transitionService = mock(BatchTransitionService.class);

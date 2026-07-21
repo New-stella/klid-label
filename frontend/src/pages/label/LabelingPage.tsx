@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Modal } from '@/components/common/Modal';
 import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
@@ -25,9 +26,11 @@ import {
   autolabelItemToLabel,
   deleteTrack,
   mergeTracks,
+  snapshotToLabel,
   splitTrack,
   trackedItemToLabel,
   type DetectShapeType,
+  type LabelHistoryItem,
   type Sam2TrackedItem,
 } from '@/features/label/api';
 import type { AiToolMode } from '@/features/label/components/AiToolModal';
@@ -160,6 +163,7 @@ export function LabelingPage() {
   const clearDirty = useLabelStore((s) => s.clearDirty);
   const addLabel = useLabelStore((s) => s.addLabel);
   const mergeAutoLabels = useLabelStore((s) => s.mergeAutoLabels);
+  const revertSaveEvent = useLabelStore((s) => s.revertSaveEvent);
   const stashPendingTracks = useLabelStore((s) => s.stashPendingTracks);
   const drainPendingTracks = useLabelStore((s) => s.drainPendingTracks);
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
@@ -359,6 +363,8 @@ export function LabelingPage() {
 
   // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 저장 이벤트 되돌리기 확인 대상. null 이면 확인모달 닫힘.
+  const [revertTarget, setRevertTarget] = useState<LabelHistoryItem | null>(null);
 
   // R4 — 단축키 치트시트(도움말) 모달 열림 상태. ?(shift+/) 단축키 또는 헤더 도움말 버튼으로 토글.
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
@@ -474,6 +480,34 @@ export function LabelingPage() {
     }
   };
 
+  // "이 저장 되돌리기" — 카드 버튼 → 확인모달 오픈. 실제 역적용은 confirmRevert.
+  const handleRevertRequest = useCallback((item: LabelHistoryItem) => {
+    setRevertTarget(item);
+  }, []);
+
+  // 확인모달 승인 시 저장 이벤트를 현재 작업본에 역적용(즉시 DB 저장 아님 — dirty 로 저장 유도).
+  const confirmRevert = useCallback(() => {
+    const item = revertTarget;
+    setRevertTarget(null);
+    if (!item || !currentFrame) return;
+    if (isLocked) {
+      pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 되돌릴 수 없습니다.' });
+      return;
+    }
+    const { reverted, skipped } = revertSaveEvent(item.changes, currentFrame.frameNo, snapshotToLabel);
+    if (reverted === 0) {
+      pushToast({ variant: 'warning', message: '되돌릴 항목이 현재 작업본에 없습니다.' });
+      return;
+    }
+    if (skipped > 0) {
+      pushToast({
+        variant: 'warning',
+        message: '일부 항목은 현재 작업본에 없어 되돌리지 못했습니다.',
+      });
+    }
+    pushToast({ variant: 'success', message: '작업본에 되돌렸습니다. 저장해야 확정됩니다.' });
+  }, [revertTarget, currentFrame, isLocked, revertSaveEvent, pushToast]);
+
   // Phase 4 — AI Tool 수동 트리거. 포털은 오토라벨 미제공(ADR-013 — 버튼 자체 미노출).
   // 검출 결과는 BE 미저장(Phase 3 전환) → 재조회가 아니라 작업본에 병합한다. mock 응답은 자동적용 차단.
   const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn);
@@ -482,8 +516,10 @@ export function LabelingPage() {
   // "즉시 그리기" 토글 — AI 분할 클릭마다 미리보기 즉시 그리기. 기본 OFF(false).
   // AiToolModal 에서 토글하고 CanvasShell→OverlayLayer 의 immediateSegment 로 배선된다.
   const [immediateDraw, setImmediateDraw] = useState(false);
-  // R12 — 트랙 모드 선택 시 팝업의 형태(BBOX/POLYGON)·라벨을 기억해 Sam2TrackTool 요청에 배선한다.
-  // 미지정이면 BE 기본(POLYGON) + 캔버스 선택 객체 클래스명을 라벨로 사용.
+  // R12 — 트랙 모드 선택 시 팝업의 형태·라벨을 state 로 유지한다. 단 모달 형태는 더 이상
+  // BBOX/POLYGON 객체의 추적 출력 형태를 강제하지 않는다(확정 사양). 실제 출력 형태는
+  // ObjectAttributePanel 이 `shapeToDetectType(target.shape) ?? track.shape` 로 결정 —
+  // 즉 선택 객체 형태가 우선이고, trackShape 는 예외형태(MASK/KEYPOINT) 폴백 + 라벨 힌트 용도로만 유지.
   const [trackShape, setTrackShape] = useState<DetectShapeType | undefined>(undefined);
   const [trackLabel, setTrackLabel] = useState<string | undefined>(undefined);
   const handleAutolabel = () => {
@@ -559,7 +595,9 @@ export function LabelingPage() {
       // 트랙 모드 — TRACK 도구 활성화 + 팝업의 형태/라벨을 기억(R12 shape 배선). 실제 전파는
       // 선택 객체 기준 Sam2TrackTool(속성 패널)에서 실행한다. 선택 객체가 없으면 안내한다.
       setActiveTool(ToolType.TRACK);
-      // 팝업 형태(BBOX/POLYGON)를 기억해 track 요청에 포함 → BE 기본(POLYGON) 고정 방지.
+      // 출력 형태는 속성 패널(ObjectAttributePanel)에서 선택 객체 형태를 우선 적용한다
+      // (`shapeToDetectType(target.shape) ?? track.shape`). 여기서 기억하는 모달 형태는
+      // 예외형태(MASK/KEYPOINT) 폴백 + 라벨 힌트로만 사용되며 BBOX/POLYGON 출력을 바꾸지 않는다.
       setTrackShape(shape);
       // 팝업에서 단일 라벨을 골랐으면 그 표시명을 track 라벨로 우선 사용(없으면 캔버스 객체 클래스).
       const pickedLabel =
@@ -1193,7 +1231,9 @@ export function LabelingPage() {
                     srcSn: data?.srcSn,
                     nextSrcSns,
                     portalMode,
-                    // R12 — AI Tool 팝업에서 고른 형태/라벨을 track 요청에 배선(shape 미전달 시 BE 기본 POLYGON).
+                    // R12 — 출력 형태는 선택 객체 형태가 우선(ObjectAttributePanel 의
+                    // `shapeToDetectType(target.shape) ?? track.shape`). trackShape 는 예외형태
+                    // (MASK/KEYPOINT) 폴백 + 라벨 힌트로만 쓰이며 BBOX/POLYGON 출력을 바꾸지 않는다.
                     shape: trackShape,
                     label: trackLabel,
                     // 미저장 병합 + 부분/전체 안내 토스트. tracked 는 후속 프레임 결과.
@@ -1219,10 +1259,22 @@ export function LabelingPage() {
               srcSn={data.srcSn}
               dark
               onClose={() => setHistoryOpen(false)}
+              onRevert={handleRevertRequest}
             />
           </div>
         )}
       </div>
+
+      {/* 저장 이벤트 되돌리기 확인 — 작업본 변경 전 확인(a11y 포커스/ESC 는 Modal 이 처리). */}
+      <ConfirmDialog
+        open={revertTarget !== null}
+        title="이 저장으로 되돌리기"
+        description="이 저장의 변경을 현재 작업본에 되돌립니다. 저장해야 확정됩니다."
+        confirmLabel="되돌리기"
+        cancelLabel="취소"
+        onConfirm={confirmRevert}
+        onCancel={() => setRevertTarget(null)}
+      />
 
       {/* 하단 — 썸네일 strip + 슬라이더 */}
       <div className="shrink-0 flex flex-col border-t border-gray-700" style={{ height: 120 }}>

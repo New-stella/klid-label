@@ -3,9 +3,6 @@ package kr.co.cudo.authoring.common.migration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
-import kr.co.cudo.authoring.preset.entity.LsLabelPreset.LabelCodeSpec;
-import kr.co.cudo.authoring.preset.entity.LsLabelPresetCode;
 import kr.co.cudo.authoring.preset.repository.LsLabelPresetRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -14,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +23,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Phase 4 — 여부(YN) 도메인 CHAR(1) 전환(V85) 실동작 검증(Testcontainers PostgreSQL).
@@ -35,11 +30,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>검증 축:
  * <ul>
  *   <li>ddl-auto=validate 부팅 성공 = 전체 엔티티 ↔ CHAR(1) 스키마 정합(컨텍스트 로드 자체가 증명).</li>
- *   <li>정보 스키마상 대상 13 컬럼이 character(1)(bpchar)로 전환됨.</li>
+ *   <li>정보 스키마상 VARCHAR(1) 대상 컬럼이 character(1)(bpchar)로 전환됨.</li>
  *   <li>DE_IDENT_YN 3값(Y/F/N) CHAR(1) 보존, 패딩/트림 없이 왕복.</li>
- *   <li>BBOX/POLYGON boolean 필드 ↔ 'Y'/'N' CHAR(1) 왕복(YesNoConverter) + CHECK 제약 문자식 동작.</li>
  *   <li>뷰 V_COMPLETED_VIDEO 재생성 — DE_IDNTF_YN/PRVC_YN 출력 계약 보존.</li>
  * </ul>
+ *
+ * <p>주의: V85 가 CHAR(1)로 전환했던 LS_LABEL_PRESET_CODE.BBOX_ENABLED/POLYGON_ENABLED 는
+ * V117 에서 제거되었다(형태는 라벨 마스터 LBL_TYPE_CD 소유). 관련 검증은 본 IT 대상에서 제외한다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
@@ -65,7 +62,7 @@ class YnColumnChar1MigrationIT {
 
     private record ColRef(String table, String column) {}
 
-    /** V85 대상 컬럼 전체(정보 스키마 소문자). USE_YN 은 두 테이블(LS_LABEL/LS_LABEL_ATTR). */
+    /** V85 VARCHAR(1)→CHAR(1) 대상 컬럼(정보 스키마 소문자). USE_YN 은 두 테이블(LS_LABEL/LS_LABEL_ATTR). */
     private static final List<ColRef> TARGET_COLUMNS = List.of(
             new ColRef("ls_label_version", "actvtn_yn"),
             new ColRef("ls_deadline", "anony_incl_yn"),
@@ -78,21 +75,19 @@ class YnColumnChar1MigrationIT {
             new ColRef("ls_label_attr", "mutable_yn"),
             new ColRef("ls_label_attr", "use_yn"),
             new ColRef("ls_label", "use_yn"),
-            new ColRef("ls_notice", "upend_fix_yn"),
-            new ColRef("ls_label_preset_code", "bbox_enabled"),
-            new ColRef("ls_label_preset_code", "polygon_enabled"));
+            new ColRef("ls_notice", "upend_fix_yn"));
 
     @Test
     @DisplayName("ddl_validate_CHAR1_전체_엔티티_일치_부팅")
     void ddl_validate_CHAR1_전체_엔티티_일치_부팅() {
-        // given / when / then — ddl-auto=validate 하에 컨텍스트가 로드됨 = 13 컬럼 CHAR(1) ↔ 엔티티 정합
+        // given / when / then — ddl-auto=validate 하에 컨텍스트가 로드됨 = CHAR(1) ↔ 엔티티 정합
         assertThat(videoRepository).isNotNull();
         assertThat(presetRepository).isNotNull();
     }
 
     @Test
-    @DisplayName("VARCHAR1_BOOLEAN_YN_전부_CHAR1로_전환됨")
-    void VARCHAR1_BOOLEAN_YN_전부_CHAR1로_전환됨() {
+    @DisplayName("VARCHAR1_YN_전부_CHAR1로_전환됨")
+    void VARCHAR1_YN_전부_CHAR1로_전환됨() {
         // given / when / then — 정보 스키마상 data_type=character, 길이 1
         for (ColRef ref : TARGET_COLUMNS) {
             Map<String, Object> meta = jdbc().queryForMap(
@@ -145,55 +140,6 @@ class YnColumnChar1MigrationIT {
     }
 
     @Test
-    @DisplayName("BBOX_POLYGON_BOOLEAN_필드_CHAR1_왕복_및_문자저장")
-    void BBOX_POLYGON_BOOLEAN_필드_CHAR1_왕복_및_문자저장() {
-        // given — bbox=true, polygon=false 프리셋 코드 저장 후 컨텍스트 비움(강제 DB 재조회)
-        LsLabelPreset preset = LsLabelPreset.createWithOptions(
-                "YN-PRESET-ROUNDTRIP", "d",
-                List.of(new LabelCodeSpec("PERSON", true, false)), null);
-        presetRepository.saveAndFlush(preset);
-        Long presetId = preset.getPresetId();
-        em.clear();
-
-        // when — 엔티티 재조회(YesNoConverter read 경로 통과)
-        LsLabelPreset reloaded = presetRepository.findById(presetId).orElseThrow();
-        LsLabelPresetCode code = reloaded.getCodes().get(0);
-
-        // then — boolean 필드 값 왕복 정상
-        assertThat(code.isBboxEnabled()).isTrue();
-        assertThat(code.isPolygonEnabled()).isFalse();
-
-        // and — DB 저장 실값은 CHAR(1) 'Y'/'N'
-        assertThat(jdbc().queryForObject(
-                "SELECT bbox_enabled FROM ls_label_preset_code WHERE preset_id = ? ORDER BY cd_sn LIMIT 1",
-                String.class, presetId)).isEqualTo("Y");
-        assertThat(jdbc().queryForObject(
-                "SELECT polygon_enabled FROM ls_label_preset_code WHERE preset_id = ? ORDER BY cd_sn LIMIT 1",
-                String.class, presetId)).isEqualTo("N");
-    }
-
-    @Test
-    @DisplayName("BBOX_POLYGON_CHECK_제약_Y_N_식으로_동작")
-    void BBOX_POLYGON_CHECK_제약_Y_N_식으로_동작() {
-        // given — 부모 프리셋
-        LsLabelPreset preset = presetRepository.saveAndFlush(
-                LsLabelPreset.create("YN-CHK", "d", List.of("PERSON")));
-        Long presetId = preset.getPresetId();
-
-        // when/then — 최소 하나 활성('Y'/'N')은 허용
-        assertThatCode(() -> jdbc().update(
-                "INSERT INTO ls_label_preset_code (preset_id, lbl_cd, sort_seq, bbox_enabled, polygon_enabled) "
-                        + "VALUES (?, ?, ?, ?, ?)", presetId, "CAR", 1, "Y", "N"))
-                .doesNotThrowAnyException();
-
-        // and — 둘 다 'N' 조합은 재작성된 문자식 CHECK 로 거부 (마지막 문장 — tx abort 후 종료)
-        assertThatThrownBy(() -> jdbc().update(
-                "INSERT INTO ls_label_preset_code (preset_id, lbl_cd, sort_seq, bbox_enabled, polygon_enabled) "
-                        + "VALUES (?, ?, ?, ?, ?)", presetId, "BUS", 2, "N", "N"))
-                .isInstanceOf(DataIntegrityViolationException.class);
-    }
-
-    @Test
     @DisplayName("V_COMPLETED_VIDEO_뷰_재생성_DE_IDNTF_YN_PRVC_YN_출력_유지")
     void V_COMPLETED_VIDEO_뷰_재생성_DE_IDNTF_YN_PRVC_YN_출력_유지() {
         // given / when / then — 재생성된 뷰의 출력 컬럼(DE_IDNTF_YN/PRVC_YN alias) 존재 = SELECT 계약 보존
@@ -205,9 +151,8 @@ class YnColumnChar1MigrationIT {
     @Test
     @DisplayName("여부_컬럼_JSON_직렬화_Y_N_유지")
     void 여부_컬럼_JSON_직렬화_Y_N_유지() throws Exception {
-        // given — String YN 필드는 String, boolean 필드는 primitive boolean 타입 유지(계약 불변)
+        // given — String YN 필드는 String 타입 유지(계약 불변)
         assertThat(LsDataRaw.class.getDeclaredField("deIdntfYn").getType()).isEqualTo(String.class);
-        assertThat(LsLabelPresetCode.class.getDeclaredField("bboxEnabled").getType()).isEqualTo(boolean.class);
 
         // when — 대표 계약 형태 직렬화
         String json = new ObjectMapper().writeValueAsString(new YnContract("Y", true));

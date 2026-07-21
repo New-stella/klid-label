@@ -743,6 +743,94 @@ class YoloAutolabelStepTest {
         assertThat(decoded).isEqualTo(rawContent);
     }
 
+    // ─── Phase 3: 마스터 형태 파생 토글 → 오토라벨 생성 분기 (AC5) ───
+
+    @Test
+    @DisplayName("마스터_형태_BBOX면_오토라벨은_bbox만_생성한다")
+    void masterBboxCreatesBboxOnly() {
+        // 마스터(person)=BBOX → 서비스가 파생한 토글 (bbox=true, polygon=false)
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(200L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(true, false))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(200L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(200L);
+
+        // BBOX 1건 저장, polygon hint 미발행
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(any());
+        assertThat(hints).isEmpty();
+    }
+
+    @Test
+    @DisplayName("마스터_형태_POLYGON이면_polygon만_생성한다")
+    void masterPolygonCreatesPolygonOnly() {
+        // 마스터(person)=POLYGON → 파생 토글 (bbox=false, polygon=true)
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(201L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, true))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(201L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(201L);
+
+        // BBOX 미저장, polygon hint 1건 발행 (SAM2 단계로 전달)
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
+        assertThat(hints).hasSize(1);
+        assertThat(hints.get(0).label()).isEqualTo("person");
+    }
+
+    @Test
+    @DisplayName("마스터_형태_POINT_SKELETON이면_bbox_polygon_오토라벨을_생성하지_않는다")
+    void masterPointSkeletonCreatesNothing() {
+        // 마스터(person)=POINT/SKELETON → 파생 토글 (false, false) → 도형 오토라벨 미생성
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(202L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, false))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(202L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(202L);
+
+        // bbox/polygon 어느 것도 만들지 않음
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
+        assertThat(hints).isEmpty();
+    }
+
+    @Test
+    @DisplayName("검출라벨이_마스터명과_매칭되어_labelId가_부여된다")
+    void detectionMatchesMasterNameForLabelId() {
+        // 검출 라벨 "Person" 이 마스터명 축(정규화)에서 토글 조회 + labelId 부여되는 회귀 보존.
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(203L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(true, false))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(203L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("Person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+        when(labelMasterService.findLabelIdByName("Person")).thenReturn(Optional.of(1L));
+
+        step.run(203L);
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isEqualTo(1L);
+    }
+
     @Test
     @DisplayName("YOLO_매핑_로그_검증")
     void yoloMappingLogged() {

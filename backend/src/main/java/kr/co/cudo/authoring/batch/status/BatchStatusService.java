@@ -61,6 +61,7 @@ public class BatchStatusService {
         repository.save(log);
     }
 
+    // 관측 전용 — 현재 소비 API 없음(진행률 화면 연결 시 사용 예정).
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public BatchStage currentStage(Long rawSn) {
         return repository.findTopByDataRawSnOrderByRegDtDesc(rawSn)

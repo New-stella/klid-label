@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.preset.entity;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -10,20 +9,24 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.AssertTrue;
-import kr.co.cudo.authoring.common.converter.YesNoConverter;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 /**
  * 프리셋 라벨 코드 (Aggregate 내부 엔티티).
  *
  * <p>외부에서 직접 생성/수정 금지. {@link LsLabelPreset#replaceCodes(java.util.List)} 통해서만 변경한다.
  *
- * <p>Phase 1 — 라벨별 BBOX/POLYGON 토글 컬럼 추가 (V16 migration).
+ * <p>V117/V118 — 라벨 마스터(LS_LABEL) 연결 전환:
+ * <ul>
+ *   <li>{@code labelId}(LBL_ID) = 마스터 PK FK. null = 미연결(이름 매칭 실패한 레거시 행).</li>
+ *   <li>BBOX/POLYGON 형태 스냅샷 컬럼 제거 — 형태는 마스터 {@code LBL_TYPE_CD} 가 단일 소유.</li>
+ *   <li>{@code code}(LBL_CD) = <b>미연결 레거시 행의 표시용 코드 문자열</b>(V118 로 nullable).
+ *       labelId 기반 신규 행은 LBL_CD 를 보유하지 않으며(null) 라벨명은 마스터에서 실시간 조회한다.</li>
+ * </ul>
+ *
+ * <p>조회 시 라벨명/형태는 {@code labelId} 로 마스터를 실시간 join 하여 파생한다(스냅샷 금지).
  */
 @Entity
 @Table(name = "LS_LABEL_PRESET_CODE")
@@ -40,62 +43,48 @@ public class LsLabelPresetCode {
     @JoinColumn(name = "PRESET_ID", nullable = false)
     private LsLabelPreset preset;
 
-    @Column(name = "LBL_CD", nullable = false, length = 32)
+    /** 라벨 마스터(LS_LABEL) PK FK. null = 미연결(backfill 이름 매칭 실패한 레거시 행). */
+    @Column(name = "LBL_ID")
+    private Long labelId;
+
+    /**
+     * 미연결 레거시 행의 표시용 코드 문자열. V118 로 nullable — labelId 기반 신규 행은 null.
+     * 연결 행의 라벨명은 저장하지 않고 {@code labelId} 로 마스터에서 실시간 조회한다.
+     */
+    @Column(name = "LBL_CD", length = 32)
     private String code;
 
     @Column(name = "SORT_SEQ", nullable = false)
     private int sortOrder;
 
-    /** BBOX 어노테이션 활성 여부 (V16 BOOLEAN → V85 CHAR(1) 여부C1, YesNoConverter 로 boolean 유지). */
-    @Column(name = "BBOX_ENABLED", nullable = false, length = 1)
-    @Convert(converter = YesNoConverter.class)
-    @JdbcTypeCode(SqlTypes.CHAR)
-    private boolean bboxEnabled;
-
-    /** POLYGON 어노테이션 활성 여부 (V16 BOOLEAN → V85 CHAR(1) 여부C1, YesNoConverter 로 boolean 유지). */
-    @Column(name = "POLYGON_ENABLED", nullable = false, length = 1)
-    @Convert(converter = YesNoConverter.class)
-    @JdbcTypeCode(SqlTypes.CHAR)
-    private boolean polygonEnabled;
-
-    private LsLabelPresetCode(LsLabelPreset preset, String code, int sortOrder,
-                              boolean bboxEnabled, boolean polygonEnabled) {
+    private LsLabelPresetCode(LsLabelPreset preset, Long labelId, String code, int sortOrder) {
         this.preset = preset;
+        this.labelId = labelId;
         this.code = code;
         this.sortOrder = sortOrder;
-        this.bboxEnabled = bboxEnabled;
-        this.polygonEnabled = polygonEnabled;
     }
 
     /**
-     * 내부 팩토리 — 패키지 가시성으로 Aggregate Root 만 호출 가능.
-     * 두 옵션이 모두 false 인 조합은 호출자({@link LsLabelPreset#replaceCodes}) 또는
-     * 상위 검증 단계({@code LabelCodeOptionDto.@AssertTrue})에서 거부되어야 한다.
+     * 내부 팩토리(레거시/미연결) — 패키지 가시성으로 Aggregate Root 만 호출 가능.
+     *
+     * <p>{@code labelId} 는 null(미연결)로 시작하고 {@code code}(LBL_CD)에 코드 문자열을 보관한다.
      */
-    static LsLabelPresetCode of(LsLabelPreset preset, String code, int sortOrder,
-                                boolean bboxEnabled, boolean polygonEnabled) {
-        return new LsLabelPresetCode(preset, code, sortOrder, bboxEnabled, polygonEnabled);
+    static LsLabelPresetCode of(LsLabelPreset preset, String code, int sortOrder) {
+        return new LsLabelPresetCode(preset, null, code, sortOrder);
+    }
+
+    /**
+     * 내부 팩토리(labelId 연결) — 패키지 가시성으로 Aggregate Root 만 호출 가능.
+     *
+     * <p>{@code labelId} 로 마스터를 연결한다. {@code code}(LBL_CD)는 null 이며 라벨명은 마스터에서
+     * 실시간 조회한다.
+     */
+    static LsLabelPresetCode of(LsLabelPreset preset, Long labelId, String code, int sortOrder) {
+        return new LsLabelPresetCode(preset, labelId, code, sortOrder);
     }
 
     /** sortOrder 갱신 — Aggregate Root의 replaceCodes에서만 호출. */
     public void updateSortOrder(int order) {
         this.sortOrder = order;
-    }
-
-    /** 토글 갱신 — Aggregate Root의 replaceCodes에서만 호출 (이미 살아남은 row 의 옵션 변경). */
-    void updateToggles(boolean bboxEnabled, boolean polygonEnabled) {
-        this.bboxEnabled = bboxEnabled;
-        this.polygonEnabled = polygonEnabled;
-    }
-
-    /**
-     * Bean Validation 다중 가드 — DTO·DB CHECK 외에 엔티티 레벨에서도 보호.
-     *
-     * <p>{@link AssertTrue} 는 메서드 호출시점이 아닌 {@code @Valid} 검증 시점에 평가되므로
-     * 단위 테스트에서는 {@link #isAtLeastOneEnabled()} 를 직접 호출해 boolean 결과를 확인한다.
-     */
-    @AssertTrue(message = "최소 하나의 어노테이션 유형은 활성화되어야 합니다.")
-    public boolean isAtLeastOneEnabled() {
-        return bboxEnabled || polygonEnabled;
     }
 }

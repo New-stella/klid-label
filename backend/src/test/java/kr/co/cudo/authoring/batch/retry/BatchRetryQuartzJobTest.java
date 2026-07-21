@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.retry;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
@@ -10,18 +11,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doThrow;
+import java.util.Optional;
+
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * BE-2 — 재시도 큐 잔존 방지 검증.
+ * BE-2 — 재시도 큐 잔존 방지 검증 (B2 DB 큐 재작성 반영, mock 기반).
  *
  * <p>{@code process()} 가 try 블록 진입 전 단계(loadRaw NOT_FOUND, markRawDataProcessing 상태머신 위반)에서
- * 예외를 throw 하면 자체 catch 의 enqueueIfRetryable 을 호출하지 못한다. pollReady() 가 이미
- * nextAttemptAt=null 로 "처리중" 표시했으므로, QuartzJob 이 예외 시 큐를 재무장하지 않으면 엔트리가
- * 영구 잔존하여 재시도가 무음 중단된다. 본 테스트는 QuartzJob 이 예외 시 재무장함을 검증한다.
+ * 예외를 throw 하면 자체 catch 의 enqueueIfRetryable 을 호출하지 못한다. QuartzJob 이 예외 시 재무장(전이적
+ * 실패) 또는 큐 제거(영구 실패 NOT_FOUND)를 수행함을 검증한다. 재시도 큐 자체는 DB 영속으로 전환되어
+ * ({@link BatchRetryQueue}) 여기서는 mock 으로 상호작용만 고정한다.
  */
 @ExtendWith(MockitoExtension.class)
 class BatchRetryQuartzJobTest {
@@ -29,7 +31,8 @@ class BatchRetryQuartzJobTest {
     @Mock
     private BatchOrchestrator orchestrator;
 
-    private final BatchRetryQueue retryQueue = new BatchRetryQueue(3, 60);
+    @Mock
+    private BatchRetryQueue retryQueue;
 
     private BatchRetryQuartzJob newJob() {
         BatchRetryQuartzJob job = new BatchRetryQuartzJob();
@@ -41,89 +44,53 @@ class BatchRetryQuartzJobTest {
     @Test
     @DisplayName("M1_NOT_FOUND_영구실패시_재무장않고_큐에서제거_FAILED확정")
     void processThrowsNotFound_clearsQueueNoReArm() {
-        // given — rawSn 이 큐에 등록되고, pollReady 가 처리중(nextAttemptAt=null)으로 표시되도록 즉시 도래시킨다.
         Long rawSn = 100L;
-        retryQueue.enqueueIfRetryable(rawSn); // attempt=1
-        forceReady(rawSn);
-        // process 가 영상이 DB 에 없는 NOT_FOUND(영구 실패)를 throw 하는 경로 시뮬레이션
+        when(retryQueue.pollReady()).thenReturn(Optional.of(rawSn));
         when(orchestrator.process(rawSn))
                 .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
 
-        // when — Job 실행 (pollReady → process throw NOT_FOUND → 영구 실패 → clear)
         newJob().execute(null);
 
-        // then — 영구 실패이므로 재무장하지 않고 엔트리를 큐에서 제거(FAILED 확정) → 헛재시도 없음.
-        assertThat(retryQueue.rawEntries().get(rawSn))
-                .as("NOT_FOUND 영구 실패는 큐에서 제거되어 더 이상 재시도되지 않는다").isNull();
-        assertThat(retryQueue.retryCount(rawSn))
-                .as("재무장(enqueue 재호출)이 없으므로 attempt 증가 없음").isZero();
+        // 영구 실패 → 큐에서 제거(clear), 재무장(enqueue) 없음.
+        verify(retryQueue).clear(rawSn);
+        verify(retryQueue, never()).enqueueIfRetryable(rawSn);
     }
 
     @Test
     @DisplayName("M1_일시적_RuntimeException은_기존대로_재무장하여_영구잔존_방지")
     void processThrowsTransient_reArmsRetryQueue() {
-        // given — rawSn 이 큐에 등록되고, pollReady 가 처리중(nextAttemptAt=null)으로 표시되도록 즉시 도래시킨다.
         Long rawSn = 110L;
-        retryQueue.enqueueIfRetryable(rawSn); // attempt=1
-        forceReady(rawSn);
-        // process 가 일시적/예측 외 실패(영구 실패 아님)를 throw 하는 경로 시뮬레이션
+        when(retryQueue.pollReady()).thenReturn(Optional.of(rawSn));
         when(orchestrator.process(rawSn))
                 .thenThrow(new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 서버 일시 오류"));
 
-        // when — Job 실행 (pollReady → process throw → catch 재무장)
         newJob().execute(null);
 
-        // then — 영구 실패가 아니므로 재무장되어 nextAttemptAt 이 다시 채워진다.
-        var entry = retryQueue.rawEntries().get(rawSn);
-        assertThat(entry).as("엔트리가 잔존(=null처리중)으로 남지 않고 재무장돼야 한다").isNotNull();
-        assertThat(entry.nextAttemptAt).as("nextAttemptAt 이 재무장되어 다음 pollReady 에서 다시 픽업 가능").isNotNull();
-        // attempt 증가 확인 (enqueue 재호출됨) — 1(초기) → 2(재무장)
-        assertThat(retryQueue.retryCount(rawSn)).isEqualTo(2);
+        // 전이적 실패 → 재무장(enqueue), clear 없음.
+        verify(retryQueue).enqueueIfRetryable(rawSn);
+        verify(retryQueue, never()).clear(rawSn);
     }
 
     @Test
     @DisplayName("process가_정상이면_재무장하지_않음")
     void processSucceeds_noReArm() {
-        // given
         Long rawSn = 200L;
-        retryQueue.enqueueIfRetryable(rawSn);
-        forceReady(rawSn);
-        when(orchestrator.process(rawSn))
-                .thenReturn(kr.co.cudo.authoring.batch.orchestrator.BatchStage.COMPLETED);
+        when(retryQueue.pollReady()).thenReturn(Optional.of(rawSn));
+        when(orchestrator.process(rawSn)).thenReturn(BatchStage.COMPLETED);
 
-        // when
         newJob().execute(null);
 
-        // then — 예외가 없으므로 catch 의 재무장이 호출되지 않는다(attempt 그대로).
-        assertThat(retryQueue.retryCount(rawSn)).isEqualTo(1);
+        verify(retryQueue, never()).enqueueIfRetryable(rawSn);
+        verify(retryQueue, never()).clear(rawSn);
     }
 
     @Test
-    @DisplayName("maxAttempts_초과시_재무장은_FAILED_고정으로_종료")
-    void reArmStopsAtMaxAttempts() {
-        // given — max-attempts=3. attempt 를 3까지 끌어올린 뒤 예외 → 재무장 시 attempt=4 > max → false.
-        Long rawSn = 300L;
-        retryQueue.enqueueIfRetryable(rawSn); // 1
-        retryQueue.enqueueIfRetryable(rawSn); // 2
-        retryQueue.enqueueIfRetryable(rawSn); // 3
-        forceReady(rawSn);
-        when(orchestrator.process(rawSn))
-                .thenThrow(new CustomException(ErrorCode.INTERNAL_ERROR, "fail"));
+    @DisplayName("pollReady_비어있으면_process_미호출")
+    void emptyQueue_noProcess() {
+        when(retryQueue.pollReady()).thenReturn(Optional.empty());
 
-        // when
         newJob().execute(null);
 
-        // then — 재무장 시 attempt=4 가 max(3) 초과 → enqueueIfRetryable false → nextAttemptAt 미설정(FAILED 고정).
-        var entry = retryQueue.rawEntries().get(rawSn);
-        assertThat(entry).isNotNull();
-        assertThat(entry.nextAttemptAt).as("max 초과면 재무장하지 않아 더 이상 픽업되지 않는다").isNull();
-    }
-
-    /** pollReady 가 즉시 픽업하도록 nextAttemptAt 을 과거로 강제. */
-    private void forceReady(Long rawSn) {
-        var entry = retryQueue.rawEntries().get(rawSn);
-        // rawEntries() 는 복사본이므로 원본 엔트리에 직접 접근해 nextAttemptAt 을 과거로 설정.
-        // 동일 객체 참조이므로(맵만 복사) 필드 변경은 원본에 반영된다.
-        entry.nextAttemptAt = java.time.Instant.now().minusSeconds(1);
+        verify(orchestrator, never()).process(org.mockito.ArgumentMatchers.anyLong());
     }
 }

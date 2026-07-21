@@ -31,6 +31,10 @@ class GlobalExceptionHandlerDataIntegrityTest {
     /** PostgreSQL 은 unquoted identifier 를 소문자로 저장하므로 실제 제약명은 소문자다(V69 UX_LS_AUTH_WORK_LOCK_RAW_ACTIVE). */
     private static final String WORK_LOCK_INDEX = "ux_ls_auth_work_lock_raw_active";
     private static final String FK_CONSTRAINT = "fk_ls_data_lbl_src";
+    /** V119 프리셋 labelId 중복 방지 부분 유니크 인덱스 (동시 PUT 경합 패자의 INSERT 거부). */
+    private static final String PRESET_LABELID_INDEX = "uk_ls_label_preset_code_lblid";
+    /** V120 라벨명 대소문자/공백 무시 부분 유니크 인덱스 (동일 exact/근사 이름 동시 생성 패자의 INSERT 거부). */
+    private static final String LABEL_NAME_CI_INDEX = "uk_ls_label_nm_ci";
 
     static DataIntegrityViolationException workLockUniqueViolation() {
         SQLException sql = new SQLException(
@@ -38,6 +42,24 @@ class GlobalExceptionHandlerDataIntegrityTest {
                         + "  Detail: Key (data_raw_sn)=(42) already exists.", "23505");
         ConstraintViolationException hib = new ConstraintViolationException(
                 "could not execute statement [ERROR: duplicate key ...]", sql, WORK_LOCK_INDEX);
+        return new DataIntegrityViolationException("could not execute statement", hib);
+    }
+
+    static DataIntegrityViolationException presetLabelIdUniqueViolation() {
+        SQLException sql = new SQLException(
+                "ERROR: duplicate key value violates unique constraint \"" + PRESET_LABELID_INDEX + "\"\n"
+                        + "  Detail: Key (preset_id, lbl_id)=(7, 10) already exists.", "23505");
+        ConstraintViolationException hib = new ConstraintViolationException(
+                "could not execute statement [ERROR: duplicate key ...]", sql, PRESET_LABELID_INDEX);
+        return new DataIntegrityViolationException("could not execute statement", hib);
+    }
+
+    static DataIntegrityViolationException labelNameCiUniqueViolation() {
+        SQLException sql = new SQLException(
+                "ERROR: duplicate key value violates unique constraint \"" + LABEL_NAME_CI_INDEX + "\"\n"
+                        + "  Detail: Key (lower(btrim(lbl_nm)))=(person) already exists.", "23505");
+        ConstraintViolationException hib = new ConstraintViolationException(
+                "could not execute statement [ERROR: duplicate key ...]", sql, LABEL_NAME_CI_INDEX);
         return new DataIntegrityViolationException("could not execute statement", hib);
     }
 
@@ -64,6 +86,10 @@ class GlobalExceptionHandlerDataIntegrityTest {
         return Stream.of(
                 Arguments.of("work_lock_unique_위반은_409", workLockUniqueViolation(),
                         HttpStatus.CONFLICT, "CONFLICT"),
+                Arguments.of("preset_labelId_unique_위반은_409", presetLabelIdUniqueViolation(),
+                        HttpStatus.CONFLICT, "CONFLICT"),
+                Arguments.of("label_name_ci_unique_위반은_409", labelNameCiUniqueViolation(),
+                        HttpStatus.CONFLICT, "CONFLICT"),
                 Arguments.of("FK위반은_409아닌_500", fkViolation(),
                         HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
                 Arguments.of("제약명_null이면_500", nullConstraintName(),
@@ -87,7 +113,8 @@ class GlobalExceptionHandlerDataIntegrityTest {
     @DisplayName("DataIntegrity_응답에_제약명_SQL_미포함")
     void responseHasNoConstraintNameOrSql() {
         List<DataIntegrityViolationException> all =
-                List.of(workLockUniqueViolation(), fkViolation(), nullConstraintName());
+                List.of(workLockUniqueViolation(), presetLabelIdUniqueViolation(),
+                        labelNameCiUniqueViolation(), fkViolation(), nullConstraintName());
         for (DataIntegrityViolationException ex : all) {
             ResponseEntity<ApiResponse<Void>> res = handler.handleDataIntegrityViolation(ex);
             String msg = res.getBody().message();
@@ -95,6 +122,8 @@ class GlobalExceptionHandlerDataIntegrityTest {
             assertThat(msg)
                     .as("응답 메시지에 제약명/SQL/SQLState/원문이 노출되면 안 된다 (CWE-209)")
                     .doesNotContain(WORK_LOCK_INDEX)
+                    .doesNotContain(PRESET_LABELID_INDEX)
+                    .doesNotContain(LABEL_NAME_CI_INDEX)
                     .doesNotContain(FK_CONSTRAINT)
                     .doesNotContainIgnoringCase("constraint")
                     .doesNotContainIgnoringCase("sql")

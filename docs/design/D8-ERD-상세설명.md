@@ -69,14 +69,15 @@
 **목적**: 라벨 정의(코드성 마스터)와 검수완료 시점의 라벨 스냅샷(학습데이터 버전)을 다룬다. 성격이 다른 두 축이 한 ERD에 있다.
 
 **엔티티**
-- `LS_LABEL` — 라벨 마스터. `LBL_NM` UK, 색상(`COLR_VL`), 타입, 사용여부(`USE_YN`).
+- `LS_LABEL` — 라벨 마스터. 색상(`COLR_VL`), 타입, 사용여부(`USE_YN`). **`LBL_NM` 유일성 = 활성(`USE_YN='Y'`) 한정 대소문자+공백 무시(`LOWER(TRIM(LBL_NM))`) 부분 함수형 유니크 인덱스(`UK_LS_LABEL_NM_CI`, V120)가 단독 강제** — 근사중복(오토라벨 조회 크래시)·공백 유실(labelId null) 방지. **all-rows exact UK(`UK_LS_LABEL_NAME`)는 V121 에서 제거**(soft-delete 이름 재사용 허용 — Q1 정합, 활성 유일성은 CI 인덱스가 exact 포함 강제). soft-delete 이름은 재사용 허용.
 - `LS_LABEL_ATTR` — 라벨 속성 정의. 라벨마다 입력 속성(`ATTR_NM`, `INPUT_TYPE_CD`).
-- `LS_LABEL_PRESET` / `LS_LABEL_PRESET_CODE` — 이벤트 유형별 라벨 프리셋과 그 코드 목록(bbox/폴리곤 활성 플래그).
+- `LS_LABEL_PRESET` / `LS_LABEL_PRESET_CODE` — 이벤트 유형별 라벨 프리셋과 그 코드 목록. 프리셋 코드는 `LBL_ID`(FK→`LS_LABEL`, nullable=미연결) 로 라벨 마스터를 **단일 진실원 참조**하며 라벨명·형태를 스냅샷하지 않는다(V117~V119). 형태(bbox/폴리곤 허용)는 마스터 `LBL_TYPE_CD` 에서 파생 — 구 `BBOX_ENABLED`/`POLYGON_ENABLED` 활성 플래그는 제거됐다.
 - `LS_LABEL_VERSION` — **영상 단위 라벨 전체 스냅샷**. `VERSION_HASH`(SHA-256)로 버전 식별, `ACTVTN_YN`으로 active 버전 표시.
 
 **관계**
 - `LS_LABEL ||--o{ LS_LABEL_ATTR` : 라벨 → 속성 정의
 - `LS_LABEL_PRESET ||--o{ LS_LABEL_PRESET_CODE` : 프리셋 → 코드
+- `LS_LABEL ||--o{ LS_LABEL_PRESET_CODE` : 라벨 마스터 → 프리셋 코드(`LBL_ID` FK, nullable=미연결, V117)
 - `LS_DATA_RAW ||--o{ LS_LABEL_VERSION` : 영상 → 스냅샷(재검수·재승인마다 누적)
 
 **설계 포인트(가장 자주 오해)**: 버전은 **검수 승인(APPROVED) 시점에만** 생성된다. 작업 중 임시저장(`LS_DATA_LBL` upsert)은 버전이 아니다 → **2계층 분리**. 동일 페이로드는 같은 해시로 중복 식별.

@@ -6,6 +6,7 @@ import {
   type LabelMaster,
   type LabelMasterType,
 } from '@/features/label/api/labelMaster';
+import { TYPE_LABEL } from '@/features/label/constants/labelTypes';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
 /**
@@ -13,15 +14,8 @@ import { KRDS_FOCUS } from '@/lib/focusRing';
  *
  * 상태(폼 값/에러/제출)는 부모가 소유하고, 이 컴포넌트는 표현 + 입력 위임만 담당한다.
  * 접근성·마크업(role=dialog, label htmlFor, role=alert)은 추출 전과 동일하게 유지한다.
+ * 형태 표기(TYPE_LABEL)는 label 피처 상수로 이동해 화면 간 공유한다.
  */
-
-/** 형태 코드 → 사용자 표기. 목록 표기와 폼 select 에서 공유. */
-export const TYPE_LABEL: Record<LabelMasterType, string> = {
-  BBOX: '바운딩박스',
-  POLYGON: '폴리곤',
-  POINT: '포인트',
-  SKELETON: '스켈레톤',
-};
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 const DEFAULT_COLOR = '#3B82F6';

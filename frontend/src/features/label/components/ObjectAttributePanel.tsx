@@ -16,6 +16,18 @@ import { ToolType } from '../types';
 
 import { ObjectAttributeSection } from './ObjectAttributeSection';
 
+/**
+ * 선택 객체의 실제 형태 → 추적 결과 형태(DetectShapeType).
+ * BBOX/POLYGON 만 매핑하고, 그 외(MASK/KEYPOINT 등)는 undefined 를 반환해
+ * 호출측이 팝업 값(track.shape) 폴백을 쓰게 한다. 추적 결과 형태를 취약한 모달 라디오
+ * 상태(track.shape)에 묶지 않고 "선택 객체가 박스면 박스, 폴리곤이면 폴리곤"으로 결정한다.
+ */
+function shapeToDetectType(shape: Label['shape']): DetectShapeType | undefined {
+  if (shape.type === 'BBOX') return 'BBOX';
+  if (shape.type === 'POLYGON') return 'POLYGON';
+  return undefined;
+}
+
 /** 선택 라벨의 shape → SAM2 Track 시작 폴리곤([[x,y],...]). 박스는 4점 폐곡선으로 변환. */
 function shapeToPolygon(shape: Label['shape']): number[][] | undefined {
   if (shape.type === 'BBOX') {
@@ -272,7 +284,9 @@ export function ObjectAttributePanel({
             prevPolygon={shapeToPolygon(target.shape)}
             label={target.className}
             labelOverride={track.label}
-            shape={track.shape}
+            // 추적 결과 형태는 선택 객체 실제 형태(BBOX/POLYGON) 우선 — 모달 라디오(track.shape)는
+            // 그 외 형태(MASK/KEYPOINT 등)일 때만 폴백. 박스 객체 → 항상 박스 추적을 보장한다.
+            shape={shapeToDetectType(target.shape) ?? track.shape}
             trackId={target.trackId ?? String(target.id ?? '')}
             nextSrcSns={track.nextSrcSns}
             onCompleted={track.onTracked}
