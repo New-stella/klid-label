@@ -10,17 +10,22 @@
 // 보안: 사용자 입력 commit hash 는 BE 에서 SHA hex 검증. FE 는 단순 전달.
 
 import { useEffect, useState } from 'react';
-import { GitCommit, RotateCcw, X } from 'lucide-react';
+import { History, RotateCcw, X } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
+import { LabelHistoryPanel } from '@/features/label/components/LabelHistoryPanel';
 import { DiffViewer } from '@/features/version/components/DiffViewer';
 import { RollbackConfirmModal } from '@/features/version/components/RollbackConfirmModal';
 import { useDiff } from '@/features/version/hooks/useDiff';
 import { useVersions } from '@/features/version/hooks/useVersions';
 import { Role } from '@/lib/api/types';
+import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/stores/useAuthStore';
+
+/** 히스토리 패널 탭 — 변경 이력(저장, LS_DATA_LBL_HSTRY) / 버전(커밋, LS_LABEL_VERSION). */
+type HistoryTab = 'changes' | 'versions';
 
 interface HistoryPanelProps {
   /** 프레임(srcSn) — useVersions/useDiff/롤백에 모두 사용 */
@@ -29,6 +34,11 @@ interface HistoryPanelProps {
   onClose?: () => void;
   /** 라벨링 화면 우측 슬라이드용 다크 테마. 별도 페이지에서는 false (기본). */
   dark?: boolean;
+  /**
+   * 초기 활성 탭. 기본 'changes'(변경 이력=저장) — 라벨링 화면 인라인 패널에서
+   * 저장 직후 기대 화면을 노출. 버전 브라우징 전용 페이지는 'versions' 전달.
+   */
+  defaultTab?: HistoryTab;
 }
 
 function formatTime(iso: string | undefined): string {
@@ -44,12 +54,19 @@ function formatTime(iso: string | undefined): string {
   });
 }
 
-export function HistoryPanel({ srcSn, onClose, dark = false }: HistoryPanelProps) {
+export function HistoryPanel({
+  srcSn,
+  onClose,
+  dark = false,
+  defaultTab = 'changes',
+}: HistoryPanelProps) {
   const role = useAuthStore((s) => s.claims?.role ?? null);
   const canRollback = role === Role.REVIEWER || role === Role.WORKER;
 
   const { data: versions, isLoading, error } = useVersions(srcSn);
 
+  // 기본 활성 탭 = 변경 이력(저장). 저장 직후 사용자가 기대하는 화면을 바로 노출한다.
+  const [activeTab, setActiveTab] = useState<HistoryTab>(defaultTab);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [checkedHashes, setCheckedHashes] = useState<string[]>([]);
   const [showRollback, setShowRollback] = useState(false);
@@ -127,76 +144,104 @@ export function HistoryPanel({ srcSn, onClose, dark = false }: HistoryPanelProps
     <div
       className={containerClass}
       data-testid="history-panel"
-      aria-label="버전 이력 패널"
+      aria-label="히스토리 패널"
     >
-      <Header dark={dark} count={list.length} onClose={onClose} />
+      <Header dark={dark} onClose={onClose} />
+      <TabBar
+        dark={dark}
+        activeTab={activeTab}
+        versionCount={list.length}
+        onChange={setActiveTab}
+      />
 
-      {isLoading ? (
-        <div className="flex flex-1 items-center justify-center py-10">
-          <Spinner label="버전 이력 로딩" />
-        </div>
-      ) : error ? (
-        <div className="p-4">
-          <ErrorState title="버전 이력 조회 실패" message={error.message} />
+      {activeTab === 'changes' ? (
+        // 변경 이력(저장) — LS_DATA_LBL_HSTRY. self-contained 컴포넌트 재사용.
+        <div
+          className="flex flex-1 flex-col overflow-y-auto"
+          role="tabpanel"
+          id="history-panel-changes"
+          aria-labelledby="history-tab-changes"
+          data-testid="history-changes-panel"
+        >
+          <LabelHistoryPanel srcSn={srcSn} dark={dark} />
         </div>
       ) : (
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* 커밋 목록 */}
-          <CommitList
-            dark={dark}
-            versions={list}
-            selectedHash={selectedHash}
-            checkedHashes={checkedHashes}
-            onSelect={handleSelect}
-            onCheck={handleCheck}
-            formatTime={formatTime}
-          />
+        // 버전(커밋) — LS_LABEL_VERSION 스냅샷 + diff + 롤백.
+        <div
+          className="flex flex-1 flex-col overflow-hidden"
+          role="tabpanel"
+          id="history-panel-versions"
+          aria-labelledby="history-tab-versions"
+          data-testid="history-versions-panel"
+        >
+          {isLoading ? (
+            <div className="flex flex-1 items-center justify-center py-10">
+              <Spinner label="버전 이력 로딩" />
+            </div>
+          ) : error ? (
+            <div className="p-4">
+              <ErrorState title="버전 이력 조회 실패" message={error.message} />
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {/* 커밋 목록 */}
+              <CommitList
+                dark={dark}
+                versions={list}
+                selectedHash={selectedHash}
+                checkedHashes={checkedHashes}
+                onSelect={handleSelect}
+                onCheck={handleCheck}
+                formatTime={formatTime}
+              />
 
-          {/* Diff + 롤백 */}
-          <div
-            className={
-              dark
-                ? 'flex-1 overflow-y-auto border-t border-gray-700 p-3'
-                : 'flex-1 overflow-y-auto border-t border-gray-200 p-4'
-            }
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <h3
+              {/* Diff + 롤백 */}
+              <div
                 className={
                   dark
-                    ? 'text-xs font-semibold text-gray-300'
-                    : 'text-sm font-semibold text-gray-700'
+                    ? 'flex-1 overflow-y-auto border-t border-gray-700 p-3'
+                    : 'flex-1 overflow-y-auto border-t border-gray-200 p-4'
                 }
               >
-                변경 내용 (Diff)
-              </h3>
-              {rollbackVersion && canRollback && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowRollback(true)}
-                  data-testid={`rollback-trigger-${rollbackVersion.shortHash}`}
-                >
-                  <RotateCcw size={14} />
-                  롤백
-                </Button>
-              )}
-            </div>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3
+                    className={
+                      dark
+                        ? 'text-xs font-semibold text-gray-300'
+                        : 'text-sm font-semibold text-gray-700'
+                    }
+                  >
+                    변경 내용 (Diff)
+                  </h3>
+                  {rollbackVersion && canRollback && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowRollback(true)}
+                      data-testid={`rollback-trigger-${rollbackVersion.shortHash}`}
+                    >
+                      <RotateCcw size={14} />
+                      롤백
+                    </Button>
+                  )}
+                </div>
 
-            {activeFrom && activeTo ? (
-              diffQuery.isLoading ? (
-                <Spinner label="diff 로딩" />
-              ) : diffQuery.error ? (
-                <ErrorState title="diff 조회 실패" message={diffQuery.error.message} />
-              ) : (
-                <DiffViewer diffs={Array.isArray(diffQuery.data) ? diffQuery.data : []} />
-              )
-            ) : (
-              <p className={dark ? 'text-xs text-gray-400' : 'text-sm text-gray-500'}>
-                커밋을 선택하거나 두 커밋을 체크하여 diff 를 확인하세요.
-              </p>
-            )}
-          </div>
+                {activeFrom && activeTo ? (
+                  diffQuery.isLoading ? (
+                    <Spinner label="diff 로딩" />
+                  ) : diffQuery.error ? (
+                    <ErrorState title="diff 조회 실패" message={diffQuery.error.message} />
+                  ) : (
+                    <DiffViewer diffs={Array.isArray(diffQuery.data) ? diffQuery.data : []} />
+                  )
+                ) : (
+                  <p className={dark ? 'text-xs text-gray-400' : 'text-sm text-gray-500'}>
+                    커밋을 선택하거나 두 커밋을 체크하여 diff 를 확인하세요.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -221,11 +266,9 @@ export function HistoryPanel({ srcSn, onClose, dark = false }: HistoryPanelProps
 
 function Header({
   dark,
-  count,
   onClose,
 }: {
   dark: boolean;
-  count: number;
   onClose?: () => void;
 }) {
   return (
@@ -243,23 +286,14 @@ function Header({
             : 'flex items-center gap-1.5 text-sm font-semibold text-gray-700'
         }
       >
-        <GitCommit size={15} className={dark ? 'text-gray-400' : 'text-gray-400'} />
-        커밋 목록
-        <span
-          className={
-            dark
-              ? 'ml-1 inline-flex items-center rounded-full bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-200'
-              : 'ml-1 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600'
-          }
-        >
-          {count}
-        </span>
+        <History size={15} className={dark ? 'text-gray-400' : 'text-gray-400'} />
+        히스토리
       </h2>
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          aria-label="버전 이력 닫기"
+          aria-label="히스토리 닫기"
           data-testid="history-panel-close"
           className={
             dark
@@ -270,6 +304,70 @@ function Header({
           <X size={16} />
         </button>
       )}
+    </div>
+  );
+}
+
+/** 변경 이력(저장) / 버전(커밋) 탭 스위처. 우측 패널 탭과 동일한 role/aria 패턴. */
+function TabBar({
+  dark,
+  activeTab,
+  versionCount,
+  onChange,
+}: {
+  dark: boolean;
+  activeTab: HistoryTab;
+  versionCount: number;
+  onChange: (tab: HistoryTab) => void;
+}) {
+  const base =
+    'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition-colors';
+  const activeCls = dark
+    ? 'text-white border-primary-500'
+    : 'text-primary-700 border-primary-500';
+  const idleCls = dark
+    ? 'text-gray-400 border-transparent hover:text-gray-200'
+    : 'text-gray-500 border-transparent hover:text-gray-700';
+
+  return (
+    <div
+      role="tablist"
+      aria-label="히스토리 종류"
+      className={dark ? 'flex border-b border-gray-700' : 'flex border-b border-gray-200'}
+    >
+      <button
+        type="button"
+        role="tab"
+        id="history-tab-changes"
+        aria-selected={activeTab === 'changes'}
+        aria-controls="history-panel-changes"
+        data-testid="history-tab-changes"
+        onClick={() => onChange('changes')}
+        className={cn(base, activeTab === 'changes' ? activeCls : idleCls)}
+      >
+        변경 이력
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="history-tab-versions"
+        aria-selected={activeTab === 'versions'}
+        aria-controls="history-panel-versions"
+        data-testid="history-tab-versions"
+        onClick={() => onChange('versions')}
+        className={cn(base, activeTab === 'versions' ? activeCls : idleCls)}
+      >
+        버전
+        <span
+          className={
+            dark
+              ? 'inline-flex items-center rounded-full bg-gray-700 px-1.5 py-0.5 text-[10px] font-medium text-gray-200'
+              : 'inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600'
+          }
+        >
+          {versionCount}
+        </span>
+      </button>
     </div>
   );
 }

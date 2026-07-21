@@ -266,22 +266,53 @@ class DeidentReportServiceTest {
         // when
         service.report(40L, "사유", workerActor);
 
-        // then — 삭제 라벨 1건당 이력 1건 saveAll (1건씩 save 금지)
+        // then — V114: 두 라벨(401/402)이 같은 프레임(40L) → 프레임당 저장 이벤트 1건(delCnt=2) saveAll.
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<LsDataLblHstry>> cap = ArgumentCaptor.forClass(List.class);
         verify(lblHstryRepository).saveAll(cap.capture());
         List<LsDataLblHstry> saved = cap.getValue();
-        assertThat(saved).hasSize(2);
-        assertThat(saved).extracting(LsDataLblHstry::getLblSn).containsExactlyInAnyOrder(401L, 402L);
-        assertThat(saved).allSatisfy(h -> {
-            assertThat(h.getSrcSn()).isEqualTo(40L);
-            assertThat(h.getRegDt()).isNotNull();
-        });
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getSrcSn()).isEqualTo(40L);
+        assertThat(saved.get(0).getDelCnt()).isEqualTo(2);
+        assertThat(saved.get(0).getAddCnt()).isEqualTo(0);
+        assertThat(saved.get(0).getRegId()).isNull(); // 신고 경로 — 행위자 PII 미저장
+        assertThat(saved.get(0).getRegDt()).isNotNull();
+        assertThat(saved.get(0).getChgDtlCn()).contains("DELETED");
 
         // 이력 기록은 라벨 본문 삭제보다 먼저 (부분 실패 시 이력만 남는 정합성 깨짐 방지, 동일 트랜잭션).
         var order = inOrder(lblHstryRepository, labelRepository);
         order.verify(lblHstryRepository).saveAll(any());
         order.verify(labelRepository).deleteAllByRawSn(9040L);
+    }
+
+    @Test
+    @DisplayName("비식별신고_영상전체삭제가_프레임별_DELETED_이벤트로_기록된다")
+    void reportRecordsDeletionEventPerFrame() {
+        // given — 서로 다른 3개 프레임(40/41/42)에 걸친 라벨 4건(41 프레임 2건).
+        LsDataSrc s = src(40L, 9040L);
+        LsDataRaw r = raw(9040L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(40L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9040L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9040L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9040L, false);
+        List<LsDataLbl> labels = List.of(lbl(401L, 40L), lbl(402L, 41L), lbl(403L, 41L), lbl(404L, 42L));
+        when(labelRepository.findAllByRawSn(9040L)).thenReturn(labels);
+        stubSnapshotted(9040L);
+
+        // when
+        service.report(40L, "사유", workerActor);
+
+        // then — 프레임 수(3)만큼 이벤트, 41 프레임은 delCnt=2.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLblHstry>> cap = ArgumentCaptor.forClass(List.class);
+        verify(lblHstryRepository).saveAll(cap.capture());
+        List<LsDataLblHstry> saved = cap.getValue();
+        assertThat(saved).hasSize(3);
+        assertThat(saved).extracting(LsDataLblHstry::getSrcSn).containsExactlyInAnyOrder(40L, 41L, 42L);
+        assertThat(saved).allSatisfy(h -> assertThat(h.getRegId()).isNull());
+        LsDataLblHstry frame41 = saved.stream().filter(h -> h.getSrcSn() == 41L).findFirst().orElseThrow();
+        assertThat(frame41.getDelCnt()).isEqualTo(2);
     }
 
     @Test

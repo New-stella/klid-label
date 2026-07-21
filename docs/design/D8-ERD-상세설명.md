@@ -50,12 +50,12 @@
 - `LS_DATA_META` — 영상 시계열 메타(VLM 등). `RAW_SN`에 붙는 키-값(`META_KEY`/`META_VL`).
 - `LS_DATA_META_HSTRY` — 메타 변경 이력.
 - `LS_DATA_META_REVIEW` — 메타 검토상태. `META_TYPE_CD`, `RVW_STTS_CD`(REVIEWER가 검토·승인).
-- `LS_DATA_LBL_HSTRY` — 라벨 변경 이력(D1 `LsDataLblHstry`/DC-093). **용도 확장(V112, 2026-07-20)**: 기존에는 비식별 누락 신고 시 영상 라벨을 일괄 삭제하기 전 `LBL_SN`·`SRC_SN`·삭제 시점만 기록하는 '삭제 전용 감사'였으나, `CHG_KIND_CD`(변경종류: ADDED/UPDATED/DELETED)·`REG_ID`(작업자)를 추가해 라벨 저장(`bulkUpsert`) 시점의 추가·수정 이력까지 같은 트랜잭션에서 기록한다(신규 컬럼 NULLABLE, 기존 row는 `DELETED`로 backfill). 조회는 `GET /v1/frames/{srcSn}/label-history`. `LBL_SN`은 원본 라벨 참조라 **물리 FK 미설정**(라벨 삭제가 이력을 위반/cascade하지 않도록), `SRC_SN`(프레임)은 존속하므로 조회 인덱스만 둔다.
+- `LS_DATA_LBL_HSTRY` — 라벨 **저장 이벤트** 이력(D1 `LsDataLblHstry`/DC-093). **저장이벤트 재구조화(V114, 2026-07-21)**: 기존 '라벨 1건=1행'(라벨단위 `LBL_SN`·`CHG_KIND_CD`)에서 **'저장 이벤트=1행 + diff 페이로드'**(프레임 단위)로 전환했다. 한 번의 저장 행위(저장 클릭 1회, 프레임 단위)를 1행으로 묶어 종류별 건수 `ADD_CNT`/`MDFCN_CNT`/`DEL_CNT`(추가/수정/삭제)와 변경 상세 diff `CHG_DTL_CN`(TEXT, 항목별 `{lblSn, changeKind, labelName, before, after}` JSON 목록)를 기록한다. 직전 저장 대비 이전값→새값 diff이며 첫 저장은 전부 ADDED. 저장은 프레임 전체 교체라 요청에서 빠진 라벨은 실제 삭제(DELETED)되고, 무변경 저장은 이력을 만들지 않는다. 라벨 저장(`bulkUpsert`)·트랙 삭제·비식별 누락 신고 삭제 모두 같은 저장 이벤트 모델로 같은 트랜잭션에서 프레임당 기록된다. 조회는 `GET /v1/frames/{srcSn}/label-history`. 구 `LBL_SN`·`CHG_KIND_CD` 컬럼은 제거됐고, `SRC_SN`(프레임)은 존속하므로 조회 인덱스만 둔다(원본 라벨은 diff 페이로드의 `lblSn`으로만 식별 — 물리 FK 미설정, 라벨 삭제가 이력을 위반/cascade하지 않도록).
 
 **관계**
 - `LS_DATA_SRC ||--o{ LS_DATA_LBL` : 프레임 1개 → 라벨 N개
 - 라벨 → AI출처 / 속성값
-- `LS_DATA_SRC ||--o{ LS_DATA_LBL_HSTRY` : 프레임 → 라벨 변경 이력 (`SRC_SN` 앵커, `LBL_SN`은 FK 미설정)
+- `LS_DATA_SRC ||--o{ LS_DATA_LBL_HSTRY` : 프레임 → 라벨 저장 이벤트 이력 (`SRC_SN` 앵커 — 저장 이벤트=1행, 원본 라벨은 diff 페이로드 `lblSn`으로만 식별·FK 미설정)
 - `LS_DATA_RAW ||--o{ LS_DATA_META` : 영상 → 메타 (라벨은 프레임, 메타는 영상 단위)
 - 메타 → 이력 / 검토상태
 

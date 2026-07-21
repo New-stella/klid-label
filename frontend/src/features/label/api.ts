@@ -294,25 +294,64 @@ export function putLabels(srcSn: number, labels: Label[]): Promise<LabelsRespons
     .then((r) => r.data);
 }
 
-/** 라벨 변경종류 — BE LabelChangeKind(LS_DATA_LBL_HSTRY.CHG_KIND_CD) 와 1:1. */
+/**
+ * 라벨 변경종류 — BE LabelChangeKind 와 1:1.
+ * V114 이후 LS_DATA_LBL_HSTRY.CHG_KIND_CD 컬럼은 제거되었고, 이 값은
+ * 저장 이벤트 diff 페이로드(LS_DATA_LBL_HSTRY.CHG_DTL_CN) 내 각 변경 항목의
+ * changeKind 로만 존재한다.
+ */
 export type LabelChangeKind = 'ADDED' | 'UPDATED' | 'DELETED';
 
 /**
- * 라벨 변경 이력 항목 (Phase 2 BE LabelHistoryResponse 와 1:1).
- * - lblHstrySn : 이력 PK (2차 정렬 tiebreaker)
- * - lblSn      : 대상 라벨 LS_DATA_LBL.LBL_SN (삭제 이력은 null 가능)
- * - changeKind : 변경종류 (ADDED/UPDATED/DELETED)
- * - actor      : 작업자 식별자(REG_ID). 삭제 이력 경로는 null 가능
- * - regDt      : 변경 일시 (ISO-8601)
- * - label      : 라벨명 (생존 라벨만 채움 — 삭제 이력은 null)
+ * 라벨 스냅샷(변경 전/후 값) — BE LabelSnapshotView 와 1:1.
+ * - lblTypeCd : 라벨 형태 코드(BBOX/POLYGON/SEGMENT/SKELETON …). 누락 시 null.
+ * - labelId   : LS_LABEL.LABEL_ID(라벨 마스터 FK). 미매칭 시 null.
+ * - labelNm   : 라벨명. 삭제/누락 시 null.
+ * - pointCn   : 좌표 원문(JSON 문자열). 표시 단에서 요약한다.
+ */
+export interface LabelSnapshotView {
+  lblTypeCd: string | null;
+  labelId: number | null;
+  labelNm: string | null;
+  pointCn: string | null;
+}
+
+/**
+ * 라벨 단위 변경 항목 — BE LabelChangeView 와 1:1.
+ * - ADDED   : before=null, after=값
+ * - DELETED : before=값, after=null
+ * - UPDATED : before·after 모두 값(무변경 필드 포함)
+ * 무변경 라벨은 이 배열에 포함되지 않는다.
+ */
+export interface LabelChangeView {
+  /** 대상 라벨 LS_DATA_LBL.LBL_SN — 삭제/신규 경로는 null 가능. */
+  lblSn: number | null;
+  changeKind: LabelChangeKind;
+  /** 라벨명(생존/삭제 공통 라벨 식별). 누락 시 null → 표시 단에서 폴백. */
+  labelName: string | null;
+  before: LabelSnapshotView | null;
+  after: LabelSnapshotView | null;
+}
+
+/**
+ * 저장 이벤트 단위 라벨 변경 이력 항목 (Phase 2 BE LabelHistoryResponse 와 1:1).
+ * 하나의 저장(PUT) 이벤트에서 발생한 라벨 추가/수정/삭제를 묶어 표현한다.
+ * - lblHstrySn : 이벤트 대표 PK (2차 정렬 tiebreaker)
+ * - srcSn      : 프레임 PK (LS_DATA_SRC.SRC_SN)
+ * - regDt      : 저장 일시 (ISO-8601)
+ * - actor      : 작업자 식별자(REG_ID). 시스템 경로는 null
+ * - addCnt/mdfcnCnt/delCnt : 이벤트 내 추가/수정/삭제 라벨 수 요약
+ * - changes    : 라벨 단위 변경 상세(무변경 라벨은 제외)
  */
 export interface LabelHistoryItem {
   lblHstrySn: number;
-  lblSn: number | null;
-  changeKind: LabelChangeKind;
-  actor: string | null;
+  srcSn: number;
   regDt: string;
-  label: string | null;
+  actor: string | null;
+  addCnt: number;
+  mdfcnCnt: number;
+  delCnt: number;
+  changes: LabelChangeView[];
 }
 
 /** 변경종류 화이트리스트 정규화 — 알 수 없는 값은 UPDATED 로 폴백(방어). */
@@ -320,17 +359,54 @@ function normalizeChangeKind(raw: unknown): LabelChangeKind {
   return raw === 'ADDED' || raw === 'DELETED' ? raw : 'UPDATED';
 }
 
-/** BE 이력 응답 정규화 — 필드 누락/타입 방어. */
-function normalizeHistoryItem(raw: unknown): LabelHistoryItem {
+/** 0 이상 정수 카운트 정규화 — 누락/음수/비수치는 0. */
+function normalizeCount(raw: unknown): number {
+  const n = Number(raw ?? 0);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/** 스냅샷 정규화 — 객체가 아니면 null, 필드 누락/타입 방어. */
+function normalizeSnapshot(raw: unknown): LabelSnapshotView | null {
+  if (raw === null || raw === undefined || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const labelId = r.labelId;
+  return {
+    lblTypeCd: typeof r.lblTypeCd === 'string' && r.lblTypeCd.length > 0 ? r.lblTypeCd : null,
+    labelId:
+      labelId === null || labelId === undefined || labelId === '' || Number.isNaN(Number(labelId))
+        ? null
+        : Number(labelId),
+    labelNm: typeof r.labelNm === 'string' && r.labelNm.length > 0 ? r.labelNm : null,
+    pointCn: typeof r.pointCn === 'string' && r.pointCn.length > 0 ? r.pointCn : null,
+  };
+}
+
+/** 라벨 단위 변경 항목 정규화 — 필드 누락/타입 방어. */
+function normalizeChangeView(raw: unknown): LabelChangeView {
   const r = (raw ?? {}) as Record<string, unknown>;
   const lblSn = r.lblSn;
   return {
-    lblHstrySn: Number(r.lblHstrySn ?? 0),
     lblSn: lblSn === null || lblSn === undefined ? null : Number(lblSn),
     changeKind: normalizeChangeKind(r.changeKind),
-    actor: typeof r.actor === 'string' && r.actor.length > 0 ? r.actor : null,
+    labelName: typeof r.labelName === 'string' && r.labelName.length > 0 ? r.labelName : null,
+    before: normalizeSnapshot(r.before),
+    after: normalizeSnapshot(r.after),
+  };
+}
+
+/** BE 이력 응답 정규화 — 필드 누락/타입/배열 방어. */
+function normalizeHistoryItem(raw: unknown): LabelHistoryItem {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const changes = Array.isArray(r.changes) ? r.changes.map(normalizeChangeView) : [];
+  return {
+    lblHstrySn: Number(r.lblHstrySn ?? 0),
+    srcSn: Number(r.srcSn ?? 0),
     regDt: typeof r.regDt === 'string' ? r.regDt : '',
-    label: typeof r.label === 'string' && r.label.length > 0 ? r.label : null,
+    actor: typeof r.actor === 'string' && r.actor.length > 0 ? r.actor : null,
+    addCnt: normalizeCount(r.addCnt),
+    mdfcnCnt: normalizeCount(r.mdfcnCnt),
+    delCnt: normalizeCount(r.delCnt),
+    changes,
   };
 }
 

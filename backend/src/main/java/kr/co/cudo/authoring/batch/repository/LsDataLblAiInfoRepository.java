@@ -42,6 +42,12 @@ public interface LsDataLblAiInfoRepository extends JpaRepository<LsDataLblAiInfo
      * 벌크 삭제 대상 엔티티는 이 트랜잭션에서 사전 로드되지 않고, 삭제 후 재삽입 row 는
      * 새 {@code dataLblSn} 으로 INSERT 되므로 영속성 컨텍스트 stale 참조가 없다
      * (→ {@code clearAutomatically} 불필요).</p>
+     *
+     * <p><b>주의(clearAutomatically 미적용)</b>: 본 메서드는 {@code DeidentReportService.report} /
+     * {@code TrackEditService} 등과 공유된다. {@code clearAutomatically=true} 를 붙이면 삭제 호출 시점에
+     * 영속성 컨텍스트가 비워져, 호출부가 <b>이후 수정하는 FOR UPDATE 잠금 엔티티(예: 부모 RAW 의
+     * DE_IDNTF_YN='F')</b>가 detach 되어 flush 되지 않는 회귀가 발생한다(PII 노출 차단 실패,
+     * AugmentDeidentConcurrencyIT 검증). 따라서 순수 bulk DELETE 만 유지한다.</p>
      */
     @Modifying
     @Query("DELETE FROM LsDataLblAiInfo ai WHERE ai.dataLblSn IN :dataLblSns")

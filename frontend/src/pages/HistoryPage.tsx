@@ -98,7 +98,8 @@ export function HistoryPage() {
         ) : error ? (
           <ErrorState title="프레임 조회 실패" message={error.message} />
         ) : selectedSrcSn !== null ? (
-          <HistoryPanel srcSn={selectedSrcSn} />
+          // 버전 브라우징 전용 페이지 — 커밋(버전) 탭을 기본 활성화.
+          <HistoryPanel srcSn={selectedSrcSn} defaultTab="versions" />
         ) : (
           <div className="p-10 text-center text-sm text-gray-500">
             이 영상에는 추출된 프레임이 없습니다.

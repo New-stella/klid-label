@@ -19,7 +19,8 @@ import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.dto.TrackDeleteResponse;
 import kr.co.cudo.authoring.label.dto.TrackSplitResponse;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
-import kr.co.cudo.authoring.version.entity.LabelChangeKind;
+import kr.co.cudo.authoring.version.entity.LabelChange;
+import kr.co.cudo.authoring.version.entity.LabelSnapshot;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +29,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -194,16 +198,24 @@ public class TrackEditService {
     }
 
     /**
-     * 삭제 대상 라벨들의 DELETED 이력을 LS_DATA_LBL_HSTRY 에 일괄 기록(saveAll — 1건씩 save 금지).
-     * <p>라벨별 (lblSn, srcSn) 을 그대로 사용하고 regId 는 행위자 ID 수준만 저장한다. 신고 경로(recordDeletion,
-     * regId=null)와 달리 트랙 삭제는 배정 검증을 통과한 명시적 편집이라 행위자를 감사에 남긴다(회귀 없음).
+     * 삭제 대상 라벨들의 DELETED 이력을 LS_DATA_LBL_HSTRY 에 <b>프레임(srcSn) 단위 저장 이벤트</b>로 기록(saveAll).
+     * <p>V114 재구조화: 트랙은 여러 프레임에 걸치므로 srcSn 으로 group by 하여 프레임당 이벤트 1건
+     * (해당 프레임 삭제 라벨의 DELETED changes 묶음, delCnt = 프레임 내 삭제 건수) 을 남긴다.
+     * <p>regId 는 행위자 ID 수준만 저장한다(신고 경로와 달리 배정 검증을 통과한 명시적 편집 — 회귀 없음).
      */
     private void recordDeletionHistory(List<LsDataLbl> targets, Long actorNo) {
         String actorId = String.valueOf(actorNo);
-        List<LsDataLblHstry> histories = targets.stream()
-                .map(l -> LsDataLblHstry.recordChange(l.getLblSn(), l.getSrcSn(), LabelChangeKind.DELETED, actorId))
-                .toList();
-        lblHstryRepository.saveAll(histories);
+        Map<Long, List<LsDataLbl>> bySrc = targets.stream()
+                .collect(Collectors.groupingBy(LsDataLbl::getSrcSn, LinkedHashMap::new, Collectors.toList()));
+        List<LsDataLblHstry> events = new ArrayList<>();
+        bySrc.forEach((srcSn, labels) -> {
+            List<LabelChange> changes = labels.stream()
+                    .map(l -> LabelChange.deleted(l.getLblSn(), l.getLabelNm(),
+                            new LabelSnapshot(l.getLblTypeCd(), l.getLabelId(), l.getLabelNm(), l.getPointCn())))
+                    .toList();
+            events.add(LsDataLblHstry.recordSaveEvent(srcSn, actorId, changes));
+        });
+        lblHstryRepository.saveAll(events);
     }
 
     /**

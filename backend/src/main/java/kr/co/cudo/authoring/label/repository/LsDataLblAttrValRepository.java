@@ -41,6 +41,12 @@ public interface LsDataLblAttrValRepository extends JpaRepository<LsDataLblAttrV
      * ATTR_VAL 삭제가 DB 에 반영되지 않아 FK 위반(500)이 발생한다. 명시적 {@code @Query} 로 즉시 SQL
      * 을 발행해 이 순서 의존 버그를 제거한다(N+1 도 함께 해소). 빈 컬렉션 입력 시 no-op.
      * 파라미터 바인딩({@code :lblSns})만 사용 — 문자열 연결 없음(CWE-89 무관).
+     *
+     * <p><b>주의(clearAutomatically 미적용)</b>: 본 메서드는 {@code DeidentReportService.report} /
+     * {@code TrackEditService} / {@code LabelService.bulkUpsert} 와 공유된다. {@code clearAutomatically=true}
+     * 를 붙이면 삭제 시점에 영속성 컨텍스트가 비워져, 호출부가 <b>이후 수정하는 FOR UPDATE 잠금 엔티티
+     * (예: 부모 RAW 의 DE_IDNTF_YN='F')</b>가 detach 되어 flush 되지 않는 회귀가 발생한다(PII 노출 차단 실패,
+     * AugmentDeidentConcurrencyIT 검증). 따라서 순수 bulk DELETE 만 유지한다.</p>
      */
     @Modifying
     @Query("DELETE FROM LsDataLblAttrVal a WHERE a.lblSn IN :lblSns")

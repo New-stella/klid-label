@@ -61,6 +61,13 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
       message: null,
       errorCode: null,
     });
+    // 히스토리 패널 기본 탭(변경 이력)이 마운트 시 label-history 를 조회 — 빈 페이지 모킹.
+    mock.onGet(/\/frames\/\d+\/label-history/).reply(200, {
+      success: true,
+      data: { content: [], number: 0, size: 20, totalElements: 0, totalPages: 0 },
+      message: null,
+      errorCode: null,
+    });
   });
 
   afterEach(() => {
@@ -105,6 +112,9 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
 
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
     await user.click(await screen.findByTestId('history-toggle'));
+
+    // 통합 히스토리 패널의 기본 탭은 "변경 이력" — 버전(커밋) 빈 메시지는 "버전" 탭에서 확인.
+    await user.click(await screen.findByTestId('history-tab-versions'));
 
     await waitFor(() => {
       // 빈 메시지 노출

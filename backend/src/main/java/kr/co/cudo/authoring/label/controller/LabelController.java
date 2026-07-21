@@ -71,8 +71,11 @@ public class LabelController {
 
     @Operation(
             summary = "프레임 라벨 변경 이력 조회",
-            description = "프레임(SRC_SN) 단위 라벨 변경 이력(ADDED/UPDATED/DELETED + 시각 + 작업자)을 최신순 페이징 조회. "
-                    + "WORKER 는 본인 배정 프레임만 접근 가능(CWE-639 방어). 기본 size=20, 최대 100(초과 시 100 클램프)."
+            description = "프레임(SRC_SN) 단위 라벨 변경 이력을 <b>저장 이벤트</b> 단위로 최신순 페이징 조회한다(라벨 1건=1행이 아님). "
+                    + "각 이벤트 행은 요약 카운트(addCnt/mdfcnCnt/delCnt)와 변경 상세 배열 changes[](항목별 "
+                    + "changeKind=ADDED/UPDATED/DELETED + before/after 스냅샷 diff)를 담는다. 실제 변경이 없는 무변경 "
+                    + "재저장은 이벤트를 생성하지 않으므로 이력에 나타나지 않는다(R7). WORKER 는 본인 배정 프레임만 접근 "
+                    + "가능(CWE-639 방어). 기본 size=20, 최대 100(초과 시 100 클램프)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -91,8 +94,12 @@ public class LabelController {
 
     @Operation(
             summary = "프레임 라벨 일괄 저장 (임시저장)",
-            description = "프레임 라벨을 일괄 upsert (전체 교체 의미론). 작업본 저장만 수행하며 버전 스냅샷은 생성하지 않는다. "
-                    + "학습데이터 버전 스냅샷은 검수 승인(APPROVED) 시점에만 생성된다(SFR-08)."
+            description = "프레임 라벨을 일괄 upsert 한다. <b>프레임 전체 교체(full-replace) 의미론</b>: items 는 "
+                    + "해당 프레임의 라벨 전체 세트여야 하며, <b>items 가 빈 리스트이거나 일부만 오면 요청에 없는 기존 "
+                    + "라벨은 실제 삭제된다</b>(부분 저장 아님 — 반드시 프레임의 현재 라벨 전체를 전송할 것). id==null 은 "
+                    + "신규 INSERT, id 지정은 기존 UPDATE(무변경 재저장은 이력·통지 미발생), 요청에서 빠진 id 는 DELETE. "
+                    + "작업본 저장만 수행하며 버전 스냅샷은 생성하지 않는다. 학습데이터 버전 스냅샷은 검수 승인(APPROVED) "
+                    + "시점에만 생성된다(SFR-08)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
