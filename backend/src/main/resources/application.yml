@@ -286,6 +286,9 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+        # V1: 4xx(400/422 등) 결정적 실패는 서킷 failure 로 집계하지 않는다(정상 4xx 가 서킷을 여는 것 방지).
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       # Phase 2 — 관제서버 outbound 통지
       controlNotify:
         failure-rate-threshold: 50
@@ -298,6 +301,9 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+        # K3: 4xx(400/403/404/409) 결정적 실패는 서킷 failure 로 집계하지 않는다(정상 409 중복이 서킷을 여는 것 방지).
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
   retry:
     instances:
       deid:
@@ -312,6 +318,9 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
+        # V1: 4xx(400/422 등) 비-일시적 오류는 재시도하지 않는다(불필요한 지수 백오프 지연 제거). 5xx·네트워크만 재시도.
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       controlNotify:
         max-attempts: 3
         wait-duration: 1s
@@ -320,6 +329,9 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
+        # K3: 4xx(409 중복/400/404) 결정적 실패는 재시도하지 않는다(즉시 CONFLICT/INVALID_INPUT/NOT_FOUND 반환). 5xx·네트워크만 재시도.
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
   timelimiter:
     instances:
       deid:    { timeout-duration: 60s }

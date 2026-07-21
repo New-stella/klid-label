@@ -30,7 +30,7 @@
   수신: {멱등키, 외부 작업 ID, 처리 상태(SUCCESS/FAILED/PARTIAL), originAugSn, 증강 유형, 결과 경로}
   HmacWebhookFilter 검증 → AugmentResultController → AugmentResultService.handle()
     - allowlist 미발급 키 401 · 멱등(처리됨) 200 스킵 · augType 불일치 409 · resultFilePath SSRF 검증
-    - SUCCESS → §14.2 새 영상(PARENT_RAW_SN/PENDING) 생성 + 프레임/라벨/메타 복사
+    - SUCCESS → §14.2 새 영상(ORGNL_RAW_SN/PENDING) 생성 + 프레임/라벨/메타 복사
 ```
 
 - **콜백 경로 단일 진실원**: `/v1/augments/result` 는 `HmacWebhookFilter.PATH_AUGMENT` 한 곳에서만 정의하고, 요청측(`AugmentRequestService.CALLBACK_PATH`)·dev 시뮬(`DevAugmentCallbackSimulator.CALLBACK_PATH`)이 이 상수를 참조한다(경로 드리프트로 인한 401 회귀 차단).
@@ -38,7 +38,7 @@
 
 ## 14.2 증강 = 새 영상
 
-- 성공 시 **새 영상**(`RAW_SN`, `PARENT_RAW_SN`=원본) 을 **PENDING** 으로 생성
+- 성공 시 **새 영상**(`RAW_SN`, `ORGNL_RAW_SN`=원본) 을 **PENDING** 으로 생성
 - 원본 라벨/메타를 새 영상에 **매핑/복사** (해상도 동일 → 좌표 그대로, 라벨 무결성 RQ-SFR-07-02)
 - 라벨 무결성 검증: `LabelIntegrityCalculator` (원본 대비 라벨 수·좌표·속성 보존)
 - 코드: `augment/AugmentResultService`, `LS_DATA_AUG`/`LS_DATA_AUG_RVW`/`LS_DATA_AUG_LBL_MAP`
@@ -95,4 +95,4 @@ PENDING 증강 영상 (SCR-AUG-002)
 - **풀 점유 방지**: 콜백 호출은 `@Async("batchAsyncExecutor")` 비동기 + `augmentCallbackWebClient` 에 connect timeout(5s)·response timeout(10s) 적용 — 로컬 콜백 서버 미기동 시 TCP 연결 단계 무한 대기로 배치 풀이 점유되는 것을 막는다.
 - **best-effort**: 콜백 HTTP/직렬화 실패는 삼키고 WARN 만 남겨 요청 흐름에 영향 0.
 
-> 통합 검증: `AugmentCallbackFlowIntegrationTest` — 서명 콜백이 필터→컨트롤러→handle 을 통과해 새 영상(PARENT_RAW_SN/PENDING) 생성·프레임/라벨 좌표 복사·리스트 PENDING 노출·멱등 중복 차단·잘못된 서명 401·콜백 경로 단일 출처를 단언한다.
+> 통합 검증: `AugmentCallbackFlowIntegrationTest` — 서명 콜백이 필터→컨트롤러→handle 을 통과해 새 영상(ORGNL_RAW_SN/PENDING) 생성·프레임/라벨 좌표 복사·리스트 PENDING 노출·멱등 중복 차단·잘못된 서명 401·콜백 경로 단일 출처를 단언한다.

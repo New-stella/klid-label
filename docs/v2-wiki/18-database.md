@@ -20,7 +20,7 @@
 ### 영상 · 프레임 · 라벨
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, ORGNL_RAW_SN — V82 rename, 구 PARENT_RAW_SN·데이터마트 뷰 외부계약명만 유지). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료) | [05](05-video-management.md) |
+| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, ORGNL_RAW_SN — V82 물리 rename, 구 PARENT_RAW_SN 폐지. V95에서 데이터마트 뷰 출력 컬럼도 ORGNL_RAW_SN 으로 통일돼 내부·외부 모두 ORGNL_RAW_SN). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료) | [05](05-video-management.md) |
 | `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
 | `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로, `FRM_EXPLN` 프레임설명 V103 — NIA image.description 작업자 수기) | [07](07-batch-pipeline.md)·[10](10-labeling.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |
@@ -80,7 +80,7 @@
 
 > 구 `LS_DATA_SET` (V8, 학습데이터셋 Export용)은 **범위 외 orphan 테이블로 판정되어 삭제**됨(V86) — 엔티티·활성쿼리·View·FK 참조 0건 검증. 학습데이터셋 Export는 CLAUDE.md 범위 외(관제/데이터마트 책임).
 
-> **공공 우선(gov-first) 표준용어 rename (V90·V91, 2026-07-10)**: 공공 표준용어에 동일 한글용어가 존재하는 컬럼 15건을 공공약어로 정합 — `EXPD_DT→EXPRY_DT`(LS_AUTH_WORK_LOCK·LS_TUS_UPLOAD), `RESP_DT→RSPNS_DT`, `REJECT_RSN→RJCT_RSN`(×2), `MODEL_NM→MDL_NM`, `VERSION_NO→VER_NO`, `REPORT_DT→DCLR_DT`, `ISSUE_COMMENT_SN→CMNT_SN`, `ATTACH_SN→ATCH_FILE_SN`, `STORE_FILE_NM→STRG_FILE_NM`, `LOCK_DT→LCK_DT`, `RELEASE_DT→RMV_DT`, `RELEASE_RSN→RMV_RSN`, `ATTR_NM→ATRB_NM`(V91, `V_COMPLETED_LABEL_ATTR` 뷰 재생성 — 출력 별칭 `ATTR_NAME` 불변). Java 필드명·JSON 계약은 불변(물리 컬럼만 rename).
+> **공공 우선(gov-first) 표준용어 rename (V90·V91, 2026-07-10)**: 공공 표준용어에 동일 한글용어가 존재하는 컬럼 15건을 공공약어로 정합 — `EXPD_DT→EXPRY_DT`(LS_AUTH_WORK_LOCK·LS_TUS_UPLOAD), `RESP_DT→RSPNS_DT`, `REJECT_RSN→RJCT_RSN`(×2), `MODEL_NM→MDL_NM`, `VERSION_NO→VER_NO`, `REPORT_DT→DCLR_DT`, `ISSUE_COMMENT_SN→CMNT_SN`, `ATTACH_SN→ATCH_FILE_SN`, `STORE_FILE_NM→STRG_FILE_NM`, `LOCK_DT→LCK_DT`, `RELEASE_DT→RMV_DT`, `RELEASE_RSN→RMV_RSN`, `ATTR_NM→ATRB_NM`(V91, `V_COMPLETED_LABEL_ATTR` 뷰 재생성(V114에서 뷰 제거) — 출력 별칭 `ATTR_NAME` 불변). Java 필드명·JSON 계약은 불변(물리 컬럼만 rename).
 
 ### 포털 자산 업로드 (ADR-013 예외, V107~)
 
@@ -97,13 +97,13 @@
 
 ## 18.3 데이터마트 적재용 View (V52)
 
-`klid_at` 스키마에 4종(+1) View — **검수 완료(APPROVED) 영상만 노출**. 모두 `CREATE OR REPLACE VIEW`라 멱등.
+`klid_at` 스키마에 4종 View (V114 재편) — **검수 완료(APPROVED) 영상만 노출**. 모두 `CREATE OR REPLACE VIEW`라 멱등.
 
 | View | 내용 |
 |------|------|
-| `V_COMPLETED_VIDEO` | 영상 메타 + 원본 경로 + 검수 완료 일시. **재구성(V101·V102)**: `LS_DATASET_VIDEO_META`(ACTIVE_YN='Y') 동결 스냅샷 기반 + 라이브 APPROVED 게이트. 기존 출력 컬럼 alias 보존(관제 무영향) + 신규 메타 18컬럼(cctv명·좌표·코덱·fps·해상도 등) 추가 |
+| `V_COMPLETED_VIDEO` | 영상 메타 + 원본 경로 + 검수 완료 일시. **재구성(V101·V102)**: `LS_DATASET_VIDEO_META`(ACTIVE_YN='Y') 동결 스냅샷 기반 + 라이브 APPROVED 게이트. 기존 출력 컬럼 alias 보존(관제 무영향) + 신규 메타 18컬럼(cctv명·좌표·코덱·fps·해상도 등) 추가. **`EXPORT_PATH_NM`·`FRAME_CNT`(V114)**: 최신 SUCCEEDED export(`LS_DATASET_EXPORT`)를 `LEFT JOIN LATERAL`(LIMIT 1)로 끝에 append — 행 증식 0, 미export 영상은 두 값 null |
 | `V_COMPLETED_FRAME` | 프레임 페어 (`ORIGINAL_PATH`=원본, `DEIDENTIFIED_PATH`=비식별; 원천 `LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`) + **`DESCRIPTION`(V104, `FRM_EXPLN` 프레임설명, 하위호환 끝 추가)** |
-| `V_COMPLETED_LABEL` + `V_COMPLETED_LABEL_ATTR` | 라벨 좌표·마스터 코드 + 속성값 |
+| `V_COMPLETED_LABEL_CHANGE` (V114 신설) | 라벨 변경점 (`LS_DATA_LBL_HSTRY` 기반, `CHG_KIND_CD` ADDED/UPDATED/DELETED, APPROVED 게이트). 구 라벨 좌표·속성 본문 뷰(`V_COMPLETED_LABEL`·`V_COMPLETED_LABEL_ATTR`)는 V114에서 제거 — 라벨 내용은 검수 승인 export 폴더 JSON이 진실원(뷰 중복 노출 제거) |
 | `V_COMPLETED_META` | 시계열 메타 (RVW_STTS_CD='APPROVED'만). V101에서 `video.*` 기술메타 6키 제외(통합 스냅샷 `V_COMPLETED_VIDEO`로 이관) — VLM/외부 시계열만 노출 |
 
 > 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 수신 후 RAW_SN으로 4 View SELECT → 영상 1건=1 row UPSERT. 비식별 **영상** 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 적재값 사용(문자열 치환 도출 아님, View 미포함). 비식별 **프레임** 경로는 `V_COMPLETED_FRAME.DEIDENTIFIED_PATH`(=`LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`)에 직접 노출되며, 신규 추출은 원본 `{base}/frames/raw/{rawSn}`·비식별 `{base}/frames/deid/{rawSn}` 로 분기 저장돼 `STORAGE_RAW_PATH==STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`)여도 충돌하지 않는다. → [15](15-control-notify.md)

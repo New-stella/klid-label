@@ -35,6 +35,13 @@ services:
     volumes:
       - klid-storage:/app/storage
     environment:
+      # 실 KPST 연동(목 서버) — local 기본 mock 비식별(DEIDENTIFY_MOCK_MODE=true)을 끄고
+      #   KPST 경로로 전환해 mock-server(klid-net 의 klid-mock-server:9400)에 실제 위탁한다.
+      #   목이 공유 볼륨(/app/storage)에 원본 복사(실영상)한 비식별 결과를 BE 가 그대로 소비한다.
+      #   application-local.yml L66/93 문서화된 실연동 전환 방법.
+      DEIDENTIFY_MOCK_MODE: "false"
+      KPST_DEID_ENABLED: "true"
+      KPST_DEID_BASE_URL: "http://klid-mock-server:9400"
       # 로컬 FE dev 서버는 docker 매핑 포트 13000 으로 서빙된다(klid-frontend ports 13000:5174).
       #   base 의 .env CORS_ALLOWED_ORIGINS 는 5173/5174/3000 만 포함해 브라우저 Origin
       #   http://localhost:13000 이 Spring CorsFilter 403("Invalid CORS request")으로 거부되고
@@ -61,6 +68,25 @@ services:
         limits:
           # CPU 실추론(YOLOX/SAM2) 메모리 여유 확보
           memory: 4096m
+
+  # 외부 벤더 목(mock) 서버 — 비식별(KPST)·VLM 개발 완료 전 실연동 테스트용.
+  #   이미지 klid-mock-server:latest 는 feat/mock-external-server 브랜치(PR #26)에서 빌드됨
+  #   (docker build -t klid-mock-server:latest mock-server/). 현재 워킹트리엔 소스가 없어 image 참조.
+  #   ⚠ 로컬/테스트 전용 — 무인증 + 콜백 SSRF 표면. 신뢰망에서만 기동.
+  mock-server:
+    image: klid-mock-server:latest
+    container_name: klid-mock-server
+    restart: unless-stopped
+    environment:
+      # 비식별 더미 출력 파일 생성 base(=BE STORAGE_DEIDENTIFIED_PATH). 미설정이면 파일 미생성(fail-closed).
+      MOCK_OUTPUT_BASE: /app/storage/deidentified
+    volumes:
+      # BE 와 동일 공유 볼륨·동일 경로 → BE 가 넘긴 절대경로(export_path/input_path)를 그대로 읽고 씀.
+      - klid-storage:/app/storage
+    ports:
+      - "9400:9400"
+    networks:
+      - klid-net
 
 volumes:
   klid-pgdata:

@@ -223,10 +223,11 @@ klid-la-test-v0/
 
 ### 데이터마트 적재용 View
 - `klid_at` 스키마에 4종 View 제공 — 검수 완료(`LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'`) 영상만 노출
-  - `V_COMPLETED_VIDEO` : 영상 메타 + 원본 영상 경로 + 검수 완료 일시
+  - `V_COMPLETED_VIDEO` : 영상 메타 + 원본 영상 경로 + 검수 완료 일시 + **export 폴더 경로(`EXPORT_PATH_NM`)·프레임수(`FRAME_CNT`)**(V114) — 최신 SUCCEEDED export(`LS_DATASET_EXPORT`) 조인, 미export 영상은 두 값 null(영상 1건=1row 유지)
   - `V_COMPLETED_FRAME` : 프레임 페어 (`ORIGINAL_PATH`=원본 `SRC_FILE_PATH_NM`, `DEIDENTIFIED_PATH`=비식별 `DE_IDNTF_SRC_FILE_PATH_NM`) — 신규 추출은 `{base}/frames/raw|deid/{rawSn}` 로 분기 저장돼 두 경로가 항상 상이(원본 덮어쓰기 0)
-  - `V_COMPLETED_LABEL` + `V_COMPLETED_LABEL_ATTR` : 라벨 좌표·마스터 코드 + 라벨 속성값
+  - `V_COMPLETED_LABEL_CHANGE`(V114 신설) : 라벨 변경점 (`LS_DATA_LBL_HSTRY` 기반, `CHG_KIND_CD`=ADDED/UPDATED/DELETED, APPROVED 게이트) — 라벨 좌표·속성 본문은 검수 승인 export 폴더 JSON에 존재하므로 뷰로 중복 노출하지 않음(구 `V_COMPLETED_LABEL`·`V_COMPLETED_LABEL_ATTR` 제거)
   - `V_COMPLETED_META` : 시계열 메타 (`RVW_STTS_CD='APPROVED'` 만)
+- **라벨 내용 뷰 제거(V114) = 관제 연동 계약 변경(관제팀 협의 대상)**: 관제서버는 이제 ①export 폴더 경로(`V_COMPLETED_VIDEO.EXPORT_PATH_NM`) 픽업 + ②변경점(`V_COMPLETED_LABEL_CHANGE`)·메타(`V_COMPLETED_META`)만 DB 뷰로 쿼리한다. 라벨 본문 뷰를 SELECT 하던 관제 쿼리는 파손되므로 협의 필요(M2M deprecated·뷰 SELECT 방식)
 - 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 통지 수신 후 RAW_SN 으로 4 View 단순 SELECT → 영상 1건=1 row UPSERT
 - 비식별 영상 파일 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 에 적재된 값을 사용(문자열 치환 도출 아님, View 미포함). `STORAGE_RAW_PATH==STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`, 의도된 동일 설정)여도 영상은 비식별본만 `videos/{rawSn}/` 하위(mock=저작도구가 `deidentified.mp4` 기록 / KPST 공유마운트=KPST 가 `export_path` 에 직접 산출, 응답 `fileName` 으로 경로 기록)에 위치하고 원본은 관제 NAS 절대경로를 기록만 하므로 충돌 없음
 - 모두 `CREATE OR REPLACE VIEW` 라 멱등 — Flyway 재실행해도 안전

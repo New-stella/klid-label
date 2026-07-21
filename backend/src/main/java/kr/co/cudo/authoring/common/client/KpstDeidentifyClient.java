@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -87,6 +88,7 @@ public class KpstDeidentifyClient {
         String body = webClient.get()
                 .uri(PATH_CONNECT)
                 .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, this::toNonRetryable4xx)
                 .bodyToMono(String.class)
                 .timeout(DEFAULT_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
@@ -107,6 +109,7 @@ public class KpstDeidentifyClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, this::toNonRetryable4xx)
                 .bodyToMono(KpstProjectResponse.class)
                 .timeout(DEFAULT_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
@@ -152,6 +155,12 @@ public class KpstDeidentifyClient {
                             int status = resp.status().code();
                             if (status < 200 || status >= 300) {
                                 // 본문 원문은 노출하지 않는다(CWE-209) — 상태 코드만 매핑.
+                                // K3: 4xx 결정적 실패는 비재시도(ignore) 예외로 분류해 재시도·서킷집계에서
+                                // 제외한다. 5xx·기타(3xx)만 재시도·집계 대상(CustomException 그대로 전파).
+                                if (status >= 400 && status < 500) {
+                                    throw new NonRetryableExternalException(
+                                            "비식별 진행 조회 4xx 응답", mapStatus(status));
+                                }
                                 throw mapStatus(status);
                             }
                             return deserializeProgress(body);
@@ -192,6 +201,7 @@ public class KpstDeidentifyClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, this::toNonRetryable4xx)
                 .bodyToMono(KpstDeleteResponse.class)
                 .timeout(DEFAULT_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
@@ -208,6 +218,11 @@ public class KpstDeidentifyClient {
      * 상태 코드만 매핑하고 본문/스택트레이스는 예외 메시지에 포함하지 않는다.
      */
     private Throwable translate(Throwable e) {
+        // K3: 4xx 비재시도 예외는 상태코드→ErrorCode 매핑 결과(CustomException)를 cause 로 실어 보냈으므로
+        // 최종 사용자-대면 예외로 복원한다(400→INVALID_INPUT/403→FORBIDDEN/404→NOT_FOUND/409→CONFLICT 보존).
+        if (e instanceof NonRetryableExternalException && e.getCause() instanceof CustomException mapped) {
+            return mapped;
+        }
         if (e instanceof CustomException) {
             return e;
         }
@@ -217,6 +232,22 @@ public class KpstDeidentifyClient {
         }
         log.warn("[KpstDeid] external call failed type={}", e.getClass().getSimpleName());
         return new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 솔루션 호출에 실패했습니다.");
+    }
+
+    /**
+     * 4xx 클라이언트 오류를 비재시도 예외로 변환 — {@code .retrieve().onStatus(...)} 훅용(K3).
+     *
+     * <p>상태코드→{@link ErrorCode} 매핑 결과({@link #mapStatus})를 {@link NonRetryableExternalException}
+     * 의 cause 로 실어, RetryOperator/CircuitBreakerOperator 는 {@code ignore-exceptions} 로 이를 건너뛰고
+     * 파이프라인 말미 {@link #translate} 가 최종 CustomException 으로 복원한다(CWE-209: 본문 원문 미노출).
+     */
+    private Mono<Throwable> toNonRetryable4xx(
+            org.springframework.web.reactive.function.client.ClientResponse response) {
+        int status = response.statusCode().value();
+        // 본문을 소비/해제(리소스 누수 방지)한 뒤 상태 코드만으로 매핑한다(외부 본문 미노출).
+        return response.releaseBody()
+                .then(Mono.error(new NonRetryableExternalException(
+                        "비식별 솔루션 4xx 응답", mapStatus(status))));
     }
 
     /** HTTP 상태 코드 → 내부 표준 예외(CWE-209: 원문/스택트레이스 미노출, 상태 코드만 매핑). */

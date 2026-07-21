@@ -13,7 +13,9 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -99,11 +101,29 @@ public class VlmClient {
                 .uri(DESCRIBE_PATH)
                 .bodyValue(enriched)
                 .retrieve()
+                // V1: 4xx(특히 400 형식오류·422 파라미터 값 오류)는 벤더 규격(§4.1)상 비-일시적 오류다.
+                // 비재시도 예외로 분류해 재시도·서킷집계에서 제외한다(5xx·네트워크만 재시도). happy path/5xx 무변경.
+                .onStatus(HttpStatusCode::is4xxClientError, this::toNonRetryable4xx)
                 .bodyToMono(VlmTimeseriesResponse.class)
                 .timeout(timeout)
                 .map(resp -> validateResponse(resp, requestId))
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+    }
+
+    /**
+     * 4xx 클라이언트 오류를 비재시도 예외로 변환 — {@code .retrieve().onStatus(...)} 훅용(V1).
+     *
+     * <p>본문을 소비/해제(리소스 누수 방지)한 뒤 상태 코드만 기록해 {@link NonRetryableExternalException}
+     * 으로 전파한다. Resilience4j retry/circuitbreaker 는 {@code ignore-exceptions} 로 이를 건너뛴다.
+     * CWE-209: 외부 응답 본문 원문은 예외/로그에 노출하지 않는다(상태 코드만).
+     */
+    private Mono<Throwable> toNonRetryable4xx(ClientResponse response) {
+        int status = response.statusCode().value();
+        log.warn("[Vlm] describe non-retryable 4xx status={}", status);
+        return response.releaseBody()
+                .then(Mono.error(new NonRetryableExternalException(
+                        "VLM describe 4xx 응답(status=" + status + ")")));
     }
 
     /**

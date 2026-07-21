@@ -147,11 +147,16 @@ export function normalizeLabel(raw: any): Label {
         ? Number(rawConfidence)
         : undefined;
 
+  // classId — 캔버스 편집/드롭다운/속성정의 조회의 라벨 마스터 식별자.
+  // BE LabelResponse.Item 은 로드 응답에 classId/classCd 를 내려주지 않고 labelId(LS_LABEL.LABEL_ID)만
+  // 제공한다. classId 폴백이 없으면 로드된 라벨이 항상 classId=0 이 되어 ① 속성 섹션(classId>0 게이트)이
+  // 통째로 숨겨지고 ② 라벨 드롭다운(value=classId)이 엉뚱한 값으로 표시된다. labelId 로 폴백해
+  // 두 소비처를 동시에 정상화한다(labelId 는 위에서 이미 null 정규화됨 — null 이면 0 유지).
   return {
     id,
     serverId: typeof raw?.id === 'number' ? raw.id : undefined,
     frameNo: Number(raw?.frameNo ?? 0),
-    classId: Number(raw?.classId ?? raw?.classCd ?? 0),
+    classId: Number(raw?.classId ?? raw?.classCd ?? labelId ?? 0),
     labelId,
     color,
     className: String(raw?.label ?? raw?.className ?? ''),
