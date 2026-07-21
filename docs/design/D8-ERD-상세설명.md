@@ -28,7 +28,7 @@
 - `LS_DATA_RAW` — 원시영상(작업 단위). `VMS_CLIP_ID`가 **UK**라 같은 클립 재수신 시 신규가 아니라 갱신. `PRVC_TYPE_CD`(ANONY/PRVC/PSDO)에서 `PRVC_YN`을 파생, `DE_IDENT_YN`(Y/F/N)이 비식별 상태, `DATA_STTS_CD`가 배치 단계 상태(PENDING→MARKING_READY→COMPLETED).
 - `LS_DATA_SRC` — 프레임원천. 한 행에 **원본 경로(`SRC_FILE_PATH_NM`)와 비식별 경로(`DE_IDNTF_SRC_FILE_PATH_NM`)를 페어**로 보관. `(RAW_SN, FRM_NO)` 유니크.
 - `LS_DATA_RAW_HSTRY` / `LS_DATA_SRC_HSTRY` — 영상·프레임 변경 이력(신규수집/재수신갱신/상태전이).
-- `LS_RESOLUTION_EXPORT` — 해상도 변경 산출 추적. 검수완료 원본마다 표준 해상도 3종 프리셋별 **파생영상(새 RAW_SN) 생성**을 추적하는 1건당 1행. `(DATA_RAW_SN, GOAL_RES_CD)` 유니크. `NEW_RAW_SN`(신규, V116)으로 파생 원시영상을 역참조한다. **2026-07-21 정책 재반전 — 구 '새 영상·라벨을 만들지 않는다(증강과 구분되는 핵심)' 정책 폐기, 이제 증강과 동일하게 파생영상을 생성한다.**
+- `LS_RESOLUTION_EXPORT` — 해상도 변경 산출 추적. 검수완료 원본마다 표준 해상도 3종 프리셋별 **파생영상(새 RAW_SN) 생성**을 추적하는 1건당 1행. `(DATA_RAW_SN, GOAL_RESL_CD)` 유니크. `NEW_RAW_SN`(신규, V116)으로 파생 원시영상을 역참조한다. **2026-07-21 정책 재반전 — 구 '새 영상·라벨을 만들지 않는다(증강과 구분되는 핵심)' 정책 폐기, 이제 증강과 동일하게 파생영상을 생성한다.**
 - `LS_RESOLUTION_LBL_MAP`(신규, V116) — 해상도 변경 원본↔파생 라벨 매핑. 배율(`SCALE_X`/`SCALE_Y`)과 좌표 재계산 여부(`COORD_RECALC_YN`, 해상도 변경은 항상 'Y')를 기록. `LS_DATA_AUG_LBL_MAP`은 `DATA_AUG_SN NOT NULL` 제약으로 재사용하지 않는다(증강 이력·통계 오염 방지).
 
 **관계**

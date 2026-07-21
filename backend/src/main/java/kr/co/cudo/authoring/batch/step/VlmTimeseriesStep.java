@@ -258,7 +258,7 @@ public class VlmTimeseriesStep implements BatchStep {
     }
 
     /**
-     * describe 수락 응답(request_id, status)을 {@code LS_BATCH_PROC_LOG.RES_PAYLOAD_CN} 에 JSON 적재.
+     * describe 수락 응답(request_id, status)을 {@code LS_BATCH_PROC_LOG.RESP_PAYLOAD_CN} 에 JSON 적재.
      * 영속화 실패는 위탁 자체를 실패로 보지 않고 WARN 로깅만 남긴다.
      */
     private void persistResult(Long rawSn, VlmTimeseriesResponse resp) {

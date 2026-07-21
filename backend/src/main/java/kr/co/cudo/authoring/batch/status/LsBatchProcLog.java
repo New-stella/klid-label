@@ -60,7 +60,7 @@ public class LsBatchProcLog {
     @Column(name = "REQ_PAYLOAD_CN", columnDefinition = "TEXT")
     private String reqPayloadCn;
 
-    @Column(name = "RES_PAYLOAD_CN", columnDefinition = "TEXT")
+    @Column(name = "RESP_PAYLOAD_CN", columnDefinition = "TEXT")
     private String resPayloadCn;
 
     @Column(name = "REG_ID", length = 30)
@@ -111,7 +111,7 @@ public class LsBatchProcLog {
     }
 
     /**
-     * RES_PAYLOAD_CN 컬럼에 외부 응답 JSON 을 적재.
+     * RESP_PAYLOAD_CN 컬럼에 외부 응답 JSON 을 적재.
      *
      * <p>DEV_FIX-1: VLM 시계열 외부 위탁 응답({@code externalJobId}, {@code status}) 영속화에 사용.
      * Phase 2 webhook 에서 externalJobId 로 영상 역추적할 때 활용된다.

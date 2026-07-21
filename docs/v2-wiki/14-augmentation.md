@@ -53,7 +53,7 @@
 - **비디오는 원본(비식별) 그대로 복사**(재인코딩 없음), **프레임 이미지셋만 목표 해상도로 리스케일**(`Java2DImageResizer`) — 이 두 원칙은 유지
 - **업스케일(확대)도 허용** — 구 `targetH>=srcH` 400 거부 가드 제거. 원본과 동일 해상도인 프리셋만 스킵하고 나머지는 3종 전부 생성
 - **라벨/이미지 좌표를 해상도 배율(scaleX=targetW/srcW, scaleY=targetH/srcH)로 재계산해 파생영상에 적재**(BBOX/POLYGON/세그멘테이션/키포인트 전 종류) — 구 '좌표 미제공' 폐기. 원본↔파생 라벨 매핑은 신규 `LS_RESOLUTION_LBL_MAP`(COORD_RECALC_YN/SCALE_X/SCALE_Y)에 적재하며, `LS_DATA_AUG_LBL_MAP`은 재사용하지 않는다(`DATA_AUG_SN NOT NULL` 제약 — 증강 이력·통계 오염 방지)
-- `LS_RESOLUTION_EXPORT`는 산출 추적 행으로 유지되며 파생 RAW 역참조 `NEW_RAW_SN` 컬럼이 추가됐다(V116). UK(DATA_RAW_SN, GOAL_RES_CD)는 유지 — 동일 (원본,해상도) 재요청은 여전히 409
+- `LS_RESOLUTION_EXPORT`는 산출 추적 행으로 유지되며 파생 RAW 역참조 `NEW_RAW_SN` 컬럼이 추가됐다(V116). UK(DATA_RAW_SN, GOAL_RESL_CD)는 유지 — 동일 (원본,해상도) 재요청은 여전히 409
 - 파생영상은 증강과 동일하게 **PENDING → 배정 → 검수** 파이프라인에 진입하고, 검수 승인 시 관제에 **별도 완료 통지(TASK_COMPLETED)** 가 발송된다
 - **화면: 증강 요청 화면(SCR-AUG-001)의 통합 단일 선택 UI에 흡수** — '해상도 변경' 카드 선택 시 타겟 해상도(1080P/720P/480P, 미지정 시 3종 전체) 선택 UI가 노출되고, 실행하면 `POST /v1/videos/{rawSn}/resolution` 으로 직접 호출되어 응답 `{derivatives:[{rawSn,goalResCd,targetW,targetH,status}]}` 목록이 화면에 inline 표시된다(네비게이션 없음). 1건 이상 생성 성공=201 / 전부 실패=500 / 대상 프리셋 전부 스킵=400. 증강 3종 실행은 잡 등록 후 결과화면(SC-023)으로 이동한다. (구 '영상 상세 화면 독립 해상도 export 섹션'은 폐지 — 컴포넌트 정리됨)
 - 코드: BE `video/service/{VideoResolutionService,ResolutionDerivativeService,ResolutionReservationPersister,ResolutionDerivativeFinalizer}`, `LS_RESOLUTION_EXPORT`(V55)+`NEW_RAW_SN`(V116), `LS_RESOLUTION_LBL_MAP`(V116). FE `pages/AugmentRequestPage`(submit 분기) + `features/video/hooks/useResolutionDerivative`(구 `useResolutionExport` 대체)

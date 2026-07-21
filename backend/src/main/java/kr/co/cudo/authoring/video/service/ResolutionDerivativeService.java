@@ -33,7 +33,7 @@ import java.util.List;
  * <ul>
  *   <li>부모 {@code findByRawSnForUpdate} 잠금 + {@code deIdntfYn=='Y'} 게이트(CWE-359 PII TOCTOU)는
  *       {@link ResolutionReservationPersister} 의 동기 트랜잭션에서만 유효하다 — 절대 async 로 이동 금지.</li>
- *   <li>UNIQUE(DATA_RAW_SN, GOAL_RES_CD) 예약행을 새 RAW/파일 생성 전에 INSERT 하여 (원본,해상도)
+ *   <li>UNIQUE(DATA_RAW_SN, GOAL_RESL_CD) 예약행을 새 RAW/파일 생성 전에 INSERT 하여 (원본,해상도)
  *       동시요청을 DB 레벨에서 1건으로 직렬화한다.</li>
  *   <li>파일 I/O(비디오 복사·프레임 리스케일)와 라벨 복사는 동기 트랜잭션에 넣지 않는다.</li>
  * </ul>
