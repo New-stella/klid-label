@@ -20,7 +20,11 @@ class ProjectCreateRequest(BaseModel):
     creator: str = Field(..., min_length=1, description="생성자 ID")
     export_path: str = Field(..., min_length=1, description="결과 저장 경로")
     input_path: str = Field(..., min_length=1, description="입력 경로(끝에 / 포함)")
-    files: list[str] = Field(default_factory=list, description="영상모드 대상 파일 목록")
+    files: list[str] = Field(
+        default_factory=list,
+        max_length=1000,
+        description="영상모드 대상 파일 목록(최대 1000개 — 자원 상한, CWE-400/CWE-770)",
+    )
     masking_type: int = Field(default=0, description="색상0/모자이크2/블러3")
     db_save: int = Field(default=0, ge=0, le=1, description="0=미저장 1=DB저장")
     masking_range: int = Field(default=1, description="마스킹 범위")

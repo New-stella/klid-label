@@ -19,7 +19,9 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import PlainTextResponse
+from starlette.concurrency import run_in_threadpool
 
+from app.config import get_settings
 from app.exceptions import MockApiError
 from app.schemas.deid import (
     DeleteProjectIdRequest,
@@ -130,10 +132,14 @@ async def create_project(req: ProjectCreateRequest) -> ProjectCreateResponse:
         )
 
     # 데이터셋 구성 — 영상 모드는 파일당 1개, 이미지 폴더 모드는 폴더 1개.
+    # 마스킹명({stem}_{yyyyMMddHHmm}_mask{ext})은 생성 시 1회 계산해 데이터셋명으로 저장한다.
+    # 이 마스킹명이 진행률 fileName·실제 생성 파일명과 동일한 단일 소스가 된다.
     # totalFrame 은 dataset_id 로 결정적으로 도출(_dataset_total_frame)하므로 별도 저장 불필요.
-    file_names = req.files if req.is_img == 0 else [req.input_path]
-    for file_name in file_names:
-        store.add_dataset(project.prj_id, file_name)
+    raw_names = req.files if req.is_img == 0 else [req.input_path]
+    timestamp = deid_sim.mask_timestamp()
+    plans = deid_sim.plan_outputs(raw_names, timestamp)
+    for _source_base, mask_name in plans:
+        store.add_dataset(project.prj_id, mask_name)
 
     store.append_job_log(project.prj_id, "project_created", req.project_name)
     logger.info(
@@ -142,6 +148,26 @@ async def create_project(req: ProjectCreateRequest) -> ProjectCreateResponse:
         sanitize_for_log(req.project_name),
         sanitize_for_log(req.creator),
     )
+
+    # 더미 비식별 출력 파일 생성 — BE 무결성(존재+크기>0) 통과용. 실패해도 응답에 영향 없음.
+    # 동기 파일 I/O 는 threadpool 로 오프로드해 이벤트 루프 블로킹을 피한다.
+    settings = get_settings()
+    if settings.write_output_files:
+        try:
+            await run_in_threadpool(
+                deid_sim.write_deid_outputs,
+                export_path=req.export_path,
+                input_path=req.input_path,
+                outputs=plans,
+                output_base=settings.output_base,
+            )
+        except Exception as exc:  # noqa: BLE001 — 목 안정성 우선, 어떤 실패도 200 유지
+            logger.warning(
+                "[MOCK][KPST] deid output generation error prj_id=%d err=%s",
+                project.prj_id,
+                sanitize_for_log(str(exc)),
+            )
+
     return ProjectCreateResponse(result="success", prj_id=project.prj_id)
 
 

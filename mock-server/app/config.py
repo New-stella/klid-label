@@ -41,6 +41,24 @@ class Settings(BaseSettings):
         description="VLM 콜백 전송 지연(초) — Phase 3에서 사용",
     )
 
+    # KPST 비식별 더미 출력 파일 생성
+    write_output_files: bool = Field(
+        default=True,
+        description=(
+            "POST /project 시 {export_path}/{마스킹명} 에 더미 비식별 출력 파일을 생성할지 여부. "
+            "우리 BE 의 무결성 검증(존재+크기>0)을 통과시켜 e2e 파이프라인을 여는 용도. "
+            "실제 생성은 write_output_files=True 그리고 output_base 설정 둘 다일 때만"
+        ),
+    )
+    output_base: str = Field(
+        default="",
+        description=(
+            "출력 쓰기 허용 루트(예: STORAGE_DEIDENTIFIED_PATH). 설정 시 export_path 가 "
+            "resolve 후 이 base 하위일 때만 파일을 쓴다(경로순회/임의 절대경로 쓰기 차단). "
+            "미설정('')이면 fail-closed — 어떤 파일도 생성하지 않는다(HIGH-1)"
+        ),
+    )
+
     # CORS — 콤마 구분 문자열 또는 리스트 모두 허용
     cors_origins: str = Field(
         default="*",
