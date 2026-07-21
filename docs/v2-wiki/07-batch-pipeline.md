@@ -50,7 +50,7 @@
 | 컴포넌트 | 역할 |
 |----------|------|
 | `BatchQuartzJob` | 메인 배치 스케줄 |
-| `BatchRetryQueue` + `BatchRetryQuartzJob` | 실패 영상 재시도 대기 — **DB 영속(`LS_BAT_RTY_WTNG`, V112)**. 구 in-memory 큐는 실패 등록 노드 ≠ 재시도 발화 노드일 때(2노드 Active-Active) 재시도 유실 결함이 있어 DB 로 전환. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록 UK 경쟁은 `ON CONFLICT DO NOTHING`+FOR UPDATE 로 흡수 |
+| `BatchRetryQueue` + `BatchRetryQuartzJob` | 실패 영상 재시도 대기 — **DB 영속(`LS_BAT_RTY_WTNG`, V116)**. 구 in-memory 큐는 실패 등록 노드 ≠ 재시도 발화 노드일 때(2노드 Active-Active) 재시도 유실 결함이 있어 DB 로 전환. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록 UK 경쟁은 `ON CONFLICT DO NOTHING`+FOR UPDATE 로 흡수 |
 | `BatchReprocessController` + `BatchReprocessService` | 배치 재처리 API `POST /v1/videos/{rawSn}/batch/retry` (REVIEWER) — FAILED 고착 영상 수동 재기동. FAILED 아니면 409, WORKER 403 |
 | `BootstrapSchedulerJob` / `QuartzConfig` | 부트스트랩·설정 |
 | `LabelingBatchQueueService` | `MNG_CLIP_SCHEDULE_QUE` 관리 |
