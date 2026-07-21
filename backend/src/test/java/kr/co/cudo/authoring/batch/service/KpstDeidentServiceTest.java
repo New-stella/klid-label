@@ -228,6 +228,101 @@ class KpstDeidentServiceTest {
         assertThat(raw.getDeIdntfYn()).isEqualTo("F");
     }
 
+    // ─────────────── 위탁 export 디렉터리 정리 (HIGH — stale 오회수 방지) ───────────────
+
+    @Test
+    @DisplayName("submit_재위탁시_export디렉터리의_stale산출물이_정리되어_남지않는다")
+    void submitCleansStaleExportArtifacts() throws Exception {
+        // given — 이전 회차 산출물(타임스탬프명 누적 등)이 export 디렉터리에 남아있는 REDEIDENT 재위탁 상황.
+        LsDataRaw raw = newRaw();
+        Path exportDir = baseDeid.resolve("videos").resolve("9001");
+        java.nio.file.Files.createDirectories(exportDir);
+        java.nio.file.Files.writeString(exportDir.resolve("001_202601010000_mask.mp4"), "OLD");
+        java.nio.file.Files.writeString(exportDir.resolve("001-mask.mp4"), "OLD");
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(new KpstProjectResponse("success", 101L));
+
+        // when
+        service.submit(raw, true);
+
+        // then — 기존 산출물이 모두 정리되어 디렉터리가 비어있다(이번 회차 산출물만 이후 KPST 가 write).
+        try (java.util.stream.Stream<Path> s = java.nio.file.Files.list(exportDir)) {
+            assertThat(s).isEmpty();
+        }
+    }
+
+    @Test
+    @DisplayName("submit정리는_바로아래_정규파일만_대상이고_하위디렉터리_심링크_링크타깃을_삭제하지않는다")
+    void submitCleanupPreservesSubdirsAndSymlinks() throws Exception {
+        // given — 안전가드: base 하위 & 바로 아래 정규 파일만 삭제(재귀·심링크 추종 없음).
+        LsDataRaw raw = newRaw();
+        Path exportDir = baseDeid.resolve("videos").resolve("9001");
+        java.nio.file.Files.createDirectories(exportDir);
+        Path regular = exportDir.resolve("stale.mp4");
+        java.nio.file.Files.writeString(regular, "OLD");
+        // 하위 디렉터리 + 내부 파일 — 재귀 삭제되면 안 됨.
+        Path subDir = exportDir.resolve("keep-sub");
+        java.nio.file.Files.createDirectories(subDir);
+        Path subFile = subDir.resolve("inner.mp4");
+        java.nio.file.Files.writeString(subFile, "INNER");
+        // 심링크 — 따라가거나 타깃 삭제되면 안 됨.
+        Path linkTarget = tmp.resolve("outside.mp4");
+        java.nio.file.Files.writeString(linkTarget, "TARGET");
+        Path link = exportDir.resolve("link.mp4");
+        boolean symlinkSupported = true;
+        try {
+            java.nio.file.Files.createSymbolicLink(link, linkTarget);
+        } catch (Exception e) {
+            symlinkSupported = false;
+        }
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(new KpstProjectResponse("success", 101L));
+
+        // when
+        service.submit(raw, true);
+
+        // then — 바로 아래 정규 파일만 삭제.
+        assertThat(regular).doesNotExist();
+        // 하위 디렉터리와 그 내용은 보존(재귀 삭제 없음).
+        assertThat(subDir).exists();
+        assertThat(subFile).exists();
+        // 심링크 타깃(base 밖)은 삭제/추종되지 않음.
+        assertThat(linkTarget).exists();
+        if (symlinkSupported) {
+            // 심링크 자체도 정리 대상 아님(건너뜀).
+            assertThat(java.nio.file.Files.exists(link, java.nio.file.LinkOption.NOFOLLOW_LINKS)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("submit정리는_최초위탁_빈디렉터리에서_예외없이_noop이고_위탁이_정상진행된다")
+    void submitCleanupNoopOnFirstCommission() {
+        // given — 최초 위탁: export 디렉터리 미존재. createDirectories 후 정리 대상 0건.
+        LsDataRaw raw = newRaw();
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(new KpstProjectResponse("success", 101L));
+
+        // when — 정리가 예외를 던지지 않고 no-op.
+        LsDeidentProcLog procLog = service.submit(raw);
+
+        // then — 위탁 정상 진행.
+        assertThat(procLog.getKpstPrjId()).isEqualTo(101L);
+        assertThat(baseDeid.resolve("videos").resolve("9001")).exists();
+    }
+
+    @Test
+    @DisplayName("toMaskName_이미mask접미사면_중복부여하지않고_없으면_부여한다")
+    void toMaskNameNoDoubleSuffix() throws Exception {
+        // LOW-1: 이미 {stem}-mask{ext} 형태면 재부여하지 않는다(중복 001-mask-mask.mp4 방지).
+        Method m = KpstDeidentService.class.getDeclaredMethod("toMaskName", String.class);
+        m.setAccessible(true);
+        assertThat(m.invoke(service, "001.mp4")).isEqualTo("001-mask.mp4");
+        assertThat(m.invoke(service, "001-mask.mp4")).isEqualTo("001-mask.mp4");
+        // 확장자 없는 경우도 동일 가드.
+        assertThat(m.invoke(service, "001")).isEqualTo("001-mask");
+        assertThat(m.invoke(service, "001-mask")).isEqualTo("001-mask");
+    }
+
     // ────────────────────────── 폴링 완료 (no-copy 회수) ──────────────────────────
 
     @Test
@@ -538,26 +633,28 @@ class KpstDeidentServiceTest {
     }
 
     @Test
-    @DisplayName("procState5_정지상태면_즉시_failPolling으로_F처리한다")
-    void pollProcState5FastFailsImmediately() {
-        // given — PDF §2.5.2 표상 정지(실측 미확인) 5
+    @DisplayName("K2_procState3_중지상태면_즉시_failPolling으로_F처리한다")
+    void pollProcState3StoppedFastFailsImmediately() {
+        // given — K2: procState 도메인 3=중지(터미널 실패). 재폴링해도 진행되지 않으므로 fast-fail.
         LsDeidentProcLog procLog = submittedProcLog();
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
-                .thenReturn(progressWith(5, 202L));
+                .thenReturn(progressWith(3, 202L));
 
         // when
         service.pollOne(procLog);
 
-        // then
+        // then — 타임아웃 대기 없이 즉시 종결. 완료/시도증가 금지.
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
         verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyLong());
+        verify(txService, never()).recordPollingProgress(any(), any());
     }
 
     @Test
-    @DisplayName("procState4_실행중지상태면_즉시_failPolling으로_F처리한다")
-    void pollProcState4FastFailsImmediately() {
-        // given — PDF §2.5.2 표상 실행중지(실측 미확인) 4
+    @DisplayName("K2_procState4_삭제중상태면_즉시_failPolling으로_F처리한다")
+    void pollProcState4DeletingFastFailsImmediately() {
+        // given — K2: procState 도메인 4=삭제중(터미널 실패, 산출물 미기대).
         LsDeidentProcLog procLog = submittedProcLog();
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWith(4, 202L));
@@ -574,22 +671,22 @@ class KpstDeidentServiceTest {
     }
 
     @Test
-    @DisplayName("procState6_실행정지상태면_즉시_failPolling으로_F처리한다")
-    void pollProcState6FastFailsImmediately() {
-        // given — PDF §2.5.2 표상 실행정지(실측 미확인) 6
+    @DisplayName("K2_procState5는_procState도메인_밖이므로_실패아님_진행중으로_판정한다")
+    void pollProcState5NotTerminalIsInProgress() {
+        // given — K2: procState 규격 코드는 0/1/2/3/4/99 뿐이다. 5는 prjState 도메인 값으로 procState 에
+        //  존재하지 않으므로(과거 오혼용 값) 실패로 보지 않고 미지 코드=진행중(타임아웃 바운드)으로 유지한다.
         LsDeidentProcLog procLog = submittedProcLog();
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
-                .thenReturn(progressWith(6, 202L));
+                .thenReturn(progressWith(5, 202L));
 
         // when
         service.pollOne(procLog);
 
-        // then — 타임아웃 대기 없이 즉시 종결. 완료/시도증가 금지.
+        // then — 실패(F) 아님, 완료 아님 → 진행중 위임(시도증가 + 타임아웃 검사).
+        verify(txService, never()).failPolling(any(), any());
         verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
-        verify(txService).failPolling(eq(1L), eq(9001L));
-        verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.anyLong());
-        verify(txService, never()).recordPollingProgress(any(), any());
+        verify(txService).recordPollingProgress(eq(1L), eq(202L));
+        verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
     }
 
     @Test
@@ -679,6 +776,45 @@ class KpstDeidentServiceTest {
         verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
     }
 
+    // ────────────────────────── K1: retrieveProgress 지속 예외 가드 ──────────────────────────
+
+    @Test
+    @DisplayName("K1_retrieveProgress가_지속예외를_던져도_예외전파없이_markTimeoutIfExpired를_평가하고_경과전이면_이번틱만_skip한다")
+    void pollRetrieveProgressExceptionEvaluatesTimeoutAndSkips() {
+        // given — KPST 5xx/커넥션거부/서킷오픈으로 retrieveProgress 가 지속 예외를 던진다.
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenThrow(new CustomException(ErrorCode.EXTERNAL_API_ERROR, "kpst 5xx"));
+        // 아직 위탁 후 경과시간 전 — 타임아웃 아님(false) → 이번 틱만 skip.
+        when(txService.markTimeoutIfExpired(eq(1L), eq(3), eq(60L))).thenReturn(false);
+
+        // when — 예외가 pollOne 을 탈출하면 안 된다(잡이 swallow 하면 시도증가 없이 무한 재폴링 stuck).
+        service.pollOne(procLog);
+
+        // then — 예외 경로에서도 경과시간 기준 타임아웃을 반드시 평가. 완료/시도증가는 하지 않는다.
+        verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).recordPollingProgress(any(), any());
+        verify(txService, never()).failPolling(any(), any());
+    }
+
+    @Test
+    @DisplayName("K1_retrieveProgress_지속예외가_경과시간초과에_도달하면_markTimeoutIfExpired가_F마킹하여_무한폴링을_끊는다")
+    void pollRetrieveProgressExceptionTimesOutMarksF() {
+        // given — 지속 예외가 poll-timeout-minutes 경과까지 이어진 상황. markTimeoutIfExpired 가 'F' 마킹(true).
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenThrow(new CustomException(ErrorCode.EXTERNAL_API_ERROR, "kpst persistent 5xx"));
+        when(txService.markTimeoutIfExpired(eq(1L), eq(3), eq(60L))).thenReturn(true);
+
+        // when — 예외 전파 없이 정상 반환.
+        service.pollOne(procLog);
+
+        // then — 경과시간 초과로 타임아웃 처리('F' 마킹). WAITING/POLLING stuck 이 해소된다.
+        verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+    }
+
     // ────────────────────────── 완료 위임 ──────────────────────────
 
     @Test
@@ -752,6 +888,81 @@ class KpstDeidentServiceTest {
         // 기존 BATCH 경로는 현행 유지 — 예외 전파(잡이 건별 격리), REDEIDENT 종결 핸들러 미호출.
         assertThatThrownBy(() -> service.pollOne(procLog)).isInstanceOf(CustomException.class);
         verify(txService, never()).failRedeidentCompletion(any(), any(), any());
+    }
+
+    // ────────────── 경로형 fileName + -mask 산출 회수 (2026-07-21 실서버 계약) ──────────────
+
+    @Test
+    @DisplayName("경로형_fileName이면_basename추출후_mask접미사경로로_회수한다")
+    void pollPathFormFileNameRecoversMaskSuffix() throws Exception {
+        // 실측 계약: 응답 fileName 은 원본 입력 절대경로, 산출물은 export_path 에 {stem}-mask{ext}.
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWithFileName(2, 202L, "/nas-storage-prod2/klid_at_test/raw/001.mp4"));
+        // KPST 가 export_path 에 직접 쓴 실제 산출물 = 001-mask.mp4 (>0바이트).
+        writeDeidResult("001-mask.mp4", "MASKED");
+        Path expected = deidPathFor("001-mask.mp4");
+
+        service.pollOne(procLog);
+
+        // 예외 없이 회수 경로 = {base}/videos/{rawSn}/001-mask.mp4 로 Y 전이 위임.
+        verify(kpstClient).retrieveProgress(eq("authoring"), eq(101L));
+        verifyNoMoreInteractions(kpstClient);
+        verify(txService).finishDownloadAndComplete(
+                eq(9001L), eq(1L), eq(202L), eq(expected.toString()));
+    }
+
+    @Test
+    @DisplayName("mask경로가_없으면_디렉터리_단일산출물을_폴백회수한다")
+    void pollFallbackRecoversSingleUsableFileWhenNoMask() throws Exception {
+        // 접미사/확장자 규칙 변화 대비 폴백: {stem}-mask{ext} 부재 시 export 디렉터리의 단일 산출 영상 회수.
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWithFileName(2, 202L, "/nas-storage-prod2/klid_at_test/raw/001.mp4"));
+        // 001-mask.mp4 는 없고 다른 이름의 단일 산출물만 존재(규칙 변화 시나리오).
+        writeDeidResult("001_masked.mkv", "MASKED");
+        Path expected = deidPathFor("001_masked.mkv");
+
+        service.pollOne(procLog);
+
+        verify(txService).finishDownloadAndComplete(
+                eq(9001L), eq(1L), eq(202L), eq(expected.toString()));
+    }
+
+    @Test
+    @DisplayName("폴백스캔_산출물이_2개이상이면_모호하여_예외전파없이_failPolling으로_종결한다")
+    void pollFallbackAmbiguousMultipleFilesFailsSafely() throws Exception {
+        // no-copy 모델은 rawSn당 산출물 1개가 정상 — 2개 이상이면 어느 것이 결과인지 모호 → 안전 실패.
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWithFileName(2, 202L, "/nas-storage-prod2/klid_at_test/raw/zzz.mp4"));
+        // zzz-mask.mp4 는 없고, 서로 다른 두 산출물이 있어 모호.
+        writeDeidResult("a.mp4", "MASKED");
+        writeDeidResult("b.mp4", "MASKED");
+
+        service.pollOne(procLog); // 예외 전파 없이 정상 반환
+
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService).failPolling(eq(1L), eq(9001L));
+    }
+
+    @Test
+    @DisplayName("경로형_fileName에_상위참조가_섞여도_basename만_취해_base하위로만_회수한다")
+    void pollPathFormTraversalTakesBasenameOnly() throws Exception {
+        // CWE-22: 응답 fileName 에 ../ 순회 시도가 있어도 basename(001.mp4)만 취해 base 하위로 resolve.
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWithFileName(2, 202L, "/nas/raw/../../../../etc/001.mp4"));
+        writeDeidResult("001-mask.mp4", "MASKED");
+        Path expected = deidPathFor("001-mask.mp4");
+
+        service.pollOne(procLog);
+
+        ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), pathCaptor.capture());
+        // 회수 경로는 반드시 base 하위(순회 이탈 없음).
+        assertThat(pathCaptor.getValue()).isEqualTo(expected.toString());
+        assertThat(pathCaptor.getValue()).startsWith(baseDeid.toAbsolutePath().normalize().toString());
     }
 
     private static void setField(Object target, String name, Object value) {
