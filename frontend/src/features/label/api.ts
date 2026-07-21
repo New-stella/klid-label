@@ -324,7 +324,10 @@ export interface LabelSnapshotView {
  * 무변경 라벨은 이 배열에 포함되지 않는다.
  */
 export interface LabelChangeView {
-  /** 대상 라벨 LS_DATA_LBL.LBL_SN — 삭제/신규 경로는 null 가능. */
+  /**
+   * 대상 라벨 LS_DATA_LBL.LBL_SN — BE LabelChange 계약상 삭제(DELETED) 후에도 원 PK 보존.
+   * (타입은 방어적으로 null 허용하나, BE 는 삭제 경로에서도 lblSn 을 채워 내려준다.)
+   */
   lblSn: number | null;
   changeKind: LabelChangeKind;
   /** 라벨명(생존/삭제 공통 라벨 식별). 누락 시 null → 표시 단에서 폴백. */
@@ -440,6 +443,40 @@ export function getLabelHistory(
         size: Number(d.size ?? size),
       };
     });
+}
+
+/**
+ * 라벨 변경 이력 스냅샷(before/after) → FE Label 복원 — "이 저장 되돌리기" 역적용용.
+ *
+ * pointCn(좌표 JSON 문자열)을 파싱해 {@link normalizeLabel} 로 shape(BBOX/POLYGON/SKELETON)를
+ * 복원한다. 좌표를 되살릴 수 없는 경우는 null 을 반환해 호출측(revertSaveEvent)이 안전하게 스킵한다:
+ *  - SEGMENT(MASK): 좌표(pointCn)만으로 마스크 복원 불가 → null
+ *  - pointCn 누락/빈값 또는 JSON 파싱 실패 → null
+ *
+ * 복원 라벨의 source 는 알 수 없으므로 normalizeLabel 기본(MANUAL)로 둔다(신규 저장 시 수동 취급).
+ * 순수 함수 — 네트워크 호출 없음(스토어/테스트에서 그대로 사용 가능).
+ */
+export function snapshotToLabel(snap: LabelSnapshotView | null, frameNo: number): Label | null {
+  if (!snap) return null;
+  const lblTypeCd = snap.lblTypeCd;
+  // SEGMENT(MASK)는 좌표로 복원 불가 — 스킵 신호.
+  if (lblTypeCd === 'SEGMENT' || lblTypeCd === 'MASK') return null;
+  if (!snap.pointCn) return null;
+  let points: unknown;
+  try {
+    points = JSON.parse(snap.pointCn);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(points)) return null;
+  return normalizeLabel({
+    id: null,
+    frameNo,
+    lblTypeCd: lblTypeCd ?? 'BBOX',
+    labelId: snap.labelId,
+    label: snap.labelNm ?? '',
+    points,
+  });
 }
 
 /**
