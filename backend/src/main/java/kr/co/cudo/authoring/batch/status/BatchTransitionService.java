@@ -183,6 +183,39 @@ public class BatchTransitionService {
         return affected == 1;
     }
 
+    /**
+     * 수동 배치 재처리 원자 클레임 (CWE-362) — FAILED→PROCESSING 조건부 UPDATE 로 소유권을 획득한다.
+     *
+     * <p>기존 {@code BatchReprocessService.retry()} 는 상태를 read(findById) 한 뒤 재기동(act)하는 사이에
+     * 원자성이 없어, 자동 재시도 폴러 또는 동시 수동 요청과 경합 시 동일 rawSn 파이프라인이 이중 실행될 수
+     * 있었다. 이를 막기 위해 상태 판정과 전이를 <b>단일 조건부 UPDATE</b>(check-and-set)로 통합한다.
+     *
+     * <p>두 테이블 책임 분리에 맞춰 ① 배치 단계(LS_DATA_RAW.DATA_STTS_CD) FAILED→PROCESSING 을 우선
+     * 클레임하고, ② 배치 단계가 FAILED 가 아니면 작업 상태(LS_RAW_DATA_STATUS.DATA_STTS_CD)
+     * FAILED→PROCESSING 을 클레임한다. 정상 배치 실패는 두 컬럼을 함께 FAILED 로 두므로 대개 ①에서 성공한다.
+     *
+     * <p><b>REQUIRES_NEW 로 즉시 커밋</b>: 클레임을 호출자 트랜잭션 밖에서 커밋해, 이어지는
+     * {@code BatchOrchestrator.process()}(NOT_SUPPORTED) 내부의 {@code markRawDataProcessing}
+     * (REQUIRES_NEW)가 같은 raw row 를 UPDATE 할 때 자기-교착(self-deadlock)이 발생하지 않도록 한다.
+     *
+     * @return {@code true}=이번 호출이 FAILED→PROCESSING 클레임에 성공(재기동 권한 획득),
+     *         {@code false}=FAILED 아님/이미 다른 주체가 클레임(→ 호출자가 409 로 거부)
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean tryClaimReprocessFromFailed(Long rawSn) {
+        if (rawSn == null) {
+            return false;
+        }
+        int rawClaimed = videoRepository.claimReprocessFromFailed(
+                rawSn, LsDataRaw.DATA_STTS_FAILED, LsDataRaw.DATA_STTS_PROCESSING);
+        if (rawClaimed == 1) {
+            return true;
+        }
+        int statusClaimed = rawDataStatusRepository.claimReprocessFromFailed(
+                rawSn, LsRawDataStatus.STTS_FAILED, LsRawDataStatus.STTS_PROCESSING);
+        return statusClaimed == 1;
+    }
+
     private void transitionRawDataStatus(Long rawSn, String newStatus) {
         if (rawSn == null) {
             return;

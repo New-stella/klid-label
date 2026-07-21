@@ -50,7 +50,8 @@
 | 컴포넌트 | 역할 |
 |----------|------|
 | `BatchQuartzJob` | 메인 배치 스케줄 |
-| `BatchRetryQueue` + `BatchRetryQuartzJob` | 실패 영상 재시도 큐 |
+| `BatchRetryQueue` + `BatchRetryQuartzJob` | 실패 영상 재시도 대기 — **DB 영속(`LS_BAT_RTY_WTNG`, V116)**. 구 in-memory 큐는 실패 등록 노드 ≠ 재시도 발화 노드일 때(2노드 Active-Active) 재시도 유실 결함이 있어 DB 로 전환. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록 UK 경쟁은 `ON CONFLICT DO NOTHING`+FOR UPDATE 로 흡수 |
+| `BatchReprocessController` + `BatchReprocessService` | 배치 재처리 API `POST /v1/videos/{rawSn}/batch/retry` (REVIEWER) — FAILED 고착 영상 수동 재기동. FAILED 아니면 409, WORKER 403 |
 | `BootstrapSchedulerJob` / `QuartzConfig` | 부트스트랩·설정 |
 | `LabelingBatchQueueService` | `MNG_CLIP_SCHEDULE_QUE` 관리 |
 | `AsyncBatchRunner` | post-marking 잔여 배치 비동기 실행 |
@@ -63,7 +64,8 @@
 
 ## 7.5 재처리 정책
 
-- 배치 실패 시 재시도 큐 + 최대 재시도 횟수 + 실패 알림
+- 배치 실패 시 재시도 대기 + 최대 재시도 횟수 + 실패 알림. 재시도 대기는 **DB 영속(`LS_BAT_RTY_WTNG`)** — 최대 초과 시 `EXHAUSTED` 소진(삭제 아님, 이력 보존)
+- 최대 재시도 초과로 FAILED 고착된 영상은 REVIEWER 가 `POST /v1/videos/{rawSn}/batch/retry` 로 수동 재기동(자동 재시도와 동일한 `BatchOrchestrator.process` 경로 재사용)
 - 비식별 API 실패 시 `DE_IDENT_YN='F'` 마킹 + 재시도 큐, **원본 절대 삭제 금지**
 - ai-server GPU 자원 모니터링 포인트 확보
 

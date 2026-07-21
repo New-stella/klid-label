@@ -38,6 +38,23 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     @Query("SELECT r FROM LsDataRaw r WHERE r.rawSn = :rawSn")
     Optional<LsDataRaw> findByRawSnForUpdate(@Param("rawSn") Long rawSn);
 
+    /**
+     * 수동 배치 재처리 클레임용 조건부 원자 전이 (CWE-362, check-and-set).
+     *
+     * <p>배치 단계 상태(DATA_STTS_CD)가 {@code fromStatus}(FAILED)일 때만 {@code toStatus}(PROCESSING)로
+     * 전이한다. 단일 SQL UPDATE 라 DB 가 동시 호출을 직렬화하므로, 수동 재기동(REVIEWER)과 자동 재시도
+     * 폴러가 동일 rawSn 에 동시에 접근해도 정확히 1건만 영향 행수 1 을 받아 파이프라인이 이중 실행되지 않는다.
+     * LS_DATA_RAW 는 {@code @Version} 이 없어 낙관적 잠금 충돌이 없다.
+     *
+     * @return 영향 행수 (1=클레임 성공, 0=FAILED 아님/이미 클레임됨)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE LsDataRaw r SET r.dataSttsCd = :toStatus, r.mdfcnDt = CURRENT_TIMESTAMP "
+            + "WHERE r.rawSn = :rawSn AND r.dataSttsCd = :fromStatus")
+    int claimReprocessFromFailed(@Param("rawSn") Long rawSn,
+                                 @Param("fromStatus") String fromStatus,
+                                 @Param("toStatus") String toStatus);
+
     Page<LsDataRaw> findAllByOrderByRegDtDesc(Pageable pageable);
 
     /**
