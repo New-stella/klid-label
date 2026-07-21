@@ -424,6 +424,51 @@ describe('SAM2 Track', () => {
       await waitFor(() => expect(captured.label).toBe('person'));
     });
 
+    it('BBOX_추적_50프레임초과시_2번째청크_prevPolygon이_4점폐곡선으로_확장된다', async () => {
+      // BE 는 shape=BBOX 면 tracked.points 를 2점 외접박스([[minX,minY],[maxX,maxY]])로 반환한다.
+      // 청크 체이닝이 그 2점을 그대로 다음 청크 prevPolygon 으로 쓰면 @Size(min=3) 위반 → 400.
+      // 시드를 4점 폐곡선(모서리)으로 확장해 넘겨야 한다.
+      const next = Array.from({ length: 60 }, (_, i) => 201 + i); // 50 + 10 = 2 청크
+      const prevPolys: unknown[] = [];
+      mock.onPost(TRACK_PATH_RE).reply((config) => {
+        const body = JSON.parse((config.data as string) ?? '{}');
+        prevPolys.push(body.prevPolygon);
+        // BBOX tracked item 은 2점 외접박스로 반환된다(BE 계약).
+        const tracked = (body.nextSrcSns as number[]).map((s) => ({
+          srcSn: s,
+          trackId: 't-1',
+          label: 'person',
+          points: [
+            [s, 0],
+            [s + 5, 10],
+          ],
+          score: 0.8,
+          shapeType: 'BBOX',
+        }));
+        return [200, { success: true, data: { tracked }, message: null, errorCode: null }];
+      });
+
+      await sam2TrackAllChunks(1000, {
+        trackId: 't-1',
+        prevPolygon: TRIANGLE,
+        label: 'person',
+        nextSrcSns: next,
+        shape: 'BBOX',
+      });
+
+      expect(prevPolys).toHaveLength(2);
+      // 청크1 은 원 폴리곤(3점) 그대로.
+      expect(prevPolys[0]).toEqual(TRIANGLE);
+      // 청크2 의 prevPolygon 은 청크1 마지막 tracked(2점 박스)를 4점 폐곡선으로 확장한 것.
+      // 청크1 마지막 프레임 = 250 → points [[250,0],[255,10]] → 4모서리.
+      expect(prevPolys[1]).toEqual([
+        [250, 0],
+        [255, 0],
+        [255, 10],
+        [250, 10],
+      ]);
+    });
+
     it('Sam2TrackTool_shape_미지정시_요청바디에_shape없음', async () => {
       let captured: Record<string, unknown> = {};
       mock.onPost('/frames/55/sam2-track').reply((config) => {
