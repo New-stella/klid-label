@@ -107,6 +107,13 @@ public class GlobalExceptionHandler {
      */
     private static final String PRESET_CODE_LABELID_UNIQUE_INDEX = "uk_ls_label_preset_code_lblid";
 
+    /**
+     * V120 라벨 마스터 이름 대소문자/공백 무시 부분 유니크 인덱스명. PostgreSQL 은 unquoted identifier 를
+     * 소문자로 저장하므로 실제 인덱스명은 소문자(`uk_ls_label_nm_ci`)로 관측된다. 동일 라벨명(정규화 기준)에
+     * 대한 동시 생성 경합에서 패자의 INSERT 가 원자적으로 거부되는 정상적 동시성 충돌이다.
+     */
+    private static final String LABEL_NAME_CI_UNIQUE_INDEX = "uk_ls_label_nm_ci";
+
     private static final java.util.regex.Pattern CONSTRAINT_IN_MESSAGE =
             java.util.regex.Pattern.compile("constraint\\s+\"([^\"]+)\"");
 
@@ -134,6 +141,11 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(ErrorCode.CONFLICT.status())
                     .body(ApiResponse.error(ErrorCode.CONFLICT, "이미 처리 중이거나 충돌하는 요청입니다."));
         }
+        if (isLabelNameCiUnique(constraintName)) {
+            log.warn("[Exception] label name ci-unique violation constraint={}", constraintName);
+            return ResponseEntity.status(ErrorCode.CONFLICT.status())
+                    .body(ApiResponse.error(ErrorCode.CONFLICT, "이미 사용 중인 라벨 이름입니다."));
+        }
         // fail-closed: 판별 실패/기타 제약 위반은 500 으로 노출 (조용한 409 흡수 금지).
         log.warn("[Exception] unclassified data integrity violation constraint={} cause={}",
                 constraintName, e.getMostSpecificCause().getClass().getSimpleName());
@@ -149,6 +161,11 @@ public class GlobalExceptionHandler {
     private boolean isPresetCodeLabelIdUnique(String constraintName) {
         return constraintName != null
                 && PRESET_CODE_LABELID_UNIQUE_INDEX.equalsIgnoreCase(constraintName);
+    }
+
+    private boolean isLabelNameCiUnique(String constraintName) {
+        return constraintName != null
+                && LABEL_NAME_CI_UNIQUE_INDEX.equalsIgnoreCase(constraintName);
     }
 
     /**

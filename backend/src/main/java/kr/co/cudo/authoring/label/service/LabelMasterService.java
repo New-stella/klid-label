@@ -47,14 +47,20 @@ public class LabelMasterService {
                 .toList();
     }
 
-    /** 라벨 신규 등록 — 동일 name 중복 시 CONFLICT. */
+    /**
+     * 라벨 신규 등록 — 이름 trim 후 저장. 활성 라벨 중 대소문자+공백 무시 근사중복 시 CONFLICT.
+     *
+     * <p>앱단 조기 판정(existsActiveByNormalizedName)에 더해, 동시 생성 경합은 DB 부분 유니크
+     * 인덱스(V120 UK_LS_LABEL_NM_CI)가 원자적으로 차단하고 GlobalExceptionHandler 가 409 로 변환한다.
+     */
     @Transactional("controlTransactionManager")
     public LabelMasterResponse create(LabelMasterRequest req, String regId) {
-        if (labelRepository.existsByLabelNm(req.name())) {
+        String name = req.name().trim();
+        if (labelRepository.existsActiveByNormalizedName(name, USE_YN_ACTIVE)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 라벨 이름입니다.");
         }
         LsLabel saved = labelRepository.save(LsLabel.create(
-                req.name(),
+                name,
                 req.color(),
                 req.type(),
                 req.sortNo(),
@@ -64,17 +70,18 @@ public class LabelMasterService {
         return LabelMasterResponse.from(saved);
     }
 
-    /** 라벨 수정 — 존재 검증 + 동일 이름 충돌 검증. */
+    /** 라벨 수정 — 존재 검증 + 이름 trim + 활성 근사중복 충돌 검증(자기 자신 제외). */
     @Transactional("controlTransactionManager")
     public LabelMasterResponse update(Long labelId, LabelMasterRequest req, String mdfcnId) {
         LsLabel label = labelRepository.findById(labelId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "라벨을 찾을 수 없습니다."));
-        // name 변경 시 동일 검증 (자기 자신 제외).
-        if (labelRepository.existsByLabelNmAndLabelIdNot(req.name(), labelId)) {
+        String name = req.name().trim();
+        // name 변경 시 활성 근사중복 검증 (자기 자신 제외).
+        if (labelRepository.existsActiveByNormalizedNameExcludingId(name, USE_YN_ACTIVE, labelId)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 라벨 이름입니다.");
         }
-        label.update(req.name(), req.color(), req.type(), req.sortNo(), mdfcnId);
-        log.info("[Label] updated labelId={}, name={}", labelId, req.name());
+        label.update(name, req.color(), req.type(), req.sortNo(), mdfcnId);
+        log.info("[Label] updated labelId={}, name={}", labelId, name);
         return LabelMasterResponse.from(label);
     }
 

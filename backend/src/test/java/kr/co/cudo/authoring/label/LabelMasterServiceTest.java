@@ -45,7 +45,7 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("생성_정상_시_LsLabel_save_호출_및_응답_반환")
     void create_정상() {
-        when(repository.existsByLabelNm("person")).thenReturn(false);
+        when(repository.existsActiveByNormalizedName("person", "Y")).thenReturn(false);
         when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LabelMasterResponse res = service.create(req("person", "#E74C3C", "BBOX", 1), "1001");
@@ -67,7 +67,7 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("SKELETON_타입_마스터_등록_성공")
     void create_SKELETON타입_성공() {
-        when(repository.existsByLabelNm("human-pose")).thenReturn(false);
+        when(repository.existsActiveByNormalizedName("human-pose", "Y")).thenReturn(false);
         when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LabelMasterResponse res = service.create(req("human-pose", "#2ECC71", "SKELETON", 3), "1001");
@@ -82,7 +82,7 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("기존_BBOX_POLYGON_POINT_마스터_등록_회귀없음")
     void create_기존타입_회귀없음() {
-        when(repository.existsByLabelNm(any())).thenReturn(false);
+        when(repository.existsActiveByNormalizedName(any(), any())).thenReturn(false);
         when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
 
         assertThat(service.create(req("box", "#E74C3C", "BBOX", 1), "1001").type()).isEqualTo("BBOX");
@@ -93,13 +93,75 @@ class LabelMasterServiceTest {
     @Test
     @DisplayName("생성_중복_이름_시_CONFLICT_예외")
     void create_중복이름_CONFLICT() {
-        when(repository.existsByLabelNm("person")).thenReturn(true);
+        when(repository.existsActiveByNormalizedName("person", "Y")).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(req("person", "#E74C3C", "BBOX", 1), "1001"))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
 
         verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("라벨명_생성시_앞뒤공백은_trim되어_저장된다")
+    void create_앞뒤공백_trim_저장() {
+        // given — 정규화 이름("person")으로 중복검사가 이루어지고, 저장값도 trim 되어야 한다
+        when(repository.existsActiveByNormalizedName("person", "Y")).thenReturn(false);
+        when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        LabelMasterResponse res = service.create(req("  person  ", "#E74C3C", "BBOX", 1), "1001");
+
+        // then — 저장된 엔티티 이름이 trim 됨 + 중복검사 인자도 trim 됨
+        ArgumentCaptor<LsLabel> captor = ArgumentCaptor.forClass(LsLabel.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getLabelNm()).isEqualTo("person");
+        assertThat(res.name()).isEqualTo("person");
+        verify(repository).existsActiveByNormalizedName("person", "Y");
+    }
+
+    @Test
+    @DisplayName("대소문자만_다른_활성_라벨_생성시_409")
+    void create_대소문자_근사중복_CONFLICT() {
+        // given — 활성 'person' 존재를 정규화 검사가 감지 (요청은 'Person')
+        when(repository.existsActiveByNormalizedName("Person", "Y")).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.create(req("Person", "#E74C3C", "BBOX", 1), "1001"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("공백만_다른_활성_라벨_생성시_409")
+    void create_공백_근사중복_CONFLICT() {
+        // given — 요청 'person '(후행공백) → trim 'person', 활성 근사중복 감지
+        when(repository.existsActiveByNormalizedName("person", "Y")).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.create(req("person ", "#E74C3C", "BBOX", 1), "1001"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("soft_delete된_동일이름은_활성중복검사_통과시_저장경로_진입한다_서비스라우팅")
+    void create_soft_delete된_이름_활성검사통과시_저장() {
+        // given — 활성 중복만 검사하므로 soft-delete 된 동일 이름은 존재로 보지 않는다(false)
+        //   주의: 이 단위 테스트는 repository mock 이라 서비스 라우팅(활성검사 false → save 진입)만 검증한다.
+        //   실제 DB all-rows exact 제약 제거 후 동일 exact 이름 재사용 성공은
+        //   LabelNameCiUniqueMigrationIT#soft_delete후_동일_exact_이름_재사용_허용() 가 실 DB 로 실증한다.
+        when(repository.existsActiveByNormalizedName("person", "Y")).thenReturn(false);
+        when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        LabelMasterResponse res = service.create(req("person", "#E74C3C", "BBOX", 1), "1001");
+
+        // then — 저장 경로 진입 성공
+        assertThat(res.name()).isEqualTo("person");
+        verify(repository).save(any(LsLabel.class));
     }
 
     @Test
@@ -144,7 +206,7 @@ class LabelMasterServiceTest {
     void update_정상() {
         LsLabel label = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
         when(repository.findById(10L)).thenReturn(Optional.of(label));
-        when(repository.existsByLabelNmAndLabelIdNot("person-v2", 10L)).thenReturn(false);
+        when(repository.existsActiveByNormalizedNameExcludingId("person-v2", "Y", 10L)).thenReturn(false);
 
         LabelMasterResponse res = service.update(10L, req("person-v2", "#AABBCC", "POLYGON", 5), "1002");
 
@@ -161,11 +223,28 @@ class LabelMasterServiceTest {
     void update_이름중복_CONFLICT() {
         LsLabel label = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
         when(repository.findById(10L)).thenReturn(Optional.of(label));
-        when(repository.existsByLabelNmAndLabelIdNot("car", 10L)).thenReturn(true);
+        when(repository.existsActiveByNormalizedNameExcludingId("car", "Y", 10L)).thenReturn(true);
 
         assertThatThrownBy(() -> service.update(10L, req("car", "#3498DB", "BBOX", 2), "1002"))
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("수정시_자기자신은_중복검사에서_제외된다")
+    void update_자기자신_중복검사_제외() {
+        // given — 동일 이름으로 수정(자기 자신). 자기 제외 검사가 false 여야 통과.
+        LsLabel label = LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed");
+        when(repository.findById(10L)).thenReturn(Optional.of(label));
+        when(repository.existsActiveByNormalizedNameExcludingId("person", "Y", 10L)).thenReturn(false);
+
+        // when — 색상만 바꾸고 이름은 그대로
+        LabelMasterResponse res = service.update(10L, req("person", "#AABBCC", "BBOX", 1), "1002");
+
+        // then — 자기 자신 제외 검사가 호출되고 CONFLICT 없이 성공
+        assertThat(res.name()).isEqualTo("person");
+        assertThat(label.getColrVl()).isEqualTo("#AABBCC");
+        verify(repository).existsActiveByNormalizedNameExcludingId("person", "Y", 10L);
     }
 
     // ─── Phase 6 — AutoLabel preset 매핑 (LS_LABEL.NAME → LABEL_ID 조회) ───
