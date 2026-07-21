@@ -118,8 +118,8 @@ export interface VideoDetail extends Video {
   updatedAt?: string;
 }
 
-// SFR-06-03 — 해상도 export (저작도구 직접 수행, 증강 아님).
-// 표준 하위 해상도 화이트리스트 (BE ResolutionPreset enum 과 1:1).
+// SFR-06-03 — 해상도 변경 파생영상 생성 (저작도구 직접 수행, 증강 아님).
+// 표준 해상도 화이트리스트 3종 (BE ResolutionPreset enum 과 1:1). 미지정/빈 목록 시 전체 생성.
 export const RESOLUTION_PRESETS = ['RES_1080P', 'RES_720P', 'RES_480P'] as const;
 export type ResolutionPreset = (typeof RESOLUTION_PRESETS)[number];
 
@@ -129,14 +129,25 @@ export const RESOLUTION_PRESET_LABEL: Record<ResolutionPreset, string> = {
   RES_480P: '480P (854×480)',
 };
 
-// BE: ResolutionChangeResponse (POST /v1/videos/{rawSn}/resolution)
-export interface ResolutionExportResult {
-  exportSn: number;
-  srcW: number;
-  srcH: number;
+// SFR-06-03 — 해상도 변경(파생영상 생성) 결과 1건.
+// 구 "export 프레임셋(exportSn/srcW/frameCount)" 의미 폐기.
+// 신 계약: 원본에서 목표 해상도별 새 파생영상(RAW_SN)을 만들어 검수 파이프라인(PENDING)에 넣는다.
+//  - rawSn    : 생성된 파생영상 ID (CREATED 일 때 유효, FAILED 시 BE 계약상 null)
+//  - goalResCd : 목표 해상도 코드 (RES_1080P/RES_720P/RES_480P)
+//  - targetW/H : 목표 해상도 픽셀
+//  - status   : CREATED(검수 대기 파생영상 생성) | FAILED(해당 프리셋 실패)
+export interface ResolutionDerivativeResult {
+  rawSn: number | null;
+  goalResCd: string;
   targetW: number;
   targetH: number;
-  frameCount: number;
+  status: 'CREATED' | 'FAILED';
+}
+
+// BE: ResolutionChangeResponse (POST /v1/videos/{rawSn}/resolution).
+// 1건 이상 CREATED → 201, 전부 FAILED → 500, 적용 프리셋 0(전부 스킵) → 400.
+export interface ResolutionChangeResult {
+  derivatives: ResolutionDerivativeResult[];
 }
 
 // SC-009 — 영상 재비식별 요청 (POST /v1/videos/{rawSn}/redeident, REVIEWER).

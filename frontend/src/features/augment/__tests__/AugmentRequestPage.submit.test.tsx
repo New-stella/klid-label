@@ -24,10 +24,10 @@ vi.mock('react-router-dom', async () => {
  * SCR-AUG-001 통합 단일 선택 UI (Phase 2) — 선택 후 실행 시나리오 분기 검증.
  *
  * - 증강 종류(WINTER/NIGHT/RAIN) 실행 → POST /augments/request (videoIds·types 길이 1)
- * - 해상도 변경(RESOLUTION) 실행 → POST /videos/{rawSn}/resolution (preset 전달)
+ * - 해상도 변경(RESOLUTION) 실행 → POST /videos/{rawSn}/resolution (presets 전달)
  * - 미선택 시 실행 버튼 비활성
  * - 증강 성공 시 결과화면 네비게이션
- * - 해상도 성공 시 결과 카드(exportSn·해상도·프레임수) 표시
+ * - 해상도 성공 시 결과 카드(파생영상 목록·검수 대기) 표시
  */
 describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
   let mock: MockAdapter;
@@ -114,24 +114,21 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     expect(sent.types).toEqual(['WINTER']);
   });
 
-  it('해상도변경_영상_타겟해상도_선택후_실행하면_videos_resolution이_호출된다', async () => {
+  it('해상도변경_영상_선택후_실행하면_videos_resolution이_presets배열로_호출된다', async () => {
     replyVideos(2);
     let url: string | null = null;
-    let body: { preset?: string } | null = null;
+    let body: { presets?: string[] } | null = null;
     mock.onPost(/\/videos\/\d+\/resolution/).reply((config) => {
       url = config.url ?? null;
       body = JSON.parse(config.data as string);
       return [
-        200,
+        201,
         {
           success: true,
           data: {
-            exportSn: 7,
-            srcW: 1920,
-            srcH: 1080,
-            targetW: 1280,
-            targetH: 720,
-            frameCount: 100,
+            derivatives: [
+              { rawSn: 101, goalResCd: 'RES_720P', targetW: 1280, targetH: 720, status: 'CREATED' },
+            ],
           },
           message: null,
           errorCode: null,
@@ -144,18 +141,17 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
 
     await user.click(await screen.findByTestId('process-kind-RESOLUTION'));
     await user.click(await screen.findByRole('radio', { name: /CCTV-2 선택/ }));
-    const presetSelect = (await screen.findByLabelText(
-      '목표 해상도 선택',
-    )) as HTMLSelectElement;
-    await user.selectOptions(presetSelect, 'RES_720P');
+    // 3종 고정 → 기본 전체 선택. 720P 만 남기고 나머지 2개 해제.
+    await user.click(await screen.findByLabelText(/1080P/));
+    await user.click(await screen.findByLabelText(/480P/));
     await user.click(screen.getByTestId('augment-submit'));
 
     await waitFor(() => {
       expect(body).not.toBeNull();
     });
     expect(url).toBe('/videos/2/resolution');
-    const sent = body as unknown as { preset: string };
-    expect(sent.preset).toBe('RES_720P');
+    const sent = body as unknown as { presets: string[] };
+    expect(sent.presets).toEqual(['RES_720P']);
   });
 
   it('영상_미선택이면_실행버튼이_비활성이다', async () => {
@@ -168,14 +164,20 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     expect(screen.getByTestId('augment-submit')).toBeDisabled();
   });
 
-  it('해상도카드인데_타겟해상도_미선택이면_실행버튼이_비활성이다', async () => {
+  it('해상도카드_기본전체선택이면_실행버튼이_활성이고_전부해제하면_비활성이다', async () => {
     replyVideos(2);
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
     await user.click(await screen.findByTestId('process-kind-RESOLUTION'));
     await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
-    // preset 미선택 → 비활성
+    // 3종 고정 → 기본 전체 선택이므로 실행 가능.
+    expect(screen.getByTestId('augment-submit')).toBeEnabled();
+
+    // 3종 모두 해제 → 생성할 해상도 0개 → 비활성.
+    await user.click(await screen.findByLabelText(/1080P/));
+    await user.click(await screen.findByLabelText(/720P/));
+    await user.click(await screen.findByLabelText(/480P/));
     expect(screen.getByTestId('augment-submit')).toBeDisabled();
   });
 
@@ -205,17 +207,16 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     });
   });
 
-  it('해상도_실행_성공시_결과(exportSn·해상도·프레임수)가_표시된다', async () => {
+  it('해상도_실행_성공시_결과(파생영상목록·검수대기)가_표시된다', async () => {
     replyVideos(2);
-    mock.onPost(/\/videos\/\d+\/resolution/).reply(200, {
+    mock.onPost(/\/videos\/\d+\/resolution/).reply(201, {
       success: true,
       data: {
-        exportSn: 7,
-        srcW: 1920,
-        srcH: 1080,
-        targetW: 854,
-        targetH: 480,
-        frameCount: 120,
+        derivatives: [
+          { rawSn: 201, goalResCd: 'RES_1080P', targetW: 1920, targetH: 1080, status: 'CREATED' },
+          { rawSn: 202, goalResCd: 'RES_720P', targetW: 1280, targetH: 720, status: 'CREATED' },
+          { rawSn: 203, goalResCd: 'RES_480P', targetW: 854, targetH: 480, status: 'CREATED' },
+        ],
       },
       message: null,
       errorCode: null,
@@ -226,32 +227,26 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
 
     await user.click(await screen.findByTestId('process-kind-RESOLUTION'));
     await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
-    const presetSelect = (await screen.findByLabelText(
-      '목표 해상도 선택',
-    )) as HTMLSelectElement;
-    await user.selectOptions(presetSelect, 'RES_480P');
+    // 기본 전체 선택 상태로 실행.
     await user.click(screen.getByTestId('augment-submit'));
 
-    const result = await screen.findByTestId('resolution-export-result');
-    expect(result).toHaveTextContent('854');
-    expect(result).toHaveTextContent('480');
-    expect(result).toHaveTextContent('120');
-    expect(result).toHaveTextContent('7');
+    const result = await screen.findByTestId('resolution-derivative-result');
+    expect(result).toHaveTextContent('파생영상 3건 생성됨');
+    expect(result).toHaveTextContent('검수 대기');
+    expect(result).toHaveTextContent('영상 #201');
     // 네비게이션은 발생하지 않음 (해상도는 inline 결과)
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('해상도_실행후_종류를_바꾸면_결과가_초기화된다', async () => {
+  it('해상도_실행_부분실패시_생성N_실패M이_함께_표시된다', async () => {
     replyVideos(2);
-    mock.onPost(/\/videos\/\d+\/resolution/).reply(200, {
+    mock.onPost(/\/videos\/\d+\/resolution/).reply(201, {
       success: true,
       data: {
-        exportSn: 7,
-        srcW: 1920,
-        srcH: 1080,
-        targetW: 854,
-        targetH: 480,
-        frameCount: 120,
+        derivatives: [
+          { rawSn: 301, goalResCd: 'RES_1080P', targetW: 1920, targetH: 1080, status: 'CREATED' },
+          { rawSn: null, goalResCd: 'RES_480P', targetW: 854, targetH: 480, status: 'FAILED' },
+        ],
       },
       message: null,
       errorCode: null,
@@ -262,18 +257,62 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
 
     await user.click(await screen.findByTestId('process-kind-RESOLUTION'));
     await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
-    const presetSelect = (await screen.findByLabelText(
-      '목표 해상도 선택',
-    )) as HTMLSelectElement;
-    await user.selectOptions(presetSelect, 'RES_480P');
     await user.click(screen.getByTestId('augment-submit'));
 
-    expect(await screen.findByTestId('resolution-export-result')).toBeInTheDocument();
+    const result = await screen.findByTestId('resolution-derivative-result');
+    expect(result).toHaveTextContent('파생영상 1건 생성됨');
+    expect(result).toHaveTextContent('1건 실패');
+    expect(result).toHaveTextContent('실패');
+  });
+
+  it('해상도_전부실패(500)시_에러메시지가_표시된다', async () => {
+    replyVideos(2);
+    mock.onPost(/\/videos\/\d+\/resolution/).reply(500, {
+      success: false,
+      data: null,
+      message: '해상도 파생영상 생성에 모두 실패했습니다.',
+      errorCode: 'INTERNAL_ERROR',
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<AugmentRequestPage />);
+
+    await user.click(await screen.findByTestId('process-kind-RESOLUTION'));
+    await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
+    await user.click(screen.getByTestId('augment-submit'));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('모두 실패');
+  });
+
+  it('해상도_실행후_종류를_바꾸면_결과가_초기화된다', async () => {
+    replyVideos(2);
+    mock.onPost(/\/videos\/\d+\/resolution/).reply(201, {
+      success: true,
+      data: {
+        derivatives: [
+          { rawSn: 401, goalResCd: 'RES_480P', targetW: 854, targetH: 480, status: 'CREATED' },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<AugmentRequestPage />);
+
+    await user.click(await screen.findByTestId('process-kind-RESOLUTION'));
+    await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
+    await user.click(screen.getByTestId('augment-submit'));
+
+    expect(
+      await screen.findByTestId('resolution-derivative-result'),
+    ).toBeInTheDocument();
 
     // 종류를 증강으로 변경 → 해상도 결과 초기화
     await user.click(screen.getByTestId('process-kind-WINTER'));
     expect(
-      screen.queryByTestId('resolution-export-result'),
+      screen.queryByTestId('resolution-derivative-result'),
     ).not.toBeInTheDocument();
   });
 });

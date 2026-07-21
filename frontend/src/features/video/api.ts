@@ -6,7 +6,7 @@ import type { PageResponse } from '@/lib/api/types';
 import type {
   FrameLabels,
   RedeidentResult,
-  ResolutionExportResult,
+  ResolutionChangeResult,
   ResolutionPreset,
   Video,
   VideoDetail,
@@ -143,15 +143,22 @@ export function getVideoLabels(videoId: number | string) {
 }
 
 /**
- * 해상도 export (SFR-06-03) — 검수 완료 원본의 프레임 이미지셋을 표준 하위 해상도로 다운스케일.
+ * 해상도 변경(SFR-06-03) — 검수 완료 원본에서 목표 해상도별 새 파생영상(RAW_SN)을 만들어
+ * 검수 파이프라인(PENDING)에 넣는다. 구 "export 프레임셋" 의미 폐기.
  * BE: POST /api/v1/videos/{rawSn}/resolution (REVIEWER).
  *
- * 보안: preset 은 화이트리스트 타입(ResolutionPreset)으로 강제 — 자유 해상도 입력 차단.
- * 업스케일/증강본/미검수/중복은 BE 가 400/409 로 거부 → ApiError 로 전파.
+ * <p>presets 는 선택적이다. 미지정/빈 목록이면 BE 가 표준 3종(RES_1080P/RES_720P/RES_480P)
+ * 전체를 생성(원본과 동일 해상도만 스킵)한다. 지정 시 그 목록만 생성한다.
+ *
+ * 상태코드: 1건 이상 CREATED → 201, 전부 FAILED → 500, 적용 프리셋 0(전부 스킵) → 400.
+ *
+ * 보안: presets 는 화이트리스트 타입(ResolutionPreset[])으로 강제 — 자유 해상도 입력 차단.
+ * rawSn 은 숫자 path 파라미터로만 전달. 업스케일/증강본/미검수는 BE 가 400/409 로 거부.
  */
-export function changeResolution(rawSn: number, preset: ResolutionPreset) {
+export function changeResolution(rawSn: number, presets?: ResolutionPreset[]) {
+  const body = presets && presets.length > 0 ? { presets } : {};
   return apiClient
-    .post<ResolutionExportResult>(`/videos/${rawSn}/resolution`, { preset })
+    .post<ResolutionChangeResult>(`/videos/${rawSn}/resolution`, body)
     .then((r) => r.data);
 }
 

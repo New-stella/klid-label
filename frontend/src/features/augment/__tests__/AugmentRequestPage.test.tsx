@@ -245,12 +245,12 @@ describe('AugmentRequestPage', () => {
 
     const resolution = await screen.findByTestId('process-kind-RESOLUTION');
 
-    // 종류 선택 전엔 타겟 해상도 UI 가 노출되지 않는다
-    expect(screen.queryByLabelText('목표 해상도 선택')).not.toBeInTheDocument();
+    // 종류 선택 전엔 생성할 해상도 UI 가 노출되지 않는다
+    expect(screen.queryByTestId('target-resolution-block')).not.toBeInTheDocument();
 
     await user.click(resolution);
 
-    expect(await screen.findByLabelText('목표 해상도 선택')).toBeInTheDocument();
+    expect(await screen.findByTestId('target-resolution-block')).toBeInTheDocument();
   });
 
   it('잡_카드_5초_폴링_상태_변화_반영', async () => {

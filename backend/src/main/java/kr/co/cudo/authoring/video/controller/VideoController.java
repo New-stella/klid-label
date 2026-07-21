@@ -258,31 +258,35 @@ public class VideoController {
     }
 
     /**
-     * 해상도 변경 — Phase 1 (RQ-SFR-06-03 v1.8/1.10).
-     * <p>검수 완료(APPROVED) 원시 영상의 프레임 이미지셋을 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로
-     * 종횡비 보존 다운스케일한다. 영상(비디오) 재생성·라벨/메타 복사·새 영상(RAW_SN) 생성은 하지 않으며,
-     * 산출물은 다운스케일 이미지셋 + LS_RESOLUTION_EXPORT 1행뿐이다. REVIEWER 만 호출 가능.
+     * 해상도 변경 — Phase 3 (RQ-SFR-06-03 파생영상 전환).
+     * <p>검수 완료(APPROVED) 원본 영상에서 표준 프리셋(RES_1080P/RES_720P/RES_480P)마다 새 파생영상(RAW_SN)을
+     * 생성해 검수 파이프라인에 진입시킨다. 요청 바디의 {@code presets} 는 선택이며, 미지정(바디 생략/빈 목록)이면
+     * 표준 3종 전체를 생성한다. 원본과 동일 해상도 프리셋은 스킵되고, 업스케일(확대)도 허용된다.
+     * 프리셋별 부분 실패는 다른 프리셋에 영향 없이 결과에 FAILED 로 표기되며, 전부 실패하면 500 으로 응답한다.
+     * REVIEWER 만 호출 가능.
      */
     @Operation(
-            summary = "해상도 변경 (REVIEWER)",
-            description = "검수 완료(APPROVED) 원시 영상의 프레임 이미지셋을 표준 하위 해상도(RES_1080P/RES_720P/RES_480P)로 " +
-                    "종횡비 보존 다운스케일한다. 영상·라벨·메타·신규 영상 행은 생성하지 않으며 LS_RESOLUTION_EXPORT 1행만 기록한다. " +
-                    "업스케일(목표 ≥ 원본 높이)·증강본(ORGNL_RAW_SN 보유)·프레임 0건·중복 요청은 거부된다."
+            summary = "해상도 변경 — 파생영상 생성 (REVIEWER)",
+            description = "검수 완료(APPROVED) 원본 영상에서 표준 프리셋(RES_1080P/RES_720P/RES_480P)마다 새 파생영상(RAW_SN)을 " +
+                    "생성한다. 요청 바디의 presets 는 선택이며 미지정 시 표준 3종 전체를 생성한다. 원본과 동일 해상도 프리셋은 " +
+                    "스킵되고, 업스케일(확대)도 허용된다. 프리셋별 부분 실패는 다른 프리셋에 영향 없이 결과에 FAILED 로 표기된다. " +
+                    "증강본(ORGNL_RAW_SN 보유)·미검수 영상은 거부된다."
     )
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 — exportSn + 타겟 해상도 + 프레임 개수 반환"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "프리셋 오류 / 업스케일 / 증강본 / 프레임 0건 / 해상도 확인 불가"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 — 프리셋별 파생 RAW_SN + 목표 해상도 + 상태 목록 반환(1건 이상 CREATED)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "프리셋 값 오류 / 증강본 / 해상도 확인 불가 / 적용 가능한 프리셋 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "미검수 영상 / 중복 결과 존재")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "미검수 영상"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "시도한 모든 프리셋의 파생영상 생성 실패")
     })
     @PostMapping("/{rawSn}/resolution")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<ResolutionChangeResponse> changeResolution(
             @Parameter(description = "원시 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
-            @Valid @RequestBody ResolutionChangeRequest request,
+            @Valid @RequestBody(required = false) ResolutionChangeRequest request,
             @AuthenticationPrincipal TokenClaims actor) {
         String regId = actor != null ? actor.sub() : null;
         return ApiResponse.ok(videoResolutionService.changeResolution(rawSn, request, regId));

@@ -266,6 +266,75 @@ class LsDataLblTest {
                 .isInstanceOf(CustomException.class);
     }
 
+    // --- Phase 1 (해상도 파생영상): copyForNewSrcScaled ---
+
+    @Test
+    @DisplayName("copyForNewSrcScaled_좌표를_해상도비율로_스케일_복사")
+    void copyForNewSrcScaledRescalesCoordinates() {
+        // given — 원본 BBOX 코너 좌표
+        LsDataLbl original = LsDataLbl.createAutoBbox(
+                100L, 7L, "person", "[[10,20],[30,40]]", BigDecimal.valueOf(0.85), "track-1");
+
+        // when — x 2배 / y 3배 파생영상으로 복사
+        LsDataLbl copy = LsDataLbl.copyForNewSrcScaled(999L, original, 2.0, 3.0);
+
+        // then — 좌표만 리스케일, 그 외 필드는 copyForNewSrc 와 동일하게 복제
+        assertThat(copy.getSrcSn()).isEqualTo(999L);
+        assertThat(copy.getPointCn()).isEqualTo("[[20,60],[60,120]]");
+        assertThat(copy.getLblTypeCd()).isEqualTo("BBOX");
+        assertThat(copy.getLabelId()).isEqualTo(7L);
+        assertThat(copy.getLabelNm()).isEqualTo("person");
+        assertThat(copy.getTrackId()).isEqualTo("track-1");
+        assertThat(copy.getLblSn()).isNull();
+        assertThat(copy.getRegDt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("copyForNewSrcScaled_scale_1이면_copyForNewSrc_등가")
+    void copyForNewSrcScaledIdentityEqualsCopyForNewSrc() {
+        LsDataLbl original = LsDataLbl.createManual(1L, "POLYGON", 5L, "car", "[[1,2],[3,4]]", 99L);
+
+        LsDataLbl scaled = LsDataLbl.copyForNewSrcScaled(999L, original, 1.0, 1.0);
+        LsDataLbl plain = LsDataLbl.copyForNewSrc(999L, original);
+
+        assertThat(scaled.getPointCn()).isEqualTo(plain.getPointCn());
+        assertThat(scaled.getPointCn()).isEqualTo("[[1,2],[3,4]]");
+    }
+
+    @Test
+    @DisplayName("copyForNewSrcScaled_SKELETON_가시성값은_불변")
+    void copyForNewSrcScaledKeepsVisibility() {
+        LsDataLbl original = LsDataLbl.createManual(
+                1L, "SKELETON", 5L, "person", "[[10,20,2],[30,40,0]]", 99L);
+
+        LsDataLbl copy = LsDataLbl.copyForNewSrcScaled(999L, original, 2.0, 2.0);
+
+        assertThat(copy.getPointCn()).isEqualTo("[[20,40,2],[60,80,0]]");
+    }
+
+    @Test
+    @DisplayName("copyForNewSrcScaled_original_null이면_예외")
+    void copyForNewSrcScaledRejectsNullOriginal() {
+        assertThatThrownBy(() -> LsDataLbl.copyForNewSrcScaled(999L, null, 2.0, 2.0))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    @DisplayName("copyForNewSrcScaled_원본_pointCn_null이면_결과도_null_정상전파")
+    void copyForNewSrcScaledPropagatesNullPointCn() {
+        // given — 좌표(pointCn)가 null 인 원본 라벨
+        LsDataLbl original = LsDataLbl.createManual(1L, "BBOX", 5L, "car", null, 99L);
+
+        // when — 스케일 복사
+        LsDataLbl copy = LsDataLbl.copyForNewSrcScaled(999L, original, 2.0, 3.0);
+
+        // then — pointCn 은 null 그대로 전파, 그 외 필드는 정상 복제
+        assertThat(copy.getPointCn()).isNull();
+        assertThat(copy.getSrcSn()).isEqualTo(999L);
+        assertThat(copy.getLblTypeCd()).isEqualTo("BBOX");
+        assertThat(copy.getLabelId()).isEqualTo(5L);
+    }
+
     @Test
     @DisplayName("updateUserContent_labelId_null_전달_시_기존_LABEL_ID_유지")
     void updateUserContentNullLabelIdPreservesExisting() {

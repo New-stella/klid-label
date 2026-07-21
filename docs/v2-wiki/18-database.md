@@ -58,7 +58,8 @@
 |--------|------|------|
 | `LS_DATA_AUG` (V8) | 증강 데이터 (AUG_PROC_STTS_CD) | [14](14-augmentation.md) |
 | `LS_DATA_AUG_RVW` (V25) / `LS_DATA_AUG_LBL_MAP` (V26) | 증강 검수 / 라벨 매핑 | [14](14-augmentation.md) |
-| `LS_RESOLUTION_EXPORT` (V55) | 해상도 변경 기록 | [14](14-augmentation.md) |
+| `LS_RESOLUTION_EXPORT` (V55, `NEW_RAW_SN` 파생영상 역참조 V122 추가) | 해상도 변경 산출 추적(2026-07-21부터 파생영상 생성 방식으로 정책 재반전) | [14](14-augmentation.md) |
+| `LS_RESOLUTION_LBL_MAP` (V122 신규) | 해상도 변경 원본↔파생 라벨 매핑(`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y`) — `LS_DATA_AUG_LBL_MAP` 미재사용(`DATA_AUG_SN NOT NULL` 제약) | [14](14-augmentation.md) |
 | `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29, `REQ_KND_CD` BATCH/REDEIDENT V68 도입·V83 rename REQ_KIND_CD→REQ_KND_CD) | 비식별 누락 신고 / 처리 이력(배치·검수완료재비식별 분기) | [08](08-deidentification.md) |
 
 ### 작업 · 상태 · 운영
@@ -68,7 +69,7 @@
 | `LS_TASK_ASSIGNMENT` / `LS_TASK_ASSIGN_HISTORY` (V36) | 작업 배정 / 재배정 이력 | [12](12-review-assignment.md) |
 | `LS_TASK_EVENT_LOG` (V36) | 작업 이벤트 로그 | [12](12-review-assignment.md) |
 | `LS_USER_ROLE` (V75) | 저작도구 라벨링 역할 매핑 (USER_NO→ROLE_CD: REVIEWER/WORKER/PORTAL_USER) — 인가 역할 단일 진실원. 관제 `MNG_ACCT_USER_AUTHRT` 대체(역할 분리 2026-06) | [03](03-auth-roles.md) |
-| `LS_BATCH_PROC_LOG` (V12) | 배치 단계 로그 (STAGE_CD, RES_PAYLOAD_CN) | [07](07-batch-pipeline.md) |
+| `LS_BATCH_PROC_LOG` (V12) | 배치 단계 로그 (STAGE_CD, RESP_PAYLOAD_CN) | [07](07-batch-pipeline.md) |
 | `LS_BAT_RTY_WTNG` (V116) | 배치 실패 영상 재시도 대기 — **DB 영속화**(구 in-memory 큐 대체, 2노드 Active-Active 정합). PK `BAT_RTY_SN`, `RAW_SN` UNIQUE(영상 1건=1행), 컬럼(`RTY_NMTM`/`MAX_RTY_NMTM`/`STTS_CD`=PENDING/RETRYING/EXHAUSTED/`RTY_PRNMNT_DT`=재시도 예정 일시/`LAST_ERR_MSG_CN`)은 사업(program) 표준용어(배치=BAT·재시도=RTY·횟수=NMTM·예정=PRNMNT·대기=WTNG) 준거. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록은 `INSERT ... ON CONFLICT DO NOTHING`+FOR UPDATE 로 UK 경쟁 흡수, 최대 초과 시 EXHAUSTED 소진(삭제 아님, 이력 보존) | [07](07-batch-pipeline.md) |
 | `LS_SYSTEM_CONFIG` (V11) | 시스템 설정 (화이트리스트 key/value) | [10](10-labeling.md) |
 | `LS_AUTH_WORK_LOCK` (V22, 동일영상 활성락 1건 partial unique index V69) | 비식별 재진행 중 잠금(동시 이중 위탁 차단) | [08](08-deidentification.md) |

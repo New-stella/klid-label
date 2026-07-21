@@ -69,6 +69,6 @@ React 18.3.1 + TypeScript 5.9 + Vite 5.4 · TanStack Query v5 · Zustand 4.5 · 
 |-----|------|
 | NFR-002 | 이미지 학습데이터 **10만장**(`LS_DATA_SRC`) |
 | NFR-003 | 영상 학습데이터 **5,000건**(30초 이상/건, `LS_DATA_RAW`) |
-| 증강 4종 | WINTER / NIGHT / RAIN / RESOLUTION |
+| 외부 증강 3종 + 내부 파생 1종 | WINTER / NIGHT / RAIN(외부 위탁) + RESOLUTION(저작도구 내부 수행, SFR-06-03 — `AUG_TYPE_CD` 값은 레거시 호환용으로 남아있으나 신규 콜백 대상 아님) |
 
 전체 NFR-001~007 → [19](19-external-security-cvat.md#nfr).

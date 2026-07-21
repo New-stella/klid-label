@@ -28,7 +28,7 @@
 | 11 | [AI 보조 · 오토라벨링](11-ai-assisted.md) | YOLO/SAM2(VOS·분할), 트랙 보간, ai-server |
 | 12 | [검수 · 작업 배정](12-review-assignment.md) | REVIEWER 승인/반려, 배정·재배정 이력 |
 | 13 | [버전관리](13-version-control.md) | 라벨 스냅샷, diff, rollback |
-| 14 | [데이터 증강 · 해상도 변경](14-augmentation.md) | 외부 증강 위탁·검수, 무결성, 다운스케일 |
+| 14 | [데이터 증강 · 해상도 변경](14-augmentation.md) | 외부 증강 위탁·검수, 무결성, 해상도 변경 파생영상(업스케일 허용·좌표 배율 재계산) |
 | 15 | [관제서버 통지](15-control-notify.md) | TASK_COMPLETED/MODIFIED, fallback, 조회 API |
 | 16 | [포털](16-portal.md) | 데이터마트 영상 선택, 사용자 라벨 별도 적재, SAM2 인터랙티브·자동추적·키포인트(Phase 9, 좌표만·LS_PORTAL_USER_LABEL 단방향) |
 | 17 | [통계 · 대시보드](17-statistics.md) | 작업자/전체 통계, CSV 리포트 |

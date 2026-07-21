@@ -170,6 +170,39 @@ public class LsDataRaw {
     }
 
     /**
+     * Phase 2 (해상도 파생영상) — 원본(APPROVED·비식별) 영상에서 목표 해상도의 새 파생영상을 생성한다.
+     * 원본 메타를 계승하되 PENDING 으로 시작하고 ORGNL_RAW_SN 으로 원본을 참조한다.
+     *
+     * <p>{@code createFromAugment} 와 공통 골격이나 구분점:
+     * <ul>
+     *   <li>VMS_CLIP_ID = 원본 + {@code "_RES_"} + 목표 해상도 코드 + 타임스탬프 (UNIQUE 보장)</li>
+     *   <li>비식별 계승 — 원본이 비식별 완료('Y')된 영상만 파생 대상이므로 파생본도 산출 확정 시 'Y' 로 마감된다.
+     *       생성 시점 기본값은 'N'(추출/복사 성공 전까지 스트리밍/마킹 진입 차단, {@code createFromAugment} 동일).</li>
+     * </ul>
+     *
+     * @param parent        원본 RAW (검수완료·비식별, ORGNL_RAW_SN=null)
+     * @param rawFilePathNm 파생영상(비식별 비디오 복사본) 파일 경로
+     * @param goalResCd     목표 해상도 코드 (예: RES_720P)
+     */
+    public static LsDataRaw createFromResolution(LsDataRaw parent, String rawFilePathNm, String goalResCd) {
+        LsDataRaw raw = new LsDataRaw();
+        raw.vmsClipId = parent.getVmsClipId() + "_RES_" + goalResCd + "_" + System.currentTimeMillis();
+        raw.vmsCctvId = parent.getVmsCctvId();
+        raw.evntTypeCd = parent.getEvntTypeCd();
+        raw.lclgvCd = parent.getLclgvCd();
+        raw.prvcTypeCd = parent.getPrvcTypeCd();
+        raw.prvcYn = derivePrvcYn(parent.getPrvcTypeCd());
+        raw.deIdntfYn = "N";
+        raw.rawFilePathNm = rawFilePathNm;
+        raw.shtDt = parent.getShtDt();
+        raw.durationSec = parent.getDurationSec();
+        raw.orgnlRawSn = parent.getRawSn();
+        raw.dataSttsCd = STATUS_PENDING;
+        raw.regDt = LocalDateTime.now();
+        return raw;
+    }
+
+    /**
      * 관제서버로부터 동일 VMS_CLIP_ID 가 다시 송신되었을 때 변경 가능 메타만 갱신.
      * (RAW_SN, VMS_CLIP_ID 는 불변)
      */

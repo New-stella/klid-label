@@ -96,7 +96,7 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     expect(radio1).not.toBeChecked();
   });
 
-  it('해상도변경_카드를_선택하면_타겟해상도_선택UI가_노출된다', async () => {
+  it('해상도변경_카드를_선택하면_생성할해상도_선택UI가_노출된다', async () => {
     replyVideos(0);
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
@@ -105,11 +105,13 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     await user.click(resolution);
 
     expect(
-      await screen.findByLabelText('목표 해상도 선택'),
+      await screen.findByTestId('target-resolution-block'),
     ).toBeInTheDocument();
+    // 3종 고정 → 기본 전체 선택(체크됨).
+    expect((await screen.findByLabelText(/1080P/)) as HTMLInputElement).toBeChecked();
   });
 
-  it('증강_카드를_선택하면_타겟해상도_선택UI가_숨겨진다', async () => {
+  it('증강_카드를_선택하면_생성할해상도_선택UI가_숨겨진다', async () => {
     replyVideos(0);
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
@@ -117,10 +119,10 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     const winter = await screen.findByTestId('process-kind-WINTER');
     await user.click(winter);
 
-    expect(screen.queryByLabelText('목표 해상도 선택')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('target-resolution-block')).not.toBeInTheDocument();
   });
 
-  it('해상도카드_선택후_증강카드로_바꾸면_선택했던_타겟해상도가_초기화된다', async () => {
+  it('해상도카드_선택후_증강카드로_바꾸면_생성할해상도가_전체선택으로_초기화된다', async () => {
     replyVideos(0);
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
@@ -128,23 +130,20 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     const resolution = await screen.findByTestId('process-kind-RESOLUTION');
     await user.click(resolution);
 
-    const presetSelect = (await screen.findByLabelText(
-      '목표 해상도 선택',
-    )) as HTMLSelectElement;
-    await user.selectOptions(presetSelect, 'RES_480P');
-    expect(presetSelect.value).toBe('RES_480P');
+    // 480P 해제 (부분 선택 상태 만들기)
+    const p480 = (await screen.findByLabelText(/480P/)) as HTMLInputElement;
+    await user.click(p480);
+    expect(p480).not.toBeChecked();
 
-    // 증강 카드로 전환 → 해상도 UI 숨김 + preset 초기화
+    // 증강 카드로 전환 → 해상도 UI 숨김 + 선택 초기화
     const winter = screen.getByTestId('process-kind-WINTER');
     await user.click(winter);
-    expect(screen.queryByLabelText('목표 해상도 선택')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('target-resolution-block')).not.toBeInTheDocument();
 
-    // 다시 해상도 카드로 돌아오면 기본값(초기화됨)으로 복귀 — RES_480P 가 아님
+    // 다시 해상도 카드로 돌아오면 기본값(전체 선택)으로 복귀 — 480P 재체크됨
     await user.click(resolution);
-    const presetAgain = (await screen.findByLabelText(
-      '목표 해상도 선택',
-    )) as HTMLSelectElement;
-    expect(presetAgain.value).not.toBe('RES_480P');
+    const p480Again = (await screen.findByLabelText(/480P/)) as HTMLInputElement;
+    expect(p480Again).toBeChecked();
   });
 
   it('처리종류_카드_4개가_radiogroup으로_렌더된다', async () => {
