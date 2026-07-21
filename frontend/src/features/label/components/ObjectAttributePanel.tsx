@@ -14,6 +14,8 @@ import type { DetectShapeType, Sam2TrackedItem } from '../api';
 import type { Label } from '../types';
 import { ToolType } from '../types';
 
+import { ObjectAttributeSection } from './ObjectAttributeSection';
+
 /** 선택 라벨의 shape → SAM2 Track 시작 폴리곤([[x,y],...]). 박스는 4점 폐곡선으로 변환. */
 function shapeToPolygon(shape: Label['shape']): number[][] | undefined {
   if (shape.type === 'BBOX') {
@@ -243,6 +245,23 @@ export function ObjectAttributePanel({
         <CoordsEditor target={target} onChange={handleCoordChange} />
       )}
       {target.shape && target.shape.type !== 'BBOX' && <CoordsReadonly target={target} />}
+
+      {/* 라벨 관리에서 정의한 속성 입력 — 라벨 마스터 id(classId=LABEL_ID)로 정의 조회, serverId(lblSn)로
+          값 로드/저장. parseLabel 이 로드 라벨의 classId 를 labelId 로 폴백 매핑하므로(단일 소스) 로드된
+          객체도 classId>0 을 가져 게이트를 통과한다. 별도 labelId 폴백 없이 classId 만으로 판정한다. */}
+      {target.classId > 0 && (
+        // key: 객체 전환 시 강제 리마운트로 draft/dirtyRef(편집 중 미커밋 값)를 초기화한다.
+        // 같은 클래스의 다른 객체(다른 serverId)로 캔버스에서 바로 전환해도 이전 객체의 미커밋
+        // draft 가 새 객체 화면에 남아 오염되는 것을 차단(정합성 결함 수정). 미저장 객체는
+        // serverId 가 없으므로 client id(target.id)로 폴백해 서로 다른 미저장 객체 간에도 리마운트.
+        // 동일 객체 내 저장→invalidate→재조회 시엔 serverId 불변 → key 불변 → 리마운트 없음 →
+        // within-object dirty 보존(이슈2) 정상 유지.
+        <ObjectAttributeSection
+          key={target.serverId ?? target.id}
+          classId={target.classId}
+          serverId={target.serverId}
+        />
+      )}
 
       {/* SAM2 자동추적 — TRACK 도구 활성 + 선택 라벨이 있을 때 노출. */}
       {track && activeTool === ToolType.TRACK && (

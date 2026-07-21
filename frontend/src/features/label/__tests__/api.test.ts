@@ -148,6 +148,49 @@ describe('label api', () => {
   // FE 가 Number(null) === 0 으로 강제 변환하여 confidence=0 이 되었고,
   // ObjectAttributePanel 이 "낮은 신뢰도" 배지와 신뢰도 바 0% 를 잘못 표시.
   // null/undefined 모두 undefined 로 정규화하여 표시 자체를 막아야 함.
+  describe('classId 매핑 (labelId 폴백 — 이슈1 근본)', () => {
+    it('로드된_라벨은_labelId가_classId로_매핑된다', () => {
+      // BE LabelResponse.Item 은 classId/classCd 를 응답하지 않고 labelId(마스터 id)만 제공.
+      const label = normalizeLabel({
+        id: 91,
+        lblTypeCd: 'BBOX',
+        label: 'car',
+        labelId: 3,
+        autoLblYn: 'N',
+        points: [
+          [0, 0],
+          [10, 10],
+        ],
+      });
+      expect(label.labelId).toBe(3);
+      // 폴백 없으면 classId=0 → 속성섹션/드롭다운이 깨진다. labelId 로 폴백되어야 함.
+      expect(label.classId).toBe(3);
+    });
+
+    it('classId가_명시되면_labelId보다_classId를_우선한다', () => {
+      const label = normalizeLabel({
+        id: 92,
+        lblTypeCd: 'BBOX',
+        label: 'car',
+        classId: 7,
+        labelId: 3,
+        points: [[0, 0], [10, 10]],
+      });
+      expect(label.classId).toBe(7);
+    });
+
+    it('classId도_labelId도_없으면_0으로_폴백한다', () => {
+      const label = normalizeLabel({
+        id: 93,
+        lblTypeCd: 'BBOX',
+        label: 'car',
+        points: [[0, 0], [10, 10]],
+      });
+      expect(label.classId).toBe(0);
+      expect(label.labelId).toBeNull();
+    });
+  });
+
   describe('confidence 매핑 정규화 (null/undefined → undefined)', () => {
     it('mapLabelToFrontend_BE_confScore_null_이면_confidence_undefined', async () => {
       mock.onGet('/frames/1001/labels').reply(200, {
