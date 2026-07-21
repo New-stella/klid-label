@@ -62,7 +62,7 @@
 | GPKI 로그인 | 관제/포털 **JWT 인계**(`JwtAuthenticationFilter`) | ✅ |
 | 영상/이미지 관리 + 사전 배정 | 영상 목록/상세(SC-007/009) + REVIEWER→WORKER 작업 배정(`LS_TASK_ASSIGNMENT`) | ✅ |
 | 프로젝트 배정 시 프레임 분할(초당/분당/시간당) | **마킹 위치 기반 추출** + FFmpeg(원본+비식별 2벌) | ✅ |
-| 증강 5종(밝게/어둡게/좌우반전) 내장 | **외부 증강 4종**(WINTER/NIGHT/RAIN/RESOLUTION) + 검수(`LS_DATA_AUG_RVW`) | ✅ |
+| 증강 5종(밝게/어둡게/좌우반전) 내장 | **외부 증강 3종**(WINTER/NIGHT/RAIN, 이미지-to-이미지·비디오 원본 복사) + **저작도구 내부 해상도 변경 파생**(RESOLUTION, SFR-06-03 — 2026-07-21부터 증강과 동일하게 파생영상 생성·업스케일 허용·좌표 배율 재계산) + 검수(`LS_DATA_AUG_RVW`, 해상도 변경 파생영상은 일반 검수 파이프라인) | ✅ |
 | 다단계 검수 (1차 → 2차) | **REVIEWER 단일 승인**으로 의도적 변경 (승인=작업 완료→관제 통지) | ✅ |
 | 양방향 송수신 인터페이스(II-001~007) | **단방향 outbound 통지**(`TASK_COMPLETED/MODIFIED`) + inbound 조회 API | ✅ |
 | 이력 누적(`_HSTRY`) 버전관리 | `LS_LABEL_VERSION` 스냅샷 + `LS_DATA_LBL_HSTRY` (diff/rollback) | ✅ |

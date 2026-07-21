@@ -197,10 +197,11 @@ klid-la-test-v0/
 - **MASK ↔ RLE ↔ Polygon 변환** 포팅 (portable-modules/02)
 
 ### 증강 = 새 영상
+- 증강 AI는 **이미지-to-이미지** — 영상(비디오)을 재생성하지 않는다. 증강 결과 영상은 **원본(비식별) 영상 파일을 그대로 복사**하고 **프레임 이미지만 변환**한다.
 - 증강 결과는 **새 영상(RAW_SN) 생성** — 원본과 다른 영상 ID. `LS_DATA_RAW.ORGNL_RAW_SN`(V82 rename, 구 `PARENT_RAW_SN` — 표준단어 ORGNL=원본)으로 원본(부모) 참조. **용어 표준**: `RAW`=원시(RAW_SN·LS_DATA_RAW 자체), `ORGNL`=원본(파생물의 부모/소스). 데이터마트 뷰 `V_COMPLETED_VIDEO` 출력 컬럼도 **`ORGNL_RAW_SN` 로 통일**(외부 소비자 부재로 구 `PARENT_RAW_SN` 외부 계약명 폐지 — V95. 내부·외부 모두 ORGNL_RAW_SN)
-- 원본 영상의 라벨/메타 JSON을 새 영상에 **복사** (외부 증강 3종은 해상도 동일 — 좌표 그대로 복사)
-- **해상도 변경(SFR-06-03)은 증강이 아님 — 저작도구 직접 수행**: 표준 하위 해상도 화이트리스트(RES_1080P/RES_720P/RES_480P)로 **프레임 이미지셋만 다운스케일** 제공. 업스케일(목표 ≥ 원본 높이) 400 거부, 영상(비디오) 재생성 없음, **라벨 좌표 미제공**(변환·복사 안 함), 새 영상(RAW_SN) 미생성 — 결과는 `LS_RESOLUTION_EXPORT` 1행으로 추적(UK: 원본 RAW_SN + 해상도)
-- 새 영상은 **미검수(PENDING) 상태**로 시작 → 작업자 배정 → 수정 → 검수 (기존 플로우 동일)
+- 어노테이션(라벨)은 **원본(비식별) 정보 기준** — 원본 영상의 라벨/메타 JSON을 새 영상에 **복사**(외부 증강 3종 WINTER/NIGHT/RAIN은 해상도 동일 → 좌표 그대로 복사)
+- **해상도 변경(SFR-06-03) = 증강형 파생영상 (Critical — 2026-07-21 설계 반전, feat/resolution-derivative-video)**: 표준 해상도 3종(RES_1080P/RES_720P/RES_480P) 고정 프리셋마다 **새 파생영상(RAW_SN) 생성**, `ORGNL_RAW_SN`으로 원본 참조 — 증강과 동일하게 **파생영상 취급**(구 '증강 아님·1행 추적' 정책 폐기). 비디오 파일은 **원본(비식별) 복사**(재인코딩 없음), **프레임 이미지셋만 목표 해상도로 리스케일**(축소/확대) — 이 두 원칙은 증강과 동일하며 유지. **라벨/이미지 좌표를 해상도 배율(scaleX=targetW/srcW, scaleY=targetH/srcH)로 재계산해 적재**(BBOX/POLYGON/세그멘테이션/키포인트 전 종류 — 구 '좌표 미제공' 폐기). **업스케일(확대)도 허용**(구 `targetH>=srcH` 400 거부 가드 제거) — 원본과 동일 해상도인 프리셋만 스킵하고 나머지는 3종 모두 생성. 원본↔파생 라벨 매핑은 신규 `LS_RESOLUTION_LBL_MAP`(COORD_RECALC_YN/SCALE_X/SCALE_Y) 테이블에 적재하며, **`LS_DATA_AUG_LBL_MAP`은 재사용하지 않는다**(DATA_AUG_SN NOT NULL이라 증강 이력·통계 오염 방지). `LS_RESOLUTION_EXPORT`에 파생 RAW 역참조 `NEW_RAW_SN` 컬럼 추가(V116). API `POST /v1/videos/{rawSn}/resolution` 응답도 "export 1행"→"생성된 파생영상 목록 `{derivatives:[{rawSn,goalResCd,targetW,targetH,status}]}`"로 전환, 요청 바디는 선택적 `presets[]`(미지정=3종 전체). 1건 이상 생성 성공=201 / 전부 실패=500 / 대상 프리셋 전부 스킵(모두 원본과 동일 해상도)=400.
+- 파생영상은 **미검수(PENDING) 상태**로 시작 → 작업자 배정 → 수정 → 검수 (증강·해상도 변경 파생 공통, 기존 플로우 동일). 검수 승인 시 관제 **별도 완료 통지(TASK_COMPLETED)** 발송 — 파생영상은 기존 RAW_SN 파이프라인/데이터마트 뷰(`V_COMPLETED_*`)를 그대로 타므로 뷰 스키마 변경은 불필요
 - 관제서버 통지 시 **새 영상 ID(RAW_SN)로 별도 완료 통지** 발송
 - 증강 요청/수신 흐름: ExternalAugmentClient → 콜백
 

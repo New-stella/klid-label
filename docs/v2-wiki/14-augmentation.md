@@ -8,7 +8,8 @@
 ## 14.1 외부 증강 (WINTER/NIGHT/RAIN)
 
 - **증강(생성) 본체는 외부 시스템 책임** — 저작도구는 위탁·결과 검수만
-- 위탁 유형 3종: **WINTER / NIGHT / RAIN** (날씨·계절·시간). 해상도 변경(RESOLUTION)은 §14.3 내부 수행
+- **증강 AI는 이미지-to-이미지** — 영상(비디오)을 재생성하지 않는다. 증강 결과 영상은 원본(비식별) 영상 파일을 그대로 복사하고 프레임 이미지만 변환한다.
+- 위탁 유형 3종: **WINTER / NIGHT / RAIN** (날씨·계절·시간). 해상도 변경(RESOLUTION)은 §14.3 내부 수행 — 단, 2026-07-21부터 처리 결과 자체는 증강과 동일하게 새 파생영상(RAW_SN)을 생성한다(외부 위탁 여부만 다름)
 - **증강 요청 화면(SCR-AUG-001)은 통합 단일 선택 UI** — 처리 종류 카드 4개(겨울/야간/우천/해상도 변경)를 `radiogroup` 으로 **하나만** 선택하고, 대상 영상도 검수 완료(승인) 1건만 단일 선택한다(§14.6). BE 증강 요청 API 는 `types` enum allowlist(WINTER/NIGHT/RAIN)로 강제하며, RESOLUTION 은 증강 잡 경로가 아니라 저작도구 직접 수행 경로(§14.3)로 분기된다.
 
 ### 콜백 충실 플로우 (요청 → 키 발급 → 콜백 → 새 영상 적재)
@@ -39,19 +40,23 @@
 ## 14.2 증강 = 새 영상
 
 - 성공 시 **새 영상**(`RAW_SN`, `ORGNL_RAW_SN`=원본) 을 **PENDING** 으로 생성
+- 영상 파일은 원본(비식별)을 그대로 복사하고 프레임 이미지만 변환(이미지-to-이미지)
 - 원본 라벨/메타를 새 영상에 **매핑/복사** (해상도 동일 → 좌표 그대로, 라벨 무결성 RQ-SFR-07-02)
 - 라벨 무결성 검증: `LabelIntegrityCalculator` (원본 대비 라벨 수·좌표·속성 보존)
 - 코드: `augment/AugmentResultService`, `LS_DATA_AUG`/`LS_DATA_AUG_RVW`/`LS_DATA_AUG_LBL_MAP`
 
-## 14.3 해상도 변경 (RQ-SFR-06-03, 내부 수행)
+## 14.3 해상도 변경 (RQ-SFR-06-03, 내부 수행 — 2026-07-21 증강형 파생영상으로 정책 재반전)
 
-- **저작도구가 직접 수행** (외부 위탁 아님, FFmpeg Java 래퍼)
-- **원본보다 낮은 표준 하위 해상도로 다운스케일만** 허용 (RES_1080P/720P/480P), 업스케일 400 거부
-- **결과는 다운스케일 이미지셋(프레임)만** — 영상(비디오) 재생성 없음
-- **라벨 좌표 미제공** (해상도 변경본)
-- 새 영상(RAW_SN) 미생성 — `LS_RESOLUTION_EXPORT` 1행만 기록 (UK: DATA_RAW_SN+TARGET_RES_CD, 중복 409)
-- **화면: 증강 요청 화면(SCR-AUG-001)의 통합 단일 선택 UI에 흡수** — '해상도 변경' 카드 선택 시 타겟 해상도(1080P/720P/480P) 선택 UI가 노출되고, 실행하면 `POST /v1/videos/{rawSn}/resolution` 으로 직접 호출되어 결과(exportSn·원본→타겟 해상도·프레임수)가 화면에 inline 표시된다(네비게이션 없음). 증강 3종 실행은 잡 등록 후 결과화면(SC-023)으로 이동한다. (구 '영상 상세 화면 독립 해상도 export 섹션'은 폐지 — 컴포넌트 정리됨)
-- 코드: `LS_RESOLUTION_EXPORT`(V55), FE `pages/AugmentRequestPage`(submit 분기) + `features/video/hooks/useResolutionExport`
+> **설계 반전 (feat/resolution-derivative-video)**: 구 "다운스케일 전용 + 이미지셋만 제공 + 새 영상 미생성 + 라벨 좌표 미제공" 정책을 폐기하고, **증강과 동일하게 새 파생영상(RAW_SN)을 생성**하는 방식으로 전환했다. 관제 연동 관점에서는 파생영상이 기존 RAW_SN 파이프라인/데이터마트 뷰(`V_COMPLETED_*`)를 그대로 타므로 뷰 스키마 변경은 불필요하다.
+
+- **저작도구가 직접 수행**(외부 위탁 아님) — 표준 해상도 3종(RES_1080P/RES_720P/RES_480P) 고정 프리셋마다 원본 1건당 **새 파생영상(RAW_SN)** 생성, `ORGNL_RAW_SN`으로 원본 참조
+- **비디오는 원본(비식별) 그대로 복사**(재인코딩 없음), **프레임 이미지셋만 목표 해상도로 리스케일**(`Java2DImageResizer`) — 이 두 원칙은 유지
+- **업스케일(확대)도 허용** — 구 `targetH>=srcH` 400 거부 가드 제거. 원본과 동일 해상도인 프리셋만 스킵하고 나머지는 3종 전부 생성
+- **라벨/이미지 좌표를 해상도 배율(scaleX=targetW/srcW, scaleY=targetH/srcH)로 재계산해 파생영상에 적재**(BBOX/POLYGON/세그멘테이션/키포인트 전 종류) — 구 '좌표 미제공' 폐기. 원본↔파생 라벨 매핑은 신규 `LS_RESOLUTION_LBL_MAP`(COORD_RECALC_YN/SCALE_X/SCALE_Y)에 적재하며, `LS_DATA_AUG_LBL_MAP`은 재사용하지 않는다(`DATA_AUG_SN NOT NULL` 제약 — 증강 이력·통계 오염 방지)
+- `LS_RESOLUTION_EXPORT`는 산출 추적 행으로 유지되며 파생 RAW 역참조 `NEW_RAW_SN` 컬럼이 추가됐다(V116). UK(DATA_RAW_SN, GOAL_RES_CD)는 유지 — 동일 (원본,해상도) 재요청은 여전히 409
+- 파생영상은 증강과 동일하게 **PENDING → 배정 → 검수** 파이프라인에 진입하고, 검수 승인 시 관제에 **별도 완료 통지(TASK_COMPLETED)** 가 발송된다
+- **화면: 증강 요청 화면(SCR-AUG-001)의 통합 단일 선택 UI에 흡수** — '해상도 변경' 카드 선택 시 타겟 해상도(1080P/720P/480P, 미지정 시 3종 전체) 선택 UI가 노출되고, 실행하면 `POST /v1/videos/{rawSn}/resolution` 으로 직접 호출되어 응답 `{derivatives:[{rawSn,goalResCd,targetW,targetH,status}]}` 목록이 화면에 inline 표시된다(네비게이션 없음). 1건 이상 생성 성공=201 / 전부 실패=500 / 대상 프리셋 전부 스킵=400. 증강 3종 실행은 잡 등록 후 결과화면(SC-023)으로 이동한다. (구 '영상 상세 화면 독립 해상도 export 섹션'은 폐지 — 컴포넌트 정리됨)
+- 코드: BE `video/service/{VideoResolutionService,ResolutionDerivativeService,ResolutionReservationPersister,ResolutionDerivativeFinalizer}`, `LS_RESOLUTION_EXPORT`(V55)+`NEW_RAW_SN`(V116), `LS_RESOLUTION_LBL_MAP`(V116). FE `pages/AugmentRequestPage`(submit 분기) + `features/video/hooks/useResolutionDerivative`(구 `useResolutionExport` 대체)
 
 ## 14.4 활용 여부 검수 (RQ-SFR-07-03, UC-010)
 
@@ -66,7 +71,7 @@ PENDING 증강 영상 (SCR-AUG-002)
 
 ## 14.5 관련 데이터 (DB)
 
-`LS_DATA_AUG`(증강·상태), `LS_DATA_AUG_RVW`(검수·`LBL_INTGRT_PCT`·`REJECT_RSN`), `LS_DATA_AUG_LBL_MAP`(원본-증강 라벨 매핑), `LS_RESOLUTION_EXPORT`(해상도 변경). → [18](18-database.md).
+`LS_DATA_AUG`(증강·상태), `LS_DATA_AUG_RVW`(검수·`LBL_INTGRT_PCT`·`REJECT_RSN`), `LS_DATA_AUG_LBL_MAP`(원본-증강 라벨 매핑), `LS_RESOLUTION_EXPORT`(해상도 변경 산출 추적, `NEW_RAW_SN` 파생 역참조), `LS_RESOLUTION_LBL_MAP`(해상도 변경 원본-파생 라벨 매핑, V116 신규). → [18](18-database.md).
 
 ## 14.6 통합 단일 선택 UX (SCR-AUG-001)
 
@@ -76,7 +81,7 @@ PENDING 증강 영상 (SCR-AUG-002)
 2. **대상 영상 선택** — 검수 완료(`DATA_STTS_CD=COMPLETED` + `RVW_STTS_CD=APPROVED`) 영상만 라디오로 1건 선택(검색·이벤트 필터·페이징, 페이지 이동 후에도 선택 보존).
 3. **실행(submit) 시나리오 분기**:
    - 증강 3종(`isAugmentKind`) → `POST /v1/augments/request`(videoIds·types 길이 1 배열) → 성공 시 토스트 + 결과화면(`/augment/result/{jobId}`) 네비게이션.
-   - 해상도 변경 → `POST /v1/videos/{rawSn}/resolution`(preset 전달) → 성공 시 결과(exportSn·원본→타겟 해상도·프레임수) inline 표시. 업스케일/미검수/증강본/중복은 BE 400/409 → 에러 메시지 노출.
+   - 해상도 변경 → `POST /v1/videos/{rawSn}/resolution`(presets 전달, 선택) → 성공 시 프리셋별 생성 결과 목록(`derivatives: [{rawSn, goalResCd, targetW, targetH, status}]`) inline 표시(업스케일 포함 정상 처리). 미검수/증강본/전부 스킵은 BE 400, 동일 (원본,해상도) 중복은 409, 전부 실패는 500 → 에러 메시지 노출.
 4. **실행 버튼 비활성 조건**: 종류 미선택 · 영상 미선택 · (해상도 종류인데 타겟 해상도 미선택) · 처리 중(`isPending`).
 5. **보안**: kind/preset 은 allowlist 상수(`PROCESS_KINDS`/`RESOLUTION_PRESETS`)로만 좁혀 임의 문자열 분기 차단, videoId 는 number, 라우트는 REVIEWER 가드.
 

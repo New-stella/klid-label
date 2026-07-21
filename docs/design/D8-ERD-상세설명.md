@@ -28,14 +28,15 @@
 - `LS_DATA_RAW` — 원시영상(작업 단위). `VMS_CLIP_ID`가 **UK**라 같은 클립 재수신 시 신규가 아니라 갱신. `PRVC_TYPE_CD`(ANONY/PRVC/PSDO)에서 `PRVC_YN`을 파생, `DE_IDENT_YN`(Y/F/N)이 비식별 상태, `DATA_STTS_CD`가 배치 단계 상태(PENDING→MARKING_READY→COMPLETED).
 - `LS_DATA_SRC` — 프레임원천. 한 행에 **원본 경로(`SRC_FILE_PATH_NM`)와 비식별 경로(`DE_IDNTF_SRC_FILE_PATH_NM`)를 페어**로 보관. `(RAW_SN, FRM_NO)` 유니크.
 - `LS_DATA_RAW_HSTRY` / `LS_DATA_SRC_HSTRY` — 영상·프레임 변경 이력(신규수집/재수신갱신/상태전이).
-- `LS_RESOLUTION_EXPORT` — 해상도 변경 산출. 검수완료 원본의 프레임셋을 하위 해상도로 다운스케일한 **산출 1건당 1행**. `(DATA_RAW_SN, TARGET_RES_CD)` 유니크. **새 영상·라벨을 만들지 않는다**(증강과 구분되는 핵심).
+- `LS_RESOLUTION_EXPORT` — 해상도 변경 산출 추적. 검수완료 원본마다 표준 해상도 3종 프리셋별 **파생영상(새 RAW_SN) 생성**을 추적하는 1건당 1행. `(DATA_RAW_SN, GOAL_RES_CD)` 유니크. `NEW_RAW_SN`(신규, V116)으로 파생 원시영상을 역참조한다. **2026-07-21 정책 재반전 — 구 '새 영상·라벨을 만들지 않는다(증강과 구분되는 핵심)' 정책 폐기, 이제 증강과 동일하게 파생영상을 생성한다.**
+- `LS_RESOLUTION_LBL_MAP`(신규, V116) — 해상도 변경 원본↔파생 라벨 매핑. 배율(`SCALE_X`/`SCALE_Y`)과 좌표 재계산 여부(`COORD_RECALC_YN`, 해상도 변경은 항상 'Y')를 기록. `LS_DATA_AUG_LBL_MAP`은 `DATA_AUG_SN NOT NULL` 제약으로 재사용하지 않는다(증강 이력·통계 오염 방지).
 
 **관계**
 - `LS_DATA_RAW ||--o{ LS_DATA_SRC` : 영상 1건 → 프레임 N개 추출
-- `LS_DATA_RAW ||--o{ LS_DATA_RAW` : **자기참조**(`ORGNL_RAW_SN`) — 증강본이 원본 영상을 가리킴
-- 영상/프레임 → 각 이력, 영상 → 해상도 산출
+- `LS_DATA_RAW ||--o{ LS_DATA_RAW` : **자기참조**(`ORGNL_RAW_SN`) — 증강본·해상도 변경 파생본이 원본 영상을 가리킴
+- 영상/프레임 → 각 이력, 영상 → 해상도 산출, 해상도 산출 → 파생영상(`NEW_RAW_SN`) · 라벨 매핑(`LS_RESOLUTION_LBL_MAP`)
 
-**설계 포인트**: `VMS_CLIP_ID` UK 기반 upsert(재수신 갱신), 원본 경로 불변 보존, 증강본은 별도 RAW_SN이되 부모를 자기참조로 추적.
+**설계 포인트**: `VMS_CLIP_ID` UK 기반 upsert(재수신 갱신), 원본 경로 불변 보존, 증강본·해상도 변경 파생본 모두 별도 RAW_SN이되 부모를 자기참조(`ORGNL_RAW_SN`)로 추적. 해상도 변경 파생영상은 기존 RAW_SN 파이프라인/데이터마트 뷰(`V_COMPLETED_*`)를 그대로 타므로 뷰 스키마 변경 불필요.
 
 ---
 
@@ -177,7 +178,7 @@
 - `LS_DATA_RAW ||--o{ LS_DATA_AUG` : 원본 영상 → 증강
 - 증강 → 검수 / 라벨 매핑
 
-**설계 포인트**: 증강은 **새 영상(RAW_SN) 생성**(ERD-001의 `ORGNL_RAW_SN`으로 원본 참조). 외부 3종은 해상도 동일이라 좌표 그대로 복사(`COORD_RECALC_YN='N'`). `IDMP_KEY`로 중복 수신 방지. 새 영상은 미검수(PENDING)로 시작.
+**설계 포인트**: 증강은 **새 영상(RAW_SN) 생성**(ERD-001의 `ORGNL_RAW_SN`으로 원본 참조). 외부 3종은 해상도 동일이라 좌표 그대로 복사(`COORD_RECALC_YN='N'`). `IDMP_KEY`로 중복 수신 방지. 새 영상은 미검수(PENDING)로 시작. **해상도 변경(SFR-06-03)도 2026-07-21부터 동일하게 새 영상(RAW_SN)을 생성**하지만, 저작도구 내부 위탁(외부 3종과 별개)이라 `LS_DATA_AUG`/`LS_DATA_AUG_LBL_MAP`을 재사용하지 않고 전용 `LS_RESOLUTION_EXPORT`/`LS_RESOLUTION_LBL_MAP`(ERD-001)로 추적한다 — 자세한 내용은 위 ERD-001 참조.
 
 ---
 

@@ -58,7 +58,8 @@
 |--------|------|------|
 | `LS_DATA_AUG` (V8) | 증강 데이터 (AUG_PROC_STTS_CD) | [14](14-augmentation.md) |
 | `LS_DATA_AUG_RVW` (V25) / `LS_DATA_AUG_LBL_MAP` (V26) | 증강 검수 / 라벨 매핑 | [14](14-augmentation.md) |
-| `LS_RESOLUTION_EXPORT` (V55) | 해상도 변경 기록 | [14](14-augmentation.md) |
+| `LS_RESOLUTION_EXPORT` (V55, `NEW_RAW_SN` 파생영상 역참조 V116 추가) | 해상도 변경 산출 추적(2026-07-21부터 파생영상 생성 방식으로 정책 재반전) | [14](14-augmentation.md) |
+| `LS_RESOLUTION_LBL_MAP` (V116 신규) | 해상도 변경 원본↔파생 라벨 매핑(`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y`) — `LS_DATA_AUG_LBL_MAP` 미재사용(`DATA_AUG_SN NOT NULL` 제약) | [14](14-augmentation.md) |
 | `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29, `REQ_KND_CD` BATCH/REDEIDENT V68 도입·V83 rename REQ_KIND_CD→REQ_KND_CD) | 비식별 누락 신고 / 처리 이력(배치·검수완료재비식별 분기) | [08](08-deidentification.md) |
 
 ### 작업 · 상태 · 운영

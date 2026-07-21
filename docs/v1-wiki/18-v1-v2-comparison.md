@@ -50,7 +50,7 @@ v2는 v1의 라벨링/검수 핵심은 계승하되, **작업 단위·아키텍�
 | **게시판 / 연습장** | [13](13-board-practice.md) | v2 범위에 없음 |
 | **GPKI 로그인** | [16](16-security.md) | JWT 인계로 대체 |
 | **스켈레톤 / 키포인트 라벨**(포인트 정의 도구) | [07](07-labeling-tools.md#스켈레톤-skeleton) | v2 라벨 타입은 BBOX/POLYGON/POINT 중심. 스켈레톤 골격 정의 도구 없음 |
-| **증강 5종**(밝게/어둡게/좌우반전 ±2) 내장 처리 | [11](11-augmentation-export.md) | 외부 증강 4종(WINTER/NIGHT/RAIN/RESOLUTION)으로 대체, 외부 위탁 |
+| **증강 5종**(밝게/어둡게/좌우반전 ±2) 내장 처리 | [11](11-augmentation-export.md) | 외부 증강 3종(WINTER/NIGHT/RAIN, 외부 위탁)+저작도구 내부 해상도 변경 파생(RESOLUTION, SFR-06-03)으로 대체 |
 | **프로젝트 배정 시 프레임 분할**(초당/분당/시간당) | [06](06-video-frame-pipeline.md#프레임-분할-배정) | 마킹 위치 기반 추출로 대체 |
 | **이미지 자동 분류**(메타 기반 카테고리화) | [06](06-video-frame-pipeline.md#이미지-자동-분류) | 명시 기능 없음 |
 | **영상/이미지 관리 + 사전 배정** UI | [06](06-video-frame-pipeline.md#영상이미지-프로젝트-배정) | 영상 목록/상세 + 작업 배정(REVIEWER→WORKER)로 재구성 |
@@ -79,7 +79,7 @@ v2는 v1의 라벨링/검수 핵심은 계승하되, **작업 단위·아키텍�
 | **라벨 속성(다형 입력)** | `LS_LABEL_ATTR`(V33)·`LS_DATA_LBL_ATTR_VAL` | SELECT/CHECKBOX/RADIO/NUMBER/TEXT 속성 |
 | **라벨 프리셋 + 이벤트 필터** | `preset/`, `LS_LABEL_PRESET`(V13), `PresetLabelLookupService` | 이벤트 유형별 라벨 자동 필터(BBOX/POLYGON 토글) |
 | **시스템 설정(화이트리스트)** | `sysconfig/`, `LS_SYSTEM_CONFIG`(V11), Caffeine 60s | `YOLO_CONF_THRESHOLD`/`YOLO_IOU`/`YOLO_IMGSZ`/`POLYGON_SIMPLIFY_TOLERANCE` 등 정밀도 조절 |
-| **해상도 변경 내보내기** | `LS_RESOLUTION_EXPORT`(V55), RQ-SFR-06-03 | 다운스케일만 허용 |
+| **해상도 변경 파생영상** | `LS_RESOLUTION_EXPORT`(V55)+`NEW_RAW_SN`(V116), `LS_RESOLUTION_LBL_MAP`(V116), RQ-SFR-06-03 | 2026-07-21부터 증강형 파생영상 전환 — 표준 3종(1080p/720p/480p) 새 RAW_SN 생성, 비디오 원본 복사+프레임 리스케일(업스케일 허용), 라벨 좌표 배율 재계산 제공(구 '다운스케일만 허용' 폐기) |
 | **배치 재시도 큐** | `BatchRetryQueue`, `BatchRetryQuartzJob` | 실패 영상 재처리 |
 | **AI 라벨 출처/신뢰도 추적** | `LS_DATA_LBL_AI_INFO`(V23, `CONF_SCORE`) | YOLO/SAM2/VLM 출처·신뢰도 기록 |
 | **포털(데이터마트 영상 선택)** | `portal/`, `LS_PORTAL_USER_LABEL`(V47), `PortalLabelingPage` | 포털 사용자 라벨 별도 적재(원본·마트 미수정). 업로드/오토라벨/검수 없음(ADR-013) |
@@ -98,7 +98,7 @@ v2는 v1의 라벨링/검수 핵심은 계승하되, **작업 단위·아키텍�
 | **검수** | 작업자→1차→2차→관리자 + 프레임 색상 | REVIEWER 단일 승인, 승인=완료→관제 통지 |
 | **배정** | 관리자/담당자가 프로젝트 데이터 배정(작업자~검수자 한번에) | REVIEWER→WORKER 영상 단위 배정(`LS_TASK_ASSIGNMENT`), 재배정 이력 |
 | **배치 파이프라인** | FFmpeg 추출→전처리→라벨링 | 마킹→VLM→비식별→FFmpeg(2벌)→YOLO→SAM2→트랙 보간 (Quartz 1건/분) |
-| **데이터 증강** | 밝기/반전 5종 내장 | 외부 증강 4종(WINTER/NIGHT/RAIN/RESOLUTION), **새 영상(`PARENT_RAW_SN`)** 생성→검수 |
+| **데이터 증강** | 밝기/반전 5종 내장 | 외부 증강 3종(WINTER/NIGHT/RAIN)+내부 해상도 변경 파생(RESOLUTION), **새 영상(`ORGNL_RAW_SN`)** 생성→검수 |
 | **이력/버전** | `_HSTRY` 테이블 누적 | `LS_LABEL_VERSION` 스냅샷 + `LS_DATA_LBL_HSTRY` |
 | **통계** | 프로젝트/권한별, 엑셀 다운로드 | 작업자/전체 통계(`stat/`), CSV 리포트(`KLID-AT-SC-021`) |
 | **관리 화면 URL** | (역할별 메뉴) | `/manage/*` (사용자·시스템 설정·프리셋), REVIEWER 전용 |
