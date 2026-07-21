@@ -79,7 +79,7 @@ v2는 v1의 라벨링/검수 핵심은 계승하되, **작업 단위·아키텍�
 | **라벨 속성(다형 입력)** | `LS_LABEL_ATTR`(V33)·`LS_DATA_LBL_ATTR_VAL` | SELECT/CHECKBOX/RADIO/NUMBER/TEXT 속성 |
 | **라벨 프리셋 + 이벤트 필터** | `preset/`, `LS_LABEL_PRESET`(V13), `PresetLabelLookupService` | 이벤트 유형별 라벨 자동 필터(BBOX/POLYGON 토글) |
 | **시스템 설정(화이트리스트)** | `sysconfig/`, `LS_SYSTEM_CONFIG`(V11), Caffeine 60s | `YOLO_CONF_THRESHOLD`/`YOLO_IOU`/`YOLO_IMGSZ`/`POLYGON_SIMPLIFY_TOLERANCE` 등 정밀도 조절 |
-| **해상도 변경 파생영상** | `LS_RESOLUTION_EXPORT`(V55)+`NEW_RAW_SN`(V116), `LS_RESOLUTION_LBL_MAP`(V116), RQ-SFR-06-03 | 2026-07-21부터 증강형 파생영상 전환 — 표준 3종(1080p/720p/480p) 새 RAW_SN 생성, 비디오 원본 복사+프레임 리스케일(업스케일 허용), 라벨 좌표 배율 재계산 제공(구 '다운스케일만 허용' 폐기) |
+| **해상도 변경 파생영상** | `LS_RESOLUTION_EXPORT`(V55)+`NEW_RAW_SN`(V122), `LS_RESOLUTION_LBL_MAP`(V122), RQ-SFR-06-03 | 2026-07-21부터 증강형 파생영상 전환 — 표준 3종(1080p/720p/480p) 새 RAW_SN 생성, 비디오 원본 복사+프레임 리스케일(업스케일 허용), 라벨 좌표 배율 재계산 제공(구 '다운스케일만 허용' 폐기) |
 | **배치 재시도 큐** | `BatchRetryQueue`, `BatchRetryQuartzJob` | 실패 영상 재처리 |
 | **AI 라벨 출처/신뢰도 추적** | `LS_DATA_LBL_AI_INFO`(V23, `CONF_SCORE`) | YOLO/SAM2/VLM 출처·신뢰도 기록 |
 | **포털(데이터마트 영상 선택)** | `portal/`, `LS_PORTAL_USER_LABEL`(V47), `PortalLabelingPage` | 포털 사용자 라벨 별도 적재(원본·마트 미수정). 업로드/오토라벨/검수 없음(ADR-013) |
