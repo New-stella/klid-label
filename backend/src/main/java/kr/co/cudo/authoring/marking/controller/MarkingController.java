@@ -53,6 +53,8 @@ public class MarkingController {
             @Parameter(description = "raw 영상 PK", required = true) @PathVariable Long rawSn,
             @Valid @RequestBody MarkingRequest req,
             @AuthenticationPrincipal TokenClaims actor) {
+        // 얇은 위임 — 인가·프리컨디션 사전확인 → (통과 시) 영상 길이 해석(프로브, tx 밖) → persist 순서의
+        // 비트랜잭션 오케스트레이션은 서비스 계층이 캡슐화한다(레이어 원칙 + HIGH/MEDIUM 수정).
         return ApiResponse.ok(markingService.create(rawSn, req, actor));
     }
 }

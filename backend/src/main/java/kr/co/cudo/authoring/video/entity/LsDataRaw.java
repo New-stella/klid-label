@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.video.entity;
 
 import jakarta.persistence.Column;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
@@ -20,10 +21,21 @@ import java.time.LocalDateTime;
  * 원시 영상 (LS_DATA_RAW). 관제서버로부터 수신한 라벨링 대상 영상 메타.
  * - VMS_CLIP_ID 가 UK 로 잡혀 있어 동일 클립 재수신 시 upsert.
  * - PRVC_TYPE_CD 값에 따라 PRVC_YN 이 자동 산출 (ANONY -> N, PRVC/PSDO -> Y).
+ *
+ * <p><b>{@code @DynamicUpdate} 적용 근거 (CWE-362, lost-update 양방향 방어)</b>: 본 엔티티는
+ * {@code @Version} 이 없어 Hibernate 기본 정적 UPDATE 가 flush 시 <b>전체 컬럼</b>을 SET 한다. 적재 직후
+ * 같은 {@code VideoIngestedEvent} 로 여러 full-entity writer(선두 비식별 {@code DeidentifyStep.runMock},
+ * 배치 상태 전이 {@code BatchTransitionService}, {@code KpstDeidentTxService} 등)와 조건부 단일 컬럼
+ * back-fill({@code VideoRepository#backfillDurationSecIfBlank})이 <b>동시</b> 실행된다. 전체 컬럼 UPDATE 는
+ * 로드 시점의 stale 값을 다른 writer 가 그대로 다시 써버려, ①비식별이 커밋한 {@code DE_IDENT_YN='Y'} 되돌림
+ * (PII 재노출) ②back-fill 한 {@code VDO_LEN_SEC} 를 stale null 로 되돌림(NIA export·데이터마트 길이 누락)
+ * 양방향 회귀를 낳을 수 있다. {@code @DynamicUpdate} 는 flush 시 <b>실제 dirty 필드만</b> SET 절에 포함하므로,
+ * 자신이 변경하지 않은 컬럼을 stale 값으로 덮어쓰지 않는다 — 이 회귀 클래스를 시스템 차원에서 차단한다.
  */
 @Entity
 @Table(name = "LS_DATA_RAW",
         uniqueConstraints = @UniqueConstraint(name = "UK_LS_DATA_RAW_VMS_CLIP", columnNames = "VMS_CLIP_ID"))
+@DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LsDataRaw {

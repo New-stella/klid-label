@@ -55,6 +55,33 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                  @Param("fromStatus") String fromStatus,
                                  @Param("toStatus") String toStatus);
 
+    /**
+     * ffprobe 역류 back-fill — {@code LS_DATA_RAW.VDO_LEN_SEC} 가 비어 있을 때(NULL 또는 ≤0)만 초 단위
+     * 길이로 채운다. 관제가 준 유효값(≥1)은 WHERE 가드로 보존한다(override 금지).
+     *
+     * <p><b>배경</b>: 주 적재 경로(관제 스캔, {@code TrainingVideoIngestTx})는 {@code MNG_CLIP_MASTER
+     * .VDO_LEN_SEC} 가 NULL 이거나 1초 미만이면 VDO_LEN_SEC 를 채우지 못한다. 적재 직후 이미 수행되는
+     * ffprobe({@code AsyncVideoMetaRunner} → {@link kr.co.cudo.authoring.video.service.VideoMetaService})
+     * 의 duration 결과를 초로 환산해 역류시켜 데이터 정합을 맞춘다.
+     *
+     * <p><b>단일 컬럼 조건부 UPDATE(엔티티 load-modify-save 아님)인 이유</b>: {@code LS_DATA_RAW} 는
+     * {@code @Version}/{@code @DynamicUpdate} 가 없어 엔티티 저장 시 <b>전체 컬럼</b>을 덮어쓴다. 본 back-fill
+     * 은 적재 직후 선두 비식별({@code DeidentifyStep})과 <b>동시</b> 실행되므로(같은 {@code VideoIngestedEvent},
+     * {@code @Async batchAsyncExecutor}), 엔티티 전체 저장을 쓰면 비식별이 방금 커밋한 {@code DE_IDENT_YN='Y'}/
+     * {@code DATA_STTS_CD} 를 stale 스냅샷으로 되돌릴 수 있다(lost update, CWE-362 → PII 재노출 위험).
+     * {@code VDO_LEN_SEC} + {@code MDFCN_DT} 만 SET 하는 조건부 UPDATE 는 그 컬럼들을 건드리지 않아 안전하며,
+     * DB row 잠금이 동시 UPDATE 를 직렬화한다({@link #claimReprocessFromFailed}/{@link #updateStatus} 와
+     * 동일한 검증된 패턴). "비어 있을 때만" 가드도 WHERE 에서 DB 가 원자 판정한다.
+     *
+     * @param rawSn 대상 영상 PK
+     * @param sec   ffprobe 로 산출한 초 단위 길이(≥1, 호출자 보장)
+     * @return 영향 행수 (1=back-fill 됨, 0=이미 유효값 보유/row 부재)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE LsDataRaw r SET r.durationSec = :sec, r.mdfcnDt = CURRENT_TIMESTAMP "
+            + "WHERE r.rawSn = :rawSn AND (r.durationSec IS NULL OR r.durationSec <= 0)")
+    int backfillDurationSecIfBlank(@Param("rawSn") Long rawSn, @Param("sec") int sec);
+
     Page<LsDataRaw> findAllByOrderByRegDtDesc(Pageable pageable);
 
     /**

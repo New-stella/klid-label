@@ -30,7 +30,9 @@ import org.springframework.util.StringUtils;
  *   <li>lclgvCd   ← {@code LCLGV_CD}</li>
  *   <li>rawFilePathNm ← {@code FILE_PATH}(NAS 절대경로)</li>
  *   <li>shtDt     ← {@code MNG_CLIP_EVNT_LST.SHT_DT}(이벤트리스트 촬영 일자), 미매칭 시 {@code CRT_DT} 폴백</li>
- *   <li>durationSec ← {@code VDO_LEN_SEC / 1000}(관제 실측 단위 ms → 초 변환, null 이면 null 유지)</li>
+ *   <li>durationSec ← {@code VDO_LEN_SEC}(관제 실측 단위 ms)를 초로 반올림. null 이면 null 유지,
+ *       1초 미만(절삭·단위 이질)이면 0 을 영속하지 않고 null 로 두어 적재 직후 ffprobe back-fill
+ *       ({@code VideoMetaService.upsertVideoMeta})이 실제 파일 길이로 채우게 위임한다.</li>
  *   <li>evntTypeCd ← {@code MNG_CLIP_EVNT_LST.EVNT_TYPE_CD}(EVNT_ID 조인), 미매칭 시 null</li>
  *   <li>prvcTypeCd ← ANONY(전체 비식별 정책)</li>
  * </ul>
@@ -105,9 +107,8 @@ public class TrainingVideoIngestTx {
         // shtDt: 이벤트리스트 SHT_DT(실제 촬영 일자) 우선, 미매칭/null 이면 CRT_DT 근사 폴백.
         java.time.LocalDateTime shtDt = (evntLst != null && evntLst.getShtDt() != null)
                 ? evntLst.getShtDt() : clip.getCrtDt();
-        // durationSec: 관제 VDO_LEN_SEC 실측 단위가 ms → 초 변환(null 이면 null 유지).
-        Integer durationSec = (clip.getVdoLenSec() != null)
-                ? clip.getVdoLenSec() / MILLIS_PER_SECOND : null;
+        // durationSec: 관제 VDO_LEN_SEC 실측 단위가 ms → 초 반올림(null/1초 미만이면 null, ffprobe back-fill 위임).
+        Integer durationSec = toDurationSec(clip.getVdoLenSec());
         try {
             LsDataRaw raw = LsDataRaw.createFromIngest(
                     vmsClipId, clip.getVmsCctvId(),
@@ -123,5 +124,25 @@ public class TrainingVideoIngestTx {
             log.debug("[TrainingIngest] duplicate ingest race — skip clipId={}", vmsClipId);
             return false;
         }
+    }
+
+    /**
+     * 관제 {@code VDO_LEN_SEC}(ms 전제) → {@code LS_DATA_RAW.VDO_LEN_SEC}(초) 변환.
+     *
+     * <p>ms 를 초로 반올림하되, 결과가 <b>1초 미만</b>(정수 절삭·초 단위 이질 등)이면 {@code 0} 을
+     * 영속하지 않고 {@code null} 로 둔다 — 적재 직후 이미 수행되는 ffprobe back-fill
+     * ({@code VideoMetaService.upsertVideoMeta})이 실제 파일 길이로 채우게 위임한다. {@code 0} 을 저장하면
+     * "길이 0" 오값으로 굳어져(통계·표시 오염) back-fill 가드(NULL/≤0)만으로는 원인 추적이 어려워지므로,
+     * 불명확한 값은 null 로 두는 편이 보수적이다. 관제가 준 유효한 초값(≥1)은 그대로 신뢰·유지한다.
+     *
+     * @param vdoLenMs 관제 {@code VDO_LEN_SEC}(실측 단위 ms). null 이면 null.
+     * @return 초 단위 길이(≥1) 또는 null(미상/1초 미만)
+     */
+    private static Integer toDurationSec(Integer vdoLenMs) {
+        if (vdoLenMs == null) {
+            return null;
+        }
+        int sec = Math.round(vdoLenMs / (float) MILLIS_PER_SECOND);
+        return sec >= 1 ? sec : null;
     }
 }

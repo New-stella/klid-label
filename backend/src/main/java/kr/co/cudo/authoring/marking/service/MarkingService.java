@@ -2,11 +2,9 @@ package kr.co.cudo.authoring.marking.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.dto.MarkingRequest;
@@ -20,7 +18,9 @@ import kr.co.cudo.authoring.video.service.VideoDurationResolver;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,15 +31,21 @@ import java.util.List;
  * 마킹 비즈니스 로직.
  *
  * <p>Phase 2 — VLM 콜백 요청 발송은 Phase 3 에서 구현 (TODO).
+ *
+ * <p><b>오케스트레이션 구조(HIGH/MEDIUM 수정):</b> 마킹 생성은 <b>비트랜잭션 오케스트레이션</b>
+ * {@link #create(Long, MarkingRequest, TokenClaims)} 이 진입점이다. 순서는 ① 사전 인가·프리컨디션 확인
+ * (프로브 이전, 값싼 readonly read) → ② (AUTO 일 때만) 영상 길이 해석(ffprobe, 쓰기 트랜잭션 밖) →
+ * ③ persist(쓰기 트랜잭션)다. 이로써 고비용 ffprobe 는 <b>인가·프리컨디션 통과 이후에만</b> 실행되고
+ * (CWE-862/400, OWASP API4), 여전히 쓰기 트랜잭션/커넥션 밖에서 수행된다(MEDIUM-1 커넥션 격리 유지).
+ * 컨트롤러는 이 진입점에 얇게 위임할 뿐 도메인 분기를 갖지 않는다(레이어 원칙).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(value = "controlTransactionManager", readOnly = true)
 public class MarkingService {
 
-    /** 비식별 완료 마킹 값 (LS_DATA_RAW.DE_IDENT_YN). */
-    private static final String DEIDENTIFIED = "Y";
+    /** AUTO 마킹 모드 식별자 (요청 mode) — duration 해석 트리거 조건. */
+    private static final String MODE_AUTO = "AUTO";
 
     private final LsMarkingRepository markingRepository;
     private final VideoRepository videoRepository;
@@ -52,65 +58,94 @@ public class MarkingService {
      */
     private final VideoFpsResolver fpsResolver;
     /**
-     * 자동 마킹용 영상 길이(초) 해석기 — durationSec 미기입 영상의 자동 마킹 실패(FIX A) 방지.
-     * VDO_LEN_SEC → video.duration_ms 메타 → 직접 프로브 순으로 폴백하며, 이번 트랜잭션에서 transient
-     * 하게만 사용한다(LS_DATA_RAW 되쓰기 없음).
+     * 프로브 이전 사전 인가·프리컨디션 확인기(HIGH — CWE-862/400). 짧은 {@code REQUIRES_NEW} readonly
+     * read 로 인가·프리컨디션을 먼저 거부해, 고비용 ffprobe 가 인가 통과 이후에만 실행되게 한다.
+     */
+    private final MarkingPrecheckReader precheckReader;
+    /**
+     * 영상 길이 해석기 — <b>쓰기 트랜잭션 진입 전</b>에 호출해 ffprobe 폴백까지 트랜잭션/커넥션 밖에서
+     * 수행한다(MEDIUM-1 — HikariCP 풀 고갈 방지). AUTO 모드에서만, 그리고 <b>사전 인가·프리컨디션 통과
+     * 이후에만</b> 트리거한다(HIGH — CWE-862/400).
      */
     private final VideoDurationResolver durationResolver;
 
     /**
-     * 마킹 생성.
+     * 자기 참조(트랜잭션 프록시) — 비트랜잭션 오케스트레이션 {@link #create(Long, MarkingRequest, TokenClaims)}
+     * 가 쓰기 트랜잭션 persist {@link #create(Long, MarkingRequest, TokenClaims, Integer)} 를 <b>프록시 경유</b>로
+     * 호출하도록 한다. 자기호출(this.create)은 프록시를 우회해 {@code @Transactional} 이 적용되지 않으므로
+     * (persist 가 트랜잭션 없이 실행되어 AFTER_COMMIT 배치 브리지가 깨짐), 자기 주입 프록시로 우회한다.
+     * 순환 주입이라 {@code @Lazy} 로 끊는다. 컨테이너 밖(순수 단위 테스트)에서는 null 이며, 그 경우
+     * {@code this} 로 폴백한다(단위 테스트는 mock 리포지토리라 실제 트랜잭션이 불필요).
+     */
+    @Autowired
+    @Lazy
+    private MarkingService self;
+
+    /**
+     * 마킹 생성 — <b>비트랜잭션 오케스트레이션 진입점</b>.
      *
-     * <p><b>MEDIUM-1 (ffprobe 커넥션 점유 — 문서화된 한정 처리):</b> AUTO 모드의 영상 길이 해석
-     * ({@link VideoDurationResolver#resolveDurationSec})은 durationSec·메타가 <b>모두</b> 없는 드문 코호트에서만
-     * 최후 폴백으로 ffprobe 서브프로세스를 실행한다. 이 경로는 본 쓰기 트랜잭션 안에서 수행되어 프로브가
-     * 끝날 때까지 DB 커넥션을 점유한다. 완전한 트랜잭션-외 격리(프로브를 tx 진입 전에 수행)는 이 서비스가
-     * {@code @Transactional} 통합 테스트(시드 raw 를 테스트 tx 안에서 생성)에서 <b>시드 가시성 계약</b>을
-     * 깨뜨리므로 채택하지 않았다(별도 tx 는 미커밋 시드를 못 본다). 대신 리스크를 다음으로 한정한다:
-     * ① 프로브는 값싼 1·2단계(엔티티 필드·메타 DB read)가 모두 실패한 <b>예외 코호트</b>에서만 실행되고,
-     * ② {@link kr.co.cudo.authoring.video.service.port.BrampVideoProbe} 의 <b>30초 하드 타임아웃</b>으로
-     * 커넥션 점유 시간이 상한된다(무한 블로킹 없음). 적재 파이프라인이 durationSec/메타를 채우면 이 경로는
-     * 아예 타지 않는다.
+     * <p>순서(불변식): ① 사전 인가·프리컨디션 확인({@link MarkingPrecheckReader}) → ② AUTO 면 영상 길이
+     * 해석({@link VideoDurationResolver}, 쓰기 트랜잭션 밖) → ③ persist({@link #create(Long, MarkingRequest,
+     * TokenClaims, Integer)}, 쓰기 트랜잭션). ①에서 인가·프리컨디션 위반이면 <b>프로브를 트리거하기 전에</b>
+     * 기존과 동일한 예외로 즉시 거부한다(HIGH — 미배정 WORKER 가 403 이전에 ffprobe 를 트리거하는 리소스
+     * 소모 표면 제거).
      *
      * @param rawSn 영상 PK
      * @param req   마킹 생성 요청
      * @param actor 인증된 사용자
      * @return 생성된 마킹 응답
      */
-    @Transactional("controlTransactionManager")
     public MarkingResponse create(Long rawSn, MarkingRequest req, TokenClaims actor) {
-        // 0. 본인 배정 검증 (CWE-639 수평 권한 상승 차단) — WORKER 는 본인 LABELER 배정 영상만.
-        requireAssignedOrReviewer(rawSn, actor);
+        // 1. 사전 인가·프리컨디션(값싼 readonly read) — 프로브 이전에 확인해 위반 시 즉시 거부.
+        //    이 read 는 짧은 REQUIRES_NEW 로 커넥션을 즉시 반납하므로 프로브 시점에 커넥션을 보유하지 않는다.
+        precheckReader.precheck(rawSn, actor);
 
-        // 1. 영상 존재 확인
-        LsDataRaw raw = videoRepository.findById(rawSn)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+        // 2. AUTO 만 영상 길이 해석을 트리거한다 — 사전 인가·프리컨디션 통과 이후에만(HIGH), 쓰기 트랜잭션
+        //    진입 전에 수행하므로 ffprobe 폴백이 어떤 DB 커넥션도 보유하지 않는다(MEDIUM-1). 잘못된/누락 mode 는
+        //    null 로 두고 persist 가 INVALID_INPUT 으로 거부한다(기존 계약 보존).
+        Integer autoDurationSec = MODE_AUTO.equals(req.mode())
+                ? durationResolver.resolveDurationSec(rawSn)
+                : null;
 
-        // 1-1. 비식별 완료 가드 — "마킹은 비식별 완료(deIdntfYn='Y') 영상 대상" (CLAUDE.md).
-        // 마킹은 비식별 영상에서 수행하므로 미완료 영상은 거부한다. (MarkingBatchBridge 배치 진입
-        // 가드와 일관성 보강 — 생성 단계에서도 동일 규칙 강제.)
-        if (!DEIDENTIFIED.equals(raw.getDeIdntfYn())) {
-            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
-                    "비식별이 완료된 영상에서만 마킹할 수 있습니다.");
-        }
+        // 3. persist(쓰기 트랜잭션) — self 프록시 경유(자기호출 프록시 우회 회피). 단위 테스트는 self=null → this.
+        MarkingService target = (self != null) ? self : this;
+        return target.create(rawSn, req, actor, autoDurationSec);
+    }
 
-        // 1-1b. 배치 단계 가드 — 마킹은 MARKING_READY 단계 영상만 허용한다(fail-fast).
-        // 이미 배치가 진행중(PROCESSING)/완료(COMPLETED)인 영상에 직접 마킹 요청이 들어오면, 마킹 완료
-        // 이벤트가 배치를 재트리거해 LS_DATA_RAW.DATA_STTS_CD 가 COMPLETED→PROCESSING 으로 역전된다.
-        // 생성 단계에서 거부해 역전을 원천 차단한다(MarkingBatchBridge 의 재트리거 가드와 이중 방어).
-        // 정상 재처리(비식별 신고→재비식별 성공)는 영상을 다시 MARKING_READY 로 되돌리므로 본 가드를 통과한다.
-        if (!LsDataRaw.DATA_STTS_MARKING_READY.equals(raw.getDataSttsCd())) {
-            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
-                    "이미 처리된 영상은 재마킹할 수 없습니다.");
-        }
+    /**
+     * 마킹 생성 — <b>쓰기 트랜잭션 persist</b> (오케스트레이션 {@link #create(Long, MarkingRequest, TokenClaims)}
+     * 이 사전 인가·프리컨디션 통과 + 영상 길이 해석 후 호출).
+     *
+     * <p><b>방어적 이중화(defense-in-depth):</b> 인가·프리컨디션은 오케스트레이션의 사전확인
+     * ({@link MarkingPrecheckReader})에서 이미 통과했지만, 트랜잭션 원자 source-of-truth 로서 여기서
+     * <b>동일 규칙·순서로 다시 강제</b>한다({@link MarkingGuards} 로 단일화 — 두 지점의 계약 불변). 사전확인과
+     * persist 사이에 상태가 변하더라도 최종 쓰기 시점 규칙이 보장된다. 이 재확인은 제거하지 않는다.
+     *
+     * <p><b>리소스 관리(MEDIUM-1 — ffprobe 를 쓰기 트랜잭션 밖에서):</b> AUTO 모드의 영상 길이는
+     * 오케스트레이션이 <b>이 트랜잭션 진입 전</b>에 {@link VideoDurationResolver}(트랜잭션-외, 프로브가
+     * 커넥션 미보유)로 해석해 {@code autoDurationSec} 로 주입한다. 따라서 본 쓰기 트랜잭션은 프로브를
+     * 트리거하지 않는다.
+     *
+     * @param rawSn           영상 PK
+     * @param req             마킹 생성 요청
+     * @param actor           인증된 사용자
+     * @param autoDurationSec AUTO 모드용으로 <b>트랜잭션 밖에서 미리 해석된</b> 영상 길이(초). MANUAL 모드에서는
+     *                        사용되지 않으며 null 이어도 무방하다. AUTO 인데 null(전 경로 해석 실패)이면
+     *                        {@link #generateAutoMarks} backstop 이 {@link ErrorCode#INVALID_INPUT} 로 거부한다.
+     * @return 생성된 마킹 응답
+     */
+    @Transactional("controlTransactionManager")
+    public MarkingResponse create(Long rawSn, MarkingRequest req, TokenClaims actor, Integer autoDurationSec) {
+        // 0. 인가 재확인 (CWE-639 수평 권한 상승 차단) — 사전확인과 동일 규칙(방어적 이중화).
+        MarkingGuards.requireAssignedOrReviewer(rawSn, actor, assignmentRepository);
 
-        // 1-2. 이벤트명 자동 소싱 (API-047 계약 변경) — 더 이상 요청으로 받지 않고
-        // 영상의 이벤트 유형(EVNT_TYPE_CD)을 그대로 사용한다. 미지정 영상은 마킹 불가.
+        // 1. 영상 존재 + 프리컨디션 재확인 (비식별 완료·MARKING_READY·이벤트 유형) — 사전확인과 동일 규칙·순서.
+        LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
+        MarkingGuards.requirePreconditions(raw);
+
+        // 1-2. 이벤트명 자동 소싱 (API-047 계약 변경) — 영상의 이벤트 유형(EVNT_TYPE_CD)을 그대로 사용
+        //       (존재 검증은 requirePreconditions 가 이미 수행).
         String eventName = raw.getEvntTypeCd();
-        if (eventName == null || eventName.isBlank()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "이벤트 유형이 지정되지 않은 영상은 마킹할 수 없습니다.");
-        }
 
         // 2. 마킹 시점에 실 fps 를 확정(pin) — TOCTOU 제거의 핵심.
         //    M-3 이전에는 자동마킹과 프레임추출이 각자 다른 시점에 resolveFps 를 재조회했다. Phase 2 의
@@ -127,11 +162,10 @@ public class MarkingService {
             if (req.intervalFrames() == null || req.intervalFrames() <= 0) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "자동 모드에서 intervalFrames 는 1 이상이어야 합니다.");
             }
-            // durationSec(VDO_LEN_SEC) 미기입 영상은 메타(video.duration_ms)·직접 프로브로 폴백 해석한다.
-            // (FIX A — 적재 시 길이가 비어 자동 마킹만 INVALID_INPUT 으로 실패하던 결함 제거. 되쓰기 없음.)
-            // MEDIUM-1 — 프로브 폴백은 값싼 1·2단계 실패 시에만·30s 타임아웃으로 한정된다(위 create Javadoc).
-            Integer durationSec = durationResolver.resolveDurationSec(rawSn, raw);
-            marksJson = generateAutoMarks(durationSec, req.intervalFrames(), fps);
+            // durationSec 은 오케스트레이션이 이 트랜잭션 진입 전에 해석해 주입한다(VDO_LEN_SEC → video.duration_ms
+            // 메타 → 직접 프로브 폴백). FIX A — 적재 시 길이가 비어 자동 마킹만 INVALID_INPUT 으로 실패하던
+            // 결함 제거. MEDIUM-1 — ffprobe 폴백은 이 쓰기 트랜잭션 밖(커넥션 미보유)에서 수행된다(위 Javadoc).
+            marksJson = generateAutoMarks(autoDurationSec, req.intervalFrames(), fps);
         } else if ("MANUAL".equals(req.mode())) {
             if (req.marks() == null || req.marks().isEmpty()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "수동 모드에서 marks 는 필수입니다.");
@@ -142,7 +176,7 @@ public class MarkingService {
         }
 
         // 4. Entity 생성 + 저장 — 해석한 fps 를 마킹에 pin 하여 추출단계가 재조회 없이 동일 값을 사용하게 한다.
-        Long actorNo = parseUserNo(actor.sub());
+        Long actorNo = MarkingGuards.parseUserNo(actor.sub());
         LsMarking marking = "AUTO".equals(req.mode())
                 ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo, fps)
                 : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo, fps);
@@ -154,30 +188,6 @@ public class MarkingService {
 
         // 5. 응답
         return MarkingResponse.from(marking, objectMapper);
-    }
-
-    /**
-     * 영상 단위 접근 가드 (CWE-639 수평 권한 상승 차단).
-     *
-     * <p>REVIEWER 는 전체 허용. WORKER 는 본인이 LABELER 로 배정된 rawSn 만 허용한다.
-     * 배정 여부는 LS_TASK_ASSIGNMENT(TASK_TYPE_CD='LABELER') 존재로 판정한다.
-     *
-     * @param rawSn 영상 PK
-     * @param actor 인증된 사용자 (null 이면 401)
-     */
-    private void requireAssignedOrReviewer(Long rawSn, TokenClaims actor) {
-        if (actor == null) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
-        }
-        if (actor.role() == Role.REVIEWER) {
-            return;
-        }
-        Long userNo = parseUserNo(actor.sub());
-        boolean assigned = userNo != null && assignmentRepository
-                .existsByUserNoAndTaskTypeCdAndRawDataId(userNo, LsTaskAssignment.TASK_LABELER, rawSn);
-        if (!assigned) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정된 영상의 마킹만 접근할 수 있습니다.");
-        }
     }
 
     /**
@@ -230,20 +240,6 @@ public class MarkingService {
             return objectMapper.writeValueAsString(marks);
         } catch (JsonProcessingException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "marks 직렬화 실패");
-        }
-    }
-
-    /**
-     * actor.sub() 에서 사용자 번호 파싱.
-     */
-    private Long parseUserNo(String sub) {
-        if (sub == null || sub.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(sub);
-        } catch (NumberFormatException e) {
-            return null;
         }
     }
 

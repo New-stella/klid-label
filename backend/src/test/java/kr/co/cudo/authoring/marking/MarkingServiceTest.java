@@ -16,7 +16,6 @@ import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.marking.service.MarkingService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.video.service.VideoDurationResolver;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +44,11 @@ import static org.mockito.Mockito.when;
 
 /**
  * MarkingService 단위 테스트 (Mockito).
+ *
+ * <p><b>duration 주입 계약(MEDIUM-1 이후):</b> 영상 길이(초)는 컨트롤러가 쓰기 트랜잭션 밖에서 해석해
+ * {@code create(..., autoDurationSec)} 로 주입한다. 따라서 본 서비스 테스트는 해석기(resolver)를 목킹하지
+ * 않고, 주입된 {@code autoDurationSec} 값에 대한 서비스 동작(마킹 생성/backstop)을 검증한다. 프로브가
+ * 트랜잭션/커넥션 밖에서 실행됨을 보장하는 격리 검증은 리졸버 단위/통합 테스트가 담당한다.
  */
 @ExtendWith(MockitoExtension.class)
 class MarkingServiceTest {
@@ -67,9 +71,6 @@ class MarkingServiceTest {
     @Mock
     private VideoFpsResolver fpsResolver;
 
-    @Mock
-    private VideoDurationResolver durationResolver;
-
     @InjectMocks
     private MarkingService markingService;
 
@@ -81,10 +82,6 @@ class MarkingServiceTest {
     @BeforeEach
     void setUpFpsDefault() {
         lenient().when(fpsResolver.resolveFps(anyLong())).thenReturn(VideoFpsResolver.DEFAULT_FPS);
-        // FIX A — 기본은 영상의 VDO_LEN_SEC 을 그대로 해석(기존 자동마킹 테스트 무회귀). 폴백(메타/프로브)
-        // 검증 테스트는 특정 rawSn 에 대해 개별 override 한다. (lenient — 자동마킹 미도달 가드 테스트 회피.)
-        lenient().when(durationResolver.resolveDurationSec(anyLong(), any(LsDataRaw.class)))
-                .thenAnswer(inv -> ((LsDataRaw) inv.getArgument(1)).getDurationSec());
     }
 
     private TokenClaims reviewer() {
@@ -134,11 +131,11 @@ class MarkingServiceTest {
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        // intervalFrames=300 (30fps * 10sec)
+        // intervalFrames=300 (30fps * 10sec), 주입 duration=30
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 30);
 
         // then
         assertThat(result.markingMode()).isEqualTo("AUTO");
@@ -172,8 +169,8 @@ class MarkingServiceTest {
         );
         MarkingRequest req = new MarkingRequest("MANUAL", null, marks);
 
-        // when
-        MarkingResponse result = markingService.create(rawSn, req, worker());
+        // when — MANUAL 은 duration 불필요 → autoDurationSec=null
+        MarkingResponse result = markingService.create(rawSn, req, worker(), null);
 
         // then
         assertThat(result.markingMode()).isEqualTo("MANUAL");
@@ -195,7 +192,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 30, null);
 
         // when / then
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 30))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
@@ -213,7 +210,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when
-        markingService.create(rawSn, req, reviewer());
+        markingService.create(rawSn, req, reviewer(), 60);
 
         // then
         verify(eventPublisher).publishEvent(any(MarkingCompletedEvent.class));
@@ -234,7 +231,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 30, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 120);
 
         // then — 120초 * 30fps = 3600 totalFrames, 0..3570 (3600/30 = 120개)
         // (BE-1 off-by-one 수정: 끝 경계 프레임 3600 은 미포함)
@@ -257,7 +254,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 60, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 120);
 
         // then — 120초 * 30fps = 3600 totalFrames, 0..3540 (3600/60 = 60개)
         // (BE-1 off-by-one 수정: 끝 경계 프레임 3600 은 미포함)
@@ -279,7 +276,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then — 영상 조회 이전에 FORBIDDEN
-        assertThatThrownBy(() -> markingService.create(rawSn, req, worker()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, worker(), 300))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
@@ -298,7 +295,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 60))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
@@ -315,7 +312,7 @@ class MarkingServiceTest {
 
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 30);
 
         assertThat(result.markingMode()).isEqualTo("AUTO");
         verify(markingRepository).save(any(LsMarking.class));
@@ -334,7 +331,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then — 재마킹 거부, 마킹 저장 안 됨
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 60))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
@@ -352,7 +349,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 60))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
@@ -371,7 +368,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 30);
 
         // then
         assertThat(result.markingMode()).isEqualTo("AUTO");
@@ -392,7 +389,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then — 이벤트 유형 미지정 영상은 마킹 불가
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 30))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -411,7 +408,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 30))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -429,27 +426,27 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 0, null);
 
         // when / then
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 60))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
-    // ── BE-1: generateAutoMarks 경계/널 처리 (public create() 경로로 검증) ──
+    // ── BE-1 / FIX A: 주입된 autoDurationSec 에 대한 generateAutoMarks 경계/널 처리 ──
 
     @Test
-    @DisplayName("자동마킹_durationSec_null이면_INVALID_INPUT_단건퇴화방지")
+    @DisplayName("자동마킹_주입_durationSec_null이면_INVALID_INPUT_단건퇴화방지")
     void autoMarking_nullDuration_invalidInput() {
-        // given — durationSec=null 영상에 자동 마킹 시도 (과거: totalFrames=0 → frame 0 단건만 생성되던 퇴화)
+        // given — autoDurationSec=null(리졸버가 어떤 경로로도 해석 실패) → backstop 거부
+        // (과거: totalFrames=0 → frame 0 단건만 생성되던 퇴화)
         Long rawSn = 40L;
         LsDataRaw raw = stubRaw(rawSn, 30);
-        org.springframework.test.util.ReflectionTestUtils.setField(raw, "durationSec", null);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
 
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then — 퇴화(단건 생성) 대신 명시적 거부
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -458,9 +455,9 @@ class MarkingServiceTest {
     }
 
     @Test
-    @DisplayName("자동마킹_durationSec_0이하면_INVALID_INPUT")
+    @DisplayName("자동마킹_주입_durationSec_0이하면_INVALID_INPUT")
     void autoMarking_zeroDuration_invalidInput() {
-        // given — durationSec=0 영상
+        // given — autoDurationSec=0
         Long rawSn = 41L;
         LsDataRaw raw = stubRaw(rawSn, 0);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
@@ -468,7 +465,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 0))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -476,20 +473,19 @@ class MarkingServiceTest {
     }
 
     @Test
-    @DisplayName("FIX_A_durationSec_null이라도_리졸버가_메타_프로브로_해석하면_자동마킹_marks_생성")
-    void autoMarking_nullDuration_butResolvedByResolver_generatesMarks() {
-        // given — VDO_LEN_SEC=null 이지만 durationResolver 가 메타/프로브로 60초를 해석해 반환
+    @DisplayName("FIX_A_VDO_LEN_SEC_null이라도_외부해석값이_주입되면_자동마킹_marks_생성")
+    void autoMarking_nullVdoLenSec_butInjectedDuration_generatesMarks() {
+        // given — 영상 VDO_LEN_SEC=null 이지만 컨트롤러가 메타/프로브로 60초를 해석해 주입
         Long rawSn = 43L;
         LsDataRaw raw = stubRaw(rawSn, 30);
         org.springframework.test.util.ReflectionTestUtils.setField(raw, "durationSec", null);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
-        when(durationResolver.resolveDurationSec(rawSn, raw)).thenReturn(60);
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MarkingRequest req = new MarkingRequest("AUTO", 30, null);
 
-        // when — 과거엔 INVALID_INPUT 으로 실패("자동만 안 됨")했으나 이제 해석값으로 marks 생성
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        // when — 과거엔 INVALID_INPUT 으로 실패("자동만 안 됨")했으나 이제 주입값으로 marks 생성
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 60);
 
         // then — 60초 × 30fps = 1800 totalFrames, interval=30 → 60개
         assertThat(result.markingMode()).isEqualTo("AUTO");
@@ -498,19 +494,18 @@ class MarkingServiceTest {
     }
 
     @Test
-    @DisplayName("FIX_A_durationSec도_메타_프로브도_전부_실패하면_backstop_INVALID_INPUT")
-    void autoMarking_allResolutionFail_backstopInvalidInput() {
-        // given — 리졸버가 어떤 경로로도 해석 실패(null) → backstop 거부
+    @DisplayName("FIX_A_외부해석이_전부_실패해_null이_주입되면_backstop_INVALID_INPUT")
+    void autoMarking_injectedNull_backstopInvalidInput() {
+        // given — 컨트롤러의 해석(VDO_LEN_SEC·메타·프로브)이 모두 실패해 null 주입
         Long rawSn = 44L;
         LsDataRaw raw = stubRaw(rawSn, 30);
         org.springframework.test.util.ReflectionTestUtils.setField(raw, "durationSec", null);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
-        when(durationResolver.resolveDurationSec(rawSn, raw)).thenReturn(null);
 
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
-        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -529,7 +524,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 10);
 
         // then — frameIndex 300(=totalFrames) 은 포함되지 않는다 (frameIndex < totalFrames)
         assertThat(result.marks()).hasSize(1);
@@ -553,7 +548,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 30, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 60);
 
         // then — 60초 × 30fps = 1800 totalFrames, interval=30 → 60개(0..1770).
         // fps 미상(폴백 30.0)이라 30fps 기준 계산 — 무회귀 가드: 첫/둘째 프레임과 타임스탬프를 검증.
@@ -584,7 +579,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 25, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 60);
 
         // then — 60초 × 25fps = 1500 totalFrames, interval=25 → 60개(0..1475).
         // 30fps 고정이었다면 1800/25=72개였을 것 — 실 fps 사용을 hasSize 로 입증.
@@ -615,7 +610,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 30, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 60);
 
         // then — 30fps 고정이던 기존 결과와 정확히 동일 (60초×30=1800, 60개, 0..1770).
         assertThat(result.marks()).hasSize(60);
@@ -640,7 +635,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 25, null);
 
         // when
-        markingService.create(rawSn, req, reviewer());
+        markingService.create(rawSn, req, reviewer(), 60);
 
         // then — 저장된 마킹의 fps 가 pin(25.0)
         verify(markingRepository).save(captor.capture());
@@ -660,8 +655,8 @@ class MarkingServiceTest {
 
         MarkingRequest req = new MarkingRequest("MANUAL", null, List.of(new MarkItem(10, "00:00")));
 
-        // when
-        markingService.create(rawSn, req, reviewer());
+        // when — MANUAL 은 autoDurationSec 불필요(null)
+        markingService.create(rawSn, req, reviewer(), null);
 
         // then
         verify(markingRepository).save(captor.capture());
@@ -684,7 +679,7 @@ class MarkingServiceTest {
         MarkingRequest req = new MarkingRequest("AUTO", 60, null);
 
         // when
-        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 60);
 
         // then — 60초 × 60fps = 3600 totalFrames, interval=60 → 60개(0..3540).
         assertThat(result.marks()).hasSize(60);

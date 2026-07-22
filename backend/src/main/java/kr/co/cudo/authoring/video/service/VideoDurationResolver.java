@@ -1,13 +1,12 @@
 package kr.co.cudo.authoring.video.service;
 
-import kr.co.cudo.authoring.batch.entity.LsDataMeta;
-import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.service.VideoDurationDbReader.DurationSource;
 import kr.co.cudo.authoring.video.service.port.VideoProbe;
 import kr.co.cudo.authoring.video.service.port.VideoProbe.VideoMeta;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
@@ -33,15 +32,26 @@ import java.nio.file.Path;
  *
  * <p><b>무결성(fail-safe):</b> {@link VideoFpsResolver} 와 동일하게 예외를 던지지 않는다. 프로브 실패/
  * 예외는 삼켜 {@code null} 을 반환해 마킹 자체를 깨뜨리지 않는다. 되쓰기(persist) 하지 않으며(스코프 최소화),
- * 이번 트랜잭션에서 transient 하게 해석해 사용만 한다.
+ * transient 하게 해석해 값만 반환한다.
  *
- * <p><b>ffprobe 커넥션 점유(MEDIUM-1, 문서화된 한정):</b> 3단계 폴백의 마지막(직접 프로브)은 ffprobe
- * 서브프로세스를 실행한다. 본 리졸버는 호출자({@code MarkingService.create})의 <b>쓰기 트랜잭션</b>에
- * join 하므로, 프로브 경로가 실행되면 프로브가 끝날 때까지 DB 커넥션을 점유한다. 완전한 트랜잭션-외
- * 격리는 {@code @Transactional} 통합 테스트의 시드 가시성 계약을 깨뜨려 채택하지 않았고, 대신 리스크를
- * 다음으로 한정한다: ① 프로브는 값싼 1·2단계(엔티티 필드·메타 DB read)가 <b>모두 실패</b>한 드문
- * 코호트에서만 실행되고, ② {@link VideoProbe} 구현({@code BrampVideoProbe})의 <b>30초 하드 타임아웃</b>으로
- * 점유 시간이 상한된다(무한 블로킹 없음). 적재 파이프라인이 durationSec/메타를 채우면 프로브는 타지 않는다.
+ * <p><b>리소스 관리(MEDIUM-1 해소 — ffprobe 를 커넥션 밖에서):</b> 3단계 폴백의 마지막(직접 프로브)은
+ * ffprobe 서브프로세스를 실행한다(최대 수십 초). 과거에는 이 리졸버가 호출자({@code MarkingService.create})의
+ * <b>쓰기 트랜잭션</b>에 join 하여 프로브 동안 DB 커넥션을 점유했다(HikariCP 풀 고갈 위험). 이제 본 메서드는
+ * <b>쓰기 트랜잭션 진입 전</b>({@code MarkingService} 의 비트랜잭션 오케스트레이션, AUTO 분기)에 호출되고,
+ * 내부적으로 다음을 보장한다:
+ * <ul>
+ *   <li>값싼 DB read(①②)는 {@link VideoDurationDbReader} 의 짧은 {@code REQUIRES_NEW}(readOnly)
+ *       트랜잭션으로 수행되어 리턴 즉시(커밋 시) 커넥션을 풀에 반납한다.</li>
+ *   <li>현재 유일한 호출부(비트랜잭션 오케스트레이션)는 <b>ambient 트랜잭션 없이</b> 이 메서드를 호출하므로,
+ *       프로브(③) 시점에는 이 요청이 어떤 DB 커넥션도 보유하지 않는다(위 DB read 커넥션은 이미 반납됨).
+ *       <b>이 "커넥션 미보유"는 호출부가 트랜잭션 밖이라는 사실에서 성립한다.</b></li>
+ *   <li>{@code NOT_SUPPORTED} 선언은 <b>2차 방어</b>다 — 혹시 활성 트랜잭션 안에서 호출되더라도 그 트랜잭션의
+ *       동기화를 <b>일시 정지</b>시켜 프로브가 활성 트랜잭션 동기화 없이 실행되게 한다. 다만 <b>tx 정지는 곧
+ *       커넥션 반납이 아니다</b> — 정지된 트랜잭션이 이미 획득한 커넥션은 checked-out 상태로 유지되므로,
+ *       {@code NOT_SUPPORTED} <b>단독으로는</b> 커넥션을 반납시키지 못한다(커넥션 미보유는 위처럼 호출부가
+ *       tx 밖일 때 성립).</li>
+ * </ul>
+ * 적재 파이프라인이 durationSec/메타를 채우면 프로브 경로는 아예 타지 않는다.
  *
  * <p><b>보안(CWE-209):</b> 로그에 원본 경로/PII 원문을 직접 출력하지 않는다({@code BrampVideoProbe} 는
  * 경로를 hash 마스킹하며, 본 리졸버는 경로를 로그에 찍지 않고 rawSn·예외 클래스명만 남긴다).
@@ -51,34 +61,34 @@ import java.nio.file.Path;
 @RequiredArgsConstructor
 public class VideoDurationResolver {
 
-    private final LsDataMetaRepository metaRepository;
+    private final VideoDurationDbReader dbReader;
     private final VideoProbe videoProbe;
 
     /**
-     * rawSn 영상의 재생 길이(초)를 다단 폴백으로 해석한다.
+     * rawSn 영상의 재생 길이(초)를 다단 폴백으로 해석한다. <b>쓰기 트랜잭션 밖에서</b> 호출해야 하며,
+     * ffprobe 프로브는 어떤 DB 커넥션도 보유하지 않은 채 실행된다(위 클래스 Javadoc "리소스 관리" 참조).
      *
-     * @param rawSn 영상 PK (LS_DATA_RAW.RAW_SN). null 이면 raw.durationSec 만 시도.
-     * @param raw   영상 엔티티(durationSec·원본 경로 소스). null 이면 메타 조회만 시도.
+     * @param rawSn 영상 PK (LS_DATA_RAW.RAW_SN). null 이거나 영상 미존재면 {@code null}.
      * @return 해석된 재생 길이(초, ≥1). 어떤 경로로도 해석 실패 시 {@code null}.
      */
-    @Transactional(value = "controlTransactionManager", readOnly = true)
-    public Integer resolveDurationSec(Long rawSn, LsDataRaw raw) {
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.NOT_SUPPORTED)
+    public Integer resolveDurationSec(Long rawSn) {
+        // 값싼 DB read(①②)는 짧은 REQUIRES_NEW 로 수행 후 커넥션 즉시 반납 (프로브 전에 커넥션 미보유).
+        DurationSource source = dbReader.read(rawSn);
+        if (source == null) {
+            return null;
+        }
         // 1. 적재 시 기록된 VDO_LEN_SEC 최우선 (기존 동작 보존 — 무회귀).
-        if (raw != null && raw.getDurationSec() != null && raw.getDurationSec() > 0) {
-            return raw.getDurationSec();
+        if (source.durationSec() != null && source.durationSec() > 0) {
+            return source.durationSec();
         }
         // 2. 적재 시 ffprobe 로 이미 적재된 video.duration_ms 메타 (재프로브 회피).
-        if (rawSn != null) {
-            Integer fromMeta = metaRepository.findByRawSnAndMetaKey(rawSn, VideoMetaService.KEY_DURATION_MS)
-                    .map(LsDataMeta::getMetaVl)
-                    .map(this::msStringToSecondsOrNull)
-                    .orElse(null);
-            if (fromMeta != null) {
-                return fromMeta;
-            }
+        Integer fromMeta = msStringToSecondsOrNull(source.durationMsMeta());
+        if (fromMeta != null) {
+            return fromMeta;
         }
-        // 3. 직접 프로브 (원본 경로) — 비식별본과 원본은 재생 길이가 동일하므로 원본 프로브로 충분.
-        Integer fromProbe = probeDurationSec(rawSn, raw);
+        // 3. 직접 프로브 (원본 경로) — 활성 트랜잭션/커넥션 없이 실행. 비식별본과 원본은 재생 길이가 동일.
+        Integer fromProbe = probeDurationSec(rawSn, source.rawFilePathNm());
         if (fromProbe != null) {
             return fromProbe;
         }
@@ -90,11 +100,7 @@ public class VideoDurationResolver {
      * 원본 파일을 직접 프로브해 재생 길이(초)를 얻는다. 실패/예외는 삼켜 {@code null} 반환(마킹 비파괴).
      * 경로/PII 는 로그에 미노출(CWE-209) — rawSn·예외 클래스명만 기록.
      */
-    private Integer probeDurationSec(Long rawSn, LsDataRaw raw) {
-        if (raw == null) {
-            return null;
-        }
-        String path = raw.getRawFilePathNm();
+    private Integer probeDurationSec(Long rawSn, String path) {
         if (path == null || path.isBlank()) {
             return null;
         }
