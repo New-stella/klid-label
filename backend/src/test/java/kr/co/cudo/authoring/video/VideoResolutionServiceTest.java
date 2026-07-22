@@ -136,18 +136,18 @@ class VideoResolutionServiceTest {
         // then: 3종 프리셋 전부 생성
         assertThat(res.derivatives()).hasSize(3);
         assertThat(res.derivatives()).extracting(CreatedDerivative::goalResCd)
-                .containsExactlyInAnyOrder("RES_1080P", "RES_720P", "RES_480P");
+                .containsExactlyInAnyOrder("RESL_1080P", "RESL_720P", "RESL_480P");
         assertThat(res.derivatives()).allMatch(d -> d.status() == DerivativeStatus.CREATED);
         assertThat(res.derivatives()).allMatch(d -> d.rawSn() != null);
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_1080P), eq("reviewer-1"));
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_720P), eq("reviewer-1"));
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_480P), eq("reviewer-1"));
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_1080P), eq("reviewer-1"));
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_720P), eq("reviewer-1"));
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_480P), eq("reviewer-1"));
     }
 
     @Test
     @DisplayName("업스케일_프리셋도_400없이_정상_생성된다")
     void upscaleAllowedNo400() {
-        // given: 원본 854x480 (== RES_480P). RES_480P 는 스킵, 720p/1080p 는 확대 생성.
+        // given: 원본 854x480 (== RESL_480P). RESL_480P 는 스킵, 720p/1080p 는 확대 생성.
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         approved(1L);
         seedFrame(1L);
@@ -158,17 +158,17 @@ class VideoResolutionServiceTest {
 
         // then
         assertThat(res.derivatives()).extracting(CreatedDerivative::goalResCd)
-                .containsExactlyInAnyOrder("RES_1080P", "RES_720P");
+                .containsExactlyInAnyOrder("RESL_1080P", "RESL_720P");
         assertThat(res.derivatives()).allMatch(d -> d.status() == DerivativeStatus.CREATED);
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_1080P), anyString());
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_720P), anyString());
-        verify(resolutionDerivativeService, never()).createDerivative(eq(1L), eq(ResolutionPreset.RES_480P), anyString());
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_1080P), anyString());
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_720P), anyString());
+        verify(resolutionDerivativeService, never()).createDerivative(eq(1L), eq(ResolutionPreset.RESL_480P), anyString());
     }
 
     @Test
     @DisplayName("원본과_동일_해상도_프리셋은_스킵된다")
     void sameResolutionSkipped() {
-        // given: 원본 1280x720 (== RES_720P)
+        // given: 원본 1280x720 (== RESL_720P)
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         approved(1L);
         seedFrame(1L);
@@ -177,12 +177,31 @@ class VideoResolutionServiceTest {
         // when
         ResolutionChangeResponse res = call(1L);
 
-        // then: RES_720P 는 목록에서 제외, 나머지 2종만 생성
+        // then: RESL_720P 는 목록에서 제외, 나머지 2종만 생성
         assertThat(res.derivatives()).extracting(CreatedDerivative::goalResCd)
-                .containsExactlyInAnyOrder("RES_1080P", "RES_480P")
-                .doesNotContain("RES_720P");
+                .containsExactlyInAnyOrder("RESL_1080P", "RESL_480P")
+                .doesNotContain("RESL_720P");
         verify(resolutionDerivativeService, never())
-                .createDerivative(any(), eq(ResolutionPreset.RES_720P), anyString());
+                .createDerivative(any(), eq(ResolutionPreset.RESL_720P), anyString());
+    }
+
+    @Test
+    @DisplayName("모든_대상_프리셋이_원본과_동일해상도면_400_INVALID_INPUT")
+    void allTargetPresetsSameResolutionRejected400() {
+        // given: 원본 1280x720 (== RESL_720P). 대상 프리셋을 720P 단독으로 지정 → 전량 스킵.
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+        srcDimensions(1280, 720);
+
+        // when/then: 적용 가능한 프리셋 0개 → INVALID_INPUT(400). 500(전량 실패)과 구분되는 별개 분기.
+        assertThatThrownBy(() -> service.changeResolution(
+                1L, new ResolutionChangeRequest(List.of(ResolutionPreset.RESL_720P)), "reviewer-1"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        // 파생 생성은 단 한 번도 시도되지 않는다(전량 스킵이므로).
+        verify(resolutionDerivativeService, never()).createDerivative(any(), any(), anyString());
     }
 
     @Test
@@ -240,7 +259,7 @@ class VideoResolutionServiceTest {
         assertThat(res.derivatives()).allSatisfy(d -> {
             assertThat(d.rawSn()).isNotNull();
             assertThat(d.status()).isEqualTo(DerivativeStatus.CREATED);
-            assertThat(d.goalResCd()).startsWith("RES_");
+            assertThat(d.goalResCd()).startsWith("RESL_");
             assertThat(d.targetW()).isPositive();
             assertThat(d.targetH()).isPositive();
         });
@@ -249,13 +268,13 @@ class VideoResolutionServiceTest {
     @Test
     @DisplayName("한_프리셋_생성실패가_다른_프리셋_생성을_막지않는다")
     void partialFailureIsolated() {
-        // given: 원본 3840x2160 → 3종 시도. RES_720P 생성만 실패.
+        // given: 원본 3840x2160 → 3종 시도. RESL_720P 생성만 실패.
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         approved(1L);
         seedFrame(1L);
         org.mockito.Mockito.doThrow(new CustomException(ErrorCode.CONFLICT, "동일 해상도 파생 결과 이미 존재"))
                 .when(resolutionDerivativeService)
-                .createDerivative(eq(1L), eq(ResolutionPreset.RES_720P), anyString());
+                .createDerivative(eq(1L), eq(ResolutionPreset.RESL_720P), anyString());
 
         // when
         ResolutionChangeResponse res = call(1L);
@@ -263,36 +282,36 @@ class VideoResolutionServiceTest {
         // then: 3건 모두 결과에 표기 — 720p 는 FAILED, 나머지는 CREATED
         assertThat(res.derivatives()).hasSize(3);
         CreatedDerivative failed = res.derivatives().stream()
-                .filter(d -> d.goalResCd().equals("RES_720P")).findFirst().orElseThrow();
+                .filter(d -> d.goalResCd().equals("RESL_720P")).findFirst().orElseThrow();
         assertThat(failed.status()).isEqualTo(DerivativeStatus.FAILED);
         assertThat(failed.rawSn()).isNull();
-        assertThat(res.derivatives()).filteredOn(d -> !d.goalResCd().equals("RES_720P"))
+        assertThat(res.derivatives()).filteredOn(d -> !d.goalResCd().equals("RESL_720P"))
                 .allMatch(d -> d.status() == DerivativeStatus.CREATED && d.rawSn() != null);
         // 실패해도 나머지 프리셋 생성은 계속 시도됨
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_1080P), anyString());
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_480P), anyString());
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_1080P), anyString());
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_480P), anyString());
     }
 
     @Test
     @DisplayName("특정_프리셋_목록_지정시_그_목록만_생성된다")
     void specifiedPresetsOnly() {
-        // given: 원본 3840x2160 → 어떤 프리셋과도 상이. RES_720P 만 지정.
+        // given: 원본 3840x2160 → 어떤 프리셋과도 상이. RESL_720P 만 지정.
         when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
         approved(1L);
         seedFrame(1L);
 
-        // when: presets=[RES_720P] 만 지정
+        // when: presets=[RESL_720P] 만 지정
         ResolutionChangeResponse res = service.changeResolution(
-                1L, new ResolutionChangeRequest(List.of(ResolutionPreset.RES_720P)), "reviewer-1");
+                1L, new ResolutionChangeRequest(List.of(ResolutionPreset.RESL_720P)), "reviewer-1");
 
         // then: 지정한 720p 만 생성, 나머지 프리셋은 시도조차 안 함
         assertThat(res.derivatives()).extracting(CreatedDerivative::goalResCd)
-                .containsExactly("RES_720P");
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_720P), anyString());
+                .containsExactly("RESL_720P");
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_720P), anyString());
         verify(resolutionDerivativeService, never())
-                .createDerivative(any(), eq(ResolutionPreset.RES_1080P), anyString());
+                .createDerivative(any(), eq(ResolutionPreset.RESL_1080P), anyString());
         verify(resolutionDerivativeService, never())
-                .createDerivative(any(), eq(ResolutionPreset.RES_480P), anyString());
+                .createDerivative(any(), eq(ResolutionPreset.RESL_480P), anyString());
     }
 
     @Test
@@ -311,8 +330,8 @@ class VideoResolutionServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INTERNAL_ERROR);
         // 부분 실패 격리로 3종 모두 시도는 됐다
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_1080P), anyString());
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_720P), anyString());
-        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RES_480P), anyString());
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_1080P), anyString());
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_720P), anyString());
+        verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_480P), anyString());
     }
 }

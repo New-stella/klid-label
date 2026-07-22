@@ -73,6 +73,10 @@ export interface AugmentJob {
   videoId: number;
   cctvName: string;
   types: AugmentType[];
+  // 해상도 파생(SFR-06-03) 코드 목록 (BE additive 응답 필드 resolutionTypes, RESL_*).
+  // 증강 위탁 잡이 아니라 저작도구 직접 수행 결과이므로 types 와 별도로 노출한다.
+  // 구 응답에는 없을 수 있어 optional — 없으면 빈 목록으로 취급한다.
+  resolutionTypes?: string[];
   status: AugmentJobStatus;
   requestedAt: string;
   completedAt?: string;

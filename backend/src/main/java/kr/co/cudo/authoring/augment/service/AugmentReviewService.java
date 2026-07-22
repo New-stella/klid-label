@@ -51,12 +51,18 @@ import java.util.Set;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class AugmentReviewService {
 
-    /** UI 표시용 정렬 순서. RESOLUTION은 신규 콜백 대상은 아니나 기존 데이터 정렬을 위해 유지. */
+    /**
+     * UI 표시용 정렬 순서. 검수 대상 증강 3종(WINTER/NIGHT/RAIN) 뒤에 해상도 파생 프리셋
+     * (RESL_1080P/720P/480P, 고해상도→저해상도)을 배치한다. 레거시 단일 RESOLUTION 은 기존 데이터 정렬용.
+     */
     private static final Map<String, Integer> AUG_ORDER = Map.of(
             LsDataAug.AUG_WINTER, 1,
             LsDataAug.AUG_NIGHT, 2,
             LsDataAug.AUG_RAIN, 3,
-            LsDataAug.AUG_RESOLUTION, 4
+            LsDataAug.AUG_RESOLUTION, 4,
+            LsDataAug.AUG_RESL_1080P, 5,
+            LsDataAug.AUG_RESL_720P, 6,
+            LsDataAug.AUG_RESL_480P, 7
     );
 
     private final LsDataAugRepository repository;
@@ -143,11 +149,15 @@ public class AugmentReviewService {
         // null 을 반환하면 FE 검색/정렬의 null.toLowerCase() 크래시 위험 → 안전 폴백으로 항상 non-null.
         String cctvName = resolveCctvName(rawSn, cctvByRaw);
 
-        List<String> types = group.stream()
-                .map(LsDataAug::getAugTypeCd)
-                .distinct()
-                .sorted(Comparator.comparingInt(t -> AUG_ORDER.getOrDefault(t, 99)))
-                .toList();
+        // 표시 타입은 검수 대상 증강(WINTER/NIGHT/RAIN 등)과 해상도 파생(RESL_ 접두)을 분리한다.
+        // 해상도 파생은 검수 대상이 아니므로 resolutionTypes 로 별도 노출해 FE 가 accept/reject 버튼을
+        // 숨기고 "해상도"로 라벨링한다. 단, 상태 집계에는 해상도 파생을 포함한다(아래 aggregateStatus 참조).
+        List<String> types = sortedDistinctTypes(group.stream()
+                .filter(a -> !isResolutionDerivative(a.getAugTypeCd()))
+                .toList());
+        List<String> resolutionTypes = sortedDistinctTypes(group.stream()
+                .filter(a -> isResolutionDerivative(a.getAugTypeCd()))
+                .toList());
 
         AugmentJobStatus status = aggregateStatus(group);
 
@@ -166,13 +176,39 @@ public class AugmentReviewService {
                     .orElse(requestedAt); // 검수 일시 유실 시 요청 일시로 폴백(null 회피)
         }
 
-        return new AugmentJobResponse(videoId, videoId, cctvName, types,
+        return new AugmentJobResponse(videoId, videoId, cctvName, types, resolutionTypes,
                 status.name(), requestedAt, completedAt, 1);
     }
 
+    /** 증강 row 목록 → AUG_ORDER 순 distinct AUG_TYPE_CD 목록. */
+    private List<String> sortedDistinctTypes(List<LsDataAug> rows) {
+        return rows.stream()
+                .map(LsDataAug::getAugTypeCd)
+                .distinct()
+                .sorted(Comparator.comparingInt(t -> AUG_ORDER.getOrDefault(t, 99)))
+                .toList();
+    }
+
+    /** 해상도 파생 여부 — RESL_ 접두(검수 대상 아님, 저작도구 내부 생성물). */
+    private boolean isResolutionDerivative(String augTypeCd) {
+        return augTypeCd != null && augTypeCd.startsWith(LsDataAug.RESL_PREFIX);
+    }
+
     /**
-     * 그룹(영상) 상태 집계 — {@link AugmentJobStatus} 규칙:
+     * 그룹(영상)의 상태 집계 — {@link AugmentJobStatus} 규칙:
      * dead-letter 존재 → FAILED, 전부 종료 → COMPLETED, 일부 종료 → IN_PROGRESS, 전부 PENDING → REQUESTED.
+     *
+     * <p><b>입력은 그룹의 전체 row(RESL_ 해상도 파생 포함)</b> 이다. 해상도 변경 파생도 증강 집계/통계
+     * 카운트에 포함한다(운영 결정 — 통계에 해상도 반영). <b>해상도 파생 aug 상태는 파생 생성 라이프사이클과
+     * 일치</b>한다: 예약~확정 사이 in-flight 창에서는 PENDING(생성 중, non-terminal)이라 COMPLETED 로 세지
+     * 않고 REQUESTED/IN_PROGRESS 로 집계된다. finalize 성공 확정 시에만
+     * ({@code LsDataAug.markResolutionGenerated}) ACCEPTED(terminal)로 전이되어 COMPLETED 근거가 된다.
+     * 확정에 실패한 파생은 {@code releaseReservedAug} 로 예약 aug 행이 삭제되므로 집계에서 사라진다.
+     * 따라서 ACCEPTED 로 남는 RESL_ 행은 실제 생성 완료된 파생뿐이며, 해상도 파생만 존재하는 그룹은 전부
+     * 확정된 뒤에야 COMPLETED(파생 생성 완료)로 집계된다.
+     *
+     * <p>화면 구분은 별개로 유지된다 — {@link AugmentJobResponse#resolutionTypes()} 로 해상도 파생을
+     * 분리 노출해 FE 가 accept/reject 를 숨긴다({@link #loadOrThrow} 가 RESL_ 검수 진입도 차단).
      */
     private AugmentJobStatus aggregateStatus(List<LsDataAug> group) {
         boolean anyFailed = group.stream().anyMatch(a -> a.getDeadLetterAt() != null);
@@ -317,8 +353,15 @@ public class AugmentReviewService {
     }
 
     private LsDataAug loadOrThrow(Long dataAugSn) {
-        return repository.findById(dataAugSn)
+        LsDataAug aug = repository.findById(dataAugSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "증강 결과를 찾을 수 없습니다."));
+        // 해상도 파생(RESL_ 접두)은 저작도구 내부 생성물로, 예약 시 PENDING(생성 중)으로 적재되고
+        // finalize 성공 확정 시 ACCEPTED(생성 완료)로 전이되는 내부 라이프사이클을 가지며 외부 검수 대상이 아니다.
+        // accept/reject 진입 자체를 명시 차단(CONFLICT 보다 명확한 INVALID_INPUT — 화면 오조작 방어).
+        if (aug.getAugTypeCd() != null && aug.getAugTypeCd().startsWith(LsDataAug.RESL_PREFIX)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "해상도 파생 결과는 검수 대상이 아닙니다.");
+        }
+        return aug;
     }
 
     private void requireReviewer(TokenClaims actor) {

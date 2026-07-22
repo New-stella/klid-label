@@ -30,7 +30,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -69,8 +68,11 @@ class ResolutionDerivativeServiceTest {
         return parent;
     }
 
+    private static final long FIRST_FRAME_SRC_SN = 42L;
+
     private void seedApprovedFrame(Long rawSn) {
         LsDataSrc frame = LsDataSrc.create(rawSn, 0L, 0L, "frames/f0.jpg", LocalDateTime.now());
+        ReflectionTestUtils.setField(frame, "srcSn", FIRST_FRAME_SRC_SN);
         when(srcRepository.findByRawSnAndFrameNo(rawSn, 0)).thenReturn(Optional.of(frame));
         LsRawDataStatus st = LsRawDataStatus.initial(rawSn);
         st.transitionTo(LsRawDataStatus.STTS_APPROVED);
@@ -84,14 +86,14 @@ class ResolutionDerivativeServiceTest {
         when(videoRepository.findById(parentRawSn)).thenReturn(Optional.of(approvedDeidParent(parentRawSn)));
         seedApprovedFrame(parentRawSn);
         when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
-        when(reservationPersister.reserveAndCreate(any(), eq(ResolutionPreset.RES_720P),
-                anyInt(), anyInt(), anyInt(), anyInt(), anyString()))
+        when(reservationPersister.reserveAndCreate(any(), eq(ResolutionPreset.RESL_720P),
+                anyLong(), anyString()))
                 .thenReturn(new ResolutionReservationPersister.Reservation(500L, 7L));
 
-        ResolutionDerivativeResponse res = service.createDerivative(parentRawSn, ResolutionPreset.RES_720P, "rev1");
+        ResolutionDerivativeResponse res = service.createDerivative(parentRawSn, ResolutionPreset.RESL_720P, "rev1");
 
         assertThat(res.newRawSn()).isEqualTo(500L);
-        assertThat(res.exportSn()).isEqualTo(7L);
+        assertThat(res.dataAugSn()).isEqualTo(7L);
         assertThat(res.srcW()).isEqualTo(1920);
         assertThat(res.srcH()).isEqualTo(1080);
         assertThat(res.targetW()).isEqualTo(1280);
@@ -99,8 +101,9 @@ class ResolutionDerivativeServiceTest {
         // scaleX = 1280/1920, scaleY = 720/1080
         assertThat(res.scaleX()).isEqualTo(1280d / 1920d);
         assertThat(res.scaleY()).isEqualTo(720d / 1080d);
-        verify(reservationPersister).reserveAndCreate(any(), eq(ResolutionPreset.RES_720P),
-                eq(1920), eq(1080), eq(1280), eq(720), eq("rev1"));
+        // #3 — 대표프레임 SRC_SN(measureFirstFrame 이 사용한 첫 프레임)을 예약 단일 기준으로 전달한다.
+        verify(reservationPersister).reserveAndCreate(any(), eq(ResolutionPreset.RESL_720P),
+                eq(FIRST_FRAME_SRC_SN), eq("rev1"));
     }
 
     @Test
@@ -110,10 +113,10 @@ class ResolutionDerivativeServiceTest {
         when(videoRepository.findById(parentRawSn)).thenReturn(Optional.of(approvedDeidParent(parentRawSn)));
         seedApprovedFrame(parentRawSn);
         when(imageResizer.readDimensions(any())).thenReturn(new int[]{640, 360});
-        when(reservationPersister.reserveAndCreate(any(), any(), anyInt(), anyInt(), anyInt(), anyInt(), anyString()))
+        when(reservationPersister.reserveAndCreate(any(), any(), anyLong(), anyString()))
                 .thenReturn(new ResolutionReservationPersister.Reservation(501L, 8L));
 
-        ResolutionDerivativeResponse res = service.createDerivative(parentRawSn, ResolutionPreset.RES_1080P, "rev1");
+        ResolutionDerivativeResponse res = service.createDerivative(parentRawSn, ResolutionPreset.RESL_1080P, "rev1");
 
         assertThat(res.scaleX()).isGreaterThan(1.0);
         assertThat(res.scaleY()).isGreaterThan(1.0);
@@ -129,10 +132,10 @@ class ResolutionDerivativeServiceTest {
         seedApprovedFrame(parentRawSn);
         when(imageResizer.readDimensions(any())).thenReturn(new int[]{0, 0});
 
-        assertThatThrownBy(() -> service.createDerivative(parentRawSn, ResolutionPreset.RES_720P, "rev1"))
+        assertThatThrownBy(() -> service.createDerivative(parentRawSn, ResolutionPreset.RESL_720P, "rev1"))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
-        verify(reservationPersister, never()).reserveAndCreate(any(), any(), anyInt(), anyInt(), anyInt(), anyInt(), anyString());
+        verify(reservationPersister, never()).reserveAndCreate(any(), any(), anyLong(), anyString());
     }
 
     @Test
@@ -143,7 +146,7 @@ class ResolutionDerivativeServiceTest {
         ReflectionTestUtils.setField(derived, "orgnlRawSn", 99L); // 이미 파생/증강본
         when(videoRepository.findById(parentRawSn)).thenReturn(Optional.of(derived));
 
-        assertThatThrownBy(() -> service.createDerivative(parentRawSn, ResolutionPreset.RES_720P, "rev1"))
+        assertThatThrownBy(() -> service.createDerivative(parentRawSn, ResolutionPreset.RESL_720P, "rev1"))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
     }
@@ -156,7 +159,7 @@ class ResolutionDerivativeServiceTest {
         LsRawDataStatus st = LsRawDataStatus.initial(parentRawSn); // PENDING
         when(statusRepository.findByRawDataIdIn(List.of(parentRawSn))).thenReturn(List.of(st));
 
-        assertThatThrownBy(() -> service.createDerivative(parentRawSn, ResolutionPreset.RES_720P, "rev1"))
+        assertThatThrownBy(() -> service.createDerivative(parentRawSn, ResolutionPreset.RESL_720P, "rev1"))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
     }

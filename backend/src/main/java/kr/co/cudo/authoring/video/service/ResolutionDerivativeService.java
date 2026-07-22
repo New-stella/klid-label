@@ -64,8 +64,10 @@ public class ResolutionDerivativeService {
     public ResolutionDerivativeResponse createDerivative(Long parentRawSn, ResolutionPreset preset, String regId) {
         LsDataRaw parent = loadAndValidate(parentRawSn);
 
-        // 첫 프레임 실측(트랜잭션 밖) — srcW/srcH 확보. 0/음수면 파생 거부(scale 0 division 방지).
-        int[] dim = measureFirstFrame(parentRawSn);
+        // 첫 프레임 실측(트랜잭션 밖) — 대표프레임 SRC_SN + srcW/srcH 확보. 0/음수면 파생 거부(scale 0 division 방지).
+        // #3 — 여기서 확정한 첫 프레임 SRC_SN 을 그대로 예약행(LS_DATA_AUG.SRC_SN)의 단일 기준으로 재사용한다.
+        LsDataSrc firstFrame = firstFrame(parentRawSn);
+        int[] dim = measureDimensions(firstFrame);
         int srcW = dim[0];
         int srcH = dim[1];
         if (srcW <= 0 || srcH <= 0) {
@@ -79,14 +81,14 @@ public class ResolutionDerivativeService {
 
         // 부모 잠금 + PII 게이트 + UK 예약 + 새 RAW(PENDING) 커밋 (별도 빈 = 프록시 트랜잭션 실제 적용).
         ResolutionReservationPersister.Reservation reservation =
-                reservationPersister.reserveAndCreate(parent, preset, srcW, srcH, targetW, targetH, regId);
+                reservationPersister.reserveAndCreate(parent, preset, firstFrame.getSrcSn(), regId);
 
-        log.info("[Video][ResolutionDerivative] derivative reserved parentRawSn={} newRawSn={} preset={} " +
+        log.info("[Video][ResolutionDerivative] derivative reserved parentRawSn={} newRawSn={} dataAugSn={} preset={} " +
                         "src={}x{} target={}x{}",
-                parentRawSn, reservation.newRawSn(), preset.name(), srcW, srcH, targetW, targetH);
+                parentRawSn, reservation.newRawSn(), reservation.dataAugSn(), preset.name(), srcW, srcH, targetW, targetH);
 
         return new ResolutionDerivativeResponse(
-                reservation.newRawSn(), reservation.resExportSn(),
+                reservation.newRawSn(), reservation.dataAugSn(),
                 srcW, srcH, targetW, targetH, scaleX, scaleY);
     }
 
@@ -110,15 +112,19 @@ public class ResolutionDerivativeService {
         return parent;
     }
 
-    /** 첫 프레임(FRM_NO 최소) 이미지의 실제 해상도 실측. PII-안전을 위해 비식별 프레임 우선. */
-    private int[] measureFirstFrame(Long parentRawSn) {
-        LsDataSrc first = srcRepository.findByRawSnAndFrameNo(parentRawSn, 0)
+    /** 대표프레임(FRM_NO 최소) — 예약행 SRC_SN 과 실측 해상도의 단일 기준. */
+    private LsDataSrc firstFrame(Long parentRawSn) {
+        return srcRepository.findByRawSnAndFrameNo(parentRawSn, 0)
                 .orElseGet(() -> srcRepository.findByRawSnOrderByFrameNoAsc(parentRawSn).stream()
                         .min(Comparator.comparing(LsDataSrc::getFrameNo))
                         .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT,
                                 "파생할 프레임이 없습니다.")));
+    }
+
+    /** 프레임 이미지의 실제 해상도 실측. PII-안전을 위해 비식별 프레임 우선. */
+    private int[] measureDimensions(LsDataSrc frame) {
         Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path srcPath = resolveSafeFile(base, frameSourcePath(first));
+        Path srcPath = resolveSafeFile(base, frameSourcePath(frame));
         return imageResizer.readDimensions(srcPath);
     }
 

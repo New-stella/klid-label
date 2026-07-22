@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
+import { resolutionDerivativeLabel } from '@/features/video/types';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { type AugmentJob, type AugmentJobStatus, type AugmentType } from '../types';
@@ -34,6 +35,12 @@ export function JobCard({ job }: JobCardProps) {
   const navigate = useNavigate();
   const handleOpen = () => navigate(`/augment/result/${job.jobId}`);
 
+  // 해상도 파생(SFR-06-03) — 증강 위탁 3종과 구분해 별도 뱃지로 노출한다.
+  // 검수(채택/거부) 액션 없음: 파생영상은 자체 검수 파이프라인(PENDING)을 타므로
+  // 이 이력 카드에서 증강처럼 승인/반려 대상이 아니다(비-검수 렌더).
+  const resolutionTypes = job.resolutionTypes ?? [];
+  const hasResolution = resolutionTypes.length > 0;
+
   return (
     <button
       type="button"
@@ -56,6 +63,24 @@ export function JobCard({ job }: JobCardProps) {
             {typeLabelMap[t]}
           </span>
         ))}
+        {resolutionTypes.map((code) => (
+          <span
+            key={`resl-${code}`}
+            data-testid={`job-card-resolution-${job.jobId}-${code}`}
+            className="rounded border border-info/30 bg-info/10 px-2 py-0.5 text-sub text-info"
+          >
+            {resolutionDerivativeLabel(code)}
+          </span>
+        ))}
+        {/* 증강 없이 해상도 파생만 있는 잡: '파생' 구분자를 노출해 증강 검수 완료로 오인 방지 */}
+        {hasResolution && job.types.length === 0 && (
+          <span
+            data-testid={`job-card-derivative-tag-${job.jobId}`}
+            className="rounded bg-bgLight px-2 py-0.5 text-sub text-neutral"
+          >
+            파생
+          </span>
+        )}
       </div>
       <div className="flex items-center justify-between text-sub text-neutral">
         <span>영상 {job.videoCount.toLocaleString('ko-KR')}건</span>

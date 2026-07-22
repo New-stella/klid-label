@@ -147,7 +147,7 @@ export function getVideoLabels(videoId: number | string) {
  * 검수 파이프라인(PENDING)에 넣는다. 구 "export 프레임셋" 의미 폐기.
  * BE: POST /api/v1/videos/{rawSn}/resolution (REVIEWER).
  *
- * <p>presets 는 선택적이다. 미지정/빈 목록이면 BE 가 표준 3종(RES_1080P/RES_720P/RES_480P)
+ * <p>presets 는 선택적이다. 미지정/빈 목록이면 BE 가 표준 3종(RESL_1080P/RESL_720P/RESL_480P)
  * 전체를 생성(원본과 동일 해상도만 스킵)한다. 지정 시 그 목록만 생성한다.
  *
  * 상태코드: 1건 이상 CREATED → 201, 전부 FAILED → 500, 적용 프리셋 0(전부 스킵) → 400.

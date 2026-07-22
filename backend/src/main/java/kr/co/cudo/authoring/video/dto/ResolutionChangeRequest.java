@@ -10,17 +10,17 @@ import java.util.List;
  * <p><b>계약</b>: 검수 완료(APPROVED) 원본 1건에서 표준 하위 해상도 프리셋마다 파생영상(새 RAW_SN)을
  * 생성한다. 요구는 "1080/720/480 세 종 고정 생성"이므로 {@code presets} 는 <b>선택(optional)</b>이다.
  * <ul>
- *   <li>미지정(null 또는 빈 목록·바디 생략) → 표준 3종(RES_1080P/RES_720P/RES_480P) 전체 생성(기본).</li>
+ *   <li>미지정(null 또는 빈 목록·바디 생략) → 표준 3종(RESL_1080P/RESL_720P/RESL_480P) 전체 생성(기본).</li>
  *   <li>지정 → 지정한 프리셋만 생성(향후 부분 선택 확장용).</li>
  * </ul>
- * 목록 원소는 enum 바인딩으로 화이트리스트(RES_1080P/RES_720P/RES_480P)를 강제한다. 그 외 값/형식은
+ * 목록 원소는 enum 바인딩으로 화이트리스트(RESL_1080P/RESL_720P/RESL_480P)를 강제한다. 그 외 값/형식은
  * Jackson 역직렬화 단계에서 400(INVALID_INPUT) 으로 거부된다(CWE-20 입력 검증 — 자유 입력 해상도 차단).
  * 원본과 동일한 해상도 프리셋은 실행 시점에 스킵된다.
  */
 public record ResolutionChangeRequest(
         @Schema(description = "생성할 표준 하위 해상도 프리셋 목록(선택). 미지정 시 표준 3종 전체 생성",
-                example = "[\"RES_720P\", \"RES_480P\"]",
-                allowableValues = {"RES_1080P", "RES_720P", "RES_480P"})
+                example = "[\"RESL_720P\", \"RESL_480P\"]",
+                allowableValues = {"RESL_1080P", "RESL_720P", "RESL_480P"})
         List<ResolutionPreset> presets
 ) {
 

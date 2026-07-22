@@ -259,7 +259,7 @@ public class VideoController {
 
     /**
      * 해상도 변경 — Phase 3 (RQ-SFR-06-03 파생영상 전환).
-     * <p>검수 완료(APPROVED) 원본 영상에서 표준 프리셋(RES_1080P/RES_720P/RES_480P)마다 새 파생영상(RAW_SN)을
+     * <p>검수 완료(APPROVED) 원본 영상에서 표준 프리셋(RESL_1080P/RESL_720P/RESL_480P)마다 새 파생영상(RAW_SN)을
      * 생성해 검수 파이프라인에 진입시킨다. 요청 바디의 {@code presets} 는 선택이며, 미지정(바디 생략/빈 목록)이면
      * 표준 3종 전체를 생성한다. 원본과 동일 해상도 프리셋은 스킵되고, 업스케일(확대)도 허용된다.
      * 프리셋별 부분 실패는 다른 프리셋에 영향 없이 결과에 FAILED 로 표기되며, 전부 실패하면 500 으로 응답한다.
@@ -267,7 +267,7 @@ public class VideoController {
      */
     @Operation(
             summary = "해상도 변경 — 파생영상 생성 (REVIEWER)",
-            description = "검수 완료(APPROVED) 원본 영상에서 표준 프리셋(RES_1080P/RES_720P/RES_480P)마다 새 파생영상(RAW_SN)을 " +
+            description = "검수 완료(APPROVED) 원본 영상에서 표준 프리셋(RESL_1080P/RESL_720P/RESL_480P)마다 새 파생영상(RAW_SN)을 " +
                     "생성한다. 요청 바디의 presets 는 선택이며 미지정 시 표준 3종 전체를 생성한다. 원본과 동일 해상도 프리셋은 " +
                     "스킵되고, 업스케일(확대)도 허용된다. 프리셋별 부분 실패는 다른 프리셋에 영향 없이 결과에 FAILED 로 표기된다. " +
                     "증강본(ORGNL_RAW_SN 보유)·미검수 영상은 거부된다."

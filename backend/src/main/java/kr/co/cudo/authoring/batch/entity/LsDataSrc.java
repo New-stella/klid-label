@@ -65,11 +65,13 @@ public class LsDataSrc {
     private LocalDateTime updDt;
 
     @Builder
-    private LsDataSrc(Long rawSn, Long frameNo, Long videoFrameNo, String srcFilePathNm, LocalDateTime shtDt) {
+    private LsDataSrc(Long rawSn, Long frameNo, Long videoFrameNo, String srcFilePathNm,
+                      String deIdntfSrcFilePathNm, LocalDateTime shtDt) {
         this.rawSn = rawSn;
         this.frameNo = frameNo;
         this.videoFrameNo = videoFrameNo;
         this.srcFilePathNm = srcFilePathNm;
+        this.deIdntfSrcFilePathNm = deIdntfSrcFilePathNm;
         this.shtDt = shtDt;
         this.regDt = LocalDateTime.now();
     }
@@ -91,6 +93,22 @@ public class LsDataSrc {
                 .frameNo(frameNo)
                 .videoFrameNo(videoFrameNo)
                 .srcFilePathNm(srcFilePathNm)
+                .shtDt(shtDt)
+                .build();
+    }
+
+    /**
+     * 파생 프레임 row 생성 — 비식별 프레임 경로({@code deIdntfSrcFilePathNm})를 최초 INSERT 에 함께 담는다
+     * (해상도 파생 Phase C — MEDIUM DB: {@code attachDeidPath} setter dirty-update 제거로 프레임당 UPDATE 왕복 제거).
+     */
+    public static LsDataSrc create(Long rawSn, long frameNo, Long videoFrameNo, String srcFilePathNm,
+                                   String deIdntfSrcFilePathNm, LocalDateTime shtDt) {
+        return LsDataSrc.builder()
+                .rawSn(rawSn)
+                .frameNo(frameNo)
+                .videoFrameNo(videoFrameNo)
+                .srcFilePathNm(srcFilePathNm)
+                .deIdntfSrcFilePathNm(deIdntfSrcFilePathNm)
                 .shtDt(shtDt)
                 .build();
     }

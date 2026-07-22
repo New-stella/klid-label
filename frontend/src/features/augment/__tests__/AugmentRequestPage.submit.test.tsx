@@ -127,7 +127,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
           success: true,
           data: {
             derivatives: [
-              { rawSn: 101, goalResCd: 'RES_720P', targetW: 1280, targetH: 720, status: 'CREATED' },
+              { rawSn: 101, goalResCd: 'RESL_720P', targetW: 1280, targetH: 720, status: 'CREATED' },
             ],
           },
           message: null,
@@ -151,7 +151,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     });
     expect(url).toBe('/videos/2/resolution');
     const sent = body as unknown as { presets: string[] };
-    expect(sent.presets).toEqual(['RES_720P']);
+    expect(sent.presets).toEqual(['RESL_720P']);
   });
 
   it('영상_미선택이면_실행버튼이_비활성이다', async () => {
@@ -213,9 +213,9 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
       success: true,
       data: {
         derivatives: [
-          { rawSn: 201, goalResCd: 'RES_1080P', targetW: 1920, targetH: 1080, status: 'CREATED' },
-          { rawSn: 202, goalResCd: 'RES_720P', targetW: 1280, targetH: 720, status: 'CREATED' },
-          { rawSn: 203, goalResCd: 'RES_480P', targetW: 854, targetH: 480, status: 'CREATED' },
+          { rawSn: 201, goalResCd: 'RESL_1080P', targetW: 1920, targetH: 1080, status: 'CREATED' },
+          { rawSn: 202, goalResCd: 'RESL_720P', targetW: 1280, targetH: 720, status: 'CREATED' },
+          { rawSn: 203, goalResCd: 'RESL_480P', targetW: 854, targetH: 480, status: 'CREATED' },
         ],
       },
       message: null,
@@ -244,8 +244,8 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
       success: true,
       data: {
         derivatives: [
-          { rawSn: 301, goalResCd: 'RES_1080P', targetW: 1920, targetH: 1080, status: 'CREATED' },
-          { rawSn: null, goalResCd: 'RES_480P', targetW: 854, targetH: 480, status: 'FAILED' },
+          { rawSn: 301, goalResCd: 'RESL_1080P', targetW: 1920, targetH: 1080, status: 'CREATED' },
+          { rawSn: null, goalResCd: 'RESL_480P', targetW: 854, targetH: 480, status: 'FAILED' },
         ],
       },
       message: null,
@@ -291,7 +291,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
       success: true,
       data: {
         derivatives: [
-          { rawSn: 401, goalResCd: 'RES_480P', targetW: 854, targetH: 480, status: 'CREATED' },
+          { rawSn: 401, goalResCd: 'RESL_480P', targetW: 854, targetH: 480, status: 'CREATED' },
         ],
       },
       message: null,
