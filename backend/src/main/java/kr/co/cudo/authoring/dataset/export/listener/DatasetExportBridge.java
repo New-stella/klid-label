@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.dataset.export.listener;
 
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
+import kr.co.cudo.authoring.dataset.export.event.DatasetReExportEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -35,6 +36,18 @@ public class DatasetExportBridge {
     public void onReviewApproved(ReviewApprovedEvent event) {
         Long rawSn = event.rawSn();
         log.info("[DatasetExportBridge] review approved rawSn={} — triggering dataset export", rawSn);
+        runner.runAsync(rawSn);
+    }
+
+    /**
+     * 재동결(예: event_annotation 지연 승인)로 동결 스냅샷이 갱신된 뒤 export 재생성을 트리거한다.
+     * {@code onReviewApproved} 와 동일하게 AFTER_COMMIT 로 재동결 커밋 후에만 산출을 시작하며,
+     * TASK_COMPLETED 재발행 없이 export 만 갱신한다(통지는 발행 측이 TASK_MODIFIED 로 별도 처리).
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onReExport(DatasetReExportEvent event) {
+        Long rawSn = event.rawSn();
+        log.info("[DatasetExportBridge] re-export requested rawSn={} — triggering dataset export", rawSn);
         runner.runAsync(rawSn);
     }
 }

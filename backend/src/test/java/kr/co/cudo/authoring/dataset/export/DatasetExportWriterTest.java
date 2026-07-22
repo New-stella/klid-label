@@ -55,7 +55,7 @@ class DatasetExportWriterTest {
         frameSource = mock(FrameSource.class);
         niaJsonBuilder = mock(NiaJsonBuilder.class);
         writer = new DatasetExportWriter(resolver, frameSource, niaJsonBuilder, objectMapper);
-        ctx = new VideoExportContext(null, null, "7", null, null, null, null);
+        ctx = new VideoExportContext(null, null, "7", null, null, null, null, null);
     }
 
     private LsDataSrc frame(long frameNo) {
@@ -73,7 +73,7 @@ class DatasetExportWriterTest {
     }
 
     private NiaAnnotationDoc stubDoc() {
-        return new NiaAnnotationDoc(null, null, null, null, null, null, null, "instances");
+        return new NiaAnnotationDoc(null, null, null, null, null, null, null, null, "instances");
     }
 
     @Test
@@ -150,12 +150,13 @@ class DatasetExportWriterTest {
         // when
         ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
-        // then — 파일을 다시 파싱해 8키 유효 + 직렬화 바이트가 빌더 결과와 동일
+        // then — 파일을 다시 파싱해 9키 유효(event_annotation 포함) + 직렬화 바이트가 빌더 결과와 동일
         byte[] onDisk = Files.readAllBytes(result.dir().resolve("frame-0.json"));
         assertThat(onDisk).isEqualTo(objectMapper.writeValueAsBytes(doc));
         JsonNode tree = objectMapper.readTree(onDisk);
         assertThat(tree.fieldNames()).toIterable().containsExactlyInAnyOrder(
-                "info", "dataset", "licences", "video", "image", "annotations", "categories", "type");
+                "info", "dataset", "licences", "video", "event_annotation",
+                "image", "annotations", "categories", "type");
         assertThat(tree.get("type").asText()).isEqualTo("instances");
     }
 

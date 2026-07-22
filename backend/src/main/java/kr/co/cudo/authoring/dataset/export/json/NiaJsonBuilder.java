@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.dataset.export.json;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -56,6 +57,20 @@ public class NiaJsonBuilder {
      * @param usedLabels 이 영상에서 사용된 라벨 마스터 집합 (categories 원천)
      */
     public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw, Collection<LsLabel> usedLabels) {
+        return prepareContext(meta, raw, usedLabels, null);
+    }
+
+    /**
+     * rawSn 단위 공통 컨텍스트를 1회 준비한다(동결 event_annotation 포함 오버로드).
+     *
+     * @param meta            영상 메타 스냅샷 (필수)
+     * @param raw             원시 영상 (선택 — null 허용)
+     * @param usedLabels      이 영상에서 사용된 라벨 마스터 집합 (categories 원천)
+     * @param eventAnnotation 승인 시점 동결된 event_annotation payload(JsonNode, null 허용) — 각 프레임
+     *                        문서 최상위 {@code event_annotation} 으로 pass-through(키/형태 보존)
+     */
+    public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw,
+                                             Collection<LsLabel> usedLabels, JsonNode eventAnnotation) {
         if (meta == null) {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "영상 메타가 null 입니다.");
@@ -70,7 +85,7 @@ public class NiaJsonBuilder {
         NiaDataset dataset = new NiaDataset(videoId, baseNameNoExt(rawPath), rawPath, null);
         List<NiaLicence> licences = List.of(NiaLicence.privateUse());
 
-        return new VideoExportContext(meta, raw, videoId, info, dataset, licences, categories);
+        return new VideoExportContext(meta, raw, videoId, info, dataset, licences, categories, eventAnnotation);
     }
 
     /**
@@ -91,7 +106,7 @@ public class NiaJsonBuilder {
 
         return new NiaAnnotationDoc(
                 ctx.info(), ctx.dataset(), ctx.licences(),
-                video, image, annotations, ctx.categories(), TYPE_INSTANCES);
+                video, ctx.eventAnnotation(), image, annotations, ctx.categories(), TYPE_INSTANCES);
     }
 
     private NiaImage buildImage(VideoExportContext ctx, LsDataSrc src, ExportKind kind) {
@@ -178,7 +193,8 @@ public class NiaJsonBuilder {
             NiaInfo info,
             NiaDataset dataset,
             List<NiaLicence> licences,
-            List<NiaCategory> categories
+            List<NiaCategory> categories,
+            JsonNode eventAnnotation
     ) {
     }
 

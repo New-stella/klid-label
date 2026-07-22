@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.dataset.export;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -55,6 +57,7 @@ public class DatasetExportTxService {
     private final NiaJsonBuilder niaJsonBuilder;
     private final LabelContentHasher contentHasher;
     private final DatasetExportPathResolver pathResolver;
+    private final ObjectMapper objectMapper;
 
     public DatasetExportTxService(LsDataSrcRepository srcRepository,
                                   LsDataLblRepository labelRepository,
@@ -64,7 +67,8 @@ public class DatasetExportTxService {
                                   LsDatasetExportRepository exportRepository,
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
-                                  DatasetExportPathResolver pathResolver) {
+                                  DatasetExportPathResolver pathResolver,
+                                  ObjectMapper objectMapper) {
         this.srcRepository = srcRepository;
         this.labelRepository = labelRepository;
         this.videoMetaRepository = videoMetaRepository;
@@ -74,6 +78,7 @@ public class DatasetExportTxService {
         this.niaJsonBuilder = niaJsonBuilder;
         this.contentHasher = contentHasher;
         this.pathResolver = pathResolver;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -108,7 +113,10 @@ public class DatasetExportTxService {
                 .collect(Collectors.groupingBy(LsDataLbl::getSrcSn));
 
         List<LsLabel> usedLabels = loadUsedLabels(allLabels);
-        VideoExportContext ctx = niaJsonBuilder.prepareContext(meta, raw, usedLabels);
+        // 동결 event_annotation(C2) — 활성 메타 스냅샷의 EVNT_ANNO_CN(승인 시점 동결본)만 사용한다.
+        // export 는 LS_EVNT_ANNO(라이브)를 조회하지 않으므로 승인 후 편집분에 오염되지 않는다(멱등).
+        JsonNode eventAnnotation = parseEventAnnotation(meta.getEvntAnnoCn(), rawSn);
+        VideoExportContext ctx = niaJsonBuilder.prepareContext(meta, raw, usedLabels, eventAnnotation);
 
         List<FrameContext> frameContexts = new ArrayList<>(frames.size());
         for (LsDataSrc frame : frames) {
@@ -189,6 +197,26 @@ public class DatasetExportTxService {
         stale.forEach(LsDatasetExport::markFailed);
         // 엔티티는 영속 상태라 dirty checking 으로 flush 됨. 로그는 caller(sweeper)에서.
         return stale.size();
+    }
+
+    /**
+     * 동결 event_annotation payload(jsonb 원문 문자열)를 {@link JsonNode} 로 파싱한다 — 각 프레임 문서에
+     * 최상위 {@code event_annotation} 으로 pass-through(키 순서·형태 보존)하기 위함이다.
+     *
+     * <p>null/blank 면 null(동결 대상 없음). 파싱 실패는 산출을 깨지 않도록 null 로 fail-secure 처리하고
+     * rawSn 만 로깅한다(payload 원문/PII 미출력, CWE-359/117). 동결본은 저장 전 검증된 jsonb 이므로
+     * 정상 경로에서는 항상 파싱된다.
+     */
+    private JsonNode parseEventAnnotation(String evntAnnoCn, long rawSn) {
+        if (evntAnnoCn == null || evntAnnoCn.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(evntAnnoCn);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.warn("[DatasetExport] frozen event_annotation parse failed — omitted rawSn={}", rawSn);
+            return null;
+        }
     }
 
     /** 라벨에서 참조된 라벨 마스터(categories 원천)를 distinct labelId 로 일괄 로드. */

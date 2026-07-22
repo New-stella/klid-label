@@ -40,6 +40,7 @@ import { ObjectAttributePanel } from '@/features/label/components/ObjectAttribut
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
 import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
+import { EventAnnotationPanel } from '@/features/label/components/EventAnnotationPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
@@ -1209,6 +1210,8 @@ export function LabelingPage() {
               <FrameDescriptionPanel srcSn={data?.srcSn} />
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
               <TimeseriesSidePanel srcSn={data?.srcSn} />
+              {/* event_annotation(외부 VQA/CoT) 수동입력·검토 — 영상(rawSn) 단위, 내부 채널만. */}
+              <EventAnnotationPanel rawSn={data?.videoId} currentSrcSn={data?.srcSn} />
             </div>
           ) : (
             <div

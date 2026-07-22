@@ -205,6 +205,53 @@ class NiaJsonBuilderTest {
     }
 
     @Test
+    @DisplayName("event_annotation이_각_프레임_최상위에_c1cn_형태로_pass_through된다")
+    void eventAnnotationPassThroughAsC1Form() throws Exception {
+        // given — 동결 event_annotation payload(위키 §24.3.1 — 후보 키 c1..cn, caption/evidence)
+        String frozen = "{"
+                + "\"event_class\":\"assault\","
+                + "\"question\":\"무슨 일이 일어나는가?\","
+                + "\"caption\":{\"c1\":{\"caption_text\":\"두 사람이 다툰다\",\"cot\":[\"1단계\",\"2단계\"]}},"
+                + "\"answer\":\"폭행\","
+                + "\"evidence\":{\"c1\":{\"evidence_text\":\"주먹\",\"obj_id\":[\"o1\",\"o2\"]}}"
+                + "}";
+        JsonNode frozenNode = objectMapper.readTree(frozen);
+        LsDataSrc src = frame();
+        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+        NiaJsonBuilder.VideoExportContext ctx =
+                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")), frozenNode);
+
+        // when — 프레임 문서 조립 후 직렬화(파일 산출과 동일 경로)
+        NiaAnnotationDoc doc = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
+        JsonNode json = objectMapper.valueToTree(doc);
+
+        // then — 최상위 event_annotation 키 + 원문 형태(c1/caption_text/cot/evidence) 보존
+        assertThat(json.has("event_annotation")).isTrue();
+        JsonNode ea = json.get("event_annotation");
+        assertThat(ea.path("event_class").asText()).isEqualTo("assault");
+        assertThat(ea.path("caption").has("c1")).isTrue();
+        assertThat(ea.path("caption").path("c1").path("caption_text").asText()).isEqualTo("두 사람이 다툰다");
+        assertThat(ea.path("caption").path("c1").path("cot").isArray()).isTrue();
+        assertThat(ea.path("caption").path("c1").path("cot")).hasSize(2);
+        assertThat(ea.path("evidence").path("c1").path("evidence_text").asText()).isEqualTo("주먹");
+        JsonNode objId = ea.path("evidence").path("c1").path("obj_id");
+        assertThat(objId.isArray()).isTrue();
+        assertThat(objId.get(0).asText()).isEqualTo("o1");
+    }
+
+    @Test
+    @DisplayName("동결_event_annotation이_없으면_event_annotation키는_null이다")
+    void eventAnnotationNullWhenAbsent() {
+        // given / when — eventAnnotation 미주입(3-arg 오버로드 → null)
+        JsonNode json = objectMapper.valueToTree(buildDoc(ExportKind.ORIGINAL));
+
+        // then — 키는 항상 present(자기완결), 값만 null (클래스 ALWAYS 정책)
+        assertThat(json.has("event_annotation")).isTrue();
+        assertThat(json.get("event_annotation").isNull()).isTrue();
+    }
+
+    @Test
     @DisplayName("프레임설명_FRM_EXPLN이_image_description에_반영된다")
     void frameDescriptionMappedToImage() {
         // given / when

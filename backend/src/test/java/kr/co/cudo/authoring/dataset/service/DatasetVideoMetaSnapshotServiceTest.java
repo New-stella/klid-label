@@ -7,6 +7,8 @@ import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRepository;
 import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRow;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
+import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
+import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoReviewRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +38,8 @@ class DatasetVideoMetaSnapshotServiceTest {
     private DatasetMetaSourceRepository sourceRepository;
     private LsDatasetVideoMetaRepository metaRepository;
     private LsMetaReplOutboxRepository outboxRepository;
+    private LsEvntAnnoRepository evntAnnoRepository;
+    private LsEvntAnnoReviewRepository evntAnnoReviewRepository;
     private DatasetVideoMetaSnapshotService service;
 
     @BeforeEach
@@ -43,8 +47,11 @@ class DatasetVideoMetaSnapshotServiceTest {
         sourceRepository = mock(DatasetMetaSourceRepository.class);
         metaRepository = mock(LsDatasetVideoMetaRepository.class);
         outboxRepository = mock(LsMetaReplOutboxRepository.class);
+        evntAnnoRepository = mock(LsEvntAnnoRepository.class);
+        evntAnnoReviewRepository = mock(LsEvntAnnoReviewRepository.class);
         service = new DatasetVideoMetaSnapshotService(
                 sourceRepository, metaRepository, outboxRepository,
+                evntAnnoRepository, evntAnnoReviewRepository,
                 new SnapshotHasher(), new ObjectMapper());
         // 기본: 신규 삽입(1행).
         when(metaRepository.upsertSnapshot(any())).thenReturn(1);
