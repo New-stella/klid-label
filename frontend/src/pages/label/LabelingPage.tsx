@@ -33,7 +33,7 @@ import {
   type LabelHistoryItem,
   type Sam2TrackedItem,
 } from '@/features/label/api';
-import type { AiToolMode } from '@/features/label/components/AiToolModal';
+import type { AiToolMode, AiToolOpts } from '@/features/label/components/AiToolModal';
 import { YOLO_CLASSES } from '@/features/label/constants/yoloClasses';
 import { ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
@@ -49,6 +49,7 @@ import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatShe
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useAutolabel } from '@/features/label/hooks/useAutolabel';
+import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
@@ -516,6 +517,15 @@ export function LabelingPage() {
   // "즉시 그리기" 토글 — AI 분할 클릭마다 미리보기 즉시 그리기. 기본 OFF(false).
   // AiToolModal 에서 토글하고 CanvasShell→OverlayLayer 의 immediateSegment 로 배선된다.
   const [immediateDraw, setImmediateDraw] = useState(false);
+  // Phase 2 [FE] — AI 정밀도 프리필. 시스템 설정값을 슬라이더 기본값으로 사용(실패/로딩 시 undefined →
+  // 컴포넌트 코드 상수 폴백). 인식 민감도는 정수%(0~80) → /100(0~1) 변환, 경계 세밀함은 그대로.
+  const { data: sysConfigs } = useConfigs();
+  const defaultConfThreshold =
+    sysConfigs?.YOLO_CONF_THRESHOLD != null ? sysConfigs.YOLO_CONF_THRESHOLD / 100 : undefined;
+  const defaultSimplifyTolerance = sysConfigs?.POLYGON_SIMPLIFY_TOLERANCE;
+  // AI 분할 경계 세밀함 조절값 — undefined=미조절(프리필만 표시, 요청 미포함). 조절 시 숫자로 채워져
+  // CanvasShell → 분할 요청 payload 에 주입된다(무회귀).
+  const [segmentTolerance, setSegmentTolerance] = useState<number | undefined>(undefined);
   // R12 — 트랙 모드 선택 시 팝업의 형태·라벨을 state 로 유지한다. 단 모달 형태는 더 이상
   // BBOX/POLYGON 객체의 추적 출력 형태를 강제하지 않는다(확정 사양). 실제 출력 형태는
   // ObjectAttributePanel 이 `shapeToDetectType(target.shape) ?? track.shape` 로 결정 —
@@ -588,7 +598,12 @@ export function LabelingPage() {
   );
 
   // AI Tool 확정 → 일반(단일 프레임 검출/분할) 또는 트랙(후속 프레임 추적) 실행.
-  const runAiTool = async (shape: DetectShapeType, classIds: string[], mode: AiToolMode) => {
+  const runAiTool = async (
+    shape: DetectShapeType,
+    classIds: string[],
+    mode: AiToolMode,
+    opts?: AiToolOpts,
+  ) => {
     setAutolabelModalOpen(false);
     if (!currentFrame) return;
     if (mode === 'track') {
@@ -612,7 +627,8 @@ export function LabelingPage() {
       return;
     }
     try {
-      const res = await autolabel(classIds, shape);
+      // opts 는 사용자가 슬라이더를 조절한 값만 담긴다(미조절이면 undefined → BE 기본값, 무회귀).
+      const res = await autolabel(classIds, shape, opts);
       if (!res) return;
       // 내부 mock(모델 미로드) 시 BE 가 ApiResponse.message 를 세팅 → 경고 토스트로 자동적용 차단.
       if (res.message) {
@@ -1052,6 +1068,8 @@ export function LabelingPage() {
         canTrack={nextSrcSns.length > 0}
         immediateDraw={immediateDraw}
         onImmediateDrawChange={setImmediateDraw}
+        defaultConfThreshold={defaultConfThreshold}
+        defaultSimplifyTolerance={defaultSimplifyTolerance}
       />
 
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
@@ -1089,6 +1107,7 @@ export function LabelingPage() {
                 onImageSize={handleImageSize}
                 portalMode={portalMode}
                 immediateSegment={immediateDraw}
+                segmentSimplifyTolerance={segmentTolerance}
               />
             </Suspense>
           ) : (
@@ -1238,6 +1257,13 @@ export function LabelingPage() {
                     label: trackLabel,
                     // 미저장 병합 + 부분/전체 안내 토스트. tracked 는 후속 프레임 결과.
                     onTracked: handleTracked,
+                  }}
+                  // Phase 2 [FE] — AI 분할 도구 활성 시 경계 세밀함 조절. 프리필=시스템 설정값,
+                  // 조절 시에만 segmentTolerance 로 올라가 분할 요청에 배선(미조절이면 BE 기본값).
+                  segment={{
+                    defaultTolerance: defaultSimplifyTolerance,
+                    tolerance: segmentTolerance,
+                    onToleranceChange: setSegmentTolerance,
                   }}
                 />
               </div>

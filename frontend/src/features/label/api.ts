@@ -752,6 +752,11 @@ export interface Sam2SegmentRequest {
   points?: number[][];
   /** 드래그 박스 [x1, y1, x2, y2] (image px). 포인트 미사용 시. */
   box?: [number, number, number, number];
+  /**
+   * (Phase 2 FE) 경계 세밀함 — 폴리곤 단순화 tolerance 0~50(px). 미지정이면 body 에 미포함 →
+   * BE 가 시스템 설정 기본값(POLYGON_SIMPLIFY_TOLERANCE)을 사용한다(무회귀).
+   */
+  simplifyTolerance?: number;
 }
 
 export interface Sam2SegmentResponse {
@@ -780,8 +785,13 @@ export function requestSam2Segment(
   portalMode = false,
 ): Promise<Sam2SegmentResponse> {
   const base = portalMode ? '/portal/frames' : '/frames';
+  // body 를 명시 조립 — simplifyTolerance 는 숫자일 때만 포함(undefined 는 생략 → BE 기본값, 무회귀).
+  const body: Record<string, unknown> = { srcSn };
+  if (payload.points !== undefined) body.points = payload.points;
+  if (payload.box !== undefined) body.box = payload.box;
+  if (typeof payload.simplifyTolerance === 'number') body.simplifyTolerance = payload.simplifyTolerance;
   return apiClient
-    .post<Sam2SegmentResponse>(`${base}/${srcSn}/sam2-segment`, { srcSn, ...payload })
+    .post<Sam2SegmentResponse>(`${base}/${srcSn}/sam2-segment`, body)
     // message 보존: 인터셉터가 unwrap 한 ApiResponse.message 를 data 에 병합해 FE 가 mock 안내를 읽을 수 있게 한다.
     .then((r) => ({ ...r.data, message: r.message ?? null }));
 }
@@ -827,19 +837,32 @@ export interface AutolabelResponse {
  * @param classIds (Phase 4 — R3) 검출 대상 클래스(COCO 영문명) 화이트리스트. 미지정/빈 배열이면
  *                 classes 없이 호출(전체 검출, 하위호환). 지정 시 body {classes:[...]} 로 필터.
  * @param shape    (Phase 4 — R? B) 검출 형태 'BBOX'|'POLYGON'. 미지정이면 body 에 shape 미포함(BE 기본 BBOX).
+ * @param opts     (Phase 2 FE) 조절된 정밀도 옵션. 각 값은 숫자일 때만 body 에 포함(미조절이면 생략 →
+ *                 BE 가 시스템 설정 기본값 사용, 무회귀).
+ *                 - confThreshold     : 인식 민감도 0.25~0.80
+ *                 - simplifyTolerance : 경계 세밀함 0~50 (폴리곤 검출)
  *
  * 보안: srcSn 은 path 파라미터(axios 자동 인코딩). shape 는 화이트리스트('BBOX'|'POLYGON')만 전달.
- *       IDOR·작업락·좌표검증·포털 차단은 BE 책임(ADR-013). classes 크기 검증은 BE @Valid.
+ *       IDOR·작업락·좌표검증·포털 차단은 BE 책임(ADR-013). classes/범위 검증은 BE @Valid.
  */
 export function requestAutolabel(
   srcSn: number,
   classIds?: string[],
   shape?: DetectShapeType,
+  opts?: { confThreshold?: number; simplifyTolerance?: number },
 ): Promise<AutolabelResponse> {
-  const body: { classes?: string[]; shape?: DetectShapeType } = {};
+  const body: {
+    classes?: string[];
+    shape?: DetectShapeType;
+    confThreshold?: number;
+    simplifyTolerance?: number;
+  } = {};
   if (classIds && classIds.length > 0) body.classes = classIds;
   // 입력검증 — 화이트리스트 외 값은 무시(방어).
   if (shape === 'BBOX' || shape === 'POLYGON') body.shape = shape;
+  // 정밀도 옵션 — 숫자일 때만 포함(미조절/NaN 은 생략 → BE 기본값).
+  if (typeof opts?.confThreshold === 'number') body.confThreshold = opts.confThreshold;
+  if (typeof opts?.simplifyTolerance === 'number') body.simplifyTolerance = opts.simplifyTolerance;
   // body 가 비면 인자 없이 호출 — 기존 호출 형태 유지(무회귀, api.test 정합).
   const post =
     Object.keys(body).length > 0

@@ -231,6 +231,58 @@ class Sam2SegmentServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
     }
 
+    /** 공선점 하나가 포함된 5점 폴리곤 — epsilon 1.0 단순화 시 4점, 0.0 이면 원본 유지. */
+    private Sam2Response polygon5() {
+        return new Sam2Response(List.of(
+                List.of(0.0, 0.0), List.of(5.0, 0.0), List.of(10.0, 0.0),
+                List.of(10.0, 10.0), List.of(0.0, 10.0)),
+                0.9, false, "model", null);
+    }
+
+    @Test
+    @DisplayName("AI분할_simplifyTolerance_요청값이_적용되고_없으면_시스템설정값을_쓴다")
+    void simplifyToleranceOverride() {
+        when(aiServerClient.segment(any())).thenReturn(Mono.just(polygon5()));
+
+        // override 0.0 → 단순화 비활성(원본 5점) + 시스템설정 미조회(요청값 우선).
+        var reqOverride = new Sam2SegmentRequest(SRC_SN, List.of(List.of(10.0, 10.0)), null, 0.0);
+        Sam2SegmentResponse rawRes = service.segment(reqOverride, reviewer);
+        assertThat(rawRes.polygon()).hasSize(5);
+        verify(systemConfigService, never()).getDouble(any());
+
+        // override 없음(null) → 시스템설정 1.0 적용(공선점 제거 4점).
+        Sam2SegmentResponse cfgRes = service.segment(pointReq(), reviewer);
+        assertThat(cfgRes.polygon()).hasSize(4);
+        verify(systemConfigService).getDouble(any());
+    }
+
+    @Test
+    @DisplayName("AI분할_simplify_결과가_3점미만이면_원본폴리곤유지")
+    void simplifyBelowMinKeepsOriginalPolygon() {
+        when(aiServerClient.segment(any())).thenReturn(Mono.just(polygon5()));
+
+        // 큰 tolerance(100.0)로 Douglas-Peucker 가 시작/끝 2점(<MIN_POLYGON_POINTS=3)으로 축소된다.
+        // DTO 검증(0.0~50.0) 밖 값이라 서비스로 직접 전달해 우회한다.
+        var req = new Sam2SegmentRequest(SRC_SN, List.of(List.of(10.0, 10.0)), null, 100.0);
+        Sam2SegmentResponse res = service.segment(req, reviewer);
+
+        // 3점 미만 축소 시 형태 보존을 위해 원본 응답 폴리곤(5점)이 그대로 유지된다.
+        assertThat(res.polygon()).hasSize(5);
+    }
+
+    @Test
+    @DisplayName("AI분할_simplify_시스템설정_조회실패시_상수1.0으로_폴백한다")
+    void simplifySystemConfigFailureFallsBack() {
+        // readSimplifyTolerance() 내부 systemConfigService.getDouble 이 예외 → catch 폴백(상수 1.0).
+        when(systemConfigService.getDouble(any())).thenThrow(new RuntimeException("db down"));
+        when(aiServerClient.segment(any())).thenReturn(Mono.just(polygon5()));
+
+        // override 미지정(null) → 폴백 1.0 적용으로 공선점 제거(4점). 조회 실패해도 예외 전파 없이 정상 반환.
+        Sam2SegmentResponse res = service.segment(pointReq(), reviewer);
+
+        assertThat(res.polygon()).hasSize(4);
+    }
+
     @Test
     @DisplayName("ai서버_빈_응답시_외부API_오류")
     void aiServerEmptyResponse() {

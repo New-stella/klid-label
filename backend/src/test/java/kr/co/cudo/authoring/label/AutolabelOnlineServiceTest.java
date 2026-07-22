@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.label.service.AutolabelOnlineService;
 import kr.co.cudo.authoring.label.service.FrameImageEncoder;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -433,6 +434,52 @@ class AutolabelOnlineServiceTest {
 
         verify(aiServerClient).predictYoloTrack(cap.capture());
         assertThat(cap.getValue().classes()).isNull();
+    }
+
+    // ── FEAT-007: 인식 민감도(conf) per-request override + 폴백(무회귀) ──────────
+
+    @Test
+    @DisplayName("AI탐지_confThreshold_요청에있으면_그값으로_ai호출한다")
+    void confThresholdOverrideForwarded() {
+        stubAi(oneDetection());
+        ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
+                ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
+
+        service.autolabel(SRC_SN, worker, null, null, 0.75, null);
+
+        verify(aiServerClient).predictYoloTrack(cap.capture());
+        assertThat(cap.getValue().confThreshold()).isEqualTo(0.75);
+    }
+
+    @Test
+    @DisplayName("AI탐지_confThreshold_없으면_시스템설정_기본값으로_호출한다")
+    void confThresholdNullUsesSystemConfig() {
+        // 시스템설정 YOLO_CONF_THRESHOLD=50(정수 백분율) → 0.50 으로 호출(기존 폴백 경로 유지).
+        when(systemConfigService.getInt(ConfigKeys.YOLO_CONF_THRESHOLD)).thenReturn(50);
+        stubAi(oneDetection());
+        ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
+                ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
+
+        service.autolabel(SRC_SN, worker, null, null, null, null);
+
+        verify(aiServerClient).predictYoloTrack(cap.capture());
+        assertThat(cap.getValue().confThreshold()).isEqualTo(0.50);
+    }
+
+    @Test
+    @DisplayName("AI탐지_시스템설정_조회실패시_코드상수로_폴백한다_회귀방지")
+    void confThresholdSystemConfigFailureFallsBackToConstant() {
+        // 시스템설정 조회가 예외를 던져도 코드 상수(0.4)로 폴백해야 한다(무회귀).
+        when(systemConfigService.getInt(ConfigKeys.YOLO_CONF_THRESHOLD))
+                .thenThrow(new RuntimeException("db down"));
+        stubAi(oneDetection());
+        ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
+                ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
+
+        service.autolabel(SRC_SN, worker, null, null, null, null);
+
+        verify(aiServerClient).predictYoloTrack(cap.capture());
+        assertThat(cap.getValue().confThreshold()).isEqualTo(0.4);
     }
 
     // ── F-1: 오케스트레이션 비트랜잭셔널(커넥션 미점유) ─────────────────────────

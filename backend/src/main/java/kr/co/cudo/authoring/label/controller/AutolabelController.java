@@ -66,8 +66,11 @@ public class AutolabelController {
         java.util.List<String> classes = request == null ? null : request.classesOrNull();
         // shape 미지정(null) → BBOX(하위호환). POLYGON 이면 검출 박스마다 SAM 분할 폴리곤 반환(R12).
         kr.co.cudo.authoring.label.dto.AutolabelShape shape = request == null ? null : request.shape();
+        // 정밀도 override(FEAT-007) — 미지정(null)이면 서비스가 시스템설정→상수 폴백 경로를 그대로 사용(무회귀).
+        Double confThreshold = request == null ? null : request.confThreshold();
+        Double simplifyTolerance = request == null ? null : request.simplifyTolerance();
         AutolabelOnlineService.AutolabelOutcome outcome =
-                autolabelOnlineService.autolabel(srcSn, actor, classes, shape);
+                autolabelOnlineService.autolabel(srcSn, actor, classes, shape, confThreshold, simplifyTolerance);
         // 안내 우선순위: 폴리곤 상한/부분실패 message > 내부 mock 안내 > 정상(message 없음).
         // FE 는 message 유무로 경고를 표시하고 정상 "0건 검출" 과 구분한다(SAM2 세그와 대칭).
         if (outcome.message() != null) {

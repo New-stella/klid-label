@@ -535,6 +535,51 @@ describe('label api', () => {
       expect(hadBody).toBe(false);
     });
 
+    it('requestAutolabel_opts주면_body에_confThreshold_simplifyTolerance_포함', async () => {
+      let sentBody: unknown = 'NONE';
+      mock.onPost('/frames/20/autolabel').reply((config) => {
+        sentBody = config.data ? JSON.parse(config.data) : null;
+        return [200, { success: true, data: { srcSn: 20, savedCount: 0, labels: [] }, message: null, errorCode: null }];
+      });
+
+      await requestAutolabel(20, ['person'], 'POLYGON', { confThreshold: 0.6, simplifyTolerance: 5 });
+      expect(sentBody).toEqual({
+        classes: ['person'],
+        shape: 'POLYGON',
+        confThreshold: 0.6,
+        simplifyTolerance: 5,
+      });
+    });
+
+    it('requestAutolabel_opts_미지정시_body에_정밀도키_생략_무회귀', async () => {
+      let sentBody: unknown = 'NONE';
+      mock.onPost('/frames/21/autolabel').reply((config) => {
+        sentBody = config.data ? JSON.parse(config.data) : null;
+        return [200, { success: true, data: { srcSn: 21, savedCount: 0, labels: [] }, message: null, errorCode: null }];
+      });
+
+      await requestAutolabel(21, ['person'], 'BBOX');
+      expect(sentBody).toEqual({ classes: ['person'], shape: 'BBOX' });
+    });
+
+    it('requestSam2Segment_simplifyTolerance주면_body에_포함_안주면_생략', async () => {
+      let withBody: unknown = 'NONE';
+      mock.onPost('/frames/22/sam2-segment').reply((config) => {
+        withBody = config.data ? JSON.parse(config.data) : null;
+        return [200, { success: true, data: { polygon: [], score: 0 }, message: null, errorCode: null }];
+      });
+      await requestSam2Segment(22, { points: [[1, 2]], simplifyTolerance: 7 });
+      expect(withBody).toEqual({ srcSn: 22, points: [[1, 2]], simplifyTolerance: 7 });
+
+      let withoutBody: unknown = 'NONE';
+      mock.onPost('/frames/23/sam2-segment').reply((config) => {
+        withoutBody = config.data ? JSON.parse(config.data) : null;
+        return [200, { success: true, data: { polygon: [], score: 0 }, message: null, errorCode: null }];
+      });
+      await requestSam2Segment(23, { box: [1, 1, 2, 2] });
+      expect(withoutBody).toEqual({ srcSn: 23, box: [1, 1, 2, 2] });
+    });
+
     it('requestAutolabel_빈배열이면_body_없음_전체검출_footgun_방지', async () => {
       let hadBody = true;
       mock.onPost('/frames/14/autolabel').reply((config) => {
