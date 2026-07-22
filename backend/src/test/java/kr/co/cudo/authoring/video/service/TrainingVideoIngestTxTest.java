@@ -159,6 +159,63 @@ class TrainingVideoIngestTxTest {
     }
 
     @Test
+    @DisplayName("VDO_LEN_SEC_500ms는_반올림해_1초로_적재한다")
+    void roundsHalfSecondUpToOne() {
+        // given — 500ms(0.5초). 반올림(half-up) → 1초.
+        MngClipMaster clip = clip("EVT-500", "CLIP-UUID-500", "/nas/500.mp4");
+        ReflectionTestUtils.setField(clip, "vdoLenSec", 500);
+        when(videoRepository.findByVmsClipId("CLIP-UUID-500")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(3200L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip);
+
+        // then — round(0.5)=1 → 1초 적재(0/절삭 아님).
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        assertThat(captor.getValue().getDurationSec()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("VDO_LEN_SEC_490ms는_1초미만이라_null로_두고_backfill에_위임한다")
+    void keepsDurationNullForSubSecondThatRoundsToZero() {
+        // given — 490ms(0.49초). 반올림 → 0. 0 을 영속하지 않고 null 로 둔다(ffprobe back-fill 위임).
+        MngClipMaster clip = clip("EVT-490", "CLIP-UUID-490", "/nas/490.mp4");
+        ReflectionTestUtils.setField(clip, "vdoLenSec", 490);
+        when(videoRepository.findByVmsClipId("CLIP-UUID-490")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(3300L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip);
+
+        // then — round(0.49)=0 → null(0 미영속).
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        assertThat(captor.getValue().getDurationSec()).isNull();
+    }
+
+    @Test
+    @DisplayName("VDO_LEN_SEC가_0이면_durationSec을_null로_적재한다")
+    void keepsDurationNullWhenVdoLenZero() {
+        // given — 관제가 0 을 준 경우(단위 이질/미산출). 0 을 영속하지 않고 null(back-fill 위임).
+        MngClipMaster clip = clip("EVT-ZERO", "CLIP-UUID-ZERO", "/nas/0.mp4");
+        ReflectionTestUtils.setField(clip, "vdoLenSec", 0);
+        when(videoRepository.findByVmsClipId("CLIP-UUID-ZERO")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(3400L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip);
+
+        // then
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        assertThat(captor.getValue().getDurationSec()).isNull();
+    }
+
+    @Test
     @DisplayName("VDO_LEN_SEC가_null이면_durationSec도_null로_적재한다")
     void keepsDurationNullWhenVdoLenNull() {
         // given

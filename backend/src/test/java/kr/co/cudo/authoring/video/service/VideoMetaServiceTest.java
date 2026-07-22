@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.video.service;
 
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.port.VideoProbe.VideoMeta;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -36,11 +38,14 @@ class VideoMetaServiceTest {
     @Mock
     private LsDataMetaRepository metaRepository;
 
+    @Mock
+    private VideoRepository videoRepository;
+
     private VideoMetaService service;
 
     @BeforeEach
     void setUp() {
-        service = new VideoMetaService(metaRepository);
+        service = new VideoMetaService(metaRepository, videoRepository);
     }
 
     private VideoMeta fullMeta(Double fps) {
@@ -191,5 +196,76 @@ class VideoMetaServiceTest {
 
         // then: video.codec 미구성 → upsert 자체 없음
         verify(metaRepository, never()).upsertMeta(anyLong(), anyString(), any());
+    }
+
+    /** 지정한 durationMs 만 담고 나머지는 null/0 인 back-fill 격리용 meta. */
+    private VideoMeta durationOnlyMeta(Long durationMs) {
+        return new VideoMeta(0, 0, null, null, null, durationMs, null);
+    }
+
+    @Test
+    @DisplayName("durationMs_있으면_VDO_LEN_SEC를_초로_backfill_위임")
+    void backfillsDurationSecFromProbe() {
+        // given: ffprobe 길이 30000ms
+        // when
+        service.upsertVideoMeta(RAW_SN, durationOnlyMeta(30_000L));
+
+        // then: 30초로 조건부 back-fill 위임(비었을 때만 채우는 판정은 리포지토리 WHERE 가 담당)
+        verify(videoRepository).backfillDurationSecIfBlank(RAW_SN, 30);
+    }
+
+    @Test
+    @DisplayName("durationMs_1초미만이어도_최소1초로_backfill")
+    void backfillsAtLeastOneSecondForSubSecondDuration() {
+        // given: 500ms(0.5초, 반올림 1) / 490ms(0.49초, 반올림 0 → 최소 1 보정)
+        // when
+        service.upsertVideoMeta(RAW_SN, durationOnlyMeta(500L));
+        service.upsertVideoMeta(RAW_SN, durationOnlyMeta(490L));
+
+        // then: ffprobe 가 길이를 알려준 이상 콘텐츠가 있으므로 최소 1초로 채운다(null 로 두지 않음)
+        verify(videoRepository, times(2)).backfillDurationSecIfBlank(RAW_SN, 1);
+    }
+
+    @Test
+    @DisplayName("durationMs_반올림_backfill")
+    void backfillsRoundedSeconds() {
+        // given: 12500ms → 12.5초 → 반올림 13
+        // when
+        service.upsertVideoMeta(RAW_SN, durationOnlyMeta(12_500L));
+
+        // then
+        verify(videoRepository).backfillDurationSecIfBlank(RAW_SN, 13);
+    }
+
+    @Test
+    @DisplayName("durationMs_null이면_backfill_미호출")
+    void skipsBackfillWhenDurationNull() {
+        // given: durationMs 미상(null), 나머지도 null → 추출 필드 0
+        // when
+        service.upsertVideoMeta(RAW_SN, durationOnlyMeta(null));
+
+        // then: back-fill 위임 없음
+        verify(videoRepository, never()).backfillDurationSecIfBlank(anyLong(), anyInt());
+    }
+
+    @Test
+    @DisplayName("durationMs_0이면_backfill_미호출")
+    void skipsBackfillWhenDurationZero() {
+        // given: durationMs=0(미상 취급)
+        // when
+        service.upsertVideoMeta(RAW_SN, durationOnlyMeta(0L));
+
+        // then
+        verify(videoRepository, never()).backfillDurationSecIfBlank(anyLong(), anyInt());
+    }
+
+    @Test
+    @DisplayName("meta_null이면_backfill도_미호출")
+    void skipsBackfillWhenMetaNull() {
+        // when
+        service.upsertVideoMeta(RAW_SN, null);
+
+        // then: 조기 반환으로 meta·raw 어느 쪽도 건드리지 않는다
+        verify(videoRepository, never()).backfillDurationSecIfBlank(anyLong(), anyInt());
     }
 }
