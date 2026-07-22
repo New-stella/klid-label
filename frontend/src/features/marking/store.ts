@@ -19,7 +19,7 @@ interface MarkingState {
 
 export const useMarkingStore = create<MarkingState>((set, get) => ({
   mode: 'MANUAL',
-  intervalFrames: 30,
+  intervalFrames: 300,
   localMarks: [],
   selectedMarkIndex: null,
 
@@ -54,7 +54,7 @@ export const useMarkingStore = create<MarkingState>((set, get) => ({
   reset: () =>
     set({
       mode: 'MANUAL',
-      intervalFrames: 30,
+      intervalFrames: 300,
       localMarks: [],
       selectedMarkIndex: null,
     }),

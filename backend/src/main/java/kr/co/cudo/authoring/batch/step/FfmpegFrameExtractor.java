@@ -236,14 +236,26 @@ public class FfmpegFrameExtractor implements BatchStep {
 
                     LocalDateTime capturedAt = raw.getShtDt() == null
                             ? null : raw.getShtDt().plus(Duration.ofMillis(seekMillis));
-                    LsDataSrc src = srcRepository.save(
-                            LsDataSrc.create(raw.getRawSn(), i, (long) mark.frameIndex(), frameFile.toString(), capturedAt));
-                    hstryRepository.save(LsDataSrcHstry.recordCreated(src.getSrcSn()));
 
+                    // 비식별 프레임 경로는 INSERT 시점에 함께 담는다(6-arg create). 신규 INSERT 직후 같은
+                    // 트랜잭션에서 attachDeidPath setter dirty-update 로 채우던 옛 패턴은 컬럼이 DB 에
+                    // 반영되지 않아 DE_IDNTF_SRC_FILE_PATH_NM 이 NULL 로 남고 export 가 PARTIAL 이 됐다.
+                    // → 비식별 프레임을 create() 이전에 먼저 쓰고, 경로를 INSERT 에 포함한다.
+                    String deidPath = null;
+                    boolean deidAttached = false;
                     if (deidSource != null && deidOutputDir != null) {
                         Path deidFrame = deidOutputDir.resolve("frame-" + i + ".jpg");
                         frameWriter.writeFrame(deidSource, deidFrame, seekMillis);
-                        src.attachDeidPath(deidFrame.toString());
+                        deidPath = deidFrame.toString();
+                        deidAttached = true;
+                    }
+
+                    LsDataSrc src = srcRepository.save(
+                            LsDataSrc.create(raw.getRawSn(), i, (long) mark.frameIndex(),
+                                    frameFile.toString(), deidPath, capturedAt));
+                    hstryRepository.save(LsDataSrcHstry.recordCreated(src.getSrcSn()));
+                    if (deidAttached) {
+                        // 이력 의미 보존: 비식별을 채운 경우 CREATED + DEID_ATTACHED 2건을 남긴다.
                         hstryRepository.save(LsDataSrcHstry.recordDeidAttached(src.getSrcSn()));
                     }
                     saved.add(src);
