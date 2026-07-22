@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -31,9 +33,11 @@ import static org.mockito.Mockito.when;
  * <p>Phase 2: 비식별 미완료 영상은 배치 트리거를 차단한다 (deIdntfYn != 'Y' → skip).
  * 정상흐름 테스트는 deIdntfYn='Y' 인 비식별 완료 영상을 전제로 한다.
  *
- * <p>D1/D2: BATCH_QUEUED 전이는 {@link BatchTransitionService#tryClaimBatchQueued} 의 조건부
- * 원자 전이(check-and-set)로 위임된다. 트리거 여부는 이 메서드의 반환값(true=권한 획득)에 좌우되며,
- * 동시 2개 마킹 이벤트는 그 중 1건만 true 를 받아 배치가 1회만 트리거된다.
+ * <p>D1/D2/FIX B(CRITICAL 재설계): BATCH_QUEUED 클레임은 2단계 독립 트랜잭션으로 위임된다.
+ * tx1 {@link BatchTransitionService#tryClaimBatchQueued}(조건부 원자 전이) → false 면 tx2
+ * {@link BatchTransitionService#tryCreateBatchQueuedRow}(row 부재 시 별도 tx 로 생성). tx2 가
+ * 동시 노드와 경합해 {@link DataIntegrityViolationException} 을 던지면 브리지가 잡아 skip 한다 →
+ * 정확히 1건만 배치를 트리거한다.
  */
 @ExtendWith(MockitoExtension.class)
 class MarkingBatchBridgeTest {
@@ -79,9 +83,9 @@ class MarkingBatchBridgeTest {
     }
 
     @Test
-    @DisplayName("이벤트_수신_시_BATCH_QUEUED_전이를_원자전이서비스에_위임하고_트리거한다")
-    void onMarkingCompleted_assignedStatus_claimsAndTriggers() {
-        // given — 비식별 완료 영상 + 전이 권한 획득(true)
+    @DisplayName("이벤트_수신_시_tx1_조건부전이가_성공하면_트리거한다 — row생성_불필요")
+    void onMarkingCompleted_tx1Claims_triggers() {
+        // given — 비식별 완료 영상 + tx1 전이 권한 획득(true)
         Long rawSn = 1L;
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
         when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(true);
@@ -91,8 +95,9 @@ class MarkingBatchBridgeTest {
         // when
         bridge.onMarkingCompleted(event);
 
-        // then
+        // then — tx1 만으로 클레임 성공, tx2(row 생성)는 호출하지 않음
         verify(batchTransitionService).tryClaimBatchQueued(eq(rawSn), anyCollection());
+        verify(batchTransitionService, never()).tryCreateBatchQueuedRow(any());
         verify(batchStatusService).markStage(eq(rawSn), eq(BatchStage.PENDING));
         verify(asyncBatchRunner).runAsync(eq(rawSn));
     }
@@ -109,8 +114,9 @@ class MarkingBatchBridgeTest {
         // when
         bridge.onMarkingCompleted(event);
 
-        // then — 배치 트리거 차단 + 전이 시도조차 안 함
+        // then — 배치 트리거 차단 + 클레임 시도조차 안 함
         verify(batchTransitionService, never()).tryClaimBatchQueued(any(), anyCollection());
+        verify(batchTransitionService, never()).tryCreateBatchQueuedRow(any());
         verify(asyncBatchRunner, never()).runAsync(rawSn);
     }
 
@@ -128,16 +134,18 @@ class MarkingBatchBridgeTest {
 
         // then
         verify(batchTransitionService, never()).tryClaimBatchQueued(any(), anyCollection());
+        verify(batchTransitionService, never()).tryCreateBatchQueuedRow(any());
         verify(asyncBatchRunner, never()).runAsync(rawSn);
     }
 
     @Test
-    @DisplayName("전이권한_미획득시_스킵 — 이미_진행중(BATCH_QUEUED/PROCESSING/COMPLETED)")
-    void onMarkingCompleted_claimFailed_skips() {
-        // given — 비식별 완료지만 조건부 전이가 false(이미 진행 중 또는 row 없음)
+    @DisplayName("tx1_false_and_tx2_row존재로_false면_스킵 — 이미_진행중(BATCH_QUEUED/PROCESSING/COMPLETED)")
+    void onMarkingCompleted_bothClaimFalse_skips() {
+        // given — 비식별 완료지만 tx1 조건부 전이 false(이미 SKIP) + tx2 도 row 존재로 false.
         Long rawSn = 3L;
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
         when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(false);
+        when(batchTransitionService.tryCreateBatchQueuedRow(eq(rawSn))).thenReturn(false);
 
         MarkingCompletedEvent event = new MarkingCompletedEvent(rawSn, 300L);
 
@@ -145,6 +153,47 @@ class MarkingBatchBridgeTest {
         bridge.onMarkingCompleted(event);
 
         // then — 트리거 차단
+        verify(batchStatusService, never()).markStage(eq(rawSn), eq(BatchStage.PENDING));
+        verify(asyncBatchRunner, never()).runAsync(rawSn);
+    }
+
+    @Test
+    @DisplayName("FIX_B_미배정영상_작업상태row_없어도_tx2가_row생성후_true면_배치가_트리거된다")
+    void onMarkingCompleted_unassignedRowAbsent_tx2Creates_triggers() {
+        // given — 미배정 REVIEWER 직접 마킹: tx1 은 row 부재로 false, tx2 가 row 를 생성해 true 반환(고착 제거).
+        Long rawSn = 55L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
+        when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(false);
+        when(batchTransitionService.tryCreateBatchQueuedRow(eq(rawSn))).thenReturn(true);
+
+        MarkingCompletedEvent event = new MarkingCompletedEvent(rawSn, 5500L);
+
+        // when
+        bridge.onMarkingCompleted(event);
+
+        // then — 배치 트리거됨(MARKING_READY 고착 안 됨)
+        verify(batchTransitionService).tryClaimBatchQueued(eq(rawSn), anyCollection());
+        verify(batchTransitionService).tryCreateBatchQueuedRow(eq(rawSn));
+        verify(batchStatusService).markStage(eq(rawSn), eq(BatchStage.PENDING));
+        verify(asyncBatchRunner).runAsync(eq(rawSn));
+    }
+
+    @Test
+    @DisplayName("동시_row생성경합_tx2가_DataIntegrityViolationException_던지면_잡아서_스킵 — 정확히1건만_트리거(CWE-362)")
+    void onMarkingCompleted_tx2ConcurrentInsertConflict_skips() {
+        // given — tx1 false(row 부재) + tx2 saveAndFlush 가 PK 충돌(다른 노드가 먼저 생성) → DIV 전파.
+        Long rawSn = 56L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
+        when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(false);
+        when(batchTransitionService.tryCreateBatchQueuedRow(eq(rawSn)))
+                .thenThrow(new DataIntegrityViolationException("dup pk"));
+
+        MarkingCompletedEvent event = new MarkingCompletedEvent(rawSn, 5600L);
+
+        // when — 예외가 브리지 밖으로 전파되지 않고 내부에서 잡혀 조용히 skip 되어야 한다
+        bridge.onMarkingCompleted(event);
+
+        // then — 이 노드는 트리거하지 않는다(상대 노드가 소유)
         verify(batchStatusService, never()).markStage(eq(rawSn), eq(BatchStage.PENDING));
         verify(asyncBatchRunner, never()).runAsync(rawSn);
     }
@@ -164,8 +213,9 @@ class MarkingBatchBridgeTest {
         // when
         bridge.onMarkingCompleted(event);
 
-        // then — 배치 재트리거 없음 + 전이 시도조차 안 함 + LsDataRaw 배치 단계 COMPLETED 불변
+        // then — 배치 재트리거 없음 + 클레임 시도조차 안 함 + LsDataRaw 배치 단계 COMPLETED 불변
         verify(batchTransitionService, never()).tryClaimBatchQueued(any(), anyCollection());
+        verify(batchTransitionService, never()).tryCreateBatchQueuedRow(any());
         verify(asyncBatchRunner, never()).runAsync(rawSn);
         verify(batchStatusService, never()).markStage(eq(rawSn), eq(BatchStage.PENDING));
         org.assertj.core.api.Assertions.assertThat(raw.getDataSttsCd())
@@ -187,6 +237,7 @@ class MarkingBatchBridgeTest {
 
         // then
         verify(batchTransitionService, never()).tryClaimBatchQueued(any(), anyCollection());
+        verify(batchTransitionService, never()).tryCreateBatchQueuedRow(any());
         verify(asyncBatchRunner, never()).runAsync(rawSn);
         org.assertj.core.api.Assertions.assertThat(raw.getDataSttsCd())
                 .isEqualTo(LsDataRaw.DATA_STTS_PROCESSING);
@@ -195,7 +246,7 @@ class MarkingBatchBridgeTest {
     @Test
     @DisplayName("MARKING_READY_최초_마킹은_정상적으로_1회_트리거된다")
     void onMarkingCompleted_markingReady_triggersOnce() {
-        // given — 비식별 완료 + MARKING_READY + 전이 권한 획득(true) 인 최초 마킹
+        // given — 비식별 완료 + MARKING_READY + tx1 전이 권한 획득(true) 인 최초 마킹
         Long rawSn = 22L;
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
         when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(true);
@@ -211,16 +262,18 @@ class MarkingBatchBridgeTest {
     }
 
     @Test
-    @DisplayName("동일_rawSn_마킹이벤트_2회_동시발생시_배치는_1회만_트리거된다")
+    @DisplayName("동일_rawSn_마킹이벤트_2회_동시발생시_tx1이_1건만_true라_배치는_1회만_트리거된다")
     void onMarkingCompleted_concurrentDoubleMarking_triggersOnce() throws Exception {
-        // given — 동일 rawSn 에 비식별 완료 영상. 조건부 원자 전이는 DB 직렬화로 정확히 1건만 true 를
+        // given — 동일 rawSn 에 비식별 완료 영상. tx1 조건부 원자 전이는 DB 직렬화로 정확히 1건만 true 를
         //         반환한다. 이를 첫 호출만 true, 이후 호출은 false 를 반환하는 스텁으로 모사한다.
+        //         두 번째 호출은 tx2 로 넘어가지만 row 가 이미 존재해 false(멱등 스킵).
         Long rawSn = 30L;
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
 
         AtomicInteger claimCount = new AtomicInteger(0);
         when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection()))
                 .thenAnswer(inv -> claimCount.getAndIncrement() == 0);
+        lenient().when(batchTransitionService.tryCreateBatchQueuedRow(eq(rawSn))).thenReturn(false);
 
         MarkingCompletedEvent event = new MarkingCompletedEvent(rawSn, 3000L);
 
@@ -252,6 +305,7 @@ class MarkingBatchBridgeTest {
 
         // then
         verify(batchTransitionService, never()).tryClaimBatchQueued(any(), anyCollection());
+        verify(batchTransitionService, never()).tryCreateBatchQueuedRow(any());
         verify(batchStatusService, never()).markStage(eq(rawSn), eq(BatchStage.PENDING));
         verify(asyncBatchRunner, never()).runAsync(rawSn);
     }

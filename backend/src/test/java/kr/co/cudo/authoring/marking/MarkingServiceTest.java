@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.marking.service.MarkingService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.VideoDurationResolver;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,6 +67,9 @@ class MarkingServiceTest {
     @Mock
     private VideoFpsResolver fpsResolver;
 
+    @Mock
+    private VideoDurationResolver durationResolver;
+
     @InjectMocks
     private MarkingService markingService;
 
@@ -77,6 +81,10 @@ class MarkingServiceTest {
     @BeforeEach
     void setUpFpsDefault() {
         lenient().when(fpsResolver.resolveFps(anyLong())).thenReturn(VideoFpsResolver.DEFAULT_FPS);
+        // FIX A — 기본은 영상의 VDO_LEN_SEC 을 그대로 해석(기존 자동마킹 테스트 무회귀). 폴백(메타/프로브)
+        // 검증 테스트는 특정 rawSn 에 대해 개별 override 한다. (lenient — 자동마킹 미도달 가드 테스트 회피.)
+        lenient().when(durationResolver.resolveDurationSec(anyLong(), any(LsDataRaw.class)))
+                .thenAnswer(inv -> ((LsDataRaw) inv.getArgument(1)).getDurationSec());
     }
 
     private TokenClaims reviewer() {
@@ -456,6 +464,48 @@ class MarkingServiceTest {
         Long rawSn = 41L;
         LsDataRaw raw = stubRaw(rawSn, 0);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when / then
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(markingRepository, never()).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("FIX_A_durationSec_null이라도_리졸버가_메타_프로브로_해석하면_자동마킹_marks_생성")
+    void autoMarking_nullDuration_butResolvedByResolver_generatesMarks() {
+        // given — VDO_LEN_SEC=null 이지만 durationResolver 가 메타/프로브로 60초를 해석해 반환
+        Long rawSn = 43L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        org.springframework.test.util.ReflectionTestUtils.setField(raw, "durationSec", null);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(durationResolver.resolveDurationSec(rawSn, raw)).thenReturn(60);
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 30, null);
+
+        // when — 과거엔 INVALID_INPUT 으로 실패("자동만 안 됨")했으나 이제 해석값으로 marks 생성
+        MarkingResponse result = markingService.create(rawSn, req, reviewer());
+
+        // then — 60초 × 30fps = 1800 totalFrames, interval=30 → 60개
+        assertThat(result.markingMode()).isEqualTo("AUTO");
+        assertThat(result.marks()).hasSize(60);
+        verify(markingRepository).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("FIX_A_durationSec도_메타_프로브도_전부_실패하면_backstop_INVALID_INPUT")
+    void autoMarking_allResolutionFail_backstopInvalidInput() {
+        // given — 리졸버가 어떤 경로로도 해석 실패(null) → backstop 거부
+        Long rawSn = 44L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        org.springframework.test.util.ReflectionTestUtils.setField(raw, "durationSec", null);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(durationResolver.resolveDurationSec(rawSn, raw)).thenReturn(null);
 
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 

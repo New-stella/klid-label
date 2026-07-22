@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -284,5 +285,74 @@ class BatchTransitionServiceTest {
         assertThat(claimed).isFalse();
         verify(rawDataStatusRepository, never())
                 .transitionToBatchQueuedIfNotSkipped(any(), any(), any());
+    }
+
+    // ── FIX B(CRITICAL 재설계): 작업 상태 row 부재 시 별도 tx 로 생성(tryCreateBatchQueuedRow) ──
+
+    private static final java.util.Set<String> SKIP = java.util.Set.of(
+            LsRawDataStatus.STTS_BATCH_QUEUED,
+            LsRawDataStatus.STTS_PROCESSING,
+            LsRawDataStatus.STTS_COMPLETED);
+
+    @Test
+    @DisplayName("tryCreateRow_row부재시_BATCH_QUEUED_row를_saveAndFlush로_생성하고_true — 미배정_직접마킹_고착제거")
+    void tryCreateBatchQueuedRow_rowAbsent_createsRow_true() {
+        // given — existsById=false(진짜 부재)
+        when(rawDataStatusRepository.existsById(50L)).thenReturn(false);
+
+        // when
+        boolean created = service.tryCreateBatchQueuedRow(50L);
+
+        // then — BATCH_QUEUED row 를 saveAndFlush 로 즉시 flush 생성 + 트리거 권한 획득
+        assertThat(created).isTrue();
+        org.mockito.ArgumentCaptor<LsRawDataStatus> captor =
+                org.mockito.ArgumentCaptor.forClass(LsRawDataStatus.class);
+        verify(rawDataStatusRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getRawDataId()).isEqualTo(50L);
+        assertThat(captor.getValue().getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_BATCH_QUEUED);
+        // 조건부 전이는 이 메서드가 수행하지 않는다(tx1 tryClaimBatchQueued 책임).
+        verify(rawDataStatusRepository, never())
+                .transitionToBatchQueuedIfNotSkipped(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("tryCreateRow_row가_이미_존재하면_false_생성안함 — 멱등 스킵(tx1이 이미 SKIP판정)")
+    void tryCreateBatchQueuedRow_existingRow_false() {
+        // given — existsById=true(row 존재)
+        when(rawDataStatusRepository.existsById(52L)).thenReturn(true);
+
+        // when
+        boolean created = service.tryCreateBatchQueuedRow(52L);
+
+        // then — 멱등 스킵(생성 안 함)
+        assertThat(created).isFalse();
+        verify(rawDataStatusRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("tryCreateRow_동시노드가_먼저insert_PK충돌시_DataIntegrityViolationException을_그대로_전파 — 같은tx내_재시도금지")
+    void tryCreateBatchQueuedRow_concurrentInsert_propagatesException() {
+        // given — row 부재로 판정 후 saveAndFlush 가 PK 충돌(다른 노드가 먼저 insert).
+        //         CRITICAL: 같은 tx 내 재시도는 PG abort 로 불가하므로, 여기서 잡지 않고 전파시켜
+        //         이 REQUIRES_NEW tx 를 롤백한다(호출자 MarkingBatchBridge 가 AFTER_COMMIT 에서 skip).
+        when(rawDataStatusRepository.existsById(53L)).thenReturn(false);
+        when(rawDataStatusRepository.saveAndFlush(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("dup pk"));
+
+        // when / then — 예외가 삼켜지지 않고 그대로 전파된다
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.tryCreateBatchQueuedRow(53L))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        // 같은 tx 내 조건부 전이 재시도를 하지 않는다(PG aborted-tx 재사용 금지).
+        verify(rawDataStatusRepository, never())
+                .transitionToBatchQueuedIfNotSkipped(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("tryCreateRow_rawSn_null이면_false_존재조회·생성_미수행")
+    void tryCreateBatchQueuedRow_nullRawSn_false() {
+        // when / then
+        assertThat(service.tryCreateBatchQueuedRow(null)).isFalse();
+        verify(rawDataStatusRepository, never()).existsById(any());
+        verify(rawDataStatusRepository, never()).saveAndFlush(any());
     }
 }

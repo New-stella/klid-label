@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,6 +73,16 @@ public class BatchTransitionService {
      * 작업자의 검수 제출(ASSIGNED→PENDING)이 상태 머신에서 차단된다. 따라서 배치 완료 시 작업 상태는
      * 배정 완료(ASSIGNED) 로 복귀시켜 라벨링/검수 워크플로우가 정상 진행되도록 한다.
      * 검수 승인 시점의 COMPLETED 전이는 ReviewService(approve) 가 담당한다.
+     *
+     * <p><b>미배정 경로 주의(FIX B 결합):</b> 미배정 REVIEWER 가 직접 마킹하면
+     * {@link #tryCreateBatchQueuedRow} 가 <b>{@code LS_TASK_ASSIGNMENT} 배정 레코드 없이</b> 상태 row 를
+     * 생성하므로, 본 메서드가 그 row 를 ASSIGNED 로 복귀시킬 수 있다. 즉 <b>실제 배정 레코드가 없는 영상이
+     * ASSIGNED 상태</b>가 될 수 있다. 이는 다운스트림이 배정 여부를 {@code LS_RAW_DATA_STATUS.DATA_STTS_CD}
+     * 단독이 아니라 <b>{@code LS_TASK_ASSIGNMENT} 존재</b>로 판정하므로 무해하다(조사 근거):
+     * {@code TaskBoardService.mapBoardStatus}(hasLabeler 게이트 → 배정 없으면 UNASSIGNED),
+     * {@code VideoQueryService.lookupCurrentAssignments}(배정 없으면 배정 필드 null),
+     * {@code AssignmentResponse}(배정 엔티티에서 파생), {@code StatsService} 카운트(모두
+     * {@code LsTaskAssignment} JOIN 또는 PENDING/APPROVED/REJECTED 집계라 ASSIGNED-무배정은 미집계).
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markRawDataCompleted(Long rawSn) {
@@ -181,6 +192,59 @@ public class BatchTransitionService {
         int affected = rawDataStatusRepository.transitionToBatchQueuedIfNotSkipped(
                 rawSn, LsRawDataStatus.STTS_BATCH_QUEUED, skipStatuses);
         return affected == 1;
+    }
+
+    /**
+     * 배치 트리거용 작업 상태 row 를 <b>부재 시 생성</b>해 BATCH_QUEUED 로 큐잉한다 (FIX B — CRITICAL 재설계).
+     *
+     * <p><b>왜 row 를 생성하는가:</b> {@code LS_RAW_DATA_STATUS} row 는 작업자 배정 시점에 lazy 생성된다
+     * ({@code AssignmentService.upsertDataStts} → {@link LsRawDataStatus#initial}). 그런데 REVIEWER 가
+     * <b>미배정 영상에서 직접 마킹</b>하는 UX 에서는 이 row 가 없어, 조건부 전이
+     * ({@link #tryClaimBatchQueued})가 영향 행수 0 → false 를 반환해 <b>배치가 트리거되지 않고 영상이
+     * 영구 MARKING_READY("마킹 대기")로 고착</b>된다. 이를 막기 위해 row 부재 시 새 BATCH_QUEUED row 를
+     * 생성해 배치가 진행되게 한다.
+     *
+     * <p><b>왜 이 메서드에서 재시도/catch 하지 않는가 (CWE-362 재설계 핵심):</b>
+     * <ul>
+     *   <li>{@link LsRawDataStatus} 는 {@code @GeneratedValue} 없는 <b>할당형 PK</b>(rawSn)라, Hibernate 는
+     *       {@code save()}(persist) 시 INSERT 를 즉시 flush 하지 않고 트랜잭션 커밋 시점까지 지연한다. 그러면
+     *       unique 위반이 catch 를 이미 벗어난 커밋 단계에서 터져 {@link DataIntegrityViolationException} 으로
+     *       번역되지 않고 호출자까지 전파된다. 이를 막기 위해 {@code saveAndFlush} 로 INSERT 를 <b>이 메서드
+     *       안에서 동기 flush</b> 시켜 Spring 이 즉시 {@code DataIntegrityViolationException} 으로 번역하게 한다.</li>
+     *   <li>PostgreSQL 은 unique 위반 시 <b>트랜잭션 전체를 abort</b> 하므로, 같은 트랜잭션(같은 커넥션)
+     *       안에서 재시도 쿼리를 실행하면 {@code current transaction is aborted} 로 실패한다. 즉 <b>같은 tx
+     *       내 재시도는 구조적으로 불가능</b>하다. 따라서 예외를 이 {@code REQUIRES_NEW} 메서드 밖으로
+     *       전파시켜 해당 tx 를 깨끗이 롤백시키고, 재시도/스킵 판정은 호출자
+     *       ({@link kr.co.cudo.authoring.marking.listener.MarkingBatchBridge})가 <b>별도 프록시 호출(=새
+     *       REQUIRES_NEW=새 커넥션)</b>로 수행한다.</li>
+     * </ul>
+     *
+     * <p><b>호출 계약:</b> 호출자는 먼저 {@link #tryClaimBatchQueued}(tx1)로 조건부 전이를 시도하고, 그것이
+     * false(=row 부재 이거나 이미 SKIP 상태)일 때만 본 메서드(tx2)를 호출한다. 본 메서드는 row 가 이미
+     * 존재하면(다른 주체 소유/멱등 스킵) {@code false} 를 반환하고, 부재면 생성 후 {@code true} 를 반환한다.
+     * 동시 노드가 그 사이 먼저 INSERT 하면 {@code saveAndFlush} 가
+     * {@link DataIntegrityViolationException} 을 던지며, 이는 활성 tx 없는 AFTER_COMMIT 컨텍스트인 호출자에서
+     * 안전하게 잡혀 skip 처리된다. 결과적으로 <b>정확히 1건만</b> 배치를 트리거한다.
+     *
+     * @return {@code true}=이번 호출이 row 를 생성해 BATCH_QUEUED 큐잉에 성공(트리거 권한 획득),
+     *         {@code false}=row 가 이미 존재(다른 주체 소유/멱등 스킵)
+     * @throws DataIntegrityViolationException 동시 노드가 먼저 INSERT 해 PK 가 충돌한 경우(호출자가 skip 처리)
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean tryCreateBatchQueuedRow(Long rawSn) {
+        if (rawSn == null) {
+            return false;
+        }
+        // row 존재 → 이 경로 대상 아님(호출자가 tx1 에서 이미 조건부 전이를 시도해 SKIP 판정됨) → 멱등 스킵.
+        if (rawDataStatusRepository.existsById(rawSn)) {
+            return false;
+        }
+        LsRawDataStatus row = LsRawDataStatus.initial(rawSn); // PENDING (@Version=0 신규 insert)
+        row.markBatchQueued();                                // → BATCH_QUEUED
+        // saveAndFlush — INSERT 를 이 tx 안에서 즉시 flush 해 unique 위반을 동기 발생시킨다(위 Javadoc 참조).
+        // DataIntegrityViolationException 은 여기서 잡지 않고 전파시켜 이 REQUIRES_NEW tx 를 롤백한다.
+        rawDataStatusRepository.saveAndFlush(row);
+        return true;
     }
 
     /**

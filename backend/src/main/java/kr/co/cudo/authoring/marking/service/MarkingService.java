@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.VideoDurationResolver;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,9 +51,26 @@ public class MarkingService {
      * 여기서 해석한 fps 를 마킹 레코드에 pin 하여 추출단계가 재조회 없이 동일 값을 쓰게 한다(TOCTOU 제거).
      */
     private final VideoFpsResolver fpsResolver;
+    /**
+     * 자동 마킹용 영상 길이(초) 해석기 — durationSec 미기입 영상의 자동 마킹 실패(FIX A) 방지.
+     * VDO_LEN_SEC → video.duration_ms 메타 → 직접 프로브 순으로 폴백하며, 이번 트랜잭션에서 transient
+     * 하게만 사용한다(LS_DATA_RAW 되쓰기 없음).
+     */
+    private final VideoDurationResolver durationResolver;
 
     /**
      * 마킹 생성.
+     *
+     * <p><b>MEDIUM-1 (ffprobe 커넥션 점유 — 문서화된 한정 처리):</b> AUTO 모드의 영상 길이 해석
+     * ({@link VideoDurationResolver#resolveDurationSec})은 durationSec·메타가 <b>모두</b> 없는 드문 코호트에서만
+     * 최후 폴백으로 ffprobe 서브프로세스를 실행한다. 이 경로는 본 쓰기 트랜잭션 안에서 수행되어 프로브가
+     * 끝날 때까지 DB 커넥션을 점유한다. 완전한 트랜잭션-외 격리(프로브를 tx 진입 전에 수행)는 이 서비스가
+     * {@code @Transactional} 통합 테스트(시드 raw 를 테스트 tx 안에서 생성)에서 <b>시드 가시성 계약</b>을
+     * 깨뜨리므로 채택하지 않았다(별도 tx 는 미커밋 시드를 못 본다). 대신 리스크를 다음으로 한정한다:
+     * ① 프로브는 값싼 1·2단계(엔티티 필드·메타 DB read)가 모두 실패한 <b>예외 코호트</b>에서만 실행되고,
+     * ② {@link kr.co.cudo.authoring.video.service.port.BrampVideoProbe} 의 <b>30초 하드 타임아웃</b>으로
+     * 커넥션 점유 시간이 상한된다(무한 블로킹 없음). 적재 파이프라인이 durationSec/메타를 채우면 이 경로는
+     * 아예 타지 않는다.
      *
      * @param rawSn 영상 PK
      * @param req   마킹 생성 요청
@@ -109,7 +127,11 @@ public class MarkingService {
             if (req.intervalFrames() == null || req.intervalFrames() <= 0) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "자동 모드에서 intervalFrames 는 1 이상이어야 합니다.");
             }
-            marksJson = generateAutoMarks(raw.getDurationSec(), req.intervalFrames(), fps);
+            // durationSec(VDO_LEN_SEC) 미기입 영상은 메타(video.duration_ms)·직접 프로브로 폴백 해석한다.
+            // (FIX A — 적재 시 길이가 비어 자동 마킹만 INVALID_INPUT 으로 실패하던 결함 제거. 되쓰기 없음.)
+            // MEDIUM-1 — 프로브 폴백은 값싼 1·2단계 실패 시에만·30s 타임아웃으로 한정된다(위 create Javadoc).
+            Integer durationSec = durationResolver.resolveDurationSec(rawSn, raw);
+            marksJson = generateAutoMarks(durationSec, req.intervalFrames(), fps);
         } else if ("MANUAL".equals(req.mode())) {
             if (req.marks() == null || req.marks().isEmpty()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "수동 모드에서 marks 는 필수입니다.");
@@ -185,8 +207,9 @@ public class MarkingService {
      */
     String generateAutoMarks(Integer durationSec, int intervalFrames, double fps) {
         if (durationSec == null || durationSec <= 0) {
+            // FIX A backstop — durationSec·메타·직접 프로브까지 모두 실패한 진짜 예외 케이스만 여기 도달한다.
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "자동 마킹은 영상 길이(durationSec)가 1초 이상이어야 합니다.");
+                    "영상 길이를 확인할 수 없어 자동 마킹을 생성할 수 없습니다.");
         }
         List<MarkItem> marks = new ArrayList<>();
         // M-3 수정 — 실 fps(video.fps, 미상 시 30.0 폴백)로 totalFrames 를 반올림 계산(분수 fps 지원).
