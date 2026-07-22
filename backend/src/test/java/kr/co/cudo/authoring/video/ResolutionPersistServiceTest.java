@@ -37,6 +37,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -181,24 +182,28 @@ class ResolutionPersistServiceTest {
     void isAlreadyFinalizedByStatus() {
         LsDataRaw yRaw = mock(LsDataRaw.class);
         when(yRaw.getDeIdntfYn()).thenReturn("Y");
-        when(videoRepository.findById(1L)).thenReturn(Optional.of(yRaw));
+        when(videoRepository.findByRawSnForUpdate(1L)).thenReturn(Optional.of(yRaw));
 
         LsDataRaw markingReady = mock(LsDataRaw.class);
         when(markingReady.getDeIdntfYn()).thenReturn("N");
         when(markingReady.getDataSttsCd()).thenReturn(LsDataRaw.DATA_STTS_MARKING_READY);
-        when(videoRepository.findById(2L)).thenReturn(Optional.of(markingReady));
+        when(videoRepository.findByRawSnForUpdate(2L)).thenReturn(Optional.of(markingReady));
 
         LsDataRaw pending = mock(LsDataRaw.class);
         when(pending.getDeIdntfYn()).thenReturn("N");
         when(pending.getDataSttsCd()).thenReturn("PENDING");
-        when(videoRepository.findById(3L)).thenReturn(Optional.of(pending));
+        when(videoRepository.findByRawSnForUpdate(3L)).thenReturn(Optional.of(pending));
 
-        when(videoRepository.findById(4L)).thenReturn(Optional.empty());
+        when(videoRepository.findByRawSnForUpdate(4L)).thenReturn(Optional.empty());
 
         assertThat(service.isAlreadyFinalized(1L)).isTrue();
         assertThat(service.isAlreadyFinalized(2L)).isTrue();
         assertThat(service.isAlreadyFinalized(3L)).isFalse();
         assertThat(service.isAlreadyFinalized(4L)).isFalse();
+
+        // M-1 회귀 못박기: 무잠금 findById 가 아닌 잠금(FOR UPDATE) 재조회로 승자 Phase C 와 직렬화됨을 검증.
+        verify(videoRepository).findByRawSnForUpdate(1L);
+        verify(videoRepository, never()).findById(anyLong());
     }
 
     // ---------- releaseReservedAug 가드 ----------

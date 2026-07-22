@@ -148,13 +148,30 @@ public class ResolutionPersistService {
      * 파생 확정 성공 여부(비트랜잭션 러너용 읽기) — 파생 RAW 가 이미 {@code deIdntfYn=='Y'} 또는
      * MARKING_READY 면 true. 실패 catch 에서 <b>markRawDataFailed 이전</b> 중복 finalize 승자를
      * FAILED 로 덮어쓰지 않기 위한 재조회 게이트.
+     *
+     * <p><b>잠금(FOR UPDATE) 재조회로 승자 Phase C 커밋과 부분 직렬화(M-1 완화, CWE-362)</b>:
+     * 이 게이트를 무잠금 {@code findById} 로 읽으면, 패자가 승자의 Phase C({@link #persist} 의
+     * {@code findByRawSnForUpdate(newRawSn)} 잠금 뒤 커밋) <b>이전</b>에 read 를 수행할 때 미확정(false)
+     * 으로 판정해 cleanup 이 승자와 동일 경로의 파생 산출물(프레임/비디오)을 삭제하는 경합이 남는다.
+     * 부모/신규 RAW 잠금과 동일한 {@code findByRawSnForUpdate}(PESSIMISTIC_WRITE)로 읽어, 무잠금
+     * {@code findById} 대비 이 경합 창을 크게 좁힌다.
+     *
+     * <p><b>보장 범위(정직한 한계)</b>: 결정적으로 창을 폐쇄하는 것이 <b>아니다</b>. 실제 직렬화가
+     * 성립하는 경우는 <b>승자가 Phase C 의 {@code newRaw} 잠금을 이미 취득한 뒤 진입한 패자</b>에
+     * 한한다 — 이때만 패자의 이 조회가 승자 커밋 뒤로 블록됐다가 커밋된 'Y'/MARKING_READY 를 읽어
+     * true→cleanup·FAILED 전이를 스킵한다. 다음 하위경로는 여전히 미폐쇄다:
+     * ① <b>승자-뒤짐</b> — 패자가 승자의 Phase C 잠금 취득 이전에 {@code newRaw} 를 먼저 잠그면
+     *    미확정(false)으로 통과할 수 있다. ② <b>락 타임아웃</b> — {@code lock_timeout} 초과 시
+     *    호출자 catch 에서 보수적으로 false(페일오픈)로 처리해 cleanup 이 진행된다.
+     * 이 잔여 경합은 best-effort cleanup 으로 수렴하며, 현 트리거가 단일 러너라 실제 재현되지 않는다.
+     * (PostgreSQL 은 read-only 트랜잭션에서 SELECT … FOR UPDATE 를 금지하므로 {@code readOnly} 미지정.)
      */
-    @Transactional(value = "controlTransactionManager", readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public boolean isAlreadyFinalized(Long newRawSn) {
         if (newRawSn == null) {
             return false;
         }
-        return videoRepository.findById(newRawSn)
+        return videoRepository.findByRawSnForUpdate(newRawSn)
                 .map(r -> "Y".equals(r.getDeIdntfYn())
                         || LsDataRaw.DATA_STTS_MARKING_READY.equals(r.getDataSttsCd()))
                 .orElse(false);

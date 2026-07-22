@@ -86,7 +86,8 @@ class AugmentCallbackFlowIntegrationTest {
 
     /**
      * ffmpeg 바이너리 격리 — 증강 파일에서의 frame-exact 재추출을 성공 시뮬한다.
-     * sourceExists=true, writeFrameByNumber=no-op(예외 없음) → extractByFrameNumbers 가 전량 성공한다.
+     * sourceExists=true, writeFrameByNumber=no-op(예외 없음) → AugmentFrameProducer 의 프레임 생성이
+     * 전량 성공한다.
      */
     @MockBean private FfmpegFrameExtractor.FrameWriter frameWriter;
 

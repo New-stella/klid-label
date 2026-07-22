@@ -100,6 +100,8 @@ public class AsyncResolutionRunner {
         //    cleanup·FAILED 전이 모두 스킵(패자 정리가 승자 산출물을 삭제하는 것 방지).
         boolean alreadyFinalized;
         try {
+            // safe: persist() 의 REQUIRES_NEW 트랜잭션이 이미 커밋·잠금 해제된 뒤 호출된다(자기교착 없음).
+            // 이 호출을 persist() 잠금 보유 스코프 안으로 옮기면 FOR UPDATE 재조회가 자기 잠금과 교착하니 금지.
             alreadyFinalized = persistService.isAlreadyFinalized(newRawSn);
         } catch (RuntimeException re) {
             alreadyFinalized = false; // 재조회 실패는 보수적으로 미확정 취급(cleanup + FAILED 전이 진행).
