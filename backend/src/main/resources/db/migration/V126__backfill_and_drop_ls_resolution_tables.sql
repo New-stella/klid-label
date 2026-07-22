@@ -1,5 +1,5 @@
 -- =============================================================================
--- V125: 구 해상도 전용 테이블(LS_RESOLUTION_EXPORT / LS_RESOLUTION_LBL_MAP) 백필 후 제거.
+-- V126: 구 해상도 전용 테이블(LS_RESOLUTION_EXPORT / LS_RESOLUTION_LBL_MAP) 백필 후 제거.
 --
 -- 배경(Phase 1, RQ-SFR-06-03 증강 저장모델 통합): 해상도 파생 적재를 구
 --   LS_RESOLUTION_EXPORT/LS_RESOLUTION_LBL_MAP 대신 증강 테이블
@@ -27,7 +27,7 @@
 --     IDMP_KEY/OTSD_JOB_ID = NULL(생략 — 콜백형 증강 전용 컬럼).
 --   - 대표프레임이 없는 export 는 LATERAL ... LIMIT 1 조인으로 자연 제외된다(스킵).
 --   - 중복 방지: Phase 1 이 이미 만든 동일 (SRC_SN, AUG_TYPE_CD='RESL_*') 행과 충돌하지 않도록
---     부분 유니크 인덱스 UK_LS_DATA_AUG_RESL(V124) 를 arbiter 로 ON CONFLICT DO NOTHING.
+--     부분 유니크 인덱스 UK_LS_DATA_AUG_RESL(V125) 를 arbiter 로 ON CONFLICT DO NOTHING.
 -- -----------------------------------------------------------------------------
 INSERT INTO LS_DATA_AUG (SRC_SN, AUG_TYPE_CD, AUG_PROC_STTS_CD, REG_DT, REG_USER_NO, RTRY_NMTM)
 SELECT rep.src_sn,
@@ -86,8 +86,12 @@ JOIN LS_DATA_AUG a
 --   영구 소실된다(무소음 손실). 이런 소실 대상이 1건이라도 있으면 RAISE EXCEPTION 으로 마이그레이션을
 --   중단하고 Flyway 단일 트랜잭션 원자성에 의해 ①② 백필과 DROP 전체가 롤백된다(fail-closed).
 --
---   판정: lbl_map 총건 - 이관 가능(대표프레임 보유 export 소속) 건 = 소실 건. > 0 이면 중단.
---   라벨매핑이 없는 no-frame export 는 소실 라벨 0 이라 통과(정상). 운영 데이터 0 도 통과.
+--   판정1(라벨매핑 소실): lbl_map 총건 - 이관 가능(대표프레임 보유 export 소속) 건 = 소실 건. > 0 이면 중단.
+--   판정2(export 소실): 각 export 에 대응하는 aug RESL_ 행(대표프레임 SRC_SN + 변환 AUG_TYPE_CD)이
+--     EXISTS 로 실제 존재하는지 확인. 대표프레임 부재로 이관되지 못한 export 는 라벨매핑이 없어도
+--     export 행 자체가 DROP 으로 영구 소실되므로 1건이라도 있으면 중단. (삽입건수 뺄셈이 아닌 EXISTS 로
+--     판단해 Phase1 이 이미 만든 행 때문에 ON CONFLICT DO NOTHING 으로 0건 삽입된 정상 이관을 오탐하지 않는다.)
+--   두 판정 모두 통과해야 DROP 도달. 운영 데이터 0 도 통과(export/lbl_map 0건).
 --   감사 NOTICE 는 항상 로깅하여 "0 no-op" 과 "실제 이관" 을 운영 로그에서 구분한다.
 --   정적 SQL(사용자 입력 없음), 로그에 PII/파일경로 미포함(건수·export SN 만).
 -- -----------------------------------------------------------------------------
@@ -99,6 +103,7 @@ DECLARE
     v_backfilled_lblmap   BIGINT;
     v_lost_map_cnt        BIGINT;
     v_lost_exports        TEXT;
+    v_unmigrated_export   BIGINT;
 BEGIN
     SELECT COUNT(*) INTO v_export_total FROM LS_RESOLUTION_EXPORT;
     SELECT COUNT(*) INTO v_lblmap_total FROM LS_RESOLUTION_LBL_MAP;
@@ -117,7 +122,7 @@ BEGIN
     -- 입력 = 이관 보존 검증: 이관되지 못한(대표프레임 없는 export 소속) 라벨매핑 = 소실 건.
     v_lost_map_cnt := v_lblmap_total - v_backfilled_lblmap;
 
-    RAISE NOTICE 'V125 backfill audit: export_total=%, lbl_map_total=%, backfilled_aug_resl=%, backfilled_aug_lbl_map=%',
+    RAISE NOTICE 'V126 backfill audit: export_total=%, lbl_map_total=%, backfilled_aug_resl=%, backfilled_aug_lbl_map=%',
         v_export_total, v_lblmap_total, v_backfilled_aug, v_backfilled_lblmap;
 
     IF v_lost_map_cnt > 0 THEN
@@ -129,6 +134,28 @@ BEGIN
 
         RAISE EXCEPTION '대표프레임 없는 export 의 라벨매핑 % 건이 이관 불가 — 수동 확인 후 재시도 (export SN: %)',
             v_lost_map_cnt, v_lost_exports;
+    END IF;
+
+    -- export 자체 이관 보존 검증(EXISTS 기반, 삽입건수 뺄셈 금지):
+    --   각 LS_RESOLUTION_EXPORT 행이 LS_DATA_AUG 의 대응 RESL_ 행(대표프레임 SRC_SN + 변환 AUG_TYPE_CD)으로
+    --   실제 이관됐는지 확인한다. 대표프레임(LS_DATA_SRC) 부재로 ① 백필에서 자연 제외된 export 는
+    --   라벨매핑 유무와 무관하게 DROP 시 export 행 자체가 영구 소실되므로(무소음 손실), 1건이라도 있으면 중단한다.
+    --   ★ ON CONFLICT DO NOTHING 특성상 Phase1 이 이미 만든 동일 RESL_ 행이 있으면 ① INSERT 는 0건이지만
+    --     그 export 는 이미 이관된 상태다 — 삽입건수로 판단하지 않고 EXISTS 로 실제 대응 행 존재를 확인해 오탐을 막는다.
+    SELECT COUNT(*) INTO v_unmigrated_export
+    FROM LS_RESOLUTION_EXPORT e
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM LS_DATA_SRC s
+        JOIN LS_DATA_AUG a
+          ON a.SRC_SN = s.SRC_SN
+         AND a.AUG_TYPE_CD = REPLACE(e.GOAL_RESL_CD, 'RES_', 'RESL_')
+        WHERE s.RAW_SN = e.DATA_RAW_SN
+    );
+
+    IF v_unmigrated_export > 0 THEN
+        RAISE EXCEPTION '이관되지 못한 해상도 export % 건 존재(대표프레임 부재 등) — DROP 중단, 수동 확인 필요',
+            v_unmigrated_export;
     END IF;
 END $$;
 

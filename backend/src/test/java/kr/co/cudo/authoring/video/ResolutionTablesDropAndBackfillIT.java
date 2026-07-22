@@ -25,13 +25,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * V125 — 구 해상도 전용 테이블(LS_RESOLUTION_EXPORT / LS_RESOLUTION_LBL_MAP) 백필 후 제거 검증
+ * V126 — 구 해상도 전용 테이블(LS_RESOLUTION_EXPORT / LS_RESOLUTION_LBL_MAP) 백필 후 제거 검증
  * (Testcontainers PostgreSQL 실 DB).
  *
- * <p>Flyway 는 @SpringBootTest 컨텍스트 기동 시 V125 까지 전부 적용하므로, 백필 대상 데이터를
- * 마이그레이션 이전 상태에서 주입할 수 없다. 따라서 백필 정확성은 V125 파일의 실제 INSERT ... SELECT
+ * <p>Flyway 는 @SpringBootTest 컨텍스트 기동 시 V126 까지 전부 적용하므로, 백필 대상 데이터를
+ * 마이그레이션 이전 상태에서 주입할 수 없다. 따라서 백필 정확성은 V126 파일의 실제 INSERT ... SELECT
  * 문(백필 로직)을 <b>파일에서 읽어 그대로 재현</b>하는 방식으로 검증한다(SQL 드리프트 없음):
- * 드롭된 소스 테이블을 임시 재생성 + 시드 → V125 의 INSERT 문 실행 → LS_DATA_AUG(RESL_*)/
+ * 드롭된 소스 테이블을 임시 재생성 + 시드 → V126 의 INSERT 문 실행 → LS_DATA_AUG(RESL_*)/
  * LS_DATA_AUG_LBL_MAP 정합 확인 → 재생성 테이블·시드 정리.
  *
  * <p>공유 컨테이너 오염 방지 — 시드는 고유 RAW_SN(990101)/DATA_LBL_SN(990222) 로 좁히고
@@ -65,7 +65,7 @@ class ResolutionTablesDropAndBackfillIT {
     }
 
     @Test
-    @DisplayName("V125_적용후_LS_RESOLUTION_EXPORT와_LBL_MAP_테이블이_존재하지_않는다")
+    @DisplayName("V126_적용후_LS_RESOLUTION_EXPORT와_LBL_MAP_테이블이_존재하지_않는다")
     void resolutionTablesDropped() {
         assertThat(tableExists("ls_resolution_export")).isFalse();
         assertThat(tableExists("ls_resolution_lbl_map")).isFalse();
@@ -97,7 +97,7 @@ class ResolutionTablesDropAndBackfillIT {
     @Test
     @DisplayName("백필SQL이_export와_lblmap을_LS_DATA_AUG_RESL과_AUG_LBL_MAP으로_대표프레임기준_정확히_이관한다")
     void backfillMigratesExportAndLblMap() {
-        // given — V125 가 이미 드롭한 소스 두 테이블을 백필에 필요한 컬럼만 최소 재생성 후 시드.
+        // given — V126 가 이미 드롭한 소스 두 테이블을 백필에 필요한 컬럼만 최소 재생성 후 시드.
         recreateSourceTables();
 
         // 대표프레임 시드: RAW 990101 에 FRM_NO 5, 2 두 프레임. 대표 = FRM_NO 최소(2).
@@ -119,7 +119,7 @@ class ResolutionTablesDropAndBackfillIT {
                         + "VALUES (?, ?, ?, 'Y', 0.5, 0.5, ?, CURRENT_TIMESTAMP)",
                 exportSn, SEED_ORGNL_LBL_SN, SEED_DATA_LBL_SN, SEED_REG_ID);
 
-        // when — V125 의 실제 INSERT ... SELECT 문(백필 로직)을 파일에서 읽어 그대로 실행.
+        // when — V126 의 실제 INSERT ... SELECT 문(백필 로직)을 파일에서 읽어 그대로 실행.
         for (String insert : backfillInsertStatements()) {
             jdbc.execute(insert);
         }
@@ -147,7 +147,7 @@ class ResolutionTablesDropAndBackfillIT {
     }
 
     @Test
-    @DisplayName("대표프레임없는_export에_라벨매핑이_있으면_V125가_RAISE_EXCEPTION으로_중단되고_DROP되지_않는다")
+    @DisplayName("대표프레임없는_export에_라벨매핑이_있으면_V126가_RAISE_EXCEPTION으로_중단되고_DROP되지_않는다")
     void failClosedWhenNoFrameExportHasLblMap() {
         // given — 소스 두 테이블 재생성.
         recreateSourceTables();
@@ -178,7 +178,7 @@ class ResolutionTablesDropAndBackfillIT {
 
         // when/then — 백필 ①② + 가드 + DROP 을 Flyway 처럼 단일 트랜잭션으로 실행하면 가드가 예외를 던지고
         //   전체(백필 + DROP)가 롤백된다.
-        assertThatThrownBy(() -> runInSingleTransaction(allV125Statements()))
+        assertThatThrownBy(() -> runInSingleTransaction(allV126Statements()))
                 .hasStackTraceContaining("이관 불가");
 
         // 두 소스 테이블이 DROP 되지 않고 그대로 남는다(fail-closed).
@@ -221,23 +221,58 @@ class ResolutionTablesDropAndBackfillIT {
     }
 
     @Test
-    @DisplayName("대표프레임없는_export라도_라벨매핑이_없으면_소실0이라_정상통과한다")
-    void noFrameExportWithoutLblMapPasses() {
-        // given — 부모 RAW 프레임 0건 export 1건, 라벨매핑은 0건 → 소실 대상 없음(경계).
+    @DisplayName("대표프레임없는_export는_라벨매핑이_없어도_export자체_소실이므로_fail_closed로_RAISE되어_중단된다")
+    void noFrameExportEvenWithoutLblMapIsFailClosed() {
+        // given — 부모 RAW 프레임 0건 export 1건, 라벨매핑은 0건.
+        //   기존 lbl_map 손실 가드로는 소실 0(통과)이지만, export 행 자체가 DROP 으로 영구 소실되므로
+        //   새 export 이관 가드가 이를 잡아 중단해야 한다(진짜 fail-closed).
         recreateSourceTables();
         insertExport(990301L, "RES_720P");
 
-        // when — 백필 ①②(모두 0행 no-op) + 가드 실행.
+        // when — 백필 ①②(모두 0행 no-op) 실행 후 가드 실행.
         for (String stmt : backfillInsertStatements()) {
             jdbc.execute(stmt);
         }
 
-        // then — 가드가 예외 없이 통과한다(소실 라벨 0건).
-        assertThat(guardBlock()).isNotBlank();
-        jdbc.execute(guardBlock());
+        // then — 대응 aug RESL_ 행이 존재하지 않는 export 1건이 감지돼 export 가드가 RAISE 한다.
+        String guard = guardBlock();
+        assertThatThrownBy(() -> jdbc.execute(guard))
+                .hasStackTraceContaining("이관되지 못한 해상도 export");
+
+        // aug/lbl_map 은 이관된 것이 없다(백필 no-op).
         Integer migrated = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM LS_DATA_AUG_LBL_MAP WHERE REG_ID = ?", Integer.class, SEED_REG_ID);
         assertThat(migrated).isZero();
+    }
+
+    @Test
+    @DisplayName("대표프레임있는_export는_라벨매핑유무와무관하게_새_export가드를_예외없이_통과한다")
+    void frameBearingExportPassesExportGuard() {
+        // given — 프레임 보유 export 2건. 하나는 라벨매핑 보유, 하나는 라벨매핑 없음(둘 다 export 자체는 이관됨).
+        recreateSourceTables();
+
+        long rawWithMap = 990401L;
+        long rawNoMap = 990402L;
+        jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, 1, '/x/wm.jpg')", rawWithMap);
+        jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, 1, '/x/nm.jpg')", rawNoMap);
+
+        long exportWithMap = insertExport(rawWithMap, "RES_1080P");
+        insertExport(rawNoMap, "RES_480P");
+        insertLblMap(exportWithMap, 990441L);
+
+        // when — 백필 ①② + 가드(예외 없이 통과) 실행.
+        for (String stmt : backfillInsertStatements()) {
+            jdbc.execute(stmt);
+        }
+        jdbc.execute(guardBlock());
+
+        // then — 두 export 모두 대응 aug RESL_ 행으로 이관돼 export 가드를 통과, lbl_map 은 1건 이관.
+        Integer augCnt = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_DATA_AUG WHERE REG_USER_NO = ?", Integer.class, SEED_REG_ID);
+        assertThat(augCnt).isEqualTo(2);
+        Integer migrated = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_DATA_AUG_LBL_MAP WHERE REG_ID = ?", Integer.class, SEED_REG_ID);
+        assertThat(migrated).isEqualTo(1);
     }
 
     // ---------------------------------------------------------------------
@@ -256,17 +291,17 @@ class ResolutionTablesDropAndBackfillIT {
                 exportSn, dataLblSn - 100, dataLblSn, SEED_REG_ID);
     }
 
-    /** V125 의 모든 실행문(INSERT ①② + 가드 DO 블록 + DROP)을 파일 순서대로 반환(단일 트랜잭션 재현용). */
-    private List<String> allV125Statements() {
+    /** V126 의 모든 실행문(INSERT ①② + 가드 DO 블록 + DROP)을 파일 순서대로 반환(단일 트랜잭션 재현용). */
+    private List<String> allV126Statements() {
         return parseStatements();
     }
 
-    /** V125 의 fail-closed 가드 DO 블록(단일)을 추출한다. */
+    /** V126 의 fail-closed 가드 DO 블록(단일)을 추출한다. */
     private String guardBlock() {
         return parseStatements().stream()
                 .filter(s -> s.toUpperCase().startsWith("DO"))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("V125 에서 가드 DO 블록을 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalStateException("V126 에서 가드 DO 블록을 찾을 수 없습니다."));
     }
 
     /** 주어진 문들을 하나의 커넥션·트랜잭션에서 순차 실행한다(예외 시 롤백 후 전파 — Flyway 원자성 재현). */
@@ -297,7 +332,7 @@ class ResolutionTablesDropAndBackfillIT {
         return cnt != null && cnt > 0;
     }
 
-    /** 백필에 필요한 컬럼만 갖는 소스 두 테이블 최소 재생성(V125 가 드롭한 상태에서 테스트 전용). */
+    /** 백필에 필요한 컬럼만 갖는 소스 두 테이블 최소 재생성(V126 가 드롭한 상태에서 테스트 전용). */
     private void recreateSourceTables() {
         jdbc.execute("CREATE TABLE LS_RESOLUTION_EXPORT ("
                 + "RESL_EXPORT_SN BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, "
@@ -317,7 +352,7 @@ class ResolutionTablesDropAndBackfillIT {
                 + "REG_DT TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
-    /** V125 마이그레이션 파일에서 INSERT 문(백필 로직)만 추출한다(SQL 드리프트 방지). */
+    /** V126 마이그레이션 파일에서 INSERT 문(백필 로직)만 추출한다(SQL 드리프트 방지). */
     private List<String> backfillInsertStatements() {
         return parseStatements().stream()
                 .filter(s -> s.toUpperCase().startsWith("INSERT"))
@@ -325,17 +360,17 @@ class ResolutionTablesDropAndBackfillIT {
     }
 
     /**
-     * V125 파일을 라인 주석 제거 후 문 단위로 분할한다(SQL 드리프트 방지).
+     * V126 파일을 라인 주석 제거 후 문 단위로 분할한다(SQL 드리프트 방지).
      * ';' 분할 시 {@code $$ ... $$} 달러 인용 블록(가드 DO 블록) 내부의 ';' 는 경계로 보지 않는다.
      */
     private List<String> parseStatements() {
         String sql;
         try {
             sql = StreamUtils.copyToString(
-                    new ClassPathResource("db/migration/V125__backfill_and_drop_ls_resolution_tables.sql")
+                    new ClassPathResource("db/migration/V126__backfill_and_drop_ls_resolution_tables.sql")
                             .getInputStream(), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            throw new IllegalStateException("V125 마이그레이션 파일을 읽을 수 없습니다.", e);
+            throw new IllegalStateException("V126 마이그레이션 파일을 읽을 수 없습니다.", e);
         }
         // 라인 주석(-- ...) 제거(블록 내부 주석 포함).
         String noComments = Arrays.stream(sql.split("\n"))

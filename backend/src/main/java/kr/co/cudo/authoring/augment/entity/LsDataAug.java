@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
  * {@link #AUG_RESL_1080P}/{@link #AUG_RESL_720P}/{@link #AUG_RESL_480P}({@link #RESL_PREFIX} 접두)
  * 판별자로 구분하며, 원본↔파생 라벨 배율 매핑은 {@code LS_DATA_AUG_LBL_MAP}
  * (COORD_RECALC_YN/SCALE_X/SCALE_Y)에 함께 적재한다. 구 전용 테이블
- * (LS_RESOLUTION_EXPORT/LS_RESOLUTION_LBL_MAP)은 폐기됐다(V125 백필 후 DROP).
+ * (LS_RESOLUTION_EXPORT/LS_RESOLUTION_LBL_MAP)은 폐기됐다(V126 백필 후 DROP).
  * {@link #AUG_RESOLUTION} 상수는 통합 이전 레거시 단일 코드 데이터 호환용으로만 유지한다.
  * 검수 상태/반려 사유/정합률은 LS_DATA_AUG_RVW 에 분리 저장한다.
  */
