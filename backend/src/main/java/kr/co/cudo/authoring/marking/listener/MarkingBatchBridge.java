@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -82,10 +83,26 @@ public class MarkingBatchBridge {
             return;
         }
 
-        // D1/D2 — 조건부 원자 전이(check-and-set)로 BATCH_QUEUED 를 즉시 커밋 영속하고 멱등성을 보장한다.
-        // 작업 상태가 SKIP 대상(BATCH_QUEUED/PROCESSING/COMPLETED)이 아닐 때만 전이에 성공하며, 동시 2개
-        // 마킹 이벤트 중 정확히 1건만 전이 권한(true)을 획득한다. 전이 실패(false)면 배치 트리거를 건너뛴다.
+        // D1/D2/FIX B — BATCH_QUEUED 클레임을 2단계 독립 트랜잭션으로 수행해 즉시 커밋 영속·멱등성·
+        // 미배정 고착 제거를 함께 달성한다(CRITICAL 재설계).
+        //  tx1: tryClaimBatchQueued — 작업 상태 row 가 존재하고 SKIP 대상(BATCH_QUEUED/PROCESSING/COMPLETED)이
+        //       아닐 때만 단일 조건부 UPDATE 로 BATCH_QUEUED 전이. DB 직렬화로 동시 2 이벤트 중 1건만 true.
+        //  tx2: tryCreateBatchQueuedRow — tx1 이 false(=row 부재 또는 이미 SKIP)일 때만 호출. row 부재면
+        //       새 BATCH_QUEUED row 를 생성(미배정 REVIEWER 직접 마킹 고착 제거), 이미 존재하면 false(멱등 스킵).
+        // 두 단계를 별도 REQUIRES_NEW(=새 커넥션)로 나누는 이유: 할당형 PK 라 insert flush 가 커밋까지 지연되고
+        // PostgreSQL 은 unique 위반 시 tx 전체를 abort 하므로, "같은 tx 내 재시도"는 구조적으로 불가능하다.
+        // tx2 의 saveAndFlush 가 동시 노드와 경합해 던지는 DataIntegrityViolationException 은 활성 tx 없는
+        // AFTER_COMMIT 컨텍스트인 여기서 안전하게 잡아 skip 처리한다 → 정확히 1건만 배치를 트리거한다(CWE-362).
         boolean claimed = batchTransitionService.tryClaimBatchQueued(rawSn, SKIP_STATUSES);
+        if (!claimed) {
+            try {
+                claimed = batchTransitionService.tryCreateBatchQueuedRow(rawSn);
+            } catch (DataIntegrityViolationException e) {
+                // 동시 노드가 먼저 row 를 생성 → 그 노드가 트리거를 소유. 이번 호출은 조용히 스킵한다.
+                log.info("[MarkingBatchBridge] concurrent row creation rawSn={} — skipping", rawSn);
+                claimed = false;
+            }
+        }
         if (!claimed) {
             log.info("[MarkingBatchBridge] batch already claimed/in-progress rawSn={} — skipping", rawSn);
             return;
