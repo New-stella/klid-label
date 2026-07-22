@@ -66,6 +66,10 @@ class DatasetVideoMetaSnapshotServiceIT {
     @org.junit.jupiter.api.AfterEach
     void cleanup() {
         for (Long rawSn : seededRawSns) {
+            // event_annotation FK 자식(review) → anno → raw 순으로 삭제(FK 정합).
+            jdbc.update("DELETE FROM LS_EVNT_ANNO_REVIEW WHERE EVNT_ANNO_SN IN "
+                    + "(SELECT EVNT_ANNO_SN FROM LS_EVNT_ANNO WHERE RAW_SN = ?)", rawSn);
+            jdbc.update("DELETE FROM LS_EVNT_ANNO WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATASET_VIDEO_META WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_META WHERE RAW_SN = ?", rawSn);
@@ -137,6 +141,77 @@ class DatasetVideoMetaSnapshotServiceIT {
     private void seedMeta(Long rawSn, String key, String value) {
         jdbc.update("INSERT INTO LS_DATA_META (RAW_SN, META_KEY, META_VL, RTRY_NMTM, REG_DT) "
                 + "VALUES (?, ?, ?, 0, ?)", rawSn, key, value, LocalDateTime.now());
+    }
+
+    /** event_annotation payload + 검토상태 시드. 반환은 EVNT_ANNO_SN. */
+    private long seedEventAnnotation(Long rawSn, String payloadJson, String rvwSttsCd) {
+        Long annoSn = jdbc.queryForObject(
+                "INSERT INTO LS_EVNT_ANNO (RAW_SN, ANNO_CN, REG_ID, REG_DT) "
+                        + "VALUES (?, CAST(? AS jsonb), 'tester', ?) RETURNING EVNT_ANNO_SN",
+                Long.class, rawSn, payloadJson, LocalDateTime.now());
+        jdbc.update("INSERT INTO LS_EVNT_ANNO_REVIEW (EVNT_ANNO_SN, RVW_STTS_CD, META_TYPE_CD, REG_DT, VER) "
+                + "VALUES (?, ?, 'VLM', ?, 0)", annoSn, rvwSttsCd, LocalDateTime.now());
+        return annoSn;
+    }
+
+    private static final String EVENT_ANNO_PAYLOAD =
+            "{\"event_class\":\"assault\",\"question\":\"무슨 일?\","
+                    + "\"caption\":{\"c1\":{\"caption_text\":\"다툼\",\"cot\":[\"a\",\"b\"]}},"
+                    + "\"answer\":\"폭행\","
+                    + "\"evidence\":{\"c1\":{\"evidence_text\":\"주먹\",\"obj_id\":[\"o1\"]}}}";
+
+    @Test
+    @DisplayName("검수승인시_event_annotation이_스냅샷으로_동결된다")
+    void materialize_freezesApprovedEventAnnotation() {
+        // given — 승인(APPROVED) 상태의 event_annotation
+        long rawSn = seedSource();
+        seedEventAnnotation(rawSn, EVENT_ANNO_PAYLOAD, "APPROVED");
+
+        // when
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+
+        // then — 활성 스냅샷에 event_annotation 동결본이 담긴다(원문 형태 보존).
+        LsDatasetVideoMeta m = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
+        assertThat(m.getEvntAnnoCn()).isNotNull();
+        assertThat(m.getEvntAnnoCn()).contains("assault").contains("caption_text").contains("evidence");
+    }
+
+    @Test
+    @DisplayName("승인안된_event_annotation은_동결되지_않는다_null")
+    void materialize_skipsUnapprovedEventAnnotation() {
+        // given — PENDING(미승인) event_annotation
+        long rawSn = seedSource();
+        seedEventAnnotation(rawSn, EVENT_ANNO_PAYLOAD, "PENDING");
+
+        // when
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+
+        // then — 동결 대상 없음(null)
+        LsDatasetVideoMeta m = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
+        assertThat(m.getEvntAnnoCn()).isNull();
+    }
+
+    @Test
+    @DisplayName("동결후_원본_event_annotation_수정해도_활성스냅샷은_동결본_유지")
+    void materialize_frozenEventAnnotationImmutableAgainstLiveEdit() {
+        // given — 승인 event_annotation 동결
+        long rawSn = seedSource();
+        long annoSn = seedEventAnnotation(rawSn, EVENT_ANNO_PAYLOAD, "APPROVED");
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+        String frozen = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0).getEvntAnnoCn();
+
+        // when — 원본 LS_EVNT_ANNO payload 수정(동결 후 편집)
+        jdbc.update("UPDATE LS_EVNT_ANNO SET ANNO_CN = CAST(? AS jsonb) WHERE EVNT_ANNO_SN = ?",
+                "{\"event_class\":\"robbery\"}", annoSn);
+
+        // then — 활성 스냅샷 동결본은 그대로(편집분에 오염되지 않음 = export 멱등의 근거)
+        String stillFrozen = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0).getEvntAnnoCn();
+        assertThat(stillFrozen).isEqualTo(frozen);
+        assertThat(stillFrozen).contains("assault").doesNotContain("robbery");
     }
 
     @Test

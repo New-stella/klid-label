@@ -9,7 +9,7 @@
 |------|------|
 | DBMS | **PostgreSQL** |
 | 스키마 | `klid_at` |
-| 마이그레이션 | **Flyway** (V0~V119, 70+ 테이블/뷰) |
+| 마이그레이션 | **Flyway** (V0~V128, 70+ 테이블/뷰) |
 | 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** 9개 `ddl-auto=validate` 참조, Quartz `QRTZ_*` |
 | DDL | PostgreSQL 표준 문법 (MariaDB 문법 금지), `ddl-auto=validate` 고정 |
 
@@ -44,11 +44,13 @@
 | `LS_MARKING` (V45) | 마킹 (MARK_MODE_CD, FRME_INTV_NOCS, MARK_CN JSON) | [06](06-marking.md) |
 | `LS_DATA_META` (V4) | 시계열 메타 (META_KEY/VL, EXTERNAL_JOB_ID) | [09](09-vlm-timeseries.md) |
 | `LS_DATA_META_HSTRY` (V4) / `LS_DATA_META_REVIEW` (V5) | 메타 이력 / 검수 | [09](09-vlm-timeseries.md) |
+| `LS_EVNT_ANNO` (V127) | 이벤트 어노테이션(event_annotation, VQA/CoT) 영상 단위 저장. `ANNO_CN` jsonb(payload 원문, caption/evidence 후보 c1..cn), UK(RAW_SN) 영상당 1건 | [09](09-vlm-timeseries.md) · [24](24-dataset-export.md) |
+| `LS_EVNT_ANNO_REVIEW` (V127) | event_annotation 검토 상태 (`RVW_STTS_CD` VARCHAR(20): AUTO_GENERATED/PENDING/APPROVED/REJECTED, `META_TYPE_CD`, `RJCT_RSN`, `VER` 낙관적 잠금 CWE-362) | [09](09-vlm-timeseries.md) |
 
 ### 데이터마트 통합 메타 스냅샷 (포털향, V97~)
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_DATASET_VIDEO_META` (V97, 부분 유니크 인덱스 V99) | 검수완료(APPROVED) 시점 영상 메타 **동결 스냅샷**(1영상=1행 컬럼형, `SNPSHT_HASH` 멱등·`ACTIVE_YN` append-only). 표준용어 컬럼(VDO_CDC·FPS·BIT_RT·ASPRT_RT·RESL·WGS84_LAT/LOT·SESN_CD·DAY_NGT_CD 등). control DB 단일 진실원(SoT). `ReviewService.approve()` 트랜잭션 편승 materialize + 기존 APPROVED 백필(ApplicationRunner). MNG_* live JOIN 제거로 동결 무결성 | — |
+| `LS_DATASET_VIDEO_META` (V97, 부분 유니크 인덱스 V99, `EVNT_ANNO_CN` V128) | 검수완료(APPROVED) 시점 영상 메타 **동결 스냅샷**(1영상=1행 컬럼형, `SNPSHT_HASH` 멱등·`ACTIVE_YN` append-only). 표준용어 컬럼(VDO_CDC·FPS·BIT_RT·ASPRT_RT·RESL·WGS84_LAT/LOT·SESN_CD·DAY_NGT_CD 등). **`EVNT_ANNO_CN`(V128, jsonb)**: 승인 시점 APPROVED event_annotation payload 동결본(미승인/부재 시 NULL) — 재export 멱등. control DB 단일 진실원(SoT). `ReviewService.approve()` 트랜잭션 편승 materialize + 기존 APPROVED 백필(ApplicationRunner). MNG_* live JOIN 제거로 동결 무결성 | [24](24-dataset-export.md) |
 | `LS_META_REPL_OUTBOX` (V98) | 포털(별도 물리 DB) 단방향 복제 outbox(PENDING/DONE/DEAD/SUPERSEDED, at-least-once, 멱등키 RAW_SN+SNPSHT_HASH). XA 부재 대응 — 승인과 분리된 워커가 복제 | — |
 
 > 포털 복제본 테이블은 `db/portal/V1`(Flyway `db/migration` 스캔 밖 — 포털 DB에 수동 프로비저닝, 워커 graceful probe). 순서 보증은 단일 인스턴스+`@DisallowConcurrentExecution` 전제(스케일아웃 시 재설계 필요).

@@ -132,6 +132,11 @@ class DatasetExportE2EIT {
 
     /** 활성 메타 + FRAME_COUNT 프레임(원본/비식별 이미지 fixture 실파일 포함) + BBOX 라벨을 시딩한다. */
     private long seedVideoWithFrameFiles(String pointCn, String description) {
+        return seedVideoWithFrameFiles(pointCn, description, null);
+    }
+
+    /** 위와 동일하되 활성 메타에 동결 event_annotation({@code evntAnnoCn})을 함께 심는다(null 허용). */
+    private long seedVideoWithFrameFiles(String pointCn, String description, String evntAnnoCn) {
         Long labelId = txTemplate.execute(s -> labelMasterRepository.save(
                 LsLabel.create("car-" + System.nanoTime(), "#ff0000", "BBOX", 1, "tester")).getLabelId());
         createdLabelIds.add(labelId);
@@ -147,6 +152,7 @@ class DatasetExportE2EIT {
                     .vdoWdth(1920)
                     .vdoHgt(1080)
                     .rawFilePathNm("raw/path.mp4")
+                    .evntAnnoCn(evntAnnoCn)
                     .regDt(LocalDateTime.now())
                     .build());
             for (int i = 0; i < FRAME_COUNT; i++) {
@@ -266,6 +272,63 @@ class DatasetExportE2EIT {
         assertThat(latest.getExportSttsCd()).isEqualTo(LsDatasetExport.STATUS_SUCCEEDED);
         // orgnl FRAME_COUNT + deid FRAME_COUNT (프레임마다 원본·비식별 이미지 fixture 존재)
         assertThat(latest.getFrameCnt()).isEqualTo(FRAME_COUNT * 2);
+    }
+
+    /** 위키 §24.3.1 event_annotation payload(후보 키 c1..cn). */
+    private static final String EVENT_ANNO_PAYLOAD =
+            "{\"event_class\":\"assault\",\"question\":\"무슨 일?\","
+                    + "\"caption\":{\"c1\":{\"caption_text\":\"두 사람이 다툰다\",\"cot\":[\"1단계\",\"2단계\"]}},"
+                    + "\"answer\":\"폭행\","
+                    + "\"evidence\":{\"c1\":{\"evidence_text\":\"주먹\",\"obj_id\":[\"o1\",\"o2\"]}}}";
+
+    @Test
+    @DisplayName("export_각_프레임_frameN_json에_최상위_event_annotation_키가_c1cn_형태로_포함된다")
+    void exportFramesIncludeTopLevelEventAnnotationC1Form() throws IOException {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명", EVENT_ANNO_PAYLOAD);
+
+        exportService.export(rawSn);
+
+        // orgnl/deid 각 프레임 JSON 모두 최상위 event_annotation(동결본 pass-through)을 자기완결로 포함.
+        for (ExportKind kind : List.of(ExportKind.ORIGINAL, ExportKind.DEIDENTIFIED)) {
+            for (int i = 0; i < FRAME_COUNT; i++) {
+                JsonNode doc = objectMapper.readTree(
+                        versionDir(rawSn, 1, kind).resolve("frame-" + i + ".json").toFile());
+                JsonNode ea = doc.get("event_annotation");
+                assertThat(ea).isNotNull();
+                assertThat(ea.path("event_class").asText()).isEqualTo("assault");
+                assertThat(ea.path("caption").path("c1").path("caption_text").asText())
+                        .isEqualTo("두 사람이 다툰다");
+                assertThat(ea.path("caption").path("c1").path("cot")).hasSize(2);
+                assertThat(ea.path("evidence").path("c1").path("evidence_text").asText()).isEqualTo("주먹");
+                assertThat(ea.path("evidence").path("c1").path("obj_id").get(0).asText()).isEqualTo("o1");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("event_annotation_없는_영상_export시_event_annotation키는_null이다")
+    void exportEventAnnotationNullWhenAbsent() throws IOException {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명"); // evntAnnoCn = null
+
+        exportService.export(rawSn);
+
+        JsonNode doc = objectMapper.readTree(
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+        assertThat(doc.has("event_annotation")).isTrue();
+        assertThat(doc.get("event_annotation").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("event_annotation_포함_재export시_동일_동결본이면_멱등skip되어_v2가_없다")
+    void reExportWithSameFrozenEventAnnotationIsIdempotent() {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명", EVENT_ANNO_PAYLOAD);
+        exportService.export(rawSn); // v1
+        exportService.export(rawSn); // 동일 동결본 → 멱등 skip
+
+        List<LsDatasetExport> exports = txTemplate.execute(s ->
+                exportRepository.findAll().stream().filter(e -> e.getDataRawSn().equals(rawSn)).toList());
+        assertThat(exports).hasSize(1);
+        assertThat(exports.get(0).getExportVerNo()).isEqualTo(1);
     }
 
     @Test

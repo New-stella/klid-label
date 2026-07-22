@@ -153,6 +153,9 @@ public class LabelContentHasher {
         append(sb, meta.getEvntNm());
         append(sb, meta.getDayNgtCd());
         append(sb, meta.getSesnCd());
+        // 동결 event_annotation — 산출 JSON 최상위 event_annotation 으로 직렬화되므로 해시에 반영해,
+        // event_annotation 만 바뀐 재승인(동결본 변경)이 멱등 skip 으로 stale 고착되지 않게 한다.
+        append(sb, meta.getEvntAnnoCn());
         sb.append(RECORD_SEP);
     }
 

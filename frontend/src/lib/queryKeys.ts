@@ -109,6 +109,15 @@ export const META_KEYS = {
   byVideo: (videoId: number) => [...META_KEYS.all, 'video', videoId] as const,
 };
 
+/**
+ * event_annotation(외부 VLM VQA/CoT) — BE GET/PUT /v1/videos/{rawSn}/event-annotation.
+ * 영상(rawSn) 단위로 캐시를 분리 관리한다.
+ */
+export const EVENT_ANNOTATION_KEYS = {
+  all: ['eventAnnotation'] as const,
+  byVideo: (rawSn: number) => [...EVENT_ANNOTATION_KEYS.all, 'video', rawSn] as const,
+};
+
 export const AUTOLABEL_KEYS = {
   all: ['autolabel'] as const,
   byVideo: (videoId: number) => [...AUTOLABEL_KEYS.all, 'video', videoId] as const,

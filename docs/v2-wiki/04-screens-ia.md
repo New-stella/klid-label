@@ -55,6 +55,8 @@
 >
 > **SC-005 "변경 이력" 되돌리기(복원)**(2026-07-21) — "변경 이력" 탭의 각 저장 이벤트 카드에 **되돌리기 버튼**을 제공한다. 클릭 후 확인 모달을 승인하면 그 저장 이벤트의 변경을 **현재 캔버스 작업본(draft)에 역적용**한다 — 수정(UPDATED)→이전값 복원, 추가(ADDED)→작업본에서 제거, 삭제(DELETED)→이전 라벨을 신규로 재추가. 역적용은 **즉시 DB 저장이 아니라** 작업본만 변경(단일 undo로 취소 가능·dirty 표시)하며, 사용자가 기존 **저장 버튼**을 눌러야 확정된다(승인 전에도 동작, `LS_LABEL_VERSION` 롤백과 별개). before 스냅샷은 이력의 `CHG_DTL_CN`에 저장돼 있어 별도 조회 없이 복원한다. 현재 작업본에 없는 대상(저장 후 다른 편집으로 사라짐)·좌표 복원 불가(SEGMENT 마스크) 항목은 안전 스킵 + 안내 토스트. 비식별 재처리 잠금(`LOCKED_FOR_REDEIDENT`) 영상은 되돌리기 차단. FE 전용(되돌리기용 BE API 없음 — 저장은 기존 `PUT /v1/frames/{srcSn}/labels`).
 
+> **SC-005 메타 탭 event_annotation 수동입력 패널**(2026-07-22) — 라벨링 캔버스 우측 **'메타' 탭**(INTERNAL 채널만, 포털 미노출)에 `TimeseriesSidePanel` 아래로 **이벤트 어노테이션 패널**(`EventAnnotationPanel`)이 추가됐다. 영상(RAW_SN) 단위 event_annotation(VQA/CoT)을 입력·검수한다: `event_class`(필수)·`question`·`answer` + **caption 후보 c1..cn**(caption_text + CoT 1·2·3단계) + **evidence 후보 c1..cn**(evidence_text + frame_id/obj_id/obj_bbox/obj_label). 외부 자동 생성값을 폼에 프리필하고 WORKER/REVIEWER 가 수동 덮어쓰기, REVIEWER 가 승인/반려한다. 조회/저장 `GET`/`PUT /v1/videos/{rawSn}/event-annotation`, 검수 `POST .../approve|reject`. 문구는 모델명(YOLO/SAM/VLM) 비노출. 상세 → [09 §9.3-1](09-vlm-timeseries.md) · [24 §24.3.1](24-dataset-export.md).
+
 > **deprecated 화면 정리**(2026-06-17) — 진입점 없는 orphan/중복 화면을 코드·라우트와 함께 제거:
 > - **SC-008 영상 처리 현황**(`/video/status`) — LNB·링크 진입점 없는 orphan. '영상 처리 현황' LNB 메뉴는 SC-007(영상 목록)에 연결돼 영향 없음.
 > - **SC-014 오토라벨 요약**(`/auto/:videoId`) — 영상 상세(SC-009)의 인라인 `AutoLabelTab`으로 대체.

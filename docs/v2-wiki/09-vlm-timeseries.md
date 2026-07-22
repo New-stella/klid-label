@@ -3,7 +3,7 @@
 > 출처: CLAUDE.md(VLM 연동·범위 외), R2 KLID-AT-SS-005, **외부 확정 계약 `docs/video_vlm_api_ v2.0.1.docx`(IntelliVIX AI연구소, 2026-06-15)**, 코드(`VlmClient`, `batch/step/VlmTimeseriesStep`, `webhook/VlmResultController`, `meta/`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [12 검수](12-review-assignment.md) · [24 데이터셋 산출](24-dataset-export.md)
 
-> **VQA/CoT 어노테이션 산출 포맷**: VLM이 산출하는 이벤트 단위 VQA/CoT(질문·캡션·사고과정·근거)는 학습데이터 JSON에서 COCO `annotations`(객체 배열)와 분리된 **최상위 `event_annotation` 키**로 표현한다. 필드 정의·조달(VLM / VLM+수동입력)은 [24 데이터셋 산출 §24.3.1](24-dataset-export.md) 참조. **설계 제안·키 변경 가능**.
+> **VQA/CoT 어노테이션(event_annotation) — 확정·구현 완료**: 이벤트 단위 VQA/CoT(질문·캡션·사고과정·근거)는 학습데이터 JSON에서 COCO `annotations`(객체 배열)와 분리된 **최상위 `event_annotation` 키**(후보 `c1..cn`)로 표현한다. 외부 자동 생성값을 프리필하고 라벨링 '메타' 탭 **이벤트 어노테이션 패널**(`EventAnnotationPanel`)에서 WORKER/REVIEWER 가 전 필드를 수동 덮어쓰기, REVIEWER 가 승인/반려한다(§9.3-1). 필드 정의·조달·저장 API 는 [24 데이터셋 산출 §24.3.1](24-dataset-export.md) 참조.
 
 ## 9.1 범위 — 연동만
 
@@ -36,9 +36,18 @@
 - 데이터마트 노출은 `RVW_STTS_CD='APPROVED'`만 (`V_COMPLETED_META`) → [18](18-database.md)
 - 코드: `meta/MetaController`, FE `features/label/components/TimeseriesSidePanel.tsx`
 
+### 9.3-1 event_annotation 수동입력·검수 (VQA/CoT)
+
+시계열 메타(자연어 텍스트)와 별개로, **이벤트 단위 VQA/CoT** 는 라벨링 캔버스(SC-005) 우측 **'메타' 탭의 `EventAnnotationPanel`**(`TimeseriesSidePanel` 아래)에서 입력·검수한다. INTERNAL 채널만 노출(포털 미노출, ADR-013).
+
+- 조회/저장: `GET`/`PUT /v1/videos/{rawSn}/event-annotation`(WORKER 본인 배정·REVIEWER). 외부 자동 생성값(`LS_EVNT_ANNO.ANNO_CN`)을 폼에 프리필 → 전 필드 수동 덮어쓰기.
+- 검수: `POST .../approve`·`.../reject`(REVIEWER). 상태 `LS_EVNT_ANNO_REVIEW.RVW_STTS_CD`: AUTO_GENERATED / PENDING / APPROVED / REJECTED.
+- 페이로드: `event_class`(필수)·`question`·`answer` + `caption`/`evidence` 후보 `c1..cn`(caption=caption_text+cot 3단계, evidence=evidence_text+frame_id/obj_id/obj_bbox/obj_label). → [24 §24.3.1](24-dataset-export.md).
+- 코드: FE `features/label/components/EventAnnotationPanel.tsx`·`hooks/useEventAnnotation.ts`·`useUpdateEventAnnotation.ts`·`api/eventAnnotation.ts` / BE `evntanno/`(controller·service·entity `LsEvntAnno`/`LsEvntAnnoReview`).
+
 ## 9.4 관련 데이터 (DB)
 
-`LS_DATA_META` (`META_KEY`/`META_VL`/`EXTERNAL_JOB_ID`), `LS_DATA_META_HSTRY`(변경 이력), `LS_DATA_META_REVIEW`(검수 상태). → [18](18-database.md).
+`LS_DATA_META` (`META_KEY`/`META_VL`/`EXTERNAL_JOB_ID`), `LS_DATA_META_HSTRY`(변경 이력), `LS_DATA_META_REVIEW`(검수 상태). event_annotation 은 `LS_EVNT_ANNO`(`ANNO_CN` jsonb)·`LS_EVNT_ANNO_REVIEW`(검수 상태). → [18](18-database.md).
 
 ## 9.5 외부 확정 계약 — IntelliVIX Video VLM API v2.0.1
 

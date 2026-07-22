@@ -71,7 +71,7 @@ class DatasetExportTxServiceTest {
         pathResolver = mock(DatasetExportPathResolver.class);
         txService = new DatasetExportTxService(srcRepository, labelRepository, videoMetaRepository,
                 labelMasterRepository, videoRepository, exportRepository, niaJsonBuilder,
-                contentHasher, pathResolver);
+                contentHasher, pathResolver, new com.fasterxml.jackson.databind.ObjectMapper());
 
         // 최소 입력 스텁 — 프레임 1건 + 활성 메타 1건이 있어야 loadPreparation 이 조립을 진행한다.
         LsDataSrc frame = mock(LsDataSrc.class);
@@ -87,7 +87,7 @@ class DatasetExportTxServiceTest {
         when(label.getLabelId()).thenReturn(null); // 마스터 로드 skip
         when(labelRepository.findAllByRawSn(RAW_SN)).thenReturn(List.of(label));
 
-        when(niaJsonBuilder.prepareContext(any(), any(), any()))
+        when(niaJsonBuilder.prepareContext(any(), any(), any(), any()))
                 .thenReturn(mock(VideoExportContext.class));
     }
 
@@ -147,6 +147,27 @@ class DatasetExportTxServiceTest {
 
         assertThat(prep).isPresent();
         assertThat(prep.get().isUnchangedFromLastExport()).isFalse();
+    }
+
+    @Test
+    @DisplayName("동결_event_annotation이_잘못된JSON이면_null로_fail_secure되고_export는_계속된다")
+    void malformedFrozenEventAnnotationFailsSecureToNull() {
+        when(contentHasher.hash(any(), any(), any(), any())).thenReturn("H");
+        when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
+                .thenReturn(Optional.empty());
+        // 활성 메타의 EVNT_ANNO_CN 이 파싱 불가한 jsonb 원문(방어코드 경로) — readTree 가 JsonProcessingException.
+        LsDatasetVideoMeta malformed = mock(LsDatasetVideoMeta.class);
+        when(malformed.getEvntAnnoCn()).thenReturn("{invalid json");
+        when(videoMetaRepository.findByRawSnAndActiveYn(eq(RAW_SN), any())).thenReturn(List.of(malformed));
+
+        Optional<ExportPreparation> prep = txService.loadPreparation(RAW_SN);
+
+        // export 를 깨지 않고 계속 진행하며(prep present), event_annotation 은 null 로 pass-through(omit).
+        assertThat(prep).isPresent();
+        ArgumentCaptor<com.fasterxml.jackson.databind.JsonNode> eaCaptor =
+                ArgumentCaptor.forClass(com.fasterxml.jackson.databind.JsonNode.class);
+        verify(niaJsonBuilder).prepareContext(any(), any(), any(), eaCaptor.capture());
+        assertThat(eaCaptor.getValue()).isNull();
     }
 
     @Test

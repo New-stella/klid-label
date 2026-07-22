@@ -23,7 +23,7 @@
 | 06 | [마킹](06-marking.md) | 자동/수동 마킹, 스트리밍, 배치 트리거 |
 | 07 | [배치 파이프라인](07-batch-pipeline.md) | 오케스트레이터 단계, Quartz, 재시도 |
 | 08 | [비식별화](08-deidentification.md) | 외부 연동, 누락 신고, 처리 이력 |
-| 09 | [VLM 시계열 메타](09-vlm-timeseries.md) | 외부 VLM 호출·콜백, 메타 검수 |
+| 09 | [VLM 시계열 메타](09-vlm-timeseries.md) | 외부 VLM 호출·콜백, 메타 검수, event_annotation(VQA/CoT) 수동입력·검수 |
 | 10 | [라벨링](10-labeling.md) | konva 캔버스, 도구, 라벨 속성, 프리셋 |
 | 11 | [AI 보조 · 오토라벨링](11-ai-assisted.md) | YOLO/SAM2(VOS·분할), 트랙 보간, ai-server |
 | 12 | [검수 · 작업 배정](12-review-assignment.md) | REVIEWER 승인/반려, 배정·재배정 이력 |
@@ -38,7 +38,7 @@
 | 21 | [이슈 소통 채널](21-issue-channel.md) | 검수자↔작업자 문의 스레드, 상태 머신, 반려 통합 — R1 외 추가 |
 | 22 | [비식별화 솔루션 API 연동 명세](22-deid-solution-api.md) | KPST 외부 API 13종 명세 전사(v1.0), 폴링 모델, 코드·상태 정의 |
 | 23 | [v1→v2 DB 이관 분석 (영상·라벨)](23-v1-v2-db-migration.md) | MariaDB(klid)→PostgreSQL(klid_system_246) **영상 목록+라벨 결과** 실DB 검증 매핑, POINT 좌표 포맷 변환, ID 재연결, 결정 필요 GAP 3종 |
-| 24 | [검수 승인 시 학습데이터 파일 산출](24-dataset-export.md) | 승인 AFTER_COMMIT 트리거(API 없음), `{RAW_SN}/v{n}/orgnl\|deid/` 폴더, NIA COCO 확장 JSON(8키·video 매핑·미보유 null·SKELETON 1-indexed), 콘텐츠 해시 멱등·버전 누적, LS_DATASET_EXPORT |
+| 24 | [검수 승인 시 학습데이터 파일 산출](24-dataset-export.md) | 승인 AFTER_COMMIT 트리거(API 없음), `{RAW_SN}/v{n}/orgnl\|deid/` 폴더, NIA COCO 확장 JSON(8키·video 매핑·미보유 null·SKELETON 1-indexed·event_annotation c1..cn), 콘텐츠 해시 멱등·버전 누적, LS_DATASET_EXPORT |
 
 ---
 

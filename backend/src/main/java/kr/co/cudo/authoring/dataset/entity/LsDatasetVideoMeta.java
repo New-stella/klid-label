@@ -153,6 +153,16 @@ public class LsDatasetVideoMeta {
     @Column(name = "WTHR_NM", length = 32)
     private String wthrNm;
 
+    // ---- event_annotation 동결(C2) ----
+    /**
+     * 동결된 event_annotation payload 원문(jsonb, nullable). 검수 승인 시점의 APPROVED
+     * event_annotation(LS_EVNT_ANNO.ANNO_CN) 스냅샷. 승인 안 됐거나 event_annotation 부재 시 null.
+     * export 는 이 동결본만 사용해 승인 후 편집분에 오염되지 않고 재export 가 멱등이다.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "EVNT_ANNO_CN", columnDefinition = "jsonb")
+    private String evntAnnoCn;
+
     // ---- 관리 ----
     @Column(name = "RVW_CMPL_DT")
     private LocalDateTime rvwCmplDt;
@@ -172,7 +182,7 @@ public class LsDatasetVideoMeta {
                                String sggNm, String fileFmt, String evntNm,
                                String vdoCdc, BigDecimal fps, Long bitRt, BigDecimal asprtRt, String resl,
                                Integer vdoWdth, Integer vdoHgt, Long fileSz,
-                               String dayNgtCd, String sesnCd, String wthrNm,
+                               String dayNgtCd, String sesnCd, String wthrNm, String evntAnnoCn,
                                LocalDateTime rvwCmplDt, LocalDateTime regDt, String regId) {
         this.rawSn = rawSn;
         this.snpshtHash = snpshtHash;
@@ -207,6 +217,7 @@ public class LsDatasetVideoMeta {
         this.dayNgtCd = dayNgtCd;
         this.sesnCd = sesnCd;
         this.wthrNm = wthrNm;
+        this.evntAnnoCn = evntAnnoCn;
         this.rvwCmplDt = rvwCmplDt;
         this.regDt = (regDt == null) ? LocalDateTime.now() : regDt;
         this.regId = regId;

@@ -37,7 +37,7 @@ public interface LsDatasetVideoMetaRepository extends JpaRepository<LsDatasetVid
             + "LCLGV_CD, PRVC_YN, PRVC_TYPE_CD, DE_IDENT_YN, AI_CRT_YN, EVNT_TYPE_CD, "
             + "CCTV_NM, WGS84_LAT, WGS84_LOT, SIDO_NM, SGG_NM, FILE_FMT, EVNT_NM, "
             + "VDO_CDC, FPS, BIT_RT, ASPRT_RT, RESL, VDO_WDTH, VDO_HGT, FILE_SZ, "
-            + "DAY_NGT_CD, SESN_CD, WTHR_NM, "
+            + "DAY_NGT_CD, SESN_CD, WTHR_NM, EVNT_ANNO_CN, "
             + "RVW_CMPL_DT, REG_DT, REG_ID"
             + ") VALUES ("
             + ":#{#m.rawSn}, :#{#m.snpshtHash}, :#{#m.activeYn}, "
@@ -45,7 +45,7 @@ public interface LsDatasetVideoMetaRepository extends JpaRepository<LsDatasetVid
             + ":#{#m.lclgvCd}, :#{#m.prvcYn}, :#{#m.prvcTypeCd}, :#{#m.deIdentYn}, :#{#m.aiCrtYn}, :#{#m.evntTypeCd}, "
             + ":#{#m.cctvNm}, :#{#m.wgs84Lat}, :#{#m.wgs84Lot}, :#{#m.sidoNm}, :#{#m.sggNm}, :#{#m.fileFmt}, :#{#m.evntNm}, "
             + ":#{#m.vdoCdc}, :#{#m.fps}, :#{#m.bitRt}, :#{#m.asprtRt}, :#{#m.resl}, :#{#m.vdoWdth}, :#{#m.vdoHgt}, :#{#m.fileSz}, "
-            + ":#{#m.dayNgtCd}, :#{#m.sesnCd}, :#{#m.wthrNm}, "
+            + ":#{#m.dayNgtCd}, :#{#m.sesnCd}, :#{#m.wthrNm}, CAST(:#{#m.evntAnnoCn} AS jsonb), "
             + ":#{#m.rvwCmplDt}, :#{#m.regDt}, :#{#m.regId}"
             + ") ON CONFLICT (RAW_SN, SNPSHT_HASH) DO NOTHING",
             nativeQuery = true)

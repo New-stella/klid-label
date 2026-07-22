@@ -9,6 +9,10 @@ import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRow;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
 import kr.co.cudo.authoring.dataset.util.TimeOfDaySeasonDeriver;
+import kr.co.cudo.authoring.evntanno.entity.LsEvntAnno;
+import kr.co.cudo.authoring.evntanno.entity.LsEvntAnnoReview;
+import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
+import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoReviewRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -55,6 +59,8 @@ public class DatasetVideoMetaSnapshotService {
     private final DatasetMetaSourceRepository sourceRepository;
     private final LsDatasetVideoMetaRepository metaRepository;
     private final LsMetaReplOutboxRepository outboxRepository;
+    private final LsEvntAnnoRepository evntAnnoRepository;
+    private final LsEvntAnnoReviewRepository evntAnnoReviewRepository;
     private final SnapshotHasher snapshotHasher;
     private final ObjectMapper objectMapper;
 
@@ -107,9 +113,15 @@ public class DatasetVideoMetaSnapshotService {
         Long bitRate = parseLong(src.getVideoBitRate());
         Long fileSize = parseLong(src.getVideoFilesize());
 
+        // 3-1) event_annotation 동결(C2) — 이 시점에 승인(APPROVED)된 event_annotation payload 원문.
+        //      미승인/부재 시 null(동결 대상 없음). 동결 내용이므로 멱등 해시에 포함해, event_annotation 만
+        //      바뀐 뒤 재승인해도 새 스냅샷 버전이 append 되게 한다(버전-per-내용 정합).
+        String frozenEventAnno = resolveApprovedEventAnnotation(rawSn);
+
         // 4) 멱등키 — 동결 내용(관리 컬럼 제외)의 정규화 해시.
         String hash = snapshotHasher.hash(buildHashFields(
-                src, resolution, aspectRatio, dayNight, season, aiCreatedYn, fps, bitRate, fileSize));
+                src, resolution, aspectRatio, dayNight, season, aiCreatedYn, fps, bitRate, fileSize,
+                frozenEventAnno));
 
         // 5) 엔티티 조립. RVW_CMPL_DT 는 백필이면 과거 승인 시각(소급), 실시간 승인이면 now().
         LocalDateTime now = LocalDateTime.now();
@@ -148,6 +160,7 @@ public class DatasetVideoMetaSnapshotService {
                 .dayNgtCd(dayNight)
                 .sesnCd(season)
                 .wthrNm(null) // 자동 출처 없음(UI 수기) — 동결 시점엔 null.
+                .evntAnnoCn(frozenEventAnno) // 승인된 event_annotation 동결(없으면 null).
                 .rvwCmplDt(rvwCmplDt)
                 .regDt(now)
                 .regId(null) // materialize(rawSn) 계약상 등록자 미전달 — 감사자는 승인 이벤트/버전 스냅샷으로 추적.
@@ -178,8 +191,10 @@ public class DatasetVideoMetaSnapshotService {
      */
     private Map<String, String> buildHashFields(DatasetMetaSourceRow src, Resolution resolution,
                                                 BigDecimal aspectRatio, String dayNight, String season,
-                                                String aiCreatedYn, BigDecimal fps, Long bitRate, Long fileSize) {
+                                                String aiCreatedYn, BigDecimal fps, Long bitRate, Long fileSize,
+                                                String frozenEventAnno) {
         Map<String, String> f = new TreeMap<>();
+        f.put("EVNT_ANNO_CN", frozenEventAnno);
         f.put("RAW_SN", str(src.getRawSn()));
         f.put("ORGNL_RAW_SN", str(src.getOrgnlRawSn()));
         f.put("VMS_CLIP_ID", src.getVmsClipId());
@@ -211,6 +226,30 @@ public class DatasetVideoMetaSnapshotService {
         f.put("DAY_NGT_CD", dayNight);
         f.put("SESN_CD", season);
         return f;
+    }
+
+    /**
+     * 승인 시점에 <b>동결할 event_annotation</b> payload 원문을 조회한다 — 영상(rawSn)의
+     * event_annotation 이 존재하고 그 검토가 {@code APPROVED} 인 경우에만 payload(jsonb 원문)를 반환한다.
+     *
+     * <p>승인 안 됐거나(AUTO_GENERATED/PENDING/REJECTED) event_annotation 자체가 없으면 null(동결 대상 없음).
+     * 조회는 파생 쿼리 파라미터 바인딩만 사용하고(CWE-89), 로그는 rawSn·상태 식별자만 남긴다(CWE-359).
+     *
+     * @param rawSn 검수 승인된 영상 PK
+     * @return 승인된 event_annotation payload(JSON 문자열), 없으면 null
+     */
+    private String resolveApprovedEventAnnotation(Long rawSn) {
+        LsEvntAnno anno = evntAnnoRepository.findByRawSn(rawSn).orElse(null);
+        if (anno == null) {
+            return null;
+        }
+        boolean approved = evntAnnoReviewRepository.findByEvntAnnoSn(anno.getEvntAnnoSn()).stream()
+                .anyMatch(r -> LsEvntAnnoReview.STTS_APPROVED.equals(r.getRvwSttsCd()));
+        if (!approved) {
+            log.info("[Dataset] event_annotation not approved — freeze skipped rawSn={}", rawSn);
+            return null;
+        }
+        return anno.getAnnoCn();
     }
 
     /** BigDecimal 은 표기 편차(지수/후행 0)를 없애 결정성을 확보한다. */

@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.dataset.export.listener;
 
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
+import kr.co.cudo.authoring.dataset.export.event.DatasetReExportEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,5 +36,15 @@ class DatasetExportBridgeTest {
         bridge.onReviewApproved(event);
 
         verify(runner).runAsync(eq(99L));
+    }
+
+    @Test
+    @DisplayName("DatasetReExportEvent_수신_시_AsyncDatasetExportRunner_위임")
+    void onReExport_delegatesToRunner() {
+        DatasetReExportEvent event = new DatasetReExportEvent(77L);
+
+        bridge.onReExport(event);
+
+        verify(runner).runAsync(eq(77L));
     }
 }
