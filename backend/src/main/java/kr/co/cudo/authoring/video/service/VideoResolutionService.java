@@ -29,7 +29,7 @@ import java.util.List;
  * 해상도 변경(RESOLUTION) 오케스트레이션 — Phase 3 (RQ-SFR-06-03 파생영상 전환).
  *
  * <p><b>정책 전환(R8)</b>: 구 "경량 export 1행 즉시 반환"을 폐기하고, 검수 완료(APPROVED) 원본 영상 1건에서
- * 표준 프리셋(RES_1080P/RES_720P/RES_480P)마다 <b>새 파생영상(RAW_SN)</b>을 만들어 검수 파이프라인에
+ * 표준 프리셋(RESL_1080P/RESL_720P/RESL_480P)마다 <b>새 파생영상(RAW_SN)</b>을 만들어 검수 파이프라인에
  * 진입시킨다. 프리셋별 실제 예약·부모 락·PII 게이트·비동기 확정은 Phase 2
  * {@link ResolutionDerivativeService#createDerivative} 를 재사용한다(중복 구현 금지).
  *
@@ -54,7 +54,7 @@ public class VideoResolutionService {
 
     /** 요구사항 고정 표준 프리셋 3종(1080/720/480). */
     private static final List<ResolutionPreset> STANDARD_PRESETS =
-            List.of(ResolutionPreset.RES_1080P, ResolutionPreset.RES_720P, ResolutionPreset.RES_480P);
+            List.of(ResolutionPreset.RESL_1080P, ResolutionPreset.RESL_720P, ResolutionPreset.RESL_480P);
 
     private final VideoRepository videoRepository;
     private final LsRawDataStatusRepository statusRepository;

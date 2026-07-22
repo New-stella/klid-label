@@ -15,8 +15,14 @@ import java.util.List;
  *   <li>{@code jobId}      = videoId 와 동일(=원본 RAW_SN). FE 는 클릭 시 /augment/result/{jobId} 로 이동한다.</li>
  *   <li>{@code videoId}    = 원본 영상 RAW_SN (SRC_SN → RAW_SN 조회, 매핑 부재 시 SRC_SN)</li>
  *   <li>{@code cctvName}   = 영상의 CCTV 명 (RAW_SN → MNG_RESOURCE_CCTV 조인, 없으면 null)</li>
- *   <li>{@code types}      = 그룹의 distinct AUG_TYPE_CD (레거시 RESOLUTION 값도 데이터에 있으면 포함)</li>
- *   <li>{@code status}     = {@link AugmentJobStatus} 집계값의 name()</li>
+ *   <li>{@code types}          = 그룹의 검수 대상 증강 유형 distinct AUG_TYPE_CD(WINTER/NIGHT/RAIN 등, RESL_ 접두 제외)</li>
+ *   <li>{@code resolutionTypes} = 그룹의 해상도 파생(RESL_ 접두) distinct AUG_TYPE_CD. 저작도구 내부 생성물로
+ *       <b>증강 라벨검수 대상이 아니다</b> — FE 는 이 목록을 비-검수("파생 생성됨")로 렌더링한다.
+ *       {@code types} 와 상호배타(같은 코드가 양쪽에 동시 등장하지 않음)라 FE 의 검수 액션 오노출을 차단한다.</li>
+ *   <li>{@code status}     = {@link AugmentJobStatus} 집계값의 name(). 그룹의 <b>전체 row(RESL_ 해상도 파생 포함)</b>
+ *       를 집계하며, 해상도 파생의 상태는 파생 생성 라이프사이클과 일치한다 — 예약~확정 사이 in-flight 는
+ *       PENDING(생성 중, non-terminal), finalize 성공 확정 후에만 ACCEPTED(생성 완료, terminal)다. 따라서
+ *       in-flight 창에서는 COMPLETED 로 오표기되지 않는다.</li>
  *   <li>{@code requestedAt}= 그룹 MIN(REG_DT)</li>
  *   <li>{@code completedAt}= 전부 종료 시 MAX(검수 완료 일시), 아니면 null</li>
  *   <li>{@code videoCount} = 1 (영상 단위 그룹)</li>
@@ -27,6 +33,7 @@ public record AugmentJobResponse(
         Long videoId,
         String cctvName,
         List<String> types,
+        List<String> resolutionTypes,
         String status,
         LocalDateTime requestedAt,
         LocalDateTime completedAt,

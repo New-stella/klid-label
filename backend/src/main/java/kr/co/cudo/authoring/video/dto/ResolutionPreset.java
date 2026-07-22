@@ -12,9 +12,9 @@ package kr.co.cudo.authoring.video.dto;
  */
 public enum ResolutionPreset {
 
-    RES_1080P(1920, 1080),
-    RES_720P(1280, 720),
-    RES_480P(854, 480);
+    RESL_1080P(1920, 1080),
+    RESL_720P(1280, 720),
+    RESL_480P(854, 480);
 
     private final int width;
     private final int height;

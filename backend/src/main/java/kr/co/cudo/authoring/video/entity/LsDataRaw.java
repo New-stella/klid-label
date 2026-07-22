@@ -187,18 +187,18 @@ public class LsDataRaw {
      *
      * <p>{@code createFromAugment} 와 공통 골격이나 구분점:
      * <ul>
-     *   <li>VMS_CLIP_ID = 원본 + {@code "_RES_"} + 목표 해상도 코드 + 타임스탬프 (UNIQUE 보장)</li>
+     *   <li>VMS_CLIP_ID = 원본 + {@code "_RESL_"} + 목표 해상도 코드 + 타임스탬프 (UNIQUE 보장)</li>
      *   <li>비식별 계승 — 원본이 비식별 완료('Y')된 영상만 파생 대상이므로 파생본도 산출 확정 시 'Y' 로 마감된다.
      *       생성 시점 기본값은 'N'(추출/복사 성공 전까지 스트리밍/마킹 진입 차단, {@code createFromAugment} 동일).</li>
      * </ul>
      *
      * @param parent        원본 RAW (검수완료·비식별, ORGNL_RAW_SN=null)
      * @param rawFilePathNm 파생영상(비식별 비디오 복사본) 파일 경로
-     * @param goalResCd     목표 해상도 코드 (예: RES_720P)
+     * @param goalResCd     목표 해상도 코드 (예: RESL_720P)
      */
     public static LsDataRaw createFromResolution(LsDataRaw parent, String rawFilePathNm, String goalResCd) {
         LsDataRaw raw = new LsDataRaw();
-        raw.vmsClipId = parent.getVmsClipId() + "_RES_" + goalResCd + "_" + System.currentTimeMillis();
+        raw.vmsClipId = parent.getVmsClipId() + "_RESL_" + goalResCd + "_" + System.currentTimeMillis();
         raw.vmsCctvId = parent.getVmsCctvId();
         raw.evntTypeCd = parent.getEvntTypeCd();
         raw.lclgvCd = parent.getLclgvCd();

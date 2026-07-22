@@ -21,9 +21,12 @@ import java.time.LocalDateTime;
  * Phase 9 — 데이터 증강 결과 (LS_DATA_AUG).
  *
  * <p>외부 SFR-07 시스템이 생성한 3종 증강 결과(WINTER/NIGHT/RAIN)를 적재한다.
- * 해상도 변경(RESOLUTION)은 R1 v1.8부터 외부 위탁이 아닌 저작도구 내부 수행(SFR-06-03,
- * LS_RESOLUTION_EXPORT)으로 이관 — {@link #AUG_RESOLUTION} 상수는 기존 적재 데이터
- * 호환을 위해서만 유지하며 신규 콜백/요청에서는 허용되지 않는다.
+ * 해상도 변경(SFR-06-03)도 저작도구 내부 수행 파생영상으로서 이 테이블에 통합 적재한다 —
+ * {@link #AUG_RESL_1080P}/{@link #AUG_RESL_720P}/{@link #AUG_RESL_480P}({@link #RESL_PREFIX} 접두)
+ * 판별자로 구분하며, 원본↔파생 라벨 배율 매핑은 {@code LS_DATA_AUG_LBL_MAP}
+ * (COORD_RECALC_YN/SCALE_X/SCALE_Y)에 함께 적재한다. 구 전용 테이블
+ * (LS_RESOLUTION_EXPORT/LS_RESOLUTION_LBL_MAP)은 폐기됐다(V126 백필 후 DROP).
+ * {@link #AUG_RESOLUTION} 상수는 통합 이전 레거시 단일 코드 데이터 호환용으로만 유지한다.
  * 검수 상태/반려 사유/정합률은 LS_DATA_AUG_RVW 에 분리 저장한다.
  */
 @Entity
@@ -39,7 +42,20 @@ public class LsDataAug {
     public static final String AUG_WINTER     = "WINTER";
     public static final String AUG_NIGHT      = "NIGHT";
     public static final String AUG_RAIN       = "RAIN";
+
+    /**
+     * 레거시 단일 해상도 증강 코드 — R1 v1.8 이전 외부 위탁 방식의 잔존 데이터 호환용.
+     * 신규 해상도 파생은 이 단일값이 아니라 {@link #AUG_RESL_1080P}/{@link #AUG_RESL_720P}/{@link #AUG_RESL_480P}
+     * ({@link #RESL_PREFIX} 접두) 3종으로 적재된다. 신규 콜백/요청에서 이 단일값은 사용하지 않는다.
+     */
     public static final String AUG_RESOLUTION = "RESOLUTION";
+
+    /** 해상도 파생 코드 접두 — 이 접두로 시작하면 저작도구 내부 해상도 파생(검수 대상 아님)이다. */
+    public static final String RESL_PREFIX    = "RESL_";
+    /** 해상도 파생 3종(신규) — {@code ResolutionPreset.name()} 과 1:1 대응. */
+    public static final String AUG_RESL_1080P = "RESL_1080P";
+    public static final String AUG_RESL_720P  = "RESL_720P";
+    public static final String AUG_RESL_480P  = "RESL_480P";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -153,6 +169,71 @@ public class LsDataAug {
                 .idempotencyKey(idempotencyKey)
                 .externalJobId(externalJobId)
                 .build();
+    }
+
+    /**
+     * 저작도구 내부 해상도 파생 <b>예약</b>행을 {@link #STTS_PENDING} 상태로 신규 등록한다 — RQ-SFR-06-03 파생영상.
+     *
+     * <p>해상도 파생 aug 상태는 파생영상 <b>생성 라이프사이클</b>과 일치한다: 예약 시점에는 파생 RAW 가 아직
+     * PENDING(생성 중)이므로 aug 도 {@link #STTS_PENDING}(=생성 중, non-terminal)으로 커밋한다. finalize 성공
+     * 확정 시에만 {@link #markResolutionGenerated()} 로 {@link #STTS_ACCEPTED}(=생성 완료, terminal)로 전이한다.
+     * 이로써 예약~확정 사이의 in-flight 창에서 증강 이력 집계가 조기 COMPLETED 로 오표기되지 않는다.
+     *
+     * <p>해상도 파생은 외부 콜백/라벨 검수 대상이 아니라 내부 생성물이므로, 외부 증강(WINTER/NIGHT/RAIN)의
+     * accept/reject 검수 플로우를 타지 않는다. 파생영상 본체(RAW)의 라벨링·검수 워크플로우는
+     * 별도(LS_RAW_DATA_STATUS)로 진행되며 이 증강 행의 상태와 무관하다.
+     *
+     * <p>{@code IDMP_KEY}/{@code OTSD_JOB_ID} 는 콜백형 증강(webhook 인계) 전용 컬럼이므로 해상도 경로는
+     * NULL 로 고정한다. {@code RTRY_NMTM=0}.
+     *
+     * @param srcSn        대표프레임 SRC_SN (measureFirstFrame 이 확정한 원본 첫 프레임 — 단일 기준)
+     * @param augResTypeCd 해상도 파생 코드({@link #RESL_PREFIX} 접두 필수, 예: RESL_720P)
+     * @param regUserNo    등록자(REVIEWER) 토큰 sub
+     */
+    public static LsDataAug createResolutionPending(Long srcSn, String augResTypeCd, String regUserNo) {
+        return buildResolution(srcSn, augResTypeCd, regUserNo, STTS_PENDING);
+    }
+
+    /**
+     * 이미 생성 완료된 해상도 파생 aug 행({@link #STTS_ACCEPTED})을 직접 구성한다 — 테스트/레거시 데이터
+     * 시딩 전용(post-finalize 상태 재현). 정상 생성 경로는 {@link #createResolutionPending}(예약) +
+     * {@link #markResolutionGenerated()}(확정 전이)를 사용한다.
+     */
+    public static LsDataAug createResolutionAccepted(Long srcSn, String augResTypeCd, String regUserNo) {
+        return buildResolution(srcSn, augResTypeCd, regUserNo, STTS_ACCEPTED);
+    }
+
+    private static LsDataAug buildResolution(Long srcSn, String augResTypeCd, String regUserNo, String status) {
+        if (augResTypeCd == null || !augResTypeCd.startsWith(RESL_PREFIX)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "해상도 파생 코드는 'RESL_' 접두여야 합니다.");
+        }
+        return LsDataAug.builder()
+                .srcSn(srcSn)
+                .augTypeCd(augResTypeCd)
+                .augProcSttsCd(status)
+                .regDt(LocalDateTime.now())
+                .regUserNo(regUserNo)
+                .build();
+    }
+
+    /**
+     * 해상도 파생 예약행을 생성 완료(PENDING→ACCEPTED)로 전이한다 — RQ-SFR-06-03 파생영상.
+     *
+     * <p>finalize 성공 확정 경로에서만 호출된다(REQUIRES_NEW 원자성 내, markMarkingReady/markDeidentified 와
+     * 동일 트랜잭션). RESL_ 접두 + PENDING 가드로 오배송/이중 전이를 차단한다. 전이 후 집계는 terminal 로
+     * 관측되어 COMPLETED(파생 생성 완료)로 정합된다.
+     */
+    public void markResolutionGenerated() {
+        if (augTypeCd == null || !augTypeCd.startsWith(RESL_PREFIX)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "해상도 파생 행만 생성 완료로 전이할 수 있습니다.");
+        }
+        if (!STTS_PENDING.equals(this.augProcSttsCd)) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이미 처리된 해상도 파생 행입니다. status=" + this.augProcSttsCd);
+        }
+        this.augProcSttsCd = STTS_ACCEPTED;
     }
 
     /**

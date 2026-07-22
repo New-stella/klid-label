@@ -143,6 +143,28 @@ class AugmentReviewServiceTest {
                 .isEqualTo(ErrorCode.NOT_FOUND);
     }
 
+    @Test
+    @DisplayName("해상도파생_행에_accept_또는_reject호출시_INVALID_INPUT으로_차단된다")
+    void resolutionDerivativeRowBlockedFromReview() {
+        // 해상도 파생(RES_ 접두)은 저작도구 내부 생성물 — 생성 즉시 ACCEPTED, 외부 검수 대상 아님.
+        LsDataAug resAug = repository.save(
+                LsDataAug.createResolutionAccepted(500L, LsDataAug.AUG_RESL_720P, "system"));
+
+        assertThatThrownBy(() -> service.accept(resAug.getDataAugSn(), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        assertThatThrownBy(() -> service.reject(resAug.getDataAugSn(), "사유", reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        // 차단만 — 상태는 ACCEPTED 그대로 유지(재처리 없음).
+        LsDataAug after = repository.findById(resAug.getDataAugSn()).orElseThrow();
+        assertThat(after.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+    }
+
     // ============================================================
     // 증강 잡 카드(영상 단위 그룹) 조회 — FE AugmentJob 계약 정합
     // ============================================================
@@ -282,5 +304,188 @@ class AugmentReviewServiceTest {
         var job = page.getContent().get(0);
         assertThat(job.videoId()).isEqualTo(srcA);
         assertThat(job.types()).containsExactly("WINTER", "RAIN"); // AUG_ORDER 정렬
+    }
+
+    // ============================================================
+    // Phase 3 — 해상도 파생(RESL_) 이력 노출 + 증강검수 오염 방지 (SFR-06-03)
+    // ============================================================
+
+    @Test
+    @DisplayName("해상도_파생_RESL_행이_증강이력_listAll에_노출된다")
+    void resolutionDerivativeShownInListAll() {
+        Long srcSn = 960L;
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+
+        var page = service.listAll(PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isEqualTo(1);
+        var job = page.getContent().get(0);
+        // 검수 대상 증강(WINTER)은 types 에, 해상도 파생(RESL_)은 resolutionTypes 에 분리 노출
+        assertThat(job.types()).containsExactly("WINTER");
+        assertThat(job.resolutionTypes()).containsExactly("RESL_720P");
+    }
+
+    @Test
+    @DisplayName("해상도만_있는_영상도_이력에_노출된다")
+    void resolutionOnlyVideoShownInHistory() {
+        Long srcSn = 961L;
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_1080P, "system"));
+
+        var page = service.listAll(PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isEqualTo(1);
+        var job = page.getContent().get(0);
+        assertThat(job.videoId()).isEqualTo(srcSn);
+        assertThat(job.videoCount()).isEqualTo(1);
+        // 검수 대상 증강 없음 → types 비어있고, 해상도 파생만 존재
+        assertThat(job.types()).isEmpty();
+        assertThat(job.resolutionTypes()).containsExactly("RESL_1080P");
+        // 검수 대상 없음 → 증강검수 진행상태는 미결(대기) 없음 = COMPLETED (파생 생성 완료)
+        assertThat(job.status()).isEqualTo(AugmentJobStatus.COMPLETED.name());
+    }
+
+    @Test
+    @DisplayName("해상도_파생이_증강_집계에_포함되어_카운트된다")
+    void resolutionRowIncludedInAggregateStatus() {
+        // given — PENDING WINTER + ACCEPTED RESL_720P 같은 srcSn 그룹
+        Long srcSn = 962L;
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+
+        // when
+        var page = service.listAll(PageRequest.of(0, 10));
+
+        // then — RESL_720P(ACCEPTED=terminal)가 집계에 포함되어, WINTER(PENDING)만 남은 미종료와 합쳐
+        //        REQUESTED 가 아닌 IN_PROGRESS 로 카운트된다(집계에 해상도 파생이 반영됨).
+        var job = page.getContent().get(0);
+        assertThat(job.status()).isEqualTo(AugmentJobStatus.IN_PROGRESS.name());
+        assertThat(job.completedAt()).isNull();
+        // FE 구분은 유지 — 해상도 파생은 resolutionTypes 로 별도 노출.
+        assertThat(job.resolutionTypes()).containsExactly("RESL_720P");
+        assertThat(job.types()).containsExactly("WINTER");
+    }
+
+    @Test
+    @DisplayName("해상도만_있는_영상은_집계상_COMPLETED로_카운트된다")
+    void resolutionOnlyVideoCountedAsCompleted() {
+        // given — RESL_ 파생만 존재(성공 파생, ACCEPTED=terminal). 고아 파생은 releaseReservedAug 로
+        //         예약 aug 행이 삭제되므로 ACCEPTED 로 남는 RESL_ 행은 성공 파생뿐이다.
+        Long srcSn = 966L;
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_1080P, "system"));
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+
+        // when
+        var page = service.listAll(PageRequest.of(0, 10));
+
+        // then — 전부 terminal → COMPLETED, 파생 완료로 집계됨. completedAt 채워짐(요청 일시 폴백 포함).
+        var job = page.getContent().get(0);
+        assertThat(job.status()).isEqualTo(AugmentJobStatus.COMPLETED.name());
+        assertThat(job.completedAt()).isNotNull();
+        assertThat(job.resolutionTypes()).containsExactly("RESL_1080P", "RESL_720P");
+        assertThat(job.types()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("해상도_파생_예약직후_finalize전에는_PENDING이라_집계가_COMPLETED가_아니다")
+    void reservedResolutionPendingGroupNotCompleted() {
+        // given — 예약만 커밋되고 finalize 전(in-flight) 상태 = createResolutionPending(생성 중, PENDING).
+        //         파생 RAW 는 아직 PENDING(생성 중)이므로 집계가 조기 COMPLETED 로 오표기되면 안 된다.
+        Long srcSn = 965L;
+        repository.save(LsDataAug.createResolutionPending(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+
+        // when
+        var job = service.listAll(PageRequest.of(0, 10)).getContent().get(0);
+
+        // then — PENDING(non-terminal)만 존재 → COMPLETED 아님(REQUESTED), completedAt null (오표기 방지).
+        assertThat(job.status()).isNotEqualTo(AugmentJobStatus.COMPLETED.name());
+        assertThat(job.status()).isEqualTo(AugmentJobStatus.REQUESTED.name());
+        assertThat(job.completedAt()).isNull();
+        assertThat(job.resolutionTypes()).containsExactly("RESL_720P");
+    }
+
+    @Test
+    @DisplayName("해상도_파생_finalize성공후_ACCEPTED로_전이되어_집계가_COMPLETED다")
+    void resolutionPendingTransitionsToAcceptedThenCompleted() {
+        // given — 예약(PENDING) 행을 finalize 성공 확정 전이(markResolutionGenerated)로 ACCEPTED 로 만든다.
+        Long srcSn = 968L;
+        LsDataAug reserved = repository.save(
+                LsDataAug.createResolutionPending(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+        assertThat(reserved.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
+
+        reserved.markResolutionGenerated(); // finalize 성공 경로 전이
+        repository.save(reserved);
+
+        // when
+        var job = service.listAll(PageRequest.of(0, 10)).getContent().get(0);
+
+        // then — ACCEPTED(terminal)만 존재 → COMPLETED(파생 생성 완료).
+        assertThat(job.status()).isEqualTo(AugmentJobStatus.COMPLETED.name());
+        assertThat(job.completedAt()).isNotNull();
+        assertThat(job.resolutionTypes()).containsExactly("RESL_720P");
+    }
+
+    @Test
+    @DisplayName("WINTER_PENDING과_RESL_ACCEPTED_혼합그룹의_집계상태")
+    void mixedPendingAndResolutionAcceptedAggregateStatus() {
+        // given — WINTER(PENDING) + NIGHT(ACCEPTED) + RESL_720P(ACCEPTED) 혼합 그룹
+        Long srcSn = 967L;
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+        LsDataAug night = repository.save(
+                LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT, new BigDecimal("80.00"), "system"));
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+        service.accept(night.getDataAugSn(), reviewer);
+
+        // when
+        var page = service.listAll(PageRequest.of(0, 10));
+
+        // then — 종료(NIGHT ACCEPTED + RESL_720P ACCEPTED)=2, 미종료(WINTER PENDING)=1 → IN_PROGRESS.
+        //        전부 종료가 아니므로 completedAt 은 null.
+        var job = page.getContent().get(0);
+        assertThat(job.status()).isEqualTo(AugmentJobStatus.IN_PROGRESS.name());
+        assertThat(job.completedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("해상도_이력항목은_검수액션_불가로_식별된다")
+    void resolutionItemIdentifiedAsNonReviewable() {
+        Long srcSn = 963L;
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_480P, "system"));
+
+        var job = service.listAll(PageRequest.of(0, 10)).getContent().get(0);
+
+        // FE 가 비-검수 렌더링할 수 있도록 해상도 파생 타입이 resolutionTypes 로 분리 식별된다.
+        assertThat(job.resolutionTypes()).isNotEmpty();
+        assertThat(job.resolutionTypes()).allMatch(t -> t.startsWith("RESL_"));
+        assertThat(job.types()).noneMatch(t -> t.startsWith("RESL_"));
+    }
+
+    @Test
+    @DisplayName("이력_정렬에_RESL_프리셋이_반영된다")
+    void resolutionPresetSortedByAugOrder() {
+        Long srcSn = 964L;
+        // 입력 순서를 뒤섞어 저장 → AUG_ORDER(1080→720→480) 정렬 검증
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_480P, "system"));
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_1080P, "system"));
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+
+        var job = service.listAll(PageRequest.of(0, 10)).getContent().get(0);
+
+        assertThat(job.resolutionTypes()).containsExactly("RESL_1080P", "RESL_720P", "RESL_480P");
+    }
+
+    @Test
+    @DisplayName("기존_증강3종_이력_표시가_변하지_않는다")
+    void existingThreeAugmentTypesUnchanged() {
+        Long srcSn = 965L;
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT,  new BigDecimal("80.00"), "system"));
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_RAIN,   new BigDecimal("70.00"), "system"));
+
+        var job = service.listAll(PageRequest.of(0, 10)).getContent().get(0);
+
+        assertThat(job.types()).containsExactly("WINTER", "NIGHT", "RAIN");
+        assertThat(job.resolutionTypes()).isEmpty();
+        assertThat(job.status()).isEqualTo(AugmentJobStatus.REQUESTED.name());
     }
 }

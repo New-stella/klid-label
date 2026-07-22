@@ -45,18 +45,23 @@
 - 라벨 무결성 검증: `LabelIntegrityCalculator` (원본 대비 라벨 수·좌표·속성 보존)
 - 코드: `augment/AugmentResultService`, `LS_DATA_AUG`/`LS_DATA_AUG_RVW`/`LS_DATA_AUG_LBL_MAP`
 
-## 14.3 해상도 변경 (RQ-SFR-06-03, 내부 수행 — 2026-07-21 증강형 파생영상으로 정책 재반전)
+## 14.3 해상도 변경 (RQ-SFR-06-03, 내부 수행 — 2026-07-21 증강형 파생영상 → 2026-07-22 증강 저장모델 통합)
 
-> **설계 반전 (feat/resolution-derivative-video)**: 구 "다운스케일 전용 + 이미지셋만 제공 + 새 영상 미생성 + 라벨 좌표 미제공" 정책을 폐기하고, **증강과 동일하게 새 파생영상(RAW_SN)을 생성**하는 방식으로 전환했다. 관제 연동 관점에서는 파생영상이 기존 RAW_SN 파이프라인/데이터마트 뷰(`V_COMPLETED_*`)를 그대로 타므로 뷰 스키마 변경은 불필요하다.
+> **설계 반전 → 저장모델 통합 (feat/resolution-derivative-video)**: 구 "다운스케일 전용 + 이미지셋만 제공 + 새 영상 미생성 + 라벨 좌표 미제공" 정책을 폐기하고 **증강과 동일하게 새 파생영상(RAW_SN)을 생성**하는 방식으로 전환한 뒤(2026-07-21), 저장모델도 전용 테이블 없이 **증강 테이블(`LS_DATA_AUG` + `LS_DATA_AUG_LBL_MAP`)로 통합**했다(2026-07-22). 관제 연동 관점에서는 파생영상이 기존 RAW_SN 파이프라인/데이터마트 뷰(`V_COMPLETED_*`)를 그대로 타므로 뷰 스키마 변경은 불필요하다(데이터마트 뷰는 LS_RESOLUTION_* 미참조 → 변경 없음).
 
-- **저작도구가 직접 수행**(외부 위탁 아님) — 표준 해상도 3종(RES_1080P/RES_720P/RES_480P) 고정 프리셋마다 원본 1건당 **새 파생영상(RAW_SN)** 생성, `ORGNL_RAW_SN`으로 원본 참조
+- **저작도구가 직접 수행**(외부 위탁 아님) — 표준 해상도 3종 고정 프리셋마다 원본 1건당 **새 파생영상(RAW_SN)** 생성, `ORGNL_RAW_SN`으로 원본 참조
 - **비디오는 원본(비식별) 그대로 복사**(재인코딩 없음), **프레임 이미지셋만 목표 해상도로 리스케일**(`Java2DImageResizer`) — 이 두 원칙은 유지
 - **업스케일(확대)도 허용** — 구 `targetH>=srcH` 400 거부 가드 제거. 원본과 동일 해상도인 프리셋만 스킵하고 나머지는 3종 전부 생성
-- **라벨/이미지 좌표를 해상도 배율(scaleX=targetW/srcW, scaleY=targetH/srcH)로 재계산해 파생영상에 적재**(BBOX/POLYGON/세그멘테이션/키포인트 전 종류) — 구 '좌표 미제공' 폐기. 원본↔파생 라벨 매핑은 신규 `LS_RESOLUTION_LBL_MAP`(COORD_RECALC_YN/SCALE_X/SCALE_Y)에 적재하며, `LS_DATA_AUG_LBL_MAP`은 재사용하지 않는다(`DATA_AUG_SN NOT NULL` 제약 — 증강 이력·통계 오염 방지)
-- `LS_RESOLUTION_EXPORT`는 산출 추적 행으로 유지되며 파생 RAW 역참조 `NEW_RAW_SN` 컬럼이 추가됐다(V122). UK(DATA_RAW_SN, GOAL_RESL_CD)는 유지 — 동일 (원본,해상도) 재요청은 여전히 409
-- 파생영상은 증강과 동일하게 **PENDING → 배정 → 검수** 파이프라인에 진입하고, 검수 승인 시 관제에 **별도 완료 통지(TASK_COMPLETED)** 가 발송된다
+- **라벨/이미지 좌표를 해상도 배율(scaleX=targetW/srcW, scaleY=targetH/srcH)로 재계산해 파생영상에 적재**(BBOX/POLYGON/세그멘테이션/키포인트 전 종류) — 구 '좌표 미제공' 폐기
+- **저장모델은 증강과 완전 통합** — 파생 판별·라벨매핑을 위한 전용 테이블을 두지 않는다:
+  - **판별자 = `LS_DATA_AUG.AUG_TYPE_CD` 값 `RESL_1080P`/`RESL_720P`/`RESL_480P`**(해상도 사업표준단어=RESL, 신규 컬럼 없음, VARCHAR(20) 유지)
+  - **원본↔파생 라벨 매핑 = 기존 `LS_DATA_AUG_LBL_MAP.COORD_RECALC_YN/SCALE_X/SCALE_Y` 재사용**(신규 배율 컬럼 없음)
+  - **중복 방지 = 부분 유니크 인덱스 `UK_LS_DATA_AUG_RESL (SRC_SN, AUG_TYPE_CD) WHERE AUG_TYPE_CD LIKE 'RESL_%'`(V124)** — 동일 (원본 대표프레임, 해상도 프리셋) 재요청/동시요청은 DB 레벨에서 직렬화되어 409
+  - **구 전용 테이블 `LS_RESOLUTION_EXPORT`·`LS_RESOLUTION_LBL_MAP`은 폐기**(V125 백필 후 fail-closed DROP)
+- **증강 이력 노출·집계 포함, 단 검수 차단** — 해상도 파생은 증강 이력(`GET /v1/augments`) 응답의 `resolutionTypes` 필드로 별도 노출되고 상태 집계/통계에 포함되나, 저작도구 내부 생성물이라 **accept/reject(검수 승인·반려)는 차단**(진입 시 400 — `AugmentReviewService.loadOrThrow` 가드). aug 상태 라이프사이클은 파생 생성과 일치한다: **예약 시 PENDING(생성 중) → finalize 성공 시 ACCEPTED(생성 완료)**, 실패 시 예약 aug 행 삭제
+- 파생영상(RAW) 본체는 증강과 동일하게 **PENDING → 배정 → 검수** 파이프라인에 진입하고, 검수 승인 시 관제에 **별도 완료 통지(TASK_COMPLETED)** 가 발송된다(이 검수는 파생 영상 라벨 검수이며, 위 aug 행 상태와 무관)
 - **화면: 증강 요청 화면(SCR-AUG-001)의 통합 단일 선택 UI에 흡수** — '해상도 변경' 카드 선택 시 타겟 해상도(1080P/720P/480P, 미지정 시 3종 전체) 선택 UI가 노출되고, 실행하면 `POST /v1/videos/{rawSn}/resolution` 으로 직접 호출되어 응답 `{derivatives:[{rawSn,goalResCd,targetW,targetH,status}]}` 목록이 화면에 inline 표시된다(네비게이션 없음). 1건 이상 생성 성공=201 / 전부 실패=500 / 대상 프리셋 전부 스킵=400. 증강 3종 실행은 잡 등록 후 결과화면(SC-023)으로 이동한다. (구 '영상 상세 화면 독립 해상도 export 섹션'은 폐지 — 컴포넌트 정리됨)
-- 코드: BE `video/service/{VideoResolutionService,ResolutionDerivativeService,ResolutionReservationPersister,ResolutionDerivativeFinalizer}`, `LS_RESOLUTION_EXPORT`(V55)+`NEW_RAW_SN`(V122), `LS_RESOLUTION_LBL_MAP`(V122). FE `pages/AugmentRequestPage`(submit 분기) + `features/video/hooks/useResolutionDerivative`(구 `useResolutionExport` 대체)
+- 코드: BE `video/service/{VideoResolutionService,ResolutionDerivativeService,ResolutionReservationPersister,ResolutionDerivativeFinalizer}`, 적재 대상 `LS_DATA_AUG`(AUG_TYPE_CD=RESL_*)+`LS_DATA_AUG_LBL_MAP`, 인덱스 `UK_LS_DATA_AUG_RESL`(V124), 구 테이블 DROP(V125). FE `pages/AugmentRequestPage`(submit 분기) + `features/video/hooks/useResolutionDerivative`
 
 ## 14.4 활용 여부 검수 (RQ-SFR-07-03, UC-010)
 
@@ -68,10 +73,11 @@ PENDING 증강 영상 (SCR-AUG-002)
 
 - `POST /v1/augments/{id}/accept` · `/reject`, PENDING 외 상태 전이는 409
 - `LS_DATA_AUG.AUG_PROC_STTS_CD`: PENDING / ACCEPTED / REJECTED
+- **해상도 파생(`AUG_TYPE_CD='RESL_*'`)은 검수 대상 아님** — 저작도구 내부 생성물이라 accept/reject 진입 자체가 400 으로 차단된다(`AugmentReviewService.loadOrThrow`). 이력·집계에는 포함되며 상태는 내부 라이프사이클(예약 PENDING → finalize ACCEPTED)로만 전이한다(§14.3)
 
 ## 14.5 관련 데이터 (DB)
 
-`LS_DATA_AUG`(증강·상태), `LS_DATA_AUG_RVW`(검수·`LBL_INTGRT_PCT`·`REJECT_RSN`), `LS_DATA_AUG_LBL_MAP`(원본-증강 라벨 매핑), `LS_RESOLUTION_EXPORT`(해상도 변경 산출 추적, `NEW_RAW_SN` 파생 역참조), `LS_RESOLUTION_LBL_MAP`(해상도 변경 원본-파생 라벨 매핑, V122 신규). → [18](18-database.md).
+`LS_DATA_AUG`(증강·상태 — 해상도 파생도 `AUG_TYPE_CD='RESL_*'` 로 통합 적재, 부분 유니크 인덱스 `UK_LS_DATA_AUG_RESL` V124), `LS_DATA_AUG_RVW`(검수·`LBL_INTGRT_PCT`·`REJECT_RSN`), `LS_DATA_AUG_LBL_MAP`(원본-증강/해상도 파생 공통 라벨 매핑·`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y`). 구 전용 테이블 `LS_RESOLUTION_EXPORT`·`LS_RESOLUTION_LBL_MAP`은 폐기(V125). → [18](18-database.md).
 
 ## 14.6 통합 단일 선택 UX (SCR-AUG-001)
 

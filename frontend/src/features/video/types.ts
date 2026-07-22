@@ -120,20 +120,35 @@ export interface VideoDetail extends Video {
 
 // SFR-06-03 — 해상도 변경 파생영상 생성 (저작도구 직접 수행, 증강 아님).
 // 표준 해상도 화이트리스트 3종 (BE ResolutionPreset enum 과 1:1). 미지정/빈 목록 시 전체 생성.
-export const RESOLUTION_PRESETS = ['RES_1080P', 'RES_720P', 'RES_480P'] as const;
+// 물리 코드는 표준용어(해상도=RESL) 정합 — BE enum 화이트리스트(RESL_*)와 1:1. 구 RES_* 폐기.
+export const RESOLUTION_PRESETS = ['RESL_1080P', 'RESL_720P', 'RESL_480P'] as const;
 export type ResolutionPreset = (typeof RESOLUTION_PRESETS)[number];
 
 export const RESOLUTION_PRESET_LABEL: Record<ResolutionPreset, string> = {
-  RES_1080P: '1080P (1920×1080)',
-  RES_720P: '720P (1280×720)',
-  RES_480P: '480P (854×480)',
+  RESL_1080P: '1080P (1920×1080)',
+  RESL_720P: '720P (1280×720)',
+  RESL_480P: '480P (854×480)',
 };
+
+// 증강 이력 카드에 노출하는 해상도 파생 뱃지 문구 — 기술코드(RESL_*) 비노출, 사용자 문구만.
+// 미지의 코드는 '해상도 파생' 으로 폴백해 기술코드가 화면에 새는 것을 막는다.
+export const RESOLUTION_DERIVATIVE_LABEL: Record<ResolutionPreset, string> = {
+  RESL_1080P: '해상도 1080p',
+  RESL_720P: '해상도 720p',
+  RESL_480P: '해상도 480p',
+};
+
+export function resolutionDerivativeLabel(code: string): string {
+  return (
+    (RESOLUTION_DERIVATIVE_LABEL as Record<string, string>)[code] ?? '해상도 파생'
+  );
+}
 
 // SFR-06-03 — 해상도 변경(파생영상 생성) 결과 1건.
 // 구 "export 프레임셋(exportSn/srcW/frameCount)" 의미 폐기.
 // 신 계약: 원본에서 목표 해상도별 새 파생영상(RAW_SN)을 만들어 검수 파이프라인(PENDING)에 넣는다.
 //  - rawSn    : 생성된 파생영상 ID (CREATED 일 때 유효, FAILED 시 BE 계약상 null)
-//  - goalResCd : 목표 해상도 코드 (RES_1080P/RES_720P/RES_480P)
+//  - goalResCd : 목표 해상도 코드 (RESL_1080P/RESL_720P/RESL_480P)
 //  - targetW/H : 목표 해상도 픽셀
 //  - status   : CREATED(검수 대기 파생영상 생성) | FAILED(해당 프리셋 실패)
 export interface ResolutionDerivativeResult {

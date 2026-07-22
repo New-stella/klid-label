@@ -56,10 +56,9 @@
 ### 증강 · 비식별 · 해상도
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_DATA_AUG` (V8) | 증강 데이터 (AUG_PROC_STTS_CD) | [14](14-augmentation.md) |
-| `LS_DATA_AUG_RVW` (V25) / `LS_DATA_AUG_LBL_MAP` (V26) | 증강 검수 / 라벨 매핑 | [14](14-augmentation.md) |
-| `LS_RESOLUTION_EXPORT` (V55, `NEW_RAW_SN` 파생영상 역참조 V122 추가) | 해상도 변경 산출 추적(2026-07-21부터 파생영상 생성 방식으로 정책 재반전) | [14](14-augmentation.md) |
-| `LS_RESOLUTION_LBL_MAP` (V122 신규) | 해상도 변경 원본↔파생 라벨 매핑(`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y`) — `LS_DATA_AUG_LBL_MAP` 미재사용(`DATA_AUG_SN NOT NULL` 제약) | [14](14-augmentation.md) |
+| `LS_DATA_AUG` (V8) | 증강 데이터 (AUG_PROC_STTS_CD) — **해상도 변경 파생도 흡수**: `AUG_TYPE_CD='RESL_1080P/720P/480P'` 판별자 + 부분 유니크 인덱스 `UK_LS_DATA_AUG_RESL (SRC_SN, AUG_TYPE_CD) WHERE AUG_TYPE_CD LIKE 'RESL_%'` (V124) | [14](14-augmentation.md) |
+| `LS_DATA_AUG_RVW` (V25) / `LS_DATA_AUG_LBL_MAP` (V26) | 증강 검수 / 라벨 매핑 (`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y` — 증강·해상도 파생 공통 재사용) | [14](14-augmentation.md) |
+| ~~`LS_RESOLUTION_EXPORT`~~ · ~~`LS_RESOLUTION_LBL_MAP`~~ | **폐기(V125 백필 후 fail-closed DROP)** — 해상도 변경 저장모델을 `LS_DATA_AUG`+`LS_DATA_AUG_LBL_MAP`으로 통합(2026-07-22) | [14](14-augmentation.md) |
 | `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29, `REQ_KND_CD` BATCH/REDEIDENT V68 도입·V83 rename REQ_KIND_CD→REQ_KND_CD) | 비식별 누락 신고 / 처리 이력(배치·검수완료재비식별 분기) | [08](08-deidentification.md) |
 
 ### 작업 · 상태 · 운영
