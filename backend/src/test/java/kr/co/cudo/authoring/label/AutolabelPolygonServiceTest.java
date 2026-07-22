@@ -345,6 +345,76 @@ class AutolabelPolygonServiceTest {
         assertThat(res.message()).isEqualTo(AutolabelResponse.polygonTruncatedMessage(2, 0));
     }
 
+    // ── FEAT-007: 경계 세밀함(simplify) per-request override ──────────────────────
+
+    /** 공선점(P1) 하나가 포함된 5점 폴리곤 — epsilon 1.0 단순화 시 4점으로 감소, 0.0 이면 원본 유지. */
+    private Sam2Response samPolygon5() {
+        return new Sam2Response(List.of(
+                List.of(0.0, 0.0), List.of(5.0, 0.0), List.of(10.0, 0.0),
+                List.of(10.0, 10.0), List.of(0.0, 10.0)), 0.9);
+    }
+
+    @Test
+    @DisplayName("AI탐지_폴리곤_simplifyTolerance_요청값이_적용되어_점수가_감소한다")
+    void polygonSimplifyOverrideReducesPoints() {
+        stubYolo(detections(1));
+        stubSam(samPolygon5());
+
+        // override 0.0 → 단순화 비활성(원본 5점 그대로).
+        AutolabelOnlineService.AutolabelOutcome raw =
+                service.autolabel(SRC_SN, worker, null, AutolabelShape.POLYGON, null, 0.0);
+        assertThat(raw.response().labels().get(0).polygon()).hasSize(5);
+
+        // override 1.0 → 공선점 제거로 4점 감소 — 요청값이 실제 후처리에 반영됨(AC4).
+        AutolabelOnlineService.AutolabelOutcome simplified =
+                service.autolabel(SRC_SN, worker, null, AutolabelShape.POLYGON, null, 1.0);
+        assertThat(simplified.response().labels().get(0).polygon()).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("AI탐지_폴리곤_simplifyTolerance_없으면_시스템설정값을_쓴다")
+    void polygonSimplifyNullUsesSystemConfig() {
+        // 시스템설정 POLYGON_SIMPLIFY_TOLERANCE=1.0 → 공선점 제거(4점). 요청 override 미지정.
+        when(systemConfigService.getDouble(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE)).thenReturn(1.0);
+        stubYolo(detections(1));
+        stubSam(samPolygon5());
+
+        AutolabelOnlineService.AutolabelOutcome res =
+                service.autolabel(SRC_SN, worker, null, AutolabelShape.POLYGON, null, null);
+
+        assertThat(res.response().labels().get(0).polygon()).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("AI탐지_폴리곤_simplify_시스템설정_조회실패시_상수1.0으로_폴백한다")
+    void polygonSimplifySystemConfigFailureFallsBack() {
+        when(systemConfigService.getDouble(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE))
+                .thenThrow(new RuntimeException("db down"));
+        stubYolo(detections(1));
+        stubSam(samPolygon5());
+
+        // 폴백 상수 1.0 적용 → 공선점 제거(4점). 조회 실패해도 예외 전파 없이 정상 반환(무회귀).
+        AutolabelOnlineService.AutolabelOutcome res =
+                service.autolabel(SRC_SN, worker, null, AutolabelShape.POLYGON, null, null);
+
+        assertThat(res.response().labels().get(0).polygon()).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("AI탐지_폴리곤_simplify_결과가_3점미만이면_원본유지")
+    void polygonSimplifyBelowMinKeepsOriginal() {
+        stubYolo(detections(1));
+        stubSam(samPolygon5());
+
+        // 매우 큰 tolerance(100.0)로 Douglas-Peucker 가 시작/끝 2점(<MIN_POLYGON_POINTS=3)으로 축소된다.
+        // DTO 검증(0.0~50.0) 밖 값이라 컨트롤러로는 도달 불가하므로 서비스 6-arg 진입점으로 직접 우회한다.
+        AutolabelOnlineService.AutolabelOutcome res =
+                service.autolabel(SRC_SN, worker, null, AutolabelShape.POLYGON, null, 100.0);
+
+        // 3점 미만 축소 시 형태 보존을 위해 원본 5점 폴리곤이 그대로 반환된다(simplifyPolygon 방어 분기).
+        assertThat(res.response().labels().get(0).polygon()).hasSize(5);
+    }
+
     // ── AC7 미저장 ────────────────────────────────────────────────────────────────
 
     @Test

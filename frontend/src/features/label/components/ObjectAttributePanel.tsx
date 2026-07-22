@@ -15,6 +15,7 @@ import type { Label } from '../types';
 import { ToolType } from '../types';
 
 import { ObjectAttributeSection } from './ObjectAttributeSection';
+import { TOLERANCE_DEFAULT, ToleranceSlider } from './PrecisionSliders';
 
 /**
  * 선택 객체의 실제 형태 → 추적 결과 형태(DetectShapeType).
@@ -90,6 +91,19 @@ export interface ObjectAttributePanelProps {
      */
     portalMode?: boolean;
   };
+  /**
+   * (Phase 2 FE) AI 분할(SAM_SEGMENT) 경계 세밀함 조절 컨텍스트 — 도구 활성 시 슬라이더 노출.
+   * 인식 민감도는 분할에 무의미하므로 노출하지 않는다(경계 세밀함만).
+   * - defaultTolerance  : 프리필 값(시스템 설정 POLYGON_SIMPLIFY_TOLERANCE). 미지정 시 코드 상수 폴백.
+   * - tolerance         : 상위가 보유한 현재 조절 값(undefined=미조절 → 프리필 표시, 요청 미포함).
+   * - onToleranceChange : 조절 콜백. 상위(LabelingPage)가 값을 보유해 분할 요청에 배선한다.
+   * 미제공 시 슬라이더 비노출(하위호환).
+   */
+  segment?: {
+    defaultTolerance?: number;
+    tolerance?: number;
+    onToleranceChange?: (value: number) => void;
+  };
 }
 
 /**
@@ -102,8 +116,24 @@ export function ObjectAttributePanel({
   imageWidth,
   imageHeight,
   track,
+  segment,
 }: ObjectAttributePanelProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
+
+  // AI 분할 도구 활성 시 경계 세밀함 슬라이더 — 선택 객체 유무와 무관하게 노출(분할은 클릭/박스로
+  // 새 객체를 만드는 도구라 선택이 없어도 조절 가능해야 한다). 미조절이면 프리필만 표시.
+  const segmentControl =
+    segment && activeTool === ToolType.SAM_SEGMENT ? (
+      <div className="mt-1 rounded bg-gray-700 p-2">
+        <div className="mb-2 text-xs font-semibold text-gray-200">AI 분할 정밀도</div>
+        <ToleranceSlider
+          id="ai-segment-tolerance"
+          dark
+          value={segment.tolerance ?? segment.defaultTolerance ?? TOLERANCE_DEFAULT}
+          onChange={(v) => segment.onToleranceChange?.(v)}
+        />
+      </div>
+    ) : null;
   // Phase 8: availableLabels 미전달 시 useLabelMasters 에서 자동 채움.
   const { data: labelMasters } = useLabelMasters();
   const resolvedAvailable: AvailableLabel[] = useMemo(() => {
@@ -129,6 +159,7 @@ export function ObjectAttributePanel({
       >
         <h3 className="text-sub font-semibold text-gray-100">객체 속성</h3>
         <p className="text-sub text-gray-400">선택된 객체가 없습니다</p>
+        {segmentControl}
       </aside>
     );
   }
@@ -297,6 +328,8 @@ export function ObjectAttributePanel({
           )}
         </div>
       )}
+
+      {segmentControl}
     </aside>
   );
 }

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
 
@@ -46,6 +46,11 @@ export interface CanvasShellProps {
    * OverlayLayer 의 immediateSegment 로 그대로 중계한다. 기본 OFF(false).
    */
   immediateSegment?: boolean;
+  /**
+   * (Phase 2 FE) AI 분할 경계 세밀함 — 이 값이 있으면 모든 분할 요청 payload 에 simplifyTolerance 를
+   * 주입한다(사용자 조절 값). undefined 면 미주입 → BE 가 시스템 설정 기본값을 사용한다(무회귀).
+   */
+  segmentSimplifyTolerance?: number;
 }
 
 // 상위(LabelingPage)가 키보드 단축키(F/Q)로 폴리곤 편집을 명령할 수 있도록 OverlayLayer 의
@@ -73,6 +78,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     portalMode = false,
     onImageSize,
     immediateSegment = false,
+    segmentSimplifyTolerance,
   }: CanvasShellProps,
   ref,
 ) {
@@ -91,7 +97,15 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
   const [imageLoading, setImageLoading] = useState(false);
   // SAM2 클릭/박스 분할 — 진행 중 무시 + 프레임 전환 stale 폐기 가드 포함.
   // isSegmenting: 요청 in-flight 진행 인디케이터(R7)용.
-  const { segment, isSegmenting } = useSam2Segment(frame.srcSn, portalMode);
+  const { segment: rawSegment, isSegmenting } = useSam2Segment(frame.srcSn, portalMode);
+  // 사용자가 조절한 경계 세밀함이 있으면 모든 분할 요청 payload 에 주입(미조절이면 그대로 전달 → BE 기본값).
+  const segment = useCallback(
+    (payload: Parameters<typeof rawSegment>[0]) =>
+      segmentSimplifyTolerance !== undefined
+        ? rawSegment({ ...payload, simplifyTolerance: segmentSimplifyTolerance })
+        : rawSegment(payload),
+    [rawSegment, segmentSimplifyTolerance],
+  );
   const [segNotice, setSegNotice] = useState<string | null>(null);
 
   // R2 — 뷰 팬(스페이스+드래그 주 / 중클릭 드래그 부). 확대(zoom>1) 상태에서만 동작.

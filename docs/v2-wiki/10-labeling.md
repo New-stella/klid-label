@@ -63,6 +63,8 @@
 - 미등록 키/범위 초과는 400 거부 (CWE-20)
 - 코드: `sysconfig/SystemConfigController`, `ConfigKeys`
 
+> **라벨링 화면 per-실행 수동 조절**(2026-07-22) — 시스템 설정값은 **기본값**이고, 라벨러가 라벨링 화면에서 AI 실행 직전 이번 호출에 한해 조절할 수 있다(세션 한정, DB 미저장). **AI 탐지**(AI Tool 팝업)에 **인식 민감도**(`YOLO_CONF_THRESHOLD` 축, 0.25~0.80) + **경계 세밀함**(`POLYGON_SIMPLIFY_TOLERANCE`, 0~50px, **폴리곤 형태일 때만**) 슬라이더, **AI 분할** 도구에 **경계 세밀함**만 노출(SAM2는 신뢰도 임계값 미수용 → 인식 민감도 미노출). 시스템 설정값으로 프리필되며, 조절하지 않으면 요청 body에 파라미터를 넣지 않아 시스템 설정 기본값으로 동작한다(무회귀). YOLO 온라인 폴리곤 출력에도 이때 Douglas-Peucker 단순화가 신규 적용된다. 요청 필드: `POST /v1/frames/{srcSn}/autolabel`(`confThreshold`·`simplifyTolerance`, optional), `POST /v1/frames/{srcSn}/sam2-segment`(`simplifyTolerance`, optional). YOLO `imgsz`(로더 640 고정 무시)·max detections·SAM2 신뢰도는 라벨링 화면 미노출. → [11 §11.5](11-ai-assisted.md).
+
 ## 10.6 관련 데이터 (DB)
 
 §10.3 + `LS_SYSTEM_CONFIG`, `LS_LABEL_PRESET`. → [18](18-database.md).

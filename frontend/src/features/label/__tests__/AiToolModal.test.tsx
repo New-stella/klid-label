@@ -110,4 +110,197 @@ describe('AiToolModal', () => {
     expect(text).not.toMatch(/YOLO/i);
     expect(text).not.toMatch(/SAM2?/i);
   });
+
+  // === Phase 2 [FE] 정밀도 조절 (인식 민감도 / 경계 세밀함) ===
+  it('AI탐지모달_인식민감도_경계세밀함이_시스템설정값으로_프리필된다', () => {
+    renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        defaultConfThreshold={0.5}
+        defaultSimplifyTolerance={10}
+      />,
+    );
+    // 인식 민감도는 항상 노출(detect) — 프리필 0.50.
+    expect((screen.getByRole('slider', { name: '인식 민감도' }) as HTMLInputElement).value).toBe(
+      '0.5',
+    );
+    // 경계 세밀함은 폴리곤에서만 — 폴리곤 선택 후 프리필 10 확인.
+    fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
+    expect((screen.getByRole('slider', { name: '경계 세밀함' }) as HTMLInputElement).value).toBe(
+      '10',
+    );
+  });
+
+  it('폴리곤_shape일때만_경계세밀함_슬라이더가_보인다', () => {
+    renderWithProviders(<AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} />);
+    // 기본 박스 — 경계 세밀함 미노출.
+    expect(screen.queryByRole('slider', { name: '경계 세밀함' })).not.toBeInTheDocument();
+    // 인식 민감도는 항상 노출.
+    expect(screen.getByRole('slider', { name: '인식 민감도' })).toBeInTheDocument();
+    // 폴리곤 전환 시 노출.
+    fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
+    expect(screen.getByRole('slider', { name: '경계 세밀함' })).toBeInTheDocument();
+  });
+
+  it('슬라이더_조절후_확인하면_onConfirm에_confThreshold_simplifyTolerance가_전달된다', () => {
+    const onConfirm = vi.fn();
+    renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.4}
+        defaultSimplifyTolerance={1}
+      />,
+    );
+    fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
+    fireEvent.change(screen.getByRole('slider', { name: '인식 민감도' }), {
+      target: { value: '0.6' },
+    });
+    fireEvent.change(screen.getByRole('slider', { name: '경계 세밀함' }), {
+      target: { value: '5' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '일반' }));
+    expect(onConfirm).toHaveBeenCalledWith('POLYGON', [], 'detect', {
+      confThreshold: 0.6,
+      simplifyTolerance: 5,
+    });
+  });
+
+  it('조절하지_않으면_onConfirm에_정밀도_옵션이_포함되지_않는다', () => {
+    const onConfirm = vi.fn();
+    renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.4}
+        defaultSimplifyTolerance={1}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '일반' }));
+    // 미조절 → 4번째 인자(opts) 자체가 없어야 한다(BE 기본값).
+    expect(onConfirm).toHaveBeenCalledWith('BBOX', [], 'detect');
+    expect(onConfirm.mock.calls[0]).toHaveLength(3);
+  });
+
+  it('BBOX모드에서_인식민감도만_조절하면_confThreshold만_전달된다', () => {
+    const onConfirm = vi.fn();
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} defaultConfThreshold={0.4} />,
+    );
+    fireEvent.change(screen.getByRole('slider', { name: '인식 민감도' }), {
+      target: { value: '0.55' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '일반' }));
+    expect(onConfirm).toHaveBeenCalledWith('BBOX', [], 'detect', { confThreshold: 0.55 });
+  });
+
+  // === 회귀: 모달이 열린 도중 프리필 prop 이 뒤늦게 도착해도 사용자 조작을 덮지 않는다 ===
+  it('열린_상태에서_defaultConfThreshold가_undefined에서_값으로_바뀌어도_사용자_조작이_유지된다', () => {
+    const onConfirm = vi.fn();
+    // 초기: useConfigs 미도착 → default 값 undefined 로 모달이 열림.
+    const { rerender } = renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={undefined}
+        defaultSimplifyTolerance={undefined}
+      />,
+    );
+    // 사용자가 형태(폴리곤)·클래스(사람)·민감도 슬라이더를 조작.
+    fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '사람' }));
+    fireEvent.change(screen.getByRole('slider', { name: '인식 민감도' }), {
+      target: { value: '0.6' },
+    });
+
+    // useConfigs 가 뒤늦게 resolve → default prop 이 값으로 바뀌며 재렌더(모달은 계속 open).
+    rerender(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.3}
+        defaultSimplifyTolerance={20}
+      />,
+    );
+
+    // 사용자 조작이 조용히 리셋되지 않고 그대로 유지되어야 한다.
+    expect(screen.getByRole('radio', { name: '폴리곤' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '사람' })).toBeChecked();
+    expect((screen.getByRole('slider', { name: '인식 민감도' }) as HTMLInputElement).value).toBe(
+      '0.6',
+    );
+    // 실행 시에도 사용자가 고른 값으로 요청된다(무음 파라미터 변조 방지).
+    fireEvent.click(screen.getByRole('button', { name: '일반' }));
+    expect(onConfirm).toHaveBeenCalledWith('POLYGON', ['person'], 'detect', { confThreshold: 0.6 });
+  });
+
+  it('모달을_닫았다_다시_열면_최신_default로_프리필되고_조작이_리셋된다', () => {
+    const onConfirm = vi.fn();
+    const { rerender } = renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.4}
+        defaultSimplifyTolerance={10}
+      />,
+    );
+    // 첫 세션에서 조작.
+    fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '사람' }));
+
+    // 모달 닫기.
+    rerender(
+      <AiToolModal
+        open={false}
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.4}
+        defaultSimplifyTolerance={10}
+      />,
+    );
+    // 다시 열기(그 사이 default 갱신).
+    rerender(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.7}
+        defaultSimplifyTolerance={10}
+      />,
+    );
+
+    // 새 세션 → 형태·선택 리셋 + 최신 default 로 프리필.
+    expect(screen.getByRole('radio', { name: '박스' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '사람' })).not.toBeChecked();
+    expect((screen.getByRole('slider', { name: '인식 민감도' }) as HTMLInputElement).value).toBe(
+      '0.7',
+    );
+  });
+
+  it('정밀도_슬라이더에도_모델명(YOLO/SAM)이_노출되지_않는다', () => {
+    renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        defaultConfThreshold={0.5}
+        defaultSimplifyTolerance={10}
+      />,
+    );
+    fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
+    // Modal 은 포털로 렌더되므로 문서 전체 텍스트를 확인한다.
+    const text = document.body.textContent ?? '';
+    expect(text).not.toMatch(/YOLO/i);
+    expect(text).not.toMatch(/SAM2?/i);
+    // 노출 문구는 인식 민감도 / 경계 세밀함.
+    expect(text).toContain('인식 민감도');
+    expect(text).toContain('경계 세밀함');
+  });
 });

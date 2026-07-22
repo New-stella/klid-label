@@ -124,8 +124,10 @@ public class Sam2SegmentService {
         // 외부 응답 신뢰 금지 — 정점 수 + 좌표 상한 검증 (CWE-20).
         validatePolygon(aiRes.polygon(), imgWidth, imgHeight);
 
-        // FEAT-007: 경계 세밀함 — sysconfig epsilon 으로 폴리곤 단순화(Douglas-Peucker).
-        double simplifyTolerance = readSimplifyTolerance();
+        // FEAT-007: 경계 세밀함 — 요청 override 우선, 없으면 sysconfig→상수 폴백(무회귀). Douglas-Peucker 단순화.
+        double simplifyTolerance = req.simplifyTolerance() != null
+                ? req.simplifyTolerance()
+                : readSimplifyTolerance();
         List<Point> rawPoints = new ArrayList<>(aiRes.polygon().size());
         for (List<Double> p : aiRes.polygon()) {
             rawPoints.add(new Point(p.get(0), p.get(1)));

@@ -14,6 +14,8 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.common.util.Point;
+import kr.co.cudo.authoring.common.util.PolygonSimplifier;
 import kr.co.cudo.authoring.label.dto.AutolabelResponse;
 import kr.co.cudo.authoring.label.dto.AutolabelShape;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
@@ -74,6 +76,9 @@ public class AutolabelOnlineService {
 
     /** 폴리곤 경로 SAM 분할 박스 상한 폴백 — {@link ConfigKeys#AUTOLABEL_POLYGON_MAX_BOXES} 조회 실패 시. */
     private static final int DEFAULT_POLYGON_MAX_BOXES = 20;
+
+    /** POLYGON_SIMPLIFY_TOLERANCE 조회 실패 시 폴백 epsilon(px) — Sam2SegmentService 와 동일. */
+    private static final double DEFAULT_SIMPLIFY_TOLERANCE = 1.0;
 
     /** 폴리곤 최소 정점 수 (폐곡선). */
     private static final int MIN_POLYGON_POINTS = 3;
@@ -150,15 +155,23 @@ public class AutolabelOnlineService {
         return autolabel(srcSn, actor, classes, null);
     }
 
+    /** 하위호환 — 정밀도 override 미지정(시스템설정→상수 폴백) 4-arg 오버로드. */
+    public AutolabelOutcome autolabel(Long srcSn, TokenClaims actor, List<String> classes, AutolabelShape shape) {
+        return autolabel(srcSn, actor, classes, shape, null, null);
+    }
+
     /**
      * 오토라벨 오케스트레이션 — <b>non-transactional·미저장</b>. AI 블로킹 호출을 트랜잭션 밖에서 수행하고
      * 검출 좌표만 반환한다(DB write 없음, F-1). 클라이언트가 작업본에 반영 후 PUT /labels 로 저장한다.
      *
-     * @param classes 검출 대상 클래스 라벨(COCO 영문명) 화이트리스트. null/빈 → 전체(미필터).
-     * @param shape   결과 형태(BBOX 기본 | POLYGON). null → BBOX(하위호환). POLYGON 이면 검출 박스마다
-     *                SAM box-prompt 분할로 폴리곤을 산출(HIGH #1/#4/#9 — 상한·예산·부분실패 방어).
+     * @param classes           검출 대상 클래스 라벨(COCO 영문명) 화이트리스트. null/빈 → 전체(미필터).
+     * @param shape             결과 형태(BBOX 기본 | POLYGON). null → BBOX(하위호환). POLYGON 이면 검출 박스마다
+     *                          SAM box-prompt 분할로 폴리곤을 산출(HIGH #1/#4/#9 — 상한·예산·부분실패 방어).
+     * @param confThreshold     인식 민감도 override(0.25~0.80). null 이면 시스템설정→상수 폴백(무회귀).
+     * @param simplifyTolerance 경계 세밀함 override(0.0~50.0, POLYGON 전용). null 이면 시스템설정→상수 폴백.
      */
-    public AutolabelOutcome autolabel(Long srcSn, TokenClaims actor, List<String> classes, AutolabelShape shape) {
+    public AutolabelOutcome autolabel(Long srcSn, TokenClaims actor, List<String> classes, AutolabelShape shape,
+                                      Double confThreshold, Double simplifyTolerance) {
         AutolabelShape effectiveShape = shape == null ? AutolabelShape.BBOX : shape;
         // 1) IDOR 최우선 — 본인 배정 프레임 검증 후 프레임 획득(rawSn/경로 확보). (non-tx: 단순 스칼라 조회)
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
@@ -179,7 +192,7 @@ public class AutolabelOnlineService {
 
             // 4) ai-server YOLO 추론 (원본 프레임) — 트랜잭션 밖·bulkhead 제한. DB 커넥션 미점유.
             //    classes 지정 시 ai-server 가 해당 클래스만 검출(R3 AC3). null/빈 이면 전체.
-            YoloResponse resp = callYolo(src, rawSn, imageB64, normalizeClasses(classes));
+            YoloResponse resp = callYolo(src, rawSn, imageB64, normalizeClasses(classes), confThreshold);
             boolean mock = resp != null && resp.mock();
             List<YoloResponse.Detection> detections =
                     (resp == null || resp.detections() == null) ? List.of() : resp.detections();
@@ -208,7 +221,7 @@ public class AutolabelOnlineService {
 
             // 7) 형태 분기.
             if (effectiveShape == AutolabelShape.POLYGON) {
-                return polygonAutolabel(srcSn, rawSn, imageB64, detections, actor);
+                return polygonAutolabel(srcSn, rawSn, imageB64, detections, actor, simplifyTolerance);
             }
 
             // BBOX(기본) — TOCTOU 재확인(#4) 후 검출 좌표를 응답 아이템으로 매핑(미저장, lblSn=null).
@@ -234,8 +247,11 @@ public class AutolabelOnlineService {
      * </ul>
      */
     private AutolabelOutcome polygonAutolabel(Long srcSn, Long rawSn, String imageB64,
-                                              List<YoloResponse.Detection> detections, TokenClaims actor) {
+                                              List<YoloResponse.Detection> detections, TokenClaims actor,
+                                              Double simplifyOverride) {
         int maxBoxes = readInt(ConfigKeys.AUTOLABEL_POLYGON_MAX_BOXES, DEFAULT_POLYGON_MAX_BOXES);
+        // 경계 세밀함(FEAT-007) — 요청 override 우선, 없으면 시스템설정→상수 폴백(무회귀).
+        double simplifyTolerance = simplifyOverride != null ? simplifyOverride : readSimplifyTolerance();
         int detected = detections.size();
         int limit = Math.min(detected, maxBoxes);
         boolean truncated = detected > maxBoxes;
@@ -269,10 +285,12 @@ public class AutolabelOnlineService {
                     continue;
                 }
                 validatePolygonPoints(seg.polygon());
+                // 경계 세밀함(FEAT-007) — 검증 통과 후 Douglas-Peucker 단순화(3점 미만이면 원본 유지).
+                List<List<Double>> polygon = simplifyPolygon(seg.polygon(), simplifyTolerance);
                 Long labelId = labelMasterService.findLabelIdByName(d.label()).orElse(null);
                 items.add(new AutolabelResponse.Item(
                         null, labelId, d.label(), null, clampScore(d.score()), d.trackId(),
-                        AutolabelShape.POLYGON.name(), seg.polygon()));
+                        AutolabelShape.POLYGON.name(), polygon));
             } catch (CustomException e) {
                 // MED-1(자원 보호 우선) — bulkhead 초과 429 는 삼키지 말고 즉시 전파(fail-fast). 부분 스킵으로
                 // 흡수하면 Tomcat 스레드 고갈 방어가 무력화된다. 그 외(좌표검증 INVALID_INPUT 등)만 스킵.
@@ -363,9 +381,17 @@ public class AutolabelOnlineService {
         return (classes == null || classes.isEmpty()) ? null : classes;
     }
 
-    /** ai-server YOLO 추론 호출 — 요청 단위 고유 clipId 로 트래커 상태 격리, bulkhead 로 동시성 제한(F-2). */
-    private YoloResponse callYolo(LsDataSrc src, Long rawSn, String imageB64, List<String> classes) {
-        double conf = readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
+    /**
+     * ai-server YOLO 추론 호출 — 요청 단위 고유 clipId 로 트래커 상태 격리, bulkhead 로 동시성 제한(F-2).
+     *
+     * @param confOverride 인식 민감도 override(0.25~0.80). null 이면 시스템설정→상수 폴백(무회귀).
+     */
+    private YoloResponse callYolo(LsDataSrc src, Long rawSn, String imageB64, List<String> classes,
+                                  Double confOverride) {
+        // 인식 민감도(FEAT-007) — 요청 override 우선, 없으면 기존 시스템설정→상수 폴백 경로 그대로(무회귀).
+        double conf = confOverride != null
+                ? confOverride
+                : readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
         int imgsz = readInt(ConfigKeys.YOLO_IMGSZ, DEFAULT_IMGSZ);
         double iou = readDoublePercent(ConfigKeys.YOLO_IOU, DEFAULT_IOU);
         // 단일 프레임 요청 — clipId 는 요청마다 격리(동시 요청 간섭 방지), frameIndex=0(트래커 리셋).
@@ -483,6 +509,40 @@ public class AutolabelOnlineService {
             log.warn("[Autolabel] {} 조회 실패, 기본값 {} 사용", key, fallback);
             return fallback;
         }
+    }
+
+    /**
+     * FEAT-007 경계 세밀함 epsilon 조회. 설정 누락/오류 시 상수 폴백(fail-safe).
+     * <p>{@link Sam2SegmentService#readSimplifyTolerance()} 와 동일한 폴백 패턴(폴리곤 온라인 경로 정합).
+     */
+    private double readSimplifyTolerance() {
+        try {
+            Double v = systemConfigService.getDouble(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE);
+            return v != null ? v : DEFAULT_SIMPLIFY_TOLERANCE;
+        } catch (Exception e) {
+            log.warn("[Autolabel] POLYGON_SIMPLIFY_TOLERANCE 조회 실패 — 기본값 {} 사용", DEFAULT_SIMPLIFY_TOLERANCE);
+            return DEFAULT_SIMPLIFY_TOLERANCE;
+        }
+    }
+
+    /**
+     * FEAT-007 경계 세밀함 — 검증 통과 폴리곤을 Douglas-Peucker 로 단순화한다(Sam2SegmentService 와 동일 규칙).
+     * 단순화 결과가 최소 정점 수({@value #MIN_POLYGON_POINTS}) 미만이면 형태 보존을 위해 원본을 그대로 반환한다.
+     */
+    private List<List<Double>> simplifyPolygon(List<List<Double>> polygon, double tolerance) {
+        List<Point> rawPoints = new ArrayList<>(polygon.size());
+        for (List<Double> p : polygon) {
+            rawPoints.add(new Point(p.get(0), p.get(1)));
+        }
+        List<Point> simplified = PolygonSimplifier.simplify(rawPoints, tolerance);
+        if (simplified.size() < MIN_POLYGON_POINTS) {
+            return polygon;
+        }
+        List<List<Double>> out = new ArrayList<>(simplified.size());
+        for (Point p : simplified) {
+            out.add(List.of(p.x(), p.y()));
+        }
+        return out;
     }
 
     /** 정수 값 조회. 실패·null 시 fallback (fail-safe). */
