@@ -1,0 +1,209 @@
+{
+  "info": {
+    "year": 2025,
+    "version": "1.0",
+    "description": "지자체 CCTV 이상행동(싸움) 학습용 데이터셋",
+    "date_created": "2025-09-13"
+  },
+  "dataset": {
+    "identifier": "ABF_01",
+    "name": "이상행동(신체적 충돌 싸움) 학습용 데이터셋",
+    "src_path": "/dataSet/video/",
+    "label_path": "/dataSet/label/"
+  },
+  "licences": [],
+  "video": {
+    "id": "DSC_1561_01",
+    "filename": "org_MARKANY_20250913125738_2256.mp4",
+    "date_created": "2025-09-13 12:57:38",
+    "type": "mp4",
+    "format": "h.264/mpeg-4",
+    "filesize": 17408,
+    "location": "제주특별자치도 제주시 용담2동",
+    "license_id": "",
+    "length": "71",
+    "fps": "25",
+    "frames": 1775,
+    "aspect_ratio": "16:9",
+    "width": 1920,
+    "height": 1080,
+    "resolution": "FHD",
+    "bit": "2050627",
+    "pixel": "1920x1080",
+    "weather": "맑음",
+    "coordinates": "33.5099190, 126.5034070",
+    "og_cd": "5000000",
+    "cctv_name": "생_용담2동_용해로_교차로_1(용담해안도로 방향)",
+    "cctv_height": 4.5,
+    "cctv_azimuth": 175,
+    "cctv_mng_no": "2256",
+    "anonymity": "N",
+    "pseudonymity": "N",
+    "privacy_included": "Y",
+    "event_id": "ABF_0001",
+    "event_name": "신체적 충돌을 동반한 싸움",
+    "time_of_day": "day",
+    "season": "autumn",
+    "event_log": "제주시 용담동 노상 싸움 신고",
+    "vd_description": "도로에서 두 사람이 신체적 충돌을 동반한 싸움을 벌임"
+  },
+  "image": {
+    "id": 186872,
+    "file_name": "00000048.jpg",
+    "width": 1920,
+    "height": 1080,
+    "date_captured": "2025-09-13 12:57:55",
+    "license_id": "",
+    "video_id": "DSC_1561_01",
+    "type": "jpg",
+    "frame_num": 573,
+    "anonymity": "N",
+    "pseudonymity": "N",
+    "privacy_included": "Y",
+    "description": "도로에서 사람1이 사람2에게 발차기를 하고 있음"
+  },
+  "annotations": [
+    {
+      "id": 419696,
+      "image_id": 186872,
+      "category_id": "person",
+      "track_id": "1",
+      "bbox": [
+        906,
+        381,
+        292,
+        197
+      ],
+      "polygon": null,
+      "keypoints": null,
+      "text": null
+    },
+    {
+      "id": 419697,
+      "image_id": 186872,
+      "category_id": "person",
+      "track_id": "2",
+      "bbox": [
+        687,
+        431,
+        142,
+        264
+      ],
+      "polygon": null,
+      "keypoints": null,
+      "text": null
+    }
+  ],
+  "event_annotation": {
+    "event_class": "신체적 충돌을 동반한 싸움",
+    "question": "영상에서 '신체적 충돌을 동반한 싸움' 이벤트가 발생했는지와, 이를 뒷받침하는 근거는 무엇인가?",
+    "caption": {
+      "c1": {
+        "caption_text": "'신체적 충돌을 동반한 싸움' 상황으로 분류된 객체 상황 3개가 17.5초 동안 연속적으로 관찰되었음.",
+        "cot": {
+          "1단계": "도로에서 사람1이 사람2의 몸을 감싸는 동작을 하고 있음",
+          "2단계": "사람1이 도로에서 사람2에게 발로 차는 동작을 하고 있음",
+          "3단계": "도로에서 사람1이 뒤따르는 사람2에게 발을 돌려차고 있음"
+        }
+      },
+      "c2": {
+        "caption_text": "'신체적 충돌을 동반한 싸움' 상황으로 분류된 객체 상황 3개가 17.2초 동안 연속적으로 관찰되었음.",
+        "cot": {
+          "1단계": "도로에서 사람2가 사람1에게 어깨를 잡히고 있음",
+          "2단계": "사람2가 도로에서 사람1이 발로 차는 동작을 피하고 있음",
+          "3단계": "도로에서 사람1이 뒤에서 이동하는 사람2에게 발을 돌려차고 있음"
+        }
+      }
+    },
+    "answer": "'신체적 충돌을 동반한 싸움' 상황이 영상에서 확인됨.",
+    "evidence": {
+      "c1": {
+        "evidence_text": "프레임 범위 393~918에서 객체 1,2번이 연속 추적됨. 프레임 ID 힌트: [393, 573, 847]. 시작/끝 프레임과 박스 연속성으로 이벤트 일관성이 확인됨.",
+        "frame_id": [
+          393,
+          573,
+          847
+        ],
+        "obj_id": [
+          "1,2",
+          "1,2",
+          "1,2"
+        ],
+        "obj_bbox": [
+          [
+            833,
+            487,
+            999,
+            751
+          ],
+          [
+            906,
+            381,
+            1198,
+            578
+          ],
+          [
+            687,
+            431,
+            829,
+            695
+          ]
+        ],
+        "obj_label": [
+          "human",
+          "human",
+          "human"
+        ]
+      },
+      "c2": {
+        "evidence_text": "프레임 범위 443~959에서 객체 1,2번이 연속 추적됨. 프레임 ID 힌트: [443, 642, 895]. 시작/끝 프레임과 박스 연속성으로 이벤트 일관성이 확인됨.",
+        "frame_id": [
+          443,
+          642,
+          895
+        ],
+        "obj_id": [
+          "1,2",
+          "1,2",
+          "1,2"
+        ],
+        "obj_bbox": [
+          [
+            923,
+            451,
+            1076,
+            703
+          ],
+          [
+            523,
+            711,
+            1136,
+            1068
+          ],
+          [
+            1147,
+            518,
+            1391,
+            863
+          ]
+        ],
+        "obj_label": [
+          "human",
+          "human",
+          "human"
+        ]
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "person",
+      "name": "사람",
+      "type": "bbox",
+      "supercategory": "human",
+      "keypoints": null,
+      "skeleton": null
+    }
+  ],
+  "type": "instances"
+}
