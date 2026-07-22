@@ -90,19 +90,29 @@ export function AiToolModal({
   );
   const confTouchedRef = useRef(false);
   const tolTouchedRef = useRef(false);
+  // 직전 open 값 추적 — false→true 전이(새로 열림)를 감지한다.
+  const prevOpenRef = useRef(false);
+  // 프리필 prop 최신값을 전이 시점에 읽기 위한 ref(값 변화만으로 재초기화가 트리거되지 않도록 deps 제외).
+  const defaultConfRef = useRef(defaultConfThreshold);
+  const defaultTolRef = useRef(defaultSimplifyTolerance);
+  defaultConfRef.current = defaultConfThreshold;
+  defaultTolRef.current = defaultSimplifyTolerance;
 
-  // 팝업이 새로 열릴 때마다 형태/선택/슬라이더를 프리필로 초기화(직전 상태·조절 잔존 방지).
-  // 프리필 prop 변화(useConfigs 도착)도 함께 반영하려 deps 에 포함하나, 조절 플래그도 리셋되는 것은
-  // "새로 열림 = 새 조절 세션" 의도와 일치한다(모달은 닫혔다 열릴 때만 재초기화됨).
+  // 팝업이 "새로 열리는 시점"(open false→true 전이)에만 형태/선택/슬라이더를 프리필로 초기화한다.
+  // 프리필 prop(useConfigs)이 모달이 열려 있는 동안 뒤늦게 도착해도 재초기화하지 않는다 —
+  // 그 경우 사용자가 이미 조작한 shape/selected/슬라이더/touched 가 조용히 리셋되는 결함을 막는다.
+  // 전이 시점에는 ref 로 최신 default 값을 읽어 프리필하되, 아직 미도착(undefined)이면 상수 폴백.
   useEffect(() => {
-    if (!open) return;
+    const opened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!opened) return;
     setShape('BBOX');
     setSelected(new Set());
     confTouchedRef.current = false;
     tolTouchedRef.current = false;
-    setConfThreshold(defaultConfThreshold ?? SENSITIVITY_DEFAULT);
-    setSimplifyTolerance(defaultSimplifyTolerance ?? TOLERANCE_DEFAULT);
-  }, [open, defaultConfThreshold, defaultSimplifyTolerance]);
+    setConfThreshold(defaultConfRef.current ?? SENSITIVITY_DEFAULT);
+    setSimplifyTolerance(defaultTolRef.current ?? TOLERANCE_DEFAULT);
+  }, [open]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {

@@ -198,6 +198,92 @@ describe('AiToolModal', () => {
     expect(onConfirm).toHaveBeenCalledWith('BBOX', [], 'detect', { confThreshold: 0.55 });
   });
 
+  // === 회귀: 모달이 열린 도중 프리필 prop 이 뒤늦게 도착해도 사용자 조작을 덮지 않는다 ===
+  it('열린_상태에서_defaultConfThreshold가_undefined에서_값으로_바뀌어도_사용자_조작이_유지된다', () => {
+    const onConfirm = vi.fn();
+    // 초기: useConfigs 미도착 → default 값 undefined 로 모달이 열림.
+    const { rerender } = renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={undefined}
+        defaultSimplifyTolerance={undefined}
+      />,
+    );
+    // 사용자가 형태(폴리곤)·클래스(사람)·민감도 슬라이더를 조작.
+    fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '사람' }));
+    fireEvent.change(screen.getByRole('slider', { name: '인식 민감도' }), {
+      target: { value: '0.6' },
+    });
+
+    // useConfigs 가 뒤늦게 resolve → default prop 이 값으로 바뀌며 재렌더(모달은 계속 open).
+    rerender(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.3}
+        defaultSimplifyTolerance={20}
+      />,
+    );
+
+    // 사용자 조작이 조용히 리셋되지 않고 그대로 유지되어야 한다.
+    expect(screen.getByRole('radio', { name: '폴리곤' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '사람' })).toBeChecked();
+    expect((screen.getByRole('slider', { name: '인식 민감도' }) as HTMLInputElement).value).toBe(
+      '0.6',
+    );
+    // 실행 시에도 사용자가 고른 값으로 요청된다(무음 파라미터 변조 방지).
+    fireEvent.click(screen.getByRole('button', { name: '일반' }));
+    expect(onConfirm).toHaveBeenCalledWith('POLYGON', ['person'], 'detect', { confThreshold: 0.6 });
+  });
+
+  it('모달을_닫았다_다시_열면_최신_default로_프리필되고_조작이_리셋된다', () => {
+    const onConfirm = vi.fn();
+    const { rerender } = renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.4}
+        defaultSimplifyTolerance={10}
+      />,
+    );
+    // 첫 세션에서 조작.
+    fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '사람' }));
+
+    // 모달 닫기.
+    rerender(
+      <AiToolModal
+        open={false}
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.4}
+        defaultSimplifyTolerance={10}
+      />,
+    );
+    // 다시 열기(그 사이 default 갱신).
+    rerender(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        defaultConfThreshold={0.7}
+        defaultSimplifyTolerance={10}
+      />,
+    );
+
+    // 새 세션 → 형태·선택 리셋 + 최신 default 로 프리필.
+    expect(screen.getByRole('radio', { name: '박스' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '사람' })).not.toBeChecked();
+    expect((screen.getByRole('slider', { name: '인식 민감도' }) as HTMLInputElement).value).toBe(
+      '0.7',
+    );
+  });
+
   it('정밀도_슬라이더에도_모델명(YOLO/SAM)이_노출되지_않는다', () => {
     renderWithProviders(
       <AiToolModal
