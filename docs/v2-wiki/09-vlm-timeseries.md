@@ -1,7 +1,9 @@
 # 09. VLM 시계열 메타
 
 > 출처: CLAUDE.md(VLM 연동·범위 외), R2 KLID-AT-SS-005, **외부 확정 계약 `docs/video_vlm_api_ v2.0.1.docx`(IntelliVIX AI연구소, 2026-06-15)**, 코드(`VlmClient`, `batch/step/VlmTimeseriesStep`, `webhook/VlmResultController`, `meta/`)
-> 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [12 검수](12-review-assignment.md)
+> 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [12 검수](12-review-assignment.md) · [24 데이터셋 산출](24-dataset-export.md)
+
+> **VQA/CoT 어노테이션 산출 포맷**: VLM이 산출하는 이벤트 단위 VQA/CoT(질문·캡션·사고과정·근거)는 학습데이터 JSON에서 COCO `annotations`(객체 배열)와 분리된 **최상위 `event_annotation` 키**로 표현한다. 필드 정의·조달(VLM / VLM+수동입력)은 [24 데이터셋 산출 §24.3.1](24-dataset-export.md) 참조. **설계 제안·키 변경 가능**.
 
 ## 9.1 범위 — 연동만
 

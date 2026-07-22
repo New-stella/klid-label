@@ -38,7 +38,8 @@
 | `licences` | 사용 라이선스(현재 private-use 1건) |
 | `video` | 영상 메타 (§24.4 매핑표) |
 | `image` | 프레임 메타 (아래) |
-| `annotations` | 라벨 목록 — 타입별 bbox/polygon/keypoints 중 하나 |
+| `annotations` | 라벨 목록 — 타입별 bbox/polygon/keypoints 중 하나 (객체 인스턴스 배열) |
+| `event_annotation` | **[설계 제안·미구현]** 이벤트 단위 VLM VQA/CoT (§24.3.1). 키·형태 변경 가능 |
 | `categories` | 사용된 라벨 마스터(`LS_LABEL`) → 카테고리 |
 | `type` | `instances` (고정) |
 
@@ -58,6 +59,31 @@
 - `POLYGON`/`SEGMENT` → `polygon=[[x, y, x, y, …]]` (flat).
 - `SKELETON` → `keypoints=[[x, y, v]×17]` (v: 0 미표기 / 1 비가시 / 2 가시).
 - malformed 라벨 1건은 문서 전체를 깨지 않고 skip(fail-secure).
+
+### 24.3.1 event_annotation 블록 (VLM VQA/CoT) — 설계 제안(미구현, 키 변경 가능)
+
+> ⚠️ **본 절은 확정 설계가 아닌 제안이다. 필드명(키)·중첩 형태는 벤더 VLM 계약 확정 시 변경될 수 있다.** 현재 코드(`dataset/export/json/`)엔 미구현이며, `annotations`(COCO 객체 배열)과 **분리된 최상위 키**로 둔다.
+> 근거: `docs/망AI기반CCTV_어노테이션 포맷 및 데이터 구조_저작도구팀 확인요_VLM어노테이션추가.xlsx`(속성 정의) + `docs/AI기반CCTV_어노테이션_예제_sample.json`(예제).
+
+**분리 이유**: VQA/CoT는 프레임·객체 단위가 아니라 **이벤트/영상 단위** 추론·서술 메타다. COCO 규격의 `annotations`(per-object 배열, → `LS_DATA_LBL`)와 층위가 달라, 우리 DB에서도 이미 **`LS_DATA_META`(영상 키, RAW_SN)** 로 분리 적재되는 값이다. 따라서 JSON도 `annotations` 안에 넣지 않고 **별도 최상위 `event_annotation`(object)** 으로 둔다. ([09 VLM 시계열](09-vlm-timeseries.md) 참조)
+
+| 필드 (경로) | 타입 | 값 조달 | 비고 |
+|-------------|------|:------:|------|
+| `event_class` | string | VLM | 이벤트 클래스(분류명) |
+| `question` | string | VLM | 이벤트 발생 여부·근거를 묻는 질문 |
+| `caption` | object | **VLM + 수동입력** | 후보 캡션 집합 `{c1, c2, … cn}` |
+| `caption.{cN}.caption_text` | string | VLM + 수동입력 | 후보별 캡션 텍스트 |
+| `caption.{cN}.cot.{1·2·3단계}` | string | VLM + 수동입력 | 사고 과정(CoT) **1·2·3단계 전부 필수** |
+| `answer` | string | VLM | 이벤트 확인 결과 |
+| `evidence` | object | VLM | 후보 근거 집합 `{c1, c2, … cn}` |
+| `evidence.{cN}.evidence_text` | string | VLM | 후보별 근거 서술 |
+| `evidence.{cN}.frame_id` | number[] | VLM | 근거 프레임 ID 목록 |
+| `evidence.{cN}.obj_id` | string[] | VLM | 객체 ID 목록 |
+| `evidence.{cN}.obj_bbox` | number[][] | VLM | 객체 바운딩박스 `[x1,y1,x2,y2]` 목록 |
+| `evidence.{cN}.obj_label` | string[] | VLM | 객체 라벨 목록 |
+
+- **조달 구분**: 전 필드가 **VLM 전달 수신**이 원칙이나, **`caption`(후보·CoT)만 VLM+수동입력** — 일부만 VLM이 전달하고 미전달분은 UI로 검수자가 수동 입력한다.
+- **후보 키(`c1`~`cn`)는 가변**이며, `cot`는 후보마다 1·2·3단계를 모두 채운다.
 
 ## 24.4 video 필드 매핑표
 
@@ -81,7 +107,9 @@
 | `pseudonymity` / `privacy_included` | PRVC_TYPE_CD(=PSDO?) / PRVC_YN | |
 | `event_id` / `event_name` | EVNT_TYPE_CD / EVNT_NM | |
 | `time_of_day` / `season` | DAY_NGT_CD / SESN_CD | |
-| `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `cto`, `vqa`, `event_log` | — | **미보유 → null** (키 유지) |
+| `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log` | — | **미보유 → null** (키 유지) |
+
+> **VQA/CoT 위치 정정**: 구 video 블록의 `cto`/`vqa` 플레이스홀더는 폐기한다 — VLM VQA/CoT는 영상 기술메타(video)가 아니라 **최상위 `event_annotation`**(§24.3.1)으로 분리한다. (설계 제안·키 변경 가능)
 
 > **미보유 필수 필드 null 정책 (소비측 주의)**: 위 "미보유" 필드는 저작도구가 원천 데이터를 보유하지 않아 **의도적으로 null** 이다. `@JsonInclude(ALWAYS)` 로 키 자체는 항상 존재하므로, 소비측은 "키 부재"가 아니라 "**값 null**"로 미보유를 판정해야 한다.
 
