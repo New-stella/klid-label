@@ -9,6 +9,7 @@ import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { useCreateMarking } from '../hooks/useMarkings';
+import { useMarkingStore } from '../store';
 import { MarkingMode } from '../types';
 
 export interface MarkingModalProps {
@@ -56,8 +57,12 @@ export function MarkingModal({
 }: MarkingModalProps) {
   const pushToast = useUiStore((s) => s.pushToast);
 
+  // 자동 마킹 프레임 간격 기본값은 스토어 단일 진실원(intervalFrames=300)에서 가져온다.
+  // (하드코딩 대신 store 상수 재사용 — MarkingToolbar 프리필과 동일 소스)
+  const defaultInterval = String(useMarkingStore((s) => s.intervalFrames));
+
   const [step, setStep] = useState<Step>('select');
-  const [intervalInput, setIntervalInput] = useState('');
+  const [intervalInput, setIntervalInput] = useState(defaultInterval);
   const [error, setError] = useState<string | null>(null);
 
   const { mutate, isPending } = useCreateMarking(rawSn, {
@@ -78,10 +83,10 @@ export function MarkingModal({
   useEffect(() => {
     if (!open) {
       setStep('select');
-      setIntervalInput('');
+      setIntervalInput(defaultInterval);
       setError(null);
     }
-  }, [open]);
+  }, [open, defaultInterval]);
 
   const handleAutoSubmit = () => {
     const trimmed = intervalInput.trim();
@@ -104,7 +109,7 @@ export function MarkingModal({
   // 'select' 로 되돌아갈 때 auto 단계의 입력/검증오류를 함께 초기화 (재진입 시 잔존 방지)
   const handleBackToSelect = () => {
     setStep('select');
-    setIntervalInput('');
+    setIntervalInput(defaultInterval);
     setError(null);
   };
 
@@ -200,7 +205,7 @@ export function MarkingModal({
               setError(null);
             }}
             disabled={isPending}
-            placeholder="예: 5 (프레임마다)"
+            placeholder="예: 300 (프레임마다)"
             className={cn(
               'w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400',
               KRDS_FOCUS,

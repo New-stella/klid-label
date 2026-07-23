@@ -46,6 +46,16 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
     List<LsDataAug> findBySrcSnIn(@Param("srcSns") Collection<Long> srcSns);
 
     /**
+     * 원본 영상(RAW_SN)에 속한 전체 증강 row 조회 — 증강 결과 상태 집계(/{jobId}/result)용.
+     *
+     * <p>LS_DATA_AUG.SRC_SN 은 원본 영상의 대표프레임(LS_DATA_SRC.SRC_SN)이므로, 원본 RAW_SN 의
+     * 프레임 SRC_SN 집합에 속하는 증강 row 를 서브쿼리로 환원한다. 파라미터 바인딩만 사용(CWE-89).
+     */
+    @Query("SELECT a FROM LsDataAug a WHERE a.srcSn IN "
+            + "(SELECT s.srcSn FROM LsDataSrc s WHERE s.rawSn = :rawSn)")
+    List<LsDataAug> findByOriginalRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * Phase 4 — webhook race 흡수용 멱등 키 조회.
      * UNIQUE 제약 (uk_aug_idempotency_key) 위반 후 재조회 경로에서 사용.
      */

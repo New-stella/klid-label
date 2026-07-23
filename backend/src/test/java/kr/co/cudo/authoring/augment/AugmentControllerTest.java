@@ -94,4 +94,31 @@ class AugmentControllerTest {
                 .andExpect(jsonPath("$.data.content").isArray())
                 .andExpect(jsonPath("$.data.content[0].videoCount").value(1));
     }
+
+    @Test
+    @DisplayName("AugmentController_result_미종료_aug면_status_PROCESSING_반환_구_stub_PENDING_제거")
+    void resultReturnsProcessingForPendingAug() throws Exception {
+        Long jobId = 850L; // LS_DATA_SRC 매핑 부재 → srcSn 폴백 집계
+        repository.save(LsDataAug.createPending(jobId, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.jobId").value(850))
+                .andExpect(jsonPath("$.data.status").value("PROCESSING"));
+    }
+
+    @Test
+    @DisplayName("AugmentController_result_전부_종료된_aug면_status_COMPLETED_반환")
+    void resultReturnsCompletedForTerminalAug() throws Exception {
+        Long jobId = 851L;
+        LsDataAug aug = LsDataAug.createPending(jobId, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system");
+        aug.applyReviewStatus(LsDataAug.STTS_ACCEPTED); // PENDING → ACCEPTED(terminal)
+        repository.save(aug);
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+    }
 }

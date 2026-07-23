@@ -56,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <h3>Phase 11 — 프레임 재추출 비동기 전환</h3>
  * <p>증강 프레임은 이제 부모 프레임을 <b>복사</b>하지 않고 증강 파일에서 <b>재추출</b>(비동기)한다.
- * 따라서 동기 콜백 커밋 직후 신규 RAW 는 PENDING·deIdntfYn='N' 이며, 프레임/라벨/MARKING_READY/procLog
+ * 따라서 동기 콜백 커밋 직후 신규 RAW 는 PENDING·deIdntfYn='N' 이며, 프레임/라벨/COMPLETED(배치 마감)/procLog
  * 는 async 러너({@link kr.co.cudo.authoring.webhook.runner.AsyncAugmentFrameRunner}) 성공 후에만
  * 관측된다. 본 IT 는 ffmpeg 바이너리 의존을 격리하기 위해 {@link FfmpegFrameExtractor.FrameWriter}
  * 를 @MockBean 으로 대체(재추출 성공 시뮬)하고, {@link Awaitility} 로 async 완료를 기다린 뒤 단언한다.
@@ -64,9 +64,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <h3>검증 (HIGH 폐쇄)</h3>
  * <ul>
  *   <li>신규 LsDataRaw 생성: ORGNL_RAW_SN=원본 rawSn</li>
- *   <li>async 성공 후 신규 영상 MARKING_READY + DE_IDNTF_YN='Y' + SUCCESS procLog</li>
+ *   <li>async 성공 후 신규 영상 COMPLETED(배치 마감) + DE_IDNTF_YN='Y' + SUCCESS procLog</li>
  *   <li>증강 파일에서 재추출된 프레임에 원본 라벨이 좌표 그대로 복사(건수·pointCn 일치)</li>
- *   <li>신규 영상이 영상 리스트(GET /v1/videos)에 MARKING_READY 로 노출</li>
+ *   <li>파생 영상은 처리 현황(GET /v1/videos)에서 제외됨(R1) — 증강 이력/작업 목록에서만 노출</li>
  *   <li>멱등: 동일 idempotencyKey 재수신 → 200 + 신규 영상 중복 생성 없음</li>
  *   <li>잘못된 서명 → 401</li>
  *   <li>CALLBACK_PATH 단일 출처(필터 PATH_AUGMENT) 회귀 가드</li>
@@ -118,13 +118,13 @@ class AugmentCallbackFlowIntegrationTest {
         when(frameWriter.sourceExists(any())).thenReturn(true);
     }
 
-    /** async 프레임 재추출이 완료되어 신규 RAW 가 MARKING_READY + DE_IDNTF_YN='Y' 로 확정될 때까지 대기. */
+    /** async 프레임 재추출이 완료되어 신규 RAW 가 COMPLETED(배치 마감) + DE_IDNTF_YN='Y' 로 확정될 때까지 대기. */
     private LsDataRaw awaitFinalizedChild(Long parentRawSn) {
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
                 .until(() -> {
                     LsDataRaw c = findChildOf(parentRawSn);
                     return c != null
-                            && LsDataRaw.DATA_STTS_MARKING_READY.equals(c.getDataSttsCd())
+                            && LsDataRaw.DATA_STTS_COMPLETED.equals(c.getDataSttsCd())
                             && "Y".equals(c.getDeIdntfYn());
                 });
         return findChildOf(parentRawSn);
@@ -196,8 +196,8 @@ class AugmentCallbackFlowIntegrationTest {
     // ─── 테스트 ─────────────────────────────────────────────
 
     @Test
-    @DisplayName("서명된_콜백수신시_신규영상이_ORGNL_RAW_SN원본_MARKING_READY로_생성된다")
-    void signedCallbackCreatesMarkingReadyChildVideo() throws Exception {
+    @DisplayName("서명된_콜백수신시_신규영상이_ORGNL_RAW_SN원본_COMPLETED로_생성된다")
+    void signedCallbackCreatesCompletedChildVideo() throws Exception {
         Seed s = seedOriginWithAug("NEW", "WINTER", "AUGCB-K-NEW", "AUGCB-J-NEW");
         AugmentResultRequest payload = new AugmentResultRequest(
                 s.aug().getDataAugSn(), "AUGCB-J-NEW", "WINTER", "SUCCESS",
@@ -214,11 +214,11 @@ class AugmentCallbackFlowIntegrationTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.applied").value(true));
 
-        // Phase 11 — 동기 커밋 직후엔 PENDING·deIdntfYn='N'. async 재추출 성공 후에만 MARKING_READY+Y 확정.
+        // Phase 11 — 동기 커밋 직후엔 PENDING·deIdntfYn='N'. async 재추출 성공 후에만 COMPLETED(배치 마감)+Y 확정.
         LsDataRaw child = awaitFinalizedChild(s.parentRaw().getRawSn());
         assertThat(child).as("신규 증강 영상이 생성되어야 함").isNotNull();
         assertThat(child.getOrgnlRawSn()).isEqualTo(s.parentRaw().getRawSn());
-        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
         assertThat(child.getDeIdntfYn()).isEqualTo("Y");
         assertThat(child.getRawFilePathNm()).isEqualTo("/storage/augment/AUGCB-NEW.mp4");
 
@@ -287,14 +287,14 @@ class AugmentCallbackFlowIntegrationTest {
                         .content(body))
                 .andExpect(status().isOk());
 
-        // Phase 11 — async 재추출 완료 후 MARKING_READY 로 확정됨(파생영상 자체는 정상 생성).
+        // Phase 11 — async 재추출 완료 후 COMPLETED(배치 마감) 로 확정됨(파생영상 자체는 정상 생성).
         LsDataRaw child = awaitFinalizedChild(s.parentRaw().getRawSn());
         assertThat(child).isNotNull();
         assertThat(child.getOrgnlRawSn()).isEqualTo(s.parentRaw().getRawSn());
 
         // R1 — 영상 처리 현황(GET /v1/videos)은 파생 RAW(ORGNL_RAW_SN NOT NULL)를 제외한다.
         // 파생 영상은 증강 이력/작업 목록에서만 노출되며 처리 현황 목록에는 나타나지 않는다.
-        mockMvc.perform(get("/v1/videos?dataSttsCd=MARKING_READY&page=0&size=100")
+        mockMvc.perform(get("/v1/videos?dataSttsCd=COMPLETED&page=0&size=100")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))

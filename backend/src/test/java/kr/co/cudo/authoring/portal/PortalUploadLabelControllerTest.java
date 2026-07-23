@@ -242,7 +242,12 @@ class PortalUploadLabelControllerTest {
                 .andExpect(header().string("Content-Type", MediaType.APPLICATION_JSON_VALUE))
                 .andReturn();
         String json = res.getResponse().getContentAsString();
-        assertThat(json).contains("car").contains("\"uldSn\":" + uldSn);
+        // pretty(들여쓰기) 저장 — Jackson 기본 pretty 는 필드 구분자가 " : "(공백 콜론 공백).
+        assertThat(json).contains("car").contains("\"uldSn\" : " + uldSn);
+        // 다운로드 산출 JSON 은 pretty(개행+들여쓰기)로 저장된다.
+        assertThat(json).contains("\n").contains("\n  ");
+        // 값·스키마 불변 — pretty 여도 파싱 트리 동일
+        assertThat(objectMapper.readTree(json).path("uldSn").asLong()).isEqualTo(uldSn);
     }
 
     @Test

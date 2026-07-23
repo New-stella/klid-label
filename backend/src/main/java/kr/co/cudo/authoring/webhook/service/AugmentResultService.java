@@ -56,7 +56,7 @@ import java.util.regex.Pattern;
  * </ul>
  * 이들은 <b>동기 시점의 부모 상태 판정</b>으로만 유효하다. async 로 옮기면 커밋~async 사이 비식별
  * 신고가 부모를 'F' 로 되돌려도 못 막아 Phase 5 의 PII 노출 창을 재개방한다. 동기 단계는 신규 RAW 를
- * PENDING·deIdntfYn='N' 으로만 커밋하고, 프레임/라벨/메타/procLog/MARKING_READY 는 추출 성공 후
+ * PENDING·deIdntfYn='N' 으로만 커밋하고, 프레임/라벨/메타/procLog/COMPLETED(배치 마감) 는 추출 성공 후
  * async 커밋에서만 관측된다.
  */
 @Slf4j
@@ -130,7 +130,7 @@ public class AugmentResultService {
             return false;
         }
 
-        // 6) 성공 시 새 영상(RAW_SN)만 동기 생성. 프레임/라벨/메타/procLog/MARKING_READY 는 커밋 후 async.
+        // 6) 성공 시 새 영상(RAW_SN)만 동기 생성. 프레임/라벨/메타/procLog/COMPLETED(배치 마감) 는 커밋 후 async.
         if (LsDataAug.STTS_ACCEPTED.equals(newStatus)) {
             createAugmentedVideo(aug, req);
         }
@@ -146,7 +146,8 @@ public class AugmentResultService {
      * {@link AsyncAugmentFrameRunner} 로 미룬다.
      *
      * <p>신규 RAW 는 {@code createFromAugment} 기본값(PENDING·deIdntfYn='N') 그대로 커밋된다 —
-     * 추출 성공 전까지는 스트리밍/마킹 진입이 불가하다(프레임 0건 MARKING_READY 차단).
+     * 추출 성공 전까지는 스트리밍/마킹 진입이 불가하다(프레임 0건 차단). 추출 성공 async 커밋에서
+     * COMPLETED(배치 마감)로 전이돼 작업보드에 노출된다.
      */
     private void createAugmentedVideo(LsDataAug aug, AugmentResultRequest req) {
         LsDataSrc originSrc = srcRepository.findById(aug.getSrcSn()).orElse(null);

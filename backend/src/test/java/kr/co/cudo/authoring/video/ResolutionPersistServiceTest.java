@@ -169,6 +169,28 @@ class ResolutionPersistServiceTest {
         verify(srcRepository, never()).save(any()); // 프레임 미삽입(승자 보호)
     }
 
+    @Test
+    @DisplayName("finalize성공_PERSISTED시_파생RAW를_markCompleted로_마감하고_markMarkingReady는_호출하지않는다")
+    void persistMarksCompletedNotMarkingReady() {
+        parentMock("Y");
+        stubStaleGatePasses();
+        LsDataRaw newRaw = mock(LsDataRaw.class);
+        when(newRaw.getDeIdntfYn()).thenReturn("N"); // 아직 미확정 → 정상 확정 경로
+        when(newRaw.getRawFilePathNm()).thenReturn(base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4").toString());
+        when(newRaw.getRawSn()).thenReturn(NEW_RAW);
+        when(videoRepository.findByRawSnForUpdate(NEW_RAW)).thenReturn(Optional.of(newRaw));
+
+        ResolutionPersistService.Result result = service.persist(snap(Instant.now(), deidVideoSrc()));
+
+        assertThat(result).isEqualTo(ResolutionPersistService.Result.PERSISTED);
+        // 배치 단계 상태 COMPLETED 로 마감(작업보드 노출) — MARKING_READY 로 두지 않는다.
+        verify(newRaw).markCompleted();
+        verify(newRaw, never()).markMarkingReady();
+        verify(newRaw).markDeidentified("Y");
+        // SUCCESS procLog 저장(비식별 결과 경로 기록).
+        verify(deidentProcLogRepository).save(any(LsDeidentProcLog.class));
+    }
+
     // ---------- isAlreadyFinalized ----------
 
     @Test
@@ -178,16 +200,16 @@ class ResolutionPersistServiceTest {
     }
 
     @Test
-    @DisplayName("isAlreadyFinalized_deIdntfYn_Y면_true_MARKING_READY면_true_그외_false다")
+    @DisplayName("isAlreadyFinalized_deIdntfYn_Y면_true_COMPLETED면_true_그외_false다")
     void isAlreadyFinalizedByStatus() {
         LsDataRaw yRaw = mock(LsDataRaw.class);
         when(yRaw.getDeIdntfYn()).thenReturn("Y");
         when(videoRepository.findByRawSnForUpdate(1L)).thenReturn(Optional.of(yRaw));
 
-        LsDataRaw markingReady = mock(LsDataRaw.class);
-        when(markingReady.getDeIdntfYn()).thenReturn("N");
-        when(markingReady.getDataSttsCd()).thenReturn(LsDataRaw.DATA_STTS_MARKING_READY);
-        when(videoRepository.findByRawSnForUpdate(2L)).thenReturn(Optional.of(markingReady));
+        LsDataRaw completed = mock(LsDataRaw.class);
+        when(completed.getDeIdntfYn()).thenReturn("N");
+        when(completed.getDataSttsCd()).thenReturn(LsDataRaw.DATA_STTS_COMPLETED);
+        when(videoRepository.findByRawSnForUpdate(2L)).thenReturn(Optional.of(completed));
 
         LsDataRaw pending = mock(LsDataRaw.class);
         when(pending.getDeIdntfYn()).thenReturn("N");

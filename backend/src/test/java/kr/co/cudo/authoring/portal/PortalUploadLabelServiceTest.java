@@ -322,9 +322,10 @@ class PortalUploadLabelServiceTest {
                 .isEqualTo("attachment; filename=\"portal-upload-100-labels.json\"");
         String json = new String(res.getBody(), StandardCharsets.UTF_8);
         assertThat(json).contains("myphoto.png");   // 자산 메타
-        assertThat(json).contains("\"frmeNo\":0");   // 프레임
+        assertThat(json).contains("\"frmeNo\" : 0"); // 프레임(pretty — 필드 구분자 " : ")
         assertThat(json).contains("car");            // 라벨명
         assertThat(json).contains("1.0").contains("4.0"); // 좌표
+        assertThat(json).contains("\n").contains("\n  "); // pretty(개행+들여쓰기)
     }
 
     @Test

@@ -167,7 +167,7 @@ class ResolutionDerivativeFlowIntegrationTest {
                 .until(() -> {
                     LsDataRaw c = childOf(parentRawSn);
                     return c != null
-                            && LsDataRaw.DATA_STTS_MARKING_READY.equals(c.getDataSttsCd())
+                            && LsDataRaw.DATA_STTS_COMPLETED.equals(c.getDataSttsCd())
                             && "Y".equals(c.getDeIdntfYn());
                 });
         return childOf(parentRawSn);
@@ -289,6 +289,31 @@ class ResolutionDerivativeFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("해상도파생_finalize성공시_파생RAW_배치상태_COMPLETED_이고_LS_RAW_DATA_STATUS_워크플로상태는_건드리지않는다")
+    void finalizeMarksBatchCompletedAndLeavesWorkflowStatusUntouched() {
+        when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
+        Seed s = seed("COMPLETE", BASE + "/videos/RESIT-COMPLETE-deid.mp4");
+
+        service.createDerivative(s.parent().getRawSn(), ResolutionPreset.RESL_720P, "rev1");
+
+        LsDataRaw child = awaitFinalized(s.parent().getRawSn());
+
+        // 배치 단계 상태(LS_DATA_RAW.DATA_STTS_CD) — COMPLETED 로 마감(작업보드 COMPLETED 필터 노출), MARKING_READY 아님.
+        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
+        assertThat(child.getDataSttsCd()).isNotEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+
+        // 작업보드 COMPLETED 필터에 파생 RAW 가 실제로 노출된다.
+        List<Long> boardIds = videoRepository
+                .findBoardOrderByStatusPriority("COMPLETED", org.springframework.data.domain.PageRequest.of(0, 200))
+                .getContent().stream().map(LsDataRaw::getRawSn).toList();
+        assertThat(boardIds).contains(child.getRawSn());
+
+        // 작업/검수 워크플로 상태(LS_RAW_DATA_STATUS)는 finalize 가 건드리지 않는다 — 워크플로 row 는 배정 시점
+        // lazy 생성이므로 확정 직후엔 미검수(row 부재). COMPLETED 워크플로 전이는 ReviewService.approve 에서만.
+        assertThat(statusRepository.findById(child.getRawSn())).isEmpty();
+    }
+
+    @Test
     @DisplayName("업스케일_프리셋에서_프레임이_확대되어_저장된다")
     void upscaleEnlargesFrames() {
         when(imageResizer.readDimensions(any())).thenReturn(new int[]{640, 360});
@@ -377,7 +402,7 @@ class ResolutionDerivativeFlowIntegrationTest {
         assertThat(srcRepository.countByRawSn(childRawSn)).isEqualTo(2L);
         LsDataRaw finalizedChild = videoRepository.findById(childRawSn).orElseThrow();
         assertThat(finalizedChild.getDataSttsCd())
-                .isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+                .isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
         // 패자의 실패정리가 승자를 FAILED 로 오표기하지 않는다(M-1 승자 산출물/상태 보호).
         assertThat(finalizedChild.getDataSttsCd())
                 .as("동시 finalize 승자가 FAILED 로 오표기되면 안 됨")
@@ -484,7 +509,7 @@ class ResolutionDerivativeFlowIntegrationTest {
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
                 .until(() -> {
                     LsDataRaw c = videoRepository.findById(retriedChildRawSn).orElseThrow();
-                    return LsDataRaw.DATA_STTS_MARKING_READY.equals(c.getDataSttsCd())
+                    return LsDataRaw.DATA_STTS_COMPLETED.equals(c.getDataSttsCd())
                             && "Y".equals(c.getDeIdntfYn());
                 });
         assertThat(augRepository.findBySrcSnOrderByAugTypeCd(f0Sn))

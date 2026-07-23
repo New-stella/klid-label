@@ -219,6 +219,8 @@ export function dotClass(code: TaskEventType): string {
       return 'bg-warning';
     case 'SUBMIT':
       return 'bg-info';
+    case 'CANCEL_SUBMIT':
+      return 'bg-warning';
     case 'APPROVE':
       return 'bg-success';
     case 'REJECT':
@@ -233,7 +235,7 @@ export function dotClass(code: TaskEventType): string {
  *
  * actor / subject / prev 이름이 없으면 user #{id} fallback, id 도 없으면 '시스템' 등으로 표시.
  */
-function describeEvent(row: AssignmentHistory): string {
+export function describeEvent(row: AssignmentHistory): string {
   const actor =
     row.actorUserName ??
     (row.actorUserNo != null ? `user #${row.actorUserNo}` : '시스템');
@@ -251,6 +253,8 @@ function describeEvent(row: AssignmentHistory): string {
       return `${actor} — ${subject}(으)로 재배정`;
     case 'SUBMIT':
       return `${actor} — 검수 제출`;
+    case 'CANCEL_SUBMIT':
+      return `${actor} — 검수 취소`;
     case 'APPROVE':
       return `${actor} — 검수 승인 완료`;
     case 'REJECT':

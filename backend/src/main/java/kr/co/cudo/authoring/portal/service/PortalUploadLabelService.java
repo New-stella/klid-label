@@ -179,7 +179,9 @@ public class PortalUploadLabelService {
 
         byte[] body;
         try {
-            body = objectMapper.writeValueAsBytes(export);
+            // 사용자가 다운로드하는 산출 JSON 파일이므로 pretty(들여쓰기)로 저장한다.
+            // writerWithDefaultPrettyPrinter() 는 호출 시점 파생 ObjectWriter 라 전역 빈 무영향.
+            body = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(export);
         } catch (IOException e) {
             log.error("[PortalUploadLabel] export serialize failed uldSn={} causeType={}",
                     uldSn, e.getClass().getSimpleName());

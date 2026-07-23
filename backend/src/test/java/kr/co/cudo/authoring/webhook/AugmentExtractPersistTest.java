@@ -153,7 +153,8 @@ class AugmentExtractPersistTest {
         verify(srcRepository, times(1)).save(any(LsDataSrc.class));
         verify(hstryRepository, times(1)).save(any());
         assertThat(newRaw.getDeIdntfYn()).isEqualTo("Y");
-        assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        // 파생본은 라벨 복사로 마킹·배치 불필요 → 배치 단계 COMPLETED 로 마감(작업보드 노출).
+        assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
     }
 
     @Test
@@ -275,7 +276,7 @@ class AugmentExtractPersistTest {
 
         assertThatCode(() -> persist.persist(p)).doesNotThrowAnyException();
         assertThat(newRaw.getDeIdntfYn()).isEqualTo("Y");
-        assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
         verify(metaRepository).upsertMeta(9008L, "weather", "snow");
         verify(metaRepository, never()).upsertMeta(anyLong(), startsWith("video."), anyString());
         verify(metaRepository, never()).saveAll(argThat(list -> {

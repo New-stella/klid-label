@@ -151,12 +151,33 @@ class DatasetExportWriterTest {
         ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
         // then — 파일을 다시 파싱해 9키 유효(event_annotation 포함) + 직렬화 바이트가 빌더 결과와 동일
+        //         (pretty 저장이므로 동일 pretty writer 로 직렬화한 바이트와 비교 — 값·스키마 불변, 포맷만 pretty)
         byte[] onDisk = Files.readAllBytes(result.dir().resolve("frame-0.json"));
-        assertThat(onDisk).isEqualTo(objectMapper.writeValueAsBytes(doc));
+        assertThat(onDisk).isEqualTo(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(doc));
         JsonNode tree = objectMapper.readTree(onDisk);
         assertThat(tree.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "info", "dataset", "licences", "video", "event_annotation",
                 "image", "annotations", "categories", "type");
+        assertThat(tree.get("type").asText()).isEqualTo("instances");
+    }
+
+    @Test
+    @DisplayName("export_프레임JSON_들여쓰기_pretty로_저장")
+    void writesPrettyPrintedJson() throws IOException {
+        // given
+        Path img = srcImage("s.jpg", "img");
+        when(frameSource.resolveImage(anyLong(), any(), any())).thenReturn(Optional.of(img));
+        when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());
+
+        // when
+        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
+
+        // then — 파일 내용이 compact 한 줄이 아니라 개행+들여쓰기(pretty)로 저장된다.
+        String content = Files.readString(result.dir().resolve("frame-0.json"));
+        assertThat(content).contains("\n");        // 개행 존재(한 줄 compact 아님)
+        assertThat(content).contains("\n  ");      // 들여쓰기 존재
+        // 값·스키마 불변 — pretty 여도 파싱 시 동일 트리
+        JsonNode tree = objectMapper.readTree(content);
         assertThat(tree.get("type").asText()).isEqualTo("instances");
     }
 

@@ -125,7 +125,10 @@ public class DatasetExportWriter {
         try {
             Files.copy(image, imageTarget, StandardCopyOption.REPLACE_EXISTING);
             // 원자적 쓰기: tmp 기록 후 교체(부분쓰기 방지).
-            objectMapper.writeValue(jsonTmp.toFile(), doc);
+            // 산출 JSON 은 사람이 읽는 학습데이터 파일이므로 pretty(들여쓰기)로 저장한다.
+            // writerWithDefaultPrettyPrinter() 는 호출 시점에만 파생되는 ObjectWriter 라
+            // 주입된 전역 ObjectMapper(REST API 응답 직렬화 공유)에는 영향이 없다.
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(jsonTmp.toFile(), doc);
             moveAtomic(jsonTmp, jsonTarget);
         } catch (IOException e) {
             cleanupQuietly(jsonTmp);

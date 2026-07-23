@@ -93,10 +93,10 @@ export function AugmentResultPage() {
     const labelIntegrity =
       totalPairs > 0 ? Math.round((augmentedPairs / totalPairs) * 100) : 0;
 
-    // 상태 파생: 결과 비어 있으면 PROCESSING, 무결성 0이면 FAILED 간주.
-    let status: 'PROCESSING' | 'COMPLETED' | 'FAILED' = 'COMPLETED';
-    if (data.results.length === 0) status = 'PROCESSING';
-    else if (totalPairs > 0 && augmentedPairs === 0) status = 'FAILED';
+    // 상태는 BE 집계값을 그대로 사용한다. results.length 로 파생하지 않는다 —
+    // 외부 SFR-07 연동 전이라 완료/실패 파생도 results 가 비어 있어, 파생하면 무조건 "처리 중"으로
+    // 오표시된다. 구 응답 호환을 위해 status 미제공 시에만 PROCESSING 으로 폴백한다.
+    const status: 'PROCESSING' | 'COMPLETED' | 'FAILED' = data.status ?? 'PROCESSING';
 
     return {
       types: Array.from(uniqueTypes),
@@ -227,8 +227,23 @@ export function AugmentResultPage() {
             </div>
           )}
 
-          {/* COMPLETED — 라벨 무결성 카드 */}
-          {summary.status === 'COMPLETED' && (
+          {/* COMPLETED — 결과 본문이 아직 없으면(외부 SFR-07 연동 전) 완료 안내만 표시 */}
+          {summary.status === 'COMPLETED' && summary.totalImages === 0 && (
+            <div
+              className="rounded border border-success/30 bg-success/10 p-4"
+              role="status"
+              data-testid="augment-result-completed-empty"
+            >
+              <p className="text-body font-semibold text-success">증강 처리 완료</p>
+              <p className="text-sub text-success">
+                파생 영상이 생성되어 작업 목록에서 라벨링·검수를 진행할 수 있습니다. 프레임별
+                비교 결과는 외부 연동 이후 표시됩니다.
+              </p>
+            </div>
+          )}
+
+          {/* COMPLETED — 라벨 무결성 카드 (결과 본문이 있을 때만) */}
+          {summary.status === 'COMPLETED' && summary.totalImages > 0 && (
             <div
               className="flex flex-col items-center gap-2 rounded border border-border bg-white p-6"
               data-testid="augment-result-integrity"

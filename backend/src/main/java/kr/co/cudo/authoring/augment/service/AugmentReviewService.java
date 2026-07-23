@@ -105,6 +105,36 @@ public class AugmentReviewService {
         return new PageImpl<>(jobs, PageRequest.of(0, Math.max(jobs.size(), 1)), jobs.size());
     }
 
+    /**
+     * 증강 결과 상태(/{jobId}/result) 집계 — FE 결과 화면의 실제 상태 표시용.
+     *
+     * <p>{@code jobId} 는 잡 카드의 videoId(=원본 RAW_SN, {@link #toJob} 참조)다. 해당 원본 영상의
+     * 증강 row 를 조회해 {@link #aggregateStatus} 로 집계한 뒤, FE 결과 화면 3값 계약
+     * ({@code COMPLETED|FAILED|PROCESSING})으로 매핑한다: terminal 전부→COMPLETED, dead-letter→FAILED,
+     * 그 외(REQUESTED/IN_PROGRESS)→PROCESSING. RAW_SN 매핑 부재로 jobId 가 SRC_SN 인 구 경로도
+     * {@code findBySrcSnIn} 폴백으로 동일하게 집계한다. 집계 대상 row 가 전무하면 PROCESSING(대기)로 본다.
+     *
+     * @return "COMPLETED" | "FAILED" | "PROCESSING"
+     */
+    public String aggregateResultStatus(Long jobId) {
+        if (jobId == null) {
+            return "PROCESSING";
+        }
+        List<LsDataAug> group = repository.findByOriginalRawSn(jobId);
+        if (group.isEmpty()) {
+            // RAW_SN 매핑이 없어 jobId 가 SRC_SN 그대로 노출된 구 경로 폴백.
+            group = repository.findBySrcSnIn(List.of(jobId));
+        }
+        if (group.isEmpty()) {
+            return "PROCESSING";
+        }
+        return switch (aggregateStatus(group)) {
+            case COMPLETED -> "COMPLETED";
+            case FAILED -> "FAILED";
+            case REQUESTED, IN_PROGRESS -> "PROCESSING";
+        };
+    }
+
     // ============================================================
     // 증강 잡 카드 그룹핑 (영상 단위 = 대표프레임 SRC_SN 그룹)
     // ============================================================

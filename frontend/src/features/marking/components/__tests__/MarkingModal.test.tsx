@@ -93,6 +93,39 @@ describe('MarkingModal', () => {
     expect(screen.getByLabelText(/프레임 간격/)).toBeInTheDocument();
   });
 
+  it('마킹모달_초기_프레임간격_300_프리필', async () => {
+    // given: 모달 오픈
+    const user = userEvent.setup();
+    renderWithProviders(<MarkingModal rawSn={42} open onClose={vi.fn()} />);
+
+    // when: 자동 단계 진입
+    await user.click(screen.getByText('자동'));
+
+    // then: 입력창에 스토어 기본값(300)이 프리필되어 있다
+    expect(screen.getByLabelText(/프레임 간격/)).toHaveValue('300');
+  });
+
+  it('마킹모달_닫았다_열어도_300_유지', async () => {
+    // given: 자동 단계에서 값을 임의로 변경
+    const user = userEvent.setup();
+    const { rerender } = renderWithProviders(
+      <MarkingModal rawSn={42} open onClose={vi.fn()} />,
+    );
+    await user.click(screen.getByText('자동'));
+    const input = screen.getByLabelText(/프레임 간격/);
+    await user.clear(input);
+    await user.type(input, '10');
+    expect(screen.getByLabelText(/프레임 간격/)).toHaveValue('10');
+
+    // when: 닫았다가(open=false) 다시 열기(open=true) → 자동 재진입
+    rerender(<MarkingModal rawSn={42} open={false} onClose={vi.fn()} />);
+    rerender(<MarkingModal rawSn={42} open onClose={vi.fn()} />);
+    await user.click(screen.getByText('자동'));
+
+    // then: 다시 기본값 300 으로 프리필(이전 입력 잔존 없음)
+    expect(screen.getByLabelText(/프레임 간격/)).toHaveValue('300');
+  });
+
   it('프레임간격_미입력_또는_0이하면_제출_차단_또는_검증메시지', async () => {
     const user = userEvent.setup();
     renderWithProviders(
@@ -103,7 +136,8 @@ describe('MarkingModal', () => {
     const submit = screen.getByRole('button', { name: /자동 마킹 시작/ });
     const input = screen.getByLabelText(/프레임 간격/);
 
-    // 빈값 → 제출 차단 + alert
+    // 빈값 → 제출 차단 + alert (기본 프리필 300 을 지운 상태)
+    await user.clear(input);
     await user.click(submit);
     expect(mutateMock).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toBeInTheDocument();
@@ -133,6 +167,7 @@ describe('MarkingModal', () => {
     );
     await user.click(screen.getByText('자동'));
 
+    await user.clear(screen.getByLabelText(/프레임 간격/));
     await user.type(screen.getByLabelText(/프레임 간격/), '5');
     await user.click(screen.getByRole('button', { name: /자동 마킹 시작/ }));
 
@@ -149,6 +184,7 @@ describe('MarkingModal', () => {
     renderWithProviders(<MarkingModal rawSn={42} open onClose={vi.fn()} />);
     await user.click(screen.getByText('자동'));
 
+    await user.clear(screen.getByLabelText(/프레임 간격/));
     await user.type(screen.getByLabelText(/프레임 간격/), '100000');
     await user.click(screen.getByRole('button', { name: /자동 마킹 시작/ }));
 
@@ -294,17 +330,18 @@ describe('MarkingModal', () => {
     const user = userEvent.setup();
     renderWithProviders(<MarkingModal rawSn={42} open onClose={vi.fn()} />);
 
-    // auto 진입 → 잘못된 값 제출 → alert 노출
+    // auto 진입 → 잘못된 값 제출 → alert 노출 (기본 프리필 300 을 지우고 0 입력)
     await user.click(screen.getByText('자동'));
+    await user.clear(screen.getByLabelText(/프레임 간격/));
     await user.type(screen.getByLabelText(/프레임 간격/), '0');
     await user.click(screen.getByRole('button', { name: /자동 마킹 시작/ }));
     expect(screen.getByRole('alert')).toBeInTheDocument();
 
-    // 이전 → 자동 재진입: 오류메시지 미노출 + 입력 빈값
+    // 이전 → 자동 재진입: 오류메시지 미노출 + 입력 기본값(300)으로 리셋
     await user.click(screen.getByRole('button', { name: '이전' }));
     await user.click(screen.getByText('자동'));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/프레임 간격/)).toHaveValue('');
+    expect(screen.getByLabelText(/프레임 간격/)).toHaveValue('300');
   });
 
   it('모달_닫았다_다시열면_select_단계로_리셋된다', async () => {

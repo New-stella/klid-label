@@ -107,8 +107,23 @@ export interface AugmentFramePair {
   augmentedUrl?: string;
 }
 
+// 증강 결과 화면의 실제 집계 상태 — BE /{jobId}/result 응답 status 계약(3값).
+// 프레임별 results 본문은 외부 SFR-07 연동 전이라 비어 있을 수 있으나, status 는 항상 실제 집계값이다.
+export const AugmentResultStatus = {
+  PROCESSING: 'PROCESSING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+} as const;
+export type AugmentResultStatus =
+  (typeof AugmentResultStatus)[keyof typeof AugmentResultStatus];
+
 export interface AugmentResultPage {
   jobId: number;
+  /**
+   * BE 집계 상태(COMPLETED|FAILED|PROCESSING). 결과가 비어 있어도 이 값으로 표시하며,
+   * results.length 로 상태를 파생하지 않는다(완료/실패의 "처리 중" 오표시 제거).
+   */
+  status: AugmentResultStatus;
   results: AugmentResult[];
 }
 

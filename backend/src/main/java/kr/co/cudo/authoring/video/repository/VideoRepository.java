@@ -26,8 +26,8 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
      * 부모 RAW 행을 {@link LockModeType#PESSIMISTIC_WRITE}(SELECT … FOR UPDATE)로 잠금 조회한다
      * (HIGH #1 — 증강본 비식별 게이트 TOCTOU 차단).
      *
-     * <p>증강 콜백은 부모의 {@code DE_IDNTF_YN='Y'} 를 확인한 뒤 증강본을 {@code MARKING_READY}(스트리밍
-     * 가능)로 확정한다. 이 확인~커밋 사이에 동시 비식별 신고({@code DeidentReportService.report})가 부모를
+     * <p>증강 콜백은 부모의 {@code DE_IDNTF_YN='Y'} 를 확인한 뒤 증강본을 {@code COMPLETED}(라벨 복사 완료·
+     * 작업목록 노출)로 확정한다. 이 확인~커밋 사이에 동시 비식별 신고({@code DeidentReportService.report})가 부모를
      * {@code 'F'} 로 전이시키면, 신고로 노출본으로 되돌아간 부모에서 파생된 PII 증강본이 스트리밍되는 사고가
      * 났다(CWE-359). 신고 경로는 부모 RAW 행을 {@code markDeidentified('F')} 로 UPDATE 하므로, 본 행 잠금이
      * 신고의 UPDATE 와 같은 row 에서 경합한다. 증강 tx 가 먼저 잠그면 {@code 'Y'} 를 고정한 채 커밋할 때까지

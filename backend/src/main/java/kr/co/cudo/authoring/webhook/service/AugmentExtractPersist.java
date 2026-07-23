@@ -46,7 +46,7 @@ import java.util.Map;
  *   <li>멱등 재확인 — 신규 RAW 가 이미 {@code deIdntfYn=='Y'} 면 {@link Result#SKIPPED}(A~C 창 중복 트리거 방어)</li>
  *   <li>Phase B 산출 파일 기준 LS_DATA_SRC 프레임 INSERT(+ 생성 이력) + videoFrameNo 기준 명시 키 매핑</li>
  *   <li>부모 라벨 좌표 그대로 복사({@code copyForNewSrc}) + LS_DATA_AUG_LBL_MAP(COORD_RECALC_YN='N') 적재</li>
- *   <li>성공 시에만 비식별 완료 불변식 확정: {@code deIdntfYn='Y'} + MARKING_READY + SUCCESS procLog</li>
+ *   <li>성공 시에만 비식별 완료 불변식 확정: {@code deIdntfYn='Y'} + COMPLETED(배치 마감) + SUCCESS procLog</li>
  *   <li>부모 콘텐츠 메타 upsert 복사(기술 메타 video.* 제외 — 메타러너 소유)</li>
  * </ol>
  */
@@ -118,15 +118,18 @@ public class AugmentExtractPersist {
             augLblMapRepository.saveAll(buildAugLabelMaps(aug, labelCopies));
         }
 
-        // 4) 성공 시에만 비식별 완료 불변식 확정(같은 커밋): DE_IDNTF_YN='Y' + SUCCESS procLog + MARKING_READY.
+        // 4) 성공 시에만 비식별 완료 불변식 확정(같은 커밋): DE_IDNTF_YN='Y' + SUCCESS procLog + COMPLETED.
         //    증강본은 이미 비식별된 소스 파생이라 산출 영상 자체가 비식별본이며, 비식별 결과 경로 = 증강본 파일 경로.
+        //    파생본은 원본 라벨을 좌표 복사해 적재하므로 마킹·배치가 불필요하다 — 배치 단계 상태
+        //    (LS_DATA_RAW.DATA_STTS_CD)를 COMPLETED 로 마감해 작업보드(COMPLETED 필터)에 라벨링/검수 대상으로
+        //    노출한다. 작업/검수 워크플로 상태(LS_RAW_DATA_STATUS)는 건드리지 않는다(배정 시점 미검수 시작).
         //  [순서 주의] 이 확정 블록은 아래 메타 복사(upsertMeta)보다 먼저 수행해야 한다. upsertMeta 는
         //  @Modifying(clearAutomatically=true) 라 실행 후 영속성 컨텍스트를 비운다. 확정을 뒤에 두면 clear 로
-        //  detach 된 newRaw 의 dirty 변경(MARKING_READY·deIdntfYn='Y')이 flush 되지 않아 신규 RAW 가 영영
+        //  detach 된 newRaw 의 dirty 변경(COMPLETED·deIdntfYn='Y')이 flush 되지 않아 신규 RAW 가 영영
         //  확정되지 않는다. 앞에 두면 upsertMeta 의 flushAutomatically 가 이 변경들을 먼저 flush 한다.
         String filePath = newRaw.getRawFilePathNm();
         newRaw.markDeidentified("Y");
-        newRaw.markMarkingReady();
+        newRaw.markCompleted();
         LsDeidentProcLog procLog = LsDeidentProcLog.request(newRaw.getRawSn(), null, filePath, "aug-frame-extract");
         procLog.succeed(filePath);
         deidentProcLogRepository.save(procLog);

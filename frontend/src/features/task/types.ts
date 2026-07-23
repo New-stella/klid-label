@@ -130,6 +130,7 @@ export type TaskEventType =
   | 'ASSIGN'
   | 'REASSIGN'
   | 'SUBMIT'
+  | 'CANCEL_SUBMIT'
   | 'APPROVE'
   | 'REJECT';
 

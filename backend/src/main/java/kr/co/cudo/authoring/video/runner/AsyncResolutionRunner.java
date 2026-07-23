@@ -30,7 +30,7 @@ import java.util.Optional;
  * <h3>실패 정책 (all-or-nothing → FAILED)</h3>
  * <p>어느 단계 예외든 catch 에서 ① Phase B 산출 아티팩트 cleanup 을 동기 수행 + {@code Files.exists}
  * 재확인(잔존 시 ERROR 로그 + {@code resolution.cleanup.failed} 메트릭) ② markRawDataFailed <b>이전</b>
- * newRaw 최신 상태를 재조회해 이미 확정(Y/MARKING_READY)이면 스킵(중복 finalize 승자를 FAILED 로 덮어쓰지
+ * newRaw 최신 상태를 재조회해 이미 확정(Y/COMPLETED)이면 스킵(중복 finalize 승자를 FAILED 로 덮어쓰지
  * 않음) ③ 예약 aug 행 삭제로 부분 유니크 슬롯을 해제한 뒤 파생 RAW 를 FAILED 로 전이하고 예외를 삼킨다(@Async).
  */
 @Slf4j
@@ -92,11 +92,11 @@ public class AsyncResolutionRunner {
      *
      * <p>MEDIUM (CWE-362, M-1) — <b>승자 존재 확인을 cleanup 보다 먼저</b> 수행한다. 파생 RAW/파일 경로는
      * 동시 finalize 승자와 동일하므로, 패자의 실패 정리가 cleanup 을 먼저 돌리면 승자가 방금 확정한 산출물
-     * (프레임·비디오)을 삭제해버린다. 승자가 이미 확정(Y/MARKING_READY)이면 cleanup 과 FAILED 전이를 모두
+     * (프레임·비디오)을 삭제해버린다. 승자가 이미 확정(Y/COMPLETED)이면 cleanup 과 FAILED 전이를 모두
      * 스킵해(SKIPPED 경로와 동일한 승자 산출물 보호 불변식을 예외 경로에도 대칭 적용) 승자 산출물을 보존한다.
      */
     private void handleFailure(Long newRawSn, Long dataAugSn, ResolutionSnapshot snapshot) {
-        // ① 중복 finalize 승자 보호(선점검) — newRaw 최신 상태가 이미 확정(Y/MARKING_READY)이면
+        // ① 중복 finalize 승자 보호(선점검) — newRaw 최신 상태가 이미 확정(Y/COMPLETED)이면
         //    cleanup·FAILED 전이 모두 스킵(패자 정리가 승자 산출물을 삭제하는 것 방지).
         boolean alreadyFinalized;
         try {

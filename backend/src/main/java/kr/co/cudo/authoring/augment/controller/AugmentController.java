@@ -109,12 +109,16 @@ public class AugmentController {
     }
 
     /**
-     * 증강 작업(jobId) 결과 placeholder — V1.5 외부 SFR-07 시스템 연동 결과 폴링용.
-     * 현재는 외부 시스템과 연결되지 않아 status=PENDING 의 빈 placeholder 만 반환한다.
+     * 증강 작업(jobId) 결과 상태 조회 — FE 결과 화면(SCR-AUG-002)의 실제 상태 표시용.
+     *
+     * <p>프레임별 results 본문은 외부 SFR-07 시스템 연동 전이라 비워 두지만, {@code status} 는 해당
+     * 원본 영상(jobId) 증강 row 의 실제 집계 상태(COMPLETED|FAILED|PROCESSING)를 반환한다. 이로써
+     * 완료/실패 파생이 결과 비어 있다는 이유로 무조건 "처리 중"으로 오표시되던 결함을 제거한다.
      */
     @Operation(
-            summary = "증강 작업 결과 조회 (REVIEWER) — placeholder",
-            description = "V1.5 외부 SFR-07 결과 폴링용 placeholder. 외부 연동 완료 전까지 status=PENDING 빈 응답."
+            summary = "증강 작업 결과 조회 (REVIEWER)",
+            description = "해당 원본 영상 증강 row 의 실제 집계 상태(COMPLETED|FAILED|PROCESSING)를 반환한다. "
+                    + "프레임별 results 본문은 외부 SFR-07 연동 전이라 비어 있다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -124,12 +128,12 @@ public class AugmentController {
     @GetMapping("/{jobId}/result")
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<java.util.Map<String, Object>> result(
-            @Parameter(description = "증강 jobId", required = true, example = "1") @PathVariable Long jobId) {
+            @Parameter(description = "증강 jobId(=원본 RAW_SN)", required = true, example = "1") @PathVariable Long jobId) {
         java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("jobId", jobId);
-        body.put("status", "PENDING");
+        body.put("status", service.aggregateResultStatus(jobId));
         body.put("results", java.util.List.of());
-        body.put("message", "외부 SFR-07 시스템 연동 전 — placeholder 응답");
+        body.put("message", "프레임별 결과 본문은 외부 SFR-07 시스템 연동 전 — status 만 실제 집계값을 반영합니다.");
         return ApiResponse.ok(body);
     }
 

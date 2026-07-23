@@ -166,6 +166,44 @@ class AugmentReviewServiceTest {
     }
 
     // ============================================================
+    // 증강 결과 상태 집계 — /{jobId}/result (FE 결과 화면 실상태 반영)
+    // ============================================================
+
+    @Test
+    @DisplayName("aggregateResultStatus_전부_종료된_aug면_COMPLETED_반환")
+    void aggregateResultStatusCompletedWhenAllTerminal() {
+        LsDataAug seed = seedPending(LsDataAug.AUG_WINTER); // srcSn=500
+        service.accept(seed.getDataAugSn(), reviewer);      // PENDING → ACCEPTED(terminal)
+
+        // jobId 매핑 부재(LS_DATA_SRC 없음) → srcSn 폴백으로 집계.
+        assertThat(service.aggregateResultStatus(500L)).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    @DisplayName("aggregateResultStatus_dead_letter_aug면_FAILED_반환")
+    void aggregateResultStatusFailedWhenDeadLetter() {
+        LsDataAug seed = seedPending(LsDataAug.AUG_WINTER);
+        seed.markDeadLetter();
+        repository.save(seed);
+
+        assertThat(service.aggregateResultStatus(500L)).isEqualTo("FAILED");
+    }
+
+    @Test
+    @DisplayName("aggregateResultStatus_미종료_PENDING_aug면_PROCESSING_반환")
+    void aggregateResultStatusProcessingWhenPending() {
+        seedPending(LsDataAug.AUG_WINTER); // PENDING → REQUESTED → PROCESSING
+
+        assertThat(service.aggregateResultStatus(500L)).isEqualTo("PROCESSING");
+    }
+
+    @Test
+    @DisplayName("aggregateResultStatus_집계대상_aug가_전무하면_PROCESSING_반환")
+    void aggregateResultStatusProcessingWhenNoRows() {
+        assertThat(service.aggregateResultStatus(404404L)).isEqualTo("PROCESSING");
+    }
+
+    // ============================================================
     // 증강 잡 카드(영상 단위 그룹) 조회 — FE AugmentJob 계약 정합
     // ============================================================
 
