@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { useEventAnnotation } from '../hooks/useEventAnnotation';
@@ -38,6 +39,7 @@ import {
   toEvidenceRows,
 } from './eventAnnotationForm';
 import {
+  bboxFromShape,
   COT_STEPS,
   INPUT_CLASS,
   MAX_EVENT_CLASS,
@@ -68,6 +70,16 @@ const REVIEW_STATUS_LABEL: Record<string, string> = {
 /** 검토(승인/반려) 가능한 상태 — 그 외(APPROVED/REJECTED/미생성)엔 버튼을 노출하지 않는다. */
 const REVIEWABLE_STATUSES = new Set(['AUTO_GENERATED', 'PENDING']);
 
+/** 콤마 append(단일값 필드): 기존이 비면 그대로, 있으면 ', ' 로 이어붙임. */
+function appendComma(existing: string, value: string): string {
+  return existing.trim() === '' ? value : `${existing}, ${value}`;
+}
+
+/** 개행 append(obj_bbox 한 줄에 하나): 기존이 비면 그대로, 있으면 '\n' 으로 이어붙임. */
+function appendNewline(existing: string, value: string): string {
+  return existing.trim() === '' ? value : `${existing}\n${value}`;
+}
+
 /**
  * 라벨링 우측 메타 탭 event_annotation 수동입력·검토 패널.
  * 외부 자동 생성 기본값을 최초 1회 프리필하고 수동 편집 후 저장한다.
@@ -77,6 +89,14 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
   const role = useAuthStore((s) => s.claims?.role);
   const channel = useAuthStore((s) => s.claims?.channel);
   const isReviewer = role === Role.REVIEWER && channel === 'INTERNAL';
+
+  // 캔버스 선택 객체(evidence 자동연결용) — 필요한 값만 셀렉터로 구독(스토어 전체 구독 금지).
+  const selectedLabelId = useLabelStore((s) => s.selectedLabelId);
+  const labels = useLabelStore((s) => s.labels);
+  const selectedLabel = useMemo(
+    () => (selectedLabelId ? labels.find((l) => l.id === selectedLabelId) ?? null : null),
+    [selectedLabelId, labels],
+  );
 
   const { data } = useEventAnnotation(rawSn);
   const update = useUpdateEventAnnotation(rawSn, {
@@ -219,6 +239,31 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
     );
   };
 
+  // 캔버스 선택 라벨 1건의 값을 evidence 행 obj_* 에 append(appendCurrentFrame 과 동일한 규칙).
+  //  - obj_id: trackId(프레임 간 동일 객체) 우선 → serverId → client id
+  //  - obj_label: className / obj_bbox: shape 도출(정수 반올림, MASK/유효점없음=스킵)
+  //  - frame_id: currentSrcSn(정의 시) 콤마 append
+  const appendSelectedObject = (key: string) => {
+    const label = selectedLabel;
+    if (!label) return;
+    const objIdVal =
+      label.trackId ?? (label.serverId != null ? String(label.serverId) : label.id);
+    const objLabelVal = label.className;
+    const bbox = bboxFromShape(label.shape);
+    const bboxLine = bbox ? bbox.map((v) => Math.round(v)).join(',') : null;
+    setEvidences((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        const next: EvidenceRow = { ...r };
+        next.objId = appendComma(r.objId, objIdVal);
+        next.objLabel = appendComma(r.objLabel, objLabelVal);
+        if (bboxLine !== null) next.objBbox = appendNewline(r.objBbox, bboxLine);
+        if (currentSrcSn !== undefined) next.frameId = appendComma(r.frameId, String(currentSrcSn));
+        return next;
+      }),
+    );
+  };
+
   const handleReject = () => {
     if (rejectReason.trim() === '' || review.reject.isPending) return;
     review.reject.mutate(rejectReason.trim());
@@ -325,9 +370,11 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
             key={row.key}
             row={row}
             currentSrcSn={currentSrcSn}
+            hasSelectedObject={selectedLabel !== null}
             onRemove={removeEvidence}
             onFieldChange={updateEvidenceField}
             onAppendCurrentFrame={appendCurrentFrame}
+            onAppendSelectedObject={appendSelectedObject}
           />
         ))}
 
