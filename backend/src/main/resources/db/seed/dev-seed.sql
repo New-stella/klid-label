@@ -148,21 +148,41 @@ INSERT INTO MNG_CLIP_EVNT_LST (EVNT_ID, EVNT_TYPE_CD, SHT_DT) VALUES
 ON CONFLICT (EVNT_ID, EVNT_TYPE_CD) DO NOTHING;
 
 -- 6) 라벨 마스터 (LS_LABEL) — CVAT-Like 라벨 풀 포팅 Phase 1
-INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, REG_DT) VALUES
-    ('person',           '#E74C3C', 'BBOX',    1,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('car',              '#3498DB', 'BBOX',    2,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('bicycle',          '#9B59B6', 'BBOX',    3,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('motorbike',        '#1ABC9C', 'BBOX',    4,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('bus',              '#F39C12', 'BBOX',    5,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('truck',            '#34495E', 'BBOX',    6,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('animal',           '#16A085', 'BBOX',    7,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('fire',             '#FF5733', 'POLYGON', 8,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('smoke',            '#7F8C8D', 'POLYGON', 9,  'Y', 'seed', '2026-05-15 00:00:00'),
-    ('water',            '#2980B9', 'POLYGON', 10, 'Y', 'seed', '2026-05-15 00:00:00'),
-    ('fallen-person',    '#C0392B', 'BBOX',    11, 'Y', 'seed', '2026-05-15 00:00:00'),
-    ('vehicle-accident', '#D35400', 'BBOX',    12, 'Y', 'seed', '2026-05-15 00:00:00'),
-    ('object',           '#95A5A6', 'BBOX',    13, 'Y', 'seed', '2026-05-15 00:00:00')
+--   DTCT_TYPE_CD: AI(COCO) 검출 클래스 매핑(V129). COCO 80종에 대응하는 이동체 라벨만 채운다.
+--   유지 라벨(9종): 매핑 6종(person/car/bicycle/motorbike→motorcycle/bus/truck) + 미매핑 이벤트 3종(fire/smoke/water).
+--   ⚠ motorbike 의 COCO 정규명은 'motorcycle'(라벨명과 다름) — 매핑값은 motorcycle.
+--   정리(soft-delete) 라벨: animal/fallen-person/vehicle-accident/object 는 COCO 미대응·불용 → 아래 6-2 에서 비활성(신규 설치엔 애초 미삽입).
+INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, REG_DT, DTCT_TYPE_CD) VALUES
+    ('person',           '#E74C3C', 'BBOX',    1,  'Y', 'seed', '2026-05-15 00:00:00', 'person'),
+    ('car',              '#3498DB', 'BBOX',    2,  'Y', 'seed', '2026-05-15 00:00:00', 'car'),
+    ('bicycle',          '#9B59B6', 'BBOX',    3,  'Y', 'seed', '2026-05-15 00:00:00', 'bicycle'),
+    ('motorbike',        '#1ABC9C', 'BBOX',    4,  'Y', 'seed', '2026-05-15 00:00:00', 'motorcycle'),
+    ('bus',              '#F39C12', 'BBOX',    5,  'Y', 'seed', '2026-05-15 00:00:00', 'bus'),
+    ('truck',            '#34495E', 'BBOX',    6,  'Y', 'seed', '2026-05-15 00:00:00', 'truck'),
+    ('fire',             '#FF5733', 'POLYGON', 8,  'Y', 'seed', '2026-05-15 00:00:00', NULL),
+    ('smoke',            '#7F8C8D', 'POLYGON', 9,  'Y', 'seed', '2026-05-15 00:00:00', NULL),
+    ('water',            '#2980B9', 'POLYGON', 10, 'Y', 'seed', '2026-05-15 00:00:00', NULL)
 ON CONFLICT ((LOWER(TRIM(LBL_NM)))) WHERE USE_YN = 'Y' DO NOTHING;
+
+-- 6-1) 라벨 마스터 COCO 매핑 멱등 채움 (기존 시드 DB 재기동 반영)
+--   위 INSERT 는 ON CONFLICT DO NOTHING 이라 이미 시드된 행의 DTCT_TYPE_CD 를 갱신하지 않는다.
+--   따라서 미매핑(NULL) 대상 라벨에만 COCO 매핑을 UPDATE 로 채운다(멱등 — 이미 매핑된 행은 스킵).
+--   각 COCO 클래스는 활성 라벨 1개에만 매핑되므로 부분 유니크(UK_LS_LABEL_DTCT_TYPE)와 충돌하지 않는다.
+UPDATE LS_LABEL t SET DTCT_TYPE_CD = m.coco
+FROM (VALUES
+    ('person', 'person'), ('car', 'car'), ('bicycle', 'bicycle'),
+    ('motorbike', 'motorcycle'), ('bus', 'bus'), ('truck', 'truck')
+) AS m(nm, coco)
+WHERE LOWER(TRIM(t.LBL_NM)) = m.nm AND t.USE_YN = 'Y' AND t.DTCT_TYPE_CD IS NULL;
+
+-- 6-2) 불용 라벨 정리 (soft-delete) — 기존 시드 DB 재기동 반영
+--   COCO 미대응·불용 라벨(animal/fallen-person/vehicle-accident/object)을 USE_YN='N' 으로 비활성화한다.
+--   ⚠ hard-delete 금지: 이 라벨들은 기존 라벨링 데이터(LS_DATA_LBL.LBL_ID FK)가 참조할 수 있어
+--     삭제 시 FK 위반. soft-delete 로 라벨링 이력을 보존하고 목록·AI 탐지 후보(활성만 노출)에서만 제외한다.
+--   멱등: 이미 USE_YN='N' 이면 대상 0. 신규 설치는 애초 미삽입이라 대상 0.
+UPDATE LS_LABEL SET USE_YN = 'N', MDFCN_ID = 'seed', MDFCN_DT = '2026-05-15 00:00:00'
+WHERE LOWER(TRIM(LBL_NM)) IN ('animal', 'fallen-person', 'vehicle-accident', 'object')
+  AND USE_YN = 'Y';
 
 -- 7) 관제 이벤트 타입 마스터 (MNG_EX_EVNT_TYPE) — 실 klid_system 조회로 확정한 실데이터.
 --   라벨 도출 전환(EVT_* enum → EV* 관제코드)의 토대. CLCT_EVNT_NM 은 수집 키워드(라벨 아님).
