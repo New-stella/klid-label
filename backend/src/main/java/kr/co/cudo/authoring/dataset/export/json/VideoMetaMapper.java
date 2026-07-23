@@ -22,12 +22,20 @@ public class VideoMetaMapper {
     private static final String YES = "Y";
     private static final String NO = "N";
 
-    /**
-     * @param meta 영상 메타 스냅샷 (필수 — 1차 소스)
-     * @param raw  원시 영상 (선택 — null 허용, 메타 null 필드 폴백)
-     * @param kind 산출 종류 (anonymity 오버라이드)
-     */
+    /** deid 영상 경로 없이 조립(하위호환 오버로드). DEIDENTIFIED 는 filename 이 null 이 된다(fail-secure). */
     public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind) {
+        return toVideo(meta, raw, kind, null);
+    }
+
+    /**
+     * @param meta          영상 메타 스냅샷 (필수 — 1차 소스)
+     * @param raw           원시 영상 (선택 — null 허용, 메타 null 필드 폴백)
+     * @param kind          산출 종류 (anonymity 오버라이드 + 경로 소스 선택)
+     * @param deidVideoPath 비식별 영상 경로(LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM, null 허용) —
+     *                      DEIDENTIFIED 산출의 filename/orign_filename 소스. null 이면 fail-secure 로
+     *                      원본 파일명 대신 null(원본 경로가 비식별 산출물에 새지 않도록, CWE-359).
+     */
+    public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind, String deidVideoPath) {
         Long rawSn = firstNonNull(meta.getRawSn(), raw == null ? null : raw.getRawSn());
         String rawPath = firstNonNull(meta.getRawFilePathNm(), raw == null ? null : raw.getRawFilePathNm());
         LocalDateTime shtDt = firstNonNull(meta.getShtDt(), raw == null ? null : raw.getShtDt());
@@ -35,7 +43,10 @@ public class VideoMetaMapper {
         String prvcTypeCd = firstNonNull(meta.getPrvcTypeCd(), raw == null ? null : raw.getPrvcTypeCd());
         String prvcYn = firstNonNull(meta.getPrvcYn(), raw == null ? null : raw.getPrvcYn());
 
-        String basename = basename(rawPath);
+        // kind 별 영상 경로: ORIGINAL=원본 raw, DEIDENTIFIED=비식별 경로. filename/orign_filename 은
+        // 이 경로의 basename 이며, deid 경로 미상이면 null 로 두어 원본 파일명 노출을 막는다(fail-secure).
+        String kindVideoPath = (kind == ExportKind.ORIGINAL) ? rawPath : deidVideoPath;
+        String basename = basename(kindVideoPath);
         String anonymity = (kind == ExportKind.ORIGINAL) ? NO : YES;
         String pseudonymity = LsDataRaw.PRVC_TYPE_PSDO.equals(prvcTypeCd) ? YES : NO;
 

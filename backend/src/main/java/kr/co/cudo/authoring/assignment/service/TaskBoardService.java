@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.util.AugTypeParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -122,6 +123,9 @@ public class TaskBoardService {
         Long reviewerId = reviewer != null ? reviewer.getUserNo() : null;
         String reviewerName = (reviewerId != null && nameByUserNo != null) ? nameByUserNo.get(reviewerId) : null;
         String mappedStatus = mapBoardStatus(dataSttsCd, labeler != null);
+        // R3 — 파생 영상 여부(ORGNL_RAW_SN != null) + 증강 종류(VMS_CLIP_ID 파싱). 원본이면 augmented=false, augType=null.
+        boolean augmented = r.getOrgnlRawSn() != null;
+        String augType = augmented ? AugTypeParser.parse(r.getVmsClipId()) : null;
         return new TaskBoardItemResponse(
                 r.getRawSn(),
                 resolveCctvName(cctvName, r.getVmsCctvId()),
@@ -137,7 +141,9 @@ public class TaskBoardService {
                 labeler != null ? labeler.getRegDt() : null,
                 firstSrcSn,
                 reviewerId,
-                reviewerName
+                reviewerName,
+                augmented,
+                augType
         );
     }
 

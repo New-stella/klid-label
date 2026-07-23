@@ -64,16 +64,18 @@ public class VideoQueryService {
         String normalizedDataStts = (dataSttsCd != null && !dataSttsCd.isBlank()) ? dataSttsCd.trim() : null;
         String normalizedReviewStts = normalizeReviewStatusCd(reviewStatusCd);
 
+        // R1 — 영상 처리 현황은 원본 RAW 만 노출한다(파생 RAW=ORGNL_RAW_SN NOT NULL 제외).
+        // 파생물은 증강 이력 화면에서만 보이며, 작업 목록(TaskBoardService)에는 여전히 포함된다(R2, 분리 유지).
         Page<LsDataRaw> page;
         if (normalizedReviewStts != null) {
-            // 검수 상태 필터 지정 시 LS_RAW_DATA_STATUS INNER JOIN 쿼리 사용.
+            // 검수 상태 필터 지정 시 LS_RAW_DATA_STATUS INNER JOIN 쿼리 사용 (원본전용).
             // (JPQL ORDER BY regDt DESC 고정 — 본 화면은 정렬 키를 노출하지 않음)
-            page = videoRepository.findAllWithReviewStatus(normalizedDataStts, normalizedReviewStts, pageable);
+            page = videoRepository.findOriginalsWithReviewStatus(normalizedDataStts, normalizedReviewStts, pageable);
         } else if (normalizedDataStts != null) {
             // 정렬은 컨트롤러가 allowlist 로 검증·매핑한 Pageable Sort 에 위임 (기본 regDt DESC).
-            page = videoRepository.findAllByDataSttsCd(normalizedDataStts, pageable);
+            page = videoRepository.findAllByDataSttsCdAndOrgnlRawSnIsNull(normalizedDataStts, pageable);
         } else {
-            page = videoRepository.findAll(pageable);
+            page = videoRepository.findAllByOrgnlRawSnIsNull(pageable);
         }
         Map<String, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());

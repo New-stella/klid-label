@@ -337,6 +337,62 @@ class NiaJsonBuilderTest {
     }
 
     @Test
+    @DisplayName("DEID_kind_JSON의_dataset경로는_비식별경로_원본아님")
+    void deidDatasetPathUsesDeidVideoPathNotOriginal() {
+        // given — 비식별 영상 경로가 있는 컨텍스트(proc log DE_IDNTF_FILE_PATH_NM 상당)
+        String deidVideoPath = "/nas/deid/42/deidentified.mp4";
+        NiaAnnotationDoc deid = buildDoc(ExportKind.DEIDENTIFIED, deidVideoPath);
+
+        // then — DEID dataset.src_path 는 비식별 경로여야 하고, 원본 raw 경로가 아니어야 한다.
+        assertThat(deid.dataset().srcPath()).isEqualTo(deidVideoPath);
+        assertThat(deid.dataset().srcPath()).isNotEqualTo("/nas/raw/42/original.mp4");
+        assertThat(deid.dataset().srcPath()).doesNotContain("/nas/raw/");
+        assertThat(deid.dataset().name()).isEqualTo("deidentified");
+        // identifier(=videoId)는 kind 무관 유지
+        assertThat(deid.dataset().identifier()).isEqualTo("42");
+    }
+
+    @Test
+    @DisplayName("ORIGINAL_kind_JSON의_dataset경로는_원본유지")
+    void originalDatasetPathRetainsRawPath() {
+        // given / when — 회귀 가드: 원본 산출은 기존대로 원본 raw 경로
+        NiaAnnotationDoc original = buildDoc(ExportKind.ORIGINAL, "/nas/deid/42/deidentified.mp4");
+
+        // then
+        assertThat(original.dataset().srcPath()).isEqualTo("/nas/raw/42/original.mp4");
+        assertThat(original.dataset().name()).isEqualTo("original");
+    }
+
+    @Test
+    @DisplayName("DEID_kind에서_video_filename도_원본경로_아님")
+    void deidVideoFilenameUsesDeidVideoPathNotOriginal() {
+        // given — 비식별 영상 경로 세팅
+        String deidVideoPath = "/nas/deid/42/deidentified.mp4";
+        NiaAnnotationDoc deid = buildDoc(ExportKind.DEIDENTIFIED, deidVideoPath);
+
+        // then — video.filename/orign_filename 은 비식별 파일명, 원본 파일명("original.mp4") 미노출
+        assertThat(deid.video().filename()).isEqualTo("deidentified.mp4");
+        assertThat(deid.video().orignFilename()).isEqualTo("deidentified.mp4");
+        assertThat(deid.video().filename()).isNotEqualTo("original.mp4");
+    }
+
+    @Test
+    @DisplayName("deid_영상경로_없으면_원본절대경로_미노출")
+    void deidWithoutDeidPathDoesNotLeakOriginalPath() throws Exception {
+        // given — 비식별 영상 경로 미상(null) — fail-secure 경로
+        NiaAnnotationDoc deid = buildDoc(ExportKind.DEIDENTIFIED, null);
+
+        // then — dataset/video 경로 필드에 원본 절대경로가 새지 않는다(null 또는 원본 미포함).
+        assertThat(deid.dataset().srcPath()).isNull();
+        assertThat(deid.dataset().name()).isNull();
+        assertThat(deid.video().filename()).isNull();
+        assertThat(deid.video().orignFilename()).isNull();
+        // 문서 전체 직렬화에도 원본 raw 경로 문자열이 등장하지 않는다(경로 누수 종합 가드).
+        String json = objectMapper.writeValueAsString(deid);
+        assertThat(json).doesNotContain("/nas/raw/42/original.mp4");
+    }
+
+    @Test
     @DisplayName("meta가_null이면_INVALID_INPUT")
     void prepareContextRejectsNullMeta() {
         // when / then — prepareContext 입력 검증
@@ -402,6 +458,14 @@ class NiaJsonBuilderTest {
         LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
         NiaJsonBuilder.VideoExportContext ctx =
                 builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
+        return builder.build(ctx, new NiaJsonBuilder.FrameContext(src, List.of(lbl)), kind);
+    }
+
+    private NiaAnnotationDoc buildDoc(ExportKind kind, String deidVideoPath) {
+        LsDataSrc src = frame();
+        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+        NiaJsonBuilder.VideoExportContext ctx =
+                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")), null, deidVideoPath);
         return builder.build(ctx, new NiaJsonBuilder.FrameContext(src, List.of(lbl)), kind);
     }
 

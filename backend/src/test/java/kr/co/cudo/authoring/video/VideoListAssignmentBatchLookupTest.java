@@ -108,7 +108,7 @@ class VideoListAssignmentBatchLookupTest {
                 .mapToObj(i -> videoWithCctv(i, "CCTV-00" + i)).toList();
         Pageable pageable = PageRequest.of(0, size);
         Page<LsDataRaw> page = new PageImpl<>(rows, pageable, size);
-        given(videoRepository.findAll(any(Pageable.class))).willReturn(page);
+        given(videoRepository.findAllByOrgnlRawSnIsNull(any(Pageable.class))).willReturn(page);
 
         // frameCount batch: rawSn i → count i*10 (리스트 선생성 — 중첩 stubbing 회피)
         List<Object[]> frameCounts = IntStream.rangeClosed(1, size)
@@ -150,7 +150,7 @@ class VideoListAssignmentBatchLookupTest {
         List<LsDataRaw> rows = IntStream.rangeClosed(1, size).mapToObj(i -> video(i)).toList();
         Pageable pageable = PageRequest.of(0, size);
         Page<LsDataRaw> page = new PageImpl<>(rows, pageable, size);
-        given(videoRepository.findAllByDataSttsCd(eq("COMPLETED"), any(Pageable.class))).willReturn(page);
+        given(videoRepository.findAllByDataSttsCdAndOrgnlRawSnIsNull(eq("COMPLETED"), any(Pageable.class))).willReturn(page);
 
         List<LsTaskAssignment> assignments = IntStream.rangeClosed(1, size)
                 .mapToObj(i -> assignment(1000 + i, i, 100 + i)).toList();

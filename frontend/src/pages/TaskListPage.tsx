@@ -21,6 +21,7 @@ import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { KpiCard } from '@/components/common/KpiCard';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
+import { augTypeLabel, type AugType } from '@/features/augment/augTypeLabel';
 import { AssignModal } from '@/features/task/components/AssignModal';
 import { HistoryDrawer } from '@/features/task/components/HistoryDrawer';
 import {
@@ -64,6 +65,10 @@ interface TaskRow {
   task: Task | undefined;
   rowStatus: RowStatus;
   videoName: string;
+  /** 증강/해상도 파생 데이터 여부 (뱃지 노출 판정). */
+  augmented: boolean;
+  /** 증강 종류 코드 — null 이면 뱃지에 '증강'만 표시. */
+  augType: AugType | null;
 }
 
 const PAGE_SIZE = 20;
@@ -252,6 +257,8 @@ export function TaskListPage() {
         task: t,
         rowStatus: t.status,
         videoName: t.cctvName,
+        augmented: t.augmented ?? false,
+        augType: t.augType ?? null,
       }));
     }
     // REVIEWER — BE /v1/tasks/board 응답을 TaskRow 로 변환.
@@ -296,6 +303,8 @@ export function TaskListPage() {
         task,
         rowStatus: it.status,
         videoName: cctvName,
+        augmented: it.augmented ?? false,
+        augType: it.augType ?? null,
       };
     });
   }, [isReviewer, boardItems, tasks]);
@@ -599,11 +608,24 @@ export function TaskListPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {r.video.eventName ? (
-                          <EventTypeBadge eventType={r.video.eventName} />
-                        ) : (
-                          <span className="text-xs text-gray-400">-</span>
-                        )}
+                        <div className="flex flex-col items-start gap-1">
+                          {r.video.eventName ? (
+                            <EventTypeBadge eventType={r.video.eventName} />
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                          {/* 증강/해상도 파생 데이터 뱃지 (R3). 원본(augmented=false)은 미표시.
+                              기술모델명 비노출 — augTypeLabel 로 한글 라벨만 표시. */}
+                          {r.augmented && (
+                            <span
+                              data-testid={`task-aug-badge-${r.video.id}`}
+                              aria-label={`증강 데이터: ${augTypeLabel(r.augType)}`}
+                              className="inline-flex w-fit items-center rounded bg-info/10 px-2 py-0.5 text-xs font-medium text-info"
+                            >
+                              {augTypeLabel(r.augType)}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge

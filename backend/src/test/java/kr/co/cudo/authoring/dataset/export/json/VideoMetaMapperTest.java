@@ -158,6 +158,36 @@ class VideoMetaMapperTest {
     }
 
     @Test
+    @DisplayName("DEIDENTIFIED면_filename이_비식별경로_basename_원본아님")
+    void deidFilenameUsesDeidVideoPath() {
+        // given — 원본 raw 경로 + 별도 비식별 영상 경로
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/nas/raw/1/original.mp4").build();
+
+        // when — DEIDENTIFIED + deid 영상 경로 전달
+        NiaVideo video = mapper.toVideo(meta, null, ExportKind.DEIDENTIFIED, "/nas/deid/1/deidentified.mp4");
+
+        // then — 비식별 파일명, 원본 파일명 미노출
+        assertThat(video.filename()).isEqualTo("deidentified.mp4");
+        assertThat(video.orignFilename()).isEqualTo("deidentified.mp4");
+    }
+
+    @Test
+    @DisplayName("DEIDENTIFIED인데_deid경로_null이면_filename도_null_원본미노출")
+    void deidFilenameNullWhenNoDeidPath() {
+        // given — deid 영상 경로 미상(fail-secure)
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/nas/raw/1/original.mp4").build();
+
+        // when
+        NiaVideo video = mapper.toVideo(meta, null, ExportKind.DEIDENTIFIED, null);
+
+        // then — 원본 파일명 대신 null
+        assertThat(video.filename()).isNull();
+        assertThat(video.orignFilename()).isNull();
+    }
+
+    @Test
     @DisplayName("ORIGINAL이면_anonymity_N_DEIDENTIFIED면_Y")
     void anonymityOverriddenByKind() {
         // given

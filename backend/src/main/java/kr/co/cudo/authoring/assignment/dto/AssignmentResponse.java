@@ -44,7 +44,11 @@ public record AssignmentResponse(
             //   REJECTED  → REJECTED       (반려)
             //   null/그 외 → PENDING       (LS_RAW_DATA_STATUS row 미생성 시 폴백)
             // FE STATUS_BADGE_MAP 의 키 집합과 정확히 일치하여 화면 깨짐 방지.
-            String status
+            String status,
+            // 증강/해상도 파생 영상 여부 — LS_DATA_RAW.ORGNL_RAW_SN != null (R3). 원본이면 false.
+            boolean augmented,
+            // 증강 종류(정규화 WINTER|NIGHT|RAIN|RESL_1080P|RESL_720P|RESL_480P) — 원본/파싱실패 시 null.
+            String augType
     ) {
         /**
          * 기본 변환 — REVIEWER 정보 없이 사용한다.
@@ -110,6 +114,19 @@ public record AssignmentResponse(
                                 String workerName, String reviewerName, Long firstSrcSn,
                                 String cctvName, String eventName, String eventTypeCd,
                                 String dataSttsCd) {
+            return from(e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName,
+                    eventName, eventTypeCd, dataSttsCd, false, null);
+        }
+
+        /**
+         * 전체 인자 변환 + 증강 파생 정보(augmented/augType) 주입 (R3).
+         * 호출 측에서 영상(LS_DATA_RAW)을 batch lookup 해 ORGNL_RAW_SN != null 여부와
+         * VMS_CLIP_ID 파싱 결과를 전달한다. 원본이면 augmented=false, augType=null.
+         */
+        public static Item from(LsTaskAssignment e, Long reviewerId,
+                                String workerName, String reviewerName, Long firstSrcSn,
+                                String cctvName, String eventName, String eventTypeCd,
+                                String dataSttsCd, boolean augmented, String augType) {
             String videoTitle = cctvName != null && !cctvName.isBlank()
                     ? cctvName
                     : (e.getRawDataId() != null ? "video #" + e.getRawDataId() : null);
@@ -133,7 +150,9 @@ public record AssignmentResponse(
                     firstSrcSn,
                     eventName,
                     eventTypeCd,
-                    mapToFeStatus(dataSttsCd)
+                    mapToFeStatus(dataSttsCd),
+                    augmented,
+                    augType
             );
         }
 

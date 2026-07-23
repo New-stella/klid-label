@@ -1123,4 +1123,159 @@ describe('TaskListPage', () => {
     await user.click(markBtn);
     expect(navigateMock).toHaveBeenCalledWith('/marking/62');
   });
+
+  // --- 증강 여부/종류 뱃지 (R3 FE) ---
+
+  function replyWorkerTask(overrides: Record<string, unknown>) {
+    mock.onGet('/assignments').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 400,
+            videoId: 70,
+            cctvName: 'CCTV-AUG',
+            workerId: 7,
+            workerName: '홍길동',
+            status: 'PENDING',
+            assignedAt: '2026-05-27T10:00:00Z',
+            eventName: 'FIRE',
+            eventTypeCd: 'FIRE',
+            ...overrides,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  it('작업목록_augmented항목_증강뱃지_표시', async () => {
+    setRole('WORKER');
+    replyWorkerTask({ augmented: true, augType: 'WINTER' });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-AUG')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('task-aug-badge-70')).toBeInTheDocument();
+  });
+
+  it('작업목록_augType_WINTER_겨울라벨', async () => {
+    setRole('WORKER');
+    replyWorkerTask({ augmented: true, augType: 'WINTER' });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-AUG')).toBeInTheDocument();
+    });
+
+    const badge = screen.getByTestId('task-aug-badge-70');
+    expect(badge).toHaveTextContent('겨울');
+    // 기술모델명/코드 미노출
+    expect(badge).not.toHaveTextContent('WINTER');
+  });
+
+  it('작업목록_augType_RESL_720P_해상도라벨', async () => {
+    setRole('WORKER');
+    replyWorkerTask({ augmented: true, augType: 'RESL_720P' });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-AUG')).toBeInTheDocument();
+    });
+
+    const badge = screen.getByTestId('task-aug-badge-70');
+    expect(badge).toHaveTextContent('해상도 720p');
+    expect(badge).not.toHaveTextContent('RESL');
+  });
+
+  it('작업목록_augType_null이면_증강뱃지만', async () => {
+    setRole('WORKER');
+    replyWorkerTask({ augmented: true, augType: null });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-AUG')).toBeInTheDocument();
+    });
+
+    const badge = screen.getByTestId('task-aug-badge-70');
+    expect(badge).toHaveTextContent('증강');
+    // 접근성 — 뱃지에 aria-label 존재
+    expect(badge).toHaveAttribute('aria-label');
+  });
+
+  it('원본항목_뱃지_미표시', async () => {
+    setRole('WORKER');
+    replyWorkerTask({ augmented: false });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-AUG')).toBeInTheDocument();
+    });
+
+    // 원본(augmented=false) 은 증강 뱃지가 없어야 한다.
+    expect(screen.queryByTestId('task-aug-badge-70')).not.toBeInTheDocument();
+  });
+
+  it('REVIEWER_보드항목_augmented_증강뱃지_표시', async () => {
+    setRole('REVIEWER');
+    mock.onGet('/tasks/board').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            videoId: 80,
+            cctvName: 'CCTV-REV-AUG',
+            eventName: 'FIRE',
+            eventTypeCd: 'FIRE',
+            frameCount: 30,
+            capturedAt: '2026-05-07T10:00:00Z',
+            batchStatus: 'COMPLETED',
+            status: 'UNASSIGNED',
+            assignmentId: null,
+            workerId: null,
+            workerName: null,
+            assignedAt: null,
+            firstSrcSn: null,
+            reviewerId: null,
+            reviewerName: null,
+            augmented: true,
+            augType: 'RAIN',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-REV-AUG')).toBeInTheDocument();
+    });
+
+    const badge = screen.getByTestId('task-aug-badge-80');
+    expect(badge).toHaveTextContent('비');
+  });
 });

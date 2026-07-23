@@ -85,6 +85,39 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Page<LsDataRaw> findAllByOrderByRegDtDesc(Pageable pageable);
 
     /**
+     * 영상 처리 현황(GET /v1/videos) 전용 — 원본 RAW 만 조회(파생 RAW 제외, R1).
+     *
+     * <p>증강/해상도 파생 RAW 는 {@code ORGNL_RAW_SN} 이 원본을 가리키므로(NOT NULL), 처리 현황 목록에는
+     * {@code ORGNL_RAW_SN IS NULL} 인 원본만 노출한다. 파생물은 증강 이력 화면(GET /v1/augments)에서만 본다.
+     * 정렬은 Pageable 의 Sort 로 위임한다({@link #findAll(Pageable)} 대체). 작업 목록 쿼리
+     * ({@link #findBoardOrderByStatusPriority}/{@link #findUnassigned})에는 이 필터를 적용하지 않는다 —
+     * 파생물도 배정·검수 대상이므로 작업 목록에는 유지된다(R2).
+     */
+    Page<LsDataRaw> findAllByOrgnlRawSnIsNull(Pageable pageable);
+
+    /**
+     * 영상 처리 현황 — 배치 상태(dataSttsCd) 필터 + 원본 RAW 만(파생 RAW 제외, R1).
+     * {@link #findAllByDataSttsCd(String, Pageable)} 의 원본전용 변형. 정렬은 Pageable Sort 로 위임.
+     */
+    Page<LsDataRaw> findAllByDataSttsCdAndOrgnlRawSnIsNull(String dataSttsCd, Pageable pageable);
+
+    /**
+     * 영상 처리 현황 — 검수 상태 필터 조합 + 원본 RAW 만(파생 RAW 제외, R1).
+     *
+     * <p>{@link #findAllWithReviewStatus}(포털/데이터마트 조회와 공유) 를 건드리지 않기 위한 처리 현황 전용
+     * 쿼리다. {@code ORGNL_RAW_SN IS NULL} 로 파생물을 제외하고 나머지 조건은 동일하게 유지한다.
+     * 파라미터 바인딩만 사용 — SQL Injection 방어(CWE-89).
+     */
+    @Query("SELECT v FROM LsDataRaw v JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn " +
+            "WHERE v.orgnlRawSn IS NULL " +
+            "AND (:dataSttsCd IS NULL OR v.dataSttsCd = :dataSttsCd) " +
+            "AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd) " +
+            "ORDER BY v.regDt DESC")
+    Page<LsDataRaw> findOriginalsWithReviewStatus(@Param("dataSttsCd") String dataSttsCd,
+                                                  @Param("reviewStatusCd") String reviewStatusCd,
+                                                  Pageable pageable);
+
+    /**
      * dataSttsCd 필터 — 정렬은 Pageable 의 Sort 로 위임한다 (정적 OrderBy 미적용).
      *
      * <p>정적 {@code OrderByRegDtDesc} 파생 메서드는 정적 {@code regDt DESC} 가 Pageable Sort 보다

@@ -36,6 +36,10 @@ public record TaskBoardItemResponse(
         LocalDateTime assignedAt,
         Long firstSrcSn,
         Long reviewerId,
-        String reviewerName
+        String reviewerName,
+        // 증강/해상도 파생 영상 여부 — LS_DATA_RAW.ORGNL_RAW_SN != null (R3). 원본이면 false.
+        boolean augmented,
+        // 증강 종류(정규화 WINTER|NIGHT|RAIN|RESL_1080P|RESL_720P|RESL_480P) — 원본/파싱실패 시 null.
+        String augType
 ) {
 }

@@ -271,8 +271,8 @@ class AugmentCallbackFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("생성된_증강영상이_영상리스트조회에_MARKING_READY로_노출된다")
-    void childVideoVisibleInListAsMarkingReady() throws Exception {
+    @DisplayName("생성된_증강영상은_영상처리현황_조회에서_제외된다_R1_파생제외")
+    void childVideoExcludedFromProcessingList() throws Exception {
         Seed s = seedOriginWithAug("LIST", "RAIN", "AUGCB-K-LIST", "AUGCB-J-LIST");
         AugmentResultRequest payload = new AugmentResultRequest(
                 s.aug().getDataAugSn(), "AUGCB-J-LIST", "RAIN", "SUCCESS",
@@ -287,18 +287,18 @@ class AugmentCallbackFlowIntegrationTest {
                         .content(body))
                 .andExpect(status().isOk());
 
-        // Phase 11 — async 재추출 완료 후에만 MARKING_READY 로 노출된다.
+        // Phase 11 — async 재추출 완료 후 MARKING_READY 로 확정됨(파생영상 자체는 정상 생성).
         LsDataRaw child = awaitFinalizedChild(s.parentRaw().getRawSn());
         assertThat(child).isNotNull();
+        assertThat(child.getOrgnlRawSn()).isEqualTo(s.parentRaw().getRawSn());
 
-        // GET /v1/videos?dataSttsCd=MARKING_READY — 신규 영상이 마킹 진입 상태로 노출
+        // R1 — 영상 처리 현황(GET /v1/videos)은 파생 RAW(ORGNL_RAW_SN NOT NULL)를 제외한다.
+        // 파생 영상은 증강 이력/작업 목록에서만 노출되며 처리 현황 목록에는 나타나지 않는다.
         mockMvc.perform(get("/v1/videos?dataSttsCd=MARKING_READY&page=0&size=100")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.content[?(@.id == " + child.getRawSn() + ")]").exists())
-                .andExpect(jsonPath("$.data.content[?(@.id == " + child.getRawSn()
-                        + ")].dataSttsCd").value(org.hamcrest.Matchers.hasItem(LsDataRaw.DATA_STTS_MARKING_READY)));
+                .andExpect(jsonPath("$.data.content[?(@.id == " + child.getRawSn() + ")]").doesNotExist());
     }
 
     @Test

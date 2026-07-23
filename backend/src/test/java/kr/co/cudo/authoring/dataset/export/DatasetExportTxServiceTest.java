@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder;
@@ -52,6 +53,7 @@ class DatasetExportTxServiceTest {
     private LsLabelRepository labelMasterRepository;
     private VideoRepository videoRepository;
     private LsDatasetExportRepository exportRepository;
+    private LsDeidentProcLogRepository deidentProcLogRepository;
     private NiaJsonBuilder niaJsonBuilder;
     private LabelContentHasher contentHasher;
     private DatasetExportPathResolver pathResolver;
@@ -66,12 +68,13 @@ class DatasetExportTxServiceTest {
         labelMasterRepository = mock(LsLabelRepository.class);
         videoRepository = mock(VideoRepository.class);
         exportRepository = mock(LsDatasetExportRepository.class);
+        deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         niaJsonBuilder = mock(NiaJsonBuilder.class);
         contentHasher = mock(LabelContentHasher.class);
         pathResolver = mock(DatasetExportPathResolver.class);
         txService = new DatasetExportTxService(srcRepository, labelRepository, videoMetaRepository,
-                labelMasterRepository, videoRepository, exportRepository, niaJsonBuilder,
-                contentHasher, pathResolver, new com.fasterxml.jackson.databind.ObjectMapper());
+                labelMasterRepository, videoRepository, exportRepository, deidentProcLogRepository,
+                niaJsonBuilder, contentHasher, pathResolver, new com.fasterxml.jackson.databind.ObjectMapper());
 
         // 최소 입력 스텁 — 프레임 1건 + 활성 메타 1건이 있어야 loadPreparation 이 조립을 진행한다.
         LsDataSrc frame = mock(LsDataSrc.class);
@@ -87,7 +90,10 @@ class DatasetExportTxServiceTest {
         when(label.getLabelId()).thenReturn(null); // 마스터 로드 skip
         when(labelRepository.findAllByRawSn(RAW_SN)).thenReturn(List.of(label));
 
-        when(niaJsonBuilder.prepareContext(any(), any(), any(), any()))
+        // 비식별 영상 경로 조회 — mock 의 default 메서드는 실행되지 않아 null 반환 → NPE 방지 위해 명시 스텁.
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(anyLong())).thenReturn(Optional.empty());
+
+        when(niaJsonBuilder.prepareContext(any(), any(), any(), any(), any()))
                 .thenReturn(mock(VideoExportContext.class));
     }
 
@@ -166,7 +172,7 @@ class DatasetExportTxServiceTest {
         assertThat(prep).isPresent();
         ArgumentCaptor<com.fasterxml.jackson.databind.JsonNode> eaCaptor =
                 ArgumentCaptor.forClass(com.fasterxml.jackson.databind.JsonNode.class);
-        verify(niaJsonBuilder).prepareContext(any(), any(), any(), eaCaptor.capture());
+        verify(niaJsonBuilder).prepareContext(any(), any(), any(), eaCaptor.capture(), any());
         assertThat(eaCaptor.getValue()).isNull();
     }
 

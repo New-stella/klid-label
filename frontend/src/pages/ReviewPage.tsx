@@ -31,6 +31,7 @@ import { RejectModal } from '@/features/review/components/RejectModal';
 import { ReviewActionBar } from '@/features/review/components/ReviewActionBar';
 import { ReviewHeader } from '@/features/review/components/ReviewHeader';
 import { ReviewMemoPanel } from '@/features/review/components/ReviewMemoPanel';
+import { ReviewMetaPanel } from '@/features/review/components/ReviewMetaPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { useReview } from '@/features/review/hooks/useReview';
 import {
@@ -304,6 +305,13 @@ export function ReviewPage() {
             labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []}
           />
         </section>
+
+        {/* 메타 정보 읽기 표시 — event_annotation(영상 단위) + 시계열 메타(현재 프레임).
+            읽기 전용(편집·승인/반려 없음). 확정은 영상 승인 시 자동 동결에 위임. */}
+        <ReviewMetaPanel
+          rawSn={review.videoId}
+          srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+        />
 
         <ReviewMemoPanel videoId={review.videoId} issues={issues ?? []} />
 

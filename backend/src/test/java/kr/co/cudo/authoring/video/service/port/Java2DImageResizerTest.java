@@ -75,6 +75,26 @@ class Java2DImageResizerTest {
     }
 
     @Test
+    @DisplayName("dst_부모디렉터리_없어도_생성후_리스케일_성공")
+    void createsMissingParentDirBeforeWrite() throws Exception {
+        // given: 소스는 존재하지만 dst 부모 디렉터리는 아직 없는 파생 프레임 출력 경로
+        Path dir = Files.createTempDirectory("j2d-");
+        Path src = writeSourceImage(dir, 200, 120);
+        Path dst = dir.resolve("resolution").resolve("28").resolve("frame_0001.jpg");
+        assertThat(Files.exists(dst.getParent())).isFalse();
+
+        // when: 존재하지 않는 하위 경로로 리사이즈 (수정 전엔 ImageIO.write IOException → CustomException)
+        resizer.resize(src, dst, 100, 60);
+
+        // then: 부모 디렉터리가 생성되고 파일이 정상 산출됨
+        assertThat(Files.exists(dst)).isTrue();
+        assertThat(Files.size(dst)).isGreaterThanOrEqualTo(100L);
+        BufferedImage out = ImageIO.read(dst.toFile());
+        assertThat(out.getWidth()).isEqualTo(100);
+        assertThat(out.getHeight()).isEqualTo(60);
+    }
+
+    @Test
     @DisplayName("타겟해상도_0_이하시_400")
     void nonPositiveTargetRejected() throws Exception {
         Path dir = Files.createTempDirectory("j2d-");

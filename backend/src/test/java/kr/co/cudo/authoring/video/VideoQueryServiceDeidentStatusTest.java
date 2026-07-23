@@ -97,7 +97,7 @@ class VideoQueryServiceDeidentStatusTest {
 
     /** list(null,null) 경로에서 항상 호출되는 enrich 콜래보레이터를 빈 결과로 스텁한다. */
     private void stubEmptyEnrich(Page<LsDataRaw> page, Pageable pageable) {
-        given(videoRepository.findAll(any(Pageable.class))).willReturn(page);
+        given(videoRepository.findAllByOrgnlRawSnIsNull(any(Pageable.class))).willReturn(page);
         given(videoRepository.findLatestExportsByRawSns(anyCollection())).willReturn(List.of());
         given(rawDataStatusRepository.findByRawDataIdIn(anyCollection())).willReturn(List.of());
         given(taskAssignmentRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(anyString(), anyCollection()))

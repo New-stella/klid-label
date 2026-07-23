@@ -13,7 +13,9 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.util.AugTypeParser;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
@@ -272,6 +274,8 @@ public class AssignmentService {
         Map<Long, String[]> eventInfoByVideo = lookupEventInfoByVideo(page.getContent());
         // FE Task.status 정합 — LS_RAW_DATA_STATUS.DATA_STTS_CD 를 단일 IN 쿼리로 일괄 lookup (N+1 회피).
         Map<Long, String> dataSttsByVideo = lookupDataSttsByVideo(page.getContent());
+        // R3 — 파생 영상 여부/증강 종류 파생을 위한 LS_DATA_RAW batch lookup (N+1 회피).
+        Map<Long, LsDataRaw> videoByRaw = lookupVideoByRaw(page.getContent());
 
         // worker + reviewer userNo 를 한 Set 에 모아 1회 batch 조회 (N+1 회피).
         Set<Long> userNos = new HashSet<>();
@@ -297,10 +301,38 @@ public class AssignmentService {
             String eventName = eventInfo != null ? eventInfo[0] : null;
             String eventTypeCd = eventInfo != null ? eventInfo[1] : null;
             String dataSttsCd = dataSttsByVideo.get(e.getRawDataId());
+            LsDataRaw video = videoByRaw.get(e.getRawDataId());
+            boolean augmented = video != null && video.getOrgnlRawSn() != null;
+            String augType = augmented ? AugTypeParser.parse(video.getVmsClipId()) : null;
             return AssignmentResponse.Item.from(
                     e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName, eventName, eventTypeCd,
-                    dataSttsCd);
+                    dataSttsCd, augmented, augType);
         });
+    }
+
+    /**
+     * 페이지 단위로 영상(LS_DATA_RAW)을 단일 IN 쿼리(findAllById)로 batch 조회하여 매핑한다 (N+1 회피).
+     * ORGNL_RAW_SN(파생 여부) + VMS_CLIP_ID(증강 종류 파싱) 도출용. 영상이 없으면 키 부재 → 원본 취급.
+     */
+    private Map<Long, LsDataRaw> lookupVideoByRaw(List<LsTaskAssignment> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> rawDataIds = rows.stream()
+                .map(LsTaskAssignment::getRawDataId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (rawDataIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, LsDataRaw> map = new HashMap<>();
+        for (LsDataRaw v : videoRepository.findAllById(rawDataIds)) {
+            if (v != null && v.getRawSn() != null) {
+                map.put(v.getRawSn(), v);
+            }
+        }
+        return map;
     }
 
     /**

@@ -393,4 +393,56 @@ class AssignmentServiceTest {
         assertThat(reassign.getSubjectUserNo()).isEqualTo(101L);
         assertThat(reassign.getPrevUserNo()).isEqualTo(100L);
     }
+
+    @Test
+    @DisplayName("listAssignments_파생영상은_augmented_true_augType_반환")
+    void listAssignmentsDerivedVideoAugmented() {
+        // given — 파생 영상(ORGNL_RAW_SN=3000, VMS_CLIP_ID 에 RESL_RESL_480P 드리프트 포함) 시드 후 배정.
+        jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", 3001L);
+        jdbcTemplate.update(
+                "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, ORGNL_RAW_SN, PRVC_TYPE_CD, PRVC_YN, DE_IDENT_YN," +
+                        "RAW_FILE_PATH_NM, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
+                3001L, "TEST-3000_RESL_RESL_480P_123", "CCTV-AUG-001", 3000L,
+                "ANONY", "N", "N", "/tmp/test/3001.mp4", "PENDING");
+
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(3001L));
+        assignmentService.assign(req, reviewer());
+
+        // when
+        Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
+                null, reviewer(), PageRequest.of(0, 20));
+
+        // then — 파생 RAW 는 작업 목록에 유지되며(R2) augmented=true + 정규화 augType=RESL_480P.
+        assertThat(page.getContent()).hasSize(1);
+        AssignmentResponse.Item item = page.getContent().get(0);
+        assertThat(item.rawDataId()).isEqualTo(3001L);
+        assertThat(item.augmented()).isTrue();
+        assertThat(item.augType()).isEqualTo("RESL_480P");
+    }
+
+    @Test
+    @DisplayName("listAssignments_원본영상은_augmented_false_augType_null")
+    void listAssignmentsOriginalVideoNotAugmented() {
+        // given — 원본 영상(ORGNL_RAW_SN=null) 시드 후 배정.
+        jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", 3002L);
+        jdbcTemplate.update(
+                "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, PRVC_TYPE_CD, PRVC_YN, DE_IDENT_YN," +
+                        "RAW_FILE_PATH_NM, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
+                3002L, "TEST-CLIP-ORIG-3002", "CCTV-ORIG-001",
+                "ANONY", "N", "N", "/tmp/test/3002.mp4", "PENDING");
+
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(3002L));
+        assignmentService.assign(req, reviewer());
+
+        // when
+        Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
+                null, reviewer(), PageRequest.of(0, 20));
+
+        // then — 원본은 augmented=false, augType=null.
+        assertThat(page.getContent()).hasSize(1);
+        AssignmentResponse.Item item = page.getContent().get(0);
+        assertThat(item.rawDataId()).isEqualTo(3002L);
+        assertThat(item.augmented()).isFalse();
+        assertThat(item.augType()).isNull();
+    }
 }

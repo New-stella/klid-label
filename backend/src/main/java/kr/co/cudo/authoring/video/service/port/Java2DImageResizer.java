@@ -50,6 +50,11 @@ public class Java2DImageResizer implements ImageResizer {
         String format = formatOf(dst);
         File dstFile = dst.toFile();
         try {
+            // 파생 프레임 출력 디렉터리(raw/deid base 별개)가 없으면 생성 — 없으면 ImageIO.write 가
+            // IOException(부모 경로 없음) → finalize 실패 → 예약행 삭제(이력 소멸). 멱등(있으면 no-op).
+            if (dst.getParent() != null) {
+                Files.createDirectories(dst.getParent());
+            }
             boolean written = ImageIO.write(scaled, format, dstFile);
             if (!written) {
                 throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지 다운스케일에 실패했습니다.");

@@ -1,5 +1,7 @@
 // 작업 배정 도메인 타입 (BE OpenAPI alias)
 
+import { type AugType } from '@/features/augment/augTypeLabel';
+
 export type AssignmentStatus = 'PENDING' | 'IN_PROGRESS' | 'REVIEW_PENDING' | 'COMPLETED' | 'REJECTED';
 
 export interface Worker {
@@ -38,6 +40,16 @@ export interface Task {
    */
   deIdntfYn?: 'Y' | 'N' | 'F';
   deidentStatus?: string;
+  /**
+   * 증강/해상도 파생 데이터 여부 (BE additive). true 면 작업 목록에 증강 뱃지를 노출한다.
+   * 구 응답에 없을 수 있어 optional — 없으면 원본(false)으로 취급한다.
+   */
+  augmented?: boolean;
+  /**
+   * 증강 종류 코드 (WINTER/NIGHT/RAIN/RESL_1080P/RESL_720P/RESL_480P).
+   * null=종류 미상(뱃지에 '증강'만 표시). augmented=false 면 무시된다.
+   */
+  augType?: AugType | null;
 }
 
 export interface Assignment {
@@ -86,6 +98,9 @@ export interface TaskBoardItem {
   // 비식별 처리 여부/상태 (마킹 진입 차단 판정 — AC4). BE 미전송 시 null/undefined.
   deIdntfYn?: 'Y' | 'N' | 'F' | null;
   deidentStatus?: string | null;
+  // 증강/해상도 파생 여부 + 종류 (BE additive) — 작업 목록 증강 뱃지용.
+  augmented?: boolean | null;
+  augType?: AugType | null;
 }
 
 export interface TaskBoardParams {

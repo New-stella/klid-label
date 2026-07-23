@@ -57,35 +57,46 @@ public class NiaJsonBuilder {
      * @param usedLabels 이 영상에서 사용된 라벨 마스터 집합 (categories 원천)
      */
     public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw, Collection<LsLabel> usedLabels) {
-        return prepareContext(meta, raw, usedLabels, null);
+        return prepareContext(meta, raw, usedLabels, null, null);
     }
 
     /**
-     * rawSn 단위 공통 컨텍스트를 1회 준비한다(동결 event_annotation 포함 오버로드).
+     * rawSn 단위 공통 컨텍스트를 1회 준비한다(동결 event_annotation 포함 오버로드, 비식별 영상 경로 없음).
+     */
+    public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw,
+                                             Collection<LsLabel> usedLabels, JsonNode eventAnnotation) {
+        return prepareContext(meta, raw, usedLabels, eventAnnotation, null);
+    }
+
+    /**
+     * rawSn 단위 공통 컨텍스트를 1회 준비한다(동결 event_annotation + 비식별 영상 경로 포함 오버로드).
      *
      * @param meta            영상 메타 스냅샷 (필수)
      * @param raw             원시 영상 (선택 — null 허용)
      * @param usedLabels      이 영상에서 사용된 라벨 마스터 집합 (categories 원천)
      * @param eventAnnotation 승인 시점 동결된 event_annotation payload(JsonNode, null 허용) — 각 프레임
      *                        문서 최상위 {@code event_annotation} 으로 pass-through(키/형태 보존)
+     * @param deidVideoPath   비식별 <b>영상</b> 파일 경로(LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM, null 허용).
+     *                        DEIDENTIFIED 산출의 dataset/video 경로 필드에 사용된다 — 원본 경로가 비식별
+     *                        산출물에 새지 않도록 kind 별로 분기한다({@link #build}). null 이면 fail-secure
+     *                        (원본 절대경로 대신 null 노출, CWE-359).
      */
     public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw,
-                                             Collection<LsLabel> usedLabels, JsonNode eventAnnotation) {
+                                             Collection<LsLabel> usedLabels, JsonNode eventAnnotation,
+                                             String deidVideoPath) {
         if (meta == null) {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "영상 메타가 null 입니다.");
         }
         Long rawSn = meta.getRawSn();
         String videoId = (rawSn == null) ? null : String.valueOf(rawSn);
-        String rawPath = meta.getRawFilePathNm();
 
         List<NiaCategory> categories = categoryMapper.toCategories(usedLabels);
         NiaInfo info = new NiaInfo(LocalDate.now().getYear(), FORMAT_VERSION, INFO_DESCRIPTION,
                 LocalDate.now().toString());
-        NiaDataset dataset = new NiaDataset(videoId, baseNameNoExt(rawPath), rawPath, null);
         List<NiaLicence> licences = List.of(NiaLicence.privateUse());
 
-        return new VideoExportContext(meta, raw, videoId, info, dataset, licences, categories, eventAnnotation);
+        return new VideoExportContext(meta, raw, videoId, info, deidVideoPath, licences, categories, eventAnnotation);
     }
 
     /**
@@ -100,13 +111,28 @@ public class NiaJsonBuilder {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "빌드 입력이 null 입니다.");
         }
-        NiaVideo video = videoMapper.toVideo(ctx.meta(), ctx.raw(), kind);
+        NiaVideo video = videoMapper.toVideo(ctx.meta(), ctx.raw(), kind, ctx.deidVideoPath());
+        NiaDataset dataset = buildDataset(ctx, kind);
         NiaImage image = buildImage(ctx, frame.frame(), kind);
         List<NiaAnnotation> annotations = buildAnnotations(frame.labels(), image.id());
 
         return new NiaAnnotationDoc(
-                ctx.info(), ctx.dataset(), ctx.licences(),
+                ctx.info(), dataset, ctx.licences(),
                 video, ctx.eventAnnotation(), image, annotations, ctx.categories(), TYPE_INSTANCES);
+    }
+
+    /**
+     * kind 별 {@code dataset} 블록(src_path/name)을 조립한다.
+     *
+     * <p>ORIGINAL=원본 raw 영상 경로, DEIDENTIFIED=비식별 영상 경로(proc log DE_IDNTF_FILE_PATH_NM).
+     * 비식별 산출물에 원본 경로가 새지 않도록 kind 로 분기한다. deid 경로 미상이면 <b>fail-secure</b> —
+     * 원본 절대경로를 넣지 않고 null 로 둔다(정보노출 CWE-359 방지).
+     */
+    private NiaDataset buildDataset(VideoExportContext ctx, ExportKind kind) {
+        String path = (kind == ExportKind.ORIGINAL)
+                ? ctx.meta().getRawFilePathNm()
+                : ctx.deidVideoPath();
+        return new NiaDataset(ctx.videoId(), baseNameNoExt(path), path, null);
     }
 
     private NiaImage buildImage(VideoExportContext ctx, LsDataSrc src, ExportKind kind) {
@@ -191,7 +217,7 @@ public class NiaJsonBuilder {
             LsDataRaw raw,
             String videoId,
             NiaInfo info,
-            NiaDataset dataset,
+            String deidVideoPath,
             List<NiaLicence> licences,
             List<NiaCategory> categories,
             JsonNode eventAnnotation

@@ -217,6 +217,36 @@ class TaskBoardStatusPrioritySortTest {
                 .andExpect(jsonPath("$.data.content[1].videoId").value(first.getRawSn()));
     }
 
+    /** 원본에서 파생된 해상도 영상(ORGNL_RAW_SN 세팅, COMPLETED)을 생성한다. */
+    private LsDataRaw seedDerivedCompletedVideo(LsDataRaw parent, String goalResCd) {
+        LsDataRaw derived = LsDataRaw.createFromResolution(
+                parent, "/var/raw/deriv-" + goalResCd + ".mp4", goalResCd);
+        derived = videoRepository.save(derived);
+        derived.changeStatus("COMPLETED");
+        return videoRepository.save(derived);
+    }
+
+    @Test
+    @DisplayName("작업보드_파생영상은_augmented_true_augType_원본은_false_null")
+    void boardAugmentInfo() throws Exception {
+        // given: 원본 1건(미배정) + 그 원본의 해상도 파생 1건(미배정, VMS_CLIP_ID 에 RESL 드리프트 포함)
+        LsDataRaw origin = seedCompletedVideo("CLIP-AUG-ORIGIN");
+        LsDataRaw derived = seedDerivedCompletedVideo(origin, "RESL_480P");
+
+        // when / then: 두 건 모두 작업 목록에 노출(R2)되고, 파생만 augmented=true + augType=RESL_480P.
+        mockMvc.perform(get("/v1/tasks/board?status=COMPLETED&page=0&size=20")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                // rawSn DESC tie-break — 파생(나중 생성=큰 rawSn)이 먼저.
+                .andExpect(jsonPath("$.data.content[0].videoId").value(derived.getRawSn()))
+                .andExpect(jsonPath("$.data.content[0].augmented").value(true))
+                .andExpect(jsonPath("$.data.content[0].augType").value("RESL_480P"))
+                .andExpect(jsonPath("$.data.content[1].videoId").value(origin.getRawSn()))
+                .andExpect(jsonPath("$.data.content[1].augmented").value(false))
+                .andExpect(jsonPath("$.data.content[1].augType").isEmpty());
+    }
+
     @Test
     @DisplayName("기존_board_상태필터·페이징_무회귀")
     void boardFilterAndPagingRegression() throws Exception {

@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder;
@@ -54,6 +56,7 @@ public class DatasetExportTxService {
     private final LsLabelRepository labelMasterRepository;
     private final VideoRepository videoRepository;
     private final LsDatasetExportRepository exportRepository;
+    private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final NiaJsonBuilder niaJsonBuilder;
     private final LabelContentHasher contentHasher;
     private final DatasetExportPathResolver pathResolver;
@@ -65,6 +68,7 @@ public class DatasetExportTxService {
                                   LsLabelRepository labelMasterRepository,
                                   VideoRepository videoRepository,
                                   LsDatasetExportRepository exportRepository,
+                                  LsDeidentProcLogRepository deidentProcLogRepository,
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
                                   DatasetExportPathResolver pathResolver,
@@ -75,6 +79,7 @@ public class DatasetExportTxService {
         this.labelMasterRepository = labelMasterRepository;
         this.videoRepository = videoRepository;
         this.exportRepository = exportRepository;
+        this.deidentProcLogRepository = deidentProcLogRepository;
         this.niaJsonBuilder = niaJsonBuilder;
         this.contentHasher = contentHasher;
         this.pathResolver = pathResolver;
@@ -116,7 +121,13 @@ public class DatasetExportTxService {
         // 동결 event_annotation(C2) — 활성 메타 스냅샷의 EVNT_ANNO_CN(승인 시점 동결본)만 사용한다.
         // export 는 LS_EVNT_ANNO(라이브)를 조회하지 않으므로 승인 후 편집분에 오염되지 않는다(멱등).
         JsonNode eventAnnotation = parseEventAnnotation(meta.getEvntAnnoCn(), rawSn);
-        VideoExportContext ctx = niaJsonBuilder.prepareContext(meta, raw, usedLabels, eventAnnotation);
+        // 비식별 영상 경로(DE_IDNTF_FILE_PATH_NM) — DEIDENTIFIED 산출 JSON 의 dataset/video 경로 필드가
+        // 원본이 아닌 비식별 경로를 참조하도록 rawSn 단위 1회 조회한다(최신 SUCCEEDED procLog, N+1 없음).
+        // 미상이면 null → 빌더가 fail-secure(원본 절대경로 미노출, CWE-359).
+        String deidVideoPath = deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn)
+                .map(LsDeidentProcLog::getDeIdntfFilePathNm)
+                .orElse(null);
+        VideoExportContext ctx = niaJsonBuilder.prepareContext(meta, raw, usedLabels, eventAnnotation, deidVideoPath);
 
         List<FrameContext> frameContexts = new ArrayList<>(frames.size());
         for (LsDataSrc frame : frames) {
