@@ -7,7 +7,6 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
-import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -32,6 +31,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -92,10 +92,16 @@ class AutolabelControllerTest {
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
 
         // 검출 대상 재구성(HIGH#1) — 온라인 오토라벨은 '매핑된 라벨(DTCT_TYPE_CD→COCO)' 만 ai-server 로
-        // 전달·검출한다. person/car 를 검출 클래스로 매핑한 활성 라벨을 시드해야 검출 결과가 반환된다
+        // 전달·검출한다. person/car 를 검출 클래스로 매핑한 활성 라벨이 있어야 검출 결과가 반환된다
         // (매핑이 없으면 서버가 ai 호출 없이 빈 결과를 돌려주므로 detectedCount=0 이 된다).
-        labelRepository.save(LsLabel.create("사람", "#FF0000", "BBOX", 0, "person", "tester"));
-        labelRepository.save(LsLabel.create("차량", "#00FF00", "BBOX", 1, "car", "tester"));
+        //
+        // [테스트 격리] DevSeedRunner(@Profile("local"))가 부팅 시 dev-seed.sql 의 LS_LABEL 마스터를
+        // 공유 PostgreSQL Testcontainer 에 비트랜잭션 커밋하며, 여기에 이미 person/car 가 활성(USE_YN='Y') +
+        // DTCT_TYPE_CD 매핑으로 존재한다. 과거 여기서 person/car 를 재삽입했으나, 시드 라벨과
+        // 부분 유니크(UK_LS_LABEL_DTCT_TYPE, USE_YN='Y') 충돌 → DataIntegrityViolationException 이 되므로
+        // 재삽입을 제거하고 시드 라벨을 재사용한다. 검출→라벨 귀속은 DTCT_TYPE_CD 축이라 라벨명 무관.
+        assertThat(labelRepository.findByDtctTypeCdAndUseYn("person", "Y")).isPresent();
+        assertThat(labelRepository.findByDtctTypeCdAndUseYn("car", "Y")).isPresent();
 
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "CLIP-AL-001", "CCTV-001", "EVT-A", "11680",

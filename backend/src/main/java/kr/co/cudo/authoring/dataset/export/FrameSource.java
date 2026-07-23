@@ -60,17 +60,40 @@ public class FrameSource {
         if (kind == null || frame == null) {
             return Optional.empty();
         }
-        Path base = (kind == ExportKind.ORIGINAL) ? rawBase : deidBase;
         String relPath = (kind == ExportKind.ORIGINAL) ? frame.getSrcFilePathNm() : frame.getDeidFilePath();
         if (relPath == null || relPath.isBlank()) {
             return Optional.empty();
         }
+        // 허용 base 목록 — 각 base 별로 traversal(CWE-22) + 존재/정규파일 + 심링크(CWE-59) 재검증을 완결한다.
+        //   · ORIGINAL: rawBase 단일 강제(비식별 픽셀이 원본으로 새지 않도록 PII 격리).
+        //   · DEIDENTIFIED: deidBase 우선(일반 영상 = DeidentFrameAttacher 가 deid base 하위 기록),
+        //     실패 시 rawBase fallback(해상도 파생 = ResolutionPersistService 가 파생 비식별을
+        //     raw base 하위 resolution/{rawSn}/frames 에 기록). 두 base 모두 실패해야 최종 skip.
+        // 두 base 허용은 "두 허용 루트 중 하나라도 통과 + 실경로 재검증"이지 검증 완화가 아니다.
+        Path[] candidateBases = (kind == ExportKind.ORIGINAL)
+                ? new Path[]{rawBase}
+                : new Path[]{deidBase, rawBase};
+        for (Path base : candidateBases) {
+            Optional<Path> resolved = resolveUnder(base, relPath, rawSn, frame);
+            if (resolved.isPresent()) {
+                return resolved;
+            }
+        }
+        // 허용된 모든 base 에서 미해석(부재/이탈) — fail-secure 로 건너뜀. 경로 원문 미노출.
+        log.warn("[FrameSource] frame path unresolved skipped rawSn={} frameNo={} kind={}", rawSn, frameNoOf(frame), kind);
+        return Optional.empty();
+    }
+
+    /**
+     * 단일 base 하위로 경로를 안전 해석한다 — traversal(CWE-22) + 존재/정규파일 + 심링크(CWE-59) 하드닝을
+     * 모두 해당 base 기준으로 적용한다. 통과 시 실제 파일 경로, 아니면 {@link Optional#empty()}.
+     */
+    private Optional<Path> resolveUnder(Path base, String relPath, long rawSn, LsDataSrc frame) {
         Path resolved;
         try {
             resolved = FrameImageService.resolveSafe(base, relPath);
         } catch (CustomException e) {
-            // base 이탈 등 — fail-secure 로 건너뜀. 경로 원문 미노출.
-            log.warn("[FrameSource] unsafe frame path skipped rawSn={} frameNo={}", rawSn, frameNoOf(frame));
+            // 이 base 이탈 — fail-secure. 다른 후보 base 로 재시도한다(로그는 최종 skip 시 상위에서).
             return Optional.empty();
         }
         if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {

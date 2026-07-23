@@ -65,6 +65,48 @@ class FrameSourceTest {
     }
 
     @Test
+    @DisplayName("DEIDENTIFIED_해상도파생_비식별프레임이_raw_base하위여도_해석된다")
+    void resolvesDeidUnderRawBaseForResolutionDerivative() throws IOException {
+        // given — 해상도 파생(RESL_*) 프레임의 비식별 경로는 raw base 하위(resolution/{rawSn}/frames)에
+        //         저장·기록된다(ResolutionPersistService). deid base 하위가 아님.
+        Path deidUnderRaw = writeDummy(rawBase, "resolution/9/frames/frame-0.jpg");
+        LsDataSrc frame = LsDataSrc.create(9L, 0L, deidUnderRaw.toString(), null);
+        frame.attachDeidPath(deidUnderRaw.toString());
+
+        // when — DEIDENTIFIED 요청. deid base 에는 없고 raw base 하위에 있음
+        Optional<Path> resolved = frameSource().resolveImage(9L, ExportKind.DEIDENTIFIED, frame);
+
+        // then — deid base 실패 후 raw base 로 재시도해 정상 해석(수정 전이면 skip=RED)
+        assertThat(resolved).contains(deidUnderRaw.normalize());
+    }
+
+    @Test
+    @DisplayName("DEIDENTIFIED는_ORIGINAL경로를_orgnl로_해석하지않는다_격리")
+    void deidDoesNotLeakOriginalPixelIntoOriginalKind() throws IOException {
+        // given — raw base 하위에만 존재하는 파일. ORIGINAL 경로 필드는 비워 격리 확인
+        Path deidUnderRaw = writeDummy(rawBase, "resolution/9/frames/frame-0.jpg");
+        LsDataSrc frame = LsDataSrc.create(9L, 0L, null, null);
+        frame.attachDeidPath(deidUnderRaw.toString());
+
+        // when — ORIGINAL 요청은 srcFilePathNm(null) 만 참조 → deid 픽셀이 원본으로 새지 않음
+        Optional<Path> original = frameSource().resolveImage(9L, ExportKind.ORIGINAL, frame);
+
+        // then — ORIGINAL 은 rawBase 단일 + null 경로 → empty(격리 유지)
+        assertThat(original).isEmpty();
+    }
+
+    @Test
+    @DisplayName("DEIDENTIFIED_경로순회는_두_base_모두에서_fail_secure로_empty")
+    void emptyWhenDeidPathTraversalOutsideBothBases() {
+        // given — 악의적 deid 경로가 두 base 모두 밖의 절대경로를 가리킴
+        LsDataSrc frame = LsDataSrc.create(7L, 0L, "/frames/raw/7/frame-0.jpg", null);
+        frame.attachDeidPath("/etc/passwd");
+
+        // when / then — deidBase·rawBase 양쪽 다 FORBIDDEN → skip(empty)
+        assertThat(frameSource().resolveImage(7L, ExportKind.DEIDENTIFIED, frame)).isEmpty();
+    }
+
+    @Test
     @DisplayName("파일이_존재하지_않으면_empty")
     void emptyWhenFileMissing() {
         // given — 경로만 있고 실제 파일 없음
