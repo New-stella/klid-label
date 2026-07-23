@@ -38,6 +38,14 @@ public record LabelMasterRequest(
         String type,
 
         @Min(value = 0, message = "sortNo 는 0 이상이어야 합니다.")
-        Integer sortNo
+        Integer sortNo,
+
+        /**
+         * AI(COCO) 검출 클래스 매핑 — 선택(null/blank=미매핑). 지정 시 COCO 80 클래스명이어야 하며
+         * ({@code CocoClasses} allowlist), 위반 시 서비스가 400 으로 거부(자유텍스트 금지, CWE-20).
+         * 길이 상한은 표준도메인 코드값 VARCHAR(20)과 정합(방어적 크기 제한).
+         */
+        @Size(max = 20, message = "dtctTypeCd 는 20자 이하여야 합니다.")
+        String dtctTypeCd
 ) {
 }

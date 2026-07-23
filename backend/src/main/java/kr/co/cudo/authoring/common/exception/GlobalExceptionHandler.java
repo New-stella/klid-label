@@ -114,6 +114,13 @@ public class GlobalExceptionHandler {
      */
     private static final String LABEL_NAME_CI_UNIQUE_INDEX = "uk_ls_label_nm_ci";
 
+    /**
+     * V129 라벨 마스터 검출유형(COCO 매핑) 부분 유니크 인덱스명. PostgreSQL 은 unquoted identifier 를
+     * 소문자로 저장하므로 실제 인덱스명은 소문자(`uk_ls_label_dtct_type`)로 관측된다. 활성 라벨 중 동일
+     * COCO 클래스 매핑 동시 생성 경합에서 패자의 INSERT/UPDATE 가 원자적으로 거부되는 정상적 동시성 충돌이다.
+     */
+    private static final String LABEL_DTCT_TYPE_UNIQUE_INDEX = "uk_ls_label_dtct_type";
+
     private static final java.util.regex.Pattern CONSTRAINT_IN_MESSAGE =
             java.util.regex.Pattern.compile("constraint\\s+\"([^\"]+)\"");
 
@@ -146,6 +153,11 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(ErrorCode.CONFLICT.status())
                     .body(ApiResponse.error(ErrorCode.CONFLICT, "이미 사용 중인 라벨 이름입니다."));
         }
+        if (isLabelDtctTypeUnique(constraintName)) {
+            log.warn("[Exception] label dtct-type unique violation constraint={}", constraintName);
+            return ResponseEntity.status(ErrorCode.CONFLICT.status())
+                    .body(ApiResponse.error(ErrorCode.CONFLICT, "이미 사용 중인 검출 클래스 매핑입니다."));
+        }
         // fail-closed: 판별 실패/기타 제약 위반은 500 으로 노출 (조용한 409 흡수 금지).
         log.warn("[Exception] unclassified data integrity violation constraint={} cause={}",
                 constraintName, e.getMostSpecificCause().getClass().getSimpleName());
@@ -166,6 +178,11 @@ public class GlobalExceptionHandler {
     private boolean isLabelNameCiUnique(String constraintName) {
         return constraintName != null
                 && LABEL_NAME_CI_UNIQUE_INDEX.equalsIgnoreCase(constraintName);
+    }
+
+    private boolean isLabelDtctTypeUnique(String constraintName) {
+        return constraintName != null
+                && LABEL_DTCT_TYPE_UNIQUE_INDEX.equalsIgnoreCase(constraintName);
     }
 
     /**

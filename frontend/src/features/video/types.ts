@@ -102,10 +102,15 @@ export interface FramePreview {
 
 export type BatchStageStatus = 'DONE' | 'PROGRESS' | 'PENDING' | 'FAIL';
 
+// BE StageStatusDto(name, status, progress) 와 1:1 정합.
+// name = BE canonical 배치 단계 코드(BatchStage enum name):
+//   DEIDENTIFY, MARKING, VLM, FRAME_EXTRACT, YOLO, SAM2, INTERPOLATE
+//   (이 순서가 canonical — BE 가 배열 순서/상태를 그대로 내려주며 FE 는 name→한글라벨만 매핑)
+// progress = BE Integer(nullable) → FE 는 표시하지 않으므로 null 허용.
 export interface BatchStageItem {
-  name: string; // 'FRAME_EXTRACT' | 'DEIDENTIFY' | 'YOLO' | 'SAM2' | 'VLM_VERIFY'
+  name: string;
   status: BatchStageStatus;
-  progress: number;
+  progress: number | null;
 }
 
 export interface VideoDetail extends Video {

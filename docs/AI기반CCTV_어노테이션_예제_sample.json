@@ -94,7 +94,7 @@
       "text": null
     }
   ],
-  "event_annotation": {
+  "event": {
     "event_class": "신체적 충돌을 동반한 싸움",
     "question": "영상에서 '신체적 충돌을 동반한 싸움' 이벤트가 발생했는지와, 이를 뒷받침하는 근거는 무엇인가?",
     "caption": {

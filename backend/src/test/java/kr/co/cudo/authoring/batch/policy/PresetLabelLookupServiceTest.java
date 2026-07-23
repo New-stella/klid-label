@@ -37,8 +37,8 @@ import static org.mockito.Mockito.when;
  * Phase 3 — 오토라벨 경로 마스터 형태 정합.
  *
  * <p>togglesFor 는 프리셋 코드의 {@code labelId} 를 라벨 마스터로 배치 조회(N+1 금지)하여
- * <b>마스터 라벨명(정규화)</b> 키의 토글 맵을 만든다. 토글의 bbox/polygon 은 마스터
- * {@code LBL_TYPE_CD} 에서 {@link kr.co.cudo.authoring.label.domain.LabelGeometry} 로 강제 파생한다.
+ * <b>마스터 검출유형(DTCT_TYPE_CD, COCO 축 정규화)</b> 키의 토글 맵을 만든다. 토글의 bbox/polygon 은
+ * 마스터 {@code LBL_TYPE_CD} 에서 {@link kr.co.cudo.authoring.label.domain.LabelGeometry} 로 강제 파생한다.
  *
  * <ul>
  *   <li>BBOX → bbox only, POLYGON → polygon only, POINT/SKELETON → 둘 다 비활성.</li>
@@ -92,7 +92,13 @@ class PresetLabelLookupServiceTest {
     }
 
     private static LabelMasterResponse master(long labelId, String name, String type) {
-        return new LabelMasterResponse(labelId, name, "#112233", type, 0, "Y");
+        // 검출축(DTCT_TYPE_CD)을 라벨명에서 파생 — 기존 키 단언(정규화 라벨명)과 동일 축을 유지한다.
+        // 실제 축 검증(한글명 vs COCO)은 togglesKeyedByMasterDtctType 등 전용 테스트가 담당.
+        return master(labelId, name, type, name);
+    }
+
+    private static LabelMasterResponse master(long labelId, String name, String type, String dtctTypeCd) {
+        return new LabelMasterResponse(labelId, name, "#112233", type, 0, "Y", dtctTypeCd);
     }
 
     private LsLabelPreset presetWithCodes(LabelCodeSpec... specs) {
@@ -103,22 +109,39 @@ class PresetLabelLookupServiceTest {
     }
 
     @Test
-    @DisplayName("프리셋_labelId코드의_토글이_마스터_라벨명_키로_조회된다")
-    void togglesKeyedByMasterLabelName() {
+    @DisplayName("프리셋_labelId코드의_토글이_마스터_검출유형_DTCT_TYPE_CD_키로_조회된다")
+    void togglesKeyedByMasterDtctType() {
+        // 한글 라벨명("사람"/"차량")과 COCO 검출유형("person"/"car")이 서로 다른 축임을 명확히 한다.
         presetWithCodes(idSpec(1L), idSpec(2L));
         when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
-                1L, master(1L, "Person", "BBOX"),
-                2L, master(2L, "Vehicle", "POLYGON")));
+                1L, master(1L, "사람", "BBOX", "person"),
+                2L, master(2L, "차량", "POLYGON", "car")));
 
         Optional<Map<String, AnnotationToggle>> result = service.togglesFor(VIDEO_EV_CODE);
 
         assertThat(result).isPresent();
-        // 키는 마스터 라벨명 정규화(소문자/trim) — 검출 라벨(d.label())과 동일 축.
-        assertThat(result.get().keySet()).containsExactlyInAnyOrder("person", "vehicle");
+        // 키는 마스터 검출유형(DTCT_TYPE_CD, COCO) 정규화 — 검출 라벨(d.label())과 동일 축.
+        // 한글 라벨명이 아니라 COCO 영문명이 키여야 한다(라벨명축이면 "사람"/"차량"이 되어 검출 매칭 실패).
+        assertThat(result.get().keySet()).containsExactlyInAnyOrder("person", "car");
     }
 
     @Test
-    @DisplayName("프리셋_코드_labelId를_배치조회한다_findLabelIdByName_반복금지_N플러스1_금지")
+    @DisplayName("미매핑_dtctTypeCd_null_라벨은_검출불가라_토글에서_제외된다")
+    void unmappedDtctTypeExcludedFromToggles() {
+        // dtctTypeCd=null(미매핑) 라벨은 애초에 AI 검출되지 않으므로 토글 맵에 null 키로 들어가면 안 된다.
+        presetWithCodes(idSpec(1L), idSpec(2L));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                1L, master(1L, "사람", "BBOX", "person"),
+                2L, master(2L, "미매핑라벨", "BBOX", null)));
+
+        Optional<Set<String>> keys = service.togglesFor(VIDEO_EV_CODE).map(Map::keySet);
+
+        assertThat(keys).isPresent();
+        assertThat(keys.get()).containsExactly("person");
+    }
+
+    @Test
+    @DisplayName("프리셋_코드_labelId를_배치조회한다_findLabelIdByDtctType_반복금지_N플러스1_금지")
     void batchLookupNoNPlusOne() {
         presetWithCodes(idSpec(1L), idSpec(2L), idSpec(3L));
         when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
@@ -128,9 +151,9 @@ class PresetLabelLookupServiceTest {
 
         service.togglesFor(VIDEO_EV_CODE);
 
-        // 단건 findLabelIdByName 반복 금지 — findActiveByIds 1회 배치 조회.
+        // 단건 findLabelIdByDtctType 반복 금지 — findActiveByIds 1회 배치 조회.
         verify(labelMasterService, times(1)).findActiveByIds(any());
-        verify(labelMasterService, never()).findLabelIdByName(anyString());
+        verify(labelMasterService, never()).findLabelIdByDtctType(anyString());
     }
 
     @Test

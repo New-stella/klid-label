@@ -275,7 +275,7 @@ class EvntAnnoLateApprovalReFreezeIT {
         exportService.export(rawSn);
         JsonNode doc = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
-        JsonNode ea = doc.get("event_annotation");
+        JsonNode ea = doc.get("event");
         assertThat(ea).isNotNull();
         assertThat(ea.path("event_class").asText()).isEqualTo("assault");
         assertThat(ea.path("caption").path("c1").path("caption_text").asText()).isEqualTo("다툼");

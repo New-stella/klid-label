@@ -134,6 +134,75 @@ describe('LabelMasterManagePage', () => {
     expect(await within(dialog).findByText('이미 존재하는 라벨명입니다')).toBeInTheDocument();
   });
 
+  it('COCO_클래스를_지정해_생성하면_dtctTypeCd가_요청본문에_포함된다', async () => {
+    // given — 생성 성공.
+    mock.onPost('/manage/labels').reply(201, ok({ ...LABELS[1], labelId: 3, dtctTypeCd: 'person' }));
+    const user = userEvent.setup();
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // when — 라벨명 + AI 탐지 클래스(사람=person) 지정 후 저장.
+    await user.click(screen.getByRole('button', { name: '라벨 추가' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('라벨명'), '보행자');
+    await user.selectOptions(within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), 'person');
+    await user.click(within(dialog).getByRole('button', { name: '저장' }));
+
+    // then — POST 본문에 dtctTypeCd='person' 포함.
+    await waitFor(() => {
+      expect(mock.history.post).toHaveLength(1);
+    });
+    expect(JSON.parse(mock.history.post[0].data)).toMatchObject({
+      name: '보행자',
+      dtctTypeCd: 'person',
+    });
+  });
+
+  it('COCO_클래스_미지정으로_생성하면_dtctTypeCd가_null로_전송된다(미매핑_허용)', async () => {
+    // given
+    mock.onPost('/manage/labels').reply(201, ok({ ...LABELS[1], labelId: 3, dtctTypeCd: null }));
+    const user = userEvent.setup();
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // when — AI 탐지 클래스 미지정(기본값) 상태로 저장.
+    await user.click(screen.getByRole('button', { name: '라벨 추가' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('라벨명'), '기타객체');
+    await user.click(within(dialog).getByRole('button', { name: '저장' }));
+
+    // then — dtctTypeCd=null(미매핑) 로 전송.
+    await waitFor(() => {
+      expect(mock.history.post).toHaveLength(1);
+    });
+    expect(JSON.parse(mock.history.post[0].data).dtctTypeCd).toBeNull();
+  });
+
+  it('COCO_중복_매핑시_409응답이_사용자_메시지로_표시된다', async () => {
+    // given — 다른 활성 라벨이 이미 그 COCO 클래스에 매핑됨(409).
+    mock.onPost('/manage/labels').reply(409, {
+      success: false,
+      data: null,
+      message: '이미 다른 라벨에 매핑된 AI 탐지 클래스입니다',
+      errorCode: 'DUPLICATE_DETECT_MAPPING',
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // when — 이미 매핑된 COCO 클래스를 다시 지정해 생성 시도.
+    await user.click(screen.getByRole('button', { name: '라벨 추가' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('라벨명'), '사람2');
+    await user.selectOptions(within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), 'person');
+    await user.click(within(dialog).getByRole('button', { name: '저장' }));
+
+    // then — BE 사용자 메시지가 그대로 노출(중복 안내).
+    expect(
+      await within(dialog).findByText('이미 다른 라벨에 매핑된 AI 탐지 클래스입니다'),
+    ).toBeInTheDocument();
+  });
+
   it('삭제_실패_409시_서버_메시지가_토스트로_표시된다', async () => {
     // given — 사용 중 라벨 삭제 시 409 CONFLICT + 서버 userMessage.
     mock.onDelete('/manage/labels/1').reply(409, {

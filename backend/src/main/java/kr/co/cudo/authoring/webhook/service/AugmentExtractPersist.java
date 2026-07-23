@@ -5,20 +5,18 @@ import kr.co.cudo.authoring.augment.entity.LsDataAugLblMap;
 import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDataSrcHstry;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcHstryRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.meta.service.DerivedMetaCopier;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.video.service.VideoMetaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,7 +45,8 @@ import java.util.Map;
  *   <li>Phase B 산출 파일 기준 LS_DATA_SRC 프레임 INSERT(+ 생성 이력) + videoFrameNo 기준 명시 키 매핑</li>
  *   <li>부모 라벨 좌표 그대로 복사({@code copyForNewSrc}) + LS_DATA_AUG_LBL_MAP(COORD_RECALC_YN='N') 적재</li>
  *   <li>성공 시에만 비식별 완료 불변식 확정: {@code deIdntfYn='Y'} + COMPLETED(배치 마감) + SUCCESS procLog</li>
- *   <li>부모 콘텐츠 메타 upsert 복사(기술 메타 video.* 제외 — 메타러너 소유)</li>
+ *   <li>부모 메타 <b>전체</b> 복사({@code video.*} 포함) + 부모 검수행 있던 메타만 미검수 검수행 신규 생성
+ *       — {@link DerivedMetaCopier} 위임(해상도 파생 경로와 통일)</li>
  * </ol>
  */
 @Slf4j
@@ -60,9 +59,9 @@ public class AugmentExtractPersist {
     private final LsDataSrcRepository srcRepository;
     private final LsDataSrcHstryRepository hstryRepository;
     private final LsDataLblRepository lblRepository;
-    private final LsDataMetaRepository metaRepository;
     private final LsDataAugLblMapRepository augLblMapRepository;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
+    private final DerivedMetaCopier derivedMetaCopier;
 
     /** 영속 결과 — 정상 확정(PERSISTED) 또는 이미 확정돼 skip(SKIPPED, A~C 창 중복 트리거 패자). */
     public enum Result {
@@ -123,10 +122,10 @@ public class AugmentExtractPersist {
         //    파생본은 원본 라벨을 좌표 복사해 적재하므로 마킹·배치가 불필요하다 — 배치 단계 상태
         //    (LS_DATA_RAW.DATA_STTS_CD)를 COMPLETED 로 마감해 작업보드(COMPLETED 필터)에 라벨링/검수 대상으로
         //    노출한다. 작업/검수 워크플로 상태(LS_RAW_DATA_STATUS)는 건드리지 않는다(배정 시점 미검수 시작).
-        //  [순서 주의] 이 확정 블록은 아래 메타 복사(upsertMeta)보다 먼저 수행해야 한다. upsertMeta 는
-        //  @Modifying(clearAutomatically=true) 라 실행 후 영속성 컨텍스트를 비운다. 확정을 뒤에 두면 clear 로
+        //  [순서 주의] 이 확정 블록은 아래 메타 복사(upsertMetaBatch)보다 먼저 수행해야 한다. 배치 upsert 는
+        //  실행 후 영속성 컨텍스트를 clear 한다(구 upsertMeta clearAutomatically 재현). 확정을 뒤에 두면 clear 로
         //  detach 된 newRaw 의 dirty 변경(COMPLETED·deIdntfYn='Y')이 flush 되지 않아 신규 RAW 가 영영
-        //  확정되지 않는다. 앞에 두면 upsertMeta 의 flushAutomatically 가 이 변경들을 먼저 flush 한다.
+        //  확정되지 않는다. 앞에 두면 배치 upsert 의 flush(실행 전)가 이 변경들을 먼저 flush 한다.
         String filePath = newRaw.getRawFilePathNm();
         newRaw.markDeidentified("Y");
         newRaw.markCompleted();
@@ -134,20 +133,15 @@ public class AugmentExtractPersist {
         procLog.succeed(filePath);
         deidentProcLogRepository.save(procLog);
 
-        // 5) 메타 복사 — video.* 기술메타는 제외(메타러너가 증강 파일 프로브값 소유). 콘텐츠/시계열 메타(VLM 등)는
-        //    upsertMeta(ON CONFLICT)로 복사해 잔여 동시 충돌도 멱등 안전화한다.
-        List<LsDataMeta> parentMetas = metaRepository.findByRawSn(plan.parentRawSn());
-        int copiedMetaCount = 0;
-        for (LsDataMeta meta : parentMetas) {
-            if (VideoMetaService.isTechnicalKey(meta.getMetaKey())) {
-                continue; // 메타러너 소유 — 증강 파일 프로브값 보존(부모값 복사 금지)
-            }
-            metaRepository.upsertMeta(newRaw.getRawSn(), meta.getMetaKey(), meta.getMetaVl());
-            copiedMetaCount++;
-        }
+        // 5) 메타 전체 복사(video.* 포함) + 부모 검수행 있던 메타만 미검수 검수행 신규 생성 — 해상도 파생 경로와
+        //    통일된 로직을 DerivedMetaCopier 에 위임. [순서] 위 확정 블록(4) 이후에 호출한다 — 내부 배치 upsert 가
+        //    실행 후 컨텍스트를 clear 하므로, 앞서 두면 newRaw 의 확정 dirty 변경이 유실된다.
+        DerivedMetaCopier.CopyResult metaResult =
+                derivedMetaCopier.copyMetaAndReviews(plan.parentRawSn(), newRaw.getRawSn());
 
-        log.info("[Augment][ExtractC] persisted rawSn={} orgnlRawSn={} frames={} labels={} metas={}",
-                plan.newRawSn(), plan.parentRawSn(), parentSrcToNewSrc.size(), copiedLabelCount, copiedMetaCount);
+        log.info("[Augment][ExtractC] persisted rawSn={} orgnlRawSn={} frames={} labels={} metas={} metaReviews={}",
+                plan.newRawSn(), plan.parentRawSn(), parentSrcToNewSrc.size(), copiedLabelCount,
+                metaResult.copiedMetaCount(), metaResult.createdReviewCount());
         return Result.PERSISTED;
     }
 

@@ -16,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
+// 프리셋 eventTypeCd 검증은 관제 이벤트타입 마스터(MNG_EX_EVNT_TYPE)에서 도출한 유효 categoryKey
+// (예: 010001 침수)에 의존한다. 일반 테스트 컨텍스트는 dev-seed 를 비활성하므로 마스터가 비어
+// 유효 categoryKey 검증(createWithValidCategoryKeySucceeds)이 실패한다 → EventTypeControllerIT
+// 와 동일하게 시드를 개별 활성화해 관제 이벤트타입 마스터/매핑을 Testcontainer 에 멱등 적재한다.
+@TestPropertySource(properties = "authoring.dev.seed.enabled=true")
 @Transactional("controlTransactionManager")
 class PresetControllerTest {
 

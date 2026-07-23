@@ -74,4 +74,27 @@ public interface LsLabelRepository extends JpaRepository<LsLabel, Long> {
      * 반환에 없는 id 는 미존재 또는 soft delete(USE_YN='N') 를 의미한다.
      */
     List<LsLabel> findByLabelIdInAndUseYn(Collection<Long> labelIds, String useYn);
+
+    // ─── V129 검출유형(DTCT_TYPE_CD, COCO 매핑) 매칭 축 ───
+
+    /**
+     * AI 검출 결과(COCO 영문명) → LS_LABEL 매핑 조회. 활성(USE_YN='Y') + DTCT_TYPE_CD 정확 매칭.
+     * V129 부분 유니크 인덱스(UK_LS_LABEL_DTCT_TYPE)가 활성 중 유일성을 보장하므로 최대 1건이다.
+     */
+    Optional<LsLabel> findByDtctTypeCdAndUseYn(String dtctTypeCd, String useYn);
+
+    /** create 검증용 — 활성 라벨 중 동일 COCO 매핑 존재 여부(중복 매핑 → 409). */
+    @Query("SELECT COUNT(l) > 0 FROM LsLabel l WHERE l.dtctTypeCd = :dtctTypeCd AND l.useYn = :useYn")
+    boolean existsActiveByDtctType(@Param("dtctTypeCd") String dtctTypeCd, @Param("useYn") String useYn);
+
+    /** update 검증용 — 자기 자신(labelId) 제외 활성 동일 COCO 매핑 존재 여부. */
+    @Query("SELECT COUNT(l) > 0 FROM LsLabel l "
+            + "WHERE l.dtctTypeCd = :dtctTypeCd AND l.useYn = :useYn AND l.labelId <> :labelId")
+    boolean existsActiveByDtctTypeExcludingId(@Param("dtctTypeCd") String dtctTypeCd,
+                                              @Param("useYn") String useYn,
+                                              @Param("labelId") Long labelId);
+
+    /** 활성 라벨 중 매핑된 COCO 클래스명 전체 — AI 검출 대상 재구성(HIGH#1)용. */
+    @Query("SELECT l.dtctTypeCd FROM LsLabel l WHERE l.useYn = :useYn AND l.dtctTypeCd IS NOT NULL")
+    List<String> findMappedDtctTypeCds(@Param("useYn") String useYn);
 }

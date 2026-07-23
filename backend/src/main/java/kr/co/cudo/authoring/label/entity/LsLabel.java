@@ -59,6 +59,16 @@ public class LsLabel {
     @Column(name = "LBL_TYPE_CD", nullable = false, length = 16)
     private String labelTypeCd;
 
+    /**
+     * 검출유형코드(DTCT_TYPE_CD) — AI(COCO) 검출 클래스 매핑(예: person/car/bus). NULL=미매핑.
+     *
+     * <p>표준용어 DTCT(검출)+TYPE(유형)+CD(코드), 표준도메인 코드값 VARCHAR(20). 활성 라벨 중
+     * 1 COCO 클래스 = 1 라벨(V129 부분 유니크 인덱스 UK_LS_LABEL_DTCT_TYPE). 매핑된 라벨만
+     * 실제 검출(ai-server 로 COCO 클래스 전송)되며 미매핑은 표시하되 선택 불가.
+     */
+    @Column(name = "DTCT_TYPE_CD", length = 20)
+    private String dtctTypeCd;
+
     @Column(name = "SORT_SEQ", nullable = false)
     private Integer sortSeq;
 
@@ -78,17 +88,19 @@ public class LsLabel {
     @Column(name = "MDFCN_DT")
     private LocalDateTime mdfcnDt;
 
-    private LsLabel(String labelNm, String colrVl, String labelTypeCd, Integer sortSeq, String regId) {
+    private LsLabel(String labelNm, String colrVl, String labelTypeCd, Integer sortSeq,
+                   String dtctTypeCd, String regId) {
         this.labelNm = labelNm;
         this.colrVl = colrVl;
         this.labelTypeCd = labelTypeCd;
         this.sortSeq = sortSeq == null ? 0 : sortSeq;
+        this.dtctTypeCd = dtctTypeCd;
         this.useYn = "Y";
         this.regId = regId;
     }
 
     /**
-     * 정적 팩토리 — 새 라벨 생성.
+     * 정적 팩토리 — 새 라벨 생성(검출유형 매핑 없음, 하위호환).
      *
      * @param labelNm      라벨 이름 (1~64자, UNIQUE)
      * @param colrVl       색상값 (대문자 #RRGGBB)
@@ -98,15 +110,27 @@ public class LsLabel {
      */
     public static LsLabel create(String labelNm, String colrVl, String labelTypeCd,
                                  Integer sortSeq, String regId) {
-        return new LsLabel(labelNm, colrVl, labelTypeCd, sortSeq, regId);
+        return new LsLabel(labelNm, colrVl, labelTypeCd, sortSeq, null, regId);
+    }
+
+    /**
+     * 정적 팩토리 — 새 라벨 생성(검출유형 매핑 포함).
+     *
+     * @param dtctTypeCd AI(COCO) 검출 클래스 매핑(예: person). null=미매핑.
+     */
+    public static LsLabel create(String labelNm, String colrVl, String labelTypeCd,
+                                 Integer sortSeq, String dtctTypeCd, String regId) {
+        return new LsLabel(labelNm, colrVl, labelTypeCd, sortSeq, dtctTypeCd, regId);
     }
 
     /** 비즈니스 메서드 — 라벨 정보 수정. Setter 대신 의미 있는 메서드명 사용. */
-    public void update(String labelNm, String colrVl, String labelTypeCd, Integer sortSeq, String mdfcnId) {
+    public void update(String labelNm, String colrVl, String labelTypeCd, Integer sortSeq,
+                       String dtctTypeCd, String mdfcnId) {
         this.labelNm = labelNm;
         this.colrVl = colrVl;
         this.labelTypeCd = labelTypeCd;
         this.sortSeq = sortSeq == null ? 0 : sortSeq;
+        this.dtctTypeCd = dtctTypeCd;
         this.mdfcnId = mdfcnId;
     }
 

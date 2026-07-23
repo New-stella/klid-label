@@ -34,7 +34,7 @@ import {
   type Sam2TrackedItem,
 } from '@/features/label/api';
 import type { AiToolMode, AiToolOpts } from '@/features/label/components/AiToolModal';
-import { YOLO_CLASSES } from '@/features/label/constants/yoloClasses';
+import { useDetectCandidates } from '@/features/label/hooks/useDetectCandidates';
 import { ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
@@ -532,6 +532,14 @@ export function LabelingPage() {
   const defaultConfThreshold =
     sysConfigs?.YOLO_CONF_THRESHOLD != null ? sysConfigs.YOLO_CONF_THRESHOLD / 100 : undefined;
   const defaultSimplifyTolerance = sysConfigs?.POLYGON_SIMPLIFY_TOLERANCE;
+  // AI 탐지 팝업 후보 — 활성 라벨 마스터 + COCO 매핑 여부. 매핑된 라벨만 검출 대상(BE 재검증).
+  // 팝업이 열릴 때만 조회(enabled)하고, 실패 시 팝업에서 재시도(refetch) 노출.
+  const {
+    data: detectCandidates,
+    isLoading: detectCandidatesLoading,
+    isError: detectCandidatesError,
+    refetch: refetchDetectCandidates,
+  } = useDetectCandidates(autolabelModalOpen);
   // AI 분할 경계 세밀함 조절값 — undefined=미조절(프리필만 표시, 요청 미포함). 조절 시 숫자로 채워져
   // CanvasShell → 분할 요청 payload 에 주입된다(무회귀).
   const [segmentTolerance, setSegmentTolerance] = useState<number | undefined>(undefined);
@@ -626,7 +634,7 @@ export function LabelingPage() {
       // 팝업에서 단일 라벨을 골랐으면 그 표시명을 track 라벨로 우선 사용(없으면 캔버스 객체 클래스).
       const pickedLabel =
         classIds.length > 0
-          ? YOLO_CLASSES.find((c) => c.id === classIds[0])?.label
+          ? detectCandidates?.find((c) => c.dtctTypeCd === classIds[0])?.name
           : undefined;
       setTrackLabel(pickedLabel);
       pushToast({
@@ -1090,6 +1098,10 @@ export function LabelingPage() {
         onClose={() => setAutolabelModalOpen(false)}
         onConfirm={runAiTool}
         canTrack={nextSrcSns.length > 0}
+        candidates={detectCandidates}
+        candidatesLoading={detectCandidatesLoading}
+        candidatesError={detectCandidatesError}
+        onRetryCandidates={() => void refetchDetectCandidates()}
         immediateDraw={immediateDraw}
         onImmediateDrawChange={setImmediateDraw}
         defaultConfThreshold={defaultConfThreshold}

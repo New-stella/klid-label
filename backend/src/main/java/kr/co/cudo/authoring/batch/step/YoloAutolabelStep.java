@@ -211,7 +211,7 @@ public class YoloAutolabelStep implements BatchStep {
                     continue;
                 }
                 // Phase 6: ai-server 응답 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
-                Long labelId = labelMasterService.findLabelIdByName(d.label()).orElse(null);
+                Long labelId = labelMasterService.findLabelIdByDtctType(d.label()).orElse(null);
                 log.info("[Batch][Yolo] mapped label name={} labelId={}",
                         LogSanitizer.sanitize(d.label()), labelId);
                 if (toggle.bbox()) {
@@ -280,8 +280,8 @@ public class YoloAutolabelStep implements BatchStep {
      *   <li>매핑 존재 + 라벨이 맵에 없음 → {@code null} (노이즈 제거)</li>
      * </ul>
      *
-     * <p>Phase 3: 토글 맵 키는 마스터 라벨명 정규화이며, 검출 라벨도 동일 규칙
-     * ({@link PresetLabelLookupService#normalizeLabelKey(String)})으로 정규화해 축을 일치시킨다.
+     * <p>Phase 4: 토글 맵 키는 마스터 검출유형(DTCT_TYPE_CD, COCO 축) 정규화이며, 검출 라벨({@code d.label()})도
+     * 동일 규칙({@link PresetLabelLookupService#normalizeLabelKey(String)})으로 정규화해 축을 일치시킨다.
      */
     private static AnnotationToggle resolveToggle(Optional<Map<String, AnnotationToggle>> togglesOpt,
                                                   String rawLabel) {

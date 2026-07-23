@@ -87,7 +87,7 @@ class Sam2SegmentStepTest {
         presetLabelLookup = mock(PresetLabelLookupService.class);
         labelMasterService = mock(LabelMasterService.class);
         // LabelMasterService 기본은 미매핑 (Optional.empty) — 개별 테스트가 필요 시 override.
-        when(labelMasterService.findLabelIdByName(anyString())).thenReturn(Optional.empty());
+        when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
         // Phase 6 — save() 후 LsDataLblAiInfo.create(savedLabel.getLblSn(), ...) 호출되므로 lblSn 부여 필수.
         when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
             LsDataLbl arg = inv.getArgument(0);
@@ -502,7 +502,7 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
         when(aiServerClient.segment(any(Sam2Request.class)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
-        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(1L));
+        when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(Optional.of(1L));
 
         step.run(91L, List.of());
 
@@ -539,7 +539,7 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
         when(aiServerClient.segment(any(Sam2Request.class)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
-        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(1L));
+        when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(Optional.of(1L));
 
         step.run(93L, List.of());
 

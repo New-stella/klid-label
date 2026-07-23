@@ -13,6 +13,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.common.security.HmacSigner;
 import kr.co.cudo.authoring.common.security.HmacWebhookFilter;
+import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
+import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
@@ -102,6 +104,7 @@ class AugmentCallbackFlowIntegrationTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
     @Autowired private LsDataMetaRepository metaRepository;
+    @Autowired private LsDataMetaReviewRepository metaReviewRepository;
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private WebhookIdempotencyLedger ledger;
     @Autowired private kr.co.cudo.authoring.video.service.VideoStreamService videoStreamService;
@@ -299,6 +302,53 @@ class AugmentCallbackFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[?(@.id == " + child.getRawSn() + ")]").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("증강_finalize_실DB에서_부모메타_전건복사_VLM검수행만_PENDING신규_이면서_파생RAW는_확정유지된다(순서계약_HIGH4)")
+    void finalizeCopiesParentMetaAndCreatesPendingReviewWhileStayingFinalized() throws Exception {
+        Seed s = seedOriginWithAug("METAORDER", "WINTER", "AUGCB-K-META", "AUGCB-J-META");
+        Long parentRawSn = s.parentRaw().getRawSn();
+
+        // 부모 메타 보강: VLM 세그(검수행 APPROVED 보유) + video.* 기술메타(검수행 없음). 시드의 weather 는 검수행 없음.
+        LsDataMeta vlm = metaRepository.save(LsDataMeta.create(parentRawSn, "vlm.seg.0", "a person walking"));
+        metaRepository.save(LsDataMeta.create(parentRawSn, "video.fps", "30"));
+        metaReviewRepository.save(LsDataMetaReview.createAuto(
+                vlm.getMetaSn(), parentRawSn, null,
+                LsDataMetaReview.META_TYPE_VLM, LsDataMetaReview.SRC_AI_SERVER,
+                LsDataMetaReview.STTS_APPROVED));
+
+        AugmentResultRequest payload = new AugmentResultRequest(
+                s.aug().getDataAugSn(), "AUGCB-J-META", "WINTER", "SUCCESS",
+                "/storage/augment/AUGCB-META.mp4");
+        byte[] body = bodyBytes(payload);
+        String ts = Long.toString(System.currentTimeMillis());
+        mockMvc.perform(post(CALLBACK_PATH)
+                        .header(HmacWebhookFilter.TIMESTAMP_HEADER, ts)
+                        .header(HmacWebhookFilter.SIGNATURE_HEADER, sign(ts, body))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+
+        // ① 파생 RAW 가 확정 유지 — COMPLETED + deIdntfYn='Y'. 메타 복사가 확정블록보다 앞서면(순서 위반)
+        //    배치 upsert 의 clear 로 이 dirty 확정이 유실돼 여기서 깨진다(HIGH#4 회귀 가드).
+        LsDataRaw child = awaitFinalizedChild(parentRawSn);
+        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
+        assertThat(child.getDeIdntfYn()).isEqualTo("Y");
+
+        // ② 부모 메타가 파생 RAW 로 전건 복사(video.* + weather 포함).
+        List<LsDataMeta> childMetas = metaRepository.findByRawSn(child.getRawSn());
+        assertThat(childMetas).extracting(LsDataMeta::getMetaKey)
+                .contains("vlm.seg.0", "video.fps", "weather");
+
+        // ③ 부모 검수행이 있던 VLM 메타에만 미검수(PENDING) 검수행 신규 생성.
+        List<LsDataMetaReview> childReviews = metaReviewRepository.findAllByDataRawSn(child.getRawSn());
+        assertThat(childReviews).hasSize(1);
+        Long derivedVlmMetaSn = childMetas.stream()
+                .filter(m -> "vlm.seg.0".equals(m.getMetaKey())).findFirst().orElseThrow().getMetaSn();
+        assertThat(childReviews.get(0).getDataMetaSn()).isEqualTo(derivedVlmMetaSn);
+        assertThat(childReviews.get(0).getMetaTypeCd()).isEqualTo(LsDataMetaReview.META_TYPE_VLM);
+        assertThat(childReviews.get(0).getRvwSttsCd()).isEqualTo(LsDataMetaReview.STTS_PENDING);
     }
 
     @Test

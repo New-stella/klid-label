@@ -40,19 +40,21 @@ import java.util.Optional;
  * 참조한다. togglesFor 는 코드의 labelId 를 {@link LabelMasterService#findActiveByIds(java.util.Collection)}
  * 로 <b>배치 조회</b>(N+1 금지)하여 다음을 만든다:
  * <ul>
- *   <li>키 = 마스터 라벨명 정규화({@link #normalizeLabelKey(String)}) — 검출 라벨({@code d.label()})과
- *       동일 축이라 오토라벨 토글 조회·labelId 매칭이 일원화된다.</li>
+ *   <li>키 = 마스터 <b>검출유형(DTCT_TYPE_CD, COCO 영문명)</b> 정규화({@link #normalizeLabelKey(String)})
+ *       — 검출 라벨({@code d.label()}, COCO 축)과 동일 축이라 오토라벨 토글 조회·labelId 매칭이
+ *       일원화된다(Phase 4). 한글 등 자유 라벨명은 COCO 영문명과 1:1 이 아니라 키로 쓸 수 없다.</li>
  *   <li>값 = 마스터 {@code LBL_TYPE_CD} → {@link LabelGeometry} 로 <b>강제 파생</b>한 토글
  *       (BBOX→bbox only, POLYGON→polygon only, POINT/SKELETON→도형 미적용).</li>
  * </ul>
- * 미연결(labelId=null) · 마스터 미존재/비활성(soft-delete) 참조 코드는 <b>제외</b>한다(오류 없이 스킵).
+ * 미연결(labelId=null) · 마스터 미존재/비활성(soft-delete) · 미매핑(dtctTypeCd=null) 참조 코드는
+ * <b>제외</b>한다(오류 없이 스킵).
  *
  * <ul>
  *   <li>eventTypeCd 가 null/blank → {@link Optional#empty()} (호출자 fail-safe: 필터 미적용)</li>
  *   <li>관제 미등록 EV-코드(categoryKey 변환 실패) → {@link Optional#empty()} (fail-safe)</li>
  *   <li>해당 카테고리에 매핑된 프리셋이 없음 → {@link Optional#empty()} (호출자 fail-safe)</li>
  *   <li>연결·활성 라벨이 하나도 없음 → {@link Optional#empty()} (호출자 fail-safe)</li>
- *   <li>매핑 존재 → 마스터 라벨명(정규화) → 토글 맵</li>
+ *   <li>매핑 존재 → 마스터 검출유형(DTCT_TYPE_CD, 정규화) → 토글 맵</li>
  * </ul>
  */
 @Slf4j
@@ -65,10 +67,12 @@ public class PresetLabelLookupService {
     private final LabelMasterService labelMasterService;
 
     /**
-     * 오토라벨 라벨명 정규화 규칙 — 토글 맵 키·검출 라벨 매칭이 공유하는 단일 소스.
+     * 오토라벨 검출축(COCO) 정규화 규칙 — 토글 맵 키(마스터 DTCT_TYPE_CD)·검출 라벨({@code d.label()})
+     * 매칭이 공유하는 단일 소스.
      *
-     * <p>trim + 소문자. {@link LabelMasterService#findLabelIdByName(String)}(trim + 대소문자 무시
-     * DB 매칭)과 동일 축이 되도록 유지한다. 불일치 시 오토라벨 토글이 검출 라벨과 어긋난다.
+     * <p>trim + 소문자. 검출 라벨 매핑을 담당하는 {@link LabelMasterService#findLabelIdByDtctType(String)}
+     * 와 동일한 COCO 축이 되도록 유지한다. 불일치 시 오토라벨 토글이 검출 라벨과 어긋나 검출이 무음
+     * 드롭된다.
      *
      * @return 정규화된 키, 입력이 null 이면 null
      */
@@ -80,10 +84,10 @@ public class PresetLabelLookupService {
      * 주어진 이벤트 타입에 매핑된 라벨 → 어노테이션 토글 맵을 반환한다 (Phase 1 / Phase 3 재구성).
      *
      * <p>YoloAutolabelStep / Sam2SegmentStep 이 라벨별로 BBOX/POLYGON 저장 여부를 분기할 때 사용한다.
-     * 키는 마스터 라벨명(정규화), 값은 마스터 형태에서 파생한 토글이다.
+     * 키는 마스터 검출유형(DTCT_TYPE_CD, COCO 축 정규화), 값은 마스터 형태에서 파생한 토글이다.
      *
      * @param eventTypeCd 영상의 상세 이벤트 EV-코드 (예: EV01000102). null/blank/미등록/미매핑 시 빈 Optional.
-     * @return 마스터 라벨명(정규화) → 토글 매핑. 빈 Optional 이면 필터 미적용 (호출자 default BOTH).
+     * @return 마스터 검출유형(DTCT_TYPE_CD, 정규화) → 토글 매핑. 빈 Optional 이면 필터 미적용 (호출자 default BOTH).
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Optional<Map<String, AnnotationToggle>> togglesFor(String eventTypeCd) {
@@ -102,7 +106,7 @@ public class PresetLabelLookupService {
         List<LsLabelPresetCode> codes = preset.get().getCodes();
 
         // Phase 3: 프리셋 코드의 labelId 를 모아 마스터를 1회 배치 조회한다(N+1 금지).
-        // 미연결(labelId=null) 레거시 코드는 매칭 축(마스터 라벨명)이 없으므로 제외한다.
+        // 미연결(labelId=null) 레거시 코드는 매칭 축(마스터 DTCT_TYPE_CD)이 없으므로 제외한다.
         List<Long> labelIds = codes.stream()
                 .map(LsLabelPresetCode::getLabelId)
                 .filter(Objects::nonNull)
@@ -117,7 +121,7 @@ public class PresetLabelLookupService {
             return Optional.empty();
         }
 
-        // 프리셋 코드 순서(sortOrder ASC)를 보존하며 마스터 라벨명 키 토글 맵을 구성한다.
+        // 프리셋 코드 순서(sortOrder ASC)를 보존하며 마스터 검출유형(DTCT_TYPE_CD) 키 토글 맵을 구성한다.
         LinkedHashMap<String, AnnotationToggle> map = new LinkedHashMap<>();
         for (LsLabelPresetCode code : codes) {
             Long labelId = code.getLabelId();
@@ -128,6 +132,16 @@ public class PresetLabelLookupService {
             if (master == null) {
                 continue; // 미존재/비활성(soft-delete) — 제외
             }
+            // Phase 4: 검출 귀속축을 COCO 매핑(DTCT_TYPE_CD)으로 통일한다. 온라인 경로
+            // ({@code LabelMasterService#findLabelIdByDtctType})와 동일 축이라 배치 오토라벨 토글
+            // 조회가 검출 라벨({@code d.label()}, COCO 영문명)과 정확히 맞물린다. 한글 등 자유 라벨명
+            // ({@code master.name()})은 COCO 영문명과 1:1 이 보장되지 않아 토글 키로 쓸 수 없다.
+            // 미매핑(dtctTypeCd=null/blank) 라벨은 애초에 AI 검출되지 않으므로 토글에서 제외한다
+            // (null 키 삽입 금지).
+            String key = normalizeLabelKey(master.dtctTypeCd());
+            if (key == null || key.isEmpty()) {
+                continue; // 미매핑 라벨 — 검출 불가, 토글 제외
+            }
             Optional<LabelGeometry> geometry = LabelGeometry.from(master.type());
             if (geometry.isEmpty()) {
                 // 방어적 가시화: 마스터 데이터 오염(미지원 형태 문자열)으로 코드가 조용히 제외되는 것을
@@ -137,16 +151,13 @@ public class PresetLabelLookupService {
                         labelId, LogSanitizer.sanitize(master.name()), LogSanitizer.sanitize(master.type()));
                 continue; // 미지원 형태(방어) — 제외
             }
-            String key = normalizeLabelKey(master.name());
-            if (key == null || key.isEmpty()) {
-                continue;
-            }
             // 형태 강제 파생: 마스터 LBL_TYPE_CD → bbox/polygon (매직값 없음).
             AnnotationToggle toggle = new AnnotationToggle(
                     geometry.get().bboxEnabled(), geometry.get().polygonEnabled());
-            // 정규화 후 키 충돌(대소문자·공백만 다른 근사중복 라벨명) → 먼저 삽입된 코드가 이기고 나머지
-            // 형태는 조용히 버려진다. 동작(첫 코드 우선)은 유지하되, 어떤 라벨명 키가 충돌해 어떤 코드가
-            // 드롭됐는지 가시화한다(라벨명만, 민감정보 없음).
+            // 정규화 후 키 충돌(같은 COCO 검출유형을 참조하는 근사중복 코드) → 먼저 삽입된 코드가 이기고
+            // 나머지 형태는 조용히 버려진다. V129 부분 유니크가 활성 마스터의 dtctTypeCd 중복을 막으므로
+            // 정상 유입은 불가하나, 동작(첫 코드 우선)은 유지하되 어떤 키가 충돌해 어떤 코드가 드롭됐는지
+            // 가시화한다(라벨명만, 민감정보 없음).
             AnnotationToggle previous = map.putIfAbsent(key, toggle);
             if (previous != null) {
                 log.warn("[Preset] duplicate normalized label key — code dropped (first wins) "

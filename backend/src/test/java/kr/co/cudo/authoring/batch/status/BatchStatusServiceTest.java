@@ -84,7 +84,9 @@ class BatchStatusServiceTest {
 
         svc.markFailed(4L, new IllegalStateException("boom"));
 
-        assertThat(existing.getStageCd()).isEqualTo(BatchStage.FAILED.name());
+        // 실패 단계(procStepCd)는 보존, 실패 여부는 procSttsCd='FAILED' 로 판정 (진행률 화면 표시용).
+        assertThat(existing.getStageCd()).isEqualTo(BatchStage.YOLO.name());
+        assertThat(existing.getProcSttsCd()).isEqualTo("FAILED");
         assertThat(existing.getRetryCnt()).isEqualTo(1);
         verify(repository).save(existing);
     }

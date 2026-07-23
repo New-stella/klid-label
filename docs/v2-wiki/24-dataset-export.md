@@ -39,7 +39,7 @@
 | `video` | 영상 메타 (§24.4 매핑표) |
 | `image` | 프레임 메타 (아래) |
 | `annotations` | 라벨 목록 — 타입별 bbox/polygon/keypoints 중 하나 (객체 인스턴스 배열) |
-| `event_annotation` | **이벤트 단위 VQA/CoT (§24.3.1)** — 프레임별 문서마다 동일 영상(RAW_SN) 단위 블록을 최상위 키로 첨부. `caption`/`evidence` 는 후보 키 `c1..cn` 객체 |
+| `event` | **이벤트 단위 VQA/CoT (§24.3.1)** — 프레임별 문서마다 동일 영상(RAW_SN) 단위 블록을 최상위 키로 첨부. `caption`/`evidence` 는 후보 키 `c1..cn` 객체. (JSON 출력 키는 정본 샘플 정합으로 `event`, 위치는 `video` 다음 유지. 내부 클래스/필드명은 `eventAnnotation` 유지) |
 | `categories` | 사용된 라벨 마스터(`LS_LABEL`) → 카테고리 |
 | `type` | `instances` (고정) |
 
@@ -47,12 +47,12 @@
 
 ### image 블록 주요 필드
 - `file_name` = `frame-{frameNo}.jpg`, `frame_num` = frameNo, `width`/`height` = 영상 메타 해상도.
-- `orign_file_name` = **산출 종류별 원천 소스 파일 basename** — orgnl 은 `LS_DATA_SRC.SRC_FILE_PATH_NM`, deid 는 `DE_IDNTF_SRC_FILE_PATH_NM` 의 basename.
 - `description` = `LS_DATA_SRC.FRM_EXPLN`(작업자 수기 프레임 설명). 미입력 시 null.
 - `anonymity` = **orgnl → `N`, deid → `Y`** (산출 종류로 결정).
 - `pseudonymity` = 영상 개인정보 유형이 `PSDO` 이면 `Y`, 아니면 `N`.
+- (`orign_file_name` 은 **정본 샘플에 없어 제거**됨 — 원천 소스 파일 basename 은 더 이상 image 블록에 노출하지 않는다.)
 
-> **orgnl ↔ deid JSON 델타(소비측 주의)**: 같은 프레임의 원본/비식별 JSON 은 **`anonymity`(N/Y) 와 `orign_file_name`(원천 소스 파일명)** 만 다르다. **`file_name`(`frame-{n}.jpg`)·`frame_num`·좌표·`annotations`·해상도·`description` 은 동일**하다(동일 basename 은 원본↔비식별 페어링을 위한 의도된 설계이며, 두 벌은 폴더 경로 `orgnl/`·`deid/` 로 구분된다). 즉 "이미지 파일명이 다르다"가 아니라 "**폴더와 anonymity·원천파일명이 다르다**"가 정확한 서술이다.
+> **orgnl ↔ deid JSON 델타(소비측 주의)**: 같은 프레임의 원본/비식별 JSON 은 **`anonymity`(N/Y)** 만 다르다. **`file_name`(`frame-{n}.jpg`)·`frame_num`·좌표·`annotations`·해상도·`description` 은 동일**하며, 두 벌은 폴더 경로 `orgnl/`·`deid/` 로 구분된다. 즉 "이미지 파일명이 다르다"가 아니라 "**폴더와 anonymity 가 다르다**"가 정확한 서술이다.
 
 ### annotations 블록 (타입별)
 - `BBOX`/`TRACK` → `bbox=[x, y, w, h]` (POINT_CN min/max 바운딩, 픽셀 그대로).
@@ -60,13 +60,14 @@
 - `SKELETON` → `keypoints=[[x, y, v]×17]` (v: 0 미표기 / 1 비가시 / 2 가시).
 - malformed 라벨 1건은 문서 전체를 깨지 않고 skip(fail-secure).
 
-### 24.3.1 event_annotation 블록 (VQA/CoT) — 확정·구현 완료
+### 24.3.1 event 블록 (VQA/CoT) — 확정·구현 완료
 
 > ✅ **확정·구현 완료.** BE 저장/API/검수/export(Phase 1~3) + FE 수동입력 폼(Phase 4)까지 구현됐다.
-> 프레임별 자기완결 문서(`NiaAnnotationDoc`) 각각에 **동일 영상(RAW_SN) 단위** event_annotation 블록을 최상위 키로 첨부한다.
+> 프레임별 자기완결 문서(`NiaAnnotationDoc`) 각각에 **동일 영상(RAW_SN) 단위** event 블록을 최상위 키로 첨부한다.
+> **JSON 출력 키는 정본 샘플 정합으로 `event`** (구 `event_annotation` 에서 rename, 위치는 `video` 다음 유지). 내부 저장/API DTO 클래스·필드명(`EventAnnotationPayload`·`eventAnnotation`)은 유지한다.
 > 근거: `docs/AI기반CCTV_어노테이션 포맷 및 데이터 구조_v1.3` 계열(속성 정의) + `docs/AI기반CCTV_어노테이션_예제_sample.json`(예제).
 
-**분리 이유**: VQA/CoT는 프레임·객체 단위가 아니라 **이벤트/영상 단위** 추론·서술 메타다. COCO 규격의 `annotations`(per-object 배열, → `LS_DATA_LBL`)와 층위가 달라, 우리 DB에서도 **영상 단위(`LS_EVNT_ANNO`, RAW_SN)** 로 분리 적재되는 값이다. 따라서 JSON도 `annotations` 안에 넣지 않고 **별도 최상위 `event_annotation`(object)** 으로 둔다. ([09 VLM 시계열](09-vlm-timeseries.md) 참조)
+**분리 이유**: VQA/CoT는 프레임·객체 단위가 아니라 **이벤트/영상 단위** 추론·서술 메타다. COCO 규격의 `annotations`(per-object 배열, → `LS_DATA_LBL`)와 층위가 달라, 우리 DB에서도 **영상 단위(`LS_EVNT_ANNO`, RAW_SN)** 로 분리 적재되는 값이다. 따라서 JSON도 `annotations` 안에 넣지 않고 **별도 최상위 `event`(object)** 으로 둔다. ([09 VLM 시계열](09-vlm-timeseries.md) 참조)
 
 **저장·조달**: 외부 자동 생성(외부 시계열/VQA 시스템 전달)값을 `LS_EVNT_ANNO.ANNO_CN`(jsonb) 에 적재해 폼에 프리필하고, WORKER/REVIEWER 가 라벨링 화면 '메타' 탭 **이벤트 어노테이션 패널**에서 전 필드를 수동 덮어쓰기·검토한다(REVIEWER 승인/반려). 저장 API `PUT /v1/videos/{rawSn}/event-annotation`, 페이로드 스키마는 아래와 정확 일치(BE `EventAnnotationPayload`).
 
@@ -76,7 +77,7 @@
 | `question` | string | 외부 자동 + 수동입력 | 이벤트 발생 여부·근거를 묻는 질문 |
 | `caption` | object | 외부 자동 + 수동입력 | 후보 캡션 집합 `{c1, c2, … cn}` |
 | `caption.{cN}.caption_text` | string | 외부 자동 + 수동입력 | 후보별 캡션 텍스트 |
-| `caption.{cN}.cot` | string[] | 외부 자동 + 수동입력 | 사고 과정(CoT) **1·2·3단계 배열** |
+| `caption.{cN}.cot` | object | 외부 자동 + 수동입력 | 사고 과정(CoT) — **단계 라벨 키 객체** `{"1단계":..,"2단계":..,"3단계":..}`(정본 샘플 정합). 과거 배열 동결본은 조회 시 `n단계` 키 객체로 관용 흡수(하위호환) |
 | `answer` | string | 외부 자동 + 수동입력 | 이벤트 확인 결과 |
 | `evidence` | object | 외부 자동 + 수동입력 | 후보 근거 집합 `{c1, c2, … cn}` |
 | `evidence.{cN}.evidence_text` | string | 외부 자동 + 수동입력 | 후보별 근거 서술 |
@@ -85,7 +86,7 @@
 | `evidence.{cN}.obj_bbox` | number[][] | 외부 자동 + 수동입력 | 객체 바운딩박스 `[x1,y1,x2,y2]` 목록 |
 | `evidence.{cN}.obj_label` | string[] | 외부 자동 + 수동입력 | 객체 라벨 목록 |
 
-- **후보 키(`c1`~`cn`)는 가변**이며, caption `cN` 과 evidence `cN` 은 같은 키로 연결된다. `cot` 는 후보마다 1·2·3단계 배열로 채운다.
+- **후보 키(`c1`~`cn`)는 가변**이며, caption `cN` 과 evidence `cN` 은 같은 키로 연결된다. `cot` 는 후보마다 단계 라벨 키 객체(`{"1단계":..,"2단계":..,"3단계":..}`)로 채운다.
 - 값이 비어있는(미입력) 필드/후보는 저장 시 payload 에서 생략된다(`event_class` 만 필수). 알 수 없는 키는 BE 가 무시(`ignoreUnknown`).
 
 ## 24.4 video 필드 매핑표
@@ -95,7 +96,7 @@
 | video 키 | 원천 | 비고 |
 |----------|------|------|
 | `id` | RAW_SN | |
-| `filename` / `orign_filename` | RAW_FILE_PATH_NM basename | |
+| `filename` | RAW_FILE_PATH_NM basename | (`orign_filename` 은 정본 샘플에 없어 **제거**) |
 | `date_created` | SHT_DT (YYYY-MM-DD) | |
 | `format` / `filesize` | FILE_FMT / FILE_SZ | |
 | `location` | SIDO_NM + SGG_NM | |
@@ -110,9 +111,9 @@
 | `pseudonymity` / `privacy_included` | PRVC_TYPE_CD(=PSDO?) / PRVC_YN | |
 | `event_id` / `event_name` | EVNT_TYPE_CD / EVNT_NM | |
 | `time_of_day` / `season` | DAY_NGT_CD / SESN_CD | |
-| `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log` | — | **미보유 → null** (키 유지) |
+| `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log`, `vd_description` | — | **미보유 → null** (키 유지) |
 
-> **VQA/CoT 위치 정정**: 구 video 블록의 `cto`/`vqa` 플레이스홀더는 폐기한다 — VQA/CoT는 영상 기술메타(video)가 아니라 **최상위 `event_annotation`**(§24.3.1)으로 분리한다. (확정·구현 완료)
+> **VQA/CoT 위치 정정**: 구 video 블록의 `cto`/`vqa` 플레이스홀더는 **필드 자체를 제거**했다 — 정본 샘플에 없으며, VQA/CoT는 영상 기술메타(video)가 아니라 **최상위 `event`**(§24.3.1)으로 분리한다. 정본 샘플에 있는 `vd_description`(영상 서술) 키는 추가했다(현재 원천 미보유 → null). (확정·구현 완료)
 
 > **미보유 필수 필드 null 정책 (소비측 주의)**: 위 "미보유" 필드는 저작도구가 원천 데이터를 보유하지 않아 **의도적으로 null** 이다. `@JsonInclude(ALWAYS)` 로 키 자체는 항상 존재하므로, 소비측은 "키 부재"가 아니라 "**값 null**"로 미보유를 판정해야 한다.
 

@@ -7,6 +7,8 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +59,7 @@ class AutolabelControllerTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
+    @Autowired private LsLabelRepository labelRepository;
 
     @MockBean private AiServerClient aiServerClient;
 
@@ -87,6 +90,12 @@ class AutolabelControllerTest {
         portalToken         = JwtTestSupport.token(secret, "200", "PORTAL_USER", "PORTAL",   issuer, 60);
 
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
+
+        // 검출 대상 재구성(HIGH#1) — 온라인 오토라벨은 '매핑된 라벨(DTCT_TYPE_CD→COCO)' 만 ai-server 로
+        // 전달·검출한다. person/car 를 검출 클래스로 매핑한 활성 라벨을 시드해야 검출 결과가 반환된다
+        // (매핑이 없으면 서버가 ai 호출 없이 빈 결과를 돌려주므로 detectedCount=0 이 된다).
+        labelRepository.save(LsLabel.create("사람", "#FF0000", "BBOX", 0, "person", "tester"));
+        labelRepository.save(LsLabel.create("차량", "#00FF00", "BBOX", 1, "car", "tester"));
 
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "CLIP-AL-001", "CCTV-001", "EVT-A", "11680",

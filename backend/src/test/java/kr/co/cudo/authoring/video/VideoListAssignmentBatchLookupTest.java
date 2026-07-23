@@ -58,6 +58,7 @@ class VideoListAssignmentBatchLookupTest {
     @Mock private LsTaskAssignmentRepository taskAssignmentRepository;
     @Mock private UserRepository userRepository;
     @Mock private LsDeidentProcLogRepository deidentProcLogRepository;
+    @Mock private kr.co.cudo.authoring.batch.status.BatchStatusService batchStatusService;
 
     @InjectMocks private VideoQueryService videoQueryService;
 

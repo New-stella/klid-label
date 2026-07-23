@@ -39,7 +39,12 @@ class LabelMasterServiceTest {
     }
 
     private static LabelMasterRequest req(String name, String color, String type, Integer sortNo) {
-        return new LabelMasterRequest(name, color, type, sortNo);
+        return new LabelMasterRequest(name, color, type, sortNo, null);
+    }
+
+    private static LabelMasterRequest req(String name, String color, String type, Integer sortNo,
+                                          String dtctTypeCd) {
+        return new LabelMasterRequest(name, color, type, sortNo, dtctTypeCd);
     }
 
     @Test
@@ -247,9 +252,9 @@ class LabelMasterServiceTest {
         verify(repository).existsActiveByNormalizedNameExcludingId("person", "Y", 10L);
     }
 
-    // ─── Phase 6 — AutoLabel preset 매핑 (LS_LABEL.NAME → LABEL_ID 조회) ───
+    // ─── V100 — AI 검출 매핑 (COCO명 → DTCT_TYPE_CD → LABEL_ID 조회, HIGH#7) ───
 
-    /** Phase 6 helper — labelId 가 부여된 LsLabel 생성. */
+    /** helper — labelId 가 부여된 LsLabel 생성. */
     private static LsLabel labelWithId(Long id, String name) {
         LsLabel label = LsLabel.create(name, "#E74C3C", "BBOX", 1, "seed");
         try {
@@ -263,82 +268,143 @@ class LabelMasterServiceTest {
     }
 
     @Test
-    @DisplayName("findLabelIdByName_정확한_이름_매칭_시_labelId_반환")
-    void findLabelIdByName_정확한_이름_매칭() {
-        when(repository.findByLabelNmIgnoreCaseAndUseYn("person", "Y"))
-                .thenReturn(Optional.of(labelWithId(1L, "person")));
+    @DisplayName("findLabelIdByDtctType_COCO매핑_존재시_labelId_반환")
+    void findLabelIdByDtctType_매칭() {
+        when(repository.findByDtctTypeCdAndUseYn("person", "Y"))
+                .thenReturn(Optional.of(labelWithId(1L, "사람")));
 
-        Optional<Long> result = service.findLabelIdByName("person");
-
-        assertThat(result).contains(1L);
-        verify(repository).findByLabelNmIgnoreCaseAndUseYn("person", "Y");
-    }
-
-    @Test
-    @DisplayName("findLabelIdByName_대소문자_무시_매칭")
-    void findLabelIdByName_대소문자_무시() {
-        // 구현은 trim 후 입력값 그대로 repository 에 전달 — IgnoreCase 검색은 repository 가 처리
-        when(repository.findByLabelNmIgnoreCaseAndUseYn("PERSON", "Y"))
-                .thenReturn(Optional.of(labelWithId(1L, "person")));
-
-        Optional<Long> result = service.findLabelIdByName("PERSON");
+        Optional<Long> result = service.findLabelIdByDtctType("person");
 
         assertThat(result).contains(1L);
+        verify(repository).findByDtctTypeCdAndUseYn("person", "Y");
     }
 
     @Test
-    @DisplayName("findLabelIdByName_앞뒤_공백_trim_후_매칭")
-    void findLabelIdByName_공백_trim() {
-        when(repository.findByLabelNmIgnoreCaseAndUseYn("person", "Y"))
-                .thenReturn(Optional.of(labelWithId(1L, "person")));
+    @DisplayName("findLabelIdByDtctType_앞뒤_공백_trim_후_매칭")
+    void findLabelIdByDtctType_공백_trim() {
+        when(repository.findByDtctTypeCdAndUseYn("person", "Y"))
+                .thenReturn(Optional.of(labelWithId(1L, "사람")));
 
-        Optional<Long> result = service.findLabelIdByName("  person  ");
+        Optional<Long> result = service.findLabelIdByDtctType("  person  ");
 
         assertThat(result).contains(1L);
-        verify(repository).findByLabelNmIgnoreCaseAndUseYn("person", "Y");
+        verify(repository).findByDtctTypeCdAndUseYn("person", "Y");
     }
 
     @Test
-    @DisplayName("findLabelIdByName_미매칭_시_Optional_empty")
-    void findLabelIdByName_미매칭() {
-        when(repository.findByLabelNmIgnoreCaseAndUseYn("unknown", "Y"))
-                .thenReturn(Optional.empty());
+    @DisplayName("findLabelIdByDtctType_미매핑_COCO명이면_Optional_empty")
+    void findLabelIdByDtctType_미매핑() {
+        when(repository.findByDtctTypeCdAndUseYn("car", "Y")).thenReturn(Optional.empty());
 
-        Optional<Long> result = service.findLabelIdByName("unknown");
-
-        assertThat(result).isEmpty();
+        assertThat(service.findLabelIdByDtctType("car")).isEmpty();
     }
 
     @Test
-    @DisplayName("findLabelIdByName_null_입력_시_Optional_empty")
-    void findLabelIdByName_null_입력() {
-        Optional<Long> result = service.findLabelIdByName(null);
-
-        assertThat(result).isEmpty();
-        // null 입력은 repository 호출 없이 즉시 empty 반환
-        verify(repository, never()).findByLabelNmIgnoreCaseAndUseYn(any(), any());
+    @DisplayName("findLabelIdByDtctType_null_빈문자열이면_repository_미호출_empty")
+    void findLabelIdByDtctType_null_빈() {
+        assertThat(service.findLabelIdByDtctType(null)).isEmpty();
+        assertThat(service.findLabelIdByDtctType("   ")).isEmpty();
+        verify(repository, never()).findByDtctTypeCdAndUseYn(any(), any());
     }
 
     @Test
-    @DisplayName("findLabelIdByName_빈문자열_입력_시_Optional_empty")
-    void findLabelIdByName_빈문자열() {
-        Optional<Long> result = service.findLabelIdByName("   ");
+    @DisplayName("findLabelIdByDtctType_use_yn_Y_만_조회")
+    void findLabelIdByDtctType_활성만() {
+        when(repository.findByDtctTypeCdAndUseYn("person", "Y")).thenReturn(Optional.empty());
 
-        assertThat(result).isEmpty();
-        verify(repository, never()).findByLabelNmIgnoreCaseAndUseYn(any(), any());
+        service.findLabelIdByDtctType("person");
+
+        verify(repository).findByDtctTypeCdAndUseYn("person", "Y");
+    }
+
+    // ─── V100 — COCO 매핑 저장/검증 (allowlist 400, 중복 409) ───
+
+    @Test
+    @DisplayName("생성시_유효한_COCO매핑은_dtctTypeCd로_저장된다")
+    void create_COCO매핑_저장() {
+        when(repository.existsActiveByNormalizedName("사람", "Y")).thenReturn(false);
+        when(repository.existsActiveByDtctType("person", "Y")).thenReturn(false);
+        when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LabelMasterResponse res = service.create(req("사람", "#E74C3C", "BBOX", 1, "person"), "1001");
+
+        ArgumentCaptor<LsLabel> captor = ArgumentCaptor.forClass(LsLabel.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getDtctTypeCd()).isEqualTo("person");
+        assertThat(res.dtctTypeCd()).isEqualTo("person");
     }
 
     @Test
-    @DisplayName("findLabelIdByName_use_yn_N_라벨은_제외")
-    void findLabelIdByName_useYn_Y_만_조회() {
-        // useYn='Y' 인 라벨만 검색되도록 repository 인자에 "Y" 가 들어가는지 검증
-        when(repository.findByLabelNmIgnoreCaseAndUseYn("person", "Y"))
-                .thenReturn(Optional.empty());
+    @DisplayName("생성시_미지원_COCO값이면_INVALID_INPUT_400_이고_저장안함")
+    void create_미지원_COCO_400() {
+        when(repository.existsActiveByNormalizedName(any(), any())).thenReturn(false);
 
-        Optional<Long> result = service.findLabelIdByName("person");
+        assertThatThrownBy(() -> service.create(req("사람", "#E74C3C", "BBOX", 1, "not-a-coco"), "1001"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("INVALID_INPUT"));
+        verify(repository, never()).save(any());
+    }
 
-        assertThat(result).isEmpty();
-        // 두번째 인자가 "Y" 인지 검증 (use_yn='N' 라벨이 매칭되지 않도록)
-        verify(repository).findByLabelNmIgnoreCaseAndUseYn("person", "Y");
+    @Test
+    @DisplayName("생성시_이미_사용중인_COCO매핑이면_CONFLICT_409")
+    void create_중복_COCO매핑_409() {
+        when(repository.existsActiveByNormalizedName("사람", "Y")).thenReturn(false);
+        when(repository.existsActiveByDtctType("person", "Y")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.create(req("사람", "#E74C3C", "BBOX", 1, "person"), "1001"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("생성시_COCO매핑_null이면_검증_생략_저장_성공_미매핑")
+    void create_매핑없음_성공() {
+        when(repository.existsActiveByNormalizedName("사람", "Y")).thenReturn(false);
+        when(repository.save(any(LsLabel.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LabelMasterResponse res = service.create(req("사람", "#E74C3C", "BBOX", 1, null), "1001");
+
+        assertThat(res.dtctTypeCd()).isNull();
+        // 미매핑이면 중복 매핑 검사 미수행
+        verify(repository, never()).existsActiveByDtctType(any(), any());
+    }
+
+    @Test
+    @DisplayName("수정시_다른_라벨과_COCO매핑_중복이면_CONFLICT_409_자기제외")
+    void update_중복_COCO매핑_409() {
+        LsLabel label = LsLabel.create("사람", "#E74C3C", "BBOX", 1, "seed");
+        when(repository.findById(10L)).thenReturn(Optional.of(label));
+        when(repository.existsActiveByNormalizedNameExcludingId("사람", "Y", 10L)).thenReturn(false);
+        when(repository.existsActiveByDtctTypeExcludingId("person", "Y", 10L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.update(10L, req("사람", "#E74C3C", "BBOX", 1, "person"), "1002"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name()).isEqualTo("CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("mappedDetectClasses_활성_매핑_COCO집합_반환")
+    void mappedDetectClasses_반환() {
+        when(repository.findMappedDtctTypeCds("Y")).thenReturn(List.of("person", "car"));
+
+        assertThat(service.mappedDetectClasses()).containsExactlyInAnyOrder("person", "car");
+        verify(repository).findMappedDtctTypeCds("Y");
+    }
+
+    @Test
+    @DisplayName("listDetectCandidates_활성라벨_매핑여부_함께_반환")
+    void listDetectCandidates_매핑여부() {
+        LsLabel mapped = LsLabel.create("사람", "#E74C3C", "BBOX", 1, "person", "seed");
+        LsLabel unmapped = LsLabel.create("커스텀", "#3498DB", "BBOX", 2, "seed");
+        when(repository.findByUseYnOrderBySortSeqAsc("Y")).thenReturn(List.of(mapped, unmapped));
+
+        var result = service.listDetectCandidates();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).dtctTypeCd()).isEqualTo("person");
+        assertThat(result.get(0).mapped()).isTrue();
+        assertThat(result.get(1).dtctTypeCd()).isNull();
+        assertThat(result.get(1).mapped()).isFalse();
     }
 }

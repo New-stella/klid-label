@@ -17,8 +17,8 @@ function makeLabel(over: Partial<Label> = {}): Label {
 }
 
 const MASTERS: LabelMaster[] = [
-  { labelId: 1, name: '사람', color: '#FF0000', type: 'BBOX', sortNo: 1, useYn: 'Y' },
-  { labelId: 2, name: '차량', color: '#3B82F6', type: 'BBOX', sortNo: 2, useYn: 'Y' },
+  { labelId: 1, name: '사람', color: '#FF0000', type: 'BBOX', sortNo: 1, useYn: 'Y', dtctTypeCd: null },
+  { labelId: 2, name: '차량', color: '#3B82F6', type: 'BBOX', sortNo: 2, useYn: 'Y', dtctTypeCd: null },
 ];
 
 describe('getLabelDisplayColor — 우선순위 검증', () => {

@@ -1,15 +1,28 @@
-// Phase 4 — AI Tool 팝업 테스트 (형태 라디오 + 라벨 선택 + 일반/트랙).
+// Phase 4 / COCO 매핑 — AI Tool 팝업 테스트 (형태 라디오 + 라벨 후보 + 일반/트랙 + 정밀도).
+//
+// 라벨 후보(candidates)는 부모(LabelingPage)가 useDetectCandidates 로 주입한다(BE 후보 조회).
+// 매핑된 라벨만 선택 가능(체크박스 활성), 미매핑은 표시하되 disabled + '미매핑' 안내.
+// 전송값은 매핑 라벨의 COCO 클래스(dtctTypeCd)이며, 사용자 노출 문구에 모델명(YOLO/SAM/SAM2) 금지.
 
 import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
+import type { DetectCandidate } from '../api/labelMaster';
 
 import { AiToolModal } from '../components/AiToolModal';
 
+// 매핑 라벨(사람→person) + 미매핑 라벨(가방)로 구성 — 선택/disabled 를 함께 검증.
+const CANDIDATES: DetectCandidate[] = [
+  { labelId: 10, name: '사람', color: '#EF4444', type: 'BBOX', dtctTypeCd: 'person', mapped: true },
+  { labelId: 11, name: '가방', color: '#22C55E', type: 'BBOX', dtctTypeCd: null, mapped: false },
+];
+
 describe('AiToolModal', () => {
-  it('열리면_형태_라디오와_라벨_목록_렌더', () => {
-    renderWithProviders(<AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} />);
+  it('열리면_형태_라디오와_라벨_후보가_렌더된다', () => {
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,
+    );
     expect(screen.getByRole('radio', { name: '박스' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: '폴리곤' })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: '사람' })).toBeInTheDocument();
@@ -17,33 +30,96 @@ describe('AiToolModal', () => {
     expect(screen.getByRole('radio', { name: '박스' })).toBeChecked();
   });
 
+  it('미매핑_라벨은_표시되지만_선택_불가(disabled)다', () => {
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,
+    );
+    // 매핑 라벨은 선택 가능, 미매핑 라벨(가방)은 disabled(접근명은 "가방 미매핑").
+    expect(screen.getByRole('checkbox', { name: '사람' })).not.toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: /가방/ })).toBeDisabled();
+    // 미매핑 안내 문구 노출.
+    expect(screen.getByText('미매핑')).toBeInTheDocument();
+  });
+
+  it('후보가_로딩중이면_로딩_안내가_보이고_라벨_체크박스는_없다', () => {
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidatesLoading />,
+    );
+    expect(screen.getByText('라벨 목록을 불러오는 중입니다…')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: '사람' })).not.toBeInTheDocument();
+  });
+
+  it('후보_조회_실패시_에러_안내와_다시_시도_버튼이_노출되고_클릭하면_재조회한다', () => {
+    // given — 조회 실패(무한로딩/빈화면 금지: 명시적 에러 + 재시도 UI).
+    const onRetryCandidates = vi.fn();
+    renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        candidatesError
+        onRetryCandidates={onRetryCandidates}
+      />,
+    );
+    // then — 에러 문구 + 다시 시도 버튼.
+    expect(screen.getByText('라벨 목록을 불러오지 못했습니다.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(onRetryCandidates).toHaveBeenCalledTimes(1);
+  });
+
+  it('매핑된_라벨이_없으면_일반_실행이_비활성이다', () => {
+    // given — 미매핑 라벨만 존재.
+    renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        candidates={[CANDIDATES[1]]}
+      />,
+    );
+    // then — 실행 불가(매핑 대상 0).
+    expect(screen.getByRole('button', { name: '일반' })).toBeDisabled();
+    expect(
+      screen.getByText(
+        'AI 검출 클래스가 매핑된 라벨이 없습니다. 라벨 관리에서 AI 검출 클래스를 매핑해 주세요.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('AI_Tool_팝업에_모델명(YOLO/SAM)이_노출되지_않는다', () => {
     const { container } = renderWithProviders(
-      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} />,
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,
     );
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/YOLO/i);
     expect(text).not.toMatch(/SAM2?/i);
   });
 
-  it('일반_실행시_onConfirm에_shape_classIds_detect_전달', () => {
+  it('일반_실행시_onConfirm에_shape_classIds(dtctTypeCd)_detect_전달', () => {
     const onConfirm = vi.fn();
-    renderWithProviders(<AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} />);
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} candidates={CANDIDATES} />,
+    );
     fireEvent.click(screen.getByRole('checkbox', { name: '사람' }));
     fireEvent.click(screen.getByRole('button', { name: '일반' }));
+    // 매핑 라벨(사람)의 COCO 클래스(person)가 전달된다.
     expect(onConfirm).toHaveBeenCalledWith('BBOX', ['person'], 'detect');
   });
 
   it('AI_Tool_팝업_트랙모드_선택시_추적이_실행된다', () => {
     const onConfirm = vi.fn();
-    renderWithProviders(<AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} />);
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} candidates={CANDIDATES} />,
+    );
     fireEvent.click(screen.getByRole('button', { name: '트랙' }));
     expect(onConfirm).toHaveBeenCalledWith('BBOX', [], 'track');
   });
 
   it('폴리곤_선택후_일반_실행시_POLYGON_전달', () => {
     const onConfirm = vi.fn();
-    renderWithProviders(<AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} />);
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} candidates={CANDIDATES} />,
+    );
     fireEvent.click(screen.getByRole('radio', { name: '폴리곤' }));
     fireEvent.click(screen.getByRole('button', { name: '일반' }));
     expect(onConfirm).toHaveBeenCalledWith('POLYGON', [], 'detect');
@@ -51,7 +127,13 @@ describe('AiToolModal', () => {
 
   it('canTrack이_false면_트랙_버튼_비활성', () => {
     renderWithProviders(
-      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} canTrack={false} />,
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        canTrack={false}
+        candidates={CANDIDATES}
+      />,
     );
     expect(screen.getByRole('button', { name: '트랙' })).toBeDisabled();
   });
@@ -59,7 +141,9 @@ describe('AiToolModal', () => {
   it('취소시_onClose_호출되고_onConfirm_미호출', () => {
     const onConfirm = vi.fn();
     const onClose = vi.fn();
-    renderWithProviders(<AiToolModal open onClose={onClose} onConfirm={onConfirm} />);
+    renderWithProviders(
+      <AiToolModal open onClose={onClose} onConfirm={onConfirm} candidates={CANDIDATES} />,
+    );
     fireEvent.click(screen.getByRole('button', { name: '취소' }));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
@@ -67,7 +151,9 @@ describe('AiToolModal', () => {
 
   // === 즉시 그리기 토글 ===
   it('즉시_그리기_토글이_체크박스와_라벨로_렌더된다', () => {
-    renderWithProviders(<AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} />);
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,
+    );
     const cb = screen.getByRole('checkbox', { name: '즉시 그리기' });
     expect(cb).toBeInTheDocument();
     // 기본 OFF (미지정 시 false).
@@ -81,6 +167,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={vi.fn()}
+        candidates={CANDIDATES}
         immediateDraw={false}
         onImmediateDrawChange={onImmediateDrawChange}
       />,
@@ -95,6 +182,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={vi.fn()}
+        candidates={CANDIDATES}
         immediateDraw
         onImmediateDrawChange={vi.fn()}
       />,
@@ -104,7 +192,14 @@ describe('AiToolModal', () => {
 
   it('즉시_그리기_토글에도_모델명(YOLO/SAM)이_노출되지_않는다', () => {
     const { container } = renderWithProviders(
-      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} immediateDraw onImmediateDrawChange={vi.fn()} />,
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        candidates={CANDIDATES}
+        immediateDraw
+        onImmediateDrawChange={vi.fn()}
+      />,
     );
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/YOLO/i);
@@ -118,6 +213,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={vi.fn()}
+        candidates={CANDIDATES}
         defaultConfThreshold={0.5}
         defaultSimplifyTolerance={10}
       />,
@@ -134,7 +230,9 @@ describe('AiToolModal', () => {
   });
 
   it('폴리곤_shape일때만_경계세밀함_슬라이더가_보인다', () => {
-    renderWithProviders(<AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} />);
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,
+    );
     // 기본 박스 — 경계 세밀함 미노출.
     expect(screen.queryByRole('slider', { name: '경계 세밀함' })).not.toBeInTheDocument();
     // 인식 민감도는 항상 노출.
@@ -151,6 +249,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={onConfirm}
+        candidates={CANDIDATES}
         defaultConfThreshold={0.4}
         defaultSimplifyTolerance={1}
       />,
@@ -176,6 +275,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={onConfirm}
+        candidates={CANDIDATES}
         defaultConfThreshold={0.4}
         defaultSimplifyTolerance={1}
       />,
@@ -189,7 +289,13 @@ describe('AiToolModal', () => {
   it('BBOX모드에서_인식민감도만_조절하면_confThreshold만_전달된다', () => {
     const onConfirm = vi.fn();
     renderWithProviders(
-      <AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} defaultConfThreshold={0.4} />,
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={onConfirm}
+        candidates={CANDIDATES}
+        defaultConfThreshold={0.4}
+      />,
     );
     fireEvent.change(screen.getByRole('slider', { name: '인식 민감도' }), {
       target: { value: '0.55' },
@@ -207,6 +313,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={onConfirm}
+        candidates={CANDIDATES}
         defaultConfThreshold={undefined}
         defaultSimplifyTolerance={undefined}
       />,
@@ -224,6 +331,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={onConfirm}
+        candidates={CANDIDATES}
         defaultConfThreshold={0.3}
         defaultSimplifyTolerance={20}
       />,
@@ -247,6 +355,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={onConfirm}
+        candidates={CANDIDATES}
         defaultConfThreshold={0.4}
         defaultSimplifyTolerance={10}
       />,
@@ -261,6 +370,7 @@ describe('AiToolModal', () => {
         open={false}
         onClose={vi.fn()}
         onConfirm={onConfirm}
+        candidates={CANDIDATES}
         defaultConfThreshold={0.4}
         defaultSimplifyTolerance={10}
       />,
@@ -271,6 +381,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={onConfirm}
+        candidates={CANDIDATES}
         defaultConfThreshold={0.7}
         defaultSimplifyTolerance={10}
       />,
@@ -290,6 +401,7 @@ describe('AiToolModal', () => {
         open
         onClose={vi.fn()}
         onConfirm={vi.fn()}
+        candidates={CANDIDATES}
         defaultConfThreshold={0.5}
         defaultSimplifyTolerance={10}
       />,

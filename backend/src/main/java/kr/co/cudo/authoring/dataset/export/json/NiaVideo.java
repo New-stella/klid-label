@@ -6,14 +6,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * NIA COCO 확장 {@code video} 블록 (xlsx v1.3).
  *
- * <p>미보유 필드(pixel, cctv_height, cctv_azimuth, og_cd, cto, vqa, event_log 등)는 null 이지만
+ * <p>미보유 필드(pixel, cctv_height, cctv_azimuth, og_cd, event_log, vd_description 등)는 null 이지만
  * {@link JsonInclude.Include#ALWAYS} 로 키를 유지한다(관제 데이터마트 스키마 정합).
  */
 @JsonInclude(JsonInclude.Include.ALWAYS)
 public record NiaVideo(
         @JsonProperty("id") String id,
         @JsonProperty("filename") String filename,
-        @JsonProperty("orign_filename") String orignFilename,
         @JsonProperty("date_created") String dateCreated,
         @JsonProperty("type") String type,
         @JsonProperty("format") String format,
@@ -43,8 +42,7 @@ public record NiaVideo(
         @JsonProperty("event_name") String eventName,
         @JsonProperty("time_of_day") String timeOfDay,
         @JsonProperty("season") String season,
-        @JsonProperty("cto") String cto,
-        @JsonProperty("vqa") String vqa,
-        @JsonProperty("event_log") String eventLog
+        @JsonProperty("event_log") String eventLog,
+        @JsonProperty("vd_description") String vdDescription
 ) {
 }

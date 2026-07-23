@@ -45,7 +45,6 @@ class VideoMetaMapperTest {
         // then — 전 필드가 raw 값으로 대체됨
         assertThat(video.id()).isEqualTo("99");
         assertThat(video.filename()).isEqualTo("original.mp4");
-        assertThat(video.orignFilename()).isEqualTo("original.mp4");
         assertThat(video.dateCreated()).isEqualTo("2026-05-01");
         assertThat(video.length()).isEqualTo("60");
         assertThat(video.pseudonymity()).isEqualTo("Y");        // PSDO
@@ -154,7 +153,6 @@ class VideoMetaMapperTest {
 
         // then
         assertThat(video.filename()).isNull();
-        assertThat(video.orignFilename()).isNull();
     }
 
     @Test
@@ -169,7 +167,6 @@ class VideoMetaMapperTest {
 
         // then — 비식별 파일명, 원본 파일명 미노출
         assertThat(video.filename()).isEqualTo("deidentified.mp4");
-        assertThat(video.orignFilename()).isEqualTo("deidentified.mp4");
     }
 
     @Test
@@ -184,7 +181,6 @@ class VideoMetaMapperTest {
 
         // then — 원본 파일명 대신 null
         assertThat(video.filename()).isNull();
-        assertThat(video.orignFilename()).isNull();
     }
 
     @Test

@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.AutoLabelInfoProjection;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -52,6 +53,7 @@ public class VideoQueryService {
     private final LsTaskAssignmentRepository taskAssignmentRepository;
     private final UserRepository userRepository;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
+    private final BatchStatusService batchStatusService;
 
     /**
      * 검수 상태 필터 입력 길이 상한 — 정상 enum 값(PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED)은
@@ -301,7 +303,15 @@ public class VideoQueryService {
                 .findFirst()
                 .map(LsRawDataStatus::getDataSttsCd)
                 .orElse(null);
-        return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd);
+        // 배치 파이프라인 단계별 진행 상태(이슈1). 최신 LS_BATCH_PROC_LOG 1행 기준으로 canonical 순서 구성.
+        // 로그 없으면 빈 리스트 → FE 배지 폴백(하위호환). 단계 코드/상태만 노출(PII/경로/스택 없음).
+        boolean videoCompleted = LsDataRaw.DATA_STTS_COMPLETED.equals(entity.getDataSttsCd());
+        List<VideoDetailResponse.StageStatusDto> stages = batchStatusService
+                .stagesFor(entity.getRawSn(), videoCompleted)
+                .stream()
+                .map(s -> new VideoDetailResponse.StageStatusDto(s.name(), s.status(), s.progress()))
+                .toList();
+        return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd, stages);
     }
 
     /**

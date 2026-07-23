@@ -9,11 +9,15 @@ import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.augment.service.AugmentReviewService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
+import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
@@ -31,10 +35,13 @@ import kr.co.cudo.authoring.video.service.VideoStreamService;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
 import kr.co.cudo.authoring.video.service.port.VideoFileCopier;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
@@ -50,6 +57,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -103,11 +111,32 @@ class ResolutionDerivativeFlowIntegrationTest {
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private LsDataAugLblMapRepository lblMapRepository;
     @Autowired private AugmentReviewService augService;
+    @Autowired private LsDataMetaRepository metaRepository;
+    @Autowired private LsDataMetaReviewRepository metaReviewRepository;
+    // 파생 확정 @Async 풀 — 테스트 종료 시 in-flight finalize 를 드레인해 다음 메서드 스텁과 겹치지 않게 한다.
+    @Autowired @Qualifier("batchAsyncExecutor") private Executor batchAsyncExecutor;
 
     @BeforeEach
     void setup() {
         when(videoFileCopier.exists(any())).thenReturn(true);
         // resize/copy 는 no-op (파일 미생성). readDimensions 는 각 테스트에서 스텁.
+    }
+
+    /**
+     * 테스트 격리(async 누수 차단) — createDerivative 가 AFTER_COMMIT 으로 띄운 파생 finalize 는
+     * {@code batchAsyncExecutor}(core=2) 에서 imageResizer/videoFileCopier @MockBean 을 호출한다.
+     * 테스트가 단언 충족 즉시 반환하면 이 finalize 가 다음 메서드로 누수되어, 다음 메서드의
+     * {@code when(imageResizer.readDimensions(...))} 스텁과 동시 실행돼 Mockito 진행 중 스텁 상태를
+     * 오염시킨다(→ 스텁 유실=sync NPE 또는 finalize 어긋남=awaitility 타임아웃). 각 테스트 종료 시
+     * in-flight 태스크가 모두 끝날 때까지 드레인해 공유 mock 동시 호출 창을 제거한다(프로덕션 불변).
+     */
+    @AfterEach
+    void drainAsyncFinalizers() {
+        if (batchAsyncExecutor instanceof ThreadPoolTaskExecutor tpte) {
+            var pool = tpte.getThreadPoolExecutor();
+            Awaitility.await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(50))
+                    .until(() -> pool.getActiveCount() == 0 && pool.getQueue().isEmpty());
+        }
     }
 
     private record Seed(LsDataRaw parent, LsDataSrc frame0, LsDataSrc frame1, LsDataLbl label) {
@@ -311,6 +340,48 @@ class ResolutionDerivativeFlowIntegrationTest {
         // 작업/검수 워크플로 상태(LS_RAW_DATA_STATUS)는 finalize 가 건드리지 않는다 — 워크플로 row 는 배정 시점
         // lazy 생성이므로 확정 직후엔 미검수(row 부재). COMPLETED 워크플로 전이는 ReviewService.approve 에서만.
         assertThat(statusRepository.findById(child.getRawSn())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("해상도_finalize_실DB에서_부모메타_전건복사_VLM검수행만_PENDING신규_이면서_파생RAW는_확정유지된다(순서계약_HIGH4)")
+    void finalizeCopiesParentMetaAndCreatesPendingReviewWhileStayingFinalized() {
+        when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
+        Seed s = seed("METAORDER", BASE + "/videos/RESIT-METAORDER-deid.mp4");
+        Long parentRawSn = s.parent().getRawSn();
+
+        // 부모 메타: VLM 세그(검수행 APPROVED 보유) + video.* 기술메타(검수행 없음) + 수동 메타.
+        LsDataMeta vlm = metaRepository.save(LsDataMeta.create(parentRawSn, "vlm.seg.0", "a person walking"));
+        metaRepository.save(LsDataMeta.create(parentRawSn, "video.fps", "30"));
+        metaRepository.save(LsDataMeta.create(parentRawSn, "weather", "snow"));
+        metaReviewRepository.save(LsDataMetaReview.createAuto(
+                vlm.getMetaSn(), parentRawSn, null,
+                LsDataMetaReview.META_TYPE_VLM, LsDataMetaReview.SRC_AI_SERVER,
+                LsDataMetaReview.STTS_APPROVED));
+
+        ResolutionDerivativeResponse res = service.createDerivative(
+                parentRawSn, ResolutionPreset.RESL_720P, "rev1");
+        LsDataRaw child = awaitFinalized(parentRawSn);
+
+        // ① 파생 RAW 가 확정 유지 — COMPLETED + deIdntfYn='Y' + 예약 aug ACCEPTED. 메타 복사가 확정블록보다
+        //    앞서면(순서 위반) 배치 upsert 의 clear 로 이 dirty 확정이 유실돼 여기서 깨진다(HIGH#4 회귀 가드).
+        assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
+        assertThat(child.getDeIdntfYn()).isEqualTo("Y");
+        assertThat(augRepository.findById(res.dataAugSn()).orElseThrow().getAugProcSttsCd())
+                .isEqualTo(LsDataAug.STTS_ACCEPTED);
+
+        // ② 부모 메타가 파생 RAW 로 전건 복사(video.* 포함).
+        List<LsDataMeta> childMetas = metaRepository.findByRawSn(child.getRawSn());
+        assertThat(childMetas).extracting(LsDataMeta::getMetaKey)
+                .contains("vlm.seg.0", "video.fps", "weather");
+
+        // ③ 부모 검수행이 있던 VLM 메타에만 미검수(PENDING) 검수행 신규 생성 — video.*·수동 메타엔 없음.
+        List<LsDataMetaReview> childReviews = metaReviewRepository.findAllByDataRawSn(child.getRawSn());
+        assertThat(childReviews).hasSize(1);
+        Long derivedVlmMetaSn = childMetas.stream()
+                .filter(m -> "vlm.seg.0".equals(m.getMetaKey())).findFirst().orElseThrow().getMetaSn();
+        assertThat(childReviews.get(0).getDataMetaSn()).isEqualTo(derivedVlmMetaSn);
+        assertThat(childReviews.get(0).getMetaTypeCd()).isEqualTo(LsDataMetaReview.META_TYPE_VLM);
+        assertThat(childReviews.get(0).getRvwSttsCd()).isEqualTo(LsDataMetaReview.STTS_PENDING);
     }
 
     @Test

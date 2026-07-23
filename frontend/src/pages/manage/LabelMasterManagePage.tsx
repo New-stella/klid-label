@@ -108,6 +108,8 @@ export function LabelMasterManagePage() {
       type: form.type,
       color: form.color,
       sortNo: form.sortNo,
+      // 미지정(null)이면 매핑 해제. 값 검증(allowlist)·중복 매핑 409 는 BE 가 최종 판정.
+      dtctTypeCd: form.dtctTypeCd,
     };
 
     if (editing) {

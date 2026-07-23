@@ -9,15 +9,23 @@ interface BatchStageIndicatorProps {
   stages: BatchStageItem[];
 }
 
-const STAGE_ORDER: string[] = ['FRAME_EXTRACT', 'DEIDENTIFY', 'YOLO', 'SAM2', 'VLM_VERIFY'];
-
+// BE canonical 단계 코드(BatchStage.name) → 사용자 한글 라벨.
+// ⚠ 기술 모델명(YOLO/SAM2) 화면 노출 금지 → "AI 탐지"/"AI 분할" (코드/name 은 유지).
+// BE 가 stages 배열의 순서/상태를 canonical 로 내려주므로 FE 는 순서를 가정하지 않고
+// 배열을 그대로 렌더하며 name→라벨 매핑만 한다.
 const STAGE_LABEL: Record<string, string> = {
-  FRAME_EXTRACT: '프레임추출',
   DEIDENTIFY: '비식별',
+  MARKING: '마킹',
+  VLM: 'VLM',
+  FRAME_EXTRACT: '프레임추출',
   YOLO: 'AI 탐지',
   SAM2: 'AI 분할',
-  VLM_VERIFY: 'VLM',
+  INTERPOLATE: '보간',
 };
+
+// 매핑에 없는 단계 코드(BE 가 향후 단계 추가 시)는 기술 코드명이 화면에 새지 않도록
+// 한글 기본값으로 폴백한다(기술 코드명 노출 금지).
+const STAGE_LABEL_FALLBACK = '처리중';
 
 function StageIcon({ status }: { status: BatchStageStatus }) {
   if (status === 'DONE') {
@@ -54,27 +62,23 @@ function connectorColor(status: BatchStageStatus): string {
 }
 
 export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
+  // BE stages 가 비면(배치 로그 없는 기존 영상) 아무것도 렌더 안 함 → 상위 배지 폴백(하위호환).
   if (!stages || stages.length === 0) return null;
 
-  const stageMap = new Map(stages.map((s) => [s.name, s]));
-
   return (
-    <div className="flex items-center gap-0">
-      {STAGE_ORDER.map((stageName, idx) => {
-        const stage =
-          stageMap.get(stageName) ??
-          ({ name: stageName, status: 'PENDING' as BatchStageStatus, progress: 0 } satisfies BatchStageItem);
-        const isLast = idx === STAGE_ORDER.length - 1;
+    <div className="flex items-center gap-0" data-testid="batch-stage-indicator">
+      {stages.map((stage, idx) => {
+        const isLast = idx === stages.length - 1;
 
         return (
-          <div key={stageName} className="flex items-center">
+          <div key={stage.name} className="flex items-center">
             <div className="flex flex-col items-center gap-1">
               <StageIcon status={stage.status} />
               <span
                 className="text-xs text-gray-500 text-center whitespace-nowrap"
                 style={{ fontSize: '10px' }}
               >
-                {STAGE_LABEL[stageName] ?? stageName}
+                {STAGE_LABEL[stage.name] ?? STAGE_LABEL_FALLBACK}
               </span>
             </div>
             {!isLast && (

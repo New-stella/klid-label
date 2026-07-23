@@ -103,7 +103,10 @@ class AutolabelOnlineServiceTest {
         when(accessGuard.verifyAndGet(eq(SRC_SN), any())).thenReturn(src);
         when(frameImageEncoder.encodeToBase64(anyString())).thenReturn("BASE64IMG");
         when(systemConfigService.getInt(any())).thenReturn(null); // fallback conf/imgsz/iou
-        when(labelMasterService.findLabelIdByName(anyString())).thenReturn(Optional.empty());
+        when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
+        // HIGH#1 — 검출 대상 재구성용 매핑 allowlist. 기본 person/car 매핑(검출 진행 허용).
+        when(labelMasterService.mappedDetectClasses())
+                .thenReturn(new java.util.LinkedHashSet<>(java.util.List.of("person", "car")));
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(false);
 
         worker = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -398,7 +401,7 @@ class AutolabelOnlineServiceTest {
     // ── Phase 4: 클래스 필터(R3 AC3) ─────────────────────────────────────────────
 
     @Test
-    @DisplayName("classes_전달시_ai서버_YoloTrackRequest에_classes_포함")
+    @DisplayName("classes_전달시_매핑된_클래스만_ai서버_YoloTrackRequest에_포함")
     void classesForwardedToAiRequest() {
         stubAi(oneDetection());
         ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
@@ -407,12 +410,13 @@ class AutolabelOnlineServiceTest {
         service.autolabel(SRC_SN, worker, List.of("person", "car"));
 
         verify(aiServerClient).predictYoloTrack(cap.capture());
-        assertThat(cap.getValue().classes()).containsExactly("person", "car");
+        assertThat(cap.getValue().classes()).containsExactlyInAnyOrder("person", "car");
     }
 
     @Test
-    @DisplayName("classes_없이_호출시_ai서버_요청_classes_null_전체검출_하위호환")
-    void noClassesMeansNullFilter() {
+    @DisplayName("classes_없이_호출시_매핑된_전체_클래스로_검출한다_매핑라벨만")
+    void noClassesMeansAllMapped() {
+        // HIGH#1 — '전체' 선택도 매핑된 라벨(person/car)만 검출 대상으로 재구성한다(COCO 80 전체 금지).
         stubAi(oneDetection());
         ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
                 ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
@@ -420,12 +424,12 @@ class AutolabelOnlineServiceTest {
         service.autolabel(SRC_SN, worker);
 
         verify(aiServerClient).predictYoloTrack(cap.capture());
-        assertThat(cap.getValue().classes()).isNull();
+        assertThat(cap.getValue().classes()).containsExactlyInAnyOrder("person", "car");
     }
 
     @Test
-    @DisplayName("classes_빈리스트면_null로_정규화_전체검출_footgun_방지")
-    void emptyClassesNormalizedToNull() {
+    @DisplayName("classes_빈리스트면_매핑된_전체_클래스로_검출한다")
+    void emptyClassesMeansAllMapped() {
         stubAi(oneDetection());
         ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
                 ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
@@ -433,7 +437,46 @@ class AutolabelOnlineServiceTest {
         service.autolabel(SRC_SN, worker, List.of());
 
         verify(aiServerClient).predictYoloTrack(cap.capture());
-        assertThat(cap.getValue().classes()).isNull();
+        assertThat(cap.getValue().classes()).containsExactlyInAnyOrder("person", "car");
+    }
+
+    // ── HIGH#1: BE 화이트리스트 재검증 (매핑된 라벨만 검출) ─────────────────────────
+
+    @Test
+    @DisplayName("미매핑_클래스가_요청에_섞이면_제외하고_매핑된것만_ai전달")
+    void unmappedClassesDroppedByServer() {
+        stubAi(oneDetection());
+        ArgumentCaptor<kr.co.cudo.authoring.common.client.dto.YoloTrackRequest> cap =
+                ArgumentCaptor.forClass(kr.co.cudo.authoring.common.client.dto.YoloTrackRequest.class);
+
+        // person(매핑됨) + dog(미매핑) 요청 → 서버가 dog 를 제외하고 person 만 전달.
+        service.autolabel(SRC_SN, worker, List.of("person", "dog"));
+
+        verify(aiServerClient).predictYoloTrack(cap.capture());
+        assertThat(cap.getValue().classes()).containsExactly("person");
+    }
+
+    @Test
+    @DisplayName("요청_전부_미매핑이면_ai_미호출_빈결과_안내메시지")
+    void allUnmappedSkipsAi() {
+        AutolabelOnlineService.AutolabelOutcome res =
+                service.autolabel(SRC_SN, worker, List.of("dog", "cat"));
+
+        assertThat(res.response().detectedCount()).isZero();
+        assertThat(res.message()).isNotNull();
+        verify(aiServerClient, never()).predictYoloTrack(any());
+    }
+
+    @Test
+    @DisplayName("매핑된_라벨이_하나도_없으면_ai_미호출_빈결과_안내메시지")
+    void noMappedLabelsSkipsAi() {
+        when(labelMasterService.mappedDetectClasses()).thenReturn(new java.util.LinkedHashSet<>());
+
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
+
+        assertThat(res.response().detectedCount()).isZero();
+        assertThat(res.message()).isNotNull();
+        verify(aiServerClient, never()).predictYoloTrack(any());
     }
 
     // ── FEAT-007: 인식 민감도(conf) per-request override + 폴백(무회귀) ──────────

@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.meta.service.DerivedMetaCopier;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -68,6 +69,7 @@ public class ResolutionPersistService {
     private final LsDataAugRepository augRepository;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final LsDeidentReportRepository deidentReportRepository;
+    private final DerivedMetaCopier derivedMetaCopier;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -143,8 +145,14 @@ public class ResolutionPersistService {
         procLog.succeed(videoDst);
         deidentProcLogRepository.save(procLog);
 
-        log.info("[Video][ResolutionDerivative][C] persisted rawSn={} orgnlRawSn={} dataAugSn={} frames={} labels={}",
-                newRawSn, parentRawSn, snapshot.dataAugSn(), parentSrcToNewSrc.size(), copiedLabels);
+        // 6) 메타 전체 복사(video.* 포함) + 부모 검수행 있던 메타만 미검수 검수행 신규 생성 — 증강 경로와 통일된
+        //    로직을 DerivedMetaCopier 에 위임. [순서] 위 확정 블록(5) 이후에 호출한다 — 내부 배치 upsert 가
+        //    실행 후 컨텍스트를 clear 하므로, 앞서 두면 newRaw·aug 의 확정 dirty 변경이 유실된다.
+        DerivedMetaCopier.CopyResult metaResult = derivedMetaCopier.copyMetaAndReviews(parentRawSn, newRawSn);
+
+        log.info("[Video][ResolutionDerivative][C] persisted rawSn={} orgnlRawSn={} dataAugSn={} frames={} labels={} metas={} metaReviews={}",
+                newRawSn, parentRawSn, snapshot.dataAugSn(), parentSrcToNewSrc.size(), copiedLabels,
+                metaResult.copiedMetaCount(), metaResult.createdReviewCount());
         return Result.PERSISTED;
     }
 

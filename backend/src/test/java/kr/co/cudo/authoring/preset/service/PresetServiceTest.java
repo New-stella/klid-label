@@ -52,7 +52,7 @@ class PresetServiceTest {
     private PresetService service;
 
     private static LabelMasterResponse master(long id, String name, String type) {
-        return new LabelMasterResponse(id, name, "#FF0000", type, 0, "Y");
+        return new LabelMasterResponse(id, name, "#FF0000", type, 0, "Y", null);
     }
 
     @BeforeEach

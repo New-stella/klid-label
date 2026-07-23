@@ -3,15 +3,22 @@ package kr.co.cudo.authoring.evntanno.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 
+import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -72,16 +79,66 @@ public record EventAnnotationPayload(
     static final int MAX_LIST = 1000;
     static final int MAX_ID = 200;
 
+    /** 하위호환 배열 cot 관용 변환 시 순번 기반 단계 키 접미사(정본 샘플 "1단계"/"2단계"…). */
+    static final String COT_STEP_SUFFIX = "단계";
+
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    /** caption 후보(c1..cn): caption_text + Chain-of-Thought 단계(cot, 1·2·3단계). */
+    /**
+     * caption 후보(c1..cn): caption_text + Chain-of-Thought 단계(cot).
+     *
+     * <p>{@code cot} 은 정본 샘플과 정합하도록 <b>단계 라벨 키를 유지하는 객체</b>
+     * ({@code {"1단계":..,"2단계":..,"3단계":..}})로 직렬화된다({@link LinkedHashMap} — 입력 순서 보존).
+     *
+     * <p><b>하위호환(HIGH)</b> — 과거 동결본은 {@code cot} 이 배열({@code List<String>})이었다. 저장된
+     * 배열 cot 을 조회/재직렬화 경로({@link EventAnnotationPayload#fromJson})가 이 DTO 로 역직렬화할 때
+     * 예외(500)가 나지 않도록 {@link CotDeserializer} 가 배열도 관용 흡수(순번 → {@code n단계} 키)한다.
+     * 신규 저장분부터 객체 형태로 굳는다(배열 동결본 백필은 out of scope).
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record CaptionCandidate(
             @Size(max = MAX_TEXT) @JsonProperty("caption_text") String captionText,
-            @Size(max = MAX_COT_STEPS) @JsonProperty("cot") List<@Size(max = MAX_COT_STEP) String> cot
+            @Size(max = MAX_COT_STEPS)
+            @JsonProperty("cot")
+            @JsonDeserialize(using = CotDeserializer.class)
+            Map<@Size(max = MAX_KEY) String, @Size(max = MAX_COT_STEP) String> cot
     ) {
+    }
+
+    /**
+     * cot 관용 역직렬화기(하위호환) — 객체·배열 두 형태를 모두 {@link LinkedHashMap} 으로 흡수한다.
+     *
+     * <ul>
+     *   <li>객체({@code {"1단계":..}}) — 신규 정본 형태. 키·순서 보존.</li>
+     *   <li>배열({@code ["..",".."]}) — 과거 동결본. 순번 1..n → {@code n단계} 키로 변환(500 방지).</li>
+     *   <li>기타 스칼라 — 단일 {@code 1단계} 로 흡수(fail-secure).</li>
+     * </ul>
+     * 명시적 형태 분기만 사용하며 다형성 역직렬화(@JsonTypeInfo 등)는 쓰지 않는다.
+     */
+    static final class CotDeserializer extends JsonDeserializer<Map<String, String>> {
+        @Override
+        public Map<String, String> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+            JsonNode node = p.readValueAsTree();
+            if (node == null || node.isNull()) {
+                return null;
+            }
+            Map<String, String> steps = new LinkedHashMap<>();
+            if (node.isObject()) {
+                node.fields().forEachRemaining(e ->
+                        steps.put(e.getKey(), e.getValue().isNull() ? null : e.getValue().asText()));
+            } else if (node.isArray()) {
+                int i = 1;
+                for (JsonNode v : node) {
+                    steps.put(i + COT_STEP_SUFFIX, v.isNull() ? null : v.asText());
+                    i++;
+                }
+            } else {
+                steps.put(1 + COT_STEP_SUFFIX, node.asText());
+            }
+            return steps;
+        }
     }
 
     /** evidence 후보(c1..cn): evidence_text + 프레임/객체 근거. */

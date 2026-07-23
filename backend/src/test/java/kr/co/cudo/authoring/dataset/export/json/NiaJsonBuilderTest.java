@@ -153,7 +153,7 @@ class NiaJsonBuilderTest {
     // ---------- VideoMetaMapper / NiaJsonBuilder ----------
 
     @Test
-    @DisplayName("미보유_필수video필드(pixel·cctv_azimuth·weather)는_null키로_유지된다")
+    @DisplayName("미보유_필수video필드(pixel·cctv_azimuth·weather·vd_description)는_null키로_유지된다")
     void missingVideoFieldsRetainedAsNullKeys() throws Exception {
         // given
         NiaAnnotationDoc doc = buildDoc(ExportKind.ORIGINAL);
@@ -168,8 +168,51 @@ class NiaJsonBuilderTest {
         assertThat(video.get("cctv_azimuth").isNull()).isTrue();
         assertThat(video.has("weather")).isTrue();
         assertThat(video.get("weather").isNull()).isTrue();
-        assertThat(video.has("cto")).isTrue();
-        assertThat(video.get("cto").isNull()).isTrue();
+        assertThat(video.has("vd_description")).isTrue();
+        assertThat(video.get("vd_description").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("정본샘플_정합_video블록에_잉여키(orign_filename·cto·vqa)부재_vd_description존재")
+    void videoBlockMatchesSampleSchema() {
+        // given / when
+        JsonNode video = objectMapper.valueToTree(buildDoc(ExportKind.ORIGINAL)).get("video");
+
+        // then — 제거된 잉여키 부재 + 신규 vd_description 존재(정본 샘플 정합)
+        assertThat(video.has("orign_filename")).isFalse();
+        assertThat(video.has("cto")).isFalse();
+        assertThat(video.has("vqa")).isFalse();
+        assertThat(video.has("vd_description")).isTrue();
+        // 유지되어야 하는 핵심 키
+        assertThat(video.has("filename")).isTrue();
+        assertThat(video.has("event_log")).isTrue();
+    }
+
+    @Test
+    @DisplayName("정본샘플_정합_image블록에_잉여키(orign_file_name)부재")
+    void imageBlockMatchesSampleSchema() {
+        // given / when
+        JsonNode image = objectMapper.valueToTree(buildDoc(ExportKind.ORIGINAL)).get("image");
+
+        // then — orign_file_name 제거(정본 샘플에 없음), file_name 은 유지
+        assertThat(image.has("orign_file_name")).isFalse();
+        assertThat(image.has("file_name")).isTrue();
+    }
+
+    @Test
+    @DisplayName("최상위_VLM블록키는_event이고_event_annotation키는_부재_위치는_video다음")
+    void topLevelVlmKeyIsEventAfterVideo() {
+        // given / when
+        JsonNode json = objectMapper.valueToTree(buildDoc(ExportKind.ORIGINAL));
+
+        // then — 키 이름은 event, 구 event_annotation 부재
+        assertThat(json.has("event")).isTrue();
+        assertThat(json.has("event_annotation")).isFalse();
+
+        // and — 위치는 video 다음(현행 순서 유지). 최상위 필드 순서로 확인
+        List<String> keys = new ArrayList<>();
+        json.fieldNames().forEachRemaining(keys::add);
+        assertThat(keys.indexOf("event")).isEqualTo(keys.indexOf("video") + 1);
     }
 
     @Test
@@ -205,7 +248,7 @@ class NiaJsonBuilderTest {
     }
 
     @Test
-    @DisplayName("event_annotation이_각_프레임_최상위에_c1cn_형태로_pass_through된다")
+    @DisplayName("event가_각_프레임_최상위에_c1cn_형태로_pass_through된다")
     void eventAnnotationPassThroughAsC1Form() throws Exception {
         // given — 동결 event_annotation payload(위키 §24.3.1 — 후보 키 c1..cn, caption/evidence)
         String frozen = "{"
@@ -226,9 +269,9 @@ class NiaJsonBuilderTest {
                 new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
         JsonNode json = objectMapper.valueToTree(doc);
 
-        // then — 최상위 event_annotation 키 + 원문 형태(c1/caption_text/cot/evidence) 보존
-        assertThat(json.has("event_annotation")).isTrue();
-        JsonNode ea = json.get("event_annotation");
+        // then — 최상위 event 키(정본 샘플) + 원문 형태(c1/caption_text/cot/evidence) 보존
+        assertThat(json.has("event")).isTrue();
+        JsonNode ea = json.get("event");
         assertThat(ea.path("event_class").asText()).isEqualTo("assault");
         assertThat(ea.path("caption").has("c1")).isTrue();
         assertThat(ea.path("caption").path("c1").path("caption_text").asText()).isEqualTo("두 사람이 다툰다");
@@ -241,14 +284,14 @@ class NiaJsonBuilderTest {
     }
 
     @Test
-    @DisplayName("동결_event_annotation이_없으면_event_annotation키는_null이다")
+    @DisplayName("동결_event가_없으면_event키는_null이다")
     void eventAnnotationNullWhenAbsent() {
         // given / when — eventAnnotation 미주입(3-arg 오버로드 → null)
         JsonNode json = objectMapper.valueToTree(buildDoc(ExportKind.ORIGINAL));
 
         // then — 키는 항상 present(자기완결), 값만 null (클래스 ALWAYS 정책)
-        assertThat(json.has("event_annotation")).isTrue();
-        assertThat(json.get("event_annotation").isNull()).isTrue();
+        assertThat(json.has("event")).isTrue();
+        assertThat(json.get("event").isNull()).isTrue();
     }
 
     @Test
@@ -278,7 +321,8 @@ class NiaJsonBuilderTest {
         assertThat(ann.has("image_id")).isTrue();
 
         assertThat(json.get("info").has("date_created")).isTrue();
-        assertThat(json.get("video").has("orign_filename")).isTrue();
+        assertThat(json.get("video").has("time_of_day")).isTrue();
+        assertThat(json.get("video").has("event_log")).isTrue();
     }
 
     @Test
@@ -313,9 +357,9 @@ class NiaJsonBuilderTest {
     }
 
     @Test
-    @DisplayName("orign_file_name이_kind별로_다른_소스경로를_반영한다")
-    void orignFileNameReflectsKindSpecificSourcePath() {
-        // given — raw/deid 프레임 파일명을 서로 다르게 세팅
+    @DisplayName("image블록은_kind무관_file_name만_보유하고_소스경로를_노출하지_않는다")
+    void imageBlockCarriesNoSourcePath() throws Exception {
+        // given — raw/deid 프레임 파일명을 서로 다르게 세팅(경로 누수 여부 검증)
         LsDataSrc src = LsDataSrc.create(42L, 5L, "/nas/frames/raw/42/orig-5.jpg",
                 LocalDateTime.of(2026, 3, 3, 10, 0, 5));
         src.attachDeidPath("/nas/frames/deid/42/deid-5.jpg");
@@ -330,10 +374,13 @@ class NiaJsonBuilderTest {
         NiaAnnotationDoc deid = builder.build(ctx,
                 new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.DEIDENTIFIED);
 
-        // then — ORIGINAL=원본경로 basename, DEIDENTIFIED=비식별경로 basename (원본경로 미노출)
-        assertThat(original.image().orignFileName()).isEqualTo("orig-5.jpg");
-        assertThat(deid.image().orignFileName()).isEqualTo("deid-5.jpg");
-        assertThat(deid.image().orignFileName()).isNotEqualTo(original.image().orignFileName());
+        // then — orign_file_name 제거 후 image.file_name 은 kind 무관(frame-N.jpg)이며 소스 경로가 새지 않는다
+        assertThat(original.image().fileName()).isEqualTo("frame-5.jpg");
+        assertThat(deid.image().fileName()).isEqualTo(original.image().fileName());
+        String origJson = objectMapper.valueToTree(original).get("image").toString();
+        String deidJson = objectMapper.valueToTree(deid).get("image").toString();
+        assertThat(origJson).doesNotContain("/nas/frames/");
+        assertThat(deidJson).doesNotContain("/nas/frames/");
     }
 
     @Test
@@ -370,9 +417,8 @@ class NiaJsonBuilderTest {
         String deidVideoPath = "/nas/deid/42/deidentified.mp4";
         NiaAnnotationDoc deid = buildDoc(ExportKind.DEIDENTIFIED, deidVideoPath);
 
-        // then — video.filename/orign_filename 은 비식별 파일명, 원본 파일명("original.mp4") 미노출
+        // then — video.filename 은 비식별 파일명, 원본 파일명("original.mp4") 미노출
         assertThat(deid.video().filename()).isEqualTo("deidentified.mp4");
-        assertThat(deid.video().orignFilename()).isEqualTo("deidentified.mp4");
         assertThat(deid.video().filename()).isNotEqualTo("original.mp4");
     }
 
@@ -386,7 +432,6 @@ class NiaJsonBuilderTest {
         assertThat(deid.dataset().srcPath()).isNull();
         assertThat(deid.dataset().name()).isNull();
         assertThat(deid.video().filename()).isNull();
-        assertThat(deid.video().orignFilename()).isNull();
         // 문서 전체 직렬화에도 원본 raw 경로 문자열이 등장하지 않는다(경로 누수 종합 가드).
         String json = objectMapper.writeValueAsString(deid);
         assertThat(json).doesNotContain("/nas/raw/42/original.mp4");

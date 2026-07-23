@@ -102,8 +102,7 @@ class Sam2TrackServiceTest {
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, exp);
         workerAssigned = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, exp);
         workerNotAssigned = new TokenClaims("101", Role.WORKER, Channel.INTERNAL, exp);
-
-        when(labelMasterService.findLabelIdByName(any())).thenReturn(Optional.empty());
+        // Sam2TrackService 는 라벨 매핑을 사용하지 않음 — labelMasterService 스텁 불필요(제거).
     }
 
     @AfterEach

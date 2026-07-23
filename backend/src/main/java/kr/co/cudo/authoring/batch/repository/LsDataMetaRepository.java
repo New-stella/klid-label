@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 @ControlRepo
-public interface LsDataMetaRepository extends JpaRepository<LsDataMeta, Long> {
+public interface LsDataMetaRepository extends JpaRepository<LsDataMeta, Long>, LsDataMetaRepositoryCustom {
 
     List<LsDataMeta> findByRawSn(Long rawSn);
 

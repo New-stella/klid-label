@@ -11,9 +11,9 @@ import { resolveDefaultLabel } from '../resolveDefaultLabel';
 import type { LabelMaster } from '../../../api/labelMaster';
 
 const labels: LabelMaster[] = [
-  { labelId: 5, name: '자전거', color: '#10B981', type: 'BBOX', sortNo: 3, useYn: 'Y' },
-  { labelId: 1, name: '사람', color: '#EF4444', type: 'BBOX', sortNo: 1, useYn: 'Y' },
-  { labelId: 2, name: '차량', color: '#3B82F6', type: 'BBOX', sortNo: 2, useYn: 'Y' },
+  { labelId: 5, name: '자전거', color: '#10B981', type: 'BBOX', sortNo: 3, useYn: 'Y', dtctTypeCd: null },
+  { labelId: 1, name: '사람', color: '#EF4444', type: 'BBOX', sortNo: 1, useYn: 'Y', dtctTypeCd: null },
+  { labelId: 2, name: '차량', color: '#3B82F6', type: 'BBOX', sortNo: 2, useYn: 'Y', dtctTypeCd: null },
 ];
 
 describe('resolveDefaultLabel', () => {
@@ -41,8 +41,8 @@ describe('resolveDefaultLabel', () => {
 
   it('useYn=N_라벨은_제외', () => {
     const withInactive: LabelMaster[] = [
-      { labelId: 1, name: '사람', color: '#EF4444', type: 'BBOX', sortNo: 1, useYn: 'N' },
-      { labelId: 2, name: '차량', color: '#3B82F6', type: 'BBOX', sortNo: 2, useYn: 'Y' },
+      { labelId: 1, name: '사람', color: '#EF4444', type: 'BBOX', sortNo: 1, useYn: 'N', dtctTypeCd: null },
+      { labelId: 2, name: '차량', color: '#3B82F6', type: 'BBOX', sortNo: 2, useYn: 'Y', dtctTypeCd: null },
     ];
     const r = resolveDefaultLabel(withInactive, null);
     expect(r?.labelId).toBe(2);

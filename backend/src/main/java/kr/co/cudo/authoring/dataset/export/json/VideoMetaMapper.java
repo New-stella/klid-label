@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 /**
  * {@link LsDatasetVideoMeta}(+ 선택적 {@link LsDataRaw} 폴백) → {@link NiaVideo} 순수 매퍼.
  *
- * <p>미보유 필수 필드(pixel, cctv_height, cctv_azimuth, og_cd, cto, vqa, event_log, frames,
+ * <p>미보유 필수 필드(pixel, cctv_height, cctv_azimuth, og_cd, event_log, vd_description, frames,
  * type, license_id, cctv_mng_no)는 null 로 두되 {@link NiaVideo} 의 ALWAYS 포함으로 키를 유지한다.
  *
  * <p>{@link ExportKind} 별 {@code anonymity} 오버라이드: ORIGINAL→"N", DEIDENTIFIED→"Y".
@@ -43,8 +43,8 @@ public class VideoMetaMapper {
         String prvcTypeCd = firstNonNull(meta.getPrvcTypeCd(), raw == null ? null : raw.getPrvcTypeCd());
         String prvcYn = firstNonNull(meta.getPrvcYn(), raw == null ? null : raw.getPrvcYn());
 
-        // kind 별 영상 경로: ORIGINAL=원본 raw, DEIDENTIFIED=비식별 경로. filename/orign_filename 은
-        // 이 경로의 basename 이며, deid 경로 미상이면 null 로 두어 원본 파일명 노출을 막는다(fail-secure).
+        // kind 별 영상 경로: ORIGINAL=원본 raw, DEIDENTIFIED=비식별 경로. filename 은 이 경로의
+        // basename 이며, deid 경로 미상이면 null 로 두어 원본 파일명 노출을 막는다(fail-secure).
         String kindVideoPath = (kind == ExportKind.ORIGINAL) ? rawPath : deidVideoPath;
         String basename = basename(kindVideoPath);
         String anonymity = (kind == ExportKind.ORIGINAL) ? NO : YES;
@@ -53,7 +53,6 @@ public class VideoMetaMapper {
         return new NiaVideo(
                 rawSn == null ? null : String.valueOf(rawSn),        // id
                 basename,                                            // filename
-                basename,                                            // orign_filename
                 shtDt == null ? null : shtDt.toLocalDate().toString(), // date_created (YYYY-MM-DD)
                 null,                                                // type (미보유)
                 meta.getFileFmt(),                                   // format
@@ -83,9 +82,8 @@ public class VideoMetaMapper {
                 meta.getEvntNm(),                                    // event_name
                 meta.getDayNgtCd(),                                  // time_of_day
                 meta.getSesnCd(),                                    // season
-                null,                                                // cto (미보유)
-                null,                                                // vqa (미보유)
-                null                                                 // event_log (미보유)
+                null,                                                // event_log (미보유)
+                null                                                 // vd_description (미보유 — 데이터 출처 없음)
         );
     }
 

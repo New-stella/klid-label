@@ -98,7 +98,9 @@ public class LsBatchProcLog {
     }
 
     public void fail(Throwable cause) {
-        this.procStepCd = BatchStage.FAILED.name();
+        // PROC_STEP_CD(실패 단계)는 보존한다 — 진행률 화면이 "어느 단계에서 실패했는지"를
+        // 표시하려면 실패 시점의 단계가 필요하다. 실패 여부는 PROC_STTS_CD='FAILED' 로 판정한다.
+        // (구: procStepCd 를 FAILED 로 덮어써 실패 단계 정보가 소실됐다.)
         this.procSttsCd = "FAILED";
         this.errorCd = cause.getClass().getSimpleName();
         this.errorMsg = cause.getMessage();

@@ -13,7 +13,9 @@ public record LabelMasterResponse(
         String color,
         String type,
         Integer sortNo,
-        String useYn
+        String useYn,
+        /** AI(COCO) 검출 클래스 매핑 — null=미매핑. */
+        String dtctTypeCd
 ) {
 
     /** Entity → Response 변환 정적 팩토리. */
@@ -24,7 +26,8 @@ public record LabelMasterResponse(
                 e.getColrVl(),
                 e.getLabelTypeCd(),
                 e.getSortSeq(),
-                e.getUseYn()
+                e.getUseYn(),
+                e.getDtctTypeCd()
         );
     }
 }

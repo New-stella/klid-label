@@ -139,7 +139,6 @@ public class NiaJsonBuilder {
         Integer imageId = (src.getSrcSn() == null) ? null : src.getSrcSn().intValue();
         Long frameNo = src.getFrameNo();
         String fileName = (frameNo == null) ? null : "frame-" + frameNo + ".jpg";
-        String kindPath = (kind == ExportKind.ORIGINAL) ? src.getSrcFilePathNm() : src.getDeidFilePath();
         String anonymity = (kind == ExportKind.ORIGINAL) ? "N" : "Y";
 
         LsDatasetVideoMeta meta = ctx.meta();
@@ -148,7 +147,6 @@ public class NiaJsonBuilder {
         return new NiaImage(
                 imageId,
                 fileName,
-                basename(kindPath),
                 meta.getVdoWdth(),
                 meta.getVdoHgt(),
                 src.getShtDt() == null ? null : src.getShtDt().toString(),

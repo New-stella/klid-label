@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
 import { MarkingTimeline } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
@@ -155,7 +156,15 @@ export function MarkingPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
-      <h1 className="text-lg font-semibold">마킹 — 영상 #{rawSn}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold">마킹 — 영상 #{rawSn}</h1>
+        {/* 배치 단계 진행 표시 — BE stages 있으면 노출, 없으면 미표시(하위호환). */}
+        {videoDetail?.stages && videoDetail.stages.length > 0 && (
+          <div className="overflow-x-auto">
+            <BatchStageIndicator stages={videoDetail.stages} />
+          </div>
+        )}
+      </div>
 
       {videoSrc ? (
         <VideoPlayer

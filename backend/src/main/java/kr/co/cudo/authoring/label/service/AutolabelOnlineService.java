@@ -69,6 +69,14 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class AutolabelOnlineService {
 
+    /**
+     * 매핑된 검출 클래스가 없어 검출을 수행하지 않았을 때 FE 안내(자동적용 차단 신호). 컨트롤러가
+     * {@code ApiResponse.message} 에 실어 정상 "0건 검출" 과 구분한다 — 매핑된 라벨만 실제 검출되므로,
+     * 라벨 관리에서 COCO 매핑을 먼저 지정해야 함을 안내한다.
+     */
+    static final String NO_MAPPED_CLASS_MESSAGE =
+            "검출할 수 있는 라벨이 없습니다. 라벨 관리에서 AI 검출 클래스를 매핑해 주세요.";
+
     /** SystemConfig 조회 실패 시 폴백 — YoloAutolabelStep 과 동일. */
     private static final double DEFAULT_CONF_THRESHOLD = 0.4;
     private static final int DEFAULT_IMGSZ = 1280;
@@ -190,9 +198,22 @@ public class AutolabelOnlineService {
             // 원본 프레임 이미지를 1회 인코딩 — YOLO + (폴리곤 경로) SAM 이 공유(중복 인코딩 방지).
             String imageB64 = frameImageEncoder.encodeToBase64(src.getSrcFilePathNm());
 
-            // 4) ai-server YOLO 추론 (원본 프레임) — 트랜잭션 밖·bulkhead 제한. DB 커넥션 미점유.
-            //    classes 지정 시 ai-server 가 해당 클래스만 검출(R3 AC3). null/빈 이면 전체.
-            YoloResponse resp = callYolo(src, rawSn, imageB64, normalizeClasses(classes), confThreshold);
+            // 4) 검출 대상 재구성(HIGH#1, 신뢰 경계) — FE 가 보낸 classes 를 신뢰하지 않고, 서버가
+            //    '매핑된 라벨(DTCT_TYPE_CD) → COCO' 조회 결과로 검출 대상을 재구성한다. 미매핑/미지원 값은
+            //    제외(WARN)하며, 매핑된 라벨이 없거나 요청이 전부 미매핑이면 ai 호출 없이 빈 결과를 반환한다
+            //    (매핑된 라벨만 실제 검출 — 미매핑 우회 차단).
+            List<String> effectiveClasses = resolveDetectClasses(classes);
+            if (effectiveClasses.isEmpty()) {
+                reCheckLock(rawSn);
+                log.info("[Autolabel] no mapped detect classes srcSn={} rawSn={} requested={} actor={}",
+                        srcSn, rawSn, classes == null ? 0 : classes.size(), actorId(actor));
+                return new AutolabelOutcome(new AutolabelResponse(srcSn, 0, List.of()), false,
+                        NO_MAPPED_CLASS_MESSAGE);
+            }
+
+            // ai-server YOLO 추론 (원본 프레임) — 트랜잭션 밖·bulkhead 제한. DB 커넥션 미점유.
+            // 재구성된 매핑 클래스만 전달 → ai-server 가 해당 클래스만 검출(R3 AC3).
+            YoloResponse resp = callYolo(src, rawSn, imageB64, effectiveClasses, confThreshold);
             boolean mock = resp != null && resp.mock();
             List<YoloResponse.Detection> detections =
                     (resp == null || resp.detections() == null) ? List.of() : resp.detections();
@@ -287,7 +308,7 @@ public class AutolabelOnlineService {
                 validatePolygonPoints(seg.polygon());
                 // 경계 세밀함(FEAT-007) — 검증 통과 후 Douglas-Peucker 단순화(3점 미만이면 원본 유지).
                 List<List<Double>> polygon = simplifyPolygon(seg.polygon(), simplifyTolerance);
-                Long labelId = labelMasterService.findLabelIdByName(d.label()).orElse(null);
+                Long labelId = labelMasterService.findLabelIdByDtctType(d.label()).orElse(null);
                 items.add(new AutolabelResponse.Item(
                         null, labelId, d.label(), null, clampScore(d.score()), d.trackId(),
                         AutolabelShape.POLYGON.name(), polygon));
@@ -353,7 +374,7 @@ public class AutolabelOnlineService {
     private List<AutolabelResponse.Item> toItems(List<YoloResponse.Detection> detections) {
         List<AutolabelResponse.Item> items = new ArrayList<>(detections.size());
         for (YoloResponse.Detection d : detections) {
-            Long labelId = labelMasterService.findLabelIdByName(d.label()).orElse(null);
+            Long labelId = labelMasterService.findLabelIdByDtctType(d.label()).orElse(null);
             items.add(new AutolabelResponse.Item(
                     null, labelId, d.label(), d.points(), clampScore(d.score()), d.trackId()));
         }
@@ -374,11 +395,35 @@ public class AutolabelOnlineService {
     }
 
     /**
-     * null/빈 리스트를 전체(미필터) 신호인 null 로 정규화 — ai-server 로 빈 배열이 전달돼 전부 제외되는
-     * footgun 을 BE 단에서도 차단(FE·ai-server 와 동일 규칙).
+     * 검출 대상 클래스 재구성(HIGH#1/#8, 신뢰 경계) — FE 요청을 그대로 신뢰하지 않고 서버가 재검증한다.
+     *
+     * <p>규칙:
+     * <ul>
+     *   <li>서버가 '활성 라벨의 COCO 매핑'({@link LabelMasterService#mappedDetectClasses()})을 allowlist 로 삼는다.</li>
+     *   <li>요청 classes 가 비어있으면(전체 선택) → 매핑된 전체 클래스로 검출(매핑된 라벨만 검출 강제).</li>
+     *   <li>요청 classes 가 있으면 → 매핑 allowlist 와 교집합만 남기고, 미매핑/미지원 값은 제외(WARN).</li>
+     *   <li>결과가 비면(매핑 라벨 없음 또는 요청 전부 미매핑) → 빈 리스트(호출자가 ai 호출 없이 빈 결과 반환).</li>
+     * </ul>
      */
-    private List<String> normalizeClasses(List<String> classes) {
-        return (classes == null || classes.isEmpty()) ? null : classes;
+    private List<String> resolveDetectClasses(List<String> requested) {
+        Set<String> mapped = labelMasterService.mappedDetectClasses();
+        if (mapped.isEmpty()) {
+            return List.of();
+        }
+        if (requested == null || requested.isEmpty()) {
+            return new ArrayList<>(mapped);
+        }
+        List<String> allowed = new ArrayList<>(requested.size());
+        for (String c : requested) {
+            String trimmed = c == null ? null : c.trim();
+            if (trimmed != null && mapped.contains(trimmed)) {
+                allowed.add(trimmed);
+            } else {
+                // 미매핑/미지원 요청 클래스 — 제외(WARN, 로그 위조 방지 sanitize).
+                log.warn("[Autolabel] drop unmapped detect class={}", LogSanitizer.sanitize(trimmed));
+            }
+        }
+        return allowed;
     }
 
     /**

@@ -48,7 +48,7 @@ class LsEvntAnnoPersistenceIntegrationTest {
         return new EventAnnotationPayload(
                 "INTRUSION", "무슨 일이 발생했는가?",
                 Map.of("c1", new CaptionCandidate("담을 넘는 인물",
-                        List.of("1단계 인물탐지", "2단계 근접", "3단계 월담"))),
+                        Map.of("1단계", "인물탐지", "2단계", "근접", "3단계", "월담"))),
                 "무단 침입",
                 Map.of("c1", new EvidenceCandidate("프레임 10~12", List.of(10, 11, 12),
                         List.of("obj-1"), List.of(List.of(0.1, 0.2, 0.5, 0.8)), List.of("person")))
@@ -104,7 +104,7 @@ class LsEvntAnnoPersistenceIntegrationTest {
         // given: 4000자를 크게 초과하는 caption(jsonb 는 길이 제한 없음)
         String huge = "가".repeat(6000);
         String payloadJson = new EventAnnotationPayload(
-                "INTRUSION", "q", Map.of("c1", new CaptionCandidate(huge, List.of("s1"))), "a", null).toJson();
+                "INTRUSION", "q", Map.of("c1", new CaptionCandidate(huge, Map.of("1단계", "s1"))), "a", null).toJson();
         assertThat(payloadJson.length()).isGreaterThan(4000);
         Long rawSn = newRawSn();
 

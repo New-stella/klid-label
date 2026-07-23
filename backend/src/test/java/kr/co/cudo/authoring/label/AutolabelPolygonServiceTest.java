@@ -99,7 +99,9 @@ class AutolabelPolygonServiceTest {
         when(accessGuard.verifyAndGet(eq(SRC_SN), any())).thenReturn(src);
         when(frameImageEncoder.encodeToBase64(anyString())).thenReturn("BASE64IMG");
         when(systemConfigService.getInt(any())).thenReturn(null);       // conf/imgsz/iou/max-boxes fallback
-        when(labelMasterService.findLabelIdByName(anyString())).thenReturn(Optional.empty());
+        when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
+        when(labelMasterService.mappedDetectClasses())
+                .thenReturn(new java.util.LinkedHashSet<>(java.util.List.of("person")));
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(false);
 
         worker = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -181,6 +183,10 @@ class AutolabelPolygonServiceTest {
     @Test
     @DisplayName("클래스_필터가_폴리곤_경로에도_반영된다")
     void classesForwardedInPolygon() {
+        // 신뢰 경계(HIGH#1): FE 요청 classes 는 그대로 신뢰되지 않고 '매핑된 라벨(DTCT_TYPE_CD)' 과의
+        // 교집합만 ai-server 로 전달된다. 요청 person/car 가 모두 검출 클래스로 매핑돼 있어야 둘 다 전달된다.
+        when(labelMasterService.mappedDetectClasses())
+                .thenReturn(new java.util.LinkedHashSet<>(java.util.List.of("person", "car")));
         stubYolo(detections(1));
         stubSam(samPolygon());
         ArgumentCaptor<YoloTrackRequest> cap = ArgumentCaptor.forClass(YoloTrackRequest.class);

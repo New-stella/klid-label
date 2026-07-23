@@ -17,7 +17,11 @@ import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.eventtype.service.EventTypeService;
+import kr.co.cudo.authoring.label.dto.LabelMasterResponse;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
+import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
+import kr.co.cudo.authoring.preset.repository.LsLabelPresetRepository;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -81,7 +85,7 @@ class YoloAutolabelStepTest {
         // SystemConfigService 기본은 모든 키 조회 시 null 반환 → fallback 기본값(40, 1280, 50) 사용.
         when(systemConfigService.getInt(any())).thenReturn(null);
         // LabelMasterService 기본은 미매핑 (Optional.empty) — 개별 테스트가 필요 시 override.
-        when(labelMasterService.findLabelIdByName(anyString())).thenReturn(Optional.empty());
+        when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
         // Phase 6 — save() 후 LsDataLblAiInfo.create(savedLabel.getLblSn(), ...) 호출되므로 lblSn 부여 필수.
         when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
             LsDataLbl arg = inv.getArgument(0);
@@ -675,7 +679,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
-        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(1L));
+        when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(Optional.of(1L));
 
         step.run(100L);
 
@@ -693,7 +697,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("rare_label_unknown", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
-        // 기본 stub: findLabelIdByName(anyString()) → Optional.empty() (setUp 에서 설정)
+        // 기본 stub: findLabelIdByDtctType(anyString()) → Optional.empty() (setUp 에서 설정)
 
         step.run(101L);
 
@@ -810,9 +814,9 @@ class YoloAutolabelStepTest {
     }
 
     @Test
-    @DisplayName("검출라벨이_마스터명과_매칭되어_labelId가_부여된다")
-    void detectionMatchesMasterNameForLabelId() {
-        // 검출 라벨 "Person" 이 마스터명 축(정규화)에서 토글 조회 + labelId 부여되는 회귀 보존.
+    @DisplayName("검출라벨이_COCO_검출축에서_토글매칭되어_labelId가_부여된다")
+    void detectionMatchesDtctTypeAxisForLabelId() {
+        // 검출 라벨 "Person" 이 COCO 검출축(정규화)에서 토글 조회 + labelId 부여되는 회귀 보존.
         LsDataRaw rawMock = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(203L)).thenReturn(Optional.of(rawMock));
         when(presetLabelLookup.togglesFor("EVT_FALL"))
@@ -822,13 +826,68 @@ class YoloAutolabelStepTest {
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("Person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
-        when(labelMasterService.findLabelIdByName("Person")).thenReturn(Optional.of(1L));
+        when(labelMasterService.findLabelIdByDtctType("Person")).thenReturn(Optional.of(1L));
 
         step.run(203L);
 
         ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
         assertThat(captor.getValue().getLabelId()).isEqualTo(1L);
+    }
+
+    // ─── Phase 4 DEV_FIX: 배치 오토라벨 preset toggle 축을 COCO(DTCT_TYPE_CD)로 정렬 (통합) ───
+
+    @Test
+    @DisplayName("한글마스터명_사람_dtctType_person_preset구성시_배치가_검출을_정상저장하고_labelId귀속_및_SAM2hint전파")
+    void koreanMasterWithCocoDtctTypePresetSavesDetectionsEndToEnd() {
+        // given — 실제 PresetLabelLookupService 로 togglesFor 축 계산까지 관통 검증(mock 우회 금지).
+        // 한글 마스터명("사람"/"차량") + COCO 매핑(dtctType person/car) + preset 구성.
+        String evCode = "EV01000102";
+        String categoryKey = "010001";
+        LsLabelPresetRepository presetRepository = mock(LsLabelPresetRepository.class);
+        EventTypeService eventTypeService = mock(EventTypeService.class);
+        when(eventTypeService.categoryKeyOf(evCode)).thenReturn(Optional.of(categoryKey));
+        // 사람=BBOX(dtctType person), 차량=POLYGON(dtctType car) 두 코드로 프리셋 구성.
+        LsLabelPreset preset = LsLabelPreset.createWithOptions(
+                "침수 프리셋", "flood",
+                List.of(new LsLabelPreset.LabelCodeSpec(1L, null),
+                        new LsLabelPreset.LabelCodeSpec(2L, null)),
+                categoryKey);
+        when(presetRepository.findByEventTypeCd(categoryKey)).thenReturn(Optional.of(preset));
+        when(labelMasterService.findActiveByIds(any())).thenReturn(Map.of(
+                1L, new LabelMasterResponse(1L, "사람", "#112233", "BBOX", 0, "Y", "person"),
+                2L, new LabelMasterResponse(2L, "차량", "#112233", "POLYGON", 0, "Y", "car")));
+        PresetLabelLookupService realLookup =
+                new PresetLabelLookupService(presetRepository, eventTypeService, labelMasterService);
+
+        YoloAutolabelStep realStep = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
+                aiInfoRepository, videoRepository, realLookup, systemConfigService, labelMasterService,
+                new ObjectMapper(), tempDir.resolve("raw").toString());
+
+        LsDataRaw rawMock = rawWithEvent(evCode);
+        when(videoRepository.findById(300L)).thenReturn(Optional.of(rawMock));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(300L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
+                        new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
+                ))));
+        when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(Optional.of(1L));
+        when(labelMasterService.findLabelIdByDtctType("car")).thenReturn(Optional.of(2L));
+
+        // when
+        List<BbHint> hints = realStep.run(300L);
+
+        // then — 수정 전(라벨명축)엔 togglesFor 키가 "사람"/"차량"이라 검출 person/car 가 map miss →
+        // 전량 무음 드롭(save 0건, hints 0건)으로 RED. 수정 후(COCO축)엔 정상 저장/전파.
+        // 사람=BBOX → BBOX 1건 저장(labelId=1), 차량=POLYGON → SAM2 hint 전파(car).
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isEqualTo(1L);
+        assertThat(captor.getValue().getLblTypeCd()).isEqualTo("BBOX");
+        // SAM2 로 전달되는 POLYGON 힌트(차량=car) 전파 확인.
+        assertThat(hints).hasSize(1);
+        assertThat(hints.get(0).label()).isEqualTo("car");
     }
 
     @Test
@@ -840,7 +899,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
-        when(labelMasterService.findLabelIdByName("person")).thenReturn(Optional.of(1L));
+        when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(Optional.of(1L));
 
         step.run(102L);
 

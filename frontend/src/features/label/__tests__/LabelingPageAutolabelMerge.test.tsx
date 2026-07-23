@@ -83,6 +83,15 @@ describe('LabelingPage — AI 탐지 병합(미저장·PUT 미호출·dirty 보�
       errorCode: null,
     });
     mock.onGet('/manage/labels').reply(200, { success: true, data: [], message: null, errorCode: null });
+    // AI 탐지 팝업 후보 — 매핑된 라벨이 하나 이상 있어야 [일반] 버튼이 활성화된다.
+    mock.onGet('/manage/labels/detect-candidates').reply(200, {
+      success: true,
+      data: [
+        { labelId: 10, name: '사람', color: '#EF4444', type: 'BBOX', dtctTypeCd: 'person' },
+      ],
+      message: null,
+      errorCode: null,
+    });
     mock.onGet('/videos/7/issues').reply(200, { success: true, data: [], message: null, errorCode: null });
     mock.onGet(/\/reviews\/\d+/).reply(200, { success: true, data: null, message: null, errorCode: null });
   });

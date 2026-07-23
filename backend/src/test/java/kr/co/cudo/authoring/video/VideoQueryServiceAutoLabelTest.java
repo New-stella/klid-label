@@ -6,8 +6,11 @@ import kr.co.cudo.authoring.batch.repository.AutoLabelInfoProjection;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.batch.status.BatchStageProgressMapper;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
+import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -21,6 +24,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -34,25 +39,34 @@ class VideoQueryServiceAutoLabelTest {
 
     private VideoRepository videoRepository;
     private LsDataLblRepository lblRepository;
+    private MngResourceCctvRepository cctvRepository;
+    private LsDataSrcRepository srcRepository;
+    private LsRawDataStatusRepository rawDataStatusRepository;
+    private BatchStatusService batchStatusService;
     private VideoQueryService service;
 
     @BeforeEach
     void setUp() {
         videoRepository = mock(VideoRepository.class);
-        MngResourceCctvRepository cctvRepository = mock(MngResourceCctvRepository.class);
-        LsDataSrcRepository srcRepository = mock(LsDataSrcRepository.class);
+        cctvRepository = mock(MngResourceCctvRepository.class);
+        srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
-        LsRawDataStatusRepository rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         LsTaskAssignmentRepository taskAssignmentRepository = mock(LsTaskAssignmentRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
         LsDeidentProcLogRepository deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
+        batchStatusService = mock(BatchStatusService.class);
         service = new VideoQueryService(videoRepository, cctvRepository, srcRepository, lblRepository,
-                rawDataStatusRepository, taskAssignmentRepository, userRepository, deidentProcLogRepository);
+                rawDataStatusRepository, taskAssignmentRepository, userRepository, deidentProcLogRepository,
+                batchStatusService);
     }
 
     private LsDataRaw raw(Long rawSn) {
-        return LsDataRaw.createFromIngest("clip-" + rawSn, "cctv-1", "EVT", "GOV",
+        LsDataRaw entity = LsDataRaw.createFromIngest("clip-" + rawSn, "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_ANONY, "raw/path.mp4", null, 60);
+        // createFromIngest 는 PK(rawSn) 를 세팅하지 않으므로(DB 생성 PK) 테스트에서 명시 주입.
+        org.springframework.test.util.ReflectionTestUtils.setField(entity, "rawSn", rawSn);
+        return entity;
     }
 
     private AutoLabelInfoProjection proj(Long lblSn, String labelNm, String autoLblYn, BigDecimal conf) {
@@ -118,5 +132,50 @@ class VideoQueryServiceAutoLabelTest {
                 .filter(o -> "auto".equals(o.createdBy()))
                 .count();
         assertThat(autoCount).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("getOne_은_BatchStatusService_단계리스트를_stages_로_노출한다")
+    void getOne_exposesStages() {
+        // given — 프레임추출 진행 중(비식별/마킹/VLM 완료)
+        when(videoRepository.findById(9L)).thenReturn(Optional.of(raw(9L)));
+        when(srcRepository.countByRawSn(9L)).thenReturn(0L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9L)).thenReturn(List.of());
+        when(rawDataStatusRepository.findByRawDataIdIn(List.of(9L))).thenReturn(List.of());
+        when(batchStatusService.stagesFor(eq(9L), anyBoolean())).thenReturn(List.of(
+                new BatchStageProgressMapper.StageStatus("DEIDENTIFY", "DONE", null),
+                new BatchStageProgressMapper.StageStatus("MARKING", "DONE", null),
+                new BatchStageProgressMapper.StageStatus("VLM", "DONE", null),
+                new BatchStageProgressMapper.StageStatus("FRAME_EXTRACT", "PROGRESS", null),
+                new BatchStageProgressMapper.StageStatus("YOLO", "PENDING", null),
+                new BatchStageProgressMapper.StageStatus("SAM2", "PENDING", null),
+                new BatchStageProgressMapper.StageStatus("INTERPOLATE", "PENDING", null)));
+
+        // when
+        VideoDetailResponse res = service.getOne(9L);
+
+        // then — canonical 순서·상태가 DTO 로 전달된다
+        assertThat(res.stages()).hasSize(7);
+        assertThat(res.stages().get(3).name()).isEqualTo("FRAME_EXTRACT");
+        assertThat(res.stages().get(3).status()).isEqualTo("PROGRESS");
+        assertThat(res.stages().get(0).status()).isEqualTo("DONE");
+        assertThat(res.stages().get(6).status()).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("getOne_은_단계로그가_없으면_빈_stages_를_반환한다_배지폴백")
+    void getOne_emptyStagesWhenNoLog() {
+        // given — 배치 로그 없음(빈 리스트)
+        when(videoRepository.findById(10L)).thenReturn(Optional.of(raw(10L)));
+        when(srcRepository.countByRawSn(10L)).thenReturn(0L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(10L)).thenReturn(List.of());
+        when(rawDataStatusRepository.findByRawDataIdIn(List.of(10L))).thenReturn(List.of());
+        when(batchStatusService.stagesFor(eq(10L), anyBoolean())).thenReturn(List.of());
+
+        // when
+        VideoDetailResponse res = service.getOne(10L);
+
+        // then — 예외 없이 빈 배열
+        assertThat(res.stages()).isEmpty();
     }
 }

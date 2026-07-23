@@ -10,7 +10,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record NiaImage(
         @JsonProperty("id") Integer id,
         @JsonProperty("file_name") String fileName,
-        @JsonProperty("orign_file_name") String orignFileName,
         @JsonProperty("width") Integer width,
         @JsonProperty("height") Integer height,
         @JsonProperty("date_captured") String dateCaptured,

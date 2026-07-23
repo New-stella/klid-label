@@ -180,7 +180,7 @@ public class Sam2SegmentStep implements BatchStep {
                 // 적재(무제한)와 라벨 저장(1000점 cap)의 정합성 불일치로 인한 저장 차단 회귀 방지.
                 List<List<Double>> capped = capPolygon(resp.polygon());
                 // Phase 6: ai-server 응답 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
-                Long labelId = labelMasterService.findLabelIdByName(job.label).orElse(null);
+                Long labelId = labelMasterService.findLabelIdByDtctType(job.label).orElse(null);
                 log.info("[Batch][Sam2] mapped label name={} labelId={} points={}",
                         LogSanitizer.sanitize(job.label), labelId, capped.size());
                 LsDataLbl savedLabel = lblRepository.save(LsDataLbl.createAutoPolygon(
@@ -262,7 +262,7 @@ public class Sam2SegmentStep implements BatchStep {
         if (rawLabel == null) {
             return null;
         }
-        // Phase 3: 토글 맵 키(마스터 라벨명 정규화)와 동일 규칙으로 검출 라벨을 정규화해 축을 일치시킨다.
+        // Phase 4: 토글 맵 키(마스터 검출유형 DTCT_TYPE_CD, COCO 축 정규화)와 동일 규칙으로 검출 라벨을 정규화해 축을 일치시킨다.
         String normalized = PresetLabelLookupService.normalizeLabelKey(rawLabel);
         return togglesOpt.get().get(normalized);
     }

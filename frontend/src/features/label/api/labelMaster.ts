@@ -28,6 +28,8 @@ export interface LabelMaster {
   type: LabelMasterType;
   sortNo: number;
   useYn: 'Y' | 'N';
+  /** AI(COCO) 검출 클래스 매핑 — 미매핑이면 null. BE `dtctTypeCd`(DTCT_TYPE_CD). */
+  dtctTypeCd: string | null;
 }
 
 /**
@@ -40,6 +42,26 @@ export interface LabelMasterUpsert {
   color: string;
   type: LabelMasterType;
   sortNo: number;
+  /**
+   * AI(COCO) 검출 클래스 매핑 — 선택(미지정=null=미매핑). 지정 시 COCO 80 클래스명(영문).
+   * 값 검증(allowlist)·중복 매핑 409 는 BE 가 최종 판정(신뢰 경계). FE 는 select 로 입력을 제한한다.
+   */
+  dtctTypeCd?: string | null;
+}
+
+/**
+ * AI 탐지 후보 — 활성 라벨 마스터 + COCO 검출 매핑 여부.
+ * 라벨링 화면 'AI 탐지' 팝업이 소비한다. BE `DetectCandidateResponse` 와 정합.
+ */
+export interface DetectCandidate {
+  labelId: number;
+  name: string;
+  color: string;
+  type: LabelMasterType;
+  /** 매핑된 COCO 클래스명(영문). 미매핑이면 null. */
+  dtctTypeCd: string | null;
+  /** COCO 검출 매핑 여부(= dtctTypeCd != null). 선택 가능/불가 판단용. */
+  mapped: boolean;
 }
 
 /** BE 응답 type 을 알려진 카테고리로 정규화. 미지의 값은 BBOX 로 안전 폴백. */
@@ -47,6 +69,12 @@ function normalizeMasterType(raw: unknown): LabelMasterType {
   return (LABEL_MASTER_TYPES as readonly string[]).includes(String(raw))
     ? (String(raw) as LabelMasterType)
     : 'BBOX';
+}
+
+/** COCO 매핑값 정규화 — 문자열이 비어있지 않으면 그대로, 아니면 null(미매핑). */
+function normalizeDtctType(raw: unknown): string | null {
+  const s = raw == null ? '' : String(raw).trim();
+  return s.length > 0 ? s : null;
 }
 
 /** BE 응답 1건을 LabelMaster 로 정규화(누락/이상값 안전 폴백). */
@@ -58,7 +86,32 @@ function normalizeMaster(m: LabelMaster): LabelMaster {
     type: normalizeMasterType(m.type),
     sortNo: Number.isFinite(Number(m.sortNo)) ? Number(m.sortNo) : Number.MAX_SAFE_INTEGER,
     useYn: m.useYn === 'N' ? 'N' : 'Y',
+    dtctTypeCd: normalizeDtctType(m.dtctTypeCd),
   };
+}
+
+/** BE 후보 응답 1건을 DetectCandidate 로 정규화. mapped 는 dtctTypeCd 존재로 파생(서버값 신뢰 안 함). */
+function normalizeCandidate(m: DetectCandidate): DetectCandidate {
+  const dtctTypeCd = normalizeDtctType(m.dtctTypeCd);
+  return {
+    labelId: Number(m.labelId),
+    name: String(m.name ?? ''),
+    color: String(m.color ?? '#94A3B8'),
+    type: normalizeMasterType(m.type),
+    dtctTypeCd,
+    mapped: dtctTypeCd != null,
+  };
+}
+
+/**
+ * AI 탐지 후보 조회 — 활성 라벨 마스터 + COCO 매핑 여부.
+ * GET /manage/labels/detect-candidates (인증된 사용자: REVIEWER + WORKER).
+ */
+export async function fetchDetectCandidates(): Promise<DetectCandidate[]> {
+  const res = await apiClient.get<DetectCandidate[]>('/manage/labels/detect-candidates');
+  const data = res.data;
+  if (!Array.isArray(data)) return [];
+  return data.map(normalizeCandidate);
 }
 
 /**

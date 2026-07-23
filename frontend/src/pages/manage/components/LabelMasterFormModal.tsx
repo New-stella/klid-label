@@ -6,6 +6,7 @@ import {
   type LabelMaster,
   type LabelMasterType,
 } from '@/features/label/api/labelMaster';
+import { COCO_CLASSES } from '@/features/label/constants/cocoClasses';
 import { TYPE_LABEL } from '@/features/label/constants/labelTypes';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
@@ -25,7 +26,12 @@ export interface LabelMasterForm {
   type: LabelMasterType;
   color: string;
   sortNo: number;
+  /** AI(COCO) 검출 클래스 매핑 — 미지정(미매핑)이면 null. BE `dtctTypeCd`(DTCT_TYPE_CD). */
+  dtctTypeCd: string | null;
 }
+
+/** COCO 미지정(미매핑) select 값 — 빈 문자열을 sentinel 로 쓰고 저장 시 null 로 환원. */
+const NO_COCO = '';
 
 export interface FormErrors {
   name?: string;
@@ -34,11 +40,17 @@ export interface FormErrors {
 }
 
 export function emptyForm(sortNo: number): LabelMasterForm {
-  return { name: '', type: 'BBOX', color: DEFAULT_COLOR, sortNo };
+  return { name: '', type: 'BBOX', color: DEFAULT_COLOR, sortNo, dtctTypeCd: null };
 }
 
 export function toForm(m: LabelMaster): LabelMasterForm {
-  return { name: m.name, type: m.type, color: m.color, sortNo: m.sortNo };
+  return {
+    name: m.name,
+    type: m.type,
+    color: m.color,
+    sortNo: m.sortNo,
+    dtctTypeCd: m.dtctTypeCd ?? null,
+  };
 }
 
 /** 클라이언트 사전검증 — name 필수, color HEX 형식, sortNo 정수. */
@@ -121,6 +133,30 @@ export function LabelMasterFormModal({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="label-master-coco" className="text-body font-medium text-gray-700">
+            AI 탐지 클래스 (선택)
+          </label>
+          <select
+            id="label-master-coco"
+            value={form.dtctTypeCd ?? NO_COCO}
+            onChange={(e) =>
+              onPatch({ dtctTypeCd: e.target.value === NO_COCO ? null : e.target.value })
+            }
+            className={`h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
+          >
+            <option value={NO_COCO}>미지정 (AI 탐지 미사용)</option>
+            {COCO_CLASSES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-gray-400">
+            AI 탐지 결과를 이 라벨로 자동 연결합니다. 한 클래스는 하나의 라벨에만 매핑됩니다.
+          </span>
         </div>
 
         <div className="flex flex-col gap-1">

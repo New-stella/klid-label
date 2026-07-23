@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.meta.service.DerivedMetaCopier;
 import kr.co.cudo.authoring.video.service.ResolutionPersistService;
 import kr.co.cudo.authoring.video.service.ResolutionSnapshot;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -67,6 +69,7 @@ class ResolutionPersistServiceTest {
     @Mock LsDataAugRepository augRepository;
     @Mock LsDeidentProcLogRepository deidentProcLogRepository;
     @Mock LsDeidentReportRepository deidentReportRepository;
+    @Mock DerivedMetaCopier derivedMetaCopier;
 
     ResolutionPersistService service;
 
@@ -75,7 +78,10 @@ class ResolutionPersistServiceTest {
     @BeforeEach
     void setup() {
         service = new ResolutionPersistService(videoRepository, srcRepository, lblRepository,
-                lblMapRepository, augRepository, deidentProcLogRepository, deidentReportRepository);
+                lblMapRepository, augRepository, deidentProcLogRepository, deidentReportRepository,
+                derivedMetaCopier);
+        lenient().when(derivedMetaCopier.copyMetaAndReviews(anyLong(), anyLong()))
+                .thenReturn(new DerivedMetaCopier.CopyResult(0, 0));
         ReflectionTestUtils.setField(service, "storageRawPath", base.toString());
     }
 

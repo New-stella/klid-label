@@ -282,18 +282,20 @@ class DatasetExportE2EIT {
                     + "\"evidence\":{\"c1\":{\"evidence_text\":\"주먹\",\"obj_id\":[\"o1\",\"o2\"]}}}";
 
     @Test
-    @DisplayName("export_각_프레임_frameN_json에_최상위_event_annotation_키가_c1cn_형태로_포함된다")
+    @DisplayName("export_각_프레임_frameN_json에_최상위_event_키가_c1cn_형태로_포함된다")
     void exportFramesIncludeTopLevelEventAnnotationC1Form() throws IOException {
         long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명", EVENT_ANNO_PAYLOAD);
 
         exportService.export(rawSn);
 
-        // orgnl/deid 각 프레임 JSON 모두 최상위 event_annotation(동결본 pass-through)을 자기완결로 포함.
+        // orgnl/deid 각 프레임 JSON 모두 최상위 event(동결본 pass-through)을 자기완결로 포함.
+        // (동결본 cot 은 배열 원문 그대로 pass-through — 하위호환: 배열 동결본도 예외 없이 export)
         for (ExportKind kind : List.of(ExportKind.ORIGINAL, ExportKind.DEIDENTIFIED)) {
             for (int i = 0; i < FRAME_COUNT; i++) {
                 JsonNode doc = objectMapper.readTree(
                         versionDir(rawSn, 1, kind).resolve("frame-" + i + ".json").toFile());
-                JsonNode ea = doc.get("event_annotation");
+                assertThat(doc.has("event_annotation")).isFalse();
+                JsonNode ea = doc.get("event");
                 assertThat(ea).isNotNull();
                 assertThat(ea.path("event_class").asText()).isEqualTo("assault");
                 assertThat(ea.path("caption").path("c1").path("caption_text").asText())
@@ -306,7 +308,7 @@ class DatasetExportE2EIT {
     }
 
     @Test
-    @DisplayName("event_annotation_없는_영상_export시_event_annotation키는_null이다")
+    @DisplayName("event_없는_영상_export시_event키는_null이다")
     void exportEventAnnotationNullWhenAbsent() throws IOException {
         long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명"); // evntAnnoCn = null
 
@@ -314,8 +316,8 @@ class DatasetExportE2EIT {
 
         JsonNode doc = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
-        assertThat(doc.has("event_annotation")).isTrue();
-        assertThat(doc.get("event_annotation").isNull()).isTrue();
+        assertThat(doc.has("event")).isTrue();
+        assertThat(doc.get("event").isNull()).isTrue();
     }
 
     @Test

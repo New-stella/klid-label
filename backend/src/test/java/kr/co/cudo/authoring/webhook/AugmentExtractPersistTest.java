@@ -5,15 +5,14 @@ import kr.co.cudo.authoring.augment.entity.LsDataAugLblMap;
 import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcHstryRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.meta.service.DerivedMetaCopier;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.service.AugmentExtractPersist;
@@ -27,7 +26,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -40,13 +38,9 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -57,8 +51,8 @@ import static org.mockito.Mockito.when;
  * 파트 검증을 이관·회귀 보존한다.
  *
  * <p>Phase B 산출 파일(계획의 프레임 스펙) 기준 프레임 INSERT + videoFrameNo 기준 라벨 재매핑 +
- * LS_DATA_AUG_LBL_MAP(RECALC_N) + video.* 제외 메타 upsert + 비식별 완료 불변식 확정을 검증한다.
- * 결과물이 리팩터 전과 동일함을 보증한다.
+ * LS_DATA_AUG_LBL_MAP(RECALC_N) + 메타 복사 위임({@link DerivedMetaCopier}) + 비식별 완료 불변식 확정을
+ * 검증한다. 메타 전체복사(video.* 포함)·검수행 정책 자체는 {@code DerivedMetaCopierTest} 가 소유한다.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -69,9 +63,9 @@ class AugmentExtractPersistTest {
     @Mock LsDataSrcRepository srcRepository;
     @Mock LsDataSrcHstryRepository hstryRepository;
     @Mock LsDataLblRepository lblRepository;
-    @Mock LsDataMetaRepository metaRepository;
     @Mock LsDataAugLblMapRepository augLblMapRepository;
     @Mock LsDeidentProcLogRepository deidentProcLogRepository;
+    @Mock DerivedMetaCopier derivedMetaCopier;
 
     private AugmentExtractPersist persist;
     private final AtomicLong lblSnSeq = new AtomicLong(9000);
@@ -79,7 +73,10 @@ class AugmentExtractPersistTest {
     @BeforeEach
     void setup() {
         persist = new AugmentExtractPersist(videoRepository, augRepository, srcRepository, hstryRepository,
-                lblRepository, metaRepository, augLblMapRepository, deidentProcLogRepository);
+                lblRepository, augLblMapRepository, deidentProcLogRepository, derivedMetaCopier);
+        // 메타 복사는 DerivedMetaCopier 로 위임 — 기본 스텁(로그가 결과 카운트를 읽으므로 non-null 반환).
+        when(derivedMetaCopier.copyMetaAndReviews(anyLong(), anyLong()))
+                .thenReturn(new DerivedMetaCopier.CopyResult(0, 0));
         // srcRepository.save — 신규 프레임에 videoFrameNo 기반 결정적 srcSn(8000+vfn) 부여 후 반환.
         when(srcRepository.save(any(LsDataSrc.class))).thenAnswer(inv -> {
             LsDataSrc s = inv.getArgument(0);
@@ -144,7 +141,6 @@ class AugmentExtractPersistTest {
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(20L)).thenReturn(Optional.of(aug(20L)));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
-        when(metaRepository.findByRawSn(100L)).thenReturn(List.of());
         AugmentExtractPlan p = plan(9001L, 100L, 20L, List.of(spec(600L, 0, 100L)));
 
         AugmentExtractPersist.Result result = persist.persist(p);
@@ -164,7 +160,6 @@ class AugmentExtractPersistTest {
         when(videoRepository.findById(9002L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(70L)).thenReturn(Optional.of(aug(70L)));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
-        when(metaRepository.findByRawSn(130L)).thenReturn(List.of());
         AugmentExtractPlan p = plan(9002L, 130L, 70L, List.of(spec(700L, 0, 0L)));
 
         persist.persist(p);
@@ -189,7 +184,6 @@ class AugmentExtractPersistTest {
         when(videoRepository.findById(9004L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(24L)).thenReturn(Optional.of(aug(24L)));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of(carLbl, personLbl));
-        when(metaRepository.findByRawSn(104L)).thenReturn(List.of());
         // 부모 pf0(srcSn600, vfn100), pf1(srcSn601, vfn250) → 신규 srcSn 8100, 8250.
         AugmentExtractPlan p = plan(9004L, 104L, 24L, List.of(spec(600L, 0, 100L), spec(601L, 1, 250L)));
 
@@ -218,7 +212,6 @@ class AugmentExtractPersistTest {
         when(videoRepository.findById(9005L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(40L)).thenReturn(Optional.of(aug(40L)));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of(lbl));
-        when(metaRepository.findByRawSn(110L)).thenReturn(List.of());
         AugmentExtractPlan p = plan(9005L, 110L, 40L, List.of(spec(500L, 0, 5L)));
 
         persist.persist(p);
@@ -235,56 +228,25 @@ class AugmentExtractPersistTest {
     }
 
     @Test
-    @DisplayName("원본_콘텐츠메타가_새_영상에_upsert로_정확히_복사된다")
-    void copiesMeta() {
+    @DisplayName("메타복사는_확정블록_이후_DerivedMetaCopier에_부모·파생_RAW로_위임된다")
+    void delegatesMetaCopyToDerivedMetaCopier() {
         LsDataRaw newRaw = newAugRaw(9006L, 101L, "/storage/augment/meta.mp4");
-        LsDataMeta meta1 = LsDataMeta.create(101L, "weather", "sunny");
-        LsDataMeta meta2 = LsDataMeta.create(101L, "time_of_day", "morning");
         when(videoRepository.findById(9006L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(21L)).thenReturn(Optional.of(aug(21L)));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
-        when(metaRepository.findByRawSn(101L)).thenReturn(List.of(meta1, meta2));
+        // 위임 결과가 카운트를 담아 반환돼도 확정 상태·PERSISTED 는 그대로.
+        when(derivedMetaCopier.copyMetaAndReviews(101L, 9006L))
+                .thenReturn(new DerivedMetaCopier.CopyResult(3, 1));
         AugmentExtractPlan p = plan(9006L, 101L, 21L, List.of(spec(300L, 0, 0L)));
 
-        persist.persist(p);
+        AugmentExtractPersist.Result result = persist.persist(p);
 
-        verify(metaRepository, never()).saveAll(any());
-        verify(metaRepository).upsertMeta(9006L, "weather", "sunny");
-        verify(metaRepository).upsertMeta(9006L, "time_of_day", "morning");
-    }
-
-    @Test
-    @DisplayName("증강메타복사_video기술메타는_제외되고_메타러너_upsert와_충돌하지않는다")
-    void excludesVideoTechnicalMeta() {
-        LsDataRaw newRaw = newAugRaw(9008L, 102L, "/storage/augment/tech.mp4");
-        LsDataMeta parentTech = LsDataMeta.create(102L, "video.fps", "30");
-        LsDataMeta parentContent = LsDataMeta.create(102L, "weather", "snow");
-        when(videoRepository.findById(9008L)).thenReturn(Optional.of(newRaw));
-        when(augRepository.findById(80L)).thenReturn(Optional.of(aug(80L)));
-        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
-        when(metaRepository.findByRawSn(102L)).thenReturn(List.of(parentTech, parentContent));
-        // 메타러너 선행 시뮬 — video.* 를 saveAll(INSERT)로 밀면 UNIQUE 위반.
-        when(metaRepository.saveAll(any())).thenAnswer(inv -> {
-            for (LsDataMeta m : (Iterable<LsDataMeta>) inv.getArgument(0)) {
-                if (m.getMetaKey() != null && m.getMetaKey().startsWith("video.")) {
-                    throw new DataIntegrityViolationException("UNIQUE 충돌: " + m.getMetaKey());
-                }
-            }
-            return inv.getArgument(0);
-        });
-        AugmentExtractPlan p = plan(9008L, 102L, 80L, List.of(spec(310L, 0, 0L)));
-
-        assertThatCode(() -> persist.persist(p)).doesNotThrowAnyException();
+        assertThat(result).isEqualTo(AugmentExtractPersist.Result.PERSISTED);
+        // video.* 포함 전체복사·검수행 정책은 DerivedMetaCopier 단위 테스트가 소유. 여기선 부모·파생 RAW 로 위임만 검증.
+        verify(derivedMetaCopier, times(1)).copyMetaAndReviews(101L, 9006L);
+        // 확정 상태 유지 — 위임 호출이 확정 dirty 변경을 훼손하지 않는다(HIGH#4 순서).
         assertThat(newRaw.getDeIdntfYn()).isEqualTo("Y");
         assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
-        verify(metaRepository).upsertMeta(9008L, "weather", "snow");
-        verify(metaRepository, never()).upsertMeta(anyLong(), startsWith("video."), anyString());
-        verify(metaRepository, never()).saveAll(argThat(list -> {
-            for (LsDataMeta m : (Iterable<LsDataMeta>) list) {
-                if (m.getMetaKey() != null && m.getMetaKey().startsWith("video.")) return true;
-            }
-            return false;
-        }));
     }
 
     @Test
@@ -300,7 +262,6 @@ class AugmentExtractPersistTest {
         when(videoRepository.findById(9010L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(82L)).thenReturn(Optional.of(aug(82L)));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of(carLbl, personLbl));
-        when(metaRepository.findByRawSn(105L)).thenReturn(List.of());
         // 신규 srcSn: vfn100→8100(car), vfn250→8250(person).
         when(lblRepository.saveAll(any())).thenAnswer(inv -> {
             List<LsDataLbl> copies = new ArrayList<>();

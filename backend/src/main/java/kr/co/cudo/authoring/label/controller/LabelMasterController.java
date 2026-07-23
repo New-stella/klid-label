@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.dto.DetectCandidateResponse;
 import kr.co.cudo.authoring.label.dto.LabelMasterRequest;
 import kr.co.cudo.authoring.label.dto.LabelMasterResponse;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
@@ -56,6 +57,18 @@ public class LabelMasterController {
     @GetMapping
     public ApiResponse<List<LabelMasterResponse>> list() {
         return ApiResponse.ok(labelMasterService.list());
+    }
+
+    @Operation(summary = "AI 탐지 후보 조회 — 활성 라벨 + COCO 매핑 여부 (인증된 사용자)",
+            description = "라벨링 화면 'AI 탐지' 팝업용. 활성 라벨 마스터 목록과 각 라벨의 COCO 검출 매핑 여부"
+                    + "(mapped)를 반환한다. 매핑된 라벨만 실제 검출 대상이며, 검출 대상 재구성·재검증은 BE 가 수행한다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패")
+    })
+    @GetMapping("/detect-candidates")
+    public ApiResponse<List<DetectCandidateResponse>> detectCandidates() {
+        return ApiResponse.ok(labelMasterService.listDetectCandidates());
     }
 
     @Operation(summary = "라벨 마스터 생성 (REVIEWER)")
