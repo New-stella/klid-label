@@ -14,6 +14,7 @@ import java.util.Set;
  * <pre>
  * 허용 전이:
  *   PENDING   → IN_REVIEW   (REVIEWER startReview)
+ *   PENDING   → ASSIGNED    (WORKER 제출 취소 — 검수 시작 전에만 가능)
  *   IN_REVIEW → APPROVED    (REVIEWER approve)
  *   IN_REVIEW → REJECTED    (REVIEWER reject)
  *   REJECTED  → PENDING     (WORKER  재제출)
@@ -41,7 +42,8 @@ public class ReviewStateMachine {
 
     private static final Map<String, Set<String>> ALLOWED = Map.of(
             LsRawDataStatus.STTS_ASSIGNED,  Set.of(LsRawDataStatus.STTS_PENDING),
-            LsRawDataStatus.STTS_PENDING,   Set.of(LsRawDataStatus.STTS_IN_REVIEW),
+            // PENDING → IN_REVIEW (REVIEWER 검수 시작) / PENDING → ASSIGNED (WORKER 제출 취소)
+            LsRawDataStatus.STTS_PENDING,   Set.of(LsRawDataStatus.STTS_IN_REVIEW, LsRawDataStatus.STTS_ASSIGNED),
             LsRawDataStatus.STTS_IN_REVIEW, Set.of(LsRawDataStatus.STTS_APPROVED, LsRawDataStatus.STTS_REJECTED),
             LsRawDataStatus.STTS_REJECTED,  Set.of(LsRawDataStatus.STTS_PENDING),
             // 재검수: APPROVED → PENDING (WORKER 재제출)만 허용. 그 외 APPROVED 출발 전이는 409(CONFLICT).

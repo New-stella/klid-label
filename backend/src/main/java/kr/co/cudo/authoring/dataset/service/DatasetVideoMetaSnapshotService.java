@@ -243,8 +243,12 @@ public class DatasetVideoMetaSnapshotService {
         if (anno == null) {
             return null;
         }
+        // 최신 검토(RVW_SN DESC)를 결정적으로 선택해 그 상태가 APPROVED 일 때만 동결한다 —
+        // 승인/자동확정 경로와 동일한 최신-검토 기준(중복 row 비결정 선택 방지, CWE 미해당 정합성).
         boolean approved = evntAnnoReviewRepository.findByEvntAnnoSn(anno.getEvntAnnoSn()).stream()
-                .anyMatch(r -> LsEvntAnnoReview.STTS_APPROVED.equals(r.getRvwSttsCd()));
+                .findFirst()
+                .map(r -> LsEvntAnnoReview.STTS_APPROVED.equals(r.getRvwSttsCd()))
+                .orElse(false);
         if (!approved) {
             log.info("[Dataset] event_annotation not approved — freeze skipped rawSn={}", rawSn);
             return null;

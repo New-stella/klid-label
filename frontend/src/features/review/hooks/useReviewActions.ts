@@ -5,6 +5,7 @@ import { REVIEW_KEYS, VIDEO_KEYS, ASSIGNMENT_KEYS } from '@/lib/queryKeys';
 import {
   addIssue,
   approveReview,
+  cancelSubmitReview,
   rejectReview,
   startReview,
   submitReview,
@@ -75,6 +76,25 @@ export function useSubmitReview(options: MutationOptions<unknown> = {}) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (videoId: number) => submitReview(videoId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: VIDEO_KEYS.all });
+      qc.invalidateQueries({ queryKey: ASSIGNMENT_KEYS.all });
+      qc.invalidateQueries({ queryKey: REVIEW_KEYS.all });
+      options.onSuccess?.(data);
+    },
+    onError: options.onError,
+  });
+}
+
+/**
+ * 작업자 검수 제출 취소 (REVIEW_PENDING → ASSIGNED).
+ *
+ * submit 과 동일한 캐시(REVIEW/VIDEO/ASSIGNMENT)를 invalidate 하여 제출 버튼 가드가 재평가된다.
+ */
+export function useCancelSubmitReview(options: MutationOptions<unknown> = {}) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (videoId: number) => cancelSubmitReview(videoId),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: VIDEO_KEYS.all });
       qc.invalidateQueries({ queryKey: ASSIGNMENT_KEYS.all });

@@ -80,6 +80,21 @@ function appendNewline(existing: string, value: string): string {
   return existing.trim() === '' ? value : `${existing}\n${value}`;
 }
 
+/** 콤마 분해(trim·빈값 제외) 후 value(trim)가 이미 있는지. */
+function commaHas(existing: string, value: string): boolean {
+  const target = value.trim();
+  return existing
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '')
+    .includes(target);
+}
+
+/** 콤마 append + 중복 제거: value 가 이미 존재하면 existing 그대로 반환. */
+function appendCommaUnique(existing: string, value: string): string {
+  return commaHas(existing, value) ? existing : appendComma(existing, value);
+}
+
 /**
  * 라벨링 우측 메타 탭 event_annotation 수동입력·검토 패널.
  * 외부 자동 생성 기본값을 최초 1회 프리필하고 수동 편집 후 저장한다.
@@ -230,19 +245,18 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
     setEvidences((prev) =>
       prev.map((r) =>
         r.key === key
-          ? {
-              ...r,
-              frameId: r.frameId.trim() === '' ? String(currentSrcSn) : `${r.frameId}, ${currentSrcSn}`,
-            }
+          ? { ...r, frameId: appendCommaUnique(r.frameId, String(currentSrcSn)) }
           : r,
       ),
     );
   };
 
-  // 캔버스 선택 라벨 1건의 값을 evidence 행 obj_* 에 append(appendCurrentFrame 과 동일한 규칙).
+  // 캔버스 선택 라벨 1건의 값을 evidence 행 obj_* 에 append.
   //  - obj_id: trackId(프레임 간 동일 객체) 우선 → serverId → client id
   //  - obj_label: className / obj_bbox: shape 도출(정수 반올림, MASK/유효점없음=스킵)
   //  - frame_id: currentSrcSn(정의 시) 콤마 append
+  // 중복 방지: obj_id 가 이미 있으면 obj_id/obj_label/obj_bbox 3개를 세트로 skip(병렬 배열
+  //   정렬 유지). frame_id 는 독립 dedup(다른 객체를 같은 프레임에서 추가해도 1개만 유지).
   const appendSelectedObject = (key: string) => {
     const label = selectedLabel;
     if (!label) return;
@@ -255,10 +269,15 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
       prev.map((r) => {
         if (r.key !== key) return r;
         const next: EvidenceRow = { ...r };
-        next.objId = appendComma(r.objId, objIdVal);
-        next.objLabel = appendComma(r.objLabel, objLabelVal);
-        if (bboxLine !== null) next.objBbox = appendNewline(r.objBbox, bboxLine);
-        if (currentSrcSn !== undefined) next.frameId = appendComma(r.frameId, String(currentSrcSn));
+        // obj_id 중복이면 obj_* 세트 전체 skip(label/bbox 병렬 배열 정렬 보존).
+        if (!commaHas(r.objId, objIdVal)) {
+          next.objId = appendComma(r.objId, objIdVal);
+          next.objLabel = appendComma(r.objLabel, objLabelVal);
+          if (bboxLine !== null) next.objBbox = appendNewline(r.objBbox, bboxLine);
+        }
+        if (currentSrcSn !== undefined) {
+          next.frameId = appendCommaUnique(r.frameId, String(currentSrcSn));
+        }
         return next;
       }),
     );

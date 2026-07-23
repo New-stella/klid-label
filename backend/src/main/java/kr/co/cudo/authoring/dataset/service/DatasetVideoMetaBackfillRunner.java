@@ -36,5 +36,8 @@ public class DatasetVideoMetaBackfillRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         int n = backfillService.backfill();
         log.info("[Dataset] startup backfill materialized {} snapshot(s)", n);
+        // 이미 승인됐으나 EVNT_ANNO_CN=NULL 로 동결된 영상(rawSn 24 상황) 소급 치유 — 멱등(대상 0건이면 no-op).
+        int healed = backfillService.healMissingEventAnnotation();
+        log.info("[Dataset] startup event_annotation heal re-froze {} snapshot(s)", healed);
     }
 }

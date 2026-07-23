@@ -203,4 +203,100 @@ describe('EventAnnotationPanel — 선택 객체 자동연결', () => {
     await user.click(screen.getByTestId('ea-evidence-frameid-current-c1'));
     expect(screen.getByTestId('ea-evidence-frameid-c1')).toHaveValue('200');
   });
+
+  // --- 중복 방지(dedup) — 버그 C ---
+
+  it('같은객체_2회추가시_objId_objLabel_objBbox_중복없음', async () => {
+    const user = userEvent.setup();
+    mock.onGet('/videos/5/event-annotation').reply(200, emptyGet(5));
+    selectLabel(
+      makeLabel({
+        id: 'lbl-1',
+        trackId: '5',
+        className: 'car',
+        shape: { type: 'BBOX', left: 10, top: 20, right: 30, bottom: 40 },
+      }),
+    );
+
+    renderWithProviders(<EventAnnotationPanel rawSn={5} currentSrcSn={100} />);
+    await waitFor(() => expect(screen.getByTestId('ea-event-class')).toBeInTheDocument());
+    await user.click(screen.getByTestId('ea-add-evidence'));
+
+    // 같은 객체를 2회 추가 → 한 세트만 유지
+    await user.click(screen.getByTestId('ea-evidence-add-selected-c1'));
+    await user.click(screen.getByTestId('ea-evidence-add-selected-c1'));
+
+    expect(screen.getByTestId('ea-evidence-objid-c1')).toHaveValue('5');
+    expect(screen.getByTestId('ea-evidence-objlabel-c1')).toHaveValue('car');
+    expect(screen.getByTestId('ea-evidence-objbbox-c1')).toHaveValue('10,20,30,40');
+    expect(screen.getByTestId('ea-evidence-frameid-c1')).toHaveValue('100');
+  });
+
+  it('동일프레임_2객체_추가시_objId_2개_frameId_1개', async () => {
+    const user = userEvent.setup();
+    mock.onGet('/videos/5/event-annotation').reply(200, emptyGet(5));
+
+    // 첫 객체 선택
+    selectLabel(makeLabel({ id: 'a', trackId: '5', className: 'car' }));
+
+    renderWithProviders(<EventAnnotationPanel rawSn={5} currentSrcSn={100} />);
+    await waitFor(() => expect(screen.getByTestId('ea-event-class')).toBeInTheDocument());
+    await user.click(screen.getByTestId('ea-add-evidence'));
+    await user.click(screen.getByTestId('ea-evidence-add-selected-c1'));
+
+    // 서로 다른 객체(같은 프레임)로 교체 후 추가
+    selectLabel(makeLabel({ id: 'b', trackId: '8', className: 'person' }));
+    await user.click(screen.getByTestId('ea-evidence-add-selected-c1'));
+
+    // obj_id 는 2개 누적, frame_id(동일 프레임)는 1개만
+    expect(screen.getByTestId('ea-evidence-objid-c1')).toHaveValue('5, 8');
+    expect(screen.getByTestId('ea-evidence-objlabel-c1')).toHaveValue('car, person');
+    expect(screen.getByTestId('ea-evidence-frameid-c1')).toHaveValue('100');
+  });
+
+  it('다른객체_추가는_정상_누적', async () => {
+    const user = userEvent.setup();
+    mock.onGet('/videos/5/event-annotation').reply(200, emptyGet(5));
+    selectLabel(
+      makeLabel({
+        id: 'a',
+        trackId: '5',
+        className: 'car',
+        shape: { type: 'BBOX', left: 1, top: 2, right: 3, bottom: 4 },
+      }),
+    );
+
+    renderWithProviders(<EventAnnotationPanel rawSn={5} currentSrcSn={100} />);
+    await waitFor(() => expect(screen.getByTestId('ea-event-class')).toBeInTheDocument());
+    await user.click(screen.getByTestId('ea-add-evidence'));
+    await user.click(screen.getByTestId('ea-evidence-add-selected-c1'));
+
+    // 다른 객체(다른 프레임)로 교체 후 추가 → 전부 누적
+    selectLabel(
+      makeLabel({
+        id: 'b',
+        trackId: '8',
+        className: 'person',
+        shape: { type: 'BBOX', left: 5, top: 6, right: 7, bottom: 8 },
+      }),
+    );
+    await user.click(screen.getByTestId('ea-evidence-add-selected-c1'));
+
+    expect(screen.getByTestId('ea-evidence-objid-c1')).toHaveValue('5, 8');
+    expect(screen.getByTestId('ea-evidence-objlabel-c1')).toHaveValue('car, person');
+    expect(screen.getByTestId('ea-evidence-objbbox-c1')).toHaveValue('1,2,3,4\n5,6,7,8');
+  });
+
+  it('현재프레임_버튼_2회클릭시_frameId_중복없음', async () => {
+    const user = userEvent.setup();
+    mock.onGet('/videos/5/event-annotation').reply(200, emptyGet(5));
+
+    renderWithProviders(<EventAnnotationPanel rawSn={5} currentSrcSn={200} />);
+    await waitFor(() => expect(screen.getByTestId('ea-event-class')).toBeInTheDocument());
+    await user.click(screen.getByTestId('ea-add-evidence'));
+
+    await user.click(screen.getByTestId('ea-evidence-frameid-current-c1'));
+    await user.click(screen.getByTestId('ea-evidence-frameid-current-c1'));
+    expect(screen.getByTestId('ea-evidence-frameid-c1')).toHaveValue('200');
+  });
 });

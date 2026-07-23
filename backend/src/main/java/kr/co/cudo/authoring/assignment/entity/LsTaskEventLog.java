@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
  *   <li>{@link #EVENT_ASSIGN}     : REVIEWER 가 WORKER 에게 최초 배정 — subject=배정된 작업자</li>
  *   <li>{@link #EVENT_REASSIGN}   : REVIEWER 가 다른 WORKER 로 재배정 — subject=새 작업자, prev=이전 작업자</li>
  *   <li>{@link #EVENT_SUBMIT}     : WORKER 가 라벨링 완료 후 검수 제출 — actor=subject=작업자 본인</li>
+ *   <li>{@link #EVENT_CANCEL_SUBMIT} : WORKER 가 검수 시작 전 제출을 취소 — actor=subject=작업자 본인</li>
  *   <li>{@link #EVENT_APPROVE}    : REVIEWER 승인 — actor=검수자</li>
  *   <li>{@link #EVENT_REJECT}     : REVIEWER 반려 — actor=검수자, rsn(사유) 필수</li>
  * </ul>
@@ -38,6 +39,7 @@ public class LsTaskEventLog {
     public static final String EVENT_ASSIGN = "ASSIGN";
     public static final String EVENT_REASSIGN = "REASSIGN";
     public static final String EVENT_SUBMIT = "SUBMIT";
+    public static final String EVENT_CANCEL_SUBMIT = "CANCEL_SUBMIT";
     public static final String EVENT_APPROVE = "APPROVE";
     public static final String EVENT_REJECT = "REJECT";
 
@@ -106,6 +108,16 @@ public class LsTaskEventLog {
         return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_SUBMIT)
+                .actorUserNo(workerUserNo)
+                .subjectUserNo(workerUserNo)
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    public static LsTaskEventLog cancelSubmit(Long rawDataId, Long workerUserNo) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_CANCEL_SUBMIT)
                 .actorUserNo(workerUserNo)
                 .subjectUserNo(workerUserNo)
                 .ocrnDt(LocalDateTime.now())

@@ -304,6 +304,80 @@ class EvntAnnoLateApprovalReFreezeIT {
         assertThat(snapshotVersionCount(rawSn)).isEqualTo(1);
     }
 
+    // ---- F: 영상 검수 승인 시 event_annotation 자동 확정(autoApproveOnVideoApproval) + 동결 ----
+
+    @Test
+    @DisplayName("영상승인_자동전이_후_같은tx_materialize시_EVNT_ANNO_CN이_동결된다")
+    void autoApprove_thenMaterializeInSameTx_freezesEvntAnnoCn() {
+        // given — 영상 검수 승인 진행 중(IN_REVIEW), event_annotation 은 AUTO_GENERATED(미승인).
+        long rawSn = seedSource();
+        seedEventAnnotation(rawSn, "AUTO_GENERATED");
+        seedRawDataStatus(rawSn, "IN_REVIEW");
+
+        // when — ReviewService.approve 와 동일하게 자동 승인 → 같은 트랜잭션에서 materialize.
+        txTemplate.executeWithoutResult(s -> {
+            reviewService.autoApproveOnVideoApproval(rawSn, reviewer());
+            snapshotService.materialize(rawSn);
+        });
+
+        // then — 자동 승인 flush 로 materialize 가 APPROVED event_annotation 을 관측 → 동결본에 반영.
+        assertThat(activeEvntAnnoCn(rawSn)).as("자동 승인 후 동결본").isNotNull().contains("assault");
+        assertThat(snapshotVersionCount(rawSn)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("REJECTED_event_annotation은_자동승인_제외되어_동결안됨")
+    void autoApprove_rejectedIsExcluded_notFrozen() {
+        // given — event_annotation 이 REVIEWER 에게 명시 반려(REJECTED)된 상태.
+        long rawSn = seedSource();
+        seedEventAnnotation(rawSn, "REJECTED");
+        seedRawDataStatus(rawSn, "IN_REVIEW");
+
+        // when
+        txTemplate.executeWithoutResult(s -> {
+            reviewService.autoApproveOnVideoApproval(rawSn, reviewer());
+            snapshotService.materialize(rawSn);
+        });
+
+        // then — 반려 존중: 자동 승인되지 않아 EVNT_ANNO_CN 은 여전히 null.
+        assertThat(activeEvntAnnoCn(rawSn)).isNull();
+    }
+
+    @Test
+    @DisplayName("event_annotation_없는_영상_자동전이는_정상_no_op_동결")
+    void autoApprove_noEventAnnotation_isNoOp() {
+        // given — event_annotation 이 없는 영상.
+        long rawSn = seedSource();
+        seedRawDataStatus(rawSn, "IN_REVIEW");
+
+        // when / then — 예외 없이 정상 동결(EVNT_ANNO_CN null).
+        txTemplate.executeWithoutResult(s -> {
+            reviewService.autoApproveOnVideoApproval(rawSn, reviewer());
+            snapshotService.materialize(rawSn);
+        });
+        assertThat(snapshotVersionCount(rawSn)).isEqualTo(1);
+        assertThat(activeEvntAnnoCn(rawSn)).isNull();
+    }
+
+    @Test
+    @DisplayName("이미_APPROVED면_멱등_재전이없이_동결된다")
+    void autoApprove_alreadyApproved_isIdempotentAndFrozen() {
+        // given — event_annotation 이 이미 개별 승인(APPROVED)된 상태.
+        long rawSn = seedSource();
+        seedEventAnnotation(rawSn, "APPROVED");
+        seedRawDataStatus(rawSn, "IN_REVIEW");
+
+        // when — 멱등 skip(재전이 없이 통과) 후 materialize 가 APPROVED 를 동결.
+        txTemplate.executeWithoutResult(s -> {
+            reviewService.autoApproveOnVideoApproval(rawSn, reviewer());
+            snapshotService.materialize(rawSn);
+        });
+
+        // then — 정상 동결.
+        assertThat(activeEvntAnnoCn(rawSn)).isNotNull().contains("assault");
+        assertThat(snapshotVersionCount(rawSn)).isEqualTo(1);
+    }
+
     @Test
     @DisplayName("반려는_export_재동결을_트리거하지_않는다")
     void reject_doesNotTriggerReFreeze() {

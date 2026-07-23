@@ -155,6 +155,29 @@ public class ReviewController {
     }
 
     /**
+     * WORKER 가 검수 제출을 취소 (PENDING → ASSIGNED). 검수 시작 전에만 가능, 본인 배정 영상만.
+     */
+    @Operation(
+            summary = "검수 제출 취소 (WORKER)",
+            description = "WORKER가 검수 시작 전(PENDING) 상태에서 제출을 취소하고 작업(ASSIGNED)으로 복귀시킨다. " +
+                    "본인 배정 영상만 가능하며, 검수 시작(IN_REVIEW)/승인/반려 후에는 취소할 수 없다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 (ASSIGNED 복귀)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "취소 불가 상태 (검수 시작 후 등)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "WORKER 권한 없음 또는 본인 배정 아님"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 검수 시작/승인되어 취소 충돌")
+    })
+    @PostMapping("/reviews/{videoId}/cancel-submit")
+    @PreAuthorize("hasRole('WORKER')")
+    public ApiResponse<ReviewResponse> cancelSubmit(@Parameter(description = "영상 PK", required = true, example = "1") @PathVariable Long videoId,
+                                                    @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(reviewService.cancelSubmit(videoId, actor));
+    }
+
+    /**
      * REVIEWER 가 검수 시작 (PENDING → IN_REVIEW).
      */
     @Operation(

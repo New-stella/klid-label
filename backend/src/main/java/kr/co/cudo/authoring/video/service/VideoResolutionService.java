@@ -66,6 +66,15 @@ public class VideoResolutionService {
     private String storageRawPath;
 
     /**
+     * 비식별 프레임 이미지 base 경로. {@code deidFilePath}(비식별 프레임)는 FFmpeg 추출 단계에서
+     * deidentified-path 기준 절대경로로 저장되므로, PII-안전을 위해 비식별 프레임을 우선 실측하는 경로 검증의
+     * base 는 raw-path 뿐 아니라 deidentified-path 도 허용해야 한다(그렇지 않으면 deid 프레임 보유 영상이
+     * 전량 "경로가 허용된 저장 경로를 벗어납니다" 로 실패). 선례: PortalLabelService(R17 이슈1).
+     */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String storageDeidentifiedPath;
+
+    /**
      * 해상도 변경 실행 — 검증(APPROVED·비-파생) → 원본 해상도 실측 → 동일 해상도 제외 프리셋마다
      * 파생영상 생성(부분 실패 격리).
      *
@@ -168,19 +177,26 @@ public class VideoResolutionService {
                         .min(Comparator.comparing(LsDataSrc::getFrameNo))
                         .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT,
                                 "실측할 프레임이 없습니다.")));
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path srcPath = resolveSafeFile(base, ResolutionDerivativeService.frameSourcePath(first));
+        Path srcPath = resolveSafeSource(ResolutionDerivativeService.frameSourcePath(first));
         return imageResizer.readDimensions(srcPath);
     }
 
-    /** 파일 경로 normalize + storageRawPath base 검증 (CWE-22). */
-    private Path resolveSafeFile(Path base, String filePath) {
+    /**
+     * 프레임 소스(원본 또는 비식별) 경로 normalize + base 검증 (CWE-22 traversal 가드).
+     *
+     * <p>비식별 프레임은 deidentified-path 기준 절대경로이므로 raw-path·deidentified-path 두 base 중
+     * 하나에 속하면 통과시킨다. 두 base 모두 벗어나는 경로(상위 traversal 포함)는 여전히 거부한다.
+     * 상대경로는 기존과 동일하게 raw base 기준으로 해석한다.
+     */
+    private Path resolveSafeSource(String filePath) {
         if (filePath == null || filePath.isBlank()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "원본 프레임 경로가 비어있습니다.");
         }
+        Path rawBase = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        Path deidBase = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
         Path candidate = Paths.get(filePath);
-        Path resolved = candidate.isAbsolute() ? candidate.normalize() : base.resolve(candidate).normalize();
-        if (!resolved.startsWith(base)) {
+        Path resolved = candidate.isAbsolute() ? candidate.normalize() : rawBase.resolve(candidate).normalize();
+        if (!resolved.startsWith(rawBase) && !resolved.startsWith(deidBase)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 경로가 허용된 저장 경로를 벗어납니다.");
         }
         return resolved;

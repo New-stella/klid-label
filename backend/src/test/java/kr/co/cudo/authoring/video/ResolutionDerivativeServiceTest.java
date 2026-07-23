@@ -58,6 +58,18 @@ class ResolutionDerivativeServiceTest {
         service = new ResolutionDerivativeService(
                 videoRepository, statusRepository, srcRepository, imageResizer, reservationPersister);
         ReflectionTestUtils.setField(service, "storageRawPath", "/tmp/klid-res-test");
+        ReflectionTestUtils.setField(service, "storageDeidentifiedPath", "/tmp/klid-res-test-deid");
+    }
+
+    /** 첫 프레임의 비식별 경로(deidFilePath)를 지정한 절대 경로로 세팅 (실측 소스는 deid 우선). */
+    private void seedApprovedDeidFrame(Long rawSn, String deidAbsolutePath) {
+        LsDataSrc frame = LsDataSrc.create(rawSn, 0L, 0L, "frames/f0.jpg", null);
+        frame.attachDeidPath(deidAbsolutePath);
+        ReflectionTestUtils.setField(frame, "srcSn", FIRST_FRAME_SRC_SN);
+        when(srcRepository.findByRawSnAndFrameNo(rawSn, 0)).thenReturn(Optional.of(frame));
+        LsRawDataStatus st = LsRawDataStatus.initial(rawSn);
+        st.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(statusRepository.findByRawDataIdIn(List.of(rawSn))).thenReturn(List.of(st));
     }
 
     private LsDataRaw approvedDeidParent(Long rawSn) {
@@ -132,6 +144,40 @@ class ResolutionDerivativeServiceTest {
         seedApprovedFrame(parentRawSn);
         when(imageResizer.readDimensions(any())).thenReturn(new int[]{0, 0});
 
+        assertThatThrownBy(() -> service.createDerivative(parentRawSn, ResolutionPreset.RESL_720P, "rev1"))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(reservationPersister, never()).reserveAndCreate(any(), any(), anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("비식별_프레임_절대경로는_deid_base로_통과하여_파생생성된다")
+    void deidFramePathPassesViaDeidBase() {
+        // given: 첫 프레임 소스가 비식별 base(/tmp/klid-res-test-deid) 하위 절대경로 — raw base 밖.
+        Long parentRawSn = 110L;
+        when(videoRepository.findById(parentRawSn)).thenReturn(Optional.of(approvedDeidParent(parentRawSn)));
+        seedApprovedDeidFrame(parentRawSn, "/tmp/klid-res-test-deid/frames/deid/110/f0.jpg");
+        when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
+        when(reservationPersister.reserveAndCreate(any(), any(), anyLong(), anyString()))
+                .thenReturn(new ResolutionReservationPersister.Reservation(510L, 9L));
+
+        // when: deid base 로 통과 → 정상 파생
+        ResolutionDerivativeResponse res = service.createDerivative(parentRawSn, ResolutionPreset.RESL_720P, "rev1");
+
+        // then
+        assertThat(res.newRawSn()).isEqualTo(510L);
+        verify(reservationPersister).reserveAndCreate(any(), eq(ResolutionPreset.RESL_720P), anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("상위경로_traversal(..)_은_여전히_INVALID_INPUT으로_차단된다")
+    void traversalStillRejected() {
+        // given: 두 base 모두 벗어나는 traversal 절대경로(CWE-22)
+        Long parentRawSn = 111L;
+        when(videoRepository.findById(parentRawSn)).thenReturn(Optional.of(approvedDeidParent(parentRawSn)));
+        seedApprovedDeidFrame(parentRawSn, "/tmp/klid-res-test-deid/../../etc/passwd");
+
+        // when/then: normalize 후 두 base 밖 → INVALID_INPUT(400)
         assertThatThrownBy(() -> service.createDerivative(parentRawSn, ResolutionPreset.RESL_720P, "rev1"))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);

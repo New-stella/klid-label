@@ -11,6 +11,8 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
+import kr.co.cudo.authoring.evntanno.service.EvntAnnoReviewService;
+import kr.co.cudo.authoring.meta.service.MetaService;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import kr.co.cudo.authoring.review.service.ReviewService;
@@ -45,6 +47,8 @@ class ReviewServiceEventPublishTest {
     private ApplicationEventPublisher eventPublisher;
     private VersionService versionService;
     private DatasetVideoMetaSnapshotService datasetVideoMetaSnapshotService;
+    private EvntAnnoReviewService evntAnnoReviewService;
+    private MetaService metaService;
     private ReviewService reviewService;
 
     @BeforeEach
@@ -62,11 +66,14 @@ class ReviewServiceEventPublishTest {
         eventPublisher = mock(ApplicationEventPublisher.class);
         versionService = mock(VersionService.class);
         datasetVideoMetaSnapshotService = mock(DatasetVideoMetaSnapshotService.class);
+        evntAnnoReviewService = mock(EvntAnnoReviewService.class);
+        metaService = mock(MetaService.class);
 
         reviewService = new ReviewService(
                 reviewRepository, issueRepository, authrtRepository, taskEventLogRepository,
                 stateMachine, srcRepository, labelRepository, videoRepository, userRepository,
-                objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService);
+                objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService,
+                evntAnnoReviewService, metaService);
 
         // enrichOne 헬퍼에서 N+1 회피 lookup 들이 빈 결과를 반환하도록
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());
@@ -119,6 +126,49 @@ class ReviewServiceEventPublishTest {
 
         // then — SFR-08: 검수 승인 시점에 영상(rawSn) 단위 학습데이터 버전 스냅샷 생성.
         verify(versionService).commitApproved(eq(videoId), eq(actor));
+    }
+
+    @Test
+    @DisplayName("approve_성공시_event_annotation_자동승인이_materialize_직전에_호출됨")
+    void approve_autoApprovesEventAnnotationBeforeMaterialize() {
+        // given
+        Long videoId = 100L;
+        TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        when(stts.getRawDataId()).thenReturn(videoId);
+        when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
+        when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
+
+        // when
+        reviewService.approve(videoId, actor);
+
+        // then — F: event_annotation 자동 승인 → 시계열 메타 자동 확정 → 통합 메타 동결(materialize) 순서로 호출.
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(
+                evntAnnoReviewService, metaService, datasetVideoMetaSnapshotService);
+        inOrder.verify(evntAnnoReviewService).autoApproveOnVideoApproval(eq(videoId), eq(actor));
+        inOrder.verify(metaService).autoApproveOnVideoApproval(eq(videoId), eq(actor));
+        inOrder.verify(datasetVideoMetaSnapshotService).materialize(eq(videoId));
+    }
+
+    @Test
+    @DisplayName("approve_성공시_시계열메타_검토행_자동확정이_materialize_직전에_호출됨")
+    void approve_autoApprovesTimeseriesMetaBeforeMaterialize() {
+        // given
+        Long videoId = 100L;
+        TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        when(stts.getRawDataId()).thenReturn(videoId);
+        when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
+        when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
+
+        // when
+        reviewService.approve(videoId, actor);
+
+        // then — 버그 F 완성: 시계열 메타 검토행 자동 확정 → 그 뒤 materialize(V_COMPLETED_META 누락 방지).
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(
+                metaService, datasetVideoMetaSnapshotService);
+        inOrder.verify(metaService).autoApproveOnVideoApproval(eq(videoId), eq(actor));
+        inOrder.verify(datasetVideoMetaSnapshotService).materialize(eq(videoId));
     }
 
     @Test

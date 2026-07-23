@@ -68,6 +68,7 @@ class VideoResolutionServiceTest {
         service = new VideoResolutionService(videoRepository, statusRepository, srcRepository,
                 imageResizer, resolutionDerivativeService);
         ReflectionTestUtils.setField(service, "storageRawPath", "/tmp/klid-res-p3");
+        ReflectionTestUtils.setField(service, "storageDeidentifiedPath", "/tmp/klid-res-p3-deid");
 
         // 기본: 원본 해상도 실측 3840x2160(4K, 모든 프리셋과 상이), createDerivative 는 순번 RAW_SN 성공 반환.
         // doAnswer/doThrow 형식 — 재-stubbing 시 이전 answer 가 when() 기록 중 실행되는 Mockito 함정 회피.
@@ -103,6 +104,14 @@ class VideoResolutionServiceTest {
 
     private void seedFrame(Long rawSn) {
         LsDataSrc frame = LsDataSrc.create(rawSn, 0L, "frames/" + rawSn + "/f0.jpg", null);
+        when(srcRepository.findByRawSnAndFrameNo(eq(rawSn), eq(0))).thenReturn(Optional.of(frame));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(rawSn)).thenReturn(List.of(frame));
+    }
+
+    /** 첫 프레임의 비식별 경로(deidFilePath)를 지정한 절대 경로로 세팅. 실측 소스는 deid 우선이다. */
+    private void seedDeidFrame(Long rawSn, String deidAbsolutePath) {
+        LsDataSrc frame = LsDataSrc.create(rawSn, 0L, "frames/" + rawSn + "/f0.jpg", null);
+        frame.attachDeidPath(deidAbsolutePath);
         when(srcRepository.findByRawSnAndFrameNo(eq(rawSn), eq(0))).thenReturn(Optional.of(frame));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(rawSn)).thenReturn(List.of(frame));
     }
@@ -312,6 +321,68 @@ class VideoResolutionServiceTest {
                 .createDerivative(any(), eq(ResolutionPreset.RESL_1080P), anyString());
         verify(resolutionDerivativeService, never())
                 .createDerivative(any(), eq(ResolutionPreset.RESL_480P), anyString());
+    }
+
+    @Test
+    @DisplayName("비식별_프레임_경로는_deid_base로_통과하여_해상도변경이_성공한다")
+    void deidFramePathPassesViaDeidBase() {
+        // given: 첫 프레임 소스가 비식별 base(/tmp/klid-res-p3-deid) 하위 절대경로 — raw base 밖.
+        //        구버전은 raw base 만 검증해 "경로가 허용된 저장 경로를 벗어납니다" 로 전 영상 실패했다.
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedDeidFrame(1L, "/tmp/klid-res-p3-deid/frames/deid/1/f0.jpg");
+
+        // when: deid base 로 통과 → 정상 파생 생성
+        ResolutionChangeResponse res = call(1L);
+
+        // then: 예외 없이 3종 파생 생성(=경로 오류 해소)
+        assertThat(res.derivatives()).hasSize(3);
+        assertThat(res.derivatives()).allMatch(d -> d.status() == DerivativeStatus.CREATED);
+    }
+
+    @Test
+    @DisplayName("원본_프레임_경로는_raw_base로_통과한다")
+    void rawFramePathPassesViaRawBase() {
+        // given: deid 경로가 없어 srcFilePathNm(raw base 하위 상대경로) 로 실측
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+
+        // when/then: raw base 로 통과
+        ResolutionChangeResponse res = call(1L);
+        assertThat(res.derivatives()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("상위경로_traversal(..)_은_여전히_INVALID_INPUT으로_차단된다")
+    void traversalStillRejected() {
+        // given: deid base 를 벗어나는 traversal 절대경로(CWE-22)
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedDeidFrame(1L, "/tmp/klid-res-p3-deid/../../etc/passwd");
+
+        // when/then: normalize 후 두 base 모두 밖 → INVALID_INPUT(400) 유지
+        assertThatThrownBy(() -> call(1L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(resolutionDerivativeService, never()).createDerivative(any(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("raw도_deid도_아닌_경로는_INVALID_INPUT으로_차단된다")
+    void outsideBothBasesRejected() {
+        // given: 두 base 어디에도 속하지 않는 절대경로
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedDeidFrame(1L, "/tmp/klid-res-elsewhere/secret.jpg");
+
+        // when/then
+        assertThatThrownBy(() -> call(1L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(resolutionDerivativeService, never()).createDerivative(any(), any(), anyString());
     }
 
     @Test

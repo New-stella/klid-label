@@ -72,6 +72,13 @@ export interface MetaItem {
   metaSn: number;
   metaKey: string;
   metaVal: string;
+  /**
+   * R6(Phase 6-D): 이 메타의 검토행 PK(LS_DATA_META_REVIEW). 검토행이 없으면 null/undefined.
+   * REVIEWER 승인/반려 API(/v1/meta/{metaReviewSn}/approve|reject) 의 경로 식별자.
+   */
+  dataMetaReviewSn?: number | null;
+  /** 검토 상태(RVW_STTS_CD): AUTO_GENERATED/PENDING/APPROVED/REJECTED. 검토행 없으면 null. */
+  reviewStatus?: string | null;
 }
 
 /**

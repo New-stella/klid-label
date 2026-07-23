@@ -25,6 +25,32 @@ class ReviewStateMachineTest {
     }
 
     @Test
+    @DisplayName("ReviewStateMachine_제출취소_허용_PENDING에서_ASSIGNED_복귀는_가능")
+    void pendingToAssignedCancelSubmitAllowed() {
+        // WORKER 가 검수 시작 전(PENDING)에 제출을 취소하면 ASSIGNED 로 복귀할 수 있다.
+        assertThatCode(() -> machine.verify(LsRawDataStatus.STTS_PENDING, LsRawDataStatus.STTS_ASSIGNED))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("ReviewStateMachine_제출취소_IN_REVIEW에서_ASSIGNED_직행은_불가_INVALID_INPUT")
+    void inReviewToAssignedCancelForbidden() {
+        // 검수 시작(IN_REVIEW) 후에는 취소(ASSIGNED 복귀) 불가.
+        assertThatThrownBy(() -> machine.verify(LsRawDataStatus.STTS_IN_REVIEW, LsRawDataStatus.STTS_ASSIGNED))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("ReviewStateMachine_제출취소_APPROVED에서_ASSIGNED_직행은_409_CONFLICT")
+    void approvedToAssignedCancelConflict() {
+        // 승인(APPROVED) 후 취소(ASSIGNED) 시도는 충돌(409).
+        assertThatThrownBy(() -> machine.verify(LsRawDataStatus.STTS_APPROVED, LsRawDataStatus.STTS_ASSIGNED))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
     @DisplayName("ReviewStateMachine_재검수_허용_APPROVED에서_PENDING_재제출은_가능")
     void approvedToPendingReReviewAllowed() {
         // 검수완료(APPROVED) 영상도 PENDING 으로 재제출하면 새 검수 사이클을 시작할 수 있다 (CLAUDE.md SoT).

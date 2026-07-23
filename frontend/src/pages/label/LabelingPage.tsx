@@ -56,7 +56,7 @@ import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
 import type { FrameSummary, Label } from '@/features/label/types';
 import type { OverlayLayerHandle } from '@/features/label/canvas/layers/OverlayLayer';
-import { useSubmitReview } from '@/features/review/hooks/useReviewActions';
+import { useSubmitReview, useCancelSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { useReview } from '@/features/review/hooks/useReview';
 import { HistoryPanel } from '@/features/version/components/HistoryPanel';
 import { Role } from '@/lib/api/types';
@@ -128,6 +128,11 @@ export function LabelingPage() {
     onError: () => pushToast({ variant: 'error', message: '검수 제출 실패' }),
   });
 
+  const { mutate: cancelSubmitForReview, isPending: cancelling } = useCancelSubmitReview({
+    onSuccess: () => pushToast({ variant: 'success', message: '검수 제출 취소 완료' }),
+    onError: () => pushToast({ variant: 'error', message: '검수 제출 취소 실패' }),
+  });
+
   // R6-B / R12-2 검수제출 가드 — 작업(검수 워크플로우) 상태가 제출 가능 상태일 때만 버튼 enabled.
   // 작업 상태는 LabelsResponse 에 없으므로 reviews/{videoId} 조회로 보강 (WORKER 만).
   // 제출 가능 상태:
@@ -145,6 +150,9 @@ export function LabelingPage() {
   const submitBlockedByStatus =
     workStatus !== undefined &&
     !(SUBMITTABLE_STATUSES as readonly string[]).includes(workStatus);
+  // 제출 취소 노출 조건 — 제출됨(REVIEW_PENDING = 검수 시작 전)일 때만 WORKER 본인에게 노출.
+  // 검수 시작(REVIEWING)/승인(COMPLETED)/반려(REJECTED) 상태에서는 취소 불가(버튼 미노출, BE 도 거부).
+  const canCancelSubmit = isWorker && workStatus === 'REVIEW_PENDING';
   // 검수완료(APPROVED→COMPLETED 매핑) 상태에서의 제출은 '재검수' — 완료본을 다시 건드린다는 인지를 위해 문구 구분.
   const isResubmitOfApproved = workStatus === 'COMPLETED';
   const submitButtonLabel = isResubmitOfApproved ? '재검수 제출' : '검수제출';
@@ -976,23 +984,38 @@ export function LabelingPage() {
         }
         submitButton={
           isWorker && data ? (
-            <Button
-              variant="primary"
-              onClick={() => submitForReview(data.videoId ?? data.srcSn)}
-              disabled={submitting || isLocked || submitBlockedByStatus}
-              loading={submitting}
-              aria-label={submitButtonLabel}
-              data-testid="submit-review-button"
-              title={
-                submitBlockedByStatus
-                  ? submitStatusHint
-                  : isResubmitOfApproved
-                    ? '검수 완료된 영상을 재검수에 다시 제출합니다.'
-                    : undefined
-              }
-            >
-              {submitButtonLabel}
-            </Button>
+            <div className="flex items-center gap-2">
+              {canCancelSubmit && (
+                <Button
+                  variant="secondary"
+                  onClick={() => cancelSubmitForReview(data.videoId ?? data.srcSn)}
+                  disabled={cancelling || isLocked}
+                  loading={cancelling}
+                  aria-label="검수 제출 취소"
+                  data-testid="cancel-submit-review-button"
+                  title="검수 시작 전이라 제출을 취소하고 작업 상태로 되돌립니다."
+                >
+                  제출 취소
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                onClick={() => submitForReview(data.videoId ?? data.srcSn)}
+                disabled={submitting || isLocked || submitBlockedByStatus}
+                loading={submitting}
+                aria-label={submitButtonLabel}
+                data-testid="submit-review-button"
+                title={
+                  submitBlockedByStatus
+                    ? submitStatusHint
+                    : isResubmitOfApproved
+                      ? '검수 완료된 영상을 재검수에 다시 제출합니다.'
+                      : undefined
+                }
+              >
+                {submitButtonLabel}
+              </Button>
+            </div>
           ) : null
         }
       />

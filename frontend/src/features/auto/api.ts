@@ -7,7 +7,10 @@ import { apiClient } from '@/lib/api/client';
 
 import type { FrameMeta, FrameMetaUpdateRequest, MetaItem } from './types';
 
-/** BE 실제 응답: {@code { items: [{metaSn, metaKey, metaVal}] }} (영상 단위 K/V 목록, 0건 가능). */
+/**
+ * BE 실제 응답: {@code { items: [{metaSn, metaKey, metaVal, dataMetaReviewSn, reviewStatus}] }}
+ * (영상 단위 K/V 목록 + 검토상태, 0건 가능).
+ */
 interface MetaApiResponse {
   items?: MetaItem[] | null;
 }
@@ -40,4 +43,25 @@ export function updateMeta(
   return apiClient
     .put<MetaApiResponse>(`/frames/${srcSn}/meta`, body)
     .then((r) => toFrameMeta(r.data));
+}
+
+/**
+ * R6(Phase 6-D): 시계열 메타 검토 승인 — REVIEWER 전용(BE @PreAuthorize).
+ * PENDING/AUTO_GENERATED 에서만 성공하며 이미 검토 완료면 BE 가 409 를 반환한다.
+ * metaReviewSn 은 number 로 강제 — path 조작 불가.
+ */
+export function approveMetaReview(metaReviewSn: number): Promise<void> {
+  return apiClient
+    .post<void>(`/meta/${metaReviewSn}/approve`)
+    .then(() => undefined);
+}
+
+/**
+ * R6(Phase 6-D): 시계열 메타 검토 반려 — REVIEWER 전용. 사유 필수(BE @NotBlank).
+ * reason 은 request body 로만 전송되어 경로 조작·인젝션에 노출되지 않는다.
+ */
+export function rejectMetaReview(metaReviewSn: number, reason: string): Promise<void> {
+  return apiClient
+    .post<void>(`/meta/${metaReviewSn}/reject`, { reason })
+    .then(() => undefined);
 }

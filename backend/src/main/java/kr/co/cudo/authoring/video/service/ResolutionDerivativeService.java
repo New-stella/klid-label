@@ -53,6 +53,14 @@ public class ResolutionDerivativeService {
     private String storageRawPath;
 
     /**
+     * 비식별 프레임 이미지 base 경로. 비식별 프레임({@code deidFilePath})은 deidentified-path 기준 절대경로라
+     * PII-안전 실측 시 경로 검증 base 로 raw-path 뿐 아니라 deidentified-path 도 허용해야 한다. 선례:
+     * PortalLabelService(R17 이슈1).
+     */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String storageDeidentifiedPath;
+
+    /**
      * 해상도 파생영상 생성 — 검증(APPROVED·비-파생) → 첫 프레임 실측(srcW/H>0) → UK 예약 +
      * 새 RAW(PENDING) 커밋(별도 빈) → AFTER_COMMIT 비동기 확정 트리거.
      *
@@ -123,8 +131,7 @@ public class ResolutionDerivativeService {
 
     /** 프레임 이미지의 실제 해상도 실측. PII-안전을 위해 비식별 프레임 우선. */
     private int[] measureDimensions(LsDataSrc frame) {
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path srcPath = resolveSafeFile(base, frameSourcePath(frame));
+        Path srcPath = resolveSafeSource(frameSourcePath(frame));
         return imageResizer.readDimensions(srcPath);
     }
 
@@ -137,14 +144,22 @@ public class ResolutionDerivativeService {
         return frame.getSrcFilePathNm();
     }
 
-    /** 파일 경로 normalize + base 검증 (CWE-22). */
-    private Path resolveSafeFile(Path base, String filePath) {
+    /**
+     * 프레임 소스(원본 또는 비식별) 경로 normalize + base 검증 (CWE-22 traversal 가드).
+     *
+     * <p>비식별 프레임은 deidentified-path 기준 절대경로이므로 raw-path·deidentified-path 두 base 중 하나에
+     * 속하면 통과시킨다. 두 base 모두 벗어나는 경로(상위 traversal 포함)는 여전히 거부한다. 상대경로는 기존과
+     * 동일하게 raw base 기준으로 해석한다.
+     */
+    private Path resolveSafeSource(String filePath) {
         if (filePath == null || filePath.isBlank()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "원본 프레임 경로가 비어있습니다.");
         }
+        Path rawBase = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        Path deidBase = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
         Path candidate = Paths.get(filePath);
-        Path resolved = candidate.isAbsolute() ? candidate.normalize() : base.resolve(candidate).normalize();
-        if (!resolved.startsWith(base)) {
+        Path resolved = candidate.isAbsolute() ? candidate.normalize() : rawBase.resolve(candidate).normalize();
+        if (!resolved.startsWith(rawBase) && !resolved.startsWith(deidBase)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "경로가 허용된 저장 경로를 벗어납니다.");
         }
         return resolved;

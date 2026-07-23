@@ -132,6 +132,63 @@ class EvntAnnoConcurrencyIT {
     }
 
     @Test
+    @DisplayName("동시_영상승인_자동전이시_정확히_1건_성공_나머지_409_CONFLICT")
+    void concurrentAutoApprove_onlyOneSucceeds_otherConflict() throws Exception {
+        // given — anno + AUTO_GENERATED 검토 row 커밋 저장(자동 생성 미승인 상태)
+        Long rawSn = newRawSn();
+        Long evntAnnoSn = txTemplate.execute(s -> {
+            LsEvntAnno anno = annoRepository.saveAndFlush(
+                    LsEvntAnno.create(rawSn, "{\"event_class\":\"정차\"}", "system"));
+            reviewRepository.saveAndFlush(LsEvntAnnoReview.createAuto(
+                    anno.getEvntAnnoSn(), LsEvntAnnoReview.META_TYPE_VLM,
+                    LsEvntAnnoReview.STTS_AUTO_GENERATED, "system"));
+            return anno.getEvntAnnoSn();
+        });
+
+        // when — 2스레드 동시 자동 승인(영상 승인 경로 시뮬레이션)
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch go = new CountDownLatch(1);
+        AtomicInteger success = new AtomicInteger();
+        AtomicInteger conflict = new AtomicInteger();
+        AtomicReference<Throwable> unexpected = new AtomicReference<>();
+        try {
+            for (String sub : List.of("11", "22")) {
+                pool.submit(() -> {
+                    try {
+                        ready.countDown();
+                        go.await(10, TimeUnit.SECONDS);
+                        reviewService.autoApproveOnVideoApproval(rawSn, reviewer(sub));
+                        success.incrementAndGet();
+                    } catch (CustomException e) {
+                        if (e.getErrorCode() == ErrorCode.CONFLICT) {
+                            conflict.incrementAndGet();
+                        } else {
+                            unexpected.compareAndSet(null, e);
+                        }
+                    } catch (Throwable t) {
+                        unexpected.compareAndSet(null, t);
+                    }
+                });
+            }
+            ready.await(10, TimeUnit.SECONDS);
+            go.countDown();
+            pool.shutdown();
+            assertThat(pool.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pool.shutdownNow();
+        }
+
+        // then — 정확히 1건 성공 / 1건 409, 최종 상태 APPROVED 단일(이중 전이 방지)
+        assertThat(unexpected.get()).isNull();
+        assertThat(success.get()).isEqualTo(1);
+        assertThat(conflict.get()).isEqualTo(1);
+        List<LsEvntAnnoReview> found = txTemplate.execute(s -> reviewRepository.findByEvntAnnoSn(evntAnnoSn));
+        assertThat(found).hasSize(1);
+        assertThat(found.get(0).getRvwSttsCd()).isEqualTo(LsEvntAnnoReview.STTS_APPROVED);
+    }
+
+    @Test
     @DisplayName("동시_최초저장_경합시_500없이_anno1건_review1건으로_수렴")
     void concurrentFirstUpsert_noServerError_convergesToSingleRow() throws Exception {
         // given — anno 부재 rawSn

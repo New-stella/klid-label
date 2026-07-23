@@ -64,6 +64,14 @@ public class ResolutionSnapshotService {
     private String storageRawPath;
 
     /**
+     * 비식별 프레임/비디오 base 경로. 비식별 산출물(deidFilePath·비식별 비디오 procLog 경로)은
+     * deidentified-path 기준 절대경로라, <b>입력 소스 읽기</b> 검증 base 로 raw-path 뿐 아니라
+     * deidentified-path 도 허용해야 한다(출력 경로 검증은 raw base 유지). 선례: PortalLabelService(R17 이슈1).
+     */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String storageDeidentifiedPath;
+
+    /**
      * 파생 확정의 검증·스냅샷 단계. 성공 시 Phase B/C 가 필요로 하는 불변 값 묶음을 반환한다.
      *
      * @return 스냅샷 — 이미 확정된 파생 RAW 면 {@link Optional#empty()}(멱등 skip)
@@ -120,7 +128,8 @@ public class ResolutionSnapshotService {
                 .filter(p -> p != null && !p.isBlank())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "원본 비식별 영상 경로를 찾을 수 없습니다: parentRawSn=" + parentRawSn));
-        Path deidVideoSrc = resolveSafeFile(base, deidVideoPath);
+        // 입력(비식별 비디오 소스)은 raw/deid 두 base 허용, 출력(파생 비디오 목적지)은 raw base 유지.
+        Path deidVideoSrc = resolveSafeSource(deidVideoPath);
         Path videoDst = resolveSafeFile(base, newRaw.getRawFilePathNm());
 
         // 3) 프레임별 스펙 스냅샷 + 프레임 0건 fail-fast(#9) + 중복 videoFrameNo fail-fast.
@@ -163,7 +172,8 @@ public class ResolutionSnapshotService {
                 // LOW — 파생 픽셀 복사는 반드시 비식별 프레임에서만. deid 경로가 blank/부재면 실패시켜
                 // 원본(비-비식별) 픽셀이 복제 후 'Y' 스탬프되는 불변식 위반을 차단한다.
                 String deidFrameSrc = deidFrameSourceStrict(pf);
-                Path fsrc = resolveSafeFile(base, deidFrameSrc);
+                // 입력(비식별 프레임 소스)은 raw/deid 두 base 허용, 출력(리스케일 목적지)은 raw base 유지.
+                Path fsrc = resolveSafeSource(deidFrameSrc);
                 Path fdst = resolveSafeDir(base,
                         "resolution/" + newRawSn + "/frames/" + fileNameOf(deidFrameSrc, pf));
                 specs.add(new ResolutionSnapshot.FrameSpec(
@@ -181,8 +191,7 @@ public class ResolutionSnapshotService {
                         .min(java.util.Comparator.comparing(LsDataSrc::getFrameNo))
                         .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_ERROR,
                                 "파생할 프레임이 없습니다: parentRawSn=" + parentRawSn)));
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path srcPath = resolveSafeFile(base, ResolutionDerivativeService.frameSourcePath(first));
+        Path srcPath = resolveSafeSource(ResolutionDerivativeService.frameSourcePath(first));
         return imageResizer.readDimensions(srcPath);
     }
 
@@ -209,7 +218,29 @@ public class ResolutionSnapshotService {
         return deid;
     }
 
-    /** 파일 경로 normalize + base 검증 (CWE-22). */
+    /**
+     * 입력 소스(비식별 프레임/비디오) 경로 normalize + base 검증 (CWE-22 traversal 가드).
+     *
+     * <p>비식별 산출물은 deidentified-path 기준 절대경로이므로 raw-path·deidentified-path 두 base 중 하나에
+     * 속하면 통과시킨다. 두 base 모두 벗어나는 경로(상위 traversal 포함)는 여전히 거부한다. 상대경로는 raw
+     * base 기준으로 해석한다. <b>출력(생성) 경로 검증은 {@link #resolveSafeFile}/{@link #resolveSafeDir}
+     * 가 raw base 로만 계속 강제한다</b>(파생 산출물은 raw base 하위에만 쓴다).
+     */
+    private Path resolveSafeSource(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new CustomException(ErrorCode.NOT_FOUND, "경로가 비어있습니다.");
+        }
+        Path rawBase = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        Path deidBase = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
+        Path candidate = Paths.get(filePath);
+        Path resolved = candidate.isAbsolute() ? candidate.normalize() : rawBase.resolve(candidate).normalize();
+        if (!resolved.startsWith(rawBase) && !resolved.startsWith(deidBase)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "경로가 허용된 저장 경로를 벗어납니다.");
+        }
+        return resolved;
+    }
+
+    /** 파일 경로 normalize + base 검증 (CWE-22). 출력(파생 비디오 목적지) 전용 — raw base 만 허용. */
     private Path resolveSafeFile(Path base, String filePath) {
         if (filePath == null || filePath.isBlank()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "경로가 비어있습니다.");

@@ -60,12 +60,15 @@ class ResolutionSnapshotServiceTest {
     ResolutionSnapshotService service;
 
     @TempDir java.nio.file.Path base;
+    @TempDir java.nio.file.Path deidBase;
 
     @BeforeEach
     void setup() {
         service = new ResolutionSnapshotService(videoRepository, srcRepository,
                 deidentProcLogRepository, augRepository, imageResizer);
         ReflectionTestUtils.setField(service, "storageRawPath", base.toString());
+        // 기본은 raw==deid(단일 tempdir)로 두어 기존 케이스 유지. deid 분리 케이스는 개별 테스트에서 재설정.
+        ReflectionTestUtils.setField(service, "storageDeidentifiedPath", base.toString());
     }
 
     private LsDataRaw newRawMock(String childDeIdntfYn) {
@@ -124,6 +127,54 @@ class ResolutionSnapshotServiceTest {
         // 파생 리스케일 소스는 반드시 비식별 프레임(PII 안전).
         assertThat(s.frames().get(0).deidSrc()).isEqualTo(base.resolve("frames/deid/f0.jpg"));
         assertThat(s.frames().get(0).parentSrcSn()).isEqualTo(1000L);
+    }
+
+    @Test
+    @DisplayName("비식별_경로가_raw와_다른_deid_base여도_스냅샷이_성공한다(운영 정합)")
+    void snapshotSucceedsWhenDeidPathUnderSeparateDeidBase() {
+        // given: 운영처럼 raw base(/storage/raw) 와 deid base(/storage/deidentified) 가 분리된 상황.
+        //        구버전은 deid 프레임/비디오를 raw base 로만 검증해 "경로가 허용된 저장 경로를 벗어납니다" 로 실패했다.
+        ReflectionTestUtils.setField(service, "storageDeidentifiedPath", deidBase.toString());
+
+        LsDataRaw newRaw = mock(LsDataRaw.class);
+        when(newRaw.getDeIdntfYn()).thenReturn("N");
+        // 출력(파생 비디오) 경로는 여전히 raw base 하위.
+        when(newRaw.getRawFilePathNm())
+                .thenReturn(base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4").toString());
+        when(videoRepository.findById(NEW_RAW)).thenReturn(Optional.of(newRaw));
+
+        LsDataRaw parent = mock(LsDataRaw.class);
+        when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
+
+        // 프레임 소스(비식별)와 비식별 비디오는 deid base 하위 절대경로.
+        LsDataSrc parentFrame = LsDataSrc.create(PARENT, 0L, 0L,
+                base.resolve("frames/f0.jpg").toString(), null);
+        parentFrame.attachDeidPath(deidBase.resolve("frames/deid/f0.jpg").toString());
+        ReflectionTestUtils.setField(parentFrame, "srcSn", 1000L);
+        when(srcRepository.findByRawSnAndFrameNo(eq(PARENT), eq(0))).thenReturn(Optional.of(parentFrame));
+        when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(PARENT), eq(PageRequest.of(0, 500))))
+                .thenReturn(new PageImpl<>(List.of(parentFrame)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(PARENT), eq(PageRequest.of(1, 500))))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        LsDeidentProcLog procLog = mock(LsDeidentProcLog.class);
+        when(procLog.getDeIdntfFilePathNm()).thenReturn(deidBase.resolve("videos/deid.mp4").toString());
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(PARENT)).thenReturn(Optional.of(procLog));
+        LsDataAug aug = LsDataAug.createResolutionPending(1000L, LsDataAug.AUG_RESL_720P, "rev1");
+        when(augRepository.findById(DATA_AUG)).thenReturn(Optional.of(aug));
+
+        // when
+        Optional<ResolutionSnapshot> opt = service.snapshot(NEW_RAW, PARENT, DATA_AUG, ResolutionPreset.RESL_720P);
+
+        // then: deid base 로 통과 → 스냅샷 성공, deid 소스/비디오는 deid base 하위, 출력은 raw base 하위
+        assertThat(opt).isPresent();
+        ResolutionSnapshot s = opt.get();
+        assertThat(s.deidVideoSrc()).isEqualTo(deidBase.resolve("videos/deid.mp4"));
+        assertThat(s.videoDst()).isEqualTo(base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4"));
+        assertThat(s.frames()).hasSize(1);
+        assertThat(s.frames().get(0).deidSrc()).isEqualTo(deidBase.resolve("frames/deid/f0.jpg"));
     }
 
     @Test

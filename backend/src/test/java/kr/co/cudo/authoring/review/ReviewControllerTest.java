@@ -305,6 +305,112 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
     }
 
+    // ---------- cancel-submit (WORKER 제출 취소) ----------
+
+    @Test
+    @DisplayName("ReviewController_REVIEW_PENDING서_본인WORKER_취소_200_ASSIGNED복귀")
+    void assignedWorkerCancelSubmitReturnsToAssigned() throws Exception {
+        // given: 제출된(PENDING) 상태 — 검수 시작 전
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        // when: 본인 배정 WORKER 가 제출 취소
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/cancel-submit")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                // then: 200 + ASSIGNED 복귀
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataSttsCd").value("ASSIGNED"));
+
+        LsRawDataStatus after = dataSttsRepository.findById(videoId).orElseThrow();
+        assertThat(after.getDataSttsCd()).isEqualTo("ASSIGNED");
+    }
+
+    @Test
+    @DisplayName("ReviewController_IN_REVIEW서_취소시_400_INVALID_INPUT")
+    void inReviewCancelSubmitRejected() throws Exception {
+        // given: REVIEWER 가 검수 시작한(IN_REVIEW) 상태
+        seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
+
+        // when/then: 본인 WORKER 라도 취소 불가 (IN_REVIEW → ASSIGNED 전이 불허)
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/cancel-submit")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+
+        LsRawDataStatus after = dataSttsRepository.findById(videoId).orElseThrow();
+        assertThat(after.getDataSttsCd()).isEqualTo("IN_REVIEW");
+    }
+
+    @Test
+    @DisplayName("ReviewController_APPROVED서_취소시_409_CONFLICT")
+    void approvedCancelSubmitRejected() throws Exception {
+        // given: 검수 승인된(APPROVED) 상태
+        seedDataStts(LsRawDataStatus.STTS_APPROVED);
+
+        // when/then: 취소 불가 — 충돌(409)
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/cancel-submit")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
+
+        LsRawDataStatus after = dataSttsRepository.findById(videoId).orElseThrow();
+        assertThat(after.getDataSttsCd()).isEqualTo("APPROVED");
+    }
+
+    @Test
+    @DisplayName("ReviewController_타WORKER_취소시_403_IDOR")
+    void otherWorkerCancelSubmitForbidden() throws Exception {
+        // given: 제출(PENDING) 상태 — user 100 에게만 배정됨
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        // when/then: 타 WORKER(user 101) 취소 시도 → 403 (본인 배정 아님)
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/cancel-submit")
+                        .header("Authorization", "Bearer " + workerNotAssignedToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_미배정영상_취소시_403")
+    void unassignedVideoCancelSubmitForbidden() throws Exception {
+        // given: 배정이 전혀 없는 별도 영상 — PENDING 상태
+        LsDataRaw raw2 = LsDataRaw.createFromIngest(
+                "CLIP-REV-CANCEL", "CCTV-002", "EVT-A", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip-cancel.mp4",
+                LocalDateTime.now(), 30);
+        raw2 = rawRepository.save(raw2);
+        Long videoId2 = raw2.getRawSn();
+        LsRawDataStatus stts2 = LsRawDataStatus.initial(videoId2);
+        stts2.transitionTo(LsRawDataStatus.STTS_PENDING);
+        dataSttsRepository.save(stts2);
+
+        // when/then: 배정된 WORKER(user 100)라도 이 영상엔 미배정 → 403
+        mockMvc.perform(post("/v1/reviews/" + videoId2 + "/cancel-submit")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("ReviewController_REVIEWER가_cancel_submit_호출시_403")
+    void reviewerCancelSubmitForbidden() throws Exception {
+        // given: 제출(PENDING) 상태
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        // when/then: cancel-submit 은 WORKER 전용 → REVIEWER 는 403
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/cancel-submit")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("ReviewController_미인증_cancel_submit_호출시_401")
+    void unauthenticatedCancelSubmitReturns401() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/cancel-submit"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // ---------- 목록 조회 (REVIEWER) ----------
 
     @Test

@@ -68,6 +68,103 @@ public class EvntAnnoReviewService {
         triggerReFreezeIfAlreadyApproved(rawSn, reviewer);
     }
 
+    /**
+     * 영상 검수 승인({@code ReviewService.approve}) 시점에 해당 영상(rawSn)의 event_annotation 검토를
+     * <b>자동 확정(APPROVED)</b>한다 — 별도 메타 승인 단계 없이도 export 의 {@code event_annotation} 이
+     * 항상 동결되도록 하기 위함(F: export event_annotation null 해소).
+     *
+     * <p>전이 규칙:
+     * <ul>
+     *   <li>{@code AUTO_GENERATED} 또는 {@code PENDING} → {@code APPROVED} (자동 확정).</li>
+     *   <li>{@code REJECTED}: REVIEWER 가 명시 반려한 메타는 자동 승인하지 않는다(반려 존중, 동결 제외).</li>
+     *   <li>{@code APPROVED}: 이미 승인 — 멱등 skip(재전이 없음).</li>
+     *   <li>event_annotation 자체가 없는 영상: no-op(정상 승인).</li>
+     * </ul>
+     *
+     * <p>이 경로는 {@code ReviewService.approve} 의 승인 트랜잭션(REQUIRED)에 편승하며, 바로 뒤에서
+     * 같은 트랜잭션의 {@code materialize} 가 APPROVED event_annotation 을 EVNT_ANNO_CN 에 동결한다.
+     * 따라서 역순 지연승인용 재동결({@link #triggerReFreezeIfAlreadyApproved})은 <b>호출하지 않는다</b>
+     * (같은 트랜잭션의 후속 materialize 와 중복되기 때문).
+     *
+     * <p>전이 후 {@link #flushOrConflict}({@code reviewRepository.flush()})로 영속성 컨텍스트의 APPROVED
+     * 상태를 즉시 반영해, 이어지는 materialize 의 승인 상태 조회가 이를 관측하도록 flush 순서를 보장한다.
+     * 동시 전이(WORKER 재저장/REVIEWER 개별 승인 경합)는 낙관적 잠금(@Version)으로 정확히 1건만 성공하고
+     * 충돌 1건은 {@link ErrorCode#CONFLICT}(409)로 거부되어 승인 트랜잭션이 함께 롤백된다(CWE-362).
+     *
+     * @param rawSn    검수 승인된 영상 PK
+     * @param reviewer 승인한 REVIEWER(전이 rvwId/로그 식별자)
+     */
+    @Transactional("controlTransactionManager")
+    public void autoApproveOnVideoApproval(Long rawSn, TokenClaims reviewer) {
+        LsEvntAnnoReview review = resolveReviewOrNull(rawSn);
+        if (review == null) {
+            // event_annotation 없는 영상 — 정상 no-op(동결 대상 없음).
+            return;
+        }
+        String status = review.getRvwSttsCd();
+        if (LsEvntAnnoReview.STTS_APPROVED.equals(status)) {
+            // 이미 승인 — 멱등 skip(재전이 없이 이어지는 materialize 가 동결).
+            return;
+        }
+        if (LsEvntAnnoReview.STTS_REJECTED.equals(status)) {
+            // 명시 반려 존중 — 자동 승인 제외(동결 안 됨).
+            log.info("[EvntAnno] auto-approve skipped — rejected meta rawSn={}", rawSn);
+            return;
+        }
+        // AUTO_GENERATED / PENDING → APPROVED. flush 로 materialize 조회 전 상태 반영 보장.
+        review.approve(reviewer.sub());
+        flushOrConflict(rawSn, "autoApprove", reviewer);
+        log.info("[EvntAnno] auto-approved on video approval rawSn={} rvwSn={} actor={}",
+                rawSn, review.getRvwSn(), parseActor(reviewer));
+    }
+
+    /** 시스템 치유 액터 — 지연 동결 event_annotation 백필/치유의 rvwId(무인 배치, 사람 검수자 아님). */
+    private static final String HEAL_ACTOR = "SYSTEM";
+
+    /**
+     * event_annotation 지연 동결 <b>치유</b>(HIGH — 사용자 지목 rawSn 24) — 이미 검수 승인(APPROVED)됐고
+     * 활성 스냅샷은 있으나 {@code EVNT_ANNO_CN=NULL} 로 동결돼 export 에서 event_annotation 이 영구 누락된
+     * 영상 1건을 치유한다. 배치({@link kr.co.cudo.authoring.dataset.service.DatasetVideoMetaBackfillService})가
+     * 대상 rawSn 을 넘겨 호출한다.
+     *
+     * <p>치유 동작(같은 트랜잭션 원자 실행):
+     * <ol>
+     *   <li>event_annotation/검토 부재 → no-op(치유 대상 아님, 정상 null 유지).</li>
+     *   <li>최신 검토가 {@code REJECTED} → skip(명시 반려 존중).</li>
+     *   <li>{@code AUTO_GENERATED}/{@code PENDING} → {@code APPROVED} 로 자동 확정 후 flush
+     *       (이어지는 {@code materialize} 의 승인 상태 조회 반영 보장).</li>
+     *   <li>{@code APPROVED}(이미 승인) → 전이 없이 통과.</li>
+     *   <li>{@link DatasetVideoMetaSnapshotService#materialize(Long)} — 승인된 event_annotation 을 활성 스냅샷
+     *       {@code EVNT_ANNO_CN} 에 재동결(내용 변경 → 새 active 버전 append). 이미 채워진 건은 애초에 대상
+     *       쿼리에서 빠지므로 이 경로가 멱등 skip 을 이룬다.</li>
+     * </ol>
+     *
+     * @return 실제 재동결을 수행하면 {@code true}, 대상 아님(부재/반려)이면 {@code false}
+     */
+    @Transactional("controlTransactionManager")
+    public boolean healLateFrozenEventAnnotation(Long rawSn) {
+        LsEvntAnnoReview review = resolveReviewOrNull(rawSn);
+        if (review == null) {
+            // event_annotation/검토 부재 — 치유 대상 아님(정상 null 유지).
+            return false;
+        }
+        String status = review.getRvwSttsCd();
+        if (LsEvntAnnoReview.STTS_REJECTED.equals(status)) {
+            // 명시 반려 존중 — 치유 제외(동결 안 됨).
+            log.info("[EvntAnno] heal skipped — rejected meta rawSn={}", rawSn);
+            return false;
+        }
+        if (!LsEvntAnnoReview.STTS_APPROVED.equals(status)) {
+            // AUTO_GENERATED / PENDING → APPROVED. flush 로 materialize 승인 상태 조회 전 반영 보장.
+            review.approve(HEAL_ACTOR);
+            reviewRepository.flush();
+        }
+        // 재동결: 활성 스냅샷 EVNT_ANNO_CN 을 승인된 event_annotation 으로 채운다(내용 변경 → 새 active 버전).
+        snapshotService.materialize(rawSn);
+        log.info("[EvntAnno] heal re-froze event_annotation rawSn={}", rawSn);
+        return true;
+    }
+
     /** REVIEWER 가 영상의 event_annotation 검토를 반려. 사유 필수. 동시 전이 시 409(위 approve 동일). */
     @Transactional("controlTransactionManager")
     public void reject(Long rawSn, String reason, TokenClaims reviewer) {
@@ -146,6 +243,20 @@ public class EvntAnnoReviewService {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * RAW_SN → event_annotation → 검토 row 2단 해석(자동 승인용). 부재 시 예외 대신 {@code null} 반환 —
+     * event_annotation 이 없는 영상의 검수 승인은 정상 no-op 이어야 하기 때문(자동 승인 경로 전용).
+     */
+    private LsEvntAnnoReview resolveReviewOrNull(Long rawSn) {
+        LsEvntAnno anno = annoRepository.findByRawSn(rawSn).orElse(null);
+        if (anno == null) {
+            return null;
+        }
+        return reviewRepository.findByEvntAnnoSn(anno.getEvntAnnoSn()).stream()
+                .findFirst()
+                .orElse(null);
     }
 
     /** RAW_SN → event_annotation → 검토 row 2단 해석. */

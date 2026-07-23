@@ -109,4 +109,40 @@ public interface LsDatasetVideoMetaRepository extends JpaRepository<LsDatasetVid
              ORDER BY s.RAW_DATA_ID
             """, nativeQuery = true)
     List<BackfillTargetRow> findApprovedWithoutActiveSnapshot();
+
+    /**
+     * event_annotation 지연 동결 <b>치유 대상</b> 조회(배치) — 이미 검수 승인(APPROVED)됐고 활성 스냅샷은
+     * 존재하지만 그 스냅샷의 {@code EVNT_ANNO_CN} 이 아직 {@code NULL} 로 동결돼, event_annotation 이 export
+     * 에서 영구 누락되는 영상을 반환한다(HIGH — 사용자 지목 rawSn 24 상황).
+     *
+     * <p>대상 조건(모두 충족):
+     * <ol>
+     *   <li>{@code LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'} — 이미 검수 완료.</li>
+     *   <li>{@code LS_EVNT_ANNO} 존재 — 동결할 event_annotation 이 있음.</li>
+     *   <li>활성 스냅샷({@code ACTIVE_YN='Y'})의 {@code EVNT_ANNO_CN IS NULL} — 아직 미동결(이미 채워졌으면
+     *       멱등 skip 되어 대상에서 빠진다).</li>
+     *   <li>최신 검토(RVW_SN DESC)가 {@code REJECTED} 가 아님 — 명시 반려 메타는 치유 제외(반려 존중).</li>
+     * </ol>
+     *
+     * <p>기존 {@link #findApprovedWithoutActiveSnapshot()} 는 {@code NOT EXISTS ACTIVE} 가드 때문에 활성
+     * 스냅샷이 <b>이미 있는</b> rawSn 24 를 제외한다 — 그래서 별도 치유 쿼리가 필요하다. 치유가 성공하면
+     * {@code EVNT_ANNO_CN} 이 채워져 다음 배치에서 자동으로 대상에서 빠지므로 {@code LIMIT} 배치 반복이
+     * 무한 루프 없이 수렴한다(대량 영상 대비 페이징). 최신 검토 선택은 {@code LS_EVNT_ANNO_REVIEW} 결정적
+     * 정렬과 동일 기준이다. 모든 값은 파라미터 바인딩(CWE-89).
+     */
+    @Query(value = """
+            SELECT s.RAW_DATA_ID AS "rawSn", NULL AS "approvedAt"
+              FROM LS_RAW_DATA_STATUS s
+              JOIN LS_EVNT_ANNO a ON a.RAW_SN = s.RAW_DATA_ID
+              JOIN LS_DATASET_VIDEO_META m
+                ON m.RAW_SN = s.RAW_DATA_ID AND m.ACTIVE_YN = 'Y' AND m.EVNT_ANNO_CN IS NULL
+             WHERE s.DATA_STTS_CD = 'APPROVED'
+               AND COALESCE((SELECT r.RVW_STTS_CD FROM LS_EVNT_ANNO_REVIEW r
+                              WHERE r.EVNT_ANNO_SN = a.EVNT_ANNO_SN
+                              ORDER BY r.RVW_SN DESC
+                              LIMIT 1), 'NONE') <> 'REJECTED'
+             ORDER BY s.RAW_DATA_ID
+             LIMIT :batchSize
+            """, nativeQuery = true)
+    List<BackfillTargetRow> findEventAnnoHealTargets(@Param("batchSize") int batchSize);
 }

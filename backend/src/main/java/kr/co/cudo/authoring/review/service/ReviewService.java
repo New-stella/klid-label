@@ -28,6 +28,8 @@ import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
+import kr.co.cudo.authoring.evntanno.service.EvntAnnoReviewService;
+import kr.co.cudo.authoring.meta.service.MetaService;
 import kr.co.cudo.authoring.version.service.VersionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,6 +80,10 @@ public class ReviewService {
     private final VersionService versionService;
     /** 검수 승인 시점에 영상 메타를 통합 테이블(LS_DATASET_VIDEO_META)에 동결 적재(포털향 materialize). */
     private final DatasetVideoMetaSnapshotService datasetVideoMetaSnapshotService;
+    /** 검수 승인 시점에 해당 영상의 event_annotation 검토를 자동 확정(APPROVED)해 export 동결 누락을 막는다. */
+    private final EvntAnnoReviewService evntAnnoReviewService;
+    /** 검수 승인 시점에 해당 영상의 시계열 메타 검토행(LS_DATA_META_REVIEW)을 자동 확정해 V_COMPLETED_META 누락을 막는다. */
+    private final MetaService metaService;
 
     /**
      * 검수 워크플로우 상태별 페이징 목록 (REVIEWER 의 검수 목록 화면용).
@@ -349,6 +355,39 @@ public class ReviewService {
     }
 
     /**
+     * 작업자가 검수 제출을 취소. 본인에게 LABELER 로 배정된 영상만 가능하며 <b>검수 시작 전(PENDING)</b>에만 허용.
+     * 상태: PENDING → ASSIGNED(작업 상태 복귀).
+     *
+     * <p>가드:
+     * <ul>
+     *   <li>본인 배정 WORKER 검증 ({@link #verifyAssignedWorker}) — 타인/미배정 영상은 403 (CWE-639 IDOR).</li>
+     *   <li>PENDING 이 아니면 {@code stateMachine.verify} 가 거부 — IN_REVIEW/REJECTED/ASSIGNED 는 400,
+     *       APPROVED 는 409(CONFLICT). 검수 시작·승인·반려 뒤엔 취소 불가.</li>
+     *   <li>낙관적 잠금(@Version) — REVIEWER 검수시작(PENDING→IN_REVIEW)과 동시 경합 시 한쪽만 성공,
+     *       패자는 409(CONFLICT). flush 로 커밋 전 충돌을 결정적으로 표면화한다.</li>
+     * </ul>
+     */
+    @Transactional("controlTransactionManager")
+    public ReviewResponse cancelSubmit(Long videoId, TokenClaims actor) {
+        verifyAssignedWorker(videoId, actor);
+        LsRawDataStatus stts = loadByVideoId(videoId);
+        stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_ASSIGNED);
+        stts.transitionTo(LsRawDataStatus.STTS_ASSIGNED);
+        // 통합 이벤트 로그 (SCR-TASK-003): 제출 취소 이벤트 기록 (PII 미포함)
+        Long workerUserNo = parseUserNo(actor.sub());
+        taskEventLogRepository.save(LsTaskEventLog.cancelSubmit(
+                stts.getRawDataId(), workerUserNo));
+        try {
+            reviewRepository.flush();
+        } catch (OptimisticLockingFailureException e) {
+            log.warn("[Review] optimistic lock conflict on cancelSubmit videoId={} actor={}", videoId, actor.sub());
+            throw new CustomException(ErrorCode.CONFLICT, "이미 검수가 시작되었거나 상태가 변경되었습니다.");
+        }
+        log.info("[Review] cancelSubmit videoId={} actor={}", videoId, actor.sub());
+        return enrichOne(stts);
+    }
+
+    /**
      * REVIEWER 가 검수 시작. PENDING → IN_REVIEW.
      */
     @Transactional("controlTransactionManager")
@@ -389,6 +428,15 @@ public class ReviewService {
             log.warn("[Review] approved with snapshot skips videoId={} skippedFrames={} actor={}",
                     videoId, commit.skipped(), actor.sub());
         }
+        // F — 영상 검수 승인 시 event_annotation 을 자동 확정(APPROVED)해 export 의 event_annotation 이
+        // 항상 동결되게 한다(별도 메타 승인 단계 불필요). REJECTED 는 제외(반려 존중), 이미 APPROVED 면 멱등 skip,
+        // event_annotation 이 없으면 no-op. 같은 승인 트랜잭션에서 전이·flush → 이어지는 materialize 가
+        // APPROVED event_annotation 을 EVNT_ANNO_CN 에 동결한다(materialize 조회 전 상태 반영 보장).
+        evntAnnoReviewService.autoApproveOnVideoApproval(stts.getRawDataId(), actor);
+        // F 완성 — 시계열 메타 검토행(LS_DATA_META_REVIEW)도 같은 승인 트랜잭션에서 자동 확정(APPROVED)
+        // → V_COMPLETED_META(RVW_STTS_CD='APPROVED'만 노출) 누락 방지. REJECTED 는 제외(반려 존중),
+        // 이미 APPROVED 면 멱등 skip, 검토행 없으면 no-op. 전이·flush 후 이어지는 materialize 가 이를 관측한다.
+        metaService.autoApproveOnVideoApproval(stts.getRawDataId(), actor);
         // 포털향 통합 메타 동결 — LS_LABEL_VERSION 스냅샷 직후, 같은 승인 트랜잭션에서 materialize.
         // APPROVED 전이·버전 스냅샷·통합 메타 동결·outbox 가 원자적으로 함께 커밋/롤백된다(정합성 우선).
         datasetVideoMetaSnapshotService.materialize(stts.getRawDataId());

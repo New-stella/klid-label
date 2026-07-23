@@ -81,6 +81,19 @@ export function submitReview(videoId: number): Promise<Review> {
 }
 
 /**
+ * 작업자가 검수 제출을 취소 (검수 시작 전에만 가능).
+ * BE: POST /api/v1/reviews/{videoId}/cancel-submit
+ * 상태 전이: REVIEW_PENDING(PENDING) → ASSIGNED
+ *
+ * 검수 시작(REVIEWING)/승인/반려 후에는 BE 가 거부(400/409). 본인 배정 검증은 BE 책임(IDOR).
+ */
+export function cancelSubmitReview(videoId: number): Promise<Review> {
+  return apiClient
+    .post<Review>(`/reviews/${videoId}/cancel-submit`)
+    .then((r) => r.data);
+}
+
+/**
  * BE IssueResponse 원본 shape — FE ReviewIssue 와 필드명이 다르므로 변환 매퍼 적용.
  *
  * BE: { dataIssueSn, upDataIssueSn, videoId, issueReason, reportedUserNo, registeredAt }
