@@ -30,7 +30,8 @@ import static org.mockito.Mockito.when;
  * <ul>
  *   <li>승인 후 원본+비식별 2벌 산출 → Writer 2회 + SUCCEEDED 전이.</li>
  *   <li>파일 산출 실패가 예외를 전파하지 않고 FAILED 로만 기록(승인 불변).</li>
- *   <li>무수정 재승인 멱등 skip(직전 성공 해시 == 현재 해시).</li>
+ *   <li>승인 경로(force=true)는 무수정 재승인도 항상 새 버전 산출(R6).</li>
+ *   <li>재동결 경로(onReExport, force=false)는 직전 해시 == 현재 해시면 멱등 skip 유지.</li>
  *   <li>버전 UK 충돌 시 재채번 재시도(count+1 TOCTOU 방어).</li>
  * </ul>
  */
@@ -174,17 +175,51 @@ class DatasetExportServiceTest {
     }
 
     @Test
-    @DisplayName("무수정_재승인은_멱등_skip된다 — 신규 export 미생성")
-    void unchangedReapproveIsIdempotentSkip() {
+    @DisplayName("재동결_onReExport_경로는_동일해시면_멱등_skip_유지한다 (force=false)")
+    void unchangedReExportIsIdempotentSkip() {
         long rawSn = 9L;
-        // 직전 SUCCEEDED export 의 해시 == 현재 라벨 상태 해시 → skip.
+        // 재동결(onReExport, force=false): 직전 SUCCEEDED export 해시 == 현재 라벨 상태 해시 → skip.
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("same", "same")));
 
-        service.export(rawSn);
+        service.export(rawSn, false);
 
         verify(txService, never()).insertNextVersion(anyLong(), any());
         verify(writer, never()).write(anyLong(), any(), anyInt(), any(), any());
         verify(txService, never()).markSucceeded(anyLong(), anyInt());
+    }
+
+    @Test
+    @DisplayName("무수정_재승인도_승인경로는_새버전_생성한다 (force=true, R6)")
+    void unchangedReapproveOnApproveForcesNewVersion() {
+        long rawSn = 90L;
+        // R6 — 승인 경로(force=true): 직전과 동일 contentHash 여도 skip 하지 않고 새 버전 산출.
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("same", "same")));
+        when(txService.insertNextVersion(eq(rawSn), eq("same"))).thenReturn(new InsertedExport(900L, 3));
+        when(writer.write(eq(rawSn), any(), eq(3), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 3, 5));
+
+        service.export(rawSn, true);
+
+        verify(txService).insertNextVersion(rawSn, "same");
+        verify(writer, times(2)).write(eq(rawSn), any(), eq(3), any(), any());
+        verify(txService).markSucceeded(eq(900L), anyInt());
+    }
+
+    @Test
+    @DisplayName("최초_승인은_직전export_없어_force무관_생성한다 (경계, lastExportedHash=null)")
+    void firstApproveCreatesVersionRegardlessOfForce() {
+        long rawSn = 91L;
+        // 직전 export 없음(lastExportedHash=null) → isUnchanged=false → force 여부와 무관하게 산출.
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(910L, 1));
+        when(writer.write(eq(rawSn), any(), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 5));
+
+        service.export(rawSn, true);
+
+        verify(txService).insertNextVersion(rawSn, "h1");
+        verify(writer, times(2)).write(eq(rawSn), any(), eq(1), any(), any());
+        verify(txService).markSucceeded(eq(910L), anyInt());
     }
 
     @Test
@@ -385,19 +420,40 @@ class DatasetExportServiceTest {
     }
 
     @Test
-    @DisplayName("무수정_재승인_멱등skip시_result_idempotent_skip_1회")
-    void metricsIdempotentSkip() {
-        // given
+    @DisplayName("재동결_onReExport_동일해시_멱등skip시_result_idempotent_skip_1회 (force=false)")
+    void metricsIdempotentSkipOnReExport() {
+        // given — 재동결 경로(force=false)에서만 멱등 skip outcome 이 발생한다(승인 경로 force=true 는 미발생).
         long rawSn = 35L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("same", "same")));
 
         // when
-        service.export(rawSn);
+        service.export(rawSn, false);
 
         // then
         assertThat(resultCount("idempotent_skip")).isEqualTo(1.0);
         assertThat(resultCount("completed")).isEqualTo(0.0);
         assertThat(durationCount("idempotent_skip")).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("승인경로_force_true_동일해시여도_idempotent_skip이_아니라_completed로_계상된다 (R6)")
+    void metricsApproveForceNoIdempotentSkip() {
+        // given — 승인 경로(force=true)는 동일 해시여도 skip 하지 않고 산출 → idempotent_skip outcome 미발생.
+        long rawSn = 38L;
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("same", "same")));
+        when(txService.insertNextVersion(eq(rawSn), eq("same"))).thenReturn(new InsertedExport(380L, 2));
+        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(2), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 2, 5, 0));
+        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(2), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 2, 5, 0));
+
+        // when
+        service.export(rawSn, true);
+
+        // then
+        assertThat(resultCount("idempotent_skip")).isEqualTo(0.0);
+        assertThat(resultCount("completed")).isEqualTo(1.0);
+        assertThat(durationCount("completed")).isEqualTo(1L);
     }
 
     @Test

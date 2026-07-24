@@ -321,11 +321,12 @@ class DatasetExportE2EIT {
     }
 
     @Test
-    @DisplayName("event_annotation_포함_재export시_동일_동결본이면_멱등skip되어_v2가_없다")
-    void reExportWithSameFrozenEventAnnotationIsIdempotent() {
+    @DisplayName("event_annotation_포함_재동결(forceFalse)이_동일_동결본이면_멱등skip되어_v2가_없다")
+    void reFreezeForceFalseWithSameFrozenEventAnnotationIsIdempotentSkip() {
+        // 재동결/멱등 경로 = export(rawSn) 1-arg(=force=false) 직접 호출(승인 경로 force=true, R6 아님).
         long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명", EVENT_ANNO_PAYLOAD);
-        exportService.export(rawSn); // v1
-        exportService.export(rawSn); // 동일 동결본 → 멱등 skip
+        exportService.export(rawSn); // v1 (force=false)
+        exportService.export(rawSn); // 동일 동결본 무변경 재동결(force=false) → 멱등 skip
 
         List<LsDatasetExport> exports = txTemplate.execute(s ->
                 exportRepository.findAll().stream().filter(e -> e.getDataRawSn().equals(rawSn)).toList());
@@ -357,5 +358,59 @@ class DatasetExportE2EIT {
                 exportRepository.findAll());
         long forRaw = exports.stream().filter(e -> e.getDataRawSn().equals(rawSn)).count();
         assertThat(forRaw).isEqualTo(2);
+    }
+
+    /**
+     * R6 헤드라인 실 IT — <b>승인 경로(force=true)는 내용 무변경(동일 콘텐츠 해시)이라도</b> 멱등 skip 없이
+     * 새 버전 폴더 + JSON 파일을 디스크에 실제로 재생성한다. 재동결(force=false) 멱등 skip과 대비되는 핵심 동작으로,
+     * mock 단언(DatasetExportServiceTest)이 아닌 실 파일 산출로 검증한다.
+     */
+    @Test
+    @DisplayName("무수정_재승인(forceTrue)은_동일해시여도_v2폴더와_JSON을_디스크에_새로생성한다")
+    void reapproveForceTrueCreatesNewVersionEvenWhenUnchanged() throws IOException {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+
+        // v1 — 승인 산출(force=true)
+        exportService.export(rawSn, true);
+        // 내용 무변경(라벨/프레임/메타 그대로) 상태로 승인 재산출(force=true) → R6: 멱등 skip 없이 v2 생성
+        exportService.export(rawSn, true);
+
+        // ① LS_DATASET_EXPORT 에 v2 행 생성(count=2) — 무변경인데도 새 버전 채번됨
+        long count = txTemplate.execute(s -> exportRepository.countByDataRawSn(rawSn));
+        assertThat(count).isEqualTo(2);
+
+        // ② v2 폴더/JSON 파일이 v1과 다른 버전 디렉터리로 디스크에 실제 생성
+        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json")).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json")).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL)).isNotEqualTo(versionDir(rawSn, 2, ExportKind.ORIGINAL));
+
+        // ③ 최신(최대 버전)이자 최신 SUCCEEDED export 가 v2
+        LsDatasetExport latest = txTemplate.execute(s ->
+                exportRepository.findFirstByDataRawSnOrderByExportVerNoDesc(rawSn).orElseThrow());
+        assertThat(latest.getExportVerNo()).isEqualTo(2);
+        assertThat(latest.getExportSttsCd()).isEqualTo(LsDatasetExport.STATUS_SUCCEEDED);
+        LsDatasetExport latestSucceeded = txTemplate.execute(s ->
+                exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(
+                        rawSn, List.of(LsDatasetExport.STATUS_SUCCEEDED)).orElseThrow());
+        assertThat(latestSucceeded.getExportVerNo()).isEqualTo(2);
+    }
+
+    /**
+     * MED-1 대비 IT — 같은 무변경 상태라도 <b>재동결(force=false)</b> 재호출은 여전히 멱등 skip(v1 유지, count=1).
+     * force=true(위 IT)와 역할 분담을 명확히 한다.
+     */
+    @Test
+    @DisplayName("무수정_재동결(forceFalse)은_동일해시면_멱등skip으로_v1만_유지하고_count가_1이다")
+    void reFreezeForceFalseUnchangedKeepsV1Only() {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+
+        exportService.export(rawSn);        // v1 (force=false)
+        exportService.export(rawSn);        // 무변경 재동결(force=false) → 멱등 skip
+
+        long count = txTemplate.execute(s -> exportRepository.countByDataRawSn(rawSn));
+        assertThat(count).isEqualTo(1);
+        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json")).doesNotExist();
     }
 }

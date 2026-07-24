@@ -104,18 +104,35 @@
 | `fps` / `aspect_ratio` | FPS / ASPRT_RT | |
 | `width` / `height` / `resolution` | VDO_WDTH / VDO_HGT / RESL | |
 | `bit` | BIT_RT | |
-| `weather` | WTHR_NM | 현재 null |
+| `weather` | **LS_DATA_RAW.WTHR_NM(수동값) → 스냅샷 WTHR_NM** | 촬영환경 수동 저장값 우선(§24.4.1) |
 | `coordinates` | WGS84_LAT,WGS84_LOT | |
 | `cctv_name` | CCTV_NM | |
 | `anonymity` | **산출 종류 오버라이드** (orgnl=N/deid=Y) | |
 | `pseudonymity` / `privacy_included` | PRVC_TYPE_CD(=PSDO?) / PRVC_YN | |
 | `event_id` / `event_name` | EVNT_TYPE_CD / EVNT_NM | |
-| `time_of_day` / `season` | DAY_NGT_CD / SESN_CD | |
+| `time_of_day` / `season` | **LS_DATA_RAW.DAY_NGT_CD / SESN_CD(수동값) → 스냅샷 DAY_NGT_CD / SESN_CD** | 촬영환경 수동 저장값 우선(§24.4.1) |
 | `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log`, `vd_description` | — | **미보유 → null** (키 유지) |
 
 > **VQA/CoT 위치 정정**: 구 video 블록의 `cto`/`vqa` 플레이스홀더는 **필드 자체를 제거**했다 — 정본 샘플에 없으며, VQA/CoT는 영상 기술메타(video)가 아니라 **최상위 `event`**(§24.3.1)으로 분리한다. 정본 샘플에 있는 `vd_description`(영상 서술) 키는 추가했다(현재 원천 미보유 → null). (확정·구현 완료)
 
+### 24.4.1 촬영환경(weather / time_of_day / season) — 수동값 우선
+
+영상 단위 촬영환경은 작업자가 화면에서 직접 입력·정정할 수 있다(`GET|PUT /v1/videos/{rawSn}/environment-meta`, REVIEWER·WORKER(본인 배정)).
+
+| 구분 | 규칙 |
+|------|------|
+| 저장 | `LS_DATA_RAW.WTHR_NM / DAY_NGT_CD / SESN_CD`(V130). PUT 은 **전체 교체** — 3필드를 항상 함께 전송하고, 생략한 필드는 수동값이 삭제된다 |
+| 허용값 | weather=맑음·흐림·비·눈·안개 / time_of_day=DAY·NGT / season=SPRING·SUMMER·FALL·WINTER (화이트리스트, 그 외 400) |
+| 조회 프리필 | 수동값이 있으면 그 값(`MANUAL`), 없으면 SHT_DT 파생값(`DERIVED`). weather 는 자동 출처가 없어 미입력 시 null. SHT_DT 가 null 이면 time_of_day·season 도 null |
+| 승인 동결 | 검수 승인 스냅샷(`LS_DATASET_VIDEO_META`)에 **수동값 우선**으로 동결(미입력이면 기존 SHT_DT 파생값). `DAY_NGT_CD`·`SESN_CD` 는 항상 해시 입력에 포함되고, `WTHR_NM` 은 **값이 있을 때만** 포함한다(미입력이면 키 생략 — 도입 이전 승인 영상이 내용 무변경인데도 재동결 시 새 해시로 중복 버전이 쌓이는 것을 막는 하위호환) |
+| export | `NiaVideo.weather/time_of_day/season` 은 **raw 수동값 → 스냅샷** 순으로 채운다(다른 video 필드는 스냅샷 우선이라 순서가 반대). 영상 단위 값이라 ORIGINAL/DEIDENTIFIED 2벌이 항상 동일 |
+| 승인 후 수정 | 검수 완료(APPROVED) 영상의 촬영환경을 정정하면 **동결 스냅샷(데이터마트 뷰)만 재동결(materialize)**한다 — 관제가 조회하는 스냅샷·데이터마트 뷰(`V_COMPLETED_VIDEO.WTHR_NM`)·포털 복제본이 최신 수동값을 반영한다. **export 폴더 파일은 재산출하지 않고 다음 재승인 시 재산출**한다(승인 후 라벨 수정과 동일 정책 — 한 필드 정정이 프레임 이미지 전량 2벌 재복제로 증폭되는 것을 막음, OWASP API4). 재동결 시 **검수 완료 일시(`RVW_CMPL_DT`)는 최초 승인 시각을 보존**한다(편집 시각으로 덮지 않음 — `TASK_COMPLETED` "검수 완료 일시" 계약). 활성 스냅샷이 없으면 fail-safe skip |
+| 파생영상 | 증강·해상도 파생본은 생성 시 부모의 촬영환경 수동값 3필드를 **복사**한다(같은 영상 소스이므로). 부모가 미입력이면 파생본도 null → 촬영일시 파생 폴백 유지. 복사는 **생성 시점 1회**이며 파생 생성 후 부모 촬영환경 수정은 파생본으로 **재전파하지 않는다**(스냅샷 시맨틱 — 의도) |
+| 통지 | 검수 완료(APPROVED) 후 수정 시 관제 `TASK_MODIFIED`(META_UPDATED) 발행 |
+
 > **미보유 필수 필드 null 정책 (소비측 주의)**: 위 "미보유" 필드는 저작도구가 원천 데이터를 보유하지 않아 **의도적으로 null** 이다. `@JsonInclude(ALWAYS)` 로 키 자체는 항상 존재하므로, 소비측은 "키 부재"가 아니라 "**값 null**"로 미보유를 판정해야 한다.
+
+> **파생 프레임 개인정보 cross-stale 경계 (아키텍처 경계·후속 백로그)**: 프레임 개인정보 3필드(`LS_DATA_SRC.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN`)는 증강·해상도 파생 생성 시 부모 프레임 → 자식 파생 프레임으로 **생성 시점 1회 복사**된다(`AugmentExtractPersist`/`ResolutionPersistService` 의 `loadParentSrcs`). 부모 영상에 이후 **비식별 누락 신고**가 발생하면 `DeidentReportService.report()` 가 부모 rawSn 의 프레임 3필드만 NULL 리셋하며, **이미 생성된 자식 파생(다른 rawSn)의 복사값은 리셋되지 않는다**(cross-stale). 이는 의도된 아키텍처 경계다 — ① 신규 파생은 생성 시점 stale-PII 게이트(부모 재비식별 창 abort)로 방어되고, ② 기존 파생은 자체 라벨링·검수·신고 워크플로를 독립으로 가지므로 필요 시 파생본 단위로 재신고·정정한다. 부모→기존 파생 캐스케이드 리셋은 현재 미지원이며 후속 백로그로 관리한다(같은 경계를 `DeidentReportService.report` Javadoc 에도 명시).
 
 ## 24.5 categories 와 SKELETON 인덱싱
 
@@ -127,10 +144,13 @@
 ## 24.6 멱등 · 버전 누적
 
 - **버전 채번**: 기존 export 건수 + 1 = 다음 `EXPORT_VER_NO`. UK(DATA_RAW_SN, EXPORT_VER_NO) 위반 시 재채번 재시도(동시 승인 TOCTOU/CWE-362 백스톱).
-- **무수정 재승인 멱등(콘텐츠 해시)**: 산출 시점 상태를 SHA-256 콘텐츠 해시로 계산한다. 해시 원천은 **라벨 + 프레임(FRM_EXPLN 등) + 영상 메타(개인정보 유형·해상도 등)** — 라벨뿐 아니라 프레임 설명/개인정보 정정도 반영한다. 직전 **SUCCEEDED 또는 PARTIAL**(멱등 baseline) export 의 해시와 같으면 재산출을 **skip**(중복 버전 생성 방지). 직전이 FAILED/PENDING 이어도 그 이전의 SUCCEEDED/PARTIAL 해시를 상태 IN 필터로 정확히 찾는다.
-  - **PARTIAL 을 baseline 에 포함하는 이유(무한 누적 방지)**: 원천 이미지가 지속 부재해 매번 `PARTIAL` 로 끝나는 영상을 무수정 재승인할 때, PARTIAL 을 baseline 에서 제외하면 `v2·v3·v4…` 가 무한 채번되며 매 버전 이미지 파일이 재복사되어 디스크가 무한 증가한다(OWASP API4). PARTIAL 도 멱등 baseline 으로 삼아 이를 차단한다. `FAILED`(written=0)는 디스크 누적이 없고 재시도를 유도해야 하므로 baseline 에서 계속 제외한다.
+- **★R6 — 검수 승인은 항상 전량 재생성(멱등 skip 미적용)**: 검수 승인(`onReviewApproved`, 최초·재승인 무관) 트리거는 **`forceRegenerate=true`** 로 진입해, **내용 변경 여부와 무관하게 매 승인마다 새 버전 폴더 + JSON/이미지를 전량 재생성**한다. 아래 콘텐츠 해시 멱등 skip 은 **재동결 경로(`onReExport`, event_annotation 지연 승인 등, `forceRegenerate=false`)에서만** 적용된다. 편집(촬영환경 PUT 등)은 재export 자체를 트리거하지 않으므로 재생성을 유발하지 않는다(§24.5, Phase 2 정합).
+  - **retention 백로그(범위 밖)**: 승인마다 새 버전 + 프레임 2벌(orgnl/deid) 복사가 누적되나 구 버전 정리(retention) 잡은 미구현이다. 보존 정책·정리 잡·저장소 메트릭 알람은 **별도 후속 Phase**에서 도입한다(코드에 `TODO(retention)` 주석).
+- **무수정 재동결 멱등(콘텐츠 해시, force=false 경로 한정)**: 산출 시점 상태를 SHA-256 콘텐츠 해시로 계산한다. 해시 원천은 **라벨 + 프레임(FRM_EXPLN 등) + 영상 메타(개인정보 유형·해상도 등)** — 라벨뿐 아니라 프레임 설명/개인정보 정정도 반영한다. 직전 **SUCCEEDED 또는 PARTIAL**(멱등 baseline) export 의 해시와 같으면 재산출을 **skip**(중복 버전 생성 방지). 직전이 FAILED/PENDING 이어도 그 이전의 SUCCEEDED/PARTIAL 해시를 상태 IN 필터로 정확히 찾는다.
+  - **PARTIAL 을 baseline 에 포함하는 이유(무한 누적 방지)**: 원천 이미지가 지속 부재해 매번 `PARTIAL` 로 끝나는 영상을 무수정 재동결(force=false)할 때, PARTIAL 을 baseline 에서 제외하면 `v2·v3·v4…` 가 무한 채번되며 매 버전 이미지 파일이 재복사되어 디스크가 무한 증가한다(OWASP API4). PARTIAL 도 멱등 baseline 으로 삼아 이를 차단한다. `FAILED`(written=0)는 디스크 누적이 없고 재시도를 유도해야 하므로 baseline 에서 계속 제외한다.
   - **한계(설계상 수용)**: PARTIAL 후 라벨이 불변인 채 부재 이미지가 나중에 실제로 복구돼도, 해시가 같아 자동 재완성되지는 않는다(라벨/설명을 조금이라도 수정하면 해시 변경으로 재산출됨). 이는 무한 누적 방지를 위한 의도된 트레이드오프이며 기존 산출물은 보존된다(데이터 손실 아님).
 - **수정 후 재승인**: 라벨/설명/개인정보 변경 → 해시 변경 → **v{n+1} 폴더 신규 생성, 이전 버전 폴더는 보존**. 재검수→재승인마다 버전이 누적된다.
+- **배포노트(#7 해시 churn, self-heal — 재동결 force=false 경로 한정)**: 프레임 개인정보 3필드(익명/가명/개인정보 포함여부, `LS_DATA_SRC.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN`)를 콘텐츠 해시 원천에 편입했다. 이 편입 이전에 승인·export 되어 있던 영상을 **무수정 재동결**하면 해시가 1회 달라져 `v{n+1}` 이 한 번 재산출된다(1회성 churn). 이후에는 값이 불변이면 해시가 안정되어 다시 멱등 skip 으로 수렴한다(self-heal — 운영자 조치 불필요, 기존 버전 폴더 보존). ※ 승인 경로(force=true, R6)는 해시와 무관하게 매번 재산출되므로 churn 개념이 적용되지 않는다.
 
 ## 24.7 추적 원장 (LS_DATASET_EXPORT)
 
@@ -167,7 +187,7 @@
 
 | 메트릭 | 타입 | 태그 | 의미 |
 |--------|------|------|------|
-| `dataset.export.result` | Counter | `outcome` | 산출 종결 건수. outcome ∈ `completed`/`partial`/`failed`/`version_exhausted`/`idempotent_skip`/`no_input` |
+| `dataset.export.result` | Counter | `outcome` | 산출 종결 건수. outcome ∈ `completed`/`partial`/`failed`/`version_exhausted`/`idempotent_skip`/`no_input`. `idempotent_skip` 은 **재동결(force=false) 경로에서만** 발생 — 승인(force=true, R6) 경로는 발생하지 않음 |
 | `dataset.export.duration` | Timer | `outcome` | 산출 1건 소요 시간(outcome 별) |
 | `dataset.export.skipped_frames` | Counter | — | 원천 이미지 부재 등으로 건너뛴 프레임 총량 |
 

@@ -291,6 +291,33 @@ class AugmentExtractPersistTest {
     }
 
     @Test
+    @DisplayName("부모프레임_개인정보3필드가_증강파생_프레임에_복사되어_INSERT된다")
+    void copiesParentPrivacyMetaToDerivedFrames() {
+        // given — 부모 프레임(srcSn 600)에 개인정보 3필드 세팅. 서비스 배선(loadParentSrcs→create 9-arg)이
+        //         실제로 자식 프레임에 값을 흘려보내는지 서비스 레벨에서 검증(엔티티 팩토리 테스트만으로는 미보장).
+        LsDataRaw newRaw = newAugRaw(9020L, 120L, "/storage/augment/priv.mp4");
+        when(videoRepository.findById(9020L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(52L)).thenReturn(Optional.of(aug(52L)));
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
+        LsDataSrc parent = LsDataSrc.create(120L, 0L, 100L, "/deid/f0.jpg", "/deid/f0.jpg",
+                LocalDateTime.now(), "Y", "N", "Y");
+        setField(parent, "srcSn", 600L);
+        when(srcRepository.findAllById(any())).thenReturn(List.of(parent));
+        AugmentExtractPlan p = plan(9020L, 120L, 52L, List.of(spec(600L, 0, 100L)));
+
+        persist.persist(p);
+
+        // then — INSERT 되는 자식 프레임에 부모의 3필드가 그대로 복사됨.
+        ArgumentCaptor<LsDataSrc> childCaptor = ArgumentCaptor.forClass(LsDataSrc.class);
+        verify(srcRepository).save(childCaptor.capture());
+        LsDataSrc child = childCaptor.getValue();
+        assertThat(child.getRawSn()).isEqualTo(9020L);
+        assertThat(child.getAnonyInclYn()).isEqualTo("Y");
+        assertThat(child.getPsdoInclYn()).isEqualTo("N");
+        assertThat(child.getPrvcInclYn()).isEqualTo("Y");
+    }
+
+    @Test
     @DisplayName("이미_비식별완료된_신규RAW면_멱등_SKIPPED_프레임재삽입_안함")
     void alreadyFinalized_skips() {
         LsDataRaw newRaw = newAugRaw(9007L, 160L, "/storage/augment/done.mp4");

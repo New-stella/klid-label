@@ -97,6 +97,11 @@
 >
 > → [v2-wiki 04](../v2-wiki/04-screens-ia.md)·[18](../v2-wiki/18-database.md).
 
+> **요구사항 외 추가 결정(2026-07-24) — 촬영환경·개인정보 메타 수동입력**: 구 v1 시스템의 "촬영환경 메타(날씨/시간대/계절)·개인정보 메타(익명여부/가명여부/개인정보 포함여부)" 화면을 v2 라벨링 메타탭으로 되살린다. **R1에는 없다** — v2에서 "날씨/계절/시간"은 증강 위탁 유형(SFR-07, WINTER/NIGHT/RAIN)으로만, 개인정보는 비식별 파이프라인·신고로만 다뤄왔다(사용자 확정, R1 미기재). 신규 컬럼 `LS_DATA_RAW.WTHR_NM/DAY_NGT_CD/SESN_CD`(영상단위)·`LS_DATA_SRC.ANONY_INCL_YN/PSDO_INCL_YN/PRVC_INCL_YN`(프레임단위, V130). export NIA JSON 필드(NiaVideo/NiaImage)는 이미 존재(자동파생)해 **수동값 우선 반영** 경로만 신설했다.
+> - **익명여부만 특수**: 화면 표시·저장(작업자 판단 기록)만 하고 export의 anonymity는 시스템이 원본/비식별로 자동 결정(수동 override 금지 — 원본 '익명화됨' 오표기·개인정보 노출 위험 차단). 가명여부·개인정보 포함여부만 export 수동 반영.
+> - **후속 백로그(BLOCKED)**: 이 메타 원천은 실은 관제 공유 `MNG_CLIP_EVNT_LST`(WTHR_CD/SESN_CD/HR_TYPE_CD/PRVC_TYPE_CD)에 존재하나 저작도구 미매핑. 관제 코드도메인·DB 접근 확보 시 관제 실제값 원천화로 전환(추정 매핑 금지).
+> - 신규 화면요소 SC-005 메타탭 두 패널 → [v2-wiki 04](../v2-wiki/04-screens-ia.md)·[18](../v2-wiki/18-database.md)·[24 §24.4.1](../v2-wiki/24-dataset-export.md).
+
 ---
 
 ## 19.4 사용 방법

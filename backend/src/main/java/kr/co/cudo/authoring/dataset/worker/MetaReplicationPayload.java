@@ -9,8 +9,9 @@ import java.time.LocalDateTime;
  * outbox {@code PAYLOAD}(동결 스냅샷 JSON) 역직렬화 DTO.
  *
  * <p>Phase 2 {@code DatasetVideoMetaSnapshotService.toPayload()} 가 직렬화한 비식별 메타 컬럼형 JSON 을
- * 그대로 매핑한다. 알 수 없는 필드는 무시(전방 호환). 관리 컬럼(activeYn·wthrNm·regDt·regId)은 페이로드에
+ * 그대로 매핑한다. 알 수 없는 필드는 무시(전방 호환). 관리 컬럼(activeYn·regDt·regId)은 페이로드에
  * 없으므로 복제 시 워커가 기본값(activeYn='Y', regDt=now)으로 채운다.
+ * 촬영환경 수동값({@code wthrNm})은 동결 내용이라 페이로드에 포함된다(구 배포 페이로드엔 없어 null 매핑).
  *
  * <p>보안: 페이로드는 비식별 메타(경로/좌표/코드값)만 포함하고 PII·토큰·원본 비-비식별 이미지를 담지 않는다.
  */
@@ -47,6 +48,7 @@ public record MetaReplicationPayload(
         Long fileSz,
         String dayNgtCd,
         String sesnCd,
+        String wthrNm,
         LocalDateTime rvwCmplDt
 ) {
 }

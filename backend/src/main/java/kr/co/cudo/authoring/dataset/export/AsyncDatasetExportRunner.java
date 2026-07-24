@@ -27,14 +27,19 @@ public class AsyncDatasetExportRunner {
         this.exportService = exportService;
     }
 
+    /**
+     * 승인/재동결 경로가 재생성 강제 여부를 관통시켜 산출을 시작한다.
+     *
+     * @param forceRegenerate 승인 경로(R6)면 {@code true} — 무수정 재승인도 전량 재생성. 재동결이면 {@code false} — 멱등 skip 유지.
+     */
     @Async("batchAsyncExecutor")
-    public void runAsync(Long rawSn) {
+    public void runAsync(Long rawSn, boolean forceRegenerate) {
         if (rawSn == null) {
             return;
         }
-        log.info("[DatasetExport] async export starting rawSn={}", rawSn);
+        log.info("[DatasetExport] async export starting rawSn={} forceRegenerate={}", rawSn, forceRegenerate);
         try {
-            exportService.export(rawSn);
+            exportService.export(rawSn, forceRegenerate);
         } catch (Exception e) {
             // @Async — 승인은 이미 커밋됐고 산출은 무관하므로 예외를 전파하지 않는다.
             log.warn("[DatasetExport] async export failed rawSn={} cause={}",

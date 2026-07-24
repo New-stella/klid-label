@@ -23,6 +23,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -160,7 +161,8 @@ public class EvntAnnoReviewService {
             reviewRepository.flush();
         }
         // 재동결: 활성 스냅샷 EVNT_ANNO_CN 을 승인된 event_annotation 으로 채운다(내용 변경 → 새 active 버전).
-        snapshotService.materialize(rawSn);
+        // 검수 완료 일시는 기존 활성 스냅샷 값을 승계한다(치유 실행 시각으로 덮지 않음 — 아래 A 결함 동일).
+        snapshotService.materialize(rawSn, frozenReviewCompletedAt(rawSn));
         log.info("[EvntAnno] heal re-froze event_annotation rawSn={}", rawSn);
         return true;
     }
@@ -186,8 +188,11 @@ public class EvntAnnoReviewService {
      *
      * <p>따라서 승인 확정 후 영상이 <b>이미 APPROVED + 활성 스냅샷 존재</b>면 재동결한다:
      * <ol>
-     *   <li>{@link DatasetVideoMetaSnapshotService#materialize(Long)} 재실행 — 방금 승인된 event_annotation 이
-     *       동결본에 포함되어(해시에 EVNT_ANNO_CN 반영) 내용 변경 시 새 active 스냅샷 버전이 append 된다.</li>
+     *   <li>{@link DatasetVideoMetaSnapshotService#materialize(Long, LocalDateTime)} 재실행 — 방금 승인된
+     *       event_annotation 이 동결본에 포함되어(해시에 EVNT_ANNO_CN 반영) 내용 변경 시 새 active 스냅샷
+     *       버전이 append 된다. 이때 <b>검수 완료 일시(RVW_CMPL_DT)는 기존 활성 스냅샷 값을 승계</b>한다 —
+     *       1-arg 오버로드(=now())로 호출하면 새 행의 승인 시각이 <b>지연 승인 시각</b>으로 덮여
+     *       {@code V_COMPLETED_VIDEO.REVIEW_COMPLETED_AT}·포털 복제본이 오염된다(TASK_COMPLETED 계약 위반).</li>
      *   <li>{@link DatasetReExportEvent} 발행 — AFTER_COMMIT 로 export 재생성만 트리거(TASK_COMPLETED 재발행 없음).</li>
      *   <li>{@link TaskModifiedEvent}(META_UPDATED) 발행 — 완료된 작업의 후속 수정 통지(CLAUDE.md 통지 정책,
      *       {@code EvntAnnoService.upsert} 발행 패턴과 동일).</li>
@@ -214,12 +219,26 @@ public class EvntAnnoReviewService {
             return;
         }
         // 재동결: 방금 승인된 event_annotation 을 동결본에 반영(내용 변경 시 새 active 스냅샷 버전 append).
-        snapshotService.materialize(rawSn);
+        // 검수 완료 일시는 기존 활성 스냅샷 값을 승계한다(지연 승인 시각으로 덮지 않음 — A 결함 방어).
+        snapshotService.materialize(rawSn, frozenReviewCompletedAt(rawSn));
         // export 재생성(TASK_COMPLETED 재발행 없이 export 만 갱신) + 완료 작업 수정 통지(TASK_MODIFIED).
         eventPublisher.publishEvent(new DatasetReExportEvent(rawSn));
         eventPublisher.publishEvent(new TaskModifiedEvent(
                 rawSn, null, ChangeType.META_UPDATED, parseActor(reviewer)));
         log.info("[EvntAnno] late-approval re-freeze triggered rawSn={}", rawSn);
+    }
+
+    /**
+     * 재동결 시 승계할 <b>검수 완료 일시</b> — 기존 활성 스냅샷의 {@code RVW_CMPL_DT} 를 반환한다.
+     * 재동결은 승인 시각이 아니라 event_annotation 지연 승인·치유 시각에 일어나므로, 이 값을
+     * {@code materialize(rawSn, at)} 2-arg 로 넘겨 최초 검수 완료 시각을 보존한다(호출 전 활성 스냅샷 존재
+     * 확인됨 — 부재/일시 null 이면 그대로 null 을 넘겨 materialize 가 now() 로 폴백한다).
+     */
+    private LocalDateTime frozenReviewCompletedAt(Long rawSn) {
+        return videoMetaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES).stream()
+                .findFirst()
+                .map(LsDatasetVideoMeta::getRvwCmplDt)
+                .orElse(null);
     }
 
     /**

@@ -181,6 +181,144 @@ class DatasetVideoMetaSnapshotServiceTest {
     }
 
     @Test
+    @DisplayName("수동_촬영환경값이_있으면_파생값보다_우선_동결된다")
+    void materialize_freezesManualEnvironmentOverDerived() {
+        // given — 파생상 야간/여름인 영상에 수동값(주간·겨울·비)이 저장돼 있음
+        long rawSn = 104L;
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getWthrNm()).thenReturn("비");
+        when(row.getDayNgtCd()).thenReturn("DAY");
+        when(row.getSesnCd()).thenReturn("WINTER");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        service.materialize(rawSn);
+
+        // then — 스냅샷에 수동값이 동결된다
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        LsDatasetVideoMeta e = captor.getValue();
+        assertThat(e.getWthrNm()).isEqualTo("비");
+        assertThat(e.getDayNgtCd()).isEqualTo("DAY");
+        assertThat(e.getSesnCd()).isEqualTo("WINTER");
+    }
+
+    @Test
+    @DisplayName("수동_촬영환경값이_없으면_기존_파생값을_동결한다")
+    void materialize_fallsBackToDerivedEnvironment() {
+        // given — 수동값 미입력(회귀 방어)
+        long rawSn = 105L;
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        service.materialize(rawSn);
+
+        // then — 기존 동작(SHT_DT 파생) 유지
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        LsDatasetVideoMeta e = captor.getValue();
+        assertThat(e.getWthrNm()).isNull();
+        assertThat(e.getDayNgtCd()).isEqualTo("NGT");
+        assertThat(e.getSesnCd()).isEqualTo("SUMMER");
+    }
+
+    @Test
+    @DisplayName("수동_날씨값이_바뀌면_스냅샷_해시도_달라진다")
+    void materialize_weatherIsPartOfHash() {
+        // given — 동일 소스에서 날씨만 다른 두 승인
+        long rawSn = 106L;
+        DatasetMetaSourceRow first = sourceRow(rawSn);
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(first);
+        service.materialize(rawSn);
+
+        DatasetMetaSourceRow second = sourceRow(rawSn);
+        when(second.getWthrNm()).thenReturn("안개");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(second);
+        service.materialize(rawSn);
+
+        // then — 동결 내용이 달라졌으므로 새 버전(다른 해시)
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository, times(2)).upsertSnapshot(captor.capture());
+        assertThat(captor.getAllValues().get(0).getSnpshtHash())
+                .isNotEqualTo(captor.getAllValues().get(1).getSnpshtHash());
+    }
+
+    @Test
+    @DisplayName("날씨_미입력_영상은_배포_전후_동일_해시를_유지한다(하위호환)")
+    void materialize_weatherKeyOmittedFromHashWhenBlank() {
+        // given — 날씨 미입력(WTHR_NM 도입 이전과 동일 내용)인 영상. 해시 입력 맵을 포착한다.
+        long rawSn = 107L;
+        SnapshotHasher hasher = mock(SnapshotHasher.class);
+        when(hasher.hash(any())).thenReturn("a".repeat(64));
+        DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
+                sourceRepository, metaRepository, outboxRepository,
+                evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getWthrNm()).thenReturn(null);
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        svc.materialize(rawSn);
+
+        // then — 해시 입력에 WTHR_NM 키 자체가 없어야 배포 전(구 스킴) 해시와 동일하다.
+        //        (null 도 "-1:" 토큰으로 해싱되므로 키를 넣으면 내용 무변경인데도 해시가 달라진다)
+        assertThat(captureHashFields(hasher)).doesNotContainKey("WTHR_NM");
+    }
+
+    @Test
+    @DisplayName("날씨_공백문자열도_해시_입력에서_생략된다")
+    void materialize_blankWeatherKeyOmittedFromHash() {
+        // given — 공백만 있는 날씨(미입력과 동치)
+        long rawSn = 108L;
+        SnapshotHasher hasher = mock(SnapshotHasher.class);
+        when(hasher.hash(any())).thenReturn("b".repeat(64));
+        DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
+                sourceRepository, metaRepository, outboxRepository,
+                evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getWthrNm()).thenReturn("   ");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        svc.materialize(rawSn);
+
+        // then — 키 생략 + 동결값도 null 정규화(값·해시 일관)
+        assertThat(captureHashFields(hasher)).doesNotContainKey("WTHR_NM");
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        assertThat(captor.getValue().getWthrNm()).isNull();
+    }
+
+    @Test
+    @DisplayName("날씨_수동값이_있으면_해시_입력에_포함된다")
+    void materialize_weatherKeyIncludedWhenPresent() {
+        // given — 날씨 수동 입력 영상
+        long rawSn = 109L;
+        SnapshotHasher hasher = mock(SnapshotHasher.class);
+        when(hasher.hash(any())).thenReturn("c".repeat(64));
+        DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
+                sourceRepository, metaRepository, outboxRepository,
+                evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getWthrNm()).thenReturn("눈");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        svc.materialize(rawSn);
+
+        // then — 값이 있으면 해시에 포함되어 "날씨만 정정해도 새 버전 append" 가 유지된다
+        assertThat(captureHashFields(hasher)).containsEntry("WTHR_NM", "눈");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.Map<String, String> captureHashFields(SnapshotHasher hasher) {
+        ArgumentCaptor<java.util.Map<String, String>> captor = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(hasher).hash(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
     @DisplayName("소스_미조회시_동결_스킵")
     void materialize_skipsWhenSourceMissing() {
         long rawSn = 999L;

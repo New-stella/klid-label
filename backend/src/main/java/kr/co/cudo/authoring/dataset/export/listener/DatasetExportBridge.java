@@ -15,7 +15,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *
  * <p>{@code @TransactionalEventListener(AFTER_COMMIT)} 로 <b>검수 승인 트랜잭션이 커밋된 이후에만</b>
  * 산출을 시작한다(롤백 시 미호출). 리스너는 얇게 위임만 하고, 실제 산출은
- * {@link AsyncDatasetExportRunner#runAsync(Long)} 가 별도 스레드에서 수행한다
+ * {@link AsyncDatasetExportRunner#runAsync(Long, boolean)} 가 별도 스레드에서 수행한다
  * ({@code IngestDeidentifyBridge}/{@code ControlNotifyEventListener} 와 동일 구조).
  *
  * <p>같은 {@code ReviewApprovedEvent} 를 소비하는 기존 리스너({@code ControlNotifyEventListener})는
@@ -35,8 +35,9 @@ public class DatasetExportBridge {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onReviewApproved(ReviewApprovedEvent event) {
         Long rawSn = event.rawSn();
-        log.info("[DatasetExportBridge] review approved rawSn={} — triggering dataset export", rawSn);
-        runner.runAsync(rawSn);
+        log.info("[DatasetExportBridge] review approved rawSn={} — triggering dataset export (force regenerate)", rawSn);
+        // R6 — 승인마다 내용 변경 여부와 무관하게 전량 재생성(force=true). 멱등 skip 미적용.
+        runner.runAsync(rawSn, true);
     }
 
     /**
@@ -48,6 +49,7 @@ public class DatasetExportBridge {
     public void onReExport(DatasetReExportEvent event) {
         Long rawSn = event.rawSn();
         log.info("[DatasetExportBridge] re-export requested rawSn={} — triggering dataset export", rawSn);
-        runner.runAsync(rawSn);
+        // 재동결 경로(R6 스코프 밖) — 현행 멱등 skip 유지(force=false). 동일 해시면 재산출하지 않는다.
+        runner.runAsync(rawSn, false);
     }
 }

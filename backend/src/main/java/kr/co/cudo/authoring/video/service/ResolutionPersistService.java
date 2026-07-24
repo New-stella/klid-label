@@ -232,14 +232,34 @@ public class ResolutionPersistService {
      * 늘어나는 것을 막는다({@code attachDeidPath} setter 호출 제거).
      */
     private Map<Long, Long> insertFrames(ResolutionSnapshot snapshot) {
+        // #3 — 부모 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 파생 프레임에 복사(증강 경로와 일관).
+        //      부모 미입력(null)이면 파생도 null 로 시작해 파생 폴백이 그대로 적용된다.
+        Map<Long, LsDataSrc> parentSrcs = loadParentSrcs(snapshot.frames().stream()
+                .map(ResolutionSnapshot.FrameSpec::parentSrcSn).toList());
         Map<Long, Long> parentSrcToNewSrc = new LinkedHashMap<>();
         for (ResolutionSnapshot.FrameSpec f : snapshot.frames()) {
             String dst = f.dst().toString();
+            LsDataSrc parent = parentSrcs.get(f.parentSrcSn());
             LsDataSrc nf = srcRepository.save(LsDataSrc.create(
-                    snapshot.newRawSn(), f.frameNo(), f.videoFrameNo(), dst, dst, f.shtDt()));
+                    snapshot.newRawSn(), f.frameNo(), f.videoFrameNo(), dst, dst, f.shtDt(),
+                    parent == null ? null : parent.getAnonyInclYn(),
+                    parent == null ? null : parent.getPsdoInclYn(),
+                    parent == null ? null : parent.getPrvcInclYn()));
             parentSrcToNewSrc.put(f.parentSrcSn(), nf.getSrcSn());
         }
         return parentSrcToNewSrc;
+    }
+
+    /** 부모 프레임(SRC_SN) 을 개인정보 3필드 복사용으로 일괄 로드(N+1 회피). 빈 입력이면 빈 맵. */
+    private Map<Long, LsDataSrc> loadParentSrcs(List<Long> parentSrcSns) {
+        if (parentSrcSns == null || parentSrcSns.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, LsDataSrc> map = new LinkedHashMap<>();
+        for (LsDataSrc s : srcRepository.findAllById(parentSrcSns)) {
+            map.put(s.getSrcSn(), s);
+        }
+        return map;
     }
 
     /**

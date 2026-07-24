@@ -178,6 +178,42 @@ class DatasetVideoMetaSnapshotServiceIT {
     }
 
     @Test
+    @DisplayName("수동값_저장된_영상_검수승인시_스냅샷에_수동값_동결")
+    void materialize_freezesManualShootingEnvironment() {
+        // given — SHT_DT 파생은 야간(22시)·겨울(1월)인데 작업자가 주간·여름·비 를 수동 저장
+        long rawSn = seedSource();
+        jdbc.update("UPDATE LS_DATA_RAW SET WTHR_NM = ?, DAY_NGT_CD = ?, SESN_CD = ? WHERE RAW_SN = ?",
+                "비", "DAY", "SUMMER", rawSn);
+
+        // when — 검수 승인 동결
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+
+        // then — 파생값이 아니라 수동값이 동결된다(native 소스 컬럼 정합 포함)
+        LsDatasetVideoMeta m = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
+        assertThat(m.getWthrNm()).isEqualTo("비");
+        assertThat(m.getDayNgtCd()).isEqualTo("DAY");
+        assertThat(m.getSesnCd()).isEqualTo("SUMMER");
+    }
+
+    @Test
+    @DisplayName("수동값_미저장_영상은_기존_파생_촬영환경으로_동결된다")
+    void materialize_keepsDerivedShootingEnvironmentWhenNoManualValue() {
+        // given — 촬영환경 수동값 미입력(회귀 방어)
+        long rawSn = seedSource();
+
+        // when
+        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
+
+        // then — 기존 파생 규칙 그대로
+        LsDatasetVideoMeta m = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
+        assertThat(m.getWthrNm()).isNull();
+        assertThat(m.getDayNgtCd()).isEqualTo("NGT");
+        assertThat(m.getSesnCd()).isEqualTo("WINTER");
+    }
+
+    @Test
     @DisplayName("승인안된_event_annotation은_동결되지_않는다_null")
     void materialize_skipsUnapprovedEventAnnotation() {
         // given — PENDING(미승인) event_annotation

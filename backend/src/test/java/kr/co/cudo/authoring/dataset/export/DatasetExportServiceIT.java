@@ -183,11 +183,13 @@ class DatasetExportServiceIT {
     }
 
     @Test
-    @DisplayName("무수정_재승인은_멱등_skip되어_새_버전을_만들지_않는다")
-    void unchangedReapproveIsIdempotent() {
+    @DisplayName("무수정_재동결(forceFalse)_경로는_멱등_skip으로_새_버전을_만들지_않는다")
+    void unchangedReFreezeForceFalseIsIdempotentSkip() {
+        // 재동결/멱등 경로 = export(rawSn) 1-arg(=force=false) 직접 호출. 승인 경로(force=true, R6)가 아니다 —
+        // 승인마다 강제 재생성(force=true)은 별도 IT(reapproveForceTrueCreatesNewVersionEvenWhenUnchanged)가 담당한다.
         long rawSn = seedVideoWithLabel("[[1,2],[3,4]]");
-        exportService.export(rawSn);
-        exportService.export(rawSn); // 라벨 변경 없음 → skip
+        exportService.export(rawSn);        // v1 (force=false)
+        exportService.export(rawSn);        // 무변경 재동결(force=false) → 동일 해시 멱등 skip
 
         long count = txTemplate.execute(s -> exportRepository.countByDataRawSn(rawSn));
         assertThat(count).isEqualTo(1);

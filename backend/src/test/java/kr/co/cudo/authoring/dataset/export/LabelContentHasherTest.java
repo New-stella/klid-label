@@ -142,6 +142,27 @@ class LabelContentHasherTest {
         assertThat(before).isNotEqualTo(after);
     }
 
+    private LsDataSrc frameWithPrivacy(Long srcSn, Long frameNo, String anony, String psdo, String prvc) {
+        LsDataSrc s = frame(srcSn, frameNo, "설명");
+        lenient().when(s.getAnonyInclYn()).thenReturn(anony);
+        lenient().when(s.getPsdoInclYn()).thenReturn(psdo);
+        lenient().when(s.getPrvcInclYn()).thenReturn(prvc);
+        return s;
+    }
+
+    @Test
+    @DisplayName("개인정보_3필드만_수정후_재승인시_콘텐츠해시_변경되어_재산출")
+    void privacyMetaChangeChangesHash() {
+        // given — 라벨/설명/메타 동일, 프레임 개인정보 3필드만 변경(가명여부 N→Y)
+        List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
+        LsDatasetVideoMeta m = meta("PRVC", 1920, 1080);
+        String before = hasher.hash(labels, List.of(frameWithPrivacy(10L, 0L, "N", "N", "Y")), m, null);
+        String after = hasher.hash(labels, List.of(frameWithPrivacy(10L, 0L, "N", "Y", "Y")), m, null);
+
+        // then — 해시가 달라져 stale 멱등 skip 이 발생하지 않는다(#2)
+        assertThat(before).isNotEqualTo(after);
+    }
+
     @Test
     @DisplayName("라벨_프레임_메타가_모두_동일하면_해시가_같다")
     void identicalInputsSameHash() {

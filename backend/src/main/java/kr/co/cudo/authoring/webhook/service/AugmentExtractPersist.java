@@ -93,10 +93,18 @@ public class AugmentExtractPersist {
                         "증강 행을 찾을 수 없습니다: dataAugSn=" + plan.dataAugSn()));
 
         // 2) Phase B 산출 파일 기준 프레임 INSERT + videoFrameNo 기준 부모→신규 SRC_SN 명시 매핑.
+        //    #3 — 부모 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 파생 프레임에 복사(Phase 2 촬영환경
+        //    복사와 일관). 부모 미입력(null)이면 파생도 null 로 시작해 파생 폴백이 그대로 적용된다.
+        Map<Long, LsDataSrc> parentSrcs = loadParentSrcs(plan.frames().stream()
+                .map(AugmentExtractPlan.FrameSpec::parentSrcSn).toList());
         Map<Long, Long> parentSrcToNewSrc = new LinkedHashMap<>();
         for (AugmentExtractPlan.FrameSpec f : plan.frames()) {
+            LsDataSrc parent = parentSrcs.get(f.parentSrcSn());
             LsDataSrc nf = srcRepository.save(LsDataSrc.create(
-                    plan.newRawSn(), f.frameNo(), f.videoFrameNo(), f.dst().toString(), f.shtDt()));
+                    plan.newRawSn(), f.frameNo(), f.videoFrameNo(), f.dst().toString(), null, f.shtDt(),
+                    parent == null ? null : parent.getAnonyInclYn(),
+                    parent == null ? null : parent.getPsdoInclYn(),
+                    parent == null ? null : parent.getPrvcInclYn()));
             hstryRepository.save(LsDataSrcHstry.recordCreated(nf.getSrcSn()));
             parentSrcToNewSrc.put(f.parentSrcSn(), nf.getSrcSn());
         }
@@ -143,6 +151,21 @@ public class AugmentExtractPersist {
                 plan.newRawSn(), plan.parentRawSn(), parentSrcToNewSrc.size(), copiedLabelCount,
                 metaResult.copiedMetaCount(), metaResult.createdReviewCount());
         return Result.PERSISTED;
+    }
+
+    /**
+     * 부모 프레임(SRC_SN) 을 개인정보 3필드 복사용으로 일괄 로드(N+1 회피). 빈 입력이면 빈 맵.
+     * 라벨 재매핑용 findBySrcSnIn 과 별개로 개인정보 필드가 필요해 부모 엔티티 자체를 조회한다.
+     */
+    private Map<Long, LsDataSrc> loadParentSrcs(List<Long> parentSrcSns) {
+        if (parentSrcSns == null || parentSrcSns.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, LsDataSrc> map = new LinkedHashMap<>();
+        for (LsDataSrc s : srcRepository.findAllById(parentSrcSns)) {
+            map.put(s.getSrcSn(), s);
+        }
+        return map;
     }
 
     /** 원본 라벨의 lblSn 을 복사본 엔티티와 동반해 saveAll 반환 순서 의존 없이 명시적 매핑을 성립시킨다. */

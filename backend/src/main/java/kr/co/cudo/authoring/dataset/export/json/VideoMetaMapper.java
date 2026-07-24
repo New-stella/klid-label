@@ -43,6 +43,16 @@ public class VideoMetaMapper {
         String prvcTypeCd = firstNonNull(meta.getPrvcTypeCd(), raw == null ? null : raw.getPrvcTypeCd());
         String prvcYn = firstNonNull(meta.getPrvcYn(), raw == null ? null : raw.getPrvcYn());
 
+        // 촬영환경(날씨·시간대·계절)만 우선순위가 <b>반대</b>다 — raw(수동 저장값) → meta(동결 파생값).
+        // 위 필드들은 승인 시점 동결값이 정본이라 meta 우선이지만, 촬영환경은 작업자가 승인 후에도
+        // 정정할 수 있는 수동 입력값이므로 최신 수동값이 export 에 반영돼야 한다(수동값 없으면 기존 동결값 유지).
+        // 영상 단위 값이라 ExportKind(ORIGINAL/DEIDENTIFIED)로 분기하지 않는다 — 2벌 산출이 동일해야 한다.
+        // blank→null 정규화: 서비스 경유 입력은 정규화되나 DB 직접/레거시 행에 빈 문자열이 있으면
+        // export 는 ""(빈값)로, 스냅샷은 null 로 표현이 갈린다(F). 여기서도 blank 를 null 로 맞춰 일치시킨다.
+        String weather = firstNonBlank(raw == null ? null : raw.getWthrNm(), meta.getWthrNm());
+        String timeOfDay = firstNonBlank(raw == null ? null : raw.getDayNgtCd(), meta.getDayNgtCd());
+        String season = firstNonBlank(raw == null ? null : raw.getSesnCd(), meta.getSesnCd());
+
         // kind 별 영상 경로: ORIGINAL=원본 raw, DEIDENTIFIED=비식별 경로. filename 은 이 경로의
         // basename 이며, deid 경로 미상이면 null 로 두어 원본 파일명 노출을 막는다(fail-secure).
         String kindVideoPath = (kind == ExportKind.ORIGINAL) ? rawPath : deidVideoPath;
@@ -68,7 +78,7 @@ public class VideoMetaMapper {
                 meta.getResl(),                                      // resolution
                 meta.getBitRt() == null ? null : String.valueOf(meta.getBitRt()), // bit
                 null,                                                // pixel (미보유)
-                meta.getWthrNm(),                                    // weather (현재 null)
+                weather,                                             // weather (수동값 우선)
                 composeCoordinates(meta.getWgs84Lat(), meta.getWgs84Lot()), // coordinates
                 null,                                                // og_cd (미보유)
                 meta.getCctvNm(),                                    // cctv_name
@@ -80,8 +90,8 @@ public class VideoMetaMapper {
                 prvcYn,                                              // privacy_included
                 meta.getEvntTypeCd(),                                // event_id
                 meta.getEvntNm(),                                    // event_name
-                meta.getDayNgtCd(),                                  // time_of_day
-                meta.getSesnCd(),                                    // season
+                timeOfDay,                                           // time_of_day (수동값 우선)
+                season,                                              // season (수동값 우선)
                 null,                                                // event_log (미보유)
                 null                                                 // vd_description (미보유 — 데이터 출처 없음)
         );
@@ -120,6 +130,16 @@ public class VideoMetaMapper {
     private static <T> T firstNonNull(T... values) {
         for (T v : values) {
             if (v != null) {
+                return v;
+            }
+        }
+        return null;
+    }
+
+    /** 첫 번째 non-blank 문자열(공백만 있는 값은 미입력으로 간주). 모두 blank/null 이면 null(스냅샷 표현 일치). */
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
                 return v;
             }
         }

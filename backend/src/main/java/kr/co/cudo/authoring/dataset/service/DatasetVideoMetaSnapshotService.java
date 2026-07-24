@@ -104,8 +104,12 @@ public class DatasetVideoMetaSnapshotService {
         // 3) 파생/파싱 — 해상도(WxH) → 가로/세로/화면비, video.* 문자열 → 숫자, 주야간/계절.
         Resolution resolution = parseResolution(src.getVideoResolution());
         BigDecimal aspectRatio = deriveAspectRatio(resolution);
-        String dayNight = TimeOfDaySeasonDeriver.dayNight(src.getShtDt());
-        String season = TimeOfDaySeasonDeriver.season(src.getShtDt());
+        // 촬영환경(날씨·시간대·계절)은 작업자 수동 저장값(LS_DATA_RAW, V130)이 최우선이고, 미입력이면
+        // 기존 SHT_DT 파생 규칙으로 폴백한다(수동값 없는 영상의 동결 결과는 종전과 동일 — 회귀 없음).
+        String dayNight = firstNonNull(src.getDayNgtCd(), TimeOfDaySeasonDeriver.dayNight(src.getShtDt()));
+        String season = firstNonNull(src.getSesnCd(), TimeOfDaySeasonDeriver.season(src.getShtDt()));
+        // 자동 출처 없음 — 수동 입력값이 곧 전부. 공백은 미입력(null)으로 정규화해 동결값·해시를 일치시킨다.
+        String weather = nullIfBlank(src.getWthrNm());
         String aiCreatedYn = (src.getOrgnlRawSn() != null)
                 ? LsDatasetVideoMeta.ACTIVE_YES : LsDatasetVideoMeta.ACTIVE_NO;
 
@@ -120,7 +124,7 @@ public class DatasetVideoMetaSnapshotService {
 
         // 4) 멱등키 — 동결 내용(관리 컬럼 제외)의 정규화 해시.
         String hash = snapshotHasher.hash(buildHashFields(
-                src, resolution, aspectRatio, dayNight, season, aiCreatedYn, fps, bitRate, fileSize,
+                src, resolution, aspectRatio, dayNight, season, weather, aiCreatedYn, fps, bitRate, fileSize,
                 frozenEventAnno));
 
         // 5) 엔티티 조립. RVW_CMPL_DT 는 백필이면 과거 승인 시각(소급), 실시간 승인이면 now().
@@ -159,7 +163,7 @@ public class DatasetVideoMetaSnapshotService {
                 .fileSz(fileSize)
                 .dayNgtCd(dayNight)
                 .sesnCd(season)
-                .wthrNm(null) // 자동 출처 없음(UI 수기) — 동결 시점엔 null.
+                .wthrNm(weather) // 작업자 수동 입력값(미입력이면 null).
                 .evntAnnoCn(frozenEventAnno) // 승인된 event_annotation 동결(없으면 null).
                 .rvwCmplDt(rvwCmplDt)
                 .regDt(now)
@@ -191,7 +195,8 @@ public class DatasetVideoMetaSnapshotService {
      */
     private Map<String, String> buildHashFields(DatasetMetaSourceRow src, Resolution resolution,
                                                 BigDecimal aspectRatio, String dayNight, String season,
-                                                String aiCreatedYn, BigDecimal fps, Long bitRate, Long fileSize,
+                                                String weather, String aiCreatedYn, BigDecimal fps,
+                                                Long bitRate, Long fileSize,
                                                 String frozenEventAnno) {
         Map<String, String> f = new TreeMap<>();
         f.put("EVNT_ANNO_CN", frozenEventAnno);
@@ -225,6 +230,13 @@ public class DatasetVideoMetaSnapshotService {
         f.put("FILE_SZ", str(fileSize));
         f.put("DAY_NGT_CD", dayNight);
         f.put("SESN_CD", season);
+        // 촬영환경 수동값도 동결 '내용'이라 해시에 포함 — 날씨만 정정 후 재승인해도 새 버전이 append 된다.
+        // 단, 미입력(null)이면 <b>키 자체를 생략</b>한다(하위호환): 해시는 null 도 "-1:" 토큰으로 인코딩하므로
+        // 키를 넣으면 WTHR_NM 도입 이전에 승인된(내용 무변경) 영상이 재동결될 때 해시가 달라져
+        // 동일 내용 중복 버전 + 불필요한 포털 복제 outbox 가 생긴다("동일 페이로드=동일 해시" 멱등 불변식 위반).
+        if (weather != null) {
+            f.put("WTHR_NM", weather);
+        }
         return f;
     }
 
@@ -254,6 +266,16 @@ public class DatasetVideoMetaSnapshotService {
             return null;
         }
         return anno.getAnnoCn();
+    }
+
+    /** 수동값 우선(첫 인자) → 파생 폴백(둘째 인자). 수동값이 blank 면 미입력으로 간주. */
+    private static String firstNonNull(String manual, String derived) {
+        return (manual != null && !manual.isBlank()) ? manual : derived;
+    }
+
+    /** 공백 문자열을 미입력(null)으로 정규화 — 동결값과 해시 입력의 "미입력" 표현을 일치시킨다. */
+    private static String nullIfBlank(String value) {
+        return (value == null || value.isBlank()) ? null : value;
     }
 
     /** BigDecimal 은 표기 편차(지수/후행 0)를 없애 결정성을 확보한다. */
@@ -299,6 +321,7 @@ public class DatasetVideoMetaSnapshotService {
         p.put("fileSz", m.getFileSz());
         p.put("dayNgtCd", m.getDayNgtCd());
         p.put("sesnCd", m.getSesnCd());
+        p.put("wthrNm", m.getWthrNm()); // 촬영환경 수동값 — 포털 복제 반영(비식별 메타).
         p.put("rvwCmplDt", m.getRvwCmplDt() == null ? null : m.getRvwCmplDt().toString());
         try {
             return objectMapper.writeValueAsString(p);

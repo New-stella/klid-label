@@ -10,6 +10,8 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -55,6 +57,25 @@ public class LsDataSrc {
     @Column(name = "FRM_EXPLN", length = 1000)
     private String frmExpln;
 
+    /**
+     * 프레임 익명정보 포함여부(작업자 수동입력, V130). null = 미입력.
+     * <p>여부(YN) 도메인은 프로젝트 표준(V85·공공 여부C1) CHAR(1) — {@code @JdbcTypeCode(CHAR)}.
+     * 값 변경 로직·수동입력 API 는 후속 Phase — 본 Phase 는 스키마+매핑만 담당한다.
+     */
+    @Column(name = "ANONY_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String anonyInclYn;
+
+    /** 프레임 가명정보 포함여부(작업자 수동입력, V130). null = 미입력. */
+    @Column(name = "PSDO_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String psdoInclYn;
+
+    /** 프레임 개인정보 포함여부(작업자 수동입력, V130). null = 미입력. */
+    @Column(name = "PRVC_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String prvcInclYn;
+
     @Column(name = "SHT_DT")
     private LocalDateTime shtDt;
 
@@ -66,13 +87,17 @@ public class LsDataSrc {
 
     @Builder
     private LsDataSrc(Long rawSn, Long frameNo, Long videoFrameNo, String srcFilePathNm,
-                      String deIdntfSrcFilePathNm, LocalDateTime shtDt) {
+                      String deIdntfSrcFilePathNm, LocalDateTime shtDt,
+                      String anonyInclYn, String psdoInclYn, String prvcInclYn) {
         this.rawSn = rawSn;
         this.frameNo = frameNo;
         this.videoFrameNo = videoFrameNo;
         this.srcFilePathNm = srcFilePathNm;
         this.deIdntfSrcFilePathNm = deIdntfSrcFilePathNm;
         this.shtDt = shtDt;
+        this.anonyInclYn = normalizeYn(anonyInclYn);
+        this.psdoInclYn = normalizeYn(psdoInclYn);
+        this.prvcInclYn = normalizeYn(prvcInclYn);
         this.regDt = LocalDateTime.now();
     }
 
@@ -114,6 +139,28 @@ public class LsDataSrc {
     }
 
     /**
+     * 파생(증강·해상도) 프레임 row 생성 — 비식별 프레임 경로 + 부모 프레임의 개인정보 3필드(익명/가명/개인정보)를
+     * 최초 INSERT 에 함께 담는다(Phase 3 #3 — 파생 프레임 개인정보 복사). 부모에 미입력(null)이면 파생도
+     * null 로 시작해 파생 폴백(파생 로직)이 그대로 적용된다. 빌더/setter 는 외부에 노출하지 않고 이 팩토리에서만
+     * 3필드를 채운다(Mass Assignment 방어 — 임의 필드 주입 차단).
+     */
+    public static LsDataSrc create(Long rawSn, long frameNo, Long videoFrameNo, String srcFilePathNm,
+                                   String deIdntfSrcFilePathNm, LocalDateTime shtDt,
+                                   String anonyInclYn, String psdoInclYn, String prvcInclYn) {
+        return LsDataSrc.builder()
+                .rawSn(rawSn)
+                .frameNo(frameNo)
+                .videoFrameNo(videoFrameNo)
+                .srcFilePathNm(srcFilePathNm)
+                .deIdntfSrcFilePathNm(deIdntfSrcFilePathNm)
+                .shtDt(shtDt)
+                .anonyInclYn(anonyInclYn)
+                .psdoInclYn(psdoInclYn)
+                .prvcInclYn(prvcInclYn)
+                .build();
+    }
+
+    /**
      * 동일 row 의 DE_IDNTF_SRC_FILE_PATH_NM 컬럼에 비식별 프레임 경로를 연결한다.
      */
     public void attachDeidPath(String deidFilePath) {
@@ -132,5 +179,22 @@ public class LsDataSrc {
     public void updateDescription(String description) {
         this.frmExpln = (description == null || description.isBlank()) ? null : description;
         this.updDt = LocalDateTime.now();
+    }
+
+    /**
+     * 프레임 개인정보 3필드(익명/가명/개인정보 포함여부)를 작업자 수동입력으로 갱신한다. @Setter 금지 —
+     * 비즈니스 메서드로만 상태 변경(Mass Assignment 방어). blank/null 은 미입력(파생 폴백 복귀)으로 null 정규화.
+     * 값은 화이트리스트('Y'|'N')로 검증된 요청에서만 전달된다(CHAR(1) 오염 차단은 상위 DTO @Pattern + 서비스).
+     */
+    public void updatePrivacyMeta(String anonyInclYn, String psdoInclYn, String prvcInclYn) {
+        this.anonyInclYn = normalizeYn(anonyInclYn);
+        this.psdoInclYn = normalizeYn(psdoInclYn);
+        this.prvcInclYn = normalizeYn(prvcInclYn);
+        this.updDt = LocalDateTime.now();
+    }
+
+    /** blank/null → null(미입력). CHAR(1) 저장 시 공백 패딩 오염 방지 위해 trim 후 판정. */
+    private static String normalizeYn(String yn) {
+        return (yn == null || yn.isBlank()) ? null : yn.trim();
     }
 }

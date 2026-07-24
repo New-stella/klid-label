@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -92,9 +93,23 @@ class EvntAnnoReviewServiceTest {
         when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(stts));
     }
 
+    /**
+     * 최초 검수 완료 시각 — 재동결이 이 값을 승계해야 한다(지연 승인 시각인 now() 로 덮으면 A 결함 회귀).
+     * {@code EnvironmentMetaServiceTest.ORIGINAL_APPROVED_AT} 와 동일한 검증 패턴.
+     */
+    private static final LocalDateTime ORIGINAL_APPROVED_AT = LocalDateTime.of(2026, 3, 1, 10, 0);
+
     private void stubActiveSnapshotPresent(boolean present) {
-        when(videoMetaRepository.findByRawSnAndActiveYn(RAW_SN, LsDatasetVideoMeta.ACTIVE_YES))
-                .thenReturn(present ? List.of(mock(LsDatasetVideoMeta.class)) : List.of());
+        if (present) {
+            // 활성 스냅샷의 RVW_CMPL_DT 를 고정값으로 스텁 → 재동결이 이 값을 승계하는지 구체 검증 가능.
+            LsDatasetVideoMeta snapshot = mock(LsDatasetVideoMeta.class);
+            when(snapshot.getRvwCmplDt()).thenReturn(ORIGINAL_APPROVED_AT);
+            when(videoMetaRepository.findByRawSnAndActiveYn(RAW_SN, LsDatasetVideoMeta.ACTIVE_YES))
+                    .thenReturn(List.of(snapshot));
+        } else {
+            when(videoMetaRepository.findByRawSnAndActiveYn(RAW_SN, LsDatasetVideoMeta.ACTIVE_YES))
+                    .thenReturn(List.of());
+        }
     }
 
     @Test
@@ -105,7 +120,9 @@ class EvntAnnoReviewServiceTest {
 
         service.approve(RAW_SN, reviewer());
 
-        verify(snapshotService).materialize(eq(RAW_SN));
+        // 재동결은 지연 승인 시각(now())이 아니라 기존 활성 스냅샷의 승인 시각을 그대로 승계해야 한다(A 결함 방어).
+        verify(snapshotService).materialize(eq(RAW_SN), eq(ORIGINAL_APPROVED_AT));
+        verify(snapshotService, never()).materialize(any());   // 1-arg(now()) 경로는 절대 호출 금지
         verify(eventPublisher).publishEvent(any(DatasetReExportEvent.class));
         verify(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
     }
@@ -130,6 +147,7 @@ class EvntAnnoReviewServiceTest {
         service.approve(RAW_SN, reviewer());
 
         verify(snapshotService, never()).materialize(any());
+        verify(snapshotService, never()).materialize(any(), any());
         verifyNoInteractions(eventPublisher);
     }
 
@@ -141,6 +159,7 @@ class EvntAnnoReviewServiceTest {
         service.approve(RAW_SN, reviewer());
 
         verify(snapshotService, never()).materialize(any());
+        verify(snapshotService, never()).materialize(any(), any());
         verifyNoInteractions(eventPublisher);
     }
 
@@ -153,6 +172,7 @@ class EvntAnnoReviewServiceTest {
         service.approve(RAW_SN, reviewer());
 
         verify(snapshotService, never()).materialize(any());
+        verify(snapshotService, never()).materialize(any(), any());
         verifyNoInteractions(eventPublisher);
     }
 
@@ -162,9 +182,28 @@ class EvntAnnoReviewServiceTest {
         service.reject(RAW_SN, "사유", reviewer());
 
         verify(snapshotService, never()).materialize(any());
+        verify(snapshotService, never()).materialize(any(), any());
         verifyNoInteractions(eventPublisher);
         verifyNoInteractions(rawDataStatusRepository);
         verifyNoInteractions(videoMetaRepository);
+    }
+
+    // ---- 지연 동결 치유(healLateFrozenEventAnnotation) 경로 — 재동결 승인시각 승계 검증 ----
+
+    @Test
+    @DisplayName("지연동결_치유시_재동결은_기존_승인시각을_승계한다 — now로_덮지_않음")
+    void heal_reFreeze_inheritsOriginalApprovedAt() {
+        // given — event_annotation 은 이미 APPROVED 이고, 최초 승인 시각을 가진 활성 스냅샷이 존재
+        when(review.getRvwSttsCd()).thenReturn(LsEvntAnnoReview.STTS_APPROVED);
+        stubActiveSnapshotPresent(true);
+
+        // when
+        boolean healed = service.healLateFrozenEventAnnotation(RAW_SN);
+
+        // then — 재동결 수행 + 지연 치유 시각(now())이 아닌 기존 활성 스냅샷 승인 시각을 그대로 승계
+        assertThat(healed).isTrue();
+        verify(snapshotService).materialize(eq(RAW_SN), eq(ORIGINAL_APPROVED_AT));
+        verify(snapshotService, never()).materialize(any());   // 1-arg(now()) 경로는 절대 호출 금지
     }
 
     // ---- F: 영상 검수 승인 시 event_annotation 자동 확정(autoApproveOnVideoApproval) ----
@@ -180,6 +219,7 @@ class EvntAnnoReviewServiceTest {
         verify(reviewRepository).flush();
         // 자동 승인은 역순 지연승인용 재동결/이벤트를 트리거하지 않는다(같은 tx의 후속 materialize와 중복 방지).
         verify(snapshotService, never()).materialize(any());
+        verify(snapshotService, never()).materialize(any(), any());
         verifyNoInteractions(eventPublisher);
         verifyNoInteractions(rawDataStatusRepository);
         verifyNoInteractions(videoMetaRepository);

@@ -140,7 +140,7 @@ public class MetaReplicationWorker {
                 .fileSz(p.fileSz())
                 .dayNgtCd(p.dayNgtCd())
                 .sesnCd(p.sesnCd())
-                .wthrNm(null)               // 페이로드 미포함(UI 수기) — 복제 시 null
+                .wthrNm(p.wthrNm())         // 촬영환경 수동값(구 페이로드엔 없어 null)
                 .rvwCmplDt(p.rvwCmplDt())
                 .regDt(LocalDateTime.now())
                 .regId(null)                // 복제본 등록자 없음 — SoT 감사 추적으로 대체

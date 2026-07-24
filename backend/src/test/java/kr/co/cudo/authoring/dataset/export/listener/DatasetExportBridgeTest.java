@@ -29,22 +29,22 @@ class DatasetExportBridgeTest {
     private DatasetExportBridge bridge;
 
     @Test
-    @DisplayName("ReviewApprovedEvent_수신_시_AsyncDatasetExportRunner_위임")
-    void onReviewApproved_delegatesToRunner() {
+    @DisplayName("onReviewApproved는_forceTrue로_runAsync를_호출한다 (R6 — 승인마다 강제 재생성)")
+    void onReviewApproved_delegatesWithForceTrue() {
         ReviewApprovedEvent event = new ReviewApprovedEvent(99L, 1L, Instant.now());
 
         bridge.onReviewApproved(event);
 
-        verify(runner).runAsync(eq(99L));
+        verify(runner).runAsync(eq(99L), eq(true));
     }
 
     @Test
-    @DisplayName("DatasetReExportEvent_수신_시_AsyncDatasetExportRunner_위임")
-    void onReExport_delegatesToRunner() {
+    @DisplayName("onReExport는_forceFalse로_runAsync를_호출한다 (재동결 — 현행 멱등 유지)")
+    void onReExport_delegatesWithForceFalse() {
         DatasetReExportEvent event = new DatasetReExportEvent(77L);
 
         bridge.onReExport(event);
 
-        verify(runner).runAsync(eq(77L));
+        verify(runner).runAsync(eq(77L), eq(false));
     }
 }

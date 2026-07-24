@@ -34,6 +34,13 @@ import java.util.List;
  * anonymity 는 {@link ExportKind} 별 결정적(orgnl=N/deid=Y)이라 해시에 kind 를 넣을 필요가 없다(두 벌이
  * 같은 트리거로 함께 재산출됨). 단 pseudonymity/privacy_included 의 원천(prvcTypeCd/prvcYn)은 반드시 반영한다.
  *
+ * <p><b>촬영환경 3필드(weather/time_of_day/season) 폴백 방향 주의(E, 문서화 전용)</b>:
+ * {@code appendVideoMeta} 는 이 3필드를 <b>meta 단독</b>({@code meta.getWthrNm/getDayNgtCd/getSesnCd})으로
+ * 읽는데, {@code VideoMetaMapper} 는 <b>raw(수동값) → meta</b> 순으로 읽어 폴백 방향이 반대다. 이는
+ * <b>의도된 허용</b>이다 — 승인 후 촬영환경 수정은 항상 <b>재동결(materialize)</b>로 meta(동결 스냅샷)를
+ * 최신 수동값으로 갱신하므로, 산출 시점의 meta 3필드는 raw 수동값과 이미 일치한다. 따라서 meta 단독 읽기가
+ * mapper 의 raw-우선 결과와 어긋나지 않아 해시(멱등 판정)와 산출 JSON 이 정합한다(전파 구현 불필요).
+ *
  * <h3>결정성(determinism)</h3>
  * <ul>
  *   <li><b>순서 독립</b>: 라벨은 lblSn, 프레임은 srcSn 오름차순으로 정렬 후 계산한다(조회 정렬 변화에 안정).</li>
@@ -116,6 +123,12 @@ public class LabelContentHasher {
             append(sb, f.getShtDt());
             append(sb, f.getSrcFilePathNm());
             append(sb, f.getDeidFilePath());
+            // 개인정보 3필드(익명/가명/개인정보 포함여부) — pseudonymity/privacy_included 는 buildImage 가
+            // 산출 JSON 에 수동 우선 반영하므로, 이 3필드만 정정한 재승인이 멱등 skip 으로 stale 고착되지
+            // 않도록 해시 입력에 편입한다(#2). anonymity 는 export 미반영이나 저장·표시 정합을 위해 함께 반영.
+            append(sb, f.getAnonyInclYn());
+            append(sb, f.getPsdoInclYn());
+            append(sb, f.getPrvcInclYn());
             sb.append(RECORD_SEP);
         }
     }

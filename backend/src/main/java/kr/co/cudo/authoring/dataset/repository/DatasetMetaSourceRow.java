@@ -37,6 +37,13 @@ public interface DatasetMetaSourceRow {
 
     String getEvntTypeCd();
 
+    // ---- 촬영환경 수동입력(V130, 미입력이면 null → SHT_DT 파생 폴백) ----
+    String getWthrNm();
+
+    String getDayNgtCd();
+
+    String getSesnCd();
+
     // ---- MNG 동결 ----
     String getCctvNm();
 

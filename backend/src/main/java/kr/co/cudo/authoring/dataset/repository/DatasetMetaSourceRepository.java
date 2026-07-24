@@ -19,6 +19,10 @@ import org.springframework.data.repository.query.Param;
  * 얻은 {@code EVNT_NM}(카테고리 한글명)이다 — {@code MngExEvntTypeMapRepository.findCategoryLabel} 과
  * 동일 도출 규칙(native 컨텍스트라 JPQL 메서드 직접 재사용 불가하여 동일 5컬럼 고정 조건으로 복제).
  *
+ * <p><b>촬영환경(WTHR_NM·DAY_NGT_CD·SESN_CD)</b>: 작업자가 영상 단위로 수동 입력한 값(V130). 동결 시점에
+ * 이 값이 있으면 {@code SHT_DT} 파생값보다 우선해 스냅샷에 담긴다({@code DatasetVideoMetaSnapshotService}).
+ * 미입력(null)이면 기존 파생 규칙을 그대로 사용한다.
+ *
  * <p>보안/정합:
  * <ul>
  *   <li>CWE-89: {@code RAW_SN} 은 {@code :rawSn} 파라미터 바인딩만 사용(문자열 결합 없음).</li>
@@ -55,6 +59,9 @@ public interface DatasetMetaSourceRepository extends JpaRepository<LsDataRaw, Lo
               r.PRVC_TYPE_CD      AS "prvcTypeCd",
               r.DE_IDENT_YN       AS "deIdentYn",
               r.EVNT_TYPE_CD      AS "evntTypeCd",
+              r.WTHR_NM           AS "wthrNm",
+              r.DAY_NGT_CD        AS "dayNgtCd",
+              r.SESN_CD           AS "sesnCd",
               (SELECT c.CCTV_NM   FROM MNG_RESOURCE_CCTV c WHERE c.VMS_CCTV_ID = r.VMS_CCTV_ID ORDER BY c.VMS_CCTV_ID DESC LIMIT 1) AS "cctvNm",
               (SELECT c.WGS84_LAT FROM MNG_RESOURCE_CCTV c WHERE c.VMS_CCTV_ID = r.VMS_CCTV_ID ORDER BY c.VMS_CCTV_ID DESC LIMIT 1) AS "wgs84Lat",
               (SELECT c.WGS84_LOT FROM MNG_RESOURCE_CCTV c WHERE c.VMS_CCTV_ID = r.VMS_CCTV_ID ORDER BY c.VMS_CCTV_ID DESC LIMIT 1) AS "wgs84Lot",

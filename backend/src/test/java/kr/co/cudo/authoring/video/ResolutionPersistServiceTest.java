@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.entity.LsDataAugLblMap;
 import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -195,6 +197,51 @@ class ResolutionPersistServiceTest {
         verify(newRaw).markDeidentified("Y");
         // SUCCESS procLog 저장(비식별 결과 경로 기록).
         verify(deidentProcLogRepository).save(any(LsDeidentProcLog.class));
+    }
+
+    @Test
+    @DisplayName("부모프레임_개인정보3필드가_해상도파생_프레임에_복사되어_INSERT된다")
+    void copiesParentPrivacyMetaToDerivedFrames() {
+        // given — stale 게이트 통과 + 미확정 파생 RAW. 부모 프레임(srcSn 600)에 개인정보 3필드 세팅.
+        //         insertFrames→loadParentSrcs→create 9-arg 배선이 자식 프레임에 값을 흘려보내는지 서비스 레벨 검증.
+        parentMock("Y");
+        stubStaleGatePasses();
+        LsDataRaw newRaw = mock(LsDataRaw.class);
+        when(newRaw.getDeIdntfYn()).thenReturn("N");
+        when(newRaw.getRawFilePathNm()).thenReturn(base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4").toString());
+        when(newRaw.getRawSn()).thenReturn(NEW_RAW);
+        when(videoRepository.findByRawSnForUpdate(NEW_RAW)).thenReturn(Optional.of(newRaw));
+
+        LsDataSrc parent = LsDataSrc.create(PARENT, 0L, 100L, "/deid/f0.jpg", "/deid/f0.jpg",
+                LocalDateTime.now(), "N", "Y", "Y");
+        ReflectionTestUtils.setField(parent, "srcSn", 600L);
+        when(srcRepository.findAllById(any())).thenReturn(List.of(parent));
+        when(srcRepository.save(any(LsDataSrc.class))).thenAnswer(inv -> {
+            LsDataSrc s = inv.getArgument(0);
+            ReflectionTestUtils.setField(s, "srcSn", 8100L);
+            return s;
+        });
+        when(lblRepository.findBySrcSnIn(any())).thenReturn(List.of());
+        when(augRepository.findById(DATA_AUG)).thenReturn(Optional.of(mock(LsDataAug.class)));
+
+        ResolutionSnapshot.FrameSpec frame = new ResolutionSnapshot.FrameSpec(
+                600L, 0L, 100L, LocalDateTime.now(),
+                base.resolve("deid/f0.jpg"), base.resolve("resolution/f0.jpg"));
+        ResolutionSnapshot snapshot = new ResolutionSnapshot(NEW_RAW, PARENT, DATA_AUG,
+                ResolutionPreset.RESL_720P, 1920, 1080, 1280, 720, 1280d / 1920d, 720d / 1080d, "rev1",
+                deidVideoSrc(), base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4"),
+                Instant.now(), List.of(frame));
+
+        service.persist(snapshot);
+
+        // then — INSERT 되는 자식 프레임에 부모의 3필드가 그대로 복사됨.
+        ArgumentCaptor<LsDataSrc> childCaptor = ArgumentCaptor.forClass(LsDataSrc.class);
+        verify(srcRepository).save(childCaptor.capture());
+        LsDataSrc child = childCaptor.getValue();
+        assertThat(child.getRawSn()).isEqualTo(NEW_RAW);
+        assertThat(child.getAnonyInclYn()).isEqualTo("N");
+        assertThat(child.getPsdoInclYn()).isEqualTo("Y");
+        assertThat(child.getPrvcInclYn()).isEqualTo("Y");
     }
 
     // ---------- isAlreadyFinalized ----------

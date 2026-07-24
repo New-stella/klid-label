@@ -58,6 +58,13 @@
 
 > **SC-005 메타 탭 event_annotation 수동입력 패널**(2026-07-22) — 라벨링 캔버스 우측 **'메타' 탭**(INTERNAL 채널만, 포털 미노출)에 `TimeseriesSidePanel` 아래로 **이벤트 어노테이션 패널**(`EventAnnotationPanel`)이 추가됐다. 영상(RAW_SN) 단위 event_annotation(VQA/CoT)을 입력·검수한다: `event_class`(필수)·`question`·`answer` + **caption 후보 c1..cn**(caption_text + CoT 1·2·3단계) + **evidence 후보 c1..cn**(evidence_text + frame_id/obj_id/obj_bbox/obj_label). 외부 자동 생성값을 폼에 프리필하고 WORKER/REVIEWER 가 수동 덮어쓰기, REVIEWER 가 승인/반려한다. 조회/저장 `GET`/`PUT /v1/videos/{rawSn}/event-annotation`, 검수 `POST .../approve|reject`. 문구는 모델명(YOLO/SAM/VLM) 비노출. 상세 → [09 §9.3-1](09-vlm-timeseries.md) · [24 §24.3.1](24-dataset-export.md).
 
+> **SC-005 메타 탭 촬영환경·개인정보 메타 패널**(2026-07-24, **R1 요구사항 외 추가 결정** — [v1-wiki 19 갭체크](../v1-wiki/19-v2-gap-checklist.md) 참고) — 라벨링 캔버스 우측 **'메타' 탭**(INTERNAL 채널만, 포털 미노출)에 두 패널을 추가했다. 구 v1 시스템의 "촬영환경/개인정보 메타" 화면을 v2로 되살린 것으로 R1엔 없는 기능이다(사용자 확정).
+> - **촬영환경 패널**(`EnvironmentMetaPanel`, **영상 RAW_SN 단위**) — 날씨(맑음/흐림/비/눈/안개 단일선택)·시간대(주간/야간)·계절(봄/여름/가을/겨울). 진입 시 시간대·계절은 촬영일시(SHT_DT) 파생값, 날씨는 빈 기본으로 **프리필**되고 WORKER/REVIEWER가 확인·수정한다. 조회/저장 `GET`/`PUT /v1/videos/{rawSn}/environment-meta`. **저장은 전체 교체이되, 사용자가 손대지 않은 파생(DERIVED) 필드는 null로 전송**해 파생 상태를 유지한다(파생값이 조용히 수동값으로 굳는 것 방지).
+> - **개인정보 패널**(`FramePrivacyMetaPanel`, **프레임 SRC_SN 단위**) — 익명여부·가명여부·개인정보 포함여부(Y/N 체크박스). 비식별 상태 기반 파생값으로 프리필. 조회/저장 `GET`/`PUT /v1/frames/{srcSn}/privacy-meta`(+ 벌크 `PUT /v1/frames/privacy-meta`). 사용자가 토글한 필드만 전송(나머지 null=파생 유지).
+> - **★익명여부 처리(중요)**: 익명여부는 **화면 표시·저장(작업자 판단 기록)만** 하고 **export의 익명처리 표기(anonymity)는 시스템이 원본/비식별 여부로 자동 결정**한다(원본=N/비식별=Y). 사용자 수동값이 원본 export를 덮어 '익명화됨'으로 오표기되는 것을 차단하기 위함이며, 패널에 안내 문구로 명시한다. **가명여부·개인정보 포함여부**만 export(pseudonymity/privacy_included)에 수동값 우선 반영된다.
+> - 문구는 기술 모델명(YOLO/SAM/VLM) 비노출. 상세 → [24 §24.4.1](24-dataset-export.md).
+> - **후속 백로그(BLOCKED)**: 이 메타 값들은 실은 관제 공유 `MNG_CLIP_EVNT_LST`(WTHR_CD/SESN_CD/HR_TYPE_CD/PRVC_TYPE_CD, [ERD-024])에 원천이 있으나 저작도구가 미매핑 상태다. 관제 코드도메인 확인·DB 접근이 가능해지면 파생 대신 관제 실제값을 프리필 원천으로 전환한다(추정 매핑 금지).
+
 > **deprecated 화면 정리**(2026-06-17) — 진입점 없는 orphan/중복 화면을 코드·라우트와 함께 제거:
 > - **SC-008 영상 처리 현황**(`/video/status`) — LNB·링크 진입점 없는 orphan. '영상 처리 현황' LNB 메뉴는 SC-007(영상 목록)에 연결돼 영향 없음.
 > - **SC-014 오토라벨 요약**(`/auto/:videoId`) — 영상 상세(SC-009)의 인라인 `AutoLabelTab`으로 대체.

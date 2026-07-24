@@ -118,6 +118,22 @@ public class LsDataRaw {
     @Column(name = "ORGNL_RAW_SN")
     private Long orgnlRawSn;
 
+    /**
+     * 촬영 날씨(작업자 수동입력, V130). null = 미입력(조회 시 파생 폴백 대상).
+     * <p>값 변경 로직·수동입력 API 는 후속 Phase — 본 Phase 는 스키마+매핑만 담당한다.
+     * <p>길이 20 = 표준도메인 '명V20'(명 계열에 32 크기 도메인은 존재하지 않음).
+     */
+    @Column(name = "WTHR_NM", length = 20)
+    private String wthrNm;
+
+    /** 촬영 시간대 코드 주간/야간(작업자 수동입력, V130). null = 미입력(파생 폴백 대상). */
+    @Column(name = "DAY_NGT_CD", length = 20)
+    private String dayNgtCd;
+
+    /** 촬영 계절 코드(작업자 수동입력, V130). null = 미입력(파생 폴백 대상). */
+    @Column(name = "SESN_CD", length = 20)
+    private String sesnCd;
+
     @Column(name = "DATA_STTS_CD", nullable = false, length = 20)
     private String dataSttsCd;
 
@@ -162,6 +178,11 @@ public class LsDataRaw {
     /**
      * V2.0 증강 결과 수신 시 새 영상 생성. 원본 메타를 계승하되 PENDING 상태로 시작.
      * VMS_CLIP_ID 는 원본 + 증강 타입 + 타임스탬프로 유니크 보장.
+     *
+     * <p>촬영환경(날씨·시간대·계절) 수동값도 함께 계승한다 — 증강은 <b>같은 영상 소스</b>의 파생물이라
+     * 촬영 당시 환경이 동일하다. 복사하지 않으면 부모는 수동값(예: 실내/터널이라 NGT)으로 동결되고
+     * 파생본만 촬영일시 파생값(DAY)으로 동결돼 같은 소스의 export 가 서로 어긋난다.
+     * 복사는 이 팩토리 내부에서만 수행하고 빌더/setter 를 외부에 노출하지 않는다(CWE-915 방어 유지).
      */
     public static LsDataRaw createFromAugment(LsDataRaw parent, String rawFilePathNm, String augType) {
         LsDataRaw raw = new LsDataRaw();
@@ -176,6 +197,7 @@ public class LsDataRaw {
         raw.shtDt = parent.getShtDt();
         raw.durationSec = parent.getDurationSec();
         raw.orgnlRawSn = parent.getRawSn();
+        raw.copyShootingEnvironmentFrom(parent);
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
         return raw;
@@ -191,6 +213,9 @@ public class LsDataRaw {
      *   <li>비식별 계승 — 원본이 비식별 완료('Y')된 영상만 파생 대상이므로 파생본도 산출 확정 시 'Y' 로 마감된다.
      *       생성 시점 기본값은 'N'(추출/복사 성공 전까지 스트리밍/마킹 진입 차단, {@code createFromAugment} 동일).</li>
      * </ul>
+     *
+     * <p>촬영환경(날씨·시간대·계절) 수동값은 {@code createFromAugment} 와 동일하게 계승한다 —
+     * 해상도만 다른 같은 영상 소스라 촬영 당시 환경이 동일하기 때문이다.
      *
      * @param parent        원본 RAW (검수완료·비식별, ORGNL_RAW_SN=null)
      * @param rawFilePathNm 파생영상(비식별 비디오 복사본) 파일 경로
@@ -209,9 +234,30 @@ public class LsDataRaw {
         raw.shtDt = parent.getShtDt();
         raw.durationSec = parent.getDurationSec();
         raw.orgnlRawSn = parent.getRawSn();
+        raw.copyShootingEnvironmentFrom(parent);
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
         return raw;
+    }
+
+    /**
+     * 파생영상 생성 시 부모의 촬영환경 수동값 3필드를 복사한다(팩토리 전용 — 외부 노출 없음).
+     * 부모가 미입력(null)이면 파생본도 null 이라 조회·동결 시 촬영일시 파생 폴백이 그대로 유지된다.
+     * 부모 값은 이미 저장 시점에 화이트리스트 검증을 통과한 값이라 재검증하지 않는다.
+     *
+     * <p><b>스냅샷 시맨틱(의도, D — 문서화 전용)</b>: 복사는 <b>파생 생성 시점 1회</b>다. 파생본이 생성된
+     * <b>이후</b> 부모의 촬영환경을 수정해도 파생본으로 <b>재전파하지 않는다</b>. 파생본은 생성 시점 부모 상태의
+     * 독립 사본이며, 이후 부모·파생 각각 독립적으로 정정·검수될 수 있기 때문이다(별도 결정 사항 — 전파 구현 금지).
+     *
+     * <p><b>MEDIUM-4(파생 상태 필드 승격, 문서화 전용)</b>: 파생본의 촬영환경도 조회 시 수동값 우선 규칙을
+     * 그대로 탄다. 파생본 화면에서 파생 프리필(DERIVED)을 그대로 되돌려 저장하면 DERIVED→MANUAL 승격이
+     * 일어나므로, FE(Phase 4)는 파생 상태에서 사용자가 직접 고르지 않은 촬영환경 필드를 <b>null 로 전송</b>한다
+     * (BE 변경 없이 현행 유지 — 확정 방침).
+     */
+    private void copyShootingEnvironmentFrom(LsDataRaw parent) {
+        this.wthrNm = parent.getWthrNm();
+        this.dayNgtCd = parent.getDayNgtCd();
+        this.sesnCd = parent.getSesnCd();
     }
 
     /**
@@ -284,6 +330,24 @@ public class LsDataRaw {
      */
     public void markCompleted() {
         changeStatus(DATA_STTS_COMPLETED);
+    }
+
+    /**
+     * 촬영환경(날씨·시간대·계절) 수동입력값을 <b>전체 교체</b>한다 (Phase 2, V130 3컬럼 전용).
+     *
+     * <p>빌더/setter 를 노출하지 않고 이 3필드만 바꾸는 전용 도메인 메서드를 둔다 — 영속 상태 엔티티의
+     * dirty checking 으로만 저장되므로({@code @DynamicUpdate} 와 결합) 배치가 동시에 갱신하는
+     * {@code DATA_STTS_CD}·{@code DE_IDENT_YN}·{@code VDO_LEN_SEC} 등 다른 컬럼을 stale 값으로
+     * 덮어쓰지 않는다(CWE-362 lost update). 전체 {@code save()}/detached merge/빌더 재생성 금지.
+     *
+     * <p>null 인자는 "수동값 삭제"를 뜻하며 조회 시 촬영일시 파생값으로 폴백한다.
+     * 허용값(화이트리스트) 검증은 호출 측 서비스 책임이다.
+     */
+    public void changeShootingEnvironment(String wthrNm, String dayNgtCd, String sesnCd) {
+        this.wthrNm = wthrNm;
+        this.dayNgtCd = dayNgtCd;
+        this.sesnCd = sesnCd;
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /** 배치 상태 코드 갱신 (PROCESSING / COMPLETED / FAILED). */

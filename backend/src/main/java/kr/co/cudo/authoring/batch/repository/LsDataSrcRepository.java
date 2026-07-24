@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.repository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -55,4 +56,18 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     @Query("select s.rawSn as rawSn, count(s) as frameCount "
             + "from LsDataSrc s where s.rawSn in :rawSns group by s.rawSn")
     List<Object[]> countByRawSnsGrouped(@Param("rawSns") Collection<Long> rawSns);
+
+    /**
+     * Phase 3 #5 — 비식별 누락 신고 처리 시 해당 영상 전체 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를
+     * NULL 로 초기화(파생 폴백 복귀)한다. 재비식별 후 stale '개인정보 없음' 오표기(CWE-359)를 방지한다.
+     *
+     * <p>{@code clearAutomatically} 미지정 — 신고 트랜잭션이 이 뒤에 부모 RAW 를 dirty-update(markDeidentified)
+     * 하므로 영속성 컨텍스트를 비우면 안 된다(기존 라벨 bulk delete 와 동일 정책). 벌크 JPQL 로 즉시 flush 된다.
+     *
+     * @return 초기화된 프레임 수
+     */
+    @Modifying
+    @Query("update LsDataSrc s set s.anonyInclYn = null, s.psdoInclYn = null, s.prvcInclYn = null, "
+            + "s.updDt = CURRENT_TIMESTAMP where s.rawSn = :rawSn")
+    int resetPrivacyMetaByRawSn(@Param("rawSn") Long rawSn);
 }

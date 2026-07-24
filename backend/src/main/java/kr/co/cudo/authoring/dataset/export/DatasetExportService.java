@@ -24,11 +24,18 @@ import java.util.Optional;
  *   <li><b>버전 채번 TOCTOU(CWE-362)</b>: {@code count+1} 채번은 UK(DATA_RAW_SN,EXPORT_VER_NO) 위반 시
  *       재채번으로 재시도한다({@link #MAX_VERSION_RETRY}회). UK 가 최종 백스톱이라 동시 승인에도 버전이
  *       유일하게 부여된다.</li>
- *   <li><b>무수정 재승인 멱등</b>: 직전 SUCCEEDED/PARTIAL(멱등 baseline) export 의 콘텐츠 해시와 현재
- *       라벨 상태 해시가 같으면 재산출을 skip 한다(중복 v2 생성 방지). PARTIAL 을 baseline 에 포함해,
- *       원천 이미지가 지속 부재한 영상의 무수정 재승인이 매번 새 버전을 채번하며 이미지 파일을 무한
- *       재복사(디스크 누적)하는 회귀를 막는다.</li>
+ *   <li><b>승인 경로는 항상 강제 재생성(R6)</b>: 검수 승인({@code onReviewApproved}) 트리거는
+ *       {@code forceRegenerate=true} 로 진입해, 내용 변경 여부와 무관하게 <b>매 승인마다 새 버전 폴더 +
+ *       JSON/이미지를 전량 재생성</b>한다(멱등 skip 미적용). 최초 승인·무수정 재승인 모두 새 버전을 채번한다.</li>
+ *   <li><b>재동결 경로만 멱등 skip 유지</b>: event_annotation 지연 승인 등 재동결
+ *       ({@code onReExport}, {@code forceRegenerate=false}) 은 직전 SUCCEEDED/PARTIAL(멱등 baseline)
+ *       export 의 콘텐츠 해시와 현재 라벨 상태 해시가 같으면 재산출을 skip 한다(중복 v2 생성 방지). PARTIAL 을
+ *       baseline 에 포함해, 원천 이미지가 지속 부재한 영상의 무수정 재동결이 매번 새 버전을 채번하며 이미지
+ *       파일을 무한 재복사(디스크 누적)하는 회귀를 막는다.</li>
  * </ul>
+ *
+ * <p><b>retention (범위 밖 — 후속 Phase 백로그)</b>: 승인마다 새 버전 + 프레임 2벌(orgnl/deid) 복사가
+ * 누적되나(R6 확정), 구 버전 정리(retention) 잡은 미구현이다. 별도 Phase 에서 보존 정책·정리 잡을 도입한다.
  */
 @Service
 public class DatasetExportService {
@@ -58,12 +65,26 @@ public class DatasetExportService {
     }
 
     /**
+     * 한 영상(rawSn)에 대해 원본+비식별 2벌의 학습데이터 파일을 산출한다(재동결 기본 경로, 멱등 skip 적용).
+     *
+     * <p>{@code forceRegenerate=false} 로 위임하는 편의 오버로드다. 재동결({@code onReExport})·통합 시험
+     * 하네스가 사용하며, 직전 export 와 동일 해시면 멱등 skip 한다. 승인 경로(R6 강제 재생성)는
+     * {@link #export(long, boolean)} 을 {@code true} 로 호출한다.
+     */
+    public void export(long rawSn) {
+        export(rawSn, false);
+    }
+
+    /**
      * 한 영상(rawSn)에 대해 원본+비식별 2벌의 학습데이터 파일을 산출한다.
      *
      * <p>파일 쓰기 실패는 export 레코드 FAILED 로만 반영하고 예외를 전파하지 않는다(승인 불변).
      * 로딩/멱등 판정 실패 등 그 외 예외는 상위(@Async 러너)가 삼킨다.
+     *
+     * @param forceRegenerate 승인 경로(R6)면 {@code true} — 직전과 동일 해시여도 멱등 skip 없이 전량 재생성.
+     *                        재동결 경로면 {@code false} — 직전 export 와 동일 해시면 멱등 skip.
      */
-    public void export(long rawSn) {
+    public void export(long rawSn, boolean forceRegenerate) {
         // 관찰성(observability.md) — 각 호출당 result counter 정확히 1회, duration timer 정확히 1회 stop.
         // outcome 지역변수를 종결 분기마다 확정하고, finally 단일 지점에서 배타적으로 기록한다.
         // 계측 코드는 예외를 던지지 않아 기존 예외 전파 계약(승인 불변)을 바꾸지 않는다.
@@ -78,13 +99,16 @@ public class DatasetExportService {
             }
             ExportPreparation prep = prepOpt.get();
 
-            // 무수정 재승인 멱등 — 직전 성공/부분 산출(멱등 baseline)과 라벨 상태가 같으면 재산출하지 않는다.
-            if (prep.isUnchangedFromLastExport()) {
+            // 재동결 경로만 멱등 skip — 직전 성공/부분 산출(멱등 baseline)과 라벨 상태가 같으면 재산출하지 않는다.
+            // 승인 경로(forceRegenerate=true, R6)는 무수정 재승인도 항상 전량 재생성하므로 skip 을 건너뛴다.
+            if (!forceRegenerate && prep.isUnchangedFromLastExport()) {
                 log.info("[DatasetExport] unchanged since last export — idempotent skip rawSn={}", rawSn);
                 outcome = OUTCOME_IDEMPOTENT_SKIP;
                 return;
             }
 
+            // TODO(retention, 후속 Phase): 승인 경로(force=true)는 무수정 재승인도 매번 새 버전 + 프레임 2벌을
+            //  누적한다(R6 확정 허용). 구 버전 정리(retention) 잡·보존 정책은 이번 범위 밖 — 별도 Phase 에서 도입.
             InsertedExport inserted = insertWithRetry(rawSn, prep.contentHash());
             if (inserted == null) {
                 log.error("[DatasetExport] version numbering exhausted retries — abort rawSn={}", rawSn);

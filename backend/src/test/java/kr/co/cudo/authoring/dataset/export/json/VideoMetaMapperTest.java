@@ -194,4 +194,76 @@ class VideoMetaMapperTest {
         assertThat(mapper.toVideo(meta, null, ExportKind.ORIGINAL).anonymity()).isEqualTo("N");
         assertThat(mapper.toVideo(meta, null, ExportKind.DEIDENTIFIED).anonymity()).isEqualTo("Y");
     }
+
+    /** 촬영환경 수동값(LS_DATA_RAW)을 담은 원시 영상 픽스처. */
+    private static LsDataRaw rawWithEnvironment(String weather, String timeOfDay, String season) {
+        LsDataRaw raw = LsDataRaw.builder()
+                .vmsClipId("clip-env").vmsCctvId("cctv-env")
+                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PRVC)
+                .rawFilePathNm("/nas/raw/1/original.mp4")
+                .shtDt(LocalDateTime.of(2026, 1, 15, 22, 0))
+                .durationSec(30)
+                .build();
+        ReflectionTestUtils.setField(raw, "rawSn", 1L);
+        raw.changeShootingEnvironment(weather, timeOfDay, season);
+        return raw;
+    }
+
+    @Test
+    @DisplayName("수동값_저장시_export_NiaVideo_weather_timeofday_season에_반영")
+    void 수동값이_스냅샷_파생값보다_우선한다() {
+        // given — 스냅샷은 파생값(야간·겨울), raw 에는 수동값(주간·여름·비)
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/nas/raw/1/original.mp4")
+                .dayNgtCd("NGT").sesnCd("WINTER").wthrNm(null)
+                .build();
+        LsDataRaw raw = rawWithEnvironment("비", "DAY", "SUMMER");
+
+        // when
+        NiaVideo video = mapper.toVideo(meta, raw, ExportKind.ORIGINAL);
+
+        // then — 수동값 우선
+        assertThat(video.weather()).isEqualTo("비");
+        assertThat(video.timeOfDay()).isEqualTo("DAY");
+        assertThat(video.season()).isEqualTo("SUMMER");
+    }
+
+    @Test
+    @DisplayName("수동값_미저장시_export_기존_파생값_유지")
+    void 수동값이_없으면_스냅샷_파생값을_유지한다() {
+        // given — raw 촬영환경 미입력, 스냅샷에는 파생/동결값 존재 (회귀 방어)
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/nas/raw/1/original.mp4")
+                .dayNgtCd("NGT").sesnCd("WINTER").wthrNm("흐림")
+                .build();
+        LsDataRaw raw = rawWithEnvironment(null, null, null);
+
+        // when
+        NiaVideo video = mapper.toVideo(meta, raw, ExportKind.ORIGINAL);
+
+        // then — 기존 동작 그대로(스냅샷 값)
+        assertThat(video.weather()).isEqualTo("흐림");
+        assertThat(video.timeOfDay()).isEqualTo("NGT");
+        assertThat(video.season()).isEqualTo("WINTER");
+    }
+
+    @Test
+    @DisplayName("ORIGINAL_DEIDENTIFIED_두_export의_촬영환경_동일")
+    void 촬영환경은_kind에_따라_분기되지_않는다() {
+        // given — 영상 단위 값이라 2벌 산출이 동일해야 한다
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/nas/raw/1/original.mp4")
+                .dayNgtCd("NGT").sesnCd("WINTER")
+                .build();
+        LsDataRaw raw = rawWithEnvironment("눈", "DAY", "SPRING");
+
+        // when
+        NiaVideo original = mapper.toVideo(meta, raw, ExportKind.ORIGINAL, null);
+        NiaVideo deid = mapper.toVideo(meta, raw, ExportKind.DEIDENTIFIED, "/nas/deid/1/deidentified.mp4");
+
+        // then
+        assertThat(deid.weather()).isEqualTo(original.weather()).isEqualTo("눈");
+        assertThat(deid.timeOfDay()).isEqualTo(original.timeOfDay()).isEqualTo("DAY");
+        assertThat(deid.season()).isEqualTo(original.season()).isEqualTo("SPRING");
+    }
 }

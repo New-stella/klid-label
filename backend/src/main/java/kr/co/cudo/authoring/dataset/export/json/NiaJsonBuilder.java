@@ -139,10 +139,16 @@ public class NiaJsonBuilder {
         Integer imageId = (src.getSrcSn() == null) ? null : src.getSrcSn().intValue();
         Long frameNo = src.getFrameNo();
         String fileName = (frameNo == null) ? null : "frame-" + frameNo + ".jpg";
+        // ★#1 — anonymity 는 산출 종류(ExportKind)로만 결정한다. 프레임 수동 anonymity 값(라벨러 판단 기록)이
+        // 이를 덮으면 원본 산출물이 "익명화됨(Y)"으로 오표기되어 개인정보 오표기(CWE-359) 결함이 된다.
+        // 따라서 anonymity 는 수동 override 금지 — 원본=N/비식별=Y 파생을 그대로 유지한다.
         String anonymity = (kind == ExportKind.ORIGINAL) ? "N" : "Y";
 
         LsDatasetVideoMeta meta = ctx.meta();
-        String pseudonymity = LsDataRaw.PRVC_TYPE_PSDO.equals(meta.getPrvcTypeCd()) ? "Y" : "N";
+        // pseudonymity/privacy_included 만 프레임 수동값(LS_DATA_SRC) 우선, 미저장 시 파생 폴백(회귀 0).
+        String pseudonymity = firstNonBlank(src.getPsdoInclYn(),
+                LsDataRaw.PRVC_TYPE_PSDO.equals(meta.getPrvcTypeCd()) ? "Y" : "N");
+        String privacyIncluded = firstNonBlank(src.getPrvcInclYn(), meta.getPrvcYn());
 
         return new NiaImage(
                 imageId,
@@ -156,7 +162,7 @@ public class NiaJsonBuilder {
                 frameNo == null ? null : frameNo.intValue(),
                 anonymity,
                 pseudonymity,
-                meta.getPrvcYn(),
+                privacyIncluded,
                 src.getFrmExpln()
         );
     }
@@ -184,6 +190,11 @@ public class NiaJsonBuilder {
             log.warn("[NiaJsonBuilder] malformed annotations skipped count={}", skipped);
         }
         return result;
+    }
+
+    /** 수동값(우선) 우선, blank/null 이면 파생 폴백. CHAR(1) 저장 공백 패딩도 blank 로 처리. */
+    private static String firstNonBlank(String primary, String fallback) {
+        return (primary == null || primary.isBlank()) ? fallback : primary;
     }
 
     /** 경로 basename ('/' '\' 처리). */

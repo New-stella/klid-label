@@ -79,6 +79,7 @@ class DeidentReportServiceTest {
     private WorkLockService workLockService;
     private VersionService versionService;
     private LsDataLblRepository labelRepository;
+    private kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
     private LsDataLblAttrValRepository attrValRepository;
     private LsDataLblAiInfoRepository aiInfoRepository;
     private LsRawDataStatusRepository rawDataStatusRepository;
@@ -104,6 +105,7 @@ class DeidentReportServiceTest {
         workLockService = mock(WorkLockService.class);
         versionService = mock(VersionService.class);
         labelRepository = mock(LsDataLblRepository.class);
+        srcRepository = mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class);
         attrValRepository = mock(LsDataLblAttrValRepository.class);
         aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
@@ -113,7 +115,7 @@ class DeidentReportServiceTest {
         procLogRepository = mock(LsDeidentProcLogRepository.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService, versionService,
-                labelRepository, attrValRepository, aiInfoRepository,
+                labelRepository, srcRepository, attrValRepository, aiInfoRepository,
                 rawDataStatusRepository, lblHstryRepository, eventPublisher,
                 streamMetaCacheEvictor, procLogRepository);
 
@@ -191,6 +193,27 @@ class DeidentReportServiceTest {
         verify(workLockService).lockRawForRedeident(9001L, "100");
         // 신고('F') 후 스트림 메타 캐시 무효화 훅 호출(커밋 후 옛 노출본 서빙 차단).
         verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
+    }
+
+    @Test
+    @DisplayName("비식별누락신고_처리후_프레임_개인정보값_초기화")
+    void reportResetsFramePrivacyMeta() {
+        // given
+        LsDataSrc s = src(1L, 9101L);
+        LsDataRaw r = raw(9101L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9101L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9101L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9101L, false);
+        when(labelRepository.findAllByRawSn(9101L)).thenReturn(List.of());
+
+        // when
+        service.report(1L, "얼굴 미블러", workerActor);
+
+        // then — #5: 해당 영상 전체 프레임의 개인정보 3필드를 NULL 로 리셋(재비식별 후 stale 오표기 방지).
+        //         라벨 0건이어도(스냅샷/삭제 스킵) 개인정보 리셋은 프레임 존재와 무관하게 항상 수행한다.
+        verify(srcRepository).resetPrivacyMetaByRawSn(9101L);
     }
 
     @Test

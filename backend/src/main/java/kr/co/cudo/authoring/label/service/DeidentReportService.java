@@ -85,6 +85,7 @@ public class DeidentReportService {
     private final WorkLockService workLockService;
     private final VersionService versionService;
     private final LsDataLblRepository labelRepository;
+    private final kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
     private final LsDataLblAttrValRepository attrValRepository;
     private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
@@ -98,6 +99,12 @@ public class DeidentReportService {
      *
      * <p>흐름: 권한검사 → 영상로드 → 잠금 선점검 → 신고 OPEN 저장 → 영상 전체 라벨 스냅샷+삭제
      *        → 작업락 + DE_IDNTF_YN='F' → APPROVED 면 TASK_MODIFIED 통지 → REVIEWER 알림.
+     *
+     * <p><b>파생 프레임 개인정보 cross-stale 경계(후속 백로그)</b>: 아래 개인정보 3필드 리셋
+     * ({@code resetPrivacyMetaByRawSn})은 <b>신고 대상 rawSn 의 프레임만</b> NULL 로 되돌린다. 이 영상을
+     * 부모로 이미 생성된 증강·해상도 파생본(다른 rawSn)에 생성 시점 복사된 3필드 값은 리셋하지 않는다.
+     * 이는 의도된 아키텍처 경계다 — 신규 파생은 생성 시점 stale-PII 게이트로, 기존 파생은 자체 신고 워크플로로
+     * 방어한다(부모→기존 파생 캐스케이드 리셋 미지원). 상세는 v2-wiki 24-dataset-export.md 참조.
      *
      * @return 생성된 신고 RPRT_SN
      */
@@ -141,6 +148,12 @@ public class DeidentReportService {
             }
         }
 
+        // 5-1) Phase 3 #5 — 해당 영상 전체 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 NULL 로
+        //      초기화(파생 폴백 복귀)한다. 신고→재비식별 후 옛 수동값이 남으면 '개인정보 없음' 등으로 stale
+        //      오표기(CWE-359)되어 export 에 실릴 수 있으므로, 라벨 삭제와 동일 트랜잭션에서 함께 리셋한다.
+        //      벌크 JPQL(파라미터 바인딩) — clearAutomatically 미지정이라 아래 raw dirty-update 는 유지된다.
+        int privacyReset = srcRepository.resetPrivacyMetaByRawSn(rawSn);
+
         // 6) 영상 잠금 + 비식별 상태 'F' 마킹. 동시 신고 unique 위반 → 409.
         //    (R1 v1.14: 자동 재비식별 큐 적재 제거 — 외부 솔루션 수동 비식별화로 대체)
         try {
@@ -157,8 +170,8 @@ public class DeidentReportService {
         // 7) REVIEWER 알림
         notificationService.notifyReviewersOnDeidentReport(raw, reporterNo, reason);
 
-        log.info("[DeidentReport] created rprtSn={} rawSn={} reporterNo={} labelsRemoved={}",
-                report.getRprtSn(), rawSn, reporterNo, snapshotted);
+        log.info("[DeidentReport] created rprtSn={} rawSn={} reporterNo={} labelsRemoved={} privacyReset={}",
+                report.getRprtSn(), rawSn, reporterNo, snapshotted, privacyReset);
         return report.getRprtSn();
     }
 

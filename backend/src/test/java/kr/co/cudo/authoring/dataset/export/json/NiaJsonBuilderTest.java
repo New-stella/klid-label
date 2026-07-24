@@ -231,6 +231,75 @@ class NiaJsonBuilderTest {
     }
 
     @Test
+    @DisplayName("수동_가명여부_개인정보포함_저장시_export_NiaImage에_반영")
+    void manualPseudonymityAndPrivacyReflectedInImage() {
+        // given — 영상 메타 파생은 pseudonymity=Y(PSDO 아님→ meta 는 PRVC 라 N)·privacy_included=Y 이지만,
+        //         프레임 수동값으로 가명여부=Y, 개인정보포함=N 을 저장
+        LsDataSrc src = frame();
+        src.updatePrivacyMeta("Y", "Y", "N");
+        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+        NiaJsonBuilder.VideoExportContext ctx =
+                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
+
+        // when
+        NiaAnnotationDoc doc = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
+
+        // then — pseudonymity/privacy_included 는 수동값 반영
+        assertThat(doc.image().pseudonymity()).isEqualTo("Y");
+        assertThat(doc.image().privacyIncluded()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("미저장_개인정보필드는_기존_파생값으로_폴백")
+    void unsetPrivacyFallsBackToDerived() {
+        // given — 프레임 수동 미저장(null), meta prvcTypeCd=PRVC(→pseudonymity N)·prvcYn=Y
+        NiaAnnotationDoc doc = buildDoc(ExportKind.ORIGINAL);
+
+        // then — 파생 폴백(회귀 0)
+        assertThat(doc.image().pseudonymity()).isEqualTo("N");
+        assertThat(doc.image().privacyIncluded()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("수동_익명여부_Y_저장해도_원본export_anonymity는_N_유지")
+    void manualAnonymityDoesNotOverrideOriginalExport() {
+        // given — 프레임에 익명여부 Y 를 수동 저장
+        LsDataSrc src = frame();
+        src.updatePrivacyMeta("Y", null, null);
+        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+        NiaJsonBuilder.VideoExportContext ctx =
+                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
+
+        // when — 원본(ORIGINAL) 산출
+        NiaAnnotationDoc original = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
+
+        // then — ★#1: 수동 익명여부 Y 가 원본 export anonymity 를 덮지 않는다(원본=N 유지, 오표기 방지)
+        assertThat(original.image().anonymity()).isEqualTo("N");
+        assertThat(original.video().anonymity()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("수동_익명여부_저장해도_비식별export_anonymity는_Y_유지")
+    void manualAnonymityDoesNotOverrideDeidExport() {
+        // given — 프레임에 익명여부 N 을 수동 저장(비식별인데 라벨러가 N 판단해도 export 는 불변이어야)
+        LsDataSrc src = frame();
+        src.updatePrivacyMeta("N", null, null);
+        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+        NiaJsonBuilder.VideoExportContext ctx =
+                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
+
+        // when — 비식별(DEIDENTIFIED) 산출
+        NiaAnnotationDoc deid = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.DEIDENTIFIED);
+
+        // then — ★#1: 비식별 export anonymity 는 kind 파생(Y) 유지
+        assertThat(deid.image().anonymity()).isEqualTo("Y");
+        assertThat(deid.video().anonymity()).isEqualTo("Y");
+    }
+
+    @Test
     @DisplayName("최상위_8키_info부터_type까지_모두_존재한다")
     void topLevelEightKeys() {
         // given / when

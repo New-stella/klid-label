@@ -41,6 +41,8 @@ import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
 import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
 import { EventAnnotationPanel } from '@/features/label/components/EventAnnotationPanel';
+import { EnvironmentMetaPanel } from '@/features/label/components/EnvironmentMetaPanel';
+import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyMetaPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
@@ -1241,6 +1243,10 @@ export function LabelingPage() {
               id="right-panel-meta"
               aria-labelledby="right-tab-meta"
             >
+              {/* 촬영환경(날씨·시간대·계절) — 영상(rawSn) 단위, 내부 채널만. */}
+              <EnvironmentMetaPanel rawSn={data?.videoId} />
+              {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. */}
+              <FramePrivacyMetaPanel srcSn={data?.srcSn} />
               {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. */}
               <FrameDescriptionPanel srcSn={data?.srcSn} />
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
