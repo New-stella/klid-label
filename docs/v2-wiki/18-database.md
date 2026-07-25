@@ -75,6 +75,9 @@
 | `LS_SYSTEM_CONFIG` (V11) | 시스템 설정 (화이트리스트 key/value) | [10](10-labeling.md) |
 | `LS_AUTH_WORK_LOCK` (V22, 동일영상 활성락 1건 partial unique index V69) | 비식별 재진행 중 잠금(동시 이중 위탁 차단) | [08](08-deidentification.md) |
 | `LS_WEBHOOK_IDEMPOTENCY` (V39) | 웹훅 멱등성 | [19](19-external-security-cvat.md) |
+| `LS_WHK_SIGN_USE` (V131) | 웹훅 서명 사용 원장 — replay 방지용 **1회성 소비** 기록. PK `SIGN_HASH`(경로+X-Timestamp+X-Signature 의 SHA-256 hex, VARCHAR(64)), `WHK_PATH_NM`·`EXPD_DT`. 필터가 트랜잭션 밖에서 `INSERT ... ON CONFLICT DO NOTHING` + updateCount 로 판정(PG UNIQUE 위반이 tx 전체를 abort 시키는 25P02 회피). 표준용어 웹훅=WHK·서명=SIGN·해시=HASH·사용=USE·만료=EXPD | [19](19-external-security-cvat.md) |
+| `LS_WHK_FAIL_NMTM` (V131) | 웹훅 인증 실패 횟수 — 2노드 공유 rate limit 집계. PK (`CALL_IP_ADDR` IP주소V45, `BGNG_DT` 분 단위 윈도우), `FAIL_NMTM`(수I11)·`EXPD_DT`. 앱은 1차 JVM-local 카운터로 즉시 차단하고 본 테이블은 2차 집계(공유 저장소 장애 시 fail-open). 표준용어 호출=CALL·주소=ADDR·시작=BGNG·실패=FAIL·횟수=NMTM | [19](19-external-security-cvat.md) |
+| `LS_AUTHRT_GRANT_ATMPT` (V132) | 권한 자가부여(role-claim) 시도 횟수 — 2노드 공유 rate limit 집계. PK (`ATMPT_SE_CD` 코드V20 = ACCOUNT/GLOBAL, `ATMPT_IDNTFR` 식별자V36 = 요청자 sub 또는 'GLOBAL', `BGNG_DT` 분 단위 윈도우), `ATMPT_NMTM`(수I11)·`EXPD_DT`. 서비스 트랜잭션이 실패로 롤백돼도 카운터가 남도록 **REQUIRES_NEW** 로 기록. 공유 저장소 장애 시에도 JVM-local Caffeine 카운터가 최종 방어선(완전 fail-open 금지). 표준용어 권한=AUTHRT·부여=GRANT·시도=ATMPT·구분=SE·식별자=IDNTFR·횟수=NMTM | [19](19-external-security-cvat.md) |
 | `LS_CONTROL_NOTIFY_FALLBACK` (V44, `SEND_RSLT_CD` 발송결과 컬럼 V77) / `LS_GITEA_FALLBACK_QUEUE` (V41) | 통지 재시도 큐 + 발송 결과 상태 관찰(`STTS_CD`=큐 처리 PENDING/RETRYING/SUCCEEDED/DEAD_LETTER, `SEND_RSLT_CD`=SUCCESS/FAILED — 즉시 성공도 SUCCEEDED+SUCCESS 터미널 행으로 적재) / Gitea 실패 재시도 | [15](15-control-notify.md)·[13](13-version-control.md) |
 | `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 (데이터마트 영상 대상) | [16](16-portal.md) |
 | `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, UPEND_FIX_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |

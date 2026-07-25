@@ -102,7 +102,7 @@ PENDING 증강 영상 (SCR-AUG-002)
 | 콜백 주체 | 외부 증강 시스템 | 시뮬레이터가 자기 자신(저작도구) 콜백 URL 로 POST |
 | 콜백 상태 | SUCCESS/FAILED/PARTIAL | 항상 SUCCESS 가정 |
 
-- **HMAC 서명 무결성**: 시뮬레이터는 검증 필터와 동일한 `HmacSigner.hex(secret, "{timestamp}.{body}")` 규칙을 쓰며, **JSON 직렬화를 1회만** 수행해 서명 대상 문자열과 전송 본문을 바이트 동일로 유지한다(서명 불일치 401 회귀 차단). 시크릿은 `webhook.hmac.secret.augment`(32B 이상, 미설정 시 해당 경로 fail-closed 401).
+- **HMAC 서명 무결성**: 시뮬레이터는 검증 필터와 동일한 `HmacSigner.hex(secret, "{timestamp}.{body}")` 규칙을 쓰며, **JSON 직렬화를 1회만** 수행해 서명 대상 문자열과 전송 본문을 바이트 동일로 유지한다(서명 불일치 401 회귀 차단). 시크릿은 `webhook.hmac.secret.augment`(32B 이상). **미설정(빈 값)이면 요청 시 401 이 아니라 애플리케이션 기동 자체가 실패**한다(2026-07-25 — 빈 시크릿으로 정상 콜백만 전건 401 이던 상태를 배포 전에 드러내기 위함). 동일 서명 재전송은 nonce 로 흡수되어 **409**(인증 실패 401 과 구분)다. → [19](19-external-security-cvat.md#웹훅-인증-2026-07-25-개편--1차-검증-critical-대응)
 - **풀 점유 방지**: 콜백 호출은 `@Async("batchAsyncExecutor")` 비동기 + `augmentCallbackWebClient` 에 connect timeout(5s)·response timeout(10s) 적용 — 로컬 콜백 서버 미기동 시 TCP 연결 단계 무한 대기로 배치 풀이 점유되는 것을 막는다.
 - **best-effort**: 콜백 HTTP/직렬화 실패는 삼키고 WARN 만 남겨 요청 흐름에 영향 0.
 

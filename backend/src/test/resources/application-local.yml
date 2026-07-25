@@ -68,6 +68,19 @@ authoring:
   stream:
     sign-secret: ${STREAM_SIGN_SECRET:test-stream-sign-secret-change-me-32bytes-min}
 
+# webhook 콜백 인증 — 시크릿이 빈 값이면 **기동 실패**(fail-closed, E-ISSUE-04) 이므로 테스트에도 필수.
+#   본 파일은 main 의 application-local.yml 을 통째로 대체하므로(테스트 classpath 우선) 여기에도 명시한다.
+#   최소 32B(256bit). 개별 IT 는 @TestPropertySource 로 자기 값을 덮어써 서명 정합을 맞춘다.
+webhook:
+  hmac:
+    secret:
+      augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:test-augment-callback-hmac-secret-32bytes-min}
+  # 신뢰 프록시 미설정 = X-Forwarded-For 전면 무시(테스트 기본).
+  trusted-proxy-cidrs: ""
+  vlm:
+    # VLM 콜백 IP allowlist 미설정 = 미적용(테스트 기본).
+    allowed-ip-cidrs: ""
+
 # UC018 — 테스트 기본은 KPST 폴링 OFF (ca.crt 미보유 환경 보호 — KpstWebClientConfig fail-closed 회피).
 #   KPST 토글 ON 검증 테스트는 @TestPropertySource(kpst.deid.enabled=true)+test-ca.crt 로 개별 활성화한다.
 kpst:

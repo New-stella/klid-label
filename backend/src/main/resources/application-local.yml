@@ -107,6 +107,9 @@ kpst:
 # 콜백 충실 플로우 Phase 2 — local 전용 webhook HMAC 시크릿(dev placeholder, 32B 이상).
 #   - dev 콜백 시뮬레이터(서명 측)와 HmacWebhookFilter(검증 측)가 동일 값을 사용해 자족 콜백을 통과시킨다.
 #   - 평문 운영 시크릿 아님. 운영(dev/stg/prd)은 WEBHOOK_HMAC_SECRET_AUGMENT 환경변수로 override 필수.
+#   - ★ 이 값은 리포에 커밋된 공개 placeholder 라 **local 프로파일에서만** 허용된다. 다른 프로파일에서
+#     이 값이 감지되면 HmacWebhookFilter 가 기동을 차단한다(KNOWN_PLACEHOLDER_SECRETS, DEV_FIX H-1).
+#     "빈 값이면 기동 실패" 회피용으로 이 기본값을 운영에 흘리면 공개 키로 서명 위조가 가능해진다.
 webhook:
   hmac:
     secret:

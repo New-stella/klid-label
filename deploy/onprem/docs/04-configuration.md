@@ -29,16 +29,26 @@
 | `STREAM_URL_TTL_SECONDS` | · | 기본 60 (5~600) |
 | `ADMIN_CLAIM_PASSWORD_HASH` | ★ | 관리자 공유 패스워드 BCrypt 해시(cost≥12). 평문 금지 |
 
-### prd 필수 webhook HMAC (★ 부팅 차단 주의)
+### prd·stg 필수 webhook 콜백 보안 (★ 부팅 차단 주의)
 
 | 변수 | 필수 | 의미 |
 |------|:----:|------|
-| `WEBHOOK_HMAC_SECRET_VLM` | ★(prd) | application-prd.yml 이 `${...:?}` 로 강제 — 미설정 시 BeanCreationException 부팅 실패 |
-| `WEBHOOK_HMAC_SECRET_AUGMENT` | ★(prd) | 동일 |
+| `WEBHOOK_HMAC_SECRET_VLM` | · (미사용) | VLM describe 콜백은 벤더 v2.0.1 **무서명** 규격이라 HMAC 을 쓰지 않는다. 현재 코드에 **소비처가 없어** 설정해도 무시되고, 미설정이어도 부팅을 막지 않는다 |
+| `WEBHOOK_HMAC_SECRET_AUGMENT` | ★(prd) | 미설정/빈 값이면 `BeanInitializationException` 으로 부팅 실패. 32B(256bit) 미만이거나 **리포에 커밋된 placeholder 값**이면 부팅 차단(공개 키 서명 위조 차단, DEV_FIX H-1) |
 | `WEBHOOK_HMAC_TIMESTAMP_WINDOW` | · | 기본 300 |
+| `WEBHOOK_TRUSTED_PROXY_CIDRS` | ★(prd·stg) | 신뢰 프록시 CIDR(CSV). 이 대역에서 온 요청의 `X-Forwarded-For` 만 해석. **직접 노출이면 `none` 명시**. 미설정 시 부팅 차단. **형식 오류(오타·호스트명)도 부팅 차단**(DEV_FIX N-4 — 조용히 무시하면 방어가 꺼진 채 기동) |
+| `WEBHOOK_VLM_ALLOWED_IP_CIDRS` | ★(prd·stg) | VLM 무서명 콜백 허용 출처 CIDR(CSV). **미적용을 의도하면 `none` 명시**. 미설정 시 부팅 차단. 형식 오류도 부팅 차단 |
 
-> 외부 VLM/증강 콜백을 받지 않더라도, prd 로 기동하려면 위 둘에 **임의의 강한 시크릿**을 채워야 부팅된다.
-> 생성: `openssl rand -hex 32`.
+> 외부 증강 콜백을 받지 않더라도, prd 로 기동하려면 `WEBHOOK_HMAC_SECRET_AUGMENT` 에 **임의의 강한 시크릿**을 채워야 부팅된다.
+> 생성: `openssl rand -hex 32`. 예시 문서의 값을 복사해 쓰지 말 것(공개 키 = 위조 가능).
+>
+> **stg 도 명시 필수(REDESIGN R-3)**: stg 는 온프렘 개발서버로 LB/Nginx 뒤에 배포되는데 과거에는 명시 강제가
+> prd 에만 걸려 있어 stg 가 빈 값으로 조용히 기동했다(모든 콜백 IP 가 LB IP 로 수렴). 이제 stg 도 미설정 시 부팅이 차단된다.
+>
+> **`WEBHOOK_TRUSTED_PROXY_CIDRS` 를 비워 두면 안 되는 이유**: LB/Nginx 뒤 배포에서 미설정이면 모든 콜백의
+> 클라이언트 IP 가 LB IP 하나로 수렴한다. 그 상태에서 누군가 인증 실패 5회를 유발하면 **정상 벤더 콜백까지
+> 60초 동안 429** 가 되고, 공유 카운터를 통해 2노드 전체로 전파된다. 프록시가 없다면 `none` 을 명시해
+> "XFF 무시" 를 의식적으로 선택한다.
 
 ### 저장소 / ai-server / CORS / FFmpeg
 

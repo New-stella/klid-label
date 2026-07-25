@@ -176,12 +176,27 @@ class FrameImageRawFrameNoTest {
     }
 
     @Test
-    @DisplayName("WORKER도_이미지_서빙_가능_isAuthenticated")
+    @DisplayName("배정된_WORKER는_이미지_서빙_가능_200")
     void worker_canFetch() throws Exception {
+        // DEV_FIX H-1 — 프레임 이미지에도 영상 단위 인가가 걸리므로 WORKER 는 배정이 전제다.
+        // (라벨링·검수 화면이 매 프레임 호출하는 경로라 정상 케이스 회귀가 반드시 지켜져야 한다.)
+        authrtRepository.save(
+                kr.co.cudo.authoring.assignment.entity.LsTaskAssignment.createLabeler(rawSnAnony, 100L, 1L));
+
         mockMvc.perform(get("/v1/videos/" + rawSnAnony + "/frames/0/image")
                         .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("image/jpeg"));
+    }
+
+    @Test
+    @DisplayName("배정되지_않은_WORKER는_프레임이미지_403")
+    void unassignedWorker_frameImage_forbidden() throws Exception {
+        // DEV_FIX H-1 — /stream 만 잠그고 이 경로를 열어두면 rawSn·frameNo 순회로 임의 영상의 전체
+        // 프레임을 수집할 수 있었다(B-ISSUE-63 우회). 배정 없는 WORKER 는 403.
+        mockMvc.perform(get("/v1/videos/" + rawSnAnony + "/frames/0/image")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test

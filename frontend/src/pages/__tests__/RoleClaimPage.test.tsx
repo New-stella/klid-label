@@ -124,7 +124,7 @@ describe('RoleClaimPage', () => {
 
     renderWithProviders(<RoleClaimPage />);
 
-    await user.click(screen.getByLabelText('검수자 (REVIEWER)'));
+    await user.click(screen.getByLabelText('작업자 (WORKER)'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'wrong');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 

@@ -69,6 +69,19 @@ public class SecurityConfig {
                     // /v1/auth/role-claim 은 인증된 사용자만 호출 가능 — role 부여 endpoint.
                     // permitAll 매처보다 먼저 매칭되도록 위에 둔다.
                     auth.requestMatchers("/v1/auth/role-claim").authenticated();
+                    // A-ISSUE-02 — /v1/** 매처를 역할 결합으로 상향하면서 남기는 **의도된 예외**.
+                    // /v1/me 는 본인 토큰 클레임(sub/role/channel)만 반환하며 업무 데이터를 노출하지 않는다.
+                    // 역할 미배정(role=null) 사용자가 "나는 무권한" 임을 확인하고 /role-claim 온보딩으로
+                    // 진입하는 유일한 경로이므로 역할 게이트에서 제외한다.
+                    //
+                    // DEV_FIX M-4 — 이 예외가 `.authenticated()` 뿐이라 **PORTAL 채널 토큰도 도달**한다.
+                    //   채널을 INTERNAL 로 좁히지 않는 것은 의도된 선택이다:
+                    //   ① 응답이 호출자 <b>본인 토큰의 클레임 반향</b>(sub/role/channel)뿐이라 채널을 넘나드는
+                    //      업무 데이터가 없다 — 포털 사용자가 자기 토큰 내용을 되받는 것 이상은 얻지 못한다.
+                    //   ② 포털 FE 도 세션 유효성·역할 확인에 동일 엔드포인트를 쓰므로 채널을 좁히면 기능이 깨진다.
+                    //   따라서 실피해가 없고, 여기에 업무 데이터를 추가하는 순간 이 근거가 무효가 되므로
+                    //   /v1/me 응답 확장 시 반드시 채널 게이트를 재검토할 것.
+                    auth.requestMatchers("/v1/me").authenticated();
                     auth.requestMatchers("/health", "/actuator/health", "/actuator/health/**",
                                     "/actuator/info",
                                     // springdoc 표준 진입 URL /swagger-ui.html 은 /swagger-ui/index.html 로
@@ -76,8 +89,12 @@ public class SecurityConfig {
                                     "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
                                     "/v1/auth/**", "/v1/portal/auth/**").permitAll();
                     // 외부 시스템 결과 수신 webhook — VLM·증강 2종.
-                    // JWT 인증을 우회하고 HmacWebhookFilter 가 시그니처 검증을 단독 수행한다.
-                    // 시크릿 미설정 시 fail-closed 로 401 (HmacWebhookFilter 내부).
+                    // JWT 인증을 우회하고 HmacWebhookFilter 가 단독 인증한다(증강=HMAC 서명 필수,
+                    // VLM=벤더 무서명 규격이라 IP allowlist·rate limit·size cap 가드만).
+                    // 시크릿이 빈 값이면 요청 시 401 이 아니라 **기동 자체가 실패**한다(E-ISSUE-04).
+                    // 필터 적용 판정은 WebhookProtectedPaths(= MVC 와 동일한 RequestPath/PathPattern)의
+                    // allowlist 이며, 컨트롤러 진입 직전 WebhookGateInterceptor 가 통과 증거를 재확인한다
+                    // (경로 인코딩 변형 우회 이중 차단 — E-ISSUE-01).
                     // (UC018 — 비식별은 KPST 폴링으로 단일화되어 /v1/deidentify/result 콜백 경로를 제거함.)
                     auth.requestMatchers(
                             "/v1/vlm/callback",
@@ -118,16 +135,29 @@ public class SecurityConfig {
                             // R5-1: 그 외 모든 내부 /v1/** API 는 INTERNAL 채널 토큰만.
                             // channel 클레임 없는 토큰은 JwtAuthenticationFilter 에서 INTERNAL 로 기본값 처리되므로
                             // 기존 내부 사용자 토큰 호환(fail-closed: 무클레임=INTERNAL → 내부 허용, 외부 노출 없음).
+                            //
+                            // A-ISSUE-02 — 채널 authority 만 요구하던 것을 **역할 결합**으로 상향한다.
+                            // 과거에는 LS_USER_ROLE 미배정(role=null) INTERNAL 사용자가 @PreAuthorize 가 없는
+                            // 조회 엔드포인트(/v1/event-types 등)를 전건 통과했다(fail-open). 이제 저작도구
+                            // 역할(REVIEWER/WORKER) 보유가 필수다.
+                            // STREAM_SIGNED 는 예외로 함께 허용한다 — 서명 스트림 컨텍스트는 역할 authority 를
+                            // 부여하지 않으며(권한 확대 방지), 이 권한은 StreamSignatureFilter 만 부여한다.
+                            // 영상 단위 인가는 컨트롤러 진입부의 LabelAccessGuard 가 별도로 강제한다(B-ISSUE-63).
                             .requestMatchers("/v1/**")
-                                .access(hasAuthority("CHANNEL_" + Channel.INTERNAL.name()))
+                                .access(allOf(
+                                        hasAuthority("CHANNEL_" + Channel.INTERNAL.name()),
+                                        anyOf("ROLE_" + Role.REVIEWER.name(),
+                                              "ROLE_" + Role.WORKER.name(),
+                                              StreamSignatureFilter.AUTHORITY_STREAM_SIGNED)))
                             .anyRequest().authenticated();
                 })
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint((req, res, ex) -> writeError(res, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED))
                         .accessDeniedHandler((req, res, ex) -> writeError(res, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN))
                 )
-                // Phase 2 — HmacWebhookFilter 를 JWT 필터보다 먼저 등록.
-                // /v1/*/result 경로는 HmacWebhookFilter 가 단독 인증, 그 외 경로는 shouldNotFilter() 로 우회.
+                // HmacWebhookFilter 를 JWT 필터보다 먼저 등록. 웹훅 경로(WebhookProtectedPaths allowlist)는
+                // 이 필터가 단독 인증하고, 그 외 경로는 shouldNotFilter() 로 우회한다.
+                // 서블릿 컨테이너 자동 등록은 WebhookGateConfig 에서 비활성화해 실행 경로를 여기 1곳으로 고정한다.
                 .addFilterBefore(hmacWebhookFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 // 영상 스트림 단기 서명 URL 인증 — JWT 필터 뒤에 두어, Authorization 헤더 경로가 우선되고
@@ -186,6 +216,23 @@ public class SecurityConfig {
                         .map(SecurityConfig::hasAuthority)
                         .toArray(AuthorizationManager[]::new);
         return AuthorizationManagers.allOf(managers);
+    }
+
+    /** 매니저 결합 — 하위 조건(anyOf 등)을 다시 AND 로 묶기 위한 오버로드. */
+    @SafeVarargs
+    private static AuthorizationManager<RequestAuthorizationContext> allOf(
+            AuthorizationManager<RequestAuthorizationContext>... managers) {
+        return AuthorizationManagers.allOf(managers);
+    }
+
+    /** 하나 이상의 권한(authority) 보유 요구 — 역할 OR 서명 스트림 권한 결합용. */
+    private static AuthorizationManager<RequestAuthorizationContext> anyOf(String... authorities) {
+        @SuppressWarnings("unchecked")
+        AuthorizationManager<RequestAuthorizationContext>[] managers =
+                java.util.Arrays.stream(authorities)
+                        .map(SecurityConfig::hasAuthority)
+                        .toArray(AuthorizationManager[]::new);
+        return AuthorizationManagers.anyOf(managers);
     }
 
     private void writeError(jakarta.servlet.http.HttpServletResponse res, HttpStatus status, ErrorCode code) throws java.io.IOException {

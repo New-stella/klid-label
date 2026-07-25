@@ -512,27 +512,29 @@ class VideoStreamServiceTest {
         when(streamUrlSigner.isConfigured()).thenReturn(false);
 
         // when / then: 권한 거부(403)가 아닌 503 SERVICE_UNAVAILABLE 로 매핑
-        assertThatThrownBy(() -> videoStreamService.issueSignedUrl(rawSn, "1"))
+        assertThatThrownBy(() -> videoStreamService.issueSignedUrl(rawSn, "1", "0123456789abcdef0123456789abcdef"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
     }
 
     @Test
-    @DisplayName("서명URL_발급_userNo바인딩_URL에_u포함")
-    void issueSignedUrl_bindsUserNo_includesUInUrl() {
-        // given: 비식별 유효('Y') + 시크릿 설정 + userNo='1' 로 서명
+    @DisplayName("서명URL_발급_userNo와_nonce_바인딩_URL에는_u만_포함")
+    void issueSignedUrl_bindsUserNoAndNonce_includesUInUrl() {
+        // given: 비식별 유효('Y') + 시크릿 설정 + userNo='1' + 클라이언트 바인딩 nonce
         Long rawSn = 11L;
+        String nonce = "0123456789abcdef0123456789abcdef";
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
         when(streamUrlSigner.isConfigured()).thenReturn(true);
-        when(streamUrlSigner.sign(rawSn, "1"))
+        when(streamUrlSigner.sign(rawSn, "1", nonce))
                 .thenReturn(new StreamUrlSigner.SignedParams(1_700_000_000L, "deadbeef", 60L));
 
         // when
-        var resp = videoStreamService.issueSignedUrl(rawSn, "1");
+        var resp = videoStreamService.issueSignedUrl(rawSn, "1", nonce);
 
-        // then: 서명 입력에 userNo 가 바인딩되고 URL 쿼리에 u=1 이 포함된다
-        org.mockito.Mockito.verify(streamUrlSigner).sign(rawSn, "1");
+        // then: 서명 입력에 userNo + nonce 가 바인딩되고, URL 에는 u 만 노출된다(nonce 는 쿠키로만 전달).
+        org.mockito.Mockito.verify(streamUrlSigner).sign(rawSn, "1", nonce);
         assertThat(resp.url()).contains("&u=1&sig=deadbeef");
+        assertThat(resp.url()).doesNotContain(nonce);
     }
 }
