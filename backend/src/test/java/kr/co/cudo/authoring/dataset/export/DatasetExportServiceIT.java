@@ -53,6 +53,13 @@ class DatasetExportServiceIT {
     /** 모든 프레임이 공유하는 원본/비식별 원천 이미지의 base 상대 경로(base 하위 파일로 시드). */
     private static final String FRAME_IMAGE_REL_PATH = "f0.jpg";
 
+    /**
+     * 비식별 원천 이미지의 base 상대 경로 — <b>비식별 전용 서브트리</b>({@code frames/deid/}) 하위여야 한다.
+     * E-ISSUE-22 로 {@code FrameSource} 가 비식별 벌에 대해 서브트리를 강제하므로, base 루트 파일은
+     * 더 이상 비식별 원천으로 인정되지 않는다(fail-closed).
+     */
+    private static final String DEID_FRAME_IMAGE_REL_PATH = "frames/deid/f0.jpg";
+
     @Autowired
     private DatasetExportService exportService;
     @Autowired
@@ -85,7 +92,7 @@ class DatasetExportServiceIT {
     @BeforeEach
     void seedFrameImages() throws IOException {
         writeDummyImage(rawStoragePath, FRAME_IMAGE_REL_PATH);
-        writeDummyImage(deidStoragePath, FRAME_IMAGE_REL_PATH);
+        writeDummyImage(deidStoragePath, DEID_FRAME_IMAGE_REL_PATH);
     }
 
     private void writeDummyImage(String basePath, String relPath) throws IOException {
@@ -113,7 +120,7 @@ class DatasetExportServiceIT {
                     .regDt(LocalDateTime.now())
                     .build());
             LsDataSrc frame = LsDataSrc.create(rawSn, 0, FRAME_IMAGE_REL_PATH, LocalDateTime.now());
-            frame.attachDeidPath(FRAME_IMAGE_REL_PATH); // 비식별 원천도 연결 → deid kind 도 written
+            frame.attachDeidPath(DEID_FRAME_IMAGE_REL_PATH); // 비식별 원천도 연결 → deid kind 도 written
             frame = srcRepository.save(frame);
             labelRepository.save(LsDataLbl.createManual(
                     frame.getSrcSn(), "BBOX", null, "car", pointCn, null));

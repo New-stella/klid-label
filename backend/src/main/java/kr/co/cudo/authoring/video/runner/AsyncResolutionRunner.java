@@ -113,15 +113,19 @@ public class AsyncResolutionRunner {
         }
 
         // ② Phase B 산출 아티팩트 정리(스냅샷이 있어야 Phase B 가 파일을 썼을 수 있음). 잔존 시 ERROR + 메트릭.
+        //    M-5 — 정리 결과를 <b>무시하지 않는다</b>. 파일이 남았는데 RAW 행(유일한 DB 포인터)까지 지우면
+        //    누구도 추적할 수 없는 고아 파일이 되므로, 잔존 시 ④ RAW 삭제를 건너뛴다.
+        boolean artifactsClean = true;
         if (snapshot != null) {
             try {
-                boolean clean = fileMaterializer.cleanup(newRawSn, snapshot.videoDst());
-                if (!clean) {
+                artifactsClean = fileMaterializer.cleanup(newRawSn, snapshot.videoDst());
+                if (!artifactsClean) {
                     log.error("[AsyncResolutionRunner] derivative artifact cleanup incomplete — orphan files remain rawSn={}",
                             newRawSn);
                     resolutionMetrics.cleanupFailed();
                 }
             } catch (RuntimeException ce) {
+                artifactsClean = false;
                 log.error("[AsyncResolutionRunner] derivative artifact cleanup error rawSn={} cause={}",
                         newRawSn, ce.getClass().getSimpleName());
                 resolutionMetrics.cleanupFailed();
@@ -136,5 +140,19 @@ public class AsyncResolutionRunner {
                     dataAugSn, re.getClass().getSimpleName());
         }
         batchTransitionService.markRawDataFailed(newRawSn);
+
+        // ④ E-ISSUE-23 — FAILED 로 마감된 파생 RAW 고아 행 정리(잠금 + 상태 재확인 후에만 삭제).
+        //    재시도마다 침묵 쓰레기 RAW 가 무한 누적되던 것을 막는다. 정리 실패는 원래 실패를 가리지 않는다.
+        //    M-5 — 파일이 잔존하면 RAW 행을 남긴다(유일한 DB 포인터 소실 방지). FAILED 상태로 보존된다.
+        if (!artifactsClean) {
+            log.warn("[AsyncResolutionRunner] keep FAILED derivative RAW — artifacts remain on disk rawSn={}", newRawSn);
+            return;
+        }
+        try {
+            persistService.deleteFailedDerivativeRaw(newRawSn);
+        } catch (RuntimeException re) {
+            log.warn("[AsyncResolutionRunner] failed derivative RAW cleanup skipped rawSn={} cause={}",
+                    newRawSn, re.getClass().getSimpleName());
+        }
     }
 }

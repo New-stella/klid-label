@@ -57,6 +57,11 @@ authoring:
   work-lock:
     sweep:
       enabled: false
+  # local 은 해상도 파생 유예 삭제 스윕 잡도 비활성화 (@Scheduled 미발화). 유예 자체는 유지되며,
+  #   백필을 다시 실행하면(run) 그 안에서 스윕이 수행되므로 잔존물은 재실행으로 정리된다.
+  resolution-backfill:
+    sweep:
+      enabled: false
   # local/test 에서는 포털 메타 복제 워커 잡도 비활성화 (Quartz 잡 미등록 — 테스트가 워커를 직접 호출).
   #   운영(dev/stg/prd)은 application.yml 기본값(enabled 미설정=matchIfMissing=true)으로 활성화된다.
   meta-replication:

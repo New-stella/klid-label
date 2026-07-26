@@ -267,8 +267,19 @@ public class Sam2SegmentStep implements BatchStep {
         return togglesOpt.get().get(normalized);
     }
 
+    /**
+     * 추론 입력 이미지 경로 — 배치 오토라벨은 정책상 <b>원본</b> 프레임에만 실행한다.
+     *
+     * <p>M-6 (null 가드) — 원본 경로가 결측이면 그대로 반환해 하위에서
+     * {@code baseRawPath.resolve(null)} NPE(500)로 터졌다. 결측은 추상 메시지로 fail-fast 한다
+     * (해상도 파생 프레임처럼 원본이 실재하지 않는 프레임은 배치 대상이 아니다).
+     */
     private String resolveImagePath(LsDataSrc src) {
-        return src.getSrcFilePathNm();
+        String path = src.getSrcFilePathNm();
+        if (path == null || path.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 이미지 경로가 없습니다.");
+        }
+        return path;
     }
 
     private String readImageAsBase64(String relativePath) {

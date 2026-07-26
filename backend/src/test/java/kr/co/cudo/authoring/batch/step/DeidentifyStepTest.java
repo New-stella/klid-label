@@ -5,17 +5,23 @@ import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.service.KpstDeidentService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
+import kr.co.cudo.authoring.common.config.CacheConfig;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.VideoStreamService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.cache.Cache;
+import org.springframework.cache.support.SimpleCacheManager;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
+import org.springframework.http.MediaType;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -81,6 +87,13 @@ class DeidentifyStepTest {
         });
     }
 
+    /** 운영과 동일한 캐시 스펙(CacheConfig)으로 실제 Caffeine 캐시매니저를 만든다(초기화 포함). */
+    private static SimpleCacheManager newRealCacheManager() {
+        SimpleCacheManager manager = (SimpleCacheManager) new CacheConfig().cacheManager();
+        manager.afterPropertiesSet();
+        return manager;
+    }
+
     /** 주어진 토글로 step 을 구성한다. kpstService=null 이면 미주입. */
     private DeidentifyStep newStep(boolean kpstEnabled, boolean mockMode, KpstDeidentService kpstService) {
         return newStep(kpstEnabled, mockMode, kpstService, environment);
@@ -89,9 +102,10 @@ class DeidentifyStepTest {
     private DeidentifyStep newStep(boolean kpstEnabled, boolean mockMode,
                                    KpstDeidentService kpstService, Environment env) {
         // selfProvider=null — 단위 테스트는 프록시 없이 execute()→this.run() 직접 호출(리포지토리 mock).
+        // evictor 는 <b>필수 주입</b>이라 null 을 넣지 않는다(프로덕션 fail-open 을 테스트 편의로 남기지 않음).
         DeidentifyStep s = new DeidentifyStep(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, kpstService, env,
-                batchTransitionService, null);
+                batchTransitionService, null, new StreamMetaCacheEvictor(newRealCacheManager()));
         setField(s, "deidPath", baseDeid.toString());
         setField(s, "kpstEnabled", kpstEnabled);
         setField(s, "mockMode", mockMode);
@@ -300,6 +314,42 @@ class DeidentifyStepTest {
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
     }
 
+    @Test
+    @DisplayName("mock모드_비식별완료시_stream-meta_캐시가_실제로_무효화된다 — 재실행_덮어쓰기_stale_차단")
+    void mockMode_evictsStreamMetaCache() throws Exception {
+        // given — mock 이 아닌 <b>실제 Caffeine 캐시</b> + 실제 evictor. 재실행은 같은 목표 경로에
+        //         새 산출물을 덮어쓰므로, 캐시가 남으면 옛 contentLength 로 Range 경계가 어긋난다.
+        SimpleCacheManager realCacheManager = (SimpleCacheManager) new CacheConfig().cacheManager();
+        realCacheManager.afterPropertiesSet(); // 초기화해야 getCache 가 채워진다.
+        Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
+        DeidentifyStep mockStep = new DeidentifyStep(videoRepository, procLogRepository,
+                deidentReportService, notificationService, workLockService, null, environment,
+                batchTransitionService, null, new StreamMetaCacheEvictor(realCacheManager));
+        setField(mockStep, "deidPath", baseDeid.toString());
+        setField(mockStep, "kpstEnabled", false);
+        setField(mockStep, "mockMode", true);
+        invoke(mockStep, "initBasePath");
+
+        LsDataRaw raw = newRawWithRealSource("first-content");
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        Path target = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
+                .toAbsolutePath().normalize();
+        cache.put(9001L, new VideoStreamService.StreamMeta(target, 13L,
+                MediaType.parseMediaType("video/mp4")));
+
+        // when — 새 산출물로 비식별 완료.
+        Files.writeString(Path.of(raw.getRawFilePathNm()), "second-content-longer");
+        mockStep.run(raw);
+
+        // then — 캐시가 실제로 비었고, 재조회하면 <b>새 파일 크기</b>가 적재된다(구 13바이트 잔존 금지).
+        assertThat(cache.get(9001L)).isNull();
+        VideoStreamService.StreamMeta reloaded = cache.get(9001L,
+                () -> new VideoStreamService.StreamMeta(target, Files.size(target),
+                        MediaType.parseMediaType("video/mp4")));
+        assertThat(reloaded.contentLength()).isEqualTo(Files.size(target));
+        assertThat(reloaded.contentLength()).isNotEqualTo(13L);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // mock-mode 프로파일 게이팅 — prd(운영)만 차단, local/dev/stg 허용 (프라이버시 경계 완화)
     //   배경: KPST 미준비로 dev/stg 에서 mock 비식별로 파이프라인을 굴려야 함.
@@ -310,7 +360,7 @@ class DeidentifyStepTest {
     private DeidentifyStep newMockStepWith(Environment env) {
         DeidentifyStep s = new DeidentifyStep(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, null, env,
-                batchTransitionService, null);
+                batchTransitionService, null, new StreamMetaCacheEvictor(newRealCacheManager()));
         setField(s, "deidPath", baseDeid.toString());
         setField(s, "kpstEnabled", false);
         setField(s, "mockMode", true);

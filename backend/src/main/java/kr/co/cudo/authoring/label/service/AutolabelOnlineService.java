@@ -196,7 +196,7 @@ public class AutolabelOnlineService {
         }
         try {
             // 원본 프레임 이미지를 1회 인코딩 — YOLO + (폴리곤 경로) SAM 이 공유(중복 인코딩 방지).
-            String imageB64 = frameImageEncoder.encodeToBase64(src.getSrcFilePathNm());
+            String imageB64 = frameImageEncoder.encodeFrame(src);
 
             // 4) 검출 대상 재구성(HIGH#1, 신뢰 경계) — FE 가 보낸 classes 를 신뢰하지 않고, 서버가
             //    '매핑된 라벨(DTCT_TYPE_CD) → COCO' 조회 결과로 검출 대상을 재구성한다. 미매핑/미지원 값은

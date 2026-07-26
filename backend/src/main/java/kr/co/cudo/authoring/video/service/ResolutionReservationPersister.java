@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -47,8 +48,16 @@ public class ResolutionReservationPersister {
     private final LsDataAugRepository augRepository;
     private final AsyncResolutionRunner asyncResolutionRunner;
 
-    @Value("${authoring.storage.raw-path:./storage/raw}")
-    private String storageRawPath;
+    /**
+     * 파생 영상(비식별본 복사) 출력 base — <b>비식별 저장소</b>.
+     *
+     * <p>E-ISSUE-21/B-ISSUE-61: 구현은 원래 raw base 하위에 파생 비디오를 만들고 그 경로를
+     * {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 으로 기록했다. 스트리밍 가드는 비식별 base 만
+     * 허용하므로 파생영상이 전면 403 이 됐고, 데이터마트는 raw 저장소 경로를 "비식별 경로"로 수신했다.
+     * 파생 산출물은 비식별 산출물이므로 출력 base 자체를 비식별 저장소로 바로잡는다(스트리밍 가드는 불변).
+     */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String storageDeidentifiedPath;
 
     /**
      * @param parentSnapshot 원본 RAW (트랜잭션 밖 스냅샷 — 내부에서 잠금 재조회)
@@ -79,9 +88,7 @@ public class ResolutionReservationPersister {
             throw new CustomException(ErrorCode.INVALID_INPUT, "대표 프레임을 확인할 수 없습니다.");
         }
 
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        String derivativeVideoPath = resolveSafeDir(base,
-                "resolution/" + parent.getRawSn() + "/" + preset.name() + "/video/" + preset.name() + ".mp4").toString();
+        Path base = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
 
         // UK(SRC_SN, AUG_TYPE_CD='RESL_*') 조기 예약 — 새 RAW/파일 만들기 전에 INSERT + flush 로 위반 즉시 감지.
         // 예약행은 PENDING(생성 중, non-terminal)으로 커밋한다 — finalize 성공 시에만 ACCEPTED(생성 완료)로
@@ -96,11 +103,29 @@ public class ResolutionReservationPersister {
                     "동일 영상에 해당 해상도 파생 결과가 이미 존재합니다.");
         }
 
-        LsDataRaw newRaw = videoRepository.save(
-                LsDataRaw.createFromResolution(parent, derivativeVideoPath, preset.name()));
+        // A-6 — 파생 영상 파일 경로 키에 <b>파생 RAW_SN</b> 을 포함한다. RAW_SN 은 INSERT(IDENTITY) 이후에만
+        //       알 수 있으므로 ①부모·프리셋만으로 만든 잠정 경로로 INSERT(NOT NULL 충족) → ②확정 RAW_SN 으로
+        //       최종 경로를 배정한다. 같은 트랜잭션이라 잠정값은 외부에 커밋·관측되지 않으며, LS_DATA_RAW 는
+        //       @DynamicUpdate 라 UPDATE 는 RAW_FILE_PATH_NM 한 컬럼만 건드린다(다른 writer 와 무충돌).
+        LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromResolution(
+                parent, provisionalVideoPath(base, parent.getRawSn(), preset), preset.name()));
+        String derivativeVideoPath = resolveSafeDir(base, StorageSubtreePolicy.resolutionVideoFile(
+                parent.getRawSn(), newRaw.getRawSn(), preset.name())).toString();
+        newRaw.assignDerivativeVideoPath(derivativeVideoPath);
 
         triggerAsyncFinalizeAfterCommit(newRaw.getRawSn(), parent.getRawSn(), aug.getDataAugSn(), preset);
         return new Reservation(newRaw.getRawSn(), aug.getDataAugSn());
+    }
+
+    /**
+     * INSERT 시점 잠정 경로 — RAW_FILE_PATH_NM 이 NOT NULL 이라 필요한 자리표시자다. 최종 경로는
+     * 확정 RAW_SN 이 붙은 {@link StorageSubtreePolicy#resolutionVideoFile(long, long, String)} 으로
+     * 같은 트랜잭션 안에서 즉시 교체된다(잠정값이 커밋되는 경로는 존재하지 않는다).
+     */
+    private String provisionalVideoPath(Path base, Long parentRawSn, ResolutionPreset preset) {
+        return resolveSafeDir(base, StorageSubtreePolicy.SEG_VIDEOS + "/"
+                + StorageSubtreePolicy.SEG_RESOLUTION + "/" + parentRawSn
+                + "/.pending/" + preset.name() + ".mp4").toString();
     }
 
     /** 새 RAW 커밋 이후에 비동기 확정을 트리거한다(커밋 전 호출 시 REQUIRES_NEW 가 새 RAW 를 못 봄). */
@@ -118,11 +143,16 @@ public class ResolutionReservationPersister {
         }
     }
 
-    /** 디렉토리/파일 상대경로를 base 하위로 결정론적 해석 + normalize 검증 (CWE-22). */
+    /**
+     * 디렉토리/파일 상대경로를 base 하위로 결정론적 해석 + normalize + 비식별 서브트리 검증 (CWE-22).
+     *
+     * <p>두 저장소 base 가 동일 경로인 운영 환경에서도 파생 산출물이 원본 서브트리로 새지 않도록
+     * {@link StorageSubtreePolicy} 규약({@code videos/**})까지 함께 강제한다.
+     */
     private Path resolveSafeDir(Path base, String relative) {
         Path resolved = base.resolve(relative).normalize();
-        if (!resolved.startsWith(base)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "출력 경로가 허용된 저장 경로를 벗어납니다.");
+        if (!StorageSubtreePolicy.isDeidentifiedArtifact(base, resolved)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "출력 경로가 허용된 비식별 저장 경로를 벗어납니다.");
         }
         return resolved;
     }

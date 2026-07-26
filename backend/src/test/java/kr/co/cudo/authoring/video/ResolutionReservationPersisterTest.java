@@ -51,7 +51,9 @@ class ResolutionReservationPersisterTest {
     @BeforeEach
     void setup() {
         persister = new ResolutionReservationPersister(videoRepository, augRepository, asyncResolutionRunner);
-        ReflectionTestUtils.setField(persister, "storageRawPath", "/tmp/klid-res-test");
+        // raw base 와 deid base 가 동일 경로인 운영 환경을 그대로 재현한다 — 그럼에도 파생 산출물은
+        // 비식별 전용 서브트리(videos/resolution/…)에 놓여야 한다(E-ISSUE-21/22).
+        ReflectionTestUtils.setField(persister, "storageDeidentifiedPath", "/tmp/klid-res-test");
     }
 
     private LsDataRaw parent(Long rawSn, String deIdntfYn) {
@@ -103,6 +105,11 @@ class ResolutionReservationPersisterTest {
         assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
         assertThat(newRaw.getDeIdntfYn()).isEqualTo("N"); // 확정 전까지 미완료
         assertThat(newRaw.getVmsClipId()).contains("_RESL_RESL_720P_");
+        // E-ISSUE-21/B-ISSUE-61 — 파생 비디오 산출물은 비식별 저장소의 비식별 전용 서브트리에 생성된다.
+        // (구 동작: {rawBase}/resolution/{parent}/{preset}/video/{preset}.mp4 → 스트리밍 전면 403)
+        // A-6 — 경로 키에 <b>파생 RAW_SN(600)</b> 이 포함돼 같은 (부모,프리셋) 파생끼리 파일을 공유하지 않는다.
+        assertThat(newRaw.getRawFilePathNm())
+                .isEqualTo("/tmp/klid-res-test/videos/resolution/200/600/RESL_720P.mp4");
 
         // AFTER_COMMIT 트리거 — 트랜잭션 동기화 미활성(단위)이면 직접 호출된다.
         verify(asyncResolutionRunner).runAsync(eq(600L), eq(200L), eq(9L), eq(ResolutionPreset.RESL_720P));

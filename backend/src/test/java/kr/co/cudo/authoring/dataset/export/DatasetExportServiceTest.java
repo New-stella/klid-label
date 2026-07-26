@@ -76,6 +76,37 @@ class DatasetExportServiceTest {
         return new ExportPreparation(ctx, frames, contentHash, lastExportedHash);
     }
 
+    /** 프레임 목록을 실제로 담는 preparation — ORIGINAL 부재 판정(파생 여부)이 프레임 데이터에 의존한다. */
+    private ExportPreparation prepWithFrames(String contentHash, String lastExportedHash,
+                                             List<FrameContext> frames) {
+        return new ExportPreparation(null, frames, contentHash, lastExportedHash);
+    }
+
+    /** 파생영상 프레임 — 원본 픽셀이 실재하지 않아 SRC_FILE_PATH_NM 이 null(E-ISSUE-41 정책 A). */
+    private List<FrameContext> derivativeFrames(int count) {
+        List<FrameContext> frames = new java.util.ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            kr.co.cudo.authoring.batch.entity.LsDataSrc f =
+                    kr.co.cudo.authoring.batch.entity.LsDataSrc.create(
+                            19L, i, (long) i, null, "/deid/frames/deid/19/frame-" + i + ".jpg", null);
+            frames.add(new FrameContext(f, List.of()));
+        }
+        return frames;
+    }
+
+    /** 일반 영상 프레임 — 원본 경로 보유. */
+    private List<FrameContext> normalFrames(int count) {
+        List<FrameContext> frames = new java.util.ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            kr.co.cudo.authoring.batch.entity.LsDataSrc f =
+                    kr.co.cudo.authoring.batch.entity.LsDataSrc.create(
+                            26L, i, (long) i, "/raw/frames/raw/26/frame-" + i + ".jpg",
+                            "/deid/frames/deid/26/frame-" + i + ".jpg", null);
+            frames.add(new FrameContext(f, List.of()));
+        }
+        return frames;
+    }
+
     private ExportResult result(ExportKind kind, int version, int written) {
         return new ExportResult(kind, version, written, 0, null);
     }
@@ -138,6 +169,59 @@ class DatasetExportServiceTest {
         verify(txService).markPartial(210L, 8);
         verify(txService, never()).markSucceeded(anyLong(), anyInt());
         verify(txService, never()).markFailed(anyLong());
+    }
+
+    @Test
+    @DisplayName("파생영상은_SRC_경로가_null_이고_ORIGINAL_export_가_생성되지_않음")
+    void derivativeVideoSkipsOriginalKind() {
+        long rawSn = 19L;
+        when(txService.loadPreparation(rawSn))
+                .thenReturn(Optional.of(prepWithFrames("h1", null, derivativeFrames(3))));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(300L, 1));
+        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 3, 0));
+
+        service.export(rawSn);
+
+        // E-ISSUE-41 정책 A — 없는 원본을 있는 척 산출하지 않는다(ORIGINAL 벌 미생성).
+        verify(writer, never()).write(anyLong(), eq(ExportKind.ORIGINAL), anyInt(), any(), any());
+        verify(writer).write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any());
+    }
+
+    @Test
+    @DisplayName("파생영상_export_가_ORIGINAL_부재를_이유로_PARTIAL_로_떨어지지_않음")
+    void derivativeVideoExportIsNotDowngradedToPartial() {
+        long rawSn = 19L;
+        when(txService.loadPreparation(rawSn))
+                .thenReturn(Optional.of(prepWithFrames("h1", null, derivativeFrames(3))));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(301L, 1));
+        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 3, 0));
+
+        service.export(rawSn);
+
+        // 파생영상은 ORIGINAL 부재가 정상이므로 skip 집계에 포함되지 않는다 → SUCCEEDED.
+        verify(txService).markSucceeded(301L, 3);
+        verify(txService, never()).markPartial(anyLong(), anyInt());
+        verify(txService, never()).markFailed(anyLong());
+    }
+
+    @Test
+    @DisplayName("일반영상은_원본경로가_있으므로_ORIGINAL_export_가_계속_생성된다(회귀방지)")
+    void normalVideoStillExportsOriginalKind() {
+        long rawSn = 26L;
+        when(txService.loadPreparation(rawSn))
+                .thenReturn(Optional.of(prepWithFrames("h1", null, normalFrames(2))));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(302L, 1));
+        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 2, 0));
+        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 2, 0));
+
+        service.export(rawSn);
+
+        verify(writer).write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any());
+        verify(txService).markSucceeded(302L, 4);
     }
 
     @Test

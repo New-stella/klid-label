@@ -290,11 +290,20 @@ public class LsDataLbl {
      * @param scaleY   y축 배율(양수)
      */
     public static LsDataLbl copyForNewSrcScaled(Long newSrcSn, LsDataLbl original, double scaleX, double scaleY) {
+        return copyForNewSrcScaled(newSrcSn, original, scaleX, scaleY, 0d, 0d);
+    }
+
+    /**
+     * 좌표 배율 + <b>레터박스 오프셋</b>까지 반영해 복사한다(G-1 종횡비 보존).
+     * 파생 프레임은 목표 해상도 안 {@code (offsetX, offsetY)} 위치에 그려지므로 좌표도 같은 변환을 받는다.
+     */
+    public static LsDataLbl copyForNewSrcScaled(Long newSrcSn, LsDataLbl original, double scaleX, double scaleY,
+                                                double offsetX, double offsetY) {
         if (original == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "복사 원본 라벨이 null 입니다.");
         }
         String scaledPointCn = LabelCoordinateScaler.scalePointCn(
-                original.getPointCn(), original.getLblTypeCd(), scaleX, scaleY);
+                original.getPointCn(), original.getLblTypeCd(), scaleX, scaleY, offsetX, offsetY);
         return LsDataLbl.builder()
                 .srcSn(newSrcSn)
                 .lblTypeCd(original.getLblTypeCd())

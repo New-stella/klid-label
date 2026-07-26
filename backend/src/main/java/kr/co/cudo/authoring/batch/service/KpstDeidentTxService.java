@@ -207,6 +207,18 @@ public class KpstDeidentTxService {
         if (notificationService != null) {
             notificationService.notifyReviewersOnLockRelease(managed);
         }
+        // 스트림 메타 캐시 무효화 — 규약(CacheConfig javadoc "배치 비식별 완료") 준수 + defense-in-depth.
+        // [정직한 도달성] 현재 코드 기준 이 evict 는 <b>도달 가능한 모든 흐름에서 no-op</b> 이다:
+        //   ①stream-meta 는 비식별 완료(Y + SUCCEEDED procLog + 파일 실재) 후에만 적재되므로 최초 배치
+        //     완료 시점에는 해당 rawSn 캐시 엔트리가 없다.
+        //   ②이미 'Y' 인 영상의 배치 재위탁 경로가 없다 — 배치 procLog 는 DeidentifyStep(신규 적재/dev
+        //     업로드=새 rawSn)에서만 생기고, 재비식별(REDEIDENT)은 ApprovedRedeidentService 가 'Y' 를
+        //     409 로 거부한다(ApprovedRedeidentService:83-85, 해당 테스트로 고정).
+        // 즉 "재구동/재위탁으로 경로가 바뀐다"는 구 주석의 근거는 사실이 아니었다(삭제).
+        // 그럼에도 호출을 남기는 이유: 캐시 미스 시 evict 는 맵 조회 1회로 비용이 없고, 나중에 재드라이브
+        // 경로가 생겼을 때 무효화 누락(privacy/Range 회귀)이 조용히 재발하는 쪽이 훨씬 비싸다. 반대로
+        // "배치 완료는 evict 하지 않는다"를 테스트로 고정하면 그 안전한 동작을 미래에 금지하게 된다.
+        streamMetaCacheEvictor.evictAfterCommit(rawSn);
         log.info("[KpstDeid] completed rawSn={}", rawSn);
     }
 

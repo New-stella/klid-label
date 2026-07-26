@@ -51,4 +51,28 @@ public interface LsDeidentProcLogRepository extends JpaRepository<LsDeidentProcL
         List<LsDeidentProcLog> hits = findSuccessHistory(rawSn, PageRequest.of(0, 1));
         return hits.isEmpty() ? Optional.empty() : Optional.of(hits.get(0));
     }
+
+    /**
+     * 해상도 파생 백필 전용 — 성공 이력의 비식별 결과 경로를 새 비식별 저장소 경로로 교체한다
+     * (E-ISSUE-21 파일 이관 후 DB 반영). 파생 RAW 에만 적용되며 파일 복사·검증 성공 이후 호출된다.
+     *
+     * <p><b>M-7</b>: <b>최신 SUCCEEDED 이력 1건만</b> 갱신한다. 구 구현은
+     * {@code WHERE DATA_RAW_SN=? AND PROC_STTS_CD='SUCCEEDED'} 라 재비식별로 성공 이력이 2건 이상이면
+     * 과거 이력까지 새 경로로 덮어써 이력이 소실됐다. 조회측
+     * ({@link #findLatestSuccessByDataRawSn})과 동일하게 {@code REQ_DT DESC} 최신 1건을 타깃한다.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(value = """
+            UPDATE LS_DEIDENT_PROC_LOG
+               SET DE_IDNTF_FILE_PATH_NM = :filePath
+             WHERE PROC_LOG_SN = (
+                    SELECT p.PROC_LOG_SN
+                      FROM LS_DEIDENT_PROC_LOG p
+                     WHERE p.DATA_RAW_SN = :rawSn
+                       AND p.PROC_STTS_CD = 'SUCCEEDED'
+                     ORDER BY p.REQ_DT DESC, p.PROC_LOG_SN DESC
+                     LIMIT 1)
+            """, nativeQuery = true)
+    int updateSuccessDeidFilePath(@org.springframework.data.repository.query.Param("rawSn") Long rawSn,
+                                  @org.springframework.data.repository.query.Param("filePath") String filePath);
 }

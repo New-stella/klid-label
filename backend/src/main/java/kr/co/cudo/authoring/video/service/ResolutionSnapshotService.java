@@ -8,6 +8,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
+import kr.co.cudo.authoring.common.util.LetterboxTransform;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -65,8 +67,12 @@ public class ResolutionSnapshotService {
 
     /**
      * 비식별 프레임/비디오 base 경로. 비식별 산출물(deidFilePath·비식별 비디오 procLog 경로)은
-     * deidentified-path 기준 절대경로라, <b>입력 소스 읽기</b> 검증 base 로 raw-path 뿐 아니라
-     * deidentified-path 도 허용해야 한다(출력 경로 검증은 raw base 유지). 선례: PortalLabelService(R17 이슈1).
+     * deidentified-path 기준 절대경로다.
+     *
+     * <p><b>E-ISSUE-21</b>: 파생 산출물(리스케일 프레임·복사 비디오)은 <b>비식별 산출물</b>이므로
+     * 출력 base 도 raw-path 가 아닌 이 deidentified-path 로 강제한다. 또한 두 base 가 동일 경로로
+     * 설정된 운영 환경을 위해 {@link StorageSubtreePolicy} 서브트리 규약({@code frames/deid}·
+     * {@code videos})까지 함께 강제한다(E-ISSUE-22 fail-open 차단).
      */
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String storageDeidentifiedPath;
@@ -117,10 +123,17 @@ public class ResolutionSnapshotService {
         if (srcW <= 0 || srcH <= 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 해상도를 확인할 수 없습니다.");
         }
-        double scaleX = (double) targetW / srcW;
-        double scaleY = (double) targetH / srcH;
+        // G-1 — 종횡비 <b>보존</b>(레터박스). 균일 배율 + 중앙 정렬 오프셋을 픽셀·라벨이 공유한다.
+        //       구 구현은 축별 독립 배율(scaleX=targetW/srcW, scaleY=targetH/srcH)로 강제 스케일해
+        //       비-16:9 원본(예: 1080×1920 세로)을 왜곡했다(E-ISSUE-26).
+        LetterboxTransform box = LetterboxTransform.of(srcW, srcH, targetW, targetH);
+        double scaleX = box.scale();
+        double scaleY = box.scale();
+        int offsetX = box.offsetX();
+        int offsetY = box.offsetY();
 
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        // E-ISSUE-21 — 파생 산출물(비디오·프레임)의 출력 base 는 비식별 저장소다(구 raw base 폐기).
+        Path outBase = deidBase();
 
         // 비식별 비디오 원본 경로(검증) + 파생 비디오 목적 경로(검증) 스냅샷.
         String deidVideoPath = deidentProcLogRepository.findLatestSuccessByDataRawSn(parentRawSn)
@@ -128,12 +141,12 @@ public class ResolutionSnapshotService {
                 .filter(p -> p != null && !p.isBlank())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "원본 비식별 영상 경로를 찾을 수 없습니다: parentRawSn=" + parentRawSn));
-        // 입력(비식별 비디오 소스)은 raw/deid 두 base 허용, 출력(파생 비디오 목적지)은 raw base 유지.
-        Path deidVideoSrc = resolveSafeSource(deidVideoPath);
-        Path videoDst = resolveSafeFile(base, newRaw.getRawFilePathNm());
+        // 입력(비식별 비디오 소스)·출력(파생 비디오 목적지) 모두 비식별 저장소 + 비식별 서브트리로 강제.
+        Path deidVideoSrc = resolveSafeDeidSource(deidVideoPath);
+        Path videoDst = resolveSafeDeidFile(outBase, newRaw.getRawFilePathNm());
 
         // 3) 프레임별 스펙 스냅샷 + 프레임 0건 fail-fast(#9) + 중복 videoFrameNo fail-fast.
-        List<ResolutionSnapshot.FrameSpec> frames = buildFrameSpecs(base, parentRawSn, newRawSn);
+        List<ResolutionSnapshot.FrameSpec> frames = buildFrameSpecs(outBase, parentRawSn, newRawSn);
         if (frames.isEmpty()) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR,
                     "파생할 프레임이 없습니다: parentRawSn=" + parentRawSn);
@@ -142,15 +155,19 @@ public class ResolutionSnapshotService {
         LsDataAug aug = augRepository.findById(dataAugSn).orElse(null);
         String regId = aug != null ? aug.getRegUserNo() : null;
 
-        log.info("[Video][ResolutionDerivative][A] snapshot ready rawSn={} parentRawSn={} frames={} scale={}x{}",
-                newRawSn, parentRawSn, frames.size(), scaleX, scaleY);
+        log.info("[Video][ResolutionDerivative][A] snapshot ready rawSn={} parentRawSn={} frames={} scale={} offset={},{}",
+                newRawSn, parentRawSn, frames.size(), scaleX, offsetX, offsetY);
         return Optional.of(new ResolutionSnapshot(
                 newRawSn, parentRawSn, dataAugSn, preset,
-                srcW, srcH, targetW, targetH, scaleX, scaleY,
+                srcW, srcH, targetW, targetH, scaleX, scaleY, offsetX, offsetY,
                 regId, deidVideoSrc, videoDst, capturedAt, frames));
     }
 
-    /** 부모 프레임을 청크 순회하며 리스케일 입출력 경로를 확정한다(파일 I/O 없음 — 경로 계산만). */
+    /**
+     * 부모 프레임을 청크 순회하며 리스케일 입출력 경로를 확정한다(파일 I/O 없음 — 경로 계산만).
+     *
+     * @param base 출력 base — 비식별 저장소({@link #deidBase()})
+     */
     private List<ResolutionSnapshot.FrameSpec> buildFrameSpecs(Path base, Long parentRawSn, Long newRawSn) {
         List<ResolutionSnapshot.FrameSpec> specs = new ArrayList<>();
         java.util.Set<Long> seenFrameKeys = new java.util.HashSet<>();
@@ -172,10 +189,10 @@ public class ResolutionSnapshotService {
                 // LOW — 파생 픽셀 복사는 반드시 비식별 프레임에서만. deid 경로가 blank/부재면 실패시켜
                 // 원본(비-비식별) 픽셀이 복제 후 'Y' 스탬프되는 불변식 위반을 차단한다.
                 String deidFrameSrc = deidFrameSourceStrict(pf);
-                // 입력(비식별 프레임 소스)은 raw/deid 두 base 허용, 출력(리스케일 목적지)은 raw base 유지.
-                Path fsrc = resolveSafeSource(deidFrameSrc);
+                // 입력(비식별 프레임 소스)·출력(리스케일 목적지) 모두 비식별 저장소 + frames/deid 서브트리.
+                Path fsrc = resolveSafeDeidSource(deidFrameSrc);
                 Path fdst = resolveSafeDir(base,
-                        "resolution/" + newRawSn + "/frames/" + fileNameOf(deidFrameSrc, pf));
+                        StorageSubtreePolicy.deidFramesDir(newRawSn) + "/" + fileNameOf(deidFrameSrc, pf));
                 specs.add(new ResolutionSnapshot.FrameSpec(
                         pf.getSrcSn(), pf.getFrameNo(), pf.getVideoFrameNo(), pf.getShtDt(), fsrc, fdst));
             }
@@ -191,7 +208,7 @@ public class ResolutionSnapshotService {
                         .min(java.util.Comparator.comparing(LsDataSrc::getFrameNo))
                         .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_ERROR,
                                 "파생할 프레임이 없습니다: parentRawSn=" + parentRawSn)));
-        Path srcPath = resolveSafeSource(ResolutionDerivativeService.frameSourcePath(first));
+        Path srcPath = resolveSafeMeasureSource(ResolutionDerivativeService.frameSourcePath(first));
         return imageResizer.readDimensions(srcPath);
     }
 
@@ -218,36 +235,61 @@ public class ResolutionSnapshotService {
         return deid;
     }
 
-    /**
-     * 입력 소스(비식별 프레임/비디오) 경로 normalize + base 검증 (CWE-22 traversal 가드).
-     *
-     * <p>비식별 산출물은 deidentified-path 기준 절대경로이므로 raw-path·deidentified-path 두 base 중 하나에
-     * 속하면 통과시킨다. 두 base 모두 벗어나는 경로(상위 traversal 포함)는 여전히 거부한다. 상대경로는 raw
-     * base 기준으로 해석한다. <b>출력(생성) 경로 검증은 {@link #resolveSafeFile}/{@link #resolveSafeDir}
-     * 가 raw base 로만 계속 강제한다</b>(파생 산출물은 raw base 하위에만 쓴다).
-     */
-    private Path resolveSafeSource(String filePath) {
-        if (filePath == null || filePath.isBlank()) {
-            throw new CustomException(ErrorCode.NOT_FOUND, "경로가 비어있습니다.");
-        }
-        Path rawBase = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path deidBase = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
-        Path candidate = Paths.get(filePath);
-        Path resolved = candidate.isAbsolute() ? candidate.normalize() : rawBase.resolve(candidate).normalize();
-        if (!resolved.startsWith(rawBase) && !resolved.startsWith(deidBase)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "경로가 허용된 저장 경로를 벗어납니다.");
-        }
-        return resolved;
+    /** 비식별 저장소 base(정규화 절대경로). */
+    private Path deidBase() {
+        return Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
     }
 
-    /** 파일 경로 normalize + base 검증 (CWE-22). 출력(파생 비디오 목적지) 전용 — raw base 만 허용. */
-    private Path resolveSafeFile(Path base, String filePath) {
+    /**
+     * <b>비식별</b> 입력 소스(비식별 프레임/비디오) 경로 normalize + base + 서브트리 검증
+     * (CWE-22 traversal + CWE-359 격리).
+     *
+     * <p>E-ISSUE-22 — deid base 하위라도 {@code frames/raw/**} 는 원본 프레임 서브트리이므로 거부한다.
+     * 두 base 가 동일 문자열인 운영 환경에서 base 검사만으로는 원본 픽셀 유입을 막지 못하기 때문이다.
+     * 상대경로는 비식별 base 기준으로 해석한다.
+     */
+    private Path resolveSafeDeidSource(String filePath) {
+        Path base = deidBase();
         if (filePath == null || filePath.isBlank()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "경로가 비어있습니다.");
         }
         Path candidate = Paths.get(filePath);
         Path resolved = candidate.isAbsolute() ? candidate.normalize() : base.resolve(candidate).normalize();
-        if (!resolved.startsWith(base)) {
+        if (!StorageSubtreePolicy.isDeidentifiedArtifact(base, resolved)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "경로가 허용된 비식별 저장 경로를 벗어납니다.");
+        }
+        return resolved;
+    }
+
+    /**
+     * 출력(파생 비디오 목적지) 파일 경로 normalize + base + 비식별 서브트리 검증 (CWE-22).
+     * 파생 산출물은 비식별 저장소의 비식별 전용 서브트리에만 쓴다.
+     */
+    private Path resolveSafeDeidFile(Path base, String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new CustomException(ErrorCode.NOT_FOUND, "경로가 비어있습니다.");
+        }
+        Path candidate = Paths.get(filePath);
+        Path resolved = candidate.isAbsolute() ? candidate.normalize() : base.resolve(candidate).normalize();
+        if (!StorageSubtreePolicy.isDeidentifiedArtifact(base, resolved)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "출력 경로가 허용된 비식별 저장 경로를 벗어납니다.");
+        }
+        return resolved;
+    }
+
+    /**
+     * 실측(치수 측정) 전용 소스 경로 해석 — 원본/비식별 어느 쪽이든 허용하되 두 base 중 하나는 반드시
+     * 만족해야 한다(CWE-22). 측정은 픽셀을 산출물로 내보내지 않으므로 서브트리 강제 대상이 아니다.
+     */
+    private Path resolveSafeMeasureSource(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new CustomException(ErrorCode.NOT_FOUND, "경로가 비어있습니다.");
+        }
+        Path rawBase = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        Path deid = deidBase();
+        Path candidate = Paths.get(filePath);
+        Path resolved = candidate.isAbsolute() ? candidate.normalize() : rawBase.resolve(candidate).normalize();
+        if (!resolved.startsWith(rawBase) && !resolved.startsWith(deid)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "경로가 허용된 저장 경로를 벗어납니다.");
         }
         return resolved;

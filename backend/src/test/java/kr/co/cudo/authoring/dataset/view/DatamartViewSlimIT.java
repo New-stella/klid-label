@@ -250,4 +250,64 @@ class DatamartViewSlimIT {
         assertThat(frame.get("original_path")).isEqualTo("/nas/frames/raw/" + rawSn + "/5.jpg");
         assertThat(metaKeys).containsExactly("vlm.caption");
     }
+
+    // ---------- V133 — V_COMPLETED_FRAME 비식별 경로 불변식 게이트 (D-ISSUE-46) ----------
+
+    /** 임의 원본/비식별 경로로 프레임 1행 시드(게이트 검증용). */
+    private long seedFramePaths(long rawSn, int frameNo, String originalPath, String deidPath) {
+        return jdbc.queryForObject(
+                "INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM, "
+                        + "DE_IDNTF_SRC_FILE_PATH_NM, SHT_DT, REG_DT) "
+                        + "VALUES (?, ?, ?, ?, ?, ?) RETURNING SRC_SN",
+                Long.class, rawSn, frameNo, originalPath, deidPath,
+                LocalDateTime.of(2026, 1, 15, 22, 0), LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("V_COMPLETED_FRAME_이_원본경로를_비식별컬럼에_노출하지_않음")
+    void completedFrame_gatesRowsWhereDeidEqualsOriginal() {
+        // given — APPROVED 영상. ①정상 페어 ②원본==비식별(파생 결함 형태) ③비식별 NULL(결측)
+        long rawSn = seedRawAndStatus("APPROVED");
+        long okSrcSn = seedFramePaths(rawSn, 30,
+                "/nas/frames/raw/" + rawSn + "/30.jpg", "/nas/frames/deid/" + rawSn + "/30.jpg");
+        long sameSrcSn = seedFramePaths(rawSn, 31,
+                "/nas/resolution/" + rawSn + "/frames/31.jpg", "/nas/resolution/" + rawSn + "/frames/31.jpg");
+        long nullSrcSn = seedFramePaths(rawSn, 32, "/nas/frames/raw/" + rawSn + "/32.jpg", null);
+
+        // when
+        List<Long> visible = jdbc.queryForList(
+                "SELECT SRC_SN FROM V_COMPLETED_FRAME WHERE RAW_SN = ? ORDER BY SRC_SN", Long.class, rawSn);
+
+        // then — 게이트는 <결함 형태>(원본==비식별)만 배제한다(M-1).
+        assertThat(visible).contains(okSrcSn);
+        assertThat(visible).doesNotContain(sameSrcSn);
+        // 비식별 경로 결측(NULL)은 PII 노출이 아니라 데이터 결측이므로 <종전대로 노출>한다 —
+        // 배제하면 증강 파생(WINTER/NIGHT/RAIN) 전량과 비식별 실패 영상 전량이 마트에서 사라진다.
+        assertThat(visible).contains(nullSrcSn);
+        // 노출된 행 중 두 경로가 모두 있는 경우 반드시 상이하다(관제 계약 불변식)
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT ORIGINAL_PATH, DEIDENTIFIED_PATH FROM V_COMPLETED_FRAME WHERE RAW_SN = ?", rawSn);
+        assertThat(rows).allSatisfy(r -> {
+            if (r.get("deidentified_path") != null && r.get("original_path") != null) {
+                assertThat(r.get("deidentified_path")).isNotEqualTo(r.get("original_path"));
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("파생영상_프레임은_ORIGINAL_PATH가_null이어도_비식별경로로_뷰에_노출된다(정책A)")
+    void completedFrame_allowsNullOriginalForDerivative() {
+        // given — 해상도 파생영상 프레임(정책 A: 원본 부재 → SRC_FILE_PATH_NM null)
+        long rawSn = seedRawAndStatus("APPROVED");
+        long srcSn = seedFramePaths(rawSn, 40, null, "/nas/frames/deid/" + rawSn + "/40.jpg");
+
+        // when
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT SRC_SN, ORIGINAL_PATH, DEIDENTIFIED_PATH FROM V_COMPLETED_FRAME WHERE SRC_SN = ?", srcSn);
+
+        // then — 원본 부재는 정상이며 비식별 경로만 노출된다(원본을 비식별로 오인할 여지 없음)
+        assertThat(((Number) row.get("src_sn")).longValue()).isEqualTo(srcSn);
+        assertThat(row.get("original_path")).isNull();
+        assertThat(row.get("deidentified_path")).isEqualTo("/nas/frames/deid/" + rawSn + "/40.jpg");
+    }
 }

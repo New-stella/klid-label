@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.video.service;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
 import kr.co.cudo.authoring.video.service.port.VideoFileCopier;
 import lombok.RequiredArgsConstructor;
@@ -33,8 +34,24 @@ public class ResolutionFileMaterializer {
     private final VideoFileCopier videoFileCopier;
     private final ResizeConcurrencyGate resizeGate;
 
+    /**
+     * 파생 산출물 base — <b>비식별 저장소</b>(E-ISSUE-21). 파생 프레임은
+     * {@code {deidBase}/frames/deid/{newRawSn}/} 에 놓이므로 cleanup 기준도 여기다.
+     */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String storageDeidentifiedPath;
+
+    /**
+     * 원본 저장소 base — <b>레거시 파생 산출물 정리 전용</b>(M-3). 파생 산출물 base 가 비식별 저장소로
+     * 옮겨지면서 구 스킴({@code {rawBase}/resolution/{newRawSn}/…})을 지우는 코드가 코드베이스에서
+     * 사라져, 원본 저장소에 파생 사본이 무기한 잔존했다. 정리 대상은 {@code resolution/{newRawSn}} 뿐이며
+     * 원본 프레임({@code frames/raw/**})·원본 영상은 절대 삭제하지 않는다.
+     */
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
+
+    /** 레거시 파생 산출물 루트 세그먼트 — {@code {rawBase}/resolution/{rawSn}/…}. */
+    private static final String LEGACY_ROOT = "resolution";
 
     /**
      * 스냅샷을 파일로 산출한다 — ①비식별 비디오 복사 ②전 프레임 목표해상도 리스케일.
@@ -69,7 +86,12 @@ public class ResolutionFileMaterializer {
      *
      * <p>파생 RAW 경로만 삭제 대상이다 — 원본은 절대 삭제하지 않는다. 경로는 마스킹 로그만 남긴다(CWE-209/PII).
      *
-     * @param newRawSn  파생 RAW_SN (프레임 디렉토리 {@code resolution/{newRawSn}/} 산정 기준)
+     * <p><b>A-6</b>: {@code videoDst} 는 {@link StorageSubtreePolicy#resolutionVideoFile(long, long, String)}
+     * 규약상 <b>파생 RAW_SN 을 키에 포함</b>하므로 다른 파생과 공유되지 않는다. 구 규약({@code (부모,프리셋)})
+     * 에서는 한 파일을 여러 파생이 공유해 이 cleanup 이 <b>다른 파생이 참조 중인 파일</b>을 지웠다 —
+     * 경로 키 분리로 그 실패 클래스를 구조적으로 없앴다(레거시 공유 파일 정리는 백필이 참조 확인 후 수행).
+     *
+     * @param newRawSn  파생 RAW_SN (프레임 디렉토리 {@code frames/deid/{newRawSn}/} 산정 기준)
      * @param videoDst  파생 비디오 목적 경로(검증 완료, nullable)
      * @return 잔존 아티팩트 없음(정리 성공)=true, 삭제 후에도 잔존=false
      */
@@ -77,12 +99,13 @@ public class ResolutionFileMaterializer {
         if (newRawSn == null) {
             return true;
         }
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        Path base = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
         boolean clean = true;
 
-        // 1) 리스케일 프레임 디렉토리 resolution/{newRawSn}/ 재귀 삭제 + 잔존 재확인.
+        // 1) 리스케일 프레임 디렉토리 frames/deid/{newRawSn}/ 재귀 삭제 + 잔존 재확인.
+        //    파생 RAW 전용 디렉토리라 부모/원본 프레임(frames/raw/**)은 삭제 대상이 아니다.
         try {
-            Path framesDir = resolveSafeDir(base, "resolution/" + newRawSn);
+            Path framesDir = resolveSafeDir(base, StorageSubtreePolicy.deidFramesDir(newRawSn));
             deleteRecursivelyQuietly(framesDir);
             if (Files.exists(framesDir)) {
                 clean = false;
@@ -90,6 +113,27 @@ public class ResolutionFileMaterializer {
         } catch (RuntimeException e) {
             clean = false;
             log.warn("[Video][ResolutionDerivative][B] frames dir cleanup skipped newRawSn={} cause={}",
+                    newRawSn, e.getClass().getSimpleName());
+        }
+
+        // 1-1) M-3 — 레거시 raw base 파생 디렉토리 resolution/{newRawSn}/ 도 함께 정리한다.
+        //      (구 스킴 산출물이 원본 저장소에 남는 것을 막는다. 원본 프레임/영상은 대상이 아니다.)
+        try {
+            if (storageRawPath == null || storageRawPath.isBlank()) {
+                throw new IllegalStateException("raw base 미설정 — 레거시 정리 대상 없음");
+            }
+            Path legacyRoot = Paths.get(storageRawPath).toAbsolutePath().normalize()
+                    .resolve(LEGACY_ROOT).normalize();
+            Path legacyDir = legacyRoot.resolve(String.valueOf(newRawSn)).normalize();
+            if (legacyDir.startsWith(legacyRoot) && !legacyDir.equals(legacyRoot)) {
+                deleteRecursivelyQuietly(legacyDir);
+                if (Files.exists(legacyDir)) {
+                    clean = false;
+                }
+            }
+        } catch (RuntimeException e) {
+            // raw base 미설정(테스트/구성 누락)은 <정리 대상 없음>이므로 잔존 판정에 반영하지 않는다.
+            log.warn("[Video][ResolutionDerivative][B] legacy dir cleanup skipped newRawSn={} cause={}",
                     newRawSn, e.getClass().getSimpleName());
         }
 
@@ -137,11 +181,11 @@ public class ResolutionFileMaterializer {
         }
     }
 
-    /** 디렉토리 상대경로를 base 하위로 결정론적 해석 + normalize 검증 (CWE-22). */
+    /** 디렉토리 상대경로를 base 하위로 결정론적 해석 + normalize + 비식별 서브트리 검증 (CWE-22). */
     private Path resolveSafeDir(Path base, String relative) {
         Path resolved = base.resolve(relative).normalize();
-        if (!resolved.startsWith(base)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "출력 경로가 허용된 저장 경로를 벗어납니다.");
+        if (!StorageSubtreePolicy.isDeidentifiedArtifact(base, resolved)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "출력 경로가 허용된 비식별 저장 경로를 벗어납니다.");
         }
         return resolved;
     }

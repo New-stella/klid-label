@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.service.KpstDeidentService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
@@ -101,6 +102,17 @@ public class DeidentifyStep implements BatchStep {
      * 리포지토리가 mock 이라 트랜잭션 불필요).
      */
     private final ObjectProvider<DeidentifyStep> selfProvider;
+    /**
+     * 스트림 메타 캐시 무효화 — mock 비식별은 같은 목표 경로({@code videos/{rawSn}/deidentified.mp4})에
+     * 새 산출물을 atomic move 로 덮어쓰므로, 이미 스트리밍돼 캐시된 rawSn(dev 파이프라인 재드라이브)은
+     * 옛 contentLength 로 Range 경계가 어긋나 재생 잘림/500 이 된다.
+     *
+     * <p><b>필수 주입</b>({@code KpstDeidentTxService} 와 동일). 과거 {@code @Autowired(required=false)}
+     * 였으나 사유("단위 테스트에서 null 주입 편의")는 테스트가 실제 evictor 를 주입해 스스로 반증했고,
+     * 프로덕션에서 빈이 빠지면 무효화가 조용히 사라지는 fail-open 이 된다. 테스트 편의를 위해 프로덕션
+     * 안전장치를 optional 로 두지 않는다.
+     */
+    private final StreamMetaCacheEvictor streamMetaCacheEvictor;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
@@ -129,7 +141,8 @@ public class DeidentifyStep implements BatchStep {
                           @Autowired(required = false) KpstDeidentService kpstDeidentService,
                           Environment environment,
                           BatchTransitionService batchTransitionService,
-                          ObjectProvider<DeidentifyStep> selfProvider) {
+                          ObjectProvider<DeidentifyStep> selfProvider,
+                          StreamMetaCacheEvictor streamMetaCacheEvictor) {
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
         this.deidentReportService = deidentReportService;
@@ -139,6 +152,7 @@ public class DeidentifyStep implements BatchStep {
         this.environment = environment;
         this.batchTransitionService = batchTransitionService;
         this.selfProvider = selfProvider;
+        this.streamMetaCacheEvictor = streamMetaCacheEvictor;
     }
 
     @PostConstruct
@@ -299,6 +313,11 @@ public class DeidentifyStep implements BatchStep {
         if (notificationService != null) {
             notificationService.notifyReviewersOnLockRelease(managed);
         }
+        // 스트림 메타 캐시 무효화 (규약: CacheConfig "배치 비식별 완료") — 롤백된 변경으로 캐시를 비우지
+        // 않도록 커밋 후에 실행한다(evictAfterCommit). 커밋 전에 읽은 동시 요청의 재캐싱까지 막지는
+        // 못한다(StreamMetaCacheEvictor javadoc "보증하지 않는다") — mock 은 같은 경로 in-place 교체라
+        // 잔여 창의 영향은 contentLength 뿐이고 TTL(5분) 경과로 수렴한다.
+        streamMetaCacheEvictor.evictAfterCommit(raw.getRawSn());
         log.info("[Batch][Deid][mock] succeeded rawSn={}", raw.getRawSn());
         return target.toString();
     }

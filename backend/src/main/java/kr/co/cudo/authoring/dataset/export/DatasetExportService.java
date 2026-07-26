@@ -117,12 +117,26 @@ public class DatasetExportService {
             }
 
             try {
-                ExportResult original = writer.write(
-                        rawSn, ExportKind.ORIGINAL, inserted.version(), prep.ctx(), prep.frames());
+                // E-ISSUE-41(정책 A) — 파생영상(해상도 파생)은 원본 픽셀이 실재하지 않아 프레임의
+                // SRC_FILE_PATH_NM 이 전부 비어 있다. 없는 원본을 있는 척 산출하지 않도록 ORIGINAL 벌을
+                // 아예 만들지 않으며, 이 부재는 "정상"이므로 PARTIAL 판정 대상에서도 제외한다
+                // (구 동작: ORIGINAL 전 프레임이 skip 으로 집계돼 항상 PARTIAL 로 강등).
+                boolean originalAbsent = hasNoOriginalFrames(prep);
+                int totalWritten = 0;
+                int totalSkipped = 0;
+                if (originalAbsent) {
+                    log.info("[DatasetExport] original kind skipped — derivative video has no original frames "
+                            + "rawSn={} version={} reason=DERIVATIVE_NO_ORIGINAL", rawSn, inserted.version());
+                } else {
+                    ExportResult original = writer.write(
+                            rawSn, ExportKind.ORIGINAL, inserted.version(), prep.ctx(), prep.frames());
+                    totalWritten += original.writtenCnt();
+                    totalSkipped += original.skippedCnt();
+                }
                 ExportResult deidentified = writer.write(
                         rawSn, ExportKind.DEIDENTIFIED, inserted.version(), prep.ctx(), prep.frames());
-                int totalWritten = original.writtenCnt() + deidentified.writtenCnt();
-                int totalSkipped = original.skippedCnt() + deidentified.skippedCnt();
+                totalWritten += deidentified.writtenCnt();
+                totalSkipped += deidentified.skippedCnt();
                 if (totalWritten == 0) {
                     // 아무 프레임도 산출 못함 = 사실상 실패 — FAILED 로 마감(승인 불변).
                     txService.markFailed(inserted.exportSn());
@@ -160,6 +174,21 @@ public class DatasetExportService {
                 metrics.incrementSkippedFrames(skippedFrames);
             }
         }
+    }
+
+    /**
+     * 이 영상의 프레임이 <b>원본 경로를 하나도 갖지 않는가</b>(= 파생영상이라 원본 픽셀 부재).
+     *
+     * <p>파생 유형(증강/해상도)을 추정하지 않고 <b>데이터 사실</b>로 판정한다 — 외부 증강 파생은 원본
+     * 프레임을 실제로 보유하므로 이 판정에 걸리지 않고 기존대로 2벌이 산출된다. 프레임이 0건이면
+     * (loadPreparation 이 이미 걸러내지만) 보수적으로 false 를 반환해 기존 경로를 그대로 탄다.
+     */
+    private static boolean hasNoOriginalFrames(ExportPreparation prep) {
+        if (prep.frames() == null || prep.frames().isEmpty()) {
+            return false;
+        }
+        return prep.frames().stream().allMatch(f -> f == null || f.frame() == null
+                || f.frame().getSrcFilePathNm() == null || f.frame().getSrcFilePathNm().isBlank());
     }
 
     /**

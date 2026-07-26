@@ -84,7 +84,7 @@ class ResolutionPersistServiceTest {
                 derivedMetaCopier);
         lenient().when(derivedMetaCopier.copyMetaAndReviews(anyLong(), anyLong()))
                 .thenReturn(new DerivedMetaCopier.CopyResult(0, 0));
-        ReflectionTestUtils.setField(service, "storageRawPath", base.toString());
+        ReflectionTestUtils.setField(service, "storageDeidentifiedPath", base.toString());
     }
 
     /** 비식별 비디오 원본 경로 = base/videos/deid.mp4 (스냅샷 기준 경로). */
@@ -94,8 +94,8 @@ class ResolutionPersistServiceTest {
 
     private ResolutionSnapshot snap(Instant capturedAt, Path deidVideoSrc) {
         return new ResolutionSnapshot(NEW_RAW, PARENT, DATA_AUG, ResolutionPreset.RESL_720P,
-                1920, 1080, 1280, 720, 1280d / 1920d, 720d / 1080d, "rev1",
-                deidVideoSrc, base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4"),
+                1920, 1080, 1280, 720, 1280d / 1920d, 720d / 1080d, 0, 0, "rev1",
+                deidVideoSrc, base.resolve("videos/resolution/" + PARENT + "/RESL_720P.mp4"),
                 capturedAt, List.of());
     }
 
@@ -184,7 +184,7 @@ class ResolutionPersistServiceTest {
         stubStaleGatePasses();
         LsDataRaw newRaw = mock(LsDataRaw.class);
         when(newRaw.getDeIdntfYn()).thenReturn("N"); // 아직 미확정 → 정상 확정 경로
-        when(newRaw.getRawFilePathNm()).thenReturn(base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4").toString());
+        when(newRaw.getRawFilePathNm()).thenReturn(base.resolve("videos/resolution/" + PARENT + "/RESL_720P.mp4").toString());
         when(newRaw.getRawSn()).thenReturn(NEW_RAW);
         when(videoRepository.findByRawSnForUpdate(NEW_RAW)).thenReturn(Optional.of(newRaw));
 
@@ -208,7 +208,7 @@ class ResolutionPersistServiceTest {
         stubStaleGatePasses();
         LsDataRaw newRaw = mock(LsDataRaw.class);
         when(newRaw.getDeIdntfYn()).thenReturn("N");
-        when(newRaw.getRawFilePathNm()).thenReturn(base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4").toString());
+        when(newRaw.getRawFilePathNm()).thenReturn(base.resolve("videos/resolution/" + PARENT + "/RESL_720P.mp4").toString());
         when(newRaw.getRawSn()).thenReturn(NEW_RAW);
         when(videoRepository.findByRawSnForUpdate(NEW_RAW)).thenReturn(Optional.of(newRaw));
 
@@ -226,10 +226,10 @@ class ResolutionPersistServiceTest {
 
         ResolutionSnapshot.FrameSpec frame = new ResolutionSnapshot.FrameSpec(
                 600L, 0L, 100L, LocalDateTime.now(),
-                base.resolve("deid/f0.jpg"), base.resolve("resolution/f0.jpg"));
+                base.resolve("frames/deid/" + PARENT + "/f0.jpg"), base.resolve("frames/deid/f0.jpg"));
         ResolutionSnapshot snapshot = new ResolutionSnapshot(NEW_RAW, PARENT, DATA_AUG,
-                ResolutionPreset.RESL_720P, 1920, 1080, 1280, 720, 1280d / 1920d, 720d / 1080d, "rev1",
-                deidVideoSrc(), base.resolve("resolution/" + NEW_RAW + "/video/RESL_720P.mp4"),
+                ResolutionPreset.RESL_720P, 1920, 1080, 1280, 720, 1280d / 1920d, 720d / 1080d, 0, 0, "rev1",
+                deidVideoSrc(), base.resolve("videos/resolution/" + PARENT + "/RESL_720P.mp4"),
                 Instant.now(), List.of(frame));
 
         service.persist(snapshot);
@@ -242,6 +242,83 @@ class ResolutionPersistServiceTest {
         assertThat(child.getAnonyInclYn()).isEqualTo("N");
         assertThat(child.getPsdoInclYn()).isEqualTo("Y");
         assertThat(child.getPrvcInclYn()).isEqualTo("Y");
+        // E-ISSUE-41(정책 A) — 파생 프레임은 원본 픽셀이 실재하지 않으므로 SRC 경로는 null,
+        // 비식별 경로만 Phase B 산출 경로로 채워진다(구 동작: 두 컬럼에 동일 값).
+        assertThat(child.getSrcFilePathNm()).isNull();
+        assertThat(child.getDeidFilePath()).isEqualTo(base.resolve("frames/deid/f0.jpg").toString());
+        assertThat(child.getDeidFilePath()).isNotEqualTo(child.getSrcFilePathNm());
+    }
+
+    @Test
+    @DisplayName("확정게이트3_스냅샷_이후_비식별파일이_mtime으로_교체됐으면_CONFLICT로_abort한다(E-29)")
+    void abortsWhenDeidentFileReplacedByMtime() throws Exception {
+        // given — 신고 없음 + procLog 경로 동일(①②게이트 통과) 이지만 실제 파일이 capturedAt 이후 갱신됨.
+        Path deidFile = base.resolve("videos/deid.mp4");
+        java.nio.file.Files.createDirectories(deidFile.getParent());
+        java.nio.file.Files.writeString(deidFile, "replaced-deid-bytes");
+        Instant capturedAt = Instant.now().minusSeconds(600);
+        java.nio.file.Files.setLastModifiedTime(deidFile,
+                java.nio.file.attribute.FileTime.from(Instant.now()));
+
+        parentMock("Y");
+        stubStaleGatePasses();
+
+        assertThatThrownBy(() -> service.persist(snap(capturedAt, deidVideoSrc())))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    // ---------- E-ISSUE-23 실패 파생 RAW 고아 행 정리 ----------
+
+    @Test
+    @DisplayName("파생_확정_실패시_LS_DATA_RAW_고아행이_남지_않음")
+    void deletesFailedDerivativeOrphanRaw() {
+        LsDataRaw failed = mock(LsDataRaw.class);
+        when(failed.getOrgnlRawSn()).thenReturn(PARENT);
+        when(failed.getDeIdntfYn()).thenReturn("N");
+        when(failed.getDataSttsCd()).thenReturn(LsDataRaw.DATA_STTS_FAILED);
+        when(videoRepository.findByRawSnForUpdate(NEW_RAW)).thenReturn(Optional.of(failed));
+        when(srcRepository.countByRawSn(NEW_RAW)).thenReturn(0L);
+        when(videoRepository.deleteFailedDerivative(NEW_RAW)).thenReturn(1);
+
+        assertThat(service.deleteFailedDerivativeRaw(NEW_RAW)).isTrue();
+        verify(videoRepository).deleteFailedDerivative(NEW_RAW);
+    }
+
+    @Test
+    @DisplayName("고아행_정리_직전_상태가_바뀐_행은_삭제되지_않는다")
+    void doesNotDeleteWhenStateChangedBeforeCleanup() {
+        // 승자가 방금 확정(Y/COMPLETED)한 파생 — 삭제하면 안 된다.
+        LsDataRaw finalized = mock(LsDataRaw.class);
+        when(finalized.getOrgnlRawSn()).thenReturn(PARENT);
+        when(finalized.getDeIdntfYn()).thenReturn("Y");
+        when(finalized.getDataSttsCd()).thenReturn(LsDataRaw.DATA_STTS_COMPLETED);
+        when(videoRepository.findByRawSnForUpdate(NEW_RAW)).thenReturn(Optional.of(finalized));
+
+        assertThat(service.deleteFailedDerivativeRaw(NEW_RAW)).isFalse();
+        verify(videoRepository, never()).deleteFailedDerivative(any());
+    }
+
+    @Test
+    @DisplayName("고아행_정리는_원본영상과_프레임보유_파생을_삭제하지_않는다")
+    void doesNotDeleteOriginalOrDerivativeWithFrames() {
+        // ① 원본(ORGNL_RAW_SN null) 은 절대 삭제 대상이 아니다.
+        LsDataRaw original = mock(LsDataRaw.class);
+        when(original.getOrgnlRawSn()).thenReturn(null);
+        when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(original));
+        assertThat(service.deleteFailedDerivativeRaw(PARENT)).isFalse();
+
+        // ② FAILED 여도 프레임이 이미 적재된 파생은 남긴다(고아가 아님).
+        LsDataRaw withFrames = mock(LsDataRaw.class);
+        when(withFrames.getOrgnlRawSn()).thenReturn(PARENT);
+        when(withFrames.getDeIdntfYn()).thenReturn("N");
+        when(withFrames.getDataSttsCd()).thenReturn(LsDataRaw.DATA_STTS_FAILED);
+        when(videoRepository.findByRawSnForUpdate(NEW_RAW)).thenReturn(Optional.of(withFrames));
+        when(srcRepository.countByRawSn(NEW_RAW)).thenReturn(2L);
+        assertThat(service.deleteFailedDerivativeRaw(NEW_RAW)).isFalse();
+
+        verify(videoRepository, never()).deleteFailedDerivative(any());
     }
 
     // ---------- isAlreadyFinalized ----------

@@ -70,4 +70,16 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     @Query("update LsDataSrc s set s.anonyInclYn = null, s.psdoInclYn = null, s.prvcInclYn = null, "
             + "s.updDt = CURRENT_TIMESTAMP where s.rawSn = :rawSn")
     int resetPrivacyMetaByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * 해상도 파생 백필 전용 — 이관된 비식별 프레임 경로를 반영하고 원본 경로를 <b>NULL(원본 부재)</b> 로
+     * 정정한다(E-ISSUE-21 파일 이관 + E-ISSUE-41 정책 A). 파일 복사·검증 성공 이후에만 호출된다.
+     *
+     * <p>{@code clearAutomatically} 미지정 — 같은 트랜잭션에서 다른 엔티티 dirty-update 를 유실시키지
+     * 않기 위함(기존 {@link #resetPrivacyMetaByRawSn} 와 동일 정책).
+     */
+    @Modifying
+    @Query("update LsDataSrc s set s.deIdntfSrcFilePathNm = :deidPath, s.srcFilePathNm = null, "
+            + "s.updDt = CURRENT_TIMESTAMP where s.srcSn = :srcSn")
+    int relocateDerivativeFramePath(@Param("srcSn") Long srcSn, @Param("deidPath") String deidPath);
 }

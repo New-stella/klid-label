@@ -46,7 +46,9 @@ reports/
 cvat/
 
 # 로컬 스토리지 (시드 placeholder 이미지, TUS 업로드 임시 등 — 운영은 NAS 마운트)
-storage/
+# ★ 반드시 선행 슬래시로 앵커링한다 — 비앵커 `storage/` 는 트리 어디든 'storage' 라는 이름의
+#   디렉토리를 전부 무시하여 Java 패키지(common/storage/) 소스까지 커밋에서 누락시킨다.
+/storage/
 backend/storage/
 
 # Playwright MCP 캐시

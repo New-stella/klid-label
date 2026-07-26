@@ -47,7 +47,11 @@ public class LsDataSrc {
     @Column(name = "VDO_FRM_NO", nullable = true)
     private Long videoFrameNo;
 
-    @Column(name = "SRC_FILE_PATH_NM", nullable = false, length = 500)
+    /**
+     * 원본 프레임 파일 경로. <b>파생영상(해상도 파생)은 원본 픽셀이 실재하지 않아 null</b> 이다
+     * (E-ISSUE-41 정책 A — 없는 원본을 있는 척 기록하지 않는다). 일반 추출 프레임은 항상 채워진다.
+     */
+    @Column(name = "SRC_FILE_PATH_NM", length = 500)
     private String srcFilePathNm;
 
     @Column(name = "DE_IDNTF_SRC_FILE_PATH_NM", length = 1000)
