@@ -5,7 +5,8 @@
 
 - **KPST 비식별화** 솔루션 (프로젝트 생성 → 폴링 진행률 → 리포트/프레임 조회)
 - **IntelliVIX Video VLM** 시계열 (verify/describe, 비동기 콜백)
-- **증강 AI** (WINTER/NIGHT/RAIN) — 향후 확장 placeholder (현재 미구현 스텁)
+- **생성형 AI(증강)** — 「생성형 AI API 연동명세서 v1.1」 정합 (`/api/genai/*`, 작업 접수 →
+  단계별 Webhook → 결과 파일 실제 생성 → 상태/결과 조회/취소)
 
 인증/DB 없이 인메모리 상태(`app.state`)만으로 동작한다.
 
@@ -19,10 +20,13 @@
 - **SSRF 표면 (CWE-918):** VLM `verify`/`describe`는 요청자가 지정한 임의 `callback_url`로
   서버측 outbound POST를 발사한다. 이는 벤더 규격 동작(비동기 콜백)이라 목 서버에서 재현하지만,
   임의 URL로의 서버측 요청은 SSRF 벡터다. **신뢰된 네트워크에서만 기동**하고, 공개망/운영에
-  노출하면 안 된다. (별도 allowlist는 목 목적상 과하므로 문서/코드 주석 경고로 갈음 —
-  `app/services/vlm_sim.py` 상단 경고 주석 참조.)
-- **요청 본문 크기 상한 없음 (CWE-400):** 본문 크기 제한이 없다. 실사용 시 리버스 프록시나
-  uvicorn 설정으로 크기 제한을 두는 것을 권장한다(로컬 테스트라 기본은 무제한).
+  노출하면 안 된다. (VLM은 별도 allowlist 없이 문서/코드 주석 경고로 갈음 —
+  `app/services/vlm_sim.py` 상단 경고 주석 참조. 생성형 AI(`/api/genai/*`)는
+  `MOCK_GENAI_CALLBACK_ALLOW_HOSTS` **`host:port`** allowlist + 스킴 + (선택) 경로 접두사 +
+  자기참조 차단으로 막는다.)
+- **요청 본문 크기 상한 (CWE-400):** `/api/genai/*` 는 `MOCK_GENAI_MAX_BODY_BYTES`(기본 1MiB)로
+  제한한다. KPST(`/project` 등)·VLM 경로는 **아직 무제한**이므로 실사용 시 리버스 프록시나
+  uvicorn 설정으로 크기 제한을 두는 것을 권장한다.
 
 ---
 
@@ -98,16 +102,34 @@ cd mock-server
 | POST | `/v1/videovlm/describe` | 상황 묘사 접수 → 즉시 `accepted`, 이후 구간별 결과 콜백 |
 | GET  | `/v1/videovlm/status` | VLM 목 상태 확인 |
 
-### 증강 AI (`/v1/augment/*`) — 향후 확장 placeholder
+### 생성형 AI(증강) — 「생성형 AI API 연동명세서 v1.1」 (`/api/genai/*`)
+
+목이 **제공**하는 4종:
+
+| 메서드 | 경로 | 명세서 | 설명 |
+|:------:|------|:------:|------|
+| POST | `/api/genai/jobs` | §4.1 | 작업 요청 → **202** `{request_id, job_id, status:"RECEIVED", received_at}` |
+| GET  | `/api/genai/jobs/{job_id}` | §4.4 | 상태 조회(progress/current_step/error 포함) |
+| GET  | `/api/genai/jobs/{job_id}/results` | §4.5 | 결과 조회 — **SUCCEEDED 에서만**(그 외 409 STATE_CONFLICT) |
+| POST | `/api/genai/jobs/{job_id}/cancel` | §4.6 | 취소 — **RECEIVED·RUNNING 에서만**(종결 상태는 409). `requested_by` 필수 |
+
+목이 **발신**하는 2종:
+
+| 방향 | 대상 | 명세서 | 설명 |
+|:----:|------|:------:|------|
+| POST | 요청 바디의 `callback_url` | §4.2 | 진행·결과 Webhook — **단계마다 자동 발사** |
+| POST | `{MOCK_GENAI_STATUS_SYNC_URL}/api/genai/jobs/{job_id}/status-sync` | §4.3 | 상태 동기화 — **수동 트리거만**(아래 목 전용 EP) |
+
+목 전용 보조 EP (**명세서에 없는 목 서버 전용 기능**):
 
 | 메서드 | 경로 | 설명 |
 |:------:|------|------|
-| GET  | `/v1/augment/status` | `not_implemented` placeholder(등록 확인용) |
-| POST | `/v1/augment` | 501 미구현 스텁(확장 지점만 확정, 로직 없음) |
+| GET  | `/api/genai/_mock/jobs` | 작업 목록/상태 + 진행 중 백그라운드 태스크 수 |
+| POST | `/api/genai/_mock/reset` | 진행 태스크 취소 + 작업 저장소 초기화 |
+| POST | `/api/genai/_mock/jobs/{job_id}/status-sync` | ③ 상태 동기화 수동 발신 |
 
-> 증강 라우터는 향후 증강 AI 목을 얹는 확장 지점이며, VLM(verify/describe)과 동일한
-> 비동기 콜백 패턴을 따를 예정이다. 완료 콜백은 CLAUDE.md "증강 = 새 영상(RAW_SN)" 규칙에 따라
-> 원본을 `ORGNL_RAW_SN`으로 참조하는 **새 영상**을 생성하는 형태가 될 예정이다.
+> **구 placeholder 경로 제거:** 기존 `POST /v1/augment` · `GET /v1/augment/status`(501 스텁)는
+> 명세서 경로로 **대체·삭제**되었다(잔존시키지 않음).
 
 ### 공통
 
@@ -176,8 +198,10 @@ callback_url = http://<BE-host>:8080/v1/vlm/callback
 목 서버는 이 URL로 서버측에서 POST를 발사하므로(SSRF 주의), 목 서버가 실제로 도달할 수 있는
 주소여야 한다. 콜백 대상이 다운이어도 목 서버 동기 응답/안정성에는 영향이 없다(콜백 실패 격리).
 
-> 증강 콜백(향후)은 우리 BE의 **`POST /v1/aug/callback`**(`AugmentResultController`)로 갈 예정이나,
-> 현재 증강 라우터는 501 스텁이라 콜백을 발사하지 않는다.
+> **증강(생성형 AI) 콜백은 VLM과 별개다.** 아래 "생성형 AI(증강) 목" 절을 참조. 목은 명세서
+> §4.2 규격 그대로 발신하며, 우리 BE의 기존 수신부(`POST /v1/aug/callback`, HMAC 서명 필수 +
+> `data_aug_sn`/`aug_type_cd` 등 **다른 페이로드**)와는 계약이 다르다. 목이 우리 구 계약에
+> 맞춰주는 관대 파싱은 **의도적으로 넣지 않았다**(갭 은폐 금지). BE 개조 시점에 정합시킨다.
 
 ### 실패 콜백 트리거 (BE 실패 처리 테스트용)
 
@@ -265,12 +289,192 @@ docker run --rm -p 9400:9400 \
 
 ---
 
+## 생성형 AI(증강) 목 — 「생성형 AI API 연동명세서 v1.1」
+
+외부 **생성형 AI 시스템**을 연기한다. 계약은 관제가 확정한 명세서 v1.1(LogiCraft EXTSYS-002 /
+INT-001·019·020·029·030·031)이며, 경로 prefix는 `/api/genai`, 본문은 JSON이다.
+
+### 상태머신 (§3.2)
+
+```
+RECEIVED ──(단계 지연)──> RUNNING ──> SUCCEEDED
+                            │           
+                            ├────────> FAILED
+                            └────────> CANCELED   (RECEIVED/RUNNING 에서만 취소 가능)
+```
+
+- 종결 상태(`SUCCEEDED`/`FAILED`/`CANCELED`)에서는 **어떤 상태 변경도 거부**한다 → `409 STATE_CONFLICT`.
+- 취소가 먼저 성립하면 진행 중이던 백그라운드 작업은 다음 전이 시점에 스스로 중단하며,
+  **취소 상태를 SUCCEEDED로 덮어쓰지 않는다**(상태 전이는 락으로 직렬화 — CWE-362).
+- 결과 조회(§4.5)는 `SUCCEEDED` 에서만 허용한다.
+
+### 진행 단계 + Webhook (②, §4.2)
+
+`POST /api/genai/jobs` 는 **202로 즉시 접수**하고 백그라운드로 다음 단계를 진행하며,
+각 전이마다 요청 바디의 `callback_url` 로 Webhook을 POST한다.
+
+| 순서 | status | progress | current_step | 비고 |
+|:----:|--------|:--------:|--------------|------|
+| 1 | RUNNING | 10 | `PREPROCESS` | |
+| 2 | RUNNING | 50 | `INFERENCE` | |
+| 3 | RUNNING | 90 | `POSTPROCESS` | 이 다음에 결과 파일 생성 |
+| 4 | SUCCEEDED | 100 | `COMPLETED` | `results[]` 포함 |
+
+- 단계 사이 지연은 `MOCK_GENAI_STEP_DELAY_SEC`(기본 2초, 테스트는 0).
+- `callback_url` 은 선택 항목 — 없으면 Webhook을 발사하지 않고 작업만 진행한다.
+- Webhook 수신측이 401/404를 주거나 다운되어도 **목은 죽지 않고 작업을 계속 진행**한다.
+  전송은 `MOCK_GENAI_WEBHOOK_MAX_ATTEMPTS`(기본 2회) 안에서만 재시도하며 **무한 재시도하지 않는다**.
+- **취소 시에는 Webhook을 발사하지 않는다**(취소는 호출자가 이미 결과를 알고 있는 동기 응답).
+
+### 상태 동기화 (③, §4.3) — 수동 트리거만
+
+명세서상 status-sync 경로는 **수신측(우리)이 제공**하는 것이라, 목이 주소를 유추하면 안 된다.
+따라서 자동 발신은 하지 않고, 대상 base URL을 `MOCK_GENAI_STATUS_SYNC_URL` 로 명시했을 때만
+목 전용 EP(`POST /api/genai/_mock/jobs/{job_id}/status-sync`)로 수동 발신한다.
+실제 발신 주소는 `{base}/api/genai/jobs/{job_id}/status-sync` 이며, 미설정이면 `{"sent": false}`.
+
+### 결과 파일은 **실제로 생성**된다 (§5.3)
+
+파일 본문은 API로 주고받지 않는다(경로만 교환). 목은 공유 스토리지에 산출물을 직접 만든다.
+
+- 출력 위치: **`{MOCK_GENAI_OUTPUT_BASE}/genai/{job_id}/{sequence:03d}_{원본stem}_genai{ext}`**
+- 내용: 입력 파일이 있으면 **그 파일을 복사**, 없으면(T2I/T2V) placeholder 바이트(`MOCK_GENAI_GENERATED\n`).
+- `media_type`: `T2I`·`I2I` → `IMAGE`, `T2V`·`I2V` → `VIDEO`. 확장자는 유형에 맞으면 원본 유지, 아니면 기본값(`.png`/`.mp4`).
+- 각 결과에 `generated_data_id`(uuid) · `checksum`(SHA-256) · `media_metadata`(mime_type/size_bytes) 포함.
+- **fail-closed:** `MOCK_GENAI_OUTPUT_BASE` 미설정이면 파일을 만들지 않고 작업을 `FAILED(RESULT_SAVE_FAILED)`
+  로 종결한다(임의 절대경로 쓰기 차단). e2e에서는 BE와 동일 루트를 반드시 지정할 것.
+- 기존 파일은 O_EXCL로 **덮어쓰지 않는다**(멱등 재실행 안전).
+
+### FAILED 재현 트리거 (채택 방식: 요청 필드 기반)
+
+**`request_id` 가 `"fail"`(대소문자 무시)로 시작하면** 접수는 규격대로 202로 성공하고,
+진행 중 `FAILED(MODEL_EXECUTION_FAILED)` 로 종결하며 Webhook에 `error_code`·`error_message`를 싣는다.
+(VLM 목의 `is_failure_trigger` 관례와 동일. 별도 제어 EP를 만들지 않았다.)
+입력 파일이 실제로 존재하지 않는 경우도 같은 코드로 FAILED 처리된다.
+
+### 멱등성 — `Idempotency-Key`(선택)
+
+동일 키로 재요청하면 **기존 job을 그대로 반환**하며(중복 job 생성 없음) 백그라운드 진행도
+재시작하지 않는다. 헤더가 없으면 매번 새 job이다. 등록(check-then-act)은 락으로 직렬화한다.
+
+### 오류 코드 (§3.3)
+
+응답 본문은 `{"code": ..., "error_code": ..., "message": ...}` — `code`가 명세서 필드이고
+`error_code`는 목 서버 공통 규격 호환용으로 **같은 값**을 함께 싣는다.
+
+| HTTP | code | 발생 조건 |
+|:----:|------|-----------|
+| 400 | `REQUIRED_FIELD_MISSING` | 필수 필드 누락, `I2I`/`I2V` 인데 `input_files` 없음, cancel `requested_by` 누락 |
+| 400 | `UNSUPPORTED_EVENT_TYPE` | `MOCK_GENAI_EVENT_TYPES` 설정 시 목록 밖 `evnt_type` |
+| 400 | `INVALID_METADATA` | `prompt` 가 객체(JSON object)가 아님, `prompt` 크기 > `MOCK_GENAI_MAX_PROMPT_BYTES` |
+| 400 | `INVALID_PARAMETER` | enum/길이 위반, `sequence` 중복, 허용 밖 `file_path`(경로 탈출/상대경로/base 미설정), 차단된 `callback_url`(호스트·포트·경로·자기참조), JSON 파싱 실패(심층 중첩 포함) |
+| 404 | `JOB_NOT_FOUND` | 없는 `job_id` |
+| 404 | `RESULT_NOT_FOUND` | SUCCEEDED 인데 결과 항목이 비어 있음 |
+| 409 | `STATE_CONFLICT` | SUCCEEDED 아닌 상태의 결과 조회, 종결 상태 취소 |
+| 413 | `GA-MEDIA-001` | 입력 파일 크기 > `MOCK_GENAI_MAX_INPUT_BYTES`, 요청 본문 크기 > `MOCK_GENAI_MAX_BODY_BYTES` |
+| 500 | `MODEL_EXECUTION_FAILED` | 실패 트리거, 입력 파일 부재 (FAILED 상태/Webhook으로 전달) |
+| 500 | `RESULT_SAVE_FAILED` | 출력 base 미설정/쓰기 실패 (FAILED 상태/Webhook으로 전달) |
+
+**의도적으로 구현하지 않은 것**
+
+- `401 UNAUTHENTICATED` / `403 FORBIDDEN` — **인증 전체가 이번 스코프 제외**(차후 개발).
+  목 서버는 무인증이며 `x-access-token` 등 인증 헤더를 요구·검증하지 않는다.
+- `REQUEST_NOT_FOUND` — request_id 기준 조회 EP가 명세서에 없어 발생 지점이 없다.
+- `CALLBACK_FAILED` / `INTERNAL_SERVER_ERROR` — 전자는 Webhook 전송 실패라 응답으로 돌려줄
+  대상이 없고(로그로만 남김), 후자는 목 공통 핸들러가 `INTERNAL_ERROR`로 처리한다.
+
+### 환경변수
+
+| 환경변수 | 기본값 | 설명 |
+|----------|:------:|------|
+| `MOCK_GENAI_STEP_DELAY_SEC` | `2.0` | 단계 간 지연(초). 0이면 즉시 진행(테스트용) |
+| `MOCK_GENAI_OUTPUT_BASE` | (빈값) | **결과 파일 쓰기 허용 루트.** 미설정 시 fail-closed → `FAILED(RESULT_SAVE_FAILED)` |
+| `MOCK_GENAI_INPUT_BASE` | (빈값) | `input_files[].file_path` 허용 루트. 미설정 시 `OUTPUT_BASE` 사용. **둘 다 비면 모든 입력 경로를 400 으로 거절**(fail-closed) |
+| `MOCK_GENAI_CALLBACK_ALLOW_HOSTS` | `localhost:8080,127.0.0.1:8080,[::1]:8080,host.docker.internal:8080,klid-backend:8080,backend:8080` | Webhook/status-sync 대상 allowlist. 항목은 `host:port`(그 포트만) 또는 `host`(모든 포트, 하위호환). IPv6 는 `[::1]:8080`. 빈값=전부 차단, `*`=검사 생략(로컬 전용) |
+| `MOCK_GENAI_CALLBACK_PATH_PREFIXES` | (빈값) | 콜백 대상 **경로 접두사** allowlist. 빈값이면 경로 제한 없음(예: `/api/genai/`) |
+| `MOCK_GENAI_SELF_HOST_ALIASES` | (빈값) | 목 자신을 가리키는 추가 호스트 별칭. 루프백/바인드 호스트 + `MOCK_PORT` 조합은 기본으로 차단됨 |
+| `MOCK_GENAI_STATUS_SYNC_URL` | (빈값) | ③ status-sync 대상 **base URL**. 미설정 시 비활성 |
+| `MOCK_GENAI_EVENT_TYPES` | (빈값) | 허용 `evnt_type` 목록. 빈값이면 검증 안 함 |
+| `MOCK_GENAI_MAX_INPUT_BYTES` | `5368709120` | 입력 파일 1건 크기 상한(접수 시 + 처리 시 fd 기준 재검증, 초과 시 413/FAILED) |
+| `MOCK_GENAI_MAX_BODY_BYTES` | `1048576` | 요청 본문 크기 상한(초과 시 413 `GA-MEDIA-001`) |
+| `MOCK_GENAI_MAX_PROMPT_BYTES` | `65536` | `prompt` 직렬화 크기 상한(초과 시 400 `INVALID_METADATA`) |
+| `MOCK_GENAI_MAX_JOBS` | `1000` | 인메모리 잡 보관 상한. 초과 시 오래된 작업부터 만료(FIFO) |
+| `MOCK_GENAI_WEBHOOK_MAX_ATTEMPTS` | `2` | Webhook 전송 시도 횟수 상한(무한 재시도 금지) |
+| `MOCK_GENAI_WEBHOOK_RETRY_DELAY_SEC` | `0.5` | Webhook 재시도 간 지연(초) |
+
+> ⚠ `MOCK_GENAI_CALLBACK_ALLOW_HOSTS` 기본값은 **포트 8080(BE 컨테이너 포트) 한정**이다.
+> BE를 다른 포트로 띄우면 `host:port` 를 그 포트로 바꿔야 콜백이 접수된다(포트를 생략하면
+> 그 호스트의 모든 포트가 열리므로 권장하지 않는다).
+
+### 보안 가드
+
+- **경로 탈출(CWE-22):** `file_path`는 **절대경로 + 입력 base 하위**만 접수(아니면 400).
+  **입력 base 가 설정되지 않으면 전부 거절**한다(fail-closed — 임의 절대경로가 파일 존재·크기
+  오라클이 되는 것을 막는다). 출력 경로는 항상 `{output_base}/genai/{job_id}/` 하위이며
+  파일명은 basename 기준으로 조립한다.
+- **TOCTOU·심볼릭링크(CWE-367/59):** 접수 시 통과한 경로라도 **처리 시점에 다시 base 소속을
+  검증**하고, 입력은 `O_RDONLY|O_NOFOLLOW` 로 열어 **fd 기준 `fstat`** 으로 정규파일 여부와
+  크기를 재확인한다. 접수 후 입력을 base 밖 심볼릭링크로 바꿔치기해도 유출되지 않고
+  `FAILED(MODEL_EXECUTION_FAILED)` 로 끝난다. 복사 바이트 수에도 상한이 걸린다(CWE-400).
+  → 입력 base 와 출력 base 를 **같은 디렉터리로 두지 말 것**(쓰기 권한이 곧 읽기 권한이 된다).
+- **SSRF(CWE-918):** `callback_url`·status-sync 대상은 스킴 `http|https` + **`host:port`**
+  allowlist + (선택) 경로 접두사 통과분만. **목 서버 자신**(루프백/바인드 호스트 + `MOCK_PORT`)
+  을 가리키는 대상은 allowlist 에 있어도 거부한다(자기 SSRF 로 `_mock/*` 상태 파괴 방지).
+  차단 시 접수 자체를 400으로 거절해 오설정을 조기에 드러낸다(allowlist 비면 fail-closed).
+- **자원 고갈(CWE-770/400):** 요청 본문은 `Content-Length` 선검사 + 스트리밍 누적 검사로
+  상한 안에서만 읽고(초과 413), `prompt` 직렬화 크기와 인메모리 잡 보관 수(FIFO 만료)에도
+  상한이 있다.
+- **예외 처리(CWE-755):** 심층 중첩 JSON 이 유발하는 `RecursionError` 등 파싱 실패는 모두
+  400 `INVALID_PARAMETER` 로 매핑한다(500 누출 금지).
+- **고아 산출물 방지:** 취소 등으로 종결이 확정되면 이미 만든 결과 파일을 정리한다.
+- **입력 검증(CWE-20/915):** pydantic 모델로 타입·필수·길이(`request_id` 64 / `file_path` 500 등)·
+  enum을 강제하고 **미선언 필드는 무시**한다(Mass Assignment 차단).
+- **로그 인젝션(CWE-117):** job_id·경로·URL 등 사용자 입력은 `sanitize_for_log` 경유 후 로깅.
+- **정보 노출(CWE-209):** 오류 메시지는 고정 문구이며 스택트레이스/내부 경로를 담지 않는다.
+- **동시성(CWE-362):** 상태 전이·멱등키 등록의 check-then-act를 단일 락으로 직렬화.
+- **태스크 누수:** 진행 태스크 참조를 레지스트리에 보관하고 lifespan shutdown에서 취소·정리한다.
+
+### 사용 예시
+
+```bash
+# 1) 작업 요청 (I2V)
+curl -i -X POST http://localhost:9400/api/genai/jobs \
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: req-0001' \
+  -d '{"request_id":"req-0001","request_channel":"AUTHORING","evnt_type":"FIRE",
+       "operation_type":"AUGMENT","generation_mode":"I2V",
+       "input_files":[{"sequence":1,"file_path":"/nas-storage/videos/10/deidentified.mp4"}],
+       "prompt":{"season":"winter","weather":"snow"},
+       "callback_url":"http://klid-backend:8080/api/genai/jobs/x/webhook"}'
+
+# 2) 상태 / 결과 조회
+curl http://localhost:9400/api/genai/jobs/{job_id}
+curl http://localhost:9400/api/genai/jobs/{job_id}/results
+
+# 3) 취소
+curl -X POST http://localhost:9400/api/genai/jobs/{job_id}/cancel \
+  -H 'Content-Type: application/json' -d '{"reason":"테스트","requested_by":"w1"}'
+
+# 4) [목 전용] 상태 확인 / 초기화 / status-sync 수동 발신
+curl http://localhost:9400/api/genai/_mock/jobs
+curl -X POST http://localhost:9400/api/genai/_mock/reset
+curl -X POST http://localhost:9400/api/genai/_mock/jobs/{job_id}/status-sync
+```
+
+> **참고 — 현재 우리 BE는 이 목을 호출하지 않는다.** 증강 클라이언트가 전 환경 기본
+> `NoopExternalAugmentClient` 이기 때문이며 정상이다. 이 목은 규격서 도착·BE 개조 시점을
+> 대비해 **먼저 세워둔 것**이다.
+
+---
+
 ## 관련 파일
 
-- `app/main.py` — 앱/미들웨어/라우터 등록, `/health`
+- `app/main.py` — 앱/미들웨어/라우터 등록, `/health`, shutdown 시 백그라운드 태스크 정리
 - `app/routers/deid.py` — KPST 비식별 11개 엔드포인트
 - `app/routers/vlm.py` — IntelliVIX VLM verify/describe/status
-- `app/routers/augment.py` — 증강 AI 확장 placeholder(501 스텁)
+- `app/routers/augment.py` — 생성형 AI(증강) `/api/genai/*` + 목 전용 `_mock` EP
+- `app/schemas/genai.py` — 명세서 v1.1 요청/응답 스키마 + 상태·오류코드 enum
+- `app/services/genai_sim.py` — 단계 진행 시뮬레이션 · 결과 파일 생성 · Webhook 발신 · 보안 가드
 - `app/services/vlm_sim.py` — VLM 콜백 페이로드 생성 + 비동기 발사(SSRF 경고 주석)
+- `app/state.py` — 인메모리 상태(KPST 프로젝트 + 생성형 AI 작업 저장소)
 - `app/config.py` — `MOCK_*` 환경변수 설정
-- `tests/` — pytest (deid/vlm/augment/health/state)
+- `tests/` — pytest (deid/vlm/genai/health/state + `test_genai_security_hardening.py` 보안 회귀)

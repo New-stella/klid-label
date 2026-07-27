@@ -19,7 +19,12 @@ from app.state import sanitize_for_log
 logger = logging.getLogger(__name__)
 
 # 하위호환 — 기존에 ``app.exceptions.ErrorResponse`` 로 참조하던 경로 유지.
-__all__ = ["ErrorResponse", "MockApiError", "register_exception_handlers"]
+__all__ = [
+    "ErrorResponse",
+    "MockApiError",
+    "GenAiApiError",
+    "register_exception_handlers",
+]
 
 
 class MockApiError(Exception):
@@ -30,6 +35,18 @@ class MockApiError(Exception):
         self.status_code = status_code
         self.message = message
         self.error_code = error_code
+
+
+class GenAiApiError(MockApiError):
+    """생성형 AI 명세서(§3.3) 오류.
+
+    응답 본문에 명세서 필드 ``code`` 와 목 서버 공통 필드 ``error_code`` 를 **동일 값**으로
+    함께 싣는다(명세서 소비자와 기존 목 공통 규격 양쪽 호환).
+    """
+
+    def __init__(self, status_code: int, code: str, message: str) -> None:
+        super().__init__(status_code, message, code)
+        self.code = code
 
 
 def _err(error_code: str, message: str, status_code: int) -> JSONResponse:
@@ -48,6 +65,18 @@ def register_exception_handlers(app: FastAPI) -> None:
             sanitize_for_log(exc.message),
         )
         return _err(exc.error_code, exc.message, exc.status_code)
+
+    @app.exception_handler(GenAiApiError)
+    async def _genai_api_error(_: Request, exc: GenAiApiError) -> JSONResponse:
+        logger.warning(
+            "[MOCK][GENAI] api error code=%s message=%s",
+            sanitize_for_log(exc.code),
+            sanitize_for_log(exc.message),
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": exc.code, "error_code": exc.code, "message": exc.message},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
