@@ -16,9 +16,10 @@
 
 import { useEventAnnotation } from '@/features/label/hooks/useEventAnnotation';
 import { useMeta } from '@/features/auto/hooks/useMeta';
-import type {
-  CaptionCandidate,
-  EvidenceCandidate,
+import {
+  normalizeCot,
+  type CaptionCandidate,
+  type EvidenceCandidate,
 } from '@/features/label/api/eventAnnotation';
 import type { MetaItem } from '@/features/auto/types';
 
@@ -51,7 +52,7 @@ function ReadonlyField({ label, value }: { label: string; value: string }) {
 
 /** caption 후보(caption_text + CoT 단계)를 읽기 전용으로 렌더. */
 function CaptionReadonly({ ck, cand }: { ck: string; cand: CaptionCandidate }) {
-  const cot = (cand.cot ?? []).filter((s) => s.trim() !== '');
+  const cot = normalizeCot(cand.cot).filter((s) => s.trim() !== '');
   return (
     <div className="mt-2 rounded border border-gray-700 p-2">
       <span className={LABEL_CLASS}>캡션 {ck}</span>

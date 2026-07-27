@@ -12,10 +12,20 @@
 
 import { apiClient } from '@/lib/api/client';
 
-/** caption 후보(c1..cn): caption_text + Chain-of-Thought 단계(cot, 1·2·3단계 배열). */
+/**
+ * caption 후보(c1..cn): caption_text + Chain-of-Thought 단계(cot).
+ * cot 와이어 포맷은 배열(["...", ...]) 또는 단계명 키 객체({"1단계": "...", ...}) 두 형태가
+ * 실존한다(외부 VLM 원본 데이터가 객체형) — 읽기 시 normalizeCot 로 배열 정규화해 사용.
+ */
 export interface CaptionCandidate {
   caption_text?: string;
-  cot?: string[];
+  cot?: string[] | Record<string, string>;
+}
+
+/** cot 배열/객체 양형 → 단계 문자열 배열(객체는 JSON 키 순서 유지). */
+export function normalizeCot(cot: CaptionCandidate['cot']): string[] {
+  if (Array.isArray(cot)) return cot;
+  return Object.values(cot ?? {});
 }
 
 /** evidence 후보(c1..cn): evidence_text + 프레임/객체 근거. */
