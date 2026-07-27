@@ -23,13 +23,14 @@ from app.config import get_settings
 from app.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIdMiddleware
 from app.routers import augment, control, deid, vlm
+from app.services import genai_sim
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """startup/shutdown 간단 로깅."""
+    """startup/shutdown 간단 로깅 + 백그라운드 태스크 정리."""
     settings = get_settings()
     logger.info(
         "[MOCK] startup host=%s port=%d sim_speed=%.2f callback_delay=%.2fs",
@@ -39,6 +40,8 @@ async def lifespan(_: FastAPI):
         settings.callback_delay_seconds,
     )
     yield
+    # 생성형 AI 작업 진행 태스크 누수 방지 — 종료 시 모두 취소·정리한다.
+    await genai_sim.cancel_all_tasks()
     logger.info("[MOCK] shutdown")
 
 

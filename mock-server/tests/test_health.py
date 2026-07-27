@@ -29,12 +29,12 @@ def test_vlm_라우터가_등록되어_status가_200(client: TestClient) -> None
     assert res.json()["status"] == "ok"
 
 
-def test_augment_라우터가_등록되어_status가_200(client: TestClient) -> None:
-    # given / when — Phase 4 확장 예정 placeholder
-    res = client.get("/v1/augment/status")
+def test_genai_라우터가_등록되어_목록조회가_200(client: TestClient) -> None:
+    # given / when — 생성형 AI(증강) 목: 명세서 경로 /api/genai/* + 목 전용 보조 EP
+    res = client.get("/api/genai/_mock/jobs")
     # then
     assert res.status_code == 200
-    assert res.json()["status"] == "not_implemented"
+    assert "jobs" in res.json()
 
 
 def test_request_id_헤더가_응답에_포함(client: TestClient) -> None:
