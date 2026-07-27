@@ -14,14 +14,22 @@
 
 ## 24.2 폴더 구조
 
+**산출 루트는 원본 영상과 같은 디렉터리 하위(co-locate)다.** base 는 `dirname(LS_DATA_RAW.RAW_FILE_PATH_NM)` 로 **영상마다 다르다**(구 고정 루트 `authoring.storage.labeling-path` 는 롤백 전략으로만 남는다).
+
 ```
-{authoring.storage.labeling-path}/{RAW_SN}/v{n}/orgnl/frame-{frameNo}.jpg
-{authoring.storage.labeling-path}/{RAW_SN}/v{n}/orgnl/frame-{frameNo}.json
-{authoring.storage.labeling-path}/{RAW_SN}/v{n}/deid/frame-{frameNo}.jpg
-{authoring.storage.labeling-path}/{RAW_SN}/v{n}/deid/frame-{frameNo}.json
+{dirname(RAW_FILE_PATH_NM)}/            ← 관제 NAS. 원본 영상이 있는 디렉터리
+    {원본영상}.mp4                       ← 관제 소유. 읽기만·절대 변경 금지
+    {RAW_SN}/                            ← 저작도구가 신규 생성 (RAW_SN == job_id)
+        deid/{비식별영상}                 ← 비식별 영상(버전 무관). 파일명은 아래 참조
+        v{n}/orgnl/{FRM_NO:%04d}.jpg | .json
+        v{n}/deid/{FRM_NO:%04d}.jpg  | .json
 ```
 
 - **버전이 종류(orgnl/deid)의 상위** — `v{n}/{orgnl|deid}/`.
+- **원본 영상은 복사하지 않는다** — `{RAW_SN}/` 의 바로 상위 형제로 이미 존재한다.
+- **비식별 영상은 버전 무관**이라 `v{n}` 밖 `{RAW_SN}/deid/` 에 둔다.
+- ⚠ **비식별 영상 파일명은 고정이 아니다** — 저작도구가 지정하는 것은 **디렉터리(`export_path`)까지**이고 파일명은 외부 비식별 솔루션이 정한다(mock=`deidentified.mp4`, KPST 실연동=`{원본stem}-mask{ext}`). **파일명을 조합·추측하지 말고 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 을 읽는다.**
+- ⚠ **경로 가드(CWE-22)**: base 가 DB 값에서 도출되므로 `VideoArtifactRootResolver` 가 2단계로 검증한다 — ①`dirname(RAW_FILE_PATH_NM)` 이 **고정 allowlist**(`authoring.storage.raw-mount-roots`) 하위인지 ②검증된 base 기준으로 target 을 `normalize()` + `toRealPath()` 후 재검증. 위반 시 **기본 루트로 fallback 하지 않고 export 를 FAILED 로 마감**한다(승인 트랜잭션은 롤백하지 않음).
 - `orgnl` = 원본 프레임 산출, `deid` = 비식별 프레임 산출. **원본·비식별 2벌**을 함께 산출한다.
 - 프레임 이미지는 `FrameSource` 가 해석하는 원천 경로에서 복사한다 — 원본은 `authoring.storage.raw-path` 하위(`LS_DATA_SRC.SRC_FILE_PATH_NM`), 비식별은 `authoring.storage.deidentified-path` 하위(`LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`).
 - **부분 성공**: 원천 이미지가 없는 프레임은 건너뛰고(skip) 나머지만 산출한다(경로 원문/PII 미로깅). 산출량에 따라 상태가 갈린다 — 전부 성공=`SUCCEEDED`, 일부만 산출(skip>0 & written>0)=`PARTIAL`, 한 장도 못 씀(written=0)=`FAILED`(§24.7).
@@ -46,7 +54,9 @@
 `@JsonInclude(ALWAYS)` 로 값이 null 인 **필수 키도 항상 직렬화**되어 관제 데이터마트 스키마와 정합한다.
 
 ### image 블록 주요 필드
-- `file_name` = `frame-{frameNo}.jpg`, `frame_num` = frameNo, `width`/`height` = 영상 메타 해상도.
+- `file_name` = **`{FRM_NO}.jpg` 4자리 zero-pad**(`String.format("%04d", frmNo)` — `ExportFileNaming` 단일 지점. 10000 이상은 자연 확장). 구 `frame-{n}.jpg` 접두사 형식은 **폐기**. **통지 `changed_items`·디스크 실제 파일명·JSON `file_name` 3자가 항상 일치**해야 한다.
+- `frame_num` = **`LS_DATA_SRC.VDO_FRM_NO`(실제 영상 디코더 프레임 위치)**. 구 `FRM_NO`(추출 순번) 아님 — 두 값은 별개 컬럼이다(예: 추출 순번 2 ↔ 실제 프레임 20). **`VDO_FRM_NO` 가 null 이면 `frame_num` 도 null 로 내보낸다**(`FRM_NO` 폴백 금지 — 의미 혼선).
+- `width`/`height` = 영상 메타 해상도.
 - `description` = `LS_DATA_SRC.FRM_EXPLN`(작업자 수기 프레임 설명). 미입력 시 null.
 - `anonymity` = **orgnl → `N`, deid → `Y`** (산출 종류로 결정).
 - `pseudonymity` = 영상 개인정보 유형이 `PSDO` 이면 `Y`, 아니면 `N`.
@@ -159,7 +169,7 @@
 | `EXPORT_SN` | PK |
 | `DATA_RAW_SN` | 대상 영상(RAW_SN) |
 | `EXPORT_VER_NO` | 산출 버전(≥1). UK(DATA_RAW_SN, EXPORT_VER_NO) |
-| `EXPORT_PATH_NM` | 산출 루트 경로(`{labeling_root}/{RAW_SN}/v{n}`) |
+| `EXPORT_PATH_NM` | **영상 루트 경로**(`{dirname(RAW_FILE_PATH_NM)}/{RAW_SN}`) — **버전 루트가 아니다.** 관제가 `v1`·`v2` 를 한 경로 아래에서 보고 골라야 요구사항의 *버전별 비교·복구*가 성립하기 때문. 값은 **절대경로 그대로 저장·사용**하며 조회 시 재계산하지 않는다(롤백 전략 전환 후에도 기존 행이 깨지지 않도록) |
 | `EXPORT_STTS_CD` | `PENDING → SUCCEEDED\|PARTIAL\|FAILED` (아래 상태 의미) |
 | `FRAME_CNT` | 산출 프레임 파일 수(orgnl + deid 합산) |
 | `CONTENT_HASH` | 산출 시점 콘텐츠 해시(SHA-256, 멱등 판정 키) |
@@ -167,13 +177,15 @@
 
 **상태 의미**: `PENDING`=채번 후 파일 쓰기 전(예약), `SUCCEEDED`=전 프레임 산출, `PARTIAL`=일부 프레임 skip(원천 이미지 부재 등), `FAILED`=한 장도 못 씀 또는 파일 쓰기 예외.
 
-**stale PENDING 정리 (크래시 복구)**: `insertNextVersion` 이 PENDING 레코드를 커밋한 뒤 파일 쓰기/상태 마감 전에 프로세스가 크래시하면 그 레코드가 `PENDING` 으로 영구 고착된다. 주기 Quartz 잡 `DatasetExportPendingSweepJob`(기본 10분 간격, `@DisallowConcurrentExecution` + PostgreSQL JobStore 클러스터 락으로 2노드 중 1노드만 tick)이 `REG_DT` 가 `stale-minutes`(기본 30분) 이전인 PENDING 을 `FAILED` 로 마감한다. **파일은 삭제하지 않고 상태만 회수**한다(라벨링 전용 루트라 잔재 파일은 정합에 무해하며, 다음 산출은 `v{n+1}` 로 진행). 정상 산출은 수 초 내 완료되므로 30분 임계를 넘는 PENDING 은 크래시 잔재뿐이다. 초장기 산출이 sweep 으로 FAILED 마킹돼도 이후 완료가 `SUCCEEDED` 로 최종 수렴한다(last-writer-wins, 무해). `stale-minutes` 오설정(0/음수)은 안전 기본값 30 으로 폴백한다.
+**stale PENDING 정리 (크래시 복구)**: `insertNextVersion` 이 PENDING 레코드를 커밋한 뒤 파일 쓰기/상태 마감 전에 프로세스가 크래시하면 그 레코드가 `PENDING` 으로 영구 고착된다. 주기 Quartz 잡 `DatasetExportPendingSweepJob`(기본 10분 간격, `@DisallowConcurrentExecution` + PostgreSQL JobStore 클러스터 락으로 2노드 중 1노드만 tick)이 `REG_DT` 가 `stale-minutes`(기본 30분) 이전인 PENDING 을 `FAILED` 로 마감한다. **파일은 삭제하지 않고 상태만 회수**한다(잔재는 `{RAW_SN}/v{n}/` 안에만 남고 **원본 영상과 형제 디렉터리라 원본에 영향이 없으며**, 다음 산출은 `v{n+1}` 로 진행). 정상 산출은 수 초 내 완료되므로 30분 임계를 넘는 PENDING 은 크래시 잔재뿐이다. 초장기 산출이 sweep 으로 FAILED 마킹돼도 이후 완료가 `SUCCEEDED` 로 최종 수렴한다(last-writer-wins, 무해). `stale-minutes` 오설정(0/음수)은 안전 기본값 30 으로 폴백한다.
 
 ## 24.8 설정
 
 | 설정 키 | 기본값 | 의미 |
 |---------|--------|------|
-| `authoring.storage.labeling-path` | `./storage/labeling` | 학습데이터 파일 산출 루트(`{RAW_SN}/v{n}/orgnl\|deid/`) |
+| `authoring.dataset-export.base-strategy` | `co-locate` | 산출 base 전략. `co-locate`=원본 영상 디렉터리 하위(`dirname(RAW_FILE_PATH_NM)/{RAW_SN}`), `labeling-root`=구 고정 루트(롤백용). **플래그는 신규 산출의 base 선택에만 관여**하며 이미 기록된 `EXPORT_PATH_NM` 을 재해석하지 않는다 |
+| `authoring.storage.raw-mount-roots` | (미설정 시 `raw-path`+`deidentified-path` 로 폴백) | **경로 가드용 고정 allowlist**(CWE-22). `dirname(RAW_FILE_PATH_NM)` 이 이 목록 하위여야 산출이 허용된다. 요청과 무관한 고정값이어야 가드가 유효하다 |
+| `authoring.storage.labeling-path` | `./storage/labeling` | **구 고정 산출 루트 — `base-strategy=labeling-root` 롤백 시에만 사용** |
 | `authoring.storage.raw-path` | `./storage/raw` | 원본 프레임 이미지 base(orgnl 복사 원천) |
 | `authoring.storage.deidentified-path` | `./storage/deidentified` | 비식별 프레임 이미지 base(deid 복사 원천) |
 | `authoring.dataset-export.enabled` | `true`(matchIfMissing) | 승인 시 파일 산출 트리거 토글 |

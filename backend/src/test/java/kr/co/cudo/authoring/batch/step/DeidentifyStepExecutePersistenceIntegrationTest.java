@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -40,6 +42,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
+        // Phase 5A — co-locate 산출 base 허용 마운트 루트(원본 영상이 이 하위에 있어야 한다)
+        "authoring.storage.raw-mount-roots=" + ArtifactRootTestSupport.IT_MOUNT_ROOT,
         "authoring.integration.deidentify.mock-mode=true"
 })
 class DeidentifyStepExecutePersistenceIntegrationTest {
@@ -62,9 +66,8 @@ class DeidentifyStepExecutePersistenceIntegrationTest {
     @Test
     @DisplayName("execute_경유_mock비식별이_DB에_영속 — deIdntfYn=Y + procLog SUCCEEDED + MARKING_READY 함께 커밋")
     void executeViaProxy_persistsDeidentified() throws Exception {
-        // given — 실제 원본 파일이 존재하는 적재 영상(deIdntfYn='N', PENDING).
-        Path rawFile = Files.createTempFile("exec-raw", ".mp4");
-        Files.writeString(rawFile, "raw-bytes");
+        // given — 허용 마운트 루트 하위에 실제 원본 파일이 존재하는 적재 영상(deIdntfYn='N', PENDING).
+        Path rawFile = ArtifactRootTestSupport.seedOriginalVideo("exec-raw");
         LsDataRaw raw = saveRaw(rawFile.toString());
         Long rawSn = raw.getRawSn();
 
@@ -89,7 +92,10 @@ class DeidentifyStepExecutePersistenceIntegrationTest {
                 .filter(l -> LsDeidentProcLog.SUCCEEDED.equals(l.getProcSttsCd()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("SUCCEEDED procLog 가 커밋되지 않았다"));
-        assertThat(succeeded.getDeIdntfFilePathNm()).isNotBlank();
         // 미비식별('N') 상태에서 REQUESTED 만 잔존하는 버그가 없어야 한다 — SUCCEEDED 로 마감.
+        // Phase 5A — 산출 위치는 co-locate(dirname(원본)/{rawSn}/deid/). procLog 에 적재된 값이 진실원.
+        Path expected = ArtifactRootTestSupport.expectedMockDeidPath(rawFile, rawSn);
+        assertThat(succeeded.getDeIdntfFilePathNm()).isEqualTo(expected.toString());
+        assertThat(Files.exists(expected)).isTrue();
     }
 }

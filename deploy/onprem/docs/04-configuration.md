@@ -56,6 +56,7 @@
 |------|:----:|-------------|
 | `STORAGE_RAW_PATH` | ★ | 원본 영상·프레임 저장 베이스. **NAS 마운트 루트와 일치 필수**(기본 `/nas-storage`). v2 가 DB 절대경로를 이 베이스 기준 startsWith 가드로 검증해 서빙 — 관제 적재·v1 이관본(`/nas-storage/...`)이 이 베이스로 시작해야 정상 서빙(불일치 시 NOT_FOUND) |
 | `STORAGE_DEIDENTIFIED_PATH` | ★ | 비식별 영상·프레임 저장 베이스(기본 `/nas-storage`). 위와 동일 — NAS 마운트 루트와 일치 |
+| `STORAGE_RAW_MOUNT_ROOTS` | ★ | **산출물 쓰기 allowlist**(콤마 구분, 기본 `/nas-storage`). 검수 승인 산출물·비식별 영상은 `dirname(RAW_FILE_PATH_NM)/{RAW_SN}/` 에 생성되며, 그 base 가 이 목록 하위일 때만 허용된다(위반 시 폴백 없이 실패, CWE-22). `/` 등 파일시스템 루트를 넣으면 **기동 차단**. 실제 클립 서브트리를 확인해 최대한 좁게 지정 권장(예: `/nas-storage/data/clip/gov,/nas-storage/label-studio/src`) |
 | `AI_SERVER_URL` | ★ | 기본 `http://127.0.0.1:9300` |
 | `CORS_ALLOWED_ORIGINS` | · | 동일 출처면 비움. 다른 도메인 호출 시 allowlist |
 | `FFMPEG_BIN`/`FFPROBE_BIN`/`FFMPEG_THREADS` | · | 기본 `ffmpeg`/`ffprobe`/2 |

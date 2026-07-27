@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.common.util.LetterboxTransform;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
@@ -61,6 +62,12 @@ public class ResolutionSnapshotService {
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final LsDataAugRepository augRepository;
     private final ImageResizer imageResizer;
+    /**
+     * S6 — 부모의 비식별 <b>영상</b>이 co-locate 위치({@code dirname(원본)/{rawSn}/deid/})로 이동하면서
+     * 비식별 저장소 단일 base 검증만으로는 신규 위치 파일이 전부 거부된다. 허용 base 를 2-way 로 넓히는 데
+     * 사용한다(구 위치 = 비식별 저장소 서브트리, 신 위치 = co-locate 비식별 영상 디렉터리).
+     */
+    private final VideoArtifactRootResolver artifactRootResolver;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -142,7 +149,8 @@ public class ResolutionSnapshotService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "원본 비식별 영상 경로를 찾을 수 없습니다: parentRawSn=" + parentRawSn));
         // 입력(비식별 비디오 소스)·출력(파생 비디오 목적지) 모두 비식별 저장소 + 비식별 서브트리로 강제.
-        Path deidVideoSrc = resolveSafeDeidSource(deidVideoPath);
+        Path deidVideoSrc = resolveSafeDeidVideoSource(
+                deidVideoPath, parentRawSn, parent.getRawFilePathNm());
         Path videoDst = resolveSafeDeidFile(outBase, newRaw.getRawFilePathNm());
 
         // 3) 프레임별 스펙 스냅샷 + 프레임 0건 fail-fast(#9) + 중복 videoFrameNo fail-fast.
@@ -248,6 +256,33 @@ public class ResolutionSnapshotService {
      * 두 base 가 동일 문자열인 운영 환경에서 base 검사만으로는 원본 픽셀 유입을 막지 못하기 때문이다.
      * 상대경로는 비식별 base 기준으로 해석한다.
      */
+    /**
+     * 부모 비식별 <b>영상</b> 소스 경로 검증 (S6 — 2-way).
+     * <ol>
+     *   <li>구 위치 — 비식별 저장소 + 비식별 전용 서브트리({@code videos/**}).</li>
+     *   <li>신 위치 — co-locate 비식별 영상 디렉터리 하위.</li>
+     * </ol>
+     * 둘 다 아니면 거부한다(fail-secure, 경로 원문 미노출).
+     */
+    private Path resolveSafeDeidVideoSource(String filePath, Long parentRawSn, String parentRawFilePathNm) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new CustomException(ErrorCode.NOT_FOUND, "경로가 비어있습니다.");
+        }
+        Optional<Path> coLocateDir = (artifactRootResolver == null)
+                ? Optional.empty()
+                : artifactRootResolver.deidVideoDirQuietly(parentRawSn, parentRawFilePathNm);
+        if (coLocateDir.isPresent()) {
+            Path candidate = Paths.get(filePath);
+            Path resolved = candidate.isAbsolute()
+                    ? candidate.normalize()
+                    : coLocateDir.get().resolve(candidate).normalize();
+            if (resolved.startsWith(coLocateDir.get())) {
+                return resolved;
+            }
+        }
+        return resolveSafeDeidSource(filePath);
+    }
+
     private Path resolveSafeDeidSource(String filePath) {
         Path base = deidBase();
         if (filePath == null || filePath.isBlank()) {

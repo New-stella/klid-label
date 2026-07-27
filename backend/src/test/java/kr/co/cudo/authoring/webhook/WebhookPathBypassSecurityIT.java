@@ -64,7 +64,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
-        "webhook.hmac.secret.augment=bypass-it-secret-32bytes-min-len-aa!!"
+        "webhook.hmac.secret.augment=bypass-it-secret-32bytes-min-len-aa!!",
+        // B-2 — 콜백 본문의 raw_file_path_nm(/storage/augment/bypass.mp4)이 적재 시점 allowlist 검증을
+        //   통과해야 "인증 통과 후 정상 처리" 경로가 그대로 검증된다.
+        "authoring.storage.raw-mount-roots=/storage"
 })
 class WebhookPathBypassSecurityIT {
 

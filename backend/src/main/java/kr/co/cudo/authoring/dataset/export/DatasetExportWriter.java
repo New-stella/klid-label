@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.dataset.export;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.dataset.export.json.NiaAnnotationDoc;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.FrameContext;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -71,21 +73,20 @@ public class DatasetExportWriter {
      * @return 산출 집계({@link ExportResult})
      * @throws CustomException 입력 검증 실패(INVALID_INPUT), 경로 이탈(FORBIDDEN), 파일 IO 실패(INTERNAL_ERROR)
      */
-    public ExportResult write(long rawSn, ExportKind kind, int version,
+    public ExportResult write(long rawSn, String rawFilePathNm, ExportKind kind, int version,
                               VideoExportContext ctx, List<FrameContext> frames) {
         if (ctx == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "영상 컨텍스트가 null 입니다.");
         }
 
-        // CWE-22: 산출 디렉토리는 Phase 1 리졸버(base 하위 검증)로만 계산.
-        Path dir = pathResolver.resolve(rawSn, kind, version);
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException e) {
-            log.error("[DatasetExport] createDirectories failed rawSn={} kind={} version={}",
-                    rawSn, kind, version);
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "산출 디렉토리 생성에 실패했습니다.", e);
-        }
+        // CWE-22: 산출 디렉토리는 리졸버(고정 allowlist → 검증된 base 기준 target 재검증)로만 계산.
+        Path dir = pathResolver.resolve(rawSn, rawFilePathNm, kind, version);
+        createExportDir(dir, rawSn, kind, version);
+        // B-3(TOCTOU, CWE-367/59) — 검증~생성 사이에 경로가 심링크로 바꿔치기됐을 수 있다. 프레임 쓰기
+        // 직전에 base 를 <다시 계산>(=allowlist·실경로 재검증)하고, 방금 만든 디렉터리의 실경로가 여전히
+        // 그 하위인지 1회 재확인한다. 위반 시 폴백 없이 FORBIDDEN 으로 종결한다.
+        VideoArtifactRootResolver.verifyRealPathUnder(
+                dir, pathResolver.resolve(rawSn, rawFilePathNm, kind, version));
 
         int written = 0;
         int skipped = 0;
@@ -118,6 +119,38 @@ public class DatasetExportWriter {
     }
 
     /**
+     * 산출 디렉터리 생성 — co-locate 구조에서 새로 생기는 실패 모드를 명시적으로 종결한다.
+     *
+     * <ul>
+     *   <li><b>S3</b> — 경로가 <b>일반 파일</b>로 이미 존재하면 {@code createDirectories} 가 매번 실패해
+     *       재시도 잡이 무한 반복한다. 선체크 후 즉시 명시적 실패로 끊는다(로그는 rawSn 만).</li>
+     *   <li><b>S4</b> — 같은 부모 디렉터리를 공유하는 파생영상들이 동시에 승인되면 mkdir 경합이 난다.
+     *       {@link FileAlreadyExistsException} 은 결과가 디렉터리이기만 하면 <b>정상</b>으로 처리한다.</li>
+     * </ul>
+     */
+    private static void createExportDir(Path dir, long rawSn, ExportKind kind, int version) {
+        if (Files.exists(dir) && !Files.isDirectory(dir)) {
+            log.error("[DatasetExport] export dir occupied by regular file rawSn={} kind={} version={}",
+                    rawSn, kind, version);
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "산출 디렉토리 생성에 실패했습니다.");
+        }
+        try {
+            Files.createDirectories(dir);
+        } catch (FileAlreadyExistsException e) {
+            // S4 — 동시 생성 경합. 최종 상태가 디렉터리면 성공으로 간주한다.
+            if (!Files.isDirectory(dir)) {
+                log.error("[DatasetExport] createDirectories conflicted rawSn={} kind={} version={}",
+                        rawSn, kind, version);
+                throw new CustomException(ErrorCode.INTERNAL_ERROR, "산출 디렉토리 생성에 실패했습니다.", e);
+            }
+        } catch (IOException e) {
+            log.error("[DatasetExport] createDirectories failed rawSn={} kind={} version={}",
+                    rawSn, kind, version);
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "산출 디렉토리 생성에 실패했습니다.", e);
+        }
+    }
+
+    /**
      * 한 프레임의 이미지 복사 + JSON(원자적 교체) 기록. 경로는 모두 {@code dir} 하위.
      *
      * <p><b>파일명은 {@link ExportFileNaming} 단일 지점을 따른다(A-3)</b> — 관제 수정 통지의
@@ -128,10 +161,14 @@ public class DatasetExportWriter {
     private void writeFrame(Path dir, long frameNo, Path image, NiaAnnotationDoc doc,
                             long rawSn, ExportKind kind) {
         Path imageTarget = dir.resolve(ExportFileNaming.imageFileName(frameNo));
+        Path imageTmp = dir.resolve(ExportFileNaming.imageFileName(frameNo) + ".tmp");
         Path jsonTarget = dir.resolve(ExportFileNaming.jsonFileName(frameNo));
         Path jsonTmp = dir.resolve(ExportFileNaming.jsonFileName(frameNo) + ".tmp");
         try {
-            Files.copy(image, imageTarget, StandardCopyOption.REPLACE_EXISTING);
+            // S14 — NAS 순단으로 부분 기록된 이미지가 남지 않도록 tmp 기록 후 원자 교체한다.
+            //  재시도는 skip 이 아니라 항상 덮어쓴다(REPLACE_EXISTING) — 멱등 재작성.
+            Files.copy(image, imageTmp, StandardCopyOption.REPLACE_EXISTING);
+            moveAtomic(imageTmp, imageTarget);
             // 원자적 쓰기: tmp 기록 후 교체(부분쓰기 방지).
             // 산출 JSON 은 사람이 읽는 학습데이터 파일이므로 pretty(들여쓰기)로 저장한다.
             // writerWithDefaultPrettyPrinter() 는 호출 시점에만 파생되는 ObjectWriter 라
@@ -139,6 +176,7 @@ public class DatasetExportWriter {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(jsonTmp.toFile(), doc);
             moveAtomic(jsonTmp, jsonTarget);
         } catch (IOException e) {
+            cleanupQuietly(imageTmp);
             cleanupQuietly(jsonTmp);
             log.error("[DatasetExport] frame write failed rawSn={} kind={} frameNo={}", rawSn, kind, frameNo);
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "프레임 파일 기록에 실패했습니다.", e);

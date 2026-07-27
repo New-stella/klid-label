@@ -240,22 +240,32 @@ def _is_within(path: Path, base: Path) -> bool:
 def resolve_output_dir(export_path: str, output_base: str = "") -> Optional[Path]:
     """export_path 를 정규화하고 output_base 하위인지 검증한다(CWE-22 심층 방어).
 
+    ``output_base`` 는 **콤마 구분 다중 base** 를 허용한다 — BE 의 co-locate 산출(Phase 5A)에서
+    비식별 export_path 가 ``dirname(원본)/{rawSn}/deid/`` 라, 원본이 놓인 마운트 루트와 비식별
+    저장소를 모두 허용해야 목이 산출물을 쓸 수 있다. BE 의 ``STORAGE_RAW_MOUNT_ROOTS`` 와
+    **같은 값**으로 맞추는 것이 규약이다.
+
     **fail-closed**: output_base 가 비어있으면 임의 절대경로 쓰기를 막기 위해 None 을
-    반환한다(HIGH-1). base 가 설정된 경우에만, resolve 후 그 base 하위인 export_path 만 허용.
+    반환한다(HIGH-1). base 가 설정된 경우에만, resolve 후 그 base 중 하나의 하위인 export_path 만 허용.
 
     Returns:
-        정규화된 출력 디렉터리 Path. base 미설정/정규화 실패/base 밖이면 None.
+        정규화된 출력 디렉터리 Path. base 미설정/정규화 실패/모든 base 밖이면 None.
     """
-    if not output_base:
+    bases = [b.strip() for b in output_base.split(",") if b.strip()]
+    if not bases:
         return None
     try:
         export_resolved = Path(export_path).resolve()
-        base_resolved = Path(output_base).resolve()
     except (OSError, ValueError):
         return None
-    if not _is_within(export_resolved, base_resolved):
-        return None
-    return export_resolved
+    for base in bases:
+        try:
+            base_resolved = Path(base).resolve()
+        except (OSError, ValueError):
+            continue
+        if _is_within(export_resolved, base_resolved):
+            return export_resolved
+    return None
 
 
 def _safe_source_path(input_path: str, base_name: str) -> Optional[Path]:
@@ -366,7 +376,7 @@ def write_deid_outputs(
         if not _base_unset_warned:
             logger.warning(
                 "[MOCK][KPST] MOCK_OUTPUT_BASE 미설정 — 더미 비식별 출력 파일 미생성"
-                "(fail-closed). e2e 시 STORAGE_DEIDENTIFIED_PATH 로 설정하세요."
+                "(fail-closed). e2e 시 BE 의 STORAGE_RAW_MOUNT_ROOTS 와 같은 값(콤마 구분)으로 설정하세요."
             )
             _base_unset_warned = True
         return written

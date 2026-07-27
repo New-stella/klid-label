@@ -143,6 +143,10 @@ public class NiaJsonBuilder {
         // 여기만 구 규칙(frame-{n}.jpg)을 쓰면 같은 폴더에 실재하지 않는 파일을 JSON 이 가리키게 된다.
         // (frame_num 은 별개 개념 — 추출 순번 기반 파일명과 달리 영상 내 위치를 뜻하므로 여기서 바꾸지 않는다)
         String fileName = (frameNo == null) ? null : ExportFileNaming.imageFileName(frameNo);
+        // A-6 — frame_num 은 <b>실제 영상 내 프레임 위치</b>(VDO_FRM_NO)다. 구 구현은 추출 순번(FRM_NO)을
+        // 실어 "0002.json 의 frame_num=2" 처럼 파일명과 동어반복이 되어 영상 내 위치 정보를 잃었다.
+        // 미측정(null)이면 <b>null 그대로</b> 내보낸다 — FRM_NO 폴백은 의미가 다른 값을 위치로 위장시킨다.
+        Long videoFrameNo = src.getVideoFrameNo();
         // ★#1 — anonymity 는 산출 종류(ExportKind)로만 결정한다. 프레임 수동 anonymity 값(라벨러 판단 기록)이
         // 이를 덮으면 원본 산출물이 "익명화됨(Y)"으로 오표기되어 개인정보 오표기(CWE-359) 결함이 된다.
         // 따라서 anonymity 는 수동 override 금지 — 원본=N/비식별=Y 파생을 그대로 유지한다.
@@ -163,7 +167,7 @@ public class NiaJsonBuilder {
                 null, // license_id (미보유)
                 ctx.videoId(),
                 null, // type (미보유)
-                frameNo == null ? null : frameNo.intValue(),
+                videoFrameNo == null ? null : videoFrameNo.intValue(),
                 anonymity,
                 pseudonymity,
                 privacyIncluded,

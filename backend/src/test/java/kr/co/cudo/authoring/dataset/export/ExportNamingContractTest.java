@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.dataset.export;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.controlnotify.dto.TaskModifiedPayload;
 import kr.co.cudo.authoring.controlnotify.service.ControlNotifyPayloadFactory;
@@ -99,12 +100,12 @@ class ExportNamingContractTest {
         Path image = Files.writeString(srcDir.resolve("s.jpg"), "img");
         when(frameSource.resolveImage(anyLong(), any(), any())).thenReturn(Optional.of(image));
         DatasetExportWriter writer = new DatasetExportWriter(
-                new DatasetExportPathResolver(labelingRoot.toString()),
+                new DatasetExportPathResolver(ArtifactRootTestSupport.labelingRoot(labelingRoot)),
                 frameSource, niaJsonBuilder, objectMapper);
 
         // when — ① 관제 통지 페이로드 ② 실제 export 산출
         TaskModifiedPayload payload = payloadFactory.buildModifiedForAllFrames(RAW_SN);
-        ExportResult result = writer.write(RAW_SN, ExportKind.ORIGINAL, 1,
+        ExportResult result = writer.write(RAW_SN, null, ExportKind.ORIGINAL, 1,
                 context(niaJsonBuilder), frameNos.stream().map(this::frameCtx).toList());
 
         // then — ① 통지가 알린 모든 파일명이 산출 디렉토리에 실재해야 한다.

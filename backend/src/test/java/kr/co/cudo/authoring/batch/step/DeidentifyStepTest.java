@@ -105,8 +105,9 @@ class DeidentifyStepTest {
         // evictor 는 <b>필수 주입</b>이라 null 을 넣지 않는다(프로덕션 fail-open 을 테스트 편의로 남기지 않음).
         DeidentifyStep s = new DeidentifyStep(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, kpstService, env,
-                batchTransitionService, null, new StreamMetaCacheEvictor(newRealCacheManager()));
-        setField(s, "deidPath", baseDeid.toString());
+                batchTransitionService, null, new StreamMetaCacheEvictor(newRealCacheManager()),
+                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.labelingRoot(
+                        baseDeid.resolveSibling("labeling"), baseDeid));
         setField(s, "kpstEnabled", kpstEnabled);
         setField(s, "mockMode", mockMode);
         invoke(s, "initBasePath");
@@ -324,8 +325,9 @@ class DeidentifyStepTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         DeidentifyStep mockStep = new DeidentifyStep(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, null, environment,
-                batchTransitionService, null, new StreamMetaCacheEvictor(realCacheManager));
-        setField(mockStep, "deidPath", baseDeid.toString());
+                batchTransitionService, null, new StreamMetaCacheEvictor(realCacheManager),
+                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.labelingRoot(
+                        baseDeid.resolveSibling("labeling"), baseDeid));
         setField(mockStep, "kpstEnabled", false);
         setField(mockStep, "mockMode", true);
         invoke(mockStep, "initBasePath");
@@ -360,8 +362,9 @@ class DeidentifyStepTest {
     private DeidentifyStep newMockStepWith(Environment env) {
         DeidentifyStep s = new DeidentifyStep(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, null, env,
-                batchTransitionService, null, new StreamMetaCacheEvictor(newRealCacheManager()));
-        setField(s, "deidPath", baseDeid.toString());
+                batchTransitionService, null, new StreamMetaCacheEvictor(newRealCacheManager()),
+                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.labelingRoot(
+                        baseDeid.resolveSibling("labeling"), baseDeid));
         setField(s, "kpstEnabled", false);
         setField(s, "mockMode", true);
         return s;

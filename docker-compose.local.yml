@@ -83,8 +83,12 @@ services:
     container_name: klid-mock-server
     restart: unless-stopped
     environment:
-      # 비식별 더미 출력 파일 생성 base(=BE STORAGE_DEIDENTIFIED_PATH). 미설정이면 파일 미생성(fail-closed).
-      MOCK_OUTPUT_BASE: /app/storage/deidentified
+      # 비식별 더미 출력 파일 생성 허용 base(콤마 구분). 미설정이면 파일 미생성(fail-closed).
+      #   ★ BE 의 STORAGE_RAW_MOUNT_ROOTS 와 <한 세트>여야 한다 — Phase 5A(co-locate) 이후 BE 가 넘기는
+      #     export_path 는 {dirname(원본)}/{rawSn}/deid/ 라 원본이 있는 /app/storage/raw 하위다.
+      #     구 값(/app/storage/deidentified 단독)이면 목이 base 밖으로 판정해 더미를 만들지 않고,
+      #     BE 는 산출물 부재로 비식별을 영구 실패시킨다(isUsableDeidFile=false → failPolling).
+      MOCK_OUTPUT_BASE: ${STORAGE_RAW_MOUNT_ROOTS:-/app/storage/raw,/app/storage/deidentified}
     volumes:
       # BE 와 동일 공유 볼륨·동일 경로 → BE 가 넘긴 절대경로(export_path/input_path)를 그대로 읽고 씀.
       - klid-storage:/app/storage

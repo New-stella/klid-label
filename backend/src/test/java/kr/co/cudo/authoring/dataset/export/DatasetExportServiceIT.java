@@ -95,6 +95,15 @@ class DatasetExportServiceIT {
         writeDummyImage(deidStoragePath, DEID_FRAME_IMAGE_REL_PATH);
     }
 
+    /**
+     * 원본 영상의 절대경로 — Phase 5A co-locate 산출 base({@code dirname(원본)}) 의 원천이다.
+     * 허용 마운트 루트(raw-path) 하위여야 산출이 허용된다(밖이면 폴백 없이 FAILED).
+     */
+    private String originalVideoPath() {
+        return Paths.get(rawStoragePath).toAbsolutePath().normalize()
+                .resolve("videos").resolve("clip.mp4").toString();
+    }
+
     private void writeDummyImage(String basePath, String relPath) throws IOException {
         Path target = Paths.get(basePath).toAbsolutePath().normalize().resolve(relPath);
         Files.createDirectories(target.getParent());
@@ -108,7 +117,7 @@ class DatasetExportServiceIT {
         return txTemplate.execute(s -> {
             LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(
                     "clip-" + System.nanoTime(), "cctv-1", "EVT", "GOV",
-                    LsDataRaw.PRVC_TYPE_PRVC, "raw/path.mp4", null, 60));
+                    LsDataRaw.PRVC_TYPE_PRVC, originalVideoPath(), null, 60));
             Long rawSn = raw.getRawSn();
             videoMetaRepository.save(LsDatasetVideoMeta.builder()
                     .rawSn(rawSn)
@@ -116,7 +125,7 @@ class DatasetExportServiceIT {
                     .activeYn(LsDatasetVideoMeta.ACTIVE_YES)
                     .vdoWdth(1920)
                     .vdoHgt(1080)
-                    .rawFilePathNm("raw/path.mp4")
+                    .rawFilePathNm(originalVideoPath())
                     .regDt(LocalDateTime.now())
                     .build());
             LsDataSrc frame = LsDataSrc.create(rawSn, 0, FRAME_IMAGE_REL_PATH, LocalDateTime.now());
@@ -158,7 +167,7 @@ class DatasetExportServiceIT {
                     .prvcTypeCd(prvcTypeCd)
                     .vdoWdth(1920)
                     .vdoHgt(1080)
-                    .rawFilePathNm("raw/path.mp4")
+                    .rawFilePathNm(originalVideoPath())
                     .regDt(LocalDateTime.now())
                     .build());
         });

@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -68,6 +69,11 @@ import static org.mockito.Mockito.doAnswer;
  */
 @SpringBootTest
 @ActiveProfiles("local")
+// B-2 — 증강 콜백의 raw_file_path_nm 은 적재 시점에 고정 allowlist(마운트 루트) 하위인지 검증된다.
+//   이 IT 의 픽스처 경로(/storage/augment/*.mp4)가 통과하도록 마운트 루트를 명시한다.
+@TestPropertySource(properties = {
+        "authoring.storage.raw-mount-roots=/storage"
+})
 class AugmentDeidentConcurrencyIT {
 
     @Autowired private AugmentResultService service;

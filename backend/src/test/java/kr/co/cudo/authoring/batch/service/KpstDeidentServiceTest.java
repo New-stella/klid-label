@@ -62,8 +62,12 @@ class KpstDeidentServiceTest {
         procLogRepository = mock(LsDeidentProcLogRepository.class);
         txService = mock(KpstDeidentTxService.class);
 
-        service = new KpstDeidentService(kpstClient, videoRepository, procLogRepository, txService);
         baseDeid = tmp.resolve("deid");
+        // 기존 케이스는 구 위치({deid_base}/videos/{rawSn}/) 계약을 검증하므로 롤백 전략 리졸버를 주입한다.
+        // co-locate 신 위치(export_path) 검증은 별도 케이스에서 수행한다.
+        service = new KpstDeidentService(kpstClient, videoRepository, procLogRepository, txService,
+                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.labelingRoot(
+                        tmp.resolve("labeling"), baseDeid));
         setField(service, "deidPath", baseDeid.toString());
         setField(service, "creatorId", "authoring");
         setField(service, "reqUserId", "authoring");
@@ -308,6 +312,120 @@ class KpstDeidentServiceTest {
         // then — 위탁 정상 진행.
         assertThat(procLog.getKpstPrjId()).isEqualTo(101L);
         assertThat(baseDeid.resolve("videos").resolve("9001")).exists();
+    }
+
+    // ─────────────── co-locate(Phase 5A) — export_path 신 위치 + 원본 불변 ───────────────
+
+    /**
+     * co-locate 전략 인스턴스 — 산출 base 가 {@code dirname(원본)/{rawSn}/deid/} 로 도출된다.
+     * 허용 마운트 루트는 {@code tmp}(원본 {@code tmp/clip.mp4} 의 상위).
+     */
+    private KpstDeidentService coLocateService() {
+        KpstDeidentService s = new KpstDeidentService(kpstClient, videoRepository, procLogRepository, txService,
+                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.coLocate(
+                        tmp, tmp.resolve("raw"), baseDeid));
+        setField(s, "deidPath", baseDeid.toString());
+        setField(s, "creatorId", "authoring");
+        setField(s, "reqUserId", "authoring");
+        setField(s, "pollMaxAttempts", 3);
+        setField(s, "pollTimeoutMinutes", 60L);
+        invoke(s, "initBasePath");
+        return s;
+    }
+
+    /** co-locate 비식별 영상 디렉터리 — {@code dirname(원본)/{rawSn}/deid/}. */
+    private Path coLocateDeidDir() {
+        return tmp.resolve("9001").resolve("deid");
+    }
+
+    @Test
+    @DisplayName("co_locate_submit_export_path는_원본디렉터리_하위_rawSn_deid_이고_사전생성된다")
+    void submitExportPathIsColocatedDeidDir() {
+        // given
+        LsDataRaw raw = newRaw();
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(new KpstProjectResponse("success", 101L));
+
+        // when
+        coLocateService().submit(raw);
+
+        // then — export_path = {dirname(원본)}/{rawSn}/deid/ (KPST 가 이 디렉터리에 직접 WRITE)
+        ArgumentCaptor<KpstProjectRequest> captor = ArgumentCaptor.forClass(KpstProjectRequest.class);
+        verify(kpstClient).createProject(captor.capture());
+        assertThat(captor.getValue().exportPath()).isEqualTo(coLocateDeidDir() + "/");
+        assertThat(coLocateDeidDir()).exists();
+        // 파일명은 지정하지 않는다 — KPST 소관({원본stem}-mask{ext}).
+        assertThat(captor.getValue().exportPath()).doesNotContain("mask");
+    }
+
+    @Test
+    @DisplayName("S5_co_locate_export정리가_형제_원본영상_파일을_삭제하지_않는다")
+    void colocateCleanupNeverTouchesOriginalVideo() throws Exception {
+        // given — 원본 영상과 산출 디렉터리가 같은 부모를 공유한다(co-locate). 재위탁 정리가 돌아도
+        //         정리 대상은 {rawSn}/deid/ 안의 정규 파일뿐이어야 한다.
+        LsDataRaw raw = newRaw();
+        Path original = Path.of(raw.getRawFilePathNm());
+        String originalContent = java.nio.file.Files.readString(original);
+        Path sibling = tmp.resolve("other-clip.mp4");
+        java.nio.file.Files.writeString(sibling, "SIBLING");
+        java.nio.file.Files.createDirectories(coLocateDeidDir());
+        java.nio.file.Files.writeString(coLocateDeidDir().resolve("clip-mask.mp4"), "OLD");
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(new KpstProjectResponse("success", 101L));
+
+        // when — REDEIDENT 재위탁(정리 수행)
+        coLocateService().submit(raw, true);
+
+        // then — 원본/형제 원본은 존재도 내용도 불변, 산출 디렉터리만 비워진다.
+        assertThat(original).exists();
+        assertThat(java.nio.file.Files.readString(original)).isEqualTo(originalContent);
+        assertThat(sibling).exists();
+        assertThat(java.nio.file.Files.readString(sibling)).isEqualTo("SIBLING");
+        try (java.util.stream.Stream<Path> s = java.nio.file.Files.list(coLocateDeidDir())) {
+            assertThat(s).isEmpty();
+        }
+    }
+
+    @Test
+    @DisplayName("co_locate_회수는_stem_mask_산출물을_신위치에서_찾는다")
+    void completionRecoversMaskFileFromColocateDir() throws Exception {
+        // given — 위탁 시 기록된 원본 경로(procLog.orgnlFilePathNm)로 신 위치를 도출한다.
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(
+                9001L, null, tmp.resolve("clip.mp4").toString(), "batch");
+        setField(procLog, "procLogSn", 1L);
+        procLog.markKpstSubmitted(101L, null);
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(2, 202L));   // fileName "clip.mp4"
+        java.nio.file.Files.createDirectories(coLocateDeidDir());
+        Path masked = coLocateDeidDir().resolve("clip-mask.mp4");
+        java.nio.file.Files.writeString(masked, "MASKED");
+
+        // when
+        coLocateService().pollOne(procLog);
+
+        // then — 신 위치의 {stem}-mask{ext} 절대경로가 DE_IDNTF_FILE_PATH_NM 으로 적재된다.
+        verify(txService).finishDownloadAndComplete(
+                eq(9001L), eq(1L), eq(202L), eq(masked.toString()));
+    }
+
+    @Test
+    @DisplayName("co_locate_전환후에도_구위치에_남은_배포전_산출물을_회수한다")
+    void completionFallsBackToLegacyDirAfterSwitch() throws Exception {
+        // given — 전환 전 위탁분: 결과가 구 위치({base}/videos/{rawSn}/)에 있다. 신 위치는 비어 있다.
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(
+                9001L, null, tmp.resolve("clip.mp4").toString(), "batch");
+        setField(procLog, "procLogSn", 1L);
+        procLog.markKpstSubmitted(101L, null);
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(2, 202L));
+        writeDeidResult("clip-mask.mp4", "MASKED");
+
+        // when
+        coLocateService().pollOne(procLog);
+
+        // then — 구 위치 산출물로 정상 완료(전환 경계에서 유실 없음).
+        verify(txService).finishDownloadAndComplete(
+                eq(9001L), eq(1L), eq(202L), eq(deidPathFor("clip-mask.mp4").toString()));
     }
 
     @Test

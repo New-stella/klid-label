@@ -64,8 +64,11 @@ class ResolutionSnapshotServiceTest {
 
     @BeforeEach
     void setup() {
+        // 기존 케이스는 구 위치(비식별 저장소 서브트리) 기준이라 롤백 전략 리졸버를 주입한다.
+        // co-locate 신 위치 수용은 별도 케이스에서 검증한다.
         service = new ResolutionSnapshotService(videoRepository, srcRepository,
-                deidentProcLogRepository, augRepository, imageResizer);
+                deidentProcLogRepository, augRepository, imageResizer,
+                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.labelingRoot(base, base));
         ReflectionTestUtils.setField(service, "storageRawPath", base.toString());
         // 기본은 raw==deid(단일 tempdir)로 두어 기존 케이스 유지. deid 분리 케이스는 개별 테스트에서 재설정.
         ReflectionTestUtils.setField(service, "storageDeidentifiedPath", base.toString());

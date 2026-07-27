@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.dataset.export.json.NiaAnnotationDoc;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder;
@@ -51,7 +52,7 @@ class DatasetExportWriterTest {
 
     @BeforeEach
     void setUp() {
-        resolver = new DatasetExportPathResolver(labelingRoot.toString());
+        resolver = new DatasetExportPathResolver(ArtifactRootTestSupport.labelingRoot(labelingRoot));
         frameSource = mock(FrameSource.class);
         niaJsonBuilder = mock(NiaJsonBuilder.class);
         writer = new DatasetExportWriter(resolver, frameSource, niaJsonBuilder, objectMapper);
@@ -87,7 +88,7 @@ class DatasetExportWriterTest {
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());
 
         // when
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0), frameCtx(1)));
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0), frameCtx(1)));
 
         // then — ExportFileNaming 규칙({FRM_NO 4자리}.jpg/.json) 페어 2쌍, 집계 2/0 (A-3: 통지 파일명과 동일 규칙)
         Path dir = result.dir();
@@ -109,7 +110,7 @@ class DatasetExportWriterTest {
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());
 
         // when
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0), frameCtx(1)));
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0), frameCtx(1)));
 
         // then — 1건 기록, 1건 skip(부분성공). frameNo=1 산출물 없음
         assertThat(result.writtenCnt()).isEqualTo(1);
@@ -127,8 +128,8 @@ class DatasetExportWriterTest {
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());
 
         // when
-        ExportResult orgnl = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
-        ExportResult deid = writer.write(7L, ExportKind.DEIDENTIFIED, 1, ctx, List.of(frameCtx(0)));
+        ExportResult orgnl = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
+        ExportResult deid = writer.write(7L, null, ExportKind.DEIDENTIFIED, 1, ctx, List.of(frameCtx(0)));
 
         // then — 마지막 세그먼트가 orgnl / deid 로 상이하고 각각 산출물 존재
         assertThat(orgnl.dir().getFileName().toString()).isEqualTo("orgnl");
@@ -148,7 +149,7 @@ class DatasetExportWriterTest {
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(doc);
 
         // when
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
         // then — 파일을 다시 파싱해 9키 유효(event 포함) + 직렬화 바이트가 빌더 결과와 동일
         //         (pretty 저장이므로 동일 pretty writer 로 직렬화한 바이트와 비교 — 값·스키마 불변, 포맷만 pretty)
@@ -170,7 +171,7 @@ class DatasetExportWriterTest {
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());
 
         // when
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
         // then — 파일 내용이 compact 한 줄이 아니라 개행+들여쓰기(pretty)로 저장된다.
         String content = Files.readString(result.dir().resolve("0000.json"));
@@ -192,8 +193,8 @@ class DatasetExportWriterTest {
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());
 
         // when
-        writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
+        writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
         // then — REPLACE_EXISTING 으로 두 번째 내용이 남는다
         assertThat(Files.readString(result.dir().resolve("0000.jpg"))).isEqualTo("second-content");
@@ -204,12 +205,12 @@ class DatasetExportWriterTest {
     @DisplayName("경로순회_videoId_주입은_거부된다")
     void rejectsNonPositiveRawSn() {
         // when / then — 리졸버 CWE-20/22 가드 전파(음수/0 videoId)
-        assertThatThrownBy(() -> writer.write(0L, ExportKind.ORIGINAL, 1, ctx, List.of()))
+        assertThatThrownBy(() -> writer.write(0L, null, ExportKind.ORIGINAL, 1, ctx, List.of()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        assertThatThrownBy(() -> writer.write(-9L, ExportKind.ORIGINAL, 1, ctx, List.of()))
+        assertThatThrownBy(() -> writer.write(-9L, null, ExportKind.ORIGINAL, 1, ctx, List.of()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -224,7 +225,7 @@ class DatasetExportWriterTest {
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());
 
         // when
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
         // then — 최종 json 은 있고 .tmp 잔여물은 남지 않는다(부분쓰기 방지)
         assertThat(result.dir().resolve("0000.json")).exists();
@@ -237,7 +238,7 @@ class DatasetExportWriterTest {
     @DisplayName("ctx가_null이면_INVALID_INPUT")
     void rejectsNullContext() {
         // when / then — 영상 컨텍스트 null 은 입력 검증 실패
-        assertThatThrownBy(() -> writer.write(7L, ExportKind.ORIGINAL, 1, null, List.of()))
+        assertThatThrownBy(() -> writer.write(7L, null, ExportKind.ORIGINAL, 1, null, List.of()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -250,7 +251,7 @@ class DatasetExportWriterTest {
         Files.writeString(labelingRoot.resolve("7"), "occupied-as-file");
 
         // when / then — IOException 이 INTERNAL_ERROR 로 래핑되어 전파(원문 미노출)
-        assertThatThrownBy(() -> writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of()))
+        assertThatThrownBy(() -> writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of()))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INTERNAL_ERROR);
@@ -261,14 +262,14 @@ class DatasetExportWriterTest {
     void wrapsFrameWriteFailureWithoutTmpResidue() throws IOException {
         // given — 산출 디렉토리를 미리 만들고 imageTarget(0000.jpg)을 비어있지 않은 디렉토리로 선점
         //         → Files.copy 가 DirectoryNotEmptyException(IOException) 을 던지도록 유도
-        Path dir = resolver.resolve(7L, ExportKind.ORIGINAL, 1);
+        Path dir = resolver.resolve(7L, null, ExportKind.ORIGINAL, 1);
         Files.createDirectories(dir.resolve("0000.jpg").resolve("child"));
         Path img = srcImage("s.jpg", "img");
         when(frameSource.resolveImage(anyLong(), any(), any())).thenReturn(Optional.of(img));
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());
 
         // when / then — IO 오류가 INTERNAL_ERROR 로 래핑
-        assertThatThrownBy(() -> writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0))))
+        assertThatThrownBy(() -> writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0))))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INTERNAL_ERROR);
@@ -283,7 +284,7 @@ class DatasetExportWriterTest {
     @DisplayName("frameCtx가_null이면_skip")
     void skipsNullFrameContext() {
         // when — 프레임 컨텍스트 null 요소
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, singletonListOfNull());
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, singletonListOfNull());
 
         // then — resolveImage 미호출, skip 집계
         assertThat(result.writtenCnt()).isZero();
@@ -298,7 +299,7 @@ class DatasetExportWriterTest {
         FrameContext nullFrame = new FrameContext(null, List.of());
 
         // when
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(nullFrame));
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(nullFrame));
 
         // then
         assertThat(result.writtenCnt()).isZero();
@@ -315,7 +316,7 @@ class DatasetExportWriterTest {
         FrameContext frameCtx = new FrameContext(noFrameNo, List.of());
 
         // when
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx));
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx));
 
         // then — frameNo null 가드로 skip, resolveImage 미호출
         assertThat(result.writtenCnt()).isZero();
@@ -327,7 +328,7 @@ class DatasetExportWriterTest {
     @DisplayName("frames가_null이면_writtenCnt0")
     void handlesNullFrames() {
         // when — frames 리스트 자체가 null
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, null);
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, null);
 
         // then — 아무것도 쓰지 않고 정상 종료
         assertThat(result.writtenCnt()).isZero();
@@ -338,7 +339,7 @@ class DatasetExportWriterTest {
     @DisplayName("frames가_빈리스트면_writtenCnt0")
     void handlesEmptyFrames() {
         // when
-        ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of());
+        ExportResult result = writer.write(7L, null, ExportKind.ORIGINAL, 1, ctx, List.of());
 
         // then
         assertThat(result.writtenCnt()).isZero();

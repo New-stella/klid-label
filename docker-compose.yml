@@ -69,6 +69,16 @@ services:
       AI_SERVER_URL: http://klid-ai-server:9300
       STORAGE_RAW_PATH: /app/storage/raw
       STORAGE_DEIDENTIFIED_PATH: /app/storage/deidentified
+      # ★ co-locate 산출(Phase 5A) 경로 가드용 고정 allowlist — dirname(RAW_FILE_PATH_NM) 이 이 목록
+      #   하위여야 산출물(비식별 영상·프레임·JSON)을 쓴다. 위반 시 폴백 없이 실패한다(CWE-22 fail-closed).
+      #   ⚠ 미설정 시 코드가 [raw-path, deidentified-path] 로 폴백하지만, 그 암묵 동작에 기대지 않고
+      #     여기서 명시한다(형상마다 폴백 결과가 갈려 조용히 파이프라인이 멈추는 것을 방지).
+      #   이 스택의 영상 경로는 전부 공유 볼륨 /app/storage 하위다:
+      #     · dev-seed(MNG_CLIP_MASTER.FILE_PATH) = ./storage/raw/seed/*.mp4 → WORKDIR /app 기준 /app/storage/raw/...
+      #     · 포털 업로드 = /app/storage/raw/portal/...
+      #   ⚠ mock-server 의 MOCK_OUTPUT_BASE(docker-compose.local.yml)와 <한 세트>로 맞춰야 한다 —
+      #     비식별 export_path 가 dirname(원본)/{rawSn}/deid/ 라 목이 그 경로에 쓸 수 있어야 한다.
+      STORAGE_RAW_MOUNT_ROOTS: ${STORAGE_RAW_MOUNT_ROOTS:-/app/storage/raw,/app/storage/deidentified}
       # webhook HMAC 시크릿 — 빈 값이면 앱이 기동 실패(fail-closed, E-ISSUE-04)한다.
       #   ★ 기본값 폴백(${VAR:-...}) 금지 — 커밋된 기본값은 "공개된 키로 조용히 기동" 이 되어 누구나
       #     유효 서명을 위조할 수 있다(DEV_FIX H-1, CWE-1392/798). 이 compose 는 dev 배포 형상이기도 하다.

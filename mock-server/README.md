@@ -227,11 +227,14 @@ KPST가 산출한 **비식별 결과 파일**을 실제로 읽어야 진행된�
 | 환경변수 | 기본값 | 설명 |
 |----------|:------:|------|
 | `MOCK_WRITE_OUTPUT_FILES` | `true` | 더미 출력 파일 생성 on/off. `false`면 파일을 만들지 않는다(순수 상태 시뮬레이션). |
-| `MOCK_OUTPUT_BASE` | (빈값) | **쓰기 허용 루트.** 설정 시 `export_path`가 resolve 후 이 base 하위일 때만 파일을 쓴다(경로순회/임의 절대경로 쓰기 차단). **미설정(`''`)이면 fail-closed — 어떤 파일도 생성하지 않는다.** |
+| `MOCK_OUTPUT_BASE` | (빈값) | **쓰기 허용 루트(콤마 구분 다중 허용).** 설정 시 `export_path`가 resolve 후 이 base 중 하나의 하위일 때만 파일을 쓴다(경로순회/임의 절대경로 쓰기 차단). **미설정(`''`)이면 fail-closed — 어떤 파일도 생성하지 않는다.** |
 
 > **실제 파일 생성 조건:** `MOCK_WRITE_OUTPUT_FILES=true` **그리고** `MOCK_OUTPUT_BASE` 설정, **둘 다** 참일
-> 때만. e2e 시 BE의 `STORAGE_DEIDENTIFIED_PATH`와 동일 루트를 `MOCK_OUTPUT_BASE`로 지정한다. 미설정이면
-> 목이 아무 파일도 만들지 않으므로(fail-closed) 파이프라인이 안 열린다 — 반드시 설정할 것.
+> 때만. e2e 시 BE의 **`STORAGE_RAW_MOUNT_ROOTS`와 동일 값**을 `MOCK_OUTPUT_BASE`로 지정한다 —
+> co-locate 산출(Phase 5A) 이후 BE가 넘기는 `export_path`는 `{dirname(원본)}/{rawSn}/deid/`라
+> 비식별 저장소가 아니라 **원본이 놓인 마운트 루트** 하위다(구 `STORAGE_DEIDENTIFIED_PATH` 단독 지정은
+> base 밖 판정 → 더미 미생성 → BE 비식별 영구 실패). 미설정이면 목이 아무 파일도 만들지 않으므로
+> (fail-closed) 파이프라인이 안 열린다 — 반드시 설정할 것.
 
 ### 경로 순회(CWE-22) 방어 + 임의경로 쓰기 차단
 
@@ -246,12 +249,12 @@ KPST가 산출한 **비식별 결과 파일**을 실제로 읽어야 진행된�
 ### Docker 볼륨 마운트 안내 (Critical)
 
 e2e로 우리 BE가 이 더미 파일을 읽으려면, 목 서버가 파일을 쓰는 경로와 BE가 읽는 경로가 **동일한
-실제 위치**를 가리켜야 한다. 목 서버를 Docker로 띄운다면 BE의 `STORAGE_DEIDENTIFIED_PATH`(출력)와
-원본 `input` 경로를 **목 컨테이너에도 동일 경로로 마운트**해야 한다.
+실제 위치**를 가리켜야 한다. 목 서버를 Docker로 띄운다면 BE의 `STORAGE_RAW_MOUNT_ROOTS` 트리(원본 +
+co-locate 산출물)를 **목 컨테이너에도 동일 경로로 마운트**해야 한다.
 
 ```bash
-# 예: BE가 /nas-storage 를 비식별 저장 경로(STORAGE_DEIDENTIFIED_PATH)로 쓰고,
-#     원본 input 이 /nas-storage/videos 하위에 있다고 가정
+# 예: BE의 STORAGE_RAW_MOUNT_ROOTS=/nas-storage 이고, 원본 input 이 /nas-storage/videos 하위라고 가정
+#     (비식별 export_path 는 /nas-storage/videos/{rawSn}/deid/ 처럼 원본과 같은 트리에 놓인다)
 docker run --rm -p 9400:9400 \
   -e MOCK_WRITE_OUTPUT_FILES=true \
   -e MOCK_OUTPUT_BASE=/nas-storage \

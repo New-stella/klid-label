@@ -55,12 +55,15 @@ public class DatasetExportService {
 
     private final DatasetExportTxService txService;
     private final DatasetExportWriter writer;
+    private final DatasetExportPathResolver pathResolver;
     private final DatasetExportMetrics metrics;
 
     public DatasetExportService(DatasetExportTxService txService, DatasetExportWriter writer,
+                                DatasetExportPathResolver pathResolver,
                                 DatasetExportMetrics metrics) {
         this.txService = txService;
         this.writer = writer;
+        this.pathResolver = pathResolver;
         this.metrics = metrics;
     }
 
@@ -107,9 +110,22 @@ public class DatasetExportService {
                 return;
             }
 
+            // A-1/S1/S9 — 산출 base 를 <b>먼저</b> 검증한다. 원본 경로(RAW_FILE_PATH_NM)가 비었거나 허용
+            // 마운트 루트 밖(손상 데이터·호스트 절대경로 등)이면 기본 루트로 조용히 새지 않고(fail-secure)
+            // export 를 FAILED 로 마감한다. 이 흐름은 승인 커밋 이후 @Async 라 승인은 롤백되지 않는다.
+            // RuntimeException 전체를 잡는 이유: NPE/InvalidPath 등이 러너로 새면 PENDING 고착(스윕 대기)이 된다.
+            String videoRoot;
+            try {
+                videoRoot = pathResolver.resolveVideoRoot(rawSn, prep.rawFilePathNm()).toString();
+            } catch (RuntimeException e) {
+                markBaseRejected(rawSn, prep.contentHash(), e);
+                outcome = OUTCOME_FAILED;
+                return;
+            }
+
             // TODO(retention, 후속 Phase): 승인 경로(force=true)는 무수정 재승인도 매번 새 버전 + 프레임 2벌을
             //  누적한다(R6 확정 허용). 구 버전 정리(retention) 잡·보존 정책은 이번 범위 밖 — 별도 Phase 에서 도입.
-            InsertedExport inserted = insertWithRetry(rawSn, prep.contentHash());
+            InsertedExport inserted = insertWithRetry(rawSn, prep.contentHash(), videoRoot);
             if (inserted == null) {
                 log.error("[DatasetExport] version numbering exhausted retries — abort rawSn={}", rawSn);
                 outcome = OUTCOME_VERSION_EXHAUSTED;
@@ -129,12 +145,14 @@ public class DatasetExportService {
                             + "rawSn={} version={} reason=DERIVATIVE_NO_ORIGINAL", rawSn, inserted.version());
                 } else {
                     ExportResult original = writer.write(
-                            rawSn, ExportKind.ORIGINAL, inserted.version(), prep.ctx(), prep.frames());
+                            rawSn, prep.rawFilePathNm(), ExportKind.ORIGINAL, inserted.version(),
+                            prep.ctx(), prep.frames());
                     totalWritten += original.writtenCnt();
                     totalSkipped += original.skippedCnt();
                 }
                 ExportResult deidentified = writer.write(
-                        rawSn, ExportKind.DEIDENTIFIED, inserted.version(), prep.ctx(), prep.frames());
+                        rawSn, prep.rawFilePathNm(), ExportKind.DEIDENTIFIED, inserted.version(),
+                        prep.ctx(), prep.frames());
                 totalWritten += deidentified.writtenCnt();
                 totalSkipped += deidentified.skippedCnt();
                 if (totalWritten == 0) {
@@ -192,14 +210,38 @@ public class DatasetExportService {
     }
 
     /**
+     * 산출 base 거부(S1) — 원본 경로가 없거나 허용 마운트 루트 밖이라 산출 루트를 만들 수 없는 경우,
+     * 흔적 없이 사라지지 않도록 export 레코드를 남기고 즉시 FAILED 로 마감한다(경로는 null).
+     *
+     * <p>승인 트랜잭션은 이미 커밋된 뒤이므로 롤백되지 않는다. 로그·예외 메시지에 경로 원문이나 NAS
+     * 구조를 담지 않는다(CWE-209) — rawSn 과 ErrorCode 만 남긴다.
+     */
+    private void markBaseRejected(long rawSn, String contentHash, RuntimeException cause) {
+        String reason = (cause instanceof kr.co.cudo.authoring.common.exception.CustomException ce)
+                ? String.valueOf(ce.getErrorCode())
+                : cause.getClass().getSimpleName();
+        try {
+            InsertedExport rejected = insertWithRetry(rawSn, contentHash, null);
+            if (rejected != null) {
+                txService.markFailed(rejected.exportSn());
+            }
+        } catch (RuntimeException e) {
+            // 기록 실패도 승인에 영향을 주지 않는다 — 관측만 남긴다.
+            log.error("[DatasetExport] failed to record base rejection rawSn={} errType={}",
+                    rawSn, e.getClass().getSimpleName());
+        }
+        log.error("[DatasetExport] export base rejected — marked FAILED rawSn={} reason={}", rawSn, reason);
+    }
+
+    /**
      * 버전을 {@code count+1} 로 채번해 PENDING 레코드를 INSERT 한다. UK 위반 시 재채번 재시도.
      *
      * @return 예약된 산출 레코드, 재시도 소진 시 null
      */
-    private InsertedExport insertWithRetry(long rawSn, String contentHash) {
+    private InsertedExport insertWithRetry(long rawSn, String contentHash, String exportPathNm) {
         for (int attempt = 1; attempt <= MAX_VERSION_RETRY; attempt++) {
             try {
-                return txService.insertNextVersion(rawSn, contentHash);
+                return txService.insertNextVersion(rawSn, contentHash, exportPathNm);
             } catch (DataIntegrityViolationException e) {
                 // 동시 승인이 같은 버전을 선점 — 재채번(count 재조회) 후 재시도. UK 백스톱.
                 log.warn("[DatasetExport] version UK conflict — retry rawSn={} attempt={}", rawSn, attempt);

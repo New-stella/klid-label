@@ -49,6 +49,7 @@ class DatamartViewSlimIT {
     void cleanup() {
         for (Long rawSn : seededRawSns) {
             jdbc.update("DELETE FROM LS_DATASET_EXPORT WHERE DATA_RAW_SN = ?", rawSn);
+            jdbc.update("DELETE FROM LS_DEIDENT_PROC_LOG WHERE DATA_RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_LBL_HSTRY WHERE SRC_SN IN "
                     + "(SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN = ?)", rawSn);
             jdbc.update("DELETE FROM LS_DATA_META_REVIEW WHERE DATA_RAW_SN = ?", rawSn);
@@ -117,6 +118,17 @@ class DatamartViewSlimIT {
                 srcSn, LocalDateTime.now(), regId, addCnt, mdfcnCnt, delCnt, chgDtlCn);
     }
 
+    /**
+     * LS_DEIDENT_PROC_LOG 1행 — V138 {@code DE_IDNTF_FILE_PATH_NM} 노출 검증용.
+     * 파일명은 외부(mock/KPST)가 정하므로 <b>적재값 그대로</b> 노출되는지 확인한다.
+     */
+    private void seedDeidProcLog(long rawSn, String sttsCd, String deidFilePath, LocalDateTime reqDt) {
+        jdbc.update(
+                "INSERT INTO LS_DEIDENT_PROC_LOG (DATA_RAW_SN, ORGNL_FILE_PATH_NM, DE_IDNTF_FILE_PATH_NM, "
+                        + "PROC_STTS_CD, REQ_DT, REG_DT) VALUES (?, ?, ?, ?, ?, ?)",
+                rawSn, "/nas/raw/" + rawSn + ".mp4", deidFilePath, sttsCd, reqDt, LocalDateTime.now());
+    }
+
     private void seedMeta(long rawSn, String key, String value, String rvwStts) {
         Long metaSn = jdbc.queryForObject(
                 "INSERT INTO LS_DATA_META (RAW_SN, META_KEY, META_VL, REG_DT) VALUES (?, ?, ?, ?) "
@@ -177,6 +189,84 @@ class DatamartViewSlimIT {
         // then — LEFT JOIN 보존: 영상은 노출되고 export 두 값은 null
         assertThat(row.get("export_path_nm")).isNull();
         assertThat(row.get("frame_cnt")).isNull();
+    }
+
+    @Test
+    @DisplayName("V138_V_COMPLETED_VIDEO가_비식별영상경로를_적재값_그대로_노출한다 — KPST명 조합 금지")
+    void completedVideo_exposesDeidVideoPathAsStored() {
+        // given — KPST 실연동 산출명({원본stem}-mask{ext}) 은 영상마다 다르다. 뷰는 이 값을 가공 없이 실어야 한다.
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        String kpstPath = "/nas/raw/" + rawSn + "/deid/" + rawSn + "-mask.mp4";
+        seedDeidProcLog(rawSn, "SUCCEEDED", kpstPath, LocalDateTime.now());
+
+        // when
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+
+        // then — 적재된 절대경로 원문 그대로(치환·조합 없음)
+        assertThat(row.get("de_idntf_file_path_nm")).isEqualTo(kpstPath);
+    }
+
+    @Test
+    @DisplayName("V138_mock명과_KPST명이_섞여도_각_영상의_적재값이_그대로_나온다")
+    void completedVideo_deidPathHandlesMixedNamingConventions() {
+        // given — 같은 데이터마트에 mock 산출(고정명)과 KPST 산출(파생명)이 공존
+        long mockSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(mockSn);
+        String mockPath = "/nas/raw/" + mockSn + "/deid/deidentified.mp4";
+        seedDeidProcLog(mockSn, "SUCCEEDED", mockPath, LocalDateTime.now());
+
+        long kpstSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(kpstSn);
+        String kpstPath = "/nas/raw/" + kpstSn + "/deid/clip-" + kpstSn + "-mask.mp4";
+        seedDeidProcLog(kpstSn, "SUCCEEDED", kpstPath, LocalDateTime.now());
+
+        // when / then — 각 행이 자기 적재값을 그대로 노출한다.
+        assertThat(jdbc.queryForMap(
+                "SELECT DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", mockSn)
+                .get("de_idntf_file_path_nm")).isEqualTo(mockPath);
+        assertThat(jdbc.queryForMap(
+                "SELECT DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", kpstSn)
+                .get("de_idntf_file_path_nm")).isEqualTo(kpstPath);
+    }
+
+    @Test
+    @DisplayName("V138_재비식별로_procLog가_누적돼도_영상당_1row이고_최신_SUCCEEDED가_선택된다")
+    void completedVideo_deidPathPicksLatestSuccessSingleRow() {
+        // given — 실패 1건 + 성공 2건(구/신) + 경로 null 성공 1건이 누적된 재비식별 이력
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        String oldPath = "/nas/deidentified/videos/" + rawSn + "/deidentified.mp4";
+        String newPath = "/nas/raw/" + rawSn + "/deid/clip-mask.mp4";
+        seedDeidProcLog(rawSn, "SUCCEEDED", oldPath, LocalDateTime.now().minusDays(2));
+        seedDeidProcLog(rawSn, "FAILED", null, LocalDateTime.now().minusDays(1));
+        seedDeidProcLog(rawSn, "SUCCEEDED", newPath, LocalDateTime.now());
+
+        // when
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+
+        // then — 행 증식 없음 + 최신 성공분
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("de_idntf_file_path_nm")).isEqualTo(newPath);
+    }
+
+    @Test
+    @DisplayName("V138_비식별_성공이력이_없으면_경로는_null이고_영상행은_보존된다")
+    void completedVideo_deidPathNullWhenNoSuccess() {
+        // given — 성공 procLog 없음(요청/실패만)
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        seedDeidProcLog(rawSn, "FAILED", null, LocalDateTime.now());
+
+        // when
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT RAW_SN, DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+
+        // then — 영상 행은 남고 경로만 null(LEFT JOIN LATERAL 보존)
+        assertThat(((Number) row.get("raw_sn")).longValue()).isEqualTo(rawSn);
+        assertThat(row.get("de_idntf_file_path_nm")).isNull();
     }
 
     @Test

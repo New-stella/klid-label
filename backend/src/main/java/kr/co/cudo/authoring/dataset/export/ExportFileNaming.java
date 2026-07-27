@@ -12,9 +12,13 @@ package kr.co.cudo.authoring.dataset.export;
  * <p>{@code String.format("%04d", frmNo)} — <b>최소</b> 폭 4의 0 패딩이라 10000 이상은 잘리지 않고
  * 자연 확장된다({@code 10000.jpg}). 상한을 코드에 박지 않는다.
  *
- * <p>기준 값은 {@code LS_DATA_SRC.FRM_NO}(추출 순번, <b>0-base</b>)이며
- * {@code VDO_FRM_NO}(실제 영상 내 디코더 프레임 위치)가 아니다 — 두 컬럼은 별개다.
- * export JSON 의 {@code frame_num}·DB 값과 그대로 일치해야 하므로 1-based 로 재해석하지 말 것.
+ * <p><b>파일명 기준 값은 {@code LS_DATA_SRC.FRM_NO}</b>(추출 순번, <b>0-base</b>)다. DB 의 {@code FRM_NO}
+ * 와 그대로 일치해야 하므로 1-based 로 재해석하지 말 것.
+ *
+ * <p><b>export JSON 의 {@code frame_num} 과는 서로 다른 값이다(A-6)</b> — {@code frame_num} 은
+ * {@code VDO_FRM_NO}(실제 영상 내 디코더 프레임 위치)이고, 파일명은 {@code FRM_NO}(추출 순번)이다.
+ * 예: 30프레임 간격으로 뽑은 두 번째 프레임 → 파일명 {@code 0001.jpg}, JSON {@code frame_num=30}.
+ * 관제가 참조하는 계약이므로 "파일명 = frame_num" 으로 되돌리지 말 것(위치 정보가 소실된다).
  *
  * <p><b>이 클래스가 존재하는 이유</b>: 관제 수정 통지({@code changed_items})가 싣는 파일명과 export
  * writer 가 실제로 쓰는 파일명이 어긋나면 관제 워커가 존재하지 않는 파일을 픽업한다. 규칙을 여기 한
