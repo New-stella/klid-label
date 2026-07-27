@@ -78,6 +78,9 @@ class AugmentNotifyIntegrationTest {
         when(authrtRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(any(), any()))
                 .thenReturn(Collections.emptyList());
         when(labelRepository.countLabelsByRawSnIn(any())).thenReturn(Collections.emptyList());
+        // D-ISSUE-04 — 승인 사전 게이트(라벨 0건이면 409). 증강 영상은 원본 라벨을 복사받아 보유하므로
+        // 정상 승인 경로를 재현하려면 라벨 보유 상태여야 한다(게이트 자체는 ReviewApproveLabelGateIT 담당).
+        when(labelRepository.existsAnyByRawSn(any())).thenReturn(true);
         when(videoRepository.findEventInfoByRawSns(any())).thenReturn(Collections.emptyList());
         when(taskEventLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         // commitApproved 는 스냅샷 집계 결과(record)를 반환 — 기본은 스킵 없음(M-2).

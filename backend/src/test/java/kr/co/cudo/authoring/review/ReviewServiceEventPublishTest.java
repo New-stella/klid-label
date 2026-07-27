@@ -80,6 +80,9 @@ class ReviewServiceEventPublishTest {
         when(authrtRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(any(), any()))
                 .thenReturn(Collections.emptyList());
         when(labelRepository.countLabelsByRawSnIn(any())).thenReturn(Collections.emptyList());
+        // D-ISSUE-04 — 승인 사전 게이트(라벨 0건이면 409). 이 테스트들은 정상 승인 경로 검증이므로
+        // 라벨이 있는 영상으로 둔다(게이트 자체는 ReviewApproveLabelGateIT 가 검증).
+        when(labelRepository.existsAnyByRawSn(anyLong())).thenReturn(true);
         when(videoRepository.findEventInfoByRawSns(any())).thenReturn(Collections.emptyList());
         when(taskEventLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         // commitApproved 는 스냅샷 집계 결과(record)를 반환 — 기본은 스킵 없음.

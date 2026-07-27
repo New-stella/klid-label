@@ -7,13 +7,17 @@ import { Radio } from '@/components/common/Radio';
 import { useClaimRole } from '@/features/auth/hooks/useClaimRole';
 import { ApiError } from '@/lib/api/errors';
 
-type ClaimableRole = 'WORKER' | 'REVIEWER';
+/**
+ * 자가 부여 가능한 역할 — BE `RoleClaimService.allowedClaimRoles()` 화이트리스트와 1:1.
+ * REVIEWER(사실상 관리자)는 공유 패스워드만으로 부여될 수 없으며 기존 검수자가 부여한다(A-ISSUE-17).
+ */
+type ClaimableRole = 'WORKER';
 
 /**
  * 권한 자가 부여 화면 (`/role-claim`).
  *
  * 인증은 되었으나 role 클레임이 비어 있는 사용자가 관리자 공유 패스워드와 함께
- * 본인에게 WORKER/REVIEWER 역할을 부여한다.
+ * 본인에게 WORKER 역할을 부여한다.
  *
  * 보안 정책 (security.md / component.md):
  * - 패스워드 입력 필드는 `type="password"`, `autoComplete="new-password"` 로
@@ -73,15 +77,10 @@ export function RoleClaimPage() {
                 onChange={() => setRole('WORKER')}
                 disabled={mutation.isPending}
               />
-              <Radio
-                name="role"
-                value="REVIEWER"
-                label="검수자 (REVIEWER)"
-                checked={role === 'REVIEWER'}
-                onChange={() => setRole('REVIEWER')}
-                disabled={mutation.isPending}
-              />
             </div>
+            <p className="text-sub text-gray-500">
+              검수자 권한은 자가 부여할 수 없습니다. 기존 검수자에게 권한 부여를 요청하세요.
+            </p>
           </fieldset>
 
           <Input
@@ -128,6 +127,9 @@ function toUserMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 401) {
       return '관리자 패스워드가 일치하지 않습니다.';
+    }
+    if (err.status === 403) {
+      return '해당 역할은 자가 부여할 수 없습니다. 검수자에게 권한 부여를 요청하세요.';
     }
     if (err.status === 409) {
       return '이미 권한이 부여된 사용자입니다. 새로고침 해주세요.';

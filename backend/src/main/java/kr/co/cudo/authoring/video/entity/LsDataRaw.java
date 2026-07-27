@@ -241,6 +241,24 @@ public class LsDataRaw {
     }
 
     /**
+     * A-6 — 파생 RAW_SN 이 확정된 뒤 파생영상 파일 경로를 <b>파생별 고유 경로</b>로 배정한다
+     * (예약 트랜잭션 전용). 경로 키에 파생 RAW_SN 이 들어가야 같은 (부모, 프리셋) 파생이 복수일 때
+     * 파일 상호 덮어쓰기·공유 파일 오삭제가 발생하지 않는다.
+     *
+     * <p>파생({@code ORGNL_RAW_SN} non-null)에만 허용한다 — 원본 영상 경로는 어떤 경우에도 이 경로로
+     * 바뀌어선 안 된다(원본 보존 원칙, {@code VideoRepository#updateDerivativeVideoPath} 와 동일 가드).
+     */
+    public void assignDerivativeVideoPath(String rawFilePathNm) {
+        if (this.orgnlRawSn == null) {
+            throw new IllegalStateException("파생 영상이 아닌 RAW 의 파일 경로는 배정할 수 없습니다.");
+        }
+        if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            throw new IllegalArgumentException("파생 영상 파일 경로가 비어 있습니다.");
+        }
+        this.rawFilePathNm = rawFilePathNm;
+    }
+
+    /**
      * 파생영상 생성 시 부모의 촬영환경 수동값 3필드를 복사한다(팩토리 전용 — 외부 노출 없음).
      * 부모가 미입력(null)이면 파생본도 null 이라 조회·동결 시 촬영일시 파생 폴백이 그대로 유지된다.
      * 부모 값은 이미 저장 시점에 화이트리스트 검증을 통과한 값이라 재검증하지 않는다.

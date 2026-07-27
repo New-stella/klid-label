@@ -93,10 +93,14 @@ class LabelServiceSiblingHasLabelTest {
         service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, rawDataStatusRepository,
-                mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class));
+                mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
+                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class));
 
         LsDataSrc current = frame(SRC_SN, 0);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(current);
+        // C-ISSUE-21 — bulkUpsert 는 프레임 행 락과 동시에 <b>DB 현재</b> 라벨셋 버전을 스칼라로 읽는다
+        //   (1차 캐시 우회 — 엔티티 조회로는 락 획득 前 값이 반환돼 CAS 가 무력화된다).
+        when(srcRepository.lockAndReadLabelVersion(any())).thenReturn(java.util.Optional.of(0L));
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(false);
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of());
         when(aiInfoRepository.findByDataLblSnIn(anyCollection())).thenReturn(List.of());

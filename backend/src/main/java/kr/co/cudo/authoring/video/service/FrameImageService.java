@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +53,13 @@ public class FrameImageService {
     private String storageRawPath;
 
     /**
+     * 비식별 프레임 base — 비식별 프레임({@code DE_IDNTF_SRC_FILE_PATH_NM})은 이 base 하위
+     * ({@code frames/deid/{rawSn}})에 저장되므로, 그 경로의 검증 base 도 여기여야 한다.
+     */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String storageDeidentifiedPath;
+
+    /**
      * 프레임 이미지를 stream 으로 응답 — 기본 시그니처 (raw=false). 기존 호출자 호환.
      */
     public ResponseEntity<Resource> serve(Long rawSn, Integer frameNo) throws IOException {
@@ -86,12 +94,15 @@ public class FrameImageService {
         // 3) Phase 3 — V2 정책: 기본 DEID, REVIEWER 가 명시적으로 raw=true 요청 시에만 원본 허용
         boolean reviewerRequestedRaw = allowRaw && actor != null && actor.role() == Role.REVIEWER;
         String relPath;
+        // 선택된 경로가 <b>비식별 컬럼</b>에서 왔는지 추적한다 — 경로 검증 base 를 그 출처에 맞춰 고른다.
+        boolean fromDeidColumn = false;
         if (reviewerRequestedRaw) {
             relPath = src.getSrcFilePathNm();
         } else {
             String deid = src.getDeidFilePath();
             if (deid != null && !deid.isBlank()) {
                 relPath = deid;
+                fromDeidColumn = true;
             } else if (raw.needsDeidentify()) {
                 // PRVC/PSDO — DEID 미준비 시 원본 노출 금지 (기존 회귀)
                 log.warn("[FrameImage] deid path missing for sensitive video rawSn={} frameNo={}", rawSn, frameNo);
@@ -102,14 +113,45 @@ public class FrameImageService {
             }
         }
 
-        // 4) Path Traversal 방어
-        Path baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path resolved = resolveSafe(baseDir, relPath);
-
-        // 5) 파일 존재 확인
-        if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
-            log.warn("[FrameImage] file not found rawSn={} frameNo={}", rawSn, frameNo);
-            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+        // 4) Path Traversal 방어 — 경로의 <b>출처 컬럼</b>에 맞는 base 로 검증한다(CWE-22 + CWE-359).
+        //    비식별 프레임은 deidentified-path 하위에 저장되므로 rawBase 로만 검증하면 정상 비식별본이
+        //    전부 FORBIDDEN 이 된다(실측: rawSn=26 프레임 403). 반대로 원본 경로에 deidBase 를 허용하면
+        //    격리가 깨지므로, 출처별로 단일 base 를 고르고 비식별은 서브트리까지 강제한다.
+        Path resolved;
+        if (fromDeidColumn) {
+            Path deidBase = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
+            // H-2 — 서빙도 export 와 <b>같은 단일 판정기</b>를 쓴다: base 포함 + 존재/정규파일 +
+            // <b>실경로(toRealPath) 기준</b> 비식별 서브트리. lexical 검사만 하면 base 내부 심링크
+            // (frames/deid/x.jpg → frames/raw/x.jpg)로 원본 프레임이 "비식별본"으로 서빙된다(CWE-59/359).
+            StorageSubtreePolicy.Verification v =
+                    StorageSubtreePolicy.verifyDeidentifiedFile(deidBase, relPath);
+            if (!v.ok()) {
+                log.warn("[FrameImage] deid frame rejected rawSn={} frameNo={} verdict={}", rawSn, frameNo, v.verdict());
+                throw switch (v.verdict()) {
+                    case MISSING, NOT_REGULAR_FILE, REALPATH_FAILED, BLANK ->
+                            new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+                    default -> new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
+                };
+            }
+            resolved = v.path();
+        } else {
+            Path rawBase = Paths.get(storageRawPath).toAbsolutePath().normalize();
+            resolved = resolveSafe(rawBase, relPath);
+            // 5) 파일 존재 확인
+            if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
+                log.warn("[FrameImage] file not found rawSn={} frameNo={}", rawSn, frameNo);
+                throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+            }
+            // H-2 — 원본 경로도 실경로 재검증(심링크로 base 밖 파일을 서빙하는 우회 차단).
+            try {
+                if (!resolved.toRealPath().startsWith(rawBase.toRealPath())) {
+                    log.warn("[FrameImage] symlink escaping base rawSn={} frameNo={}", rawSn, frameNo);
+                    throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
+                }
+            } catch (IOException e) {
+                log.warn("[FrameImage] realpath resolution failed rawSn={} frameNo={}", rawSn, frameNo);
+                throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+            }
         }
 
         // 6) MIME 결정 (allowlist 기반)

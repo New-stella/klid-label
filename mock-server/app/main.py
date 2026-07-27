@@ -6,6 +6,7 @@ klid-la 외부 벤더 목(mock) 서버.
 - deid   : KPST 비식별화 (루트 경로 규격 — prefix 없음)
 - vlm    : IntelliVIX Video VLM 시계열
 - augment: 증강 AI (WINTER/NIGHT/RAIN) — Phase 4 확장
+- control: 관제지원시스템 inbound 통지 (notify-completed / notify-updated)
 
 인증/DB 없이 인메모리 상태(app.state)만으로 동작한다.
 """
@@ -21,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIdMiddleware
-from app.routers import augment, deid, vlm
+from app.routers import augment, control, deid, vlm
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,8 @@ register_exception_handlers(app)
 app.include_router(deid.router, tags=["deid"])
 app.include_router(vlm.router, tags=["vlm"])
 app.include_router(augment.router, tags=["augment"])
+# control(관제)은 관제 계약 경로(/api/data-set/v2/...)를 그대로 노출하므로 prefix 없이 등록한다.
+app.include_router(control.router, tags=["control"])
 
 
 @app.get("/health")

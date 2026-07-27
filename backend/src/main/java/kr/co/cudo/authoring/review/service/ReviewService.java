@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.review.dto.FrameDetailResponse;
 import kr.co.cudo.authoring.review.dto.FrameListResponse;
 import kr.co.cudo.authoring.review.dto.IssueResponse;
+import kr.co.cudo.authoring.review.dto.ApproveRequest;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
@@ -405,14 +406,34 @@ public class ReviewService {
      */
     @Transactional("controlTransactionManager")
     public ReviewResponse approve(Long videoId, TokenClaims actor) {
+        return approve(videoId, null, actor);
+    }
+
+    /**
+     * REVIEWER 승인 (바디 포함) — negative sample(라벨 0건) 은 검수자의 명시 확인이 있어야 통과한다.
+     *
+     * @param req 선택 바디. null 이면 확인 없음(기존 동작).
+     */
+    @Transactional("controlTransactionManager")
+    public ReviewResponse approve(Long videoId, ApproveRequest req, TokenClaims actor) {
         requireReviewer(actor);
         LsRawDataStatus stts = loadByVideoId(videoId);
+        // 상태 전이 유효성이 먼저다 — 잘못된 전이(예: PENDING→APPROVED)는 라벨 유무와 무관하게 기존대로
+        //   400 을 유지한다(라벨 게이트가 기존 오류 계약을 덮어쓰지 않도록 순서 고정).
         stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_APPROVED);
+        // D-ISSUE-04 — 라벨(=학습데이터 본문)이 0건인 영상은 원칙적으로 승인 차단(409). 단 검수자가
+        //   "라벨 없음"을 명시 확인하면 통과시킨다(negative sample). 상태 전이 <b>이전</b>에 판정하므로
+        //   거부 시 기존 상태가 그대로 유지된다(부분 전이·빈 스냅샷·빈 export 없음).
+        boolean confirmedNoLabel = (req != null) && req.confirmedNoLabel();
+        boolean approvedWithoutLabel = resolveNoLabelApproval(stts.getRawDataId(), confirmedNoLabel);
         stts.transitionTo(LsRawDataStatus.STTS_APPROVED);
-        // 통합 이벤트 로그 (SCR-TASK-003): 승인 이벤트 기록
+        // 통합 이벤트 로그 (SCR-TASK-003): 승인 이벤트 기록.
+        //   H6 — negative sample 승인은 <b>같은 이벤트 로그에 사유를 남겨</b> 감사 가능하게 한다
+        //   (누가·언제·어떤 영상을 라벨 없음 확인으로 승인했는지 — 신규 테이블/메커니즘 없이 재사용).
         Long reviewerUserNo = parseUserNo(actor.sub());
-        taskEventLogRepository.save(LsTaskEventLog.approve(
-                stts.getRawDataId(), reviewerUserNo));
+        taskEventLogRepository.save(approvedWithoutLabel
+                ? LsTaskEventLog.approveWithoutLabel(stts.getRawDataId(), reviewerUserNo)
+                : LsTaskEventLog.approve(stts.getRawDataId(), reviewerUserNo));
         try {
             reviewRepository.flush();
         } catch (OptimisticLockingFailureException e) {
@@ -444,6 +465,53 @@ public class ReviewService {
         eventPublisher.publishEvent(new ReviewApprovedEvent(
                 stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));
         return enrichOne(stts);
+    }
+
+    /**
+     * D-ISSUE-04 — 검수 승인 사전 게이트: 라벨이 1건도 없는 영상의 승인을 409 로 차단한다.
+     *
+     * <h3>왜 필요한가 (실측)</h3>
+     * 승인에는 라벨/프레임 존재 검증이 없어, 프레임 1건·라벨 0건 영상도 APPROVED 로 확정됐다. 그 결과
+     * ①{@code VersionService.commitApproved} 가 {@code created=0} 인 빈 스냅샷을 만들고 ②AFTER_COMMIT
+     * export 는 {@code nothing produced — marked FAILED} 로 끝나며 ③데이터마트 뷰
+     * {@code V_COMPLETED_VIDEO} 에 {@code EXPORT_PATH_NM}/{@code FRAME_CNT} 가 NULL 인 빈 행이 노출됐다.
+     * export 는 승인 트랜잭션 <b>밖</b>(AFTER_COMMIT)이라 롤백되지도 않는다.
+     *
+     * <h3>범위 (오탐 방지)</h3>
+     * 프레임이 0건인 영상은 라벨도 0건이므로 이 판정 하나가 "프레임 부재"까지 덮는다. 라벨이 1건 이상이면
+     * 기존과 완전히 동일하게 승인된다(정상 플로우 무변경). 이미 APPROVED 인 기존 데이터는 대상이 아니며,
+     * 게이트는 <b>신규 승인 시점</b>에만 적용된다.
+     *
+     * <h3>DEV_FIX(H6) — negative sample 탈출구</h3>
+     * 객체가 실제로 없는 정상 영상(negative sample, 실측 rawSn=4·7·9·10·12)까지 막으면 검수자는 반려밖에
+     * 못 해 <b>더미 라벨 입력을 유도</b>하게 되어 학습데이터가 오염된다. 그래서 검수자가 명시적으로
+     * "라벨 없음"을 확인한 요청({@code noLabelConfirmed=true})만 통과시키고, 그 사실을 통합 이벤트 로그에
+     * 남긴다. 확인 플래그의 상시화를 막기 위해 <b>라벨이 있는 영상에 확인을 보내면 400</b> 으로 거부한다.
+     *
+     * @return 라벨 0건인데 검수자 확인으로 승인되는가(=감사 로그에 사유를 남겨야 하는가)
+     */
+    private boolean resolveNoLabelApproval(Long rawSn, boolean confirmedNoLabel) {
+        boolean hasLabel = labelRepository.existsAnyByRawSn(rawSn);
+        if (hasLabel) {
+            if (confirmedNoLabel) {
+                // H6 — 확인 플래그를 "항상 붙이는" 클라이언트를 차단한다. 라벨이 있는데 '라벨 없음 확인'을
+                //   보냈다는 것은 화면이 본 상태와 서버 상태가 다르거나(=확인의 근거가 무효) 플래그를
+                //   습관적으로 보내고 있다는 뜻이다. 통과시키면 게이트가 상시 무력화된다.
+                log.warn("[Review] approve rejected — noLabelConfirmed on labeled video rawSn={}", rawSn);
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "라벨이 있는 영상입니다. 최신 상태를 다시 확인한 뒤 승인하세요.");
+            }
+            return false;
+        }
+        if (!confirmedNoLabel) {
+            log.warn("[Review] approve blocked — no labels rawSn={}", rawSn);
+            // DEV_FIX H6 — 전용 errorCode. 같은 409 인 동시 승인 충돌/상태 전이 불가와 화면이 구분할 수
+            //   있어야 한다(문자열 매칭 금지). 상태코드(409)와 메시지는 종전과 동일해 하위호환.
+            throw new CustomException(ErrorCode.REVIEW_NO_LABEL,
+                    "라벨이 없는 영상입니다. 객체가 없는 영상이 맞다면 '라벨 없음' 확인 후 승인하세요.");
+        }
+        log.warn("[Review] approved without labels (reviewer confirmed) rawSn={}", rawSn);
+        return true;
     }
 
     /**

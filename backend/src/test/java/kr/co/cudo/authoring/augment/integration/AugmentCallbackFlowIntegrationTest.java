@@ -82,7 +82,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
-        "webhook.hmac.secret.augment=augment-it-secret-32bytes-min-len-aa!!"
+        "webhook.hmac.secret.augment=augment-it-secret-32bytes-min-len-aa!!",
+        // B-2 — 콜백의 raw_file_path_nm 은 적재 시점에 고정 allowlist(마운트 루트) 하위인지 검증된다.
+        //   픽스처 경로(/storage/augment/*.mp4)가 통과하도록 마운트 루트를 명시한다.
+        "authoring.storage.raw-mount-roots=/storage"
 })
 class AugmentCallbackFlowIntegrationTest {
 

@@ -18,11 +18,31 @@ spring:
       max-file-size: 500MB
       max-request-size: 1200MB
 
-# [개발/검수 전용] dev 로그인/업로드 토글 — stg 는 항상 ON(기존 @Profile("!prd") 동작 유지).
+# 스테이징(stg) webhook 설정 — 미설정 시 부팅 차단(fail-closed, REDESIGN R-3).
+#
+# stg 는 온프렘 개발서버로 **LB/Nginx 뒤**에 배포된다. 그런데 여기에 webhook 키가 없어
+# application.yml 의 빈 기본값으로 조용히 떨어졌고, 그 결과 모든 콜백의 클라이언트 IP 가 LB IP
+# 하나로 수렴했다(prd 에만 명시 강제가 걸려 있던 사각지대). prd 와 동일 정책으로 정합시킨다.
+#   - 프록시 뒤면 신뢰 대역 CIDR(예: 10.0.0.0/8), 프록시 없이 직접 노출이면 'none' 을 **명시**.
+#   - 미설정(빈 값) → BeanInitializationException 으로 기동 차단.
+#   - `${VAR:?msg}` 는 쓰지 않는다 — Spring 이 "?msg" 를 기본값으로 주입해 fail-fast 가 아니다(H-1).
+webhook:
+  trusted-proxy-cidrs: ${WEBHOOK_TRUSTED_PROXY_CIDRS:}
+  vlm:
+    allowed-ip-cidrs: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:}
+
+# [개발/검수 전용] dev 업로드 토글 — stg 는 ON 유지(REVIEWER 인가 게이트가 걸린 엔드포인트).
+#
+# A-ISSUE-05 — dev 로그인(/v1/dev/tokens)은 **stg 에서 OFF** 로 내린다.
+#   이 엔드포인트는 permitAll 이라 인증 없이 임의 userNo/role 토큰을 발급한다. stg 는 온프렘 개발서버로
+#   사내망이라도 네트워크 도달 가능한 클라이언트가 존재하므로, `sub=<시드 REVIEWER>` 발급만으로 인증
+#   우회 + 관리자 권한 획득이 성립했다. local/dev 만 유지한다.
+#   토글이 false 면 DevTokenController/Service 빈이 미등록되고 SecurityConfig 의 permitAll 매처도
+#   함께 사라진다(동일 프로퍼티 단일 판정).
 authoring:
   dev:
     login:
-      enabled: true
+      enabled: false
     upload:
       enabled: true
 

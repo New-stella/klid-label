@@ -72,8 +72,10 @@ public class EnvironmentMetaService {
      * 촬영환경 저장 — <b>전체 교체</b>(3필드 함께). 생략된 필드는 수동값 삭제로 처리된다.
      *
      * <p>검수 완료(APPROVED) 후 수정이면 ①동결 스냅샷 재동결({@link #reFreezeApprovedSnapshot})
-     * ②관제 outbound {@code TASK_MODIFIED}(META_UPDATED) 발행(MetaService·EvntAnnoService 와 동일 가드)을
-     * 함께 수행한다. <b>export 폴더 재생성은 트리거하지 않는다</b>(사유는 {@link #reFreezeApprovedSnapshot}).
+     * ②관제 outbound {@code TASK_MODIFIED}(META_UPDATED, {@code exportRegenerated=true}) 발행을 함께
+     * 수행한다. <b>C-1b(Phase 5C) — export 폴더도 새 버전으로 전량 재생성한다</b>(구 정책 "재생성 미트리거"
+     * 폐기): 재동결이 스냅샷만 갱신하고 파일은 옛 촬영환경으로 남으면 관제가 픽업한 산출물과 뷰가 불일치한다.
+     * 재산출은 디바운스 flush 가 export → 통지 순서로 직렬화한다(사유는 {@link #reFreezeApprovedSnapshot}).
      *
      * <p><b>수동값 승격 주의(FE 계약)</b>: 본 API 는 전송된 값을 그대로 수동값(MANUAL)으로 저장한다.
      * 조회 응답의 파생 프리필({@code DERIVED})을 화면이 그대로 되돌려 보내면 파생값이 수동값으로 승격되어
@@ -109,8 +111,11 @@ public class EnvironmentMetaService {
 
         if (isReviewApproved(rawSn)) {
             reFreezeApprovedSnapshot(rawSn);
+            // C-1b(Phase 5C) — 재동결(위)이 동결 스냅샷을 갱신하므로 export 를 새 버전 폴더로 전량 재생성해
+            //   JSON video 블록에 새 촬영환경(날씨/시간대/계절)을 실제로 반영한다. exportRegenerated=true 면
+            //   디바운스 flush 가 export(force=true) 를 먼저 마친 뒤 통지를 내보낸다(순서 보장).
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, null, ChangeType.META_UPDATED, accessGuard.parseUserNo(actor.sub())));
+                    rawSn, null, ChangeType.META_UPDATED, accessGuard.parseUserNo(actor.sub()), true));
         }
         return toResponse(raw);
     }
@@ -129,11 +134,12 @@ public class EnvironmentMetaService {
      * {@link DatasetVideoMetaSnapshotService#materialize(Long, LocalDateTime)} 2-arg 로 그대로 넘긴다
      * (백필 경로와 동일한 소급 보존 방식).
      *
-     * <p><b>export 폴더는 재생성하지 않는다</b>(의도된 정책): 승인 후 <b>라벨 수정</b>도 export 재산출을
-     * 트리거하지 않는데(다음 재검수·재승인 사이클에서 산출), 촬영환경 한 필드 정정만 전량 재산출하면
-     * 프레임 이미지가 원본·비식별 2벌씩 새 버전 폴더로 통째 재복사되어 편집 횟수만큼 디스크가 증폭된다
-     * (OWASP API4 Unrestricted Resource Consumption). 관제는 스냅샷 기반 뷰로 최신 촬영환경을 얻으므로
-     * downstream 정합은 재동결만으로 확보되고, 파일 산출물은 다음 재승인 시 최신값으로 재산출된다.
+     * <p><b>export 폴더는 새 버전으로 재생성한다</b>(C-1b, Phase 5C — 구 "재생성 안 함" 정책 폐기): 재동결이
+     * 동결 스냅샷을 갱신해도 export 폴더의 JSON {@code video} 블록이 옛 촬영환경으로 남으면, 관제가 픽업한
+     * 학습데이터 파일과 뷰가 불일치해 사업 요구("데이터마트 학습데이터셋의 라벨링 정보 동기화")가 미충족된다.
+     * 촬영환경 수정도 라벨 수정과 동일하게 {@code TaskModifiedEvent(exportRegenerated=true)} 로 발행하여
+     * 디바운스 flush 가 export 를 전량 재생성한 뒤 통지하도록 한다. 저장소 증폭은 사용자 확정(2026-07-27)으로
+     * 감수한다(검수 완료 영상의 재수정 빈도가 낮다는 판단 + 롤백 위해 전 버전 자기완결·보존).
      *
      * <p>호출 조건은 상위의 {@link #isReviewApproved} 가드 — 미검수 영상은 트리거하지 않는다(이후 최초
      * 승인의 materialize 가 수동값을 정상 캡처하므로 중복이 없다). APPROVED 인데 활성 스냅샷이 없는

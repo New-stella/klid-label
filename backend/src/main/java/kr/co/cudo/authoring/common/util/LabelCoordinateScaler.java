@@ -79,7 +79,23 @@ public final class LabelCoordinateScaler {
      *                                  (fail-secure, 원문 미노출)
      */
     public static String scalePointCn(String pointCn, String lblTypeCd, double scaleX, double scaleY) {
+        return scalePointCn(pointCn, lblTypeCd, scaleX, scaleY, 0d, 0d);
+    }
+
+    /**
+     * 좌표를 배율 + <b>오프셋</b>(레터박스 패딩 시작점)으로 변환한다 — {@code x' = x*scaleX + offsetX}.
+     *
+     * <p>G-1 — 종횡비 보존(레터박스) 리스케일에서는 이미지가 목표 프레임 안 {@code (offsetX, offsetY)} 에
+     * 그려지므로, 라벨 좌표도 <b>단순 배율이 아니라</b> 오프셋을 함께 반영해야 그림 위에 정확히 얹힌다.
+     * BBOX·POLYGON·세그멘테이션·키포인트(SKELETON) 전 종류에 동일하게 적용된다(가시성 {@code v} 는 불변).
+     *
+     * @param offsetX x축 오프셋(px, 음수 아님 — 유한 실수)
+     * @param offsetY y축 오프셋(px, 음수 아님 — 유한 실수)
+     */
+    public static String scalePointCn(String pointCn, String lblTypeCd, double scaleX, double scaleY,
+                                      double offsetX, double offsetY) {
         validateScale(scaleX, scaleY);
+        validateOffset(offsetX, offsetY);
         if (pointCn == null) {
             return null;
         }
@@ -104,15 +120,15 @@ public final class LabelCoordinateScaler {
 
         ArrayNode result;
         if (LBL_TYPE_SKELETON.equals(lblTypeCd)) {
-            result = scaleTriplets(root, scaleX, scaleY);
+            result = scaleTriplets(root, scaleX, scaleY, offsetX, offsetY);
         } else {
             JsonNode first = root.get(0);
             if (first.isArray()) {
-                result = scaleNestedPairs(root, scaleX, scaleY);
+                result = scaleNestedPairs(root, scaleX, scaleY, offsetX, offsetY);
             } else if (first.isObject()) {
-                result = scaleObjectPairs(root, scaleX, scaleY);
+                result = scaleObjectPairs(root, scaleX, scaleY, offsetX, offsetY);
             } else if (first.isNumber()) {
-                result = scaleFlat(root, scaleX, scaleY);
+                result = scaleFlat(root, scaleX, scaleY, offsetX, offsetY);
             } else {
                 throw new IllegalArgumentException("좌표 형식을 인식할 수 없습니다");
             }
@@ -136,27 +152,43 @@ public final class LabelCoordinateScaler {
         }
     }
 
+    /**
+     * 오프셋 입력 가드(CWE-20 fail-secure) — 비유한/음수 오프셋은 좌표를 프레임 밖으로 밀어내거나
+     * 비표준 JSON 토큰을 만든다. 원문은 노출하지 않는다.
+     */
+    private static void validateOffset(double offsetX, double offsetY) {
+        if (!isValidOffset(offsetX) || !isValidOffset(offsetY)) {
+            throw new IllegalArgumentException("오프셋은 0 이상의 유한 실수여야 합니다");
+        }
+    }
+
+    private static boolean isValidOffset(double offset) {
+        return Double.isFinite(offset) && offset >= 0d;
+    }
+
     private static boolean isValidScale(double scale) {
         return Double.isFinite(scale) && scale > MIN_SCALE_EXCLUSIVE;
     }
 
     /** 정규 nested {@code [[x,y], ...]} — 각 쌍의 x 는 scaleX, y 는 scaleY. */
-    private static ArrayNode scaleNestedPairs(JsonNode root, double scaleX, double scaleY) {
+    private static ArrayNode scaleNestedPairs(JsonNode root, double scaleX, double scaleY,
+                                              double offsetX, double offsetY) {
         ArrayNode out = NODES.arrayNode(root.size());
         for (JsonNode pair : root) {
             if (!pair.isArray() || pair.size() != 2) {
                 throw new IllegalArgumentException("좌표는 [x, y] 형태여야 합니다");
             }
             ArrayNode scaledPair = NODES.arrayNode(2);
-            scaledPair.add(scaleNumber(pair.get(0), scaleX));
-            scaledPair.add(scaleNumber(pair.get(1), scaleY));
+            scaledPair.add(scaleNumber(pair.get(0), scaleX, offsetX));
+            scaledPair.add(scaleNumber(pair.get(1), scaleY, offsetY));
             out.add(scaledPair);
         }
         return out;
     }
 
     /** 객체 배열 {@code [{"x":..,"y":..}, ...]} — x/y 만 스케일, 그 외 필드 보존. */
-    private static ArrayNode scaleObjectPairs(JsonNode root, double scaleX, double scaleY) {
+    private static ArrayNode scaleObjectPairs(JsonNode root, double scaleX, double scaleY,
+                                              double offsetX, double offsetY) {
         ArrayNode out = NODES.arrayNode(root.size());
         for (JsonNode obj : root) {
             if (!obj.isObject() || !obj.has(OBJ_KEY_X) || !obj.has(OBJ_KEY_Y)) {
@@ -168,9 +200,9 @@ public final class LabelCoordinateScaler {
                 Map.Entry<String, JsonNode> field = fields.next();
                 String key = field.getKey();
                 if (OBJ_KEY_X.equals(key)) {
-                    scaledObj.set(OBJ_KEY_X, scaleNumber(field.getValue(), scaleX));
+                    scaledObj.set(OBJ_KEY_X, scaleNumber(field.getValue(), scaleX, offsetX));
                 } else if (OBJ_KEY_Y.equals(key)) {
-                    scaledObj.set(OBJ_KEY_Y, scaleNumber(field.getValue(), scaleY));
+                    scaledObj.set(OBJ_KEY_Y, scaleNumber(field.getValue(), scaleY, offsetY));
                 } else {
                     scaledObj.set(key, field.getValue());
                 }
@@ -181,28 +213,30 @@ public final class LabelCoordinateScaler {
     }
 
     /** 평탄 1차원 {@code [x1,y1,x2,y2, ...]} — 짝수 인덱스 scaleX, 홀수 인덱스 scaleY. */
-    private static ArrayNode scaleFlat(JsonNode root, double scaleX, double scaleY) {
+    private static ArrayNode scaleFlat(JsonNode root, double scaleX, double scaleY,
+                                       double offsetX, double offsetY) {
         if (root.size() % 2 != 0) {
             throw new IllegalArgumentException("평탄 좌표 배열은 짝수 길이여야 합니다");
         }
         ArrayNode out = NODES.arrayNode(root.size());
         for (int i = 0; i < root.size(); i++) {
-            double scale = (i % 2 == 0) ? scaleX : scaleY;
-            out.add(scaleNumber(root.get(i), scale));
+            boolean isX = (i % 2 == 0);
+            out.add(scaleNumber(root.get(i), isX ? scaleX : scaleY, isX ? offsetX : offsetY));
         }
         return out;
     }
 
     /** SKELETON 삼중값 {@code [[x,y,v], ...]} — x/y 만 스케일, 가시성 v 는 그대로 보존. */
-    private static ArrayNode scaleTriplets(JsonNode root, double scaleX, double scaleY) {
+    private static ArrayNode scaleTriplets(JsonNode root, double scaleX, double scaleY,
+                                           double offsetX, double offsetY) {
         ArrayNode out = NODES.arrayNode(root.size());
         for (JsonNode triplet : root) {
             if (!triplet.isArray() || triplet.size() != 3) {
                 throw new IllegalArgumentException("키포인트는 [x, y, v] 형태여야 합니다");
             }
             ArrayNode scaled = NODES.arrayNode(3);
-            scaled.add(scaleNumber(triplet.get(0), scaleX));
-            scaled.add(scaleNumber(triplet.get(1), scaleY));
+            scaled.add(scaleNumber(triplet.get(0), scaleX, offsetX));
+            scaled.add(scaleNumber(triplet.get(1), scaleY, offsetY));
             JsonNode v = triplet.get(2);
             if (!v.isNumber()) {
                 throw new IllegalArgumentException("키포인트 가시성은 숫자여야 합니다");
@@ -216,13 +250,14 @@ public final class LabelCoordinateScaler {
     /**
      * 좌표 숫자 한 개를 스케일한다. 정수 노드는 {@code Math.round} 로 정수 유지, 실수 노드는 정밀도 보존.
      */
-    private static JsonNode scaleNumber(JsonNode node, double scale) {
+    private static JsonNode scaleNumber(JsonNode node, double scale, double offset) {
         if (node == null || !node.isNumber()) {
             throw new IllegalArgumentException("좌표 요소는 숫자여야 합니다");
         }
+        double transformed = node.asDouble() * scale + offset;
         if (node.isIntegralNumber()) {
-            return NODES.numberNode(Math.round(node.asDouble() * scale));
+            return NODES.numberNode(Math.round(transformed));
         }
-        return NODES.numberNode(node.asDouble() * scale);
+        return NODES.numberNode(transformed);
     }
 }

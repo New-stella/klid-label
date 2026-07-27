@@ -5,12 +5,21 @@ import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.step.DeidentFrameAttacher;
 import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
+import kr.co.cudo.authoring.common.config.CacheConfig;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.VideoStreamService;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.support.SimpleCacheManager;
+import org.springframework.http.MediaType;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionSynchronizationUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +28,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -169,6 +179,126 @@ class KpstDeidentTxServiceTest {
         assertThat(p.getKpstDatasetId()).isEqualTo(202L);
         assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
         assertThat(raw.getDataSttsCd()).isEqualTo("MARKING_READY");
+    }
+
+    @Test
+    @DisplayName("배치_비식별완료시_stream-meta_캐시가_실제로_무효화되어_재조회시_새_경로가_반환된다")
+    void batchCompletionInvalidatesStreamMetaCache() {
+        // given — mock 이 아닌 <b>실제 Caffeine 캐시</b> + 실제 evictor 로 구성해 캐시 상태를 직접 관측한다.
+        CacheManager realCacheManager = realCacheManager();
+        Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
+        KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
+                deidentReportService, notificationService, workLockService, deidentFrameAttacher,
+                new StreamMetaCacheEvictor(realCacheManager));
+
+        LsDeidentProcLog p = submitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        String oldPath = "/nas/deid/videos/9001/old-deidentified.mp4";
+        cache.put(9001L, new VideoStreamService.StreamMeta(
+                Paths.get(oldPath), 1_000L, MediaType.parseMediaType("video/mp4")));
+
+        // when — 재구동/재위탁으로 새 비식별 산출물 경로가 커밋된다.
+        String newPath = realDeidFile();
+        realTx.finishDownloadAndComplete(9001L, 1L, 202L, newPath);
+
+        // then — 캐시 엔트리 제거 + 재조회 시 procLog 의 새 경로가 적재된다(무효화 없으면 구 경로 히트).
+        assertThat(cache.get(9001L)).isNull();
+        VideoStreamService.StreamMeta reloaded = cache.get(9001L,
+                () -> new VideoStreamService.StreamMeta(Paths.get(p.getDeIdntfFilePathNm()), 2_000L,
+                        MediaType.parseMediaType("video/mp4")));
+        assertThat(reloaded.path().toString()).isEqualTo(newPath);
+    }
+
+    @Test
+    @DisplayName("활성_트랜잭션에서는_커밋_전에_evict되지_않고_커밋_콜백에서만_무효화된다")
+    void evictHappensOnlyAfterCommitWhenTransactionActive() {
+        // 지금까지의 단위 테스트는 트랜잭션 없이 호출돼 evictAfterCommit 의 <b>즉시 evict 폴백</b>만 탔다.
+        // 그래서 evictAfterCommit → evict 로 바꿔도 GREEN 이었다(커밋 전 evict 회귀에 둔감).
+        // 여기서는 트랜잭션 동기화를 실제로 열어 <b>순서</b>를 단언한다.
+        CacheManager realCacheManager = realCacheManager();
+        Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
+        KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
+                deidentReportService, notificationService, workLockService, deidentFrameAttacher,
+                new StreamMetaCacheEvictor(realCacheManager));
+        LsDeidentProcLog p = redeidentSubmitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        cache.put(9001L, new VideoStreamService.StreamMeta(
+                Paths.get("/nas/deid/videos/9001/old.mp4"), 1_000L, MediaType.parseMediaType("video/mp4")));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            realTx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
+
+            // 아직 커밋 전 — 캐시는 그대로여야 한다(즉시 evict 로 바꾸면 여기서 실패한다).
+            assertThat(cache.get(9001L)).isNotNull();
+
+            // 커밋 콜백 발화 — 이때 비로소 무효화된다.
+            TransactionSynchronizationUtils.triggerAfterCommit();
+            assertThat(cache.get(9001L)).isNull();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("롤백되면_stream-meta_캐시를_비우지_않는다_afterCompletion만_발화")
+    void evictSkippedOnRollback() {
+        CacheManager realCacheManager = realCacheManager();
+        Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
+        KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
+                deidentReportService, notificationService, workLockService, deidentFrameAttacher,
+                new StreamMetaCacheEvictor(realCacheManager));
+        LsDeidentProcLog p = redeidentSubmitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        VideoStreamService.StreamMeta cached = new VideoStreamService.StreamMeta(
+                Paths.get("/nas/deid/videos/9001/old.mp4"), 1_000L, MediaType.parseMediaType("video/mp4"));
+        cache.put(9001L, cached);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            realTx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
+            // 롤백 — afterCommit 은 발화하지 않는다.
+            TransactionSynchronizationUtils.triggerAfterCompletion(
+                    TransactionSynchronization.STATUS_ROLLED_BACK);
+
+            assertThat(cache.get(9001L)).isNotNull();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("배치완료_evict는_현재_도달가능한_흐름에서_no-op이다_캐시미적재_부작용없음")
+    void batchCompletionEvictIsNoOpWhenNothingCached() {
+        // [도달성 정직성] 배치 완료 경로의 evict 는 방어적(defense-in-depth)으로 남긴 호출이다.
+        // stream-meta 는 비식별 완료 후에만 적재되고, 'Y' 인 영상의 배치 재위탁 경로가 없다
+        // (재비식별은 ApprovedRedeidentService 가 409 로 거부 —
+        //  ApprovedRedeidentServiceTest.이미_비식별된_deIdentY_영상_요청시_CONFLICT_네이티브배제).
+        // 따라서 최초 완료 시점에는 캐시 엔트리가 없고 evict 는 관측 가능한 부작용이 없어야 한다.
+        CacheManager realCacheManager = realCacheManager();
+        Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
+        KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
+                deidentReportService, notificationService, workLockService, deidentFrameAttacher,
+                new StreamMetaCacheEvictor(realCacheManager));
+        LsDeidentProcLog p = submitted(); // REQ_KIND null = 배치 경로
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        // 다른 rawSn 의 캐시는 영향을 받지 않아야 한다.
+        cache.put(9002L, new VideoStreamService.StreamMeta(
+                Paths.get("/nas/deid/videos/9002/x.mp4"), 10L, MediaType.parseMediaType("video/mp4")));
+
+        realTx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
+
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(cache.get(9001L)).isNull();   // 애초에 없었다(evict 는 no-op)
+        assertThat(cache.get(9002L)).isNotNull(); // 무관한 키는 건드리지 않는다
     }
 
     @Test
@@ -466,10 +596,19 @@ class KpstDeidentTxServiceTest {
         verify(deidentReportService, times(1)).resolveOpenReports(9001L);
         verify(notificationService, times(1)).notifyReviewersOnLockRelease(raw);
         verify(deidentFrameAttacher, never()).attachDeidentFrames(any(), any(), anyBoolean());
-        // 최초 배치 완료(비-재비식별)는 비식별본 교체가 아니므로 스트림 메타 캐시를 무효화하지 않는다
-        // ("재비식별만 evict" 의도 고정). 배치 경로의 신고 해소는 DeidentReportService.resolveOpenReports
-        // 내부에서 evict 하며, TxService 자체는 여기서 evict 하지 않는다.
-        verify(streamMetaCacheEvictor, never()).evictAfterCommit(any());
+        // [의도 변경] 배치 완료도 스트림 메타 캐시를 무효화한다(구 기대 "재비식별만 evict" 폐기).
+        // 근거: 본 트랜잭션의 markDownloaded 가 비식별 영상 경로(stream-meta 해석 원천)를 새 값으로 쓴다.
+        // "최초 완료라 교체가 아니다"는 전제는 재구동/재위탁(dev 재드라이브·재폴링)에서 성립하지 않아,
+        // 이미 'Y'로 캐시된 rawSn 이 새 경로로 바뀌면 TTL 동안 옛 경로가 서빙된다(해상도 백필과 동일 결함).
+        // 캐시 미스일 때 evict 는 no-op 이므로 최초 완료 경로에 부작용이 없다.
+        verify(streamMetaCacheEvictor, times(1)).evictAfterCommit(9001L);
+    }
+
+    /** 운영과 동일한 캐시 스펙(CacheConfig)으로 실제 Caffeine 캐시매니저를 만든다(초기화 포함). */
+    private static CacheManager realCacheManager() {
+        SimpleCacheManager manager = (SimpleCacheManager) new CacheConfig().cacheManager();
+        manager.afterPropertiesSet(); // SimpleCacheManager 는 초기화해야 getCache 가 채워진다.
+        return manager;
     }
 
     private static void setField(Object target, String name, Object value) {

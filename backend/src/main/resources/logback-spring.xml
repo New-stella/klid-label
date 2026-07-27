@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <conversionRule conversionWord="mask"
-                    converterClass="kr.co.cudo.authoring.common.logging.MaskingPatternLayout"/>
-
+    <!--
+        A-ISSUE-24 (CWE-532): MaskingPatternLayout 은 Layout(PatternLayout 상속)이지 Converter 가 아니다.
+        구 설정은 이를 <conversionRule converterClass=...> 로 등록했는데, 그 자리에 필요한 것은
+        ClassicConverter 구현체다. 그래서 어떤 패턴에서도 참조될 수 없었고 local 패턴은 평문 %msg 를
+        그대로 출력했다(마스킹 미적용 = 죽은 코드). 죽은 conversionRule 을 제거하고, 인코더가 이 Layout 을
+        직접 감싸도록(LayoutWrappingEncoder) 배선해 appender 출력 종단에서 마스킹이 적용되게 한다.
+        dev/stg/prd 는 JSON 인코더의 MaskingJsonValueMasker 로 이미 적용되어 있다.
+    -->
     <springProfile name="local">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-}] %logger{36} - %msg%n</pattern>
+            <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+                <charset>UTF-8</charset>
+                <layout class="kr.co.cudo.authoring.common.logging.MaskingPatternLayout">
+                    <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-}] %logger{36} - %msg%n</pattern>
+                </layout>
             </encoder>
         </appender>
         <root level="INFO">

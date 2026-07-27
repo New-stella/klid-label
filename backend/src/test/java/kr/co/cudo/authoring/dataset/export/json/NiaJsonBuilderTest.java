@@ -443,8 +443,12 @@ class NiaJsonBuilderTest {
         NiaAnnotationDoc deid = builder.build(ctx,
                 new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.DEIDENTIFIED);
 
-        // then — orign_file_name 제거 후 image.file_name 은 kind 무관(frame-N.jpg)이며 소스 경로가 새지 않는다
-        assertThat(original.image().fileName()).isEqualTo("frame-5.jpg");
+        // then — image.file_name 은 kind 무관이며 export writer·관제 통지와 동일한 규칙(ExportFileNaming,
+        //        {FRM_NO 4자리}.jpg)을 따라야 한다. 구 규칙("frame-5.jpg")은 같은 폴더에 실재하지 않는
+        //        파일을 가리켜 JSON↔디스크가 어긋났다(A-1). 소스 경로도 새지 않는다.
+        assertThat(original.image().fileName()).isEqualTo("0005.jpg");
+        assertThat(original.image().fileName())
+                .isEqualTo(kr.co.cudo.authoring.dataset.export.ExportFileNaming.imageFileName(5));
         assertThat(deid.image().fileName()).isEqualTo(original.image().fileName());
         String origJson = objectMapper.valueToTree(original).get("image").toString();
         String deidJson = objectMapper.valueToTree(deid).get("image").toString();

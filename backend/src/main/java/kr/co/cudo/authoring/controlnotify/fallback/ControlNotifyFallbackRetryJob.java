@@ -1,9 +1,9 @@
 package kr.co.cudo.authoring.controlnotify.fallback;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.common.client.ControlNotifyClient;
 import kr.co.cudo.authoring.controlnotify.dto.TaskCompletedPayload;
 import kr.co.cudo.authoring.controlnotify.dto.TaskModifiedPayload;
+import kr.co.cudo.authoring.controlnotify.service.ControlNotifyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,7 +18,7 @@ import java.util.List;
  * Phase 3 -- 관제서버 통지 fallback 큐 재시도 Job.
  *
  * <p>{@link ControlNotifyFallbackService} 적재 항목 중 {@code STATUS=PENDING} +
- * {@code NEXT_RETRY_AT <= now} 인 항목을 polling 하여 {@link ControlNotifyClient} 로 재호출.
+ * {@code NEXT_RETRY_AT <= now} 인 항목을 polling 하여 {@link ControlNotifyService} 로 재전송.
  *
  * <p>활성 조건: {@code authoring.control-notify.enabled=true}.
  */
@@ -32,7 +32,7 @@ public class ControlNotifyFallbackRetryJob {
 
     private final LsControlNotifyFallbackRepository repository;
     private final ControlNotifyFallbackService fallbackService;
-    private final ControlNotifyClient client;
+    private final ControlNotifyService notifyService;
 
     /** 5분 간격 polling. */
     @Scheduled(fixedDelayString = "${authoring.control-notify.retry.interval-ms:300000}",
@@ -70,15 +70,31 @@ public class ControlNotifyFallbackRetryJob {
         return processed;
     }
 
-    /** 큐 항목의 eventType 에 따라 적절한 Client 메서드로 재호출. */
+    /**
+     * 큐 항목의 eventType 에 따라 재전송.
+     *
+     * <p>즉시 전송 경로와 <b>동일한 자기치유 규칙</b>({@code ControlNotifyService.dispatch*})을 태운다 —
+     * Client 를 직접 호출하면 재시도 때 만난 409/404 가 영원히 실패로 남아 dead-letter 로 쌓인다.
+     *
+     * <p><b>페이로드 미보유 항목(A-1)</b>: 페이로드 조립 실패로 큐에 들어온 항목은 본문이 비어 있다
+     * ({@link LsControlNotifyFallback#PAYLOAD_REBUILD_REQUIRED}). 이때는 {@code null} 을 넘겨
+     * dispatch 가 {@code ControlNotifyPayloadFactory} 로 <b>재조립</b>하게 한다 — 조립 실패의 원인
+     * (커넥션 고갈·락 타임아웃)은 대개 일시적이라 재시도가 유효하다. 재조립도 실패하면 예외가 나
+     * 상위 루프가 백오프 재시도/dead-letter 로 격리한다.
+     */
     private void processOne(LsControlNotifyFallback item) {
         String eventType = item.getEventTypeCd();
+        boolean rebuild = LsControlNotifyFallback.isPayloadRebuildRequired(item.getPayloadCn());
         if ("TASK_COMPLETED".equals(eventType)) {
-            TaskCompletedPayload payload = deserialize(item.getPayloadCn(), TaskCompletedPayload.class);
-            client.sendTaskCompleted(payload).block(ControlNotifyClient.BLOCK_TIMEOUT);
+            TaskCompletedPayload payload = rebuild
+                    ? null
+                    : deserialize(item.getPayloadCn(), TaskCompletedPayload.class);
+            notifyService.dispatchCompleted(payload, item.getRawSn());
         } else if ("TASK_MODIFIED".equals(eventType)) {
-            TaskModifiedPayload payload = deserialize(item.getPayloadCn(), TaskModifiedPayload.class);
-            client.sendTaskModified(payload).block(ControlNotifyClient.BLOCK_TIMEOUT);
+            TaskModifiedPayload payload = rebuild
+                    ? null
+                    : deserialize(item.getPayloadCn(), TaskModifiedPayload.class);
+            notifyService.dispatchModified(payload, item.getRawSn());
         } else {
             throw new IllegalStateException("지원하지 않는 eventType: " + eventType);
         }

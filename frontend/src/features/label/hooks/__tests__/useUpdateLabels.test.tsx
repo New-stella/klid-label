@@ -95,6 +95,42 @@ describe('useUpdateLabels — 저장 후 캐시 무효화', () => {
     expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 
+  it('H12_같은_사용자의_연속_저장이_자기자신과_409가_나지_않는다 — 새_labelVersion_즉시반영', async () => {
+    // DEV_FIX H12 — 저장 토큰(labelVersion)이 invalidate→refetch(비동기)로만 갱신돼, refetch 완료 전
+    //   2회차 저장이 낡은 버전을 보내 자기 자신과 409 를 냈다. 그러면 "다른 사용자가 먼저 저장했습니다"
+    //   다이얼로그가 뜨고, '최신 라벨 불러오기' 선택 시 clearDirty() 로 본인 미저장 작업이 소실됐다.
+    const qc = newClient();
+    const sent: (number | undefined)[] = [];
+    let version = 5;
+    mock.reset();
+    mock.onPut('/frames/123/labels').reply((config) => {
+      const body = JSON.parse(config.data as string) as { labelVersion?: number };
+      sent.push(body.labelVersion);
+      version += 1;
+      return [
+        200,
+        {
+          success: true,
+          data: { frameNo: 1, srcSn: 123, labels: sample, labelVersion: version },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    // 조회 응답으로 받은 초기 버전(5)을 폴백으로 전달 — 실제 화면과 동일한 조건.
+    const { result } = renderHook(() => useUpdateLabels(123, { labelVersion: 5 }), {
+      wrapper: createWrapper(qc),
+    });
+
+    await result.current.mutateAsync(sample);
+    // 리렌더로 옵션이 갱신되기 전에 곧바로 2회차 저장(연타 시나리오).
+    await result.current.mutateAsync(sample);
+
+    // 1회차는 5, 2회차는 서버가 돌려준 6 — 낡은 5 를 다시 보내지 않는다.
+    expect(sent).toEqual([5, 6]);
+  });
+
   it('srcSn_undefined_면_mutation이_거부됨', async () => {
     const qc = newClient();
     const { result } = renderHook(() => useUpdateLabels(undefined), {

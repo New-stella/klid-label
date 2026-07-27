@@ -35,6 +35,15 @@ import org.springframework.stereotype.Service;
  * 정확히 1건만 성공하므로, 실패한 쪽은 409 로 거부되고 오직 클레임에 성공한 호출만 재기동을 진행한다.
  * 재시도 큐 리셋도 {@link BatchRetryQueue#clearIfIdle}(RETRYING 부기 보존)로 클레임 성공 후에만 수행한다.
  *
+ * <h3>SKIPPED 보상 (DEV_FIX H10 — 상태 고착 제거)</h3>
+ * <p>클레임은 <b>작업 상태를 보지 않고</b> {@code LS_DATA_RAW} FAILED→PROCESSING 만 선점한다. 그런데
+ * 이어지는 {@link BatchOrchestrator#process(Long)} 는 작업 상태가 검수 소유(PENDING/IN_REVIEW/APPROVED/
+ * REJECTED)면 {@link BatchStage#SKIPPED} 로 즉시 반환하고 실패/완료 전이를 타지 않는다. 따라서 클레임으로
+ * 바꾼 PROCESSING 을 되돌릴 코드가 없어 <b>배치 단계가 영구 PROCESSING 으로 고착</b>됐다(재현: 배치
+ * FAILED → 배정 → 검수 제출 → 재처리 = 200 "SKIPPED" + stage 고착 → 이후 영구 409).
+ * 이제 SKIPPED 를 관측하면 {@link BatchTransitionService#releaseReprocessClaim} 으로 보상 롤백한 뒤
+ * {@link ErrorCode#CONFLICT}(409) 로 거부하므로, 상태는 원래 FAILED 로 남고 재시도가 계속 가능하다.
+ *
  * <p>보안: 호출 인가는 컨트롤러 {@code @PreAuthorize("hasRole('REVIEWER')")} 로 강제하며, 상태 판정은 JPA
  * 파라미터 바인딩 쿼리만 사용(SQL Injection 무관).
  */
@@ -76,6 +85,19 @@ public class BatchReprocessService {
 
         log.info("[BatchReprocess] manual retry claimed rawSn={}", rawSn);
         BatchStage stage = orchestrator.process(rawSn);
+
+        // DEV_FIX H10/H2 — 진입 가드가 SKIPPED 를 반환하면 파이프라인은 한 건도 돌지 않았고
+        //   markRawDataFailed/markRawDataCompleted 도 호출되지 않는다. 위 클레임으로 바꿔 놓은
+        //   LS_DATA_RAW PROCESSING 을 여기서 <b>보상 롤백</b>하지 않으면 stage 가 영구 PROCESSING 으로
+        //   고착되어 이후 모든 재처리가 409 가 된다(stage/work 어느 쪽도 FAILED 가 아님).
+        // 또한 "요청은 200 인데 아무 일도 일어나지 않음"을 없애기 위해 409 로 명시 거부한다 — 운영자가
+        //   응답만으로 원인을 알 수 있어야 한다(로그 없이는 관측 불가하던 결함).
+        if (stage == BatchStage.SKIPPED) {
+            transitionService.releaseReprocessClaim(rawSn);
+            log.warn("[BatchReprocess] skipped — review-owned work status, claim compensated rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "검수 진행/완료(또는 반려) 상태의 영상은 배치를 재처리할 수 없습니다.");
+        }
         return new BatchReprocessResponse(rawSn, stage.name());
     }
 }

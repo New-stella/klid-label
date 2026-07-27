@@ -53,9 +53,12 @@ public class FrameDescriptionService {
                 srcSn, rawSn, description == null ? 0 : description.length());
 
         // 검수 완료(APPROVED) 후 수정 시에만 통지 — 검수 전 저장은 일반 작업이므로 미발행(라벨/메타 경로와 동일 가드).
+        // HIGH-B(Phase 5C) — 프레임 설명(frmExpln)은 export JSON 의 image.description 으로 나가므로 승인 후
+        //   수정 시 export 폴더를 새 버전으로 전량 재생성해야 데이터마트 라벨링 정보가 동기화된다.
+        //   exportRegenerated=true 로 발행(구 4-arg=false 는 재생성을 트리거하지 못해 옛 설명이 파일에 고착).
         if (isReviewApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, srcSn, ChangeType.META_UPDATED, guard.parseUserNo(actor.sub())));
+                    rawSn, srcSn, ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true));
         }
         return FrameDescriptionResponse.from(src);
     }

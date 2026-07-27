@@ -28,10 +28,22 @@ public class LocalProfileGuard {
 
     @PostConstruct
     void verify() {
+        verify(System.getenv("ENV"));
+    }
+
+    /**
+     * 판정 본체 — 환경변수 읽기를 분리해 자동 회귀 테스트가 가능하도록 파라미터로 받는다 (A-ISSUE-21).
+     *
+     * <p>{@code System.getenv} 모킹 라이브러리를 새로 도입하는 대신 <b>테스트 가능한 형태로 추출</b>했다.
+     * 이 가드는 배포 안전의 마지막 방어선이므로 회귀 시 CI 가 즉시 잡아야 한다.
+     *
+     * @param envName 배포 환경 이름 (ENV 환경변수). null/공백/"local" 이면 통과.
+     * @throws IllegalStateException ENV 가 dev/stg/prd 인데 active profile 에 local 이 포함된 경우
+     */
+    void verify(String envName) {
         if (!env.acceptsProfiles(Profiles.of("local"))) {
             return;
         }
-        String envName = System.getenv("ENV");
         if (envName == null || envName.isBlank() || "local".equalsIgnoreCase(envName)) {
             return;
         }

@@ -87,7 +87,11 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
-        "authoring.storage.raw-path=/tmp/klid-res-it"
+        // raw base 와 deid base 를 <b>같은 경로</b>로 둔다 — 운영(prd, /nas-storage)과 동일한 조건이라
+        // "base 만 바꾸면 되는 것처럼 보이는" 착시를 그대로 재현한다. 이 조건에서도 파생 산출물은
+        // 비식별 전용 서브트리(videos/…, frames/deid/…)에 놓여야 한다(E-ISSUE-21/22).
+        "authoring.storage.raw-path=/tmp/klid-res-it",
+        "authoring.storage.deidentified-path=/tmp/klid-res-it"
 })
 class ResolutionDerivativeFlowIntegrationTest {
 
@@ -251,7 +255,7 @@ class ResolutionDerivativeFlowIntegrationTest {
         LsDataAug reserved = augRepository.save(LsDataAug.createResolutionPending(
                 f0Sn, LsDataAug.AUG_RESL_720P, "rev1"));
         videoRepository.save(LsDataRaw.createFromResolution(
-                s.parent(), BASE + "/resolution/" + parentRawSn + "/RESL_720P/video/RESL_720P.mp4", "RESL_720P"));
+                s.parent(), BASE + "/videos/resolution/" + parentRawSn + "/RESL_720P.mp4", "RESL_720P"));
 
         // then — 예약행은 PENDING(non-terminal). 집계상 COMPLETED(생성 완료)로 오표기되지 않는다.
         assertThat(reserved.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
@@ -424,13 +428,57 @@ class ResolutionDerivativeFlowIntegrationTest {
         // given — 예약만 커밋(파생 RAW deIdntfYn='N', 확정 전). 마킹 스트림은 원본을 절대 노출하지 않는다.
         Seed s = seed("STREAM", BASE + "/videos/RESIT-STREAM-deid.mp4");
         LsDataRaw child = videoRepository.save(LsDataRaw.createFromResolution(
-                s.parent(), BASE + "/resolution/" + s.parent().getRawSn() + "/RESL_720P/video/RESL_720P.mp4", "RESL_720P"));
+                s.parent(), BASE + "/videos/resolution/" + s.parent().getRawSn() + "/RESL_720P.mp4", "RESL_720P"));
         assertThat(child.getDeIdntfYn()).isNotEqualTo("Y"); // 확정 전 = 'N'
 
         // then — deIdntfYn != 'Y' 게이트에서 NOT_FOUND(내부 상태 미노출, 원본 노출 차단).
         assertThatThrownBy(() -> videoStreamService.stream(child.getRawSn(), new org.springframework.http.HttpHeaders()))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("해상도_파생영상_스트리밍이_200_으로_재생됨")
+    void finalizedDerivativeStreamsWith200() throws Exception {
+        // given — 확정(deIdntfYn='Y')된 파생영상. B-ISSUE-61 은 파생 비디오가 raw base 에 있어 전면 403 이었다.
+        //         VideoStreamService 는 절대 손대지 않았고(원본 유출 위험), 산출 base 를 비식별 저장소로
+        //         바로잡은 것만으로 403 이 해소되는지 확인한다.
+        when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
+        Seed s = seed("STREAM200", BASE + "/videos/RESIT-STREAM200-deid.mp4");
+        service.createDerivative(s.parent().getRawSn(), ResolutionPreset.RESL_720P, "rev1");
+        LsDataRaw child = awaitFinalized(s.parent().getRawSn());
+
+        // Phase B(VideoFileCopier)는 @MockBean 이라 파일을 만들지 않는다 — 확정된 경로에 실제 파일을 놓는다.
+        Path videoDst = Paths.get(child.getRawFilePathNm());
+        Files.createDirectories(videoDst.getParent());
+        Files.write(videoDst, new byte[]{0, 0, 0, 0x18, 'f', 't', 'y', 'p'});
+
+        // when — Range 헤더 없는 전체 재생 요청
+        var response = videoStreamService.stream(child.getRawSn(), new org.springframework.http.HttpHeaders());
+
+        // then — 200 OK (구 동작: FORBIDDEN)
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        // 파생 비디오는 비식별 저장소의 비식별 전용 서브트리에 있다.
+        assertThat(child.getRawFilePathNm()).startsWith(BASE + "/videos/resolution/");
+    }
+
+    @Test
+    @DisplayName("확정된_파생프레임은_SRC경로가_null이고_비식별경로만_deid_서브트리에_기록된다(정책A)")
+    void finalizedDerivativeFramesHaveNullOriginalPath() {
+        when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
+        Seed s = seed("SRCNULL", BASE + "/videos/RESIT-SRCNULL-deid.mp4");
+
+        service.createDerivative(s.parent().getRawSn(), ResolutionPreset.RESL_720P, "rev1");
+        LsDataRaw child = awaitFinalized(s.parent().getRawSn());
+
+        List<LsDataSrc> childFrames = srcRepository.findByRawSnOrderByFrameNoAsc(child.getRawSn());
+        assertThat(childFrames).hasSize(2);
+        assertThat(childFrames).allSatisfy(f -> {
+            // E-ISSUE-41 — 두 컬럼 동일 저장 폐기. 원본 부재(null) + 비식별 경로만.
+            assertThat(f.getSrcFilePathNm()).isNull();
+            assertThat(f.getDeidFilePath()).startsWith(BASE + "/frames/deid/" + child.getRawSn() + "/");
+            assertThat(f.getDeidFilePath()).isNotEqualTo(f.getSrcFilePathNm());
+        });
     }
 
     @Test
@@ -444,7 +492,7 @@ class ResolutionDerivativeFlowIntegrationTest {
         LsDataAug aug = augRepository.save(LsDataAug.createResolutionPending(
                 s.frame0().getSrcSn(), LsDataAug.AUG_RESL_720P, "rev1"));
         LsDataRaw child = videoRepository.save(LsDataRaw.createFromResolution(
-                s.parent(), BASE + "/resolution/" + parentRawSn + "/RESL_720P/video/RESL_720P.mp4", "RESL_720P"));
+                s.parent(), BASE + "/videos/resolution/" + parentRawSn + "/RESL_720P.mp4", "RESL_720P"));
         Long childRawSn = child.getRawSn();
 
         int threads = 2;
@@ -481,21 +529,18 @@ class ResolutionDerivativeFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("경로에_상위탈출_시도시_거부되고_RAW가_FAILED로_전이된다")
-    void pathTraversalRejectedAndFailed() {
+    @DisplayName("경로에_상위탈출_시도시_거부되고_파생_확정_실패시_LS_DATA_RAW_고아행이_남지_않음")
+    void pathTraversalRejectedAndOrphanRawRemoved() {
         when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
         // 비식별 비디오 경로가 base 를 벗어남(CWE-22) — finalizer 복사 단계에서 거부.
         Seed s = seed("TRAV", "/etc/passwd");
 
         service.createDerivative(s.parent().getRawSn(), ResolutionPreset.RESL_720P, "rev1");
 
+        // E-ISSUE-23 — FAILED 전이 후 고아 파생 RAW 는 정리된다(구 동작: 침묵 쓰레기로 무한 누적).
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
-                .until(() -> {
-                    LsDataRaw c = childOf(s.parent().getRawSn());
-                    return c != null && LsDataRaw.DATA_STTS_FAILED.equals(c.getDataSttsCd());
-                });
-        LsDataRaw child = childOf(s.parent().getRawSn());
-        assertThat(child.getDeIdntfYn()).isNotEqualTo("Y"); // 확정 안 됨(PII 파생본 미노출)
+                .until(() -> childOf(s.parent().getRawSn()) == null);
+        assertThat(childCount(s.parent().getRawSn())).isZero(); // PII 파생본 자체가 존재하지 않는다
     }
 
     @Test
@@ -561,15 +606,13 @@ class ResolutionDerivativeFlowIntegrationTest {
                 parentRawSn, ResolutionPreset.RESL_720P, "rev1");
         Long failedChildRawSn = first.newRawSn();
 
-        // then #1 — 파생 RAW 는 FAILED 로 전이되고, 예약 aug 슬롯이 해제(삭제)되어 잔존하지 않는다.
+        // then #1 — 예약 aug 슬롯이 해제(삭제)되고, FAILED 파생 RAW 고아 행도 정리된다(E-ISSUE-23).
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
-                .until(() -> LsDataRaw.DATA_STTS_FAILED.equals(
-                        videoRepository.findById(failedChildRawSn).orElseThrow().getDataSttsCd()));
+                .until(() -> videoRepository.findById(failedChildRawSn).isEmpty());
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
                 .until(() -> augRepository.findBySrcSnOrderByAugTypeCd(f0Sn).stream()
                         .noneMatch(a -> "RESL_720P".equals(a.getAugTypeCd())));
-        assertThat(videoRepository.findById(failedChildRawSn).orElseThrow().getDeIdntfYn())
-                .isNotEqualTo("Y"); // PII 확정 위장 없음
+        assertThat(srcRepository.countByRawSn(failedChildRawSn)).isZero(); // PII 프레임 미복사
 
         // when #2 — transient 원인 해소 후 동일 (부모,프리셋) 재요청: 슬롯이 해제됐으므로 409 없이 정상 생성.
         ResolutionDerivativeResponse retry = service.createDerivative(
@@ -617,7 +660,7 @@ class ResolutionDerivativeFlowIntegrationTest {
         LsDataAug aug = augRepository.save(LsDataAug.createResolutionPending(
                 s.frame0().getSrcSn(), LsDataAug.AUG_RESL_720P, "rev1"));
         LsDataRaw child = videoRepository.save(LsDataRaw.createFromResolution(
-                s.parent(), BASE + "/resolution/" + parentRawSn + "/RESL_720P/video/RESL_720P.mp4", "RESL_720P"));
+                s.parent(), BASE + "/videos/resolution/" + parentRawSn + "/RESL_720P.mp4", "RESL_720P"));
         Long childRawSn = child.getRawSn();
 
         // when — 예약 커밋 ~ async 확정 사이 창에서 부모가 비식별 누락 신고로 'F'(PII 노출 확정) 전이.
@@ -628,14 +671,9 @@ class ResolutionDerivativeFlowIntegrationTest {
         // async 확정 트리거(러너 → finalizer 재잠금·재검증 → 'F' 관측 → 롤백 → FAILED 전이).
         asyncResolutionRunner.runAsync(childRawSn, parentRawSn, aug.getDataAugSn(), ResolutionPreset.RESL_720P);
 
-        // then — 파생 RAW 는 FAILED 로 전이되고 PII 는 절대 복제되지 않는다.
+        // then — 파생 RAW 는 FAILED 전이 후 고아 행으로 정리되고(E-ISSUE-23) PII 는 절대 복제되지 않는다.
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
-                .until(() -> {
-                    LsDataRaw c = videoRepository.findById(childRawSn).orElseThrow();
-                    return LsDataRaw.DATA_STTS_FAILED.equals(c.getDataSttsCd());
-                });
-        LsDataRaw finalized = videoRepository.findById(childRawSn).orElseThrow();
-        assertThat(finalized.getDeIdntfYn()).isNotEqualTo("Y");          // 비식별 완료 위장 안 됨
+                .until(() -> videoRepository.findById(childRawSn).isEmpty());
         assertThat(srcRepository.countByRawSn(childRawSn)).isZero();     // 프레임(PII 픽셀) 미복사
         assertThat(lblMapRepository.findAllByDataAugSn(aug.getDataAugSn())).isEmpty();
         verify(videoFileCopier, never()).copy(any(), any());             // 비식별 비디오 미복사
@@ -665,7 +703,7 @@ class ResolutionDerivativeFlowIntegrationTest {
         LsDataAug aug = augRepository.save(LsDataAug.createResolutionPending(
                 s.frame0().getSrcSn(), LsDataAug.AUG_RESL_720P, "rev1"));
         LsDataRaw child = videoRepository.save(LsDataRaw.createFromResolution(
-                s.parent(), BASE + "/resolution/" + parentRawSn + "/RESL_720P/video/RESL_720P.mp4", "RESL_720P"));
+                s.parent(), BASE + "/videos/resolution/" + parentRawSn + "/RESL_720P.mp4", "RESL_720P"));
         Long childRawSn = child.getRawSn();
 
         // Phase B 가 진짜 파일을 남기도록 port mock 을 파일 산출 답변으로 스텁(복사·리사이즈 dst = 인덱스 1).
@@ -682,19 +720,15 @@ class ResolutionDerivativeFlowIntegrationTest {
             return null;
         }).when(fileMaterializer).materialize(any(ResolutionSnapshot.class));
 
-        Path framesDir = Paths.get(BASE, "resolution", String.valueOf(childRawSn), "frames");
-        Path videoDst = Paths.get(BASE, "resolution", String.valueOf(parentRawSn), "RESL_720P", "video", "RESL_720P.mp4");
+        Path framesDir = Paths.get(BASE, "frames", "deid", String.valueOf(childRawSn));
+        Path videoDst = Paths.get(BASE, "videos", "resolution", String.valueOf(parentRawSn), "RESL_720P.mp4");
 
         // when — 러너 전체 실행(A→B[실파일+신고]→C[stale abort]→cleanup+FAILED).
         asyncResolutionRunner.runAsync(childRawSn, parentRawSn, aug.getDataAugSn(), ResolutionPreset.RESL_720P);
 
-        // then — 파생 RAW 가 FAILED 로 전이된다.
+        // then — 파생 RAW 가 FAILED 전이 후 고아 행으로 정리된다(E-ISSUE-23).
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
-                .until(() -> LsDataRaw.DATA_STTS_FAILED.equals(
-                        videoRepository.findById(childRawSn).orElseThrow().getDataSttsCd()));
-
-        LsDataRaw finalized = videoRepository.findById(childRawSn).orElseThrow();
-        assertThat(finalized.getDeIdntfYn()).isNotEqualTo("Y");        // 파생 미서빙 보장(확정 위장 없음)
+                .until(() -> videoRepository.findById(childRawSn).isEmpty());
         assertThat(srcRepository.countByRawSn(childRawSn)).isZero();   // Phase C abort — 프레임 미영속
         assertThat(lblMapRepository.findAllByDataAugSn(aug.getDataAugSn())).isEmpty();
         // 실제 산출된 Phase B 파일이 cleanup 으로 실측 삭제된다(Files.exists 실측).

@@ -142,6 +142,41 @@ class LabelContentHasherTest {
         assertThat(before).isNotEqualTo(after);
     }
 
+    /** {@link #frame} + VDO_FRM_NO(영상 내 실제 프레임 위치) 지정 — 산출 JSON {@code frame_num} 원천. */
+    private LsDataSrc frameWithVideoFrameNo(Long srcSn, Long frameNo, Long videoFrameNo) {
+        LsDataSrc s = frame(srcSn, frameNo, "설명");
+        lenient().when(s.getVideoFrameNo()).thenReturn(videoFrameNo);
+        return s;
+    }
+
+    @Test
+    @DisplayName("S11_라벨과_프레임이_같고_vdoFrmNo만_달라도_콘텐츠해시가_달라진다")
+    void videoFrameNoChangeChangesHash() {
+        // given — 라벨·프레임(추출순번/설명/경로) 동일, VDO_FRM_NO 만 10 → 20
+        List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
+
+        // when
+        String before = hasher.hash(labels, List.of(frameWithVideoFrameNo(10L, 0L, 10L)), null, null);
+        String after = hasher.hash(labels, List.of(frameWithVideoFrameNo(10L, 0L, 20L)), null, null);
+
+        // then — 산출 JSON 의 frame_num 이 달라지므로 멱등 skip 되면 안 된다(stale 고착 방지).
+        assertThat(before).isNotEqualTo(after);
+    }
+
+    @Test
+    @DisplayName("S11_vdoFrmNo가_null에서_값으로_백필되면_해시가_달라진다")
+    void videoFrameNoBackfillChangesHash() {
+        // given — 백필 전(null) vs 백필 후(30) — 나머지는 완전히 동일
+        List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
+
+        // when
+        String beforeBackfill = hasher.hash(labels, List.of(frameWithVideoFrameNo(10L, 0L, null)), null, null);
+        String afterBackfill = hasher.hash(labels, List.of(frameWithVideoFrameNo(10L, 0L, 30L)), null, null);
+
+        // then — 백필분이 재산출되어야 하므로 해시가 갈라진다.
+        assertThat(beforeBackfill).isNotEqualTo(afterBackfill);
+    }
+
     private LsDataSrc frameWithPrivacy(Long srcSn, Long frameNo, String anony, String psdo, String prvc) {
         LsDataSrc s = frame(srcSn, frameNo, "설명");
         lenient().when(s.getAnonyInclYn()).thenReturn(anony);

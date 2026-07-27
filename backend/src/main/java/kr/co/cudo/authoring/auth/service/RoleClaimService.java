@@ -22,26 +22,29 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 권한 자가 부여 서비스.
  *
  * <p>인증은 되었으나 role 클레임이 없는 사용자가 관리자 공유 패스워드와 함께
- * 본인에게 {@link Role#WORKER} 또는 {@link Role#REVIEWER} 역할을 부여한다.
+ * 본인에게 {@link Role#WORKER} 역할을 부여한다.
+ *
+ * <p><b>REVIEWER 자가부여 불가 (A-ISSUE-17, CWE-269/CWE-1392)</b>: REVIEWER 는 사용자 관리·시스템 설정·
+ * 작업 배정·검수 승인을 모두 보유한 사실상 관리자다. 공유 정적 패스워드 1개로 최고권한을 자가부여할 수
+ * 있으면 패스워드 유출이 곧 전권 탈취가 되므로, 자가부여 가능 역할을 {@link #allowedClaimRoles()} 화이트
+ * 리스트(WORKER 단일)로 한정한다. REVIEWER 는 기존 REVIEWER 의 {@code /manage} 경로로만 부여된다.
  *
  * <p>보안 (security-rules.md 준수):
  * <ul>
  *   <li><b>CWE-256 Plaintext Password Storage</b> — application.yml 에 BCrypt 해시만 저장 (cost ≥ 12).
  *       평문은 어디에도 저장되지 않는다.</li>
- *   <li><b>CWE-307 Improper Restriction of Excessive Authentication Attempts</b> — 호출자(userNo) 단위
- *       sliding window rate limiter 적용. 5회/분 초과 시 {@link ErrorCode#TOO_MANY_REQUESTS}.</li>
+ *   <li><b>CWE-307 Improper Restriction of Excessive Authentication Attempts</b> —
+ *       {@link RoleClaimRateLimiter} 가 계정 축 + 엔드포인트 전역 축을, 노드 공유 저장소와 함께 강제한다.
+ *       초과 시 {@link ErrorCode#TOO_MANY_REQUESTS}.</li>
  *   <li><b>CWE-863 Incorrect Authorization</b> — actor 가 이미 WORKER/REVIEWER 라면 409 CONFLICT.
  *       PORTAL_USER 는 별도 채널이므로 본 API 진입 자체를 거절.</li>
  *   <li><b>CWE-117 Log Injection / CWE-532</b> — adminPassword 평문은 로그에 절대 출력하지 않으며,
@@ -54,10 +57,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class RoleClaimService {
 
-    /** 호출자 단위 sliding window. 5회/분 초과 시 429. */
-    private static final int MAX_ATTEMPTS_PER_WINDOW = 5;
-    private static final Duration WINDOW = Duration.ofMinutes(1);
-
     /** 새 토큰의 TTL — 기존 DevTokenService 의 기본값과 동일하게 1시간. */
     private static final long ISSUED_TOKEN_TTL_SECONDS = 3600L;
 
@@ -65,18 +64,17 @@ public class RoleClaimService {
     private final LsUserRoleRepository lsUserRoleRepository;
     private final UserRoleResolver userRoleResolver;
     private final JwtKeyResolver keyResolver;
+    private final RoleClaimRateLimiter rateLimiter;
     private final PasswordEncoder passwordEncoder;
     private final String adminPasswordHash;
     private final String issuer;
-
-    /** 호출자(sub=userNo) 단위 시도 카운터. */
-    private final ConcurrentHashMap<String, AttemptCounter> attempts = new ConcurrentHashMap<>();
 
     public RoleClaimService(
             UserRepository userRepository,
             LsUserRoleRepository lsUserRoleRepository,
             UserRoleResolver userRoleResolver,
             JwtKeyResolver keyResolver,
+            RoleClaimRateLimiter rateLimiter,
             @Value("${authoring.auth.admin-claim-password-hash}") String adminPasswordHash,
             @Value("${authoring.jwt.issuer:klid-auth}") String issuer
     ) {
@@ -84,6 +82,7 @@ public class RoleClaimService {
         this.lsUserRoleRepository = lsUserRoleRepository;
         this.userRoleResolver = userRoleResolver;
         this.keyResolver = keyResolver;
+        this.rateLimiter = rateLimiter;
         this.passwordEncoder = new BCryptPasswordEncoder();
         if (adminPasswordHash == null || adminPasswordHash.isBlank()) {
             // 설정 누락 시 부트가 떠도 본 endpoint 는 항상 401 로 거절되도록 빈 문자열로 유지.
@@ -113,15 +112,25 @@ public class RoleClaimService {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "PORTAL_USER 역할은 본 API 로 부여할 수 없습니다.");
         }
-        // CWE-863 — fail-closed 화이트리스트: INTERNAL 채널 + 역할 미보유(role==null) actor 만 허용.
+        // ① CWE-269 — 자가부여 가능 역할 화이트리스트(WORKER 단일)를 **가장 먼저** 강제한다.
+        //    화이트리스트 참조가 없으면 Role enum 확장 시 즉시 취약해진다(A-ISSUE-17).
+        //    rate limit 보다 앞에 두어야 잘못된 role 시도가 정상 사용자의 쿼터를 소모하지 않는다.
+        if (!allowedClaimRoles().contains(req.role())) {
+            log.warn("[RoleClaim] denied userNo={} role={} reason=role_not_self_claimable",
+                    sanitize(actor.sub()), req.role());
+            throw new CustomException(ErrorCode.FORBIDDEN,
+                    "해당 역할은 자가 부여할 수 없습니다. 검수자에게 권한 부여를 요청하세요.");
+        }
+        // ② CWE-863 — fail-closed 화이트리스트: INTERNAL 채널 + 역할 미보유(role==null) actor 만 허용.
         // PORTAL_USER(channel=PORTAL) 의 교차채널 자가부여(INTERNAL WORKER/REVIEWER 상승)와 이미
         // 권한 보유자(WORKER/REVIEWER)를 모두 거절한다. (deny-by-default)
         if (actor.channel() != Channel.INTERNAL || actor.role() != null) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 권한이 부여된 사용자입니다.");
         }
 
-        // CWE-307 — rate limit 먼저 적용. 패스워드 검증/DB 작업 전에 차단.
-        consumeAttemptOrReject(actor.sub());
+        // ③ CWE-307 — rate limit. 패스워드 검증(BCrypt)/DB 작업 전에 차단한다.
+        //    계정 축 + 전역 축 + 노드 공유 축을 모두 강제한다(A-ISSUE-18).
+        rateLimiter.consumeOrReject(actor.sub());
 
         // CWE-203 — BCryptPasswordEncoder.matches 는 상수시간.
         // adminPasswordHash 가 비어 있어도 matches 는 false 를 반환하지만 명시적으로 차단.
@@ -198,26 +207,6 @@ public class RoleClaimService {
                 .compact();
     }
 
-    /**
-     * 호출자(sub) 단위 sliding window rate limit.
-     * 윈도우 시작 이후 시도가 {@link #MAX_ATTEMPTS_PER_WINDOW} 회를 초과하면 429.
-     */
-    private void consumeAttemptOrReject(String key) {
-        Instant now = Instant.now();
-        AttemptCounter counter = attempts.compute(key, (k, prev) -> {
-            if (prev == null || now.isAfter(prev.windowStart.plus(WINDOW))) {
-                return new AttemptCounter(now, new AtomicInteger(0));
-            }
-            return prev;
-        });
-        int current = counter.count.incrementAndGet();
-        if (current > MAX_ATTEMPTS_PER_WINDOW) {
-            log.warn("[RoleClaim] rate-limited userNo={} attempts={}", sanitize(key), current);
-            throw new CustomException(ErrorCode.TOO_MANY_REQUESTS,
-                    "시도 횟수가 제한을 초과했습니다. 잠시 후 다시 시도해주세요.");
-        }
-    }
-
     /** CWE-117 Log Injection 방어 — CR/LF 등 제어문자 제거. */
     private static String sanitize(String value) {
         if (value == null) {
@@ -228,15 +217,14 @@ public class RoleClaimService {
         return trimmed.replaceAll("[\\r\\n\\t]", "_");
     }
 
-    /** 테스트용 — 상태 초기화. 패키지 내부(테스트 전용)로만 노출한다. */
-    void resetAttempts() {
-        attempts.clear();
-    }
-
-    private record AttemptCounter(Instant windowStart, AtomicInteger count) {}
-
-    /** 어떤 권한이 부여 가능한지 화이트리스트로 노출 (재사용 가능). */
+    /**
+     * 자가부여 가능 역할 화이트리스트 (deny-by-default).
+     *
+     * <p>{@link Role#REVIEWER} 는 <b>포함하지 않는다</b> — 사용자 관리·시스템 설정·검수 승인을 모두 갖는
+     * 최고권한을 공유 정적 패스워드만으로 획득할 수 있으면 안 되기 때문이다(A-ISSUE-17). REVIEWER 부여는
+     * 기존 REVIEWER 의 {@code /manage} 경로가 담당한다.
+     */
     public static List<Role> allowedClaimRoles() {
-        return List.of(Role.WORKER, Role.REVIEWER);
+        return List.of(Role.WORKER);
     }
 }

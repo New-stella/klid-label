@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -98,6 +99,12 @@ public class KpstDeidentService {
     private final VideoRepository videoRepository;
     private final LsDeidentProcLogRepository procLogRepository;
     private final KpstDeidentTxService txService;
+    /**
+     * A-2 — KPST {@code export_path}(결과 WRITE 대상 디렉터리)를 결정하는 단일 지점.
+     * co-locate: {@code dirname(원본)/{rawSn}/deid/} · 롤백: {@code {deid_base}/videos/{rawSn}/}.
+     * <b>파일명은 KPST 가 정한다</b>({@code {stem}-mask{ext}} 실측) — 우리가 지정하는 것은 디렉터리까지다.
+     */
+    private final VideoArtifactRootResolver artifactRootResolver;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
@@ -121,11 +128,13 @@ public class KpstDeidentService {
     public KpstDeidentService(KpstDeidentifyClient kpstClient,
                               VideoRepository videoRepository,
                               LsDeidentProcLogRepository procLogRepository,
-                              KpstDeidentTxService txService) {
+                              KpstDeidentTxService txService,
+                              VideoArtifactRootResolver artifactRootResolver) {
         this.kpstClient = kpstClient;
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
         this.txService = txService;
+        this.artifactRootResolver = artifactRootResolver;
     }
 
     @PostConstruct
@@ -182,19 +191,26 @@ public class KpstDeidentService {
             }
             String dir = parent.toString();
             List<String> files = List.of(fullPath.getFileName().toString());
-            // export_path = 우리 비식별 저장소 base ({STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/).
+            // export_path = 비식별 영상 디렉터리(A-2). co-locate 전략에서는 원본 영상과 같은 디렉터리 하위
+            // ({dirname(원본)}/{rawSn}/deid/) 라 관제가 산출물 트리 한 경로로 전부 픽업할 수 있다.
             // KPST 가 결과를 이 경로에 직접 WRITE 하므로(no-copy) 쓰기 대상 디렉터리를 사전 생성한다.
-            Path exportDir = baseDeidentifiedPath.resolve(DIR_VIDEOS).resolve(String.valueOf(rawSn));
+            // 파일명은 KPST 소관이라 여기서 정하지 않는다.
+            Path exportDir = artifactRootResolver.deidVideoDir(rawSn, rawFilePathNm);
             try {
                 Files.createDirectories(exportDir);
             } catch (IOException ioe) {
                 // 위탁 실패 — 아래 catch(RuntimeException) 가 'F' 마킹 후 예외 전파.
                 throw new CustomException(ErrorCode.INTERNAL_ERROR, "비식별 결과 저장 디렉터리 생성 실패");
             }
+            // B-3(TOCTOU, CWE-367/59) — 검증~생성 사이의 심링크 바꿔치기 창을 닫는다. base 를 다시 계산
+            // (allowlist·실경로 재검증)하고 방금 만든 디렉터리의 실경로가 여전히 그 하위인지 재확인한다.
+            // 이 경로는 KPST 가 결과를 직접 WRITE 하는 대상이라 위탁 전에 확정되어야 한다.
+            VideoArtifactRootResolver.verifyRealPathUnder(
+                    exportDir, artifactRootResolver.deidVideoDir(rawSn, rawFilePathNm));
             // HIGH: REDEIDENT 재위탁 시 이전 회차 산출물(mock/규칙 변경 시 타임스탬프명 누적)이 남아
             // 폴백 스캔이 stale 을 오회수하거나 다중 파일 모호 실패로 정상 완료를 막을 수 있다.
             // 이번 회차 산출물만 남도록 export 디렉터리 바로 아래 정규 파일을 정리한다(최초 위탁 시 no-op).
-            cleanExportDir(exportDir, rawSn);
+            cleanExportDir(exportDir, rawSn, rawFilePathNm);
             KpstProjectRequest projectReq = KpstProjectRequest.withDefaults(
                     projectName(rawSn), creatorId,
                     exportDir + "/",    // export_path = 우리 base/videos/{rawSn}/ (KPST 결과 WRITE 대상)
@@ -224,8 +240,10 @@ public class KpstDeidentService {
      *
      * <p><b>삭제 안전 가드(CWE-22 경로탈출·심링크 추종 방어)</b>:
      * <ol>
-     *   <li>① {@code exportDir.normalize()} 가 {@code baseDeidentifiedPath} 하위인지 단언 후에만 진행
-     *       (base 탈출 시 정리하지 않음).</li>
+     *   <li>① <b>정확히 이번 회차의 비식별 영상 디렉터리인지</b> 단언 후에만 진행한다 —
+     *       {@code exportDir.normalize()} 가 리졸버로 <b>다시 계산한</b>
+     *       {@code deidVideoDir(rawSn, rawFilePathNm)} 와 {@code equals} 여야 한다. "설정 루트 하위 어디든"
+     *       (= NAS 전체) 을 허용하는 넓은 판정은 삭제 가드로는 과하다(B-4 회귀 방지).</li>
      *   <li>② 디렉터리 <b>바로 아래 정규 파일만</b> 삭제(재귀 금지, 하위 디렉터리 미삭제) —
      *       {@code Files.list}(비재귀) + {@code isRegularFile(NOFOLLOW_LINKS)} 필터.</li>
      *   <li>③ 심링크는 따라가지 않음 — {@code NOFOLLOW_LINKS} 로 링크/디렉터리는 정규파일 판정에서
@@ -235,11 +253,19 @@ public class KpstDeidentService {
      *       정리 실패가 위탁을 막지 않는다(정리 못 하면 이후 폴백이 모호 실패로 안전 종결).</li>
      * </ol>
      */
-    private void cleanExportDir(Path exportDir, Long rawSn) {
+    private void cleanExportDir(Path exportDir, Long rawSn, String rawFilePathNm) {
         Path normalized = exportDir.normalize();
-        // ① base 하위 단언(CWE-22) — 벗어나면 정리하지 않음(방어심도).
-        if (!normalized.startsWith(baseDeidentifiedPath)) {
-            log.warn("[KpstDeid] skip export dir cleanup — outside base rawSn={}", rawSn);
+        // ① 삭제 대상은 <이 rawSn 의 비식별 영상 디렉터리 그 자체> 하나뿐이다(CWE-22). 리졸버로 다시
+        //    계산한 경로(고정 allowlist + 실경로 검증 통과분)와 정확히 일치할 때만 진행한다.
+        Path expected;
+        try {
+            expected = artifactRootResolver.deidVideoDir(rawSn, rawFilePathNm).normalize();
+        } catch (RuntimeException e) {
+            log.warn("[KpstDeid] skip export dir cleanup — base rejected rawSn={}", rawSn);
+            return;
+        }
+        if (!normalized.equals(expected)) {
+            log.warn("[KpstDeid] skip export dir cleanup — not the deid video dir rawSn={}", rawSn);
             return;
         }
         // ④ 미존재/비디렉터리(심링크 디렉터리도 NOFOLLOW 로 제외) → no-op.
@@ -336,7 +362,7 @@ public class KpstDeidentService {
             // PENDING stuck, REDEIDENT 작업락 영구 미해제.)
             String deidPathStr;
             try {
-                deidPathStr = downloadResult(rawSn, ds.fileName());
+                deidPathStr = downloadResult(rawSn, procLog.getOrgnlFilePathNm(), ds.fileName());
             } catch (RuntimeException e) {
                 if (procLog.isRedeident()) {
                     txService.failRedeidentCompletion(procLogSn, rawSn, e.getClass().getSimpleName());
@@ -421,21 +447,40 @@ public class KpstDeidentService {
      * <p>경로 주입 방어(CWE-22): basename 추출로 순회를 제거하고, 최종 resolve 결과가 base 하위인지
      * 방어심도 단언한다. 산출물 존재/0바이트 검증은 호출측 {@link #isUsableDeidFile} 가 수행한다.
      */
-    private String downloadResult(Long rawSn, String fileNameFromResponse) {
+    private String downloadResult(Long rawSn, String orgnlFilePathNm, String fileNameFromResponse) {
         String base = sanitizeFileName(fileNameFromResponse);
-        Path dir = baseDeidentifiedPath.resolve(DIR_VIDEOS).resolve(String.valueOf(rawSn));
-        // 1차: {stem}-mask{ext} 산출명 재구성(실측 계약).
-        Path maskPath = resolveUnderBase(dir, toMaskName(base));
-        if (isUsableDeidFile(maskPath.toString())) {
-            return maskPath.toString();
-        }
-        // 폴백: 접미사/확장자 규칙 변화 대비 — 디렉터리 내 단일 산출 영상을 회수(no-copy=1개 기대).
-        Path fallback = scanSingleUsable(dir);
-        if (fallback != null) {
-            return fallback.toString();
+        // 회수 대상 디렉터리는 <b>2-way</b>다(S6): 신 위치(co-locate export_path) 우선, 배포 전 위탁분이
+        // 남아 있을 수 있으므로 구 위치({deid_base}/videos/{rawSn}/)도 폴백으로 훑는다.
+        List<Path> dirs = recoveryDirs(rawSn, orgnlFilePathNm);
+        Path firstMaskPath = null;
+        for (Path dir : dirs) {
+            // 1차: {stem}-mask{ext} 산출명 재구성(실측 계약).
+            Path maskPath = VideoArtifactRootResolver.resolveUnder(dir, toMaskName(base));
+            if (firstMaskPath == null) {
+                firstMaskPath = maskPath;
+            }
+            if (isUsableDeidFile(maskPath.toString())) {
+                return maskPath.toString();
+            }
+            // 폴백: 접미사/확장자 규칙 변화 대비 — 디렉터리 내 단일 산출 영상을 회수(no-copy=1개 기대).
+            Path fallback = scanSingleUsable(dir);
+            if (fallback != null) {
+                return fallback.toString();
+            }
         }
         // 0개 — 1차 경로 반환(호출측 isUsableDeidFile 가 false → failPolling 로 깨끗이 종결).
-        return maskPath.toString();
+        return firstMaskPath == null ? "" : firstMaskPath.toString();
+    }
+
+    /**
+     * 회수 후보 디렉터리 — 신 위치(전략에 따른 export_path) + 구 위치({@code {deid_base}/videos/{rawSn}/}).
+     * 신 위치 도출이 실패해도(원본 경로 손상 등) 구 위치 회수는 계속 시도한다.
+     */
+    private List<Path> recoveryDirs(Long rawSn, String orgnlFilePathNm) {
+        java.util.LinkedHashSet<Path> dirs = new java.util.LinkedHashSet<>();
+        artifactRootResolver.deidVideoDirQuietly(rawSn, orgnlFilePathNm).ifPresent(dirs::add);
+        dirs.add(baseDeidentifiedPath.resolve(DIR_VIDEOS).resolve(String.valueOf(rawSn)).normalize());
+        return List.copyOf(dirs);
     }
 
     /**
@@ -479,7 +524,9 @@ public class KpstDeidentService {
         }
         if (usable.size() == 1) {
             Path only = usable.get(0).normalize();
-            if (!only.startsWith(baseDeidentifiedPath)) {
+            // 회수 대상은 <스캔한 회수 디렉터리 바로 아래> 파일이어야 한다(B-4 — "설정 루트 하위 어디든"
+            // 보다 좁은 판정). dir 자체는 recoveryDirs 가 리졸버 검증을 거쳐 만든 경로다.
+            if (!only.startsWith(dir.normalize())) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "비식별 결과 경로가 기준 디렉터리를 벗어났습니다.");
             }
             return only;
@@ -489,15 +536,6 @@ public class KpstDeidentService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "비식별 결과 산출물이 모호합니다(다중 파일).");
         }
         return null;
-    }
-
-    /** {@code dir/name} 을 resolve 후 base 하위인지 단언(CWE-22 방어심도). */
-    private Path resolveUnderBase(Path dir, String name) {
-        Path resolved = dir.resolve(name).normalize();
-        if (!resolved.startsWith(baseDeidentifiedPath)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "비식별 결과 경로가 기준 디렉터리를 벗어났습니다.");
-        }
-        return resolved;
     }
 
     /**

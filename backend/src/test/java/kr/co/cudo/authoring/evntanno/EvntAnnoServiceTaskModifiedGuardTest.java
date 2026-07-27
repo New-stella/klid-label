@@ -113,5 +113,9 @@ class EvntAnnoServiceTaskModifiedGuardTest {
         assertThat(event.changeType()).isEqualTo(ChangeType.META_UPDATED);
         assertThat(ChangeType.ALL).contains(event.changeType());
         assertThat(event.modifierNo()).isEqualTo(1001L);
+        // A-2 — 이 경로는 export 폴더를 재생성하지 않는다(DatasetReExportEvent 미발행).
+        // 따라서 통지는 changed_items 를 비운 채 나가야 하며, 전 프레임을 실으면 관제가 안 바뀐
+        // 파일 수천 개를 헛 재픽업한다.
+        assertThat(event.exportRegenerated()).isFalse();
     }
 }

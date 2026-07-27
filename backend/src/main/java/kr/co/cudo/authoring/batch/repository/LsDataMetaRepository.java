@@ -16,6 +16,18 @@ public interface LsDataMetaRepository extends JpaRepository<LsDataMeta, Long>, L
 
     List<LsDataMeta> findByRawSn(Long rawSn);
 
+    /**
+     * 영상 메타 페이징 조회 — 관제 조회 API 전용(B-4, CWE-770).
+     *
+     * <p>VLM 콜백 1회당 최대 500 세그먼트 · {@code META_VL} 최대 2000자라 누적되면 전량 반환이 수 MB
+     * 응답이 된다. 라벨 조회와 동일하게 페이징(기본 20 / 최대 100)으로만 노출한다.
+     */
+    org.springframework.data.domain.Page<LsDataMeta> findByRawSn(
+            Long rawSn, org.springframework.data.domain.Pageable pageable);
+
+    /** 영상 메타 건수 — 요약 조회에서 전량 적재 없이 카운트만 얻는다(CWE-770). */
+    long countByRawSn(Long rawSn);
+
     Optional<LsDataMeta> findByRawSnAndMetaKey(Long rawSn, String metaKey);
 
     /** 다건 metaKey 를 IN 절 1회로 일괄 조회 (VLM 콜백 results 배치 upsert — N+1 제거). */

@@ -3,6 +3,9 @@ package kr.co.cudo.authoring.dataset.export.repository;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -20,6 +23,9 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
 
     /** 영상(rawSn)별 누적 export 건수 — 다음 버전 = count + 1 도출용. */
     long countByDataRawSn(Long rawSn);
+
+    /** 영상(rawSn)의 전체 export 이력 — 재시도 시도 이력(RTY_NMTM) 합산·검증용. */
+    List<LsDatasetExport> findByDataRawSn(Long rawSn);
 
     /** 같은 영상의 같은 버전 존재 여부 — 재산출 중복 방어(UK 사전 확인). */
     boolean existsByDataRawSnAndExportVerNo(Long rawSn, int exportVerNo);
@@ -48,4 +54,97 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
      * 회수(FAILED 마감)하는 데 사용한다. 파생 쿼리 파라미터 바인딩만 사용(CWE-89 표면 없음).
      */
     List<LsDatasetExport> findByExportSttsCdAndRegDtBefore(String exportSttsCd, LocalDateTime cutoff);
+
+    /**
+     * D-ISSUE-04(b) — <b>실패 export 회수 후보</b>(재시도 앵커 행) 목록.
+     *
+     * <p>승인 후 export 는 AFTER_COMMIT {@code @Async} 로 승인 트랜잭션 <b>밖</b>에서 돌기 때문에 실패해도
+     * 승인이 롤백되지 않고, 지금까지는 <b>재시도 경로가 아예 없어</b> FAILED 레코드만 남고 데이터마트에
+     * {@code EXPORT_PATH_NM} 이 NULL 인 행이 영구히 남았다(실측: rawSn=13 프레임 11·라벨 35 인데 export
+     * 실패 → 승인 게이트로도 못 잡는 유형). 이 쿼리가 주기 회수 잡의 대상 선정을 담당한다.
+     *
+     * <p>선정 규칙:
+     * <ul>
+     *   <li>영상별 <b>최신</b>(최대 EXPORT_VER_NO) export 가 {@code FAILED} 일 것 — 이후 성공/부분 산출이
+     *       있으면 이미 회복된 것이므로 제외. 진행 중(PENDING)이 최신이면 대상이 아니다(승인 경로 러너와의
+     *       동시 산출 회피).</li>
+     *   <li>마지막 활동({@code RTY_DT}, 없으면 {@code REG_DT})이 {@code :cutoff} 이전일 것 — 방금 실패했거나
+     *       방금 재시도를 트리거한 건은 잠시 둔다(일시 장애 진정 대기 + 재시도 간 최소 간격).</li>
+     *   <li>마지막 성공/부분 산출 이후 <b>누적 재시도 횟수({@code SUM(RTY_NMTM)}) &lt; :maxAttempts</b>.</li>
+     * </ul>
+     *
+     * <h3>DEV_FIX(H7①) — 왜 "FAILED 행 수" 가 아니라 RTY_NMTM 합인가</h3>
+     * 재시도가 항상 FAILED 행을 만들지는 않는다: 프레임/활성 메타 부재(NO_INPUT)는 레코드를 INSERT 하지
+     * 않고 early return 하고, 버전 채번 소진도 행이 없으며, {@code AsyncDatasetExportRunner} 는 예외를
+     * 삼킨다. 그래서 구 카운트는 이 유형에서 <b>영원히 고정</b>돼 {@code max-attempts} 가 무효였고 주기마다
+     * 무한 재시도됐다. 이제 클레임 시점에 무조건 증가하는 {@code RTY_NMTM} 을 합산하므로, 산출이 어떤
+     * 방식으로 실패하든 상한이 실제로 걸린다. 재시도가 새 FAILED 행을 만들어 앵커가 바뀌어도, 합산 범위가
+     * "마지막 성공 이후 전 행"이라 누적치가 유지된다(리셋되지 않는다).
+     *
+     * <p>파라미터 바인딩만 사용(CWE-89 표면 없음).
+     *
+     * @return {@code [exportSn, dataRawSn]} 배열 목록 (오래된 실패 우선, 최대 {@code limit} 건).
+     *         실제 재시도 실행 전 {@link #claimForRetry} 로 <b>원자 클레임에 성공한 건만</b> 트리거해야 한다.
+     */
+    @Query(value = """
+            SELECT e.EXPORT_SN, e.DATA_RAW_SN
+              FROM LS_DATASET_EXPORT e
+              JOIN (SELECT DATA_RAW_SN, MAX(EXPORT_VER_NO) AS MAX_VER
+                      FROM LS_DATASET_EXPORT
+                     GROUP BY DATA_RAW_SN) m
+                ON m.DATA_RAW_SN = e.DATA_RAW_SN
+               AND m.MAX_VER = e.EXPORT_VER_NO
+             WHERE e.EXPORT_STTS_CD = 'FAILED'
+               AND COALESCE(e.RTY_DT, e.REG_DT) < :cutoff
+               AND (SELECT COALESCE(SUM(f.RTY_NMTM), 0)
+                      FROM LS_DATASET_EXPORT f
+                     WHERE f.DATA_RAW_SN = e.DATA_RAW_SN
+                       AND f.EXPORT_VER_NO > COALESCE((SELECT MAX(g.EXPORT_VER_NO)
+                                                         FROM LS_DATASET_EXPORT g
+                                                        WHERE g.DATA_RAW_SN = e.DATA_RAW_SN
+                                                          AND g.EXPORT_STTS_CD IN ('SUCCEEDED', 'PARTIAL')), 0)
+                   ) < :maxAttempts
+             ORDER BY COALESCE(e.RTY_DT, e.REG_DT) ASC
+             LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findRetryableFailedAnchors(@Param("cutoff") LocalDateTime cutoff,
+                                              @Param("maxAttempts") int maxAttempts,
+                                              @Param("limit") int limit);
+
+    /**
+     * D-ISSUE-04(b) DEV_FIX(H7①/H7③) — 재시도 <b>원자 클레임</b>. 성공(1행)했을 때만 재산출을 트리거한다.
+     *
+     * <p>한 문장이 두 가지를 동시에 한다:
+     * <ol>
+     *   <li><b>시도 이력 기록</b>: {@code RTY_NMTM +1}, {@code RTY_DT = now}. 이후 산출이 FAILED 행을
+     *       남기든(일반 실패) 아무 행도 남기지 않든(NO_INPUT·채번 소진·예외 삼킴) 시도는 반드시 남는다.</li>
+     *   <li><b>중복 산출 차단</b>: {@code RTY_DT} 가 {@code :claimCutoff} 이후면 이미 누군가 집어간 것이므로
+     *       0행. PostgreSQL 은 UPDATE 시 행 락을 얻은 뒤 <b>갱신된 최신 버전으로 WHERE 를 재평가</b>하므로,
+     *       두 노드가 같은 앵커를 동시에 노려도 한쪽만 1행을 얻는다. 이는 Quartz {@code isClustered}
+     *       설정(현재 기본 false)에 의존하지 않는 DB 레벨 보장이다.</li>
+     * </ol>
+     *
+     * <p>{@code EXPORT_STTS_CD = 'FAILED'} 조건은 그 사이 다른 경로(승인 재산출 등)가 상태를 바꿨으면
+     * 클레임을 포기하게 한다(fail-closed). 파라미터 바인딩만 사용(CWE-89 표면 없음).
+     *
+     * @param exportSn    클레임 대상 앵커 행(최신 FAILED)
+     * @param maxAttempts 마지막 성공 이후 누적 시도 상한 — 앵커 단독 카운트로도 한 번 더 방어
+     * @param claimCutoff 이 시각 이후에 클레임된 행은 재클레임하지 않는다(= now - 재시도 유예)
+     * @param now         클레임 시각
+     * @return 클레임에 성공한 행 수(0 또는 1)
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE LS_DATASET_EXPORT
+               SET RTY_NMTM = RTY_NMTM + 1,
+                   RTY_DT = :now
+             WHERE EXPORT_SN = :exportSn
+               AND EXPORT_STTS_CD = 'FAILED'
+               AND RTY_NMTM < :maxAttempts
+               AND (RTY_DT IS NULL OR RTY_DT < :claimCutoff)
+            """, nativeQuery = true)
+    int claimForRetry(@Param("exportSn") Long exportSn,
+                      @Param("maxAttempts") int maxAttempts,
+                      @Param("claimCutoff") LocalDateTime claimCutoff,
+                      @Param("now") LocalDateTime now);
 }

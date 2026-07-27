@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.runner.AsyncVideoMetaRunner;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
@@ -59,10 +60,20 @@ class AugmentResultServiceTest {
     private AugmentResultService service;
     private final java.util.concurrent.atomic.AtomicLong rawSnSeq = new java.util.concurrent.atomic.AtomicLong(9000);
 
+    /**
+     * 적재 시점 경로 검증(B-2)용 리졸버 — 테스트 픽스처 경로({@code /storage/...})가 통과하도록
+     * 마운트 루트를 {@code /storage} 로 잡는다. 실 배포에서는 NAS 마운트 루트가 들어온다.
+     */
+    private static VideoArtifactRootResolver allowedStorageResolver() {
+        return new VideoArtifactRootResolver(
+                "/storage", "/storage/raw", "/storage/deidentified", "/storage/labeling",
+                VideoArtifactRootResolver.STRATEGY_CO_LOCATE);
+    }
+
     @BeforeEach
     void setup() {
         service = new AugmentResultService(augRepository, videoRepository, srcRepository,
-                asyncAugmentFrameRunner, asyncVideoMetaRunner);
+                asyncAugmentFrameRunner, asyncVideoMetaRunner, allowedStorageResolver());
         when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
             LsDataRaw r = inv.getArgument(0);
             setField(r, "rawSn", rawSnSeq.incrementAndGet());
@@ -263,6 +274,92 @@ class AugmentResultServiceTest {
         ArgumentCaptor<Long> rawSnCaptor = ArgumentCaptor.forClass(Long.class);
         verify(asyncAugmentFrameRunner, times(1)).runAsync(rawSnCaptor.capture(), eq(20L));
         assertThat(rawSnCaptor.getValue()).isNotEqualTo(100L); // 부모가 아닌 신규 영상 SN
+    }
+
+    @Test
+    @DisplayName("증강_콜백의_rawFilePathNm_이_허용루트_밖이면_콜백이_거부된다")
+    void rawFilePathOutsideAllowedRoots_isRejectedAtIngest() {
+        // given — Phase 5A 이후 이 값은 산출물 쓰기 base 다. 허용 마운트 루트 밖이면 적재 자체를 막는다.
+        AugmentResultRequest req = new AugmentResultRequest(
+                90L, "aug_090", "WINTER", "SUCCESS", "/etc/cron.d/payload.mp4");
+
+        // when / then — 400(INVALID_INPUT). 대상 행 조회조차 하지 않는다(입구 차단).
+        assertThatThrownBy(() -> service.handle(req))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(augRepository, never()).findByDataAugSnForUpdate(anyLong());
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+    }
+
+    @Test
+    @DisplayName("증강_콜백의_rawFilePathNm_이_상위경로순회로_허용루트를_벗어나도_거부된다")
+    void rawFilePathTraversalOutsideAllowedRoots_isRejectedAtIngest() {
+        // given — normalize 후 /storage 밖으로 떨어지는 경로
+        AugmentResultRequest req = new AugmentResultRequest(
+                91L, "aug_091", "WINTER", "SUCCESS", "/storage/../etc/passwd.mp4");
+
+        // when / then
+        assertThatThrownBy(() -> service.handle(req))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(augRepository, never()).findByDataAugSnForUpdate(anyLong());
+    }
+
+    @Test
+    @DisplayName("증강_콜백의_rawFilePathNm_이_허용루트_하위면_정상_적재된다")
+    void rawFilePathInsideAllowedRoots_isAccepted() throws Exception {
+        // given — 허용 마운트 루트(/storage) 하위 경로(양성 케이스)
+        LsDataRaw parentRaw = newRaw(190L);
+        LsDataSrc originSrc = newSrc(750L, 190L, 0);
+        LsDataAug aug = newAugWithSrc(75L, 750L, "WINTER");
+        when(augRepository.findByDataAugSnForUpdate(75L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(750L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findByRawSnForUpdate(190L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(190L)).thenReturn(List.of(originSrc));
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                75L, "aug_075", "WINTER", "SUCCESS", "/storage/augment/75.mp4");
+
+        // when
+        boolean applied = service.handle(req);
+
+        // then
+        assertThat(applied).isTrue();
+        ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(rawCaptor.capture());
+        assertThat(rawCaptor.getValue().getRawFilePathNm()).isEqualTo("/storage/augment/75.mp4");
+    }
+
+    @Test
+    @DisplayName("공백_rawFilePathNm_이면_부모_원본경로로_폴백된다")
+    void blankRawFilePathNm_fallsBackToParentPath() throws Exception {
+        // given — 외부 시스템이 공백(" ") 경로를 보냄. != null 판정으로는 폴백이 안 돼 죽은 행이 남는다.
+        LsDataRaw parentRaw = newRaw(195L); // 부모 경로 = /storage/raw/195.mp4
+        LsDataSrc originSrc = newSrc(770L, 195L, 0);
+        LsDataAug aug = newAugWithSrc(77L, 770L, "WINTER");
+
+        when(augRepository.findByDataAugSnForUpdate(77L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(770L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findByRawSnForUpdate(195L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(195L)).thenReturn(List.of(originSrc));
+
+        AugmentResultRequest req = new AugmentResultRequest(
+                77L, "aug_077", "WINTER", "SUCCESS", " ");
+
+        // when
+        boolean applied = service.handle(req);
+
+        // then — 공백은 부모(원본) 경로로 폴백되어 저장된다(공백 base 죽은 행 방지).
+        assertThat(applied).isTrue();
+        ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(rawCaptor.capture());
+        assertThat(rawCaptor.getValue().getRawFilePathNm())
+                .isEqualTo(parentRaw.getRawFilePathNm());
     }
 
     @Test

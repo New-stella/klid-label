@@ -71,6 +71,8 @@ class TrackEditServiceTest {
     private LsRawDataStatusRepository rawDataStatusRepository;
     private ApplicationEventPublisher eventPublisher;
     private LsDataLblHstryRepository lblHstryRepository;
+    /** C-ISSUE-21 라벨셋 버전 bump(= 프레임 행 락 선점) 검증용 — 락 순서 회귀 방지. */
+    private kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
     private TrackEditService service;
 
     @BeforeEach
@@ -85,9 +87,10 @@ class TrackEditServiceTest {
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         lblHstryRepository = mock(LsDataLblHstryRepository.class);
+        srcRepository = mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class);
         service = new TrackEditService(labelRepository, aiInfoRepository, attrValRepository, augLblMapRepository,
                 accessGuard, workLockService, trackInterpolationStep, rawDataStatusRepository, eventPublisher,
-                lblHstryRepository);
+                lblHstryRepository, srcRepository);
         when(accessGuard.parseUserNo(any())).thenReturn(1001L);
         // 재보간 기본 스텁 — 터치 프레임 없음. 개별 테스트가 필요 시 재정의.
         when(trackInterpolationStep.interpolateSingleTrackTouched(anyLong(), anyString(), anyString()))
@@ -137,6 +140,78 @@ class TrackEditServiceTest {
         order.verify(labelRepository).deleteAllByIdInBatch(List.of(11L, 12L));
         order.verify(trackInterpolationStep).interpolateSingleTrackTouched(RAW_SN, TRACK, TRACK);
         order.verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("트랙삭제는_라벨행을_지우기_전에_프레임_버전bump로_프레임락을_먼저_잡는다")
+    void 트랙삭제_락순서_프레임먼저() {
+        // DEV_FIX(H2①) — 라벨 삭제(=라벨 행 락) 뒤에 bump(=프레임 행 락) 를 두면, "프레임 락 → 라벨 락"
+        //   순서로 도는 라벨 저장 경로(LabelService.bulkUpsert)와 역순이 되어 ABBA 데드락(PG 40P01)이 열린다.
+        //   규약: 프레임 락을 항상 먼저. 이 테스트가 그 순서를 고정한다.
+        LsDataLbl f10 = lbl(11L, 110L, TRACK);
+        LsDataLbl f11 = lbl(12L, 111L, TRACK);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(f10, f11));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 10L)).thenReturn(List.of(f10, f11));
+
+        service.deleteTrackFrom(RAW_SN, TRACK, 10, worker());
+
+        InOrder order = inOrder(srcRepository, attrValRepository, aiInfoRepository, labelRepository);
+        order.verify(srcRepository).bumpLabelVersionIn(Set.of(110L, 111L));
+        order.verify(attrValRepository).deleteByLblSnIn(List.of(11L, 12L));
+        order.verify(aiInfoRepository).deleteByDataLblSnIn(List.of(11L, 12L));
+        order.verify(labelRepository).deleteAllByIdInBatch(List.of(11L, 12L));
+    }
+
+    @Test
+    @DisplayName("트랙split은_라벨행을_수정하기_전에_프레임_버전bump로_프레임락을_먼저_잡는다")
+    void 트랙split_락순서_프레임먼저() {
+        LsDataLbl f10 = lbl(11L, 110L, TRACK);
+        LsDataLbl f11 = lbl(12L, 111L, TRACK);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(f10, f11));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 10L)).thenReturn(List.of(f10, f11));
+        when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
+
+        service.splitTrack(RAW_SN, TRACK, 10, worker());
+
+        InOrder order = inOrder(srcRepository, labelRepository);
+        order.verify(srcRepository).bumpLabelVersionIn(Set.of(110L, 111L));
+        order.verify(labelRepository).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("H4_트랙삭제는_모든_라벨조회·변경보다_먼저_프레임락을_1회_선점한다")
+    void 트랙삭제_프레임락_단일선점() {
+        // DEV_FIX H4 — 한 트랜잭션이 서로 다른 프레임 집합을 2회 이상 bump(=락) 하면 문장 사이 ABBA 가
+        //   성립해 PG 40P01(500) 이 난다(T1 {5,9}→{3,5} vs T2 {3}→{5,7}). 이제 트랜잭션 맨 앞에서
+        //   영상 전 프레임 락을 SRC_SN 오름차순 단일 문장으로 선점하므로, 이후 bump 는 새 락을 얻지 않는다.
+        LsDataLbl f10 = lbl(11L, 110L, TRACK);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(f10));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 10L)).thenReturn(List.of(f10));
+
+        service.deleteTrackFrom(RAW_SN, TRACK, 10, worker());
+
+        InOrder order = inOrder(srcRepository, labelRepository);
+        // ① 선점이 가장 먼저 — 라벨을 읽기도 전에.
+        order.verify(srcRepository).lockFramesByRawSn(RAW_SN);
+        order.verify(labelRepository).findByRawSnAndTrackId(RAW_SN, TRACK);
+        // ② 선점은 트랜잭션당 정확히 1회.
+        verify(srcRepository).lockFramesByRawSn(RAW_SN);
+    }
+
+    @Test
+    @DisplayName("H4_트랙split도_모든_라벨조회·변경보다_먼저_프레임락을_1회_선점한다")
+    void 트랙split_프레임락_단일선점() {
+        LsDataLbl f10 = lbl(11L, 110L, TRACK);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, TRACK)).thenReturn(List.of(f10));
+        when(labelRepository.findByRawSnAndTrackIdFromFrameNo(RAW_SN, TRACK, 10L)).thenReturn(List.of(f10));
+        when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
+
+        service.splitTrack(RAW_SN, TRACK, 10, worker());
+
+        InOrder order = inOrder(srcRepository, labelRepository);
+        order.verify(srcRepository).lockFramesByRawSn(RAW_SN);
+        order.verify(labelRepository).findByRawSnAndTrackId(RAW_SN, TRACK);
+        verify(srcRepository).lockFramesByRawSn(RAW_SN);
     }
 
     @Test
@@ -268,6 +343,9 @@ class TrackEditServiceTest {
         assertThat(cap.getAllValues()).allSatisfy(e -> assertThat(e.changeType()).isEqualTo("LABEL_DELETED"));
         // 삭제 프레임(110) + 재보간 터치 프레임(999) 모두 통지(데이터마트 드리프트 방지).
         assertThat(cap.getAllValues()).extracting(TaskModifiedEvent::srcSn).containsExactlyInAnyOrder(110L, 999L);
+        // Phase 5C 회귀 방어 — 승인 후 트랙 편집은 export JSON 을 바꾸므로 exportRegenerated=true 로 발행돼야
+        //   디바운스 flush 가 export 를 새 버전으로 재생성한다. 4-arg(false)로 되돌리면 실패한다.
+        assertThat(cap.getAllValues()).allMatch(TaskModifiedEvent::exportRegenerated);
     }
 
     // ---------- R5 트랙 split ----------

@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
+import kr.co.cudo.authoring.video.util.AugTypeParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -126,6 +127,58 @@ public class VideoResolutionService {
                     "요청한 모든 해상도 프리셋의 파생영상 생성에 실패했습니다.");
         }
         return new ResolutionChangeResponse(results);
+    }
+
+    /**
+     * 해상도 파생영상 <b>확정 상태 조회</b> (E-ISSUE-24).
+     *
+     * <p>생성 API 의 201 {@code CREATED} 는 "예약 성공"만 의미하고, 실제 확정은 비동기라 실패해도
+     * 어느 화면에서도 보이지 않았다(파생 RAW 는 영상 목록에서 제외되고, 실패 시 예약 aug 도 삭제되어
+     * 증강 이력에도 안 남는다). 이 조회는 파생 RAW 자체를 원천으로 삼아 확정 결과를 노출한다.
+     *
+     * <p>상태 매핑 — 비식별 확정('Y')+COMPLETED → {@code COMPLETED}, 배치 FAILED → {@code FAILED},
+     * 그 외(PENDING 등) → {@code IN_PROGRESS}.
+     */
+    public ResolutionChangeResponse listDerivatives(Long rawSn) {
+        videoRepository.findById(rawSn)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
+                        "영상을 찾을 수 없습니다: rawSn=" + rawSn));
+
+        List<CreatedDerivative> results = new ArrayList<>();
+        for (LsDataRaw d : videoRepository.findAllByOrgnlRawSnOrderByRawSnAsc(rawSn)) {
+            ResolutionPreset preset = presetOf(d);
+            if (preset == null) {
+                continue; // 해상도 파생이 아닌 파생(외부 증강)은 제외.
+            }
+            results.add(new CreatedDerivative(d.getRawSn(), preset.name(), preset.width(), preset.height(),
+                    statusOf(d)));
+        }
+        return new ResolutionChangeResponse(results);
+    }
+
+    /** 파생 RAW 의 해상도 프리셋 판별 — 표시 목적의 기존 정규화 파서 재사용(비-해상도 파생은 null). */
+    private static ResolutionPreset presetOf(LsDataRaw derivative) {
+        String type = AugTypeParser.parse(derivative.getVmsClipId());
+        if (type == null) {
+            return null;
+        }
+        for (ResolutionPreset p : STANDARD_PRESETS) {
+            if (p.name().equals(type)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    private static ResolutionChangeResponse.DerivativeStatus statusOf(LsDataRaw derivative) {
+        if ("Y".equals(derivative.getDeIdntfYn())
+                && LsDataRaw.DATA_STTS_COMPLETED.equals(derivative.getDataSttsCd())) {
+            return ResolutionChangeResponse.DerivativeStatus.COMPLETED;
+        }
+        if (LsDataRaw.DATA_STTS_FAILED.equals(derivative.getDataSttsCd())) {
+            return ResolutionChangeResponse.DerivativeStatus.FAILED;
+        }
+        return ResolutionChangeResponse.DerivativeStatus.IN_PROGRESS;
     }
 
     /**

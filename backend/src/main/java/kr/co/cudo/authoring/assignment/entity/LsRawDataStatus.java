@@ -73,6 +73,13 @@ public class LsRawDataStatus {
                 .build();
     }
 
+    /**
+     * 배정 완료 전이 (검증 없음).
+     *
+     * <p><b>호출 전 상태 검증은 호출자 책임</b>이다. 본 메서드는 현재 상태를 보지 않으므로 종결 상태
+     * (APPROVED)에도 적용된다 — {@code AssignmentService.assign} 은 호출 <b>전에</b>
+     * APPROVED 대상을 409(ASSIGNMENT_ALREADY_COMPLETED)로 거부한다(D-ISSUE-01).
+     */
     public void markAssigned() {
         this.dataSttsCd = STTS_ASSIGNED;
         this.updDt = LocalDateTime.now();
@@ -85,7 +92,15 @@ public class LsRawDataStatus {
 
     /**
      * 검수 워크플로우 상태 전이 (의미 있는 비즈니스 메서드 — Setter 금지 원칙 준수).
-     * 전이 가능 여부 검증은 ReviewStateMachine 가 책임지며, 본 메서드는 단순 갱신만 수행.
+     *
+     * <p><b>본 메서드는 아무 검증도 하지 않는다. 검증은 호출자 책임이다</b> (B-ISSUE-03 정정 —
+     * 과거 주석은 검증을 {@code ReviewStateMachine} 책임이라 했으나 배치 경로는 상태 머신을 호출하지
+     * 않아 아무도 검증하지 않는 공백이 있었다). 현재 호출자는 두 곳뿐이며 각자 사전 검증을 갖는다:
+     * <ul>
+     *   <li>{@code ReviewService}(submit/cancelSubmit/startReview/approve/reject) — {@code ReviewStateMachine.verify}</li>
+     *   <li>배치 경로 — {@code BatchTransitionService} 가 조건부 UPDATE 로 검수 소유 상태를 차단하므로
+     *       본 메서드를 호출하지 않는다.</li>
+     * </ul>
      */
     public void transitionTo(String newStatus) {
         this.dataSttsCd = newStatus;

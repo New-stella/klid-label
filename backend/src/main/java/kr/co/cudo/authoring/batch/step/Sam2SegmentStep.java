@@ -39,10 +39,12 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * SAM2 segment 단계 (Phase 5 — SAM2, Phase 2 — 토글 분기 + 인메모리 힌트 병합).
@@ -149,6 +151,8 @@ public class Sam2SegmentStep implements BatchStep {
         Map<Long, List<BbHint>> hintsBySrc = groupHintsBySrc(hints);
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
+        // C-ISSUE-21 — 폴리곤이 실제로 저장된 프레임만 수집(라벨셋 버전 +1 대상, H11 범위 축소).
+        Set<Long> labeledFrames = new HashSet<>();
         int saved = 0;
         for (LsDataSrc src : frames) {
             // (srcSn, label) 키로 중복 제거하면서 SAM2 호출 단위(SegmentJob)를 생성
@@ -188,7 +192,20 @@ public class Sam2SegmentStep implements BatchStep {
                 aiInfoRepository.save(LsDataLblAiInfo.create(savedLabel.getLblSn(), rawSn, src.getSrcSn(),
                         LsDataLblAiInfo.SRC_SAM2, score, "batch"));
                 saved++;
+                labeledFrames.add(src.getSrcSn());
             }
+        }
+        // C-ISSUE-21 — 배치 분할이 라벨 row 를 만든 <b>그 프레임</b>의 라벨셋 버전을 +1 한다(단일 UPDATE).
+        //   근거는 YoloAutolabelStep 과 동일 — 재처리/재실행이 라벨링 중에도 가능하므로 편집 화면의 낡은
+        //   버전을 무효화해 lost update 를 막는다.
+        // DEV_FIX(H11 범위) — 구 구현의 영상 전 프레임 bump(과잉 무효화 + 광역 쓰기 락)를 실제 변경 프레임으로 축소.
+        // DEV_FIX(H4 주석 정정) — "INSERT 라 락 순서 규약 대상이 아니다"는 근거는 부정확하다. bump 자체가
+        //   프레임 행에 쓰기 락을 잡으므로 이 문장도 락 획득이다. 이 경로가 안전한 진짜 이유는 <b>본
+        //   트랜잭션의 유일한 프레임 락 획득 지점이 이 한 문장</b>이고, 그 시점까지 기존 라벨 행 락을
+        //   하나도 쥐고 있지 않기 때문이다(신규 INSERT 행은 타 트랜잭션이 볼 수 없어 경합 대상이 아니다).
+        //   따라서 대기하면서 다른 락을 붙잡는 상태가 없어 순환 대기의 구성원이 될 수 없다.
+        if (!labeledFrames.isEmpty()) {
+            srcRepository.bumpLabelVersionIn(labeledFrames);
         }
         log.info("[Batch][Sam2] saved polygons rawSn={} count={}", rawSn, saved);
         return saved;
@@ -267,8 +284,19 @@ public class Sam2SegmentStep implements BatchStep {
         return togglesOpt.get().get(normalized);
     }
 
+    /**
+     * 추론 입력 이미지 경로 — 배치 오토라벨은 정책상 <b>원본</b> 프레임에만 실행한다.
+     *
+     * <p>M-6 (null 가드) — 원본 경로가 결측이면 그대로 반환해 하위에서
+     * {@code baseRawPath.resolve(null)} NPE(500)로 터졌다. 결측은 추상 메시지로 fail-fast 한다
+     * (해상도 파생 프레임처럼 원본이 실재하지 않는 프레임은 배치 대상이 아니다).
+     */
     private String resolveImagePath(LsDataSrc src) {
-        return src.getSrcFilePathNm();
+        String path = src.getSrcFilePathNm();
+        if (path == null || path.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 이미지 경로가 없습니다.");
+        }
+        return path;
     }
 
     private String readImageAsBase64(String relativePath) {

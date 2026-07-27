@@ -102,10 +102,34 @@ class TaskQueryControllerTest {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].srcSn").value(srcSn))
-                .andExpect(jsonPath("$.data[0].labels", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].labels[0].label").value("person"));
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].srcSn").value(srcSn))
+                .andExpect(jsonPath("$.data.content[0].labels", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].labels[0].label").value("person"));
+    }
+
+    @Test
+    @DisplayName("라벨_목록은_페이징_없이_전건_반환하지_않는다_기본_20건")
+    void getLabels_isPagedByDefault() throws Exception {
+        // given — D-ISSUE-45 / CWE-770: 페이징 미지정 요청도 전건 조회로 흐르면 안 된다.
+        mockMvc.perform(get("/v1/tasks/{rawSn}/labels", rawSn)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.size").value(20))
+                .andExpect(jsonPath("$.data.number").value(0));
+    }
+
+    @Test
+    @DisplayName("size_10000_요청도_상한_100_으로_클램프된다")
+    void getLabels_oversizedPageIsClamped() throws Exception {
+        // given — 관제(혹은 임의 호출자)가 무제한 size 를 보내도 전건 적재를 허용하지 않는다(CWE-770).
+        mockMvc.perform(get("/v1/tasks/{rawSn}/labels", rawSn)
+                        .param("page", "0")
+                        .param("size", "10000")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.size").value(100));
     }
 
     @Test
@@ -113,16 +137,28 @@ class TaskQueryControllerTest {
     void getLabels_filtered_by_frameIds() throws Exception {
         // Create a second frame without labels
         LsDataSrc src2 = LsDataSrc.create(rawSn, 1, "/var/raw/frame_1.jpg", LocalDateTime.now());
-        src2 = srcRepository.save(src2);
-        Long srcSn2 = src2.getSrcSn();
+        srcRepository.save(src2);
 
         // Filter to only first frame
         mockMvc.perform(get("/v1/tasks/{rawSn}/labels", rawSn)
                         .param("frameIds", srcSn.toString())
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].srcSn").value(srcSn));
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].srcSn").value(srcSn));
+    }
+
+    @Test
+    @DisplayName("frameIds_가_100개를_초과하면_400_을_반환한다")
+    void getLabels_tooManyFrameIds_400() throws Exception {
+        // given — 무제한 IN 절 방지(CWE-770). 컨트롤러 @Size(max=100) 가드.
+        String[] tooMany = java.util.stream.LongStream.rangeClosed(1, 101)
+                .mapToObj(String::valueOf).toArray(String[]::new);
+
+        mockMvc.perform(get("/v1/tasks/{rawSn}/labels", rawSn)
+                        .param("frameIds", tooMany)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -136,6 +172,24 @@ class TaskQueryControllerTest {
                 .andExpect(jsonPath("$.data.items", hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].metaKey").value("weather"))
                 .andExpect(jsonPath("$.data.items[0].metaVal").value("sunny"));
+    }
+
+    @Test
+    @DisplayName("메타_조회도_페이징된다_기본_20건_상한_100")
+    void getMeta_isPagedAndClamped() throws Exception {
+        // given — B-4 / CWE-770: 메타도 전량 반환하지 않는다.
+        mockMvc.perform(get("/v1/tasks/{rawSn}/meta", rawSn)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.size").value(20))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+
+        mockMvc.perform(get("/v1/tasks/{rawSn}/meta", rawSn)
+                        .param("size", "10000")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.size").value(100));
     }
 
     @Test
@@ -155,13 +209,32 @@ class TaskQueryControllerTest {
     }
 
     @Test
+    @DisplayName("배정되지_않은_WORKER_는_rawSn_순회로_라벨을_읽을_수_없다_403")
+    void getLabels_unassignedWorker_403() throws Exception {
+        // given — CWE-639 IDOR: 역할만으로는 부족하고 영상 단위 배정 검증이 걸려 있어야 한다.
+        String unassignedWorkerToken =
+                JwtTestSupport.token(secret, "424242", "WORKER", "INTERNAL", issuer, 60);
+
+        // when / then — 세 경로 모두 동일 가드
+        mockMvc.perform(get("/v1/tasks/{rawSn}/labels", rawSn)
+                        .header("Authorization", "Bearer " + unassignedWorkerToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/v1/tasks/{rawSn}/summary", rawSn)
+                        .header("Authorization", "Bearer " + unassignedWorkerToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/v1/tasks/{rawSn}/meta", rawSn)
+                        .header("Authorization", "Bearer " + unassignedWorkerToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("응답에_원본_이미지_경로_미포함")
     void response_doesNotContainFilePath() throws Exception {
         // summary -- verify response JSON string does not contain file paths
         mockMvc.perform(get("/v1/tasks/{rawSn}/labels", rawSn)
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].filePath").doesNotExist())
-                .andExpect(jsonPath("$.data[0].deidentFilePath").doesNotExist());
+                .andExpect(jsonPath("$.data.content[0].filePath").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].deidentFilePath").doesNotExist());
     }
 }

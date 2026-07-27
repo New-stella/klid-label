@@ -37,9 +37,13 @@ import static org.mockito.Mockito.when;
  */
 class DatasetExportServiceTest {
 
+    /** 산출 base 원천(원본 영상 경로) — 리졸버가 mock 이라 값 자체는 통과 여부에 영향 없음. */
+    private static final String RAW_FILE_PATH = "/nas/clips/clip-001.mp4";
+
     private DatasetExportTxService txService;
     private DatasetExportWriter writer;
     private SimpleMeterRegistry registry;
+    private DatasetExportPathResolver pathResolver;
     private DatasetExportService service;
 
     @BeforeEach
@@ -48,7 +52,11 @@ class DatasetExportServiceTest {
         writer = mock(DatasetExportWriter.class);
         // 실인스턴스 SimpleMeterRegistry 를 전용 컴포넌트로 감싸 주입 — 검증은 registry 에서 count 조회.
         registry = new SimpleMeterRegistry();
-        service = new DatasetExportService(txService, writer, new DatasetExportMetrics(registry));
+        pathResolver = mock(DatasetExportPathResolver.class);
+        // 기본 스텁 — 산출 base 검증 통과(영상 루트 반환). base 거부 시나리오만 개별 테스트에서 재스텁한다.
+        when(pathResolver.resolveVideoRoot(anyLong(), any()))
+                .thenReturn(java.nio.file.Paths.get("/nas/clips/1"));
+        service = new DatasetExportService(txService, writer, pathResolver, new DatasetExportMetrics(registry));
     }
 
     /** dataset.export.result{outcome=..} counter 값(미등록 시 0.0). */
@@ -73,7 +81,38 @@ class DatasetExportServiceTest {
         // ctx/frames 는 Writer 가 mock 이라 사용되지 않음 — 오케스트레이션 판단만 검증.
         VideoExportContext ctx = null;
         List<FrameContext> frames = List.of();
-        return new ExportPreparation(ctx, frames, contentHash, lastExportedHash);
+        return new ExportPreparation(ctx, frames, contentHash, lastExportedHash, RAW_FILE_PATH);
+    }
+
+    /** 프레임 목록을 실제로 담는 preparation — ORIGINAL 부재 판정(파생 여부)이 프레임 데이터에 의존한다. */
+    private ExportPreparation prepWithFrames(String contentHash, String lastExportedHash,
+                                             List<FrameContext> frames) {
+        return new ExportPreparation(null, frames, contentHash, lastExportedHash, RAW_FILE_PATH);
+    }
+
+    /** 파생영상 프레임 — 원본 픽셀이 실재하지 않아 SRC_FILE_PATH_NM 이 null(E-ISSUE-41 정책 A). */
+    private List<FrameContext> derivativeFrames(int count) {
+        List<FrameContext> frames = new java.util.ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            kr.co.cudo.authoring.batch.entity.LsDataSrc f =
+                    kr.co.cudo.authoring.batch.entity.LsDataSrc.create(
+                            19L, i, (long) i, null, "/deid/frames/deid/19/frame-" + i + ".jpg", null);
+            frames.add(new FrameContext(f, List.of()));
+        }
+        return frames;
+    }
+
+    /** 일반 영상 프레임 — 원본 경로 보유. */
+    private List<FrameContext> normalFrames(int count) {
+        List<FrameContext> frames = new java.util.ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            kr.co.cudo.authoring.batch.entity.LsDataSrc f =
+                    kr.co.cudo.authoring.batch.entity.LsDataSrc.create(
+                            26L, i, (long) i, "/raw/frames/raw/26/frame-" + i + ".jpg",
+                            "/deid/frames/deid/26/frame-" + i + ".jpg", null);
+            frames.add(new FrameContext(f, List.of()));
+        }
+        return frames;
     }
 
     private ExportResult result(ExportKind kind, int version, int written) {
@@ -89,16 +128,16 @@ class DatasetExportServiceTest {
     void createsOriginalAndDeidExports() {
         long rawSn = 7L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(50L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(50L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 5));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5));
 
         service.export(rawSn);
 
-        verify(writer).write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any());
-        verify(writer).write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any());
+        verify(writer).write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any());
+        verify(writer).write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any());
         verify(txService).markSucceeded(50L, 10);
         verify(txService, never()).markFailed(anyLong());
     }
@@ -108,10 +147,10 @@ class DatasetExportServiceTest {
     void allWrittenNoSkipMarksSucceeded() {
         long rawSn = 20L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(200L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(200L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
 
         service.export(rawSn);
@@ -126,10 +165,10 @@ class DatasetExportServiceTest {
     void someSkippedMarksPartial() {
         long rawSn = 21L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(210L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(210L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 4, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 4, 1));
 
         service.export(rawSn);
@@ -141,14 +180,67 @@ class DatasetExportServiceTest {
     }
 
     @Test
+    @DisplayName("파생영상은_SRC_경로가_null_이고_ORIGINAL_export_가_생성되지_않음")
+    void derivativeVideoSkipsOriginalKind() {
+        long rawSn = 19L;
+        when(txService.loadPreparation(rawSn))
+                .thenReturn(Optional.of(prepWithFrames("h1", null, derivativeFrames(3))));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(300L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 3, 0));
+
+        service.export(rawSn);
+
+        // E-ISSUE-41 정책 A — 없는 원본을 있는 척 산출하지 않는다(ORIGINAL 벌 미생성).
+        verify(writer, never()).write(anyLong(), any(), eq(ExportKind.ORIGINAL), anyInt(), any(), any());
+        verify(writer).write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any());
+    }
+
+    @Test
+    @DisplayName("파생영상_export_가_ORIGINAL_부재를_이유로_PARTIAL_로_떨어지지_않음")
+    void derivativeVideoExportIsNotDowngradedToPartial() {
+        long rawSn = 19L;
+        when(txService.loadPreparation(rawSn))
+                .thenReturn(Optional.of(prepWithFrames("h1", null, derivativeFrames(3))));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(301L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 3, 0));
+
+        service.export(rawSn);
+
+        // 파생영상은 ORIGINAL 부재가 정상이므로 skip 집계에 포함되지 않는다 → SUCCEEDED.
+        verify(txService).markSucceeded(301L, 3);
+        verify(txService, never()).markPartial(anyLong(), anyInt());
+        verify(txService, never()).markFailed(anyLong());
+    }
+
+    @Test
+    @DisplayName("일반영상은_원본경로가_있으므로_ORIGINAL_export_가_계속_생성된다(회귀방지)")
+    void normalVideoStillExportsOriginalKind() {
+        long rawSn = 26L;
+        when(txService.loadPreparation(rawSn))
+                .thenReturn(Optional.of(prepWithFrames("h1", null, normalFrames(2))));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(302L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 2, 0));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 2, 0));
+
+        service.export(rawSn);
+
+        verify(writer).write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any());
+        verify(txService).markSucceeded(302L, 4);
+    }
+
+    @Test
     @DisplayName("아무것도_산출못하면_FAILED로_전이한다 — totalWritten==0")
     void nothingWrittenMarksFailed() {
         long rawSn = 22L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(220L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(220L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 0, 3));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 0, 3));
 
         service.export(rawSn);
@@ -163,8 +255,8 @@ class DatasetExportServiceTest {
     void fileWriteFailureDoesNotRollbackApproval() {
         long rawSn = 8L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(60L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), anyInt(), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(60L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), anyInt(), any(), any()))
                 .thenThrow(new RuntimeException("disk full"));
 
         // 예외가 전파되지 않아야 한다 (@Async 분리 + 승인 불변).
@@ -183,8 +275,8 @@ class DatasetExportServiceTest {
 
         service.export(rawSn, false);
 
-        verify(txService, never()).insertNextVersion(anyLong(), any());
-        verify(writer, never()).write(anyLong(), any(), anyInt(), any(), any());
+        verify(txService, never()).insertNextVersion(anyLong(), any(), any());
+        verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
         verify(txService, never()).markSucceeded(anyLong(), anyInt());
     }
 
@@ -194,14 +286,14 @@ class DatasetExportServiceTest {
         long rawSn = 90L;
         // R6 — 승인 경로(force=true): 직전과 동일 contentHash 여도 skip 하지 않고 새 버전 산출.
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("same", "same")));
-        when(txService.insertNextVersion(eq(rawSn), eq("same"))).thenReturn(new InsertedExport(900L, 3));
-        when(writer.write(eq(rawSn), any(), eq(3), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("same"), any())).thenReturn(new InsertedExport(900L, 3));
+        when(writer.write(eq(rawSn), any(), any(), eq(3), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 3, 5));
 
         service.export(rawSn, true);
 
-        verify(txService).insertNextVersion(rawSn, "same");
-        verify(writer, times(2)).write(eq(rawSn), any(), eq(3), any(), any());
+        verify(txService).insertNextVersion(eq(rawSn), eq("same"), any());
+        verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(3), any(), any());
         verify(txService).markSucceeded(eq(900L), anyInt());
     }
 
@@ -211,14 +303,14 @@ class DatasetExportServiceTest {
         long rawSn = 91L;
         // 직전 export 없음(lastExportedHash=null) → isUnchanged=false → force 여부와 무관하게 산출.
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(910L, 1));
-        when(writer.write(eq(rawSn), any(), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(910L, 1));
+        when(writer.write(eq(rawSn), any(), any(), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 5));
 
         service.export(rawSn, true);
 
-        verify(txService).insertNextVersion(rawSn, "h1");
-        verify(writer, times(2)).write(eq(rawSn), any(), eq(1), any(), any());
+        verify(txService).insertNextVersion(eq(rawSn), eq("h1"), any());
+        verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(1), any(), any());
         verify(txService).markSucceeded(eq(910L), anyInt());
     }
 
@@ -228,14 +320,14 @@ class DatasetExportServiceTest {
         long rawSn = 10L;
         // 라벨이 바뀌어 현재 해시(h2)가 직전 성공 해시(h1)와 다르다 → v2 산출.
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h2", "h1")));
-        when(txService.insertNextVersion(eq(rawSn), eq("h2"))).thenReturn(new InsertedExport(70L, 2));
-        when(writer.write(eq(rawSn), any(), eq(2), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h2"), any())).thenReturn(new InsertedExport(70L, 2));
+        when(writer.write(eq(rawSn), any(), any(), eq(2), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 2, 3));
 
         service.export(rawSn);
 
-        verify(txService).insertNextVersion(rawSn, "h2");
-        verify(writer, times(2)).write(eq(rawSn), any(), eq(2), any(), any());
+        verify(txService).insertNextVersion(eq(rawSn), eq("h2"), any());
+        verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(2), any(), any());
         verify(txService).markSucceeded(eq(70L), anyInt());
     }
 
@@ -245,16 +337,16 @@ class DatasetExportServiceTest {
         long rawSn = 11L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
         // 첫 채번(v1)이 동시 승인에 선점되어 UK 위반 → 재채번(v2) 성공.
-        when(txService.insertNextVersion(eq(rawSn), eq("h1")))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any()))
                 .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uk"))
                 .thenReturn(new InsertedExport(80L, 2));
-        when(writer.write(eq(rawSn), any(), eq(2), any(), any()))
+        when(writer.write(eq(rawSn), any(), any(), eq(2), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 2, 1));
 
         service.export(rawSn);
 
-        verify(txService, times(2)).insertNextVersion(rawSn, "h1");
-        verify(writer, times(2)).write(eq(rawSn), any(), eq(2), any(), any());
+        verify(txService, times(2)).insertNextVersion(eq(rawSn), eq("h1"), any());
+        verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(2), any(), any());
         verify(txService).markSucceeded(eq(80L), anyInt());
     }
 
@@ -263,14 +355,14 @@ class DatasetExportServiceTest {
     void versionUkConflictExhaustedAborts() {
         long rawSn = 12L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1")))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any()))
                 .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uk"));
 
         assertThatCode(() -> service.export(rawSn)).doesNotThrowAnyException();
 
         verify(txService, times(DatasetExportService.MAX_VERSION_RETRY))
-                .insertNextVersion(rawSn, "h1");
-        verify(writer, never()).write(anyLong(), any(), anyInt(), any(), any());
+                .insertNextVersion(eq(rawSn), eq("h1"), any());
+        verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
         verify(txService, never()).markSucceeded(anyLong(), anyInt());
     }
 
@@ -282,8 +374,8 @@ class DatasetExportServiceTest {
 
         service.export(rawSn);
 
-        verify(txService, never()).insertNextVersion(anyLong(), any());
-        verify(writer, never()).write(anyLong(), any(), anyInt(), any(), any());
+        verify(txService, never()).insertNextVersion(anyLong(), any(), any());
+        verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
     }
 
     // ── 관찰성 메트릭 (Micrometer) ──────────────────────────────────────────────
@@ -296,10 +388,10 @@ class DatasetExportServiceTest {
         // given
         long rawSn = 30L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(300L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(300L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
 
         // when
@@ -319,10 +411,10 @@ class DatasetExportServiceTest {
         // given — original skip 1 + deid skip 1 = 총 2
         long rawSn = 31L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(310L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(310L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 4, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 4, 1));
 
         // when
@@ -341,10 +433,10 @@ class DatasetExportServiceTest {
         // given
         long rawSn = 32L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(320L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(320L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 0, 3));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 0, 3));
 
         // when
@@ -362,8 +454,8 @@ class DatasetExportServiceTest {
         // given
         long rawSn = 33L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(330L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), anyInt(), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(330L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), anyInt(), any(), any()))
                 .thenThrow(new RuntimeException("disk full"));
 
         // when
@@ -382,10 +474,10 @@ class DatasetExportServiceTest {
         // given — 파일은 다 썼는데(written>0, skip 0) markSucceeded 가 예외를 던진다.
         long rawSn = 37L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1"))).thenReturn(new InsertedExport(370L, 1));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(370L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
         org.mockito.Mockito.doThrow(new RuntimeException("db down"))
                 .when(txService).markSucceeded(eq(370L), anyInt());
@@ -407,7 +499,7 @@ class DatasetExportServiceTest {
         // given
         long rawSn = 34L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
-        when(txService.insertNextVersion(eq(rawSn), eq("h1")))
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any()))
                 .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uk"));
 
         // when
@@ -441,10 +533,10 @@ class DatasetExportServiceTest {
         // given — 승인 경로(force=true)는 동일 해시여도 skip 하지 않고 산출 → idempotent_skip outcome 미발생.
         long rawSn = 38L;
         when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("same", "same")));
-        when(txService.insertNextVersion(eq(rawSn), eq("same"))).thenReturn(new InsertedExport(380L, 2));
-        when(writer.write(eq(rawSn), eq(ExportKind.ORIGINAL), eq(2), any(), any()))
+        when(txService.insertNextVersion(eq(rawSn), eq("same"), any())).thenReturn(new InsertedExport(380L, 2));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(2), any(), any()))
                 .thenReturn(result(ExportKind.ORIGINAL, 2, 5, 0));
-        when(writer.write(eq(rawSn), eq(ExportKind.DEIDENTIFIED), eq(2), any(), any()))
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(2), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 2, 5, 0));
 
         // when

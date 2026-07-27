@@ -60,24 +60,58 @@ class FrameSourceTest {
         // when
         Optional<Path> resolved = frameSource().resolveImage(7L, ExportKind.DEIDENTIFIED, frame);
 
-        // then — deid base 하위 파일로 해석
-        assertThat(resolved).contains(deidImg.normalize());
+        // then — deid base 하위 파일로 해석(A-1: 반환은 판정에 쓴 실경로)
+        assertThat(resolved).contains(deidImg.toRealPath());
     }
 
     @Test
-    @DisplayName("DEIDENTIFIED_해상도파생_비식별프레임이_raw_base하위여도_해석된다")
-    void resolvesDeidUnderRawBaseForResolutionDerivative() throws IOException {
-        // given — 해상도 파생(RESL_*) 프레임의 비식별 경로는 raw base 하위(resolution/{rawSn}/frames)에
-        //         저장·기록된다(ResolutionPersistService). deid base 하위가 아님.
-        Path deidUnderRaw = writeDummy(rawBase, "resolution/9/frames/frame-0.jpg");
-        LsDataSrc frame = LsDataSrc.create(9L, 0L, deidUnderRaw.toString(), null);
-        frame.attachDeidPath(deidUnderRaw.toString());
+    @DisplayName("비식별본이_없는_프레임은_DEIDENTIFIED_export_에서_제외되고_rawBase_로_대체되지_않음")
+    void deidKindNeverFallsBackToRawBase() throws IOException {
+        // given — 비식별 경로가 raw base 하위를 가리키는 오염/구 파생 데이터. 파일은 실제로 존재한다.
+        Path underRaw = writeDummy(rawBase, "resolution/9/frames/frame-0.jpg");
+        LsDataSrc frame = LsDataSrc.create(9L, 0L, underRaw.toString(), null);
+        frame.attachDeidPath(underRaw.toString());
 
-        // when — DEIDENTIFIED 요청. deid base 에는 없고 raw base 하위에 있음
+        // when — DEIDENTIFIED 요청
         Optional<Path> resolved = frameSource().resolveImage(9L, ExportKind.DEIDENTIFIED, frame);
 
-        // then — deid base 실패 후 raw base 로 재시도해 정상 해석(수정 전이면 skip=RED)
-        assertThat(resolved).contains(deidUnderRaw.normalize());
+        // then — E-ISSUE-22: rawBase 폴백 제거 → 원본 픽셀로 대체하지 않고 fail-closed 로 제외
+        assertThat(resolved).isEmpty();
+    }
+
+    @Test
+    @DisplayName("raw_base와_deid_base가_동일_문자열이어도_frames_raw_하위_파일은_DEIDENTIFIED로_통과하지_않는다")
+    void deidKindRejectsRawFrameSubtreeEvenWhenBasesAreIdentical(@TempDir Path sharedBase) throws IOException {
+        // given — 운영(prd)처럼 STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH (동일 경로)
+        FrameSource sameBaseSource = new FrameSource(sharedBase.toString(), sharedBase.toString());
+        Path rawFrame = sharedBase.resolve("frames/raw/26/frame-0.jpg");
+        Files.createDirectories(rawFrame.getParent());
+        Files.writeString(rawFrame, "original-pixels");
+        LsDataSrc frame = LsDataSrc.create(26L, 0L, rawFrame.toString(), null);
+        frame.attachDeidPath(rawFrame.toString()); // 오염된 비식별 경로
+
+        // when
+        Optional<Path> resolved = sameBaseSource.resolveImage(26L, ExportKind.DEIDENTIFIED, frame);
+
+        // then — base 검사는 통과하지만 서브트리 검사가 원본 프레임 유입을 차단(fail-closed)
+        assertThat(rawFrame.startsWith(sharedBase)).isTrue();
+        assertThat(resolved).isEmpty();
+    }
+
+    @Test
+    @DisplayName("동일_base_환경에서도_frames_deid_하위_비식별프레임은_정상_해석된다")
+    void deidKindStillResolvesUnderDeidSubtreeWhenBasesAreIdentical(@TempDir Path sharedBase) throws IOException {
+        // given — 두 base 동일 + 규약대로 frames/deid 하위에 저장된 비식별 프레임(rawSn=26 참조 데이터 형태)
+        FrameSource sameBaseSource = new FrameSource(sharedBase.toString(), sharedBase.toString());
+        Path deidFrame = sharedBase.resolve("frames/deid/26/frame-0.jpg");
+        Files.createDirectories(deidFrame.getParent());
+        Files.writeString(deidFrame, "deid-pixels");
+        LsDataSrc frame = LsDataSrc.create(26L, 0L, sharedBase.resolve("frames/raw/26/frame-0.jpg").toString(), null);
+        frame.attachDeidPath(deidFrame.toString());
+
+        // when / then — 정상 경로는 폴백 제거에도 깨지지 않는다
+        assertThat(sameBaseSource.resolveImage(26L, ExportKind.DEIDENTIFIED, frame))
+                .contains(deidFrame.toRealPath());
     }
 
     @Test
@@ -218,5 +252,72 @@ class FrameSourceTest {
 
         // then — 정상 해석(비어있지 않음)
         assertThat(resolved).isPresent();
+    }
+
+    @Test
+    @DisplayName("비식별_경로가_원본프레임_심볼릭링크면_export에서_건너뛴다")
+    void deidSymlinkToRawFrameIsSkipped() throws IOException {
+        // given — 운영(prd)처럼 두 base 가 <b>같은 디렉토리</b>인 상황을 하나의 base 로 재현한다.
+        Path shared = deidBase;
+        Path rawFrame = shared.resolve("frames/raw/26/000001.jpg");
+        Files.createDirectories(rawFrame.getParent());
+        Files.writeString(rawFrame, "ORIGINAL-PII-PIXELS");
+        Path deidLink = shared.resolve("frames/deid/26/000001.jpg");
+        Files.createDirectories(deidLink.getParent());
+        Files.createSymbolicLink(deidLink, rawFrame);
+
+        LsDataSrc frame = LsDataSrc.create(26L, 0L, rawFrame.toString(), null);
+        frame.attachDeidPath(deidLink.toString());
+        FrameSource sharedBaseSource = new FrameSource(shared.toString(), shared.toString());
+
+        // when — 비식별 벌 산출
+        Optional<Path> resolved = sharedBaseSource.resolveImage(26L, ExportKind.DEIDENTIFIED, frame);
+
+        // then — 심링크로 원본 픽셀이 비식별 벌에 실리지 않는다(fail-secure skip)
+        assertThat(resolved).isEmpty();
+    }
+
+    @Test
+    @DisplayName("비식별_경로가_실제_비식별파일이면_심링크가_아니어도_정상_해석된다")
+    void deidRealFileStillResolvesUnderSharedBase() throws IOException {
+        Path shared = deidBase;
+        Path deidFrame = shared.resolve("frames/deid/26/000001.jpg");
+        Files.createDirectories(deidFrame.getParent());
+        Files.writeString(deidFrame, "DEID-PIXELS");
+        LsDataSrc frame = LsDataSrc.create(26L, 0L, shared.resolve("frames/raw/26/000001.jpg").toString(), null);
+        frame.attachDeidPath(deidFrame.toString());
+
+        Optional<Path> resolved = new FrameSource(shared.toString(), shared.toString())
+                .resolveImage(26L, ExportKind.DEIDENTIFIED, frame);
+
+        assertThat(resolved).contains(deidFrame.toRealPath());
+    }
+
+    @Test
+    @DisplayName("A1_비식별_검증후_심링크가_원본으로_교체돼도_export는_검증시점_비식별파일을_복사한다")
+    void deidResolvedPathSurvivesPostVerificationSymlinkSwap() throws IOException {
+        // given — 운영(prd)처럼 두 base 동일. 비식별 실파일 + 그것을 가리키는 심링크가 DB 경로다.
+        Path shared = deidBase;
+        Path realDeid = shared.resolve("frames/deid/26/real-000001.jpg");
+        Files.createDirectories(realDeid.getParent());
+        Files.writeString(realDeid, "DEID-PIXELS");
+        Path rawFrame = shared.resolve("frames/raw/26/000001.jpg");
+        Files.createDirectories(rawFrame.getParent());
+        Files.writeString(rawFrame, "ORIGINAL-PII-PIXELS");
+        Path deidLink = shared.resolve("frames/deid/26/000001.jpg");
+        Files.createSymbolicLink(deidLink, realDeid);
+
+        LsDataSrc frame = LsDataSrc.create(26L, 0L, rawFrame.toString(), null);
+        frame.attachDeidPath(deidLink.toString());
+
+        // when — 해석 직후(= export 가 파일을 열기 직전) 심링크를 원본 프레임으로 교체한다.
+        Optional<Path> resolved = new FrameSource(shared.toString(), shared.toString())
+                .resolveImage(26L, ExportKind.DEIDENTIFIED, frame);
+        assertThat(resolved).isPresent();
+        Files.delete(deidLink);
+        Files.createSymbolicLink(deidLink, rawFrame);
+
+        // then — export 가 복사하는 것은 검증 시점의 비식별 픽셀이다(원본 유출 없음).
+        assertThat(Files.readString(resolved.get())).isEqualTo("DEID-PIXELS");
     }
 }

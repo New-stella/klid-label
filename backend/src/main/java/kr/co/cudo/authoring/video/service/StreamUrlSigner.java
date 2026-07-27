@@ -22,13 +22,18 @@ import java.util.HexFormat;
  *
  * <h3>서명 포맷</h3>
  * <pre>
- *   sig = HMAC-SHA256(signSecret, "{rawSn}.{exp}.{userNo}")  (lowercase hex)
- *   url = /api/v1/videos/{rawSn}/stream?exp={exp}&amp;sig={sig}
+ *   sig = HMAC-SHA256(signSecret, "{rawSn}.{exp}.{userNo}.{nonce}")  (lowercase hex)
+ *   url = /api/v1/videos/{rawSn}/stream?exp={exp}&amp;u={userNo}&amp;sig={sig}
  * </pre>
  * <ul>
  *   <li>{@code exp}: 만료 epoch-second (서버 발급 시각 + TTL)</li>
- *   <li>{@code userNo}: 토큰 subject — null 이면 빈 문자열. URL 에는 포함하지 않으며 서명 입력으로만 사용해
- *       타 사용자가 URL 을 그대로 재사용해도 검증이 통과되도록 묶는 데 쓰지 않는다(현재는 발급자 식별/감사 목적).</li>
+ *   <li>{@code userNo}: 토큰 subject — <b>URL 쿼리 {@code u} 에도 노출된다</b>. 서명이 이 값을 덮으므로
+ *       {@code u} 변조는 거부되지만, URL 전체를 복사한 재사용은 {@code u} 만으로는 막지 못한다
+ *       (검증 시점에 "요청자 == u" 를 대조할 인증 주체가 없는 무헤더 경로이기 때문).
+ *       실제 재사용 차단은 아래 nonce 가 담당한다.</li>
+ *   <li>{@code nonce}: 발급 응답에 함께 내려간 <b>HttpOnly·SameSite 쿠키</b> 값. URL 에는 절대 포함되지
+ *       않으며 브라우저만 보관한다. 검증 시 요청 쿠키에서 읽어 서명 입력으로 재구성하므로,
+ *       <b>URL 만 유출된 제3자는 쿠키가 없어 서명 검증에 실패</b>한다(CWE-294 실보호).</li>
  * </ul>
  *
  * <h3>보안 가드</h3>
@@ -37,7 +42,8 @@ import java.util.HexFormat;
  *   <li><b>키 강도</b>: 설정 시 256bit(32B) 이상. 부족하면 부팅 차단(fail-closed).</li>
  *   <li><b>미설정 fail-closed</b>: 시크릿 미설정이면 서명 발급/검증 모두 거부.</li>
  *   <li><b>상수시간 비교(CWE-208)</b>: MessageDigest.isEqual.</li>
- *   <li><b>재사용 공격(CWE-294)</b>: 짧은 TTL(exp) 로 윈도우 제한. exp 가 서명 입력에 포함되어 변조 불가.</li>
+ *   <li><b>재사용 공격(CWE-294)</b>: 짧은 TTL(exp) + 클라이언트 바인딩 nonce. nonce 는 TTL 동안 재사용
+ *       가능해야 한다 — 브라우저가 같은 URL 로 다수의 Range 요청을 보내므로 1회용 소비는 재생을 깨뜨린다.</li>
  * </ul>
  */
 @Slf4j
@@ -87,30 +93,38 @@ public class StreamUrlSigner {
      *
      * @param rawSn  영상 PK
      * @param userNo 발급자 subject (null 허용)
-     * @return SignedParams(exp, sig). 미설정 시 IllegalStateException.
+     * @param nonce  발급자 브라우저에 내려갈 HttpOnly 쿠키 값 — 반드시 non-blank (클라이언트 바인딩)
+     * @return SignedParams(exp, sig). 미설정/nonce 부재 시 IllegalStateException.
      */
-    public SignedParams sign(long rawSn, String userNo) {
+    public SignedParams sign(long rawSn, String userNo, String nonce) {
         if (!configured) {
             throw new IllegalStateException("stream sign-secret 미설정 — 서명 URL 발급 불가 (fail-closed)");
         }
+        if (nonce == null || nonce.isBlank()) {
+            // 클라이언트 바인딩 없는 서명은 URL 유출 = 재생 가능이라 발급 자체를 거부한다(fail-closed).
+            throw new IllegalStateException("stream nonce 미지정 — 서명 URL 발급 불가 (fail-closed)");
+        }
         long exp = Instant.now().plus(Duration.ofSeconds(ttlSeconds)).getEpochSecond();
-        String sig = computeHex(rawSn, exp, userNo);
+        String sig = computeHex(rawSn, exp, userNo, nonce);
         return new SignedParams(exp, sig, ttlSeconds);
     }
 
     /**
-     * 서명 검증 — exp 미만료 + sig 일치.
+     * 서명 검증 — exp 미만료 + sig 일치 (+ 클라이언트 바인딩 nonce 일치).
      *
-     * <p>userNo 는 서명 입력에 포함되지 않는 호출(스트림 검증 시점)에서는 null 로 전달한다.
-     * 발급 시 userNo 를 묶었다면 동일 userNo 로 검증해야 일치한다.
+     * <p>{@code nonce} 는 요청 쿠키에서 읽은 값이다. 비어 있으면 <b>즉시 false</b> — 쿠키 없는 요청은
+     * "URL 만 확보한 제3자" 이므로 통과시키지 않는다(A-ISSUE-11 fail-closed).
      *
-     * @return 유효하면 true. 미설정/만료/형식오류/불일치는 모두 false (fail-closed).
+     * @return 유효하면 true. 미설정/만료/형식오류/불일치/nonce 부재는 모두 false (fail-closed).
      */
-    public boolean verify(long rawSn, String expRaw, String sigRaw, String userNo) {
+    public boolean verify(long rawSn, String expRaw, String sigRaw, String userNo, String nonce) {
         if (!configured) {
             return false;
         }
         if (expRaw == null || expRaw.isBlank() || sigRaw == null || sigRaw.isBlank()) {
+            return false;
+        }
+        if (nonce == null || nonce.isBlank()) {
             return false;
         }
         long exp;
@@ -124,15 +138,16 @@ public class StreamUrlSigner {
             // 만료 — 재사용 공격 윈도우 차단 (CWE-294)
             return false;
         }
-        String expected = computeHex(rawSn, exp, userNo);
+        String expected = computeHex(rawSn, exp, userNo, nonce);
         byte[] expectedBytes = expected.getBytes(StandardCharsets.UTF_8);
         byte[] providedBytes = sigRaw.trim().toLowerCase().getBytes(StandardCharsets.UTF_8);
         // 상수시간 비교 (CWE-208)
         return MessageDigest.isEqual(expectedBytes, providedBytes);
     }
 
-    private String computeHex(long rawSn, long exp, String userNo) {
-        String canonical = rawSn + "." + exp + "." + (userNo == null ? "" : userNo);
+    private String computeHex(long rawSn, long exp, String userNo, String nonce) {
+        String canonical = rawSn + "." + exp + "." + (userNo == null ? "" : userNo)
+                + "." + (nonce == null ? "" : nonce);
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(new SecretKeySpec(secretBytes, HMAC_ALGORITHM));

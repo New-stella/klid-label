@@ -34,6 +34,22 @@ import java.util.Optional;
  *
  * <p>{@code AsyncBatchRunner} 의 try/catch + 로깅 패턴을 따른다. 재시도 큐(BatchRetryQueue) 는
  * 의존성으로 주입하지 않아 구조적으로 큐 사용을 차단한다.
+ *
+ * <h3>진입 가드 미적용 — 판정 및 근거 (DEV_FIX H1, 기록용)</h3>
+ * <p>본 러너는 {@code preMarkingPipeline.steps()} 를 <b>직접 순회</b>하며
+ * {@link kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator} 를 경유하지 않는다. 따라서
+ * 검수 소유 작업 상태 진입 가드({@code markRawDataProcessingBlocked})가 <b>적용되지 않는다</b>.
+ * 이는 다음 근거로 <b>현재 무해</b>하다고 판정한다:
+ * <ul>
+ *   <li>pre-marking 파이프라인의 단계는 비식별({@code DeidentifyStep}) 뿐이며 <b>라벨(LS_DATA_LBL)을
+ *       한 건도 만들지 않는다</b> — 가드가 막으려는 "APPROVED 영상에 AUTO 라벨이 무증상 적재" 오염이
+ *       구조적으로 발생하지 않는다.</li>
+ *   <li>작업 상태({@code LS_RAW_DATA_STATUS})를 전이하지 않는다. 성공 시 전이하는 것은
+ *       {@code LS_DATA_RAW.DATA_STTS_CD → MARKING_READY} 뿐이라 검수 승인/반려가 소실되지 않는다.</li>
+ *   <li>트리거는 적재 직후 {@code VideoIngestedEvent} 1회뿐이라 검수 단계 영상에는 발화하지 않는다.</li>
+ * </ul>
+ * <p>따라서 이번 범위에서 가드를 추가하지 않는다. 단, <b>pre-marking 파이프라인에 라벨/작업상태를
+ * 건드리는 단계를 추가하는 순간 이 판정은 무효</b>이므로 그때는 오케스트레이터 경유로 전환해야 한다.
  */
 @Slf4j
 @Service

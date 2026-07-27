@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.video.dto.StreamUrlResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -66,6 +67,13 @@ public class VideoStreamService {
     private final VideoRepository videoRepository;
     private final StreamUrlSigner streamUrlSigner;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
+    /**
+     * S6 — 비식별 영상이 co-locate 위치({@code dirname(원본)/{rawSn}/deid/})로 이동하면서, 고정
+     * {@code deidentified-path} 단일 base 가드로는 신규 위치가 전부 거부된다(반대로 신규 base 만
+     * 허용하면 기존 영상이 깨진다). 허용 base 후보 목록을 만드는 데 사용한다.
+     * <p>단위 테스트(생성자 직접 인스턴스화)에서는 null 일 수 있으며, 그 경우 구 위치 base 만 허용한다.
+     */
+    private final VideoArtifactRootResolver artifactRootResolver;
 
     /**
      * 자기 참조(프록시) — {@code @Cacheable} 는 자기호출(self-invocation) 시 프록시를 거치지 않아
@@ -95,10 +103,12 @@ public class VideoStreamService {
 
     public VideoStreamService(VideoRepository videoRepository,
                               StreamUrlSigner streamUrlSigner,
-                              LsDeidentProcLogRepository deidentProcLogRepository) {
+                              LsDeidentProcLogRepository deidentProcLogRepository,
+                              VideoArtifactRootResolver artifactRootResolver) {
         this.videoRepository = videoRepository;
         this.streamUrlSigner = streamUrlSigner;
         this.deidentProcLogRepository = deidentProcLogRepository;
+        this.artifactRootResolver = artifactRootResolver;
     }
 
     /**
@@ -107,11 +117,17 @@ public class VideoStreamService {
      * <p>&lt;video&gt; 가 Authorization 헤더를 못 붙이는 문제를 우회하기 위해, 인증된 사용자가 호출하면
      * 짧은 TTL HMAC 서명 쿼리를 붙인 스트림 URL 을 반환한다. 영상 존재를 먼저 확인해 없으면 404.
      *
+     * <p><b>인가</b>: 영상 단위 접근 권한(REVIEWER 전체 / WORKER 본인 배정)은 컨트롤러 진입부에서
+     * {@code LabelAccessGuard.verifyRawAccess} 가 먼저 강제한다(B-ISSUE-63).
+     *
      * @param rawSn  영상 PK
-     * @param userNo 발급 요청자 subject (JWT sub) — 서명 입력에 바인딩되어 타 사용자 URL 재사용을 차단한다.
+     * @param userNo 발급 요청자 subject (JWT sub) — 서명 입력에 바인딩된다. 단, URL 쿼리에도 노출되므로
+     *               이 값만으로 URL 재사용이 차단되지는 않는다(아래 nonce 참조).
+     * @param nonce  발급자 브라우저에만 내려가는 HttpOnly 쿠키 값 — URL 에 포함되지 않으며, 이 값이 서명
+     *               입력에 섞이므로 <b>URL 만 유출된 제3자는 재생할 수 없다</b>(A-ISSUE-11).
      * @return 서명 URL + 만료 epoch-second
      */
-    public StreamUrlResponse issueSignedUrl(Long rawSn, String userNo) {
+    public StreamUrlResponse issueSignedUrl(Long rawSn, String userNo, String nonce) {
         // 영상 존재 확인 (없으면 404)
         LsDataRaw raw = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
@@ -132,9 +148,10 @@ public class VideoStreamService {
                     "스트림 서명 URL 발급이 비활성화되어 있습니다.");
         }
         // CWE-284 — userNo 를 서명 입력에 바인딩하고 URL 쿼리 u={userNo} 에도 포함한다.
-        // StreamSignatureFilter 가 쿼리의 u 를 서명 입력으로 사용해 검증하므로, u 를 변조하면
-        // 서명 불일치로 거부된다(타 사용자가 URL 을 그대로 재사용해도 통과하지 못함).
-        StreamUrlSigner.SignedParams params = streamUrlSigner.sign(rawSn, userNo);
+        // u 변조는 서명 불일치로 거부되지만, u 가 URL 에 함께 노출되므로 "URL 전체 복사" 재사용은
+        // u 만으로 막히지 않는다(A-ISSUE-11 — 구 주석의 "재사용해도 통과 못 함" 서술은 사실이 아니었다).
+        // 실제 재사용 차단은 URL 에 없는 nonce(HttpOnly 쿠키)를 서명 입력에 섞어 달성한다.
+        StreamUrlSigner.SignedParams params = streamUrlSigner.sign(rawSn, userNo, nonce);
         String u = userNo == null ? "" : userNo;
         String url = "/api/v1/videos/" + rawSn + "/stream?exp=" + params.exp()
                 + "&u=" + u + "&sig=" + params.sig();
@@ -257,14 +274,13 @@ public class VideoStreamService {
     @Cacheable(cacheNames = "stream-meta", key = "#rawSn", unless = "#result == null")
     public StreamMeta resolveStreamMeta(Long rawSn) throws IOException {
         // 1~2) 영상 존재 확인 + 비식별 경로 해석. 미완료면 원본 노출 금지 → null (호출부가 NOT_FOUND).
-        String deidPath = resolveDeidPath(rawSn);
-        if (deidPath == null) {
+        DeidLocation location = resolveDeidLocation(rawSn);
+        if (location == null) {
             return null;
         }
 
-        // 3) Path Traversal 방어 (CWE-22) — 비식별 저장 base 정합. 위반 시 FORBIDDEN(캐시 안 됨).
-        Path baseDir = Paths.get(deidentifiedPath).toAbsolutePath().normalize();
-        Path resolved = resolveSafe(baseDir, deidPath);
+        // 3) Path Traversal 방어 (CWE-22) — 구/신 비식별 위치 <b>2-way allowlist</b>(S6). 위반 시 거부.
+        Path resolved = resolveSafe(allowedDeidBases(rawSn, location.rawFilePathNm()), location.deidPath());
 
         // 4) 파일 존재 확인 — 비식별 파일 부재 시 원본 노출 금지(privacy) → NOT_FOUND(캐시 안 됨).
         if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
@@ -311,6 +327,12 @@ public class VideoStreamService {
      * @throws CustomException 영상 자체가 존재하지 않으면 NOT_FOUND
      */
     public String resolveDeidPath(Long rawSn) {
+        DeidLocation location = resolveDeidLocation(rawSn);
+        return location == null ? null : location.deidPath();
+    }
+
+    /** {@link #resolveDeidPath} 와 동일 판정 + co-locate base 도출용 원본 경로를 함께 반환한다. */
+    private DeidLocation resolveDeidLocation(Long rawSn) {
         // 영상 존재 확인 (없으면 404) + 비식별 유효성 플래그 확인을 단일 조회로 수행.
         LsDataRaw raw = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
@@ -322,10 +344,13 @@ public class VideoStreamService {
             return null;
         }
 
-        return deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn)
+        // 비식별 영상 경로의 진실원은 DE_IDNTF_FILE_PATH_NM 단 하나다 — 파일명을 조합/추측하지 않는다
+        // (mock='deidentified.mp4' · KPST='{원본stem}-mask{ext}' 로 이름이 다르다).
+        String deidPath = deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn)
                 .map(LsDeidentProcLog::getDeIdntfFilePathNm)
                 .filter(p -> p != null && !p.isBlank())
                 .orElse(null);
+        return deidPath == null ? null : new DeidLocation(deidPath, raw.getRawFilePathNm());
     }
 
     /**
@@ -340,19 +365,55 @@ public class VideoStreamService {
     }
 
     /**
-     * Path Traversal 방어 (CWE-22) — baseDir 외부 경로는 FORBIDDEN.
+     * 허용 base 후보 목록 (S6 — <b>2-way allowlist</b>).
+     * <ol>
+     *   <li>구 위치 — {@code STORAGE_DEIDENTIFIED_PATH} 하위(배포 전 비식별본·해상도 파생본).</li>
+     *   <li>신 위치 — co-locate 비식별 영상 디렉터리({@code dirname(원본)/{rawSn}/deid/}).
+     *       도출/검증에 실패하면 후보에서 조용히 빠진다(구 위치만으로 판정 — fail-secure).</li>
+     * </ol>
+     * 둘 중 <b>하나라도</b> 만족하면 통과한다. 비식별 영상의 실제 경로/파일명은 언제나
+     * {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 값을 쓰며 조합/추측하지 않는다.
      */
-    static Path resolveSafe(Path baseDir, String filePath) {
+    private List<Path> allowedDeidBases(Long rawSn, String rawFilePathNm) {
+        List<Path> bases = new java.util.ArrayList<>(3);
+        bases.add(Paths.get(deidentifiedPath).toAbsolutePath().normalize());
+        if (artifactRootResolver != null) {
+            // 읽기 후보는 <전략과 무관>하게 구/신 두 위치 모두다(S8) — 롤백 플래그를 되돌려도 이미 적재된
+            // co-locate 경로가 깨지지 않아야 하며, 반대로 전환 직후에도 구 위치 행이 계속 읽혀야 한다.
+            try {
+                bases.addAll(artifactRootResolver.readableDeidVideoDirs(rawSn, rawFilePathNm));
+            } catch (RuntimeException e) {
+                // 후보 도출 실패 — 구 위치 base 만으로 판정한다(fail-secure).
+            }
+        }
+        return bases;
+    }
+
+    /**
+     * Path Traversal 방어 (CWE-22) — 허용 base 후보 중 <b>하나라도</b> 만족해야 통과한다.
+     *
+     * <p>S7 — 어느 base 에도 속하지 않으면 {@link ErrorCode#NOT_FOUND} 로 정규화한다(구 FORBIDDEN).
+     * 존재/권한 여부를 응답으로 구분해주지 않는 편이 원본 미노출 정책과 동급이며, 경로 원문은 로그에도
+     * 남기지 않는다(CWE-209).
+     */
+    static Path resolveSafe(List<Path> baseDirs, String filePath) {
         if (filePath == null || filePath.isBlank()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "영상 경로가 비어있습니다.");
         }
         Path candidate = Paths.get(filePath);
-        Path resolved = candidate.isAbsolute()
-                ? candidate.normalize()
-                : baseDir.resolve(candidate).normalize();
-        if (!resolved.startsWith(baseDir)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 영상 경로입니다.");
+        for (Path baseDir : baseDirs) {
+            Path resolved = candidate.isAbsolute()
+                    ? candidate.normalize()
+                    : baseDir.resolve(candidate).normalize();
+            if (resolved.startsWith(baseDir)) {
+                return resolved;
+            }
         }
-        return resolved;
+        log.error("[VideoStream] deid path outside all allowed bases — refusing");
+        throw new CustomException(ErrorCode.NOT_FOUND, "비식별 영상 파일이 존재하지 않습니다.");
+    }
+
+    /** 비식별 경로 + 그 base 도출에 필요한 원본 경로(co-locate). */
+    private record DeidLocation(String deidPath, String rawFilePathNm) {
     }
 }

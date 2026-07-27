@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.marking.listener;
 
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.runner.AsyncBatchRunner;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -10,11 +11,13 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -289,6 +292,84 @@ class MarkingBatchBridgeTest {
         // then — 두 브리지 중 1건만 전이 권한 획득 → 배치 트리거 정확히 1회
         verify(asyncBatchRunner, times(1)).runAsync(eq(rawSn));
         verify(batchStatusService, times(1)).markStage(eq(rawSn), eq(BatchStage.PENDING));
+    }
+
+    @Test
+    @DisplayName("클레임_skip집합에_검수소유상태_4종이_포함된다 — 입구가_안막히면_출구가드가_발화하지_못함(H1-a)")
+    void onMarkingCompleted_skipStatuses_containReviewOwned() {
+        // given — 정상 트리거 대상(비식별 완료 + MARKING_READY)
+        Long rawSn = 60L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
+        when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(true);
+
+        // when
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, 6000L));
+
+        // then — 브리지가 넘기는 skip 집합에 검수 소유 상태가 없으면 APPROVED 가 먼저 BATCH_QUEUED 로 덮이고,
+        //        오케스트레이터 진입 가드가 보는 현재값이 BATCH_QUEUED(비-차단)라 가드가 무력화된다.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<String>> captor = ArgumentCaptor.forClass(Collection.class);
+        verify(batchTransitionService).tryClaimBatchQueued(eq(rawSn), captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue())
+                .containsAll(BatchTransitionService.REVIEW_OWNED_STATUSES)
+                .contains(LsRawDataStatus.STTS_BATCH_QUEUED,
+                        LsRawDataStatus.STTS_PROCESSING,
+                        LsRawDataStatus.STTS_COMPLETED)
+                // 정상 마킹 완료 경로(ASSIGNED)와 재마킹 경로(FAILED)는 막히면 안 된다.
+                .doesNotContain(LsRawDataStatus.STTS_ASSIGNED, LsRawDataStatus.STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("배치_미트리거시_스킵사유가_리포트에_기록된다 — 무음스킵_금지")
+    void onMarkingCompleted_skipIsReported() {
+        // DEV_FIX H11 — 검수 소유 상태/중복 클레임으로 배치가 안 도는데 마킹 API 는 201 을 반환했다.
+        //   사유를 리포트에 남겨 응답에 실어 보내야 "성공처럼 보이는 무음 스킵"이 사라진다.
+        Long rawSn = 7000L;
+        MarkingBatchTriggerReport.begin();
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
+        when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(false);
+        when(batchTransitionService.tryCreateBatchQueuedRow(rawSn)).thenReturn(false);
+
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, 7100L));
+
+        verify(asyncBatchRunner, never()).runAsync(rawSn);
+        MarkingBatchTriggerReport.Outcome outcome = MarkingBatchTriggerReport.consume();
+        org.assertj.core.api.Assertions.assertThat(outcome).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(outcome.triggered()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(outcome.reason())
+                .isEqualTo(MarkingBatchTriggerReport.REASON_ALREADY_CLAIMED);
+    }
+
+    @Test
+    @DisplayName("비식별_미완료_스킵도_사유가_리포트된다")
+    void onMarkingCompleted_notDeidentified_isReported() {
+        Long rawSn = 7200L;
+        MarkingBatchTriggerReport.begin();
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(rawWithDeid("N")));
+
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, 7300L));
+
+        MarkingBatchTriggerReport.Outcome outcome = MarkingBatchTriggerReport.consume();
+        org.assertj.core.api.Assertions.assertThat(outcome).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(outcome.triggered()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(outcome.reason())
+                .isEqualTo(MarkingBatchTriggerReport.REASON_NOT_DEIDENTIFIED);
+    }
+
+    @Test
+    @DisplayName("정상_트리거시_리포트는_triggered_true")
+    void onMarkingCompleted_triggered_isReported() {
+        Long rawSn = 7400L;
+        MarkingBatchTriggerReport.begin();
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
+        when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(true);
+
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, 7500L));
+
+        MarkingBatchTriggerReport.Outcome outcome = MarkingBatchTriggerReport.consume();
+        org.assertj.core.api.Assertions.assertThat(outcome).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(outcome.triggered()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(outcome.reason()).isNull();
     }
 
     @Test

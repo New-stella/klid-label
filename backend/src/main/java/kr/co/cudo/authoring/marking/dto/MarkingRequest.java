@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.marking.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -20,5 +22,12 @@ public record MarkingRequest(
 
         Integer intervalFrames,
 
+        /*
+         * C-ISSUE-01 — @Valid 누락으로 MarkItem 의 제약(@NotNull/@Min/@Pattern)이 <b>전혀 발화하지
+         * 않던</b> 결함을 수정한다(중첩 검증은 @Valid 가 있어야 전파된다). @Size 는 과대 요청 DoS 방어
+         * (CWE-770) — 30fps·10분 영상의 전 프레임 마킹(18,000)을 넉넉히 수용하는 상한.
+         */
+        @Valid
+        @Size(max = 20000, message = "한 번에 처리 가능한 마킹 수 초과 (최대 20000)")
         List<MarkItem> marks
 ) {}

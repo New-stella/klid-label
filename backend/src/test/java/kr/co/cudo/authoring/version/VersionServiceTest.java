@@ -446,6 +446,10 @@ class VersionServiceTest {
         assertThat(events.get(0).srcSn()).isEqualTo(srcSn);
         assertThat(events.get(0).changeType()).isEqualTo(ChangeType.LABEL_UPDATED);
         assertThat(ChangeType.ALL).contains(events.get(0).changeType());
+        // HIGH-A(Phase 5C) — 롤백은 프레임 라벨을 과거 스냅샷으로 교체하므로 export JSON 도 바뀐다.
+        //   exportRegenerated=true 여야 디바운스 flush 가 export 폴더를 새 버전으로 재생성한 뒤 통지한다.
+        //   4-arg(false)로 되돌리면 이 단언이 실패한다(재생성 미트리거 회귀 방어).
+        assertThat(events.get(0).exportRegenerated()).isTrue();
     }
 
     @Test

@@ -61,6 +61,8 @@ import type { OverlayLayerHandle } from '@/features/label/canvas/layers/OverlayL
 import { useSubmitReview, useCancelSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { useReview } from '@/features/review/hooks/useReview';
 import { HistoryPanel } from '@/features/version/components/HistoryPanel';
+import { ApiError } from '@/lib/api/errors';
+import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
 import { LABEL_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -112,7 +114,7 @@ export function LabelingPage() {
   const canReportDeident = !portalMode && (isWorker || isReviewer);
   const pushToast = useUiStore((s) => s.pushToast);
 
-  const { data, isLoading, error } = useLabels(
+  const { data, isLoading, error, refetch: refetchLabels } = useLabels(
     Number.isFinite(numericId) ? numericId : undefined,
     portalMode,
   );
@@ -377,6 +379,12 @@ export function LabelingPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   // 저장 이벤트 되돌리기 확인 대상. null 이면 확인모달 닫힘.
   const [revertTarget, setRevertTarget] = useState<LabelHistoryItem | null>(null);
+  /**
+   * C-ISSUE-21 — 저장 충돌(409) 안내. 다른 사용자가 같은 프레임을 먼저 저장해 내 화면이 낡은 경우
+   * BE 가 저장을 거부한다. 이때 <b>내 작업 내용을 말없이 버리지 않고</b> 사용자에게 선택을 준다:
+   * 최신 라벨을 다시 불러오거나(내 미저장 변경은 사라짐 — 명시 동의), 일단 화면을 유지한다.
+   */
+  const [saveConflictMessage, setSaveConflictMessage] = useState<string | null>(null);
 
   // R4 — 단축키 치트시트(도움말) 모달 열림 상태. ?(shift+/) 단축키 또는 헤더 도움말 버튼으로 토글.
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
@@ -457,6 +465,10 @@ export function LabelingPage() {
   // 프레임 전환·작업 목록 진행률이 최신 상태로 갱신되도록 한다.
   const { mutateAsync: updateInternalLabels, isPending: savingInternal } = useUpdateLabels(
     currentFrame?.srcSn,
+    // C-ISSUE-21 — 조회로 받은 라벨셋 버전을 저장 요청에 되돌려 보낸다(낙관적 동시성 토큰).
+    //   보내지 않으면 BE 가 검사를 건너뛰어, 그사이 다른 사용자가 추가한 라벨이 full-replace 로
+    //   조용히 삭제된다(실측된 lost update).
+    { labelVersion: data?.labelVersion },
   );
   // R16 — 포털 저장은 원본 미수정, 본인 작업분을 LS_PORTAL_USER_LABEL 에 별도 적재.
   const { mutateAsync: savePortalLabels, isPending: savingPortal } = useSavePortalLabels(
@@ -485,11 +497,32 @@ export function LabelingPage() {
       // 문구를 쓰지 않고 양쪽 채널 모두 '저장됨' 으로 통일한다.
       pushToast({ variant: 'success', message: '저장됨' });
     } catch (e) {
+      // C-ISSUE-21 — 409(CONFLICT)는 "다른 사용자가 먼저 저장했다"는 뜻이다. 일반 에러 토스트로
+      //   흘려보내면 사용자는 원인을 모른 채 재시도만 반복하므로, 별도 안내 다이얼로그를 띄운다.
+      //   dirty 는 유지한다 — 사용자의 작업 내용을 동의 없이 버리지 않는다.
+      if (e instanceof ApiError && e.status === 409) {
+        setSaveConflictMessage(
+          extractBeMessage(e, '다른 사용자가 먼저 저장했습니다. 최신 라벨을 불러온 뒤 다시 저장하세요.'),
+        );
+        return;
+      }
       pushToast({
         variant: 'error',
-        message: e instanceof Error ? e.message : '저장 실패',
+        message: extractBeMessage(e, '저장 실패'),
       });
     }
+  };
+
+  /**
+   * 저장 충돌 해소 — 최신 라벨을 다시 불러온다. 사용자가 <b>명시적으로 선택</b>했을 때만 실행되며,
+   * 미저장 변경은 이 시점에 사라진다(다이얼로그에 명시). dirty 를 먼저 비워야 같은 프레임 재조회가
+   * 서버 라벨로 화면을 갱신한다(미저장 편집 보호 규칙 때문에 dirty 가 있으면 덮어쓰지 않음).
+   */
+  const handleReloadAfterConflict = async () => {
+    setSaveConflictMessage(null);
+    clearDirty();
+    await refetchLabels();
+    pushToast({ variant: 'success', message: '최신 라벨을 불러왔습니다.' });
   };
 
   // "이 저장 되돌리기" — 카드 버튼 → 확인모달 오픈. 실제 역적용은 confirmRevert.
@@ -1334,6 +1367,18 @@ export function LabelingPage() {
           </div>
         )}
       </div>
+
+      {/* C-ISSUE-21 — 저장 충돌(409) 안내. 작업 내용을 임의로 버리지 않고 사용자가 선택한다. */}
+      <ConfirmDialog
+        open={saveConflictMessage !== null}
+        title="다른 사용자가 먼저 저장했습니다"
+        description={`${saveConflictMessage ?? ''} 최신 라벨을 불러오면 저장하지 않은 변경은 사라집니다. 작업 내용을 남기려면 '내 작업 유지'를 선택한 뒤 필요한 부분을 다시 확인하세요.`}
+        confirmLabel="최신 라벨 불러오기"
+        cancelLabel="내 작업 유지"
+        variant="danger"
+        onConfirm={handleReloadAfterConflict}
+        onCancel={() => setSaveConflictMessage(null)}
+      />
 
       {/* 저장 이벤트 되돌리기 확인 — 작업본 변경 전 확인(a11y 포커스/ESC 는 Modal 이 처리). */}
       <ConfirmDialog

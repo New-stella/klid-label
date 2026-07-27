@@ -71,8 +71,9 @@ public class ResolutionPersistService {
     private final LsDeidentReportRepository deidentReportRepository;
     private final DerivedMetaCopier derivedMetaCopier;
 
-    @Value("${authoring.storage.raw-path:./storage/raw}")
-    private String storageRawPath;
+    /** 비식별 저장소 base — 파생 산출물·비식별 procLog 경로의 상대경로 해석 기준(E-ISSUE-21). */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String storageDeidentifiedPath;
 
     /** 영속 결과 — 정상 확정(PERSISTED) 또는 이미 확정돼 skip(SKIPPED, #5 중복 finalize 패자). */
     public enum Result {
@@ -127,7 +128,7 @@ public class ResolutionPersistService {
         // 4) 라벨 좌표 스케일 복사 + LS_DATA_AUG_LBL_MAP(coordRecalc='Y', scaleX/scaleY) 적재.
         LsDataAug aug = augRepository.findById(snapshot.dataAugSn()).orElse(null);
         int copiedLabels = copyScaledLabels(parentSrcToNewSrc, snapshot.dataAugSn(),
-                snapshot.scaleX(), snapshot.scaleY(), snapshot.regId());
+                snapshot.scaleX(), snapshot.scaleY(), snapshot.offsetX(), snapshot.offsetY(), snapshot.regId());
 
         // 5) 성공 시에만 확정 불변식(같은 커밋): 예약 aug PENDING→ACCEPTED, deIdntfYn='Y' + COMPLETED + SUCCESS procLog.
         //    파생본은 원본 라벨을 좌표 복사해 적재하므로 마킹·배치가 불필요하다. 따라서 배치 단계 상태
@@ -225,11 +226,55 @@ public class ResolutionPersistService {
     }
 
     /**
+     * E-ISSUE-23 — 확정 실패한 파생 {@code LS_DATA_RAW} 고아 행을 정리한다.
+     *
+     * <p>구현은 실패 시 파일 cleanup + 예약 aug 해제 + FAILED 전이만 하고 RAW 행을 남겨,
+     * 재시도마다 파생 RAW 가 무한 누적됐다(화면·이력 어디에도 노출되지 않는 침묵 쓰레기).
+     *
+     * <p><b>경합 안전(CWE-362)</b>: 삭제 직전 {@code findByRawSnForUpdate} 로 <b>잠금 + 상태 재확인</b>을
+     * 수행하고, 다음 중 하나라도 어긋나면 삭제하지 않는다 — ①파생이 아님 ②이미 확정(deIdntfYn='Y')
+     * ③상태가 FAILED 가 아님 ④프레임이 이미 적재됨. 최종 DELETE 문에도 동일 조건을 SQL 조건으로 함께
+     * 걸어, 검사~삭제 사이에 상태가 바뀐 행은 0건 삭제된다.
+     *
+     * @return 삭제됐으면 true
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean deleteFailedDerivativeRaw(Long newRawSn) {
+        if (newRawSn == null) {
+            return false;
+        }
+        LsDataRaw raw = videoRepository.findByRawSnForUpdate(newRawSn).orElse(null);
+        if (raw == null || raw.getOrgnlRawSn() == null) {
+            return false; // 원본 영상은 절대 삭제 대상이 아니다.
+        }
+        if ("Y".equals(raw.getDeIdntfYn()) || !LsDataRaw.DATA_STTS_FAILED.equals(raw.getDataSttsCd())) {
+            log.info("[Video][ResolutionDerivative][C] orphan cleanup skipped — state changed rawSn={}", newRawSn);
+            return false;
+        }
+        if (srcRepository.countByRawSn(newRawSn) > 0) {
+            log.info("[Video][ResolutionDerivative][C] orphan cleanup skipped — frames present rawSn={}", newRawSn);
+            return false;
+        }
+        int deleted = videoRepository.deleteFailedDerivative(newRawSn);
+        if (deleted > 0) {
+            log.info("[Video][ResolutionDerivative][C] failed derivative RAW removed rawSn={}", newRawSn);
+        }
+        return deleted > 0;
+    }
+
+    /**
      * Phase B 산출 프레임 스펙 기준 LS_DATA_SRC INSERT + 부모→신규 SRC_SN 매핑(라벨 재매핑용).
      *
-     * <p>MEDIUM (DB) — 비식별 프레임 경로를 <b>최초 INSERT 에 함께 담아</b>(파생본은 비식별 산출 → src=deid
-     * 경로 동일) 프레임당 dirty-update(2N 왕복)를 제거한다. 부모 재잠금 보유 시간이 프레임 수에 비례해
-     * 늘어나는 것을 막는다({@code attachDeidPath} setter 호출 제거).
+     * <p>MEDIUM (DB) — 비식별 프레임 경로를 <b>최초 INSERT 에 함께 담아</b> 프레임당 dirty-update(2N 왕복)를
+     * 제거한다. 부모 재잠금 보유 시간이 프레임 수에 비례해 늘어나는 것을 막는다({@code attachDeidPath} 제거).
+     *
+     * <p><b>E-ISSUE-41 (정책 A — 파생영상은 "원본 없음")</b>: 구현은 원래 유일한 물리 산출물(비식별 프레임
+     * 리스케일 1벌)을 {@code SRC_FILE_PATH_NM}·{@code DE_IDNTF_SRC_FILE_PATH_NM} 두 컬럼에 <b>같은 값</b>으로
+     * 넣었다. 그 결과 ①export 가 orgnl/deid 2벌을 바이트 동일하게 산출하고 ②orgnl 벌이
+     * {@code anonymity="N"} 으로 오표기되며 ③마트 뷰의 "두 경로 항상 상이" 불변식이 깨졌다.
+     * 해상도 파생은 설계상 <b>비식별본 복사 + 프레임 리스케일</b>이라 원본 픽셀이 실재하지 않으므로,
+     * {@code SRC_FILE_PATH_NM} 을 <b>null</b>(원본 부재)로 두고 없는 원본을 있는 척하지 않는다.
+     * 이에 맞춰 export 는 파생영상의 ORIGINAL 벌을 생성하지 않는다.
      */
     private Map<Long, Long> insertFrames(ResolutionSnapshot snapshot) {
         // #3 — 부모 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 파생 프레임에 복사(증강 경로와 일관).
@@ -241,7 +286,7 @@ public class ResolutionPersistService {
             String dst = f.dst().toString();
             LsDataSrc parent = parentSrcs.get(f.parentSrcSn());
             LsDataSrc nf = srcRepository.save(LsDataSrc.create(
-                    snapshot.newRawSn(), f.frameNo(), f.videoFrameNo(), dst, dst, f.shtDt(),
+                    snapshot.newRawSn(), f.frameNo(), f.videoFrameNo(), null, dst, f.shtDt(),
                     parent == null ? null : parent.getAnonyInclYn(),
                     parent == null ? null : parent.getPsdoInclYn(),
                     parent == null ? null : parent.getPrvcInclYn()));
@@ -294,7 +339,8 @@ public class ResolutionPersistService {
         }
 
         // ① 최신 SUCCESS 비식별 procLog 경로가 스냅샷과 동일한지 재확인(신규 경로 재비식별 방어).
-        Path base = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        //    비식별 산출물 경로이므로 상대경로 해석 기준은 비식별 저장소 base 다(Phase A 와 동일 기준).
+        Path base = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
         Path snapshotDeid = snapshot.deidVideoSrc();
         Path currentDeid = deidentProcLogRepository.findLatestSuccessByDataRawSn(parentRawSn)
                 .map(LsDeidentProcLog::getDeIdntfFilePathNm)
@@ -344,9 +390,21 @@ public class ResolutionPersistService {
         return candidate != null && candidate.isAfter(reference);
     }
 
-    /** 부모 라벨을 좌표 스케일 복사 + LS_DATA_AUG_LBL_MAP(coordRecalc='Y', scaleX/scaleY) 적재. */
+    /**
+     * 부모 라벨을 좌표 스케일 복사 + LS_DATA_AUG_LBL_MAP(coordRecalc='Y', scaleX/scaleY) 적재.
+     *
+     * <p>G-1 — 종횡비 보존(레터박스) 리스케일이므로 좌표 변환은 <b>단순 배율이 아니라</b>
+     * {@code x' = x*scale + offsetX} 다. BBOX·POLYGON·세그멘테이션·키포인트 전 종류에 동일 적용된다.
+     * 매핑 행에는 기존 컬럼(SCALE_X/SCALE_Y = 균일 배율)만 기록한다 — 신규 컬럼을 추가하지 않는다.
+     *
+     * <p><b>추적성 한계(사실 명시 — 후속)</b>: 저장된 라벨 좌표 자체는 오프셋까지 반영된 정확한 값이지만,
+     * 매핑 행만 보고 <b>오프셋을 역산할 수는 없다</b>. 오프셋은 부모 원본 치수(srcW·srcH)와 목표 치수에
+     * 함께 의존하기 때문이다 — 반례: 1080×1920 과 1440×1920 은 목표 1920×1080 에 대해 <b>같은 배율</b>
+     * (0.5625)이지만 offsetX 는 각각 (1920-607)/2 와 (1920-810)/2 로 다르다. 오프셋 컬럼 신설은
+     * 표준용어·표준도메인 확정이 선행돼야 하므로 후속 과제로 남긴다(영향 범위: 좌표 정확도 아님, 추적성).
+     */
     private int copyScaledLabels(Map<Long, Long> parentSrcToNewSrc, Long dataAugSn,
-                                 double scaleX, double scaleY, String regId) {
+                                 double scaleX, double scaleY, int offsetX, int offsetY, String regId) {
         List<LsDataLbl> parentLabels = lblRepository.findBySrcSnIn(parentSrcToNewSrc.keySet());
         if (parentLabels.isEmpty()) {
             return 0;
@@ -357,7 +415,8 @@ public class ResolutionPersistService {
         // saveAll 반환 순서 비의존 — 원본 lblSn 을 복사본과 동반해 명시 매핑.
         List<LabelCopy> copies = parentLabels.stream()
                 .map(lbl -> new LabelCopy(lbl.getLblSn(),
-                        LsDataLbl.copyForNewSrcScaled(parentSrcToNewSrc.get(lbl.getSrcSn()), lbl, scaleX, scaleY)))
+                        LsDataLbl.copyForNewSrcScaled(parentSrcToNewSrc.get(lbl.getSrcSn()), lbl,
+                                scaleX, scaleY, offsetX, offsetY)))
                 .toList();
         lblRepository.saveAll(copies.stream().map(LabelCopy::copy).toList());
 

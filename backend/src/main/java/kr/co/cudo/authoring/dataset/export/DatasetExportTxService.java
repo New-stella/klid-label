@@ -25,7 +25,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -59,7 +58,6 @@ public class DatasetExportTxService {
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final NiaJsonBuilder niaJsonBuilder;
     private final LabelContentHasher contentHasher;
-    private final DatasetExportPathResolver pathResolver;
     private final ObjectMapper objectMapper;
 
     public DatasetExportTxService(LsDataSrcRepository srcRepository,
@@ -71,7 +69,6 @@ public class DatasetExportTxService {
                                   LsDeidentProcLogRepository deidentProcLogRepository,
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
-                                  DatasetExportPathResolver pathResolver,
                                   ObjectMapper objectMapper) {
         this.srcRepository = srcRepository;
         this.labelRepository = labelRepository;
@@ -82,7 +79,6 @@ public class DatasetExportTxService {
         this.deidentProcLogRepository = deidentProcLogRepository;
         this.niaJsonBuilder = niaJsonBuilder;
         this.contentHasher = contentHasher;
-        this.pathResolver = pathResolver;
         this.objectMapper = objectMapper;
     }
 
@@ -147,7 +143,13 @@ public class DatasetExportTxService {
                 .map(LsDatasetExport::getContentHash)
                 .orElse(null);
 
-        return Optional.of(new ExportPreparation(ctx, frameContexts, contentHash, lastExportedHash));
+        // co-locate 산출 base 원천 — 라이브 LS_DATA_RAW 우선, 부재 시 활성 메타 스냅샷 값으로 폴백한다.
+        String rawFilePathNm = (raw != null && raw.getRawFilePathNm() != null && !raw.getRawFilePathNm().isBlank())
+                ? raw.getRawFilePathNm()
+                : meta.getRawFilePathNm();
+
+        return Optional.of(new ExportPreparation(
+                ctx, frameContexts, contentHash, lastExportedHash, rawFilePathNm));
     }
 
     /**
@@ -159,12 +161,13 @@ public class DatasetExportTxService {
      * rollback-only 가 된 이 트랜잭션이 승인/다른 시도와 격리된다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public InsertedExport insertNextVersion(long rawSn, String contentHash) {
+    public InsertedExport insertNextVersion(long rawSn, String contentHash, String exportPathNm) {
         int version = (int) (exportRepository.countByDataRawSn(rawSn) + 1);
-        // 버전 루트({labeling_root}/{rawSn}/v{n}) — 리졸버가 base 이탈(CWE-22)을 이미 검증한 하위.
-        Path versionRoot = pathResolver.resolve(rawSn, ExportKind.ORIGINAL, version).getParent();
+        // A-4 — EXPORT_PATH_NM 은 <b>영상 루트</b>({dirname(원본)}/{rawSn})다. 관제가 한 경로 아래에서
+        // v1·v2… 를 모두 보고 골라야 롤백이 성립하기 때문(버전 루트 저장은 폐기). 값은 호출자가 리졸버로
+        // 검증해 넘긴 절대경로이며, 이후 어떤 조회 경로에서도 재계산하지 않는다(S8 — 전략 전환 안전).
         LsDatasetExport record = LsDatasetExport.create(
-                rawSn, version, versionRoot.toString(), contentHash);
+                rawSn, version, exportPathNm, contentHash);
         LsDatasetExport saved = exportRepository.saveAndFlush(record);
         return new InsertedExport(saved.getExportSn(), version);
     }
@@ -185,6 +188,22 @@ public class DatasetExportTxService {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markFailed(long exportSn) {
         exportRepository.findById(exportSn).ifPresent(LsDatasetExport::markFailed);
+    }
+
+    /**
+     * D-ISSUE-04(b) DEV_FIX(H7①/H7③) — 실패 export 재시도 <b>원자 클레임</b>(짧은 독립 트랜잭션).
+     *
+     * <p>{@code true} 를 받은 호출자만 재산출을 트리거한다. 클레임 성공 시 시도 이력({@code RTY_NMTM})이
+     * 산출 결과와 무관하게 기록되므로 상한(max-attempts)이 실제로 걸리고, 동시에 같은 영상을 두 노드가
+     * 동시에 집어가지 못한다(Quartz 클러스터링 설정에 의존하지 않는 DB 레벨 보장 —
+     * {@code LsDatasetExportRepository#claimForRetry} 주석 참조).
+     *
+     * <p>REQUIRES_NEW — 회수 잡은 트랜잭션 밖에서 돌고, 클레임은 즉시 커밋되어야 다른 노드가 관측한다.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean claimForRetry(long exportSn, int maxAttempts, java.time.LocalDateTime claimCutoff) {
+        return exportRepository.claimForRetry(
+                exportSn, maxAttempts, claimCutoff, java.time.LocalDateTime.now()) == 1;
     }
 
     /**
