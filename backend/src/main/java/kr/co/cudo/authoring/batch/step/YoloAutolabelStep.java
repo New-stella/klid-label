@@ -34,9 +34,11 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * YOLO 자동 라벨링 단계 (Phase 5 — YOLO, Phase 4 — Track 전환).
@@ -165,6 +167,8 @@ public class YoloAutolabelStep implements BatchStep {
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         List<BbHint> hints = new ArrayList<>();
+        // C-ISSUE-21 — 자동 라벨이 실제로 저장된 프레임만 수집(라벨셋 버전 +1 대상, H11 범위 축소).
+        Set<Long> labeledFrames = new HashSet<>();
         int bboxSaved = 0;
         int yoloTotal = 0;
         int hintsEmitted = 0;
@@ -221,6 +225,7 @@ public class YoloAutolabelStep implements BatchStep {
                             src.getSrcSn(), rawSn, d.label(), labelId,
                             d.points(), d.score(), d.trackId(), YoloLabelPersister.SOURCE_BATCH);
                     bboxSaved++;
+                    labeledFrames.add(src.getSrcSn());
                 }
                 if (toggle.polygon()) {
                     // Phase 4: BbHint 5번째 인자에 d.trackId() (Integer) 그대로 전달.
@@ -229,6 +234,20 @@ public class YoloAutolabelStep implements BatchStep {
                 }
             }
             frameIndex++;
+        }
+        // C-ISSUE-21 — 배치 오토라벨이 라벨 row 를 만든 <b>그 프레임</b>의 라벨셋 버전을 +1 한다(단일 UPDATE,
+        //   N+1 금지). 배치는 통상 배정 이전에 돌지만 수동 재처리/오토라벨 재실행은 라벨링 중에도 가능하므로,
+        //   편집 화면이 보유한 버전을 무효화해 낡은 full-replace 저장이 방금 생성된 자동 라벨을 지우는
+        //   lost update 를 막는다.
+        // DEV_FIX(H11 범위) — 구 구현은 영상 전 프레임(bumpLabelVersionByRawSn)을 올려, 검출이 없어
+        //   라벨이 그대로인 프레임을 편집 중인 작업자까지 409 로 밀어내고 영상 전 프레임 행에 쓰기 락을
+        //   잡았다. 실제 라벨이 추가된 프레임만 올린다.
+        // DEV_FIX(H4 주석 정정) — "INSERT 라 락 순서 규약 대상이 아니다"는 근거는 부정확하다. bump 자체가
+        //   프레임 행에 쓰기 락을 잡으므로 이 문장도 락 획득이다. 이 경로가 안전한 진짜 이유는 <b>본
+        //   트랜잭션의 유일한 프레임 락 획득 지점이 이 한 문장</b>이고, 그 시점까지 기존 라벨 행 락을
+        //   하나도 쥐고 있지 않기 때문이다(신규 INSERT 행은 타 트랜잭션이 볼 수 없어 경합 대상이 아니다).
+        if (!labeledFrames.isEmpty()) {
+            srcRepository.bumpLabelVersionIn(labeledFrames);
         }
         log.info("[Batch][Yolo] saved labels rawSn={} clipId={} eventType={} frames={} yoloCount={} bboxSaved={} hintsEmitted={} preset={} conf={} imgsz={} iou={}",
                 rawSn, clipId, eventTypeCd, frameIndex, yoloTotal, bboxSaved, hintsEmitted,

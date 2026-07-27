@@ -28,6 +28,10 @@ import java.util.Set;
  * <p>lockSttsCd 는 영상(LS_DATA_RAW)의 잠금 상태 코드.
  * null/빈 문자열 = 잠금 없음, "LOCKED_FOR_REDEIDENT" = 비식별 재처리 중(라벨 저장 차단).
  * FE 는 이 값으로 라벨링 화면 진입 시점에 UI 비활성화를 결정한다 (다중 세션 일관성).
+ *
+ * <p>labelVersion 은 이 프레임의 <b>라벨셋 버전</b>(C-ISSUE-21). FE 는 이 값을 보관했다가 저장 요청
+ * ({@code LabelBulkUpsertRequest.labelVersion})에 실어 보내면, 그사이 다른 세션이 라벨을 바꾼 경우
+ * 409 로 거부되어 full-replace 로 인한 타인 라벨 유실을 막는다. 컨텍스트 없는 레거시 빌드 경로는 null.
  */
 public record LabelResponse(
         Long srcSn,
@@ -35,6 +39,7 @@ public record LabelResponse(
         Long videoId,
         String frameImageType,
         String lockSttsCd,
+        Long labelVersion,
         List<SiblingFrame> siblings,
         List<Item> items
 ) {
@@ -206,6 +211,35 @@ public record LabelResponse(
                                    Map<Long, LsLabel> lsLabelMap,
                                    Set<Long> labeledSrcSns,
                                    ObjectMapper objectMapper) {
+        // DEV_FIX(H12) — 여기서 엔티티의 lblVer 를 읽지 않는다. LBL_VER 는 insertable/updatable=false 라
+        //   원자 UPDATE 이후 영속 컨텍스트 값이 stale 이며, 그 값을 조용히 내려보내면 클라이언트가 낡은
+        //   버전을 왕복시켜 무한 409 에 빠진다. 또한 이 오버로드는 <b>버전 스냅샷 직렬화</b> 경로가 쓰는데,
+        //   가변 카운터가 페이로드에 섞이면 라벨이 동일해도 VERSION_HASH 가 달라져 멱등 판정이 깨진다.
+        //   버전이 필요한 경로(라벨 조회·저장 응답)는 아래 <b>명시 오버로드</b>로 최신 값을 직접 전달한다.
+        return of(current, siblings, entities, frameImageType, lockSttsCd, aiInfoMap, lsLabelMap,
+                labeledSrcSns, null, objectMapper);
+    }
+
+    /**
+     * C-ISSUE-21 — 라벨셋 버전을 <b>명시</b>해 빌드한다(라벨 조회·저장 응답 전용).
+     *
+     * <p>저장 경로는 라벨셋 버전을 원자 UPDATE({@code bumpLabelVersionIn})로 올리므로 영속성 컨텍스트의
+     * {@code LsDataSrc} 인스턴스는 stale 이다. 따라서 호출부가 "잠금 하에 읽은 값 + 1" 로 계산한 최신 값을
+     * 직접 전달한다. 조회 경로는 같은 트랜잭션에서 방금 읽은 엔티티 값을 명시 전달한다.
+     *
+     * @param labelVersion 이 프레임의 최신 라벨셋 버전. {@code null} 이면 응답에 버전을 싣지 않는다
+     *                     (버전 개념이 없는 스냅샷/레거시 빌드 경로).
+     */
+    public static LabelResponse of(LsDataSrc current,
+                                   List<LsDataSrc> siblings,
+                                   List<LsDataLbl> entities,
+                                   String frameImageType,
+                                   String lockSttsCd,
+                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
+                                   Map<Long, LsLabel> lsLabelMap,
+                                   Set<Long> labeledSrcSns,
+                                   Long labelVersion,
+                                   ObjectMapper objectMapper) {
         Set<Long> safeLabeled = labeledSrcSns == null ? Set.of() : labeledSrcSns;
         List<SiblingFrame> siblingDtos = new ArrayList<>(siblings.size());
         for (LsDataSrc s : siblings) {
@@ -226,6 +260,7 @@ public record LabelResponse(
                 current.getRawSn(),
                 frameImageType,
                 lockSttsCd,
+                labelVersion,
                 siblingDtos,
                 items
         );
@@ -237,6 +272,7 @@ public record LabelResponse(
      */
     public static LabelResponse of(List<LsDataLbl> entities, ObjectMapper objectMapper) {
         return new LabelResponse(
+                null,
                 null,
                 null,
                 null,

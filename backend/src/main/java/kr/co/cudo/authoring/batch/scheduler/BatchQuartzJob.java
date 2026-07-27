@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.scheduler;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.queue.entity.MngClipScheduleQue;
 import kr.co.cudo.authoring.batch.queue.service.LabelingBatchQueueService;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +48,15 @@ public class BatchQuartzJob implements Job {
         Long rawSn = picked.get().getRawSn();
         log.info("[BatchQuartzJob] processing rawSn={} queSn={}", rawSn, picked.get().getQueSn());
         try {
-            orchestrator.process(rawSn);
+            BatchStage stage = orchestrator.process(rawSn);
+            // DEV_FIX H1 — SKIPPED(검수 소유 작업 상태로 진입 차단)는 "처리 성공"이 아니다. 큐 항목은 이미
+            //   dequeue 되어 사라졌으므로 재적재 없이 조용히 넘어가면 운영자는 작업이 증발한 사실을 알 수
+            //   없다. 재적재하지 않는 것은 의도된 선택이다 — 검수 소유 영상은 배치를 돌리면 안 되므로 다시
+            //   큐에 넣으면 무한 재시도가 된다. 대신 WARN 으로 소실 사실과 사유를 명시 노출한다.
+            if (stage == BatchStage.SKIPPED) {
+                log.warn("[BatchQuartzJob] skipped — review-owned work status; queue entry consumed "
+                        + "without processing rawSn={} queSn={}", rawSn, picked.get().getQueSn());
+            }
         } catch (RuntimeException e) {
             // orchestrator 내부에서 예외를 처리하므로 통상 도달하지 않으나, 안전망.
             log.error("[BatchQuartzJob] unexpected failure rawSn={} err={}", rawSn, e.getMessage());

@@ -6,7 +6,9 @@ import kr.co.cudo.authoring.auth.entity.LsAuthWorkLock;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
+import kr.co.cudo.authoring.batch.step.TrackInterpolationStep.TouchedFrames;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -65,6 +67,11 @@ public class TrackMergeService {
     private final TrackInterpolationStep trackInterpolationStep;
     private final LsRawDataStatusRepository rawDataStatusRepository;
     private final ApplicationEventPublisher eventPublisher;
+    /**
+     * C-ISSUE-21 — 병합도 프레임 라벨셋(trackId 재지정 + 보간 산출물 재생성)을 바꾸므로 해당 프레임의
+     * 라벨셋 버전을 +1 해 라벨링 화면이 보유한 낡은 버전을 무효화한다.
+     */
+    private final LsDataSrcRepository srcRepository;
 
     /**
      * 트랙 병합 — fromTrackId 를 toTrackId 로 합친다.
@@ -94,6 +101,12 @@ public class TrackMergeService {
     }
 
     private TrackMergeResponse doMerge(Long rawSn, String fromTrackId, String toTrackId, Long actorNo) {
+        // DEV_FIX(H4) — 프레임 락을 트랜잭션 맨 앞에서 1회·SRC_SN 오름차순으로 선점한다. 병합도 트랙
+        //   삭제/분할과 같은 형태(재지정 프레임 bump → 재보간 프레임 bump)라 문장 사이 교차 ABBA 가
+        //   성립했다. 이후의 bump 들은 이미 보유한 행만 건드리므로 새 락을 얻지 않는다
+        //   (근거는 TrackEditService#lockFramesForRaw Javadoc).
+        srcRepository.lockFramesByRawSn(rawSn);
+
         List<LsDataLbl> fromLabels = labelRepository.findByRawSnAndTrackId(rawSn, fromTrackId);
         // [7] 존재하지 않는 fromTrack → 404 (수동/자동 무관 전 타입 조회이므로 진짜 부재만 걸린다).
         if (fromLabels.isEmpty()) {
@@ -127,6 +140,9 @@ public class TrackMergeService {
         }
 
         // [2] 원 키프레임만 trackId 재지정 (보간 산출물은 재보간 정리 단계가 삭제하므로 건드리지 않음).
+        // DEV_FIX(H2① 락 순서) — 라벨 행 UPDATE 前 프레임 락 선점(bump). 라벨 락을 먼저 잡고 나중에
+        //   프레임을 UPDATE 하면 "프레임 락 → 라벨 락" 인 라벨 저장 경로와 역순이 되어 ABBA 데드락이 열린다.
+        srcRepository.bumpLabelVersionIn(fromFrames);
         for (LsDataLbl l : fromKeyframes) {
             l.reassignTrack(toTrackId);
         }
@@ -141,7 +157,17 @@ public class TrackMergeService {
         // 병합된 toTrackId 만 재보간(interpolateSingleTrack)해 락 유지시간을 단축한다(영상 전체 재보간 대체).
         // stale 보간 산출물 정리는 {fromTrackId, toTrackId} 양쪽에 적용(reassign 후 fromTrackId 보간 고아
         // 방지) — 재생성은 toTrackId 만. 결과 좌표는 전체 재보간과 동일(보간 폭은 영상 전체 프레임 기준 유지).
-        int interpolatedRows = trackInterpolationStep.interpolateSingleTrack(rawSn, toTrackId, fromTrackId);
+        // DEV_FIX(H11 범위) — 재보간이 실제로 건드린 프레임을 돌려주는 오버로드(interpolateSingleTrackTouched)
+        //   를 사용한다. 구 구현은 "건드린 프레임을 알 수 없다"는 이유로 영상 <b>전 프레임</b> 버전을 올렸으나,
+        //   같은 컴포넌트에 프레임 집합을 반환하는 API 가 이미 존재했다(TrackEditService 가 사용 중).
+        TouchedFrames reInterp = trackInterpolationStep.interpolateSingleTrackTouched(rawSn, toTrackId, fromTrackId);
+        int interpolatedRows = reInterp.newRowCount();
+
+        // C-ISSUE-21 — 라벨셋 버전 +1. 재지정 프레임(fromFrames)은 위에서 선반영했고, 여기서는 재보간이
+        //   삭제·생성으로 건드린 프레임만 추가로 올린다(손대지 않은 프레임의 편집자를 409 로 밀어내지 않는다).
+        if (!reInterp.touchedSrcSns().isEmpty()) {
+            srcRepository.bumpLabelVersionIn(reInterp.touchedSrcSns());
+        }
 
         log.info("[TrackMerge] merged rawSn={} from={} to={} reassigned={} interpApplied={} interpRows={}",
                 rawSn, fromTrackId, toTrackId, fromKeyframes.size(), interpolationApplied, interpolatedRows);

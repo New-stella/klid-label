@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.marking.dto.MarkingRequest;
 import kr.co.cudo.authoring.marking.dto.MarkingResponse;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
+import kr.co.cudo.authoring.marking.listener.MarkingBatchTriggerReport;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -25,7 +26,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 마킹 비즈니스 로직.
@@ -46,6 +49,9 @@ public class MarkingService {
 
     /** AUTO 마킹 모드 식별자 (요청 mode) — duration 해석 트리거 조건. */
     private static final String MODE_AUTO = "AUTO";
+
+    /** MANUAL 마킹 모드 식별자 (요청 mode) — C-ISSUE-01 상한 검증에도 duration 이 필요하다. */
+    private static final String MODE_MANUAL = "MANUAL";
 
     private final LsMarkingRepository markingRepository;
     private final VideoRepository videoRepository;
@@ -96,20 +102,43 @@ public class MarkingService {
      * @return 생성된 마킹 응답
      */
     public MarkingResponse create(Long rawSn, MarkingRequest req, TokenClaims actor) {
+        // DEV_FIX H11 — 스레드 로컬 잔여값 제거(스레드 풀 재사용 오염 방지). 배치 트리거 결과는
+        //   AFTER_COMMIT 브리지가 같은 스레드에서 기록하고, persist 반환 직후 여기서 소비한다.
+        MarkingBatchTriggerReport.begin();
+
         // 1. 사전 인가·프리컨디션(값싼 readonly read) — 프로브 이전에 확인해 위반 시 즉시 거부.
         //    이 read 는 짧은 REQUIRES_NEW 로 커넥션을 즉시 반납하므로 프로브 시점에 커넥션을 보유하지 않는다.
         precheckReader.precheck(rawSn, actor);
 
-        // 2. AUTO 만 영상 길이 해석을 트리거한다 — 사전 인가·프리컨디션 통과 이후에만(HIGH), 쓰기 트랜잭션
-        //    진입 전에 수행하므로 ffprobe 폴백이 어떤 DB 커넥션도 보유하지 않는다(MEDIUM-1). 잘못된/누락 mode 는
-        //    null 로 두고 persist 가 INVALID_INPUT 으로 거부한다(기존 계약 보존).
-        Integer autoDurationSec = MODE_AUTO.equals(req.mode())
-                ? durationResolver.resolveDurationSec(rawSn)
-                : null;
+        // 2. 영상 길이 해석 — 사전 인가·프리컨디션 통과 이후에만(HIGH), 쓰기 트랜잭션 진입 전에 수행하므로
+        //    ffprobe 폴백이 어떤 DB 커넥션도 보유하지 않는다(MEDIUM-1).
+        //    C-ISSUE-01 — MANUAL 도 길이를 해석한다: 수동 마킹의 <b>상한 검증</b>(frameIndex < 총 프레임 수)에
+        //    필요하기 때문이다. 단 MANUAL 은 <b>프로브 없는 DB 전용 해석</b>을 쓴다 — 대화형 동작에 ffprobe
+        //    서브프로세스를 태우지 않는다는 기존 계약을 그대로 지킨다. 길이를 못 구하면(null) 상한 검증만
+        //    건너뛰고 하한·중복은 그대로 적용한다(전부 스킵 금지).
+        //    잘못된/누락 mode 는 null 로 두고 persist 가 INVALID_INPUT 으로 거부한다(기존 계약 보존).
+        Integer durationSec = null;
+        if (MODE_AUTO.equals(req.mode())) {
+            durationSec = durationResolver.resolveDurationSec(rawSn);
+        } else if (MODE_MANUAL.equals(req.mode())) {
+            durationSec = durationResolver.resolveDurationSecWithoutProbe(rawSn);
+        }
 
         // 3. persist(쓰기 트랜잭션) — self 프록시 경유(자기호출 프록시 우회 회피). 단위 테스트는 self=null → this.
         MarkingService target = (self != null) ? self : this;
-        return target.create(rawSn, req, actor, autoDurationSec);
+        MarkingResponse response = target.create(rawSn, req, actor, durationSec);
+
+        // 4. 배치 트리거 결과 반영 (DEV_FIX H11) — persist 트랜잭션이 커밋되면서 AFTER_COMMIT 브리지가
+        //    같은 스레드에서 이미 실행됐다. 배치가 시작되지 않았다면 그 사실과 사유를 응답에 실어
+        //    "201 인데 아무 일도 안 일어남"을 없앤다. 브리지 미실행(=판정 불가)이면 두 필드는 null.
+        MarkingBatchTriggerReport.Outcome outcome = MarkingBatchTriggerReport.consume();
+        if (outcome == null) {
+            return response;
+        }
+        if (!outcome.triggered()) {
+            log.warn("[Marking] batch not triggered rawSn={} markingSn={}", rawSn, response.markingSn());
+        }
+        return response.withBatchOutcome(outcome.triggered(), outcome.reason());
     }
 
     /**
@@ -166,10 +195,12 @@ public class MarkingService {
             // 메타 → 직접 프로브 폴백). FIX A — 적재 시 길이가 비어 자동 마킹만 INVALID_INPUT 으로 실패하던
             // 결함 제거. MEDIUM-1 — ffprobe 폴백은 이 쓰기 트랜잭션 밖(커넥션 미보유)에서 수행된다(위 Javadoc).
             marksJson = generateAutoMarks(autoDurationSec, req.intervalFrames(), fps);
-        } else if ("MANUAL".equals(req.mode())) {
+        } else if (MODE_MANUAL.equals(req.mode())) {
             if (req.marks() == null || req.marks().isEmpty()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "수동 모드에서 marks 는 필수입니다.");
             }
+            // C-ISSUE-01 — 요청 내 중복 시점 + 영상 길이 기반 상한 검증(하한·형식은 DTO @Valid 가 이미 거름).
+            validateManualMarks(req.marks(), autoDurationSec, fps, rawSn);
             marksJson = serializeMarks(req.marks());
         } else {
             throw new CustomException(ErrorCode.INVALID_INPUT, "mode 는 AUTO 또는 MANUAL 이어야 합니다.");
@@ -215,7 +246,7 @@ public class MarkingService {
      * @param intervalFrames 프레임 간격 (1 이상)
      * @param fps            영상 실 프레임레이트 (미상 시 호출자가 폴백값 30.0 을 전달) — 양수
      */
-    String generateAutoMarks(Integer durationSec, int intervalFrames, double fps) {
+    public String generateAutoMarks(Integer durationSec, int intervalFrames, double fps) {
         if (durationSec == null || durationSec <= 0) {
             // FIX A backstop — durationSec·메타·직접 프로브까지 모두 실패한 진짜 예외 케이스만 여기 도달한다.
             throw new CustomException(ErrorCode.INVALID_INPUT,
@@ -230,6 +261,75 @@ public class MarkingService {
             marks.add(new MarkItem(frameIndex, timestamp));
         }
         return serializeMarks(marks);
+    }
+
+    /**
+     * C-ISSUE-01 — MANUAL 마킹 항목 검증 (CWE-20).
+     *
+     * <ul>
+     *   <li><b>중복 시점</b>: 같은 요청 안에 동일 {@code frameIndex} 가 2회 이상이면 400. 같은 프레임을 두 번
+     *       마킹하는 것은 의미가 없고, 그대로 저장되면 프레임 추출·VLM 콜백이 같은 시점을 중복 처리한다.</li>
+     *   <li><b>상한</b>: {@code frameIndex} 는 영상의 총 프레임 수(= round(길이×fps)) 미만이어야 한다.
+     *       존재하지 않는 프레임을 마킹하면 추출 단계가 빈 프레임을 만들거나 조용히 실패한다.</li>
+     *   <li><b>하한(0 이상)·타임스탬프 형식</b>은 {@link MarkItem} 의 Bean Validation 이 400 으로 거른다.</li>
+     * </ul>
+     *
+     * <p><b>길이 미상 정책</b>: {@code LS_DATA_RAW.VDO_LEN_SEC} 가 비어 있고 메타·직접 프로브까지 실패하는
+     * 영상이 실재한다(VideoDurationResolver 3단 폴백이 존재하는 이유). 이때 <b>상한 검증만</b> 건너뛰고
+     * 중복·하한 검증은 그대로 적용한다(전부 스킵 금지). 건너뛴 사실은 WARN 으로 드러낸다 —
+     * "검증 불가"가 조용히 "검증 통과"가 되지 않도록.
+     */
+    public void validateManualMarks(List<MarkItem> marks, Integer durationSec, double fps, Long rawSn) {
+        Set<Integer> seen = new HashSet<>();
+        for (MarkItem mark : marks) {
+            Integer frameIndex = mark.frameIndex();
+            if (frameIndex == null) {
+                // DTO @NotNull 백스톱 — @Valid 미적용 경로(직접 서비스 호출)에서도 계약을 지킨다.
+                throw new CustomException(ErrorCode.INVALID_INPUT, "frameIndex 는 필수입니다.");
+            }
+            if (frameIndex < 0) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "frameIndex 는 0 이상이어야 합니다.");
+            }
+            if (!seen.add(frameIndex)) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "중복된 마킹 시점입니다: frameIndex=" + frameIndex);
+            }
+        }
+        if (durationSec == null || durationSec <= 0 || fps <= 0) {
+            log.warn("[Marking] duration unknown — manual mark upper-bound check skipped rawSn={} marks={}",
+                    rawSn, marks.size());
+            return;
+        }
+        int limit = manualFrameIndexLimit(durationSec, fps);
+        for (MarkItem mark : marks) {
+            if (mark.frameIndex() >= limit) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "영상 길이를 벗어난 마킹 시점입니다: frameIndex=" + mark.frameIndex()
+                                + " (허용 상한 " + limit + " 프레임 미만)");
+            }
+        }
+    }
+
+    /**
+     * DEV_FIX(H10) — MANUAL 마킹 {@code frameIndex} 의 <b>배타 상한</b>(이 값 미만이어야 통과).
+     *
+     * <h3>왜 단순히 round(길이×fps) 가 아닌가 — 두 가지 오차원</h3>
+     * <ol>
+     *   <li><b>fps 불일치(주 원인)</b>: FE 가 30fps 를 하드코딩해 {@code frameIndex = round(t×30)} 을
+     *       만들던 동안 서버 상한은 실 fps 로 계산돼, 25fps 영상이면 60초 상한 1500 vs FE 의 55초 마킹
+     *       1650 → <b>영상 뒤 16.7% 구간을 마킹할 수 없었다</b>. 근본 수정은 FE 가 서버가 내려준 실 fps
+     *       ({@code VideoDetailResponse.fps}, 같은 {@code VideoFpsResolver} 값)를 쓰는 것이고, 이 메서드는
+     *       그 위의 2차 방어다.</li>
+     *   <li><b>길이의 정수 초 절단</b>: {@code VDO_LEN_SEC}·{@code duration_ms→초} 는 정수 초로
+     *       반올림되어 저장된다. 실제 60.4초 영상이 60 으로 기록되면 마지막 0.4초(30fps 기준 12프레임)의
+     *       정상 마킹이 거부된다.</li>
+     * </ol>
+     * 그래서 상한에 <b>1초(=ceil(fps) 프레임) 마진</b>을 둔다. 마진의 목적은 "존재하지 않는 프레임을
+     * 마킹해 추출 단계가 빈 프레임을 만드는 것"을 막는 것이므로, 영상 길이를 크게 벗어난 값
+     * (실측 결함이던 {@code frameIndex=999999999})은 여전히 400 으로 거부된다.
+     */
+    static int manualFrameIndexLimit(int durationSec, double fps) {
+        return (int) Math.round(durationSec * fps) + (int) Math.ceil(fps);
     }
 
     /**

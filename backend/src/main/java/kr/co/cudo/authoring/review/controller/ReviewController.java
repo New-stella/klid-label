@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.review.dto.FrameListResponse;
 import kr.co.cudo.authoring.review.dto.IssueResponse;
+import kr.co.cudo.authoring.review.dto.ApproveRequest;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.service.ReviewService;
@@ -210,13 +211,17 @@ public class ReviewController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "동시 승인 충돌 또는 상태 전이 불가")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "라벨이 있는 영상에 noLabelConfirmed=true 를 보낸 경우"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "동시 승인 충돌, 상태 전이 불가, 또는 라벨 0건 영상을 확인 없이 승인")
     })
     @PostMapping("/reviews/{videoId}/approve")
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<ReviewResponse> approve(@Parameter(description = "영상 PK", required = true, example = "1") @PathVariable Long videoId,
+                                               @RequestBody(required = false) ApproveRequest req,
                                                @AuthenticationPrincipal TokenClaims actor) {
-        return ApiResponse.ok(reviewService.approve(videoId, actor));
+        // 바디는 선택이다 — 미첨부(null)면 기존 승인과 완전히 동일하게 동작한다(하위호환).
+        // negative sample(라벨 0건) 승인만 검수자의 명시 확인(noLabelConfirmed=true)을 요구한다.
+        return ApiResponse.ok(reviewService.approve(videoId, req, actor));
     }
 
     /**

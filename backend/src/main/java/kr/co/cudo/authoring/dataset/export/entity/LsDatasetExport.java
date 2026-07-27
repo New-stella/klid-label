@@ -69,6 +69,27 @@ public class LsDatasetExport {
     private LocalDateTime regDt;
 
     /**
+     * 재시도 횟수 (V136, DEV_FIX H7①) — 실패 회수 잡이 <b>이 행을 기준으로</b> 재산출을 트리거한 누적 횟수.
+     *
+     * <p>구 구현은 "마지막 성공 이후 쌓인 FAILED 행 수"를 시도 횟수로 삼았는데, 재시도가 항상 FAILED 행을
+     * 만들지는 않아(NO_INPUT early return · 버전 채번 소진 · @Async 예외 삼킴) 그 유형에 걸린 영상은
+     * 카운트가 고정된 채 <b>무한 재시도</b>됐다. 이제 산출 결과와 무관하게 <b>클레임 시점에</b> 증가하므로
+     * max-attempts 가 실제로 걸린다. 값 변경은 원자 UPDATE(claimForRetry) 로만 한다.
+     */
+    @Column(name = "RTY_NMTM", nullable = false)
+    private int rtyNmtm;
+
+    /**
+     * 재시도 일시 (V136, DEV_FIX H7③) — 회수 잡이 마지막으로 재산출을 트리거(클레임)한 시각.
+     *
+     * <p>2노드 Active-Active 에서 Quartz 클러스터링({@code isClustered})이 꺼져 있어도 같은 영상이
+     * 동시에 두 번 재산출되지 않도록, 조건부 UPDATE 의 클레임 키로 사용한다(자세한 규칙은
+     * {@code LsDatasetExportRepository#claimForRetry}). null = 아직 재시도된 적 없음.
+     */
+    @Column(name = "RTY_DT")
+    private LocalDateTime rtyDt;
+
+    /**
      * 산출 레코드 생성 — 상태는 {@code PENDING} 으로 시작한다(파일 쓰기 전 예약).
      *
      * @param rawSn   대상 영상 ID(LS_DATA_RAW.RAW_SN)

@@ -56,6 +56,26 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                  @Param("toStatus") String toStatus);
 
     /**
+     * 수동 배치 재처리 클레임 <b>보상 롤백</b> (DEV_FIX H10) — PROCESSING → FAILED 조건부 원자 전이.
+     *
+     * <p>{@link #claimReprocessFromFailed} 로 FAILED→PROCESSING 을 선점했으나 이어지는
+     * {@code BatchOrchestrator.process()} 가 검수 소유 작업 상태를 만나 {@code SKIPPED} 로 즉시 반환하면,
+     * 파이프라인은 한 건도 실행되지 않고 {@code markRawDataFailed}/{@code markRawDataCompleted} 도 타지
+     * 않아 <b>배치 단계 상태가 PROCESSING 으로 영구 고착</b>된다(이후 재처리는 stage/work 어느 쪽도 FAILED
+     * 가 아니라 영구 409). 이를 막기 위해 클레임을 걸었던 호출자가 SKIPPED 를 받으면 본 메서드로 원상복구한다.
+     *
+     * <p>조건부(현재 PROCESSING 일 때만)라 그 사이 다른 주체가 상태를 바꿨으면 0행으로 안전하게 포기한다.
+     *
+     * @return 영향 행수 (1=보상 성공, 0=이미 다른 상태)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE LsDataRaw r SET r.dataSttsCd = :toStatus, r.mdfcnDt = CURRENT_TIMESTAMP "
+            + "WHERE r.rawSn = :rawSn AND r.dataSttsCd = :fromStatus")
+    int compensateReprocessClaim(@Param("rawSn") Long rawSn,
+                                 @Param("fromStatus") String fromStatus,
+                                 @Param("toStatus") String toStatus);
+
+    /**
      * ffprobe 역류 back-fill — {@code LS_DATA_RAW.VDO_LEN_SEC} 가 비어 있을 때(NULL 또는 ≤0)만 초 단위
      * 길이로 채운다. 관제가 준 유효값(≥1)은 WHERE 가드로 보존한다(override 금지).
      *

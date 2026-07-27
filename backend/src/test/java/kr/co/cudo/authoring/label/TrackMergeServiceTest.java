@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
+import kr.co.cudo.authoring.batch.step.TrackInterpolationStep.TouchedFrames;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -26,6 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -61,6 +63,8 @@ class TrackMergeServiceTest {
     private TrackInterpolationStep trackInterpolationStep;
     private LsRawDataStatusRepository rawDataStatusRepository;
     private ApplicationEventPublisher eventPublisher;
+    /** C-ISSUE-21 버전 bump(= 프레임 행 락 선점) 검증용 — 락 순서·bump 범위 회귀 방지. */
+    private kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
     private TrackMergeService service;
 
     @BeforeEach
@@ -71,8 +75,9 @@ class TrackMergeServiceTest {
         trackInterpolationStep = mock(TrackInterpolationStep.class);
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        srcRepository = mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class);
         service = new TrackMergeService(labelRepository, accessGuard, workLockService,
-                trackInterpolationStep, rawDataStatusRepository, eventPublisher);
+                trackInterpolationStep, rawDataStatusRepository, eventPublisher, srcRepository);
         when(accessGuard.parseUserNo(ACTOR_SUB)).thenReturn(1001L);
         when(accessGuard.parseUserNo(any())).thenReturn(1001L);
     }
@@ -104,7 +109,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(to));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
         when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(3);
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
+                .thenReturn(new TouchedFrames(3, Set.of(20L)));
 
         // when
         TrackMergeResponse res = service.merge(RAW_SN, T_FROM, T_TO, worker());
@@ -118,8 +124,33 @@ class TrackMergeServiceTest {
         InOrder order = inOrder(workLockService, labelRepository, trackInterpolationStep);
         order.verify(workLockService).lockRawExclusiveInNewTx(eq(RAW_SN), anyString());
         order.verify(labelRepository).saveAll(anyList());
-        order.verify(trackInterpolationStep).interpolateSingleTrack(RAW_SN, T_TO, T_FROM);
+        order.verify(trackInterpolationStep).interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM);
         order.verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("머지는_라벨행_수정_전에_프레임_버전bump로_프레임락을_먼저_잡고_재보간_프레임만_추가로_올린다")
+    void 머지_락순서_및_bump범위() {
+        // DEV_FIX(H2① 락 순서 + H11 범위) — ①라벨 UPDATE(트랙 재지정) 전에 프레임 락을 선점하고
+        //   ②구현이 영상 전 프레임을 무효화하던 것을 "재지정 프레임 + 재보간 터치 프레임"으로 좁힌다.
+        LsDataLbl from = lbl(1L, 10L, T_FROM);
+        LsDataLbl to = lbl(2L, 20L, T_TO);
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_FROM)).thenReturn(List.of(from));
+        when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(to));
+        when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
+        when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
+                .thenReturn(new TouchedFrames(1, Set.of(20L)));
+
+        service.merge(RAW_SN, T_FROM, T_TO, worker());
+
+        InOrder order = inOrder(srcRepository, labelRepository, trackInterpolationStep);
+        order.verify(srcRepository).bumpLabelVersionIn(Set.of(10L));   // 재지정 프레임 — 라벨 UPDATE 前
+        order.verify(labelRepository).saveAll(anyList());
+        order.verify(trackInterpolationStep).interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM);
+        order.verify(srcRepository).bumpLabelVersionIn(Set.of(20L));   // 재보간 터치 프레임만 추가
+        // 영상 전 프레임 무효화(과잉)는 더 이상 하지 않는다 — 손대지 않은 프레임의 편집자를 409 로 밀어내지 않음.
+        verify(srcRepository, never()).bumpLabelVersionByRawSn(anyLong());
     }
 
     @Test
@@ -156,7 +187,7 @@ class TrackMergeServiceTest {
         assertThat(ex.getMessage()).contains("10");
         // 겹침이면 어떤 변경/재보간도 하지 않는다
         verify(labelRepository, never()).saveAll(anyList());
-        verify(trackInterpolationStep, never()).interpolateSingleTrack(anyLong(), anyString(), anyString());
+        verify(trackInterpolationStep, never()).interpolateSingleTrackTouched(anyLong(), anyString(), anyString());
         verify(workLockService).releaseRawInNewTx(eq(RAW_SN), anyString(), anyString());
     }
 
@@ -170,7 +201,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(3L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of(2L));
         when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(2);
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
+                .thenReturn(new TouchedFrames(2, Set.of(20L)));
 
         TrackMergeResponse res = service.merge(RAW_SN, T_FROM, T_TO, worker());
 
@@ -192,7 +224,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
         when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of());
-        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(0);
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
+                .thenReturn(new TouchedFrames(0, Set.of(20L)));
 
         TrackMergeResponse res = service.merge(RAW_SN, T_FROM, T_TO, worker());
 
@@ -208,7 +241,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
         when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenThrow(new RuntimeException("boom"));
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
+                .thenThrow(new RuntimeException("boom"));
 
         // 재보간 예외는 흡수되지 않고 전파되어야 트랜잭션이 롤백된다 (원자성)
         assertThatThrownBy(() -> service.merge(RAW_SN, T_FROM, T_TO, worker()))
@@ -224,7 +258,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
         when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(1);
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
+                .thenReturn(new TouchedFrames(1, Set.of(20L)));
         doThrow(new RuntimeException("notify down")).when(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
 
         // 통지 실패는 병합 롤백 사유가 아니다 — 정상 응답 + 재지정 저장 유지
@@ -241,7 +276,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
         when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(1);
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
+                .thenReturn(new TouchedFrames(1, Set.of(20L)));
 
         service.merge(RAW_SN, T_FROM, T_TO, worker());
         verify(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
@@ -254,7 +290,8 @@ class TrackMergeServiceTest {
         when(labelRepository.findByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(2L, 20L, T_TO)));
         when(labelRepository.findInterpolatedLblSnsByRawSn(RAW_SN)).thenReturn(List.of());
         when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
-        when(trackInterpolationStep.interpolateSingleTrack(RAW_SN, T_TO, T_FROM)).thenReturn(1);
+        when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
+                .thenReturn(new TouchedFrames(1, Set.of(20L)));
         when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of());
 
         service.merge(RAW_SN, T_FROM, T_TO, worker());

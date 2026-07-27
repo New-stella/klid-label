@@ -37,6 +37,9 @@ authoring:
   dataset-export:
     pending-sweep:
       enabled: false
+    # 실패 export 회수 잡도 동일 격리 — 회수 로직 검증은 DatasetExportFailureRecoverer 를 직접 호출한다.
+    failure-recovery:
+      enabled: false
   # dev-seed.sql 자동 적재 Runner — 일반 테스트 컨텍스트에서는 비활성화하여 시드 INSERT/DELETE 가
   # 다른 통합테스트의 테이블 상태를 오염시키지 않도록 격리한다. DevSeedRunner 전용 테스트는
   # @TestPropertySource(authoring.dev.seed.enabled=true) 로 개별 활성화한다.

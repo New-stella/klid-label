@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep.TouchedFrames;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -75,6 +76,12 @@ public class TrackEditService {
     private final ApplicationEventPublisher eventPublisher;
     /** DEV_FIX — 트랙 삭제 시 LS_DATA_LBL_HSTRY DELETED 이력 기록(삭제 감사 완결성, bulkUpsert 와 동일 레포). */
     private final LsDataLblHstryRepository lblHstryRepository;
+    /**
+     * C-ISSUE-21 — 트랙 편집도 프레임 라벨셋을 바꾸므로 해당 프레임들의 라벨셋 버전을 +1 한다.
+     * 올리지 않으면 라벨링 화면이 보유한 버전이 유효한 채로 남아, 트랙 삭제/분할로 사라진 라벨을
+     * 낡은 세트가 되살리거나(full-replace) 반대로 새 라벨을 지우는 lost update 가 다시 열린다.
+     */
+    private final LsDataSrcRepository srcRepository;
 
     /**
      * R4 — 트랙 삭제. {@code fromFrameNo} 이후(포함) 프레임의 {@code trackId} 라벨을 전부 삭제한다.
@@ -96,6 +103,10 @@ public class TrackEditService {
     }
 
     private TrackDeleteResponse doDelete(Long rawSn, String trackId, int fromFrameNo, Long actorNo) {
+        // DEV_FIX(H4) — 프레임 락을 트랜잭션 <b>맨 앞에서 1회</b>, SRC_SN 오름차순으로 선점한다.
+        //   자세한 근거는 lockFramesForRaw Javadoc 참조. 이후의 bump 들은 이미 보유한 행만 건드린다.
+        lockFramesForRaw(rawSn);
+
         // 트랙 존재성 — 영상 내 해당 trackId 라벨이 하나도 없으면 404(진짜 부재).
         if (labelRepository.findByRawSnAndTrackId(rawSn, trackId).isEmpty()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "삭제할 트랙을 찾을 수 없습니다.");
@@ -117,6 +128,12 @@ public class TrackEditService {
         // regId 는 행위자 ID 수준만 저장(bulkUpsert 와 동일 String.valueOf(actorNo)) — 토큰/PII 미저장(CWE-359).
         recordDeletionHistory(targets, actorNo);
 
+        // DEV_FIX(H2① 락 순서) — 라벨 행을 지우기 <b>전에</b> 대상 프레임의 라벨셋 버전을 +1 한다.
+        //   bump 는 프레임 행 쓰기 락을 잡으므로, 삭제(=라벨 행 락) 뒤에 두면 "프레임 락 → 라벨 락" 으로
+        //   도는 라벨 저장 경로와 역순이 되어 ABBA 데드락(PG 40P01)이 열린다. 규약: 프레임 락을 항상 먼저.
+        //   (재보간이 추가로 건드린 프레임은 아래에서 한 번 더 bump 한다 — 버전은 단조 증가라 중복 +1 무해.)
+        bumpLabelVersions(changedFrames);
+
         // FK 고아 방지 — 자식(ATTR_VAL) → 자식(AI_INFO) → 부모(LBL) 순서. ATTR_VAL 은 실 FK
         // (FK_LS_DATA_LBL_ATTR_LBL, ON DELETE 없음)라 먼저 지우지 않으면 부모 삭제가 FK 위반 500 →
         // 속성값 붙은 트랙은 삭제 영구 불가(DeidentReportService.deleteAllVideoLabels 와 동일 순서).
@@ -130,6 +147,9 @@ public class TrackEditService {
         // 재보간이 건드린 프레임(삭제 stale ∪ 신규)도 변경 프레임에 union(TASK_MODIFIED 계약 정합).
         TouchedFrames reInterp = trackInterpolationStep.interpolateSingleTrackTouched(rawSn, trackId, trackId);
         changedFrames.addAll(reInterp.touchedSrcSns());
+
+        // C-ISSUE-21 — 재보간이 추가로 건드린 프레임의 버전 +1 (삭제 대상 프레임은 위에서 이미 올렸다).
+        bumpLabelVersions(reInterp.touchedSrcSns());
 
         log.info("[TrackEdit] deleted rawSn={} trackId={} fromFrameNo={} deleted={} reInterp={}",
                 rawSn, LogSanitizer.sanitize(trackId), fromFrameNo, targets.size(), reInterp.newRowCount());
@@ -157,7 +177,51 @@ public class TrackEditService {
         }
     }
 
+    /**
+     * C-ISSUE-21 — 변경된 프레임들의 라벨셋 버전을 단일 UPDATE 로 +1 한다(N+1 금지). 빈 집합이면 no-op.
+     * 같은 트랜잭션에서 수행되어 라벨 변경과 함께 커밋/롤백된다.
+     */
+    private void bumpLabelVersions(Set<Long> changedFrames) {
+        if (changedFrames == null || changedFrames.isEmpty()) {
+            return;
+        }
+        srcRepository.bumpLabelVersionIn(changedFrames);
+    }
+
+    /**
+     * DEV_FIX(H4) — 트랜잭션당 <b>단 한 번</b>의 프레임 락 획득 지점.
+     *
+     * <h3>고친 결함</h3>
+     * <p>트랙 편집 트랜잭션은 프레임 락을 2회 이상 잡았다: ① 변경 대상 프레임 bump ② 재보간이 건드린
+     * 프레임 bump(+ {@code interpolateSingleTrackTouched} 내부의 stale bump). 두 집합은 서로 다르므로,
+     * 같은 영상에 다른 편집/배치 보간이 동시에 들어오면
+     * ({@code T1: {5,9} → {3,5}}, {@code T2: {3} → {5,7}}) 교차 대기해 PostgreSQL 40P01(deadlock
+     * detected) → 500 이 발생할 수 있었다. "프레임 락 → 라벨 락" 규약은 <b>한 문장 내</b> 순서만 보장할 뿐
+     * 문장 <b>사이</b>의 교차는 막지 못한다.
+     *
+     * <h3>왜 이 형태인가</h3>
+     * <ul>
+     *   <li><b>선점 집합은 영상 전 프레임</b> — 이후 bump 집합(변경 프레임 ∪ stale 보간 프레임 ∪ 신규
+     *       보간 프레임)의 상위집합이어야 하는데, 신규 보간이 어느 프레임에 생길지는 보간을 돌려 봐야
+     *       알 수 있다. 상위집합을 잡아야 "이후 bump 가 새 락을 전혀 얻지 않는다"가 성립한다.</li>
+     *   <li><b>버전(LBL_VER)은 올리지 않는다</b> — 락만 선점한다. 실제 변경 프레임만 +1 하는 기존
+     *       범위(H11 수정)를 그대로 보존해, 손대지 않은 프레임을 편집 중인 작업자를 409 로 밀어내는
+     *       과잉 무효화를 되살리지 않는다.</li>
+     *   <li><b>{@code FOR NO KEY UPDATE} + {@code ORDER BY SRC_SN}</b> — bump 가 실제로 잡는 락 모드와
+     *       동일하여 기존 동시성 동작이 변하지 않고, 획득 순서가 결정적이다.</li>
+     * </ul>
+     * 이 선점은 아무 락도 쥐지 않은 상태에서 대기하므로 순환 대기의 구성원이 될 수 없다.
+     * 트랙 편집은 이미 {@link WorkLockService#lockRawExclusiveInNewTx} 로 영상 배타 락을 쥐고 있어
+     * 편집끼리는 상호 배제되며, 이 선점은 배타 락을 타지 않는 배치 보간과의 교차까지 막는다.
+     */
+    private void lockFramesForRaw(Long rawSn) {
+        srcRepository.lockFramesByRawSn(rawSn);
+    }
+
     private TrackSplitResponse doSplit(Long rawSn, String trackId, int atFrameNo, Long actorNo) {
+        // DEV_FIX(H4) — 삭제 경로와 동일하게 프레임 락을 트랜잭션 맨 앞에서 1회·결정적 순서로 선점한다.
+        lockFramesForRaw(rawSn);
+
         if (labelRepository.findByRawSnAndTrackId(rawSn, trackId).isEmpty()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "분할할 트랙을 찾을 수 없습니다.");
         }
@@ -176,6 +240,9 @@ public class TrackEditService {
         }
 
         Set<Long> changedFrames = movable.stream().map(LsDataLbl::getSrcSn).collect(Collectors.toCollection(TreeSet::new));
+        // DEV_FIX(H2① 락 순서) — 라벨 행을 UPDATE(트랙 재지정) 하기 <b>전에</b> 프레임 버전을 +1 해
+        //   프레임 락을 먼저 잡는다(삭제와 동일 규약 — 라벨 락 → 프레임 락 역전 금지).
+        bumpLabelVersions(changedFrames);
         for (LsDataLbl l : movable) {
             l.reassignTrack(newTrackId);
         }
@@ -188,6 +255,11 @@ public class TrackEditService {
         TouchedFrames interpOrig = trackInterpolationStep.interpolateSingleTrackTouched(rawSn, trackId, trackId);
         changedFrames.addAll(interpNew.touchedSrcSns());
         changedFrames.addAll(interpOrig.touchedSrcSns());
+
+        // C-ISSUE-21 — 재보간이 추가로 건드린 프레임의 버전 +1 (재지정 대상 프레임은 위에서 이미 올렸다).
+        Set<Long> reInterpFrames = new TreeSet<>(interpNew.touchedSrcSns());
+        reInterpFrames.addAll(interpOrig.touchedSrcSns());
+        bumpLabelVersions(reInterpFrames);
 
         log.info("[TrackEdit] split rawSn={} trackId={} -> newTrackId={} atFrameNo={} moved={} reInterp(new={},orig={})",
                 rawSn, LogSanitizer.sanitize(trackId), newTrackId, atFrameNo, movable.size(),

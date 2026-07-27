@@ -188,6 +188,22 @@ public class DatasetExportTxService {
     }
 
     /**
+     * D-ISSUE-04(b) DEV_FIX(H7①/H7③) — 실패 export 재시도 <b>원자 클레임</b>(짧은 독립 트랜잭션).
+     *
+     * <p>{@code true} 를 받은 호출자만 재산출을 트리거한다. 클레임 성공 시 시도 이력({@code RTY_NMTM})이
+     * 산출 결과와 무관하게 기록되므로 상한(max-attempts)이 실제로 걸리고, 동시에 같은 영상을 두 노드가
+     * 동시에 집어가지 못한다(Quartz 클러스터링 설정에 의존하지 않는 DB 레벨 보장 —
+     * {@code LsDatasetExportRepository#claimForRetry} 주석 참조).
+     *
+     * <p>REQUIRES_NEW — 회수 잡은 트랜잭션 밖에서 돌고, 클레임은 즉시 커밋되어야 다른 노드가 관측한다.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean claimForRetry(long exportSn, int maxAttempts, java.time.LocalDateTime claimCutoff) {
+        return exportRepository.claimForRetry(
+                exportSn, maxAttempts, claimCutoff, java.time.LocalDateTime.now()) == 1;
+    }
+
+    /**
      * cutoff 이전에 생성된 stale PENDING export 를 일괄 FAILED 로 마감한다(파일 삭제 없음, 상태만 회수).
      *
      * <p>파일 쓰기/상태 마감 전 크래시로 {@code PENDING} 에 고착된 잔재를 정리한다. 조회된 엔티티는

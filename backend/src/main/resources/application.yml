@@ -166,6 +166,17 @@ authoring:
       enabled: ${DATASET_EXPORT_SWEEP_ENABLED:true}
       interval-sec: ${DATASET_EXPORT_SWEEP_INTERVAL_SEC:600}
       stale-minutes: ${DATASET_EXPORT_SWEEP_STALE_MINUTES:30}
+    # 실패 export 회수 잡(D-ISSUE-04) — 최신 export 가 FAILED 인 영상을 주기적으로 재산출 트리거.
+    #   승인 후 export 는 AFTER_COMMIT @Async 라 실패해도 롤백되지 않고 재시도 경로가 없었다.
+    #   retry-delay-minutes: 실패 후 재시도까지 유예(일시 장애 진정 대기).
+    #   max-attempts: 마지막 성공/부분 산출 이후 누적 실패 허용 횟수(초과 시 자동 회수 중단 — 운영 개입 필요).
+    #   batch-size: tick 당 재시도 트리거 상한.
+    failure-recovery:
+      enabled: ${DATASET_EXPORT_RECOVERY_ENABLED:true}
+      interval-sec: ${DATASET_EXPORT_RECOVERY_INTERVAL_SEC:900}
+      retry-delay-minutes: ${DATASET_EXPORT_RECOVERY_DELAY_MINUTES:10}
+      max-attempts: ${DATASET_EXPORT_RECOVERY_MAX_ATTEMPTS:3}
+      batch-size: ${DATASET_EXPORT_RECOVERY_BATCH_SIZE:20}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/aug/callback. 운영(dev/stg/prd)에서는 환경변수로 override.
   webhook:

@@ -20,6 +20,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.time.LocalDateTime;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,7 +47,14 @@ import static org.mockito.Mockito.when;
  * <p>{@link VideoProbe} 는 {@link MockBean} 으로 대체해 실제 ffprobe 바이너리 없이, 프로브 호출 시점의
  * {@code HikariPoolMXBean.getActiveConnections()} 를 기록한다.
  *
- * <p><b>Quartz 오염 차단(flaky 방지):</b> 이 IT 는 {@code controlDataSource}(HikariCP) 의 활성 커넥션 수를
+ * <p><b>측정 방식 (DEV_FIX — 간헐 실패 제거):</b> 전역 활성 커넥션 수를 <b>절대값 0</b> 으로 단언하면,
+ * 같은 풀을 공유하는 다른 백그라운드 작업(스케줄러/비동기 러너/컨텍스트 재사용)이 그 찰나에 커넥션을
+ * 체크아웃하기만 해도 회귀가 없는데 실패한다(단독 실행 PASS / 전체 스위트 간헐 FAIL 의 원인). 그래서
+ * <b>호출 직전 기준값 대비 증가분</b>을 본다 — 리졸버가 커넥션을 쥐고 프로브에 들어갔다면 활성 수가
+ * 기준값보다 <b>반드시 1 이상 늘어난다</b>. 여기에 <b>호출 스레드에 바인딩된 커넥션 홀더가 없다</b>는
+ * 결정론적 단언을 더해, 완화된 지표가 회귀를 놓치지 않도록 이중으로 고정한다.
+ *
+ * <p><b>Quartz 오염 차단:</b> 이 IT 는 {@code controlDataSource}(HikariCP) 의 활성 커넥션 수를
  * 관측하는데, 같은 풀을 Quartz(JDBC JobStore, threadCount 3) 스케줄러가 공유한다. Quartz 스케줄러 스레드가
  * 트리거 획득을 위해 같은 풀에서 커넥션을 체크아웃하는 순간과 프로브 콜백 순간이 겹치면, 회귀가 없어도
  * {@code getActiveConnections()} 가 우연히 1+ 로 관측되어 <b>간헐 실패(flaky)</b> 할 수 있다. 이를 막기 위해
@@ -104,24 +112,34 @@ class VideoDurationResolverTxIsolationIT {
             return videoRepository.save(raw).getRawSn();
         });
 
-        // 프로브 시점의 활성 커넥션 수를 기록(-1 초기값 → 프로브 미호출 시 검증에서 드러남).
+        // 프로브 시점의 활성 커넥션 수 + 스레드 바인딩 커넥션 보유 여부를 기록
+        //   (-1 초기값 → 프로브 미호출 시 검증에서 드러남).
         AtomicInteger activeAtProbe = new AtomicInteger(-1);
+        AtomicBoolean boundAtProbe = new AtomicBoolean(true);
         when(videoProbe.probe(any())).thenAnswer(inv -> {
             activeAtProbe.set(controlHikari.getHikariPoolMXBean().getActiveConnections());
+            boundAtProbe.set(TransactionSynchronizationManager.hasResource(controlHikari));
             return new VideoMeta(1920, 1080, "h264", 30.0, null, 60_000L, null);
         });
 
         // 사전 조건: 호출부에 ambient 트랜잭션이 없다(프로덕션 비트랜잭션 오케스트레이션과 동일).
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
 
+        // 기준값 — 이 호출과 무관하게 이미 사용 중인 커넥션 수(다른 백그라운드 작업 몫).
+        int activeBefore = controlHikari.getHikariPoolMXBean().getActiveConnections();
+
         // when — ambient tx 없이 리졸버 호출. dbReader 의 REQUIRES_NEW read 는 프로브 이전에 커넥션을 반납해야 한다.
         Integer sec = resolver.resolveDurationSec(rawSn);
 
-        // then — 프로브로 60초 해석 + 프로브 진행 중 활성 커넥션 0(물리 커넥션 미점유 불변식).
+        // then — 프로브로 60초 해석 + 프로브 중 이 요청이 물리 커넥션을 <b>추가로 점유하지 않았다</b>.
         assertThat(sec).isEqualTo(60);
         verify(videoProbe).probe(any());
+        assertThat(boundAtProbe.get())
+                .as("프로브 시점에 호출 스레드가 control DataSource 커넥션을 보유하면 안 된다(결정론적 단언)")
+                .isFalse();
         assertThat(activeAtProbe.get())
-                .as("ffprobe 프로브 진행 중에는 어떤 물리 DB 커넥션도 점유하지 않아야 한다(활성 커넥션 0)")
-                .isZero();
+                .as("ffprobe 프로브 진행 중 이 요청이 점유한 물리 DB 커넥션은 0 이어야 한다"
+                        + "(회귀 시 기준값보다 1 이상 증가)")
+                .isLessThanOrEqualTo(activeBefore);
     }
 }

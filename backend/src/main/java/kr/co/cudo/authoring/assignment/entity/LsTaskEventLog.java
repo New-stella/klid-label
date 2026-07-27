@@ -133,6 +133,27 @@ public class LsTaskEventLog {
                 .build();
     }
 
+    /**
+     * DEV_FIX(H6) — <b>라벨 0건(negative sample) 영상</b>을 검수자가 "라벨 없음" 확인 후 승인한 경우.
+     *
+     * <p>이벤트 종류는 기존 {@link #EVENT_APPROVE} 그대로 두고(타임라인·집계 계약 불변) 사유({@code RSN})에
+     * 확인 사실을 남겨 <b>누가 언제 어떤 영상을</b> 라벨 없이 승인했는지 감사할 수 있게 한다. 신규 테이블·신규
+     * 이벤트 코드를 만들지 않고 기존 메커니즘을 재사용한다(사유 컬럼은 반려가 이미 사용 중).
+     * PII/토큰은 담지 않는다(고정 문구 + 행위자 번호만 — CWE-359).
+     */
+    public static LsTaskEventLog approveWithoutLabel(Long rawDataId, Long reviewerUserNo) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_APPROVE)
+                .actorUserNo(reviewerUserNo)
+                .rsn(RSN_NO_LABEL_CONFIRMED)
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /** 라벨 0건 승인 감사 사유 고정 문구(검색·집계 키로 쓰이므로 변경 시 조회 쿼리 동반 수정). */
+    public static final String RSN_NO_LABEL_CONFIRMED = "라벨 없음 확인 승인(negative sample)";
+
     public static LsTaskEventLog reject(Long rawDataId, Long reviewerUserNo, String rsn) {
         return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)

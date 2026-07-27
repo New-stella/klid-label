@@ -478,6 +478,11 @@ public class VersionService {
     private void replaceFrameLabels(LsDataSrc src, List<RestoredLabel> restored) {
         Long srcSn = src.getSrcSn();
         List<LsDataLbl> existing = labelRepository.findBySrcSn(srcSn);
+        // C-ISSUE-21 — 롤백은 프레임 라벨을 통째로 교체(삭제+재발급)하므로 라벨셋 버전을 +1 한다.
+        //   올리지 않으면 롤백 직전 화면을 연 세션이 낡은 세트를 그대로 저장해 롤백을 되돌릴 수 있다.
+        // DEV_FIX(H2① 락 순서) — bump 는 프레임 행 쓰기 락을 잡으므로 라벨 삭제/삽입 <b>전에</b> 수행한다
+        //   ("프레임 락 → 라벨 락" 규약. 역순이면 라벨 저장 경로와 ABBA 데드락).
+        srcRepository.bumpLabelVersionIn(List.of(srcSn));
         if (!existing.isEmpty()) {
             labelRepository.deleteAll(existing);
             // delete 가 flush 되어 동일 트랜잭션 내 후속 insert 와 분리되도록 보장(IDENTITY PK 안전).
@@ -650,7 +655,7 @@ public class VersionService {
                     it.color(), reduced, it.autoLblYn(), it.confScore(), it.trackId(), it.lblSrcCd()));
         }
         return new LabelResponse(src.srcSn(), src.frameNo(), src.videoId(),
-                src.frameImageType(), src.lockSttsCd(), src.siblings(), items);
+                src.frameImageType(), src.lockSttsCd(), src.labelVersion(), src.siblings(), items);
     }
 
     private static String sha256Hex(String input) {

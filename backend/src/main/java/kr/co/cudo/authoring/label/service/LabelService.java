@@ -90,6 +90,8 @@ public class LabelService {
     private final LsDataLblHstryRepository labelHistoryRepository;
     /** Phase 2 full-replace — 삭제 라벨의 속성값(자식) 선삭제(FK 고아 방지). */
     private final LsDataLblAttrValRepository attrValRepository;
+    /** C-ISSUE-22 — 좌표 상한(이미지 폭/높이) 검증 기준값 공급(측정 불가 시 상한만 skip). */
+    private final FrameBoundsResolver frameBoundsResolver;
 
     /** CWE-770 DoS — 라벨 히스토리 조회 페이지 크기 상한. */
     public static final int MAX_HISTORY_PAGE_SIZE = 100;
@@ -105,7 +107,8 @@ public class LabelService {
                         ApplicationEventPublisher eventPublisher,
                         LsRawDataStatusRepository rawDataStatusRepository,
                         LsDataLblHstryRepository labelHistoryRepository,
-                        LsDataLblAttrValRepository attrValRepository) {
+                        LsDataLblAttrValRepository attrValRepository,
+                        FrameBoundsResolver frameBoundsResolver) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
@@ -118,6 +121,7 @@ public class LabelService {
         this.rawDataStatusRepository = rawDataStatusRepository;
         this.labelHistoryRepository = labelHistoryRepository;
         this.attrValRepository = attrValRepository;
+        this.frameBoundsResolver = frameBoundsResolver;
     }
 
     /**
@@ -195,8 +199,11 @@ public class LabelService {
         // R5 — 형제 프레임별 라벨 존재 여부(hasLabel) — 프레임 strip SAVED(연두) 판정용. 프레임 수와
         // 무관하게 IN 절 1회로 라벨 보유 프레임 집합을 조회한다(N+1 금지).
         Set<Long> labeledSrcSns = resolveLabeledSrcSns(siblings);
+        // C-ISSUE-21 — 조회 응답에 현재 라벨셋 버전을 <b>명시</b> 전달한다(FE 가 저장 시 되돌려 보내는 토큰).
+        //   DEV_FIX(H12): DTO 가 엔티티에서 몰래 읽지 않게 하고(원자 UPDATE 후 stale 위험), 이 경로에서만
+        //   "같은 트랜잭션에서 방금 읽은 값" 임을 근거로 엔티티 값을 쓴다.
         return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, objectMapper);
+                aiInfoMap, lsLabelMap, labeledSrcSns, current.getLabelVersion(), objectMapper);
     }
 
     /**
@@ -248,6 +255,22 @@ public class LabelService {
         // 카운트 중복 방지). id==null(신규)은 모두 유지, non-null id 는 마지막 항목만 유효(그 값이 최종 저장값).
         List<LabelItemDto> items = dedupById(req.items());
 
+        // C-ISSUE-21 — 프레임 행 비관적 락으로 동시 full-replace 를 <b>직렬화</b>한다. 이 락을 잡은 뒤에
+        //   existing 을 읽으므로, 경쟁 트랜잭션은 앞 트랜잭션이 커밋한 뒤에야 existing 을 관측한다
+        //   (2노드 Active-Active 라 JVM 락은 방어가 되지 않아 DB 락으로만 해결).
+        // DEV_FIX(H2③) — CAS 기준값은 반드시 <b>락 획득 시점의 DB 값</b>이어야 한다. 엔티티 조회
+        //   (findBySrcSnForUpdate)는 진입부 accessGuard 가 이미 적재한 1차 캐시 인스턴스를 그대로 돌려주고
+        //   쿼리 결과로 필드를 덮어쓰지 않으므로, 락을 기다리는 동안 경쟁 트랜잭션이 커밋한 새 버전을
+        //   관측하지 못해(=락 획득 前 값) stale 요청이 그대로 통과했다. 스칼라 프로젝션 네이티브 쿼리
+        //   (lockAndReadLabelVersion)는 1차 캐시를 우회해 항상 DB 현재 값을 반환한다(락 획득과 동일 문장).
+        long baseVersion = srcRepository.lockAndReadLabelVersion(srcSn)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
+        requireLabelVersionMatch(srcSn, req.labelVersion(), baseVersion);
+
+        // C-ISSUE-22 — 좌표 상한(이미지 폭/높이) 기준값. 측정 불가면 empty → 상한 검증만 skip(하한·형식은 유지).
+        //   기준값은 프레임 이미지 파일에서 실측하므로 라벨셋 버전과 무관하다(current 로 충분).
+        int[] bounds = frameBoundsResolver.resolve(current).orElse(null);
+
         // 좌표 사전 검증 (트랜잭션 내부에서 한꺼번에 실패해도 롤백 — 여기선 명시적으로 미리 차단)
         for (LabelItemDto item : items) {
             // 신규 라벨(id == null)은 점 개수 상한을 강제(CWE-770 DoS 방어). 수동 드로잉/정상 SAM2 결과는
@@ -255,11 +278,13 @@ public class LabelService {
             // 기존 라벨(id != null)은 상한 초과여도 저장 직전 simplify 로 보존한다(ISSUE-1, 아래 capPoints).
             // SKELETON 은 삼중값(17점·v∈{0,1,2}) 전용 검증으로 type-route (기존 2-튜플 경로 불변).
             validatePoints(item.lblTypeCd(), item.points(), item.id() == null);
+            // C-ISSUE-22 — 이미지 경계 상한. 신규 라벨은 즉시 강제, 기존 라벨은 좌표가 <b>실제로 바뀔 때만</b>
+            //   아래 UPDATE 분기에서 강제한다(이미 경계를 벗어나 저장된 레거시 라벨이 프레임 전체 저장을
+            //   영구 차단하는 회귀 방지 — MAX_POINTS 와 동일 정책).
+            if (item.id() == null) {
+                validateWithinBounds(item.lblTypeCd(), item.points(), bounds);
+            }
         }
-
-        // Phase 2 — labelId 사전 검증 (입력에 포함된 모든 labelId 의 존재 + USE_YN='Y' 확인).
-        // N+1 회피: distinct labelId 1회 lookup. (응답 enrichment 는 저장 후 result 기준으로 다시 lookup 한다.)
-        validateAndLoadLabels(items);
 
         // 기존 라벨 인덱싱 (id 기반 수정용)
         List<LsDataLbl> existing = labelRepository.findBySrcSn(srcSn);
@@ -267,6 +292,10 @@ public class LabelService {
         for (LsDataLbl e : existing) {
             idIndex.put(e.getLblSn(), e);
         }
+
+        // Phase 2 — labelId 사전 검증 (입력에 포함된 모든 labelId 의 존재 확인 + <b>신규 부여</b>에 한한 USE_YN='Y').
+        // N+1 회피: distinct labelId 1회 lookup. (응답 enrichment 는 저장 후 result 기준으로 다시 lookup 한다.)
+        validateAndLoadLabels(items, idIndex);
 
         // full-replace 델타 기준 — 요청에 담긴 non-null id(=생존 대상). 여기에 없는 existing 라벨은 삭제된다.
         Set<Long> reqIds = new HashSet<>();
@@ -292,6 +321,12 @@ public class LabelService {
                 //   진입부 accessGuard.verifyAndGet(srcSn) 로 현재 프레임 소유가 검증되고, 타 프레임/미존재 id 는
                 //   여기 진입하지 못한 채 else 로 흘러 '현재 프레임 신규 라벨(ADDED)'로 안전 처리된다(타 프레임 라벨 불변).
                 LsDataLbl found = idIndex.get(item.id());
+                // C-ISSUE-22 — 기존 라벨은 좌표를 <b>실제로 변경</b>할 때만 이미지 경계 상한을 강제한다.
+                //   (무변경 재전송/타 필드만 수정은 통과 — 레거시 out-of-bounds 데이터로 프레임 저장이
+                //    영구 차단되는 회귀 방지. 반대로 경계 밖으로 <b>옮기는</b> 시도는 여기서 400 으로 막힌다.)
+                if (!pointsEqual(found.getPointCn(), pointsJson)) {
+                    validateWithinBounds(item.lblTypeCd(), item.points(), bounds);
+                }
                 // HIGH #3 — before 스냅샷은 반드시 updateUserContent 호출 前에 캡처한다(변경 전 값 보존).
                 LabelSnapshot before = snapshotOf(found);
                 // Phase 2 — labelId 가 null 이면 기존 값 유지, non-null 이면 검증 후 변경.
@@ -356,9 +391,16 @@ public class LabelService {
         if (!changes.isEmpty()) {
             labelHistoryRepository.save(LsDataLblHstry.recordSaveEvent(srcSn, actorId, changes));
         }
+        // C-ISSUE-21 — 라벨셋이 <b>실제로 바뀐 경우에만</b> 버전을 +1 한다(무변경 재저장은 다른 세션의
+        //   보유 버전을 무효화하지 않는다). 프레임 행 락을 쥔 상태라 새 값은 결정적으로 baseVersion+1 이다.
+        long newVersion = baseVersion;
+        if (!changes.isEmpty()) {
+            srcRepository.bumpLabelVersionIn(List.of(srcSn));
+            newVersion = baseVersion + 1;
+        }
         // HIGH #2 — full-replace 대량 삭제 감사 로깅(민감정보 없이 카운트만 — PII/토큰 미출력).
-        log.info("[Label] bulkUpsert srcSn={} actor={} existing={} saved={} deleted={}",
-                srcSn, actorNo, existing.size(), result.size(), toDelete.size());
+        log.info("[Label] bulkUpsert srcSn={} actor={} existing={} saved={} deleted={} labelVersion={}->{}",
+                srcSn, actorNo, existing.size(), result.size(), toDelete.size(), baseVersion, newVersion);
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
         // 검수 전(PENDING/ASSIGNED/IN_REVIEW/PROCESSING 등) 저장은 일반 작업이므로 통지 미발행.
         // LOW #12 — 무변경(changes 비면) 이면 통지도 미발행.
@@ -389,7 +431,24 @@ public class LabelService {
         // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
 
         return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, objectMapper);
+                aiInfoMap, lsLabelMap, labeledSrcSns, newVersion, objectMapper);
+    }
+
+    /**
+     * C-ISSUE-21 — 요청이 첨부한 라벨셋 버전과 현재 버전을 대조한다(<b>선택 필드</b>).
+     *
+     * <p>미첨부(null)면 검사를 건너뛴다 — FE 미반영 구간의 기존 저장 플로우가 끊기면 안 되기 때문이다
+     * (하위호환). 첨부했는데 다르면 내 화면이 낡았다는 뜻이므로 409 로 거부한다: full-replace 계약이라
+     * 낡은 세트를 그대로 저장하면 그사이 다른 세션이 추가한 라벨이 조용히 삭제된다.
+     */
+    private void requireLabelVersionMatch(Long srcSn, Long requested, long current) {
+        if (requested == null || requested == current) {
+            return;
+        }
+        log.warn("[Label] stale label version rejected srcSn={} requested={} current={}",
+                srcSn, requested, current);
+        throw new CustomException(ErrorCode.CONFLICT,
+                "다른 사용자가 먼저 저장했습니다. 최신 라벨을 불러온 뒤 다시 저장하세요.");
     }
 
     /**
@@ -533,16 +592,36 @@ public class LabelService {
     /**
      * Phase 2 — 요청에 포함된 distinct labelId 들을 LS_LABEL 에서 일괄 조회하여 검증.
      * <ul>
-     *   <li>존재하지 않으면 {@link ErrorCode#NOT_FOUND}</li>
-     *   <li>USE_YN='N' 이면 {@link ErrorCode#CONFLICT} (사용 불가 라벨)</li>
+     *   <li>존재하지 않으면 {@link ErrorCode#NOT_FOUND} (모든 항목 공통)</li>
+     *   <li>USE_YN='N' 이면 {@link ErrorCode#CONFLICT} — <b>신규 부여에만</b> 적용(C-ISSUE-25)</li>
      * </ul>
      * 모든 labelId 가 null 이면 Repository 호출 skip (early return).
+     *
+     * <h3>C-ISSUE-25 — soft delete 는 "신규 사용 중지"이지 "저장 전면 차단"이 아니다</h3>
+     * 저장 계약이 full-replace 라 프레임의 <b>전체</b> 라벨 세트가 매번 전송된다. 예전에는 요청 items
+     * 전체의 labelId 에 USE_YN 검사를 걸어, 사용 중지된 마스터를 참조하는 기존 라벨이 1건이라도 있으면
+     * 그 프레임의 <b>모든 저장이 영구히 409</b> 였다(그 라벨을 지우기 전엔 다른 라벨 수정조차 불가).
+     * 이제 <b>신규 부여</b>(= 이 프레임에 없던 라벨이거나, 기존 라벨의 labelId 를 바꾸는 경우)에만
+     * USE_YN 을 강제하고, 기존 라벨이 기존 labelId 를 그대로 유지하는 것은 통과시킨다.
+     *
+     * <h3>우회 방지 (IDOR/Mass Assignment)</h3>
+     * "id 를 붙였으면 통과"가 아니다. 면제 조건은 ①{@code id} 가 <b>이 프레임(srcSn)의</b> 기존 라벨이고
+     * ({@code idIndex} 는 {@code findBySrcSn(srcSn)} 로만 채워진다) ②그 라벨의 {@code labelId} 가
+     * <b>실제로 바뀌지 않을 때</b> 뿐이다. 타 프레임/미존재 id 는 {@code idIndex} 에 없어 신규로 취급되어
+     * 검사를 받고, 기존 라벨에 사용 중지 마스터를 새로 붙이려는 시도도 labelId 변경이라 거부된다.
+     * (요청 {@code labelId==null} 은 "기존 값 유지"라 부여 자체가 없어 검사 대상이 아니다.)
      */
-    private void validateAndLoadLabels(List<LabelItemDto> items) {
+    private void validateAndLoadLabels(List<LabelItemDto> items, Map<Long, LsDataLbl> idIndex) {
         Set<Long> requestedIds = new HashSet<>();
+        Set<Long> newlyAssignedIds = new HashSet<>();
         for (LabelItemDto item : items) {
-            if (item.labelId() != null) {
-                requestedIds.add(item.labelId());
+            Long labelId = item.labelId();
+            if (labelId == null) {
+                continue;
+            }
+            requestedIds.add(labelId);
+            if (isNewLabelAssignment(item, idIndex)) {
+                newlyAssignedIds.add(labelId);
             }
         }
         if (requestedIds.isEmpty()) {
@@ -556,11 +635,27 @@ public class LabelService {
                 throw new CustomException(ErrorCode.NOT_FOUND,
                         "라벨 마스터를 찾을 수 없습니다: labelId=" + requested);
             }
-            if (!"Y".equals(found.getUseYn())) {
+            if (newlyAssignedIds.contains(requested) && !"Y".equals(found.getUseYn())) {
                 throw new CustomException(ErrorCode.CONFLICT,
                         "사용 중지된 라벨입니다: labelId=" + requested);
             }
         }
+    }
+
+    /**
+     * 이 항목의 {@code labelId} 가 <b>신규 부여</b>인지 판정(C-ISSUE-25 USE_YN 강제 대상).
+     * 현재 프레임의 기존 라벨이면서 labelId 가 동일하면 신규 부여가 아니다(그 외는 전부 신규 취급).
+     */
+    private boolean isNewLabelAssignment(LabelItemDto item, Map<Long, LsDataLbl> idIndex) {
+        if (item.id() == null) {
+            return true;
+        }
+        LsDataLbl existing = idIndex.get(item.id());
+        if (existing == null) {
+            // 타 프레임/미존재 id — 저장 로직도 '현재 프레임 신규 라벨'로 처리하므로 검사도 신규 기준.
+            return true;
+        }
+        return !java.util.Objects.equals(existing.getLabelId(), item.labelId());
     }
 
     /**
@@ -596,6 +691,56 @@ public class LabelService {
                         "좌표는 0 이상이어야 합니다 (x=" + x + ", y=" + y + ")");
             }
         }
+    }
+
+    /**
+     * C-ISSUE-22 — 좌표 <b>상한</b>(이미지 폭/높이) 검증. 초과 시 400 거부(클램프 아님 — 사용자 확정 정책).
+     *
+     * <p>{@code bounds == null} 이면(원천 이미지 부재·손상 등으로 실측 불가) 상한 검증만 건너뛴다.
+     * 이때 "검증 불가"가 로그 없이 "검증 통과"로 둔갑하지 않도록 {@link FrameBoundsResolver} 가 WARN 을 남긴다.
+     *
+     * <p><b>좌표 형태 전 분기 커버</b>: 요청 DTO 의 {@code points} 는 항상 {@code List<List<Double>>} 이며
+     * ①SKELETON 은 삼중값 {@code [x,y,v]} — x·y 만 검사하고 가시성 {@code v} 는 좌표가 아니므로 제외,
+     * ②그 외(BBOX/POLYGON/SEGMENT/TRACK)는 2-튜플 {@code [x,y]} — 두 값 모두 검사한다. 저장 계층의
+     * 레거시 포맷(평탄 {@code [x1,y1,...]} / 객체배열 {@code [{"x":..}]})은 <b>요청 표면에 존재하지 않는다</b>
+     * (해당 JSON 은 {@code List<List<Double>>} 역직렬화 자체가 실패해 400). 즉 이 두 분기로 전수 커버된다.
+     *
+     * <p>경계값 정책: {@code x == width}(또는 {@code y == height})는 허용한다 — 우/하단 끝을 가리키는
+     * 정상 좌표이며, {@code Sam2SegmentService} 의 외부 응답 검증({@code x > imgWidth})과 동일 기준이다.
+     */
+    private void validateWithinBounds(String lblTypeCd, List<List<Double>> points, int[] bounds) {
+        if (bounds == null || points == null) {
+            return;
+        }
+        int width = bounds[0];
+        int height = bounds[1];
+        boolean skeleton = LsDataLbl.TYPE_SKELETON.equals(lblTypeCd);
+        for (List<Double> tuple : points) {
+            // 형식(원소 수/ null)은 validatePoints 가 이미 400 으로 걸렀다 — 여기선 x/y 값만 본다.
+            if (tuple == null || tuple.size() < 2) {
+                continue;
+            }
+            Double x = tuple.get(0);
+            Double y = tuple.get(1);
+            if (x == null || y == null) {
+                continue;
+            }
+            if (skeleton && isUnlabeledKeypoint(tuple)) {
+                // v=0(미표기) 키포인트는 좌표를 쓰지 않는 자리표시자(0,0 관례) — 상한 검사 대상 아님.
+                continue;
+            }
+            if (x > width || y > height) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "좌표가 이미지 경계를 벗어났습니다 (x=" + x + ", y=" + y
+                                + ", 이미지=" + width + "x" + height + ")");
+            }
+        }
+    }
+
+    /** SKELETON 삼중값의 가시성 {@code v} 가 0(미표기)인지 — 좌표 상한 검사에서 제외할 자리표시자. */
+    private static boolean isUnlabeledKeypoint(List<Double> triplet) {
+        return triplet.size() >= 3 && triplet.get(2) != null
+                && triplet.get(2) == KeypointSerializer.VISIBILITY_MIN;
     }
 
     /**

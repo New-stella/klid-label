@@ -82,4 +82,108 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     @Query("update LsDataSrc s set s.deIdntfSrcFilePathNm = :deidPath, s.srcFilePathNm = null, "
             + "s.updDt = CURRENT_TIMESTAMP where s.srcSn = :srcSn")
     int relocateDerivativeFramePath(@Param("srcSn") Long srcSn, @Param("deidPath") String deidPath);
+
+    /**
+     * C-ISSUE-21 — 프레임 행을 <b>비관적 락(SELECT ... FOR UPDATE)으로 잡으면서 그 시점의 실제 DB
+     * 라벨셋 버전</b>을 읽는다.
+     *
+     * <p>라벨 full-replace 저장(PUT)이 "기존 라벨 read → 델타 계산 → 삭제/삽입" 을 수행하는 동안 다른
+     * 저장이 끼어들지 못하도록 프레임 행으로 직렬화한다. 앱은 2노드 Active-Active 이므로 JVM 락
+     * ({@code synchronized}/{@code ReentrantLock})은 방어가 되지 않아 DB 락으로만 해결한다
+     * ({@code LsPortalUldFrmeRepository#findByUldFrmeSnAndOwnerForUpdate} 와 동일 패턴).
+     *
+     * <h3>왜 엔티티 조회({@code @Lock} + {@code select s from LsDataSrc s})로는 안 되는가 — 1차 캐시 함정</h3>
+     * 진입부 인가 검사({@code LabelAccessGuard.verifyAndGet} → {@code findById})가 이미 같은 {@code LsDataSrc}
+     * 를 영속성 컨텍스트에 적재하므로, 이어서 {@code @Lock} 엔티티 쿼리를 실행해도 Hibernate 는 <b>관리 중인
+     * 인스턴스를 그대로 반환</b>하고 쿼리 결과로 필드를 덮어쓰지 않는다({@code @Lock} 은 SQL 에
+     * {@code FOR UPDATE} 를 덧붙일 뿐이다). 그 결과 CAS 기준값이 <b>락 획득 前</b> 값이 되어, 락을 기다리는
+     * 동안 다른 트랜잭션이 커밋한 변경을 관측하지 못한 채 stale 요청을 통과시킨다(방어 무력화).
+     *
+     * <p>스칼라 프로젝션(네이티브 {@code SELECT LBL_VER})은 엔티티 식별자 해석을 거치지 않아 1차 캐시를
+     * 태우지 않으므로 <b>항상 DB 현재 값</b>을 돌려준다. 동시에 {@code FOR UPDATE} 로 행 락도 획득하므로
+     * 쿼리 1회로 "락 획득 + 락 시점 값 읽기"가 원자적으로 성립한다.
+     *
+     * <p>파라미터 바인딩만 사용(CWE-89 표면 없음). 행이 없으면 빈 Optional.
+     */
+    @Query(value = "SELECT LBL_VER FROM LS_DATA_SRC WHERE SRC_SN = :srcSn FOR UPDATE",
+            nativeQuery = true)
+    Optional<Long> lockAndReadLabelVersion(@Param("srcSn") Long srcSn);
+
+    /**
+     * C-ISSUE-21 — 프레임(srcSn) 집합의 라벨셋 버전을 원자적으로 +1 한다.
+     *
+     * <p>네이티브 UPDATE 인 이유: {@code LsDataSrc.lblVer} 는 엔티티 flush 로 절대 쓰이지 않도록
+     * {@code updatable=false} 로 매핑돼 있어(다른 컬럼 dirty-update 가 낡은 버전을 되쓰는 lost update 방지),
+     * 값 변경 경로를 이 원자 UPDATE 하나로 고정한다. {@code LBL_VER = LBL_VER + 1} 은 DB 가 현재 값을 읽어
+     * 증가시키므로 read-modify-write 경합이 없다(CWE-362).
+     *
+     * <p>{@code clearAutomatically} 미지정 — 같은 트랜잭션의 다른 엔티티 dirty-update 를 유실시키지 않기
+     * 위함(리포 정책: 공유 벌크 쿼리에 무비판적 컨텍스트 초기화 금지). 호출부는 갱신된 값을
+     * "잠금 하에 읽은 값 + 1" 로 계산한다. 빈 컬렉션이면 호출하지 않는다(호출부 가드).
+     * 파라미터 바인딩만 사용(CWE-89 표면 없음).
+     *
+     * <h3>락 순서 규약 (DEV_FIX H2① — ABBA 데드락 방지, Critical)</h3>
+     * 이 UPDATE 는 대상 프레임 행에 <b>쓰기 락</b>을 잡는다. 따라서 라벨 행을 삭제/수정하는 모든 경로는
+     * <b>라벨 행을 건드리기 전에</b> 그 프레임의 bump(또는 {@link #lockAndReadLabelVersion} 의
+     * {@code FOR UPDATE})를 먼저 수행해야 한다 — 규약: <b>프레임 락 → 라벨 행 락</b>. 순서를 뒤집으면
+     * (라벨 삭제 후 bump) 프레임 락을 먼저 잡는 라벨 저장 경로와 교차해 PostgreSQL 40P01
+     * (deadlock detected) → 500 이 발생한다.
+     *
+     * <p><b>정정(DEV_FIX H4)</b>: 구 주석은 "삽입(INSERT)만 하는 경로는 락을 잡지 않으므로 규약 대상이
+     * 아니다"라고 했으나 부정확하다 — bump 문장 자체가 프레임 행 쓰기 락을 잡는다. 삽입 전용 경로가
+     * 안전한 진짜 이유는 <b>bump 가 그 트랜잭션의 유일한 프레임 락 획득 지점</b>이고 그 시점까지 기존
+     * 라벨 행 락을 쥐고 있지 않아 순환 대기의 구성원이 될 수 없기 때문이다. 반대로 한 트랜잭션이
+     * <b>서로 다른 프레임 집합을 2회 이상</b> bump 하면 순서 규약만으로는 막을 수 없는 문장 간 ABBA 가
+     * 성립하므로, 그런 경로는 {@link #lockFramesByRawSn} 로 락 획득 지점을 1곳으로 통합해야 한다.
+     *
+     * @return 갱신된 프레임 수
+     */
+    @Modifying
+    @Query(value = "UPDATE LS_DATA_SRC SET LBL_VER = LBL_VER + 1 WHERE SRC_SN IN (:srcSns)",
+            nativeQuery = true)
+    int bumpLabelVersionIn(@Param("srcSns") Collection<Long> srcSns);
+
+    /**
+     * C-ISSUE-21 — 영상(rawSn) 전 프레임의 라벨셋 버전을 원자적으로 +1 한다.
+     * 영상 단위로 라벨을 일괄 변경하는 경로(비식별 신고 전량 삭제·버전 롤백·배치 오토라벨/보간)에서
+     * 사용해 프레임별 UPDATE N회를 단일 문장으로 대체한다(N+1 금지).
+     * 상세 정책은 {@link #bumpLabelVersionIn} 주석 참조.
+     *
+     * @return 갱신된 프레임 수
+     */
+    @Modifying
+    @Query(value = "UPDATE LS_DATA_SRC SET LBL_VER = LBL_VER + 1 WHERE RAW_SN = :rawSn",
+            nativeQuery = true)
+    int bumpLabelVersionByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * DEV_FIX(H4) — 영상(rawSn) 전 프레임 행 락을 <b>단일 문장·SRC_SN 오름차순</b>으로 선점한다.
+     *
+     * <h3>왜 필요한가 — 다중 bump 사이의 ABBA</h3>
+     * <p>{@link #bumpLabelVersionIn} 은 대상 프레임 행에 쓰기 락을 잡는다. 그런데 트랙 삭제/분할/병합·
+     * 배치 보간은 <b>한 트랜잭션에서 서로 다른 프레임 집합을 2회 이상</b> bump 한다(변경 대상 → 재보간
+     * 산출 프레임). 두 트랜잭션의 두 집합이 교차하면
+     * ({@code T1: {5,9} → {3,5}}, {@code T2: {3} → {5,7}}) 서로를 기다려 PostgreSQL 40P01
+     * (deadlock detected) → 500 이 난다. "프레임 락 → 라벨 락" 순서만으로는 이 <b>문장 간</b> 교차를 막지
+     * 못한다.
+     *
+     * <p>이를 없애기 위해 해당 경로들은 트랜잭션 <b>맨 앞에서 이 메서드 1회</b>로 필요한 프레임 락을
+     * 모두(=영상 전 프레임, 이후 bump 집합의 상위집합) 선점한다. 이후의 bump 는 <b>이미 보유한 행</b>만
+     * 건드리므로 새 락을 전혀 획득하지 않아 대기 지점이 트랜잭션당 1곳으로 줄고, 그 1곳도 아무 락도
+     * 쥐지 않은 상태에서 대기하므로 순환 대기(cycle)가 성립하지 않는다.
+     *
+     * <h3>왜 {@code FOR UPDATE} 가 아니라 {@code FOR NO KEY UPDATE} 인가</h3>
+     * <p>{@code FOR UPDATE} 는 FK 자식 INSERT 가 부모에 잡는 {@code FOR KEY SHARE} 와 충돌해, 기존에는
+     * 막히지 않던 라벨 INSERT 까지 새로 차단한다. 비-키 컬럼 UPDATE({@code LBL_VER}) 가 실제로 잡는 락
+     * 모드는 {@code FOR NO KEY UPDATE} 이므로 이 모드를 그대로 사용해 <b>기존 동시성 동작을 바꾸지 않고</b>
+     * 락 획득 시점만 앞당긴다.
+     *
+     * <p>{@code ORDER BY SRC_SN} 으로 획득 순서를 결정적으로 고정한다(LockRows 가 Sort 위에서 동작).
+     * 파라미터 바인딩만 사용(CWE-89 표면 없음). 프레임이 없으면 빈 리스트.
+     *
+     * @return 락을 획득한 프레임 SRC_SN 목록(오름차순)
+     */
+    @Query(value = "SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN = :rawSn "
+            + "ORDER BY SRC_SN FOR NO KEY UPDATE", nativeQuery = true)
+    List<Long> lockFramesByRawSn(@Param("rawSn") Long rawSn);
 }

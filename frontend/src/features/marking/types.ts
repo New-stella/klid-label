@@ -36,4 +36,11 @@ export interface MarkingResponse {
   marks: MarkItem[];
   status: MarkingStatus;
   createdAt: string;
+  /**
+   * 후속 배치가 실제로 시작됐는지 (DEV_FIX H11). BE MarkingResponse.batchTriggered 와 1:1.
+   * null = 판정 불가(구 서버/브리지 미실행). false 면 배치가 시작되지 않았으므로 성공 문구를 쓰면 안 된다.
+   */
+  batchTriggered?: boolean | null;
+  /** 배치 미시작 사유(고정 문구). batchTriggered=false 일 때만 채워진다. */
+  batchSkipReason?: string | null;
 }

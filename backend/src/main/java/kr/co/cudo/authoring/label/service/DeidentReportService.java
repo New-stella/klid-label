@@ -395,6 +395,16 @@ public class DeidentReportService {
         }
         recordDeletionHistory(labels);
         List<Long> lblSns = labels.stream().map(LsDataLbl::getLblSn).toList();
+        // C-ISSUE-21 — 영상 전 프레임의 라벨셋 버전 +1 (단일 UPDATE). 신고로 라벨이 전량 삭제됐는데
+        //   버전이 그대로면, 삭제 직전 화면을 열어둔 세션이 낡은 세트를 그대로 저장해 방금 지운 PII 라벨을
+        //   되살릴 수 있다(버전 첨부 요청 기준). 여기서 올려 그 저장이 409 로 거부되게 한다.
+        // DEV_FIX(H2① 락 순서) — 이 bump 는 반드시 라벨 <b>삭제 前</b> 에 수행한다. bump 는 프레임 행에
+        //   쓰기 락을 잡으므로, 삭제(=라벨 행 락) 뒤에 두면 "프레임 락 → 라벨 락" 순서로 도는 라벨 저장
+        //   경로(LabelService.bulkUpsert)와 정확히 역순이 되어 ABBA 데드락(PG 40P01 → 500)이 열린다.
+        //   규약: <b>프레임 락을 항상 먼저</b>. 같은 트랜잭션이라 순서만 바뀔 뿐 원자성·결과는 동일하다.
+        // 범위(H11): 신고는 영상의 <b>전 프레임 라벨을 전량 삭제</b>하므로 rawSn 전체 bump 가 실제 변경
+        //   범위와 일치한다(과잉 무효화 아님).
+        srcRepository.bumpLabelVersionByRawSn(rawSn);
         attrValRepository.deleteByLblSnIn(lblSns);
         aiInfoRepository.deleteByDataLblSnIn(lblSns);
         labelRepository.deleteAllByRawSn(rawSn);

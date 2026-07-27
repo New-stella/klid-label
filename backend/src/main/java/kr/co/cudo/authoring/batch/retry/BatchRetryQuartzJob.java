@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.retry;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +52,16 @@ public class BatchRetryQuartzJob implements Job {
         Long rawSn = picked.get();
         log.info("[BatchRetry] re-processing rawSn={} attempt={}", rawSn, retryQueue.retryCount(rawSn));
         try {
-            orchestrator.process(rawSn);
+            BatchStage stage = orchestrator.process(rawSn);
+            // DEV_FIX H1 — SKIPPED(검수 소유 작업 상태로 진입 차단)는 성공도 실패도 아니다. pollReady() 가
+            //   이미 이 엔트리를 RETRYING(nextAttemptAt=null "처리중")으로 클레임했는데, SKIPPED 는
+            //   process() 내부 catch 를 타지 않아 enqueueIfRetryable(재무장)도 clear(제거)도 실행되지 않는다.
+            //   그대로 두면 엔트리가 PENDING 으로 돌아오지 못해 <b>큐에 영구 고아</b>로 남는다(재시도 무음 중단).
+            //   검수 소유 영상은 재시도해도 계속 SKIPPED 이므로 재무장이 아니라 제거가 옳다.
+            if (stage == BatchStage.SKIPPED) {
+                retryQueue.clear(rawSn);
+                log.warn("[BatchRetry] skipped — review-owned work status; retry entry cleared rawSn={}", rawSn);
+            }
         } catch (RuntimeException e) {
             // M-1 — 영구 실패(예: 영상이 DB 에 없는 NOT_FOUND)는 재처리해도 동일 결과이므로 재무장하지 않고
             // 큐에서 제거 + FAILED 확정한다. maxAttempts(3회)만큼 무의미하게 재시도하며 지수백오프로 수십 분간

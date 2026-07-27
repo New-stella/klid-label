@@ -159,6 +159,85 @@ describe('ReviewPage', () => {
     });
   });
 
+  it('H6_동시승인충돌_409는_라벨없음_다이얼로그를_띄우지_않는다', async () => {
+    // DEV_FIX H6 — 승인 경로의 409 에는 '라벨 0건'(REVIEW_NO_LABEL) 외에 <b>동시 승인 충돌·상태 전이
+    //   불가</b>(CONFLICT)도 있다. 상태코드만 보고 분기하면 라벨이 있는 영상의 낙관적 잠금 충돌에도
+    //   "라벨이 없는 영상입니다" 다이얼로그가 뜨고, 확인 시 noLabelConfirmed=true 재요청 → BE 400 →
+    //   "승인 실패" 로 끝나는 오도 경로가 된다. errorCode 로 구분해야 한다.
+    mock.onGet('/reviews/10').reply(200, {
+      success: true,
+      data: { ...baseReview, status: 'REVIEWING' },
+      message: null,
+      errorCode: null,
+    });
+    const approveBodies: unknown[] = [];
+    mock.onPost('/reviews/10/approve').reply((config) => {
+      approveBodies.push(config.data ? JSON.parse(config.data) : null);
+      return [
+        409,
+        {
+          success: false,
+          data: null,
+          message: '다른 검수자가 먼저 처리했습니다.',
+          errorCode: 'CONFLICT',
+        },
+      ];
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<ReviewPage />, {
+      initialEntries: ['/review/10'],
+      routes: [
+        { path: '/review/:id', element: <ReviewPage /> },
+        { path: '/review', element: <div>REVIEW_LIST</div> },
+      ],
+    });
+
+    const approveButtons = await screen.findAllByRole('button', { name: '승인' });
+    await user.click(approveButtons[0]);
+    const confirmButton = await screen.findByRole('button', { name: '승인 확정' });
+    await user.click(confirmButton);
+
+    await waitFor(() => expect(approveBodies.length).toBe(1));
+    // '라벨 없음' 확인 다이얼로그가 뜨면 안 된다 → 재요청(noLabelConfirmed)도 발생하지 않는다.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: '라벨 없음 확인 후 승인' })).not.toBeInTheDocument(),
+    );
+    expect(approveBodies.length).toBe(1);
+  });
+
+  it('H6_라벨0건_409는_errorCode_REVIEW_NO_LABEL_로_구분해_확인_다이얼로그를_띄운다', async () => {
+    mock.onGet('/reviews/10').reply(200, {
+      success: true,
+      data: { ...baseReview, status: 'REVIEWING' },
+      message: null,
+      errorCode: null,
+    });
+    mock.onPost('/reviews/10/approve').reply(409, {
+      success: false,
+      data: null,
+      message: "라벨이 없는 영상입니다. 객체가 없는 영상이 맞다면 '라벨 없음' 확인 후 승인하세요.",
+      errorCode: 'REVIEW_NO_LABEL',
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<ReviewPage />, {
+      initialEntries: ['/review/10'],
+      routes: [
+        { path: '/review/:id', element: <ReviewPage /> },
+        { path: '/review', element: <div>REVIEW_LIST</div> },
+      ],
+    });
+
+    const approveButtons = await screen.findAllByRole('button', { name: '승인' });
+    await user.click(approveButtons[0]);
+    const confirmButton = await screen.findByRole('button', { name: '승인 확정' });
+    await user.click(confirmButton);
+
+    // 라벨 0건 사유일 때만 확인 다이얼로그가 열린다.
+    expect(await screen.findByRole('button', { name: '라벨 없음 확인 후 승인' })).toBeInTheDocument();
+  });
+
   it('ReviewPage_반려시_reason_에_검수의견과_pending_이슈_합쳐_전송', async () => {
     // store 사전 설정 — 컴포넌트 마운트 전 미리 주입.
     useReviewSelectionStore.getState().clear();
