@@ -19,6 +19,7 @@ import kr.co.cudo.authoring.evntanno.service.EvntAnnoReviewService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
@@ -135,8 +136,30 @@ class EvntAnnoReviewServiceTest {
 
         service.approve(RAW_SN, reviewer());
 
+        // exportRegenerated=true — 이 경로만 DatasetReExportEvent 로 export 폴더를 재생성하므로
+        // 통지가 전 프레임을 changed_items 에 실어야 한다(A-2).
         verify(eventPublisher).publishEvent(new TaskModifiedEvent(
-                RAW_SN, null, ChangeType.META_UPDATED, 11L));
+                RAW_SN, null, ChangeType.META_UPDATED, 11L, true));
+    }
+
+    @Test
+    @DisplayName("지연승인_통지는_export_재생성_동반_표식을_싣는다")
+    void lateApprove_notifyCarriesExportRegeneratedFlag() {
+        stubVideoStatus(LsRawDataStatus.STTS_APPROVED);
+        stubActiveSnapshotPresent(true);
+
+        service.approve(RAW_SN, reviewer());
+
+        // 재생성 표식은 발행처 클래스명이 아니라 이벤트가 실어 나른다 — 통지 조립부가 이 값으로만
+        // changed_items 범위를 정한다. (같은 트랜잭션에서 DatasetReExportEvent 도 함께 발행된다)
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher, org.mockito.Mockito.atLeastOnce()).publishEvent(captor.capture());
+        assertThat(captor.getAllValues()).anySatisfy(e -> {
+            assertThat(e).isInstanceOf(TaskModifiedEvent.class);
+            assertThat(((TaskModifiedEvent) e).exportRegenerated()).isTrue();
+        });
+        assertThat(captor.getAllValues()).anySatisfy(e ->
+                assertThat(e).isInstanceOf(DatasetReExportEvent.class));
     }
 
     @Test

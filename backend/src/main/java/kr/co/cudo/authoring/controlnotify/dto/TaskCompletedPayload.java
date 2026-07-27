@@ -1,27 +1,32 @@
 package kr.co.cudo.authoring.controlnotify.dto;
 
-import java.time.Instant;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Phase 2 — 관제서버 outbound TASK_COMPLETED 통지 페이로드.
+ * 관제지원시스템 완료 통지({@code POST /api/data-set/v2/jobs/{job_id}/notify-completed}) 본문.
  *
- * <p>CWE-359: PII, 토큰, 원본 이미지 경로 포함 금지.
- * 라벨/메타 본문 자체는 포함하지 않으며, 관제가 필요 시 본 도구 조회 API 로 보강.
+ * <p><b>관제 계약(API-251) 6필드 평면 구조</b> — 구 {@code {eventType, payload:{...}}} 2단 중첩은 폐기했다.
+ * 관제는 이 통지로 1차 판단만 하고, 상세는 저작도구 조회 API({@code /v1/tasks/**})·데이터마트 뷰로 가져간다.
  *
- * @param eventType     이벤트 타입 — "TASK_COMPLETED"
- * @param rawSn         작업 ID (= LS_DATA_RAW.RAW_SN)
- * @param reviewerName  검수자 이름
- * @param approvedAt    검수 완료 일시
- * @param totalFrames   총 프레임 수
- * @param labeledFrames 라벨링 완료 프레임 수
- * @param requestId     요청 ID (UUID, idempotency)
+ * <p>JSON 필드명은 계약대로 <b>snake_case</b> 이며 {@link JsonProperty} 로 고정한다(전역 naming
+ * strategy 변경에 영향받지 않도록 필드 단위로 명시).
+ *
+ * <p>CWE-359: PII·토큰·원본(비-비식별) 파일 경로를 담지 않는다. 값은 모두 DB 실측 조회분이며
+ * 상수 self-fill 을 금지한다(D-ISSUE-41).
+ *
+ * @param jobId       작업 ID — {@code String.valueOf(LS_DATA_RAW.RAW_SN)}
+ * @param eventTypeCd 영상 이벤트 유형 코드 — {@code LS_DATA_RAW.EVNT_TYPE_CD} (통지 종류가 아님)
+ * @param lclgvCd     지자체 코드 — {@code LS_DATA_RAW.LCLGV_CD}
+ * @param lclgvNm     지자체명 — {@code MNG_EX_LOCAL_GOV.SIDO_NM + ' ' + SGG_NM} (미조인 시 null)
+ * @param durationSec 영상 길이(초) — {@code LS_DATA_RAW.VDO_LEN_SEC} (미상 시 null)
+ * @param imageCount  프레임(이미지) 수 — {@code COUNT(LS_DATA_SRC WHERE RAW_SN=?)} 실측
  */
 public record TaskCompletedPayload(
-        String eventType,
-        Long rawSn,
-        String reviewerName,
-        Instant approvedAt,
-        int totalFrames,
-        int labeledFrames,
-        String requestId
-) {}
+        @JsonProperty("job_id") String jobId,
+        @JsonProperty("event_type_cd") String eventTypeCd,
+        @JsonProperty("lclgv_cd") String lclgvCd,
+        @JsonProperty("lclgv_nm") String lclgvNm,
+        @JsonProperty("duration_sec") Integer durationSec,
+        @JsonProperty("image_count") int imageCount
+) {
+}

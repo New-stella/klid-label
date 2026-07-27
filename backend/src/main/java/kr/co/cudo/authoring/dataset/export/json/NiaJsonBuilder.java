@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
+import kr.co.cudo.authoring.dataset.export.ExportFileNaming;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -138,7 +139,10 @@ public class NiaJsonBuilder {
     private NiaImage buildImage(VideoExportContext ctx, LsDataSrc src, ExportKind kind) {
         Integer imageId = (src.getSrcSn() == null) ? null : src.getSrcSn().intValue();
         Long frameNo = src.getFrameNo();
-        String fileName = (frameNo == null) ? null : "frame-" + frameNo + ".jpg";
+        // 파일명은 export writer·관제 통지와 <b>동일한 단일 지점</b>({@link ExportFileNaming})을 따른다.
+        // 여기만 구 규칙(frame-{n}.jpg)을 쓰면 같은 폴더에 실재하지 않는 파일을 JSON 이 가리키게 된다.
+        // (frame_num 은 별개 개념 — 추출 순번 기반 파일명과 달리 영상 내 위치를 뜻하므로 여기서 바꾸지 않는다)
+        String fileName = (frameNo == null) ? null : ExportFileNaming.imageFileName(frameNo);
         // ★#1 — anonymity 는 산출 종류(ExportKind)로만 결정한다. 프레임 수동 anonymity 값(라벨러 판단 기록)이
         // 이를 덮으면 원본 산출물이 "익명화됨(Y)"으로 오표기되어 개인정보 오표기(CWE-359) 결함이 된다.
         // 따라서 anonymity 는 수동 override 금지 — 원본=N/비식별=Y 파생을 그대로 유지한다.

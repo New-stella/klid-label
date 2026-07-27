@@ -20,6 +20,16 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     org.springframework.data.domain.Page<LsDataSrc> findByRawSnOrderByFrameNoAsc(
             Long rawSn, org.springframework.data.domain.Pageable pageable);
 
+    /**
+     * 프레임 필터(srcSn 집합) + 페이징 조회 — 관제 조회 API 의 {@code frameIds} 필터용(B-2).
+     *
+     * <p>필터를 <b>쿼리 조건으로</b> 내려야 한다. 페이지를 먼저 자르고 메모리에서 거르면 지정 프레임이
+     * 첫 페이지 밖에 있을 때 빈 결과가 나오고, {@code totalElements} 는 필터 전 건수라 페이지 메타와
+     * 내용이 모순된다. {@code rawSn} 을 함께 조건에 둬 타 영상 프레임 유입도 구조적으로 차단한다.
+     */
+    org.springframework.data.domain.Page<LsDataSrc> findByRawSnAndSrcSnInOrderByFrameNoAsc(
+            Long rawSn, Collection<Long> srcSns, org.springframework.data.domain.Pageable pageable);
+
     Optional<LsDataSrc> findByRawSnAndFrameNo(Long rawSn, Integer frameNo);
 
     long countByRawSn(Long rawSn);
@@ -44,6 +54,46 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     @Query("select s.srcSn as srcSn, s.rawSn as rawSn "
             + "from LsDataSrc s where s.srcSn in :srcSns")
     List<Object[]> findRawSnBySrcSnIn(@Param("srcSns") Collection<Long> srcSns);
+
+    /**
+     * 프레임 SRC_SN → FRM_NO 매핑 조회 (관제 수정 통지의 파일명 {@code {FRM_NO 4자리 zero-pad}.json} 산출용).
+     *
+     * <p>{@code rawSn} 을 함께 조건에 두어 <b>다른 영상의 프레임이 섞이면 결과에서 제외</b>되게 한다
+     * (통지 페이로드에 타 영상 파일명이 실리는 것을 구조적으로 차단). 조회되지 않은 srcSn 은
+     * caller 가 경고·메트릭으로 처리한다(사일런트 드롭 금지 — S10).
+     * 결과는 {@code [srcSn, frameNo]} Object 배열 리스트.
+     *
+     * <p><b>원천 이미지 경로가 양쪽 다 비어 있는 프레임은 제외한다</b>(B-1) —
+     * {@link #findExportableFrameNosByRawSn} 와 동일한 기준. export writer 가 건너뛴 프레임의 JSON
+     * 파일명을 통지에 실으면 관제가 없는 파일을 픽업한다.
+     */
+    @Query("select s.srcSn as srcSn, s.frameNo as frameNo "
+            + "from LsDataSrc s where s.rawSn = :rawSn and s.srcSn in :srcSns "
+            + "and (coalesce(s.srcFilePathNm, '') <> '' or coalesce(s.deIdntfSrcFilePathNm, '') <> '')")
+    List<Object[]> findExportableFrameNoByRawSnAndSrcSnIn(@Param("rawSn") Long rawSn,
+                                                          @Param("srcSns") Collection<Long> srcSns);
+
+    /**
+     * 영상의 <b>산출 가능한</b> 프레임 FRM_NO 목록 (재승인 시 전체 파일 변경 통지용).
+     *
+     * <p><b>원천 이미지 경로가 양쪽 다 비어 있는 프레임은 제외한다</b>(B-1): export writer 는 원천
+     * 이미지를 해석하지 못한 프레임을 <b>건너뛴다</b>(부분성공). 그런 프레임의 파일명을 통지
+     * {@code changed_items} 에 실으면 관제가 <b>존재하지 않는 파일</b>을 픽업해 404 를 맞는다.
+     * {@code image_count} 는 javadoc 에 "상한값"이라고 명시해 둘 수 있지만, {@code changed_items} 는
+     * 명시적 파일 목록이라 같은 논리가 통하지 않는다.
+     *
+     * <p><b>필터 기준을 "둘 중 하나라도 보유" 로 잡은 근거</b>: 통지 페이로드에는 산출 종류(원본/비식별)
+     * 축이 없어 파일명 1건이 두 벌(orgnl/deid) 모두를 가리킨다. 반면 파생영상(해상도 변경)은 원본
+     * 픽셀이 실재하지 않아 {@code SRC_FILE_PATH_NM} 이 전부 비어 있고 비식별 벌만 산출된다 — "둘 다
+     * 보유" 를 요구하면 그 영상의 통지가 통째로 비어 관제가 실재하는 산출물을 영영 못 가져간다.
+     * 따라서 <b>어느 벌에서도 확실히 skip 되는 프레임(두 경로 모두 부재)만</b> 제외한다. 파일 존재
+     * 여부(디스크 I/O)는 통지 조립 시점에 검사하지 않는다 — 통지는 export {@code @Async} 완료 전에
+     * 나갈 수 있어 존재 검사 결과가 신뢰되지 않는다.
+     */
+    @Query("select s.frameNo from LsDataSrc s where s.rawSn = :rawSn "
+            + "and (coalesce(s.srcFilePathNm, '') <> '' or coalesce(s.deIdntfSrcFilePathNm, '') <> '') "
+            + "order by s.frameNo asc")
+    List<Long> findExportableFrameNosByRawSn(@Param("rawSn") Long rawSn);
 
     /**
      * 영상별 프레임 개수를 한 번에 조회 (N+1 회피).

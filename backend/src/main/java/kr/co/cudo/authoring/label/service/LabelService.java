@@ -46,6 +46,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -405,11 +406,14 @@ public class LabelService {
         // 검수 전(PENDING/ASSIGNED/IN_REVIEW/PROCESSING 등) 저장은 일반 작업이므로 통지 미발행.
         // LOW #12 — 무변경(changes 비면) 이면 통지도 미발행.
         if (!changes.isEmpty() && isReviewApproved(current.getRawSn())) {
-            // bulkUpsert 는 신규 INSERT + 기존 UPDATE + 삭제(full-replace)를 한 배치에서 함께 처리하며
-            // 단일 (rawSn, srcSn) 이벤트로는 종류를 자명하게 구분할 수 없으므로 계약 표준값
-            // LABEL_UPDATED 하나로 통일한다(억지 분기 금지 — 관제는 통지 수신 후 상세 API 로 재조회).
-            eventPublisher.publishEvent(new TaskModifiedEvent(
-                    current.getRawSn(), srcSn, ChangeType.LABEL_UPDATED, actorNo));
+            // D-ISSUE-44 — bulkUpsert 는 추가/수정/삭제를 한 배치에서 처리하지만, 이번 저장에 실제로
+            // 포함된 종류만 발행한다. 구 구현은 전부 LABEL_UPDATED 하나로 뭉개 LABEL_ADDED 가 계약에만
+            // 존재하고 어디서도 발행되지 않는 dead 값이었다. 디바운서가 (srcSn ↔ 변경종류) 페어로
+            // 축적하므로 같은 프레임에 대해 여러 종류를 발행해도 통지 1건으로 합쳐진다.
+            for (String changeType : toChangeTypes(changes)) {
+                eventPublisher.publishEvent(new TaskModifiedEvent(
+                        current.getRawSn(), srcSn, changeType, actorNo));
+            }
         }
 
         List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
@@ -576,6 +580,24 @@ public class LabelService {
         int size = Math.min(pageable.getPageSize(), MAX_HISTORY_PAGE_SIZE);
         Sort sort = Sort.by(Sort.Order.desc("regDt"), Sort.Order.desc("lblHstrySn"));
         return PageRequest.of(pageable.getPageNumber(), size, sort);
+    }
+
+    /**
+     * 저장 이벤트의 변경 목록 → 관제 통지 changeType 집합 (D-ISSUE-44).
+     *
+     * <p>이번 저장에 실제로 포함된 종류만 반환한다 — 발행되지 않는 dead 계약값을 없애고, 관제가
+     * 종류별 분기를 신뢰할 수 있게 한다. 반환값은 반드시 {@link ChangeType#ALL} 표준 집합에 속한다.
+     */
+    private Set<String> toChangeTypes(List<LabelChange> changes) {
+        Set<String> types = new LinkedHashSet<>();
+        for (LabelChange change : changes) {
+            switch (change.kind()) {
+                case ADDED -> types.add(ChangeType.LABEL_ADDED);
+                case UPDATED -> types.add(ChangeType.LABEL_UPDATED);
+                case DELETED -> types.add(ChangeType.LABEL_DELETED);
+            }
+        }
+        return types;
     }
 
     /**

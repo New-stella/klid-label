@@ -47,6 +47,24 @@ public class LsControlNotifyFallback {
     /** 기본 최대 재시도 횟수. */
     public static final int DEFAULT_MAX_RETRY = 5;
 
+    /**
+     * <b>페이로드 미보유</b> 표식 — 재시도 시점에 페이로드를 재조립해야 하는 큐 항목(A-1).
+     *
+     * <p>승인 통지는 AFTER_COMMIT 소비라 놓치면 되살릴 주체가 없다. 그래서 페이로드 조립이 실패해도
+     * {@code eventType + rawSn} 만으로 적재하고, 재시도 Job 이
+     * {@code ControlNotifyPayloadFactory} 로 다시 조립해 전송한다.
+     *
+     * <p><b>스키마를 늘리지 않는 이유</b>: {@code PAYLOAD_CN} 은 {@code TEXT NOT NULL} 이고 빈 문자열은
+     * NULL 이 아니므로 제약을 위반하지 않는다. 정상 페이로드는 항상 {@code '{'} 로 시작하는 JSON 이라
+     * 빈 문자열과 절대 충돌하지 않는다 — 새 컬럼(=마이그레이션) 없이 "페이로드 미보유" 상태를 표현할 수 있다.
+     */
+    public static final String PAYLOAD_REBUILD_REQUIRED = "";
+
+    /** 큐 항목이 페이로드 없이 적재되어 재조립이 필요한지 여부. */
+    public static boolean isPayloadRebuildRequired(String payloadJson) {
+        return payloadJson == null || payloadJson.isBlank();
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "QUEUE_SN")

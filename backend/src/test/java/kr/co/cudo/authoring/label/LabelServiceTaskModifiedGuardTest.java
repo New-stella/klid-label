@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -143,9 +144,9 @@ class LabelServiceTaskModifiedGuardTest {
     }
 
     @Test
-    @DisplayName("검수완료_APPROVED_후_bulkUpsert_시_TaskModifiedEvent_발행_rawSn_srcSn_changeType_검증")
+    @DisplayName("검수완료_APPROVED_후_라벨_추가시_LABEL_ADDED_가_실제로_발행된다")
     void 검수완료_발행() {
-        // given — 영상이 검수 완료(APPROVED) 상태
+        // given — 영상이 검수 완료(APPROVED) 상태 + 기존 라벨 없음 → 이번 저장은 순수 '추가'
         stubCommon();
         seedStatus(LsRawDataStatus.STTS_APPROVED);
 
@@ -158,10 +159,85 @@ class LabelServiceTaskModifiedGuardTest {
         TaskModifiedEvent event = captor.getValue();
         assertThat(event.rawSn()).isEqualTo(RAW_SN);
         assertThat(event.srcSn()).isEqualTo(SRC_SN);
-        // 계약 표준값 — bulkUpsert 는 add/update 혼재이므로 LABEL_UPDATED 로 통일
-        assertThat(event.changeType()).isEqualTo(ChangeType.LABEL_UPDATED);
+        // D-ISSUE-44 — 구 구현은 전부 LABEL_UPDATED 로 뭉개 LABEL_ADDED 가 계약에만 존재하는
+        // dead 값이었다. 추가 저장은 반드시 LABEL_ADDED 로 발행되어야 한다.
+        assertThat(event.changeType()).isEqualTo(ChangeType.LABEL_ADDED);
         // 발행된 changeType 은 반드시 계약 표준 집합에 속해야 한다 (비표준 문자열 회귀 방어)
         assertThat(ChangeType.ALL).contains(event.changeType());
         assertThat(event.modifierNo()).isEqualTo(1001L);
+    }
+
+    @Test
+    @DisplayName("검수완료_후_기존라벨이_전부_빠지면_LABEL_DELETED_가_발행된다")
+    void 검수완료_삭제_발행() {
+        // given — 기존 라벨 1건 + full-replace 로 빈 목록 저장 = 삭제
+        stubCommon();
+        seedStatus(LsRawDataStatus.STTS_APPROVED);
+        LsDataLbl existing = LsDataLbl.createManual(SRC_SN, "BBOX", null, "person",
+                "[[1.0,1.0],[2.0,2.0]]", 1001L);
+        setField(existing, "lblSn", 7001L);
+        when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(existing));
+
+        // when
+        service.bulkUpsert(SRC_SN, new LabelBulkUpsertRequest(List.of()), worker());
+
+        // then
+        ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().changeType()).isEqualTo(ChangeType.LABEL_DELETED);
+    }
+
+    @Test
+    @DisplayName("검수완료_후_기존라벨_좌표만_수정하면_LABEL_UPDATED_만_발행된다")
+    void 검수완료_수정_발행() {
+        // given — 기존 라벨 1건을 같은 lblSn 으로 좌표만 바꿔 저장한다(추가·삭제 없음).
+        stubCommon();
+        seedStatus(LsRawDataStatus.STTS_APPROVED);
+        LsDataLbl existing = LsDataLbl.createManual(SRC_SN, "BBOX", null, "person",
+                "[[1.0,1.0],[2.0,2.0]]", 1001L);
+        setField(existing, "lblSn", 7003L);
+        when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(existing));
+        LabelItemDto moved = new LabelItemDto(7003L, "BBOX", null, "person",
+                List.of(List.of(9.0, 9.0), List.of(10.0, 10.0)), null);
+
+        // when
+        service.bulkUpsert(SRC_SN, new LabelBulkUpsertRequest(List.of(moved)), worker());
+
+        // then — UPDATED 단독 발행(ADDED/DELETED 가 섞이면 관제가 잘못된 변경종류를 받는다).
+        ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(captor.capture());
+        assertThat(captor.getValue().changeType()).isEqualTo(ChangeType.LABEL_UPDATED);
+    }
+
+    @Test
+    @DisplayName("추가와_삭제가_한_저장에_섞이면_두_종류가_모두_발행된다")
+    void 검수완료_추가삭제_혼재_발행() {
+        // given — 기존 라벨은 요청에서 빠지고(삭제) 새 라벨 1건이 추가된다.
+        stubCommon();
+        seedStatus(LsRawDataStatus.STTS_APPROVED);
+        LsDataLbl existing = LsDataLbl.createManual(SRC_SN, "BBOX", null, "car",
+                "[[3.0,3.0],[4.0,4.0]]", 1001L);
+        setField(existing, "lblSn", 7002L);
+        when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(existing));
+
+        // when
+        service.bulkUpsert(SRC_SN, oneManualLabel(), worker());
+
+        // then — 디바운서가 (srcSn ↔ 변경종류) 페어로 축적하므로 종류별 발행이 안전하다.
+        ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher, times(2)).publishEvent(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(TaskModifiedEvent::changeType)
+                .containsExactlyInAnyOrder(ChangeType.LABEL_ADDED, ChangeType.LABEL_DELETED);
+    }
+
+    private static void setField(Object target, String fieldName, Object value) {
+        try {
+            java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set field: " + fieldName, e);
+        }
     }
 }

@@ -264,6 +264,9 @@ class EnvironmentMetaServiceTest {
         assertThat(event.srcSn()).isNull();
         assertThat(event.changeType()).isEqualTo(ChangeType.META_UPDATED);
         assertThat(event.modifierNo()).isEqualTo(100L);
+        // A-2 — 촬영환경 수정은 export 폴더를 재생성하지 않는다(javadoc 명시 정책, 디스크 증폭 방지).
+        // 파일이 안 바뀌었으므로 통지는 changed_items 를 비운 채 나가야 한다.
+        assertThat(event.exportRegenerated()).isFalse();
     }
 
     @Test

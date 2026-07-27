@@ -89,12 +89,12 @@ class DatasetExportWriterTest {
         // when
         ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0), frameCtx(1)));
 
-        // then — frame-{i}.jpg + frame-{i}.json 페어 2쌍, 집계 2/0
+        // then — ExportFileNaming 규칙({FRM_NO 4자리}.jpg/.json) 페어 2쌍, 집계 2/0 (A-3: 통지 파일명과 동일 규칙)
         Path dir = result.dir();
-        assertThat(dir.resolve("frame-0.jpg")).exists();
-        assertThat(dir.resolve("frame-0.json")).exists();
-        assertThat(dir.resolve("frame-1.jpg")).exists();
-        assertThat(dir.resolve("frame-1.json")).exists();
+        assertThat(dir.resolve("0000.jpg")).exists();
+        assertThat(dir.resolve("0000.json")).exists();
+        assertThat(dir.resolve("0001.jpg")).exists();
+        assertThat(dir.resolve("0001.json")).exists();
         assertThat(result.writtenCnt()).isEqualTo(2);
         assertThat(result.skippedCnt()).isZero();
     }
@@ -111,11 +111,11 @@ class DatasetExportWriterTest {
         // when
         ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0), frameCtx(1)));
 
-        // then — 1건 기록, 1건 skip(부분성공). frame-1 산출물 없음
+        // then — 1건 기록, 1건 skip(부분성공). frameNo=1 산출물 없음
         assertThat(result.writtenCnt()).isEqualTo(1);
         assertThat(result.skippedCnt()).isEqualTo(1);
-        assertThat(result.dir().resolve("frame-1.jpg")).doesNotExist();
-        assertThat(result.dir().resolve("frame-1.json")).doesNotExist();
+        assertThat(result.dir().resolve("0001.jpg")).doesNotExist();
+        assertThat(result.dir().resolve("0001.json")).doesNotExist();
     }
 
     @Test
@@ -134,8 +134,8 @@ class DatasetExportWriterTest {
         assertThat(orgnl.dir().getFileName().toString()).isEqualTo("orgnl");
         assertThat(deid.dir().getFileName().toString()).isEqualTo("deid");
         assertThat(orgnl.dir()).isNotEqualTo(deid.dir());
-        assertThat(orgnl.dir().resolve("frame-0.jpg")).exists();
-        assertThat(deid.dir().resolve("frame-0.jpg")).exists();
+        assertThat(orgnl.dir().resolve("0000.jpg")).exists();
+        assertThat(deid.dir().resolve("0000.jpg")).exists();
     }
 
     @Test
@@ -152,7 +152,7 @@ class DatasetExportWriterTest {
 
         // then — 파일을 다시 파싱해 9키 유효(event 포함) + 직렬화 바이트가 빌더 결과와 동일
         //         (pretty 저장이므로 동일 pretty writer 로 직렬화한 바이트와 비교 — 값·스키마 불변, 포맷만 pretty)
-        byte[] onDisk = Files.readAllBytes(result.dir().resolve("frame-0.json"));
+        byte[] onDisk = Files.readAllBytes(result.dir().resolve("0000.json"));
         assertThat(onDisk).isEqualTo(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(doc));
         JsonNode tree = objectMapper.readTree(onDisk);
         assertThat(tree.fieldNames()).toIterable().containsExactlyInAnyOrder(
@@ -173,7 +173,7 @@ class DatasetExportWriterTest {
         ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
         // then — 파일 내용이 compact 한 줄이 아니라 개행+들여쓰기(pretty)로 저장된다.
-        String content = Files.readString(result.dir().resolve("frame-0.json"));
+        String content = Files.readString(result.dir().resolve("0000.json"));
         assertThat(content).contains("\n");        // 개행 존재(한 줄 compact 아님)
         assertThat(content).contains("\n  ");      // 들여쓰기 존재
         // 값·스키마 불변 — pretty 여도 파싱 시 동일 트리
@@ -196,7 +196,7 @@ class DatasetExportWriterTest {
         ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
         // then — REPLACE_EXISTING 으로 두 번째 내용이 남는다
-        assertThat(Files.readString(result.dir().resolve("frame-0.jpg"))).isEqualTo("second-content");
+        assertThat(Files.readString(result.dir().resolve("0000.jpg"))).isEqualTo("second-content");
         assertThat(result.writtenCnt()).isEqualTo(1);
     }
 
@@ -227,7 +227,7 @@ class DatasetExportWriterTest {
         ExportResult result = writer.write(7L, ExportKind.ORIGINAL, 1, ctx, List.of(frameCtx(0)));
 
         // then — 최종 json 은 있고 .tmp 잔여물은 남지 않는다(부분쓰기 방지)
-        assertThat(result.dir().resolve("frame-0.json")).exists();
+        assertThat(result.dir().resolve("0000.json")).exists();
         try (Stream<Path> entries = Files.list(result.dir())) {
             assertThat(entries).noneMatch(p -> p.getFileName().toString().endsWith(".tmp"));
         }
@@ -259,10 +259,10 @@ class DatasetExportWriterTest {
     @Test
     @DisplayName("프레임쓰기중_IO오류시_예외래핑되고_tmp잔여없음")
     void wrapsFrameWriteFailureWithoutTmpResidue() throws IOException {
-        // given — 산출 디렉토리를 미리 만들고 imageTarget(frame-0.jpg)을 비어있지 않은 디렉토리로 선점
+        // given — 산출 디렉토리를 미리 만들고 imageTarget(0000.jpg)을 비어있지 않은 디렉토리로 선점
         //         → Files.copy 가 DirectoryNotEmptyException(IOException) 을 던지도록 유도
         Path dir = resolver.resolve(7L, ExportKind.ORIGINAL, 1);
-        Files.createDirectories(dir.resolve("frame-0.jpg").resolve("child"));
+        Files.createDirectories(dir.resolve("0000.jpg").resolve("child"));
         Path img = srcImage("s.jpg", "img");
         when(frameSource.resolveImage(anyLong(), any(), any())).thenReturn(Optional.of(img));
         when(niaJsonBuilder.build(any(), any(), any())).thenReturn(stubDoc());

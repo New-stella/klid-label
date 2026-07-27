@@ -197,6 +197,20 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
     long countByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * 영상(rawSn) 의 <b>라벨을 가진 프레임 수</b> — 단일 COUNT DISTINCT 쿼리.
+     *
+     * <p>구현은 전 프레임·전 라벨을 메모리에 적재한 뒤 distinct 로 세었다(CWE-770). 대용량 영상에서
+     * 힙을 고갈시키므로 DB 집계로 대체한다.
+     */
+    @Query("""
+            SELECT COUNT(DISTINCT l.srcSn)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+            """)
+    long countLabeledFramesByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * D-ISSUE-04 — 영상(rawSn)에 라벨이 <b>1건이라도</b> 있는지 여부 (검수 승인 사전 게이트).
      *
      * <p>{@code COUNT} 나 전체 fetch 가 아니라 {@code EXISTS} 로 첫 행에서 즉시 종료한다(프레임/라벨 수와

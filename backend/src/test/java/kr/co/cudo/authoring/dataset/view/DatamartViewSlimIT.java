@@ -26,7 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>라벨 내용 뷰 2종 제거 (부재 확인).</li>
  *   <li>{@code V_COMPLETED_VIDEO} 에 EXPORT_PATH_NM/FRAME_CNT 노출 + APPROVED 영상당 1 row(행 증식 0).</li>
  *   <li>미export 영상은 EXPORT_PATH_NM null 이어도 VIDEO 뷰에 노출(LEFT JOIN 보존).</li>
- *   <li>신설 {@code V_COMPLETED_LABEL_CHANGE} 가 APPROVED 영상의 저장이벤트(종류별 건수 + diff)만 반환.</li>
+ *   <li>신설 {@code V_COMPLETED_LABEL_CHANGE} 가 APPROVED 영상의 저장이벤트(종류별 건수)만 반환하고
+ *       라벨 좌표 본문(diff {@code CHG_DTL_CN})은 노출하지 않는다(D-ISSUE-47 / V137).</li>
  *   <li>{@code V_COMPLETED_FRAME} / {@code V_COMPLETED_META} 무영향.</li>
  * </ol>
  *
@@ -189,10 +190,10 @@ class DatamartViewSlimIT {
 
         // when
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT RAW_SN, SRC_SN, ADD_CNT, MDFCN_CNT, DEL_CNT, CHG_DTL_CN, REG_ID, REG_DT "
+                "SELECT RAW_SN, SRC_SN, ADD_CNT, MDFCN_CNT, DEL_CNT, REG_ID, REG_DT "
                         + "FROM V_COMPLETED_LABEL_CHANGE WHERE SRC_SN = ? ORDER BY DEL_CNT", srcSn);
 
-        // then — 저장이벤트 2건 반환 + RAW_SN 조인 정확 + 카운트/diff/REG_ID/시각 노출
+        // then — 저장이벤트 2건 반환 + RAW_SN 조인 정확 + 카운트/REG_ID/시각 노출
         assertThat(rows).hasSize(2);
         assertThat(rows).allSatisfy(r -> {
             assertThat(((Number) r.get("raw_sn")).longValue()).isEqualTo(rawSn);
@@ -204,14 +205,37 @@ class DatamartViewSlimIT {
         assertThat(((Number) first.get("add_cnt")).intValue()).isEqualTo(2);
         assertThat(((Number) first.get("mdfcn_cnt")).intValue()).isEqualTo(1);
         assertThat(((Number) first.get("del_cnt")).intValue()).isZero();
-        assertThat(first.get("chg_dtl_cn")).isEqualTo("[{\"kind\":\"ADDED\"}]");
         assertThat(first.get("reg_id")).isEqualTo("worker1");
         // 둘째 행: worker2 저장이벤트(add=0, mdfcn=0, del=3)
         Map<String, Object> second = rows.get(1);
         assertThat(((Number) second.get("add_cnt")).intValue()).isZero();
         assertThat(((Number) second.get("del_cnt")).intValue()).isEqualTo(3);
-        assertThat(second.get("chg_dtl_cn")).isEqualTo("[{\"kind\":\"DELETED\"}]");
         assertThat(second.get("reg_id")).isEqualTo("worker2");
+    }
+
+    @Test
+    @DisplayName("V_COMPLETED_LABEL_CHANGE에_라벨_좌표_본문이_노출되지_않는다")
+    void labelChange_doesNotExposeLabelBody() {
+        // given — diff(CHG_DTL_CN)에는 before/after 라벨 전체 스냅샷(좌표 pointCn)이 들어 있다.
+        long rawSn = seedRawAndStatus("APPROVED");
+        long srcSn = seedFrame(rawSn, 11);
+        seedSaveEvent(srcSn, 1, 0, 0,
+                "[{\"kind\":\"ADDED\",\"after\":{\"pointCn\":\"[[10,10],[50,50]]\"}}]", "worker1");
+
+        // when — 뷰 컬럼 목록 자체를 조회한다(D-ISSUE-47 / V137).
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM V_COMPLETED_LABEL_CHANGE WHERE SRC_SN = ?", srcSn);
+
+        // then — 변경 사실·건수만 노출. 라벨 본문(diff JSON) 컬럼은 뷰에 존재하지 않는다.
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).keySet())
+                .containsExactlyInAnyOrder("lbl_hstry_sn", "raw_sn", "src_sn",
+                        "add_cnt", "mdfcn_cnt", "del_cnt", "reg_id", "reg_dt");
+        assertThat(rows.get(0)).doesNotContainKey("chg_dtl_cn");
+        // 원 테이블에는 감사·복구 근거로 그대로 남아 있어야 한다(노출면만 좁힌 것).
+        String stored = jdbc.queryForObject(
+                "SELECT CHG_DTL_CN FROM LS_DATA_LBL_HSTRY WHERE SRC_SN = ?", String.class, srcSn);
+        assertThat(stored).contains("pointCn");
     }
 
     @Test

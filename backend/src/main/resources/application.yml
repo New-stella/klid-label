@@ -22,6 +22,14 @@ spring:
       max-file-size: 21MB
       max-request-size: 1100MB
       file-size-threshold: 1MB
+  task:
+    scheduling:
+      pool:
+        # @Scheduled 전용 스레드 풀 (B-1). 기본값 1 이면 앱 전체 @Scheduled(17개)가 한 스레드를 공유한다.
+        # 관제 통지 디바운서 flush 는 sendModified 를 동기 블로킹(.block(15s), 자기치유 시 2회=최대 30s)으로
+        # 호출하므로, 관제가 응답하지 않으면 작업락 sweeper·TUS 정리·포털 업로드 sweep 등 무관한 잡이
+        # 전부 정지한다. 풀을 늘려 한 잡의 지연이 전체 스케줄러를 막지 않게 한다.
+        size: ${SCHEDULING_POOL_SIZE:8}
   jpa:
     open-in-view: false
     hibernate:
@@ -339,6 +347,11 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+        # N-5: 4xx(409 중복 / 404 미존재 / 422)는 결정적 응답이라 서킷 failure 로 집계하지 않는다.
+        #   정상 흐름인 409(재승인) 가 서킷을 여는 것을 막는다. 예외는 그대로 전파되어
+        #   ControlNotifyService 의 자기치유 분기(409→updated / 404→completed)를 발동시킨다.
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       # Phase 1 — KPST 비식별 폴링 클라이언트 (kpst.deid.enabled=true 일 때만 호출 발생)
       kpstDeid:
         failure-rate-threshold: 50
@@ -369,6 +382,12 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
+        # N-5: 4xx(409/404/422)는 재전송해도 결과가 같은 결정적 실패라 재시도하지 않는다.
+        #   재시도하면 자기치유가 늦어지고 폴백 큐가 DEAD_LETTER 로 오염된다.
+        #   ★ ignore-exceptions 는 "재시도 억제" 일 뿐 "예외 삼킴" 이 아니다 —
+        #     예외는 catch 까지 전파되어야 409/404 분기가 동작한다(ControlNotifyClientTest 로 단언).
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       kpstDeid:
         max-attempts: 3
         wait-duration: 1s

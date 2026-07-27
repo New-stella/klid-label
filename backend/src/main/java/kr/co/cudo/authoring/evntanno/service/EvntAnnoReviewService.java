@@ -223,8 +223,10 @@ public class EvntAnnoReviewService {
         snapshotService.materialize(rawSn, frozenReviewCompletedAt(rawSn));
         // export 재생성(TASK_COMPLETED 재발행 없이 export 만 갱신) + 완료 작업 수정 통지(TASK_MODIFIED).
         eventPublisher.publishEvent(new DatasetReExportEvent(rawSn));
+        // exportRegenerated=true — 바로 위에서 DatasetReExportEvent 를 발행해 프레임 이미지·JSON 이 전량
+        // 재생성되므로, 통지도 전 프레임을 changed_items 에 실어 관제가 새 산출물을 재픽업하게 한다(A-2).
         eventPublisher.publishEvent(new TaskModifiedEvent(
-                rawSn, null, ChangeType.META_UPDATED, parseActor(reviewer)));
+                rawSn, null, ChangeType.META_UPDATED, parseActor(reviewer), true));
         log.info("[EvntAnno] late-approval re-freeze triggered rawSn={}", rawSn);
     }
 

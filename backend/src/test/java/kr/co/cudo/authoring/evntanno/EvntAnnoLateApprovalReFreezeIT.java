@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.DatasetExportService;
+import kr.co.cudo.authoring.dataset.export.ExportFileNaming;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
@@ -274,7 +275,7 @@ class EvntAnnoLateApprovalReFreezeIT {
         // 그리고 export JSON 에 실제로 반영된다(재동결본 pass-through).
         exportService.export(rawSn);
         JsonNode doc = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         JsonNode ea = doc.get("event");
         assertThat(ea).isNotNull();
         assertThat(ea.path("event_class").asText()).isEqualTo("assault");

@@ -207,10 +207,10 @@ class DatasetExportE2EIT {
         Path orgnlDir = versionDir(rawSn, 1, ExportKind.ORIGINAL);
         Path deidDir = versionDir(rawSn, 1, ExportKind.DEIDENTIFIED);
         for (int i = 0; i < FRAME_COUNT; i++) {
-            assertThat(orgnlDir.resolve("frame-" + i + ".jpg")).exists().isRegularFile();
-            assertThat(orgnlDir.resolve("frame-" + i + ".json")).exists().isRegularFile();
-            assertThat(deidDir.resolve("frame-" + i + ".jpg")).exists().isRegularFile();
-            assertThat(deidDir.resolve("frame-" + i + ".json")).exists().isRegularFile();
+            assertThat(orgnlDir.resolve(ExportFileNaming.imageFileName(i))).exists().isRegularFile();
+            assertThat(orgnlDir.resolve(ExportFileNaming.jsonFileName(i))).exists().isRegularFile();
+            assertThat(deidDir.resolve(ExportFileNaming.imageFileName(i))).exists().isRegularFile();
+            assertThat(deidDir.resolve(ExportFileNaming.jsonFileName(i))).exists().isRegularFile();
         }
     }
 
@@ -222,7 +222,7 @@ class DatasetExportE2EIT {
         exportService.export(rawSn);
 
         JsonNode doc = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         assertThat(doc.has("info")).isTrue();
         assertThat(doc.has("dataset")).isTrue();
         assertThat(doc.has("licences")).isTrue();
@@ -252,9 +252,9 @@ class DatasetExportE2EIT {
         exportService.export(rawSn);
 
         JsonNode orgnl = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         JsonNode deid = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         assertThat(orgnl.path("image").path("anonymity").asText()).isEqualTo("N");
         assertThat(deid.path("image").path("anonymity").asText()).isEqualTo("Y");
     }
@@ -293,7 +293,7 @@ class DatasetExportE2EIT {
         for (ExportKind kind : List.of(ExportKind.ORIGINAL, ExportKind.DEIDENTIFIED)) {
             for (int i = 0; i < FRAME_COUNT; i++) {
                 JsonNode doc = objectMapper.readTree(
-                        versionDir(rawSn, 1, kind).resolve("frame-" + i + ".json").toFile());
+                        versionDir(rawSn, 1, kind).resolve(ExportFileNaming.jsonFileName(i)).toFile());
                 assertThat(doc.has("event_annotation")).isFalse();
                 JsonNode ea = doc.get("event");
                 assertThat(ea).isNotNull();
@@ -315,7 +315,7 @@ class DatasetExportE2EIT {
         exportService.export(rawSn);
 
         JsonNode doc = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         assertThat(doc.has("event")).isTrue();
         assertThat(doc.get("event").isNull()).isTrue();
     }
@@ -343,15 +343,15 @@ class DatasetExportE2EIT {
         exportService.export(rawSn);        // v2
 
         // v1 보존
-        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json")).exists();
-        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists();
+        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).exists();
+        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0))).exists();
         // v2 신규
-        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json")).exists();
-        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists();
+        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).exists();
+        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0))).exists();
 
-        // v2 orgnl frame-0 은 라벨 2건(car, bus) 반영
+        // v2 orgnl frameNo=0 은 라벨 2건(car, bus) 반영
         JsonNode v2doc = objectMapper.readTree(
-                versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         assertThat(v2doc.path("annotations")).hasSize(2);
 
         List<LsDatasetExport> exports = txTemplate.execute(s ->
@@ -380,10 +380,10 @@ class DatasetExportE2EIT {
         assertThat(count).isEqualTo(2);
 
         // ② v2 폴더/JSON 파일이 v1과 다른 버전 디렉터리로 디스크에 실제 생성
-        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json")).exists().isRegularFile();
-        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists().isRegularFile();
-        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json")).exists().isRegularFile();
-        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0))).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0))).exists().isRegularFile();
         assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL)).isNotEqualTo(versionDir(rawSn, 2, ExportKind.ORIGINAL));
 
         // ③ 최신(최대 버전)이자 최신 SUCCEEDED export 가 v2
@@ -411,6 +411,6 @@ class DatasetExportE2EIT {
 
         long count = txTemplate.execute(s -> exportRepository.countByDataRawSn(rawSn));
         assertThat(count).isEqualTo(1);
-        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json")).doesNotExist();
+        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).doesNotExist();
     }
 }

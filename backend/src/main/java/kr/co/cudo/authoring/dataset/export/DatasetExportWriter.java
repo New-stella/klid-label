@@ -28,7 +28,8 @@ import java.util.List;
  * <h3>동작</h3>
  * <ul>
  *   <li>{@code dir = pathResolver.resolve(rawSn, kind, version)} → {@code Files.createDirectories(dir)}.</li>
- *   <li>프레임마다 원천 이미지가 존재하면 {@code frame-{frameNo}.jpg} 복사 + {@code frame-{frameNo}.json} 기록(writtenCnt).</li>
+ *   <li>프레임마다 원천 이미지가 존재하면 {@link ExportFileNaming} 규칙({@code 0338.jpg}/{@code 0338.json})으로
+ *       이미지 복사 + JSON 기록(writtenCnt).</li>
  *   <li>원천 이미지 부재/이탈 프레임은 건너뛰고 집계(skippedCnt) — 부분성공.</li>
  * </ul>
  *
@@ -116,12 +117,19 @@ public class DatasetExportWriter {
         return new ExportResult(kind, version, written, skipped, dir);
     }
 
-    /** 한 프레임의 이미지 복사 + JSON(원자적 교체) 기록. 경로는 모두 {@code dir} 하위. */
+    /**
+     * 한 프레임의 이미지 복사 + JSON(원자적 교체) 기록. 경로는 모두 {@code dir} 하위.
+     *
+     * <p><b>파일명은 {@link ExportFileNaming} 단일 지점을 따른다(A-3)</b> — 관제 수정 통지의
+     * {@code changed_items} 도 같은 규칙으로 파일명을 싣는다. 여기서 다른 규칙을 쓰면 관제 워커가
+     * 존재하지 않는 파일을 픽업한다(구 {@code frame-{n}.jpg} 형식 폐기).
+     * 경로·디렉터리 구조는 {@link DatasetExportPathResolver} 소관이라 여기서 바꾸지 않는다.
+     */
     private void writeFrame(Path dir, long frameNo, Path image, NiaAnnotationDoc doc,
                             long rawSn, ExportKind kind) {
-        Path imageTarget = dir.resolve("frame-" + frameNo + ".jpg");
-        Path jsonTarget = dir.resolve("frame-" + frameNo + ".json");
-        Path jsonTmp = dir.resolve("frame-" + frameNo + ".json.tmp");
+        Path imageTarget = dir.resolve(ExportFileNaming.imageFileName(frameNo));
+        Path jsonTarget = dir.resolve(ExportFileNaming.jsonFileName(frameNo));
+        Path jsonTmp = dir.resolve(ExportFileNaming.jsonFileName(frameNo) + ".tmp");
         try {
             Files.copy(image, imageTarget, StandardCopyOption.REPLACE_EXISTING);
             // 원자적 쓰기: tmp 기록 후 교체(부분쓰기 방지).

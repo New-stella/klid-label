@@ -72,6 +72,16 @@ authoring:
   integration:
     deidentify:
       mock-mode: ${DEIDENTIFY_MOCK_MODE:true}
+  # D-48 — 로컬은 관제 통지를 **켜고 목 서버(:9400)로 실제 HTTP 왕복**한다.
+  #   내부 목모드로 외부 호출을 우회하지 않는다(구속 규칙) — mock-server 의
+  #   POST /api/data-set/v2/jobs/{job_id}/notify-completed|notify-updated 가 관제 계약을 흉내내며
+  #   409(job_id 중복)/404(선행 완료 없음)를 실제로 돌려주므로 자기치유 분기가 실동작으로 검증된다.
+  #   docker compose(local override)에서는 CONTROL_NOTIFY_URL=http://klid-mock-server:9400 이 주입되고,
+  #   네이티브 bootRun 은 아래 기본값(호스트 발행 포트 9400)을 사용한다.
+  #   목 서버 없이 띄우려면 CONTROL_NOTIFY_ENABLED=false 로 끈다(통지 미발송).
+  control-notify:
+    enabled: ${CONTROL_NOTIFY_ENABLED:true}
+    url: ${CONTROL_NOTIFY_URL:http://localhost:9400}
   # HIGH-5 fix (OWASP A06): 로컬 FE 개발 서버 기본 허용.
   #   SecurityConfig 가 ${authoring.cors.allowed-origins} 를 읽으므로 반드시 authoring 하위에 위치해야 한다.
   #   (과거 kpst 하위 오배치 → authoring.cors.allowed-origins 가 빈 기본값으로 남아 브라우저 Origin
