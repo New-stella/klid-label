@@ -38,7 +38,11 @@ public interface LsDeidentProcLogRepository extends JpaRepository<LsDeidentProcL
      */
     Optional<LsDeidentProcLog> findByExternalJobId(String externalJobId);
 
-    @Query("SELECT p FROM LsDeidentProcLog p WHERE p.dataRawSn = :rawSn AND p.procSttsCd = '" + LsDeidentProcLog.SUCCEEDED + "' ORDER BY p.reqDt DESC")
+    // 5A carry-over(Phase 5C) — 데이터마트 뷰 V_COMPLETED_VIDEO(비식별 경로 lateral join)는
+    //   ORDER BY REQ_DT DESC, PROC_LOG_SN DESC 로 최신 성공 1건을 고른다. 앱 조회가 REQ_DT DESC 만이면
+    //   동일 REQ_DT(재비식별 등) 시 뷰와 다른 행을 골라 비식별 경로가 불일치할 수 있다. 2차 키(PROC_LOG_SN
+    //   DESC, IDENTITY 증가라 결정적)를 추가해 뷰와 정확히 같은 행을 선택하도록 정렬을 정합시킨다.
+    @Query("SELECT p FROM LsDeidentProcLog p WHERE p.dataRawSn = :rawSn AND p.procSttsCd = '" + LsDeidentProcLog.SUCCEEDED + "' ORDER BY p.reqDt DESC, p.procLogSn DESC")
     List<LsDeidentProcLog> findSuccessHistory(@Param("rawSn") Long rawSn, PageRequest pageable);
 
     /**

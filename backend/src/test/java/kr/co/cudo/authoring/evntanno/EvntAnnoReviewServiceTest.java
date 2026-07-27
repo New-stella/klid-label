@@ -124,7 +124,9 @@ class EvntAnnoReviewServiceTest {
         // 재동결은 지연 승인 시각(now())이 아니라 기존 활성 스냅샷의 승인 시각을 그대로 승계해야 한다(A 결함 방어).
         verify(snapshotService).materialize(eq(RAW_SN), eq(ORIGINAL_APPROVED_AT));
         verify(snapshotService, never()).materialize(any());   // 1-arg(now()) 경로는 절대 호출 금지
-        verify(eventPublisher).publishEvent(any(DatasetReExportEvent.class));
+        // MED-F(Phase 5C) — 재산출 트리거는 TaskModifiedEvent(regen=true) 한 축뿐. DatasetReExportEvent 병행
+        //   발행(이중 export → 유령 버전 폴더)은 제거됐다.
+        verify(eventPublisher, never()).publishEvent(any(DatasetReExportEvent.class));
         verify(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
     }
 
@@ -151,14 +153,15 @@ class EvntAnnoReviewServiceTest {
         service.approve(RAW_SN, reviewer());
 
         // 재생성 표식은 발행처 클래스명이 아니라 이벤트가 실어 나른다 — 통지 조립부가 이 값으로만
-        // changed_items 범위를 정한다. (같은 트랜잭션에서 DatasetReExportEvent 도 함께 발행된다)
+        // changed_items 범위를 정한다. MED-F(Phase 5C): 이 한 축(TaskModifiedEvent regen=true)이 export
+        // 전량 재생성 → 통지를 직렬화하므로 DatasetReExportEvent 는 더 이상 발행하지 않는다.
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
         verify(eventPublisher, org.mockito.Mockito.atLeastOnce()).publishEvent(captor.capture());
         assertThat(captor.getAllValues()).anySatisfy(e -> {
             assertThat(e).isInstanceOf(TaskModifiedEvent.class);
             assertThat(((TaskModifiedEvent) e).exportRegenerated()).isTrue();
         });
-        assertThat(captor.getAllValues()).anySatisfy(e ->
+        assertThat(captor.getAllValues()).noneSatisfy(e ->
                 assertThat(e).isInstanceOf(DatasetReExportEvent.class));
     }
 

@@ -343,6 +343,9 @@ class TrackEditServiceTest {
         assertThat(cap.getAllValues()).allSatisfy(e -> assertThat(e.changeType()).isEqualTo("LABEL_DELETED"));
         // 삭제 프레임(110) + 재보간 터치 프레임(999) 모두 통지(데이터마트 드리프트 방지).
         assertThat(cap.getAllValues()).extracting(TaskModifiedEvent::srcSn).containsExactlyInAnyOrder(110L, 999L);
+        // Phase 5C 회귀 방어 — 승인 후 트랙 편집은 export JSON 을 바꾸므로 exportRegenerated=true 로 발행돼야
+        //   디바운스 flush 가 export 를 새 버전으로 재생성한다. 4-arg(false)로 되돌리면 실패한다.
+        assertThat(cap.getAllValues()).allMatch(TaskModifiedEvent::exportRegenerated);
     }
 
     // ---------- R5 트랙 split ----------

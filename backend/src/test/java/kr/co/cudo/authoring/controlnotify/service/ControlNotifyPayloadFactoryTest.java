@@ -173,7 +173,7 @@ class ControlNotifyPayloadFactoryTest {
     @DisplayName("요청한_srcSn_전부가_미해결이면_changed_items_가_비고_전체건수가_메트릭에_기록된다")
     void allUnresolvedSrcSnsYieldEmptyChangedItemsAndMetric() {
         // given — 요청 프레임이 모두 해석되지 않는다(삭제된 프레임 등). 사일런트 드롭 금지(S10).
-        when(srcRepository.findExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any())).thenReturn(List.of());
+        when(srcRepository.findBothVelExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any())).thenReturn(List.of());
 
         // when
         TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(9001L, 9002L));
@@ -188,7 +188,7 @@ class ControlNotifyPayloadFactoryTest {
     @DisplayName("changed_items_파일명이_SRC_SN_이_아니라_FRM_NO_4자리_zero_pad_형식이다")
     void changedItemsUseZeroPaddedFrameNo() {
         // given — srcSn 5001 → frmNo 7, srcSn 5002 → frmNo 338
-        when(srcRepository.findExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any()))
+        when(srcRepository.findBothVelExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any()))
                 .thenReturn(List.<Object[]>of(new Object[]{5001L, 7L}, new Object[]{5002L, 338L}));
 
         // when
@@ -206,7 +206,7 @@ class ControlNotifyPayloadFactoryTest {
     @DisplayName("존재하지_않는_srcSn_이_섞여도_나머지_프레임이_전송되고_경고가_남는다")
     void unresolvedSrcSnIsCountedNotSilentlyDropped() {
         // given — 5002 는 삭제된 프레임이라 조회되지 않는다.
-        when(srcRepository.findExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any()))
+        when(srcRepository.findBothVelExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any()))
                 .thenReturn(List.<Object[]>of(new Object[]{5001L, 7L}));
 
         // when
@@ -229,6 +229,25 @@ class ControlNotifyPayloadFactoryTest {
         assertThat(payload.changedItems().images()).isEmpty();
         assertThat(payload.jobId()).isEqualTo("26");
         verify(metrics, org.mockito.Mockito.never()).incrementUnresolvedFrame(anyInt());
+    }
+
+    @Test
+    @DisplayName("MED1_한쪽_벌만_보유한_프레임은_buildModified의_changed_items에서_제외된다")
+    void singleVelFramesExcludedFromBuildModified() {
+        // given — 증강 파생 등으로 비식별(또는 원본) 벌 하나만 보유한 프레임(예: 5002)은 both-벌 쿼리에
+        //   걸리지 않아 반환되지 않는다. changed_items 파일명 1건은 원본/비식별 두 벌을 모두 가리키므로
+        //   한쪽만 있는 프레임을 실으면 관제가 없는 벌을 픽업해 404 가 난다(MED-1). 두 벌을 다 가진
+        //   프레임(5001)만 both-벌 쿼리로 조회된다.
+        when(srcRepository.findBothVelExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{5001L, 7L}));
+
+        // when — 5001(양 벌 보유), 5002(한쪽 벌만) 를 changed 로 요청
+        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(5001L, 5002L));
+
+        // then — 양 벌 프레임만 실리고, 한쪽 벌만인 5002 는 제외(미해석 1건 메트릭). 통지 자체는 나간다.
+        assertThat(payload.changedItems().jsons()).containsExactly("0007.json");
+        assertThat(payload.changedItems().images()).isEmpty();
+        verify(metrics).incrementUnresolvedFrame(1);
     }
 
     @Test

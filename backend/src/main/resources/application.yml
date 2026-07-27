@@ -176,6 +176,14 @@ authoring:
   #   Phase 1 은 인프라(추적 테이블·경로 리졸버)만 도입하며, 실제 파일 쓰기/승인 연동은 후속 Phase.
   dataset-export:
     enabled: ${DATASET_EXPORT_ENABLED:true}
+    # MED-1(Phase 5C) — 승인 후 수정 → v{n+1} export 전량 재생성을 발화시키는 디바운스 flush 스케줄러 토글.
+    #   ControlNotifyDebouncer 는 이 flush 를 @Scheduled(=@EnableScheduling 의존)가 아니라 자신이 소유한
+    #   데몬 스레드 1개짜리 전용 스케줄러로 돌린다(RoleClaimAttemptPurgeJob/WebhookGuardPurgeJob 동형).
+    #   그래서 control-notify/work-lock/resolution 등 무관한 스케줄러 토글의 on/off 와 독립적으로 항상 tick 하며,
+    #   다른 @Scheduled 잡(Portal/TUS sweep)을 부수적으로 발화시키지 않는다.
+    #   기본 활성 — 운영에서 끄지 말 것(끄면 승인 후 수정이 재생성까지 도달하지 못함). 테스트만 격리 목적 false.
+    regen-flush:
+      enabled: ${DATASET_EXPORT_REGEN_FLUSH_ENABLED:true}
     # 산출 루트 전략(A-8 롤백 플래그).
     #   co-locate(기본) — dirname(RAW_FILE_PATH_NM)/{RAW_SN}/ 아래 deid/ + v{n}/{orgnl|deid}/.
     #                     관제가 경로 1개로 비식별 영상 + 전 버전 산출물을 픽업한다.

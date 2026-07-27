@@ -177,9 +177,10 @@ public class ControlNotifyPayloadFactory {
      * SRC_SN → FRM_NO 변환. 조회되지 않은 srcSn 은 <b>사일런트 드롭하지 않고</b> 경고 로그 +
      * 메트릭을 남기고 나머지는 정상 전송한다(S10).
      *
-     * <p>미해석 사유는 두 가지다 — ①해당 rawSn 에 없는 srcSn ②원천 이미지 경로를 어느 벌에서도
-     * 보유하지 않아 export 산출물이 없는 프레임(B-1). 두 경우 모두 파일명을 실으면 관제가 없는
-     * 파일을 픽업하므로 제외하고 관측만 남긴다.
+     * <p>미해석 사유는 세 가지다 — ①해당 rawSn 에 없는 srcSn ②원천 이미지 경로를 어느 벌에서도
+     * 보유하지 않아 export 산출물이 없는 프레임(B-1) ③<b>한쪽 벌만</b> 보유한 프레임(MED-1) — 파일명 1건이
+     * 두 벌을 가리키므로 없는 벌을 관제가 픽업해 404 가 난다. 세 경우 모두 파일명을 실으면 관제가 없는
+     * 파일을 픽업하므로 제외하고 관측만 남긴다({@link LsDataSrcRepository#findBothVelExportableFrameNoByRawSnAndSrcSnIn}).
      */
     private List<Long> resolveFrameNos(Long rawSn, Collection<Long> changedSrcSns) {
         if (changedSrcSns == null || changedSrcSns.isEmpty()) {
@@ -192,7 +193,9 @@ public class ControlNotifyPayloadFactory {
         }
 
         Map<Long, Long> frameNoBySrcSn = new LinkedHashMap<>();
-        for (Object[] row : srcRepository.findExportableFrameNoByRawSnAndSrcSnIn(rawSn, requested)) {
+        // MED-1 — 두 벌(원본+비식별)을 모두 보유한 프레임만. 한쪽 벌만 있는 프레임은 changed_items 에서
+        //   제외해 관제 404 를 막는다(전량 재생성 경로 buildModifiedForAllFrames 는 "둘 중 하나라도"를 유지).
+        for (Object[] row : srcRepository.findBothVelExportableFrameNoByRawSnAndSrcSnIn(rawSn, requested)) {
             frameNoBySrcSn.put((Long) row[0], (Long) row[1]);
         }
 

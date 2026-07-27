@@ -195,8 +195,10 @@ public class TrackMergeService {
                 if (published >= MAX_NOTIFY_FRAMES) {
                     break;
                 }
+                // C-1(Phase 5C) — 트랙 병합은 라벨 좌표를 바꾼다. 라벨 본문은 데이터마트 뷰가 없어
+                //   파일 재생성만이 동기화 수단이므로 승인 후 수정은 exportRegenerated=true 로 발행한다.
                 eventPublisher.publishEvent(
-                        new TaskModifiedEvent(rawSn, srcSn, ChangeType.LABEL_UPDATED, actorNo));
+                        new TaskModifiedEvent(rawSn, srcSn, ChangeType.LABEL_UPDATED, actorNo, true));
                 published++;
             }
         } catch (RuntimeException ex) {

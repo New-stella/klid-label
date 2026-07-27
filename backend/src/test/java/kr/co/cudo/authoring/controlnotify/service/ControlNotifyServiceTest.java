@@ -248,19 +248,45 @@ class ControlNotifyServiceTest {
     }
 
     @Test
-    @DisplayName("수정통지_페이로드_조립에_실패해도_폴백큐에_적재된다")
-    void modifiedPayloadBuildFailure_enqueuesForRebuild() {
-        // given
+    @DisplayName("MED2_재생성없는_수정통지_조립실패시_빈_changed_items_로_적재되어_재시도때_전프레임_blast_안됨")
+    void modifiedBuildFailure_nonRegen_enqueuesEmptyPayloadNotRebuildAll() {
+        // given — exportRegenerated=false(메타 수정 등, 파일 미재생성)인데 페이로드 조립이 일시 실패.
         when(payloadFactory.buildModified(eq(RAW_SN), any()))
                 .thenThrow(new IllegalStateException("db down"));
 
         // when
         svc.sendModified(RAW_SN, frameChanges(), Set.of(), false);
 
-        // then
+        // then — MED-2: REBUILD_REQUIRED("")로 적재하면 재시도 Job 이 buildModifiedForAllFrames 로
+        //   무조건 전 프레임을 발송한다(파일 안 바뀐 메타 수정인데 관제가 수천 파일 헛 재픽업). 대신
+        //   changed_items 를 비운 구체 페이로드로 적재해, 재시도 시 그대로 빈 통지가 나가도록 플래그를 보존한다.
         verify(client, never()).sendTaskModified(any());
         verify(metrics).incrementModifiedFailed();
-        verify(fallbackService).enqueuePending(anyString(), eq("TASK_MODIFIED"), eq(RAW_SN), eq(""));
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(fallbackService).enqueuePending(
+                anyString(), eq("TASK_MODIFIED"), eq(RAW_SN), payloadCaptor.capture());
+        String queued = payloadCaptor.getValue();
+        assertThat(queued).isNotEqualTo(LsControlNotifyFallback.PAYLOAD_REBUILD_REQUIRED);
+        assertThat(queued).contains("\"images\":[]").contains("\"jsons\":[]");
+        assertThat(queued).contains("\"job_id\":\"" + RAW_SN + "\"");
+    }
+
+    @Test
+    @DisplayName("MED2_재생성동반_수정통지_조립실패시_REBUILD_REQUIRED로_적재되어_재시도때_전프레임_재조립됨")
+    void modifiedBuildFailure_regen_enqueuesRebuildRequired() {
+        // given — exportRegenerated=true(라벨/촬영환경 수정 → 전량 재생성)인데 조립 실패.
+        when(payloadFactory.buildModifiedForAllFrames(RAW_SN))
+                .thenThrow(new IllegalStateException("db down"));
+
+        // when
+        svc.sendModified(RAW_SN, frameChanges(), Set.of(), true);
+
+        // then — 파일이 전량 재생성됐으므로 재시도 시 전 프레임을 재조립해야 한다(REBUILD_REQUIRED 보존).
+        verify(client, never()).sendTaskModified(any());
+        verify(metrics).incrementModifiedFailed();
+        verify(fallbackService).enqueuePending(
+                anyString(), eq("TASK_MODIFIED"), eq(RAW_SN),
+                eq(LsControlNotifyFallback.PAYLOAD_REBUILD_REQUIRED));
     }
 
     @Test

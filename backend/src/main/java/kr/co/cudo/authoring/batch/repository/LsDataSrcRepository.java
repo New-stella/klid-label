@@ -74,6 +74,26 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
                                                           @Param("srcSns") Collection<Long> srcSns);
 
     /**
+     * MED-1(Phase 5C) — <b>원본·비식별 두 벌을 모두 보유</b>한 프레임만 SRC_SN → FRM_NO 로 조회한다.
+     *
+     * <p>재생성을 동반하지 않은 프레임 단위 수정({@code exportRegenerated=false}, {@link #findExportableFrameNoByRawSnAndSrcSnIn}
+     * 의 "둘 중 하나라도 보유" 기준)에서는, 통지 {@code changed_items} 의 파일명 1건이 원본/비식별 <b>두 벌
+     * 모두</b>를 가리키는데 한쪽 벌만 산출된 프레임(증강 파생: 원본만, {@code AugmentExtractPersist} — 비식별
+     * 경로 null)의 파일명을 실으면 관제가 없는 벌을 픽업해 <b>404</b> 를 맞는다. 두 벌을 다 보유한 프레임만
+     * 실어 이 404 를 구조적으로 차단한다. 한쪽 벌만 있는(파생 등 homogeneous) 프레임은 제외되며, 통지 자체는
+     * 그대로 발송되어(D-ISSUE-43 유실 금지) 관제는 뷰로 재조회한다.
+     *
+     * <p>전량 재생성 경로({@link #findExportableFrameNosByRawSn}, {@code buildModifiedForAllFrames})는 이
+     * 필터를 쓰지 않는다 — 파생영상(한쪽 벌만 산출)의 통지가 통째로 비지 않도록 "둘 중 하나라도 보유"를
+     * 유지한다. 결과는 {@code [srcSn, frameNo]} Object 배열 리스트.
+     */
+    @Query("select s.srcSn as srcSn, s.frameNo as frameNo "
+            + "from LsDataSrc s where s.rawSn = :rawSn and s.srcSn in :srcSns "
+            + "and coalesce(s.srcFilePathNm, '') <> '' and coalesce(s.deIdntfSrcFilePathNm, '') <> ''")
+    List<Object[]> findBothVelExportableFrameNoByRawSnAndSrcSnIn(@Param("rawSn") Long rawSn,
+                                                                 @Param("srcSns") Collection<Long> srcSns);
+
+    /**
      * 영상의 <b>산출 가능한</b> 프레임 FRM_NO 목록 (재승인 시 전체 파일 변경 통지용).
      *
      * <p><b>원천 이미지 경로가 양쪽 다 비어 있는 프레임은 제외한다</b>(B-1): export writer 는 원천

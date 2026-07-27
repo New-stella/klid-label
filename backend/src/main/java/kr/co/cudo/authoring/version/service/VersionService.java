@@ -378,10 +378,13 @@ public class VersionService {
         LsLabelVersion result = upsertRollbackVersion(src, raw, activeVersions, newHash, snapshot, actor);
 
         // APPROVED(검수 완료) 영상은 라벨 변경이므로 TASK_MODIFIED(LABEL_UPDATED) 발행 (LabelService 패턴 재사용).
+        // HIGH-A(Phase 5C) — 롤백은 프레임 라벨을 과거 스냅샷으로 교체하므로 export JSON 도 바뀐다.
+        //   exportRegenerated=true 로 발행해 승인 후 수정 경로와 동일하게 export 폴더를 새 버전으로 전량
+        //   재생성한 뒤 통지가 나가게 한다(구 4-arg=false 는 롤백 전 라벨로 export 가 고착됐다).
         if (isReviewApproved(raw.getRawSn())) {
             Long actorNo = accessGuard.parseUserNo(actor.sub());
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    raw.getRawSn(), src.getSrcSn(), ChangeType.LABEL_UPDATED, actorNo));
+                    raw.getRawSn(), src.getSrcSn(), ChangeType.LABEL_UPDATED, actorNo, true));
         }
         return result;
     }

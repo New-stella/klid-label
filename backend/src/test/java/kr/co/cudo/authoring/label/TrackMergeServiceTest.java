@@ -280,7 +280,12 @@ class TrackMergeServiceTest {
                 .thenReturn(new TouchedFrames(1, Set.of(20L)));
 
         service.merge(RAW_SN, T_FROM, T_TO, worker());
-        verify(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
+        org.mockito.ArgumentCaptor<TaskModifiedEvent> cap =
+                org.mockito.ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher).publishEvent(cap.capture());
+        // Phase 5C 회귀 방어 — 승인 후 트랙 머지는 export JSON 을 바꾸므로 exportRegenerated=true 로 발행돼야
+        //   디바운스 flush 가 export 를 새 버전으로 재생성한다. 4-arg(false)로 되돌리면 실패한다.
+        assertThat(cap.getValue().exportRegenerated()).isTrue();
     }
 
     @Test

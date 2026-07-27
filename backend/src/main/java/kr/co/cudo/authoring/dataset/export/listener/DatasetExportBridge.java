@@ -37,13 +37,19 @@ public class DatasetExportBridge {
         Long rawSn = event.rawSn();
         log.info("[DatasetExportBridge] review approved rawSn={} — triggering dataset export (force regenerate)", rawSn);
         // R6 — 승인마다 내용 변경 여부와 무관하게 전량 재생성(force=true). 멱등 skip 미적용.
-        runner.runAsync(rawSn, true);
+        // C-2 — 승인 경로는 export 종결 후 DatasetExportCompletedEvent 를 발행해 통지가 뒤따르게 한다.
+        runner.runApprovalAsync(rawSn);
     }
 
     /**
-     * 재동결(예: event_annotation 지연 승인)로 동결 스냅샷이 갱신된 뒤 export 재생성을 트리거한다.
+     * 재동결로 동결 스냅샷이 갱신된 뒤 export 재생성을 트리거한다.
      * {@code onReviewApproved} 와 동일하게 AFTER_COMMIT 로 재동결 커밋 후에만 산출을 시작하며,
      * TASK_COMPLETED 재발행 없이 export 만 갱신한다(통지는 발행 측이 TASK_MODIFIED 로 별도 처리).
+     *
+     * <p><b>휴면 리스너(Phase 5C LOW-3)</b>: {@link DatasetReExportEvent} 는 현재 <b>발행처가 없다</b>
+     * (event_annotation 지연 승인 경로가 {@code TaskModifiedEvent(regen=true)} 단일 축으로 통일됨 — MED-F).
+     * 이 배선은 향후 재동결형 재산출 경로를 위한 테스트된 확장점으로 존치한다(사유는 {@link DatasetReExportEvent}
+     * javadoc 참조).
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onReExport(DatasetReExportEvent event) {

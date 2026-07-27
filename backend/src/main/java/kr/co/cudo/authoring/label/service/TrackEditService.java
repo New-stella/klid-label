@@ -321,7 +321,9 @@ public class TrackEditService {
                 if (published >= MAX_NOTIFY_FRAMES) {
                     break;
                 }
-                eventPublisher.publishEvent(new TaskModifiedEvent(rawSn, srcSn, changeType, actorNo));
+                // C-1(Phase 5C) — 트랙 편집은 라벨 좌표를 바꾼다. 라벨 본문은 데이터마트 뷰가 없어(V114 제거)
+                //   파일 재생성만이 동기화 수단이므로 승인 후 수정은 exportRegenerated=true 로 발행한다.
+                eventPublisher.publishEvent(new TaskModifiedEvent(rawSn, srcSn, changeType, actorNo, true));
                 published++;
             }
         } catch (RuntimeException ex) {

@@ -9,7 +9,6 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
-import kr.co.cudo.authoring.dataset.export.event.DatasetReExportEvent;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
 import kr.co.cudo.authoring.evntanno.entity.LsEvntAnno;
@@ -193,9 +192,9 @@ public class EvntAnnoReviewService {
      *       버전이 append 된다. 이때 <b>검수 완료 일시(RVW_CMPL_DT)는 기존 활성 스냅샷 값을 승계</b>한다 —
      *       1-arg 오버로드(=now())로 호출하면 새 행의 승인 시각이 <b>지연 승인 시각</b>으로 덮여
      *       {@code V_COMPLETED_VIDEO.REVIEW_COMPLETED_AT}·포털 복제본이 오염된다(TASK_COMPLETED 계약 위반).</li>
-     *   <li>{@link DatasetReExportEvent} 발행 — AFTER_COMMIT 로 export 재생성만 트리거(TASK_COMPLETED 재발행 없음).</li>
-     *   <li>{@link TaskModifiedEvent}(META_UPDATED) 발행 — 완료된 작업의 후속 수정 통지(CLAUDE.md 통지 정책,
-     *       {@code EvntAnnoService.upsert} 발행 패턴과 동일).</li>
+     *   <li>{@link TaskModifiedEvent}(META_UPDATED, {@code exportRegenerated=true}) 발행 — 완료된 작업의 후속
+     *       수정 통지(CLAUDE.md 통지 정책). MED-F(Phase 5C): 이 한 축이 export 전량 재생성 → 통지를 직렬화한다.
+     *       구 {@code DatasetReExportEvent} 병행 발행은 이중 export(유령 버전 폴더)를 만들어 제거했다.</li>
      * </ol>
      *
      * <p>영상이 아직 미승인이면 트리거하지 않는다 — 이후 영상 승인의 materialize 가 이미 승인된
@@ -221,10 +220,13 @@ public class EvntAnnoReviewService {
         // 재동결: 방금 승인된 event_annotation 을 동결본에 반영(내용 변경 시 새 active 스냅샷 버전 append).
         // 검수 완료 일시는 기존 활성 스냅샷 값을 승계한다(지연 승인 시각으로 덮지 않음 — A 결함 방어).
         snapshotService.materialize(rawSn, frozenReviewCompletedAt(rawSn));
-        // export 재생성(TASK_COMPLETED 재발행 없이 export 만 갱신) + 완료 작업 수정 통지(TASK_MODIFIED).
-        eventPublisher.publishEvent(new DatasetReExportEvent(rawSn));
-        // exportRegenerated=true — 바로 위에서 DatasetReExportEvent 를 발행해 프레임 이미지·JSON 이 전량
-        // 재생성되므로, 통지도 전 프레임을 changed_items 에 실어 관제가 새 산출물을 재픽업하게 한다(A-2).
+        // MED-F(Phase 5C) — 재산출 트리거는 TaskModifiedEvent(exportRegenerated=true) 한 축으로만 한다.
+        //   구 구현은 DatasetReExportEvent(→ 항상활성 DatasetExportBridge export) 와 TaskModifiedEvent(regen=true)
+        //   (→ 디바운서 flush 가 runReExportThenNotify 로 또 export)를 둘 다 발행해 전량 재생성이 2회 일어나고
+        //   유령 버전 폴더가 1개 append 됐다(전 버전 보존이라 삭제 안 됨). HIGH-E 재배선으로 TaskModifiedEvent
+        //   (regen=true)가 export(전량 재생성) → 통지를 단일 경로로 직렬화하므로 DatasetReExportEvent 는 제거한다.
+        //   exportRegenerated=true 로 프레임 이미지·JSON 이 전량 재생성되고, 통지도 전 프레임을 실어 관제가
+        //   새 산출물을 재픽업한다(A-2). materialize(재동결) 자체는 그대로 유지한다.
         eventPublisher.publishEvent(new TaskModifiedEvent(
                 rawSn, null, ChangeType.META_UPDATED, parseActor(reviewer), true));
         log.info("[EvntAnno] late-approval re-freeze triggered rawSn={}", rawSn);

@@ -91,10 +91,22 @@ public class ControlNotifyService {
     }
 
     /**
-     * 검수 완료 시 즉시 전송. 409(이미 등록된 job) 면 수정 통지로 자기치유한다.
+     * 검수 완료 통지 전송(이벤트 오버로드). 409(이미 등록된 job) 면 수정 통지로 자기치유한다.
+     *
+     * <p>C-2 이후 이 오버로드는 하위호환/테스트 진입점으로 유지하며, 실 발송 트리거는
+     * {@code ControlNotifyEventListener#onExportCompleted}(export 종결 후) → {@link #sendCompleted(Long)} 다.
      */
     public void sendCompleted(ReviewApprovedEvent event) {
-        Long rawSn = event.rawSn();
+        sendCompleted(event.rawSn());
+    }
+
+    /**
+     * 검수 완료 통지 전송. 409(이미 등록된 job) 면 수정 통지로 자기치유한다.
+     *
+     * <p><b>C-2</b>: export SUCCEEDED 이후에 호출되어야 관제가 조회하는
+     * {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 이 이번 승인의 새 버전 폴더를 담는다.
+     */
+    public void sendCompleted(Long rawSn) {
         String requestId = UUID.randomUUID().toString();
         TaskCompletedPayload payload;
         try {
@@ -127,8 +139,9 @@ public class ControlNotifyService {
      *
      * <h3>changed_items 범위는 "export 재생성을 동반했는가" 로 결정한다 (A-2)</h3>
      * <ul>
-     *   <li><b>재생성 동반</b>({@code exportRegenerated=true}, 예: event_annotation 지연 승인 →
-     *       {@code DatasetReExportEvent}) — 프레임 이미지·JSON 이 전량 재생성되므로
+     *   <li><b>재생성 동반</b>({@code exportRegenerated=true}, 예: 승인 후 라벨/촬영환경 수정 →
+     *       {@code TaskModifiedEvent(regen=true)} → 디바운스 flush 가 export 를 전량 재생성한 뒤 통지) —
+     *       프레임 이미지·JSON 이 전량 재생성되므로
      *       {@link ControlNotifyPayloadFactory#buildModifiedForAllFrames} 로 전 프레임을 싣는다.
      *       여기서 changed_items 를 비우면 관제는 "변경 0건"으로 아무것도 재픽업하지 않아 디스크와 관제
      *       보유본이 영구 불일치한다.</li>
@@ -155,11 +168,22 @@ public class ControlNotifyService {
                     ? payloadFactory.buildModifiedForAllFrames(rawSn)
                     : payloadFactory.buildModified(rawSn, FrameChangeSet.srcSnsOf(frameChanges));
         } catch (Exception e) {
-            log.warn("[ControlNotify] TASK_MODIFIED payload build failed rawSn={} reason={} -> queued for rebuild",
-                    rawSn, e.getClass().getSimpleName());
+            log.warn("[ControlNotify] TASK_MODIFIED payload build failed rawSn={} reason={} exportRegenerated={} -> queued",
+                    rawSn, e.getClass().getSimpleName(), exportRegenerated);
             metrics.incrementModifiedFailed();
-            enqueueQuietly(requestId, EVENT_MODIFIED, rawSn,
-                    LsControlNotifyFallback.PAYLOAD_REBUILD_REQUIRED);
+            // MED-2 — 폴백 재조립 시 exportRegenerated 플래그를 보존한다. 조립 실패로 REBUILD_REQUIRED
+            //   로만 적재하면, 재시도 Job 이 dispatchModified(null) → buildModifiedForAllFrames 로 <b>무조건
+            //   전 프레임</b>을 발송한다. 파일이 재생성되지 않은 메타 수정(exportRegenerated=false)이 그렇게
+            //   재시도되면 관제가 안 바뀐 수천 파일을 헛 재픽업한다.
+            //   - regen=true  → REBUILD_REQUIRED(재시도 시 전 프레임 재조립). 파일이 전량 재생성됐으므로 옳다.
+            //   - regen=false → changed_items 를 빈 채로 확정 적재(DB 불필요, job_id 만 필요). 재시도 시
+            //     그대로 전송돼 관제는 통지만 받고 V_COMPLETED_META 등 뷰로 메타를 재조회한다(설계된 흐름).
+            String queuedPayload = exportRegenerated
+                    ? LsControlNotifyFallback.PAYLOAD_REBUILD_REQUIRED
+                    : serializePayload(new TaskModifiedPayload(
+                            ControlNotifyPayloadFactory.toJobId(rawSn),
+                            TaskModifiedPayload.ChangedItems.empty()));
+            enqueueQuietly(requestId, EVENT_MODIFIED, rawSn, queuedPayload);
             return;
         }
 

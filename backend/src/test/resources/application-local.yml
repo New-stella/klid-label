@@ -40,6 +40,13 @@ authoring:
     # 실패 export 회수 잡도 동일 격리 — 회수 로직 검증은 DatasetExportFailureRecoverer 를 직접 호출한다.
     failure-recovery:
       enabled: false
+    # MED-1(Phase 5C) — export 재생성 디바운스 flush 전용 스케줄러도 동일 격리(기본 활성이나 테스트에서는 false).
+    #   운영은 application.yml 기본값(true)으로 활성화되어 승인 후 수정이 재생성까지 도달한다.
+    #   테스트에서 켜면 @SpringBootTest 컨텍스트마다 flush 스케줄러 스레드가 상주해 캐시 수명 동안 tick 하므로 끈다.
+    #   flush 로직은 flushExpiredWindows() 직접 호출로 검증하고, 스케줄 발화 배선은
+    #   ControlNotifyDebounceFlushSchedulerTest 가 전용 스케줄러 tick 을 직접 검증한다.
+    regen-flush:
+      enabled: false
   # dev-seed.sql 자동 적재 Runner — 일반 테스트 컨텍스트에서는 비활성화하여 시드 INSERT/DELETE 가
   # 다른 통합테스트의 테이블 상태를 오염시키지 않도록 격리한다. DevSeedRunner 전용 테스트는
   # @TestPropertySource(authoring.dev.seed.enabled=true) 로 개별 활성화한다.

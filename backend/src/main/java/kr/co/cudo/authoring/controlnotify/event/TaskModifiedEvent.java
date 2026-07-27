@@ -10,9 +10,12 @@ package kr.co.cudo.authoring.controlnotify.event;
  * <b>발행처 클래스명으로 추정하지 않고 이벤트가 직접 싣는다</b> — 새 발행처가 생겨도 규칙이 유지되고,
  * 통지 조립부가 발행처를 알 필요가 없기 때문이다.
  * <ul>
- *   <li>{@code true} — 같은 트랜잭션에서
- *       {@link kr.co.cudo.authoring.dataset.export.event.DatasetReExportEvent} 를 함께 발행해
- *       프레임 이미지·JSON 이 전량 재생성된다. 통지는 전 프레임을 changed_items 에 싣는다.</li>
+ *   <li>{@code true} — 재생성 경로다. 이 이벤트는 {@code ControlNotifyDebouncer} 의 디바운스 윈도우에
+ *       축적되고, 만료 flush({@code flushExpiredWindows})가 {@code AsyncDatasetExportRunner#runReExportThenNotify}
+ *       로 위임해 <b>export 폴더를 새 버전으로 전량 재생성한 뒤</b> 통지 콜백을 실행한다(export→통지 직렬화).
+ *       프레임 이미지·JSON 이 전량 재생성되므로 통지는 전 프레임을 changed_items 에 싣는다.
+ *       (구 구현이 별도로 병행 발행하던 {@code DatasetReExportEvent} 는 이중 export/이중 통지를 유발해 제거됐다 —
+ *       재산출 트리거 축은 이 {@code regen=true} 한 경로뿐이다.)</li>
  *   <li>{@code false}(기본) — 디스크 산출물은 그대로다. 통지는 changed_items 를 비운 채 발송되고,
  *       관제는 통지를 받은 뒤 {@code V_COMPLETED_META} 등 뷰로 메타를 다시 읽는다
  *       (CLAUDE.md "관제서버 조회 패턴"). 파일이 안 바뀌었는데 전 프레임을 실으면 관제가 수천 개

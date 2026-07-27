@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.controlnotify.service;
 
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
+import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
 import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,28 +39,41 @@ class ControlNotifyDebouncerTest {
 
     private ControlNotifyService notifyService;
     private ControlNotifyMetrics metrics;
+    private AsyncDatasetExportRunner exportRunner;
     private ControlNotifyDebouncer debouncer;
 
     @BeforeEach
     void setUp() {
         notifyService = mock(ControlNotifyService.class);
         metrics = mock(ControlNotifyMetrics.class);
-        debouncer = new ControlNotifyDebouncer(notifyService, 60L, metrics);
+        exportRunner = mock(AsyncDatasetExportRunner.class);
+        // 전용 flush 스케줄러 비활성(false) — 단위 테스트는 flushExpiredWindows()/flushAll() 을 직접 호출한다.
+        //   스케줄러 tick 배선은 ControlNotifyDebounceFlushSchedulerTest 가 별도 검증한다.
+        debouncer = new ControlNotifyDebouncer(notifyService, 60L, metrics, exportRunner, false, 10_000L);
+    }
+
+    private ConcurrentHashMap<Long, ControlNotifyDebouncer.DebouncedWindow> getWindows() {
+        return windowsOf(debouncer);
     }
 
     @SuppressWarnings("unchecked")
-    private ConcurrentHashMap<Long, ControlNotifyDebouncer.DebouncedWindow> getWindows() {
+    private static ConcurrentHashMap<Long, ControlNotifyDebouncer.DebouncedWindow> windowsOf(
+            ControlNotifyDebouncer target) {
         try {
             Field f = ControlNotifyDebouncer.class.getDeclaredField("windows");
             f.setAccessible(true);
-            return (ConcurrentHashMap<Long, ControlNotifyDebouncer.DebouncedWindow>) f.get(debouncer);
+            return (ConcurrentHashMap<Long, ControlNotifyDebouncer.DebouncedWindow>) f.get(target);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     private void expire(Long rawSn) {
-        setCreatedAt(getWindows().get(rawSn), System.currentTimeMillis() - 70_000L);
+        expireOn(debouncer, rawSn);
+    }
+
+    private static void expireOn(ControlNotifyDebouncer target, Long rawSn) {
+        setCreatedAt(windowsOf(target).get(rawSn), System.currentTimeMillis() - 70_000L);
     }
 
     private static void setCreatedAt(ControlNotifyDebouncer.DebouncedWindow window, long createdAt) {
@@ -297,10 +311,10 @@ class ControlNotifyDebouncerTest {
     }
 
     @Test
-    @DisplayName("재export_동반_변경이_섞이면_exportRegenerated_true_로_전달된다")
-    void windowWithReExportPropagatesTrue() {
+    @DisplayName("재export_동반_변경이_섞이면_export를_먼저_마친_뒤_exportRegenerated_true_통지 (C-2)")
+    void windowWithReExportExportsBeforeNotify() {
         // given — 같은 윈도우에 재생성 없는 변경과 재생성 동반 변경이 혼재한다.
-        //         산출물이 전량 바뀌므로 OR 누적이 맞다.
+        //         산출물이 전량 바뀌므로 OR 누적으로 재생성 동반(true)이 된다.
         debouncer.accumulate(new TaskModifiedEvent(100L, 5L, ChangeType.LABEL_UPDATED, 10L));
         debouncer.accumulate(new TaskModifiedEvent(100L, null, ChangeType.META_UPDATED, 10L, true));
         expire(100L);
@@ -308,8 +322,84 @@ class ControlNotifyDebouncerTest {
         // when
         debouncer.flushExpiredWindows();
 
-        // then
+        // then — 통지를 직접 보내지 않고, export(force=true) 를 먼저 마친 뒤 통지하도록 러너에 위임한다.
+        verify(notifyService, never()).sendModified(any(), anyList(), anySet(), anyBoolean());
+        ArgumentCaptor<Runnable> callback = ArgumentCaptor.forClass(Runnable.class);
+        verify(exportRunner).runReExportThenNotify(eq(100L), eq(true), callback.capture());
+
+        // 러너가 export 를 마친 뒤 실행하는 콜백이 exportRegenerated=true 통지를 낸다.
+        callback.getValue().run();
         verify(notifyService).sendModified(eq(100L), anyList(), anySet(), eq(true));
+    }
+
+    @Test
+    @DisplayName("재export_없는_변경은_러너_위임_없이_즉시_통지된다")
+    void windowWithoutReExportNotifiesDirectly() {
+        // given
+        debouncer.accumulate(new TaskModifiedEvent(100L, 5L, ChangeType.LABEL_UPDATED, 10L));
+        expire(100L);
+
+        // when
+        debouncer.flushExpiredWindows();
+
+        // then — 디스크가 그대로이므로 재산출 위임 없이 즉시 통지(false).
+        verify(exportRunner, never()).runReExportThenNotify(any(), anyBoolean(), any());
+        verify(notifyService).sendModified(eq(100L), anyList(), anySet(), eq(false));
+    }
+
+    // --- HIGH-E(Phase 5C): 통지 토글 off(notifyService/metrics=null)에서도 export 재생성은 트리거된다 ---
+
+    @Test
+    @DisplayName("HIGH-E_통지_토글_off여도_승인후_수정_재생성_윈도우는_export를_트리거한다 (dev/stg/prd 형상)")
+    void reExportFiresEvenWhenNotifyDisabled() {
+        // given — 토글 off: ControlNotifyService/Metrics 빈이 없어 null 로 주입된 디바운서(항상 활성).
+        ControlNotifyDebouncer noNotify = new ControlNotifyDebouncer(null, 60L, null, exportRunner, false, 10_000L);
+        noNotify.accumulate(new TaskModifiedEvent(100L, null, ChangeType.META_UPDATED, 10L, true));
+        expireOn(noNotify, 100L);
+
+        // when
+        noNotify.flushExpiredWindows();
+
+        // then — export(전량 재생성)는 통지 토글과 무관하게 트리거된다. 통지 콜백은 null(통지 미발송).
+        ArgumentCaptor<Runnable> callback = ArgumentCaptor.forClass(Runnable.class);
+        verify(exportRunner).runReExportThenNotify(eq(100L), eq(true), callback.capture());
+        assertThat(callback.getValue()).isNull();
+        // 통지 서비스가 없으므로 sendModified 는 호출될 수 없다(주입 null). NPE 없이 완료됨을 확인.
+    }
+
+    @Test
+    @DisplayName("HIGH-E_통지_토글_off이고_재생성_없는_수정은_export도_통지도_하지_않는다")
+    void nonReExportDoesNothingWhenNotifyDisabled() {
+        // given — 토글 off + 재생성 없는 메타 수정(디스크 무변경).
+        ControlNotifyDebouncer noNotify = new ControlNotifyDebouncer(null, 60L, null, exportRunner, false, 10_000L);
+        noNotify.accumulate(new TaskModifiedEvent(100L, 5L, ChangeType.LABEL_UPDATED, 10L));
+        expireOn(noNotify, 100L);
+
+        // when — NPE 없이 완료되어야 한다(notifyService=null).
+        noNotify.flushExpiredWindows();
+
+        // then — 디스크 무변경 + 통지 off 이므로 export 도 통지도 없다.
+        verify(exportRunner, never()).runReExportThenNotify(any(), anyBoolean(), any());
+        assertThat(windowsOf(noNotify)).isEmpty();
+    }
+
+    // --- MED-3: 소실 윈도우를 dropped 로 계상 (debounce.flush 성공으로 세지 않는다) ---
+
+    @Test
+    @DisplayName("flush_중_통지가_예외로_소실되면_dropped_메트릭이_증가하고_debounceFlush로_세지_않는다")
+    void isolatedFailureIncrementsDroppedNotFlush() {
+        // given — 비재생성 윈도우 전송이 예외로 실패(윈도우는 이미 remove 되어 소실).
+        debouncer.accumulate(new TaskModifiedEvent(100L, 1L, ChangeType.LABEL_UPDATED, 10L));
+        expire(100L);
+        doThrow(new IllegalStateException("queue full"))
+                .when(notifyService).sendModified(eq(100L), anyList(), anySet(), anyBoolean());
+
+        // when
+        debouncer.flushExpiredWindows();
+
+        // then — 실제 드롭을 dropped 로 계상하고, flush 성공(debounceFlush)으로는 계상하지 않는다.
+        verify(metrics).incrementDropped();
+        verify(metrics, never()).incrementDebounceFlush();
     }
 
     // --- A-1: flush 루프 격리 (개별 윈도우 실패가 나머지를 죽이지 않는다) ---

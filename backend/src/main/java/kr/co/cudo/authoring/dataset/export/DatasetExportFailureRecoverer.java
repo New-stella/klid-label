@@ -132,8 +132,13 @@ public class DatasetExportFailureRecoverer {
                 continue;
             }
             claimed.add(rawSn);
-            // 승인 경로와 동일하게 force=true — 실패한 산출을 내용 해시 멱등 skip 없이 다시 만든다.
-            runner.runAsync(rawSn, true);
+            // HIGH-D(Phase 5C) — 승인 러너(runApprovalAsync)로 재산출한다: force=true 로 내용 해시 멱등 skip
+            //   없이 다시 만들고, <b>성공 시 DatasetExportCompletedEvent 를 발행</b>해 통지를 재개한다.
+            //   구 runAsync(force=true) 는 완료 이벤트를 발행하지 않아, 실패 export 가 회수돼 성공해도 관제가
+            //   최신 버전을 통지받지 못했다(관제 영구 구버전). 완료 통지는 sendCompleted 의 409 자기치유로
+            //   원 통지가 완료/수정이든 관제 상태에 맞춰 정합화된다. 재산출이 또 실패하면 완료 이벤트가
+            //   발행되지 않아(HIGH-D) 통지가 안 나가고 다음 tick 에서 상한까지 재시도된다.
+            runner.runApprovalAsync(rawSn);
         }
         if (claimed.isEmpty()) {
             log.debug("[DatasetExportRecovery] all candidates already claimed candidates={}", anchors.size());

@@ -165,6 +165,9 @@ class LabelServiceTaskModifiedGuardTest {
         // 발행된 changeType 은 반드시 계약 표준 집합에 속해야 한다 (비표준 문자열 회귀 방어)
         assertThat(ChangeType.ALL).contains(event.changeType());
         assertThat(event.modifierNo()).isEqualTo(1001L);
+        // C-4(Phase 5C) — 승인 후 라벨 수정은 export 를 새 버전으로 전량 재생성하므로 exportRegenerated=true.
+        //   디바운스 flush 가 export(force=true)→전 프레임 통지 순서로 데이터마트 파일을 동기화한다.
+        assertThat(event.exportRegenerated()).isTrue();
     }
 
     @Test

@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -130,9 +129,10 @@ class DatasetExportFailureRecoveryIT {
         List<Object[]> targets = exportRepository.findRetryableFailedAnchors(LocalDateTime.now(), 3, 50);
         assertThat(targets).anyMatch(row -> ((Number) row[1]).longValue() == failed);
 
-        // 회수 실행 — 승인 경로와 동일한 러너로 재산출을 트리거한다(force=true).
+        // 회수 실행 — HIGH-D(Phase 5C): 승인 러너(runApprovalAsync)로 재산출한다(force=true + 성공 시 완료
+        //   이벤트 발행 → 통지 재개).
         recoverer.recover();
-        verify(runner).runAsync(eq(failed), eq(true));
+        verify(runner).runApprovalAsync(eq(failed));
     }
 
     @Test
@@ -146,7 +146,7 @@ class DatasetExportFailureRecoveryIT {
         assertThat(targets).noneMatch(row -> ((Number) row[1]).longValue() == recovered);
 
         recoverer.recover();
-        verify(runner, never()).runAsync(eq(recovered), eq(true));
+        verify(runner, never()).runApprovalAsync(eq(recovered));
     }
 
     @Test
@@ -159,11 +159,11 @@ class DatasetExportFailureRecoveryIT {
         seedExport(rawSn, 1, LsDatasetExport.STATUS_FAILED);
         long rowsBefore = exportRepository.countByDataRawSn(rawSn);
 
-        // 러너 → 실제 산출 서비스 동기 위임(재시도가 실제로 돌게 한다).
+        // 러너 → 실제 산출 서비스 동기 위임(재시도가 실제로 돌게 한다). runApprovalAsync 는 force=true 고정.
         doAnswer(inv -> {
-            exportService.export(inv.getArgument(0), inv.getArgument(1));
+            exportService.export(inv.getArgument(0), true);
             return null;
-        }).when(runner).runAsync(anyLong(), anyBoolean());
+        }).when(runner).runApprovalAsync(anyLong());
 
         // when — 유예를 넘길 때마다 회수가 도는 상황을 4 tick 으로 재현.
         int triggered = 0;
@@ -180,7 +180,7 @@ class DatasetExportFailureRecoveryIT {
         // ③ 상한 소진 후에는 후보 선정에서도 빠진다.
         assertThat(exportRepository.findRetryableFailedAnchors(LocalDateTime.now(), 3, 50))
                 .noneMatch(row -> ((Number) row[1]).longValue() == rawSn);
-        verify(runner, times(3)).runAsync(eq(rawSn), eq(true));
+        verify(runner, times(3)).runApprovalAsync(eq(rawSn));
     }
 
     @Test
@@ -196,7 +196,7 @@ class DatasetExportFailureRecoveryIT {
 
         assertThat(first).isEqualTo(1);
         assertThat(second).isZero();
-        verify(runner, times(1)).runAsync(eq(rawSn), eq(true));
+        verify(runner, times(1)).runApprovalAsync(eq(rawSn));
         assertThat(attemptsOf(rawSn)).isEqualTo(1);
     }
 }

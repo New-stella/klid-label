@@ -153,6 +153,9 @@ class FramePrivacyMetaServiceTest {
         verify(eventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().rawSn()).isEqualTo(RAW_SN);
         assertThat(captor.getValue().changeType()).isEqualTo(ChangeType.META_UPDATED);
+        // HIGH-C(Phase 5C) — 개인정보 메타(pseudonymity/privacyIncluded)는 export JSON 으로 나가므로 승인 후
+        //   수정 시 export 를 새 버전으로 재생성해야 한다. exportRegenerated=true 회귀 방어(4-arg 로 되돌리면 실패).
+        assertThat(captor.getValue().exportRegenerated()).isTrue();
     }
 
     @Test
@@ -200,6 +203,8 @@ class FramePrivacyMetaServiceTest {
         ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
         verify(eventPublisher, org.mockito.Mockito.times(3)).publishEvent(captor.capture());
         assertThat(captor.getAllValues()).allMatch(e -> RAW_SN.equals(e.rawSn()));
+        // HIGH-C(Phase 5C) — bulk 경로도 exportRegenerated=true 로 발행(승인 후 개인정보 메타 수정 → 재생성).
+        assertThat(captor.getAllValues()).allMatch(TaskModifiedEvent::exportRegenerated);
         assertThat(captor.getAllValues()).extracting(TaskModifiedEvent::srcSn)
                 .containsExactlyInAnyOrder(7201L, 7202L, 7203L);
     }
