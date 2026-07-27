@@ -27,8 +27,13 @@ services:
     #   base 는 /data/klid/storage(호스트)를 init 하지만 local 의 backend 는 named volume(klid-storage)을
     #   쓰므로 서로 다른 위치를 가리키는 누락 버그였다. Mac/비-서버에서 호스트 바인드 미공유로 마운트 거부되고,
     #   설령 Linux 라도 backend 가 쓰는 볼륨을 init 하지 못한다. 같은 named volume 을 init 하도록 정정.
+    #   ★ genai 산출물 볼륨도 함께 init 한다 — named volume 은 root:root 로 생성되는데 mock-server 는
+    #     uid 999(app)로 실행돼, 초기화하지 않으면 결과 저장이 Permission denied 로 실패한다
+    #     (job 이 FAILED/RESULT_SAVE_FAILED 로 끝나며 설정만 넣어서는 동작하지 않는다).
+    command: sh -c "mkdir -p /storage/raw /storage/deidentified /genai-out && chown -R 999:999 /storage /genai-out && chmod -R 775 /storage /genai-out"
     volumes:
       - klid-storage:/storage
+      - klid-genai-out:/genai-out
 
   klid-backend:
     # 영상 저장소 /data 바인드 → named volume
@@ -74,14 +79,21 @@ services:
           # CPU 실추론(YOLOX/SAM2) 메모리 여유 확보
           memory: 4096m
 
-  # 외부 벤더 목(mock) 서버 — 비식별(KPST)·VLM 개발 완료 전 실연동 테스트용.
-  #   이미지 klid-mock-server:latest 는 feat/mock-external-server 브랜치(PR #26)에서 빌드됨
-  #   (docker build -t klid-mock-server:latest mock-server/). 현재 워킹트리엔 소스가 없어 image 참조.
+  # 외부 벤더 목(mock) 서버 — 비식별(KPST)·VLM·생성형AI 증강 개발 완료 전 실연동 테스트용.
+  #   PR #47 로 mock-server/ 소스가 리포에 들어와 build 로 전환했다(구 image: klid-mock-server:latest 는
+  #   PR #26 시점 빌드본이라 생성형AI 증강 라우터(/api/genai/*)가 없다 — image 참조를 유지하면
+  #   설정만 넣어도 404 가 난다).
   #   ⚠ 로컬/테스트 전용 — 무인증 + 콜백 SSRF 표면. 신뢰망에서만 기동.
   mock-server:
+    build:
+      context: ./mock-server
     image: klid-mock-server:latest
     container_name: klid-mock-server
     restart: unless-stopped
+    depends_on:
+      # 두 볼륨(klid-storage·klid-genai-out)의 소유권 초기화가 끝난 뒤 기동해야 쓰기가 가능하다.
+      klid-storage-init:
+        condition: service_completed_successfully
     environment:
       # 비식별 더미 출력 파일 생성 허용 base(콤마 구분). 미설정이면 파일 미생성(fail-closed).
       #   ★ BE 의 STORAGE_RAW_MOUNT_ROOTS 와 <한 세트>여야 한다 — Phase 5A(co-locate) 이후 BE 가 넘기는
@@ -89,9 +101,22 @@ services:
       #     구 값(/app/storage/deidentified 단독)이면 목이 base 밖으로 판정해 더미를 만들지 않고,
       #     BE 는 산출물 부재로 비식별을 영구 실패시킨다(isUsableDeidFile=false → failPolling).
       MOCK_OUTPUT_BASE: ${STORAGE_RAW_MOUNT_ROOTS:-/app/storage/raw,/app/storage/deidentified}
+
+      # 생성형AI 증강 목(PR #47). 두 base 모두 미설정이면 fail-closed —
+      #   결과 파일을 만들지 않고 FAILED(RESULT_SAVE_FAILED), input_files 는 전부 400 이다.
+      #   ★ 두 base 를 <서로 다른 트리>로 분리한다(PR #47 후속 #1). 같은 트리에 두면
+      #     "목 산출물 쓰기 권한 = 입력 읽기 권한"이 되어 심볼릭링크 TOCTOU(F-1)의 악화 요인이 된다.
+      #   INPUT 은 BE 미디어 볼륨 루트(/app/storage) — genai_input_base 는 콤마를 지원하지 않아
+      #     raw·deidentified 둘 다 덮으려면 공통 조상이어야 한다.
+      #   OUTPUT 은 별도 볼륨(/app/genai-out). 결과는 {base}/genai/{job_id}/ 하위에 생성된다.
+      MOCK_GENAI_INPUT_BASE: /app/storage
+      MOCK_GENAI_OUTPUT_BASE: /app/genai-out
+      # 콜백(SSRF allowlist)은 기본값에 klid-backend:8080 이 포함돼 있어 그대로 둔다.
     volumes:
       # BE 와 동일 공유 볼륨·동일 경로 → BE 가 넘긴 절대경로(export_path/input_path)를 그대로 읽고 씀.
       - klid-storage:/app/storage
+      # 생성형AI 산출물 전용 — 입력 트리와 분리(위 주석 참조).
+      - klid-genai-out:/app/genai-out
     ports:
       - "9400:9400"
     networks:
@@ -101,3 +126,5 @@ volumes:
   klid-pgdata:
   klid-storage:
   klid-hf-cache:
+  # 생성형AI 목 산출물 전용 — 입력(klid-storage)과 분리해 쓰기 권한이 입력 읽기 권한이 되지 않게 한다.
+  klid-genai-out:
