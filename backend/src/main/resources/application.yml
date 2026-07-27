@@ -22,6 +22,14 @@ spring:
       max-file-size: 21MB
       max-request-size: 1100MB
       file-size-threshold: 1MB
+  task:
+    scheduling:
+      pool:
+        # @Scheduled 전용 스레드 풀 (B-1). 기본값 1 이면 앱 전체 @Scheduled(17개)가 한 스레드를 공유한다.
+        # 관제 통지 디바운서 flush 는 sendModified 를 동기 블로킹(.block(15s), 자기치유 시 2회=최대 30s)으로
+        # 호출하므로, 관제가 응답하지 않으면 작업락 sweeper·TUS 정리·포털 업로드 sweep 등 무관한 잡이
+        # 전부 정지한다. 풀을 늘려 한 잡의 지연이 전체 스케줄러를 막지 않게 한다.
+        size: ${SCHEDULING_POOL_SIZE:8}
   jpa:
     open-in-view: false
     hibernate:
@@ -80,6 +88,26 @@ spring:
 
 server:
   port: 8080
+  # ⚠ `forward-headers-strategy: framework` 를 켜지 말 것 (REDESIGN — 2026-07-25 회귀 되돌림).
+  #  이 설정은 ForwardedHeaderFilter 를 Ordered.HIGHEST_PRECEDENCE 로 등록해 Security 체인·
+  #  HmacWebhookFilter·StreamSignatureFilter 보다 앞에서 getRemoteAddr() 를 X-Forwarded-For 의
+  #  '첫 토큰'으로 **무검증 치환**하고, X-Forwarded-* 헤더를 getHeader() 에서 숨긴다.
+  #  ① 저작도구는 2노드 Active-Active 로 프록시를 우회한 직접 도달이 가능한 형상이라 "XFF 는 항상
+  #     신뢰 프록시가 붙인다" 는 전제가 성립하지 않는다.
+  #  ② webhook 가드는 ClientIpResolver 가 **신뢰 프록시 CIDR 대조 후 직접** XFF 를 파싱하는 설계인데,
+  #     이 필터가 먼저 remoteAddr 를 덮으면 대조 대상이 공격자가 고른 값이 되어 rate limit(CWE-307)이
+  #     헤더 한 줄 회전으로 완전히 우회되고(실측: 위조 XFF 회전 12연타 전부 401, 429 없음),
+  #     공유 카운터 테이블(LS_WHK_FAIL_NMTM)에 공격자 지정 문자열이 IP 로 적재된다.
+  #  회귀 고정: ForwardedHeadersConfigGuard 가 이 키(및 server.tomcat.remoteip.*)를 어떤 소스로든
+  #  감지하면 **기동을 거부**한다 — yml(공통/프로파일별)·환경변수(SERVER_FORWARD_HEADERS_STRATEGY)·
+  #  시스템 프로퍼티 전 축. 추가로
+  #  WebhookPathBypassSecurityIT.rotatingForwardedForHeader_doesNotBypassRateLimit 가 런타임 동작을 고정한다.
+  #  ※ nonce 쿠키의 Secure 는 헤더가 아니라 **프로파일**로 강제하므로 이 설정과 무관하다(StreamNonceCookie).
+  #  ※ HSTS 현황(사실 기록): 현재 HSTS 는 앱·edge 어디서도 부여되지 않는다. 앱은 프록시 뒤에서 평문
+  #    HTTP 로 요청을 받아 isSecure()=false 이고, edge 템플릿(deploy/onprem/config/frontend/
+  #    nginx.conf.template · Caddyfile.template)의 Strict-Transport-Security 는 **주석 처리** 상태다.
+  #    이는 forward-headers-strategy 도입 이전부터의 상태이며 위 되돌림이 만든 회귀가 아니다.
+  #    edge 부여는 **후속 과제**(A-ISSUE-06 연관) — 배포 설정 변경은 별도 검토가 필요하다.
   servlet:
     context-path: /api
   tomcat:
@@ -130,9 +158,17 @@ authoring:
   storage:
     raw-path: ${STORAGE_RAW_PATH:./storage/raw}
     deidentified-path: ${STORAGE_DEIDENTIFIED_PATH:./storage/deidentified}
-    # 학습데이터 파일 산출(export) 루트 — {labeling_root}/{RAW_SN}/v{n}/{orgnl|deid}/ 구조.
-    #   DatasetExportPathResolver 가 이 값을 정규화된 절대경로 base 로 삼아 CWE-22 이탈을 차단한다.
+    # 구(롤백) 학습데이터 산출 루트 — base-strategy=labeling-root 일 때만 사용한다.
+    #   기본 전략(co-locate)에서는 산출 루트가 dirname(RAW_FILE_PATH_NM)/{RAW_SN}/ 이라 이 값을 쓰지 않는다.
     labeling-path: ${STORAGE_LABELING_PATH:./storage/labeling}
+    # 산출 base(=dirname(RAW_FILE_PATH_NM)) 검증용 <고정> allowlist — 콤마 구분 마운트 루트 목록.
+    #   co-locate 산출은 base 를 DB 값에서 도출하므로, 요청과 무관한 이 고정 목록이 유일한 신뢰 기준이다
+    #   (VideoArtifactRootResolver: lexical + toRealPath 재검증, CWE-22/59). 위반 시 폴백 없이 거부한다.
+    #   미설정 시 기본값 = [raw-path, deidentified-path] (원본 NAS 마운트 + 파생영상 저장소). 다만 폴백 결과는
+    #   배포 형상마다 갈리므로 각 배포 파일(docker-compose.yml / deploy/onprem/config/backend/env.template /
+    #   .env.example)에서 STORAGE_RAW_MOUNT_ROOTS 를 <명시>한다 — 암묵 폴백에 기대지 않는다.
+    #   ★ '/' 등 파일시스템 루트를 지정하면 가드가 무력화되므로 **기동을 실패**시킨다(fail-closed, CWE-1188).
+    raw-mount-roots: ${STORAGE_RAW_MOUNT_ROOTS:}
     # 마킹 스트림 Range 요청당 반환 상한(bytes). 기본 8MB — 값이 작으면(구 1MB) 4배속 재생 시
     # 재요청 폭증으로 버벅임 발생. 1MB 미만 설정은 코드가 안전 기본값(8MB)으로 폴백한다.
     stream-chunk-size: ${STORAGE_STREAM_CHUNK_SIZE:8388608}
@@ -140,12 +176,39 @@ authoring:
   #   Phase 1 은 인프라(추적 테이블·경로 리졸버)만 도입하며, 실제 파일 쓰기/승인 연동은 후속 Phase.
   dataset-export:
     enabled: ${DATASET_EXPORT_ENABLED:true}
+    # MED-1(Phase 5C) — 승인 후 수정 → v{n+1} export 전량 재생성을 발화시키는 디바운스 flush 스케줄러 토글.
+    #   ControlNotifyDebouncer 는 이 flush 를 @Scheduled(=@EnableScheduling 의존)가 아니라 자신이 소유한
+    #   데몬 스레드 1개짜리 전용 스케줄러로 돌린다(RoleClaimAttemptPurgeJob/WebhookGuardPurgeJob 동형).
+    #   그래서 control-notify/work-lock/resolution 등 무관한 스케줄러 토글의 on/off 와 독립적으로 항상 tick 하며,
+    #   다른 @Scheduled 잡(Portal/TUS sweep)을 부수적으로 발화시키지 않는다.
+    #   기본 활성 — 운영에서 끄지 말 것(끄면 승인 후 수정이 재생성까지 도달하지 못함). 테스트만 격리 목적 false.
+    regen-flush:
+      enabled: ${DATASET_EXPORT_REGEN_FLUSH_ENABLED:true}
+    # 산출 루트 전략(A-8 롤백 플래그).
+    #   co-locate(기본) — dirname(RAW_FILE_PATH_NM)/{RAW_SN}/ 아래 deid/ + v{n}/{orgnl|deid}/.
+    #                     관제가 경로 1개로 비식별 영상 + 전 버전 산출물을 픽업한다.
+    #   labeling-root   — 구 구조({labeling_root}/{RAW_SN}/v{n}/…, 비식별 영상은 {deid_base}/videos/{RAW_SN}/).
+    #   이 플래그는 <신규 산출 시점의 base 선택>에만 관여한다. 이미 DB 에 적재된 절대경로
+    #   (LS_DATASET_EXPORT.EXPORT_PATH_NM · LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM)는 재계산하지 않으므로
+    #   전략을 되돌려도 기존 산출물 조회가 깨지지 않는다.
+    base-strategy: ${DATASET_EXPORT_BASE_STRATEGY:co-locate}
     # stale PENDING 정리 잡 — 파일 쓰기/상태 마감 전 크래시로 PENDING 고착된 export 를 주기 회수(FAILED 마감, 파일 삭제 없음).
     #   enabled=false 시 잡 미등록(test/local 격리). interval-sec 간격 tick, stale-minutes 초과 PENDING 만 대상.
     pending-sweep:
       enabled: ${DATASET_EXPORT_SWEEP_ENABLED:true}
       interval-sec: ${DATASET_EXPORT_SWEEP_INTERVAL_SEC:600}
       stale-minutes: ${DATASET_EXPORT_SWEEP_STALE_MINUTES:30}
+    # 실패 export 회수 잡(D-ISSUE-04) — 최신 export 가 FAILED 인 영상을 주기적으로 재산출 트리거.
+    #   승인 후 export 는 AFTER_COMMIT @Async 라 실패해도 롤백되지 않고 재시도 경로가 없었다.
+    #   retry-delay-minutes: 실패 후 재시도까지 유예(일시 장애 진정 대기).
+    #   max-attempts: 마지막 성공/부분 산출 이후 누적 실패 허용 횟수(초과 시 자동 회수 중단 — 운영 개입 필요).
+    #   batch-size: tick 당 재시도 트리거 상한.
+    failure-recovery:
+      enabled: ${DATASET_EXPORT_RECOVERY_ENABLED:true}
+      interval-sec: ${DATASET_EXPORT_RECOVERY_INTERVAL_SEC:900}
+      retry-delay-minutes: ${DATASET_EXPORT_RECOVERY_DELAY_MINUTES:10}
+      max-attempts: ${DATASET_EXPORT_RECOVERY_MAX_ATTEMPTS:3}
+      batch-size: ${DATASET_EXPORT_RECOVERY_BATCH_SIZE:20}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/aug/callback. 운영(dev/stg/prd)에서는 환경변수로 override.
   webhook:
@@ -216,6 +279,19 @@ authoring:
       enabled: ${WORK_LOCK_SWEEP_ENABLED:true}
       interval-ms: ${WORK_LOCK_SWEEP_INTERVAL_MS:600000}
       initial-delay-ms: ${WORK_LOCK_SWEEP_INITIAL_DELAY_MS:60000}
+  # 해상도 파생 이관 백필 — 구 파일 <유예 삭제> 정책 (2노드 stale 캐시 대응).
+  #  - stale-grace-minutes: 이관 후 구 파일을 남겨두는 시간(분). stream-meta 캐시 TTL(5분) <b>이상</b>이어야
+  #    하며, 미만이면 기동 거부(ResolutionBackfillService.validateGracePeriod). 캐시는 프로세스 로컬이라
+  #    다른 노드는 최대 TTL 동안 옛 경로를 해석하는데, 그 파일이 살아 있어야 500 없이 정상 재생된다.
+  #  - sweep.enabled: 유예 경과 잔존물 정리 주기 잡. 운영(dev/stg/prd) 기본 true. local/test 는 override false.
+  #    기회적 정리(요청 시 청소)는 트래픽이 없으면 영원히 돌지 않으므로 주기 잡으로 보장한다.
+  #  - 2노드 동시 발화해도 마커 단위 조건부·멱등이라 안전.
+  resolution-backfill:
+    stale-grace-minutes: ${RESOLUTION_BACKFILL_STALE_GRACE_MINUTES:15}
+    sweep:
+      enabled: ${RESOLUTION_BACKFILL_SWEEP_ENABLED:true}
+      interval-ms: ${RESOLUTION_BACKFILL_SWEEP_INTERVAL_MS:300000}
+      initial-delay-ms: ${RESOLUTION_BACKFILL_SWEEP_INITIAL_DELAY_MS:120000}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
@@ -295,6 +371,11 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+        # N-5: 4xx(409 중복 / 404 미존재 / 422)는 결정적 응답이라 서킷 failure 로 집계하지 않는다.
+        #   정상 흐름인 409(재승인) 가 서킷을 여는 것을 막는다. 예외는 그대로 전파되어
+        #   ControlNotifyService 의 자기치유 분기(409→updated / 404→completed)를 발동시킨다.
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       # Phase 1 — KPST 비식별 폴링 클라이언트 (kpst.deid.enabled=true 일 때만 호출 발생)
       kpstDeid:
         failure-rate-threshold: 50
@@ -325,6 +406,12 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
+        # N-5: 4xx(409/404/422)는 재전송해도 결과가 같은 결정적 실패라 재시도하지 않는다.
+        #   재시도하면 자기치유가 늦어지고 폴백 큐가 DEAD_LETTER 로 오염된다.
+        #   ★ ignore-exceptions 는 "재시도 억제" 일 뿐 "예외 삼킴" 이 아니다 —
+        #     예외는 catch 까지 전파되어야 409/404 분기가 동작한다(ControlNotifyClientTest 로 단언).
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       kpstDeid:
         max-attempts: 3
         wait-duration: 1s
@@ -386,19 +473,30 @@ vlm:
     frame-policy:
       framerate: ${VLM_FRAME_POLICY_FRAMERATE:25}
 
-# 외부 시스템 결과 수신 webhook HMAC 시크릿 — 증강 콜백 전용.
-#  - 경로별 시크릿 (/v1/aug/callback).
-#  - 시크릿 미설정 시 fail-closed (HmacWebhookFilter 가 401 반환) — 빈 키 회피 차단.
-#  - timestamp-window-seconds: replay 방지용 ±윈도우 (기본 300s).
+# 외부 시스템 결과 수신 webhook 인증 — 증강 콜백(HMAC) + VLM 콜백(무서명 가드).
+#  - 보호 대상 경로는 코드의 allowlist(WebhookProtectedPaths)가 단일 진실원이며,
+#    Spring MVC 와 동일한 RequestPath/PathPattern 으로 판정한다(경로 인코딩 변형 우회 차단, E-ISSUE-01).
+#  - augment: /v1/aug/** 는 HMAC 서명 필수. 시크릿 미설정(빈 값)이면 **애플리케이션 기동 실패**
+#    (조용한 401 금지 — 정상 콜백만 죽고 우회 경로가 열려 있던 사고를 재발 방지, E-ISSUE-04).
+#  - timestamp-window-seconds: 과거 방향 허용창(기본 300s). 미래 방향은 코드에서 30s(시계 오차)만 허용.
+#  - replay 방지: 서명 nonce 를 LS_WHK_SIGN_USE 에 1회성 소비(노드 공유). 중복은 401 이 아니라 409.
 #  - 평문 커밋 금지: ${WEBHOOK_HMAC_SECRET_*} 환경변수만 허용.
 #  - (UC018 — 비식별은 KPST 폴링으로 단일화되어 deidentify 콜백 시크릿 키를 제거함.)
 #  - VLM describe 콜백(/v1/vlm/callback)은 벤더 확정 계약(v2.0.1) 무서명 규격 —
-#    HMAC 대상에서 제거하고 request_id 발급 게이트로 무단 주입을 차단함(2026-07-07 승인).
+#    HMAC 대상이 아니며(2026-07-07 승인) IP allowlist + rate limit + 본문 size cap +
+#    request_id 발급 게이트 3계층으로 보호한다(B-ISSUE-25).
 webhook:
   hmac:
     secret:
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:}
     timestamp-window-seconds: ${WEBHOOK_HMAC_TIMESTAMP_WINDOW:300}
+  # 신뢰 프록시 CIDR (CSV) — 이 대역에서 들어온 요청의 X-Forwarded-For 만 해석한다.
+  # 비어 있으면 XFF 를 전면 무시하고 remoteAddr 만 사용(헤더 위조로 rate limit 우회 차단, CWE-348).
+  # 로컬/dev 는 비워 두고 LB 뒤에 배포되는 운영 환경에서만 채운다.
+  trusted-proxy-cidrs: ${WEBHOOK_TRUSTED_PROXY_CIDRS:}
+  vlm:
+    # VLM 콜백 허용 출처 CIDR (CSV). 비어 있으면 미적용(rate limit + request_id 게이트만 적용).
+    allowed-ip-cidrs: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:}
 
 logging:
   pattern:

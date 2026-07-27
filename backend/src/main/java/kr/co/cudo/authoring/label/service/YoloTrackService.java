@@ -103,7 +103,7 @@ public class YoloTrackService {
                         "시퀀스 프레임이 시작 프레임과 다른 영상에 속합니다: srcSn=" + sn);
             }
 
-            String imageB64 = frameImageEncoder.encodeToBase64(src.getSrcFilePathNm());
+            String imageB64 = frameImageEncoder.encodeFrame(src);
 
             YoloResponse resp;
             try {

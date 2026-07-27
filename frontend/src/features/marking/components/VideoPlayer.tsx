@@ -1,10 +1,16 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { Spinner } from '@/components/common/Spinner';
 import { cn } from '@/lib/cn';
+import { markingFrameIndex } from '../markingFps';
 
 export interface VideoPlayerHandle {
   getCurrentTime: () => number;
-  getCurrentFrame: (fps?: number) => number;
+  /**
+   * 현재 재생 위치의 frameIndex. fps 는 <b>필수</b>다 — 기본값(30) 을 두면 호출부가 실 fps 를 넘기지
+   * 않아도 조용히 30fps 로 계산되어, 서버의 마킹 상한(실 fps 기준)과 어긋난 값이 만들어진다
+   * (실측: 25fps 영상 뒷부분 마킹이 400). 호출부는 서버가 내려준 영상 fps 를 넘긴다.
+   */
+  getCurrentFrame: (fps: number) => number;
   seekTo: (timeSec: number) => void;
   /** 메타데이터 로드 후 실제 영상 길이(초). 로드 전에는 0. */
   getDuration: () => number;
@@ -25,7 +31,6 @@ interface VideoPlayerProps {
   onDurationChange?: (sec: number) => void;
 }
 
-const NATIVE_FPS = 30;
 const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
@@ -45,8 +50,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     useImperativeHandle(ref, () => ({
       getCurrentTime: () => videoRef.current?.currentTime ?? 0,
-      getCurrentFrame: (fps = NATIVE_FPS) =>
-        Math.round((videoRef.current?.currentTime ?? 0) * fps),
+      // frameIndex 공식은 markingFps 모듈 한 곳에만 둔다(BE 반올림 규칙과 1:1 — H10).
+      getCurrentFrame: (fps: number) =>
+        markingFrameIndex(videoRef.current?.currentTime ?? 0, fps),
       seekTo: (timeSec: number) => {
         if (videoRef.current) videoRef.current.currentTime = timeSec;
       },

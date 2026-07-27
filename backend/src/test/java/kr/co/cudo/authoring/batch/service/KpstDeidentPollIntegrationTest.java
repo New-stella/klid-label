@@ -59,12 +59,18 @@ import static org.mockito.Mockito.when;
 })
 class KpstDeidentPollIntegrationTest {
 
-    /** 비식별 저장 base — KPST 가 결과를 직접 쓰는 곳(no-copy). 정적 임시 디렉토리(빈 생성 시점 해석). */
+    /** 비식별 저장 base(구 위치) — 롤백 전략 및 회수 폴백 대상. 정적 임시 디렉토리(빈 생성 시점 해석). */
     private static final Path DEID_BASE;
+    /**
+     * Phase 5A — 원본 영상이 놓이는 <b>허용 마운트 루트</b>(관제 NAS 모사). co-locate 기본 전략에서
+     * KPST export_path 는 이 하위 {@code {rawSn}/deid/} 로 도출된다.
+     */
+    private static final Path RAW_MOUNT_ROOT;
 
     static {
         try {
             DEID_BASE = Files.createTempDirectory("kpst-poll-deid-base");
+            RAW_MOUNT_ROOT = Files.createTempDirectory("kpst-poll-raw-mount");
         } catch (IOException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -73,6 +79,8 @@ class KpstDeidentPollIntegrationTest {
     @DynamicPropertySource
     static void deidPath(DynamicPropertyRegistry registry) {
         registry.add("authoring.storage.deidentified-path", DEID_BASE::toString);
+        // 고정 allowlist — 원본 경로(RAW_FILE_PATH_NM)의 상위가 이 하위여야 산출 base 가 도출된다.
+        registry.add("authoring.storage.raw-mount-roots", RAW_MOUNT_ROOT::toString);
     }
 
     @TempDir
@@ -111,7 +119,8 @@ class KpstDeidentPollIntegrationTest {
     }
 
     private LsDataRaw persistRaw() {
-        Path rawFile = tmp.resolve("clip-" + System.nanoTime() + ".mp4");
+        // Phase 5A — 원본은 허용 마운트 루트 하위에 둔다(co-locate 산출 base 원천).
+        Path rawFile = RAW_MOUNT_ROOT.resolve("clip-" + System.nanoTime() + ".mp4");
         try {
             Files.writeString(rawFile, "raw-video-bytes");
         } catch (Exception e) {
@@ -135,14 +144,16 @@ class KpstDeidentPollIntegrationTest {
     }
 
     /**
-     * no-copy: KPST 가 export_path({base}/videos/{rawSn}/) 에 직접 쓴 결과를 시뮬레이션한다.
-     * 완료 폴링 시 서비스는 진행조회 응답 fileName 으로 이 경로를 회수(복사 없음)한다.
+     * no-copy: KPST 가 export_path 에 직접 쓴 결과를 시뮬레이션한다(Phase 5A — co-locate 신 위치
+     * {@code {RAW_MOUNT_ROOT}/{rawSn}/deid/}). 완료 폴링 시 서비스는 진행조회 응답 fileName 에서
+     * {@code {stem}-mask{ext}} 를 재구성해 이 디렉터리에서 회수한다(복사 없음).
      */
-    private void prepareDeidResultFile(Long rawSn, String fileName) {
+    private Path prepareDeidResultFile(Long rawSn, String fileName) {
         try {
-            Path target = DEID_BASE.resolve("videos").resolve(String.valueOf(rawSn)).resolve(fileName);
+            Path target = RAW_MOUNT_ROOT.resolve(String.valueOf(rawSn)).resolve("deid").resolve(fileName);
             Files.createDirectories(target.getParent());
             Files.writeString(target, "MASKED-VIDEO-BYTES");
+            return target;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -179,7 +190,8 @@ class KpstDeidentPollIntegrationTest {
         assertThat(afterPoll1.getKpstDatasetId()).isEqualTo(202L);
 
         // when 3 — 2차 폴링: 완료(state=2) → 응답 fileName 회수(no-copy) → DOWNLOADED/SUCCEEDED + Y/MARKING_READY
-        prepareDeidResultFile(rawSn, "clip.mp4"); // KPST 가 export_path 에 직접 쓴 결과 시뮬레이션
+        // KPST 가 export_path 에 직접 쓴 결과 시뮬레이션 — 산출물명은 KPST 소관({원본stem}-mask{ext}).
+        Path masked = prepareDeidResultFile(rawSn, "clip-mask.mp4");
         when(kpstClient.retrieveProgress(any(), eq(101L))).thenReturn(progressWith(2, 202L));
         kpstDeidentService.pollOne(procLogRepository.findById(procLogSn).orElseThrow());
 
@@ -187,7 +199,8 @@ class KpstDeidentPollIntegrationTest {
         LsDeidentProcLog done = procLogRepository.findById(procLogSn).orElseThrow();
         assertThat(done.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_DOWNLOADED);
         assertThat(done.getProcSttsCd()).isEqualTo(LsDeidentProcLog.SUCCEEDED);
-        assertThat(done.getDeIdntfFilePathNm()).isNotBlank();
+        // 적재 경로 = co-locate 산출 위치의 KPST 산출물 절대경로(조합·추측이 아니라 실제 회수 결과).
+        assertThat(done.getDeIdntfFilePathNm()).isEqualTo(masked.toString());
 
         // then — raw Y + MARKING_READY 전이
         LsDataRaw completedRaw = videoRepository.findById(rawSn).orElseThrow();

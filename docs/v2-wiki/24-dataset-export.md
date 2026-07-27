@@ -14,14 +14,22 @@
 
 ## 24.2 폴더 구조
 
+**산출 루트는 원본 영상과 같은 디렉터리 하위(co-locate)다.** base 는 `dirname(LS_DATA_RAW.RAW_FILE_PATH_NM)` 로 **영상마다 다르다**(구 고정 루트 `authoring.storage.labeling-path` 는 롤백 전략으로만 남는다).
+
 ```
-{authoring.storage.labeling-path}/{RAW_SN}/v{n}/orgnl/frame-{frameNo}.jpg
-{authoring.storage.labeling-path}/{RAW_SN}/v{n}/orgnl/frame-{frameNo}.json
-{authoring.storage.labeling-path}/{RAW_SN}/v{n}/deid/frame-{frameNo}.jpg
-{authoring.storage.labeling-path}/{RAW_SN}/v{n}/deid/frame-{frameNo}.json
+{dirname(RAW_FILE_PATH_NM)}/            ← 관제 NAS. 원본 영상이 있는 디렉터리
+    {원본영상}.mp4                       ← 관제 소유. 읽기만·절대 변경 금지
+    {RAW_SN}/                            ← 저작도구가 신규 생성 (RAW_SN == job_id)
+        deid/{비식별영상}                 ← 비식별 영상(버전 무관). 파일명은 아래 참조
+        v{n}/orgnl/{FRM_NO:%04d}.jpg | .json
+        v{n}/deid/{FRM_NO:%04d}.jpg  | .json
 ```
 
 - **버전이 종류(orgnl/deid)의 상위** — `v{n}/{orgnl|deid}/`.
+- **원본 영상은 복사하지 않는다** — `{RAW_SN}/` 의 바로 상위 형제로 이미 존재한다.
+- **비식별 영상은 버전 무관**이라 `v{n}` 밖 `{RAW_SN}/deid/` 에 둔다.
+- ⚠ **비식별 영상 파일명은 고정이 아니다** — 저작도구가 지정하는 것은 **디렉터리(`export_path`)까지**이고 파일명은 외부 비식별 솔루션이 정한다(mock=`deidentified.mp4`, KPST 실연동=`{원본stem}-mask{ext}`). **파일명을 조합·추측하지 말고 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 을 읽는다.**
+- ⚠ **경로 가드(CWE-22)**: base 가 DB 값에서 도출되므로 `VideoArtifactRootResolver` 가 2단계로 검증한다 — ①`dirname(RAW_FILE_PATH_NM)` 이 **고정 allowlist**(`authoring.storage.raw-mount-roots`) 하위인지 ②검증된 base 기준으로 target 을 `normalize()` + `toRealPath()` 후 재검증. 위반 시 **기본 루트로 fallback 하지 않고 export 를 FAILED 로 마감**한다(승인 트랜잭션은 롤백하지 않음).
 - `orgnl` = 원본 프레임 산출, `deid` = 비식별 프레임 산출. **원본·비식별 2벌**을 함께 산출한다.
 - 프레임 이미지는 `FrameSource` 가 해석하는 원천 경로에서 복사한다 — 원본은 `authoring.storage.raw-path` 하위(`LS_DATA_SRC.SRC_FILE_PATH_NM`), 비식별은 `authoring.storage.deidentified-path` 하위(`LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`).
 - **부분 성공**: 원천 이미지가 없는 프레임은 건너뛰고(skip) 나머지만 산출한다(경로 원문/PII 미로깅). 산출량에 따라 상태가 갈린다 — 전부 성공=`SUCCEEDED`, 일부만 산출(skip>0 & written>0)=`PARTIAL`, 한 장도 못 씀(written=0)=`FAILED`(§24.7).
@@ -46,7 +54,9 @@
 `@JsonInclude(ALWAYS)` 로 값이 null 인 **필수 키도 항상 직렬화**되어 관제 데이터마트 스키마와 정합한다.
 
 ### image 블록 주요 필드
-- `file_name` = `frame-{frameNo}.jpg`, `frame_num` = frameNo, `width`/`height` = 영상 메타 해상도.
+- `file_name` = **`{FRM_NO}.jpg` 4자리 zero-pad**(`String.format("%04d", frmNo)` — `ExportFileNaming` 단일 지점. 10000 이상은 자연 확장). 구 `frame-{n}.jpg` 접두사 형식은 **폐기**. **통지 `changed_items`·디스크 실제 파일명·JSON `file_name` 3자가 항상 일치**해야 한다.
+- `frame_num` = **`LS_DATA_SRC.VDO_FRM_NO`(실제 영상 디코더 프레임 위치)**. 구 `FRM_NO`(추출 순번) 아님 — 두 값은 별개 컬럼이다(예: 추출 순번 2 ↔ 실제 프레임 20). **`VDO_FRM_NO` 가 null 이면 `frame_num` 도 null 로 내보낸다**(`FRM_NO` 폴백 금지 — 의미 혼선).
+- `width`/`height` = 영상 메타 해상도.
 - `description` = `LS_DATA_SRC.FRM_EXPLN`(작업자 수기 프레임 설명). 미입력 시 null.
 - `anonymity` = **orgnl → `N`, deid → `Y`** (산출 종류로 결정).
 - `pseudonymity` = 영상 개인정보 유형이 `PSDO` 이면 `Y`, 아니면 `N`.
@@ -126,9 +136,9 @@
 | 조회 프리필 | 수동값이 있으면 그 값(`MANUAL`), 없으면 SHT_DT 파생값(`DERIVED`). weather 는 자동 출처가 없어 미입력 시 null. SHT_DT 가 null 이면 time_of_day·season 도 null |
 | 승인 동결 | 검수 승인 스냅샷(`LS_DATASET_VIDEO_META`)에 **수동값 우선**으로 동결(미입력이면 기존 SHT_DT 파생값). `DAY_NGT_CD`·`SESN_CD` 는 항상 해시 입력에 포함되고, `WTHR_NM` 은 **값이 있을 때만** 포함한다(미입력이면 키 생략 — 도입 이전 승인 영상이 내용 무변경인데도 재동결 시 새 해시로 중복 버전이 쌓이는 것을 막는 하위호환) |
 | export | `NiaVideo.weather/time_of_day/season` 은 **raw 수동값 → 스냅샷** 순으로 채운다(다른 video 필드는 스냅샷 우선이라 순서가 반대). 영상 단위 값이라 ORIGINAL/DEIDENTIFIED 2벌이 항상 동일 |
-| 승인 후 수정 | 검수 완료(APPROVED) 영상의 촬영환경을 정정하면 **동결 스냅샷(데이터마트 뷰)만 재동결(materialize)**한다 — 관제가 조회하는 스냅샷·데이터마트 뷰(`V_COMPLETED_VIDEO.WTHR_NM`)·포털 복제본이 최신 수동값을 반영한다. **export 폴더 파일은 재산출하지 않고 다음 재승인 시 재산출**한다(승인 후 라벨 수정과 동일 정책 — 한 필드 정정이 프레임 이미지 전량 2벌 재복제로 증폭되는 것을 막음, OWASP API4). 재동결 시 **검수 완료 일시(`RVW_CMPL_DT`)는 최초 승인 시각을 보존**한다(편집 시각으로 덮지 않음 — `TASK_COMPLETED` "검수 완료 일시" 계약). 활성 스냅샷이 없으면 fail-safe skip |
+| 승인 후 수정 | 검수 완료(APPROVED) 영상의 촬영환경을 정정하면 **①동결 스냅샷(데이터마트 뷰) 재동결(materialize)** + **②export 폴더를 새 버전 `v{n+1}` 로 전량 재생성**을 함께 수행한다(Phase 5C — 구 정책 "export 폴더는 재산출하지 않고 다음 재승인 시 재산출"은 폐기: 재동결이 스냅샷만 갱신하고 파일은 옛 촬영환경으로 남으면 관제가 픽업하는 산출물과 뷰가 불일치했기 때문). 재산출은 `TaskModifiedEvent(exportRegenerated=true)` → 디바운스 flush 가 export 를 먼저 마친 뒤 통지를 내보내는 순서로 직렬화된다(§24.6 R6, [15](15-control-notify.md) §15.2). 재동결 시 **검수 완료 일시(`RVW_CMPL_DT`)는 최초 승인 시각을 보존**한다(편집 시각으로 덮지 않음 — `TASK_COMPLETED` "검수 완료 일시" 계약). 활성 스냅샷이 없으면 fail-safe skip |
 | 파생영상 | 증강·해상도 파생본은 생성 시 부모의 촬영환경 수동값 3필드를 **복사**한다(같은 영상 소스이므로). 부모가 미입력이면 파생본도 null → 촬영일시 파생 폴백 유지. 복사는 **생성 시점 1회**이며 파생 생성 후 부모 촬영환경 수정은 파생본으로 **재전파하지 않는다**(스냅샷 시맨틱 — 의도) |
-| 통지 | 검수 완료(APPROVED) 후 수정 시 관제 `TASK_MODIFIED`(META_UPDATED) 발행 |
+| 통지 | 검수 완료(APPROVED) 후 수정 시 관제 `TASK_MODIFIED`(META_UPDATED) 발행. 위 재생성이 트리거되는 경우 **export 성공(SUCCEEDED) 이후**에만 발송된다([15](15-control-notify.md) §15.2) |
 
 > **미보유 필수 필드 null 정책 (소비측 주의)**: 위 "미보유" 필드는 저작도구가 원천 데이터를 보유하지 않아 **의도적으로 null** 이다. `@JsonInclude(ALWAYS)` 로 키 자체는 항상 존재하므로, 소비측은 "키 부재"가 아니라 "**값 null**"로 미보유를 판정해야 한다.
 
@@ -144,7 +154,9 @@
 ## 24.6 멱등 · 버전 누적
 
 - **버전 채번**: 기존 export 건수 + 1 = 다음 `EXPORT_VER_NO`. UK(DATA_RAW_SN, EXPORT_VER_NO) 위반 시 재채번 재시도(동시 승인 TOCTOU/CWE-362 백스톱).
-- **★R6 — 검수 승인은 항상 전량 재생성(멱등 skip 미적용)**: 검수 승인(`onReviewApproved`, 최초·재승인 무관) 트리거는 **`forceRegenerate=true`** 로 진입해, **내용 변경 여부와 무관하게 매 승인마다 새 버전 폴더 + JSON/이미지를 전량 재생성**한다. 아래 콘텐츠 해시 멱등 skip 은 **재동결 경로(`onReExport`, event_annotation 지연 승인 등, `forceRegenerate=false`)에서만** 적용된다. 편집(촬영환경 PUT 등)은 재export 자체를 트리거하지 않으므로 재생성을 유발하지 않는다(§24.5, Phase 2 정합).
+- **★R6 — 검수 승인은 항상 전량 재생성(멱등 skip 미적용)**: 검수 승인(`onReviewApproved`, 최초·재승인 무관) 트리거는 **`forceRegenerate=true`** 로 진입해, **내용 변경 여부와 무관하게 매 승인마다 새 버전 폴더 + JSON/이미지를 전량 재생성**한다. 아래 콘텐츠 해시 멱등 skip 은 **재동결 경로(`onReExport`, event_annotation 지연 승인 등, `forceRegenerate=false`)에서만** 적용된다.
+  - **★승인 후 수정도 전량 재생성한다(Phase 5C — 구 정책 폐기)**: 라벨 수정(`LabelService`)·트랙 편집(`TrackEditService`)·트랙 병합(`TrackMergeService`)·버전 롤백(`VersionService`)·촬영환경 수정(`EnvironmentMetaService`, §24.4.1)·프레임 설명 수정(`FrameDescriptionService`)·프레임 개인정보 메타 수정(`FramePrivacyMetaService`)은 검수 완료(APPROVED) 이후 발생하면 `TaskModifiedEvent(exportRegenerated=true)` 를 발행하고, `ControlNotifyDebouncer` 의 flush 가 `AsyncDatasetExportRunner.runReExportThenNotify(rawSn, forceRegenerate=true, ...)` 로 export 를 새 버전 `v{n+1}` 로 **전량 재생성**(멱등 skip 미적용)한 뒤 통지를 내보낸다. 구 서술 "편집(촬영환경 PUT 등)은 재export 자체를 트리거하지 않는다"는 **폐기** — 이제 승인 후 편집은 재export 를 트리거한다. **예외**: `EvntAnnoService`(event_annotation 일반 수정)·`MetaService`(VLM 시계열 메타)는 재생성을 발행하지 않는다(CLAUDE.md "★ export 재생성·동기화 정책" 참조).
+  - **재생성 경로는 항상 `force=true`**: 승인(R6)·승인 후 수정(위) 모두 `forceRegenerate=true` 로 export 를 호출하므로 §24.6 의 콘텐츠 해시 멱등 skip 은 이 두 경로에는 적용되지 않는다. 멱등 skip 은 `onReExport`(휴면, 현재 발행처 없음) 경로에서만 유효하다.
   - **retention 백로그(범위 밖)**: 승인마다 새 버전 + 프레임 2벌(orgnl/deid) 복사가 누적되나 구 버전 정리(retention) 잡은 미구현이다. 보존 정책·정리 잡·저장소 메트릭 알람은 **별도 후속 Phase**에서 도입한다(코드에 `TODO(retention)` 주석).
 - **무수정 재동결 멱등(콘텐츠 해시, force=false 경로 한정)**: 산출 시점 상태를 SHA-256 콘텐츠 해시로 계산한다. 해시 원천은 **라벨 + 프레임(FRM_EXPLN 등) + 영상 메타(개인정보 유형·해상도 등)** — 라벨뿐 아니라 프레임 설명/개인정보 정정도 반영한다. 직전 **SUCCEEDED 또는 PARTIAL**(멱등 baseline) export 의 해시와 같으면 재산출을 **skip**(중복 버전 생성 방지). 직전이 FAILED/PENDING 이어도 그 이전의 SUCCEEDED/PARTIAL 해시를 상태 IN 필터로 정확히 찾는다.
   - **PARTIAL 을 baseline 에 포함하는 이유(무한 누적 방지)**: 원천 이미지가 지속 부재해 매번 `PARTIAL` 로 끝나는 영상을 무수정 재동결(force=false)할 때, PARTIAL 을 baseline 에서 제외하면 `v2·v3·v4…` 가 무한 채번되며 매 버전 이미지 파일이 재복사되어 디스크가 무한 증가한다(OWASP API4). PARTIAL 도 멱등 baseline 으로 삼아 이를 차단한다. `FAILED`(written=0)는 디스크 누적이 없고 재시도를 유도해야 하므로 baseline 에서 계속 제외한다.
@@ -159,7 +171,7 @@
 | `EXPORT_SN` | PK |
 | `DATA_RAW_SN` | 대상 영상(RAW_SN) |
 | `EXPORT_VER_NO` | 산출 버전(≥1). UK(DATA_RAW_SN, EXPORT_VER_NO) |
-| `EXPORT_PATH_NM` | 산출 루트 경로(`{labeling_root}/{RAW_SN}/v{n}`) |
+| `EXPORT_PATH_NM` | **영상 루트 경로**(`{dirname(RAW_FILE_PATH_NM)}/{RAW_SN}`) — **버전 루트가 아니다.** 관제가 `v1`·`v2` 를 한 경로 아래에서 보고 골라야 요구사항의 *버전별 비교·복구*가 성립하기 때문. 값은 **절대경로 그대로 저장·사용**하며 조회 시 재계산하지 않는다(롤백 전략 전환 후에도 기존 행이 깨지지 않도록) |
 | `EXPORT_STTS_CD` | `PENDING → SUCCEEDED\|PARTIAL\|FAILED` (아래 상태 의미) |
 | `FRAME_CNT` | 산출 프레임 파일 수(orgnl + deid 합산) |
 | `CONTENT_HASH` | 산출 시점 콘텐츠 해시(SHA-256, 멱등 판정 키) |
@@ -167,13 +179,15 @@
 
 **상태 의미**: `PENDING`=채번 후 파일 쓰기 전(예약), `SUCCEEDED`=전 프레임 산출, `PARTIAL`=일부 프레임 skip(원천 이미지 부재 등), `FAILED`=한 장도 못 씀 또는 파일 쓰기 예외.
 
-**stale PENDING 정리 (크래시 복구)**: `insertNextVersion` 이 PENDING 레코드를 커밋한 뒤 파일 쓰기/상태 마감 전에 프로세스가 크래시하면 그 레코드가 `PENDING` 으로 영구 고착된다. 주기 Quartz 잡 `DatasetExportPendingSweepJob`(기본 10분 간격, `@DisallowConcurrentExecution` + PostgreSQL JobStore 클러스터 락으로 2노드 중 1노드만 tick)이 `REG_DT` 가 `stale-minutes`(기본 30분) 이전인 PENDING 을 `FAILED` 로 마감한다. **파일은 삭제하지 않고 상태만 회수**한다(라벨링 전용 루트라 잔재 파일은 정합에 무해하며, 다음 산출은 `v{n+1}` 로 진행). 정상 산출은 수 초 내 완료되므로 30분 임계를 넘는 PENDING 은 크래시 잔재뿐이다. 초장기 산출이 sweep 으로 FAILED 마킹돼도 이후 완료가 `SUCCEEDED` 로 최종 수렴한다(last-writer-wins, 무해). `stale-minutes` 오설정(0/음수)은 안전 기본값 30 으로 폴백한다.
+**stale PENDING 정리 (크래시 복구)**: `insertNextVersion` 이 PENDING 레코드를 커밋한 뒤 파일 쓰기/상태 마감 전에 프로세스가 크래시하면 그 레코드가 `PENDING` 으로 영구 고착된다. 주기 Quartz 잡 `DatasetExportPendingSweepJob`(기본 10분 간격, `@DisallowConcurrentExecution` + PostgreSQL JobStore 클러스터 락으로 2노드 중 1노드만 tick)이 `REG_DT` 가 `stale-minutes`(기본 30분) 이전인 PENDING 을 `FAILED` 로 마감한다. **파일은 삭제하지 않고 상태만 회수**한다(잔재는 `{RAW_SN}/v{n}/` 안에만 남고 **원본 영상과 형제 디렉터리라 원본에 영향이 없으며**, 다음 산출은 `v{n+1}` 로 진행). 정상 산출은 수 초 내 완료되므로 30분 임계를 넘는 PENDING 은 크래시 잔재뿐이다. 초장기 산출이 sweep 으로 FAILED 마킹돼도 이후 완료가 `SUCCEEDED` 로 최종 수렴한다(last-writer-wins, 무해). `stale-minutes` 오설정(0/음수)은 안전 기본값 30 으로 폴백한다.
 
 ## 24.8 설정
 
 | 설정 키 | 기본값 | 의미 |
 |---------|--------|------|
-| `authoring.storage.labeling-path` | `./storage/labeling` | 학습데이터 파일 산출 루트(`{RAW_SN}/v{n}/orgnl\|deid/`) |
+| `authoring.dataset-export.base-strategy` | `co-locate` | 산출 base 전략. `co-locate`=원본 영상 디렉터리 하위(`dirname(RAW_FILE_PATH_NM)/{RAW_SN}`), `labeling-root`=구 고정 루트(롤백용). **플래그는 신규 산출의 base 선택에만 관여**하며 이미 기록된 `EXPORT_PATH_NM` 을 재해석하지 않는다 |
+| `authoring.storage.raw-mount-roots` | (미설정 시 `raw-path`+`deidentified-path` 로 폴백) | **경로 가드용 고정 allowlist**(CWE-22). `dirname(RAW_FILE_PATH_NM)` 이 이 목록 하위여야 산출이 허용된다. 요청과 무관한 고정값이어야 가드가 유효하다 |
+| `authoring.storage.labeling-path` | `./storage/labeling` | **구 고정 산출 루트 — `base-strategy=labeling-root` 롤백 시에만 사용** |
 | `authoring.storage.raw-path` | `./storage/raw` | 원본 프레임 이미지 base(orgnl 복사 원천) |
 | `authoring.storage.deidentified-path` | `./storage/deidentified` | 비식별 프레임 이미지 base(deid 복사 원천) |
 | `authoring.dataset-export.enabled` | `true`(matchIfMissing) | 승인 시 파일 산출 트리거 토글 |

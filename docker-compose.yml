@@ -69,6 +69,31 @@ services:
       AI_SERVER_URL: http://klid-ai-server:9300
       STORAGE_RAW_PATH: /app/storage/raw
       STORAGE_DEIDENTIFIED_PATH: /app/storage/deidentified
+      # ★ co-locate 산출(Phase 5A) 경로 가드용 고정 allowlist — dirname(RAW_FILE_PATH_NM) 이 이 목록
+      #   하위여야 산출물(비식별 영상·프레임·JSON)을 쓴다. 위반 시 폴백 없이 실패한다(CWE-22 fail-closed).
+      #   ⚠ 미설정 시 코드가 [raw-path, deidentified-path] 로 폴백하지만, 그 암묵 동작에 기대지 않고
+      #     여기서 명시한다(형상마다 폴백 결과가 갈려 조용히 파이프라인이 멈추는 것을 방지).
+      #   이 스택의 영상 경로는 전부 공유 볼륨 /app/storage 하위다:
+      #     · dev-seed(MNG_CLIP_MASTER.FILE_PATH) = ./storage/raw/seed/*.mp4 → WORKDIR /app 기준 /app/storage/raw/...
+      #     · 포털 업로드 = /app/storage/raw/portal/...
+      #   ⚠ mock-server 의 MOCK_OUTPUT_BASE(docker-compose.local.yml)와 <한 세트>로 맞춰야 한다 —
+      #     비식별 export_path 가 dirname(원본)/{rawSn}/deid/ 라 목이 그 경로에 쓸 수 있어야 한다.
+      STORAGE_RAW_MOUNT_ROOTS: ${STORAGE_RAW_MOUNT_ROOTS:-/app/storage/raw,/app/storage/deidentified}
+      # webhook HMAC 시크릿 — 빈 값이면 앱이 기동 실패(fail-closed, E-ISSUE-04)한다.
+      #   ★ 기본값 폴백(${VAR:-...}) 금지 — 커밋된 기본값은 "공개된 키로 조용히 기동" 이 되어 누구나
+      #     유효 서명을 위조할 수 있다(DEV_FIX H-1, CWE-1392/798). 이 compose 는 dev 배포 형상이기도 하다.
+      #   ${VAR:?err} 는 compose 가 "미설정 또는 빈 값" 이면 즉시 실패시킨다 — 의도된 동작이다.
+      #   값 생성: openssl rand -hex 32  → .env(gitignore 대상)에 기록.
+      WEBHOOK_HMAC_SECRET_AUGMENT: ${WEBHOOK_HMAC_SECRET_AUGMENT:?WEBHOOK_HMAC_SECRET_AUGMENT 를 .env 에 설정하세요 (openssl rand -hex 32)}
+      # 신뢰 프록시 CIDR / VLM 콜백 허용 출처.
+      #   ★ 이 폴백 'none' 은 **로컬 스택 전용**이다 — 이 서비스는 SPRING_PROFILES_ACTIVE=local 로
+      #     기동하고 앞단에 프록시가 실제로 없으므로 'none' 이 사실과 일치한다.
+      #     운영(prd) 형상은 이 파일을 쓰지 않고 deploy/onprem/config/backend/env.template 을 쓰며,
+      #     거기서는 값이 비어 있어 **운영자가 명시하기 전까지 기동하지 않는다**(DEV_FIX M-3/N-3).
+      #     운영 기본값으로 'none' 을 건네면 프록시 뒤에서 모든 콜백 IP 가 LB IP 하나로 수렴해
+      #     공격자 5회 실패가 정상 벤더 콜백 전건을 차단한다.
+      WEBHOOK_TRUSTED_PROXY_CIDRS: ${WEBHOOK_TRUSTED_PROXY_CIDRS:-none}
+      WEBHOOK_VLM_ALLOWED_IP_CIDRS: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:-none}
     volumes:
       - /data/klid/storage:/app/storage
     ports:

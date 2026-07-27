@@ -232,8 +232,11 @@ class DeidentReportServiceTest {
 
         service.report(2L, "사유", workerActor);
 
+        // DEV_FIX(H2① 락 순서) — 프레임 버전 bump(= 프레임 행 락) 가 라벨 삭제(= 라벨 행 락) 보다 먼저다.
+        //   역순이면 "프레임 락 → 라벨 락" 으로 도는 라벨 저장 경로와 교차해 ABBA 데드락(PG 40P01)이 열린다.
         // 고아 방지 삭제 순서: ATTR_VAL → AI_INFO → LBL.
-        var order = inOrder(attrValRepository, aiInfoRepository, labelRepository);
+        var order = inOrder(srcRepository, attrValRepository, aiInfoRepository, labelRepository);
+        order.verify(srcRepository).bumpLabelVersionByRawSn(9002L);
         order.verify(attrValRepository).deleteByLblSnIn(List.of(20L, 21L));
         order.verify(aiInfoRepository).deleteByDataLblSnIn(List.of(20L, 21L));
         order.verify(labelRepository).deleteAllByRawSn(9002L);

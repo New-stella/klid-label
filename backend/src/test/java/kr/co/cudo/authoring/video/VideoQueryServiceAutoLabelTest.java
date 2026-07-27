@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,9 +57,11 @@ class VideoQueryServiceAutoLabelTest {
         UserRepository userRepository = mock(UserRepository.class);
         LsDeidentProcLogRepository deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         batchStatusService = mock(BatchStatusService.class);
+        // DEV_FIX(H10) — 영상 상세는 마킹 화면 정합용으로 실 fps 를 함께 내린다(FE 가 같은 값으로 frameIndex 산출).
+        VideoFpsResolver fpsResolver = mock(VideoFpsResolver.class);
         service = new VideoQueryService(videoRepository, cctvRepository, srcRepository, lblRepository,
                 rawDataStatusRepository, taskAssignmentRepository, userRepository, deidentProcLogRepository,
-                batchStatusService);
+                batchStatusService, fpsResolver);
     }
 
     private LsDataRaw raw(Long rawSn) {

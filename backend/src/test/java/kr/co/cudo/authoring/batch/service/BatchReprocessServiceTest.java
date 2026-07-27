@@ -96,6 +96,54 @@ class BatchReprocessServiceTest {
     }
 
     @Test
+    @DisplayName("배치재처리_SKIPPED면_클레임을_보상롤백하고_409로_거부한다")
+    void compensatesClaimAndRejectsWhenSkipped() {
+        // DEV_FIX H10 — 클레임(FAILED→PROCESSING)은 작업 상태를 보지 않으므로, 검수 소유 상태 영상에서도
+        //   성공한다. 이어지는 process() 가 SKIPPED 를 반환하면 markRawDataFailed/Completed 가 호출되지
+        //   않아 PROCESSING 이 되돌려지지 않고 stage 가 영구 고착됐다(이후 모든 재처리 409).
+        long rawSn = 7L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+        when(orchestrator.process(rawSn)).thenReturn(BatchStage.SKIPPED);
+
+        assertThatThrownBy(() -> service.retry(rawSn))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        // ① 클레임 보상 롤백 — stage 를 FAILED 로 되돌려 고착을 남기지 않는다.
+        verify(transitionService).releaseReprocessClaim(rawSn);
+    }
+
+    @Test
+    @DisplayName("배치재처리_정상완료시에는_보상롤백을_하지_않는다")
+    void doesNotCompensateOnNormalCompletion() {
+        long rawSn = 8L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+        when(orchestrator.process(rawSn)).thenReturn(BatchStage.COMPLETED);
+
+        service.retry(rawSn);
+
+        verify(transitionService, never()).releaseReprocessClaim(anyLong());
+    }
+
+    @Test
+    @DisplayName("배치재처리_파이프라인_FAILED_종료는_409가_아니라_정상응답이다")
+    void failedStageIsReportedNotRejected() {
+        // 보상 롤백 분기가 "실패로 끝난 재처리"까지 409 로 바꿔 버리지 않는지 고정(과잉 차단 회귀 방지).
+        long rawSn = 9L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+        when(orchestrator.process(rawSn)).thenReturn(BatchStage.FAILED);
+
+        BatchReprocessResponse res = service.retry(rawSn);
+
+        assertThat(res.stage()).isEqualTo("FAILED");
+        verify(transitionService, never()).releaseReprocessClaim(anyLong());
+    }
+
+    @Test
     @DisplayName("존재하지_않는_영상_재처리시_NOT_FOUND_404")
     void notFoundWhenVideoMissing() {
         when(videoRepository.existsById(99L)).thenReturn(false);

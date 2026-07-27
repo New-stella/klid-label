@@ -80,7 +80,7 @@ public class Sam2TrackService {
         List<List<Double>> currentPolygon = req.prevPolygon();
 
         // 시작 프레임 이미지를 prev 로 사용.
-        String prevImageB64 = frameImageEncoder.encodeToBase64(startSrc.getSrcFilePathNm());
+        String prevImageB64 = frameImageEncoder.encodeFrame(startSrc);
 
         for (Long nextSrcSn : req.nextSrcSns()) {
             // IDOR 차단: 후속 프레임 각각에 대해서도 권한 검증.
@@ -89,7 +89,7 @@ public class Sam2TrackService {
             LsDataSrc nextSrc = srcRepository.findById(nextSrcSn)
                     .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "후속 프레임을 찾을 수 없습니다: " + nextSrcSn));
 
-            String nextImageB64 = frameImageEncoder.encodeToBase64(nextSrc.getSrcFilePathNm());
+            String nextImageB64 = frameImageEncoder.encodeFrame(nextSrc);
 
             kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest aiReq =
                     new kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest(

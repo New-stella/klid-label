@@ -5,19 +5,25 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Min;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
+import kr.co.cudo.authoring.common.security.StreamNonceCookie;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import jakarta.validation.Valid;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
+import kr.co.cudo.authoring.video.dto.ResolutionBackfillResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.service.AutoLabelSummaryService;
 import kr.co.cudo.authoring.video.service.FrameImageService;
+import kr.co.cudo.authoring.video.service.ResolutionBackfillService;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
 import kr.co.cudo.authoring.video.service.VideoResolutionService;
 import kr.co.cudo.authoring.video.service.VideoStreamService;
@@ -62,7 +68,13 @@ public class VideoController {
     private final FrameImageService frameImageService;
     private final VideoStreamService videoStreamService;
     private final VideoResolutionService videoResolutionService;
+    /** 해상도 파생 산출물 비식별 저장소 이관 백필(E-ISSUE-21/41 운영 1회성). */
+    private final ResolutionBackfillService resolutionBackfillService;
     private final AutoLabelSummaryService autoLabelSummaryService;
+    /** 영상 단위 인가 — 라벨/트랙 경로와 동일한 확립된 가드를 재사용한다(B-ISSUE-63). */
+    private final LabelAccessGuard labelAccessGuard;
+    /** 서명 스트림의 클라이언트 바인딩 nonce 쿠키 (A-ISSUE-11). */
+    private final StreamNonceCookie streamNonceCookie;
 
     @Operation(
             summary = "영상 목록 조회 (페이징)",
@@ -121,9 +133,14 @@ public class VideoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음")
     })
     @GetMapping("/{rawSn}")
-    // 관찰-1: 역할 미배정(role=null) 차단. (후속: WORKER 본인 배정 영상 한정 IDOR 검증은 Phase 5+)
+    // 관찰-1: 역할 미배정(role=null) 차단.
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
-    public ApiResponse<VideoDetailResponse> getOne(@Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
+    public ApiResponse<VideoDetailResponse> getOne(
+            @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        // B-ISSUE-63 (DEV_FIX H-1) — /stream 형제 경로 우회 차단. 영상 상세는 파일 경로·촬영지·클립 ID 등
+        // 영상 자산 메타를 그대로 노출하므로 스트림과 동일한 영상 단위 인가를 적용한다(CWE-639 IDOR).
+        labelAccessGuard.verifyRawAccess(rawSn, actor);
         return ApiResponse.ok(videoQueryService.getOne(rawSn));
     }
 
@@ -139,7 +156,12 @@ public class VideoController {
     // 관찰-1: 역할 미배정(role=null) 차단.
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<AutoLabelResultResponse> getAutoLabels(
-            @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
+            @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        // B-ISSUE-63 (DEV_FIX H-1) — 영상 전체 프레임의 라벨 본문(좌표 포함)을 반환하는 경로다.
+        // 프레임 단위 /v1/frames/{srcSn}/labels 는 이미 LabelAccessGuard 를 타는데 여기만 열려 있으면
+        // rawSn 순회로 타 영상 라벨을 통째로 수집할 수 있다(CWE-639 IDOR).
+        labelAccessGuard.verifyRawAccess(rawSn, actor);
         return ApiResponse.ok(videoQueryService.getAutoLabels(rawSn));
     }
 
@@ -188,10 +210,20 @@ public class VideoController {
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<kr.co.cudo.authoring.video.dto.StreamUrlResponse> streamUrl(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
-            @AuthenticationPrincipal TokenClaims actor) {
-        // CWE-284 — 발급 요청자 subject 를 서명에 바인딩해 타 사용자 URL 재사용을 차단한다.
+            @AuthenticationPrincipal TokenClaims actor,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        // B-ISSUE-63 — 영상 단위 인가(REVIEWER 전체 / WORKER 본인 배정). 캐시 뒤가 아니라 **진입부**에서
+        // 판정해야 캐시 히트가 인가를 건너뛰지 않는다(CWE-639 IDOR).
+        labelAccessGuard.verifyRawAccess(rawSn, actor);
+        // CWE-284 — 발급 요청자 subject 를 서명에 바인딩한다(u 변조 거부).
         String userNo = actor == null ? null : actor.sub();
-        return ApiResponse.ok(videoStreamService.issueSignedUrl(rawSn, userNo));
+        // A-ISSUE-11 — URL 에 없는 클라이언트 바인딩 nonce 를 HttpOnly 쿠키로 내려 서명 입력에 섞는다.
+        //   → URL 만 유출되면 재생 불가. 쿠키는 TTL 동안 재사용 가능(다수 Range 요청 대응).
+        // DEV_FIX M-1 — 쿠키는 서버 비밀 + 이 발급자(userNo)로 봉인되어 나간다. 공격자가 심어둔 값이나
+        //   타 사용자에게 발급된 값은 봉인 검증에 실패해 채택되지 않고 새 nonce 가 발급된다(nonce fixation 차단).
+        String nonce = streamNonceCookie.resolveOrIssue(request, response, userNo);
+        return ApiResponse.ok(videoStreamService.issueSignedUrl(rawSn, userNo, nonce));
     }
 
     /**
@@ -220,7 +252,13 @@ public class VideoController {
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER') or hasAuthority('STREAM_SIGNED')")
     public ResponseEntity<ResourceRegion> streamVideo(
             @Parameter(description = "raw 영상 PK", required = true, example = "1") @PathVariable Long rawSn,
-            @RequestHeader HttpHeaders headers) throws IOException {
+            @RequestHeader HttpHeaders headers,
+            @AuthenticationPrincipal TokenClaims actor) throws IOException {
+        // B-ISSUE-63 — 역할만 보던 게이트에 영상 단위 인가를 추가한다(CWE-639 IDOR).
+        //   REVIEWER 전체 / WORKER 본인 배정 영상만. 서명 경로도 동일하게 적용된다 —
+        //   StreamSignatureFilter 가 principal 에 실제 발급자 sub + 재조회 역할을 채우기 때문.
+        //   진입부 판정이라 stream-meta 캐시 히트가 인가를 건너뛰지 않는다.
+        labelAccessGuard.verifyRawAccess(rawSn, actor);
         return videoStreamService.stream(rawSn, headers);
     }
 
@@ -254,6 +292,10 @@ public class VideoController {
         if (frameNo == null || frameNo < 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "frameNo는 0 이상이어야 합니다.");
         }
+        // B-ISSUE-63 (DEV_FIX H-1) — /stream 만 잠그고 이 경로를 열어두면 rawSn·frameNo 순회로 임의 영상의
+        // 전체 프레임 이미지를 수집할 수 있어 스트림 통제가 무의미해진다. 형제 경로
+        // /v1/frames/{srcSn}/image 는 이미 LabelAccessGuard 를 타므로 동일 기준으로 맞춘다(CWE-639 IDOR).
+        labelAccessGuard.verifyRawAccess(rawSn, actor);
         return frameImageService.serve(rawSn, frameNo, raw, actor);
     }
 
@@ -290,5 +332,51 @@ public class VideoController {
             @AuthenticationPrincipal TokenClaims actor) {
         String regId = actor != null ? actor.sub() : null;
         return ApiResponse.ok(videoResolutionService.changeResolution(rawSn, request, regId));
+    }
+
+    /**
+     * 해상도 파생영상 확정 상태 조회 (E-ISSUE-24).
+     *
+     * <p>생성 API 의 201 CREATED 는 "예약 성공"만 의미하고 실제 확정은 비동기라, 확정 실패를 어느 화면
+     * 에서도 볼 수 없었다. 이 조회로 프리셋별 확정 결과(COMPLETED/IN_PROGRESS/FAILED)를 확인한다.
+     */
+    @Operation(
+            summary = "해상도 파생영상 확정 상태 조회 (REVIEWER)",
+            description = "원본 영상의 해상도 파생영상 목록과 확정 상태(COMPLETED/IN_PROGRESS/FAILED)를 반환한다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음")
+    })
+    @GetMapping("/{rawSn}/resolution")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<ResolutionChangeResponse> listDerivatives(
+            @Parameter(description = "원시 영상 PK", required = true, example = "1") @PathVariable Long rawSn) {
+        return ApiResponse.ok(videoResolutionService.listDerivatives(rawSn));
+    }
+
+    /**
+     * 해상도 파생 산출물 비식별 저장소 이관 백필 (E-ISSUE-21/41 운영 1회성).
+     *
+     * <p>Flyway 는 파일을 옮길 수 없어 스키마·뷰(V133)와 분리한 운영 배치다. Copy → Verify →
+     * DB 커밋 → 구 파일 삭제 순서로 멱등 수행하며, 실패 대상은 기존 경로를 유지한 채 목록으로 반환된다.
+     */
+    @Operation(
+            summary = "해상도 파생 산출물 비식별 저장소 이관 백필 (REVIEWER)",
+            description = "확정(ACCEPTED)된 해상도 파생영상의 비디오·프레임을 비식별 저장소 서브트리로 이관하고 경로를 정정한다. "
+                    + "멱등 재실행 가능. dryRun=true 면 대상/감사 결과만 산출한다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "실행 결과(대상/이관/스킵/실패/미매칭)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @PostMapping("/resolution-backfill")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<ResolutionBackfillResponse> runResolutionBackfill(
+            @Parameter(description = "true 면 변경 없이 대상만 산출") @RequestParam(defaultValue = "false") boolean dryRun) {
+        return ApiResponse.ok(resolutionBackfillService.run(dryRun));
     }
 }

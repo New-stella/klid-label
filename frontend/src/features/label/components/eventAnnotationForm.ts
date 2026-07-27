@@ -5,7 +5,7 @@
 
 import { ApiError } from '@/lib/api/errors';
 
-import type { CaptionCandidate, EvidenceCandidate } from '../api/eventAnnotation';
+import { normalizeCot, type CaptionCandidate, type EvidenceCandidate } from '../api/eventAnnotation';
 
 import { COT_STEPS, type CaptionRow, type EvidenceRow } from './eventAnnotationShared';
 
@@ -57,11 +57,14 @@ export function parseBboxes(raw: string): number[][] {
 
 /** 서버 caption(c1..cn) → 폼 CaptionRow[]. cot 는 항상 3단계로 정규화. */
 export function toCaptionRows(caption?: Record<string, CaptionCandidate>): CaptionRow[] {
-  return Object.entries(caption ?? {}).map(([key, c]) => ({
-    key,
-    captionText: c.caption_text ?? '',
-    cot: Array.from({ length: COT_STEPS }, (_, i) => c.cot?.[i] ?? ''),
-  }));
+  return Object.entries(caption ?? {}).map(([key, c]) => {
+    const cot = normalizeCot(c.cot);
+    return {
+      key,
+      captionText: c.caption_text ?? '',
+      cot: Array.from({ length: COT_STEPS }, (_, i) => cot[i] ?? ''),
+    };
+  });
 }
 
 /** 서버 evidence(c1..cn) → 폼 EvidenceRow[]. 리스트는 콤마/줄바꿈 문자열로 직렬화. */

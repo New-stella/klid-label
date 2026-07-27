@@ -43,17 +43,22 @@ class ResolutionFileMaterializerTest {
 
     ResolutionFileMaterializer materializer;
 
+    /**
+     * raw base 와 deid base 를 <b>같은 디렉토리</b>로 주입한다 — 운영(prd) 이 두 값을 동일 경로
+     * ({@code /nas-storage})로 쓰는 환경을 재현한다. 이 조건에서도 파생 산출물이 비식별 전용
+     * 서브트리({@code frames/deid/…})에 놓이는지 단언해야 base 이동이 실제로 효과가 있다.
+     */
     @TempDir Path base;
 
     @BeforeEach
     void setup() {
         materializer = new ResolutionFileMaterializer(imageResizer, videoFileCopier, resizeGate);
-        ReflectionTestUtils.setField(materializer, "storageRawPath", base.toString());
+        ReflectionTestUtils.setField(materializer, "storageDeidentifiedPath", base.toString());
     }
 
     private ResolutionSnapshot snapshot(long newRawSn, Path videoSrc, Path videoDst, List<ResolutionSnapshot.FrameSpec> frames) {
         return new ResolutionSnapshot(newRawSn, 200L, 42L, ResolutionPreset.RESL_720P,
-                1920, 1080, 1280, 720, 0.6667, 0.6667, "rev1", videoSrc, videoDst,
+                1920, 1080, 1280, 720, 0.6667, 0.6667, 0, 0, "rev1", videoSrc, videoDst,
                 java.time.Instant.now(), frames);
     }
 
@@ -94,23 +99,28 @@ class ResolutionFileMaterializerTest {
     }
 
     @Test
-    @DisplayName("cleanup은_파생_비디오와_프레임디렉토리를_삭제하고_무관파일은_보존하며_true를_반환한다")
+    @DisplayName("cleanup은_파생_비디오와_비식별프레임디렉토리를_삭제하고_원본프레임은_보존하며_true를_반환한다")
     void cleanupRemovesDerivativeArtifactsAndReturnsTrue() throws Exception {
         long newRawSn = 902L;
-        Path framesDir = base.resolve("resolution/" + newRawSn + "/frames");
+        Path framesDir = base.resolve("frames/deid/" + newRawSn);
         Files.createDirectories(framesDir);
-        Path frame0 = Files.write(framesDir.resolve("f0.jpg"), new byte[]{1, 2, 3});
-        Path videoDir = base.resolve("resolution/" + newRawSn + "/video");
+        Path frame0 = Files.write(framesDir.resolve("frame-0.jpg"), new byte[]{1, 2, 3});
+        Path videoDir = base.resolve("videos/resolution/200");
         Files.createDirectories(videoDir);
         Path derivativeVideo = Files.write(videoDir.resolve("RESL_720P.mp4"), new byte[]{7});
+        // 같은 base 안의 원본 프레임 서브트리 — cleanup 이 절대 건드리면 안 된다(원본 보존).
+        Path rawFramesDir = base.resolve("frames/raw/" + newRawSn);
+        Files.createDirectories(rawFramesDir);
+        Path rawFrame = Files.write(rawFramesDir.resolve("frame-0.jpg"), new byte[]{4});
         Path unrelated = Files.write(base.resolve("keep.mp4"), new byte[]{0});
 
         boolean clean = materializer.cleanup(newRawSn, derivativeVideo);
 
         assertThat(clean).isTrue();
         assertThat(frame0).doesNotExist();
-        assertThat(base.resolve("resolution/" + newRawSn)).doesNotExist();
+        assertThat(base.resolve("frames/deid/" + newRawSn)).doesNotExist();
         assertThat(derivativeVideo).doesNotExist();
+        assertThat(rawFrame).exists();
         assertThat(unrelated).exists();
     }
 

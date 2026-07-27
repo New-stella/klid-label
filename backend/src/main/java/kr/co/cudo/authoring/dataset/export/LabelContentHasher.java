@@ -119,6 +119,9 @@ public class LabelContentHasher {
             }
             append(sb, f.getSrcSn());
             append(sb, f.getFrameNo());
+            // A-7/S11 — VDO_FRM_NO 는 산출 JSON 의 frame_num 원천이다. 해시에서 빠지면 이 값만 나중에
+            // 백필됐을 때 재동결(멱등 skip) 경로가 재산출하지 않아 frame_num 이 옛 값으로 고착된다.
+            append(sb, f.getVideoFrameNo());
             append(sb, f.getFrmExpln());
             append(sb, f.getShtDt());
             append(sb, f.getSrcFilePathNm());

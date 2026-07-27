@@ -85,6 +85,23 @@ class BatchRetryQuartzJobTest {
     }
 
     @Test
+    @DisplayName("H1_SKIPPED_반환시_재시도_엔트리를_제거해_큐_고아를_남기지_않는다")
+    void processSkipped_clearsRetryEntry() {
+        // DEV_FIX H1 — pollReady() 가 이미 엔트리를 RETRYING("처리중")으로 클레임했는데, SKIPPED 는
+        //   process() 의 catch 를 타지 않아 enqueueIfRetryable(재무장)도 clear(제거)도 실행되지 않았다.
+        //   그 결과 엔트리가 PENDING 으로 돌아오지 못해 큐에 영구 고아로 남고 재시도가 무음 중단됐다.
+        //   검수 소유 영상은 재시도해도 계속 SKIPPED 이므로 재무장이 아니라 제거가 옳다.
+        Long rawSn = 300L;
+        when(retryQueue.pollReady()).thenReturn(Optional.of(rawSn));
+        when(orchestrator.process(rawSn)).thenReturn(BatchStage.SKIPPED);
+
+        newJob().execute(null);
+
+        verify(retryQueue).clear(rawSn);
+        verify(retryQueue, never()).enqueueIfRetryable(rawSn);
+    }
+
+    @Test
     @DisplayName("pollReady_비어있으면_process_미호출")
     void emptyQueue_noProcess() {
         when(retryQueue.pollReady()).thenReturn(Optional.empty());

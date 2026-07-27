@@ -378,10 +378,13 @@ public class VersionService {
         LsLabelVersion result = upsertRollbackVersion(src, raw, activeVersions, newHash, snapshot, actor);
 
         // APPROVED(검수 완료) 영상은 라벨 변경이므로 TASK_MODIFIED(LABEL_UPDATED) 발행 (LabelService 패턴 재사용).
+        // HIGH-A(Phase 5C) — 롤백은 프레임 라벨을 과거 스냅샷으로 교체하므로 export JSON 도 바뀐다.
+        //   exportRegenerated=true 로 발행해 승인 후 수정 경로와 동일하게 export 폴더를 새 버전으로 전량
+        //   재생성한 뒤 통지가 나가게 한다(구 4-arg=false 는 롤백 전 라벨로 export 가 고착됐다).
         if (isReviewApproved(raw.getRawSn())) {
             Long actorNo = accessGuard.parseUserNo(actor.sub());
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    raw.getRawSn(), src.getSrcSn(), ChangeType.LABEL_UPDATED, actorNo));
+                    raw.getRawSn(), src.getSrcSn(), ChangeType.LABEL_UPDATED, actorNo, true));
         }
         return result;
     }
@@ -478,6 +481,11 @@ public class VersionService {
     private void replaceFrameLabels(LsDataSrc src, List<RestoredLabel> restored) {
         Long srcSn = src.getSrcSn();
         List<LsDataLbl> existing = labelRepository.findBySrcSn(srcSn);
+        // C-ISSUE-21 — 롤백은 프레임 라벨을 통째로 교체(삭제+재발급)하므로 라벨셋 버전을 +1 한다.
+        //   올리지 않으면 롤백 직전 화면을 연 세션이 낡은 세트를 그대로 저장해 롤백을 되돌릴 수 있다.
+        // DEV_FIX(H2① 락 순서) — bump 는 프레임 행 쓰기 락을 잡으므로 라벨 삭제/삽입 <b>전에</b> 수행한다
+        //   ("프레임 락 → 라벨 락" 규약. 역순이면 라벨 저장 경로와 ABBA 데드락).
+        srcRepository.bumpLabelVersionIn(List.of(srcSn));
         if (!existing.isEmpty()) {
             labelRepository.deleteAll(existing);
             // delete 가 flush 되어 동일 트랜잭션 내 후속 insert 와 분리되도록 보장(IDENTITY PK 안전).
@@ -650,7 +658,7 @@ public class VersionService {
                     it.color(), reduced, it.autoLblYn(), it.confScore(), it.trackId(), it.lblSrcCd()));
         }
         return new LabelResponse(src.srcSn(), src.frameNo(), src.videoId(),
-                src.frameImageType(), src.lockSttsCd(), src.siblings(), items);
+                src.frameImageType(), src.lockSttsCd(), src.labelVersion(), src.siblings(), items);
     }
 
     private static String sha256Hex(String input) {

@@ -165,7 +165,14 @@ public class DeidentFrameAttacher {
      * 그대로 전파해 전체 롤백한다(임의 통과 금지).
      */
     private void verifyResolution(LsDataSrc src, Path deidFrameFile, Long rawSn) {
-        int[] origDim = imageResizer.readDimensions(Paths.get(src.getSrcFilePathNm()));
+        // M-6 (null 가드) — 원본 경로가 결측인 프레임(해상도 파생 등)에서 Paths.get(null) NPE(500)가 난다.
+        //                   결측은 "측정 불가"이므로 임의 통과가 아니라 명시적 실패로 처리한다.
+        String origPath = src.getSrcFilePathNm();
+        if (origPath == null || origPath.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "원본 프레임 경로가 없어 해상도를 검증할 수 없습니다 rawSn=" + rawSn);
+        }
+        int[] origDim = imageResizer.readDimensions(Paths.get(origPath));
         int[] deidDim = imageResizer.readDimensions(deidFrameFile);
         if (origDim == null || deidDim == null
                 || origDim.length < 2 || deidDim.length < 2

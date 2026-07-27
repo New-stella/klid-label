@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.video;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -57,7 +58,9 @@ class VideoStreamServiceTest {
     @BeforeEach
     void setUp() {
         deidDir = tempDir.resolve("deidentified");
-        videoStreamService = new VideoStreamService(videoRepository, streamUrlSigner, procLogRepository);
+        // S6 — 구 위치(deidDir) + 신 위치(co-locate) 2-way allowlist. nasRoot 를 허용 마운트 루트로 둔다.
+        videoStreamService = new VideoStreamService(videoRepository, streamUrlSigner, procLogRepository,
+                ArtifactRootTestSupport.coLocate(tempDir, tempDir.resolve("raw"), deidDir));
         ReflectionTestUtils.setField(videoStreamService, "storageRawPath", tempDir.resolve("raw").toString());
         ReflectionTestUtils.setField(videoStreamService, "deidentifiedPath", deidDir.toString());
     }
@@ -169,9 +172,9 @@ class VideoStreamServiceTest {
     }
 
     @Test
-    @DisplayName("비식별_경로_Path_Traversal_시도시_FORBIDDEN")
-    void streamVideo_pathTraversal_forbidden() {
-        // given — procLog 의 deid 경로가 base 밖을 가리킴 (변조 시도)
+    @DisplayName("비식별_경로_Path_Traversal_시도시_거부 — 구·신 어느 base 에도 없으면 NOT_FOUND")
+    void streamVideo_pathTraversal_refused() {
+        // given — procLog 의 deid 경로가 허용 base 밖을 가리킴 (변조/손상)
         Long rawSn = 3L;
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
         when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
@@ -179,11 +182,11 @@ class VideoStreamServiceTest {
 
         HttpHeaders headers = new HttpHeaders();
 
-        // when / then
+        // when / then — 거부한다. 존재/권한을 응답으로 구분해주지 않도록 NOT_FOUND 로 정규화(S7).
         assertThatThrownBy(() -> videoStreamService.stream(rawSn, headers))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+                .isEqualTo(ErrorCode.NOT_FOUND);
     }
 
     @Test
@@ -512,27 +515,214 @@ class VideoStreamServiceTest {
         when(streamUrlSigner.isConfigured()).thenReturn(false);
 
         // when / then: 권한 거부(403)가 아닌 503 SERVICE_UNAVAILABLE 로 매핑
-        assertThatThrownBy(() -> videoStreamService.issueSignedUrl(rawSn, "1"))
+        assertThatThrownBy(() -> videoStreamService.issueSignedUrl(rawSn, "1", "0123456789abcdef0123456789abcdef"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
     }
 
     @Test
-    @DisplayName("서명URL_발급_userNo바인딩_URL에_u포함")
-    void issueSignedUrl_bindsUserNo_includesUInUrl() {
-        // given: 비식별 유효('Y') + 시크릿 설정 + userNo='1' 로 서명
+    @DisplayName("서명URL_발급_userNo와_nonce_바인딩_URL에는_u만_포함")
+    void issueSignedUrl_bindsUserNoAndNonce_includesUInUrl() {
+        // given: 비식별 유효('Y') + 시크릿 설정 + userNo='1' + 클라이언트 바인딩 nonce
         Long rawSn = 11L;
+        String nonce = "0123456789abcdef0123456789abcdef";
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
         when(streamUrlSigner.isConfigured()).thenReturn(true);
-        when(streamUrlSigner.sign(rawSn, "1"))
+        when(streamUrlSigner.sign(rawSn, "1", nonce))
                 .thenReturn(new StreamUrlSigner.SignedParams(1_700_000_000L, "deadbeef", 60L));
 
         // when
-        var resp = videoStreamService.issueSignedUrl(rawSn, "1");
+        var resp = videoStreamService.issueSignedUrl(rawSn, "1", nonce);
 
-        // then: 서명 입력에 userNo 가 바인딩되고 URL 쿼리에 u=1 이 포함된다
-        org.mockito.Mockito.verify(streamUrlSigner).sign(rawSn, "1");
+        // then: 서명 입력에 userNo + nonce 가 바인딩되고, URL 에는 u 만 노출된다(nonce 는 쿠키로만 전달).
+        org.mockito.Mockito.verify(streamUrlSigner).sign(rawSn, "1", nonce);
         assertThat(resp.url()).contains("&u=1&sig=deadbeef");
+        assertThat(resp.url()).doesNotContain(nonce);
+    }
+
+    // ===================== S6/S8 — 구·신 위치 혼재 + 외부 산출물명 =====================
+
+    /**
+     * 허용 마운트 루트(tempDir) 하위에 원본 영상이 있는 비식별 완료 영상 stub.
+     * co-locate base 는 이 원본의 디렉터리에서 도출된다.
+     */
+    private LsDataRaw coLocateReadyRaw(Long rawSn) throws IOException {
+        Path nasDir = tempDir.resolve("nas");
+        Files.createDirectories(nasDir);
+        Path original = nasDir.resolve("clip_" + rawSn + ".mp4");
+        Files.write(original, new byte[16]);
+        LsDataRaw raw = stubRaw(rawSn, original.toString());
+        // co-locate base 도출에 rawSn 이 필요하다(적재 후 PK 부여 상황 모사).
+        ReflectionTestUtils.setField(raw, "rawSn", rawSn);
+        raw.markDeidentified("Y");
+        return raw;
+    }
+
+    /** co-locate 비식별 디렉터리({@code dirname(원본)/{rawSn}/deid/})에 지정한 <b>파일명</b>으로 산출물을 만든다. */
+    private Path writeColocateDeidFile(LsDataRaw raw, String fileName) throws IOException {
+        Path dir = Path.of(raw.getRawFilePathNm()).getParent()
+                .resolve(String.valueOf(raw.getRawSn()))
+                .resolve("deid");
+        Files.createDirectories(dir);
+        Path file = dir.resolve(fileName);
+        Files.write(file, new byte[2048]);
+        return file;
+    }
+
+    private void stubStreamable(LsDataRaw raw, Path deidFile) {
+        when(videoRepository.findById(raw.getRawSn())).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(raw.getRawSn()))
+                .thenReturn(Optional.of(stubDeidLog(raw.getRawSn(), deidFile.toString())));
+    }
+
+    @Test
+    @DisplayName("S6_구위치_비식별영상이_그대로_스트리밍된다 — 배포 전 산출물 회귀")
+    void stream_legacyLocation_succeeds() throws IOException {
+        // given — 구 위치({deid_base}/videos/{rawSn}/) 산출물
+        Long rawSn = 60L;
+        Path legacyDir = deidDir.resolve("videos").resolve(String.valueOf(rawSn));
+        Files.createDirectories(legacyDir);
+        Path legacyFile = legacyDir.resolve("deidentified.mp4");
+        Files.write(legacyFile, new byte[2048]);
+        stubStreamable(coLocateReadyRaw(rawSn), legacyFile);
+
+        // when / then
+        assertThat(videoStreamService.stream(rawSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("S6_신위치_co_locate_비식별영상이_스트리밍된다")
+    void stream_coLocateLocation_succeeds() throws IOException {
+        // given — 신 위치(dirname(원본)/{rawSn}/deid/) 산출물
+        Long rawSn = 61L;
+        LsDataRaw raw = coLocateReadyRaw(rawSn);
+        stubStreamable(raw, writeColocateDeidFile(raw, "deidentified.mp4"));
+
+        // when / then
+        assertThat(videoStreamService.stream(rawSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("S6_구위치_행과_신위치_행이_동시에_있어도_둘_다_스트리밍된다")
+    void stream_legacyAndColocateRows_bothSucceed() throws IOException {
+        // given — 영상 A 는 구 위치, 영상 B 는 신 위치(전환 전후 행 혼재)
+        Long legacySn = 62L;
+        Path legacyDir = deidDir.resolve("videos").resolve(String.valueOf(legacySn));
+        Files.createDirectories(legacyDir);
+        Path legacyFile = legacyDir.resolve("deidentified.mp4");
+        Files.write(legacyFile, new byte[2048]);
+        stubStreamable(coLocateReadyRaw(legacySn), legacyFile);
+
+        Long coLocateSn = 63L;
+        LsDataRaw coLocateRaw = coLocateReadyRaw(coLocateSn);
+        stubStreamable(coLocateRaw, writeColocateDeidFile(coLocateRaw, "clip_63-mask.mp4"));
+
+        // when / then — 둘 다 200 (한쪽만 허용되는 단일 base 가드였다면 하나가 NOT_FOUND)
+        assertThat(videoStreamService.stream(legacySn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(videoStreamService.stream(coLocateSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("S6_구위치도_신위치도_아닌_제3의_경로는_차단된다")
+    void stream_thirdLocation_refused() throws IOException {
+        // given — 허용 base 어디에도 속하지 않는 실재 파일(파일이 있어도 허용되면 안 된다)
+        Long rawSn = 64L;
+        Path rogueDir = tempDir.resolve("nas").resolve(String.valueOf(rawSn)).resolve("rogue");
+        Files.createDirectories(rogueDir);
+        Path rogue = rogueDir.resolve("deidentified.mp4");
+        Files.write(rogue, new byte[2048]);
+        stubStreamable(coLocateReadyRaw(rawSn), rogue);
+
+        // when / then
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("비식별_영상_경로는_파일명을_조합하지_않고_LS_DEIDENT_PROC_LOG_값을_사용한다")
+    void deidPathComesFromProcLogNotFromNamingRule() throws IOException {
+        // given — 어떤 명명 규칙(mock 'deidentified.mp4' / KPST '{stem}-mask.mp4')으로도 유도되지 않는 이름
+        Long rawSn = 65L;
+        LsDataRaw raw = coLocateReadyRaw(rawSn);
+        Path unpredictable = writeColocateDeidFile(raw, "vendor-output-20260727-x9.mp4");
+        stubStreamable(raw, unpredictable);
+
+        // when
+        String resolved = videoStreamService.resolveDeidPath(rawSn);
+
+        // then — procLog 적재값 그대로. 규칙 조합이었다면 이 이름이 나올 수 없다.
+        assertThat(resolved).isEqualTo(unpredictable.toString());
+        assertThat(videoStreamService.stream(rawSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("KPST_산출물명이_원본stem_mask_형태여도_스트리밍이_동작한다")
+    void stream_kpstMaskFileName_succeeds() throws IOException {
+        // given — KPST 실연동 산출명({원본stem}-mask{ext}) — 영상마다 이름이 다르다
+        Long rawSn = 66L;
+        LsDataRaw raw = coLocateReadyRaw(rawSn);
+        Path masked = writeColocateDeidFile(raw, "clip_66-mask.mp4");
+        stubStreamable(raw, masked);
+
+        // when / then
+        assertThat(videoStreamService.resolveDeidPath(rawSn)).endsWith("clip_66-mask.mp4");
+        assertThat(videoStreamService.stream(rawSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("mock명과_KPST명이_섞여도_둘_다_동작한다")
+    void stream_mockAndKpstNamesCoexist() throws IOException {
+        // given — 같은 배포 안에 mock 산출(고정명)과 KPST 산출(파생명)이 공존
+        Long mockSn = 67L;
+        LsDataRaw mockRaw = coLocateReadyRaw(mockSn);
+        stubStreamable(mockRaw, writeColocateDeidFile(mockRaw, "deidentified.mp4"));
+
+        Long kpstSn = 68L;
+        LsDataRaw kpstRaw = coLocateReadyRaw(kpstSn);
+        stubStreamable(kpstRaw, writeColocateDeidFile(kpstRaw, "clip_68-mask.mp4"));
+
+        // when / then
+        assertThat(videoStreamService.stream(mockSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(videoStreamService.stream(kpstSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("S8_롤백전략_labeling_root_에서도_구행_신행_모두_조회된다 — 적재 경로 재계산 금지")
+    void stream_rollbackStrategy_readsBothLocations() throws IOException {
+        // given — 롤백 전략(labeling-root)으로 전환된 인스턴스. 신규 산출 base 는 구 위치로 돌아가지만,
+        //         이미 적재된 co-locate 절대경로(DE_IDNTF_FILE_PATH_NM)는 재계산하지 않고 그대로 읽어야 한다.
+        videoStreamService = new VideoStreamService(videoRepository, streamUrlSigner, procLogRepository,
+                ArtifactRootTestSupport.labelingRootWithAllowedRoot(
+                        tempDir, tempDir.resolve("labeling"), deidDir));
+        ReflectionTestUtils.setField(videoStreamService, "storageRawPath", tempDir.resolve("raw").toString());
+        ReflectionTestUtils.setField(videoStreamService, "deidentifiedPath", deidDir.toString());
+
+        Long legacySn = 69L;
+        Path legacyDir = deidDir.resolve("videos").resolve(String.valueOf(legacySn));
+        Files.createDirectories(legacyDir);
+        Path legacyFile = legacyDir.resolve("deidentified.mp4");
+        Files.write(legacyFile, new byte[2048]);
+        stubStreamable(coLocateReadyRaw(legacySn), legacyFile);
+
+        Long coLocateSn = 70L;
+        LsDataRaw coLocateRaw = coLocateReadyRaw(coLocateSn);
+        stubStreamable(coLocateRaw, writeColocateDeidFile(coLocateRaw, "clip_70-mask.mp4"));
+
+        // when / then — 전략을 되돌려도 양쪽 행이 모두 조회된다.
+        assertThat(videoStreamService.stream(legacySn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(videoStreamService.stream(coLocateSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
     }
 }

@@ -66,6 +66,7 @@ class Sam2SegmentServiceTest {
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private LabelAccessGuard accessGuard;
     @Mock private SystemConfigService systemConfigService;
+    @Mock private kr.co.cudo.authoring.label.service.FrameImageEncoder frameImageEncoder;
 
     @InjectMocks private Sam2SegmentService service;
 
@@ -82,6 +83,12 @@ class Sam2SegmentServiceTest {
         ReflectionTestUtils.setField(service, "objectMapper", objectMapper);
         ReflectionTestUtils.setField(service, "storageRawPath", tmpRawDir.toAbsolutePath().toString());
         ReflectionTestUtils.setField(service, "maxImageBytes", 20L * 1024 * 1024);
+        // M-6 — 이미지 경로 해석은 FrameImageEncoder(비식별 우선 폴백)에 위임된다.
+        //       테스트는 기존과 동일하게 raw 임시 디렉토리 기준으로 해석하도록 스텁한다.
+        when(frameImageEncoder.resolveFrameImage(any())).thenAnswer(inv -> {
+            LsDataSrc arg = inv.getArgument(0);
+            return tmpRawDir.resolve(arg.getSrcFilePathNm());
+        });
 
         // 100x100 실제 PNG 생성 (ImageIO 로 width/height 측정 가능해야 함).
         writePng("0.jpg", 100, 100);

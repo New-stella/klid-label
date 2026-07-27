@@ -18,15 +18,38 @@
 
 ## 15.2 발송 흐름
 
+**★ 통지는 export 산출이 끝난 뒤에만 발송한다(Phase 5C 확정)** — 산출이 먼저 끝나야 관제가 조회하는 `V_COMPLETED_VIDEO.EXPORT_PATH_NM`(최신 SUCCEEDED)이 이번 승인/수정의 새 버전 폴더를 담는다. export 가 먼저 나가면 관제가 **구 버전 폴더**를 픽업한다([24 export](24-dataset-export.md) 참조). 승인/수정 경로는 트리거·리스너 구성이 다르다.
+
+### TASK_COMPLETED (검수 승인)
+
 ```
-검수 승인/수정 → ReviewApprovedEvent / TaskModifiedEvent
-  → ControlNotifyEventListener
-  → ControlNotifyDebouncer (짧은 시간 내 다수 변경 → 디바운스 후 1회)
+검수 승인 커밋 → ReviewApprovedEvent(AFTER_COMMIT)
+  → DatasetExportBridge (항상 활성 — dataset-export.enabled 토글, control-notify 와 무관)
+  → AsyncDatasetExportRunner.runApprovalAsync (force=true 전량 재생성)
+  → export 성공(SUCCEEDED)   → DatasetExportCompletedEvent 발행
+       └→ ControlNotifyEventListener (control-notify.enabled 토글 종속) → ControlNotifyService.sendCompleted
+  → export 실패              → 통지 미발행(보류). LS_DATASET_EXPORT 에 FAILED 행만 남고
+                                DatasetExportFailureRecoverer 가 재시도 → 성공 시 같은 완료 이벤트로 통지 재개
+```
+
+### TASK_MODIFIED (승인 후 라벨/촬영환경 등 수정)
+
+```
+승인 후 수정 커밋 → TaskModifiedEvent(exportRegenerated=?)(AFTER_COMMIT)
+  → TaskModifiedAccumulateListener (항상 활성 — control-notify 토글과 무관)
+  → ControlNotifyDebouncer.accumulate (짧은 시간 내 다수 변경 → rawSn 단위 윈도우에 축적, 기본 60초)
+  → 전용 flush 스케줄러(기본 10초 tick, authoring.dataset-export.regen-flush.enabled) 만료 윈도우 flush:
+      · exportRegenerated=true 인 윈도우 → AsyncDatasetExportRunner.runReExportThenNotify(force=true)
+          → export 성공 시에만 통지 콜백(sendModified) 실행 — export 실패 시 통지 보류
+          (재시도는 DatasetExportFailureRecoverer 가 FAILED 행을 회수해 재산출 성공 후 완료 이벤트로 재개)
+      · exportRegenerated=false 인 윈도우(export 무관 메타) → 디스크 변경 없이 즉시 sendModified
   → ControlNotifyClient (idempotency + Resilience4j) → 관제서버 inbound SPI (비동기 push)
   → 발송 결과를 LS_CONTROL_NOTIFY_FALLBACK 에 적재:
       · 즉시 성공 → STTS_CD=SUCCEEDED + SEND_RSLT_CD=SUCCESS 터미널 행(재시도 큐 미진입, 관찰용)
       · 실패      → STTS_CD=PENDING + SEND_RSLT_CD=FAILED → dead-letter/재등록 큐 (Quartz Job 재시도)
 ```
+
+> **재export 트리거는 통지 토글과 독립적으로 동작한다**: `DatasetExportBridge`·`TaskModifiedAccumulateListener`·`ControlNotifyDebouncer` 는 모두 `authoring.control-notify.enabled` 와 무관하게 항상 활성이다(토글 off 인 dev/stg/prd 기본 형상 포함). `authoring.control-notify.enabled` 는 **통지 발송(`sendCompleted`/`sendModified`)만** 게이팅한다 — 토글이 꺼져 있어도 export 재생성(데이터마트 동기화)은 그대로 일어난다.
 
 > **발송 상태 관찰(V77)**: `STTS_CD`(큐 처리 상태)와 `SEND_RSLT_CD`(발송 결과 SUCCESS/FAILED)를 분리해, 즉시 성공 발송도 DB로 관찰 가능. `SELECT SEND_RSLT_CD FROM LS_CONTROL_NOTIFY_FALLBACK WHERE RAW_SN=? AND IDMP_KEY=?` → `'SUCCESS'`. 성공 관찰 행은 `SUCCEEDED` 터미널이라 재시도 잡·depth 게이지(`STTS_CD IN PENDING,RETRYING`)에서 제외.
 

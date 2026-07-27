@@ -49,27 +49,125 @@ class BatchTransitionServiceTest {
     }
 
     @Test
-    @DisplayName("markRawDataProcessing_상태_PROCESSING_전이_후_save_명시호출")
+    @DisplayName("markRawDataProcessingBlocked_검수소유상태_제외_조건부UPDATE로_PROCESSING_전이")
     void markRawDataProcessing_PROCESSING_영속() {
-        // given
-        LsRawDataStatus stts = assignedStatus(1L);
-        when(rawDataStatusRepository.findById(1L)).thenReturn(Optional.of(stts));
+        // given — 조건부 UPDATE 가 1행 영향(전이 성공)
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(
+                1L, LsRawDataStatus.STTS_PROCESSING, BatchTransitionService.REVIEW_OWNED_STATUSES))
+                .thenReturn(1);
         when(videoRepository.findById(1L)).thenReturn(Optional.empty());
 
         // when
-        service.markRawDataProcessing(1L);
+        service.markRawDataProcessingBlocked(1L);
 
-        // then — dirty checking 에 의존하지 않고 명시적으로 save 호출
-        assertThat(stts.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_PROCESSING);
-        verify(rawDataStatusRepository).save(stts);
+        // then — dirty checking·무조건 UPDATE 가 아니라 검수 소유 상태를 제외한 조건부 UPDATE 로 전이(B-ISSUE-03)
+        verify(rawDataStatusRepository).transitionByBatchIfNotBlocked(
+                1L, LsRawDataStatus.STTS_PROCESSING, BatchTransitionService.REVIEW_OWNED_STATUSES);
+        verify(rawDataStatusRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("검수소유상태라_영향행수0이면_예외없이_WARN만_남기고_진행 — 배치가_검수를_막지_않음")
+    void transition_blocked_noException_noSave() {
+        // given — APPROVED/IN_REVIEW 라 조건부 UPDATE 가 0행 영향
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(30L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(30L)).thenReturn(Optional.of(approved));
+        when(videoRepository.findById(30L)).thenReturn(Optional.empty());
+
+        // when / then — 예외를 던지지 않고, 상태도 건드리지 않는다
+        service.markRawDataProcessingBlocked(30L);
+        service.markRawDataCompleted(30L);
+        service.markRawDataFailed(30L);
+
+        assertThat(approved.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_APPROVED);
+        verify(rawDataStatusRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("검수소유상태_차단집합은_PENDING_IN_REVIEW_APPROVED_REJECTED_4종이고_ASSIGNED는_제외된다")
+    void reviewOwnedStatuses_정확히_4종() {
+        // then — H1-b: PENDING·REJECTED 에서 출발하는 정상 배치 전이는 코드에 존재하지 않으므로 차단 대상이다.
+        //        반면 배치 완료의 ASSIGNED 복귀는 의도된 설계라 제외해야 한다(제외하지 않으면 파이프라인이 끊긴다).
+        assertThat(BatchTransitionService.REVIEW_OWNED_STATUSES)
+                .containsExactlyInAnyOrder(
+                        LsRawDataStatus.STTS_PENDING,
+                        LsRawDataStatus.STTS_IN_REVIEW,
+                        LsRawDataStatus.STTS_APPROVED,
+                        LsRawDataStatus.STTS_REJECTED)
+                .doesNotContain(LsRawDataStatus.STTS_ASSIGNED);
+    }
+
+    @Test
+    @DisplayName("검수소유상태면_markRawDataProcessingBlocked가_true를_반환하고_LS_DATA_RAW도_전이하지_않는다")
+    void markRawDataProcessingBlocked_차단시_true_그리고_LS_DATA_RAW_불변() {
+        // given — 조건부 UPDATE 0행 + 현재 상태가 APPROVED(검수 소유)
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(31L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(31L)).thenReturn(Optional.of(approved));
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-31", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC, "raw/31.mp4", null, 60);
+        raw.markMarkingReady();
+        when(videoRepository.findById(31L)).thenReturn(Optional.of(raw));
+
+        // when
+        boolean blocked = service.markRawDataProcessingBlocked(31L);
+
+        // then — 호출자(BatchOrchestrator)가 파이프라인을 중단할 수 있도록 true, 배치 단계도 그대로 둔다(H8/H2)
+        assertThat(blocked).isTrue();
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+    }
+
+    @Test
+    @DisplayName("작업상태_row가_없으면_차단이_아니라서_false_반환하고_LS_DATA_RAW는_정상_전이된다 — 파생RAW_경로")
+    void markRawDataProcessingBlocked_row부재_false() {
+        // given — 조건부 UPDATE 0행이지만 row 자체가 없는 파생 RAW 경로
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        when(rawDataStatusRepository.findById(32L)).thenReturn(Optional.empty());
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-32", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC, "raw/32.mp4", null, 60);
+        raw.markMarkingReady();
+        when(videoRepository.findById(32L)).thenReturn(Optional.of(raw));
+
+        // when
+        boolean blocked = service.markRawDataProcessingBlocked(32L);
+
+        // then — 배치 진행을 막지 않는다
+        assertThat(blocked).isFalse();
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_PROCESSING);
+    }
+
+    @Test
+    @DisplayName("검수소유상태면_markRawDataFailed도_LS_DATA_RAW를_FAILED로_바꾸지_않는다 — 불일치쌍_금지")
+    void markRawDataFailed_차단시_LS_DATA_RAW_불변() {
+        // given — APPROVED 작업 상태 + 배치 단계 PROCESSING
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(33L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(33L)).thenReturn(Optional.of(approved));
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-33", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC, "raw/33.mp4", null, 60);
+        raw.markMarkingReady();
+        when(videoRepository.findById(33L)).thenReturn(Optional.of(raw));
+
+        // when
+        service.markRawDataFailed(33L);
+
+        // then — (work=APPROVED, stage=FAILED) 조합이 생기지 않는다
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
     }
 
     @Test
     @DisplayName("마킹완료로_배치가_시작되면_LsDataRaw_dataSttsCd_가_PROCESSING_으로_전이된다")
     void markRawDataProcessing_LS_DATA_RAW_PROCESSING() {
-        // given — 마킹 완료 후 MARKING_READY 인 영상
+        // given — 마킹 완료 후 MARKING_READY 인 영상 (작업 상태 ASSIGNED → 조건부 UPDATE 1행 성공)
         LsRawDataStatus stts = assignedStatus(20L);
         when(rawDataStatusRepository.findById(20L)).thenReturn(Optional.of(stts));
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(
+                20L, LsRawDataStatus.STTS_PROCESSING, BatchTransitionService.REVIEW_OWNED_STATUSES))
+                .thenReturn(1);
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "clip-20", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC,
                 "raw/20.mp4", null, 60);
@@ -77,7 +175,7 @@ class BatchTransitionServiceTest {
         when(videoRepository.findById(20L)).thenReturn(Optional.of(raw));
 
         // when — 배치 시작
-        service.markRawDataProcessing(20L);
+        service.markRawDataProcessingBlocked(20L);
 
         // then — 배치 단계 상태(LS_DATA_RAW.DATA_STTS_CD) = PROCESSING
         assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_PROCESSING);
@@ -86,11 +184,10 @@ class BatchTransitionServiceTest {
     @Test
     @DisplayName("markRawDataCompleted_작업상태는_ASSIGNED복귀_배치단계만_LS_DATA_RAW_COMPLETED")
     void markRawDataCompleted_작업상태_ASSIGNED복귀() {
-        // given — 배치 진행 중(PROCESSING) 인 작업 상태
-        LsRawDataStatus stts = LsRawDataStatus.initial(2L);
-        stts.markAssigned();
-        stts.transitionTo(LsRawDataStatus.STTS_PROCESSING);
-        when(rawDataStatusRepository.findById(2L)).thenReturn(Optional.of(stts));
+        // given — 배치 진행 중(PROCESSING) 인 작업 상태 → 조건부 UPDATE 성공(1행)
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(
+                2L, LsRawDataStatus.STTS_ASSIGNED, BatchTransitionService.REVIEW_OWNED_STATUSES))
+                .thenReturn(1);
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "clip-2", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_ANONY,
                 "raw/2.mp4", null, 60);
@@ -101,51 +198,57 @@ class BatchTransitionServiceTest {
 
         // then — 작업(워크플로우) 상태는 ASSIGNED 로 복귀해 검수 제출(ASSIGNED→PENDING)이 가능해야 함.
         //        COMPLETED 는 검수 승인 시점의 종결 상태이므로 배치 완료가 점프시키면 안 됨.
-        assertThat(stts.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_ASSIGNED);
+        verify(rawDataStatusRepository).transitionByBatchIfNotBlocked(
+                2L, LsRawDataStatus.STTS_ASSIGNED, BatchTransitionService.REVIEW_OWNED_STATUSES);
         // 배치 단계 상태(LS_DATA_RAW.DATA_STTS_CD)는 COMPLETED 유지
         assertThat(raw.getDataSttsCd()).isEqualTo("COMPLETED");
-        verify(rawDataStatusRepository).save(stts);
     }
 
     @Test
     @DisplayName("배치완료_후_검수제출_ASSIGNED에서_PENDING_상태머신_허용")
     void 배치완료후_검수제출_상태머신_허용() {
-        // given — 배치 완료 직후 작업 상태
-        LsRawDataStatus stts = LsRawDataStatus.initial(5L);
-        stts.markAssigned();
-        stts.transitionTo(LsRawDataStatus.STTS_PROCESSING);
-        when(rawDataStatusRepository.findById(5L)).thenReturn(Optional.of(stts));
+        // given — 배치 완료가 작업 상태를 되돌리는 목표값(ASSIGNED)을 캡처한다.
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
         when(videoRepository.findById(5L)).thenReturn(Optional.empty());
         service.markRawDataCompleted(5L);
 
+        org.mockito.ArgumentCaptor<String> target = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(rawDataStatusRepository).transitionByBatchIfNotBlocked(
+                org.mockito.ArgumentMatchers.eq(5L), target.capture(), any());
+
         // when/then — ASSIGNED → PENDING 검수 제출 전이가 상태 머신에서 허용
         ReviewStateMachine stateMachine = new ReviewStateMachine();
-        assertThat(stts.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_ASSIGNED);
-        stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_PENDING); // 예외 없으면 통과
+        assertThat(target.getValue()).isEqualTo(LsRawDataStatus.STTS_ASSIGNED);
+        stateMachine.verify(target.getValue(), LsRawDataStatus.STTS_PENDING); // 예외 없으면 통과
     }
 
     @Test
-    @DisplayName("markRawDataFailed_상태_FAILED_전이_후_save_명시호출")
+    @DisplayName("markRawDataFailed_검수소유상태_제외_조건부UPDATE로_FAILED_전이")
     void markRawDataFailed_FAILED_영속() {
         // given
-        LsRawDataStatus stts = assignedStatus(3L);
-        when(rawDataStatusRepository.findById(3L)).thenReturn(Optional.of(stts));
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(
+                3L, LsRawDataStatus.STTS_FAILED, BatchTransitionService.REVIEW_OWNED_STATUSES))
+                .thenReturn(1);
         when(videoRepository.findById(3L)).thenReturn(Optional.empty());
 
         // when
         service.markRawDataFailed(3L);
 
         // then
-        assertThat(stts.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_FAILED);
-        verify(rawDataStatusRepository).save(stts);
+        verify(rawDataStatusRepository).transitionByBatchIfNotBlocked(
+                3L, LsRawDataStatus.STTS_FAILED, BatchTransitionService.REVIEW_OWNED_STATUSES);
+        verify(rawDataStatusRepository, never()).save(any());
     }
 
     @Test
     @DisplayName("배치_실패_시_dataSttsCd_가_FAILED_로_전이된다(MARKING_READY_고착_금지)")
     void markRawDataFailed_LS_DATA_RAW_FAILED_고착금지() {
-        // given — 배치 진행 중(PROCESSING) 인 영상 (마킹 완료 후 처리중)
+        // given — 배치 진행 중(PROCESSING) 인 영상 (마킹 완료 후 처리중, 조건부 UPDATE 1행 성공)
         LsRawDataStatus stts = assignedStatus(21L);
         when(rawDataStatusRepository.findById(21L)).thenReturn(Optional.of(stts));
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(
+                21L, LsRawDataStatus.STTS_FAILED, BatchTransitionService.REVIEW_OWNED_STATUSES))
+                .thenReturn(1);
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "clip-21", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC,
                 "raw/21.mp4", null, 60);
@@ -194,7 +297,7 @@ class BatchTransitionServiceTest {
         when(rawDataStatusRepository.findById(any())).thenReturn(Optional.empty());
 
         // when
-        service.markRawDataProcessing(99L);
+        service.markRawDataProcessingBlocked(99L);
 
         // then — 배치 진행을 막지 않음 (예외 없이 통과)
         verify(rawDataStatusRepository, never()).save(any());

@@ -53,8 +53,10 @@ class Settings(BaseSettings):
     output_base: str = Field(
         default="",
         description=(
-            "출력 쓰기 허용 루트(예: STORAGE_DEIDENTIFIED_PATH). 설정 시 export_path 가 "
-            "resolve 후 이 base 하위일 때만 파일을 쓴다(경로순회/임의 절대경로 쓰기 차단). "
+            "출력 쓰기 허용 루트(콤마 구분 다중 허용). 설정 시 export_path 가 resolve 후 이 base 중 "
+            "하나의 하위일 때만 파일을 쓴다(경로순회/임의 절대경로 쓰기 차단). "
+            "BE co-locate 산출(Phase 5A)에서 비식별 export_path 가 dirname(원본)/{rawSn}/deid/ 이므로 "
+            "BE 의 STORAGE_RAW_MOUNT_ROOTS 와 같은 값으로 맞춘다. "
             "미설정('')이면 fail-closed — 어떤 파일도 생성하지 않는다(HIGH-1)"
         ),
     )

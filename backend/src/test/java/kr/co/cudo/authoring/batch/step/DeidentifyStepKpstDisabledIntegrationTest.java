@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.batch.service.KpstDeidentService;
+import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
+        // Phase 5A — co-locate 산출 base 허용 마운트 루트(원본 영상이 이 하위에 있어야 한다)
+        "authoring.storage.raw-mount-roots=" + ArtifactRootTestSupport.IT_MOUNT_ROOT,
         "kpst.deid.enabled=false",
         "authoring.integration.deidentify.mock-mode=true"
 })
@@ -37,8 +40,6 @@ class DeidentifyStepKpstDisabledIntegrationTest {
     private VideoRepository videoRepository;
     @Autowired
     private ApplicationContext applicationContext;
-    @org.springframework.beans.factory.annotation.Value("${authoring.storage.deidentified-path:./storage/deidentified}")
-    private String deidPath;
 
     @Test
     @DisplayName("통합_enabled_false면_KPST폴링빈_미등록_mock_비식별_경로유지")
@@ -46,9 +47,8 @@ class DeidentifyStepKpstDisabledIntegrationTest {
         // given — KPST 폴링 빈이 컨텍스트에 없어야 한다(토글 OFF).
         assertThat(applicationContext.getBeanNamesForType(KpstDeidentService.class)).isEmpty();
 
-        // 실제 원본 파일 존재 — mock 경로가 비식별 경로로 복사한다.
-        Path rawFile = Files.createTempFile("mock-raw", ".mp4");
-        Files.writeString(rawFile, "raw");
+        // 실제 원본 파일 존재(허용 마운트 루트 하위) — mock 경로가 co-locate 비식별 경로로 복사한다.
+        Path rawFile = ArtifactRootTestSupport.seedOriginalVideo("mock-raw");
         LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(
                 "clip-mock-" + System.nanoTime(), "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_PRVC, rawFile.toString(), null, 60));
@@ -56,12 +56,11 @@ class DeidentifyStepKpstDisabledIntegrationTest {
         // when — mock 비식별 경로 실행
         DeidentResult returned = deidentifyStep.run(raw);
 
-        // then — 비식별 결과가 storage.deidentified-path 하위에 복사되고 즉시 Y 전이(동기 완료).
-        Path deidBase = Path.of(deidPath).toAbsolutePath().normalize();
-        Path expected = deidBase.resolve("videos").resolve(String.valueOf(raw.getRawSn()))
-                .resolve("deidentified.mp4");
+        // then — 비식별 결과가 co-locate 위치(dirname(원본)/{rawSn}/deid/)에 복사되고 즉시 Y 전이.
+        Path expected = ArtifactRootTestSupport.expectedMockDeidPath(rawFile, raw.getRawSn());
         assertThat(returned.completed()).isTrue();
         assertThat(returned.deidFilePath()).isEqualTo(expected.toString());
+        assertThat(Files.readString(expected)).isEqualTo("raw-bytes");
         assertThat(videoRepository.findById(raw.getRawSn()).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
     }
 }

@@ -32,9 +32,22 @@ public record ResolutionChangeResponse(
         }
     }
 
-    /** 프리셋별 파생영상 생성 상태. */
+    /**
+     * 프리셋별 파생영상 생성 상태.
+     *
+     * <p>{@link #CREATED} 는 <b>예약 성공</b>만 의미한다 — 실제 확정(파일 산출·라벨 복사)은 비동기라
+     * 요청 응답 시점에는 아직 끝나지 않았다(E-ISSUE-24). 확정 결과는 조회 API
+     * ({@code GET /api/v1/videos/{rawSn}/resolution})가 {@link #COMPLETED}/{@link #IN_PROGRESS}/
+     * {@link #FAILED} 로 알려준다.
+     */
     public enum DerivativeStatus {
+        /** 예약 성공(비동기 확정 대기) — POST 응답 전용. */
         CREATED,
+        /** 확정 진행 중(예약됨, 아직 비식별 확정 전) — 조회 응답 전용. */
+        IN_PROGRESS,
+        /** 확정 완료(파일·라벨 산출 완료) — 조회 응답 전용. */
+        COMPLETED,
+        /** 예약 또는 확정 실패. */
         FAILED
     }
 }

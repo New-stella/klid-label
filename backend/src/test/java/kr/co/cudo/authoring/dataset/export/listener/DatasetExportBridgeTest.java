@@ -29,13 +29,14 @@ class DatasetExportBridgeTest {
     private DatasetExportBridge bridge;
 
     @Test
-    @DisplayName("onReviewApproved는_forceTrue로_runAsync를_호출한다 (R6 — 승인마다 강제 재생성)")
-    void onReviewApproved_delegatesWithForceTrue() {
+    @DisplayName("onReviewApproved는_runApprovalAsync를_호출한다 (R6 강제 재생성 + C-2 export후 완료통지)")
+    void onReviewApproved_delegatesToApprovalRunner() {
         ReviewApprovedEvent event = new ReviewApprovedEvent(99L, 1L, Instant.now());
 
         bridge.onReviewApproved(event);
 
-        verify(runner).runAsync(eq(99L), eq(true));
+        // C-2 — 승인 경로는 export 종결 후 완료 이벤트를 발행하는 전용 러너로 위임한다.
+        verify(runner).runApprovalAsync(eq(99L));
     }
 
     @Test

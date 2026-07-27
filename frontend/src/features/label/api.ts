@@ -286,11 +286,23 @@ function serializeLabel(lbl: Label): object {
 
 /**
  * 프레임 라벨 일괄 저장 (전체 교체).
- * BE: PUT /frames/{srcSn}/labels  — body: { items: LabelItemDto[] }
+ * BE: PUT /frames/{srcSn}/labels  — body: { items: LabelItemDto[], labelVersion?: number }
+ *
+ * labelVersion(C-ISSUE-21): 조회 응답이 준 라벨셋 버전을 그대로 되돌려 보낸다. 그사이 다른 사용자가
+ * 같은 프레임을 저장했으면 BE 가 409(CONFLICT)로 거부한다 — 저장이 full-replace 계약이라 버전을
+ * 보내지 않으면 내 화면에 없던 남의 라벨이 조용히 삭제된다(실측된 lost update). 값이 없으면
+ * (undefined/null) 필드를 생략해 BE 의 하위호환 경로(검사 skip)를 그대로 탄다.
  */
-export function putLabels(srcSn: number, labels: Label[]): Promise<LabelsResponse> {
+export function putLabels(
+  srcSn: number,
+  labels: Label[],
+  labelVersion?: number | null,
+): Promise<LabelsResponse> {
   return apiClient
-    .put<LabelsResponse>(`/frames/${srcSn}/labels`, { items: labels.map(serializeLabel) })
+    .put<LabelsResponse>(`/frames/${srcSn}/labels`, {
+      items: labels.map(serializeLabel),
+      ...(labelVersion != null ? { labelVersion } : {}),
+    })
     .then((r) => r.data);
 }
 

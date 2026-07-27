@@ -398,6 +398,52 @@ describe('label api', () => {
     expect(res.labels).toHaveLength(1);
   });
 
+  it('putLabels_labelVersion_전달시_body에_포함되어_왕복된다', async () => {
+    // C-ISSUE-21 — 조회 응답의 labelVersion 을 저장 요청에 되돌려 보내야 BE 가 stale 저장을 409 로
+    // 막을 수 있다. FE 가 보내지 않으면 BE 검사가 skip 되어 남의 라벨이 조용히 삭제된다(실측 결함).
+    const labels = [bbox('tmp1', 1)];
+    let sentVersion: unknown = 'NOT_SENT';
+    mock.onPut('/frames/811/labels').reply((config) => {
+      const body = JSON.parse(config.data ?? '{}');
+      sentVersion = 'labelVersion' in body ? body.labelVersion : 'NOT_SENT';
+      return [
+        200,
+        {
+          success: true,
+          data: { frameNo: 1, srcSn: 811, labelVersion: 8, labels },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    const res = await putLabels(811, labels, 7);
+    expect(sentVersion).toBe(7);
+    // 응답의 새 버전이 파싱되어 다음 저장의 토큰으로 쓰인다.
+    expect(res.labelVersion).toBe(8);
+  });
+
+  it('putLabels_labelVersion_미지정시_필드를_생략해_하위호환을_지킨다', async () => {
+    const labels = [bbox('tmp1', 1)];
+    let hasField = true;
+    mock.onPut('/frames/812/labels').reply((config) => {
+      const body = JSON.parse(config.data ?? '{}');
+      hasField = 'labelVersion' in body;
+      return [
+        200,
+        {
+          success: true,
+          data: { frameNo: 1, srcSn: 812, labels },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    await putLabels(812, labels);
+    expect(hasField).toBe(false);
+  });
+
   it('getLabels_raw_true_옵션_지정시_쿼리_파라미터_raw_true_전달', async () => {
     mock
       .onGet('/frames/901/labels', { params: { raw: true } })
@@ -957,8 +1003,10 @@ describe('label api', () => {
       // BE 계약: PUT /frames/{srcSn}/labels 가 저장 + 라벨 스냅샷 버전 커밋(DB)을 한 번에 처리.
       // 별도 POST /frames/{srcSn}/commit 호출 없음. committed 는 null 로 반환.
       const calls: string[] = [];
-      mock.onPut('/frames/777/labels').reply(() => {
+      const bodies: unknown[] = [];
+      mock.onPut('/frames/777/labels').reply((config) => {
         calls.push('PUT');
+        bodies.push(JSON.parse(config.data as string));
         return [
           200,
           {
@@ -970,10 +1018,12 @@ describe('label api', () => {
         ];
       });
 
-      const result = await saveAndCommit(777, [bbox('a', 1)]);
+      const result = await saveAndCommit(777, [bbox('a', 1)], { labelVersion: 7 });
       expect(calls).toEqual(['PUT']);
       expect(result.committed).toBeNull();
       expect(result.saved.srcSn).toBe(777);
+      // DEV_FIX H13 — 라벨셋 버전을 반드시 실어 보낸다(BE 낙관적 동시성 검사 우회 금지).
+      expect((bodies[0] as { labelVersion?: number }).labelVersion).toBe(7);
     });
 
     it('portalMode_저장시에도_PUT_단일_호출', async () => {
@@ -992,7 +1042,7 @@ describe('label api', () => {
         ];
       });
 
-      const result = await saveAndCommit(777, [bbox('a', 1)], { portalMode: true });
+      const result = await saveAndCommit(777, [bbox('a', 1)], { portalMode: true, labelVersion: null });
       expect(calls).toEqual(['PUT']);
       expect(result.committed).toBeNull();
     });

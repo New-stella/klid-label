@@ -57,6 +57,11 @@ authoring:
   work-lock:
     sweep:
       enabled: false
+  # local 은 해상도 파생 유예 삭제 스윕 잡도 비활성화 (@Scheduled 미발화). 유예 자체는 유지되며,
+  #   백필을 다시 실행하면(run) 그 안에서 스윕이 수행되므로 잔존물은 재실행으로 정리된다.
+  resolution-backfill:
+    sweep:
+      enabled: false
   # local/test 에서는 포털 메타 복제 워커 잡도 비활성화 (Quartz 잡 미등록 — 테스트가 워커를 직접 호출).
   #   운영(dev/stg/prd)은 application.yml 기본값(enabled 미설정=matchIfMissing=true)으로 활성화된다.
   meta-replication:
@@ -67,6 +72,16 @@ authoring:
   integration:
     deidentify:
       mock-mode: ${DEIDENTIFY_MOCK_MODE:true}
+  # D-48 — 로컬은 관제 통지를 **켜고 목 서버(:9400)로 실제 HTTP 왕복**한다.
+  #   내부 목모드로 외부 호출을 우회하지 않는다(구속 규칙) — mock-server 의
+  #   POST /api/data-set/v2/jobs/{job_id}/notify-completed|notify-updated 가 관제 계약을 흉내내며
+  #   409(job_id 중복)/404(선행 완료 없음)를 실제로 돌려주므로 자기치유 분기가 실동작으로 검증된다.
+  #   docker compose(local override)에서는 CONTROL_NOTIFY_URL=http://klid-mock-server:9400 이 주입되고,
+  #   네이티브 bootRun 은 아래 기본값(호스트 발행 포트 9400)을 사용한다.
+  #   목 서버 없이 띄우려면 CONTROL_NOTIFY_ENABLED=false 로 끈다(통지 미발송).
+  control-notify:
+    enabled: ${CONTROL_NOTIFY_ENABLED:true}
+    url: ${CONTROL_NOTIFY_URL:http://localhost:9400}
   # HIGH-5 fix (OWASP A06): 로컬 FE 개발 서버 기본 허용.
   #   SecurityConfig 가 ${authoring.cors.allowed-origins} 를 읽으므로 반드시 authoring 하위에 위치해야 한다.
   #   (과거 kpst 하위 오배치 → authoring.cors.allowed-origins 가 빈 기본값으로 남아 브라우저 Origin
@@ -107,6 +122,9 @@ kpst:
 # 콜백 충실 플로우 Phase 2 — local 전용 webhook HMAC 시크릿(dev placeholder, 32B 이상).
 #   - dev 콜백 시뮬레이터(서명 측)와 HmacWebhookFilter(검증 측)가 동일 값을 사용해 자족 콜백을 통과시킨다.
 #   - 평문 운영 시크릿 아님. 운영(dev/stg/prd)은 WEBHOOK_HMAC_SECRET_AUGMENT 환경변수로 override 필수.
+#   - ★ 이 값은 리포에 커밋된 공개 placeholder 라 **local 프로파일에서만** 허용된다. 다른 프로파일에서
+#     이 값이 감지되면 HmacWebhookFilter 가 기동을 차단한다(KNOWN_PLACEHOLDER_SECRETS, DEV_FIX H-1).
+#     "빈 값이면 기동 실패" 회피용으로 이 기본값을 운영에 흘리면 공개 키로 서명 위조가 가능해진다.
 webhook:
   hmac:
     secret:

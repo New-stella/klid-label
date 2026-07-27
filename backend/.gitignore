@@ -19,8 +19,9 @@ build/
 .env.local
 *.local
 
-# Storage (배치 결과)
-storage/
+# Storage (배치 결과) — backend/storage 런타임 디렉토리만. 선행 슬래시 앵커링 필수:
+# 비앵커 `storage/` 는 src/main/java/**/common/storage/ 같은 소스 패키지까지 무시한다.
+/storage/
 tmp/
 logs/
 

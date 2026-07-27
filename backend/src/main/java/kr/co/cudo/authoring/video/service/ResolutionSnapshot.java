@@ -15,7 +15,12 @@ import java.util.List;
  * 수행할 수 있다(#6 무잠금·무커넥션). 여기 담기지 않은 DB 값을 Phase B 가 다시 조회하면 리팩터 목적이
  * 깨지므로, Phase B 가 필요로 하는 <b>모든</b> 치수·경로를 Phase A 가 확정해 담는다.
  *
- * <p>담는 것: 파생/원본 RAW_SN·증강행 SN·프리셋, 원본/목표 치수·배율, 등록자, 비식별 비디오 원본 경로,
+ * <p><b>배율·오프셋 (G-1 종횡비 보존)</b>: {@code scaleX}·{@code scaleY} 는 <b>동일한 균일 배율</b>이며
+ * ({@code min(targetW/srcW, targetH/srcH)}), {@code offsetX}·{@code offsetY} 는 목표 프레임 안에서
+ * 이미지가 그려지는 좌상단 좌표(레터박스 패딩)다. 픽셀(리사이즈)과 라벨 좌표가 같은 값을 써야 정합한다
+ * ({@code LetterboxTransform} 단일 계산기).
+ *
+ * <p>담는 것: 파생/원본 RAW_SN·증강행 SN·프리셋, 원본/목표 치수·배율·오프셋, 등록자, 비식별 비디오 원본 경로,
  * 파생 비디오 목적 경로, 프레임별 스펙 목록(비식별 원본 경로 + 목표 경로 + frameNo/videoFrameNo/촬영일시),
  * 그리고 스냅샷 캡처 시각({@code capturedAt}).
  * 모든 경로는 Phase A 에서 CWE-22 정규화·base 검증을 통과한 절대 경로다.
@@ -36,6 +41,8 @@ public record ResolutionSnapshot(
         int targetH,
         double scaleX,
         double scaleY,
+        int offsetX,
+        int offsetY,
         String regId,
         Path deidVideoSrc,
         Path videoDst,

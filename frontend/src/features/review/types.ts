@@ -45,6 +45,15 @@ export interface RejectRequest {
 
 export interface ApproveRequest {
   generalComment?: string;
+  /**
+   * D-ISSUE-04 / H6 — 라벨이 1건도 없는 영상(negative sample)임을 검수자가 <b>명시적으로 확인</b>했는가.
+   *
+   * BE 는 라벨 0건 영상의 승인을 기본 409 로 차단한다(빈 스냅샷·빈 export 방지). 객체가 실제로 없는
+   * 정상 영상까지 막으면 검수자가 더미 라벨을 넣도록 유도되므로, 확인한 경우에만 통과시킨다.
+   * <b>상시 전송 금지</b>: 라벨이 있는 영상에 true 를 보내면 BE 가 400 으로 거부한다. 이 값은 409 를
+   * 받은 뒤 사용자가 확인 다이얼로그에서 동의했을 때만 1회 실린다.
+   */
+  noLabelConfirmed?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────

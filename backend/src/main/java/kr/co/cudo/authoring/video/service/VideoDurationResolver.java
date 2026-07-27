@@ -97,6 +97,29 @@ public class VideoDurationResolver {
     }
 
     /**
+     * C-ISSUE-01 — <b>프로브 없이</b> DB 값(①VDO_LEN_SEC → ②video.duration_ms 메타)만으로 길이를 해석한다.
+     *
+     * <p>수동 마킹의 <b>상한 검증</b>(frameIndex &lt; 총 프레임 수)에 쓰인다. 수동 마킹은 작업자가 화면에서
+     * 즉시 수행하는 대화형 동작이라 ffprobe 서브프로세스(최대 수십 초)를 태우면 안 된다 — 그래서 자동 마킹과
+     * 달리 3단계(직접 프로브)를 <b>의도적으로 생략</b>한다(기존 "MANUAL 은 프로브 미트리거" 계약 보존).
+     * DB 에 값이 없으면 {@code null} 을 반환하고, 호출자는 <b>상한 검증만</b> 건너뛰며 하한·중복 검증은
+     * 그대로 적용한다(전부 스킵 금지).
+     *
+     * @return 해석된 재생 길이(초, ≥1). DB 두 경로 모두 비어 있으면 {@code null}.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.NOT_SUPPORTED)
+    public Integer resolveDurationSecWithoutProbe(Long rawSn) {
+        DurationSource source = dbReader.read(rawSn);
+        if (source == null) {
+            return null;
+        }
+        if (source.durationSec() != null && source.durationSec() > 0) {
+            return source.durationSec();
+        }
+        return msStringToSecondsOrNull(source.durationMsMeta());
+    }
+
+    /**
      * 원본 파일을 직접 프로브해 재생 길이(초)를 얻는다. 실패/예외는 삼켜 {@code null} 반환(마킹 비파괴).
      * 경로/PII 는 로그에 미노출(CWE-209) — rawSn·예외 클래스명만 기록.
      */
