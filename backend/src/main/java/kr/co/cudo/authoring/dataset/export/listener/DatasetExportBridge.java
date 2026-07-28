@@ -71,10 +71,20 @@ public class DatasetExportBridge {
      * ②성공 시 {@code DatasetExportCompletedEvent} 발행으로 보류됐던 관제 통지 재개를 함께 얻는다.
      * AFTER_COMMIT 이라 {@code DE_IDNTF_YN 'Y'} 복원이 커밋된 뒤에 실행된다 — 커밋 전에 돌면 export
      * 진입부 게이트가 아직 {@code 'F'} 를 읽어 스스로 막힌다.
+     *
+     * <p><b>MEDIUM-1 — APPROVED 게이트는 여기(소비자)에 있다.</b> 구 구현은 발행 측이 미승인 영상의
+     * 이벤트를 아예 만들지 않았는데, 같은 이벤트에 의존하는 <b>증강 보류 재개</b>까지 함께 끊겨 보류가
+     * 영구화됐다({@link DeidentReportResolvedEvent} javadoc). 산출 대상이 아닌 영상을 재생성하지 않는
+     * 제약은 export 복구에만 필요하므로 이 리스너에서만 건다.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDeidentReportResolved(DeidentReportResolvedEvent event) {
         Long rawSn = event.rawSn();
+        if (!event.reviewApproved()) {
+            // 미승인 영상은 애초에 산출 대상이 아니다 — 재트리거하면 무의미한 v1 이 생긴다.
+            log.debug("[DatasetExportBridge] deident report resolved rawSn={} — not approved, export skip", rawSn);
+            return;
+        }
         log.info("[DatasetExportBridge] deident report resolved rawSn={} — re-triggering withheld export/notify",
                 rawSn);
         runner.runApprovalAsync(rawSn);

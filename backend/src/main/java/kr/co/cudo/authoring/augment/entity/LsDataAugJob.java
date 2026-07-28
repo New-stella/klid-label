@@ -75,6 +75,19 @@ public class LsDataAugJob {
      * 증강을 성공 확정한다.
      */
     public static final String ERR_ISSUE_RECORD_FAILED = "ISSUE_RECORD_FAILED";
+    /**
+     * <b>만료 종결</b> — 임계 시간 동안 아무 갱신(웹훅)도 없어 스윕이 회수한 경우의 내부 오류 코드
+     * (Phase 8-A).
+     *
+     * <p>비종결로 남는 실제 경로는 셋이다: ①취소({@code CANCELED})는 계약상 진행·결과 웹훅
+     * 이벤트가 아니라 우리에게 통보되지 않는다 ②콜백 검증 실패(400)는 재전송 여지를 남기려고
+     * 상태를 바꾸지 않는데 외부가 재시도를 포기할 수 있다 ③외부 무응답. 어느 경우든 job 이 비종결로
+     * 남으면 롤업이 무기한 보류돼 증강 1건이 PENDING 에 고착된다.
+     *
+     * <p><b>만료는 성공이 아니다</b> — 이 코드는 {@code FAILED} 로만 붙으므로 롤업의 "1건이라도
+     * 실패 = 전체 실패" 규칙에 따라 증강이 성공으로 둔갑하지 않는다(fail-closed).
+     */
+    public static final String ERR_EXPIRED = "EXPIRED";
 
     /** 오류 메시지 컬럼 길이(내용V1000) — 초과분은 절단 저장한다. */
     private static final int ERR_MSG_MAX = 1000;

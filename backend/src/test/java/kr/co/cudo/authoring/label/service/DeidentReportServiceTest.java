@@ -673,6 +673,59 @@ class DeidentReportServiceTest {
         verify(streamMetaCacheEvictor).evictAfterCommit(9742L);
     }
 
+    /**
+     * MEDIUM-1 — 해소 이벤트는 <b>검수 상태와 무관하게</b> 발행되고, APPROVED 여부는 판단 재료로만
+     * 실린다. 구 구현은 미승인이면 발행 자체를 건너뛰었는데, 이 이벤트가 <b>증강 보류 재개</b>의
+     * 유일한 복구 경로이기도 해서(그리고 {@code ReviewStateMachine} 이 APPROVED→PENDING 재제출을
+     * 실제로 허용해서) 재제출된 영상의 보류가 영구화됐다.
+     */
+    @Test
+    @DisplayName("미승인_영상도_해소_이벤트를_발행해_보류_복구에_도달한다")
+    void resolvePublishesEventEvenWhenNotApproved() {
+        // given — 검수 미승인(APPROVED 아님) 영상의 정상 해소
+        LsDeidentReport rep = report(744L, 9744L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(744L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9744L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9744L)).thenReturn(Optional.of(r));
+        stubApproved(9744L, false);
+        stubDeidentArtifact(9744L);
+
+        // when
+        service.resolveManually(744L, reviewerActor);
+
+        // then — 발행은 하되 export 복구 소비자가 스스로 판단하도록 reviewApproved=false 를 싣는다.
+        ArgumentCaptor<DeidentReportResolvedEvent> captor =
+                ArgumentCaptor.forClass(DeidentReportResolvedEvent.class);
+        verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
+        DeidentReportResolvedEvent published = captor.getAllValues().stream()
+                .filter(DeidentReportResolvedEvent.class::isInstance)
+                .findFirst().orElseThrow();
+        assertThat(published.rawSn()).isEqualTo(9744L);
+        assertThat(published.reviewApproved())
+                .as("미승인 영상은 export 재생성 대상이 아니므로 소비자가 스스로 걸러야 한다")
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("검수완료_영상의_해소_이벤트는_승인_플래그를_싣는다")
+    void resolvePublishesApprovedFlagForApprovedVideo() {
+        LsDeidentReport rep = report(745L, 9745L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(745L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9745L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9745L)).thenReturn(Optional.of(r));
+        stubApproved(9745L, true);
+        stubDeidentArtifact(9745L);
+
+        service.resolveManually(745L, reviewerActor);
+
+        ArgumentCaptor<DeidentReportResolvedEvent> captor =
+                ArgumentCaptor.forClass(DeidentReportResolvedEvent.class);
+        verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
+        assertThat(captor.getAllValues()).anyMatch(DeidentReportResolvedEvent::reviewApproved);
+    }
+
     @Test
     @DisplayName("해제_실패시_deIdntfYn_은_F_로_유지된다")
     void resolveFailureKeepsDeidentFlagF() throws Exception {

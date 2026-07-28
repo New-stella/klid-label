@@ -51,10 +51,17 @@ public final class AugmentPrompts {
         return prompt;
     }
 
+    /**
+     * 외부 위탁 대상(SFR-07 3종) 코드 집합 — <b>단일 원천</b>.
+     *
+     * <p>{@link #isExternalAugType} 과 회수 스윕의 후보 SQL(만료 스윕)이 같은 목록을 쓰도록 상수로
+     * 노출한다. 두 곳이 각자 코드 목록을 나열하면 증강 유형이 늘 때 한쪽만 고쳐져 드리프트가 난다.
+     */
+    public static final java.util.List<String> EXTERNAL_AUG_TYPES =
+            java.util.List.of(LsDataAug.AUG_WINTER, LsDataAug.AUG_NIGHT, LsDataAug.AUG_RAIN);
+
     /** 외부 위탁 대상(SFR-07 3종)인지 판별한다. */
     public static boolean isExternalAugType(String augType) {
-        return LsDataAug.AUG_WINTER.equals(augType)
-                || LsDataAug.AUG_NIGHT.equals(augType)
-                || LsDataAug.AUG_RAIN.equals(augType);
+        return EXTERNAL_AUG_TYPES.contains(augType);
     }
 }

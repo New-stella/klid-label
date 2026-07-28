@@ -24,7 +24,19 @@ package kr.co.cudo.authoring.label.event;
  * 디스크의 비식별 이미지는 바뀌어 있으므로, 멱등 skip 하면 export 폴더에 <b>옛 PII 이미지</b>가 남는다.
  * 재트리거 빈도는 "APPROVED 영상의 신고 해소" 로 한정돼 낭비가 아니다.
  *
- * @param rawSn 신고가 해소된 영상 PK (LS_DATA_RAW.RAW_SN)
+ * <h3>Phase 8 DEV_FIX MEDIUM-1 — 게이트는 <b>소비자별</b>이다 (발행 자체는 무조건)</h3>
+ * 구 구현은 발행 측이 APPROVED 가 아니면 <b>이벤트를 아예 발행하지 않았다</b>. 그런데 같은 이벤트가
+ * export 복구 외에 <b>증강 보류 재개</b>({@code AugmentRequestBridge})의 유일한 복구 경로이기도 하다.
+ * 증강 요청은 요청 시점에만 APPROVED 를 검증하고({@code AugmentRequestService}) 이후 상태 유지를
+ * 보장하지 않는데, {@code ReviewStateMachine} 은 <b>APPROVED → PENDING(재검수 재제출)</b> 전이를
+ * 실제로 허용한다. 즉 "증강 요청 → 재검수 재제출 → 신고 해소" 순서면 보류가 <b>영구화</b>됐다.
+ *
+ * <p>그래서 발행은 무조건 하고, "APPROVED 전용" 은 그 제약이 실제로 필요한 소비자
+ * ({@code DatasetExportBridge} — 미승인 영상은 산출 대상 자체가 아니라 무의미한 v1 을 만든다)만
+ * {@link #reviewApproved()} 로 판단한다. 증강 재개 소비자는 검수 상태와 무관하므로 게이트가 없다.
+ *
+ * @param rawSn          신고가 해소된 영상 PK (LS_DATA_RAW.RAW_SN)
+ * @param reviewApproved 해소 시점의 검수 상태가 APPROVED 인가 (export 복구 소비자 전용 판단 재료)
  */
-public record DeidentReportResolvedEvent(Long rawSn) {
+public record DeidentReportResolvedEvent(Long rawSn, boolean reviewApproved) {
 }

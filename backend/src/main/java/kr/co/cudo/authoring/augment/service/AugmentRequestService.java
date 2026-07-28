@@ -3,7 +3,6 @@ package kr.co.cudo.authoring.augment.service;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
-import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
@@ -21,8 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,15 +32,30 @@ import java.util.concurrent.atomic.AtomicLong;
  * V1.5 SFR-07 — 외부 증강 시스템 요청 서비스 (콜백 충실 플로우 Phase 1).
  *
  * <p>저작도구는 검수 완료된 영상(LsRawDataStatus.dataSttsCd='APPROVED')만 증강 요청 가능.
- * 요청 시 distinct (영상 × 종류) 각 건에 대해 다음 선행 상태를 만들어 콜백이 성립하게 한다:
+ * 요청 1건에 대해 다음 선행 상태를 만들어 콜백이 성립하게 한다:
  *
  * <ol>
  *   <li>영상의 대표 프레임(MIN SRC_SN) 조회</li>
  *   <li>idempotencyKey(^[A-Za-z0-9_-]+$, ≤64) 를 먼저 발급
  *       (externalJobId 는 발급하지 않는다 — 외부가 202 응답으로 준다, Phase 7-A1)</li>
  *   <li>{@link LsDataAug#createRequested} 로 키를 실은 PENDING 행을 <b>단일 save</b> 적재 → originAugSn</li>
- *   <li>{@link AugmentRequestedItemEvent} 를 건별 발행 (외부 위탁은 커밋 이후로 위임)</li>
+ *   <li>{@link AugmentRequestedItemEvent} 발행 (외부 위탁은 커밋 이후로 위임)</li>
  * </ol>
+ *
+ * <h3>단건 계약이 정본이다 (E-ISSUE-08)</h3>
+ * <p>한 요청 = <b>영상 1건 × 종류 1개</b>. API 계약은 {@code AugmentRequestRequest} 의
+ * {@code @NotEmpty + @Size(max=1)} 이고, 서비스도 같은 규칙을 fail-closed 로 재확인한다
+ * ({@code requireSingleSelection}). 과거에는 여기에 distinct 정규화 + (영상 × 종류) 이중 루프가
+ * 남아 있었지만 DTO 가 길이 1 만 허용하므로 <b>실행될 수 없는 사문 코드</b>였고, 그 전제 위에 쓰인
+ * 테스트(중복 입력 distinct 등)도 계약을 잘못 고정하고 있었다. 다건 재허용이 필요해지면 DTO 계약
+ * 변경 → 서비스 → 테스트 순으로 <b>의도적으로</b> 열어야 한다.
+ *
+ * <h3>생성 0건은 성공이 아니다 (E-ISSUE-09)</h3>
+ * <p>프레임 미추출 영상은 위탁 입력({@code input_files})을 만들 수 없다. 구 구현은 그런 영상을
+ * 조용히 스킵하고 요청 개수를 그대로 담아 200 을 돌려줘, REVIEWER 는 아무것도 접수되지 않았는데
+ * 접수된 줄 알았다. 지금은 <b>412(PRECONDITION_FAILED)</b> 로 종결하고 어떤 영상이 막혔는지
+ * ({@code skippedVideoIds}) 알린다. 응답은 요청 echo 가 아니라 실제 생성 수
+ * ({@code createdCount})를 담는다.
  *
  * <p><b>고아 위탁 방지 (DEV_FIX HIGH #1)</b>: 외부 위탁({@code AugmentJobSubmitService.submit})은
  * 요청 트랜잭션 안에서 하지 않고, {@code AugmentRequestBridge} 가
@@ -52,7 +64,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>RBAC: REVIEWER 만 호출 가능 (Service 이중 검증 + Controller @PreAuthorize).
  * <p>트랜잭션: 클래스 기본 readOnly, {@link #request} 만 write override (aug 행 INSERT).
- * <p>건별 격리: 한 영상(또는 한 종류)의 처리 실패가 전체 요청을 깨지 않는다(프레임 없는 영상 스킵 등).
+ * <p>실패 격리: 적재 실패를 <b>삼키지 않는다</b> — 사유를 로그로 남기고 호출자에게 실패로 회신한다.
  */
 @Slf4j
 @Service
@@ -91,23 +103,26 @@ public class AugmentRequestService {
     /**
      * 외부 SFR-07 증강 시스템에 검수 완료 영상 + 증강 유형을 요청한다.
      *
-     * @param request 영상 ID·유형 목록 (DTO 단계 형식 검증 통과)
+     * @param request 영상 1건 + 종류 1개 (DTO 단계 형식 검증 통과)
      * @param actor   호출자 토큰 (REVIEWER 만 허용)
-     * @return jobId / 요청 시각 / distinct 카운트
-     * @throws CustomException FORBIDDEN(WORKER 등), NOT_REVIEWED(미검수 영상 포함)
+     * @return jobId / 요청 시각 / 요청 수 / <b>실제 생성 수</b>
+     * @throws CustomException FORBIDDEN(WORKER 등), INVALID_INPUT(단건 계약 위반),
+     *                         NOT_REVIEWED(미검수), PRECONDITION_FAILED(신고 구간·프레임 미추출),
+     *                         INTERNAL_ERROR(적재 실패 — 생성 0건)
      */
     @Transactional("controlTransactionManager")
     public AugmentRequestResponse request(AugmentRequestRequest request, TokenClaims actor) {
         requireReviewer(actor);
 
-        // 1) distinct 처리 — 입력 중복 정규화 (CWE-20 Input Validation)
-        List<Long> videoIds = request.videoIds().stream().distinct().toList();
-        List<String> types = request.types().stream()
-                .distinct()
-                .map(AugmentTypeCode::name)
-                .toList();
+        // 1) 단건 계약 강제 (E-ISSUE-08) — DTO @Size(max=1) 과 같은 규칙을 서비스에서도 fail-closed 로
+        //    확인한다. 초과분을 조용히 잘라 첫 건만 처리하면 요청자는 나머지도 접수된 줄 안다.
+        Long rawSn = requireSingleSelection(request.videoIds(),
+                "영상은 한 번에 1건만 증강 요청할 수 있습니다.");
+        String augType = requireSingleSelection(request.types(),
+                "증강 종류는 한 번에 1개만 선택할 수 있습니다.").name();
+        List<Long> videoIds = List.of(rawSn);
 
-        // 2) 검수 완료(APPROVED) 검증 — 하나라도 미검수면 전체 거부 (부분 처리 금지)
+        // 2) 검수 완료(APPROVED) 검증 — 미검수면 거부
         List<Long> blocked = findBlockedVideoIds(videoIds);
         if (!blocked.isEmpty()) {
             log.info("[Augment] request blocked — not reviewed actor={} blockedCount={}",
@@ -136,39 +151,62 @@ public class AugmentRequestService {
                     "비식별 재처리 대기 중인 영상은 증강을 요청할 수 없습니다.", details);
         }
 
-        // 3) 영상별 대표 프레임(MIN SRC_SN) 일괄 조회 (N+1 회피)
-        Map<Long, Long> firstSrcSnByRawSn = findFirstSrcSnByRawSn(videoIds);
+        // 3) 대표 프레임(MIN SRC_SN) 조회 — 없으면 위탁 입력이 성립하지 않는다(E-ISSUE-09).
+        Long representativeSrcSn = findFirstSrcSn(rawSn);
+        if (representativeSrcSn == null) {
+            // 구 구현은 이 영상을 조용히 스킵하고 200 을 돌려줘, 생성 0건인데 접수된 것처럼 보였다.
+            log.warn("[Augment] request blocked — no frame extracted actor={} rawSn={}",
+                    sanitize(actor.sub()), rawSn);
+            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                    "프레임이 추출되지 않은 영상은 증강을 요청할 수 없습니다.",
+                    skippedDetails(rawSn));
+        }
 
-        // 4) distinct (영상 × 종류) 건별 PENDING 적재 + 멱등 키 발급 + 콜백 컨텍스트 전달.
-        //    한 건의 실패가 전체 요청을 깨지 않도록 건별 격리한다.
+        // 4) PENDING 적재 + 멱등 키 발급 + 콜백 컨텍스트 전달.
+        //    실패는 삼키지 않는다 — 사유를 남기고(로그) 호출자에게 실패로 회신한다(E-ISSUE-09).
         String regUserNo = actor.sub();
         String callbackUrl = callbackUrlResolver.resolve();
-        int createdCount = 0;
-        for (Long rawSn : videoIds) {
-            Long representativeSrcSn = firstSrcSnByRawSn.get(rawSn);
-            if (representativeSrcSn == null) {
-                // 프레임이 없는 영상 — 콜백 시 createAugmentedVideo 가 복사할 원본 프레임이 없다. 건별 스킵.
-                log.warn("[Augment] no frame for video — skip rawSn={}", rawSn);
-                continue;
-            }
-            for (String augType : types) {
-                if (createOneAugmentRequest(rawSn, representativeSrcSn, augType, regUserNo, callbackUrl)) {
-                    createdCount++;
-                }
-            }
+        boolean created = createOneAugmentRequest(
+                rawSn, representativeSrcSn, augType, regUserNo, callbackUrl);
+        if (!created) {
+            throw new CustomException(ErrorCode.INTERNAL_ERROR,
+                    "증강 요청을 생성하지 못했습니다.", skippedDetails(rawSn));
         }
 
         long jobId = jobIdSeq.incrementAndGet();
         LocalDateTime requestedAt = LocalDateTime.now();
-        log.info("[Augment] requested jobId={} actor={} videoCount={} typeCount={} createdAugCount={}",
-                jobId, sanitize(regUserNo), videoIds.size(), types.size(), createdCount);
-        return new AugmentRequestResponse(jobId, requestedAt, videoIds.size(), types.size());
+        log.info("[Augment] requested jobId={} actor={} rawSn={} augType={} createdAugCount=1",
+                jobId, sanitize(regUserNo), rawSn, sanitize(augType));
+        return new AugmentRequestResponse(jobId, requestedAt, 1, 1, 1);
     }
 
     /**
-     * 단일 (대표 프레임 × 종류) 증강 요청 처리 — 키 발급 → 키를 실은 PENDING 행 단일 save →
-     * 건별 AFTER_COMMIT 이벤트 발행. 멱등 키 allowlist 등록·외부 콜백 전달은 커밋 이후로 위임된다.
-     * 건별 격리: 본 메서드 내 예외는 잡아서 false 를 반환하고 다음 건 처리를 계속한다.
+     * 단건 계약(E-ISSUE-08) 확인 — 정확히 1건만 허용한다.
+     *
+     * <p>DTO 의 {@code @NotEmpty + @Size(max=1)} 이 API 계약의 정본이지만, 그 검증은 컨트롤러
+     * 진입에만 적용된다. 서비스가 초과분을 조용히 자르면 "요청은 2건인데 1건만 접수" 라는 은폐된
+     * 부분 처리가 생기므로 여기서도 fail-closed 로 거부한다(CWE-20).
+     */
+    private static <T> T requireSingleSelection(List<T> values, String message) {
+        if (values == null || values.size() != 1 || values.get(0) == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, message);
+        }
+        return values.get(0);
+    }
+
+    /** 생성되지 못한 영상 식별자 — 호출자(관리 화면)가 어떤 영상이 막혔는지 알 수 있게 한다. */
+    private static Map<String, Object> skippedDetails(Long rawSn) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("skippedVideoIds", List.of(rawSn));
+        return details;
+    }
+
+    /**
+     * (대표 프레임 × 종류) 증강 요청 처리 — 키 발급 → 키를 실은 PENDING 행 단일 save →
+     * AFTER_COMMIT 이벤트 발행. 외부 위탁은 커밋 이후로 위임된다.
+     *
+     * <p><b>실패 격리</b>: 예외를 <b>삼키지 않고</b> 사유를 로그로 남긴 뒤 {@code false} 를 반환한다.
+     * 호출자는 생성 0건을 성공으로 회신하지 않는다(E-ISSUE-09). 예외 원문은 응답으로 나가지 않는다.
      *
      * @return PENDING 행 생성 성공 여부
      */
@@ -206,16 +244,14 @@ public class AugmentRequestService {
     }
 
 
-    /** 영상별 대표(첫) 프레임 SRC_SN 매핑. 프레임이 없는 영상은 결과에 포함되지 않는다. */
-    private Map<Long, Long> findFirstSrcSnByRawSn(Collection<Long> videoIds) {
-        Map<Long, Long> result = new HashMap<>();
-        if (videoIds.isEmpty()) {
-            return result;
+    /** 영상의 대표(첫) 프레임 SRC_SN. 프레임이 아직 추출되지 않았으면 {@code null}. */
+    private Long findFirstSrcSn(Long rawSn) {
+        for (Object[] row : srcRepository.findFirstSrcSnGroupedByRawSn(List.of(rawSn))) {
+            if (rawSn.equals(row[0])) {
+                return (Long) row[1];
+            }
         }
-        for (Object[] row : srcRepository.findFirstSrcSnGroupedByRawSn(videoIds)) {
-            result.put((Long) row[0], (Long) row[1]);
-        }
-        return result;
+        return null;
     }
 
     /**

@@ -262,6 +262,22 @@ authoring:
       allow-insecure-url: ${AUGMENT_ALLOW_INSECURE_URL:false}
       timeout-seconds: ${AUGMENT_API_TIMEOUT_SECONDS:10}
       max-input-files: ${AUGMENT_MAX_INPUT_FILES:100}
+    # Phase 8-A — 위탁 job 만료 스윕(AugmentJobExpirySweeper). 비종결(RECEIVED/RUNNING)로 떠 있는
+    #   LS_DATA_AUG_JOB 을 회수해 종결을 보장한다. 회수되지 않으면 롤업이 무기한 보류돼 증강 1건이
+    #   PENDING 에 영구 고착된다(취소 통보 미수신·콜백 400 거부·외부 무응답).
+    #   ★ 이 스윕은 자기 토글만 본다 — 위탁 모드(external.mode)·관제 통지 토글에 얹지 않는다.
+    #     위탁이 noop 인 환경은 후보가 0건이라 무해하게 돈다.
+    #   ★ 전용 데몬 executor 로 기동한다(@Scheduled 미사용) — 무조건적 @EnableScheduling 은 게이팅
+    #     없는 남의 @Scheduled 잡까지 전 환경에서 깨운다.
+    #   - idle-timeout-minutes: 마지막 갱신(MDFCN_DT) 이후 이 시간이 지나면 만료 종결한다. RUNNING
+    #     웹훅이 계속 오는 정상 장기 작업은 갱신이 이어져 대상이 아니다. 하한 5분(오설정 fail-safe).
+    #   - batch-size: tick 당 회수 상한(자원 고갈 방지).
+    job-expiry:
+      enabled: ${AUGMENT_JOB_EXPIRY_ENABLED:true}
+      interval-ms: ${AUGMENT_JOB_EXPIRY_INTERVAL_MS:900000}
+      initial-delay-ms: ${AUGMENT_JOB_EXPIRY_INITIAL_DELAY_MS:300000}
+      idle-timeout-minutes: ${AUGMENT_JOB_EXPIRY_IDLE_TIMEOUT_MINUTES:360}
+      batch-size: ${AUGMENT_JOB_EXPIRY_BATCH_SIZE:50}
   # TUS 1.0 재개 가능 업로드 (관리 화면 대용량 영상 적재).
   #   - max-file-size: 전체 파일 크기 상한(bytes). POST 시 Upload-Length 초과 즉시 413.
   #   - max-chunk-bytes: 단일 PATCH 청크 크기 상한(bytes). 본문은 64KB 버퍼로 스트리밍 기록(OOM 방어),

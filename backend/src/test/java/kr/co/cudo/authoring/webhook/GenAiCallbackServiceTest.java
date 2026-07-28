@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.webhook.dto.GenAiCallbackRequest;
+import kr.co.cudo.authoring.webhook.service.AugmentApplyResult;
 import kr.co.cudo.authoring.webhook.service.AugmentOutcome;
 import kr.co.cudo.authoring.webhook.service.AugmentResultService;
 import kr.co.cudo.authoring.webhook.service.GenAiCallbackService;
@@ -57,11 +58,16 @@ class GenAiCallbackServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 롤업 규칙은 만료 스윕과 공유하는 단일 원천(AugmentJobRollup)이다 — 실제 구현을 그대로 쓰고
+        //   확정 호출(AugmentResultService)만 목킹해 기존 검증 축을 유지한다.
         service = new GenAiCallbackService(
-                jobRepository, jobFileRepository, augRepository, augmentResultService,
+                jobRepository, jobFileRepository, augRepository,
+                new kr.co.cudo.authoring.webhook.service.AugmentJobRollup(augmentResultService),
                 artifactRootResolver, metrics);
         when(augRepository.findByDataAugSnForUpdate(AUG_SN))
                 .thenReturn(Optional.of(pendingAug()));
+        // 인계 서비스는 목킹 대상이지만 판정 enum 을 돌려줘야 롤업 결과가 성립한다(기본 = 정상 적용).
+        when(augmentResultService.handle(any())).thenReturn(AugmentApplyResult.APPLIED);
     }
 
     // ─── 픽스처 ───────────────────────────────────────────────
@@ -144,7 +150,7 @@ class GenAiCallbackServiceTest {
         LsDataAugJob job = issuedJob(1, "AUG-K-1", "job-1");
         givenJobs(job);
 
-        assertThat(service.handle(running("AUG-K-1", "job-1", 50))).isTrue();
+        assertThat(service.handle(running("AUG-K-1", "job-1", 50)).applied()).isTrue();
 
         assertThat(job.getJobSttsCd()).isEqualTo(LsDataAugJob.STTS_RUNNING);
         verify(augmentResultService, never()).handle(any());
@@ -158,7 +164,7 @@ class GenAiCallbackServiceTest {
         LsDataAugJob job2 = issuedJob(2, "AUG-K-2", "job-2");
         givenJobs(job1, job2);
 
-        assertThat(service.handle(succeeded("AUG-K-1", "job-1"))).isTrue();
+        assertThat(service.handle(succeeded("AUG-K-1", "job-1")).applied()).isTrue();
 
         assertThat(job1.getJobSttsCd()).isEqualTo(LsDataAugJob.STTS_SUCCEEDED);
         // job2 가 아직 종결 전이므로 증강 1건은 확정되지 않는다.
@@ -268,8 +274,8 @@ class GenAiCallbackServiceTest {
         LsDataAugJob job = issuedJob(1, "AUG-K-1", "job-1");
         givenJobs(job);
 
-        assertThat(service.handle(succeeded("AUG-K-1", "job-1"))).isTrue();
-        assertThat(service.handle(succeeded("AUG-K-1", "job-1"))).isFalse();
+        assertThat(service.handle(succeeded("AUG-K-1", "job-1")).applied()).isTrue();
+        assertThat(service.handle(succeeded("AUG-K-1", "job-1")).applied()).isFalse();
 
         verify(augmentResultService, org.mockito.Mockito.times(1)).handle(any());
     }
@@ -324,6 +330,27 @@ class GenAiCallbackServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    /**
+     * E-ISSUE-11 — 인계가 정책 보류되면 웹훅 응답도 {@code applied:false} + 사유여야 한다.
+     * job 갱신을 근거로 무조건 {@code true} 를 돌려주면 외부가 "정상 인계" 로 믿고 재전송하지 않아
+     * 그 증강이 유실된다.
+     */
+    @Test
+    @DisplayName("PII_보류시_웹훅_응답이_applied_false_와_사유를_담는다")
+    void withheldRollup_isNotReportedAsApplied() {
+        LsDataAugJob job = issuedJob(1, "AUG-K-1", "job-1");
+        givenJobs(job);
+        when(augmentResultService.handle(any()))
+                .thenReturn(AugmentApplyResult.WITHHELD_PARENT_NOT_DEIDENTIFIED);
+
+        AugmentApplyResult result = service.handle(succeeded("AUG-K-1", "job-1"));
+
+        assertThat(result.applied()).isFalse();
+        assertThat(result.reasonCode()).isEqualTo("WITHHELD_PARENT_NOT_DEIDENTIFIED");
+        // job 자체는 정상 수신 처리된다(보류는 job 실패가 아니다).
+        assertThat(job.getJobSttsCd()).isEqualTo(LsDataAugJob.STTS_SUCCEEDED);
     }
 
     @Test

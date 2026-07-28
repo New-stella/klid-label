@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.dataset.export.listener;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
 import kr.co.cudo.authoring.dataset.export.event.DatasetReExportEvent;
+import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,7 +13,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -47,5 +51,28 @@ class DatasetExportBridgeTest {
         bridge.onReExport(event);
 
         verify(runner).runAsync(eq(77L), eq(false));
+    }
+
+    // ─── Phase 8 DEV_FIX MEDIUM-1 — APPROVED 게이트는 소비자에 있다 ───
+
+    @Test
+    @DisplayName("검수완료_영상의_신고_해소는_export_를_전량_재생성한다")
+    void onDeidentReportResolved_approvedTriggersExport() {
+        bridge.onDeidentReportResolved(new DeidentReportResolvedEvent(88L, true));
+
+        verify(runner).runApprovalAsync(eq(88L));
+    }
+
+    /**
+     * 미승인 영상은 산출 대상이 아니므로 무의미한 v1 을 만들지 않는다. 이 판단이 <b>발행 측</b>에
+     * 있던 구 구조에서는 같은 이벤트를 쓰는 증강 보류 재개까지 함께 끊겨 보류가 영구화됐다.
+     */
+    @Test
+    @DisplayName("미승인_영상의_신고_해소는_export_를_재생성하지_않는다")
+    void onDeidentReportResolved_notApprovedSkipsExport() {
+        bridge.onDeidentReportResolved(new DeidentReportResolvedEvent(89L, false));
+
+        verify(runner, never()).runApprovalAsync(anyLong());
+        verify(runner, never()).runAsync(anyLong(), anyBoolean());
     }
 }

@@ -323,14 +323,18 @@ public class DeidentReportService {
      * {@code DatasetExportBridge#onDeidentReportResolved}(AFTER_COMMIT) 이며, 'Y' 복원이 커밋된 뒤에
      * 실행되므로 export 진입부 게이트에 스스로 막히지 않는다.
      *
-     * <p><b>검수 승인(APPROVED) 영상만</b> 발행한다 — 미승인 영상은 산출 대상 자체가 아니라 재트리거가
-     * 불필요한 v1 을 만든다(무의미한 전량 재생성 방지).
+     * <p><b>MEDIUM-1 — 발행은 검수 상태와 무관하게 무조건 한다.</b> 이 이벤트는 export 복구뿐 아니라
+     * <b>증강 보류 재개</b>({@code AugmentRequestBridge})의 유일한 복구 경로이기도 한데, 증강 요청 후
+     * {@code APPROVED → PENDING}(재검수 재제출, {@code ReviewStateMachine} 이 허용하는 실재 전이)이
+     * 일어난 영상은 구 구현에서 이벤트 자체가 안 나가 보류가 <b>영구화</b>됐다. "APPROVED 전용" 제약이
+     * 실제로 필요한 것은 export 복구 소비자뿐이므로, 판단 재료({@code reviewApproved})만 실어 보내고
+     * 게이팅은 {@code DatasetExportBridge} 에서 한다.
      */
     private void publishResolvedForExportRecovery(Long rawSn) {
-        if (rawSn == null || !isReviewApproved(rawSn)) {
+        if (rawSn == null) {
             return;
         }
-        eventPublisher.publishEvent(new DeidentReportResolvedEvent(rawSn));
+        eventPublisher.publishEvent(new DeidentReportResolvedEvent(rawSn, isReviewApproved(rawSn)));
     }
 
     // ---------- 내부 ----------
