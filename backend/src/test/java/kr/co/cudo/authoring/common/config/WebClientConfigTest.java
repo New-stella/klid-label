@@ -1,8 +1,15 @@
 package kr.co.cudo.authoring.common.config;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.mock.env.MockEnvironment;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -98,5 +105,41 @@ class WebClientConfigTest {
     void relaxedPolicyAcceptsPlaintextMockUrl() {
         assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "", true, relaxedPolicy())).isNotNull();
         assertThat(cfg.vlmWebClient("http://127.0.0.1:9400", "", true, relaxedPolicy())).isNotNull();
+    }
+
+    @Test
+    @DisplayName("WebClientConfig_vlm_평문구간에_토큰이_설정되면_경고하고_토큰값은_출력하지_않는다")
+    void cleartextTokenLogsWarning() {
+        // given: local/dev 완화 경로는 TLS 가 없어 Bearer 토큰이 평문으로 흐른다(CWE-319).
+        //   경고는 공용 골격(ProfileGatedUrlPolicy)이 남기므로 로거도 그 클래스다.
+        Logger logger = (Logger) LoggerFactory.getLogger(ProfileGatedUrlPolicy.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            // when
+            assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "secret-token-value", true,
+                    relaxedPolicy())).isNotNull();
+
+            // then: 경고가 남되 토큰 값은 절대 출력되지 않는다(길이만 — CWE-532)
+            List<String> warns = appender.list.stream()
+                    .filter(e -> e.getLevel() == Level.WARN)
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .toList();
+            assertThat(warns).anyMatch(m -> m.contains("평문") && m.contains("토큰"));
+            assertThat(warns).anyMatch(m -> m.contains("tokenLength=18"));
+            assertThat(warns).noneMatch(m -> m.contains("secret-token-value"));
+
+            // and: HTTPS 구간에서는 경고하지 않는다
+            appender.list.clear();
+            assertThat(cfg.vlmWebClient("https://8.8.8.8/", "secret-token-value", true, strictPolicy()))
+                    .isNotNull();
+            assertThat(appender.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .filter(m -> m.contains("tokenLength")))
+                    .isEmpty();
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

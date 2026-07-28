@@ -276,13 +276,47 @@ def resolve_output_dir(export_path: str, output_base: str = "") -> Optional[Path
     return None
 
 
-def _safe_source_path(input_path: str, base_name: str) -> Optional[Path]:
-    """{input_path}/{base_name} 복사 소스 경로를 정화 후 반환한다.
+def resolve_input_dir(input_path: str, input_base: str = "") -> Optional[Path]:
+    """input_path 를 정규화하고 input_base 하위인지 검증한다(CWE-22 읽기 경계).
 
-    입력 디렉터리 밖으로 탈출하는 경로는 None 을 반환해 복사를 막는다.
+    목 서버는 인증이 없어 ``input_path`` 를 임의로 지정할 수 있다. 허용 루트를 두지 않으면
+    임의 절대경로의 파일을 복사(= 내용 노출)하거나 GB급 원본을 반복 복사시켜 디스크를
+    고갈시킬 수 있다(CWE-400).
+
+    ``input_base`` 는 ``output_base`` 와 마찬가지로 **콤마 구분 다중 base** 를 허용한다 —
+    co-locate 산출(Phase 5A) 이후 허용 출력 루트가 여럿이라, 그 상위(원본 트리)도 여럿이 된다.
+
+    Returns:
+        정규화된 입력 디렉터리 Path. 모든 base 밖/정규화 실패면 None.
+        ``input_base`` 미설정('')이면 제한하지 않는다(이때는 output_base 도 없어 파일을 쓰지 않는다).
     """
     try:
         in_dir = Path(input_path).resolve()
+    except (OSError, ValueError):
+        return None
+    bases = [b.strip() for b in input_base.split(",") if b.strip()]
+    if not bases:
+        return in_dir
+    for base in bases:
+        try:
+            base_resolved = Path(base).resolve()
+        except (OSError, ValueError):
+            continue
+        if _is_within(in_dir, base_resolved):
+            return in_dir
+    return None
+
+
+def _safe_source_path(input_path: str, base_name: str, input_base: str = "") -> Optional[Path]:
+    """{input_path}/{base_name} 복사 소스 경로를 정화 후 반환한다.
+
+    입력 디렉터리 밖으로 탈출하는 경로, 그리고 허용 루트(``input_base``) 밖의 입력
+    디렉터리는 None 을 반환해 복사를 막는다(호출측은 placeholder 로 대체).
+    """
+    in_dir = resolve_input_dir(input_path, input_base)
+    if in_dir is None:
+        return None
+    try:
         src = (in_dir / base_name).resolve()
     except (OSError, ValueError):
         return None
@@ -322,11 +356,14 @@ def _copy_no_overwrite(src: Path, target: Path) -> bool:
     return True
 
 
-def _write_one_output(target: Path, source_base: str, input_path: str) -> None:
-    """단일 출력 파일을 생성한다 — 원본 있으면 복사, 없으면 placeholder.
+def _write_one_output(
+    target: Path, source_base: str, input_path: str, input_base: str = ""
+) -> None:
+    """단일 출력 파일을 생성한다 — 허용 루트 안의 원본이 있으면 복사, 없으면 placeholder.
 
     HIGH-2: target 이 이미 존재하면 덮어쓰지 않고 skip + 로그(멱등 재실행 안전).
     개별 파일 쓰기 실패는 예외를 삼켜 로그만 남긴다(POST /project 응답에 영향 금지).
+    경계 위반(허용 입력 루트 밖)은 WARN, 단순히 원본이 없는 경우는 INFO 로 구분 로깅한다.
     """
     if target.exists():
         logger.info(
@@ -335,8 +372,22 @@ def _write_one_output(target: Path, source_base: str, input_path: str) -> None:
         )
         return
     try:
-        src = _safe_source_path(input_path, source_base)
-        if src is not None and src.is_file() and os.access(src, os.R_OK):
+        src = _safe_source_path(input_path, source_base, input_base)
+        if src is None:
+            # 경계 위반(허용 입력 루트 밖/정규화 실패) = 보안 이벤트 — "원본이 없어서 placeholder"
+            # 와 로그로 구분되어야 한다(OWASP A09). 전체 경로는 남기지 않는다(CWE-532).
+            logger.warning(
+                "[MOCK][KPST] deid source rejected(boundary) — 허용 입력 루트 밖 요청이라 원본을 "
+                "읽지 않고 placeholder 로 대체 file=%s",
+                sanitize_for_log(source_base),
+            )
+        readable = src is not None and src.is_file() and os.access(src, os.R_OK)
+        if src is not None and not readable:
+            logger.info(
+                "[MOCK][KPST] deid source not readable — placeholder 대체 file=%s",
+                sanitize_for_log(source_base),
+            )
+        if readable:
             if not _copy_no_overwrite(src, target):
                 logger.info(
                     "[MOCK][KPST] deid output exists — skip(no-overwrite) file=%s",
@@ -361,6 +412,7 @@ def write_deid_outputs(
     input_path: str,
     outputs: list[tuple[str, str]],
     output_base: str = "",
+    input_base: str = "",
 ) -> list[Path]:
     """POST /project 시 더미 비식별 출력 파일을 생성한다(best-effort).
 
@@ -371,6 +423,8 @@ def write_deid_outputs(
     보안:
     - HIGH-1 fail-closed: ``output_base`` 미설정 시 어떤 파일도 쓰지 않고 1회 warn 후 반환.
     - HIGH-2 no-overwrite: 기존 파일은 O_EXCL 로 덮어쓰지 않는다.
+    - 읽기 경계: ``input_base`` 밖의 ``input_path`` 는 복사하지 않고 placeholder 로 대체한다
+      (임의 파일 노출·GB급 반복 복사에 의한 디스크 고갈 차단).
 
     모든 쓰기 실패(디렉터리 생성/파일 쓰기)는 예외를 삼켜 로그만 남기며 절대 전파하지 않는다.
 
@@ -420,7 +474,7 @@ def write_deid_outputs(
                 continue
         except (OSError, ValueError):
             continue
-        _write_one_output(target, source_base, input_path)
+        _write_one_output(target, source_base, input_path, input_base)
         if target.is_file():
             written.append(target)
     return written

@@ -30,8 +30,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <ul>
  *   <li>예외 메시지에 baseUrl 원문을 싣지 않는다(CWE-209 — userinfo 형태의 자격증명이 섞일 수 있다).
  *       진단에 필요한 scheme/host 만 노출한다.</li>
- *   <li>사설망 차단 정책일 때만 DNS 를 해석한다(rebinding 대응). 허용 정책에서는 해석하지 않는다 —
- *       내부 DNS 로만 풀리는 컨테이너 호스트명에서 부팅이 깨지지 않게 하기 위함이다.</li>
+ *   <li>사설망 차단 정책에서는 DNS 해석 실패를 <b>거부</b>로 취급한다(rebinding 대응). 내부망 허용
+ *       정책에서는 해석 실패를 통과시킨다 — 내부 DNS 로만 풀리는 컨테이너 호스트명에서 부팅이 깨지지
+ *       않게 하기 위함이다. 단 <b>해석에 성공한 경우</b>에는 허용 정책에서도 링크로컬/메타데이터
+ *       대역(169.254.0.0/16 · fe80::/10)을 거부한다(IMDS 는 어떤 환경에서도 정상 위탁 대상이 아니다).</li>
  * </ul>
  */
 @Slf4j
@@ -120,12 +122,47 @@ public final class ExternalUrlPolicy {
         }
         if (blockPrivateNetwork) {
             requirePublicNetwork(host);
+        } else {
+            rejectMetadataRangeIfResolvable(host);
         }
         if (!https && plaintextWarned.compareAndSet(false, true)) {
             log.warn("[ExternalUrl] 평문 HTTP 전송 — 내부망 격리 전제. property={} host={}:{}",
                     propertyName, host, uri.getPort());
         }
         return https;
+    }
+
+    /**
+     * 내부망 허용 정책에서도 <b>링크로컬/클라우드 메타데이터 대역</b>(169.254.0.0/16 · fe80::/10)은 거부한다
+     * (CWE-918). 내부망 목업이라 해도 메타데이터 IMDS 는 정상적인 위탁 대상이 될 수 없기 때문이다.
+     *
+     * <p>단 해석 실패는 <b>실패로 취급하지 않는다</b> — 컨테이너 내부 서비스명({@code klid-mock-server})은
+     * 도커 밖에서 해석되지 않으므로, 해석 실패를 거부로 처리하면 네이티브 기동이 통째로 막힌다
+     * (2026-07-25 로컬 배선 실측). "해석되면 검사, 안 되면 통과" 가 이 경로의 규칙이다.
+     */
+    private void rejectMetadataRangeIfResolvable(String host) {
+        InetAddress resolved = resolveQuietly(host);
+        if (resolved == null) {
+            return;
+        }
+        if (resolved.isLinkLocalAddress() || resolved.getHostAddress().startsWith("169.254.")) {
+            throw new IllegalStateException(
+                    propertyName + " 이 링크로컬/클라우드 메타데이터 대역을 가리킵니다: " + host + " → "
+                            + resolved.getHostAddress() + ". 내부망(개발) 정책에서도 차단됩니다.");
+        }
+    }
+
+    /** 호스트를 해석하되 실패하면 {@code null} 을 돌려준다(예외 없음) — 내부망 정책 전용. */
+    private InetAddress resolveQuietly(String host) {
+        String normalized = host.trim();
+        if (normalized.startsWith("[") && normalized.endsWith("]") && normalized.length() > 2) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        try {
+            return InetAddress.getByName(normalized);
+        } catch (UnknownHostException | SecurityException e) {
+            return null; // 해석 불가 = 개발 네트워크 밖 → 통과(기동 보장)
+        }
     }
 
     /** 내부/사설/메타데이터 대역 차단 (CWE-918). 도메인은 해석 후 검증한다(DNS rebinding 대응). */

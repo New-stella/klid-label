@@ -4,7 +4,6 @@ import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.service.PortalUploadSweepTxService;
 import kr.co.cudo.authoring.upload.service.TusChunkStore;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -37,16 +36,20 @@ public class PortalUploadSweepJob {
     private final Path storageRoot;
     private final long stuckTimeoutMinutes;
 
-    public PortalUploadSweepJob(
-            PortalUploadSweepTxService txService,
-            PortalUploadProperties properties,
-            @Value("${portal.upload.stuck-timeout-minutes:30}") long stuckTimeoutMinutes) {
+    public PortalUploadSweepJob(PortalUploadSweepTxService txService, PortalUploadProperties properties) {
         this.txService = txService;
         this.storageRoot = Paths.get(properties.storagePath()).toAbsolutePath().normalize();
+        long stuckTimeoutMinutes = properties.stuckTimeoutMinutes();
         this.stuckTimeoutMinutes = stuckTimeoutMinutes > 0 ? stuckTimeoutMinutes : 30L;
     }
 
-    /** 30분 간격 스윕. */
+    /**
+     * 30분 간격 스윕.
+     *
+     * <p>주기/초기지연은 {@link PortalUploadProperties} 로 옮기지 못하고 placeholder 로 남는다 —
+     * {@code @Scheduled} 어노테이션 속성은 상수 표현식만 허용하므로 record 값을 참조할 수 없다.
+     * 대신 두 키를 공통 yml 에 명시해 운영자가 발견·조정할 수 있게 한다(D1).
+     */
     @Scheduled(fixedDelayString = "${portal.upload.sweep.interval-ms:1800000}",
                initialDelayString = "${portal.upload.sweep.initial-delay-ms:600000}")
     public void run() {

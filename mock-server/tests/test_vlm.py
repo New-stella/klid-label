@@ -49,7 +49,7 @@ def _verify_body(**over: object) -> dict:
             "path": "/data/videos/sample.mp4",
             "frame_policy": {"mode": "frame_interval", "framerate": 25},
         },
-        "callback_url": "http://client-server/api/vlm/callback",
+        "callback_url": "http://klid-backend:8080/api/v1/vlm/callback",
     }
     body.update(over)
     return body
@@ -64,7 +64,7 @@ def _describe_body(**over: object) -> dict:
             "path": "/data/videos/deid.mp4",
             "frame_policy": {"mode": "frame_interval", "framerate": 25},
         },
-        "callback_url": "http://client-server/api/vlm/callback",
+        "callback_url": "http://klid-backend:8080/api/v1/vlm/callback",
     }
     body.update(over)
     return body
@@ -170,7 +170,7 @@ def test_verify_접수후_completed콜백_발사(
     assert res.status_code == 200
     assert len(captured) == 1
     url, payload = captured[0]
-    assert url == "http://client-server/api/vlm/callback"
+    assert url == "http://klid-backend:8080/api/v1/vlm/callback"
     assert payload["request_id"] == "00000001"
     assert payload["status"] == "completed"
     assert "accuracy" in payload["results"]
@@ -271,7 +271,7 @@ def test_multipart_요청도_accepted를_반환(client: TestClient) -> None:
         "request_id": "m0000001",
         "event_type": "fire",
         "media": {"type": "image", "source_type": "upload"},
-        "callback_url": "http://client-server/api/vlm/callback",
+        "callback_url": "http://klid-backend:8080/api/v1/vlm/callback",
     }
     # when
     res = client.post(
@@ -284,3 +284,64 @@ def test_multipart_요청도_accepted를_반환(client: TestClient) -> None:
     body = res.json()
     assert body["request_id"] == "m0000001"
     assert body["status"] == "accepted"
+
+
+# ── HIGH-1 콜백 SSRF 방어 (CWE-918) ──────────────────────────────
+# 목 서버는 인증이 없고 callback_url 로 지정된 임의 주소에 서버측 outbound POST 를 발사한다.
+# 요청자가 내부 주소를 넣으면 내부망 포트 스캔/요청 위조가 성립하므로 허용 호스트만 수락한다.
+def test_허용되지않은_callback_url_호스트는_400(client: TestClient) -> None:
+    # given / when — 내부망 임의 주소(SSRF 시도)
+    res = client.post(
+        VERIFY_URL, json=_verify_body(callback_url="http://10.0.0.9:9300/internal")
+    )
+    # then
+    assert res.status_code == 400
+    assert res.json()["error_code"] == "VALIDATION_ERROR"
+
+
+def test_describe도_허용되지않은_callback_url을_거부(client: TestClient) -> None:
+    # given / when
+    res = client.post(
+        DESCRIBE_URL, json=_describe_body(callback_url="http://klid-postgres:5432/x")
+    )
+    # then
+    assert res.status_code == 400
+
+
+def test_차단된_callback_url은_콜백을_발사하지_않는다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given
+    captured = _patch_capture(monkeypatch)
+    # when
+    client.post(VERIFY_URL, json=_verify_body(callback_url="http://10.0.0.9/x"))
+    # then — 거부된 요청은 outbound 를 전혀 발사하지 않는다
+    assert captured == []
+
+
+def test_기본_허용호스트는_backend와_루프백(client: TestClient) -> None:
+    # given / when / then — BE 가 실제로 넘기는 콜백 주소(WEBHOOK_CALLBACK_BASE_URL 기반)는 통과해야 한다
+    for url in (
+        "http://klid-backend:8080/api/v1/vlm/callback",
+        "http://localhost:8080/api/v1/vlm/callback",
+        "http://127.0.0.1:8080/api/v1/vlm/callback",
+    ):
+        res = client.post(VERIFY_URL, json=_verify_body(callback_url=url))
+        assert res.status_code == 200, url
+
+
+def test_허용호스트는_환경변수로_확장할_수_있다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given — 벤더/환경 변경 시 재빌드 없이 확장 가능해야 한다
+    from app.config import reload_settings
+
+    monkeypatch.setenv("MOCK_CALLBACK_ALLOWED_HOSTS", "klid-backend,authoring-be")
+    reload_settings()
+    # when
+    res = client.post(
+        VERIFY_URL, json=_verify_body(callback_url="http://authoring-be:8080/cb")
+    )
+    # then
+    assert res.status_code == 200
+    reload_settings()

@@ -47,7 +47,11 @@ class DevLoginToggleTest {
     @Test
     @DisplayName("dev_프로파일은_dev_토큰_발급_유지_회귀방지")
     void devLoginStillEnabledOnDev() throws IOException {
-        assertThat(String.valueOf(devLoginEnabled("application-dev.yml"))).isEqualTo("true");
+        // dev 는 ON 유지하되 값은 환경변수로 내릴 수 있는 형태다(${DEV_LOGIN_ENABLED:true}).
+        //   리터럴 true 로 박으면 dev 배포에서 이 경로를 끌 수단이 사라진다(ConfigProfileDriftGuardTest).
+        //   stg 와 달리 dev 는 "켤 수 없어야" 하는 대상이 아니므로 override 가능 형태가 정답이다.
+        assertThat(String.valueOf(devLoginEnabled("application-dev.yml")))
+                .isEqualTo("${DEV_LOGIN_ENABLED:true}");
     }
 
     @Test

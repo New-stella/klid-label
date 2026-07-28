@@ -37,7 +37,8 @@ class PortalUploadProcessingDeleteTest {
         LsPortalUldFrmeRepository frmeRepository = mock(LsPortalUldFrmeRepository.class);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), "./storage/raw/portal",
-                List.of("jpg"), 20_971_520L, 50, 2000);
+                List.of("jpg"), 20_971_520L, 50, 2000,
+                16_777_216L, 2_097_152L, 30L, 30L);
         PortalUploadService service = new PortalUploadService(uldRepository, frmeRepository, props);
 
         LsPortalUld uld = LsPortalUld.createVideo(OWNER, "v.mp4", "/p/v.mp4", 1024L, "video/mp4");

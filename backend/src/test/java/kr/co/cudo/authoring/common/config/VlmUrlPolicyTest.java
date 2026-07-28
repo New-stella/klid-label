@@ -26,6 +26,14 @@ class VlmUrlPolicyTest {
         return new VlmUrlPolicy(env, allowInsecure);
     }
 
+    /** 프로파일 + 배포 환경 표식({@code ENV}) 을 함께 지정한 정책. */
+    private static VlmUrlPolicy markerPolicy(String activeProfile, boolean allowInsecure, String envMarker) {
+        MockEnvironment env = new MockEnvironment();
+        env.setActiveProfiles(activeProfile.split(","));
+        env.setProperty("ENV", envMarker);
+        return new VlmUrlPolicy(env, allowInsecure);
+    }
+
     @Test
     @DisplayName("VLM_클라이언트가_평문_HTTP_사설IP_목업_URL_로_local_에서_정상_기동한다")
     void localAcceptsPlaintextPrivateMockUrl() {
@@ -122,6 +130,61 @@ class VlmUrlPolicyTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> policy("prd", false).validate("https://example.com"))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("배포표식_ENV_가_stg_prd_면_local_dev_프로파일이어도_완화가_인정되지_않는다")
+    void deployedEnvMarkerOverridesProfileRelaxation() {
+        // given — 프로파일은 dev/local 인데 배포 서버 표식(ENV)이 붙은 오배포 상황.
+        //   프로파일 축만 보면 잡히지 않는다(SPRING_PROFILES_ACTIVE 를 dev 로 둔 채 stg/prd 서버에 올림).
+        //   DevProfileGuard.DEPLOYED_ENVS 와 동일 기준으로 "배포 쪽이 이긴다".
+        // when / then — 기동 assert 도 실패하고, URL 검증도 엄격으로 유지된다(이중 방어)
+        assertThatThrownBy(() -> markerPolicy("local", true, "prd").verifyRelaxationScope())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("allow-insecure-url");
+        assertThatThrownBy(() -> markerPolicy("local", true, "prd").validate("http://klid-mock-server:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("HTTPS");
+        // 대소문자/공백 무시 + stg 표식도 동일하게 배포로 취급
+        assertThatThrownBy(() -> markerPolicy("dev", true, " STG ").validate("http://klid-mock-server:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("HTTPS");
+        // 배포 표식이 아닌 라벨(qa 등)·빈 값은 완화를 막지 않는다(사내 임시 환경 기동 보장)
+        assertThatCode(() -> markerPolicy("local", true, "qa").validate("http://klid-mock-server:9400"))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> markerPolicy("local", true, "").validate("http://klid-mock-server:9400"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("링크로컬_메타데이터_대역은_완화_프로파일에서도_차단된다")
+    void metadataRangeRejectedEvenWhenRelaxed() {
+        // given — dev 에 잘못된 VLM_SERVICE_URL 이 주입돼 클라우드 메타데이터(IMDS) 대역을 향하는 상황.
+        //   완화는 "평문 http + 사설 IP" 까지이며 IMDS 는 어떤 환경에서도 정상 위탁 대상이 아니다.
+        VlmUrlPolicy relaxed = policy("dev", true);
+        assertThatThrownBy(() -> relaxed.validate("http://169.254.169.254"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("메타데이터");
+        assertThatThrownBy(() -> relaxed.validate("http://169.254.1.1:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("메타데이터");
+        // IPv6 링크로컬(fe80::/10)도 동일하게 차단 — URI#getHost 가 대괄호를 포함해 돌려주므로 정규화 필요
+        assertThatThrownBy(() -> relaxed.validate("http://[fe80::1]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("링크로컬");
+    }
+
+    @Test
+    @DisplayName("해석되지_않는_컨테이너명은_완화_프로파일에서_계속_허용된다")
+    void unresolvableContainerNameStillAllowedWhenRelaxed() {
+        // given — 도커 밖(네이티브 bootRun)에서는 컨테이너명이 해석되지 않는다.
+        //   메타데이터 대역 검사를 넣으면서 "해석 실패 → 거부" 로 바뀌면 기동이 통째로 막히는 회귀가 된다.
+        String unresolvable = "http://klid-mock-server-does-not-resolve-" + System.nanoTime() + ":9400";
+        VlmUrlPolicy relaxed = policy("local", true);
+        // when / then — 해석 실패는 통과(완화 유지)
+        assertThatCode(() -> relaxed.validate(unresolvable)).doesNotThrowAnyException();
+        assertThatCode(() -> relaxed.validate("http://localhost:9400")).doesNotThrowAnyException();
+        assertThatCode(() -> relaxed.validate("http://127.0.0.1:9400")).doesNotThrowAnyException();
     }
 
     @Test

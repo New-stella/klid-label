@@ -1,4 +1,6 @@
 spring:
+  # multipart 한도(500MB/1200MB)는 local/dev/stg 가 동일해 application.yml 공통으로 승격됐다.
+  #   (dev 업로드 /v1/dev/autolabel-test 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
   datasource:
     control:
       jdbc-url: jdbc:postgresql://${CONTROL_DB_HOST}:${CONTROL_DB_PORT}/${CONTROL_DB_NAME}
@@ -10,13 +12,6 @@ spring:
       username: ${PORTAL_DB_USERNAME}
       password: ${PORTAL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
-  # dev 업로드(/v1/dev/autolabel-test) 영상 multipart 개당 한도 상향(500MB). 공통 yml 이 이미 multipart 활성.
-  #   요청 한도는 포털 50장 업로드(≥1.1GB) 수용 위해 공통(1200MB)과 정합.
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 500MB
-      max-request-size: 1200MB
 
 # 스테이징(stg) webhook 설정 — 미설정 시 부팅 차단(fail-closed, REDESIGN R-3).
 #
@@ -43,17 +38,40 @@ webhook:
 #   우회 + 관리자 권한 획득이 성립했다. local/dev 만 유지한다.
 #   토글이 false 면 DevTokenController/Service 빈이 미등록되고 SecurityConfig 의 permitAll 매처도
 #   함께 사라진다(동일 프로퍼티 단일 판정).
+#   ★ 여기는 환경변수 플레이스홀더(${DEV_LOGIN_ENABLED:...})를 쓰지 않는다 — stg 는 켤 수 있으면
+#     안 되는 값이고, DevToggleProfileGuard 가 prd/stg 에서 활성 시 부팅을 거부한다(H-3).
 authoring:
   dev:
     login:
       enabled: false
     upload:
-      enabled: true
+      enabled: ${DEV_UPLOAD_ENABLED:true}
   # Phase 7-A1 — 외부 증강(생성형 AI) 벤더 실연동 전이라 noop 을 명시한다(기본값 http 유출 차단).
   augment:
     external:
       mode: ${AUGMENT_EXTERNAL_MODE:noop}
+  # stg 비식별 — 공통 기본값(false)과 동일하나 의도를 명시한다: mock 이 아니라 실제 KPST 위탁 경로로 동작한다.
+  #   (mock 자족이 필요하면 DEIDENTIFY_MOCK_MODE=true 로만 전환 — prd 는 true 면 부트 거부)
+  integration:
+    deidentify:
+      mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
 
+# UC018 — ㈜KPST 비식별 솔루션 연동. stg 는 실제 위탁 경로(위 mock-mode=false)이므로 주소 배선이 필수다.
+#   base-url 은 기본값 없이 환경변수로만 주입한다(미주입 시 기동 단계에서 즉시 실패 — 조용한 오연동 방지).
+#   공통 기본값(https://localhost:9201)을 상속하면 https 인데 ca-cert 가 비어 KpstWebClientConfig 가
+#   fail-closed(CWE-295)로 빈 생성에 실패하므로, stg 에 명시 배선이 없으면 부팅이 차단된다.
+#   ★ https 주소를 주입하는 경우 KPST 자체 CA 인증서 경로(KPST_DEID_CA_CERT_PATH)도 반드시 함께 주입할 것.
+#     내부망 평문 http://IP:port 주소면 ca-cert 는 불요다.
+#   계정(creator-id/req-user-id)·폴링 주기는 application.yml 기본값 사용.
+kpst:
+  deid:
+    base-url: ${KPST_DEID_BASE_URL}
+
+# 로깅 레벨 — 프로파일별 의도를 명시한다(stg 만 애플리케이션 레벨이 비어 있어 root 로 떨어지고 있었다).
+#   local/dev: DEBUG — 개발 중 흐름 추적(+ hibernate.SQL DEBUG)
+#   stg      : INFO  — 운영 전 단계. 비즈니스 이벤트(적재/배치/검수/통지)는 남기되 DEBUG 소음·PII 노출 위험은 배제
+#   prd      : INFO(root WARN) — 운영 기준
 logging:
   level:
     root: INFO
+    kr.co.cudo.authoring: INFO

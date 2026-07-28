@@ -71,7 +71,8 @@ class PortalUploadLabelServiceTest {
         lblRepository = mock(LsPortalUldLblRepository.class);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
-                List.of("jpg", "jpeg", "png"), 1024L, 3, 2000);
+                List.of("jpg", "jpeg", "png"), 1024L, 3, 2000,
+                16_777_216L, 2_097_152L, 30L, 30L);
         service = new PortalUploadLabelService(uldRepository, frmeRepository, lblRepository, props, objectMapper);
     }
 

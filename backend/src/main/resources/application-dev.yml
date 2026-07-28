@@ -1,7 +1,13 @@
 spring:
+  # multipart 한도(500MB/1200MB)는 local/dev/stg 가 동일해 application.yml 공통으로 승격됐다.
+  #   (dev 업로드 /v1/dev/autolabel-test 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
+  #
+  # DB 접속 정보는 stg/prd 와 동일하게 **기본값 없이** 환경변수로만 주입한다.
+  #   과거 dev 에만 내부 DB 호스트 IP·DB 명이 기본값으로 박혀 있었다 — 리포지토리에 내부망 정보가
+  #   평문으로 남고, 환경변수 누락 시 조용히 엉뚱한 서버를 향할 수 있어 제거했다(미주입 시 기동 실패).
   datasource:
     control:
-      jdbc-url: jdbc:postgresql://${CONTROL_DB_HOST:192.168.102.101}:${CONTROL_DB_PORT:5432}/${CONTROL_DB_NAME:klid_system}
+      jdbc-url: jdbc:postgresql://${CONTROL_DB_HOST}:${CONTROL_DB_PORT}/${CONTROL_DB_NAME}
       username: ${CONTROL_DB_USERNAME}
       password: ${CONTROL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
@@ -10,40 +16,60 @@ spring:
       username: ${PORTAL_DB_USERNAME}
       password: ${PORTAL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
-  # dev 업로드(/v1/dev/autolabel-test) 영상 multipart 개당 한도 상향(500MB). 공통 yml 이 이미 multipart 활성.
-  #   요청 한도는 포털 50장 업로드(≥1.1GB) 수용 위해 공통(1200MB)과 정합.
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 500MB
-      max-request-size: 1200MB
 
-# [개발/검수 전용] dev 로그인/업로드 토글 — dev 는 항상 ON(기존 @Profile("!prd") 동작 유지).
+# [개발/검수 전용] dev 로그인/업로드 토글 — dev 는 기본 ON(기존 @Profile("!prd") 동작 유지)이되,
+#   환경변수로 끌 수 있어야 한다. 리터럴 true 로 박으면 내릴 수단이 없다.
+#   (공통 application.yml 은 ${DEV_LOGIN_ENABLED:false} fail-closed — 기본값만 프로파일에서 뒤집는다)
 authoring:
   dev:
     login:
-      enabled: true
+      enabled: ${DEV_LOGIN_ENABLED:true}
     upload:
-      enabled: true
+      enabled: ${DEV_UPLOAD_ENABLED:true}
   # Phase 7-A1 — 외부 증강(생성형 AI) 벤더 실연동 전이라 noop 을 <b>명시</b>한다.
   #   공통 기본값(http)이 운영 환경으로 새지 않도록 fail-safe 로 못박는 것이며,
   #   실벤더 연동 시 AUGMENT_EXTERNAL_MODE=http + AUGMENT_API_BASE_URL 로 전환한다.
+  #   (비식별·VLM 은 아래에서 목업 벤더 서버로 실 위탁한다 — 증강만 벤더 규격 확정 전이라 미연동)
   augment:
     external:
       mode: ${AUGMENT_EXTERNAL_MODE:noop}
-  # dev 비식별 — 기본 mock 모드. KPST 미호출, 원본을 비식별 경로로 복사하는 mock 비식별로 자족 동작한다.
-  #   실 KPST 연동은 DEIDENTIFY_MOCK_MODE=false 로 전환(KPST API 연동 테스트 서버에 실제 위탁).
-  #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — local/dev/stg 는 허용, prd 에서 true 면 부트 거부.
+  # dev 비식별 — **내부 self-fill 금지**. mock-mode 는 외부를 전혀 호출하지 않고 저작도구가 스스로
+  #   원본을 비식별 경로로 복사해 "성공"을 만들어내는 경로다(DeidentifyStep.runMock). 이 경로로는
+  #   외부 연동이 실제로 되는지 검증할 수 없으므로 dev 는 기본 비활성(false)으로 두고,
+  #   목업 벤더 서버(mock-server)에 **실제 HTTP 로 위탁**한다(아래 kpst.deid.*).
+  #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — 되돌리려면 DEIDENTIFY_MOCK_MODE=true.
   integration:
     deidentify:
-      mock-mode: ${DEIDENTIFY_MOCK_MODE:true}
+      mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
 
-# UC018 — dev 는 기본 mock 비식별(위 mock-mode=true)이라 아래 kpst.deid.* 는 미사용이다(mock 우선).
-#   실 KPST 연동 시(DEIDENTIFY_MOCK_MODE=false) 사용 — enabled 는 application.yml 기본값(true), 계정도
-#   기본값(creator-id/req-user-id=authoring) 사용. 내부망 http 평문이라 ca-cert 불요. base-url 은 override 가능.
+# UC018 — dev 비식별은 KPST 폴링 경로 단일화(위 mock-mode=false). 기본 위탁 대상은 목업 벤더
+#   서버(mock-server, 컨테이너 네트워크 klid-net 의 klid-mock-server:9400)다 — 벤더 실서버 개발
+#   완료 전까지 dev 에서 파이프라인 전체를 실 HTTP 로 돌리기 위한 배선이며, 실서버 전환은
+#   KPST_DEID_BASE_URL 주입만으로 끝난다(코드 변경 없음).
+#   계정은 application.yml 기본값(creator-id/req-user-id=authoring) 사용. 내부 http 평문이라 ca-cert 불요.
+#   ★ https 주소를 주입하는 경우 KPST 자체 CA 경로(KPST_DEID_CA_CERT_PATH)도 함께 주입할 것(CWE-295 fail-closed).
+#   ★ 호스트명 기본값은 도커 네트워크 전용이다 — 도커 밖(네이티브) 기동 시 반드시 KPST_DEID_BASE_URL 주입.
 kpst:
   deid:
-    base-url: ${KPST_DEID_BASE_URL:http://222.118.130.251:9989}
+    enabled: ${KPST_DEID_ENABLED:true}
+    base-url: ${KPST_DEID_BASE_URL:http://klid-mock-server:9400}
+
+# Phase 1 — 외부 VLM 시계열. 공통 기본값은 enabled=false 이고, false 면 VlmClient 가 외부 호출 없이
+#   SKIPPED 를 반환해 **VLM 단계가 통째로 빈다**(결과 0건). dev 는 목업 벤더 서버로 실제 위탁해
+#   describe → 콜백(/v1/vlm/callback) 왕복까지 돌린다.
+#   ⚠ 콜백은 mock-server → 저작도구 방향이므로 authoring.webhook.callback-base-url 이 컨테이너에서
+#     도달 가능한 주소여야 한다(도커: WEBHOOK_CALLBACK_BASE_URL=http://klid-backend:8080/api).
+#   - allow-insecure-url: 목업이 평문 http + 컨테이너 내부 호스트라, 운영 표준(HTTPS + 공인망)을 그대로
+#     적용하면 VlmUrlPolicy 가 빈 생성을 실패시켜 **기동 자체가 막힌다**. 완화는 이 전용 플래그로만 열리고
+#     local/dev 프로파일에서만 인정된다 — 추가로 배포 표식 ENV=stg|prd 가 있으면 dev 프로파일이라도
+#     인정하지 않고 기동을 거부한다(ProfileGatedUrlPolicy · DevProfileGuard 와 동일 기준).
+#     ★ enabled=true 와 이 플래그는 짝이다. 플래그 없이 enabled 만 켜면 부팅이 깨진다.
+#     실벤더(HTTPS) 전환 시에는 VLM_ALLOW_INSECURE_URL=false 로 내린다.
+vlm:
+  client:
+    enabled: ${VLM_CLIENT_ENABLED:true}
+    url: ${VLM_SERVICE_URL:http://klid-mock-server:9400}
+    allow-insecure-url: ${VLM_ALLOW_INSECURE_URL:true}
 
 logging:
   level:

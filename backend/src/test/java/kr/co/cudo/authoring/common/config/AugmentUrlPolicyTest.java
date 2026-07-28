@@ -99,4 +99,37 @@ class AugmentUrlPolicyTest {
         assertThatThrownBy(() -> policy("local", false).validate("http://localhost:9400"))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    @DisplayName("증강도_배포표식_ENV_가_stg_prd_면_local_dev_프로파일에서_완화가_인정되지_않는다")
+    void deployedEnvMarkerOverridesProfileRelaxation() {
+        // 공용 골격(ProfileGatedUrlPolicy)에 흡수한 ENV 축이 VLM 뿐 아니라 증강에도 적용되는지 고정한다
+        //   — 정책 비대칭 재발(DEV_FIX HIGH-1) 차단이 이 테스트의 목적이다.
+        MockEnvironment env = new MockEnvironment();
+        env.setActiveProfiles("dev");
+        env.setProperty("ENV", "prd");
+        AugmentUrlPolicy p = new AugmentUrlPolicy(env, true);
+        assertThatThrownBy(p::verifyRelaxationScope)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("allow-insecure-url");
+        assertThatThrownBy(() -> p.validate("http://klid-mock-server:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("HTTPS");
+    }
+
+    @Test
+    @DisplayName("증강도_링크로컬_메타데이터_대역은_완화_프로파일에서_차단된다")
+    void metadataRangeRejectedEvenWhenRelaxed() {
+        AugmentUrlPolicy relaxed = policy("local", true);
+        assertThatThrownBy(() -> relaxed.validate("http://169.254.169.254"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("메타데이터");
+        assertThatThrownBy(() -> relaxed.validate("http://[fe80::1]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("링크로컬");
+        // 해석 불가한 컨테이너명은 계속 통과(도커 밖 기동 보장)
+        assertThatCode(() -> relaxed.validate(
+                "http://genai-mock-does-not-resolve-" + System.nanoTime() + ":9400"))
+                .doesNotThrowAnyException();
+    }
 }

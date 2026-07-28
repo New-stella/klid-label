@@ -675,3 +675,173 @@ def test_resolve_output_dir_base밖이면_None(tmp_path) -> None:
     assert deid_sim.resolve_output_dir(str(outside), str(base)) is None
     inside = base / "x"
     assert deid_sim.resolve_output_dir(str(inside), str(base)) is not None
+
+
+# ── HIGH-1 input_path 읽기 경계 (CWE-22 / 자원 증폭) ──────────────
+# 목 서버는 인증이 없어 input_path 를 임의로 지정할 수 있다. 허용 루트 밖 파일을 복사하면
+# 임의 파일 노출 + GB급 반복 복사로 디스크를 고갈시킬 수 있으므로 복사 소스를 제한한다.
+def test_허용루트_밖_input_path의_원본은_복사하지_않는다(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given — output base 는 storage 하위, 원본은 storage 밖
+    from app.config import reload_settings
+
+    storage = tmp_path / "storage"
+    base = storage / "deidentified"
+    base.mkdir(parents=True)
+    export = base / "videos" / "10"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "a.mp4").write_bytes(b"SECRET_OUTSIDE_BYTES")
+    monkeypatch.setenv("MOCK_OUTPUT_BASE", str(base))
+    reload_settings()
+    # when
+    body = _create(
+        client,
+        name="p1",
+        export_path=f"{export}/",
+        input_path=f"{outside}/",
+        files=["a.mp4"],
+    )
+    # then — 복사 대신 placeholder (원본 내용이 새지 않는다)
+    name = _progress_file_names(client, body["prj_id"])[0]
+    assert (export / name).read_bytes() == deid_sim.PLACEHOLDER_BYTES
+
+
+def test_허용루트_안_input_path의_원본은_복사된다(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given — BE 정상 경로: raw(입력)와 deidentified(출력)가 같은 storage 루트 하위
+    from app.config import reload_settings
+
+    storage = tmp_path / "storage"
+    base = storage / "deidentified"
+    base.mkdir(parents=True)
+    export = base / "videos" / "10"
+    raw = storage / "raw" / "videos" / "10"
+    raw.mkdir(parents=True)
+    (raw / "a.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
+    monkeypatch.setenv("MOCK_OUTPUT_BASE", str(base))
+    reload_settings()
+    # when
+    body = _create(
+        client,
+        name="p1",
+        export_path=f"{export}/",
+        input_path=f"{raw}/",
+        files=["a.mp4"],
+    )
+    # then — 정상 경로는 그대로 복사돼야 한다(방어가 BE 흐름을 깨지 않음)
+    name = _progress_file_names(client, body["prj_id"])[0]
+    assert (export / name).read_bytes() == b"ORIGINAL_VIDEO_BYTES_123"
+
+
+def test_input_base를_환경변수로_직접_지정할_수_있다(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given — 출력 base 와 무관한 위치를 입력 루트로 명시 허용
+    from app.config import reload_settings
+
+    base = tmp_path / "out"
+    base.mkdir()
+    export = base / "videos" / "10"
+    src_root = tmp_path / "nas"
+    src_root.mkdir()
+    (src_root / "a.mp4").write_bytes(b"NAS_BYTES")
+    monkeypatch.setenv("MOCK_OUTPUT_BASE", str(base))
+    monkeypatch.setenv("MOCK_INPUT_BASE", str(src_root))
+    reload_settings()
+    # when
+    body = _create(
+        client,
+        name="p1",
+        export_path=f"{export}/",
+        input_path=f"{src_root}/",
+        files=["a.mp4"],
+    )
+    # then
+    name = _progress_file_names(client, body["prj_id"])[0]
+    assert (export / name).read_bytes() == b"NAS_BYTES"
+    reload_settings()
+
+
+def test_허용루트_밖_input_path는_WARN으로_구분로깅된다(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    # given — 경계 위반(보안 이벤트)과 "원본이 원래 없음"이 로그로 구분되어야 한다(OWASP A09)
+    import logging
+
+    from app.config import reload_settings
+
+    storage = tmp_path / "storage"
+    base = storage / "deidentified"
+    base.mkdir(parents=True)
+    export = base / "videos" / "10"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "a.mp4").write_bytes(b"SECRET_OUTSIDE_BYTES")
+    monkeypatch.setenv("MOCK_OUTPUT_BASE", str(base))
+    reload_settings()
+
+    # when
+    with caplog.at_level(logging.INFO, logger="app.services.deid_sim"):
+        _create(
+            client,
+            name="p1",
+            export_path=f"{export}/",
+            input_path=f"{outside}/",
+            files=["a.mp4"],
+        )
+
+    # then — 경계 위반은 WARN 으로 남고, 전체 경로 평문은 남기지 않는다
+    warns = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("boundary" in r.getMessage() for r in warns)
+    assert all(str(outside) not in r.getMessage() for r in caplog.records)
+
+
+def test_원본이_없을뿐이면_WARN이_아니라_INFO로_남는다(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    # given — 허용 루트 안이지만 원본 파일만 없는 경우(정상 목 시나리오)
+    import logging
+
+    from app.config import reload_settings
+
+    storage = tmp_path / "storage"
+    base = storage / "deidentified"
+    base.mkdir(parents=True)
+    export = base / "videos" / "10"
+    raw = storage / "raw" / "videos" / "10"
+    raw.mkdir(parents=True)
+    monkeypatch.setenv("MOCK_OUTPUT_BASE", str(base))
+    reload_settings()
+
+    # when
+    with caplog.at_level(logging.INFO, logger="app.services.deid_sim"):
+        body = _create(
+            client,
+            name="p1",
+            export_path=f"{export}/",
+            input_path=f"{raw}/",
+            files=["a.mp4"],
+        )
+
+    # then — placeholder 는 그대로 생성되지만 보안 이벤트(WARN)로 오인되면 안 된다
+    name = _progress_file_names(client, body["prj_id"])[0]
+    assert (export / name).read_bytes() == deid_sim.PLACEHOLDER_BYTES
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any("not readable" in r.getMessage() for r in caplog.records)
+
+
+def test_resolve_input_dir_경계(tmp_path) -> None:
+    # given
+    storage = tmp_path / "storage"
+    inside = storage / "raw"
+    inside.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    # when / then
+    assert deid_sim.resolve_input_dir(str(inside), str(storage)) is not None
+    assert deid_sim.resolve_input_dir(str(outside), str(storage)) is None
+    # base 미설정이면 제한하지 않는다(출력 base 도 없으면 애초에 파일을 쓰지 않는다)
+    assert deid_sim.resolve_input_dir(str(outside), "") is not None
