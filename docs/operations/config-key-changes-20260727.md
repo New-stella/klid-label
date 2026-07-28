@@ -190,34 +190,71 @@
 조용히 죽으므로 더 위험하다.**
 
 <!-- DEV_REQUIRED_ENV:START -->
-**A. 미주입 시 부팅 실패** (기본값 없는 placeholder — 조용한 오연동 대신 즉시 실패시키는 설계)
+**A. yml 기준 기본값 없는 placeholder** (미주입 시 *애플리케이션 단독 기동*은 실패)
+
+> ⚠ **컨테이너(compose) 배포에서는 대부분 실제 차단이 아니다** — 아래 "A-실측" 절 참조.
+> 이 표는 yml 계약(기본값 없음) 자체를 나열한 것이고, compose 가 값을 대신 공급하는지는 별개다.
 
 | 키 | 미주입 시 증상 |
 |---|---|
-| `JWT_SECRET` | 부팅 실패. 토큰 검증 키(>= 256bit) |
-| `CONTROL_DB_HOST` | 부팅 실패 (컨테이너 배포는 compose 의 jdbc-url 지정이 우선하므로 실질 미사용 — 아래 (2) 참조) |
+| `JWT_SECRET` | 부팅 실패. 토큰 검증 키(>= 256bit). **compose 가 공급하지 않으므로 실제로 필수** |
+| `CONTROL_DB_HOST` | compose 배포에서는 미차단 — 접속 URL 을 compose 가 직접 지정해 이 placeholder 가 해석되지 않는다 |
 | `CONTROL_DB_PORT` | 〃 |
-| `CONTROL_DB_NAME` | 〃 |
-| `CONTROL_DB_USERNAME` | 부팅 실패 (jdbc-url 을 지정해도 계정은 별도 주입 필요) |
+| `CONTROL_DB_NAME` | 〃 (기본값 있음) |
+| `CONTROL_DB_USERNAME` | compose 배포에서는 미차단 — compose 기본값이 공급된다. 다만 **실 DB 계정과 맞아야** 접속 성공 |
 | `CONTROL_DB_PASSWORD` | 〃 |
-| `PORTAL_DB_HOST` | 부팅 실패 (컨테이너 배포는 jdbc-url 지정이 우선) |
+| `PORTAL_DB_HOST` | compose 배포에서는 미차단 (위와 동일) |
 | `PORTAL_DB_PORT` | 〃 |
-| `PORTAL_DB_NAME` | 〃 |
-| `PORTAL_DB_USERNAME` | 부팅 실패 |
+| `PORTAL_DB_NAME` | 〃 (기본값 있음) |
+| `PORTAL_DB_USERNAME` | compose 배포에서는 미차단 — compose 가 관제 계정 값을 그대로 재사용해 주입한다 |
 | `PORTAL_DB_PASSWORD` | 〃 |
 
-**B. 기동은 되지만 기능이 조용히 죽음** (빈 기본값 = fail-closed)
+**B. 빈 기본값 = fail-closed** (미주입이어도 기동은 되지만 해당 기능이 죽음)
 
 | 키 | 미주입 시 증상 |
 |---|---|
 | `STREAM_SIGN_SECRET` | 영상 스트림 서명 URL 발급·검증 전면 차단 → 마킹/라벨링 화면에서 **영상 재생 불가** |
 | `CORS_ALLOWED_ORIGINS` | 브라우저 요청 전면 403 → **FE 전 기능 차단** |
 | `ADMIN_CLAIM_PASSWORD_HASH` | 관리자 role-claim 불가 |
-| `WEBHOOK_HMAC_SECRET_AUGMENT` | 증강 콜백 401 → 증강 결과 수신 불가 |
+| `WEBHOOK_HMAC_SECRET_AUGMENT` | ⚠ **B 가 아니라 하드 블로커다** — base compose 가 required 문법(`:?`)으로 참조하므로, 미설정이면 컨테이너가 뜨기도 전에 `docker compose build`/`up` 명령 자체가 실패한다 |
 <!-- DEV_REQUIRED_ENV:END -->
 
 > 위 목록은 `DevProfileWiringGuardTest#dev_프로파일_필수_환경변수_목록이_문서와_일치한다` 가
 > **yml 실값에서 추출한 집합과 이 표를 직접 대조**한다. 설정만 바뀌고 인수인계가 누락되면 테스트가 깨진다.
+> (그래서 위 표의 **키 목록은 임의로 늘리거나 줄일 수 없다** — 마커 구간 안에 백틱으로 감싼 새 대문자 키를
+> 써 넣으면 그것도 목록으로 집계되어 테스트가 깨진다. 설명 문구만 고칠 것.)
+
+#### (1-1) A/B 표 실측 정정 (2026-07-28, cudo_246 대조)
+
+위 A/B 표는 **yml 계약**을 나열한 것이라, 실제 배포 형태(compose)에서의 차단 여부와 다르다.
+서버 `.env` 와 `docker compose config` 를 실측해 아래를 확정했다. **배포 전 체크는 이 절을 따른다.**
+
+| 실제 차단 순위 | 키 | 근거 |
+|---|---|---|
+| **1. 명령 자체가 실패** | `WEBHOOK_HMAC_SECRET_AUGMENT` | base compose 가 `${WEBHOOK_HMAC_SECRET_AUGMENT:?...}` 로 참조 — 미설정이면 `docker compose build`/`up` 이 컨테이너 기동 전에 에러로 종료한다. **B 표 분류(조용히 죽음)는 오분류였다** |
+| **2. 부팅 실패** | `JWT_SECRET` | compose 가 공급하지 않는 유일한 A 항목 |
+| **3. 기동은 되나 기능 정지** | `STREAM_SIGN_SECRET` / `CORS_ALLOWED_ORIGINS` / `ADMIN_CLAIM_PASSWORD_HASH` | 빈 기본값 fail-closed (B 표대로) |
+| **4. 미차단 (조치 불요)** | DB 계열 9키 | 아래 참조 |
+
+**DB 계열이 차단되지 않는 이유** (A 표가 "부팅 실패"로 과장했던 부분):
+
+- `docker-compose.yml` 이 `SPRING_DATASOURCE_CONTROL_JDBC_URL` / `SPRING_DATASOURCE_PORTAL_JDBC_URL` 을
+  **직접 지정**하므로, `application-dev.yml` 의 `${CONTROL_DB_HOST}` 등 조립용 placeholder 는 **해석 자체가 일어나지 않는다**.
+- 계정도 compose 가 공급한다 — `PORTAL_DB_USERNAME: ${CONTROL_DB_USERNAME:-klid_user}` /
+  `PORTAL_DB_PASSWORD: ${CONTROL_DB_PASSWORD:-changeme}` 로 **관제 계정 값을 포털 쪽에 그대로 재사용**한다.
+  따라서 서버 `.env` 에 `PORTAL_DB_USERNAME`·`PORTAL_DB_PASSWORD` 가 없어도 부팅에 실패하지 않는다.
+- 단 **값이 실 DB 와 맞아야** 접속에 성공하므로, "주입 필수"가 아니라 "값 정합 확인"의 문제다.
+
+**★ `.env` 에 `$` 포함 값을 넣을 때 (bcrypt 해시 등)**
+
+compose 는 `env_file` 로 주입하는 값 **내부의 `$` 도 보간**한다. `ADMIN_CLAIM_PASSWORD_HASH` 처럼
+`$2y$12$...` 형태를 그대로 넣으면 `$` 뒤 영문 구간이 변수로 해석돼 **빈 문자열로 치환**되고,
+키는 존재하는데 해시만 손상돼 role-claim 이 계속 실패한다(실제 발생).
+
+- `.env` 에는 `$` 를 **`$$` 로 이스케이프**해 기록한다.
+- 넣은 뒤 `docker compose config` 로 ① `variable is not set` 경고 0건 ② 값이 온전한지 확인한다.
+  **config 출력의 `$$` 는 실제 `$` 1개**를 뜻하므로 `$$2y$$12$$...` 로 보이면 정상이다.
+- 새로 만드는 시크릿은 `openssl rand -hex 32` 처럼 `$` 가 없는 형식을 쓰면 이 문제가 없다.
 
 **부수 확인(주입이 아니라 값 점검)**
 
