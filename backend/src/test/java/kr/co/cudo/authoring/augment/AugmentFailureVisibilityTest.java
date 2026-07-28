@@ -69,6 +69,8 @@ class AugmentFailureVisibilityTest {
     @Mock private AugmentMetrics metrics;
     @Mock private AugmentCallbackUrlResolver callbackUrlResolver;
     @Mock private kr.co.cudo.authoring.webhook.service.AugmentJobIdOwnerLookup jobIdOwnerLookup;
+    /** 조상 체인 신고 판정 — 기본 stub 은 "신고 없음"(false). */
+    @Mock private kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
 
     private AugmentResultService resultService;
     private AugmentJobRollup rollup;
@@ -80,7 +82,7 @@ class AugmentFailureVisibilityTest {
     @BeforeEach
     void setUp() {
         resultService = new AugmentResultService(augRepository, videoRepository, srcRepository,
-                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup);
+                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup, deidentReportGate);
         ReflectionTestUtils.setField(resultService, "storageDeidentifiedPath", DEID_BASE);
         rollup = new AugmentJobRollup(resultService);
         reviewService = new AugmentReviewService(augRepository, reviewRepository, srcRepository,

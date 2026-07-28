@@ -14,6 +14,7 @@ import type {
   AugmentJob,
   AugmentResult,
   AugmentResultPage,
+  GetAugmentResultParams,
   ListAugmentJobsParams,
   RequestAugmentRequest,
   RequestAugmentResponse,
@@ -47,11 +48,16 @@ export function listAugmentJobs(
 
 /**
  * 증강 결과 단건 조회 (영상별/유형별 결과 묶음).
- * BE: GET /api/v1/augments/{jobId}/result
+ * BE: GET /api/v1/augments/{jobId}/result?page=&size=
+ *
+ * `page`/`size` 는 프레임 쌍 페이징(BE 기본 12, 최대 100). 미지정 시 BE 기본값을 따른다.
  */
-export function getAugmentResult(jobId: number): Promise<AugmentResultPage> {
+export function getAugmentResult(
+  jobId: number,
+  params: GetAugmentResultParams = {},
+): Promise<AugmentResultPage> {
   return apiClient
-    .get<AugmentResultPage>(`/augments/${jobId}/result`)
+    .get<AugmentResultPage>(`/augments/${jobId}/result`, { params })
     .then((r) => r.data);
 }
 

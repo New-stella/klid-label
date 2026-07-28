@@ -60,6 +60,11 @@ class AugmentResultServiceTest {
     @Mock AsyncAugmentFrameRunner asyncAugmentFrameRunner;
     /** E-ISSUE-05 — UNIQUE 위반 이후 소유자 판별은 <b>독립 트랜잭션</b>에서만 한다(PG 25P02 회피). */
     @Mock AugmentJobIdOwnerLookup jobIdOwnerLookup;
+    /**
+     * 조상 체인 신고 판정 — 기본 stub 은 "신고 없음"(false)이라 기존 케이스는 부모 행의
+     * {@code deIdntfYn} 판정만으로 종전과 동일하게 동작한다.
+     */
+    @Mock kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
 
     /** 파생 비디오(비식별 사본) 출력 base — 산출 경로 기대값 계산에 함께 쓴다. */
     private static final String DEID_BASE = "/storage/deidentified";
@@ -87,7 +92,7 @@ class AugmentResultServiceTest {
     @BeforeEach
     void setup() {
         service = new AugmentResultService(augRepository, videoRepository, srcRepository,
-                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup);
+                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup, deidentReportGate);
         // 기본값: 해당 job_id 를 선점한 다른 증강이 없다.
         when(augRepository.findByExternalJobId(anyString())).thenReturn(Optional.empty());
         when(jobIdOwnerLookup.findOwnerDataAugSn(anyString())).thenReturn(Optional.empty());
@@ -514,6 +519,37 @@ class AugmentResultServiceTest {
                 .as("정책 보류는 실패가 아니므로 dead-letter 를 찍지 않는다")
                 .isNull();
         verify(augRepository, never()).save(any(LsDataAug.class));
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(asyncAugmentFrameRunner, never()).runAsync(anyLong(), anyLong());
+    }
+
+    /**
+     * 조상 체인 회귀 가드 — 부모가 <b>파생영상</b>이고 그 <b>조상</b>이 신고 중인 경우.
+     *
+     * <p>부모 행 자체는 {@code 'Y'} 라 구 판정(자기 행만 확인)은 통과시켰고, 그 결과 조상의 마스킹 실패
+     * 픽셀을 담은 부모 비식별 프레임으로 <b>새 증강 산출물이 디스크에 생성</b>됐다(CWE-359 fail-open).
+     * 판정을 조상 체인 단일 원천에 위임해 보류로 전환한다.
+     */
+    @Test
+    @DisplayName("부모는_Y_라도_조상이_신고중이면_증강본을_만들지_않고_보류한다")
+    void ancestorUnderReport_withholdsEvenWhenParentFlagIsY() throws Exception {
+        LsDataRaw parentRaw = newRaw(142L); // 파생영상 — 자기 행은 'Y'
+        LsDataSrc originSrc = newSrc(712L, 142L, 0);
+        LsDataAug aug = newAugWithSrc(80L, 712L, "NIGHT");
+
+        when(augRepository.findByDataAugSnForUpdate(80L)).thenReturn(Optional.of(aug));
+        when(srcRepository.findById(712L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findByRawSnForUpdate(142L)).thenReturn(Optional.of(parentRaw));
+        // 조상(원본)이 아직 'F' — 체인 판정 단일 원천이 차단을 알린다.
+        when(deidentReportGate.isUnderDeidentReportLocked(142L)).thenReturn(true);
+
+        AugmentApplyResult result = service.handle(
+                new AugmentOutcome(80L, "aug_080", true, "/storage/augment/80.mp4"));
+
+        assertThat(result).isEqualTo(AugmentApplyResult.WITHHELD_PARENT_NOT_DEIDENTIFIED);
+        assertThat(aug.getAugProcSttsCd())
+                .as("보류는 종결이 아니다 — 조상 해소 팬아웃 이벤트로 재개된다")
+                .isEqualTo(LsDataAug.STTS_PENDING);
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(asyncAugmentFrameRunner, never()).runAsync(anyLong(), anyLong());
     }

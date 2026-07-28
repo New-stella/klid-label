@@ -19,6 +19,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * 증강 목록/결과 조회 컨트롤러 검증.
+ *
+ * <p><b>시드 srcSn 은 9_000_xxx 대역 고정</b> — 공유 Testcontainers DB 에서 {@code LS_DATA_SRC.SRC_SN}
+ * 은 시퀀스로 발급되므로, 700·850 같은 낮은 리터럴을 쓰면 다른 테스트가 새로 만든 실제 프레임의
+ * SRC_SN 과 충돌해 "내 영상엔 증강행이 없어야 한다" 류 단언을 무작위로 깨뜨린다(실제 발생:
+ * {@code ResolutionDerivativeFlowIntegrationTest} 가 srcSn=850 을 발급받아 이 클래스의 잔존행과 충돌).
+ * 시퀀스가 절대 도달하지 않는 대역을 쓴다.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
@@ -43,7 +52,7 @@ class AugmentControllerTest {
     @Test
     @DisplayName("AugmentController_srcSn_지정시_영상단위_잡카드_1건_types_정렬_WINTER_NIGHT_RAIN_RESOLUTION")
     void findBySrcSnReturnsSingleJobWithSortedTypes() throws Exception {
-        Long srcSn = 700L;
+        Long srcSn = 9_000_700L;
         // 의도적으로 알파벳/생성 순서와 다르게 저장 — 같은 srcSn(영상) 은 1개 잡 카드로 그룹핑
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_RESOLUTION, new BigDecimal("88.00"), "system"));
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER,     new BigDecimal("90.00"), "system"));
@@ -56,8 +65,8 @@ class AugmentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.content[0].videoCount").value(1))
-                .andExpect(jsonPath("$.data.content[0].jobId").value(700))
-                .andExpect(jsonPath("$.data.content[0].videoId").value(700))
+                .andExpect(jsonPath("$.data.content[0].jobId").value(9000700))
+                .andExpect(jsonPath("$.data.content[0].videoId").value(9000700))
                 .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"))
                 .andExpect(jsonPath("$.data.content[0].types.length()").value(4))
                 .andExpect(jsonPath("$.data.content[0].types[0]").value("WINTER"))
@@ -69,7 +78,7 @@ class AugmentControllerTest {
     @Test
     @DisplayName("AugmentController_WORKER도_조회_가능")
     void workerCanQueryAugmentResults() throws Exception {
-        Long srcSn = 701L;
+        Long srcSn = 9_000_701L;
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
 
         mockMvc.perform(get("/v1/augments")
@@ -84,8 +93,8 @@ class AugmentControllerTest {
     @DisplayName("AugmentController_srcSn_미지정시_영상단위_그룹_페이징_응답")
     void listAllPagedWhenSrcSnMissing() throws Exception {
         // 서로 다른 srcSn(영상) 2건 → 잡 카드 2건
-        repository.save(LsDataAug.createPending(800L, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
-        repository.save(LsDataAug.createPending(801L, LsDataAug.AUG_NIGHT,  new BigDecimal("85.00"), "system"));
+        repository.save(LsDataAug.createPending(9_000_800L, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+        repository.save(LsDataAug.createPending(9_000_801L, LsDataAug.AUG_NIGHT,  new BigDecimal("85.00"), "system"));
 
         mockMvc.perform(get("/v1/augments")
                         .header("Authorization", "Bearer " + reviewerToken))
@@ -98,20 +107,20 @@ class AugmentControllerTest {
     @Test
     @DisplayName("AugmentController_result_미종료_aug면_status_PROCESSING_반환_구_stub_PENDING_제거")
     void resultReturnsProcessingForPendingAug() throws Exception {
-        Long jobId = 850L; // LS_DATA_SRC 매핑 부재 → srcSn 폴백 집계
+        Long jobId = 9_000_850L; // LS_DATA_SRC 매핑 부재 → srcSn 폴백 집계
         repository.save(LsDataAug.createPending(jobId, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
 
         mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.jobId").value(850))
+                .andExpect(jsonPath("$.data.jobId").value(9000850))
                 .andExpect(jsonPath("$.data.status").value("PROCESSING"));
     }
 
     @Test
     @DisplayName("AugmentController_result_전부_종료된_aug면_status_COMPLETED_반환")
     void resultReturnsCompletedForTerminalAug() throws Exception {
-        Long jobId = 851L;
+        Long jobId = 9_000_851L;
         LsDataAug aug = LsDataAug.createPending(jobId, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system");
         aug.applyReviewStatus(LsDataAug.STTS_ACCEPTED); // PENDING → ACCEPTED(terminal)
         repository.save(aug);

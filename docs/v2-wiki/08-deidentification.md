@@ -61,9 +61,11 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
 누락 신고 (LS_DEIDENT_REPORT: OPEN)
   → 작업락 + DE_IDENT_YN='F' + 개인정보 3필드 리셋 (★라벨은 보존 — 삭제 안 함)
   → 신고 구간 동안 해당 영상 라벨 조회 차단(412) / 라벨 저장은 작업락으로 409
+  → ★조상(ORGNL_RAW_SN) 체인 판정 — 부모가 신고 중이면 파생영상(해상도·증강)도 함께 차단
   → 작업자/검수자가 외부 비식별 솔루션으로 수동 비식별화
   → 수동 해소(resolve): 신고 OPEN→RESOLVED + DE_IDENT_YN 'F'→'Y' 복원 (원본 보존)
   → 조회 게이트 자동 해제 → 보존된 기존 라벨을 그대로 재사용
+                          + APPROVED 영상·APPROVED 자손의 export 재산출 재트리거
 ```
 
 - 상태: `OPEN` / `RESOLVED` / `DISMISSED`
@@ -73,6 +75,35 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
 - **신고 구간 라벨 조회 차단 게이트 (S7, CWE-359)**: 라벨이 보존되므로 신고~재비식별 완료 사이에 라벨 좌표(=PII 위치 특정 정보)가 계속 노출되는 창이 생긴다. 따라서 `DE_IDENT_YN='F'` 인 동안 해당 영상 프레임의 라벨 조회(`GET /v1/frames/{srcSn}/labels`)를 **412 PRECONDITION_FAILED** 로 차단한다. 인가(WORKER 본인 배정/REVIEWER) 검사를 통과한 **뒤** 평가하는 프리컨디션이며 **REVIEWER 도 동일하게 차단**된다(영상 스트리밍의 비식별 미완료 NOT_FOUND·마킹 진입 게이트와 같은 역할 무관 정책). 라벨 저장/수정은 기존 작업락(`LS_AUTH_WORK_LOCK`)이 409 로 차단하므로 신고 구간은 읽기·쓰기 모두 봉쇄된다. `resolve` 가 `'F'→'Y'` 를 복원하면 게이트가 자동으로 열려 **보존된 라벨을 그대로** 사용한다(별도 복원 API 없음).
 - **수동 해소 시 `DE_IDENT_YN` 'F'→'Y' 복원(마킹 게이트 재개방)**: `DeidentReportService.resolveManually` 가 신고를 RESOLVED 전이 + 작업락 해제하면서 `LS_DATA_RAW.DE_IDENT_YN` 을 `'F'`→`'Y'` 로 되돌려 비식별 완료를 전제로 하는 마킹 진입 게이트(`deIdntfYn=='Y'`)를 재개방한다. 복원하지 않으면 게이트가 영구 폐쇄되어 재마킹이 불가능해진다. 자동 배치 해소(`resolveOpenReports`)는 `DeidentifyStep` 이 `'Y'` 로 복원하지만 수동 경로에는 복원 주체가 없어 이 서비스가 직접 복원한다.
 - **후기 배치 단계(`LS_DATA_RAW.DATA_STTS_CD`)는 되감지 않음**: 해소는 비식별 게이트(`DE_IDENT_YN`)만 재개방하며 배치 단계 상태(예: MARKING_READY/PROCESSING/COMPLETED)는 변경하지 않는다. 마킹 단계 신고는 `report()` 가 MARKING_READY 를 보존하므로 `'Y'` 복원만으로 게이트를 통과한다.
+- **★신고 게이트 판정 범위 = 자기 영상 + 조상(`ORGNL_RAW_SN`) 체인 (2026-07-28 확장, S7)**: 판정 단일 원천은 `video/service/DeidentReportGate` 이며, 자기 행뿐 아니라 `ORGNL_RAW_SN` 을 따라 올라간 **조상 중 하나라도 `DE_IDENT_YN='F'` 면 신고 구간**으로 본다. 즉 **부모가 신고 중이면 그 파생영상(해상도 파생·증강 파생)도 함께 차단**된다. 근거: 파생영상의 영상 파일·프레임 이미지는 부모의 **비식별 산출물을 복사·리스케일**한 것이라 부모의 마스킹 실패 픽셀이 파생본에 그대로 남는데, 신고는 부모 행만 `'F'` 로 바꾸고 파생 행은 `'Y'` 로 남아 자기 행만 보는 판정이 fail-open 이었다(적대검증 반증 — 실제 PII 이미지 200 응답). 체인 순회는 방문집합 + 깊이 상한 8 로 보호하고 **상한 초과(오염 데이터)는 fail-closed 로 차단**한다. export 마감 직전 재확인은 잠금 판정(`isUnderDeidentReportLocked`)을 쓰며 **조상 → 자손** 잠금 순서를 지킨다(교착 방지).
+- **차단 범위와 응답 코드(구현 실측)**:
+
+  | 대상 | 엔드포인트/경로 | 응답 |
+  |------|----------------|:----:|
+  | 라벨 조회·라벨 이력 | `GET /v1/frames/{srcSn}/labels`, `GET /v1/frames/{srcSn}/label-history` | 412 |
+  | 버전 diff·롤백 | `VersionService.diff` / `rollback` | 412 |
+  | 프레임 이미지 | `GET /v1/frames/{srcSn}/image`, `GET /v1/frames/{srcSn}/deid-image`, `GET /v1/videos/{rawSn}/frames/{frameNo}/image` | 412 |
+  | 포털 | `GET /v1/portal/frames/{srcSn}/labels`, `GET /v1/portal/frames/{srcSn}/image` | 412 |
+  | 관제 조회 API(라벨 본문) | `TaskQueryController` 라벨 조회 | 412 |
+  | 데이터셋 export | `DatasetExportService`·`DatasetExportTxService`·`DatasetExportFailureRecoverer` | 산출 보류(skip, 통지도 보류) |
+  | **영상 스트리밍** | `GET /v1/videos/{rawSn}/stream`, `GET /v1/videos/{rawSn}/stream-url` | **404** |
+
+  스트리밍만 404 인 것은 "비식별이 유효하지 않으면 원본 노출 금지 → 404" 라는 그 엔드포인트의 **기존 규약**에 맞춘 것이다 — 같은 엔드포인트에서 자기 신고는 404·조상 신고는 412 로 갈리면 **응답 코드가 신고 위치를 알려주는 오라클**이 된다(CWE-209). 모든 게이트는 **인가 검사 이후** 평가되는 프리컨디션이며 역할 무관(REVIEWER 포함)이다.
+- **게이트가 걸린 미디어 응답은 `Cache-Control: no-store` (CWE-359/525)** — 적용 경로 **전체 목록**(코드 실측):
+
+  | # | 엔드포인트 | 구현 |
+  |:-:|-----------|------|
+  | 1 | `GET /v1/videos/{rawSn}/stream` (200·206) | `VideoStreamService` |
+  | 2 | `GET /v1/frames/{srcSn}/image` | `FrameImageController` |
+  | 3 | `GET /v1/frames/{srcSn}/deid-image` | `FrameImageService.serveDeidentified` |
+  | 4 | `GET /v1/videos/{rawSn}/frames/{frameNo}/image` | `FrameImageService.serve` |
+  | 5 | `GET /v1/portal/frames/{srcSn}/image` | `PortalLabelService.serveFrameImage` |
+
+  5번은 포털(외부 채널)로 내보내는 **내부 파이프라인 비식별 프레임**이라 위 412 게이트 대상인데, 캐시만 `private, max-age=300` 으로 남아 신고 이후에도 최대 5분간 마스킹 실패 프레임이 재노출됐다(2026-07-28 누락 보정). 반면 **포털 업로드 자산**(`GET /v1/portal/uploads/frames/{uldFrmeSn}/image`, `PortalUploadService`)은 포털 사용자 **본인이 업로드한** 자산이라 비식별·신고 게이트 대상이 아니며(ADR-013 예외, 내부 파이프라인·데이터마트와 분리) 이 통일 대상이 **아니다**.
+
+  이 응답들은 매 요청 게이트를 통과해야 하는데, 클라이언트가 `max-age` 동안 응답을 재사용하면 **요청이 서버에 오지 않아** 신고 직후에도 마스킹 실패 영상/프레임이 계속 재생·표시된다(파생영상 재생 중 부모 신고 시나리오에서 실증). 응답에 검증자(ETag/Last-Modified)가 없어 `no-cache`(재검증 강제)로 해도 304 가 성립하지 않아 대역폭 이득 없이 디스크 캐시 잔존 위험만 남으므로 `no-store` 로 통일했다. 서버측 `stream-meta` 캐시는 유지하되 **게이트를 캐시 앞(매 요청)에서 평가**하고, 신고/해소 시 자기 + 자손 캐시를 커밋 후 무효화한다.
+- **신규 API `GET /v1/frames/{srcSn}/deid-image`**: 프레임의 **비식별 이미지 전용** 서빙(`DE_IDNTF_SRC_FILE_PATH_NM`). 해상도 파생 프레임은 원본 픽셀이 실재하지 않아 `SRC_FILE_PATH_NM` 이 null 이므로 기존 `/image` 로는 조회되지 않는다. **원본 폴백 없음** — 비식별 경로가 없거나 파일이 없으면 404. 응답 200 / 401 / 403(미배정·경로 위반) / 404 / 412(신고 구간). 인가(`LabelAccessGuard`) → 신고 게이트 → 경로 검증(심링크·경로순회 차단) 순서로 평가한다. **2026-07-28 백엔드 신설 — FE 연동은 후속**.
+- **해소(resolve) 시 export 재산출 재트리거**: `'F'→'Y'` 복원으로 위 게이트가 전부 자동 해제되고, 신고 구간에 보류됐던 **검수 승인(APPROVED) 영상의 export 재산출**이 `DeidentReportResolvedEvent` → `DatasetExportBridge`(AFTER_COMMIT)로 재개된다. 신고 구간 export 는 `LS_DATASET_EXPORT` 행을 남기지 않아 실패 회수기(FAILED 행 스캔)가 집지 못하므로 **해제 시점 재트리거가 유일한 복구 경로**다. **APPROVED 자손(파생영상)까지 팬아웃**한다 — 부모 신고 동안 자손 export 도 함께 skip 됐으므로 부모만 재트리거하면 파생 export 폴더가 옛 내용으로 정체된다(다른 조상이 아직 신고 중인 자손은 skip).
 - **수동 해소 시 비식별 산출물 검증 게이트(CWE-359, fail-closed)**: `resolveManually` 는 `'F'`→`'Y'` 복원 전에 해당 `RAW_SN` 의 최신 성공 처리 이력(`LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM`)에 기록된 비식별 파일이 스토리지에 실존(정규 파일 + >0바이트)하는지 확인한다. 기록이 없거나 파일이 부재/빈 파일이면 `409` 로 거부(내부 경로 미노출)하고 신고는 `OPEN`·작업락·`DE_IDENT_YN='F'` 를 유지한다 — 실제 외부 비식별 없이 마킹 게이트/스트리밍이 재개방되어 PII 가 재노출되는 것을 차단한다. 경로는 DB 적재값만 사용(사용자 입력 경로 구성 금지 — Path Manipulation 방지).
 
 ## 8.5 옵션 설정 (RQ-SFR-09-04)

@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.common.util.ExternalUrlValidator;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.runner.AsyncAugmentFrameRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -118,6 +119,16 @@ public class AugmentResultService {
      * 나갈 수 없으므로(PG 25P02) 이 경로만 사용한다 — {@link #augRepository} 로 재조회 금지.
      */
     private final AugmentJobIdOwnerLookup jobIdOwnerLookup;
+
+    /**
+     * 비식별 누락 신고 구간 판정 단일 원천 — <b>조상 체인</b>({@code ORGNL_RAW_SN})까지 본다.
+     *
+     * <p>부모 행의 {@code deIdntfYn=='Y'} 만 보던 구 판정은 <b>부모가 파생영상일 때 fail-open</b> 이었다:
+     * 조부(원본)가 신고({@code 'F'})돼도 파생인 부모 행은 {@code 'Y'} 로 남는데, 그 부모의 비식별 프레임은
+     * 조부 비식별 산출물의 복사·리스케일본이라 마스킹 실패 픽셀을 그대로 갖고 있다. 그 상태로 증강본을
+     * 만들면 PII 를 담은 <b>새 산출물이 디스크에 생성</b>된다(CWE-359).
+     */
+    private final DeidentReportGate deidentReportGate;
 
     /**
      * 파생영상(비식별 사본) 출력 base — <b>비식별 저장소</b>. 파생영상의 유일한 비디오 산출물은 부모
@@ -376,17 +387,28 @@ public class AugmentResultService {
      * <p>부모 RAW 를 {@code PESSIMISTIC_WRITE}(FOR UPDATE)로 잠근 뒤 비식별 완료('Y')를 재검증한다.
      * 동시 비식별 신고가 {@code 'F'} 를 먼저 커밋했으면 여기서 관측하고 <b>보류</b>한다(CWE-359 PII
      * TOCTOU). 잠금은 이 트랜잭션 커밋까지 유지되므로 판정~신규 RAW 커밋 구간이 신고와 직렬화된다.
+     *
+     * <p><b>판정 범위는 조상 체인 전체</b>({@link DeidentReportGate#isUnderDeidentReportLocked})다 —
+     * 부모가 파생영상이면 그 조상의 신고도 이 증강본에 그대로 전이되기 때문이다(필드 javadoc 참조).
+     * 체인 잠금이 <b>조상 → 자손</b> 순서(전역 불변식)이므로 이 호출을 부모 단독 잠금보다 <b>먼저</b>
+     * 둔다 — 부모를 먼저 잠그면 콜백 경로만 자손 → 조상 순서가 되어 해상도 파생 생성 경로
+     * ({@code ResolutionPersistService.persist}, parent → newRaw)와 순환 대기가 성립한다(CWE-833).
+     * 체인 잠금이 부모 행도 포함하므로 이어지는 부모 조회는 이미 획득한 잠금의 재진입이다.
+     *
+     * <p>보류는 상태를 바꾸지 않고 PENDING 을 유지하므로, 조상 신고가 해소되면 팬아웃된 재개 이벤트
+     * ({@code DeidentReportService.publishResolvedForDescendants})가 이 인계를 다시 태운다.
      */
     private ParentGate evaluateParentGate(LsDataAug aug) {
         LsDataSrc originSrc = srcRepository.findById(aug.getSrcSn()).orElse(null);
         if (originSrc == null) {
             return ParentGate.fail("origin frame not found");
         }
+        boolean underReport = deidentReportGate.isUnderDeidentReportLocked(originSrc.getRawSn());
         LsDataRaw parentRaw = videoRepository.findByRawSnForUpdate(originSrc.getRawSn()).orElse(null);
         if (parentRaw == null) {
             return ParentGate.fail("parent video not found");
         }
-        if (!"Y".equals(parentRaw.getDeIdntfYn())) {
+        if (underReport || !"Y".equals(parentRaw.getDeIdntfYn())) {
             return ParentGate.withhold(parentRaw);
         }
         // 프레임 존재 가드 — 부모에 프레임이 없으면 라벨링 대상이 없는 빈 증강본이 된다.

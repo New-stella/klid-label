@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.List;
 
 /**
@@ -68,6 +67,11 @@ public class VideoStreamService {
     private final StreamUrlSigner streamUrlSigner;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     /**
+     * 비식별 누락 신고 구간 판정 <b>단일 원천</b>({@code 'F'} 비교·조상 체인 순회를 여기서 재구현하지 않는다).
+     * 라벨 조회 게이트({@code LabelAccessGuard.requireNotUnderDeidentReport})·export 게이트와 같은 판정기다.
+     */
+    private final DeidentReportGate deidentReportGate;
+    /**
      * S6 — 비식별 영상이 co-locate 위치({@code dirname(원본)/{rawSn}/deid/})로 이동하면서, 고정
      * {@code deidentified-path} 단일 base 가드로는 신규 위치가 전부 거부된다(반대로 신규 base 만
      * 허용하면 기존 영상이 깨진다). 허용 base 후보 목록을 만드는 데 사용한다.
@@ -104,11 +108,45 @@ public class VideoStreamService {
     public VideoStreamService(VideoRepository videoRepository,
                               StreamUrlSigner streamUrlSigner,
                               LsDeidentProcLogRepository deidentProcLogRepository,
-                              VideoArtifactRootResolver artifactRootResolver) {
+                              VideoArtifactRootResolver artifactRootResolver,
+                              DeidentReportGate deidentReportGate) {
         this.videoRepository = videoRepository;
         this.streamUrlSigner = streamUrlSigner;
         this.deidentProcLogRepository = deidentProcLogRepository;
         this.artifactRootResolver = artifactRootResolver;
+        this.deidentReportGate = deidentReportGate;
+    }
+
+    /**
+     * S7-STREAM (HIGH · CWE-359) — <b>비식별 누락 신고 구간 영상 서빙 차단</b>.
+     *
+     * <h3>왜 {@code DE_IDNTF_YN=='Y'} 자기 행 확인만으로는 부족한가</h3>
+     * 해상도/증강 <b>파생영상</b>은 부모의 <b>비식별 영상 파일을 그대로 복사</b>해 만들어지고
+     * ({@code ResolutionFileMaterializer}), 확정 시 자기 행에 {@code deIdntfYn='Y'} + 자기 SUCCESS
+     * procLog 가 커밋된다. 이후 <b>부모</b>에 비식별 누락 신고가 들어오면 {@code 'F'} 는 부모 행에만
+     * 내려가므로, 자기 행만 보는 게이트({@link #resolveDeidLocation})는 파생영상에서 fail-open 이 되어
+     * <b>마스킹 실패한 그 영상 파일 전체</b>가 200/206 으로 나갔다.
+     *
+     * <h3>왜 여기(캐시 앞)에서 판정하는가 — CWE-525</h3>
+     * {@link #resolveStreamMeta} 는 {@code stream-meta} 캐시 뒤에 있어, 신고 <b>이전에</b> 캐시가 채워지면
+     * 이후 요청은 그 메서드에 도달하지 않는다. 판정을 캐시 안쪽에 두면 캐시 히트가 게이트를 우회한다.
+     * 따라서 캐시 <b>앞</b>(매 요청)에서 판정한다 — 비용은 PK 인덱스 2컬럼 projection 1~2회다
+     * (원본 1회 / 1단계 파생 2회).
+     *
+     * <h3>응답 코드 = NOT_FOUND (404)</h3>
+     * 신고 게이트의 프로젝트 표준은 412({@code PRECONDITION_FAILED})지만, <b>이 엔드포인트의 기존 규약</b>은
+     * "비식별이 유효하지 않으면 원본 노출 금지 → 404"({@link #resolveDeidLocation} · {@link #resolveSafe})다.
+     * 같은 엔드포인트에서 자기 신고는 404, 조상 신고는 412 로 갈리면 <b>응답 코드가 신고 위치를 알려주는
+     * 오라클</b>이 된다(CWE-209). 정보 노출이 더 적은 기존 규약(404)에 맞춘다.
+     *
+     * <p><b>인가 이후</b> 호출된다 — 컨트롤러가 {@code LabelAccessGuard.verifyRawAccess} 로 영상 단위 인가를
+     * 먼저 강제하므로, 미인가자가 이 게이트의 응답으로 영상 상태를 관측할 수 없다.
+     */
+    private void requireNotUnderDeidentReport(Long rawSn) {
+        if (deidentReportGate.isUnderDeidentReport(rawSn)) {
+            log.warn("[VideoStream] blocked — deident report open on this video or its origin rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 처리 미완료");
+        }
     }
 
     /**
@@ -140,6 +178,10 @@ public class VideoStreamService {
             throw new CustomException(ErrorCode.NOT_FOUND, "비식별 처리 미완료");
         }
 
+        // S7-STREAM — 조상(ORGNL_RAW_SN) 신고 구간이면 서명 URL 자체를 발급하지 않는다. 파생영상은 자기
+        // 행이 'Y' 라 위 검사를 통과하므로, 체인 판정(단일 원천)을 여기서 한 번 더 태운다.
+        requireNotUnderDeidentReport(rawSn);
+
         if (!streamUrlSigner.isConfigured()) {
             // 시크릿 미설정은 서버 설정 오류(권한 거부 아님) → 503 SERVICE_UNAVAILABLE (fail-closed).
             // 스택/내부 경로 등은 노출하지 않는다 (CWE-209).
@@ -167,6 +209,11 @@ public class VideoStreamService {
      * @throws IOException 파일 읽기 실패 시
      */
     public ResponseEntity<ResourceRegion> stream(Long rawSn, HttpHeaders headers) throws IOException {
+        // 0) S7-STREAM (HIGH · CWE-359/525) — 비식별 누락 신고 구간(자기 또는 조상) 차단.
+        //    반드시 stream-meta 캐시 조회 **앞**에서 판정한다 — 신고 이전에 채워진 캐시가 게이트를
+        //    우회하지 못하게 하기 위함(상세는 requireNotUnderDeidentReport javadoc).
+        requireNotUnderDeidentReport(rawSn);
+
         // 1~4) 영상 존재 확인 + 비식별 경로 해석 + Path Traversal 방어 + 파일 존재 확인 + MIME/length
         //       해석을 캐시 경유로 수행(성능 — HTTP Range 요청마다 반복되던 stat/MIME/length 재계산 제거).
         //       미완료면 원본 노출 금지 → NOT_FOUND. 비식별 완료 파일은 불변이라 메타 캐싱이 안전하다.
@@ -215,7 +262,7 @@ public class VideoStreamService {
                     .contentType(mediaType)
                     .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                     .header("X-Content-Type-Options", "nosniff")
-                    .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
+                    .cacheControl(noStoreForGatedMedia())
                     .body(region);
         }
 
@@ -225,8 +272,29 @@ public class VideoStreamService {
                 .contentType(mediaType)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header("X-Content-Type-Options", "nosniff")
-                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
+                .cacheControl(noStoreForGatedMedia())
                 .body(region);
+    }
+
+    /**
+     * 신고 게이트가 걸린 미디어 응답의 캐시 정책 — {@code no-store}.
+     *
+     * <p><b>왜 장기 캐시를 둘 수 없나 (CWE-359/525)</b>: 이 응답은 매 요청 {@code requireNotUnderDeidentReport}
+     * 게이트를 통과해야 나가지만, 브라우저가 이미 받은 200/206 바이트를 {@code max-age} 동안 재사용하면
+     * <b>서버에 오지 않는다</b>. 즉 비식별 누락 신고({@code DE_IDNTF_YN='F'}) 직후에도 캐시된 마스킹 실패
+     * 영상이 최대 max-age 동안 계속 재생돼 게이트가 무력화된다(파생영상 재생 → 부모 신고 시나리오에서 실증).
+     *
+     * <p><b>왜 {@code no-cache} 가 아니라 {@code no-store} 인가</b>: 본 응답에는 검증자(ETag/Last-Modified)가
+     * 없어 {@code no-cache}(재검증 강제)로 해도 304 성립이 불가능해 <b>매번 전량 재전송</b>이다 — 대역폭
+     * 이득이 없으면서 마스킹 실패 영상이 디스크 캐시에 잔존하는 위험만 남는다. 따라서 프레임 비식별 이미지
+     * 경로({@code FrameImageService#serveDeidentified})와 <b>동일하게</b> {@code no-store} 로 통일한다.
+     *
+     * <p><b>성능 영향</b>: 시크(되감기)마다 Range 재요청이 BE 로 오지만, 경로/크기/MIME 해석은 서버측
+     * {@code stream-meta} 캐시가 흡수하므로 요청당 추가 비용은 로컬 NAS 파일 read 뿐이다. 청크 상한(기본
+     * 8MB)이 재요청 빈도를 억제한다.
+     */
+    private static CacheControl noStoreForGatedMedia() {
+        return CacheControl.noStore();
     }
 
     /**
