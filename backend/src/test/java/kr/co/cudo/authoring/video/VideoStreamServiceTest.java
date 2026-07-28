@@ -6,7 +6,9 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.DeidentChainProjection;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.video.service.StreamUrlSigner;
 import kr.co.cudo.authoring.video.service.VideoStreamService;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -59,8 +62,11 @@ class VideoStreamServiceTest {
     void setUp() {
         deidDir = tempDir.resolve("deidentified");
         // S6 — 구 위치(deidDir) + 신 위치(co-locate) 2-way allowlist. nasRoot 를 허용 마운트 루트로 둔다.
+        // S7-STREAM — 신고 게이트는 판정 단일 원천(DeidentReportGate)을 그대로 끼운다(판정 복제 금지).
+        //   videoRepository 스텁(findDeidentChainNodeByRawSn)이 곧 게이트 판정이 된다.
         videoStreamService = new VideoStreamService(videoRepository, streamUrlSigner, procLogRepository,
-                ArtifactRootTestSupport.coLocate(tempDir, tempDir.resolve("raw"), deidDir));
+                ArtifactRootTestSupport.coLocate(tempDir, tempDir.resolve("raw"), deidDir),
+                new DeidentReportGate(videoRepository));
         ReflectionTestUtils.setField(videoStreamService, "storageRawPath", tempDir.resolve("raw").toString());
         ReflectionTestUtils.setField(videoStreamService, "deidentifiedPath", deidDir.toString());
     }
@@ -211,6 +217,56 @@ class VideoStreamServiceTest {
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
         assertThat(response.getBody()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("스트림_200응답이_재검증없는_장기캐시를_두지_않음 — 신고 게이트 클라이언트 우회 차단(CWE-359/525)")
+    void streamVideo_200_hasNoLongLivedCache() throws IOException {
+        // given — 정상 비식별 영상(게이트 통과 상태)
+        Long rawSn = 91L;
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_91_deid.mp4");
+        Files.write(deidFile, new byte[2048]);
+
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+
+        // when — Range 없는 전체 요청(200)
+        ResponseEntity<ResourceRegion> response = videoStreamService.stream(rawSn, new HttpHeaders());
+
+        // then — 응답을 브라우저가 재사용하면 신고('F') 이후에도 마스킹 실패 영상이 서버에 오지 않고
+        //        재생된다. 비식별 프레임 이미지 경로(serveDeidentified)와 동일한 no-store 여야 한다.
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String cacheControl = response.getHeaders().getCacheControl();
+        assertThat(cacheControl).isEqualTo("no-store");
+        assertThat(cacheControl).doesNotContain("max-age");
+    }
+
+    @Test
+    @DisplayName("스트림_206부분응답도_장기캐시를_두지_않음 — 캐시된 청크 재생으로 게이트 우회 방지")
+    void streamVideo_206_hasNoLongLivedCache() throws IOException {
+        // given — 정상 비식별 영상 + Range 요청(브라우저 시크가 만드는 실제 형태)
+        Long rawSn = 92L;
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_92_deid.mp4");
+        Files.write(deidFile, new byte[10_000]);
+
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=0-999");
+
+        // when
+        ResponseEntity<ResourceRegion> response = videoStreamService.stream(rawSn, headers);
+
+        // then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
+        String cacheControl = response.getHeaders().getCacheControl();
+        assertThat(cacheControl).isEqualTo("no-store");
+        assertThat(cacheControl).doesNotContain("max-age");
     }
 
     @Test
@@ -492,6 +548,98 @@ class VideoStreamServiceTest {
                 .isEqualTo(ErrorCode.NOT_FOUND);
     }
 
+    // ---------- S7-STREAM — 조상(ORGNL_RAW_SN) 신고 구간 파생영상 차단 ----------
+
+    /**
+     * 신고 게이트 체인 1노드 스텁 — {@code (DE_IDNTF_YN, ORGNL_RAW_SN)}.
+     * mock 대신 경량 구현체를 써서 미사용 스텁(strict stubs) 경고 없이 체인을 구성한다.
+     */
+    private void stubChainNode(Long rawSn, String deIdntfYn, Long orgnlRawSn) {
+        when(videoRepository.findDeidentChainNodeByRawSn(rawSn)).thenReturn(Optional.of(
+                new DeidentChainProjection() {
+                    @Override
+                    public String getDeIdntfYn() {
+                        return deIdntfYn;
+                    }
+
+                    @Override
+                    public Long getOrgnlRawSn() {
+                        return orgnlRawSn;
+                    }
+                }));
+    }
+
+    @Test
+    @DisplayName("부모가_신고되면_파생영상_stream이_NOT_FOUND — 자기행이_Y여도_조상체인_차단")
+    void streamVideo_ancestorReported_notFound() throws IOException {
+        // given — 해상도/증강 파생본은 부모의 비식별 영상 파일 사본이라 자기 행은 'Y'(확정)로 남는다.
+        //         부모에 비식별 누락 신고가 들어가 'F' 가 된 상태(파생 행은 그대로 'Y').
+        Long parentSn = 80L;
+        Long derivativeSn = 81L;
+        stubChainNode(derivativeSn, "Y", parentSn);
+        stubChainNode(parentSn, "F", null);
+
+        // 게이트가 없으면 <b>실제로 서빙되는</b> 완전한 상태를 만들어 둔다(자기 행 'Y' + 성공 procLog + 실파일).
+        // 이 스텁이 없으면 게이트를 지워도 findById 미스로 404 가 나 테스트가 공허하게 통과한다.
+        // 게이트가 있으면 이 스텁들에 도달하지 않으므로 lenient 로 둔다.
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_81_deid.mp4");
+        Files.write(deidFile, new byte[256]);
+        lenient().when(videoRepository.findById(derivativeSn))
+                .thenReturn(Optional.of(deidReadyRaw(derivativeSn)));
+        lenient().when(procLogRepository.findLatestSuccessByDataRawSn(derivativeSn))
+                .thenReturn(Optional.of(stubDeidLog(derivativeSn, deidFile.toString())));
+
+        HttpHeaders headers = new HttpHeaders();
+
+        // when / then — 마스킹 실패 픽셀을 그대로 담은 파생 영상 파일이 나가면 안 된다(CWE-359).
+        //               응답 코드는 이 엔드포인트의 기존 규약(비식별 무효 = 404)과 동일하게 정규화한다.
+        assertThatThrownBy(() -> videoStreamService.stream(derivativeSn, headers))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("부모가_신고되면_파생영상_서명URL_발급도_NOT_FOUND")
+    void issueSignedUrl_ancestorReported_notFound() {
+        // given — 파생본 자기 행은 'Y' 라 구 게이트('Y' 확인)는 통과한다.
+        Long parentSn = 82L;
+        Long derivativeSn = 83L;
+        when(videoRepository.findById(derivativeSn)).thenReturn(Optional.of(deidReadyRaw(derivativeSn)));
+        stubChainNode(derivativeSn, "Y", parentSn);
+        stubChainNode(parentSn, "F", null);
+
+        // when / then — 서명 URL 자체를 발급하지 않는다(노출본 대상 URL 사전 차단).
+        assertThatThrownBy(() -> videoStreamService.issueSignedUrl(derivativeSn, "1", "nonce"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("부모가_정상_Y면_파생영상_stream은_그대로_200 — 게이트 과차단 방어")
+    void streamVideo_ancestorHealthy_stillServes() throws IOException {
+        // given — 신고가 없는 정상 파생본(부모 'Y', 파생 'Y').
+        Long parentSn = 84L;
+        Long derivativeSn = 85L;
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_85_deid.mp4");
+        Files.write(deidFile, new byte[512]);
+
+        stubChainNode(derivativeSn, "Y", parentSn);
+        stubChainNode(parentSn, "Y", null);
+        when(videoRepository.findById(derivativeSn)).thenReturn(Optional.of(deidReadyRaw(derivativeSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(derivativeSn))
+                .thenReturn(Optional.of(stubDeidLog(derivativeSn, deidFile.toString())));
+
+        // when
+        ResponseEntity<ResourceRegion> res = videoStreamService.stream(derivativeSn, new HttpHeaders());
+
+        // then — 일반 파생영상 재생은 영향받지 않는다.
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
     @Test
     @DisplayName("resolveDeidPath_DE_IDNTF_YN이_F면_null — procLog 미조회 게이트")
     void resolveDeidPath_flagF_returnsNull() {
@@ -704,7 +852,8 @@ class VideoStreamServiceTest {
         //         이미 적재된 co-locate 절대경로(DE_IDNTF_FILE_PATH_NM)는 재계산하지 않고 그대로 읽어야 한다.
         videoStreamService = new VideoStreamService(videoRepository, streamUrlSigner, procLogRepository,
                 ArtifactRootTestSupport.labelingRootWithAllowedRoot(
-                        tempDir, tempDir.resolve("labeling"), deidDir));
+                        tempDir, tempDir.resolve("labeling"), deidDir),
+                new DeidentReportGate(videoRepository));
         ReflectionTestUtils.setField(videoStreamService, "storageRawPath", tempDir.resolve("raw").toString());
         ReflectionTestUtils.setField(videoStreamService, "deidentifiedPath", deidDir.toString());
 

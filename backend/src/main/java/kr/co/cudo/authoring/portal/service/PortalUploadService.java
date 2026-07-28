@@ -193,6 +193,12 @@ public class PortalUploadService {
     /**
      * 프레임 이미지 바이너리 서빙 — 소유자 스코프 검증(#7). Content-Type 은 업로드 시 확정한 MIME(DB)만
      * 사용하고(확장자 추정 금지), {@code X-Content-Type-Options: nosniff} 로 sniffing 을 차단한다(#6).
+     *
+     * <p><b>비식별 누락 신고 게이트 대상이 아니다</b> — 여기서 나가는 건 <b>포털 사용자 본인이 업로드한
+     * 자산</b>({@code LS_PORTAL_ULD_FRME})이라 비식별 처리 대상이 아니고 {@code LS_DATA_RAW.DE_IDNTF_YN}
+     * 라이프사이클도 없다(ADR-013 예외, 내부 파이프라인·데이터마트와 완전 분리). 내부 파이프라인의
+     * 비식별 프레임을 포털로 내보내는 {@code PortalLabelService#serveFrameImage} 와 혼동 금지 —
+     * 그쪽은 게이트 대상이라 응답이 {@code no-store} 이고, 이 경로는 그 캐시 통일 대상이 아니다.
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public ResponseEntity<Resource> serveFrameImage(Long uldFrmeSn, String portalUserNo) {

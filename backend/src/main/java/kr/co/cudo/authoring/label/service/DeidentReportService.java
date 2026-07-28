@@ -20,6 +20,7 @@ import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,7 +35,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Phase 2 (R1 v1.14) — 비식별 누락 신고 워크플로우 서비스.
@@ -85,6 +90,17 @@ public class DeidentReportService {
     private final LsDeidentProcLogRepository procLogRepository;
     /** DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사 기록용 기존 이력 축(신규 테이블 없음). */
     private final LsDataLblHstryRepository lblHstryRepository;
+    /**
+     * 신고 구간 판정 단일 원천 — 파생영상 export 재트리거 시 "이 파생이 <b>다른</b> 조상 때문에 아직
+     * 신고 구간인가"를 판정한다({@code 'F'} 비교·체인 순회를 여기서 재구현하지 않는다).
+     */
+    private final DeidentReportGate deidentReportGate;
+
+    /**
+     * 자손(파생) 전개 상한 — 현 데이터 모델의 파생은 1단계(해상도 3종 + 외부 증강 3종)라 넉넉한 값이다.
+     * 오염 데이터로 자손이 폭증해도 캐시 무효화·export 재트리거가 폭주하지 않도록 잘라낸다.
+     */
+    private static final int MAX_DESCENDANT_FANOUT = 64;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
@@ -179,7 +195,9 @@ public class DeidentReportService {
 
         // 6-1) 스트림 메타 캐시 무효화 (HIGH — privacy) — 'F' 전이가 커밋 후 즉시 반영되어
         //      옛 비식별본(노출본)이 stream-meta TTL 동안 계속 서빙되지 않도록 한다.
-        streamMetaCacheEvictor.evictAfterCommit(rawSn);
+        //      파생영상(자손)까지 함께 무효화한다 — 신고된 부모만 evict 하면 파생본 캐시가 살아남아
+        //      스트림 게이트를 캐시 히트로 우회한다(CWE-525).
+        evictStreamMetaWithDescendants(rawSn);
 
         // 7) REVIEWER 알림
         notificationService.notifyReviewersOnDeidentReport(raw, reporterNo, reason);
@@ -244,8 +262,9 @@ public class DeidentReportService {
                         () -> log.warn("[DeidentReport] raw video not found on resolve rawSn={}",
                                 report.getRawSn()));
 
-        // 외부 수동 재비식별로 비식별본이 교체되었을 수 있으므로 스트림 메타 캐시를 커밋 후 무효화.
-        streamMetaCacheEvictor.evictAfterCommit(report.getRawSn());
+        // 외부 수동 재비식별로 비식별본이 교체되었을 수 있으므로 스트림 메타 캐시를 커밋 후 무효화한다.
+        // 게이트가 열리는 쪽(재개방)도 파생영상까지 함께 무효화해야 stale 차단이 TTL 동안 남지 않는다.
+        evictStreamMetaWithDescendants(report.getRawSn());
 
         // M1 — 신고 구간에 보류(차단)됐던 export·통지 복구를 트리거한다.
         publishResolvedForExportRecovery(report.getRawSn());
@@ -303,8 +322,9 @@ public class DeidentReportService {
             r.resolve();
         }
         workLockService.releaseRaw(rawSn, "system", "DEIDENT_SUCCEEDED");
-        // 배치/스텝 자동 재비식별 성공으로 비식별본이 교체되었으므로 스트림 메타 캐시를 커밋 후 무효화.
-        streamMetaCacheEvictor.evictAfterCommit(rawSn);
+        // 배치/스텝 자동 재비식별 성공으로 비식별본이 교체되었으므로 스트림 메타 캐시를 커밋 후 무효화
+        // (파생영상 포함 — 부모 신고로 함께 닫혔던 파생 캐시도 같이 비운다).
+        evictStreamMetaWithDescendants(rawSn);
         if (!opens.isEmpty()) {
             // M1 — 자동(배치) 해소 경로도 동일하게 보류됐던 export·통지를 복구한다. 실제로 해소한
             //      신고가 있을 때만 발행한다(신고가 없던 정상 비식별 성공은 재산출 대상이 아니다).
@@ -324,12 +344,104 @@ public class DeidentReportService {
      *
      * <p><b>검수 승인(APPROVED) 영상만</b> 발행한다 — 미승인 영상은 산출 대상 자체가 아니라 재트리거가
      * 불필요한 v1 을 만든다(무의미한 전량 재생성 방지).
+     *
+     * <p><b>파생영상(자손)까지 팬아웃한다</b>: 신고 게이트가 조상 체인을 보므로, 부모가 신고된 동안에는
+     * <b>파생영상의 export 도 함께 skip</b> 된다(그 파생본이 부모의 비식별 프레임 사본이기 때문). 해소
+     * 시점에 부모만 재트리거하면 파생 export 폴더가 옛 내용으로 정체되어, "데이터마트로 구축이 완료된
+     * 학습데이터의 라벨링 수정 시 기존 학습데이터셋의 라벨링 정보 동기화" 요구가 깨진다.
+     * 팬아웃은 {@link #MAX_DESCENDANT_FANOUT} 로 상한을 둔다.
      */
     private void publishResolvedForExportRecovery(Long rawSn) {
-        if (rawSn == null || !isReviewApproved(rawSn)) {
+        if (rawSn == null) {
             return;
         }
-        eventPublisher.publishEvent(new DeidentReportResolvedEvent(rawSn));
+        if (isReviewApproved(rawSn)) {
+            eventPublisher.publishEvent(new DeidentReportResolvedEvent(rawSn));
+        }
+        publishResolvedForApprovedDescendants(rawSn);
+    }
+
+    /**
+     * 부모 신고 구간에 보류됐던 <b>파생영상</b> export 를 함께 복구시킨다.
+     *
+     * <p>조건 두 가지를 모두 만족하는 자손만 발행한다.
+     * <ul>
+     *   <li><b>검수 승인(APPROVED)</b> — 미승인 파생은 산출 대상이 아니다. 상태는 자손 전체를 한 번의
+     *       IN 조회로 읽어 N+1 을 피한다.</li>
+     *   <li><b>다른 조상이 신고 중이 아님</b> — 이 자손의 체인에 아직 {@code 'F'} 가 남아 있으면 재산출은
+     *       export 진입부 게이트에 어차피 막힌다. 판정은 {@link DeidentReportGate} 단일 원천에 위임한다.</li>
+     * </ul>
+     */
+    private void publishResolvedForApprovedDescendants(Long rawSn) {
+        List<Long> descendants = collectDescendants(rawSn);
+        if (descendants.isEmpty()) {
+            return;
+        }
+        Set<Long> approved = rawDataStatusRepository.findByRawDataIdIn(descendants).stream()
+                .filter(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
+                .map(LsRawDataStatus::getRawDataId)
+                .collect(Collectors.toSet());
+        for (Long descendantSn : descendants) {
+            if (!approved.contains(descendantSn)) {
+                continue;
+            }
+            if (deidentReportGate.isUnderDeidentReport(descendantSn)) {
+                log.info("[DeidentReport] descendant export re-trigger skipped — still under report rawSn={}",
+                        descendantSn);
+                continue;
+            }
+            eventPublisher.publishEvent(new DeidentReportResolvedEvent(descendantSn));
+        }
+    }
+
+    /**
+     * 스트림 메타 캐시를 <b>해당 영상 + 그 자손(파생영상)</b> 범위로 커밋 후 무효화한다.
+     *
+     * <p>신고/해소는 부모 행 하나만 {@code DE_IDNTF_YN} 을 바꾸지만, 게이트 판정은 조상 체인을 보므로
+     * <b>파생영상의 서빙 가부도 함께 바뀐다</b>. 파생 캐시를 남겨두면 캐시 히트 경로가 게이트를 우회한다
+     * (CWE-525). 게이트 자체는 캐시 앞에서 매 요청 판정되지만, 캐시된 <b>경로/크기</b>도 재비식별로
+     * 교체될 수 있으므로 함께 비운다.
+     */
+    private void evictStreamMetaWithDescendants(Long rawSn) {
+        streamMetaCacheEvictor.evictAfterCommit(rawSn);
+        for (Long descendantSn : collectDescendants(rawSn)) {
+            streamMetaCacheEvictor.evictAfterCommit(descendantSn);
+        }
+    }
+
+    /**
+     * {@code ORGNL_RAW_SN} 을 따라 아래로 전개한 <b>자손(파생영상) rawSn 목록</b>(자기 자신 제외).
+     *
+     * <p>레벨 단위 IN 조회로 왕복을 줄이고, 방문 집합 + 깊이 상한({@link DeidentReportGate#MAX_ANCESTOR_DEPTH})
+     * + 총량 상한({@link #MAX_DESCENDANT_FANOUT})으로 오염 데이터(사이클·과다 파생)에서도 폭주하지 않는다.
+     * 파생이 없는 일반 영상은 조회 1회로 끝난다.
+     */
+    private List<Long> collectDescendants(Long rawSn) {
+        if (rawSn == null) {
+            return List.of();
+        }
+        List<Long> collected = new ArrayList<>();
+        Set<Long> visited = new HashSet<>();
+        visited.add(rawSn);
+        List<Long> frontier = List.of(rawSn);
+        for (int depth = 0; depth < DeidentReportGate.MAX_ANCESTOR_DEPTH; depth++) {
+            List<Long> next = videoRepository.findRawSnsByOrgnlRawSnIn(frontier).stream()
+                    .filter(visited::add)
+                    .toList();
+            if (next.isEmpty()) {
+                break;
+            }
+            for (Long sn : next) {
+                if (collected.size() >= MAX_DESCENDANT_FANOUT) {
+                    log.warn("[DeidentReport] descendant fan-out capped rawSn={} cap={}",
+                            rawSn, MAX_DESCENDANT_FANOUT);
+                    return collected;
+                }
+                collected.add(sn);
+            }
+            frontier = next;
+        }
+        return collected;
     }
 
     // ---------- 내부 ----------
