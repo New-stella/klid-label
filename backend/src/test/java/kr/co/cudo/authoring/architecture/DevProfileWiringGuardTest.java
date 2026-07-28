@@ -211,6 +211,32 @@ class DevProfileWiringGuardTest {
     }
 
     @Test
+    @DisplayName("local_프로파일에서_VLM_클라이언트가_활성이다")
+    void localProfileEnablesVlmClient() {
+        // given
+        Environment env = MainResourceYaml.environment(COMMON_YML, LOCAL_YML);
+
+        // when
+        String enabled = env.getProperty(VLM_ENABLED_KEY);
+        String url = env.getProperty(VLM_URL_KEY);
+
+        // then: 공통 기본값(false)을 그대로 상속하면 VlmClient 가 외부 호출 없이 SKIPPED 를 반환해
+        //   VLM 단계가 통째로 빈다 — 로컬도 목 서버로 실제 위탁한다(구속 정책: 자체 결과채움 금지)
+        assertThat(enabled)
+                .as("local VLM 은 활성이어야 한다(false 면 외부 호출 0건인데 파이프라인은 성공처럼 보인다)")
+                .isEqualTo("true");
+        assertThat(url)
+                .as("local VLM 위탁 대상은 목업 벤더 서버여야 한다(코드가 읽는 키는 vlm.base-url 이 아니라 vlm.client.url)")
+                .isEqualTo(MOCK_SERVER_URL);
+        assertThat(String.valueOf(MainResourceYaml.rawValue(LOCAL_YML, VLM_ENABLED_KEY)))
+                .as("VLM 활성 여부는 VLM_CLIENT_ENABLED 로 override 가능해야 한다(네이티브 오프라인 기동 시 킬스위치)")
+                .contains("${VLM_CLIENT_ENABLED");
+        assertThat(String.valueOf(MainResourceYaml.rawValue(LOCAL_YML, VLM_URL_KEY)))
+                .as("네이티브 bootRun 은 컨테이너명을 해석하지 못하므로 VLM_SERVICE_URL 로 override 가능해야 한다")
+                .contains("${VLM_SERVICE_URL");
+    }
+
+    @Test
     @DisplayName("docker_compose_기본_프로파일은_dev이고_로컬_override는_local이다")
     void composeProfilesAreWiredPerFile() {
         // given

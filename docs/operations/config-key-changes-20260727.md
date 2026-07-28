@@ -334,6 +334,48 @@ docker logs klid-backend | grep "The following .* profile"
 
 ---
 
+### 4-3. Phase 6 — local VLM 실연동 배선 + 목 서버 로깅 노출
+
+로컬 도커 스모크에서 **비식별(KPST)만 실 HTTP 로 돌고 VLM 은 `skipped (disabled)` 로 통째로 비는**
+상태가 확인됐다. `application-local.yml` 이 공통 기본값(`vlm.client.enabled=false`)을 그대로
+상속했기 때문이며(Phase 4 의 E3 는 dev 에만 적용), 루트 `.env` 의 `VLM_CLIENT_ENABLED=false` 가
+compose 기본값(`:-true`)까지 덮고 있었다.
+
+| 대상 | 변경 |
+|---|---|
+| `application-local.yml` | `vlm.client.enabled: ${VLM_CLIENT_ENABLED:true}` / `vlm.client.url: ${VLM_SERVICE_URL:http://klid-mock-server:9400}` 신설(dev E3 와 동일 관례) |
+| `WebClientConfig.vlmWebClient` | local/dev 프로파일에 한해 **평문 http + 내부 호스트 위탁 허용**(WARN 1회). stg/prd·프로파일 미지정은 기존 강제(HTTPS + 공인 호스트) 유지, `prd` 프로파일 또는 `ENV=prd` 표식이면 완화 미적용 |
+| `mock-server/app/main.py` | `configure_logging()` — 앱 로거를 stdout 으로 연결 |
+
+- **왜 코드 변경이 필요했나**: 기존 검증은 HTTPS 전용 + 사설/루프백 차단이라 목 서버
+  (`http://klid-mock-server:9400`, TLS 미지원)를 가리키면 **빈 생성 실패 → 앱이 기동조차 못 했다**
+  (2026-07-25 로컬 배선 시도 실측·원복). Phase 4 에서 dev yml 도 같은 값을 갖게 됐으므로 **dev 기동에도
+  잠재해 있던 차단**이며, 이번에 함께 해소된다. 완화 범위는 스키마·호스트까지이고 빈 값·placeholder
+  호스트 차단은 그대로다.
+- **기본 호스트를 컨테이너명으로 둔 이유**: 로컬 주 사용 경로가 도커 스택(`-f docker-compose.yml -f
+  docker-compose.local.yml`)이고 같은 파일의 `kpst.deid.base-url` 도 동일 관례다. 네이티브
+  `bootRun` 은 컨테이너명을 해석하지 못하므로 `VLM_SERVICE_URL=http://localhost:9400` 을 주입한다
+  (미주입 시 기동은 되고 호출 시점에만 실패 — 부팅은 막지 않는다).
+- **서버 `.env` 조치**: dev/운영 서버는 추가 키 없음. 다만 `.env` 에 `VLM_CLIENT_ENABLED=false` 가
+  남아 있으면 프로파일 기본값을 이겨 VLM 이 계속 비므로 **제거(또는 `true`)** 한다.
+- **목 서버 로깅**: uvicorn 기본 설정은 root 로거를 구성하지 않아 앱 로거(`app.services.deid_sim` 등)
+  INFO 가 버려지고 WARNING 도 포맷 없이 새어나갔다 — Phase 5 에서 넣은 경계 위반·콜백 거부 방어 로그가
+  **동작해도 `docker logs` 에서 보이지 않던 관측성 결함**. `logging.basicConfig`(root 무핸들러일 때만
+  적용)로 stdout 에 연결했고 uvicorn 자체 로거(`propagate=False`)와 중복되지 않는다.
+
+#### 보안 재검토 반영(MED 3건, 2026-07-28)
+
+- **완화 판정을 "local/dev 활성 AND stg/prd 비활성"으로 강화**: `acceptsProfiles` 가 OR 이라
+  `SPRING_PROFILES_ACTIVE=dev,stg` 면 stg 도 평문 http 로 기동되던 구멍을 막았다. 프로파일과
+  `ENV` 표식 모두 `stg`/`prd` 를 거부 목록으로 둔다(`DevProfileGuard.DEPLOYED_ENVS` 와 동일 기준).
+- **완화 경로에도 메타데이터 대역 차단**: 호스트가 해석되면 링크로컬 대역(IPv4 RFC 3927 =
+  클라우드 메타데이터 주소가 속한 대역, IPv6 `fe80::/10`)은 dev/local 에서도 거부한다.
+  **해석 실패(컨테이너명 등)는 기존대로 통과**하므로 네이티브 기동은 그대로다.
+- **평문 구간 토큰 경고**: 평문 http + `vlm.client.token` 설정 시 WARN(`tokenLength=` 만 출력, 값 미출력).
+  개발 목 연동을 막지 않기 위해 거부가 아닌 경고다 — 운영은 HTTPS 강제라 해당 없음.
+
+---
+
 ## 5. 요약
 
 | 구분 | 건수 |
