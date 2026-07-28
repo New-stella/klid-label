@@ -40,8 +40,9 @@ class PortalUploadSweepJobTest {
         txService = mock(PortalUploadSweepTxService.class);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
-                List.of("jpg"), 20_971_520L, 50, 2000);
-        job = new PortalUploadSweepJob(txService, props, 30L);
+                List.of("jpg"), 20_971_520L, 50, 2000,
+                16_777_216L, 2_097_152L, 30L, 30L);
+        job = new PortalUploadSweepJob(txService, props);
     }
 
     @Test

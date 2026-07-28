@@ -52,6 +52,11 @@ import java.util.Set;
  * 보안:
  *  - SSRF (CWE-918)/경로순회 (CWE-22): URL/CA 신뢰체인·다운로드 경로 검증은 KPST 클라이언트가 방어.
  *    mock 출력 경로는 storage.deidentified-path 기반으로 base 이탈을 차단한다.
+ *  - <b>비식별 엔드포인트 신뢰 판정은 여기서 하지 않는다</b>: mock-mode 든 KPST 위탁이든
+ *    "위조 비식별(원본이 비식별본으로 서빙됨)" 여부는
+ *    {@link kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard} 단일 진입점이
+ *    부팅 시점에 판정한다(비신뢰 → dev/stg WARN, prd 부팅 거부). 아래 mock-mode 프로파일
+ *    allowlist 게이트는 mock 자체 복사 경로에 대한 별도(더 엄격한) 제약이다.
  * <p>
  * Phase 1 — mock 비식별 모드(local/dev/stg 허용, prd 차단):
  *  - {@code authoring.integration.deidentify.mock-mode=true} 일 때, 외부 비식별 서버(localhost:9200)

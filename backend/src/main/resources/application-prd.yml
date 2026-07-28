@@ -1,21 +1,34 @@
 spring:
+  # 풀 설정은 prefix 직하(평면)에 둔다. Control/PortalDataSourceConfig 가 HikariDataSource 인스턴스에
+  #   @ConfigurationProperties(prefix="spring.datasource.{control|portal}") 로 직접 바인딩하므로
+  #   Boot 오토컨피그 규약인 `hikari:` 중첩 키는 unknown field 로 조용히 무시된다(= 기본 풀 10 으로 동작).
+  #   회귀 방지: DataSourcePoolBindingTest 가 본 파일을 실제로 바인딩해 20/5 를 검증한다.
   datasource:
     control:
       jdbc-url: jdbc:postgresql://${CONTROL_DB_HOST}:${CONTROL_DB_PORT}/${CONTROL_DB_NAME}
       username: ${CONTROL_DB_USERNAME}
       password: ${CONTROL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
-      hikari:
-        maximum-pool-size: 20
-        minimum-idle: 5
+      maximum-pool-size: 20
+      minimum-idle: 5
     portal:
       jdbc-url: jdbc:postgresql://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}
       username: ${PORTAL_DB_USERNAME}
       password: ${PORTAL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
-      hikari:
-        maximum-pool-size: 20
-        minimum-idle: 5
+      maximum-pool-size: 20
+      minimum-idle: 5
+  # 운영(prd) multipart 한도 — 공통(500MB/1200MB)보다 **좁게 조인다**.
+  #   공통값은 dev 업로드(/v1/dev/autolabel-test) 영상 500MB 를 수용하기 위한 비운영 기준이고,
+  #   prd 에는 dev 업로드 경로 자체가 없다(authoring.dev.upload.enabled 기본 false).
+  #   운영에 필요한 multipart 는 포털 이미지 업로드뿐 — 개당 20MB(서비스 검증) + 1MB 헤드룸,
+  #   요청당 최대 50장(50×21MB=1050MB) + 헤드룸으로 1100MB.
+  #   ⚠ 이 블록을 지우면 공통값을 상속해 운영 한도가 21MB → 500MB 로 조용히 상향된다
+  #     (무제한 대용량 요청 자원 소진, OWASP API4). ConfigProfileDriftGuardTest 가 회귀를 차단한다.
+  servlet:
+    multipart:
+      max-file-size: 21MB
+      max-request-size: 1100MB
 
 # 운영(prd) 환경에서는 webhook HMAC 시크릿 환경변수 미설정 시 부팅 차단.
 # Spring 의 `${VAR:?msg}` 구문은 placeholder 미설정 시 BeanCreationException 으로 부팅 실패.

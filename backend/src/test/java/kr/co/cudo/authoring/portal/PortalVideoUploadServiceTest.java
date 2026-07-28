@@ -82,9 +82,10 @@ class PortalVideoUploadServiceTest {
     private PortalVideoUploadService build(PortalVideoProbe probe) {
         PortalUploadProperties props = new PortalUploadProperties(
                 MAX_SIZE, List.of("mp4", "mov", "avi"), storageDir.toString(),
-                List.of("jpg", "jpeg", "png"), 20_971_520L, 50, 2000);
+                List.of("jpg", "jpeg", "png"), 20_971_520L, 50, 2000,
+                16_777_216L, 2_097_152L, 30L, 30L);
         PortalVideoUploadTxService txService = new PortalVideoUploadTxService(
-                tusRepository, uldRepository, props, eventPublisher, 16L * 1024 * 1024);
+                tusRepository, uldRepository, props, eventPublisher);
         return new PortalVideoUploadService(tusRepository, props, probe, txService);
     }
 

@@ -42,7 +42,7 @@ public class BrampVideoProbe implements VideoProbe {
 
     private final String binary;
 
-    public BrampVideoProbe(@Value("${authoring.ffprobe.binary:ffprobe}") String binary) {
+    public BrampVideoProbe(@Value("${authoring.ffmpeg.ffprobe-binary:ffprobe}") String binary) {
         this.binary = binary;
     }
 

@@ -39,7 +39,7 @@ from pydantic import BaseModel, ValidationError
 from app.config import get_settings
 from app.exceptions import MockApiError
 from app.schemas.vlm import AcceptedResponse, DescribeRequest, VerifyRequest
-from app.services import vlm_sim
+from app.services import url_guard, vlm_sim
 from app.state import sanitize_for_log
 
 router = APIRouter()
@@ -148,6 +148,27 @@ def _first_message(exc: ValidationError) -> str:
     return str(errors[0].get("msg", "validation error"))
 
 
+def _assert_allowed_callback(callback_url: str, request_id: str) -> None:
+    """콜백 대상 호스트를 허용 목록으로 제한한다 (SSRF, CWE-918).
+
+    목 서버는 인증이 없으므로, 도달 가능한 누구나 임의 URL 을 넣어 목을 발판으로 내부망에
+    POST 를 쏠 수 있다. 허용 밖 호스트는 접수 자체를 거부(400)하고 outbound 를 발사하지 않는다.
+    """
+    allowed = get_settings().callback_allowed_hosts_list()
+    if url_guard.is_allowed_callback(callback_url, allowed):
+        return
+    logger.warning(
+        "[MOCK][VLM] callback_url rejected(not allowed host) request_id=%s host=%s",
+        sanitize_for_log(request_id),
+        sanitize_for_log(str(url_guard.callback_host(callback_url))),
+    )
+    raise MockApiError(
+        status.HTTP_400_BAD_REQUEST,
+        "callback_url host is not allowed",
+        "VALIDATION_ERROR",
+    )
+
+
 def _resolve_request_id(provided: str | None) -> str:
     """request_id 누락/공백 시 방어적으로 UUID 를 발급한다(echo 일관성 유지)."""
     if provided is None or not str(provided).strip():
@@ -162,6 +183,7 @@ async def verify(request: Request, background_tasks: BackgroundTasks) -> Accepte
     payload = await _parse_payload(request)
     req = _validate(VerifyRequest, payload)
     request_id = _resolve_request_id(req.request_id)
+    _assert_allowed_callback(str(req.callback_url), request_id)
 
     logger.info(
         "[MOCK][VLM] verify accepted request_id=%s event_type=%s callback_url=%s",
@@ -186,6 +208,7 @@ async def describe(request: Request, background_tasks: BackgroundTasks) -> Accep
     payload = await _parse_payload(request)
     req = _validate(DescribeRequest, payload)
     request_id = _resolve_request_id(req.request_id)
+    _assert_allowed_callback(str(req.callback_url), request_id)
 
     logger.info(
         "[MOCK][VLM] describe accepted request_id=%s callback_url=%s",

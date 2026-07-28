@@ -10,7 +10,6 @@ import kr.co.cudo.authoring.portal.repository.LsPortalTusUploadRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
 import kr.co.cudo.authoring.upload.service.TusChunkStore;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -53,12 +52,12 @@ public class PortalVideoUploadTxService {
     public PortalVideoUploadTxService(LsPortalTusUploadRepository tusRepository,
                                       LsPortalUldRepository uldRepository,
                                       PortalUploadProperties properties,
-                                      ApplicationEventPublisher eventPublisher,
-                                      @Value("${portal.upload.max-chunk-bytes:16777216}") long maxChunkBytes) {
+                                      ApplicationEventPublisher eventPublisher) {
         this.tusRepository = tusRepository;
         this.uldRepository = uldRepository;
         this.eventPublisher = eventPublisher;
         this.storageRoot = Paths.get(properties.storagePath()).toAbsolutePath().normalize();
+        long maxChunkBytes = properties.maxChunkBytes();
         this.maxChunkBytes = maxChunkBytes > 0 ? maxChunkBytes : 16L * 1024 * 1024;
     }
 

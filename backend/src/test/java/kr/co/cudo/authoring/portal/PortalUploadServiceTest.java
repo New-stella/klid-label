@@ -68,7 +68,8 @@ class PortalUploadServiceTest {
         frmeRepository = mock(LsPortalUldFrmeRepository.class);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4", "mov", "avi"), storageDir.toString(),
-                List.of("jpg", "jpeg", "png"), 1024L, 3, 2000);
+                List.of("jpg", "jpeg", "png"), 1024L, 3, 2000,
+                16_777_216L, 2_097_152L, 30L, 30L);
         service = new PortalUploadService(uldRepository, frmeRepository, props);
 
         when(uldRepository.save(any(LsPortalUld.class))).thenAnswer(inv -> {

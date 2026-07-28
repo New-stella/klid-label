@@ -15,12 +15,18 @@ spring:
       # 포털 이미지 업로드(multipart/form-data)는 전 프로파일(prd 포함)에서 동작해야 하므로 활성화.
       # TUS 업로드는 application/offset+octet-stream (raw body) 이라 multipart resolver 가 개입하지 않는다
       # (content-type 이 multipart/form-data 가 아니면 파싱하지 않음) → TUS 무영향.
-      # 한도: 이미지 개당 20MB(서비스 검증) → max-file-size 21MB 헤드룸, 요청당 최대 50장 → 50×21MB=1050MB + 헤드룸.
-      # max-request-size 는 1100MB 로 타이트하게 잡아 무제한 대용량 요청 자원 소진(OWASP API4)을 예방한다.
+      #
+      # ★ 한도 값의 기준은 프로파일마다 다르다 — 공통은 비운영(local/dev/stg) 기준이다.
+      #   - 공통 500MB/1200MB: dev 업로드(/v1/dev/autolabel-test) 영상 개당 500MB 를 수용해야 해서
+      #     local/dev/stg 가 동일 값을 각자 복붙하고 있던 것을 공통으로 승격했다.
+      #   - 운영(prd)은 dev 업로드 경로가 없으므로 application-prd.yml 에서 21MB/1100MB 로 **다시 조인다**
+      #     (이미지 개당 20MB 서비스 검증 + 1MB 헤드룸, 요청당 50장 → 50×21MB=1050MB + 헤드룸).
+      #     ⚠ prd override 를 지우면 운영 한도가 500MB 로 조용히 상향된다(자원 소진, OWASP API4)
+      #       → ConfigProfileDriftGuardTest 가 prd 한도를 고정해 회귀를 차단한다.
       # file-size-threshold(1MB): 임계 초과분은 메모리 대신 임시파일로 스풀 — 다건 업로드 시 힙 소진 방지.
       enabled: true
-      max-file-size: 21MB
-      max-request-size: 1100MB
+      max-file-size: 500MB
+      max-request-size: 1200MB
       file-size-threshold: 1MB
   jpa:
     open-in-view: false
@@ -40,6 +46,11 @@ spring:
       # 30초 후 실패하게 한다(이중화 노드가 동시에 flyway_schema_history 생성 시 10분+ 멈춤 방지).
       # @ConfigurationProperties(spring.datasource.control) 로 HikariCP 에 바인딩되어
       # Flyway 가 빌려 쓰는 @Primary controlDataSource 커넥션에도 적용된다.
+      #
+      # ★ portal 데이터소스에 같은 설정이 없는 것은 누락이 아니라 의도다 —
+      #   Flyway 는 @Primary(=control) 데이터소스에서만 실행되고(ControlDataSourceConfig),
+      #   portal 은 포털 DB 를 읽기 위주로 참조할 뿐 저작도구가 DDL 을 걸지 않는다.
+      #   즉 portal 쪽에는 방어할 DDL 락 경합 자체가 없으므로 세션 lock_timeout 을 강제하지 않는다.
       connection-init-sql: SET lock_timeout = '30000'
   flyway:
     enabled: true
@@ -121,8 +132,9 @@ authoring:
   auth:
     admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:}
   jwt:
+    # 서명 알고리즘은 설정값이 아니라 코드 상수다 — 발급은 Jwts.SIG.HS256, 검증은 SecretKeyResolver 의
+    #   HMAC 키(Keys.hmacShaKeyFor)로 고정. alg 를 설정으로 뽑으면 alg=none/약한 알고리즘 주입 표면이 생긴다(CWE-347).
     issuer: ${JWT_ISSUER:klid-auth}
-    algorithm: HS256
     # 운영/스테이징/개발: 환경변수 JWT_SECRET 필수 (미설정 시 부트 실패)
     # 로컬: application-local.yml 의 dev 기본값 사용
     secret: ${JWT_SECRET}
@@ -150,6 +162,11 @@ authoring:
   #   - 실제 콜백 경로는 base + /v1/aug/callback. 운영(dev/stg/prd)에서는 환경변수로 override.
   webhook:
     callback-base-url: ${WEBHOOK_CALLBACK_BASE_URL:http://localhost:8080/api}
+    idempotency:
+      # 콜백 멱등 원장 구현 선택. 기본 false = DB 원장(PersistentWebhookIdempotencyLedger, 2노드 공유).
+      #   true 로 켜면 프로세스 메모리 원장(InMemoryWebhookIdempotencyLedger)이 대신 등록된다 —
+      #   재기동 시 유실 + 노드 간 미공유라 단일 프로세스 테스트/실험 용도로만 쓴다.
+      in-memory: ${WEBHOOK_IDEMPOTENCY_IN_MEMORY:false}
   # TUS 1.0 재개 가능 업로드 (관리 화면 대용량 영상 적재).
   #   - max-file-size: 전체 파일 크기 상한(bytes). POST 시 Upload-Length 초과 즉시 413.
   #   - max-chunk-bytes: 단일 PATCH 청크 크기 상한(bytes). 본문은 64KB 버퍼로 스트리밍 기록(OOM 방어),
@@ -158,6 +175,11 @@ authoring:
     tus:
       max-file-size: ${TUS_MAX_FILE_SIZE:524288000}
       max-chunk-bytes: ${TUS_MAX_CHUNK_BYTES:16777216}
+      # 만료 TUS 세션 정리 잡(TusUploadCleanupJob) 스케줄 — @Scheduled 고정 지연.
+      #   interval-ms 1h 마다 실행, 부팅 후 initial-delay-ms 10m 뒤 첫 실행(기동 부하 회피).
+      cleanup:
+        interval-ms: ${TUS_CLEANUP_INTERVAL_MS:3600000}
+        initial-delay-ms: ${TUS_CLEANUP_INITIAL_DELAY_MS:600000}
   # 영상 스트림 단기 서명 URL — <video> 가 Authorization 헤더를 못 붙이는 문제 우회.
   #   - sign-secret: JWT_SECRET 재사용 금지(키 분리). 운영(dev/stg/prd)은 STREAM_SIGN_SECRET 환경변수 필수.
   #     설정 시 256bit(32B) 이상이어야 함(미달 시 부팅 차단). 미설정이면 서명 URL 발급/검증 모두 fail-closed.
@@ -169,17 +191,16 @@ authoring:
   integration:
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}
-      timeout-ms: 30000
+      # 타임아웃은 여기 설정값이 아니라 KpstDeidentifyClient 상수가 단일 출처다
+      #   (업로드/다운로드 10m, 그 외 45s — WebClient `.timeout(...)` 으로 Reactor 네이티브 처리).
       # Phase 1 — mock-mode 토글(KPST 미준비 동안 dev/stg 파이프라인 가동용). 기본 false(운영 안전).
       #   DeidentifyStep 게이트가 prd(운영) 프로파일/ENV 만 fail-closed 로 차단하고 local/dev/stg 는 허용한다(HIGH-1).
       #   dev/stg 에서 true 로 켜려면 DEIDENTIFY_MOCK_MODE=true. prd 에서 true 면 부트 거부.
       mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
     ai-server:
       base-url: ${AI_SERVER_URL:http://localhost:9300}
-      timeout-ms: 60000
+      # 타임아웃은 resilience4j.timelimiter.instances.ai(60s) 가 단일 출처다.
   batch:
-    rate-per-min: 1
-    frame-interval-sec: 60
     # Phase 5 배치 파이프라인
     enabled: ${BATCH_ENABLED:true}
     interval-sec: ${BATCH_INTERVAL_SEC:60}
@@ -190,7 +211,9 @@ authoring:
   ffmpeg:
     threads: ${FFMPEG_THREADS:2}
     binary: ${FFMPEG_BIN:ffmpeg}
-    # ffprobe 바이너리 경로 — DevAutolabelTestService 가 업로드된 영상에서 duration 자동 추출 시 사용.
+    # ffprobe 바이너리 경로 — 영상 기술메타/duration 추출 전 경로의 단일 진실원 키.
+    #   사용처: BrampVideoProbe · PortalVideoProbeFfprobe · DurationProbeFfprobe · DevAutolabelTestService.
+    #   (과거 BrampVideoProbe 만 미정의 키 authoring.ffprobe.binary 를 읽어 FFPROBE_BIN 주입이 누락됐다)
     ffprobe-binary: ${FFPROBE_BIN:ffprobe}
   # Phase 2 — 관제서버 outbound 완료/수정 통지.
   #  - enabled=false 기본 (local/dev). 관제서버 연동 확정 시 환경변수로 true 활성화.
@@ -200,6 +223,30 @@ authoring:
     url: ${CONTROL_NOTIFY_URL:http://localhost:8090}
     timeout-ms: ${CONTROL_NOTIFY_TIMEOUT_MS:10000}
     debounce-window-sec: ${CONTROL_NOTIFY_DEBOUNCE_SEC:60}
+    # 통지 실패분(dead-letter) 재전송 잡(ControlNotifyFallbackRetryJob) 스케줄 — @Scheduled 고정 지연.
+    #   interval-ms 5m 마다 재시도, 부팅 후 initial-delay-ms 1m 뒤 첫 실행.
+    retry:
+      interval-ms: ${CONTROL_NOTIFY_RETRY_INTERVAL_MS:300000}
+      initial-delay-ms: ${CONTROL_NOTIFY_RETRY_INITIAL_DELAY_MS:60000}
+  # 포털향 통합 메타 outbox → 포털 DB 단방향 복제 워커(MetaReplicationJobConfig/Worker).
+  #   - enabled: Quartz 잡 등록 여부. 기본 true(운영 활성). local/test 는 프로파일에서 false override.
+  #   - interval-sec: 복제 트리거 주기(초). batch-size: 1회 tick 당 처리 건수(부하 조절).
+  #   - max-retry: 건별 재시도 상한 — 초과분은 더 이상 재시도하지 않고 실패로 남긴다.
+  meta-replication:
+    enabled: ${META_REPLICATION_ENABLED:true}
+    interval-sec: ${META_REPLICATION_INTERVAL_SEC:60}
+    batch-size: ${META_REPLICATION_BATCH_SIZE:100}
+    max-retry: ${META_REPLICATION_MAX_RETRY:5}
+  # 해상도 파생영상 생성(리스케일) 동시 실행 게이트(ResizeConcurrencyGate).
+  #   - resize-max-concurrent: 동시 리스케일 허용 수(ffmpeg/디스크 자원 보호).
+  #   - resize-acquire-timeout-sec: permit 대기 상한(초). 초과 시 즉시 거부(무한 대기 방지).
+  resolution:
+    resize-max-concurrent: ${RESOLUTION_RESIZE_MAX_CONCURRENT:2}
+    resize-acquire-timeout-sec: ${RESOLUTION_RESIZE_ACQUIRE_TIMEOUT_SEC:5}
+  # SAM2 분할 요청 시 ai-server 로 보낼 프레임 이미지의 크기 상한(bytes, 기본 20MB).
+  #   초과 이미지는 전송 전 거부한다(CWE-770 자원 소진 방어).
+  sam2:
+    max-image-bytes: ${SAM2_MAX_IMAGE_BYTES:20971520}
   # 관제 학습용 영상 픽업 적재 — MNG_CLIP_MASTER.JOB_DMND_YN='Y' 클립을 주기 스캔해 LS_DATA_RAW 적재.
   #  - enabled=true 기본 (matchIfMissing). 토글 시 Quartz 트리거 미등록.
   #  - interval-sec: 스캔 주기(초). 기본 60.
@@ -244,6 +291,17 @@ portal:
     max-image-size-bytes: ${PORTAL_MAX_IMAGE_SIZE:20971520}        # 20 MB (이미지 1장)
     max-images-per-request: ${PORTAL_MAX_IMAGES_PER_REQUEST:50}    # 1회 요청 최대 이미지 수
     max-frames: ${PORTAL_MAX_FRAMES:2000}                          # 영상 1건 최대 추출 프레임 수
+    # D2 — 아래 4개는 흩어진 @Value 를 PortalUploadProperties(record) 로 통합하면서 명시했다.
+    #   값은 이관 전 @Value 기본값 그대로다(동작 변경 0).
+    max-chunk-bytes: ${PORTAL_MAX_CHUNK_BYTES:16777216}            # 16 MB — TUS PATCH 단일 청크 상한
+    max-label-body-bytes: ${PORTAL_MAX_LABEL_BODY_BYTES:2097152}   # 2 MB — 라벨 PUT 본문 상한(파싱 전 413)
+    probe-timeout-sec: ${PORTAL_PROBE_TIMEOUT_SEC:30}              # ffprobe 하드 타임아웃(초)
+    stuck-timeout-minutes: ${PORTAL_STUCK_TIMEOUT_MINUTES:30}      # 무갱신 N분 초과 업로드 → FAILED 마감
+    # 정리 스윕 잡(PortalUploadSweepJob) 스케줄 — 만료 TUS 세션 삭제 + 고착 자산 FAILED 전이.
+    #   @Scheduled 어노테이션 속성은 상수 표현식만 허용해 record 로 옮길 수 없으므로 placeholder 유지.
+    sweep:
+      interval-ms: ${PORTAL_SWEEP_INTERVAL_MS:1800000}             # 30 m 주기
+      initial-delay-ms: ${PORTAL_SWEEP_INITIAL_DELAY_MS:600000}    # 부팅 후 10 m 뒤 첫 실행
 
 # UC018 — ㈜KPST 비식별 솔루션 폴링 연동 클라이언트 (docs/v2-wiki/22-deid-solution-api.md).
 #  - enabled=true 기본 (비식별 단일 경로 = KPST 폴링. 레거시 동기 SPI/콜백 경로는 제거됨).

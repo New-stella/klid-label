@@ -2,11 +2,12 @@
 # klid-label 로컬 외부 0개 자족 테스트 override
 #   사용: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 #
-#   목적: 관제/포털/비식별/실VLM 등 외부 서버 0개로 전 시나리오를 띄워 검증.
+#   목적: 관제/포털/비식별/실VLM 등 **외부 벤더 서버 0개**로 전 시나리오를 띄워 검증.
+#   - backend: base 는 dev 프로파일이므로 여기서 local 프로파일로 되돌린다(시드·로컬 기본값·게이팅).
 #   - ai-server: mock 이 아닌 CPU 실추론 + YOLOX 탐지(onnxruntime) (GPU 불필요 — Mac 등 호환).
 #   - 호스트 절대경로(/data) 대신 named volume → 비-Linux/비-서버 환경에서도 기동.
-#   - 비식별은 backend local 프로파일의 mock-mode(application-local.yml)로 자동 no-op
-#     (실 비식별 서버 부재 — Phase 1). VLM 은 local 에서 enabled=false.
+#   - 비식별(KPST)·VLM 은 **내부 self-fill 이 아니라 mock-server 컨테이너로 실제 HTTP 연동**한다
+#     (서비스 정의는 base compose, 여기서는 볼륨만 override).
 #
 #   주의: ENV 환경변수를 dev/stg/prd 로 설정하지 말 것 (LocalProfileGuard + 비식별
 #         mock 게이트가 부트 차단). 상세는 docs/v2-wiki/00-local-setup.md.
@@ -35,13 +36,12 @@ services:
     volumes:
       - klid-storage:/app/storage
     environment:
-      # 실 KPST 연동(목 서버) — local 기본 mock 비식별(DEIDENTIFY_MOCK_MODE=true)을 끄고
-      #   KPST 경로로 전환해 mock-server(klid-net 의 klid-mock-server:9400)에 실제 위탁한다.
-      #   목이 공유 볼륨(/app/storage)에 원본 복사(실영상)한 비식별 결과를 BE 가 그대로 소비한다.
-      #   application-local.yml L66/93 문서화된 실연동 전환 방법.
-      DEIDENTIFY_MOCK_MODE: "false"
-      KPST_DEID_ENABLED: "true"
-      KPST_DEID_BASE_URL: "http://klid-mock-server:9400"
+      # ★ 프로파일 고정 — base compose 는 dev 로 뜨므로 로컬 자족 기동은 여기서 local 로 되돌린다.
+      #   (local yml 의 시크릿 기본값·dev 시드(DevSeedRunner @Profile("local"))·mock 게이팅이 여기에 달려 있다)
+      SPRING_PROFILES_ACTIVE: local
+      # 외부 벤더 연동(mock-server 실 HTTP)은 base compose 가 이미 주입한다
+      #   (DEIDENTIFY_MOCK_MODE=false / KPST_DEID_* / VLM_* / WEBHOOK_CALLBACK_BASE_URL).
+      #   여기서 다시 선언하면 값이 두 파일로 갈라지므로 중복 정의하지 않는다.
       # 로컬 FE dev 서버는 docker 매핑 포트 13000 으로 서빙된다(klid-frontend ports 13000:5174).
       #   base 의 .env CORS_ALLOWED_ORIGINS 는 5173/5174/3000 만 포함해 브라우저 Origin
       #   http://localhost:13000 이 Spring CorsFilter 403("Invalid CORS request")으로 거부되고
@@ -69,24 +69,14 @@ services:
           # CPU 실추론(YOLOX/SAM2) 메모리 여유 확보
           memory: 4096m
 
-  # 외부 벤더 목(mock) 서버 — 비식별(KPST)·VLM 개발 완료 전 실연동 테스트용.
-  #   이미지 klid-mock-server:latest 는 feat/mock-external-server 브랜치(PR #26)에서 빌드됨
-  #   (docker build -t klid-mock-server:latest mock-server/). 현재 워킹트리엔 소스가 없어 image 참조.
-  #   ⚠ 로컬/테스트 전용 — 무인증 + 콜백 SSRF 표면. 신뢰망에서만 기동.
+  # 외부 벤더 목(mock) 서버 — 서비스 정의 본체는 base docker-compose.yml 로 승격됐다(dev 도 함께 사용).
+  #   여기서는 **차이분(볼륨)만** 남긴다: /data 호스트 바인드 → backend 와 동일 named volume.
+  #   (전체 정의를 다시 쓰면 base 와 갈라져 MOCK_OUTPUT_BASE·포트가 조용히 달라진다)
+  #   ★ ports 를 여기서 재선언하지 말 것 — base 의 루프백 전용 발행(127.0.0.1:9400:9400)이
+  #     무력화된다. 목 서버는 인증이 없어 외부 인터페이스 노출 자체가 취약점이다.
   mock-server:
-    image: klid-mock-server:latest
-    container_name: klid-mock-server
-    restart: unless-stopped
-    environment:
-      # 비식별 더미 출력 파일 생성 base(=BE STORAGE_DEIDENTIFIED_PATH). 미설정이면 파일 미생성(fail-closed).
-      MOCK_OUTPUT_BASE: /app/storage/deidentified
     volumes:
-      # BE 와 동일 공유 볼륨·동일 경로 → BE 가 넘긴 절대경로(export_path/input_path)를 그대로 읽고 씀.
       - klid-storage:/app/storage
-    ports:
-      - "9400:9400"
-    networks:
-      - klid-net
 
 volumes:
   klid-pgdata:

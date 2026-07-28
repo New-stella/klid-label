@@ -6,11 +6,11 @@ verify/describe 는 요청을 즉시 수락(accepted)한 뒤, 지연(config.call
 페이로드를 만든다.
 
 ⚠️ SSRF 경고 (CWE-918) — 운영 노출 금지:
-  ``callback_url`` 은 **요청자가 지정하는 임의 URL** 이며, 이 서버는 그 URL 로 서버측
-  HTTP POST 를 발사한다. 이는 규격 동작(비동기 콜백)이라 목 서버에서는 구현하지만,
-  임의 URL 로의 outbound 요청은 SSRF 벡터다. 본 목 서버는 **로컬/테스트 전용**이며
-  절대 공개망/운영에 노출하면 안 된다. (별도 allowlist 는 목적상 과하므로 문서/주석
-  경고로 갈음 — README Phase 4 에 재명시.)
+  ``callback_url`` 은 **요청자가 지정하는 URL** 이며, 이 서버는 그 URL 로 서버측 HTTP POST 를
+  발사한다. 규격 동작(비동기 콜백)이라 목 서버에서도 구현하되, 대상 호스트는 라우터가
+  ``app.services.url_guard`` + ``MOCK_CALLBACK_ALLOWED_HOSTS`` allowlist 로 제한한다
+  (목록 밖이면 접수 400 + outbound 미발사). 그럼에도 본 목 서버는 **로컬/테스트 전용**이며
+  공개망/운영에 노출하면 안 된다(compose 는 루프백 전용 발행).
 
 콜백 발사 격리:
   콜백 대상이 다운/타임아웃이어도 서버 안정성이나 동기 응답에 영향이 없도록

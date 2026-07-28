@@ -160,6 +160,9 @@ async def create_project(req: ProjectCreateRequest) -> ProjectCreateResponse:
                 input_path=req.input_path,
                 outputs=plans,
                 output_base=settings.output_base,
+                # 인증 없는 목이라 input_path 도 임의 지정이 가능하다 — 허용 루트 밖 원본은
+                # 복사하지 않고 placeholder 로 대체한다(임의 파일 노출·디스크 고갈 차단).
+                input_base=settings.effective_input_base(),
             )
         except Exception as exc:  # noqa: BLE001 — 목 안정성 우선, 어떤 실패도 200 유지
             logger.warning(

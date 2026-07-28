@@ -3,7 +3,13 @@
 #   - 모든 리소스 klid- 프리픽스로 격리 (기존 컨테이너 무영향)
 #   - postgres 볼륨/스토리지는 /data 하위 (루트 / 디스크 보호)
 #   - ai-server 는 nvidia 기본 런타임으로 GPU 자동 사용
-#   - backend 는 local 프로파일 + 번들 postgres 로 자립 기동 (ENV 미설정)
+#   - backend 는 **dev 프로파일** + 번들 postgres 로 기동 (ENV 미설정)
+#       · 과거 base compose 는 SPRING_PROFILES_ACTIVE=local 이라 application-dev.yml 이 한 번도
+#         적용된 적이 없었다. dev 배포가 local 설정(자족 mock·로컬 시크릿 기본값)으로 돌던 왜곡을
+#         바로잡는다. 로컬 자족 기동은 docker-compose.local.yml override 가 local 로 되돌린다.
+#       · 되돌리기(롤백): 서버 .env 에 SPRING_PROFILES_ACTIVE=local 을 넣으면 즉시 원복된다.
+#   - 외부 벤더(비식별 KPST / VLM)는 mock-server 컨테이너로 **실제 HTTP 연동** — 저작도구가 스스로
+#     결과를 채우는 내부 self-fill 경로(DEIDENTIFY_MOCK_MODE=true)는 쓰지 않는다.
 # ============================================================================
 
 services:
@@ -58,8 +64,15 @@ services:
     env_file:
       - .env
     environment:
-      SPRING_PROFILES_ACTIVE: local
-      # local 프로파일 jdbc-url 은 127.0.0.1 하드코딩 → 번들 postgres 로 override (relaxed binding)
+      # 기본 dev. 롤백은 서버 .env 의 SPRING_PROFILES_ACTIVE=local (compose 재기동만으로 원복).
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # ★ jdbc-url 을 여기서 **완전히 고정**한다(relaxed binding 이 yml 보다 우선).
+      #   - local 프로파일: yml 이 127.0.0.1 하드코딩이라 컨테이너에서 못 붙음 → 번들 postgres 로 교정.
+      #   - dev 프로파일: yml 은 ${CONTROL_DB_HOST} 등으로 조립하는데, 서버 .env 에 관제 DB IP 가
+      #     남아 있으면 컨테이너 backend 가 번들 postgres 대신 **관제 실DB 로 붙어 Flyway 가 도는**
+      #     사고가 난다. jdbc-url 을 직접 지정하면 yml 의 host/port/name placeholder 는 아예 해석되지
+      #     않으므로(우선순위가 높은 소스가 값을 제공) 그 사고 경로가 닫힌다.
+      #   외부 DB 를 쓰려면 이 두 줄을 배포 환경에 맞게 바꾼다.
       SPRING_DATASOURCE_CONTROL_JDBC_URL: jdbc:postgresql://klid-postgres:5432/${CONTROL_DB_NAME:-klid_system}
       SPRING_DATASOURCE_PORTAL_JDBC_URL: jdbc:postgresql://klid-postgres:5432/${PORTAL_DB_NAME:-portal}
       CONTROL_DB_USERNAME: ${CONTROL_DB_USERNAME:-klid_user}
@@ -69,6 +82,22 @@ services:
       AI_SERVER_URL: http://klid-ai-server:9300
       STORAGE_RAW_PATH: /app/storage/raw
       STORAGE_DEIDENTIFIED_PATH: /app/storage/deidentified
+      # ---- 외부 벤더 연동(목업 서버 실 HTTP) ----
+      #   내부 self-fill 금지: mock-mode 는 외부 무접촉으로 원본을 복사해 성공을 만들어내므로 끈다.
+      DEIDENTIFY_MOCK_MODE: ${DEIDENTIFY_MOCK_MODE:-false}
+      KPST_DEID_ENABLED: ${KPST_DEID_ENABLED:-true}
+      KPST_DEID_BASE_URL: ${KPST_DEID_BASE_URL:-http://klid-mock-server:9400}
+      VLM_CLIENT_ENABLED: ${VLM_CLIENT_ENABLED:-true}
+      VLM_SERVICE_URL: ${VLM_SERVICE_URL:-http://klid-mock-server:9400}
+      # 콜백(mock-server → 저작도구) 수신 주소. 기본값 localhost:8080 은 **호출자 자신**을 가리켜
+      #   컨테이너 간 콜백이 전부 유실된다(VLM describe 결과 미수신, 증강 콜백 미수신).
+      WEBHOOK_CALLBACK_BASE_URL: ${WEBHOOK_CALLBACK_BASE_URL:-http://klid-backend:8080/api}
+      # ---- 시크릿·기능 토글은 .env(env_file) 로만 주입한다 ----
+      #   JWT_SECRET(미주입=부팅 실패) / STREAM_SIGN_SECRET(영상 재생 fail-closed) /
+      #   CORS_ALLOWED_ORIGINS(FE 403) / ADMIN_CLAIM_PASSWORD_HASH / WEBHOOK_HMAC_SECRET_AUGMENT.
+      #   ⚠ 여기서 ${VAR:-} 형태로 재선언하면 .env 에 없을 때 "빈 값이 설정된" 상태가 되어
+      #     프로파일 yml 의 기본값(${VAR:default})까지 빈 값으로 덮어쓴다 — 그래서 일부러 나열하지 않는다.
+      #   필수 목록은 docs/operations/config-key-changes-20260727.md §4-2 참조.
     volumes:
       - /data/klid/storage:/app/storage
     ports:
@@ -125,6 +154,55 @@ services:
       resources:
         limits:
           memory: 6144m  # CPU 실추론(torch+sam2+onnxruntime 모델 로드) 여유 — mock 시엔 미사용
+
+  # 외부 벤더 목(mock) 서버 — 비식별(KPST 11EP) + VLM(3EP, 비동기 콜백) 실연동 테스트용.
+  #   backend 가 실제 HTTP 로 이 서버를 호출한다(내부 self-fill 대체). 벤더 실서버 준비 시
+  #   KPST_DEID_BASE_URL / VLM_SERVICE_URL 만 바꾸면 이 컨테이너 없이도 동작한다.
+  #
+  #   ⚠⚠ 로컬/dev 전용 — **인증이 없고**, VLM 콜백이 요청자가 지정한 URL 로 서버측 outbound
+  #      POST 를 발사한다(SSRF 표면, CWE-918 — 목 자체도 MOCK_CALLBACK_ALLOWED_HOSTS 로 방어).
+  #      신뢰망(klid-net)에서만 기동하고 운영/외부망에 절대 노출하지 말 것.
+  #      stg/prd 는 도커를 쓰지 않으므로 이 정의가 운영으로 전파되지 않는다.
+  mock-server:
+    build:
+      context: ./mock-server
+      dockerfile: Dockerfile
+    image: klid-mock-server:latest
+    container_name: klid-mock-server
+    restart: unless-stopped
+    environment:
+      # 비식별 더미 출력 파일 생성 base(= backend STORAGE_DEIDENTIFIED_PATH).
+      #   미설정이면 어떤 파일도 만들지 않는다(fail-closed) → BE 무결성 검증이 실패해 파이프라인이 멈춘다.
+      MOCK_OUTPUT_BASE: /app/storage/deidentified
+      # 복사 원본 읽기 허용 루트(= raw/ 와 deidentified/ 의 공통 루트). 이 밖의 input_path 는
+      #   복사하지 않고 placeholder 로 대체한다 — 임의 파일 노출·GB급 반복 복사(디스크 고갈) 차단.
+      MOCK_INPUT_BASE: /app/storage
+      # VLM 콜백 outbound 허용 호스트(SSRF 방어). BE 는 WEBHOOK_CALLBACK_BASE_URL=
+      #   http://klid-backend:8080/api 로 콜백 주소를 넘기므로 klid-backend 가 정상 경로다.
+      MOCK_CALLBACK_ALLOWED_HOSTS: ${MOCK_CALLBACK_ALLOWED_HOSTS:-klid-backend,localhost,127.0.0.1}
+    volumes:
+      # backend 와 **동일 볼륨·동일 경로** — BE 가 넘긴 절대경로(input_path/export_path)를 그대로 읽고 쓴다.
+      #   경로가 어긋나면 위탁은 성공하는데 결과 파일이 없어 비식별이 'F' 로 끝난다.
+      - /data/klid/storage:/app/storage
+    ports:
+      # ★ 루프백 전용 발행 — 목 서버는 인증이 없고 임의 URL 로 outbound POST 를 발사하며(SSRF),
+      #   input_path/export_path 로 파일 생성을 유발할 수 있다. 0.0.0.0 발행(구 "9400:9400")은
+      #   같은 네트워크의 누구에게나 이 표면을 상시 개방한다. backend 는 컨테이너 네트워크
+      #   이름(klid-mock-server:9400)으로 호출하므로 호스트 발행 없이도 정상 동작하며,
+      #   이 발행은 서버에 접속한 개발자가 로컬에서 목 상태를 확인하기 위한 용도만 남긴다.
+      - "127.0.0.1:9400:9400"
+    networks:
+      - klid-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:9400/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
   # Vite dev 서버로 기동 — import.meta.env.DEV=true 산출물(/dev/login 등 dev 기능 활성).
   # 프로덕션 빌드는 dev 라우트를 dead-code 제거하므로 dev 서버 사용이 필수.
