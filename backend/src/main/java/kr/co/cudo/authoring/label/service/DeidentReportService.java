@@ -3,11 +3,8 @@ package kr.co.cudo.authoring.label.service;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
-import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -16,14 +13,11 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
-import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
+import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
-import kr.co.cudo.authoring.version.entity.LabelChange;
-import kr.co.cudo.authoring.version.entity.LabelSnapshot;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
-import kr.co.cudo.authoring.version.service.VersionService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -40,20 +34,21 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Phase 2 (R1 v1.14) — 비식별 누락 신고 워크플로우 서비스.
  *
  * <p>R1 v1.14 정합 변경:
  * <ul>
- *   <li>{@link #report} — 신고 시 <b>해당 영상(rawSn) 전체 프레임 라벨</b>(자동+수동 전부)을 복원 가능한
- *       이력(LS_LABEL_VERSION 스냅샷, SAVE_REASON='DEIDENT_REPORT', ACTIVE_YN='N')으로 기록 후 일괄 삭제한다.
- *       자동 재비식별 큐 적재는 제거되었고(외부 솔루션 수동 비식별화로 대체) 영상 잠금 + DE_IDNTF_YN='F' 는 유지.</li>
+ *   <li>{@link #report} — <b>라벨을 삭제하지 않는다(2026-07-27 정책 반전, 사용자 확정)</b>. 신고는
+ *       "비식별이 잘못됐다"는 신호이므로 라벨 작업 결과는 <b>보존</b>하고, 신고~재비식별 구간의 PII
+ *       노출은 라벨 조회 게이트({@link LabelAccessGuard#requireNotUnderDeidentReport}, S7)로 차단한다.
+ *       resolve 로 DE_IDNTF_YN 이 'F'→'Y' 복원되면 게이트가 열려 보존된 라벨을 그대로 재사용한다.
+ *       구 동작(LS_LABEL_VERSION SAVE_REASON='DEIDENT_REPORT' 비활성 스냅샷 + 전량 삭제 + 삭제 이력)은
+ *       폐기됐다 — 그 스냅샷은 DATA_SRC_SN=NULL 이라 복원 진입점이 없는 write-only 이력이었다(D-ISSUE-25).
+ *       자동 재비식별 큐 적재는 제거되었고(외부 솔루션 수동 비식별화로 대체) 영상 잠금 + DE_IDNTF_YN='F'
+ *       + 개인정보 3필드 리셋은 유지.</li>
  *   <li>{@link #resolveManually} — 외부 솔루션 수동 비식별화 완료 후 OPEN→RESOLVED 전이 + 작업락 해제.</li>
  *   <li>{@link #resolveOpenReports} — DeidentifyStep(배치 자동 비식별) 성공 시 OPEN 신고 일괄 RESOLVED.
  *       (TODO: 수동 resolveManually 와 동시 호출 시 경쟁 가능 — 둘 다 멱등 처리되어 데이터 정합은 유지되나,
@@ -67,10 +62,10 @@ import java.util.stream.Collectors;
  *   <li><b>Race (CWE-362)</b>: 동시 신고 시 WorkLock UNIQUE 제약이 최후 방어 —
  *       {@link DataIntegrityViolationException} 을 409 CONFLICT 로 변환.</li>
  *   <li><b>Privacy (CWE-359)</b>: 신고 사유(reason) 본문은 로그에 출력하지 않는다.</li>
- *   <li><b>SQL Injection (CWE-89)</b>: 삭제/조회는 JPA 파라미터 바인딩 @Modifying 쿼리만 사용.</li>
+ *   <li><b>SQL Injection (CWE-89)</b>: 리셋/조회는 JPA 파라미터 바인딩 @Modifying 쿼리만 사용.</li>
  * </ul>
  *
- * <p>스냅샷 + 이력기록 + 삭제는 단일 트랜잭션 — 부분 실패 시 전체 롤백.
+ * <p>신고 저장 + 개인정보 리셋 + 작업락 + 'F' 전이는 단일 트랜잭션 — 부분 실패 시 전체 롤백.
  */
 @Slf4j
 @Service
@@ -83,22 +78,20 @@ public class DeidentReportService {
     private final LsDeidentReportRepository reportRepository;
     private final NotificationService notificationService;
     private final WorkLockService workLockService;
-    private final VersionService versionService;
-    private final LsDataLblRepository labelRepository;
     private final kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
-    private final LsDataLblAttrValRepository attrValRepository;
-    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
-    private final LsDataLblHstryRepository lblHstryRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
     private final LsDeidentProcLogRepository procLogRepository;
+    /** DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사 기록용 기존 이력 축(신규 테이블 없음). */
+    private final LsDataLblHstryRepository lblHstryRepository;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
      *
-     * <p>흐름: 권한검사 → 영상로드 → 잠금 선점검 → 신고 OPEN 저장 → 영상 전체 라벨 스냅샷+삭제
-     *        → 작업락 + DE_IDNTF_YN='F' → APPROVED 면 TASK_MODIFIED 통지 → REVIEWER 알림.
+     * <p>흐름: 권한검사 → 영상로드 → 잠금 선점검 → 신고 OPEN 저장 → 개인정보 3필드 리셋
+     *        → APPROVED 면 TASK_MODIFIED 통지 → 작업락 + DE_IDNTF_YN='F' → REVIEWER 알림.
+     *        <b>라벨은 삭제하지 않는다</b>(2026-07-27 정책 반전 — 클래스 javadoc 참조).
      *
      * <p><b>파생 프레임 개인정보 cross-stale 경계(후속 백로그)</b>: 아래 개인정보 3필드 리셋
      * ({@code resetPrivacyMetaByRawSn})은 <b>신고 대상 rawSn 의 프레임만</b> NULL 로 되돌린다. 이 영상을
@@ -137,22 +130,43 @@ public class DeidentReportService {
         LsDeidentReport report = reportRepository.save(
                 LsDeidentReport.createReport(rawSn, reporterNo, reason));
 
-        // 5) 영상 전체 라벨 스냅샷(복원 가능 이력) 후 일괄 삭제. 라벨 0건이면 둘 다 스킵.
-        boolean snapshotted = versionService.snapshotDeidentReport(rawSn, actor);
-        if (snapshotted) {
-            deleteAllVideoLabels(rawSn);
-            // 검수 완료(APPROVED) 영상이면 라벨 삭제도 수정 통지 대상 — TASK_MODIFIED(LABEL_DELETED) 발행.
-            if (isReviewApproved(rawSn)) {
-                eventPublisher.publishEvent(new TaskModifiedEvent(
-                        rawSn, src.getSrcSn(), ChangeType.LABEL_DELETED, reporterNo));
-            }
-        }
+        // 5) D-25 (2026-07-27 사용자 확정) — <b>라벨을 삭제하지 않는다</b>. 스냅샷도 남기지 않는다.
+        //    구 동작(전체 라벨 스냅샷 → 전량 삭제)은 폐기됐다: 신고는 "비식별이 잘못됐다"는 신호일 뿐
+        //    라벨 작업 결과를 폐기할 근거가 아니며, 스냅샷은 rawSn 스코프(DATA_SRC_SN=NULL)라 복원 진입점이
+        //    없는 write-only 이력이었다(D-ISSUE-25). 라벨은 보존되고, 신고~재비식별 구간의 PII 노출은
+        //    라벨 조회 게이트({@code LabelAccessGuard.requireNotUnderDeidentReport}, S7)로 차단한다.
+        //    resolve 로 'F'→'Y' 가 복원되면 게이트가 열려 보존된 라벨을 그대로 재사용한다.
+        //    라벨을 지우지 않으므로 라벨셋 버전 bump(낙관적 락)도 하지 않는다 — bump 는 "열어둔 화면이
+        //    방금 지운 라벨을 되살리는 것"을 막기 위한 장치였고, 삭제가 없으면 되살릴 대상 자체가 없다.
+        //    (조회 게이트로 신고 구간 재조회가 막히고, 저장은 작업락으로 409 차단된다.)
 
         // 5-1) Phase 3 #5 — 해당 영상 전체 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 NULL 로
         //      초기화(파생 폴백 복귀)한다. 신고→재비식별 후 옛 수동값이 남으면 '개인정보 없음' 등으로 stale
         //      오표기(CWE-359)되어 export 에 실릴 수 있으므로, 라벨 삭제와 동일 트랜잭션에서 함께 리셋한다.
         //      벌크 JPQL(파라미터 바인딩) — clearAutomatically 미지정이라 아래 raw dirty-update 는 유지된다.
+        //
+        //      DEV_FIX-B(M5, 보안 M-3) — PII 표기를 되돌리는 행위이므로 <b>행 단위 감사</b>가 필요하다
+        //      (OWASP A09). 구 동작은 집계 로그 한 줄(privacyReset=N)뿐이라 "어느 프레임이 언제 누구에
+        //      의해 리셋됐는가"를 사후 추적할 수 없었다. 신규 테이블/컬럼 없이 기존 이력 축
+        //      (LS_DATA_LBL_HSTRY)에 프레임당 1행을 남긴다 — 라벨 델타 0건 이벤트라 데이터마트 뷰
+        //      V_COMPLETED_LABEL_CHANGE 에는 V139 필터로 노출되지 않는다(관제 팬텀 행 방지).
+        //      대상은 리셋 <b>직전</b>에 확정한다(리셋 후에는 전부 NULL 이라 구분 불가).
+        List<Long> privacyResetSrcSns = srcRepository.findSrcSnsWithPrivacyMeta(rawSn);
         int privacyReset = srcRepository.resetPrivacyMetaByRawSn(rawSn);
+        if (!privacyResetSrcSns.isEmpty()) {
+            String reporterId = String.valueOf(reporterNo);
+            lblHstryRepository.saveAll(privacyResetSrcSns.stream()
+                    .map(frameSn -> LsDataLblHstry.recordPrivacyMetaResetEvent(
+                            frameSn, reporterId, report.getRprtSn()))
+                    .toList());
+        }
+
+        // 5-2) 검수 완료(APPROVED) 영상이면 개인정보 메타 리셋이 수정 통지 대상 —
+        //      TASK_MODIFIED(META_UPDATED) 발행. 라벨은 보존되므로 구 LABEL_DELETED 는 더 이상 맞지 않다.
+        if (isReviewApproved(rawSn)) {
+            eventPublisher.publishEvent(new TaskModifiedEvent(
+                    rawSn, src.getSrcSn(), ChangeType.META_UPDATED, reporterNo));
+        }
 
         // 6) 영상 잠금 + 비식별 상태 'F' 마킹. 동시 신고 unique 위반 → 409.
         //    (R1 v1.14: 자동 재비식별 큐 적재 제거 — 외부 솔루션 수동 비식별화로 대체)
@@ -170,8 +184,9 @@ public class DeidentReportService {
         // 7) REVIEWER 알림
         notificationService.notifyReviewersOnDeidentReport(raw, reporterNo, reason);
 
-        log.info("[DeidentReport] created rprtSn={} rawSn={} reporterNo={} labelsRemoved={} privacyReset={}",
-                report.getRprtSn(), rawSn, reporterNo, snapshotted, privacyReset);
+        log.info("[DeidentReport] created rprtSn={} rawSn={} reporterNo={} labelsPreserved=true "
+                        + "privacyReset={} privacyResetAudited={}",
+                report.getRprtSn(), rawSn, reporterNo, privacyReset, privacyResetSrcSns.size());
         return report.getRprtSn();
     }
 
@@ -232,6 +247,9 @@ public class DeidentReportService {
         // 외부 수동 재비식별로 비식별본이 교체되었을 수 있으므로 스트림 메타 캐시를 커밋 후 무효화.
         streamMetaCacheEvictor.evictAfterCommit(report.getRawSn());
 
+        // M1 — 신고 구간에 보류(차단)됐던 export·통지 복구를 트리거한다.
+        publishResolvedForExportRecovery(report.getRawSn());
+
         log.info("[DeidentReport] resolved-manually rprtSn={} rawSn={} actor={}",
                 rprtSn, report.getRawSn(), actor.sub());
     }
@@ -288,9 +306,30 @@ public class DeidentReportService {
         // 배치/스텝 자동 재비식별 성공으로 비식별본이 교체되었으므로 스트림 메타 캐시를 커밋 후 무효화.
         streamMetaCacheEvictor.evictAfterCommit(rawSn);
         if (!opens.isEmpty()) {
+            // M1 — 자동(배치) 해소 경로도 동일하게 보류됐던 export·통지를 복구한다. 실제로 해소한
+            //      신고가 있을 때만 발행한다(신고가 없던 정상 비식별 성공은 재산출 대상이 아니다).
+            publishResolvedForExportRecovery(rawSn);
             log.info("[DeidentReport] resolved rawSn={} count={}", rawSn, opens.size());
         }
         return opens.size();
+    }
+
+    /**
+     * M1 — 신고 해소로 export 게이트가 열렸음을 알려 <b>보류됐던 산출·통지</b>를 복구시킨다.
+     *
+     * <p>신고 구간 export 차단은 {@code LS_DATASET_EXPORT} 행을 남기지 않아 실패 회수기(FAILED 행만
+     * 스캔)가 집지 못한다. 따라서 <b>해제 시점 재트리거가 유일한 복구 경로</b>다. 소비자는
+     * {@code DatasetExportBridge#onDeidentReportResolved}(AFTER_COMMIT) 이며, 'Y' 복원이 커밋된 뒤에
+     * 실행되므로 export 진입부 게이트에 스스로 막히지 않는다.
+     *
+     * <p><b>검수 승인(APPROVED) 영상만</b> 발행한다 — 미승인 영상은 산출 대상 자체가 아니라 재트리거가
+     * 불필요한 v1 을 만든다(무의미한 전량 재생성 방지).
+     */
+    private void publishResolvedForExportRecovery(Long rawSn) {
+        if (rawSn == null || !isReviewApproved(rawSn)) {
+            return;
+        }
+        eventPublisher.publishEvent(new DeidentReportResolvedEvent(rawSn));
     }
 
     // ---------- 내부 ----------
@@ -380,55 +419,6 @@ public class DeidentReportService {
         log.warn("[DeidentReport] resolve blocked — deident artifact not verified rawSn={}", rawSn);
         return new CustomException(ErrorCode.CONFLICT,
                 "비식별 산출물이 확인되지 않습니다. 외부 솔루션으로 비식별을 완료한 뒤 다시 시도하세요.");
-    }
-
-    /**
-     * 영상 전체 라벨 삭제 — 고아 방지 순서: ATTR_VAL → AI_INFO → LBL (모두 bulk delete, 1건씩 금지).
-     *
-     * <p>삭제 <b>직전</b> 에 삭제 대상 라벨 1건당 LS_DATA_LBL_HSTRY 이력 1건을 기록한다
-     * (동일 트랜잭션 — 부분 실패 시 이력만 남는 정합성 깨짐 방지). 라벨 0건이면 이력도 0건.
-     */
-    private void deleteAllVideoLabels(Long rawSn) {
-        List<LsDataLbl> labels = labelRepository.findAllByRawSn(rawSn);
-        if (labels.isEmpty()) {
-            return;
-        }
-        recordDeletionHistory(labels);
-        List<Long> lblSns = labels.stream().map(LsDataLbl::getLblSn).toList();
-        // C-ISSUE-21 — 영상 전 프레임의 라벨셋 버전 +1 (단일 UPDATE). 신고로 라벨이 전량 삭제됐는데
-        //   버전이 그대로면, 삭제 직전 화면을 열어둔 세션이 낡은 세트를 그대로 저장해 방금 지운 PII 라벨을
-        //   되살릴 수 있다(버전 첨부 요청 기준). 여기서 올려 그 저장이 409 로 거부되게 한다.
-        // DEV_FIX(H2① 락 순서) — 이 bump 는 반드시 라벨 <b>삭제 前</b> 에 수행한다. bump 는 프레임 행에
-        //   쓰기 락을 잡으므로, 삭제(=라벨 행 락) 뒤에 두면 "프레임 락 → 라벨 락" 순서로 도는 라벨 저장
-        //   경로(LabelService.bulkUpsert)와 정확히 역순이 되어 ABBA 데드락(PG 40P01 → 500)이 열린다.
-        //   규약: <b>프레임 락을 항상 먼저</b>. 같은 트랜잭션이라 순서만 바뀔 뿐 원자성·결과는 동일하다.
-        // 범위(H11): 신고는 영상의 <b>전 프레임 라벨을 전량 삭제</b>하므로 rawSn 전체 bump 가 실제 변경
-        //   범위와 일치한다(과잉 무효화 아님).
-        srcRepository.bumpLabelVersionByRawSn(rawSn);
-        attrValRepository.deleteByLblSnIn(lblSns);
-        aiInfoRepository.deleteByDataLblSnIn(lblSns);
-        labelRepository.deleteAllByRawSn(rawSn);
-    }
-
-    /**
-     * 삭제 대상 라벨들의 삭제 이력을 LS_DATA_LBL_HSTRY 에 <b>프레임(srcSn) 단위 저장 이벤트</b>로 기록(saveAll).
-     *
-     * <p>V114 재구조화: 영상 전체 삭제는 여러 프레임에 걸치므로 srcSn 으로 group by 하여 프레임당
-     * DELETED 이벤트 1건(delCnt = 프레임 내 삭제 건수) 을 남긴다. 신고 경로는 행위자 PII 를
-     * 저장하지 않으므로 regId=null(복원 본문은 LS_LABEL_VERSION 스냅샷, 사유는 LS_DEIDENT_REPORT 보존).
-     */
-    private void recordDeletionHistory(List<LsDataLbl> labels) {
-        Map<Long, List<LsDataLbl>> bySrc = labels.stream()
-                .collect(Collectors.groupingBy(LsDataLbl::getSrcSn, LinkedHashMap::new, Collectors.toList()));
-        List<LsDataLblHstry> events = new ArrayList<>();
-        bySrc.forEach((srcSn, group) -> {
-            List<LabelChange> changes = group.stream()
-                    .map(l -> LabelChange.deleted(l.getLblSn(), l.getLabelNm(),
-                            new LabelSnapshot(l.getLblTypeCd(), l.getLabelId(), l.getLabelNm(), l.getPointCn())))
-                    .toList();
-            events.add(LsDataLblHstry.recordSaveEvent(srcSn, null, changes));
-        });
-        lblHstryRepository.saveAll(events);
     }
 
     /**

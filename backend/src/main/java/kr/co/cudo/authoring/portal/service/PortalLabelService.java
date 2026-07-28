@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.KeypointPoint;
 import kr.co.cudo.authoring.common.util.KeypointSerializer;
+import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.DatamartVideoResponse;
 import kr.co.cudo.authoring.portal.dto.PortalFrameLabelsResponse;
@@ -72,6 +73,12 @@ public class PortalLabelService {
     private final LsPortalUserLabelRepository userLabelRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
     private final VideoRepository videoRepository;
+    /**
+     * S7 (DEV_FIX-A/H2) — 비식별 누락 신고 구간 게이트. 포털은 <b>외부 채널</b>이라 노출 영향이 가장 크므로
+     * 내부 경로와 동일한 단일 게이트({@link LabelAccessGuard#requireNotUnderDeidentReport})를 재사용한다
+     * (판정 복제 금지 — 배선 누락이 결함의 원인이었다).
+     */
+    private final LabelAccessGuard accessGuard;
 
     /** 라벨 좌표 JSON 파싱용. 생성자 주입 (@RequiredArgsConstructor). */
     private final ObjectMapper objectMapper;
@@ -252,6 +259,13 @@ public class PortalLabelService {
             throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
         }
 
+        // S7 (DEV_FIX-A/H2 — HIGH, CWE-359) — 비식별 누락 신고 구간(DE_IDNTF_YN='F')에는 라벨 좌표를
+        //   내려주지 않는다. APPROVED 게이트만으로는 성립하지 않는 노출 경로다: 신고(report)는
+        //   LS_RAW_DATA_STATUS 를 건드리지 않아 APPROVED 가 유지되고, 정책 반전(2026-07-27)으로 라벨도
+        //   보존되므로 PORTAL_USER 가 PII 위치를 특정하는 좌표를 계속 읽을 수 있었다.
+        //   포털은 외부 채널이므로 역할 예외 없이 차단한다. resolve('F'→'Y') 로 자동 해제.
+        accessGuard.requireNotUnderDeidentReport(rawSn);
+
         List<PortalFrameLabelsResponse.Sibling> siblings =
                 srcRepository.findByRawSnOrderByFrameNoAsc(rawSn).stream()
                         .map(s -> new PortalFrameLabelsResponse.Sibling(s.getSrcSn(), Math.toIntExact(s.getFrameNo())))
@@ -397,6 +411,10 @@ public class PortalLabelService {
             log.warn("[Portal] frame image denied — video not approved srcSn={} rawSn={}", srcSn, src.getRawSn());
             throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
         }
+
+        // S7 (DEV_FIX-A/H2 — HIGH, CWE-359) — 신고 구간에는 "비식별 누락이 확인된" 그 비식별 프레임을
+        //   서빙하지 않는다(라벨 좌표보다 상위 위험 = 실제 PII 이미지). 라벨 조회와 동일 게이트·동일 조건.
+        accessGuard.requireNotUnderDeidentReport(src.getRawSn());
 
         // 비식별 경로만 (원본 폴백 금지)
         String deid = src.getDeidFilePath();

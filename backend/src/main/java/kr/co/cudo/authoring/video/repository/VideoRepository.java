@@ -39,6 +39,15 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Optional<LsDataRaw> findByRawSnForUpdate(@Param("rawSn") Long rawSn);
 
     /**
+     * S7 — 비식별 처리 코드({@code DE_IDNTF_YN}) 단일 컬럼 projection.
+     *
+     * <p>라벨 조회 게이트({@code LabelAccessGuard.requireNotUnderDeidentReport})가 매 조회마다 호출하므로
+     * 전체 row fetch 를 피한다(PK 인덱스 lookup + 1컬럼). 값이 NULL 인 행은 빈 Optional 로 온다(=통과).
+     */
+    @Query("SELECT r.deIdntfYn FROM LsDataRaw r WHERE r.rawSn = :rawSn")
+    Optional<String> findDeIdntfYnByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 수동 배치 재처리 클레임용 조건부 원자 전이 (CWE-362, check-and-set).
      *
      * <p>배치 단계 상태(DATA_STTS_CD)가 {@code fromStatus}(FAILED)일 때만 {@code toStatus}(PROCESSING)로

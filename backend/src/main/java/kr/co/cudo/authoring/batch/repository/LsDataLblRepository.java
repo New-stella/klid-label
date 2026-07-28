@@ -12,7 +12,7 @@ import java.util.Collection;
 import java.util.List;
 
 @ControlRepo
-public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
+public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsDataLblRepositoryCustom {
 
     List<LsDataLbl> findBySrcSn(Long srcSn);
 

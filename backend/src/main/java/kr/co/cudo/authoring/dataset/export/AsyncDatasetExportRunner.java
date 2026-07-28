@@ -112,7 +112,11 @@ public class AsyncDatasetExportRunner {
      * {@code false} 로 알려 상위(승인/수정 경로)가 통지를 보류하게 한다(HIGH-D). 실패는 WARN 로그 +
      * {@code LS_DATASET_EXPORT} FAILED 행으로 관측되고 회수기가 재산출한다.
      *
-     * @return 예외 없이 산출을 마쳤으면 {@code true}, 예외로 실패했으면 {@code false}
+     * <p><b>S7-EXPORT</b>: 비식별 누락 신고 구간({@code DE_IDNTF_YN='F'})은
+     * {@code DatasetExportService.export} 진입부 게이트가 예외로 이탈시키므로 여기서 {@code false} 가 되어
+     * <b>통지(완료 이벤트/콜백)도 함께 보류</b>된다 — 관제가 신고 상태 영상의 새 버전 폴더를 픽업하지 않는다.
+     *
+     * @return 예외 없이 산출을 마쳤으면 {@code true}, 예외로 실패했거나 게이트에 차단됐으면 {@code false}
      */
     private boolean doExport(Long rawSn, boolean forceRegenerate) {
         try {

@@ -55,8 +55,12 @@ class PortalLabelServiceKeypointTest {
         userLabelRepository = mock(LsPortalUserLabelRepository.class);
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         VideoRepository videoRepository = mock(VideoRepository.class);
+        // DEV_FIX-A(S7) — 비식별 신고 게이트(LabelAccessGuard)는 배선 검증용 IT
+        //   (DeidentReportGateCoverageIT) 에서 실 경로로 확인한다. 여기서는 no-op mock 으로 기존 검증에 집중.
+        var deidentGate = org.mockito.Mockito.mock(
+                kr.co.cudo.authoring.label.service.LabelAccessGuard.class);
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
-                rawDataStatusRepository, videoRepository, new ObjectMapper());
+                rawDataStatusRepository, videoRepository, deidentGate, new ObjectMapper());
 
         LsDataSrc frame = LsDataSrc.create(RAW_SN, 0, "/f.jpg", null);
         when(srcRepository.findById(SRC_SN)).thenReturn(Optional.of(frame));

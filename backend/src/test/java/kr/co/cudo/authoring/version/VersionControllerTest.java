@@ -203,11 +203,14 @@ class VersionControllerTest {
     // ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("POST_rollback_REVIEWER_정상_LS_LABEL_VERSION_새_row_INSERT")
+    @DisplayName("POST_rollback_REVIEWER_정상_대상_버전_행_재활성_적층없음")
     void postRollbackReviewerOk() throws Exception {
-        String pastHash = "feedface1234567890abcdef1234567890abcdef";
-        seedVersion(pastHash, "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
-        seedVersion("0000000000000000000000000000000000000000", "{\"items\":[{\"id\":1}]}",
+        // D-ISSUE-21 — 롤백은 새 행을 적층하지 않고 대상 버전 행을 다시 active 로 전환한다.
+        String pastPayload = "{\"items\":[]}";
+        String pastHash = sha256Hex(pastPayload);
+        seedVersion(pastHash, pastPayload, 1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
+        String currentPayload = "{\"items\":[{\"id\":1}]}";
+        seedVersion(sha256Hex(currentPayload), currentPayload,
                 2, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         RollbackRequest req = new RollbackRequest(srcSn);
@@ -216,27 +219,39 @@ class VersionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.versionHash").exists())
+                .andExpect(jsonPath("$.data.versionHash").value(pastHash))
                 .andExpect(jsonPath("$.data.srcSn").value(srcSn));
 
-        // ROLLBACK 신규 row + 이전 ACTIVE='Y' row 가 'N' 으로 deactivate
+        // 신규 row 없음(2건 유지) + 이전 ACTIVE='Y' row 가 'N' 으로 deactivate
         List<LsLabelVersion> all = labelVersionRepository.findAll();
-        assertThat(all).hasSize(3);
+        assertThat(all).hasSize(2);
         long activeCount = all.stream().filter(v -> "Y".equals(v.getActiveYn())).count();
         assertThat(activeCount).isEqualTo(1L);
         LsLabelVersion active = all.stream()
                 .filter(v -> "Y".equals(v.getActiveYn())).findFirst().orElseThrow();
-        assertThat(active.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_ROLLBACK);
+        assertThat(active.getVersionHash()).isEqualTo(pastHash);
         // 롤백 결과 스냅샷은 대상 버전의 페이로드를 복원한다.
-        assertThat(active.getLabelPayload()).isEqualTo("{\"items\":[]}");
+        assertThat(active.getLabelPayload()).isEqualTo(pastPayload);
+    }
+
+    private static String sha256Hex(String input) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            return java.util.HexFormat.of().formatHex(
+                    md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test
     @DisplayName("POST_rollback_배정된_WORKER_본인_프레임_정상_200")
     void postRollbackAssignedWorkerOk() throws Exception {
-        String pastHash = "feedface1234567890abcdef1234567890abcdef";
-        seedVersion(pastHash, "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
-        seedVersion("0000000000000000000000000000000000000000", "{\"items\":[{\"id\":9}]}",
+        String pastPayload = "{\"items\":[]}";
+        String pastHash = sha256Hex(pastPayload);
+        seedVersion(pastHash, pastPayload, 1, LsLabelVersion.SAVE_REASON_APPROVED, "1", false);
+        String currentPayload = "{\"items\":[{\"id\":9}]}";
+        seedVersion(sha256Hex(currentPayload), currentPayload,
                 2, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
 
         RollbackRequest req = new RollbackRequest(srcSn);
@@ -245,10 +260,11 @@ class VersionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.versionHash").exists());
+                .andExpect(jsonPath("$.data.versionHash").value(pastHash));
 
+        // 적층 없음 — 기존 2건 유지, active 1건.
         List<LsLabelVersion> all = labelVersionRepository.findAll();
-        assertThat(all).hasSize(3);
+        assertThat(all).hasSize(2);
         long activeCount = all.stream().filter(v -> "Y".equals(v.getActiveYn())).count();
         assertThat(activeCount).isEqualTo(1L);
     }

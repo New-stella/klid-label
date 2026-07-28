@@ -82,6 +82,30 @@ public class LsDataLblAiInfo {
         return info;
     }
 
+    /**
+     * 버전 롤백 복원 전용 — 스냅샷이 보유한 AI 메타를 그대로 되살린다(D-ISSUE-23).
+     *
+     * <p>{@link #create} 는 {@code autoLblYn='Y'} 를 강제하므로, 스냅샷의 {@code autoLblYn} 을 보존해야 하는
+     * 복원 경로에서는 본 팩토리를 사용한다. {@code lblSrcCd} 는 NOT NULL 컬럼이므로 호출자가 스냅샷에
+     * 출처 값이 있을 때만 호출해야 한다(없으면 provenance 를 <b>날조하지 않고</b> 적재를 생략한다).
+     *
+     * @param autoLblYn 스냅샷의 자동라벨 여부 ({@code null} 이면 'N' 으로 간주)
+     */
+    public static LsDataLblAiInfo createRestored(Long dataLblSn, Long rawSn, Long srcSn,
+                                                String lblSrcCd, BigDecimal confScore,
+                                                String autoLblYn, String regId) {
+        LsDataLblAiInfo info = new LsDataLblAiInfo();
+        info.dataLblSn = dataLblSn;
+        info.dataRawSn = rawSn;
+        info.dataSrcSn = srcSn;
+        info.lblSrcCd = lblSrcCd;
+        info.confScore = confScore;
+        info.autoLblYn = LsDataLbl.AUTO_YES.equals(autoLblYn) ? LsDataLbl.AUTO_YES : LsDataLbl.AUTO_NO;
+        info.regId = regId;
+        info.regDt = LocalDateTime.now();
+        return info;
+    }
+
     public void updateConfidence(BigDecimal newScore, String actorId) {
         this.confScore = newScore;
         this.mdfcnId = actorId;
