@@ -4,9 +4,9 @@ import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.batch.runner.AsyncVideoMetaRunner;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.common.util.ExternalUrlValidator;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -14,13 +14,15 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.runner.AsyncAugmentFrameRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.util.StringUtils;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -77,15 +79,18 @@ public class AugmentResultService {
      */
     private final AsyncAugmentFrameRunner asyncAugmentFrameRunner;
     /**
-     * 증강본 기술메타(ffprobe) 추출 트리거. {@code VideoIngestedEvent} 미발행 경로라 메타추출 브리지가
-     * 스킵되므로 증강 생성 커밋 후 직접 호출한다(비식별은 트리거하지 않음 — 재비식별 skip 유지).
-     */
-    private final AsyncVideoMetaRunner asyncVideoMetaRunner;
-    /**
      * 적재 시점 경로 검증용 — 콜백이 준 {@code raw_file_path_nm} 이 고정 allowlist(마운트 루트) 하위인지
-     * 확인한다. Phase 5A 이후 이 값이 산출물 <b>쓰기 base</b> 로 승격됐기 때문이다({@link #validateFilePath}).
+     * 확인한다({@link #validateFilePath}).
      */
     private final VideoArtifactRootResolver artifactRootResolver;
+
+    /**
+     * 파생영상(비식별 사본) 출력 base — <b>비식별 저장소</b>. 파생영상의 유일한 비디오 산출물은 부모
+     * 비식별 영상의 복사본이므로 그 경로도 비식별 저장소 서브트리({@code videos/augment/…})에 있다
+     * (해상도 파생 {@code ResolutionReservationPersister} 와 동일 규약).
+     */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
+    private String storageDeidentifiedPath;
 
     /**
      * @return true = 신규 적재 / false = 재전송 멱등 스킵(신규 영상 미생성)
@@ -188,14 +193,30 @@ public class AugmentResultService {
             return;
         }
 
-        // 외부 시스템이 빈/공백 경로를 보내면 부모(원본) 경로로 폴백한다. 공백(" ")도 non-null 이라
-        // != null 판정으로는 폴백이 안 돼 죽은 RAW 행이 커밋되므로 StringUtils.hasText 로 판정한다.
-        // (validateFilePath 는 공백을 스킵하고, 부모 경로는 부모 적재 시점에 이미 검증된 신뢰 경로다.)
-        String filePath = StringUtils.hasText(outcome.rawFilePathNm())
-                ? outcome.rawFilePathNm()
-                : parentRaw.getRawFilePathNm();
-        // createFromAugment 기본값(PENDING·deIdntfYn='N') 그대로 커밋. 추가 상태 세팅 없음(async 에서 확정).
-        LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(parentRaw, filePath, aug.getAugTypeCd()));
+        // [파생영상은 원본이 없다] RAW_FILE_PATH_NM 에는 <파생 자신의 비식별 사본 경로>를 적재한다.
+        //
+        // 구 구현은 콜백이 준 경로(통상 공백)를 쓰고 공백이면 <부모의 RAW_FILE_PATH_NM(비식별 이전 원본
+        // NAS 경로)>으로 폴백했다. 그러면 ①파생 행이 부모의 PII 원본 경로를 보유하고(CWE-359) ②그 값이
+        // 승인 동결(LS_DATASET_VIDEO_META)을 거쳐 관제 뷰로 노출되며 ③DB 가 가리키는 파일과 실제 산출
+        // 파일(Phase B 가 복사한 videoDst)이 서로 다른 파일이 된다.
+        //
+        // 증강 AI 는 이미지-to-이미지라 영상을 재생성하지 않으므로 파생의 비디오는 항상 <부모 비식별
+        // 영상의 복사본>이고 그 위치는 {@link StorageSubtreePolicy#augmentVideoFile} 규약으로 결정된다
+        // (Phase A {@code AugmentExtractSnapshot} 의 videoDst 와 <동일 계산식> → 값이 일치한다).
+        // 외부가 준 경로는 신뢰 대상이 아니므로 쓰기 base 로 승격하지 않는다(위 validateFilePath 는
+        // 손상/allowlist 밖 페이로드를 입구에서 거르는 방어로 유지).
+        //
+        // 경로 키에 파생 RAW_SN 이 들어가야 하는데 RAW_SN 은 INSERT 이후에만 알 수 있으므로, 해상도 파생
+        // (ResolutionReservationPersister A-6)과 동일하게 ①잠정 경로로 INSERT(NOT NULL 충족) → ②확정
+        // RAW_SN 으로 최종 경로 배정 순으로 처리한다. 같은 트랜잭션이라 잠정값은 외부에 커밋·관측되지
+        // 않으며, LS_DATA_RAW 는 @DynamicUpdate 라 UPDATE 는 RAW_FILE_PATH_NM 한 컬럼만 건드린다.
+        Path deidBase = deidBase();
+        LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(
+                parentRaw, provisionalVideoPath(deidBase, parentRaw.getRawSn(), aug.getAugTypeCd()),
+                aug.getAugTypeCd()));
+        newRaw.assignDerivativeVideoPath(resolveSafeDeidFile(deidBase,
+                StorageSubtreePolicy.augmentVideoFile(
+                        parentRaw.getRawSn(), newRaw.getRawSn(), aug.getAugTypeCd())).toString());
 
         // 커밋 후 비동기 프레임 재추출 + 라벨/메타 복사 + 비식별 완료 불변식 확정 트리거.
         triggerAsyncFrameExtractionAfterCommit(newRaw.getRawSn(), aug.getDataAugSn());
@@ -205,10 +226,15 @@ public class AugmentResultService {
     }
 
     /**
-     * 증강 프레임 재추출/메타추출을 <b>커밋 이후</b>에 트리거한다. 두 러너 모두 REQUIRES_NEW 독립
-     * 트랜잭션에서 새 RAW_SN 을 재조회하므로, 외부 트랜잭션 커밋 전에 호출하면 새 영상이 아직 보이지
-     * 않는 레이스가 생긴다. 트랜잭션 동기화가 활성이면 AFTER_COMMIT 으로 미룬다. 동기화 미활성(단위
-     * 테스트 등)이면 직접 호출로 폴백한다.
+     * 증강 프레임 재추출을 <b>커밋 이후</b>에 트리거한다. 러너가 REQUIRES_NEW 독립 트랜잭션에서 새
+     * RAW_SN 을 재조회하므로, 외부 트랜잭션 커밋 전에 호출하면 새 영상이 아직 보이지 않는 레이스가
+     * 생긴다. 트랜잭션 동기화가 활성이면 AFTER_COMMIT 으로 미룬다. 동기화 미활성(단위 테스트 등)이면
+     * 직접 호출로 폴백한다.
+     *
+     * <p><b>기술메타(ffprobe) 러너는 여기서 기동하지 않는다</b> — 파생의 기술메타는 <b>파생의 비식별
+     * 사본</b>을 측정한 값이어야 하는데 그 사본은 프레임 러너의 Phase B 가 만든다. 두 러너를 같은
+     * AFTER_COMMIT 에서 나란히 기동하면 순서 보장이 없어 사본 생성 전에 probe 가 돌 수 있다(레이스).
+     * 따라서 메타 추출은 {@link AsyncAugmentFrameRunner} 가 <b>확정(Phase C) 성공 이후</b> 트리거한다.
      */
     private void triggerAsyncFrameExtractionAfterCommit(Long newRawSn, Long dataAugSn) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -216,13 +242,39 @@ public class AugmentResultService {
                 @Override
                 public void afterCommit() {
                     asyncAugmentFrameRunner.runAsync(newRawSn, dataAugSn);
-                    asyncVideoMetaRunner.runAsync(newRawSn);
                 }
             });
         } else {
             asyncAugmentFrameRunner.runAsync(newRawSn, dataAugSn);
-            asyncVideoMetaRunner.runAsync(newRawSn);
         }
+    }
+
+    /** 비식별 저장소 base(정규화 절대경로) — 파생 산출물 출력 base. */
+    private Path deidBase() {
+        return Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
+    }
+
+    /**
+     * INSERT 시점 잠정 경로 — {@code RAW_FILE_PATH_NM} 이 NOT NULL 이라 필요한 자리표시자다. 최종 경로는
+     * 확정 RAW_SN 이 붙은 {@link StorageSubtreePolicy#augmentVideoFile} 로 같은 트랜잭션 안에서 즉시
+     * 교체된다(잠정값이 커밋되는 경로는 존재하지 않는다 — 해상도 파생과 동일).
+     */
+    private static String provisionalVideoPath(Path base, Long parentRawSn, String augTypeCd) {
+        return resolveSafeDeidFile(base, StorageSubtreePolicy.SEG_VIDEOS + "/"
+                + StorageSubtreePolicy.SEG_AUGMENT + "/" + parentRawSn
+                + "/.pending/" + augTypeCd + ".mp4").toString();
+    }
+
+    /**
+     * 파생 비디오 경로 해석 — base 하위 + <b>비식별 전용 서브트리</b> 검증(CWE-22 / CWE-359).
+     * 두 저장소 base 가 같은 경로인 운영 형상에서도 파생 산출물이 원본 서브트리로 새지 않게 한다.
+     */
+    private static Path resolveSafeDeidFile(Path base, String relative) {
+        Path resolved = base.resolve(relative).normalize();
+        if (!StorageSubtreePolicy.isDeidentifiedArtifact(base, resolved)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "출력 경로가 허용된 비식별 저장 경로를 벗어납니다.");
+        }
+        return resolved;
     }
 
     /**
@@ -244,9 +296,9 @@ public class AugmentResultService {
      * <ul>
      *   <li><b>URL 형태</b> — SSRF 차단({@link ExternalUrlValidator}).</li>
      *   <li><b>로컬 경로</b> — 고정 allowlist(마운트 루트) 하위인지 <b>적재 시점</b>에 확인한다(CWE-20/22).
-     *       Phase 5A(co-locate) 이후 이 값은 읽기 힌트가 아니라 산출물 <b>쓰기 base</b> 다 —
-     *       승인 시 {@code dirname(값)/{rawSn}/} 에 원본 프레임 JPG·JSON 이 기록된다. 승인 시점 리졸버
-     *       가드만 두면 오염된 경로가 DB 에 남아 방어선이 1겹이 되므로 입구에서도 거른다.</li>
+     *       파생영상의 {@code RAW_FILE_PATH_NM} 은 더 이상 이 값에서 오지 않지만(파생 자신의 비식별
+     *       사본 경로를 우리가 계산해 넣는다), 손상되거나 allowlist 밖을 가리키는 페이로드는 입구에서
+     *       거부해 이후 어떤 경로로도 승격될 수 없게 유지한다(fail-closed 다층 방어).</li>
      * </ul>
      * 거부 메시지에 경로 원문/NAS 구조를 담지 않는다(CWE-209).
      */

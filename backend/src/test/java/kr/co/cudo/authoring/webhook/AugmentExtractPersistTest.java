@@ -133,6 +133,8 @@ class AugmentExtractPersistTest {
                                     List<AugmentExtractPlan.FrameSpec> frames) {
         return new AugmentExtractPlan(newRawSn, parentRawSn, dataAugSn, "rev1",
                 Paths.get("/tmp/deid/frames/deid/" + parentRawSn + "/frame-0.jpg"),
+                Paths.get("/tmp/deid/videos/" + parentRawSn + "/deidentified.mp4"),
+                Paths.get("/tmp/deid/videos/augment/" + parentRawSn + "/" + newRawSn + "/WINTER.mp4"),
                 Paths.get("/tmp/deid/frames/deid/" + newRawSn), frames);
     }
 
@@ -156,9 +158,10 @@ class AugmentExtractPersistTest {
     }
 
     @Test
-    @DisplayName("프레임추출_성공후_SUCCESS_procLog가_증강경로로_저장된다")
-    void savesSuccessProcLogWithAugmentPath() {
-        LsDataRaw newRaw = newAugRaw(9002L, 130L, "/storage/augment/70.mp4");
+    @DisplayName("기록된_경로가_실제_복사된_파일_파생비디오를_가리킨다")
+    void savesSuccessProcLogWithCopiedDerivativeVideoPath() {
+        // given — RAW_FILE_PATH_NM 은 부모 원본 경로로 폴백돼 있다(생성형 AI 는 영상을 안 준다).
+        LsDataRaw newRaw = newAugRaw(9002L, 130L, "/storage/raw/130.mp4");
         when(videoRepository.findById(9002L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(70L)).thenReturn(Optional.of(aug(70L)));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
@@ -170,7 +173,9 @@ class AugmentExtractPersistTest {
         verify(deidentProcLogRepository, times(1)).save(logCaptor.capture());
         LsDeidentProcLog saved = logCaptor.getValue();
         assertThat(saved.getProcSttsCd()).isEqualTo(LsDeidentProcLog.SUCCEEDED);
-        assertThat(saved.getDeIdntfFilePathNm()).isEqualTo("/storage/augment/70.mp4");
+        // 비식별 결과 경로 = Phase B 가 실제로 복사한 파생 비디오. 원본 경로를 기록하면 원본이 서빙된다.
+        assertThat(saved.getDeIdntfFilePathNm()).isEqualTo(p.videoDst().toString());
+        assertThat(saved.getDeIdntfFilePathNm()).isNotEqualTo(newRaw.getRawFilePathNm());
     }
 
     @Test

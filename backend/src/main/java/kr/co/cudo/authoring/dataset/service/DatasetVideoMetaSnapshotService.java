@@ -110,8 +110,16 @@ public class DatasetVideoMetaSnapshotService {
         String season = firstNonNull(src.getSesnCd(), TimeOfDaySeasonDeriver.season(src.getShtDt()));
         // 자동 출처 없음 — 수동 입력값이 곧 전부. 공백은 미입력(null)으로 정규화해 동결값·해시를 일치시킨다.
         String weather = nullIfBlank(src.getWthrNm());
-        String aiCreatedYn = (src.getOrgnlRawSn() != null)
-                ? LsDatasetVideoMeta.ACTIVE_YES : LsDatasetVideoMeta.ACTIVE_NO;
+        boolean derivative = (src.getOrgnlRawSn() != null);
+        String aiCreatedYn = derivative ? LsDatasetVideoMeta.ACTIVE_YES : LsDatasetVideoMeta.ACTIVE_NO;
+        // 파생영상(증강·해상도)에는 <원본 영상이 존재하지 않는다> — 비식별 사본 한 벌만 있다. 따라서
+        // "원본 영상 경로"로 동결·노출할 값 자체가 없으므로 null 로 동결한다(관제 뷰
+        // V_COMPLETED_VIDEO.ORIGINAL_VIDEO_PATH = m.RAW_FILE_PATH_NM 이 파생 행에서 NULL 이 된다).
+        // 이 한 곳이 관제 노출의 단일 진입점이라 증강/해상도 두 파생 경로가 동시에 정합된다.
+        // 비식별 영상 경로는 뷰의 DE_IDNTF_FILE_PATH_NM(procLog 적재값, V138)으로 여전히 제공된다.
+        // 주의: 산출물 co-locate base 는 라이브 LS_DATA_RAW.RAW_FILE_PATH_NM 을 쓰므로(export 우선순위)
+        // 이 동결값을 비워도 파생영상 export 는 그대로 동작한다.
+        String frozenRawFilePathNm = derivative ? null : src.getRawFilePathNm();
 
         BigDecimal fps = parseBigDecimal(src.getVideoFps());
         Long bitRate = parseLong(src.getVideoBitRate());
@@ -125,7 +133,7 @@ public class DatasetVideoMetaSnapshotService {
         // 4) 멱등키 — 동결 내용(관리 컬럼 제외)의 정규화 해시.
         String hash = snapshotHasher.hash(buildHashFields(
                 src, resolution, aspectRatio, dayNight, season, weather, aiCreatedYn, fps, bitRate, fileSize,
-                frozenEventAnno));
+                frozenEventAnno, frozenRawFilePathNm));
 
         // 5) 엔티티 조립. RVW_CMPL_DT 는 백필이면 과거 승인 시각(소급), 실시간 승인이면 now().
         LocalDateTime now = LocalDateTime.now();
@@ -137,7 +145,7 @@ public class DatasetVideoMetaSnapshotService {
                 .orgnlRawSn(src.getOrgnlRawSn())
                 .vmsClipId(src.getVmsClipId())
                 .vmsCctvId(src.getVmsCctvId())
-                .rawFilePathNm(src.getRawFilePathNm())
+                .rawFilePathNm(frozenRawFilePathNm) // 파생영상은 원본 부재 → null 동결(관제 미노출).
                 .shtDt(src.getShtDt())
                 .vdoLenSec(src.getVdoLenSec())
                 .lclgvCd(src.getLclgvCd())
@@ -197,14 +205,16 @@ public class DatasetVideoMetaSnapshotService {
                                                 BigDecimal aspectRatio, String dayNight, String season,
                                                 String weather, String aiCreatedYn, BigDecimal fps,
                                                 Long bitRate, Long fileSize,
-                                                String frozenEventAnno) {
+                                                String frozenEventAnno, String frozenRawFilePathNm) {
         Map<String, String> f = new TreeMap<>();
         f.put("EVNT_ANNO_CN", frozenEventAnno);
         f.put("RAW_SN", str(src.getRawSn()));
         f.put("ORGNL_RAW_SN", str(src.getOrgnlRawSn()));
         f.put("VMS_CLIP_ID", src.getVmsClipId());
         f.put("VMS_CCTV_ID", src.getVmsCctvId());
-        f.put("RAW_FILE_PATH_NM", src.getRawFilePathNm());
+        // 해시 입력도 <동결값>이어야 한다 — 소스값(src)을 넣으면 파생영상에서 "동결된 내용"과 "해시가
+        // 대표하는 내용"이 어긋나 멱등 식별이 깨진다.
+        f.put("RAW_FILE_PATH_NM", frozenRawFilePathNm);
         f.put("SHT_DT", str(src.getShtDt()));
         f.put("VDO_LEN_SEC", str(src.getVdoLenSec()));
         f.put("LCLGV_CD", src.getLclgvCd());

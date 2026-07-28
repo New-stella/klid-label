@@ -183,6 +183,72 @@ class DatasetExportServiceIT {
         });
     }
 
+    /**
+     * 파생영상(증강) 1건 시드 — <b>원본이 없는 형상</b>을 그대로 재현한다.
+     * <ul>
+     *   <li>{@code LS_DATA_RAW.RAW_FILE_PATH_NM} = 파생 자신의 <b>비식별 사본</b> 경로
+     *       ({@code {deid}/videos/augment/{parent}/{new}/WINTER.mp4}) — 산출 co-locate base 원천</li>
+     *   <li>프레임은 비식별 경로만 보유(원본 경로 null, V133 정책 A)</li>
+     *   <li>활성 메타 스냅샷의 {@code RAW_FILE_PATH_NM} = <b>null</b>(파생은 원본 부재 → 관제 미노출)</li>
+     * </ul>
+     * 이 상태에서도 export 가 SUCCEEDED 로 마감돼야 한다(co-locate 회귀 방어).
+     */
+    private long seedDerivativeVideoWithLabel() {
+        return txTemplate.execute(s -> {
+            LsDataRaw parent = videoRepository.save(LsDataRaw.createFromIngest(
+                    "clip-parent-" + System.nanoTime(), "cctv-1", "EVT", "GOV",
+                    LsDataRaw.PRVC_TYPE_PRVC, originalVideoPath(), null, 60));
+            // 파생 RAW 는 부모 참조(ORGNL_RAW_SN)를 갖고, 경로는 잠정값 → 확정 사본 경로로 배정한다.
+            LsDataRaw derivative = videoRepository.save(LsDataRaw.createFromAugment(
+                    parent, derivativeVideoPath(parent.getRawSn(), 0L), "WINTER"));
+            Long rawSn = derivative.getRawSn();
+            derivative.assignDerivativeVideoPath(derivativeVideoPath(parent.getRawSn(), rawSn));
+            videoRepository.save(derivative);
+            videoMetaRepository.save(LsDatasetVideoMeta.builder()
+                    .rawSn(rawSn)
+                    .snpshtHash("hd-" + rawSn)
+                    .activeYn(LsDatasetVideoMeta.ACTIVE_YES)
+                    .orgnlRawSn(parent.getRawSn())
+                    .vdoWdth(1920)
+                    .vdoHgt(1080)
+                    .rawFilePathNm(null) // 파생 = 원본 부재 → null 동결
+                    .regDt(LocalDateTime.now())
+                    .build());
+            LsDataSrc frame = LsDataSrc.create(rawSn, 0, 0L, null,
+                    DEID_FRAME_IMAGE_REL_PATH, LocalDateTime.now());
+            frame = srcRepository.save(frame);
+            labelRepository.save(LsDataLbl.createManual(
+                    frame.getSrcSn(), "BBOX", null, "car", "[[1,2],[3,4]]", null));
+            return rawSn;
+        });
+    }
+
+    /** 파생 비디오(비식별 사본) 절대경로 — {@code StorageSubtreePolicy.augmentVideoFile} 규약. */
+    private String derivativeVideoPath(long parentRawSn, long derivativeRawSn) {
+        return Paths.get(deidStoragePath).toAbsolutePath().normalize()
+                .resolve("videos/augment/" + parentRawSn + "/" + derivativeRawSn + "/WINTER.mp4")
+                .toString();
+    }
+
+    @Test
+    @DisplayName("파생영상의_export_가_정상_생성된다")
+    void derivativeVideoExportSucceeds() {
+        // given — 원본이 없는 파생영상(동결 메타의 원본 경로 null)
+        long rawSn = seedDerivativeVideoWithLabel();
+
+        // when
+        exportService.export(rawSn);
+
+        // then — co-locate base 는 라이브 RAW_FILE_PATH_NM(=파생 사본 경로)에서 도출되므로 산출이 성립한다.
+        Optional<LsDatasetExport> latest = txTemplate.execute(s ->
+                exportRepository.findFirstByDataRawSnOrderByExportVerNoDesc(rawSn));
+        assertThat(latest).isPresent();
+        assertThat(latest.get().getExportSttsCd()).isEqualTo(LsDatasetExport.STATUS_SUCCEEDED);
+        assertThat(latest.get().getExportPathNm()).isNotNull();
+        // 산출 루트는 파생 전용 디렉터리 하위 — 부모 원본 디렉터리에 쓰지 않는다.
+        assertThat(latest.get().getExportPathNm()).contains("/videos/augment/");
+    }
+
     @Test
     @DisplayName("승인_산출시_LS_DATASET_EXPORT_v1이_SUCCEEDED로_기록되고_해시가_영속된다")
     void exportCreatesSucceededV1() {

@@ -139,7 +139,11 @@ public class AugmentExtractPersist {
         //  실행 후 영속성 컨텍스트를 clear 한다(구 upsertMeta clearAutomatically 재현). 확정을 뒤에 두면 clear 로
         //  detach 된 newRaw 의 dirty 변경(COMPLETED·deIdntfYn='Y')이 flush 되지 않아 신규 RAW 가 영영
         //  확정되지 않는다. 앞에 두면 배치 upsert 의 flush(실행 전)가 이 변경들을 먼저 flush 한다.
-        String filePath = newRaw.getRawFilePathNm();
+        //  [경로] 비식별 결과 경로는 Phase B 가 <실제로 복사한> 파생 비디오({@code plan.videoDst()})다.
+        //  구현은 여기에 newRaw.RAW_FILE_PATH_NM(=부모 원본 NAS 경로 폴백)을 적었는데, 그러면 파생영상의
+        //  "비식별 결과"가 부모의 <원본> 파일을 가리켜 ①스트리밍이 허용 base 밖으로 거부되거나
+        //  ②두 저장소 base 가 같은 운영 형상에서는 원본(비-비식별)이 서빙된다(CWE-359).
+        String filePath = plan.videoDst().toString();
         newRaw.markDeidentified("Y");
         newRaw.markCompleted();
         LsDeidentProcLog procLog = LsDeidentProcLog.request(newRaw.getRawSn(), null, filePath, "aug-frame-extract");

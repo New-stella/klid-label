@@ -5,7 +5,9 @@ import kr.co.cudo.authoring.augment.entity.LsDataAugJobFile;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobFileRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -48,13 +50,23 @@ class AugmentExtractSnapshotTest {
     @Mock LsDataAugRepository augRepository;
     @Mock LsDataSrcRepository srcRepository;
     @Mock LsDataAugJobFileRepository jobFileRepository;
+    @Mock LsDeidentProcLogRepository deidentProcLogRepository;
 
     private AugmentExtractSnapshot snapshot;
 
     @BeforeEach
     void setup() {
-        snapshot = new AugmentExtractSnapshot(videoRepository, augRepository, srcRepository, jobFileRepository);
+        snapshot = new AugmentExtractSnapshot(videoRepository, augRepository, srcRepository, jobFileRepository,
+                deidentProcLogRepository, null);
         ReflectionTestUtils.setField(snapshot, "storageDeidentifiedPath", "/tmp/klid-deid");
+    }
+
+    /** 부모 비식별 <영상> 경로(procLog 값) 스텁 — 파일명은 조합하지 않고 적재된 값을 쓴다. */
+    private void givenParentDeidVideo(Long parentRawSn, String path) {
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(parentRawSn, null, "/storage/raw/x.mp4", "test");
+        procLog.succeed(path);
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(parentRawSn))
+                .thenReturn(Optional.of(procLog));
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -118,6 +130,7 @@ class AugmentExtractSnapshotTest {
         givenMappings(20L, List.of(
                 mapping(1L, 1, 600L, "/nas/genai/job-1/a_gen.jpg"),
                 mapping(1L, 2, 601L, "/nas/genai/job-1/b_gen.png")));
+        givenParentDeidVideo(100L, "/tmp/klid-deid/videos/100/deidentified.mp4");
 
         // when
         Optional<AugmentExtractPlan> opt = snapshot.snapshot(9001L, 20L);
@@ -142,6 +155,67 @@ class AugmentExtractSnapshotTest {
         // 해상도 기준 = 위탁했던 부모 비식별 프레임.
         assertThat(plan.referenceFrame().toString().replace('\\', '/'))
                 .isEqualTo("/tmp/klid-deid/frames/deid/100/frame-0.jpg");
+    }
+
+    @Test
+    @DisplayName("복사_소스는_부모의_비식별_영상이며_원본이_아니다")
+    void videoCopySourceIsParentDeidentifiedVideo() {
+        // given — 부모 원본은 /storage/raw/110.mp4, 비식별본은 procLog 에 적재된 값(파일명 고정 아님).
+        LsDataRaw newRaw = newAugRaw(9020L, 110L, "/storage/raw/110.mp4");
+        when(videoRepository.findById(9020L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(30L)).thenReturn(Optional.of(aug(30L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(110L))
+                .thenReturn(List.of(parentFrame(600L, 110L, 0, 100L)));
+        givenMappings(30L, List.of(mapping(1L, 1, 600L, "/nas/genai/job-1/a.jpg")));
+        givenParentDeidVideo(110L, "/tmp/klid-deid/videos/110/110-mask.mp4");
+
+        // when
+        AugmentExtractPlan plan = snapshot.snapshot(9020L, 30L).orElseThrow();
+
+        // then — 소스는 procLog 값(비식별본) 그대로이며 원본 경로가 아니다.
+        assertThat(plan.deidVideoSrc().toString().replace('\\', '/'))
+                .isEqualTo("/tmp/klid-deid/videos/110/110-mask.mp4");
+        assertThat(plan.deidVideoSrc().toString()).isNotEqualTo("/storage/raw/110.mp4");
+        // 목적지 = 파생 전용 경로(부모 파일과 겹치지 않음) — 해상도 파생과 동일 규약.
+        assertThat(plan.videoDst().toString().replace('\\', '/'))
+                .isEqualTo("/tmp/klid-deid/videos/augment/110/9020/WINTER.mp4");
+        assertThat(plan.videoDst()).isNotEqualTo(plan.deidVideoSrc());
+    }
+
+    @Test
+    @DisplayName("부모_비식별_영상경로가_없으면_원본으로_폴백하지_않고_실패한다")
+    void missingParentDeidVideo_failsClosed() {
+        LsDataRaw newRaw = newAugRaw(9021L, 111L, "/storage/raw/111.mp4");
+        when(videoRepository.findById(9021L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(31L)).thenReturn(Optional.of(aug(31L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(111L))
+                .thenReturn(List.of(parentFrame(600L, 111L, 0, 100L)));
+        givenMappings(31L, List.of(mapping(1L, 1, 600L, "/nas/genai/job-1/a.jpg")));
+        // 부모 SUCCESS procLog 없음 — 폴백하면 원본(비-비식별)을 복제하게 된다.
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(111L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> snapshot.snapshot(9021L, 31L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("NOT_FOUND");
+    }
+
+    @Test
+    @DisplayName("부모_비식별_영상경로가_허용_비식별_저장경로_밖이면_거부된다")
+    void parentDeidVideoOutsideDeidBase_rejected() {
+        LsDataRaw newRaw = newAugRaw(9022L, 112L, "/storage/raw/112.mp4");
+        when(videoRepository.findById(9022L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(32L)).thenReturn(Optional.of(aug(32L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(112L))
+                .thenReturn(List.of(parentFrame(600L, 112L, 0, 100L)));
+        givenMappings(32L, List.of(mapping(1L, 1, 600L, "/nas/genai/job-1/a.jpg")));
+        // 비식별 저장소 밖(원본 저장소) 경로 — 원본 픽셀 복제를 막기 위해 fail-secure.
+        givenParentDeidVideo(112L, "/storage/raw/112.mp4");
+
+        assertThatThrownBy(() -> snapshot.snapshot(9022L, 32L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
     }
 
     @Test
@@ -183,6 +257,7 @@ class AugmentExtractSnapshotTest {
                 mapping(1L, 1, 700L, "/nas/genai/job-1/1.jpg"),
                 mapping(2L, 2, 701L, "/nas/genai/job-2/2.jpg"),
                 mapping(3L, 3, 702L, "/nas/genai/job-3/3.jpg")));
+        givenParentDeidVideo(102L, "/tmp/klid-deid/videos/102/deidentified.mp4");
 
         // when
         AugmentExtractPlan plan = snapshot.snapshot(9003L, 22L).orElseThrow();

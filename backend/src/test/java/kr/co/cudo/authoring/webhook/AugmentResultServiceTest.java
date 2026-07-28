@@ -56,7 +56,9 @@ class AugmentResultServiceTest {
     @Mock VideoRepository videoRepository;
     @Mock LsDataSrcRepository srcRepository;
     @Mock AsyncAugmentFrameRunner asyncAugmentFrameRunner;
-    @Mock AsyncVideoMetaRunner asyncVideoMetaRunner;
+
+    /** 파생 비디오(비식별 사본) 출력 base — 산출 경로 기대값 계산에 함께 쓴다. */
+    private static final String DEID_BASE = "/storage/deidentified";
 
     private AugmentResultService service;
     private final java.util.concurrent.atomic.AtomicLong rawSnSeq = new java.util.concurrent.atomic.AtomicLong(9000);
@@ -71,10 +73,19 @@ class AugmentResultServiceTest {
                 VideoArtifactRootResolver.STRATEGY_CO_LOCATE);
     }
 
+    /** 파생영상의 확정 산출 경로 — {@code AugmentExtractSnapshot.videoDst} 와 동일 계산식이어야 한다. */
+    private static String expectedDerivativeVideoPath(long parentRawSn, long newRawSn, String augType) {
+        return java.nio.file.Paths.get(DEID_BASE).toAbsolutePath().normalize()
+                .resolve("videos/augment/" + parentRawSn + "/" + newRawSn + "/" + augType + ".mp4")
+                .toString();
+    }
+
     @BeforeEach
     void setup() {
         service = new AugmentResultService(augRepository, videoRepository, srcRepository,
-                asyncAugmentFrameRunner, asyncVideoMetaRunner, allowedStorageResolver());
+                asyncAugmentFrameRunner, allowedStorageResolver());
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                service, "storageDeidentifiedPath", DEID_BASE);
         when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
             LsDataRaw r = inv.getArgument(0);
             setField(r, "rawSn", rawSnSeq.incrementAndGet());
@@ -264,7 +275,9 @@ class AugmentResultServiceTest {
         // Phase 11 — 동기 커밋 직후엔 PENDING·deIdntfYn='N' (비식별 완료 불변식은 async 성공 후에만).
         assertThat(newRaw.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
         assertThat(newRaw.getDeIdntfYn()).isEqualTo("N");
-        assertThat(newRaw.getRawFilePathNm()).isEqualTo("/storage/augment/winter.mp4");
+        // 파생영상의 경로는 <파생 자신의 비식별 사본> 경로다(외부가 준 경로도, 부모 원본도 아니다).
+        assertThat(newRaw.getRawFilePathNm())
+                .isEqualTo(expectedDerivativeVideoPath(100L, newRaw.getRawSn(), "WINTER"));
 
         // 신규 RAW_SN + dataAugSn 으로 프레임 재추출 러너 1회 트리거.
         ArgumentCaptor<Long> rawSnCaptor = ArgumentCaptor.forClass(Long.class);
@@ -305,7 +318,7 @@ class AugmentResultServiceTest {
     }
 
     @Test
-    @DisplayName("증강_콜백의_rawFilePathNm_이_허용루트_하위면_정상_적재된다")
+    @DisplayName("증강_콜백의_rawFilePathNm_이_허용루트_하위면_정상_처리된다")
     void rawFilePathInsideAllowedRoots_isAccepted() throws Exception {
         // given — 허용 마운트 루트(/storage) 하위 경로(양성 케이스)
         LsDataRaw parentRaw = newRaw(190L);
@@ -327,14 +340,17 @@ class AugmentResultServiceTest {
         assertThat(applied).isTrue();
         ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
         verify(videoRepository).save(rawCaptor.capture());
-        assertThat(rawCaptor.getValue().getRawFilePathNm()).isEqualTo("/storage/augment/75.mp4");
+        // 외부가 준 경로는 검증만 통과하고 쓰기 base 로 승격되지 않는다 — 파생 자신의 비식별 사본 경로가 적재된다.
+        assertThat(rawCaptor.getValue().getRawFilePathNm())
+                .isEqualTo(expectedDerivativeVideoPath(190L, rawCaptor.getValue().getRawSn(), "WINTER"));
     }
 
     @Test
-    @DisplayName("공백_rawFilePathNm_이면_부모_원본경로로_폴백된다")
-    void blankRawFilePathNm_fallsBackToParentPath() throws Exception {
-        // given — 외부 시스템이 공백(" ") 경로를 보냄. != null 판정으로는 폴백이 안 돼 죽은 행이 남는다.
-        LsDataRaw parentRaw = newRaw(195L); // 부모 경로 = /storage/raw/195.mp4
+    @DisplayName("파생영상에_부모의_비식별_이전_원본경로가_기록되지_않는다")
+    void derivativeNeverRecordsParentOriginalPath() throws Exception {
+        // given — 외부 시스템이 공백(" ") 경로를 보내는 통상 케이스(증강 AI 는 영상을 재생성하지 않는다).
+        //         구 구현은 이때 부모의 RAW_FILE_PATH_NM(비식별 이전 원본 NAS 경로)으로 폴백했다.
+        LsDataRaw parentRaw = newRaw(195L); // 부모 원본 경로 = /storage/raw/195.mp4
         LsDataSrc originSrc = newSrc(770L, 195L, 0);
         LsDataAug aug = newAugWithSrc(77L, 770L, "WINTER");
 
@@ -350,12 +366,16 @@ class AugmentResultServiceTest {
         // when
         boolean applied = service.handle(req);
 
-        // then — 공백은 부모(원본) 경로로 폴백되어 저장된다(공백 base 죽은 행 방지).
+        // then — 부모 원본 경로는 절대 실리지 않고(CWE-359), 파생 자신의 비식별 사본 경로가 적재된다.
         assertThat(applied).isTrue();
         ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
         verify(videoRepository).save(rawCaptor.capture());
-        assertThat(rawCaptor.getValue().getRawFilePathNm())
-                .isEqualTo(parentRaw.getRawFilePathNm());
+        LsDataRaw newRaw = rawCaptor.getValue();
+        assertThat(newRaw.getRawFilePathNm()).isNotEqualTo(parentRaw.getRawFilePathNm());
+        assertThat(newRaw.getRawFilePathNm())
+                .isEqualTo(expectedDerivativeVideoPath(195L, newRaw.getRawSn(), "WINTER"));
+        // 산출물 co-locate base(dirname)도 파생 전용 디렉터리라 export 가 파생 트리에 생성된다(B 요구).
+        assertThat(newRaw.getRawFilePathNm()).contains("/videos/augment/195/" + newRaw.getRawSn() + "/");
     }
 
     @Test
@@ -403,11 +423,10 @@ class AugmentResultServiceTest {
         assertThat(applied).isTrue(); // 콜백 자체는 처리(상태 전이)됨
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(asyncAugmentFrameRunner, never()).runAsync(anyLong(), anyLong());
-        verify(asyncVideoMetaRunner, never()).runAsync(anyLong());
     }
 
     @Test
-    @DisplayName("증강본_생성후_프레임러너와_메타추출러너가_새_RAW_SN으로_트리거된다")
+    @DisplayName("증강본_생성후_프레임러너가_새_RAW_SN으로_트리거된다")
     void success_triggersFrameAndMetaRunners() throws Exception {
         LsDataRaw parentRaw = newRaw(160L);
         LsDataSrc originSrc = newSrc(720L, 160L, 0);
@@ -424,10 +443,37 @@ class AugmentResultServiceTest {
 
         service.handle(req);
 
-        verify(asyncAugmentFrameRunner, times(1)).runAsync(anyLong(), eq(72L));
-        ArgumentCaptor<Long> metaCaptor = ArgumentCaptor.forClass(Long.class);
-        verify(asyncVideoMetaRunner, times(1)).runAsync(metaCaptor.capture());
-        assertThat(metaCaptor.getValue()).isNotEqualTo(160L); // 부모가 아닌 신규 영상 SN
+        ArgumentCaptor<Long> frameCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(asyncAugmentFrameRunner, times(1)).runAsync(frameCaptor.capture(), eq(72L));
+        assertThat(frameCaptor.getValue()).isNotEqualTo(160L); // 부모가 아닌 신규 영상 SN
+    }
+
+    @Test
+    @DisplayName("사본_생성_전에는_probe_하지_않는다_메타러너는_콜백에서_기동되지_않는다")
+    void handle_doesNotStartVideoMetaRunnerInParallel() throws Exception {
+        // given — 정상 성공 콜백
+        LsDataRaw parentRaw = newRaw(165L);
+        LsDataSrc originSrc = newSrc(725L, 165L, 0);
+        LsDataAug aug = newAugWithSrc(78L, 725L, "RAIN");
+
+        when(augRepository.findByDataAugSnForUpdate(78L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(725L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findByRawSnForUpdate(165L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(165L)).thenReturn(List.of(originSrc));
+
+        AugmentOutcome req = new AugmentOutcome(78L, "aug_078", true, " ");
+
+        // when
+        service.handle(req);
+
+        // then — 기술메타 러너는 이 서비스가 알지도 못한다(의존성 자체 제거). 사본을 만드는 프레임 러너만
+        //        기동되고, 메타 추출은 그 러너가 확정 성공 후에 트리거한다(레이스 제거).
+        assertThat(java.util.Arrays.stream(AugmentResultService.class.getDeclaredFields())
+                .map(java.lang.reflect.Field::getType)
+                .map(Class::getSimpleName))
+                .doesNotContain(AsyncVideoMetaRunner.class.getSimpleName());
+        verify(asyncAugmentFrameRunner, times(1)).runAsync(anyLong(), eq(78L));
     }
 
     @Test

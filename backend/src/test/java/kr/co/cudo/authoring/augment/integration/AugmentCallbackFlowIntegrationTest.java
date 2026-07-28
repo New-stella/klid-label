@@ -7,6 +7,8 @@ import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -137,6 +139,7 @@ class AugmentCallbackFlowIntegrationTest {
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private LsDataAugJobRepository augJobRepository;
     @Autowired private LsDataAugJobFileRepository augJobFileRepository;
+    @Autowired private LsDeidentProcLogRepository deidentProcLogRepository;
     @Autowired private kr.co.cudo.authoring.video.service.VideoStreamService videoStreamService;
 
     @Value("${authoring.jwt.secret}") private String jwtSecret;
@@ -183,7 +186,7 @@ class AugmentCallbackFlowIntegrationTest {
     // ─── 시드 헬퍼 ─────────────────────────────────────────────
 
     private record Seed(LsDataRaw parentRaw, LsDataSrc frame0, LsDataSrc frame1,
-                        LsDataLbl label, LsDataMeta meta, LsDataAug aug) {
+                        LsDataLbl label, LsDataMeta meta, LsDataAug aug, Path parentDeidVideo) {
     }
 
     /**
@@ -200,6 +203,16 @@ class AugmentCallbackFlowIntegrationTest {
         // 재확인하므로(PII 노출 차단), 정상 파생 시드는 부모를 비식별 완료로 둔다.
         parent.markDeidentified("Y");
         parent = videoRepository.save(parent);
+        // 부모 비식별 <영상> 실파일 + SUCCESS procLog — 증강 파생영상은 이 파일을 자기 경로로 복사한다.
+        // 파일명은 고정이 아니므로(mock='deidentified.mp4' · KPST='{stem}-mask{ext}') 경로 값은
+        // 언제나 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 에서 읽는다.
+        Path parentDeidVideo = writeVideo(
+                DEID_BASE.resolve("videos/" + parent.getRawSn() + "/deidentified.mp4"),
+                "DEID-VIDEO-" + clipSuffix);
+        LsDeidentProcLog parentProcLog = LsDeidentProcLog.request(
+                parent.getRawSn(), null, parent.getRawFilePathNm(), "it-seed");
+        parentProcLog.succeed(parentDeidVideo.toString());
+        deidentProcLogRepository.save(parentProcLog);
         // Phase 11 — 라벨 재매핑은 videoFrameNo(디코더 프레임 번호) 기준이므로 부모 프레임에 실제 번호를 부여.
         // Phase 7-D — 외부에 위탁했던 입력이자 해상도 기준인 <비식별 프레임>을 실파일로 만든다.
         Path deid0 = writeImage(
@@ -232,7 +245,18 @@ class AugmentCallbackFlowIntegrationTest {
         writeImage(EXT_BASE.resolve(externalJobId + "/002_gen.jpg"), Color.BLUE);
         // 구 LS_WEBHOOK_IDEMPOTENCY(AUGMENT) 선기록은 하지 않는다 — 발급 게이트가 아니며(수신부는
         // LS_DATA_AUG_JOB.IDMP_KEY 를 본다) 요청측 write 도 제거됐다(DEV_FIX MEDIUM).
-        return new Seed(parent, frame0, frame1, label, meta, aug);
+        return new Seed(parent, frame0, frame1, label, meta, aug, parentDeidVideo);
+    }
+
+    /** 비식별 영상 더미 파일(내용 비교용) 을 만든다. */
+    private static Path writeVideo(Path dst, String content) {
+        try {
+            Files.createDirectories(dst.getParent());
+            Files.writeString(dst, content, StandardCharsets.UTF_8);
+            return dst;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** 웹훅 페이로드를 JSON 직렬화한 본문 바이트. */
@@ -288,14 +312,41 @@ class AugmentCallbackFlowIntegrationTest {
         assertThat(child.getOrgnlRawSn()).isEqualTo(s.parentRaw().getRawSn());
         assertThat(child.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
         assertThat(child.getDeIdntfYn()).isEqualTo("Y");
-        // 생성형 AI 는 이미지-to-이미지라 영상 파일을 돌려주지 않는다 → 부모(비식별) 영상 경로로 폴백한다.
-        assertThat(child.getRawFilePathNm()).isEqualTo(s.parentRaw().getRawFilePathNm());
+        // 생성형 AI 는 이미지-to-이미지라 영상 파일을 돌려주지 않는다 → 파생영상의 경로는 <파생 자신의
+        // 비식별 사본> 경로다. 부모의 비식별 <이전> 원본 NAS 경로로 폴백하면 관제 뷰로 PII 경로가 샌다.
+        assertThat(child.getRawFilePathNm())
+                .as("부모 원본(비-비식별) 경로가 파생 행에 기록되면 안 된다")
+                .isNotEqualTo(s.parentRaw().getRawFilePathNm());
+        assertThat(child.getRawFilePathNm().replace('\\', '/'))
+                .contains("/videos/augment/" + s.parentRaw().getRawSn() + "/" + child.getRawSn() + "/");
 
         // HIGH-1 — 마킹 스트림이 가능하도록 SUCCESS procLog 가 async 성공 커밋에 남아야 한다.
         // resolveDeidPath 가 null 이면(procLog 부재) 스트리밍이 NOT_FOUND 로 거부돼 마킹 불가.
-        assertThat(videoStreamService.resolveDeidPath(child.getRawSn()))
+        String childDeidPath = videoStreamService.resolveDeidPath(child.getRawSn());
+        assertThat(childDeidPath)
                 .as("증강본 마킹 스트림을 위한 비식별 결과 경로가 도출되어야 함")
-                .isEqualTo(s.parentRaw().getRawFilePathNm());
+                .isNotBlank();
+
+        // ★ 기록된 경로가 <실제 복사된 파일>을 가리킨다 — 파생 전용 경로에 자기 사본이 있어야 한다.
+        Path childVideo = Path.of(childDeidPath);
+        assertThat(childVideo).as("증강 파생영상의 비디오 파일이 실제로 복사돼야 한다").exists();
+        assertThat(childVideo.toString().replace('\\', '/'))
+                .contains("/videos/augment/" + s.parentRaw().getRawSn() + "/" + child.getRawSn() + "/");
+        // ★ PII — 사본의 내용은 부모의 <비식별> 영상이며 원본(NAS 절대경로)이 아니다.
+        assertThat(Files.readAllBytes(childVideo))
+                .isEqualTo(Files.readAllBytes(s.parentDeidVideo()));
+        assertThat(childDeidPath)
+                .as("원본(비-비식별) 경로를 비식별 결과로 기록하면 원본이 서빙된다")
+                .isNotEqualTo(s.parentRaw().getRawFilePathNm());
+        // ★ 부모 파일을 덮어쓰지 않는다(별도 경로 + 부모 내용 불변).
+        assertThat(childVideo).isNotEqualTo(s.parentDeidVideo());
+        assertThat(Files.readString(s.parentDeidVideo(), StandardCharsets.UTF_8))
+                .isEqualTo("DEID-VIDEO-NEW");
+
+        // ★ 결함의 실제 증상 고정 — 파생영상 스트리밍이 허용 base 안이라 거부되지 않는다.
+        assertThat(videoStreamService.resolveStreamMeta(child.getRawSn()))
+                .as("파생영상 스트리밍(재생·마킹)이 가능해야 한다")
+                .isNotNull();
     }
 
     @Test

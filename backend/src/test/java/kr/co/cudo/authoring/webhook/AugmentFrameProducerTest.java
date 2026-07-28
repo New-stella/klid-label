@@ -41,6 +41,8 @@ class AugmentFrameProducerTest {
     private Path deidBase;
     private Path externalDir;
     private Path parentFrame;
+    /** 부모 비식별 <영상> — 파생영상 비디오의 복사 소스(원본이 아니다). */
+    private Path parentDeidVideo;
 
     @BeforeEach
     void setup() throws IOException {
@@ -56,6 +58,10 @@ class AugmentFrameProducerTest {
         ReflectionTestUtils.setField(producer, "storageDeidentifiedPath", deidBase.toString());
         // 기준(부모 비식별) 프레임 — 위탁 입력과 동일 해상도.
         parentFrame = writeImage(deidBase.resolve("frames/deid/100/frame-0.jpg"), 64, 48, Color.GRAY);
+        // 부모 비식별 영상 — 파일명은 고정이 아니므로(KPST 는 {stem}-mask{ext}) 계획이 준 경로를 그대로 쓴다.
+        parentDeidVideo = deidBase.resolve("videos/100/100-mask.mp4");
+        Files.createDirectories(parentDeidVideo.getParent());
+        Files.writeString(parentDeidVideo, "PARENT-DEID-VIDEO");
     }
 
     /** 지정 해상도의 실제 이미지 파일을 만든다(ImageIO 판독 가능). */
@@ -79,8 +85,14 @@ class AugmentFrameProducerTest {
         return deidBase.resolve("frames/deid/" + newRawSn);
     }
 
+    /** 파생 비디오 목적 경로 — 파생 RAW_SN 을 키에 포함(부모/타 파생 파일과 절대 겹치지 않는다). */
+    private Path videoDst(long newRawSn) {
+        return deidBase.resolve("videos/augment/100/" + newRawSn + "/WINTER.mp4");
+    }
+
     private AugmentExtractPlan plan(long newRawSn, List<AugmentExtractPlan.FrameSpec> frames) {
-        return new AugmentExtractPlan(newRawSn, 100L, 20L, "rev1", parentFrame, framesDir(newRawSn), frames);
+        return new AugmentExtractPlan(newRawSn, 100L, 20L, "rev1", parentFrame,
+                parentDeidVideo, videoDst(newRawSn), framesDir(newRawSn), frames);
     }
 
     private AugmentExtractPlan.FrameSpec spec(long newRawSn, long frameNo, Path external) {
@@ -198,7 +210,11 @@ class AugmentFrameProducerTest {
         Path reference = writeImage(storageDeid.resolve("frames/deid/200/frame-0.jpg"), 64, 48, Color.GRAY);
         Path vendorOut = writeImage(vendorRoot.resolve("job-ext/out-0.jpg"), 64, 48, Color.BLUE);
         Path framesDir = storageDeid.resolve("frames/deid/9100");
-        AugmentExtractPlan p = new AugmentExtractPlan(9100L, 200L, 20L, "rev1", reference, framesDir,
+        Path parentVideo = storageDeid.resolve("videos/200/deidentified.mp4");
+        Files.createDirectories(parentVideo.getParent());
+        Files.writeString(parentVideo, "PARENT-DEID-VIDEO");
+        AugmentExtractPlan p = new AugmentExtractPlan(9100L, 200L, 20L, "rev1", reference,
+                parentVideo, storageDeid.resolve("videos/augment/200/9100/WINTER.mp4"), framesDir,
                 List.of(new AugmentExtractPlan.FrameSpec(700L, 0L, 100L, LocalDateTime.now(),
                         vendorOut, framesDir.resolve("frame-0.jpg"))));
 
@@ -247,8 +263,102 @@ class AugmentFrameProducerTest {
 
         assertThatThrownBy(() -> producer.produce(p)).isInstanceOf(CustomException.class);
         // 러너 계약대로 cleanup 하면 부분 산출이 사라진다(DB 행은 Phase C 전이라 애초에 없다).
-        assertThat(producer.cleanup(9007L)).isTrue();
+        assertThat(producer.cleanup(9007L, p.videoDst())).isTrue();
         assertThat(Files.exists(framesDir(9007L))).isFalse();
+    }
+
+    @Test
+    @DisplayName("증강_파생영상의_비디오_파일이_실제로_복사된다")
+    void copiesDeidVideoIntoDerivativePath() throws IOException {
+        Path out0 = writeImage(externalDir.resolve("job-v1/out-0.jpg"), 64, 48, Color.BLUE);
+        AugmentExtractPlan p = plan(9101L, List.of(spec(9101L, 0, out0)));
+
+        producer.produce(p);
+
+        // 기록될 경로(videoDst)에 실제 파일이 있고, 내용은 부모 비식별 영상 그대로다.
+        assertThat(Files.exists(p.videoDst())).isTrue();
+        assertThat(Files.readAllBytes(p.videoDst())).isEqualTo(Files.readAllBytes(parentDeidVideo));
+        // 반쯤 쓰인 임시 파일이 남지 않는다(.part → move).
+        assertThat(Files.exists(p.videoDst().resolveSibling(p.videoDst().getFileName() + ".part"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("복사본은_부모의_비식별_영상이며_원본이_아니다")
+    void copiedVideoComesFromDeidentifiedSourceNotOriginal() throws IOException {
+        // given — 원본(비-비식별) 영상이 같은 임시 루트에 함께 존재한다.
+        Path original = tempDir.resolve("raw/videos/100/original.mp4");
+        Files.createDirectories(original.getParent());
+        Files.writeString(original, "ORIGINAL-PII-VIDEO");
+        Path out0 = writeImage(externalDir.resolve("job-v2/out-0.jpg"), 64, 48, Color.BLUE);
+        AugmentExtractPlan p = plan(9102L, List.of(spec(9102L, 0, out0)));
+
+        producer.produce(p);
+
+        assertThat(Files.readString(p.videoDst()))
+                .as("원본 픽셀이 파생영상으로 복제되면 PII 노출이다")
+                .isEqualTo("PARENT-DEID-VIDEO")
+                .isNotEqualTo(Files.readString(original));
+    }
+
+    @Test
+    @DisplayName("부모_영상_파일을_덮어쓰지_않는다")
+    void doesNotOverwriteParentVideo() throws IOException {
+        byte[] before = Files.readAllBytes(parentDeidVideo);
+        Path out0 = writeImage(externalDir.resolve("job-v3/out-0.jpg"), 64, 48, Color.BLUE);
+        AugmentExtractPlan p = plan(9103L, List.of(spec(9103L, 0, out0)));
+
+        producer.produce(p);
+
+        assertThat(p.videoDst()).isNotEqualTo(parentDeidVideo);
+        assertThat(Files.readAllBytes(parentDeidVideo)).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("비식별_영상_소스가_없으면_증강이_성공으로_확정되지_않는다")
+    void missingDeidVideoSource_failsClosed() throws IOException {
+        Path out0 = writeImage(externalDir.resolve("job-v4/out-0.jpg"), 64, 48, Color.BLUE);
+        Path missingSrc = deidBase.resolve("videos/100/no-such.mp4");
+        AugmentExtractPlan p = new AugmentExtractPlan(9104L, 100L, 20L, "rev1", parentFrame,
+                missingSrc, videoDst(9104L), framesDir(9104L), List.of(spec(9104L, 0, out0)));
+
+        assertThatThrownBy(() -> producer.produce(p))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("NOT_FOUND");
+        // 실패했으므로 파생 비디오·프레임 어느 것도 산출되지 않는다(성공 위장 금지).
+        assertThat(Files.exists(p.videoDst())).isFalse();
+        assertThat(Files.exists(p.frames().get(0).dst())).isFalse();
+    }
+
+    @Test
+    @DisplayName("같은_계획을_두_번_반입해도_비디오가_두_번_쌓이지_않는다")
+    void repeatedProduce_isIdempotentOnVideo() throws IOException {
+        Path out0 = writeImage(externalDir.resolve("job-v5/out-0.jpg"), 64, 48, Color.BLUE);
+        AugmentExtractPlan p = plan(9105L, List.of(spec(9105L, 0, out0)));
+
+        producer.produce(p);
+        producer.produce(p);
+
+        try (var files = Files.list(p.videoDst().getParent())) {
+            List<Path> written = new ArrayList<>(files.toList());
+            assertThat(written).hasSize(1);
+            assertThat(written.get(0)).isEqualTo(p.videoDst());
+        }
+        assertThat(Files.readAllBytes(p.videoDst())).isEqualTo(Files.readAllBytes(parentDeidVideo));
+    }
+
+    @Test
+    @DisplayName("cleanup은_복사된_파생비디오도_삭제하고_부모_영상은_남긴다")
+    void cleanupDeletesCopiedVideoOnly() throws IOException {
+        Path out0 = writeImage(externalDir.resolve("job-v6/out-0.jpg"), 64, 48, Color.BLUE);
+        AugmentExtractPlan p = plan(9106L, List.of(spec(9106L, 0, out0)));
+        producer.produce(p);
+
+        assertThat(producer.cleanup(9106L, p.videoDst())).isTrue();
+
+        assertThat(Files.exists(p.videoDst())).isFalse();
+        assertThat(Files.exists(framesDir(9106L))).isFalse();
+        assertThat(Files.exists(parentDeidVideo)).as("부모 비식별 영상은 정리 대상이 아니다").isTrue();
     }
 
     @Test
@@ -274,14 +384,14 @@ class AugmentFrameProducerTest {
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("frame-0.jpg"), "dummy");
 
-        assertThat(producer.cleanup(9009L)).isTrue();
+        assertThat(producer.cleanup(9009L, videoDst(9009L))).isTrue();
         assertThat(Files.exists(dir)).isFalse();
     }
 
     @Test
     @DisplayName("cleanup은_디렉토리가_없어도_true_멱등")
     void cleanupIdempotentWhenAbsent() {
-        assertThat(producer.cleanup(9999L)).isTrue();
+        assertThat(producer.cleanup(9999L, videoDst(9999L))).isTrue();
     }
 
     @Test

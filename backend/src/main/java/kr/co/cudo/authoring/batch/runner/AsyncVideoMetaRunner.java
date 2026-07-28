@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.batch.runner;
 
+import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoMetaService;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
@@ -21,8 +24,12 @@ import java.util.Optional;
  * 영상 기술메타(ffprobe) 추출 비동기 실행기 — NIA export Phase 2.
  *
  * <p>{@code VideoMetaExtractBridge} 가 {@code VideoIngestedEvent} 수신(AFTER_COMMIT) 후 호출한다.
- * 적재 트랜잭션이 커밋된 뒤 별도 스레드에서 원본 영상 경로를 ffprobe 로 조사하고 결과를
- * {@code video.*} 메타로 저장한다 — 선두 비식별({@code AsyncDeidentifyRunner})과 독립적으로 병행한다.
+ * 적재 트랜잭션이 커밋된 뒤 별도 스레드에서 영상 파일을 ffprobe 로 조사하고 결과를 {@code video.*}
+ * 메타로 저장한다 — 선두 비식별({@code AsyncDeidentifyRunner})과 독립적으로 병행한다.
+ *
+ * <p><b>측정 대상은 그 영상 자신의 파일</b>이다({@link #resolveProbeSource}): 원본 영상은
+ * {@code RAW_FILE_PATH_NM}, <b>파생영상(증강·해상도)은 자신의 비식별 사본</b>. 파생 경로에서는
+ * {@code AsyncAugmentFrameRunner} 가 사본 확정(Phase C) 이후에 호출하므로 사본이 이미 존재한다.
  *
  * <h3>graceful 격리 (S1)</h3>
  * ffprobe 미설치/파일 접근불가/probe 예외/저장 실패는 모두 WARN 로깅 후 삼킨다 — 적재·비식별
@@ -39,13 +46,18 @@ public class AsyncVideoMetaRunner {
     private final VideoRepository videoRepository;
     private final VideoProbe videoProbe;
     private final VideoMetaService videoMetaService;
+    /**
+     * 파생영상(증강·해상도)의 <b>비식별 사본</b> 경로 진실원. 파일명은 고정이 아니므로 조합·추측하지
+     * 않고 {@code DE_IDNTF_FILE_PATH_NM} 에 적재된 값을 읽는다(프로젝트 규약 "문자열 치환 도출 아님").
+     */
+    private final LsDeidentProcLogRepository deidentProcLogRepository;
 
     @Async("batchAsyncExecutor")
     public void runAsync(Long rawSn) {
         try {
-            String filePath = loadRawFilePath(rawSn).orElse(null);
+            String filePath = resolveProbeSource(rawSn).orElse(null);
             if (!StringUtils.hasText(filePath)) {
-                log.warn("[VideoMeta] raw/path not found rawSn={} — skip probe", rawSn);
+                log.warn("[VideoMeta] probe source not found rawSn={} — skip probe", rawSn);
                 return;
             }
             Path videoPath;
@@ -71,14 +83,46 @@ public class AsyncVideoMetaRunner {
         }
     }
 
-    /** 원본 영상 경로 조회 — REQUIRES_NEW readOnly (AsyncDeidentifyRunner.loadRaw 패턴). */
+    /**
+     * probe 대상 파일 경로 조회 — REQUIRES_NEW readOnly (AsyncDeidentifyRunner.loadRaw 패턴).
+     *
+     * <ul>
+     *   <li><b>원본 영상</b>({@code ORGNL_RAW_SN} null) — {@code RAW_FILE_PATH_NM}(관제 NAS 원본). 종전 동작.</li>
+     *   <li><b>파생영상</b>({@code ORGNL_RAW_SN} non-null, 증강·해상도) — <b>파생 자신의 비식별 사본</b>.
+     *       파생영상에는 원본이 존재하지 않으며, 기술메타(RESL/FPS/BIT_RT/FILE_SZ/VDO_CDC)는 실제
+     *       산출 파일을 측정한 값이어야 한다. 경로는 최신 SUCCEEDED
+     *       {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} <b>값</b>을 읽는다(파일명 조합 금지).
+     *       값이 없으면 원본으로 폴백하지 않고 skip 한다 — 폴백하면 부모 원본(PII)을 열어 측정하게 된다.</li>
+     * </ul>
+     * 사본이 아직 없으면(파일 부재) probe 하지 않고 사유를 남긴다 — probe 실패를 성공으로 위장하거나
+     * 엉뚱한 파일을 측정하지 않기 위함이다.
+     */
     @Transactional(value = "controlTransactionManager", readOnly = true,
             propagation = Propagation.REQUIRES_NEW)
-    protected Optional<String> loadRawFilePath(Long rawSn) {
+    protected Optional<String> resolveProbeSource(Long rawSn) {
         if (rawSn == null) {
             return Optional.empty();
         }
-        return videoRepository.findById(rawSn).map(LsDataRaw::getRawFilePathNm);
+        LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
+        if (raw == null) {
+            return Optional.empty();
+        }
+        if (raw.getOrgnlRawSn() == null) {
+            return Optional.ofNullable(raw.getRawFilePathNm());
+        }
+        String deidPath = deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn)
+                .map(LsDeidentProcLog::getDeIdntfFilePathNm)
+                .filter(StringUtils::hasText)
+                .orElse(null);
+        if (deidPath == null) {
+            log.warn("[VideoMeta] derivative deidentified copy not recorded yet rawSn={} — skip probe", rawSn);
+            return Optional.empty();
+        }
+        if (!Files.isRegularFile(Paths.get(deidPath))) {
+            log.warn("[VideoMeta] derivative deidentified copy not present yet rawSn={} — skip probe", rawSn);
+            return Optional.empty();
+        }
+        return Optional.of(deidPath);
     }
 
     /** 경로 평문 로그 금지 — 해시로 마스킹(VideoResolutionService.maskPath 패턴). */

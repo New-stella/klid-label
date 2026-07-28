@@ -17,6 +17,11 @@ import java.util.List;
  * 재추출은 증강 효과가 0 인 사본을 만들었기 때문이다(원본 픽셀 그대로면 WINTER/NIGHT/RAIN 라벨만
  * 붙은 가짜 파생영상이 된다). 따라서 계획은 영상 소스가 아니라 <b>프레임별 외부 산출 경로</b>를 든다.
  *
+ * <p><b>비디오 파일은 부모 비식별본 복사</b>: 증강 AI 는 이미지-to-이미지라 영상을 재생성하지 않으므로,
+ * 파생영상의 비디오는 <b>부모의 비식별 영상을 파생 전용 경로로 복사</b>해 만든다(해상도 파생
+ * {@code ResolutionSnapshot} 과 동일 규약). 소스 경로는 조합·추측하지 않고
+ * {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 값을 그대로 쓴다.
+ *
  * <p>부모 잠금·비식별 재검증은 여기서 하지 않는다(동기 {@code AugmentResultService.handle} 의 부모
  * 안전 판정 이후 창을 재개방하지 않기 위함) — 이 자세는 유지한다.
  *
@@ -26,6 +31,10 @@ import java.util.List;
  * @param regId          등록자(aug.regUserNo) — 라벨맵 등록자
  * @param referenceFrame 해상도 기준 실측 소스 — <b>부모 비식별 프레임 1건</b>(= 외부에 위탁했던 입력).
  *                       외부 산출물이 이 해상도와 다르면 라벨 좌표 그대로 복사가 무효이므로 fail-closed
+ * @param deidVideoSrc   복사 소스 — <b>부모 비식별 영상</b> 절대경로(procLog 값, CWE-22 검증 완료).
+ *                       원본(비-비식별) 영상은 절대 소스가 되지 않는다(PII, CWE-359)
+ * @param videoDst       파생 비디오 목적 경로({@code {deidBase}/videos/augment/{parentRawSn}/{newRawSn}/…},
+ *                       CWE-22 검증 완료) — 부모 파일과 절대 겹치지 않으며 cleanup 대상이다
  * @param framesDir      프레임 산출 디렉토리({@code {deidBase}/frames/deid/{newRawSn}}, CWE-22 검증 완료) — cleanup 기준
  * @param frames         프레임별 확정 스펙(부모 SRC_SN·추출순번·디코더 프레임번호·촬영일시·외부 산출 경로·산출 경로)
  */
@@ -35,6 +44,8 @@ public record AugmentExtractPlan(
         Long dataAugSn,
         String regId,
         Path referenceFrame,
+        Path deidVideoSrc,
+        Path videoDst,
         Path framesDir,
         List<FrameSpec> frames) {
 

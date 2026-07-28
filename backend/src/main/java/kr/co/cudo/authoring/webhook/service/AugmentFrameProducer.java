@@ -75,6 +75,11 @@ public class AugmentFrameProducer {
         // 동일하므로 프레임마다 부모를 다시 디코딩할 필요가 없다(산출물은 전건 실측한다).
         int[] reference = readDimensions(plan.referenceFrame(), "기준 프레임");
         try {
+            // 1) 비디오 — 부모 <비식별> 영상을 파생 전용 경로로 복사한다(증강 AI 는 영상을 재생성하지
+            //    않는다). 소스 부재는 성공으로 둔갑시키지 않고 NOT_FOUND 로 실패시킨다(fail-closed,
+            //    ResolutionFileMaterializer.materialize 1) 과 동일 자세).
+            copyDeidVideo(plan);
+            // 2) 프레임 — 외부 산출 이미지를 반입한다.
             ensureDir(plan.framesDir());
             for (AugmentExtractPlan.FrameSpec f : plan.frames()) {
                 // 검증한 <실경로>를 그대로 복사한다 — lexical 경로를 다시 열면 검증 대상과 사용 대상이
@@ -89,6 +94,29 @@ public class AugmentFrameProducer {
         }
         log.info("[Augment][ExtractB] ingested rawSn={} frames={} (external outputs)",
                 plan.newRawSn(), plan.frames().size());
+    }
+
+    /**
+     * 부모 <b>비식별</b> 영상을 파생 전용 경로로 복사한다 — 파생영상의 비디오 파일 실체를 만든다.
+     *
+     * <p>소스({@code plan.deidVideoSrc()})와 목적지({@code plan.videoDst()})는 Phase A 가 CWE-22 검증까지
+     * 마친 절대 경로다. 목적지는 파생 RAW_SN 을 키에 포함하므로 <b>부모 파일과 절대 겹치지 않는다</b>
+     * (원본·부모 덮어쓰기 불가). 복사는 임시 파일(.part) 경유라 중간 실패 시 목적 경로에 반쯤 쓰인
+     * 영상이 남지 않으며, 재실행하면 같은 경로를 덮어써 파일이 중복 적재되지 않는다(멱등).
+     */
+    private void copyDeidVideo(AugmentExtractPlan plan) throws IOException {
+        Path src = plan.deidVideoSrc();
+        if (src == null || !Files.isRegularFile(src)) {
+            log.warn("[Augment][ExtractB] parent deid video missing rawSn={}", plan.newRawSn());
+            throw new CustomException(ErrorCode.NOT_FOUND, "원본 비식별 영상 파일을 찾을 수 없습니다.");
+        }
+        Path dst = plan.videoDst();
+        if (dst == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "파생 영상 산출 경로가 없습니다.");
+        }
+        ensureDir(dst.getParent());
+        copyAtomically(src, dst);
+        log.info("[Augment][ExtractB] deid video copied rawSn={}", plan.newRawSn());
     }
 
     /**
@@ -214,27 +242,47 @@ public class AugmentFrameProducer {
      * <b>동기 삭제 후 {@link Files#exists} 재확인</b>한다. 잔존이 확인되면 {@code false} 를 반환하여
      * 러너가 ERROR 로그 + 메트릭({@code augment.cleanup.failed}) 을 남기게 한다.
      *
-     * <p>신규(증강) RAW 경로만 삭제 대상이다 — 원본·부모 프레임은 절대 삭제하지 않는다. 외부 산출
+     * <p>신규(증강) RAW 경로만 삭제 대상이다 — 원본·부모 프레임/영상은 절대 삭제하지 않는다. 외부 산출
      * 원본 파일도 우리 소유가 아니므로 건드리지 않는다. 디렉토리는 {@code newRawSn} 으로 재계산해
      * CWE-22 검증한다(Phase A 와 동일 규약).
      *
+     * <p>파생 비디오 사본도 함께 정리한다({@code ResolutionFileMaterializer.cleanup} 와 동일) — 경로가
+     * 파생 RAW_SN 을 키에 포함하므로 다른 파생/부모 파일을 지울 수 없다.
+     *
      * @param newRawSn 신규 증강 RAW_SN (프레임 디렉토리 {@code frames/deid/{newRawSn}/} 산정 기준)
+     * @param videoDst 파생 비디오 목적 경로(검증 완료, nullable — Phase A 미도달 시 null)
      * @return 잔존 아티팩트 없음(정리 성공)=true, 삭제 후에도 잔존=false
      */
-    public boolean cleanup(Long newRawSn) {
+    public boolean cleanup(Long newRawSn, Path videoDst) {
         if (newRawSn == null) {
             return true;
         }
         Path base = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
+        boolean clean = true;
         try {
             Path framesDir = resolveSafeDeidDir(base, StorageSubtreePolicy.deidFramesDir(newRawSn));
             deleteRecursivelyQuietly(framesDir);
-            return !Files.exists(framesDir);
+            if (Files.exists(framesDir)) {
+                clean = false;
+            }
         } catch (RuntimeException e) {
             log.warn("[Augment][ExtractB] frames dir cleanup skipped newRawSn={} cause={}",
                     newRawSn, e.getClass().getSimpleName());
-            return false;
+            clean = false;
         }
+        if (videoDst != null) {
+            try {
+                Files.deleteIfExists(videoDst);
+                if (Files.exists(videoDst)) {
+                    clean = false;
+                }
+            } catch (IOException | RuntimeException e) {
+                clean = false;
+                log.warn("[Augment][ExtractB] video file cleanup skipped newRawSn={} cause={}",
+                        newRawSn, e.getClass().getSimpleName());
+            }
+        }
+        return clean;
     }
 
     private static void ensureDir(Path dir) throws IOException {

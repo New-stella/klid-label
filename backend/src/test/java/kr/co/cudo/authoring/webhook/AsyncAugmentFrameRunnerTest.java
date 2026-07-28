@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.webhook;
 
+import kr.co.cudo.authoring.batch.runner.AsyncVideoMetaRunner;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -44,19 +45,22 @@ class AsyncAugmentFrameRunnerTest {
     @Mock AugmentExtractPersist persistService;
     @Mock BatchTransitionService batchTransitionService;
     @Mock AugmentMetrics augmentMetrics;
+    @Mock AsyncVideoMetaRunner asyncVideoMetaRunner;
 
     AsyncAugmentFrameRunner runner;
 
     @BeforeEach
     void setup() {
         runner = new AsyncAugmentFrameRunner(snapshotService, frameProducer, persistService,
-                batchTransitionService, augmentMetrics);
-        when(frameProducer.cleanup(any())).thenReturn(true);
+                batchTransitionService, augmentMetrics, asyncVideoMetaRunner);
+        when(frameProducer.cleanup(any(), any())).thenReturn(true);
     }
 
     private AugmentExtractPlan plan(long newRawSn, long parentRawSn, long dataAugSn) {
         return new AugmentExtractPlan(newRawSn, parentRawSn, dataAugSn, "rev1",
                 Paths.get("/base/frames/deid/" + parentRawSn + "/frame-0.jpg"),
+                Paths.get("/base/videos/" + parentRawSn + "/deidentified.mp4"),
+                Paths.get("/base/videos/augment/" + parentRawSn + "/" + newRawSn + "/WINTER.mp4"),
                 Paths.get("/base/frames/deid/" + newRawSn), List.of());
     }
 
@@ -72,7 +76,7 @@ class AsyncAugmentFrameRunnerTest {
         verify(frameProducer).produce(p);
         verify(persistService).persist(p);
         verify(batchTransitionService, never()).markRawDataFailed(any());
-        verify(frameProducer, never()).cleanup(any());
+        verify(frameProducer, never()).cleanup(any(), any());
     }
 
     @Test
@@ -84,7 +88,7 @@ class AsyncAugmentFrameRunnerTest {
 
         verify(frameProducer, never()).produce(any());
         verify(persistService, never()).persist(any());
-        verify(frameProducer, never()).cleanup(any());
+        verify(frameProducer, never()).cleanup(any(), any());
         verify(batchTransitionService, never()).markRawDataFailed(any());
     }
 
@@ -98,7 +102,7 @@ class AsyncAugmentFrameRunnerTest {
         runner.runAsync(9003L, 22L);
 
         // 파일은 승자와 동일 경로(같은 rawSn) — 정리하면 승자 산출물을 지우므로 절대 cleanup/FAILED 안 함.
-        verify(frameProducer, never()).cleanup(any());
+        verify(frameProducer, never()).cleanup(any(), any());
         verify(batchTransitionService, never()).markRawDataFailed(any());
     }
 
@@ -112,7 +116,7 @@ class AsyncAugmentFrameRunnerTest {
 
         runner.runAsync(9004L, 23L);
 
-        verify(frameProducer).cleanup(9004L);
+        verify(frameProducer).cleanup(9004L, p.videoDst());
         verify(batchTransitionService).markRawDataFailed(9004L);
     }
 
@@ -126,7 +130,7 @@ class AsyncAugmentFrameRunnerTest {
 
         runner.runAsync(9005L, 24L);
 
-        verify(frameProducer).cleanup(9005L);
+        verify(frameProducer).cleanup(9005L, p.videoDst());
         verify(batchTransitionService).markRawDataFailed(9005L);
     }
 
@@ -137,7 +141,7 @@ class AsyncAugmentFrameRunnerTest {
         when(snapshotService.snapshot(9006L, 25L)).thenReturn(Optional.of(p));
         doThrow(new CustomException(ErrorCode.INTERNAL_ERROR, "extract failed"))
                 .when(frameProducer).produce(p);
-        when(frameProducer.cleanup(9006L)).thenReturn(false); // 삭제 후에도 잔존
+        when(frameProducer.cleanup(9006L, p.videoDst())).thenReturn(false); // 삭제 후에도 잔존
 
         runner.runAsync(9006L, 25L);
 
@@ -154,8 +158,68 @@ class AsyncAugmentFrameRunnerTest {
 
         runner.runAsync(9007L, 26L);
 
-        verify(frameProducer, never()).cleanup(any());
+        verify(frameProducer, never()).cleanup(any(), any());
         verify(batchTransitionService).markRawDataFailed(9007L);
+    }
+
+    @Test
+    @DisplayName("사본_생성_전에는_probe_하지_않는다_기술메타는_PhaseC_확정_이후에만_트리거된다")
+    void videoMetaIsTriggeredOnlyAfterPersist() {
+        AugmentExtractPlan p = plan(9010L, 100L, 30L);
+        when(snapshotService.snapshot(9010L, 30L)).thenReturn(Optional.of(p));
+        when(persistService.persist(p)).thenReturn(AugmentExtractPersist.Result.PERSISTED);
+
+        runner.runAsync(9010L, 30L);
+
+        // A→B→C 가 모두 끝난 뒤(=사본과 procLog 경로 커밋 후)에만 probe 가 기동한다.
+        org.mockito.InOrder ordered = org.mockito.Mockito.inOrder(
+                frameProducer, persistService, asyncVideoMetaRunner);
+        ordered.verify(frameProducer).produce(p);
+        ordered.verify(persistService).persist(p);
+        ordered.verify(asyncVideoMetaRunner).runAsync(9010L);
+    }
+
+    @Test
+    @DisplayName("확정_실패시_기술메타_추출을_트리거하지_않는다")
+    void videoMetaNotTriggeredOnFailure() {
+        AugmentExtractPlan p = plan(9011L, 100L, 31L);
+        when(snapshotService.snapshot(9011L, 31L)).thenReturn(Optional.of(p));
+        doThrow(new CustomException(ErrorCode.INTERNAL_ERROR, "persist failed"))
+                .when(persistService).persist(p);
+
+        runner.runAsync(9011L, 31L);
+
+        verify(asyncVideoMetaRunner, never()).runAsync(any());
+        verify(batchTransitionService).markRawDataFailed(9011L);
+    }
+
+    @Test
+    @DisplayName("중복트리거_패자면_기술메타_추출도_트리거하지_않는다")
+    void videoMetaNotTriggeredWhenPersistSkipped() {
+        AugmentExtractPlan p = plan(9012L, 100L, 32L);
+        when(snapshotService.snapshot(9012L, 32L)).thenReturn(Optional.of(p));
+        when(persistService.persist(p)).thenReturn(AugmentExtractPersist.Result.SKIPPED);
+
+        runner.runAsync(9012L, 32L);
+
+        // 승자가 이미 트리거했다 — 패자가 중복 기동하지 않는다.
+        verify(asyncVideoMetaRunner, never()).runAsync(any());
+    }
+
+    @Test
+    @DisplayName("기술메타_트리거_실패가_확정된_파생본을_되돌리지_않는다")
+    void videoMetaTriggerFailureDoesNotRollbackPersistedDerivative() {
+        AugmentExtractPlan p = plan(9013L, 100L, 33L);
+        when(snapshotService.snapshot(9013L, 33L)).thenReturn(Optional.of(p));
+        when(persistService.persist(p)).thenReturn(AugmentExtractPersist.Result.PERSISTED);
+        doThrow(new IllegalStateException("executor rejected"))
+                .when(asyncVideoMetaRunner).runAsync(9013L);
+
+        assertThatCode(() -> runner.runAsync(9013L, 33L)).doesNotThrowAnyException();
+
+        // 성공한 파생본을 cleanup/FAILED 로 되돌리는 역전이 없어야 한다.
+        verify(frameProducer, never()).cleanup(any(), any());
+        verify(batchTransitionService, never()).markRawDataFailed(any());
     }
 
     @Test
