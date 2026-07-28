@@ -1,3 +1,4 @@
+import { AuthImage } from '@/components/common/AuthImage';
 import { cn } from '@/lib/cn';
 
 export interface FrameGrid12Frame {
@@ -15,6 +16,12 @@ export interface FrameGrid12Props {
   onSelect: (srcSn: number) => void;
   /** 상단/하단 슬롯 라벨 — 기본은 원본/비식별. Phase 10 증강에서는 원본/증강(겨울) 등으로 재사용 */
   pairLabel?: { top: string; bottom: string };
+  /**
+   * true 면 URL 을 인증(Bearer) blob 요청으로 로드한다(`AuthImage`).
+   * BE 이미지 서빙 API(`/v1/frames/{srcSn}/deid-image`)는 Authorization 헤더가 필수라
+   * raw `<img src>` 로는 401 이 되어 전부 깨진다. 정적 URL 을 넘기는 호출자는 기본값(false) 유지.
+   */
+  authImages?: boolean;
   className?: string;
 }
 
@@ -31,6 +38,7 @@ export function FrameGrid12({
   selectedSrcSn,
   onSelect,
   pairLabel = DEFAULT_LABELS,
+  authImages = false,
   className,
 }: FrameGrid12Props) {
   return (
@@ -62,12 +70,14 @@ export function FrameGrid12({
             <PairSlot
               label={pairLabel.top}
               imageUrl={f.originalUrl}
+              authImage={authImages}
               alt={`${pairLabel.top} 프레임 ${f.frameNo ?? f.srcSn}`}
               testid={`frame-pair-${f.srcSn}-original`}
             />
             <PairSlot
               label={pairLabel.bottom}
               imageUrl={f.processedUrl}
+              authImage={authImages}
               alt={
                 f.processedUrl
                   ? `${pairLabel.bottom} 프레임 ${f.frameNo ?? f.srcSn}`
@@ -86,15 +96,21 @@ export function FrameGrid12({
   );
 }
 
+const SLOT_IMAGE_CLASS = 'h-auto w-full rounded border border-border object-cover';
+// AuthImage 는 로딩/에러 시 <div> 로 폴백하므로 고정 높이를 줘 레이아웃 이동(CLS)을 막는다.
+const SLOT_AUTH_IMAGE_CLASS = 'h-16 w-full rounded border border-border object-cover';
+
 function PairSlot({
   label,
   imageUrl,
+  authImage,
   alt,
   testid,
   missingText,
 }: {
   label: string;
   imageUrl?: string;
+  authImage?: boolean;
   alt: string;
   testid: string;
   missingText?: string;
@@ -102,24 +118,63 @@ function PairSlot({
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-sub text-neutral">{label}</span>
-      {imageUrl ? (
-        <img
-          src={imageUrl}
-          alt={alt}
-          loading="lazy"
-          width={120}
-          height={68}
-          data-testid={testid}
-          className="h-auto w-full rounded border border-border object-cover"
-        />
-      ) : (
-        <div
-          data-testid={testid}
-          className="flex h-16 w-full items-center justify-center rounded border border-dashed border-border bg-bgLight text-sub text-neutral"
-        >
-          {missingText ?? '이미지 없음'}
-        </div>
-      )}
+      <SlotImage
+        imageUrl={imageUrl}
+        authImage={authImage}
+        alt={alt}
+        testid={testid}
+        missingText={missingText}
+      />
     </div>
+  );
+}
+
+function SlotImage({
+  imageUrl,
+  authImage,
+  alt,
+  testid,
+  missingText,
+}: {
+  imageUrl?: string;
+  authImage?: boolean;
+  alt: string;
+  testid: string;
+  missingText?: string;
+}) {
+  if (!imageUrl) {
+    return (
+      <div
+        data-testid={testid}
+        className="flex h-16 w-full items-center justify-center rounded border border-dashed border-border bg-bgLight text-sub text-neutral"
+      >
+        {missingText ?? '이미지 없음'}
+      </div>
+    );
+  }
+
+  if (authImage) {
+    return (
+      <AuthImage
+        path={imageUrl}
+        alt={alt}
+        width={120}
+        height={68}
+        data-testid={testid}
+        className={SLOT_AUTH_IMAGE_CLASS}
+      />
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={alt}
+      loading="lazy"
+      width={120}
+      height={68}
+      data-testid={testid}
+      className={SLOT_IMAGE_CLASS}
+    />
   );
 }

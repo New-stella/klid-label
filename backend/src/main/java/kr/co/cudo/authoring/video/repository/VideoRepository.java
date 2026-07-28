@@ -39,13 +39,35 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Optional<LsDataRaw> findByRawSnForUpdate(@Param("rawSn") Long rawSn);
 
     /**
-     * S7 — 비식별 처리 코드({@code DE_IDNTF_YN}) 단일 컬럼 projection.
+     * S7 — 신고 게이트({@code LabelAccessGuard.requireNotUnderDeidentReport} /
+     * {@code DeidentReportGate}) <b>조상 체인</b> 판정용 1노드 투영 — {@code (DE_IDNTF_YN, ORGNL_RAW_SN)}.
      *
-     * <p>라벨 조회 게이트({@code LabelAccessGuard.requireNotUnderDeidentReport})가 매 조회마다 호출하므로
-     * 전체 row fetch 를 피한다(PK 인덱스 lookup + 1컬럼). 값이 NULL 인 행은 빈 Optional 로 온다(=통과).
+     * <p>구 단일 컬럼 projection({@code DE_IDNTF_YN} 만 조회)은 <b>자기 행만</b> 봐서 파생영상
+     * (해상도·증강)에서 fail-open 이었다({@link DeidentChainProjection} 참조 — 부모 신고 중에도 파생
+     * 프레임의 비식별 이미지가 200 으로 나갔다). 두 컬럼을 한 번에 읽어 노드당 조회 1회(PK 인덱스
+     * lookup)를 유지한다 — 원본 영상은 종전과 동일하게 조회 1회, 1단계 파생영상은 2회로 끝난다.
+     * 값이 NULL 인 컬럼은 null 로 온다(=통과).
      */
-    @Query("SELECT r.deIdntfYn FROM LsDataRaw r WHERE r.rawSn = :rawSn")
-    Optional<String> findDeIdntfYnByRawSn(@Param("rawSn") Long rawSn);
+    @Query("SELECT r.deIdntfYn AS deIdntfYn, r.orgnlRawSn AS orgnlRawSn "
+            + "FROM LsDataRaw r WHERE r.rawSn = :rawSn")
+    Optional<DeidentChainProjection> findDeidentChainNodeByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * S7 — 신고 게이트의 <b>역방향(자손) 전개</b>용 — 주어진 부모들의 직계 파생영상 PK 목록.
+     *
+     * <p>부모가 신고({@code 'F'})되거나 해소({@code 'Y'})될 때, 그 <b>파생영상</b>도 함께 다뤄야 하는
+     * 두 경로가 쓴다.
+     * <ul>
+     *   <li>스트림 메타 캐시 무효화 — 신고된 부모만 evict 하면 파생본이 캐시에 살아남아 게이트를
+     *       우회한다(CWE-525).</li>
+     *   <li>신고 해소 후 export 재산출 — 부모 신고 구간에 skip 된 파생 export 가 옛 내용으로 정체된다.</li>
+     * </ul>
+     *
+     * <p>한 레벨(부모 집합 → 자식 집합)을 <b>단일 IN 쿼리</b>로 가져와 자손 수만큼 왕복이 늘지 않게 한다.
+     * 호출부가 레벨 단위로 반복하며 깊이/총량 상한을 건다.
+     */
+    @Query("SELECT r.rawSn FROM LsDataRaw r WHERE r.orgnlRawSn IN :parentSns ORDER BY r.rawSn ASC")
+    List<Long> findRawSnsByOrgnlRawSnIn(@Param("parentSns") Collection<Long> parentSns);
 
     /**
      * 수동 배치 재처리 클레임용 조건부 원자 전이 (CWE-362, check-and-set).

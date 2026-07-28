@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
+import kr.co.cudo.authoring.video.service.FrameImageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,7 +33,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
 
 /**
  * 프레임 이미지 바이너리 서빙 — 라벨링 캔버스용.
@@ -49,7 +49,8 @@ import java.time.Duration;
  *
  * <p>응답:
  * <ul>
- *   <li>200 + image/jpeg(or png) — 이미지 바이트 스트림 (Cache-Control: private, max-age=300)</li>
+ *   <li>200 + image/jpeg(or png) — 이미지 바이트 스트림 (Cache-Control: no-store — 비식별 누락 신고
+ *       게이트가 매 요청 평가되도록 클라이언트 캐시 재사용 금지)</li>
  *   <li>403 — 본인 배정 아님 / Path traversal 의심</li>
  *   <li>404 — 프레임 또는 파일 없음</li>
  * </ul>
@@ -67,6 +68,8 @@ public class FrameImageController {
 
     private final LsDataSrcRepository srcRepository;
     private final LabelAccessGuard accessGuard;
+    /** 비식별 이미지 서빙 위임 — 비식별 경로 판정(StorageSubtreePolicy)을 한 곳에서만 수행한다. */
+    private final FrameImageService frameImageService;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -123,11 +126,46 @@ public class FrameImageController {
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .contentLength(contentLength)
-                .cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)).cachePrivate())
+                // 위 1-1 신고 게이트가 매 요청 평가되도록 클라이언트 캐시 재사용을 금지한다 —
+                // max-age 동안 캐시된 프레임(PII 노출분)이 게이트를 우회해 재노출된다(CWE-359/525).
+                // /deid-image · 영상 /stream 과 동일 정책(no-store).
+                .cacheControl(CacheControl.noStore())
                 // 보안 헤더 보강 — 다운로드 강제 X (캔버스 inline 표시 목적)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"frame_" + srcSn + extOf(resolved) + "\"")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(body);
+    }
+
+    /**
+     * Phase 1 — 비식별 프레임 이미지 서빙 (해상도 파생 프레임 대응).
+     *
+     * <p>기존 {@code /image} 와 <b>별도 sub-resource</b> 로 둔다(쿼리 파라미터 행위 분기 금지 —
+     * {@code rules/api-design.md}). 해상도 파생 프레임은 원본 픽셀이 실재하지 않아
+     * {@code SRC_FILE_PATH_NM} 이 null 이므로 {@code /image} 로는 서빙되지 않는다.
+     *
+     * <p>인가·게이트·경로 검증은 모두 {@link FrameImageService#serveDeidentified} 가 수행한다
+     * (비식별 판정기 단일화 — 컨트롤러에서 검증 로직을 재구현하지 않는다).
+     */
+    @Operation(
+            summary = "비식별 프레임 이미지 다운로드",
+            description = "프레임의 <b>비식별</b> 이미지 바이너리 반환(DE_IDNTF_SRC_FILE_PATH_NM). "
+                    + "원본 경로 폴백 없음 — 비식별 경로가 없으면 404. 인증 필수, WORKER 는 본인 배정 "
+                    + "프레임만(CWE-639). 심링크/경로순회 차단(CWE-22/59)."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 — image/jpeg or image/png"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 / 비식별 서브트리 밖 경로 / 허용 외 확장자"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음 / 비식별 이미지 파일 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 누락 신고 구간(재비식별 대기) — 이미지 서빙 차단")
+    })
+    @GetMapping("/{srcSn}/deid-image")
+    // 내부 전용 — PORTAL 채널은 /v1/portal/** 전용 경로를 쓴다(기존 /image 와 동일 정책).
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ResponseEntity<Resource> getDeidImage(
+            @Parameter(description = "프레임 PK (SRC_SN)", required = true, example = "1") @PathVariable Long srcSn,
+            @AuthenticationPrincipal TokenClaims actor) throws IOException {
+        return frameImageService.serveDeidentified(srcSn, actor);
     }
 
     /**

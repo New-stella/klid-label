@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -388,7 +387,18 @@ public class PortalLabelService {
     }
 
     /**
-     * R16 — 포털 프레임 이미지 서빙.
+     * R16 — 포털 프레임 이미지 서빙 ({@code GET /v1/portal/frames/{srcSn}/image}).
+     *
+     * <p><b>혼동 주의 — 포털에는 이미지 서빙 경로가 2종이며 성격이 정반대다.</b>
+     * <ul>
+     *   <li><b>이 메서드(데이터마트 프레임)</b>: <b>내부 파이프라인이 만든 비식별 프레임</b>({@code LS_DATA_SRC})
+     *       을 외부 채널로 내보낸다. 비식별 누락 신고 게이트 <b>대상</b>이며(아래 {@code requireNotUnderDeidentReport}),
+     *       따라서 응답 캐시는 반드시 {@code no-store} 다.</li>
+     *   <li><b>포털 업로드 자산</b>({@code PortalUploadService#serveFrameImage},
+     *       {@code GET /v1/portal/uploads/frames/{uldFrmeSn}/image}, {@code LS_PORTAL_ULD_FRME}):
+     *       포털 사용자가 <b>본인이 업로드한</b> 자산이라 비식별 대상이 아니고 신고 게이트도 없다
+     *       (ADR-013 예외, 내부 파이프라인·데이터마트와 완전 분리). 이 캐시 정책 통일 대상이 아니다.</li>
+     * </ul>
      *
      * <p>정책:
      * <ul>
@@ -439,7 +449,11 @@ public class PortalLabelService {
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .contentLength(contentLength)
-                .cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)).cachePrivate())
+                // 신고 게이트(위 417행)가 매 요청 평가되려면 브라우저 HTTP 캐시가 응답을 재사용하면
+                // 안 된다 — max-age 동안 캐시된 "마스킹 실패" 비식별 프레임이 412 로 바뀐 뒤에도
+                // 그대로 재노출된다(CWE-359/525). 내부 /v1/frames/{srcSn}/image ·
+                // /deid-image · 영상 /stream 과 동일하게 no-store 로 통일.
+                .cacheControl(CacheControl.noStore())
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"frame_" + srcSn + "\"")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(body);

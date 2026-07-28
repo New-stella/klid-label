@@ -32,6 +32,51 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
 
     Optional<LsDataSrc> findByRawSnAndFrameNo(Long rawSn, Integer frameNo);
 
+    /**
+     * {@code (RAW_SN, FRM_NO)} 명시 키 <b>배치</b> 조회 — 부모↔파생 프레임 쌍 매칭용(N+1 회피).
+     *
+     * <p>해상도 파생 결과 화면은 파생 프레임 슬라이스마다 짝이 되는 부모 프레임을 찾아야 한다.
+     * 프레임당 단건 조회(N+1)를 막기 위해 페이지의 {@code FRM_NO} 집합을 한 번에 넘긴다.
+     * {@code rawSn} 을 함께 조건에 둬 다른 영상 프레임 유입을 구조적으로 차단한다.
+     * 파라미터 바인딩만 사용(CWE-89). 빈 컬렉션이면 호출부가 호출하지 않는다.
+     */
+    List<LsDataSrc> findByRawSnAndFrameNoIn(Long rawSn, Collection<Long> frameNos);
+
+    /**
+     * <b>쌍이 성립하는</b> 파생 프레임만 페이징 조회 — 해상도 파생 결과 화면(부모 비식별 ↔ 파생 비교)용.
+     *
+     * <p><b>왜 파생 프레임 전체를 페이징하면 안 되나</b>: 화면에 표시되는 것은 "부모 비식별 이미지 ↔ 파생
+     * 이미지" <b>쌍</b>이고, 부모에 같은 {@code FRM_NO} 프레임이 없거나 비식별 경로가 비어 있으면 그 쌍은
+     * 만들어지지 않는다. 파생 프레임 총수를 총량으로 쓰면 (1) 페이저가 실재하지 않는 페이지를 그리고
+     * (2) "총 처리 이미지 N장" 표기가 실제 표시량보다 많아진다. 그래서 <b>페이징 단위 자체를
+     * 쌍 성립 가능한 프레임</b>으로 맞춰 총량과 페이지 내용을 동시에 정합시킨다.
+     *
+     * <p>비용: 페이지 조회 1 + count 1 (유형당). 두 조회 모두 {@code RAW_SN} 로 좁힌 뒤
+     * ({@code IX_LS_DATA_SRC_RAW}) semi-join 이라 프레임 수에 선형이며, 페이지 크기에 비례하는
+     * N+1 은 없다. 파라미터 바인딩만 사용(CWE-89).
+     *
+     * <p><b>경로 보유 판정 기준(단일 기준)</b>: {@code trim(x) <> ''} — SQL {@code TRIM} 은 스페이스만
+     * 제거하므로 "스페이스가 아닌 문자가 하나라도 있는가"와 같다. 결과를 소비해 쌍을 만드는 쪽
+     * ({@code AugmentResultViewService#hasImagePath})은 <b>반드시 같은 기준</b>을 써야 한다
+     * ({@code String#isBlank()} 를 쓰면 탭·개행 경로가 count 엔 포함되고 표시에서 드롭돼 총량 ≠ 카드 수).
+     *
+     * @param derivativeRawSn 파생 영상 RAW_SN
+     * @param parentRawSn     부모(원본) 영상 RAW_SN
+     */
+    @Query(value = "select d from LsDataSrc d "
+            + "where d.rawSn = :derivativeRawSn and exists ("
+            + "  select 1 from LsDataSrc p where p.rawSn = :parentRawSn and p.frameNo = d.frameNo "
+            + "        and p.deIdntfSrcFilePathNm is not null and trim(p.deIdntfSrcFilePathNm) <> '') "
+            + "order by d.frameNo asc",
+            countQuery = "select count(d) from LsDataSrc d "
+                    + "where d.rawSn = :derivativeRawSn and exists ("
+                    + "  select 1 from LsDataSrc p where p.rawSn = :parentRawSn and p.frameNo = d.frameNo "
+                    + "        and p.deIdntfSrcFilePathNm is not null and trim(p.deIdntfSrcFilePathNm) <> '')")
+    org.springframework.data.domain.Page<LsDataSrc> findPairableDerivativeFrames(
+            @Param("derivativeRawSn") Long derivativeRawSn,
+            @Param("parentRawSn") Long parentRawSn,
+            org.springframework.data.domain.Pageable pageable);
+
     long countByRawSn(Long rawSn);
 
     /**

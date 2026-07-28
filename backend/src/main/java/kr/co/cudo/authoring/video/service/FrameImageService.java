@@ -25,9 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
+import java.nio.file.attribute.BasicFileAttributes;
 
 /**
  * SCR-REVIEW-002 — 프레임 이미지 서빙 (rawSn + frameNo 기반).
@@ -179,11 +180,105 @@ public class FrameImageService {
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .contentLength(contentLength)
-                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
+                // 신고 게이트(위 1-1)가 매 요청 평가되려면 클라이언트 캐시가 응답을 재사용하면 안 된다 —
+                // max-age 동안 캐시된 마스킹 실패 프레임이 그대로 재노출된다(CWE-359/525).
+                // 비식별 프레임 경로(serveDeidentified)·영상 스트림과 동일하게 no-store 로 통일.
+                .cacheControl(CacheControl.noStore())
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"frame_" + rawSn + "_" + frameNo + extOf(resolved) + "\"")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(body);
+    }
+
+    /**
+     * Phase 1 — <b>비식별 프레임 이미지</b>를 프레임 PK({@code SRC_SN}) 로 서빙한다.
+     * ({@code GET /v1/frames/{srcSn}/deid-image} 백엔드)
+     *
+     * <h3>왜 {@link #serve(Long, Integer, boolean, TokenClaims)} 를 재사용하지 않는가</h3>
+     * 위 메서드는 (rawSn, frameNo) 키이며 ANONY 영상에서 비식별본이 없으면 <b>원본으로 폴백</b>한다.
+     * 해상도 파생 프레임은 원본 픽셀이 실재하지 않아 {@code SRC_FILE_PATH_NM} 이 null 이고
+     * (E-ISSUE-41 정책 A), 이 엔드포인트의 계약은 "비식별 벌만 서빙"이다. 그래서 폴백이 없는
+     * 별도 경로를 둔다 — 이 메서드는 {@code getSrcFilePathNm()} 을 <b>참조하지 않는다</b>.
+     *
+     * <h3>순서 고정 (보안)</h3>
+     * ①인가({@code LabelAccessGuard} — CWE-639 IDOR) → ②신고 구간 게이트(CWE-359, 412) →
+     * ③경로 해석. 게이트를 인가보다 앞에 두면 미배정 WORKER 가 412/404 로 프레임 존재 여부를
+     * 탐색할 수 있으므로 인가가 항상 먼저다.
+     *
+     * <p>경로 검증은 {@link StorageSubtreePolicy#verifyDeidentifiedFile} <b>단일 판정기</b>에 위임한다
+     * (raw·deid 두 base 동일 운영 형상 대응 + {@code toRealPath} 심링크 우회 차단, CWE-22/59).
+     *
+     * @param srcSn 프레임 PK
+     * @param actor 호출자 토큰 클레임
+     */
+    public ResponseEntity<Resource> serveDeidentified(Long srcSn, TokenClaims actor) throws IOException {
+        // 1) 인가 먼저 — 프레임 조회 포함(N+1 회피). null/미존재는 여기서 4xx 로 끝난다.
+        LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
+
+        // 2) 인가 직후 신고 구간 게이트 — 역할 무관 프리컨디션(412). resolve('F'→'Y') 로 자동 해제.
+        //    판정 자체는 공유 게이트가 수행하며 <b>조상(ORGNL_RAW_SN) 체인</b>까지 본다 — 파생영상
+        //    프레임은 부모의 비식별 프레임 사본이라 부모 신고분이 그대로 남는다. 여기서 부모를 따로
+        //    조회해 국소 판정하지 않는다(게이트 이원화 금지 — 같은 누수가 다른 호출부에도 있었다).
+        accessGuard.requireNotUnderDeidentReport(src.getRawSn());
+
+        // 3) 비식별 경로만 사용 — 원본 폴백 금지. 비면 404(원본 유출 차단).
+        Path deidBase = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
+        StorageSubtreePolicy.Verification v =
+                StorageSubtreePolicy.verifyDeidentifiedFile(deidBase, src.getDeidFilePath());
+        if (!v.ok()) {
+            log.warn("[FrameDeidImage] rejected srcSn={} verdict={}", srcSn, v.verdict());
+            throw switch (v.verdict()) {
+                case BLANK, MISSING, NOT_REGULAR_FILE, REALPATH_FAILED ->
+                        new CustomException(ErrorCode.NOT_FOUND, "비식별 이미지 파일이 존재하지 않습니다.");
+                default -> new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
+            };
+        }
+        Path resolved = v.path();
+
+        // 4) 확장자 allowlist 기반 MIME (CWE-434)
+        MediaType mediaType = resolveMediaType(resolved);
+
+        // 5) 스트림 응답 — 대용량 메모리 적재 회피.
+        //    NOFOLLOW_LINKS 필수(TOCTOU, CWE-367/59): 판정({@code verifyDeidentifiedFile})은 실경로
+        //    기준이지만, 판정~open 사이에 그 <b>최종 컴포넌트</b>를 원본 프레임을 가리키는 심링크로
+        //    교체하면 링크를 따라가 원본 픽셀이 "비식별본"으로 서빙된다. frames/deid/** 에 심링크는
+        //    정상 산출물이 아니므로 링크면 열지 않고 실패시킨다(fail-closed). 크기도 같은 옵션으로 읽어
+        //    판정 대상과 응답 대상이 어긋나지 않게 한다.
+        long contentLength;
+        InputStream in;
+        try {
+            contentLength = Files.readAttributes(resolved, BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS).size();
+            in = Files.newInputStream(resolved, LinkOption.NOFOLLOW_LINKS);
+        } catch (IOException e) {
+            // 권한·교체·삭제 등 — 내부 경로/원인 노출 없이 규약 4xx 로 끝낸다(CWE-209, OWASP A10).
+            log.warn("[FrameDeidImage] open failed srcSn={} reason={}", srcSn, e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 이미지 파일이 존재하지 않습니다.");
+        }
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .contentLength(contentLength)
+                // 신고(비식별 누락) 즉시 차단이 클라이언트에서도 성립해야 한다 — 캐시된 마스킹 실패
+                // 이미지를 max-age 동안 재노출하면 방금 세운 412 게이트가 무력화된다(CWE-359).
+                .cacheControl(CacheControl.noStore())
+                // 헤더에는 서버가 통제하는 값만 넣는다 — 파일명 유래 문자열을 넣으면 CRLF 주입
+                // (CWE-113) 표면이 생기므로 srcSn + MIME 파생 확장자로만 조립한다.
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"frame_deid_" + srcSn + extOf(mediaType) + "\"")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(new InputStreamResource(in));
+    }
+
+    /** allowlist MIME → 확장자. 사용자/파일시스템 유래 문자열을 헤더에 싣지 않기 위한 역매핑. */
+    private static String extOf(MediaType mediaType) {
+        if (MediaType.IMAGE_PNG.equals(mediaType)) {
+            return ".png";
+        }
+        if ("webp".equals(mediaType.getSubtype())) {
+            return ".webp";
+        }
+        return ".jpg";
     }
 
     /**

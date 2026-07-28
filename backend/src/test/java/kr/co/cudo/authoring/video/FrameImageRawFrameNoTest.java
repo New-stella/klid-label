@@ -130,7 +130,10 @@ class FrameImageRawFrameNoTest {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("image/jpeg"))
-                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                // 신고 게이트가 매 요청 평가되도록 클라이언트 캐시 재사용 금지 (CWE-359/525) —
+                // /v1/frames/{srcSn}/image · /deid-image · 영상 /stream 과 동일 정책.
+                .andExpect(header().string("Cache-Control", "no-store"));
     }
 
     @Test

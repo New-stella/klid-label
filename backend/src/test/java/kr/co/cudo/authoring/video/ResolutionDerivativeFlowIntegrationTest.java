@@ -644,7 +644,10 @@ class ResolutionDerivativeFlowIntegrationTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
 
         assertThat(childCount(s.parent().getRawSn())).isZero();
-        assertThat(augRepository.findBySrcSnOrderByAugTypeCd(s.frame0().getSrcSn())).isEmpty();
+        // 실패 시 진단 — 공유 DB 에 하드코딩 srcSn 으로 시드된 타 테스트 잔존행과의 충돌을 식별할 수 있게 남긴다.
+        assertThat(augRepository.findBySrcSnOrderByAugTypeCd(s.frame0().getSrcSn()))
+                .as("frame0.srcSn=%s", s.frame0().getSrcSn())
+                .isEmpty();
     }
 
     @Test

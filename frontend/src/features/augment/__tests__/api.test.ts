@@ -115,6 +115,24 @@ describe('augment api', () => {
     expect(res.results[0].decision).toBe('PENDING');
   });
 
+  it('getAugmentResult_프레임쌍_페이징_파라미터를_전달한다', async () => {
+    // given
+    mock.onGet('/augments/100/result').reply(200, {
+      success: true,
+      data: { jobId: 100, status: 'COMPLETED', page: 1, size: 12, results: [] },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const res = await getAugmentResult(100, { page: 1, size: 12 });
+
+    // then
+    expect(mock.history.get[0].params).toMatchObject({ page: 1, size: 12 });
+    expect(res.page).toBe(1);
+    expect(res.size).toBe(12);
+  });
+
   it('acceptAugment_POST_augments_id_accept_상태_ACCEPTED', async () => {
     mock.onPost('/augments/1/accept').reply(200, {
       success: true,

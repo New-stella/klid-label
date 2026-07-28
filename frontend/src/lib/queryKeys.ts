@@ -62,7 +62,9 @@ export const VERSION_KEYS = {
 export const AUGMENT_KEYS = {
   all: ['augments'] as const,
   list: (params: Record<string, unknown>) => [...AUGMENT_KEYS.all, 'list', params] as const,
-  detail: (id: number) => [...AUGMENT_KEYS.all, 'detail', id] as const,
+  // 프레임 쌍 페이징(page/size)까지 키에 포함해야 페이지 전환이 캐시에 반영된다.
+  detail: (id: number, params: Record<string, unknown> = {}) =>
+    [...AUGMENT_KEYS.all, 'detail', id, params] as const,
 };
 
 export const EXPORT_KEYS = {

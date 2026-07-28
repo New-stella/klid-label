@@ -9,9 +9,11 @@ import jakarta.validation.Valid;
 import kr.co.cudo.authoring.augment.dto.AugmentJobResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
+import kr.co.cudo.authoring.augment.dto.AugmentResultResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse;
 import kr.co.cudo.authoring.augment.dto.RejectRequest;
 import kr.co.cudo.authoring.augment.service.AugmentRequestService;
+import kr.co.cudo.authoring.augment.service.AugmentResultViewService;
 import kr.co.cudo.authoring.augment.service.AugmentReviewService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -47,6 +49,8 @@ public class AugmentController {
 
     private final AugmentReviewService service;
     private final AugmentRequestService requestService;
+    /** 결과 본문(해상도 파생 프레임 쌍) 구성 — 검수 서비스와 책임 분리. */
+    private final AugmentResultViewService resultViewService;
 
     /**
      * 증강 잡 카드(영상 단위 그룹) 조회 — FE {@code AugmentJob} 계약 정합.
@@ -109,32 +113,36 @@ public class AugmentController {
     }
 
     /**
-     * 증강 작업(jobId) 결과 상태 조회 — FE 결과 화면(SCR-AUG-002)의 실제 상태 표시용.
+     * 증강 작업(jobId) 결과 조회 — FE 결과 화면(SCR-AUG-002).
      *
-     * <p>프레임별 results 본문은 외부 SFR-07 시스템 연동 전이라 비워 두지만, {@code status} 는 해당
-     * 원본 영상(jobId) 증강 row 의 실제 집계 상태(COMPLETED|FAILED|PROCESSING)를 반환한다. 이로써
-     * 완료/실패 파생이 결과 비어 있다는 이유로 무조건 "처리 중"으로 오표시되던 결함을 제거한다.
+     * <p>{@code status} 는 해당 원본 영상(jobId) 증강 row 의 실제 집계 상태
+     * (COMPLETED|FAILED|PROCESSING)다. {@code results} 는 <b>해상도 파생(RESL_*)</b> 의 프레임 쌍
+     * (부모 비식별 ↔ 파생 리스케일)을 반환한다 — 구 구현은 이를 빈 배열로 하드코딩해 비교 이미지가
+     * 하나도 표시되지 않았다. 외부 위탁 증강(WINTER/NIGHT/RAIN)의 프레임별 결과는 외부 SFR-07 연동
+     * 이후 제공되므로 기존과 동일하게 비어 있다.
      */
     @Operation(
             summary = "증강 작업 결과 조회 (REVIEWER)",
-            description = "해당 원본 영상 증강 row 의 실제 집계 상태(COMPLETED|FAILED|PROCESSING)를 반환한다. "
-                    + "프레임별 results 본문은 외부 SFR-07 연동 전이라 비어 있다."
+            description = "집계 상태(COMPLETED|FAILED|PROCESSING) + 해상도 파생(RESL_*) 프레임 쌍을 반환한다. "
+                    + "이미지는 파일 경로가 아니라 /v1/frames/{srcSn}/deid-image API 경로로만 노출된다. "
+                    + "외부 위탁 증강(WINTER/NIGHT/RAIN) 프레임 쌍은 외부 SFR-07 연동 이후 제공."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "page/size 범위 위반"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 누락 신고 구간(재비식별 대기) — 결과 조회 차단")
     })
     @GetMapping("/{jobId}/result")
     @PreAuthorize("hasRole('REVIEWER')")
-    public ApiResponse<java.util.Map<String, Object>> result(
-            @Parameter(description = "증강 jobId(=원본 RAW_SN)", required = true, example = "1") @PathVariable Long jobId) {
-        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("jobId", jobId);
-        body.put("status", service.aggregateResultStatus(jobId));
-        body.put("results", java.util.List.of());
-        body.put("message", "프레임별 결과 본문은 외부 SFR-07 시스템 연동 전 — status 만 실제 집계값을 반영합니다.");
-        return ApiResponse.ok(body);
+    public ApiResponse<AugmentResultResponse> result(
+            @Parameter(description = "증강 jobId(=원본 RAW_SN)", required = true, example = "1") @PathVariable Long jobId,
+            @Parameter(description = "프레임 쌍 페이지 번호 (0-based)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "프레임 쌍 페이지 크기 (기본 12, max 100)", example = "12")
+            @RequestParam(defaultValue = "12") int size) {
+        return ApiResponse.ok(resultViewService.result(jobId, page, size));
     }
 
     /**

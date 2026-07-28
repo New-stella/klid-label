@@ -1,3 +1,5 @@
+import type { ResolutionPreset } from '@/features/video/types';
+
 // 증강 도메인 타입 (BE OpenAPI alias) — UI/UX §4-12 정합.
 //
 // 활용 결정 상태:
@@ -83,20 +85,37 @@ export interface AugmentJob {
   videoCount: number;
 }
 
+/**
+ * 결과 화면의 유형 코드 — 외부 위탁 증강 3종 + 해상도 파생 3종(RESL_*, SFR-06-03).
+ *
+ * 해상도 파생은 "증강 요청" 대상이 아니므로 `AugmentType`(요청 union)은 넓히지 않는다.
+ * 결과 응답에서만 등장하는 코드이므로 결과 전용 union 으로 분리한다.
+ */
+export type AugmentResultType = AugmentType | ResolutionPreset;
+
 /** 증강 결과 — 영상별 + 유형별 */
 export interface AugmentResult {
   /** 결과 항목 ID (acceptAugment/rejectAugment의 path param) */
   id: number;
   videoId: number;
   cctvName: string;
-  type: AugmentType;
-  /** 12 프레임 페어 (원본/증강) */
+  type: AugmentResultType;
+  /** 프레임 페어 (원본/증강) — BE 페이징된 슬라이스 */
   framePairs: AugmentFramePair[];
   decision: AugmentDecision;
   /** ACCEPTED 시 결정 일시 */
   decidedAt?: string;
   /** REJECTED 시 사유 */
   rejectReason?: string;
+  /** 파생 영상 RAW_SN (해상도 파생) — 구 응답에는 없음 */
+  derivativeRawSn?: number;
+  /** 페이징 전 전체 프레임 쌍 수 — 구 응답에는 없어 optional */
+  totalFramePairs?: number;
+  /**
+   * accept/reject 가능 여부. 해상도 파생은 검수 대상이 아닌 내부 생성물이라 false.
+   * 구 응답(외부 위탁 증강)에는 없으므로 미지정은 "검수 가능"으로 취급한다.
+   */
+  reviewable?: boolean;
 }
 
 export interface AugmentFramePair {
@@ -125,6 +144,16 @@ export interface AugmentResultPage {
    */
   status: AugmentResultStatus;
   results: AugmentResult[];
+  /** 프레임 쌍 페이지 번호 (0-based) — 구 응답에는 없음 */
+  page?: number;
+  /** 프레임 쌍 페이지 크기 — 구 응답에는 없음 */
+  size?: number;
+}
+
+/** 증강 결과 조회 파라미터 — 프레임 쌍 페이징 (BE 기본 12, 최대 100) */
+export interface GetAugmentResultParams {
+  page?: number;
+  size?: number;
 }
 
 export interface RequestAugmentRequest {
