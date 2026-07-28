@@ -50,7 +50,7 @@ class AugmentFrameProducerTest {
         Files.createDirectories(externalDir);
         // 허용 마운트 루트 = 테스트 임시 루트(외부 산출 경로·비식별 저장소 모두 그 하위).
         VideoArtifactRootResolver resolver = new VideoArtifactRootResolver(
-                tempDir.toString(), tempDir.resolve("raw").toString(), deidBase.toString(),
+                tempDir.toString(), "", tempDir.resolve("raw").toString(), deidBase.toString(),
                 tempDir.resolve("labeling").toString(), "co-locate");
         producer = new AugmentFrameProducer(resolver, new Java2DImageResizer());
         ReflectionTestUtils.setField(producer, "storageDeidentifiedPath", deidBase.toString());
@@ -174,6 +174,45 @@ class AugmentFrameProducerTest {
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");
         assertThat(Files.exists(p.frames().get(0).dst())).isFalse();
+    }
+
+    @Test
+    @DisplayName("쓰기루트_밖_읽기루트_안의_벤더_산출물은_반입된다")
+    void vendorOutputOutsideWriteRootsButInsideReadRoots_isIngested() throws IOException {
+        // given — 실 형상 재현(docker): 벤더/목은 <자기 트리>(STORAGE_EXTERNAL_READ_ROOTS=/app/genai-out)에
+        //   결과를 쓰고, 우리 쓰기 allowlist(STORAGE_RAW_MOUNT_ROOTS=/app/storage/*)에는 손대지 않는다.
+        //   즉 반입 판정 축은 <읽기>(verifyExternalReadablePath / readableRoots) 여야 한다 — 구 API
+        //   (verifyIngestablePath / allowedRoots)로 되돌리면 이 정상 경로가 전건 거부되어 증강이 실패한다.
+        //   위 setup() 은 tempDir 전체를 쓰기 루트로 잡아 두 축이 겹치므로 여기서만 축을 분리한다.
+        Path storage = tempDir.resolve("storage");        // 쓰기 allowlist(우리 소유 트리)
+        Path vendorRoot = tempDir.resolve("vendor-out");  // 읽기 전용 allowlist(벤더 트리)
+        Path storageDeid = storage.resolve("deidentified");
+        Files.createDirectories(storageDeid);
+        Files.createDirectories(vendorRoot);
+        VideoArtifactRootResolver splitAxisResolver = new VideoArtifactRootResolver(
+                storage.toString(), vendorRoot.toString(), storage.resolve("raw").toString(),
+                storageDeid.toString(), storage.resolve("labeling").toString(), "co-locate");
+        AugmentFrameProducer splitAxisProducer =
+                new AugmentFrameProducer(splitAxisResolver, new Java2DImageResizer());
+        ReflectionTestUtils.setField(splitAxisProducer, "storageDeidentifiedPath", storageDeid.toString());
+        Path reference = writeImage(storageDeid.resolve("frames/deid/200/frame-0.jpg"), 64, 48, Color.GRAY);
+        Path vendorOut = writeImage(vendorRoot.resolve("job-ext/out-0.jpg"), 64, 48, Color.BLUE);
+        Path framesDir = storageDeid.resolve("frames/deid/9100");
+        AugmentExtractPlan p = new AugmentExtractPlan(9100L, 200L, 20L, "rev1", reference, framesDir,
+                List.of(new AugmentExtractPlan.FrameSpec(700L, 0L, 100L, LocalDateTime.now(),
+                        vendorOut, framesDir.resolve("frame-0.jpg"))));
+
+        // when
+        splitAxisProducer.produce(p);
+
+        // then — 벤더 산출물이 그대로 파생 프레임으로 반입된다
+        assertThat(Files.readAllBytes(p.frames().get(0).dst()))
+                .as("벤더 트리(읽기 허용)에서 온 산출물이 거부되면 증강 반입이 통째로 실패한다")
+                .isEqualTo(Files.readAllBytes(vendorOut));
+        // and — 통과의 근거가 "쓰기 루트를 넓혀서" 가 아니어야 한다(PII 격리 축 유지)
+        assertThat(splitAxisResolver.allowedRoots())
+                .as("벤더 트리를 쓰기 allowlist 로 승격하면 산출물 쓰기 범위가 벤더 트리까지 넓어진다")
+                .noneMatch(root -> vendorRoot.toAbsolutePath().normalize().startsWith(root));
     }
 
     @Test

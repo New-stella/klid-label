@@ -53,7 +53,12 @@ authoring:
 webhook:
   hmac:
     secret:
-      # 미설정/빈 값 → BeanInitializationException 으로 기동 차단(HmacWebhookFilter).
+      # ★ 실제 동작(Phase 7-A2 이후) — 서명 필수 경로가 <0개> 이므로 이 값은 <미설정이어도 기동한다>
+      #   (HmacWebhookFilter.ensureSecretConfigured: hasSignatureRequiredPaths()==false 면 미설정 허용).
+      #   쓰이지 않는 시크릿을 기동 조건으로 두면 "무의미한 값을 넣어야만 뜨는" 배포 함정이 되기 때문이다.
+      #   단 ①값을 <설정하면> 강도(32B 이상)·공개 placeholder 검증은 그대로 적용돼 위반 시 기동 차단이고,
+      #      ②서명 필수 경로가 다시 등록되면 미설정도 즉시 기동 차단으로 돌아온다.
+      #   런타임은 경로 판정 불가 요청을 401 로 끝내 fail-closed 를 유지한다(조용한 우회 없음).
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:}
   # 운영은 LB/Nginx 뒤에 배포된다. 신뢰 프록시 대역을 지정해야 X-Forwarded-For 가 해석되며,
   # 미지정 시 모든 콜백의 클라이언트 IP 가 프록시 IP 로 수렴해 rate limit 이 전체를 차단할 수 있다(A-ISSUE-15).

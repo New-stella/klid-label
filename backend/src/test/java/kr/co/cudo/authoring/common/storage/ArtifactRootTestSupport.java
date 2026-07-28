@@ -5,7 +5,7 @@ import java.nio.file.Path;
 /**
  * {@link VideoArtifactRootResolver} 테스트 픽스처 — 전략별 리졸버를 한 줄로 만든다.
  *
- * <p>리졸버 생성자는 5개의 설정 문자열을 받으므로, 테스트마다 순서를 외우지 않도록 여기 모은다.
+ * <p>리졸버 생성자는 6개의 설정 문자열을 받으므로, 테스트마다 순서를 외우지 않도록 여기 모은다.
  */
 public final class ArtifactRootTestSupport {
 
@@ -60,8 +60,20 @@ public final class ArtifactRootTestSupport {
      * @param allowedRoot 고정 allowlist 마운트 루트(= raw-mount-roots)
      */
     public static VideoArtifactRootResolver coLocate(Path allowedRoot) {
+        return coLocateWithExternalReadRoots(allowedRoot, "");
+    }
+
+    /**
+     * co-locate 전략 + <b>외부 산출물 읽기 루트</b>({@code external-read-roots}) 명시.
+     *
+     * <p>증강 벤더는 결과를 자기 트리에 쓰고 그 절대경로를 콜백으로 준다 — 그 트리는 쓰기 allowlist 에
+     * 없으므로 읽기 축으로만 허용된다(DEV_FIX 2차 HIGH-1).
+     */
+    public static VideoArtifactRootResolver coLocateWithExternalReadRoots(
+            Path allowedRoot, String externalReadRoots) {
         return new VideoArtifactRootResolver(
                 allowedRoot.toString(),
+                externalReadRoots,
                 allowedRoot.resolve("raw").toString(),
                 allowedRoot.resolve("deidentified").toString(),
                 allowedRoot.resolve("labeling").toString(),
@@ -72,6 +84,7 @@ public final class ArtifactRootTestSupport {
     public static VideoArtifactRootResolver coLocate(Path allowedRoot, Path rawBase, Path deidBase) {
         return new VideoArtifactRootResolver(
                 allowedRoot.toString(),
+                "",
                 rawBase.toString(),
                 deidBase.toString(),
                 allowedRoot.resolve("labeling").toString(),
@@ -93,6 +106,7 @@ public final class ArtifactRootTestSupport {
             Path allowedRoot, Path labelingRoot, Path deidBase) {
         return new VideoArtifactRootResolver(
                 allowedRoot.toString(),
+                "",
                 allowedRoot.resolve("raw").toString(),
                 deidBase.toString(),
                 labelingRoot.toString(),
@@ -102,6 +116,7 @@ public final class ArtifactRootTestSupport {
     /** labeling-root 전략(롤백) + 비식별 저장소 base 지정. */
     public static VideoArtifactRootResolver labelingRoot(Path labelingRoot, Path deidBase) {
         return new VideoArtifactRootResolver(
+                "",
                 "",
                 labelingRoot.resolveSibling("raw").toString(),
                 deidBase.toString(),

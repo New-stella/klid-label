@@ -281,6 +281,82 @@ class AugmentJobSubmitServiceTest {
         verify(externalClient, never()).requestAugment(any());
     }
 
+    // ─────────── 선기록 전량 선행 (DEV_FIX 2차 MEDIUM-2 — 부분 프레임셋 확정 차단) ───────────
+
+    @Test
+    @DisplayName("선기록_실패가_있으면_증강이_성공_확정되지_않는다")
+    void partialIssueRecordNeverYieldsSuccess() {
+        // given — 프레임 250장(청크 3개) 중 2번째 청크의 선기록이 IDMP_KEY 충돌로 실패한다.
+        //         구 구현은 2번 청크의 job 행 없이 1·3번만 위탁해, 롤업이 "존재하는 행 전부 성공" 으로
+        //         판정하며 부분 프레임셋을 ACCEPTED 로 확정했다.
+        seedFrames(250);
+        given(jobRecorder.recordIssued(anyLong(), anyInt(), anyString(), anyList()))
+                .willAnswer(inv -> {
+                    if ((int) inv.getArgument(1) == 2) {
+                        throw new IllegalStateException("중복 멱등키(mock)");
+                    }
+                    return jobSnSeq.incrementAndGet();
+                });
+
+        // when
+        AugmentJobSubmitService.SubmitOutcome outcome = service.submit(event());
+
+        // then — 한 건도 나가지 않는다(선기록이 위탁보다 <전부> 앞서므로 노출 자체가 없다).
+        assertThat(outcome.accepted()).isZero();
+        assertThat(outcome.withheld()).isFalse();
+        assertThat(outcome.requiresFailureRollup())
+                .as("콜백이 오지 않으므로 호출부가 즉시 실패 롤업해야 한다(PENDING 고착 금지)")
+                .isTrue();
+        verify(externalClient, never()).requestAugment(any());
+    }
+
+    @Test
+    @DisplayName("청크_3개중_2번째_선기록_실패시_전체가_실패로_종결된다")
+    void issueRecordFailureTerminatesAlreadyRecordedJobs() {
+        // given — 1번 청크는 선기록 성공, 2번에서 실패.
+        seedFrames(250);
+        given(jobRecorder.recordIssued(anyLong(), anyInt(), anyString(), anyList()))
+                .willAnswer(inv -> {
+                    if ((int) inv.getArgument(1) == 2) {
+                        throw new IllegalStateException("중복 멱등키(mock)");
+                    }
+                    return jobSnSeq.incrementAndGet();
+                });
+
+        // when
+        service.submit(event());
+
+        // then — 이미 선기록된 1번 행을 terminal FAILED 로 종결한다. 비종결로 남기면 롤업이 영원히
+        //        보류되고(고아 RECEIVED), 행을 아예 안 남기면 부분 프레임셋이 성공 확정된다.
+        verify(jobRecorder, times(1))
+                .markFailed(anyLong(), eq(LsDataAugJob.ERR_ISSUE_RECORD_FAILED), anyString());
+        verify(jobRecorder, never()).markAccepted(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("선기록은_첫_위탁보다_먼저_전량_수행된다")
+    void allChunksAreRecordedBeforeFirstSubmit() {
+        // given
+        seedFrames(250);
+        List<String> order = new ArrayList<>();
+        given(jobRecorder.recordIssued(anyLong(), anyInt(), anyString(), anyList()))
+                .willAnswer(inv -> {
+                    order.add("issue-" + inv.getArgument(1));
+                    return jobSnSeq.incrementAndGet();
+                });
+        given(externalClient.requestAugment(any())).willAnswer(inv -> {
+            order.add("submit-" + ((AugmentSubmitCommand) inv.getArgument(0)).jobSeq());
+            return AugmentSubmitResult.accepted("ext");
+        });
+
+        // when
+        service.submit(event());
+
+        // then — 기대 job 집합이 위탁 전에 완성돼야 롤업이 부분 프레임셋을 구분할 수 있다.
+        assertThat(order).containsExactly(
+                "issue-1", "issue-2", "issue-3", "submit-1", "submit-2", "submit-3");
+    }
+
     // ─────────────── 비식별 누락 신고 게이트 (DEV_FIX HIGH-2, PII) ───────────────
 
     @Test
@@ -327,12 +403,13 @@ class AugmentJobSubmitServiceTest {
         // when
         AugmentJobSubmitService.SubmitOutcome outcome = service.submit(event());
 
-        // then — 남은 2개 청크는 나가지 않고, 부분 프레임셋 확정을 막기 위해 terminal 실패 행을 남긴다.
+        // then — 남은 2개 청크는 나가지 않고, 부분 프레임셋 확정을 막기 위해 <이미 선기록된> 남은
+        //         job 행을 terminal FAILED 로 종결한다(비종결로 두면 롤업이 영원히 보류된다).
         assertThat(outcome.withheld()).isFalse();
         assertThat(outcome.accepted()).isEqualTo(1);
         verify(externalClient, times(1)).requestAugment(any());
-        verify(jobRecorder).recordRejected(eq(7L), anyString(),
-                eq(LsDataAugJob.ERR_DEIDENT_REPORT), anyString());
+        verify(jobRecorder, times(2))
+                .markFailed(anyLong(), eq(LsDataAugJob.ERR_DEIDENT_REPORT), anyString());
     }
 
     @Test

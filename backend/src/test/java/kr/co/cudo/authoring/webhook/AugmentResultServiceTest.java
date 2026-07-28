@@ -67,7 +67,7 @@ class AugmentResultServiceTest {
      */
     private static VideoArtifactRootResolver allowedStorageResolver() {
         return new VideoArtifactRootResolver(
-                "/storage", "/storage/raw", "/storage/deidentified", "/storage/labeling",
+                "/storage", "", "/storage/raw", "/storage/deidentified", "/storage/labeling",
                 VideoArtifactRootResolver.STRATEGY_CO_LOCATE);
     }
 

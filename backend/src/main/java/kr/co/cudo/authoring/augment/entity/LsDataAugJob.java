@@ -65,6 +65,16 @@ public class LsDataAugJob {
      * → 성공으로 접수하지 않고 실패로 종결한다(fail-closed).
      */
     public static final String ERR_RESULT_COUNT_MISMATCH = "RESULT_COUNT_MISMATCH";
+    /**
+     * 청크 선기록({@code recordIssued}) 실패로 <b>전 청크 위탁을 중단</b>한 경우의 내부 오류 코드
+     * (DEV_FIX 2차 MEDIUM-2).
+     *
+     * <p>선기록은 위탁 <b>전에</b> 전량 수행되므로 이 코드가 붙은 시점에 외부로 나간 청크는 없다.
+     * 이미 선기록된 앞 청크에 이 코드를 남기지 않으면 그 행이 비종결로 떠 있어 롤업이 영원히
+     * 보류되거나(무한 대기), 반대로 그 행이 아예 없으면 롤업이 <b>부분 프레임셋을 전량으로 오인</b>해
+     * 증강을 성공 확정한다.
+     */
+    public static final String ERR_ISSUE_RECORD_FAILED = "ISSUE_RECORD_FAILED";
 
     /** 오류 메시지 컬럼 길이(내용V1000) — 초과분은 절단 저장한다. */
     private static final int ERR_MSG_MAX = 1000;

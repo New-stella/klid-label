@@ -49,6 +49,7 @@ class GenAiCallbackServiceTest {
     @Mock private LsDataAugRepository augRepository;
     @Mock private AugmentResultService augmentResultService;
     @Mock private VideoArtifactRootResolver artifactRootResolver;
+    @Mock private kr.co.cudo.authoring.observability.metrics.AugmentMetrics metrics;
 
     private GenAiCallbackService service;
 
@@ -57,7 +58,8 @@ class GenAiCallbackServiceTest {
     @BeforeEach
     void setUp() {
         service = new GenAiCallbackService(
-                jobRepository, jobFileRepository, augRepository, augmentResultService, artifactRootResolver);
+                jobRepository, jobFileRepository, augRepository, augmentResultService,
+                artifactRootResolver, metrics);
         when(augRepository.findByDataAugSnForUpdate(AUG_SN))
                 .thenReturn(Optional.of(pendingAug()));
     }
@@ -146,7 +148,7 @@ class GenAiCallbackServiceTest {
 
         assertThat(job.getJobSttsCd()).isEqualTo(LsDataAugJob.STTS_RUNNING);
         verify(augmentResultService, never()).handle(any());
-        verify(artifactRootResolver, never()).verifyIngestablePath(any());
+        verify(artifactRootResolver, never()).verifyExternalReadablePath(any());
     }
 
     @Test
@@ -278,7 +280,7 @@ class GenAiCallbackServiceTest {
         LsDataAugJob job = issuedJob(1, "AUG-K-1", "job-1");
         givenJobs(job);
         doThrow(new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 원본 저장 경로입니다."))
-                .when(artifactRootResolver).verifyIngestablePath(any());
+                .when(artifactRootResolver).verifyExternalReadablePath(any());
 
         GenAiCallbackRequest req = new GenAiCallbackRequest(
                 "AUG-K-1", "job-1", "SUCCEEDED", 100, "COMPLETED", "t",

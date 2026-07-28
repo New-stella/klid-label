@@ -316,6 +316,61 @@ class DevProfileWiringGuardTest {
                 .isEmpty();
     }
 
+    @Test
+    @DisplayName("genai_산출물_트리가_BE_읽기_allowlist와_볼륨_양쪽으로_배선돼있다")
+    void genAiOutputTreeIsReadableByBackend() {
+        // given: 목/벤더는 증강 결과를 <별개 트리>(MOCK_GENAI_OUTPUT_BASE)에 쓰고 그 절대경로를 콜백으로
+        //   준다. BE 가 ①그 루트를 읽기 allowlist 로 알고 ②그 볼륨을 실제로 마운트해야 반입이 성립한다.
+        //   둘 중 하나만 빠지면 콜백이 400(경로 거부) 또는 파일 부재로 실패하고, 그 400 은 상태를
+        //   바꾸지 않으므로 증강 1건이 PENDING 에 <영구 고착>된다(DEV_FIX 2차 HIGH-1 재발 차단).
+        String genaiOutputBase = String.valueOf(
+                yamlValue(BASE_COMPOSE, "services.mock-server.environment.MOCK_GENAI_OUTPUT_BASE"));
+        String readRoots = String.valueOf(yamlValue(
+                BASE_COMPOSE, "services.klid-backend.environment.STORAGE_EXTERNAL_READ_ROOTS"));
+
+        // when
+        List<String> baseBackendVolumes = composeVolumes(BASE_COMPOSE, "klid-backend");
+        List<String> localBackendVolumes = composeVolumes(LOCAL_COMPOSE, "klid-backend");
+        List<String> localMockVolumes = composeVolumes(LOCAL_COMPOSE, "mock-server");
+
+        // then: ① 읽기 allowlist 가 목 산출 트리를 덮는다
+        assertThat(genaiOutputBase).as("목 산출 트리(MOCK_GENAI_OUTPUT_BASE)가 배선돼 있어야 한다").isNotBlank();
+        assertThat(readRoots)
+                .as("BE 읽기 allowlist(STORAGE_EXTERNAL_READ_ROOTS)가 목 산출 트리를 포함해야 한다")
+                .contains(genaiOutputBase);
+        // and: ② 쓰기 allowlist 는 넓어지지 않는다(PII 격리 축)
+        assertThat(String.valueOf(yamlValue(
+                BASE_COMPOSE, "services.klid-backend.environment.STORAGE_RAW_MOUNT_ROOTS")))
+                .as("벤더 산출 트리를 쓰기 allowlist 에 넣으면 산출물 쓰기 범위가 벤더 트리까지 넓어진다")
+                .doesNotContain(genaiOutputBase);
+        // and: ③ BE 가 그 트리를 <읽기 전용>으로 마운트한다
+        assertThat(baseBackendVolumes)
+                .as("BE 가 목 산출 볼륨을 마운트하지 않으면 경로 검증은 통과해도 파일이 보이지 않는다")
+                .anyMatch(v -> v.contains(":" + genaiOutputBase + ":ro"));
+        // and: ④ local override 도 같은 named volume 을 가리킨다(목과 다른 위치를 보면 파일 0건)
+        assertThat(localBackendVolumes)
+                .as("local override 가 genai 볼륨을 교체하지 않으면 BE 는 호스트 바인드를, 목은 named volume 을 본다")
+                .anyMatch(v -> v.contains(":" + genaiOutputBase + ":ro"));
+        assertThat(localMockVolumes)
+                .anyMatch(v -> v.endsWith(":" + genaiOutputBase));
+        String backendVolume = localBackendVolumes.stream()
+                .filter(v -> v.contains(":" + genaiOutputBase + ":ro")).findFirst().orElseThrow();
+        String mockVolume = localMockVolumes.stream()
+                .filter(v -> v.endsWith(":" + genaiOutputBase)).findFirst().orElseThrow();
+        assertThat(backendVolume.split(":")[0])
+                .as("BE 와 목이 같은 볼륨을 봐야 한다(BE=%s, mock=%s)", backendVolume, mockVolume)
+                .isEqualTo(mockVolume.split(":")[0]);
+    }
+
+    /** compose 서비스의 volumes 항목({@code src:dst[:opt]}) 목록. */
+    private List<String> composeVolumes(Path compose, String service) {
+        String prefix = "services." + service + ".volumes[";
+        return yamlKeys(compose).stream()
+                .filter(k -> k.startsWith(prefix))
+                .map(k -> String.valueOf(yamlValue(compose, k)))
+                .toList();
+    }
+
     /** yml 값(placeholder 미해석)에서 기본값 없는 환경변수 이름을 모은다. 주석은 로딩 시점에 제외된다. */
     private Set<String> envKeysWithoutDefault(String... fileNames) {
         Set<String> names = new LinkedHashSet<>();

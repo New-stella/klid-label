@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
+import kr.co.cudo.authoring.observability.metrics.AugmentMetrics;
 import kr.co.cudo.authoring.webhook.dto.GenAiCallbackRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,8 +72,10 @@ public class GenAiCallbackService {
     private final LsDataAugJobFileRepository jobFileRepository;
     private final LsDataAugRepository augRepository;
     private final AugmentResultService augmentResultService;
-    /** 외부가 준 {@code output_file_path} 가 허용 루트 하위인지 확인한다(CWE-22). */
+    /** 외부가 준 {@code output_file_path} 가 <b>읽기</b> 허용 루트 하위인지 확인한다(CWE-22). */
     private final VideoArtifactRootResolver artifactRootResolver;
+    /** 거부 사유 집계 — 상태를 바꾸지 않는 400 이 조용히 고착되는 것을 운영이 감지할 근거. */
+    private final AugmentMetrics metrics;
 
     /**
      * 웹훅 1건 처리.
@@ -207,11 +210,21 @@ public class GenAiCallbackService {
     }
 
     /**
-     * {@code results[].output_file_path} 를 <b>정규화 후</b> 허용 루트 하위인지 검증한다(CWE-22).
+     * {@code results[].output_file_path} 를 <b>정규화 후</b> <b>읽기</b> 허용 루트 하위인지 검증한다(CWE-22).
+     *
+     * <p>판정 축은 {@code VideoArtifactRootResolver#verifyExternalReadablePath} 다 — 벤더 산출물은 우리가
+     * <b>읽어서</b> 파생 프레임으로 복사할 대상이므로, 쓰기 base allowlist
+     * ({@code raw-mount-roots}) 를 넓히지 않고 별도 읽기 루트({@code external-read-roots})로 허용한다.
      *
      * <p>하나라도 허용 밖이면 {@code 400} 으로 거부하고 <b>상태를 바꾸지 않는다</b> — job 을 강제로
      * FAILED 로 만들지 않으므로 외부가 올바른 경로로 재전송하면 정상 처리된다. 거부 메시지에 경로
      * 원문·내부 디렉터리 구조를 담지 않는다(CWE-209).
+     *
+     * <p><b>고착 관측(DEV_FIX 2차 HIGH-1)</b>: 상태를 바꾸지 않는다는 것은, 외부가 재시도를 포기하면
+     * job 이 비종결(RECEIVED/RUNNING)로 남아 증강 1건이 PENDING 에 머문다는 뜻이다. 만료 스윕은 이
+     * 범위가 아니므로(별도 Phase) <b>운영이 감지할 수 있는 근거</b>를 남긴다 — WARN 로그 +
+     * 메트릭({@code augment.callback.rejected} tag {@code reason=output_path})이며, 비종결 job 은
+     * {@code LS_DATA_AUG_JOB}(JOB_STTS_CD 미종결 + REG_DT 경과) 쿼리로 그대로 열거된다.
      *
      * @return 검증을 통과한 경로 목록({@code results[]} 순서 그대로 — 위탁 항목과 짝짓는 재료)
      */
@@ -219,15 +232,18 @@ public class GenAiCallbackService {
         List<GenAiCallbackRequest.ResultItem> results = req.results();
         if (results == null || results.isEmpty()) {
             // SUCCEEDED 인데 산출물이 없다 = 계약 위반. 성공으로 접수하면 빈 증강본이 확정된다.
+            metrics.callbackRejected(AugmentMetrics.REASON_MISSING_RESULTS);
             log.warn("[Webhook][GenAi] succeeded without results request_id={}", safe(requestId));
             throw new CustomException(ErrorCode.INVALID_INPUT, "SUCCEEDED 콜백에는 results 가 필요합니다.");
         }
         List<String> paths = new ArrayList<>(results.size());
         for (GenAiCallbackRequest.ResultItem item : results) {
             try {
-                artifactRootResolver.verifyIngestablePath(item.outputFilePath());
+                artifactRootResolver.verifyExternalReadablePath(item.outputFilePath());
             } catch (CustomException e) {
-                log.warn("[Webhook][GenAi] output path rejected (outside allowed roots) request_id={} code={}",
+                metrics.callbackRejected(AugmentMetrics.REASON_OUTPUT_PATH);
+                log.warn("[Webhook][GenAi] output path rejected (outside readable roots) request_id={} code={}"
+                                + " — job 은 비종결로 남는다(재전송 대기). 재시도 소진 시 증강이 PENDING 에 머문다",
                         safe(requestId), e.getErrorCode());
                 throw new CustomException(ErrorCode.INVALID_INPUT,
                         "output_file_path 가 허용된 저장 경로가 아닙니다.");

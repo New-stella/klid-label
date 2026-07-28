@@ -181,6 +181,16 @@ authoring:
     #   .env.example)에서 STORAGE_RAW_MOUNT_ROOTS 를 <명시>한다 — 암묵 폴백에 기대지 않는다.
     #   ★ '/' 등 파일시스템 루트를 지정하면 가드가 무력화되므로 **기동을 실패**시킨다(fail-closed, CWE-1188).
     raw-mount-roots: ${STORAGE_RAW_MOUNT_ROOTS:}
+    # 외부 벤더 산출물 <읽기> 전용 허용 루트 — 콤마 구분. 위 raw-mount-roots(쓰기 base 축)와 <별개 축>이다.
+    #   왜 필요한가: 생성형 AI(증강) 벤더는 결과 이미지를 <자기 트리>에 쓰고 그 절대경로를 콜백으로 준다
+    #   (local/dev 목=/app/genai-out, 실벤더=벤더 공유 NAS 경로). 우리는 그 파일을 <읽어서> 파생 프레임
+    #   위치로 복사하므로, 그 트리를 쓰기 allowlist 에 넣으면 "우리가 산출물을 쓸 수 있는 범위"가 벤더
+    #   트리까지 넓어져 PII 격리 축이 흐려진다. 그래서 읽기 축만 분리해 넓힌다.
+    #   판정 절차(정규화 + lexical + toRealPath 재검증)는 쓰기 축과 <동일 코드>이며, 실제 허용 집합은
+    #   [raw-mount-roots] ∪ [external-read-roots] 다. 미설정(기본)이면 쓰기 allowlist 와 완전히 동일해
+    #   읽기 범위가 넓어지지 않는다(fail-closed — 설정하지 않으면 벤더 경로는 400 으로 거부된다).
+    #   ★ '/' 등 파일시스템 루트를 지정하면 기동을 실패시킨다(쓰기 축과 동일, CWE-1188).
+    external-read-roots: ${STORAGE_EXTERNAL_READ_ROOTS:}
     # 마킹 스트림 Range 요청당 반환 상한(bytes). 기본 8MB — 값이 작으면(구 1MB) 4배속 재생 시
     # 재요청 폭증으로 버벅임 발생. 1MB 미만 설정은 코드가 안전 기본값(8MB)으로 폴백한다.
     stream-chunk-size: ${STORAGE_STREAM_CHUNK_SIZE:8388608}
@@ -586,8 +596,11 @@ vlm:
 #  - 보호 대상 경로는 코드의 allowlist(WebhookProtectedPaths)가 단일 진실원이며,
 #    Spring MVC 와 동일한 RequestPath/PathPattern 으로 판정한다(경로 인코딩 변형 우회 차단, E-ISSUE-01).
 #  - Phase 7-A2 — 구 증강 콜백(/v1/aug/**, HMAC 서명 필수)은 외부 실계약과 맞지 않아 제거됐다.
-#    등록된 서명 필수 경로는 현재 없으나, **경로 판정 불가는 여전히 서명 요구(fail-closed)** 라
-#    HMAC 시크릿은 계속 필수다(미설정 시 기동 실패 — 조용한 우회 금지, E-ISSUE-04).
+#    등록된 서명 필수 경로는 현재 **0개**다. 그래서 HMAC 시크릿은 <미설정이어도 기동한다>
+#    (HmacWebhookFilter — 쓰이지 않는 시크릿을 기동 조건으로 두면 배포 함정이 되므로 MEDIUM-3 에서 완화).
+#    단 ①값을 <설정하면> 강도(32B 이상)·공개 placeholder 검증은 경로 유무와 무관하게 적용돼 위반 시
+#    기동 차단이고, ②서명 필수 경로가 다시 등록되면 미설정도 즉시 기동 차단으로 돌아온다.
+#    런타임은 **경로 판정 불가 요청을 401 로 끝내 fail-closed** 를 유지한다(E-ISSUE-04 의 조용한 우회 없음).
 #  - timestamp-window-seconds: 과거 방향 허용창(기본 300s). 미래 방향은 코드에서 30s(시계 오차)만 허용.
 #  - replay 방지: 서명 nonce 를 LS_WHK_SIGN_USE 에 1회성 소비(노드 공유). 중복은 401 이 아니라 409.
 #  - 평문 커밋 금지: ${WEBHOOK_HMAC_SECRET_*} 환경변수만 허용.

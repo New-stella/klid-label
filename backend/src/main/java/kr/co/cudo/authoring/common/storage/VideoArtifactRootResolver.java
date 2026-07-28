@@ -52,6 +52,19 @@ import java.util.Set;
  * <p>검증 실패는 <b>기본 루트로 fallback 하지 않고</b> 예외로 종결한다(fail-secure). 예외 메시지에는
  * 내부 경로/NAS 구조를 담지 않는다(CWE-209) — 호출부 로그도 rawSn 만 남긴다.
  *
+ * <h3>쓰기 허용 루트 ≠ 읽기 허용 루트 (DEV_FIX 2차 HIGH-1)</h3>
+ * <p>외부 벤더(생성형 AI)가 반환하는 산출물은 <b>우리가 읽어서</b> 파생 프레임 위치로 복사할 대상이고,
+ * 우리가 쓰는 곳이 아니다. 벤더는 자기 NAS/컨테이너 트리(예: {@code /app/genai-out}, 실벤더는 자기
+ * 공유 NAS 경로)에 결과를 쓰므로 그 경로는 쓰기 allowlist
+ * ({@code authoring.storage.raw-mount-roots})에 <b>있을 수 없다</b>. 그렇다고 쓰기 allowlist 에
+ * 추가하면 "우리가 산출물을 쓸 수 있는 트리" 가 벤더 트리까지 넓어져 PII 격리 축(원본/비식별 산출
+ * 위치 통제)이 흐려진다.
+ * <p>그래서 축을 둘로 나눈다 — {@link #verifyIngestablePath}(쓰기 base 도출용, allowlist 불변) 과
+ * {@link #verifyExternalReadablePath}(외부 산출물 <b>읽기</b> 전용). 읽기 루트는
+ * {@code 쓰기 allowlist ∪ authoring.storage.external-read-roots} 이고, 기본값은 <b>빈 값</b>이라
+ * 미설정 형상에서는 읽기 허용 범위가 쓰기 allowlist 와 완전히 동일하다(fail-closed — 설정으로만 넓어진다).
+ * 검증 절차(정규화 + lexical + 실경로 재검증)는 두 축이 <b>같은 코드</b>를 쓴다.
+ *
  * <h3>롤백 플래그</h3>
  * <p>{@code authoring.dataset-export.base-strategy} 가 {@code labeling-root} 면 구 구조
  * ({@code {labeling_root}/{rawSn}/…}, 비식별 영상은 {@code {deid_base}/videos/{rawSn}/}) 로 되돌아간다.
@@ -72,13 +85,19 @@ public class VideoArtifactRootResolver {
     /** 비식별 영상 디렉터리 세그먼트 — {@code {rawSn}/deid/}. */
     public static final String SEG_DEID = "deid";
 
+    /** 설정 키(예외 메시지에 경로 원문 대신 지목할 대상). */
+    static final String KEY_RAW_MOUNT_ROOTS = "authoring.storage.raw-mount-roots";
+    static final String KEY_EXTERNAL_READ_ROOTS = "authoring.storage.external-read-roots";
+
     private final List<Path> allowedRoots;
+    private final List<Path> readableRoots;
     private final Path labelingRoot;
     private final Path deidentifiedBase;
     private final boolean coLocate;
 
     public VideoArtifactRootResolver(
             @Value("${authoring.storage.raw-mount-roots:}") String rawMountRoots,
+            @Value("${authoring.storage.external-read-roots:}") String externalReadRoots,
             @Value("${authoring.storage.raw-path:./storage/raw}") String rawPath,
             @Value("${authoring.storage.deidentified-path:./storage/deidentified}") String deidentifiedPath,
             @Value("${authoring.storage.labeling-path:./storage/labeling}") String labelingPath,
@@ -86,6 +105,7 @@ public class VideoArtifactRootResolver {
         this.labelingRoot = normalize(labelingPath);
         this.deidentifiedBase = normalize(deidentifiedPath);
         this.allowedRoots = buildAllowedRoots(rawMountRoots, rawPath, deidentifiedPath);
+        this.readableRoots = buildReadableRoots(this.allowedRoots, externalReadRoots);
         this.coLocate = !STRATEGY_LABELING_ROOT.equalsIgnoreCase(trimOrEmpty(baseStrategy));
     }
 
@@ -121,15 +141,51 @@ public class VideoArtifactRootResolver {
             roots.add(normalize(rawPath));
             roots.add(normalize(deidentifiedPath));
         }
+        rejectFilesystemRoots(roots, KEY_RAW_MOUNT_ROOTS);
+        return List.copyOf(roots);
+    }
+
+    /**
+     * 외부 산출물 <b>읽기</b> 허용 루트 — {@code 쓰기 allowlist ∪ authoring.storage.external-read-roots}.
+     *
+     * <p>미설정(기본)이면 쓰기 allowlist 와 동일하다 — 즉 <b>설정하지 않는 한 읽기 범위가 넓어지지
+     * 않는다</b>(fail-closed). 쓰기 allowlist 를 자동 포함하는 이유는 우리 소유 트리(원본 NAS·비식별
+     * 저장소)에서 읽는 것은 이미 허용된 동작이기 때문이며, 반대 방향(읽기 루트를 쓰기 루트로 승격)은
+     * 하지 않는다.
+     *
+     * <p>{@code /} 같은 파일시스템 루트는 쓰기 축과 동일하게 <b>기동을 실패</b>시킨다 — 여기서 통과하면
+     * 벤더가 넘긴 임의 경로(예: {@code /etc/shadow})가 파생 프레임으로 복사돼 서빙·export 로 새어 나간다.
+     */
+    private static List<Path> buildReadableRoots(List<Path> writeRoots, String configured) {
+        Set<Path> roots = new LinkedHashSet<>(writeRoots);
+        String value = trimOrEmpty(configured);
+        if (!value.isEmpty()) {
+            for (String token : value.split(",")) {
+                String candidate = token.trim();
+                if (candidate.isEmpty()) {
+                    continue;
+                }
+                if (!Paths.get(candidate).isAbsolute()) {
+                    LOG.warn("[ArtifactRoot] external-read-roots 원소가 상대경로다 — 작업 디렉터리 기준으로"
+                            + " 해석된다. 운영 형상에서는 절대경로(벤더 공유 마운트 루트)를 지정할 것");
+                }
+                roots.add(normalize(candidate));
+            }
+        }
+        rejectFilesystemRoots(roots, KEY_EXTERNAL_READ_ROOTS);
+        return List.copyOf(roots);
+    }
+
+    /** 파일시스템 루트({@code /}, {@code C:\}) 지정 거부 — 가드 무력화 방지(CWE-1188, fail-closed). */
+    private static void rejectFilesystemRoots(Set<Path> roots, String settingKey) {
         for (Path root : roots) {
             if (root.getNameCount() == 0) {
                 // CWE-209 — 메시지에 경로 원문을 담지 않는다(설정 키만 지목).
                 throw new IllegalStateException(
-                        "authoring.storage.raw-mount-roots 에 파일시스템 루트를 지정할 수 없습니다."
+                        settingKey + " 에 파일시스템 루트를 지정할 수 없습니다."
                                 + " 경로 가드가 무력화되므로 실제 마운트 서브트리를 지정하세요.");
             }
         }
-        return List.copyOf(roots);
     }
 
     private static Path normalize(String value) {
@@ -145,9 +201,16 @@ public class VideoArtifactRootResolver {
         return coLocate;
     }
 
-    /** 고정 allowlist(정규화된 절대경로). VisibleForTesting. */
+    /** 고정 allowlist(정규화된 절대경로) — <b>쓰기 base</b> 판정 축. VisibleForTesting. */
     public List<Path> allowedRoots() {
         return allowedRoots;
+    }
+
+    /**
+     * 외부 산출물 <b>읽기</b> 허용 루트(쓰기 allowlist ∪ external-read-roots). 쓰기에는 쓰지 않는다.
+     */
+    public List<Path> readableRoots() {
+        return readableRoots;
     }
 
     /** 구 구조 산출 루트({@code labeling-path}). VisibleForTesting. */
@@ -272,11 +335,30 @@ public class VideoArtifactRootResolver {
     }
 
     /**
+     * <b>외부 산출물 읽기 경로 검증</b> — 벤더(생성형 AI)가 콜백으로 건네는
+     * {@code output_file_path} 가 <b>읽기</b> 허용 루트 하위인지 확인한다(CWE-22 / CWE-59).
+     *
+     * <p>{@link #verifyIngestablePath} 와 검증 절차는 완전히 동일하고 <b>기준 루트 집합만</b> 다르다
+     * (클래스 주석 "쓰기 허용 루트 ≠ 읽기 허용 루트" 참조). 이 경로는 우리가 <b>읽기만</b> 하며,
+     * 산출물 쓰기 base 로는 절대 승격되지 않는다.
+     *
+     * @throws CustomException 경로 손상(INVALID_INPUT) / 읽기 allowlist·심링크 위반(FORBIDDEN)
+     */
+    public void verifyExternalReadablePath(String filePath) {
+        verifiedBaseUnder(filePath, readableRoots);
+    }
+
+    /**
      * <b>①base 무결성</b> — {@code dirname(rawFilePathNm)} 이 고정 allowlist 하위인지 검증한다.
      * lexical 검사 + 실경로(심링크 해석) 재검사를 모두 통과해야 하며, 통과한 base 는 호출자의
      * 지역변수로만 흐른다(필드 캐싱 금지 — 검증 기준과 검증 대상이 같은 값에서 파생되지 않도록).
      */
     private VerifiedBase verifiedColocateBase(String rawFilePathNm) {
+        return verifiedBaseUnder(rawFilePathNm, allowedRoots);
+    }
+
+    /** ①base 무결성 — 기준 루트 집합만 달리 받는 공용 판정(쓰기/읽기 축이 같은 코드를 쓴다). */
+    private VerifiedBase verifiedBaseUnder(String rawFilePathNm, List<Path> roots) {
         if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 영상 경로가 비어 있습니다.");
         }
@@ -292,13 +374,13 @@ public class VideoArtifactRootResolver {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 영상 경로의 상위 디렉터리를 확인할 수 없습니다.");
         }
         // lexical — '..' 순회는 normalize 로 접힌 뒤 allowlist 밖으로 떨어져 여기서 거부된다.
-        boolean lexicalOk = allowedRoots.stream().anyMatch(base::startsWith);
+        boolean lexicalOk = roots.stream().anyMatch(base::startsWith);
         if (!lexicalOk) {
             throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 원본 저장 경로입니다.");
         }
         // 실경로(CWE-59) — allowlist 안의 심링크가 밖을 가리키는 우회를 차단한다.
         Path realBase = realOrNearest(base);
-        boolean realOk = allowedRoots.stream().anyMatch(root -> realBase.startsWith(realOrNearest(root)));
+        boolean realOk = roots.stream().anyMatch(root -> realBase.startsWith(realOrNearest(root)));
         if (!realOk) {
             throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 원본 저장 경로입니다.");
         }

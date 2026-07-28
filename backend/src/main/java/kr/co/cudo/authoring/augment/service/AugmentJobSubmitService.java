@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 증강 외부 위탁 분할 실행 서비스 — Phase 7-A1.
@@ -37,10 +38,13 @@ import java.util.List;
  *       NAS 에서 PII 파일을 실제로 읽는다(CWE-359). 콜백 시점의 부모 {@code 'Y'} 게이트
  *       ({@code AugmentResultService})는 <b>이미 유출된 뒤</b>라 이 창을 닫지 못한다.
  *       판정은 새로 만들지 않고 단일 원천 {@link DeidentReportGate} 를 호출한다.</li>
- *   <li><b>선기록 후 위탁</b>: 각 청크는 위탁 전에 RECEIVED 로 선기록(멱등키 확보)하고,
- *       202 수신 후 외부 job_id 를 채운다. 실패는 FAILED + 사유로 남긴다(조용한 삼킴 금지).</li>
- *   <li><b>건별 격리</b>: 2번째 청크가 실패해도 3번째 청크를 계속 위탁한다. 전체 성공/부분 실패
- *       판정(집계)은 결과 수신부(A2)의 책임이다.</li>
+ *   <li><b>전량 선기록 후 위탁</b>(DEV_FIX 2차 MEDIUM-2): <b>모든</b> 청크를 RECEIVED 로 먼저
+ *       선기록(멱등키 + 순서↔프레임 대응 확보)한 뒤에 위탁 루프를 돈다. 선기록이 하나라도 실패하면
+ *       한 건도 위탁하지 않고 이미 기록된 앞 청크까지 FAILED 로 종결한다 — 그래야 수신부 롤업이
+ *       <b>부분 프레임셋을 전량으로 오인해 성공 확정</b>하는 일이 원천적으로 불가능해진다.
+ *       202 수신 후 외부 job_id 를 채우고, 실패는 FAILED + 사유로 남긴다(조용한 삼킴 금지).</li>
+ *   <li><b>건별 격리</b>: 2번째 청크의 <b>위탁</b>이 실패해도 3번째 청크를 계속 위탁한다. 전체
+ *       성공/부분 실패 판정(집계)은 결과 수신부(A2)의 책임이다.</li>
  * </ul>
  *
  * <p>트랜잭션: 본 서비스는 <b>쓰기 트랜잭션을 열지 않는다</b>. 조회는 readOnly, 기록은
@@ -125,6 +129,15 @@ public class AugmentJobSubmitService {
 
         String evntType = resolveEventType(event.rawSn());
         List<List<FrameInput>> chunks = partition(inputs);
+
+        // 전량 선기록 — <위탁 전에> 기대 job 집합을 완성한다(DEV_FIX 2차 MEDIUM-2).
+        Optional<List<Long>> issued = issueAllChunks(event, chunks);
+        if (issued.isEmpty()) {
+            // 선기록 단계에서 끊었으므로 외부로 나간 청크는 없다 → 수락 0건(호출부가 실패 롤업).
+            return SubmitOutcome.of(0);
+        }
+        List<Long> augJobSns = issued.get();
+
         int accepted = 0;
         for (int i = 0; i < chunks.size(); i++) {
             // 청크마다 재판정한다 — 250장 위탁은 수 초~수십 초 걸리고, 그 사이 신고가 커밋되면 남은
@@ -132,10 +145,10 @@ public class AugmentJobSubmitService {
             // 잠금(FOR UPDATE)은 쓰지 않는다 — 외부 HTTP 왕복 전체를 한 트랜잭션으로 묶어 신고 자체를
             // 블록하게 되므로, 여기서는 무잠금 판정으로 남은 노출량만 줄인다.
             if (i > 0 && deidentReportGate.isUnderDeidentReport(event.rawSn())) {
-                abortRemainingChunks(event, i + 1, chunks.size());
+                abortRemainingChunks(event, augJobSns, i, chunks.size());
                 break;
             }
-            if (submitChunk(event, evntType, chunks.get(i), i + 1, chunks.size())) {
+            if (submitChunk(event, evntType, chunks.get(i), augJobSns.get(i), i + 1, chunks.size())) {
                 accepted++;
             }
         }
@@ -145,20 +158,73 @@ public class AugmentJobSubmitService {
     }
 
     /**
+     * <b>전 청크 선기록</b>(위탁 전) — 멱등키 + 순서↔프레임 대응을 청크 수만큼 확보한다.
+     *
+     * <h3>왜 위탁 루프와 분리했나 (DEV_FIX 2차 MEDIUM-2)</h3>
+     * <p>구 구현은 "청크마다 선기록 → 즉시 위탁" 이었다. 그래서 2번째 청크의 선기록이 실패하면
+     * (예: 원 AFTER_COMMIT 경로와 신고 해제 재개 경로가 같은 멱등키로 동시 진입 → {@code IDMP_KEY}
+     * UNIQUE 충돌) <b>그 청크의 job 행이 아예 생기지 않은 채</b> 1·3번 청크만 위탁됐다. 수신부 롤업은
+     * "기대 job 수" 를 갖고 있지 않으므로 <b>존재하는 행만 보고 전부 SUCCEEDED</b> 라고 판정해 증강을
+     * 성공 확정했다 — 프레임이 빠진 산출물이 ACCEPTED 로 남는 정합 붕괴다.
+     *
+     * <p>선기록을 전량 먼저 하면 실패가 <b>외부 위탁 전에</b> 드러나므로 전체를 실패로 끝낼 수 있고,
+     * 롤업이 대조할 "기대 job 수" 컬럼(스키마 추가)이 필요 없다. 이미 선기록된 앞 청크는
+     * {@link LsDataAugJob#ERR_ISSUE_RECORD_FAILED} 로 terminal 종결시켜 <b>비종결 고아 행</b>도 남기지 않는다.
+     *
+     * @return 청크 순서대로의 {@code AUG_JOB_SN} 목록. 선기록이 하나라도 실패하면 {@link Optional#empty()}
+     */
+    private Optional<List<Long>> issueAllChunks(AugmentRequestedItemEvent event,
+                                                List<List<FrameInput>> chunks) {
+        List<Long> augJobSns = new ArrayList<>(chunks.size());
+        for (int i = 0; i < chunks.size(); i++) {
+            int jobSeq = i + 1;
+            try {
+                augJobSns.add(jobRecorder.recordIssued(
+                        event.originAugSn(), jobSeq, chunkRequestId(event.idempotencyKey(), jobSeq),
+                        chunks.get(i).stream().map(FrameInput::toRef).toList()));
+            } catch (Exception e) {
+                metrics.externalRequestFailure();
+                log.warn("[Augment] job 선기록 실패 — 전 청크 위탁 중단 originAugSn={} jobSeq={}/{} err={}",
+                        event.originAugSn(), jobSeq, chunks.size(), sanitize(e.getMessage()));
+                failIssuedJobs(augJobSns, LsDataAugJob.ERR_ISSUE_RECORD_FAILED,
+                        "선기록 실패로 위탁 전 전체를 중단했습니다. failedJobSeq=" + jobSeq);
+                return Optional.empty();
+            }
+        }
+        return Optional.of(augJobSns);
+    }
+
+    /**
      * 위탁 <b>도중</b> 신고가 관측돼 남은 청크를 끊었을 때의 종결 기록.
      *
      * <p>이미 나간 청크는 되돌릴 수 없고 프레임셋이 불완전하므로, 이 증강 1건은 성공으로 확정돼선
-     * 안 된다. terminal FAILED 행을 남겨 롤업이 "부분 실패 = 전체 실패" 규칙으로 종결하게 한다
-     * (위탁 <b>전</b> 보류와 달리 여기서는 실패가 맞다).
+     * 안 된다. <b>선기록만 되고 위탁되지 않은</b> 남은 job 행을 terminal FAILED 로 종결해 롤업이
+     * "부분 실패 = 전체 실패" 규칙으로 끝내게 한다(위탁 <b>전</b> 보류와 달리 여기서는 실패가 맞다).
+     * 이 행들을 그냥 두면 비종결이라 롤업이 영원히 보류된다.
+     *
+     * @param fromIndex 중단 시작 청크의 0-base 인덱스(= 위탁된 마지막 청크 다음)
      */
-    private void abortRemainingChunks(AugmentRequestedItemEvent event, int fromJobSeq, int jobCount) {
+    private void abortRemainingChunks(AugmentRequestedItemEvent event, List<Long> augJobSns,
+                                      int fromIndex, int jobCount) {
         metrics.externalRequestFailure();
-        jobRecorder.recordRejected(event.originAugSn(),
-                abortRequestId(event.idempotencyKey(), fromJobSeq),
+        failIssuedJobs(augJobSns.subList(fromIndex, augJobSns.size()),
                 LsDataAugJob.ERR_DEIDENT_REPORT,
-                "위탁 중 비식별 누락 신고가 확인되어 남은 청크를 중단했습니다. abortedFromJobSeq=" + fromJobSeq);
+                "위탁 중 비식별 누락 신고가 확인되어 남은 청크를 중단했습니다. abortedFromJobSeq="
+                        + (fromIndex + 1));
         log.warn("[Augment] 위탁 중단 — 비식별 누락 신고 관측 originAugSn={} rawSn={} abortedFrom={}/{}",
-                event.originAugSn(), event.rawSn(), fromJobSeq, jobCount);
+                event.originAugSn(), event.rawSn(), fromIndex + 1, jobCount);
+    }
+
+    /** 선기록된 job 들을 terminal FAILED 로 종결한다(건별 격리 — 한 건 실패가 나머지를 막지 않는다). */
+    private void failIssuedJobs(List<Long> augJobSns, String errorCode, String reason) {
+        for (Long augJobSn : augJobSns) {
+            try {
+                jobRecorder.markFailed(augJobSn, errorCode, reason);
+            } catch (Exception e) {
+                log.error("[Augment] 선기록 job 종결 실패 — 비종결 행 잔존 가능 augJobSn={} err={}",
+                        augJobSn, sanitize(e.getMessage()));
+            }
+        }
     }
 
     /**
@@ -187,27 +253,16 @@ public class AugmentJobSubmitService {
     }
 
     /**
-     * 청크 1건 위탁 — 선기록 → 외부 호출 → 결과 반영. 예외는 여기서 흡수하되 <b>DB 에 사유를 남긴다</b>.
+     * 청크 1건 위탁 — 외부 호출 → 결과 반영. 예외는 여기서 흡수하되 <b>DB 에 사유를 남긴다</b>.
+     *
+     * <p>선기록({@code recordIssued})은 {@link #issueAllChunks} 가 <b>위탁 루프 진입 전에</b> 전량
+     * 끝냈으므로 여기서는 이미 확보된 {@code augJobSn} 을 받아 쓴다.
      *
      * @return 202 수락 여부
      */
     private boolean submitChunk(AugmentRequestedItemEvent event, String evntType,
-                                List<FrameInput> chunk, int jobSeq, int jobCount) {
+                                List<FrameInput> chunk, Long augJobSn, int jobSeq, int jobCount) {
         String requestId = chunkRequestId(event.idempotencyKey(), jobSeq);
-        Long augJobSn;
-        try {
-            // 위탁 <전>에 멱등키 + 순서↔프레임 대응을 한 트랜잭션으로 확보한다(Phase 7-D).
-            augJobSn = jobRecorder.recordIssued(
-                    event.originAugSn(), jobSeq, requestId,
-                    chunk.stream().map(FrameInput::toRef).toList());
-        } catch (Exception e) {
-            // 선기록 실패 = 멱등키 확보 실패. 위탁하면 추적 불가한 job 이 생기므로 보내지 않는다.
-            metrics.externalRequestFailure();
-            log.warn("[Augment] job 선기록 실패 — 위탁 건너뜀 originAugSn={} jobSeq={} err={}",
-                    event.originAugSn(), jobSeq, sanitize(e.getMessage()));
-            return false;
-        }
-
         try {
             AugmentSubmitResult result = externalClient.requestAugment(new AugmentSubmitCommand(
                     event.originAugSn(), event.augType(), requestId, evntType,
@@ -280,14 +335,6 @@ public class AugmentJobSubmitService {
      */
     static String chunkRequestId(String augIdempotencyKey, int jobSeq) {
         return augIdempotencyKey + "-" + jobSeq;
-    }
-
-    /**
-     * 중단 기록 전용 키 — 청크 키({@code key-N})와 충돌하지 않아야 한다({@code IDMP_KEY} UNIQUE).
-     * 외부로 보내지 않는 내부 기록 키다.
-     */
-    static String abortRequestId(String augIdempotencyKey, int fromJobSeq) {
-        return augIdempotencyKey + "-abort" + fromJobSeq;
     }
 
     /** Log Injection (CWE-117) 방어 — CR/LF 제거. 절대경로는 애초에 로그에 싣지 않는다. */

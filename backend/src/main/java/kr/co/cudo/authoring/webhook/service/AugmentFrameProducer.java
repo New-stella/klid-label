@@ -54,7 +54,7 @@ public class AugmentFrameProducer {
     /** 반입 중 임시 파일 접미사 — 목적 경로에 반쯤 쓰인 파일이 남지 않게 한다. */
     private static final String PART_SUFFIX = ".part";
 
-    /** 외부가 준 산출 경로가 고정 allowlist(마운트 루트) 하위인지 쓰기 직전 재확인한다(CWE-22). */
+    /** 외부가 준 산출 경로가 <b>읽기</b> 허용 루트 하위인지 복사 직전 재확인한다(CWE-22). */
     private final VideoArtifactRootResolver artifactRootResolver;
     /** 해상도 실측 — 프로젝트 기존 판독 수단(ImageIO 기반 포트)을 그대로 재사용한다. */
     private final ImageResizer imageResizer;
@@ -132,10 +132,15 @@ public class AugmentFrameProducer {
         return real;
     }
 
-    /** 고정 allowlist(마운트 루트) 하위 여부(lexical + 실경로 규약). 사유에 경로 원문을 담지 않는다(CWE-209). */
+    /**
+     * <b>읽기</b> 허용 루트 하위 여부(lexical + 실경로 규약). 사유에 경로 원문을 담지 않는다(CWE-209).
+     *
+     * <p>벤더 산출물은 우리가 읽어서 복사할 대상이므로 판정 축은 <b>읽기</b> allowlist
+     * ({@code raw-mount-roots ∪ external-read-roots})다 — 쓰기 base allowlist 는 넓히지 않는다.
+     */
     private void verifyUnderAllowedRoots(Path path, AugmentExtractPlan.FrameSpec frame, Long newRawSn) {
         try {
-            artifactRootResolver.verifyIngestablePath(path.toString());
+            artifactRootResolver.verifyExternalReadablePath(path.toString());
         } catch (CustomException e) {
             rejectPath(frame, newRawSn, e);
         }
@@ -147,7 +152,7 @@ public class AugmentFrameProducer {
      * 에서도 양쪽을 실경로로 맞춰 비교하므로 정상 파일을 오탐하지 않는다.
      */
     private void verifyRealPathUnderAllowedRoots(Path real, AugmentExtractPlan.FrameSpec frame, Long newRawSn) {
-        for (Path root : artifactRootResolver.allowedRoots()) {
+        for (Path root : artifactRootResolver.readableRoots()) {
             try {
                 VideoArtifactRootResolver.verifyRealPathUnder(real, root);
                 return;

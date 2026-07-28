@@ -704,8 +704,8 @@ def test_허용루트_밖_input_path의_원본은_복사하지_않는다(
         files=["a.mp4"],
     )
     # then — 복사 대신 placeholder (원본 내용이 새지 않는다)
-    name = _progress_file_names(client, body["prj_id"])[0]
-    assert (export / name).read_bytes() == deid_sim.PLACEHOLDER_BYTES
+    out_name = _derived_output_names(client, body["prj_id"])[0]
+    assert (export / out_name).read_bytes() == deid_sim.PLACEHOLDER_BYTES
 
 
 def test_허용루트_안_input_path의_원본은_복사된다(
@@ -827,8 +827,8 @@ def test_원본이_없을뿐이면_WARN이_아니라_INFO로_남는다(
         )
 
     # then — placeholder 는 그대로 생성되지만 보안 이벤트(WARN)로 오인되면 안 된다
-    name = _progress_file_names(client, body["prj_id"])[0]
-    assert (export / name).read_bytes() == deid_sim.PLACEHOLDER_BYTES
+    out_name = _derived_output_names(client, body["prj_id"])[0]
+    assert (export / out_name).read_bytes() == deid_sim.PLACEHOLDER_BYTES
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
     assert any("not readable" in r.getMessage() for r in caplog.records)
 

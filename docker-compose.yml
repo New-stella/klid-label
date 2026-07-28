@@ -111,6 +111,14 @@ services:
       #   ⚠ mock-server 의 MOCK_OUTPUT_BASE(docker-compose.local.yml)와 <한 세트>로 맞춰야 한다 —
       #     비식별 export_path 가 dirname(원본)/{rawSn}/deid/ 라 목이 그 경로에 쓸 수 있어야 한다.
       STORAGE_RAW_MOUNT_ROOTS: ${STORAGE_RAW_MOUNT_ROOTS:-/app/storage/raw,/app/storage/deidentified}
+      # ★ 외부 벤더 산출물 <읽기> 전용 허용 루트 — 위 쓰기 allowlist 와 <별개 축>이다(DEV_FIX 2차 HIGH-1).
+      #   생성형 AI 목/실벤더는 결과 이미지를 자기 트리에 쓰고 그 절대경로를 콜백으로 준다. 이 스택의 목은
+      #   MOCK_GENAI_OUTPUT_BASE=/app/genai-out 이므로 그 루트를 읽기 축으로 허용해야 콜백이 통과한다
+      #   (미허용이면 GenAiCallbackService 가 400 + 상태 미변경 → 증강이 PENDING 에 영구 고착).
+      #   쓰기 축(STORAGE_RAW_MOUNT_ROOTS)에는 절대 넣지 않는다 — 우리는 이 트리에 쓰지 않고 <읽어서>
+      #   파생 프레임으로 복사만 한다(PII 격리 축 유지). 아래 volumes 에서 :ro 로 마운트하는 이유도 같다.
+      #   실벤더 전환 시 벤더 공유 NAS 경로로 이 값만 교체한다(코드 변경 없음).
+      STORAGE_EXTERNAL_READ_ROOTS: ${STORAGE_EXTERNAL_READ_ROOTS:-/app/genai-out}
       # webhook HMAC 시크릿 — 빈 값이면 앱이 기동 실패(fail-closed, E-ISSUE-04)한다.
       #   ★ 기본값 폴백(${VAR:-...}) 금지 — 커밋된 기본값은 "공개된 키로 조용히 기동" 이 되어 누구나
       #     유효 서명을 위조할 수 있다(DEV_FIX H-1, CWE-1392/798). 이 compose 는 dev 배포 형상이기도 하다.
@@ -126,8 +134,22 @@ services:
       #     공격자 5회 실패가 정상 벤더 콜백 전건을 차단한다.
       WEBHOOK_TRUSTED_PROXY_CIDRS: ${WEBHOOK_TRUSTED_PROXY_CIDRS:-none}
       WEBHOOK_VLM_ALLOWED_IP_CIDRS: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:-none}
+      # 생성형 AI 콜백 허용 출처 — VLM 과 달리 **미설정/none = 전면 차단**(fail-closed).
+      #   ★ 여기서 명시하지 않으면 .env 의 빈 값 대입(WEBHOOK_GENAI_ALLOWED_IP_CIDRS=)이 env_file 로
+      #     그대로 주입돼(set-but-empty) 프로파일 yml 기본값(${VAR:0.0.0.0/0})까지 빈 값으로 덮인다.
+      #     그 상태에서 증강 위탁이 http 면 GenAiIntegrationWiringGuard 가 기동을 차단한다 —
+      #     즉 "문서대로 띄운 정상 형상이 부팅 불가" 가 된다.
+      #   base(dev) 기본은 VLM 과 같은 'none' — dev 는 증강 위탁이 noop(application-dev.yml)이라
+      #     콜백이 애초에 오지 않으므로 fail-closed 를 유지한다(가드도 noop 은 허용).
+      #   증강을 실제로 위탁하는 형상(docker-compose.local.yml: AUGMENT_EXTERNAL_MODE=http)은 그 파일에서
+      #     0.0.0.0/0 을 <명시>해 짝을 맞춘다(목은 docker 브리지 사설 IP 라 대역 고정 불가).
+      WEBHOOK_GENAI_ALLOWED_IP_CIDRS: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:-none}
     volumes:
       - /data/klid/storage:/app/storage
+      # 생성형AI 목/벤더 산출물 트리 — **읽기 전용(:ro)**. BE 는 콜백이 준 경로에서 결과 이미지를
+      #   읽어 파생 프레임(frames/deid)으로 복사만 하며 이 트리에 쓰지 않는다. 마운트가 없으면
+      #   콜백 경로 검증은 통과해도 파일이 보이지 않아 반입이 실패한다(mock-server 는 같은 볼륨을 rw 로 씀).
+      - /data/klid/genai-out:/app/genai-out:ro
     ports:
       - "18081:8080"
     networks:
