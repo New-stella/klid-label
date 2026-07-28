@@ -61,7 +61,8 @@ class PortalFrameExtractRunnerTest {
         PortalVideoProbe probe = path -> new PortalVideoProbe.Result(true, 10.0, 30.0);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
-                List.of("jpg"), 20_971_520L, 50, 2000);
+                List.of("jpg"), 20_971_520L, 50, 2000,
+                16_777_216L, 2_097_152L, 30L, 30L);
         runner = new PortalFrameExtractRunner(txService, probe, frameWriter, systemConfigService, props);
     }
 
@@ -164,7 +165,8 @@ class PortalFrameExtractRunnerTest {
         PortalVideoProbe longProbe = path -> new PortalVideoProbe.Result(true, 100.0, 30.0);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
-                List.of("jpg"), 20_971_520L, 50, 2000);
+                List.of("jpg"), 20_971_520L, 50, 2000,
+                16_777_216L, 2_097_152L, 30L, 30L);
         PortalFrameExtractRunner longRunner =
                 new PortalFrameExtractRunner(txService, longProbe, frameWriter, systemConfigService, props);
 

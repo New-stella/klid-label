@@ -2,11 +2,12 @@
 # klid-label 로컬 외부 0개 자족 테스트 override
 #   사용: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 #
-#   목적: 관제/포털/비식별/실VLM 등 외부 서버 0개로 전 시나리오를 띄워 검증.
+#   목적: 관제/포털/비식별/실VLM 등 **외부 벤더 서버 0개**로 전 시나리오를 띄워 검증.
+#   - backend: base 는 dev 프로파일이므로 여기서 local 프로파일로 되돌린다(시드·로컬 기본값·게이팅).
 #   - ai-server: mock 이 아닌 CPU 실추론 + YOLOX 탐지(onnxruntime) (GPU 불필요 — Mac 등 호환).
 #   - 호스트 절대경로(/data) 대신 named volume → 비-Linux/비-서버 환경에서도 기동.
-#   - 비식별은 backend local 프로파일의 mock-mode(application-local.yml)로 자동 no-op
-#     (실 비식별 서버 부재 — Phase 1). VLM 은 local 에서 enabled=false.
+#   - 비식별(KPST)·VLM 은 **내부 self-fill 이 아니라 mock-server 컨테이너로 실제 HTTP 연동**한다
+#     (서비스 정의는 base compose, 여기서는 볼륨만 override).
 #
 #   주의: ENV 환경변수를 dev/stg/prd 로 설정하지 말 것 (LocalProfileGuard + 비식별
 #         mock 게이트가 부트 차단). 상세는 docs/v2-wiki/00-local-setup.md.
@@ -40,16 +41,16 @@ services:
     volumes:
       - klid-storage:/app/storage
     environment:
-      # 실 KPST 연동(목 서버) — local 기본 mock 비식별(DEIDENTIFY_MOCK_MODE=true)을 끄고
-      #   KPST 경로로 전환해 mock-server(klid-net 의 klid-mock-server:9400)에 실제 위탁한다.
-      #   목이 공유 볼륨(/app/storage)에 원본 복사(실영상)한 비식별 결과를 BE 가 그대로 소비한다.
-      #   application-local.yml L66/93 문서화된 실연동 전환 방법.
-      DEIDENTIFY_MOCK_MODE: "false"
-      KPST_DEID_ENABLED: "true"
-      KPST_DEID_BASE_URL: "http://klid-mock-server:9400"
+      # ★ 프로파일 고정 — base compose 는 dev 로 뜨므로 로컬 자족 기동은 여기서 local 로 되돌린다.
+      #   (local yml 의 시크릿 기본값·dev 시드(DevSeedRunner @Profile("local"))·mock 게이팅이 여기에 달려 있다)
+      SPRING_PROFILES_ACTIVE: local
+      # 외부 벤더 연동(mock-server 실 HTTP)은 base compose 가 이미 주입한다
+      #   (DEIDENTIFY_MOCK_MODE=false / KPST_DEID_* / VLM_* / WEBHOOK_CALLBACK_BASE_URL).
+      #   여기서 다시 선언하면 값이 두 파일로 갈라지므로 중복 정의하지 않는다.
       # D-48 실동작 설정 — 관제 완료/수정 통지를 목 서버로 실제 전송한다(내부 목모드 우회 금지).
       #   mock-server 의 /api/data-set/v2/jobs/{job_id}/notify-completed|notify-updated 가
       #   409(job_id 중복)/404(선행 완료 없음)를 관제 계약대로 돌려주므로 자기치유가 HTTP 왕복으로 검증된다.
+      #   (base 는 관제 통지 대상이 환경마다 달라 주입하지 않으므로 local override 에만 둔다)
       CONTROL_NOTIFY_ENABLED: "true"
       CONTROL_NOTIFY_URL: "http://klid-mock-server:9400"
       # 로컬 FE dev 서버는 docker 매핑 포트 13000 으로 서빙된다(klid-frontend ports 13000:5174).
@@ -79,48 +80,20 @@ services:
           # CPU 실추론(YOLOX/SAM2) 메모리 여유 확보
           memory: 4096m
 
-  # 외부 벤더 목(mock) 서버 — 비식별(KPST)·VLM·생성형AI 증강 개발 완료 전 실연동 테스트용.
-  #   PR #47 로 mock-server/ 소스가 리포에 들어와 build 로 전환했다(구 image: klid-mock-server:latest 는
-  #   PR #26 시점 빌드본이라 생성형AI 증강 라우터(/api/genai/*)가 없다 — image 참조를 유지하면
-  #   설정만 넣어도 404 가 난다).
-  #   ⚠ 로컬/테스트 전용 — 무인증 + 콜백 SSRF 표면. 신뢰망에서만 기동.
+  # 외부 벤더 목(mock) 서버 — 비식별(KPST)·VLM·생성형AI 증강 실연동 테스트용.
+  #   서비스 정의 본체(build/env/포트/헬스체크)는 base docker-compose.yml 로 승격됐다(dev 도 함께 사용).
+  #   여기서는 **차이분(볼륨)만** 남긴다: /data 호스트 바인드 → backend 와 동일 named volume.
+  #   (전체 정의를 다시 쓰면 base 와 갈라져 MOCK_OUTPUT_BASE·MOCK_GENAI_*·포트가 조용히 달라진다)
+  #   ★ ports 를 여기서 재선언하지 말 것 — base 의 루프백 전용 발행(127.0.0.1:9400:9400)이
+  #     무력화된다. 목 서버는 인증이 없어 외부 인터페이스 노출 자체가 취약점이다.
+  #   ★ depends_on(klid-storage-init 완료)·MOCK_GENAI_INPUT_BASE/OUTPUT_BASE 도 base 에 있으므로
+  #     여기서는 볼륨 대상만 named volume 으로 바꿔 준다.
   mock-server:
-    build:
-      context: ./mock-server
-    image: klid-mock-server:latest
-    container_name: klid-mock-server
-    restart: unless-stopped
-    depends_on:
-      # 두 볼륨(klid-storage·klid-genai-out)의 소유권 초기화가 끝난 뒤 기동해야 쓰기가 가능하다.
-      klid-storage-init:
-        condition: service_completed_successfully
-    environment:
-      # 비식별 더미 출력 파일 생성 허용 base(콤마 구분). 미설정이면 파일 미생성(fail-closed).
-      #   ★ BE 의 STORAGE_RAW_MOUNT_ROOTS 와 <한 세트>여야 한다 — Phase 5A(co-locate) 이후 BE 가 넘기는
-      #     export_path 는 {dirname(원본)}/{rawSn}/deid/ 라 원본이 있는 /app/storage/raw 하위다.
-      #     구 값(/app/storage/deidentified 단독)이면 목이 base 밖으로 판정해 더미를 만들지 않고,
-      #     BE 는 산출물 부재로 비식별을 영구 실패시킨다(isUsableDeidFile=false → failPolling).
-      MOCK_OUTPUT_BASE: ${STORAGE_RAW_MOUNT_ROOTS:-/app/storage/raw,/app/storage/deidentified}
-
-      # 생성형AI 증강 목(PR #47). 두 base 모두 미설정이면 fail-closed —
-      #   결과 파일을 만들지 않고 FAILED(RESULT_SAVE_FAILED), input_files 는 전부 400 이다.
-      #   ★ 두 base 를 <서로 다른 트리>로 분리한다(PR #47 후속 #1). 같은 트리에 두면
-      #     "목 산출물 쓰기 권한 = 입력 읽기 권한"이 되어 심볼릭링크 TOCTOU(F-1)의 악화 요인이 된다.
-      #   INPUT 은 BE 미디어 볼륨 루트(/app/storage) — genai_input_base 는 콤마를 지원하지 않아
-      #     raw·deidentified 둘 다 덮으려면 공통 조상이어야 한다.
-      #   OUTPUT 은 별도 볼륨(/app/genai-out). 결과는 {base}/genai/{job_id}/ 하위에 생성된다.
-      MOCK_GENAI_INPUT_BASE: /app/storage
-      MOCK_GENAI_OUTPUT_BASE: /app/genai-out
-      # 콜백(SSRF allowlist)은 기본값에 klid-backend:8080 이 포함돼 있어 그대로 둔다.
     volumes:
-      # BE 와 동일 공유 볼륨·동일 경로 → BE 가 넘긴 절대경로(export_path/input_path)를 그대로 읽고 씀.
       - klid-storage:/app/storage
-      # 생성형AI 산출물 전용 — 입력 트리와 분리(위 주석 참조).
+      # 생성형AI 산출물 전용 — 입력 트리와 분리(base 주석 참조). named volume 은 root:root 로
+      #   생성되므로 klid-storage-init 이 chown 999 한 뒤에야 목이 결과를 저장할 수 있다.
       - klid-genai-out:/app/genai-out
-    ports:
-      - "9400:9400"
-    networks:
-      - klid-net
 
 volumes:
   klid-pgdata:

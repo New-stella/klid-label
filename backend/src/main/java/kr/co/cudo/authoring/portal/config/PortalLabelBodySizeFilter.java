@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -25,7 +24,7 @@ import java.util.regex.Pattern;
  * pre-parse DoS(CWE-770 / OWASP API4)를 막지 못한다. 본 필터가 파싱 전에 상한을 적용한다.
  *
  * <ul>
- *   <li>Content-Length &gt; {@code portal.upload.max-label-body-bytes}(기본 2MB) → 413.</li>
+ *   <li>Content-Length &gt; {@code portal.upload.max-label-body-bytes}(기본 2MB, {@link PortalUploadProperties}) → 413.</li>
  *   <li>Content-Length 부재(chunked, -1) → 411 거부. 정상 클라이언트는 JSON 본문에 Content-Length 를
  *       송신하므로 chunked 조기 거부는 안전하며, size-cap 을 우회하는 대용량 chunked 스트림을 차단한다.</li>
  * </ul>
@@ -44,11 +43,9 @@ public class PortalLabelBodySizeFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
     private final long maxBodyBytes;
 
-    public PortalLabelBodySizeFilter(
-            ObjectMapper objectMapper,
-            @Value("${portal.upload.max-label-body-bytes:2097152}") long maxBodyBytes) {
+    public PortalLabelBodySizeFilter(ObjectMapper objectMapper, PortalUploadProperties properties) {
         this.objectMapper = objectMapper;
-        this.maxBodyBytes = maxBodyBytes;
+        this.maxBodyBytes = properties.maxLabelBodyBytes();
     }
 
     @Override

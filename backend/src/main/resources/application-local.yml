@@ -8,14 +8,8 @@
 #   운영 시크릿은 환경변수(JWT_SECRET, *_DB_PASSWORD)로 주입.
 # ============================================================================
 spring:
-  # [개발/검수 전용] /v1/dev/autolabel-test 영상 multipart 업로드용 — 개당 500MB 허용.
-  #   상위 application.yml 은 이미 multipart enabled(포털 이미지 업로드). 여기선 dev 영상용으로 개당 한도만 상향.
-  #   요청 한도(max-request-size)는 포털 50장 업로드(≥1.1GB)를 수용하도록 상위와 정합(1200MB) 유지.
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 500MB
-      max-request-size: 1200MB
+  # multipart 한도(500MB/1200MB)는 local/dev/stg 가 동일해 application.yml 공통으로 승격됐다.
+  #   (dev 업로드 /v1/dev/autolabel-test 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
   datasource:
     control:
       jdbc-url: jdbc:postgresql://127.0.0.1:5432/klid_system
@@ -103,21 +97,47 @@ authoring:
     #   @Profile("local") + 본 토글 이중 게이팅 — prd/dev/stg 에서는 절대 실행되지 않음.
     seed:
       enabled: ${AUTHORING_DEV_SEED_ENABLED:true}
-
-# UC018 — local 은 기본 mock 비식별(위 mock-mode=true)이라 아래 kpst.deid.* 는 미사용이다(mock 우선).
-#   실 KPST 연동 시(DEIDENTIFY_MOCK_MODE=false) 사용 — 내부망 http 평문이라 ca-cert 불요.
-#   계정은 application.yml 기본값(creator-id/req-user-id=authoring) 사용. base-url 은 KPST_DEID_BASE_URL 로 override.
-kpst:
-  deid:
-    enabled: ${KPST_DEID_ENABLED:true}
-    base-url: ${KPST_DEID_BASE_URL:http://222.118.130.251:9989}
   # 콜백 충실 플로우 Phase 2 — local 에서는 외부 증강 시스템 대신 dev 콜백 시뮬레이터를 활성화한다.
   #   - external.mode=dev → DevAugmentCallbackSimulator 빈 로드(외부 0 자족). 운영은 noop(기본).
   #   - webhook.callback-base-url 은 application.yml 기본값(http://localhost:8080/api) 사용.
   #     컨트롤러 매핑(/v1/aug/callback) + context-path(/api) 정합 → 콜백 URL = .../api/v1/aug/callback
+  #   위 cors/dev 와 동일하게 과거 kpst 하위에 오배치돼 있던 잔여 케이스다. 코드
+  #   (DevAugmentCallbackSimulator/NoopExternalAugmentClient)가 authoring.augment.external.mode 를
+  #   읽으므로 반드시 authoring 하위에 있어야 한다(오배치 시 Noop 이 matchIfMissing 으로 로드돼 무동작).
   augment:
     external:
       mode: ${AUGMENT_EXTERNAL_MODE:dev}
+
+# UC018 — local 의 KPST 위탁 대상은 **목업 벤더 서버(mock-server)** 다.
+#   구속 정책: 로컬은 외부 벤더 실서버가 아니라 mock-server(:9400)를 바라본다. 과거 이 자리에 벤더
+#   테스트 서버 IP 가 평문 기본값으로 박혀 있어(내부망 전용 주소가 리포지토리에 남고, 내부망 밖에서는
+#   비식별이 조용히 실패) 제거했다.
+#   - 도커 로컬(`-f docker-compose.yml -f docker-compose.local.yml`): compose 가 klid-mock-server 를 주입.
+#   - 네이티브(bootRun): mock-server 를 호스트에서 직접 띄우고 KPST_DEID_BASE_URL=http://localhost:9400 주입.
+#   계정은 application.yml 기본값(creator-id/req-user-id=authoring) 사용. http 평문이라 ca-cert 불요.
+#   ※ 위 mock-mode 기본값(true)은 네이티브 오프라인 자족용이며, 도커 로컬은 compose 가 false 로
+#     내려 mock-server 실 HTTP 경로를 쓴다(내부 self-fill 미사용).
+kpst:
+  deid:
+    enabled: ${KPST_DEID_ENABLED:true}
+    base-url: ${KPST_DEID_BASE_URL:http://klid-mock-server:9400}
+
+# 외부 VLM 시계열 — local 도 목업 벤더 서버로 **실제 위탁**한다.
+#   공통 기본값은 enabled=false 이고, false 면 VlmClient 가 외부 호출 없이 SKIPPED 를 반환해
+#   **VLM 단계가 통째로 빈다**(결과 0건인데 파이프라인은 성공처럼 보인다). 구속 정책상 로컬도
+#   자체 결과채움/스킵이 아니라 mock-server(:9400) 실 HTTP 왕복(describe → /v1/vlm/callback)을 쓴다.
+#   ★ 코드가 읽는 키는 vlm.base-url 이 아니라 vlm.client.enabled / vlm.client.url 이다
+#     (WebClientConfig.vlmWebClient / VlmClient). base-url 로 적으면 조용히 무시된다.
+#   - 도커 로컬(`-f docker-compose.yml -f docker-compose.local.yml`): 주 사용 경로. 컨테이너
+#     네트워크 이름으로 도달하므로 아래 기본값(klid-mock-server:9400)이 그대로 맞는다.
+#     (base compose 도 동일 값을 주입한다 — 단, 루트 .env 에 VLM_CLIENT_ENABLED=false 가 남아
+#      있으면 환경변수가 이겨 다시 SKIPPED 가 되므로 .env 를 함께 확인할 것)
+#   - 네이티브(bootRun): 컨테이너명이 해석되지 않는다 — mock-server 를 호스트에서 띄우고
+#     VLM_SERVICE_URL=http://localhost:9400 을 주입할 것(위 KPST_DEID_BASE_URL 과 동일 관례).
+vlm:
+  client:
+    enabled: ${VLM_CLIENT_ENABLED:true}
+    url: ${VLM_SERVICE_URL:http://klid-mock-server:9400}
 
 # 콜백 충실 플로우 Phase 2 — local 전용 webhook HMAC 시크릿(dev placeholder, 32B 이상).
 #   - dev 콜백 시뮬레이터(서명 측)와 HmacWebhookFilter(검증 측)가 동일 값을 사용해 자족 콜백을 통과시킨다.

@@ -14,6 +14,7 @@ klid-la 외부 벤더 목(mock) 서버.
 from __future__ import annotations
 
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -24,6 +25,27 @@ from app.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIdMiddleware
 from app.routers import augment, control, deid, vlm
 from app.services import genai_sim
+
+LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
+
+
+def configure_logging() -> None:
+    """애플리케이션 로거 출력을 stdout 으로 연결한다.
+
+    uvicorn 의 기본 로깅 설정(``uvicorn`` / ``uvicorn.access`` 로거)은 **root 로거를 건드리지
+    않는다**. 그래서 이 앱의 ``logging.getLogger(__name__)`` 로거들(``app.services.deid_sim`` 등)은
+    핸들러 없는 root 로 전파되어 INFO 가 통째로 버려지고, WARNING 이상만 ``logging.lastResort``
+    로 포맷 없이 새어나갔다 — 즉 **경계 위반 WARN·콜백 거부 같은 방어 로그가 동작해도
+    ``docker logs`` 에서 관측되지 않았다**(관측성 결함).
+
+    ``basicConfig`` 는 root 에 핸들러가 이미 있으면 아무 것도 하지 않으므로(``force`` 미사용),
+    uvicorn 이 자체 로거에 붙인 핸들러와 중복 출력되지 않고 pytest 의 caplog 핸들러도 덮어쓰지
+    않는다.
+    """
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, stream=sys.stdout)
+
+
+configure_logging()
 
 logger = logging.getLogger(__name__)
 

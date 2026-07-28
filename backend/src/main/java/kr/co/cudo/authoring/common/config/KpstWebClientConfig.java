@@ -47,8 +47,10 @@ import java.time.Duration;
  * <h3>SSRF (CWE-918)</h3>
  * base-url 은 application.yml 설정값만 사용한다. http/https 스키마만 허용하고 그 외는 거부한다.
  *
- * <p>{@code kpst.deid.enabled=true} 일 때만 빈을 생성한다(기본 false). local/dev 에서 ca.crt 미보유
- * 환경의 기동/테스트 컨텍스트 영향을 막기 위함이며, 실 연동(dev/stg/prd)은 환경변수로 활성화한다.
+ * <p>{@code kpst.deid.enabled=true} 일 때만 빈을 생성한다 — <b>yml 기본값은 true</b>
+ * ({@code application.yml: ${KPST_DEID_ENABLED:true}} — 비식별 단일 경로가 KPST 폴링이라 기본 활성이며
+ * 필드는 킬스위치로 유지). ca.crt 미보유 환경은 {@code KPST_DEID_ENABLED=false} 로 끄거나 내부망 평문
+ * http base-url 을 사용한다. (구 주석 "기본 false" 는 yml 실값과 어긋난 드리프트라 정정)
  */
 @Slf4j
 @Configuration

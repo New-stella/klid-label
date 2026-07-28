@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.portal.service;
 
+import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import lombok.extern.slf4j.Slf4j;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.probe.FFmpegProbeResult;
@@ -38,8 +39,9 @@ public class PortalVideoProbeFfprobe implements PortalVideoProbe {
 
     public PortalVideoProbeFfprobe(
             @Value("${authoring.ffmpeg.ffprobe-binary:ffprobe}") String ffprobePath,
-            @Value("${portal.upload.probe-timeout-sec:30}") long timeoutSec) {
+            PortalUploadProperties properties) {
         this.ffprobePath = ffprobePath;
+        long timeoutSec = properties.probeTimeoutSec();
         this.timeoutSec = timeoutSec > 0 ? timeoutSec : 30L;
     }
 

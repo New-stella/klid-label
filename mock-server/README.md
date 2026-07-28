@@ -17,13 +17,17 @@
 **이 서버는 로컬/테스트 전용이다. 운영/외부망에 절대 노출하지 말 것.**
 
 - **인증이 없다.** 모든 엔드포인트가 무인증으로 열려 있다.
-- **SSRF 표면 (CWE-918):** VLM `verify`/`describe`는 요청자가 지정한 임의 `callback_url`로
-  서버측 outbound POST를 발사한다. 이는 벤더 규격 동작(비동기 콜백)이라 목 서버에서 재현하지만,
-  임의 URL로의 서버측 요청은 SSRF 벡터다. **신뢰된 네트워크에서만 기동**하고, 공개망/운영에
-  노출하면 안 된다. (VLM은 별도 allowlist 없이 문서/코드 주석 경고로 갈음 —
-  `app/services/vlm_sim.py` 상단 경고 주석 참조. 생성형 AI(`/api/genai/*`)는
+- **SSRF 표면 (CWE-918):** VLM `verify`/`describe`는 요청자가 지정한 `callback_url`로
+  서버측 outbound POST를 발사한다. 벤더 규격 동작(비동기 콜백)이라 재현하되, **허용 호스트
+  allowlist(`MOCK_CALLBACK_ALLOWED_HOSTS`, 기본 `klid-backend,localhost,127.0.0.1`)** 밖이면
+  접수 자체를 400으로 거부하고 outbound를 발사하지 않는다. 생성형 AI(`/api/genai/*`)는
   `MOCK_GENAI_CALLBACK_ALLOW_HOSTS` **`host:port`** allowlist + 스킴 + (선택) 경로 접두사 +
-  자기참조 차단으로 막는다.)
+  자기참조 차단으로 막는다. 그래도 **신뢰된 네트워크에서만 기동**하고
+  공개망/운영에 노출하면 안 된다(compose는 `127.0.0.1:9400:9400` 루프백 전용 발행).
+- **읽기 경계 (CWE-22/400):** `input_path`도 무인증으로 임의 지정이 가능하므로, 복사 원본은
+  `MOCK_INPUT_BASE`(미설정 시 `MOCK_OUTPUT_BASE` 각 항목의 상위 = 공용 storage 루트) 하위일 때만
+  복사하고 그 밖이면 placeholder로 대체한다(임의 파일 노출·GB급 반복 복사에 의한 디스크 고갈 차단).
+  생성형 AI 입력은 `MOCK_GENAI_INPUT_BASE` 로 별도 제한한다.
 - **요청 본문 크기 상한 (CWE-400):** `/api/genai/*` 는 `MOCK_GENAI_MAX_BODY_BYTES`(기본 1MiB)로
   제한한다. KPST(`/project` 등)·VLM 경로는 **아직 무제한**이므로 실사용 시 리버스 프록시나
   uvicorn 설정으로 크기 제한을 두는 것을 권장한다.
@@ -252,6 +256,8 @@ KPST가 산출한 **비식별 결과 파일**을 실제로 읽어야 진행된�
 |----------|:------:|------|
 | `MOCK_WRITE_OUTPUT_FILES` | `true` | 더미 출력 파일 생성 on/off. `false`면 파일을 만들지 않는다(순수 상태 시뮬레이션). |
 | `MOCK_OUTPUT_BASE` | (빈값) | **쓰기 허용 루트(콤마 구분 다중 허용).** 설정 시 `export_path`가 resolve 후 이 base 중 하나의 하위일 때만 파일을 쓴다(경로순회/임의 절대경로 쓰기 차단). **미설정(`''`)이면 fail-closed — 어떤 파일도 생성하지 않는다.** |
+| `MOCK_INPUT_BASE` | (빈값→`MOCK_OUTPUT_BASE` 각 항목의 상위) | **읽기 허용 루트(콤마 구분 다중 허용).** `input_path`가 resolve 후 이 base 중 하나의 하위일 때만 원본을 복사한다. 밖이면 복사하지 않고 placeholder로 대체(임의 파일 노출·디스크 고갈 차단). |
+| `MOCK_CALLBACK_ALLOWED_HOSTS` | `klid-backend,localhost,127.0.0.1` | **콜백 outbound 허용 호스트(allowlist).** 목록 밖 `callback_url`은 400 거부 + outbound 미발사(SSRF 차단). |
 
 > **실제 파일 생성 조건:** `MOCK_WRITE_OUTPUT_FILES=true` **그리고** `MOCK_OUTPUT_BASE` 설정, **둘 다** 참일
 > 때만. e2e 시 BE의 **`STORAGE_RAW_MOUNT_ROOTS`와 동일 값**을 `MOCK_OUTPUT_BASE`로 지정한다 —
@@ -268,7 +274,7 @@ KPST가 산출한 **비식별 결과 파일**을 실제로 읽어야 진행된�
 - **export_path 정규화:** `Path(export_path).resolve()` 후 `MOCK_OUTPUT_BASE` 하위인지 검증. 아니면 쓰기 스킵.
 - **심층 방어:** 최종 쓰기 경로가 정규화된 export_path 하위인지 한 번 더 확인한다.
 - **no-overwrite:** 파일 생성은 O_EXCL 원자 연산이라 기존 파일을 덮어쓰지 않는다.
-- **자원 상한:** `files[]`는 최대 1000개(초과 시 거부). 복사 소스(input_path)도 정화 후 존재 확인 — 입력 밖 탈출 차단.
+- **자원 상한:** `files[]`는 최대 1000개(초과 시 거부). 복사 소스(input_path)는 정화 + `MOCK_INPUT_BASE` 경계 검증 — 입력 밖 탈출/허용 루트 밖 파일 복사 차단.
 
 ### Docker 볼륨 마운트 안내 (Critical)
 
@@ -279,9 +285,11 @@ co-locate 산출물)를 **목 컨테이너에도 동일 경로로 마운트**해
 ```bash
 # 예: BE의 STORAGE_RAW_MOUNT_ROOTS=/nas-storage 이고, 원본 input 이 /nas-storage/videos 하위라고 가정
 #     (비식별 export_path 는 /nas-storage/videos/{rawSn}/deid/ 처럼 원본과 같은 트리에 놓인다)
-docker run --rm -p 9400:9400 \
+#     포트는 루프백 전용으로만 발행한다 — 목은 무인증이라 외부 노출 자체가 취약점이다.
+docker run --rm -p 127.0.0.1:9400:9400 \
   -e MOCK_WRITE_OUTPUT_FILES=true \
   -e MOCK_OUTPUT_BASE=/nas-storage \
+  -e MOCK_INPUT_BASE=/nas-storage \
   -v /nas-storage:/nas-storage \
   mock-server
 ```

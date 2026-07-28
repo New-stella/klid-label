@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.augment.dev;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.support.MainResourceYaml;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -26,6 +27,9 @@ import static org.mockito.Mockito.mock;
  */
 class DevAugmentCallbackSimulatorBeanConditionTest {
 
+    /** 시뮬레이터/Noop 클라이언트가 읽는 모드 키 — yml 선언 위치가 이 키와 일치해야 한다. */
+    private static final String MODE_KEY = "authoring.augment.external.mode";
+
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(TestBeans.class)
             .withConfiguration(AutoConfigurations.of());
@@ -48,6 +52,20 @@ class DevAugmentCallbackSimulatorBeanConditionTest {
     @DisplayName("mode_미설정_기본에서는_DevAugmentCallbackSimulator_빈이_로드되지_않는다")
     void doesNotLoadWhenModeMissing() {
         runner.run(ctx -> assertThat(ctx).doesNotHaveBean(DevAugmentCallbackSimulator.class));
+    }
+
+    @Test
+    @DisplayName("local_프로파일에서_증강_시뮬레이터_빈이_로드된다")
+    void loadsWithLocalProfileConfiguration() {
+        // given: 실제 main 설정(application.yml + application-local.yml) 이 선언한 모드
+        //   — 키가 다른 prefix 에 오배치되면 여기서 null 이 되어 시뮬레이터가 죽는다.
+        String mode = MainResourceYaml.environment("application.yml", "application-local.yml")
+                .getProperty(MODE_KEY);
+
+        // when / then: local 은 dev 시뮬레이터(외부 0 자족)로 동작해야 한다
+        assertThat(mode).as("local 프로파일의 %s", MODE_KEY).isEqualTo("dev");
+        runner.withPropertyValues(MODE_KEY + "=" + mode)
+                .run(ctx -> assertThat(ctx).hasSingleBean(DevAugmentCallbackSimulator.class));
     }
 
     @Test

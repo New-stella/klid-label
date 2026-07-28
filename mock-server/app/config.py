@@ -9,6 +9,7 @@ mock-server 환경 설정.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -58,6 +59,26 @@ class Settings(BaseSettings):
             "BE co-locate 산출(Phase 5A)에서 비식별 export_path 가 dirname(원본)/{rawSn}/deid/ 이므로 "
             "BE 의 STORAGE_RAW_MOUNT_ROOTS 와 같은 값으로 맞춘다. "
             "미설정('')이면 fail-closed — 어떤 파일도 생성하지 않는다(HIGH-1)"
+        ),
+    )
+    input_base: str = Field(
+        default="",
+        description=(
+            "복사 원본(input_path) 읽기 허용 루트. 목 서버는 인증이 없어 input_path 를 임의로 "
+            "지정할 수 있으므로, 이 루트 밖의 파일은 복사하지 않고 placeholder 로 대체한다"
+            "(임의 파일 노출 + GB급 반복 복사에 의한 디스크 고갈 차단 — CWE-22/CWE-400). "
+            "미설정('')이면 output_base 의 상위(= storage 루트)를 자동 사용한다"
+        ),
+    )
+
+    # 콜백(outbound POST) 허용 호스트 — SSRF(CWE-918) 방어.
+    #   VLM verify/describe 는 요청자가 지정한 callback_url 로 서버측 outbound POST 를 발사한다.
+    #   인증이 없는 목 서버이므로 호스트를 제한하지 않으면 내부망 포트 스캔/요청 위조가 성립한다.
+    callback_allowed_hosts: str = Field(
+        default="klid-backend,localhost,127.0.0.1",
+        description=(
+            "콤마로 구분된 callback_url 허용 호스트 목록. 목록 밖 호스트는 400 으로 거부하고 "
+            "outbound 를 발사하지 않는다. 기본값은 저작도구 BE(컨테이너명) + 루프백"
         ),
     )
 
@@ -173,6 +194,31 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         """콤마 구분 문자열을 오리진 리스트로 변환한다."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    def callback_allowed_hosts_list(self) -> list[str]:
+        """콤마 구분 문자열을 콜백 허용 호스트 리스트로 변환한다(소문자 정규화)."""
+        return [h.strip().lower() for h in self.callback_allowed_hosts.split(",") if h.strip()]
+
+    def effective_input_base(self) -> str:
+        """복사 원본 읽기 허용 루트를 결정한다(콤마 구분 다중 허용).
+
+        명시 설정(``MOCK_INPUT_BASE``)이 우선이고, 미설정이면 ``output_base`` **각 항목의**
+        상위 디렉터리(= 공용 storage 루트)를 사용한다. 예) ``/app/storage/deidentified`` →
+        ``/app/storage`` 이므로 BE 가 넘기는 원본 경로(``/app/storage/raw/...``)가 통과한다.
+        ``output_base`` 는 co-locate 산출(Phase 5A) 이후 콤마 구분 다중 base 이므로
+        항목별로 상위를 구해 중복 없이 콤마로 합친다.
+        둘 다 없으면 빈 문자열(제한 없음) — 이 경우 output_base 도 없어 어떤 파일도 쓰지 않는다.
+        """
+        if self.input_base:
+            return self.input_base
+        parents: list[str] = []
+        for base in (b.strip() for b in self.output_base.split(",")):
+            if not base:
+                continue
+            parent = str(Path(base).parent)
+            if parent not in parents:
+                parents.append(parent)
+        return ",".join(parents)
 
     def genai_callback_allow_hosts_list(self) -> list[str]:
         """callback allowlist 문자열을 ``host`` / ``host:port`` 항목 리스트로 변환한다."""

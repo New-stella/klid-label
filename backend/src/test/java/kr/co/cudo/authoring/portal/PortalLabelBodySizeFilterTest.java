@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.portal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.portal.config.PortalLabelBodySizeFilter;
+import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -17,8 +18,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PortalLabelBodySizeFilterTest {
 
     private static final long MAX = 1024L;
+    // D2 — 본문 한도는 PortalUploadProperties(record) 로 통합됐다(구 @Value 주입 제거).
     private final PortalLabelBodySizeFilter filter =
-            new PortalLabelBodySizeFilter(new ObjectMapper(), MAX);
+            new PortalLabelBodySizeFilter(new ObjectMapper(), new PortalUploadProperties(
+                    5_368_709_120L, java.util.List.of("mp4"), "./storage/raw/portal",
+                    java.util.List.of("jpg"), 20_971_520L, 50, 2000,
+                    16_777_216L, MAX, 30L, 30L));
     private static final String LABEL_PUT = "/v1/portal/uploads/frames/500/labels";
 
     /** MockHttpServletRequest.getContentLengthLong() 는 실제 content 길이(없으면 -1)를 반환한다. */
