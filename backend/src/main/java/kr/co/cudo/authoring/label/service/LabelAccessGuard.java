@@ -8,7 +8,9 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,12 +23,18 @@ import org.springframework.stereotype.Component;
  *  - WORKER   : 본인이 LABELER 로 배정된 RAW 영상에 속한 프레임만 통과
  *  - 그 외    : 차단
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class LabelAccessGuard {
 
     private final LsDataSrcRepository srcRepository;
     private final LsTaskAssignmentRepository authrtRepository;
+    /**
+     * 신고 구간 판정(actor 무관 데이터 상태)은 {@link DeidentReportGate} 단일 원천에 위임한다 —
+     * 산출(export) 경로도 같은 판정을 쓰므로 여기서 {@code "F"} 비교를 재구현하지 않는다.
+     */
+    private final DeidentReportGate deidentReportGate;
 
     public void verifyAccess(Long srcSn, TokenClaims actor) {
         verifyAndGet(srcSn, actor);
@@ -39,6 +47,12 @@ public class LabelAccessGuard {
     public LsDataSrc verifyAndGet(Long srcSn, TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        // D-ISSUE-26 방어 — srcSn 이 null 이면 findById(null) 이 InvalidDataAccessApiUsageException
+        // (미처리 500)을 던진다. 호출 측(예: DATA_SRC_SN 이 NULL 인 레거시 버전 스냅샷 경로)이 null 을
+        // 흘려도 규약 4xx 로 끝나도록 진입부에서 차단한다(OWASP A10:2025 — 예외 처리 규약).
+        if (srcSn == null) {
+            throw new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다.");
         }
         LsDataSrc src = srcRepository.findById(srcSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
@@ -83,6 +97,42 @@ public class LabelAccessGuard {
             return;
         }
         throw new CustomException(ErrorCode.FORBIDDEN, "라벨 접근 권한이 없습니다.");
+    }
+
+    /**
+     * S7 (HIGH — CWE-359) — 비식별 누락 신고 구간(재비식별 대기) 영상의 <b>라벨 조회 차단 게이트</b>.
+     *
+     * <p>배경: 비식별 신고는 라벨을 <b>삭제하지 않고 보존</b>한다(2026-07-27 정책 반전). 그래서 신고
+     * ~재비식별 완료 사이에 라벨을 그대로 내려주면, 영상 스트리밍은 {@code DE_IDNTF_YN='F'} 로 막혀
+     * 있는데도 라벨 좌표(=PII 위치 특정 정보)만 계속 노출된다. 인가(WORKER 배정/REVIEWER)를 통과한
+     * 뒤 이 게이트로 한 번 더 막는다.
+     *
+     * <p>정책 근거 — 기존 유사 게이트와 정렬:
+     * <ul>
+     *   <li><b>역할 무관 차단(REVIEWER 도 동일)</b>: 영상 스트리밍({@code VideoStreamService} — 비식별
+     *       미완료 시 역할 무관 NOT_FOUND)·마킹 진입({@code MarkingGuards.requirePreconditions} —
+     *       역할 무관 PRECONDITION_FAILED)이 모두 역할과 무관한 프리컨디션이다. 신고 구간의 PII 노출
+     *       위험은 검수자에게도 동일하므로 REVIEWER 예외를 두지 않는다.</li>
+     *   <li><b>인가 이후 평가</b>: 인가 검사({@link #verifyAndGet})를 먼저 통과시켜 이 게이트가 인가를
+     *       대체·우회하지 않게 한다(미배정 WORKER 는 여전히 FORBIDDEN).</li>
+     *   <li><b>차단 범위 = 조회</b>: 저장/수정 경로는 이미 작업락({@code WorkLockService.isRawLocked})
+     *       으로 409 차단된다(신고 시 락 획득 → resolve 시 해제). 조회만 새로 막으면 신고 구간 전체가
+     *       "읽기·쓰기 모두 차단"으로 일관된다.</li>
+     *   <li><b>자동 해제</b>: resolve(수동/자동)가 {@code 'F'→'Y'} 를 복원하면 게이트가 즉시 열려
+     *       <b>보존된 기존 라벨을 그대로</b> 다시 사용한다(별도 복원 절차 없음).</li>
+     * </ul>
+     *
+     * <p>{@code 'Y'}(정상)·{@code 'N'}(미수행)·null 은 통과 — 일반 영상 흐름에 영향이 없다.
+     * 응답 메시지에 경로·좌표·내부 정보를 담지 않는다.
+     *
+     * @param rawSn 영상 PK (null 이면 판정 불가 → 통과, 상위 가드가 이미 존재 검증)
+     */
+    public void requireNotUnderDeidentReport(Long rawSn) {
+        if (deidentReportGate.isUnderDeidentReport(rawSn)) {
+            log.warn("[LabelAccess] label read blocked — deident report open rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                    "비식별 재처리 대기 중인 영상은 라벨을 조회할 수 없습니다.");
+        }
     }
 
     public Long parseUserNo(String sub) {

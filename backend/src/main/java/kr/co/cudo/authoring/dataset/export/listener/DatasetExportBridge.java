@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.dataset.export.listener;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
 import kr.co.cudo.authoring.dataset.export.event.DatasetReExportEvent;
+import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -57,5 +58,25 @@ public class DatasetExportBridge {
         log.info("[DatasetExportBridge] re-export requested rawSn={} — triggering dataset export", rawSn);
         // 재동결 경로(R6 스코프 밖) — 현행 멱등 skip 유지(force=false). 동일 해시면 재산출하지 않는다.
         runner.runAsync(rawSn, false);
+    }
+
+    /**
+     * M1 — 비식별 누락 신고 해소 후, 신고 구간에 <b>보류됐던 산출·통지를 복구</b>한다.
+     *
+     * <p>신고 구간 차단은 {@code LS_DATASET_EXPORT} 행을 남기지 않으므로 실패 회수기
+     * ({@code DatasetExportFailureRecoverer}, FAILED 행만 스캔)가 집지 못한다. 해제 시점의 이 재트리거가
+     * <b>유일한 복구 경로</b>다(사유·발행 조건은 {@link DeidentReportResolvedEvent} javadoc 참조).
+     *
+     * <p>{@code runApprovalAsync} 로 위임해 ①force=true 전량 재생성(교체된 비식별 이미지 반영)
+     * ②성공 시 {@code DatasetExportCompletedEvent} 발행으로 보류됐던 관제 통지 재개를 함께 얻는다.
+     * AFTER_COMMIT 이라 {@code DE_IDNTF_YN 'Y'} 복원이 커밋된 뒤에 실행된다 — 커밋 전에 돌면 export
+     * 진입부 게이트가 아직 {@code 'F'} 를 읽어 스스로 막힌다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onDeidentReportResolved(DeidentReportResolvedEvent event) {
+        Long rawSn = event.rawSn();
+        log.info("[DatasetExportBridge] deident report resolved rawSn={} — re-triggering withheld export/notify",
+                rawSn);
+        runner.runApprovalAsync(rawSn);
     }
 }

@@ -25,6 +25,8 @@ import java.util.List;
  *   <li>{@code mdfcnCnt}   : 수정(UPDATED) 라벨 건수.</li>
  *   <li>{@code delCnt}     : 삭제(DELETED) 라벨 건수.</li>
  *   <li>{@code changes}    : 변경 상세(종류 + before/after 스냅샷) 목록.</li>
+ *   <li>{@code rollbackToVersionHash} : 이 이벤트가 <b>버전 롤백</b>이면 되돌린 대상 버전 해시(D-ISSUE-21).
+ *       일반 저장 이벤트는 null.</li>
  * </ul>
  *
  * 보안(CWE-209): 내부 경로/스택트레이스/토큰 등 기술·민감정보를 포함하지 않는다.
@@ -37,7 +39,8 @@ public record LabelHistoryResponse(
         Integer addCnt,
         Integer mdfcnCnt,
         Integer delCnt,
-        List<LabelChangeView> changes
+        List<LabelChangeView> changes,
+        String rollbackToVersionHash
 ) {
 
     private static final Logger log = LoggerFactory.getLogger(LabelHistoryResponse.class);
@@ -51,13 +54,16 @@ public record LabelHistoryResponse(
      */
     public static LabelHistoryResponse from(LsDataLblHstry h) {
         List<LabelChangeView> views;
+        String rollbackTo;
         try {
             views = LabelHistoryDiffSerializer.deserialize(h.getChgDtlCn()).stream()
                     .map(LabelChangeView::from)
                     .toList();
+            rollbackTo = LabelHistoryDiffSerializer.readRollbackTargetHash(h.getChgDtlCn());
         } catch (RuntimeException e) {
             log.warn("[LabelHistory] diff 파싱 실패 — 빈 changes 로 폴백 lblHstrySn={}", h.getLblHstrySn());
             views = List.of();
+            rollbackTo = null;
         }
         return new LabelHistoryResponse(
                 h.getLblHstrySn(),
@@ -67,7 +73,8 @@ public record LabelHistoryResponse(
                 h.getAddCnt(),
                 h.getMdfcnCnt(),
                 h.getDelCnt(),
-                views);
+                views,
+                rollbackTo);
     }
 
     /** 변경 1건 — 종류(ADDED/UPDATED/DELETED) + before/after 스냅샷. */

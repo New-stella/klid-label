@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 /**
  * 검수 승인 후 학습데이터 파일 산출(dataset.export) 메트릭 (Phase 4).
  *
- * <p>{@code DatasetExportService} 오케스트레이터의 종결 분기를 관측한다. outcome 은 6종 고정
+ * <p>{@code DatasetExportService} 오케스트레이터의 종결 분기를 관측한다. outcome 은 7종 고정
  * 저카디널리티 값이라 파라미터화 메서드로 태그를 부여한다(observability.md — 태그 기반 저카디널리티).
  *
  * <p>메트릭:
@@ -17,7 +17,9 @@ import org.springframework.stereotype.Component;
  *   <li>{@code dataset.export.skipped_frames} — 원천 부재 등으로 건너뛴 프레임 총량</li>
  *   <li>{@code dataset.export.duration}{@code {outcome}} — 산출 1건 소요 시간</li>
  * </ul>
- * outcome ∈ {completed, partial, failed, version_exhausted, idempotent_skip, no_input}.
+ * outcome ∈ {completed, partial, failed, version_exhausted, idempotent_skip, no_input,
+ * deident_blocked}. {@code deident_blocked} 는 비식별 누락 신고 구간({@code DE_IDNTF_YN='F'})이라 산출을
+ * 수행하지 않고 차단한 종결이다(실패 아님 — LS_DATASET_EXPORT 행을 남기지 않는 skip 계열).
  */
 @Component
 public class DatasetExportMetrics {

@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.dataset.export;
 
 import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -85,6 +86,8 @@ public class DatasetExportFailureRecoverer {
     private final AsyncDatasetExportRunner runner;
     /** 클레임(원자 UPDATE)을 짧은 REQUIRES_NEW 트랜잭션으로 수행 — 회수 잡은 트랜잭션 밖에서 돈다. */
     private final DatasetExportTxService txService;
+    /** M2 — 신고 구간 판정 단일 원천({@code "F".equals} 재구현 금지). 클레임 <b>이전</b>에 본다. */
+    private final DeidentReportGate deidentReportGate;
 
     /** 실패 후 이 분(minute)이 지나야 재시도 대상으로 본다(일시 장애 진정 대기). */
     @Value("${authoring.dataset-export.failure-recovery.retry-delay-minutes:10}")
@@ -100,10 +103,12 @@ public class DatasetExportFailureRecoverer {
 
     public DatasetExportFailureRecoverer(LsDatasetExportRepository exportRepository,
                                         AsyncDatasetExportRunner runner,
-                                        DatasetExportTxService txService) {
+                                        DatasetExportTxService txService,
+                                        DeidentReportGate deidentReportGate) {
         this.exportRepository = exportRepository;
         this.runner = runner;
         this.txService = txService;
+        this.deidentReportGate = deidentReportGate;
     }
 
     /**
@@ -123,9 +128,20 @@ public class DatasetExportFailureRecoverer {
             return 0;
         }
         List<Long> claimed = new ArrayList<>(anchors.size());
+        int deidentSkipped = 0;
         for (Object[] anchor : anchors) {
             long exportSn = ((Number) anchor[0]).longValue();
             long rawSn = ((Number) anchor[1]).longValue();
+            // M2 — <b>클레임 이전에</b> 신고 구간을 확인해 건너뛴다. 클레임이 먼저면 산출은 export 게이트에서
+            //   어차피 막히는데 시도 이력(RTY_NMTM)만 올라가, 신고가 길어질수록 상한이 소진되고 resolve 후
+            //   자동 회수가 영구 불가가 된다. 신고 구간은 "실패"가 아니라 정책적 보류이므로 예산을 쓰지 않는다.
+            //   판정은 DeidentReportGate 단일 원천 재사용(무잠금 1컬럼 projection — 스킵 판단이라 잠금 불필요:
+            //   오판해 클레임해도 export 진입부/마감 게이트가 재차 막고, 반대 오판은 다음 tick 에서 회복된다).
+            //   신고가 resolve 되면 M1 재트리거(DeidentReportResolvedEvent)가 재산출·통지를 복구한다.
+            if (deidentReportGate.isUnderDeidentReport(rawSn)) {
+                deidentSkipped++;
+                continue;
+            }
             // 클레임 성공(1행)한 건만 트리거한다. 클레임은 ①시도 이력을 남기고(상한이 실제로 걸림)
             //   ②다른 노드/tick 의 동시 재산출을 배제한다(Quartz 클러스터링 설정과 무관).
             if (!txService.claimForRetry(exportSn, attempts, cutoff)) {
@@ -139,6 +155,10 @@ public class DatasetExportFailureRecoverer {
             //   원 통지가 완료/수정이든 관제 상태에 맞춰 정합화된다. 재산출이 또 실패하면 완료 이벤트가
             //   발행되지 않아(HIGH-D) 통지가 안 나가고 다음 tick 에서 상한까지 재시도된다.
             runner.runApprovalAsync(rawSn);
+        }
+        if (deidentSkipped > 0) {
+            log.info("[DatasetExportRecovery] skipped under deident report (retry budget preserved) count={}",
+                    deidentSkipped);
         }
         if (claimed.isEmpty()) {
             log.debug("[DatasetExportRecovery] all candidates already claimed candidates={}", anchors.size());

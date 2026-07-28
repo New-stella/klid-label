@@ -329,6 +329,32 @@ class DatamartViewSlimIT {
     }
 
     @Test
+    @DisplayName("변경_0건_이력은_V_COMPLETED_LABEL_CHANGE_에_노출되지_않는다")
+    void labelChange_excludesZeroChangeRows() {
+        // given — APPROVED 영상의 프레임에 ①롤백 이벤트(라벨 델타 0건, 봉투 JSON) ②개인정보 메타 리셋
+        //   감사(0건) ③실제 변경 1건이 섞여 있다. ①②는 LS_DATA_LBL_HSTRY 설계상 0/0/0 으로 기록된다.
+        long rawSn = seedRawAndStatus("APPROVED");
+        long srcSn = seedFrame(rawSn, 12);
+        seedSaveEvent(srcSn, 0, 0, 0,
+                "{\"rollbackToVersionHash\":\"abc\",\"changes\":[]}", "reviewer1");
+        seedSaveEvent(srcSn, 0, 0, 0,
+                "{\"event\":\"PRIVACY_META_RESET\",\"deidentReportSn\":7,\"changes\":[]}", "worker1");
+        seedSaveEvent(srcSn, 1, 0, 0, "[{\"kind\":\"ADDED\"}]", "worker1");
+
+        // when
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT ADD_CNT, MDFCN_CNT, DEL_CNT FROM V_COMPLETED_LABEL_CHANGE WHERE SRC_SN = ?", srcSn);
+
+        // then — V139: 관제가 "변경 없는 변경점"(팬텀 0/0/0 행)을 픽업하지 않는다. 실제 변경 1건만 노출.
+        assertThat(rows).hasSize(1);
+        assertThat(((Number) rows.get(0).get("add_cnt")).intValue()).isEqualTo(1);
+        // 원 테이블에는 감사 근거로 3건 모두 남는다(노출면만 좁힌 것).
+        Integer stored = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_DATA_LBL_HSTRY WHERE SRC_SN = ?", Integer.class, srcSn);
+        assertThat(stored).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("비APPROVED영상의_저장이벤트는_LABEL_CHANGE에_안나온다")
     void labelChange_hiddenWhenNotApproved() {
         // given — PENDING(미승인) 영상의 저장이벤트

@@ -79,7 +79,8 @@ public class TaskQueryController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 누락 신고 구간(재비식별 대기) — 라벨 조회 차단")
     })
     @GetMapping("/{rawSn}/labels")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
@@ -93,6 +94,11 @@ public class TaskQueryController {
             @PageableDefault(size = 20) Pageable pageable,
             @AuthenticationPrincipal TokenClaims actor) {
         labelAccessGuard.verifyRawAccess(rawSn, actor);
+        // S7 (DEV_FIX-A/H3 — HIGH, CWE-359) — 비식별 누락 신고 구간(DE_IDNTF_YN='F')에는 라벨 본문
+        //   (TaskLabelsResponse.points = 좌표 전문)을 반환하지 않는다. 인가 <b>이후</b> 평가하는 rawSn 단위
+        //   프리컨디션이며(역할 무관), resolve('F'→'Y') 로 자동 해제된다. 요약/메타 경로는 좌표를 담지 않아
+        //   대상이 아니다(관제는 통지 후 재조회하므로 재비식별 완료 뒤 정상 취득한다).
+        labelAccessGuard.requireNotUnderDeidentReport(rawSn);
         return ApiResponse.ok(taskQueryService.getLabels(rawSn, frameIds, pageable));
     }
 

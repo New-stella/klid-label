@@ -59,6 +59,8 @@ public class DatasetExportTxService {
     private final NiaJsonBuilder niaJsonBuilder;
     private final LabelContentHasher contentHasher;
     private final ObjectMapper objectMapper;
+    /** H1 — 신고 구간 판정 <b>단일 원천</b>(잠금 변형 포함). {@code "F".equals} 재구현 금지. */
+    private final kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
 
     public DatasetExportTxService(LsDataSrcRepository srcRepository,
                                   LsDataLblRepository labelRepository,
@@ -69,7 +71,8 @@ public class DatasetExportTxService {
                                   LsDeidentProcLogRepository deidentProcLogRepository,
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate) {
         this.srcRepository = srcRepository;
         this.labelRepository = labelRepository;
         this.videoMetaRepository = videoMetaRepository;
@@ -80,6 +83,7 @@ public class DatasetExportTxService {
         this.niaJsonBuilder = niaJsonBuilder;
         this.contentHasher = contentHasher;
         this.objectMapper = objectMapper;
+        this.deidentReportGate = deidentReportGate;
     }
 
     /**
@@ -182,6 +186,50 @@ public class DatasetExportTxService {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markPartial(long exportSn, int frameCnt) {
         exportRepository.findById(exportSn).ifPresent(e -> e.markPartial(frameCnt));
+    }
+
+    /**
+     * H1 (HIGH · CWE-359/367) — <b>성공/부분 마감을 RAW 잠금 하에 재판정</b>한다.
+     *
+     * <h3>닫는 창</h3>
+     * 진입부 게이트({@code DatasetExportService.export} 선두)는 export 시작 시점 1회 무잠금 판정이다.
+     * 그 뒤 수 분간의 프레임 복사 중에 비식별 누락 신고가 커밋되면(신고는 {@code findByRawSnForUpdate}
+     * + {@code markDeidentified("F")}), 누락이 확인된 프레임이 이미 {@code v{n+1}} 에 기록된 상태로
+     * SUCCEEDED 마감 → {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 갱신 → 통지 발송까지 이어진다.
+     *
+     * <h3>어떻게 닫는가</h3>
+     * 판정({@link DeidentReportGate#isUnderDeidentReportLocked})과 상태 전이를 <b>같은 트랜잭션</b>에서
+     * 수행한다. RAW 행을 잠근 채 마감하므로 신고 UPDATE 와 직렬화된다 — 신고가 먼저면 여기서 관측되고,
+     * 여기가 먼저면 신고는 이 마감 커밋 뒤에 진행된다(그 경우는 "export 완료 후 신고" = 정상 순서).
+     *
+     * <h3>차단 시 처리 — 행을 남기지 않는다</h3>
+     * 진입부 차단과 동일하게 <b>PENDING 행을 삭제</b>해 "차단 = skip(행 없음)" 불변을 유지한다.
+     * FAILED 로 남기면 ① 정책적 보류가 장애로 오분류되고 ② 회수기가 반드시 다시 막힐 재시도로
+     * 시도 상한(RTY_NMTM)만 소진한다. 재산출·통지 복구는 신고 resolve 시점 재트리거(M1)가 담당한다.
+     * DB 를 먼저 정리(행 삭제)하고 파일 삭제는 호출자가 뒤이어 수행한다 — 순서를 뒤집으면 잠깐이라도
+     * "존재하지 않는 폴더를 가리키는 SUCCEEDED 행"이 뷰에 보일 수 있다.
+     *
+     * <p><b>잠금 순서</b>: RAW → LS_DATASET_EXPORT. 이 순서를 역으로(EXPORT 선점 후 RAW) 잡는 경로는
+     * 없다({@code claimForRetry} 는 EXPORT 만, 신고/증강/해상도 경로는 RAW 를 선두로 잡는다) — 사이클 없음.
+     *
+     * @param partial {@code true} 면 PARTIAL, {@code false} 면 SUCCEEDED 로 마감
+     * @return 마감했으면 {@code true}, 신고 구간이라 차단(행 삭제)했으면 {@code false}
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean finalizeUnlessUnderDeidentReport(long rawSn, long exportSn, int frameCnt, boolean partial) {
+        if (deidentReportGate.isUnderDeidentReportLocked(rawSn)) {
+            exportRepository.deleteById(exportSn);
+            log.warn("[DatasetExport] finalize blocked — deident report opened during export rawSn={}", rawSn);
+            return false;
+        }
+        exportRepository.findById(exportSn).ifPresent(e -> {
+            if (partial) {
+                e.markPartial(frameCnt);
+            } else {
+                e.markSucceeded(frameCnt);
+            }
+        });
+        return true;
     }
 
     /** 산출 실패 — FAILED 전이(승인 트랜잭션과 무관, 별도 커밋). */

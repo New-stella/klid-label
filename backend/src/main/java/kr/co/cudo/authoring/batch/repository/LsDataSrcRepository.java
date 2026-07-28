@@ -142,6 +142,20 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     int resetPrivacyMetaByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * DEV_FIX-B(M5) — {@link #resetPrivacyMetaByRawSn} 로 <b>실제 값이 지워질 프레임</b>의 SRC_SN 목록.
+     *
+     * <p>개인정보 3필드 리셋은 PII 표기를 되돌리는 행위라 <b>행 단위 감사</b>가 필요하다(OWASP A09).
+     * 리셋 <b>직전</b>에 이 쿼리로 대상 프레임을 확정하고, 프레임별 감사 이력 1건을 남긴다. 값이 이미
+     * NULL 인 프레임은 변화가 없으므로 대상에서 제외해 감사 잡음을 만들지 않는다.
+     *
+     * <p>보안: 파라미터 바인딩 JPQL 만 사용(CWE-89). 반환은 식별자뿐이라 PII 를 싣지 않는다.
+     */
+    @Query("select s.srcSn from LsDataSrc s where s.rawSn = :rawSn "
+            + "and (s.anonyInclYn is not null or s.psdoInclYn is not null or s.prvcInclYn is not null) "
+            + "order by s.srcSn")
+    List<Long> findSrcSnsWithPrivacyMeta(@Param("rawSn") Long rawSn);
+
+    /**
      * 해상도 파생 백필 전용 — 이관된 비식별 프레임 경로를 반영하고 원본 경로를 <b>NULL(원본 부재)</b> 로
      * 정정한다(E-ISSUE-21 파일 이관 + E-ISSUE-41 정책 A). 파일 복사·검증 성공 이후에만 호출된다.
      *

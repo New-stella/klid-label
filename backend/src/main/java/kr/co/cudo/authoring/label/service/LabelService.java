@@ -186,6 +186,11 @@ public class LabelService {
      */
     public LabelResponse getByFrame(Long srcSn, TokenClaims actor, boolean allowRaw) {
         LsDataSrc current = accessGuard.verifyAndGet(srcSn, actor);
+        // S7 (HIGH — CWE-359) — 비식별 누락 신고 구간(DE_IDNTF_YN='F')에는 라벨 좌표를 내려주지 않는다.
+        //   신고가 라벨을 삭제하지 않고 보존하도록 정책이 반전(2026-07-27)되면서, 영상 스트리밍만 막혀 있고
+        //   라벨(=PII 위치 특정 정보)은 계속 조회되던 노출창을 닫는다. 인가 검사 <b>이후</b> 평가해 게이트가
+        //   인가를 우회·대체하지 않게 하며, resolve('F'→'Y')로 자동 해제되어 보존 라벨을 그대로 재사용한다.
+        accessGuard.requireNotUnderDeidentReport(current.getRawSn());
         List<LsDataLbl> labels = labelRepository.findBySrcSn(srcSn);
         List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
         String frameImageType = resolveFrameImageType(actor, allowRaw);
@@ -469,7 +474,12 @@ public class LabelService {
      * </ul>
      */
     public Page<LabelHistoryResponse> getHistory(Long srcSn, TokenClaims actor, Pageable pageable) {
-        accessGuard.verifyAndGet(srcSn, actor);
+        LsDataSrc current = accessGuard.verifyAndGet(srcSn, actor);
+        // S7 (DEV_FIX-A/H4 — HIGH, CWE-359) — 이력 응답(LabelHistoryResponse.chgDtlCn)에는 before/after
+        //   좌표 전문이 실린다. 신고 구간(DE_IDNTF_YN='F')에 라벨 조회(getByFrame)만 막고 이력을 열어두면
+        //   같은 좌표를 이력으로 그대로 읽을 수 있어 게이트가 무의미해진다. 동일 단일 게이트를 인가 이후
+        //   rawSn 단위 1회 평가하고, resolve('F'→'Y') 로 자동 해제한다.
+        accessGuard.requireNotUnderDeidentReport(current.getRawSn());
         Pageable effective = cappedWithTiebreaker(pageable);
         // V114 — 저장 이벤트 행을 그대로 매핑(라벨명 enrichment 는 diff 페이로드로 이관 — Phase 2).
         return labelHistoryRepository.findBySrcSn(srcSn, effective).map(LabelHistoryResponse::from);

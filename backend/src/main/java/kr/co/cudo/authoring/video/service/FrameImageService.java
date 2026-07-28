@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
+import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,11 @@ public class FrameImageService {
 
     private final LsDataSrcRepository srcRepository;
     private final VideoRepository videoRepository;
+    /**
+     * S7 (DEV_FIX-A/H1) — 비식별 누락 신고 구간 게이트 재사용. 배선 누락이 결함의 원인이었으므로
+     * 판정 로직을 복제하지 않고 단일 지점({@link LabelAccessGuard#requireNotUnderDeidentReport})만 호출한다.
+     */
+    private final LabelAccessGuard accessGuard;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -86,6 +92,14 @@ public class FrameImageService {
         // 1) 영상 조회 — 비식별 정책 판정용
         LsDataRaw raw = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
+
+        // 1-1) S7 (DEV_FIX-A/H1 — HIGH, CWE-359) — 비식별 누락 신고 구간(DE_IDNTF_YN='F')에는 프레임
+        //      이미지를 서빙하지 않는다. 신고 시점에는 DE_IDNTF_SRC_FILE_PATH_NM 이 이미 채워져 있으므로
+        //      아래 needsDeidentify() 분기만으로는 "얼굴이 안 지워진 그 비식별본"이 200 으로 나간다
+        //      (라벨 좌표보다 상위 위험 = 실제 PII 이미지). 인가는 호출 측(VideoController.verifyRawAccess)이
+        //      이미 수행했고, 이 게이트는 그 뒤의 프리컨디션이라 인가를 대체하지 않는다. rawSn 단위 1회 판정.
+        //      resolve('F'→'Y') 로 자동 해제된다.
+        accessGuard.requireNotUnderDeidentReport(rawSn);
 
         // 2) 프레임 조회
         LsDataSrc src = srcRepository.findByRawSnAndFrameNo(rawSn, frameNo)

@@ -4,6 +4,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import kr.co.cudo.authoring.observability.metrics.DatasetExportMetrics;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.FrameContext;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.VideoExportContext;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -44,6 +46,8 @@ class DatasetExportServiceTest {
     private DatasetExportWriter writer;
     private SimpleMeterRegistry registry;
     private DatasetExportPathResolver pathResolver;
+    /** S7-EXPORT 게이트 — 기본 스텁은 "신고 아님"(false)이라 기존 시나리오는 그대로 통과한다. */
+    private DeidentReportGate deidentReportGate;
     private DatasetExportService service;
 
     @BeforeEach
@@ -56,7 +60,13 @@ class DatasetExportServiceTest {
         // 기본 스텁 — 산출 base 검증 통과(영상 루트 반환). base 거부 시나리오만 개별 테스트에서 재스텁한다.
         when(pathResolver.resolveVideoRoot(anyLong(), any()))
                 .thenReturn(java.nio.file.Paths.get("/nas/clips/1"));
-        service = new DatasetExportService(txService, writer, pathResolver, new DatasetExportMetrics(registry));
+        deidentReportGate = mock(DeidentReportGate.class); // 기본 false — 일반 영상 흐름
+        // H1 — 마감(성공/부분)은 RAW 잠금 하 재판정을 통과해야 이뤄진다. 기본은 통과(신고 없음);
+        //   차단 시나리오만 개별 테스트에서 false 로 재스텁한다.
+        when(txService.finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), anyBoolean()))
+                .thenReturn(true);
+        service = new DatasetExportService(txService, writer, pathResolver,
+                new DatasetExportMetrics(registry), deidentReportGate);
     }
 
     /** dataset.export.result{outcome=..} counter 값(미등록 시 0.0). */
@@ -138,7 +148,7 @@ class DatasetExportServiceTest {
 
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any());
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any());
-        verify(txService).markSucceeded(50L, 10);
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(50L), eq(10), eq(false));
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -155,8 +165,8 @@ class DatasetExportServiceTest {
 
         service.export(rawSn);
 
-        verify(txService).markSucceeded(200L, 10);
-        verify(txService, never()).markPartial(anyLong(), anyInt());
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(200L), eq(10), eq(false));
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true));
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -174,8 +184,8 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         // 정상 기록된 프레임 수(4+4)만 PARTIAL 로 반영, 성공/실패 전이는 미호출.
-        verify(txService).markPartial(210L, 8);
-        verify(txService, never()).markSucceeded(anyLong(), anyInt());
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(210L), eq(8), eq(true));
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -209,8 +219,8 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         // 파생영상은 ORIGINAL 부재가 정상이므로 skip 집계에 포함되지 않는다 → SUCCEEDED.
-        verify(txService).markSucceeded(301L, 3);
-        verify(txService, never()).markPartial(anyLong(), anyInt());
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(301L), eq(3), eq(false));
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true));
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -229,7 +239,7 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any());
-        verify(txService).markSucceeded(302L, 4);
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(302L), eq(4), eq(false));
     }
 
     @Test
@@ -246,8 +256,8 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         verify(txService).markFailed(220L);
-        verify(txService, never()).markSucceeded(anyLong(), anyInt());
-        verify(txService, never()).markPartial(anyLong(), anyInt());
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true));
     }
 
     @Test
@@ -263,7 +273,7 @@ class DatasetExportServiceTest {
         assertThatCode(() -> service.export(rawSn)).doesNotThrowAnyException();
 
         verify(txService).markFailed(60L);
-        verify(txService, never()).markSucceeded(anyLong(), anyInt());
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
     }
 
     @Test
@@ -277,7 +287,7 @@ class DatasetExportServiceTest {
 
         verify(txService, never()).insertNextVersion(anyLong(), any(), any());
         verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
-        verify(txService, never()).markSucceeded(anyLong(), anyInt());
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
     }
 
     @Test
@@ -294,7 +304,7 @@ class DatasetExportServiceTest {
 
         verify(txService).insertNextVersion(eq(rawSn), eq("same"), any());
         verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(3), any(), any());
-        verify(txService).markSucceeded(eq(900L), anyInt());
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(900L), anyInt(), eq(false));
     }
 
     @Test
@@ -311,7 +321,7 @@ class DatasetExportServiceTest {
 
         verify(txService).insertNextVersion(eq(rawSn), eq("h1"), any());
         verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(1), any(), any());
-        verify(txService).markSucceeded(eq(910L), anyInt());
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(910L), anyInt(), eq(false));
     }
 
     @Test
@@ -328,7 +338,7 @@ class DatasetExportServiceTest {
 
         verify(txService).insertNextVersion(eq(rawSn), eq("h2"), any());
         verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(2), any(), any());
-        verify(txService).markSucceeded(eq(70L), anyInt());
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(70L), anyInt(), eq(false));
     }
 
     @Test
@@ -347,7 +357,7 @@ class DatasetExportServiceTest {
 
         verify(txService, times(2)).insertNextVersion(eq(rawSn), eq("h1"), any());
         verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(2), any(), any());
-        verify(txService).markSucceeded(eq(80L), anyInt());
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(80L), anyInt(), eq(false));
     }
 
     @Test
@@ -363,7 +373,7 @@ class DatasetExportServiceTest {
         verify(txService, times(DatasetExportService.MAX_VERSION_RETRY))
                 .insertNextVersion(eq(rawSn), eq("h1"), any());
         verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
-        verify(txService, never()).markSucceeded(anyLong(), anyInt());
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
     }
 
     @Test
@@ -469,6 +479,32 @@ class DatasetExportServiceTest {
     }
 
     @Test
+    @DisplayName("마감_직전_신고가_확인되면_FAILED로_마감하지_않고_예외로_이탈한다 (H1 — 통지 보류)")
+    void finalizeBlockedByDeidentReportDoesNotMarkFailed() {
+        // given — 진입부 게이트는 통과했고 파일도 다 썼는데(written>0), 마감 직전 잠금 재판정에서
+        //   신고 구간이 확인된다(=쓰기 도중 신고 접수). 마감 게이트가 false 를 반환한다.
+        long rawSn = 41L;
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(410L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
+        when(txService.finalizeUnlessUnderDeidentReport(anyLong(), eq(410L), anyInt(), eq(false)))
+                .thenReturn(false);
+
+        // when — 예외로 이탈해야 러너(doExport)가 false 를 반환하고 통지가 보류된다.
+        assertThatCode(() -> service.export(rawSn, true))
+                .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class);
+
+        // then — FAILED 오분류 없음(행은 마감 트랜잭션에서 삭제됨) + outcome=deident_blocked 로만 계상.
+        verify(txService, never()).markFailed(anyLong());
+        assertThat(resultCount("deident_blocked")).isEqualTo(1.0);
+        assertThat(resultCount("failed")).isEqualTo(0.0);
+        assertThat(resultCount("completed")).isEqualTo(0.0);
+    }
+
+    @Test
     @DisplayName("상태전이_markSucceeded_예외시_inner_catch가_failed로_재분류한다 — record FAILED와 metric 정합")
     void metricsStateTransitionExceptionReclassifiedFailed() {
         // given — 파일은 다 썼는데(written>0, skip 0) markSucceeded 가 예외를 던진다.
@@ -480,7 +516,7 @@ class DatasetExportServiceTest {
         when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
         org.mockito.Mockito.doThrow(new RuntimeException("db down"))
-                .when(txService).markSucceeded(eq(370L), anyInt());
+                .when(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(370L), anyInt(), eq(false));
 
         // when — 예외 미전파(승인 불변)
         assertThatCode(() -> service.export(rawSn)).doesNotThrowAnyException();
@@ -562,5 +598,65 @@ class DatasetExportServiceTest {
         assertThat(resultCount("no_input")).isEqualTo(1.0);
         assertThat(resultCount("failed")).isEqualTo(0.0);
         assertThat(durationCount("no_input")).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("비식별_신고_상태면_산출을_시작하지도_않고_차단된다 (S7-EXPORT)")
+    void deidentReportBlocksExportBeforeAnyWork() {
+        // given — 신고 구간(DE_IDNTF_YN='F') 영상.
+        long rawSn = 90L;
+        when(deidentReportGate.isUnderDeidentReport(rawSn)).thenReturn(true);
+
+        // when / then — 412 로 이탈한다(러너가 false 로 받아 통지를 보류하게 하는 신호).
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.export(rawSn, true))
+                .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class)
+                .extracting(e -> ((kr.co.cudo.authoring.common.exception.CustomException) e).getErrorCode())
+                .isEqualTo(kr.co.cudo.authoring.common.exception.ErrorCode.PRECONDITION_FAILED);
+
+        // then — 로딩/버전채번/파일쓰기 어느 것도 시작되지 않는다(게이트가 최선두).
+        verify(txService, never()).loadPreparation(anyLong());
+        verify(txService, never()).insertNextVersion(anyLong(), any(), any());
+        verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
+        // 관측 — 실패가 아니라 전용 skip outcome 으로 정확히 1회 계상.
+        assertThat(resultCount("deident_blocked")).isEqualTo(1.0);
+        assertThat(durationCount("deident_blocked")).isEqualTo(1L);
+        assertThat(resultCount("failed")).isEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("게이트_판정조회가_실패하면_산출하지_않는다_fail_closed (S7-EXPORT)")
+    void gateLookupFailureBlocksExport() {
+        // given — 판정 자체가 DB 오류로 실패(fail-closed 여야 한다 — 통과로 흘리면 PII 유출).
+        long rawSn = 91L;
+        when(deidentReportGate.isUnderDeidentReport(rawSn))
+                .thenThrow(new IllegalStateException("db down"));
+
+        // when / then
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.export(rawSn, true))
+                .isInstanceOf(IllegalStateException.class);
+        verify(txService, never()).loadPreparation(anyLong());
+        verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    @DisplayName("신고상태가_아니면_export가_정상_수행된다_회귀방어 (S7-EXPORT)")
+    void normalVideoUnaffectedByGate() {
+        // given — DE_IDNTF_YN 이 'Y'/'N'/null 인 일반 영상(게이트 false).
+        long rawSn = 92L;
+        when(deidentReportGate.isUnderDeidentReport(rawSn)).thenReturn(false);
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(920L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 3, 0));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 3, 0));
+
+        // when
+        assertThatCode(() -> service.export(rawSn, true)).doesNotThrowAnyException();
+
+        // then
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(920L), eq(6), eq(false));
+        assertThat(resultCount("completed")).isEqualTo(1.0);
+        assertThat(resultCount("deident_blocked")).isEqualTo(0.0);
     }
 }
