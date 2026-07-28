@@ -23,5 +23,12 @@ public enum BatchStage {
     /** 같은 trackId 의 누락 프레임 BBOX 를 선형 보간으로 채우는 단계. */
     INTERPOLATE,
     COMPLETED,
-    FAILED
+    FAILED,
+    /**
+     * 검수 소유 상태(PENDING/IN_REVIEW/APPROVED/REJECTED)라 파이프라인 진입이 차단된 결과 (DEV_FIX H8).
+     *
+     * <p>진입 가드 전용 <b>반환값</b>이며 {@code LS_BATCH_PROC_LOG} 에 기록하지 않는다
+     * ({@code markStage(SKIPPED)} 호출 금지 — 단계 진행률 매퍼의 canonical 순서에 포함되지 않는다).
+     */
+    SKIPPED
 }

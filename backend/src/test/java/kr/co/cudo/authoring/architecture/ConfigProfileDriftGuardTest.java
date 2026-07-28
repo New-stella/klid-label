@@ -106,28 +106,49 @@ class ConfigProfileDriftGuardTest {
     @Test
     @DisplayName("dev토글은_환경변수로_override_가능하다")
     void devTogglesAreOverridableByEnvVariables() {
+        // ※ stg 의 dev **로그인**은 이 규칙에서 제외된다 — A-ISSUE-05 / DEV_FIX H-3 로 정책이 뒤집혀
+        //   "끌 수 있어야 한다"가 아니라 "아예 켤 수 없어야 한다"가 됐다(아래 별도 테스트에서 고정).
         for (String profileYml : List.of("application-dev.yml", "application-stg.yml")) {
             // given
-            Object login = MainResourceYaml.rawValue(profileYml, "authoring.dev.login.enabled");
             Object upload = MainResourceYaml.rawValue(profileYml, "authoring.dev.upload.enabled");
 
             // then: 리터럴 true 는 끌 수단이 없다 → 환경변수 placeholder 형태여야 한다
-            assertThat(String.valueOf(login))
-                    .as("%s 의 dev 로그인 토글은 DEV_LOGIN_ENABLED 로 override 가능해야 한다", profileYml)
-                    .contains("${DEV_LOGIN_ENABLED");
             assertThat(String.valueOf(upload))
                     .as("%s 의 dev 업로드 토글은 DEV_UPLOAD_ENABLED 로 override 가능해야 한다", profileYml)
                     .contains("${DEV_UPLOAD_ENABLED");
 
             // and: 환경변수 미주입 시 기존 동작(ON)은 그대로 보존한다
             Environment env = MainResourceYaml.environment(COMMON_YML, profileYml);
-            assertThat(env.getProperty("authoring.dev.login.enabled"))
-                    .as("%s 의 dev 로그인 토글 기본값(미주입 시 기존 동작 유지)", profileYml)
-                    .isEqualTo("true");
             assertThat(env.getProperty("authoring.dev.upload.enabled"))
                     .as("%s 의 dev 업로드 토글 기본값(미주입 시 기존 동작 유지)", profileYml)
                     .isEqualTo("true");
         }
+
+        // dev 프로파일의 로그인 토글: override 가능 + 미주입 시 ON 유지
+        assertThat(String.valueOf(
+                MainResourceYaml.rawValue("application-dev.yml", "authoring.dev.login.enabled")))
+                .as("dev 의 dev 로그인 토글은 DEV_LOGIN_ENABLED 로 override 가능해야 한다")
+                .contains("${DEV_LOGIN_ENABLED");
+        assertThat(MainResourceYaml.environment(COMMON_YML, "application-dev.yml")
+                        .getProperty("authoring.dev.login.enabled"))
+                .as("dev 의 dev 로그인 토글 기본값(미주입 시 기존 동작 유지)")
+                .isEqualTo("true");
+    }
+
+    @Test
+    @DisplayName("stg_dev로그인은_켤_수_없는_리터럴_false다")
+    void stgDevLoginIsHardDisabled() {
+        // given: /v1/dev/tokens 는 permitAll 이라 stg 에서 켜지면 인증 우회 + 관리자 권한 획득이 성립한다.
+        Object login = MainResourceYaml.rawValue("application-stg.yml", "authoring.dev.login.enabled");
+
+        // then: 환경변수 placeholder 가 아니라 리터럴 false (DevToggleProfileGuard 가 부팅에서 재차 강제)
+        assertThat(String.valueOf(login))
+                .as("stg 의 dev 로그인은 리터럴 false 여야 한다 — override 형태면 켤 수단이 생긴다")
+                .isEqualTo("false");
+        assertThat(MainResourceYaml.environment(COMMON_YML, "application-stg.yml")
+                        .getProperty("authoring.dev.login.enabled"))
+                .as("stg 의 dev 로그인 실효값")
+                .isEqualTo("false");
     }
 
     private String readMainResource(String fileName) {

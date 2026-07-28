@@ -56,7 +56,6 @@ class DatasetExportTxServiceTest {
     private LsDeidentProcLogRepository deidentProcLogRepository;
     private NiaJsonBuilder niaJsonBuilder;
     private LabelContentHasher contentHasher;
-    private DatasetExportPathResolver pathResolver;
 
     private DatasetExportTxService txService;
 
@@ -71,10 +70,10 @@ class DatasetExportTxServiceTest {
         deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         niaJsonBuilder = mock(NiaJsonBuilder.class);
         contentHasher = mock(LabelContentHasher.class);
-        pathResolver = mock(DatasetExportPathResolver.class);
         txService = new DatasetExportTxService(srcRepository, labelRepository, videoMetaRepository,
                 labelMasterRepository, videoRepository, exportRepository, deidentProcLogRepository,
-                niaJsonBuilder, contentHasher, pathResolver, new com.fasterxml.jackson.databind.ObjectMapper());
+                niaJsonBuilder, contentHasher, new com.fasterxml.jackson.databind.ObjectMapper(),
+                new kr.co.cudo.authoring.video.service.DeidentReportGate(videoRepository));
 
         // 최소 입력 스텁 — 프레임 1건 + 활성 메타 1건이 있어야 loadPreparation 이 조립을 진행한다.
         LsDataSrc frame = mock(LsDataSrc.class);

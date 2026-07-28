@@ -124,8 +124,12 @@ public class FramePrivacyMetaService {
             src.updatePrivacyMeta(item.anonymity(), item.pseudonymity(), item.privacyIncluded());
             toSave.add(src);
             if (isReviewApprovedCached(rawSn, approvedCache)) {
+                // HIGH-C(Phase 5C) — 개인정보 메타(pseudonymity/privacyIncluded)는 export JSON 으로 나가므로
+                //   승인 후 수정 시 export 폴더를 새 버전으로 전량 재생성해야 데이터마트가 동기화된다.
+                //   exportRegenerated=true 로 발행(anonymity 는 ExportKind 파생이라 무관, 여기 값은 pseudonymity·
+                //   privacy_included 로 JSON 에 실림). 구 4-arg=false 는 재생성을 트리거하지 못했다.
                 eventPublisher.publishEvent(new TaskModifiedEvent(
-                        rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub())));
+                        rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true));
             }
             LsDataRaw raw = rawCache.computeIfAbsent(rawSn, this::loadRaw);
             result.add(toEffective(src, raw));
@@ -145,8 +149,10 @@ public class FramePrivacyMetaService {
         // 본문(판단값) 미출력 — srcSn·rawSn 만 (CWE-359)
         log.info("[FramePrivacyMeta] updated srcSn={} rawSn={}", src.getSrcSn(), rawSn);
         if (isReviewApproved(rawSn)) {
+            // HIGH-C(Phase 5C) — single 경로도 bulk 와 동일: 개인정보 메타 수정은 export JSON 을 바꾸므로
+            //   exportRegenerated=true 로 발행해 새 버전 폴더로 전량 재생성 후 통지가 나가게 한다.
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub())));
+                    rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true));
         }
     }
 

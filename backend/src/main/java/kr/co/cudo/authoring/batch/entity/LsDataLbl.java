@@ -239,6 +239,39 @@ public class LsDataLbl {
     }
 
     /**
+     * 버전 롤백 복원 전용 — 스냅샷 라벨을 <b>새 PK 발급</b>으로 되살린다(D-ISSUE-23).
+     *
+     * <p>{@link #createManual} 은 {@code autoLblYn='N'}·{@code confScore=null} 을 강제하고 {@code trackId}
+     * 인자가 없어 복원에 부적합하다(트랙 연속성·자동라벨 여부 유실). 본 팩토리는 스냅샷이 보유한
+     * {@code TRCK_ID}(실 컬럼)와 AI 메타(transient — 호출자가 {@code LS_DATA_LBL_AI_INFO} 로 동반 적재)를
+     * 그대로 전달받는다. {@code createManual} 의 동작은 다른 경로가 의존하므로 변경하지 않는다.
+     *
+     * <p>{@code LBL_SN} 은 IDENTITY 재발급이다. 스냅샷의 옛 {@code LBL_SN} 을 보존하는 경로는
+     * {@code LsDataLblRepositoryCustom#insertRestoredWithExplicitIds}(네이티브 명시 삽입)이며, 본 팩토리는
+     * PK 충돌 등으로 그 경로가 실패했을 때의 <b>폴백</b>과 id 없는 옛 스냅샷 복원에 사용된다.
+     *
+     * @param autoLblYn 스냅샷의 자동라벨 여부 (null 허용 — 옛 스냅샷 하위호환)
+     * @param confScore 스냅샷의 신뢰도 (null 허용)
+     * @param trackId   스냅샷의 트랙 ID (null 허용)
+     * @param lblSrcCd  스냅샷의 라벨 출처 코드 (null 허용)
+     */
+    public static LsDataLbl createRestored(Long srcSn, String lblTypeCd, Long labelId, String label,
+                                          String pointsJson, String autoLblYn, BigDecimal confScore,
+                                          String trackId, String lblSrcCd) {
+        return LsDataLbl.builder()
+                .srcSn(srcSn)
+                .lblTypeCd(lblTypeCd)
+                .labelId(labelId)
+                .label(label)
+                .pointsJson(pointsJson)
+                .autoLblYn(autoLblYn)
+                .confScore(confScore)
+                .trackId(trackId)
+                .lblSrcCd(lblSrcCd)
+                .build();
+    }
+
+    /**
      * Phase 2 — 사용자가 기존 라벨의 좌표/라벨명/타입 + LABEL_ID FK 수정.
      * AUTO_LBL_YN 은 변경되지 않음 (정책: 자동 라벨은 사용자가 수정해도 'Y' 유지).
      *
@@ -290,11 +323,20 @@ public class LsDataLbl {
      * @param scaleY   y축 배율(양수)
      */
     public static LsDataLbl copyForNewSrcScaled(Long newSrcSn, LsDataLbl original, double scaleX, double scaleY) {
+        return copyForNewSrcScaled(newSrcSn, original, scaleX, scaleY, 0d, 0d);
+    }
+
+    /**
+     * 좌표 배율 + <b>레터박스 오프셋</b>까지 반영해 복사한다(G-1 종횡비 보존).
+     * 파생 프레임은 목표 해상도 안 {@code (offsetX, offsetY)} 위치에 그려지므로 좌표도 같은 변환을 받는다.
+     */
+    public static LsDataLbl copyForNewSrcScaled(Long newSrcSn, LsDataLbl original, double scaleX, double scaleY,
+                                                double offsetX, double offsetY) {
         if (original == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "복사 원본 라벨이 null 입니다.");
         }
         String scaledPointCn = LabelCoordinateScaler.scalePointCn(
-                original.getPointCn(), original.getLblTypeCd(), scaleX, scaleY);
+                original.getPointCn(), original.getLblTypeCd(), scaleX, scaleY, offsetX, offsetY);
         return LsDataLbl.builder()
                 .srcSn(newSrcSn)
                 .lblTypeCd(original.getLblTypeCd())

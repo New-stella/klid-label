@@ -2,64 +2,33 @@ package kr.co.cudo.authoring.version.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
-import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.common.security.Channel;
-import kr.co.cudo.authoring.common.security.Role;
-import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.label.service.LabelAccessGuard;
-import kr.co.cudo.authoring.version.entity.LsLabelVersion;
-import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
-import kr.co.cudo.authoring.video.repository.VideoRepository;
-import org.junit.jupiter.api.BeforeEach;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.lang.reflect.Field;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
- * Phase 1 (키포인트) — SKELETON 라벨의 검수 승인/신고 스냅샷이 삼중값(v)을 유실 없이 보존하는지 검증.
+ * Phase 1 (키포인트) — SKELETON 라벨의 <b>검수 승인 스냅샷 페이로드</b>가 삼중값(v)을 유실 없이 보존하는지 검증.
  *
- * <p>스냅샷 페이로드는 LabelResponse 를 직렬화하므로, LabelResponse.Item.from 의 SKELETON type-route 가
- * 삼중값을 만들어 payload 에 [[x,y,v],...] 로 그대로 담겨야 한다.
+ * <p>스냅샷 페이로드는 {@code VersionService.snapshotFrameOnApprove} 가 만드는 {@link LabelResponse}
+ * 직렬화 결과다. 따라서 검증 대상은 {@code LabelResponse.Item.from} 의 SKELETON type-route 가 삼중값을
+ * {@code [[x,y,v],...]} 로 그대로 담는지이며, 본 테스트는 승인 경로와 <b>동일한 LabelResponse.of 오버로드</b>
+ * (frame + siblings + labels + frameImageType + lockSttsCd + aiInfoMap + objectMapper)를 직접 호출한다.
+ *
+ * <p>D-25(2026-07-27 정책 반전) 이전에는 이 검증을 {@code snapshotDeidentReport}(비식별 신고 스냅샷)로
+ * 수행했으나, 해당 메서드가 제거되면서 살아 있는 유일한 스냅샷 직렬화 경로(승인)로 재배치했다.
  */
 class VersionServiceKeypointSnapshotTest {
 
-    private LsLabelVersionRepository labelVersionRepository;
-    private LsDataLblRepository labelRepository;
-    private ObjectMapper objectMapper;
-    private VersionService service;
-    private TokenClaims actor;
-
-    @BeforeEach
-    void setUp() {
-        labelVersionRepository = mock(LsLabelVersionRepository.class);
-        LabelAccessGuard accessGuard = mock(LabelAccessGuard.class);
-        VideoRepository videoRepository = mock(VideoRepository.class);
-        WorkLockService workLockService = mock(WorkLockService.class);
-        LsDataSrcRepository srcRepository = mock(LsDataSrcRepository.class);
-        labelRepository = mock(LsDataLblRepository.class);
-        ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-        LsRawDataStatusRepository rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
-        objectMapper = new ObjectMapper();
-        service = new VersionService(labelVersionRepository, accessGuard, videoRepository,
-                workLockService, srcRepository, labelRepository, objectMapper,
-                eventPublisher, rawDataStatusRepository);
-        actor = new TokenClaims("100", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
-    }
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private LsDataLbl skeletonLabel(long lblSn, long srcSn) {
         // 17개 삼중값 — v 는 0/1/2 순환하여 유실 여부를 명확히 구분.
@@ -77,20 +46,19 @@ class VersionServiceKeypointSnapshotTest {
     }
 
     @Test
-    @DisplayName("VersionService_스냅샷_후_SKELETON_v_보존")
-    void snapshotPreservesVisibility() throws Exception {
-        when(labelRepository.findAllByRawSn(9000L)).thenReturn(List.of(skeletonLabel(1L, 10L)));
-        when(labelVersionRepository.findFirstByDataRawSnOrderByVersionNoDesc(9000L))
-                .thenReturn(Optional.empty());
+    @DisplayName("승인_스냅샷_페이로드에_SKELETON_v_보존")
+    void snapshotPayloadPreservesVisibility() throws Exception {
+        // given — 프레임 1건 + SKELETON 라벨 1건 (승인 스냅샷과 동일 입력 구성).
+        LsDataSrc frame = LsDataSrc.create(9000L, 0, "/raw/0.jpg", LocalDateTime.now());
+        setField(frame, "srcSn", 10L);
+        List<LsDataLbl> labels = List.of(skeletonLabel(1L, 10L));
 
-        boolean result = service.snapshotDeidentReport(9000L, actor);
+        // when — 승인 스냅샷이 사용하는 LabelResponse 직렬화 경로.
+        LabelResponse snapshot = LabelResponse.of(frame, List.of(frame), labels, "DEID", null,
+                Map.of(), objectMapper);
+        String payload = objectMapper.writeValueAsString(snapshot);
 
-        assertThat(result).isTrue();
-        ArgumentCaptor<LsLabelVersion> cap = ArgumentCaptor.forClass(LsLabelVersion.class);
-        verify(labelVersionRepository).save(cap.capture());
-        String payload = cap.getValue().getLabelPayload();
-
-        // payload 의 items[0].points 가 17개 삼중값이며 v 가 보존됐는지 파싱 검증.
+        // then — payload 의 items[0].points 가 17개 삼중값이며 v 가 보존됐는지 파싱 검증.
         JsonNode points = objectMapper.readTree(payload).path("items").get(0).path("points");
         assertThat(points.isArray()).isTrue();
         assertThat(points.size()).isEqualTo(17);
@@ -105,11 +73,23 @@ class VersionServiceKeypointSnapshotTest {
 
     private static void setField(Object target, String name, Object value) {
         try {
-            Field f = target.getClass().getDeclaredField(name);
+            Field f = findField(target.getClass(), name);
             f.setAccessible(true);
             f.set(target, value);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static Field findField(Class<?> type, String name) throws NoSuchFieldException {
+        Class<?> c = type;
+        while (c != null) {
+            try {
+                return c.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                c = c.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(name);
     }
 }

@@ -25,7 +25,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -59,8 +58,9 @@ public class DatasetExportTxService {
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final NiaJsonBuilder niaJsonBuilder;
     private final LabelContentHasher contentHasher;
-    private final DatasetExportPathResolver pathResolver;
     private final ObjectMapper objectMapper;
+    /** H1 — 신고 구간 판정 <b>단일 원천</b>(잠금 변형 포함). {@code "F".equals} 재구현 금지. */
+    private final kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
 
     public DatasetExportTxService(LsDataSrcRepository srcRepository,
                                   LsDataLblRepository labelRepository,
@@ -71,8 +71,8 @@ public class DatasetExportTxService {
                                   LsDeidentProcLogRepository deidentProcLogRepository,
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
-                                  DatasetExportPathResolver pathResolver,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate) {
         this.srcRepository = srcRepository;
         this.labelRepository = labelRepository;
         this.videoMetaRepository = videoMetaRepository;
@@ -82,8 +82,8 @@ public class DatasetExportTxService {
         this.deidentProcLogRepository = deidentProcLogRepository;
         this.niaJsonBuilder = niaJsonBuilder;
         this.contentHasher = contentHasher;
-        this.pathResolver = pathResolver;
         this.objectMapper = objectMapper;
+        this.deidentReportGate = deidentReportGate;
     }
 
     /**
@@ -147,7 +147,13 @@ public class DatasetExportTxService {
                 .map(LsDatasetExport::getContentHash)
                 .orElse(null);
 
-        return Optional.of(new ExportPreparation(ctx, frameContexts, contentHash, lastExportedHash));
+        // co-locate 산출 base 원천 — 라이브 LS_DATA_RAW 우선, 부재 시 활성 메타 스냅샷 값으로 폴백한다.
+        String rawFilePathNm = (raw != null && raw.getRawFilePathNm() != null && !raw.getRawFilePathNm().isBlank())
+                ? raw.getRawFilePathNm()
+                : meta.getRawFilePathNm();
+
+        return Optional.of(new ExportPreparation(
+                ctx, frameContexts, contentHash, lastExportedHash, rawFilePathNm));
     }
 
     /**
@@ -159,12 +165,13 @@ public class DatasetExportTxService {
      * rollback-only 가 된 이 트랜잭션이 승인/다른 시도와 격리된다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public InsertedExport insertNextVersion(long rawSn, String contentHash) {
+    public InsertedExport insertNextVersion(long rawSn, String contentHash, String exportPathNm) {
         int version = (int) (exportRepository.countByDataRawSn(rawSn) + 1);
-        // 버전 루트({labeling_root}/{rawSn}/v{n}) — 리졸버가 base 이탈(CWE-22)을 이미 검증한 하위.
-        Path versionRoot = pathResolver.resolve(rawSn, ExportKind.ORIGINAL, version).getParent();
+        // A-4 — EXPORT_PATH_NM 은 <b>영상 루트</b>({dirname(원본)}/{rawSn})다. 관제가 한 경로 아래에서
+        // v1·v2… 를 모두 보고 골라야 롤백이 성립하기 때문(버전 루트 저장은 폐기). 값은 호출자가 리졸버로
+        // 검증해 넘긴 절대경로이며, 이후 어떤 조회 경로에서도 재계산하지 않는다(S8 — 전략 전환 안전).
         LsDatasetExport record = LsDatasetExport.create(
-                rawSn, version, versionRoot.toString(), contentHash);
+                rawSn, version, exportPathNm, contentHash);
         LsDatasetExport saved = exportRepository.saveAndFlush(record);
         return new InsertedExport(saved.getExportSn(), version);
     }
@@ -181,10 +188,70 @@ public class DatasetExportTxService {
         exportRepository.findById(exportSn).ifPresent(e -> e.markPartial(frameCnt));
     }
 
+    /**
+     * H1 (HIGH · CWE-359/367) — <b>성공/부분 마감을 RAW 잠금 하에 재판정</b>한다.
+     *
+     * <h3>닫는 창</h3>
+     * 진입부 게이트({@code DatasetExportService.export} 선두)는 export 시작 시점 1회 무잠금 판정이다.
+     * 그 뒤 수 분간의 프레임 복사 중에 비식별 누락 신고가 커밋되면(신고는 {@code findByRawSnForUpdate}
+     * + {@code markDeidentified("F")}), 누락이 확인된 프레임이 이미 {@code v{n+1}} 에 기록된 상태로
+     * SUCCEEDED 마감 → {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 갱신 → 통지 발송까지 이어진다.
+     *
+     * <h3>어떻게 닫는가</h3>
+     * 판정({@link DeidentReportGate#isUnderDeidentReportLocked})과 상태 전이를 <b>같은 트랜잭션</b>에서
+     * 수행한다. RAW 행을 잠근 채 마감하므로 신고 UPDATE 와 직렬화된다 — 신고가 먼저면 여기서 관측되고,
+     * 여기가 먼저면 신고는 이 마감 커밋 뒤에 진행된다(그 경우는 "export 완료 후 신고" = 정상 순서).
+     *
+     * <h3>차단 시 처리 — 행을 남기지 않는다</h3>
+     * 진입부 차단과 동일하게 <b>PENDING 행을 삭제</b>해 "차단 = skip(행 없음)" 불변을 유지한다.
+     * FAILED 로 남기면 ① 정책적 보류가 장애로 오분류되고 ② 회수기가 반드시 다시 막힐 재시도로
+     * 시도 상한(RTY_NMTM)만 소진한다. 재산출·통지 복구는 신고 resolve 시점 재트리거(M1)가 담당한다.
+     * DB 를 먼저 정리(행 삭제)하고 파일 삭제는 호출자가 뒤이어 수행한다 — 순서를 뒤집으면 잠깐이라도
+     * "존재하지 않는 폴더를 가리키는 SUCCEEDED 행"이 뷰에 보일 수 있다.
+     *
+     * <p><b>잠금 순서</b>: RAW → LS_DATASET_EXPORT. 이 순서를 역으로(EXPORT 선점 후 RAW) 잡는 경로는
+     * 없다({@code claimForRetry} 는 EXPORT 만, 신고/증강/해상도 경로는 RAW 를 선두로 잡는다) — 사이클 없음.
+     *
+     * @param partial {@code true} 면 PARTIAL, {@code false} 면 SUCCEEDED 로 마감
+     * @return 마감했으면 {@code true}, 신고 구간이라 차단(행 삭제)했으면 {@code false}
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean finalizeUnlessUnderDeidentReport(long rawSn, long exportSn, int frameCnt, boolean partial) {
+        if (deidentReportGate.isUnderDeidentReportLocked(rawSn)) {
+            exportRepository.deleteById(exportSn);
+            log.warn("[DatasetExport] finalize blocked — deident report opened during export rawSn={}", rawSn);
+            return false;
+        }
+        exportRepository.findById(exportSn).ifPresent(e -> {
+            if (partial) {
+                e.markPartial(frameCnt);
+            } else {
+                e.markSucceeded(frameCnt);
+            }
+        });
+        return true;
+    }
+
     /** 산출 실패 — FAILED 전이(승인 트랜잭션과 무관, 별도 커밋). */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markFailed(long exportSn) {
         exportRepository.findById(exportSn).ifPresent(LsDatasetExport::markFailed);
+    }
+
+    /**
+     * D-ISSUE-04(b) DEV_FIX(H7①/H7③) — 실패 export 재시도 <b>원자 클레임</b>(짧은 독립 트랜잭션).
+     *
+     * <p>{@code true} 를 받은 호출자만 재산출을 트리거한다. 클레임 성공 시 시도 이력({@code RTY_NMTM})이
+     * 산출 결과와 무관하게 기록되므로 상한(max-attempts)이 실제로 걸리고, 동시에 같은 영상을 두 노드가
+     * 동시에 집어가지 못한다(Quartz 클러스터링 설정에 의존하지 않는 DB 레벨 보장 —
+     * {@code LsDatasetExportRepository#claimForRetry} 주석 참조).
+     *
+     * <p>REQUIRES_NEW — 회수 잡은 트랜잭션 밖에서 돌고, 클레임은 즉시 커밋되어야 다른 노드가 관측한다.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean claimForRetry(long exportSn, int maxAttempts, java.time.LocalDateTime claimCutoff) {
+        return exportRepository.claimForRetry(
+                exportSn, maxAttempts, claimCutoff, java.time.LocalDateTime.now()) == 1;
     }
 
     /**

@@ -60,10 +60,18 @@ class DatasetExportE2EIT {
     /** 프레임 fixture 개수(영상당). */
     private static final int FRAME_COUNT = 2;
 
+    /** 원본 영상 더미 바이트 — 산출 전후 <b>불변</b>임을 단언하기 위한 기준값(S5). */
+    private static final byte[] ORIGINAL_VIDEO_BYTES = {(byte) 0x00, (byte) 0x11, (byte) 0x22, (byte) 0x33};
+
     /** @DynamicPropertySource 는 static 이라 인스턴스 @TempDir 보다 먼저 계산돼야 한다 — static 임시 루트. */
     private static final Path STORAGE_ROOT = createStorageRoot();
     private static final Path LABELING_ROOT = STORAGE_ROOT.resolve("labeling");
     private static final Path RAW_ROOT = STORAGE_ROOT.resolve("raw");
+    /**
+     * 원본 영상이 놓인 디렉터리(관제 NAS 모사) — Phase 5A co-locate 산출 base 의 원천이다.
+     * 산출물은 이 디렉터리의 {@code {rawSn}/} 하위에 생기며, 원본 영상 파일은 그 형제로 남는다.
+     */
+    private static final Path VIDEO_DIR = RAW_ROOT.resolve("videos");
     private static final Path DEID_ROOT = STORAGE_ROOT.resolve("deid");
 
     private static Path createStorageRoot() {
@@ -143,7 +151,7 @@ class DatasetExportE2EIT {
         long seededRawSn = txTemplate.execute(s -> {
             LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(
                     "clip-" + System.nanoTime(), "cctv-1", "EVT", "GOV",
-                    LsDataRaw.PRVC_TYPE_PRVC, "raw/path.mp4", null, 60));
+                    LsDataRaw.PRVC_TYPE_PRVC, seedOriginalVideo().toString(), null, 60));
             Long rawSn = raw.getRawSn();
             videoMetaRepository.save(LsDatasetVideoMeta.builder()
                     .rawSn(rawSn)
@@ -151,7 +159,7 @@ class DatasetExportE2EIT {
                     .activeYn(LsDatasetVideoMeta.ACTIVE_YES)
                     .vdoWdth(1920)
                     .vdoHgt(1080)
-                    .rawFilePathNm("raw/path.mp4")
+                    .rawFilePathNm(raw.getRawFilePathNm())
                     .evntAnnoCn(evntAnnoCn)
                     .regDt(LocalDateTime.now())
                     .build());
@@ -181,6 +189,83 @@ class DatasetExportE2EIT {
         });
     }
 
+    /** 이 영상의 원본 영상 파일 경로(DB 적재값). */
+    private Path originalVideoOf(long rawSn) {
+        String path = txTemplate.execute(s ->
+                videoRepository.findById(rawSn).orElseThrow().getRawFilePathNm());
+        return Path.of(path);
+    }
+
+    /**
+     * VDO_FRM_NO(영상 내 실제 프레임 위치)를 지정해 시드한다 — {@code frame_num} 원천 검증용.
+     * 배열 index = FRM_NO(추출 순번), 값 = VDO_FRM_NO(null 허용).
+     */
+    private long seedVideoWithVideoFrameNos(Long[] videoFrameNos) {
+        long seededRawSn = txTemplate.execute(s -> {
+            LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(
+                    "clip-" + System.nanoTime(), "cctv-1", "EVT", "GOV",
+                    LsDataRaw.PRVC_TYPE_PRVC, seedOriginalVideo().toString(), null, 60));
+            Long rawSn = raw.getRawSn();
+            videoMetaRepository.save(LsDatasetVideoMeta.builder()
+                    .rawSn(rawSn)
+                    .snpshtHash("h-" + rawSn)
+                    .activeYn(LsDatasetVideoMeta.ACTIVE_YES)
+                    .vdoWdth(1920)
+                    .vdoHgt(1080)
+                    .rawFilePathNm(raw.getRawFilePathNm())
+                    .regDt(LocalDateTime.now())
+                    .build());
+            for (int i = 0; i < videoFrameNos.length; i++) {
+                String rawRel = "frames/raw/" + rawSn + "/frame-" + i + ".jpg";
+                String deidRel = "frames/deid/" + rawSn + "/frame-" + i + ".jpg";
+                writeDummyImage(RAW_ROOT.resolve(rawRel));
+                writeDummyImage(DEID_ROOT.resolve(deidRel));
+                srcRepository.save(LsDataSrc.create(rawSn, i, videoFrameNos[i], rawRel, deidRel,
+                        LocalDateTime.now()));
+            }
+            return rawSn;
+        });
+        createdRawSns.add(seededRawSn);
+        return seededRawSn;
+    }
+
+    /** 허용 마운트 루트 밖의 원본 경로(손상 데이터) — base 거부 경로 검증용. */
+    private long seedVideoWithBrokenRawPath() {
+        String hostPath = STORAGE_ROOT.resolve("outside").resolve("Users").resolve("ck")
+                .resolve("clip.mp4").toString();
+        long seededRawSn = txTemplate.execute(s -> {
+            LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(
+                    "clip-" + System.nanoTime(), "cctv-1", "EVT", "GOV",
+                    LsDataRaw.PRVC_TYPE_PRVC, hostPath, null, 60));
+            Long rawSn = raw.getRawSn();
+            videoMetaRepository.save(LsDatasetVideoMeta.builder()
+                    .rawSn(rawSn)
+                    .snpshtHash("h-" + rawSn)
+                    .activeYn(LsDatasetVideoMeta.ACTIVE_YES)
+                    .vdoWdth(1920)
+                    .vdoHgt(1080)
+                    .rawFilePathNm(hostPath)
+                    .regDt(LocalDateTime.now())
+                    .build());
+            srcRepository.save(LsDataSrc.create(rawSn, 0, "frames/raw/x.jpg", LocalDateTime.now()));
+            return rawSn;
+        });
+        createdRawSns.add(seededRawSn);
+        return seededRawSn;
+    }
+
+    /** 원본 영상 파일을 VIDEO_DIR 에 만든다(co-locate base 원천). 파일 자체는 산출에 쓰이지 않는다. */
+    private static Path seedOriginalVideo() {
+        Path video = VIDEO_DIR.resolve("clip-" + System.nanoTime() + ".mp4");
+        try {
+            Files.createDirectories(VIDEO_DIR);
+            Files.write(video, ORIGINAL_VIDEO_BYTES);
+        } catch (IOException e) {
+            throw new IllegalStateException("더미 원본 영상 생성 실패", e);
+        }
+        return video;
+    }
+
     private static void writeDummyImage(Path path) {
         try {
             Files.createDirectories(path.getParent());
@@ -191,10 +276,143 @@ class DatasetExportE2EIT {
         }
     }
 
+    /** Phase 5A — 산출 루트는 원본 영상 디렉터리 하위 {@code {rawSn}/} 이다(구 labeling 루트 아님). */
+    private Path videoRoot(long rawSn) {
+        return VIDEO_DIR.resolve(String.valueOf(rawSn));
+    }
+
     private Path versionDir(long rawSn, int version, ExportKind kind) {
-        return LABELING_ROOT.resolve(String.valueOf(rawSn))
+        return videoRoot(rawSn)
                 .resolve("v" + version)
                 .resolve(kind.segment());
+    }
+
+    @Test
+    @DisplayName("승인시_산출물이_원본영상_디렉터리_하위_rawSn_에_생성됨")
+    void exportRootIsColocatedWithOriginalVideo() {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+        Path originalVideo = originalVideoOf(rawSn);
+
+        exportService.export(rawSn);
+
+        // 산출 루트는 원본 영상의 <형제> {rawSn} 디렉터리다.
+        Path root = videoRoot(rawSn);
+        assertThat(root).isDirectory();
+        assertThat(root.getParent()).isEqualTo(originalVideo.getParent());
+        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL)).isDirectory();
+        // 구 구조(labeling 루트)에는 아무것도 만들지 않는다.
+        assertThat(LABELING_ROOT.resolve(String.valueOf(rawSn))).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("원본_영상_파일이_산출_전후로_내용도_존재도_변하지_않는다")
+    void originalVideoFileIsNeverTouched() throws IOException {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+        Path originalVideo = originalVideoOf(rawSn);
+        byte[] before = Files.readAllBytes(originalVideo);
+
+        exportService.export(rawSn);
+        exportService.export(rawSn, true); // 재승인(v2) 까지 반복해도 불변이어야 한다
+
+        assertThat(originalVideo).exists().isRegularFile();
+        assertThat(Files.readAllBytes(originalVideo)).isEqualTo(before).isEqualTo(ORIGINAL_VIDEO_BYTES);
+    }
+
+    @Test
+    @DisplayName("EXPORT_PATH_NM_이_영상루트를_가리켜_한_경로로_전_버전이_커버됨")
+    void exportPathPointsToVideoRootCoveringAllVersions() {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+
+        exportService.export(rawSn);          // v1
+        exportService.export(rawSn, true);    // v2 (승인 경로 강제 재생성)
+
+        LsDatasetExport latest = txTemplate.execute(s ->
+                exportRepository.findFirstByDataRawSnOrderByExportVerNoDesc(rawSn).orElseThrow());
+        assertThat(latest.getExportVerNo()).isEqualTo(2);
+        // 버전 루트가 아니라 <영상 루트> 를 적재한다 — 관제가 v1·v2 를 한 경로 아래에서 보고 고른다.
+        Path recorded = Path.of(latest.getExportPathNm());
+        assertThat(recorded).isEqualTo(videoRoot(rawSn));
+        assertThat(recorded.resolve("v1").resolve("orgnl")).isDirectory();
+        assertThat(recorded.resolve("v2").resolve("orgnl")).isDirectory();
+    }
+
+    @Test
+    @DisplayName("같은_디렉터리에_여러_원본영상이_있어도_rawSn_별로_산출루트가_분리됨")
+    void exportRootsAreSeparatedPerRawSnInSharedDirectory() {
+        long first = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+        long second = seedVideoWithFrameFiles("[[5,6],[7,8]]", "설명");
+
+        exportService.export(first);
+        exportService.export(second);
+
+        assertThat(videoRoot(first).getParent()).isEqualTo(videoRoot(second).getParent());
+        assertThat(videoRoot(first)).isDirectory().isNotEqualTo(videoRoot(second));
+        assertThat(videoRoot(second)).isDirectory();
+        // 서로의 원본 영상 파일도 그대로 남아 있다(형제 파일 훼손 없음).
+        assertThat(originalVideoOf(first)).exists();
+        assertThat(originalVideoOf(second)).exists();
+    }
+
+    @Test
+    @DisplayName("JSON_frame_num_이_추출순번이_아니라_VDO_FRM_NO_다")
+    void frameNumUsesVideoFrameNo() throws IOException {
+        // given — FRM_NO(추출순번) 0·1 에 VDO_FRM_NO(영상 내 위치) 10·20 을 심는다
+        long rawSn = seedVideoWithVideoFrameNos(new Long[]{10L, 20L});
+
+        exportService.export(rawSn);
+
+        Path dir = versionDir(rawSn, 1, ExportKind.ORIGINAL);
+        JsonNode first = objectMapper.readTree(dir.resolve(ExportFileNaming.jsonFileName(0)).toFile());
+        JsonNode second = objectMapper.readTree(dir.resolve(ExportFileNaming.jsonFileName(1)).toFile());
+        assertThat(first.path("image").path("frame_num").asInt()).isEqualTo(10);
+        assertThat(second.path("image").path("frame_num").asInt()).isEqualTo(20);
+        // 파일명은 여전히 FRM_NO 기반(%04d) — 두 축이 섞이지 않는다.
+        assertThat(second.path("image").path("file_name").asText())
+                .isEqualTo(ExportFileNaming.imageFileName(1));
+    }
+
+    @Test
+    @DisplayName("VDO_FRM_NO_가_null_이면_frame_num_이_null_이고_FRM_NO_로_폴백하지_않는다")
+    void frameNumIsNullWhenVideoFrameNoMissing() throws IOException {
+        long rawSn = seedVideoWithVideoFrameNos(new Long[]{null, null});
+
+        exportService.export(rawSn);
+
+        JsonNode doc = objectMapper.readTree(versionDir(rawSn, 1, ExportKind.ORIGINAL)
+                .resolve(ExportFileNaming.jsonFileName(1)).toFile());
+        assertThat(doc.path("image").path("frame_num").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("JSON_file_name_이_디스크_실제_파일명과_일치한다")
+    void jsonFileNameMatchesDiskImageName() throws IOException {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+
+        exportService.export(rawSn);
+
+        Path dir = versionDir(rawSn, 1, ExportKind.ORIGINAL);
+        for (int i = 0; i < FRAME_COUNT; i++) {
+            JsonNode doc = objectMapper.readTree(dir.resolve(ExportFileNaming.jsonFileName(i)).toFile());
+            String fileName = doc.path("image").path("file_name").asText();
+            assertThat(dir.resolve(fileName)).exists().isRegularFile();
+        }
+    }
+
+    @Test
+    @DisplayName("산출_디렉터리_생성_실패시_승인은_롤백되지_않고_export만_FAILED")
+    void baseRejectionMarksExportFailedWithoutAffectingApproval() {
+        // given — 허용 마운트 루트 밖(호스트 절대경로 모사) 원본 경로를 가진 손상 데이터
+        long rawSn = seedVideoWithBrokenRawPath();
+
+        // when — 예외가 호출자(@Async 러너)로 새지 않는다(승인 불변)
+        exportService.export(rawSn, true);
+
+        // then — export 만 FAILED 로 남고, 기본 루트로 새어나간 산출물이 없다
+        LsDatasetExport latest = txTemplate.execute(s ->
+                exportRepository.findFirstByDataRawSnOrderByExportVerNoDesc(rawSn).orElseThrow());
+        assertThat(latest.getExportSttsCd()).isEqualTo(LsDatasetExport.STATUS_FAILED);
+        assertThat(latest.getExportPathNm()).isNull();
+        assertThat(LABELING_ROOT.resolve(String.valueOf(rawSn))).doesNotExist();
     }
 
     @Test
@@ -207,10 +425,10 @@ class DatasetExportE2EIT {
         Path orgnlDir = versionDir(rawSn, 1, ExportKind.ORIGINAL);
         Path deidDir = versionDir(rawSn, 1, ExportKind.DEIDENTIFIED);
         for (int i = 0; i < FRAME_COUNT; i++) {
-            assertThat(orgnlDir.resolve("frame-" + i + ".jpg")).exists().isRegularFile();
-            assertThat(orgnlDir.resolve("frame-" + i + ".json")).exists().isRegularFile();
-            assertThat(deidDir.resolve("frame-" + i + ".jpg")).exists().isRegularFile();
-            assertThat(deidDir.resolve("frame-" + i + ".json")).exists().isRegularFile();
+            assertThat(orgnlDir.resolve(ExportFileNaming.imageFileName(i))).exists().isRegularFile();
+            assertThat(orgnlDir.resolve(ExportFileNaming.jsonFileName(i))).exists().isRegularFile();
+            assertThat(deidDir.resolve(ExportFileNaming.imageFileName(i))).exists().isRegularFile();
+            assertThat(deidDir.resolve(ExportFileNaming.jsonFileName(i))).exists().isRegularFile();
         }
     }
 
@@ -222,7 +440,7 @@ class DatasetExportE2EIT {
         exportService.export(rawSn);
 
         JsonNode doc = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         assertThat(doc.has("info")).isTrue();
         assertThat(doc.has("dataset")).isTrue();
         assertThat(doc.has("licences")).isTrue();
@@ -252,9 +470,9 @@ class DatasetExportE2EIT {
         exportService.export(rawSn);
 
         JsonNode orgnl = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         JsonNode deid = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         assertThat(orgnl.path("image").path("anonymity").asText()).isEqualTo("N");
         assertThat(deid.path("image").path("anonymity").asText()).isEqualTo("Y");
     }
@@ -293,7 +511,7 @@ class DatasetExportE2EIT {
         for (ExportKind kind : List.of(ExportKind.ORIGINAL, ExportKind.DEIDENTIFIED)) {
             for (int i = 0; i < FRAME_COUNT; i++) {
                 JsonNode doc = objectMapper.readTree(
-                        versionDir(rawSn, 1, kind).resolve("frame-" + i + ".json").toFile());
+                        versionDir(rawSn, 1, kind).resolve(ExportFileNaming.jsonFileName(i)).toFile());
                 assertThat(doc.has("event_annotation")).isFalse();
                 JsonNode ea = doc.get("event");
                 assertThat(ea).isNotNull();
@@ -315,7 +533,7 @@ class DatasetExportE2EIT {
         exportService.export(rawSn);
 
         JsonNode doc = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         assertThat(doc.has("event")).isTrue();
         assertThat(doc.get("event").isNull()).isTrue();
     }
@@ -343,15 +561,15 @@ class DatasetExportE2EIT {
         exportService.export(rawSn);        // v2
 
         // v1 보존
-        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json")).exists();
-        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists();
+        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).exists();
+        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0))).exists();
         // v2 신규
-        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json")).exists();
-        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists();
+        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).exists();
+        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0))).exists();
 
-        // v2 orgnl frame-0 은 라벨 2건(car, bus) 반영
+        // v2 orgnl frameNo=0 은 라벨 2건(car, bus) 반영
         JsonNode v2doc = objectMapper.readTree(
-                versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         assertThat(v2doc.path("annotations")).hasSize(2);
 
         List<LsDatasetExport> exports = txTemplate.execute(s ->
@@ -380,10 +598,10 @@ class DatasetExportE2EIT {
         assertThat(count).isEqualTo(2);
 
         // ② v2 폴더/JSON 파일이 v1과 다른 버전 디렉터리로 디스크에 실제 생성
-        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json")).exists().isRegularFile();
-        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists().isRegularFile();
-        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json")).exists().isRegularFile();
-        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve("frame-0.json")).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0))).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).exists().isRegularFile();
+        assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0))).exists().isRegularFile();
         assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL)).isNotEqualTo(versionDir(rawSn, 2, ExportKind.ORIGINAL));
 
         // ③ 최신(최대 버전)이자 최신 SUCCEEDED export 가 v2
@@ -411,6 +629,6 @@ class DatasetExportE2EIT {
 
         long count = txTemplate.execute(s -> exportRepository.countByDataRawSn(rawSn));
         assertThat(count).isEqualTo(1);
-        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve("frame-0.json")).doesNotExist();
+        assertThat(versionDir(rawSn, 2, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0))).doesNotExist();
     }
 }

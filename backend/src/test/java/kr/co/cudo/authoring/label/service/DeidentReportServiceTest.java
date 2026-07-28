@@ -3,11 +3,8 @@ package kr.co.cudo.authoring.label.service;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
-import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
@@ -19,12 +16,9 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
-import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
-import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
-import kr.co.cudo.authoring.version.service.VersionService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,7 +47,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -64,7 +57,8 @@ import static org.mockito.Mockito.when;
  *
  * <p>R1 v1.14 정합 변경:
  * <ul>
- *   <li>신고 시 영상 전체 라벨(자동+수동)을 복원 가능 스냅샷 기록 후 일괄 삭제.</li>
+ *   <li><b>D-25(2026-07-27 정책 반전)</b>: 신고 시 라벨을 <b>삭제하지 않고 보존</b>한다 — 스냅샷·삭제
+ *       이력도 남기지 않는다. 신고 구간의 PII 노출은 라벨 조회 게이트(S7)로 차단한다.</li>
  *   <li>자동 재비식별 큐 적재(retryQueue) 제거 — 외부 솔루션 수동 비식별화로 대체.</li>
  *   <li>{@link DeidentReportService#resolveManually} — OPEN→RESOLVED + 작업락 해제 + IDOR 검증.</li>
  * </ul>
@@ -77,16 +71,12 @@ class DeidentReportServiceTest {
     private BatchRetryQueue retryQueue;
     private NotificationService notificationService;
     private WorkLockService workLockService;
-    private VersionService versionService;
-    private LsDataLblRepository labelRepository;
     private kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
-    private LsDataLblAttrValRepository attrValRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private LsRawDataStatusRepository rawDataStatusRepository;
-    private LsDataLblHstryRepository lblHstryRepository;
     private ApplicationEventPublisher eventPublisher;
     private StreamMetaCacheEvictor streamMetaCacheEvictor;
     private LsDeidentProcLogRepository procLogRepository;
+    private LsDataLblHstryRepository lblHstryRepository;
     private DeidentReportService service;
 
     private TokenClaims workerActor;
@@ -103,21 +93,19 @@ class DeidentReportServiceTest {
         retryQueue = mock(BatchRetryQueue.class);
         notificationService = mock(NotificationService.class);
         workLockService = mock(WorkLockService.class);
-        versionService = mock(VersionService.class);
-        labelRepository = mock(LsDataLblRepository.class);
         srcRepository = mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class);
-        attrValRepository = mock(LsDataLblAttrValRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
-        lblHstryRepository = mock(LsDataLblHstryRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         streamMetaCacheEvictor = mock(StreamMetaCacheEvictor.class);
         procLogRepository = mock(LsDeidentProcLogRepository.class);
+        // D-25 (2026-07-27 정책 반전) — 신고는 라벨을 삭제하지 않으므로 라벨/스냅샷/이력 협력자
+        //   (VersionService·LsDataLblRepository·ATTR_VAL·AI_INFO·LBL_HSTRY)가 의존성에서 제거됐다.
+        // DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사(LS_DATA_LBL_HSTRY) 협력자만 재도입.
+        lblHstryRepository = mock(LsDataLblHstryRepository.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
-                notificationService, workLockService, versionService,
-                labelRepository, srcRepository, attrValRepository, aiInfoRepository,
-                rawDataStatusRepository, lblHstryRepository, eventPublisher,
-                streamMetaCacheEvictor, procLogRepository);
+                notificationService, workLockService, srcRepository,
+                rawDataStatusRepository, eventPublisher,
+                streamMetaCacheEvictor, procLogRepository, lblHstryRepository);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -139,23 +127,12 @@ class DeidentReportServiceTest {
         return r;
     }
 
-    private LsDataLbl lbl(long lblSn, long srcSn) {
-        LsDataLbl l = LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[0,0],[1,1]]", 100L);
-        setField(l, "lblSn", lblSn);
-        return l;
-    }
-
     private void stubReportSave() {
         when(reportRepository.save(any(LsDeidentReport.class))).thenAnswer(inv -> {
             LsDeidentReport arg = inv.getArgument(0);
             setField(arg, "deidentReportSn", 555L);
             return arg;
         });
-    }
-
-    /** 라벨이 있는(스냅샷 발생) 케이스 — versionService 가 true 를 반환하도록 스텁. */
-    private void stubSnapshotted(long rawSn) {
-        when(versionService.snapshotDeidentReport(eq(rawSn), any())).thenReturn(true);
     }
 
     private void stubApproved(long rawSn, boolean approved) {
@@ -169,8 +146,9 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("신고시_영상_전체_라벨이_스냅샷_기록_후_삭제됨")
-    void reportSnapshotsAndDeletesAllVideoLabels() {
+    @DisplayName("비식별_신고시_작업락과_DE_IDNTF_YN_F_전이와_개인정보_리셋은_유지된다")
+    void reportKeepsLockFlagAndPrivacyReset() {
+        // given — D-25 정책 반전 회귀 방어: 라벨 삭제만 없어지고 나머지 부작용은 그대로여야 한다.
         LsDataSrc s = src(1L, 9001L);
         LsDataRaw r = raw(9001L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
@@ -178,21 +156,18 @@ class DeidentReportServiceTest {
         when(workLockService.isRawLocked(9001L)).thenReturn(false);
         stubReportSave();
         stubApproved(9001L, false);
-        List<LsDataLbl> labels = List.of(lbl(10L, 1L), lbl(11L, 1L));
-        when(labelRepository.findAllByRawSn(9001L)).thenReturn(labels);
-        stubSnapshotted(9001L);
 
+        // when
         Long rprtSn = service.report(1L, "얼굴 미블러", workerActor);
 
+        // then — 신고 저장 + 작업락 + 'F' 전이 + 개인정보 3필드 리셋 + 스트림 캐시 무효화 유지.
         assertThat(rprtSn).isEqualTo(555L);
-        // 삭제 전 복원 가능 스냅샷 기록 (VersionService 위임).
-        verify(versionService).snapshotDeidentReport(9001L, workerActor);
-        // 라벨 본문 일괄 삭제.
-        verify(labelRepository).deleteAllByRawSn(9001L);
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
         verify(workLockService).lockRawForRedeident(9001L, "100");
-        // 신고('F') 후 스트림 메타 캐시 무효화 훅 호출(커밋 후 옛 노출본 서빙 차단).
+        verify(srcRepository).resetPrivacyMetaByRawSn(9001L);
         verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
+        // 라벨을 지우지 않으므로 라벨셋 버전 bump(낙관적 락)도 하지 않는다.
+        verify(srcRepository, never()).bumpLabelVersionByRawSn(anyLong());
     }
 
     @Test
@@ -206,37 +181,13 @@ class DeidentReportServiceTest {
         when(workLockService.isRawLocked(9101L)).thenReturn(false);
         stubReportSave();
         stubApproved(9101L, false);
-        when(labelRepository.findAllByRawSn(9101L)).thenReturn(List.of());
 
         // when
         service.report(1L, "얼굴 미블러", workerActor);
 
         // then — #5: 해당 영상 전체 프레임의 개인정보 3필드를 NULL 로 리셋(재비식별 후 stale 오표기 방지).
-        //         라벨 0건이어도(스냅샷/삭제 스킵) 개인정보 리셋은 프레임 존재와 무관하게 항상 수행한다.
+        //         라벨 보존 정책(D-25)과 무관하게 프레임 존재 여부와 상관없이 항상 수행한다.
         verify(srcRepository).resetPrivacyMetaByRawSn(9101L);
-    }
-
-    @Test
-    @DisplayName("신고시_라벨_속성값과_AI정보_고아_잔존_없음")
-    void reportDeletesAttrAndAiInfoBeforeLabels() {
-        LsDataSrc s = src(2L, 9002L);
-        LsDataRaw r = raw(9002L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(accessGuard.verifyAndGet(eq(2L), any())).thenReturn(s);
-        when(videoRepository.findByRawSnForUpdate(9002L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9002L)).thenReturn(false);
-        stubReportSave();
-        stubApproved(9002L, false);
-        List<LsDataLbl> labels = List.of(lbl(20L, 2L), lbl(21L, 2L));
-        when(labelRepository.findAllByRawSn(9002L)).thenReturn(labels);
-        stubSnapshotted(9002L);
-
-        service.report(2L, "사유", workerActor);
-
-        // 고아 방지 삭제 순서: ATTR_VAL → AI_INFO → LBL.
-        var order = inOrder(attrValRepository, aiInfoRepository, labelRepository);
-        order.verify(attrValRepository).deleteByLblSnIn(List.of(20L, 21L));
-        order.verify(aiInfoRepository).deleteByDataLblSnIn(List.of(20L, 21L));
-        order.verify(labelRepository).deleteAllByRawSn(9002L);
     }
 
     @Test
@@ -249,8 +200,6 @@ class DeidentReportServiceTest {
         when(workLockService.isRawLocked(9003L)).thenReturn(false);
         stubReportSave();
         stubApproved(9003L, false);
-        when(labelRepository.findAllByRawSn(9003L)).thenReturn(List.of(lbl(30L, 3L)));
-        stubSnapshotted(9003L);
 
         service.report(3L, "사유", workerActor);
 
@@ -258,8 +207,8 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("라벨_0건_영상_신고시_스냅샷_없이_정상_처리")
-    void reportWithNoLabelsSkipsSnapshotAndDelete() {
+    @DisplayName("라벨_0건_영상_신고시에도_정상_처리")
+    void reportWithNoLabelsSucceeds() {
         LsDataSrc s = src(4L, 9004L);
         LsDataRaw r = raw(9004L, LsDataRaw.PRVC_TYPE_PRVC);
         when(accessGuard.verifyAndGet(eq(4L), any())).thenReturn(s);
@@ -267,16 +216,10 @@ class DeidentReportServiceTest {
         when(workLockService.isRawLocked(9004L)).thenReturn(false);
         stubReportSave();
         stubApproved(9004L, false);
-        when(labelRepository.findAllByRawSn(9004L)).thenReturn(List.of());
-        // 라벨 0건 → VersionService 가 스냅샷 미생성(false) 반환 → 호출 측은 삭제 스킵.
-        when(versionService.snapshotDeidentReport(eq(9004L), any())).thenReturn(false);
 
         Long rprtSn = service.report(4L, "사유", workerActor);
 
         assertThat(rprtSn).isEqualTo(555L);
-        // 라벨 0건이면 삭제는 스킵 (스냅샷은 위임 호출되나 내부에서 미생성).
-        verify(labelRepository, never()).deleteAllByRawSn(anyLong());
-        verify(attrValRepository, never()).deleteByLblSnIn(any());
         // 신고 저장·잠금·DE_IDNTF_F 는 정상.
         verify(reportRepository).save(any(LsDeidentReport.class));
         verify(workLockService).lockRawForRedeident(9004L, "100");
@@ -284,96 +227,8 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("비식별_신고_시_삭제되는_라벨_이력이_LBL_HSTRY에_기록된다")
-    void reportRecordsDeletionHistoryForEachLabel() {
-        // given — 라벨 2건 영상 신고
-        LsDataSrc s = src(40L, 9040L);
-        LsDataRaw r = raw(9040L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(accessGuard.verifyAndGet(eq(40L), any())).thenReturn(s);
-        when(videoRepository.findByRawSnForUpdate(9040L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9040L)).thenReturn(false);
-        stubReportSave();
-        stubApproved(9040L, false);
-        List<LsDataLbl> labels = List.of(lbl(401L, 40L), lbl(402L, 40L));
-        when(labelRepository.findAllByRawSn(9040L)).thenReturn(labels);
-        stubSnapshotted(9040L);
-
-        // when
-        service.report(40L, "사유", workerActor);
-
-        // then — V114: 두 라벨(401/402)이 같은 프레임(40L) → 프레임당 저장 이벤트 1건(delCnt=2) saveAll.
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<LsDataLblHstry>> cap = ArgumentCaptor.forClass(List.class);
-        verify(lblHstryRepository).saveAll(cap.capture());
-        List<LsDataLblHstry> saved = cap.getValue();
-        assertThat(saved).hasSize(1);
-        assertThat(saved.get(0).getSrcSn()).isEqualTo(40L);
-        assertThat(saved.get(0).getDelCnt()).isEqualTo(2);
-        assertThat(saved.get(0).getAddCnt()).isEqualTo(0);
-        assertThat(saved.get(0).getRegId()).isNull(); // 신고 경로 — 행위자 PII 미저장
-        assertThat(saved.get(0).getRegDt()).isNotNull();
-        assertThat(saved.get(0).getChgDtlCn()).contains("DELETED");
-
-        // 이력 기록은 라벨 본문 삭제보다 먼저 (부분 실패 시 이력만 남는 정합성 깨짐 방지, 동일 트랜잭션).
-        var order = inOrder(lblHstryRepository, labelRepository);
-        order.verify(lblHstryRepository).saveAll(any());
-        order.verify(labelRepository).deleteAllByRawSn(9040L);
-    }
-
-    @Test
-    @DisplayName("비식별신고_영상전체삭제가_프레임별_DELETED_이벤트로_기록된다")
-    void reportRecordsDeletionEventPerFrame() {
-        // given — 서로 다른 3개 프레임(40/41/42)에 걸친 라벨 4건(41 프레임 2건).
-        LsDataSrc s = src(40L, 9040L);
-        LsDataRaw r = raw(9040L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(accessGuard.verifyAndGet(eq(40L), any())).thenReturn(s);
-        when(videoRepository.findByRawSnForUpdate(9040L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9040L)).thenReturn(false);
-        stubReportSave();
-        stubApproved(9040L, false);
-        List<LsDataLbl> labels = List.of(lbl(401L, 40L), lbl(402L, 41L), lbl(403L, 41L), lbl(404L, 42L));
-        when(labelRepository.findAllByRawSn(9040L)).thenReturn(labels);
-        stubSnapshotted(9040L);
-
-        // when
-        service.report(40L, "사유", workerActor);
-
-        // then — 프레임 수(3)만큼 이벤트, 41 프레임은 delCnt=2.
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<LsDataLblHstry>> cap = ArgumentCaptor.forClass(List.class);
-        verify(lblHstryRepository).saveAll(cap.capture());
-        List<LsDataLblHstry> saved = cap.getValue();
-        assertThat(saved).hasSize(3);
-        assertThat(saved).extracting(LsDataLblHstry::getSrcSn).containsExactlyInAnyOrder(40L, 41L, 42L);
-        assertThat(saved).allSatisfy(h -> assertThat(h.getRegId()).isNull());
-        LsDataLblHstry frame41 = saved.stream().filter(h -> h.getSrcSn() == 41L).findFirst().orElseThrow();
-        assertThat(frame41.getDelCnt()).isEqualTo(2);
-    }
-
-    @Test
-    @DisplayName("라벨이_없는_영상_신고_시_이력이_기록되지_않는다")
-    void reportWithNoLabelsDoesNotRecordHistory() {
-        // given — 라벨 0건
-        LsDataSrc s = src(41L, 9041L);
-        LsDataRaw r = raw(9041L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(accessGuard.verifyAndGet(eq(41L), any())).thenReturn(s);
-        when(videoRepository.findByRawSnForUpdate(9041L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9041L)).thenReturn(false);
-        stubReportSave();
-        stubApproved(9041L, false);
-        when(labelRepository.findAllByRawSn(9041L)).thenReturn(List.of());
-        when(versionService.snapshotDeidentReport(eq(9041L), any())).thenReturn(false);
-
-        // when
-        service.report(41L, "사유", workerActor);
-
-        // then — 라벨 0건이면 이력 0건 (saveAll 미호출)
-        verify(lblHstryRepository, never()).saveAll(any());
-    }
-
-    @Test
-    @DisplayName("이미_잠금_영상_신고_거부_시_이력이_기록되지_않는다")
-    void rejectedReportDoesNotRecordHistory() {
+    @DisplayName("이미_잠금_영상_신고_거부_시_부작용이_없다")
+    void rejectedReportHasNoSideEffects() {
         // given — 이미 잠금 → CONFLICT 거부
         LsDataSrc s = src(42L, 9042L);
         LsDataRaw r = raw(9042L, LsDataRaw.PRVC_TYPE_PRVC);
@@ -381,10 +236,11 @@ class DeidentReportServiceTest {
         when(videoRepository.findByRawSnForUpdate(9042L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9042L)).thenReturn(true);
 
-        // when / then
+        // when / then — 거부 시 개인정보 리셋·'F' 전이 모두 없음(fail-closed).
         assertThatThrownBy(() -> service.report(42L, "사유", workerActor))
                 .isInstanceOf(CustomException.class);
-        verify(lblHstryRepository, never()).saveAll(any());
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
+        assertThat(r.getDeIdntfYn()).isNotEqualTo("F");
     }
 
     @Test
@@ -397,8 +253,6 @@ class DeidentReportServiceTest {
         when(workLockService.isRawLocked(9005L)).thenReturn(false);
         stubReportSave();
         stubApproved(9005L, true);
-        when(labelRepository.findAllByRawSn(9005L)).thenReturn(List.of(lbl(50L, 5L)));
-        stubSnapshotted(9005L);
 
         service.report(5L, "사유", workerActor);
 
@@ -406,7 +260,8 @@ class DeidentReportServiceTest {
         verify(eventPublisher, atLeastOnce()).publishEvent(cap.capture());
         TaskModifiedEvent evt = cap.getValue();
         assertThat(evt.rawSn()).isEqualTo(9005L);
-        assertThat(evt.changeType()).isEqualTo(ChangeType.LABEL_DELETED);
+        // D-25 — 라벨은 보존되므로 구 LABEL_DELETED 가 아니라 개인정보 메타 리셋(META_UPDATED)이 통지된다.
+        assertThat(evt.changeType()).isEqualTo(ChangeType.META_UPDATED);
     }
 
     @Test
@@ -419,8 +274,6 @@ class DeidentReportServiceTest {
         when(workLockService.isRawLocked(9006L)).thenReturn(false);
         stubReportSave();
         stubApproved(9006L, false);
-        when(labelRepository.findAllByRawSn(9006L)).thenReturn(List.of(lbl(60L, 6L)));
-        stubSnapshotted(9006L);
 
         service.report(6L, "사유", workerActor);
 
@@ -437,7 +290,6 @@ class DeidentReportServiceTest {
         when(workLockService.isRawLocked(9007L)).thenReturn(false);
         stubReportSave();
         stubApproved(9007L, false);
-        when(labelRepository.findAllByRawSn(9007L)).thenReturn(List.of());
         // 잠금 INSERT 시 동시 신고로 unique 제약 위반.
         doThrow(new DataIntegrityViolationException("unique"))
                 .when(workLockService).lockRawForRedeident(9007L, "100");
@@ -449,7 +301,7 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("이미_잠금_영상_신고시_CONFLICT_409_+_저장_없음_+_라벨_삭제_없음")
+    @DisplayName("이미_잠금_영상_신고시_CONFLICT_409_+_저장_없음_+_잠금_재획득_없음")
     void alreadyLockedConflict() {
         LsDataSrc s = src(8L, 9008L);
         LsDataRaw r = raw(9008L, LsDataRaw.PRVC_TYPE_PRVC);
@@ -463,7 +315,6 @@ class DeidentReportServiceTest {
                 .isEqualTo(ErrorCode.CONFLICT);
 
         verify(reportRepository, never()).save(any());
-        verify(labelRepository, never()).deleteAllByRawSn(anyLong());
         verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
     }
 
@@ -504,8 +355,6 @@ class DeidentReportServiceTest {
         when(workLockService.isRawLocked(9010L)).thenReturn(false);
         stubReportSave();
         stubApproved(9010L, false);
-        when(labelRepository.findAllByRawSn(9010L)).thenReturn(List.of(lbl(100L, 10L)));
-        stubSnapshotted(9010L);
 
         service.report(10L, "사유", workerActor);
 

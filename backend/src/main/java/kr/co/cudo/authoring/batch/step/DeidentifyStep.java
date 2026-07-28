@@ -8,8 +8,10 @@ import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.service.KpstDeidentService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -73,6 +75,14 @@ public class DeidentifyStep implements BatchStep {
     /** mock 복사 임시파일 접미사 — 완료 시 atomic move 로 정식 경로 전환. */
     private static final String MOCK_TMP_PREFIX = ".tmp_";
     private static final String MOCK_ERROR_CODE = "MOCK_SOURCE_MISSING";
+    /**
+     * S1 — 원본 경로(RAW_FILE_PATH_NM)가 허용 마운트 루트 밖이라 비식별 출력 base 를 만들 수 없는 경우.
+     * 기본 루트로 폴백하지 않고(fail-secure) 실패로 마감하되, 흔적 없이 사라지지 않도록 별도 트랜잭션에
+     * 실패를 남긴다(runMock 의 REQUIRES_NEW 는 예외 전파로 롤백되기 때문).
+     */
+    private static final String MOCK_BASE_REJECTED_CODE = "MOCK_TARGET_BASE_REJECTED";
+    /** mock 산출 파일명 — <b>mock 경로 전용</b>. KPST 실연동 산출물명은 KPST 가 정한다(고정 아님). */
+    private static final String MOCK_OUTPUT_FILE_NAME = "deidentified.mp4";
     /** mock-mode 허용 프로파일(소문자) — 이 집합으로 수렴할 때만 부팅(allowlist, fail-closed). */
     private static final Set<String> ALLOWED_MOCK_PROFILES = Set.of("local", "dev", "stg");
 
@@ -106,9 +116,22 @@ public class DeidentifyStep implements BatchStep {
      * 리포지토리가 mock 이라 트랜잭션 불필요).
      */
     private final ObjectProvider<DeidentifyStep> selfProvider;
-
-    @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
-    private String deidPath;
+    /**
+     * 스트림 메타 캐시 무효화 — mock 비식별은 같은 목표 경로({@code videos/{rawSn}/deidentified.mp4})에
+     * 새 산출물을 atomic move 로 덮어쓰므로, 이미 스트리밍돼 캐시된 rawSn(dev 파이프라인 재드라이브)은
+     * 옛 contentLength 로 Range 경계가 어긋나 재생 잘림/500 이 된다.
+     *
+     * <p><b>필수 주입</b>({@code KpstDeidentTxService} 와 동일). 과거 {@code @Autowired(required=false)}
+     * 였으나 사유("단위 테스트에서 null 주입 편의")는 테스트가 실제 evictor 를 주입해 스스로 반증했고,
+     * 프로덕션에서 빈이 빠지면 무효화가 조용히 사라지는 fail-open 이 된다. 테스트 편의를 위해 프로덕션
+     * 안전장치를 optional 로 두지 않는다.
+     */
+    private final StreamMetaCacheEvictor streamMetaCacheEvictor;
+    /**
+     * A-2 — 비식별 <b>영상</b>의 출력 디렉터리를 결정하는 단일 지점(co-locate: {@code dirname(원본)/{rawSn}/deid/}).
+     * 롤백 전략({@code labeling-root})이면 구 위치({@code {deid_base}/videos/{rawSn}/})를 그대로 돌려준다.
+     */
+    private final VideoArtifactRootResolver artifactRootResolver;
 
     /**
      * UC018 — KPST 폴링 경로 토글(킬스위치). 기본 true(KPST 단일 경로).
@@ -124,8 +147,6 @@ public class DeidentifyStep implements BatchStep {
     @Value("${authoring.integration.deidentify.mock-mode:false}")
     private boolean mockMode;
 
-    private Path baseDeidentifiedPath;
-
     public DeidentifyStep(VideoRepository videoRepository,
                           LsDeidentProcLogRepository procLogRepository,
                           DeidentReportService deidentReportService,
@@ -134,7 +155,9 @@ public class DeidentifyStep implements BatchStep {
                           @Autowired(required = false) KpstDeidentService kpstDeidentService,
                           Environment environment,
                           BatchTransitionService batchTransitionService,
-                          ObjectProvider<DeidentifyStep> selfProvider) {
+                          ObjectProvider<DeidentifyStep> selfProvider,
+                          StreamMetaCacheEvictor streamMetaCacheEvictor,
+                          VideoArtifactRootResolver artifactRootResolver) {
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
         this.deidentReportService = deidentReportService;
@@ -144,11 +167,12 @@ public class DeidentifyStep implements BatchStep {
         this.environment = environment;
         this.batchTransitionService = batchTransitionService;
         this.selfProvider = selfProvider;
+        this.streamMetaCacheEvictor = streamMetaCacheEvictor;
+        this.artifactRootResolver = artifactRootResolver;
     }
 
     @PostConstruct
     void initBasePath() {
-        this.baseDeidentifiedPath = Paths.get(deidPath).toAbsolutePath().normalize();
         // HIGH-1 (보안): mock-mode 는 prd(운영) 만 차단하고 local/dev/stg 는 허용한다.
         //   KPST 미준비 동안 dev/stg 에서 mock 비식별로 파이프라인을 굴리기 위한 의도적 완화.
         //   prd 는 어떤 경로(프로파일/ENV/혼합)로도 mock 이 켜지지 않도록 fail-closed 로 차단한다.
@@ -279,15 +303,33 @@ public class DeidentifyStep implements BatchStep {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "mock 비식별 원본이 존재하지 않습니다.");
         }
 
-        Path target = resolveSafeTargetPath(raw.getRawSn());
+        Path target;
         try {
-            copyAtomically(source, target, raw.getRawSn());
+            target = resolveSafeTargetPath(raw);
+        } catch (RuntimeException e) {
+            // S1 — base 거부(허용 마운트 루트 밖·손상 경로). 기본 루트 폴백 없이 실패로 마감하고,
+            // 실패 기록은 별도 REQUIRES_NEW 빈으로 커밋한다(경로 원문은 남기지 않는다 — CWE-209).
+            batchTransitionService.recordDeidentFailure(
+                    raw.getRawSn(), MOCK_BASE_REJECTED_CODE, e.getClass().getSimpleName());
+            log.error("[Batch][Deid][mock] target base rejected rawSn={} errType={}",
+                    raw.getRawSn(), e.getClass().getSimpleName());
+            throw e;
+        }
+        try {
+            copyAtomically(source, target, raw);
         } catch (IOException e) {
             batchTransitionService.recordDeidentFailure(
                     raw.getRawSn(), MOCK_ERROR_CODE, e.getClass().getSimpleName());
             log.error("[Batch][Deid][mock] copy failed rawSn={} errType={}",
                     raw.getRawSn(), e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "mock 비식별 복사 실패", e);
+        } catch (RuntimeException e) {
+            // B-3 — 쓰기 직전 재검증(TOCTOU)에서 거부. 기본 루트 폴백 없이 실패로 마감한다(CWE-209: 경로 미노출).
+            batchTransitionService.recordDeidentFailure(
+                    raw.getRawSn(), MOCK_BASE_REJECTED_CODE, e.getClass().getSimpleName());
+            log.error("[Batch][Deid][mock] target rejected before write rawSn={} errType={}",
+                    raw.getRawSn(), e.getClass().getSimpleName());
+            throw e;
         }
 
         LsDataRaw managed = videoRepository.findById(raw.getRawSn())
@@ -304,6 +346,11 @@ public class DeidentifyStep implements BatchStep {
         if (notificationService != null) {
             notificationService.notifyReviewersOnLockRelease(managed);
         }
+        // 스트림 메타 캐시 무효화 (규약: CacheConfig "배치 비식별 완료") — 롤백된 변경으로 캐시를 비우지
+        // 않도록 커밋 후에 실행한다(evictAfterCommit). 커밋 전에 읽은 동시 요청의 재캐싱까지 막지는
+        // 못한다(StreamMetaCacheEvictor javadoc "보증하지 않는다") — mock 은 같은 경로 in-place 교체라
+        // 잔여 창의 영향은 contentLength 뿐이고 TTL(5분) 경과로 수렴한다.
+        streamMetaCacheEvictor.evictAfterCommit(raw.getRawSn());
         log.info("[Batch][Deid][mock] succeeded rawSn={}", raw.getRawSn());
         return target.toString();
     }
@@ -320,9 +367,16 @@ public class DeidentifyStep implements BatchStep {
     /**
      * 원본 → target 복사. HIGH-3 — 임시파일에 먼저 복사 후 atomic move 로 정식 경로 전환.
      * 부분 복사 손상 방지 + 재실행 멱등(REPLACE_EXISTING).
+     *
+     * <p>B-3(TOCTOU, CWE-367/59) — 디렉터리 생성 직후·쓰기 직전에 base 를 <b>다시 계산</b>
+     * (고정 allowlist + 실경로 재검증)하고 target 실경로가 여전히 그 하위인지 1회 재확인한다.
+     * co-locate 로 쓰기 대상이 KPST 와 공유되는 트리로 옮겨져 바꿔치기 표면이 넓어졌기 때문이다.
      */
-    private void copyAtomically(Path source, Path target, Long rawSn) throws IOException {
+    private void copyAtomically(Path source, Path target, LsDataRaw raw) throws IOException {
+        Long rawSn = raw.getRawSn();
         Files.createDirectories(target.getParent());
+        VideoArtifactRootResolver.verifyRealPathUnder(
+                target, artifactRootResolver.deidVideoDir(rawSn, raw.getRawFilePathNm()));
         Path tmp = target.resolveSibling(target.getFileName() + MOCK_TMP_PREFIX + rawSn);
         try {
             Files.copy(source, tmp, StandardCopyOption.REPLACE_EXISTING);
@@ -343,19 +397,16 @@ public class DeidentifyStep implements BatchStep {
     }
 
     /**
-     * baseDeidentifiedPath 하위에 안전한 target 경로를 구성 (CWE-22 방어).
-     * - normalize 후 base 밖으로 빠지면 거부.
+     * mock 비식별 산출물의 target 경로를 구성한다 (CWE-22 방어는 {@link VideoArtifactRootResolver} 소관).
+     *
+     * <p>디렉터리는 co-locate 전략에서 {@code dirname(원본)/{rawSn}/deid/}, 롤백 전략에서 구 위치
+     * ({@code {deid_base}/videos/{rawSn}/})다. 파일명 {@code deidentified.mp4} 는 <b>mock 경로 전용</b>
+     * (우리가 직접 쓰는 파일)이며, KPST 실연동 산출물은 KPST 가 이름을 정한다 — 이 상수를 비식별 영상
+     * 경로의 일반 규칙으로 확대하지 않는다. 비식별 영상 경로의 진실원은 언제나
+     * {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 이다.
      */
-    private Path resolveSafeTargetPath(Long rawSn) {
-        Path target = baseDeidentifiedPath
-                .resolve("videos")
-                .resolve(String.valueOf(rawSn))
-                .resolve("deidentified.mp4")
-                .normalize();
-        if (!target.startsWith(baseDeidentifiedPath)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "비식별 출력 경로가 허용된 저장 경로를 벗어납니다 rawSn=" + rawSn);
-        }
-        return target;
+    private Path resolveSafeTargetPath(LsDataRaw raw) {
+        Path dir = artifactRootResolver.deidVideoDir(raw.getRawSn(), raw.getRawFilePathNm());
+        return VideoArtifactRootResolver.resolveUnder(dir, MOCK_OUTPUT_FILE_NAME);
     }
 }

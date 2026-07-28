@@ -20,12 +20,16 @@ import java.util.List;
  *                        승인 경로({@code onReviewApproved}, force=true, R6)는 동일 해시여도 skip 없이 전량
  *                        재생성한다. PARTIAL 을 포함해, 이미지가 지속 부재한 영상의 무수정 재동결이 매번 새
  *                        버전을 채번하며 디스크를 무한 소모하는 회귀를 막는다.
+ * @param rawFilePathNm   원본 영상 경로({@code LS_DATA_RAW.RAW_FILE_PATH_NM}) — co-locate 산출 base
+ *                        ({@code dirname(원본)/{rawSn}/}) 도출 원천. 값이 없거나 허용 마운트 루트 밖이면
+ *                        오케스트레이터가 <b>기본 루트로 폴백하지 않고</b> export 를 FAILED 로 마감한다(S1).
  */
 public record ExportPreparation(
         VideoExportContext ctx,
         List<FrameContext> frames,
         String contentHash,
-        String lastExportedHash
+        String lastExportedHash,
+        String rawFilePathNm
 ) {
 
     /**

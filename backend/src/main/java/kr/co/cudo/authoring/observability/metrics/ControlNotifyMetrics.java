@@ -22,6 +22,7 @@ import java.util.List;
  *   <li>{@code control.notify.modified.success} — TASK_MODIFIED 전송 성공 카운터</li>
  *   <li>{@code control.notify.modified.failed} — TASK_MODIFIED 전송 실패 카운터</li>
  *   <li>{@code control.notify.debounce.flush} — 디바운스 윈도우 flush 카운터</li>
+ *   <li>{@code control.notify.dropped} — 폴백 큐 적재까지 실패해 소실된 통지 카운터</li>
  *   <li>{@code control.notify.fallback.depth} — 폴백 큐 깊이 게이지 (PENDING + RETRYING)</li>
  * </ul>
  */
@@ -39,6 +40,10 @@ public class ControlNotifyMetrics {
     private final Counter modifiedSuccess;
     private final Counter modifiedFailed;
     private final Counter debounceFlush;
+    private final Counter unresolvedFrame;
+    private final Counter selfHealCompletedToUpdated;
+    private final Counter selfHealUpdatedToCompleted;
+    private final Counter dropped;
 
     public ControlNotifyMetrics(MeterRegistry registry,
                                  LsControlNotifyFallbackRepository fallbackRepository) {
@@ -57,6 +62,18 @@ public class ControlNotifyMetrics {
         this.debounceFlush = Counter.builder("control.notify.debounce.flush")
                 .description("디바운스 윈도우 flush 건수")
                 .register(registry);
+        this.unresolvedFrame = Counter.builder("control.notify.modified.frame.unresolved")
+                .description("변경 통지에서 SRC_SN→FRM_NO 해석에 실패한 프레임 건수(사일런트 드롭 감시)")
+                .register(registry);
+        this.selfHealCompletedToUpdated = Counter.builder("control.notify.selfheal.completed_to_updated")
+                .description("완료 통지 409(중복) → 수정 통지 재전송 건수")
+                .register(registry);
+        this.selfHealUpdatedToCompleted = Counter.builder("control.notify.selfheal.updated_to_completed")
+                .description("수정 통지 404(선행 완료 없음) → 완료 통지 폴백 건수")
+                .register(registry);
+        this.dropped = Counter.builder("control.notify.dropped")
+                .description("폴백 큐 적재까지 실패해 영구 소실된 통지 건수(0 이 아니면 즉시 조사 대상)")
+                .register(registry);
 
         Gauge.builder("control.notify.fallback.depth", fallbackRepository,
                         repo -> repo.countBySttsCdIn(ACTIVE_STATUSES))
@@ -73,4 +90,19 @@ public class ControlNotifyMetrics {
     public void incrementModifiedFailed() { modifiedFailed.increment(); }
 
     public void incrementDebounceFlush() { debounceFlush.increment(); }
+
+    /** SRC_SN→FRM_NO 해석 실패 건수 누적 (S10 — 사일런트 드롭 금지). */
+    public void incrementUnresolvedFrame(int count) { unresolvedFrame.increment(count); }
+
+    /** 완료 통지 409 → 수정 통지 자기치유 발동. */
+    public void incrementSelfHealCompletedToUpdated() { selfHealCompletedToUpdated.increment(); }
+
+    /** 수정 통지 404 → 완료 통지 자기치유 폴백 발동. */
+    public void incrementSelfHealUpdatedToCompleted() { selfHealUpdatedToCompleted.increment(); }
+
+    /**
+     * 통지 영구 소실 — 전송 실패 후 폴백 큐 적재까지 실패한 건수(B-3).
+     * ERROR 로그만으로는 감지되지 않아 별도 카운터로 관측한다.
+     */
+    public void incrementDropped() { dropped.increment(); }
 }

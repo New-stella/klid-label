@@ -58,12 +58,16 @@ class FrameImageRawFrameNoTest {
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
     @Value("${authoring.storage.raw-path:./storage/raw}") private String storageRawPath;
+    // 비식별 프레임은 비식별 저장소의 비식별 전용 서브트리(frames/deid/{rawSn})에 있다 —
+    // FrameImageService 는 경로 출처(원본/비식별 컬럼)에 맞는 base 로 검증한다(E-ISSUE-22).
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}") private String storageDeidentifiedPath;
 
     private String reviewerToken;
     private String workerToken;
     private Long rawSnAnony;
     private Long rawSnPrvc;
     private Path baseDir;
+    private Path deidBaseDir;
     private Path framePathAnony;
     private Path framePathPrvcDeid;
 
@@ -73,6 +77,7 @@ class FrameImageRawFrameNoTest {
         workerToken   = JwtTestSupport.token(secret, "100", "WORKER",   "INTERNAL", issuer, 60);
 
         baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        deidBaseDir = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
 
         // --- ANONY 영상 + 프레임 ---
         LsDataRaw rawAnony = LsDataRaw.createFromIngest(
@@ -100,13 +105,13 @@ class FrameImageRawFrameNoTest {
         rawSnPrvc = rawPrvc.getRawSn();
 
         String relOriginal = "test-rev-img/" + rawSnPrvc + "/orig_0.jpg";
-        String relDeid     = "test-rev-img/" + rawSnPrvc + "/deid_0.jpg";
+        String relDeid     = "frames/deid/" + rawSnPrvc + "/deid_0.jpg";
 
         LsDataSrc srcB = LsDataSrc.create(rawSnPrvc, 0, relOriginal, LocalDateTime.now());
         srcB.attachDeidPath(relDeid);
         srcRepository.save(srcB);
 
-        framePathPrvcDeid = baseDir.resolve(relDeid).normalize();
+        framePathPrvcDeid = deidBaseDir.resolve(relDeid).normalize();
         Files.createDirectories(framePathPrvcDeid.getParent());
         kr.co.cudo.authoring.common.util.SeedImageGenerator.generate(
                 framePathPrvcDeid, "EVT_FALL", "CCTV-X2", 0, LocalDateTime.now());
@@ -176,12 +181,27 @@ class FrameImageRawFrameNoTest {
     }
 
     @Test
-    @DisplayName("WORKER도_이미지_서빙_가능_isAuthenticated")
+    @DisplayName("배정된_WORKER는_이미지_서빙_가능_200")
     void worker_canFetch() throws Exception {
+        // DEV_FIX H-1 — 프레임 이미지에도 영상 단위 인가가 걸리므로 WORKER 는 배정이 전제다.
+        // (라벨링·검수 화면이 매 프레임 호출하는 경로라 정상 케이스 회귀가 반드시 지켜져야 한다.)
+        authrtRepository.save(
+                kr.co.cudo.authoring.assignment.entity.LsTaskAssignment.createLabeler(rawSnAnony, 100L, 1L));
+
         mockMvc.perform(get("/v1/videos/" + rawSnAnony + "/frames/0/image")
                         .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("image/jpeg"));
+    }
+
+    @Test
+    @DisplayName("배정되지_않은_WORKER는_프레임이미지_403")
+    void unassignedWorker_frameImage_forbidden() throws Exception {
+        // DEV_FIX H-1 — /stream 만 잠그고 이 경로를 열어두면 rawSn·frameNo 순회로 임의 영상의 전체
+        // 프레임을 수집할 수 있었다(B-ISSUE-63 우회). 배정 없는 WORKER 는 403.
+        mockMvc.perform(get("/v1/videos/" + rawSnAnony + "/frames/0/image")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -228,10 +248,10 @@ class FrameImageRawFrameNoTest {
         LsDataRaw raw = rawRepository.findById(rawSnAnony).orElseThrow();
         // 기존 ANONY frame_0 의 deidFilePath 부여
         LsDataSrc anonySrc = srcRepository.findByRawSnAndFrameNo(rawSnAnony, 0).orElseThrow();
-        String relDeid = "test-rev-img/" + rawSnAnony + "/anony_deid_0.jpg";
+        String relDeid = "frames/deid/" + rawSnAnony + "/anony_deid_0.jpg";
         anonySrc.attachDeidPath(relDeid);
         srcRepository.save(anonySrc);
-        Path deidFile = baseDir.resolve(relDeid).normalize();
+        Path deidFile = deidBaseDir.resolve(relDeid).normalize();
         Files.createDirectories(deidFile.getParent());
         kr.co.cudo.authoring.common.util.SeedImageGenerator.generate(
                 deidFile, "EVT_FALL", "CCTV-X1", 0, java.time.LocalDateTime.now());
@@ -244,6 +264,41 @@ class FrameImageRawFrameNoTest {
                 .andReturn();
         long served = result.getResponse().getContentAsByteArray().length;
         assertThat(served).isEqualTo(deidSize);
+    }
+
+    @Test
+    @DisplayName("비식별_프레임이_deid_base_하위여도_프레임이미지가_정상_서빙된다(E-22_출처별_base)")
+    void deidFrameUnderDeidBaseIsServed() throws Exception {
+        // given — 실제 파이프라인이 저장하는 형태: 비식별 프레임은 deid base 의 frames/deid/{rawSn} 하위.
+        //         구 구현은 rawBase 로만 검증해 정상 비식별본이 전부 403 이었다(실측 rawSn=26).
+        assertThat(framePathPrvcDeid.startsWith(deidBaseDir)).isTrue();
+
+        // when / then — 200 + 서빙 바이트가 비식별본과 동일(원본이 아님)
+        long sizeOfDeid = Files.size(framePathPrvcDeid);
+        var result = mockMvc.perform(get("/v1/videos/" + rawSnPrvc + "/frames/0/image")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(result.getResponse().getContentAsByteArray().length).isEqualTo((int) sizeOfDeid);
+    }
+
+    @Test
+    @DisplayName("비식별_컬럼이_frames_raw_하위를_가리키면_프레임이미지_서빙이_거부된다(오염_차단)")
+    void deidColumnPointingToRawFrameSubtreeIsRejected() throws Exception {
+        // given — 오염된 비식별 경로(원본 프레임 서브트리). 두 base 가 같은 환경에서는 base 검사로 못 막는다.
+        LsDataSrc srcB = srcRepository.findByRawSnAndFrameNo(rawSnPrvc, 0).orElseThrow();
+        String polluted = "frames/raw/" + rawSnPrvc + "/orig_0.jpg";
+        srcB.attachDeidPath(polluted);
+        srcRepository.save(srcB);
+        Path pollutedFile = deidBaseDir.resolve(polluted).normalize();
+        Files.createDirectories(pollutedFile.getParent());
+        kr.co.cudo.authoring.common.util.SeedImageGenerator.generate(
+                pollutedFile, "EVT_FALL", "CCTV-X2", 0, java.time.LocalDateTime.now());
+
+        // when / then — 서브트리 게이트가 원본 픽셀 노출을 차단(FORBIDDEN)
+        mockMvc.perform(get("/v1/videos/" + rawSnPrvc + "/frames/0/image")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test

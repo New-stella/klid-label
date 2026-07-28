@@ -26,7 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>라벨 내용 뷰 2종 제거 (부재 확인).</li>
  *   <li>{@code V_COMPLETED_VIDEO} 에 EXPORT_PATH_NM/FRAME_CNT 노출 + APPROVED 영상당 1 row(행 증식 0).</li>
  *   <li>미export 영상은 EXPORT_PATH_NM null 이어도 VIDEO 뷰에 노출(LEFT JOIN 보존).</li>
- *   <li>신설 {@code V_COMPLETED_LABEL_CHANGE} 가 APPROVED 영상의 저장이벤트(종류별 건수 + diff)만 반환.</li>
+ *   <li>신설 {@code V_COMPLETED_LABEL_CHANGE} 가 APPROVED 영상의 저장이벤트(종류별 건수)만 반환하고
+ *       라벨 좌표 본문(diff {@code CHG_DTL_CN})은 노출하지 않는다(D-ISSUE-47 / V137).</li>
  *   <li>{@code V_COMPLETED_FRAME} / {@code V_COMPLETED_META} 무영향.</li>
  * </ol>
  *
@@ -48,6 +49,7 @@ class DatamartViewSlimIT {
     void cleanup() {
         for (Long rawSn : seededRawSns) {
             jdbc.update("DELETE FROM LS_DATASET_EXPORT WHERE DATA_RAW_SN = ?", rawSn);
+            jdbc.update("DELETE FROM LS_DEIDENT_PROC_LOG WHERE DATA_RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_LBL_HSTRY WHERE SRC_SN IN "
                     + "(SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN = ?)", rawSn);
             jdbc.update("DELETE FROM LS_DATA_META_REVIEW WHERE DATA_RAW_SN = ?", rawSn);
@@ -116,6 +118,17 @@ class DatamartViewSlimIT {
                 srcSn, LocalDateTime.now(), regId, addCnt, mdfcnCnt, delCnt, chgDtlCn);
     }
 
+    /**
+     * LS_DEIDENT_PROC_LOG 1행 — V138 {@code DE_IDNTF_FILE_PATH_NM} 노출 검증용.
+     * 파일명은 외부(mock/KPST)가 정하므로 <b>적재값 그대로</b> 노출되는지 확인한다.
+     */
+    private void seedDeidProcLog(long rawSn, String sttsCd, String deidFilePath, LocalDateTime reqDt) {
+        jdbc.update(
+                "INSERT INTO LS_DEIDENT_PROC_LOG (DATA_RAW_SN, ORGNL_FILE_PATH_NM, DE_IDNTF_FILE_PATH_NM, "
+                        + "PROC_STTS_CD, REQ_DT, REG_DT) VALUES (?, ?, ?, ?, ?, ?)",
+                rawSn, "/nas/raw/" + rawSn + ".mp4", deidFilePath, sttsCd, reqDt, LocalDateTime.now());
+    }
+
     private void seedMeta(long rawSn, String key, String value, String rvwStts) {
         Long metaSn = jdbc.queryForObject(
                 "INSERT INTO LS_DATA_META (RAW_SN, META_KEY, META_VL, REG_DT) VALUES (?, ?, ?, ?) "
@@ -179,6 +192,84 @@ class DatamartViewSlimIT {
     }
 
     @Test
+    @DisplayName("V138_V_COMPLETED_VIDEO가_비식별영상경로를_적재값_그대로_노출한다 — KPST명 조합 금지")
+    void completedVideo_exposesDeidVideoPathAsStored() {
+        // given — KPST 실연동 산출명({원본stem}-mask{ext}) 은 영상마다 다르다. 뷰는 이 값을 가공 없이 실어야 한다.
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        String kpstPath = "/nas/raw/" + rawSn + "/deid/" + rawSn + "-mask.mp4";
+        seedDeidProcLog(rawSn, "SUCCEEDED", kpstPath, LocalDateTime.now());
+
+        // when
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+
+        // then — 적재된 절대경로 원문 그대로(치환·조합 없음)
+        assertThat(row.get("de_idntf_file_path_nm")).isEqualTo(kpstPath);
+    }
+
+    @Test
+    @DisplayName("V138_mock명과_KPST명이_섞여도_각_영상의_적재값이_그대로_나온다")
+    void completedVideo_deidPathHandlesMixedNamingConventions() {
+        // given — 같은 데이터마트에 mock 산출(고정명)과 KPST 산출(파생명)이 공존
+        long mockSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(mockSn);
+        String mockPath = "/nas/raw/" + mockSn + "/deid/deidentified.mp4";
+        seedDeidProcLog(mockSn, "SUCCEEDED", mockPath, LocalDateTime.now());
+
+        long kpstSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(kpstSn);
+        String kpstPath = "/nas/raw/" + kpstSn + "/deid/clip-" + kpstSn + "-mask.mp4";
+        seedDeidProcLog(kpstSn, "SUCCEEDED", kpstPath, LocalDateTime.now());
+
+        // when / then — 각 행이 자기 적재값을 그대로 노출한다.
+        assertThat(jdbc.queryForMap(
+                "SELECT DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", mockSn)
+                .get("de_idntf_file_path_nm")).isEqualTo(mockPath);
+        assertThat(jdbc.queryForMap(
+                "SELECT DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", kpstSn)
+                .get("de_idntf_file_path_nm")).isEqualTo(kpstPath);
+    }
+
+    @Test
+    @DisplayName("V138_재비식별로_procLog가_누적돼도_영상당_1row이고_최신_SUCCEEDED가_선택된다")
+    void completedVideo_deidPathPicksLatestSuccessSingleRow() {
+        // given — 실패 1건 + 성공 2건(구/신) + 경로 null 성공 1건이 누적된 재비식별 이력
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        String oldPath = "/nas/deidentified/videos/" + rawSn + "/deidentified.mp4";
+        String newPath = "/nas/raw/" + rawSn + "/deid/clip-mask.mp4";
+        seedDeidProcLog(rawSn, "SUCCEEDED", oldPath, LocalDateTime.now().minusDays(2));
+        seedDeidProcLog(rawSn, "FAILED", null, LocalDateTime.now().minusDays(1));
+        seedDeidProcLog(rawSn, "SUCCEEDED", newPath, LocalDateTime.now());
+
+        // when
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+
+        // then — 행 증식 없음 + 최신 성공분
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("de_idntf_file_path_nm")).isEqualTo(newPath);
+    }
+
+    @Test
+    @DisplayName("V138_비식별_성공이력이_없으면_경로는_null이고_영상행은_보존된다")
+    void completedVideo_deidPathNullWhenNoSuccess() {
+        // given — 성공 procLog 없음(요청/실패만)
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        seedDeidProcLog(rawSn, "FAILED", null, LocalDateTime.now());
+
+        // when
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT RAW_SN, DE_IDNTF_FILE_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+
+        // then — 영상 행은 남고 경로만 null(LEFT JOIN LATERAL 보존)
+        assertThat(((Number) row.get("raw_sn")).longValue()).isEqualTo(rawSn);
+        assertThat(row.get("de_idntf_file_path_nm")).isNull();
+    }
+
+    @Test
     @DisplayName("V_COMPLETED_LABEL_CHANGE가_APPROVED영상의_저장이벤트를_반환한다")
     void labelChange_returnsChangesForApprovedVideo() {
         // given — APPROVED 영상 + 프레임 + 저장이벤트 2건(각각 add/mdfcn/del 카운트 상이 + diff)
@@ -189,10 +280,10 @@ class DatamartViewSlimIT {
 
         // when
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT RAW_SN, SRC_SN, ADD_CNT, MDFCN_CNT, DEL_CNT, CHG_DTL_CN, REG_ID, REG_DT "
+                "SELECT RAW_SN, SRC_SN, ADD_CNT, MDFCN_CNT, DEL_CNT, REG_ID, REG_DT "
                         + "FROM V_COMPLETED_LABEL_CHANGE WHERE SRC_SN = ? ORDER BY DEL_CNT", srcSn);
 
-        // then — 저장이벤트 2건 반환 + RAW_SN 조인 정확 + 카운트/diff/REG_ID/시각 노출
+        // then — 저장이벤트 2건 반환 + RAW_SN 조인 정확 + 카운트/REG_ID/시각 노출
         assertThat(rows).hasSize(2);
         assertThat(rows).allSatisfy(r -> {
             assertThat(((Number) r.get("raw_sn")).longValue()).isEqualTo(rawSn);
@@ -204,14 +295,63 @@ class DatamartViewSlimIT {
         assertThat(((Number) first.get("add_cnt")).intValue()).isEqualTo(2);
         assertThat(((Number) first.get("mdfcn_cnt")).intValue()).isEqualTo(1);
         assertThat(((Number) first.get("del_cnt")).intValue()).isZero();
-        assertThat(first.get("chg_dtl_cn")).isEqualTo("[{\"kind\":\"ADDED\"}]");
         assertThat(first.get("reg_id")).isEqualTo("worker1");
         // 둘째 행: worker2 저장이벤트(add=0, mdfcn=0, del=3)
         Map<String, Object> second = rows.get(1);
         assertThat(((Number) second.get("add_cnt")).intValue()).isZero();
         assertThat(((Number) second.get("del_cnt")).intValue()).isEqualTo(3);
-        assertThat(second.get("chg_dtl_cn")).isEqualTo("[{\"kind\":\"DELETED\"}]");
         assertThat(second.get("reg_id")).isEqualTo("worker2");
+    }
+
+    @Test
+    @DisplayName("V_COMPLETED_LABEL_CHANGE에_라벨_좌표_본문이_노출되지_않는다")
+    void labelChange_doesNotExposeLabelBody() {
+        // given — diff(CHG_DTL_CN)에는 before/after 라벨 전체 스냅샷(좌표 pointCn)이 들어 있다.
+        long rawSn = seedRawAndStatus("APPROVED");
+        long srcSn = seedFrame(rawSn, 11);
+        seedSaveEvent(srcSn, 1, 0, 0,
+                "[{\"kind\":\"ADDED\",\"after\":{\"pointCn\":\"[[10,10],[50,50]]\"}}]", "worker1");
+
+        // when — 뷰 컬럼 목록 자체를 조회한다(D-ISSUE-47 / V137).
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM V_COMPLETED_LABEL_CHANGE WHERE SRC_SN = ?", srcSn);
+
+        // then — 변경 사실·건수만 노출. 라벨 본문(diff JSON) 컬럼은 뷰에 존재하지 않는다.
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).keySet())
+                .containsExactlyInAnyOrder("lbl_hstry_sn", "raw_sn", "src_sn",
+                        "add_cnt", "mdfcn_cnt", "del_cnt", "reg_id", "reg_dt");
+        assertThat(rows.get(0)).doesNotContainKey("chg_dtl_cn");
+        // 원 테이블에는 감사·복구 근거로 그대로 남아 있어야 한다(노출면만 좁힌 것).
+        String stored = jdbc.queryForObject(
+                "SELECT CHG_DTL_CN FROM LS_DATA_LBL_HSTRY WHERE SRC_SN = ?", String.class, srcSn);
+        assertThat(stored).contains("pointCn");
+    }
+
+    @Test
+    @DisplayName("변경_0건_이력은_V_COMPLETED_LABEL_CHANGE_에_노출되지_않는다")
+    void labelChange_excludesZeroChangeRows() {
+        // given — APPROVED 영상의 프레임에 ①롤백 이벤트(라벨 델타 0건, 봉투 JSON) ②개인정보 메타 리셋
+        //   감사(0건) ③실제 변경 1건이 섞여 있다. ①②는 LS_DATA_LBL_HSTRY 설계상 0/0/0 으로 기록된다.
+        long rawSn = seedRawAndStatus("APPROVED");
+        long srcSn = seedFrame(rawSn, 12);
+        seedSaveEvent(srcSn, 0, 0, 0,
+                "{\"rollbackToVersionHash\":\"abc\",\"changes\":[]}", "reviewer1");
+        seedSaveEvent(srcSn, 0, 0, 0,
+                "{\"event\":\"PRIVACY_META_RESET\",\"deidentReportSn\":7,\"changes\":[]}", "worker1");
+        seedSaveEvent(srcSn, 1, 0, 0, "[{\"kind\":\"ADDED\"}]", "worker1");
+
+        // when
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT ADD_CNT, MDFCN_CNT, DEL_CNT FROM V_COMPLETED_LABEL_CHANGE WHERE SRC_SN = ?", srcSn);
+
+        // then — V139: 관제가 "변경 없는 변경점"(팬텀 0/0/0 행)을 픽업하지 않는다. 실제 변경 1건만 노출.
+        assertThat(rows).hasSize(1);
+        assertThat(((Number) rows.get(0).get("add_cnt")).intValue()).isEqualTo(1);
+        // 원 테이블에는 감사 근거로 3건 모두 남는다(노출면만 좁힌 것).
+        Integer stored = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_DATA_LBL_HSTRY WHERE SRC_SN = ?", Integer.class, srcSn);
+        assertThat(stored).isEqualTo(3);
     }
 
     @Test
@@ -249,5 +389,65 @@ class DatamartViewSlimIT {
         assertThat(((Number) frame.get("raw_sn")).longValue()).isEqualTo(rawSn);
         assertThat(frame.get("original_path")).isEqualTo("/nas/frames/raw/" + rawSn + "/5.jpg");
         assertThat(metaKeys).containsExactly("vlm.caption");
+    }
+
+    // ---------- V133 — V_COMPLETED_FRAME 비식별 경로 불변식 게이트 (D-ISSUE-46) ----------
+
+    /** 임의 원본/비식별 경로로 프레임 1행 시드(게이트 검증용). */
+    private long seedFramePaths(long rawSn, int frameNo, String originalPath, String deidPath) {
+        return jdbc.queryForObject(
+                "INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM, "
+                        + "DE_IDNTF_SRC_FILE_PATH_NM, SHT_DT, REG_DT) "
+                        + "VALUES (?, ?, ?, ?, ?, ?) RETURNING SRC_SN",
+                Long.class, rawSn, frameNo, originalPath, deidPath,
+                LocalDateTime.of(2026, 1, 15, 22, 0), LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("V_COMPLETED_FRAME_이_원본경로를_비식별컬럼에_노출하지_않음")
+    void completedFrame_gatesRowsWhereDeidEqualsOriginal() {
+        // given — APPROVED 영상. ①정상 페어 ②원본==비식별(파생 결함 형태) ③비식별 NULL(결측)
+        long rawSn = seedRawAndStatus("APPROVED");
+        long okSrcSn = seedFramePaths(rawSn, 30,
+                "/nas/frames/raw/" + rawSn + "/30.jpg", "/nas/frames/deid/" + rawSn + "/30.jpg");
+        long sameSrcSn = seedFramePaths(rawSn, 31,
+                "/nas/resolution/" + rawSn + "/frames/31.jpg", "/nas/resolution/" + rawSn + "/frames/31.jpg");
+        long nullSrcSn = seedFramePaths(rawSn, 32, "/nas/frames/raw/" + rawSn + "/32.jpg", null);
+
+        // when
+        List<Long> visible = jdbc.queryForList(
+                "SELECT SRC_SN FROM V_COMPLETED_FRAME WHERE RAW_SN = ? ORDER BY SRC_SN", Long.class, rawSn);
+
+        // then — 게이트는 <결함 형태>(원본==비식별)만 배제한다(M-1).
+        assertThat(visible).contains(okSrcSn);
+        assertThat(visible).doesNotContain(sameSrcSn);
+        // 비식별 경로 결측(NULL)은 PII 노출이 아니라 데이터 결측이므로 <종전대로 노출>한다 —
+        // 배제하면 증강 파생(WINTER/NIGHT/RAIN) 전량과 비식별 실패 영상 전량이 마트에서 사라진다.
+        assertThat(visible).contains(nullSrcSn);
+        // 노출된 행 중 두 경로가 모두 있는 경우 반드시 상이하다(관제 계약 불변식)
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT ORIGINAL_PATH, DEIDENTIFIED_PATH FROM V_COMPLETED_FRAME WHERE RAW_SN = ?", rawSn);
+        assertThat(rows).allSatisfy(r -> {
+            if (r.get("deidentified_path") != null && r.get("original_path") != null) {
+                assertThat(r.get("deidentified_path")).isNotEqualTo(r.get("original_path"));
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("파생영상_프레임은_ORIGINAL_PATH가_null이어도_비식별경로로_뷰에_노출된다(정책A)")
+    void completedFrame_allowsNullOriginalForDerivative() {
+        // given — 해상도 파생영상 프레임(정책 A: 원본 부재 → SRC_FILE_PATH_NM null)
+        long rawSn = seedRawAndStatus("APPROVED");
+        long srcSn = seedFramePaths(rawSn, 40, null, "/nas/frames/deid/" + rawSn + "/40.jpg");
+
+        // when
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT SRC_SN, ORIGINAL_PATH, DEIDENTIFIED_PATH FROM V_COMPLETED_FRAME WHERE SRC_SN = ?", srcSn);
+
+        // then — 원본 부재는 정상이며 비식별 경로만 노출된다(원본을 비식별로 오인할 여지 없음)
+        assertThat(((Number) row.get("src_sn")).longValue()).isEqualTo(srcSn);
+        assertThat(row.get("original_path")).isNull();
+        assertThat(row.get("deidentified_path")).isEqualTo("/nas/frames/deid/" + rawSn + "/40.jpg");
     }
 }

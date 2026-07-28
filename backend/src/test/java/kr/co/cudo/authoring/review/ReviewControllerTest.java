@@ -81,6 +81,17 @@ class ReviewControllerTest {
         authrtRepository.save(LsTaskAssignment.createLabeler(videoId, 100L, 1L));
     }
 
+    /**
+     * D-ISSUE-04 — 검수 승인은 라벨이 1건 이상 있어야 한다(승인 사전 게이트). 승인 전이를 검증하는
+     * 테스트는 프레임+라벨을 함께 시드해 게이트를 통과시킨다(게이트 자체는 ReviewApproveLabelGateIT 담당).
+     */
+    private void seedFrameWithLabel() {
+        LsDataSrc frame = srcRepository.save(
+                LsDataSrc.create(videoId, 0, "/var/raw/f0.jpg", LocalDateTime.now()));
+        labelRepository.save(LsDataLbl.createManual(frame.getSrcSn(), "BBOX", null,
+                "person", "[[1.0,1.0],[2.0,2.0]]", 100L));
+    }
+
     private void seedDataStts(String status) {
         LsRawDataStatus stts = LsRawDataStatus.initial(videoId);
         stts.transitionTo(status);
@@ -115,6 +126,7 @@ class ReviewControllerTest {
     @DisplayName("ReviewController_승인시_LS_RAW_DATA_STATUS_APPROVED")
     void approveTransitionsToApproved() throws Exception {
         seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
+        seedFrameWithLabel();
 
         mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
                         .header("Authorization", "Bearer " + reviewerToken))
@@ -152,6 +164,7 @@ class ReviewControllerTest {
     @DisplayName("ReviewController_중복_승인_시도시_409_CONFLICT_낙관적_잠금_또는_상태")
     void duplicateApproveReturnsConflict() throws Exception {
         seedDataStts(LsRawDataStatus.STTS_IN_REVIEW);
+        seedFrameWithLabel();
 
         // 1차 승인 — 성공 → APPROVED
         mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")

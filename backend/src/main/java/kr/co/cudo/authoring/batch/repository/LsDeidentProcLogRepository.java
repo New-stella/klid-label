@@ -38,7 +38,11 @@ public interface LsDeidentProcLogRepository extends JpaRepository<LsDeidentProcL
      */
     Optional<LsDeidentProcLog> findByExternalJobId(String externalJobId);
 
-    @Query("SELECT p FROM LsDeidentProcLog p WHERE p.dataRawSn = :rawSn AND p.procSttsCd = '" + LsDeidentProcLog.SUCCEEDED + "' ORDER BY p.reqDt DESC")
+    // 5A carry-over(Phase 5C) — 데이터마트 뷰 V_COMPLETED_VIDEO(비식별 경로 lateral join)는
+    //   ORDER BY REQ_DT DESC, PROC_LOG_SN DESC 로 최신 성공 1건을 고른다. 앱 조회가 REQ_DT DESC 만이면
+    //   동일 REQ_DT(재비식별 등) 시 뷰와 다른 행을 골라 비식별 경로가 불일치할 수 있다. 2차 키(PROC_LOG_SN
+    //   DESC, IDENTITY 증가라 결정적)를 추가해 뷰와 정확히 같은 행을 선택하도록 정렬을 정합시킨다.
+    @Query("SELECT p FROM LsDeidentProcLog p WHERE p.dataRawSn = :rawSn AND p.procSttsCd = '" + LsDeidentProcLog.SUCCEEDED + "' ORDER BY p.reqDt DESC, p.procLogSn DESC")
     List<LsDeidentProcLog> findSuccessHistory(@Param("rawSn") Long rawSn, PageRequest pageable);
 
     /**
@@ -51,4 +55,28 @@ public interface LsDeidentProcLogRepository extends JpaRepository<LsDeidentProcL
         List<LsDeidentProcLog> hits = findSuccessHistory(rawSn, PageRequest.of(0, 1));
         return hits.isEmpty() ? Optional.empty() : Optional.of(hits.get(0));
     }
+
+    /**
+     * 해상도 파생 백필 전용 — 성공 이력의 비식별 결과 경로를 새 비식별 저장소 경로로 교체한다
+     * (E-ISSUE-21 파일 이관 후 DB 반영). 파생 RAW 에만 적용되며 파일 복사·검증 성공 이후 호출된다.
+     *
+     * <p><b>M-7</b>: <b>최신 SUCCEEDED 이력 1건만</b> 갱신한다. 구 구현은
+     * {@code WHERE DATA_RAW_SN=? AND PROC_STTS_CD='SUCCEEDED'} 라 재비식별로 성공 이력이 2건 이상이면
+     * 과거 이력까지 새 경로로 덮어써 이력이 소실됐다. 조회측
+     * ({@link #findLatestSuccessByDataRawSn})과 동일하게 {@code REQ_DT DESC} 최신 1건을 타깃한다.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(value = """
+            UPDATE LS_DEIDENT_PROC_LOG
+               SET DE_IDNTF_FILE_PATH_NM = :filePath
+             WHERE PROC_LOG_SN = (
+                    SELECT p.PROC_LOG_SN
+                      FROM LS_DEIDENT_PROC_LOG p
+                     WHERE p.DATA_RAW_SN = :rawSn
+                       AND p.PROC_STTS_CD = 'SUCCEEDED'
+                     ORDER BY p.REQ_DT DESC, p.PROC_LOG_SN DESC
+                     LIMIT 1)
+            """, nativeQuery = true)
+    int updateSuccessDeidFilePath(@org.springframework.data.repository.query.Param("rawSn") Long rawSn,
+                                  @org.springframework.data.repository.query.Param("filePath") String filePath);
 }

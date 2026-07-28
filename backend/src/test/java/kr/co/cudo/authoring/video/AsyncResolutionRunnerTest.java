@@ -58,7 +58,7 @@ class AsyncResolutionRunnerTest {
 
     private ResolutionSnapshot snap(long newRawSn, long parentRawSn, long dataAugSn, Path videoDst) {
         return new ResolutionSnapshot(newRawSn, parentRawSn, dataAugSn, ResolutionPreset.RESL_720P,
-                1920, 1080, 1280, 720, 0.6667, 0.6667, "rev1",
+                1920, 1080, 1280, 720, 0.6667, 0.6667, 0, 0, "rev1",
                 Paths.get("/base/videos/deid.mp4"), videoDst, java.time.Instant.now(), List.of());
     }
 

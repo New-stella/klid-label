@@ -6,6 +6,7 @@ klid-la 외부 벤더 목(mock) 서버.
 - deid   : KPST 비식별화 (루트 경로 규격 — prefix 없음)
 - vlm    : IntelliVIX Video VLM 시계열
 - augment: 증강 AI (WINTER/NIGHT/RAIN) — Phase 4 확장
+- control: 관제지원시스템 inbound 통지 (notify-completed / notify-updated)
 
 인증/DB 없이 인메모리 상태(app.state)만으로 동작한다.
 """
@@ -22,7 +23,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIdMiddleware
-from app.routers import augment, deid, vlm
+from app.routers import augment, control, deid, vlm
+from app.services import genai_sim
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
 
@@ -50,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """startup/shutdown 간단 로깅."""
+    """startup/shutdown 간단 로깅 + 백그라운드 태스크 정리."""
     settings = get_settings()
     logger.info(
         "[MOCK] startup host=%s port=%d sim_speed=%.2f callback_delay=%.2fs",
@@ -60,6 +62,8 @@ async def lifespan(_: FastAPI):
         settings.callback_delay_seconds,
     )
     yield
+    # 생성형 AI 작업 진행 태스크 누수 방지 — 종료 시 모두 취소·정리한다.
+    await genai_sim.cancel_all_tasks()
     logger.info("[MOCK] shutdown")
 
 
@@ -83,6 +87,8 @@ register_exception_handlers(app)
 app.include_router(deid.router, tags=["deid"])
 app.include_router(vlm.router, tags=["vlm"])
 app.include_router(augment.router, tags=["augment"])
+# control(관제)은 관제 계약 경로(/api/data-set/v2/...)를 그대로 노출하므로 prefix 없이 등록한다.
+app.include_router(control.router, tags=["control"])
 
 
 @app.get("/health")

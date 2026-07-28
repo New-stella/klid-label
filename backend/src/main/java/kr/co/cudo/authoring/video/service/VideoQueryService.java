@@ -54,6 +54,11 @@ public class VideoQueryService {
     private final UserRepository userRepository;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final BatchStatusService batchStatusService;
+    /**
+     * DEV_FIX(H10) — 영상 상세에 실 fps 를 실어 FE 마킹 화면이 서버와 동일한 fps 로 frameIndex 를
+     * 산출하게 한다(FE 30fps 하드코딩 ↔ 서버 실 fps 상한의 불일치 제거). 마킹 상한 검증과 같은 진실원.
+     */
+    private final VideoFpsResolver fpsResolver;
 
     /**
      * 검수 상태 필터 입력 길이 상한 — 정상 enum 값(PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED)은
@@ -311,7 +316,11 @@ public class VideoQueryService {
                 .stream()
                 .map(s -> new VideoDetailResponse.StageStatusDto(s.name(), s.status(), s.progress()))
                 .toList();
-        return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd, stages);
+        // DEV_FIX(H10) — 마킹 화면이 frameIndex 를 서버와 동일한 fps 로 산출하도록 실 fps 를 함께 내린다.
+        //   진실원은 MarkingService 상한 검증이 쓰는 것과 같은 VideoFpsResolver(미상 시 30.0 폴백).
+        double fps = fpsResolver.resolveFps(entity.getRawSn());
+        return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
+                stages, fps);
     }
 
     /**

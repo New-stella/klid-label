@@ -47,7 +47,11 @@ public class LsDataSrc {
     @Column(name = "VDO_FRM_NO", nullable = true)
     private Long videoFrameNo;
 
-    @Column(name = "SRC_FILE_PATH_NM", nullable = false, length = 500)
+    /**
+     * 원본 프레임 파일 경로. <b>파생영상(해상도 파생)은 원본 픽셀이 실재하지 않아 null</b> 이다
+     * (E-ISSUE-41 정책 A — 없는 원본을 있는 척 기록하지 않는다). 일반 추출 프레임은 항상 채워진다.
+     */
+    @Column(name = "SRC_FILE_PATH_NM", length = 500)
     private String srcFilePathNm;
 
     @Column(name = "DE_IDNTF_SRC_FILE_PATH_NM", length = 1000)
@@ -75,6 +79,21 @@ public class LsDataSrc {
     @Column(name = "PRVC_INCL_YN", length = 1)
     @JdbcTypeCode(SqlTypes.CHAR)
     private String prvcInclYn;
+
+    /**
+     * 라벨셋 버전(V135, C-ISSUE-21) — 이 프레임의 라벨 집합이 실제로 바뀔 때마다 +1 된다.
+     *
+     * <p><b>엔티티 flush 로는 절대 쓰이지 않는다</b>({@code insertable=false, updatable=false}). 값 변경은
+     * {@code LsDataSrcRepository#bumpLabelVersion*} 원자 UPDATE 로만 수행한다. 이렇게 격리한 이유:
+     * 프레임 행의 다른 컬럼(설명·개인정보 3필드·비식별 경로)을 dirty-update 하는 트랜잭션이 flush 시
+     * <b>전체 컬럼</b>을 SET 하면서(이 엔티티는 {@code @DynamicUpdate} 없음) 자신이 읽었던 낡은 라벨버전을
+     * 되돌려 쓰는 lost update 가 발생하기 때문이다. 신규 INSERT 는 DB DEFAULT 0 을 사용한다.
+     *
+     * <p>원자 UPDATE 이후 같은 영속성 컨텍스트의 엔티티 필드는 stale 이므로, 저장 응답의 새 버전은
+     * 호출부가 (잠금 하에 읽은 값 + 1) 로 계산한다.
+     */
+    @Column(name = "LBL_VER", nullable = false, insertable = false, updatable = false)
+    private Long lblVer;
 
     @Column(name = "SHT_DT")
     private LocalDateTime shtDt;
@@ -191,6 +210,14 @@ public class LsDataSrc {
         this.psdoInclYn = normalizeYn(psdoInclYn);
         this.prvcInclYn = normalizeYn(prvcInclYn);
         this.updDt = LocalDateTime.now();
+    }
+
+    /**
+     * 라벨셋 버전(V135) — 조회/응답용. 컬럼이 NOT NULL DEFAULT 0 이라 항상 값이 있으나, 신규 INSERT 직후
+     * ({@code insertable=false} 라 DB DEFAULT 적용) refresh 전 인스턴스는 null 일 수 있어 0 으로 폴백한다.
+     */
+    public long getLabelVersion() {
+        return lblVer == null ? 0L : lblVer;
     }
 
     /** blank/null → null(미입력). CHAR(1) 저장 시 공백 패딩 오염 방지 위해 trim 후 판정. */

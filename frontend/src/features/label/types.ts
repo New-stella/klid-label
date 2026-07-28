@@ -259,6 +259,14 @@ export interface LabelsResponse {
    * - null/undefined: 정상 (편집 가능)
    */
   lockSttsCd?: LockSttsCd | string | null;
+  /**
+   * 프레임 라벨셋 버전 (BE LabelResponse.labelVersion — C-ISSUE-21).
+   *
+   * 저장(PUT) 시 이 값을 그대로 실어 보내면, 그사이 다른 사용자가 같은 프레임을 저장한 경우 BE 가
+   * 409 로 거부한다. 저장 계약이 full-replace 라 버전을 보내지 않으면 내 화면에 없던 남의 라벨이
+   * 조용히 삭제된다. 버전 개념이 없는 응답 경로(포털 등)는 null/undefined.
+   */
+  labelVersion?: number | null;
   /** 동일 영상의 모든 프레임 (FRAME_NO ASC). 단일 프레임 응답에도 포함됨 */
   siblings: SiblingFrame[];
   labels: Label[];

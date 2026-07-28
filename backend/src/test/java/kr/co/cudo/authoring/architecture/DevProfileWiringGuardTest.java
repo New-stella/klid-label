@@ -276,9 +276,21 @@ class DevProfileWiringGuardTest {
         assertThat(duplicated)
                 .as("local override 가 mock-server 정의를 중복 선언했다(설정이 두 파일로 갈라진다): %s", duplicated)
                 .isEmpty();
-        assertThat(String.valueOf(yamlValue(BASE_COMPOSE, "services.mock-server.environment.MOCK_OUTPUT_BASE")))
+        // MOCK_OUTPUT_BASE 는 BE 의 STORAGE_RAW_MOUNT_ROOTS 와 <한 세트>다 — co-locate 산출(Phase 5A)
+        //   이후 비식별 export_path 가 {dirname(원본)}/{rawSn}/deid/ 라 원본 마운트 루트까지 허용해야
+        //   목이 산출물을 쓴다. 구 값(/app/storage/deidentified 단독)이면 목이 base 밖으로 판정해
+        //   더미를 만들지 않고 BE 가 비식별을 영구 실패시킨다.
+        String mockOutputBase =
+                String.valueOf(yamlValue(BASE_COMPOSE, "services.mock-server.environment.MOCK_OUTPUT_BASE"));
+        assertThat(mockOutputBase)
                 .as("MOCK_OUTPUT_BASE 미설정 시 목이 어떤 파일도 만들지 않아(fail-closed) 비식별 결과 검증이 실패한다")
-                .isEqualTo("/app/storage/deidentified");
+                .isNotBlank()
+                .contains("/app/storage/raw")
+                .contains("/app/storage/deidentified");
+        assertThat(mockOutputBase)
+                .as("MOCK_OUTPUT_BASE 는 BE 의 STORAGE_RAW_MOUNT_ROOTS 와 같은 값이어야 한다(한 세트)")
+                .isEqualTo(String.valueOf(yamlValue(
+                        BASE_COMPOSE, "services.klid-backend.environment.STORAGE_RAW_MOUNT_ROOTS")));
 
         // and: backend 가 외부 벤더를 실제로 호출하도록 배선돼 있어야 한다
         String backendEnv = "services.klid-backend.environment.";

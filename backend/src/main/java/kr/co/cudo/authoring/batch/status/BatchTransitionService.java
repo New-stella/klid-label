@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.Set;
 
 /**
  * 배치 작업 상태 전이를 DB 에 영속하는 전용 서비스.
@@ -27,8 +28,17 @@ import java.util.Collection;
  * public 메서드로 분리하고, orchestrator 가 이 빈을 주입받아 호출한다. 각 전이는 독립
  * 트랜잭션에서 load → 비즈니스 메서드 호출 → save 로 명시 영속된다.
  *
- * <p>전이 불가 상태(상태 머신 위반) 여부 검증은 {@link LsRawDataStatus} 의 책임이며, 본 서비스는
- * 단순 갱신만 위임한다. 작업 상태 row 가 없거나 영상 row 가 없으면 WARN 로깅 후 배치 진행을 막지 않는다.
+ * <p><b>상태 검증 책임(B-ISSUE-03 정정)</b>: 작업 상태({@code LS_RAW_DATA_STATUS}) 전이 검증은
+ * <b>본 서비스가 직접</b> 수행한다. 과거 주석은 검증을 {@link LsRawDataStatus} 책임이라 했고
+ * 엔티티는 다시 {@code ReviewStateMachine} 책임이라 했지만, 배치 경로는 상태 머신을 호출하지 않아
+ * 결과적으로 <b>아무도 검증하지 않았다</b>(APPROVED → PROCESSING → ASSIGNED 로 검수 승인 소실).
+ * 이제 {@link #REVIEW_OWNED_STATUSES}(PENDING/IN_REVIEW/APPROVED/REJECTED) 는 조건부 UPDATE 로 차단되며,
+ * 차단 시 {@link #markRawDataProcessingBlocked} 가 {@code true} 를 반환해 <b>파이프라인 자체가 중단</b>된다
+ * (상태만 지키고 step 을 계속 돌리면 APPROVED 영상에 AUTO 라벨이 적재되는 무증상 오염이 된다 — DEV_FIX H8).
+ *
+ * <p>단, 배치는 <b>예외를 던지지 않는다</b>. 전이가 차단되면 상태를 그대로 두고 WARN 로깅 후 진행한다
+ * (배치가 검수 워크플로우를 막으면 안 되며, 반대로 검수 진행 상태를 배치가 덮어써도 안 된다).
+ * 작업 상태 row 가 없거나 영상 row 가 없을 때도 동일하게 WARN 로깅 후 진행을 막지 않는다.
  */
 @Slf4j
 @Service
@@ -43,6 +53,34 @@ public class BatchTransitionService {
     public static final String DEIDENT_FAIL_PROC_REG_ID = "batch-deident-fail";
 
     /**
+     * 배치가 <b>덮어쓰면 안 되는</b> 검수 워크플로우 소유 작업 상태 (B-ISSUE-03 / DEV_FIX H1-b).
+     *
+     * <p>{@code PENDING}(검수 대기)·{@code IN_REVIEW}(검수 진행 중)·{@code APPROVED}(검수 승인 종결)·
+     * {@code REJECTED}(반려)는 모두 {@code ReviewStateMachine} 이 소유하는 상태다. 배치가 이를
+     * PROCESSING/ASSIGNED/FAILED 로 바꾸면 검수 진행/승인이 조용히 사라지고 {@code V_COMPLETED_*}
+     * 데이터마트 뷰에서 영상이 이탈한다.
+     *
+     * <p><b>왜 ASSIGNED 만 제외인가 (호출자 전수 추적 결과 — 구 Javadoc 의 "차단 집합을 넓히면 정상
+     * 파이프라인이 끊긴다"는 근거는 사실과 달라 정정한다):</b> {@link #transitionRawDataStatus} 를 타는
+     * 호출자는 {@link kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator} 3 지점
+     * (processing/completed/failed) 뿐이고, 파이프라인 진입 상태는 ①{@link #tryClaimBatchQueued}/
+     * {@link #tryCreateBatchQueuedRow} 로 만들어진 {@code BATCH_QUEUED} ②{@link
+     * #tryClaimReprocessFromFailed} 가 클레임한 {@code FAILED}→{@code PROCESSING} ③작업 상태 row 자체가
+     * 없는 파생 RAW 뿐이다. 즉 <b>{@code PENDING}·{@code REJECTED} 에서 출발하는 정상 배치 전이는 코드에
+     * 존재하지 않는다</b>. 반면 배치 완료가 {@code ASSIGNED} 로 복귀시키는 것은 의도된 설계이므로
+     * ({@code markRawDataCompleted} → 검수 제출 ASSIGNED→PENDING 이 막히지 않도록) ASSIGNED 는 제외한다.
+     *
+     * <p>진입 차단(파이프라인 자체 중단)에도 같은 집합을 사용한다 —
+     * {@link kr.co.cudo.authoring.marking.listener.MarkingBatchBridge} 의 클레임 skip 집합과
+     * {@code BatchOrchestrator.process} 진입 가드가 이 상수를 공유해 "입구·본체·출구"가 동일 기준으로 막힌다.
+     */
+    public static final Set<String> REVIEW_OWNED_STATUSES = Set.of(
+            LsRawDataStatus.STTS_PENDING,
+            LsRawDataStatus.STTS_IN_REVIEW,
+            LsRawDataStatus.STTS_APPROVED,
+            LsRawDataStatus.STTS_REJECTED);
+
+    /**
      * 배치 시작 — 작업(워크플로우) 상태 LS_RAW_DATA_STATUS.DATA_STTS_CD → PROCESSING,
      * 배치 단계 상태 LS_DATA_RAW.DATA_STTS_CD → PROCESSING (Bug 2 — '처리중' 도입).
      *
@@ -50,16 +88,37 @@ public class BatchTransitionService {
      * 없을 수 있으나, 마킹 완료로 배치가 시작되는 시점에는 배정·작업 상태 row 가 존재한다.
      * 영상(LS_DATA_RAW) row 는 항상 존재하므로 MARKING_READY → PROCESSING 으로 전이해
      * 마킹 완료~배치 완료 구간이 "처리중"으로 표시되게 한다.
+     *
+     * <p><b>진입 게이트 (DEV_FIX H8):</b> 작업 상태가 {@link #REVIEW_OWNED_STATUSES} 면 전이를 차단하고
+     * {@code true}(=차단됨)를 반환한다. 이때 <b>{@code LS_DATA_RAW} 도 건드리지 않는다</b> — 상태만 보존하고
+     * 파이프라인을 계속 돌리면 APPROVED 영상에 AUTO 라벨이 새로 적재되면서도 상태가 APPROVED 로 남아
+     * "탐지 불가능한 데이터 오염"이 되기 때문이다. 호출자
+     * ({@link kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator#process})는 {@code true} 를 받으면
+     * <b>step 을 한 건도 실행하지 않고</b> 즉시 종료해야 한다. 본 메서드 자체는 두 테이블을 함께 멈춘다.
+     *
+     * <p><b>정정(DEV_FIX H10)</b>: 과거 주석은 "{@code (work=APPROVED, stage=PROCESSING|FAILED)} 같은
+     * 불일치쌍은 생기지 않는다"고 단언했으나 <b>사실이 아니었다</b>. 수동 재처리
+     * ({@link #tryClaimReprocessFromFailed})는 본 가드보다 <b>먼저</b> {@code LS_DATA_RAW} 를
+     * FAILED→PROCESSING 으로 선점하므로, 그 뒤 이 가드가 발화하면 {@code (work=검수소유, stage=PROCESSING)}
+     * 불일치쌍이 실제로 만들어지고 stage 가 영구 고착된다(이후 재처리는 stage/work 어느 쪽도 FAILED 가
+     * 아니라 영구 409). 따라서 <b>클레임을 건 호출자가 SKIPPED 를 받으면 반드시 보상 롤백</b>
+     * ({@link #releaseReprocessClaim})해야 하며, 이 계약은 {@code BatchReprocessService} 가 지킨다.
+     *
+     * @return {@code true} = 검수 소유 상태라 배치 진입이 <b>차단</b>됨(호출자는 파이프라인 중단),
+     *         {@code false} = 전이 완료(또는 작업 상태 row 부재 — 파생 RAW) → 진행
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public void markRawDataProcessing(Long rawSn) {
+    public boolean markRawDataProcessingBlocked(Long rawSn) {
         if (rawSn == null) {
-            return;
+            return false;
         }
-        transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_PROCESSING);
+        if (transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_PROCESSING)) {
+            return true;
+        }
         videoRepository.findById(rawSn).ifPresentOrElse(
                 LsDataRaw::markProcessing,
                 () -> log.warn("[BatchTransition] raw video not found rawSn={} (processing)", rawSn));
+        return false;
     }
 
     /**
@@ -89,7 +148,10 @@ public class BatchTransitionService {
         if (rawSn == null) {
             return;
         }
-        transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_ASSIGNED);
+        // 검수 소유 상태면 LS_DATA_RAW 도 건드리지 않는다 — 두 테이블을 함께 멈춰 불일치쌍을 만들지 않는다(H2).
+        if (transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_ASSIGNED)) {
+            return;
+        }
         videoRepository.findById(rawSn).ifPresentOrElse(
                 LsDataRaw::markCompleted,
                 () -> log.warn("[BatchTransition] raw video not found rawSn={} (completed)", rawSn));
@@ -124,7 +186,11 @@ public class BatchTransitionService {
         if (rawSn == null) {
             return;
         }
-        transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_FAILED);
+        // 검수 소유 상태면 LS_DATA_RAW 도 FAILED 로 바꾸지 않는다 — (work=APPROVED, stage=FAILED) 라는
+        // 이전엔 없던 불일치쌍을 만들지 않기 위함(H2). 진입 가드로 이 경로 자체가 도달 불가이나 fail-closed 로 둔다.
+        if (transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_FAILED)) {
+            return;
+        }
         videoRepository.findById(rawSn).ifPresentOrElse(
                 LsDataRaw::markBatchFailed,
                 () -> log.warn("[BatchTransition] raw video not found rawSn={} (batch-failed)", rawSn));
@@ -280,16 +346,76 @@ public class BatchTransitionService {
         return statusClaimed == 1;
     }
 
-    private void transitionRawDataStatus(Long rawSn, String newStatus) {
+    /**
+     * 수동 배치 재처리 클레임 <b>보상 롤백</b> (DEV_FIX H10) — 배치 단계 PROCESSING → FAILED 로 되돌린다.
+     *
+     * <p>{@link #tryClaimReprocessFromFailed} 성공 후 {@code BatchOrchestrator.process()} 가
+     * {@code SKIPPED}(검수 소유 작업 상태) 로 즉시 반환하면 파이프라인이 한 건도 돌지 않고
+     * {@code markRawDataFailed}/{@code markRawDataCompleted} 도 호출되지 않아 <b>클레임으로 바꾼
+     * PROCESSING 을 되돌릴 코드가 없다</b>. 그 결과 stage 가 영구 PROCESSING 으로 고착되고, 이후
+     * 재처리 요청은 stage/work 어느 쪽도 FAILED 가 아니라 <b>영구 409</b> 가 된다.
+     *
+     * <p>따라서 클레임 주체가 SKIPPED 를 관측하면 본 메서드로 원상복구한다. 조건부 UPDATE 라
+     * 그 사이 다른 주체가 상태를 바꿨으면 0행으로 안전하게 포기한다(fail-closed).
+     * {@code REQUIRES_NEW} 로 즉시 커밋한다.
+     *
+     * @return {@code true} = 보상 롤백 성공(PROCESSING→FAILED), {@code false} = 이미 다른 상태
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean releaseReprocessClaim(Long rawSn) {
         if (rawSn == null) {
-            return;
+            return false;
         }
-        rawDataStatusRepository.findById(rawSn).ifPresentOrElse(
-                stts -> {
-                    stts.transitionTo(newStatus);
-                    rawDataStatusRepository.save(stts);
-                },
-                () -> log.warn("[BatchTransition] raw data status not found rawSn={} target={}",
-                        rawSn, newStatus));
+        int reverted = videoRepository.compensateReprocessClaim(
+                rawSn, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_FAILED);
+        if (reverted == 1) {
+            log.warn("[BatchTransition] reprocess claim compensated (PROCESSING->FAILED) rawSn={}", rawSn);
+            return true;
+        }
+        // 작업 상태를 클레임했던 경로(work FAILED→PROCESSING)도 함께 복구 시도한다. 통상 이 경로는
+        // 진입 가드에 걸리지 않으므로 도달하지 않지만, 보상을 특정 컬럼에만 걸어 두면 경로 추가 시
+        // 다시 고착이 생기므로 두 컬럼 모두 조건부로 되돌린다(fail-closed).
+        int workReverted = rawDataStatusRepository.claimReprocessFromFailed(
+                rawSn, LsRawDataStatus.STTS_PROCESSING, LsRawDataStatus.STTS_FAILED);
+        if (workReverted == 1) {
+            log.warn("[BatchTransition] reprocess work-status claim compensated rawSn={}", rawSn);
+            return true;
+        }
+        log.warn("[BatchTransition] reprocess claim compensation skipped (status already changed) rawSn={}", rawSn);
+        return false;
+    }
+
+    /**
+     * 작업 상태 전이 — 검수 소유 상태({@link #REVIEW_OWNED_STATUSES})가 아닐 때만 전이한다 (B-ISSUE-03).
+     *
+     * <p>조건 판정과 전이를 <b>단일 조건부 UPDATE</b>(check-and-set)로 수행한다. 2노드 Active-Active
+     * 배포라 read-then-write 나 JVM 락은 방어가 되지 않으며, DB 가 UPDATE 를 직렬화해야 한다.
+     * 전이가 차단(영향 행수 0)되면 <b>예외를 던지지 않고</b> 원인을 구분해 WARN 로깅만 남긴다.
+     *
+     * @return {@code true} = 검수 소유 상태라 차단됨(호출자는 후속 부수효과도 수행하지 말 것),
+     *         {@code false} = 전이 성공 또는 작업 상태 row 부재(파생 RAW — 배치 진행을 막지 않는다)
+     */
+    private boolean transitionRawDataStatus(Long rawSn, String newStatus) {
+        if (rawSn == null) {
+            return false;
+        }
+        int affected = rawDataStatusRepository.transitionByBatchIfNotBlocked(
+                rawSn, newStatus, REVIEW_OWNED_STATUSES);
+        if (affected == 1) {
+            return false;
+        }
+        // skip 경로에서만 추가 조회 — row 부재인지 검수 소유 상태인지 구분해 운영자가 원인을 알 수 있게 한다.
+        // row 부재(파생 RAW 등)는 차단이 아니다 → false 로 진행을 허용한다.
+        return rawDataStatusRepository.findById(rawSn)
+                .map(stts -> {
+                    log.warn("[BatchTransition] work status transition skipped (review-owned) "
+                            + "rawSn={} current={} target={}", rawSn, stts.getDataSttsCd(), newStatus);
+                    return true;
+                })
+                .orElseGet(() -> {
+                    log.warn("[BatchTransition] raw data status not found rawSn={} target={}",
+                            rawSn, newStatus);
+                    return false;
+                });
     }
 }

@@ -323,6 +323,96 @@ def test_output_base_설정시_base안_export_path는_쓰기허용(
     assert (export / name).is_file()
 
 
+def test_콤마구분_다중base_중_하나의_하위면_co_locate_export_path에_쓰기허용(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A-2 — BE co-locate 산출 경로({dirname(원본)}/{rawSn}/deid/)에 더미가 생성돼야 한다.
+
+    BE 의 STORAGE_RAW_MOUNT_ROOTS 와 같은 값(원본 마운트 루트 + 비식별 저장소)을 base 로 주면,
+    비식별 저장소가 아니라 <원본이 놓인 루트> 하위인 export_path 도 허용된다.
+    """
+    # given — raw/deid 두 루트를 콤마로 지정. export_path 는 raw 루트 하위(co-locate 구조).
+    from app.config import reload_settings
+
+    raw_root = tmp_path / "raw"
+    deid_root = tmp_path / "deidentified"
+    raw_root.mkdir()
+    deid_root.mkdir()
+    inp = raw_root / "seed"
+    inp.mkdir()
+    export = inp / "77" / "deid"  # dirname(원본)/{rawSn}/deid
+    monkeypatch.setenv("MOCK_OUTPUT_BASE", f"{raw_root},{deid_root}")
+    reload_settings()
+
+    # when
+    body = _create(
+        client,
+        name="p1",
+        export_path=f"{export}/",
+        input_path=f"{inp}/",
+        files=["clip-9101.mp4"],
+    )
+
+    # then — 더미 산출물이 co-locate 경로에 실제로 생성된다(BE isUsableDeidFile 통과 조건).
+    name = _progress_file_names(client, body["prj_id"])[0]
+    assert (export / name).is_file()
+    assert (export / name).stat().st_size > 0
+
+
+def test_콤마구분_다중base_모두의_밖이면_쓰기스킵(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given — 두 base 를 지정하되 export 는 둘 다의 밖
+    from app.config import reload_settings
+
+    raw_root = tmp_path / "raw"
+    deid_root = tmp_path / "deidentified"
+    raw_root.mkdir()
+    deid_root.mkdir()
+    inp = raw_root / "seed"
+    inp.mkdir()
+    export = tmp_path / "elsewhere" / "77" / "deid"
+    monkeypatch.setenv("MOCK_OUTPUT_BASE", f"{raw_root},{deid_root}")
+    reload_settings()
+
+    # when
+    _create(
+        client,
+        name="p1",
+        export_path=f"{export}/",
+        input_path=f"{inp}/",
+        files=["clip-9101.mp4"],
+    )
+
+    # then
+    assert not export.exists()
+
+
+def test_콤마만_있는_output_base는_failclosed(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given — 유효 토큰이 없는 base(콤마/공백뿐) → 미설정과 동일하게 fail-closed
+    from app.config import reload_settings
+
+    export = tmp_path / "export"
+    inp = tmp_path / "input"
+    inp.mkdir()
+    monkeypatch.setenv("MOCK_OUTPUT_BASE", " , ")
+    reload_settings()
+
+    # when
+    _create(
+        client,
+        name="p1",
+        export_path=f"{export}/",
+        input_path=f"{inp}/",
+        files=["a.mp4"],
+    )
+
+    # then
+    assert not export.exists()
+
+
 # ── HIGH-2 no-overwrite ───────────────────────────────────────────
 def test_기존파일이_있으면_덮어쓰지_않는다(client: TestClient, tmp_path) -> None:
     # given — 마스킹명과 동일한 파일이 export 에 이미 존재

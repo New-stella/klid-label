@@ -7,6 +7,9 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
+import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
+import kr.co.cudo.authoring.version.util.LabelHistoryDiffSerializer;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li><b>{@code LS_DATA_RAW.DE_IDENT_YN='F'} 가 실제 flush 됨</b> — 리셋 JPQL 이 부모 RAW 의
  *       dirty-update(markDeidentified('F'))를 detach 시키지 않았음을 실 커밋으로 증명한다.
  *       {@code clearAutomatically=true} 회귀 시 부모가 detach 되어 'F' 가 유실되고 이 단언이 RED 가 된다.</li>
- *   <li>영상 전체 라벨이 삭제됨.</li>
+ *   <li><b>영상 전체 라벨이 보존됨</b>(D-25, 2026-07-27 정책 반전 — 구 "전량 삭제" 폐기).</li>
  * </ol>
  *
  * <p>공유 Testcontainers PG 를 사용하므로 시드는 {@code DIDRST-} 고유 clipId 로 만들고, 단언은 시드한
@@ -55,6 +58,7 @@ class DeidentReportServiceResetIT {
     @Autowired private VideoRepository videoRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
+    @Autowired private LsDataLblHstryRepository lblHstryRepository;
 
     private final TransactionTemplate txTemplate;
 
@@ -109,8 +113,66 @@ class DeidentReportServiceResetIT {
         LsDataRaw reloadedRaw = txTemplate.execute(s -> videoRepository.findById(rawSn).orElseThrow());
         assertThat(reloadedRaw.getDeIdntfYn()).isEqualTo("F");
 
-        // ③ 영상 전체 라벨 삭제.
+        // ③ D-25(2026-07-27 정책 반전) — 라벨은 <b>삭제되지 않고 보존</b>된다.
+        //    (구 정책은 전량 삭제였고 이 단언은 isEmpty() 였다. 삭제를 되살리면 이 단언이 RED 가 된다.)
         List<LsDataLbl> remaining = txTemplate.execute(s -> lblRepository.findAllByRawSn(rawSn));
-        assertThat(remaining).isEmpty();
+        assertThat(remaining).hasSize(1);
+    }
+
+    /**
+     * DEV_FIX-B(M5, 보안 M-3) — 개인정보 3필드 리셋은 PII 표기를 되돌리는 행위이므로
+     * <b>행 단위 감사</b>가 남아야 한다(OWASP A09). 구 구현은 집계 로그 한 줄뿐이었다.
+     */
+    @Test
+    @DisplayName("개인정보_3필드_리셋이_감사_가능하게_기록된다")
+    void privacyMetaResetIsAuditedPerFrame() {
+        // given — 3필드가 채워진 프레임 2건 + 이미 NULL 인 프레임 1건(감사 잡음 대상 아님).
+        long rawSn = txTemplate.execute(s -> {
+            LsDataRaw raw = LsDataRaw.createFromIngest(
+                    "DIDAUD-" + System.nanoTime(), "CCTV-DIDAUD", "EVT", "11680",
+                    LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/DIDAUD.mp4", LocalDateTime.now(), 30);
+            raw.markDeidentified("Y");
+            raw = videoRepository.save(raw);
+            Long rs = raw.getRawSn();
+            srcRepository.save(LsDataSrc.create(
+                    rs, 0L, 0L, "/raw/a0.jpg", "/deid/a0.jpg", LocalDateTime.now(), "Y", "N", "Y"));
+            srcRepository.save(LsDataSrc.create(
+                    rs, 1L, 1L, "/raw/a1.jpg", "/deid/a1.jpg", LocalDateTime.now(), "N", "Y", "Y"));
+            // 3필드가 모두 NULL 인 프레임 — 변화가 없으므로 감사 대상에서 제외되어야 한다.
+            srcRepository.save(LsDataSrc.create(rs, 2, "/raw/a2.jpg", LocalDateTime.now()));
+            return rs;
+        });
+
+        List<LsDataSrc> seeded = txTemplate.execute(s -> srcRepository.findByRawSnOrderByFrameNoAsc(rawSn));
+        List<Long> withPrivacy = List.of(seeded.get(0).getSrcSn(), seeded.get(1).getSrcSn());
+        Long withoutPrivacy = seeded.get(2).getSrcSn();
+
+        TokenClaims reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL,
+                Instant.now().plusSeconds(60));
+
+        // when
+        Long rprtSn = deidentReportService.report(withPrivacy.get(0), "얼굴 미블러 노출", reviewer);
+
+        // then — 값이 있던 프레임마다 감사 이력 1건(라벨 델타 0건 이벤트).
+        List<LsDataLblHstry> audits = txTemplate.execute(s -> withPrivacy.stream()
+                .flatMap(sn -> lblHstryRepository.findBySrcSnOrderByRegDtDesc(sn).stream())
+                .toList());
+        // 값이 이미 NULL 이던 프레임은 변화가 없으므로 감사 잡음을 만들지 않는다.
+        List<LsDataLblHstry> untouched = txTemplate.execute(s ->
+                lblHstryRepository.findBySrcSnOrderByRegDtDesc(withoutPrivacy));
+        assertThat(untouched).isEmpty();
+        assertThat(audits).hasSize(2);
+        assertThat(audits).extracting(LsDataLblHstry::getSrcSn)
+                .containsExactlyInAnyOrderElementsOf(withPrivacy);
+        assertThat(audits).allSatisfy(h -> {
+            // 행위자·시각이 남고, 라벨 변경은 0건이다(라벨을 건드리지 않는 이벤트).
+            assertThat(h.getRegId()).isEqualTo("1");
+            assertThat(h.getRegDt()).isNotNull();
+            assertThat(h.getAddCnt() + h.getMdfcnCnt() + h.getDelCnt()).isZero();
+            // 어떤 신고로 리셋됐는지 추적 가능해야 한다(신규 컬럼 없이 봉투 JSON).
+            assertThat(h.getChgDtlCn())
+                    .contains(LabelHistoryDiffSerializer.EVENT_PRIVACY_META_RESET)
+                    .contains(String.valueOf(rprtSn));
+        });
     }
 }

@@ -59,14 +59,18 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
 
 ```
 누락 신고 (LS_DEIDENT_REPORT: OPEN)
-  → 현재 작업 내용 삭제 + DE_IDENT_YN='F'
+  → 작업락 + DE_IDENT_YN='F' + 개인정보 3필드 리셋 (★라벨은 보존 — 삭제 안 함)
+  → 신고 구간 동안 해당 영상 라벨 조회 차단(412) / 라벨 저장은 작업락으로 409
   → 작업자/검수자가 외부 비식별 솔루션으로 수동 비식별화
   → 수동 해소(resolve): 신고 OPEN→RESOLVED + DE_IDENT_YN 'F'→'Y' 복원 (원본 보존)
+  → 조회 게이트 자동 해제 → 보존된 기존 라벨을 그대로 재사용
 ```
 
 - 상태: `OPEN` / `RESOLVED` / `DISMISSED`
 - 코드: `deident/`, `frontend DeidentReportButton`, `LS_DEIDENT_REPORT`(V21)
 - 자동 재비식별 큐는 폐기 → **수동 비식별화**가 해소 주체(외부 비식별 SW)
+- **★라벨 보존 정책 (2026-07-27 사용자 확정 — 구 "전체 라벨 삭제 + 복원 스냅샷" 폐기)**: 신고는 "비식별이 잘못됐다"는 신호일 뿐 라벨 작업 결과를 폐기할 근거가 아니므로 **해당 영상의 라벨을 삭제하지 않는다**. 구 정책이 삭제 직전에 남기던 `LS_LABEL_VERSION`(`SAVE_REASON='DEIDENT_REPORT'`, `ACTIVE_YN='N'`) **비활성 스냅샷도 더 이상 적재하지 않는다** — 그 스냅샷은 `DATA_SRC_SN=NULL`(영상 스코프)이라 프레임(srcSn) 스코프인 버전 목록·롤백 API 에서 조회·복원할 수 없는 write-only 이력이었다(D-ISSUE-25). 이미 적재된 기존 행은 보존하며, 프레임 스코프가 아닌 버전 해시로 diff 를 호출하면 400 으로 명시 거부한다(구 미처리 500 수정 — D-ISSUE-26). 삭제분 소급 복구는 하지 않는다.
+- **신고 구간 라벨 조회 차단 게이트 (S7, CWE-359)**: 라벨이 보존되므로 신고~재비식별 완료 사이에 라벨 좌표(=PII 위치 특정 정보)가 계속 노출되는 창이 생긴다. 따라서 `DE_IDENT_YN='F'` 인 동안 해당 영상 프레임의 라벨 조회(`GET /v1/frames/{srcSn}/labels`)를 **412 PRECONDITION_FAILED** 로 차단한다. 인가(WORKER 본인 배정/REVIEWER) 검사를 통과한 **뒤** 평가하는 프리컨디션이며 **REVIEWER 도 동일하게 차단**된다(영상 스트리밍의 비식별 미완료 NOT_FOUND·마킹 진입 게이트와 같은 역할 무관 정책). 라벨 저장/수정은 기존 작업락(`LS_AUTH_WORK_LOCK`)이 409 로 차단하므로 신고 구간은 읽기·쓰기 모두 봉쇄된다. `resolve` 가 `'F'→'Y'` 를 복원하면 게이트가 자동으로 열려 **보존된 라벨을 그대로** 사용한다(별도 복원 API 없음).
 - **수동 해소 시 `DE_IDENT_YN` 'F'→'Y' 복원(마킹 게이트 재개방)**: `DeidentReportService.resolveManually` 가 신고를 RESOLVED 전이 + 작업락 해제하면서 `LS_DATA_RAW.DE_IDENT_YN` 을 `'F'`→`'Y'` 로 되돌려 비식별 완료를 전제로 하는 마킹 진입 게이트(`deIdntfYn=='Y'`)를 재개방한다. 복원하지 않으면 게이트가 영구 폐쇄되어 재마킹이 불가능해진다. 자동 배치 해소(`resolveOpenReports`)는 `DeidentifyStep` 이 `'Y'` 로 복원하지만 수동 경로에는 복원 주체가 없어 이 서비스가 직접 복원한다.
 - **후기 배치 단계(`LS_DATA_RAW.DATA_STTS_CD`)는 되감지 않음**: 해소는 비식별 게이트(`DE_IDENT_YN`)만 재개방하며 배치 단계 상태(예: MARKING_READY/PROCESSING/COMPLETED)는 변경하지 않는다. 마킹 단계 신고는 `report()` 가 MARKING_READY 를 보존하므로 `'Y'` 복원만으로 게이트를 통과한다.
 - **수동 해소 시 비식별 산출물 검증 게이트(CWE-359, fail-closed)**: `resolveManually` 는 `'F'`→`'Y'` 복원 전에 해당 `RAW_SN` 의 최신 성공 처리 이력(`LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM`)에 기록된 비식별 파일이 스토리지에 실존(정규 파일 + >0바이트)하는지 확인한다. 기록이 없거나 파일이 부재/빈 파일이면 `409` 로 거부(내부 경로 미노출)하고 신고는 `OPEN`·작업락·`DE_IDENT_YN='F'` 를 유지한다 — 실제 외부 비식별 없이 마킹 게이트/스트리밍이 재개방되어 PII 가 재노출되는 것을 차단한다. 경로는 DB 적재값만 사용(사용자 입력 경로 구성 금지 — Path Manipulation 방지).

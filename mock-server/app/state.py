@@ -16,10 +16,15 @@ Phase 2/3 가 이 저장소를 확장(데이터셋/작업로그 로직 추가)�
 
 from __future__ import annotations
 
+import copy
+import re
 import threading
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Optional
+
+from app.schemas.genai import TERMINAL_STATUSES, JobStatus
 
 # 진행률 시뮬레이션 상수 — 배속 1.0 기준 초당 증가 퍼센트.
 # 예: 10%/s → 배속 1.0 에서 10초면 100% 도달.
@@ -27,13 +32,19 @@ PROGRESS_PERCENT_PER_SECOND: float = 10.0
 PROGRESS_MAX: float = 100.0
 
 
-def sanitize_for_log(value: object) -> str:
-    """로그 인젝션(CWE-117) 방어 — 개행/캐리지리턴 제거 + 길이 제한.
+#: 로그 인젝션에 쓰이는 제어문자 — C0(\x00~\x1f, ANSI ESC \x1b 포함) · DEL(\x7f) ·
+#: 유니코드 줄/문단 구분자(U+2028/U+2029). 모두 공백으로 치환한다.
+_LOG_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f  ]")
 
-    사용자 입력을 로그에 넣기 전 반드시 이 함수를 거친다.
+
+def sanitize_for_log(value: object) -> str:
+    """로그 인젝션(CWE-117) 방어 — 제어문자 일괄 제거 + 길이 제한.
+
+    개행(\\r\\n)·탭뿐 아니라 ANSI 이스케이프(\\x1b)·수직탭(\\x0b)·폼피드(\\x0c)·NUL·
+    유니코드 줄구분자(U+2028/U+2029)까지 모두 제거한다(F-9). 이 함수는 KPST/VLM/생성형 AI
+    목이 공유하므로 사용자 입력을 로그에 넣기 전 반드시 거친다.
     """
-    text = str(value)
-    text = text.replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    text = _LOG_CONTROL_CHARS.sub(" ", str(value))
     if len(text) > 200:
         text = text[:200] + "…(truncated)"
     return text
@@ -309,3 +320,182 @@ _store: InMemoryStore = InMemoryStore()
 def get_store() -> InMemoryStore:
     """전역 인메모리 저장소 인스턴스를 반환한다."""
     return _store
+
+
+# ── 생성형 AI(증강) 작업 저장소 ────────────────────────────────────
+def utc_now_iso() -> str:
+    """명세서 date-time 필드용 ISO-8601(UTC) 타임스탬프."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+@dataclass
+class GenAiJob:
+    """「생성형 AI API 연동명세서 v1.1」 작업 1건의 인메모리 상태."""
+
+    job_id: str
+    request_id: str
+    status: str = JobStatus.RECEIVED.value
+    # 요청 스냅샷 — 진행/결과 생성에 필요한 최소 정보만 보관한다.
+    request_channel: str = ""
+    request_user_id: Optional[str] = None
+    evnt_type: str = ""
+    operation_type: str = ""
+    generation_mode: str = ""
+    callback_url: Optional[str] = None
+    # (sequence, file_path) 목록. sequence 오름차순.
+    input_files: list[tuple[int, str]] = field(default_factory=list)
+    idempotency_key: Optional[str] = None
+    # 진행 상태
+    progress: int = 0
+    current_step: Optional[str] = None
+    received_at: str = field(default_factory=utc_now_iso)
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    canceled_at: Optional[str] = None
+    updated_at: str = field(default_factory=utc_now_iso)
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    results: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class TransitionResult:
+    """상태 전이 시도 결과.
+
+    outcome:
+        - ``OK``        : 전이 성공(job 은 전이 후 스냅샷)
+        - ``NOT_FOUND`` : 대상 job 없음 → 404 JOB_NOT_FOUND
+        - ``TERMINAL``  : 이미 종결 상태라 전이 거부 → 409 STATE_CONFLICT
+    """
+
+    outcome: str
+    job: Optional[GenAiJob] = None
+
+    @property
+    def ok(self) -> bool:
+        return self.outcome == "OK"
+
+
+class GenAiJobStore:
+    """생성형 AI 작업 저장소 — 단일 락으로 상태 전이/멱등 등록을 직렬화한다.
+
+    동시성(CWE-362):
+    - ``create_or_get`` 의 check-then-act(멱등키 조회→등록)를 락 안에서 원자 수행한다.
+    - ``transition`` 은 **종결 상태(SUCCEEDED/FAILED/CANCELED)에서의 재전이를 거부**한다.
+      취소와 완료가 동시에 들어와도 먼저 도달한 종결 상태가 유지된다(취소 레이스 방어).
+    - 반환값은 항상 deepcopy 스냅샷이라 호출측 변경이 저장소에 새지 않는다.
+
+    자원 상한(CWE-770, F-3):
+    - 보관 작업 수가 ``max_jobs`` 를 넘으면 **가장 오래된 작업부터 만료(FIFO)** 한다.
+      dict 는 삽입 순서를 유지하므로 별도 큐 없이 선두를 제거하면 된다. 멱등키 색인도 함께
+      정리해 무제한 증가를 막는다.
+    """
+
+    def __init__(self, max_jobs: Optional[int] = None) -> None:
+        self._lock = threading.Lock()
+        self._jobs: dict[str, GenAiJob] = {}
+        self._idempotency: dict[str, str] = {}
+        self._max_jobs = max_jobs
+
+    def _limit(self) -> int:
+        """보관 상한 — 생성자 지정값 우선, 없으면 설정값."""
+        if self._max_jobs is not None:
+            return self._max_jobs
+        from app.config import get_settings
+
+        return get_settings().genai_max_jobs
+
+    def _evict_locked(self) -> None:
+        """상한 초과분을 오래된 순서로 제거한다(락 보유 상태에서 호출)."""
+        limit = self._limit()
+        while len(self._jobs) > limit:
+            oldest_id = next(iter(self._jobs))
+            evicted = self._jobs.pop(oldest_id, None)
+            if evicted is not None and evicted.idempotency_key:
+                if self._idempotency.get(evicted.idempotency_key) == oldest_id:
+                    self._idempotency.pop(evicted.idempotency_key, None)
+
+    def create_or_get(
+        self, job: GenAiJob, idempotency_key: Optional[str]
+    ) -> tuple[GenAiJob, bool]:
+        """작업을 등록한다. 동일 멱등키가 이미 있으면 기존 작업을 반환한다.
+
+        Returns:
+            (작업 스냅샷, 신규 생성 여부). 신규 생성이 아니면 백그라운드 진행을 재시작하면 안 된다.
+        """
+        with self._lock:
+            if idempotency_key:
+                existing_id = self._idempotency.get(idempotency_key)
+                if existing_id is not None and existing_id in self._jobs:
+                    return copy.deepcopy(self._jobs[existing_id]), False
+                job.idempotency_key = idempotency_key
+                self._idempotency[idempotency_key] = job.job_id
+            self._jobs[job.job_id] = job
+            self._evict_locked()
+            return copy.deepcopy(job), True
+
+    def get(self, job_id: str) -> Optional[GenAiJob]:
+        """작업 스냅샷을 반환한다. 없으면 None."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return copy.deepcopy(job) if job is not None else None
+
+    def list_jobs(self) -> list[GenAiJob]:
+        """등록된 작업 스냅샷 목록(목 전용 조회)."""
+        with self._lock:
+            return [copy.deepcopy(self._jobs[k]) for k in self._jobs]
+
+    def transition(
+        self,
+        job_id: str,
+        status: str,
+        *,
+        progress: Optional[int] = None,
+        current_step: Optional[str] = None,
+        results: Optional[list[dict[str, Any]]] = None,
+        error_code: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ) -> TransitionResult:
+        """상태를 전이한다. 종결 상태에서는 거부(TERMINAL)한다."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return TransitionResult("NOT_FOUND")
+            if job.status in TERMINAL_STATUSES:
+                return TransitionResult("TERMINAL", copy.deepcopy(job))
+
+            now = utc_now_iso()
+            job.status = status
+            job.updated_at = now
+            if progress is not None:
+                job.progress = progress
+            if current_step is not None:
+                job.current_step = current_step
+            if results is not None:
+                job.results = results
+            if error_code is not None:
+                job.error_code = error_code
+            if error_message is not None:
+                job.error_message = error_message
+            if status == JobStatus.RUNNING.value and job.started_at is None:
+                job.started_at = now
+            if status in (JobStatus.SUCCEEDED.value, JobStatus.FAILED.value):
+                job.completed_at = now
+            if status == JobStatus.CANCELED.value:
+                job.canceled_at = now
+            return TransitionResult("OK", copy.deepcopy(job))
+
+    def clear(self) -> None:
+        """전체 작업 초기화 (목 전용 reset / 테스트용)."""
+        with self._lock:
+            self._jobs.clear()
+            self._idempotency.clear()
+
+
+# 프로세스 전역 생성형 AI 작업 저장소.
+_genai_store: GenAiJobStore = GenAiJobStore()
+
+
+def get_genai_store() -> GenAiJobStore:
+    """전역 생성형 AI 작업 저장소 인스턴스를 반환한다."""
+    return _genai_store

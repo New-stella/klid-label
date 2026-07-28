@@ -104,7 +104,15 @@ public class BatchOrchestrator {
         LsDataRaw raw = loadRaw(rawSn);
 
         // 배치 시작: 작업 상태 PROCESSING 전이 (REQUIRES_NEW 별도 트랜잭션으로 명시 영속).
-        transitionService.markRawDataProcessing(rawSn);
+        // ★ 진입 가드(DEV_FIX H8) — 작업 상태가 검수 소유(PENDING/IN_REVIEW/APPROVED/REJECTED)면
+        //   전이가 차단되며, 이때는 step 을 한 건도 실행하지 않고 즉시 종료한다. 상태만 지키고 파이프라인을
+        //   계속 돌리면 APPROVED 영상에 AUTO 라벨이 새로 적재되는데 상태는 APPROVED 로 남아
+        //   export 폴더 JSON·V_COMPLETED_* 와 LS_DATA_LBL 이 재검수 없이 어긋나는 무증상 오염이 된다.
+        //   본 가드는 마킹 브리지·dev 트리거·Quartz 큐·재시도 잡·수동 재처리 등 모든 진입점의 공통 관문이다.
+        if (transitionService.markRawDataProcessingBlocked(rawSn)) {
+            log.warn("[BatchOrchestrator] skipped — review-owned work status rawSn={}", rawSn);
+            return BatchStage.SKIPPED;
+        }
 
         try {
             BatchContext ctx = new BatchContext(rawSn, raw, stageToggles);

@@ -12,7 +12,7 @@ import java.util.Collection;
 import java.util.List;
 
 @ControlRepo
-public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
+public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsDataLblRepositoryCustom {
 
     List<LsDataLbl> findBySrcSn(Long srcSn);
 
@@ -195,6 +195,37 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long> {
              WHERE s.rawSn = :rawSn
             """)
     long countByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * 영상(rawSn) 의 <b>라벨을 가진 프레임 수</b> — 단일 COUNT DISTINCT 쿼리.
+     *
+     * <p>구현은 전 프레임·전 라벨을 메모리에 적재한 뒤 distinct 로 세었다(CWE-770). 대용량 영상에서
+     * 힙을 고갈시키므로 DB 집계로 대체한다.
+     */
+    @Query("""
+            SELECT COUNT(DISTINCT l.srcSn)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+            """)
+    long countLabeledFramesByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * D-ISSUE-04 — 영상(rawSn)에 라벨이 <b>1건이라도</b> 있는지 여부 (검수 승인 사전 게이트).
+     *
+     * <p>{@code COUNT} 나 전체 fetch 가 아니라 {@code EXISTS} 로 첫 행에서 즉시 종료한다(프레임/라벨 수와
+     * 무관한 단일 쿼리 — N+1·풀스캔 금지). 프레임이 0건인 영상은 라벨도 0건이므로 이 판정 하나로
+     * "프레임 부재"까지 함께 걸러진다. 파라미터 바인딩({@code :rawSn})만 사용 — CWE-89 표면 없음.
+     */
+    @Query(value = """
+            SELECT EXISTS (
+                   SELECT 1
+                     FROM LS_DATA_LBL l
+                     JOIN LS_DATA_SRC s ON l.SRC_SN = s.SRC_SN
+                    WHERE s.RAW_SN = :rawSn
+            )
+            """, nativeQuery = true)
+    boolean existsAnyByRawSn(@Param("rawSn") Long rawSn);
 
     /**
      * 영상(rawSn) 의 클래스(라벨명)별 라벨 분포 — 단일 GROUP BY 쿼리 (N+1 금지).

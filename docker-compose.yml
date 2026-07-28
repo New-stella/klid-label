@@ -41,12 +41,15 @@ services:
 
   # 스토리지 디렉토리 프로비저닝(one-shot) — host bind-mount 가 root 소유로 생성돼 비루트(uid 999)
   # backend 가 영상 저장 경로(raw/)에 못 쓰는 AccessDenied 방지. backend 기동 전 1회 mkdir+chown.
+  # ★ 생성형AI 목 산출물 트리(/genai-out)도 함께 프로비저닝한다 — mock-server 는 uid 999(app)로
+  #   실행돼, 초기화하지 않으면 결과 저장이 Permission denied 로 실패한다(RESULT_SAVE_FAILED).
   klid-storage-init:
     image: busybox:1.36
     container_name: klid-storage-init
-    command: sh -c "mkdir -p /storage/raw /storage/deidentified && chown -R 999:999 /storage && chmod -R 775 /storage"
+    command: sh -c "mkdir -p /storage/raw /storage/deidentified /genai-out && chown -R 999:999 /storage /genai-out && chmod -R 775 /storage /genai-out"
     volumes:
       - /data/klid/storage:/storage
+      - /data/klid/genai-out:/genai-out
     restart: "no"
 
   klid-backend:
@@ -98,6 +101,31 @@ services:
       #   ⚠ 여기서 ${VAR:-} 형태로 재선언하면 .env 에 없을 때 "빈 값이 설정된" 상태가 되어
       #     프로파일 yml 의 기본값(${VAR:default})까지 빈 값으로 덮어쓴다 — 그래서 일부러 나열하지 않는다.
       #   필수 목록은 docs/operations/config-key-changes-20260727.md §4-2 참조.
+      # ★ co-locate 산출(Phase 5A) 경로 가드용 고정 allowlist — dirname(RAW_FILE_PATH_NM) 이 이 목록
+      #   하위여야 산출물(비식별 영상·프레임·JSON)을 쓴다. 위반 시 폴백 없이 실패한다(CWE-22 fail-closed).
+      #   ⚠ 미설정 시 코드가 [raw-path, deidentified-path] 로 폴백하지만, 그 암묵 동작에 기대지 않고
+      #     여기서 명시한다(형상마다 폴백 결과가 갈려 조용히 파이프라인이 멈추는 것을 방지).
+      #   이 스택의 영상 경로는 전부 공유 볼륨 /app/storage 하위다:
+      #     · dev-seed(MNG_CLIP_MASTER.FILE_PATH) = ./storage/raw/seed/*.mp4 → WORKDIR /app 기준 /app/storage/raw/...
+      #     · 포털 업로드 = /app/storage/raw/portal/...
+      #   ⚠ mock-server 의 MOCK_OUTPUT_BASE(docker-compose.local.yml)와 <한 세트>로 맞춰야 한다 —
+      #     비식별 export_path 가 dirname(원본)/{rawSn}/deid/ 라 목이 그 경로에 쓸 수 있어야 한다.
+      STORAGE_RAW_MOUNT_ROOTS: ${STORAGE_RAW_MOUNT_ROOTS:-/app/storage/raw,/app/storage/deidentified}
+      # webhook HMAC 시크릿 — 빈 값이면 앱이 기동 실패(fail-closed, E-ISSUE-04)한다.
+      #   ★ 기본값 폴백(${VAR:-...}) 금지 — 커밋된 기본값은 "공개된 키로 조용히 기동" 이 되어 누구나
+      #     유효 서명을 위조할 수 있다(DEV_FIX H-1, CWE-1392/798). 이 compose 는 dev 배포 형상이기도 하다.
+      #   ${VAR:?err} 는 compose 가 "미설정 또는 빈 값" 이면 즉시 실패시킨다 — 의도된 동작이다.
+      #   값 생성: openssl rand -hex 32  → .env(gitignore 대상)에 기록.
+      WEBHOOK_HMAC_SECRET_AUGMENT: ${WEBHOOK_HMAC_SECRET_AUGMENT:?WEBHOOK_HMAC_SECRET_AUGMENT 를 .env 에 설정하세요 (openssl rand -hex 32)}
+      # 신뢰 프록시 CIDR / VLM 콜백 허용 출처.
+      #   ★ 이 폴백 'none' 은 **이 docker 스택(local/dev) 전용**이다 — 이 스택은 앞단에 프록시가
+      #     실제로 없으므로 'none' 이 사실과 일치한다(기본 프로파일이 dev 로 바뀌어도 동일).
+      #     운영(prd) 형상은 이 파일을 쓰지 않고 deploy/onprem/config/backend/env.template 을 쓰며,
+      #     거기서는 값이 비어 있어 **운영자가 명시하기 전까지 기동하지 않는다**(DEV_FIX M-3/N-3).
+      #     운영 기본값으로 'none' 을 건네면 프록시 뒤에서 모든 콜백 IP 가 LB IP 하나로 수렴해
+      #     공격자 5회 실패가 정상 벤더 콜백 전건을 차단한다.
+      WEBHOOK_TRUSTED_PROXY_CIDRS: ${WEBHOOK_TRUSTED_PROXY_CIDRS:-none}
+      WEBHOOK_VLM_ALLOWED_IP_CIDRS: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:-none}
     volumes:
       - /data/klid/storage:/app/storage
     ports:
@@ -155,7 +183,8 @@ services:
         limits:
           memory: 6144m  # CPU 실추론(torch+sam2+onnxruntime 모델 로드) 여유 — mock 시엔 미사용
 
-  # 외부 벤더 목(mock) 서버 — 비식별(KPST 11EP) + VLM(3EP, 비동기 콜백) 실연동 테스트용.
+  # 외부 벤더 목(mock) 서버 — 비식별(KPST 11EP) + VLM(3EP, 비동기 콜백) + 생성형AI 증강(/api/genai/*)
+  #   실연동 테스트용.
   #   backend 가 실제 HTTP 로 이 서버를 호출한다(내부 self-fill 대체). 벤더 실서버 준비 시
   #   KPST_DEID_BASE_URL / VLM_SERVICE_URL 만 바꾸면 이 컨테이너 없이도 동작한다.
   #
@@ -170,13 +199,30 @@ services:
     image: klid-mock-server:latest
     container_name: klid-mock-server
     restart: unless-stopped
+    depends_on:
+      # 두 트리(storage·genai-out)의 소유권 초기화가 끝난 뒤 기동해야 쓰기가 가능하다.
+      klid-storage-init:
+        condition: service_completed_successfully
     environment:
-      # 비식별 더미 출력 파일 생성 base(= backend STORAGE_DEIDENTIFIED_PATH).
-      #   미설정이면 어떤 파일도 만들지 않는다(fail-closed) → BE 무결성 검증이 실패해 파이프라인이 멈춘다.
-      MOCK_OUTPUT_BASE: /app/storage/deidentified
+      # 비식별 더미 출력 파일 생성 허용 base(콤마 구분). 미설정이면 파일 미생성(fail-closed) →
+      #   BE 무결성 검증이 실패해 파이프라인이 멈춘다.
+      #   ★ BE 의 STORAGE_RAW_MOUNT_ROOTS 와 <한 세트>여야 한다 — Phase 5A(co-locate) 이후 BE 가 넘기는
+      #     export_path 는 {dirname(원본)}/{rawSn}/deid/ 라 원본이 있는 /app/storage/raw 하위다.
+      #     구 값(/app/storage/deidentified 단독)이면 목이 base 밖으로 판정해 더미를 만들지 않고,
+      #     BE 는 산출물 부재로 비식별을 영구 실패시킨다(isUsableDeidFile=false → failPolling).
+      MOCK_OUTPUT_BASE: ${STORAGE_RAW_MOUNT_ROOTS:-/app/storage/raw,/app/storage/deidentified}
       # 복사 원본 읽기 허용 루트(= raw/ 와 deidentified/ 의 공통 루트). 이 밖의 input_path 는
       #   복사하지 않고 placeholder 로 대체한다 — 임의 파일 노출·GB급 반복 복사(디스크 고갈) 차단.
       MOCK_INPUT_BASE: /app/storage
+      # 생성형AI 증강 목(PR #47). 두 base 모두 미설정이면 fail-closed —
+      #   결과 파일을 만들지 않고 FAILED(RESULT_SAVE_FAILED), input_files 는 전부 400 이다.
+      #   ★ 두 base 를 <서로 다른 트리>로 분리한다(PR #47 후속 #1). 같은 트리에 두면
+      #     "목 산출물 쓰기 권한 = 입력 읽기 권한"이 되어 심볼릭링크 TOCTOU(F-1)의 악화 요인이 된다.
+      #   INPUT 은 BE 미디어 볼륨 루트(/app/storage) — genai_input_base 는 콤마를 지원하지 않아
+      #     raw·deidentified 둘 다 덮으려면 공통 조상이어야 한다.
+      #   OUTPUT 은 별도 트리(/app/genai-out). 결과는 {base}/genai/{job_id}/ 하위에 생성된다.
+      MOCK_GENAI_INPUT_BASE: /app/storage
+      MOCK_GENAI_OUTPUT_BASE: /app/genai-out
       # VLM 콜백 outbound 허용 호스트(SSRF 방어). BE 는 WEBHOOK_CALLBACK_BASE_URL=
       #   http://klid-backend:8080/api 로 콜백 주소를 넘기므로 klid-backend 가 정상 경로다.
       MOCK_CALLBACK_ALLOWED_HOSTS: ${MOCK_CALLBACK_ALLOWED_HOSTS:-klid-backend,localhost,127.0.0.1}
@@ -184,6 +230,8 @@ services:
       # backend 와 **동일 볼륨·동일 경로** — BE 가 넘긴 절대경로(input_path/export_path)를 그대로 읽고 쓴다.
       #   경로가 어긋나면 위탁은 성공하는데 결과 파일이 없어 비식별이 'F' 로 끝난다.
       - /data/klid/storage:/app/storage
+      # 생성형AI 산출물 전용 — 입력 트리와 분리(위 주석 참조).
+      - /data/klid/genai-out:/app/genai-out
     ports:
       # ★ 루프백 전용 발행 — 목 서버는 인증이 없고 임의 URL 로 outbound POST 를 발사하며(SSRF),
       #   input_path/export_path 로 파일 생성을 유발할 수 있다. 0.0.0.0 발행(구 "9400:9400")은

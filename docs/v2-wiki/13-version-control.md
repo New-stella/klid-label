@@ -25,11 +25,15 @@
 - 두 APPROVED 버전의 DB 스냅샷을 **앱에서 비교**해 라벨 단위 변경 목록 산출
 - `GET /v1/frames/{srcSn}/versions` (이력) → `GET /v1/versions/{version}/diff?compareWith={fromHash}`
 - 응답 라벨 diff 최대 500건 (OWASP API4)
+- **프레임 스코프 강제**: `DATA_SRC_SN` 이 NULL 인 버전(구 비식별 신고 영상 스코프 스냅샷 — 신규 적재 중단, 기존 행만 잔존)은 프레임 단위 비교 대상이 아니므로 **400 으로 명시 거부**한다. 구현에 가드가 없어 `findById(null)` 에서 미처리 500 이 나던 결함을 수정했다(D-ISSUE-26) → [08](08-deidentification.md) 8.4
 
 ## 13.4 rollback (복구)
 
-- `POST /v1/versions/{version}/rollback` (body `srcSn`) — 대상 스냅샷을 **새 active 버전**(`SAVE_REASON='ROLLBACK'`)으로 복원
-- IDOR·비관적 잠금으로 소유 검증·동시성 제어
+- `POST /v1/versions/{version}/rollback` (body `srcSn`) — **대상 스냅샷 행을 다시 active 로 전환**한다(새 버전 행 적층 없음). 구 `SAVE_REASON='ROLLBACK'` 코드는 폐기: 롤백 결과 페이로드는 대상 스냅샷 그 자체라 재계산 해시가 대상 행과 같고 `(DATA_SRC_SN, VERSION_HASH)` UNIQUE 로 적층이 불가능하다(도달 불가 분기)
+- **라벨 본문을 작업본(`LS_DATA_LBL`)으로 실제 복원**한다 — `LBL_SN`·AI 메타(`AUTO_LBL_YN`/신뢰도/출처)·`TRCK_ID` 까지 **보존 복원**(PK 를 재발급하면 이후 diff 가 "전량 교체"로 오분류되므로 점유된 PK 만 신규 발급 폴백). 라벨링 캔버스(`GET /v1/frames/{srcSn}/labels`)가 롤백 결과를 즉시 반영
+- **롤백 행위는 `LS_DATA_LBL_HSTRY` 에 기록**: 누가(actor)·언제(시각)·어느 버전으로(대상 `VERSION_HASH`)
+- **멱등 롤백은 no-op**: 현재 active 가 이미 대상 스냅샷이면 라벨을 재작성하지 않고 이력·통지도 발행하지 않는다
+- IDOR·비관적 잠금으로 소유 검증·동시성 제어. 작업락(비식별 재처리 중) 영상은 롤백 거부(409)
 - 복구로 라벨 변경 시 `TASK_MODIFIED` 통지 트리거 → [15](15-control-notify.md)
 
 ## 13.5 권한

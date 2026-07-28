@@ -106,7 +106,7 @@ class BatchOrchestratorStatusTransitionTest {
     }
 
     @Test
-    @DisplayName("process_시작시_transitionService_markRawDataProcessing_호출로_PROCESSING_영속")
+    @DisplayName("process_시작시_transitionService_markRawDataProcessingBlocked_호출로_PROCESSING_영속")
     void process_시작시_PROCESSING_영속() {
         // given
         newRaw(601L);
@@ -115,7 +115,7 @@ class BatchOrchestratorStatusTransitionTest {
         orchestrator.process(601L);
 
         // then — 전이가 별도 트랜잭션 빈으로 위임되어야 DB 영속됨
-        verify(transitionService).markRawDataProcessing(601L);
+        verify(transitionService).markRawDataProcessingBlocked(601L);
     }
 
     @Test
@@ -130,6 +130,32 @@ class BatchOrchestratorStatusTransitionTest {
         // then
         assertThat(result).isEqualTo(BatchStage.COMPLETED);
         verify(transitionService).markRawDataCompleted(602L);
+        verify(transitionService, never()).markRawDataFailed(any());
+    }
+
+    @Test
+    @DisplayName("검수소유상태로_진입_차단되면_step이_한건도_실행되지_않고_SKIPPED_로_종료된다(H8)")
+    void process_검수소유상태_진입차단시_step_미실행() {
+        // given — 진입 게이트가 차단(true) 을 반환하는 검수 소유 상태(APPROVED/IN_REVIEW/PENDING/REJECTED)
+        newRaw(604L);
+        when(transitionService.markRawDataProcessingBlocked(604L)).thenReturn(true);
+
+        // when
+        BatchStage result = orchestrator.process(604L);
+
+        // then — 파이프라인 자체가 중단된다. 상태만 지키고 step 을 계속 돌리면 APPROVED 영상에 AUTO 라벨이
+        //        새로 적재되면서 상태는 APPROVED 로 남아 탐지 불가능한 데이터 오염이 된다.
+        assertThat(result).isEqualTo(BatchStage.SKIPPED);
+        verify(markingRepository, never()).findByRawSnOrderByRegDtDesc(any());
+        verify(vlmTimeseriesStep, never()).run(any());
+        verify(vlmTimeseriesStep, never()).runWithMarking(any(), any());
+        verify(frameExtractor, never()).extractByMarks(any(), any());
+        verify(yoloStep, never()).run(any());
+        verify(sam2Step, never()).run(any(), any());
+        verify(trackInterpolationStep, never()).run(any());
+        verify(statusService, never()).markStage(any(), any());
+        verify(statusService, never()).markCompleted(any());
+        verify(transitionService, never()).markRawDataCompleted(any());
         verify(transitionService, never()).markRawDataFailed(any());
     }
 

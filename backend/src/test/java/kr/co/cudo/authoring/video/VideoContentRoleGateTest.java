@@ -101,12 +101,14 @@ class VideoContentRoleGateTest {
     }
 
     @Test
-    @DisplayName("WORKER는_영상_stream_게이트통과_404")
-    void workerPassesStreamGate() throws Exception {
-        // given: WORKER 토큰 + 존재하지 않는 rawSn
-        // when/then: 역할 게이트는 통과하고 데이터 부재로 404 (403/401 아님)
+    @DisplayName("배정되지_않은_WORKER_가_임의_rawSn_스트리밍시_403")
+    void unassignedWorkerForbiddenOnArbitraryStream() throws Exception {
+        // B-ISSUE-63 (CWE-639 IDOR) — 구 동작은 역할만 검사해서 배정 이력이 전혀 없는 WORKER 도
+        // 임의 영상을 재생할 수 있었다(존재하는 rawSn 은 206, 없는 rawSn 은 404).
+        // 이제 영상 단위 인가가 먼저 걸리므로 배정되지 않은 WORKER 는 rawSn 존재 여부와 무관하게 403 이다
+        // (존재 여부를 알려주는 oracle 도 함께 제거된다).
         mockMvc.perform(get("/v1/videos/999999/stream").header("Authorization", "Bearer " + workerToken()))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden());
     }
 
     @Test

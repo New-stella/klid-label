@@ -45,6 +45,8 @@ import {
   type PendingIssue,
 } from '@/features/review/store/useReviewSelectionStore';
 import { ISSUE_STATUS, ISSUE_TYPE } from '@/features/review/types';
+import { ApiError } from '@/lib/api/errors';
+import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { useUiStore } from '@/stores/useUiStore';
 
 /**
@@ -92,6 +94,11 @@ export function ReviewPage() {
 
   const [rejectOpen, setRejectOpen] = useState(false);
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
+  /**
+   * D-ISSUE-04 / H6 — 라벨 0건(negative sample) 승인 재확인 다이얼로그. BE 가 409 로 거부했을 때만
+   * 열리며, 여기서 확인해야 noLabelConfirmed=true 로 재요청한다(플래그 상시 전송 방지).
+   */
+  const [noLabelConfirmOpen, setNoLabelConfirmOpen] = useState(false);
   const [didStart, setDidStart] = useState(false);
 
   // Phase 5·6 — store 구독 (selector 패턴, rules/state-management.md).
@@ -147,10 +154,25 @@ export function ReviewPage() {
 
   const { mutate: doApprove, isPending: approving } = useApproveReview({
     onSuccess: () => {
+      setNoLabelConfirmOpen(false);
       pushToast({ variant: 'success', message: '승인 완료' });
       navigate('/review');
     },
-    onError: () => pushToast({ variant: 'error', message: '승인 실패' }),
+    onError: (err) => {
+      // 라벨 0건 영상은 BE 가 409(REVIEW_NO_LABEL) 로 막는다 — 실패 토스트로 끝내면 검수자는 반려밖에
+      // 못 하고 더미 라벨을 넣도록 유도된다. 확인 다이얼로그를 띄워 '라벨 없음'을 명시 확인받는다.
+      //
+      // DEV_FIX H12(H6) — 상태코드(409)만 보고 분기하면 안 된다. 승인 경로의 409 에는 <b>동시 승인 충돌</b>
+      //   ("다른 검수자가 먼저 처리했습니다")과 <b>상태 전이 불가</b>도 포함되므로, 라벨이 있는 영상의
+      //   낙관적 잠금 충돌에도 "라벨이 없는 영상입니다" 다이얼로그가 떴다. 사용자가 확인을 누르면
+      //   noLabelConfirmed=true 재요청 → BE 400 → "승인 실패" 로 끝나는 오도 경로가 된다.
+      //   errorCode 로 사유를 구분한다(메시지 문자열 매칭 금지).
+      if (err instanceof ApiError && err.errorCode === 'REVIEW_NO_LABEL') {
+        setNoLabelConfirmOpen(true);
+        return;
+      }
+      pushToast({ variant: 'error', message: extractBeMessage(err, '승인 실패') });
+    },
   });
 
   // 검수 화면 진입 시 자동으로 startReview 호출 (REVIEW_PENDING → REVIEWING)
@@ -193,6 +215,15 @@ export function ReviewPage() {
     if (!review) return;
     setApproveConfirmOpen(false);
     doApprove({ reviewId: review.id });
+  }, [doApprove, review]);
+
+  /**
+   * H6 — ' 라벨 없음' 명시 확인 후 재승인. 이 경로에서만 noLabelConfirmed 를 싣는다(기본값 아님).
+   * BE 는 이 승인을 통합 이벤트 로그(APPROVE + 사유)에 남겨 누가 언제 확인했는지 감사 가능하게 한다.
+   */
+  const handleNoLabelApprove = useCallback(() => {
+    if (!review) return;
+    doApprove({ reviewId: review.id, body: { noLabelConfirmed: true } });
   }, [doApprove, review]);
 
   if (Number.isNaN(numericId)) {
@@ -350,6 +381,19 @@ export function ReviewPage() {
         composeReason={(userReason) =>
           composeRejectReason(userReason, reviewComment, pendingIssues)
         }
+      />
+
+      {/* H6 — negative sample(라벨 0건) 승인 확인. 검수자가 명시 동의한 경우에만 재요청한다. */}
+      <ConfirmDialog
+        open={noLabelConfirmOpen}
+        title="라벨이 없는 영상입니다"
+        description="이 영상에는 저장된 라벨이 없습니다. 객체가 실제로 없는 영상(정상)이면 그대로 승인할 수 있습니다. 라벨이 누락된 것이라면 승인하지 말고 반려하세요. 확인 승인 시 '라벨 없음 확인' 사실이 작업 이력에 기록됩니다."
+        confirmLabel="라벨 없음 확인 후 승인"
+        cancelLabel="취소"
+        variant="danger"
+        loading={approving}
+        onConfirm={handleNoLabelApprove}
+        onCancel={() => setNoLabelConfirmOpen(false)}
       />
 
       <ConfirmDialog

@@ -50,6 +50,7 @@ class RoleClaimServiceTest {
     private UserRepository userRepository;
     private LsUserRoleRepository lsUserRoleRepository;
     private kr.co.cudo.authoring.common.security.UserRoleResolver userRoleResolver;
+    private RoleClaimRateLimiter rateLimiter;
     private String adminPlaintext;
 
     @BeforeEach
@@ -81,7 +82,10 @@ class RoleClaimServiceTest {
         adminPlaintext = Base64.getUrlEncoder().withoutPadding().encodeToString(pwBytes);
         String bcryptHash = new BCryptPasswordEncoder(12).encode(adminPlaintext);
 
-        service = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver, bcryptHash, "klid-auth");
+        // rate limiter — 공유 저장소 없이(로컬 카운터만) 계정 5회/분, 전역 50회/분.
+        rateLimiter = new RoleClaimRateLimiter(null, 5, 50);
+        service = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver,
+                rateLimiter, bcryptHash, "klid-auth");
     }
 
     private TokenClaims actor(String sub, Role role) {
@@ -134,17 +138,39 @@ class RoleClaimServiceTest {
     }
 
     @Test
-    @DisplayName("권한_없는_사용자가_REVIEWER_부여_성공_+_새토큰_반환")
-    void claimReviewerSuccess() {
+    @DisplayName("공유_패스워드만으로는_REVIEWER_승격_불가")
+    void claimReviewerForbidden() {
+        // A-ISSUE-17 — REVIEWER 는 사용자 관리·시스템 설정·검수 승인을 모두 갖는 사실상 관리자다.
+        // 공유 정적 패스워드 1개로 자가부여가 되면 패스워드 유출 = 전권 탈취.
+        // given: 올바른 관리자 패스워드 + 무권한 INTERNAL actor (=구 구현에서는 성공하던 조건)
         RoleClaimRequest req = new RoleClaimRequest(Role.REVIEWER, adminPlaintext);
 
-        RoleClaimResponse res = service.claim(req, actor("1001", null));
+        // when/then: 화이트리스트(WORKER 단일) 밖 역할이므로 403 + 부여 0건
+        assertThatThrownBy(() -> service.claim(req, actor("1001", null)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
 
-        assertThat(res.role()).isEqualTo("REVIEWER");
-        Claims claims = Jwts.parser().verifyWith(key).build()
-                .parseSignedClaims(res.accessToken()).getPayload();
-        assertThat(claims.get("role", String.class)).isEqualTo("REVIEWER");
-        verify(lsUserRoleRepository).upsertRole(eq(1001L), eq("REVIEWER"));
+        verify(lsUserRoleRepository, times(0)).upsertRole(anyLong(), anyString());
+        assertThat(RoleClaimService.allowedClaimRoles()).containsExactly(Role.WORKER);
+    }
+
+    @Test
+    @DisplayName("허용되지_않은_역할_요청은_rate_limit_소모_전에_거부됨")
+    void disallowedRoleRejectedBeforeRateLimit() {
+        // A-ISSUE-17/18 — 검증 순서: ① role 화이트리스트 → ② actor 채널/기보유역할 → ③ rate limit.
+        // role 검증이 rate limit 뒤에 있으면 잘못된 role 시도가 정상 사용자의 쿼터를 소모시킨다.
+        RoleClaimRequest bad = new RoleClaimRequest(Role.REVIEWER, adminPlaintext);
+
+        // given: 계정 한도(5회)를 넘는 REVIEWER 시도 — 전부 403 이어야 하고 429 로 바뀌면 안 된다.
+        for (int i = 0; i < 7; i++) {
+            assertThatThrownBy(() -> service.claim(bad, actor("1001", null)))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        }
+
+        // then: 쿼터가 소모되지 않았으므로 정상 WORKER 자가부여가 그대로 성공한다.
+        RoleClaimResponse res = service.claim(new RoleClaimRequest(Role.WORKER, adminPlaintext), actor("1001", null));
+        assertThat(res.role()).isEqualTo("WORKER");
     }
 
     @Test
@@ -153,7 +179,8 @@ class RoleClaimServiceTest {
         // JWT role 은 비어있지만(stale token) LS_USER_ROLE 에 이미 역할 존재.
         when(lsUserRoleRepository.findByUserNo(1001L))
                 .thenReturn(Optional.of(LsUserRole.of(1001L, "WORKER")));
-        RoleClaimRequest req = new RoleClaimRequest(Role.REVIEWER, adminPlaintext);
+        // 요청 역할은 화이트리스트(WORKER) — 여기서 검증하려는 것은 "이미 LS 역할 보유" 분기다.
+        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
 
         assertThatThrownBy(() -> service.claim(req, actor("1001", null)))
                 .isInstanceOf(CustomException.class)
@@ -177,7 +204,7 @@ class RoleClaimServiceTest {
     @Test
     @DisplayName("이미_WORKER_권한_부여된_사용자가_재호출_409_CONFLICT")
     void alreadyWorkerReturns409() {
-        RoleClaimRequest req = new RoleClaimRequest(Role.REVIEWER, adminPlaintext);
+        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
 
         assertThatThrownBy(() -> service.claim(req, actor("1001", Role.WORKER)))
                 .isInstanceOf(CustomException.class)
@@ -279,7 +306,8 @@ class RoleClaimServiceTest {
     @DisplayName("BCrypt_해시가_빈문자열이면_항상_401")
     void emptyAdminHashAlwaysReturns401() {
         JwtKeyResolver resolver = () -> key;
-        RoleClaimService empty = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver, "", "klid-auth");
+        RoleClaimService empty = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver,
+                new RoleClaimRateLimiter(null, 5, 50), "", "klid-auth");
         RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
 
         assertThatThrownBy(() -> empty.claim(req, actor("1001", null)))
@@ -292,7 +320,8 @@ class RoleClaimServiceTest {
     void rejectNonBcryptHashAtBoot() {
         JwtKeyResolver resolver = () -> key;
         assertThatThrownBy(() ->
-                new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver, "plaintext-not-bcrypt", "klid-auth")
+                new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver,
+                        new RoleClaimRateLimiter(null, 5, 50), "plaintext-not-bcrypt", "klid-auth")
         ).isInstanceOf(IllegalStateException.class);
     }
 

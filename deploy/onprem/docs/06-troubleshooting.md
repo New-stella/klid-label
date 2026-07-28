@@ -135,8 +135,13 @@
 
 ## backend 부팅 실패 — webhook HMAC
 
-증상: prd 부팅 시 `WEBHOOK_HMAC_SECRET_VLM 환경변수가 필수입니다 (prd)`.
-해결: `backend.env` 의 `WEBHOOK_HMAC_SECRET_VLM`/`_AUGMENT` 를 강한 값으로 채움(`openssl rand -hex 32`).
+증상: prd 부팅 시 `webhook.hmac.secret.augment 이(가) 설정되지 않았습니다`.
+해결: `backend.env` 의 `WEBHOOK_HMAC_SECRET_AUGMENT` 를 강한 값으로 채움(`openssl rand -hex 32`).
+(VLM 콜백은 벤더 무서명 규격이라 `WEBHOOK_HMAC_SECRET_VLM` 은 소비처가 없다 — 채워도 무시된다.)
+
+증상: prd 부팅 시 `webhook.trusted-proxy-cidrs ... 에 잘못된 값이 있습니다`.
+해결: CIDR 오타(`203.0.113.0/33`)·구분자 오타(`;`)·호스트명은 부팅 차단된다(DEV_FIX N-4).
+IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` 을 명시.
 
 ## PostgreSQL 번들 설치 (오프라인)
 

@@ -25,6 +25,7 @@ import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,8 @@ public class AssignmentService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "존재하지 않는 검수자입니다.");
         }
 
+        rejectApprovedTargets(req.rawDataIds());
+
         List<LsTaskAssignment> created = new ArrayList<>();
         try {
             for (Long rawDataId : req.rawDataIds()) {
@@ -83,6 +86,15 @@ public class AssignmentService {
         } catch (DataIntegrityViolationException e) {
             log.warn("[Assignment] duplicate assignment detected workerId={}", req.workerId());
             throw new CustomException(ErrorCode.CONFLICT, "이미 동일 작업자에게 배정된 영상이 있습니다.");
+        } catch (OptimisticLockingFailureException e) {
+            // H4-a — assign 은 rejectApprovedTargets 가 읽은 상태 row 를 그대로 markAssigned 하므로,
+            // 그 사이 다른 트랜잭션이 approve(=@Version 증가)하면 flush 가 낙관적 잠금 실패로 롤백된다.
+            // 데이터는 안전하지만 전역 핸들러에 OptimisticLockingFailureException 매핑이 없어 500 이 나갔다.
+            // 재배정 경로와 동일하게 409 로 통일한다(전역 매핑은 다른 경로 동작을 바꾸므로 국소 catch 로 한정).
+            log.warn("[Assignment] optimistic lock conflict on assign workerId={} actor={}",
+                    req.workerId(), actorNo);
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "다른 사용자가 먼저 해당 영상의 상태를 변경했습니다. 새로고침 후 다시 시도해주세요.");
         }
 
         // 옵셔널 — REVIEWER 동시 등록. worker 배정과 동일 트랜잭션 내에서 수행하되,
@@ -99,6 +111,33 @@ public class AssignmentService {
                 .map(e -> AssignmentResponse.Item.from(e, req.reviewerId()))
                 .toList();
         return new AssignmentResponse(items);
+    }
+
+    /**
+     * 신규 배정 대상 중 <b>검수 승인(APPROVED)</b> 영상이 있으면 배정 자체를 거부한다 (D-ISSUE-01).
+     *
+     * <p>기존엔 {@code markAssigned()}(검증 없는 상태 setter)를 그대로 호출해 APPROVED 영상이
+     * ASSIGNED 로 무검증 강등됐다. 그 결과 {@code V_COMPLETED_VIDEO} 에서 검수완료 영상이 사라지는데
+     * {@code LS_LABEL_VERSION} 스냅샷과 {@code LS_DATASET_VIDEO_META} 동결분은 남아 뷰/스냅샷이
+     * 불일치했다. 재배정({@link #reassign})에는 이미 동일 가드가 있으므로 같은 에러코드
+     * ({@link ErrorCode#ASSIGNMENT_ALREADY_COMPLETED}, 409)를 재사용해 두 경로의 응답을 통일한다.
+     *
+     * <p><b>부분성공 금지 — 전체 실패 정책</b>: 복수 rawDataIds 중 1건이라도 APPROVED 면 어떤 영상도
+     * 배정하지 않는다. 부분성공을 허용하면 호출자(FE)가 "어느 영상이 배정되지 않았는지" 알 수 없어
+     * 모호해지고, 기존 중복 배정(UK 충돌) 경로도 이미 전체 롤백이라 정책이 일관되지 않는다.
+     * 상태 조회는 단일 IN 쿼리 1회로 수행한다(N+1 회피).
+     */
+    private void rejectApprovedTargets(List<Long> rawDataIds) {
+        if (rawDataIds == null || rawDataIds.isEmpty()) {
+            return;
+        }
+        boolean anyApproved = dataSttsRepository.findByRawDataIdIn(rawDataIds).stream()
+                .anyMatch(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()));
+        if (anyApproved) {
+            log.warn("[Assignment] assign rejected — approved video included count={}", rawDataIds.size());
+            throw new CustomException(ErrorCode.ASSIGNMENT_ALREADY_COMPLETED,
+                    "검수 완료된 영상은 배정할 수 없습니다.");
+        }
     }
 
     /**
@@ -145,7 +184,10 @@ public class AssignmentService {
 
         // 비즈니스 로직 가드 (CWE-840): 검수 승인 완료된 배정은 재배정 불가.
         // FE 버튼은 이미 가려지지만 API 직접 호출/동시성으로 우회 가능하므로 서버에서 최종 차단.
-        dataSttsRepository.findById(prev.getRawDataId()).ifPresent(stts -> {
+        // H4-b — 상태 row 를 공유 잠금(FOR SHARE)으로 읽어 트랜잭션 종료까지 보유한다. 단순 read 면
+        // "가드 통과 → 다른 tx 가 approve 커밋 → reassign 커밋" 순서로 승인된 영상이 재배정된다
+        // (두 row 가 잠금을 공유하지 않고, LS_TASK_ASSIGNMENT 의 @Version 은 이 창을 닫지 못한다).
+        dataSttsRepository.findByRawDataIdForShare(prev.getRawDataId()).ifPresent(stts -> {
             if (LsRawDataStatus.STTS_APPROVED.equals(stts.getDataSttsCd())) {
                 throw new CustomException(ErrorCode.ASSIGNMENT_ALREADY_COMPLETED,
                         "완료된 작업은 재배정할 수 없습니다.");
@@ -181,11 +223,21 @@ public class AssignmentService {
                 prev.getRawDataId(), actorNo, req.workerId(), prevWorkerNo));
         prev.reassignTo(req.workerId());
         try {
+            // flush 로 UPDATE 를 커밋 전에 강제 실행한다. 낙관적 잠금 충돌은 flush 시점에 표면화되므로
+            // 명시 flush 없이는 커밋 단계까지 미뤄져 아래 catch 를 벗어난다(D-ISSUE-02).
             authrtRepository.flush();
         } catch (DataIntegrityViolationException e) {
             // 사전 체크 후에도 동시성으로 UK 충돌이 발생할 수 있으므로 동일 메시지로 통일.
             throw new CustomException(ErrorCode.CONFLICT,
                     "선택한 작업자는 이미 해당 영상에 배정되어 있습니다.");
+        } catch (OptimisticLockingFailureException e) {
+            // D-ISSUE-02: 동시 재배정 직렬화. 재배정은 기존 row UPDATE 라 UK 충돌이 나지 않아
+            // 위 방어가 발화하지 않는다. @Version 으로 패자를 결정적으로 거부해 이력·이벤트 로그
+            // 중복 적재를 차단한다(트랜잭션 전체 롤백 → HSTRY/EVENT_LOG 도 남지 않음).
+            log.warn("[Assignment] optimistic lock conflict on reassign authrtSeq={} actor={}",
+                    assignmentId, actorNo);
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "다른 사용자가 먼저 재배정했습니다. 새로고침 후 다시 시도해주세요.");
         }
         log.info("[Assignment] reassigned actor={} authrtSeq={} newWorker={}", actorNo, assignmentId, req.workerId());
         return AssignmentResponse.single(prev);

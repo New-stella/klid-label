@@ -139,6 +139,10 @@ class FrameDescriptionServiceTest {
         assertThat(event.changeType()).isEqualTo(ChangeType.META_UPDATED);
         assertThat(ChangeType.ALL).contains(event.changeType());
         assertThat(event.modifierNo()).isEqualTo(1001L);
+        // HIGH-B(Phase 5C) — 프레임 설명은 export JSON 의 image.description 으로 나가므로 승인 후 수정 시
+        //   export 폴더를 새 버전으로 재생성해야 데이터마트가 동기화된다. exportRegenerated=true 회귀 방어
+        //   (4-arg=false 로 되돌리면 실패).
+        assertThat(event.exportRegenerated()).isTrue();
     }
 
     @Test

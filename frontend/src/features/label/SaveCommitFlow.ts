@@ -11,6 +11,16 @@ import type { Label, LabelsResponse } from './types';
 export interface SaveCommitOptions {
   portalMode?: boolean;
   message?: string;
+  /**
+   * 라벨셋 버전 (C-ISSUE-21 낙관적 동시성 토큰) — <b>필수</b>.
+   *
+   * <p>DEV_FIX H13: 과거 이 함수는 putLabels(srcSn, labels) 로 <b>버전 없이</b> 호출해 BE 의 lost-update
+   * 방어를 통째로 우회했다. 현재 이 경로를 렌더하는 화면이 없어 실해는 없었으나, 재사용되는 순간
+   * "저장 시 남의 라벨이 조용히 삭제되는" 결함이 부활한다. 그래서 선택 인자가 아니라 <b>필수</b>로
+   * 못박아 호출자가 반드시 조회 응답의 labelVersion 을 실어 보내게 한다(모르면 null 을 명시).
+   * null 을 넘기면 BE 하위호환 경로(검사 skip)이며, 그 선택은 호출자의 명시적 책임이다.
+   */
+  labelVersion: number | null;
 }
 
 export interface SaveCommitResult {
@@ -25,8 +35,9 @@ export interface SaveCommitResult {
 export async function saveAndCommit(
   srcSn: number,
   labels: Label[],
-  _options: SaveCommitOptions = {},
+  options: SaveCommitOptions,
 ): Promise<SaveCommitResult> {
-  const saved = await putLabels(srcSn, labels);
+  // DEV_FIX H13 — 라벨셋 버전을 반드시 실어 보낸다(BE 낙관적 동시성 검사 우회 제거).
+  const saved = await putLabels(srcSn, labels, options.labelVersion);
   return { saved, committed: null };
 }

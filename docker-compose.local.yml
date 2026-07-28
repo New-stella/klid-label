@@ -28,8 +28,13 @@ services:
     #   base 는 /data/klid/storage(호스트)를 init 하지만 local 의 backend 는 named volume(klid-storage)을
     #   쓰므로 서로 다른 위치를 가리키는 누락 버그였다. Mac/비-서버에서 호스트 바인드 미공유로 마운트 거부되고,
     #   설령 Linux 라도 backend 가 쓰는 볼륨을 init 하지 못한다. 같은 named volume 을 init 하도록 정정.
+    #   ★ genai 산출물 볼륨도 함께 init 한다 — named volume 은 root:root 로 생성되는데 mock-server 는
+    #     uid 999(app)로 실행돼, 초기화하지 않으면 결과 저장이 Permission denied 로 실패한다
+    #     (job 이 FAILED/RESULT_SAVE_FAILED 로 끝나며 설정만 넣어서는 동작하지 않는다).
+    command: sh -c "mkdir -p /storage/raw /storage/deidentified /genai-out && chown -R 999:999 /storage /genai-out && chmod -R 775 /storage /genai-out"
     volumes:
       - klid-storage:/storage
+      - klid-genai-out:/genai-out
 
   klid-backend:
     # 영상 저장소 /data 바인드 → named volume
@@ -42,6 +47,12 @@ services:
       # 외부 벤더 연동(mock-server 실 HTTP)은 base compose 가 이미 주입한다
       #   (DEIDENTIFY_MOCK_MODE=false / KPST_DEID_* / VLM_* / WEBHOOK_CALLBACK_BASE_URL).
       #   여기서 다시 선언하면 값이 두 파일로 갈라지므로 중복 정의하지 않는다.
+      # D-48 실동작 설정 — 관제 완료/수정 통지를 목 서버로 실제 전송한다(내부 목모드 우회 금지).
+      #   mock-server 의 /api/data-set/v2/jobs/{job_id}/notify-completed|notify-updated 가
+      #   409(job_id 중복)/404(선행 완료 없음)를 관제 계약대로 돌려주므로 자기치유가 HTTP 왕복으로 검증된다.
+      #   (base 는 관제 통지 대상이 환경마다 달라 주입하지 않으므로 local override 에만 둔다)
+      CONTROL_NOTIFY_ENABLED: "true"
+      CONTROL_NOTIFY_URL: "http://klid-mock-server:9400"
       # 로컬 FE dev 서버는 docker 매핑 포트 13000 으로 서빙된다(klid-frontend ports 13000:5174).
       #   base 의 .env CORS_ALLOWED_ORIGINS 는 5173/5174/3000 만 포함해 브라우저 Origin
       #   http://localhost:13000 이 Spring CorsFilter 403("Invalid CORS request")으로 거부되고
@@ -69,16 +80,24 @@ services:
           # CPU 실추론(YOLOX/SAM2) 메모리 여유 확보
           memory: 4096m
 
-  # 외부 벤더 목(mock) 서버 — 서비스 정의 본체는 base docker-compose.yml 로 승격됐다(dev 도 함께 사용).
+  # 외부 벤더 목(mock) 서버 — 비식별(KPST)·VLM·생성형AI 증강 실연동 테스트용.
+  #   서비스 정의 본체(build/env/포트/헬스체크)는 base docker-compose.yml 로 승격됐다(dev 도 함께 사용).
   #   여기서는 **차이분(볼륨)만** 남긴다: /data 호스트 바인드 → backend 와 동일 named volume.
-  #   (전체 정의를 다시 쓰면 base 와 갈라져 MOCK_OUTPUT_BASE·포트가 조용히 달라진다)
+  #   (전체 정의를 다시 쓰면 base 와 갈라져 MOCK_OUTPUT_BASE·MOCK_GENAI_*·포트가 조용히 달라진다)
   #   ★ ports 를 여기서 재선언하지 말 것 — base 의 루프백 전용 발행(127.0.0.1:9400:9400)이
   #     무력화된다. 목 서버는 인증이 없어 외부 인터페이스 노출 자체가 취약점이다.
+  #   ★ depends_on(klid-storage-init 완료)·MOCK_GENAI_INPUT_BASE/OUTPUT_BASE 도 base 에 있으므로
+  #     여기서는 볼륨 대상만 named volume 으로 바꿔 준다.
   mock-server:
     volumes:
       - klid-storage:/app/storage
+      # 생성형AI 산출물 전용 — 입력 트리와 분리(base 주석 참조). named volume 은 root:root 로
+      #   생성되므로 klid-storage-init 이 chown 999 한 뒤에야 목이 결과를 저장할 수 있다.
+      - klid-genai-out:/app/genai-out
 
 volumes:
   klid-pgdata:
   klid-storage:
   klid-hf-cache:
+  # 생성형AI 목 산출물 전용 — 입력(klid-storage)과 분리해 쓰기 권한이 입력 읽기 권한이 되지 않게 한다.
+  klid-genai-out:

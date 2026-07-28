@@ -61,6 +61,7 @@ public class Sam2SegmentService {
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LabelAccessGuard accessGuard;
+    private final FrameImageEncoder frameImageEncoder;
     private final SystemConfigService systemConfigService;
     private final ObjectMapper objectMapper;
 
@@ -84,12 +85,10 @@ public class Sam2SegmentService {
         LsDataSrc src = srcRepository.findById(req.srcSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
 
-        Path baseDir = Path.of(storageRawPath).toAbsolutePath().normalize();
-        // 원본 프레임 이미지(srcFilePathNm) — 정책상 SAM2 는 원본에만 실행.
-        Path imagePath = resolveSafe(baseDir, src.getSrcFilePathNm());
-        if (!Files.exists(imagePath)) {
-            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일을 찾을 수 없습니다.");
-        }
+        // M-6 — 비식별 우선 폴백(출처 컬럼에 맞는 base 로 검증). 해상도 파생 프레임은 원본 픽셀이
+        //       실재하지 않아 SRC_FILE_PATH_NM 이 null 이므로, 원본 컬럼만 보면 파생 프레임 분할이
+        //       "이미지 경로가 비어있습니다"(400)로 전면 실패한다.
+        Path imagePath = frameImageEncoder.resolveFrameImage(src);
         // 이미지 크기 상한 검증 (b64 인코딩 전).
         long size = fileSize(imagePath);
         if (size > maxImageBytes) {

@@ -30,15 +30,29 @@ spring:
       max-file-size: 21MB
       max-request-size: 1100MB
 
-# 운영(prd) 환경에서는 webhook HMAC 시크릿 환경변수 미설정 시 부팅 차단.
-# Spring 의 `${VAR:?msg}` 구문은 placeholder 미설정 시 BeanCreationException 으로 부팅 실패.
-# 빈 문자열 fallback(application.yml) 을 덮어쓰기 위해 prd 프로파일에서 별도 명시.
+# 운영(prd) webhook 설정 — 미설정 시 부팅 차단(fail-closed).
+#
+# ★ `${VAR:?msg}` 는 쓰지 않는다 (DEV_FIX H-1). Spring 의 placeholder 는 첫 ':' 뒤를 전부
+#   기본값으로 해석하므로 `${VAR:?msg}` 는 fail-fast 가 아니라 "?msg" 라는 문자열이 그대로 주입된다.
+#   그 문자열은 비어 있지도 않고 32B 를 넘어 시크릿 검증을 통과 → **커밋된 문자열을 키로 기동**하게 된다.
+#   따라서 yml 은 빈 기본값(${VAR:})으로 두고, 미설정·공개 placeholder·약한 길이는 모두
+#   HmacWebhookFilter / ClientIpResolver / WebhookIpAllowlist 의 기동 검증이 차단한다.
+#
 # (UC018 — 비식별은 KPST 폴링으로 단일화되어 deidentify 콜백 시크릿 키를 제거함.)
 # (VLM describe 콜백은 벤더 v2.0.1 무서명 규격 — HMAC 제거, request_id 발급 게이트로 대체. 증강만 유지.)
 webhook:
   hmac:
     secret:
-      augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:?WEBHOOK_HMAC_SECRET_AUGMENT 환경변수가 필수입니다 (prd)}
+      # 미설정/빈 값 → BeanInitializationException 으로 기동 차단(HmacWebhookFilter).
+      augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:}
+  # 운영은 LB/Nginx 뒤에 배포된다. 신뢰 프록시 대역을 지정해야 X-Forwarded-For 가 해석되며,
+  # 미지정 시 모든 콜백의 클라이언트 IP 가 프록시 IP 로 수렴해 rate limit 이 전체를 차단할 수 있다(A-ISSUE-15).
+  #   prd 는 **명시 필수** — 프록시 뒤면 CIDR, 직접 노출이면 'none' (미설정 시 기동 차단, DEV_FIX M-3).
+  trusted-proxy-cidrs: ${WEBHOOK_TRUSTED_PROXY_CIDRS:}
+  vlm:
+    # VLM 콜백 IP allowlist (B-ISSUE-25 TODO 이행) — 벤더 송신 대역을 지정한다.
+    #   prd 는 **명시 필수** — 대역 CIDR 또는 미적용을 뜻하는 'none' (미설정 시 기동 차단, DEV_FIX M-3).
+    allowed-ip-cidrs: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:}
 
 # 운영(prd) 환경 — API 문서/Swagger UI 노출 차단 (보안: 공격 표면 축소).
 #   springdoc 비활성 시 /v3/api-docs, /swagger-ui 모두 404 (SecurityConfig 의 permitAll 무력화).

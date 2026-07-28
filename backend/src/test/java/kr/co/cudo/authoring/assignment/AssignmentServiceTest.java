@@ -373,6 +373,75 @@ class AssignmentServiceTest {
         assertThat(after.getUserNo()).isEqualTo(100L);
     }
 
+    // ── D-ISSUE-01: 신규 배정이 APPROVED 를 무검증 강등하는 결함 회귀 가드 ──
+
+    /** LS_RAW_DATA_STATUS 현재 상태 조회 (row 없으면 null). */
+    private String currentStatus(long rawDataId) {
+        List<String> rows = jdbcTemplate.queryForList(
+                "SELECT DATA_STTS_CD FROM LS_RAW_DATA_STATUS WHERE RAW_DATA_ID = ?", String.class, rawDataId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    @Test
+    @DisplayName("APPROVED_영상에_신규배정시_409_이고_상태가_APPROVED_로_유지됨")
+    void assignRejectsApprovedVideo() {
+        // given — 1000 배정 후 검수 승인(APPROVED) 시뮬레이션.
+        assignmentService.assign(new AssignmentCreateRequest(100L, List.of(1000L)), reviewer());
+        jdbcTemplate.update(
+                "UPDATE LS_RAW_DATA_STATUS SET DATA_STTS_CD = 'APPROVED', UPD_DT = CURRENT_TIMESTAMP " +
+                        "WHERE RAW_DATA_ID = ?", 1000L);
+
+        // when / then — 다른 작업자에게 신규 배정 시도 → 재배정과 동일 코드(409)로 거부.
+        assertThatThrownBy(() ->
+                assignmentService.assign(new AssignmentCreateRequest(101L, List.of(1000L)), reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ASSIGNMENT_ALREADY_COMPLETED);
+
+        // 상태 불변 — V_COMPLETED_VIDEO 에서 검수완료 영상이 사라지지 않아야 한다.
+        assertThat(currentStatus(1000L)).isEqualTo("APPROVED");
+        // 신규 배정 row 미생성 (기존 LABELER 1건만 유지)
+        assertThat(authrtRepository.findAll()).hasSize(1);
+        assertThat(authrtRepository.findAll().get(0).getUserNo()).isEqualTo(100L);
+    }
+
+    @Test
+    @DisplayName("APPROVED_가_아닌_영상_신규배정은_기존대로_201_이고_ASSIGNED_로_전이됨")
+    void assignStillWorksForNonApprovedVideo() {
+        // given — 상태 row 가 없는 신규 영상(=정상 배정 경로).
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1001L));
+
+        // when
+        AssignmentResponse response = assignmentService.assign(req, reviewer());
+
+        // then — 게이트 도입 후에도 정상 배정 플로우는 그대로 동작해야 한다(회귀 방어).
+        assertThat(response.items()).hasSize(1);
+        assertThat(currentStatus(1001L)).isEqualTo("ASSIGNED");
+    }
+
+    @Test
+    @DisplayName("배정목록에_APPROVED_가_1건_섞이면_전체실패하고_어떤_배정도_생성되지_않음")
+    void assignFailsEntirelyWhenAnyVideoApproved() {
+        // given — 1000 은 검수완료(APPROVED), 1001 은 미배정 신규.
+        assignmentService.assign(new AssignmentCreateRequest(100L, List.of(1000L)), reviewer());
+        jdbcTemplate.update(
+                "UPDATE LS_RAW_DATA_STATUS SET DATA_STTS_CD = 'APPROVED', UPD_DT = CURRENT_TIMESTAMP " +
+                        "WHERE RAW_DATA_ID = ?", 1000L);
+
+        // when / then — 복수 배정 중 1건이라도 APPROVED 면 전체 실패 (부분성공 금지 — 어느 영상이
+        //               배정되지 않았는지 호출자가 알 수 없어 모호해지는 것을 방지).
+        assertThatThrownBy(() ->
+                assignmentService.assign(new AssignmentCreateRequest(101L, List.of(1001L, 1000L)), reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ASSIGNMENT_ALREADY_COMPLETED);
+
+        assertThat(currentStatus(1000L)).isEqualTo("APPROVED");
+        // 1001 은 상태 row 조차 생성되지 않아야 한다(전체 실패).
+        assertThat(currentStatus(1001L)).isNull();
+        assertThat(authrtRepository.findAll()).hasSize(1);
+    }
+
     @Test
     @DisplayName("reassign_시_REASSIGN_이벤트가_prev_subject_와_함께_누적")
     void reassignAccumulatesEventLog() {

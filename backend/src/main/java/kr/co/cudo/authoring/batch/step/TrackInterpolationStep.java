@@ -127,6 +127,13 @@ public class TrackInterpolationStep implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
 
+        // DEV_FIX(H4) — 프레임 락을 트랜잭션 맨 앞에서 1회·SRC_SN 오름차순으로 선점한다. 본 경로도
+        //   "stale 보간 프레임 bump → 신규 보간 프레임 bump" 로 한 트랜잭션에서 서로 다른 집합을 2회
+        //   잠갔다. 트랙 편집 경로만 단일화하고 여기를 두면, 편집이 모든 프레임을 쥔 채 라벨 락을
+        //   기다리고 이쪽이 프레임 락을 기다리는 순환이 그대로 남는다(양쪽 모두 단일 지점이어야 한다).
+        //   상세 근거는 LsDataSrcRepository#lockFramesByRawSn Javadoc.
+        srcRepository.lockFramesByRawSn(rawSn);
+
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         if (frames.isEmpty()) {
             log.info("[Batch][Interpolation] no frames rawSn={}", rawSn);
@@ -143,7 +150,15 @@ public class TrackInterpolationStep implements BatchStep {
         // 재실행 idempotency — 기존 보간 생성 row 를 먼저 삭제(중복 INSERT 방지).
         // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순서로 삭제해 FK 고아 방지.
         List<Long> staleInterpolated = lblRepository.findInterpolatedLblSnsByRawSn(rawSn);
+        // C-ISSUE-21 / DEV_FIX(H2① 락 순서 · H11 범위) — 삭제 대상 프레임 집합을 먼저 확정하고, 라벨 행을
+        //   지우기 <b>전에</b> 그 프레임들의 라벨셋 버전을 +1 한다(= 프레임 락 선점). 라벨 삭제 후 bump 하면
+        //   "프레임 락 → 라벨 락" 인 라벨 저장 경로와 역순이 되어 ABBA 데드락이 열린다.
         if (!staleInterpolated.isEmpty()) {
+            Set<Long> staleFrames = new HashSet<>();
+            for (LsDataLbl stale : lblRepository.findAllById(staleInterpolated)) {
+                staleFrames.add(stale.getSrcSn());
+            }
+            srcRepository.bumpLabelVersionIn(staleFrames);
             aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
             lblRepository.deleteAllByIdInBatch(staleInterpolated);
             log.info("[Batch][Interpolation] cleared stale interpolated rows rawSn={} count={}",
@@ -177,11 +192,24 @@ public class TrackInterpolationStep implements BatchStep {
         if (!newRows.isEmpty()) {
             Iterable<LsDataLbl> savedRows = lblRepository.saveAll(newRows);
             List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
+            Set<Long> insertedFrames = new HashSet<>();
             for (LsDataLbl row : savedRows) {
+                insertedFrames.add(row.getSrcSn());
                 aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), rawSn, row.getSrcSn(),
                         LsDataLblAiInfo.SRC_INTERPOLATE, row.getConfScore(), "batch"));
             }
             aiInfoRepository.saveAll(aiInfos);
+            // C-ISSUE-21 — 보간 row 가 <b>생성된 프레임</b>의 라벨셋 버전 +1. 배치 재실행(수동 재처리·오토라벨
+            //   재실행)은 라벨링 중 영상에도 일어날 수 있어, 편집 화면이 보유한 버전을 무효화해 낡은
+            //   full-replace 저장이 방금 만든 보간 산출물을 지우는 lost update 를 막는다.
+            // DEV_FIX(H11 범위) — 구현은 영상 전 프레임(bumpLabelVersionByRawSn)을 올렸으나, 실제 변경
+            //   프레임만 올린다(삭제분은 위에서 선반영). 손대지 않은 프레임을 편집 중인 작업자가 409 를 받는
+            //   과잉 무효화와, 영상 전 프레임에 대한 광역 쓰기 락을 함께 제거한다.
+            // DEV_FIX(H4 주석 정정) — 구 주석은 "삽입은 락을 잡지 않으므로 규약 대상이 아니다"라고 했으나
+            //   부정확하다. bump 자체가 프레임 행에 쓰기 락을 잡으므로 이 문장도 락 획득이다. 이 위치가
+            //   안전한 진짜 이유는 <b>같은 트랜잭션이 이미 상단에서 영상 전 프레임 락을 선점</b>했기 때문이다
+            //   (lockFramesByRawSn) — 여기서 새로 얻는 락이 없다.
+            srcRepository.bumpLabelVersionIn(insertedFrames);
         }
         log.info("[Batch][Interpolation] saved rawSn={} tracks={} interpolatedRows={}",
                 rawSn, byTrackId.size(), newRows.size());
@@ -227,6 +255,11 @@ public class TrackInterpolationStep implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
 
+        // DEV_FIX(H4) — 프레임 락 단일 선점. 호출부(트랙 삭제/분할/병합)가 이미 같은 문장으로 선점했다면
+        //   같은 트랜잭션이 이미 보유한 행이라 새 락을 얻지 않는다(멱등). 이 메서드가 caller tx 에 참여하는
+        //   구조라 여기서 다시 호출해도 락 획득 지점이 늘지 않는다.
+        srcRepository.lockFramesByRawSn(rawSn);
+
         Set<Long> touched = new HashSet<>();
 
         // stale 정리 — 후보 존재 여부와 무관하게 항상 선행. from+to 양쪽 보간 산출물 제거(고아 방지).
@@ -238,6 +271,10 @@ public class TrackInterpolationStep implements BatchStep {
             for (LsDataLbl stale : lblRepository.findAllById(staleInterpolated)) {
                 touched.add(stale.getSrcSn());
             }
+            // DEV_FIX(H2① 락 순서) — 라벨 행 삭제 前 프레임 락 선점(bump). 호출부(트랙 삭제/분할/병합)가
+            //   자기 변경 프레임을 이미 올렸더라도 stale 보간 프레임은 그 집합 밖일 수 있으므로 여기서 올린다.
+            //   버전은 단조 증가라 호출부와 중복되어도 무해하다.
+            srcRepository.bumpLabelVersionIn(touched);
             aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
             lblRepository.deleteAllByIdInBatch(staleInterpolated);
             log.info("[Batch][Interpolation] cleared stale interpolated rows (single-track) rawSn={} from={} to={} count={}",

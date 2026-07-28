@@ -333,20 +333,24 @@ class VersionServiceTest {
     // ---------- rollback ----------
 
     @Test
-    @DisplayName("배정된_WORKER가_본인_프레임_rollback_호출시_대상_스냅샷_복원_새_ROLLBACK_버전_생성")
+    @DisplayName("배정된_WORKER가_본인_프레임_rollback_호출시_대상_스냅샷_행이_재활성")
     void assignedWorkerRollbackRestoresSnapshot() {
+        // D-ISSUE-21 — 픽스처 해시는 반드시 payload 의 실제 SHA-256 이어야 한다(프로덕션 불변식).
+        //   구 픽스처(40자 가짜 해시)는 도달 불가한 ROLLBACK 적층 분기를 통과시켜 위양성이었다.
         String pastPayload = "{\"items\":[{\"id\":7,\"label\":\"car\"}]}";
-        seed("feedface1234567890abcdef1234567890abcdef", pastPayload, 1, false);
-        seed("0000000000000000000000000000000000000000", "{\"items\":[]}", 2, true);
+        String pastHash = sha256Hex(pastPayload);
+        LsLabelVersion past = seed(pastHash, pastPayload, 1, false);
+        seed(sha256Hex("{\"items\":[]}"), "{\"items\":[]}", 2, true);
 
-        LsLabelVersion rollback = versionService.rollback(
-                "feedface1234567890abcdef1234567890abcdef", srcSn, workerAssigned);
+        LsLabelVersion rollback = versionService.rollback(pastHash, srcSn, workerAssigned);
 
+        // 기대: 새 행 적층이 아니라 대상 스냅샷 행의 재활성.
         assertThat(rollback).isNotNull();
-        assertThat(rollback.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_ROLLBACK);
+        assertThat(rollback.getLabelVersionSn()).isEqualTo(past.getLabelVersionSn());
+        assertThat(rollback.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_APPROVED);
         assertThat(rollback.getLabelPayload()).isEqualTo(pastPayload);
-        assertThat(rollback.getRegId()).isEqualTo("100");
         assertThat(rollback.getActiveYn()).isEqualTo(LsLabelVersion.ACTIVE_YES);
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(2);
     }
 
     // ---------- rollback 작업본(LS_DATA_LBL) 복원 시맨틱 (신규) ----------
@@ -446,6 +450,10 @@ class VersionServiceTest {
         assertThat(events.get(0).srcSn()).isEqualTo(srcSn);
         assertThat(events.get(0).changeType()).isEqualTo(ChangeType.LABEL_UPDATED);
         assertThat(ChangeType.ALL).contains(events.get(0).changeType());
+        // HIGH-A(Phase 5C) — 롤백은 프레임 라벨을 과거 스냅샷으로 교체하므로 export JSON 도 바뀐다.
+        //   exportRegenerated=true 여야 디바운스 flush 가 export 폴더를 새 버전으로 재생성한 뒤 통지한다.
+        //   4-arg(false)로 되돌리면 이 단언이 실패한다(재생성 미트리거 회귀 방어).
+        assertThat(events.get(0).exportRegenerated()).isTrue();
     }
 
     @Test
@@ -507,17 +515,20 @@ class VersionServiceTest {
     }
 
     @Test
-    @DisplayName("REVIEWER_rollback_정상_동작_새_LS_LABEL_VERSION_생성")
-    void reviewerRollbackCreatesNewVersion() {
+    @DisplayName("REVIEWER_rollback_정상_동작_대상_버전_재활성_적층없음")
+    void reviewerRollbackReactivatesTargetVersion() {
+        // D-ISSUE-21 — 실제 SHA-256 픽스처 기준(위양성 교정). 새 행이 적층되지 않아야 한다.
         String pastPayload = "{\"items\":[{\"id\":1,\"label\":\"person\"}]}";
-        seed("feedface1234567890abcdef1234567890abcdef", pastPayload, 1, false);
-        seed("0000000000000000000000000000000000000000", "{\"items\":[]}", 2, true);
+        String pastHash = sha256Hex(pastPayload);
+        LsLabelVersion past = seed(pastHash, pastPayload, 1, false);
+        seed(sha256Hex("{\"items\":[]}"), "{\"items\":[]}", 2, true);
 
-        LsLabelVersion rollback = versionService.rollback(
-                "feedface1234567890abcdef1234567890abcdef", srcSn, reviewer);
+        LsLabelVersion rollback = versionService.rollback(pastHash, srcSn, reviewer);
 
         assertThat(rollback).isNotNull();
+        assertThat(rollback.getLabelVersionSn()).isEqualTo(past.getLabelVersionSn());
         assertThat(rollback.getLabelPayload()).isEqualTo(pastPayload);
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(2);
     }
 
     @Test

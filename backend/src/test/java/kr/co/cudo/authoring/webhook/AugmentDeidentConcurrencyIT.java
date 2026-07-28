@@ -10,7 +10,7 @@ import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
-import kr.co.cudo.authoring.version.service.VersionService;
+import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -51,7 +52,7 @@ import static org.mockito.Mockito.doAnswer;
  *
  * <p><b>회귀 가드 설계 (HIGH #1)</b>: 신고 홀더는 <b>실제 {@link DeidentReportService#report}</b> 를 호출한다
  * (과거 테스트처럼 손수 만든 {@code findByRawSnForUpdate}+flush 미러가 아님 — 그 미러는 프로덕션의 read 방법
- * 선택과 무관하게 항상 락을 잡아 결함을 은폐했다). {@link VersionService#snapshotDeidentReport} 를
+ * 선택과 무관하게 항상 락을 잡아 결함을 은폐했다). {@link WorkLockService#lockRawForRedeident} 를
  * {@link SpyBean} 으로 가로채 <b>부모 read 직후·{@code markDeidentified('F')} 쓰기 이전</b> 의 결정 창에서
  * report tx 를 멈춘다. 이 창 안에서 증강 콜백을 돌리면:
  * <ul>
@@ -68,6 +69,11 @@ import static org.mockito.Mockito.doAnswer;
  */
 @SpringBootTest
 @ActiveProfiles("local")
+// B-2 — 증강 콜백의 raw_file_path_nm 은 적재 시점에 고정 allowlist(마운트 루트) 하위인지 검증된다.
+//   이 IT 의 픽스처 경로(/storage/augment/*.mp4)가 통과하도록 마운트 루트를 명시한다.
+@TestPropertySource(properties = {
+        "authoring.storage.raw-mount-roots=/storage"
+})
 class AugmentDeidentConcurrencyIT {
 
     @Autowired private AugmentResultService service;
@@ -79,10 +85,10 @@ class AugmentDeidentConcurrencyIT {
 
     /**
      * HIGH #1 회귀 가드용 pause hook. {@code report} 가 부모 read 를 마치고 {@code markDeidentified('F')}
-     * 이전 단계(스냅샷)에 진입할 때 tx 를 멈춰 결정 창을 연다. AugmentResultService 는 VersionService 를
-     * 참조하지 않으므로 MED #2 테스트에는 영향이 없다.
+     * 이전 단계(작업락 획득)에 진입할 때 tx 를 멈춰 결정 창을 연다. AugmentResultService 는
+     * {@code lockRawForRedeident} 를 호출하지 않으므로 MED #2 테스트에는 영향이 없다.
      */
-    @SpyBean private VersionService versionService;
+    @SpyBean private WorkLockService workLockService;
 
     private record Seed(LsDataRaw parent, LsDataSrc frame0, LsDataAug aug) {
     }
@@ -181,14 +187,16 @@ class AugmentDeidentConcurrencyIT {
         TokenClaims reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL,
                 Instant.now().plusSeconds(60));
 
-        // 실제 report(...) 를 부모 read 직후(스냅샷 단계, 'F' 쓰기 이전)에 멈춰 결정 창을 연다.
+        // 실제 report(...) 를 부모 read 직후(작업락 획득 단계, 'F' 쓰기 이전)에 멈춰 결정 창을 연다.
+        //   D-25 정책 반전으로 구 훅(VersionService.snapshotDeidentReport)이 제거돼, 같은 결정 창
+        //   (부모 FOR UPDATE 이후 ~ markDeidentified('F') 이전)에 있는 작업락 획득으로 재배치했다.
         CountDownLatch reportInWindow = new CountDownLatch(1);
         CountDownLatch releaseReport = new CountDownLatch(1);
         doAnswer(inv -> {
             reportInWindow.countDown();          // 부모 read 완료 + 결정 창 진입 신호
             releaseReport.await(15, TimeUnit.SECONDS); // 증강 콜백이 창 안에서 부모 read 시도할 때까지 홀드
             return inv.callRealMethod();
-        }).when(versionService).snapshotDeidentReport(any(), any());
+        }).when(workLockService).lockRawForRedeident(any(), any());
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         AtomicReference<Throwable> reportErr = new AtomicReference<>();
@@ -206,7 +214,7 @@ class AugmentDeidentConcurrencyIT {
                 return null;
             });
 
-            // report 가 부모 read 를 마치고 결정 창(스냅샷 단계)에 진입할 때까지 대기.
+            // report 가 부모 read 를 마치고 결정 창(작업락 단계)에 진입할 때까지 대기.
             assertThat(reportInWindow.await(15, TimeUnit.SECONDS))
                     .as("report 가 결정 창에 진입해야 함").isTrue();
 

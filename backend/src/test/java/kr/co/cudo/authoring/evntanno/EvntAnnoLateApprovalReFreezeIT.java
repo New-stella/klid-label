@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.DatasetExportService;
+import kr.co.cudo.authoring.dataset.export.ExportFileNaming;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
@@ -67,6 +68,8 @@ class EvntAnnoLateApprovalReFreezeIT {
     private static final Path STORAGE_ROOT = createStorageRoot();
     private static final Path LABELING_ROOT = STORAGE_ROOT.resolve("labeling");
     private static final Path RAW_ROOT = STORAGE_ROOT.resolve("raw");
+    /** 원본 영상 디렉터리(관제 NAS 모사) — co-locate 산출 base. */
+    private static final Path VIDEO_DIR = RAW_ROOT.resolve("videos");
     private static final Path DEID_ROOT = STORAGE_ROOT.resolve("deid");
 
     private static Path createStorageRoot() {
@@ -163,7 +166,7 @@ class EvntAnnoLateApprovalReFreezeIT {
                         + "VALUES (?, ?, ?, ?, 'PRVC', 'Y', 'Y', ?, ?, 30, NULL, 'APPROVED', ?) "
                         + "RETURNING RAW_SN",
                 Long.class,
-                clipId, cctvId, evntCd, lclgvCd, "/nas/raw/" + nano + ".mp4",
+                clipId, cctvId, evntCd, lclgvCd, originalVideoPath(nano),
                 LocalDateTime.of(2026, 1, 15, 22, 0), LocalDateTime.now());
         seededRawSns.add(rawSn);
 
@@ -236,8 +239,24 @@ class EvntAnnoLateApprovalReFreezeIT {
         }
     }
 
+    /**
+     * 원본 영상 절대경로 — Phase 5A co-locate 산출 base({@code dirname(원본)}) 의 원천이므로
+     * 허용 마운트 루트(raw-path) 하위여야 한다.
+     */
+    private static String originalVideoPath(long nano) {
+        Path video = VIDEO_DIR.resolve("clip-" + nano + ".mp4");
+        try {
+            Files.createDirectories(VIDEO_DIR);
+            Files.write(video, new byte[]{0x00, 0x11});
+        } catch (IOException e) {
+            throw new IllegalStateException("더미 원본 영상 생성 실패", e);
+        }
+        return video.toString();
+    }
+
+    /** Phase 5A — 산출 루트는 원본 영상 디렉터리 하위 {@code {rawSn}/} 이다. */
     private Path versionDir(long rawSn, int version, ExportKind kind) {
-        return LABELING_ROOT.resolve(String.valueOf(rawSn))
+        return VIDEO_DIR.resolve(String.valueOf(rawSn))
                 .resolve("v" + version)
                 .resolve(kind.segment());
     }
@@ -274,7 +293,7 @@ class EvntAnnoLateApprovalReFreezeIT {
         // 그리고 export JSON 에 실제로 반영된다(재동결본 pass-through).
         exportService.export(rawSn);
         JsonNode doc = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve("frame-0.json").toFile());
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         JsonNode ea = doc.get("event");
         assertThat(ea).isNotNull();
         assertThat(ea.path("event_class").asText()).isEqualTo("assault");

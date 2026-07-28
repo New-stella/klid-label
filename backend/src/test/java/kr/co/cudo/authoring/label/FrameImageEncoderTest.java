@@ -29,7 +29,7 @@ class FrameImageEncoderTest {
 
     @BeforeEach
     void setup() {
-        encoder = new FrameImageEncoder(baseDir.toAbsolutePath().toString());
+        encoder = new FrameImageEncoder(baseDir.toAbsolutePath().toString(), baseDir.toAbsolutePath().toString());
     }
 
     @Test

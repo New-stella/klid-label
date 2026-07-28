@@ -39,6 +39,15 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Optional<LsDataRaw> findByRawSnForUpdate(@Param("rawSn") Long rawSn);
 
     /**
+     * S7 — 비식별 처리 코드({@code DE_IDNTF_YN}) 단일 컬럼 projection.
+     *
+     * <p>라벨 조회 게이트({@code LabelAccessGuard.requireNotUnderDeidentReport})가 매 조회마다 호출하므로
+     * 전체 row fetch 를 피한다(PK 인덱스 lookup + 1컬럼). 값이 NULL 인 행은 빈 Optional 로 온다(=통과).
+     */
+    @Query("SELECT r.deIdntfYn FROM LsDataRaw r WHERE r.rawSn = :rawSn")
+    Optional<String> findDeIdntfYnByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 수동 배치 재처리 클레임용 조건부 원자 전이 (CWE-362, check-and-set).
      *
      * <p>배치 단계 상태(DATA_STTS_CD)가 {@code fromStatus}(FAILED)일 때만 {@code toStatus}(PROCESSING)로
@@ -52,6 +61,26 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     @Query("UPDATE LsDataRaw r SET r.dataSttsCd = :toStatus, r.mdfcnDt = CURRENT_TIMESTAMP "
             + "WHERE r.rawSn = :rawSn AND r.dataSttsCd = :fromStatus")
     int claimReprocessFromFailed(@Param("rawSn") Long rawSn,
+                                 @Param("fromStatus") String fromStatus,
+                                 @Param("toStatus") String toStatus);
+
+    /**
+     * 수동 배치 재처리 클레임 <b>보상 롤백</b> (DEV_FIX H10) — PROCESSING → FAILED 조건부 원자 전이.
+     *
+     * <p>{@link #claimReprocessFromFailed} 로 FAILED→PROCESSING 을 선점했으나 이어지는
+     * {@code BatchOrchestrator.process()} 가 검수 소유 작업 상태를 만나 {@code SKIPPED} 로 즉시 반환하면,
+     * 파이프라인은 한 건도 실행되지 않고 {@code markRawDataFailed}/{@code markRawDataCompleted} 도 타지
+     * 않아 <b>배치 단계 상태가 PROCESSING 으로 영구 고착</b>된다(이후 재처리는 stage/work 어느 쪽도 FAILED
+     * 가 아니라 영구 409). 이를 막기 위해 클레임을 걸었던 호출자가 SKIPPED 를 받으면 본 메서드로 원상복구한다.
+     *
+     * <p>조건부(현재 PROCESSING 일 때만)라 그 사이 다른 주체가 상태를 바꿨으면 0행으로 안전하게 포기한다.
+     *
+     * @return 영향 행수 (1=보상 성공, 0=이미 다른 상태)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE LsDataRaw r SET r.dataSttsCd = :toStatus, r.mdfcnDt = CURRENT_TIMESTAMP "
+            + "WHERE r.rawSn = :rawSn AND r.dataSttsCd = :fromStatus")
+    int compensateReprocessClaim(@Param("rawSn") Long rawSn,
                                  @Param("fromStatus") String fromStatus,
                                  @Param("toStatus") String toStatus);
 
@@ -94,6 +123,9 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
      * 파생물도 배정·검수 대상이므로 작업 목록에는 유지된다(R2).
      */
     Page<LsDataRaw> findAllByOrgnlRawSnIsNull(Pageable pageable);
+
+    /** 파생영상 목록(원본 1건 기준) — 파생 확정 상태 조회(E-ISSUE-24)용. */
+    List<LsDataRaw> findAllByOrgnlRawSnOrderByRawSnAsc(Long orgnlRawSn);
 
     /**
      * 영상 처리 현황 — 배치 상태(dataSttsCd) 필터 + 원본 RAW 만(파생 RAW 제외, R1).
@@ -287,4 +319,183 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             WHERE r.RAW_SN IN (:rawSns)
             """, nativeQuery = true)
     List<Object[]> findEventInfoByRawSnsInternal(@Param("rawSns") Collection<Long> rawSns);
+
+    /**
+     * 백필 대상 — <b>확정(ACCEPTED)된 해상도 파생</b> 영상 목록. (E-ISSUE-21 파일 이관 배치)
+     *
+     * <p><b>H-5 (대상 발견 축 전환)</b>: 구 구현은 {@code LS_DATA_AUG → LS_DATA_AUG_LBL_MAP →
+     * LS_DATA_LBL → LS_DATA_SRC → LS_DATA_RAW} 를 전부 INNER JOIN 해 <b>라벨 축</b>으로만 파생을
+     * 역추적했다. 그 결과 ①부모 라벨이 0건이라 매핑 행 자체가 없는 파생 ②작업자 저장(full-replace)·
+     * 비식별 신고 전량 삭제로 {@code LS_DATA_AUG_LBL_MAP.DATA_LBL_SN} 이 dangling 이 된 파생(해당 FK 없음)
+     * 이 구조적으로 누락돼, 재실행해도 영원히 대상이 되지 않았다.
+     *
+     * <p>따라서 대상 발견을 <b>파생 축</b>으로 바꾼다 — {@code LS_DATA_RAW.ORGNL_RAW_SN IS NOT NULL}
+     * (파생 영상) + 부모 프레임을 대표프레임으로 삼은 {@code LS_DATA_AUG}(RESL_*, ACCEPTED) 를 직접 잇는다.
+     * 라벨/라벨매핑은 조인 조건에 전혀 쓰지 않는다. 진행 중(PENDING)·실패(FAILED) 예약은 여전히 제외된다.
+     *
+     * <p><b>A-4 (LS_DATA_AUG 종속 제거)</b>: 구 구현은 {@code LS_DATA_AUG}(ACCEPTED)를 <b>INNER JOIN</b>
+     * 필수 조건으로 뒀다. 확정 실패 시 예약행은 삭제되는 정책이라 <b>파생 RAW 는 남고 AUG 행만 사라진</b>
+     * 상태가 실제로 존재하며(실측 12건), 그런 파생은 재실행해도 영원히 대상이 되지 않았다 — 라벨 축을
+     * 폐기한 것과 같은 실패 클래스다. 따라서 발견은 {@code LS_DATA_RAW}(파생 축) 단독으로 하고,
+     * {@code LS_DATA_AUG} 는 프리셋을 알아내기 위한 <b>부가정보(상관 서브쿼리 = LEFT JOIN 의미)</b>로만 쓴다.
+     * 프리셋을 못 구하면 {@code augTypeCd} 가 null 로 반환되며, 호출측이 그 사실을 결과에 드러낸다.
+     *
+     * <p><b>A-5 (프리셋 짝짓기의 드리프트 비의존)</b>: 파생 {@code VMS_CLIP_ID} 는 현재
+     * {@code {부모}_RESL_{AUG_TYPE_CD}_{ts}} = {@code …_RESL_RESL_720P_…}(E-ISSUE-25 이중 접두 드리프트)다.
+     * 구 패턴 {@code '%_RESL_' || AUG_TYPE_CD || '_%'} 는 <b>이중 접두가 있어야만</b> 매칭돼, 드리프트를
+     * 정공법으로 고치는 순간 발견이 예외 없이 0행이 된다. 여기서는 {@code '%_' || AUG_TYPE_CD || '_%'}
+     * (= {@code _RESL_720P_})로 매칭한다 — 이중 접두 유무와 무관하게 성립하며, 프리셋 코드 3종은 서로
+     * 부분문자열이 아니라 교차 매칭도 없다. 증강(WINTER/NIGHT/RAIN) 파생은 AUG_TYPE_CD 가 RESL_* 이
+     * 아니므로 애초에 후보에서 빠진다.
+     *
+     * <p>파생 판별 자체도 같은 이유로 {@code _RESL_} 마커 존재만 본다(프리셋 코드 위치·중복 무관).
+     *
+     * <p>반환 행: {@code [Long derivativeRawSn, Long orgnlRawSn, String augTypeCd(nullable)]}.
+     */
+    @Query(value = """
+            SELECT r.RAW_SN        AS derivativeRawSn,
+                   r.ORGNL_RAW_SN  AS orgnlRawSn,
+                   (SELECT a.AUG_TYPE_CD
+                      FROM LS_DATA_AUG a
+                      JOIN LS_DATA_SRC ps ON ps.SRC_SN = a.SRC_SN
+                     WHERE ps.RAW_SN = r.ORGNL_RAW_SN
+                       AND a.AUG_TYPE_CD LIKE 'RESL\\_%'
+                       AND a.AUG_PROC_STTS_CD = 'ACCEPTED'
+                       AND r.VMS_CLIP_ID LIKE '%\\_' || a.AUG_TYPE_CD || '\\_%'
+                     ORDER BY a.AUG_TYPE_CD
+                     LIMIT 1)      AS augTypeCd
+            FROM LS_DATA_RAW r
+            WHERE r.ORGNL_RAW_SN IS NOT NULL
+              AND r.VMS_CLIP_ID LIKE '%\\_RESL\\_%'
+            ORDER BY 1
+            """, nativeQuery = true)
+    List<Object[]> findResolutionDerivativeTargets();
+
+    /**
+     * A-6 — 지정 파일 경로를 <b>다른 행</b>이 참조하고 있는지 센다(공유 파일 오삭제 방지).
+     *
+     * <p>구 경로 규약({@code videos/resolution/{parent}/{preset}.mp4})은 {@code (부모, 프리셋)} 만으로
+     * 키잉돼 <b>같은 파일을 여러 파생 RAW 가 공유</b>했다(실측 5건 공유). 이관 후 구 파일을 지울 때 다른
+     * 파생이 아직 그 경로를 가리키고 있으면 삭제해선 안 된다.
+     *
+     * <p>{@code LS_DATA_RAW.RAW_FILE_PATH_NM} 과 {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM}
+     * (스트리밍·데이터마트가 읽는 비식별 영상 경로) 양쪽을 모두 센다. 파라미터 바인딩만 사용(CWE-89).
+     */
+    @Query(value = """
+            SELECT (SELECT COUNT(*) FROM LS_DATA_RAW r
+                     WHERE r.RAW_FILE_PATH_NM = :filePath AND r.RAW_SN <> :rawSn)
+                 + (SELECT COUNT(*) FROM LS_DEIDENT_PROC_LOG l
+                     WHERE l.DE_IDNTF_FILE_PATH_NM = :filePath AND l.DATA_RAW_SN <> :rawSn)
+            """, nativeQuery = true)
+    long countOtherReferencesToFilePath(@Param("filePath") String filePath, @Param("rawSn") Long rawSn);
+
+    /**
+     * <b>유예 삭제 안전 조건</b> — 지정 파일 경로를 <b>아직 어느 행이라도</b> 참조하고 있는지 센다.
+     *
+     * <p>유예 삭제(grace period) 스윕은 이관 시점이 아니라 <b>삭제 직전</b>에 안전을 재판정한다.
+     * 삭제 조건은 ①DB 가 이미 새 경로를 가리킨다(=이 경로 참조 0) ②다른 행도 참조하지 않는다 이며,
+     * 두 조건은 "총 참조 수 0" 하나로 동치다. 이관 시점에 통과했더라도 그 사이 롤백·재작성으로 다시
+     * 참조가 생겼을 수 있으므로 <b>삭제 직전 재확인</b>이 필요하다.
+     *
+     * <p>영상 경로 2곳({@code LS_DATA_RAW.RAW_FILE_PATH_NM},
+     * {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM}) 뿐 아니라 <b>프레임 경로</b>
+     * ({@code LS_DATA_SRC.SRC_FILE_PATH_NM}/{@code DE_IDNTF_SRC_FILE_PATH_NM}) 도 센다 —
+     * 유예 대기 목록에는 프레임 파일이 포함되므로 프레임 참조를 빼면 아직 서빙 중인 프레임을 지울 수 있다.
+     * 파라미터 바인딩만 사용(CWE-89).
+     */
+    @Query(value = """
+            SELECT (SELECT COUNT(*) FROM LS_DATA_RAW r
+                     WHERE r.RAW_FILE_PATH_NM = :filePath)
+                 + (SELECT COUNT(*) FROM LS_DEIDENT_PROC_LOG l
+                     WHERE l.DE_IDNTF_FILE_PATH_NM = :filePath)
+                 + (SELECT COUNT(*) FROM LS_DATA_SRC s
+                     WHERE s.SRC_FILE_PATH_NM = :filePath
+                        OR s.DE_IDNTF_SRC_FILE_PATH_NM = :filePath)
+            """, nativeQuery = true)
+    long countReferencesToFilePath(@Param("filePath") String filePath);
+
+    /**
+     * 감사 대상 프레임 커서 조회 — 비식별 경로가 있는 프레임을 {@code SRC_SN} 오름차순으로 페이징한다.
+     *
+     * <p><b>H-4</b>: 감사 판정 자체는 SQL 이 아니라 {@code StorageSubtreePolicy.verifyDeidentifiedFile}
+     * (서빙과 동일 판정기)이 수행한다. SQL 로 근사(문자열 POSITION)하면 ①base 무검증 ②세그먼트가 아닌
+     * 부분일치 ③파일시스템 무검증 3중 비동치가 생겨 "영향 없음" 주장을 입증할 수 없다. 여기서는
+     * <b>행만</b> 넘긴다.
+     *
+     * <p><b>A-3 (뷰 게이트와의 동치)</b>: 빈 문자열/공백 경로는 <b>결측</b>으로 취급해 감사 입력에서
+     * 제외한다({@code TRIM(...) <> ''}). V133 뷰 게이트와 {@link #findRawSnsExcludedByFrameViewGate}
+     * 가 빈 문자열을 결측(정상 통과)으로 다루는데 감사만 이를 포함시켜 {@code BLANK} 를 위반으로
+     * 집계하면, H-4 가 없앴다는 "SQL 근사 vs 코드 판정" 비동치가 <b>입력 단계</b>에 그대로 남는다.
+     * 결측은 PII 노출이 아니라 데이터 결측이므로 위반 집계 대상이 아니다.
+     *
+     * <p>반환 행: {@code [Long srcSn, Long rawSn, String deidPath]}.
+     */
+    @Query(value = """
+            SELECT s.SRC_SN, s.RAW_SN, s.DE_IDNTF_SRC_FILE_PATH_NM
+            FROM LS_DATA_SRC s
+            WHERE s.SRC_SN > :cursor
+              AND s.DE_IDNTF_SRC_FILE_PATH_NM IS NOT NULL
+              AND TRIM(s.DE_IDNTF_SRC_FILE_PATH_NM) <> ''
+            ORDER BY s.SRC_SN
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findDeidFramePathsAfter(@Param("cursor") Long cursor, @Param("limit") int limit);
+
+    /**
+     * G-2 (D-ISSUE-46 정책 C) — 현행 {@code V_COMPLETED_FRAME} 게이트로 <b>뷰에서 제외되는</b> rawSn 목록.
+     *
+     * <p>게이트는 결함 형태(원본 경로를 비식별 경로로 노출 = 두 값이 <b>동일</b>)에 한정한다(M-1).
+     * 비식별 경로 결측({@code DEID IS NULL})은 PII 노출이 아니라 데이터 결측이므로 제외 대상이 아니며,
+     * 뷰에도 종전대로 노출된다. 빈 문자열은 코드({@code isBlank})와 동일하게 결측으로 취급한다.
+     *
+     * <p>반환 행: {@code [Long rawSn, Long frameCount]} — APPROVED 영상만(뷰 노출 조건과 동일).
+     */
+    @Query(value = """
+            SELECT s.RAW_SN, COUNT(*) AS frameCount
+            FROM LS_DATA_SRC s
+            WHERE EXISTS (
+                    SELECT 1 FROM LS_RAW_DATA_STATUS st
+                     WHERE st.RAW_DATA_ID = s.RAW_SN AND st.DATA_STTS_CD = 'APPROVED')
+              AND s.SRC_FILE_PATH_NM IS NOT NULL
+              AND TRIM(s.SRC_FILE_PATH_NM) <> ''
+              AND s.DE_IDNTF_SRC_FILE_PATH_NM IS NOT NULL
+              AND TRIM(s.DE_IDNTF_SRC_FILE_PATH_NM) <> ''
+              AND s.DE_IDNTF_SRC_FILE_PATH_NM = s.SRC_FILE_PATH_NM
+            GROUP BY s.RAW_SN
+            ORDER BY 1
+            """, nativeQuery = true)
+    List<Object[]> findRawSnsExcludedByFrameViewGate();
+
+    /**
+     * 해상도 파생 백필 전용 — <b>파생 RAW 에 한해</b> 영상 파일 경로를 새 비식별 저장소 경로로 교체한다.
+     * {@code ORGNL_RAW_SN IS NOT NULL} 조건으로 원본 영상 경로는 절대 변경될 수 없다(원본 보존 원칙).
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE LS_DATA_RAW
+               SET RAW_FILE_PATH_NM = :filePath
+             WHERE RAW_SN = :rawSn
+               AND ORGNL_RAW_SN IS NOT NULL
+            """, nativeQuery = true)
+    int updateDerivativeVideoPath(@Param("rawSn") Long rawSn, @Param("filePath") String filePath);
+
+    /**
+     * E-ISSUE-23 — 확정 실패한 파생 RAW 고아 행 삭제. <b>파생(ORGNL_RAW_SN NOT NULL) + FAILED</b>
+     * 두 조건을 SQL 조건으로 함께 걸어, 삭제 직전 상태가 바뀐 행(정상 확정으로 전이)은 조건 불일치로
+     * 0건 삭제된다(경합 안전).
+     *
+     * <p><b>M-5 (TOCTOU)</b>: "프레임 없음" 조건도 <b>DELETE 문 자체</b>에 {@code NOT EXISTS} 로 건다.
+     * 호출측의 사전 {@code countByRawSn} 검사만으로는 검사~삭제 사이에 커밋된 프레임 INSERT 를 놓쳐
+     * ({@code LS_DATA_SRC.RAW_SN} 에 FK 가 없어 DB 도 막아주지 않는다) RAW 없는 고아 프레임·라벨이 남는다.
+     * 단일 문장 안에서 조건을 평가하면 그 창이 닫힌다.
+     */
+    @Modifying
+    @Query(value = """
+            DELETE FROM LS_DATA_RAW
+             WHERE RAW_SN = :rawSn
+               AND ORGNL_RAW_SN IS NOT NULL
+               AND DATA_STTS_CD = 'FAILED'
+               AND NOT EXISTS (SELECT 1 FROM LS_DATA_SRC s WHERE s.RAW_SN = :rawSn)
+            """, nativeQuery = true)
+    int deleteFailedDerivative(@Param("rawSn") Long rawSn);
 }

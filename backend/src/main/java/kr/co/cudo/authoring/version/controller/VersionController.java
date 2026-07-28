@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 버전관리(라벨 변경 이력) REST API (DB 스냅샷 기반).
  *
  * <ul>
- *   <li>GET  /v1/frames/{srcSn}/versions               : 프레임 단위 버전 목록(검수 승인/롤백 버전)</li>
+ *   <li>GET  /v1/frames/{srcSn}/versions               : 프레임 단위 버전 목록(검수 승인 스냅샷)</li>
  *   <li>GET  /v1/versions/{version}/diff?compareWith=  : 두 버전(versionHash) 라벨 단위 비교</li>
  *   <li>POST /v1/versions/{version}/rollback           : REVIEWER 전체 / WORKER 본인 배정 — 롤백</li>
  * </ul>
@@ -91,7 +91,10 @@ public class VersionController {
 
     @Operation(
             summary = "특정 버전으로 롤백 (REVIEWER 전체 / WORKER 본인 배정)",
-            description = "지정 버전의 라벨 스냅샷으로 되돌린다. 새 active 버전이 생성되며 LS_LABEL_VERSION에 기록. "
+            description = "지정 버전의 라벨 스냅샷으로 되돌린다. 대상 버전 행이 다시 active 로 전환되며"
+                    + "(새 버전 적층 없음 — 롤백 결과 해시는 대상 스냅샷과 항상 동일), 되돌리기 행위"
+                    + "(누가·언제·어느 버전으로)는 LS_DATA_LBL_HSTRY 롤백 이벤트로 기록된다. "
+                    + "이미 해당 버전이 active 면 아무것도 바꾸지 않는다(no-op). "
                     + "REVIEWER는 모든 프레임, WORKER는 본인에게 배정된 프레임만 가능."
     )
     @ApiResponses({

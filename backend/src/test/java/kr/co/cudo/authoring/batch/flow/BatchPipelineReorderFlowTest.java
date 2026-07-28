@@ -141,6 +141,21 @@ class BatchPipelineReorderFlowTest {
         }).when(statusRepository).transitionToBatchQueuedIfNotSkipped(
                 any(), eq(LsRawDataStatus.STTS_BATCH_QUEUED), any());
 
+        // B-ISSUE-03 — 배치 상태 전이도 조건부 UPDATE 로 바뀌었다. 검수 소유 상태(IN_REVIEW/APPROVED)가
+        // 아니면 전이하고 영향 행수 1, 그렇지 않거나 row 가 없으면 0 을 돌려준다(실제 단일 SQL UPDATE 모사).
+        doAnswer(inv -> {
+            Long rawSn = inv.getArgument(0);
+            String toStatus = inv.getArgument(1);
+            @SuppressWarnings("unchecked")
+            java.util.Collection<String> blocked = (java.util.Collection<String>) inv.getArgument(2);
+            Optional<LsRawDataStatus> opt = statusRepository.findById(rawSn);
+            if (opt.isEmpty() || blocked.contains(opt.get().getDataSttsCd())) {
+                return 0;
+            }
+            opt.get().transitionTo(toStatus);
+            return 1;
+        }).when(statusRepository).transitionByBatchIfNotBlocked(any(), any(), any());
+
         // 기본: frame extractor 가 1 프레임 반환 (FRAME_EXTRACT 가드 통과).
         when(frameExtractor.extractByMarks(any(LsDataRaw.class), any()))
                 .thenReturn(List.of(mock(LsDataSrc.class)));

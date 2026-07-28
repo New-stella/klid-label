@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.runner.AsyncVideoMetaRunner;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.common.util.ExternalUrlValidator;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -79,6 +81,11 @@ public class AugmentResultService {
      * 스킵되므로 증강 생성 커밋 후 직접 호출한다(비식별은 트리거하지 않음 — 재비식별 skip 유지).
      */
     private final AsyncVideoMetaRunner asyncVideoMetaRunner;
+    /**
+     * 적재 시점 경로 검증용 — 콜백이 준 {@code raw_file_path_nm} 이 고정 allowlist(마운트 루트) 하위인지
+     * 확인한다. Phase 5A 이후 이 값이 산출물 <b>쓰기 base</b> 로 승격됐기 때문이다({@link #validateFilePath}).
+     */
+    private final VideoArtifactRootResolver artifactRootResolver;
 
     /**
      * @return true = 신규 적재 / false = 재전송 멱등 스킵(신규 영상 미생성)
@@ -181,7 +188,12 @@ public class AugmentResultService {
             return;
         }
 
-        String filePath = req.rawFilePathNm() != null ? req.rawFilePathNm() : parentRaw.getRawFilePathNm();
+        // 외부 시스템이 빈/공백 경로를 보내면 부모(원본) 경로로 폴백한다. 공백(" ")도 non-null 이라
+        // != null 판정으로는 폴백이 안 돼 죽은 RAW 행이 커밋되므로 StringUtils.hasText 로 판정한다.
+        // (validateFilePath 는 공백을 스킵하고, 부모 경로는 부모 적재 시점에 이미 검증된 신뢰 경로다.)
+        String filePath = StringUtils.hasText(req.rawFilePathNm())
+                ? req.rawFilePathNm()
+                : parentRaw.getRawFilePathNm();
         // createFromAugment 기본값(PENDING·deIdntfYn='N') 그대로 커밋. 추가 상태 세팅 없음(async 에서 확정).
         LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(parentRaw, filePath, req.augTypeCd()));
 
@@ -226,6 +238,18 @@ public class AugmentResultService {
         target.assignExternalJobId(req.otsdJobId());
     }
 
+    /**
+     * 콜백이 싣는 {@code raw_file_path_nm} 검증.
+     *
+     * <ul>
+     *   <li><b>URL 형태</b> — SSRF 차단({@link ExternalUrlValidator}).</li>
+     *   <li><b>로컬 경로</b> — 고정 allowlist(마운트 루트) 하위인지 <b>적재 시점</b>에 확인한다(CWE-20/22).
+     *       Phase 5A(co-locate) 이후 이 값은 읽기 힌트가 아니라 산출물 <b>쓰기 base</b> 다 —
+     *       승인 시 {@code dirname(값)/{rawSn}/} 에 원본 프레임 JPG·JSON 이 기록된다. 승인 시점 리졸버
+     *       가드만 두면 오염된 경로가 DB 에 남아 방어선이 1겹이 되므로 입구에서도 거른다.</li>
+     * </ul>
+     * 거부 메시지에 경로 원문/NAS 구조를 담지 않는다(CWE-209).
+     */
     private void validateFilePath(String filePath) {
         if (filePath == null || filePath.isBlank()) return;
         if (filePath.contains("://")) {
@@ -235,6 +259,14 @@ public class AugmentResultService {
                 throw new CustomException(ErrorCode.INVALID_INPUT,
                         "rawFilePathNm SSRF 차단: " + e.getMessage());
             }
+            return;
+        }
+        try {
+            artifactRootResolver.verifyIngestablePath(filePath);
+        } catch (CustomException e) {
+            log.warn("[Webhook][Augment] rawFilePathNm rejected (outside allowed mount roots) code={}",
+                    e.getErrorCode());
+            throw new CustomException(ErrorCode.INVALID_INPUT, "rawFilePathNm 이 허용된 저장 경로가 아닙니다.");
         }
     }
 

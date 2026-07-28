@@ -11,9 +11,9 @@ import type { MarkItem, MarkingMode } from '@/features/marking/types';
 import { useStreamUrl } from '@/features/video/hooks/useStreamUrl';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { isMarkingBlocked } from '@/features/video/types';
+import { resolveMarkingFps } from '@/features/marking/markingFps';
 import { useUiStore } from '@/stores/useUiStore';
 
-const NATIVE_FPS = 30;
 // 메타데이터 로드 전 타임라인 fallback 길이(초). 로드되면 실제값으로 대체된다.
 const FALLBACK_DURATION_SEC = 60;
 
@@ -36,6 +36,13 @@ export function MarkingPage() {
   // (BE MarkingService 의 deIdntfYn='Y' 가드가 최종 백스톱이며, 여기선 UX 선차단.)
   const { data: videoDetail } = useVideoDetail(rawSn ?? null);
 
+  // C-ISSUE-01 — frameIndex 는 <b>서버가 내려준 실 fps</b> 로 계산한다.
+  //   FE 가 30fps 를 하드코딩하던 동안 서버의 마킹 상한(round(길이×실 fps))과 기준이 갈려,
+  //   25fps 영상이면 뒤 16.7% 구간(예: 55초 → 55×30=1650 > 상한 1500)의 정상 마킹이 400 으로
+  //   거부됐다. 진실원은 서버 VideoFpsResolver 하나이며 여기서는 그 값을 그대로 쓴다.
+  //   서버가 값을 못 내리는 경우에만 동일 폴백값(30)을 사용한다.
+  const markingFps = resolveMarkingFps(videoDetail?.fps);
+
   // <video> 는 Authorization 헤더를 못 붙이므로 단기 서명 URL 을 발급받아 src 로 사용한다.
   const { data: streamUrl, refetch: refetchStreamUrl } = useStreamUrl(rawSn);
   // 만료(401)로 인한 재발급 무한루프 방지 — 에러당 1회만 재발급.
@@ -51,8 +58,21 @@ export function MarkingPage() {
   }, [refetchStreamUrl]);
 
   const createMutation = useCreateMarking(rawSn, {
-    onSuccess: () => {
+    onSuccess: (data) => {
       clearMarks();
+      // DEV_FIX H11 — 마킹 저장(201)과 배치 시작은 별개다. 배치가 시작되지 않았는데도 "배치 처리가
+      //   시작됩니다" 라고 알리면 무음 실패가 된다(실제 사례: 검수 소유 상태·비식별 미완료·이미 처리된
+      //   영상). BE 가 내려주는 batchTriggered/batchSkipReason 으로 사실대로 알린다.
+      if (data.batchTriggered === false) {
+        pushToast({
+          variant: 'error',
+          message: `마킹은 저장되었으나 배치가 시작되지 않았습니다. ${
+            data.batchSkipReason ?? '관리자에게 문의하세요.'
+          }`,
+        });
+        navigate('/task');
+        return;
+      }
       pushToast({ variant: 'success', message: '마킹이 제출되었습니다. 배치 처리가 시작됩니다.' });
       navigate('/task');
     },
@@ -82,12 +102,12 @@ export function MarkingPage() {
 
   const handleAddMarkAtCurrentTime = useCallback(() => {
     if (!videoRef.current) return;
-    const frameIndex = videoRef.current.getCurrentFrame(NATIVE_FPS);
+    const frameIndex = videoRef.current.getCurrentFrame(markingFps);
     const time = videoRef.current.getCurrentTime();
     const mm = String(Math.floor(time / 60)).padStart(2, '0');
     const ss = String(Math.floor(time % 60)).padStart(2, '0');
     addMark({ frameIndex, timestamp: `${mm}:${ss}` });
-  }, [addMark]);
+  }, [addMark, markingFps]);
 
   const handleSubmit = useCallback(() => {
     if (rawSn === undefined) return;
@@ -182,6 +202,7 @@ export function MarkingPage() {
       <MarkingTimeline
         marks={localMarks}
         durationSec={durationSec}
+        fps={markingFps}
         selectedIndex={selectedMarkIndex}
         onSelect={selectMark}
       />

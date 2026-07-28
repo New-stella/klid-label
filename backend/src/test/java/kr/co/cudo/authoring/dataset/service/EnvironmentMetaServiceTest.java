@@ -264,6 +264,10 @@ class EnvironmentMetaServiceTest {
         assertThat(event.srcSn()).isNull();
         assertThat(event.changeType()).isEqualTo(ChangeType.META_UPDATED);
         assertThat(event.modifierNo()).isEqualTo(100L);
+        // C-1b(Phase 5C, 구 A-2 정책 반전) — 촬영환경 수정도 export 폴더를 새 버전으로 전량 재생성한다.
+        // exportRegenerated=true 로 디바운스 flush 가 export 를 먼저 마친 뒤 전 프레임 통지를 내보내,
+        // 관제가 픽업한 산출물의 JSON video 블록이 새 촬영환경으로 동기화된다.
+        assertThat(event.exportRegenerated()).isTrue();
     }
 
     @Test
@@ -317,8 +321,8 @@ class EnvironmentMetaServiceTest {
     }
 
     @Test
-    @DisplayName("승인후_촬영환경_수정시_재export_이벤트를_발행하지_않는다")
-    void 승인후_촬영환경_수정시_재export_이벤트를_발행하지_않는다() {
+    @DisplayName("승인후_촬영환경_수정시_재export는_TaskModifiedEvent_regen플래그로만_트리거하고_DatasetReExportEvent는_발행하지_않는다")
+    void 승인후_촬영환경_수정시_재export는_regen플래그로_트리거된다() {
         // given
         raw(LocalDateTime.of(2026, 1, 15, 22, 0));
         approved();
@@ -327,11 +331,14 @@ class EnvironmentMetaServiceTest {
         // when
         service.update(RAW_SN, new EnvironmentMetaUpdateRequest("눈", "NGT", "WINTER"), worker);
 
-        // then — export 폴더 재산출은 트리거하지 않는다(스냅샷만 재동결, 파일은 다음 재승인 시 재산출)
+        // then — C-1b(Phase 5C): 재산출은 TaskModifiedEvent(exportRegenerated=true) 한 축으로만 트리거한다.
+        //   별도 DatasetReExportEvent 를 병렬로 발행하지 않아 이중 export/이중 통지가 없다.
+        //   (재산출 실행은 디바운스 flush 가 export→통지 순서로 직렬화한다.)
         verify(eventPublisher, never()).publishEvent(any(DatasetReExportEvent.class));
-        // 발행되는 유일한 이벤트는 TASK_MODIFIED(META_UPDATED) 1건
-        verify(eventPublisher, times(1)).publishEvent(any(Object.class));
-        verify(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher, times(1)).publishEvent(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(TaskModifiedEvent.class);
+        assertThat(((TaskModifiedEvent) captor.getValue()).exportRegenerated()).isTrue();
     }
 
     @Test

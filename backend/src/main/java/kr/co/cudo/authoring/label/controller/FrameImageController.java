@@ -80,7 +80,8 @@ public class FrameImageController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 — image/jpeg or image/png"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 / Path traversal 의심"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 또는 이미지 파일 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 또는 이미지 파일 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 누락 신고 구간(재비식별 대기) — 이미지 서빙 차단")
     })
     @GetMapping("/{srcSn}/image")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER', 'PORTAL_USER')")
@@ -92,6 +93,13 @@ public class FrameImageController {
         accessGuard.verifyAccess(srcSn, actor);
         LsDataSrc src = srcRepository.findById(srcSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
+
+        // 1-1) S7 (DEV_FIX-A/H1 — HIGH, CWE-359) — 비식별 누락 신고 구간(DE_IDNTF_YN='F')에는 프레임
+        //      이미지를 서빙하지 않는다. 이 경로는 비식별 판정 없이 <b>원본 프레임</b>을 그대로 서빙하므로
+        //      신고(=비식별 누락 확인) 상태에서 열려 있으면 PII 이미지가 그대로 나간다. 인가(verifyAccess)
+        //      <b>이후</b> 평가해 게이트가 인가를 대체하지 않게 한다. resolve('F'→'Y') 로 자동 해제.
+        //      (원본 프레임 자체를 WORKER 에게 서빙하는 정책 문제는 본 수정 범위 밖 — 신고 구간만 차단한다.)
+        accessGuard.requireNotUnderDeidentReport(src.getRawSn());
 
         // 2) Path traversal 방어 — baseDir 기준 normalize + startsWith 검증
         Path baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();
