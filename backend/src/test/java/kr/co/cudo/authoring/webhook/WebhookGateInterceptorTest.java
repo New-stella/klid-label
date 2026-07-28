@@ -25,7 +25,7 @@ class WebhookGateInterceptorTest {
     @Test
     @DisplayName("필터_증거_래퍼가_없는_요청은_401_컨트롤러_미도달")
     void withoutMarker_returns401() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/aug/callback");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/genai/callback");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean proceed = interceptor.preHandle(request, response, new Object());
@@ -38,7 +38,7 @@ class WebhookGateInterceptorTest {
     @Test
     @DisplayName("서명검증_통과_래퍼면_증강_콜백_허용")
     void withVerifiedMarker_proceeds() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/aug/callback");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/genai/callback");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean proceed = interceptor.preHandle(new GuardedWrapper(request, true), response, new Object());
@@ -53,7 +53,7 @@ class WebhookGateInterceptorTest {
         // 컨트롤러가 startAsync() 를 쓰면 ASYNC 재디스패치에서 증거 래퍼가 소실될 수 있다.
         // 필터는 shouldNotFilterAsyncDispatch()=true 라 재실행되지 않으므로, 여기서 막으면
         // **정상 콜백이 401** 이 된다(DEV_FIX L-2). 디스패치 타입은 컨테이너가 정하며 위조 불가.
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/aug/callback");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/genai/callback");
         request.setDispatcherType(jakarta.servlet.DispatcherType.ASYNC);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -66,7 +66,7 @@ class WebhookGateInterceptorTest {
     @Test
     @DisplayName("REQUEST_디스패치는_증거_래퍼가_없으면_여전히_401_ASYNC_예외가_우회로가_아님")
     void requestDispatchWithoutMarker_stillBlocked() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/aug/callback");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/genai/callback");
         request.setDispatcherType(jakarta.servlet.DispatcherType.REQUEST);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -77,9 +77,16 @@ class WebhookGateInterceptorTest {
     }
 
     @Test
-    @DisplayName("증강_경로에_size_cap_전용_래퍼만_있으면_401")
-    void augmentPathWithUnverifiedMarker_returns401() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/aug/callback");
+    @DisplayName("서명필수_판정_경로에_size_cap_전용_래퍼만_있으면_401")
+    void signatureRequiredPathWithUnverifiedMarker_returns401() throws Exception {
+        // Phase 7-A2 — 등록된 서명 필수 경로는 없지만, 경로 판정 불가는 여전히 "서명 요구"다
+        // (fail-closed). 이때 서명 미검증 래퍼로는 통과할 수 없어야 한다.
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v1/genai/callback") {
+            @Override
+            public String getRequestURI() {
+                throw new IllegalStateException("URI 파싱 실패 시뮬");
+            }
+        };
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean proceed = interceptor.preHandle(new GuardedWrapper(request, false), response, new Object());

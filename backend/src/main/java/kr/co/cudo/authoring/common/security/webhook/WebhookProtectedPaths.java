@@ -37,11 +37,17 @@ import java.util.regex.Pattern;
 public final class WebhookProtectedPaths {
 
     /**
-     * 증강 결과 콜백 경로 — <b>단일 진실원</b>.
-     * 요청측({@code AugmentRequestService})·dev 시뮬({@code DevAugmentCallbackSimulator})·검증 필터가
-     * 모두 이 상수를 참조해 경로 드리프트로 인한 401 회귀를 구조적으로 차단한다.
+     * 생성형 AI(증강) 결과 웹훅 경로 — <b>단일 진실원</b> (Phase 7-A1/A2).
+     *
+     * <p>「생성형 AI API 연동명세서 v1.1」의 웹훅은 <b>무서명</b> 규격이라 HMAC 대상이 아니다.
+     * 요청측(Phase 7-A1)이 {@code callback_url} 조립에 이 상수를 참조하고, 수신 컨트롤러(A2)와
+     * 가드 패턴 등록이 같은 상수를 참조한다(경로 드리프트 차단).
+     *
+     * <p>구 계약 경로({@code /v1/aug/callback}, HMAC 서명 필수)는 Phase 7-A2 에서 컨트롤러·DTO·
+     * dev 시뮬레이터와 함께 제거됐다. 서명 필수 목록에도 남기지 않는다 — 수신처 없는 경로를
+     * 보호 목록에 두면 "죽은 보안 설정"이 되어 실제 보호 범위를 오독하게 만든다.
      */
-    public static final String PATH_AUGMENT = "/v1/aug/callback";
+    public static final String PATH_GENAI_CALLBACK = "/v1/genai/callback";
 
     /**
      * VLM describe 콜백 경로 — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1)상 <b>무서명</b> 규격이라
@@ -51,31 +57,44 @@ public final class WebhookProtectedPaths {
     public static final String PATH_VLM = "/v1/vlm/callback";
 
     /**
-     * HMAC 서명 필수 경로 <b>패턴 문자열</b> — 인터셉터 등록({@code WebhookGateConfig})이 같은 값을
+     * 무서명 가드 전용 경로 패턴 문자열 — 인터셉터 등록({@code WebhookGateConfig})이 같은 값을
      * 참조하도록 노출한다. 패턴을 두 벌로 적으면 신규 웹훅 추가 시 한쪽만 갱신돼 2단 게이트가 조용히
      * 미적용되는 드리프트가 생긴다(DEV_FIX L-1).
      */
-    public static final String PATTERN_AUGMENT = "/v1/aug/**";
-
-    /** 무서명 가드 전용 경로 패턴 문자열 — {@link #PATTERN_AUGMENT} 와 동일 취지. */
     public static final String PATTERN_VLM = "/v1/vlm/**";
 
+    /** 생성형 AI(증강) 웹훅 경로 패턴 — 무서명 가드 전용({@link #PATTERN_VLM} 과 동일 취지). */
+    public static final String PATTERN_GENAI = "/v1/genai/**";
+
     /** 2단 게이트(인터셉터)가 덮어야 하는 경로 패턴 전체 — 단일 진실원. */
-    public static final List<String> GATE_PATTERNS = List.of(PATTERN_AUGMENT, PATTERN_VLM);
+    public static final List<String> GATE_PATTERNS = List.of(PATTERN_VLM, PATTERN_GENAI);
 
     /** 메트릭 태그값 — 저카디널리티 고정 라벨(CWE-770 태그 폭주 차단, DEV_FIX M-2). */
-    public static final String TAG_AUGMENT = "aug";
     public static final String TAG_VLM = "vlm";
+    public static final String TAG_GENAI = "genai";
     public static final String TAG_OTHER = "other";
 
     /** 경로 판정 불가 시 사용하는 고정 키 — 원시 URI 를 키로 쓰지 않는다(DEV_FIX H-2). */
     public static final String UNRESOLVED_PATH = "unresolved";
 
-    /** HMAC 서명 필수 경로 패턴. */
-    private static final List<PathPattern> SIGNATURE_REQUIRED = List.of(parse(PATTERN_AUGMENT));
+    /**
+     * HMAC 서명 필수 경로 패턴 — <b>현재 비어 있다</b>(Phase 7-A2).
+     *
+     * <p>유일한 서명 필수 웹훅이던 구 증강 콜백({@code /v1/aug/**})이 제거되면서 등록 경로가 없다.
+     * 목록을 비워도 서명 검증 분기는 살아 있다 — {@link #requiresSignature} 는 <b>경로 판정 불가</b>
+     * 시 {@code true} 를 돌려주므로(S-13 fail-closed), URI 파싱이 깨지는 요청은 여전히 서명 요구
+     * 경로로 처리되어 401 로 거부된다.
+     */
+    private static final List<PathPattern> SIGNATURE_REQUIRED = List.of();
 
-    /** 서명은 없지만 크기·빈도 가드가 필요한 경로 패턴(벤더 무서명 규격). */
-    private static final List<PathPattern> GUARD_ONLY = List.of(parse(PATTERN_VLM));
+    /** VLM 무서명 경로 패턴. */
+    private static final List<PathPattern> GUARD_VLM = List.of(parse(PATTERN_VLM));
+
+    /** 생성형 AI(증강) 무서명 경로 패턴. */
+    private static final List<PathPattern> GUARD_GENAI = List.of(parse(PATTERN_GENAI));
+
+    /** 서명은 없지만 크기·빈도 가드가 필요한 경로 패턴(벤더/외부 무서명 규격). */
+    private static final List<PathPattern> GUARD_ONLY = List.of(parse(PATTERN_VLM), parse(PATTERN_GENAI));
 
     /** 로그 인젝션(CWE-117) 차단용 — 개행/탭 제거. */
     private static final Pattern LOG_UNSAFE = Pattern.compile("[\\r\\n\\t]");
@@ -88,6 +107,21 @@ public final class WebhookProtectedPaths {
 
     private static PathPattern parse(String pattern) {
         return PathPatternParser.defaultInstance.parse(pattern);
+    }
+
+    /**
+     * 서명 필수 경로가 <b>하나라도 등록돼 있는가</b>.
+     *
+     * <p>목록이 비면 HMAC 시크릿은 정상 요청에 한 번도 쓰이지 않는다. 그런데도 시크릿을 기동 필수로
+     * 강제하면 운영은 <b>아무 값이나 넣어야만 뜨고, 제거하면 기동이 죽는</b> 상태가 된다 — 보안 통제가
+     * 아니라 배포 함정이다(DEV_FIX MEDIUM-3). 그래서 {@code HmacWebhookFilter} 는 이 값이 {@code true}
+     * 일 때만 시크릿을 강제한다.
+     *
+     * <p>강제를 끄더라도 <b>fail-closed 는 그대로다</b>: {@link #requiresSignature} 는 경로 판정 불가 시
+     * {@code true} 를 돌려주고, 그 경로는 시크릿이 없으면 필터에서 401 로 거부된다.
+     */
+    public static boolean hasSignatureRequiredPaths() {
+        return !SIGNATURE_REQUIRED.isEmpty();
     }
 
     /** 서명 검증이 필수인 경로인가. 판정 불가 시 {@code true}(fail-closed). */
@@ -106,6 +140,15 @@ public final class WebhookProtectedPaths {
             return false; // 판정 불가 시 requiresSignature 가 true 를 반환하므로 여기서는 false
         }
         return matchesAny(GUARD_ONLY, path);
+    }
+
+    /**
+     * 생성형 AI(증강) 웹훅 경로인가 — 무서명 가드가 <b>VLM 과 다른 정책</b>(전용 IP allowlist·본문
+     * 상한)을 골라야 하므로 노출한다. 판정 불가 시 {@code false}(호출자가 fail-closed 처리).
+     */
+    public static boolean isGenAi(HttpServletRequest request) {
+        PathContainer path = pathWithinApplication(request);
+        return path != null && matchesAny(GUARD_GENAI, path);
     }
 
     /** 본 필터가 개입해야 하는 경로인가(서명 필수 + 가드 전용). */
@@ -153,10 +196,14 @@ public final class WebhookProtectedPaths {
      * Meter 를 무한 생성할 수 있다(MeterRegistry 는 evict 하지 않음 — CWE-770, DEV_FIX M-2).
      */
     public static String metricTag(HttpServletRequest request) {
-        if (requiresSignature(request)) {
-            return TAG_AUGMENT;
+        PathContainer path = pathWithinApplication(request);
+        if (path == null) {
+            return TAG_OTHER;
         }
-        return requiresGuardOnly(request) ? TAG_VLM : TAG_OTHER;
+        if (matchesAny(GUARD_VLM, path)) {
+            return TAG_VLM;
+        }
+        return matchesAny(GUARD_GENAI, path) ? TAG_GENAI : TAG_OTHER;
     }
 
     /**

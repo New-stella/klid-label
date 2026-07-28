@@ -25,6 +25,12 @@ authoring:
       enabled: true
     upload:
       enabled: true
+  # Phase 7-A1 — 외부 증강(생성형 AI) 벤더 실연동 전이라 noop 을 <b>명시</b>한다.
+  #   공통 기본값(http)이 운영 환경으로 새지 않도록 fail-safe 로 못박는 것이며,
+  #   실벤더 연동 시 AUGMENT_EXTERNAL_MODE=http + AUGMENT_API_BASE_URL 로 전환한다.
+  augment:
+    external:
+      mode: ${AUGMENT_EXTERNAL_MODE:noop}
   # dev 비식별 — 기본 mock 모드. KPST 미호출, 원본을 비식별 경로로 복사하는 mock 비식별로 자족 동작한다.
   #   실 KPST 연동은 DEIDENTIFY_MOCK_MODE=false 로 전환(KPST API 연동 테스트 서버에 실제 위탁).
   #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — local/dev/stg 는 허용, prd 에서 true 면 부트 거부.

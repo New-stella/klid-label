@@ -695,4 +695,67 @@ class MarkingServiceTest {
         verify(markingRepository).save(captor.capture());
         assertThat(captor.getValue().getFps()).isEqualTo(60.0);
     }
+
+    // ── B-ISSUE-22 — rawSn 당 활성 마킹 1건 제약 ──
+
+    @Test
+    @DisplayName("동일_rawSn_에_활성_마킹이_있으면_두번째_생성은_409")
+    void secondMarkingOnActiveRawSnConflicts() {
+        // given — 이미 미종결(PENDING/VLM_REQUESTED) 마킹이 존재하는 영상
+        Long rawSn = 150L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        lenient().when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.existsByRawSnAndSttsCdIn(rawSn, LsMarking.ACTIVE_STATUSES)).thenReturn(true);
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when / then — 두 번째 마킹은 409 로 거부되고 저장/이벤트 발행이 없다.
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 30))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(markingRepository, never()).save(any(LsMarking.class));
+        verify(eventPublisher, never()).publishEvent(any(MarkingCompletedEvent.class));
+    }
+
+    @Test
+    @DisplayName("종결_VLM_FAILED_마킹만_있으면_재마킹이_허용된다")
+    void terminalFailedMarkingAllowsReMarking() {
+        // given — 활성 마킹 없음(VLM_FAILED 는 종결 상태라 활성 집합에서 제외)
+        Long rawSn = 151L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.existsByRawSnAndSttsCdIn(rawSn, LsMarking.ACTIVE_STATUSES)).thenReturn(false);
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, req, reviewer(), 30);
+
+        // then
+        assertThat(result.status()).isEqualTo(LsMarking.STATUS_PENDING);
+        verify(markingRepository).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("부분유니크_위반_DataIntegrityViolationException_은_409_로_변환된다")
+    void uniqueViolationMappedToConflict() {
+        // given — 사전 조회는 통과했지만(동시 요청) DB 부분 유니크 인덱스가 flush 시점에 거부
+        Long rawSn = 152L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("uk"))
+                .when(markingRepository).flush();
+
+        MarkingRequest req = new MarkingRequest("AUTO", 300, null);
+
+        // when / then — 500 이 아니라 409 로 표면화된다.
+        assertThatThrownBy(() -> markingService.create(rawSn, req, reviewer(), 30))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(eventPublisher, never()).publishEvent(any(MarkingCompletedEvent.class));
+    }
 }

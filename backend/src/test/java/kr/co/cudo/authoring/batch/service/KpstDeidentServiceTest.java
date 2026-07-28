@@ -6,8 +6,13 @@ import kr.co.cudo.authoring.common.client.KpstDeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
+import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,8 +57,10 @@ class KpstDeidentServiceTest {
     private VideoRepository videoRepository;
     private LsDeidentProcLogRepository procLogRepository;
     private KpstDeidentTxService txService;
+    private BatchTransitionService batchTransitionService;
     private KpstDeidentService service;
     private Path baseDeid;
+    private ListAppender<ILoggingEvent> logCapture;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -61,25 +68,55 @@ class KpstDeidentServiceTest {
         videoRepository = mock(VideoRepository.class);
         procLogRepository = mock(LsDeidentProcLogRepository.class);
         txService = mock(KpstDeidentTxService.class);
+        batchTransitionService = mock(BatchTransitionService.class);
 
         baseDeid = tmp.resolve("deid");
         // 기존 케이스는 구 위치({deid_base}/videos/{rawSn}/) 계약을 검증하므로 롤백 전략 리졸버를 주입한다.
         // co-locate 신 위치(export_path) 검증은 별도 케이스에서 수행한다.
-        service = new KpstDeidentService(kpstClient, videoRepository, procLogRepository, txService,
-                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.labelingRoot(
-                        tmp.resolve("labeling"), baseDeid));
-        setField(service, "deidPath", baseDeid.toString());
-        setField(service, "creatorId", "authoring");
-        setField(service, "reqUserId", "authoring");
-        setField(service, "pollMaxAttempts", 3);
-        setField(service, "pollTimeoutMinutes", 60L);
-        invoke(service, "initBasePath");
+        service = newService(kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.labelingRoot(
+                tmp.resolve("labeling"), baseDeid));
 
         when(procLogRepository.save(any(LsDeidentProcLog.class))).thenAnswer(inv -> {
             LsDeidentProcLog p = inv.getArgument(0);
             setField(p, "procLogSn", 1L);
             return p;
         });
+
+        logCapture = new ListAppender<>();
+        logCapture.start();
+        serviceLogger().addAppender(logCapture);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        serviceLogger().detachAppender(logCapture);
+    }
+
+    private static ch.qos.logback.classic.Logger serviceLogger() {
+        return (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(KpstDeidentService.class);
+    }
+
+    /** 캡처된 WARN 로그 중 주어진 조각을 포함하는 것이 있는지. */
+    private boolean warnLogged(String fragment) {
+        return logCapture.list.stream()
+                .anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+                        && e.getFormattedMessage().contains(fragment));
+    }
+
+    /** 공통 설정이 주입된 서비스 인스턴스 — 산출 base 전략(리졸버)만 케이스별로 바꾼다. */
+    private KpstDeidentService newService(VideoArtifactRootResolver resolver) {
+        KpstDeidentService s = new KpstDeidentService(kpstClient, videoRepository, procLogRepository,
+                txService, resolver, batchTransitionService);
+        setField(s, "deidPath", baseDeid.toString());
+        setField(s, "creatorId", "authoring");
+        setField(s, "reqUserId", "authoring");
+        setField(s, "pollMaxAttempts", 3);
+        setField(s, "pollTimeoutMinutes", 60L);
+        setField(s, "verifySourceExists", true);
+        // 유예 재확인은 케이스에서 명시적으로 켠다(기본 0 = 즉시 판정, 테스트 지연 없음).
+        setField(s, "resultRecheckDelayMs", 0L);
+        invoke(s, "initBasePath");
+        return s;
     }
 
     private LsDataRaw newRaw() {
@@ -114,15 +151,25 @@ class KpstDeidentServiceTest {
                 new KpstProgressResponse.Data(1, List.of(prj)));
     }
 
-    /** no-copy: KPST 가 export_path 에 직접 쓴 결과를 시뮬레이션하는 회수 경로(>0바이트). */
+    /** no-copy: KPST 가 export_path 에 직접 쓴 결과를 시뮬레이션하는 회수 경로. */
     private Path deidPathFor(String fileName) {
         return baseDeid.resolve("videos").resolve("9001").resolve(fileName);
     }
 
-    private void writeDeidResult(String fileName, String content) throws Exception {
+    /**
+     * KPST 산출물 시뮬레이션 — <b>실제 유효 영상 바이트</b>(최소 mp4)로 쓴다.
+     * 무결성 강화 후에는 텍스트 스텁이 산출물로 인정되지 않으므로(B-ISSUE-01) 픽스처도 실제 영상이어야 한다.
+     */
+    private Path writeDeidResult(String fileName) {
+        return TestVideoFixtures.writeTinyMp4(deidPathFor(fileName));
+    }
+
+    /** 산출물 자리에 임의 바이트를 쓴다(불완전/위장 산출물 케이스 전용). */
+    private Path writeDeidBytes(String fileName, byte[] bytes) throws Exception {
         Path p = deidPathFor(fileName);
         java.nio.file.Files.createDirectories(p.getParent());
-        java.nio.file.Files.writeString(p, content);
+        java.nio.file.Files.write(p, bytes);
+        return p;
     }
 
     // ────────────────────────── 위탁 ──────────────────────────
@@ -219,7 +266,9 @@ class KpstDeidentServiceTest {
     @Test
     @DisplayName("원본경로_부모디렉터리가_null이면_F마킹하고_예외전파_createProject미호출")
     void submitNullParentRejected() {
-        // given — 부모 디렉터리가 없는 비정상 경로(파일명만) → 경계 방어(CWE-22/입력검증)
+        // given — 부모 디렉터리가 없는 비정상 경로(파일명만) → 경계 방어(CWE-22/입력검증).
+        //  원본 실재 가드(B-ISSUE-01)를 끈 상태에서 <부모 null> 분기 자체가 여전히 거부하는지 본다.
+        setField(service, "verifySourceExists", false);
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "clip-x", "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_PRVC, "clip.mp4", null, 60);
@@ -230,6 +279,62 @@ class KpstDeidentServiceTest {
         assertThatThrownBy(() -> service.submit(raw)).isInstanceOf(CustomException.class);
         verify(kpstClient, never()).createProject(any());
         assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+    }
+
+    // ─────────────── B-ISSUE-01: 원본 실재 가드(fail-closed) ───────────────
+
+    @Test
+    @DisplayName("원본_파일이_없으면_KPST_위탁이_거부되고_F_로_마킹된다")
+    void submitRejectsWhenSourceMissing() {
+        // given — 관제 NAS 경로가 DB 에는 있으나 실제 파일이 없는 영상(라이브 재현: clip-9101.mp4 부재).
+        LsDataRaw raw = newRaw();
+        setField(raw, "rawFilePathNm", tmp.resolve("gone.mp4").toString());
+
+        // when / then — 위탁 자체를 거부(fail-closed). 외부 호출 없음.
+        assertThatThrownBy(() -> service.submit(raw))
+                .isInstanceOf(CustomException.class);
+        verify(kpstClient, never()).createProject(any());
+        // 'F' 는 별도 REQUIRES_NEW 로 커밋되어야 한다(submit 트랜잭션 롤백과 독립).
+        verify(batchTransitionService).recordDeidentFailure(eq(9001L), any(), any());
+        // 위탁 대기(WAITING) procLog 를 남기지 않는다 — 폴링 대상이 되면 안 된다.
+        verify(procLogRepository, never()).save(any(LsDeidentProcLog.class));
+    }
+
+    @Test
+    @DisplayName("원본_부재_시_MARKING_READY_로_전이되지_않는다")
+    void submitSourceMissingNeverTransitionsMarkingReady() {
+        // given — 원본 부재. 거짓 'Y'/MARKING_READY 로 후속 단계를 오염시키면 안 된다(CWE-345).
+        LsDataRaw raw = newRaw();
+        setField(raw, "rawFilePathNm", tmp.resolve("gone.mp4").toString());
+        String beforeStatus = raw.getDataSttsCd();
+
+        // when
+        assertThatThrownBy(() -> service.submit(raw)).isInstanceOf(CustomException.class);
+
+        // then — DE_IDNTF_YN 'Y' 전이도, MARKING_READY 전이도 없다.
+        assertThat(raw.getDeIdntfYn()).isNotEqualTo("Y");
+        assertThat(raw.getDataSttsCd()).isEqualTo(beforeStatus);
+        assertThat(raw.getDataSttsCd()).isNotEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        verify(txService, never()).completeDeidentification(any(), any());
+    }
+
+    @Test
+    @DisplayName("원본_실재_가드는_프로퍼티로_끌_수_있고_끄면_WARN_이_남는다")
+    void submitSourceGuardCanBeDisabledWithWarn() {
+        // given — 공유 마운트가 보이지 않는 배포를 위한 이스케이프 해치(기본은 켬).
+        setField(service, "verifySourceExists", false);
+        LsDataRaw raw = newRaw();
+        setField(raw, "rawFilePathNm", tmp.resolve("gone.mp4").toString());
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(new KpstProjectResponse("success", 101L));
+
+        // when — 가드가 꺼져 있으면 원본이 없어도 위탁이 진행된다.
+        LsDeidentProcLog procLog = service.submit(raw);
+
+        // then — 침묵하지 않는다: 미검증 위탁임을 WARN 으로 남긴다.
+        assertThat(procLog.getKpstPrjId()).isEqualTo(101L);
+        verify(batchTransitionService, never()).recordDeidentFailure(any(), any(), any());
+        assertThat(warnLogged("source existence guard disabled")).isTrue();
     }
 
     // ─────────────── 위탁 export 디렉터리 정리 (HIGH — stale 오회수 방지) ───────────────
@@ -321,16 +426,8 @@ class KpstDeidentServiceTest {
      * 허용 마운트 루트는 {@code tmp}(원본 {@code tmp/clip.mp4} 의 상위).
      */
     private KpstDeidentService coLocateService() {
-        KpstDeidentService s = new KpstDeidentService(kpstClient, videoRepository, procLogRepository, txService,
-                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.coLocate(
-                        tmp, tmp.resolve("raw"), baseDeid));
-        setField(s, "deidPath", baseDeid.toString());
-        setField(s, "creatorId", "authoring");
-        setField(s, "reqUserId", "authoring");
-        setField(s, "pollMaxAttempts", 3);
-        setField(s, "pollTimeoutMinutes", 60L);
-        invoke(s, "initBasePath");
-        return s;
+        return newService(kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.coLocate(
+                tmp, tmp.resolve("raw"), baseDeid));
     }
 
     /** co-locate 비식별 영상 디렉터리 — {@code dirname(원본)/{rawSn}/deid/}. */
@@ -396,9 +493,7 @@ class KpstDeidentServiceTest {
         procLog.markKpstSubmitted(101L, null);
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWith(2, 202L));   // fileName "clip.mp4"
-        java.nio.file.Files.createDirectories(coLocateDeidDir());
-        Path masked = coLocateDeidDir().resolve("clip-mask.mp4");
-        java.nio.file.Files.writeString(masked, "MASKED");
+        Path masked = TestVideoFixtures.writeTinyMp4(coLocateDeidDir().resolve("clip-mask.mp4"));
 
         // when
         coLocateService().pollOne(procLog);
@@ -418,7 +513,7 @@ class KpstDeidentServiceTest {
         procLog.markKpstSubmitted(101L, null);
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWith(2, 202L));
-        writeDeidResult("clip-mask.mp4", "MASKED");
+        writeDeidResult("clip-mask.mp4");
 
         // when
         coLocateService().pollOne(procLog);
@@ -450,7 +545,7 @@ class KpstDeidentServiceTest {
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWith(2, 202L)); // fileName "clip.mp4"
         // KPST 가 export_path 에 직접 쓴 결과(복사 없음 — 우리는 경로만 구성).
-        writeDeidResult("clip.mp4", "MASKED");
+        writeDeidResult("clip.mp4");
         Path expected = deidPathFor("clip.mp4");
 
         service.pollOne(procLog);
@@ -555,8 +650,7 @@ class KpstDeidentServiceTest {
     @DisplayName("isUsableDeidFile_심볼릭링크는_정규파일로_통과하지않는다")
     void isUsableDeidFileRejectsSymlink() throws Exception {
         // LOW-1: KPST 출력 디렉터리 내 심링크가 정규파일로 통과하지 않도록 NOFOLLOW_LINKS 적용(공급망 방어심도).
-        Path target = tmp.resolve("real.mp4");
-        java.nio.file.Files.writeString(target, "MASKED");
+        Path target = TestVideoFixtures.writeTinyMp4(tmp.resolve("real.mp4"));
         Path link = tmp.resolve("link.mp4");
         try {
             java.nio.file.Files.createSymbolicLink(link, target);
@@ -567,6 +661,95 @@ class KpstDeidentServiceTest {
         m.setAccessible(true);
         boolean usable = (boolean) m.invoke(service, link.toString());
         assertThat(usable).isFalse();
+    }
+
+    // ─────────────── B-ISSUE-01: 산출물 무결성(크기 하한 + 컨테이너 시그니처) ───────────────
+
+    @Test
+    @DisplayName("18바이트_스텁_산출물은_유효한_비식별본으로_인정되지_않는다")
+    void pollRejectsEighteenByteStub() throws Exception {
+        // given — 라이브 재현: 원본이 없어 목이 남긴 placeholder("MOCK_DEIDENTIFIED\n" 18바이트)가
+        //   procState=2 와 함께 '비식별 완료'로 승인되던 결함(CWE-345).
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(2, 202L));
+        Path stub = writeDeidBytes("clip-mask.mp4", "MOCK_DEIDENTIFIED\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(java.nio.file.Files.size(stub)).isEqualTo(18L);
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(newRaw()));
+
+        // when
+        service.pollOne(procLog);
+
+        // then — Y 전이 금지, 'F' 종결.
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService).failPolling(eq(1L), eq(9001L));
+    }
+
+    @Test
+    @DisplayName("ftyp_시그니처가_없는_파일은_거부된다")
+    void pollRejectsFileWithoutContainerSignature() throws Exception {
+        // given — 크기 하한은 넘지만 영상 컨테이너 시그니처가 없는 파일(텍스트 로그/HTML 오류페이지 등).
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(2, 202L));
+        byte[] text = new byte[4096];
+        java.util.Arrays.fill(text, (byte) 'A');
+        writeDeidBytes("clip-mask.mp4", text);
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(newRaw()));
+
+        // when
+        service.pollOne(procLog);
+
+        // then
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService).failPolling(eq(1L), eq(9001L));
+    }
+
+    @Test
+    @DisplayName("정상이지만_작은_영상은_거부되지_않는다")
+    void pollAcceptsSmallButValidVideo() {
+        // given — 실측 최소 영상(H.264 16x16 1프레임 mp4, 1,546바이트). 오탐 거부는 운영 사고다
+        //   (terminal 'F' + 자동 재시도 없음 → 외부 수동 재비식별).
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(2, 202L));
+        Path masked = writeDeidResult("clip-mask.mp4");
+
+        // when
+        service.pollOne(procLog);
+
+        // then — 정상 완료(거부 없음).
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(masked.toString()));
+        verify(txService, never()).failPolling(any(), any());
+    }
+
+    @Test
+    @DisplayName("쓰기중이던_산출물은_유예_재확인후_정상완료된다")
+    void pollRechecksInFlightArtifactAfterGrace() throws Exception {
+        // given — 완료 응답 시점에 산출물이 아직 쓰이는 중(부분 기록). 즉시 terminal 'F' 로 끊으면
+        //   자동 재시도가 없어 정상 건이 사고가 된다 → 짧은 유예 후 1회 재확인한다.
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWith(2, 202L));
+        Path partial = writeDeidBytes("clip-mask.mp4", new byte[]{0, 0, 0, 32});   // 헤더 일부만 기록됨
+        setField(service, "resultRecheckDelayMs", 700L);
+        Thread writer = new Thread(() -> {
+            try {
+                Thread.sleep(120L);
+                TestVideoFixtures.writeTinyMp4(partial);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        writer.start();
+
+        // when
+        service.pollOne(procLog);
+        writer.join();
+
+        // then — 유예 재확인으로 정상 완료(오탐 거부 없음).
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(partial.toString()));
+        verify(txService, never()).failPolling(any(), any());
     }
 
     @Test
@@ -720,7 +903,7 @@ class KpstDeidentServiceTest {
         KpstProgressResponse progress = new KpstProgressResponse("success",
                 new KpstProgressResponse.Data(1, List.of(prj)));
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L))).thenReturn(progress);
-        writeDeidResult("a.mp4", "MASKED"); // 첫 데이터셋 fileName
+        writeDeidResult("a.mp4"); // 첫 데이터셋 fileName
         Path expected = deidPathFor("a.mp4");
 
         service.pollOne(procLog);
@@ -983,7 +1166,7 @@ class KpstDeidentServiceTest {
         procLog.markRedeident();
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWith(2, 202L));
-        writeDeidResult("clip.mp4", "MASKED");
+        writeDeidResult("clip.mp4");
         org.mockito.Mockito.doThrow(new CustomException(ErrorCode.INVALID_INPUT, "해상도 불일치"))
                 .when(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), any());
 
@@ -999,7 +1182,7 @@ class KpstDeidentServiceTest {
         LsDeidentProcLog procLog = submittedProcLog(); // REQ_KIND null
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWith(2, 202L));
-        writeDeidResult("clip.mp4", "MASKED");
+        writeDeidResult("clip.mp4");
         org.mockito.Mockito.doThrow(new CustomException(ErrorCode.INVALID_INPUT, "boom"))
                 .when(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), any());
 
@@ -1018,7 +1201,7 @@ class KpstDeidentServiceTest {
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWithFileName(2, 202L, "/nas-storage-prod2/klid_at_test/raw/001.mp4"));
         // KPST 가 export_path 에 직접 쓴 실제 산출물 = 001-mask.mp4 (>0바이트).
-        writeDeidResult("001-mask.mp4", "MASKED");
+        writeDeidResult("001-mask.mp4");
         Path expected = deidPathFor("001-mask.mp4");
 
         service.pollOne(procLog);
@@ -1038,7 +1221,7 @@ class KpstDeidentServiceTest {
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWithFileName(2, 202L, "/nas-storage-prod2/klid_at_test/raw/001.mp4"));
         // 001-mask.mp4 는 없고 다른 이름의 단일 산출물만 존재(규칙 변화 시나리오).
-        writeDeidResult("001_masked.mkv", "MASKED");
+        writeDeidResult("001_masked.mkv");
         Path expected = deidPathFor("001_masked.mkv");
 
         service.pollOne(procLog);
@@ -1055,8 +1238,8 @@ class KpstDeidentServiceTest {
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWithFileName(2, 202L, "/nas-storage-prod2/klid_at_test/raw/zzz.mp4"));
         // zzz-mask.mp4 는 없고, 서로 다른 두 산출물이 있어 모호.
-        writeDeidResult("a.mp4", "MASKED");
-        writeDeidResult("b.mp4", "MASKED");
+        writeDeidResult("a.mp4");
+        writeDeidResult("b.mp4");
 
         service.pollOne(procLog); // 예외 전파 없이 정상 반환
 
@@ -1071,7 +1254,7 @@ class KpstDeidentServiceTest {
         LsDeidentProcLog procLog = submittedProcLog();
         when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
                 .thenReturn(progressWithFileName(2, 202L, "/nas/raw/../../../../etc/001.mp4"));
-        writeDeidResult("001-mask.mp4", "MASKED");
+        writeDeidResult("001-mask.mp4");
         Path expected = deidPathFor("001-mask.mp4");
 
         service.pollOne(procLog);
@@ -1081,6 +1264,49 @@ class KpstDeidentServiceTest {
         // 회수 경로는 반드시 base 하위(순회 이탈 없음).
         assertThat(pathCaptor.getValue()).isEqualTo(expected.toString());
         assertThat(pathCaptor.getValue()).startsWith(baseDeid.toAbsolutePath().normalize().toString());
+    }
+
+    // ────────────── B-ISSUE-84: 목업 계약 정합(1차 회수 경로가 실제로 쓰이는지) ──────────────
+
+    @Test
+    @DisplayName("목업_계약_하에서_toMaskName_1차_회수경로가_실제로_사용된다")
+    void pollUsesPrimaryMaskPathUnderMockContract() throws Exception {
+        // given — 목업이 실서버 계약대로 응답할 때: fileName = 원본 입력 절대경로,
+        //   산출물 = {stem}-mask{ext}. export 디렉터리에 <다른 파일이 하나 더> 있어도 1차 경로로 회수해야 한다.
+        //   (폴백 스캔을 타면 파일이 2개라 '모호' 실패로 종결되므로, 성공 자체가 1차 경로 사용의 증거다.)
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWithFileName(2, 202L, "/nas-storage/klid/raw/seed/clip-9101.mp4"));
+        Path masked = writeDeidResult("clip-9101-mask.mp4");
+        writeDeidResult("clip-9101-mask.mp4.part");   // 잔여물 — 폴백 스캔이면 모호 실패
+        Path expected = deidPathFor("clip-9101-mask.mp4");
+
+        // when
+        service.pollOne(procLog);
+
+        // then — 1차 경로({stem}-mask{ext})로 회수, 폴백 미사용(모호 실패 없음).
+        assertThat(masked).isEqualTo(expected);
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(expected.toString()));
+        verify(txService, never()).failPolling(any(), any());
+        assertThat(warnLogged("primary mask path miss")).isFalse();
+    }
+
+    @Test
+    @DisplayName("1차_경로_miss_시_WARN_이_남는다")
+    void pollWarnsWhenPrimaryMaskPathMisses() throws Exception {
+        // given — 1차 경로 부재 → 폴백 스캔으로 회수(안전망 유지). 다만 계약 드리프트를 조용히 넘기지 않도록
+        //   운영에서 관측 가능한 WARN 을 남긴다.
+        LsDeidentProcLog procLog = submittedProcLog();
+        when(kpstClient.retrieveProgress(eq("authoring"), eq(101L)))
+                .thenReturn(progressWithFileName(2, 202L, "/nas-storage/klid/raw/seed/clip-9101.mp4"));
+        Path fallback = writeDeidResult("clip-9101_202607250139_mask.mp4");   // 구 목업 규칙 산출물
+
+        // when
+        service.pollOne(procLog);
+
+        // then — 폴백으로 완료되지만 WARN 이 남는다.
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(fallback.toString()));
+        assertThat(warnLogged("primary mask path miss")).isTrue();
     }
 
     private static void setField(Object target, String name, Object value) {

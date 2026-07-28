@@ -38,7 +38,7 @@
 
 > ※ §22.3.2(`/upload`)·§22.3.12(`/download`)·§22.5(업로드 표준 흐름)는 **KPST 서버 API 레퍼런스로 보존**하되, 저작도구는 이를 호출하지 않는다(공유 마운트 모델). 구 업로드 모델(`/upload`→`/project`→`/download`)은 폐기됐다.
 
-> 참고 — HMAC 웹훅 인프라(`HmacWebhookFilter`/`HmacSigner`)와 VLM(`/v1/vlm/result`)·증강(`/v1/augments/result`) 콜백은 **그대로 유지**된다. 비식별 전용 콜백 경로(`/v1/deidentify/result`)와 `webhook.hmac.secret.deidentify` 설정 키만 제거되었다.
+> 참고 — HMAC 웹훅 인프라(`HmacWebhookFilter`/`HmacSigner`)와 VLM(`/v1/vlm/callback`) 콜백은 **그대로 유지**된다. 증강 콜백은 2026-07-27 Phase 7-A2 에서 무서명 `/v1/genai/callback` 으로 교체됐다. 비식별 전용 콜백 경로(`/v1/deidentify/result`)와 `webhook.hmac.secret.deidentify` 설정 키만 제거되었다.
 
 ## 22.2 API 엔드포인트 요약 (13종)
 

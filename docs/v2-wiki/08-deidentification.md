@@ -23,11 +23,11 @@
 
 **[KPST 폴링 경로]** (`kpst.deid.enabled=true`, 기본)
 ```
-[배치] DeidentifyStep.run → KpstDeidentService.submit(project만 — input_path=원본 디렉터리, export_path={base}/videos/{rawSn}/, WAITING)
+[배치] DeidentifyStep.run → KpstDeidentService.submit(원본 실재 가드 → project만 — input_path=원본 디렉터리, export_path={base}/videos/{rawSn}/, WAITING)
         ↓ (영상 1건 = KPST 프로젝트 1개. DE_IDENT_YN 미전이 — 완료 대기. upload 없음)
 [폴링] KpstDeidentPollJob(Quartz) GET /retrieve_progress 반복 폴링
         ↓ state=2(완료) 감지
-응답 dsStatus.fileName 으로 산출 경로 회수(no-copy) → 결과 파일 검증(0바이트/미존재 시 Y 전이 차단)
+응답 dsStatus.fileName 으로 산출 경로 회수(no-copy) → 산출물 무결성 검증(미존재/512바이트 미만/영상 컨테이너 시그니처 불일치 시 Y 전이 차단)
         ↓ (KpstDeidentTxService.finishDownloadAndComplete, REQUIRES_NEW 원자화)
 LS_DATA_RAW.DE_IDENT_YN='Y' + dataSttsCd=MARKING_READY + 작업락 해제 + 신고 해소
    타임아웃 시 DE_IDENT_YN='F'
@@ -46,7 +46,7 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
 - 실패 시 `DE_IDENT_YN='F'`, 원본 보존. 재비식별은 외부 솔루션 수동 처리(자동 재비식별 큐 없음).
 - 코드(폴링 경로): `KpstDeidentifyClient`, `KpstWebClientConfig`(자체CA TLS), `batch/service/KpstDeidentService`/`KpstDeidentTxService`, `batch/scheduler/KpstDeidentPollJob`
 - 코드(트리거/mock): `batch/step/DeidentifyStep`(mock/KPST/설정오류 3분기)
-- 공유 인프라(무변경): `HmacWebhookFilter`/`HmacSigner` + VLM(`/v1/vlm/result`)·증강(`/v1/augments/result`) 콜백은 그대로 유지
+- 공유 인프라: `HmacWebhookFilter`/`HmacSigner` + VLM(`/v1/vlm/callback`) 콜백은 그대로 유지. 증강 콜백은 2026-07-27 Phase 7-A2 에서 무서명 `/v1/genai/callback` 으로 교체됐다(→ [14](14-augmentation.md))
 
 ## 8.3 처리 이력 (RQ-SFR-09-03)
 

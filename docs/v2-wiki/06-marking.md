@@ -46,6 +46,13 @@
 
 코드: `MarkingCompletedEvent`, `MarkingBatchBridge`. 이후 파이프라인 → [07](07-batch-pipeline.md).
 
+## 6.4-1 영상당 활성 마킹 1건 (409)
+
+- **활성 = 미종결** = `STTS_CD IN ('PENDING','VLM_REQUESTED')`. 같은 `rawSn` 에 활성 마킹이 이미 있으면 마킹 생성은 **409(CONFLICT)** 로 거부된다.
+- 이유: 배치는 영상당 **최신 마킹 1건**만 VLM 에 위탁하므로(`MarkingLoadStep`/`VlmTimeseriesStep`), 활성 마킹이 2건 이상이면 나머지는 영원히 `PENDING` 인 고아 행으로 남는다.
+- 종결 상태(`VLM_COMPLETED`/`VLM_FAILED`)만 남은 영상의 **재마킹은 허용**된다(새 배치 사이클을 여는 정당한 동선).
+- 동시 요청 방어는 서비스 사전 조회가 아니라 **DB 부분 유니크 인덱스** `UK_LS_MARKING_RAW_ACTVTN`(V142)가 최종 보증한다 — 위반은 409 로 변환된다.
+
 ## 6.5 관련 데이터 (DB)
 
-`LS_MARKING` (V45) — `EVNT_NM`(이벤트명), `MARK_MODE_CD`(AUTO/MANUAL), `FRME_INTV_NOCS`(프레임 간격), `MARK_CN`(marks JSON), `STTS_CD`(상태). → [18](18-database.md).
+`LS_MARKING` (V45) — `EVNT_NM`(이벤트명), `MARK_MODE_CD`(AUTO/MANUAL), `FRME_INTV_NOCS`(프레임 간격), `MARK_CN`(marks JSON), `STTS_CD`(상태), 부분 유니크 인덱스 `UK_LS_MARKING_RAW_ACTVTN`(V142 — 활성 마킹 1건). → [18](18-database.md).

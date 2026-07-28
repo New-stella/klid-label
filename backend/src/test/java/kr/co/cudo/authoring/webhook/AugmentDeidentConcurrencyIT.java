@@ -13,7 +13,7 @@ import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
+import kr.co.cudo.authoring.webhook.service.AugmentOutcome;
 import kr.co.cudo.authoring.webhook.service.AugmentResultService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -127,10 +127,10 @@ class AugmentDeidentConcurrencyIT {
         Long parentSn = s.parent().getRawSn();
 
         // 서로 다른 otsd_job_id → 2차 UNIQUE 앵커는 미발동. 오직 dataAugSn 행 잠금이 이중 영상을 막아야 한다.
-        AugmentResultRequest reqA = new AugmentResultRequest(
-                augSn, "AUGCC-J-DUP2-A", "WINTER", "SUCCESS", "/storage/augment/AUGCC-DUP2-A.mp4");
-        AugmentResultRequest reqB = new AugmentResultRequest(
-                augSn, "AUGCC-J-DUP2-B", "WINTER", "SUCCESS", "/storage/augment/AUGCC-DUP2-B.mp4");
+        AugmentOutcome reqA = new AugmentOutcome(
+                augSn, "AUGCC-J-DUP2-A", true, "/storage/augment/AUGCC-DUP2-A.mp4");
+        AugmentOutcome reqB = new AugmentOutcome(
+                augSn, "AUGCC-J-DUP2-B", true, "/storage/augment/AUGCC-DUP2-B.mp4");
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
@@ -161,7 +161,7 @@ class AugmentDeidentConcurrencyIT {
                 .isEqualTo(LsDataAug.STTS_ACCEPTED);
     }
 
-    private Void runHandle(AugmentResultRequest req, CountDownLatch ready, CountDownLatch start,
+    private Void runHandle(AugmentOutcome req, CountDownLatch ready, CountDownLatch start,
                            AtomicReference<Boolean> result, AtomicReference<Throwable> err) {
         try {
             ready.countDown();
@@ -179,8 +179,8 @@ class AugmentDeidentConcurrencyIT {
         Seed s = seed("PII", "NIGHT", "AUGCC-J-PII-INIT");
         Long parentSn = s.parent().getRawSn();
         Long reportSrcSn = s.frame0().getSrcSn(); // 신고 대상 프레임(부모 소속)
-        AugmentResultRequest req = new AugmentResultRequest(
-                s.aug().getDataAugSn(), "AUGCC-J-PII", "NIGHT", "SUCCESS",
+        AugmentOutcome req = new AugmentOutcome(
+                s.aug().getDataAugSn(), "AUGCC-J-PII", true,
                 "/storage/augment/AUGCC-PII.mp4");
 
         // REVIEWER 는 LabelAccessGuard 를 전체 통과하므로 신고 진입 셋업이 단순하다.

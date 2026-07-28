@@ -27,7 +27,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -124,8 +123,9 @@ class DeidentReportLabelPreservationIT {
 
     /** 신고 이후 외부 솔루션이 비식별본을 교체한 상태를 만든다(resolve 산출물 검증 게이트 통과용). */
     private void seedDeidentArtifact(long rawSn) throws IOException {
-        Path deidFile = tempDir.resolve("deid-" + rawSn + ".mp4");
-        Files.write(deidFile, new byte[]{1, 2, 3});
+        // 무결성 판정(DeidentArtifactIntegrity)을 통과하는 실제 최소 mp4 픽스처.
+        Path deidFile = kr.co.cudo.authoring.support.TestVideoFixtures.writeTinyMp4(
+                tempDir.resolve("deid-" + rawSn + ".mp4"));
         txTemplate.execute(s -> {
             LsDeidentProcLog procLog = LsDeidentProcLog.request(
                     rawSn, "req-" + rawSn, "/var/raw/DIDPRSV.mp4", "system");

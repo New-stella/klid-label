@@ -1,128 +1,242 @@
 package kr.co.cudo.authoring.webhook;
 
-import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
+import kr.co.cudo.authoring.video.service.port.Java2DImageResizer;
 import kr.co.cudo.authoring.webhook.service.AugmentExtractPlan;
 import kr.co.cudo.authoring.webhook.service.AugmentFrameProducer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
- * Phase B(파일 I/O) 단위 테스트 — 커넥션-점유 분리 리팩터.
+ * Phase B(파일 I/O) 단위 테스트 — Phase 7-D 외부 산출물 반입.
  *
- * <p>ffmpeg 재추출을 파일로만 산출하고, 실패 시 all-or-nothing + cleanup 을 검증한다. 또한 <b>리포지토리
- * 주입 0</b>(DB 커넥션 미보유)을 구조(필드 타입)로 보증한다 — 이 계약이 깨지면 리팩터 목적이 무너진다.
+ * <p>부모 영상 재추출이 아니라 <b>외부 생성형 AI 산출 이미지</b>가 파생 프레임으로 반입되는지,
+ * 그 전에 허용루트·실재·해상도 검증이 fail-closed 로 동작하는지, 실패 시 부분 산출이 남지 않는지를
+ * 실제 파일로 검증한다. 또한 <b>리포지토리 주입 0</b>(DB 커넥션 미보유)을 구조(필드 타입)로 보증한다.
  */
-@ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class AugmentFrameProducerTest {
-
-    @Mock FfmpegFrameExtractor.FrameWriter frameWriter;
 
     @TempDir Path tempDir;
 
     private AugmentFrameProducer producer;
+    private Path deidBase;
+    private Path externalDir;
+    private Path parentFrame;
 
     @BeforeEach
-    void setup() {
-        producer = new AugmentFrameProducer(frameWriter);
-        ReflectionTestUtils.setField(producer, "storageRawPath", tempDir.toString());
+    void setup() throws IOException {
+        deidBase = tempDir.resolve("deid");
+        externalDir = tempDir.resolve("genai");
+        Files.createDirectories(deidBase);
+        Files.createDirectories(externalDir);
+        // 허용 마운트 루트 = 테스트 임시 루트(외부 산출 경로·비식별 저장소 모두 그 하위).
+        VideoArtifactRootResolver resolver = new VideoArtifactRootResolver(
+                tempDir.toString(), tempDir.resolve("raw").toString(), deidBase.toString(),
+                tempDir.resolve("labeling").toString(), "co-locate");
+        producer = new AugmentFrameProducer(resolver, new Java2DImageResizer());
+        ReflectionTestUtils.setField(producer, "storageDeidentifiedPath", deidBase.toString());
+        // 기준(부모 비식별) 프레임 — 위탁 입력과 동일 해상도.
+        parentFrame = writeImage(deidBase.resolve("frames/deid/100/frame-0.jpg"), 64, 48, Color.GRAY);
     }
 
-    private AugmentExtractPlan plan(long newRawSn, Path source, List<AugmentExtractPlan.FrameSpec> frames) {
-        Path framesDir = tempDir.resolve("frames/raw/" + newRawSn);
-        return new AugmentExtractPlan(newRawSn, 100L, 20L, "rev1", source, framesDir, frames);
+    /** 지정 해상도의 실제 이미지 파일을 만든다(ImageIO 판독 가능). */
+    private static Path writeImage(Path dst, int w, int h, Color color) throws IOException {
+        Files.createDirectories(dst.getParent());
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        try {
+            g.setColor(color);
+            g.fillRect(0, 0, w, h);
+        } finally {
+            g.dispose();
+        }
+        String name = dst.getFileName().toString();
+        String fmt = name.endsWith(".png") ? "png" : "jpg";
+        ImageIO.write(img, fmt, dst.toFile());
+        return dst;
     }
 
-    private AugmentExtractPlan.FrameSpec spec(long frameNo, long videoFrameNo, Path dst) {
-        return new AugmentExtractPlan.FrameSpec(600L + frameNo, frameNo, videoFrameNo, LocalDateTime.now(), dst);
+    private Path framesDir(long newRawSn) {
+        return deidBase.resolve("frames/deid/" + newRawSn);
+    }
+
+    private AugmentExtractPlan plan(long newRawSn, List<AugmentExtractPlan.FrameSpec> frames) {
+        return new AugmentExtractPlan(newRawSn, 100L, 20L, "rev1", parentFrame, framesDir(newRawSn), frames);
+    }
+
+    private AugmentExtractPlan.FrameSpec spec(long newRawSn, long frameNo, Path external) {
+        return new AugmentExtractPlan.FrameSpec(600L + frameNo, frameNo, 100L * (frameNo + 1),
+                LocalDateTime.now(), external, framesDir(newRawSn).resolve("frame-" + frameNo + ".jpg"));
     }
 
     @Test
-    @DisplayName("소스존재시_프레임별_videoFrameNo로_frameExact_추출한다")
-    void produceWritesEachFrameByVideoFrameNo() throws IOException {
-        Path source = tempDir.resolve("aug.mp4");
-        Path framesDir = tempDir.resolve("frames/raw/9001");
-        AugmentExtractPlan p = plan(9001L, source, List.of(
-                spec(0, 100L, framesDir.resolve("frame-0.jpg")),
-                spec(1, 250L, framesDir.resolve("frame-1.jpg"))));
-        when(frameWriter.sourceExists(source)).thenReturn(true);
+    @DisplayName("증강_파생영상의_프레임이_부모_재추출본이_아니라_외부_산출본이다")
+    void ingestsExternalOutputsInsteadOfReExtracting() throws IOException {
+        // given — 외부 산출물은 부모 프레임과 <다른 픽셀>(파랑)이며 해상도는 동일.
+        Path out0 = writeImage(externalDir.resolve("job-1/out-0.jpg"), 64, 48, Color.BLUE);
+        Path out1 = writeImage(externalDir.resolve("job-1/out-1.jpg"), 64, 48, Color.BLUE);
+        AugmentExtractPlan p = plan(9001L, List.of(spec(9001L, 0, out0), spec(9001L, 1, out1)));
 
+        // when
         producer.produce(p);
 
-        // frame-exact — 디코더 프레임 번호(videoFrameNo)로 추출.
-        verify(frameWriter).writeFrameByNumber(eq(source), eq(framesDir.resolve("frame-0.jpg")), eq(100));
-        verify(frameWriter).writeFrameByNumber(eq(source), eq(framesDir.resolve("frame-1.jpg")), eq(250));
+        // then — 산출 프레임 바이트가 외부 산출물과 동일하고, 부모 프레임과는 다르다.
+        assertThat(Files.readAllBytes(p.frames().get(0).dst())).isEqualTo(Files.readAllBytes(out0));
+        assertThat(Files.readAllBytes(p.frames().get(1).dst())).isEqualTo(Files.readAllBytes(out1));
+        assertThat(Files.readAllBytes(p.frames().get(0).dst()))
+                .as("부모 픽셀 사본이면 증강 효과가 0 이다")
+                .isNotEqualTo(Files.readAllBytes(parentFrame));
     }
 
     @Test
-    @DisplayName("증강_소스파일_부재시_INVALID_INPUT")
-    void sourceNotExist_rejected() throws IOException {
-        Path source = tempDir.resolve("no-such.mp4");
-        AugmentExtractPlan p = plan(9002L, source, List.of(
-                spec(0, 0L, tempDir.resolve("frames/raw/9002/frame-0.jpg"))));
-        when(frameWriter.sourceExists(source)).thenReturn(false);
+    @DisplayName("원본_및_부모_프레임_파일을_덮어쓰지_않는다")
+    void doesNotTouchParentFrames() throws IOException {
+        Path out0 = writeImage(externalDir.resolve("job-2/out-0.jpg"), 64, 48, Color.RED);
+        byte[] parentBefore = Files.readAllBytes(parentFrame);
+        Path rawFrame = writeImage(tempDir.resolve("raw/frames/raw/100/frame-0.jpg"), 64, 48, Color.WHITE);
+        byte[] rawBefore = Files.readAllBytes(rawFrame);
+
+        producer.produce(plan(9002L, List.of(spec(9002L, 0, out0))));
+
+        assertThat(Files.readAllBytes(parentFrame)).isEqualTo(parentBefore);
+        assertThat(Files.readAllBytes(rawFrame)).isEqualTo(rawBefore);
+        assertThat(Files.readAllBytes(out0)).as("외부 산출 원본도 우리 소유가 아니다").isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("외부_산출_파일이_존재하지_않으면_실패처리된다")
+    void missingOutputFile_rejected() {
+        Path missing = externalDir.resolve("job-3/no-such.jpg");
+        AugmentExtractPlan p = plan(9003L, List.of(spec(9003L, 0, missing)));
 
         assertThatThrownBy(() -> producer.produce(p))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");
-        // 소스 부재면 프레임 추출을 시도하지 않는다.
-        verify(frameWriter, org.mockito.Mockito.never()).writeFrameByNumber(any(), any(), org.mockito.ArgumentMatchers.anyInt());
+        assertThat(Files.exists(p.frames().get(0).dst())).isFalse();
     }
 
     @Test
-    @DisplayName("프레임추출_IOException시_all_or_nothing_INTERNAL_ERROR")
-    void ioException_throwsInternalError() throws IOException {
-        Path source = tempDir.resolve("aug.mp4");
-        Path framesDir = tempDir.resolve("frames/raw/9003");
-        AugmentExtractPlan p = plan(9003L, source, List.of(
-                spec(0, 0L, framesDir.resolve("frame-0.jpg"))));
-        when(frameWriter.sourceExists(source)).thenReturn(true);
-        doThrow(new IOException("ffmpeg 실패")).when(frameWriter)
-                .writeFrameByNumber(any(), any(), org.mockito.ArgumentMatchers.anyInt());
+    @DisplayName("외부_산출_파일이_비어있으면_실패처리된다")
+    void emptyOutputFile_rejected() throws IOException {
+        Path empty = externalDir.resolve("job-4/empty.jpg");
+        Files.createDirectories(empty.getParent());
+        Files.createFile(empty);
+        AugmentExtractPlan p = plan(9004L, List.of(spec(9004L, 0, empty)));
+
+        assertThatThrownBy(() -> producer.produce(p)).isInstanceOf(CustomException.class);
+        assertThat(Files.exists(p.frames().get(0).dst())).isFalse();
+    }
+
+    @Test
+    @DisplayName("증강본_해상도가_원본과_다르면_실패처리된다")
+    void resolutionMismatch_rejected() throws IOException {
+        // given — 라벨 좌표를 그대로 복사하는 전제(해상도 동일)가 깨진 산출물.
+        Path scaled = writeImage(externalDir.resolve("job-5/scaled.jpg"), 32, 24, Color.BLUE);
+        AugmentExtractPlan p = plan(9005L, List.of(spec(9005L, 0, scaled)));
 
         assertThatThrownBy(() -> producer.produce(p))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
-                .isEqualTo("INTERNAL_ERROR");
+                .isEqualTo("CONFLICT");
+        assertThat(Files.exists(p.frames().get(0).dst())).isFalse();
     }
 
     @Test
-    @DisplayName("cleanup은_프레임디렉토리를_삭제하고_잔존없으면_true")
+    @DisplayName("허용루트_밖_경로는_반영되지_않는다")
+    void outsideAllowedRoot_rejected() throws IOException {
+        // given — 임시 루트 밖(=허용 마운트 루트 밖)의 실제 이미지.
+        Path outside = Files.createTempDirectory("klid-outside").resolve("evil.jpg");
+        writeImage(outside, 64, 48, Color.BLUE);
+        AugmentExtractPlan p = plan(9006L, List.of(spec(9006L, 0, outside)));
+
+        assertThatThrownBy(() -> producer.produce(p))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+        assertThat(Files.exists(p.frames().get(0).dst())).isFalse();
+    }
+
+    @Test
+    @DisplayName("허용루트_안의_심링크가_밖을_가리켜도_반영되지_않는다")
+    void symlinkEscape_rejected() throws IOException {
+        // given — 허용 루트 안의 파일명이 밖의 실제 파일을 가리킨다(CWE-59).
+        Path outsideFile = Files.createTempDirectory("klid-outside-link").resolve("secret.jpg");
+        writeImage(outsideFile, 64, 48, Color.BLUE);
+        Path link = externalDir.resolve("job-9/linked.jpg");
+        Files.createDirectories(link.getParent());
+        try {
+            Files.createSymbolicLink(link, outsideFile);
+        } catch (UnsupportedOperationException | IOException e) {
+            return; // 심링크 미지원 환경에서는 검증 대상 아님
+        }
+        AugmentExtractPlan p = plan(9010L, List.of(spec(9010L, 0, link)));
+
+        assertThatThrownBy(() -> producer.produce(p))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+        assertThat(Files.exists(p.frames().get(0).dst())).isFalse();
+    }
+
+    @Test
+    @DisplayName("프레임_반입_중_실패해도_반쯤_채워진_프레임셋이_남지_않는다")
+    void partialFailure_leavesNoHalfFilledFrameSet() throws IOException {
+        // given — 1번은 정상, 2번은 해상도 불일치.
+        Path ok = writeImage(externalDir.resolve("job-7/ok.jpg"), 64, 48, Color.BLUE);
+        Path bad = writeImage(externalDir.resolve("job-7/bad.jpg"), 16, 16, Color.BLUE);
+        AugmentExtractPlan p = plan(9007L, List.of(spec(9007L, 0, ok), spec(9007L, 1, bad)));
+
+        assertThatThrownBy(() -> producer.produce(p)).isInstanceOf(CustomException.class);
+        // 러너 계약대로 cleanup 하면 부분 산출이 사라진다(DB 행은 Phase C 전이라 애초에 없다).
+        assertThat(producer.cleanup(9007L)).isTrue();
+        assertThat(Files.exists(framesDir(9007L))).isFalse();
+    }
+
+    @Test
+    @DisplayName("같은_계획을_두_번_반입해도_프레임이_두_번_쌓이지_않는다")
+    void repeatedProduce_isIdempotentOnFiles() throws IOException {
+        Path out0 = writeImage(externalDir.resolve("job-8/out-0.jpg"), 64, 48, Color.BLUE);
+        AugmentExtractPlan p = plan(9008L, List.of(spec(9008L, 0, out0)));
+
+        producer.produce(p);
+        producer.produce(p);
+
+        try (var files = Files.list(framesDir(9008L))) {
+            List<Path> written = new ArrayList<>(files.toList());
+            assertThat(written).hasSize(1);
+            assertThat(written.get(0).getFileName().toString()).isEqualTo("frame-0.jpg");
+        }
+    }
+
+    @Test
+    @DisplayName("cleanup은_파생프레임_디렉토리를_삭제하고_잔존없으면_true")
     void cleanupDeletesFramesDir() throws IOException {
-        Path framesDir = tempDir.resolve("frames/raw/9004");
-        Files.createDirectories(framesDir);
-        Files.writeString(framesDir.resolve("frame-0.jpg"), "dummy");
-        assertThat(Files.exists(framesDir)).isTrue();
+        Path dir = framesDir(9009L);
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("frame-0.jpg"), "dummy");
 
-        boolean clean = producer.cleanup(9004L);
-
-        assertThat(clean).isTrue();
-        assertThat(Files.exists(framesDir)).isFalse();
+        assertThat(producer.cleanup(9009L)).isTrue();
+        assertThat(Files.exists(dir)).isFalse();
     }
 
     @Test

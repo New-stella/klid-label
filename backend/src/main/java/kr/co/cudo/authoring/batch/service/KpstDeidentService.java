@@ -2,12 +2,14 @@ package kr.co.cudo.authoring.batch.service;
 
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.client.KpstDeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -55,7 +57,9 @@ import java.util.Set;
  *       변환하고, 최종 resolve 결과가 base 하위인지 단언한다. 폴백 스캔 회수 경로도 base 하위 단언.</li>
  *   <li>무한 폴링 방지: 시도 횟수·경과 시간 타임아웃 → 'F' 마킹(자동 재비식별 큐 신설 없음, 외부 수동).</li>
  *   <li>정보 유출 (CWE-209): 로그에 rawSn/prjId/datasetId 만 출력. PII/원본경로/외부 본문/fileName 원문 미출력.</li>
- *   <li>불완전 산출물 (CWE-459/404): 회수 경로가 미존재/0바이트면 {@code isUsableDeidFile} 가 'F' 처리(Y 전이 차단).</li>
+ *   <li>불완전/위장 산출물 (CWE-459/CWE-345): 회수 경로가 미존재이거나 크기 하한·컨테이너 시그니처를
+ *       만족하지 않으면 {@code isUsableDeidFile}({@link kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity})
+ *       가 'F' 처리(Y 전이 차단). 위탁 시점에는 원본 실재를 검증해 애초에 거짓 완료가 생기지 않게 한다(B-ISSUE-01).</li>
  * </ul>
  */
 @Slf4j
@@ -95,10 +99,28 @@ public class KpstDeidentService {
     /** KPST 산출물 파일명 접미사({@code {stem}-mask{ext}}) — 회수 경로 재구성 기준. */
     private static final String MASK_SUFFIX = "-mask";
 
+    /** B-ISSUE-01 — 위탁 거부 사유 코드(procLog). 원본 경로/PII 는 남기지 않는다(CWE-209). */
+    private static final String SOURCE_MISSING_CODE = "KPST_SOURCE_MISSING";
+
+    /**
+     * 산출물 무결성 재확인 유예의 <b>상한</b>(ms) — 폴링 워커 점유 보호 (DEV_FIX LOW).
+     *
+     * <p>유예는 폴링 워커 스레드를 그대로 잡는 {@code Thread.sleep} 이라 설정값이 크면 다른 영상의
+     * 폴링이 그만큼 밀린다. "쓰기 중/NFS 가시성 지연" 은 초 단위 현상이므로 5초를 넘겨 기다릴 이유가
+     * 없고, 오설정(예: 300000)이 폴링 사이클을 정지시키는 것을 이 상한이 막는다.
+     */
+    private static final long MAX_RESULT_RECHECK_DELAY_MS = 5_000L;
+
     private final KpstDeidentifyClient kpstClient;
     private final VideoRepository videoRepository;
     private final LsDeidentProcLogRepository procLogRepository;
     private final KpstDeidentTxService txService;
+    /**
+     * B-ISSUE-01 — 위탁 거부 시 'F' 마킹을 <b>별도 REQUIRES_NEW 로 커밋</b>하기 위한 빈.
+     * {@link #submit(LsDataRaw, boolean)} 자체가 REQUIRES_NEW 라 예외를 던지면 그 트랜잭션 내부의
+     * 상태 변경은 롤백된다 — 실패 흔적이 사라지지 않도록 별도 빈으로 커밋한다({@code DeidentifyStep} 동일 패턴).
+     */
+    private final BatchTransitionService batchTransitionService;
     /**
      * A-2 — KPST {@code export_path}(결과 WRITE 대상 디렉터리)를 결정하는 단일 지점.
      * co-locate: {@code dirname(원본)/{rawSn}/deid/} · 롤백: {@code {deid_base}/videos/{rawSn}/}.
@@ -123,18 +145,44 @@ public class KpstDeidentService {
     @Value("${kpst.deid.poll-timeout-minutes:180}")
     private long pollTimeoutMinutes;
 
+    /**
+     * B-ISSUE-01 — 위탁 전 원본 실재 검증 토글. <b>기본 켬(fail-closed)</b>.
+     *
+     * <p>공유 마운트가 앱에서 보이지 않는 배포(원본을 KPST 만 볼 수 있는 구성)를 위한 이스케이프 해치다.
+     * 끄면 원본 부재가 두 단계 뒤(FRAME_EXTRACT)에야 드러나므로, 끈 상태의 위탁은 매 건 WARN 을 남긴다.
+     */
+    @Value("${kpst.deid.verify-source-exists:true}")
+    private boolean verifySourceExists;
+
+    /**
+     * B-ISSUE-01 — 산출물 무결성 1회 재확인 유예(ms). 0 이면 즉시 판정.
+     *
+     * <p>완료(procState=2) 응답과 파일 가시성 사이에는 "쓰기 중"/NFS 가시성 지연 창이 있다. 즉시 terminal
+     * 'F' 로 끊으면 자동 재시도가 없어 정상 건이 사고가 되므로, <b>후보 파일이 존재하는데 무결성만
+     * 실패</b>한 경우에 한해 짧게 기다렸다가 1회만 재확인한다(미존재는 유예 대상이 아니다 — 진짜 미기록).
+     *
+     * <p><b>상한 clamp</b>: 이 유예는 폴링 워커 스레드를 그대로 점유하는 {@code Thread.sleep} 이므로
+     * 설정값이 크면 그만큼 다른 영상의 폴링이 밀린다. 그래서 실제 대기는
+     * {@link #MAX_RESULT_RECHECK_DELAY_MS} 로 상한을 둔다 — 가시성 지연은 초 단위 현상이라 상한을
+     * 넘겨 기다릴 이유가 없고, 오설정(예: 300000)이 폴링을 정지시키는 것을 막는다.
+     */
+    @Value("${kpst.deid.result-recheck-delay-ms:2000}")
+    private long resultRecheckDelayMs;
+
     private Path baseDeidentifiedPath;
 
     public KpstDeidentService(KpstDeidentifyClient kpstClient,
                               VideoRepository videoRepository,
                               LsDeidentProcLogRepository procLogRepository,
                               KpstDeidentTxService txService,
-                              VideoArtifactRootResolver artifactRootResolver) {
+                              VideoArtifactRootResolver artifactRootResolver,
+                              BatchTransitionService batchTransitionService) {
         this.kpstClient = kpstClient;
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
         this.txService = txService;
         this.artifactRootResolver = artifactRootResolver;
+        this.batchTransitionService = batchTransitionService;
     }
 
     @PostConstruct
@@ -172,6 +220,9 @@ public class KpstDeidentService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
         }
         Long rawSn = raw.getRawSn();
+        // B-ISSUE-01 — 위탁 전 원본 실재 가드(fail-closed). 원본이 없는데 위탁하면 KPST 가 결과를 만들지
+        // 못한 채(또는 스텁만 남긴 채) 완료로 응답해 거짓 'Y'/MARKING_READY 가 된다. 실패는 별도 커밋.
+        verifySourceOrFail(rawSn, raw.getRawFilePathNm());
         LsDeidentProcLog procLog = LsDeidentProcLog.request(rawSn, null, raw.getRawFilePathNm(), "batch");
         if (redeident) {
             procLog.markRedeident();
@@ -231,6 +282,41 @@ public class KpstDeidentService {
             log.error("[KpstDeid] submit failed rawSn={} errType={}", rawSn, e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 위탁 실패", e);
         }
+    }
+
+    /**
+     * B-ISSUE-01 — KPST 위탁 전 <b>원본 영상 실재</b> 검증(fail-closed).
+     *
+     * <p>기존에는 경로 문자열의 blank/부모 유무만 봤기 때문에, 원본 파일이 없는 영상도 위탁이 성공하고
+     * 첫 폴링에서 곧바로 완료 처리되어 {@code DE_IDNTF_YN='Y'} + {@code MARKING_READY} 가 됐다
+     * (산출물 실체는 18바이트 스텁). 원본 부재는 두 단계 뒤 프레임 추출에서야 드러났다.
+     * mock 경로({@code DeidentifyStep.runMock})는 이미 원본 실재를 검증하고 있었으므로, 운영 실경로만
+     * 비어 있던 비대칭을 여기서 메운다.
+     *
+     * <p>실패 시 {@link BatchTransitionService#recordDeidentFailure}(REQUIRES_NEW) 로 'F' 를 <b>커밋</b>한
+     * 뒤 거부한다 — 본 메서드를 호출하는 {@code submit} 이 REQUIRES_NEW 라 예외 전파 시 자체 트랜잭션의
+     * 변경은 롤백되기 때문이다. 로그/예외에 원본 경로 원문은 남기지 않는다(CWE-209).
+     */
+    private void verifySourceOrFail(Long rawSn, String rawFilePathNm) {
+        if (!verifySourceExists) {
+            // 침묵 금지 — 미검증 위탁임을 추적 가능하게 남긴다(영상 1건당 1줄).
+            log.warn("[KpstDeid] source existence guard disabled — 원본 미검증 위탁 rawSn={}", rawSn);
+            return;
+        }
+        boolean present = false;
+        if (rawFilePathNm != null && !rawFilePathNm.isBlank()) {
+            try {
+                present = Files.isRegularFile(Paths.get(rawFilePathNm));
+            } catch (java.nio.file.InvalidPathException e) {
+                present = false;
+            }
+        }
+        if (present) {
+            return;
+        }
+        batchTransitionService.recordDeidentFailure(rawSn, SOURCE_MISSING_CODE, "source not found");
+        log.warn("[KpstDeid] submit rejected — source video missing rawSn={}", rawSn);
+        throw new CustomException(ErrorCode.INVALID_INPUT, "비식별 원본 영상이 존재하지 않습니다.");
     }
 
     /**
@@ -376,6 +462,14 @@ public class KpstDeidentService {
                 return;
             }
             if (!isUsableDeidFile(deidPathStr)) {
+                // B-ISSUE-01 — 무결성 실패가 "쓰기 중"이라면 정상 건이므로 1회 유예 재확인한다(오탐 거부 방지).
+                String recovered = recheckAfterGrace(rawSn, procLog.getOrgnlFilePathNm(),
+                        ds.fileName(), deidPathStr);
+                if (recovered != null) {
+                    deidPathStr = recovered;
+                }
+            }
+            if (!isUsableDeidFile(deidPathStr)) {
                 // DEV_FIX HIGH-1: 불완전 산출물(0바이트/미존재) — 'F' 처리, Y 전이 금지. no-copy 모델에서 KPST 가
                 // export_path 에 0바이트/미기록한 채 procState=2 를 주는 건 현실적 실패 모드다. REDEIDENT 건은
                 // failPolling(락 미해제)로 끝내면 작업락이 영구 잔존(재요청 409 영구 차단)하므로 bad-fileName
@@ -413,16 +507,60 @@ public class KpstDeidentService {
         }
     }
 
-    /** 다운로드 결과가 사용 가능한 비식별 산출물인지(존재 + >0바이트) 확인 — 불완전 산출물 차단(M-2). */
+    /**
+     * 다운로드 결과가 사용 가능한 비식별 산출물인지 확인 — 불완전/위장 산출물 차단(M-2 / B-ISSUE-01).
+     *
+     * <p>판정은 {@link DeidentArtifactIntegrity}(정규파일 + 크기 하한 + 컨테이너 시그니처) 단일 지점에
+     * 위임한다. 과거 "존재 + >0바이트"만 보던 판정은 18바이트 텍스트 스텁을 비식별 완료로 승인했다.
+     */
     private boolean isUsableDeidFile(String deidFilePath) {
-        if (deidFilePath == null || deidFilePath.isBlank()) {
+        return DeidentArtifactIntegrity.isValidVideoArtifact(deidFilePath);
+    }
+
+    /**
+     * B-ISSUE-01 — 무결성 실패 시 1회 유예 재확인(오탐 거부 방지).
+     *
+     * <p>무결성 실패는 terminal 'F' 로 이어지고 자동 재비식별 큐가 없다(외부 수동 재처리). 따라서 "쓰기
+     * 중/가시성 지연"과 "진짜 불완전"을 구분해야 한다. <b>후보 파일이 존재하는데 판정만 실패</b>한 경우에만
+     * {@code kpst.deid.result-recheck-delay-ms}(단, {@link #MAX_RESULT_RECHECK_DELAY_MS} 로 clamp)
+     * 만큼 기다렸다가 회수 경로를 다시 산출해 1회 재판정한다.
+     * 파일이 아예 없으면(진짜 미기록) 유예 없이 즉시 종결한다 — 실패 종결이 지연되지 않도록.
+     *
+     * @return 재확인으로 유효해진 회수 경로, 회복 실패면 {@code null}
+     */
+    private String recheckAfterGrace(Long rawSn, String orgnlFilePathNm,
+                                     String fileNameFromResponse, String candidate) {
+        if (resultRecheckDelayMs <= 0 || !fileExists(candidate)) {
+            return null;
+        }
+        // 폴링 워커 점유 상한 — 오설정이 폴링 사이클을 정지시키지 못하게 한다(가시성 지연은 초 단위 현상).
+        long delayMs = Math.min(resultRecheckDelayMs, MAX_RESULT_RECHECK_DELAY_MS);
+        log.warn("[KpstDeid] deid artifact incomplete on first check — regrace rawSn={} delayMs={}",
+                rawSn, delayMs);
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+        String recomputed;
+        try {
+            recomputed = downloadResult(rawSn, orgnlFilePathNm, fileNameFromResponse);
+        } catch (RuntimeException e) {
+            // 재산출 자체가 실패(모호/불량 fileName) — 호출측이 terminal 종결한다.
+            return null;
+        }
+        return isUsableDeidFile(recomputed) ? recomputed : null;
+    }
+
+    /** 후보 경로가 (심링크 아닌) 정규 파일로 존재하는지 — 유예 재확인 대상 판정용. */
+    private boolean fileExists(String path) {
+        if (path == null || path.isBlank()) {
             return false;
         }
         try {
-            Path file = Paths.get(deidFilePath);
-            // LOW-1: 심볼릭 링크가 정규파일로 통과하지 않도록 링크 미추적(공급망 방어심도).
-            return Files.isRegularFile(file, java.nio.file.LinkOption.NOFOLLOW_LINKS) && Files.size(file) > 0;
-        } catch (java.io.IOException e) {
+            return Files.isRegularFile(Paths.get(path), java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        } catch (java.nio.file.InvalidPathException e) {
             return false;
         }
     }
@@ -465,6 +603,10 @@ public class KpstDeidentService {
             // 폴백: 접미사/확장자 규칙 변화 대비 — 디렉터리 내 단일 산출 영상을 회수(no-copy=1개 기대).
             Path fallback = scanSingleUsable(dir);
             if (fallback != null) {
+                // B-ISSUE-84 — 폴백은 안전망일 뿐이다. 1차 경로({stem}-mask{ext})가 빗나갔다는 것은
+                // 산출물 명명 계약이 드리프트했다는 신호이므로 조용히 넘기지 않고 운영에서 관측 가능하게 한다.
+                // (CWE-209: 파일명/경로 원문 미노출 — rawSn 만.)
+                log.warn("[KpstDeid] primary mask path miss — recovered by fallback scan rawSn={}", rawSn);
                 return fallback.toString();
             }
         }

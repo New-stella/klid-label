@@ -13,9 +13,9 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,15 +39,16 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <ol>
  *   <li>영상의 대표 프레임(MIN SRC_SN) 조회</li>
- *   <li>idempotencyKey(^[A-Za-z0-9_-]+$, ≤64) + externalJobId(≤128) 를 먼저 발급</li>
+ *   <li>idempotencyKey(^[A-Za-z0-9_-]+$, ≤64) 를 먼저 발급
+ *       (externalJobId 는 발급하지 않는다 — 외부가 202 응답으로 준다, Phase 7-A1)</li>
  *   <li>{@link LsDataAug#createRequested} 로 키를 실은 PENDING 행을 <b>단일 save</b> 적재 → originAugSn</li>
- *   <li>{@link AugmentRequestedItemEvent} 를 건별 발행 (멱등 키 발급 + 외부 콜백은 커밋 이후로 위임)</li>
+ *   <li>{@link AugmentRequestedItemEvent} 를 건별 발행 (외부 위탁은 커밋 이후로 위임)</li>
  * </ol>
  *
- * <p><b>고아 키 방지 (DEV_FIX HIGH #1)</b>: 멱등 키 allowlist 등록(ledger.recordIssued)과
- * 외부 콜백 컨텍스트 전달(externalClient.requestAugment)은 요청 트랜잭션 안에서 하지 않고,
- * {@code AugmentRequestBridge} 가 {@code @TransactionalEventListener(AFTER_COMMIT)} 로 수신해
- * <b>커밋 확정 후</b>에만 수행한다. 요청 트랜잭션이 롤백되면 aug 행도 멱등 키도 생성되지 않는다.
+ * <p><b>고아 위탁 방지 (DEV_FIX HIGH #1)</b>: 외부 위탁({@code AugmentJobSubmitService.submit})은
+ * 요청 트랜잭션 안에서 하지 않고, {@code AugmentRequestBridge} 가
+ * {@code @TransactionalEventListener(AFTER_COMMIT)} 로 수신해 <b>커밋 확정 후</b>에만 수행한다.
+ * 요청 트랜잭션이 롤백되면 aug 행도 위탁도 발생하지 않는다.
  *
  * <p>RBAC: REVIEWER 만 호출 가능 (Service 이중 검증 + Controller @PreAuthorize).
  * <p>트랜잭션: 클래스 기본 readOnly, {@link #request} 만 write override (aug 행 INSERT).
@@ -63,19 +64,23 @@ public class AugmentRequestService {
     private static final java.util.regex.Pattern IDEMPOTENCY_KEY_PATTERN =
             java.util.regex.Pattern.compile("^[A-Za-z0-9_-]+$");
     private static final int IDEMPOTENCY_KEY_MAX = 64;
-    private static final int EXTERNAL_JOB_ID_MAX = 128;
-    /** 콜백 경로 — 단일 진실원({@link kr.co.cudo.authoring.common.security.HmacWebhookFilter#PATH_AUGMENT}) 참조. */
-    public static final String CALLBACK_PATH =
-            kr.co.cudo.authoring.common.security.HmacWebhookFilter.PATH_AUGMENT;
+    /**
+     * 콜백 경로 — 단일 진실원
+     * ({@link kr.co.cudo.authoring.common.security.webhook.WebhookProtectedPaths#PATH_GENAI_CALLBACK}) 참조.
+     *
+     * <p>Phase 7-A1: 「생성형 AI API 연동명세서 v1.1」 웹훅 경로로 교체했다. 수신 컨트롤러는 A2 에서
+     * 같은 상수를 참조해 추가한다(구 {@code /v1/aug/callback} 는 A2 에서 정리).
+     */
+    public static final String CALLBACK_PATH = AugmentCallbackUrlResolver.CALLBACK_PATH;
 
     private final LsRawDataStatusRepository statusRepository;
     private final LsDataSrcRepository srcRepository;
     private final LsDataAugRepository augRepository;
     private final ApplicationEventPublisher eventPublisher;
-
-    /** 콜백 base URL — 외부 시스템이 결과를 push 할 엔드포인트의 prefix. */
-    @Value("${authoring.webhook.callback-base-url:http://localhost:8080/api}")
-    private String callbackBaseUrl;
+    /** 비식별 누락 신고 구간 판정 — 단일 원천(자체 재구현 금지). */
+    private final DeidentReportGate deidentReportGate;
+    /** 콜백 URL 조립 — 요청 경로와 재개 경로가 같은 값을 만들게 하는 단일 원천. */
+    private final AugmentCallbackUrlResolver callbackUrlResolver;
 
     /**
      * placeholder jobId 시퀀스 — 외부 SFR-07 연동 전까지 응답 jobId 발급에 사용.
@@ -115,13 +120,29 @@ public class AugmentRequestService {
                     details);
         }
 
+        // 2-1) 비식별 누락 신고 구간 차단 (DEV_FIX HIGH-2) — 신고된 영상은 아예 접수하지 않는다.
+        //      실제 <b>전송</b> 차단은 AugmentJobSubmitService.submit(전송 진입점 단일 fail-closed)이
+        //      담당하며, 여기서의 조기 거부는 ①요청자에게 즉시 사유를 알리고 ②고착될 PENDING 행을
+        //      애초에 만들지 않기 위한 것이다(보류이므로 해소 후 재요청하면 정상 진행된다).
+        List<Long> underReport = videoIds.stream()
+                .filter(deidentReportGate::isUnderDeidentReport)
+                .toList();
+        if (!underReport.isEmpty()) {
+            log.warn("[Augment] request blocked — deident report open actor={} blockedCount={}",
+                    sanitize(actor.sub()), underReport.size());
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("blockedVideoIds", underReport);
+            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                    "비식별 재처리 대기 중인 영상은 증강을 요청할 수 없습니다.", details);
+        }
+
         // 3) 영상별 대표 프레임(MIN SRC_SN) 일괄 조회 (N+1 회피)
         Map<Long, Long> firstSrcSnByRawSn = findFirstSrcSnByRawSn(videoIds);
 
         // 4) distinct (영상 × 종류) 건별 PENDING 적재 + 멱등 키 발급 + 콜백 컨텍스트 전달.
         //    한 건의 실패가 전체 요청을 깨지 않도록 건별 격리한다.
         String regUserNo = actor.sub();
-        String callbackUrl = resolveCallbackUrl();
+        String callbackUrl = callbackUrlResolver.resolve();
         int createdCount = 0;
         for (Long rawSn : videoIds) {
             Long representativeSrcSn = firstSrcSnByRawSn.get(rawSn);
@@ -131,7 +152,7 @@ public class AugmentRequestService {
                 continue;
             }
             for (String augType : types) {
-                if (createOneAugmentRequest(representativeSrcSn, augType, regUserNo, callbackUrl)) {
+                if (createOneAugmentRequest(rawSn, representativeSrcSn, augType, regUserNo, callbackUrl)) {
                     createdCount++;
                 }
             }
@@ -151,20 +172,21 @@ public class AugmentRequestService {
      *
      * @return PENDING 행 생성 성공 여부
      */
-    private boolean createOneAugmentRequest(Long srcSn, String augType, String regUserNo, String callbackUrl) {
+    private boolean createOneAugmentRequest(Long rawSn, Long srcSn, String augType,
+                                            String regUserNo, String callbackUrl) {
         try {
-            // 1) idempotencyKey + externalJobId 를 먼저 발급 (UUID 기반 — dataAugSn 비의존)
+            // 1) idempotencyKey 를 먼저 발급 (UUID 기반 — dataAugSn 비의존).
+            //    externalJobId 는 발급하지 않는다 — 외부가 202 응답으로 발급하는 값이다(Phase 7-A1).
             String idempotencyKey = generateIdempotencyKey();
-            String externalJobId = generateExternalJobId();
 
             // 2) 키를 실은 PENDING 행을 단일 save 로 INSERT (이중 save / IDMP_KEY=null orphan 제거)
             LsDataAug aug = augRepository.save(
-                    LsDataAug.createRequested(srcSn, augType, regUserNo, idempotencyKey, externalJobId));
+                    LsDataAug.createRequested(srcSn, augType, regUserNo, idempotencyKey, null));
             Long originAugSn = aug.getDataAugSn();
 
-            // 3) 멱등 키 발급 + 외부 콜백 컨텍스트 전달은 요청 트랜잭션 커밋 이후로 위임 (고아 키 방지)
+            // 3) 멱등 키 발급 + 외부 위탁은 요청 트랜잭션 커밋 이후로 위임 (고아 키 방지)
             eventPublisher.publishEvent(new AugmentRequestedItemEvent(
-                    originAugSn, augType, idempotencyKey, externalJobId, callbackUrl));
+                    originAugSn, rawSn, augType, idempotencyKey, callbackUrl, regUserNo));
             return true;
         } catch (Exception e) {
             // 건별 격리 — 한 건 실패가 전체 요청을 깨지 않게 한다.
@@ -183,24 +205,6 @@ public class AugmentRequestService {
         return key;
     }
 
-    /** 외부 작업 ID 발급 — UUID 기반 (≤128). */
-    private String generateExternalJobId() {
-        String jobId = "JOB-" + UUID.randomUUID();
-        if (jobId.length() > EXTERNAL_JOB_ID_MAX) {
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "externalJobId 발급 형식 오류");
-        }
-        return jobId;
-    }
-
-    private String resolveCallbackUrl() {
-        String base = (callbackBaseUrl == null || callbackBaseUrl.isBlank())
-                ? "http://localhost:8080/api"
-                : callbackBaseUrl.trim();
-        if (base.endsWith("/")) {
-            base = base.substring(0, base.length() - 1);
-        }
-        return base + CALLBACK_PATH;
-    }
 
     /** 영상별 대표(첫) 프레임 SRC_SN 매핑. 프레임이 없는 영상은 결과에 포함되지 않는다. */
     private Map<Long, Long> findFirstSrcSnByRawSn(Collection<Long> videoIds) {

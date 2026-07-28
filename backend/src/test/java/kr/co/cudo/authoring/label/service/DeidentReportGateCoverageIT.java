@@ -253,8 +253,9 @@ class DeidentReportGateCoverageIT {
 
     /** 신고 이후 외부 솔루션이 비식별본을 교체한 상태 — resolve 산출물 검증 게이트 통과용. */
     private void seedDeidentArtifact(long rawSn) throws IOException {
-        Path artifact = tempDir.resolve("deid-" + rawSn + ".mp4");
-        Files.write(artifact, new byte[]{1, 2, 3});
+        // 무결성 판정(DeidentArtifactIntegrity)을 통과하는 실제 최소 mp4 픽스처.
+        Path artifact = kr.co.cudo.authoring.support.TestVideoFixtures.writeTinyMp4(
+                tempDir.resolve("deid-" + rawSn + ".mp4"));
         txTemplate.execute(s -> {
             LsDeidentProcLog procLog = LsDeidentProcLog.request(
                     rawSn, "req-didgate-" + rawSn, "/var/raw/DIDGATE.mp4", "system");

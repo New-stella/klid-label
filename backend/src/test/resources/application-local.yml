@@ -78,6 +78,13 @@ authoring:
   integration:
     deidentify:
       mock-mode: true
+  # 외부 증강 위탁 WebClient — mode 기본값(http)이라 테스트 컨텍스트에서도 빈이 생성되며 base-url 이
+  #   AugmentUrlPolicy 검증을 통과해야 한다. 본 파일은 main 의 application-local.yml 을 통째로 대체하므로
+  #   여기에도 명시한다. 목업 주소(평문 http + loopback)는 완화 플래그가 켜진 local/dev 에서만 통과한다.
+  augment:
+    external:
+      base-url: ${AUGMENT_API_BASE_URL:http://localhost:9400}
+      allow-insecure-url: true
   # 스트림 단기 서명 URL 검증 — 서명 발급/검증은 fail-closed 라 테스트에서도 시크릿이 설정되어야 동작한다.
   # 최소 32B(256bit) 이상 (StreamUrlSigner.MIN_SECRET_BYTES).
   stream:
@@ -95,6 +102,11 @@ webhook:
   vlm:
     # VLM 콜백 IP allowlist 미설정 = 미적용(테스트 기본).
     allowed-ip-cidrs: ""
+  genai:
+    # 생성형 AI 콜백 allowlist 는 미설정 시 **전면 차단**(fail-closed) 이라, MockMvc 요청
+    # (remoteAddr=127.0.0.1) 이 통과하도록 통합테스트 기본을 열어 둔다. 차단 동작 자체는
+    # GenAiWebhookIpAllowlist 단위 테스트가 격리 검증한다.
+    allowed-ip-cidrs: "0.0.0.0/0"
 
 # UC018 — 테스트 기본은 KPST 폴링 OFF (ca.crt 미보유 환경 보호 — KpstWebClientConfig fail-closed 회피).
 #   KPST 토글 ON 검증 테스트는 @TestPropertySource(kpst.deid.enabled=true)+test-ca.crt 로 개별 활성화한다.

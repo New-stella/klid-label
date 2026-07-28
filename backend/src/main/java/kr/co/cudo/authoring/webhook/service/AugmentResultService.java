@@ -11,7 +11,6 @@ import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.common.util.ExternalUrlValidator;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
 import kr.co.cudo.authoring.webhook.runner.AsyncAugmentFrameRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +27,7 @@ import java.util.regex.Pattern;
 /**
  * 외부 생성형 AI 증강 결과 인계 처리 서비스 — 연동정의서 정합.
  *
- * <p>{@code POST /v1/aug/callback} 의 HMAC 인증 통과 후 호출된다.
+ * <p>생성형 AI 결과 웹훅({@code POST /v1/genai/callback}) 의 job 집계가 끝난 뒤 호출된다.
  * {@link LsDataAug} 의 PENDING 상태 행을 {@code ACCEPTED}/{@code REJECTED} 로 전이하고,
  * 성공 시 새 증강 영상(RAW_SN)을 생성한다.
  *
@@ -43,8 +42,9 @@ import java.util.regex.Pattern;
  *       차단된다.</li>
  *   <li><b>2차 앵커(동시/오배송)</b>: {@code otsd_job_id} 를 {@code LS_DATA_AUG.OTSD_JOB_ID}
  *       (UNIQUE {@code uk_aug_external_job_id})에 적재하고, 저장 시 UNIQUE 위반이면
- *       ({@link LsDataAugRepository#findByExternalJobId}) 재조회 후 멱등 흡수(skip). 동시 콜백/
- *       다른 행 오배송으로 같은 otsd_job_id 가 이미 선점된 경우를 방어한다.</li>
+ *       <b>{@link ErrorCode#CONFLICT}(409) 로 종결</b>한다. 위반은 호출자 트랜잭션을 rollback-only 로
+ *       만들기 때문에 이 자리에서 "흡수(200)" 하면 커밋 단계에서 500 이 되고, PostgreSQL 은 위반 이후
+ *       같은 트랜잭션의 후속 조회도 거부한다. 외부 재전송은 1차 앵커가 멱등 흡수한다.</li>
  * </ol>
  *
  * <h3>Phase 11 — 프레임 재추출 비동기 전환 + 동기/비동기 경계 (반드시 준수)</h3>
@@ -91,59 +91,59 @@ public class AugmentResultService {
      * @return true = 신규 적재 / false = 재전송 멱등 스킵(신규 영상 미생성)
      */
     @Transactional("controlTransactionManager")
-    public boolean handle(AugmentResultRequest req) {
-        // 1) SSRF — raw_file_path_nm
-        validateFilePath(req.rawFilePathNm());
+    public boolean handle(AugmentOutcome outcome) {
+        // 1) SSRF/경로순회 — 결과 영상 경로(있을 때만)
+        validateFilePath(outcome.rawFilePathNm());
 
         // 2) 대상 증강 행 조회 (data_aug_sn = 요청 시 발급된 LS_DATA_AUG PK).
         //    MED #2 — 같은 dataAugSn 동시 콜백을 직렬화하기 위해 PESSIMISTIC_WRITE(FOR UPDATE)로 잠금 조회한다.
         //    이렇게 해야 아래 1차 앵커(non-PENDING skip)의 read-then-act 가 원자적이 되어, 서로 다른
         //    otsd_job_id 를 가진 동시 콜백이 둘 다 PENDING 을 통과해 이중 영상을 만드는 창이 닫힌다.
         //    [Phase 11] 이 잠금은 동기 트랜잭션에 유지한다(절대 async 로 이동 금지 — 멱등 판정 원자성).
-        LsDataAug aug = augRepository.findByDataAugSnForUpdate(req.dataAugSn())
+        //    [Phase 7-A2] 분할 job 롤업의 "1회만 확정" 도 이 잠금 + 아래 non-PENDING 앵커로 성립한다.
+        LsDataAug aug = augRepository.findByDataAugSnForUpdate(outcome.dataAugSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
-                        "증강 행을 찾을 수 없습니다: dataAugSn=" + req.dataAugSn()));
+                        "증강 행을 찾을 수 없습니다: dataAugSn=" + outcome.dataAugSn()));
 
         // 3) 재전송 멱등 방어(1차 앵커) — 이미 종결(non-PENDING)된 행이면 재전송이다 → skip.
         if (!LsDataAug.STTS_PENDING.equals(aug.getAugProcSttsCd())) {
             log.info("[Webhook][Augment] duplicate result skipped dataAugSn={} otsdJobId={} state={}",
-                    req.dataAugSn(), safe(req.otsdJobId()), safe(aug.getAugProcSttsCd()));
+                    outcome.dataAugSn(), safe(outcome.externalJobId()), safe(aug.getAugProcSttsCd()));
             return false;
         }
 
-        // 4) augType 불일치 차단 — 외부 시스템이 다른 행에 잘못 인계하는 사고 방지
-        if (!req.augTypeCd().equals(aug.getAugTypeCd())) {
-            throw new CustomException(ErrorCode.CONFLICT,
-                    "augType 불일치: row=" + aug.getAugTypeCd() + " request=" + req.augTypeCd());
-        }
-
-        // 5) 상태 전이 + otsd_job_id 를 externalJobId(재전송 멱등 앵커)에 적재.
+        // 4) 상태 전이 + otsd_job_id 를 externalJobId(재전송 멱등 앵커)에 적재.
         //    uk_aug_external_job_id UNIQUE 위반(동시 콜백/다른 행 오배송)이면 재조회 후 멱등 흡수한다.
         //    [Phase 11] 멱등 앵커도 동기 트랜잭션에 유지(절대 async 로 이동 금지).
-        String newStatus = "SUCCESS".equals(req.augProcStsCd())
-                ? LsDataAug.STTS_ACCEPTED
-                : LsDataAug.STTS_REJECTED;
+        //    (구 계약의 augType 대조는 제거됐다 — 새 계약은 request_id → job → dataAugSn 으로 대상을
+        //     역산하므로 외부가 aug_type 을 잘못 실어 다른 행에 인계할 경로 자체가 없다.)
+        String newStatus = outcome.success() ? LsDataAug.STTS_ACCEPTED : LsDataAug.STTS_REJECTED;
         try {
-            applyAugStateAndExternalJobId(aug, req, newStatus);
+            applyAugStateAndExternalJobId(aug, outcome, newStatus);
             augRepository.save(aug);
             augRepository.flush();
         } catch (DataIntegrityViolationException e) {
             // 동시/오배송 재전송 — 다른 트랜잭션이 이미 동일 otsd_job_id 를 선점했다.
-            LsDataAug existing = augRepository.findByExternalJobId(req.otsdJobId())
-                    .orElseThrow(() -> new IllegalStateException(
-                            "UNIQUE(otsd_job_id) 위반 후 재조회 실패", e));
-            log.warn("[Webhook][Augment] race 감지 후 멱등 흡수 dataAugSn={} otsdJobId={} winnerState={}",
-                    req.dataAugSn(), safe(req.otsdJobId()), safe(existing.getAugProcSttsCd()));
-            return false;
+            //
+            // [DEV_FIX LOW] 여기서 흡수(return false)하면 안 된다. 본 메서드는 호출자
+            // (GenAiCallbackService.handle) 트랜잭션에 <조인>돼 있어 UNIQUE 위반 시점에 트랜잭션이
+            // 이미 rollback-only 로 마킹된다 → 정상 반환하면 컨트롤러가 200 을 만들고 커밋 단계에서
+            // UnexpectedRollbackException(500) 이 터진다(응답과 실제 결과 불일치). 또한 PostgreSQL 은
+            // 제약 위반 이후 같은 트랜잭션의 후속 쿼리를 거부하므로(25P02) 승자 재조회 자체가 성립하지
+            // 않는다. 따라서 선점 충돌은 409 로 종결한다 — 외부가 재전송하면 위 1차 앵커
+            // (non-PENDING skip)가 200/applied=false 로 멱등 흡수한다.
+            log.warn("[Webhook][Augment] otsd_job_id 선점 충돌 — 409 종결 dataAugSn={} otsdJobId={}",
+                    outcome.dataAugSn(), safe(outcome.externalJobId()));
+            throw new CustomException(ErrorCode.CONFLICT, "이미 처리된 증강 결과입니다.");
         }
 
-        // 6) 성공 시 새 영상(RAW_SN)만 동기 생성. 프레임/라벨/메타/procLog/COMPLETED(배치 마감) 는 커밋 후 async.
+        // 5) 성공 시 새 영상(RAW_SN)만 동기 생성. 프레임/라벨/메타/procLog/COMPLETED(배치 마감) 는 커밋 후 async.
         if (LsDataAug.STTS_ACCEPTED.equals(newStatus)) {
-            createAugmentedVideo(aug, req);
+            createAugmentedVideo(aug, outcome);
         }
 
-        log.info("[Webhook][Augment] result applied dataAugSn={} status={} otsdJobId={}",
-                req.dataAugSn(), safe(req.augProcStsCd()), safe(req.otsdJobId()));
+        log.info("[Webhook][Augment] result applied dataAugSn={} success={} otsdJobId={}",
+                outcome.dataAugSn(), outcome.success(), safe(outcome.externalJobId()));
         return true;
     }
 
@@ -156,7 +156,7 @@ public class AugmentResultService {
      * 추출 성공 전까지는 스트리밍/마킹 진입이 불가하다(프레임 0건 차단). 추출 성공 async 커밋에서
      * COMPLETED(배치 마감)로 전이돼 작업보드에 노출된다.
      */
-    private void createAugmentedVideo(LsDataAug aug, AugmentResultRequest req) {
+    private void createAugmentedVideo(LsDataAug aug, AugmentOutcome outcome) {
         LsDataSrc originSrc = srcRepository.findById(aug.getSrcSn()).orElse(null);
         if (originSrc == null) {
             log.warn("[Webhook][Augment] originSrc not found srcSn={} — skip video creation", aug.getSrcSn());
@@ -191,17 +191,17 @@ public class AugmentResultService {
         // 외부 시스템이 빈/공백 경로를 보내면 부모(원본) 경로로 폴백한다. 공백(" ")도 non-null 이라
         // != null 판정으로는 폴백이 안 돼 죽은 RAW 행이 커밋되므로 StringUtils.hasText 로 판정한다.
         // (validateFilePath 는 공백을 스킵하고, 부모 경로는 부모 적재 시점에 이미 검증된 신뢰 경로다.)
-        String filePath = StringUtils.hasText(req.rawFilePathNm())
-                ? req.rawFilePathNm()
+        String filePath = StringUtils.hasText(outcome.rawFilePathNm())
+                ? outcome.rawFilePathNm()
                 : parentRaw.getRawFilePathNm();
         // createFromAugment 기본값(PENDING·deIdntfYn='N') 그대로 커밋. 추가 상태 세팅 없음(async 에서 확정).
-        LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(parentRaw, filePath, req.augTypeCd()));
+        LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(parentRaw, filePath, aug.getAugTypeCd()));
 
         // 커밋 후 비동기 프레임 재추출 + 라벨/메타 복사 + 비식별 완료 불변식 확정 트리거.
         triggerAsyncFrameExtractionAfterCommit(newRaw.getRawSn(), aug.getDataAugSn());
 
         log.info("[Webhook][Augment] new video created (pending, async extraction) rawSn={} orgnlRawSn={} augType={} dataStts={}",
-                newRaw.getRawSn(), parentRaw.getRawSn(), req.augTypeCd(), newRaw.getDataSttsCd());
+                newRaw.getRawSn(), parentRaw.getRawSn(), safe(aug.getAugTypeCd()), newRaw.getDataSttsCd());
     }
 
     /**
@@ -230,12 +230,12 @@ public class AugmentResultService {
      * externalJobId 는 요청 시점 placeholder 를 콜백 시점의 실제 otsd_job_id 로 갱신한다(무조건 덮어쓰기)
      * → 종결 행이 항상 otsd_job_id 를 보유하여 UNIQUE(uk_aug_external_job_id) 재전송 방어가 성립한다.
      */
-    private static void applyAugStateAndExternalJobId(LsDataAug target, AugmentResultRequest req,
+    private static void applyAugStateAndExternalJobId(LsDataAug target, AugmentOutcome outcome,
                                                       String newStatus) {
         if (LsDataAug.STTS_PENDING.equals(target.getAugProcSttsCd())) {
             target.applyReviewStatus(newStatus);
         }
-        target.assignExternalJobId(req.otsdJobId());
+        target.assignExternalJobId(outcome.externalJobId());
     }
 
     /**

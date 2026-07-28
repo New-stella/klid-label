@@ -13,6 +13,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 영상 마킹 (LS_MARKING). 자동/수동 이벤트 마킹 정보를 저장한다.
@@ -45,6 +46,23 @@ public class LsMarking {
     public static final String STATUS_VLM_REQUESTED = "VLM_REQUESTED";
     public static final String STATUS_VLM_COMPLETED = "VLM_COMPLETED";
     public static final String STATUS_VLM_FAILED = "VLM_FAILED";
+
+    /**
+     * <b>활성(미종결) 마킹</b> 상태 집합 — 영상당 1건만 존재할 수 있다 (B-ISSUE-22).
+     *
+     * <h3>"활성" 의 정의와 근거</h3>
+     * <p>위 상태 머신에서 {@code PENDING}(위탁 대기)과 {@code VLM_REQUESTED}(위탁 진행 중)는
+     * <b>VLM 위탁 사이클이 끝나지 않은</b> 상태다. 배치는 영상당 <b>최신 마킹 1건</b>만 위탁하므로
+     * (MarkingLoadStep/VlmTimeseriesStep), 이 구간에 마킹이 2건 이상 쌓이면 나머지는 영원히 위탁되지
+     * 않는 <b>고아 행</b>이 된다 — 실측 결함의 형태 그대로다. 따라서 이 두 상태에 한해 1건으로 수렴시킨다.
+     *
+     * <p>반대로 {@code VLM_COMPLETED}/{@code VLM_FAILED} 는 <b>종결</b> 상태라 활성에서 제외한다.
+     * 종결 마킹만 남은 영상의 재마킹은 새 배치 사이클을 여는 정당한 시나리오이며(예: VLM 실패 후
+     * 재마킹, VLM 은 성공했으나 후속 단계에서 실패해 배치 단계가 여전히 {@code MARKING_READY} 인 영상),
+     * 이때 생성되는 새 마킹은 최신 행이라 실제로 위탁된다(고아가 아니다). 이 재마킹 동선을 막지 않기
+     * 위해 "모든 마킹 1건" 이 아니라 "미종결 마킹 1건" 으로 정의한다.
+     */
+    public static final List<String> ACTIVE_STATUSES = List.of(STATUS_PENDING, STATUS_VLM_REQUESTED);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

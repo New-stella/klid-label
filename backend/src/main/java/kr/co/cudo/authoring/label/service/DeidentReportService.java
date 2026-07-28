@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
@@ -349,7 +350,9 @@ public class DeidentReportService {
      * <ol>
      *   <li>해당 rawSn 의 최신 성공(SUCCEEDED) 처리 이력에 비식별 파일 경로(DE_IDNTF_FILE_PATH_NM)가
      *       기록되어 있는가 — 없으면 거부.</li>
-     *   <li>기록된 경로의 파일이 스토리지에 실존(정규 파일 + &gt;0바이트)하는가 — 아니면 거부.</li>
+     *   <li>기록된 경로의 파일이 <b>유효한 비식별 산출 영상</b>인가 —
+     *       판정은 {@link DeidentArtifactIntegrity}(정규파일 + 크기 하한 + 컨테이너 시그니처)
+     *       <b>단일 지점에 위임</b>한다. 아니면 거부.</li>
      *   <li><b>시간 조건</b> — 아래 중 하나라도 충족해야 통과. 둘 다 신고 이전이면 신고를 유발한
      *       그 비식별본으로 판단하여 거부한다.
      *     <ul>
@@ -358,6 +361,13 @@ public class DeidentReportService {
      *     </ul>
      *   </li>
      * </ol>
+     *
+     * <p><b>무결성 판정 단일화(B-ISSUE-01)</b>: 구 판정("정규파일 + &gt;0바이트")은 외부 목/솔루션이 남긴
+     * 18바이트 텍스트 스텁도 통과시켜, 실제 비식별 없이 {@code 'F'→'Y'} 복원이 가능했다(CWE-345). 이 복원은
+     * 라벨 조회·export·스트리밍 게이트를 <b>한꺼번에 여는</b> 지점이라 위장 산출물 통과 = PII 재노출이다.
+     * 따라서 다른 회수 경로({@code KpstDeidentService#isUsableDeidFile},
+     * {@code KpstDeidentTxService#verifyDeidFile})와 <b>동일한 판정 함수</b>를 쓴다 — 판정 로직을 여기서
+     * 자체 구현하지 않는다.
      *
      * <p>시간 조건이 필요한 이유: {@code findLatestSuccessByDataRawSn} 가 반환하는 최신 성공 procLog 는
      * <b>신고 이전 비식별본</b>(누출 신고를 유발한 그 파일 — 디스크에 실존·&gt;0바이트)일 수 있어, 파일 존재만으로는
@@ -377,15 +387,9 @@ public class DeidentReportService {
             throw deidentNotVerified(rawSn);
         }
 
-        Path file;
-        boolean exists;
-        try {
-            file = Paths.get(deidPath);
-            exists = Files.isRegularFile(file) && Files.size(file) > 0;
-        } catch (IOException | InvalidPathException e) {
-            throw deidentNotVerified(rawSn);
-        }
-        if (!exists) {
+        // 산출물 무결성 — 판정은 DeidentArtifactIntegrity 단일 지점에 위임한다(자체 판정 금지).
+        // 잘못된 경로/IO 오류도 그 안에서 false 로 수렴하므로 여기서는 결과만 게이팅한다(fail-closed).
+        if (!DeidentArtifactIntegrity.isValidVideoArtifact(deidPath)) {
             throw deidentNotVerified(rawSn);
         }
 
@@ -402,10 +406,11 @@ public class DeidentReportService {
         // (2) 비식별 파일 mtime > 신고시각(-스큐) — 외부 도구 제자리 교체 감지(주 경로).
         boolean fileAfterReport = false;
         try {
+            Path file = Paths.get(deidPath);
             LocalDateTime mtime = LocalDateTime.ofInstant(
                     Files.getLastModifiedTime(file).toInstant(), ZoneId.systemDefault());
             fileAfterReport = mtime.isAfter(reportTime.minusSeconds(CLOCK_SKEW_TOLERANCE_SECONDS));
-        } catch (IOException e) {
+        } catch (IOException | InvalidPathException e) {
             fileAfterReport = false;
         }
 

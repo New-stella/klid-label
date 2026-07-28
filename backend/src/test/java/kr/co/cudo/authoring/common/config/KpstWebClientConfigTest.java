@@ -79,6 +79,28 @@ class KpstWebClientConfigTest {
     }
 
     @Test
+    @DisplayName("KPST_자체_CA_검증은_약화되지_않았다")
+    void kpstSelfSignedCaValidationNotWeakened() {
+        // VLM 정책 일원화(ExternalUrlPolicy 공용화) 이후에도 KPST 의 CWE-295 fail-closed 가 그대로여야 한다.
+        String httpsUrl = "https://kpst-host:9201";
+        // ① https + ca-cert 미설정 → 신뢰 우회 없이 즉시 거부
+        assertThatThrownBy(() -> cfg.kpstDeidWebClient(httpsUrl, ""))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ca-cert");
+        assertThatThrownBy(() -> cfg.kpstDeidProgressHttpClient(httpsUrl, "   "))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ca-cert");
+        // ② https + 읽을 수 없는 ca-cert → 거부(경로 미노출)
+        assertThatThrownBy(() -> cfg.kpstDeidProgressHttpClient(httpsUrl, "src/test/resources/kpst/none.crt"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageNotContaining("none.crt");
+        // ③ https + 유효 ca-cert → 정상 생성(정상 경로 보존)
+        assertThat(cfg.kpstDeidWebClient(httpsUrl, VALID_CA)).isNotNull();
+        // ④ 내부망 평문 http 는 계속 허용 — KPST 정책은 완화되지도 강화되지도 않았다.
+        assertThat(cfg.kpstDeidWebClient("http://10.20.30.40:9989", "")).isNotNull();
+    }
+
+    @Test
     @DisplayName("Kpst_스키마없음_또는_빈_base_url_시_거부예외")
     void missingSchemeOrBlankRejected() {
         // given / when / then

@@ -20,7 +20,7 @@ import java.util.List;
  *
  * <p>기존 {@code BatchOrchestrator.process()} 에 흩어져 있던 두 가지 책임을 한 단계로 모은다:
  * <ol>
- *   <li>{@link LsMarkingRepository#findByRawSnOrderByRegDtDesc} 로 마킹 로드 → {@code ctx.setMarkings}.</li>
+ *   <li>{@link LsMarkingRepository#findByRawSnOrderByRegDtDescMarkingSnDesc} 로 마킹 로드 → {@code ctx.setMarkings}.</li>
  *   <li>마킹이 있으면 최신 마킹(첫 항목)의 {@code markCn} 을 {@link MarkItem} 목록으로 파싱
  *       → {@code ctx.setMarks} (기존 orchestrator 의 {@code parseMarks} 책임 이동).</li>
  * </ol>
@@ -49,7 +49,7 @@ public class MarkingLoadStep implements BatchStep {
     @Override
     public void execute(BatchContext ctx) {
         Long rawSn = ctx.getRawSn();
-        List<LsMarking> markings = markingRepository.findByRawSnOrderByRegDtDesc(rawSn);
+        List<LsMarking> markings = markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn);
         log.info("[BatchOrchestrator] marking check rawSn={} count={}", rawSn, markings.size());
         ctx.setMarkings(markings);
         if (!markings.isEmpty()) {

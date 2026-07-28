@@ -5,8 +5,8 @@
 #   목적: 관제/포털/비식별/실VLM 등 외부 서버 0개로 전 시나리오를 띄워 검증.
 #   - ai-server: mock 이 아닌 CPU 실추론 + YOLOX 탐지(onnxruntime) (GPU 불필요 — Mac 등 호환).
 #   - 호스트 절대경로(/data) 대신 named volume → 비-Linux/비-서버 환경에서도 기동.
-#   - 비식별은 backend local 프로파일의 mock-mode(application-local.yml)로 자동 no-op
-#     (실 비식별 서버 부재 — Phase 1). VLM 은 local 에서 enabled=false.
+#   - 비식별·VLM·증강·관제통지는 내부 목모드가 아니라 mock-server(klid-mock-server:9400)로
+#     실제 HTTP 위탁한다(자기 결과 채움 금지 — 실동작 시나리오 검증).
 #
 #   주의: ENV 환경변수를 dev/stg/prd 로 설정하지 말 것 (LocalProfileGuard + 비식별
 #         mock 게이트가 부트 차단). 상세는 docs/v2-wiki/00-local-setup.md.
@@ -52,6 +52,25 @@ services:
       #   409(job_id 중복)/404(선행 완료 없음)를 관제 계약대로 돌려주므로 자기치유가 HTTP 왕복으로 검증된다.
       CONTROL_NOTIFY_ENABLED: "true"
       CONTROL_NOTIFY_URL: "http://klid-mock-server:9400"
+      # Phase 7-A1 실동작 설정 — 증강(생성형 AI) 위탁을 목 서버로 실제 POST 한다(내부 목모드 우회 금지).
+      #   mock-server 의 POST /api/genai/jobs 가 「생성형 AI API 연동명세서 v1.1」 그대로 202 + job_id 를
+      #   돌려주므로 job_id 발급 주체 반전·분할 위탁이 HTTP 왕복으로 검증된다.
+      #   application-local.yml 기본은 dev(자족 시뮬)라 여기서 http 로 전환한다.
+      AUGMENT_EXTERNAL_MODE: "http"
+      AUGMENT_API_BASE_URL: "http://klid-mock-server:9400"
+      # Phase 7-B 실동작 설정 — VLM describe 위탁도 목 서버로 실제 POST 한다(내부 목모드 우회 금지).
+      #   목의 POST /v1/videovlm/describe 가 즉시 accepted 를 돌려주고, 이후 콜백
+      #   (POST /v1/vlm/callback)으로 구간별 결과를 push 하므로 위탁↔콜백 왕복이 실동작으로 검증된다.
+      #   ★ 목은 TLS 미지원 평문 http + docker 브리지 사설 IP 라 완화 플래그가 함께 필요하다.
+      #     이 완화는 local/dev 프로파일에서만 인정되며, 그 밖의 프로파일에서 켜면 기동이 실패한다
+      #     (VlmUrlPolicy fail-closed — 운영으로 새지 않는다).
+      VLM_CLIENT_ENABLED: "true"
+      VLM_SERVICE_URL: "http://klid-mock-server:9400"
+      VLM_ALLOW_INSECURE_URL: "true"
+      # 목이 발사하는 웹훅이 컨테이너 네트워크에서 BE 에 실제로 닿으려면 콜백 base 가 서비스명이어야 한다
+      #   (기본값 localhost:8080 은 목 컨테이너 자신을 가리킨다). klid-backend:8080 은 목의 SSRF
+      #   allowlist 기본값에 포함돼 있다. 수신 컨트롤러(/v1/genai/callback)는 A2 에서 추가된다.
+      WEBHOOK_CALLBACK_BASE_URL: "http://klid-backend:8080/api"
       # 로컬 FE dev 서버는 docker 매핑 포트 13000 으로 서빙된다(klid-frontend ports 13000:5174).
       #   base 의 .env CORS_ALLOWED_ORIGINS 는 5173/5174/3000 만 포함해 브라우저 Origin
       #   http://localhost:13000 이 Spring CorsFilter 403("Invalid CORS request")으로 거부되고

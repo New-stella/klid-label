@@ -1,6 +1,6 @@
 # 14. 데이터 증강 · 해상도 변경
 
-> 출처: R1 RQ-SFR-07-01~03·06-03, R2 KLID-AT-UC-001/002/003/010, CLAUDE.md(증강=새 영상), 코드(`augment/`, `webhook/AugmentResultController`)
+> 출처: R1 RQ-SFR-07-01~03·06-03, R2 KLID-AT-UC-001/002/003/010, CLAUDE.md(증강=새 영상), 코드(`augment/`, `webhook/GenAiCallbackController`)
 > 관련: [12 검수](12-review-assignment.md) · [19 외부 시스템](19-external-security-cvat.md)
 
 화면: `KLID-AT-SC-022`(증강 요청 `/augment`, REVIEWER), `SC-023`(증강 결과 `/augment/result/:jobId`, REVIEWER). 코드: `augment/`(16 파일).
@@ -12,35 +12,54 @@
 - 위탁 유형 3종: **WINTER / NIGHT / RAIN** (날씨·계절·시간). 해상도 변경(RESOLUTION)은 §14.3 내부 수행 — 단, 2026-07-21부터 처리 결과 자체는 증강과 동일하게 새 파생영상(RAW_SN)을 생성한다(외부 위탁 여부만 다름)
 - **증강 요청 화면(SCR-AUG-001)은 통합 단일 선택 UI** — 처리 종류 카드 4개(겨울/야간/우천/해상도 변경)를 `radiogroup` 으로 **하나만** 선택하고, 대상 영상도 검수 완료(승인) 1건만 단일 선택한다(§14.6). BE 증강 요청 API 는 `types` enum allowlist(WINTER/NIGHT/RAIN)로 강제하며, RESOLUTION 은 증강 잡 경로가 아니라 저작도구 직접 수행 경로(§14.3)로 분기된다.
 
-### 콜백 충실 플로우 (요청 → 키 발급 → 콜백 → 새 영상 적재)
+### 위탁 → 웹훅 → 새 영상 적재 (생성형 AI API 연동명세서 v1.1, 2026-07-27 계약 교체)
 
-요청 시점에 **콜백이 성립하도록 선행 상태를 먼저 만든다**. 요청 응답만 주고 끝내지 않고, 외부(또는 dev 시뮬)가 결과를 콜백으로 push 하면 그 콜백이 실제 새 영상을 적재하는 끝까지 닫힌 흐름이다.
+요청 시점에 **웹훅이 성립하도록 선행 상태를 먼저 만든다**. 요청 응답만 주고 끝내지 않고, 외부가 결과를 웹훅으로 push 하면 그 웹훅이 실제 새 영상을 적재하는 끝까지 닫힌 흐름이다.
 
 ```
 [요청] REVIEWER → 대상 영상(검수완료) + 증강 유형 선택
   요청 tx: distinct(영상×종류) 건별로
-    - idempotencyKey(AUG-<uuid>) + externalJobId(JOB-<uuid>) 선발급
+    - idempotencyKey(AUG-<uuid>) 선발급  ※ job_id 는 외부가 202 로 발급한다
     - LS_DATA_AUG 를 키와 함께 PENDING 단일 INSERT (originAugSn)
     - AugmentRequestedItemEvent 발행
   ── 요청 tx COMMIT ──
   AugmentRequestBridge(@TransactionalEventListener AFTER_COMMIT):
     - ledger.recordIssued(키 allowlist 등록)   ← 고아 키 방지(커밋 후에만)
-    - ExternalAugmentClient.requestAugment(콜백 컨텍스트 전달)
+    - AugmentJobSubmitService: 비식별 프레임을 100장 단위로 분할해
+        POST {외부}/api/genai/jobs 위탁 (청크마다 request_id = "{키}-{jobSeq}")
+        · 위탁 직전 LS_DATA_AUG_JOB 선기록(RECEIVED) → 202 수신 후 OTSD_JOB_ID 적재
+        · 같은 tx 에 LS_DATA_AUG_JOB_FILE 선기록 — 입력 순서(FILE_SEQ)↔프레임(SRC_SN) 대응
         ↓ 비동기
-[콜백] POST /api/v1/augments/result (HMAC 서명 + idempotencyKey)
-  수신: {멱등키, 외부 작업 ID, 처리 상태(SUCCESS/FAILED/PARTIAL), originAugSn, 증강 유형, 결과 경로}
-  HmacWebhookFilter 검증 → AugmentResultController → AugmentResultService.handle()
-    - allowlist 미발급 키 401 · 멱등(처리됨) 200 스킵 · augType 불일치 409 · resultFilePath SSRF 검증
-    - SUCCESS → §14.2 새 영상(ORGNL_RAW_SN/PENDING) 생성 + 프레임/라벨/메타 복사
+[웹훅] POST /api/v1/genai/callback  (무서명 — 명세서 v1.1 규격)
+  수신: {request_id, job_id, status(RUNNING|SUCCEEDED|FAILED), progress, current_step,
+         updated_at, results[](SUCCEEDED), error_code/error_message(FAILED)}
+  HmacWebhookFilter 무서명 가드 → GenAiCallbackController → GenAiCallbackService.handle()
+    - 미발급 request_id 401 · job_id 불일치 409 · 종결 job 재전송 200 멱등 흡수
+    - output_file_path 는 허용 루트 하위인지 정규화 후 재검증(CWE-22) 뒤
+      LS_DATA_AUG_JOB_FILE.RSLT_FILE_PATH_NM 에 순서대로 적재(버리지 않는다)
+    - results 건수 ≠ 위탁 건수 → job FAILED(RESULT_COUNT_MISMATCH) = fail-closed
+    - RUNNING → 진행 상태만 갱신(결과 처리 없음)
+    - SUCCEEDED/FAILED → job 종결 후 **롤업**: 전 job 종결 시에만 증강 1건 확정
+        · 전건 SUCCEEDED → §14.2 새 영상(ORGNL_RAW_SN/PENDING) 생성 + 프레임/라벨/메타 복사
+        · 1건이라도 FAILED → **부분 실패 = 전체 실패(fail-closed)**, REJECTED 종결
 ```
 
-- **콜백 경로 단일 진실원**: `/v1/augments/result` 는 `HmacWebhookFilter.PATH_AUGMENT` 한 곳에서만 정의하고, 요청측(`AugmentRequestService.CALLBACK_PATH`)·dev 시뮬(`DevAugmentCallbackSimulator.CALLBACK_PATH`)이 이 상수를 참조한다(경로 드리프트로 인한 401 회귀 차단).
-- **고아 키 방지**: ledger 등록·외부 콜백 전달은 요청 트랜잭션 안이 아니라 **AFTER_COMMIT** 에서만 수행 — 요청 롤백 시 aug 행도 멱등 키도 남지 않는다.
+- **웹훅 경로 단일 진실원**: `/v1/genai/callback` 은 `WebhookProtectedPaths.PATH_GENAI_CALLBACK` 한 곳에서만 정의하고, 요청측(`AugmentRequestService.CALLBACK_PATH`)·수신 컨트롤러·가드 등록이 이 상수를 참조한다(경로 드리프트 회귀 차단).
+- **인증 = 무서명 3계층**: ①IP allowlist(`webhook.genai.allowed-ip-cidrs`, **미설정이면 전면 차단**) ②rate limit + 본문 1MB 상한 ③`request_id` 발급 게이트(`LS_DATA_AUG_JOB.IDMP_KEY` 에 있는 키만 처리). 구 계약(`/v1/aug/callback` + HMAC 서명)은 외부 실계약과 맞지 않아 제거됐다.
+- **롤업 원자성**: job 행을 갱신하기 **전에** `LS_DATA_AUG` 를 `FOR UPDATE` 로 잠근다. 순서를 뒤집으면 동시 콜백 두 건이 서로의 미커밋 갱신을 못 봐서 롤업이 통째로 유실된다. 중복 확정은 `AugmentResultService` 의 PENDING 앵커가 한 번 더 막는다.
+- **멱등**: 외부는 전송 실패 시 재시도하므로 같은 페이로드 중복 수신이 정상이다 — 종결된 job 의 재전송은 200 + `applied=false`.
+- **고아 키 방지**: ledger 등록·외부 위탁은 요청 트랜잭션 안이 아니라 **AFTER_COMMIT** 에서만 수행 — 요청 롤백 시 aug 행도 멱등 키도 남지 않는다.
 
 ## 14.2 증강 = 새 영상
 
 - 성공 시 **새 영상**(`RAW_SN`, `ORGNL_RAW_SN`=원본) 을 **PENDING** 으로 생성
 - 영상 파일은 원본(비식별)을 그대로 복사하고 프레임 이미지만 변환(이미지-to-이미지)
+- **프레임 픽셀 = 외부 산출물 반입(2026-07-28, Phase 7-D)**: 파생 프레임은 부모 영상에서 재추출하지 않고
+  `results[].output_file_path` 를 `{deid_base}/frames/deid/{rawSn}/` 로 복사한다(구 ffmpeg 재추출은 부모와
+  픽셀이 같은 사본 = 증강 효과 0 이었다). 반입 전 **허용루트·실재·해상도 동일**을 전건 검증하고 하나라도
+  어긋나면 파생 RAW 를 FAILED 로 종결한다(부모 재추출 폴백 없음). 산출물은 비식별 프레임의 변환본이므로
+  **비식별 경로 컬럼(`DE_IDNTF_SRC_FILE_PATH_NM`)에만 적재하고 원본 경로는 null**(해상도 파생과 동일한
+  V133 정책 A)
 - 원본 라벨/메타를 새 영상에 **매핑/복사** (해상도 동일 → 좌표 그대로, 라벨 무결성 RQ-SFR-07-02)
 - 라벨 무결성 검증: `LabelIntegrityCalculator` (원본 대비 라벨 수·좌표·속성 보존)
 - 코드: `augment/AugmentResultService`, `LS_DATA_AUG`/`LS_DATA_AUG_RVW`/`LS_DATA_AUG_LBL_MAP`
@@ -91,19 +110,18 @@ PENDING 증강 영상 (SCR-AUG-002)
 4. **실행 버튼 비활성 조건**: 종류 미선택 · 영상 미선택 · (해상도 종류인데 타겟 해상도 미선택) · 처리 중(`isPending`).
 5. **보안**: kind/preset 은 allowlist 상수(`PROCESS_KINDS`/`RESOLUTION_PRESETS`)로만 좁혀 임의 문자열 분기 차단, videoId 는 number, 라우트는 REVIEWER 가드.
 
-## 14.7 dev 콜백 시뮬레이터 · 운영/로컬 차이
+## 14.7 로컬/운영 차이 — 자족 시뮬레이터 폐지 (2026-07-27)
 
-외부 0(자족) 로컬 환경에서 외부 SFR-07 증강 시스템 없이도 콜백 충실 플로우 전체를 검증하기 위해 dev 시뮬레이터를 둔다.
+`DevAugmentCallbackSimulator`(=저작도구가 스스로 성공 콜백을 만들어 자기 자신에게 POST 하던 dev 시뮬)는 **제거**했다. 본 프로그램이 외부 응답 없이 성공 결과를 만들어내면 연동이 실제로 성립하는지 검증할 수 없고, 그 상태가 운영까지 흘러간 이력이 있다.
 
-| 구분 | 운영(prd) | 로컬(dev 시뮬) |
-|------|----------|---------------|
-| `ExternalAugmentClient` 구현 | 실제 외부 호출 클라이언트 | `DevAugmentCallbackSimulator` |
-| 빈 활성 조건 | — | `@Profile("!prd")` + `authoring.augment.external.mode=dev` (기본/noop 시 `NoopExternalAugmentClient` `@Primary`) |
-| 콜백 주체 | 외부 증강 시스템 | 시뮬레이터가 자기 자신(저작도구) 콜백 URL 로 POST |
-| 콜백 상태 | SUCCESS/FAILED/PARTIAL | 항상 SUCCESS 가정 |
+| 구분 | 운영(dev/stg/prd) | 로컬 |
+|------|------------------|------|
+| `ExternalAugmentClient` 구현 | `NoopExternalAugmentClient`(외부 미연동 명시) | `HttpExternalAugmentClient` |
+| 위탁 대상 | 외부 생성형 AI 시스템 | mock-server(`:9400`) |
+| 콜백 주체 | 외부 시스템 | mock-server 가 `callback_url` 로 push |
+| 콜백 상태 | RUNNING×3 → SUCCEEDED \| FAILED | 동일(목업이 계약대로 발사) |
 
-- **HMAC 서명 무결성**: 시뮬레이터는 검증 필터와 동일한 `HmacSigner.hex(secret, "{timestamp}.{body}")` 규칙을 쓰며, **JSON 직렬화를 1회만** 수행해 서명 대상 문자열과 전송 본문을 바이트 동일로 유지한다(서명 불일치 401 회귀 차단). 시크릿은 `webhook.hmac.secret.augment`(32B 이상). **미설정(빈 값)이면 요청 시 401 이 아니라 애플리케이션 기동 자체가 실패**한다(2026-07-25 — 빈 시크릿으로 정상 콜백만 전건 401 이던 상태를 배포 전에 드러내기 위함). 동일 서명 재전송은 nonce 로 흡수되어 **409**(인증 실패 401 과 구분)다. → [19](19-external-security-cvat.md#웹훅-인증-2026-07-25-개편--1차-검증-critical-대응)
-- **풀 점유 방지**: 콜백 호출은 `@Async("batchAsyncExecutor")` 비동기 + `augmentCallbackWebClient` 에 connect timeout(5s)·response timeout(10s) 적용 — 로컬 콜백 서버 미기동 시 TCP 연결 단계 무한 대기로 배치 풀이 점유되는 것을 막는다.
-- **best-effort**: 콜백 HTTP/직렬화 실패는 삼키고 WARN 만 남겨 요청 흐름에 영향 0.
+- `authoring.augment.external.mode` — `http`(기본, 실제 위탁) / `noop`(외부 미연동 명시). 구 `dev` 값은 더 이상 어떤 빈도 활성화하지 않는다.
+- 로컬 IP allowlist 는 `webhook.genai.allowed-ip-cidrs=0.0.0.0/0` 으로 **명시**한다 — 전면 허용을 의도했다는 사실이 설정값에 남아야 한다.
 
-> 통합 검증: `AugmentCallbackFlowIntegrationTest` — 서명 콜백이 필터→컨트롤러→handle 을 통과해 새 영상(ORGNL_RAW_SN/PENDING) 생성·프레임/라벨 좌표 복사·리스트 PENDING 노출·멱등 중복 차단·잘못된 서명 401·콜백 경로 단일 출처를 단언한다.
+> 통합 검증: `AugmentCallbackFlowIntegrationTest`(웹훅→새 영상/프레임·라벨 복사/멱등/미발급 request_id 401), `GenAiCallbackRollupConcurrencyIT`(마지막 job 동시 콜백에도 롤업 정확히 1회), `WebhookPathBypassSecurityIT`(경로 변형 우회 차단), `GenAiCallbackServiceTest`(부분 실패 fail-closed·경로 순회 거부).

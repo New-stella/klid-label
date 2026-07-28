@@ -12,7 +12,7 @@
 | 시드 데이터 | **자동 적재** | `DevSeedRunner`(local)가 `db/seed/dev-seed.sql` 멱등 적재 |
 | 비식별 | **실 KPST 연동 (기본)** | `application-local.yml` 기본값이 KPST API 연동 테스트 서버 실연동(`mock-mode=false`, `kpst.deid.enabled=true`, `base-url=http://222.118.130.251:9989`, 계정 `authoring`). **내부망 접근 필요.** 오프라인 자족이 필요하면 `DEIDENTIFY_MOCK_MODE=true`(+`KPST_DEID_ENABLED=false`)로 mock 복사(원본→비식별 경로 복사 + `DE_IDNTF_YN='Y'`) 전환 |
 | ai-server (YOLOX/SAM2) | **CPU 실추론** | 가중치: YOLOX ONNX(`yolox_s.onnx`) 동봉, SAM2 는 Meta HF(`facebook/sam2-hiera-tiny`). 탐지는 YOLOX 단일 백엔드(onnxruntime). GPU 불필요 |
-| VLM 시계열 | **비활성 (NO-OP)** | `vlm.client.enabled=false`. 실로드 미구현 |
+| VLM 시계열 | **목 서버 실위탁** (compose local) | `docker-compose.local.yml` 이 `VLM_CLIENT_ENABLED=true` + `VLM_SERVICE_URL=http://klid-mock-server:9400` + `VLM_ALLOW_INSECURE_URL=true`(평문·사설 IP 완화, local/dev 전용)로 목 서버에 실제 위탁·콜백. 이 override 없이 기동하면 `vlm.client.enabled=false` 로 NO-OP(단계 skip 이 `LS_BATCH_PROC_LOG` 에 `VLM/SKIPPED` 로 기록됨) |
 | 관제 통지 / 증강 | **비활성 / mock** | `control-notify.enabled=false`, 증강 클라이언트 mock |
 | 관제 자동 적재 픽업 | **수동 트리거** | `POST /api/v1/dev/batch/scan` (REVIEWER 토큰) — 시드 클립 픽업 검증 |
 
@@ -112,7 +112,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | (`application-local.yml`) `deidentify.mock-mode` (`DEIDENTIFY_MOCK_MODE`) | **false (기본)** | 실 KPST 연동. `true` 면 mock no-op 복사로 전환 |
 | `KPST_DEID_ENABLED` / `KPST_DEID_BASE_URL` | true / `http://222.118.130.251:9989` | KPST 폴링 경로 + 테스트 서버 주소(내부망 http, ca-cert 불요) |
 | `AI_MOCK_MODE` / `AI_DEVICE` | false / cpu | ai-server 실추론 (GPU 불필요). 탐지는 YOLOX 단일 |
-| `VLM_CLIENT_ENABLED` | false | VLM NO-OP |
+| `VLM_CLIENT_ENABLED` / `VLM_SERVICE_URL` / `VLM_ALLOW_INSECURE_URL` | true / `http://klid-mock-server:9400` / true (compose local override) | 목 서버 실위탁. 완화 플래그는 local/dev 프로파일에서만 인정 — 그 밖에서 true 면 기동 실패 |
 | `CONTROL_NOTIFY_ENABLED` | false | 관제 통지 빈 미등록 |
 | `BATCH_ENABLED` / `TRAINING_SCAN_ENABLED` | false | Quartz 자동 트리거 off (scan 은 수동) |
 | `AUTHORING_DEV_SEED_ENABLED` | true | dev-seed 자동 적재 |
@@ -122,5 +122,5 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 
 - **탐지는 YOLOX 단일 백엔드** — 동봉 ONNX 가중치(`yolox_s.onnx`)를 ONNX Runtime 으로 로드하므로 탐지용 모델 다운로드가 없다(완전 오프라인). 가중치 부재 시 자동 mock fallback(기동 무중단). SAM2(Meta)만 최초 1회 HF 다운로드가 필요하며 이후 캐시(`HF_HOME=/app/.hf-cache`)로 오프라인.
 - **GPU 옵트인** — GPU 환경은 `AI_DEVICE=cuda` + override 없이 `docker-compose.yml`(runtime nvidia).
-- **VLM 실추론 미지원** — 항상 mock. local 에선 `enabled=false` 라 무관.
+- **VLM 실추론 미지원** — 위탁·콜백 왕복은 목 서버(`klid-mock-server:9400`)로 실제 수행하되 응답 내용은 목 데이터다(실 벤더 추론 아님).
 - **local/dev 비식별 기본 = 실 KPST 연동** — `application-local.yml`·`application-dev.yml` 기본값이 KPST API 연동 테스트 서버 실연동이다(`222.118.130.251:9989`, 내부망 http, ca-cert 불요, 계정 `authoring`). **내부망 접근이 없으면 비식별 단계가 실패('F')한다.** 오프라인 자족 검증은 `DEIDENTIFY_MOCK_MODE=true`(+`KPST_DEID_ENABLED=false`)로 mock 복사 모드 전환 — `mock-mode=true` 는 순수 local 프로파일에서만 허용(비-local/`ENV`=dev·stg·prd 에서 true 면 `DeidentifyStep` 부트 차단). 운영(prd)은 `application.yml` 기본 + 배포 환경변수로 별도 설정한다.

@@ -37,7 +37,7 @@ public class BatchContext {
      */
     private final Map<String, Boolean> stageToggles;
 
-    /** MARKING 단계가 채움 — findByRawSnOrderByRegDtDesc 결과 (최신 먼저). */
+    /** MARKING 단계가 채움 — findByRawSnOrderByRegDtDescMarkingSnDesc 결과 (최신 먼저). */
     private List<LsMarking> markings = List.of();
     /** MARKING 단계가 채움 — 최신 마킹의 markCn 을 파싱한 MarkItem 목록. */
     private List<MarkItem> marks = List.of();

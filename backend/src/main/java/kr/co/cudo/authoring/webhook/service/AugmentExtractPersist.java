@@ -42,7 +42,8 @@ import java.util.Map;
  * <h3>수행 (구 extractAndCopy 의 DB 파트 이관)</h3>
  * <ol>
  *   <li>멱등 재확인 — 신규 RAW 가 이미 {@code deIdntfYn=='Y'} 면 {@link Result#SKIPPED}(A~C 창 중복 트리거 방어)</li>
- *   <li>Phase B 산출 파일 기준 LS_DATA_SRC 프레임 INSERT(+ 생성 이력) + videoFrameNo 기준 명시 키 매핑</li>
+ *   <li>Phase B 산출 파일(외부 증강 산출물 반입본) 기준 LS_DATA_SRC 프레임 INSERT(+ 생성 이력) —
+ *       비식별 경로 컬럼에 적재하고 원본 경로는 null(파생영상 = 원본 부재, V133 정책 A)</li>
  *   <li>부모 라벨 좌표 그대로 복사({@code copyForNewSrc}) + LS_DATA_AUG_LBL_MAP(COORD_RECALC_YN='N') 적재</li>
  *   <li>성공 시에만 비식별 완료 불변식 확정: {@code deIdntfYn='Y'} + COMPLETED(배치 마감) + SUCCESS procLog</li>
  *   <li>부모 메타 <b>전체</b> 복사({@code video.*} 포함) + 부모 검수행 있던 메타만 미검수 검수행 신규 생성
@@ -100,8 +101,12 @@ public class AugmentExtractPersist {
         Map<Long, Long> parentSrcToNewSrc = new LinkedHashMap<>();
         for (AugmentExtractPlan.FrameSpec f : plan.frames()) {
             LsDataSrc parent = parentSrcs.get(f.parentSrcSn());
+            // [Phase 7-D] 파생 프레임은 <비식별 계열> 산출물이다 — 외부 증강의 입력이 비식별 프레임이었기
+            // 때문이다. 따라서 유일한 산출물을 비식별 경로 컬럼에만 적재하고 원본 경로는 null(원본 부재)로
+            // 둔다(해상도 파생과 동일한 V133 정책 A). 두 컬럼에 같은 값을 넣으면 마트 뷰의 "두 경로 상이"
+            // 불변식이 깨지고 export orgnl 벌이 anonymity="N" 으로 오표기된다.
             LsDataSrc nf = srcRepository.save(LsDataSrc.create(
-                    plan.newRawSn(), f.frameNo(), f.videoFrameNo(), f.dst().toString(), null, f.shtDt(),
+                    plan.newRawSn(), f.frameNo(), f.videoFrameNo(), null, f.dst().toString(), f.shtDt(),
                     parent == null ? null : parent.getAnonyInclYn(),
                     parent == null ? null : parent.getPsdoInclYn(),
                     parent == null ? null : parent.getPrvcInclYn()));

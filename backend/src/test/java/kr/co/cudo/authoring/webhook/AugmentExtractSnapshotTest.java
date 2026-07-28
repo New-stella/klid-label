@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.webhook;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugJobFile;
+import kr.co.cudo.authoring.augment.repository.LsDataAugJobFileRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -21,6 +23,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,10 +34,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase A(검증·스냅샷) 단위 테스트 — 커넥션-점유 분리 리팩터.
+ * Phase A(검증·스냅샷) 단위 테스트 — 커넥션-점유 분리 리팩터 + Phase 7-D(외부 산출 반영).
  *
- * <p>멱등 가드, 부모 프레임 조회, 중복 videoFrameNo fail-fast, 프레임별 산출 경로·번호 스냅샷을 검증한다.
- * 부모 잠금·비식별 재검증을 하지 않는(설계 유지) 무잠금 findById 만 사용함을 반영한다.
+ * <p>멱등 가드, 부모 프레임 조회, 중복 videoFrameNo fail-fast, <b>외부 산출물 대응 복원(위탁 매핑)</b>과
+ * 그 fail-closed 조건, 산출 경로(비식별 서브트리) 스냅샷을 검증한다. 부모 잠금·비식별 재검증을 하지
+ * 않는(설계 유지) 무잠금 findById 만 사용함을 반영한다.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -43,13 +47,14 @@ class AugmentExtractSnapshotTest {
     @Mock VideoRepository videoRepository;
     @Mock LsDataAugRepository augRepository;
     @Mock LsDataSrcRepository srcRepository;
+    @Mock LsDataAugJobFileRepository jobFileRepository;
 
     private AugmentExtractSnapshot snapshot;
 
     @BeforeEach
     void setup() {
-        snapshot = new AugmentExtractSnapshot(videoRepository, augRepository, srcRepository);
-        ReflectionTestUtils.setField(snapshot, "storageRawPath", "/tmp/klid-store");
+        snapshot = new AugmentExtractSnapshot(videoRepository, augRepository, srcRepository, jobFileRepository);
+        ReflectionTestUtils.setField(snapshot, "storageDeidentifiedPath", "/tmp/klid-deid");
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -72,8 +77,10 @@ class AugmentExtractSnapshotTest {
         return aug;
     }
 
+    /** 부모 프레임 — 위탁 입력이 된 <b>비식별</b> 프레임 경로를 보유한다. */
     private LsDataSrc parentFrame(Long srcSn, Long rawSn, int frameNo, Long videoFrameNo) {
-        LsDataSrc src = LsDataSrc.create(rawSn, frameNo, videoFrameNo, rawSn + "/f" + frameNo + ".jpg", null);
+        LsDataSrc src = LsDataSrc.create(rawSn, frameNo, videoFrameNo, null,
+                "/tmp/klid-deid/frames/deid/" + rawSn + "/frame-" + frameNo + ".jpg", null);
         setField(src, "srcSn", srcSn);
         return src;
     }
@@ -84,9 +91,23 @@ class AugmentExtractSnapshotTest {
         return a;
     }
 
+    /** 위탁 매핑 1건(결과 경로 적재 완료). */
+    private LsDataAugJobFile mapping(Long augJobSn, int fileSeq, Long srcSn, String resultPath) {
+        LsDataAugJobFile f = LsDataAugJobFile.issued(augJobSn, fileSeq, srcSn);
+        if (resultPath != null) {
+            f.applyResultPath(resultPath);
+        }
+        return f;
+    }
+
+    private void givenMappings(Long dataAugSn, List<LsDataAugJobFile> mappings) {
+        when(jobFileRepository.findByDataAugSnOrderByJobAndFileSeq(dataAugSn)).thenReturn(mappings);
+    }
+
     @Test
-    @DisplayName("deIdntfYn_N신규RAW의_프레임스펙과_산출경로가_정확히_스냅샷된다")
-    void buildsPlanWithFrameSpecs() {
+    @DisplayName("외부_산출_경로가_위탁매핑을_통해_프레임_생성계획까지_전달된다")
+    void buildsPlanWithExternalOutputs() {
+        // given
         LsDataRaw newRaw = newAugRaw(9001L, 100L, "/storage/augment/winter.mp4");
         assertThat(newRaw.getDeIdntfYn()).isEqualTo("N");
         LsDataSrc pf0 = parentFrame(600L, 100L, 0, 100L);
@@ -94,24 +115,144 @@ class AugmentExtractSnapshotTest {
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(20L)).thenReturn(Optional.of(aug(20L)));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(100L)).thenReturn(List.of(pf0, pf1));
+        givenMappings(20L, List.of(
+                mapping(1L, 1, 600L, "/nas/genai/job-1/a_gen.jpg"),
+                mapping(1L, 2, 601L, "/nas/genai/job-1/b_gen.png")));
 
+        // when
         Optional<AugmentExtractPlan> opt = snapshot.snapshot(9001L, 20L);
 
+        // then — 각 프레임에 자기 산출물이 붙는다(부모 재추출 소스 없음).
         assertThat(opt).isPresent();
         AugmentExtractPlan plan = opt.get();
         assertThat(plan.newRawSn()).isEqualTo(9001L);
         assertThat(plan.parentRawSn()).isEqualTo(100L);
-        assertThat(plan.dataAugSn()).isEqualTo(20L);
-        assertThat(plan.sourceVideo().toString()).isEqualTo("/storage/augment/winter.mp4");
         assertThat(plan.frames()).hasSize(2);
-        // FRM_NO = 추출 순번(0,1), VDO_FRM_NO = 부모 프레임 번호(100,250), parentSrcSn 보존.
+        assertThat(plan.frames()).extracting(f -> f.externalSource().toString())
+                .containsExactly("/nas/genai/job-1/a_gen.jpg", "/nas/genai/job-1/b_gen.png");
         assertThat(plan.frames()).extracting(AugmentExtractPlan.FrameSpec::frameNo).containsExactly(0L, 1L);
         assertThat(plan.frames()).extracting(AugmentExtractPlan.FrameSpec::videoFrameNo).containsExactly(100L, 250L);
         assertThat(plan.frames()).extracting(AugmentExtractPlan.FrameSpec::parentSrcSn).containsExactly(600L, 601L);
-        // 산출 경로 = {base}/frames/raw/{rawSn}/frame-{i}.jpg (CWE-22 검증).
+        // 산출 경로 = {deidBase}/frames/deid/{rawSn}/frame-{i}.{외부 확장자} (CWE-22 + PII 서브트리).
         assertThat(plan.frames().get(0).dst().toString().replace('\\', '/'))
-                .endsWith("/frames/raw/9001/frame-0.jpg");
-        assertThat(plan.framesDir().toString().replace('\\', '/')).endsWith("/frames/raw/9001");
+                .endsWith("/frames/deid/9001/frame-0.jpg");
+        assertThat(plan.frames().get(1).dst().toString().replace('\\', '/'))
+                .endsWith("/frames/deid/9001/frame-1.png");
+        assertThat(plan.framesDir().toString().replace('\\', '/')).endsWith("/frames/deid/9001");
+        // 해상도 기준 = 위탁했던 부모 비식별 프레임.
+        assertThat(plan.referenceFrame().toString().replace('\\', '/'))
+                .isEqualTo("/tmp/klid-deid/frames/deid/100/frame-0.jpg");
+    }
+
+    @Test
+    @DisplayName("위탁_후_프레임이_추가돼도_매핑이_어긋나지_않는다")
+    void mappingSurvivesFrameDrift() {
+        // given — 위탁은 프레임 2건(600,601)에 대해 했는데, 그 뒤 프레임 1건(602)이 추가됐다.
+        LsDataRaw newRaw = newAugRaw(9002L, 101L, "/storage/augment/drift.mp4");
+        LsDataSrc pf0 = parentFrame(600L, 101L, 0, 100L);
+        LsDataSrc pf1 = parentFrame(601L, 101L, 1, 250L);
+        LsDataSrc added = parentFrame(602L, 101L, 2, 400L);
+        when(videoRepository.findById(9002L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(21L)).thenReturn(Optional.of(aug(21L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(101L)).thenReturn(List.of(pf0, pf1, added));
+        givenMappings(21L, List.of(
+                mapping(1L, 1, 600L, "/nas/genai/job-1/a_gen.jpg"),
+                mapping(1L, 2, 601L, "/nas/genai/job-1/b_gen.jpg")));
+
+        // when / then — 순서 재계산이었다면 a_gen 이 600, b_gen 이 601 에 "그럴듯하게" 붙고 602 만 비어
+        //               조용히 어긋났을 것이다. 매핑 기반이므로 건수 불일치로 즉시 실패한다.
+        assertThatThrownBy(() -> snapshot.snapshot(9002L, 21L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("CONFLICT");
+    }
+
+    @Test
+    @DisplayName("3개_job_의_결과가_JOB_SEQ_순서로_전체_프레임_순서를_복원한다")
+    void restoresGlobalOrderAcrossJobs() {
+        // given — 프레임 3건이 job 3개로 쪼개져 위탁됐고, 리포지토리가 (JOB_SEQ, FILE_SEQ) 순으로 준다.
+        LsDataRaw newRaw = newAugRaw(9003L, 102L, "/storage/augment/multi.mp4");
+        List<LsDataSrc> parents = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            parents.add(parentFrame(700L + i, 102L, i, 100L * (i + 1)));
+        }
+        when(videoRepository.findById(9003L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(22L)).thenReturn(Optional.of(aug(22L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(102L)).thenReturn(parents);
+        givenMappings(22L, List.of(
+                mapping(1L, 1, 700L, "/nas/genai/job-1/1.jpg"),
+                mapping(2L, 2, 701L, "/nas/genai/job-2/2.jpg"),
+                mapping(3L, 3, 702L, "/nas/genai/job-3/3.jpg")));
+
+        // when
+        AugmentExtractPlan plan = snapshot.snapshot(9003L, 22L).orElseThrow();
+
+        // then — 프레임 순서(FRM_NO 0,1,2)와 job 순서 산출물이 1:1 로 맞물린다.
+        assertThat(plan.frames()).extracting(f -> f.externalSource().toString())
+                .containsExactly("/nas/genai/job-1/1.jpg", "/nas/genai/job-2/2.jpg", "/nas/genai/job-3/3.jpg");
+    }
+
+    @Test
+    @DisplayName("위탁매핑이_없으면_부모_재추출로_폴백하지_않고_실패한다")
+    void missingMapping_failsClosed() {
+        LsDataRaw newRaw = newAugRaw(9004L, 103L, "/storage/augment/nomap.mp4");
+        when(videoRepository.findById(9004L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(23L)).thenReturn(Optional.of(aug(23L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(103L))
+                .thenReturn(List.of(parentFrame(600L, 103L, 0, 100L)));
+        givenMappings(23L, List.of());
+
+        assertThatThrownBy(() -> snapshot.snapshot(9004L, 23L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("CONFLICT");
+    }
+
+    @Test
+    @DisplayName("산출_경로가_비어있는_매핑이_있으면_실패한다")
+    void blankResultPath_failsClosed() {
+        LsDataRaw newRaw = newAugRaw(9005L, 106L, "/storage/augment/blank.mp4");
+        when(videoRepository.findById(9005L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(24L)).thenReturn(Optional.of(aug(24L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(106L))
+                .thenReturn(List.of(parentFrame(600L, 106L, 0, 100L)));
+        givenMappings(24L, List.of(mapping(1L, 1, 600L, null)));
+
+        assertThatThrownBy(() -> snapshot.snapshot(9005L, 24L))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    @DisplayName("이미지가_아닌_확장자의_산출물은_거부된다")
+    void nonImageOutput_rejected() {
+        LsDataRaw newRaw = newAugRaw(9006L, 107L, "/storage/augment/exe.mp4");
+        when(videoRepository.findById(9006L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(25L)).thenReturn(Optional.of(aug(25L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(107L))
+                .thenReturn(List.of(parentFrame(600L, 107L, 0, 100L)));
+        givenMappings(25L, List.of(mapping(1L, 1, 600L, "/nas/genai/job-1/payload.sh")));
+
+        assertThatThrownBy(() -> snapshot.snapshot(9006L, 25L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+    }
+
+    @Test
+    @DisplayName("부모_비식별_프레임_경로가_없으면_해상도_기준을_원본으로_대체하지_않고_실패한다")
+    void missingParentDeidPath_failsClosed() {
+        LsDataRaw newRaw = newAugRaw(9008L, 108L, "/storage/augment/nodeid.mp4");
+        LsDataSrc pf0 = LsDataSrc.create(108L, 0, 100L, "/storage/raw/108/f0.jpg", null);
+        setField(pf0, "srcSn", 600L);
+        when(videoRepository.findById(9008L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(26L)).thenReturn(Optional.of(aug(26L)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(108L)).thenReturn(List.of(pf0));
+        givenMappings(26L, List.of(mapping(1L, 1, 600L, "/nas/genai/job-1/a.jpg")));
+
+        assertThatThrownBy(() -> snapshot.snapshot(9008L, 26L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("CONFLICT");
     }
 
     @Test
@@ -126,6 +267,8 @@ class AugmentExtractSnapshotTest {
         assertThat(opt).isEmpty();
         verify(srcRepository, never()).findByRawSnOrderByFrameNoAsc(org.mockito.ArgumentMatchers.anyLong());
         verify(augRepository, never()).findById(org.mockito.ArgumentMatchers.anyLong());
+        verify(jobFileRepository, never())
+                .findByDataAugSnOrderByJobAndFileSeq(org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -137,6 +280,9 @@ class AugmentExtractSnapshotTest {
         when(videoRepository.findById(9009L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(81L)).thenReturn(Optional.of(aug(81L)));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(103L)).thenReturn(List.of(pf0, pf1));
+        givenMappings(81L, List.of(
+                mapping(1L, 1, 320L, "/nas/genai/job-1/a.jpg"),
+                mapping(1L, 2, 321L, "/nas/genai/job-1/b.jpg")));
 
         assertThatThrownBy(() -> snapshot.snapshot(9009L, 81L))
                 .isInstanceOf(CustomException.class);
@@ -155,8 +301,8 @@ class AugmentExtractSnapshotTest {
     }
 
     @Test
-    @DisplayName("증강_소스경로가_비면_INVALID_INPUT")
-    void blankSourcePath_rejected() {
+    @DisplayName("증강_영상경로가_비면_INVALID_INPUT")
+    void blankVideoPath_rejected() {
         LsDataRaw newRaw = newAugRaw(9011L, 105L, "   ");
         when(videoRepository.findById(9011L)).thenReturn(Optional.of(newRaw));
 

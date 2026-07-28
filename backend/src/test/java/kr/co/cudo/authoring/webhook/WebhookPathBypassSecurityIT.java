@@ -11,7 +11,11 @@ import kr.co.cudo.authoring.common.security.webhook.WebhookRateLimitStore;
 import kr.co.cudo.authoring.common.security.webhook.WebhookRateLimiter;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.webhook.dto.AugmentResultRequest;
+import kr.co.cudo.authoring.augment.entity.LsDataAugJob;
+import kr.co.cudo.authoring.augment.entity.LsDataAugJobFile;
+import kr.co.cudo.authoring.augment.repository.LsDataAugJobFileRepository;
+import kr.co.cudo.authoring.augment.repository.LsDataAugJobRepository;
+import kr.co.cudo.authoring.webhook.dto.GenAiCallbackRequest;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import org.junit.jupiter.api.DisplayName;
@@ -71,35 +75,37 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class WebhookPathBypassSecurityIT {
 
-    private static final String HMAC_KEY_VALUE = "bypass-it-secret-32bytes-min-len-aa!!";
-    private static final String CALLBACK_PATH = HmacWebhookFilter.PATH_AUGMENT;
+    private static final String CALLBACK_PATH =
+            kr.co.cudo.authoring.common.security.webhook.WebhookProtectedPaths.PATH_GENAI_CALLBACK;
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VideoRepository videoRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataAugRepository augRepository;
+    @Autowired private LsDataAugJobRepository augJobRepository;
+    @Autowired private LsDataAugJobFileRepository augJobFileRepository;
     @Autowired private WebhookIdempotencyLedger ledger;
     @Autowired private WebhookRateLimitStore rateLimitStore;
 
     /** 우회 시도에 사용할 경로 변형 — 인코딩·대소문자·구분자·순회·널바이트. */
     private static List<String> bypassVariants() {
         return List.of(
-                "/v1/%61ug/callback",       // 퍼센트 인코딩 (a → %61) — 1차 검증에서 실제 관통
-                "/v1/%2561ug/callback",     // 이중 퍼센트 인코딩
-                "/v1/AUG/callback",         // 대문자
-                "/v1/aug/callback/",        // trailing slash
-                "/v1//aug/callback",        // 이중 슬래시
-                "/v1/aug;a=b/callback",     // 세미콜론 path parameter
-                "/v1/aug/../aug/callback",  // 경로 순회
-                "/v1/aug./callback",        // 후행 점
-                "/v1/aug%00/callback"       // 널바이트
+                "/v1/%67enai/callback",        // 퍼센트 인코딩 (g → %67) — 1차 검증에서 실제 관통한 수법
+                "/v1/%2567enai/callback",      // 이중 퍼센트 인코딩
+                "/v1/GENAI/callback",          // 대문자
+                "/v1/genai/callback/",         // trailing slash
+                "/v1//genai/callback",         // 이중 슬래시
+                "/v1/genai;a=b/callback",      // 세미콜론 path parameter
+                "/v1/genai/../genai/callback", // 경로 순회
+                "/v1/genai./callback",         // 후행 점
+                "/v1/genai%00/callback"        // 널바이트
         );
     }
 
     // ─── 시드 ─────────────────────────────────────────────
 
-    private record Seed(Long parentRawSn, Long dataAugSn, String jobId) { }
+    private record Seed(Long parentRawSn, Long dataAugSn, String jobId, String requestId) { }
 
     private Seed seedPendingAug(String suffix) {
         LsDataRaw parent = videoRepository.save(LsDataRaw.createFromIngest(
@@ -115,20 +121,33 @@ class WebhookPathBypassSecurityIT {
         String jobId = "BYPASS-J-" + suffix + "-" + UUID.randomUUID();
         LsDataAug aug = augRepository.save(
                 LsDataAug.createRequested(frame0.getSrcSn(), "WINTER", "1", key, jobId));
-        ledger.recordIssued(key, LsWebhookIdempotency.CHANNEL_AUGMENT, jobId);
-        return new Seed(parent.getRawSn(), aug.getDataAugSn(), jobId);
+        // 새 계약의 request_id 발급 원장 = LS_DATA_AUG_JOB.IDMP_KEY (위탁 직전 선기록).
+        LsDataAugJob job = LsDataAugJob.createIssued(aug.getDataAugSn(), 1, key, 1);
+        job.markAccepted(jobId);
+        job = augJobRepository.save(job);
+        // Phase 7-D — 위탁 항목 1건(콜백 results 1건과 건수 일치. 불일치면 fail-closed 로 실패 종결).
+        augJobFileRepository.save(LsDataAugJobFile.issued(job.getAugJobSn(), 1, frame0.getSrcSn()));
+        // 구 LS_WEBHOOK_IDEMPOTENCY(AUGMENT) 선기록은 발급 게이트가 아니므로 시드하지 않는다.
+        return new Seed(parent.getRawSn(), aug.getDataAugSn(), jobId, key);
     }
 
+    /** 발급된 request_id 를 실은 정상 SUCCEEDED 본문. */
     private byte[] successBody(Seed seed) throws Exception {
-        AugmentResultRequest payload = new AugmentResultRequest(
-                seed.dataAugSn(), seed.jobId(), "WINTER", "SUCCESS",
-                "/storage/augment/bypass.mp4");
-        return objectMapper.writeValueAsString(payload).getBytes(StandardCharsets.UTF_8);
+        return bodyOf(seed, seed.requestId());
     }
 
-    private String sign(String timestamp, byte[] body) {
-        String canonical = timestamp + "." + new String(body, StandardCharsets.UTF_8);
-        return HmacWebhookFilter.SIGNATURE_PREFIX + HmacSigner.hex(HMAC_KEY_VALUE, canonical);
+    /** 발급되지 않은 request_id 를 실은 본문 — 우회 시도용(통과해도 서비스 게이트가 401). */
+    private byte[] forgedBody(Seed seed) throws Exception {
+        return bodyOf(seed, "BYPASS-K-FORGED-" + UUID.randomUUID());
+    }
+
+    private byte[] bodyOf(Seed seed, String requestId) throws Exception {
+        GenAiCallbackRequest payload = new GenAiCallbackRequest(
+                requestId, seed.jobId(), "SUCCEEDED", 100, "COMPLETED", "2026-07-27T10:00:00Z",
+                List.of(new GenAiCallbackRequest.ResultItem(
+                        "gen-1", "IMAGE", "/storage/genai/bypass/001_gen.jpg", null)),
+                null, null);
+        return objectMapper.writeValueAsString(payload).getBytes(StandardCharsets.UTF_8);
     }
 
     private String augStatus(Long dataAugSn) {
@@ -144,20 +163,20 @@ class WebhookPathBypassSecurityIT {
     // ─── 테스트 ─────────────────────────────────────────────
 
     @Test
-    @DisplayName("퍼센트인코딩_경로_aug_callback_은_401_이며_DB_무변경")
+    @DisplayName("퍼센트인코딩_경로_genai_callback_은_2xx_가_아니며_DB_무변경")
     void percentEncodedPath_isUnauthorized_andNoDbChange() throws Exception {
         Seed seed = seedPendingAug("PCT");
-        byte[] body = successBody(seed);
+        byte[] body = forgedBody(seed);
 
-        MvcResult result = mockMvc.perform(post(URI.create("/v1/%61ug/callback"))
+        MvcResult result = mockMvc.perform(post(URI.create("/v1/%67enai/callback"))
                         .with(remoteAddr("198.18.9.51"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andReturn();
 
         assertThat(result.getResponse().getStatus())
-                .as("퍼센트 인코딩 변형은 HMAC 필터가 적용되어 401 이어야 한다 (E-ISSUE-01)")
-                .isEqualTo(401);
+                .as("퍼센트 인코딩 변형도 가드 필터가 적용되고 발급 게이트에서 막혀야 한다 (E-ISSUE-01)")
+                .matches(st -> st < 200 || st > 299);
         assertThat(augStatus(seed.dataAugSn()))
                 .as("무인증 우회로 증강행 상태가 전이되면 안 된다")
                 .isEqualTo(LsDataAug.STTS_PENDING);
@@ -170,9 +189,9 @@ class WebhookPathBypassSecurityIT {
     @DisplayName("이중_퍼센트인코딩_경로는_2xx_가_아니며_DB_무변경")
     void doubleEncodedPath_isRejected() throws Exception {
         Seed seed = seedPendingAug("DBL");
-        byte[] body = successBody(seed);
+        byte[] body = forgedBody(seed);
 
-        MvcResult result = mockMvc.perform(post(URI.create("/v1/%2561ug/callback"))
+        MvcResult result = mockMvc.perform(post(URI.create("/v1/%2567enai/callback"))
                         .with(remoteAddr("198.18.9.52"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -187,7 +206,7 @@ class WebhookPathBypassSecurityIT {
     @DisplayName("대문자_trailing슬래시_이중슬래시_세미콜론_경로순회_후행점_널바이트_변형이_전부_차단되고_DB_무변경")
     void allPathVariants_areBlocked_andNoDbChange() throws Exception {
         Seed seed = seedPendingAug("VAR");
-        byte[] body = successBody(seed);
+        byte[] body = forgedBody(seed);
 
         for (String variant : bypassVariants()) {
             MvcResult result = mockMvc.perform(post(URI.create(variant))
@@ -209,53 +228,48 @@ class WebhookPathBypassSecurityIT {
     }
 
     @Test
-    @DisplayName("유효_서명과_타임스탬프면_정상_통과하고_증강_상태가_전이")
-    void validSignature_passesAndTransitions() throws Exception {
+    @DisplayName("발급된_request_id_면_정상_통과하고_증강_상태가_전이")
+    void issuedRequestId_passesAndTransitions() throws Exception {
         Seed seed = seedPendingAug("OK");
         byte[] body = successBody(seed);
-        String ts = Long.toString(System.currentTimeMillis());
 
         mockMvc.perform(post(CALLBACK_PATH)
                         .with(remoteAddr("198.18.9.54"))
-                        .header(HmacWebhookFilter.TIMESTAMP_HEADER, ts)
-                        .header(HmacWebhookFilter.SIGNATURE_HEADER, sign(ts, body))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.applied").value(true));
 
         assertThat(augStatus(seed.dataAugSn()))
-                .as("정상 서명 콜백은 증강행을 전이시켜야 한다")
+                .as("전 job 종결(단일 job) 이므로 증강행이 전이돼야 한다")
                 .isNotEqualTo(LsDataAug.STTS_PENDING);
     }
 
     @Test
-    @DisplayName("동일_서명_재전송시_윈도우_내라도_replay_로_흡수되고_401_이_아님")
-    void replayWithinWindow_returns409_not401() throws Exception {
+    @DisplayName("같은_웹훅이_두번_도착해도_200_멱등흡수이며_결과가_중복_생성되지_않는다")
+    void duplicateCallback_isAbsorbed() throws Exception {
         Seed seed = seedPendingAug("RPL");
         byte[] body = successBody(seed);
-        String ts = Long.toString(System.currentTimeMillis());
-        String signature = sign(ts, body);
 
         mockMvc.perform(post(CALLBACK_PATH)
                         .with(remoteAddr("198.18.9.55"))
-                        .header(HmacWebhookFilter.TIMESTAMP_HEADER, ts)
-                        .header(HmacWebhookFilter.SIGNATURE_HEADER, signature)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.applied").value(true));
 
-        MvcResult replay = mockMvc.perform(post(CALLBACK_PATH)
+        // 외부는 전송 실패 시 재시도한다 — 중복 수신이 정상 시나리오이므로 401/409 가 아니라
+        // 200 + applied=false 로 흡수해야 벤더 재시도가 오류로 오인되지 않는다.
+        mockMvc.perform(post(CALLBACK_PATH)
                         .with(remoteAddr("198.18.9.55"))
-                        .header(HmacWebhookFilter.TIMESTAMP_HEADER, ts)
-                        .header(HmacWebhookFilter.SIGNATURE_HEADER, signature)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andReturn();
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.applied").value(false));
 
-        assertThat(replay.getResponse().getStatus())
-                .as("replay 는 인증 실패(401)가 아니라 중복 흡수(409) 로 구분돼야 한다 (S-10)")
-                .isEqualTo(409);
+        assertThat(derivedCount(seed.parentRawSn()))
+                .as("중복 수신에도 파생 영상은 1건")
+                .isEqualTo(1L);
     }
 
     @Test
@@ -375,37 +389,31 @@ class WebhookPathBypassSecurityIT {
     }
 
     @Test
-    @DisplayName("유효_서명을_퍼센트인코딩_경로변형으로_재전송하면_409_로_차단된다")
+    @DisplayName("인코딩_경로변형으로_재전송해도_증강결과가_중복_확정되지_않는다")
     void replayViaEncodedPathVariant_isBlocked() throws Exception {
         Seed seed = seedPendingAug("ENC");
         byte[] body = successBody(seed);
-        String ts = Long.toString(System.currentTimeMillis());
-        String signature = sign(ts, body);
 
         mockMvc.perform(post(CALLBACK_PATH)
                         .with(remoteAddr("198.18.9.31"))
-                        .header(HmacWebhookFilter.TIMESTAMP_HEADER, ts)
-                        .header(HmacWebhookFilter.SIGNATURE_HEADER, signature)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk());
 
-        // 서명 canonical(timestamp + "." + body)에는 경로가 없다 → 서명 검증은 통과한다.
-        // nonce 키가 원시 URI 기준이면 인코딩 변형마다 키가 갈라져 replay 가 전부 신규로 통과한다(H-2).
-        for (String variant : List.of("/v1/%61ug/callback", "/v1/a%75g/callback",
-                "/v1/au%67/callback", "/v1/aug/%63allback")) {
-            MvcResult replay = mockMvc.perform(post(URI.create(variant))
+        // 인코딩 변형은 필터/인터셉터가 걸러 컨트롤러에 도달하지 못하거나, 도달하더라도 서비스
+        // 멱등 앵커(job 종결 + 증강행 non-PENDING)가 중복 확정을 막아야 한다.
+        for (String variant : List.of("/v1/%67enai/callback", "/v1/g%65nai/callback",
+                "/v1/gena%69/callback", "/v1/genai/%63allback")) {
+            mockMvc.perform(post(URI.create(variant))
                             .with(remoteAddr("198.18.9.31"))
-                            .header(HmacWebhookFilter.TIMESTAMP_HEADER, ts)
-                            .header(HmacWebhookFilter.SIGNATURE_HEADER, signature)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andReturn();
-
-            assertThat(replay.getResponse().getStatus())
-                    .as("인코딩 변형 replay 가 통과하면 인증 후 증폭 DoS 가 된다: %s", variant)
-                    .isEqualTo(409);
         }
+
+        assertThat(derivedCount(seed.parentRawSn()))
+                .as("경로 변형 재전송으로 파생 영상이 증식하면 인증 후 증폭이 된다")
+                .isEqualTo(1L);
     }
 
     @Test
@@ -414,7 +422,8 @@ class WebhookPathBypassSecurityIT {
         // 구 단정(isIn(400,401,403,404))은 firewall 을 완화해도 요청이 필터에 잡혀 401 이 되면 GREEN
         // 이었다 — "완화가 들어오면 깨진다" 는 주석이 거짓이었다(DEV_FIX M-6).
         // firewall 선차단(400)과 필터 인증실패(401)를 명확히 구분해 단정한다.
-        for (String hostile : List.of("/v1//aug/callback", "/v1/aug;a=b/callback", "/v1/aug%2fcallback")) {
+        for (String hostile : List.of("/v1//genai/callback", "/v1/genai;a=b/callback",
+                "/v1/genai%2fcallback")) {
             MvcResult result = mockMvc.perform(post(URI.create(hostile))
                             .with(remoteAddr("198.18.9.41"))
                             .contentType(MediaType.APPLICATION_JSON)

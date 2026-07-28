@@ -46,10 +46,10 @@ import java.util.UUID;
  * 역조회하고 무단 콜백(미발급 request_id)을 401 로 차단하게 한다. 등록을 하지 않으면 모든 콜백이
  * 100% UNAUTHORIZED 로 거부된다(폐쇄 대상 결함1/2).
  *
- * <h3>등록의 원자성 (augment 패턴 정합)</h3>
- * <p>augment 는 요청 행 커밋 이후 {@code AugmentRequestBridge} 가 {@code recordIssued → 외부 호출}
- * 순으로 수행한다(외부 호출 <b>전</b> 등록). 본 Step 은 동기 배치 단계이므로 동형으로
- * <b>describe 호출 직전</b> {@code recordIssued} 를 수행한다. 영속 ledger 의 {@code recordIssued}
+ * <h3>등록의 원자성</h3>
+ * <p>본 Step 은 동기 배치 단계이므로 <b>describe 호출 직전</b> {@code recordIssued} 를 수행한다
+ * (외부 호출 <b>전</b> 등록). 증강 경로는 본 원장을 쓰지 않는다 — 발급 원장이
+ * {@code LS_DATA_AUG_JOB.IDMP_KEY} 로 분리됐다(청크 단위 키). 영속 ledger 의 {@code recordIssued}
  * 는 {@code REQUIRES_NEW} 로 <b>독립 커밋</b>되므로, 이후 describe 실패나 본 Step 트랜잭션 롤백과
  * 무관하게 매핑이 durable 하게 남아 콜백이 항상 역조회에 성공한다. 등록 실패 시에는 describe 를
  * 호출하지 않고 실패 전파(fail-closed) — 매핑 없는 위탁으로 인한 콜백 유실을 원천 차단한다.
@@ -75,6 +75,9 @@ public class VlmTimeseriesStep implements BatchStep {
 
     /** frame_policy framerate 기본값 — 설정 미주입(단위 테스트 등) 시 폴백. */
     private static final int DEFAULT_FRAMERATE = 25;
+
+    /** VLM 단계 미수행 사유 — 운영 재처리 대상 식별용으로 DB 에 그대로 적재된다(B-ISSUE-24). */
+    static final String SKIP_REASON_DISABLED = "VLM 위탁 비활성 (vlm.client.enabled=false)";
 
     private final VlmClient vlmClient;
     private final VideoRepository videoRepository;
@@ -144,9 +147,13 @@ public class VlmTimeseriesStep implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
 
-        // enabled=false 인 경우 등록/전이 없이 즉시 SKIPPED 반환(NO-OP).
+        // enabled=false 인 경우 외부 호출/등록/전이 없이 즉시 SKIPPED 반환(NO-OP).
+        //  단, B-ISSUE-24 — "건너뛴 사실" 은 DB(LS_BATCH_PROC_LOG)에 사유와 함께 남긴다. 로그만 남기면
+        //  VLM 비활성/장애 구간에 처리된 영상이 "메타 없음 + 무기록" 이 되어, 재처리 대상 식별이
+        //  애플리케이션 로그 보존기간에 종속된다(운영에서 복구 불가).
         if (!vlmClient.isEnabled()) {
             log.info("[Batch][VlmTimeseries] skipped (disabled) rawSn={}", rawSn);
+            batchStatusService.recordVlmSkipped(rawSn, SKIP_REASON_DISABLED);
             return VlmTimeseriesResponse.skipped(null);
         }
 

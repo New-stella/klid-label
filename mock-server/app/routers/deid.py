@@ -74,7 +74,11 @@ def _dataset_total_frame(dataset: Any) -> int:
 
 
 def _build_ds_status(project: Project, rate: float) -> list[dict[str, Any]]:
-    """프로젝트의 데이터셋별 상태 리스트."""
+    """프로젝트의 데이터셋별 상태 리스트.
+
+    ``fileName`` 은 실서버 계약대로 **원본 입력파일 경로**(데이터셋명)를 그대로 돌려준다 —
+    산출물명이 아니다(산출물은 export_path 의 ``{stem}-mask{ext}``).
+    """
     proc_state = deid_sim.proc_state_from_rate(rate)
     start_time = deid_sim.format_dt(project.created_epoch)
     end_time = start_time if rate >= 100.0 else None
@@ -132,14 +136,20 @@ async def create_project(req: ProjectCreateRequest) -> ProjectCreateResponse:
         )
 
     # 데이터셋 구성 — 영상 모드는 파일당 1개, 이미지 폴더 모드는 폴더 1개.
-    # 마스킹명({stem}_{yyyyMMddHHmm}_mask{ext})은 생성 시 1회 계산해 데이터셋명으로 저장한다.
-    # 이 마스킹명이 진행률 fileName·실제 생성 파일명과 동일한 단일 소스가 된다.
+    #
+    # 실서버 계약(2026-07-21 curl/ll 실측)을 그대로 따른다:
+    #   - 데이터셋명 = 진행/리포트 응답의 fileName = **원본 입력파일 경로**(input_path + 원본 basename)
+    #   - 실제 산출물 = {export_path}/{원본stem}-mask{ext}
+    # 즉 fileName 과 산출물명은 <다르다>. 구 목업은 둘을 같은 마스킹명("단일 소스")으로 두었는데,
+    # 그러면 BE 의 1차 회수 경로(fileName basename → {stem}-mask{ext})가 항상 빗나가 폴백 스캔으로만
+    # 회수돼 정상 경로가 로컬에서 한 번도 검증되지 않았다(B-ISSUE-84).
     # totalFrame 은 dataset_id 로 결정적으로 도출(_dataset_total_frame)하므로 별도 저장 불필요.
     raw_names = req.files if req.is_img == 0 else [req.input_path]
-    timestamp = deid_sim.mask_timestamp()
-    plans = deid_sim.plan_outputs(raw_names, timestamp)
-    for _source_base, mask_name in plans:
-        store.add_dataset(project.prj_id, mask_name)
+    plans = deid_sim.plan_outputs(raw_names)
+    for source_base, _mask_name in plans:
+        store.add_dataset(
+            project.prj_id, deid_sim.source_path_of(req.input_path, source_base)
+        )
 
     store.append_job_log(project.prj_id, "project_created", req.project_name)
     logger.info(
@@ -250,7 +260,10 @@ async def retrieve_progress(request: Request) -> dict[str, Any]:
 # ── 6. GET /retrieve_report (GET + JSON 바디) ────────────────────
 @router.get("/retrieve_report")
 async def retrieve_report(request: Request) -> dict[str, Any]:
-    """처리 완료(procState=2) 데이터셋만 리포트."""
+    """처리 완료(procState=2) 데이터셋만 리포트.
+
+    ``fileName`` 은 진행조회와 동일하게 **원본 입력파일 경로**다(실서버 계약).
+    """
     body = await _load_json_body(request)
 
     req_user_id = body.get("reqUserId")

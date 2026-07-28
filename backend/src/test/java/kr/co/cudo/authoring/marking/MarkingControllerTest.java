@@ -115,7 +115,7 @@ class MarkingControllerTest {
             return;
         }
         committedTx.executeWithoutResult(s -> {
-            markingRepository.findByRawSnOrderByRegDtDesc(rawSn).forEach(markingRepository::delete);
+            markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn).forEach(markingRepository::delete);
             assignmentRepository
                     .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(LsTaskAssignment.TASK_LABELER, List.of(rawSn))
                     .forEach(assignmentRepository::delete);
@@ -146,7 +146,7 @@ class MarkingControllerTest {
                 .andExpect(jsonPath("$.data.marks.length()").value(6));
 
         // DB 검증 (ambient tx 에서 방금 생성된 마킹 조회)
-        List<LsMarking> saved = markingRepository.findByRawSnOrderByRegDtDesc(rawSn);
+        List<LsMarking> saved = markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn);
         assertThat(saved).hasSize(1);
         assertThat(saved.get(0).getMarkModeCd()).isEqualTo("AUTO");
     }
@@ -256,7 +256,7 @@ class MarkingControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
 
         // DB 검증 — 마킹이 생성되지 않아야 한다
-        assertThat(markingRepository.findByRawSnOrderByRegDtDesc(rawSn)).isEmpty();
+        assertThat(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn)).isEmpty();
     }
 
     @Test

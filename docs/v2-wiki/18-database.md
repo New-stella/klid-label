@@ -41,7 +41,7 @@
 ### 메타 · 마킹
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_MARKING` (V45) | 마킹 (MARK_MODE_CD, FRME_INTV_NOCS, MARK_CN JSON) | [06](06-marking.md) |
+| `LS_MARKING` (V45) | 마킹 (MARK_MODE_CD, FRME_INTV_NOCS, MARK_CN JSON) + 부분 유니크 `UK_LS_MARKING_RAW_ACTVTN`(V142 — `RAW_SN` where `STTS_CD IN ('PENDING','VLM_REQUESTED')`) | [06](06-marking.md) |
 | `LS_DATA_META` (V4) | 시계열 메타 (META_KEY/VL, EXTERNAL_JOB_ID) | [09](09-vlm-timeseries.md) |
 | `LS_DATA_META_HSTRY` (V4) / `LS_DATA_META_REVIEW` (V5) | 메타 이력 / 검수 | [09](09-vlm-timeseries.md) |
 | `LS_EVNT_ANNO` (V127) | 이벤트 어노테이션(event_annotation, VQA/CoT) 영상 단위 저장. `ANNO_CN` jsonb(payload 원문, caption/evidence 후보 c1..cn), UK(RAW_SN) 영상당 1건 | [09](09-vlm-timeseries.md) · [24](24-dataset-export.md) |
@@ -58,7 +58,9 @@
 ### 증강 · 비식별 · 해상도
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_DATA_AUG` (V8) | 증강 데이터 (AUG_PROC_STTS_CD) — **해상도 변경 파생도 흡수**: `AUG_TYPE_CD='RESL_1080P/720P/480P'` 판별자 + 부분 유니크 인덱스 `UK_LS_DATA_AUG_RESL (SRC_SN, AUG_TYPE_CD) WHERE AUG_TYPE_CD LIKE 'RESL_%'` (V124) | [14](14-augmentation.md) |
+| `LS_DATA_AUG` (V8) | 증강 데이터 (AUG_PROC_STTS_CD) — **해상도 변경 파생도 흡수**: `AUG_TYPE_CD='RESL_1080P/720P/480P'` 판별자 + 부분 유니크 인덱스 `UK_LS_DATA_AUG_RESL (SRC_SN, AUG_TYPE_CD) WHERE AUG_TYPE_CD LIKE 'RESL_%'` (V124). **하위 테이블**: 외부 위탁 1건이 100장 상한으로 분할되므로 `LS_DATA_AUG` 1행 : `LS_DATA_AUG_JOB` N행 : `LS_DATA_AUG_JOB_FILE` M행 (모두 `ON DELETE CASCADE`) | [14](14-augmentation.md) |
+| `LS_DATA_AUG_JOB` (V140) | 증강 외부 위탁 작업 — 생성형 AI 명세서 v1.1 정합. PK `AUG_JOB_SN`(BIGINT), `DATA_AUG_SN`(BIGINT FK→`LS_DATA_AUG`), `JOB_SEQ`(INT, 분할 순서 1부터), `IDMP_KEY`(VARCHAR(128) **UNIQUE** `UK_LDAJ_IDMP_KEY` — 우리가 발급한 request_id. **웹훅 발급 게이트의 단일 진실원**으로 `LS_WEBHOOK_IDEMPOTENCY` 를 대체), `OTSD_JOB_ID`(VARCHAR(200) — 외부가 202 로 발급, 접수 전 NULL), `JOB_STTS_CD`(VARCHAR(20) RECEIVED/RUNNING/SUCCEEDED/FAILED/CANCELED — `AUG_PROC_STTS_CD` 검수축과 별개), `TOT_NOCS`(INT), `ERR_CD`(VARCHAR(50))/`ERR_MSG_CN`(VARCHAR(1000) — 위탁 실패를 조용히 삼키지 않기 위한 사유 기록). 인덱스 `IDX_LDAJ_AUG_SEQ (DATA_AUG_SN, JOB_SEQ)`·`IDX_LDAJ_OTSD_JOB_ID` | [14](14-augmentation.md) |
+| `LS_DATA_AUG_JOB_FILE` (V141) | 증강 위탁 파일 매핑 — 위탁 순서↔프레임 대응 + 외부 산출 경로. PK `AUG_JOB_FILE_SN`(BIGINT), `AUG_JOB_SN`(BIGINT FK→`LS_DATA_AUG_JOB`), `FILE_SEQ`(INT = `input_files[].sequence`), `SRC_SN`(BIGINT — 위탁한 비식별 프레임), `RSLT_FILE_PATH_NM`(VARCHAR(500) = `results[].output_file_path`, 수신 전 NULL). UNIQUE `UK_LDAJF_JOB_FILE_SEQ (AUG_JOB_SN, FILE_SEQ)`, 인덱스 `IDX_LDAJF_SRC_SN`. **왜 필요한가**: 계약상 `results[]` 에 입력 식별자가 없어 순서로만 대응하므로, 위탁 시점 대응을 못박지 않으면 위탁~콜백 사이 프레임 증감이 조용히 어긋나 다른 프레임에 남의 증강본이 붙는다(무증상 오염). 산출 경로는 SUCCEEDED 콜백에 되붙이고, 건수 불일치 시 미적재 + job FAILED(fail-closed) | [14](14-augmentation.md) |
 | `LS_DATA_AUG_RVW` (V25) / `LS_DATA_AUG_LBL_MAP` (V26) | 증강 검수 / 라벨 매핑 (`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y` — 증강·해상도 파생 공통 재사용) | [14](14-augmentation.md) |
 | ~~`LS_RESOLUTION_EXPORT`~~ · ~~`LS_RESOLUTION_LBL_MAP`~~ | **폐기(V125 백필 후 fail-closed DROP)** — 해상도 변경 저장모델을 `LS_DATA_AUG`+`LS_DATA_AUG_LBL_MAP`으로 통합(2026-07-22) | [14](14-augmentation.md) |
 | `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29, `REQ_KND_CD` BATCH/REDEIDENT V68 도입·V83 rename REQ_KIND_CD→REQ_KND_CD) | 비식별 누락 신고 / 처리 이력(배치·검수완료재비식별 분기) | [08](08-deidentification.md) |

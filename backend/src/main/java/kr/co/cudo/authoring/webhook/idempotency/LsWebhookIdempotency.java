@@ -31,7 +31,8 @@ public class LsWebhookIdempotency {
 
     public static final String CHANNEL_DEIDENTIFY = "DEIDENTIFY";
     public static final String CHANNEL_VLM = "VLM";
-    public static final String CHANNEL_AUGMENT = "AUGMENT";
+    // AUGMENT 채널은 제거됐다 — 증강 request_id 발급 원장은 LS_DATA_AUG_JOB.IDMP_KEY 이며
+    // 본 원장의 AUGMENT 행은 어느 경로에서도 읽히지 않는 죽은 write 였다(기존 행은 이력으로만 잔존).
 
     @Id
     @Column(name = "IDMP_KEY", length = 128, nullable = false)

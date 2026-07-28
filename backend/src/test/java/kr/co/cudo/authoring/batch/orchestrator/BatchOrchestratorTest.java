@@ -89,7 +89,7 @@ class BatchOrchestratorTest {
                 pipeline, statusService, transitionService, retryQueue, videoRepository);
 
         // V2.0: 마킹 필수 — 기본 마킹 데이터 제공 (orchestrator 통과 보장)
-        when(markingRepository.findByRawSnOrderByRegDtDesc(any()))
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(any()))
                 .thenReturn(List.of(newMarking()));
 
         // 기본: extractByMarks(raw, marks) 가 1 프레임 반환
@@ -191,7 +191,7 @@ class BatchOrchestratorTest {
     @DisplayName("V2_마킹_없으면_FAILED_INVALID_INPUT")
     void noMarkingResultsInFailed() {
         newRaw(133L, LsDataRaw.PRVC_TYPE_ANONY);
-        when(markingRepository.findByRawSnOrderByRegDtDesc(133L))
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(133L))
                 .thenReturn(java.util.Collections.emptyList());
 
         BatchStage result = orchestrator.process(133L);
@@ -380,7 +380,7 @@ class BatchOrchestratorTest {
     void processWithTogglesSkipsFrameExtract() {
         newRaw(141L, LsDataRaw.PRVC_TYPE_ANONY);
         // 마킹 없음 — 정상 플로우면 FRAME_EXTRACT 가 INVALID_INPUT 으로 실패하지만, FRAME off 면 skip.
-        when(markingRepository.findByRawSnOrderByRegDtDesc(141L))
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(141L))
                 .thenReturn(java.util.Collections.emptyList());
         java.util.Map<String, Boolean> toggles = new java.util.HashMap<>();
         toggles.put(BatchStage.FRAME_EXTRACT.name(), false);

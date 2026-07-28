@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -172,7 +173,11 @@ public class MarkingService {
         LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
         MarkingGuards.requirePreconditions(raw);
 
-        // 1-2. 이벤트명 자동 소싱 (API-047 계약 변경) — 영상의 이벤트 유형(EVNT_TYPE_CD)을 그대로 사용
+        // 1-2. 활성 마킹 중복 재확인 (B-ISSUE-22) — 사전확인과 동일 규칙. 순차 요청은 여기서 409 로
+        //       거부되고, 동시 요청은 아래 flush 시점의 DB 부분 유니크 인덱스(V142)가 잡는다.
+        MarkingGuards.requireNoActiveMarking(rawSn, markingRepository);
+
+        // 1-3. 이벤트명 자동 소싱 (API-047 계약 변경) — 영상의 이벤트 유형(EVNT_TYPE_CD)을 그대로 사용
         //       (존재 검증은 requirePreconditions 가 이미 수행).
         String eventName = raw.getEvntTypeCd();
 
@@ -211,7 +216,21 @@ public class MarkingService {
         LsMarking marking = "AUTO".equals(req.mode())
                 ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo, fps)
                 : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo, fps);
-        markingRepository.save(marking);
+        // 동시성 최종 방어(B-ISSUE-22 / CWE-362) — 부분 유니크 인덱스(V142) 위반을 <b>이 메서드 안에서</b>
+        //   표면화해 409 로 변환한다. save/flush 를 함께 감싸는 이유:
+        //   - MARKING_SN 이 IDENTITY 라 {@code save} 시점에 INSERT 가 즉시 실행된다(위반이 여기서 터진다).
+        //   - 그럼에도 flush 를 함께 호출하는 것은 구현 세부(쓰기 지연 여부)에 의존하지 않기 위함이다.
+        //     둘 중 어디서 터지든 잡히지 않으면 커밋 시점(메서드 반환 이후)에 터져 500 이 나간다.
+        //   PostgreSQL 은 유니크 위반 시 트랜잭션 전체를 abort 하므로 같은 tx 안에서 재시도하지 않고
+        //   그대로 409 로 변환·롤백한다(부분 저장 없음).
+        try {
+            markingRepository.save(marking);
+            markingRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            log.warn("[Marking] concurrent duplicate rejected rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이미 진행 중인 마킹이 있습니다. 기존 마킹이 종결된 뒤 다시 시도하세요.", e);
+        }
 
         log.info("[Marking] created rawSn={}, mode={}, markingSn={}", rawSn, req.mode(), marking.getMarkingSn());
 

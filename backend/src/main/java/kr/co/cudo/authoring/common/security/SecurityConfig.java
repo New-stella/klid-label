@@ -88,17 +88,18 @@ public class SecurityConfig {
                                     // 리다이렉트되기 전 Security 필터가 먼저 평가하므로 명시 허용 필요.
                                     "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
                                     "/v1/auth/**", "/v1/portal/auth/**").permitAll();
-                    // 외부 시스템 결과 수신 webhook — VLM·증강 2종.
-                    // JWT 인증을 우회하고 HmacWebhookFilter 가 단독 인증한다(증강=HMAC 서명 필수,
-                    // VLM=벤더 무서명 규격이라 IP allowlist·rate limit·size cap 가드만).
-                    // 시크릿이 빈 값이면 요청 시 401 이 아니라 **기동 자체가 실패**한다(E-ISSUE-04).
+                    // 외부 시스템 결과 수신 webhook — VLM·생성형 AI(증강) 2종.
+                    // 둘 다 외부 계약상 **무서명** 규격이라 JWT 도 HMAC 도 요구하지 않는다. 대신
+                    // HmacWebhookFilter 의 무서명 가드(IP allowlist·rate limit·본문 size cap)를 거치고,
+                    // 최종 인증은 각 서비스의 request_id 발급 게이트가 담당한다.
                     // 필터 적용 판정은 WebhookProtectedPaths(= MVC 와 동일한 RequestPath/PathPattern)의
                     // allowlist 이며, 컨트롤러 진입 직전 WebhookGateInterceptor 가 통과 증거를 재확인한다
                     // (경로 인코딩 변형 우회 이중 차단 — E-ISSUE-01).
                     // (UC018 — 비식별은 KPST 폴링으로 단일화되어 /v1/deidentify/result 콜백 경로를 제거함.)
+                    // (Phase 7-A2 — 구 증강 콜백 /v1/aug/callback(HMAC) 은 계약 불일치로 제거됨.)
                     auth.requestMatchers(
                             "/v1/vlm/callback",
-                            "/v1/aug/callback").permitAll();
+                            "/v1/genai/callback").permitAll();
                     if (devTokenEndpointEnabled) {
                         // ⚠ 개발/검수 전용 — prd 에서는 절대 활성화되지 않음.
                         // - /v1/dev/tokens: 부트스트랩 토큰 발급 → permitAll (로컬 인증 불가 방지, 토큰 진입점).

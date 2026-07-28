@@ -54,32 +54,52 @@ class WebhookRequestSizeLimitTest {
     }
 
     @Test
-    @DisplayName("AugmentResultRequest_augTypeCd_RESOLUTION_은_검증_거부")
-    void augTypeResolution_violates() {
-        AugmentResultRequest req = new AugmentResultRequest(
-                1L, "EXT1", "RESOLUTION", "SUCCESS", null);
+    @DisplayName("GenAiCallbackRequest_results_100_초과_시_검증_실패")
+    void genAiResultsOver100_violates() {
+        List<GenAiCallbackRequest.ResultItem> items = new ArrayList<>(101);
+        for (int i = 0; i < 101; i++) {
+            items.add(new GenAiCallbackRequest.ResultItem(
+                    "g" + i, "IMAGE", "/nas-storage/genai/j/" + i + ".jpg", null));
+        }
+        GenAiCallbackRequest req = new GenAiCallbackRequest(
+                "AUG-1", "job-1", "SUCCEEDED", 100, "COMPLETED", "t", items, null, null);
 
-        Set<ConstraintViolation<AugmentResultRequest>> violations = validator.validate(req);
+        Set<ConstraintViolation<GenAiCallbackRequest>> violations = validator.validate(req);
 
         assertThat(violations)
                 .extracting(v -> v.getPropertyPath().toString())
-                .contains("augTypeCd");
+                .contains("results");
     }
 
     @Test
-    @DisplayName("AugmentResultRequest_augTypeCd_WINTER_NIGHT_RAIN_은_정상")
-    void augTypeWhitelist_passes() {
-        for (String t : new String[]{"WINTER", "NIGHT", "RAIN"}) {
-            AugmentResultRequest req = new AugmentResultRequest(
-                    1L, "EXT1", t, "SUCCESS", null);
+    @DisplayName("GenAiCallbackRequest_status_화이트리스트_밖은_검증_거부")
+    void genAiUnknownStatus_violates() {
+        GenAiCallbackRequest req = new GenAiCallbackRequest(
+                "AUG-1", "job-1", "CANCELED", null, null, "t", null, null, null);
 
-            Set<ConstraintViolation<AugmentResultRequest>> violations = validator.validate(req);
+        Set<ConstraintViolation<GenAiCallbackRequest>> violations = validator.validate(req);
 
-            assertThat(violations)
-                    .extracting(v -> v.getPropertyPath().toString())
-                    .doesNotContain("augTypeCd");
-        }
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .contains("status");
     }
+
+    @Test
+    @DisplayName("GenAiCallbackRequest_output_file_path_500_초과_시_검증_실패")
+    void genAiOutputPathTooLong_violates() {
+        String longPath = "/nas-storage/genai/" + "a".repeat(500);
+        GenAiCallbackRequest req = new GenAiCallbackRequest(
+                "AUG-1", "job-1", "SUCCEEDED", 100, "COMPLETED", "t",
+                List.of(new GenAiCallbackRequest.ResultItem("g1", "IMAGE", longPath, null)),
+                null, null);
+
+        Set<ConstraintViolation<GenAiCallbackRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(path -> path.endsWith("outputFilePath"));
+    }
+
     // (UC018 — 비식별은 KPST 폴링으로 단일화되어 DeidentifyResultRequest 콜백 DTO 가 제거됨.
     //  관련 processedRegions 상한 검증 케이스도 함께 제거. VLM·증강 상한 검증은 위에서 유지.)
 }

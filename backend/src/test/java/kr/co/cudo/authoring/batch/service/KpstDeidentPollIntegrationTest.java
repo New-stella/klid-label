@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
+import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -149,14 +150,9 @@ class KpstDeidentPollIntegrationTest {
      * {@code {stem}-mask{ext}} 를 재구성해 이 디렉터리에서 회수한다(복사 없음).
      */
     private Path prepareDeidResultFile(Long rawSn, String fileName) {
-        try {
-            Path target = RAW_MOUNT_ROOT.resolve(String.valueOf(rawSn)).resolve("deid").resolve(fileName);
-            Files.createDirectories(target.getParent());
-            Files.writeString(target, "MASKED-VIDEO-BYTES");
-            return target;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        // 무결성 강화(B-ISSUE-01) 이후 텍스트 스텁은 산출물로 인정되지 않는다 — 실제 최소 mp4 로 시뮬레이션.
+        return TestVideoFixtures.writeTinyMp4(
+                RAW_MOUNT_ROOT.resolve(String.valueOf(rawSn)).resolve("deid").resolve(fileName));
     }
 
     @Test
@@ -214,6 +210,31 @@ class KpstDeidentPollIntegrationTest {
         boolean stillLocked = workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
                 LsAuthWorkLock.TARGET_RAW, rawSn, LsAuthWorkLock.STATUS_LOCKED);
         assertThat(stillLocked).isFalse();
+    }
+
+    @Test
+    @DisplayName("통합_원본_부재시_위탁거부되고_F전이_MARKING_READY_미전이_DB반영된다")
+    void submitRejectedWhenSourceMissingAndNeverMarkingReady() throws IOException {
+        // given — DB 에는 원본 경로가 있으나 실제 파일이 없는 영상(B-ISSUE-01 라이브 재현).
+        LsDataRaw raw = persistRaw();
+        Long rawSn = raw.getRawSn();
+        Files.delete(Path.of(raw.getRawFilePathNm()));
+
+        // when / then — 위탁 자체가 거부된다(외부 호출 없음).
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> kpstDeidentService.submit(raw))
+                .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class);
+        org.mockito.Mockito.verify(kpstClient, org.mockito.Mockito.never())
+                .createProject(any(KpstProjectRequest.class));
+
+        // then — 'F' 는 별도 트랜잭션으로 커밋되고(거부 예외로 롤백되지 않음), 'Y'/MARKING_READY 는 없다.
+        LsDataRaw reloaded = videoRepository.findById(rawSn).orElseThrow();
+        assertThat(reloaded.getDeIdntfYn()).isEqualTo("F");
+        assertThat(reloaded.getDataSttsCd()).isNotEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        // 폴링 대상(WAITING) procLog 가 남지 않는다 — 실패 기록만 존재.
+        List<LsDeidentProcLog> logs = procLogRepository.findAllByDataRawSnOrderByReqDtDesc(rawSn);
+        assertThat(logs).isNotEmpty();
+        assertThat(logs).noneMatch(l -> LsDeidentProcLog.POLL_WAITING.equals(l.getPollSttsCd()));
+        assertThat(logs).anyMatch(l -> LsDeidentProcLog.FAILED.equals(l.getProcSttsCd()));
     }
 
     @Test

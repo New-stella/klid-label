@@ -56,8 +56,8 @@ class AsyncAugmentFrameRunnerTest {
 
     private AugmentExtractPlan plan(long newRawSn, long parentRawSn, long dataAugSn) {
         return new AugmentExtractPlan(newRawSn, parentRawSn, dataAugSn, "rev1",
-                Paths.get("/storage/augment/x.mp4"),
-                Paths.get("/base/frames/raw/" + newRawSn), List.of());
+                Paths.get("/base/frames/deid/" + parentRawSn + "/frame-0.jpg"),
+                Paths.get("/base/frames/deid/" + newRawSn), List.of());
     }
 
     @Test

@@ -79,10 +79,12 @@ class WriteEndpointAuthorizationGuardTest {
      * allowlist 에 없으면서 가드 없는 상태변경 핸들러가 있으면 테스트 실패.
      */
     private static final Set<String> ALLOWLIST = Set.of(
-            // HMAC 웹훅 서명으로 인증 — 외부 시스템(VLM)이 호출, 역할 무관. HmacWebhookFilter 가 단독 검증.
+            // 벤더 무서명 규격 콜백 — 역할 무관. IP allowlist + rate limit + size cap(HmacWebhookFilter)
+            // + request_id 발급 게이트(VlmResultService)로 보호한다.
             "VlmResultController#receive",
-            // HMAC 웹훅 서명으로 인증 — 외부 증강 시스템 콜백, 역할 무관. HmacWebhookFilter 가 단독 검증.
-            "AugmentResultController#receive",
+            // 생성형 AI(증강) 무서명 웹훅 — 역할 무관. IP allowlist(fail-closed) + rate limit + size cap
+            // + request_id 발급 게이트(GenAiCallbackService)로 보호한다.
+            "GenAiCallbackController#receive",
             // 설계상 role=null 부트스트랩 진입점 — 관리자 PW + rate limit 로 보호(@PreAuthorize isAuthenticated()).
             // role=null 사용자가 최초 역할을 획득하는 유일 경로이므로 역할 가드를 둘 수 없다.
             "RoleClaimController#claim",
