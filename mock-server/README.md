@@ -233,19 +233,24 @@ KPST 목은 프로젝트 생성(`POST /project`) 후 `retrieve_progress`의 진�
 KPST가 산출한 **비식별 결과 파일**을 실제로 읽어야 진행된다. 이를 위해 목 서버는 `POST /project`
 처리 시 **각 데이터셋마다 `{export_path}/{마스킹명}`에 더미 파일을 생성**한다.
 
-- **마스킹 파일명 규칙:** `{원본stem}_{yyyyMMddHHmm}_mask{확장자}`.
-  예: `a.mp4` → `a_202607211530_mask.mp4`. 확장자가 없으면 `_mask`만 붙는다(폴더명 등).
-  타임스탬프는 **프로젝트 생성 시 1회** 계산(`datetime.now`, `%Y%m%d%H%M`)해 데이터셋에 고정 저장하고,
-  이후 진행률 조회마다 재계산하지 않는다(불일치 방지).
-- **단일 소스(Critical):** 데이터셋명 = `retrieve_progress` 응답의 `dsStatus[].fileName` = **실제 생성
-  파일명(마스킹명)** 이 모두 동일하다. BE는 완료 폴링에서 그 `fileName`으로 `{export_path}/{fileName}`
-  회수 경로를 산출하므로(no-copy) 셋이 하나의 소스여야 회수가 성립한다.
+- **마스킹 파일명 규칙(실서버 계약):** `{원본stem}-mask{확장자}` — **하이픈, 타임스탬프 없음**.
+  예: `001.mp4` → `001-mask.mp4`. 확장자가 없으면 `-mask`만 붙는다(폴더명 등).
+  (2026-07-21 실서버 curl/ll 실측 확정. 구 목업 규칙 `{stem}_{yyyyMMddHHmm}_mask{ext}`는 **폐기**했다.)
+- **`fileName` = 원본 입력파일 경로(Critical):** `retrieve_progress`/`retrieve_report` 응답의
+  `dsStatus[].fileName`은 **산출물명이 아니라 원본 입력파일 경로**(`input_path` + 원본 basename)다.
+  BE는 그 basename을 `{stem}-mask{ext}`로 변환해 `{export_path}` 아래에서 회수한다(no-copy).
+  > 구 목업은 `fileName`과 산출물명을 같은 마스킹명("단일 소스")으로 두었는데, 그러면 BE의 **1차 회수
+  > 경로가 항상 빗나가 폴백 스캔으로만 회수**되어 정상 경로가 로컬에서 한 번도 검증되지 않았다(B-ISSUE-84).
+  > 이제 목업이 실서버 계약과 같아져 1차 회수 경로가 로컬 e2e에서 실제로 실행된다.
 - **내용:** `{input_path}/{원본basename}`에 원본이 있으면 **그 원본을 마스킹명으로 복사**하고, 없으면
   **placeholder 바이트**(`MOCK_DEIDENTIFIED\n`)로 비어있지 않게 만든다.
-- **무결성 통과 조건:** BE의 `isUsableDeidFile`은 **파일 존재 + 크기 > 0바이트**만 본다(유효 mp4 불필요).
-  이 더미 파일은 **실제 비식별 처리 결과가 아니라**, BE 무결성 통과용 **플레이스홀더 또는 원본 복사본**이다.
-- **이미지 폴더 모드(`is_img=1`):** 폴더 basename에 마스킹 규칙을 적용한 이름(`{folderbase}_{ts}_mask`)으로
-  placeholder 1개만 둔다(폴더 재귀 복사는 하지 않음 — 영상 모드가 핵심). 이 이름도 progress `fileName`과 일치.
+- **무결성 통과 조건:** BE의 산출물 판정(`DeidentArtifactIntegrity`)은 **정규 파일 + 크기 512바이트 이상 +
+  알려진 영상 컨테이너 시그니처**를 본다. 따라서 **18바이트 placeholder는 통과하지 못한다(의도된 동작)** —
+  원본이 없는데 '비식별 완료'로 승인되면 안 되기 때문이다(B-ISSUE-01). 정상 e2e에서는 `input_path`에 실제
+  원본이 있어 **그 복사본(유효 영상)** 이 산출되며, 원본이 없는 경우는 BE 위탁 단계의 원본 실재 가드가
+  애초에 위탁을 거부한다.
+- **이미지 폴더 모드(`is_img=1`):** 폴더 basename에 마스킹 규칙을 적용한 이름(`{folderbase}-mask`)으로
+  placeholder 1개만 둔다(폴더 재귀 복사는 하지 않음 — 영상 모드가 핵심).
 - **덮어쓰기 금지(no-overwrite):** target이 이미 존재하면 덮어쓰지 않고 **skip + 로그**(멱등 재실행 안전).
 - **견고성:** 파일 쓰기/복사 실패(권한·디스크·경로 문제 등)는 예외를 삼켜 **로그만** 남기며,
   `POST /project` 응답(200/success)·서버 안정성에 영향을 주지 않는다.

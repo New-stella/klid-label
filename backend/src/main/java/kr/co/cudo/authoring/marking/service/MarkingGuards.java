@@ -6,6 +6,8 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
+import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 
 /**
@@ -24,7 +26,8 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
  * (계약 불변식 — 평가 순서와 예외가 어느 지점에서도 달라지지 않는다.)
  *
  * <p><b>평가 순서(불변):</b> ① 인가(UNAUTHORIZED/FORBIDDEN) → ② 영상 존재(NOT_FOUND) →
- * ③ 비식별 완료(PRECONDITION_FAILED) → ④ MARKING_READY(PRECONDITION_FAILED) → ⑤ 이벤트 유형 존재(INVALID_INPUT).
+ * ③ 비식별 완료(PRECONDITION_FAILED) → ④ MARKING_READY(PRECONDITION_FAILED) → ⑤ 이벤트 유형 존재(INVALID_INPUT)
+ * → ⑥ 활성 마킹 중복(CONFLICT).
  */
 final class MarkingGuards {
 
@@ -89,6 +92,24 @@ final class MarkingGuards {
         if (eventName == null || eventName.isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "이벤트 유형이 지정되지 않은 영상은 마킹할 수 없습니다.");
+        }
+    }
+
+    /**
+     * ⑥ 활성 마킹 중복 가드 — 영상당 <b>미종결 마킹 1건</b> (B-ISSUE-22, CWE-362 방어의 1선).
+     *
+     * <p>영상당 마킹이 2건 이상 쌓이면 배치는 최신 1건만 VLM 에 위탁하고 나머지는 영원히
+     * {@code PENDING} 으로 남는 고아가 된다. 활성 마킹이 이미 있으면 {@link ErrorCode#CONFLICT}(409)로
+     * 거부한다. "활성" 의 정의·근거는 {@link LsMarking#ACTIVE_STATUSES} 참조.
+     *
+     * <p><b>이 조회만으로는 동시 요청을 막지 못한다</b>(세 트랜잭션이 서로의 미커밋 행을 보지 못함).
+     * 최종 방어는 {@code LS_MARKING} 부분 유니크 인덱스(V142)이며, 본 가드는 순차 요청을 프로브/쓰기
+     * 이전에 값싸게 거부하는 1선이다.
+     */
+    static void requireNoActiveMarking(Long rawSn, LsMarkingRepository markingRepository) {
+        if (markingRepository.existsByRawSnAndSttsCdIn(rawSn, LsMarking.ACTIVE_STATUSES)) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이미 진행 중인 마킹이 있습니다. 기존 마킹이 종결된 뒤 다시 시도하세요.");
         }
     }
 

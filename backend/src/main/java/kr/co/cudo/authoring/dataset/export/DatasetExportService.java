@@ -321,9 +321,11 @@ public class DatasetExportService {
     /**
      * 이 영상의 프레임이 <b>원본 경로를 하나도 갖지 않는가</b>(= 파생영상이라 원본 픽셀 부재).
      *
-     * <p>파생 유형(증강/해상도)을 추정하지 않고 <b>데이터 사실</b>로 판정한다 — 외부 증강 파생은 원본
-     * 프레임을 실제로 보유하므로 이 판정에 걸리지 않고 기존대로 2벌이 산출된다. 프레임이 0건이면
-     * (loadPreparation 이 이미 걸러내지만) 보수적으로 false 를 반환해 기존 경로를 그대로 탄다.
+     * <p>파생 유형(증강/해상도)을 추정하지 않고 <b>데이터 사실</b>로 판정한다. 실동작 기준(정정):
+     * 증강 파생도 프레임을 비식별 경로 컬럼에만 적재하고 원본 경로는 null 로 둔다
+     * ({@code AugmentExtractPersist}, V133 정책 A) — 즉 <b>증강·해상도 파생 모두 이 판정에 걸려
+     * 비식별 1벌만 산출</b>된다(구 주석의 "외부 증강 파생은 원본 프레임을 실제로 보유"는 사실과 다름).
+     * 프레임이 0건이면 (loadPreparation 이 이미 걸러내지만) 보수적으로 false 를 반환해 기존 경로를 탄다.
      */
     private static boolean hasNoOriginalFrames(ExportPreparation prep) {
         if (prep.frames() == null || prep.frames().isEmpty()) {

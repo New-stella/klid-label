@@ -42,8 +42,8 @@ class JdbcWebhookGuardStoreIT {
         String hash = UUID.randomUUID().toString().replace("-", "") + "00000000000000000000000000000000";
         String nonce = hash.substring(0, 64);
 
-        assertThat(store.consume(nonce, "/v1/aug/callback", Duration.ofMinutes(6))).isTrue();
-        assertThat(store.consume(nonce, "/v1/aug/callback", Duration.ofMinutes(6)))
+        assertThat(store.consume(nonce, "/v1/genai/callback", Duration.ofMinutes(6))).isTrue();
+        assertThat(store.consume(nonce, "/v1/genai/callback", Duration.ofMinutes(6)))
                 .as("동일 서명 재전송은 replay 로 판정돼야 한다 (UNIQUE 위반 예외 없이)")
                 .isFalse();
     }
@@ -55,10 +55,10 @@ class JdbcWebhookGuardStoreIT {
                 + UUID.randomUUID().toString().replace("-", "")).substring(0, 64);
 
         // 이미 만료된 TTL 로 소비 → 정리 대상
-        assertThat(store.consume(nonce, "/v1/aug/callback", Duration.ofSeconds(-1))).isTrue();
+        assertThat(store.consume(nonce, "/v1/genai/callback", Duration.ofSeconds(-1))).isTrue();
         store.purgeExpired();
 
-        assertThat(store.consume(nonce, "/v1/aug/callback", Duration.ofMinutes(6)))
+        assertThat(store.consume(nonce, "/v1/genai/callback", Duration.ofMinutes(6)))
                 .as("만료 정리 후에는 동일 해시를 다시 소비할 수 있어야 한다(무한 증가 방지)")
                 .isTrue();
     }
@@ -135,12 +135,12 @@ class JdbcWebhookGuardStoreIT {
                 + UUID.randomUUID().toString().replace("-", "")).substring(0, 64);
         String ip = uniqueIp();
         LocalDateTime window = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).minusMinutes(30);
-        store.consume(nonce, "/v1/aug/callback", Duration.ofSeconds(-1));
+        store.consume(nonce, "/v1/genai/callback", Duration.ofSeconds(-1));
         store.recordFailure(ip, window, Duration.ofMinutes(-1));
 
         purgeJob.run();
 
-        assertThat(store.consume(nonce, "/v1/aug/callback", Duration.ofMinutes(6)))
+        assertThat(store.consume(nonce, "/v1/genai/callback", Duration.ofMinutes(6)))
                 .as("만료 nonce 가 정리되면 동일 해시를 다시 소비할 수 있다")
                 .isTrue();
         assertThat(store.currentFailures(ip, window)).isZero();
@@ -172,12 +172,12 @@ class JdbcWebhookGuardStoreIT {
                     Duration.between(LocalDateTime.now(), dbNow).toHours() >= 1,
                     "앱/DB 시계 어긋남을 만들지 못했다(커넥션이 새로 열려 세션 TZ 가 함께 이동) — 검증 생략");
 
-            assertThat(store.consume(nonce, "/v1/aug/callback", Duration.ofMinutes(6))).isTrue();
+            assertThat(store.consume(nonce, "/v1/genai/callback", Duration.ofMinutes(6))).isTrue();
             store.recordFailure(ip, window, Duration.ofMinutes(10));
 
             store.purgeExpired();
 
-            assertThat(store.consume(nonce, "/v1/aug/callback", Duration.ofMinutes(6)))
+            assertThat(store.consume(nonce, "/v1/genai/callback", Duration.ofMinutes(6)))
                     .as("살아 있는 nonce 가 purge 되면 동일 서명 재전송이 신규로 통과한다 — replay 방어 붕괴 (R-6)")
                     .isFalse();
             assertThat(store.currentFailures(ip, window))

@@ -4,13 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import kr.co.cudo.authoring.common.security.HmacWebhookFilter;
 import kr.co.cudo.authoring.common.security.webhook.ClientIpResolver;
+import kr.co.cudo.authoring.common.security.webhook.GenAiWebhookIpAllowlist;
 import kr.co.cudo.authoring.common.security.webhook.WebhookGuardUnavailableException;
 import kr.co.cudo.authoring.common.security.webhook.WebhookGuardedRequest;
 import kr.co.cudo.authoring.common.security.webhook.WebhookIpAllowlist;
 import kr.co.cudo.authoring.common.security.webhook.WebhookNonceStore;
+import kr.co.cudo.authoring.common.security.webhook.WebhookProtectedPaths;
 import kr.co.cudo.authoring.common.security.webhook.WebhookRateLimitStore;
 import kr.co.cudo.authoring.common.security.webhook.WebhookRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,10 +44,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * HmacWebhookFilter 단위 테스트 — 증강 콜백(/v1/aug/callback) HMAC 검증.
+ * HmacWebhookFilter 단위 테스트 — 서명 검증 게이트 + 무서명 경로의 부수 방어.
  *
- * <p>VLM 콜백(/v1/vlm/callback)은 벤더 v2.0.1 무서명 규격 → HMAC 대상이 아니다(2026-07-07 승인).
- * 따라서 VLM 경로는 서명 없이 통과하되 size cap · rate limit · (설정 시) IP allowlist 는 적용돼야 한다.
+ * <p><b>현재 구조(Phase 7 기준)</b>: 서명 <b>필수</b> 경로 집합은 비어 있다 — 생성형 AI 콜백
+ * ({@code /v1/genai/callback})과 VLM 콜백({@code /v1/vlm/callback}) 모두 벤더 계약이 무서명이며
+ * (VLM v2.0.1 은 2026-07-07 승인), 생성형 AI 는 {@code request_id} 발급 게이트
+ * ({@code LS_DATA_AUG_JOB.IDMP_KEY})가 최종 방어선이다. 따라서 본 클래스의 서명 검증 경로 단정은
+ * 필수 경로 대신 <b>fail-closed 분기</b>(경로 판정 실패·서명 헤더가 붙은 요청 등)로 검증한다.
+ * 무서명 경로에도 size cap · rate limit · (설정 시) IP allowlist 는 그대로 적용돼야 한다.
  *
  * <p><b>위양성 주의 (S-21)</b>: 본 클래스는 {@code MockHttpServletRequest} 기반이라 "필터가 통째로
  * 스킵돼도 GREEN" 이 되기 쉽다. 그래서 (a) 보호 대상 경로에서 <b>반드시 401 이어야 한다</b>는 negative
@@ -80,6 +87,22 @@ class HmacWebhookFilterTest {
         return newFilter(secret, trustedProxyCidrs, vlmAllowlist, environment, rateLimiter);
     }
 
+    /** 생성형 AI allowlist 를 좁혀 주입한다 — 무서명 genai 가드 테스트용. */
+    private HmacWebhookFilter newFilterWithGenAiAllowlist(String genAiAllowlist) {
+        MockEnvironment environment = new MockEnvironment();
+        return new HmacWebhookFilter(
+                objectMapper,
+                nonceStore,
+                rateLimiter,
+                new ClientIpResolver("", environment),
+                new WebhookIpAllowlist("", environment),
+                new GenAiWebhookIpAllowlist(genAiAllowlist),
+                meterRegistry,
+                environment,
+                SECRET_AUGMENT,
+                300L);
+    }
+
     /** 노드별 rate limiter 를 주입한다 — 2노드 공유 집계 회귀 테스트(N-1)용. */
     private HmacWebhookFilter newFilter(String secret, String trustedProxyCidrs, String vlmAllowlist,
                                         MockEnvironment environment, WebhookRateLimiter limiter) {
@@ -89,6 +112,7 @@ class HmacWebhookFilterTest {
                 limiter,
                 new ClientIpResolver(trustedProxyCidrs, environment),
                 new WebhookIpAllowlist(vlmAllowlist, environment),
+                new GenAiWebhookIpAllowlist("0.0.0.0/0"),
                 meterRegistry,
                 environment,
                 secret,
@@ -106,7 +130,7 @@ class HmacWebhookFilterTest {
     @Test
     @DisplayName("보호대상_경로에서_서명이_없으면_401_이며_필터가_스킵되지_않는다")
     void protectedPath_withoutSignature_returns401_andIsNotSkipped() throws Exception {
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", "{\"x\":1}");
+        MockHttpServletRequest req = hmacRequest("{\"x\":1}");
         MockHttpServletResponse res = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
 
@@ -123,26 +147,11 @@ class HmacWebhookFilterTest {
     }
 
     @Test
-    @DisplayName("퍼센트인코딩_경로변형도_필터_적용대상이며_서명없으면_401")
-    void percentEncodedPath_isStillProtected() throws Exception {
-        MockHttpServletRequest req = postRequest("/v1/%61ug/callback", "{\"x\":1}");
-        MockHttpServletResponse res = new MockHttpServletResponse();
-        FilterChain chain = mock(FilterChain.class);
-
-        assertThat(shouldNotFilter(req))
-                .as("%61ug 는 디코딩하면 /v1/aug/callback — 필터 적용 대상이어야 한다")
-                .isFalse();
-
-        filter.doFilter(req, res, chain);
-
-        assertThat(res.getStatus()).isEqualTo(401);
-        verify(chain, never()).doFilter(any(), any());
-    }
-
-    @Test
     @DisplayName("경로_판정중_예외가_발생하면_필터가_적용됨_fail_closed")
     void pathResolutionFailure_appliesFilter() {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/aug/callback") {
+        // 경로 리터럴은 무의미하다 — getRequestURI 가 경로 매칭 <전에> 터지기 때문이다.
+        // 현행 콜백 경로를 실어 오해를 없앤다(구 /v1/aug/callback 리터럴 잔존 정리).
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/genai/callback") {
             @Override
             public String getRequestURI() {
                 throw new IllegalStateException("URI 파싱 실패 시뮬");
@@ -175,7 +184,7 @@ class HmacWebhookFilterTest {
     void augmentInvalidSignature_returns401() throws Exception {
         String body = "{\"idempotencyKey\":\"K1\"}";
         long ts = System.currentTimeMillis();
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req = hmacRequest(body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=deadbeefnotmatching");
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -193,7 +202,7 @@ class HmacWebhookFilterTest {
         String body = "{\"k\":1}";
         long ts = System.currentTimeMillis() - 10 * 60 * 1000L; // 10분 전
         String sig = hmacHex(SECRET_AUGMENT, ts + "." + body);
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req = hmacRequest(body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=" + sig);
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -211,7 +220,7 @@ class HmacWebhookFilterTest {
         String body = "{\"k\":1}";
         long ts = System.currentTimeMillis() + 120_000L; // +2분 (허용 skew 30s 초과)
         String sig = hmacHex(SECRET_AUGMENT, ts + "." + body);
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req = hmacRequest(body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=" + sig);
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -229,7 +238,7 @@ class HmacWebhookFilterTest {
         String body = "{\"idempotencyKey\":\"K2\"}";
         long ts = System.currentTimeMillis();
         String sig = hmacHex(SECRET_AUGMENT, ts + "." + body);
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req = hmacRequest(body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=" + sig);
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -246,7 +255,7 @@ class HmacWebhookFilterTest {
     void passedRequest_isWrappedWithVerifiedMarker() throws Exception {
         String body = "{\"k\":9}";
         long ts = System.currentTimeMillis();
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req = hmacRequest(body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=" + hmacHex(SECRET_AUGMENT, ts + "." + body));
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -261,11 +270,33 @@ class HmacWebhookFilterTest {
     }
 
     @Test
-    @DisplayName("시크릿이_빈값이면_애플리케이션_기동이_실패")
-    void emptySecret_failsBoot() {
-        assertThatThrownBy(() -> newFilter("", "", ""))
-                .isInstanceOf(BeanInitializationException.class)
-                .hasMessageContaining("WEBHOOK_HMAC_SECRET_AUGMENT");
+    @DisplayName("서명필수_경로가_없으면_HMAC_시크릿_없이도_기동한다")
+    void emptySecret_bootsWhenNoSignatureRequiredPaths() {
+        // DEV_FIX MEDIUM-3 — 서명 필수 경로가 0개인 현 형상에서 시크릿 강제는 보안 통제가 아니라
+        // 배포 함정이었다(운영은 무의미한 값을 넣어야만 뜨고, 값을 지우면 기동이 죽었다).
+        assertThat(WebhookProtectedPaths.hasSignatureRequiredPaths())
+                .as("이 테스트의 전제 — 서명 필수 경로가 0개여야 한다")
+                .isFalse();
+
+        assertThatCode(() -> newFilter("", "", "")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("경로_판정_불가_요청은_여전히_401_이다")
+    void unresolvablePath_stillReturns401_withoutSecret() throws Exception {
+        // fail-closed 보존 — 시크릿 강제를 완화해도 판정 불가 요청은 통과시키지 않는다.
+        filter = newFilter("", "", "");
+        MockHttpServletRequest req = hmacRequest("{\"x\":1}");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        CapturingChain chain = new CapturingChain();
+
+        assertThat(shouldNotFilter(req))
+                .as("경로 판정 불가는 보호 대상으로 고정(fail-closed)")
+                .isFalse();
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+        assertThat(chain.captured).as("컨트롤러로 흘러가면 안 된다").isNull();
     }
 
     @Test
@@ -311,7 +342,7 @@ class HmacWebhookFilterTest {
     @DisplayName("prd_에서_프록시_없음을_none_으로_명시하면_기동_가능하고_XFF_는_무시된다")
     void prdWithExplicitNoProxy_boots_andIgnoresXff() throws Exception {
         ClientIpResolver resolver = new ClientIpResolver(ClientIpResolver.NO_PROXY, env("prd"));
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", "{}");
+        MockHttpServletRequest req = hmacRequest("{}");
         req.setRemoteAddr("203.0.113.9");
         req.addHeader("X-Forwarded-For", "10.1.1.1");
 
@@ -377,7 +408,7 @@ class HmacWebhookFilterTest {
     @DisplayName("remoteAddr_이_IP리터럴이_아니면_unknown_으로_접어_카운터오염과_DNS조회를_막는다")
     void nonLiteralRemoteAddr_isNotTrusted() {
         ClientIpResolver resolver = new ClientIpResolver("", new MockEnvironment());
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", "{}");
+        MockHttpServletRequest req = hmacRequest("{}");
         req.setRemoteAddr("evil.example.com"); // 상위 래퍼가 헤더 유래 호스트명으로 치환한 상태
 
         assertThat(resolver.resolve(req))
@@ -390,9 +421,9 @@ class HmacWebhookFilterTest {
     @DisplayName("정상_IPv4_IPv6_remoteAddr_은_그대로_사용된다")
     void literalRemoteAddr_isUsedAsIs() {
         ClientIpResolver resolver = new ClientIpResolver("", new MockEnvironment());
-        MockHttpServletRequest v4 = postRequest("/v1/aug/callback", "{}");
+        MockHttpServletRequest v4 = hmacRequest("{}");
         v4.setRemoteAddr("203.0.113.9");
-        MockHttpServletRequest v6 = postRequest("/v1/aug/callback", "{}");
+        MockHttpServletRequest v6 = hmacRequest("{}");
         v6.setRemoteAddr("2001:db8::1");
 
         assertThat(resolver.resolve(v4)).isEqualTo("203.0.113.9");
@@ -403,7 +434,7 @@ class HmacWebhookFilterTest {
     @DisplayName("호스트명_유사_XFF_값은_거부되어_요청스레드_DNS_조회를_유발하지_않는다")
     void hostnameLikeXffValue_isRejected() {
         ClientIpResolver resolver = new ClientIpResolver("10.0.0.0/8", new MockEnvironment());
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", "{}");
+        MockHttpServletRequest req = hmacRequest("{}");
         req.setRemoteAddr("10.0.0.1"); // 신뢰 프록시
         req.addHeader("X-Forwarded-For", "00a"); // 16진 문자만이라 구 검증을 통과했다(L-3)
 
@@ -457,55 +488,20 @@ class HmacWebhookFilterTest {
     }
 
     @Test
-    @DisplayName("같은_서명을_퍼센트인코딩_경로변형으로_재전송해도_replay_로_차단됨")
-    void replayViaEncodedPathVariant_isBlocked() throws Exception {
-        String body = "{\"k\":\"enc-replay\"}";
-        long ts = System.currentTimeMillis();
-        String sig = "hmac-sha256=" + hmacHex(SECRET_AUGMENT, ts + "." + body);
-
-        // 1) 정규 경로로 1회 정상 통과
-        MockHttpServletResponse first = new MockHttpServletResponse();
-        FilterChain chain = mock(FilterChain.class);
-        filter.doFilter(signedRequest(body, ts, sig), first, chain);
-        assertThat(first.getStatus()).isNotIn(401, 409);
-        verify(chain, times(1)).doFilter(any(), any());
-
-        // 2) 같은 서명·타임스탬프·바디를 인코딩 변형 경로로 재전송.
-        //    서명 canonical 에는 경로가 없으므로 서명 검증은 통과한다 → nonce 키가 갈라지면 그대로 관통.
-        //    (v1+aug+callback 13글자 인코딩 on/off = 약 8192 변형이 모두 같은 엔드포인트로 라우팅된다)
-        for (String variant : java.util.List.of(
-                "/v1/%61ug/callback", "/v1/a%75g/callback",
-                "/v1/au%67/callback", "/v1/aug/%63allback")) {
-            MockHttpServletRequest replay = postRequest(variant, body);
-            replay.addHeader("X-Timestamp", String.valueOf(ts));
-            replay.addHeader("X-Signature", sig);
-            MockHttpServletResponse res = new MockHttpServletResponse();
-            FilterChain replayChain = mock(FilterChain.class);
-
-            filter.doFilter(replay, res, replayChain);
-
-            assertThat(res.getStatus())
-                    .as("인코딩 변형 경로의 replay 가 통과하면 인증 후 증폭 DoS 가 된다: %s", variant)
-                    .isEqualTo(409);
-            verify(replayChain, never()).doFilter(any(), any());
-        }
-    }
-
-    @Test
     @DisplayName("nonce_키는_원시URI가_아니라_정규화_경로로_계산됨")
     void nonceKey_usesCanonicalPath() throws Exception {
         String body = "{\"k\":\"canon\"}";
         long ts = System.currentTimeMillis();
         String sig = "hmac-sha256=" + hmacHex(SECRET_AUGMENT, ts + "." + body);
 
-        MockHttpServletRequest encoded = postRequest("/v1/%61ug/callback", body);
-        encoded.addHeader("X-Timestamp", String.valueOf(ts));
-        encoded.addHeader("X-Signature", sig);
-        filter.doFilter(encoded, new MockHttpServletResponse(), mock(FilterChain.class));
+        filter.doFilter(signedRequest(body, ts, sig), new MockHttpServletResponse(),
+                mock(FilterChain.class));
 
+        // 원시 URI 를 키로 쓰면 인코딩 변형마다 키가 갈라져 replay 가 전부 신규로 통과한다(H-2).
+        // 판정 불가 경로는 고정 상수 하나로 수렴해야 한다.
         assertThat(nonceStore.lastPath)
-                .as("nonce 저장 경로가 원시 URI 면 인코딩 변형마다 키가 갈라진다 (H-2)")
-                .isEqualTo("/v1/aug/callback");
+                .as("nonce 저장 경로는 정규화 경로 API 산출값이어야 한다 (H-2)")
+                .isEqualTo(WebhookProtectedPaths.UNRESOLVED_PATH);
     }
 
     @Test
@@ -577,7 +573,7 @@ class HmacWebhookFilterTest {
     void failedSignature_doesNotTouchNonceStore() throws Exception {
         String body = "{\"k\":1}";
         long ts = System.currentTimeMillis();
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req = hmacRequest(body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", "hmac-sha256=deadbeef");
         MockHttpServletResponse res = new MockHttpServletResponse();
@@ -676,7 +672,7 @@ class HmacWebhookFilterTest {
         long ts = System.currentTimeMillis();
         FilterChain chain = mock(FilterChain.class);
         for (int i = 0; i < 5; i++) {
-            MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+            MockHttpServletRequest req = hmacRequest(body);
             req.setRemoteAddr("10.0.0.99");
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=deadbeefwronghex" + i);
@@ -684,7 +680,7 @@ class HmacWebhookFilterTest {
             filter.doFilter(req, res, chain);
             assertThat(res.getStatus()).isEqualTo(401);
         }
-        MockHttpServletRequest req6 = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req6 = hmacRequest(body);
         req6.setRemoteAddr("10.0.0.99");
         req6.addHeader("X-Timestamp", String.valueOf(ts));
         req6.addHeader("X-Signature", "hmac-sha256=anyhex");
@@ -703,14 +699,14 @@ class HmacWebhookFilterTest {
         long ts = System.currentTimeMillis();
         FilterChain chain = mock(FilterChain.class);
         for (int i = 0; i < 5; i++) {
-            MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+            MockHttpServletRequest req = hmacRequest(body);
             req.setRemoteAddr("203.0.113.9");
             req.addHeader("X-Forwarded-For", "10.1.1." + i); // 위조 시도
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=wrong" + i);
             filter.doFilter(req, new MockHttpServletResponse(), chain);
         }
-        MockHttpServletRequest req6 = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req6 = hmacRequest(body);
         req6.setRemoteAddr("203.0.113.9");
         req6.addHeader("X-Forwarded-For", "10.1.1.99");
         req6.addHeader("X-Timestamp", String.valueOf(ts));
@@ -732,7 +728,7 @@ class HmacWebhookFilterTest {
         FilterChain chain = mock(FilterChain.class);
 
         for (int i = 0; i < 5; i++) {
-            MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+            MockHttpServletRequest req = hmacRequest(body);
             req.setRemoteAddr("10.0.0.1"); // 신뢰 프록시
             req.addHeader("X-Forwarded-For", "198.51.100.7");
             req.addHeader("X-Timestamp", String.valueOf(ts));
@@ -741,7 +737,7 @@ class HmacWebhookFilterTest {
         }
 
         // 공격자(198.51.100.7)는 차단되지만 정상 벤더(198.51.100.8)는 영향 없어야 한다.
-        MockHttpServletRequest attacker = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest attacker = hmacRequest(body);
         attacker.setRemoteAddr("10.0.0.1");
         attacker.addHeader("X-Forwarded-For", "198.51.100.7");
         attacker.addHeader("X-Timestamp", String.valueOf(ts));
@@ -752,7 +748,7 @@ class HmacWebhookFilterTest {
 
         String vendorBody = "{\"k\":\"vendor\"}";
         long ts2 = System.currentTimeMillis();
-        MockHttpServletRequest vendor = postRequest("/v1/aug/callback", vendorBody);
+        MockHttpServletRequest vendor = hmacRequest(vendorBody);
         vendor.setRemoteAddr("10.0.0.1");
         vendor.addHeader("X-Forwarded-For", "198.51.100.8");
         vendor.addHeader("X-Timestamp", String.valueOf(ts2));
@@ -776,7 +772,7 @@ class HmacWebhookFilterTest {
 
         int totalIps = WebhookRateLimiter.MAX_FAILURE_TRACKERS + 1;
         for (int i = 0; i < totalIps; i++) {
-            MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+            MockHttpServletRequest req = hmacRequest(body);
             req.setRemoteAddr("10.99." + (i / 256) + "." + (i % 256));
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=wronghex" + i);
@@ -795,7 +791,7 @@ class HmacWebhookFilterTest {
     @DisplayName("HmacWebhookFilter_본문_1MB_초과_시_413")
     void bodyOver1MB_returns413() throws Exception {
         byte[] big = new byte[(int) HmacWebhookFilter.MAX_WEBHOOK_BODY_BYTES + 1];
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/aug/callback");
+        MockHttpServletRequest req = unresolvablePathRequest();
         req.setContent(big);
         req.setContentType("application/json");
         long ts = System.currentTimeMillis();
@@ -814,7 +810,11 @@ class HmacWebhookFilterTest {
     @Test
     @DisplayName("HmacWebhookFilter_Content_Length_누락_시_401")
     void missingContentLength_returns401() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/aug/callback") {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/unresolvable/callback") {
+            @Override
+            public String getRequestURI() {
+                throw new IllegalStateException("URI 파싱 실패 시뮬 (fail-closed 분기 진입)");
+            }
             @Override
             public long getContentLengthLong() { return -1L; }
             @Override
@@ -1299,10 +1299,12 @@ class HmacWebhookFilterTest {
     @Test
     @DisplayName("인증실패_메트릭_path_태그는_경로별로_증식하지_않고_저카디널리티_상수를_쓴다")
     void authFailureMetric_usesLowCardinalityPathTag() throws Exception {
-        FilterChain chain = mock(FilterChain.class);
+        // 하류(서비스)가 미발급 request_id 를 401 로 거부하는 상황 — 이 실패가 메트릭에 집계된다.
+        FilterChain chain = (rq, rs) ->
+                ((MockHttpServletResponse) rs).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         // 공격자는 하위 경로를 자유롭게 바꿀 수 있다 — 원시 URI 를 태그로 쓰면 Meter 가 무한 증식한다.
         for (int i = 0; i < 50; i++) {
-            MockHttpServletRequest req = postRequest("/v1/aug/AAAA" + String.format("%04d", i), "{}");
+            MockHttpServletRequest req = postRequest("/v1/genai/AAAA" + String.format("%04d", i), "{}");
             req.setRemoteAddr("198.18.1." + (i % 200));
             filter.doFilter(req, new MockHttpServletResponse(), chain);
         }
@@ -1318,7 +1320,7 @@ class HmacWebhookFilterTest {
                 .isEqualTo(1);
         assertThat(meterRegistry.find(HmacWebhookFilter.METRIC_AUTH_FAILED).counters()
                 .iterator().next().getId().getTag("path"))
-                .isEqualTo("aug");
+                .isEqualTo(WebhookProtectedPaths.TAG_GENAI);
     }
 
     // ─── 공유 카운터 해제 (M-4) ──────────────────────────────────
@@ -1366,7 +1368,7 @@ class HmacWebhookFilterTest {
         String attackerIp = "198.18.4.1";
         long ts = System.currentTimeMillis();
         for (int i = 0; i < WebhookRateLimiter.RATE_LIMIT_FAILURES_PER_MINUTE; i++) {
-            MockHttpServletRequest req = postRequest("/v1/aug/callback", "{\"k\":1}");
+            MockHttpServletRequest req = hmacRequest("{\"k\":1}");
             req.setRemoteAddr(attackerIp);
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=wrong" + i);
@@ -1376,7 +1378,7 @@ class HmacWebhookFilterTest {
         }
 
         // 노드 A 는 로컬 카운터로 차단
-        MockHttpServletRequest onA = postRequest("/v1/aug/callback", "{\"k\":1}");
+        MockHttpServletRequest onA = hmacRequest("{\"k\":1}");
         onA.setRemoteAddr(attackerIp);
         onA.addHeader("X-Timestamp", String.valueOf(ts));
         onA.addHeader("X-Signature", "hmac-sha256=wrong-a");
@@ -1388,7 +1390,7 @@ class HmacWebhookFilterTest {
         assertThat(nodeB.localTrackerCount())
                 .as("사전조건: 노드 B 로컬 카운터는 비어 있어야 한다")
                 .isZero();
-        MockHttpServletRequest onB = postRequest("/v1/aug/callback", "{\"k\":1}");
+        MockHttpServletRequest onB = hmacRequest("{\"k\":1}");
         onB.setRemoteAddr(attackerIp);
         onB.addHeader("X-Timestamp", String.valueOf(ts));
         onB.addHeader("X-Signature", "hmac-sha256=wrong-b");
@@ -1413,7 +1415,7 @@ class HmacWebhookFilterTest {
         String body = "{\"k\":1}";
         long ts = System.currentTimeMillis();
         for (int i = 0; i < 12; i++) {
-            MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+            MockHttpServletRequest req = hmacRequest(body);
             req.setRemoteAddr("198.18.3.1");
             req.addHeader("X-Timestamp", String.valueOf(ts));
             req.addHeader("X-Signature", "hmac-sha256=wrong" + i);
@@ -1427,6 +1429,112 @@ class HmacWebhookFilterTest {
                 .truncatedTo(java.time.temporal.ChronoUnit.MINUTES)))
                 .as("차단 이후 요청은 공유 쓰기를 유발하지 않는다 — pre-auth write 상한 (H-5)")
                 .isEqualTo(WebhookRateLimiter.RATE_LIMIT_FAILURES_PER_MINUTE);
+    }
+
+
+    // ─── 생성형 AI 무서명 가드 (Phase 7-A2) ─────────────────────
+
+    @Test
+    @DisplayName("allowlist_밖_IP_의_웹훅은_403")
+    void genAiCallbackFromDisallowedIp_returns403() throws Exception {
+        filter = newFilterWithGenAiAllowlist("203.0.113.0/24");
+        MockHttpServletRequest req = postRequest("/v1/genai/callback", "{}");
+        req.setRemoteAddr("198.51.100.7");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        assertThat(shouldNotFilter(req))
+                .as("genai 콜백은 무서명이라도 반드시 가드 필터를 거쳐야 한다")
+                .isFalse();
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(403);
+        verify(chain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("allowlist_밖_IP_의_403_이_rate_limit_에_집계된다")
+    void genAiCallbackFromDisallowedIp_isCountedInRateLimit() throws Exception {
+        // DEV_FIX MEDIUM-2 — 이 경로만 recordFailure 를 호출하지 않아, 비허용 IP 가 초당 수천 회를
+        // 던져도 backoff 가 걸리지 않았다(411/413/downstream 401 은 전부 집계 → 비대칭).
+        filter = newFilterWithGenAiAllowlist("203.0.113.0/24");
+        String attackerIp = "198.51.100.7";
+
+        for (int i = 0; i < WebhookRateLimiter.RATE_LIMIT_FAILURES_PER_MINUTE; i++) {
+            MockHttpServletRequest req = postRequest("/v1/genai/callback", "{}");
+            req.setRemoteAddr(attackerIp);
+            MockHttpServletResponse res = new MockHttpServletResponse();
+            filter.doFilter(req, res, mock(FilterChain.class));
+            assertThat(res.getStatus()).isEqualTo(403);
+        }
+
+        // 상한 초과 시점부터는 backoff(429)로 전환된다 — 403 무한 반복이 아니다.
+        MockHttpServletRequest over = postRequest("/v1/genai/callback", "{}");
+        over.setRemoteAddr(attackerIp);
+        MockHttpServletResponse overRes = new MockHttpServletResponse();
+        filter.doFilter(over, overRes, mock(FilterChain.class));
+
+        assertThat(rateLimiter.isLimited(attackerIp))
+                .as("allowlist 밖 403 은 인증 실패로 집계돼야 한다")
+                .isTrue();
+        assertThat(overRes.getStatus()).isEqualTo(429);
+    }
+
+    @Test
+    @DisplayName("genai_allowlist_미설정이면_전면_차단되어_403")
+    void genAiCallbackWithUnsetAllowlist_returns403() throws Exception {
+        filter = newFilterWithGenAiAllowlist("");
+        MockHttpServletRequest req = postRequest("/v1/genai/callback", "{}");
+        req.setRemoteAddr("203.0.113.7");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus())
+                .as("VLM 과 달리 미설정은 전면 허용이 아니라 전면 차단이어야 한다")
+                .isEqualTo(403);
+        verify(chain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("본문_크기_상한_초과시_거부된다_genai_1MB")
+    void genAiBodyOverLimit_returns413() throws Exception {
+        filter = newFilterWithGenAiAllowlist("0.0.0.0/0");
+        byte[] big = new byte[(int) HmacWebhookFilter.MAX_GENAI_BODY_BYTES + 1];
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/v1/genai/callback");
+        req.setContentType("application/json");
+        req.setContent(big);
+        req.setRemoteAddr("203.0.113.7");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(413);
+        verify(chain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("genai_상한은_VLM_4MB_보다_좁다_무인증_버퍼링_최소화")
+    void genAiCapIsTighterThanVlm() {
+        assertThat(HmacWebhookFilter.MAX_GENAI_BODY_BYTES)
+                .isLessThan(HmacWebhookFilter.MAX_VLM_BODY_BYTES);
+    }
+
+    @Test
+    @DisplayName("genai_정상_요청은_서명없이_통과한다_무서명_계약_회귀고정")
+    void genAiCallbackPassesWithoutSignature() throws Exception {
+        filter = newFilterWithGenAiAllowlist("0.0.0.0/0");
+        MockHttpServletRequest req = postRequest("/v1/genai/callback", "{\"request_id\":\"x\"}");
+        req.setRemoteAddr("203.0.113.7");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(req, res, chain);
+
+        verify(chain, times(1)).doFilter(any(), any());
     }
 
     // ===== helpers =====
@@ -1444,10 +1552,35 @@ class HmacWebhookFilterTest {
     }
 
     private MockHttpServletRequest signedRequest(String body, long ts, String signature) {
-        MockHttpServletRequest req = postRequest("/v1/aug/callback", body);
+        MockHttpServletRequest req = hmacRequest(body);
         req.addHeader("X-Timestamp", String.valueOf(ts));
         req.addHeader("X-Signature", signature);
         return req;
+    }
+
+    /**
+     * <b>서명 필수</b> 경로 요청 — 경로 판정이 불가능한 요청을 만든다.
+     *
+     * <p>Phase 7-A2 에서 유일한 HMAC 경로({@code /v1/aug/**})가 제거되어 서명 필수 <b>등록</b>
+     * 경로는 없다. 그러나 {@code WebhookProtectedPaths} 는 경로 판정 실패를 <b>서명 요구</b>로
+     * 고정하므로(S-13 fail-closed), URI 파싱이 깨지는 요청은 여전히 HMAC 분기를 탄다. 이 분기가
+     * 살아 있어야 "정체불명 요청이 무인증으로 통과" 하는 창이 열리지 않으므로 계속 검증한다.
+     */
+    private MockHttpServletRequest hmacRequest(String body) {
+        MockHttpServletRequest req = unresolvablePathRequest();
+        req.setContent(body.getBytes(StandardCharsets.UTF_8));
+        req.setContentType("application/json");
+        return req;
+    }
+
+    /** 경로 판정이 불가능한 요청 — 서명 필수(fail-closed) 분기로 들어간다. */
+    private MockHttpServletRequest unresolvablePathRequest() {
+        return new MockHttpServletRequest("POST", "/v1/unresolvable/callback") {
+            @Override
+            public String getRequestURI() {
+                throw new IllegalStateException("URI 파싱 실패 시뮬 (fail-closed 분기 진입)");
+            }
+        };
     }
 
     private MockHttpServletRequest postRequest(String uri, String body) {

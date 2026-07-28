@@ -98,8 +98,10 @@ class DeidentFrameAttacherTest {
 
         rawVideo = tmp.resolve("clip.mp4");
         Files.write(rawVideo, new byte[]{0, 0, 0});
-        deidVideo = tmp.resolve("clip-deid.mp4");
-        Files.write(deidVideo, new byte[]{0, 0, 0});
+        // 비식별 영상은 <무결성 판정 단일 원천>(DeidentArtifactIntegrity — 정규파일 + 크기하한 +
+        //   컨테이너 시그니처)을 통과하는 유효 픽스처여야 한다(DEV_FIX 2차 LOW-5).
+        deidVideo = kr.co.cudo.authoring.support.TestVideoFixtures.writeTinyMp4(
+                tmp.resolve("clip-deid.mp4"));
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -364,6 +366,20 @@ class DeidentFrameAttacherTest {
         DeidentFrameAttacher attacher = newAttacher();
 
         assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), absent, false))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+    }
+
+    @Test
+    @DisplayName("deid영상이_유효한_컨테이너가_아니면_예외")
+    void deidVideoNotAVideoContainer_throws() throws IOException {
+        // 무결성 판정 통일 효과 — 크기가 0보다 커도 영상 컨테이너가 아니면 거부한다(구 판정은 통과했다).
+        Path stub = tmp.resolve("stub-deid.mp4");
+        Files.write(stub, "MOCK_DEIDENTIFIED\n".getBytes());
+        DeidentFrameAttacher attacher = newAttacher();
+
+        assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), stub, false))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");

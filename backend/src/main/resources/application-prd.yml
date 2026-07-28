@@ -40,10 +40,25 @@ spring:
 #
 # (UC018 — 비식별은 KPST 폴링으로 단일화되어 deidentify 콜백 시크릿 키를 제거함.)
 # (VLM describe 콜백은 벤더 v2.0.1 무서명 규격 — HMAC 제거, request_id 발급 게이트로 대체. 증강만 유지.)
+
+# Phase 7-A1 — 외부 증강(생성형 AI) 벤더 실연동 전이라 운영은 noop 을 명시한다.
+#   공통 기본값(http)이 운영으로 새면 base-url 미주입 상태로 위탁 클라이언트를 만들려 하다가
+#   AugmentUrlPolicy 의 "빈값 거부"로 기동이 죽는다(조용한 오연동은 없지만 배포가 깨진다).
+#   fail-safe 로 못박는다. 실연동 시 AUGMENT_EXTERNAL_MODE=http + AUGMENT_API_BASE_URL 로 전환.
+authoring:
+  augment:
+    external:
+      mode: ${AUGMENT_EXTERNAL_MODE:noop}
+
 webhook:
   hmac:
     secret:
-      # 미설정/빈 값 → BeanInitializationException 으로 기동 차단(HmacWebhookFilter).
+      # ★ 실제 동작(Phase 7-A2 이후) — 서명 필수 경로가 <0개> 이므로 이 값은 <미설정이어도 기동한다>
+      #   (HmacWebhookFilter.ensureSecretConfigured: hasSignatureRequiredPaths()==false 면 미설정 허용).
+      #   쓰이지 않는 시크릿을 기동 조건으로 두면 "무의미한 값을 넣어야만 뜨는" 배포 함정이 되기 때문이다.
+      #   단 ①값을 <설정하면> 강도(32B 이상)·공개 placeholder 검증은 그대로 적용돼 위반 시 기동 차단이고,
+      #      ②서명 필수 경로가 다시 등록되면 미설정도 즉시 기동 차단으로 돌아온다.
+      #   런타임은 경로 판정 불가 요청을 401 로 끝내 fail-closed 를 유지한다(조용한 우회 없음).
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:}
   # 운영은 LB/Nginx 뒤에 배포된다. 신뢰 프록시 대역을 지정해야 X-Forwarded-For 가 해석되며,
   # 미지정 시 모든 콜백의 클라이언트 IP 가 프록시 IP 로 수렴해 rate limit 이 전체를 차단할 수 있다(A-ISSUE-15).
@@ -53,6 +68,10 @@ webhook:
     # VLM 콜백 IP allowlist (B-ISSUE-25 TODO 이행) — 벤더 송신 대역을 지정한다.
     #   prd 는 **명시 필수** — 대역 CIDR 또는 미적용을 뜻하는 'none' (미설정 시 기동 차단, DEV_FIX M-3).
     allowed-ip-cidrs: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:}
+  genai:
+    # 생성형 AI 콜백 IP allowlist — VLM 과 달리 **미설정이면 전면 차단**(fail-closed).
+    # 신규 연동이라 "미설정 = 전면 허용" 기본값을 물려받지 않는다. 외부 송신 대역을 지정해야 통과한다.
+    allowed-ip-cidrs: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:}
 
 # 운영(prd) 환경 — API 문서/Swagger UI 노출 차단 (보안: 공격 표면 축소).
 #   springdoc 비활성 시 /v3/api-docs, /swagger-ui 모두 404 (SecurityConfig 의 permitAll 무력화).

@@ -27,6 +27,17 @@
 - 마킹 결과(이벤트명 + 영상경로 + marks)를 VLM에 콜백 형태로 전달 → [06](06-marking.md)
 - 코드: `VlmClient`, `VlmTimeseriesStep`, `webhook/VlmResultController`/`VlmResultService`
 
+### 9.2-1 URL 검증 정책 (운영 엄격 / 개발 완화)
+
+- 기본(운영): `vlm.client.url` 은 **HTTPS 전용 + 사설·내부 대역 차단**(CWE-319/918). 위반 시 빈 생성 실패 → 기동 차단.
+- 개발 완화: `vlm.client.allow-insecure-url=true` 일 때만 평문 http + 사설 IP 허용(로컬 목업 `klid-mock-server:9400` 실배선용). **이 플래그는 `local`/`dev` 프로파일에서만 인정**되며, 그 밖의 프로파일에서 켜져 있으면 **기동이 실패**한다(`VlmUrlPolicy` fail-closed). placeholder 호스트·비허용 스키마 차단은 모든 프로파일 공통.
+- 판정 로직은 KPST 비식별 연동과 동일한 `ExternalUrlPolicy` 를 공유한다(정책 차이는 "내부망 전제 여부" 값 하나) → [22](22-deid-solution-api.md).
+
+### 9.2-2 단계 미수행(skip) 기록
+
+- `vlm.client.enabled=false` 로 VLM 단계를 건너뛰면 `LS_BATCH_PROC_LOG` 에 `PROC_STEP_CD='VLM'` / `PROC_STTS_CD='SKIPPED'` 감사 행 1건을 **사유와 함께**(`ERR_MSG_CN`) 남긴다.
+- 이 감사 행은 append-only 이며 진행 상태 조회에서 제외되므로 다음 단계 전이에 덮이지 않는다 — VLM 비활성/장애 구간에 처리된 영상을 DB 만으로 재처리 대상으로 식별할 수 있다.
+
 ## 9.3 메타 검수 (REVIEWER)
 
 화면: 시계열 메타 검토·수정은 **라벨링 캔버스(SC-005) 우측 시계열 메타 패널(`TimeseriesSidePanel`)**에서 수행. (구 `SC-015` VLM 메타 검토 전용 페이지 `/auto/:videoId/meta`는 진입점 없는 orphan으로 2026-06-17 deprecated·코드 제거 → [04 화면·IA](04-screens-ia.md))

@@ -32,6 +32,7 @@ class VideoArtifactRootResolverTest {
     private VideoArtifactRootResolver fallbackResolver(String configured, Path rawPath, Path deidPath) {
         return new VideoArtifactRootResolver(
                 configured,
+                "",
                 rawPath.toString(),
                 deidPath.toString(),
                 tmp.resolve("labeling").toString(),
@@ -183,5 +184,89 @@ class VideoArtifactRootResolverTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    // ── 외부 산출물 읽기 축(DEV_FIX 2차 HIGH-1) ─────────────────────
+
+    @Test
+    @DisplayName("목_산출_경로가_허용루트로_인식되어_프레임_반입이_성립한다")
+    void externalReadRoot_allowsVendorOutputPath() throws IOException {
+        // given — 실제 compose 형상: 쓰기 allowlist 는 /app/storage/{raw,deidentified} 이고
+        //         목 산출물은 <별개 트리> /app/genai-out/genai/{job_id}/ 에 생성된다.
+        Path storage = Files.createDirectories(tmp.resolve("app/storage/raw"));
+        Path deid = Files.createDirectories(tmp.resolve("app/storage/deidentified"));
+        Path genaiOut = Files.createDirectories(tmp.resolve("app/genai-out"));
+        VideoArtifactRootResolver resolver = new VideoArtifactRootResolver(
+                storage + "," + deid,
+                genaiOut.toString(),
+                storage.toString(), deid.toString(), tmp.resolve("labeling").toString(),
+                VideoArtifactRootResolver.STRATEGY_CO_LOCATE);
+        String vendorOutput = genaiOut.resolve("genai/job-1/frame-1.jpg").toString();
+
+        // when / then — 읽기 축은 통과한다(이게 없으면 콜백이 400 → 증강 영구 PENDING)
+        resolver.verifyExternalReadablePath(vendorOutput);
+        assertThat(resolver.readableRoots()).contains(genaiOut);
+
+        // and — <쓰기> 축은 넓어지지 않는다(PII 격리 축 유지)
+        assertThat(resolver.allowedRoots()).doesNotContain(genaiOut);
+        assertThatThrownBy(() -> resolver.verifyIngestablePath(vendorOutput))
+                .as("벤더 트리는 산출물 쓰기 base 로 승격되지 않아야 한다")
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("허용루트_밖_경로는_여전히_거부된다")
+    void externalReadRoot_stillRejectsOutsidePaths() throws IOException {
+        // given
+        Path storage = Files.createDirectories(tmp.resolve("app/storage/raw"));
+        Path deid = Files.createDirectories(tmp.resolve("app/storage/deidentified"));
+        Path genaiOut = Files.createDirectories(tmp.resolve("app/genai-out"));
+        Files.createDirectories(tmp.resolve("elsewhere"));
+        VideoArtifactRootResolver resolver = new VideoArtifactRootResolver(
+                storage.toString(), genaiOut.toString(),
+                storage.toString(), deid.toString(), tmp.resolve("labeling").toString(),
+                VideoArtifactRootResolver.STRATEGY_CO_LOCATE);
+
+        // when / then — 읽기 루트 밖 + '..' 순회 + 빈 값 모두 거부(검증 절차는 쓰기 축과 동일)
+        assertThatThrownBy(() ->
+                resolver.verifyExternalReadablePath(tmp.resolve("elsewhere/secret.jpg").toString()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() ->
+                resolver.verifyExternalReadablePath(genaiOut.resolve("../../etc/passwd").toString()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> resolver.verifyExternalReadablePath("   "))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("읽기루트_미설정이면_쓰기_allowlist와_동일하다")
+    void externalReadRootUnset_equalsWriteAllowlist() throws IOException {
+        // given — 기본 형상(미설정)에서 읽기 범위가 넓어지지 않아야 한다(fail-closed).
+        Path rawPath = Files.createDirectories(tmp.resolve("storage/raw"));
+        Path deidPath = Files.createDirectories(tmp.resolve("storage/deidentified"));
+        VideoArtifactRootResolver resolver = fallbackResolver("", rawPath, deidPath);
+
+        // then
+        assertThat(resolver.readableRoots()).isEqualTo(resolver.allowedRoots());
+    }
+
+    @Test
+    @DisplayName("읽기루트에_파일시스템_루트를_지정하면_기동이_실패한다")
+    void externalReadRootFilesystemRoot_failsStartup() {
+        // given / when / then — 넓힌 축에도 쓰기 축과 동일한 fail-closed 를 적용한다(CWE-1188).
+        assertThatThrownBy(() -> new VideoArtifactRootResolver(
+                tmp.resolve("storage/raw").toString(), java.io.File.separator,
+                tmp.resolve("storage/raw").toString(), tmp.resolve("storage/deid").toString(),
+                tmp.resolve("labeling").toString(), VideoArtifactRootResolver.STRATEGY_CO_LOCATE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("external-read-roots");
     }
 }

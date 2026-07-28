@@ -73,6 +73,7 @@ class DatasetVideoMetaSnapshotServiceIT {
             jdbc.update("DELETE FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATASET_VIDEO_META WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_META WHERE RAW_SN = ?", rawSn);
+            jdbc.update("DELETE FROM LS_RAW_DATA_STATUS WHERE RAW_DATA_ID = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
         }
         for (String cctvId : seededCctvIds) {
@@ -159,6 +160,35 @@ class DatasetVideoMetaSnapshotServiceIT {
                     + "\"caption\":{\"c1\":{\"caption_text\":\"다툼\",\"cot\":[\"a\",\"b\"]}},"
                     + "\"answer\":\"폭행\","
                     + "\"evidence\":{\"c1\":{\"evidence_text\":\"주먹\",\"obj_id\":[\"o1\"]}}}";
+
+    @Test
+    @DisplayName("증강_파생영상의_ORIGINAL_VIDEO_PATH_는_NULL_이다")
+    void derivativeVideoExposesNoOriginalPathInDatamartView() {
+        // given — 부모 1건 + 파생 1건(ORGNL_RAW_SN 참조). 파생의 RAW_FILE_PATH_NM 은 <파생 자신의
+        //         비식별 사본> 경로이며, 결함 시절에는 여기에 부모 원본 NAS 경로가 실렸다.
+        long parentRawSn = seedSource();
+        long derivativeRawSn = seedSource();
+        jdbc.update("UPDATE LS_DATA_RAW SET ORGNL_RAW_SN = ?, RAW_FILE_PATH_NM = ? WHERE RAW_SN = ?",
+                parentRawSn,
+                "/nas-storage/videos/augment/" + parentRawSn + "/" + derivativeRawSn + "/WINTER.mp4",
+                derivativeRawSn);
+        jdbc.update("INSERT INTO LS_RAW_DATA_STATUS (RAW_DATA_ID, DATA_STTS_CD, UPD_DT, VER) "
+                + "VALUES (?, 'APPROVED', ?, 1)", derivativeRawSn, LocalDateTime.now());
+
+        // when — 검수 승인 동결
+        txTemplate.executeWithoutResult(s -> service.materialize(derivativeRawSn));
+
+        // then — 동결 컬럼 null + 관제 뷰의 ORIGINAL_VIDEO_PATH 도 null(관제 연동 계약).
+        LsDatasetVideoMeta m = txTemplate.execute(s ->
+                metaRepository.findByRawSnAndActiveYn(derivativeRawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
+        assertThat(m.getRawFilePathNm()).isNull();
+        assertThat(m.getAiCrtYn()).isEqualTo("Y");
+
+        String viewPath = jdbc.query(
+                "SELECT ORIGINAL_VIDEO_PATH FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?",
+                rs -> rs.next() ? rs.getString(1) : "ROW_ABSENT", derivativeRawSn);
+        assertThat(viewPath).isNull();
+    }
 
     @Test
     @DisplayName("검수승인시_event_annotation이_스냅샷으로_동결된다")

@@ -50,7 +50,7 @@ class MarkingLoadStepTest {
         LsMarking latest = markingWith(
                 "[{\"frameIndex\":0,\"timestamp\":\"00:00\"},{\"frameIndex\":150,\"timestamp\":\"00:05\"}]");
         LsMarking older = markingWith("[{\"frameIndex\":999,\"timestamp\":\"00:33\"}]");
-        when(markingRepository.findByRawSnOrderByRegDtDesc(7L)).thenReturn(List.of(latest, older));
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(7L)).thenReturn(List.of(latest, older));
 
         BatchContext ctx = new BatchContext(7L, null);
         step.execute(ctx);
@@ -65,7 +65,7 @@ class MarkingLoadStepTest {
     @Test
     @DisplayName("마킹_없으면_markings_marks_모두_빈_리스트")
     void emptyMarkingsLeavesMarksEmpty() {
-        when(markingRepository.findByRawSnOrderByRegDtDesc(8L)).thenReturn(Collections.emptyList());
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(8L)).thenReturn(Collections.emptyList());
 
         BatchContext ctx = new BatchContext(8L, null);
         step.execute(ctx);
@@ -77,7 +77,7 @@ class MarkingLoadStepTest {
     @Test
     @DisplayName("markCn_이_잘못된_JSON_이면_INTERNAL_ERROR")
     void invalidMarkCnThrowsInternalError() {
-        when(markingRepository.findByRawSnOrderByRegDtDesc(9L))
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(9L))
                 .thenReturn(List.of(markingWith("not-a-json")));
 
         BatchContext ctx = new BatchContext(9L, null);

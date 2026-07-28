@@ -88,6 +88,26 @@ public class LsBatchProcLog {
         return log;
     }
 
+    /**
+     * 단계 <b>미수행(skip)</b> 감사 행 생성 — B-ISSUE-24.
+     *
+     * <p>진행 행을 갱신하지 않고 별도 행으로 적재한다(append-only). 진행 행에 기록하면 다음 단계 전이가
+     * 즉시 덮어써 흔적이 사라지기 때문이다. {@code PROC_STTS_CD='SKIPPED'} 로 남으므로 진행 조회
+     * ({@code findTopByDataRawSnAndProcSttsCdNot...})는 이 행을 건너뛴다.
+     *
+     * <p>사유는 별도 컬럼을 신설하지 않고 {@code ERR_MSG_CN}(자유 서술 사유 컬럼)에 적재한다 — 실패가
+     * 아님은 {@code PROC_STTS_CD} 로 구분되며, 스키마 추가 없이 "왜 건너뛰었는지"를 영속한다.
+     *
+     * @param reason 건너뛴 사유(운영 재처리 대상 식별용). 비어 있으면 안 된다.
+     */
+    public static LsBatchProcLog createSkipped(Long rawSn, BatchStage stage, String reason) {
+        LsBatchProcLog log = create(rawSn, stage);
+        log.procSttsCd = "SKIPPED";
+        log.errorMsg = reason;
+        log.endDt = log.startDt;
+        return log;
+    }
+
     public void updateStage(BatchStage stage) {
         this.procStepCd = stage.name();
         this.procSttsCd = stage == BatchStage.COMPLETED ? "COMPLETED" : "STARTED";

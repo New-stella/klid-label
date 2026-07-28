@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.marking.service;
 
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,10 +32,11 @@ public class MarkingPrecheckReader {
 
     private final VideoRepository videoRepository;
     private final LsTaskAssignmentRepository assignmentRepository;
+    private final LsMarkingRepository markingRepository;
 
     /**
      * 프로브 이전 사전 인가·프리컨디션 확인. 위반 시 {@link MarkingGuards} 규칙대로 즉시 예외를 던진다
-     * (평가 순서: 인가 → 존재 → 비식별 완료 → MARKING_READY → 이벤트 유형).
+     * (평가 순서: 인가 → 존재 → 비식별 완료 → MARKING_READY → 이벤트 유형 → 활성 마킹 중복).
      *
      * @param rawSn 영상 PK
      * @param actor 인증된 사용자
@@ -44,5 +46,6 @@ public class MarkingPrecheckReader {
         MarkingGuards.requireAssignedOrReviewer(rawSn, actor, assignmentRepository);
         LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
         MarkingGuards.requirePreconditions(raw);
+        MarkingGuards.requireNoActiveMarking(rawSn, markingRepository);
     }
 }

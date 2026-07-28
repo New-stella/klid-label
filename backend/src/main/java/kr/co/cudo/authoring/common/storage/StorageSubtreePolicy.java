@@ -50,6 +50,9 @@ public final class StorageSubtreePolicy {
     /** 해상도 파생 영상의 비식별 저장 서브트리 세그먼트 — {@code videos/resolution/{parentRawSn}/…}. */
     public static final String SEG_RESOLUTION = "resolution";
 
+    /** 증강 파생 영상의 비식별 저장 서브트리 세그먼트 — {@code videos/augment/{parentRawSn}/…}. */
+    public static final String SEG_AUGMENT = "augment";
+
     private StorageSubtreePolicy() {
     }
 
@@ -79,6 +82,29 @@ public final class StorageSubtreePolicy {
     public static String resolutionVideoFile(long parentRawSn, long derivativeRawSn, String presetName) {
         return SEG_VIDEOS + "/" + SEG_RESOLUTION + "/" + parentRawSn + "/" + derivativeRawSn
                 + "/" + presetName + ".mp4";
+    }
+
+    /**
+     * 증강 파생 영상 파일 상대경로 —
+     * {@code videos/augment/{parentRawSn}/{derivativeRawSn}/{augTypeCd}.mp4}.
+     *
+     * <p>{@link #resolutionVideoFile(long, long, String)} 과 <b>동일 규약</b>이며 종류 세그먼트만 다르다
+     * (해상도 파생과 증강 파생이 서로 다르게 동작하지 않도록 규약을 하나로 유지한다). 증강 결과 영상은
+     * 외부가 만들어 주지 않고 <b>부모의 비식별 영상을 복사</b>한 것이므로 비식별 영상 규약({@code videos/})
+     * 하위이되, 실제 비식별 영상 디렉토리({@code videos/{rawSn}/})와 겹치지 않도록 {@code augment}
+     * 세그먼트로 분리한다 — 비식별 결과 회수 시 디렉토리 스캔 폴백({@code KpstDeidentService})이 파생
+     * 영상을 원본 비식별본으로 오인해 회수하는 것을 막는다.
+     *
+     * <p>경로 키에 <b>파생 RAW_SN</b> 을 포함해 파생 1건 = 파일 1개로 분리한다(A-6 와 동일 이유 —
+     * 재요청/중복 파생이 서로의 파일을 덮어쓰거나 cleanup 이 남의 파일을 지우는 실패 클래스 차단).
+     *
+     * @param parentRawSn     원본(부모) RAW_SN — 그룹 디렉토리
+     * @param derivativeRawSn 파생 RAW_SN — 파생별 고유 키
+     * @param augTypeCd       증강 유형 코드(WINTER/NIGHT/RAIN)
+     */
+    public static String augmentVideoFile(long parentRawSn, long derivativeRawSn, String augTypeCd) {
+        return SEG_VIDEOS + "/" + SEG_AUGMENT + "/" + parentRawSn + "/" + derivativeRawSn
+                + "/" + augTypeCd + ".mp4";
     }
 
     /**

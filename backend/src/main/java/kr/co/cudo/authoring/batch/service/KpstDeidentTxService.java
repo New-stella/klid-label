@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.batch.step.DeidentFrameAttacher;
 import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -18,9 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -53,8 +51,8 @@ public class KpstDeidentTxService {
      * <p>기존 2분리 트랜잭션(DOWNLOADED → Y) 은
      * 사이 크래시 시 DOWNLOADED 이나 Y 미전이인 영구 stuck 행을 남겼다(재폴링 대상도 아님). 본 메서드는
      * procLog DOWNLOADED/SUCCEEDED 전이와 raw Y/MARKING_READY 전이를 한 트랜잭션에 묶어 stuck 창을 제거한다.
-     * 비식별 파일 실재(존재 + >0바이트) 검증은 {@link #completeDeidentification} 가 수행하므로 불완전
-     * 산출물은 Y 로 가지 않는다.
+     * 비식별 파일 무결성(정규파일 + 크기 하한 + 컨테이너 시그니처) 검증을 선행하므로 불완전/위장
+     * 산출물은 Y 로 가지 않는다({@link #verifyDeidFile}).
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void finishDownloadAndComplete(Long rawSn, Long procLogSn, Long datasetId, String deidFilePath) {
@@ -268,21 +266,19 @@ public class KpstDeidentTxService {
     }
 
     /**
-     * 비식별 산출물 실재 검증(CWE-459/404 방어) — 입력 유효성 + 파일 존재 + >0바이트.
-     * 위반 시 raw 를 'F' 마킹하고 예외를 던져 Y 전이를 막는다(불완전 비식별 차단).
+     * 비식별 산출물 무결성 검증(CWE-459/CWE-345 방어) — 입력 유효성 + 정규파일 + 크기 하한 +
+     * 컨테이너 시그니처({@link DeidentArtifactIntegrity}).
+     * 위반 시 raw 를 'F' 마킹하고 예외를 던져 Y 전이를 막는다(불완전/위장 비식별 차단).
+     *
+     * <p><b>Y 전이 직전의 마지막 게이트</b>다. 폴링 경로는 이미 {@code KpstDeidentService.isUsableDeidFile}
+     * 로 걸러지지만, 콜백 경로({@code completeDeidentification})는 여기만 통과하면 'Y' 가 되므로 판정을
+     * 동일 단일 지점에 위임해 우회로를 남기지 않는다(B-ISSUE-01).
      */
     private void verifyDeidFile(Long rawSn, String deidFilePath) {
         if (rawSn == null || deidFilePath == null || deidFilePath.isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn/deidFilePath 는 필수입니다.");
         }
-        boolean valid;
-        try {
-            Path file = Paths.get(deidFilePath);
-            valid = Files.isRegularFile(file) && Files.size(file) > 0;
-        } catch (IOException e) {
-            valid = false;
-        }
-        if (!valid) {
+        if (!DeidentArtifactIntegrity.isValidVideoArtifact(deidFilePath)) {
             videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
             log.warn("[KpstDeid] deid file invalid rawSn={} — mark F", rawSn);
             throw new CustomException(ErrorCode.INVALID_INPUT, "비식별 산출물이 유효하지 않습니다.");

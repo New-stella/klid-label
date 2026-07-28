@@ -263,7 +263,7 @@ class BatchPipelineReorderFlowTest {
         LsRawDataStatus stts = LsRawDataStatus.initial(rawSn);
         stts.markAssigned(); // 배정 시점 생성된 작업 상태 (마킹 진입 전제)
         when(statusRepository.findById(rawSn)).thenReturn(Optional.of(stts));
-        when(markingRepository.findByRawSnOrderByRegDtDesc(rawSn))
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn))
                 .thenReturn(List.of(newMarking(rawSn)));
 
         // 적재 직후 배치 단계 상태는 PENDING 이어야 한다.
@@ -330,7 +330,7 @@ class BatchPipelineReorderFlowTest {
         LsRawDataStatus stts = LsRawDataStatus.initial(rawSn); // 작업 상태: PENDING 시작
         stts.markAssigned();
         when(statusRepository.findById(rawSn)).thenReturn(Optional.of(stts));
-        when(markingRepository.findByRawSnOrderByRegDtDesc(rawSn))
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn))
                 .thenReturn(List.of(newMarking(rawSn)));
 
         // 단계 1: 적재 직후 — 배치 단계 PENDING.
@@ -403,7 +403,7 @@ class BatchPipelineReorderFlowTest {
         LsRawDataStatus stts = LsRawDataStatus.initial(rawSn);
         stts.markBatchQueued();
         when(statusRepository.findById(rawSn)).thenReturn(Optional.of(stts));
-        when(markingRepository.findByRawSnOrderByRegDtDesc(rawSn))
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn))
                 .thenReturn(List.of(newMarking(rawSn)));
         doThrow(new RuntimeException("yolo 5xx")).when(yoloStep).run(rawSn);
 

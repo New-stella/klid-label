@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.config.CacheConfig;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -91,15 +92,12 @@ class KpstDeidentTxServiceTest {
         return p;
     }
 
-    /** 실재하는 비식별 파일(>0바이트) — completeDeidentification 의 파일 검증 통과용. */
+    /**
+     * 실재하는 비식별 파일 — completeDeidentification 의 무결성 검증(정규파일 + 크기 하한 +
+     * 컨테이너 시그니처) 통과용. 텍스트 스텁은 더 이상 산출물로 인정되지 않으므로 실제 최소 mp4 를 쓴다.
+     */
     private String realDeidFile() {
-        try {
-            Path f = tmp.resolve("deid-9001.mp4");
-            Files.writeString(f, "MASKED");
-            return f.toString();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return TestVideoFixtures.writeTinyMp4(tmp.resolve("deid-9001.mp4")).toString();
     }
 
     @Test

@@ -34,14 +34,15 @@
 
 | 축 | 정책 |
 |----|------|
-| 경로 판정 | `WebhookProtectedPaths` **allowlist**(`/v1/aug/**`, `/v1/vlm/**`). Spring MVC 라우팅과 **동일한** `RequestPath`+`PathPattern` 사용(자체 디코딩 구현 금지). 판정 불가·예외 = **보호**(fail-closed) |
+| 경로 판정 | `WebhookProtectedPaths` **allowlist**(`/v1/vlm/**`, `/v1/genai/**`). Spring MVC 라우팅과 **동일한** `RequestPath`+`PathPattern` 사용(자체 디코딩 구현 금지). 판정 불가·예외 = **보호**(fail-closed) |
 | 이중 게이트 | 필터가 통과 요청을 `WebhookGuardedRequest` 래퍼로 감싸고, `WebhookGateInterceptor` 가 컨트롤러 진입 직전 증거 유무를 재확인 → 증거 없으면 401 |
 | 필터 등록 | Security 체인 1곳으로 고정(`WebhookGateConfig` 가 서블릿 자동 등록 비활성) |
-| 시크릿 | `webhook.hmac.secret.augment` 32B 이상 필수. **빈 값이면 애플리케이션 기동 실패**(조용한 401 금지). 리포에 커밋된 **공개 placeholder 값은 local 외 프로파일에서 기동 차단**(공개 키 서명 위조 차단, CWE-1392/798). `.env.example`·compose 는 실값·기본값 폴백을 두지 않고 `openssl rand -hex 32` 주입을 요구 |
+| 시크릿 | `webhook.hmac.secret.augment` 32B 이상 필수(2026-07-27 Phase 7-A2 로 **등록된 서명 필수 경로는 0** 이 됐으나, 경로 판정 불가 요청은 여전히 서명 요구 분기로 들어가므로 시크릿은 유지한다). **빈 값이면 애플리케이션 기동 실패**(조용한 401 금지). 리포에 커밋된 **공개 placeholder 값은 local 외 프로파일에서 기동 차단**(공개 키 서명 위조 차단, CWE-1392/798). `.env.example`·compose 는 실값·기본값 폴백을 두지 않고 `openssl rand -hex 32` 주입을 요구 |
 | replay 방지 | 서명 nonce 를 `LS_WHK_SIGN_USE` 에 1회성 소비(노드 공유). 키는 **정규화 경로**(`canonicalPath`) 기준 — 원시 URI 를 쓰면 `%61ug` 류 인코딩 변형마다 키가 갈라져 같은 서명이 전부 신규로 통과한다(CWE-294). **서명 검증 성공 이후에만** 기록(pre-auth write DoS 차단). 하류가 5xx/예외로 실패하면 **nonce 예약을 해제**해 동일-바이트 재전송이 다시 처리되게 한다(결과 영구 유실 차단, CWE-754). 중복은 **409**(인증 실패 401 과 구분), 저장소 장애는 **503**(fail-closed + 재시도 유도) |
 | timestamp | 과거 방향 `webhook.hmac.timestamp-window-seconds`(기본 300s), 미래 방향은 시계 오차 30s 만 |
 | rate limit | **진실원은 `LS_WHK_FAIL_NMTM` 공유 집계**, JVM-local 카운터는 DB 왕복을 줄이는 **캐시**(별도 임계가 아님). 실패는 **차단에 이르기까지 매번 공유에 기록**하고, 차단 이후에는 기록하지 않는다(pre-auth write 를 IP·창당 5회로 상한). `isLimited` 는 로컬 미차단 시 **반드시 공유를 조회**(현재+직전 분 버킷)해 다른 노드의 차단을 승계·로컬 각인한다. → **노드 A 5회 차단 시 노드 B 도 즉시 차단**(A-ISSUE-14). 명시적 해제는 **서명 검증 성공(HMAC 경로)에서만** — 무서명 경로의 하류 2xx 는 해제 신호로 쓰지 않는다(이미 처리된 `request_id` 하나로 카운터를 영구 0 으로 만들 수 있었음). 그 외에는 분 단위 창 만료로 자연 소멸. 만료 행은 `WebhookGuardPurgeJob` 이 주기 정리(조건부 DELETE 라 2노드 동시 실행 무해). 공유 저장소 장애 시 **fail-open** |
 | clientIp | `webhook.trusted-proxy-cidrs` 안에서 들어온 요청만 `X-Forwarded-For` 해석(우측부터 신뢰 홉 제거, IPv4/IPv6 리터럴만 허용). 미설정 시 XFF 전면 무시(CWE-348 위조 차단). **prd 는 명시 필수** — 프록시 대역 CIDR 또는 직접 노출을 뜻하는 `none`, 미설정 시 기동 차단(미설정 상태의 LB IP 단일 키 집계로 정상 콜백까지 429 되는 것을 방지). **CIDR 형식 오류(오타·호스트명)도 기동 차단** — 조용히 무시하면 matcher 가 비어 방어가 꺼진 채 기동한다. **배포 템플릿·`.env.example` 은 `none` 을 기본값으로 제공하지 않는다**(안전하지 않은 답을 기본값으로 건네지 않음) |
+| 생성형 AI 콜백 | 명세서 v1.1 **무서명** 규격(2026-07-27 계약 교체 — 구 `/v1/aug/callback` + HMAC 제거). ①IP allowlist(`webhook.genai.allowed-ip-cidrs`) — VLM 과 달리 **미설정이면 전면 차단(fail-closed)**, 열려면 대역 명시 ②rate limit·size cap(**1MB** — `results[]` 100건 × 1KB 정상 최대치의 약 10배 헤드룸. VLM 4MB 를 물려받으면 무인증 상태에서 필요치의 40배를 버퍼링) ③`request_id` 발급 게이트(`LS_DATA_AUG_JOB.IDMP_KEY`) **3계층**. 하류 401/403 도 rate limit 에 집계 |
 | VLM 콜백 | 벤더 확정 계약(v2.0.1) **무서명** 규격이라 HMAC 미적용. ①IP allowlist(`webhook.vlm.allowed-ip-cidrs`, **prd 명시 필수** — 미적용이면 `none`) ②rate limit·size cap(4MB) ③`request_id` 발급 게이트 **3계층**으로 보호. rate limit 은 필터 단계 실패뿐 아니라 **서비스 계층 인증 실패(미발급 `request_id` → 401)까지 집계**한다(위조 request_id 로 비관적 락 SELECT 를 무제한 유발하는 경로 차단). 단 **클라이언트 IP 를 발신자로 귀속할 수 없으면**(신뢰 프록시 미설정인데 XFF 관측 = 프록시 뒤 설정 누락) 하류 실패 집계를 **비활성**하고 WARN 만 남긴다 — 그 상태에서 집계하면 공격자 5회 실패가 정상 벤더 콜백 전건을 차단해 시계열 메타가 유실된다(가용성 우선) |
 | 관측 | 인증 실패 시 `webhook.auth.failed{path,reason}` 카운터(Micrometer). `path` 태그는 `aug`/`vlm`/`other` **저카디널리티 상수** — 원시 URI 를 태그로 쓰면 공격자가 영구 보존 Meter 를 무한 생성한다(CWE-770) |
 

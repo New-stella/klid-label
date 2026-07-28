@@ -123,15 +123,19 @@ class AugmentExtractPersistTest {
     }
 
     private AugmentExtractPlan.FrameSpec spec(long parentSrcSn, long frameNo, long videoFrameNo) {
-        Path dst = Paths.get("/tmp/store/frames/raw/x/frame-" + frameNo + ".jpg");
-        return new AugmentExtractPlan.FrameSpec(parentSrcSn, frameNo, videoFrameNo, LocalDateTime.now(), dst);
+        Path dst = Paths.get("/tmp/deid/frames/deid/x/frame-" + frameNo + ".jpg");
+        Path external = Paths.get("/storage/genai/job-1/out-" + frameNo + ".jpg");
+        return new AugmentExtractPlan.FrameSpec(
+                parentSrcSn, frameNo, videoFrameNo, LocalDateTime.now(), external, dst);
     }
 
     private AugmentExtractPlan plan(Long newRawSn, Long parentRawSn, Long dataAugSn,
                                     List<AugmentExtractPlan.FrameSpec> frames) {
         return new AugmentExtractPlan(newRawSn, parentRawSn, dataAugSn, "rev1",
-                Paths.get("/storage/augment/x.mp4"),
-                Paths.get("/tmp/store/frames/raw/" + newRawSn), frames);
+                Paths.get("/tmp/deid/frames/deid/" + parentRawSn + "/frame-0.jpg"),
+                Paths.get("/tmp/deid/videos/" + parentRawSn + "/deidentified.mp4"),
+                Paths.get("/tmp/deid/videos/augment/" + parentRawSn + "/" + newRawSn + "/WINTER.mp4"),
+                Paths.get("/tmp/deid/frames/deid/" + newRawSn), frames);
     }
 
     @Test
@@ -154,9 +158,10 @@ class AugmentExtractPersistTest {
     }
 
     @Test
-    @DisplayName("프레임추출_성공후_SUCCESS_procLog가_증강경로로_저장된다")
-    void savesSuccessProcLogWithAugmentPath() {
-        LsDataRaw newRaw = newAugRaw(9002L, 130L, "/storage/augment/70.mp4");
+    @DisplayName("기록된_경로가_실제_복사된_파일_파생비디오를_가리킨다")
+    void savesSuccessProcLogWithCopiedDerivativeVideoPath() {
+        // given — RAW_FILE_PATH_NM 은 부모 원본 경로로 폴백돼 있다(생성형 AI 는 영상을 안 준다).
+        LsDataRaw newRaw = newAugRaw(9002L, 130L, "/storage/raw/130.mp4");
         when(videoRepository.findById(9002L)).thenReturn(Optional.of(newRaw));
         when(augRepository.findById(70L)).thenReturn(Optional.of(aug(70L)));
         when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
@@ -168,7 +173,9 @@ class AugmentExtractPersistTest {
         verify(deidentProcLogRepository, times(1)).save(logCaptor.capture());
         LsDeidentProcLog saved = logCaptor.getValue();
         assertThat(saved.getProcSttsCd()).isEqualTo(LsDeidentProcLog.SUCCEEDED);
-        assertThat(saved.getDeIdntfFilePathNm()).isEqualTo("/storage/augment/70.mp4");
+        // 비식별 결과 경로 = Phase B 가 실제로 복사한 파생 비디오. 원본 경로를 기록하면 원본이 서빙된다.
+        assertThat(saved.getDeIdntfFilePathNm()).isEqualTo(p.videoDst().toString());
+        assertThat(saved.getDeIdntfFilePathNm()).isNotEqualTo(newRaw.getRawFilePathNm());
     }
 
     @Test
@@ -288,6 +295,28 @@ class AugmentExtractPersistTest {
                 .filter(m -> m.getOrgnlDataLblSn() == 5002L).findFirst().orElseThrow();
         assertThat(carMap.getDataLblSn()).isEqualTo(7000L + 8100L);
         assertThat(personMap.getDataLblSn()).isEqualTo(7000L + 8250L);
+    }
+
+    @Test
+    @DisplayName("파생프레임은_비식별경로컬럼에_적재되고_원본경로는_null이다_PII격리")
+    void derivedFrameStoredAsDeidentifiedArtifact() {
+        // given — 외부 증강 산출물은 <비식별 프레임>을 입력으로 만들어진 비식별 계열 산출물이다.
+        LsDataRaw newRaw = newAugRaw(9030L, 140L, "/storage/augment/pii.mp4");
+        when(videoRepository.findById(9030L)).thenReturn(Optional.of(newRaw));
+        when(augRepository.findById(61L)).thenReturn(Optional.of(aug(61L)));
+        when(lblRepository.findBySrcSnIn(anyCollection())).thenReturn(List.of());
+        AugmentExtractPlan p = plan(9030L, 140L, 61L, List.of(spec(600L, 0, 100L)));
+
+        // when
+        persist.persist(p);
+
+        // then — 산출물 1벌은 비식별 경로 컬럼에만 적재된다(V133 정책 A). 두 컬럼 동일 값 금지.
+        ArgumentCaptor<LsDataSrc> childCaptor = ArgumentCaptor.forClass(LsDataSrc.class);
+        verify(srcRepository).save(childCaptor.capture());
+        LsDataSrc child = childCaptor.getValue();
+        assertThat(child.getSrcFilePathNm()).as("파생영상은 원본 픽셀이 실재하지 않는다").isNull();
+        assertThat(child.getDeidFilePath())
+                .isEqualTo(p.frames().get(0).dst().toString());
     }
 
     @Test

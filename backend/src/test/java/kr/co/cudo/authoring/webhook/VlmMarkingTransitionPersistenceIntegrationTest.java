@@ -47,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <b>메모리상 마킹 객체의 필드 변경</b>만 확인하므로, 실제 파이프라인 진입점인 {@code execute()} 가
  * <b>DB에 전이를 영속</b>하는지는 검증 사각이었다(결함 #1). 본 테스트는 실제 Spring 빈
  * {@link VlmTimeseriesStep} 을 {@code execute()} 로 구동하고, 마킹은 프로덕션과 동형으로
- * {@link LsMarkingRepository#findByRawSnOrderByRegDtDesc}(각 리포지토리 tx 종료 후 detached)로 로드해
+ * {@link LsMarkingRepository#findByRawSnOrderByRegDtDescMarkingSnDesc}(각 리포지토리 tx 종료 후 detached)로 로드해
  * ctx 에 담는다.
  *
  * <h3>검증(결함 #1/#2 폐쇄)</h3>
@@ -126,7 +126,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         // 프로덕션 동형: 마킹을 리포지토리로 로드(리포지토리 tx 종료 → detached) 후 ctx 적재
         LsDataRaw raw = videoRepository.findById(rawSn).orElseThrow();
         BatchContext ctx = new BatchContext(rawSn, raw);
-        ctx.setMarkings(markingRepository.findByRawSnOrderByRegDtDesc(rawSn));
+        ctx.setMarkings(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn));
 
         // when — 실제 파이프라인 진입점 execute() 구동
         vlmTimeseriesStep.execute(ctx);
@@ -186,7 +186,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         // 프로덕션 동형: 마킹을 리포지토리로 로드(detached) 후 ctx 적재 → retry 재실행
         LsDataRaw raw = videoRepository.findById(rawSn).orElseThrow();
         BatchContext ctx = new BatchContext(rawSn, raw);
-        ctx.setMarkings(markingRepository.findByRawSnOrderByRegDtDesc(rawSn));
+        ctx.setMarkings(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn));
 
         // when — retry 경로와 동형으로 VLM 단계를 재실행
         vlmTimeseriesStep.execute(ctx);

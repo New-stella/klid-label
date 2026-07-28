@@ -242,13 +242,38 @@ class VlmTimeseriesStepTest {
         assertThat(payload).contains("accepted");
     }
 
+    /**
+     * B-ISSUE-24 — 구 테스트({@code enabled_false_시_..._미호출})가 "skip 은 아무것도 기록하지 않는다"는
+     * <b>반대 의도</b>를 고정하고 있었다. skip 이 DB 에 무흔적이면 VLM 비활성/장애 구간에 처리된 영상이
+     * "메타 없음 + 무기록" 으로 남아 재처리 대상 식별이 애플리케이션 로그 보존기간에 종속된다.
+     * 이제 <b>SKIPPED 행 + 사유</b>를 기록하는 의도로 반전한다.
+     */
     @Test
-    @DisplayName("enabled_false_시_BatchStatusService_recordVlmTimeseriesResult_미호출")
-    void noPersistWhenDisabled() {
+    @DisplayName("VLM_비활성일_때_LS_BATCH_PROC_LOG_에_VLM_SKIPPED_행이_사유와_함께_남는다")
+    void skipRecordedWhenDisabled() {
         when(vlmClient.isEnabled()).thenReturn(false);
 
         step.run(301L);
 
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(batchStatusService, times(1)).recordVlmSkipped(eq(301L), reasonCaptor.capture());
+        assertThat(reasonCaptor.getValue())
+                .as("사유가 비어 있으면 기록의 목적(재처리 대상 식별)을 달성하지 못한다")
+                .isNotBlank()
+                .contains("vlm.client.enabled");
+        // 외부 응답이 없으므로 응답 payload 기록은 여전히 하지 않는다.
         verify(batchStatusService, never()).recordVlmTimeseriesResult(any(), any());
+    }
+
+    @Test
+    @DisplayName("위탁_성공_경로에서는_SKIPPED_를_기록하지_않는다")
+    void noSkipRecordOnSuccess() {
+        seed(302L, "/data/deid/302.mp4");
+        when(vlmClient.isEnabled()).thenReturn(true);
+        stubAccepted();
+
+        step.run(302L);
+
+        verify(batchStatusService, never()).recordVlmSkipped(any(), any());
     }
 }

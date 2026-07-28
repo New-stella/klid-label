@@ -116,6 +116,20 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     List<Long> findExportableFrameNosByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * 외부 증강 위탁용 <b>비식별</b> 프레임 경로 목록 (Phase 7-A1).
+     *
+     * <p><b>보안(PII)</b>: 원본 경로 컬럼({@code SRC_FILE_PATH_NM})을 <b>select 하지 않는다</b>.
+     * 외부로 나가는 {@code input_files} 는 비식별 경로만 허용되므로, 조회 단계에서부터 원본
+     * 경로를 가져오지 않아 "실수로 원본을 보내는" 경로 자체를 없앤다.
+     *
+     * <p>비식별 경로가 비어 있는 프레임도 <b>포함해</b> 반환한다(호출부가 fail-closed 로 위탁을
+     * 거부해야 하므로, 필터링으로 조용히 누락시키지 않는다). 결과는 {@code [srcSn, deidPath]}.
+     */
+    @Query("select s.srcSn as srcSn, s.deIdntfSrcFilePathNm as deidPath "
+            + "from LsDataSrc s where s.rawSn = :rawSn order by s.frameNo asc, s.srcSn asc")
+    List<Object[]> findDeidFramePathsByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 영상별 프레임 개수를 한 번에 조회 (N+1 회피).
      *
      * <p>TaskBoardService.list 의 page.map 람다에서 각 row 마다 countByRawSn(...) 을 호출하면

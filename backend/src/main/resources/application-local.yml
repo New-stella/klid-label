@@ -39,6 +39,23 @@ authoring:
   # 운영(dev/stg/prd)은 STREAM_SIGN_SECRET 환경변수로 override 필수.
   stream:
     sign-secret: ${STREAM_SIGN_SECRET:local-stream-sign-secret-change-me-32bytes-min}
+  # 콜백 충실 플로우 Phase 2 / Phase 7-A1 — local 외부 증강 연동 모드.
+  #   ★ 이 블록은 원래 kpst: 하위에 잘못 중첩(kpst.augment.external.mode)돼 있어 실제 프로퍼티
+  #     키(authoring.augment.external.mode)에 전혀 반영되지 않았다(ENV-ISSUE-01).
+  #     최상위 authoring: 아래로 바로잡는다. 아래 cors:/dev: 와 <b>같은 오배치 계열</b>이며(동일 원인,
+  #     동일 교정) 코드가 authoring.* 를 읽으므로 반드시 authoring 하위여야 한다 — 오배치 시 조건부
+  #     빈 선택이 기본값(matchIfMissing)으로 떨어져 의도한 클라이언트가 로드되지 않는다.
+  #   - mode 기본 http → mock-server(:9400) 에 실제 위탁한다. Phase 7-A2 에서 자족 시뮬레이터
+  #     (DevAugmentCallbackSimulator)를 제거했다 — 본 프로그램이 스스로 성공 결과를 만들어내면
+  #     외부 연동이 실제로 성립하는지 검증할 수 없다(local-must-use-mock-server 원칙).
+  #   - 콜백 URL = authoring.webhook.callback-base-url + /v1/genai/callback
+  #   - allow-insecure-url: 목업이 평문 http + 사설/loopback IP 라 완화 플래그를 local 에서만 켠다.
+  #     이 플래그는 local/dev 프로파일에서만 인정되며 그 밖(stg/prd/미지정)에서 true 면 기동이 실패한다.
+  augment:
+    external:
+      mode: ${AUGMENT_EXTERNAL_MODE:http}
+      base-url: ${AUGMENT_API_BASE_URL:http://localhost:9400}
+      allow-insecure-url: ${AUGMENT_ALLOW_INSECURE_URL:true}
   # Phase 5 — local 환경에서는 자동 트리거 비활성화 (Quartz 잡 미등록).
   # Step/Orchestrator/Service 빈은 그대로 등록되어 단위 테스트 가능.
   batch:
@@ -97,16 +114,6 @@ authoring:
     #   @Profile("local") + 본 토글 이중 게이팅 — prd/dev/stg 에서는 절대 실행되지 않음.
     seed:
       enabled: ${AUTHORING_DEV_SEED_ENABLED:true}
-  # 콜백 충실 플로우 Phase 2 — local 에서는 외부 증강 시스템 대신 dev 콜백 시뮬레이터를 활성화한다.
-  #   - external.mode=dev → DevAugmentCallbackSimulator 빈 로드(외부 0 자족). 운영은 noop(기본).
-  #   - webhook.callback-base-url 은 application.yml 기본값(http://localhost:8080/api) 사용.
-  #     컨트롤러 매핑(/v1/aug/callback) + context-path(/api) 정합 → 콜백 URL = .../api/v1/aug/callback
-  #   위 cors/dev 와 동일하게 과거 kpst 하위에 오배치돼 있던 잔여 케이스다. 코드
-  #   (DevAugmentCallbackSimulator/NoopExternalAugmentClient)가 authoring.augment.external.mode 를
-  #   읽으므로 반드시 authoring 하위에 있어야 한다(오배치 시 Noop 이 matchIfMissing 으로 로드돼 무동작).
-  augment:
-    external:
-      mode: ${AUGMENT_EXTERNAL_MODE:dev}
 
 # UC018 — local 의 KPST 위탁 대상은 **목업 벤더 서버(mock-server)** 다.
 #   구속 정책: 로컬은 외부 벤더 실서버가 아니라 mock-server(:9400)를 바라본다. 과거 이 자리에 벤더
@@ -134,13 +141,20 @@ kpst:
 #      있으면 환경변수가 이겨 다시 SKIPPED 가 되므로 .env 를 함께 확인할 것)
 #   - 네이티브(bootRun): 컨테이너명이 해석되지 않는다 — mock-server 를 호스트에서 띄우고
 #     VLM_SERVICE_URL=http://localhost:9400 을 주입할 것(위 KPST_DEID_BASE_URL 과 동일 관례).
+#   - allow-insecure-url: 목업이 평문 http + 컨테이너 내부/사설 호스트라, 운영 표준(HTTPS + 공인망)을
+#     그대로 적용하면 VlmUrlPolicy 가 빈 생성을 실패시켜 **기동 자체가 막힌다**. 완화는 이 전용 플래그로만
+#     열리고 local/dev 프로파일에서만 인정된다(그 밖에서 true 면 기동 실패 — ProfileGatedUrlPolicy).
+#     ★ enabled=true 와 이 플래그는 짝이다. 플래그 없이 enabled 만 켜면 부팅이 깨진다.
 vlm:
   client:
     enabled: ${VLM_CLIENT_ENABLED:true}
     url: ${VLM_SERVICE_URL:http://klid-mock-server:9400}
+    allow-insecure-url: ${VLM_ALLOW_INSECURE_URL:true}
 
 # 콜백 충실 플로우 Phase 2 — local 전용 webhook HMAC 시크릿(dev placeholder, 32B 이상).
-#   - dev 콜백 시뮬레이터(서명 측)와 HmacWebhookFilter(검증 측)가 동일 값을 사용해 자족 콜백을 통과시킨다.
+#   - Phase 7-A2 이후 서명 필수 경로는 0개다(VLM·생성형 AI 콜백 모두 벤더 규격상 무서명). 이 값은
+#     HmacWebhookFilter 가 **경로 판정 불가 요청을 401 로 끝내기 위한 fail-closed 시크릿**으로만 쓰인다.
+#     (구 서술 "dev 콜백 시뮬레이터가 같은 값으로 서명" 은 시뮬레이터 제거로 사문화돼 정정)
 #   - 평문 운영 시크릿 아님. 운영(dev/stg/prd)은 WEBHOOK_HMAC_SECRET_AUGMENT 환경변수로 override 필수.
 #   - ★ 이 값은 리포에 커밋된 공개 placeholder 라 **local 프로파일에서만** 허용된다. 다른 프로파일에서
 #     이 값이 감지되면 HmacWebhookFilter 가 기동을 차단한다(KNOWN_PLACEHOLDER_SECRETS, DEV_FIX H-1).
@@ -149,6 +163,10 @@ webhook:
   hmac:
     secret:
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:local-augment-callback-hmac-change-me-32bytes-min}
+  genai:
+    # 생성형 AI 콜백 IP allowlist — 기본 fail-closed(전면 차단)라 로컬은 명시적으로 열어 준다.
+    # mock-server 는 docker 브리지에서 접속하므로 IP 가 유동적이다.
+    allowed-ip-cidrs: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:0.0.0.0/0}
 
 logging:
   level:

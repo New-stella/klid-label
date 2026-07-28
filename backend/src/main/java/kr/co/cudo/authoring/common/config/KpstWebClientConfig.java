@@ -17,7 +17,6 @@ import reactor.netty.http.client.HttpClient;
 import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -65,8 +64,12 @@ public class KpstWebClientConfig {
     /** 일반(폴링/연결확인) 응답 타임아웃 — 클라이언트 timeout() 의 안전망(Netty 레벨). */
     private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(60);
 
-    /** 평문 HTTP 경고 로그를 기동 시 1회만 출력하기 위한 가드(2개 빈이 동일 config 인스턴스 공유). */
-    private volatile boolean plaintextWarned = false;
+    /**
+     * base-url 검증 정책 — 내부망 전제(http/https 허용, 사설 IP 허용, placeholder·비허용 스키마 차단).
+     * VLM 과 동일한 {@link ExternalUrlPolicy} 를 사용해 판정 근거를 일원화한다. 평문 WARN 은 정책이 1회만 출력.
+     */
+    private static final ExternalUrlPolicy URL_POLICY =
+            ExternalUrlPolicy.internalNetwork("kpst.deid.base-url");
 
     @Bean(name = "kpstDeidWebClient")
     public WebClient kpstDeidWebClient(
@@ -153,36 +156,17 @@ public class KpstWebClientConfig {
     /**
      * base-url 스키마를 검증하고 https 여부를 반환한다.
      *
-     * <p>{@code http}·{@code https} 만 허용한다(내부망 평문 또는 자체 CA TLS). 그 외 스키마(file/ftp/gopher 등)·
-     * 스키마 없음·빈값은 거부한다(SSRF/cleartext 방어). http 인 경우 기동 시 1회 WARN 로그로 평문 전송을 알린다.
+     * <p>판정은 {@link ExternalUrlPolicy#internalNetwork(String)}(내부망 전제 정책 — http/https 허용,
+     * 평문 시 1회 WARN, 사설 IP 허용) 로 <b>VLM 과 동일한 공용 로직</b>에 위임한다. 두 연동의 차이는
+     * 이제 코드 복제가 아니라 정책 값 하나(내부망 전제 여부)로 표현된다. 그 외 스키마(file/ftp/gopher 등)·
+     * 스키마 없음·빈값·placeholder 호스트는 거부한다(SSRF/cleartext/미설정 배포 방어).
+     *
+     * <p><b>TLS 신뢰 검증(CWE-295)은 이 위임과 무관하게 그대로다</b> — https 면 {@link #buildSslContext}
+     * 의 자체 CA fail-closed 가 변함없이 적용된다(약화 없음).
      *
      * @return https 면 true, http 면 false
      */
     private boolean isHttps(String baseUrl) {
-        if (baseUrl == null || baseUrl.isBlank()) {
-            throw new IllegalStateException("kpst.deid.base-url 가 비어있습니다.");
-        }
-        URI uri;
-        try {
-            uri = URI.create(baseUrl.trim());
-        } catch (IllegalArgumentException e) {
-            // CWE-209: 예외 메시지에 원문(시크릿/경로 포함 가능) 미노출.
-            throw new IllegalStateException("kpst.deid.base-url 형식이 올바르지 않습니다 (설정을 확인하세요).", e);
-        }
-        String scheme = uri.getScheme() == null ? null : uri.getScheme().toLowerCase();
-        if ("https".equals(scheme)) {
-            return true;
-        }
-        if ("http".equals(scheme)) {
-            // 평문 전송 — 내부망 격리 전제. 기동 시 1회만, host:port 만 로그(전체 경로/시크릿 금지).
-            if (!plaintextWarned) {
-                plaintextWarned = true;
-                log.warn("[Kpst] 평문 HTTP 전송 — 내부망 격리 전제. baseUrl scheme=http host={}:{}",
-                        uri.getHost(), uri.getPort());
-            }
-            return false;
-        }
-        throw new IllegalStateException(
-                "kpst.deid.base-url 은 http/https 스키마만 허용됩니다 (현재 scheme=" + scheme + ").");
+        return URL_POLICY.check(baseUrl);
     }
 }

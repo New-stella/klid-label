@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.webhook.runner;
 
+import kr.co.cudo.authoring.batch.runner.AsyncVideoMetaRunner;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.observability.metrics.AugmentMetrics;
 import kr.co.cudo.authoring.webhook.service.AugmentExtractPersist;
@@ -51,6 +52,16 @@ public class AsyncAugmentFrameRunner {
     private final AugmentExtractPersist persistService;
     private final BatchTransitionService batchTransitionService;
     private final AugmentMetrics augmentMetrics;
+    /**
+     * 파생본 기술메타(ffprobe) 추출기. {@code VideoIngestedEvent} 미발행 경로라 메타추출 브리지가
+     * 스킵되므로 여기서 직접 호출한다(비식별은 트리거하지 않음 — 재비식별 skip 유지).
+     *
+     * <p><b>기동 시점이 계약</b>: 파생의 기술메타는 <b>파생의 비식별 사본</b>(Phase B 가 복사한
+     * {@code videoDst})을 측정한 값이어야 한다. 그래서 콜백 AFTER_COMMIT 에서 프레임 러너와 나란히
+     * 기동하지 않고(순서 미보장 = 사본 생성 전 probe 레이스), <b>Phase C 확정 성공 이후</b>에만
+     * 호출한다 — 이 시점엔 사본과 {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 이 모두 커밋돼 있다.
+     */
+    private final AsyncVideoMetaRunner asyncVideoMetaRunner;
 
     @Async("batchAsyncExecutor")
     public void runAsync(Long newRawSn, Long dataAugSn) {
@@ -89,6 +100,23 @@ public class AsyncAugmentFrameRunner {
             log.warn("[AsyncAugmentFrameRunner] augment frame re-extraction failed rawSn={} dataAugSn={} cause={}",
                     newRawSn, dataAugSn, e.getClass().getSimpleName());
             handleFailure(newRawSn, plan);
+            return;
+        }
+
+        // 확정 성공 이후에만 기술메타 추출 — 이 시점에 파생의 비식별 사본과 procLog 경로가 커밋돼 있어
+        // probe 가 <파생 자신의 파일>을 측정한다(사본 생성 전 probe 레이스 제거). 확정 블록 <밖>에서
+        // 별도 catch 로 감싼다 — 여기서 던진 예외를 위 catch 가 받으면 이미 성공한 파생본을 cleanup +
+        // FAILED 로 되돌려 버린다(메타 실패가 확정 결과를 파괴하는 역전).
+        triggerVideoMetaQuietly(newRawSn);
+    }
+
+    /** 기술메타 추출 트리거 — 실패해도 확정 결과에 영향을 주지 않는다(관측만). */
+    private void triggerVideoMetaQuietly(Long newRawSn) {
+        try {
+            asyncVideoMetaRunner.runAsync(newRawSn);
+        } catch (RuntimeException e) {
+            log.warn("[AsyncAugmentFrameRunner] video meta trigger failed rawSn={} cause={} — 확정 결과는 유지",
+                    newRawSn, e.getClass().getSimpleName());
         }
     }
 
@@ -100,7 +128,8 @@ public class AsyncAugmentFrameRunner {
     private void handleFailure(Long newRawSn, AugmentExtractPlan plan) {
         if (plan != null) {
             try {
-                boolean clean = frameProducer.cleanup(newRawSn);
+                // 프레임 디렉토리 + 파생 비디오 사본을 함께 정리한다(부모/원본은 대상 아님).
+                boolean clean = frameProducer.cleanup(newRawSn, plan.videoDst());
                 if (!clean) {
                     log.error("[AsyncAugmentFrameRunner] frame artifact cleanup incomplete — orphan files remain rawSn={}",
                             newRawSn);

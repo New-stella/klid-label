@@ -12,8 +12,9 @@
 | 시드 데이터 | **자동 적재** | `DevSeedRunner`(local)가 `db/seed/dev-seed.sql` 멱등 적재 |
 | 비식별 (KPST) | **목 서버로 실 HTTP 연동** | compose 의 `mock-server` 컨테이너(`klid-mock-server:9400`)에 실제 위탁한다(`mock-mode=false`, `kpst.deid.enabled=true`, `base-url=http://klid-mock-server:9400`, 계정 `authoring`). 벤더 실서버·내부망 불요. 목이 공유 볼륨에 비식별 결과 파일을 생성해 BE 무결성 검증까지 통과한다 |
 | ai-server (YOLOX/SAM2) | **CPU 실추론** | 가중치: YOLOX ONNX(`yolox_s.onnx`) 동봉, SAM2 는 Meta HF(`facebook/sam2-hiera-tiny`). 탐지는 YOLOX 단일 백엔드(onnxruntime). GPU 불필요 |
-| VLM 시계열 | **목 서버로 실 HTTP 연동** | `VLM_CLIENT_ENABLED=true` + `klid-mock-server:9400`. `describe` 위탁 → 목이 `/v1/vlm/callback` 으로 결과 콜백. `false` 면 단계가 통째로 SKIPPED 되어 결과가 빈다 |
-| 관제 통지 / 증강 | **비활성 / mock** | `control-notify.enabled=false`, 증강 클라이언트 mock |
+| VLM 시계열 | **목 서버로 실 HTTP 연동** | `VLM_CLIENT_ENABLED=true` + `klid-mock-server:9400` + `VLM_ALLOW_INSECURE_URL=true`(평문·내부 호스트 완화, local/dev 전용). `describe` 위탁 → 목이 `/v1/vlm/callback` 으로 결과 콜백. `false` 면 단계가 통째로 SKIPPED 되어 결과가 빈다(`LS_BATCH_PROC_LOG` 에 `VLM/SKIPPED` 기록). 완화 플래그 없이 `enabled=true` 만 켜면 `VlmUrlPolicy` 가 빈 생성을 막아 **기동이 실패**한다 |
+| 관제 통지 | **목 서버로 실 HTTP 전송** | `CONTROL_NOTIFY_ENABLED=true` + `CONTROL_NOTIFY_URL=http://klid-mock-server:9400`(local override). 목이 409/404 를 관제 계약대로 돌려주므로 자기치유가 실동작 검증된다 |
+| 증강 (생성형 AI) | **목 서버로 실 HTTP 위탁** | `AUGMENT_EXTERNAL_MODE=http` + `AUGMENT_API_BASE_URL=http://klid-mock-server:9400`. 목의 `POST /api/genai/jobs` 가 `job_id` 를 발급하고 결과를 `/v1/genai/callback` 으로 push 한다. 구 자족 시뮬레이터(`mode=dev`)는 제거됐다 |
 | 관제 자동 적재 픽업 | **수동 트리거** | `POST /api/v1/dev/batch/scan` (REVIEWER 토큰) — 시드 클립 픽업 검증 |
 
 > **외부 0개 정의**: 관제/포털/**벤더 실서버**(비식별·VLM)가 없다는 뜻. ai-server 와 mock-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). SAM2(Meta) 최초 기동 시에만 HuggingFace 에서 모델을 1회 받는다(이후 캐시로 오프라인). 탐지용 YOLOX 는 동봉 ONNX 가중치를 사용하므로 다운로드가 없다.
@@ -121,9 +122,10 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | `DEIDENTIFY_MOCK_MODE` | **false** (compose 주입) | 내부 self-fill 금지 — 목 서버로 실 위탁. `true` 면 외부 무접촉 원본 복사로 되돌아간다 |
 | `KPST_DEID_ENABLED` / `KPST_DEID_BASE_URL` | true / `http://klid-mock-server:9400` | KPST 폴링 경로 + 목 서버 주소(http, ca-cert 불요) |
 | `AI_MOCK_MODE` / `AI_DEVICE` | false / cpu | ai-server 실추론 (GPU 불필요). 탐지는 YOLOX 단일 |
-| `VLM_CLIENT_ENABLED` / `VLM_SERVICE_URL` | true / `http://klid-mock-server:9400` | VLM describe 위탁 + 콜백 수신 |
+| `VLM_CLIENT_ENABLED` / `VLM_SERVICE_URL` / `VLM_ALLOW_INSECURE_URL` | true / `http://klid-mock-server:9400` / true | VLM describe 위탁 + 콜백 수신. 완화 플래그는 local/dev 프로파일에서만 인정 — 그 밖(또는 `ENV=stg\|prd` 표식)에서 true 면 기동 실패 |
+| `AUGMENT_EXTERNAL_MODE` / `AUGMENT_API_BASE_URL` | http / `http://klid-mock-server:9400` | 증강 위탁을 목 서버로 실제 POST. `noop` 은 외부 미연동(dev/stg/prd 기본) |
 | `WEBHOOK_CALLBACK_BASE_URL` | `http://klid-backend:8080/api` | 목 서버가 결과를 되돌려줄 주소. localhost 면 콜백이 전부 유실된다 |
-| `CONTROL_NOTIFY_ENABLED` | false | 관제 통지 빈 미등록 |
+| `CONTROL_NOTIFY_ENABLED` / `CONTROL_NOTIFY_URL` | true / `http://klid-mock-server:9400` | 관제 통지를 목 서버로 실제 전송(local override) |
 | `BATCH_ENABLED` / `TRAINING_SCAN_ENABLED` | false | Quartz 자동 트리거 off (scan 은 수동) |
 | `AUTHORING_DEV_SEED_ENABLED` | true | dev-seed 자동 적재 |
 | `ENV` | (미설정) | dev/stg/prd 면 부트 차단 |
@@ -132,5 +134,5 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 
 - **탐지는 YOLOX 단일 백엔드** — 동봉 ONNX 가중치(`yolox_s.onnx`)를 ONNX Runtime 으로 로드하므로 탐지용 모델 다운로드가 없다(완전 오프라인). 가중치 부재 시 자동 mock fallback(기동 무중단). SAM2(Meta)만 최초 1회 HF 다운로드가 필요하며 이후 캐시(`HF_HOME=/app/.hf-cache`)로 오프라인.
 - **GPU 옵트인** — GPU 환경은 `AI_DEVICE=cuda` + override 없이 `docker-compose.yml`(runtime nvidia).
-- **VLM 실추론 미지원** — 목 서버가 규격에 맞는 더미 결과를 콜백으로 돌려준다(연동 경로 검증용이며 내용은 실제 분석 결과가 아니다).
-- **local/dev 비식별·VLM = 목 서버 실 HTTP 연동** — `application-local.yml`·`application-dev.yml` 기본값이 `klid-mock-server:9400` 이다(http, ca-cert 불요, 계정 `authoring`). **목 서버가 없으면 비식별 단계가 실패('F')한다**(원본은 보존 — 삭제되지 않는다). 벤더 실서버로 옮길 때는 `KPST_DEID_BASE_URL`/`VLM_SERVICE_URL` 만 주입한다. `DEIDENTIFY_MOCK_MODE=true`(내부 self-fill)는 **연동 검증을 무력화하므로 상시 사용 금지** — 순수 local 프로파일에서만 허용되며(비-local/`ENV`=dev·stg·prd 에서 true 면 `DeidentifyStep` 부트 차단), 오프라인 응급 우회 용도로만 쓴다. 운영(prd)은 `application.yml` 기본 + 배포 환경변수로 별도 설정한다.
+- **VLM 실추론 미지원** — 위탁·콜백 왕복은 목 서버(`klid-mock-server:9400`)로 실제 수행하되 응답 내용은 규격에 맞는 더미다(연동 경로 검증용이며 실 벤더 추론 결과가 아니다).
+- **local/dev 비식별·VLM·증강 = 목 서버 실 HTTP 연동** — `application-local.yml`·`application-dev.yml` 기본값이 `klid-mock-server:9400` 이다(http, ca-cert 불요, 계정 `authoring`). **목 서버가 없으면 비식별 단계가 실패('F')한다**(원본은 보존 — 삭제되지 않는다). 벤더 실서버로 옮길 때는 `KPST_DEID_BASE_URL`/`VLM_SERVICE_URL`/`AUGMENT_API_BASE_URL` 만 주입하고, HTTPS 로 바뀌면 `*_ALLOW_INSECURE_URL` 완화 플래그를 내린다. `DEIDENTIFY_MOCK_MODE=true`(내부 self-fill)는 **연동 검증을 무력화하므로 상시 사용 금지** — 순수 local 프로파일에서만 허용되며(비-local/`ENV`=dev·stg·prd 에서 true 면 `DeidentifyStep` 부트 차단), 오프라인 응급 우회 용도로만 쓴다. 운영(prd)은 `application.yml` 기본 + 배포 환경변수로 별도 설정한다.

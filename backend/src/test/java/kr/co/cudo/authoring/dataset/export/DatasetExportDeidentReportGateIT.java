@@ -492,13 +492,10 @@ class DatasetExportDeidentReportGateIT {
      * 파일 mtime 이 신고시각 이후라 "신고 후 외부 솔루션이 제자리 교체" 조건을 만족한다.
      */
     private Long seedOpenReportWithDeidentArtifact(long rawSn) {
-        Path deidVideo = DEID_ROOT.resolve("videos/" + rawSn + "/deidentified.mp4");
-        try {
-            Files.createDirectories(deidVideo.getParent());
-            Files.write(deidVideo, VIDEO_BYTES);
-        } catch (IOException e) {
-            throw new IllegalStateException("비식별 영상 픽스처 생성 실패", e);
-        }
+        // 산출물 무결성 판정(DeidentArtifactIntegrity)이 정규파일+크기 하한+컨테이너 시그니처를 보므로
+        // 더미 2바이트가 아니라 실제 최소 mp4 픽스처를 쓴다.
+        Path deidVideo = kr.co.cudo.authoring.support.TestVideoFixtures.writeTinyMp4(
+                DEID_ROOT.resolve("videos/" + rawSn + "/deidentified.mp4"));
         return txTemplate.execute(s -> {
             LsDeidentProcLog procLog = LsDeidentProcLog.request(
                     rawSn, "req-" + rawSn, "orgnl.mp4", "tester");

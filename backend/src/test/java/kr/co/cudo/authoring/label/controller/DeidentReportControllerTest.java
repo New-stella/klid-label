@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.label.dto.DeidentReportRequest;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
+import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,7 +28,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -96,17 +96,14 @@ class DeidentReportControllerTest {
         authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
 
         // resolve 검증 게이트(CWE-359) 통과 픽스처 — 외부 수동 비식별 산출물이 실재하는 상태를 재현한다:
-        // 실존하는 비식별 파일(>0바이트) + SUCCEEDED procLog(DE_IDNTF_FILE_PATH_NM 기록).
-        try {
-            Path deidFile = tempDir.resolve("deid-" + rawSn + ".mp4");
-            Files.write(deidFile, new byte[]{1, 2, 3});
-            LsDeidentProcLog procLog = LsDeidentProcLog.request(
-                    rawSn, "req-" + rawSn, "/var/raw/clip.mp4", "system");
-            procLog.succeed(deidFile.toString());
-            procLogRepository.save(procLog);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        // 실제 재생 가능한 최소 mp4(1,546B) + SUCCEEDED procLog(DE_IDNTF_FILE_PATH_NM 기록).
+        // 판정이 DeidentArtifactIntegrity(정규파일 + 크기 하한 + 컨테이너 시그니처)로 단일화되어
+        // 구 더미(3바이트)는 통과하지 않는다.
+        Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("deid-" + rawSn + ".mp4"));
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(
+                rawSn, "req-" + rawSn, "/var/raw/clip.mp4", "system");
+        procLog.succeed(deidFile.toString());
+        procLogRepository.save(procLog);
     }
 
     @Test

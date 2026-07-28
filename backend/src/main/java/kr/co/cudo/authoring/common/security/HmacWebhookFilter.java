@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.webhook.ClientIpResolver;
+import kr.co.cudo.authoring.common.security.webhook.GenAiWebhookIpAllowlist;
 import kr.co.cudo.authoring.common.security.webhook.WebhookGuardUnavailableException;
 import kr.co.cudo.authoring.common.security.webhook.WebhookGuardedRequest;
 import kr.co.cudo.authoring.common.security.webhook.WebhookIpAllowlist;
@@ -62,8 +63,12 @@ import java.util.Set;
  *
  * <h3>보안 가드</h3>
  * <ul>
- *   <li><b>기동 fail-closed</b>: 시크릿이 빈 값이면 <b>애플리케이션 기동 실패</b>. 조용한 401 로 방치하면
- *       "정상 콜백은 죽고 우회 경로만 열린" 상태가 배포된 뒤에야 발견된다(E-ISSUE-04).</li>
+ *   <li><b>기동 fail-closed(조건부)</b>: <b>서명 필수 경로가 등록돼 있을 때</b> 시크릿이 빈 값이면
+ *       <b>애플리케이션 기동 실패</b>. 조용한 401 로 방치하면 "정상 콜백은 죽고 우회 경로만 열린"
+ *       상태가 배포된 뒤에야 발견된다(E-ISSUE-04). 반대로 등록 경로가 0개인데도 시크릿을 강제하면
+ *       운영이 무의미한 값을 넣어야만 뜨는 배포 함정이 되므로
+ *       {@link WebhookProtectedPaths#hasSignatureRequiredPaths()} 로 조건화한다(DEV_FIX MEDIUM-3).
+ *       경로 판정 불가 요청은 시크릿 유무와 무관하게 401 로 거부된다(아래 검증 순서 2단계).</li>
  *   <li><b>시크릿 강도</b>: 256bit(32B) 이상 강제. 부족 시 부팅 차단.</li>
  *   <li><b>상수시간 비교</b>: MessageDigest.isEqual 로 timing attack 차단 (CWE-208)</li>
  *   <li><b>replay 방지</b>: timestamp 윈도우 + <b>서명 nonce 1회성 소비</b>(노드 공유, CWE-294)</li>
@@ -101,20 +106,28 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
                     + MIN_SECRET_BYTES + "B(256bit) 이상으로 설정하세요. "
                     + "설정 위치: .env / docker compose env / application-{profile}.yml";
 
-    /**
-     * 증강 결과 콜백 경로 — {@link WebhookProtectedPaths#PATH_AUGMENT} 별칭(기존 참조 호환).
-     * 요청측·dev 시뮬·검증 필터가 모두 이 상수를 참조해 경로 드리프트 회귀를 차단한다.
-     */
-    public static final String PATH_AUGMENT = WebhookProtectedPaths.PATH_AUGMENT;
-
     /** VLM describe 콜백 경로 — 벤더 규격상 무서명(HMAC 대상 아님). */
     public static final String PATH_VLM = WebhookProtectedPaths.PATH_VLM;
+
+    /** 생성형 AI(증강) 결과 웹훅 경로 — 명세서 v1.1 규격상 무서명(HMAC 대상 아님). */
+    public static final String PATH_GENAI = WebhookProtectedPaths.PATH_GENAI_CALLBACK;
 
     /**
      * VLM 콜백 본문 하드 상한 — 4MB. 정상 최대치(results 500개 × description 2000자, UTF-8 다바이트)를
      * 수용하면서 GB 규모 공격을 조기 차단한다. 역직렬화 전에 스트림 단계에서 캡한다.
      */
     public static final long MAX_VLM_BODY_BYTES = 4L * 1024L * 1024L;
+
+    /**
+     * 생성형 AI 콜백 본문 하드 상한 — 1MB.
+     *
+     * <p>산정 근거: 계약상 {@code results[]} 는 job 당 최대 100건이고, 1건은
+     * {@code generated_data_id}(32) + {@code media_type}(5) + {@code output_file_path}(≤500) +
+     * {@code checksum}(64) + {@code media_metadata}(수백 B) ≈ 1KB 이하다. 즉 정상 최대치는
+     * <b>100KB 안팎</b>이며, 1MB 는 약 10배 헤드룸이다. VLM 의 4MB 를 그대로 쓰면 필요치의 40배를
+     * 무인증 상태에서 버퍼링하게 되므로 별도 상한을 둔다.
+     */
+    public static final long MAX_GENAI_BODY_BYTES = 1024L * 1024L;
 
     /** 미래 방향 timestamp 허용치 — 시계 오차분만(A-ISSUE-12 ②). 과거는 windowSeconds 를 따른다. */
     static final long FUTURE_SKEW_MS = 30_000L;
@@ -127,6 +140,8 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
     private final WebhookRateLimiter rateLimiter;
     private final ClientIpResolver clientIpResolver;
     private final WebhookIpAllowlist vlmIpAllowlist;
+    /** 생성형 AI 콜백 전용 allowlist — VLM 과 달리 <b>미설정 시 전면 차단</b>(fail-closed). */
+    private final GenAiWebhookIpAllowlist genAiIpAllowlist;
     private final MeterRegistry meterRegistry;
     private final String secretAugment;
     private final long windowSeconds;
@@ -155,6 +170,7 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
                              WebhookRateLimiter rateLimiter,
                              ClientIpResolver clientIpResolver,
                              WebhookIpAllowlist vlmIpAllowlist,
+                             GenAiWebhookIpAllowlist genAiIpAllowlist,
                              MeterRegistry meterRegistry,
                              Environment environment,
                              @Value("${webhook.hmac.secret.augment:}") String secretAugment,
@@ -164,11 +180,16 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
         this.rateLimiter = rateLimiter;
         this.clientIpResolver = clientIpResolver;
         this.vlmIpAllowlist = vlmIpAllowlist;
+        this.genAiIpAllowlist = genAiIpAllowlist;
         this.meterRegistry = meterRegistry;
         // fail-closed: 빈 시크릿·약한 시크릿·공개된 placeholder 는 기동 자체를 막는다(조용한 401/위조 금지).
+        //   단 <b>서명 필수 경로가 0개면 "미설정" 은 허용한다</b>(DEV_FIX MEDIUM-3) — 쓰이지 않는
+        //   시크릿을 기동 조건으로 두면 운영이 "무의미한 값을 넣어야만 뜨는" 배포 함정이 된다.
+        //   값이 <b>설정돼 있으면</b> 강도·placeholder 검증은 경로 유무와 무관하게 그대로 적용한다.
         boolean localProfile = environment != null
                 && List.of(environment.getActiveProfiles()).contains(LOCAL_PROFILE);
-        ensureSecretConfigured("webhook.hmac.secret.augment", secretAugment, localProfile);
+        ensureSecretConfigured("webhook.hmac.secret.augment", secretAugment, localProfile,
+                WebhookProtectedPaths.hasSignatureRequiredPaths());
         this.secretAugment = secretAugment;
         this.windowSeconds = Math.max(60L, windowSeconds);
     }
@@ -182,10 +203,21 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
      * 반대로 그 fail-closed 를 피하려고 넣은 <b>커밋된 기본값</b>은 "공개 키로 조용히 기동" 이라는 더 큰
      * 결함이 됐다(DEV_FIX H-1). 두 실패 모드를 모두 막으려면 <b>빈 값도 공개 기본값도</b> 거부해야 한다.
      *
-     * @param localProfile local 프로파일이면 개발 편의상 placeholder 를 허용한다(로컬 스택 기동 유지)
+     * <p><b>MEDIUM-3</b>: "미설정" 강제는 <b>서명 필수 경로가 실제로 존재할 때만</b> 적용한다. 등록 경로가
+     * 0개인데도 시크릿을 요구하면, 운영은 아무 값이나 넣어야 뜨고 값을 지우면 기동이 죽는다 — 보안
+     * 통제가 아니라 배포 함정이다. 값이 <b>설정돼 있으면</b> 약한 값·공개 placeholder 검증은 경로 유무와
+     * 무관하게 유지한다(경로가 되살아났을 때 약한 키가 조용히 채택되는 것을 막는다).
+     *
+     * @param localProfile                local 프로파일이면 개발 편의상 placeholder 를 허용한다(로컬 스택 기동 유지)
+     * @param signatureRequiredPathsExist 서명 필수 경로가 하나라도 등록돼 있는가
      */
-    private static void ensureSecretConfigured(String key, String secret, boolean localProfile) {
+    private static void ensureSecretConfigured(String key, String secret, boolean localProfile,
+                                               boolean signatureRequiredPathsExist) {
         if (secret == null || secret.isBlank()) {
+            if (!signatureRequiredPathsExist) {
+                // 쓰이는 경로가 없으므로 미설정을 허용한다. 경로 판정 불가 요청은 런타임 401 로 거부된다.
+                return;
+            }
             throw new BeanInitializationException(
                     key + " 이(가) 설정되지 않았습니다. webhook 콜백 인증을 수행할 수 없어 기동을 중단합니다. "
                             + SECRET_HINT);
@@ -276,7 +308,9 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 2) 방어적 fail-closed — 정상 기동 경로에서는 도달하지 않는다(빈 시크릿이면 기동 실패).
+        // 2) fail-closed — 서명 필수 경로가 0개인 현 형상에서는 시크릿을 강제하지 않으므로(MEDIUM-3),
+        //    여기 도달하는 요청은 "경로 판정 불가(requiresSignature=true)" 뿐이다. 시크릿이 없으면
+        //    검증 자체가 불가능하므로 통과시키지 않고 401 로 끝낸다.
         if (secretAugment == null || secretAugment.isBlank()) {
             log.error("[Webhook] secret missing path={}", path.log());
             fail(response, path, "secret_missing", "Webhook 시크릿이 설정되지 않았습니다.");
@@ -438,39 +472,57 @@ public class HmacWebhookFilter extends OncePerRequestFilter {
                                  FilterChain chain,
                                  PathView path,
                                  String clientIp) throws IOException, ServletException {
-        if (!vlmIpAllowlist.isAllowed(clientIp)) {
-            log.warn("[Webhook] vlm callback from disallowed ip={} path={}", sanitize(clientIp), path.log());
-            writeForbidden(response);
+        boolean genAi = WebhookProtectedPaths.isGenAi(request);
+        long maxBytes = genAi ? MAX_GENAI_BODY_BYTES : MAX_VLM_BODY_BYTES;
+        // rate limit 을 <b>가장 앞</b>에 둔다 — 서명 필수 경로({@link #handleSignatureRequired})와 동일
+        // 순서다. 뒤에 두면 backoff 상태에서도 allowlist 판정을 매 요청 수행하고 응답이 429 로 전환되지
+        // 않아, MEDIUM-2 로 집계를 추가해도 실제 차단 효과가 나지 않는다.
+        if (rateLimiter.isLimited(clientIp)) {
+            log.warn("[Webhook] unsigned callback rate-limited ip={} path={}",
+                    sanitize(clientIp), path.log());
+            writeTooManyRequests(response);
             return;
         }
-        if (rateLimiter.isLimited(clientIp)) {
-            log.warn("[Webhook] vlm rate-limited ip={} path={}", sanitize(clientIp), path.log());
-            writeTooManyRequests(response);
+        boolean ipAllowed = genAi
+                ? genAiIpAllowlist.isAllowed(clientIp)
+                : vlmIpAllowlist.isAllowed(clientIp);
+        if (!ipAllowed) {
+            log.warn("[Webhook] unsigned callback from disallowed ip={} path={}",
+                    sanitize(clientIp), path.log());
+            // DEV_FIX MEDIUM-2 — 이 403 도 인증 실패로 집계한다. 집계하지 않으면 비허용 IP 가 초당
+            // 수천 회를 던져도 backoff 가 걸리지 않아, 다른 모든 실패 경로(411/413/downstream 401)
+            // 와 정책이 어긋난다(이 경로만 비대칭). allowlist 밖 = 명백한 무단 접근이므로 가장 먼저
+            // 집계돼야 한다.
+            rateLimiter.recordFailure(clientIp);
+            countAuthFailure(path.tag(), "ip_not_allowed");
+            writeForbidden(response);
             return;
         }
 
         long contentLength = request.getContentLengthLong();
         // chunked/무 Content-Length(-1) 는 size-cap 을 우회하므로 역직렬화(본문 버퍼링) 전에 조기 거부한다.
-        // 벤더(IntelliVIX VLM v2.0.1)는 JSON + Content-Length 로 송신하므로 chunked 거부는 규격상 허용된다.
+        // 벤더(IntelliVIX VLM v2.0.1 / 생성형 AI v1.1)는 JSON + Content-Length 로 송신하므로
+        // chunked 거부는 규격상 허용된다.
         if (contentLength < 0) {
-            log.warn("[Webhook] vlm missing/chunked Content-Length path={}", path.log());
+            log.warn("[Webhook] unsigned callback missing/chunked Content-Length path={}", path.log());
             rateLimiter.recordFailure(clientIp);
             writeLengthRequired(response);
             return;
         }
-        if (contentLength > MAX_VLM_BODY_BYTES) {
-            log.warn("[Webhook] vlm body too large (declared) path={} length={}", path.log(), contentLength);
+        if (contentLength > maxBytes) {
+            log.warn("[Webhook] unsigned callback body too large (declared) path={} length={}",
+                    path.log(), contentLength);
             rateLimiter.recordFailure(clientIp);
-            writePayloadTooLarge(response, MAX_VLM_BODY_BYTES);
+            writePayloadTooLarge(response, maxBytes);
             return;
         }
         CachedBodyHttpServletRequest cached;
         try {
-            cached = new CachedBodyHttpServletRequest(request, MAX_VLM_BODY_BYTES, false);
+            cached = new CachedBodyHttpServletRequest(request, maxBytes, false);
         } catch (PayloadTooLargeException e) {
-            log.warn("[Webhook] vlm body too large (stream) path={}", path.log());
+            log.warn("[Webhook] unsigned callback body too large (stream) path={}", path.log());
             rateLimiter.recordFailure(clientIp);
-            writePayloadTooLarge(response, MAX_VLM_BODY_BYTES);
+            writePayloadTooLarge(response, maxBytes);
             return;
         }
         chain.doFilter(cached, response);

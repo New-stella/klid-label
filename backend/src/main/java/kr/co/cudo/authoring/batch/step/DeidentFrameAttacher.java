@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
 import lombok.extern.slf4j.Slf4j;
@@ -147,16 +148,17 @@ public class DeidentFrameAttacher {
         return attached;
     }
 
-    /** 비식별 영상 사용성 — 존재하고 크기가 0보다 큰가. */
+    /**
+     * 비식별 영상 사용성 — 판정은 <b>단일 원천</b> {@link DeidentArtifactIntegrity} 에 위임한다
+     * (DEV_FIX 2차 LOW-5).
+     *
+     * <p>구 구현은 "존재 + 크기&gt;0" 자체 판정이라, 상위(KPST 회수)가 이미 무결성 판정을 통과시킨
+     * 값만 들어온다는 전제에 의존했다. 전제는 맞았지만 "판정은 한 곳" 이라는 불변식이 문자 그대로는
+     * 성립하지 않아, 나중에 다른 진입점이 추가되면 18바이트 스텁이 여기까지 흘러올 수 있었다.
+     * 통일 비용이 픽스처 1건({@code TestVideoFixtures.writeTinyMp4})뿐이라 축을 합쳤다.
+     */
     private boolean isUsable(Path video) {
-        if (video == null || !frameWriter.sourceExists(video)) {
-            return false;
-        }
-        try {
-            return Files.size(video) > 0;
-        } catch (IOException e) {
-            return false;
-        }
+        return video != null && DeidentArtifactIntegrity.isValidVideoArtifact(video.toString());
     }
 
     /**

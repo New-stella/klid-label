@@ -149,15 +149,20 @@ def parse_log_time(value: str) -> datetime:
 
 
 # ── 더미 비식별 출력 파일 생성 ────────────────────────────────────
-# 우리 BE(KpstDeidentService)는 완료 폴링 후 {export_path}/{fileName} 을 회수(no-copy)하고,
-# 무결성 = "파일 존재 + 크기>0바이트"(isUsableDeidFile) 만 본다. 유효 mp4 일 필요 없으므로
-# 비어있지 않은 placeholder 또는 원본 복사본이면 완료 전이가 통과한다.
+# 우리 BE(KpstDeidentService)는 완료 폴링 후 응답 fileName(=원본 입력 절대경로)의 basename 을
+# {stem}-mask{ext} 로 바꿔 {export_path} 아래에서 회수한다(no-copy). 산출물은 실제 비식별 결과가
+# 아니라 원본 복사본 또는 placeholder 다.
+#
+# ⚠ placeholder(18바이트)는 BE 무결성 검증(DeidentArtifactIntegrity: 크기 하한 + 컨테이너 시그니처)을
+#   <b>통과하지 못한다</b>. 이는 의도된 동작이다 — 원본이 없는데 '비식별 완료'로 승인되면 안 된다.
+#   정상 e2e 에서는 input_path 에 실제 원본이 있어 그 복사본(유효 영상)이 산출되고, 원본이 없는 경우는
+#   BE 위탁 단계의 원본 실재 가드가 애초에 위탁을 거부한다.
 PLACEHOLDER_BYTES: bytes = b"MOCK_DEIDENTIFIED\n"
 
-# 마스킹 출력 파일명 규칙 — {원본stem}_{yyyyMMddHHmm}_mask{확장자}.
-# 타임스탬프는 프로젝트 생성 시 1회 계산해 데이터셋에 저장(진행률 조회마다 재계산 금지).
-MASK_SUFFIX: str = "_mask"
-MASK_TIMESTAMP_FORMAT: str = "%Y%m%d%H%M"
+# 마스킹 출력 파일명 규칙 — {원본stem}-mask{확장자} (실서버 실측 계약, 2026-07-21 curl/ll 확정).
+# 예: 001.mp4 → 001-mask.mp4. 타임스탬프 세그먼트는 없다(구 목업 규칙 `{stem}_{ts}_mask{ext}` 폐기 —
+# 실계약과 달라 BE 의 1차 회수 경로(toMaskName)가 로컬에서 한 번도 검증되지 않는 공백을 만들었다).
+MASK_SUFFIX: str = "-mask"
 
 # MOCK_OUTPUT_BASE 미설정 경고를 1회만 남기기 위한 플래그(로그 스팸 방지).
 _base_unset_warned: bool = False
@@ -167,14 +172,6 @@ def reset_base_warning() -> None:
     """MOCK_OUTPUT_BASE 미설정 경고 플래그를 초기화한다(테스트용)."""
     global _base_unset_warned
     _base_unset_warned = False
-
-
-def mask_timestamp(now: Optional[datetime] = None) -> str:
-    """마스킹명에 박을 타임스탬프('yyyyMMddHHmm')를 만든다.
-
-    프로젝트 생성 시 1회 호출해 그 값을 데이터셋명에 반영하고, 이후 재계산하지 않는다.
-    """
-    return (now or datetime.now()).strftime(MASK_TIMESTAMP_FORMAT)
 
 
 def safe_basename(file_name: object) -> Optional[str]:
@@ -193,26 +190,38 @@ def safe_basename(file_name: object) -> Optional[str]:
     return base
 
 
-def mask_name_from(raw: object, timestamp: str) -> Optional[str]:
-    """원본 파일/폴더명을 basename 정화 후 ``{stem}_{ts}_mask{ext}`` 로 조립한다.
+def mask_name_from(raw: object) -> Optional[str]:
+    """원본 파일/폴더명을 basename 정화 후 ``{stem}-mask{ext}`` 로 조립한다(실서버 계약).
 
     basename 정화(CWE-22)를 마스킹명 조립보다 먼저 수행하므로 ``..``/구분자 입력은
     상위 요소만 남는다. 정화 실패(빈값/``.``/``..``)면 None.
-    확장자가 없으면 ``_mask`` 만 붙는다(예: 폴더명 → ``folder_202607211530_mask``).
+    확장자가 없으면 ``-mask`` 만 붙는다(예: 폴더명 → ``imgfolder-mask``).
+
+    우리 BE 의 ``KpstDeidentService.toMaskName`` 과 같은 규칙이다 — 목이 이 규칙을 따라야
+    BE 의 1차 회수 경로가 로컬에서 실제로 검증된다.
     """
     base = safe_basename(raw)
     if base is None:
         return None
     stem, ext = os.path.splitext(base)
-    return f"{stem}_{timestamp}{MASK_SUFFIX}{ext}"
+    return f"{stem}{MASK_SUFFIX}{ext}"
 
 
-def plan_outputs(raw_names: list[str], timestamp: str) -> list[tuple[str, str]]:
+def source_path_of(input_path: str, base_name: str) -> str:
+    """원본 입력파일의 <b>절대(경로형) 이름</b>을 만든다 — 진행/리포트 응답 ``fileName`` 값.
+
+    실서버 계약(2026-07-21 curl/ll 실측): ``retrieve_progress`` 응답의 ``fileName`` 은 산출물명이
+    아니라 **원본 입력파일 경로**(``input_path`` + 원본 basename)다. 산출물은 ``export_path`` 에
+    ``{stem}-mask{ext}`` 로 생성된다.
+    """
+    return os.path.join(input_path, base_name)
+
+
+def plan_outputs(raw_names: list[str]) -> list[tuple[str, str]]:
     """원본명 목록을 (원본 basename, 마스킹명) 쌍 목록으로 변환한다.
 
-    데이터셋명·진행률 fileName·실제 생성 파일명을 하나의 소스로 만들기 위해
-    이 결과를 라우터가 데이터셋 등록과 파일 쓰기 양쪽에 사용한다.
-    정화 실패 항목은 제외한다.
+    라우터가 이 결과로 ①데이터셋 등록(fileName = 원본 입력 경로) ②실제 파일 쓰기(마스킹명)를
+    수행한다. 정화 실패 항목은 제외한다.
     """
     plans: list[tuple[str, str]] = []
     for raw in raw_names:
@@ -223,8 +232,7 @@ def plan_outputs(raw_names: list[str], timestamp: str) -> list[tuple[str, str]]:
             )
             continue
         stem, ext = os.path.splitext(base)
-        mask = f"{stem}_{timestamp}{MASK_SUFFIX}{ext}"
-        plans.append((base, mask))
+        plans.append((base, f"{stem}{MASK_SUFFIX}{ext}"))
     return plans
 
 
@@ -409,8 +417,8 @@ def write_deid_outputs(
     """POST /project 시 더미 비식별 출력 파일을 생성한다(best-effort).
 
     ``outputs`` 는 ``(원본 basename, 마스킹명)`` 쌍 목록으로, ``{export_path}/{마스킹명}`` 에
-    생성한다(원본 있으면 복사, 없으면 placeholder). 마스킹명은 데이터셋명·진행률 fileName 과
-    동일한 단일 소스이므로 우리 BE 가 ``{export_path}/{fileName}`` 으로 실제 파일을 찾는다.
+    생성한다(원본 있으면 복사, 없으면 placeholder). 마스킹명은 ``{stem}-mask{ext}`` 규칙이라
+    BE 가 진행조회 ``fileName``(원본 입력 경로)의 basename 을 같은 규칙으로 변환해 회수한다.
 
     보안:
     - HIGH-1 fail-closed: ``output_base`` 미설정 시 어떤 파일도 쓰지 않고 1회 warn 후 반환.

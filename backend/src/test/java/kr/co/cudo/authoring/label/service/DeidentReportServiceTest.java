@@ -16,8 +16,10 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
+import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
+import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -30,6 +32,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -373,20 +376,23 @@ class DeidentReportServiceTest {
     }
 
     /**
-     * 비식별 산출물 검증 게이트 통과용 픽스처 — 실존하는 임시 비식별 파일(>0바이트)을 만들고,
+     * 비식별 산출물 검증 게이트 통과용 픽스처 — <b>실제 재생 가능한 최소 mp4</b>(1,546바이트)를 만들고,
      * 해당 rawSn 의 최신 성공 procLog 가 그 경로를 가리키도록 스텁한다.
+     *
+     * <p>판정이 {@code DeidentArtifactIntegrity}(정규파일 + 크기 하한 + 컨테이너 시그니처)로 단일화되어
+     * 구 픽스처({@code new byte[]{1,2,3}} 같은 3바이트 더미)는 더 이상 통과하지 않는다 — 실제 산출물을
+     * 대표하는 {@link TestVideoFixtures} 를 쓴다.
      */
     private void stubDeidentArtifact(long rawSn) {
-        try {
-            Path deidFile = tempDir.resolve("deid-" + rawSn + ".mp4");
-            Files.write(deidFile, new byte[]{1, 2, 3});
-            LsDeidentProcLog procLog = LsDeidentProcLog.request(
-                    rawSn, "req-" + rawSn, "/orgnl/" + rawSn + ".mp4", "system");
-            procLog.succeed(deidFile.toString());
-            when(procLogRepository.findLatestSuccessByDataRawSn(rawSn)).thenReturn(Optional.of(procLog));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        stubDeidentArtifact(rawSn, TestVideoFixtures.writeTinyMp4(tempDir.resolve("deid-" + rawSn + ".mp4")));
+    }
+
+    /** 지정한 산출물 파일을 가리키는 최신 성공 procLog 스텁(무결성 판정 케이스별 파일 주입용). */
+    private void stubDeidentArtifact(long rawSn, Path artifact) {
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(
+                rawSn, "req-" + rawSn, "/orgnl/" + rawSn + ".mp4", "system");
+        procLog.succeed(artifact.toString());
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn)).thenReturn(Optional.of(procLog));
     }
 
     @Test
@@ -577,6 +583,128 @@ class DeidentReportServiceTest {
     }
 
     // ------------------------------------------------------------
+    // 산출물 무결성 판정 단일화 (B-ISSUE-01) — DeidentArtifactIntegrity 위임
+    //   구 판정("정규파일 + >0바이트")은 위장 산출물로도 'F'→'Y' 복원을 허용해,
+    //   라벨 조회·export·스트리밍 게이트가 한꺼번에 열렸다(CWE-345 → PII 재노출).
+    // ------------------------------------------------------------
+
+    /** 목/외부 솔루션이 원본 없이 남기던 18바이트 텍스트 스텁 — 구 판정을 통과하던 대표 위장 산출물. */
+    private static final byte[] TEXT_STUB_18B = "MOCK_DEIDENTIFIED\n".getBytes(StandardCharsets.UTF_8);
+
+    @Test
+    @DisplayName("18바이트_스텁으로는_비식별_신고가_해제되지_않는다")
+    void resolveWithTextStubArtifactRejected() throws Exception {
+        // given — 신고로 'F' 내려간 영상 + 산출물 자리에 18바이트 텍스트 스텁(정규파일·>0바이트).
+        LsDeidentReport rep = report(740L, 9740L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(740L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9740L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9740L)).thenReturn(Optional.of(r));
+        Path stub = tempDir.resolve("stub-9740.mp4");
+        Files.write(stub, TEXT_STUB_18B);
+        stubDeidentArtifact(9740L, stub);
+        // RED 고정 — 이 스텁은 구 판정("정규파일 + >0바이트")을 그대로 통과한다. 즉 아래 거부는
+        // 파일이 없어서가 아니라 무결성 판정이 단일 지점에 위임됐기 때문임을 증명한다.
+        assertThat(Files.size(stub)).isEqualTo(18L);
+        assertThat(Files.isRegularFile(stub) && Files.size(stub) > 0).isTrue();
+
+        // when / then — 409 거부. 위장 산출물로 게이트가 열리지 않는다.
+        assertThatThrownBy(() -> service.resolveManually(740L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
+        assertThat(r.getDeIdntfYn()).isEqualTo("F");
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+        verify(eventPublisher, never()).publishEvent(any(DeidentReportResolvedEvent.class));
+    }
+
+    @Test
+    @DisplayName("시그니처가_없는_파일로는_복원되지_않는다")
+    void resolveWithoutContainerSignatureRejected() throws Exception {
+        // given — 크기 하한(512B)은 넘지만 알려진 영상 컨테이너 시그니처가 없는 파일(텍스트 덤프 등).
+        LsDeidentReport rep = report(741L, 9741L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(741L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9741L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9741L)).thenReturn(Optional.of(r));
+        byte[] noSignature = new byte[4096];
+        java.util.Arrays.fill(noSignature, (byte) 'A');
+        Path fake = tempDir.resolve("no-signature-9741.mp4");
+        Files.write(fake, noSignature);
+        stubDeidentArtifact(9741L, fake);
+        // RED 고정 — 구 판정(정규파일 + >0바이트)은 물론 크기 하한까지도 통과하는 파일이다.
+        assertThat(Files.isRegularFile(fake) && Files.size(fake) > 0).isTrue();
+
+        // when / then — 크기만으로는 통과하지 못한다.
+        assertThatThrownBy(() -> service.resolveManually(741L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
+        assertThat(r.getDeIdntfYn()).isEqualTo("F");
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("유효한_비식별_영상이면_정상적으로_해제되고_게이트가_풀린다")
+    void resolveWithRealVideoArtifactSucceeds() {
+        // given — 실제 재생 가능한 최소 mp4(1,546B)가 신고 이후 제자리 교체된 상태.
+        //         판정 강화가 정상 산출물을 오탐 거부하지 않음을 고정한다(회귀 방어).
+        LsDeidentReport rep = report(742L, 9742L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(742L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9742L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9742L)).thenReturn(Optional.of(r));
+        stubDeidentArtifact(9742L);
+
+        // when
+        service.resolveManually(742L, reviewerActor);
+
+        // then — RESOLVED 전이 + 'Y' 복원(라벨 조회·export·스트리밍 게이트 자동 해제) + 작업락 해제.
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+        assertThat(r.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        verify(workLockService).releaseRaw(eq(9742L), anyString(), anyString());
+        verify(streamMetaCacheEvictor).evictAfterCommit(9742L);
+    }
+
+    @Test
+    @DisplayName("해제_실패시_deIdntfYn_은_F_로_유지된다")
+    void resolveFailureKeepsDeidentFlagF() throws Exception {
+        // given — 시그니처는 mp4(ftyp)지만 크기 하한 미달로 잘린 산출물(전송 중단 등).
+        //         검수완료(APPROVED) 영상이라 통과 시 export 복구까지 트리거되는 경로다.
+        LsDeidentReport rep = report(743L, 9743L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(743L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9743L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_COMPLETED);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9743L)).thenReturn(Optional.of(r));
+        stubApproved(9743L, true);
+        byte[] truncated = java.util.Arrays.copyOf(TestVideoFixtures.tinyMp4Bytes(), 100);
+        Path partial = tempDir.resolve("truncated-9743.mp4");
+        Files.write(partial, truncated);
+        stubDeidentArtifact(9743L, partial);
+
+        // when / then — fail-closed: 예외 전파(트랜잭션 롤백) + 상태 무변경.
+        assertThatThrownBy(() -> service.resolveManually(743L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        assertThat(r.getDeIdntfYn()).isEqualTo("F");
+        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
+        assertThat(rep.getResolvedDt()).isNull();
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+        verify(streamMetaCacheEvictor, never()).evictAfterCommit(anyLong());
+        verify(eventPublisher, never()).publishEvent(any(DeidentReportResolvedEvent.class));
+    }
+
+    // ------------------------------------------------------------
     // 시간 조건 보강 (CWE-359) — 신고 이후 재비식별된 산출물만 통과
     // ------------------------------------------------------------
 
@@ -592,8 +720,7 @@ class DeidentReportServiceTest {
         LsDataRaw r = raw(9730L, LsDataRaw.PRVC_TYPE_PRVC);
         r.markDeidentified("F");
 
-        Path deidFile = tempDir.resolve("pre-report-9730.mp4");
-        Files.write(deidFile, new byte[]{1, 2, 3});
+        Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("pre-report-9730.mp4"));
         // 파일 mtime 을 신고보다 10분 과거로 강제 (스큐 60초를 훨씬 넘는 과거).
         Files.setLastModifiedTime(deidFile, FileTime.from(
                 reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
@@ -626,8 +753,8 @@ class DeidentReportServiceTest {
         r.markDeidentified("F");
         when(videoRepository.findByRawSnForUpdate(9731L)).thenReturn(Optional.of(r));
 
-        Path deidFile = tempDir.resolve("replaced-9731.mp4");
-        Files.write(deidFile, new byte[]{1, 2, 3}); // mtime = now (신고보다 1시간 후)
+        // mtime = now (신고보다 1시간 후)
+        Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("replaced-9731.mp4"));
         LsDeidentProcLog procLog = LsDeidentProcLog.request(9731L, "req", "/orgnl/9731.mp4", "system");
         procLog.succeed(deidFile.toString());
         // 파일 교체는 새 procLog 를 만들지 않음 — 완료시각은 신고 이전(옛 성공 이력).
@@ -656,8 +783,7 @@ class DeidentReportServiceTest {
         r.markDeidentified("F");
         when(videoRepository.findByRawSnForUpdate(9732L)).thenReturn(Optional.of(r));
 
-        Path deidFile = tempDir.resolve("auto-9732.mp4");
-        Files.write(deidFile, new byte[]{1, 2, 3});
+        Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("auto-9732.mp4"));
         // 파일 mtime 은 신고 이전으로 강제 (procLog 완료시각 단독으로 통과함을 격리 검증).
         Files.setLastModifiedTime(deidFile, FileTime.from(
                 reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));

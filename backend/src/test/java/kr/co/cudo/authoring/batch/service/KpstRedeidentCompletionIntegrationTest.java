@@ -190,15 +190,10 @@ class KpstRedeidentCompletionIntegrationTest {
         });
     }
 
-    /** 비식별 영상 파일(존재+>0바이트) — verifyDeidFile / attach 의 isUsable 통과용. */
+    /** 비식별 영상 파일 — verifyDeidFile(무결성: 정규파일+크기하한+컨테이너 시그니처) / attach 통과용. */
     private Path deidVideoFile(Long rawSn) {
-        try {
-            Path f = DEID_BASE.resolve("video-" + rawSn + ".mp4");
-            Files.writeString(f, "MASKED-VIDEO-BYTES");
-            return f;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return kr.co.cudo.authoring.support.TestVideoFixtures.writeTinyMp4(
+                DEID_BASE.resolve("video-" + rawSn + ".mp4"));
     }
 
     /** 원본 프레임 파일 — verifyResolution 의 원본 측정(readDimensions) 입력 경로용. */

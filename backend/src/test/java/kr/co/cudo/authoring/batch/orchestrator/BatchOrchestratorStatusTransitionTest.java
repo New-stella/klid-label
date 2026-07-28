@@ -73,7 +73,7 @@ class BatchOrchestratorStatusTransitionTest {
                 pipeline, statusService, transitionService, retryQueue, videoRepository);
 
         // V2.0: 마킹 필수 -- 기본 마킹 데이터 제공
-        when(markingRepository.findByRawSnOrderByRegDtDesc(any()))
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(any()))
                 .thenReturn(List.of(newMarking()));
 
         // 기본: extractByMarks(raw, marks) 가 1 프레임 반환
@@ -146,7 +146,7 @@ class BatchOrchestratorStatusTransitionTest {
         // then — 파이프라인 자체가 중단된다. 상태만 지키고 step 을 계속 돌리면 APPROVED 영상에 AUTO 라벨이
         //        새로 적재되면서 상태는 APPROVED 로 남아 탐지 불가능한 데이터 오염이 된다.
         assertThat(result).isEqualTo(BatchStage.SKIPPED);
-        verify(markingRepository, never()).findByRawSnOrderByRegDtDesc(any());
+        verify(markingRepository, never()).findByRawSnOrderByRegDtDescMarkingSnDesc(any());
         verify(vlmTimeseriesStep, never()).run(any());
         verify(vlmTimeseriesStep, never()).runWithMarking(any(), any());
         verify(frameExtractor, never()).extractByMarks(any(), any());

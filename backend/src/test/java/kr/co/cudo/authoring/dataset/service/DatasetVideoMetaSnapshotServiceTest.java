@@ -318,6 +318,97 @@ class DatasetVideoMetaSnapshotServiceTest {
         return captor.getValue();
     }
 
+    /**
+     * 파생영상(증강) 소스 — 부모 참조({@code ORGNL_RAW_SN})가 있고, {@code RAW_FILE_PATH_NM} 에는
+     * 결함 재현을 위해 <b>부모의 비식별 이전 원본 NAS 경로</b>가 실려 있는 상태를 만든다.
+     */
+    private DatasetMetaSourceRow derivativeSourceRow(long rawSn, long parentRawSn, String rawFilePathNm) {
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getOrgnlRawSn()).thenReturn(parentRawSn);
+        when(row.getRawFilePathNm()).thenReturn(rawFilePathNm);
+        return row;
+    }
+
+    @Test
+    @DisplayName("증강_파생영상의_ORIGINAL_VIDEO_PATH_는_NULL_이다")
+    void materialize_freezesNullOriginalPathForAugmentDerivative() {
+        // given — 증강 파생영상(부모 참조 존재). 관제 뷰 V_COMPLETED_VIDEO.ORIGINAL_VIDEO_PATH 는
+        //         이 동결 컬럼(m.RAW_FILE_PATH_NM)을 그대로 노출한다.
+        long rawSn = 300L;
+        // 중첩 when() 회피 — 행 mock 을 먼저 완성한 뒤 리포지토리를 stub 한다.
+        DatasetMetaSourceRow row = derivativeSourceRow(rawSn, 100L, "/nas/raw/100.mp4");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        service.materialize(rawSn);
+
+        // then — 파생에는 원본이 없으므로 null 동결(관제에 원본 경로 미노출).
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        assertThat(captor.getValue().getRawFilePathNm()).isNull();
+        assertThat(captor.getValue().getAiCrtYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("파생영상에_부모의_비식별_이전_원본경로가_기록되지_않는다")
+    void materialize_neverLeaksParentOriginalPathForDerivative() {
+        // given — 소스에 부모 원본 NAS 경로가 실려 있어도(구 폴백 잔재 포함)
+        long rawSn = 301L;
+        String parentOriginalPath = "/nas/raw/pii-source-100.mp4";
+        DatasetMetaSourceRow row = derivativeSourceRow(rawSn, 100L, parentOriginalPath);
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        service.materialize(rawSn);
+
+        // then — 동결 엔티티에도, 포털 복제 outbox payload 에도 그 경로가 실리지 않는다(CWE-359).
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        assertThat(captor.getValue().getRawFilePathNm()).isNull();
+
+        ArgumentCaptor<LsMetaReplOutbox> outboxCaptor = ArgumentCaptor.forClass(LsMetaReplOutbox.class);
+        verify(outboxRepository).save(outboxCaptor.capture());
+        assertThat(outboxCaptor.getValue().getPayload()).doesNotContain(parentOriginalPath);
+    }
+
+    @Test
+    @DisplayName("해상도_파생도_동일하게_원본경로를_노출하지_않는다")
+    void materialize_freezesNullOriginalPathForResolutionDerivative() {
+        // given — 해상도 파생영상. RAW_FILE_PATH_NM 은 파생 자신의 비식별 사본 경로다(원본 아님).
+        long rawSn = 302L;
+        String derivativeCopyPath = "/nas-storage/videos/resolution/100/302/RESL_720P.mp4";
+        DatasetMetaSourceRow row = derivativeSourceRow(rawSn, 100L, derivativeCopyPath);
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        service.materialize(rawSn);
+
+        // then — 파생 판별은 ORGNL_RAW_SN 하나이므로 증강/해상도 두 경로가 동일하게 정합된다.
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        assertThat(captor.getValue().getRawFilePathNm()).isNull();
+    }
+
+    @Test
+    @DisplayName("파생영상_동결_해시도_동결값_기준이다")
+    void materialize_hashUsesFrozenNullPathForDerivative() {
+        // given
+        long rawSn = 303L;
+        SnapshotHasher hasher = mock(SnapshotHasher.class);
+        when(hasher.hash(any())).thenReturn("d".repeat(64));
+        DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
+                sourceRepository, metaRepository, outboxRepository,
+                evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
+        DatasetMetaSourceRow row = derivativeSourceRow(rawSn, 100L, "/nas/raw/100.mp4");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        svc.materialize(rawSn);
+
+        // then — 해시 입력의 RAW_FILE_PATH_NM 도 동결값(null)이어야 "동결 내용 = 해시 대표 내용" 이 성립한다.
+        assertThat(captureHashFields(hasher)).containsEntry("RAW_FILE_PATH_NM", null);
+    }
+
     @Test
     @DisplayName("소스_미조회시_동결_스킵")
     void materialize_skipsWhenSourceMissing() {

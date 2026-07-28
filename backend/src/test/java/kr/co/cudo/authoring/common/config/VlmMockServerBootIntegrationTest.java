@@ -21,12 +21,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>운영(prd/stg)·프로파일 미지정에서의 강제 보존 검증은 {@link WebClientConfigTest} 가 담당한다.
  * (테스트 클래스패스의 {@code src/test/resources/application-local.yml} 이 메인 프로파일 yml 을
  * 가리므로, 실제 배선값은 여기서 명시 주입한다 — 값 정합은 {@code DevProfileWiringGuardTest}.)
+ *
+ * <p><b>완화 플래그를 함께 주입하는 이유</b>: 평문/내부 호스트 허용은 프로파일만으로 암묵 적용되지
+ * 않는다 — 전용 플래그 {@code vlm.client.allow-insecure-url} 가 있어야만 {@link VlmUrlPolicy} 가
+ * 완화 정책을 고른다(설정 하나로 운영에 새는 경로 차단). {@code application-local.yml} 실배선도
+ * {@code enabled=true} 와 이 플래그를 짝으로 두므로, 여기서도 같은 짝을 재현한다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
         "vlm.client.enabled=true",
-        "vlm.client.url=http://klid-mock-server:9400"
+        "vlm.client.url=http://klid-mock-server:9400",
+        "vlm.client.allow-insecure-url=true"
 })
 class VlmMockServerBootIntegrationTest {
 
