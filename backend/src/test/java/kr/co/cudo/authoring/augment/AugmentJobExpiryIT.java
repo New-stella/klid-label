@@ -15,7 +15,6 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.dto.GenAiCallbackRequest;
 import kr.co.cudo.authoring.webhook.service.GenAiCallbackService;
 import org.junit.jupiter.api.DisplayName;
@@ -338,12 +337,12 @@ class AugmentJobExpiryIT {
 
     /**
      * 위탁 전 실패 롤업이 예외로 끝나면 <b>PENDING + job 0건</b>이 남는다. job 축 스윕은 이를 보지 못하고,
-     * 유일한 재개 트리거(비식별 신고 해제)는 신고가 없었던 영상에서 <b>영원히 발생하지 않는다</b>.
+     * 이를 깨울 주체도 없다(보류 재개 리스너는 폐기됐다).
      */
     @Test
     @DisplayName("job_행_0건_장기_PENDING_증강이_회수된다")
     void orphanPendingAugmentIsReclaimed() {
-        // given: 신고 없는(=재개 트리거 없는) 영상의 고아 PENDING 증강
+        // given: 정상 비식별('Y') 영상의 고아 PENDING 증강
         Seed s = seedWithoutJob("ORPHAN", "Y");
         assertThat(augJobRepository.findByDataAugSnOrderByJobSeqAsc(s.dataAugSn())).isEmpty();
 
@@ -363,27 +362,29 @@ class AugmentJobExpiryIT {
     }
 
     /**
-     * 정책 보류(비식별 누락 신고 구간)는 <b>정상 대기</b>다. 회수하면 dead-letter 가 찍혀 신고 해제
-     * 재개가 불가능해지므로, job 0건이어도 회수 대상이 아니다.
+     * ★ 비식별 신고 구간({@code 'F'})의 고아 PENDING <b>도 회수한다</b> (2026-07-29 — QA HIGH).
+     *
+     * <p>구 구현은 이를 "정책 보류(정상 대기)"로 보고 후보 SQL·회수 트랜잭션 양쪽에서 skip 했다.
+     * 그 전제(신고 해제 이벤트가 보류분을 재개한다)는 폐기됐고 재개 리스너도 삭제됐으므로, skip 하면
+     * 깨울 주체 없는 PENDING 영구 고착만 남는다.
      */
     @Test
-    @DisplayName("정상_보류는_job_0건이어도_회수되지_않는다")
-    void withheldSubmitIsNotReclaimedByOrphanSweep() {
-        // given: 부모가 신고 구간('F') — 위탁이 정책 보류된 상태
-        Seed s = seedWithoutJob("WITHHELD-ORPHAN", "F");
+    @DisplayName("신고구간_영상의_job_0건_PENDING_증강도_만료스윕이_회수한다")
+    void orphanPendingUnderDeidentReportIsAlsoReclaimed() {
+        // given: 부모가 비식별 신고 구간('F') 인 고아 PENDING 증강
+        Seed s = seedWithoutJob("REPORTED-ORPHAN", "F");
 
         // when
-        sweeper.sweepOrphanPendingAugments(elapsedCutoff());
+        int reclaimed = sweeper.sweepOrphanPendingAugments(elapsedCutoff());
 
-        // then ①: 후보 조회 단계에서 이미 제외된다(신고 구간 필터)
-        assertThat(orphanCandidates()).doesNotContain(s.dataAugSn());
-        // then ②: 회수 트랜잭션을 직접 불러도 잠금 하 재판정이 거부한다(후보~회수 사이 신고 커밋 대비)
-        assertThat(expiryTxService.expireOrphanPending(s.dataAugSn()))
-                .as("보류를 실패로 회수하면 신고 해제가 깨운 뒤에도 되살릴 수 없다")
-                .isFalse();
+        // then ①: 후보 조회에 포함된다(신고 구간 제외 술어 없음)
+        assertThat(reclaimed).isPositive();
+        // then ②: 실패로 확정돼 집계에 드러난다(PENDING 고착 해소)
         LsDataAug aug = augRepository.findById(s.dataAugSn()).orElseThrow();
-        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
-        assertThat(aug.isProcessingFailed()).isFalse();
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
+        assertThat(aug.isProcessingFailed())
+                .as("깨울 주체가 없는 PENDING 을 남기면 영구 고착이다")
+                .isTrue();
     }
 
     /** 위탁 직후(임계 이전)의 짧은 창은 회수하지 않는다 — 아직 job 선기록 중일 수 있다. */
@@ -397,7 +398,7 @@ class AugmentJobExpiryIT {
 
         assertThat(augRepository.findOrphanPendingAugSns(
                 LsDataAug.STTS_PENDING, AugmentPrompts.EXTERNAL_AUG_TYPES,
-                DeidentReportGate.DEIDENT_FAILED, LocalDateTime.now().minusMinutes(5), 50))
+                LocalDateTime.now().minusMinutes(5), 50))
                 .doesNotContain(s.dataAugSn());
         assertThat(augRepository.findById(s.dataAugSn()).orElseThrow().getAugProcSttsCd())
                 .isEqualTo(LsDataAug.STTS_PENDING);
@@ -406,8 +407,7 @@ class AugmentJobExpiryIT {
     /** 임계 경과 후보 목록(다른 테스트 행이 섞여도 무해하도록 <b>포함 여부</b>만 본다). */
     private List<Long> orphanCandidates() {
         return augRepository.findOrphanPendingAugSns(
-                LsDataAug.STTS_PENDING, AugmentPrompts.EXTERNAL_AUG_TYPES,
-                DeidentReportGate.DEIDENT_FAILED, elapsedCutoff(), 500);
+                LsDataAug.STTS_PENDING, AugmentPrompts.EXTERNAL_AUG_TYPES, elapsedCutoff(), 500);
     }
 
     /** 해상도 파생({@code RESL_*})은 외부 위탁·콜백 대상이 아니므로 회수 축에 들어오면 안 된다. */

@@ -19,6 +19,7 @@
 | 변수 | 필수 | 의미 / 기본 |
 |------|:----:|-------------|
 | `SPRING_PROFILES_ACTIVE` | ★ | 운영 권장 `prd`. local 은 LocalProfileGuard 가 비-local 호스트에서 거부 |
+| `ENV` | ★(stg·prd) | **배포 환경 표식**(`stg`/`prd`) — 프로파일과 독립된 축. 서버 잔존 `.env`·셸 환경이 `SPRING_PROFILES_ACTIVE` 를 `dev` 로 덮어도 이 값이 배포 표식이면 dev 편의 엔드포인트(`DevProfileGuard`)·Quartz 단일노드 허용(`QuartzClusteringGuard`)이 모두 **거부**된다. **배포 서버에서 비우면 이 방어축이 통째로 무력해진다** |
 | `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립. 스키마는 Flyway 자동 생성(D 절) |
 | `CONTROL_DB_USERNAME/PASSWORD` | ★ | control DB 자격 |
 | `PORTAL_DB_HOST/PORT/NAME` | ★ | portal DB |
@@ -63,7 +64,9 @@ export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴�
 
 > **1노드로만 운영하더라도 끄지 않는다** — 클러스터 모드는 단일 노드에서도 정상 동작한다(락 경합 상대가 없을 뿐).
 > `SPRING_PROFILES_ACTIVE` 를 dev 로 낮춰 우회할 수도 없다: 가드가 `ENV=stg|prd` 표식을 독립 축으로 함께 본다
-> (`DevProfileGuard` 와 동일 기준).
+> (`DevProfileGuard` 와 동일 기준). **단 이 축은 `ENV` 가 실제로 주입돼야 작동한다** — `env.template` 이
+> `ENV=prd` 를 제공하고 systemd 가 `EnvironmentFile=/etc/klid/backend.env` 로 프로세스 환경에 넣는다.
+> stg 노드는 설치 후 `ENV=stg` 로 바꾼다. 비워 두면 프로파일 축만 남아 `dev` 로 뜬 배포 노드가 통과한다.
 
 **★ 설치 전 체크리스트 — 노드 간 시계 동기(NTP)**
 

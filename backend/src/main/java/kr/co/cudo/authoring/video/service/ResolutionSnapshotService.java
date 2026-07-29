@@ -40,7 +40,8 @@ import java.util.Optional;
  * <h3>수행</h3>
  * <ol>
  *   <li>멱등 가드 — 파생 RAW 가 이미 {@code deIdntfYn=='Y'} 면 {@link Optional#empty()} 반환(중복 트리거 skip)</li>
- *   <li>부모 {@code findByRawSnForUpdate} 재잠금 + {@code deIdntfYn=='Y'} PII 게이트 재검증(CWE-359 TOCTOU)</li>
+ *   <li>부모 {@code findByRawSnForUpdate} 재잠금 + 비식별 산출물 존재({@code hasDeidentArtifact()}) 재검증
+ *       — 신고('F')는 통과, 'N'(미수행)만 차단</li>
  *   <li>부모 프레임 수 &gt; 0 fail-fast(#9)</li>
  *   <li>치수(srcW/H, targetW/H, scaleX/scaleY) + 비식별 비디오 경로 + 프레임별 비식별 경로/목표 경로
  *       + 등록자 전부 스냅샷 → {@link ResolutionSnapshot} 로 반환 후 커밋(잠금·커넥션 해제)</li>
@@ -104,20 +105,22 @@ public class ResolutionSnapshotService {
             return Optional.empty();
         }
 
-        // 2) HIGH (CWE-359 PII TOCTOU) — 부모를 PESSIMISTIC_WRITE 로 재잠금 + deIdntfYn=='Y' 재검증.
-        //    예약~확정 창에서 비식별 누락 신고로 'F' 전이됐을 수 있다. 잠금 하에서 신고 UPDATE 와 직렬화하며
-        //    'Y' 가 아니면 예외로 롤백 → 러너가 파생 RAW 를 FAILED 전이(PII 절대 미복제).
+        // 2) 부모를 PESSIMISTIC_WRITE 로 재잠금 + 비식별 산출물 존재({@code hasDeidentArtifact()}) 재검증.
+        //    ★ 비식별 누락 신고('F')는 여기서 막지 않는다 (2026-07-29 확정, 예약 게이트와 동일 정책).
+        //      해상도 파생은 외부 위탁이 없는 내부 리스케일이라 신고 구간 생성이 외부 유출을 만들지 않는다.
+        //    차단 대상은 'N'(비식별 미수행)·null — 복사할 비식별 산출물이 물리적으로 없다. 이때는 예외로
+        //    롤백 → 러너가 파생 RAW 를 FAILED 전이한다.
         LsDataRaw parent = videoRepository.findByRawSnForUpdate(parentRawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "원본 영상을 찾을 수 없습니다: parentRawSn=" + parentRawSn));
-        if (!"Y".equals(parent.getDeIdntfYn())) {
-            log.warn("[Video][ResolutionDerivative][A] parent no longer deidentified — abort (PII guard) "
+        if (!parent.hasDeidentArtifact()) {
+            log.warn("[Video][ResolutionDerivative][A] parent has no deident artifact — abort "
                             + "parentRawSn={} newRawSn={} deIdntfYn={}",
                     parentRawSn, newRawSn, safe(parent.getDeIdntfYn()));
             throw new CustomException(ErrorCode.CONFLICT,
-                    "비식별 완료된 원본 영상만 파생영상을 확정할 수 있습니다.");
+                    "비식별 산출물이 있는 원본 영상만 파생영상을 확정할 수 있습니다.");
         }
-        // HIGH (CWE-359 stale 창 게이트) — 부모 'Y' 를 잠금 하에 확정한 이 시각을 스냅샷 기준 시각으로 고정한다.
+        // HIGH (CWE-359 stale 창 게이트) — 부모 산출물 존재를 잠금 하에 확정한 이 시각을 스냅샷 기준 시각으로 고정한다.
         // Phase C 가 "스냅샷 이후 비식별본이 재비식별로 교체됐는가"를 이 시각 기준으로 결정적으로 재검증한다.
         Instant capturedAt = Instant.now();
 

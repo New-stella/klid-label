@@ -113,15 +113,15 @@ class AugmentJobExpirySweeperTest {
     // ─── 회수 축 ② — job 행 0건 장기 PENDING 증강 (적대검증 2차 MEDIUM-2) ───
 
     /**
-     * job 축만 훑으면 <b>job 행 0건 PENDING</b> 증강은 어떤 회수기도 집지 못한다(재개 트리거인 비식별
-     * 신고 해제가 없는 영상이면 영원히 깨어나지 못한다). 두 축이 같은 tick 에서 함께 돌아야 한다.
+     * job 축만 훑으면 <b>job 행 0건 PENDING</b> 증강은 어떤 회수기도 집지 못한다(깨울 주체가 없다 —
+     * 보류 재개 리스너는 폐기됐다). 두 축이 같은 tick 에서 함께 돌아야 한다.
      */
     @Test
     @DisplayName("job_행_0건_장기_PENDING_증강이_회수된다")
     void reclaimsOrphanPendingAugments() {
         // given: job 축 후보는 없고, 고아 증강만 2건
         when(jobRepository.findExpirableAnchors(any(), anyInt())).thenReturn(List.of());
-        when(augRepository.findOrphanPendingAugSns(any(), any(), any(), any(), anyInt()))
+        when(augRepository.findOrphanPendingAugSns(any(), any(), any(), anyInt()))
                 .thenReturn(List.of(51L, 52L));
         when(txService.expireOrphanPending(anyLong())).thenReturn(true);
 
@@ -134,12 +134,17 @@ class AugmentJobExpirySweeperTest {
         verify(txService).expireOrphanPending(52L);
     }
 
-    /** 후보 조건이 <b>외부 위탁 3종 · PENDING · 신고 구간 제외</b>로 고정돼야 정상 보류를 오회수하지 않는다. */
+    /**
+     * 후보 조건은 <b>외부 위탁 3종 · PENDING</b> 으로 고정된다.
+     *
+     * <p>★ 비식별 신고 구간 제외 술어는 2026-07-29 로 <b>제거</b>됐다 — 신고를 "정책 보류"로 보고
+     * 건너뛰던 전제가 폐기됐고 재개 리스너도 삭제돼, 제외하면 깨울 주체 없는 PENDING 고착만 남는다.
+     */
     @Test
-    @DisplayName("고아_증강_후보는_외부증강_PENDING_신고구간제외_조건으로_조회된다")
-    void orphanCandidateQueryExcludesWithheldAndNonExternal() {
+    @DisplayName("고아_증강_후보는_외부증강_PENDING_조건으로만_조회된다(신고구간_제외_없음)")
+    void orphanCandidateQueryUsesExternalPendingOnly() {
         when(jobRepository.findExpirableAnchors(any(), anyInt())).thenReturn(List.of());
-        when(augRepository.findOrphanPendingAugSns(any(), any(), any(), any(), anyInt()))
+        when(augRepository.findOrphanPendingAugSns(any(), any(), any(), anyInt()))
                 .thenReturn(List.of());
 
         sweeper(true).run();
@@ -147,7 +152,6 @@ class AugmentJobExpirySweeperTest {
         verify(augRepository).findOrphanPendingAugSns(
                 eq(kr.co.cudo.authoring.augment.entity.LsDataAug.STTS_PENDING),
                 eq(kr.co.cudo.authoring.augment.integration.AugmentPrompts.EXTERNAL_AUG_TYPES),
-                eq(kr.co.cudo.authoring.video.service.DeidentReportGate.DEIDENT_FAILED),
                 any(), eq(50));
     }
 
@@ -157,7 +161,7 @@ class AugmentJobExpirySweeperTest {
     void orphanAxisRunsEvenWhenJobAxisFails() {
         when(jobRepository.findExpirableAnchors(any(), anyInt()))
                 .thenThrow(new IllegalStateException("db down"));
-        when(augRepository.findOrphanPendingAugSns(any(), any(), any(), any(), anyInt()))
+        when(augRepository.findOrphanPendingAugSns(any(), any(), any(), anyInt()))
                 .thenReturn(List.of(51L));
         when(txService.expireOrphanPending(anyLong())).thenReturn(true);
 

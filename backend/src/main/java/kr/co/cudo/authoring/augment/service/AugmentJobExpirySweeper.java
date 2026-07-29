@@ -6,7 +6,6 @@ import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
-import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -35,10 +34,9 @@ import java.util.concurrent.TimeUnit;
  *
  * <h3>회수 축은 둘이다 (적대검증 2차 MEDIUM-2)</h3>
  * <p>위 job 축만 훑으면 <b>job 행이 0건인 PENDING 증강</b>을 아무도 집지 못한다. 위탁 전 실패 롤업이
- * 예외로 끝나면(DB 순단·커넥션 고갈 등) job 도 콜백도 없이 PENDING 만 남는데, 그 유일한 재개 트리거인
- * 비식별 신고 해제 이벤트는 <b>신고가 없었던 영상에서는 영원히 발생하지 않는다</b>. 그래서
- * {@link #sweepOrphanPendingAugments} 축을 함께 돈다. 정상 대기(정책 보류)와 위탁 직후 짧은 창은
- * 회수 대상에서 제외한다.
+ * 예외로 끝나면(DB 순단·커넥션 고갈 등) job 도 콜백도 없이 PENDING 만 남는데, 이를 <b>깨울 주체가
+ * 없다</b>(보류 재개 리스너는 폐기됐다). 그래서 {@link #sweepOrphanPendingAugments} 축을 함께 돈다.
+ * 위탁 직후 짧은 창만 회수 대상에서 제외한다(비식별 신고 구간은 제외하지 않는다).
  *
  * <h3>왜 {@code @Scheduled} 가 아닌 전용 executor 인가</h3>
  * <p>본 애플리케이션은 {@code @EnableScheduling} 을 특정 기능 플래그가 켜질 때만 활성화한다. 무조건적
@@ -164,19 +162,18 @@ public class AugmentJobExpirySweeper {
      * 회수 축 ② — <b>job 행이 한 건도 없는</b> 장기 PENDING 외부 증강을 실패로 확정한다 (MEDIUM-2).
      *
      * <p>기존 축(비종결 job)이 집지 못하는 사각지대다: 위탁 전 롤업이 예외로 끝나면 job 도 콜백도 없는
-     * PENDING 이 남고, 그 영상에 비식별 신고가 없었다면 <b>재개 이벤트가 영원히 발생하지 않는다</b>.
+     * PENDING 이 남고, 이를 <b>깨울 주체가 없다</b>(보류 재개 리스너는 폐기됐다).
      *
-     * <p>정상 대기(정책 보류)와 위탁 직후 짧은 창은 회수하지 않는다 — 후보 SQL 이 신고 구간
-     * ({@code DE_IDENT_YN='F'})과 {@code REG_DT >= cutoff} 를 제외하고, 회수 트랜잭션이 잠금 하에
-     * 다시 판정한다({@link AugmentJobExpiryTxService#expireOrphanPending}).
+     * <p>비식별 신고 구간도 회수 대상이다(2026-07-29 — 구 "정책 보류" 제외는 폐기된 전제의 잔재).
+     * 위탁 직후 짧은 창만 회수하지 않는다 — 후보 SQL 이 {@code REG_DT >= cutoff} 를 제외하고,
+     * 회수 트랜잭션이 잠금 하에 다시 판정한다({@link AugmentJobExpiryTxService#expireOrphanPending}).
      *
      * @param cutoff 이 시각 이전에 요청된 증강만 대상(= now - 무갱신 경과 임계, 최소 5분)
      * @return 회수한 증강 수
      */
     public int sweepOrphanPendingAugments(LocalDateTime cutoff) {
         List<Long> candidates = augRepository.findOrphanPendingAugSns(
-                LsDataAug.STTS_PENDING, AugmentPrompts.EXTERNAL_AUG_TYPES,
-                DeidentReportGate.DEIDENT_FAILED, cutoff, batchSize);
+                LsDataAug.STTS_PENDING, AugmentPrompts.EXTERNAL_AUG_TYPES, cutoff, batchSize);
         if (candidates.isEmpty()) {
             log.debug("[Augment][Expiry] no orphan pending augment");
             return 0;

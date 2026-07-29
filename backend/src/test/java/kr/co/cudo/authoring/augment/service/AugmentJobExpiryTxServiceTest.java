@@ -51,18 +51,16 @@ class AugmentJobExpiryTxServiceTest {
 
     @Mock private LsDataAugRepository augRepository;
     @Mock private LsDataAugJobRepository jobRepository;
-    @Mock private kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
     @Mock private AugmentJobRollup rollup;
     @Mock private kr.co.cudo.authoring.webhook.service.AugmentResultService augmentResultService;
-    @Mock private kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
     @Mock private AugmentMetrics metrics;
 
     private AugmentJobExpiryTxService service;
 
     @BeforeEach
     void setUp() {
-        service = new AugmentJobExpiryTxService(augRepository, jobRepository, srcRepository,
-                rollup, augmentResultService, deidentReportGate, metrics);
+        service = new AugmentJobExpiryTxService(augRepository, jobRepository,
+                rollup, augmentResultService, metrics);
         given(augRepository.findByDataAugSnForUpdate(DATA_AUG_SN)).willReturn(Optional.of(
                 LsDataAug.createRequested(1L, LsDataAug.AUG_WINTER, "1", "K-EXPIRY", null)));
         given(jobRepository.claimExpired(eq(AUG_JOB_SN), any(), anyString(), anyString(), any()))

@@ -20,8 +20,6 @@ import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.label.entity.LsDeidentReport;
-import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.video.dto.ResolutionDerivativeResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -111,7 +109,6 @@ class ResolutionDerivativeFlowIntegrationTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
     @Autowired private LsDeidentProcLogRepository procLogRepository;
-    @Autowired private LsDeidentReportRepository deidentReportRepository;
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private LsDataAugLblMapRepository lblMapRepository;
     @Autowired private AugmentReviewService augService;
@@ -650,36 +647,76 @@ class ResolutionDerivativeFlowIntegrationTest {
                 .isEmpty();
     }
 
+    /**
+     * ★ 파생 생성은 원본 비식별 신고와 무관하다 (2026-07-29 확정, 구속).
+     *
+     * <p>구 정책은 예약~확정 창에서 부모가 신고로 {@code 'F'} 전이되면 확정을 abort 하고 파생을 FAILED 로
+     * 정리했다. 해상도 파생은 <b>외부 위탁이 전혀 없는 내부 리스케일</b>뿐이라 신고 구간 생성이 외부 유출을
+     * 만들지 않으므로, 이제 {@code 'F'}(신고 — 비식별 산출물은 존재)는 통과시키고 {@code 'N'}(비식별 미수행 —
+     * 산출물 부재)만 차단한다({@code LsDataRaw.hasDeidentArtifact()}).
+     */
     @Test
-    @DisplayName("예약후_async확정전에_부모가_비식별신고로_F전이되면_finalizer가_PII를_복사하지않고_파생이_FAILED된다")
-    void parentDeidReportedFDuringAsyncWindowBlocksPiiCopyAndFailsDerivative() {
-        // given — 예약 시점엔 부모가 비식별 완료('Y'). 증강행(LS_DATA_AUG) + 파생 RAW(PENDING·deIdntfYn='N')를
-        //          직접 영속해 "예약 커밋됨 · async 확정 미실행" 상태를 재현한다(auto-finalize 우회 → F-전이 창 확보).
+    @DisplayName("예약후_async확정전에_부모가_비식별신고로_F전이돼도_파생이_정상_확정된다")
+    void parentDeidReportedFDuringAsyncWindowStillFinalizes() {
+        // given — 예약 시점 상태(PENDING·deIdntfYn='N')로 시딩해 async 확정 창을 직접 제어한다.
         when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
         Seed s = seed("PIIWIN", BASE + "/videos/RESIT-PIIWIN-deid.mp4");
         Long parentRawSn = s.parent().getRawSn();
 
-        // 예약 시점 상태(PENDING)로 시딩 — 예약 커밋됨·async 확정 미실행 상태를 정확히 재현.
         LsDataAug aug = augRepository.save(LsDataAug.createResolutionPending(
                 s.frame0().getSrcSn(), LsDataAug.AUG_RESL_720P, "rev1"));
         LsDataRaw child = videoRepository.save(LsDataRaw.createFromResolution(
                 s.parent(), BASE + "/videos/resolution/" + parentRawSn + "/RESL_720P.mp4", "RESL_720P"));
         Long childRawSn = child.getRawSn();
 
-        // when — 예약 커밋 ~ async 확정 사이 창에서 부모가 비식별 누락 신고로 'F'(PII 노출 확정) 전이.
+        // when — 확정 직전 창에서 부모가 비식별 누락 신고로 'F' 전이(비식별 산출물 자체는 그대로 존재).
         LsDataRaw parent = videoRepository.findById(parentRawSn).orElseThrow();
         parent.markDeidentified("F");
         videoRepository.save(parent);
 
-        // async 확정 트리거(러너 → finalizer 재잠금·재검증 → 'F' 관측 → 롤백 → FAILED 전이).
         asyncResolutionRunner.runAsync(childRawSn, parentRawSn, aug.getDataAugSn(), ResolutionPreset.RESL_720P);
 
-        // then — 파생 RAW 는 FAILED 전이 후 고아 행으로 정리되고(E-ISSUE-23) PII 는 절대 복제되지 않는다.
+        // then — 신고가 파생 생성을 막지 않는다: 파생이 확정(deIdntfYn='Y' + COMPLETED)되고 프레임도 적재된다.
+        Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
+                .until(() -> videoRepository.findById(childRawSn)
+                        .filter(c -> "Y".equals(c.getDeIdntfYn()))
+                        .filter(c -> LsDataRaw.DATA_STTS_COMPLETED.equals(c.getDataSttsCd()))
+                        .isPresent());
+        assertThat(srcRepository.countByRawSn(childRawSn)).isPositive();
+        // 복사 소스는 여전히 <비식별> 산출물이다 — 원본(비-비식별) 폴백은 어디에도 없다.
+        verify(videoFileCopier, atLeastOnce()).copy(any(), any());
+    }
+
+    /**
+     * 부모 비식별 산출물이 <b>아예 없는</b>({@code 'N'}) 경우는 여전히 차단한다 — 복사할 파일이 물리적으로
+     * 없으므로 보류가 아니라 실패다. ({@code 'F'} 통과와 대비되는 축.)
+     */
+    @Test
+    @DisplayName("확정창에서_부모가_비식별미수행(N)이면_파생확정이_거부되고_FAILED로_정리된다")
+    void parentWithoutDeidentArtifactDuringAsyncWindowFailsDerivative() {
+        when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
+        Seed s = seed("NOARTIFACT", BASE + "/videos/RESIT-NOARTIFACT-deid.mp4");
+        Long parentRawSn = s.parent().getRawSn();
+
+        LsDataAug aug = augRepository.save(LsDataAug.createResolutionPending(
+                s.frame0().getSrcSn(), LsDataAug.AUG_RESL_720P, "rev1"));
+        LsDataRaw child = videoRepository.save(LsDataRaw.createFromResolution(
+                s.parent(), BASE + "/videos/resolution/" + parentRawSn + "/RESL_720P.mp4", "RESL_720P"));
+        Long childRawSn = child.getRawSn();
+
+        // when — 확정 직전 창에서 부모가 'N'(비식별 미수행)으로 관측된다.
+        LsDataRaw parent = videoRepository.findById(parentRawSn).orElseThrow();
+        parent.markDeidentified("N");
+        videoRepository.save(parent);
+
+        asyncResolutionRunner.runAsync(childRawSn, parentRawSn, aug.getDataAugSn(), ResolutionPreset.RESL_720P);
+
+        // then — 파생 RAW 는 FAILED 전이 후 고아 행으로 정리되고(E-ISSUE-23) 픽셀은 복사되지 않는다.
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200))
                 .until(() -> videoRepository.findById(childRawSn).isEmpty());
-        assertThat(srcRepository.countByRawSn(childRawSn)).isZero();     // 프레임(PII 픽셀) 미복사
+        assertThat(srcRepository.countByRawSn(childRawSn)).isZero();
         assertThat(lblMapRepository.findAllByDataAugSn(aug.getDataAugSn())).isEmpty();
-        verify(videoFileCopier, never()).copy(any(), any());             // 비식별 비디오 미복사
+        verify(videoFileCopier, never()).copy(any(), any());
         verify(imageResizer, never()).resize(any(), any(),
                 org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
     }
@@ -696,8 +733,16 @@ class ResolutionDerivativeFlowIntegrationTest {
         };
     }
 
+    /**
+     * H-1 stale 창 게이트 — 판정축은 <b>복사 원자성</b>이다(신고 아님, 2026-07-29).
+     *
+     * <p>구 조건 ①"{@code capturedAt} 이후 신고 이력"은 제거됐고, ②최신 SUCCESS 비식별 procLog 경로 불일치
+     * ③(파일 존재 시) mtime &gt; {@code capturedAt} 두 조건만 남는다. 본 케이스는 ②를 실 DB 로 관통한다 —
+     * Phase B 실행 중 부모가 <b>신규 경로로 재비식별</b>되면 Phase B 가 복사한 픽셀은 구버전이므로 abort 해야
+     * 한다(프레임별로 다른 버전이 섞인 산출물 차단).
+     */
     @Test
-    @DisplayName("진짜_A~C창_PhaseB가_실제파일산출_후_스냅샷이후_부모_재비식별신고시_PhaseC가_CONFLICT하고_cleanup이_실제파일을_삭제하며_파생은_N유지_FAILED된다(H-1)")
+    @DisplayName("진짜_A~C창_PhaseB중_부모비식별본이_신규경로로_교체되면_PhaseC가_CONFLICT하고_cleanup이_실제파일을_삭제한다(H-1_경로게이트)")
     void realWindowPhaseCAbortsOnStaleAndCleanupDeletesRealFiles() throws Exception {
         // given — 예약 시점 상태(PENDING·deIdntfYn='N')로 시딩해 A~C 창을 직접 제어한다.
         when(imageResizer.readDimensions(any())).thenReturn(new int[]{1920, 1080});
@@ -715,11 +760,15 @@ class ResolutionDerivativeFlowIntegrationTest {
         doAnswer(writesRealFileAtDst(1)).when(imageResizer).resize(any(), any(),
                 org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
 
-        // A~C 창 주입 — Phase B(materialize) 실행 순간(=Phase A capturedAt 이후)에 부모를 재비식별 신고한다.
-        // 부모는 여전히 deIdntfYn='Y' 이므로 기존 'Y' 게이트로는 못 막고, H-1 stale 게이트(신고>capturedAt)만 막는다.
+        // A~C 창 주입 — Phase B(materialize) 실행 순간(=Phase A capturedAt 이후)에 부모가 <신규 경로>로
+        // 재비식별된다. 부모는 여전히 deIdntfYn='Y' 라 산출물 존재 게이트로는 못 막고, H-1 stale 게이트의
+        // ②경로 불일치 조건만 막는다(Phase B 가 복사한 픽셀이 구버전이므로 섞인 산출물 방지).
         doAnswer(inv -> {
             inv.callRealMethod(); // 실제 파일 산출(복사·리사이즈)
-            deidentReportRepository.save(LsDeidentReport.createReport(parentRawSn, 1L, "PII 재노출 신고"));
+            LsDeidentProcLog reDeid = LsDeidentProcLog.request(
+                    parentRawSn, null, s.parent().getRawFilePathNm(), "re-deident");
+            reDeid.succeed(BASE + "/videos/RESIT-STALEWIN-deid-v2.mp4"); // 신규 경로 = 스냅샷 경로와 불일치
+            procLogRepository.save(reDeid);
             return null;
         }).when(fileMaterializer).materialize(any(ResolutionSnapshot.class));
 

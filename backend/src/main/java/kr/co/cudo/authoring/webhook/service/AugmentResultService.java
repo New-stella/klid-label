@@ -382,9 +382,9 @@ public class AugmentResultService {
             return ParentGate.fail("parent video not found");
         }
         // 'Y'(완료) · 'F'(신고 구간 — 산출물은 존재) 는 통과. 'N'(미완료)·그 밖의 값은 실패 확정.
-        String parentDeidentYn = parentRaw.getDeIdntfYn();
-        if (!"Y".equals(parentDeidentYn) && !"F".equals(parentDeidentYn)) {
-            return ParentGate.fail("parent not deidentified");
+        // 판정 의미는 해상도 파생 경로와 동일 헬퍼({@link LsDataRaw#hasDeidentArtifact()})로 통일한다.
+        if (!parentRaw.hasDeidentArtifact()) {
+            return ParentGate.fail("parent has no deident artifact");
         }
         // 프레임 존재 가드 — 부모에 프레임이 없으면 라벨링 대상이 없는 빈 증강본이 된다.
         if (srcRepository.findByRawSnOrderByFrameNoAsc(parentRaw.getRawSn()).isEmpty()) {

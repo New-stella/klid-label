@@ -41,8 +41,9 @@ public class AugmentJobRollup {
      *
      * @param jobs          잠금 이후 다시 읽은 job 전량(갱신이 반영된 스냅샷)
      * @param externalJobId 재전송 멱등 앵커로 적재할 외부 job_id (없으면 null)
-     * @return {@link AugmentApplyResult#DEFERRED} = 비종결 job 이 남아 보류 / 그 외 = 인계 처리 결과
-     *         (정책 보류 {@code WITHHELD_*} 도 그대로 전달한다 — 호출부가 응답에 반영해야 한다)
+     * @return {@link AugmentApplyResult#DEFERRED} = 비종결 job 이 남아 보류 / 그 외 = 인계 처리 결과를
+     *         그대로 전달한다 — 호출부가 응답에 반영해야 한다 (정책 보류 {@code WITHHELD_*} 는
+     *         2026-07-29 폐기 — 신고 구간도 인계는 진행되고, 부모 사용 불가는 실패로 확정된다)
      */
     public AugmentApplyResult rollUpIfAllTerminal(Long dataAugSn, List<LsDataAugJob> jobs,
                                                   String externalJobId) {

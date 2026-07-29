@@ -5,10 +5,7 @@ import kr.co.cudo.authoring.augment.entity.LsDataAugJob;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
-import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.observability.metrics.AugmentMetrics;
-import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.service.AugmentApplyResult;
 import kr.co.cudo.authoring.webhook.service.AugmentJobRollup;
 import kr.co.cudo.authoring.webhook.service.AugmentOutcome;
@@ -52,11 +49,8 @@ public class AugmentJobExpiryTxService {
 
     private final LsDataAugRepository augRepository;
     private final LsDataAugJobRepository jobRepository;
-    private final LsDataSrcRepository srcRepository;
     private final AugmentJobRollup rollup;
     private final AugmentResultService augmentResultService;
-    /** 정책 보류(비식별 누락 신고) 판정 단일 원천 — 자체 재구현 금지. */
-    private final DeidentReportGate deidentReportGate;
     private final AugmentMetrics metrics;
 
     /**
@@ -96,17 +90,17 @@ public class AugmentJobExpiryTxService {
     /**
      * <b>job 행 0건 장기 PENDING</b> 증강 1건을 회수해 실패로 확정한다 (적대검증 2차 MEDIUM-2).
      *
-     * <p>이 상태는 위탁 전 롤업이 예외로 끝나 job 도 콜백도 없는 고아다. 재개 트리거(비식별 신고 해제)가
-     * 없는 영상이면 영원히 깨어나지 못하므로, 실패 인계의 단일 깔때기({@link AugmentResultService})로
-     * 넘겨 {@code REJECTED} + dead-letter 로 못박아 집계에 드러낸다.
+     * <p>이 상태는 위탁 전 롤업이 예외로 끝나 job 도 콜백도 없는 고아다. 이를 <b>깨울 주체가 없으므로</b>
+     * 실패 인계의 단일 깔때기({@link AugmentResultService})로 넘겨 {@code REJECTED} + dead-letter 로
+     * 못박아 집계에 드러낸다.
      *
-     * <h3>정상 보류는 회수하지 않는다 (fail-safe)</h3>
-     * <p>후보 SQL 이 이미 걸러내지만, 후보 조회~여기 사이에 신고가 커밋될 수 있다. 그래서 <b>잠금
-     * 하에</b> 다시 판정한다: 증강 행 {@code FOR UPDATE} → 부모 RAW {@code FOR UPDATE}
-     * ({@link DeidentReportGate#isUnderDeidentReportLocked}) 순서로만 잠그므로 인계 경로와 락 순서가
-     * 같다(데드락 없음). 보류면 아무것도 하지 않고 신고 해제 재개에 맡긴다.
+     * <h3>★ 비식별 신고 구간({@code 'F'})도 회수한다 (2026-07-29)</h3>
+     * <p>구 구현은 신고 구간을 "정책 보류"로 보고 skip 했으나, 그 전제(신고 해제 이벤트가 보류분을
+     * 재개한다)는 폐기됐고 재개 리스너도 삭제됐다. skip 하면 깨울 주체 없는 PENDING 고착만 남으므로
+     * 신고 여부와 무관하게 회수한다. 신고가 실제로 막아야 하는 <b>외부 위탁</b> 차단은 요청 입구
+     * ({@code AugmentRequestService})와 전송 진입점({@code AugmentJobSubmitService})이 담당한다.
      *
-     * @return true = 이번 호출이 회수함 / false = 대상 아님(이미 종결·job 생김·정책 보류)
+     * @return true = 이번 호출이 회수함 / false = 대상 아님(이미 종결·job 생김)
      */
     @Transactional("controlTransactionManager")
     public boolean expireOrphanPending(Long dataAugSn) {
@@ -120,18 +114,9 @@ public class AugmentJobExpiryTxService {
         if (!jobRepository.findByDataAugSnOrderByJobSeqAsc(dataAugSn).isEmpty()) {
             return false;
         }
-        Long parentRawSn = srcRepository.findById(aug.getSrcSn())
-                .map(LsDataSrc::getRawSn)
-                .orElse(null);
-        if (deidentReportGate.isUnderDeidentReportLocked(parentRawSn)) {
-            log.info("[Augment][Expiry] orphan reclaim skipped — 정책 보류(비식별 신고 구간) dataAugSn={}",
-                    dataAugSn);
-            return false;
-        }
-
         AugmentApplyResult applied = augmentResultService.handle(AugmentOutcome.failed(dataAugSn, null));
         countAugOrphanExpiredAfterCommit();
-        log.warn("[Augment][Expiry] orphan pending augment reclaimed (job 0건 · 재개 트리거 없음) "
+        log.warn("[Augment][Expiry] orphan pending augment reclaimed (job 0건 · 깨울 주체 없음) "
                 + "dataAugSn={} result={}", dataAugSn, applied);
         return true;
     }

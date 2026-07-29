@@ -131,6 +131,20 @@ class QuartzClusteringConfigGuardTest {
                 .contains("NTP");
     }
 
+    @Test
+    @DisplayName("배포_템플릿이_배포환경_표식_ENV_를_주입한다")
+    void deployTemplateShipsDeployedEnvMarker() {
+        // given: 가드의 두 번째 축(ENV)은 <실제로 주입될 때만> 작동한다
+        String template = read(ENV_TEMPLATE);
+
+        // then: 템플릿이 ENV 항목을 배포 표식값으로 제공해야 한다. 없으면 systemd EnvironmentFile 에도
+        //       ENV 가 없어 프로파일 축만 남고, SPRING_PROFILES_ACTIVE=dev 로 뜬 배포 노드가 가드를
+        //       통과해 클러스터링 off 인 채 2노드 중복 발화한다(서버 잔존 .env 가 프로파일을 덮은 실사고 이력).
+        assertThat(template)
+                .as("env.template 에 ENV 배포 표식이 없으면 QuartzClusteringGuard/DevProfileGuard 의 ENV 축이 무력하다")
+                .containsPattern("(?m)^ENV=(stg|prd)$");
+    }
+
     private String read(Path path) {
         try {
             return Files.readString(path, StandardCharsets.UTF_8);

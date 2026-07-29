@@ -291,9 +291,11 @@ public class LsDataAug {
     /**
      * 재시도 횟수 1 증가.
      *
-     * <p>호출 지점(Phase 8-B 배선): ①처리 실패 확정({@code AugmentResultService} 실패 인계)
-     * ②비식별 누락 신고 해소 후 <b>보류분 재개</b>({@code AugmentRequestBridge}). 즉 이 값은
+     * <p>호출 지점(Phase 8-B 배선): 처리 실패 확정({@code AugmentResultService} 실패 인계). 즉 이 값은
      * "이 증강 1건에 대해 몇 번 재차 시도했는가" 를 누적한다.
+     *
+     * <p>구 서술의 "비식별 누락 신고 해소 후 보류분 재개" 경로는 2026-07-29 로 폐기됐다(보류 개념
+     * 자체가 없어졌고 재개 리스너도 삭제됐다).
      */
     public void incrementRetryCount() {
         this.retryCount++;
@@ -302,7 +304,8 @@ public class LsDataAug {
     /**
      * 영구 실패 마킹 — dead-letter 큐 진입.
      *
-     * <p>증강 채널에는 실패 이후 자동 재시도 구동기가 없다(재개는 <b>보류</b> 해제 트리거뿐이다).
+     * <p>증강 채널에는 실패 이후 자동 재시도 구동기가 없다(보류·재개 개념은 2026-07-29 폐기 —
+     * 재요청은 운영자가 명시적으로 다시 요청하는 것뿐이다).
      * 따라서 처리 실패가 확정되는 순간이 곧 영구 실패이며, {@code AugmentResultService} 의 실패
      * 인계 경로가 이 메서드를 호출한다. 이 마커가 있어야 집계가 실패를 실패로 보인다
      * ({@link #isProcessingFailed()}).

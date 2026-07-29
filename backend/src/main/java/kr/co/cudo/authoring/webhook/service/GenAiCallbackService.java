@@ -83,8 +83,10 @@ public class GenAiCallbackService {
      *
      * @return {@link AugmentApplyResult#APPLIED} = 상태를 갱신함 /
      *         {@link AugmentApplyResult#DUPLICATE} = 멱등 흡수(이미 종결된 job 의 재전송) /
-     *         {@code WITHHELD_*} = job 은 갱신했으나 증강 인계가 정책 보류됨(E-ISSUE-11 — 응답
-     *         {@code applied:false} + 사유로 회신해야 외부가 "정상 인계" 로 오해하지 않는다)
+     *         {@link AugmentApplyResult#DEFERRED} = job 은 갱신했으나 비종결 job 이 남아 롤업 보류
+     *         (E-ISSUE-11 — 응답 {@code applied:false} 로 회신해야 외부가 "정상 인계" 로 오해하지 않는다).
+     *         정책 보류({@code WITHHELD_*})는 2026-07-29 폐기 — 비식별 신고 구간도 인계는 진행되고,
+     *         부모를 물리적으로 쓸 수 없으면 보류가 아니라 실패로 확정된다.
      */
     @Transactional("controlTransactionManager")
     public AugmentApplyResult handle(GenAiCallbackRequest req) {
