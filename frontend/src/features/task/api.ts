@@ -7,12 +7,22 @@ import type {
   AssignTaskRequest,
   Assignment,
   AssignmentHistory,
+  EventTypeOptionsResponse,
   ReassignTaskRequest,
   Task,
+  TaskBoardEventTypeParams,
   TaskBoardItem,
   TaskBoardParams,
+  TaskBoardSummary,
+  TaskBoardSummaryParams,
   TaskListParams,
 } from './types';
+
+/**
+ * 배열 파라미터를 `sort=a&sort=b` 로 직렬화한다.
+ * axios 기본 직렬화는 `sort[]=a` 라 Spring `Pageable` 이 바인딩하지 못한다.
+ */
+const REPEAT_ARRAY_PARAMS = { indexes: null } as const;
 
 /**
  * 보안: axios가 자동 URL 인코딩 (XSS/Injection 방지).
@@ -35,7 +45,34 @@ export function listTasks(params: TaskListParams) {
  */
 export function listTaskBoard(params: TaskBoardParams) {
   return apiClient
-    .get<PageResponse<TaskBoardItem>>('/tasks/board', { params })
+    .get<PageResponse<TaskBoardItem>>('/tasks/board', {
+      params,
+      paramsSerializer: REPEAT_ARRAY_PARAMS,
+    })
+    .then((r) => r.data);
+}
+
+/**
+ * 작업목록 KPI 집계 — BE: /v1/tasks/board/summary.
+ *
+ * **필터 결과 전체 기준** 집계다(현재 페이지가 아니다). 목록과 별도 요청이라 각 값은 조회 시점 스냅샷.
+ * 호출부는 `buildBoardSummaryParams` 로 파라미터를 조립해 workStatus 가 섞이지 않게 한다.
+ */
+export function getTaskBoardSummary(params: TaskBoardSummaryParams) {
+  return apiClient
+    .get<TaskBoardSummary>('/tasks/board/summary', { params })
+    .then((r) => r.data);
+}
+
+/**
+ * 이벤트유형 셀렉트 옵션 — BE: /v1/tasks/board/event-types.
+ *
+ * ★ 응답은 배열이 아니라 `{ items, truncated }` 객체다. `truncated=true` 면 옵션이 전체가 아니므로
+ * 화면이 그 사실을 안내해야 한다(그대로 버리면 "그 유형 영상이 없다" 는 조용한 오인이 된다).
+ */
+export function getTaskBoardEventTypes(params: TaskBoardEventTypeParams) {
+  return apiClient
+    .get<EventTypeOptionsResponse>('/tasks/board/event-types', { params })
     .then((r) => r.data);
 }
 

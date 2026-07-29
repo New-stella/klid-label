@@ -103,11 +103,99 @@ export interface TaskBoardItem {
   augType?: AugType | null;
 }
 
+/**
+ * BE `GET /v1/tasks/board` 의 **배치 상태 축**(`status`) 허용값 — `LS_DATA_RAW.DATA_STTS_CD` 기반.
+ *
+ * `UNASSIGNED` 는 "배치 상태 필터를 끄고 미배정 전체" 를 뜻하는 **가상 status** 다.
+ * 워크플로 축의 `UNASSIGNED`(= 현재 배치 상태 안에서의 미배정)와 **다른 집합**이므로
+ * KPI 카드 클릭은 이 축이 아니라 {@link WorkStatusParam} 축으로 보내야 한다.
+ */
+export const BATCH_STATUS_PARAMS = {
+  COMPLETED: 'COMPLETED',
+  UNASSIGNED: 'UNASSIGNED',
+  ASSIGNED: 'ASSIGNED',
+  PENDING: 'PENDING',
+  IN_REVIEW: 'IN_REVIEW',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export type BatchStatusParam =
+  (typeof BATCH_STATUS_PARAMS)[keyof typeof BATCH_STATUS_PARAMS];
+
+/**
+ * BE `GET /v1/tasks/board` 의 **워크플로 축**(`workStatus`) 허용값.
+ *
+ * ★ 표시용 상태({@link AssignmentStatus} / RowStatus)와 **일부러 분리**한 서버 전송 전용 union 이다.
+ * BE `TaskBoardService.mapBoardStatus` 는 `IN_PROGRESS` 를 **절대 반환하지 않으며**(배정됨 = PENDING),
+ * 그 값을 파라미터로 보내면 400 이다. 표시용 타입을 그대로 재사용하면 이 차이가 타입에서 사라진다.
+ */
+export const WORK_STATUS_PARAMS = {
+  UNASSIGNED: 'UNASSIGNED',
+  PENDING: 'PENDING',
+  REVIEW_PENDING: 'REVIEW_PENDING',
+  COMPLETED: 'COMPLETED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export type WorkStatusParam =
+  (typeof WORK_STATUS_PARAMS)[keyof typeof WORK_STATUS_PARAMS];
+
+/**
+ * `GET /v1/tasks/board` 쿼리 파라미터.
+ *
+ * - `status` / `workStatus` 는 **독립 축**이며 AND 결합된다 (필드명을 분리해 혼동을 타입에서 차단).
+ * - 빈 문자열은 절대 넣지 않는다 — BE `status=` 는 400 이다. 값이 없으면 **키 자체를 생략**한다
+ *   (조립은 `boardParams.ts` 의 빌더가 담당).
+ * - `sort` 는 `"{key},{dir}"` 문자열 배열. BE allowlist(regDt/shtDt/rawSn) 밖이거나 4개 이상이면 400 이라
+ *   `boardSort.ts` 가 매핑·상한을 강제한다.
+ */
 export interface TaskBoardParams {
-  status?: string;
+  status?: BatchStatusParam;
+  workStatus?: WorkStatusParam;
+  q?: string;
+  eventTypeCd?: string;
+  workerId?: number;
   page?: number;
   size?: number;
-  sort?: string;
+  sort?: string[];
+}
+
+/** `GET /v1/tasks/board/summary` 파라미터 — ★ workStatus 는 보내지 않는다(카드 자체가 선택지). */
+export type TaskBoardSummaryParams = Omit<
+  TaskBoardParams,
+  'workStatus' | 'page' | 'size' | 'sort'
+>;
+
+/** `GET /v1/tasks/board/event-types` 파라미터 — status 축만 반영한다. */
+export interface TaskBoardEventTypeParams {
+  status?: BatchStatusParam;
+}
+
+/**
+ * `GET /v1/tasks/board/summary` 응답 — **필터 결과 전체 기준** KPI 집계(현재 페이지가 아니다).
+ *
+ * 불변식: `total === unassigned + inProgress + reviewPending + completed + rejected`.
+ * `inProgress` 는 BoardWorkStatus.PENDING(배정됨·검수 미제출) 집계다 — IN_PROGRESS 값은 존재하지 않는다.
+ */
+export interface TaskBoardSummary {
+  total: number;
+  unassigned: number;
+  inProgress: number;
+  reviewPending: number;
+  completed: number;
+  rejected: number;
+}
+
+/**
+ * `GET /v1/tasks/board/event-types` 응답 — ★ 배열이 아니라 **객체**다.
+ *
+ * `truncated=true` 면 `items` 는 전체가 아니다(상한 500 초과 절단) — 화면이 그 사실을 알려야
+ * "그 이벤트유형 영상이 없다" 는 오인을 막는다.
+ */
+export interface EventTypeOptionsResponse {
+  items: string[];
+  truncated: boolean;
 }
 
 export interface AssignTaskRequest {

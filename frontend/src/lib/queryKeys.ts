@@ -22,6 +22,12 @@ export const ASSIGNMENT_KEYS = {
 export const TASK_BOARD_KEYS = {
   all: ['taskBoard'] as const,
   list: (params: Record<string, unknown>) => [...TASK_BOARD_KEYS.all, 'list', params] as const,
+  /** KPI 집계 — 목록과 필터가 다르므로(workStatus 제외) 키를 분리한다. */
+  summary: (params: Record<string, unknown>) =>
+    [...TASK_BOARD_KEYS.all, 'summary', params] as const,
+  /** 이벤트유형 옵션 — status 축에만 의존(near-immutable). */
+  eventTypes: (params: Record<string, unknown>) =>
+    [...TASK_BOARD_KEYS.all, 'event-types', params] as const,
 };
 
 export const VIDEO_KEYS = {
@@ -46,6 +52,12 @@ export const LABEL_KEYS = {
 export const REVIEW_KEYS = {
   all: ['reviews'] as const,
   pending: (params: Record<string, unknown>) => [...REVIEW_KEYS.all, 'pending', params] as const,
+  /**
+   * 검수목록 KPI 집계 — 목록과 파라미터가 다르므로(status 제외) 키를 분리한다.
+   * `REVIEW_KEYS.all` 하위라 승인/반려 mutation 의 broad invalidate 한 번에 함께 갱신된다.
+   */
+  summary: (params: Record<string, unknown>) =>
+    [...REVIEW_KEYS.all, 'summary', params] as const,
   detail: (id: number) => [...REVIEW_KEYS.all, 'detail', id] as const,
   frames: (videoId: number) => [...REVIEW_KEYS.all, 'frames', videoId] as const,
   issueThreads: (rawSn: number) =>

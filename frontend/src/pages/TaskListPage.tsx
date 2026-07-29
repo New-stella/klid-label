@@ -1,45 +1,49 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  ArrowDown,
-  ChevronLeft,
-  ChevronRight,
-  Flame,
-  History,
-  ListTodo,
-  Play,
-  RefreshCw,
-  UserPlus,
-  Users,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/common/Button';
-import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
-import { EventTypeBadge } from '@/components/common/EventTypeBadge';
-import { KpiCard } from '@/components/common/KpiCard';
-import { Skeleton } from '@/components/common/Skeleton';
-import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
-import { augTypeLabel, type AugType } from '@/features/augment/augTypeLabel';
+import {
+  DEFAULT_TASK_FILTERS,
+  buildBoardEventTypeParams,
+  buildBoardParams,
+  buildBoardSummaryParams,
+  filtersToSearchParams,
+  searchParamsToFilters,
+  searchParamsToSort,
+  type TaskFilterValues,
+} from '@/features/task/boardParams';
+import {
+  DEFAULT_BOARD_SORT,
+  toggleBoardSort,
+  type BoardSortColumn,
+  type BoardSortEntry,
+} from '@/features/task/boardSort';
 import { AssignModal } from '@/features/task/components/AssignModal';
 import { HistoryDrawer } from '@/features/task/components/HistoryDrawer';
 import {
-  DEFAULT_TASK_FILTERS,
-  TaskFilters,
-  type TaskFilterValues,
-} from '@/features/task/components/TaskFilters';
+  TaskBoardTable,
+  type TaskRow,
+} from '@/features/task/components/TaskBoardTable';
+import { TaskBoardKpiCards } from '@/features/task/components/TaskBoardKpiCards';
+import { TaskWorkerKpiCards } from '@/features/task/components/TaskWorkerKpiCards';
+import { TaskFilters } from '@/features/task/components/TaskFilters';
 import { useTaskBoard } from '@/features/task/hooks/useTaskBoard';
+import { useTaskBoardEventTypes } from '@/features/task/hooks/useTaskBoardEventTypes';
+import { useTaskBoardSummary } from '@/features/task/hooks/useTaskBoardSummary';
 import { useTasks } from '@/features/task/hooks/useTasks';
-import { TASK_STATUS_LABEL, type RowStatus } from '@/features/task/statusLabels';
 import type {
   AssignmentStatus,
   Task,
   TaskBoardItem,
   TaskListParams,
+  WorkStatusParam,
 } from '@/features/task/types';
 import { useUsers } from '@/features/user/hooks/useUsers';
-import { isMarkingBlocked, type Video } from '@/features/video/types';
+import { type BadgeStatus } from '@/components/common/StatusBadge';
+import { type Video } from '@/features/video/types';
 import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -49,47 +53,7 @@ const ROLE_LABEL: Record<string, string> = {
   WORKER: '작업자',
 };
 
-// AssignmentStatus → BadgeStatus 매핑 (UNASSIGNED는 PENDING으로)
-const STATUS_BADGE_MAP: Record<RowStatus, BadgeStatus> = {
-  UNASSIGNED: 'PENDING',
-  PENDING: 'PENDING',
-  IN_PROGRESS: 'IN_PROGRESS',
-  REVIEW_PENDING: 'REVIEW_PENDING',
-  COMPLETED: 'COMPLETED',
-  REJECTED: 'REJECTED',
-};
-
-interface TaskRow {
-  id: string;
-  video: Video;
-  task: Task | undefined;
-  rowStatus: RowStatus;
-  videoName: string;
-  /** 증강/해상도 파생 데이터 여부 (뱃지 노출 판정). */
-  augmented: boolean;
-  /** 증강 종류 코드 — null 이면 뱃지에 '증강'만 표시. */
-  augType: AugType | null;
-}
-
 const PAGE_SIZE = 20;
-
-function searchParamsToFilters(sp: URLSearchParams): TaskFilterValues {
-  return {
-    q: sp.get('q') ?? '',
-    status: sp.get('status') ?? '',
-    assigneeId: sp.get('assigneeId') ?? '',
-    eventType: sp.get('eventType') ?? '',
-  };
-}
-
-function filtersToSearchParams(f: TaskFilterValues): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (f.q) out['q'] = f.q;
-  if (f.status) out['status'] = f.status;
-  if (f.assigneeId) out['assigneeId'] = f.assigneeId;
-  if (f.eventType) out['eventType'] = f.eventType;
-  return out;
-}
 
 /**
  * SCR-TASK-001 작업 목록 (mock 정합 V1.x).
@@ -97,16 +61,16 @@ function filtersToSearchParams(f: TaskFilterValues): Record<string, string> {
  * 레이아웃:
  *   - 헤더: 제목 + 청록 역할 뱃지 + 부제 + 새로고침
  *   - 검색폼 (영상명/작업자명 + 이벤트 + 상태 + (REVIEWER) 작업자)
- *   - KPI 4카드
+ *   - KPI 카드 — REVIEWER 5카드(서버 집계 + 클릭 필터) / WORKER 4카드(본인 배정분 집계)
  *   - 다중 선택 일괄 배정 액션바
- *   - 테이블: (REVIEWER) 체크박스 + 영상명 + 이벤트 + 상태 + 작업자 + 검수자 + 액션
+ *   - 테이블(TaskBoardTable): (REVIEWER) 체크박스 + 영상명 + 영상 ID + 촬영일시 + 이벤트 + 상태 …
  *
- * V1.x 후속 반영:
- * - 처리 완료 영상이지만 task가 없는 경우도 노출 (left-join)
- * - 검수자 미등록 표시
- * - 이벤트 컬럼에 EventTypeBadge
- * - 다중 선택 → AssignModal bulk 모드
- * - 작업자 기본값 = 현재 사용자
+ * ★ 필터·정렬·KPI 축:
+ * - REVIEWER 시각은 **서버 필터**다 — 검색어/상태/이벤트/작업자를 `/v1/tasks/board` 에 위임하고
+ *   화면에서 행을 다시 거르지 않는다(현재 페이지 20건 안에서 거르면 결과·숫자가 모두 틀린다).
+ * - 배치 상태 축은 **COMPLETED 고정**이다(URL 로도 못 바꾼다) — 헤더 부제와 한 몸이다.
+ * - KPI 는 `/v1/tasks/board/summary` 의 **전체 기준** 집계이며, 카드 클릭은 `workStatus` 축만 바꾼다.
+ * - WORKER 시각(/v1/assignments)은 서버 필터·정렬을 지원하지 않아 기존 클라이언트 필터를 유지한다.
  *
  * UI/UX §4-5 정합 — priority/deadline 컬럼은 절대 추가하지 않는다.
  */
@@ -118,8 +82,16 @@ export function TaskListPage() {
   const role = claims?.role ?? Role.WORKER;
   const isReviewer = role === Role.REVIEWER;
 
-  const [filters, setFilters] = useState<TaskFilterValues>(() =>
-    searchParamsToFilters(searchParams),
+  const [filters, setFilters] = useState<TaskFilterValues>(() => {
+    const parsed = searchParamsToFilters(searchParams);
+    // `IN_PROGRESS` 는 WORKER 전용 클라이언트 필터 값이다. REVIEWER 축에는 선택지가 없어
+    // 그대로 두면 상태 select 는 빈칸인데 목록은 전체가 나오는 어긋난 화면이 된다.
+    return isReviewer && parsed.workStatus === 'IN_PROGRESS'
+      ? { ...parsed, workStatus: '' }
+      : parsed;
+  });
+  const [sort, setSort] = useState<BoardSortEntry[]>(() =>
+    searchParamsToSort(searchParams),
   );
   const [page, setPage] = useState(0);
 
@@ -147,8 +119,8 @@ export function TaskListPage() {
   );
 
   // 데이터 fetch — workerId 필터(URL)는 그대로 BE로 위임.
-  // - WORKER 시각: BE 페이징(/assignments) 사용 (Phase 2 완료)
-  // - REVIEWER 시각: Phase 3 에서 /v1/tasks/board BE 단일 엔드포인트 사용 — useVideos 의존 제거
+  // - WORKER 시각: BE 페이징(/assignments) 사용
+  // - REVIEWER 시각: /v1/tasks/board BE 단일 엔드포인트 사용 — useVideos 의존 제거
   const taskParams = useMemo<TaskListParams>(() => {
     const workerIdParam = filters.assigneeId;
     return {
@@ -168,25 +140,48 @@ export function TaskListPage() {
     refetch: refetchTasks,
   } = useTasks(taskParams, { enabled: !isReviewer });
 
-  // REVIEWER 통합 작업 목록 — BE /v1/tasks/board 페이징.
-  // 처리 완료 영상 + (left-join) LABELER/REVIEWER 배정을 BE 가 enrich 한 결과를 그대로 사용한다.
+  // REVIEWER 통합 작업 목록 — BE /v1/tasks/board 페이징 + 서버 필터/정렬.
   const boardParams = useMemo(
-    () => ({ status: 'COMPLETED', page, size: PAGE_SIZE }),
-    [page],
+    () => buildBoardParams(filters, { page, size: PAGE_SIZE, sort }),
+    [filters, page, sort],
   );
   const {
     data: boardPage,
     isLoading: boardLoading,
+    isFetching: boardFetching,
     error: boardError,
     refetch: refetchBoard,
   } = useTaskBoard(boardParams, { enabled: isReviewer });
 
+  // KPI 집계 — 목록과 **독립 쿼리**. workStatus 는 제외된다(카드 자체가 그 선택지).
+  const summaryParams = useMemo(
+    () => buildBoardSummaryParams({ ...filters, workStatus: '' }),
+    [filters],
+  );
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryIsError,
+    refetch: refetchSummary,
+  } = useTaskBoardSummary(summaryParams, { enabled: isReviewer });
+
+  // 이벤트유형 옵션 — 배치 상태 축(고정)만 반영한다.
+  const eventTypeParams = useMemo(() => buildBoardEventTypeParams(), []);
+  const { items: boardEventTypes, truncated: eventTypesTruncated } =
+    useTaskBoardEventTypes(eventTypeParams, { enabled: isReviewer });
+
   const isLoading = isReviewer ? boardLoading : tasksLoading;
+  // ★ 페이지 레벨 에러는 **목록 쿼리만** 결정한다 — KPI/옵션 실패가 정상 목록을 가리면 안 된다.
   const error = isReviewer ? boardError : tasksError;
+  const hasListError = Boolean(error);
   const refetch = useCallback(() => {
-    if (isReviewer) refetchBoard();
-    else refetchTasks();
-  }, [isReviewer, refetchBoard, refetchTasks]);
+    if (isReviewer) {
+      refetchBoard();
+      refetchSummary();
+    } else {
+      refetchTasks();
+    }
+  }, [isReviewer, refetchBoard, refetchSummary, refetchTasks]);
 
   // /users 는 REVIEWER 전용 (BE @PreAuthorize). WORKER 화면에서는 호출 자체를 막아 403 스팸을 방지한다.
   const { data: workersPage } = useUsers(
@@ -198,15 +193,21 @@ export function TaskListPage() {
     { enabled: isReviewer },
   );
 
-  const tasks = tasksPage?.content ?? [];
-  const boardItems: TaskBoardItem[] = boardPage?.content ?? [];
-  const workers = workersPage?.content
-    ? workersPage.content.map((u) => ({
+  // useMemo 로 감싸 참조를 안정화한다 — 아래 파생 useMemo 들의 deps 가 매 렌더 바뀌지 않게.
+  const tasks = useMemo(() => tasksPage?.content ?? [], [tasksPage]);
+  const boardItems = useMemo<TaskBoardItem[]>(
+    () => boardPage?.content ?? [],
+    [boardPage],
+  );
+  const workers = useMemo(
+    () =>
+      (workersPage?.content ?? []).map((u) => ({
         id: u.id,
         name: u.name,
         active: u.active,
-      }))
-    : [];
+      })),
+    [workersPage],
+  );
 
   // 검수자 ID → 이름 매핑 (TaskBoardItem.reviewerName 이 비어있을 때 보조 폴백)
   const reviewerMap = useMemo(() => {
@@ -217,20 +218,17 @@ export function TaskListPage() {
     return map;
   }, [reviewersPage]);
 
-  // 이벤트 유형 옵션 (REVIEWER: board items / WORKER: tasks 의 eventName 에서 unique 수집).
+  // 이벤트 유형 옵션.
+  // - REVIEWER: 서버 조회(/v1/tasks/board/event-types) 결과 — 현재 페이지에 없는 코드도 고를 수 있다.
+  // - WORKER  : 기존대로 본인 배정 목록에서 수집(클라이언트 필터라 서버 옵션이 필요 없다).
   const eventTypeOptions = useMemo(() => {
+    if (isReviewer) return boardEventTypes;
     const set = new Set<string>();
-    if (isReviewer) {
-      boardItems.forEach((it) => {
-        if (it.eventName) set.add(it.eventName);
-      });
-    } else {
-      tasks.forEach((t) => {
-        if (t.eventName) set.add(t.eventName);
-      });
-    }
+    tasks.forEach((t) => {
+      if (t.eventTypeCd) set.add(t.eventTypeCd);
+    });
     return Array.from(set).sort();
-  }, [isReviewer, boardItems, tasks]);
+  }, [isReviewer, boardEventTypes, tasks]);
 
   // base 계산.
   // - WORKER: 본인에게 배정된 task만 표시 (미배정 영상 left-join 금지 — IDOR/노이즈 방지)
@@ -264,8 +262,7 @@ export function TaskListPage() {
     // REVIEWER — BE /v1/tasks/board 응답을 TaskRow 로 변환.
     return boardItems.map((it) => {
       const cctvName = it.cctvName ?? '';
-      const hasAssignment =
-        it.assignmentId != null && it.workerId != null;
+      const hasAssignment = it.assignmentId != null && it.workerId != null;
       const task: Task | undefined = hasAssignment
         ? {
             id: it.assignmentId as number,
@@ -309,9 +306,17 @@ export function TaskListPage() {
     });
   }, [isReviewer, boardItems, tasks]);
 
+  /**
+   * 화면에 그릴 행.
+   *
+   * - REVIEWER: **서버가 이미 거른 결과** 그대로다. 여기서 다시 거르면 현재 페이지 20건 안에서만
+   *   걸러져 목록·총건수·KPI 가 서로 다른 값을 말하게 된다(클라이언트 재필터 금지).
+   * - WORKER  : /v1/assignments 는 workerId 외 필터를 지원하지 않아 기존 클라이언트 필터를 유지한다.
+   */
   const visibleRows = useMemo<TaskRow[]>(() => {
-    let result = [...allRows];
+    if (isReviewer) return allRows;
 
+    let result = allRows;
     if (filters.q) {
       const q = filters.q.toLowerCase();
       result = result.filter(
@@ -320,53 +325,108 @@ export function TaskListPage() {
           (r.task?.workerName ?? '').toLowerCase().includes(q),
       );
     }
-
-    if (filters.status) {
-      result = result.filter((r) => r.rowStatus === filters.status);
+    if (filters.workStatus) {
+      result = result.filter((r) => r.rowStatus === filters.workStatus);
     }
-
-    if (filters.assigneeId) {
-      const aid = Number(filters.assigneeId);
-      result = result.filter((r) => r.task?.workerId === aid);
+    if (filters.eventTypeCd) {
+      result = result.filter((r) => r.video.eventTypeCd === filters.eventTypeCd);
     }
-
-    if (filters.eventType) {
-      result = result.filter((r) => r.video.eventName === filters.eventType);
-    }
-
     return result;
-  }, [allRows, filters]);
-
-  // KPI
-  const kpi = useMemo(() => {
-    const total = visibleRows.length;
-    const inProgress = visibleRows.filter((r) => r.rowStatus === 'IN_PROGRESS')
-      .length;
-    const reviewPending = visibleRows.filter((r) => r.rowStatus === 'REVIEW_PENDING')
-      .length;
-    const rejected = visibleRows.filter((r) => r.rowStatus === 'REJECTED')
-      .length;
-    return { total, inProgress, reviewPending, rejected };
-  }, [visibleRows]);
+  }, [isReviewer, allRows, filters.q, filters.workStatus, filters.eventTypeCd]);
 
   // 페이징
   // - WORKER:    BE /assignments       totalPages 사용
-  // - REVIEWER:  BE /v1/tasks/board     totalPages 사용
-  // 클라이언트 슬라이싱은 사용하지 않는다. 클라이언트 필터(q/status/eventType/assigneeId) 는 현재 페이지 결과에만 적용된다.
+  // - REVIEWER:  BE /v1/tasks/board     totalPages 사용 (필터가 서버에 적용된 결과)
   const totalPages = Math.max(
     1,
     (isReviewer ? boardPage?.totalPages : tasksPage?.totalPages) ?? 1,
   );
   const safePage = Math.min(page, totalPages - 1);
   const pagedRows = visibleRows;
+  // 헤더의 "전체 N건" 은 **화면에 그려진 행과 같은 집합**을 세야 한다. 원천은 역할마다 다르다.
+  // - REVIEWER: 서버가 이미 필터를 적용한 결과라 서버 totalElements 가 그 집합이다.
+  // - WORKER  : /v1/assignments 는 필터를 지원하지 않아 화면에서 다시 거른다. 서버 totalElements 를
+  //             쓰면 표에는 3행인데 헤더는 "전체 42건"이 되므로 클라이언트 필터 결과 행 수를 쓴다.
+  const totalElements = isReviewer
+    ? boardPage?.totalElements ?? visibleRows.length
+    : visibleRows.length;
 
-  // 필터 변경 시 URL 동기화 + 페이지 리셋 + 선택 해제
+  // 필터·정렬 변경 시 URL 동기화. 페이지 리셋은 **상태를 바꾼 핸들러가 함께** 처리한다 —
+  // effect 로 미루면 직전 페이지 번호로 목록 요청이 한 번 더 나간다.
   useEffect(() => {
-    const params = filtersToSearchParams(filters);
-    setSearchParams(params, { replace: true });
-    setPage(0);
-    setSelectedVideoIds(new Set());
-  }, [filters, setSearchParams]);
+    setSearchParams(filtersToSearchParams(filters, sort), { replace: true });
+  }, [filters, sort, setSearchParams]);
+
+  // 총 페이지 수가 줄어 현재 페이지가 범위를 벗어나면 되돌린다.
+  // 그대로 두면 목록은 비고 페이지네이션 UI 도 사라져 복구 경로가 없다.
+  useEffect(() => {
+    if (!isLoading && page > totalPages - 1) {
+      setPage(Math.max(0, totalPages - 1));
+    }
+  }, [isLoading, page, totalPages]);
+
+  const pagedVideoIds = useMemo(
+    () => pagedRows.map((r) => r.video.id),
+    [pagedRows],
+  );
+
+  // 화면에 없는 선택은 버린다 — 새로고침으로 행이 갈리면 보이지 않는 영상이 일괄 배정에 섞인다.
+  useEffect(() => {
+    setSelectedVideoIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(pagedVideoIds);
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [pagedVideoIds]);
+
+  const clearSelection = useCallback(() => setSelectedVideoIds(new Set()), []);
+
+  /** 필터 제출 — 페이지·선택 초기화를 **같은 이벤트에서** 처리한다(요청 1회). */
+  const handleFiltersChange = useCallback(
+    (next: TaskFilterValues) => {
+      setFilters(next);
+      setPage(0);
+      clearSelection();
+    },
+    [clearSelection],
+  );
+
+  const handleFiltersReset = useCallback(() => {
+    // 모듈 상수를 그대로 넘기면 참조가 같아 React 가 갱신을 건너뛴다(두 번째 초기화가 no-op).
+    handleFiltersChange({ ...DEFAULT_TASK_FILTERS });
+    // 정렬도 기본값으로 되돌린다 — 초기화가 필터만 지우면 URL 의 `sort`·헤더 aria-sort·요청
+    // 파라미터가 그대로 남는다. 특히 `regDt` 는 컬럼 헤더가 없어 토글로 되돌릴 수 없으므로
+    // 초기화가 유일한 복구 경로다(기본 정렬은 URL 에 기록되지 않아 파라미터도 함께 사라진다).
+    setSort([...DEFAULT_BOARD_SORT]);
+  }, [handleFiltersChange]);
+
+  /** KPI 카드 클릭 — 워크플로 축만 바꾼다(배치 축은 고정). 같은 카드 재클릭은 해제. */
+  const handleKpiSelect = useCallback(
+    (workStatus: WorkStatusParam | undefined) => {
+      setFilters((prev) => ({ ...prev, workStatus: workStatus ?? '' }));
+      setPage(0);
+      clearSelection();
+    },
+    [clearSelection],
+  );
+
+  const handleSort = useCallback(
+    (column: BoardSortColumn) => {
+      setSort((prev) => toggleBoardSort(prev, column));
+      setPage(0);
+      clearSelection();
+    },
+    [clearSelection],
+  );
+
+  const handlePageChange = useCallback(
+    (next: number) => {
+      setPage(next);
+      clearSelection();
+    },
+    [clearSelection],
+  );
 
   // 다중 선택 토글
   const toggleRow = useCallback((videoId: number) => {
@@ -378,28 +438,19 @@ export function TaskListPage() {
     });
   }, []);
 
-  const pagedVideoIds = useMemo(
-    () => pagedRows.map((r) => r.video.id),
-    [pagedRows],
-  );
-  const allPagedSelected =
-    pagedVideoIds.length > 0 &&
-    pagedVideoIds.every((id) => selectedVideoIds.has(id));
-  const somePagedSelected = pagedVideoIds.some((id) =>
-    selectedVideoIds.has(id),
-  );
-
-  const toggleAllPaged = () => {
+  const toggleAllPaged = useCallback(() => {
     setSelectedVideoIds((prev) => {
       const next = new Set(prev);
-      if (allPagedSelected) {
+      const allSelected =
+        pagedVideoIds.length > 0 && pagedVideoIds.every((id) => prev.has(id));
+      if (allSelected) {
         pagedVideoIds.forEach((id) => next.delete(id));
       } else {
         pagedVideoIds.forEach((id) => next.add(id));
       }
       return next;
     });
-  };
+  }, [pagedVideoIds]);
 
   const handleRefresh = () => {
     refetch();
@@ -407,11 +458,33 @@ export function TaskListPage() {
   };
 
   const openBulkAssign = () => {
-    if (selectedVideoIds.size === 0) return;
+    if (selectedVideoIds.size === 0 || hasListError) return;
     setSelectedTask(null);
     setAssignMode('bulk');
     setAssignModalOpen(true);
   };
+
+  const handleAssignRow = useCallback((row: TaskRow) => {
+    if (row.task?.workerId) {
+      // 기존 배정 — 재배정 모드
+      setSelectedTask(row.task);
+      setSelectedVideoForAssign(null);
+      setAssignMode('reassign');
+    } else {
+      // 미배정 영상 — 단건 신규 배정 모드 (videoId 전달)
+      setSelectedTask(null);
+      setSelectedVideoForAssign({ id: row.video.id, name: row.videoName });
+      setAssignMode('assign');
+    }
+    setAssignModalOpen(true);
+  }, []);
+
+  const handleHistoryRow = useCallback((row: TaskRow) => {
+    if (!row.task) return;
+    setHistoryAssignmentId(row.task.id);
+    setHistoryVideoName(row.videoName);
+    setHistoryDrawerOpen(true);
+  }, []);
 
   const videoNameById = useMemo(() => {
     const map: Record<number, string> = {};
@@ -424,6 +497,20 @@ export function TaskListPage() {
     return map;
   }, [boardItems, tasks]);
 
+  const workerRowStatuses = useMemo(
+    () => visibleRows.map((r) => r.rowStatus),
+    [visibleRows],
+  );
+
+  /** 배정/일괄배정 성공 — 모달을 닫고 선택을 비운 뒤 목록을 다시 읽는다. */
+  const handleAssignSuccess = () => {
+    setAssignModalOpen(false);
+    setSelectedVideoForAssign(null);
+    clearSelection();
+    refetch();
+    queryClient.invalidateQueries({ queryKey: ['assignments'] });
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -433,9 +520,7 @@ export function TaskListPage() {
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-700">
             현재 역할: {ROLE_LABEL[role] ?? role}
           </span>
-          <span className="text-xs text-gray-500">
-            처리 완료된 영상만 표시
-          </span>
+          <span className="text-xs text-gray-500">처리 완료된 영상만 표시</span>
         </div>
         <Button variant="secondary" size="sm" onClick={handleRefresh}>
           <RefreshCw size={14} aria-hidden />
@@ -446,42 +531,40 @@ export function TaskListPage() {
       {/* 검색 폼 */}
       <TaskFilters
         values={filters}
-        onChange={setFilters}
-        onReset={() => setFilters(DEFAULT_TASK_FILTERS)}
+        onChange={handleFiltersChange}
+        onReset={handleFiltersReset}
         showAssigneeSelect={isReviewer}
         workers={workers}
         eventTypes={eventTypeOptions}
+        eventTypesTruncated={isReviewer && eventTypesTruncated}
       />
 
-      {error && <ErrorState title="작업 목록을 불러올 수 없습니다" />}
+      {hasListError && (
+        <ErrorState
+          title="작업 목록을 불러올 수 없습니다"
+          // 배정은 REVIEWER 전용 기능이다 — WORKER 에게 "배정 기능" 안내를 하면
+          // 존재하지 않는 기능을 찾게 된다.
+          message={
+            isReviewer
+              ? '아래 목록은 최신 정보가 아닙니다. 배정 기능은 새로고침 후 사용할 수 있습니다.'
+              : '아래 목록은 최신 정보가 아닙니다. 새로고침 후 다시 확인해 주세요.'
+          }
+          onRetry={handleRefresh}
+        />
+      )}
 
-      {/* KPI 4카드 */}
-      <div className="grid grid-cols-4 gap-4">
-        <KpiCard
-          label="전체 작업"
-          value={kpi.total}
-          icon={<ListTodo size={22} className="text-primary-600" aria-hidden />}
-          iconBgClassName="bg-primary-50"
+      {/* KPI 카드 — REVIEWER 5카드(서버 집계) / WORKER 4카드(본인 배정분 집계) */}
+      {isReviewer ? (
+        <TaskBoardKpiCards
+          summary={summary}
+          isLoading={summaryLoading}
+          isError={summaryIsError}
+          selected={filters.workStatus}
+          onSelect={handleKpiSelect}
         />
-        <KpiCard
-          label="작업중"
-          value={kpi.inProgress}
-          icon={<Play size={22} className="text-success" aria-hidden />}
-          iconBgClassName="bg-success/10"
-        />
-        <KpiCard
-          label="검수요청"
-          value={kpi.reviewPending}
-          icon={<Flame size={22} className="text-warning" aria-hidden />}
-          iconBgClassName="bg-warning/10"
-        />
-        <KpiCard
-          label="반려"
-          value={kpi.rejected}
-          icon={<ArrowDown size={22} className="text-danger" aria-hidden />}
-          iconBgClassName="bg-danger/10"
-        />
-      </div>
+      ) : (
+        <TaskWorkerKpiCards rowStatuses={workerRowStatuses} />
+      )}
 
       {/* 일괄 배정 액션바 (REVIEWER만, 1건 이상 선택 시) */}
       {isReviewer && selectedVideoIds.size > 0 && (
@@ -495,326 +578,81 @@ export function TaskListPage() {
             </span>
             <button
               type="button"
-              onClick={() => setSelectedVideoIds(new Set())}
+              onClick={clearSelection}
               className="text-xs text-gray-500 underline hover:text-gray-700"
             >
               선택 해제
             </button>
           </div>
-          <Button variant="primary" size="sm" onClick={openBulkAssign}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={openBulkAssign}
+            disabled={hasListError}
+            title={
+              hasListError
+                ? '목록이 최신 정보가 아니어서 배정할 수 없습니다'
+                : undefined
+            }
+          >
             <Users size={14} aria-hidden />
             {selectedVideoIds.size}개 일괄 배정
           </Button>
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2">
-          {isReviewer && pagedVideoIds.length > 0 && (
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
-              <input
-                type="checkbox"
-                aria-label="현재 페이지 전체 선택"
-                checked={allPagedSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = !allPagedSelected && somePagedSelected;
-                }}
-                onChange={toggleAllPaged}
-                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              />
-              현재 페이지 전체 선택
-            </label>
-          )}
-          <span className="ml-auto text-xs text-gray-500">
-            전체 {visibleRows.length}건
-            {totalPages > 1 ? ` (${safePage + 1}/${totalPages} 페이지)` : ''}
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {isReviewer && (
-                  <th className="w-10 px-4 py-3"></th>
-                )}
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  영상명
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  이벤트
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  상태
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  작업자
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  검수자
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  액션
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    {Array.from({ length: isReviewer ? 7 : 6 }).map((__, j) => (
-                      <td key={j} className="px-4 py-3">
-                        <Skeleton height={16} />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : pagedRows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={isReviewer ? 7 : 6}
-                    className="px-3 py-12"
-                  >
-                    <EmptyState message="배정된 작업이 없습니다" />
-                  </td>
-                </tr>
-              ) : (
-                pagedRows.map((r) => {
-                  const checked = selectedVideoIds.has(r.video.id);
-                  return (
-                    <tr
-                      key={r.id}
-                      className={cn(
-                        'border-b border-gray-100 transition-colors hover:bg-gray-50',
-                      )}
-                    >
-                      {isReviewer && (
-                        <td className="px-4 py-3">
-                          <input
-                            type="checkbox"
-                            aria-label={`${r.videoName} 선택`}
-                            checked={checked}
-                            onChange={() => toggleRow(r.video.id)}
-                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                          />
-                        </td>
-                      )}
-                      <td className="px-4 py-3">
-                        <div className="min-w-[160px]">
-                          <p className="truncate max-w-[200px] text-sm font-medium text-gray-800">
-                            {r.videoName}
-                          </p>
-                          <p className="text-xs text-gray-400">{`video-${String(r.video.id).padStart(4, '0')}`}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col items-start gap-1">
-                          {r.video.eventName ? (
-                            <EventTypeBadge eventType={r.video.eventName} />
-                          ) : (
-                            <span className="text-xs text-gray-400">-</span>
-                          )}
-                          {/* 증강/해상도 파생 데이터 뱃지 (R3). 원본(augmented=false)은 미표시.
-                              기술모델명 비노출 — augTypeLabel 로 한글 라벨만 표시. */}
-                          {r.augmented && (
-                            <span
-                              data-testid={`task-aug-badge-${r.video.id}`}
-                              aria-label={`증강 데이터: ${augTypeLabel(r.augType)}`}
-                              className="inline-flex w-fit items-center rounded bg-info/10 px-2 py-0.5 text-xs font-medium text-info"
-                            >
-                              {augTypeLabel(r.augType)}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge
-                          status={STATUS_BADGE_MAP[r.rowStatus]}
-                          label={TASK_STATUS_LABEL[r.rowStatus]}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        {r.task?.workerName ? (
-                          <span className="text-sm text-gray-700">
-                            {r.task.workerName}
-                          </span>
-                        ) : (
-                          <span className="text-sm italic text-gray-400">
-                            미배정
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {r.task?.reviewerName ? (
-                          <span className="text-sm text-gray-700">
-                            {r.task.reviewerName}
-                          </span>
-                        ) : r.task?.reviewerId ? (
-                          <span className="text-sm text-gray-700">
-                            {reviewerMap[r.task.reviewerId] ??
-                              `user #${r.task.reviewerId}`}
-                          </span>
-                        ) : (
-                          <span className="text-sm italic text-gray-400">
-                            미등록
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div
-                          className="flex flex-nowrap gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {/* 배정 / 재배정 — REVIEWER (mock 정합: ghost 텍스트 버튼).
-                              COMPLETED(검수 승인 완료) 행은 재배정 불가 — 버튼 자체를 가린다.
-                              BE 가드(ASSIGNMENT_ALREADY_COMPLETED)와 짝을 이루는 UI 정합. */}
-                          {isReviewer && !(r.task?.workerId && r.rowStatus === 'COMPLETED') && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                if (r.task?.workerId) {
-                                  // 기존 배정 — 재배정 모드
-                                  setSelectedTask(r.task);
-                                  setSelectedVideoForAssign(null);
-                                  setAssignMode('reassign');
-                                } else {
-                                  // 미배정 영상 — 단건 신규 배정 모드 (videoId 전달)
-                                  setSelectedTask(null);
-                                  setSelectedVideoForAssign({
-                                    id: r.video.id,
-                                    name: r.videoName,
-                                  });
-                                  setAssignMode('assign');
-                                }
-                                setAssignModalOpen(true);
-                              }}
-                            >
-                              {r.task?.workerId ? (
-                                <RefreshCw size={14} aria-hidden />
-                              ) : (
-                                <UserPlus size={14} aria-hidden />
-                              )}
-                              {r.task?.workerId ? '재배정' : '배정'}
-                            </Button>
-                          )}
-                          {/* 이력 — task가 있을 때만 (REVIEWER) */}
-                          {isReviewer && r.task && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setHistoryAssignmentId(r.task!.id);
-                                setHistoryVideoName(r.videoName);
-                                setHistoryDrawerOpen(true);
-                              }}
-                            >
-                              <History size={14} aria-hidden />
-                              이력
-                            </Button>
-                          )}
-                          {/* WORKER: 본인 배정 작업 시작 / 마킹 + 이력 보기 (BE Service 레이어에서 IDOR 방어).
-                              - 프레임 존재(firstSrcSn) → "작업" 버튼 (라벨링 화면으로 navigate)
-                              - 프레임 미존재 → "마킹" 버튼 (마킹 화면으로 navigate) */}
-                          {!isReviewer && r.task && (
-                            <>
-                              {r.task.firstSrcSn ? (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/label/${r.task!.firstSrcSn}`);
-                                  }}
-                                  aria-label={`작업 시작 ${r.videoName}`}
-                                >
-                                  <Play size={14} aria-hidden /> 작업
-                                </Button>
-                              ) : isMarkingBlocked(r.video) ? (
-                                // AC4 — 비식별 미완료 영상은 마킹 진입 차단(버튼 비활성 + 사유 안내).
-                                // 색상만이 아닌 텍스트/aria 라벨로 사유 전달(component.md 접근성).
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  disabled
-                                  title="비식별 완료 후 마킹 가능"
-                                  aria-label={`마킹 불가 (비식별 완료 후 가능) ${r.videoName}`}
-                                >
-                                  <ListTodo size={14} aria-hidden /> 마킹
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/marking/${r.task!.videoId}`);
-                                  }}
-                                  aria-label={`마킹 시작 ${r.videoName}`}
-                                >
-                                  <ListTodo size={14} aria-hidden /> 마킹
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setHistoryAssignmentId(r.task!.id);
-                                  setHistoryVideoName(r.videoName);
-                                  setHistoryDrawerOpen(true);
-                                }}
-                                aria-label="배정 이력 보기"
-                              >
-                                <History size={14} aria-hidden /> 이력
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TaskBoardTable
+        rows={pagedRows}
+        isReviewer={isReviewer}
+        isLoading={isLoading}
+        refreshing={isReviewer && boardFetching && !boardLoading}
+        totalElements={totalElements}
+        totalPages={totalPages}
+        currentPage={safePage}
+        sort={sort}
+        onSort={handleSort}
+        selectedVideoIds={selectedVideoIds}
+        onToggleRow={toggleRow}
+        onToggleAllPaged={toggleAllPaged}
+        actionsDisabled={hasListError}
+        reviewerMap={reviewerMap}
+        onAssign={handleAssignRow}
+        onHistory={handleHistoryRow}
+        onOpenLabel={(srcSn) => navigate(`/label/${srcSn}`)}
+        onOpenMarking={(videoId) => navigate(`/marking/${videoId}`)}
+      />
 
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-1">
           <button
             type="button"
-            onClick={() => setPage(safePage - 1)}
+            onClick={() => handlePageChange(safePage - 1)}
             disabled={safePage === 0}
             aria-label="이전 페이지"
             className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ChevronLeft size={16} aria-hidden />
           </button>
-          {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => {
-            const p = i;
-            return (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPage(p)}
-                aria-current={p === safePage ? 'page' : undefined}
-                className={cn(
-                  'inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors',
-                  p === safePage
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100',
-                )}
-              >
-                {p + 1}
-              </button>
-            );
-          })}
+          {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handlePageChange(i)}
+              aria-current={i === safePage ? 'page' : undefined}
+              className={cn(
+                'inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors',
+                i === safePage
+                  ? 'bg-primary-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100',
+              )}
+            >
+              {i + 1}
+            </button>
+          ))}
           <button
             type="button"
-            onClick={() => setPage(safePage + 1)}
+            onClick={() => handlePageChange(safePage + 1)}
             disabled={safePage >= totalPages - 1}
             aria-label="다음 페이지"
             className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
@@ -830,20 +668,8 @@ export function TaskListPage() {
         onClose={() => setAssignModalOpen(false)}
         task={selectedTask}
         mode={assignMode}
-        onSuccess={() => {
-          setAssignModalOpen(false);
-          setSelectedVideoForAssign(null);
-          setSelectedVideoIds(new Set());
-          refetch();
-          queryClient.invalidateQueries({ queryKey: ['assignments'] });
-        }}
-        onBulkSuccess={() => {
-          setAssignModalOpen(false);
-          setSelectedVideoForAssign(null);
-          setSelectedVideoIds(new Set());
-          refetch();
-          queryClient.invalidateQueries({ queryKey: ['assignments'] });
-        }}
+        onSuccess={handleAssignSuccess}
+        onBulkSuccess={handleAssignSuccess}
         videoIds={assignMode === 'bulk' ? Array.from(selectedVideoIds) : []}
         videoNameById={videoNameById}
         videoId={

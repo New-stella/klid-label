@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { TASK_BOARD_KEYS } from '@/lib/queryKeys';
 
@@ -22,5 +22,8 @@ export function useTaskBoard(
     queryKey: TASK_BOARD_KEYS.list(params as Record<string, unknown>),
     queryFn: () => listTaskBoard(params),
     enabled: options?.enabled ?? true,
+    // 필터/페이지 전환 시 이전 목록 유지 — 전체 스켈레톤 리렌더와, 늦게 도착한 이전 응답이
+    // 깜빡였다 바뀌는 flicker 를 막는다(useTasks 와 동일 정책).
+    placeholderData: keepPreviousData,
   });
 }

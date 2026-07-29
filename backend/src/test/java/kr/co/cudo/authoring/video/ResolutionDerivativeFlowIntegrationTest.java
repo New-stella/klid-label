@@ -105,6 +105,7 @@ class ResolutionDerivativeFlowIntegrationTest {
     @Autowired private VideoStreamService videoStreamService;
     @Autowired private AsyncResolutionRunner asyncResolutionRunner;
     @Autowired private VideoRepository videoRepository;
+    @Autowired private kr.co.cudo.authoring.assignment.repository.TaskBoardQueryRepository taskBoardQueryRepository;
     @Autowired private LsRawDataStatusRepository statusRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
@@ -333,8 +334,10 @@ class ResolutionDerivativeFlowIntegrationTest {
         assertThat(child.getDataSttsCd()).isNotEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
 
         // 작업보드 COMPLETED 필터에 파생 RAW 가 실제로 노출된다.
-        List<Long> boardIds = videoRepository
-                .findBoardOrderByStatusPriority("COMPLETED", org.springframework.data.domain.PageRequest.of(0, 200))
+        List<Long> boardIds = taskBoardQueryRepository
+                .search(new kr.co.cudo.authoring.assignment.dto.TaskBoardSearchCondition(
+                                "COMPLETED", null, null, null, null),
+                        org.springframework.data.domain.PageRequest.of(0, 200))
                 .getContent().stream().map(LsDataRaw::getRawSn).toList();
         assertThat(boardIds).contains(child.getRawSn());
 
