@@ -39,5 +39,9 @@ public class DatasetVideoMetaBackfillRunner implements ApplicationRunner {
         // 이미 승인됐으나 EVNT_ANNO_CN=NULL 로 동결된 영상(rawSn 24 상황) 소급 치유 — 멱등(대상 0건이면 no-op).
         int healed = backfillService.healMissingEventAnnotation();
         log.info("[Dataset] startup event_annotation heal re-froze {} snapshot(s)", healed);
+        // M-1(Phase 10B) — 파생 폴백 폐기 이전에 추정값(NGT/SUMMER)으로 동결된 촬영환경 정정.
+        //   1회 실행당 상한이 있어 잔여분은 다음 기동에서 이어진다(멱등 — 대상 0건이면 no-op).
+        int corrected = backfillService.correctDerivedShootingEnvironment();
+        log.info("[Dataset] startup shooting-env correction re-froze {} snapshot(s)", corrected);
     }
 }

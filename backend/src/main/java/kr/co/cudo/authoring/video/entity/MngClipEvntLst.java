@@ -20,6 +20,17 @@ import java.time.LocalDateTime;
  * 컬럼(SESN_CD/WTHR_CD/HR_TYPE_CD/PRVC_TYPE_CD/LCLGV_CD 등 28컬럼 중 나머지)은 생략한다
  * (향후 enrich 여지). MNG_* 는 관제팀 소유이므로 어떤 쓰기도 하지 않는다.
  *
+ * <p><b>촬영환경(WTHR_CD/SESN_CD/HR_TYPE_CD)·개인정보유형(PRVC_TYPE_CD) 관제 원천 매핑은 코드도메인
+ * 확정 후 별건</b>이다 — 관제 코드값↔의미 매핑(ERD-024)이 미상이라 지금 매핑하면 그 해석 자체가
+ * 추정(self-fill)이 된다. 확정 전까지 저작도구의 촬영환경 원천은 작업자 수동 입력(LS_DATA_RAW, V130)
+ * 하나이며, 미입력은 null(미상)로 동결된다(E-ISSUE-42).
+ *
+ * <p><b>미해소 — {@code PRVC_TYPE_CD}(L-2, Phase 10B)</b>: 관제 원천이 여기 실재하는데도 적재는
+ * {@code TrainingVideoIngestTx.DEFAULT_PRVC_TYPE = PRVC_TYPE_ANONY} 하드코딩을 쓴다. 그 결과 모든 적재
+ * 영상이 "익명"으로 고정되어 export 의 {@code pseudonymity} 가 항상 {@code "N"} 으로 나간다(관제 실값이
+ * 가명이어도 그렇다). 위 코드도메인 확정 전에는 매핑 자체가 추정이 되므로 <b>의도적으로 미해소로 둔다</b> —
+ * 확정 시 이 컬럼을 매핑하고 하드코딩을 제거해야 한다.
+ *
  * <p>적재 매핑(MNG_CLIP_EVNT_LST → LS_DATA_RAW):
  * <ul>
  *   <li>{@code EVNT_TYPE_CD} → LS_DATA_RAW.evntTypeCd (관제 마스터에 직접 컬럼 부재 → 이벤트리스트 조인)</li>

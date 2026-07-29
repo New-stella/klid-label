@@ -266,4 +266,30 @@ class VideoMetaMapperTest {
         assertThat(deid.timeOfDay()).isEqualTo(original.timeOfDay()).isEqualTo("DAY");
         assertThat(deid.season()).isEqualTo(original.season()).isEqualTo("SPRING");
     }
+
+    @Test
+    @DisplayName("촬영환경_미입력이면_export_JSON에_키는_남고_값만_null이다")
+    void 촬영환경_미상이어도_export_키_계약은_유지된다() {
+        // given — 수동 미입력 영상(E-ISSUE-42 이후 동결값도 null). 관제/데이터마트 파서가 키 부재로
+        //         깨지지 않도록 NiaVideo 는 JsonInclude.ALWAYS 로 키를 유지해야 한다.
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/nas/raw/1/original.mp4")
+                .build();
+        LsDataRaw raw = rawWithEnvironment(null, null, null);
+
+        // when
+        NiaVideo video = mapper.toVideo(meta, raw, ExportKind.ORIGINAL);
+        com.fasterxml.jackson.databind.JsonNode json =
+                new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(video);
+
+        // then — 값은 미상(null)이되 키(time_of_day/season/weather)는 존재한다.
+        assertThat(video.timeOfDay()).isNull();
+        assertThat(video.season()).isNull();
+        assertThat(video.weather()).isNull();
+        assertThat(json.has("time_of_day")).isTrue();
+        assertThat(json.has("season")).isTrue();
+        assertThat(json.has("weather")).isTrue();
+        assertThat(json.get("time_of_day").isNull()).isTrue();
+        assertThat(json.get("season").isNull()).isTrue();
+    }
 }

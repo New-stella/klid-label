@@ -82,6 +82,14 @@ public class EnvironmentMetaService {
      * 이후 촬영일시가 정정돼도 파생이 재계산되지 않는다. 따라서 <b>FE 는 사용자가 직접 고르지 않은
      * 파생 프리필 필드를 null 로 전송</b>해야 한다(BE 는 MANUAL/DERIVED 를 구분해 받지 않는다 — 현행 유지).
      *
+     * <p><b>한계 — R5(self-fill 금지) 보증이 클라이언트 규율에 의존한다(L-3, Phase 10B)</b>: BE 는 전송값의
+     * 출처를 알 수 없어 DERIVED 프리필의 MANUAL 승격을 <b>막지 못한다</b>. 현재 이 규율은 FE
+     * ({@code EnvironmentMetaPanel.tsx} 의 {@code resolveField})만 지키고 있는데, 이 API 는 <b>공개 계약</b>이라
+     * 다른 클라이언트(직접 호출·스크립트·향후 화면)는 프리필을 그대로 되돌려 보내 추정값을 수동값으로
+     * 승격시킬 수 있다. 그렇게 승격된 값은 승인 동결·export·데이터마트 뷰로 <b>출처 구분자 없이</b> 전파되어
+     * R5 가 깨진다. BE 강제(요청에 source 축을 두거나 프리필과 동일한 값을 거부)는 요청 계약 변경이라
+     * 이번 범위 밖으로 두고 <b>알려진 한계로 명시</b>한다.
+     *
      * <p><b>동시성(CWE-362)</b>: 상태 판정({@link #isReviewApproved}) 이전에 ①{@code flush} 로 촬영환경
      * UPDATE 를 내보내 대상 raw 행을 잠그고 ②{@code materialize} 와 동일한 rawSn advisory 락을 획득한다.
      * 이로써 "env 저장이 미승인으로 판정하는 사이 동시 승인(approve)의 materialize 가 아직 커밋되지 않은
