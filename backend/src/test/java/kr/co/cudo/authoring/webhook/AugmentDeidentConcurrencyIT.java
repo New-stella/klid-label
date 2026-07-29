@@ -174,8 +174,8 @@ class AugmentDeidentConcurrencyIT {
     }
 
     @Test
-    @DisplayName("실제_신고가_부모락_선점하면_동시_증강콜백은_보류되어_증강영상_미생성_회귀가드")
-    void realDeidentReportWinsLock_augmentCallbackBlocksThenSkips() throws Exception {
+    @DisplayName("실제_신고가_부모락_선점해도_동시_증강콜백은_부모락_직렬화_후_파생본을_생성한다")
+    void realDeidentReportWinsLock_augmentCallbackStillCreatesDerivative() throws Exception {
         Seed s = seed("PII", "NIGHT", "AUGCC-J-PII-INIT");
         Long parentSn = s.parent().getRawSn();
         Long reportSrcSn = s.frame0().getSrcSn(); // 신고 대상 프레임(부모 소속)
@@ -219,8 +219,9 @@ class AugmentDeidentConcurrencyIT {
                     .as("report 가 결정 창에 진입해야 함").isTrue();
 
             // 결정 창 안에서 증강 콜백 시작.
-            //  · 수정본(findByRawSnForUpdate): 부모 FOR UPDATE 에서 대기 → 이후 'F' 관측 → 자식 보류.
-            //  · 미수정(findById): 대기 없이 커밋된 'Y' 읽어 이 창 안에서 자식 생성·커밋 → 회귀 검출.
+            //  부모 FOR UPDATE 는 그대로 유지된다 — 신고 트랜잭션과 직렬화돼 판정~신규 RAW 커밋
+            //  구간이 찢어지지 않는다(동시 콜백 이중 영상 방지). 다만 관측된 'F' 자체는 더 이상
+            //  차단 사유가 아니다(2026-07-29 — 파생 생성은 원본 신고와 무관).
             Future<?> augThread = pool.submit(() -> {
                 try {
                     applied.set(service.handle(req).applied());
@@ -245,15 +246,15 @@ class AugmentDeidentConcurrencyIT {
 
         assertThat(reportErr.get()).as("신고(report) 예외 없음").isNull();
         assertThat(augErr.get()).as("증강 콜백 예외 없음").isNull();
-        // [Phase 8-B / E-ISSUE-11] 부모 'F' 관측은 <보류>다 — 종결(ACCEPTED)시키지 않고 applied=false 로
-        // 회신해야 신고 해소 시 재개될 수 있다. 구 구현은 ACCEPTED + applied=true 라 재콜백이 멱등
-        // 스킵되어 그 증강이 영구 유실됐다.
-        assertThat(applied.get()).as("PII 보류는 '적용' 이 아니다(applied=false)").isFalse();
+        // ★ 2026-07-29 확정 — 부모 'F' 관측은 더 이상 차단 사유가 아니다("파생영상은 비식별 신고
+        // 체계 바깥"). 신고가 막는 것은 외부 위탁뿐이며, 여기서 보류하면 재개 트리거가 없어 PENDING
+        // 영구 고착이 된다. 남는 불변식은 <부모 FOR UPDATE 직렬화>(파생본 정확히 1건)다.
+        assertThat(applied.get()).as("신고 구간이어도 결과 인계는 적용된다(applied=true)").isTrue();
         assertThat(augRepository.findById(s.aug().getDataAugSn()).orElseThrow().getAugProcSttsCd())
-                .as("보류는 PENDING 을 유지해야 재개 트리거가 다시 인계할 수 있다")
-                .isEqualTo(LsDataAug.STTS_PENDING);
+                .as("보류가 아니라 정상 종결(ACCEPTED)")
+                .isEqualTo(LsDataAug.STTS_ACCEPTED);
         assertThat(countChildren(parentSn))
-                .as("실제 신고가 부모락 선점→'F' 커밋 후, 증강 콜백은 'F' 관측으로 파생본 생성 보류(PII 노출 차단)")
-                .isZero();
+                .as("부모 FOR UPDATE 직렬화로 파생본은 정확히 1건만 생성된다")
+                .isEqualTo(1);
     }
 }
