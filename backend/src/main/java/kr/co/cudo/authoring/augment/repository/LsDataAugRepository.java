@@ -98,4 +98,45 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM LsDataAug a WHERE a.dataAugSn = :dataAugSn")
     Optional<LsDataAug> findByDataAugSnForUpdate(@Param("dataAugSn") Long dataAugSn);
+
+    /**
+     * 만료 스윕 후보 ② — <b>job 행이 한 건도 없는</b> 장기 PENDING 외부 증강 (적대검증 2차 MEDIUM-2).
+     *
+     * <h3>왜 job 축만으로는 부족한가</h3>
+     * <p>기존 스윕은 {@code LS_DATA_AUG_JOB} 만 훑는다. 그런데 위탁 0건 실패 롤업이 예외로 끝나면
+     * (DB 순단·커넥션 고갈·커밋 문맥 결함) <b>PENDING + job 0건</b>이 남는다. 이 상태의 유일한 재개
+     * 트리거는 비식별 신고 해제 이벤트인데, 그 영상에 신고가 없었다면 <b>영원히 발생하지 않는다</b> —
+     * 어떤 회수기도 집지 못하는 영구 고착이다.
+     *
+     * <h3>정상 보류 오회수 방지 (fail-safe)</h3>
+     * <ul>
+     *   <li><b>정책 보류</b>({@code LS_DATA_RAW.DE_IDENT_YN='F'} = 비식별 누락 신고 구간)는 정상 대기다.
+     *       회수하면 dead-letter 가 찍혀 신고 해제 시 재개가 불가능해지므로 <b>제외</b>한다
+     *       (판정 문자열은 {@code DeidentReportGate.DEIDENT_FAILED} 를 바인딩 파라미터로 받아 단일 원천 유지).</li>
+     *   <li><b>위탁 직후 짧은 창</b>(job 선기록 전)은 {@code REG_DT < :cutoff}(무갱신 경과 임계, 최소 5분)로
+     *       배제한다 — 위탁은 수 초~수십 초라 임계에 걸리지 않는다.</li>
+     *   <li>해상도 파생({@code RESL_*})은 외부 위탁 대상이 아니므로 유형 allowlist 로 제외한다.</li>
+     * </ul>
+     *
+     * <p>중복 회수(2노드 Active-Active)는 별도 클레임 컬럼 없이 인계 경로의 잠금 + 멱등 앵커
+     * (증강 행 {@code FOR UPDATE} → non-PENDING skip)로 직렬화된다. 파라미터 바인딩만 사용(CWE-89).
+     */
+    @Query(value = """
+            SELECT a.DATA_AUG_SN
+              FROM LS_DATA_AUG a
+              LEFT JOIN LS_DATA_SRC s ON s.SRC_SN = a.SRC_SN
+              LEFT JOIN LS_DATA_RAW r ON r.RAW_SN = s.RAW_SN
+             WHERE a.AUG_PROC_STTS_CD = :pendingStatus
+               AND a.AUG_TYPE_CD IN (:externalAugTypes)
+               AND a.REG_DT < :cutoff
+               AND (r.DE_IDENT_YN IS NULL OR r.DE_IDENT_YN <> :withheldFlag)
+               AND NOT EXISTS (SELECT 1 FROM LS_DATA_AUG_JOB j WHERE j.DATA_AUG_SN = a.DATA_AUG_SN)
+             ORDER BY a.REG_DT ASC
+             LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findOrphanPendingAugSns(@Param("pendingStatus") String pendingStatus,
+                                       @Param("externalAugTypes") Collection<String> externalAugTypes,
+                                       @Param("withheldFlag") String withheldFlag,
+                                       @Param("cutoff") java.time.LocalDateTime cutoff,
+                                       @Param("limit") int limit);
 }

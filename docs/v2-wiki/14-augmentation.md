@@ -48,6 +48,7 @@
 - **인증 = 무서명 3계층**: ①IP allowlist(`webhook.genai.allowed-ip-cidrs`, **미설정이면 전면 차단**) ②rate limit + 본문 1MB 상한 ③`request_id` 발급 게이트(`LS_DATA_AUG_JOB.IDMP_KEY` 에 있는 키만 처리). 구 계약(`/v1/aug/callback` + HMAC 서명)은 외부 실계약과 맞지 않아 제거됐다.
 - **롤업 원자성**: job 행을 갱신하기 **전에** `LS_DATA_AUG` 를 `FOR UPDATE` 로 잠근다. 순서를 뒤집으면 동시 콜백 두 건이 서로의 미커밋 갱신을 못 봐서 롤업이 통째로 유실된다. 중복 확정은 `AugmentResultService` 의 PENDING 앵커가 한 번 더 막는다.
 - **멱등**: 외부는 전송 실패 시 재시도하므로 같은 페이로드 중복 수신이 정상이다 — 종결된 job 의 재전송은 200 + `applied=false`.
+- **재수신(200) vs 진짜 충돌(409) 구분**: 증강 인계(`AugmentResultService`)에서 `otsd_job_id` 소유자를 **쓰기 이전에** 확인한다. 같은 증강의 재수신은 200(`DUPLICATE`, `applied=false`)으로 흡수하고, **다른 증강**이 그 job_id 를 보유한 오배송만 409 다. 충돌을 UNIQUE 위반으로 판정하면 PostgreSQL 이 트랜잭션을 abort(25P02) 시켜 이후 모든 쿼리가 거부되므로(=500), 위반 이후의 소유자 재조회는 **REQUIRES_NEW 독립 트랜잭션**(`AugmentJobIdOwnerLookup`)에서만 한다. 회귀 가드: `AugmentCallbackIdempotencyIT`(실 DB — 재수신 no-op·오배송 409·동시 2건 1회 반영·호출자 트랜잭션 무오염).
 - **고아 키 방지**: ledger 등록·외부 위탁은 요청 트랜잭션 안이 아니라 **AFTER_COMMIT** 에서만 수행 — 요청 롤백 시 aug 행도 멱등 키도 남지 않는다.
 
 ## 14.2 증강 = 새 영상
@@ -106,7 +107,7 @@ PENDING 증강 영상 (SCR-AUG-002)
 1. **처리 종류 선택** — 카드 4개(겨울/야간/우천/해상도 변경)를 `radiogroup`(로빙 tabindex·화살표 탐색, WCAG 4.1.2)으로 하나만 선택. '해상도 변경' 선택 시에만 타겟 해상도(1080P/720P/480P) 선택 UI 노출. 종류를 바꾸면 타겟 해상도·해상도 결과가 초기화된다.
 2. **대상 영상 선택** — 검수 완료(`DATA_STTS_CD=COMPLETED` + `RVW_STTS_CD=APPROVED`) 영상만 라디오로 1건 선택(검색·이벤트 필터·페이징, 페이지 이동 후에도 선택 보존).
 3. **실행(submit) 시나리오 분기**:
-   - 증강 3종(`isAugmentKind`) → `POST /v1/augments/request`(videoIds·types 길이 1 배열) → 성공 시 토스트 + 결과화면(`/augment/result/{jobId}`) 네비게이션.
+   - 증강 3종(`isAugmentKind`) → `POST /v1/augments/request`(videoIds·types 길이 1 배열) → 성공 시 토스트 + 결과화면(`/augment/result/{jobId}`) 네비게이션. **단건 계약이 정본**이라 2건 이상은 400(`@Size(max=1)`, 서비스도 동일 규칙 fail-closed 재확인)이고, 응답은 요청 개수 echo 가 아니라 **실제 생성 수(`createdCount`)** 를 담는다. **생성 0건은 성공이 아니다** — 프레임 미추출 영상은 412(`PRECONDITION_FAILED` + `data.skippedVideoIds`)로 거부한다(구 동작: 조용히 스킵 후 200 = silent no-op).
    - 해상도 변경 → `POST /v1/videos/{rawSn}/resolution`(presets 전달, 선택) → 성공 시 프리셋별 생성 결과 목록(`derivatives: [{rawSn, goalResCd, targetW, targetH, status}]`) inline 표시(업스케일 포함 정상 처리). 미검수/증강본/전부 스킵은 BE 400, 동일 (원본,해상도) 중복은 409, 전부 실패는 500 → 에러 메시지 노출.
 4. **실행 버튼 비활성 조건**: 종류 미선택 · 영상 미선택 · (해상도 종류인데 타겟 해상도 미선택) · 처리 중(`isPending`).
 5. **보안**: kind/preset 은 allowlist 상수(`PROCESS_KINDS`/`RESOLUTION_PRESETS`)로만 좁혀 임의 문자열 분기 차단, videoId 는 number, 라우트는 REVIEWER 가드.

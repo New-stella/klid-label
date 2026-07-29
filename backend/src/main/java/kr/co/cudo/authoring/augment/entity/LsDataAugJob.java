@@ -54,11 +54,18 @@ public class LsDataAugJob {
      * 위탁 <b>도중</b> 비식별 누락 신고({@code DE_IDNTF_YN='F'})가 관측돼 남은 청크를 중단한 경우의
      * 내부 오류 코드(DEV_FIX HIGH-2).
      *
-     * <p>위탁 <b>전</b> 신고 구간이면 이 코드로도 행을 남기지 않는다 — 그 경우는 실패가 아니라
-     * <b>보류</b>이며 신고 해소 시 재개된다. 이 코드는 "일부 청크가 이미 나간 뒤" 에만 쓰이며,
-     * 부분 프레임셋으로 증강본이 확정되는 것을 막기 위해 terminal 로 남긴다(부분 실패 = 전체 실패).
+     * <p>부분 프레임셋으로 증강본이 확정되는 것을 막기 위해 terminal 로 남긴다(부분 실패 = 전체 실패).
      */
     public static final String ERR_DEIDENT_REPORT = "DEIDENT_REPORT";
+    /**
+     * 위탁 <b>전</b> 비식별 누락 신고({@code DE_IDNTF_YN='F'}) 구간이라 한 건도 위탁하지 않고
+     * 거부한 경우의 내부 오류 코드 (2026-07-29 정책).
+     *
+     * <p>구 정책은 이 경우를 <b>보류</b>로 두고 신고 해소 시 재개했으나, 파생 생성이 원본 신고와
+     * 무관해지면서 재개 배선 자체가 철회됐다. 재개 트리거가 없는 보류는 PENDING 영구 고착이므로
+     * <b>거부(실패 확정)</b> 로 종결하고, 해소 후 재요청이 정상 동선이다.
+     */
+    public static final String ERR_DEID_REPORT_OPEN = "DEID_REPORT_OPEN";
     /**
      * SUCCEEDED 콜백의 {@code results} 건수가 위탁 {@code input_files} 건수와 다를 때의 내부 오류 코드.
      * 순서로만 입력↔결과를 대응시키는 계약이라 건수가 어긋나면 어느 프레임에 무엇을 붙일지 알 수 없다
@@ -75,6 +82,19 @@ public class LsDataAugJob {
      * 증강을 성공 확정한다.
      */
     public static final String ERR_ISSUE_RECORD_FAILED = "ISSUE_RECORD_FAILED";
+    /**
+     * <b>만료 종결</b> — 임계 시간 동안 아무 갱신(웹훅)도 없어 스윕이 회수한 경우의 내부 오류 코드
+     * (Phase 8-A).
+     *
+     * <p>비종결로 남는 실제 경로는 셋이다: ①취소({@code CANCELED})는 계약상 진행·결과 웹훅
+     * 이벤트가 아니라 우리에게 통보되지 않는다 ②콜백 검증 실패(400)는 재전송 여지를 남기려고
+     * 상태를 바꾸지 않는데 외부가 재시도를 포기할 수 있다 ③외부 무응답. 어느 경우든 job 이 비종결로
+     * 남으면 롤업이 무기한 보류돼 증강 1건이 PENDING 에 고착된다.
+     *
+     * <p><b>만료는 성공이 아니다</b> — 이 코드는 {@code FAILED} 로만 붙으므로 롤업의 "1건이라도
+     * 실패 = 전체 실패" 규칙에 따라 증강이 성공으로 둔갑하지 않는다(fail-closed).
+     */
+    public static final String ERR_EXPIRED = "EXPIRED";
 
     /** 오류 메시지 컬럼 길이(내용V1000) — 초과분은 절단 저장한다. */
     private static final int ERR_MSG_MAX = 1000;

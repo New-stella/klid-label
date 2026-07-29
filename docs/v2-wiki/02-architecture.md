@@ -74,7 +74,7 @@ Controller → Service → Repository (+ QueryDSL 보조)
 ## 2.7 배포 특성
 
 - **주 서버 2노드 Active-Active 이중화** — 관제서버와 동일 서버 공동 배치, 앱 2노드 동시 기동
-- Spring Boot + Quartz는 **Quartz 클러스터링 적용**(PostgreSQL JobStore `QRTZ_LOCKS` 행 락으로 잡 중복 발화 방지). 설정 `org.quartz.jobStore.isClustered=${QUARTZ_CLUSTERED:true}` — **기본 true**, 단일 노드 확정 환경에서만 false 로 내린다. ⚠ 클러스터 모드는 노드 간 시계 동기화(NTP/chrony) 필수
+- Spring Boot + Quartz는 **Quartz 클러스터링 적용**(PostgreSQL JobStore 의 `QRTZ_LOCKS` 행 락으로 트리거를 1회만 발화). 공통 기본값은 `org.quartz.jobStore.isClustered=${QUARTZ_CLUSTERED:false}`(단일 노드 기준)이고, **stg/prd 프로파일이 `true` 로 override** 한다 — 이 두 환경에서 꺼져 있으면 `QuartzClusteringGuard` 가 **기동을 거부**한다. local/dev 는 단일 노드라 off 허용. ⚠ 클러스터 모드는 노드 간 시계 동기화(NTP/chrony) 필수
 - DB는 별도 DB 서버(이중화), 파일 스토리지는 별도 NAS 서버(공유 마운트)
 - ai-server(YOLO/SAM2)는 주 서버 내 별도 프로세스(무상태) — 토폴로지와 무관하게 다중 인스턴스 수평 확장
 - 환경: local/dev/stg/prd (Spring Profile)

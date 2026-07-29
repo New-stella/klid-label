@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.dataset.export.listener;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
 import kr.co.cudo.authoring.dataset.export.event.DatasetReExportEvent;
+import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,7 +13,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -47,5 +51,15 @@ class DatasetExportBridgeTest {
         bridge.onReExport(event);
 
         verify(runner).runAsync(eq(77L), eq(false));
+    }
+
+    // ─── 신고 해소 → export 재산출 (발행 측이 APPROVED 를 게이팅한다) ───
+
+    @Test
+    @DisplayName("신고_해소_이벤트를_받으면_export_를_전량_재생성한다")
+    void onDeidentReportResolved_triggersExport() {
+        bridge.onDeidentReportResolved(new DeidentReportResolvedEvent(88L));
+
+        verify(runner).runApprovalAsync(eq(88L));
     }
 }

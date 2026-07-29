@@ -166,7 +166,7 @@ class AugmentDeidentConcurrencyIT {
         try {
             ready.countDown();
             start.await();
-            result.set(service.handle(req));
+            result.set(service.handle(req).applied());
         } catch (Throwable t) {
             err.set(t);
         }
@@ -223,7 +223,7 @@ class AugmentDeidentConcurrencyIT {
             //  · 미수정(findById): 대기 없이 커밋된 'Y' 읽어 이 창 안에서 자식 생성·커밋 → 회귀 검출.
             Future<?> augThread = pool.submit(() -> {
                 try {
-                    applied.set(service.handle(req));
+                    applied.set(service.handle(req).applied());
                 } catch (Throwable t) {
                     augErr.set(t);
                 }
@@ -245,8 +245,13 @@ class AugmentDeidentConcurrencyIT {
 
         assertThat(reportErr.get()).as("신고(report) 예외 없음").isNull();
         assertThat(augErr.get()).as("증강 콜백 예외 없음").isNull();
-        // 콜백 자체는 상태 전이(ACCEPTED)까지 정상 처리되지만, 부모 'F' 관측으로 증강 영상은 생성되지 않아야 한다.
-        assertThat(applied.get()).as("증강 콜백 자체는 처리(applied=true)").isTrue();
+        // [Phase 8-B / E-ISSUE-11] 부모 'F' 관측은 <보류>다 — 종결(ACCEPTED)시키지 않고 applied=false 로
+        // 회신해야 신고 해소 시 재개될 수 있다. 구 구현은 ACCEPTED + applied=true 라 재콜백이 멱등
+        // 스킵되어 그 증강이 영구 유실됐다.
+        assertThat(applied.get()).as("PII 보류는 '적용' 이 아니다(applied=false)").isFalse();
+        assertThat(augRepository.findById(s.aug().getDataAugSn()).orElseThrow().getAugProcSttsCd())
+                .as("보류는 PENDING 을 유지해야 재개 트리거가 다시 인계할 수 있다")
+                .isEqualTo(LsDataAug.STTS_PENDING);
         assertThat(countChildren(parentSn))
                 .as("실제 신고가 부모락 선점→'F' 커밋 후, 증강 콜백은 'F' 관측으로 파생본 생성 보류(PII 노출 차단)")
                 .isZero();

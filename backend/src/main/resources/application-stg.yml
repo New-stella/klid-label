@@ -1,6 +1,14 @@
 spring:
   # multipart 한도(500MB/1200MB)는 local/dev/stg 가 동일해 application.yml 공통으로 승격됐다.
   #   (dev 업로드 /v1/dev/autolabel-test 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
+  # 이중화(HA) — Quartz 클러스터링 **필수**(B-ISSUE-81). 배포 토폴로지가 주 서버 2노드 Active-Active 라
+  #   공통 기본값(false)을 상속하면 관제 학습용 스캔(60s)·KPST 폴링(30s)·export sweep(600s) 트리거가
+  #   노드마다 중복 발화한다(@DisallowConcurrentExecution 은 스케줄러 인스턴스 내부에서만 유효).
+  #   ⚠ QUARTZ_CLUSTERED=false 로 되돌리면 QuartzClusteringGuard 가 기동을 거부한다(설정 우회 불가).
+  #   ⚠ 노드 간 시계 동기(NTP/chrony) 필수. clusterCheckinInterval 은 공통 yml 값(20s)을 상속한다.
+  quartz:
+    properties:
+      org.quartz.jobStore.isClustered: ${QUARTZ_CLUSTERED:true}
   datasource:
     control:
       jdbc-url: jdbc:postgresql://${CONTROL_DB_HOST}:${CONTROL_DB_PORT}/${CONTROL_DB_NAME}

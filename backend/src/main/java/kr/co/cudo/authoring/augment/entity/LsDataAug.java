@@ -288,13 +288,43 @@ public class LsDataAug {
         this.externalJobId = externalJobId;
     }
 
-    /** 재시도 횟수 1 증가. */
+    /**
+     * 재시도 횟수 1 증가.
+     *
+     * <p>호출 지점(Phase 8-B 배선): ①처리 실패 확정({@code AugmentResultService} 실패 인계)
+     * ②비식별 누락 신고 해소 후 <b>보류분 재개</b>({@code AugmentRequestBridge}). 즉 이 값은
+     * "이 증강 1건에 대해 몇 번 재차 시도했는가" 를 누적한다.
+     */
     public void incrementRetryCount() {
         this.retryCount++;
     }
 
-    /** 영구 실패 마킹 — dead-letter 큐 진입. */
+    /**
+     * 영구 실패 마킹 — dead-letter 큐 진입.
+     *
+     * <p>증강 채널에는 실패 이후 자동 재시도 구동기가 없다(재개는 <b>보류</b> 해제 트리거뿐이다).
+     * 따라서 처리 실패가 확정되는 순간이 곧 영구 실패이며, {@code AugmentResultService} 의 실패
+     * 인계 경로가 이 메서드를 호출한다. 이 마커가 있어야 집계가 실패를 실패로 보인다
+     * ({@link #isProcessingFailed()}).
+     */
     public void markDeadLetter() {
         this.deadLetterAt = LocalDateTime.now();
+    }
+
+    /**
+     * <b>외부 처리 축</b>의 실패로 영구 종결됐는가 (E-ISSUE-06/E-06 파생).
+     *
+     * <h3>왜 {@code REJECTED} 자체를 실패 판정 축으로 쓸 수 없는가</h3>
+     * <p>{@link #augProcSttsCd}(PENDING/ACCEPTED/REJECTED)는 <b>검수 결과 축</b>이다. REVIEWER 의
+     * 정상 반려도 {@code REJECTED} 이고, 외부 처리 실패 롤업도 {@code REJECTED} 로 종결된다. 두
+     * 경우를 {@code REJECTED} 문자열만으로 구분하면 검수 반려가 장애로 보이거나(오탐) 반대로 처리
+     * 실패가 "검수 완료" 로 보인다(미탐). 그래서 실패 판정은 <b>처리 실패 전용 마커</b>인
+     * {@code DEAD_LETTER_AT} 로만 한다 — 이 마커는 실패 인계 경로에서만 찍힌다.
+     *
+     * <p>job 상태 축(RECEIVED/RUNNING/SUCCEEDED/FAILED/CANCELED, {@code LS_DATA_AUG_JOB})과도
+     * 별개 코드 공간이다. 세 축을 섞지 않는다.
+     */
+    public boolean isProcessingFailed() {
+        return deadLetterAt != null;
     }
 }

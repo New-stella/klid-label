@@ -3,11 +3,17 @@ package kr.co.cudo.authoring.augment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,8 +21,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -29,7 +37,11 @@ class AugmentRequestControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private LsRawDataStatusRepository statusRepository;
+    @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private ObjectMapper objectMapper;
+
+    /** 위탁 리스너가 {@code @Async} 로 바뀌었으므로 테스트 간 비동기 잔업을 명시적으로 배수한다. */
+    @Autowired @Qualifier("batchAsyncExecutor") private Executor batchAsyncExecutor;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -44,10 +56,37 @@ class AugmentRequestControllerTest {
         statusRepository.deleteAll();
     }
 
+    /**
+     * 접수(200) 요청이 띄운 <b>비동기 외부 위탁</b>이 끝날 때까지 기다린다 (Phase 8 DEV_FIX HIGH-1).
+     *
+     * <p>{@code AugmentRequestBridge} 의 AFTER_COMMIT 리스너는 커밋 스레드에서 돌면
+     * {@code PROPAGATION_REQUIRED} 인계가 커밋되지 않으므로 {@code @Async} 로 분리됐다. 그 결과 위탁이
+     * 다음 테스트의 {@code deleteAll()} 과 겹칠 수 있는데, 테스트 커넥션 풀이 2개뿐이라 위탁이 붙잡은
+     * 커넥션 때문에 다음 테스트가 굶는다(운영은 풀 20 · 비동기 스레드 4라 해당 없음).
+     */
+    @AfterEach
+    void drainAsyncSubmit() {
+        if (batchAsyncExecutor instanceof ThreadPoolTaskExecutor pool) {
+            Awaitility.await().atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(100))
+                    .until(() -> pool.getActiveCount() == 0
+                            && pool.getThreadPoolExecutor().getQueue().isEmpty());
+        }
+    }
+
     private void seedStatus(Long rawDataId, String dataSttsCd) {
         LsRawDataStatus status = LsRawDataStatus.initial(rawDataId);
         status.transitionTo(dataSttsCd);
         statusRepository.saveAndFlush(status);
+    }
+
+    /**
+     * 대표 프레임 적재 — 프레임이 없으면 증강 위탁 입력이 성립하지 않아 412 다(E-ISSUE-09).
+     * 200 을 기대하는 케이스는 반드시 프레임을 함께 시드해야 <b>실제로 접수되는</b> 요청이 된다.
+     */
+    private void seedFrame(Long rawDataId) {
+        srcRepository.saveAndFlush(LsDataSrc.create(rawDataId, 0, null,
+                "/storage/raw/" + rawDataId + "_0.jpg",
+                "/storage/deidentified/" + rawDataId + "_0.jpg", null));
     }
 
     @Test
@@ -70,6 +109,7 @@ class AugmentRequestControllerTest {
     void validRequestReturns200() throws Exception {
         // 단일 선택 계약: 영상 1건 + 종류 1개
         seedStatus(8001L, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(8001L);
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8001L),
@@ -84,7 +124,9 @@ class AugmentRequestControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.jobId").isNumber())
                 .andExpect(jsonPath("$.data.videoCount").value(1))
-                .andExpect(jsonPath("$.data.typeCount").value(1));
+                .andExpect(jsonPath("$.data.typeCount").value(1))
+                // E-ISSUE-09 — 요청 echo 가 아니라 실제 생성 수. 0 건이면 200 이 아니다.
+                .andExpect(jsonPath("$.data.createdCount").value(1));
     }
 
     @Test
@@ -172,6 +214,7 @@ class AugmentRequestControllerTest {
     @DisplayName("증강요청_WINTER_단일_정상_200")
     void winterOnlyReturns200() throws Exception {
         seedStatus(8401L, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(8401L);
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8401L),

@@ -49,6 +49,12 @@ public class DatasetExportTxService {
 
     private static final Logger log = LoggerFactory.getLogger(DatasetExportTxService.class);
 
+    /**
+     * stale PENDING 회수 tick 당 처리 상한 — 잔재가 대량으로 쌓여도 한 트랜잭션이 무한정 길어지지
+     * 않게 한다(무제한 조회 금지). 남은 잔재는 다음 tick 이 이어서 회수한다.
+     */
+    private static final int STALE_SWEEP_BATCH_SIZE = 200;
+
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository labelRepository;
     private final LsDatasetVideoMetaRepository videoMetaRepository;
@@ -255,26 +261,33 @@ public class DatasetExportTxService {
     }
 
     /**
-     * cutoff 이전에 생성된 stale PENDING export 를 일괄 FAILED 로 마감한다(파일 삭제 없음, 상태만 회수).
+     * cutoff 이전에 생성된 stale PENDING export 를 FAILED 로 회수한다(파일 삭제 없음, 상태만 회수).
      *
-     * <p>파일 쓰기/상태 마감 전 크래시로 {@code PENDING} 에 고착된 잔재를 정리한다. 조회된 엔티티는
-     * 이 트랜잭션의 영속 컨텍스트에 있어 {@code markFailed} 후 dirty checking 으로 flush 된다.
-     * 대상은 stale-minutes 임계를 넘긴 소수 잔재뿐이라 엔티티 순회로 충분하다(대량 아님).
+     * <p>파일 쓰기/상태 마감 전 크래시로 {@code PENDING} 에 고착된 잔재를 정리한다.
+     *
+     * <p><b>원자 클레임(Phase 9-B)</b>: 후보를 상한과 함께 조회한 뒤 건별 조건부 UPDATE
+     * ({@link LsDatasetExportRepository#claimStalePending})로 회수하고, <b>1행을 얻은 건만</b> 센다.
+     * 구 구현("조회 후 엔티티 setter")은 배포 토폴로지(2노드 Active-Active)에서 같은 행을 두 노드가 각자
+     * FAILED 로 쓰는 이중 쓰기였다 — Quartz 클러스터링은 기본 꺼져 있어 잡 단위 배타성을 기대할 수 없다.
      *
      * <p>양성 race 무해: 정상 export 는 수 초 내 완료되므로 임계를 넘는 PENDING 은 크래시 잔재다.
      * 설령 초장기 export 가 sweep 으로 FAILED 마킹돼도, 이후 그 export 의 정상 완료가 markSucceeded 로
      * 최종 상태를 덮으므로(last-writer-wins) 무해하다.
      *
      * @param cutoff 이 시각 이전에 생성된 PENDING 만 회수
-     * @return FAILED 로 마감한 건수
+     * @return 이번 호출이 <b>실제로 클레임해</b> FAILED 로 마감한 건수
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public int sweepStalePending(java.time.LocalDateTime cutoff) {
-        List<LsDatasetExport> stale = exportRepository.findByExportSttsCdAndRegDtBefore(
-                LsDatasetExport.STATUS_PENDING, cutoff);
-        stale.forEach(LsDatasetExport::markFailed);
-        // 엔티티는 영속 상태라 dirty checking 으로 flush 됨. 로그는 caller(sweeper)에서.
-        return stale.size();
+        List<Long> anchors = exportRepository.findStalePendingAnchors(cutoff, STALE_SWEEP_BATCH_SIZE);
+        int reclaimed = 0;
+        for (Long exportSn : anchors) {
+            if (exportRepository.claimStalePending(exportSn, cutoff) == 1) {
+                reclaimed++;
+            }
+        }
+        // 로그는 caller(sweeper)에서.
+        return reclaimed;
     }
 
     /**

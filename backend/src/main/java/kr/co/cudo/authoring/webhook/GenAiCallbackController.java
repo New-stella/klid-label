@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.webhook;
 import jakarta.validation.Valid;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.webhook.dto.GenAiCallbackRequest;
+import kr.co.cudo.authoring.webhook.service.AugmentApplyResult;
 import kr.co.cudo.authoring.webhook.service.GenAiCallbackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -37,14 +39,22 @@ public class GenAiCallbackController {
 
     private final GenAiCallbackService service;
 
+    /**
+     * <p>{@code applied} 는 <b>증강 인계가 실제로 반영됐는지</b>를 뜻한다. 부모가 비식별 완료가 아니어서
+     * 인계를 보류한 경우({@code WITHHELD_*})는 {@code applied:false} 와 함께 사유 코드를 회신한다 —
+     * 구 구현은 이 경우에도 {@code true} 를 돌려줘 외부가 정상 인계로 오해했다(E-ISSUE-11). 사유는
+     * 내부 경로·식별정보 없는 고정 코드값만 노출한다(CWE-209).
+     */
     @PostMapping("/callback")
     public ResponseEntity<ApiResponse<Map<String, Object>>> receive(
             @Valid @RequestBody GenAiCallbackRequest request) {
-        boolean applied = service.handle(request);
-        Map<String, Object> body = Map.of(
-                "applied", applied,
-                "requestId", request.requestId()
-        );
+        AugmentApplyResult result = service.handle(request);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("applied", result.applied());
+        body.put("requestId", request.requestId());
+        if (result.reasonCode() != null) {
+            body.put("reason", result.reasonCode());
+        }
         return ResponseEntity.ok(ApiResponse.ok(body));
     }
 }

@@ -226,7 +226,19 @@ public class AugmentReviewService {
 
     /**
      * 그룹(영상)의 상태 집계 — {@link AugmentJobStatus} 규칙:
-     * dead-letter 존재 → FAILED, 전부 종료 → COMPLETED, 일부 종료 → IN_PROGRESS, 전부 PENDING → REQUESTED.
+     * 처리 실패 존재 → FAILED, 전부 종료 → COMPLETED, 일부 종료 → IN_PROGRESS, 전부 PENDING → REQUESTED.
+     *
+     * <h3>실패 판정 축 (E-06 파생, Phase 8-B)</h3>
+     * <p>{@code AUG_PROC_STTS_CD}(PENDING/ACCEPTED/REJECTED)는 <b>검수 결과 축</b>이고,
+     * {@code LS_DATA_AUG_JOB.JOB_STTS_CD}(RECEIVED/RUNNING/SUCCEEDED/FAILED/CANCELED)는 <b>외부 처리
+     * 축</b>이다. 두 축은 서로 다른 코드 공간이므로 섞지 않는다. 그래서 실패 판정에 {@code REJECTED}
+     * 문자열을 쓰지 않는다 — REVIEWER 의 정상 반려와 처리 실패 롤업이 같은 값이라 구분이 불가능하고,
+     * 구 구현은 그 결과 <b>롤업으로 REJECTED 된 증강이 "전부 종료" 규칙에 걸려 COMPLETED 로 집계</b>됐다
+     * (만료 스윕이 실제로 돌기 시작하면 실패한 증강이 화면·통계에서 "완료" 로 보인다).
+     *
+     * <p>대신 <b>처리 실패 전용 마커</b>인 {@code DEAD_LETTER_AT}({@link LsDataAug#isProcessingFailed()})
+     * 하나를 축으로 삼는다. 이 마커는 {@code AugmentResultService} 의 실패 인계(웹훅 롤업·만료 스윕
+     * 롤업·위탁 0건 롤업)에서만 찍히므로, 검수 반려는 COMPLETED 로 남고 처리 실패는 FAILED 로 드러난다.
      *
      * <p><b>입력은 그룹의 전체 row(RESL_ 해상도 파생 포함)</b> 이다. 해상도 변경 파생도 증강 집계/통계
      * 카운트에 포함한다(운영 결정 — 통계에 해상도 반영). <b>해상도 파생 aug 상태는 파생 생성 라이프사이클과
@@ -241,7 +253,7 @@ public class AugmentReviewService {
      * 분리 노출해 FE 가 accept/reject 를 숨긴다({@link #loadOrThrow} 가 RESL_ 검수 진입도 차단).
      */
     private AugmentJobStatus aggregateStatus(List<LsDataAug> group) {
-        boolean anyFailed = group.stream().anyMatch(a -> a.getDeadLetterAt() != null);
+        boolean anyFailed = group.stream().anyMatch(LsDataAug::isProcessingFailed);
         if (anyFailed) {
             return AugmentJobStatus.FAILED;
         }

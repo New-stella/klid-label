@@ -59,7 +59,10 @@
 | `IngestDeidentifyBridge` | `VideoIngestedEvent`(AFTER_COMMIT) → 선두 비식별 트리거 |
 | `DevPipelineRunner` | dev 경로 선두 비식별(무조건) → `MARKING_READY` 정지 (잔여 배치는 마킹 완료로만 트리거) |
 
-- **Quartz PostgreSQL JobStore**(`QRTZ_*`, `PostgreSQLDelegate`, BYTEA), **클러스터링 적용**(2노드 Active-Active — `QRTZ_LOCKS` 행 락으로 동일 트리거를 1노드만 발화. `isClustered=${QUARTZ_CLUSTERED:true}`) → [02 §2.7](02-architecture.md)
+- **Quartz PostgreSQL JobStore**(`QRTZ_*`, `PostgreSQLDelegate`, BYTEA), **2노드 Active-Active + 클러스터링 적용**(`QRTZ_LOCKS` 행 락으로 동일 트리거를 1노드만 발화) → [02 §2.7](02-architecture.md)
+  - 공통 기본값 `isClustered=${QUARTZ_CLUSTERED:false}`(단일 노드 기준)이고 **stg/prd 프로파일이 `true` 로 override** 한다. 그 두 환경에서 꺼져 있으면 **기동 거부**(`QuartzClusteringGuard` — 프로파일 allowlist + `ENV` 배포 표식 두 축). local/dev 는 단일 노드라 off 허용
+  - 클러스터링은 **트리거 중복 발화**만 막는다 — 잡 내부에서 여러 노드가 같은 행을 집는 레이스는 각 잡의 **원자 클레임**(조건부 UPDATE)이 별도로 막는다(둘은 대체 관계가 아니다)
+  - 락 행 시드 `V76`(`SCHED_NAME='KlidAuthoringScheduler'`) ↔ `org.quartz.scheduler.instanceName` 일치 필수. 노드 간 시계 동기(NTP) 전제
 - 처리율 목표 **≥ 1건/분** (NFR-001)
 
 ## 7.5 재처리 정책

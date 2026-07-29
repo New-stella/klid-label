@@ -98,20 +98,26 @@ public class AugmentJobSubmitService {
     /**
      * 증강 요청 1건을 청크 단위로 외부 위탁한다.
      *
-     * <p><b>전송 진입점 단일 fail-closed</b> — 비식별 누락 신고 구간이면 여기서 전량 보류한다. 게이트를
+     * <p><b>전송 진입점 단일 fail-closed</b> — 비식별 누락 신고 구간이면 여기서 전량 거부한다. 게이트를
      * 호출처마다 배선하면 반드시 새므로(Phase 6 교훈), 판정은 {@link DeidentReportGate} 하나에 두고
      * 차단은 <b>실제로 경로가 밖으로 나가는 이 메서드</b> 한 곳에서 한다.
      *
-     * @return 위탁 결과 — 수락 job 수 + 정책 보류 여부
+     * <p><b>차단은 보류가 아니라 거부다 (2026-07-29 정책)</b> — 파생 생성이 원본 신고와 무관해지면서
+     * 신고 해소 시의 증강 재개 배선이 철회됐다. 재개 트리거가 없는 보류는 아무도 깨우지 못하는
+     * PENDING 고착이므로 사유를 남기고 실패로 종결한다(해소 후 재요청이 정상 동선).
+     *
+     * @return 위탁 결과 — 수락 job 수
      */
     public SubmitOutcome submit(AugmentRequestedItemEvent event) {
         // PII 게이트를 <b>가장 먼저</b> 둔다 — 프레임 경로 조회조차 하기 전에 끊는다.
         if (deidentReportGate.isUnderDeidentReport(event.rawSn())) {
-            // 보류(≠실패): terminal 행을 남기지 않으므로 신고 해소 시 그대로 재개될 수 있다.
+            jobRecorder.recordRejected(event.originAugSn(), event.idempotencyKey(),
+                    LsDataAugJob.ERR_DEID_REPORT_OPEN,
+                    "비식별 누락 신고 구간이라 외부 위탁을 거부했습니다. 신고 해소 후 다시 요청하세요.");
             metrics.externalRequestFailure();
-            log.warn("[Augment] 위탁 보류 — 비식별 누락 신고 구간 originAugSn={} rawSn={}",
+            log.warn("[Augment] 위탁 거부 — 비식별 누락 신고 구간 originAugSn={} rawSn={}",
                     event.originAugSn(), event.rawSn());
-            return SubmitOutcome.policyWithheld();
+            return SubmitOutcome.of(0);
         }
 
         List<FrameInput> inputs;
@@ -228,27 +234,23 @@ public class AugmentJobSubmitService {
     }
 
     /**
-     * 위탁 결과 — "수락 0건" 과 "정책 보류" 를 구분한다.
+     * 위탁 결과 — 202 수락된 job 개수.
      *
-     * <p>{@code accepted==0} 은 즉시 실패 롤업 대상이지만(콜백이 영영 오지 않아 PENDING 고착),
-     * {@code withheld} 는 <b>보류</b>라 롤업하지 않고 신고 해소 시 재개돼야 한다.
+     * <p>{@code accepted==0} 은 즉시 실패 롤업 대상이다(콜백이 영영 오지 않아 PENDING 고착).
+     * 정책 보류 구분({@code withheld})은 2026-07-29 로 제거됐다 — 신고 구간 차단도 거부(실패)로
+     * 종결하므로 "롤업하지 않고 재개를 기다리는" 상태가 더 이상 없다.
      *
      * @param accepted 202 수락된 job 개수
-     * @param withheld 정책 보류(비식별 누락 신고 구간)로 한 건도 위탁하지 않았는가
      */
-    public record SubmitOutcome(int accepted, boolean withheld) {
+    public record SubmitOutcome(int accepted) {
 
         static SubmitOutcome of(int accepted) {
-            return new SubmitOutcome(accepted, false);
+            return new SubmitOutcome(accepted);
         }
 
-        static SubmitOutcome policyWithheld() {
-            return new SubmitOutcome(0, true);
-        }
-
-        /** 콜백이 오지 않을 상태(위탁 0건 + 보류 아님)인가 — 즉시 실패 롤업 판정. */
+        /** 콜백이 오지 않을 상태(위탁 0건)인가 — 즉시 실패 롤업 판정. */
         public boolean requiresFailureRollup() {
-            return !withheld && accepted == 0;
+            return accepted == 0;
         }
     }
 
