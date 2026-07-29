@@ -38,7 +38,8 @@ public class PortalMetaReplicaWriter {
      * {@code pg_advisory_xact_lock(rawSn)} 로 직렬화된 구간에서 신규 outbox 삽입 <b>직전</b>에 같은 rawSn 의
      * 기존 PENDING outbox 를 {@code SUPERSEDED} 로 coalescing 하고
      * ({@code DatasetVideoMetaSnapshotService.materialize} + {@code LsMetaReplOutboxRepository.supersedePending}),
-     * 워커는 {@code PENDING} 만 regDt-ASC 로 순차 폴링한다(단일 인스턴스 + {@code @DisallowConcurrentExecution}).
+     * 워커는 {@code PENDING} 만 regDt-ASC 로 순차 폴링한다
+     * (Quartz 클러스터 락으로 2노드 중 1노드만 발화 + {@code @DisallowConcurrentExecution}).
      * 따라서 옛 스냅샷 outbox 가 최신 뒤에 이 writer 로 재전달되는 일 자체가 없어, 포털이 stale 해시로
      * 되살아나는 순서 역전(CWE-362)이 원천 차단된다. 마지막으로 적용되는 스냅샷이 항상 최신이므로 이
      * writer 는 단순 last-writer-wins 로 안전하다.
