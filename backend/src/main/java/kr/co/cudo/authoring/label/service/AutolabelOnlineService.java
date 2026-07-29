@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.DetectionBoxNormalizer;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.common.util.PolygonSimplifier;
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,8 +64,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>동시 병렬 제한(F-2 bulkhead): {@code aiOnline} Resilience4j Bulkhead 로 온라인 AI 경로 동시
  *       호출 수를 제한 — 초과 시 429(TOO_MANY_REQUESTS)로 fail-fast. Tomcat 스레드 고갈 방어.
  *       배치 YOLO 경로는 본 bulkhead 미적용(온라인 전용 인스턴스).</li>
- *   <li>입력 검증(CWE-20): ai 응답 좌표 [x1,y1,x2,y2] 4개·유한(NaN/Infinity 거부)·비음수·순서
- *       (x2&gt;x1,y2&gt;y1) 를 all-or-nothing 검증 — 하나라도 비정상이면 전체 400(부분 반환 금지).</li>
+ *   <li>입력 검증(CWE-20 · C-ISSUE-41): ai 응답 좌표는 배치 저장 경로와 <b>같은 공용 규칙</b>
+ *       ({@link kr.co.cudo.authoring.common.util.DetectionBoxNormalizer})로 정규화한다 — 이미지 경계
+ *       clamp(0 ≤ x ≤ w, 0 ≤ y ≤ h), 형식 위반([x1,y1,x2,y2] 4개 아님·NaN/Infinity)만 all-or-nothing
+ *       400(부분 반환 금지), clamp 후 퇴화 박스는 그 검출만 스킵. 화면 경계에 걸친 객체는 CCTV
+ *       학습데이터의 정상 케이스라 <b>음수만으로 거부하지 않는다</b>(구 정책은 실데이터에서 프레임
+ *       대부분을 400 으로 폐기했고, 같은 응답을 배치는 그대로 저장해 정책이 갈라져 있었다).</li>
  *   <li>mock 차단: ai-server mock 응답은 좌표를 반환하지 않고 빈 결과 + 안내 플래그만 반환(오염 방지).</li>
  *   <li>포털 차단: 컨트롤러 @PreAuthorize(REVIEWER/WORKER) + SecurityConfig 채널 격리(CHANNEL_INTERNAL)
  *       로 PORTAL 토큰은 진입 자체가 물리 차단(ADR-013).</li>
@@ -121,6 +127,11 @@ public class AutolabelOnlineService {
      * {@code "F"} 비교를 여기서 재구현하지 않는다({@link #requireNotBlocked}).
      */
     private final DeidentReportGate deidentReportGate;
+    /**
+     * C-ISSUE-41 — 좌표 clamp 기준(프레임 실측 [width, height]) 공급원. 캐시 기반이며 측정 실패 시
+     * {@link Optional#empty()}(fail-open — 상한 clamp 만 생략, 하한은 유지).
+     */
+    private final FrameBoundsResolver frameBoundsResolver;
     /** 온라인 AI 경로 전용 동시 호출 제한 (F-2) — 배치 경로와 격리. */
     private final Bulkhead aiOnlineBulkhead;
 
@@ -131,6 +142,7 @@ public class AutolabelOnlineService {
                                   FrameImageEncoder frameImageEncoder,
                                   LabelMasterService labelMasterService,
                                   DeidentReportGate deidentReportGate,
+                                  FrameBoundsResolver frameBoundsResolver,
                                   @Qualifier("aiOnlineBulkhead") Bulkhead aiOnlineBulkhead) {
         this.aiServerClient = aiServerClient;
         this.accessGuard = accessGuard;
@@ -139,6 +151,7 @@ public class AutolabelOnlineService {
         this.frameImageEncoder = frameImageEncoder;
         this.labelMasterService = labelMasterService;
         this.deidentReportGate = deidentReportGate;
+        this.frameBoundsResolver = frameBoundsResolver;
         this.aiOnlineBulkhead = aiOnlineBulkhead;
     }
 
@@ -237,10 +250,10 @@ public class AutolabelOnlineService {
                 return new AutolabelOutcome(new AutolabelResponse(srcSn, 0, List.of()), true);
             }
 
-            // 5) 좌표 검증 — all-or-nothing. 하나라도 비정상이면 좌표 미반환·400(부분 반환 금지, fail-closed).
-            for (YoloResponse.Detection d : detections) {
-                validateBbox(d.points());
-            }
+            // 5) 좌표 정규화(C-ISSUE-41) — 배치와 <b>같은 공용 규칙</b>({@link DetectionBoxNormalizer}):
+            //    경계 밖 좌표는 이미지 경계로 clamp, 형식 위반(개수·NaN/Infinity)만 all-or-nothing 400,
+            //    clamp 후 퇴화한 박스는 그 검출만 스킵. 검출이 하나도 없으면 아래 6) 이 빈 결과로 마감한다.
+            detections = normalizeDetections(detections, src, srcSn);
 
             // 6) MED #3 — YOLO 박스 0개면 SAM 호출 스킵, 즉시 빈 결과 반환(폴리곤/박스 공통).
             if (detections.isEmpty()) {
@@ -527,36 +540,62 @@ public class AutolabelOnlineService {
     }
 
     /**
-     * 외부 응답 좌표 검증 (CWE-20) — 정확히 4개(x1,y1,x2,y2)이고 모두 유한·비음수이며 순서(x2&gt;x1,y2&gt;y1).
+     * 외부 응답 좌표 정규화 (CWE-20 · C-ISSUE-41) — 규칙은 {@link DetectionBoxNormalizer} 단일 원천이며
+     * 배치 저장 경로({@code YoloLabelPersister})와 <b>같은 함수</b>를 쓴다.
      *
-     * <p>NaN/Infinity 는 {@code v < 0} 비교를 통과(NaN&lt;0=false)하므로 {@link Double#isFinite} 로
-     * 명시 거부한다 — 미검증 시 저장 후 좌표 역직렬화에서 500 을 유발(#5 / F-4).
+     * <p>여기서는 규칙 판정 결과를 이 서비스의 응답 규약으로 옮기기만 한다:
+     * <ul>
+     *   <li>형식 위반(개수 ≠ 4 · NaN/Infinity) → <b>all-or-nothing 400</b>(부분 반환 금지, fail-closed).</li>
+     *   <li>clamp 후 퇴화 박스 → <b>그 검출만 스킵</b> + WARN. 400 으로 올리면 정상 검출까지 폐기되어
+     *       이 이슈가 고치려는 가용성 저하가 그대로 남는다.</li>
+     * </ul>
+     *
+     * <p>clamp 기준은 프레임 <b>실측</b> 해상도다. 측정 실패(파생영상·NAS 일시 장애 등)면 상한만 생략하고
+     * 하한(0) clamp 는 유지한다 — 여기서 막으면 정상 작업이 전면 차단된다({@link FrameBoundsResolver} 정책).
      */
-    private void validateBbox(List<Double> points) {
-        if (points == null || points.size() != 4) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "YOLO 응답 좌표는 [x1,y1,x2,y2] 4개여야 합니다.");
+    private List<YoloResponse.Detection> normalizeDetections(List<YoloResponse.Detection> detections,
+                                                             LsDataSrc src, Long srcSn) {
+        if (detections.isEmpty()) {
+            return detections;
         }
-        for (Double v : points) {
-            if (v == null || !Double.isFinite(v)) {
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        "YOLO 응답 좌표는 유한한 수여야 합니다.");
+        int[] bounds = frameBoundsResolver.resolve(src).orElse(null);
+        List<YoloResponse.Detection> normalized = new ArrayList<>(detections.size());
+        for (YoloResponse.Detection d : detections) {
+            Optional<List<Double>> points;
+            try {
+                points = DetectionBoxNormalizer.normalizeBbox(d.points(), bounds);
+            } catch (IllegalArgumentException e) {
+                // 형식 위반 — 메시지는 고정 문구(사용자 입력·내부 경로 미포함, CWE-209).
+                throw new CustomException(ErrorCode.INVALID_INPUT, e.getMessage());
             }
-            if (v < 0) {
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        "YOLO 응답 좌표는 0 이상이어야 합니다.");
+            if (points.isEmpty()) {
+                log.warn("[Autolabel] detection dropped — box degenerate after clamp srcSn={} label={}",
+                        srcSn, LogSanitizer.sanitize(d.label()));
+                continue;
             }
+            normalized.add(new YoloResponse.Detection(d.label(), points.get(), d.score(), d.trackId()));
         }
-        double x1 = points.get(0), y1 = points.get(1), x2 = points.get(2), y2 = points.get(3);
-        if (x2 <= x1 || y2 <= y1) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "YOLO 응답 좌표는 x2>x1, y2>y1 이어야 합니다.");
-        }
+        return normalized;
     }
 
     /**
      * SAM 응답 폴리곤 좌표 검증(CWE-20) — 외부(ai-server) 응답 불신. 정점 최소 3개, 각 [x,y] 두 값,
      * 유한(NaN/Infinity 거부)·비음수. 위반 시 {@link ErrorCode#INVALID_INPUT} (폴리곤 경로에서 스킵으로 처리).
+     *
+     * <h3>왜 여기는 clamp 하지 않는가 (C-ISSUE-41 검토 결과 — 의도된 비대칭 아님)</h3>
+     * BBOX 경로는 {@link DetectionBoxNormalizer} 로 clamp 하지만 이 폴리곤 검증은 <b>그대로 둔다</b>:
+     * <ul>
+     *   <li><b>C-41 의 실패 양상이 여기엔 없다</b> — 그 이슈의 피해는 "위반 1건이 프레임 전체를 400 으로
+     *       폐기"였는데, 폴리곤 경로는 애초에 <b>박스별 try/catch 부분 스킵</b>이라 다른 검출이 살아남는다
+     *       (all-or-nothing 아님).</li>
+     *   <li><b>원천이 다르다</b> — YOLO 박스는 회귀 출력이라 경계를 넘겨 예측하는 것이 정상이지만, SAM
+     *       폴리곤은 <b>이미지 래스터 마스크의 윤곽</b>이라 정의상 이미지 안이다. 실제로 이 경로의 음수
+     *       거부가 발화한 실측 사례도 없다(C-41 실측은 전부 YOLO bbox 다).</li>
+     *   <li><b>여기만 clamp 하면 새 비대칭이 생긴다</b> — 같은 SAM 응답을 검증하는 독립 엔드포인트
+     *       ({@code Sam2SegmentService.validatePolygon}, 이미지 경계 상한까지 거부)와 규칙이 갈린다.
+     *       두 폴리곤 검증을 함께 바꾸는 것은 별건(C-ISSUE-61)이며 본 이슈 범위 밖이다.</li>
+     * </ul>
+     * 즉 <b>BBOX 는 clamp, SAM 폴리곤은 거부</b>가 각 경로의 원천 특성에 맞는 정합 상태다.
      */
     private void validatePolygonPoints(List<List<Double>> polygon) {
         if (polygon == null || polygon.size() < MIN_POLYGON_POINTS) {

@@ -63,6 +63,8 @@ class YoloAutolabelStepTest {
     private PresetLabelLookupService presetLabelLookup;
     private SystemConfigService systemConfigService;
     private LabelMasterService labelMasterService;
+    /** C-ISSUE-41 — 저장 전 좌표 clamp 기준(프레임 실측 해상도). */
+    private kr.co.cudo.authoring.label.service.FrameBoundsResolver frameBoundsResolver;
     private YoloAutolabelStep step;
     /** Phase 6 — lblRepository.save() mock 이 생성된 라벨에 부여할 단조 증가 ID. */
     private final java.util.concurrent.atomic.AtomicLong lblSnSeq = new java.util.concurrent.atomic.AtomicLong(1);
@@ -82,6 +84,9 @@ class YoloAutolabelStepTest {
         presetLabelLookup = mock(PresetLabelLookupService.class);
         systemConfigService = mock(SystemConfigService.class);
         labelMasterService = mock(LabelMasterService.class);
+        frameBoundsResolver = mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class);
+        // C-ISSUE-41 — 온라인 경로와 동일한 1280x720 실측 해상도를 기준으로 clamp 한다.
+        when(frameBoundsResolver.resolve(any())).thenReturn(Optional.of(new int[]{1280, 720}));
         // SystemConfigService 기본은 모든 키 조회 시 null 반환 → fallback 기본값(40, 1280, 50) 사용.
         when(systemConfigService.getInt(any())).thenReturn(null);
         // LabelMasterService 기본은 미매핑 (Optional.empty) — 개별 테스트가 필요 시 override.
@@ -115,7 +120,7 @@ class YoloAutolabelStepTest {
 
         step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
                 videoRepository, presetLabelLookup, systemConfigService, labelMasterService,
-                new ObjectMapper(), rawDir.toString());
+                frameBoundsResolver, new ObjectMapper(), rawDir.toString());
 
         // Logback ListAppender 부착 — mock 응답 감지 시 WARN 로그를 검증
         stepLogger = (Logger) LoggerFactory.getLogger(YoloAutolabelStep.class);
@@ -191,22 +196,185 @@ class YoloAutolabelStepTest {
         assertThat(captor.getValue().getPointCn()).isEqualTo("[[1.0,2.0],[3.0,4.0]]");
     }
 
+    // ── C-ISSUE-41: 배치 저장 좌표도 온라인과 동일 규칙으로 정규화 ────────────────────
+
     @Test
-    @DisplayName("YOLO_detection_points_홀수길이면_INVALID_INPUT으로_래핑되어_배치추적_DEV_FIX")
-    void oddLengthPointsWrappedAsInvalidInput() {
-        // given — 외부 ai-server 가 홀수 길이 좌표를 반환 (비정상 입력)
+    @DisplayName("배치_저장_좌표도_음수는_0으로_clamp되어_DB에_음수가_남지_않는다")
+    void batchClampsNegativeCoordinates() {
+        // given — 실모델 YOLO 실측값(rawSn=26, src=446 bus). 구 구현은 음수 검증이 전혀 없어
+        //         LS_DATA_LBL 에 음수 좌표가 그대로 적재됐다(온라인만 400 인 정책 비대칭).
         when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
                 .thenReturn(List.of(newSrc(10L)));
         when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
-                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0), 0.92)
+                        new YoloResponse.Detection("bus",
+                                List.of(-1.5731448368773044, 2.5, 1261.5, 707.5), 0.92)
                 ))));
 
-        // when / then — flatToPoints 의 IllegalArgumentException 이 CustomException(INVALID_INPUT) 로 래핑
-        assertThatThrownBy(() -> step.run(1L))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode().name())
-                .isEqualTo("INVALID_INPUT");
+        step.run(1L);
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        assertThat(captor.getValue().getPointCn()).isEqualTo("[[0.0,2.5],[1261.5,707.5]]");
+    }
+
+    @Test
+    @DisplayName("배치_저장_좌표도_이미지_상한을_넘으면_경계로_clamp된다")
+    void batchClampsAboveUpperBound() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(10.0, 10.0, 1300.0, 721.3), 0.92)
+                ))));
+
+        step.run(1L);
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        assertThat(captor.getValue().getPointCn()).isEqualTo("[[10.0,10.0],[1280.0,720.0]]");
+    }
+
+    @Test
+    @DisplayName("배치에서_이미지_전체밖_퇴화박스는_저장을_건너뛰고_나머지는_저장된다")
+    void batchSkipsDegenerateBoxWithoutFailingFrame() {
+        // 배치는 영상 단위 처리라 퇴화 박스 1건으로 전체를 실패시키면 그 영상의 오토라벨이 통째로
+        // 날아간다 — 해당 검출만 스킵한다(온라인 경로와 동일 정책).
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(-40.0, 10.0, -5.0, 60.0), 0.92),
+                        new YoloResponse.Detection("car", List.of(300.0, 300.0, 400.0, 400.0), 0.81)
+                ))));
+
+        step.run(1L);
+
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        assertThat(captor.getValue().getPointCn()).isEqualTo("[[300.0,300.0],[400.0,400.0]]");
+    }
+
+    // ── DEV_FIX(M-2): 형식 위반은 검출 단위 드롭 — 영상 1건의 배치를 통째로 실패시키지 않는다 ──
+
+    @Test
+    @DisplayName("배치는_형식위반_검출만_드롭하고_같은_프레임의_정상검출은_저장한다")
+    void malformedPointsDropDetectionOnlyNotWholeVideo() {
+        // given — 외부 ai-server 가 홀수 길이 좌표를 반환(비정상 입력) + 같은 프레임에 정상 검출 1건.
+        //   구 구현은 예외가 run() 밖으로 전파되어 그 영상의 YOLO 단계 전체가 실패(FAILED)하고
+        //   앞서 저장된 라벨만 남는 부분 상태가 됐다(같은 클래스의 퇴화 박스는 스킵인데 NaN 만 전체 실패
+        //   — 정책 자기모순).
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0), 0.92),
+                        new YoloResponse.Detection("car", List.of(300.0, 300.0, 400.0, 400.0), 0.81)
+                ))));
+
+        // when — 예외 없이 완주한다.
+        List<BbHint> hints = step.run(1L);
+
+        // then — 정상 검출만 저장/발행되고, 드롭은 WARN 으로 관측 가능하다.
+        ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(captor.capture());
+        assertThat(captor.getValue().getPointCn()).isEqualTo("[[300.0,300.0],[400.0,400.0]]");
+        assertThat(hints).hasSize(1);
+        assertThat(hints.get(0).label()).isEqualTo("car");
+        assertThat(logAppender.list).anyMatch(e -> e.getLevel() == Level.WARN
+                && e.getFormattedMessage().contains("malformed coordinates"));
+    }
+
+    @Test
+    @DisplayName("배치는_NaN_좌표_검출만_드롭하고_영상전체를_실패시키지_않는다")
+    void nanPointsDropDetectionOnly() {
+        // given — NaN 은 (NaN < 0)==false 라 음수 검사를 통과하던 값. DetectionBoxNormalizer 의
+        //   isFinite 가드가 잡고, 배치는 그 검출만 드롭한다.
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person",
+                                List.of(Double.NaN, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(1L);
+
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
+        assertThat(hints).isEmpty();
+        assertThat(logAppender.list).anyMatch(e -> e.getLevel() == Level.WARN
+                && e.getFormattedMessage().contains("malformed coordinates"));
+    }
+
+    // ── DEV_FIX(M-1): polygon hint 도 clamp 된 좌표를 싣는다(SAM 프롬프트 오염 차단) ──
+
+    @Test
+    @DisplayName("폴리곤전용_프리셋에서_퇴화박스는_BBOX도_hint도_발행되지_않는다")
+    void polygonOnlyPresetEmitsNoHintForDegenerateBox() {
+        // given — bbox=false(폴리곤 전용) 라 DB BBOX 가 애초에 없다. 구 구현은 hint 에 미clamp 원본을
+        //   실었고, Sam2SegmentStep.buildJobs 는 DB BBOX 가 없으면 hint 를 채택하므로 이미지 완전 밖
+        //   좌표가 SAM box 프롬프트로 나가고 그 산출 폴리곤이 LS_DATA_LBL 에 저장됐다(학습데이터 오염).
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(14L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, true))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(14L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(-40.0, 10.0, -5.0, 60.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(14L);
+
+        // then — 퇴화 검출은 bbox·polygon 둘 다 스킵.
+        assertThat(hints).isEmpty();
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    @DisplayName("폴리곤전용_프리셋의_hint좌표는_이미지_경계로_clamp된_값이다")
+    void polygonOnlyPresetHintCarriesClampedPoints() {
+        // given — DB BBOX 가 없는 경로(bbox=false)라 hint 가 곧 SAM 프롬프트다.
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(15L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, true))));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(15L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person",
+                                List.of(-1.5731448368773044, 10.0, 1300.0, 721.3), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(15L);
+
+        // then — 1280x720 실측 경계 기준 clamp 된 좌표(구 구현은 원본 -1.57…/1300/721.3 을 그대로 실었다).
+        assertThat(hints).hasSize(1);
+        assertThat(hints.get(0).points()).containsExactly(0.0, 10.0, 1280.0, 720.0);
+    }
+
+    @Test
+    @DisplayName("BOTH_프리셋에서_퇴화박스는_BBOX_스킵과_함께_hint도_발행되지_않는다")
+    void bothPresetSkipsHintWhenBboxDegenerate() {
+        // given — bbox 가 퇴화로 스킵되면 DB BBOX 가 없어 Sam2SegmentStep 이 hint 를 채택한다.
+        //   그래서 bbox 스킵과 hint 미발행은 반드시 함께 일어나야 한다.
+        LsDataRaw rawMock = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(16L)).thenReturn(Optional.of(rawMock));
+        when(presetLabelLookup.togglesFor("EVT_FALL"))
+                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(16L))
+                .thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(-40.0, 10.0, -5.0, 60.0), 0.92)
+                ))));
+
+        List<BbHint> hints = step.run(16L);
+
+        assertThat(hints).isEmpty();
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test
@@ -862,7 +1030,7 @@ class YoloAutolabelStepTest {
 
         YoloAutolabelStep realStep = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
                 aiInfoRepository, videoRepository, realLookup, systemConfigService, labelMasterService,
-                new ObjectMapper(), tempDir.resolve("raw").toString());
+                frameBoundsResolver, new ObjectMapper(), tempDir.resolve("raw").toString());
 
         LsDataRaw rawMock = rawWithEvent(evCode);
         when(videoRepository.findById(300L)).thenReturn(Optional.of(rawMock));

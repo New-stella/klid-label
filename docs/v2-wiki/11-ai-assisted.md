@@ -20,12 +20,20 @@
 - 프리셋 필터(이벤트 유형별 라벨) 적용, `track_id` 부여
 - 라벨 좌표는 동일 해상도이므로 **비식별본과 공유**(별도 실행 없음)
 - 출처/신뢰도는 `LS_DATA_LBL_AI_INFO`(`CONF_SCORE`)
+- **★검출 좌표 정규화는 배치·온라인 단일 규칙 (C-ISSUE-41, 2026-07-29)**: `common/util/DetectionBoxNormalizer` 한 곳에 두고 **YOLO 검출을 다루는 3경로 전부**가 **같은 함수를 호출**한다 — 배치(`YoloLabelPersister`) · 온라인 AI 탐지(`AutolabelOnlineService`) · 온디맨드 객체 추적(`YoloTrackService`). 셋 다 ai-server의 동일 모델(`/infer/yolo/track`)을 호출하므로 같은 경계 좌표가 오며, 한 곳이라도 규칙이 다르면 같은 응답이 경로에 따라 저장되거나 400 으로 폐기된다.
+  - **이미지 경계 clamp** — `0 ≤ x ≤ imgWidth`, `0 ≤ y ≤ imgHeight`. 화면 경계에 걸친 객체(사람이 프레임 끝에 반쯤 걸림 등)는 CCTV 학습데이터의 **정상 다수 케이스**이고 모델이 경계를 조금 넘겨 출력하는 것도 정상이다. clamp 기준은 프레임 **실측** 해상도(`FrameBoundsResolver`, 캐시)이며 측정 실패 시 **상한만 생략**하고 하한(0)은 유지한다(fail-open — 원천 이미지가 없는 정상 작업을 막지 않는다).
+  - **거부(400)는 형식 위반에만** — 좌표 개수 ≠ 4 · null 원소 · NaN/Infinity. 온라인은 이 경우에만 all-or-nothing 400 이다(`NaN < 0` 은 false 라 음수검사를 통과하므로 `isFinite` 가드는 필수 — 없으면 저장 후 좌표 역직렬화에서 500).
+  - **clamp 후 퇴화(폭·높이 0 이하) 박스는 그 검출만 스킵** — 400 으로 올리면 같은 프레임의 정상 검출까지 폐기되고, 배치에서는 영상 1건의 오토라벨이 통째로 실패한다.
+  - **배치는 형식 위반도 검출 단위 드롭** — 온라인은 all-or-nothing 400 이지만(사용자가 즉시 재시도 가능·외부 응답 불신 계약 우선), 배치는 300프레임 영상의 마지막 검출 1건 때문에 그 영상의 YOLO 단계 전체가 실패(작업 상태 FAILED)하고 앞서 저장된 라벨만 남는 부분 상태가 되면 안 된다. 드롭 건수는 `droppedDegenerate`/`droppedMalformed` 로 배치 요약 로그에 노출된다.
+  - **SAM 프롬프트(`BbHint`)도 clamp 된 좌표를 싣는다** — `Sam2SegmentStep.buildJobs` 는 `(label, trackId)` 키로 DB BBOX 를 우선 등록한 뒤 `putIfAbsent` 로 hint 를 채우므로, DB BBOX 가 **없을 때**(퇴화로 bbox 스킵 · **폴리곤 전용 프리셋**)는 hint 가 곧 프롬프트가 된다. 미clamp 원본을 실으면 이미지 완전 밖 좌표가 SAM box 프롬프트로 나가고 그 산출 폴리곤이 `LS_DATA_LBL` 에 저장된다(학습데이터 오염). 정규화는 검출 루프 선두에서 1회 수행하고 bbox 저장·polygon hint 가 **같은 좌표를 공유**하며, 퇴화면 **둘 다** 스킵한다.
+  - 구 동작(폐기): 온라인만 `좌표 < 0` 을 all-or-nothing 400 으로 거부하고 배치는 무검증 저장 → 실데이터에서 AI 탐지가 프레임 대부분 400 이었고 `LS_DATA_LBL` 에는 음수 좌표 라벨이 적재됐다(같은 응답에 대해 두 경로 정책이 갈림). 상한(`x2>width`) 미검증도 함께 해소.
 
 ### 온디맨드 YOLO 객체 추적 — `POST /v1/frames/{srcSn}/yolo-track` (인터랙티브)
 - 배치 자동라벨링과 **별개의 온디맨드 경로** — 라벨러가 정렬된 프레임 시퀀스(`srcSn` 시작 + `nextSrcSns` 후속, 최대 50)를 지정하면 ai-server `/infer/yolo/track`을 프레임별 프록시하여 검출(`label`/`points[x1,y1,x2,y2]`/`score`/`track_id`)을 프레임별로 반환
 - **순수 조회(DB 미저장)** — 결과는 FE가 받아 기존 `PUT /v1/frames/{srcSn}/labels`로 저장(배치 `YoloAutolabelStep`과 중복 저장 방지)
 - 트래커 격리: `clip_id = {rawSn}:{요청 UUID}`(요청 단위 격리 — 동일 영상 동시 추적 간섭 방지), `frame_index` 0-base(첫 프레임 트래커 리셋)
 - 방어: 본인 미배정 IDOR 차단(시작+모든 후속 프레임), path/body `srcSn` 불일치 400(CWE-345), 시퀀스 교차 영상(RAW_SN) 혼입 400, `nextSrcSns` 상한 50(CWE-770), 응답 좌표 검증(CWE-20). ai-server 연동 실패 502
+- **응답 좌표는 위 11.2 의 `DetectionBoxNormalizer` 공용 규칙을 그대로 탄다** — 프레임마다 실측 해상도로 clamp, 퇴화 박스는 **그 검출만** 스킵, 형식 위반(개수 ≠ 4 · null · NaN/Infinity)만 400. 이 경로는 한 요청이 **최대 50프레임 시퀀스**라 검출 1건으로 400 을 내면 시퀀스 전체가 폐기되므로 폐기 범위 축소가 특히 중요하다(구 구현은 음수 즉시 400 + `isFinite` 가드 부재로 NaN 이 응답에 그대로 실렸다)
 - REVIEWER/WORKER. 코드: `YoloTrackService`·`LabelController#yoloTrack` (LogiCraft `API-123`)
 
 ## 11.3 SAM2 — VOS(추적) + 분할
