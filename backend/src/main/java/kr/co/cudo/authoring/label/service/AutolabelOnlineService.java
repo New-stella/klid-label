@@ -20,6 +20,7 @@ import kr.co.cudo.authoring.label.dto.AutolabelResponse;
 import kr.co.cudo.authoring.label.dto.AutolabelShape;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>IDOR(CWE-639): 진입 최우선 {@link LabelAccessGuard#verifyAndGet} — ai 호출 전에 본인
  *       배정 프레임만 통과(WORKER), REVIEWER 전체 허용.</li>
  *   <li>작업락(#3): {@link WorkLockService#isRawLocked} 잠금 시 409 — 비식별 재처리 중 프레임 변경 차단.</li>
+ *   <li>신고 구간(CWE-359): 작업락과 별개로 {@link DeidentReportGate}({@code DE_IDNTF_YN='F'}) 를 함께
+ *       확인해 412 로 차단한다({@link #requireNotBlocked}) — 작업락이 어떤 이유로 없는 신고 구간 영상도
+ *       추론을 시작하지 못한다. 프레임 이미지 인코딩({@link FrameImageEncoder#encodeFrame})에도 같은
+ *       게이트가 있어 ai-server 전송 자체가 fail-closed 다.</li>
  *   <li>TOCTOU(#4): AI 블로킹 호출(최대 70s) 완료 후 <b>응답 조립 직전 잠금 재확인</b> — 그사이 비식별
  *       신고가 라벨 퍼지+잠금했다면 좌표를 반환하지 않고 409 로 차단해 프라이버시 불변식을 보호한다.</li>
  *   <li>동시성(CWE-362): 프레임 단위 in-flight 락으로 진행 중 재요청 409 → 중복 트리거 차단.
@@ -111,6 +116,11 @@ public class AutolabelOnlineService {
     private final WorkLockService workLockService;
     private final FrameImageEncoder frameImageEncoder;
     private final LabelMasterService labelMasterService;
+    /**
+     * 비식별 누락 신고 구간 판정 단일 원천(그 영상 행의 {@code DE_IDNTF_YN='F'}) —
+     * {@code "F"} 비교를 여기서 재구현하지 않는다({@link #requireNotBlocked}).
+     */
+    private final DeidentReportGate deidentReportGate;
     /** 온라인 AI 경로 전용 동시 호출 제한 (F-2) — 배치 경로와 격리. */
     private final Bulkhead aiOnlineBulkhead;
 
@@ -120,6 +130,7 @@ public class AutolabelOnlineService {
                                   WorkLockService workLockService,
                                   FrameImageEncoder frameImageEncoder,
                                   LabelMasterService labelMasterService,
+                                  DeidentReportGate deidentReportGate,
                                   @Qualifier("aiOnlineBulkhead") Bulkhead aiOnlineBulkhead) {
         this.aiServerClient = aiServerClient;
         this.accessGuard = accessGuard;
@@ -127,6 +138,7 @@ public class AutolabelOnlineService {
         this.workLockService = workLockService;
         this.frameImageEncoder = frameImageEncoder;
         this.labelMasterService = labelMasterService;
+        this.deidentReportGate = deidentReportGate;
         this.aiOnlineBulkhead = aiOnlineBulkhead;
     }
 
@@ -185,10 +197,8 @@ public class AutolabelOnlineService {
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
         Long rawSn = src.getRawSn();
 
-        // 2) 작업락(#3) — 비식별 재처리 등으로 잠긴 영상은 오토라벨 거부. (AI 호출 후 #4 에서 재확인)
-        if (workLockService.isRawLocked(rawSn)) {
-            throw new CustomException(ErrorCode.CONFLICT, "작업이 잠긴 영상입니다.");
-        }
+        // 2) 작업락(#3) + 신고 구간 — 잠기거나 신고 구간이면 오토라벨 거부. (AI 호출 후 #4 재확인)
+        requireNotBlocked(rawSn);
 
         // 3) 동시 중복 트리거 차단(CWE-362) — 진행 중 재요청은 409.
         if (!inFlight.add(srcSn)) {
@@ -283,10 +293,10 @@ public class AutolabelOnlineService {
         boolean anyMock = false;
 
         for (int i = 0; i < limit; i++) {
-            // #2 TOCTOU(배치 중) — 중간에 비식별 신고가 잠그면 안전하게 중단(좌표 미반환·409).
-            if (workLockService.isRawLocked(rawSn)) {
-                throw new CustomException(ErrorCode.CONFLICT, "작업이 잠긴 영상입니다.");
-            }
+            // #2 TOCTOU(배치 중) — 중간에 이 영상에 비식별 신고가 나면 안전하게 중단한다. 폴리곤 경로는
+            //    최초 1회 인코딩한 이미지를 박스마다 재전송하므로, 여기서 끊지 않으면 신고 이후에도 같은
+            //    PII 픽셀이 ai-server 로 계속 나간다(좌표 미반환·409/412).
+            requireNotBlocked(rawSn);
             long remainingNanos = deadlineNanos - System.nanoTime();
             if (remainingNanos <= 0) {
                 truncated = true; // 예산 소진 — 나머지 박스는 잘라 안내.
@@ -363,10 +373,36 @@ public class AutolabelOnlineService {
         return sb.length() == 0 ? null : sb.toString();
     }
 
-    /** TOCTOU 재확인 헬퍼(#4) — 잠기면 좌표 미반환·409. */
+    /** TOCTOU 재확인 헬퍼(#4) — 잠기거나 신고 구간이면 좌표 미반환. */
     private void reCheckLock(Long rawSn) {
+        requireNotBlocked(rawSn);
+    }
+
+    /**
+     * 진입·중간·마감 공통 차단 판정 — <b>작업락</b> + <b>비식별 누락 신고 상태</b>(둘 다 그 rawSn 행 기준).
+     *
+     * <h3>왜 상태 게이트를 함께 보는가 (CWE-359)</h3>
+     * {@code WorkLockService.isRawLocked} 는 <b>락 행의 존재</b>만 보고, 신고 구간 판정은
+     * {@code LS_DATA_RAW.DE_IDNTF_YN='F'} 를 본다. 두 축은 같은 사건(신고)에서 함께 세워지지만 해제
+     * 경로가 달라 어긋날 수 있고(배치 비식별 실패도 {@code 'F'} 를 만든다), 라벨 조회·프레임 인코딩이
+     * 이미 후자를 기준으로 막고 있다. 오토라벨만 락 축 하나로 판정하면 정책이 갈라지므로 게이트 단일
+     * 원천({@link DeidentReportGate})을 함께 태운다.
+     *
+     * <p>순서는 <b>작업락 먼저</b> — 신고로 잠긴 영상은 기존과 동일하게 409(작업이 잠긴 영상)로 끝나
+     * 응답 규약이 바뀌지 않고, 락 없이 {@code 'F'} 인 경우만 412(라벨 계열 관례,
+     * {@code LabelAccessGuard.requireNotUnderDeidentReport} 와 동일)로 끝난다.
+     *
+     * <p>파생영상(증강·해상도)은 <b>원본의 신고에 영향받지 않는다</b>(2026-07-29 확정 정책) — 게이트가
+     * 자기 행만 보므로 여기서도 파생본은 원본 신고만으로는 막히지 않는다.
+     */
+    private void requireNotBlocked(Long rawSn) {
         if (workLockService.isRawLocked(rawSn)) {
             throw new CustomException(ErrorCode.CONFLICT, "작업이 잠긴 영상입니다.");
+        }
+        if (deidentReportGate.isUnderDeidentReport(rawSn)) {
+            log.warn("[Autolabel] blocked — deident report open rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                    "비식별 재처리 대기 중인 영상은 오토라벨을 실행할 수 없습니다.");
         }
     }
 

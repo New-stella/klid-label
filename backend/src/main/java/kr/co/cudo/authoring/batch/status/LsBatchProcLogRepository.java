@@ -19,4 +19,16 @@ public interface LsBatchProcLogRepository extends JpaRepository<LsBatchProcLog, 
      */
     Optional<LsBatchProcLog> findTopByDataRawSnAndProcSttsCdNotOrderByRegDtDesc(
             Long dataRawSn, String procSttsCd);
+
+    /**
+     * 특정 단계가 특정 사유로 <b>보류(SKIPPED)</b> 된 감사 행이 있는가 — 신고 해소 후 재개 대상 식별용.
+     *
+     * <p>{@code createSkipped} 는 사유를 별도 컬럼 없이 {@code ERR_MSG_CN}(errorMsg)에 적재하므로
+     * (스키마 추가 없음), 재개 판정도 같은 축을 읽는다. 사유 문자열의 단일 원천은 각 스텝의 상수다
+     * (예: {@code VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT}) — 호출부가 그 상수를 넘긴다.
+     *
+     * <p>파라미터 바인딩 파생 쿼리만 사용한다(CWE-89).
+     */
+    boolean existsByDataRawSnAndProcStepCdAndProcSttsCdAndErrorMsg(
+            Long dataRawSn, String procStepCd, String procSttsCd, String errorMsg);
 }

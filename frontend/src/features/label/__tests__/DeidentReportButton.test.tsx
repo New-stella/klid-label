@@ -169,4 +169,44 @@ describe('DeidentReportButton', () => {
       expect(screen.getByText(/배정된 영상이 아닙니다/)).toBeInTheDocument(),
     );
   });
+
+  it('파생영상이면_버튼이_비활성화되고_사유가_툴팁으로_보인다', async () => {
+    // 사유를 다 적고 제출한 뒤에야 412 를 보는 동선을 없앤다 — 알 수 있는 시점에 미리 막는다.
+    // 원본으로 유도하지 않는다: 원본을 신고해도 이 파생본은 달라지지 않기 때문(자기 행 판정).
+    const reason =
+      '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.';
+    renderWithProviders(<DeidentReportButton srcSn={123} unsupportedReason={reason} />);
+
+    const button = screen.getByRole('button', { name: /비식별 누락 신고/ });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', reason);
+  });
+
+  it('412_응답시_서버_안내문이_그대로_노출된다 — 화면이 파생 여부를 모를 때의 안전망', async () => {
+    const user = userEvent.setup();
+    mock.onPost('/labels/123/deident-report').reply(412, {
+      success: false,
+      data: null,
+      message:
+        '이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상(증강·해상도 변환본)이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.',
+      errorCode: 'PRECONDITION_FAILED',
+    });
+
+    renderWithProviders(<DeidentReportButton srcSn={123} />);
+
+    await user.click(screen.getByRole('button', { name: /비식별 누락 신고/ }));
+    const textarea = await screen.findByLabelText(/신고 사유/);
+    await user.type(textarea, '사유');
+    await user.click(screen.getByRole('button', { name: /신고하기/ }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/이 화면에서는 비식별 재처리를 요청할 수 없습니다/),
+      ).toBeInTheDocument(),
+    );
+    // 모달은 열린 상태로 남아 안내가 보인다(무반응 실패 금지).
+    expect(
+      screen.getByRole('dialog', { name: /비식별 누락 신고/ }),
+    ).toBeInTheDocument();
+  });
 });

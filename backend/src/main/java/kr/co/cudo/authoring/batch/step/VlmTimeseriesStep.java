@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.common.security.HmacWebhookFilter;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,9 @@ import java.util.UUID;
  *   <li>{@code vlm.client.enabled=false}(기본) 일 때 외부 호출 0건 + 즉시 SKIPPED(NO-OP) — 등록도 하지 않음.</li>
  *   <li>media.path 는 <b>비식별 영상 경로</b>({@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM})만 사용.
  *       비식별 경로가 없으면 원본을 외부로 전송하지 않고 fail-closed(개인정보 보호).</li>
+ *   <li><b>비식별 누락 신고 구간이면 외부 호출 0건 + SKIPPED(보류)</b> — 그 비식별본이 바로 마스킹
+ *       실패가 확인된 파일이므로 외부 벤더로 내보내지 않는다({@link DeidentReportGate}). 실패가 아닌
+ *       보류로 기록해 해소 후 재처리로 이어진다.</li>
  *   <li>frame_policy 는 frame_interval + framerate(설정값 {@code vlm.client.frame-policy.framerate}, 기본 25).</li>
  *   <li>eventName/marks 는 describe 규격 밖이므로 전송하지 않는다(R9).</li>
  *   <li>외부 호출 실패 시 Resilience4j(VlmClient) Retry 후 {@link CustomException ErrorCode.EXTERNAL_API_ERROR}
@@ -79,6 +83,17 @@ public class VlmTimeseriesStep implements BatchStep {
     /** VLM 단계 미수행 사유 — 운영 재처리 대상 식별용으로 DB 에 그대로 적재된다(B-ISSUE-24). */
     static final String SKIP_REASON_DISABLED = "VLM 위탁 비활성 (vlm.client.enabled=false)";
 
+    /**
+     * VLM 단계 <b>보류</b> 사유 — 비식별 누락 신고 구간(재비식별 대기). {@link #SKIP_REASON_DISABLED} 과
+     * 동일하게 {@code LS_BATCH_PROC_LOG} 에 적재되어 해소 후 재처리 대상 식별에 쓰인다(B-ISSUE-24).
+     *
+     * <p><b>재개 배선의 키</b>이므로 public 이다: 신고 해소 시
+     * {@code VlmWithheldResumeRunner} 가 이 문자열로 남은 보류 기록을 찾아 위탁을 재개한다
+     * ({@code BatchStatusService.isStageSkippedWithReason}). 보류는 실패가 아니라 재시도 큐가 집지 않으므로
+     * 이 재개가 유일한 복구 경로다 — <b>값을 바꾸면 재개 배선이 끊긴다</b>(상수를 공유해 드리프트를 막는다).
+     */
+    public static final String SKIP_REASON_DEIDENT_REPORT = "비식별 누락 신고 구간 — VLM 위탁 보류(재비식별 대기)";
+
     private final VlmClient vlmClient;
     private final VideoRepository videoRepository;
     private final BatchStatusService batchStatusService;
@@ -86,6 +101,8 @@ public class VlmTimeseriesStep implements BatchStep {
     private final WebhookIdempotencyLedger ledger;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final LsMarkingRepository markingRepository;
+    /** 비식별 누락 신고 구간 판정 단일 원천 — {@code 'F'} 비교·트리 순회를 여기서 재구현하지 않는다. */
+    private final DeidentReportGate deidentReportGate;
 
     /** 콜백 base URL — 외부 시스템이 describe 결과를 push 할 엔드포인트 prefix(고정, 사용자 입력 미반영). */
     @Value(WebhookCallbackDefaults.VALUE_EXPRESSION)
@@ -161,6 +178,36 @@ public class VlmTimeseriesStep implements BatchStep {
         if (!videoRepository.existsById(rawSn)) {
             throw new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다 rawSn=" + rawSn);
         }
+
+        // ── S7-VLM (HIGH · CWE-359) — 비식별 누락 신고 게이트: <b>외부 전송 직전</b> 단일 통과 지점.
+        //
+        //  무엇을 막는가: 아래 resolveDeidentifiedPath 가 넘기는 media.path 는 비식별본이다. 신고는
+        //  "그 비식별본에 마스킹 누락(PII)이 있다"는 확인이므로, 신고 구간에 배치가 다시 돌면
+        //  (BatchReprocessService.retry · Quartz 재큐 · 마킹 브리지) 마스킹 실패가 확인된 영상 파일이
+        //  그대로 외부 VLM 벤더로 나간다. 회수 불가능한 유출이다.
+        //
+        //  왜 여기인가(스텝 진입 vs 오케스트레이터): ①차단해야 할 것은 "파이프라인"이 아니라 <b>외부
+        //  전송</b> 하나다 — 같은 파이프라인의 YOLO/SAM2 는 원본만 쓰고 전송도 내부 ai-server 라 대상이
+        //  아니며, 프레임 추출은 로컬 산출이라 게이트는 export 단계가 이미 담당한다. ②run/runWithMarking
+        //  은 dev 트리거 등에서 직접 호출될 수 있는 public 진입점이라, 오케스트레이터에 두면 그 경로가
+        //  전부 샌다. 전송 코드와 같은 메서드에 두면 어떤 호출자도 우회할 수 없다.
+        //
+        //  실패가 아니라 <b>보류</b>: 기존 NO-OP(enabled=false) 규약과 동일하게 SKIPPED 응답 + 사유를
+        //  LS_BATCH_PROC_LOG 에 적재한다(B-ISSUE-24). 예외로 실패시키면 ①정책적 차단이 장애로 오분류되고
+        //  ②BatchRetryQueue 가 반드시 다시 막힐 재시도로 시도 상한을 소진하며 ③작업 상태가 FAILED 로
+        //  내려가 라벨링·검수 동선이 끊긴다.
+        //
+        //  보류는 <b>스스로 재개되지 않는다</b>(실패 행이 없어 재시도 큐·회수기가 집지 않는다). 그래서
+        //  해소(resolve) 시 DeidentGateReopenedEvent → VlmResumeBridge → VlmWithheldResumeRunner 가
+        //  이 SKIPPED 기록을 근거로 재위탁한다 — 그 배선이 없으면 시계열 메타가 영구 결손된다.
+        //
+        //  판정 조회가 DB 오류로 실패하면 예외가 그대로 전파돼 위탁이 진행되지 않는다(fail-closed).
+        if (deidentReportGate.isUnderDeidentReport(rawSn)) {
+            log.warn("[Batch][VlmTimeseries] withheld — deident report open rawSn={}", rawSn);
+            batchStatusService.recordVlmSkipped(rawSn, SKIP_REASON_DEIDENT_REPORT);
+            return VlmTimeseriesResponse.skipped(null);
+        }
+
         String mediaPath = resolveDeidentifiedPath(rawSn);
 
         // request_id 발급(UUIDv4 — 예측 불가) + 콜백 URL 구성(고정 base, 사용자 입력 미반영).

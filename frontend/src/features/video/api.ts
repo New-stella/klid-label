@@ -111,6 +111,9 @@ export function getVideo(id: number) {
         updatedAt:
           d.updatedAt ??
           ((d as Record<string, unknown>)['updDt'] as string | undefined),
+        // 파생영상 여부 — BE 가 boolean 으로만 내려준다(원본 rawSn 은 내려주지 않는다: 원본을 신고해도
+        // 파생본은 달라지지 않아 유도 자체가 잘못된 안내). 구 응답은 undefined 로 남긴다.
+        derivative: d.derivative === true,
       } as VideoDetail;
     });
 }

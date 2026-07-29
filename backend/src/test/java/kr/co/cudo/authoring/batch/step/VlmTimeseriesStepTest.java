@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +32,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -47,6 +50,7 @@ class VlmTimeseriesStepTest {
     private WebhookIdempotencyLedger ledger;
     private LsDeidentProcLogRepository deidentProcLogRepository;
     private LsMarkingRepository markingRepository;
+    private DeidentReportGate deidentReportGate;
     private VlmTimeseriesStep step;
 
     @BeforeEach
@@ -58,8 +62,10 @@ class VlmTimeseriesStepTest {
         ledger = mock(WebhookIdempotencyLedger.class);
         deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
+        deidentReportGate = mock(DeidentReportGate.class);
         step = new VlmTimeseriesStep(vlmClient, videoRepository, batchStatusService,
-                objectMapper, ledger, deidentProcLogRepository, markingRepository);
+                objectMapper, ledger, deidentProcLogRepository, markingRepository,
+                deidentReportGate);
     }
 
     /** 비식별 경로가 존재하는 영상 시드 — existsById=true + 최신 성공 procLog 의 비식별 경로. */
@@ -88,6 +94,56 @@ class VlmTimeseriesStepTest {
         verify(ledger, never()).recordIssued(any(), any(), any(), any());
         assertThat(resp).isNotNull();
         assertThat(resp.status()).isEqualTo("skipped");
+    }
+
+    // ---------- S7-VLM · 비식별 누락 신고 구간 외부 전송 차단 (HIGH-2 · CWE-359) ----------
+
+    @Test
+    @DisplayName("비식별_신고_구간_영상은_외부_VLM_호출_0건이고_보류로_기록된다")
+    void underDeidentReportWithholdsExternalSubmit() {
+        // given — VLM 활성 + 실재하는 영상이지만, 그 비식별본에 마스킹 누락 신고가 열려 있다.
+        //          (비식별 경로 스텁을 일부러 두지 않는다 — 게이트가 경로 조회 <b>전에</b> 끊어야 한다.)
+        when(videoRepository.existsById(300L)).thenReturn(true);
+        when(vlmClient.isEnabled()).thenReturn(true);
+        when(deidentReportGate.isUnderDeidentReport(300L)).thenReturn(true);
+
+        // when
+        VlmTimeseriesResponse resp = step.run(300L);
+
+        // then — 외부 벤더로 나가는 상호작용이 0건이어야 한다(회수 불가 유출 차단).
+        //         vlmClient 에 남는 상호작용은 활성 여부 조회뿐이고 전송은 없다.
+        verify(vlmClient).isEnabled();
+        verifyNoMoreInteractions(vlmClient);
+        // 비식별 경로 조회 자체도 하지 않는다(전송 대상 경로를 만들지 않는다).
+        verifyNoInteractions(deidentProcLogRepository);
+        // 상관키 발급(ledger)도 남기지 않는다 — 위탁하지 않았으므로 콜백 대기 상태를 만들지 않는다.
+        verifyNoInteractions(ledger);
+        // 실패가 아니라 보류: SKIPPED 응답 + 사유가 LS_BATCH_PROC_LOG 에 적재된다(B-ISSUE-24 규약).
+        assertThat(resp).isNotNull();
+        assertThat(resp.status()).isEqualTo("skipped");
+        verify(batchStatusService).recordVlmSkipped(300L, VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
+    }
+
+    @Test
+    @DisplayName("신고가_해소되면_같은_영상의_VLM_위탁이_재개된다")
+    void resumesAfterDeidentReportResolved() {
+        // given — 같은 영상에 대해 1차는 신고 구간(차단), 2차는 해소 후(통과).
+        seed(310L, "/data/deid/310.mp4");
+        when(vlmClient.isEnabled()).thenReturn(true);
+        when(deidentReportGate.isUnderDeidentReport(310L)).thenReturn(true, false);
+        stubAccepted();
+
+        // when — 1차 차단
+        VlmTimeseriesResponse withheld = step.run(310L);
+        // when — 2차(해소 후) 재개
+        VlmTimeseriesResponse accepted = step.run(310L);
+
+        // then
+        assertThat(withheld.status()).isEqualTo("skipped");
+        assertThat(accepted.status()).isEqualTo("accepted");
+        verify(vlmClient, times(1)).submitTimeseries(any());
+        verify(ledger, times(1)).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM),
+                isNull(), eq(310L));
     }
 
     @Test

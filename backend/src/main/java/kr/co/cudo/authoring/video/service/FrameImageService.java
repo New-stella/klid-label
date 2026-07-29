@@ -216,9 +216,8 @@ public class FrameImageService {
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
 
         // 2) 인가 직후 신고 구간 게이트 — 역할 무관 프리컨디션(412). resolve('F'→'Y') 로 자동 해제.
-        //    판정 자체는 공유 게이트가 수행하며 <b>조상(ORGNL_RAW_SN) 체인</b>까지 본다 — 파생영상
-        //    프레임은 부모의 비식별 프레임 사본이라 부모 신고분이 그대로 남는다. 여기서 부모를 따로
-        //    조회해 국소 판정하지 않는다(게이트 이원화 금지 — 같은 누수가 다른 호출부에도 있었다).
+        //    판정은 공유 게이트(DeidentReportGate)가 <b>이 영상 행</b> 기준으로 수행한다. 여기서
+        //    'F' 비교를 국소 재구현하지 않는다(게이트 이원화 금지).
         accessGuard.requireNotUnderDeidentReport(src.getRawSn());
 
         // 3) 비식별 경로만 사용 — 원본 폴백 금지. 비면 404(원본 유출 차단).

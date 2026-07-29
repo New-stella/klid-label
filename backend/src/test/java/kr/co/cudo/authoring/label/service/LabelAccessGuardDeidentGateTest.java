@@ -8,7 +8,6 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.video.repository.DeidentChainProjection;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,7 +52,7 @@ class LabelAccessGuardDeidentGateTest {
         assignmentRepository = mock(LsTaskAssignmentRepository.class);
         videoRepository = mock(VideoRepository.class);
         // 신고 구간 판정은 DeidentReportGate(단일 원천)에 위임됐다 — 실제 구현체를 끼워 스텁
-        //   (videoRepository.findDeidentChainNodeByRawSn = 자기 + 조상 체인 노드)이 그대로 판정에 반영되게 한다.
+        //   (videoRepository.findDeIdntfYnByRawSn = 그 영상 행의 판정값)이 그대로 반영되게 한다.
         guard = new LabelAccessGuard(srcRepository, assignmentRepository,
                 new DeidentReportGate(videoRepository));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -64,7 +63,7 @@ class LabelAccessGuardDeidentGateTest {
     @DisplayName("비식별_신고_상태에서는_라벨_조회가_차단된다")
     void blocksLabelReadWhileDeidentReported() {
         // given — 신고로 DE_IDNTF_YN='F' 내려간 영상.
-        stubChain(700L, "F", null);
+        stubChain(700L, "F");
 
         // when / then — 412 PRECONDITION_FAILED (기존 마킹 게이트와 동일 규약).
         assertThatThrownBy(() -> guard.requireNotUnderDeidentReport(700L))
@@ -77,7 +76,7 @@ class LabelAccessGuardDeidentGateTest {
     @DisplayName("REVIEWER도_비식별_신고_구간에서는_동일하게_차단된다")
     void blocksReviewerToo() {
         // given — 게이트는 역할 무관 프리컨디션(영상 스트리밍·마킹 게이트와 동일 정책).
-        stubChain(701L, "F", null);
+        stubChain(701L, "F");
         LsDataSrc src = frame(11L, 701L);
         when(srcRepository.findById(11L)).thenReturn(Optional.of(src));
 
@@ -93,10 +92,10 @@ class LabelAccessGuardDeidentGateTest {
     @DisplayName("deIdntfYn_이_Y_인_일반영상의_라벨_조회_저장은_영향받지_않는다")
     void allowsNormalVideos() {
         // given — 'Y'(비식별 완료) / 'N'(미수행) / 값 없음(null) / 행 부재.
-        stubChain(800L, "Y", null);
-        stubChain(801L, "N", null);
-        stubChain(802L, null, null);
-        when(videoRepository.findDeidentChainNodeByRawSn(803L)).thenReturn(Optional.empty());
+        stubChain(800L, "Y");
+        stubChain(801L, "N");
+        stubChain(802L, null);
+        when(videoRepository.findDeIdntfYnByRawSn(803L)).thenReturn(Optional.empty());
 
         // when / then — 전부 통과(정상 플로우 회귀 방어).
         assertThatCode(() -> guard.requireNotUnderDeidentReport(800L)).doesNotThrowAnyException();
@@ -107,79 +106,35 @@ class LabelAccessGuardDeidentGateTest {
     }
 
     @Test
-    @DisplayName("부모영상이_신고중이면_파생영상_프레임도_차단된다")
-    void blocksDerivativeWhenParentReported() {
-        // given — 파생 D(ORGNL_RAW_SN=P) 자신은 'Y' 인데 부모 P 만 신고('F').
-        //         파생 프레임은 부모의 비식별 프레임 사본이라 같은 PII 가 남아 있다.
-        stubChain(910L, "Y", 900L);
-        stubChain(900L, "F", null);
+    @DisplayName("★원본이_신고중이어도_파생영상_프레임은_열려있다 — 파생은 신고 체계 바깥(2026-07-29 확정)")
+    void doesNotPropagateOriginReportToDerivative() {
+        // given — 파생 D(910, ORGNL_RAW_SN=900) 자신은 'Y', 부모 900 만 신고('F').
+        //         파생본은 원본 신고와 무관하게 다룬다는 사용자 확정 정책(재비식별 수단이 원본에만
+        //         있으므로 파생에 전파해도 해소 경로가 없다). 부모 마스킹 실패분이 파생본에 남아 있을
+        //         수 있다는 함의는 사용자가 인지·감수한 사항이다.
+        stubChain(910L, "Y");
 
-        // when / then — 자기 행만 보면 통과해버리던 fail-open 이 닫힌다.
-        assertThatThrownBy(() -> guard.requireNotUnderDeidentReport(910L))
+        // when / then — 통과한다. 부모 행은 조회조차 하지 않는다(조상 순회 철회 회귀 고정).
+        assertThatCode(() -> guard.requireNotUnderDeidentReport(910L)).doesNotThrowAnyException();
+        org.mockito.Mockito.verify(videoRepository, org.mockito.Mockito.never())
+                .findDeIdntfYnByRawSn(900L);
+    }
+
+    @Test
+    @DisplayName("파생영상도_자기행이_F면_차단된다 — 판정 축은 자기 행 하나")
+    void blocksDerivativeWhenItsOwnRowReported() {
+        // given — 파생본 자체가 'F'(예: 자체 비식별 실패).
+        stubChain(911L, "F");
+
+        assertThatThrownBy(() -> guard.requireNotUnderDeidentReport(911L))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
     }
 
-    @Test
-    @DisplayName("부모영상_신고가_해제되면_파생영상_프레임도_다시_열린다")
-    void reopensDerivativeWhenParentResolved() {
-        // given — resolve 로 부모가 'F'→'Y' 복원된 상태.
-        stubChain(911L, "Y", 901L);
-        stubChain(901L, "Y", null);
-
-        // when / then — 별도 복원 절차 없이 게이트가 자동 해제된다.
-        assertThatCode(() -> guard.requireNotUnderDeidentReport(911L)).doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("조상체인에_사이클이_있어도_무한루프_없이_종료된다")
-    void terminatesOnCyclicAncestorChain() {
-        // given — 오염 데이터: A→B→A 순환 + 자기참조 C→C. 어느 노드도 'F' 가 아니다.
-        stubChain(920L, "Y", 921L);
-        stubChain(921L, "Y", 920L);
-        stubChain(922L, "Y", 922L);
-
-        // when / then — 방문 집합으로 순환을 끊고 통과 판정으로 정상 종료한다(무한루프·StackOverflow 없음).
-        assertThatCode(() -> guard.requireNotUnderDeidentReport(920L)).doesNotThrowAnyException();
-        assertThatCode(() -> guard.requireNotUnderDeidentReport(922L)).doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("사이클_중_한_노드가_신고중이면_차단된다")
-    void blocksWhenCyclicChainContainsReportedNode() {
-        // given — 순환이지만 두 번째 노드가 신고 상태.
-        stubChain(930L, "Y", 931L);
-        stubChain(931L, "F", 930L);
-
-        assertThatThrownBy(() -> guard.requireNotUnderDeidentReport(930L))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
-    }
-
-    @Test
-    @DisplayName("조상체인이_깊이상한을_넘으면_판정미완으로_차단된다_fail_closed")
-    void blocksWhenChainExceedsDepthLimit() {
-        // given — 상한(8)을 넘는 긴 사슬(오염 데이터). 판정을 끝까지 못 하므로 통과시키면 안 된다.
-        long tail = 940L + DeidentReportGate.MAX_ANCESTOR_DEPTH + 3;
-        for (long sn = 940L; sn < tail; sn++) {
-            stubChain(sn, "Y", sn + 1);
-        }
-        stubChain(tail, "Y", null);
-
-        assertThatThrownBy(() -> guard.requireNotUnderDeidentReport(940L))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
-    }
-
-    /** 체인 1노드 stub — (DE_IDNTF_YN, ORGNL_RAW_SN). */
-    private void stubChain(long rawSn, String deIdntfYn, Long orgnlRawSn) {
-        DeidentChainProjection node = mock(DeidentChainProjection.class);
-        when(node.getDeIdntfYn()).thenReturn(deIdntfYn);
-        when(node.getOrgnlRawSn()).thenReturn(orgnlRawSn);
-        when(videoRepository.findDeidentChainNodeByRawSn(rawSn)).thenReturn(Optional.of(node));
+    /** 게이트 판정 stub — 그 영상 행의 {@code DE_IDNTF_YN} 하나가 판정값이다. */
+    private void stubChain(long rawSn, String deIdntfYn) {
+        when(videoRepository.findDeIdntfYnByRawSn(rawSn)).thenReturn(Optional.ofNullable(deIdntfYn));
     }
 
     @Test

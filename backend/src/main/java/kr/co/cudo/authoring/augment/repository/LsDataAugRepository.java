@@ -56,6 +56,21 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
     List<LsDataAug> findByOriginalRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * <b>중복 증강 요청 1선 가드</b> — 주어진 대표프레임들에 이미 존재하는 <b>활성</b>
+     * ({@link LsDataAug#ACTIVE_STATUSES}) 증강 행 조회.
+     *
+     * <p>같은 (원본 × 종류) 재요청은 콜백마다 파생 RAW 를 하나씩 더 만들어 파생 트리·스토리지·검수 큐를
+     * 무제한 오염시킨다("요청 1회 = 파생영상 1건" 계약 위반).
+     * 요청 진입부에서 이 조회로 즉시 409 를 돌려주고, 동시 요청(서로의 미커밋 행 미관측)은 부분 유니크
+     * 인덱스 {@code UK_LS_DATA_AUG_ACTVTN}(V143)이 최종 방어한다. 배치 IN 조회 1회 — N+1 없음.
+     *
+     * <p>파라미터 바인딩만 사용(CWE-89). 상태 목록은 호출부가 {@code ACTIVE_STATUSES} 단일 원천을 넘긴다.
+     */
+    @Query("SELECT a FROM LsDataAug a WHERE a.srcSn IN :srcSns AND a.augProcSttsCd IN :sttsCds")
+    List<LsDataAug> findBySrcSnInAndAugProcSttsCdIn(@Param("srcSns") Collection<Long> srcSns,
+                                                    @Param("sttsCds") Collection<String> sttsCds);
+
+    /**
      * Phase 4 — webhook race 흡수용 멱등 키 조회.
      * UNIQUE 제약 (uk_aug_idempotency_key) 위반 후 재조회 경로에서 사용.
      */

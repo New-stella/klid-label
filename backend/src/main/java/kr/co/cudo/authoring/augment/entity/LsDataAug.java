@@ -39,6 +39,27 @@ public class LsDataAug {
     public static final String STTS_ACCEPTED = "ACCEPTED";
     public static final String STTS_REJECTED = "REJECTED";
 
+    /**
+     * <b>활성(중복 금지 대상) 상태</b> — 같은 (원본 대표프레임 × 증강 종류)에 대해 동시에 1건만 존재해야
+     * 하는 상태 집합. 부분 유니크 인덱스 {@code UK_LS_DATA_AUG_ACTVTN}(V143)의 술어와 <b>반드시 일치</b>
+     * 해야 한다(정의의 단일 원천은 이 상수다).
+     *
+     * <ul>
+     *   <li>{@link #STTS_PENDING} — 요청/생성 in-flight. 재요청하면 콜백마다 파생 RAW 가 하나씩 더 생긴다.</li>
+     *   <li>{@link #STTS_ACCEPTED} — 채택된 파생본이 <b>이미 존재</b>. 같은 종류를 다시 받을 이유가 없고,
+     *       받으면 파생 RAW·스토리지·검수 큐만 불어난다("요청 1회 = 파생영상 1건" 계약 위반).
+     *       채택은 <b>종결 상태</b>라 반려로 되돌릴 수 없으므로({@code applyReviewStatus} 는 PENDING 만
+     *       전이 허용) 같은 (영상 × 종류) 재요청은 영구 불가다 — 안내 문구도 그 사실대로 말해야 한다.</li>
+     *   <li>{@link #STTS_REJECTED} — <b>제외</b>. 반려는 종결 상태이고, 반려 후 다시 요청하는 것은 정당한
+     *       운영 동선이다(V142 가 종결 마킹을 유니크 대상에서 제외한 것과 같은 판단).</li>
+     * </ul>
+     *
+     * <p>해상도 파생({@link #RESL_PREFIX} 접두)은 이 인덱스 대상이 아니다 — 상태와 무관하게 1건만
+     * 허용하는 별도 부분 유니크({@code UK_LS_DATA_AUG_RESL}, V125)가 이미 있다.
+     */
+    public static final java.util.Set<String> ACTIVE_STATUSES =
+            java.util.Set.of(STTS_PENDING, STTS_ACCEPTED);
+
     public static final String AUG_WINTER     = "WINTER";
     public static final String AUG_NIGHT      = "NIGHT";
     public static final String AUG_RAIN       = "RAIN";

@@ -55,11 +55,19 @@ class PortalSam2NoPersistIntegrationTest {
     @MockBean private AiServerClient aiServerClient;
 
     private static Path tmpRawDir;
+    /**
+     * S7 — 포털 SAM2 는 <b>비식별 프레임만</b> ai-server 로 보낸다(원본 폴백 금지, 신고 게이트 경유).
+     * 따라서 픽스처도 비식별 저장소 base 와 그 하위 규약 경로({@code frames/deid/{rawSn}/…})를 갖춰야
+     * 실제 경로를 탄다.
+     */
+    private static Path tmpDeidDir;
 
     @DynamicPropertySource
-    static void overrideStorageRawPath(DynamicPropertyRegistry registry) throws IOException {
+    static void overrideStoragePaths(DynamicPropertyRegistry registry) throws IOException {
         tmpRawDir = Files.createTempDirectory("portal-sam2-raw-");
+        tmpDeidDir = Files.createTempDirectory("portal-sam2-deid-");
         registry.add("authoring.storage.raw-path", () -> tmpRawDir.toAbsolutePath().toString());
+        registry.add("authoring.storage.deidentified-path", () -> tmpDeidDir.toAbsolutePath().toString());
     }
 
     private final long rawSn = 78001L;
@@ -77,8 +85,14 @@ class PortalSam2NoPersistIntegrationTest {
 
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
         Files.write(tmpRawDir.resolve("1.jpg"), new byte[]{0x03, 0x04});
-        src0 = srcRepository.save(LsDataSrc.create(rawSn, 0, "0.jpg", LocalDateTime.now())).getSrcSn();
-        src1 = srcRepository.save(LsDataSrc.create(rawSn, 1, "1.jpg", LocalDateTime.now())).getSrcSn();
+        Path deidFrameDir = tmpDeidDir.resolve("frames").resolve("deid").resolve(String.valueOf(rawSn));
+        Files.createDirectories(deidFrameDir);
+        Path deid0 = Files.write(deidFrameDir.resolve("0.jpg"), new byte[]{0x11, 0x12});
+        Path deid1 = Files.write(deidFrameDir.resolve("1.jpg"), new byte[]{0x13, 0x14});
+        src0 = srcRepository.save(LsDataSrc.create(rawSn, 0, 0L, "0.jpg",
+                deid0.toString(), LocalDateTime.now())).getSrcSn();
+        src1 = srcRepository.save(LsDataSrc.create(rawSn, 1, 1L, "1.jpg",
+                deid1.toString(), LocalDateTime.now())).getSrcSn();
 
         LsRawDataStatus approved = LsRawDataStatus.initial(rawSn);
         approved.transitionTo(LsRawDataStatus.STTS_APPROVED);

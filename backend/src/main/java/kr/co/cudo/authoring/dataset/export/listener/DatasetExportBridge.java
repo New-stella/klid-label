@@ -67,11 +67,11 @@ public class DatasetExportBridge {
      * ({@code DatasetExportFailureRecoverer}, FAILED 행만 스캔)가 집지 못한다. 해제 시점의 이 재트리거가
      * <b>유일한 복구 경로</b>다(사유·발행 조건은 {@link DeidentReportResolvedEvent} javadoc 참조).
      *
-     * <p><b>파생영상 팬아웃은 발행 측이 처리한다</b>: 부모 신고 구간에는 그 <b>파생영상</b>(해상도·증강)
-     * export 도 게이트에 함께 막히므로 해소 시 같이 재산출해야 한다. 다만 "APPROVED 인가 / 다른 조상이
-     * 아직 신고 중인가" 판정은 트랜잭션·리포지토리 컨텍스트가 있는 발행 측
-     * ({@code DeidentReportService.publishResolvedForExportRecovery})이 수행하고, 이 리스너는 <b>자손도
-     * 각각 이벤트로 도착</b>하는 얇은 소비자로 남는다(리스너에 조회 책임을 넣지 않는다).
+     * <p><b>범위는 신고가 해소된 그 영상 하나</b>다: 신고 게이트가 자기 rawSn 행만 보므로(파생영상은
+     * 원본 신고와 무관 — 2026-07-29 확정 정책) 파생영상으로의 팬아웃이 없다. "APPROVED 인가" 판정도
+     * 트랜잭션·리포지토리 컨텍스트가 있는 발행 측
+     * ({@code DeidentReportService.publishResolvedForExportRecovery})이 수행하고, 이 리스너는 얇은
+     * 소비자로 남는다(리스너에 조회 책임을 넣지 않는다).
      *
      * <p>{@code runApprovalAsync} 로 위임해 ①force=true 전량 재생성(교체된 비식별 이미지 반영)
      * ②성공 시 {@code DatasetExportCompletedEvent} 발행으로 보류됐던 관제 통지 재개를 함께 얻는다.

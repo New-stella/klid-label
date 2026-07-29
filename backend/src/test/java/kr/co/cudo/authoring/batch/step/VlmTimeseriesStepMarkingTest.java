@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +43,7 @@ class VlmTimeseriesStepMarkingTest {
     private WebhookIdempotencyLedger ledger;
     private LsDeidentProcLogRepository deidentProcLogRepository;
     private LsMarkingRepository markingRepository;
+    private DeidentReportGate deidentReportGate;
     private VlmTimeseriesStep step;
 
     @BeforeEach
@@ -53,8 +55,10 @@ class VlmTimeseriesStepMarkingTest {
         ledger = mock(WebhookIdempotencyLedger.class);
         deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
+        deidentReportGate = mock(DeidentReportGate.class);
         step = new VlmTimeseriesStep(vlmClient, videoRepository, batchStatusService,
-                objectMapper, ledger, deidentProcLogRepository, markingRepository);
+                objectMapper, ledger, deidentProcLogRepository, markingRepository,
+                deidentReportGate);
     }
 
     private void seed(Long rawSn) {

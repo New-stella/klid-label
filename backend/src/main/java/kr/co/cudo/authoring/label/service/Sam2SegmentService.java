@@ -46,6 +46,9 @@ import java.util.List;
  * <p>보안:
  * <ul>
  *   <li>IDOR(CWE-639): 진입 시 {@link LabelAccessGuard#verifyAccess} 로 본인 배정 프레임만 허용.</li>
+ *   <li>PII 유출(CWE-359): 이 영상이 비식별 누락 신고 구간이면
+ *       {@link FrameImageEncoder#resolveFrameImageForInference} 가 412 로 끊는다 — 마스킹 실패 픽셀이
+ *       base64 로 ai-server 에 전송되지 않도록 <b>파일을 읽기 전</b>에 차단한다.</li>
  *   <li>경로 순회(CWE-22): {@link #resolveSafe} 로 기준 디렉토리 외부 접근 차단.</li>
  *   <li>입력 검증(CWE-20): points/box 배타(@AssertTrue DTO), 응답 폴리곤 좌표를 이미지 실측
  *       width/height 상한까지 검증.</li>
@@ -88,7 +91,9 @@ public class Sam2SegmentService {
         // M-6 — 비식별 우선 폴백(출처 컬럼에 맞는 base 로 검증). 해상도 파생 프레임은 원본 픽셀이
         //       실재하지 않아 SRC_FILE_PATH_NM 이 null 이므로, 원본 컬럼만 보면 파생 프레임 분할이
         //       "이미지 경로가 비어있습니다"(400)로 전면 실패한다.
-        Path imagePath = frameImageEncoder.resolveFrameImage(src);
+        // S7 (CWE-359) — 외부 전송 단일 진입점. 이 영상이 비식별 누락 신고 구간이면 파일을 읽기도
+        //       전에 412 로 끝난다(ai-server 호출 0건).
+        Path imagePath = frameImageEncoder.resolveFrameImageForInference(src);
         // 이미지 크기 상한 검증 (b64 인코딩 전).
         long size = fileSize(imagePath);
         if (size > maxImageBytes) {

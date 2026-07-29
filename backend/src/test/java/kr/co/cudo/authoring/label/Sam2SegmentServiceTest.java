@@ -85,7 +85,9 @@ class Sam2SegmentServiceTest {
         ReflectionTestUtils.setField(service, "maxImageBytes", 20L * 1024 * 1024);
         // M-6 — 이미지 경로 해석은 FrameImageEncoder(비식별 우선 폴백)에 위임된다.
         //       테스트는 기존과 동일하게 raw 임시 디렉토리 기준으로 해석하도록 스텁한다.
-        when(frameImageEncoder.resolveFrameImage(any())).thenAnswer(inv -> {
+        // S7 — 외부 전송 단일 진입점(resolveFrameImageForInference)으로 전환됨. 신고 구간 차단 동작은
+        //      실제 FrameImageEncoder + DeidentReportGate 로 검증한다(Sam2DeidentReportGateTest).
+        when(frameImageEncoder.resolveFrameImageForInference(any())).thenAnswer(inv -> {
             LsDataSrc arg = inv.getArgument(0);
             return tmpRawDir.resolve(arg.getSrcFilePathNm());
         });

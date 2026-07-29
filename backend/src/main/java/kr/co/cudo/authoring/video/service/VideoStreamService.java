@@ -67,7 +67,7 @@ public class VideoStreamService {
     private final StreamUrlSigner streamUrlSigner;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     /**
-     * 비식별 누락 신고 구간 판정 <b>단일 원천</b>({@code 'F'} 비교·조상 체인 순회를 여기서 재구현하지 않는다).
+     * 비식별 누락 신고 구간 판정 <b>단일 원천</b>({@code 'F'} 비교를 여기서 재구현하지 않는다).
      * 라벨 조회 게이트({@code LabelAccessGuard.requireNotUnderDeidentReport})·export 게이트와 같은 판정기다.
      */
     private final DeidentReportGate deidentReportGate;
@@ -120,31 +120,29 @@ public class VideoStreamService {
     /**
      * S7-STREAM (HIGH · CWE-359) — <b>비식별 누락 신고 구간 영상 서빙 차단</b>.
      *
-     * <h3>왜 {@code DE_IDNTF_YN=='Y'} 자기 행 확인만으로는 부족한가</h3>
-     * 해상도/증강 <b>파생영상</b>은 부모의 <b>비식별 영상 파일을 그대로 복사</b>해 만들어지고
-     * ({@code ResolutionFileMaterializer}), 확정 시 자기 행에 {@code deIdntfYn='Y'} + 자기 SUCCESS
-     * procLog 가 커밋된다. 이후 <b>부모</b>에 비식별 누락 신고가 들어오면 {@code 'F'} 는 부모 행에만
-     * 내려가므로, 자기 행만 보는 게이트({@link #resolveDeidLocation})는 파생영상에서 fail-open 이 되어
-     * <b>마스킹 실패한 그 영상 파일 전체</b>가 200/206 으로 나갔다.
+     * <h3>판정 범위 = 자기 {@code rawSn} 행 하나</h3>
+     * 판정은 {@link DeidentReportGate} 단일 원천에 위임하며, 그 게이트는 <b>자기 행의
+     * {@code DE_IDNTF_YN='F'} 만</b> 본다 — {@code ORGNL_RAW_SN} 을 따라 조상으로 올라가지 않는다.
+     * 즉 <b>부모 신고는 파생영상 재생을 막지 않는다</b>(파생은 독립 취급 — 확정 정책과 그 함의,
+     * 폐기된 전파 안의 이력은 {@link DeidentReportGate} javadoc 참조).
      *
      * <h3>왜 여기(캐시 앞)에서 판정하는가 — CWE-525</h3>
      * {@link #resolveStreamMeta} 는 {@code stream-meta} 캐시 뒤에 있어, 신고 <b>이전에</b> 캐시가 채워지면
      * 이후 요청은 그 메서드에 도달하지 않는다. 판정을 캐시 안쪽에 두면 캐시 히트가 게이트를 우회한다.
-     * 따라서 캐시 <b>앞</b>(매 요청)에서 판정한다 — 비용은 PK 인덱스 2컬럼 projection 1~2회다
-     * (원본 1회 / 1단계 파생 2회).
+     * 따라서 캐시 <b>앞</b>(매 요청)에서 판정한다 — 비용은 PK 인덱스 단일 컬럼 projection 1회다.
      *
      * <h3>응답 코드 = NOT_FOUND (404)</h3>
      * 신고 게이트의 프로젝트 표준은 412({@code PRECONDITION_FAILED})지만, <b>이 엔드포인트의 기존 규약</b>은
      * "비식별이 유효하지 않으면 원본 노출 금지 → 404"({@link #resolveDeidLocation} · {@link #resolveSafe})다.
-     * 같은 엔드포인트에서 자기 신고는 404, 조상 신고는 412 로 갈리면 <b>응답 코드가 신고 위치를 알려주는
-     * 오라클</b>이 된다(CWE-209). 정보 노출이 더 적은 기존 규약(404)에 맞춘다.
+     * 같은 엔드포인트가 비식별 미완료({@code 'N'})와 신고({@code 'F'})를 서로 다른 코드로 내면 <b>응답 코드가
+     * 내부 상태를 알려주는 오라클</b>이 된다(CWE-209). 정보 노출이 더 적은 기존 규약(404)에 맞춘다.
      *
      * <p><b>인가 이후</b> 호출된다 — 컨트롤러가 {@code LabelAccessGuard.verifyRawAccess} 로 영상 단위 인가를
      * 먼저 강제하므로, 미인가자가 이 게이트의 응답으로 영상 상태를 관측할 수 없다.
      */
     private void requireNotUnderDeidentReport(Long rawSn) {
         if (deidentReportGate.isUnderDeidentReport(rawSn)) {
-            log.warn("[VideoStream] blocked — deident report open on this video or its origin rawSn={}", rawSn);
+            log.warn("[VideoStream] blocked — deident report open on this video rawSn={}", rawSn);
             throw new CustomException(ErrorCode.NOT_FOUND, "비식별 처리 미완료");
         }
     }
@@ -178,8 +176,16 @@ public class VideoStreamService {
             throw new CustomException(ErrorCode.NOT_FOUND, "비식별 처리 미완료");
         }
 
-        // S7-STREAM — 조상(ORGNL_RAW_SN) 신고 구간이면 서명 URL 자체를 발급하지 않는다. 파생영상은 자기
-        // 행이 'Y' 라 위 검사를 통과하므로, 체인 판정(단일 원천)을 여기서 한 번 더 태운다.
+        // S7-STREAM — 신고 구간(자기 행 DE_IDNTF_YN='F')이면 서명 URL 자체를 발급하지 않는다.
+        //
+        // ★ 이 호출은 "파생영상을 부모 신고로부터 지킨다"는 근거로 있는 것이 아니다(그 조상 전파 정책은
+        //   철회됐다 — DeidentReportGate javadoc 의 "폐기된 안"). 게이트는 자기 rawSn 행만 판정한다.
+        //   따라서 신고('F') 차단은 바로 위 `!"Y".equals(deIdntfYn)` 검사와 결과가 겹친다(현재 중복).
+        //
+        // 그럼에도 남겨두는 이유: 신고 구간 판정의 단일 원천은 DeidentReportGate 이고, 위 인라인 검사는
+        //   "비식별 유효성"(미수행 'N' 포함)이라는 다른 관심사다. 나중에 인라인 검사가 완화·이동되면
+        //   신고 차단만 조용히 사라지므로, 신고 축은 게이트로 명시해 둔다(stream() 진입부와 동일 규약).
+        //   ※ 제거 시에는 '자기 신고 차단'이 위 검사에 실제로 남아 있는지 반드시 확인할 것.
         requireNotUnderDeidentReport(rawSn);
 
         if (!streamUrlSigner.isConfigured()) {
@@ -209,7 +215,7 @@ public class VideoStreamService {
      * @throws IOException 파일 읽기 실패 시
      */
     public ResponseEntity<ResourceRegion> stream(Long rawSn, HttpHeaders headers) throws IOException {
-        // 0) S7-STREAM (HIGH · CWE-359/525) — 비식별 누락 신고 구간(자기 또는 조상) 차단.
+        // 0) S7-STREAM (HIGH · CWE-359/525) — 비식별 누락 신고 구간(자기 rawSn 행) 차단.
         //    반드시 stream-meta 캐시 조회 **앞**에서 판정한다 — 신고 이전에 채워진 캐시가 게이트를
         //    우회하지 못하게 하기 위함(상세는 requireNotUnderDeidentReport javadoc).
         requireNotUnderDeidentReport(rawSn);
