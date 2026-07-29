@@ -21,8 +21,11 @@ import kr.co.cudo.authoring.review.dto.IssueResponse;
 import kr.co.cudo.authoring.review.dto.ApproveRequest;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
+import kr.co.cudo.authoring.review.dto.ReviewSearchCondition;
+import kr.co.cudo.authoring.review.dto.ReviewSummaryResponse;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
+import kr.co.cudo.authoring.review.repository.ReviewQueryRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
@@ -67,6 +70,8 @@ import java.util.Map;
 public class ReviewService {
 
     private final ReviewRepository reviewRepository;
+    /** 검수목록 검색/정렬/집계 — 목록·count·KPI 가 단일 조건 조립기를 공유한다. */
+    private final ReviewQueryRepository reviewQueryRepository;
     private final IssueRepository issueRepository;
     private final LsTaskAssignmentRepository authrtRepository;
     private final LsTaskEventLogRepository taskEventLogRepository;
@@ -87,12 +92,18 @@ public class ReviewService {
     private final MetaService metaService;
 
     /**
-     * 검수 워크플로우 상태별 페이징 목록 (REVIEWER 의 검수 목록 화면용).
-     * status 가 null/빈 문자열이면 전체.
+     * 검수 워크플로우 목록 (REVIEWER 의 검수 목록 화면용) — 상태/검색어 필터 + 정렬.
+     *
+     * <p>필터·정렬·페이징은 {@link ReviewQueryRepository} 가 <b>DB 단계에서</b> 처리한다(목록/count 동일
+     * 조건). 본 메서드는 그 결과 페이지를 화면 표시용으로 enrich 하는 책임만 갖는다 — 여기서 검색어를
+     * 후처리하면 반환 건수와 {@code totalElements} 가 동시에 깨진다(HIGH-1).
+     *
+     * <p>{@code status} 가 null/빈 문자열이면 화이트리스트 전체, 화이트리스트 밖 값이면 빈 결과다(R8).
      */
-    public Page<ReviewResponse> list(String status, Pageable pageable, TokenClaims actor) {
+    public Page<ReviewResponse> list(ReviewSearchCondition condition, Pageable pageable, TokenClaims actor) {
         requireReviewer(actor);
-        Page<LsRawDataStatus> page = reviewRepository.searchByStatus(status, pageable);
+        ReviewSearchCondition effective = (condition != null) ? condition : ReviewSearchCondition.defaults();
+        Page<LsRawDataStatus> page = reviewQueryRepository.search(effective, pageable);
         List<LsRawDataStatus> rows = page.getContent();
         if (rows.isEmpty()) {
             return new PageImpl<>(Collections.emptyList(), pageable, page.getTotalElements());
@@ -138,6 +149,23 @@ public class ReviewService {
     }
 
     /**
+     * 검수목록 KPI 카드 집계 — 현재 페이지가 아니라 <b>필터 결과 전체</b>를 기준으로 센다.
+     *
+     * <p>필터는 {@link #list} 와 동일하되 <b>{@code status} 만 제외</b>한다 — KPI 카드 자체가 status
+     * 선택지이므로 이미 좁혀진 집합 위에서 4종을 세면 1개 카드만 non-zero 가 된다(작업목록 summary 가
+     * {@code workStatus} 축만 제외하는 것과 대칭). 검수 워크플로 화이트리스트는 목록과 동일하게 상시
+     * 적용되므로 배치/작업 상태는 어느 버킷에도 합산되지 않는다(HIGH-5).
+     *
+     * <p>목록과 별도 요청이라 두 호출 사이의 상태 전이로 미세하게 어긋날 수 있으며, 반환값은
+     * <b>조회 시점 스냅샷</b>이다(대시보드성 KPI 라 강한 정합성은 요구하지 않는다).
+     */
+    public ReviewSummaryResponse summarize(ReviewSearchCondition condition, TokenClaims actor) {
+        requireReviewer(actor);
+        ReviewSearchCondition effective = (condition != null) ? condition : ReviewSearchCondition.defaults();
+        return ReviewSummaryResponse.of(reviewQueryRepository.countByStatus(effective.searchOnly()));
+    }
+
+    /**
      * 페이지의 영상 ID 들에 대해 (rawSn → cctvNm) 매핑을 단일 native 쿼리로 조회.
      * cctvNm 이 비어 있으면 VMS_CCTV_ID 폴백을 사용한다 (AssignmentService 와 동일 정책).
      * 둘 다 비어 있으면 키 자체를 넣지 않아 ReviewResponse.from 의 "video #N" 폴백이 작동한다.
@@ -164,7 +192,12 @@ public class ReviewService {
 
     /**
      * 페이지의 영상 ID 들에 대해 LABELER 배정 (rawDataId → 작업자 userNo) 매핑을 단일 IN 쿼리로 조회.
-     * 동일 영상에 여러 LABELER 배정이 있으면 REG_DT DESC 첫 1건(가장 최근)만 유지.
+     * 동일 영상에 여러 LABELER 배정(재배정 누적)이 있으면 <b>가장 최근 1건</b>만 유지한다.
+     *
+     * <p>"가장 최근" = {@code REG_DT DESC} → {@code ASSIGNMENT_ID DESC}. REG_DT 가 동일한 배정이 여러
+     * 건일 때 DB 반환 순서에 의존하면(구 {@code putIfAbsent}) 표시되는 작업자가 비결정적이 되어, 같은
+     * 기준으로 최신 1건을 지목하는 <b>작업자명 검색</b>({@code ReviewQueryRepository.latestLabelerMatches})
+     * 과 결과가 어긋난다(검색한 작업자와 다른 작업자가 표시). 여기서도 동일 tie-break 를 적용한다.
      */
     private Map<Long, Long> lookupLabelerByVideo(List<Long> videoIds) {
         if (videoIds == null || videoIds.isEmpty()) {
@@ -172,11 +205,28 @@ public class ReviewService {
         }
         List<LsTaskAssignment> labelers = authrtRepository
                 .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(LsTaskAssignment.TASK_LABELER, videoIds);
-        Map<Long, Long> map = new HashMap<>();
+        Map<Long, LsTaskAssignment> latest = new HashMap<>();
         for (LsTaskAssignment a : labelers) {
-            map.putIfAbsent(a.getRawDataId(), a.getUserNo());
+            if (a.getRawDataId() == null) continue;
+            latest.merge(a.getRawDataId(), a, ReviewService::laterAssignment);
+        }
+        Map<Long, Long> map = new HashMap<>();
+        for (Map.Entry<Long, LsTaskAssignment> entry : latest.entrySet()) {
+            map.put(entry.getKey(), entry.getValue().getUserNo());
         }
         return map;
+    }
+
+    /** (REG_DT, ASSIGNMENT_ID) 가 더 큰 배정을 최신으로 본다. */
+    private static LsTaskAssignment laterAssignment(LsTaskAssignment current, LsTaskAssignment candidate) {
+        if (current.getRegDt() == null) return candidate;
+        if (candidate.getRegDt() == null) return current;
+        int byRegDt = candidate.getRegDt().compareTo(current.getRegDt());
+        if (byRegDt != 0) return byRegDt > 0 ? candidate : current;
+        Long currentId = current.getAssignmentId();
+        Long candidateId = candidate.getAssignmentId();
+        if (currentId == null || candidateId == null) return current;
+        return candidateId > currentId ? candidate : current;
     }
 
     /**

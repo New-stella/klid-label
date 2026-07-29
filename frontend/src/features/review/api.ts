@@ -7,6 +7,7 @@
 
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
+import { compactParams } from '@/lib/compactParams';
 
 import type {
   AddIssueCommentRequest,
@@ -20,15 +21,58 @@ import type {
   Review,
   ReviewIssue,
   ReviewListParams,
+  ReviewStatus,
+  ReviewStatusParam,
+  ReviewSummary,
+  ReviewSummaryParams,
 } from './types';
 
 /**
- * 검수 대기 목록 조회.
- * BE: GET /api/v1/reviews
+ * FE 상태 코드 → BE 상태 코드 **단일 역매핑 상수**.
+ *
+ * ★ 응답(`ReviewResponse.status`)은 FE 코드인데 요청(`GET /v1/reviews?status=`)은 BE 코드다.
+ * 역매핑 없이 FE 코드를 그대로 보내면 BE 화이트리스트 밖이라 **400 이 아니라 빈 결과 200** 이
+ * 돌아와 "검수요청이 하나도 없습니다" 로 위장된다(조용한 결함).
+ *
+ * `Record<ReviewStatus, ReviewStatusParam>` 로 선언해 **FE 상태가 늘어나면 키 누락이 컴파일
+ * 에러**가 되게 한다 — 이 타입을 느슨하게 바꾸지 말 것.
+ */
+export const REVIEW_STATUS_TO_BE: Record<ReviewStatus, ReviewStatusParam> = {
+  REVIEW_PENDING: 'PENDING',
+  REVIEWING: 'IN_REVIEW',
+  COMPLETED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+/**
+ * 검수 목록 조회 (REVIEWER).
+ * BE: GET /api/v1/reviews — status/q 서버 필터 + sort + 페이징.
+ *
+ * `status` 는 여기서 **딱 한 번** BE 코드로 역매핑된다. 매핑에 없는 값(수기 URL 조작 등)은
+ * 잘못된 코드를 보내 조용한 빈 결과를 만드는 대신 **필터를 생략**한다(fail-open 이 아니라
+ * "필터 미적용" — 목록이 사라지지 않는 쪽이 사용자에게 정직하다).
  */
 export function listReviews(params: ReviewListParams) {
+  const { status, ...rest } = params;
+  const query = compactParams({
+    ...rest,
+    status: status ? REVIEW_STATUS_TO_BE[status] : undefined,
+  });
   return apiClient
-    .get<PageResponse<Review>>('/reviews', { params })
+    .get<PageResponse<Review>>('/reviews', { params: query })
+    .then((r) => r.data);
+}
+
+/**
+ * 검수 목록 KPI 집계 (REVIEWER).
+ * BE: GET /api/v1/reviews/summary — **필터 결과 전체 기준** 4종 건수.
+ *
+ * ★ 파라미터는 `q` 뿐이다({@link ReviewSummaryParams}). `status` 를 보내면 BE 가 무시하지만,
+ * 애초에 타입이 허용하지 않아 "이미 좁혀진 집합 위에서 집계" 하는 실수를 원천 차단한다.
+ */
+export function getReviewSummary(params: ReviewSummaryParams) {
+  return apiClient
+    .get<ReviewSummary>('/reviews/summary', { params: compactParams(params) })
     .then((r) => r.data);
 }
 

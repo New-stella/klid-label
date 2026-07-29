@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.review;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.review.dto.ReviewSearchCondition;
+import kr.co.cudo.authoring.review.repository.ReviewQueryRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,7 +20,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link ReviewRepository#searchByStatus} 의 <b>검수 워크플로우 화이트리스트 상시 적용</b> 검증
+ * {@link ReviewQueryRepository#search} 의 <b>검수 워크플로우 화이트리스트 상시 적용</b> 검증
  * — 배치가 처리중(PROCESSING)인 영상이 REVIEWER 검수 목록에 누출되던 결함(사용자 보고)의 회귀 가드.
  *
  * <p>검수 목록에 노출 가능한 상태 집합 = {@code PENDING/IN_REVIEW/APPROVED/REJECTED}. 배치/작업 상태
@@ -26,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * LS_RAW_DATA_STATUS 는 FK 제약이 없어 상태 row 를 직접 시드해 검증한다.
  *
  * <p>컨테이너는 {@code PostgresContainerContextCustomizerFactory} 가 자동 주입한다.
- * {@link ReviewRepository} 는 {@code @ControlRepo} 이므로 {@code controlTransactionManager} 안에서 동작한다.
+ * 조회는 control 영속성 유닛에서 동작하므로 {@code controlTransactionManager} 안에서 검증한다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
@@ -35,6 +37,9 @@ class ReviewListWhitelistFilterIT {
 
     @Autowired
     private ReviewRepository reviewRepository;
+
+    @Autowired
+    private ReviewQueryRepository reviewQueryRepository;
 
     /** 다른 시드와 충돌하지 않도록 높은 rawDataId 대역을 사용한다. */
     private static final long BASE_ID = 990_000_000L;
@@ -68,7 +73,7 @@ class ReviewListWhitelistFilterIT {
         long failed = seed(9, LsRawDataStatus.STTS_FAILED, now);
 
         // when — status 미지정(null) 전체 조회
-        Page<LsRawDataStatus> page = reviewRepository.searchByStatus(null, PageRequest.of(0, 500));
+        Page<LsRawDataStatus> page = reviewQueryRepository.search(new ReviewSearchCondition(null, null), PageRequest.of(0, 500));
         Set<Long> ids = page.getContent().stream()
                 .map(LsRawDataStatus::getRawDataId).collect(java.util.stream.Collectors.toSet());
 
@@ -91,7 +96,7 @@ class ReviewListWhitelistFilterIT {
         long approved = seed(13, LsRawDataStatus.STTS_APPROVED, now);
 
         // when
-        Page<LsRawDataStatus> page = reviewRepository.searchByStatus("IN_REVIEW", PageRequest.of(0, 500));
+        Page<LsRawDataStatus> page = reviewQueryRepository.search(new ReviewSearchCondition("IN_REVIEW", null), PageRequest.of(0, 500));
         Set<Long> ids = page.getContent().stream()
                 .map(LsRawDataStatus::getRawDataId).collect(java.util.stream.Collectors.toSet());
 
@@ -110,7 +115,7 @@ class ReviewListWhitelistFilterIT {
         seed(21, LsRawDataStatus.STTS_PROCESSING, LocalDateTime.now());
 
         // when — 화이트리스트 밖 값(PROCESSING) 지정 → 교집합 공집합
-        Page<LsRawDataStatus> page = reviewRepository.searchByStatus("PROCESSING", PageRequest.of(0, 500));
+        Page<LsRawDataStatus> page = reviewQueryRepository.search(new ReviewSearchCondition("PROCESSING", null), PageRequest.of(0, 500));
 
         // then — 전체 빈 결과 (누구의 PROCESSING row 도 노출되지 않음)
         assertThat(page.getContent()).isEmpty();
@@ -129,7 +134,7 @@ class ReviewListWhitelistFilterIT {
         long middle = seed(33, LsRawDataStatus.STTS_APPROVED, t2);
 
         // when
-        Page<LsRawDataStatus> page = reviewRepository.searchByStatus(null, PageRequest.of(0, 500));
+        Page<LsRawDataStatus> page = reviewQueryRepository.search(new ReviewSearchCondition(null, null), PageRequest.of(0, 500));
 
         // then — 시드한 3건의 상대 순서가 updDt DESC (newest, middle, oldest)
         List<Long> orderedMine = page.getContent().stream()

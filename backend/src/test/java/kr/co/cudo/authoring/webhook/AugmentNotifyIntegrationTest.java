@@ -68,7 +68,10 @@ class AugmentNotifyIntegrationTest {
                 mock(kr.co.cudo.authoring.meta.service.MetaService.class);
 
         reviewService = new ReviewService(
-                reviewRepository, issueRepository, authrtRepository, taskEventLogRepository,
+                reviewRepository,
+                // 목록 검색/집계 전용 — 본 테스트(단건 승인/반려 경로)에서는 호출되지 않는다.
+                mock(kr.co.cudo.authoring.review.repository.ReviewQueryRepository.class),
+                issueRepository, authrtRepository, taskEventLogRepository,
                 stateMachine, srcRepository, labelRepository, videoRepository, userRepository,
                 objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService,
                 evntAnnoReviewService, metaService);
