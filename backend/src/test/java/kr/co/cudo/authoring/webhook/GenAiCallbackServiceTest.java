@@ -164,7 +164,8 @@ class GenAiCallbackServiceTest {
         LsDataAugJob job2 = issuedJob(2, "AUG-K-2", "job-2");
         givenJobs(job1, job2);
 
-        assertThat(service.handle(succeeded("AUG-K-1", "job-1")).applied()).isTrue();
+        // 롤업 보류(DEFERRED) → applied:false. job 자체는 갱신되지만 증강 1건은 아직 인계되지 않았다.
+        assertThat(service.handle(succeeded("AUG-K-1", "job-1")).applied()).isFalse();
 
         assertThat(job1.getJobSttsCd()).isEqualTo(LsDataAugJob.STTS_SUCCEEDED);
         // job2 가 아직 종결 전이므로 증강 1건은 확정되지 않는다.
@@ -333,8 +334,47 @@ class GenAiCallbackServiceTest {
     }
 
     /**
+     * 다청크 위탁의 <b>부분 도착</b> 회신 계약 고정 (적대검증 MEDIUM-2).
+     *
+     * <p>구 구현은 롤업 결과를 버리고 무조건 {@code APPLIED} 를 회신해, 2청크 중 1청크만 SUCCEEDED 인
+     * 정상 진행 구간에도 {@code applied:true} 가 나갔다(외부가 "증강 인계 완료" 로 오해). {@code applied}
+     * 의 의미는 컨트롤러 javadoc·docs/v2-wiki/14-augmentation.md 가 진실원이며 = "증강 1건의 상태가
+     * 실제로 전이됐는가" 다. 외부 명세서 v1.1 은 콜백 응답 본문을 규정하지 않는다.
+     */
+    @Test
+    @DisplayName("다청크_위탁의_부분도착은_applied_false_로_회신한다_롤업_보류")
+    void partialChunkArrival_isReportedAsNotApplied() {
+        // given — 2청크 위탁(job1/job2) 중 job1 만 SUCCEEDED 로 도착.
+        LsDataAugJob job1 = issuedJob(1, "AUG-K-1", "job-1");
+        LsDataAugJob job2 = issuedJob(2, "AUG-K-2", "job-2");
+        givenJobs(job1, job2);
+
+        // when
+        AugmentApplyResult result = service.handle(succeeded("AUG-K-1", "job-1"));
+
+        // then — 롤업 보류(DEFERRED) → applied:false. job 상태 갱신은 그대로 유지된다.
+        assertThat(result).isEqualTo(AugmentApplyResult.DEFERRED);
+        assertThat(result.applied()).isFalse();
+        assertThat(job1.getJobSttsCd()).isEqualTo(LsDataAugJob.STTS_SUCCEEDED);
+        verify(augmentResultService, never()).handle(any());
+    }
+
+    @Test
+    @DisplayName("마지막_청크_도착으로_인계가_끝나면_applied_true_로_회신한다")
+    void lastChunkArrival_isReportedAsApplied() {
+        LsDataAugJob job1 = succeededJob(1, "AUG-K-1");
+        LsDataAugJob job2 = issuedJob(2, "AUG-K-2", "job-2");
+        givenJobs(job1, job2);
+        when(augmentResultService.handle(any())).thenReturn(AugmentApplyResult.APPLIED);
+
+        AugmentApplyResult result = service.handle(succeeded("AUG-K-2", "job-2"));
+
+        assertThat(result.applied()).isTrue();
+    }
+
+    /**
      * 정책 보류({@code WITHHELD_*})는 2026-07-29 로 폐기됐다 — 신고 구간 차단은 파생 생성이 아니라
-     * 외부 위탁 쪽에서, 그것도 거부로 종결된다. 따라서 job 이 정상 갱신되면 응답은 항상
+     * 외부 위탁 쪽에서, 그것도 거부로 종결된다. 따라서 인계가 실제로 이뤄지면 응답은
      * {@code applied:true} 이고 사유 코드는 실리지 않는다.
      */
     @Test

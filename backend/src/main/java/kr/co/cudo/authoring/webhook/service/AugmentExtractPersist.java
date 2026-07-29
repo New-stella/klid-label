@@ -163,6 +163,46 @@ public class AugmentExtractPersist {
     }
 
     /**
+     * 비동기 확정(A/B/C) 실패 시 <b>증강 행도 실패로 정합</b>시킨다 — 집계 오분류 차단(LOW, 적대검증).
+     *
+     * <h3>왜 필요한가</h3>
+     * <p>콜백 동기 게이트를 통과해 {@code LS_DATA_AUG} 가 이미 {@code ACCEPTED} 로 종결된 뒤, async 구간에서
+     * 부모 비식별 산출물이 사라지는 등으로 확정이 실패하면 <b>파생 RAW 는 FAILED 인데 증강 행은 ACCEPTED +
+     * dead-letter 미표기</b>로 남아 집계상 성공(검수 완료)으로 잡혔다. 재콜백은 non-PENDING 멱등 앵커에
+     * 막혀 회복도 되지 않으므로, 실패는 실패로 드러나야 운영이 재요청 대상을 식별할 수 있다.
+     *
+     * <h3>왜 상태(REJECTED)가 아니라 dead-letter 인가</h3>
+     * <p>{@code AUG_PROC_STTS_CD} 는 <b>검수 결과 축</b>이고 {@code applyReviewStatus} 는 PENDING 에서만
+     * 전이를 허용한다(ACCEPTED→REJECTED 불가). 이 도메인의 실패 판정 축은 처리 실패 전용 마커
+     * {@code DEAD_LETTER_AT}({@link LsDataAug#isProcessingFailed()}) 이고, 동기 실패 인계
+     * ({@code AugmentResultService} 의 {@code markProcessingFailure})가 쓰는 수단과 동일하다 —
+     * 새 상태값을 만들지 않는다.
+     *
+     * <p><b>멱등 앵커와 무충돌</b>: 상태 컬럼을 건드리지 않으므로 재콜백의 non-PENDING skip 판정은 그대로다
+     * (회복은 여전히 운영자의 명시적 재요청 — 증강 채널에 자동 재시도 구동기는 없다). 이미 dead-letter
+     * 인 행은 재마킹하지 않는다(중복 카운트 방지).
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void markAugProcessingFailed(Long dataAugSn) {
+        if (dataAugSn == null) {
+            return;
+        }
+        LsDataAug aug = augRepository.findById(dataAugSn).orElse(null);
+        if (aug == null) {
+            log.warn("[Augment][ExtractC] aug row not found for failure marking dataAugSn={}", dataAugSn);
+            return;
+        }
+        if (aug.isProcessingFailed()) {
+            return; // 이미 실패로 못박힘 — 재시도 카운트 중복 누적 방지.
+        }
+        aug.incrementRetryCount();
+        aug.markDeadLetter();
+        augRepository.save(aug);
+        log.warn("[Augment][ExtractC] aug marked dead-letter after async extraction failure dataAugSn={} status={}",
+                dataAugSn, aug.getAugProcSttsCd());
+    }
+
+    /**
      * 부모 프레임(SRC_SN) 을 개인정보 3필드 복사용으로 일괄 로드(N+1 회피). 빈 입력이면 빈 맵.
      * 라벨 재매핑용 findBySrcSnIn 과 별개로 개인정보 필드가 필요해 부모 엔티티 자체를 조회한다.
      */

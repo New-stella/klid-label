@@ -209,4 +209,39 @@ class AsyncResolutionRunnerTest {
         verify(persistService).releaseReservedAug(44L);
         verify(batchTransitionService).markRawDataFailed(707L);
     }
+
+    /**
+     * 적대검증 MEDIUM-1 (관측성) — 확정 실패는 파생 RAW·예약행이 함께 정리되어 <b>DB 에 흔적이 남지
+     * 않으므로</b>(예약행 삭제는 부분 유니크 인덱스 때문에 의도된 설계), 메트릭이 유일한 집계 근거다.
+     */
+    @Test
+    @DisplayName("확정_실패로_파생이_폐기되면_finalizeFailed_메트릭을_올린다")
+    void finalizeFailureEmitsMetric() {
+        Path videoDst = Paths.get("/base/resolution/709/video/RESL_720P.mp4");
+        ResolutionSnapshot s = snap(709L, 200L, 46L, videoDst);
+        when(snapshotService.snapshot(709L, 200L, 46L, ResolutionPreset.RESL_720P)).thenReturn(Optional.of(s));
+        doThrow(new CustomException(ErrorCode.NOT_FOUND, "deid video missing"))
+                .when(fileMaterializer).materialize(s);
+        when(persistService.isAlreadyFinalized(709L)).thenReturn(false);
+
+        runner.runAsync(709L, 200L, 46L, ResolutionPreset.RESL_720P);
+
+        verify(resolutionMetrics).finalizeFailed();
+        verify(batchTransitionService).markRawDataFailed(709L);
+    }
+
+    @Test
+    @DisplayName("중복finalize_승자가_이미_확정했으면_finalizeFailed_메트릭을_올리지_않는다")
+    void concurrentWinnerDoesNotEmitFinalizeFailedMetric() {
+        ResolutionSnapshot s = snap(710L, 200L, 47L, Paths.get("/base/resolution/710/video/RESL_720P.mp4"));
+        when(snapshotService.snapshot(710L, 200L, 47L, ResolutionPreset.RESL_720P)).thenReturn(Optional.of(s));
+        doThrow(new CustomException(ErrorCode.INTERNAL_ERROR, "persist failed"))
+                .when(persistService).persist(s);
+        when(persistService.isAlreadyFinalized(710L)).thenReturn(true); // 승자 존재
+
+        runner.runAsync(710L, 200L, 47L, ResolutionPreset.RESL_720P);
+
+        verify(resolutionMetrics, never()).finalizeFailed();
+        verify(batchTransitionService, never()).markRawDataFailed(any());
+    }
 }

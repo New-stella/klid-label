@@ -62,6 +62,12 @@ public class VideoResolutionService {
     private final LsDataSrcRepository srcRepository;
     private final ImageResizer imageResizer;
     private final ResolutionDerivativeService resolutionDerivativeService;
+    /**
+     * 부모 비식별 산출물 실재 확인(동기) — {@code 'F'} 가 "비식별 API 실패(산출물 부재)" 인 요청을
+     * 예약 이전에 4xx 로 거른다. 없으면 201 후 async 확정이 반드시 실패하고 cleanup 이 흔적을 지워
+     * 사용자에게는 성공으로 보였다(가시성 회귀 차단).
+     */
+    private final ParentDeidArtifactGuard parentDeidArtifactGuard;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -86,7 +92,13 @@ public class VideoResolutionService {
      */
     public ResolutionChangeResponse changeResolution(Long rawSn, ResolutionChangeRequest request, String regId) {
         // 1) 조회 + 검증 (APPROVED + 비-증강본).
-        loadAndValidate(rawSn);
+        LsDataRaw parent = loadAndValidate(rawSn);
+
+        // 1-1) 부모 비식별 산출물 실재 확인 — 없으면 여기서 동기 4xx 로 거부한다.
+        //      플래그('F')만으로는 "신고(산출물 존재)" 와 "비식별 API 실패(산출물 부재)" 가 구분되지 않아,
+        //      후자를 통과시키면 예약은 201 인데 async 확정이 반드시 실패하고 cleanup 이 파생 RAW·예약행을
+        //      지워 아무 흔적도 남지 않는다(성공으로 보이는 소멸). 파일 내용은 읽지 않고 존재만 확인한다.
+        parentDeidArtifactGuard.requireParentDeidVideoPresent(parent);
 
         // 2) 대상 프리셋 결정 — 미지정(기본)이면 표준 3종 전체, 지정 시 그 목록만(계약: optional list).
         List<ResolutionPreset> targetPresets =

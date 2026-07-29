@@ -87,6 +87,11 @@ public class GenAiCallbackService {
      *         (E-ISSUE-11 — 응답 {@code applied:false} 로 회신해야 외부가 "정상 인계" 로 오해하지 않는다).
      *         정책 보류({@code WITHHELD_*})는 2026-07-29 폐기 — 비식별 신고 구간도 인계는 진행되고,
      *         부모를 물리적으로 쓸 수 없으면 보류가 아니라 실패로 확정된다.
+     *
+     * <p><b>{@code applied} 의미의 진실원</b>: 외부 「생성형 AI API 연동명세서 v1.1」은 콜백 <b>응답
+     * 본문</b>을 규정하지 않으므로(목 서버도 HTTP 상태코드만 본다), 우리 계약 문서
+     * ({@code GenAiCallbackController} javadoc + {@code docs/v2-wiki/14-augmentation.md})가 진실원이고
+     * 코드를 그 계약에 맞춘다 — 롤업 보류/멱등 흡수는 {@code applied:false} 다(2026-07-29 정정).
      */
     @Transactional("controlTransactionManager")
     public AugmentApplyResult handle(GenAiCallbackRequest req) {
@@ -147,11 +152,15 @@ public class GenAiCallbackService {
         jobRepository.save(target);
         jobRepository.flush();
 
-        // 7) 롤업 — 전 job 종결 시에만 증강 1건을 확정한다.
-        //    job 상태는 확실히 갱신됐으므로 회신은 APPLIED 다(정책 보류 값은 2026-07-29 로 폐기 —
-        //    신고 구간 차단은 파생 생성이 아니라 외부 위탁 쪽에서, 그것도 거부로 종결된다).
-        rollup.rollUpIfAllTerminal(dataAugSn, jobs, req.jobId());
-        return AugmentApplyResult.APPLIED;
+        // 7) 롤업 — 전 job 종결 시에만 증강 1건을 확정한다. <b>롤업 결과를 그대로 회신</b>한다.
+        //    구 구현은 결과를 버리고 무조건 APPLIED 를 돌려줬다. 그러면 2청크 위탁 중 1청크만 SUCCEEDED
+        //    가 도착한 정상 진행 구간(롤업 DEFERRED)에도 applied:true 가 나가 외부가 "증강 인계 완료" 로
+        //    오해한다. applied 의 의미(= 증강 1건의 상태가 실제로 전이됐는가)는 AugmentApplyResult#applied()
+        //    가 단일 근거이고, 이 계약은 컨트롤러 javadoc·docs/v2-wiki/14-augmentation.md 가 진실원이다
+        //    (외부 「생성형 AI API 연동명세서 v1.1」은 콜백 <응답 본문>을 규정하지 않고, 목 서버도
+        //     HTTP 상태코드만 보고 applied 를 소비하지 않는다 — mock-server genai_sim.send_webhook).
+        //    job 자체의 상태 갱신은 이 시점에 이미 커밋 대상이므로 회신값과 무관하게 보존된다.
+        return rollup.rollUpIfAllTerminal(dataAugSn, jobs, req.jobId());
     }
 
     /**

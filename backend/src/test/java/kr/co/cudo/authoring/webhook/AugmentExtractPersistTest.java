@@ -360,4 +360,38 @@ class AugmentExtractPersistTest {
         verify(srcRepository, never()).save(any(LsDataSrc.class));
         verify(deidentProcLogRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("async확정_실패표기는_ACCEPTED_상태를_건드리지_않고_dead_letter만_찍는다")
+    void markAugProcessingFailed_marksDeadLetterWithoutStatusChange() {
+        // given: 콜백 동기 단계에서 이미 ACCEPTED 로 종결된 증강 행.
+        LsDataAug a = aug(88L);
+        a.applyReviewStatus(LsDataAug.STTS_ACCEPTED);
+        when(augRepository.findById(88L)).thenReturn(Optional.of(a));
+
+        // when: async 확정(A/B/C) 실패 인계.
+        persist.markAugProcessingFailed(88L);
+
+        // then: 집계 실패 판정축(DEAD_LETTER_AT)이 찍히고, 검수 결과 축(상태)은 그대로다
+        //       — 상태를 바꾸면 재콜백 멱등 앵커/검수 의미가 흔들린다.
+        assertThat(a.isProcessingFailed()).isTrue();
+        assertThat(a.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        assertThat(a.getRetryCount()).isEqualTo(1);
+        verify(augRepository).save(a);
+    }
+
+    @Test
+    @DisplayName("이미_dead_letter인_증강행은_재표기하지_않는다_재시도카운트_중복누적_방지")
+    void markAugProcessingFailed_isIdempotent() {
+        LsDataAug a = aug(89L);
+        a.applyReviewStatus(LsDataAug.STTS_ACCEPTED);
+        a.incrementRetryCount();
+        a.markDeadLetter();
+        when(augRepository.findById(89L)).thenReturn(Optional.of(a));
+
+        persist.markAugProcessingFailed(89L);
+
+        assertThat(a.getRetryCount()).isEqualTo(1);
+        verify(augRepository, never()).save(a);
+    }
 }

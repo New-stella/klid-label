@@ -112,6 +112,14 @@ public class AsyncResolutionRunner {
             return;
         }
 
+        // MEDIUM (관측성) — 여기서부터는 파생 RAW·예약행이 정리되어 <b>실패 흔적이 DB 에 남지 않는다</b>
+        // (예약행 삭제는 의도된 설계: 부분 유니크 인덱스가 상태 무관이라 실패 행을 남기면 같은
+        //  (영상 × 해상도) 재요청이 영구 차단된다). 그래서 WARN 로그 + 메트릭이 유일한 관측 수단이다.
+        //  경로·PII 는 담지 않고 식별자만 남긴다(CWE-209/532).
+        log.warn("[AsyncResolutionRunner] derivative discarded — finalize failed, reservation released rawSn={} dataAugSn={}",
+                newRawSn, dataAugSn);
+        resolutionMetrics.finalizeFailed();
+
         // ② Phase B 산출 아티팩트 정리(스냅샷이 있어야 Phase B 가 파일을 썼을 수 있음). 잔존 시 ERROR + 메트릭.
         //    M-5 — 정리 결과를 <b>무시하지 않는다</b>. 파일이 남았는데 RAW 행(유일한 DB 포인터)까지 지우면
         //    누구도 추적할 수 없는 고아 파일이 되므로, 잔존 시 ④ RAW 삭제를 건너뛴다.
