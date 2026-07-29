@@ -2,6 +2,8 @@ package kr.co.cudo.authoring.controlnotify.service;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import kr.co.cudo.authoring.controlnotify.debounce.ControlNotifyDebounceStore;
+import kr.co.cudo.authoring.controlnotify.debounce.DebounceWindow;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
 import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
@@ -10,11 +12,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -29,13 +30,19 @@ import java.util.concurrent.TimeUnit;
  *       구 구조는 {@code ConcurrentHashMap.newKeySet().add(null)} 로 NPE 를 던졌고, 호출 경로가
  *       {@code @TransactionalEventListener(AFTER_COMMIT)} 라 예외가 삼켜져 통지가 조용히 유실됐다.
  *       영상 단위만 바뀌어도 윈도우는 생성되고 flush 시 통지가 발송된다(changed_items 는 빈 리스트).</li>
- *   <li><b>S6 중복 flush</b>: 만료 스캔과 {@link #flushAll()}(@PreDestroy)가 동시에 같은 rawSn 을
- *       집어 2회 전송하던 창을 막는다. 전송은 {@code windows.remove(rawSn)} 가 <b>non-null 을 반환한
- *       스레드만</b> 수행한다 — ConcurrentHashMap.remove 는 원자적이라 정확히 한 스레드만 승리한다.</li>
+ *   <li><b>S6 중복 flush</b>: 만료 스캔과 {@link #flushAll()}(@PreDestroy)가 동시에 같은 윈도우를
+ *       집어 2회 전송하던 창을 막는다. 전송은 {@link ControlNotifyDebounceStore#claim} 에
+ *       <b>성공한 주체만</b> 수행한다.</li>
+ *   <li><b>Phase 9-C — 크로스노드 디바운스</b>: 윈도우가 JVM 로컬 {@code ConcurrentHashMap} 이라
+ *       2노드 Active-Active 에서 ①같은 영상의 수정이 양쪽에 나뉘어 축적되면 <b>export 재생성·관제
+ *       통지가 2회</b> 나가고(관제가 같은 영상을 두 버전으로 픽업), ②노드가 flush 전에 죽으면
+ *       <b>축적분이 통째로 유실</b>됐다. 이제 윈도우의 내용과 소유권을 모두 공유 DB
+ *       ({@link ControlNotifyDebounceStore})에 두어, 어느 노드에서 축적됐든 <b>한 노드가 전량을 1회만</b>
+ *       flush 하고 노드가 죽어도 축적분이 남는다.</li>
  * </ul>
  *
  * <h3>HIGH-E(Phase 5C) — export 재생성 트리거는 통지 토글과 분리한다(항상 활성)</h3>
- * 이 빈은 더 이상 {@code authoring.control-notify.enabled} 로 게이팅하지 <b>않는다</b>(항상 활성). 승인 후
+ * 이 빈은 {@code authoring.control-notify.enabled} 로 게이팅하지 <b>않는다</b>(항상 활성). 승인 후
  * 라벨/촬영환경 수정이 export 폴더를 새 버전으로 재생성하는 것은 데이터마트 동기화 요구(사업 요구)라
  * 통지 토글과 무관해야 하기 때문이다. 구 구현은 이 빈과 통지 리스너를 모두 토글로 게이팅해, dev/stg/prd
  * (토글 false)에서 승인 후 수정 시 {@code TaskModifiedEvent(regen=true)} 가 소비자 없이 드롭돼 <b>재생성이
@@ -50,19 +57,14 @@ import java.util.concurrent.TimeUnit;
  * 만료 flush({@link #flushExpiredWindows})는 export 재생성 발화의 <b>유일한 경로</b>다. 구 구현은 이를
  * {@code @Scheduled} 로 걸어, 컨텍스트의 {@code @EnableScheduling} 이 <b>무관한 토글 3곳</b>
  * ({@code control-notify.enabled} · {@code work-lock.sweep.enabled} · {@code resolution-backfill.sweep.enabled})
- * 중 하나로 켜질 때만 tick 했다. 셋을 모두 끈 형상(예: {@code CONTROL_NOTIFY_ENABLED=false} + 두 sweep
- * 유지보수 off)에서는 flush 가 영영 발화하지 않아, 승인 후 수정이 디바운스 윈도우에 축적만 된 채 export
- * 재생성이 무증상 중단됐다(HIGH-E 잔여, 데이터마트 라벨 동기화 요구 위반).
+ * 중 하나로 켜질 때만 tick 했다. 셋을 모두 끈 형상에서는 flush 가 영영 발화하지 않아, 승인 후 수정이
+ * 디바운스 윈도우에 축적만 된 채 export 재생성이 무증상 중단됐다(HIGH-E 잔여).
  *
  * <p>이제 flush 는 <b>이 빈이 소유한 데몬 스레드 1개짜리 전용 {@link ScheduledExecutorService}</b> 로
- * 자가 스케줄한다({@code RoleClaimAttemptPurgeJob}/{@code WebhookGuardPurgeJob} 동형). 그래서:
- * <ul>
- *   <li>flush 는 무관한 스케줄러 토글의 on/off 와 <b>독립적으로 항상 tick</b> 한다 — export 재생성 기능이
- *       살아있는 한(=이 빈이 존재하는 한) 재생성이 도달한다.</li>
- *   <li>무조건적 {@code @EnableScheduling} 을 새로 켜지 않으므로, 조건 없이 등록된 다른 {@code @Scheduled}
- *       잡({@code PortalUploadSweepJob}/{@code TusUploadCleanupJob} 등)을 <b>부수적으로 발화시키지 않는다</b>
- *       (전 환경·전 테스트). 즉 다른 잡의 발화 여부를 바꾸지 않는다.</li>
- * </ul>
+ * 자가 스케줄한다({@code RoleClaimAttemptPurgeJob}/{@code AugmentJobExpirySweeper} 동형). 그래서 flush 는
+ * 무관한 스케줄러 토글의 on/off 와 <b>독립적으로 항상 tick</b> 하고, 무조건적 {@code @EnableScheduling} 을
+ * 켜지 않으므로 남의 {@code @Scheduled} 잡을 부수적으로 발화시키지도 않는다.
+ *
  * <p>전용 스케줄러는 {@code authoring.dataset-export.regen-flush.enabled}(기본 {@code true} — export 재생성
  * 기능 자신에 묶인 토글)로 게이팅한다. 테스트는 이 값을 {@code false} 로 두어 격리하고, flush 로직은
  * {@link #flushExpiredWindows()} 를 직접 호출해 검증한다(스케줄 발화 배선은 별도 테스트가 검증).
@@ -71,7 +73,20 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class ControlNotifyDebouncer {
 
-    private final ConcurrentHashMap<Long, DebouncedWindow> windows = new ConcurrentHashMap<>();
+    /**
+     * 종료 drain 라운드 상한 — 다른 노드가 계속 새 윈도우를 열어도 {@code @PreDestroy} 가 무한정
+     * 붙잡히지 않게 한다(종료 지연 방지). 남은 윈도우는 DB 에 남아 살아 있는 노드가 처리한다.
+     */
+    private static final int MAX_DRAIN_ROUNDS = 20;
+
+    /** 임차 하한(ms) — 이보다 짧으면 정상 발송 중인 윈도우를 다른 노드가 뺏어 이중 통지가 된다. */
+    private static final long MIN_LEASE_MILLIS = 60_000L;
+
+    /** 오설정(0/음수) 시 flush 배치 폴백. */
+    private static final int DEFAULT_FLUSH_BATCH_SIZE = 100;
+
+    /** 윈도우 저장소 — 축적 내용과 flush 소유권을 노드 밖(공유 DB)에 둔다(Phase 9-C). */
+    private final ControlNotifyDebounceStore store;
     /** 통지 서비스 — 통지 토글 off(dev/stg/prd)면 빈이 없어 {@code null}. export 는 무관하게 트리거된다. */
     @Nullable
     private final ControlNotifyService notifyService;
@@ -86,22 +101,37 @@ public class ControlNotifyDebouncer {
     private final boolean flushSchedulerEnabled;
     /** MED-1 — flush tick 간격(ms). 기본 10초. 최소 1ms 로 하한. */
     private final long flushIntervalMillis;
+    /**
+     * Phase 9-C — flush 클레임 임차(ms). 클레임한 노드가 이 시간 안에 발송을 마치지 못하면(=죽으면)
+     * 다른 노드가 그 윈도우를 재클레임한다(축적분 유실 방지). 임차가 너무 짧으면 정상 발송 중인
+     * 윈도우를 뺏어 이중 통지가 되므로 {@link #MIN_LEASE_MILLIS} 로 하한 clamp 한다(오설정 fail-safe).
+     */
+    private final long leaseMillis;
+    /** Phase 9-C — 한 tick 이 처리할 윈도우 상한(무제한 조회 금지, OWASP API4). */
+    private final int flushBatchSize;
+
     /** MED-1 — 이 빈이 소유한 데몬 스레드 1개짜리 flush 스케줄러(전 환경 항상 tick, @EnableScheduling 비의존). */
     @Nullable
     private ScheduledExecutorService flushScheduler;
 
-    public ControlNotifyDebouncer(@Nullable ControlNotifyService notifyService,
+    public ControlNotifyDebouncer(ControlNotifyDebounceStore store,
+                                  @Nullable ControlNotifyService notifyService,
                                   @Value("${authoring.control-notify.debounce-window-sec:60}") long windowSec,
                                   @Nullable ControlNotifyMetrics metrics,
                                   AsyncDatasetExportRunner exportRunner,
                                   @Value("${authoring.dataset-export.regen-flush.enabled:true}") boolean flushSchedulerEnabled,
-                                  @Value("${authoring.control-notify.debounce-flush-interval-ms:10000}") long flushIntervalMillis) {
+                                  @Value("${authoring.control-notify.debounce-flush-interval-ms:10000}") long flushIntervalMillis,
+                                  @Value("${authoring.control-notify.debounce-lease-sec:300}") long leaseSec,
+                                  @Value("${authoring.control-notify.debounce-flush-batch-size:100}") int flushBatchSize) {
+        this.store = store;
         this.notifyService = notifyService;
-        this.windowMillis = windowSec * 1000L;
+        this.windowMillis = Math.max(0L, windowSec) * 1000L;
         this.metrics = metrics;
         this.exportRunner = exportRunner;
         this.flushSchedulerEnabled = flushSchedulerEnabled;
         this.flushIntervalMillis = Math.max(1L, flushIntervalMillis);
+        this.leaseMillis = Math.max(MIN_LEASE_MILLIS, leaseSec * 1000L);
+        this.flushBatchSize = flushBatchSize < 1 ? DEFAULT_FLUSH_BATCH_SIZE : flushBatchSize;
     }
 
     /**
@@ -121,7 +151,8 @@ public class ControlNotifyDebouncer {
         });
         flushScheduler.scheduleWithFixedDelay(this::flushExpiredWindowsSafely,
                 flushIntervalMillis, flushIntervalMillis, TimeUnit.MILLISECONDS);
-        log.info("[ControlNotifyDebounce] flush scheduler started intervalMs={}", flushIntervalMillis);
+        log.info("[ControlNotifyDebounce] flush scheduler started intervalMs={} leaseMs={}",
+                flushIntervalMillis, leaseMillis);
     }
 
     /** 스케줄러 스레드에서 flush 가 던진 예외로 {@code scheduleWithFixedDelay} 가 영구 정지하지 않도록 격리한다. */
@@ -135,34 +166,26 @@ public class ControlNotifyDebouncer {
     }
 
     /**
-     * 이벤트 수신 — 윈도우에 축적.
+     * 이벤트 수신 — 윈도우에 축적한다.
      *
-     * <p>{@code srcSn} 이 null(영상 단위 메타 변경)이어도 예외 없이 축적된다.
+     * <p>{@code srcSn} 이 null(영상 단위 메타 변경)이어도 예외 없이 축적된다. 축적은 공유 DB 에 남으므로
+     * <b>이 노드가 flush 전에 죽어도</b> 다른 노드가 이어서 flush 한다(Phase 9-C).
      */
     public void accumulate(TaskModifiedEvent event) {
-        windows.compute(event.rawSn(), (key, existing) -> {
-            DebouncedWindow window = existing == null ? new DebouncedWindow() : existing;
-            window.add(event.srcSn(), event.changeType(), event.exportRegenerated());
-            return window;
-        });
+        store.accumulate(event.rawSn(), event.srcSn(), event.changeType(), event.exportRegenerated());
     }
 
     /** 만료 윈도우 스캔 — flush. 전용 스케줄러가 {@link #flushIntervalMillis} 간격으로 호출한다(기본 10초). */
     public void flushExpiredWindows() {
-        long cutoff = System.currentTimeMillis() - windowMillis;
-        for (Map.Entry<Long, DebouncedWindow> entry : windows.entrySet()) {
-            if (entry.getValue().getCreatedAt() > cutoff) {
-                continue;
-            }
-            if (claimAndSendIsolated(entry.getKey()) && metrics != null) {
-                metrics.incrementDebounceFlush();
-            }
-        }
+        LocalDateTime now = LocalDateTime.now();
+        flush(now.minus(Duration.ofMillis(windowMillis)), leaseCutoff(now));
     }
 
     /**
-     * 종료 시 전용 스케줄러를 먼저 멈춘 뒤(새 tick 차단) 남은 윈도우를 전부 drain 한다.
-     * flush 스케줄러와 종료 drain 이 같은 rawSn 을 동시에 집어도 S6(원자 remove)로 1회만 전송된다.
+     * 종료 시 전용 스케줄러를 먼저 멈춘 뒤(새 tick 차단) 남은 윈도우를 <b>만료를 기다리지 않고</b> drain 한다.
+     *
+     * <p>다른 노드/스케줄러와 같은 윈도우를 동시에 집어도 원자 클레임으로 1회만 전송된다(S6). drain 하지
+     * 못한 윈도우는 DB 에 남아 살아 있는 노드가 처리하므로 유실되지 않는다(Phase 9-C).
      */
     @PreDestroy
     public void flushAll() {
@@ -170,40 +193,83 @@ public class ControlNotifyDebouncer {
             flushScheduler.shutdownNow();
             flushScheduler = null;
         }
-        for (Long rawSn : List.copyOf(windows.keySet())) {
-            claimAndSendIsolated(rawSn);
+        for (int round = 0; round < MAX_DRAIN_ROUNDS; round++) {
+            LocalDateTime now = LocalDateTime.now();
+            // windowCutoff=now — 만료 여부와 무관하게 지금까지 열린 모든 윈도우를 대상으로 한다.
+            if (flush(now, leaseCutoff(now)) == 0) {
+                return;
+            }
         }
+    }
+
+    /**
+     * 후보를 조회해 클레임에 성공한 윈도우만 발송한다.
+     *
+     * @return 이번 라운드에 실제로 처리(클레임 성공 + 발송)한 윈도우 수
+     */
+    private int flush(LocalDateTime windowCutoff, LocalDateTime leaseCutoff) {
+        List<Long> candidates = store.findFlushableIds(windowCutoff, leaseCutoff, flushBatchSize);
+        int processed = 0;
+        for (Long acmlSn : candidates) {
+            if (claimAndSendIsolated(acmlSn, windowCutoff, leaseCutoff)) {
+                processed++;
+                if (metrics != null) {
+                    metrics.incrementDebounceFlush();
+                }
+            }
+        }
+        return processed;
+    }
+
+    /** 임차 만료 기준 시각 — 이 시각 이전에 클레임된 flush 는 크래시 잔재로 보고 재클레임한다. */
+    private LocalDateTime leaseCutoff(LocalDateTime now) {
+        return now.minus(Duration.ofMillis(leaseMillis));
     }
 
     /**
      * 윈도우 1건의 전송 실패를 <b>루프에서 격리</b>한다(A-1).
      *
-     * <p>{@link #claimAndSend} 는 {@code windows.remove} 로 소유권을 먼저 가져간다 — 여기서 예외가
-     * 루프 밖으로 나가면 <b>이미 제거된 윈도우는 복구 불가로 소실</b>되고, 같은 tick 의 나머지 윈도우도
-     * 스캔이 끊겨 함께 지연·소실된다({@code @PreDestroy} 경로에서는 종료와 함께 전부 사라진다).
-     * 통지 유실 최소화를 위해 개별 실패는 로그만 남기고 다음 윈도우로 진행한다.
+     * <p>여기서 예외가 루프 밖으로 나가면 같은 tick 의 나머지 윈도우도 스캔이 끊겨 함께 지연된다.
+     * 개별 실패는 로그만 남기고 다음 윈도우로 진행한다.
      *
-     * @return 전송을 수행했으면 true (실패해도 소유권을 획득했으면 true — flush 시도 자체는 발생)
+     * <p><b>Phase 9-C</b>: 실패한 윈도우는 {@link ControlNotifyDebounceStore#complete} 를 호출하지 않아
+     * 저장소에 {@code FLUSHING} 으로 남는다 — 임차가 만료되면 다음 tick(또는 다른 노드)이 재클레임하므로
+     * 통지가 <b>소실되지 않고 지연</b>된다. 구 인메모리 구현은 이 지점에서 실제로 소실됐다.
+     *
+     * @return 클레임에 성공해 전송까지 마쳤으면 true
      */
-    private boolean claimAndSendIsolated(Long rawSn) {
+    private boolean claimAndSendIsolated(Long acmlSn, LocalDateTime windowCutoff, LocalDateTime leaseCutoff) {
+        Optional<DebounceWindow> claimed;
         try {
-            return claimAndSend(rawSn);
+            claimed = store.claim(acmlSn, windowCutoff, leaseCutoff);
         } catch (Exception e) {
-            // MED-3 — 여기 도달하면 windows.remove 로 소유권을 가져간 뒤 발송/재산출 위임이 예외로 끊긴
-            //   것이라 그 윈도우의 통지는 <b>실제로 소실</b>된다(되살릴 상위 주체 없음). 구 구현은 true 를
-            //   반환해 이 소실을 debounce.flush(성공)로 계상하고 control.notify.dropped 를 0 으로 유지했다.
-            //   실제 드롭을 dropped 카운터에 계상하고 flush 성공으로 세지 않는다(false 반환).
+            log.error("[ControlNotifyDebounce] window claim failed (retried after lease) acmlSn={} reason={}",
+                    acmlSn, e.getClass().getSimpleName());
+            return false;
+        }
+        if (claimed.isEmpty()) {
+            return false;
+        }
+        DebounceWindow window = claimed.get();
+        try {
+            send(window);
+            store.complete(window.acmlSn());
+            return true;
+        } catch (Exception e) {
+            // MED-3 — 발송/재산출 위임이 예외로 끊긴 경우. 이제 윈도우는 저장소에 FLUSHING 으로 남아
+            //   임차 만료 후 재클레임되므로 영구 소실이 아니지만, 통지가 즉시 나가지 못한 사실 자체는
+            //   관측돼야 하므로 dropped 로 계상하고 flush 성공(debounceFlush)으로는 세지 않는다.
             if (metrics != null) {
                 metrics.incrementDropped();
             }
-            log.error("[ControlNotifyDebounce] window flush failed (isolated, notification lost) rawSn={} reason={}",
-                    rawSn, e.getClass().getSimpleName());
+            log.error("[ControlNotifyDebounce] window flush failed (deferred to lease recovery) rawSn={} reason={}",
+                    window.rawSn(), e.getClass().getSimpleName());
             return false;
         }
     }
 
     /**
-     * 윈도우 소유권을 원자적으로 획득한 스레드만 전송한다(S6 — 중복 전송 차단).
+     * 클레임한 윈도우를 실제로 발송한다.
      *
      * <h3>C-2 / HIGH-E — export 재생성 동반 시 export → 통지 순서 보장, export 는 토글과 무관</h3>
      * 재생성을 동반한 윈도우({@code exportRegenerated=true}, 라벨/촬영환경 승인 후 수정)는 통지를 바로
@@ -215,37 +281,30 @@ public class ControlNotifyDebouncer {
      * <p><b>HIGH-E</b>: export 재산출 위임은 통지 토글과 무관하게 <b>항상</b> 실행한다. 통지({@code sendModified})
      * 만 토글 종속이다 — {@code notifyService} 가 {@code null}(토글 off)이면 재생성 윈도우는 export 만 하고
      * 통지 콜백을 붙이지 않으며, 비재생성 윈도우는 아무것도 하지 않는다(디스크 무변경 + 통지 off).
-     *
-     * @return 클레임(윈도우 remove)에 성공해 처리했으면 true
      */
-    private boolean claimAndSend(Long rawSn) {
-        DebouncedWindow claimed = windows.remove(rawSn);
-        if (claimed == null) {
-            return false;
-        }
-        var frameChanges = claimed.toFrameChanges();
-        var videoLevelChangeTypes = claimed.getVideoLevelChangeTypes();
-        boolean exportRegenerated = claimed.isExportRegenerated();
+    private void send(DebounceWindow window) {
+        Long rawSn = window.rawSn();
+        List<FrameChangeSet> frameChanges = window.frameChanges();
+        var videoLevelChangeTypes = window.videoLevelChangeTypes();
         // LOW-1 — 프레임↔변경종류 페어(FrameChangeSet.changeTypes)를 관측에 반영한다. 관제 전송 계약은
         //   파일명 목록만 담으므로 페어링 자체는 실리지 않지만, 최소한 flush 요약 로그로 감사 가능하게 남긴다.
         if (log.isInfoEnabled() && !frameChanges.isEmpty()) {
             log.info("[ControlNotifyDebounce] flush rawSn={} regen={} frames={}",
-                    rawSn, exportRegenerated, summarizeChangeTypes(frameChanges));
+                    rawSn, window.exportRegenerated(), summarizeChangeTypes(frameChanges));
         }
-        if (exportRegenerated) {
+        if (window.exportRegenerated()) {
             // HIGH-E — export(전량 재생성)는 통지 토글과 무관하게 항상 위임한다(dev/stg/prd 포함).
             //   통지가 켜져 있으면(notifyService!=null) export 종결 후 통지 콜백을 실행해 순서를 직렬화한다(C-2).
             //   통지가 꺼져 있으면 콜백 없이 export 만 수행한다.
             Runnable notifyCallback = notifyService == null ? null
                     : () -> notifyService.sendModified(rawSn, frameChanges, videoLevelChangeTypes, true);
             exportRunner.runReExportThenNotify(rawSn, true, notifyCallback);
-            return true;
+            return;
         }
         // 재생성 없음 — 디스크 산출물 그대로. 통지만(토글 on 일 때). 토글 off 면 할 일 없음.
         if (notifyService != null) {
             notifyService.sendModified(rawSn, frameChanges, videoLevelChangeTypes, false);
         }
-        return true;
     }
 
     /** LOW-1 — 프레임별 변경종류 페어를 로그용 요약 문자열로. */
@@ -258,56 +317,5 @@ public class ControlNotifyDebouncer {
             sb.append(c.srcSn()).append('=').append(c.changeTypes());
         }
         return sb.toString();
-    }
-
-    /** 디바운스 윈도우 — 동일 rawSn 에 대한 변경 축적. */
-    static class DebouncedWindow {
-
-        private long createdAt = System.currentTimeMillis();
-
-        /** 프레임 단위 변경 — srcSn → 변경 종류 집합 (페어링 보존). */
-        private final ConcurrentHashMap<Long, Set<String>> frameChanges = new ConcurrentHashMap<>();
-
-        /** 영상 단위 변경(srcSn=null) 의 변경 종류 — 프레임 축적과 분리한다. */
-        private final Set<String> videoLevelChangeTypes = ConcurrentHashMap.newKeySet();
-
-        /**
-         * 윈도우에 축적된 변경 중 <b>하나라도</b> export 폴더 재생성을 동반했는가(A-2).
-         * 재생성이 섞여 있으면 산출물이 전량 바뀌므로 전 프레임을 실어야 한다 — OR 누적이 맞다.
-         * {@code volatile} — flush 스레드가 축적 스레드의 기록을 반드시 관측해야 한다.
-         */
-        private volatile boolean exportRegenerated;
-
-        void add(Long srcSn, String changeType, boolean exportRegeneratedChange) {
-            if (changeType == null) {
-                return;
-            }
-            if (exportRegeneratedChange) {
-                exportRegenerated = true;
-            }
-            if (srcSn == null) {
-                videoLevelChangeTypes.add(changeType);
-                return;
-            }
-            frameChanges.computeIfAbsent(srcSn, k -> ConcurrentHashMap.newKeySet()).add(changeType);
-        }
-
-        long getCreatedAt() {
-            return createdAt;
-        }
-
-        List<FrameChangeSet> toFrameChanges() {
-            List<FrameChangeSet> result = new ArrayList<>(frameChanges.size());
-            frameChanges.forEach((srcSn, types) -> result.add(new FrameChangeSet(srcSn, types)));
-            return List.copyOf(result);
-        }
-
-        Set<String> getVideoLevelChangeTypes() {
-            return Set.copyOf(videoLevelChangeTypes);
-        }
-
-        boolean isExportRegenerated() {
-            return exportRegenerated;
-        }
     }
 }

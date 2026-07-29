@@ -98,4 +98,42 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM LsDataAug a WHERE a.dataAugSn = :dataAugSn")
     Optional<LsDataAug> findByDataAugSnForUpdate(@Param("dataAugSn") Long dataAugSn);
+
+    /**
+     * 만료 스윕 후보 ② — <b>job 행이 한 건도 없는</b> 장기 PENDING 외부 증강 (적대검증 2차 MEDIUM-2).
+     *
+     * <h3>왜 job 축만으로는 부족한가</h3>
+     * <p>기존 스윕은 {@code LS_DATA_AUG_JOB} 만 훑는다. 그런데 위탁 0건 실패 롤업이 예외로 끝나면
+     * (DB 순단·커넥션 고갈·커밋 문맥 결함) <b>PENDING + job 0건</b>이 남는다. 이 고아 PENDING 을
+     * 깨울 주체는 어디에도 없다 — 어떤 회수기도 집지 못하는 영구 고착이다.
+     *
+     * <h3>★ 비식별 신고 구간({@code 'F'})도 회수 대상이다 (2026-07-29)</h3>
+     * <p>구 구현은 신고 구간을 "정책 보류(정상 대기)"로 보고 제외했다. 그 전제(신고 해제 이벤트가
+     * 보류분을 재개한다)는 폐기됐고 재개 리스너도 삭제됐으므로, 제외하면 깨울 주체 없는 PENDING 고착만
+     * 남는다. 신고와 무관하게 회수해 실패로 확정한다.
+     *
+     * <h3>정상 대기 오회수 방지 (fail-safe)</h3>
+     * <ul>
+     *   <li><b>위탁 직후 짧은 창</b>(job 선기록 전)은 {@code REG_DT < :cutoff}(무갱신 경과 임계, 최소 5분)로
+     *       배제한다 — 위탁은 수 초~수십 초라 임계에 걸리지 않는다.</li>
+     *   <li>해상도 파생({@code RESL_*})은 외부 위탁 대상이 아니므로 유형 allowlist 로 제외한다.</li>
+     * </ul>
+     *
+     * <p>중복 회수(2노드 Active-Active)는 별도 클레임 컬럼 없이 인계 경로의 잠금 + 멱등 앵커
+     * (증강 행 {@code FOR UPDATE} → non-PENDING skip)로 직렬화된다. 파라미터 바인딩만 사용(CWE-89).
+     */
+    @Query(value = """
+            SELECT a.DATA_AUG_SN
+              FROM LS_DATA_AUG a
+             WHERE a.AUG_PROC_STTS_CD = :pendingStatus
+               AND a.AUG_TYPE_CD IN (:externalAugTypes)
+               AND a.REG_DT < :cutoff
+               AND NOT EXISTS (SELECT 1 FROM LS_DATA_AUG_JOB j WHERE j.DATA_AUG_SN = a.DATA_AUG_SN)
+             ORDER BY a.REG_DT ASC
+             LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findOrphanPendingAugSns(@Param("pendingStatus") String pendingStatus,
+                                       @Param("externalAugTypes") Collection<String> externalAugTypes,
+                                       @Param("cutoff") java.time.LocalDateTime cutoff,
+                                       @Param("limit") int limit);
 }

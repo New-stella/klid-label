@@ -11,8 +11,6 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.label.entity.LsDeidentReport;
-import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -53,8 +51,8 @@ import static org.mockito.Mockito.when;
  * <p>통합 테스트({@code ResolutionDerivativeFlowIntegrationTest})는 A~C 를 러너로 관통하지만, Phase A 가
  * 부모 상태를 재스냅샷하므로 무잠금 I/O 창 이후에만 성립하는 Phase C 고유 게이트(H-1 stale 창)에는
  * 도달하지 못했다. 본 테스트는 스냅샷을 직접 주입해 Phase C 만의 재검증 분기를 커버한다:
- * ①부모 {@code deIdntfYn!='Y'} → CONFLICT ②stale 창(신고/경로 불일치) → CONFLICT
- * ③releaseReservedAug 가드 ④isAlreadyFinalized.
+ * ①부모 비식별 산출물 부재('N') → CONFLICT (신고 'F' 는 통과 — 2026-07-29 정책)
+ * ②stale 창(경로 불일치·mtime 교체) → CONFLICT ③releaseReservedAug 가드 ④isAlreadyFinalized.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -70,7 +68,6 @@ class ResolutionPersistServiceTest {
     @Mock LsDataAugLblMapRepository lblMapRepository;
     @Mock LsDataAugRepository augRepository;
     @Mock LsDeidentProcLogRepository deidentProcLogRepository;
-    @Mock LsDeidentReportRepository deidentReportRepository;
     @Mock DerivedMetaCopier derivedMetaCopier;
 
     ResolutionPersistService service;
@@ -80,8 +77,7 @@ class ResolutionPersistServiceTest {
     @BeforeEach
     void setup() {
         service = new ResolutionPersistService(videoRepository, srcRepository, lblRepository,
-                lblMapRepository, augRepository, deidentProcLogRepository, deidentReportRepository,
-                derivedMetaCopier);
+                lblMapRepository, augRepository, deidentProcLogRepository, derivedMetaCopier);
         lenient().when(derivedMetaCopier.copyMetaAndReviews(anyLong(), anyLong()))
                 .thenReturn(new DerivedMetaCopier.CopyResult(0, 0));
         ReflectionTestUtils.setField(service, "storageDeidentifiedPath", base.toString());
@@ -102,22 +98,23 @@ class ResolutionPersistServiceTest {
     private LsDataRaw parentMock(String deIdntfYn) {
         LsDataRaw parent = mock(LsDataRaw.class);
         when(parent.getDeIdntfYn()).thenReturn(deIdntfYn);
+        // 서비스 게이트는 엔티티 헬퍼로 판정한다('Y'|'F' = 비식별 산출물 존재).
+        when(parent.hasDeidentArtifact()).thenReturn("Y".equals(deIdntfYn) || "F".equals(deIdntfYn));
         when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
         return parent;
     }
 
     private void stubStaleGatePasses() {
-        // 신고 없음 + 최신 SUCCESS procLog 경로 == 스냅샷 경로 → stale 게이트 통과.
-        when(deidentReportRepository.findAllByDataRawSnOrderByReportDtDesc(PARENT)).thenReturn(List.of());
+        // 최신 SUCCESS procLog 경로 == 스냅샷 경로 → stale 게이트 통과.
         LsDeidentProcLog procLog = mock(LsDeidentProcLog.class);
         when(procLog.getDeIdntfFilePathNm()).thenReturn(deidVideoSrc().toString());
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(PARENT)).thenReturn(Optional.of(procLog));
     }
 
     @Test
-    @DisplayName("부모가_비식별미완료(F)면_PII최종게이트에서_CONFLICT로_abort한다")
-    void abortsWhenParentNotDeidentified() {
-        parentMock("F");
+    @DisplayName("부모_비식별산출물이_없으면(N)_최종게이트에서_CONFLICT로_abort한다")
+    void abortsWhenParentHasNoDeidentArtifact() {
+        parentMock("N");
 
         assertThatThrownBy(() -> service.persist(snap(Instant.now(), deidVideoSrc())))
                 .isInstanceOf(CustomException.class)
@@ -127,21 +124,24 @@ class ResolutionPersistServiceTest {
     }
 
     @Test
-    @DisplayName("stale창_capturedAt이후_비식별신고가_있으면_CONFLICT로_abort한다(H-1_②신고게이트)")
-    void abortsWhenReReportedAfterCapture() {
-        Instant capturedAt = Instant.now().minusSeconds(60);
-        parentMock("Y");
-        LsDeidentReport report = mock(LsDeidentReport.class);
-        when(report.getReportDt()).thenReturn(LocalDateTime.now()); // capturedAt 이후 신고
-        when(deidentReportRepository.findAllByDataRawSnOrderByReportDtDesc(PARENT))
-                .thenReturn(List.of(report));
+    @DisplayName("부모가_비식별신고구간(F)이어도_최종게이트를_통과해_파생을_확정한다")
+    void persistsEvenWhenParentUnderDeidentReport() {
+        // given — 부모가 신고 구간('F'). 파생영상은 비식별 신고 체계 바깥이므로 확정을 막지 않는다.
+        parentMock("F");
+        stubStaleGatePasses();
+        LsDataRaw newRaw = mock(LsDataRaw.class);
+        when(newRaw.getDeIdntfYn()).thenReturn("N");
+        when(newRaw.getRawFilePathNm())
+                .thenReturn(base.resolve("videos/resolution/" + PARENT + "/RESL_720P.mp4").toString());
+        when(newRaw.getRawSn()).thenReturn(NEW_RAW);
+        when(videoRepository.findByRawSnForUpdate(NEW_RAW)).thenReturn(Optional.of(newRaw));
 
-        assertThatThrownBy(() -> service.persist(snap(capturedAt, deidVideoSrc())))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
-        // 신고 게이트에서 막혀 CAS 재조회(newRaw)까지 가지 않는다.
-        verify(videoRepository, never()).findByRawSnForUpdate(NEW_RAW);
+        // when
+        ResolutionPersistService.Result result = service.persist(snap(Instant.now(), deidVideoSrc()));
+
+        // then — 정상 확정
+        assertThat(result).isEqualTo(ResolutionPersistService.Result.PERSISTED);
+        verify(newRaw).markDeidentified("Y");
     }
 
     @Test
@@ -149,7 +149,6 @@ class ResolutionPersistServiceTest {
     void abortsWhenLatestDeidentPathChanged() {
         Instant capturedAt = Instant.now();
         parentMock("Y");
-        when(deidentReportRepository.findAllByDataRawSnOrderByReportDtDesc(PARENT)).thenReturn(List.of());
         LsDeidentProcLog procLog = mock(LsDeidentProcLog.class);
         // 재비식별로 신규 경로 산출 — 스냅샷 경로와 불일치.
         when(procLog.getDeIdntfFilePathNm()).thenReturn(base.resolve("videos/RE-deid.mp4").toString());
@@ -252,7 +251,7 @@ class ResolutionPersistServiceTest {
     @Test
     @DisplayName("확정게이트3_스냅샷_이후_비식별파일이_mtime으로_교체됐으면_CONFLICT로_abort한다(E-29)")
     void abortsWhenDeidentFileReplacedByMtime() throws Exception {
-        // given — 신고 없음 + procLog 경로 동일(①②게이트 통과) 이지만 실제 파일이 capturedAt 이후 갱신됨.
+        // given — procLog 경로 동일(①게이트 통과) 이지만 실제 파일이 capturedAt 이후 갱신됨(②mtime 게이트).
         Path deidFile = base.resolve("videos/deid.mp4");
         java.nio.file.Files.createDirectories(deidFile.getParent());
         java.nio.file.Files.writeString(deidFile, "replaced-deid-bytes");

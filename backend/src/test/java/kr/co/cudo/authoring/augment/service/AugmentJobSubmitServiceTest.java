@@ -303,7 +303,6 @@ class AugmentJobSubmitServiceTest {
 
         // then — 한 건도 나가지 않는다(선기록이 위탁보다 <전부> 앞서므로 노출 자체가 없다).
         assertThat(outcome.accepted()).isZero();
-        assertThat(outcome.withheld()).isFalse();
         assertThat(outcome.requiresFailureRollup())
                 .as("콜백이 오지 않으므로 호출부가 즉시 실패 롤업해야 한다(PENDING 고착 금지)")
                 .isTrue();
@@ -369,12 +368,13 @@ class AugmentJobSubmitServiceTest {
         // when
         AugmentJobSubmitService.SubmitOutcome outcome = service.submit(event());
 
-        // then — 보류(≠실패): 위탁 0건이지만 terminal 실패 행을 남기지 않아 해소 시 재개될 수 있다.
-        assertThat(outcome.withheld()).isTrue();
+        // then — 거부(2026-07-29 정책): 위탁 0건 + 사유 기록 → 호출부가 실패 롤업한다.
+        //         구 "보류 후 해소 시 재개" 는 재개 배선 철회로 폐기(트리거 없는 PENDING 고착 방지).
         assertThat(outcome.accepted()).isZero();
-        assertThat(outcome.requiresFailureRollup()).isFalse();
+        assertThat(outcome.requiresFailureRollup()).isTrue();
         verify(jobRecorder, never()).recordIssued(anyLong(), anyInt(), anyString(), anyList());
-        verify(jobRecorder, never()).recordRejected(anyLong(), anyString(), anyString(), anyString());
+        verify(jobRecorder).recordRejected(anyLong(), anyString(),
+                eq(LsDataAugJob.ERR_DEID_REPORT_OPEN), anyString());
     }
 
     @Test
@@ -405,7 +405,6 @@ class AugmentJobSubmitServiceTest {
 
         // then — 남은 2개 청크는 나가지 않고, 부분 프레임셋 확정을 막기 위해 <이미 선기록된> 남은
         //         job 행을 terminal FAILED 로 종결한다(비종결로 두면 롤업이 영원히 보류된다).
-        assertThat(outcome.withheld()).isFalse();
         assertThat(outcome.accepted()).isEqualTo(1);
         verify(externalClient, times(1)).requestAugment(any());
         verify(jobRecorder, times(2))
@@ -420,19 +419,17 @@ class AugmentJobSubmitServiceTest {
 
         AugmentJobSubmitService.SubmitOutcome outcome = service.submit(event());
 
-        assertThat(outcome.withheld()).isFalse();
         assertThat(outcome.accepted()).isEqualTo(3);
         verify(externalClient, times(3)).requestAugment(any());
     }
 
     @Test
-    @DisplayName("위탁_0건_은_실패롤업_대상이고_보류는_아니다")
+    @DisplayName("위탁_0건_은_실패롤업_대상이다")
     void zeroAcceptedRequiresFailureRollup() {
         given(srcRepository.findDeidFramePathsByRawSn(700L)).willReturn(List.<Object[]>of());
 
         AugmentJobSubmitService.SubmitOutcome outcome = service.submit(event());
 
         assertThat(outcome.requiresFailureRollup()).isTrue();
-        assertThat(outcome.withheld()).isFalse();
     }
 }

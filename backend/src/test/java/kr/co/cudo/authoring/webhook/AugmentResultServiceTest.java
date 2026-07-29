@@ -10,6 +10,8 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.webhook.service.AugmentApplyResult;
+import kr.co.cudo.authoring.webhook.service.AugmentJobIdOwnerLookup;
 import kr.co.cudo.authoring.webhook.service.AugmentOutcome;
 import kr.co.cudo.authoring.webhook.runner.AsyncAugmentFrameRunner;
 import kr.co.cudo.authoring.webhook.service.AugmentResultService;
@@ -56,6 +58,13 @@ class AugmentResultServiceTest {
     @Mock VideoRepository videoRepository;
     @Mock LsDataSrcRepository srcRepository;
     @Mock AsyncAugmentFrameRunner asyncAugmentFrameRunner;
+    /** E-ISSUE-05 — UNIQUE 위반 이후 소유자 판별은 <b>독립 트랜잭션</b>에서만 한다(PG 25P02 회피). */
+    @Mock AugmentJobIdOwnerLookup jobIdOwnerLookup;
+    /**
+     * 조상 체인 신고 판정 — 기본 stub 은 "신고 없음"(false)이라 기존 케이스는 부모 행의
+     * {@code deIdntfYn} 판정만으로 종전과 동일하게 동작한다.
+     */
+    @Mock kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
 
     /** 파생 비디오(비식별 사본) 출력 base — 산출 경로 기대값 계산에 함께 쓴다. */
     private static final String DEID_BASE = "/storage/deidentified";
@@ -83,7 +92,10 @@ class AugmentResultServiceTest {
     @BeforeEach
     void setup() {
         service = new AugmentResultService(augRepository, videoRepository, srcRepository,
-                asyncAugmentFrameRunner, allowedStorageResolver());
+                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup);
+        // 기본값: 해당 job_id 를 선점한 다른 증강이 없다.
+        when(augRepository.findByExternalJobId(anyString())).thenReturn(Optional.empty());
+        when(jobIdOwnerLookup.findOwnerDataAugSn(anyString())).thenReturn(Optional.empty());
         org.springframework.test.util.ReflectionTestUtils.setField(
                 service, "storageDeidentifiedPath", DEID_BASE);
         when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
@@ -119,21 +131,33 @@ class AugmentResultServiceTest {
     @Test
     @DisplayName("AugmentResultService_적재_시_LS_DATA_AUG_상태_ACCEPTED_갱신")
     void appliesAcceptedStatus() throws Exception {
-        LsDataAug aug = newAug(10L, "WINTER", LsDataAug.STTS_PENDING);
+        LsDataRaw parentRaw = newRaw(110L);
+        LsDataSrc originSrc = newSrc(210L, 110L, 0);
+        LsDataAug aug = newAugWithSrc(10L, 210L, "WINTER");
         when(augRepository.findByDataAugSnForUpdate(10L)).thenReturn(Optional.of(aug));
+        when(srcRepository.findById(210L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findByRawSnForUpdate(110L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(110L)).thenReturn(List.of(originSrc));
 
         AugmentOutcome req = new AugmentOutcome(
                 10L, "aug_010", true, "/storage/augment/10.mp4");
 
-        boolean applied = service.handle(req);
+        boolean applied = service.handle(req).applied();
 
         assertThat(applied).isTrue();
         assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
         assertThat(aug.getExternalJobId()).isEqualTo("aug_010");
+        assertThat(aug.getDeadLetterAt())
+                .as("성공 인계에는 dead-letter 를 찍지 않는다")
+                .isNull();
     }
 
+    /**
+     * E-ISSUE-06 회귀 가드 — 실패 인계가 <b>배선 경로를 통해</b> dead-letter 를 찍는지 본다
+     * (픽스처가 {@code markDeadLetter()} 를 직접 부르는 위양성이 아니다).
+     */
     @Test
-    @DisplayName("AugmentResultService_FAILED_status_시_LS_DATA_AUG_REJECTED")
+    @DisplayName("AugmentResultService_FAILED_status_시_REJECTED_와_DEAD_LETTER_AT_기록")
     void failedStatus_mapsToRejected() throws Exception {
         LsDataAug aug = newAug(11L, "NIGHT", LsDataAug.STTS_PENDING);
         when(augRepository.findByDataAugSnForUpdate(11L)).thenReturn(Optional.of(aug));
@@ -141,10 +165,14 @@ class AugmentResultServiceTest {
         AugmentOutcome req = new AugmentOutcome(
                 11L, "aug_011", false, null);
 
-        boolean applied = service.handle(req);
+        boolean applied = service.handle(req).applied();
 
         assertThat(applied).isTrue();
         assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
+        assertThat(aug.getDeadLetterAt())
+                .as("dead-letter 가 없으면 집계가 이 실패를 COMPLETED 로 오분류한다")
+                .isNotNull();
+        assertThat(aug.getRetryCount()).isEqualTo(1);
     }
 
     @Test
@@ -156,8 +184,8 @@ class AugmentResultServiceTest {
         AugmentOutcome req = new AugmentOutcome(
                 12L, "aug_012", true, null);
 
-        assertThat(service.handle(req)).isTrue();
-        assertThat(service.handle(req)).isFalse();
+        assertThat(service.handle(req).applied()).isTrue();
+        assertThat(service.handle(req).applied()).isFalse();
     }
 
     @Test
@@ -176,31 +204,87 @@ class AugmentResultServiceTest {
         AugmentOutcome req = new AugmentOutcome(
                 60L, "aug_060", true, "/storage/augment/60.mp4");
 
-        assertThat(service.handle(req)).isTrue();
-        assertThat(service.handle(req)).isFalse();
+        assertThat(service.handle(req).applied()).isTrue();
+        assertThat(service.handle(req).applied()).isFalse();
 
         verify(videoRepository, times(1)).save(any(LsDataRaw.class));
         // 신규 영상 1회만 생성 → 프레임 재추출 러너도 1회만 트리거
         verify(asyncAugmentFrameRunner, times(1)).runAsync(anyLong(), eq(60L));
     }
 
+    // ─── E-ISSUE-05: 재수신(200 no-op) vs 진짜 선점 충돌(409) ───
+
     /**
-     * DEV_FIX LOW — otsd_job_id 선점 충돌은 <b>409 로 종결</b>한다(구 "재조회 후 멱등 흡수" 폐기).
-     *
-     * <p>본 서비스는 {@code GenAiCallbackService.handle} 트랜잭션에 조인돼 실행된다. UNIQUE 위반은
-     * 그 트랜잭션을 rollback-only 로 만들므로 여기서 정상 반환(흡수)하면 컨트롤러가 200 을 만들고
-     * 커밋 단계에서 {@code UnexpectedRollbackException}(500) 이 터진다 — 응답과 실제 결과가 어긋난다.
-     * 게다가 PostgreSQL 은 위반 이후 같은 트랜잭션의 후속 조회를 거부(25P02)하므로 승자 재조회 자체가
-     * 성립하지 않는다. 재전송 멱등은 1차 앵커(non-PENDING skip)가 담당한다.
+     * 재수신은 <b>정상 시나리오</b>다 — 외부/목업은 웹훅을 최대 2회 재시도한다. 같은 증강이 같은
+     * job_id 로 다시 오면 상태를 바꾸지 않고 흡수해야 하며(200), 오류(409)로 회신하면 외부가 인계
+     * 실패로 오해한다.
      */
     @Test
-    @DisplayName("동시_콜백_otsd_job_id_선점_충돌은_409로_종결된다")
-    void concurrentWebhookRace_endsAsConflict() throws Exception {
+    @DisplayName("같은_증강의_콜백_재수신은_200_no_op_이다")
+    void sameAugmentRedelivery_isAbsorbedAsNoOp() throws Exception {
+        LsDataRaw parentRaw = newRaw(160L);
+        LsDataSrc originSrc = newSrc(260L, 160L, 0);
+        LsDataAug aug = newAugWithSrc(70L, 260L, "WINTER");
+        when(augRepository.findByDataAugSnForUpdate(70L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(260L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findByRawSnForUpdate(160L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(160L)).thenReturn(List.of(originSrc));
+
+        AugmentOutcome req = new AugmentOutcome(70L, "aug_070", true, "/storage/augment/70.mp4");
+        assertThat(service.handle(req)).isEqualTo(AugmentApplyResult.APPLIED);
+
+        // 재수신 — 이제 대상 행 자신이 그 job_id 를 보유한다(자기 소유는 충돌이 아니다).
+        when(augRepository.findByExternalJobId("aug_070")).thenReturn(Optional.of(aug));
+
+        AugmentApplyResult second = service.handle(req);
+
+        assertThat(second).isEqualTo(AugmentApplyResult.DUPLICATE);
+        assertThat(second.applied()).isFalse();
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        verify(videoRepository, times(1)).save(any(LsDataRaw.class));
+    }
+
+    /**
+     * 진짜 충돌 — <b>다른 증강</b>이 이미 그 job_id 를 보유한 오배송이다. 이때만 409 다.
+     *
+     * <p>판별은 <b>쓰기 이전</b> 선점 검사로 한다 — UNIQUE 위반을 일으킨 뒤 판별하려 하면 트랜잭션이
+     * abort(PG 25P02) 되어 재조회 자체가 불가능하다.
+     */
+    @Test
+    @DisplayName("다른_증강이_같은_job_id_를_선점하면_409")
+    void otherAugmentOwnsJobId_endsAsConflict() throws Exception {
+        LsDataAug target = newAug(71L, "WINTER", LsDataAug.STTS_PENDING);
+        LsDataAug owner = newAug(72L, "WINTER", LsDataAug.STTS_ACCEPTED);
+        when(augRepository.findByDataAugSnForUpdate(71L)).thenReturn(Optional.of(target));
+        when(augRepository.findByExternalJobId("aug_071")).thenReturn(Optional.of(owner));
+
+        AugmentOutcome req = new AugmentOutcome(71L, "aug_071", true, "/storage/augment/71.mp4");
+
+        assertThatThrownBy(() -> service.handle(req))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        // 쓰기 이전에 종결한다 — 트랜잭션을 오염(rollback-only)시키지 않는다.
+        verify(augRepository, never()).save(any(LsDataAug.class));
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        assertThat(target.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
+    }
+
+    /**
+     * 선점 검사를 통과한 뒤에도 <b>동시</b> 다른 트랜잭션이 먼저 커밋하면 UNIQUE 위반이 난다. 이때
+     * 남은 잔여 경로에서 <b>같은 트랜잭션 재조회를 절대 하지 않는다</b>(PG 25P02 회귀 가드) — 소유자
+     * 판별은 REQUIRES_NEW 독립 트랜잭션({@link AugmentJobIdOwnerLookup})에서만 한다.
+     */
+    @Test
+    @DisplayName("UNIQUE_충돌_후에도_같은_트랜잭션의_후속_쿼리가_실패하지_않는다")
+    void uniqueViolation_doesNotRequeryInPoisonedTransaction() throws Exception {
         LsDataAug target = newAug(50L, "WINTER", LsDataAug.STTS_PENDING);
         when(augRepository.findByDataAugSnForUpdate(50L)).thenReturn(Optional.of(target));
-
         when(augRepository.save(any(LsDataAug.class)))
                 .thenThrow(new DataIntegrityViolationException("UNIQUE violation"));
+        when(jobIdOwnerLookup.findOwnerDataAugSn("aug_050")).thenReturn(Optional.of(51L));
 
         AugmentOutcome req = new AugmentOutcome(
                 50L, "aug_050", true, "/storage/augment/50.mp4");
@@ -210,8 +294,9 @@ class AugmentResultServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        // 롤백 트랜잭션에서 후속 조회를 시도하지 않는다(PG 25P02 회피).
-        verify(augRepository, never()).findByExternalJobId(anyString());
+        // 조회는 쓰기 이전 선점 검사 1회뿐 — 위반 이후 재조회는 독립 트랜잭션 컴포넌트로만 나간다.
+        verify(augRepository, times(1)).findByExternalJobId("aug_050");
+        verify(jobIdOwnerLookup, times(1)).findOwnerDataAugSn("aug_050");
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(asyncAugmentFrameRunner, never()).runAsync(anyLong(), anyLong());
     }
@@ -265,7 +350,7 @@ class AugmentResultServiceTest {
         AugmentOutcome req = new AugmentOutcome(
                 20L, "aug_020", true, "/storage/augment/winter.mp4");
 
-        boolean applied = service.handle(req);
+        boolean applied = service.handle(req).applied();
 
         assertThat(applied).isTrue();
         ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
@@ -334,7 +419,7 @@ class AugmentResultServiceTest {
                 75L, "aug_075", true, "/storage/augment/75.mp4");
 
         // when
-        boolean applied = service.handle(req);
+        boolean applied = service.handle(req).applied();
 
         // then
         assertThat(applied).isTrue();
@@ -364,7 +449,7 @@ class AugmentResultServiceTest {
                 77L, "aug_077", true, " ");
 
         // when
-        boolean applied = service.handle(req);
+        boolean applied = service.handle(req).applied();
 
         // then — 부모 원본 경로는 절대 실리지 않고(CWE-359), 파생 자신의 비식별 사본 경로가 적재된다.
         assertThat(applied).isTrue();
@@ -403,9 +488,15 @@ class AugmentResultServiceTest {
         verify(videoRepository, never()).findById(any());
     }
 
+    /**
+     * ★ 2026-07-29 확정 회귀 가드 — 부모가 <b>신고 구간</b>({@code 'F'})이어도 파생을 생성한다.
+     *
+     * <p>"파생영상은 비식별 신고 체계 바깥" 정책과 대칭이다. 신고가 막는 것은 외부 위탁뿐이며,
+     * 여기서 보류하면 재개 트리거가 없어 PENDING 영구 고착이 된다(구 {@code WITHHELD_*} 폐기).
+     */
     @Test
-    @DisplayName("부모_deIdntfYn_F면_증강본_생성보류_영상과_프레임러너_미트리거")
-    void parentDeidentReported_blocksAugmentedVideo() throws Exception {
+    @DisplayName("부모가_비식별_신고_구간이어도_증강_콜백은_파생영상을_생성한다")
+    void reportedParent_stillCreatesDerivative() throws Exception {
         LsDataRaw parentRaw = newNonDeidentRaw(140L, "F");
         LsDataSrc originSrc = newSrc(710L, 140L, 0);
         LsDataAug aug = newAugWithSrc(71L, 710L, "NIGHT");
@@ -414,13 +505,48 @@ class AugmentResultServiceTest {
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
         when(srcRepository.findById(710L)).thenReturn(Optional.of(originSrc));
         when(videoRepository.findByRawSnForUpdate(140L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(140L)).thenReturn(java.util.List.of(originSrc));
+        when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
+            LsDataRaw raw = inv.getArgument(0);
+            setField(raw, "rawSn", 1400L);
+            return raw;
+        });
 
-        AugmentOutcome req = new AugmentOutcome(
-                71L, "aug_071", true, "/storage/augment/71.mp4");
+        AugmentApplyResult result = service.handle(
+                new AugmentOutcome(71L, "aug_071", true, "/storage/augment/71.mp4"));
 
-        boolean applied = service.handle(req);
+        assertThat(result).isEqualTo(AugmentApplyResult.APPLIED);
+        assertThat(result.applied()).isTrue();
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        assertThat(aug.getDeadLetterAt()).isNull();
+        verify(videoRepository).save(any(LsDataRaw.class));
+    }
 
-        assertThat(applied).isTrue(); // 콜백 자체는 처리(상태 전이)됨
+    /**
+     * 부모가 <b>비식별 미완료</b>({@code 'N'})면 복사할 비식별 영상 파일이 없어 파생 생성이 물리적으로
+     * 불가능하다. 재개 트리거가 없으므로 보류가 아니라 <b>실패로 확정</b>해 집계에 드러낸다.
+     */
+    @Test
+    @DisplayName("부모가_비식별_미완료면_보류가_아니라_REJECTED_로_확정된다")
+    void notDeidentifiedParent_failsInsteadOfWithholding() throws Exception {
+        LsDataRaw parentRaw = newNonDeidentRaw(141L, "N");
+        LsDataSrc originSrc = newSrc(711L, 141L, 0);
+        LsDataAug aug = newAugWithSrc(79L, 711L, "NIGHT");
+
+        when(augRepository.findByDataAugSnForUpdate(79L)).thenReturn(Optional.of(aug));
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(srcRepository.findById(711L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findByRawSnForUpdate(141L)).thenReturn(Optional.of(parentRaw));
+
+        AugmentApplyResult result = service.handle(
+                new AugmentOutcome(79L, "aug_079", true, null));
+
+        assertThat(result).isEqualTo(AugmentApplyResult.APPLIED);
+        assertThat(result.reasonCode())
+                .as("정책 보류 값이 폐기되어 사유 코드는 노출되지 않는다")
+                .isNull();
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
+        assertThat(aug.isProcessingFailed()).isTrue();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(asyncAugmentFrameRunner, never()).runAsync(anyLong(), anyLong());
     }
@@ -476,8 +602,12 @@ class AugmentResultServiceTest {
         verify(asyncAugmentFrameRunner, times(1)).runAsync(anyLong(), eq(78L));
     }
 
+    /**
+     * 부모 프레임 0건은 <b>재개 트리거가 없는 데이터 이상</b>이다. 보류로 두면 아무도 깨우지 못하는
+     * PENDING 고착이 되므로 실패로 확정해 집계(FAILED)에 드러낸다(Phase 8-B).
+     */
     @Test
-    @DisplayName("부모_프레임이_없으면_증강본_생성보류_프레임러너_미트리거")
+    @DisplayName("부모_프레임이_없으면_실패로_확정되고_영상과_프레임러너_미트리거")
     void parentNoFrames_blocksAugmentedVideo() throws Exception {
         LsDataRaw parentRaw = newRaw(170L);
         LsDataSrc originSrc = newSrc(730L, 170L, 0);
@@ -494,6 +624,8 @@ class AugmentResultServiceTest {
 
         service.handle(req);
 
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
+        assertThat(aug.getDeadLetterAt()).isNotNull();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(asyncAugmentFrameRunner, never()).runAsync(anyLong(), anyLong());
     }
@@ -514,7 +646,7 @@ class AugmentResultServiceTest {
     }
 
     @Test
-    @DisplayName("Phase11_증강_SUCCESS_originSrc_미존재_시_신규영상_미생성")
+    @DisplayName("Phase11_증강_SUCCESS_originSrc_미존재_시_실패확정되고_신규영상_미생성")
     void successButOriginSrcNotFound_skipsVideoCreation() throws Exception {
         LsDataAug aug = newAugWithSrc(30L, 9999L, "WINTER");
 
@@ -525,16 +657,19 @@ class AugmentResultServiceTest {
         AugmentOutcome req = new AugmentOutcome(
                 30L, "aug_030", true, "/storage/augment/winter.mp4");
 
-        boolean applied = service.handle(req);
+        boolean applied = service.handle(req).applied();
 
         assertThat(applied).isTrue();
-        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        // 구 구현은 ACCEPTED 로 종결해 "영상 없는 성공" 을 만들었다. 재개 트리거가 없는 데이터 이상이므로
+        // 실패로 확정해 집계(FAILED)에 드러낸다.
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
+        assertThat(aug.getDeadLetterAt()).isNotNull();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(asyncAugmentFrameRunner, never()).runAsync(anyLong(), anyLong());
     }
 
     @Test
-    @DisplayName("Phase11_증강_SUCCESS_parentRaw_미존재_시_신규영상_미생성")
+    @DisplayName("Phase11_증강_SUCCESS_parentRaw_미존재_시_실패확정되고_신규영상_미생성")
     void successButParentRawNotFound_skipsVideoCreation() throws Exception {
         LsDataSrc originSrc = newSrc(400L, 8888L, 0);
         LsDataAug aug = newAugWithSrc(31L, 400L, "NIGHT");
@@ -547,10 +682,11 @@ class AugmentResultServiceTest {
         AugmentOutcome req = new AugmentOutcome(
                 31L, "aug_031", true, "/storage/augment/night.mp4");
 
-        boolean applied = service.handle(req);
+        boolean applied = service.handle(req).applied();
 
         assertThat(applied).isTrue();
-        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
+        assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
+        assertThat(aug.getDeadLetterAt()).isNotNull();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(asyncAugmentFrameRunner, never()).runAsync(anyLong(), anyLong());
     }
@@ -571,8 +707,8 @@ class AugmentResultServiceTest {
         AugmentOutcome req = new AugmentOutcome(
                 76L, "aug_076", true, "/storage/augment/76.mp4");
 
-        assertThat(service.handle(req)).isTrue();
-        assertThat(service.handle(req)).isFalse(); // 종결 행 재전송 → 멱등 스킵
+        assertThat(service.handle(req).applied()).isTrue();
+        assertThat(service.handle(req).applied()).isFalse(); // 종결 행 재전송 → 멱등 스킵
 
         verify(asyncAugmentFrameRunner, times(1)).runAsync(anyLong(), anyLong());
     }

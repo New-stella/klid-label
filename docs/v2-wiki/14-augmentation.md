@@ -48,6 +48,7 @@
 - **인증 = 무서명 3계층**: ①IP allowlist(`webhook.genai.allowed-ip-cidrs`, **미설정이면 전면 차단**) ②rate limit + 본문 1MB 상한 ③`request_id` 발급 게이트(`LS_DATA_AUG_JOB.IDMP_KEY` 에 있는 키만 처리). 구 계약(`/v1/aug/callback` + HMAC 서명)은 외부 실계약과 맞지 않아 제거됐다.
 - **롤업 원자성**: job 행을 갱신하기 **전에** `LS_DATA_AUG` 를 `FOR UPDATE` 로 잠근다. 순서를 뒤집으면 동시 콜백 두 건이 서로의 미커밋 갱신을 못 봐서 롤업이 통째로 유실된다. 중복 확정은 `AugmentResultService` 의 PENDING 앵커가 한 번 더 막는다.
 - **멱등**: 외부는 전송 실패 시 재시도하므로 같은 페이로드 중복 수신이 정상이다 — 종결된 job 의 재전송은 200 + `applied=false`.
+- **재수신(200) vs 진짜 충돌(409) 구분**: 증강 인계(`AugmentResultService`)에서 `otsd_job_id` 소유자를 **쓰기 이전에** 확인한다. 같은 증강의 재수신은 200(`DUPLICATE`, `applied=false`)으로 흡수하고, **다른 증강**이 그 job_id 를 보유한 오배송만 409 다. 충돌을 UNIQUE 위반으로 판정하면 PostgreSQL 이 트랜잭션을 abort(25P02) 시켜 이후 모든 쿼리가 거부되므로(=500), 위반 이후의 소유자 재조회는 **REQUIRES_NEW 독립 트랜잭션**(`AugmentJobIdOwnerLookup`)에서만 한다. 회귀 가드: `AugmentCallbackIdempotencyIT`(실 DB — 재수신 no-op·오배송 409·동시 2건 1회 반영·호출자 트랜잭션 무오염).
 - **고아 키 방지**: ledger 등록·외부 위탁은 요청 트랜잭션 안이 아니라 **AFTER_COMMIT** 에서만 수행 — 요청 롤백 시 aug 행도 멱등 키도 남지 않는다.
 
 ## 14.2 증강 = 새 영상
@@ -81,6 +82,10 @@
 - 파생영상(RAW) 본체는 증강과 동일하게 **PENDING → 배정 → 검수** 파이프라인에 진입하고, 검수 승인 시 관제에 **별도 완료 통지(TASK_COMPLETED)** 가 발송된다(이 검수는 파생 영상 라벨 검수이며, 위 aug 행 상태와 무관)
 - **화면: 증강 요청 화면(SCR-AUG-001)의 통합 단일 선택 UI에 흡수** — '해상도 변경' 카드 선택 시 타겟 해상도(1080P/720P/480P, 미지정 시 3종 전체) 선택 UI가 노출되고, 실행하면 `POST /v1/videos/{rawSn}/resolution` 으로 직접 호출되어 응답 `{derivatives:[{rawSn,goalResCd,targetW,targetH,status}]}` 목록이 화면에 inline 표시된다(네비게이션 없음). 1건 이상 생성 성공=201 / 전부 실패=500 / 대상 프리셋 전부 스킵=400. 증강 3종 실행은 잡 등록 후 결과화면(SC-023)으로 이동한다. (구 '영상 상세 화면 독립 해상도 export 섹션'은 폐지 — 컴포넌트 정리됨)
 - **결과 조회(`GET /v1/augments/{jobId}/result`, SC-023)는 해상도 파생의 프레임 비교쌍을 반환**한다 — 좌=원본 비식별 프레임 / 우=파생 프레임(둘 다 `/v1/frames/{srcSn}/deid-image` 경로만 노출, 스토리지 경로 미노출), `(RAW_SN, FRM_NO)` 동등 조인 + 기본 12장 페이징. **외부 위탁 증강(WINTER/NIGHT/RAIN)은 여전히 빈 배열**(외부 SFR-07 연동 이후 제공). 파생↔프리셋 판별은 `VMS_CLIP_ID` 를 **중앙 파서 `video/util/AugTypeParser` 단일 원천**으로 해석하므로 실데이터 포맷 드리프트(`_RESL_RESL_480P_`·구형 `_RES_RES_480P_`)도 증강 이력 화면과 동일하게 인식된다. 코드: `augment/service/AugmentResultViewService`
+- **★파생 생성은 원본 비식별 신고와 무관하다 (2026-07-29 확정, 구속)** — 증강 파생과 동일 정책이다. 해상도 파생은 **외부 위탁이 전혀 없는 내부 ffmpeg/Java2D 리스케일**뿐이라 신고 구간에 생성해도 외부 유출 경로가 열리지 않는다.
+  - 부모 게이트 3곳(`ResolutionReservationPersister` 예약 · `ResolutionSnapshotService` Phase A · `ResolutionPersistService` Phase C)은 **`DE_IDNTF_YN='N'`(비식별 미수행)·null 만 차단**하고 `'F'`(신고)는 통과시킨다. 판정 단일 원천은 `LsDataRaw.hasDeidentArtifact()`(`'Y'`|`'F'`)이며 **증강 경로(`AugmentResultService.evaluateParentGate`)도 같은 헬퍼를 쓴다**.
+  - `'F'` 는 의미가 둘이다 — ①**비식별 누락 신고**(비식별본은 디스크에 존재, 마스킹만 실패) ②**비식별 API 실패**(산출물 자체가 없음). 플래그만으로 구분되지 않으므로 **산출물 실재 검증이 fail-closed 로 뒤를 받친다**: Phase A 는 최신 SUCCESS 비식별 procLog 경로 부재 → `NOT_FOUND`, 프레임 비식별 경로 부재 → `CONFLICT`(`deidFrameSourceStrict`), Phase B 는 비식별 영상 파일 부재 → `NOT_FOUND`. **원본(비-비식별) 경로 폴백은 어디에도 두지 않는다**(PII 복제 차단).
+  - **stale 창 게이트(Phase C)는 존치하되 판정축이 신고가 아니라 복사 원자성**이다 — 구 조건 ①`capturedAt` 이후 신고 이력은 **제거**하고, ②최신 SUCCESS 비식별 procLog 경로 불일치 ③(파일 존재 시) mtime > `capturedAt` 두 조건만 남긴다. 스냅샷 이후 부모 비식별본이 교체되면 프레임별로 다른 버전이 섞인 산출물이 나오므로 abort 한다(러너가 cleanup + FAILED 전이).
 - 코드: BE `video/service/{VideoResolutionService,ResolutionDerivativeService,ResolutionReservationPersister,ResolutionDerivativeFinalizer}`, 적재 대상 `LS_DATA_AUG`(AUG_TYPE_CD=RESL_*)+`LS_DATA_AUG_LBL_MAP`, 인덱스 `UK_LS_DATA_AUG_RESL`(V124), 구 테이블 DROP(V125). FE `pages/AugmentRequestPage`(submit 분기) + `features/video/hooks/useResolutionDerivative`
 
 ## 14.4 활용 여부 검수 (RQ-SFR-07-03, UC-010)
@@ -106,7 +111,7 @@ PENDING 증강 영상 (SCR-AUG-002)
 1. **처리 종류 선택** — 카드 4개(겨울/야간/우천/해상도 변경)를 `radiogroup`(로빙 tabindex·화살표 탐색, WCAG 4.1.2)으로 하나만 선택. '해상도 변경' 선택 시에만 타겟 해상도(1080P/720P/480P) 선택 UI 노출. 종류를 바꾸면 타겟 해상도·해상도 결과가 초기화된다.
 2. **대상 영상 선택** — 검수 완료(`DATA_STTS_CD=COMPLETED` + `RVW_STTS_CD=APPROVED`) 영상만 라디오로 1건 선택(검색·이벤트 필터·페이징, 페이지 이동 후에도 선택 보존).
 3. **실행(submit) 시나리오 분기**:
-   - 증강 3종(`isAugmentKind`) → `POST /v1/augments/request`(videoIds·types 길이 1 배열) → 성공 시 토스트 + 결과화면(`/augment/result/{jobId}`) 네비게이션.
+   - 증강 3종(`isAugmentKind`) → `POST /v1/augments/request`(videoIds·types 길이 1 배열) → 성공 시 토스트 + 결과화면(`/augment/result/{jobId}`) 네비게이션. **단건 계약이 정본**이라 2건 이상은 400(`@Size(max=1)`, 서비스도 동일 규칙 fail-closed 재확인)이고, 응답은 요청 개수 echo 가 아니라 **실제 생성 수(`createdCount`)** 를 담는다. **생성 0건은 성공이 아니다** — 프레임 미추출 영상은 412(`PRECONDITION_FAILED` + `data.skippedVideoIds`)로 거부한다(구 동작: 조용히 스킵 후 200 = silent no-op).
    - 해상도 변경 → `POST /v1/videos/{rawSn}/resolution`(presets 전달, 선택) → 성공 시 프리셋별 생성 결과 목록(`derivatives: [{rawSn, goalResCd, targetW, targetH, status}]`) inline 표시(업스케일 포함 정상 처리). 미검수/증강본/전부 스킵은 BE 400, 동일 (원본,해상도) 중복은 409, 전부 실패는 500 → 에러 메시지 노출.
 4. **실행 버튼 비활성 조건**: 종류 미선택 · 영상 미선택 · (해상도 종류인데 타겟 해상도 미선택) · 처리 중(`isPending`).
 5. **보안**: kind/preset 은 allowlist 상수(`PROCESS_KINDS`/`RESOLUTION_PRESETS`)로만 좁혀 임의 문자열 분기 차단, videoId 는 number, 라우트는 REVIEWER 가드.

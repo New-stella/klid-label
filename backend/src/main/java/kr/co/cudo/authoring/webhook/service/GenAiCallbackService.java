@@ -71,7 +71,8 @@ public class GenAiCallbackService {
     /** 위탁 시점에 못박은 순서↔프레임 대응 — 여기에 산출 경로를 되붙인다(Phase 7-D). */
     private final LsDataAugJobFileRepository jobFileRepository;
     private final LsDataAugRepository augRepository;
-    private final AugmentResultService augmentResultService;
+    /** 전 job 종결 판정 + 증강 1건 확정 — 만료 스윕과 <b>같은 규칙</b>을 쓰기 위한 단일 원천. */
+    private final AugmentJobRollup rollup;
     /** 외부가 준 {@code output_file_path} 가 <b>읽기</b> 허용 루트 하위인지 확인한다(CWE-22). */
     private final VideoArtifactRootResolver artifactRootResolver;
     /** 거부 사유 집계 — 상태를 바꾸지 않는 400 이 조용히 고착되는 것을 운영이 감지할 근거. */
@@ -80,10 +81,20 @@ public class GenAiCallbackService {
     /**
      * 웹훅 1건 처리.
      *
-     * @return true = 상태를 갱신함 / false = 멱등 흡수(이미 종결된 job 의 재전송)
+     * @return {@link AugmentApplyResult#APPLIED} = 상태를 갱신함 /
+     *         {@link AugmentApplyResult#DUPLICATE} = 멱등 흡수(이미 종결된 job 의 재전송) /
+     *         {@link AugmentApplyResult#DEFERRED} = job 은 갱신했으나 비종결 job 이 남아 롤업 보류
+     *         (E-ISSUE-11 — 응답 {@code applied:false} 로 회신해야 외부가 "정상 인계" 로 오해하지 않는다).
+     *         정책 보류({@code WITHHELD_*})는 2026-07-29 폐기 — 비식별 신고 구간도 인계는 진행되고,
+     *         부모를 물리적으로 쓸 수 없으면 보류가 아니라 실패로 확정된다.
+     *
+     * <p><b>{@code applied} 의미의 진실원</b>: 외부 「생성형 AI API 연동명세서 v1.1」은 콜백 <b>응답
+     * 본문</b>을 규정하지 않으므로(목 서버도 HTTP 상태코드만 본다), 우리 계약 문서
+     * ({@code GenAiCallbackController} javadoc + {@code docs/v2-wiki/14-augmentation.md})가 진실원이고
+     * 코드를 그 계약에 맞춘다 — 롤업 보류/멱등 흡수는 {@code applied:false} 다(2026-07-29 정정).
      */
     @Transactional("controlTransactionManager")
-    public boolean handle(GenAiCallbackRequest req) {
+    public AugmentApplyResult handle(GenAiCallbackRequest req) {
         String requestId = req.requestId();
 
         // 1) 발급 게이트 — 우리가 낸 request_id 가 아니면 401 (무단 주입 차단).
@@ -118,7 +129,7 @@ public class GenAiCallbackService {
         if (target.isTerminal()) {
             log.info("[Webhook][GenAi] duplicate callback absorbed request_id={} state={}",
                     safe(requestId), safe(target.getJobSttsCd()));
-            return false;
+            return AugmentApplyResult.DUPLICATE;
         }
 
         // 6) 상태 반영
@@ -127,7 +138,7 @@ public class GenAiCallbackService {
             jobRepository.save(target);
             log.info("[Webhook][GenAi] running request_id={} progress={} step={}",
                     safe(requestId), req.progress(), safe(req.currentStep()));
-            return true; // 진행 상태만 갱신 — 결과 처리·롤업 없음
+            return AugmentApplyResult.APPLIED; // 진행 상태만 갱신 — 결과 처리·롤업 없음
         }
 
         if (LsDataAugJob.STTS_SUCCEEDED.equals(req.status())) {
@@ -141,9 +152,15 @@ public class GenAiCallbackService {
         jobRepository.save(target);
         jobRepository.flush();
 
-        // 7) 롤업 — 전 job 종결 시에만 증강 1건을 확정한다.
-        rollUpIfAllTerminal(dataAugSn, jobs, req.jobId());
-        return true;
+        // 7) 롤업 — 전 job 종결 시에만 증강 1건을 확정한다. <b>롤업 결과를 그대로 회신</b>한다.
+        //    구 구현은 결과를 버리고 무조건 APPLIED 를 돌려줬다. 그러면 2청크 위탁 중 1청크만 SUCCEEDED
+        //    가 도착한 정상 진행 구간(롤업 DEFERRED)에도 applied:true 가 나가 외부가 "증강 인계 완료" 로
+        //    오해한다. applied 의 의미(= 증강 1건의 상태가 실제로 전이됐는가)는 AugmentApplyResult#applied()
+        //    가 단일 근거이고, 이 계약은 컨트롤러 javadoc·docs/v2-wiki/14-augmentation.md 가 진실원이다
+        //    (외부 「생성형 AI API 연동명세서 v1.1」은 콜백 <응답 본문>을 규정하지 않고, 목 서버도
+        //     HTTP 상태코드만 보고 applied 를 소비하지 않는다 — mock-server genai_sim.send_webhook).
+        //    job 자체의 상태 갱신은 이 시점에 이미 커밋 대상이므로 회신값과 무관하게 보존된다.
+        return rollup.rollUpIfAllTerminal(dataAugSn, jobs, req.jobId());
     }
 
     /**
@@ -176,40 +193,6 @@ public class GenAiCallbackService {
     }
 
     /**
-     * 전 job 종결 여부를 판정하고 증강 1건을 확정한다.
-     *
-     * <p>{@code jobs} 는 4)에서 잠금 후 읽은 목록이며 {@code target} 갱신이 반영된 동일 인스턴스를
-     * 포함한다(영속성 컨텍스트 1급 캐시). 잠금을 선점했으므로 다른 트랜잭션의 미커밋 갱신은
-     * 존재하지 않는다.
-     */
-    private void rollUpIfAllTerminal(Long dataAugSn, List<LsDataAugJob> jobs, String externalJobId) {
-        List<Integer> pending = new ArrayList<>();
-        List<Integer> failed = new ArrayList<>();
-        for (LsDataAugJob job : jobs) {
-            if (!job.isTerminal()) {
-                pending.add(job.getJobSeq());
-            } else if (!LsDataAugJob.STTS_SUCCEEDED.equals(job.getJobSttsCd())) {
-                failed.add(job.getJobSeq());
-            }
-        }
-        if (!pending.isEmpty()) {
-            log.info("[Webhook][GenAi] rollup deferred dataAugSn={} pendingJobSeqs={}", dataAugSn, pending);
-            return;
-        }
-
-        if (failed.isEmpty()) {
-            augmentResultService.handle(AugmentOutcome.succeeded(dataAugSn, externalJobId));
-            log.info("[Webhook][GenAi] rollup succeeded dataAugSn={} jobCount={}", dataAugSn, jobs.size());
-            return;
-        }
-
-        // 부분 실패 = 전체 실패. 부분 결과로 증강본을 만들면 프레임이 빠진 불완전 산출물이 된다.
-        augmentResultService.handle(AugmentOutcome.failed(dataAugSn, externalJobId));
-        log.warn("[Webhook][GenAi] rollup failed (partial failure — fail-closed) dataAugSn={} "
-                + "jobCount={} failedJobSeqs={}", dataAugSn, jobs.size(), failed);
-    }
-
-    /**
      * {@code results[].output_file_path} 를 <b>정규화 후</b> <b>읽기</b> 허용 루트 하위인지 검증한다(CWE-22).
      *
      * <p>판정 축은 {@code VideoArtifactRootResolver#verifyExternalReadablePath} 다 — 벤더 산출물은 우리가
@@ -220,11 +203,11 @@ public class GenAiCallbackService {
      * FAILED 로 만들지 않으므로 외부가 올바른 경로로 재전송하면 정상 처리된다. 거부 메시지에 경로
      * 원문·내부 디렉터리 구조를 담지 않는다(CWE-209).
      *
-     * <p><b>고착 관측(DEV_FIX 2차 HIGH-1)</b>: 상태를 바꾸지 않는다는 것은, 외부가 재시도를 포기하면
-     * job 이 비종결(RECEIVED/RUNNING)로 남아 증강 1건이 PENDING 에 머문다는 뜻이다. 만료 스윕은 이
-     * 범위가 아니므로(별도 Phase) <b>운영이 감지할 수 있는 근거</b>를 남긴다 — WARN 로그 +
-     * 메트릭({@code augment.callback.rejected} tag {@code reason=output_path})이며, 비종결 job 은
-     * {@code LS_DATA_AUG_JOB}(JOB_STTS_CD 미종결 + REG_DT 경과) 쿼리로 그대로 열거된다.
+     * <p><b>고착 회수(Phase 8-A)</b>: 상태를 바꾸지 않는다는 것은, 외부가 재시도를 포기하면
+     * job 이 비종결(RECEIVED/RUNNING)로 남아 증강 1건이 PENDING 에 머문다는 뜻이다. 재전송 여지는
+     * 그대로 두되 <b>무한 대기는 없앤다</b> — {@code AugmentJobExpirySweeper} 가 무갱신 경과 임계를
+     * 넘긴 비종결 job 을 {@code FAILED(ERR_CD=EXPIRED)} 로 회수해 롤업을 진행시킨다. 관측 근거도
+     * 유지된다 — WARN 로그 + 메트릭({@code augment.callback.rejected} tag {@code reason=output_path}).
      *
      * @return 검증을 통과한 경로 목록({@code results[]} 순서 그대로 — 위탁 항목과 짝짓는 재료)
      */

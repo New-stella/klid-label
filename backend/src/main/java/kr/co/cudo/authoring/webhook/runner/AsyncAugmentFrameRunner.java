@@ -99,7 +99,7 @@ public class AsyncAugmentFrameRunner {
         } catch (RuntimeException e) {
             log.warn("[AsyncAugmentFrameRunner] augment frame re-extraction failed rawSn={} dataAugSn={} cause={}",
                     newRawSn, dataAugSn, e.getClass().getSimpleName());
-            handleFailure(newRawSn, plan);
+            handleFailure(newRawSn, dataAugSn, plan);
             return;
         }
 
@@ -122,10 +122,15 @@ public class AsyncAugmentFrameRunner {
 
     /**
      * 실패 정리 — ① Phase B 아티팩트 cleanup(스냅샷이 있어야 Phase B 가 파일을 썼을 수 있음; 잔존 시 ERROR·
-     * 메트릭) ② 신규 RAW 를 FAILED 로 전이. Phase C REQUIRES_NEW 트랜잭션은 이미 롤백되어 고아 프레임/라벨이
-     * 없고, 여기서 파일 고아까지 정리한다(DB·파일 고아 0).
+     * 메트릭) ② 신규 RAW 를 FAILED 로 전이 ③ <b>증강 행({@code LS_DATA_AUG})도 dead-letter 로 정합</b>.
+     * Phase C REQUIRES_NEW 트랜잭션은 이미 롤백되어 고아 프레임/라벨이 없고, 여기서 파일 고아까지 정리한다
+     * (DB·파일 고아 0).
+     *
+     * <p>③ 이 없으면 파생 RAW 는 FAILED 인데 증강 행은 콜백 동기 단계에서 찍힌 {@code ACCEPTED} 로 남아
+     * <b>집계상 성공</b>으로 잡힌다(적대검증 LOW). 상태 컬럼은 건드리지 않으므로 재콜백 멱등 앵커
+     * (non-PENDING skip)와 충돌하지 않는다 — 상세는 {@link AugmentExtractPersist#markAugProcessingFailed}.
      */
-    private void handleFailure(Long newRawSn, AugmentExtractPlan plan) {
+    private void handleFailure(Long newRawSn, Long dataAugSn, AugmentExtractPlan plan) {
         if (plan != null) {
             try {
                 // 프레임 디렉토리 + 파생 비디오 사본을 함께 정리한다(부모/원본은 대상 아님).
@@ -142,5 +147,14 @@ public class AsyncAugmentFrameRunner {
             }
         }
         batchTransitionService.markRawDataFailed(newRawSn);
+
+        // ③ 증강 행도 실패로 정합(best-effort) — 실패해도 위 RAW FAILED 전이를 되돌리지 않는다.
+        try {
+            persistService.markAugProcessingFailed(dataAugSn);
+        } catch (RuntimeException re) {
+            log.error("[AsyncAugmentFrameRunner] aug failure marking skipped — 집계가 성공으로 보일 수 있음 "
+                            + "dataAugSn={} cause={}",
+                    dataAugSn, re.getClass().getSimpleName());
+        }
     }
 }

@@ -319,4 +319,39 @@ class KpstRedeidentCompletionIntegrationTest {
         assertThat(videoRepository.findById(rawSn).orElseThrow().getDeIdntfYn())
                 .as("롤백: de_ident_yn 'Y' 로 가지 않음").isNotEqualTo("Y");
     }
+
+    // ---------------------------------------------------------------------
+    // B-ISSUE-82 — 완료 처리 멱등 가드 (2노드 Active-Active 중복 완료)
+    // ---------------------------------------------------------------------
+
+    @Test
+    @DisplayName("finishDownloadAndComplete_를_두_번_호출해도_프레임이_이중_생성되지_않는다")
+    void finishDownloadAndCompleteIsIdempotentOnRepeatedCalls() throws IOException {
+        // given — Quartz 클러스터링이 꺼진 2노드에서 같은 procLog 를 두 노드가 집어 완료를 두 번
+        //         커밋하는 상황(= 같은 인자로 연속 2회 호출)을 재현한다.
+        int frameCount = 3;
+        Seed seed = seedApprovedRedeidentTarget(frameCount, 1);
+        Long rawSn = seed.rawSn();
+        when(imageResizer.readDimensions(any(Path.class))).thenReturn(new int[]{1920, 1080});
+        stubFrameWriterWritesFile();
+
+        // when — 동일 완료를 2회 적용
+        txService.finishDownloadAndComplete(rawSn, seed.procLogSn(), 202L, seed.deidFile());
+        txService.finishDownloadAndComplete(rawSn, seed.procLogSn(), 202L, seed.deidFile());
+        em.clear();
+
+        // then — 두 번째 호출은 아무 일도 하지 않는다: 프레임 재추출이 발생하지 않아야 한다.
+        //        (가드가 없으면 refreshExisting=true 로 전 프레임이 다시 추출되어 2N 회 호출된다.)
+        org.mockito.Mockito.verify(frameWriter, org.mockito.Mockito.times(frameCount))
+                .writeFrameByNumber(any(Path.class), any(Path.class), org.mockito.ArgumentMatchers.anyInt());
+
+        // then — 프레임/라벨 행 수 불변(이중 생성 없음), 완료 상태는 1회 적용된 그대로.
+        assertThat(srcRepository.countByRawSn(rawSn)).isEqualTo(frameCount);
+        assertThat(lblRepository.countByRawSn(rawSn)).isEqualTo(seed.labelCount());
+        LsDeidentProcLog done = procLogRepository.findById(seed.procLogSn()).orElseThrow();
+        assertThat(done.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_DOWNLOADED);
+        assertThat(videoRepository.findById(rawSn).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
+        assertThat(rawStatusRepository.findById(rawSn).orElseThrow().getDataSttsCd())
+                .isEqualTo(LsRawDataStatus.STTS_APPROVED);
+    }
 }

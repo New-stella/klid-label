@@ -76,6 +76,30 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
   -c "select raw_sn, de_idnt_yn, data_stts_cd from ls_data_raw where de_idnt_yn <> 'Y' order by raw_sn desc limit 20;"
 ```
 
+### 1-4-1. 이중화(2노드) 스케줄러 클러스터 상태
+
+2노드 Active-Active 는 Quartz 클러스터링(`QUARTZ_CLUSTERED=true`)으로 트리거 중복 발화를 막는다.
+클러스터가 성립하지 않으면 배치가 **노드마다 중복 실행**된다(로그·헬스는 정상으로 보인다).
+
+```bash
+# 등록된 스케줄러 노드 — 기동한 노드 수만큼 행이 있어야 한다(1노드면 1행)
+PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
+  -c "select instance_name, checkin_interval, to_timestamp(last_checkin_time/1000) as last_checkin from qrtz_scheduler_state;"
+
+# 클러스터 락 행(V76 시드) — TRIGGER_ACCESS / STATE_ACCESS 2행
+PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
+  -c "select sched_name, lock_name from qrtz_locks;"
+
+# 노드 간 시계 동기(NTP) — 클러스터링의 전제. 두 노드 모두 확인한다.
+timedatectl            # NTP service: active
+chronyc tracking       # System time offset 이 1초 이내인지
+```
+
+- 노드가 떠 있는데 `qrtz_scheduler_state` 에 행이 **0개** → 클러스터링이 꺼져 있다(설정 확인).
+  stg/prd 는 `QUARTZ_CLUSTERED=false` 면 기동 자체가 거부되므로, 프로파일/`ENV` 표식부터 확인한다.
+- `last_checkin` 이 `checkin_interval` 의 수 배 이상 정체된 행 → 죽은 노드의 잔여 행(다른 노드가 곧 회수).
+- 시계 오차가 크면 misfire 오판·중복 발화가 생긴다 → NTP 부터 교정한다.
+
 ### 1-5. 자원 상태 (CPU/메모리/GPU/디스크)
 
 ```bash
@@ -222,6 +246,7 @@ sudo systemctl restart klid-backend        # 또는 klid-ai-server
 | 일 | 4개 서비스 active·헬스 200/UP | 1-1·1-2 |
 | 일 | 배치 상태별 건수(PENDING/FAILED 적체) | 1-4 |
 | 일 | 디스크 여유(저장소·로그) | 1-5 |
+| 주 | 스케줄러 클러스터 노드 수·노드 간 시계 동기(NTP) | 1-4-1 |
 | 주 | 비식별 미완료('F') 잔량·조치 | 1-4·2-4 |
 | 주 | 외부 연동 헬스(DOWN 컴포넌트) | 1-2·2-3 |
 | 주 | 오래된 로그 정리 | 2-6 |

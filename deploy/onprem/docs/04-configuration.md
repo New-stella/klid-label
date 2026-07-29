@@ -19,6 +19,7 @@
 | 변수 | 필수 | 의미 / 기본 |
 |------|:----:|-------------|
 | `SPRING_PROFILES_ACTIVE` | ★ | 운영 권장 `prd`. local 은 LocalProfileGuard 가 비-local 호스트에서 거부 |
+| `ENV` | ★(stg·prd) | **배포 환경 표식**(`stg`/`prd`) — 프로파일과 독립된 축. 서버 잔존 `.env`·셸 환경이 `SPRING_PROFILES_ACTIVE` 를 `dev` 로 덮어도 이 값이 배포 표식이면 dev 편의 엔드포인트(`DevProfileGuard`)·Quartz 단일노드 허용(`QuartzClusteringGuard`)이 모두 **거부**된다. **배포 서버에서 비우면 이 방어축이 통째로 무력해진다** |
 | `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립. 스키마는 Flyway 자동 생성(D 절) |
 | `CONTROL_DB_USERNAME/PASSWORD` | ★ | control DB 자격 |
 | `PORTAL_DB_HOST/PORT/NAME` | ★ | portal DB |
@@ -49,6 +50,38 @@
 > 클라이언트 IP 가 LB IP 하나로 수렴한다. 그 상태에서 누군가 인증 실패 5회를 유발하면 **정상 벤더 콜백까지
 > 60초 동안 429** 가 되고, 공유 카운터를 통해 2노드 전체로 전파된다. 프록시가 없다면 `none` 을 명시해
 > "XFF 무시" 를 의식적으로 선택한다.
+
+### 이중화(HA) — Quartz 클러스터링 (★ 부팅 차단 주의)
+
+배포 토폴로지는 **주 서버 2노드 Active-Active** 다. Quartz 클러스터링을 켜지 않으면 두 노드가
+`QRTZ_LOCKS` 로 조율되지 않아 **같은 트리거를 각각 발화**한다(관제 학습용 스캔 60s · KPST 폴링 30s ·
+export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴스 내부에서만** 유효해 이를 막지 못한다.
+
+| 변수 | 필수 | 의미 / 기본 |
+|------|:----:|-------------|
+| `QUARTZ_CLUSTERED` | ★(prd·stg) | `true` 고정. stg/prd 프로파일 기본값이 `true` 이며 **`false` 면 기동 거부**(`QuartzClusteringGuard`). 양 노드 동일 값 |
+| `QUARTZ_CHECKIN_MS` | · | 클러스터 체크인 주기(ms, 기본 20000). 노드 장애 감지 지연과 직결 — 30초 이내 권장 |
+
+> **1노드로만 운영하더라도 끄지 않는다** — 클러스터 모드는 단일 노드에서도 정상 동작한다(락 경합 상대가 없을 뿐).
+> `SPRING_PROFILES_ACTIVE` 를 dev 로 낮춰 우회할 수도 없다: 가드가 `ENV=stg|prd` 표식을 독립 축으로 함께 본다
+> (`DevProfileGuard` 와 동일 기준). **단 이 축은 `ENV` 가 실제로 주입돼야 작동한다** — `env.template` 이
+> `ENV=prd` 를 제공하고 systemd 가 `EnvironmentFile=/etc/klid/backend.env` 로 프로세스 환경에 넣는다.
+> stg 노드는 설치 후 `ENV=stg` 로 바꾼다. 비워 두면 프로파일 축만 남아 `dev` 로 뜬 배포 노드가 통과한다.
+
+**★ 설치 전 체크리스트 — 노드 간 시계 동기(NTP)**
+
+클러스터링은 노드 클럭이 맞는다는 전제 위에서 동작한다. 오차가 크면 misfire 오판·중복 발화·락 스톰이 발생한다.
+
+- [ ] 두 노드 모두 `chronyd`(또는 `ntpd`) **활성**: `timedatectl` → `NTP service: active`
+- [ ] 두 노드가 **동일 NTP 서버**를 바라봄: `chronyc sources`
+- [ ] 시계 오차 **1초 이내**: `chronyc tracking` → `System time` offset 확인
+- [ ] 두 노드 타임존 동일(`Asia/Seoul` — `JAVA_OPTS` 의 `-Duser.timezone` 과 일치)
+- [ ] 두 노드 `QUARTZ_CLUSTERED=true` 동일 설정 + 동일 DB(`CONTROL_DB_*`) 를 바라봄
+- [ ] 첫 기동은 **한 노드만** 먼저 올려 Flyway 마이그레이션 완료 확인 후 두 번째 노드 기동
+- [ ] 기동 후 등록 노드 수 확인: `SELECT instance_name, last_checkin_time FROM qrtz_scheduler_state;` → 노드 수만큼 행
+
+> QRTZ_* 테이블은 Flyway(V2)가 생성하고 클러스터 락 행은 V76 이 시딩한다(`SCHED_NAME='KlidAuthoringScheduler'`).
+> 별도 사전 적재는 불필요하다.
 
 ### 저장소 / ai-server / CORS / FFmpeg
 

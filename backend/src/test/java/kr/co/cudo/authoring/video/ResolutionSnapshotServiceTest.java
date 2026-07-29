@@ -110,6 +110,7 @@ class ResolutionSnapshotServiceTest {
         newRawMock("N");
         LsDataRaw parent = mock(LsDataRaw.class);
         when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
         when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
         seedParentFramesAndVideo();
 
@@ -151,6 +152,7 @@ class ResolutionSnapshotServiceTest {
 
         LsDataRaw parent = mock(LsDataRaw.class);
         when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
         when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
 
         // 프레임 소스(비식별)와 비식별 비디오는 deid base 하위 절대경로.
@@ -196,11 +198,12 @@ class ResolutionSnapshotServiceTest {
     }
 
     @Test
-    @DisplayName("부모가_비식별미완료(F)면_PII게이트에서_CONFLICT로_거부한다")
-    void snapshotAbortsWhenParentNoLongerDeidentified() {
+    @DisplayName("부모_비식별산출물이_없으면(N)_게이트에서_CONFLICT로_거부한다")
+    void snapshotAbortsWhenParentHasNoDeidentArtifact() {
         newRawMock("N");
         LsDataRaw parent = mock(LsDataRaw.class);
-        when(parent.getDeIdntfYn()).thenReturn("F"); // 창 안에서 PII 노출 확정
+        when(parent.getDeIdntfYn()).thenReturn("N"); // 비식별 미수행 — 복사할 산출물 자체가 없다
+        when(parent.hasDeidentArtifact()).thenReturn(false);
         when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
 
         assertThatThrownBy(() -> service.snapshot(NEW_RAW, PARENT, DATA_AUG, ResolutionPreset.RESL_720P))
@@ -210,11 +213,34 @@ class ResolutionSnapshotServiceTest {
     }
 
     @Test
+    @DisplayName("부모가_비식별신고구간(F)이어도_스냅샷이_정상_생성된다")
+    void snapshotProceedsWhenParentUnderDeidentReport() {
+        // given — 부모가 비식별 누락 신고('F') 구간. 비식별 산출물은 디스크에 존재한다.
+        //         해상도 파생은 외부 위탁이 없는 내부 리스케일이라 신고가 생성을 막지 않는다(2026-07-29).
+        newRawMock("N");
+        LsDataRaw parent = mock(LsDataRaw.class);
+        when(parent.getDeIdntfYn()).thenReturn("F");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
+        when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
+        seedParentFramesAndVideo();
+
+        // when
+        Optional<ResolutionSnapshot> opt = service.snapshot(NEW_RAW, PARENT, DATA_AUG, ResolutionPreset.RESL_720P);
+
+        // then — 스냅샷이 정상 생성되고 소스는 여전히 비식별 프레임이다(PII 폴백 없음)
+        assertThat(opt).isPresent();
+        assertThat(opt.get().frames()).hasSize(1);
+        assertThat(opt.get().frames().get(0).deidSrc())
+                .isEqualTo(base.resolve("frames/deid/" + PARENT + "/f0.jpg"));
+    }
+
+    @Test
     @DisplayName("확정게이트1_부모의_비식별_비디오_procLog가_없으면_NOT_FOUND로_거부한다(E-29)")
     void snapshotFailsWhenParentDeidentVideoProcLogMissing() {
         newRawMock("N");
         LsDataRaw parent = mock(LsDataRaw.class);
         when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
         when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
         seedParentFramesAndVideo();
         // 비식별 비디오 성공 이력 부재 — 복사할 비식별 원본이 없다.
@@ -232,6 +258,7 @@ class ResolutionSnapshotServiceTest {
         newRawMock("N");
         LsDataRaw parent = mock(LsDataRaw.class);
         when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
         when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
         seedParentFramesAndVideo();
 
@@ -257,6 +284,7 @@ class ResolutionSnapshotServiceTest {
         newRawMock("N");
         LsDataRaw parent = mock(LsDataRaw.class);
         when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
         when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
         seedParentFramesAndVideo();
 
@@ -280,6 +308,7 @@ class ResolutionSnapshotServiceTest {
         newRawMock("N");
         LsDataRaw parent = mock(LsDataRaw.class);
         when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
         when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
         // 측정용 첫 프레임도 없음 → 프레임 0건.
         when(srcRepository.findByRawSnAndFrameNo(eq(PARENT), eq(0))).thenReturn(Optional.empty());

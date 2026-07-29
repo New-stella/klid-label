@@ -48,12 +48,48 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
             Long rawSn, Collection<String> exportSttsCds);
 
     /**
-     * stale PENDING 회수용 — 지정 상태이며 {@code REG_DT} 가 cutoff 이전인 export 를 조회한다.
+     * stale PENDING 회수 <b>후보</b>(앵커) — {@code REG_DT} 가 cutoff 이전인 PENDING export 의 PK 목록.
      *
      * <p>파일 쓰기/상태 마감 전 프로세스 크래시로 {@code PENDING} 에 영구 고착된 잔재를 주기 sweeper 가
-     * 회수(FAILED 마감)하는 데 사용한다. 파생 쿼리 파라미터 바인딩만 사용(CWE-89 표면 없음).
+     * 회수(FAILED 마감)하는 데 사용한다. 실제 회수는 {@link #claimStalePending} 으로 <b>원자 클레임에
+     * 성공한 건만</b> 수행해야 한다(2노드 중복 회수 방지).
+     *
+     * <p>오래된 순 + {@code LIMIT} — 잔재가 대량으로 쌓여도 한 tick 이 무한정 길어지지 않는다
+     * (무제한 조회 금지, OWASP API4). 파라미터 바인딩만 사용(CWE-89 표면 없음).
      */
-    List<LsDatasetExport> findByExportSttsCdAndRegDtBefore(String exportSttsCd, LocalDateTime cutoff);
+    @Query(value = """
+            SELECT e.EXPORT_SN
+              FROM LS_DATASET_EXPORT e
+             WHERE e.EXPORT_STTS_CD = 'PENDING'
+               AND e.REG_DT < :cutoff
+             ORDER BY e.REG_DT ASC
+             LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findStalePendingAnchors(@Param("cutoff") LocalDateTime cutoff, @Param("limit") int limit);
+
+    /**
+     * stale PENDING 회수 <b>원자 클레임</b> — PENDING 인 행만 FAILED 로 마감한다 (Phase 9-B).
+     *
+     * <p>구 구현("조회 후 엔티티 setter")은 2노드 Active-Active 에서 같은 행을 각자 FAILED 로 두 번 쓰는
+     * 이중 쓰기였다. Quartz 클러스터링({@code isClustered})은 기본 <b>꺼져</b> 있어 잡 단위 배타성을
+     * 기대할 수 없으므로, 상태 전이 자체를 조건부 UPDATE 로 만들어 DB 레벨에서 한쪽만 1행을 얻게 한다
+     * ({@link #claimForRetry}·{@code LsDataAugJobRepository#claimExpired} 와 동일 패턴).
+     *
+     * <p>{@code EXPORT_STTS_CD = 'PENDING'} + {@code REG_DT < :cutoff} 는 fail-safe 가드다 — 그 사이
+     * 산출이 정상 마감(SUCCEEDED/PARTIAL)됐으면 회수가 이를 덮어쓰지 않는다.
+     * 파라미터 바인딩만 사용(CWE-89 표면 없음).
+     *
+     * @return 클레임에 성공한 행 수(0 또는 1)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_DATASET_EXPORT
+               SET EXPORT_STTS_CD = 'FAILED'
+             WHERE EXPORT_SN = :exportSn
+               AND EXPORT_STTS_CD = 'PENDING'
+               AND REG_DT < :cutoff
+            """, nativeQuery = true)
+    int claimStalePending(@Param("exportSn") Long exportSn, @Param("cutoff") LocalDateTime cutoff);
 
     /**
      * D-ISSUE-04(b) — <b>실패 export 회수 후보</b>(재시도 앵커 행) 목록.

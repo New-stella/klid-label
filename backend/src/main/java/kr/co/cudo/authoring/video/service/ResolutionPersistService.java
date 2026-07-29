@@ -13,8 +13,6 @@ import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.meta.service.DerivedMetaCopier;
-import kr.co.cudo.authoring.label.entity.LsDeidentReport;
-import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,8 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,11 +41,11 @@ import java.util.Map;
  *
  * <h3>수행</h3>
  * <ol>
- *   <li>부모 {@code findByRawSnForUpdate} 재잠금 + {@code deIdntfYn=='Y'} <b>PII TOCTOU 최종 게이트</b>
- *       — Phase A~C 사이 창에서 부모가 'F' 로 전이됐으면 abort(파일 cleanup 은 러너가 담당)</li>
- *   <li><b>stale 창 게이트(H-1)</b> — 'Y' 재검증 직후, 스냅샷 이후 부모 비식별본이 재비식별로 교체됐으면
- *       abort. ①신고이력(capturedAt 이후 신고) ②최신 SUCCESS 비식별 procLog 경로 불일치
- *       ③(파일 존재 시) mtime &gt; capturedAt 중 하나라도 걸리면 CONFLICT</li>
+ *   <li>부모 {@code findByRawSnForUpdate} 재잠금 + 비식별 산출물 존재({@code hasDeidentArtifact()})
+ *       <b>최종 게이트</b> — 신고('F')는 통과하고 'N'(미수행)만 abort(파일 cleanup 은 러너가 담당)</li>
+ *   <li><b>stale 창 게이트(H-1, 복사 원자성)</b> — 스냅샷 이후 부모 비식별본이 <b>교체</b>됐으면 abort
+ *       (신고 여부와 무관). ①최신 SUCCESS 비식별 procLog 경로 불일치 ②(파일 존재 시)
+ *       mtime &gt; capturedAt 중 하나라도 걸리면 CONFLICT</li>
  *   <li>파생 newRaw 재잠금 + {@code deIdntfYn=='Y'} <b>CAS 재확인</b>(#5 중복 finalize 승자 보호) —
  *       이미 확정됐으면 {@link Result#SKIPPED} 반환(프레임 재삽입 없이 skip)</li>
  *   <li>Phase B 산출 파일 기준 LS_DATA_SRC 프레임 INSERT(명시 videoFrameNo 키 매핑) + copyScaledLabels
@@ -68,7 +64,6 @@ public class ResolutionPersistService {
     private final LsDataAugLblMapRepository lblMapRepository;
     private final LsDataAugRepository augRepository;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
-    private final LsDeidentReportRepository deidentReportRepository;
     private final DerivedMetaCopier derivedMetaCopier;
 
     /** 비식별 저장소 base — 파생 산출물·비식별 procLog 경로의 상대경로 해석 기준(E-ISSUE-21). */
@@ -92,24 +87,25 @@ public class ResolutionPersistService {
         Long newRawSn = snapshot.newRawSn();
         Long parentRawSn = snapshot.parentRawSn();
 
-        // 1) HIGH (CWE-359 PII TOCTOU 최종 게이트) — 부모 재잠금 + deIdntfYn=='Y' 재검증.
+        // 1) 최종 게이트 — 부모 재잠금 + 비식별 산출물 존재({@code hasDeidentArtifact()}) 재검증.
         //    잠금 순서는 항상 parent → newRaw 로 고정한다(교착 방지).
+        //    ★ 비식별 누락 신고('F')는 여기서 막지 않는다 (2026-07-29 확정, Phase A 와 동일 정책).
+        //    차단 대상은 'N'(비식별 미수행)·null 뿐이다.
         LsDataRaw parent = videoRepository.findByRawSnForUpdate(parentRawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "원본 영상을 찾을 수 없습니다: parentRawSn=" + parentRawSn));
-        if (!"Y".equals(parent.getDeIdntfYn())) {
-            log.warn("[Video][ResolutionDerivative][C] parent no longer deidentified — abort (PII guard) "
+        if (!parent.hasDeidentArtifact()) {
+            log.warn("[Video][ResolutionDerivative][C] parent has no deident artifact — abort "
                             + "parentRawSn={} newRawSn={} deIdntfYn={}",
                     parentRawSn, newRawSn, safe(parent.getDeIdntfYn()));
             throw new CustomException(ErrorCode.CONFLICT,
-                    "비식별 완료된 원본 영상만 파생영상을 확정할 수 있습니다.");
+                    "비식별 산출물이 있는 원본 영상만 파생영상을 확정할 수 있습니다.");
         }
 
-        // 1-1) HIGH (CWE-359 stale 창 게이트, H-1) — deIdntfYn=='Y' 재검증 직후, 부모 잠금 하에
-        //      "스냅샷(Phase A) 이후 부모 비식별본이 재비식별로 교체됐는가"를 결정적으로 재검증한다.
-        //      'Y' 플래그는 "비식별 상태"만 보장할 뿐, Phase B 가 복사한 파일이 스냅샷과 동일한지는
-        //      보장하지 못한다. 신고→재비식별→resolve('F'→'Y') 로 파일이 교체됐으면 Phase B 는 이미
-        //      구버전(PII) 픽셀을 복사했으므로 abort 해야 한다(러너가 cleanup + FAILED 전이).
+        // 1-1) HIGH (복사 원자성 stale 창 게이트, H-1) — 부모 잠금 하에 "스냅샷(Phase A) 이후 부모
+        //      비식별본이 <교체>됐는가"를 결정적으로 재검증한다(신고 여부와 무관).
+        //      Phase B 는 프레임을 한 장씩 복사하므로, 도중에 부모 비식별본이 교체되면 일부 프레임은
+        //      구버전·일부는 신버전이 섞인 산출물이 나온다. abort 해야 한다(러너가 cleanup + FAILED 전이).
         assertDeidentNotReplacedSince(parentRawSn, snapshot);
 
         // 2) #5 — 파생 newRaw 재잠금 + CAS 재확인. 동시 finalize 승자가 이미 'Y' 로 확정했으면 skip
@@ -308,34 +304,25 @@ public class ResolutionPersistService {
     }
 
     /**
-     * HIGH (CWE-359 stale 창 게이트, H-1) — 스냅샷(Phase A) 이후 부모 비식별본이 재비식별로 교체됐으면
-     * {@link CustomException}(CONFLICT) 로 abort 한다. 러너가 catch 하여 Phase B 가 복사한 (구버전 PII 가능)
-     * 파일을 cleanup 하고 파생 RAW 를 FAILED 로 전이한다. 파생 RAW 는 이 시점까지 {@code deIdntfYn='N'} 이라
-     * 미서빙이 보장된다.
+     * HIGH (복사 원자성 stale 창 게이트, H-1) — 스냅샷(Phase A) 이후 부모 비식별본이 <b>교체</b>됐으면
+     * {@link CustomException}(CONFLICT) 로 abort 한다. 러너가 catch 하여 Phase B 가 복사한 (구/신 버전이
+     * 섞였을 수 있는) 파일을 cleanup 하고 파생 RAW 를 FAILED 로 전이한다. 파생 RAW 는 이 시점까지
+     * {@code deIdntfYn='N'} 이라 미서빙이 보장된다.
      *
-     * <p>결정적 판정(DB-only, 병용 ①+②) + best-effort(파일 mtime):
+     * <p><b>이 게이트는 비식별 신고와 무관하다</b>(2026-07-29 — 구 조건 "capturedAt 이후 신고 이력 존재"는
+     * 순수 신고 결합이라 제거됐다. 파생 생성은 원본 신고와 무관하다). 남은 두 조건은 신고가 아니라
+     * <b>복사 원자성</b>을 방어한다 — 스냅샷 뜬 뒤 부모 비식별본이 바뀌면 프레임별로 다른 버전이 섞인다.
+     *
+     * <p>결정적 판정(DB) + best-effort(파일 mtime):
      * <ol>
-     *   <li>② capturedAt 이후 생성된 비식별 신고({@link LsDeidentReport}, dataRawSn=parent)가 있으면 abort.
-     *       재비식별은 이 도메인에서 항상 신고→resolve 로 유발되므로, 창 안 신고 존재가 교체의 결정적 신호다.</li>
-     *   <li>① 부모 최신 SUCCESS 비식별 procLog 경로가 스냅샷 경로와 다르면(신규 경로 재비식별) abort.</li>
-     *   <li>① 같은 경로라도 파일이 capturedAt 이후 교체(mtime)됐으면 abort — 파일 존재 시에만(제자리 교체 방어).</li>
+     *   <li>부모 최신 SUCCESS 비식별 procLog 경로가 스냅샷 경로와 다르면(신규 경로로 재비식별) abort.</li>
+     *   <li>같은 경로라도 파일이 capturedAt 이후 교체(mtime)됐으면 abort — 파일 존재 시에만(제자리 교체 방어).</li>
      * </ol>
      */
     private void assertDeidentNotReplacedSince(Long parentRawSn, ResolutionSnapshot snapshot) {
         Instant capturedAt = snapshot.capturedAt();
         if (capturedAt == null) {
             return; // 방어 — capturedAt 미보유 스냅샷(구 경로)은 게이트 스킵(신규 경로는 항상 채운다).
-        }
-
-        // ② capturedAt 이후 부모 비식별 신고 존재 → 재비식별 창 확정.
-        boolean reReportedAfterCapture = deidentReportRepository
-                .findAllByDataRawSnOrderByReportDtDesc(parentRawSn).stream()
-                .anyMatch(r -> isAfter(reportInstant(r), capturedAt));
-        if (reReportedAfterCapture) {
-            log.warn("[Video][ResolutionDerivative][C] parent re-reported after snapshot — abort (PII stale guard) "
-                    + "parentRawSn={} newRawSn={}", parentRawSn, snapshot.newRawSn());
-            throw new CustomException(ErrorCode.CONFLICT,
-                    "스냅샷 이후 원본 비식별본이 변경되어 파생영상을 확정할 수 없습니다.");
         }
 
         // ① 최신 SUCCESS 비식별 procLog 경로가 스냅샷과 동일한지 재확인(신규 경로 재비식별 방어).
@@ -379,15 +366,6 @@ public class ResolutionPersistService {
         } catch (RuntimeException e) {
             return null; // 해석 불가 경로는 불일치로 취급 → 게이트 abort.
         }
-    }
-
-    private static Instant reportInstant(LsDeidentReport r) {
-        LocalDateTime dt = r.getReportDt() != null ? r.getReportDt() : r.getRegDt();
-        return dt == null ? Instant.EPOCH : dt.atZone(ZoneId.systemDefault()).toInstant();
-    }
-
-    private static boolean isAfter(Instant candidate, Instant reference) {
-        return candidate != null && candidate.isAfter(reference);
     }
 
     /**

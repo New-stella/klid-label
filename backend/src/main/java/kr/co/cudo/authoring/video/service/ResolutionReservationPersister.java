@@ -30,7 +30,7 @@ import java.nio.file.Paths;
  * <h3>단일 동기 트랜잭션이 담는 것 (그 외는 async 로)</h3>
  * <ol>
  *   <li>부모 RAW {@code findByRawSnForUpdate} 비관적 잠금</li>
- *   <li>{@code deIdntfYn=='Y'} PII 게이트 재검증 (CWE-359 TOCTOU)</li>
+ *   <li>부모 비식별 산출물 존재({@code hasDeidentArtifact()}: 'Y'|'F') 재검증 — 신고('F')는 통과</li>
  *   <li>{@code LS_DATA_AUG}(SRC_SN, AUG_TYPE_CD='RESL_*') <b>PENDING</b> 행 INSERT — 부분 유니크
  *       인덱스(UK_LS_DATA_AUG_RESL)로 동시 (원본,해상도) 요청을 직렬화. 구 LS_RESOLUTION_EXPORT
  *       예약을 대체(증강 이력에 노출). 상태는 파생 생성 라이프사이클과 일치하며 finalize 성공 시
@@ -73,13 +73,18 @@ public class ResolutionReservationPersister {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "영상을 찾을 수 없습니다: rawSn=" + parentSnapshot.getRawSn()));
 
-        // HIGH (CWE-359 PII TOCTOU) — 부모 비식별 완료('Y')를 잠금 하에서 재검증. 동시 신고가 'F' 를
-        // 먼저 커밋했으면 여기서 관측하고 파생 생성을 거부한다(PII 파생본 차단).
-        if (!"Y".equals(parent.getDeIdntfYn())) {
-            log.warn("[Video][ResolutionDerivative] parent not deidentified — blocking derivative parentRawSn={} deIdntfYn={}",
+        // 부모 비식별 산출물 존재 전제를 잠금 하에서 재검증한다({@link LsDataRaw#hasDeidentArtifact()}).
+        //
+        // ★ 비식별 누락 신고('F')는 여기서 막지 않는다 (2026-07-29 확정) — "파생영상은 비식별 신고 체계
+        //   바깥" 정책과 대칭이다. 해상도 파생은 외부 위탁이 전혀 없는 내부 ffmpeg 리스케일뿐이라
+        //   신고 구간에 생성해도 외부 유출 경로가 열리지 않는다. 신고가 실제로 막아야 하는 외부 위탁
+        //   차단은 증강 요청/전송 진입점이 담당한다.
+        // 차단 대상은 'N'(비식별 미수행)·null 하나다 — 복사할 비식별 산출물이 물리적으로 없다.
+        if (!parent.hasDeidentArtifact()) {
+            log.warn("[Video][ResolutionDerivative] parent has no deident artifact — blocking derivative parentRawSn={} deIdntfYn={}",
                     parent.getRawSn(), safe(parent.getDeIdntfYn()));
             throw new CustomException(ErrorCode.CONFLICT,
-                    "비식별 완료된 원본 영상만 해상도 파생영상을 만들 수 있습니다.");
+                    "비식별 산출물이 있는 원본 영상만 해상도 파생영상을 만들 수 있습니다.");
         }
 
         // MED #4 — 대표프레임 SRC_SN 은 LS_DATA_AUG.SRC_SN(NOT NULL). null 이면 DB 제약이 트랜잭션 중간에

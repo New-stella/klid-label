@@ -223,6 +223,46 @@ class AsyncAugmentFrameRunnerTest {
     }
 
     @Test
+    @DisplayName("async확정_실패시_증강행도_dead_letter로_정합시켜_집계가_성공으로_잡지_않는다")
+    void asyncFailureMarksAugProcessingFailed() {
+        // given: 콜백 동기 게이트는 통과해 aug 는 이미 ACCEPTED 인데, async 구간(Phase A)에서 부모
+        //        비식별 산출물이 사라져 확정이 실패한다.
+        doThrow(new CustomException(ErrorCode.NOT_FOUND, "원본 비식별 영상 경로를 찾을 수 없습니다"))
+                .when(snapshotService).snapshot(9020L, 40L);
+
+        // when
+        runner.runAsync(9020L, 40L);
+
+        // then: 파생 RAW FAILED 전이와 함께 증강 행도 실패(dead-letter)로 못박는다.
+        verify(batchTransitionService).markRawDataFailed(9020L);
+        verify(persistService).markAugProcessingFailed(40L);
+    }
+
+    @Test
+    @DisplayName("정상확정시에는_증강행을_dead_letter로_표기하지_않는다")
+    void successDoesNotMarkAugProcessingFailed() {
+        AugmentExtractPlan p = plan(9021L, 100L, 41L);
+        when(snapshotService.snapshot(9021L, 41L)).thenReturn(Optional.of(p));
+        when(persistService.persist(p)).thenReturn(AugmentExtractPersist.Result.PERSISTED);
+
+        runner.runAsync(9021L, 41L);
+
+        verify(persistService, never()).markAugProcessingFailed(any());
+    }
+
+    @Test
+    @DisplayName("증강행_실패표기가_실패해도_예외가_전파되지_않고_RAW_FAILED전이는_유지된다")
+    void augFailureMarkingErrorIsSwallowed() {
+        doThrow(new CustomException(ErrorCode.NOT_FOUND, "없음"))
+                .when(snapshotService).snapshot(9022L, 42L);
+        doThrow(new IllegalStateException("db down"))
+                .when(persistService).markAugProcessingFailed(42L);
+
+        assertThatCode(() -> runner.runAsync(9022L, 42L)).doesNotThrowAnyException();
+        verify(batchTransitionService).markRawDataFailed(9022L);
+    }
+
+    @Test
     @DisplayName("실패했지만_예외가_밖으로_전파되지_않는다_콜백200유지")
     void failureIsSwallowed() {
         doThrow(new CustomException(ErrorCode.NOT_FOUND, "없음"))

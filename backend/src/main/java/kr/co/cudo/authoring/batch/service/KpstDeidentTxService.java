@@ -46,6 +46,26 @@ public class KpstDeidentTxService {
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
 
     /**
+     * 폴링 대상 <b>원자 클레임</b> — 이 호출이 {@code true} 를 받은 노드만 해당 위탁 건을 폴링한다
+     * (B-ISSUE-82).
+     *
+     * <p>2노드 Active-Active 이고 Quartz 클러스터링이 기본 꺼져 있어 같은 트리거가 양 노드에서 발화하므로,
+     * 대상 선점을 DB 레벨에서 보장해야 한다(설정에 의존하지 않는 방어). 규칙·리스 의미는
+     * {@link LsDeidentProcLogRepository#claimForPoll} 참조.
+     *
+     * <p>REQUIRES_NEW — 폴링 잡은 트랜잭션 밖에서 돌고, 클레임은 즉시 커밋되어야 다른 노드가 관측한다.
+     *
+     * @param leaseCutoff 이 시각 이후에 폴링된 건은 다시 클레임하지 않는다(= now - 리스 길이)
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean tryClaimPoll(Long procLogSn, LocalDateTime leaseCutoff) {
+        if (procLogSn == null || leaseCutoff == null) {
+            return false;
+        }
+        return procLogRepository.claimForPoll(procLogSn, leaseCutoff, LocalDateTime.now()) == 1;
+    }
+
+    /**
      * 다운로드 완료 + 비식별 완료(Y 전이)를 단일 REQUIRES_NEW 트랜잭션으로 원자화 — DEV_FIX HIGH/MEDIUM(M-1).
      *
      * <p>기존 2분리 트랜잭션(DOWNLOADED → Y) 은
@@ -53,14 +73,31 @@ public class KpstDeidentTxService {
      * procLog DOWNLOADED/SUCCEEDED 전이와 raw Y/MARKING_READY 전이를 한 트랜잭션에 묶어 stuck 창을 제거한다.
      * 비식별 파일 무결성(정규파일 + 크기 하한 + 컨테이너 시그니처) 검증을 선행하므로 불완전/위장
      * 산출물은 Y 로 가지 않는다({@link #verifyDeidFile}).
+     *
+     * <p><b>멱등 가드(B-ISSUE-82)</b>: 완료 전이를 조건부 UPDATE
+     * ({@link LsDeidentProcLogRepository#claimDownloadCompletion})로 <b>선점</b>한 호출만 후처리로
+     * 진행한다. 두 노드가 같은 건의 완료를 동시에 커밋하려 하면 뒤에 온 쪽은 0행을 받아 즉시 반환하므로
+     * 비식별 프레임 재추출(attach)·알림·락 해제가 두 번 수행되지 않는다. 같은 이유로 <b>같은 인자의
+     * 재호출도 no-op</b> 이다(폴링 재시도·중복 콜백 안전).
+     *
+     * <p><b>잠금 순서</b>: LS_DEIDENT_PROC_LOG → LS_DATA_RAW. 역순(RAW 선점 후 이 procLog 행 갱신)
+     * 경로는 없다 — 재비식별 위탁({@code ApprovedRedeidentService})은 RAW 를 잡은 채 <b>새 행을 INSERT</b>
+     * 할 뿐이고, 신고 해제({@code DeidentReportService})는 procLog 를 <b>읽기만</b> 한다(MVCC 라 대기 없음).
+     * 따라서 사이클이 없다. RAW 다중 행을 잠그지 않으므로 "조상→자손" 불변식과도 충돌하지 않는다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void finishDownloadAndComplete(Long rawSn, Long procLogSn, Long datasetId, String deidFilePath) {
         verifyDeidFile(rawSn, deidFilePath);
+        if (procLogRepository.claimDownloadCompletion(procLogSn, deidFilePath, LocalDateTime.now()) != 1) {
+            // 이미 다른 노드(또는 앞선 호출)가 완료를 적용했다 — 중복 후처리 금지.
+            log.info("[KpstDeid] completion already applied — skip duplicate rawSn={}", rawSn);
+            return;
+        }
         LsDeidentProcLog procLog = procLogRepository.findById(procLogSn).orElse(null);
         boolean redeident = procLog != null && procLog.isRedeident();
         if (procLog != null) {
             procLog.recordDatasetId(datasetId);
+            // 클레임 UPDATE 와 동일 값을 엔티티에도 반영해 영속 컨텍스트/DB 를 일치시킨다(재수렴).
             procLog.markDownloaded(deidFilePath);
         }
         // REQ_KIND 분기 — REDEIDENT 는 검수완료(APPROVED) 유지 + 프레임 attach, 기존 BATCH 는 현행 유지.

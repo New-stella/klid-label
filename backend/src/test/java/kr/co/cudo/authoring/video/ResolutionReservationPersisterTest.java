@@ -131,9 +131,9 @@ class ResolutionReservationPersisterTest {
     }
 
     @Test
-    @DisplayName("부모가_비식별신고로_F전이되면_동기게이트에서_파생생성이_거부된다")
-    void parentNotDeidentifiedBlocked() {
-        LsDataRaw parent = parent(201L, "F"); // 비식별 신고로 되돌려짐
+    @DisplayName("부모_비식별산출물이_없으면(N)_예약게이트에서_파생생성이_거부된다")
+    void parentWithoutDeidentArtifactBlocked() {
+        LsDataRaw parent = parent(201L, "N"); // 비식별 미수행 — 복사할 산출물 자체가 없다
         when(videoRepository.findByRawSnForUpdate(201L)).thenReturn(Optional.of(parent));
 
         assertThatThrownBy(() -> persister.reserveAndCreate(parent, ResolutionPreset.RESL_720P, 42L, "rev1"))
@@ -143,6 +143,34 @@ class ResolutionReservationPersisterTest {
         verify(augRepository, never()).save(any());
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(asyncResolutionRunner, never()).runAsync(anyLong(), anyLong(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("부모가_비식별신고구간(F)이어도_해상도_파생영상이_정상_예약생성된다")
+    void parentUnderDeidentReportStillReserves() {
+        // given — 부모가 비식별 누락 신고('F'). 비식별 산출물은 존재하며, 해상도 파생은 외부 위탁이
+        //         전혀 없는 내부 리스케일이라 신고가 생성을 막지 않는다(2026-07-29 확정).
+        LsDataRaw parent = parent(203L, "F");
+        when(videoRepository.findByRawSnForUpdate(203L)).thenReturn(Optional.of(parent));
+        when(augRepository.save(any())).thenAnswer(inv -> {
+            LsDataAug a = inv.getArgument(0);
+            ReflectionTestUtils.setField(a, "dataAugSn", 11L);
+            return a;
+        });
+        when(videoRepository.save(any(LsDataRaw.class))).thenAnswer(inv -> {
+            LsDataRaw r = inv.getArgument(0);
+            ReflectionTestUtils.setField(r, "rawSn", 610L);
+            return r;
+        });
+
+        // when
+        ResolutionReservationPersister.Reservation reservation =
+                persister.reserveAndCreate(parent, ResolutionPreset.RESL_720P, 42L, "rev1");
+
+        // then — 예약 + 파생 RAW 생성 + 비동기 확정 트리거까지 정상 진행
+        assertThat(reservation.newRawSn()).isEqualTo(610L);
+        assertThat(reservation.dataAugSn()).isEqualTo(11L);
+        verify(asyncResolutionRunner).runAsync(eq(610L), eq(203L), eq(11L), eq(ResolutionPreset.RESL_720P));
     }
 
     @Test

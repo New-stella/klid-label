@@ -21,6 +21,7 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotencyRepository;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +34,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -159,6 +161,26 @@ class AugmentRequestServiceTest {
         return tx.execute(s -> jobRepository.findByIdempotencyKey(requestId));
     }
 
+    /**
+     * 위탁 job 이 선기록될 때까지 대기한 뒤 반환한다 (Phase 8 DEV_FIX HIGH-1).
+     *
+     * <p>{@code AugmentRequestBridge} 의 AFTER_COMMIT 리스너는 이제 {@code @Async} 다 — 커밋 스레드에서
+     * 그대로 돌면 {@code PROPAGATION_REQUIRED} 인계가 <b>이미 커밋된</b> 트랜잭션에 참여해 커밋되지 않고
+     * {@code FOR UPDATE} 잠금 조회가 {@code TransactionRequiredException} 으로 튀기 때문이다. 따라서
+     * 커밋 후 효과는 <b>동기 관측을 강요하지 않고</b> 대기해서 본다(강요하면 그 함정을 되살리게 된다).
+     */
+    private List<LsDataAugJob> awaitJobsOf(Long dataAugSn) {
+        Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(100))
+                .until(() -> !jobsOf(dataAugSn).isEmpty());
+        return jobsOf(dataAugSn);
+    }
+
+    /** 외부 위탁 호출이 비동기 스레드에서 실제로 나갈 때까지 대기한다. */
+    private void awaitExternalSubmitted(int expectedCalls) {
+        Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(100))
+                .untilAsserted(() -> verify(externalClient, times(expectedCalls)).requestAugment(any()));
+    }
+
     // ============================================================
     // 신규 RED — AFTER_COMMIT 고아 키 방지 / 단일 save
     // ============================================================
@@ -182,7 +204,7 @@ class AugmentRequestServiceTest {
         assertThat(augs).hasSize(1);
         String key = augs.get(0).getIdempotencyKey();
         assertThat(key).isNotNull();
-        assertThat(jobsOf(augs.get(0).getDataAugSn()))
+        assertThat(awaitJobsOf(augs.get(0).getDataAugSn()))
                 .as("위탁 job 이 선기록돼야 한다(발급 원장)")
                 .isNotEmpty()
                 .allSatisfy(job -> assertThat(job.getIdempotencyKey()).startsWith(key + "-"));
@@ -242,6 +264,8 @@ class AugmentRequestServiceTest {
         // Phase 7-A1 — job_id 는 외부가 202 로 발급한다. 요청 시점 aug 행에는 없다(우리가 짓지 않음).
         assertThat(aug.getExternalJobId()).isNull();
         assertThat(aug.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
+        // @Async 위탁이 뒤늦게 정리(@AfterEach)와 겹치지 않도록 종료를 기다린다.
+        awaitJobsOf(aug.getDataAugSn());
     }
 
     @Test
@@ -255,6 +279,7 @@ class AugmentRequestServiceTest {
                 List.of(raw), List.of(AugmentTypeCode.RAIN));
 
         service.request(req, reviewer);
+        awaitExternalSubmitted(1);
 
         ArgumentCaptor<AugmentSubmitCommand> captor =
                 ArgumentCaptor.forClass(AugmentSubmitCommand.class);
@@ -279,55 +304,48 @@ class AugmentRequestServiceTest {
     // ============================================================
 
     @Test
-    @DisplayName("AugmentRequestService_검수_완료_영상_3건_요청시_정상_jobId_반환")
-    void requestSucceedsWhenAllVideosApproved() {
-        Long r1 = nextRawSn(), r2 = nextRawSn(), r3 = nextRawSn();
+    @DisplayName("AugmentRequestService_검수_완료_영상_단건_요청시_정상_jobId_반환")
+    void requestSucceedsWhenVideoApproved() {
+        Long r1 = nextRawSn();
         seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(r2, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(r3, LsRawDataStatus.STTS_APPROVED);
-        seedFrame(r1, 0);
-        seedFrame(r2, 0);
-        seedFrame(r3, 0);
+        Long frame = seedFrame(r1, 0);
 
+        // 단건 계약(E-ISSUE-08) — 영상 1건 × 종류 1개
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1, r2, r3),
-                List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT, AugmentTypeCode.RAIN)
-        );
+                List.of(r1), List.of(AugmentTypeCode.WINTER));
 
         AugmentRequestResponse resp = service.request(req, reviewer);
 
         assertThat(resp.jobId()).isNotNull();
-        assertThat(resp.videoCount()).isEqualTo(3);
-        assertThat(resp.typeCount()).isEqualTo(3);
+        assertThat(resp.videoCount()).isEqualTo(1);
+        assertThat(resp.typeCount()).isEqualTo(1);
+        assertThat(resp.createdCount())
+                .as("요청 echo 가 아니라 실제 적재된 증강 행 수(E-ISSUE-09)").isEqualTo(1);
         assertThat(resp.requestedAt()).isNotNull().isBeforeOrEqualTo(LocalDateTime.now().plusSeconds(1));
+        awaitJobsOf(augsOf(frame).get(0).getDataAugSn());
     }
 
     @Test
-    @DisplayName("증강요청시_영상종류별_LS_DATA_AUG가_PENDING으로_생성된다")
-    void createsPendingAugPerVideoAndType() {
-        Long r1 = nextRawSn(), r2 = nextRawSn();
+    @DisplayName("증강요청시_LS_DATA_AUG가_PENDING으로_생성된다")
+    void createsPendingAug() {
+        Long r1 = nextRawSn();
         seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(r2, LsRawDataStatus.STTS_APPROVED);
         Long frame1 = seedFrame(r1, 0);
-        Long frame2 = seedFrame(r2, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1, r2),
-                List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT)
-        );
+                List.of(r1), List.of(AugmentTypeCode.WINTER));
 
         service.request(req, reviewer);
 
         List<LsDataAug> aug1 = augsOf(frame1);
-        List<LsDataAug> aug2 = augsOf(frame2);
-        assertThat(aug1).hasSize(2);
-        assertThat(aug2).hasSize(2);
+        assertThat(aug1).hasSize(1);
         assertThat(aug1).allSatisfy(a -> {
             assertThat(a.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
             assertThat(a.getSrcSn()).isEqualTo(frame1);
         });
         assertThat(aug1).extracting(LsDataAug::getAugTypeCd)
-                .containsExactlyInAnyOrder(LsDataAug.AUG_WINTER, LsDataAug.AUG_NIGHT);
+                .containsExactly(LsDataAug.AUG_WINTER);
+        awaitJobsOf(aug1.get(0).getDataAugSn());
     }
 
     @Test
@@ -348,39 +366,45 @@ class AugmentRequestServiceTest {
         assertThat(aug.getIdempotencyKey())
                 .isNotNull().matches("^[A-Za-z0-9_-]+$").hasSizeLessThanOrEqualTo(64);
         assertThat(aug.getExternalJobId()).as("job_id 발급 주체는 외부다").isNull();
-        assertThat(jobsOf(aug.getDataAugSn()))
+        assertThat(awaitJobsOf(aug.getDataAugSn()))
                 .as("발급 원장은 LS_DATA_AUG_JOB.IDMP_KEY 다").isNotEmpty();
     }
 
+    /**
+     * E-ISSUE-09 — 구 구현은 프레임 없는 영상을 조용히 스킵하고 200 을 돌려줬다(생성 0건 = silent
+     * no-op). 지금은 412 로 종결하고 어떤 영상이 막혔는지 알린다.
+     */
     @Test
-    @DisplayName("프레임없는_영상은_건별로_격리되어_전체요청을_실패시키지_않는다")
-    void videoWithoutFrameIsIsolated() {
-        Long r1 = nextRawSn(), r2 = nextRawSn();
+    @DisplayName("프레임없는_영상_요청은_412로_거부되고_위탁도_나가지_않는다")
+    void videoWithoutFrameIsRejected() {
+        Long r1 = nextRawSn();
         seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
-        seedStatus(r2, LsRawDataStatus.STTS_APPROVED);
-        Long frame = seedFrame(r1, 0);
-        // r2 프레임 미적재
+        // 프레임 미적재
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1, r2), List.of(AugmentTypeCode.WINTER));
+                List.of(r1), List.of(AugmentTypeCode.WINTER));
 
-        AugmentRequestResponse resp = service.request(req, reviewer);
+        assertThatThrownBy(() -> service.request(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.PRECONDITION_FAILED);
+                    @SuppressWarnings("unchecked")
+                    var details = (java.util.Map<String, Object>) ce.getDetails();
+                    assertThat((List<?>) details.get("skippedVideoIds")).hasSize(1);
+                });
 
-        assertThat(resp.jobId()).isNotNull();
-        assertThat(augsOf(frame)).hasSize(1);
-        verify(externalClient, times(1)).requestAugment(any());
+        verify(externalClient, never()).requestAugment(any());
     }
 
     @Test
-    @DisplayName("AugmentRequestService_검수_미완료_영상_포함시_NOT_REVIEWED_blockedVideoIds_포함")
-    void rejectsWhenSomeVideosNotApproved() {
-        Long r1 = nextRawSn(), r2 = nextRawSn(), r3 = nextRawSn();
-        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
+    @DisplayName("AugmentRequestService_검수_미완료_영상_요청시_NOT_REVIEWED_blockedVideoIds_포함")
+    void rejectsWhenVideoNotApproved() {
+        Long r2 = nextRawSn();
         seedStatus(r2, LsRawDataStatus.STTS_IN_REVIEW);
-        seedStatus(r3, LsRawDataStatus.STTS_PENDING);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1, r2, r3), List.of(AugmentTypeCode.WINTER));
+                List.of(r2), List.of(AugmentTypeCode.WINTER));
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -392,19 +416,17 @@ class AugmentRequestServiceTest {
                     var details = (java.util.Map<String, Object>) ce.getDetails();
                     @SuppressWarnings("unchecked")
                     List<Long> blocked = (List<Long>) details.get("blockedVideoIds");
-                    assertThat(blocked).containsExactlyInAnyOrder(r2, r3);
+                    assertThat(blocked).containsExactly(r2);
                 });
     }
 
     @Test
-    @DisplayName("AugmentRequestService_LsRawDataStatus_row가_없는_영상_포함시_NOT_REVIEWED")
+    @DisplayName("AugmentRequestService_LsRawDataStatus_row가_없는_영상_요청시_NOT_REVIEWED")
     void rejectsWhenStatusRowMissing() {
-        Long r1 = nextRawSn();
         Long missing = nextRawSn(); // status row 없음
-        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1, missing), List.of(AugmentTypeCode.NIGHT));
+                List.of(missing), List.of(AugmentTypeCode.NIGHT));
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -419,37 +441,36 @@ class AugmentRequestServiceTest {
                 });
     }
 
+    /**
+     * E-ISSUE-08 — 단건 계약이 정본이다. 구 테스트(중복 입력 distinct 처리)는 DTO 가 길이 1 만
+     * 허용하므로 실행될 수 없는 <b>사문 다건 로직</b>을 계약처럼 고정하고 있었다. 지금은 초과 입력이
+     * 조용히 잘리지 않고 거부되는 것을 서비스 레벨에서도 고정한다(컨트롤러 400 은 {@code
+     * AugmentRequestControllerTest} 가 담당).
+     */
     @Test
-    @DisplayName("AugmentRequestService_videoIds_중복_입력시_distinct_처리되어_정상_진행")
-    void distinctVideoIds() {
+    @DisplayName("단건_계약을_초과하면_400")
+    void multiSelectionRejectedAtServiceLayer() {
         Long r1 = nextRawSn(), r2 = nextRawSn();
         seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
         seedStatus(r2, LsRawDataStatus.STTS_APPROVED);
-        seedFrame(r1, 0);
+        Long frame = seedFrame(r1, 0);
         seedFrame(r2, 0);
 
-        AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1, r2, r1, r2), List.of(AugmentTypeCode.WINTER));
+        assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
+                List.of(r1, r2), List.of(AugmentTypeCode.WINTER)), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        AugmentRequestResponse resp = service.request(req, reviewer);
+        assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
+                List.of(r1), List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT)), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        assertThat(resp.videoCount()).isEqualTo(2);
-    }
-
-    @Test
-    @DisplayName("AugmentRequestService_types_중복_입력시_distinct_처리되어_정상_진행")
-    void distinctTypes() {
-        Long raw = nextRawSn();
-        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
-        seedFrame(raw, 0);
-
-        AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw),
-                List.of(AugmentTypeCode.WINTER, AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT));
-
-        AugmentRequestResponse resp = service.request(req, reviewer);
-
-        assertThat(resp.typeCount()).isEqualTo(2);
+        // 초과 요청이 "일부만" 접수되지 않는다.
+        assertThat(augsOf(frame)).isEmpty();
+        verify(externalClient, never()).requestAugment(any());
     }
 
     @Test
@@ -472,7 +493,7 @@ class AugmentRequestServiceTest {
         // aug 행과 위탁 job(실패 사유 포함)은 외부 실패와 무관하게 유지 (재시도 가능 양성 상태)
         List<LsDataAug> augs = augsOf(frame);
         assertThat(augs).hasSize(1);
-        assertThat(jobsOf(augs.get(0).getDataAugSn()))
+        assertThat(awaitJobsOf(augs.get(0).getDataAugSn()))
                 .as("외부 호출 실패도 job 행에 사유와 함께 남는다(조용한 유실 금지)").isNotEmpty();
     }
 

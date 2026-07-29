@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.video.dto.ResolutionDerivativeResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.ParentDeidArtifactGuard;
 import kr.co.cudo.authoring.video.service.ResolutionDerivativeService;
 import kr.co.cudo.authoring.video.service.VideoResolutionService;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
@@ -58,6 +59,7 @@ class VideoResolutionServiceTest {
     @Mock LsDataSrcRepository srcRepository;
     @Mock ImageResizer imageResizer;
     @Mock ResolutionDerivativeService resolutionDerivativeService;
+    @Mock ParentDeidArtifactGuard parentDeidArtifactGuard;
 
     VideoResolutionService service;
 
@@ -66,7 +68,7 @@ class VideoResolutionServiceTest {
     @BeforeEach
     void setup() {
         service = new VideoResolutionService(videoRepository, statusRepository, srcRepository,
-                imageResizer, resolutionDerivativeService);
+                imageResizer, resolutionDerivativeService, parentDeidArtifactGuard);
         ReflectionTestUtils.setField(service, "storageRawPath", "/tmp/klid-res-p3");
         ReflectionTestUtils.setField(service, "storageDeidentifiedPath", "/tmp/klid-res-p3-deid");
 
@@ -242,6 +244,47 @@ class VideoResolutionServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
         verify(resolutionDerivativeService, never()).createDerivative(any(), any(), anyString());
+    }
+
+    /**
+     * 적대검증 MEDIUM-1 — {@code 'F'} 가 "비식별 API 실패(산출물 부재)" 인 요청은 예약 이전에 동기 거부해야
+     * 한다. 통과시키면 201 CREATED 후 async 확정이 반드시 실패하고 cleanup 이 파생 RAW·예약행을 지워
+     * 사용자에겐 성공으로 보이면서 목록은 0건이 된다(가시성 회귀).
+     */
+    @Test
+    @DisplayName("부모_비식별_산출물이_없으면_예약전에_동기거부되고_파생생성은_시도되지_않는다")
+    void missingParentDeidArtifactRejectedBeforeReservation() {
+        // given: APPROVED 원본이지만 부모 비식별 산출물이 실재하지 않는다(게이트가 CONFLICT).
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+        org.mockito.Mockito.doThrow(new CustomException(ErrorCode.CONFLICT,
+                        "원본의 비식별 산출물을 찾을 수 없어 해상도 파생을 만들 수 없습니다."))
+                .when(parentDeidArtifactGuard).requireParentDeidVideoPresent(any());
+
+        // when/then: 201 이 아니라 동기 4xx. 예약(파생 RAW·aug 행) 자체가 생기지 않는다.
+        assertThatThrownBy(() -> call(1L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(resolutionDerivativeService, never()).createDerivative(any(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("부모가_신고_F여도_비식별_산출물이_있으면_파생영상이_정상_생성된다")
+    void reportedParentWithArtifactStillCreatesDerivatives() {
+        // given: 게이트 통과(산출물 실재) — 신고 여부는 파생 생성을 막지 않는다(2026-07-29 확정).
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+
+        // when
+        ResolutionChangeResponse res = call(1L);
+
+        // then
+        assertThat(res.derivatives()).hasSize(3);
+        assertThat(res.derivatives()).allMatch(d -> d.status() == DerivativeStatus.CREATED);
+        verify(parentDeidArtifactGuard).requireParentDeidVideoPresent(any());
     }
 
     @Test

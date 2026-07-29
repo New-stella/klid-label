@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.webhook;
 import jakarta.validation.Valid;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.webhook.dto.GenAiCallbackRequest;
+import kr.co.cudo.authoring.webhook.service.AugmentApplyResult;
 import kr.co.cudo.authoring.webhook.service.GenAiCallbackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -37,14 +39,26 @@ public class GenAiCallbackController {
 
     private final GenAiCallbackService service;
 
+    /**
+     * <p>{@code applied} 는 <b>증강 인계가 실제로 반영됐는지</b>를 뜻한다. 멱등 흡수({@code DUPLICATE})·
+     * 롤업 보류({@code DEFERRED})는 {@code applied:false} 로 회신한다 — 구 구현은 이 경우에도
+     * {@code true} 를 돌려줘 외부가 정상 인계로 오해했다(E-ISSUE-11).
+     *
+     * <p>정책 보류({@code WITHHELD_*})는 2026-07-29 로 폐기됐다 — 부모가 비식별 신고({@code 'F'})
+     * 구간이어도 파생 생성은 진행하며, 부모를 물리적으로 쓸 수 없는 경우(비식별 미완료·부모/프레임
+     * 부재)는 보류가 아니라 {@code REJECTED} 로 실패 확정한다. 사유 코드는 내부 경로·식별정보 없는
+     * 고정 코드값만 노출한다는 규약을 유지한다(CWE-209).
+     */
     @PostMapping("/callback")
     public ResponseEntity<ApiResponse<Map<String, Object>>> receive(
             @Valid @RequestBody GenAiCallbackRequest request) {
-        boolean applied = service.handle(request);
-        Map<String, Object> body = Map.of(
-                "applied", applied,
-                "requestId", request.requestId()
-        );
+        AugmentApplyResult result = service.handle(request);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("applied", result.applied());
+        body.put("requestId", request.requestId());
+        if (result.reasonCode() != null) {
+            body.put("reason", result.reasonCode());
+        }
         return ResponseEntity.ok(ApiResponse.ok(body));
     }
 }
