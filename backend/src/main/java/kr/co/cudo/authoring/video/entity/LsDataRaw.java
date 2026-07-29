@@ -241,6 +241,23 @@ public class LsDataRaw {
     }
 
     /**
+     * 이 영상이 <b>파생영상</b>(증강 · 해상도 변환본)인가 — 판정의 단일 원천.
+     *
+     * <p>파생 여부는 {@code ORGNL_RAW_SN}(부모 참조) 보유로만 정의된다. 이 컬럼은 파생 생성 팩토리
+     * ({@link #createFromAugment} / {@link #createFromResolution})에서만 대입되고 이후 어떤 setter·벌크
+     * UPDATE 로도 바뀌지 않는(생성 후 불변) 값이라, 이 술어는 영상의 <b>영구 속성</b>이다.
+     *
+     * <p><b>정책 결합점</b>: 비식별 누락 신고는 파생영상에서 접수하지 않는다(2026-07-29 사용자 확정 —
+     * 파생본은 원본 비식별 산출물의 사본이라 재비식별 수단이 원본에만 있다. 반대로 <b>원본의 신고도
+     * 파생에 영향을 주지 않는다</b> — 파생은 신고 체계 바깥의 독립 영상으로 다룬다). 그 판정을 호출부마다
+     * {@code getOrgnlRawSn() != null} 로 재구현하면 정책이 갈라지므로 여기 한 곳으로 모은다
+     * ({@code DeidentReportService.report} · {@code VideoDetailResponse.derivative} 참조).
+     */
+    public boolean isDerivative() {
+        return this.orgnlRawSn != null;
+    }
+
+    /**
      * A-6 — 파생 RAW_SN 이 확정된 뒤 파생영상 파일 경로를 <b>파생별 고유 경로</b>로 배정한다
      * (예약 트랜잭션 전용). 경로 키에 파생 RAW_SN 이 들어가야 같은 (부모, 프리셋) 파생이 복수일 때
      * 파일 상호 덮어쓰기·공유 파일 오삭제가 발생하지 않는다.

@@ -77,6 +77,7 @@ class AutolabelPolygonServiceTest {
     @Mock private SystemConfigService systemConfigService;
     @Mock private WorkLockService workLockService;
     @Mock private FrameImageEncoder frameImageEncoder;
+    @Mock private kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
 
     private AutolabelOnlineService service;
 
@@ -91,13 +92,13 @@ class AutolabelPolygonServiceTest {
         Bulkhead bulkhead = Bulkhead.of("aiOnlinePolyTest", BulkheadConfig.custom()
                 .maxConcurrentCalls(25).maxWaitDuration(Duration.ZERO).build());
         service = new AutolabelOnlineService(aiServerClient, accessGuard, systemConfigService,
-                workLockService, frameImageEncoder, labelMasterService, bulkhead);
+                workLockService, frameImageEncoder, labelMasterService, deidentReportGate, bulkhead);
 
         LsDataSrc src = LsDataSrc.create(RAW_SN, 0, "0.jpg", LocalDateTime.now());
         ReflectionTestUtils.setField(src, "srcSn", SRC_SN);
 
         when(accessGuard.verifyAndGet(eq(SRC_SN), any())).thenReturn(src);
-        when(frameImageEncoder.encodeToBase64(anyString())).thenReturn("BASE64IMG");
+        when(frameImageEncoder.encodeFrame(any())).thenReturn("BASE64IMG");
         when(systemConfigService.getInt(any())).thenReturn(null);       // conf/imgsz/iou/max-boxes fallback
         when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
         when(labelMasterService.mappedDetectClasses())
@@ -319,7 +320,7 @@ class AutolabelPolygonServiceTest {
         Bulkhead saturating = Bulkhead.of("aiOnlineSat", BulkheadConfig.custom()
                 .maxConcurrentCalls(1).maxWaitDuration(Duration.ZERO).build());
         AutolabelOnlineService svc = new AutolabelOnlineService(aiServerClient, accessGuard,
-                systemConfigService, workLockService, frameImageEncoder, labelMasterService, saturating);
+                systemConfigService, workLockService, frameImageEncoder, labelMasterService, deidentReportGate, saturating);
 
         stubYolo(detections(2));
         when(aiServerClient.segment(any())).thenAnswer(inv -> {

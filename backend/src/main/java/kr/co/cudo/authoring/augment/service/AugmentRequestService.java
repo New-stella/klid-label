@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -139,6 +140,12 @@ public class AugmentRequestService {
         // 3) 영상별 대표 프레임(MIN SRC_SN) 일괄 조회 (N+1 회피)
         Map<Long, Long> firstSrcSnByRawSn = findFirstSrcSnByRawSn(videoIds);
 
+        // 3-1) 중복 증강 요청 차단 — 같은 (원본 × 종류)를 반복/동시 요청하면 콜백마다 새 파생 RAW 가
+        //      생기고(AugmentResultService.createAugmentedVideo) 반려해도 그 파생 RAW 행은 남는다.
+        //      요청 1회 = 파생영상 1건이라는 계약을 입구에서 지킨다(파생 트리·저장소·검수 큐 오염 방지).
+        //      부분 처리 금지 원칙(위 미검수 검증과 동일)에 따라 하나라도 중복이면 전체 거부한다.
+        rejectDuplicateActiveRequests(videoIds, types, firstSrcSnByRawSn, actor);
+
         // 4) distinct (영상 × 종류) 건별 PENDING 적재 + 멱등 키 발급 + 콜백 컨텍스트 전달.
         //    한 건의 실패가 전체 요청을 깨지 않도록 건별 격리한다.
         String regUserNo = actor.sub();
@@ -166,6 +173,94 @@ public class AugmentRequestService {
     }
 
     /**
+     * 중복 증강 요청 1선 가드 — 이미 <b>활성</b>({@link LsDataAug#ACTIVE_STATUSES} = PENDING·ACCEPTED)
+     * 인 (대표프레임 × 종류)를 다시 요청하면 409 로 거부한다.
+     *
+     * <p>"활성"의 정의는 {@code LsDataAug.ACTIVE_STATUSES} 단일 원천이며 DB 부분 유니크 인덱스
+     * {@code UK_LS_DATA_AUG_ACTVTN}(V143)의 술어와 일치한다. REJECTED(반려·종결)는 제외 —
+     * 반려 후 재요청은 정당한 운영 동선이다.
+     *
+     * <p>이 조회는 <b>1선</b>일 뿐이다: 서로의 미커밋 행을 보지 못하는 동시 요청은 여기서 전부 통과하며,
+     * 실제 직렬화는 DB 인덱스가 한다({@link #createOneAugmentRequest} 의 제약 위반 처리 참조).
+     *
+     * <h3>안내 문구는 <b>실제로 수행 가능한 동선</b>만 말한다 (2026-07-29 정정)</h3>
+     * 구 문구는 상태와 무관하게 "반려 후 다시 요청하세요" 였는데, {@code ACCEPTED} 는
+     * {@code LsDataAug.applyReviewStatus} 가 {@code PENDING} 에서만 전이를 허용하므로 <b>반려로 갈 수
+     * 없다</b> — 사용자가 따라 할 수 없는 안내였다. 그래서 중복 건의 실제 상태로 갈라 말한다.
+     * <ul>
+     *   <li>{@code PENDING}(진행 중) — 결과가 도착해 채택/반려로 종결되거나, 검수 화면에서 REVIEWER 가
+     *       반려하면 같은 종류를 다시 요청할 수 있다.</li>
+     *   <li>{@code ACCEPTED}(채택 완료) — <b>종결 상태라 되돌릴 수 없다</b>. 같은 (영상 × 종류) 증강은
+     *       더 만들지 않는다는 뜻이므로, "기다리면 된다"고 오해하지 않도록 그 사실을 그대로 알린다.</li>
+     * </ul>
+     */
+    private void rejectDuplicateActiveRequests(List<Long> videoIds, List<String> types,
+                                               Map<Long, Long> firstSrcSnByRawSn, TokenClaims actor) {
+        List<Long> srcSns = videoIds.stream()
+                .map(firstSrcSnByRawSn::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (srcSns.isEmpty() || types.isEmpty()) {
+            return;
+        }
+        // (srcSn|augType) → 현재 활성 상태. 상태를 함께 들고 있어야 수행 가능한 안내 문구를 만들 수 있다.
+        Map<String, String> activeStatusByKey = new LinkedHashMap<>();
+        for (LsDataAug aug : augRepository.findBySrcSnInAndAugProcSttsCdIn(
+                srcSns, LsDataAug.ACTIVE_STATUSES)) {
+            activeStatusByKey.put(aug.getSrcSn() + "|" + aug.getAugTypeCd(), aug.getAugProcSttsCd());
+        }
+        if (activeStatusByKey.isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> duplicated = new java.util.ArrayList<>();
+        boolean anyAccepted = false;
+        boolean anyPending = false;
+        for (Long rawSn : videoIds) {
+            Long srcSn = firstSrcSnByRawSn.get(rawSn);
+            if (srcSn == null) {
+                continue;
+            }
+            for (String augType : types) {
+                String status = activeStatusByKey.get(srcSn + "|" + augType);
+                if (status == null) {
+                    continue;
+                }
+                anyAccepted |= LsDataAug.STTS_ACCEPTED.equals(status);
+                anyPending |= LsDataAug.STTS_PENDING.equals(status);
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("videoId", rawSn);
+                item.put("type", augType);
+                item.put("status", status);
+                duplicated.add(item);
+            }
+        }
+        if (duplicated.isEmpty()) {
+            return;
+        }
+        log.warn("[Augment] request blocked — duplicate active augment actor={} duplicatedCount={}",
+                sanitize(actor.sub()), duplicated.size());
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("duplicatedRequests", duplicated);
+        throw new CustomException(ErrorCode.CONFLICT,
+                duplicateGuidance(anyAccepted, anyPending), details);
+    }
+
+    /** 중복 상태별 안내 문구 — 채택(되돌릴 수 없음) / 진행 중(종결 후 재요청 가능) 구분. */
+    private static String duplicateGuidance(boolean anyAccepted, boolean anyPending) {
+        if (anyAccepted && anyPending) {
+            return "이미 채택되었거나 진행 중인 증강이 포함되어 있습니다. "
+                    + "채택된 증강은 되돌릴 수 없어 같은 영상·종류로 다시 요청할 수 없고, "
+                    + "진행 중인 요청은 완료되거나 검수에서 반려된 뒤 다시 요청할 수 있습니다.";
+        }
+        if (anyAccepted) {
+            return "이미 채택된 증강입니다. 채택된 증강은 되돌릴 수 없어 "
+                    + "같은 영상·종류로는 다시 요청할 수 없습니다.";
+        }
+        return "이미 요청되어 진행 중인 증강입니다. "
+                + "결과가 도착해 완료되거나 검수에서 반려된 뒤 다시 요청하세요.";
+    }
+
+    /**
      * 단일 (대표 프레임 × 종류) 증강 요청 처리 — 키 발급 → 키를 실은 PENDING 행 단일 save →
      * 건별 AFTER_COMMIT 이벤트 발행. 멱등 키 allowlist 등록·외부 콜백 전달은 커밋 이후로 위임된다.
      * 건별 격리: 본 메서드 내 예외는 잡아서 false 를 반환하고 다음 건 처리를 계속한다.
@@ -188,6 +283,18 @@ public class AugmentRequestService {
             eventPublisher.publishEvent(new AugmentRequestedItemEvent(
                     originAugSn, rawSn, augType, idempotencyKey, callbackUrl, regUserNo));
             return true;
+        } catch (DataIntegrityViolationException e) {
+            // 중복 증강 최종 방어 — 부분 유니크 인덱스 UK_LS_DATA_AUG_ACTVTN(V143) 위반.
+            //
+            // 여기서는 <b>건별 격리로 삼키지 않는다</b>: PostgreSQL 은 제약 위반이 나면 트랜잭션 전체를
+            // abort 시켜 이후 모든 문장이 "current transaction is aborted" 로 실패한다. 삼키고 다음 건을
+            // 계속 처리하면 그 사실이 커밋 시점에야 드러나 원인 추적이 불가능한 500 이 된다.
+            // 요청 트랜잭션을 롤백시키고 409 로 마감한다(위 미검수/중복 검증과 동일한 부분 처리 금지).
+            log.warn("[Augment] aug request rejected — active duplicate constraint srcSn={} augType={}",
+                    srcSn, sanitize(augType));
+            // 문구는 사전 조회 경로와 동일 원천(duplicateGuidance). 여기서는 동시 요청이 원인이라
+            // 상대 건이 방금 만들어진 PENDING 이므로 "진행 중" 안내가 정확하다.
+            throw new CustomException(ErrorCode.CONFLICT, duplicateGuidance(false, true));
         } catch (Exception e) {
             // 건별 격리 — 한 건 실패가 전체 요청을 깨지 않게 한다.
             log.warn("[Augment] aug request item failed (isolated) srcSn={} augType={} err={}",

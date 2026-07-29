@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
+import kr.co.cudo.authoring.label.event.DeidentGateReopenedEvent;
 import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
@@ -105,13 +106,12 @@ class DeidentReportServiceTest {
         //   (VersionService·LsDataLblRepository·ATTR_VAL·AI_INFO·LBL_HSTRY)가 의존성에서 제거됐다.
         // DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사(LS_DATA_LBL_HSTRY) 협력자만 재도입.
         lblHstryRepository = mock(LsDataLblHstryRepository.class);
-        // S7 — 신고 게이트 판정은 단일 원천(DeidentReportGate)에 위임한다. 파생 export 재트리거 시
-        //   "다른 조상이 아직 신고 중인가" 판정에 쓰이며, videoRepository 스텁이 그대로 판정에 반영된다.
+        // 2026-07-29 — 신고 해소 복구 범위가 "해제된 영상 하나"로 축소되면서(파생영상은 원본 신고와
+        //   무관) 자손 전개·게이트 재판정 의존성이 제거됐다.
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService, srcRepository,
                 rawDataStatusRepository, eventPublisher,
-                streamMetaCacheEvictor, procLogRepository, lblHstryRepository,
-                new kr.co.cudo.authoring.video.service.DeidentReportGate(videoRepository));
+                streamMetaCacheEvictor, procLogRepository, lblHstryRepository);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -174,6 +174,61 @@ class DeidentReportServiceTest {
         verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
         // 라벨을 지우지 않으므로 라벨셋 버전 bump(낙관적 락)도 하지 않는다.
         verify(srcRepository, never()).bumpLabelVersionByRawSn(anyLong());
+    }
+
+    // ───────────── 파생영상 신고 차단 (2026-07-29 사용자 확정) ─────────────
+
+    @Test
+    @DisplayName("파생영상은_비식별_누락_신고가_412로_거부된다 — 원본으로 유도하지 않는다")
+    void reportRejectedForDerivativeVideo() {
+        // given — 해상도/증강 파생본(ORGNL_RAW_SN=9200). 파생 프레임은 부모 비식별본의 사본이라
+        //         재비식별 수단이 부모에만 있다 → 여기서 신고를 받으면 해소할 방법이 없다.
+        LsDataSrc s = src(1L, 9201L);
+        LsDataRaw derivative = raw(9201L, LsDataRaw.PRVC_TYPE_ANONY);
+        setField(derivative, "orgnlRawSn", 9200L);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9201L)).thenReturn(Optional.of(derivative));
+
+        // when / then — 412. 원본을 신고해도 이 파생본은 달라지지 않으므로(자기 행 판정) 원본 영상번호를
+        //   안내하지 않는다 — 따라가면 막다른 길(파생 배정 WORKER 는 원본에 403)이라 잘못된 정보다.
+        assertThatThrownBy(() -> service.report(1L, "얼굴 미블러", workerActor))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.PRECONDITION_FAILED);
+                    assertThat(ce.getMessage()).contains("파생영상");
+                    assertThat(ce.getMessage()).doesNotContain("9200");
+                    assertThat(ce.getDetails()).isNull();
+                });
+
+        // then — 부작용이 하나도 일어나지 않는다(신고행·작업락·'F'·개인정보 리셋 전부 없음).
+        //   REVIEWER 알림도 보내지 않는다 — 신고 행이 없어 처리할 워크플로가 없다(사유는 감사 로그로 보존).
+        verify(notificationService, never()).notifyReviewersOnDeidentReport(any(), any(), any());
+        verify(reportRepository, never()).save(any());
+        verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
+        assertThat(derivative.getDeIdntfYn()).isNotEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("비파생_원본영상은_기존대로_정상_신고된다")
+    void reportAcceptedForNonDerivativeVideo() {
+        // given — ORGNL_RAW_SN 이 없는 원본 영상(신고 진입점은 여기 하나다).
+        LsDataSrc s = src(1L, 9210L);
+        LsDataRaw origin = raw(9210L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9210L)).thenReturn(Optional.of(origin));
+        when(workLockService.isRawLocked(9210L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9210L, false);
+
+        // when
+        Long rprtSn = service.report(1L, "얼굴 미블러", workerActor);
+
+        // then
+        assertThat(rprtSn).isEqualTo(555L);
+        assertThat(origin.getDeIdntfYn()).isEqualTo("F");
+        verify(workLockService).lockRawForRedeident(9210L, "100");
     }
 
     @Test
@@ -414,79 +469,47 @@ class DeidentReportServiceTest {
         verify(streamMetaCacheEvictor).evictAfterCommit(9700L);
     }
 
-    // ---------- 신고 해소 → 파생영상(자손) export 재트리거 ----------
-
-    /** 신고 게이트 체인 1노드 스텁 — {@code (DE_IDNTF_YN, ORGNL_RAW_SN)}. */
-    private void stubChainNode(Long rawSn, String deIdntfYn, Long orgnlRawSn) {
-        when(videoRepository.findDeidentChainNodeByRawSn(rawSn)).thenReturn(Optional.of(
-                new kr.co.cudo.authoring.video.repository.DeidentChainProjection() {
-                    @Override
-                    public String getDeIdntfYn() {
-                        return deIdntfYn;
-                    }
-
-                    @Override
-                    public Long getOrgnlRawSn() {
-                        return orgnlRawSn;
-                    }
-                }));
-    }
-
-    /** 검수 승인(APPROVED) 상태 행 — 자손 배치 조회({@code findByRawDataIdIn}) 스텁용. */
-    private LsRawDataStatus approvedStatus(long rawSn) {
-        LsRawDataStatus st = LsRawDataStatus.initial(rawSn);
-        setField(st, "dataSttsCd", LsRawDataStatus.STTS_APPROVED);
-        return st;
-    }
+    // ---------- 신고 해소 → 복구 발행 범위(해제된 영상 하나) ----------
+    //
+    // 구 테스트 2건(resolveRetriggersApprovedDescendantExport ·
+    // resolveSkipsDescendantStillUnderAnotherAncestorReport)은 "부모 신고가 파생 export 도 막는다"는
+    // 전제 위에 있었다. 2026-07-29 확정으로 그 전파 자체가 철회되어 전제가 사라졌으므로, 아래 두
+    // 테스트(자기 영상만 복구 / 파생에는 발행하지 않음)로 대체했다.
 
     @Test
-    @DisplayName("resolve시_승인된_파생영상_export도_함께_재트리거된다")
-    void resolveRetriggersApprovedDescendantExport() {
-        // given — 부모(9740) 신고 해소. 부모는 미승인, 파생(9741)은 검수 완료(APPROVED) 상태다.
-        //         부모 신고 구간에는 파생 export 도 게이트에 막혀 skip 되므로 함께 복구돼야 한다.
+    @DisplayName("resolve시_승인영상은_자기_rawSn으로만_export가_재트리거된다")
+    void resolveRetriggersOwnExportOnly() {
+        // given — 신고 해소 대상(9740)은 검수 완료(APPROVED). 파생(9741)이 존재하지만 대상이 아니다.
         LsDeidentReport rep = report(740L, 9740L, LsDeidentReport.REPORT_OPEN);
         when(reportRepository.findById(740L)).thenReturn(Optional.of(rep));
         stubDeidentArtifact(9740L);
-        stubApproved(9740L, false);
-        when(videoRepository.findRawSnsByOrgnlRawSnIn(List.of(9740L))).thenReturn(List.of(9741L));
-        when(videoRepository.findRawSnsByOrgnlRawSnIn(List.of(9741L))).thenReturn(List.of());
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(9741L)))
-                .thenReturn(List.of(approvedStatus(9741L)));
-        stubChainNode(9741L, "Y", 9740L);
-        stubChainNode(9740L, "Y", null);
+        stubApproved(9740L, true);
 
         // when
         service.resolveManually(740L, reviewerActor);
 
-        // then — 파생영상 rawSn 으로 재산출 이벤트가 발행된다(부모는 미승인이라 미발행).
-        verify(eventPublisher).publishEvent(new DeidentReportResolvedEvent(9741L));
-        verify(eventPublisher, never()).publishEvent(new DeidentReportResolvedEvent(9740L));
-        // 파생 스트림 메타 캐시도 함께 무효화된다(캐시 경유 게이트 우회 차단).
+        // then — 자기 rawSn 으로만 재산출·재개 이벤트가 나가고, 파생영상 전개 조회 자체가 없다.
+        verify(eventPublisher).publishEvent(new DeidentReportResolvedEvent(9740L));
+        verify(eventPublisher).publishEvent(new DeidentGateReopenedEvent(9740L));
+        verify(eventPublisher, never()).publishEvent(new DeidentReportResolvedEvent(9741L));
         verify(streamMetaCacheEvictor).evictAfterCommit(9740L);
-        verify(streamMetaCacheEvictor).evictAfterCommit(9741L);
+        verify(streamMetaCacheEvictor, never()).evictAfterCommit(9741L);
     }
 
     @Test
-    @DisplayName("다른_조상이_아직_신고중인_파생영상은_재트리거하지_않는다")
-    void resolveSkipsDescendantStillUnderAnotherAncestorReport() {
-        // given — 3단 체인(조부 9750 → 부모 9751 → 파생 9752). 부모 신고만 해소했고 조부는 아직 'F' 다.
-        //         이때 파생 export 는 여전히 게이트에 막히므로 재트리거하면 무의미한 실패만 쌓인다.
-        LsDeidentReport rep = report(741L, 9751L, LsDeidentReport.REPORT_OPEN);
-        when(reportRepository.findById(741L)).thenReturn(Optional.of(rep));
-        stubDeidentArtifact(9751L);
-        stubApproved(9751L, false);
-        when(videoRepository.findRawSnsByOrgnlRawSnIn(List.of(9751L))).thenReturn(List.of(9752L));
-        when(videoRepository.findRawSnsByOrgnlRawSnIn(List.of(9752L))).thenReturn(List.of());
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(9752L)))
-                .thenReturn(List.of(approvedStatus(9752L)));
-        stubChainNode(9752L, "Y", 9751L);
-        stubChainNode(9751L, "Y", 9750L);
-        stubChainNode(9750L, "F", null); // 조부는 아직 신고 구간
+    @DisplayName("미승인_영상_해소시_게이트_재개방만_발행되고_export_재산출은_없다 — VLM 보류 재개 경로 보존")
+    void resolvePublishesReopenEvenWhenNotApproved() {
+        // given — 파이프라인 진행 중(미승인) 영상. VLM 보류 재개는 이 경우에도 필요하다.
+        LsDeidentReport rep = report(742L, 9760L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(742L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9760L);
+        stubApproved(9760L, false);
 
         // when
-        service.resolveManually(741L, reviewerActor);
+        service.resolveManually(742L, reviewerActor);
 
-        // then — 재산출 이벤트가 발행되지 않는다(게이트에 어차피 막힐 재산출을 만들지 않는다).
+        // then
+        verify(eventPublisher).publishEvent(new DeidentGateReopenedEvent(9760L));
         verify(eventPublisher, never()).publishEvent(any(DeidentReportResolvedEvent.class));
     }
 

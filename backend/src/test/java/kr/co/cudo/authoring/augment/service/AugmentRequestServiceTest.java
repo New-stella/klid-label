@@ -476,6 +476,175 @@ class AugmentRequestServiceTest {
                 .as("외부 호출 실패도 job 행에 사유와 함께 남는다(조용한 유실 금지)").isNotEmpty();
     }
 
+    // ============================================================
+    // HIGH-3 — 중복 증강 요청 차단 (파생 트리 팬아웃 DoS 근원 제거)
+    // ============================================================
+
+    @Test
+    @DisplayName("이미_요청된_증강을_같은_종류로_다시_요청하면_409로_차단된다")
+    void duplicateActiveAugmentRequestRejected() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.WINTER));
+        service.request(req, reviewer);
+
+        // when — 동일 (영상 × 종류) 재요청
+        assertThatThrownBy(() -> service.request(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    @SuppressWarnings("unchecked")
+                    var details = (java.util.Map<String, Object>) ce.getDetails();
+                    @SuppressWarnings("unchecked")
+                    List<java.util.Map<String, Object>> dup =
+                            (List<java.util.Map<String, Object>>) details.get("duplicatedRequests");
+                    assertThat(dup).hasSize(1);
+                    assertThat(dup.get(0)).containsEntry("videoId", raw)
+                            .containsEntry("type", LsDataAug.AUG_WINTER);
+                });
+
+        // then — 파생 트리를 부풀릴 두 번째 증강 행이 생기지 않았다.
+        assertThat(augsOf(frame)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("채택된_증강도_같은_종류로_다시_요청하면_409로_차단된다")
+    void acceptedAugmentBlocksReRequest() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.NIGHT));
+        service.request(req, reviewer);
+        // 검수 승인(ACCEPTED) — 채택된 파생본이 이미 존재하는 상태.
+        tx.executeWithoutResult(s -> augRepository.findBySrcSnOrderByAugTypeCd(frame)
+                .forEach(a -> a.applyReviewStatus(LsDataAug.STTS_ACCEPTED)));
+
+        assertThatThrownBy(() -> service.request(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+        assertThat(augsOf(frame)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("반려된_증강은_같은_종류로_다시_요청할_수_있다")
+    void rejectedAugmentAllowsReRequest() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.RAIN));
+        service.request(req, reviewer);
+        // 반려(REJECTED) — 종결 상태이므로 활성 유니크 대상에서 빠진다(정당한 재요청 동선 보존).
+        tx.executeWithoutResult(s -> augRepository.findBySrcSnOrderByAugTypeCd(frame)
+                .forEach(a -> a.applyReviewStatus(LsDataAug.STTS_REJECTED)));
+
+        AugmentRequestResponse resp = service.request(req, reviewer);
+
+        assertThat(resp.jobId()).isNotNull();
+        assertThat(augsOf(frame)).hasSize(2);
+        assertThat(augsOf(frame)).extracting(LsDataAug::getAugProcSttsCd)
+                .containsExactlyInAnyOrder(LsDataAug.STTS_REJECTED, LsDataAug.STTS_PENDING);
+    }
+
+    /**
+     * DB 최종 방어 자체의 결정론적 가드 — 서비스 경로를 <b>우회</b>해 리포지토리로 직접 중복 INSERT 를
+     * 시도한다. 부분 유니크 인덱스({@code UK_LS_DATA_AUG_ACTVTN}, V143)가 없으면 2행이 저장돼 RED.
+     * REJECTED(종결)는 술어 밖이라 같은 키로 여러 건이 허용된다는 것도 함께 고정한다.
+     */
+    @Test
+    @DisplayName("활성_중복_INSERT는_DB_부분유니크_인덱스가_거부하고_반려행은_허용한다")
+    void partialUniqueIndexRejectsActiveDuplicateInsert() {
+        Long raw = nextRawSn();
+        Long frame = seedFrame(raw, 0);
+
+        tx.executeWithoutResult(s -> augRepository.saveAndFlush(
+                LsDataAug.createPending(frame, LsDataAug.AUG_WINTER, null, "1")));
+
+        // 같은 (SRC_SN, AUG_TYPE_CD) 활성 행 두 번째 INSERT → 인덱스 위반
+        assertThatThrownBy(() -> tx.executeWithoutResult(s -> augRepository.saveAndFlush(
+                LsDataAug.createPending(frame, LsDataAug.AUG_WINTER, null, "1"))))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        // 반려(종결) 행은 술어 밖 — 같은 키로도 적재 가능해야 한다(재요청 동선 보존).
+        tx.executeWithoutResult(s -> {
+            LsDataAug rejected = LsDataAug.createPending(frame, LsDataAug.AUG_WINTER, null, "1");
+            rejected.applyReviewStatus(LsDataAug.STTS_REJECTED);
+            augRepository.saveAndFlush(rejected);
+        });
+
+        assertThat(augsOf(frame)).hasSize(2);
+    }
+
+    /**
+     * 동시 요청은 서로의 미커밋 행을 보지 못하므로 서비스 사전 조회(1선)만으로는 전부 통과한다.
+     * 실제 방어는 부분 유니크 인덱스 {@code UK_LS_DATA_AUG_ACTVTN}(V143)이며, 위반은
+     * {@code DataIntegrityViolationException} → 409 로 표면화된다. 인덱스를 지우면 2건이 저장돼 RED.
+     *
+     * <p>PostgreSQL 은 제약 위반 시 트랜잭션 전체를 abort 시키므로 같은 트랜잭션 안에서 재시도할 수
+     * 없다 — 패자는 요청 트랜잭션째 롤백되어 409 로 끝난다(부분 처리 금지).
+     */
+    @Test
+    @DisplayName("동시_증강_요청_2건이어도_활성_증강행은_1건만_생성된다")
+    void concurrentRequests_onlyOneActiveAugRow() throws Exception {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.WINTER));
+
+        int threads = 2;
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(threads);
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(threads);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger created = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger conflicted = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger other = new java.util.concurrent.atomic.AtomicInteger();
+        try {
+            java.util.concurrent.Future<?>[] futures = new java.util.concurrent.Future<?>[threads];
+            for (int i = 0; i < threads; i++) {
+                futures[i] = pool.submit(() -> {
+                    ready.countDown();
+                    try {
+                        start.await();
+                        service.request(req, reviewer);
+                        created.incrementAndGet();
+                    } catch (CustomException e) {
+                        if (e.getErrorCode() == ErrorCode.CONFLICT) {
+                            conflicted.incrementAndGet();
+                        } else {
+                            other.incrementAndGet();
+                        }
+                    } catch (Exception e) {
+                        other.incrementAndGet();
+                    }
+                    return null;
+                });
+            }
+            ready.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            start.countDown();
+            for (java.util.concurrent.Future<?> f : futures) {
+                f.get(60, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(created.get()).as("동시 요청 중 정확히 1건만 성공해야 한다").isEqualTo(1);
+        assertThat(conflicted.get()).as("패자는 409(CONFLICT) 로 표면화돼야 한다(500 누수 금지)")
+                .isEqualTo(threads - 1);
+        assertThat(other.get()).isZero();
+        assertThat(augsOf(frame)).as("활성 증강 행은 1건이어야 한다(파생 트리 팬아웃 방지)").hasSize(1);
+    }
+
     @Test
     @DisplayName("AugmentRequestService_WORKER_요청시_FORBIDDEN")
     void workerCannotRequest() {

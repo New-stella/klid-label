@@ -53,6 +53,7 @@ import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useAutolabel } from '@/features/label/hooks/useAutolabel';
 import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
+import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
@@ -118,6 +119,17 @@ export function LabelingPage() {
     Number.isFinite(numericId) ? numericId : undefined,
     portalMode,
   );
+
+  // 파생영상(증강·해상도 변환본) 여부 — 비식별 누락 신고 버튼을 <b>미리</b> 비활성화하기 위해서만 쓴다.
+  // BE 는 파생영상 신고를 412 로 거부하는데(원본의 비식별 결과를 복사한 사본이라 재비식별 수단이 없다),
+  // 그 사실을 제출 후에야 알리면 사용자는 사유를 다 적고 나서 막힌다. 영상 상세 쿼리는 영상현황 화면과
+  // 같은 캐시 키를 공유하므로 대개 추가 요청 없이 재사용된다(신고 가능한 내부 채널에서만 조회).
+  const { data: videoDetail } = useVideoDetail(
+    canReportDeident && data?.videoId ? data.videoId : null,
+  );
+  const deidentReportUnsupportedReason = videoDetail?.derivative
+    ? '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.'
+    : undefined;
 
   // BE 의 인증 보호된 프레임 이미지 API 를 axios 로 fetch → blob URL 발급.
   // <img>/Image() 직접 호출은 Bearer 토큰 누락으로 401. CSP 의 img-src blob: 허용 활용.
@@ -1021,6 +1033,7 @@ export function LabelingPage() {
             <DeidentReportButton
               srcSn={data.srcSn}
               disabled={isLocked || data.frameImageType === 'RAW'}
+              unsupportedReason={deidentReportUnsupportedReason}
               onSuccess={handleDeidentReportSuccess}
             />
           ) : null

@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
+import kr.co.cudo.authoring.label.event.DeidentGateReopenedEvent;
 import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
@@ -36,11 +37,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Phase 2 (R1 v1.14) — 비식별 누락 신고 워크플로우 서비스.
@@ -67,7 +64,14 @@ import java.util.stream.Collectors;
  *       WORKER 본인 배정 영상만 통과. REVIEWER 는 전체 허용.</li>
  *   <li><b>Race (CWE-362)</b>: 동시 신고 시 WorkLock UNIQUE 제약이 최후 방어 —
  *       {@link DataIntegrityViolationException} 을 409 CONFLICT 로 변환.</li>
- *   <li><b>Privacy (CWE-359)</b>: 신고 사유(reason) 본문은 로그에 출력하지 않는다.</li>
+ *   <li><b>Privacy (CWE-359) / Log Injection (CWE-117)</b>: 신고 사유(reason)는 사용자 자유 입력이라 PII 가
+ *       섞일 수 있으나, <b>발견 사실이 유실되면 안 되므로 정제 후 감사 로그로 남긴다</b>(미출력 아님).
+ *       ① 정상 접수 경로 — {@code NotificationService.notifyReviewersOnDeidentReport} 구현체
+ *       ({@code LogNotificationService})가 개행/탭 치환 + 200자 절단 후 INFO 로 기록.
+ *       ② 파생영상 거부 경로 — {@link #requireReportableVideo} 가
+ *       {@link kr.co.cudo.authoring.common.util.LogSanitizer} 로 제어문자 제거 + 200자 절단 후 WARN 으로 기록
+ *       (신고 행이 생성되지 않는 경로라 로그가 유일한 기록이다).
+ *       ※ 로그 대상은 <b>사유 텍스트뿐</b> — 프레임 픽셀·경로 등 다른 PII 원본은 로그에 싣지 않는다.</li>
  *   <li><b>SQL Injection (CWE-89)</b>: 리셋/조회는 JPA 파라미터 바인딩 @Modifying 쿼리만 사용.</li>
  * </ul>
  *
@@ -91,30 +95,22 @@ public class DeidentReportService {
     private final LsDeidentProcLogRepository procLogRepository;
     /** DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사 기록용 기존 이력 축(신규 테이블 없음). */
     private final LsDataLblHstryRepository lblHstryRepository;
-    /**
-     * 신고 구간 판정 단일 원천 — 파생영상 export 재트리거 시 "이 파생이 <b>다른</b> 조상 때문에 아직
-     * 신고 구간인가"를 판정한다({@code 'F'} 비교·체인 순회를 여기서 재구현하지 않는다).
-     */
-    private final DeidentReportGate deidentReportGate;
-
-    /**
-     * 자손(파생) 전개 상한 — 현 데이터 모델의 파생은 1단계(해상도 3종 + 외부 증강 3종)라 넉넉한 값이다.
-     * 오염 데이터로 자손이 폭증해도 캐시 무효화·export 재트리거가 폭주하지 않도록 잘라낸다.
-     */
-    private static final int MAX_DESCENDANT_FANOUT = 64;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
      *
-     * <p>흐름: 권한검사 → 영상로드 → 잠금 선점검 → 신고 OPEN 저장 → 개인정보 3필드 리셋
+     * <p>흐름: 권한검사 → 영상로드 → <b>파생영상 거부</b>({@link #requireReportableVideo}) → 잠금 선점검
+     *        → 신고 OPEN 저장 → 개인정보 3필드 리셋
      *        → APPROVED 면 TASK_MODIFIED 통지 → 작업락 + DE_IDNTF_YN='F' → REVIEWER 알림.
      *        <b>라벨은 삭제하지 않는다</b>(2026-07-27 정책 반전 — 클래스 javadoc 참조).
      *
      * <p><b>파생 프레임 개인정보 cross-stale 경계(후속 백로그)</b>: 아래 개인정보 3필드 리셋
      * ({@code resetPrivacyMetaByRawSn})은 <b>신고 대상 rawSn 의 프레임만</b> NULL 로 되돌린다. 이 영상을
      * 부모로 이미 생성된 증강·해상도 파생본(다른 rawSn)에 생성 시점 복사된 3필드 값은 리셋하지 않는다.
-     * 이는 의도된 아키텍처 경계다 — 신규 파생은 생성 시점 stale-PII 게이트로, 기존 파생은 자체 신고 워크플로로
-     * 방어한다(부모→기존 파생 캐스케이드 리셋 미지원). 상세는 v2-wiki 24-dataset-export.md 참조.
+     * 이는 의도된 아키텍처 경계다 — 신규 파생은 생성 시점 stale-PII 게이트로 방어하고, <b>기존 파생은 원본
+     * 신고와 무관하게 독립 취급</b>한다(파생영상은 신고 접수 자체가 412 로 거부된다 —
+     * {@link #requireReportableVideo}). 부모→기존 파생 캐스케이드 리셋은 미지원이며, 파생본의 stale 3필드는
+     * 파생본 자체의 라벨링·검수에서 수동 정정한다. 상세는 v2-wiki 24-dataset-export.md 참조.
      *
      * @return 생성된 신고 RPRT_SN
      */
@@ -137,6 +133,9 @@ public class DeidentReportService {
         LsDataRaw raw = videoRepository.findByRawSnForUpdate(src.getRawSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
         Long rawSn = raw.getRawSn();
+
+        // 2-1) ★ 파생영상(증강·해상도 변환본)은 신고 체계 밖이다 — 접수하지 않는다.
+        requireReportableVideo(raw, reason);
 
         // 3) 이미 잠금 상태면 409 — 중복 신고 차단
         if (workLockService.isRawLocked(rawSn)) {
@@ -196,9 +195,9 @@ public class DeidentReportService {
 
         // 6-1) 스트림 메타 캐시 무효화 (HIGH — privacy) — 'F' 전이가 커밋 후 즉시 반영되어
         //      옛 비식별본(노출본)이 stream-meta TTL 동안 계속 서빙되지 않도록 한다.
-        //      파생영상(자손)까지 함께 무효화한다 — 신고된 부모만 evict 하면 파생본 캐시가 살아남아
-        //      스트림 게이트를 캐시 히트로 우회한다(CWE-525).
-        evictStreamMetaWithDescendants(rawSn);
+        //      대상은 <b>이 영상 하나</b>다: 파생영상은 원본 신고에 영향받지 않는 것이 확정 정책이므로
+        //      (DeidentReportGate javadoc) 파생 캐시를 건드릴 이유가 없다.
+        streamMetaCacheEvictor.evictAfterCommit(rawSn);
 
         // 7) REVIEWER 알림
         notificationService.notifyReviewersOnDeidentReport(raw, reporterNo, reason);
@@ -207,6 +206,55 @@ public class DeidentReportService {
                         + "privacyReset={} privacyResetAudited={}",
                 report.getRprtSn(), rawSn, reporterNo, privacyReset, privacyResetSrcSns.size());
         return report.getRprtSn();
+    }
+
+    /**
+     * ★ 신고 접수 대상 판정 — <b>비파생 영상에서만 신고를 접수한다</b> (2026-07-29 사용자 확정, 구속).
+     *
+     * <h3>왜 파생영상에서는 신고를 받지 않는가</h3>
+     * 파생영상(증강 {@code WINTER/NIGHT/RAIN} · 해상도 {@code RESL_*})의 프레임은 <b>원본의 비식별
+     * 산출물을 복사·리스케일한 사본</b>이다. 재비식별은 외부 솔루션이 <b>원본 영상</b>을 다시 처리하는
+     * 방식뿐이라 <b>파생본 자체를 다시 비식별할 수단이 없다</b>. 접수해봐야 해소할 방법이 없는 신고
+     * (작업락 + {@code 'F'} 고착)만 남으므로 접수 자체를 하지 않는다.
+     *
+     * <h3>★ 원본으로 유도하지 않는다 (구 안내 문구 폐기)</h3>
+     * 구 문구는 "원본 영상(영상번호 N)에서 신고해 주세요" 였으나 <b>사실과 맞지 않았다</b>:
+     * <ul>
+     *   <li><b>원본을 신고해도 이 파생영상은 달라지지 않는다</b> — 차단 게이트({@link DeidentReportGate})는
+     *       자기 rawSn 행만 보므로 원본 신고는 파생에 아무 영향이 없다(확정 정책).</li>
+     *   <li>파생영상에 배정된 WORKER 는 원본에 대한 접근 권한이 없어({@code LabelAccessGuard} 403)
+     *       따라갈 수도 없는 안내였다.</li>
+     * </ul>
+     * 그래서 <b>사실만</b> 알린다 — 이 화면(파생영상)에서는 재비식별을 요청할 수 없다는 것. 원본 rawSn 도
+     * 내려주지 않는다(따라가면 막다른 길이므로 유도 자체가 잘못된 정보다).
+     *
+     * <h3>응답 규약 — 412</h3>
+     * 요청 자체는 형식상 유효하고(400 아님) 시간이 지나면 풀리는 일시적 충돌도 아니며(409 는 이 API 에서
+     * 이미 "재비식별 진행 중"이 점유한다 — 같은 코드로 내면 화면이 구분할 수 없다), <b>대상 리소스의 영구
+     * 속성</b> 때문에 거부되는 프리컨디션이다. 프로젝트의 신고 게이트 계열 표준 코드인
+     * {@link ErrorCode#PRECONDITION_FAILED}(412)를 쓴다({@code LabelAccessGuard.requireNotUnderDeidentReport}
+     * · {@code FrameImageEncoder} · {@code DatasetExportService} · {@code AutolabelOnlineService} 동일).
+     *
+     * <h3>REVIEWER 알림은 보내지 않는다 — 대신 사유를 감사 로그로 남긴다</h3>
+     * 정상 신고는 {@code notificationService.notifyReviewersOnDeidentReport} 를 태우지만, 거부 경로는
+     * <b>신고 행({@code LS_DEIDENT_REPORT})이 생성되지 않는다</b>. 같은 알림을 쏘면 REVIEWER 가 존재하지
+     * 않는 신고를 찾게 되고(현 구현은 로그 한 줄짜리 placeholder 라 "접수됨"과 구분도 되지 않는다),
+     * 정책상 파생은 신고 대상이 아니므로 처리할 워크플로도 없다. 다만 <b>발견 사실 자체는 유실되면 안
+     * 되므로</b> 사용자가 적은 사유를 {@link kr.co.cudo.authoring.common.util.LogSanitizer} 로 정제해
+     * WARN 감사 로그에 남긴다(CWE-117 개행 제거 + 길이 절단). FE 는 애초에 파생영상에서 신고 버튼을
+     * 비활성화하므로 이 경로는 API 직접 호출·낡은 화면에서만 도달한다.
+     */
+    private void requireReportableVideo(LsDataRaw raw, String reason) {
+        if (!raw.isDerivative()) {
+            return;
+        }
+        log.warn("[DeidentReport] rejected — derivative video is out of the report workflow "
+                        + "rawSn={} orgnlRawSn={} reason={}",
+                raw.getRawSn(), raw.getOrgnlRawSn(),
+                kr.co.cudo.authoring.common.util.LogSanitizer.sanitize(reason));
+        throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                "이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상(증강·해상도 변환본)이라 "
+                        + "이 화면에서는 비식별 재처리를 요청할 수 없습니다.");
     }
 
     /**
@@ -263,9 +311,9 @@ public class DeidentReportService {
                         () -> log.warn("[DeidentReport] raw video not found on resolve rawSn={}",
                                 report.getRawSn()));
 
-        // 외부 수동 재비식별로 비식별본이 교체되었을 수 있으므로 스트림 메타 캐시를 커밋 후 무효화한다.
-        // 게이트가 열리는 쪽(재개방)도 파생영상까지 함께 무효화해야 stale 차단이 TTL 동안 남지 않는다.
-        evictStreamMetaWithDescendants(report.getRawSn());
+        // 외부 수동 재비식별로 비식별본이 교체되었을 수 있으므로 스트림 메타 캐시를 커밋 후 무효화한다
+        // (대상은 이 영상 하나 — 파생영상의 비식별본 파일은 파생 생성 시점 사본이라 바뀌지 않는다).
+        streamMetaCacheEvictor.evictAfterCommit(report.getRawSn());
 
         // M1 — 신고 구간에 보류(차단)됐던 export·통지 복구를 트리거한다.
         publishResolvedForExportRecovery(report.getRawSn());
@@ -323,9 +371,8 @@ public class DeidentReportService {
             r.resolve();
         }
         workLockService.releaseRaw(rawSn, "system", "DEIDENT_SUCCEEDED");
-        // 배치/스텝 자동 재비식별 성공으로 비식별본이 교체되었으므로 스트림 메타 캐시를 커밋 후 무효화
-        // (파생영상 포함 — 부모 신고로 함께 닫혔던 파생 캐시도 같이 비운다).
-        evictStreamMetaWithDescendants(rawSn);
+        // 배치/스텝 자동 재비식별 성공으로 비식별본이 교체되었으므로 스트림 메타 캐시를 커밋 후 무효화.
+        streamMetaCacheEvictor.evictAfterCommit(rawSn);
         if (!opens.isEmpty()) {
             // M1 — 자동(배치) 해소 경로도 동일하게 보류됐던 export·통지를 복구한다. 실제로 해소한
             //      신고가 있을 때만 발행한다(신고가 없던 정상 비식별 성공은 재산출 대상이 아니다).
@@ -343,106 +390,29 @@ public class DeidentReportService {
      * {@code DatasetExportBridge#onDeidentReportResolved}(AFTER_COMMIT) 이며, 'Y' 복원이 커밋된 뒤에
      * 실행되므로 export 진입부 게이트에 스스로 막히지 않는다.
      *
-     * <p><b>검수 승인(APPROVED) 영상만</b> 발행한다 — 미승인 영상은 산출 대상 자체가 아니라 재트리거가
-     * 불필요한 v1 을 만든다(무의미한 전량 재생성 방지).
+     * <h3>★ 복구 범위 = <b>해제된 영상 자신뿐</b> (2026-07-29 확정 정책과 대칭)</h3>
+     * 차단 게이트({@link DeidentReportGate})가 <b>자기 rawSn 행만</b> 보므로, 어떤 신고가 막는 노드는
+     * 정확히 <b>그 신고된 영상 하나</b>다. 파생영상은 원본 신고에 영향받지 않으므로 복구 대상도 아니다
+     * (자손 팬아웃·상한·"다른 조상이 아직 신고 중인가" 판정이 모두 불필요해졌다 — 게이트 javadoc 의
+     * "폐기된 안" 참조).
      *
-     * <p><b>파생영상(자손)까지 팬아웃한다</b>: 신고 게이트가 조상 체인을 보므로, 부모가 신고된 동안에는
-     * <b>파생영상의 export 도 함께 skip</b> 된다(그 파생본이 부모의 비식별 프레임 사본이기 때문). 해소
-     * 시점에 부모만 재트리거하면 파생 export 폴더가 옛 내용으로 정체되어, "데이터마트로 구축이 완료된
-     * 학습데이터의 라벨링 수정 시 기존 학습데이터셋의 라벨링 정보 동기화" 요구가 깨진다.
-     * 팬아웃은 {@link #MAX_DESCENDANT_FANOUT} 로 상한을 둔다.
+     * <h3>두 이벤트를 함께 발행한다</h3>
+     * <ul>
+     *   <li>{@link DeidentGateReopenedEvent} — <b>항상</b>. 승인 여부와 무관하게 보류됐던 파이프라인 작업
+     *       (특히 <b>VLM 시계열 위탁</b>)을 재개시킨다. VLM 보류는 파이프라인 진행 중(=대개 미승인)
+     *       영상에서 일어나므로, 승인 영상에만 발행하면 시계열 메타가 영구 결손된다.</li>
+     *   <li>{@link DeidentReportResolvedEvent} — <b>검수 승인(APPROVED)일 때만</b>. export 재산출·관제
+     *       재통지 대상이라 미승인 영상에 발행하면 불필요한 v1 을 만든다.</li>
+     * </ul>
      */
     private void publishResolvedForExportRecovery(Long rawSn) {
         if (rawSn == null) {
             return;
         }
+        eventPublisher.publishEvent(new DeidentGateReopenedEvent(rawSn));
         if (isReviewApproved(rawSn)) {
             eventPublisher.publishEvent(new DeidentReportResolvedEvent(rawSn));
         }
-        publishResolvedForApprovedDescendants(rawSn);
-    }
-
-    /**
-     * 부모 신고 구간에 보류됐던 <b>파생영상</b> export 를 함께 복구시킨다.
-     *
-     * <p>조건 두 가지를 모두 만족하는 자손만 발행한다.
-     * <ul>
-     *   <li><b>검수 승인(APPROVED)</b> — 미승인 파생은 산출 대상이 아니다. 상태는 자손 전체를 한 번의
-     *       IN 조회로 읽어 N+1 을 피한다.</li>
-     *   <li><b>다른 조상이 신고 중이 아님</b> — 이 자손의 체인에 아직 {@code 'F'} 가 남아 있으면 재산출은
-     *       export 진입부 게이트에 어차피 막힌다. 판정은 {@link DeidentReportGate} 단일 원천에 위임한다.</li>
-     * </ul>
-     */
-    private void publishResolvedForApprovedDescendants(Long rawSn) {
-        List<Long> descendants = collectDescendants(rawSn);
-        if (descendants.isEmpty()) {
-            return;
-        }
-        Set<Long> approved = rawDataStatusRepository.findByRawDataIdIn(descendants).stream()
-                .filter(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .map(LsRawDataStatus::getRawDataId)
-                .collect(Collectors.toSet());
-        for (Long descendantSn : descendants) {
-            if (!approved.contains(descendantSn)) {
-                continue;
-            }
-            if (deidentReportGate.isUnderDeidentReport(descendantSn)) {
-                log.info("[DeidentReport] descendant export re-trigger skipped — still under report rawSn={}",
-                        descendantSn);
-                continue;
-            }
-            eventPublisher.publishEvent(new DeidentReportResolvedEvent(descendantSn));
-        }
-    }
-
-    /**
-     * 스트림 메타 캐시를 <b>해당 영상 + 그 자손(파생영상)</b> 범위로 커밋 후 무효화한다.
-     *
-     * <p>신고/해소는 부모 행 하나만 {@code DE_IDNTF_YN} 을 바꾸지만, 게이트 판정은 조상 체인을 보므로
-     * <b>파생영상의 서빙 가부도 함께 바뀐다</b>. 파생 캐시를 남겨두면 캐시 히트 경로가 게이트를 우회한다
-     * (CWE-525). 게이트 자체는 캐시 앞에서 매 요청 판정되지만, 캐시된 <b>경로/크기</b>도 재비식별로
-     * 교체될 수 있으므로 함께 비운다.
-     */
-    private void evictStreamMetaWithDescendants(Long rawSn) {
-        streamMetaCacheEvictor.evictAfterCommit(rawSn);
-        for (Long descendantSn : collectDescendants(rawSn)) {
-            streamMetaCacheEvictor.evictAfterCommit(descendantSn);
-        }
-    }
-
-    /**
-     * {@code ORGNL_RAW_SN} 을 따라 아래로 전개한 <b>자손(파생영상) rawSn 목록</b>(자기 자신 제외).
-     *
-     * <p>레벨 단위 IN 조회로 왕복을 줄이고, 방문 집합 + 깊이 상한({@link DeidentReportGate#MAX_ANCESTOR_DEPTH})
-     * + 총량 상한({@link #MAX_DESCENDANT_FANOUT})으로 오염 데이터(사이클·과다 파생)에서도 폭주하지 않는다.
-     * 파생이 없는 일반 영상은 조회 1회로 끝난다.
-     */
-    private List<Long> collectDescendants(Long rawSn) {
-        if (rawSn == null) {
-            return List.of();
-        }
-        List<Long> collected = new ArrayList<>();
-        Set<Long> visited = new HashSet<>();
-        visited.add(rawSn);
-        List<Long> frontier = List.of(rawSn);
-        for (int depth = 0; depth < DeidentReportGate.MAX_ANCESTOR_DEPTH; depth++) {
-            List<Long> next = videoRepository.findRawSnsByOrgnlRawSnIn(frontier).stream()
-                    .filter(visited::add)
-                    .toList();
-            if (next.isEmpty()) {
-                break;
-            }
-            for (Long sn : next) {
-                if (collected.size() >= MAX_DESCENDANT_FANOUT) {
-                    log.warn("[DeidentReport] descendant fan-out capped rawSn={} cap={}",
-                            rawSn, MAX_DESCENDANT_FANOUT);
-                    return collected;
-                }
-                collected.add(sn);
-            }
-            frontier = next;
-        }
-        return collected;
     }
 
     // ---------- 내부 ----------

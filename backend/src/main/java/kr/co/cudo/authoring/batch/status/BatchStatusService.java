@@ -60,6 +60,23 @@ public class BatchStatusService {
         log.info("[Batch] stage skipped recorded rawSn={} stage={}", rawSn, BatchStage.VLM);
     }
 
+    /**
+     * 해당 단계가 <b>지정한 사유로 건너뛴(SKIPPED) 감사 행</b>을 갖고 있는가 — 보류 작업 재개 판정용.
+     *
+     * <p>{@link #recordVlmSkipped} 가 남긴 흔적을 되읽는 <b>대칭 진입점</b>이다. 신고 구간 보류처럼
+     * "실패가 아니라서 재시도 큐가 집지 않는" 작업은 해제 시점에 누군가 이 흔적을 보고 재개해야 한다
+     * ({@code VlmWithheldResumeRunner}). {@code PROC_STTS_CD} 리터럴을 호출부로 흘리지 않도록 판정은
+     * 여기(로그 축의 소유자)에서 한다.
+     *
+     * @param reason 기록 시 사용한 사유 문자열(단일 원천은 각 스텝의 상수)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public boolean isStageSkippedWithReason(Long rawSn, BatchStage stage, String reason) {
+        if (rawSn == null || stage == null || reason == null) return false;
+        return repository.existsByDataRawSnAndProcStepCdAndProcSttsCdAndErrorMsg(
+                rawSn, stage.name(), STTS_SKIPPED, reason);
+    }
+
     @Transactional("controlTransactionManager")
     public void markCompleted(Long rawSn) {
         markStage(rawSn, BatchStage.COMPLETED);

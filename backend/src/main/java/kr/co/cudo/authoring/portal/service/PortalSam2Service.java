@@ -50,6 +50,11 @@ import java.util.List;
  *       클라이언트 신뢰 금지 — 비APPROVED/비존재 srcSn 은 403/404.</li>
  *   <li>자원 격리 (HIGH #4): 포털 전용 {@code portalSam2} Bulkhead 로 동시 호출 제한 — 초과 시 429.
  *       내부 aiOnline 경로와 격리되어 외부 트래픽이 내부 AI 자원을 잠식하지 못한다.</li>
+ *   <li><b>PII 유출 (CWE-359)</b>: 프레임 이미지는 {@code FrameImageEncoder}
+ *       {@code #encodeDeidentifiedFrameForInference} 단일 진입점을 거친다 — ①이 영상이 비식별 누락
+ *       신고 구간이면 412 로 <b>파일을 읽기 전</b>에 끊기고 ②<b>비식별본만</b>
+ *       전송한다(원본 폴백 금지 — {@code PortalLabelService#serveFrameImage} 와 동일 규약).
+ *       구 구현은 게이트 없는 {@code encodeToBase64(SRC_FILE_PATH_NM)} 로 <b>원본 픽셀</b>을 보냈다.</li>
  *   <li>입력 검증 (CWE-20): ai-server 응답 폴리곤 좌표 음수/형식 차단 (외부 응답 불신).</li>
  *   <li>Info Leak (CWE-209): 예외 원문·내부 경로 비노출(LogSanitizer + 일반화 메시지).</li>
  * </ul>
@@ -105,7 +110,9 @@ public class PortalSam2Service {
         acquireUserPermit(actor);
         LsDataSrc src = requireExposedFrame(req.srcSn());
 
-        String imageB64 = frameImageEncoder.encodeToBase64(src.getSrcFilePathNm());
+        // S7 (CWE-359) — 신고 게이트 + 비식별본 전용. 구 구현은 게이트 없는 encodeToBase64(원본경로) 를
+        //   호출해, 신고 구간에서도 <b>원본(비식별 전) 픽셀</b>을 ai-server 로 내보냈다.
+        String imageB64 = frameImageEncoder.encodeDeidentifiedFrameForInference(src);
         Sam2Request aiReq = new Sam2Request(imageB64, req.points(), req.box());
 
         Sam2Response aiRes = callWithBulkhead(
@@ -141,7 +148,8 @@ public class PortalSam2Service {
 
         List<Sam2TrackResponseDto.TrackedItem> tracked = new ArrayList<>();
         List<List<Double>> currentPolygon = req.prevPolygon();
-        String prevImageB64 = frameImageEncoder.encodeToBase64(startSrc.getSrcFilePathNm());
+        // S7 (CWE-359) — 신고 게이트 + 비식별본 전용(segment 와 동일 규약).
+        String prevImageB64 = frameImageEncoder.encodeDeidentifiedFrameForInference(startSrc);
 
         // 이슈3 (CWE-770) — track 루프 전체 wall-clock 예산. 초과 시 조기 종료(429).
         long deadlineNanos = System.nanoTime() + TRACK_WALL_CLOCK_BUDGET.toNanos();
@@ -155,7 +163,8 @@ public class PortalSam2Service {
             }
             // 후속 프레임 각각도 APPROVED 소속 재검증(IDOR).
             LsDataSrc nextSrc = requireExposedFrame(nextSrcSn);
-            String nextImageB64 = frameImageEncoder.encodeToBase64(nextSrc.getSrcFilePathNm());
+            // 프레임마다 게이트가 재평가된다 — 추적 도중 신고가 들어오면 그 이후 프레임은 나가지 않는다.
+            String nextImageB64 = frameImageEncoder.encodeDeidentifiedFrameForInference(nextSrc);
 
             kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest aiReq =
                     new kr.co.cudo.authoring.common.client.dto.Sam2TrackRequest(

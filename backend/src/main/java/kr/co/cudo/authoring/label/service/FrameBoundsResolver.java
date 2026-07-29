@@ -98,7 +98,7 @@ public class FrameBoundsResolver {
         try {
             // 경로 해석 실패(경로 부재 / 기준 base 밖 — 프레임 경로 규약 불일치 포함)와
             // 파일 읽기 실패를 구분해 계상한다. 전자는 데이터/설정 정합 문제 신호다.
-            imagePath = frameImageEncoder.resolveFrameImage(frame);
+            imagePath = frameImageEncoder.resolveFrameImageWithoutGate(frame);
         } catch (Exception e) {
             metrics.incrementSkipped(LabelBoundsMetrics.REASON_UNRESOLVED);
             log.warn("[Label] frame image path unresolved — coordinate upper-bound check skipped srcSn={} cause={}",

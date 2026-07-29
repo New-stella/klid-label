@@ -37,6 +37,9 @@ import java.util.List;
  * <p>보안:
  * <ul>
  *   <li>IDOR(CWE-639): 시작 프레임 + 모든 후속 프레임에 대해 {@link LabelAccessGuard#verifyAccess} 검증(AI 호출 전).</li>
+ *   <li>PII 유출(CWE-359): 프레임 이미지 인코딩이 {@link FrameImageEncoder#encodeFrame} 단일 진입점을 거치며,
+ *       이 영상이 비식별 누락 신고 구간이면 412 로 끊긴다. 추적은 N 프레임을 연속 전송하므로
+ *       <b>프레임마다</b> 판정되어, 추적 도중 신고가 들어와도 그 이후 프레임 픽셀은 나가지 않는다.</li>
  *   <li>좌표 검증(CWE-20): 요청 prevPolygon 및 ai-server 응답 polygon 둘 다 음수/형식 차단.</li>
  *   <li>정보노출(CWE-209): 예외 원문·내부 경로 비노출(LogSanitizer + 일반화 메시지).</li>
  * </ul>

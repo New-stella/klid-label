@@ -19,6 +19,7 @@ import { z } from 'zod';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
+import { resolveApiMessage } from '@/lib/api/resolveApiMessage';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { reportDeidentMiss } from '../api';
@@ -36,6 +37,15 @@ export interface DeidentReportButtonProps {
   srcSn: number;
   /** 잠금/RAW 보기/포털 모드 등에서 비활성화 시 true */
   disabled?: boolean;
+  /**
+   * 이 영상에서는 신고 자체가 불가능할 때의 <b>사유</b>(예: 파생영상). 지정하면 버튼을 비활성화하고
+   * 툴팁(title)으로 사유를 보여준다.
+   *
+   * 왜 필요한가: 파생영상은 BE 가 412 로 거부하는데, 그 사실을 제출 시점에야 알리면 사용자는 사유를
+   * 다 적은 뒤에야 "안 된다"를 보게 된다. 알 수 있는 시점에 미리 막는다(취소 버튼 옆 안내와 같은
+   * 기존 관례 — title 툴팁 사용).
+   */
+  unsupportedReason?: string;
   /** 신고 성공 후 콜백 (예: 라벨 목록 invalidate, 페이지 잠금 state 마킹). */
   onSuccess?: () => void;
 }
@@ -56,6 +66,7 @@ function statusOf(e: unknown): number | undefined {
 export function DeidentReportButton({
   srcSn,
   disabled = false,
+  unsupportedReason,
   onSuccess,
 }: DeidentReportButtonProps) {
   const [open, setOpen] = useState(false);
@@ -95,7 +106,15 @@ export function DeidentReportButton({
       onSuccess?.();
     } catch (e) {
       const status = statusOf(e);
-      if (status === 409) {
+      if (status === 412) {
+        // 파생영상(증강·해상도 변환본)처럼 이 영상에서는 신고를 받지 않는 경우 — 서버 안내문이
+        // "왜 안 되는지"를 담고 있으므로 그대로 노출한다(일반 문구로 덮으면 아무 반응 없이 실패하는
+        // 것과 같다). 파생영상은 위 unsupportedReason 으로 버튼 단계에서 이미 막히며, 이 분기는
+        // 화면이 파생 여부를 모르는 경우(구 응답 등)의 안전망이다.
+        setServerError(
+          resolveApiMessage(e, '현재 상태에서는 비식별 누락 신고를 할 수 없습니다.'),
+        );
+      } else if (status === 409) {
         setServerError('이미 비식별 재처리 중인 영상입니다.');
       } else if (status === 403) {
         setServerError('본인에게 배정된 영상이 아닙니다.');
@@ -114,8 +133,11 @@ export function DeidentReportButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        disabled={disabled}
-        aria-label="비식별 누락 신고"
+        disabled={disabled || Boolean(unsupportedReason)}
+        title={unsupportedReason}
+        aria-label={
+          unsupportedReason ? `비식별 누락 신고 — ${unsupportedReason}` : '비식별 누락 신고'
+        }
         data-testid="deident-report-button"
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-warning hover:bg-warning/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >

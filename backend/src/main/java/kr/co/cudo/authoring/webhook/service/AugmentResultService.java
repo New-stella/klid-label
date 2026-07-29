@@ -112,8 +112,19 @@ public class AugmentResultService {
 
         // 3) 재전송 멱등 방어(1차 앵커) — 이미 종결(non-PENDING)된 행이면 재전송이다 → skip.
         if (!LsDataAug.STTS_PENDING.equals(aug.getAugProcSttsCd())) {
-            log.info("[Webhook][Augment] duplicate result skipped dataAugSn={} otsdJobId={} state={}",
-                    outcome.dataAugSn(), safe(outcome.externalJobId()), safe(aug.getAugProcSttsCd()));
+            if (outcome.success() && LsDataAug.STTS_REJECTED.equals(aug.getAugProcSttsCd())) {
+                // ★ 조용한 폐기 가시화 (2026-07-29) — <b>성공</b> 결과가 <b>REJECTED</b> 행에 도착하는 것은
+                // 정상 재전송이 아니다(성공의 재전송이라면 상태는 ACCEPTED 여야 한다). in-flight PENDING 이
+                // 중간에 종결로 강등된 경우(V143 선행 정리, 위탁 0건 실패 롤업, REVIEWER 반려)에만 성립하며,
+                // 그때 도착한 이 결과물은 어디에도 반영되지 않고 사라진다(200/applied=false, 오류 없음).
+                // 운영에서 "요청했는데 파생영상이 없다"의 유일한 단서이므로 WARN 으로 드러낸다.
+                log.warn("[Webhook][Augment] success result discarded — aug already terminal(REJECTED) "
+                                + "dataAugSn={} otsdJobId={} (요청 중 강등/반려 추정 — 필요 시 재요청)",
+                        outcome.dataAugSn(), safe(outcome.externalJobId()));
+            } else {
+                log.info("[Webhook][Augment] duplicate result skipped dataAugSn={} otsdJobId={} state={}",
+                        outcome.dataAugSn(), safe(outcome.externalJobId()), safe(aug.getAugProcSttsCd()));
+            }
             return false;
         }
 

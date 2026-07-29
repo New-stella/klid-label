@@ -53,7 +53,17 @@ public record VideoDetailResponse(
          * (25fps·60초 상한 1500 vs FE 가 만든 55×30=1650). 진실원은 서버의
          * {@code VideoFpsResolver} 하나이며 FE 는 그 값을 그대로 사용한다.
          */
-        Double fps
+        Double fps,
+        /*
+         * 파생영상(증강 WINTER/NIGHT/RAIN · 해상도 RESL_*) 여부 — 판정 원천은 LsDataRaw.isDerivative()
+         * (= ORGNL_RAW_SN 보유, 생성 후 불변).
+         *
+         * 화면이 <b>비식별 누락 신고 버튼을 미리 비활성화</b>하기 위해 필요하다. 파생영상은 신고 체계
+         * 바깥이라 BE 가 412 로 거부하는데(DeidentReportService.requireReportableVideo), 이 값이 없으면
+         * 사용자는 사유를 다 적어 제출한 뒤에야 거부를 알게 된다. 부모 rawSn 은 <b>내려주지 않는다</b> —
+         * 원본을 신고해도 이 파생영상은 달라지지 않으므로 원본으로 유도하는 것 자체가 잘못된 안내다.
+         */
+        boolean derivative
 ) {
     /** 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. */
     public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
@@ -143,7 +153,8 @@ public record VideoDetailResponse(
                 e.getMdfcnDt(),
                 resolvedPreviews,
                 resolvedStages,
-                fps
+                fps,
+                e.isDerivative()
         );
     }
 }

@@ -76,6 +76,7 @@ class AutolabelOnlineServiceTest {
     @Mock private SystemConfigService systemConfigService;
     @Mock private WorkLockService workLockService;
     @Mock private FrameImageEncoder frameImageEncoder;
+    @Mock private kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
 
     private AutolabelOnlineService service;
 
@@ -87,7 +88,7 @@ class AutolabelOnlineServiceTest {
     /** 온라인 AI 경로 bulkhead — 기본은 넉넉한 크기(동시성 제한 테스트에서만 1로 재구성). */
     private AutolabelOnlineService buildService(Bulkhead bulkhead) {
         return new AutolabelOnlineService(aiServerClient, accessGuard, systemConfigService,
-                workLockService, frameImageEncoder, labelMasterService, bulkhead);
+                workLockService, frameImageEncoder, labelMasterService, deidentReportGate, bulkhead);
     }
 
     @BeforeEach
@@ -101,7 +102,7 @@ class AutolabelOnlineServiceTest {
 
         // IDOR 가드 통과 시 프레임 반환.
         when(accessGuard.verifyAndGet(eq(SRC_SN), any())).thenReturn(src);
-        when(frameImageEncoder.encodeToBase64(anyString())).thenReturn("BASE64IMG");
+        when(frameImageEncoder.encodeFrame(any())).thenReturn("BASE64IMG");
         when(systemConfigService.getInt(any())).thenReturn(null); // fallback conf/imgsz/iou
         when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
         // HIGH#1 — 검출 대상 재구성용 매핑 allowlist. 기본 person/car 매핑(검출 진행 허용).

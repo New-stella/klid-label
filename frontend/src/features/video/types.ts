@@ -129,6 +129,15 @@ export interface VideoDetail extends Video {
    * 서버가 값을 못 내리는 경우(구 응답 등)만 MARKING_FALLBACK_FPS 로 폴백한다.
    */
   fps?: number | null;
+  /**
+   * 파생영상(증강 WINTER/NIGHT/RAIN · 해상도 변환본) 여부 — BE VideoDetailResponse.derivative.
+   *
+   * 파생영상은 비식별 누락 신고 체계 밖이라 BE 가 412 로 거부한다(원본의 비식별 결과를 복사한
+   * 사본이라 재비식별 수단이 없다). 화면은 이 값으로 신고 버튼을 <b>미리</b> 비활성화해, 사용자가
+   * 사유를 다 적고 제출한 뒤에야 거부를 알게 되는 동선을 없앤다.
+   * 값을 못 내리는 구 응답은 undefined → 기존처럼 제출 시 412 안내로 처리된다.
+   */
+  derivative?: boolean;
 }
 
 /**

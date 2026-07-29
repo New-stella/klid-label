@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
+import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoStreamService;
@@ -43,13 +44,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * S7-STREAM (HIGH · CWE-359/525) — <b>부모 신고 구간에 파생영상 스트리밍이 차단</b>되는지 실 DB·실 캐시로 검증.
+ * S7-STREAM (CWE-359/525) — 신고 게이트의 <b>스트리밍 적용 범위</b>를 실 DB·실 캐시로 고정한다.
  *
- * <h3>재현한 결함</h3>
- * 해상도 파생영상은 부모의 <b>비식별 영상 파일을 그대로 복사</b>해 만들어지고({@code ResolutionFileMaterializer}),
- * 확정 시 자기 행에 {@code deIdntfYn='Y'} + 자기 SUCCESS procLog 가 커밋된다. 이후 부모에 비식별 누락 신고가
- * 들어오면 {@code 'F'} 는 <b>부모 행에만</b> 내려간다. 자기 행만 보던 {@code VideoStreamService} 게이트는
- * 파생본에서 fail-open 이 되어, <b>마스킹 실패한 그 영상 파일 전체</b>가 200/206 으로 나갔다.
+ * <h3>고정하는 정책 (2026-07-29 사용자 확정)</h3>
+ * 신고 판정은 <b>자기 rawSn 행</b> 하나다. 따라서 부모(원본)를 신고해도 <b>파생영상 스트리밍은 계속
+ * 200</b> 이고(파생본에는 재비식별 수단이 없어 전파해도 해소 경로가 없다 — 감수된 함의), 신고된 그
+ * 영상만 차단된다. 구 IT 는 반대(파생까지 차단)를 단언했으나 그 전파가 철회되어 정책에 맞게 뒤집었다.
  *
  * <h3>왜 mock 이 아니라 IT 인가</h3>
  * 두 번째 테스트는 <b>캐시({@code stream-meta})가 이미 채워진 뒤</b> 신고가 들어오는 경로를 검증한다.
@@ -98,7 +98,11 @@ class DeidentReportStreamGateIT {
         Files.createDirectories(seedDir);
         Path parentVideo = seedDir.resolve("parent.mp4");
         Path derivativeVideo = seedDir.resolve("derivative-480p.mp4");
-        Files.write(parentVideo, new byte[2048]);
+        // 비식별 산출물 무결성 판정(DeidentArtifactIntegrity)은 컨테이너 시그니처(ftyp/moov/RIFF …)를
+        // 요구한다. 구 픽스처(new byte[2048] = 0바이트 나열)는 이 판정에 걸려 resolveManually 가 409 로
+        // 끝났고, 그 결과 "해소 후 재개방" 단언이 사실상 미검증 상태였다(clean main 에서도 실패).
+        // 실제 재생 가능한 최소 mp4 로 교체한다 — 단언은 그대로 둔다.
+        TestVideoFixtures.writeTinyMp4(parentVideo);
         // 파생본은 부모 비식별 영상의 사본 — 부모 마스킹이 실패했다면 이 파일에도 그대로 남아 있다.
         Files.write(derivativeVideo, Files.readAllBytes(parentVideo));
 
@@ -187,9 +191,9 @@ class DeidentReportStreamGateIT {
     }
 
     @Test
-    @DisplayName("부모_신고중이면_파생영상_스트리밍과_서명URL이_차단되고_해소되면_재개방된다")
-    void derivativeStreamBlockedWhileOriginUnderReport() throws IOException {
-        // given — 신고 전에는 파생영상이 정상 서빙된다(파생 행은 'Y' + 자기 SUCCESS procLog 보유).
+    @DisplayName("★부모_신고중에도_파생영상_스트리밍은_200이고_부모만_차단된다 — 해소되면 부모도 재개방")
+    void originReportBlocksOnlyItselfNotDerivative() throws IOException {
+        // given — 신고 전에는 둘 다 정상 서빙된다.
         assertThat(videoStreamService.stream(derivativeRawSn, new HttpHeaders()).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
 
@@ -197,52 +201,47 @@ class DeidentReportStreamGateIT {
         Long rprtSn = deidentReportService.report(parentSrcSn, "얼굴 미블러 노출", reviewer);
         assertThat(videoRepository.findById(derivativeRawSn).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
 
-        // then — 파생영상 스트리밍·서명 URL 발급 모두 차단(엔드포인트 기존 규약과 동일한 404 정규화).
-        assertThatThrownBy(() -> videoStreamService.stream(derivativeRawSn, new HttpHeaders()))
-                .isInstanceOf(CustomException.class)
-                .extracting(DeidentReportStreamGateIT::errorCodeOf)
-                .isEqualTo(ErrorCode.NOT_FOUND);
-        assertThatThrownBy(() -> videoStreamService.issueSignedUrl(derivativeRawSn, "1", "nonce"))
-                .isInstanceOf(CustomException.class)
-                .extracting(DeidentReportStreamGateIT::errorCodeOf)
-                .isEqualTo(ErrorCode.NOT_FOUND);
-        // 부모 자신도 물론 차단된다(기존 게이트).
+        // then — 신고된 부모만 차단(엔드포인트 기존 규약과 동일한 404 정규화).
         assertThatThrownBy(() -> videoStreamService.stream(parentRawSn, new HttpHeaders()))
                 .isInstanceOf(CustomException.class)
                 .extracting(DeidentReportStreamGateIT::errorCodeOf)
                 .isEqualTo(ErrorCode.NOT_FOUND);
+        assertThatThrownBy(() -> videoStreamService.issueSignedUrl(parentRawSn, "1", "nonce"))
+                .isInstanceOf(CustomException.class)
+                .extracting(DeidentReportStreamGateIT::errorCodeOf)
+                .isEqualTo(ErrorCode.NOT_FOUND);
+        // ★ 파생영상은 영향받지 않는다(확정 정책 — 조상 전파 철회 회귀 고정).
+        assertThat(videoStreamService.stream(derivativeRawSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
 
         // when — 외부 솔루션 수동 재비식별 완료 → resolve('F'→'Y').
         deidentReportService.resolveManually(rprtSn, reviewer);
 
-        // then — 별도 복원 절차 없이 파생·부모 모두 재개방된다(영구 폐쇄 아님).
-        assertThat(videoStreamService.stream(derivativeRawSn, new HttpHeaders()).getStatusCode())
-                .isEqualTo(HttpStatus.OK);
+        // then — 별도 복원 절차 없이 부모도 재개방된다(영구 폐쇄 아님).
         assertThat(videoStreamService.stream(parentRawSn, new HttpHeaders()).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
     }
 
     @Test
-    @DisplayName("캐시가_먼저_채워진_뒤_신고해도_파생영상_스트리밍이_차단된다 — 캐시 경유 우회 금지")
+    @DisplayName("캐시가_먼저_채워진_뒤_신고해도_스트리밍이_차단된다 — 캐시 경유 우회 금지(CWE-525)")
     void cachedStreamMetaDoesNotBypassGate() throws IOException {
         // given — 신고 이전에 재생되어 stream-meta 캐시가 채워진 상태(게이트를 캐시 안쪽에 두면 여기서 샌다).
-        assertThat(videoStreamService.stream(derivativeRawSn, new HttpHeaders()).getStatusCode())
+        assertThat(videoStreamService.stream(parentRawSn, new HttpHeaders()).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
-        assertThat(streamMetaCache().get(derivativeRawSn))
+        assertThat(streamMetaCache().get(parentRawSn))
                 .as("캐시가 실제로 채워져야 이 테스트가 우회 경로를 검증한다")
                 .isNotNull();
 
-        // when — 부모 신고.
+        // when — 그 영상에 신고 접수.
         deidentReportService.report(parentSrcSn, "얼굴 미블러 노출", reviewer);
 
         // then 1 — 캐시 히트 경로가 아니라 게이트가 먼저 판정하므로 차단된다.
-        assertThatThrownBy(() -> videoStreamService.stream(derivativeRawSn, new HttpHeaders()))
+        assertThatThrownBy(() -> videoStreamService.stream(parentRawSn, new HttpHeaders()))
                 .isInstanceOf(CustomException.class)
                 .extracting(DeidentReportStreamGateIT::errorCodeOf)
                 .isEqualTo(ErrorCode.NOT_FOUND);
 
-        // then 2 — 파생영상의 캐시 엔트리도 함께 무효화된다(부모만 evict 하면 stale 경로/크기가 남는다).
-        assertThat(streamMetaCache().get(derivativeRawSn)).isNull();
+        // then 2 — 그 영상의 캐시 엔트리는 커밋 후 무효화된다(재비식별로 경로/크기가 바뀔 수 있다).
         assertThat(streamMetaCache().get(parentRawSn)).isNull();
     }
 }

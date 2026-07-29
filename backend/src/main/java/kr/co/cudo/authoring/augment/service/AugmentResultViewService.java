@@ -54,7 +54,8 @@ import java.util.Set;
  * <h3>보안</h3>
  * <ul>
  *   <li><b>비식별 신고 게이트(CWE-359)</b> — 진입 시 {@link DeidentReportGate} 로 원본(부모)을 판정하고
- *       걸리면 412. 파생은 조상 체인 판정에 포함되므로 부모 신고가 파생 결과도 함께 차단한다.</li>
+ *       걸리면 412. 파생영상은 <b>각자의 행</b>으로 판정해(원본 신고는 파생에 전파되지 않는다 —
+ *       2026-07-29 확정 정책) 신고된 파생만 쌍에서 제외한다.</li>
  *   <li><b>원본(PII) 경로 미노출(CWE-209)</b> — 응답에 파일 경로를 담지 않는다. 좌/우 모두
  *       {@code /v1/frames/{srcSn}/deid-image}(비식별 전용 서빙 API) 경로만 반환한다.</li>
  *   <li><b>입력 검증(CWE-20)</b> — page/size 범위를 조회 이전에 검증한다.</li>
@@ -107,7 +108,7 @@ public class AugmentResultViewService {
         }
 
         // H1 (CWE-359) — 비식별 누락 신고 구간이면 결과 본문(프레임 쌍 = PII 위치 단서)을 노출하지 않는다.
-        //                라벨 조회와 동일 정책(412). 파생은 조상 체인 판정에 포함된다.
+        //                라벨 조회와 동일 정책(412). 파생영상은 아래에서 각자 판정한다.
         if (deidentReportGate.isUnderDeidentReport(jobId)) {
             log.warn("[Augment] result blocked — deident report open jobId={}", jobId);
             throw new CustomException(ErrorCode.PRECONDITION_FAILED,

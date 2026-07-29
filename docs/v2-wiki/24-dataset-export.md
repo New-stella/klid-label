@@ -142,7 +142,7 @@
 
 > **미보유 필수 필드 null 정책 (소비측 주의)**: 위 "미보유" 필드는 저작도구가 원천 데이터를 보유하지 않아 **의도적으로 null** 이다. `@JsonInclude(ALWAYS)` 로 키 자체는 항상 존재하므로, 소비측은 "키 부재"가 아니라 "**값 null**"로 미보유를 판정해야 한다.
 
-> **파생 프레임 개인정보 cross-stale 경계 (아키텍처 경계·후속 백로그)**: 프레임 개인정보 3필드(`LS_DATA_SRC.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN`)는 증강·해상도 파생 생성 시 부모 프레임 → 자식 파생 프레임으로 **생성 시점 1회 복사**된다(`AugmentExtractPersist`/`ResolutionPersistService` 의 `loadParentSrcs`). 부모 영상에 이후 **비식별 누락 신고**가 발생하면 `DeidentReportService.report()` 가 부모 rawSn 의 프레임 3필드만 NULL 리셋하며, **이미 생성된 자식 파생(다른 rawSn)의 복사값은 리셋되지 않는다**(cross-stale). 이는 의도된 아키텍처 경계다 — ① 신규 파생은 생성 시점 stale-PII 게이트(부모 재비식별 창 abort)로 방어되고, ② 기존 파생은 자체 라벨링·검수·신고 워크플로를 독립으로 가지므로 필요 시 파생본 단위로 재신고·정정한다. 부모→기존 파생 캐스케이드 리셋은 현재 미지원이며 후속 백로그로 관리한다(같은 경계를 `DeidentReportService.report` Javadoc 에도 명시).
+> **파생 프레임 개인정보 cross-stale 경계 (아키텍처 경계·후속 백로그)**: 프레임 개인정보 3필드(`LS_DATA_SRC.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN`)는 증강·해상도 파생 생성 시 부모 프레임 → 자식 파생 프레임으로 **생성 시점 1회 복사**된다(`AugmentExtractPersist`/`ResolutionPersistService` 의 `loadParentSrcs`). 부모 영상에 이후 **비식별 누락 신고**가 발생하면 `DeidentReportService.report()` 가 부모 rawSn 의 프레임 3필드만 NULL 리셋하며, **이미 생성된 자식 파생(다른 rawSn)의 복사값은 리셋되지 않는다**(cross-stale). 이는 의도된 아키텍처 경계다 — ① 신규 파생은 생성 시점 stale-PII 게이트(부모 재비식별 창 abort)로 방어되고, ② 기존 파생은 **원본 신고와 무관하게 독립 취급**된다(2026-07-29 확정 — 파생영상에서는 비식별 누락 신고를 접수하지 않으며 412 로 거부되고, 신고 게이트도 자기 `rawSn` 행만 판정한다 → [08 §8.4](08-deidentification.md)). 따라서 파생본의 3필드 stale 값은 파생본 자체의 라벨링·검수 워크플로에서 수동 정정해야 한다. 부모→기존 파생 캐스케이드 리셋은 현재 미지원이며 후속 백로그로 관리한다(같은 경계를 `DeidentReportService.report` Javadoc 에도 명시).
 
 ## 24.5 categories 와 SKELETON 인덱싱
 

@@ -267,9 +267,9 @@ class FrameDeidImageControllerTest {
     }
 
     @Test
-    @DisplayName("H2_DeidImage_부모영상이_신고중이면_해상도파생_프레임도_412")
-    void parentUnderReportBlocksDerivativeFrame() throws Exception {
-        // given — 부모(P) → 파생(D, ORGNL_RAW_SN=P) 2행 + 파생 프레임(부모 비식별 프레임의 리스케일 사본)
+    @DisplayName("★H2_DeidImage_원본이_신고중이어도_해상도파생_프레임은_200 — 파생은 신고 체계 바깥(확정)")
+    void parentUnderReportDoesNotBlockDerivativeFrame() throws Exception {
+        // given — 부모(P) → 파생(D, ORGNL_RAW_SN=P) 2행 + 파생 프레임(부모 비식별 프레임의 리스케일 사본).
         Long derivativeSrcSn = seedResolutionDerivativeFrame();
 
         // 부모만 비식별 누락 신고 — 파생행은 그대로 'Y' 다.
@@ -277,34 +277,24 @@ class FrameDeidImageControllerTest {
         parent.markDeidentified("F");
         rawRepository.save(parent);
 
-        // when/then — 자기 행만 보던 게이트는 200 + 이미지 바이트를 내보냈다(실제 PII 유출).
-        MvcResult result = mockMvc.perform(get(url(derivativeSrcSn))
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isPreconditionFailed())
-                .andReturn();
-        assertThat(result.getResponse().getContentType()).doesNotContain("image/");
-    }
-
-    @Test
-    @DisplayName("H2_DeidImage_부모영상_신고가_해제되면_파생_프레임이_다시_200")
-    void derivativeFrameReopensAfterParentResolved() throws Exception {
-        Long derivativeSrcSn = seedResolutionDerivativeFrame();
-
-        LsDataRaw parent = rawRepository.findById(rawSn).orElseThrow();
-        parent.markDeidentified("F");
-        rawRepository.save(parent);
-        mockMvc.perform(get(url(derivativeSrcSn)).header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isPreconditionFailed());
-
-        // when — resolve 로 'F'→'Y' 복원
-        parent = rawRepository.findById(rawSn).orElseThrow();
-        parent.markDeidentified("Y");
-        rawRepository.save(parent);
-
-        // then — 별도 복원 절차 없이 자동 재개방
+        // when/then — 2026-07-29 사용자 확정: 파생본은 원본 신고와 무관하게 계속 서빙된다.
+        //   (파생본에는 재비식별 수단이 없어 전파해도 해소 경로가 없다 — 감수된 함의)
         mockMvc.perform(get(url(derivativeSrcSn)).header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("image/jpeg"));
+    }
+
+    @Test
+    @DisplayName("H2_DeidImage_파생영상_자기행이_F면_412 — 판정 축은 자기 행 하나")
+    void derivativeFrameBlockedWhenItsOwnRowReported() throws Exception {
+        Long derivativeSrcSn = seedResolutionDerivativeFrame();
+        LsDataSrc derivativeFrame = srcRepository.findById(derivativeSrcSn).orElseThrow();
+        LsDataRaw derivative = rawRepository.findById(derivativeFrame.getRawSn()).orElseThrow();
+        derivative.markDeidentified("F");
+        rawRepository.save(derivative);
+
+        mockMvc.perform(get(url(derivativeSrcSn)).header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isPreconditionFailed());
     }
 
     @Test
@@ -494,8 +484,9 @@ class FrameDeidImageControllerTest {
     /**
      * 해상도 파생영상 2행 구조({@code 부모 → ORGNL_RAW_SN 파생})와 파생 프레임을 시드한다.
      *
-     * <p>파생 프레임 이미지는 부모의 비식별 프레임을 리스케일 복사한 것이므로, 부모의 마스킹이
-     * 실패하면 파생본에도 같은 PII 가 남는다 — 게이트가 조상까지 봐야 하는 이유다.
+     * <p>파생 프레임 이미지는 부모의 비식별 프레임을 리스케일 복사한 것이라 부모의 마스킹 실패분이
+     * 남을 수 있으나, <b>파생은 원본 신고와 무관하게 다룬다</b>(2026-07-29 사용자 확정 — 파생본에는
+     * 재비식별 수단이 없어 전파해도 해소 경로가 없다). 그 경계를 이 시드로 검증한다.
      *
      * @return 파생 프레임 SRC_SN
      */

@@ -97,7 +97,9 @@ class PortalSam2ServiceTest {
         LsRawDataStatus approved = LsRawDataStatus.initial(RAW_SN);
         approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
         when(rawDataStatusRepository.findById(RAW_SN)).thenReturn(Optional.of(approved));
-        when(frameImageEncoder.encodeToBase64(srcSn + ".jpg")).thenReturn("b64");
+        // S7 — 포털도 게이트 + 비식별본 전용 진입점을 쓴다(원본 경로 문자열 오버로드는 폐지됨).
+        //      신고 구간 차단 동작은 AiInferenceDeidentReportGateTest 가 실제 게이트로 검증한다.
+        when(frameImageEncoder.encodeDeidentifiedFrameForInference(frame)).thenReturn("b64");
     }
 
     @BeforeEach
