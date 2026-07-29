@@ -59,7 +59,7 @@
 | `IngestDeidentifyBridge` | `VideoIngestedEvent`(AFTER_COMMIT) → 선두 비식별 트리거 |
 | `DevPipelineRunner` | dev 경로 선두 비식별(무조건) → `MARKING_READY` 정지 (잔여 배치는 마킹 완료로만 트리거) |
 
-- **Quartz PostgreSQL JobStore**(`QRTZ_*`, `PostgreSQLDelegate`, BYTEA), **단일 인스턴스**(클러스터 미적용)
+- **Quartz PostgreSQL JobStore**(`QRTZ_*`, `PostgreSQLDelegate`, BYTEA), **클러스터링 적용**(2노드 Active-Active — `QRTZ_LOCKS` 행 락으로 동일 트리거를 1노드만 발화. `isClustered=${QUARTZ_CLUSTERED:true}`) → [02 §2.7](02-architecture.md)
 - 처리율 목표 **≥ 1건/분** (NFR-001)
 
 ## 7.5 재처리 정책

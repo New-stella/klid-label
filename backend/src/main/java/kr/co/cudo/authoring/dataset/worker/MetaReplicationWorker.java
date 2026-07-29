@@ -30,7 +30,8 @@ import java.util.List;
  * 포털 성공 후 DONE 표기 실패(크래시) 시 다음 tick 이 멱등 재복제로 흡수(at-least-once). 복제 실패는
  * 승인/materialize(이미 커밋됨)에 영향을 주지 않는다(관심 분리).
  *
- * <p>동시성: 단일 인스턴스 배포(CLAUDE.md) + Quartz {@code @DisallowConcurrentExecution}(HA 는 QRTZ 락)로
+ * <p>동시성: Quartz 클러스터링(2노드 Active-Active — {@code QRTZ_LOCKS} 락으로 1노드만 발화)
+ * + {@code @DisallowConcurrentExecution}(클러스터 전역 동시 실행 금지)로
  * 동시 tick 이 없으므로 outbox row-level claim 은 두지 않는다. 보안: 페이로드/로그에 식별자(rawSn·outboxSn)만
  * 남기고 PII/본문을 남기지 않는다(CWE-359/209).
  */

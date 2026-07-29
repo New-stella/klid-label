@@ -85,10 +85,12 @@ spring:
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
       org.quartz.jobStore.useProperties: 'true'
       org.quartz.jobStore.misfireThreshold: '60000'
-      # 이중화(HA) 노드만 true — local/dev 단일 인스턴스는 false 유지.
-      # true 시 2노드가 QRTZ_LOCKS 행 락으로 조율되어 각 트리거를 1회만 발화한다.
+      # 확정 배포 토폴로지 = 주 서버 2노드 Active-Active → 기본 true.
+      # true 시 노드들이 QRTZ_LOCKS 행 락으로 조율되어 각 트리거를 1회만 발화한다
+      # (단일 노드 기동에서도 정상 동작 — 락을 혼자 잡을 뿐이다).
+      # 단일 노드만 띄우는 것이 확정된 환경에서만 QUARTZ_CLUSTERED=false 로 내린다.
       # ⚠ 클러스터 모드는 노드 클럭 동기화(NTP) 필수.
-      org.quartz.jobStore.isClustered: ${QUARTZ_CLUSTERED:false}
+      org.quartz.jobStore.isClustered: ${QUARTZ_CLUSTERED:true}
       org.quartz.jobStore.clusterCheckinInterval: ${QUARTZ_CHECKIN_MS:20000}
   autoconfigure:
     exclude:
