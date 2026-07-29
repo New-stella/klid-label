@@ -49,7 +49,34 @@ public interface LsTusUploadRepository extends JpaRepository<LsTusUpload, UUID> 
                                   @Param("rawSn") Long rawSn,
                                   @Param("now") LocalDateTime now);
 
-    /** TTL 만료 + 미완료 세션 — Quartz 정리 잡 스캔용. */
-    @Query("SELECT u FROM LsTusUpload u WHERE u.status <> 'COMPLETED' AND u.expiresAt < :now")
-    List<LsTusUpload> findExpired(@Param("now") LocalDateTime now);
+    /**
+     * TTL 만료 + 미완료 세션 — 정리 잡 스캔용 <b>후보</b> 조회.
+     *
+     * <p>상한({@code Pageable}) 필수 — 만료 세션이 대량으로 쌓여도 한 tick 이 무한정 길어지지 않게 한다
+     * (무제한 조회 금지). 실제 삭제는 {@link #deleteExpiredById} 로 <b>원자 클레임에 성공한 건만</b>
+     * 수행해야 한다(2노드 중복 삭제 방지).
+     */
+    @Query("SELECT u FROM LsTusUpload u WHERE u.status <> 'COMPLETED' AND u.expiresAt < :now "
+            + "ORDER BY u.expiresAt ASC")
+    List<LsTusUpload> findExpired(@Param("now") LocalDateTime now,
+                                  org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * 만료 세션 정리의 <b>원자 클레임</b> — 삭제 자체가 클레임이다 (Phase 9-B).
+     *
+     * <p>구 구현은 {@code findExpired} 후 {@code delete(entity)} 라, 2노드 Active-Active 에서 같은 행을
+     * 두 노드가 지우려다 한쪽이 낙관적 잠금 예외로 터지고 임시 파일 삭제도 중복 시도됐다. Quartz
+     * 클러스터링({@code isClustered})은 기본 꺼져 있고 이 잡은 {@code @Scheduled} 라 잡 단위 배타성이
+     * 아예 없다. 조건부 DELETE 로 바꾸면 <b>1행을 지운 노드만</b> 파일 삭제 책임을 갖는다.
+     *
+     * <p>{@code status <> 'COMPLETED'} + {@code expiresAt < :now} 는 fail-safe 가드다 — 그 사이 업로드가
+     * 완료됐거나 만료가 갱신됐으면 삭제하지 않는다(정상 세션·완료 파일 보호). 파라미터 바인딩만
+     * 사용(CWE-89 표면 없음).
+     *
+     * @return 삭제한 행 수(0 또는 1). 1 인 호출만 임시 파일을 지운다.
+     */
+    @Modifying
+    @Query("DELETE FROM LsTusUpload u WHERE u.uploadId = :uploadId "
+            + "AND u.status <> 'COMPLETED' AND u.expiresAt < :now")
+    int deleteExpiredById(@Param("uploadId") UUID uploadId, @Param("now") LocalDateTime now);
 }

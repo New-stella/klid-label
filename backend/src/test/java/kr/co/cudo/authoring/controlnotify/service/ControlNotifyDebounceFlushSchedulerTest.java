@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.controlnotify.service;
 
+import kr.co.cudo.authoring.controlnotify.debounce.FakeControlNotifyDebounceStore;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
@@ -46,8 +47,8 @@ class ControlNotifyDebounceFlushSchedulerTest {
         // given — 통지 토글 off 형상(notifyService/metrics=null) + 전용 flush 스케줄러 활성(true) + 짧은 간격.
         //         windowSec=0 이라 축적 즉시 만료로 간주되어 다음 tick 에서 flush 된다.
         AsyncDatasetExportRunner exportRunner = mock(AsyncDatasetExportRunner.class);
-        ControlNotifyDebouncer debouncer =
-                new ControlNotifyDebouncer(null, 0L, null, exportRunner, true, 20L);
+        ControlNotifyDebouncer debouncer = new ControlNotifyDebouncer(
+                new FakeControlNotifyDebounceStore(), null, 0L, null, exportRunner, true, 20L, 300L, 100);
         try {
             debouncer.startFlushScheduler();
             // 전용 스케줄러가 실제로 기동됐는지(배선) — 결정론적 확인.
@@ -72,8 +73,8 @@ class ControlNotifyDebounceFlushSchedulerTest {
         AsyncDatasetExportRunner exportRunner = mock(AsyncDatasetExportRunner.class);
         ControlNotifyMetrics metrics = mock(ControlNotifyMetrics.class);
         ControlNotifyService notifyService = mock(ControlNotifyService.class);
-        ControlNotifyDebouncer debouncer =
-                new ControlNotifyDebouncer(notifyService, 0L, metrics, exportRunner, false, 20L);
+        ControlNotifyDebouncer debouncer = new ControlNotifyDebouncer(
+                new FakeControlNotifyDebounceStore(), notifyService, 0L, metrics, exportRunner, false, 20L, 300L, 100);
 
         // when
         debouncer.startFlushScheduler();

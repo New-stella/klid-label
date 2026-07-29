@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.controlnotify.service;
 
+import kr.co.cudo.authoring.controlnotify.debounce.ControlNotifyDebounceStore;
+import kr.co.cudo.authoring.controlnotify.debounce.FakeControlNotifyDebounceStore;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.dataset.export.AsyncDatasetExportRunner;
@@ -112,6 +114,12 @@ class ControlNotifyDebouncerPostConstructWiringTest {
         @Bean
         AsyncDatasetExportRunner asyncDatasetExportRunner() {
             return mock(AsyncDatasetExportRunner.class);
+        }
+
+        /** Phase 9-C — 윈도우 저장소. 이 테스트는 @PostConstruct 배선만 보므로 인메모리 페이크로 충분하다. */
+        @Bean
+        ControlNotifyDebounceStore controlNotifyDebounceStore() {
+            return new FakeControlNotifyDebounceStore();
         }
 
         // ControlNotifyService/ControlNotifyMetrics 는 @Nullable 생성자 파라미터라

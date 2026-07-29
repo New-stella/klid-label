@@ -73,7 +73,7 @@ Controller → Service → Repository (+ QueryDSL 보조)
 
 ## 2.7 배포 특성
 
-- Spring Boot + Quartz는 **단일 인스턴스** 배포 (Docker/Pod·Quartz 클러스터 미적용)
+- Spring Boot + Quartz는 **주 서버 2노드 Active-Active** 배포 — **Quartz 클러스터링 적용**(PostgreSQL JobStore 의 `QRTZ_LOCKS` 행 락으로 트리거를 1회만 발화). `QUARTZ_CLUSTERED` 는 stg/prd 기본 `true` 이고 **꺼져 있으면 기동을 거부**한다(`QuartzClusteringGuard`). 노드 간 시계 동기(NTP) 필수. local/dev 는 단일 노드라 off 허용
 - ai-server(YOLO/SAM2)만 다중 인스턴스 수평 확장
 - 환경: local/dev/stg/prd (Spring Profile)
 

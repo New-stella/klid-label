@@ -181,7 +181,7 @@ class LsDatasetExportRepositoryIT {
     }
 
     @Test
-    @DisplayName("findByExportSttsCdAndRegDtBefore_오래된_PENDING만_반환 — 최근 PENDING·다른 상태 제외")
+    @DisplayName("findStalePendingAnchors_오래된_PENDING만_반환 — 최근 PENDING·다른 상태 제외")
     void findsOnlyStalePending() {
         // given — 같은 rawSn 하위에 (1)오래된 PENDING (2)최근 PENDING (3)오래된 SUCCEEDED 를 적재.
         long rawSn = System.nanoTime();
@@ -202,14 +202,44 @@ class LsDatasetExportRepositoryIT {
 
         // when — cutoff = now - 30분. 오래된 PENDING 만 stale 대상.
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(30);
-        List<LsDatasetExport> stale = txTemplate.execute(s ->
-                exportRepository.findByExportSttsCdAndRegDtBefore(LsDatasetExport.STATUS_PENDING, cutoff));
+        List<Long> stale = txTemplate.execute(s ->
+                exportRepository.findStalePendingAnchors(cutoff, 500));
 
         // then — 이 rawSn 에서는 오래된 PENDING 1건만 매칭 (최근 PENDING·오래된 SUCCEEDED 제외)
-        assertThat(stale)
-                .filteredOn(e -> e.getDataRawSn().equals(rawSn))
-                .extracting(LsDatasetExport::getExportSn)
-                .containsExactly(stalePendingId);
+        assertThat(stale).contains(stalePendingId);
+        List<Long> otherIdsOfThisRaw = txTemplate.execute(s ->
+                exportRepository.findByDataRawSn(rawSn).stream()
+                        .map(LsDatasetExport::getExportSn)
+                        .filter(id -> !id.equals(stalePendingId))
+                        .toList());
+        assertThat(stale).doesNotContainAnyElementsOf(otherIdsOfThisRaw);
+    }
+
+    @Test
+    @DisplayName("claimStalePending_은_PENDING_1행만_FAILED로_클레임하고_재호출은_0행 — 멱등")
+    void claimStalePendingIsAtomicAndIdempotent() {
+        // given — stale PENDING 1건
+        long rawSn = System.nanoTime();
+        LocalDateTime old = LocalDateTime.now().minusHours(1);
+        Long exportSn = txTemplate.execute(s -> {
+            LsDatasetExport stalePending = LsDatasetExport.create(rawSn, 1, "/labeling/" + rawSn + "/v1");
+            backdate(stalePending, old);
+            return exportRepository.save(stalePending).getExportSn();
+        });
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(30);
+
+        // when — 첫 클레임
+        int first = txTemplate.execute(s -> exportRepository.claimStalePending(exportSn, cutoff));
+
+        // then — 1행 전이 + FAILED 영속
+        assertThat(first).isEqualTo(1);
+        String status = txTemplate.execute(s ->
+                exportRepository.findById(exportSn).orElseThrow().getExportSttsCd());
+        assertThat(status).isEqualTo(LsDatasetExport.STATUS_FAILED);
+
+        // when / then — 재호출은 0행(이미 PENDING 이 아님). 무조건 UPDATE 로 회귀하면 1이 되어 실패한다.
+        int second = txTemplate.execute(s -> exportRepository.claimStalePending(exportSn, cutoff));
+        assertThat(second).isZero();
     }
 
     /** REG_DT 를 지정 시각으로 강제(생성 시 now() 로 고정되므로 stale 시뮬레이션용). */

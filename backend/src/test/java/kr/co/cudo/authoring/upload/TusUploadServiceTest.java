@@ -610,11 +610,24 @@ class TusUploadServiceTest {
         }
 
         @Override
-        public java.util.List<LsTusUpload> findExpired(java.time.LocalDateTime now) {
+        public java.util.List<LsTusUpload> findExpired(java.time.LocalDateTime now,
+                                                       org.springframework.data.domain.Pageable pageable) {
             return store.values().stream()
                     .filter(u -> !LsTusUpload.STATUS_COMPLETED.equals(u.getStatus())
                             && u.getExpiresAt().isBefore(now))
+                    .limit(pageable.getPageSize())
                     .toList();
+        }
+
+        @Override
+        public int deleteExpiredById(UUID uploadId, java.time.LocalDateTime now) {
+            LsTusUpload session = store.get(uploadId);
+            if (session == null || LsTusUpload.STATUS_COMPLETED.equals(session.getStatus())
+                    || !session.getExpiresAt().isBefore(now)) {
+                return 0;
+            }
+            store.remove(uploadId);
+            return 1;
         }
 
         @Override

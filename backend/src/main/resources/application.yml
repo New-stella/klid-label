@@ -85,9 +85,13 @@ spring:
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
       org.quartz.jobStore.useProperties: 'true'
       org.quartz.jobStore.misfireThreshold: '60000'
-      # 이중화(HA) 노드만 true — local/dev 단일 인스턴스는 false 유지.
-      # true 시 2노드가 QRTZ_LOCKS 행 락으로 조율되어 각 트리거를 1회만 발화한다.
+      # 공통 기본값은 **단일 노드(local/dev)** 기준의 false 다.
+      # true 시 노드들이 QRTZ_LOCKS 행 락으로 조율되어 각 트리거를 1회만 발화한다.
+      # ★ 배포 환경(stg/prd)은 2노드 Active-Active 이므로 각 프로파일 yml 에서 true 로 override 하며,
+      #   false 로 되돌리면 QuartzClusteringGuard 가 기동을 거부한다(B-ISSUE-81).
       # ⚠ 클러스터 모드는 노드 클럭 동기화(NTP) 필수.
+      # ⚠ 클러스터링은 **트리거 중복 발화**만 막는다 — 잡 내부에서 여러 노드가 같은 행을 집는 레이스는
+      #   각 잡의 원자 클레임(조건부 UPDATE)이 따로 막는다(어느 쪽도 다른 쪽을 대체하지 않음).
       org.quartz.jobStore.isClustered: ${QUARTZ_CLUSTERED:false}
       org.quartz.jobStore.clusterCheckinInterval: ${QUARTZ_CHECKIN_MS:20000}
   autoconfigure:
@@ -319,6 +323,21 @@ authoring:
       max-attempts: ${BATCH_RETRY_MAX:3}
       initial-delay-sec: ${BATCH_RETRY_INITIAL_DELAY_SEC:60}
       interval-sec: ${BATCH_RETRY_INTERVAL_SEC:300}
+      # B-ISSUE-83 — stale RETRYING 회수 스윕(BatchRetryStaleReclaimSweeper).
+      #   RETRYING 은 폴링 노드의 "처리 중" 표시이고 PENDING 복귀는 그 노드가 정상적으로 예외를 받을
+      #   때만 일어난다. 노드가 처리 중 죽으면(kill -9/OOM/순단) 항목이 영구 RETRYING 으로 남아 해당
+      #   영상의 재시도가 무음 중단된다. 이 스윕이 임계를 넘긴 항목만 PENDING 으로 되돌린다.
+      #   - enabled: 자기 토글. batch.enabled 등 남의 스위치에 얹지 않는다(무관 토글 종속 사고 방지).
+      #   - interval-ms/initial-delay-ms: 전용 데몬 스케줄러 주기(@EnableScheduling 비의존). 주기 하한 1분.
+      #   - stale-timeout-minutes: 마지막 갱신(MDFCN_DT=클레임 시각) 이후 이 시간이 지나야 회수 대상이다.
+      #     정상 처리 중인 항목을 뺏지 않으려면 배치 1건 최장 처리 시간보다 커야 한다. 하한 30분(fail-safe).
+      #   - batch-size: tick 당 회수 상한(자원 고갈 방지).
+      stale-reclaim:
+        enabled: ${BATCH_RETRY_STALE_RECLAIM_ENABLED:true}
+        interval-ms: ${BATCH_RETRY_STALE_RECLAIM_INTERVAL_MS:900000}
+        initial-delay-ms: ${BATCH_RETRY_STALE_RECLAIM_INITIAL_DELAY_MS:300000}
+        stale-timeout-minutes: ${BATCH_RETRY_STALE_RECLAIM_TIMEOUT_MINUTES:180}
+        batch-size: ${BATCH_RETRY_STALE_RECLAIM_BATCH_SIZE:50}
   ffmpeg:
     threads: ${FFMPEG_THREADS:2}
     binary: ${FFMPEG_BIN:ffmpeg}
@@ -334,6 +353,15 @@ authoring:
     url: ${CONTROL_NOTIFY_URL:http://localhost:8090}
     timeout-ms: ${CONTROL_NOTIFY_TIMEOUT_MS:10000}
     debounce-window-sec: ${CONTROL_NOTIFY_DEBOUNCE_SEC:60}
+    # Phase 9-C — 디바운스 윈도우는 DB(LS_MON_NOTI_ACML)에 영속화되어 2노드가 공유한다.
+    #   어느 노드에서 축적됐든 한 노드가 전량을 1회만 flush 하고(원자 클레임), 노드가 flush 전에
+    #   죽어도 축적분이 남는다(구 인메모리 윈도우는 이중 통지 + 축적분 유실이었다).
+    #   - debounce-lease-sec: flush 클레임 임차(초). 클레임 노드가 이 시간 안에 발송을 못 마치면
+    #     (=죽으면) 다른 노드가 재클레임한다. 너무 짧으면 정상 발송 중인 윈도우를 뺏어 이중 통지가
+    #     되므로 하한 60초로 clamp 한다(오설정 fail-safe).
+    #   - debounce-flush-batch-size: 한 tick 이 처리할 윈도우 상한(무제한 조회 금지).
+    debounce-lease-sec: ${CONTROL_NOTIFY_DEBOUNCE_LEASE_SEC:300}
+    debounce-flush-batch-size: ${CONTROL_NOTIFY_DEBOUNCE_FLUSH_BATCH_SIZE:100}
     # 통지 실패분(dead-letter) 재전송 잡(ControlNotifyFallbackRetryJob) 스케줄 — @Scheduled 고정 지연.
     #   interval-ms 5m 마다 재시도, 부팅 후 initial-delay-ms 1m 뒤 첫 실행.
     retry:
@@ -446,6 +474,10 @@ kpst:
     req-user-id: ${KPST_DEID_REQ_USER_ID:authoring}
     # UC018 — 완료감지 폴링 잡 (enabled=true 일 때만 트리거 등록).
     poll-interval-sec: ${KPST_DEID_POLL_INTERVAL_SEC:30}        # 폴링 주기(초)
+    # B-ISSUE-82 — 틱당 폴링 대상 상한(무제한 조회 금지). 폴링 1건 = 외부 HTTP 호출이라 상한이 필요하다.
+    #   대상 선점은 리스 기반 원자 클레임(POLL_LAST_DT 조건부 UPDATE)이라 2노드 동시 발화에도 중복되지 않으며,
+    #   리스 길이는 poll-interval-sec 에서 파생한다(주기보다 짧게 — 단일 노드 매 틱 폴링 유지).
+    poll-batch-size: ${KPST_DEID_POLL_BATCH_SIZE:200}           # 틱당 폴링 대상 상한
     poll-max-attempts: ${KPST_DEID_POLL_MAX_ATTEMPTS:240}       # 시도 횟수 타임아웃(무한 폴링 방지)
     poll-timeout-minutes: ${KPST_DEID_POLL_TIMEOUT_MINUTES:180} # 위탁 후 경과 시간 타임아웃(분)
     # B-ISSUE-01 — 위탁 전 원본 영상 실재 검증(fail-closed). 기본 켬.

@@ -145,6 +145,66 @@ public class BatchRetryQueue {
         repository.deleteIdleByRawSn(rawSn);
     }
 
+    /**
+     * B-ISSUE-83 — <b>stale RETRYING 회수</b>. 클레임 후 노드가 죽어 영구 {@code RETRYING} 으로 남은
+     * 항목을 재시도 가능 상태로 되돌리거나(상한 이내) 소진 종결한다(상한 초과).
+     *
+     * <h3>왜 필요한가</h3>
+     * {@code RETRYING → PENDING} 복귀는 {@code BatchRetryQuartzJob.execute} 가 정상적으로 예외를 받을
+     * 때만 일어난다. 처리 중 프로세스가 죽으면(kill -9 · OOM · 순단) 그 항목은 아무도 건드리지 않는
+     * 영구 RETRYING 이 되어 해당 영상의 재시도가 무음 중단된다.
+     *
+     * <h3>오회수 방지</h3>
+     * 후보는 <b>마지막 갱신({@code MDFCN_DT})이 {@code cutoff} 이전</b>인 행뿐이다. 클레임 시각이
+     * MDFCN_DT 에 찍히므로, 정상 처리 중(=방금 클레임한) 항목은 cutoff 를 넘지 않아 대상이 아니다.
+     * 회수 UPDATE 자체에도 같은 조건을 실어 조회~회수 사이의 상태 변화를 fail-safe 로 재판정한다.
+     *
+     * <h3>무한 부활 금지</h3>
+     * 회수는 죽은 시도를 <b>1회로 계상</b>({@code RTY_NMTM+1})하고, 상한({@code MAX_RTY_NMTM})에 도달한
+     * 항목은 복귀시키지 않고 {@code EXHAUSTED} 로 종결한다.
+     *
+     * <p>2노드 동시 회수 안전: 상태 전이를 조건부 원자 UPDATE 로 수행해 DB 가 직렬화한다 —
+     * 한쪽만 영향 행수 1 을 받는다(CWE-362).
+     *
+     * @param cutoff    이 시각 이전에 마지막으로 갱신된 RETRYING 만 대상(= now - stale 임계)
+     * @param batchSize 한 번에 처리할 후보 상한(자원 소진 방지)
+     * @return 회수/종결 건수
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public StaleReclaimResult sweepStaleRetrying(LocalDateTime cutoff, int batchSize) {
+        List<Long> anchors = repository.findStaleRetryingAnchors(cutoff, Math.max(1, batchSize));
+        int reclaimed = 0;
+        int exhausted = 0;
+        for (Long batRtySn : anchors) {
+            LocalDateTime now = LocalDateTime.now();
+            // 상한 이내 → PENDING 복귀(다음 폴링에서 재시도). 지수백오프가 아니라 고정 지연을 준다 —
+            //   죽은 시도는 "실패한 실행"이 아니라 "실행되지 못한 시도"라 추가 냉각 근거가 없고,
+            //   폴러가 tick 당 1건만 집으므로 즉시 복귀시켜도 폭주하지 않는다.
+            if (repository.reclaimStaleRetrying(batRtySn, cutoff, now.plusSeconds(initialDelaySec), now) == 1) {
+                reclaimed++;
+                continue;
+            }
+            // 상한 초과 → 소진 종결(무한 부활 금지). 둘 다 0 이면 타 노드가 이미 처리한 것이다.
+            if (repository.exhaustStaleRetrying(batRtySn, cutoff, now) == 1) {
+                exhausted++;
+            }
+        }
+        return new StaleReclaimResult(reclaimed, exhausted);
+    }
+
+    /**
+     * stale RETRYING 회수 결과.
+     *
+     * @param reclaimed PENDING 으로 복귀시킨 건수(재시도 재개)
+     * @param exhausted 재시도 상한 초과로 EXHAUSTED 종결한 건수(무한 부활 차단)
+     */
+    public record StaleReclaimResult(int reclaimed, int exhausted) {
+
+        public int total() {
+            return reclaimed + exhausted;
+        }
+    }
+
     public int maxAttempts() {
         return maxAttempts;
     }

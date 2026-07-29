@@ -25,6 +25,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -176,32 +177,45 @@ class DatasetExportTxServiceTest {
     }
 
     @Test
-    @DisplayName("sweepStalePending은_stale_PENDING을_모두_FAILED로_마킹하고_건수를_반환한다")
-    void sweepStalePendingMarksFailedAndReturnsCount() {
-        // given — repo 가 stale PENDING 2건을 반환
-        LsDatasetExport stale1 = mock(LsDatasetExport.class);
-        LsDatasetExport stale2 = mock(LsDatasetExport.class);
+    @DisplayName("sweepStalePending은_후보를_원자_클레임으로_회수하고_성공건수만_반환한다")
+    void sweepStalePendingClaimsAndReturnsClaimedCount() {
+        // given — 후보 2건. 그 중 1건은 다른 노드가 이미 회수해 클레임 0행(경합).
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(30);
-        when(exportRepository.findByExportSttsCdAndRegDtBefore(
-                LsDatasetExport.STATUS_PENDING, cutoff)).thenReturn(List.of(stale1, stale2));
+        when(exportRepository.findStalePendingAnchors(eq(cutoff), anyInt()))
+                .thenReturn(List.of(11L, 22L));
+        when(exportRepository.claimStalePending(11L, cutoff)).thenReturn(1);
+        when(exportRepository.claimStalePending(22L, cutoff)).thenReturn(0);
 
         // when
         int swept = txService.sweepStalePending(cutoff);
 
-        // then — 각 markFailed 되고 건수 2 반환, 조회 인자(STATUS_PENDING, cutoff) 검증
-        assertThat(swept).isEqualTo(2);
-        verify(stale1).markFailed();
-        verify(stale2).markFailed();
-        verify(exportRepository).findByExportSttsCdAndRegDtBefore(
-                eq(LsDatasetExport.STATUS_PENDING), eq(cutoff));
+        // then — 클레임 성공분(1건)만 센다. 엔티티 setter 가 아니라 조건부 UPDATE 로 회수한다.
+        assertThat(swept).isEqualTo(1);
+        verify(exportRepository).claimStalePending(11L, cutoff);
+        verify(exportRepository).claimStalePending(22L, cutoff);
+    }
+
+    @Test
+    @DisplayName("sweepStalePending은_조회에_상한을_적용한다")
+    void sweepStalePendingAppliesLimit() {
+        // given
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(30);
+        when(exportRepository.findStalePendingAnchors(eq(cutoff), anyInt())).thenReturn(List.of());
+
+        // when
+        txService.sweepStalePending(cutoff);
+
+        // then — 무제한 조회 금지: 양수 상한이 전달된다
+        ArgumentCaptor<Integer> limit = ArgumentCaptor.forClass(Integer.class);
+        verify(exportRepository).findStalePendingAnchors(eq(cutoff), limit.capture());
+        assertThat(limit.getValue()).isPositive();
     }
 
     @Test
     @DisplayName("sweepStalePending은_stale가_없으면_0을_반환한다")
     void sweepStalePendingReturnsZeroWhenNone() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(30);
-        when(exportRepository.findByExportSttsCdAndRegDtBefore(
-                LsDatasetExport.STATUS_PENDING, cutoff)).thenReturn(List.of());
+        when(exportRepository.findStalePendingAnchors(eq(cutoff), anyInt())).thenReturn(List.of());
 
         assertThat(txService.sweepStalePending(cutoff)).isZero();
     }

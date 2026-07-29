@@ -269,9 +269,10 @@ class KpstDeidentPollIntegrationTest {
                 .thenReturn(new KpstProjectResponse("success", 101L));
         LsDeidentProcLog submitted = kpstDeidentService.submit(raw);
 
-        // when — 폴링 잡이 사용하는 조회(WAITING/POLLING)
+        // when — 폴링 잡이 사용하는 조회(WAITING/POLLING). 무제한 조회는 금지되어 상한이 필수다(B-ISSUE-82).
         List<LsDeidentProcLog> targets = procLogRepository.findByPollSttsCdIn(
-                List.of(LsDeidentProcLog.POLL_WAITING, LsDeidentProcLog.POLL_POLLING));
+                List.of(LsDeidentProcLog.POLL_WAITING, LsDeidentProcLog.POLL_POLLING),
+                org.springframework.data.domain.PageRequest.of(0, 100));
 
         // then — 방금 위탁한 건이 재폴링 대상에 포함된다
         assertThat(targets).extracting(LsDeidentProcLog::getProcLogSn)
