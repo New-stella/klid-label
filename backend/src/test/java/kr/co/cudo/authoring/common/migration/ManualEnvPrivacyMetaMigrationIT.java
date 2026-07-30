@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -124,8 +125,11 @@ class ManualEnvPrivacyMetaMigrationIT {
     @Test
     @DisplayName("LsDataSrc_개인정보_3컬럼_저장_조회_null_기본")
     void LsDataSrc_개인정보_3컬럼_저장_조회_null_기본() {
-        // given — 프레임 적재(신규 개인정보 컬럼은 미입력 상태)
-        LsDataSrc src = LsDataSrc.create(999_001L, 0L, "/nas/frames/raw/999001/0.jpg", LocalDateTime.now());
+        // given — 프레임 적재(신규 개인정보 컬럼은 미입력 상태).
+        //   부모 영상 선시드 — V146 FK(LS_DATA_SRC → LS_DATA_RAW). 검증 대상은 개인정보 3컬럼의
+        //   물리 타입·NULL 허용·CHAR(1) round-trip 이므로 부모 존재 여부와 무관하다.
+        long parentRawSn = RawVideoFixture.seedRaw(jdbc(), 999_001L);
+        LsDataSrc src = LsDataSrc.create(parentRawSn, 0L, "/nas/frames/raw/999001/0.jpg", LocalDateTime.now());
         lsDataSrcRepository.saveAndFlush(src);
         Long srcSn = src.getSrcSn();
 

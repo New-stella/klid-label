@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Phase 6 — CVAT 좌표 변환 / 회전 포팅 테스트 (portable-modules/06).
@@ -74,5 +75,48 @@ class CoordinateTransformerTest {
     void emptyInputHandled() {
         List<Point> result = CoordinateTransformer.rotate(List.of(), 45.0, new Point(0.0, 0.0));
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CoordinateTransformer_rotate_points가_null이면_예외")
+    void rotateRejectsNullPoints() {
+        // given/when/then — NPE 대신 입력 검증 예외로 거부한다.
+        assertThatThrownBy(() -> CoordinateTransformer.rotate(null, 45.0, new Point(0.0, 0.0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("points 가 null");
+    }
+
+    @Test
+    @DisplayName("CoordinateTransformer_rotate_center가_null이면_예외")
+    void rotateRejectsNullCenter() {
+        assertThatThrownBy(() -> CoordinateTransformer.rotate(List.of(new Point(1.0, 2.0)), 45.0, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("center 가 null");
+    }
+
+    @Test
+    @DisplayName("CoordinateTransformer_rotate_두_인자가_모두_null이면_points_가드가_먼저_발동한다")
+    void rotateChecksPointsGuardBeforeCenterGuard() {
+        // given/when/then — 가드 <선언 순서>(points → center) 고정. 순서를 뒤집으면 실패한다.
+        assertThatThrownBy(() -> CoordinateTransformer.rotate(null, 45.0, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("points 가 null")
+                .hasMessageNotContaining("center 가 null");
+    }
+
+    @Test
+    @DisplayName("CoordinateTransformer_scale_points가_null이면_예외")
+    void scaleRejectsNullPoints() {
+        assertThatThrownBy(() -> CoordinateTransformer.scale(null, 2.0, 2.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("points 가 null");
+    }
+
+    @Test
+    @DisplayName("CoordinateTransformer_translate_points가_null이면_예외")
+    void translateRejectsNullPoints() {
+        assertThatThrownBy(() -> CoordinateTransformer.translate(null, 1.0, 1.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("points 가 null");
     }
 }

@@ -10,9 +10,12 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.review.service.ReviewService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,6 +45,18 @@ class ReviewCancelSubmitConcurrencyIT {
     @Autowired private ReviewService reviewService;
     @Autowired private LsRawDataStatusRepository statusRepository;
     @Autowired private LsTaskAssignmentRepository assignmentRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    /** 커밋 시드한 부모 영상 — V146 FK(작업상태·배정 → LS_DATA_RAW) 충족용. */
+    private Long seededRawSn;
+
+    @AfterEach
+    void cleanSeededVideo() {
+        if (seededRawSn != null) {
+            RawVideoFixture.deleteRaws(jdbcTemplate, seededRawSn); // CASCADE 로 작업상태·배정 정리
+            seededRawSn = null;
+        }
+    }
 
     private final TransactionTemplate txTemplate;
 
@@ -54,7 +69,9 @@ class ReviewCancelSubmitConcurrencyIT {
     @DisplayName("취소와_검수시작_경합시_하나만_성공 — PENDING서_동시_cancelSubmit·startReview_정확히한쪽만_전이")
     void cancelAndStartReviewRace_onlyOneSucceeds() throws Exception {
         // given — PENDING 상태 작업 행 + user 100 LABELER 배정을 독립 트랜잭션에 커밋
-        long rawSn = System.nanoTime();
+        // 부모 영상은 시드 트랜잭션 밖에서 커밋해 둔다(자식 INSERT 가 FK 를 만족해야 한다).
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSn = rawSn;
         long workerNo = 100L;
         long reviewerNo = 1L;
         txTemplate.executeWithoutResult(s -> {

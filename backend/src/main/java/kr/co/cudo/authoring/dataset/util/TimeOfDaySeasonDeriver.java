@@ -5,9 +5,14 @@ import java.time.LocalDateTime;
 /**
  * 촬영일시(SHT_DT) → 주야간구분코드(DAY_NGT_CD)·계절코드(SESN_CD) 결정론적 파생 유틸.
  *
- * <p>NIA 통합 메타(LS_DATASET_VIDEO_META)의 두 파생 컬럼을 SHT_DT 로부터 순수 함수로 계산한다.
- * 자동 출처(ffprobe/MNG)가 없는 파생값이므로 결정론적 규칙을 코드로 고정하고 주석으로 명시한다
- * (같은 입력 → 항상 같은 코드).
+ * <p><b>용도 = 화면 프리필(조회) 전용</b>. 작업자가 촬영환경을 아직 입력하지 않은 영상의 라벨링 화면에
+ * 초기값을 제안하려고 SHT_DT 로부터 순수 함수로 계산한다. 조회 응답은 파생 여부를
+ * {@code timeOfDaySource}/{@code seasonSource}(MANUAL/DERIVED)로 함께 내려 소비자가 구분할 수 있다.
+ *
+ * <p><b>동결/산출 경로에서는 쓰지 않는다(E-ISSUE-42)</b> — 승인 동결
+ * ({@code DatasetVideoMetaSnapshotService})·export JSON·데이터마트 뷰에는 출처 구분자가 없어 추정값이
+ * 관측값과 구분 없이 소비되므로, 수동 입력이 없으면 null(미상)을 유지한다. 여기에 파생 폴백을 다시
+ * 배선하지 말 것.
  *
  * <p><b>주야간(DAY_NGT_CD)</b>: 촬영 시각(hour)이 06:00(포함)~18:00(미포함)이면 {@code DAY},
  * 그 외(야간)는 {@code NGT}. program 표준 주야간=DAY_NGT(DAY/NGT) 코드와 정합(설계 §1-3/§1-4).

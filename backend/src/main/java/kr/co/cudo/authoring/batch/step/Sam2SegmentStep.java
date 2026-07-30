@@ -77,6 +77,9 @@ import java.util.Set;
 @Component
 public class Sam2SegmentStep implements BatchStep {
 
+    /** AI_INFO.REG_ID 출처 마커 — 배치 파이프라인 자동 실행. */
+    private static final String SOURCE_BATCH = "batch";
+
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
@@ -162,6 +165,8 @@ public class Sam2SegmentStep implements BatchStep {
             }
             String relPath = resolveImagePath(src);
             String imageB64 = readImageAsBase64(relPath);
+            // B-ISSUE-42 — 이 프레임의 저장 대기 폴리곤. job 마다 save() 하지 않고 프레임 끝에서 saveAll() 한다.
+            List<AutoLabelBatchPersister.PendingLabel> pending = new ArrayList<>();
             for (SegmentJob job : jobs) {
                 AnnotationToggle toggle = resolveToggle(togglesOpt, job.label);
                 if (toggle == null) {
@@ -187,13 +192,14 @@ public class Sam2SegmentStep implements BatchStep {
                 Long labelId = labelMasterService.findLabelIdByDtctType(job.label).orElse(null);
                 log.info("[Batch][Sam2] mapped label name={} labelId={} points={}",
                         LogSanitizer.sanitize(job.label), labelId, capped.size());
-                LsDataLbl savedLabel = lblRepository.save(LsDataLbl.createAutoPolygon(
-                        src.getSrcSn(), labelId, job.label, serialize(capped), score));
-                aiInfoRepository.save(LsDataLblAiInfo.create(savedLabel.getLblSn(), rawSn, src.getSrcSn(),
-                        LsDataLblAiInfo.SRC_SAM2, score, "batch"));
+                pending.add(new AutoLabelBatchPersister.PendingLabel(LsDataLbl.createAutoPolygon(
+                        src.getSrcSn(), labelId, job.label, serialize(capped), score), score));
                 saved++;
                 labeledFrames.add(src.getSrcSn());
             }
+            // B-ISSUE-42 — 프레임 단위 일괄 저장(라벨 saveAll → AI 메타 saveAll). 저장 대상 0건이면 no-op.
+            AutoLabelBatchPersister.saveAll(lblRepository, aiInfoRepository, pending, rawSn,
+                    LsDataLblAiInfo.SRC_SAM2, SOURCE_BATCH);
         }
         // C-ISSUE-21 — 배치 분할이 라벨 row 를 만든 <b>그 프레임</b>의 라벨셋 버전을 +1 한다(단일 UPDATE).
         //   근거는 YoloAutolabelStep 과 동일 — 재처리/재실행이 라벨링 중에도 가능하므로 편집 화면의 낡은

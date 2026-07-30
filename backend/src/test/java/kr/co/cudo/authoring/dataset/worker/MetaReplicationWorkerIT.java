@@ -32,6 +32,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("local")
 class MetaReplicationWorkerIT {
+    // ── DB-ISSUE-01 / V146: 자식 행이 참조할 부모 영상(LS_DATA_RAW) 시드 ──
+    //   FK 신설 전에는 임의 정수를 rawSn 으로 써도 통과했지만 그렇게 만든 데이터는 실제로는 고아였다.
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate parentVideoJdbc;
+
+    private final java.util.List<Long> seededParentRawSns = new java.util.ArrayList<>();
+
+    /** 실재하는 부모 영상 1건을 만들고 rawSn 을 돌려준다(V146 FK). */
+    private long newVideo() {
+        long rawSn = kr.co.cudo.authoring.support.RawVideoFixture.newRaw(parentVideoJdbc);
+        seededParentRawSns.add(rawSn);
+        return rawSn;
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void cleanSeededParentVideos() {
+        // 부모 삭제 = 자식(동결 메타·아웃박스·export 등) CASCADE 삭제.
+        seededParentRawSns.forEach(
+                sn -> kr.co.cudo.authoring.support.RawVideoFixture.deleteRaws(parentVideoJdbc, sn));
+        seededParentRawSns.clear();
+    }
+
 
     @Autowired
     private MetaReplicationWorker worker;
@@ -103,7 +125,7 @@ class MetaReplicationWorkerIT {
     @DisplayName("PENDING_outbox_복제후_DONE_전환")
     void replicatePending_writesPortalRow_andMarksDone() {
         // given — 포털에 복제되지 않은 outbox PENDING 1건(control materialize 미실행 = 포털 공백)
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         Long outboxSn = insertOutbox(rawSn, "hash-repl");
 
         // when — 워커 1회 실행
@@ -121,7 +143,7 @@ class MetaReplicationWorkerIT {
     @DisplayName("포털_upsert_멱등_중복복제_무해")
     void replicate_isIdempotent_onDuplicateOutbox() {
         // given — 동일 (rawSn, hash) outbox 2건(재시도/중복 발행 시나리오)
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         Long first = insertOutbox(rawSn, "hash-idem");
         Long second = insertOutbox(rawSn, "hash-idem");
 

@@ -58,6 +58,13 @@
 | `AsyncDeidentifyRunner` | 적재 직후 선두 비식별 @Async 실행(성공 시 `MARKING_READY` 전이) |
 | `IngestDeidentifyBridge` | `VideoIngestedEvent`(AFTER_COMMIT) → 선두 비식별 트리거 |
 | `DevPipelineRunner` | dev 경로 선두 비식별(무조건) → `MARKING_READY` 정지 (잔여 배치는 마킹 완료로만 트리거) |
+| `ControlTrainingVideoScanJob` + `TrainingVideoIngestService` | 관제 학습용 지정(`MNG_CLIP_MASTER.JOB_DMND_YN='Y'`) 클립 픽업 적재 — 아래 스캔 비용 규칙 적용 |
+
+- **학습용 클립 스캔 비용 규칙 (B-ISSUE-04)** — 이 잡은 60초마다 **관제와 공유하는 DB(MNG_*)** 를 친다. 구 구현은 미적재 필터도 상한도 없어 매 tick 전량 SELECT 후 전량 skip 을 반복했다(실측 `scanned=3 ingested=0` 무한 반복).
+  - 후보 조회에 `NOT EXISTS (LS_DATA_RAW WHERE VMS_CLIP_ID = CLIP_ID)` 를 걸어 **미적재 클립만** 가져온다(`LsDataRaw` 도 `@ControlRepo` 라 같은 EntityManager — 단일 SQL 상관 서브쿼리).
+  - tick 당 처리 상한 **100건**(`TrainingVideoIngestService.INGEST_SCAN_LIMIT`, `Pageable`). 잔여분은 **다음 tick 이 이어서 처리**한다(의도된 이월 — `scan finished ... carriedOver=true` 로그로 관측). 정렬은 복합 PK 오름차순 고정이라 특정 클립이 굶지 않는다.
+  - 이벤트리스트(`MNG_CLIP_EVNT_LST`)는 클립당 개별 조회 대신 후보 EVNT_ID **IN 조회 1회**로 배치화(구 구현은 후보 N 건에 매 tick 2N 쿼리).
+  - **멱등 가드는 유지**한다 — 위 필터는 1차 필터일 뿐이고, 2노드 Active-Active 에서 조회~적재 사이 경합이 있으므로 `TrainingVideoIngestTx` 의 이중 멱등(사전 조회 skip + UK 위반 catch-skip)을 대체하지 않는다.
 
 - **Quartz PostgreSQL JobStore**(`QRTZ_*`, `PostgreSQLDelegate`, BYTEA), **2노드 Active-Active + 클러스터링 적용**(`QRTZ_LOCKS` 행 락으로 동일 트리거를 1노드만 발화) → [02 §2.7](02-architecture.md)
   - 공통 기본값 `isClustered=${QUARTZ_CLUSTERED:false}`(단일 노드 기준)이고 **stg/prd 프로파일이 `true` 로 override** 한다. 그 두 환경에서 꺼져 있으면 **기동 거부**(`QuartzClusteringGuard` — 프로파일 allowlist + `ENV` 배포 표식 두 축). local/dev 는 단일 노드라 off 허용

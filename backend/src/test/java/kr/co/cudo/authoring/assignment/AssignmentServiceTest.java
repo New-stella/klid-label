@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -197,15 +198,13 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("listAssignments_응답_Item에_MNG_RESOURCE_CCTV의_cctvName이_매핑되어_반환")
     void listAssignmentsIncludesCctvName() {
-        // MNG_RESOURCE_CCTV 마스터 + LS_DATA_RAW 시드 (FK 무관 — 단순 LEFT JOIN lookup 검증).
+        // MNG_RESOURCE_CCTV 마스터 등록 + 영상 1000(test-data.sql 시드)의 CCTV 를 그 마스터로 지정.
         // 영상명 컬럼이 "CCTV-강남구-001" 형식으로 표시되도록 한다.
-        jdbcTemplate.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES (?,?,?)",
+        jdbcTemplate.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES (?,?,?) "
+                        + "ON CONFLICT (VMS_CCTV_ID) DO NOTHING",
                 "CCTV-GANGNAM-001", "CCTV-강남구-001", "Y");
-        jdbcTemplate.update(
-                "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, PRVC_TYPE_CD, PRVC_YN, DE_IDENT_YN," +
-                        "RAW_FILE_PATH_NM, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
-                1000L, "TEST-CLIP-1000", "CCTV-GANGNAM-001",
-                "ANONY", "N", "N", "/tmp/test/1000.mp4", "PENDING");
+        jdbcTemplate.update("UPDATE LS_DATA_RAW SET VMS_CCTV_ID = ? WHERE RAW_SN = ?",
+                "CCTV-GANGNAM-001", 1000L);
 
         // 배정 생성 — rawDataId=1000 으로 LABELER 1건.
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
@@ -225,12 +224,10 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("listAssignments_MNG_RESOURCE_CCTV_매핑_없으면_VMS_CCTV_ID_폴백")
     void listAssignmentsCctvNameFallsBackToVmsCctvId() {
-        // CCTV 마스터 시드 없이 LS_DATA_RAW 만 등록 → cctvName 은 vmsCctvId 폴백.
-        jdbcTemplate.update(
-                "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, PRVC_TYPE_CD, PRVC_YN, DE_IDENT_YN," +
-                        "RAW_FILE_PATH_NM, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
-                1001L, "TEST-CLIP-1001", "CCTV-ORPHAN-001",
-                "ANONY", "N", "N", "/tmp/test/1001.mp4", "PENDING");
+        // CCTV 마스터에 없는 VMS_CCTV_ID 를 가진 영상 → cctvName 은 vmsCctvId 폴백.
+        jdbcTemplate.update("DELETE FROM MNG_RESOURCE_CCTV WHERE VMS_CCTV_ID = ?", "CCTV-ORPHAN-001");
+        jdbcTemplate.update("UPDATE LS_DATA_RAW SET VMS_CCTV_ID = ? WHERE RAW_SN = ?",
+                "CCTV-ORPHAN-001", 1001L);
 
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1001L));
         assignmentService.assign(req, reviewer());
@@ -270,12 +267,15 @@ class AssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("listAssignments_LS_DATA_RAW_없을때_eventName_null_폴백")
+    @DisplayName("listAssignments_EVNT_TYPE_CD_없을때_eventName_null_폴백")
     void listAssignmentsEventNameNullFallback() {
-        // given — LS_DATA_RAW 미시딩. 배정만 존재 → eventName/eventTypeCd 는 null 로 폴백.
-        // 이전 테스트의 LS_DATA_RAW 잔존 데이터를 미리 비워 lookup 이 null 을 반환하는 시나리오 보장.
-        jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", 2001L);
-        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(2001L));
+        // given — EVNT_TYPE_CD 가 비어 있는 영상(test-data.sql 시드 1003)에 배정 1건.
+        //   구 시나리오는 "LS_DATA_RAW 자체가 없는 배정"(=고아 행)이었으나, V146(DB-ISSUE-01)이
+        //   LS_TASK_ASSIGNMENT → LS_DATA_RAW FK 를 세워 그 상태는 <구조적으로 불가능>해졌다
+        //   (프로덕션에서도 도달 불가). 검증 대상인 eventName/eventTypeCd null 폴백은 이벤트 유형이
+        //   비어 있는 영상으로 그대로 성립하므로 단언은 동일하게 유지한다.
+        jdbcTemplate.update("UPDATE LS_DATA_RAW SET EVNT_TYPE_CD = NULL WHERE RAW_SN = ?", 1003L);
+        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1003L));
         assignmentService.assign(req, reviewer());
 
         // when
@@ -334,6 +334,8 @@ class AssignmentServiceTest {
     void listAssignmentsStatusFallbackToPending() {
         // given — LS_TASK_ASSIGNMENT 만 직접 INSERT (assign 메서드를 우회해 LS_RAW_DATA_STATUS 미생성).
         // dataSttsByVideo lookup 이 키를 찾지 못해 mapToFeStatus(null) → 'PENDING' 폴백을 거쳐야 한다.
+        // 배정 행의 부모 영상은 실재해야 한다(V146 FK) — 검증 대상은 <작업 상태 행> 부재이지 영상 부재가 아니다.
+        RawVideoFixture.seedRaw(jdbcTemplate, 9999L);
         jdbcTemplate.update(
                 "INSERT INTO LS_TASK_ASSIGNMENT (USER_NO, RAW_DATA_ID, TASK_TYPE_CD, REG_USER_NO, REG_DT) " +
                         "VALUES (?,?,?,?, CURRENT_TIMESTAMP)",

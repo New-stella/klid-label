@@ -2,11 +2,13 @@ package kr.co.cudo.authoring.dataset.export;
 
 import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
 import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
@@ -41,17 +43,26 @@ class DatasetExportPendingSweepClaimIT {
     @Autowired
     private LsDatasetExportRepository exportRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private final List<Long> createdExportSns = new ArrayList<>();
+    /** 시드한 부모 영상 — V146 FK(LS_DATASET_EXPORT → LS_DATA_RAW) 충족용. */
+    private final List<Long> seededRawSns = new ArrayList<>();
 
     @AfterEach
     void cleanup() {
         createdExportSns.forEach(sn -> exportRepository.findById(sn).ifPresent(exportRepository::delete));
         createdExportSns.clear();
+        // 부모 삭제 = 남은 export 이력 CASCADE 삭제.
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
+        seededRawSns.clear();
     }
 
-    /** 고유 rawSn 으로 PENDING export 1건을 커밋 저장한다(REG_DT=now). */
+    /** 고유 rawSn(실재하는 영상)으로 PENDING export 1건을 커밋 저장한다(REG_DT=now). */
     private LsDatasetExport persistPending() {
-        long rawSn = System.nanoTime();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSns.add(rawSn);
         LsDatasetExport saved = exportRepository.saveAndFlush(
                 LsDatasetExport.create(rawSn, 1, "/tmp/export/" + rawSn, "hash-" + rawSn));
         createdExportSns.add(saved.getExportSn());

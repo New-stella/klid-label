@@ -66,11 +66,30 @@ public class LsDataAugRvw {
     @Column(name = "MDFCN_DT")
     private LocalDateTime mdfcnDt;
 
+    /**
+     * {@code DATA_RAW_SN} 미해석(null) 거부 — <b>센티널 {@code 0L} 금지</b>.
+     *
+     * <p>이 컬럼은 DB {@code NOT NULL} 이고 V146(DB-ISSUE-01)부터 {@code LS_DATA_RAW} 를 FK 로
+     * 참조한다. 구 구현은 null 을 {@code 0L} 로 치환했는데 그 값은 <b>존재하지 않는 영상 참조</b>라,
+     * FK 이전에는 "어느 영상의 검수 이력인지 알 수 없는 행" 이 조용히 쌓였고 FK 이후에는 INSERT 가
+     * 거부돼 accept/reject 가 500 이 됐다. null 은 저장 대상이 아니므로 여기서 즉시 거부한다.
+     *
+     * <p>정상 경로는 {@code AugmentReviewService} 가 호출 전에 SRC_SN → RAW_SN 역해석을 선검증하므로
+     * 여기까지 null 이 오지 않는다(본 guard 는 신규 호출처가 생겼을 때의 최후 방어).
+     */
+    private static Long requireRawSn(Long rawSn) {
+        if (rawSn == null) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "증강 검수 이력에 기록할 원본 영상 정보가 없습니다.");
+        }
+        return rawSn;
+    }
+
     public static LsDataAugRvw pending(Long dataAugSn, Long rawSn, Long srcSn,
                                        BigDecimal integrityPct, String regId) {
         LsDataAugRvw review = new LsDataAugRvw();
         review.dataAugSn = dataAugSn;
-        review.dataRawSn = rawSn == null ? 0L : rawSn;
+        review.dataRawSn = requireRawSn(rawSn);
         review.dataSrcSn = srcSn;
         review.rvwSttsCd = STTS_PENDING;
         review.lblIntgrtPct = integrityPct;
@@ -86,7 +105,7 @@ public class LsDataAugRvw {
                                               BigDecimal labelIntegrityPct, String rvwId, LocalDateTime rvwDt) {
         LsDataAugRvw review = new LsDataAugRvw();
         review.dataAugSn = dataAugSn;
-        review.dataRawSn = dataRawSn == null ? 0L : dataRawSn;
+        review.dataRawSn = requireRawSn(dataRawSn);
         review.dataSrcSn = dataSrcSn;
         review.rvwSttsCd = STTS_ACCEPTED;
         review.lblIntgrtPct = labelIntegrityPct;
@@ -109,7 +128,7 @@ public class LsDataAugRvw {
         }
         LsDataAugRvw review = new LsDataAugRvw();
         review.dataAugSn = dataAugSn;
-        review.dataRawSn = dataRawSn == null ? 0L : dataRawSn;
+        review.dataRawSn = requireRawSn(dataRawSn);
         review.dataSrcSn = dataSrcSn;
         review.rvwSttsCd = STTS_REJECTED;
         review.rejectRsn = rejectRsn;

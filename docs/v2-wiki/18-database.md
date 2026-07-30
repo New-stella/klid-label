@@ -20,7 +20,7 @@
 ### 영상 · 프레임 · 라벨
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, ORGNL_RAW_SN — V82 물리 rename, 구 PARENT_RAW_SN 폐지. V95에서 데이터마트 뷰 출력 컬럼도 ORGNL_RAW_SN 으로 통일돼 내부·외부 모두 ORGNL_RAW_SN). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료). **촬영환경 수동 메타(V130, 요구 외 추가 2026-07-24)**: `WTHR_NM VARCHAR(20)`(날씨·명V20)·`DAY_NGT_CD VARCHAR(20)`(시간대·코드V20)·`SESN_CD VARCHAR(20)`(계절·코드V20) — 전부 NULL 허용(NULL=미입력→export가 파생 폴백). 라벨링 메타탭 촬영환경 패널이 수동 편집, 검수 승인 export(NiaVideo weather/time_of_day/season)에 우선 반영 | [05](05-video-management.md)·[24](24-dataset-export.md) |
+| `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, ORGNL_RAW_SN — V82 물리 rename, 구 PARENT_RAW_SN 폐지. V95에서 데이터마트 뷰 출력 컬럼도 ORGNL_RAW_SN 으로 통일돼 내부·외부 모두 ORGNL_RAW_SN). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료). **촬영환경 수동 메타(V130, 요구 외 추가 2026-07-24)**: `WTHR_NM VARCHAR(20)`(날씨·명V20)·`DAY_NGT_CD VARCHAR(20)`(시간대·코드V20)·`SESN_CD VARCHAR(20)`(계절·코드V20) — 전부 NULL 허용(**NULL=미입력→동결·export 모두 null(미상). 촬영일시 추정 안 함**, E-ISSUE-42 2026-07-29. 구 "export가 파생 폴백" 폐기 — 파생 폴백은 화면 프리필 조회에만 남음). 라벨링 메타탭 촬영환경 패널이 수동 편집, 검수 승인 export(NiaVideo weather/time_of_day/season)에 우선 반영 | [05](05-video-management.md)·[24](24-dataset-export.md) |
 | `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
 | `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로, `FRM_EXPLN` 프레임설명 V103 — NIA image.description 작업자 수기). **개인정보 수동 메타(V130, 요구 외 추가 2026-07-24)**: `ANONY_INCL_YN CHAR(1)`(익명여부)·`PSDO_INCL_YN CHAR(1)`(가명여부)·`PRVC_INCL_YN CHAR(1)`(개인정보 포함여부) — 여부C1 표준, 전부 NULL 허용(NULL=미입력→파생 폴백). 라벨링 메타탭 개인정보 패널이 프레임 단위 수동 편집. **가명여부·개인정보 포함여부만** export(NiaImage pseudonymity/privacy_included)에 우선 반영, **익명여부(anonymity)는 export를 덮지 않고 시스템 kind 자동값 유지**(원본 N/비식별 Y). 비식별 누락 신고 처리 시 3필드 NULL 리셋 | [07](07-batch-pipeline.md)·[10](10-labeling.md)·[24](24-dataset-export.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |
@@ -116,6 +116,26 @@
 | `V_COMPLETED_META` | 시계열 메타 (RVW_STTS_CD='APPROVED'만). V101에서 `video.*` 기술메타 6키 제외(통합 스냅샷 `V_COMPLETED_VIDEO`로 이관) — VLM/외부 시계열만 노출 |
 
 > 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 수신 후 RAW_SN으로 4 View SELECT → 영상 1건=1 row UPSERT. 비식별 **영상** 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 적재값 사용(문자열 치환 도출 아님, View 미포함). 비식별 **프레임** 경로는 `V_COMPLETED_FRAME.DEIDENTIFIED_PATH`(=`LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`)에 직접 노출되며, 신규 추출은 원본 `{base}/frames/raw/{rawSn}`·비식별 `{base}/frames/deid/{rawSn}` 로 분기 저장돼 `STORAGE_RAW_PATH==STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`)여도 충돌하지 않는다. → [15](15-control-notify.md)
+
+### 18.3.1 `LS_DATA_RAW` 참조 무결성 — 자식 FK + `ON DELETE CASCADE` (V146)
+
+구 스키마는 `LS_DATA_RAW` 를 참조하는 FK 가 `LS_EVNT_ANNO` 단 1건뿐이라 영상 행이 사라져도 자식이 고아로 잔존했다(실측: `LS_MARKING` 고아 2행). V146 이 **자식 27개 테이블에 FK 를 신설**한다.
+
+| 구분 | 대상 | 삭제 규칙 | 근거 |
+|------|------|:---------:|------|
+| 일반 자식 | `LS_DATA_SRC`·`LS_MARKING`·`LS_DATA_META`·`LS_DATA_META_REVIEW`·`LS_DATA_LBL_AI_INFO`·`LS_DEIDENT_PROC_LOG`·`LS_DEIDENT_REPORT`·`LS_BATCH_PROC_LOG`·`LS_BAT_RTY_WTNG`·`LS_AUTH_WORK_LOCK`·`LS_DATA_ISSUE`·`LS_DATA_AUG_RVW`·`LS_DATA_RAW_HSTRY`·`LS_LABEL_VERSION`·`LS_DATASET_EXPORT`·`LS_DATASET_VIDEO_META`·`LS_RAW_DATA_STATUS`·`LS_RAW_DATA_ENROLLMENT`·`LS_TASK_ASSIGNMENT`·`LS_TASK_ASSIGN_HISTORY`·`LS_TASK_EVENT_LOG`·`LS_CONTROL_NOTIFY_FALLBACK`·`LS_META_REPL_OUTBOX`·`LS_MON_NOTI_ACML`·`LS_PORTAL_USER_LABEL`·`LS_EVNT_ANNO`(기존 FK 를 NO ACTION→CASCADE 로 통일) | `CASCADE` | 영상 행이 사라지면 그 자식 데이터는 의미가 없다. RESTRICT 로 하면 실재 삭제 경로(`ResolutionPersistService.deleteFailedDerivativeRaw`·`TusUploadService` 완료 경합 롤백)가 깨진다 |
+| 원장·세션 | `LS_WEBHOOK_IDEMPOTENCY.RAW_SN`·`LS_TUS_UPLOAD.RAW_SN` | `SET NULL` | 행이 사라지면 웹훅 재전송 방지/업로드 멱등 응답이 무너진다. 두 컬럼 모두 nullable 이라 참조만 끊는다 |
+| **제외** | `MNG_CLIP_SCHEDULE_QUE.RAW_SN` | — | 관제서버 소유(MNG_*) — 변경 시 관제팀 선승인 필수 |
+| **제외** | `LS_DATA_RAW.ORGNL_RAW_SN`·`LS_DATASET_VIDEO_META.ORGNL_RAW_SN` | — | 자식이 아니라 파생 계보(self-reference)/승인 시점 **동결** 값. 고아 자동 복구가 둘 다 위험(NULL 화 시 파생본이 "원본" 으로 승격돼 비식별 신고 거부·PII 정책이 역전, 삭제 시 검수 완료 파생 학습데이터 소실) — 별건 |
+
+**고아 선행 정리 정책** (FK 는 고아가 있으면 생성 자체가 실패):
+- 일반 자식의 고아는 삭제하되 테이블별 건수를 `RAISE NOTICE` 로 남긴다.
+- **데이터마트 뷰 공급 테이블**(`LS_DATASET_VIDEO_META`·`LS_RAW_DATA_STATUS`·`LS_DATASET_EXPORT`·`LS_DEIDENT_PROC_LOG`·`LS_DATA_SRC`·`LS_DATA_META`·`LS_DATA_META_REVIEW`)에 고아가 있으면 **삭제하지 않고 마이그레이션을 중단**한다 — 관제가 보던 행이 예고 없이 사라지는 것을 막는다("검수 완료·통지 건 관제 접근 보장" 구속 제약, V143 선례).
+- 한 테이블 고아가 **1,000건 초과**면 정상 운영의 잔여물이 아니라고 보고 중단한다.
+
+> ⚠ 배포 시 `ADD CONSTRAINT` 가 자식 테이블에 SHARE ROW EXCLUSIVE 를 잡고 전량 검증 스캔을 한다 — 2노드 Active-Active 롤링 배포 중 짧은 쓰기 차단이 발생할 수 있다(읽기 무영향).
+>
+> **남은 갭(후속)**: 2단계 이하(`LS_DATA_SRC`→`LS_DATA_LBL`, `LS_DATA_LBL`→`LS_DATA_AUG_LBL_MAP` 등)에는 여전히 FK 가 없다. 영상 삭제가 프레임을 CASCADE 로 지우면 그 프레임의 라벨은 고아로 남는다. 실 삭제 경로 두 곳은 모두 "프레임 0건" 가드가 있어 현재는 도달하지 않지만, 별도 이슈로 다뤄야 한다.
 
 ## 18.4 관제서버 소유 MNG_* (읽기 전용 9개)
 

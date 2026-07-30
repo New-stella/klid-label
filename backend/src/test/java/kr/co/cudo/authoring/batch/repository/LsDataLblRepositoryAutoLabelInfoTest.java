@@ -3,10 +3,12 @@ package kr.co.cudo.authoring.batch.repository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,10 +38,14 @@ class LsDataLblRepositoryAutoLabelInfoTest {
     @Autowired
     private LsDataLblAiInfoRepository aiInfoRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     @DisplayName("AI_INFO_auto_라벨은_autoLblYn_Y_와_confScore_를_수동라벨은_null_을_투영한다")
     void joinProjectsAutoAndManualCorrectly() {
-        // given — 동일 영상(rawSn)에 프레임 1개, 그 위에 auto 라벨 1건 + manual 라벨 1건
+        // given — 부모 영상(V146 FK) + 동일 영상(rawSn)에 프레임 1개, 그 위에 auto 라벨 1건 + manual 라벨 1건
+        RawVideoFixture.seedRaw(jdbcTemplate, 995_001L);
         LsDataSrc src = srcRepository.saveAndFlush(
                 LsDataSrc.create(995_001L, 0, "raw/frame0.jpg", null));
 
@@ -78,6 +84,7 @@ class LsDataLblRepositoryAutoLabelInfoTest {
         //   ① 먼저 conf=0.90 적재(mdfcnDt 없음)
         //   ② 이후 더 최근에 conf=0.50, auto_lbl_yn='Y' 로 갱신(mdfcnDt 설정)
         // MAX(conf)=0.90 이지만 최신 행은 0.50 이므로 0.50 이 나와야 한다.
+        RawVideoFixture.seedRaw(jdbcTemplate, 995_002L);
         LsDataSrc src = srcRepository.saveAndFlush(
                 LsDataSrc.create(995_002L, 0, "raw/frame0.jpg", null));
 

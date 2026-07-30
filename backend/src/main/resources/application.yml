@@ -235,6 +235,14 @@ authoring:
       retry-delay-minutes: ${DATASET_EXPORT_RECOVERY_DELAY_MINUTES:10}
       max-attempts: ${DATASET_EXPORT_RECOVERY_MAX_ATTEMPTS:3}
       batch-size: ${DATASET_EXPORT_RECOVERY_BATCH_SIZE:20}
+  # 통합 메타 스냅샷(LS_DATASET_VIDEO_META) 소급 보정 — 기동 시 1회(DatasetVideoMetaBackfillRunner, !local).
+  dataset-video-meta:
+    # M-1(Phase 10B) 촬영환경 레거시 파생 동결값 정정 백필의 <1회 실행당 상한>.
+    #   정정 1건마다 export 폴더가 새 버전으로 전량 재생성되고 관제 통지가 나가므로, 승인 영상이 많은
+    #   환경에서 한 번에 전부 돌리면 스토리지·통지가 몰린다. 잔여분은 다음 기동에서 이어서 처리된다
+    #   (정정된 영상은 판별식에서 빠져 멱등). 대상 총건수/잔여건수는 실행 로그에 남는다.
+    env-correction:
+      max-per-run: ${DATASET_ENV_CORRECTION_MAX_PER_RUN:200}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/genai/callback (WebhookProtectedPaths.PATH_GENAI_CALLBACK).
   #     운영(dev/stg/prd)에서는 환경변수로 override.

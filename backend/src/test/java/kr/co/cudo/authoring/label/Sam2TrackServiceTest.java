@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.AutolabelShape;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -62,6 +64,7 @@ class Sam2TrackServiceTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private AiServerClient aiServerClient;
     @MockBean private LabelMasterService labelMasterService;
@@ -88,7 +91,8 @@ class Sam2TrackServiceTest {
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
-        rawSn = 9001L;
+        // 프레임·배정이 참조할 <b>실재하는</b> 부모 영상을 만든다(V146 FK).
+        rawSn = RawVideoFixture.seedRaw(jdbcTemplate, 9001L);
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
         Files.write(tmpRawDir.resolve("1.jpg"), new byte[]{0x03, 0x04});
         Files.write(tmpRawDir.resolve("2.jpg"), new byte[]{0x05, 0x06});
@@ -110,6 +114,7 @@ class Sam2TrackServiceTest {
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
+        RawVideoFixture.deleteRaws(jdbcTemplate, 9001L);
     }
 
     private void stubTrack(String trackId, List<List<Double>> polygon, double score) {

@@ -7,18 +7,21 @@ import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -44,7 +47,8 @@ class TrackEditControllerTest {
     private static final String TRACK = "5";
 
     @Autowired private MockMvc mockMvc;
-    @Autowired private VideoRepository rawRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired @Qualifier("controlTransactionManager") private PlatformTransactionManager controlTxManager;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
@@ -66,12 +70,9 @@ class TrackEditControllerTest {
         workerOtherToken    = JwtTestSupport.token(secret, "101", "WORKER",      "INTERNAL", issuer, 60);
         portalToken         = JwtTestSupport.token(secret, "200", "PORTAL_USER", "PORTAL",   issuer, 60);
 
-        LsDataRaw raw = LsDataRaw.createFromIngest(
-                "CLIP-TE-001", "CCTV-001", "EVT-A", "11680",
-                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip.mp4",
-                LocalDateTime.now(), 30);
-        raw = rawRepository.save(raw);
-        rawSn = raw.getRawSn();
+        // ★ 부모 영상만 <b>커밋</b> 시드 — 트랙 삭제/split 이 작업락을 REQUIRES_NEW 로 쓰므로(LS_AUTH_WORK_LOCK)
+        //   ambient 미커밋 영상은 그 트랜잭션에서 보이지 않아 V146 FK 검증에 걸린다.
+        rawSn = RawVideoFixture.newRawCommitted(controlTxManager, jdbcTemplate);
 
         // 3 프레임(frameNo 0,1,2) 모두 트랙 "5" 라벨.
         Long s0 = srcRepository.save(LsDataSrc.create(rawSn, 0, "0.jpg", LocalDateTime.now())).getSrcSn();
@@ -82,6 +83,13 @@ class TrackEditControllerTest {
         lblRepository.save(LsDataLbl.createAutoBbox(s2, null, "person", "[[5,5],[6,6]]", BigDecimal.ZERO, TRACK));
 
         authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
+    }
+
+    @AfterEach
+    void tearDown() {
+        // ambient(롤백) 트랜잭션을 먼저 닫아야 미커밋 자식의 FK 키공유 잠금이 풀려 부모 삭제가 가능하다.
+        RawVideoFixture.endAmbientTransaction();
+        RawVideoFixture.deleteRaws(jdbcTemplate, rawSn);
     }
 
     // ---------- R4 삭제 ----------

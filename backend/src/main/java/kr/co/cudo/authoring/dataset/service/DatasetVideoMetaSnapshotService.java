@@ -8,7 +8,6 @@ import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRepository;
 import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRow;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
-import kr.co.cudo.authoring.dataset.util.TimeOfDaySeasonDeriver;
 import kr.co.cudo.authoring.evntanno.entity.LsEvntAnno;
 import kr.co.cudo.authoring.evntanno.entity.LsEvntAnnoReview;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
@@ -101,14 +100,25 @@ public class DatasetVideoMetaSnapshotService {
             return;
         }
 
-        // 3) 파생/파싱 — 해상도(WxH) → 가로/세로/화면비, video.* 문자열 → 숫자, 주야간/계절.
+        // 3) 파생/파싱 — 해상도(WxH) → 가로/세로/화면비, video.* 문자열 → 숫자.
         Resolution resolution = parseResolution(src.getVideoResolution());
         BigDecimal aspectRatio = deriveAspectRatio(resolution);
-        // 촬영환경(날씨·시간대·계절)은 작업자 수동 저장값(LS_DATA_RAW, V130)이 최우선이고, 미입력이면
-        // 기존 SHT_DT 파생 규칙으로 폴백한다(수동값 없는 영상의 동결 결과는 종전과 동일 — 회귀 없음).
-        String dayNight = firstNonNull(src.getDayNgtCd(), TimeOfDaySeasonDeriver.dayNight(src.getShtDt()));
-        String season = firstNonNull(src.getSesnCd(), TimeOfDaySeasonDeriver.season(src.getShtDt()));
-        // 자동 출처 없음 — 수동 입력값이 곧 전부. 공백은 미입력(null)으로 정규화해 동결값·해시를 일치시킨다.
+        // 촬영환경(날씨·시간대·계절) 3필드는 <작업자 수동 저장값(LS_DATA_RAW, V130)이 유일한 원천>이다.
+        // 미입력이면 null(미상)을 그대로 동결한다 — SHT_DT 기반 추정(self-fill)을 하지 않는다(E-ISSUE-42).
+        //   · 이 동결값은 export JSON(video.time_of_day/season/weather)과 데이터마트 뷰
+        //     (V_COMPLETED_VIDEO.DAY_NGT_CD/SESN_CD)로 <출처 구분자 없이> 전파되므로, 추정값을 실으면
+        //     관제/데이터마트가 관측값과 구분 없이 소비한다. 실증: 여름 18:00 촬영분이 구 규칙
+        //     (hour>=18 → NGT)에서 야간으로 오분류됐다(한국 7월 일몰 ≈ 19:50).
+        //   · "동결된 non-null 값은 전부 수동 입력값" 이라 출처 구분 컬럼이 불필요하다 — 단 이 단언은
+        //     <레거시 정정 백필 완료를 전제로 한 참>이다. 파생 폴백 폐기 <이전>에 이미 NGT/SUMMER 로
+        //     동결된 스냅샷 행이 남아 있는 동안에는 거짓이었다(관제가 추정값을 관측값과 구분 못 함).
+        //     그 행들은 DatasetVideoMetaBackfillService#correctDerivedShootingEnvironment 가 재동결로
+        //     null 정정하며, 정정 후에는 이 경로가 수동값만 동결하므로 단언이 다시 참이 된다.
+        //   · 조회 API(EnvironmentMetaService)의 파생 폴백은 <화면 프리필>이며 응답에 source(MANUAL/DERIVED)
+        //     를 함께 내려 투명하므로 유지한다(동결·산출 경로만 추정을 제거).
+        // 공백은 미입력(null)으로 정규화해 동결값·해시 표현을 일치시킨다(3필드 공통 규칙).
+        String dayNight = nullIfBlank(src.getDayNgtCd());
+        String season = nullIfBlank(src.getSesnCd());
         String weather = nullIfBlank(src.getWthrNm());
         boolean derivative = (src.getOrgnlRawSn() != null);
         String aiCreatedYn = derivative ? LsDatasetVideoMeta.ACTIVE_YES : LsDatasetVideoMeta.ACTIVE_NO;
@@ -238,6 +248,9 @@ public class DatasetVideoMetaSnapshotService {
         f.put("VDO_WDTH", str(resolution.width()));
         f.put("VDO_HGT", str(resolution.height()));
         f.put("FILE_SZ", str(fileSize));
+        // 주야간/계절은 <키를 항상 유지>한다(WTHR_NM 과 달리 구 스킴에도 키가 있었으므로 인코딩 불변).
+        // 파생 폐지로 미입력 영상의 값이 "NGT/SUMMER" → null 로 바뀌므로 해시가 달라지는데, 이는
+        // 동결 <내용>이 실제로 달라진 것이라 재승인 시 새 버전이 append 되는 것이 정상이다.
         f.put("DAY_NGT_CD", dayNight);
         f.put("SESN_CD", season);
         // 촬영환경 수동값도 동결 '내용'이라 해시에 포함 — 날씨만 정정 후 재승인해도 새 버전이 append 된다.
@@ -276,11 +289,6 @@ public class DatasetVideoMetaSnapshotService {
             return null;
         }
         return anno.getAnnoCn();
-    }
-
-    /** 수동값 우선(첫 인자) → 파생 폴백(둘째 인자). 수동값이 blank 면 미입력으로 간주. */
-    private static String firstNonNull(String manual, String derived) {
-        return (manual != null && !manual.isBlank()) ? manual : derived;
     }
 
     /** 공백 문자열을 미입력(null)으로 정규화 — 동결값과 해시 입력의 "미입력" 표현을 일치시킨다. */

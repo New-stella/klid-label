@@ -30,7 +30,7 @@
 - **이벤트명 입력란 없음** — 영상의 이벤트 유형(`EVNT_TYPE_CD`)에서 자동 소싱(6.1)
 - **'저장된 마킹 목록'(MarkingList) 없음** — 화면은 현재 작업 중 마크(타임라인/마크 칩)만 표시. 이를 백킹하던 마킹 관리 API(목록 조회 `GET /v1/videos/{rawSn}/markings`, 단건 조회 `GET .../{markingSn}`, 삭제 `DELETE .../{markingSn}`)는 FE 미사용으로 제거됨 — 마킹 API 는 생성(`POST /v1/videos/{rawSn}/markings`)만 보유
 - **완료 버튼 활성 조건**: 수동=마크 1건 이상, 자동=intervalFrames 유효(1 이상)
-- 비식별 누락 신고: 라벨링 단계(srcSn 기준)는 구현됨, **마킹 단계(rawSn 기준 `POST /v1/videos/{rawSn}/deident-report`)는 planned(미구현)** → [08](08-deidentification.md#84-누락-신고-rq-sfr-09-03-uc-016)
+- 비식별 누락 신고: 라벨링 단계(srcSn 기준)·**마킹 단계(rawSn 기준 `POST /v1/videos/{rawSn}/deident-report`) 모두 구현됨** — 부수효과(작업락 + `DE_IDENT_YN='F'` + 개인정보 3필드 리셋 + 검수완료 영상 통지)는 두 경로가 동일하며 파생영상은 412 로 거부된다 → [08](08-deidentification.md#84-누락-신고-rq-sfr-09-03-uc-016)
 
 ## 6.4 마킹 완료 → 배치 자동 시작
 

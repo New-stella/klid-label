@@ -145,10 +145,15 @@ class AiInferenceDeidentReportGateTest {
         Bulkhead bulkhead = Bulkhead.of("aiOnlineGateTest", BulkheadConfig.custom()
                 .maxConcurrentCalls(25).maxWaitDuration(Duration.ZERO).build());
         autolabelService = new AutolabelOnlineService(aiServerClient, accessGuard, systemConfigService,
-                workLockService, encoder, labelMasterService, gate, bulkhead);
+                workLockService, encoder, labelMasterService, gate,
+                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class), bulkhead);
 
+        // DEV_FIX(H-1) — 좌표 정규화가 배치·AI 탐지와 동일한 공용 규칙(DetectionBoxNormalizer)을 타면서
+        //   clamp 상한 기준(FrameBoundsResolver)이 협력자로 추가됐다. 본 테스트는 신고 게이트가 전송
+        //   이전에 걸리는지를 보므로 실측 해상도는 관심사가 아니다 → 측정 실패(Optional.empty) 모킹.
         yoloTrackService = new YoloTrackService(aiServerClient, srcRepository, accessGuard,
-                systemConfigService, encoder);
+                systemConfigService, encoder,
+                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class));
 
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         portalSam2Service = new kr.co.cudo.authoring.portal.service.PortalSam2Service(

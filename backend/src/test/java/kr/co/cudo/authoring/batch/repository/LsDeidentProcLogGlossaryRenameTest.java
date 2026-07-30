@@ -1,10 +1,12 @@
 package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +30,14 @@ class LsDeidentProcLogGlossaryRenameTest {
     @Autowired
     private LsDeidentProcLogRepository repository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     @DisplayName("rename된_4컬럼_KPST_폴링_재비식별_필드가_저장_조회_정상")
     void persistsRenamedColumns() {
-        // given — KPST 위탁 + 폴링 진행 + 재비식별 표시로 4개 필드를 모두 채운 로그
+        // given — 부모 영상 선시드(V146 FK) + KPST 위탁 + 폴링 진행 + 재비식별 표시로 4개 필드를 모두 채운 로그
+        RawVideoFixture.seedRaw(jdbcTemplate, 980_001L);
         LsDeidentProcLog log = LsDeidentProcLog.request(
                 980_001L, "req-rename-" + System.nanoTime(), "/var/raw/rename.mp4", "tester");
         log.markKpstSubmitted(7001L, 8001L); // kpstPrjId=DE_IDNTF_PJT_ID, kpstDatasetId=DE_IDNTF_DATST_ID

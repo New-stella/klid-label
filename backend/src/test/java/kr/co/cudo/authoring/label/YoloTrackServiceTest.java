@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.label.dto.YoloTrackResponseDto;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.label.service.YoloTrackService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -61,6 +63,7 @@ class YoloTrackServiceTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private AiServerClient aiServerClient;
 
@@ -88,7 +91,8 @@ class YoloTrackServiceTest {
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
-        rawSn = 9101L;
+        // 프레임·배정이 참조할 <b>실재하는</b> 부모 영상을 만든다(V146 FK).
+        rawSn = RawVideoFixture.seedRaw(jdbcTemplate, 9101L);
 
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
         Files.write(tmpRawDir.resolve("1.jpg"), new byte[]{0x03, 0x04});
@@ -120,6 +124,8 @@ class YoloTrackServiceTest {
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
+        // 9202L = 다른 영상 혼입 검증(nextFrameFromDifferentVideoRejected)에서만 시드되는 두 번째 영상.
+        RawVideoFixture.deleteRaws(jdbcTemplate, 9101L, 9202L);
     }
 
     private YoloResponse detectionResponse() {
@@ -214,8 +220,9 @@ class YoloTrackServiceTest {
     @DisplayName("후속프레임이_다른_영상이면_INVALID_INPUT")
     void nextFrameFromDifferentVideoRejected() {
         when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(detectionResponse()));
-        // 다른 영상(rawSn)에 속한 프레임을 후속 시퀀스에 혼입.
-        long otherRawSn = 9202L;
+        // 다른 영상(rawSn)에 속한 프레임을 후속 시퀀스에 혼입 — "서로 다른 영상" 이 검증 전제이므로
+        // 두 번째 영상도 <b>실재</b>해야 한다(V146 FK: 부모 없는 프레임은 정당하게 거부된다).
+        long otherRawSn = RawVideoFixture.seedRaw(jdbcTemplate, 9202L);
         Long otherSrc = srcRepository.save(
                 LsDataSrc.create(otherRawSn, 0, "other.jpg", LocalDateTime.now())).getSrcSn();
 
@@ -239,7 +246,7 @@ class YoloTrackServiceTest {
     }
 
     @Test
-    @DisplayName("aiserver_응답_points_4개아님_또는_음수면_INVALID_INPUT")
+    @DisplayName("aiserver_응답_points가_4개가_아니면_INVALID_INPUT")
     void invalidPointsRejected() {
         // points 3개 — 형식 위반
         when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(
@@ -252,17 +259,89 @@ class YoloTrackServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
+    // ── DEV_FIX(H-1) — 좌표 정책을 배치·AI 탐지와 동일한 DetectionBoxNormalizer 공용 규칙으로 통일 ──
+
     @Test
-    @DisplayName("aiserver_응답_points_음수면_INVALID_INPUT")
-    void negativePointsRejected() {
+    @DisplayName("aiserver_응답_음수좌표는_거부되지_않고_0으로_clamp되어_반환된다")
+    void negativePointsClampedNotRejected() {
+        // given — C-ISSUE-41 실측값. 이 서비스는 배치·AI 탐지와 같은 모델(/infer/yolo/track)을 호출하므로
+        //         같은 경계 좌표가 온다. 구 구현은 여기서만 음수를 400 으로 거부했다(C-41 이 폐기한 정책).
         when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(
                 new YoloResponse(List.of(
-                        new YoloResponse.Detection("person", List.of(-1.0, 10.0, 40.0, 60.0), 0.8, 1)))));
+                        new YoloResponse.Detection("person",
+                                List.of(-1.5731448368773044, 10.0, 40.0, 60.0), 0.8, 1)))));
+        YoloTrackRequest req = new YoloTrackRequest(src0, List.of(src1));
+
+        // when
+        YoloTrackResponseDto res = yoloTrackService.track(req, reviewer);
+
+        // then — 하한 clamp 적용(공용 규칙). clamp 가 항등함수가 되면 -1.57… 이 그대로 남아 실패한다.
+        assertThat(res.frames().get(0).detections()).hasSize(1);
+        assertThat(res.frames().get(0).detections().get(0).points())
+                .containsExactly(0.0, 10.0, 40.0, 60.0);
+    }
+
+    @Test
+    @DisplayName("aiserver_응답_좌표는_프레임_실측_해상도_상한으로_clamp된다")
+    void pointsClampedToMeasuredFrameBounds() throws IOException {
+        // given — 시작 프레임 이미지를 실제 100x50 PNG 로 교체(FrameBoundsResolver 가 실측 가능해진다).
+        //         구 구현은 상한을 아예 검증하지 않아 1000x900 이 그대로 응답에 실렸다.
+        writeImage(tmpRawDir.resolve("0.jpg"), 100, 50);
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(
+                new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(10.0, 10.0, 1000.0, 900.0), 0.8, 1)))));
+        YoloTrackRequest req = new YoloTrackRequest(src0, List.of(src1));
+
+        // when
+        YoloTrackResponseDto res = yoloTrackService.track(req, reviewer);
+
+        // then — 실측 경계로 clamp. 공용 유틸을 경유하지 않으면(항등) 1000.0/900.0 이 남아 실패한다.
+        assertThat(res.frames().get(0).detections().get(0).points())
+                .containsExactly(10.0, 10.0, 100.0, 50.0);
+    }
+
+    @Test
+    @DisplayName("이미지_전체밖_퇴화박스는_해당_검출만_스킵되고_시퀀스_전체는_유지된다")
+    void degenerateBoxSkippedWithoutDiscardingSequence() {
+        // given — 프레임 루프 안에서 400 을 던지면 최대 50프레임 시퀀스가 통째로 폐기된다.
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(
+                new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(-40.0, 10.0, -5.0, 60.0), 0.8, 1),
+                        new YoloResponse.Detection("car", List.of(10.0, 10.0, 40.0, 60.0), 0.7, 2)))));
+        YoloTrackRequest req = new YoloTrackRequest(src0, List.of(src1, src2));
+
+        // when
+        YoloTrackResponseDto res = yoloTrackService.track(req, reviewer);
+
+        // then — 3 프레임 모두 살아 있고, 퇴화 검출만 빠지고 정상 검출은 남는다.
+        assertThat(res.frames()).hasSize(3);
+        assertThat(res.frames()).allSatisfy(f -> {
+            assertThat(f.detections()).hasSize(1);
+            assertThat(f.detections().get(0).label()).isEqualTo("car");
+        });
+    }
+
+    @Test
+    @DisplayName("aiserver_응답_좌표가_NaN이면_INVALID_INPUT — NaN이_음수검사를_통과해_응답에_실리던_결함")
+    void nanPointsRejected() {
+        // given — 구 구현에는 isFinite 가드가 없었고 (NaN < 0) == false 라 NaN 이 그대로 DTO 에 실렸다.
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(
+                new YoloResponse(List.of(
+                        new YoloResponse.Detection("person",
+                                List.of(Double.NaN, 10.0, 40.0, 60.0), 0.8, 1)))));
         YoloTrackRequest req = new YoloTrackRequest(src0, List.of(src1));
 
         assertThatThrownBy(() -> yoloTrackService.track(req, reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    /** 실측 해상도 검증용 실제 이미지 파일 생성(확장자와 무관하게 내용으로 판독된다). */
+    private static void writeImage(Path path, int width, int height) throws IOException {
+        javax.imageio.ImageIO.write(
+                new java.awt.image.BufferedImage(width, height,
+                        java.awt.image.BufferedImage.TYPE_INT_RGB),
+                "png", path.toFile());
     }
 
     @Test

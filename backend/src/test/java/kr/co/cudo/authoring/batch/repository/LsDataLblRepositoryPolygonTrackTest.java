@@ -3,10 +3,12 @@ package kr.co.cudo.authoring.batch.repository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,8 +35,12 @@ class LsDataLblRepositoryPolygonTrackTest {
     private LsDataSrcRepository srcRepository;
     @Autowired
     private LsDataLblAiInfoRepository aiInfoRepository;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private Long persistAutoLabel(Long rawSn, long frameNo, String type, String trackId, String pointsJson) {
+        // 부모 영상 선시드 — V146 FK(LS_DATA_SRC → LS_DATA_RAW) 충족(멱등).
+        RawVideoFixture.seedRaw(jdbcTemplate, rawSn);
         LsDataSrc src = srcRepository.saveAndFlush(
                 LsDataSrc.create(rawSn, frameNo, "raw/" + rawSn + "/" + frameNo + ".png", null));
         LsDataLbl lbl = LsDataLbl.createManual(src.getSrcSn(), type, null, "person", pointsJson, null);
@@ -81,6 +87,7 @@ class LsDataLblRepositoryPolygonTrackTest {
     void findsOnlyInterpolatedRows() {
         Long rawSn = 990_402L;
         // detection 라벨 (lblSrcCd 미지정) + 보간 라벨 (lblSrcCd='INTERPOLATE')
+        RawVideoFixture.seedRaw(jdbcTemplate, rawSn);
         LsDataSrc src = srcRepository.saveAndFlush(LsDataSrc.create(rawSn, 0, "raw/x/0.png", null));
         LsDataLbl detected = lblRepository.saveAndFlush(
                 LsDataLbl.createAutoBbox(src.getSrcSn(), null, "car", "[[0,0],[10,10]]", BigDecimal.valueOf(0.9), "d1"));

@@ -77,6 +77,7 @@ class AutolabelOnlineServiceTest {
     @Mock private WorkLockService workLockService;
     @Mock private FrameImageEncoder frameImageEncoder;
     @Mock private kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
+    @Mock private kr.co.cudo.authoring.label.service.FrameBoundsResolver frameBoundsResolver;
 
     private AutolabelOnlineService service;
 
@@ -88,7 +89,8 @@ class AutolabelOnlineServiceTest {
     /** 온라인 AI 경로 bulkhead — 기본은 넉넉한 크기(동시성 제한 테스트에서만 1로 재구성). */
     private AutolabelOnlineService buildService(Bulkhead bulkhead) {
         return new AutolabelOnlineService(aiServerClient, accessGuard, systemConfigService,
-                workLockService, frameImageEncoder, labelMasterService, deidentReportGate, bulkhead);
+                workLockService, frameImageEncoder, labelMasterService, deidentReportGate,
+                frameBoundsResolver, bulkhead);
     }
 
     @BeforeEach
@@ -109,6 +111,8 @@ class AutolabelOnlineServiceTest {
         when(labelMasterService.mappedDetectClasses())
                 .thenReturn(new java.util.LinkedHashSet<>(java.util.List.of("person", "car")));
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(false);
+        // C-ISSUE-41 — 좌표 clamp 기준(프레임 실측 해상도). 1280x720 실측 프레임을 가정한다.
+        when(frameBoundsResolver.resolve(any())).thenReturn(Optional.of(new int[]{1280, 720}));
 
         worker = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
@@ -243,15 +247,78 @@ class AutolabelOnlineServiceTest {
         assertThat(retry.response().detectedCount()).isEqualTo(1);
     }
 
+    // ── C-ISSUE-41: 경계 좌표 clamp (배치 경로와 동일 규칙) ─────────────────────────
+
     @Test
-    @DisplayName("ai_응답_좌표_음수면_INVALID_INPUT")
-    void negativeBboxRejected() {
+    @DisplayName("ai_응답_좌표_음수면_거부하지않고_0으로_clamp해_반환한다")
+    void negativeBboxClampedNotRejected() {
+        // given — 실모델 YOLO 실측값(rawSn=26, src=446). 화면 경계에 걸친 객체는 CCTV 학습데이터의
+        //         정상 다수 케이스이며 배치 경로는 이를 그대로 저장한다(정책 비대칭 제거).
+        stubAi(new YoloResponse(List.of(new YoloResponse.Detection(
+                "person", List.of(-1.5731448368773044, 2.556953126603844, 1261.30, 707.91), 0.9, 3))));
+
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
+
+        assertThat(res.response().detectedCount()).isEqualTo(1);
+        assertThat(res.response().labels().get(0).points())
+                .containsExactly(0.0, 2.556953126603844, 1261.30, 707.91);
+    }
+
+    @Test
+    @DisplayName("ai_응답_좌표_이미지_상한_초과시_이미지_경계로_clamp된다")
+    void aboveUpperBoundClamped() {
+        // 상한 미검증으로 1279.68 / 721.30 같은 초과값이 그대로 통과하던 갭 — 경계로 clamp.
+        stubAi(new YoloResponse(List.of(
+                new YoloResponse.Detection("person", List.of(10.0, 10.0, 1300.0, 721.30), 0.9, 3))));
+
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
+
+        assertThat(res.response().labels().get(0).points())
+                .containsExactly(10.0, 10.0, 1280.0, 720.0);
+    }
+
+    @Test
+    @DisplayName("경계좌표_검출이_섞여도_정상_검출분은_폐기되지_않는다")
+    void boundaryDetectionDoesNotDiscardOthers() {
+        // given — 한 프레임에 경계 음수 검출 + 정상 검출. 구 정책은 all-or-nothing 400 이라
+        //         정상 검출까지 전량 폐기됐다(실측: 5프레임 중 4프레임 400).
+        stubAi(new YoloResponse(List.of(
+                new YoloResponse.Detection("person", List.of(-3.0, -2.0, 100.0, 200.0), 0.9, 3),
+                new YoloResponse.Detection("car", List.of(300.0, 300.0, 400.0, 400.0), 0.8, 1))));
+
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
+
+        assertThat(res.response().detectedCount()).isEqualTo(2);
+        assertThat(res.response().labels().get(0).points()).containsExactly(0.0, 0.0, 100.0, 200.0);
+        assertThat(res.response().labels().get(1).points()).containsExactly(300.0, 300.0, 400.0, 400.0);
+    }
+
+    @Test
+    @DisplayName("이미지_전체_밖_박스는_해당_검출만_스킵되고_나머지는_반환된다")
+    void outOfImageBoxSkippedOthersReturned() {
+        // clamp 후 폭·높이가 0 이하로 붕괴한 검출은 400 이 아니라 그 검출만 제외한다(가용성 우선).
+        stubAi(new YoloResponse(List.of(
+                new YoloResponse.Detection("person", List.of(-40.0, 10.0, -5.0, 60.0), 0.9, 3),
+                new YoloResponse.Detection("car", List.of(300.0, 300.0, 400.0, 400.0), 0.8, 1))));
+
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
+
+        assertThat(res.response().detectedCount()).isEqualTo(1);
+        assertThat(res.response().labels().get(0).label()).isEqualTo("car");
+    }
+
+    @Test
+    @DisplayName("프레임_해상도_측정실패시에도_음수는_clamp되어_검출이_반환된다")
+    void boundsUnresolvedStillClampsLowerBound() {
+        // 파생영상 등 실측 불가 프레임(fail-open) — 상한만 생략하고 하한 clamp 는 유지한다.
+        when(frameBoundsResolver.resolve(any())).thenReturn(Optional.empty());
         stubAi(new YoloResponse(List.of(
                 new YoloResponse.Detection("person", List.of(-1.0, 10.0, 40.0, 60.0), 0.9, 3))));
 
-        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
+
+        assertThat(res.response().detectedCount()).isEqualTo(1);
+        assertThat(res.response().labels().get(0).points()).containsExactly(0.0, 10.0, 40.0, 60.0);
     }
 
     @Test
@@ -277,18 +344,20 @@ class AutolabelOnlineServiceTest {
     }
 
     @Test
-    @DisplayName("ai_응답_좌표_순서역전_x2작거나같으면_INVALID_INPUT")
-    void degenerateBboxRejected() {
+    @DisplayName("ai_응답_좌표_순서역전_x2작거나같으면_해당_검출만_스킵된다")
+    void degenerateBboxSkipped() {
+        // 폭 0 퇴화 박스 — 저장할 수 없는 검출이지만 전체 400 사유는 아니다(그 검출만 제외).
         stubAi(new YoloResponse(List.of(
                 new YoloResponse.Detection("person", List.of(40.0, 10.0, 40.0, 60.0), 0.9, 3))));
 
-        assertThatThrownBy(() -> service.autolabel(SRC_SN, worker))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        AutolabelOnlineService.AutolabelOutcome res = service.autolabel(SRC_SN, worker);
+
+        assertThat(res.response().detectedCount()).isZero();
+        assertThat(res.response().labels()).isEmpty();
     }
 
     @Test
-    @DisplayName("좌표검증은_all_or_nothing_하나라도_비정상이면_전부_미반환")
+    @DisplayName("형식위반은_여전히_all_or_nothing_하나라도_비정상이면_전부_미반환")
     void partialReturnForbidden() {
         // 첫 detection 정상, 둘째 좌표 4개 아님 → 전체 400 (부분 반환 금지).
         stubAi(new YoloResponse(List.of(

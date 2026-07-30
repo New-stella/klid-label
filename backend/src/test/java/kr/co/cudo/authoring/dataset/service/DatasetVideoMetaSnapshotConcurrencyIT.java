@@ -49,6 +49,28 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @ActiveProfiles("local")
 class DatasetVideoMetaSnapshotConcurrencyIT {
+    // ── DB-ISSUE-01 / V146: 자식 행이 참조할 부모 영상(LS_DATA_RAW) 시드 ──
+    //   FK 신설 전에는 임의 정수를 rawSn 으로 써도 통과했지만 그렇게 만든 데이터는 실제로는 고아였다.
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate parentVideoJdbc;
+
+    private final java.util.List<Long> seededParentRawSns = new java.util.ArrayList<>();
+
+    /** 실재하는 부모 영상 1건을 만들고 rawSn 을 돌려준다(V146 FK). */
+    private long newVideo() {
+        long rawSn = kr.co.cudo.authoring.support.RawVideoFixture.newRaw(parentVideoJdbc);
+        seededParentRawSns.add(rawSn);
+        return rawSn;
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void cleanSeededParentVideos() {
+        // 부모 삭제 = 자식(동결 메타·아웃박스·export 등) CASCADE 삭제.
+        seededParentRawSns.forEach(
+                sn -> kr.co.cudo.authoring.support.RawVideoFixture.deleteRaws(parentVideoJdbc, sn));
+        seededParentRawSns.clear();
+    }
+
 
     @Autowired
     private DatasetVideoMetaSnapshotService service;
@@ -92,7 +114,7 @@ class DatasetVideoMetaSnapshotConcurrencyIT {
     @DisplayName("동시_다른해시_materialize_승인시_advisory락_직렬화되어_활성1건")
     void concurrentDifferentHashMaterialize_serializedByAdvisoryLock_keepsSingleActive() throws Exception {
         // given — 같은 rawSn, findSnapshotSource 호출마다 다른 값(→ 다른 해시).
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         seededRawSns.add(rawSn);
         AtomicInteger seq = new AtomicInteger();
         when(sourceRepository.findSnapshotSource(eq(rawSn)))

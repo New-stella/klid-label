@@ -227,20 +227,20 @@ class DatasetVideoMetaSnapshotServiceIT {
     }
 
     @Test
-    @DisplayName("수동값_미저장_영상은_기존_파생_촬영환경으로_동결된다")
-    void materialize_keepsDerivedShootingEnvironmentWhenNoManualValue() {
-        // given — 촬영환경 수동값 미입력(회귀 방어)
+    @DisplayName("수동값_미저장_영상은_촬영환경_3필드가_모두_null로_동결된다")
+    void materialize_freezesNullShootingEnvironmentWhenNoManualValue() {
+        // given — 촬영환경 수동값 미입력. SHT_DT(1월 22시) 파생 추정을 하지 않는다(E-ISSUE-42, self-fill 금지).
         long rawSn = seedSource();
 
         // when
         txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
 
-        // then — 기존 파생 규칙 그대로
+        // then — 3필드 모두 미상(null). 관제/데이터마트가 추정값을 관측값처럼 소비하지 않는다.
         LsDatasetVideoMeta m = txTemplate.execute(s ->
                 metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
         assertThat(m.getWthrNm()).isNull();
-        assertThat(m.getDayNgtCd()).isEqualTo("NGT");
-        assertThat(m.getSesnCd()).isEqualTo("WINTER");
+        assertThat(m.getDayNgtCd()).isNull();
+        assertThat(m.getSesnCd()).isNull();
     }
 
     @Test
@@ -308,8 +308,8 @@ class DatasetVideoMetaSnapshotServiceIT {
         assertThat(m.getVdoWdth()).isEqualTo(1920);
         assertThat(m.getVdoHgt()).isEqualTo(1080);
         assertThat(m.getAsprtRt()).isEqualByComparingTo("1.777778");
-        assertThat(m.getDayNgtCd()).isEqualTo("NGT");   // 22시
-        assertThat(m.getSesnCd()).isEqualTo("WINTER");  // 1월
+        assertThat(m.getDayNgtCd()).isNull();           // 수동 미입력 → 미상(22시 파생 추정 안 함)
+        assertThat(m.getSesnCd()).isNull();             // 수동 미입력 → 미상(1월 파생 추정 안 함)
         assertThat(m.getAiCrtYn()).isEqualTo("N");      // orgnlRawSn null
         assertThat(m.getSnpshtHash()).hasSize(64);
 
