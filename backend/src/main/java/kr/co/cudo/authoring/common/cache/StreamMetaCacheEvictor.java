@@ -41,9 +41,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *       경로를 계속 해석한다.</li>
  * </ul>
  *
- * <p>따라서 <b>경로 교체 후 구 파일 삭제는 evict 만 믿고 즉시 수행해서는 안 된다</b>. 파일을 지우는
- * 흐름(해상도 파생 백필)은 TTL 보다 긴 <b>유예 삭제</b>로 stale 을 보는 노드/요청도 정상 서빙되게 한다
- * ({@code ResolutionBackfillService} 참조).
+ * <p>따라서 <b>경로 교체 후 구 파일 삭제는 evict 만 믿고 즉시 수행해서는 안 된다</b>. 파일을 옮기고 옛
+ * 경로를 지우는 흐름을 새로 만든다면 TTL({@link CacheConfig#STREAM_META_TTL}) 보다 긴 <b>유예 삭제</b>로
+ * stale 을 보는 노드/요청도 정상 서빙되게 해야 한다. (이 규칙을 유일하게 쓰던 해상도 파생 저장소 이관
+ * 백필은 2026-07-30 제거됐다 — 구 스킴 산출물을 정정하는 1회성 배치였고 대상 데이터가 전부 소진됐다.
+ * 규칙 자체는 여전히 유효하므로 남긴다.)
  */
 @Slf4j
 @Component

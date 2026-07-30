@@ -68,11 +68,6 @@ authoring:
   work-lock:
     sweep:
       enabled: false
-  # 해상도 파생 유예 삭제 스윕 — 테스트 기본 비활성(@Scheduled 미발화). 스윕 로직 검증은
-  #   ResolutionBackfillService.sweepPendingDeletions() 를 테스트가 직접 호출한다.
-  resolution-backfill:
-    sweep:
-      enabled: false
   # UC018 — 테스트 기본은 mock-mode 비식별(외부 KPST 서버 부재 환경 자족). KPST 토글 ON 검증이
   #   필요한 테스트는 @TestPropertySource(kpst.deid.enabled=true) 로 개별 활성화한다.
   integration:

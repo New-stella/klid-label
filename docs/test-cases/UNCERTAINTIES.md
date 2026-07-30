@@ -69,9 +69,9 @@
 | 26 | **관제 통지에 인증 헤더 미부착** | D | 관제 계약은 `x-access-token` 을 요구하나 `WebClientConfig` 에 배선이 없다 → **연동 갭**(실왕복 시 401 예상). 관제팀 협의 대상 |
 | 27 | **관제 `event_type_cd` 코드값 목록 미수령** | D | 8대 코드 매핑표를 받지 못해 현재 보유값을 그대로 전송(`toControlEventTypeCd` 1곳). 값 정합 미확인 |
 | 28 | **HSTS 가 앱·edge 어디에서도 부여되지 않음** | A | `nosniff`/`X-Frame-Options` 는 전 응답 부여되나 HSTS 는 HTTPS 요청 조건이라 실제로 미부여 상태. edge(nginx/Caddy) 설정 확인 필요 |
-| 29 | **`POST /v1/videos/resolution-backfill` 프로파일 제한 없음** | E | 파일 삭제를 유발하는 운영 배치 트리거인데 `/v1/videos` 일반 경로에 REVIEWER 가드만 있어 **prd 에도 노출**된다. `DatasetVideoMetaBackfillDevController`(`@Profile("!prd")` + `/v1/dev/**`)와 비대칭 |
-| 30 | **해상도 백필 스윕에 DB 조건부 UPDATE 클레임 없음** | E | Phase 9 원자 클레임 규약과 다른 축(파일시스템 멱등에만 의존). 두 노드가 같은 마커를 동시에 집으면 삭제 시도가 겹친다(결과는 동일하나 규약 비정합). 조회 상한 `SWEEP_MAX_MARKERS=5000` 은 존재 |
-| 31 | `ResolutionBackfillSweepJob` 조건부 등록 | E | `@ConditionalOnProperty(havingValue="true")` 라 미설정이면 빈 미등록 → 백필 재실행이 유일한 대기열 소진 경로. 응답 `stalePendingCount` 누적이 그 신호 |
+| ~~29~~ | ~~**`POST /v1/videos/resolution-backfill` 프로파일 제한 없음**~~ | E | **해소(2026-07-30) — 기능 전체 제거.** 프로파일 가드로 노출만 좁히려다, 이 API 가 구 스킴 산출물을 정정하는 **1회성 배치**이고 대상 데이터(생성 창 2026-07-22~07-26)가 dev 에서 이미 소진·stg/상용엔 부재임이 확인돼 서비스·스윕잡·컨트롤러·DTO·설정키를 들어냈다. 노출 표면 자체가 사라짐 |
+| ~~30~~ | ~~**해상도 백필 스윕에 DB 조건부 UPDATE 클레임 없음**~~ | E | **소멸(2026-07-30)** — 스윕 잡이 백필과 함께 제거돼 판정 대상이 없다. (원 지적은 동작 결함이 아니라 규약 비정합이었다 — 삭제가 `deleteIfExists` 로 멱등이라 2노드 동시 발화도 결과가 같았다) |
+| ~~31~~ | ~~`ResolutionBackfillSweepJob` 조건부 등록~~ | E | **소멸(2026-07-30)** — 잡·설정키(`authoring.resolution-backfill.*`) 모두 제거 |
 
 ## 미해소 이월 이슈 (1차 검증 발견 · 이번 회차에도 남음)
 
