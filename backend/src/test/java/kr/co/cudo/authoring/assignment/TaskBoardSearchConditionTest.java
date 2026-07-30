@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * {@link TaskBoardSearchCondition} 단위 검증 — 특히 이벤트유형 옵션 조회의 방어({@code statusOnly()}).
@@ -93,9 +94,11 @@ class TaskBoardSearchConditionTest {
         assertThat(new TaskBoardSearchCondition("COMPLETED", " REJECTED ", null, null, null)
                 .workStatusFilter())
                 .contains(BoardWorkStatus.REJECTED);
-        assertThat(new TaskBoardSearchCondition("COMPLETED", "rejected", null, null, null)
+        // 계약 변경(2026-07-30) — 미정의 코드는 "필터 미적용" 으로 흘리지 않고 400 으로 거부한다.
+        // 구 동작(빈값 반환)은 필터를 걸었는데 전체가 반환되는 fail-open 이었다.
+        assertThatThrownBy(() -> new TaskBoardSearchCondition("COMPLETED", "rejected", null, null, null)
                 .workStatusFilter())
-                .as("소문자 표기는 미정의 코드 = 필터 미적용")
-                .isEmpty();
+                .as("소문자 표기는 미정의 코드 = 400 거부")
+                .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class);
     }
 }

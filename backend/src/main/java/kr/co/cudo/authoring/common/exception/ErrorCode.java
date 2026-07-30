@@ -19,6 +19,7 @@ public enum ErrorCode {
      */
     REVIEW_NO_LABEL(HttpStatus.CONFLICT, "라벨이 없는 영상입니다."),
     NOT_REVIEWED(HttpStatus.BAD_REQUEST, "검수가 완료되지 않은 영상이 포함되어 있습니다."),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "허용되지 않은 요청 메서드입니다."),
     LENGTH_REQUIRED(HttpStatus.LENGTH_REQUIRED, "Content-Length 헤더가 필요합니다."),
     PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "요청 페이로드가 허용 크기를 초과했습니다."),
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청 횟수가 제한을 초과했습니다."),

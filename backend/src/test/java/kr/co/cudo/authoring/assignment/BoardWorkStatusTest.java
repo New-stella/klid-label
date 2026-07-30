@@ -1,15 +1,16 @@
 package kr.co.cudo.authoring.assignment;
 
 import kr.co.cudo.authoring.assignment.domain.BoardWorkStatus;
+import kr.co.cudo.authoring.common.exception.CustomException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Phase 1 (HIGH-3) — 작업목록 워크플로 상태(workStatus)의 <b>표시 매핑 ↔ 필터 조건 골든 교차 검증</b>.
@@ -67,14 +68,24 @@ class BoardWorkStatusTest {
     }
 
     @Test
-    @DisplayName("정의된_5종_코드만_파싱되고_그밖은_빈값")
-    void parseAcceptsOnlyDefinedCodes() {
+    @DisplayName("정의된_5종_코드는_그대로_파싱되고_빈값은_필터_미적용이다")
+    void parseAcceptsDefinedCodes() {
         assertThat(BoardWorkStatus.parse("REVIEW_PENDING")).contains(BoardWorkStatus.REVIEW_PENDING);
         assertThat(BoardWorkStatus.parse("UNASSIGNED")).contains(BoardWorkStatus.UNASSIGNED);
-        assertThat(BoardWorkStatus.parse("'; DROP TABLE LS_DATA_RAW; --")).isEmpty();
+        // 빈 값만 "필터 미적용" 을 뜻한다.
         assertThat(BoardWorkStatus.parse(null)).isEmpty();
         assertThat(BoardWorkStatus.parse("  ")).isEmpty();
-        Optional<BoardWorkStatus> lower = BoardWorkStatus.parse("pending");
-        assertThat(lower).as("코드는 대문자 정규 표기만 허용").isEmpty();
+    }
+
+    @Test
+    @DisplayName("미정의_코드는_400으로_거부한다_필터를_조용히_버리지_않는다")
+    void parseRejectsUndefinedCodes() {
+        // 계약 변경(2026-07-30) — 구 구현은 미정의 코드도 빈값으로 흘려 <필터가 사라진 전체 목록>을
+        // 반환하는 fail-open 이었다. assignments 축(AssignmentWorkStatus)과 동일하게 fail-closed 로 맞춘다.
+        assertThatThrownBy(() -> BoardWorkStatus.parse("'; DROP TABLE LS_DATA_RAW; --"))
+                .isInstanceOf(CustomException.class);
+        assertThatThrownBy(() -> BoardWorkStatus.parse("pending"))
+                .as("코드는 대문자 정규 표기만 허용")
+                .isInstanceOf(CustomException.class);
     }
 }

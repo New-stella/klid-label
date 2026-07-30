@@ -245,6 +245,31 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.NOT_FOUND, "요청한 API를 찾을 수 없습니다."));
     }
 
+    /**
+     * 경로는 존재하나 HTTP 메서드가 매핑되지 않은 요청 — <b>405</b>.
+     *
+     * <p>이 핸들러가 없으면 {@code @ExceptionHandler(Exception.class)} 로 떨어져 <b>500 + ERROR 스택트레이스</b>
+     * 가 된다(2026-07-30 배포 검증에서 실측). 클라이언트에는 "요청이 잘못됐다"가 아니라 "서버 장애"로 보이고,
+     * 모니터링 로그에는 정상 오요청이 장애와 섞여 쌓인다. 형제 케이스인
+     * {@link NoResourceFoundException}(경로 자체 부재 → 404)은 이미 전용 핸들러가 있는데 메서드 불일치만
+     * 빠져 있었다.
+     *
+     * <p>{@code Allow} 헤더는 RFC 9110 이 405 응답에 <b>필수</b>로 요구한다 — 스프링이 예외에 담아 준
+     * 지원 메서드 집합을 그대로 싣는다. 로그는 WARN(정상 오요청) 이며 메서드명만 남긴다 — 경로에는 식별자·
+     * 쿼리스트링이 실릴 수 있어 원문을 남기지 않는다(CWE-117/209).
+     */
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+            org.springframework.web.HttpRequestMethodNotSupportedException e) {
+        log.warn("[Exception] method not allowed method={}", e.getMethod());
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.status());
+        java.util.Set<org.springframework.http.HttpMethod> supported = e.getSupportedHttpMethods();
+        if (supported != null && !supported.isEmpty()) {
+            builder.allow(supported.toArray(new org.springframework.http.HttpMethod[0]));
+        }
+        return builder.body(ApiResponse.error(ErrorCode.METHOD_NOT_ALLOWED));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception e) {
         log.error("[Exception] unhandled exception", e);

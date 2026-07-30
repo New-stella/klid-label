@@ -45,8 +45,10 @@ class FrameSourceTest {
         // when
         Optional<Path> resolved = frameSource().resolveImage(7L, ExportKind.ORIGINAL, frame);
 
-        // then
-        assertThat(resolved).contains(img.normalize());
+        // then — 검증에 쓴 <실경로>가 그대로 반환된다(CWE-367). lexical 경로를 돌려주면 소비자가
+        // 검증하지 않은 경로를 열게 되므로, 기대값도 realpath 기준이다. (macOS 의 /tmp → /private/tmp
+        // 처럼 base 자체가 심링크인 환경에서 lexical 기대값은 성립하지 않는다.)
+        assertThat(resolved).contains(img.toRealPath());
     }
 
     @Test
