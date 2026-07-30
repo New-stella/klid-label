@@ -95,13 +95,14 @@ class AutolabelControllerTest {
         // 전달·검출한다. person/car 를 검출 클래스로 매핑한 활성 라벨이 있어야 검출 결과가 반환된다
         // (매핑이 없으면 서버가 ai 호출 없이 빈 결과를 돌려주므로 detectedCount=0 이 된다).
         //
-        // [테스트 격리] DevSeedRunner(@Profile("local"))가 부팅 시 dev-seed.sql 의 LS_LABEL 마스터를
-        // 공유 PostgreSQL Testcontainer 에 비트랜잭션 커밋하며, 여기에 이미 person/car 가 활성(USE_YN='Y') +
-        // DTCT_TYPE_CD 매핑으로 존재한다. 과거 여기서 person/car 를 재삽입했으나, 시드 라벨과
-        // 부분 유니크(UK_LS_LABEL_DTCT_TYPE, USE_YN='Y') 충돌 → DataIntegrityViolationException 이 되므로
-        // 재삽입을 제거하고 시드 라벨을 재사용한다. 검출→라벨 귀속은 DTCT_TYPE_CD 축이라 라벨명 무관.
-        assertThat(labelRepository.findByDtctTypeCdAndUseYn("person", "Y")).isPresent();
-        assertThat(labelRepository.findByDtctTypeCdAndUseYn("car", "Y")).isPresent();
+        // [테스트 격리 — 자급자족] 구 구현은 "DevSeedRunner 가 부팅 시 dev-seed.sql 을 커밋해 둔다"는
+        // 전제로 존재만 단언했는데, {@code CommandLineRunner} 는 @SpringBootTest 컨텍스트에서 <b>실행되지
+        // 않는다</b>. 실제로 이 라벨을 만들어 두던 주체는 <b>먼저 돈 다른 테스트</b>였고, 그래서 단독 실행
+        // 시에는 8건 전부 setup 에서 깨졌다(전체 실행에서만 통과 = 순서 의존).
+        // 이제 없으면 만들고 있으면 재사용한다 — 부분 유니크(UK_LS_LABEL_DTCT_TYPE, USE_YN='Y') 와
+        // 충돌하지 않으며, 이 클래스는 @Transactional 이라 새로 만든 행은 테스트 종료 시 롤백된다.
+        ensureDetectLabel("person", "#E74C3C");
+        ensureDetectLabel("car", "#3498DB");
 
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "CLIP-AL-001", "CCTV-001", "EVT-A", "11680",
@@ -115,6 +116,22 @@ class AutolabelControllerTest {
 
         // 100L WORKER 만 LABELER 배정.
         authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
+    }
+
+    /**
+     * 검출 클래스({@code DTCT_TYPE_CD})가 매핑된 활성 라벨을 보장한다 — 없으면 만들고 있으면 재사용.
+     *
+     * <p>부분 유니크 {@code UK_LS_LABEL_DTCT_TYPE(USE_YN='Y')} 때문에 무조건 INSERT 하면
+     * 다른 테스트/시드가 이미 만든 행과 충돌한다. 반대로 존재를 단언만 하면 그 행을 만들어 주는 주체가
+     * 없어 단독 실행이 깨진다(순서 의존). 그래서 find-or-create 로 둔다.
+     * 라벨명은 검출 매핑과 충돌하지 않도록 코드값과 같은 이름을 쓰되, 이미 있으면 건드리지 않는다.
+     */
+    private void ensureDetectLabel(String dtctTypeCd, String colorValue) {
+        if (labelRepository.findByDtctTypeCdAndUseYn(dtctTypeCd, "Y").isPresent()) {
+            return;
+        }
+        labelRepository.save(kr.co.cudo.authoring.label.entity.LsLabel.create(
+                dtctTypeCd, colorValue, "BBOX", 0, dtctTypeCd, "test"));
     }
 
     @Test

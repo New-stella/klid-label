@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -77,6 +78,19 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("경로는_있고_메서드만_다르면_405_METHOD_NOT_ALLOWED_반환_500_금지")
+    void methodNotSupportedReturns405WithAllowHeader() throws Exception {
+        // 2026-07-30 배포 검증에서 실측된 결함 — 전용 핸들러가 없어 @ExceptionHandler(Exception.class) 로
+        // 떨어지면서 500 + ERROR 스택트레이스가 됐다. 정상 오요청이 서버 장애로 보고되고 로그가 오염된다.
+        // Allow 헤더는 RFC 9110 이 405 응답에 필수로 요구한다.
+        mockMvc.perform(post("/test/custom-ex").header("X-Test-Bypass", "1"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string("Allow", org.hamcrest.Matchers.containsString("GET")))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("METHOD_NOT_ALLOWED"));
     }
 
     @TestConfiguration

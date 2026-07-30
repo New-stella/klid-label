@@ -13,7 +13,8 @@ import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.FileSystemResource;
+import kr.co.cudo.authoring.video.service.FrameImageService;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -215,19 +216,44 @@ public class PortalUploadService {
             log.warn("[PortalUpload] image file missing uldFrmeSn={}", uldFrmeSn);
             throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
         }
+        // CWE-59/367 — lexical 검증(resolveSafe)만으로는 base 안의 심링크가 base 밖(예: 내부 파이프라인의
+        // frames/raw/**)을 가리키는 경우를 막지 못한다. FileSystemResource·Files.size 는 링크를 따라가므로
+        // 그대로 외부 채널로 나간다. 실경로 봉쇄 후 그 실경로를 NOFOLLOW 로 연다(다른 서빙 경로와 동일 규약).
+        Path realFile = realWithinBase(baseDir, resolved, "uldFrmeSn=" + uldFrmeSn);
         MediaType mediaType = resolveStoredMediaType(uld.getMimeTypeNm());
-        long contentLength;
+        FrameImageService.OpenedFile opened;
         try {
-            contentLength = Files.size(resolved);
+            opened = FrameImageService.openNoFollow(realFile);
         } catch (IOException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "이미지를 읽을 수 없습니다.");
         }
         return ResponseEntity.ok()
                 .contentType(mediaType)
-                .contentLength(contentLength)
+                .contentLength(opened.size())
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"frame_" + uldFrmeSn + "\"")
                 .header("X-Content-Type-Options", "nosniff")
-                .body(new FileSystemResource(resolved));
+                .body(new InputStreamResource(opened.stream()));
+    }
+
+    /**
+     * 실경로가 base 하위인지 재검증하고 <b>그 실경로</b>를 돌려준다 (CWE-59/22).
+     *
+     * <p>lexical 검증을 통과한 경로라도 심링크를 따라가면 base 밖 파일이 될 수 있다. 검증에 쓴 경로와
+     * 여는 경로를 같게 만들어 검증~open 사이 교체(TOCTOU)도 함께 좁힌다. 로그·응답에 경로 원문은 남기지
+     * 않는다(CWE-209).
+     */
+    private Path realWithinBase(Path baseDir, Path resolved, String logKey) {
+        try {
+            Path real = resolved.toRealPath();
+            if (!real.startsWith(baseDir.toRealPath())) {
+                log.warn("[PortalUpload] symlink escaping base rejected {}", logKey);
+                throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
+            }
+            return real;
+        } catch (IOException e) {
+            log.warn("[PortalUpload] realpath resolution failed {}", logKey);
+            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+        }
     }
 
     // ======================== 삭제 ========================

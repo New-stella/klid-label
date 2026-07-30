@@ -17,7 +17,8 @@ import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.FileSystemResource;
+import kr.co.cudo.authoring.video.service.FrameImageService;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -225,19 +226,33 @@ public class PortalUploadLabelService {
             log.warn("[PortalUploadLabel] original file missing uldSn={}", uldSn);
             throw new CustomException(ErrorCode.NOT_FOUND, "원본 파일이 존재하지 않습니다.");
         }
-        long contentLength;
+        // CWE-59/367 — lexical 검증만으로는 base 안의 심링크가 base 밖(내부 파이프라인 원본 등)을
+        // 가리키는 경우를 막지 못하고, FileSystemResource·Files.size 는 링크를 따라간다.
+        // 실경로 봉쇄 후 그 실경로를 NOFOLLOW 로 연다(다른 서빙 경로와 동일 규약).
+        Path realFile;
         try {
-            contentLength = Files.size(resolved);
+            realFile = resolved.toRealPath();
+            if (!realFile.startsWith(baseDir.toRealPath())) {
+                log.warn("[PortalUploadLabel] symlink escaping base rejected uldSn={}", uldSn);
+                throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 파일 경로입니다.");
+            }
+        } catch (IOException e) {
+            log.warn("[PortalUploadLabel] realpath resolution failed uldSn={}", uldSn);
+            throw new CustomException(ErrorCode.NOT_FOUND, "원본 파일이 존재하지 않습니다.");
+        }
+        FrameImageService.OpenedFile opened;
+        try {
+            opened = FrameImageService.openNoFollow(realFile);
         } catch (IOException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "파일을 읽을 수 없습니다.");
         }
         MediaType mediaType = resolveStoredMediaType(uld.getMimeTypeNm());
         return ResponseEntity.ok()
                 .contentType(mediaType)
-                .contentLength(contentLength)
+                .contentLength(opened.size())
                 .header(HttpHeaders.CONTENT_DISPOSITION, attachmentDisposition(uld.getOrgnlFileNm(), uld.getMimeTypeNm()))
                 .header("X-Content-Type-Options", "nosniff")
-                .body(new FileSystemResource(resolved));
+                .body(new InputStreamResource(opened.stream()));
     }
 
     // ======================== 내부 헬퍼 ========================

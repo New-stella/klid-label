@@ -113,8 +113,9 @@ public class FrameSource {
         // CWE-59: 심링크 하드닝 — lexical containment 통과 후에도 실제(심링크 해석) 경로가
         // base 실제경로 하위인지 재검증. base 내부에 base 밖을 가리키는 symlink 우회를 차단한다.
         // toRealPath 는 존재 파일에만 유효하므로 위 존재/정규파일 검증 이후에 수행한다.
+        Path realResolved;
         try {
-            Path realResolved = resolved.toRealPath();
+            realResolved = resolved.toRealPath();
             Path realBase = base.toRealPath();
             if (!realResolved.startsWith(realBase)) {
                 log.warn("[FrameSource] symlink escaping base skipped rawSn={} frameNo={}", rawSn, frameNoOf(frame));
@@ -132,7 +133,11 @@ public class FrameSource {
             log.warn("[FrameSource] realpath resolution failed skipped rawSn={} frameNo={}", rawSn, frameNoOf(frame));
             return Optional.empty();
         }
-        return Optional.of(resolved);
+        // <b>검증한 경로를 그대로 돌려준다</b>(CWE-367 TOCTOU). 구 구현은 realResolved 로 검증하고
+        // lexical 경로(resolved)를 반환해, 소비자(DatasetExportWriter.Files.copy)가 <b>검증하지 않은 경로</b>를
+        // 열었다. 검증과 사용 사이에 경로 구성요소가 심링크로 교체되면 검사를 통과한 것과 다른 파일이 복사된다.
+        // DEIDENTIFIED 분기는 이미 검증 결과(v.path())를 반환하고 있어 두 분기의 계약이 어긋나 있었다.
+        return Optional.of(realResolved);
     }
 
     private static Object frameNoOf(LsDataSrc frame) {
