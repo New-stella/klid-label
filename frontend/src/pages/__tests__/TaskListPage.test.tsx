@@ -33,6 +33,28 @@ describe('TaskListPage', () => {
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
     navigateMock.mockReset();
+    // REVIEWER 시각 진입 시 함께 호출되는 부수 엔드포인트 기본 스텁.
+    // 스텁이 없으면 mock adapter 가 passthrough 로 **실제 네트워크**를 시도해 테스트가 플레이키해진다.
+    // (`/tasks/board` 는 각 테스트가 직접 스텁하므로 여기서 등록하지 않는다 — 먼저 등록된 핸들러가 이긴다.)
+    mock.onGet('/tasks/board/summary').reply(200, {
+      success: true,
+      data: {
+        total: 0,
+        unassigned: 0,
+        inProgress: 0,
+        reviewPending: 0,
+        completed: 0,
+        rejected: 0,
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/tasks/board/event-types').reply(200, {
+      success: true,
+      data: { items: [], truncated: false },
+      message: null,
+      errorCode: null,
+    });
   });
 
   afterEach(() => {
@@ -796,9 +818,8 @@ describe('TaskListPage', () => {
     expect(row!.textContent).toContain('미배정');
 
     // 미배정 영상이면 REVIEWER 가 "배정" 버튼을 볼 수 있어야 한다.
-    expect(
-      screen.getByRole('button', { name: /배정/ }),
-    ).toBeInTheDocument();
+    // (KPI '미배정' 카드도 버튼이므로 정확한 이름으로 찾는다.)
+    expect(screen.getByRole('button', { name: '배정' })).toBeInTheDocument();
   });
 
   it('REVIEWER_페이지네이션_UI_노출_BE_totalPages_기반', async () => {

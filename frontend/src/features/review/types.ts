@@ -28,10 +28,56 @@ export interface ReviewIssue {
   createdAt: string;
 }
 
+/**
+ * BE `GET /v1/reviews` 가 수용하는 **검수 상태 코드**.
+ *
+ * ★ FE {@link ReviewStatus} 와 **다른 값**이다(응답은 FE 코드, 요청은 BE 코드).
+ * 화이트리스트 밖 값은 400 이 아니라 **빈 결과 200** 이라 오타가 "검수요청이 0건" 으로 위장된다 —
+ * 역매핑은 `api.ts` 의 {@link REVIEW_STATUS_TO_BE} 한 곳에서만 한다.
+ */
+export type ReviewStatusParam = 'PENDING' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED';
+
+/**
+ * `GET /v1/reviews` 쿼리 파라미터.
+ *
+ * `status` 는 **FE 코드**로 담고 전송 직전 `api.ts` 가 BE 코드로 역매핑한다 — 화면·URL·쿼리키가
+ * 모두 한 가지 표기(FE 코드)만 쓰게 해서 두 표기가 섞이는 것을 막는다.
+ * 빈 값은 키째 생략한다(`compactParams`).
+ */
 export interface ReviewListParams {
   page?: number;
   size?: number;
+  /** `"{key},{dir}"` — BE allowlist(submittedAt|updDt|videoId|status) 밖이면 조용히 기본 정렬 폴백. */
   sort?: string;
+  /** 영상명·작업자명 부분일치 (BE `@Size(max=100)`). */
+  q?: string;
+  /** FE 상태 코드. 전송 시 BE 코드로 역매핑된다. */
+  status?: ReviewStatus;
+}
+
+/**
+ * `GET /v1/reviews/summary` 파라미터 — **`q` 전용**.
+ *
+ * ★ {@link ReviewListParams} 에서 파생시키지 않는다. 파생하면 `status` 가 optional 로 새어 들어와
+ * "이미 status 로 좁혀진 집합" 위에서 세게 되고, 그러면 카드 하나만 값을 갖는다(BE 도 무시하지만
+ * 타입 단계에서 애초에 넣을 수 없게 막는다).
+ */
+export interface ReviewSummaryParams {
+  q?: string;
+}
+
+/**
+ * `GET /v1/reviews/summary` 응답 — **필터 결과 전체 기준** 집계(현재 페이지가 아니다).
+ *
+ * 불변식: `total === pending + inReview + approved + rejected`.
+ * 필드명은 BE 코드축(PENDING/IN_REVIEW/APPROVED/REJECTED)을 따른다.
+ */
+export interface ReviewSummary {
+  total: number;
+  pending: number;
+  inReview: number;
+  approved: number;
+  rejected: number;
 }
 
 export interface AddIssueRequest {

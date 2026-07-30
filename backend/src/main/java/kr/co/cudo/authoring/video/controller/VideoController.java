@@ -105,16 +105,12 @@ public class VideoController {
      * allowlist 밖의 임의 프로퍼티가 Pageable 로 직행하면 Spring Data 가
      * {@code PropertyReferenceException} → 500 으로 노출하므로, 컨트롤러에서 안전하게 변환·폴백한다.
      * allowlist 밖 키는 drop 되고 유효 정렬이 없으면 {@code regDt DESC} 기본 정렬로 폴백한다 (500 금지).
+     *
+     * <p>정의는 단일 원천 {@link kr.co.cudo.authoring.common.util.SortAllowlist#VIDEO} 에 둔다 — 여기에
+     * 사본을 두면 테스트가 사본만 검증해 확장 시 드리프트를 놓친다.
      */
-    private static final java.util.Map<String, String> VIDEO_SORT_ALLOWLIST = java.util.Map.of(
-            "capturedAt", "shtDt",
-            "shtDt", "shtDt",
-            "regDt", "regDt",
-            "createdAt", "regDt",
-            "updatedAt", "mdfcnDt",
-            "rawSn", "rawSn",
-            "id", "rawSn"
-    );
+    private static final java.util.Map<String, String> VIDEO_SORT_ALLOWLIST =
+            kr.co.cudo.authoring.common.util.SortAllowlist.VIDEO;
 
     private static final org.springframework.data.domain.Sort DEFAULT_VIDEO_SORT =
             org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "regDt");

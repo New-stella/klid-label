@@ -14,7 +14,6 @@ import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,13 +46,66 @@ import java.util.Optional;
  *       성공/부분 실패 판정(집계)은 결과 수신부(A2)의 책임이다.</li>
  * </ul>
  *
- * <p>트랜잭션: 본 서비스는 <b>쓰기 트랜잭션을 열지 않는다</b>. 조회는 readOnly, 기록은
- * {@link AugmentJobRecorder}(REQUIRES_NEW)에 위임한다 — 외부 HTTP 왕복 동안 쓰기 트랜잭션과
+ * <p>트랜잭션: 본 서비스는 <b>트랜잭션을 열지 않는다</b>. 조회는 리포지토리 자신의 짧은 트랜잭션,
+ * 기록은 {@link AugmentJobRecorder}(REQUIRES_NEW)에 위임한다 — 외부 HTTP 왕복 동안 트랜잭션과
  * 커넥션을 붙잡지 않기 위함이다.
+ *
+ * <h3>★ 이 클래스에는 트랜잭션 애너테이션을 <b>붙이지 않는다</b> — 커넥션 2중 점유 회피</h3>
+ * <p>구 구현은 클래스 레벨 {@code @Transactional(readOnly = true)} 였다. 그러면 그 트랜잭션이 잡은
+ * 커넥션 1개를 <b>외부 HTTP 왕복 내내</b> 놓지 않은 채 청크 선기록({@code REQUIRES_NEW})이 같은 풀에서
+ * <b>두 번째 커넥션</b>을 요구한다. 즉 위탁 1건이 스레드당 커넥션 2개를 동시 점유한다. 위탁이 2건
+ * 겹치면(요청 2회의 AFTER_COMMIT 이 {@code batchAsyncExecutor} 에서 병렬 실행) 두 스레드가 각자
+ * 첫 커넥션을 잡고 서로의 두 번째를 기다려 <b>풀 데드락</b>(30s 후
+ * {@code HikariPool … request timed out} → {@code CannotCreateTransactionException})이 된다 —
+ * 그 30초 동안 같은 풀을 쓰는 무관한 작업까지 전부 대기열에 쌓인다.
+ *
+ * <h3>{@code NOT_SUPPORTED} — 실측된 사실과 <b>미규명 부분</b>을 구분한다 (2026-07-30)</h3>
+ * <p><b>실측(재현됨)</b>: 이 클래스에 {@code @Transactional(propagation = NOT_SUPPORTED)} 를 붙이면
+ * <ul>
+ *   <li>외부 HTTP 왕복 시점에 {@code TransactionSynchronizationManager.isSynchronizationActive()} 가
+ *       {@code true} 다 — {@code AbstractPlatformTransactionManager} 는 {@code NOT_SUPPORTED}(기존
+ *       트랜잭션 없음)에서 "empty transaction" 을 만들면서 {@code initSynchronization()} 을 호출한다.
+ *       ({@code isActualTransactionActive()} 는 이때 {@code false} 로 남으므로 그 플래그로는 관측되지
+ *       않는다 — 회귀 테스트가 이 축을 보는 이유다.)</li>
+ *   <li>테스트 풀(2)에서 같은 클래스의 다른 위탁 테스트가 30.08s 만에
+ *       {@code CannotCreateTransactionException: Could not open JPA EntityManager for transaction}
+ *       (=Hikari 30s 커넥션 획득 타임아웃)으로 실패한다 — 커넥션 고갈이 실제로 재현된다.</li>
+ * </ul>
+ *
+ * <p><b>미규명</b>: 위 고갈의 정확한 인과는 아직 규명되지 않았다. 동기화가 살아 있으면
+ * {@code EntityManagerFactoryUtils.doGetTransactionalEntityManager} 가 EM 을 스레드에 바인딩하는 것은
+ * 맞지만, Hibernate 기본 커넥션 정책({@code DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION})에서는
+ * 내부 리포지토리 트랜잭션이 커밋될 때 <b>물리 커넥션은 반납</b>된다. 즉 "EM 이 바인딩된다" 만으로는
+ * 커넥션 점유가 설명되지 않는다. 따라서 위 관측은 <b>현상 기록</b>이고 기전 설명은 아니다.
+ *
+ * <p><b>{@code NOT_SUPPORTED} 가 애너테이션 부재보다 강한 국면도 있다</b>: {@code NOT_SUPPORTED} 는 기존
+ * 트랜잭션을 <b>suspend(리소스 언바인딩)</b> 하므로, 아래 CallerRunsPolicy 재진입 경로에서 상위
+ * 트랜잭션 참여를 원천 차단한다. 애너테이션이 없으면 suspend 자체가 없어 <b>무조건 참여</b>한다.
+ * 그러므로 이 형태를 금지 사항으로 못 박지 않는다 — <b>이 형태로 되돌릴 때는 반드시 위 두 관측
+ * (동기화 활성 / 커넥션 고갈)을 재측정</b>하고, 고갈이 재현되지 않는 근거를 남긴 뒤에 바꾼다.
+ *
+ * <p>현재는 <b>애너테이션을 두지 않는다</b>. 동기화가 없으면 조회는 Spring Data 리포지토리가
+ * 자기 짧은 트랜잭션으로 처리하고 <b>즉시 커넥션을 반납</b>하며, 기록은 {@link AugmentJobRecorder}
+ * ({@code REQUIRES_NEW})가 한 건씩 순차로 잡는다. 회귀 고정:
+ * {@code AugmentRequestServiceTest.외부_위탁_HTTP_왕복중에는_트랜잭션_동기화와_EntityManager를_잡지_않는다}.
+ *
+ * <h3>"스레드당 커넥션 1개" 의 <b>성립 조건</b> — 무조건 명제가 아니다</h3>
+ * <p>위 결론("어느 순간에도 스레드당 커넥션 1개")은 <b>{@code submit()} 호출 스택에 활성 트랜잭션·
+ * 트랜잭션 동기화가 없을 때만</b> 성립한다. 상위 스코프가 이미 열려 있으면 리포지토리의
+ * {@code REQUIRED} 트랜잭션이 그 스코프에 <b>참여</b>하므로 커넥션이 그 스코프 종료까지 붙잡힌다.
+ *
+ * <p><b>실제로 그런 경로가 하나 있다(알려진 잔여 위험 — 이번 변경의 회귀는 아니다)</b>:
+ * {@code AugmentRequestBridge.onAugmentRequested} 는 {@code @Async("batchAsyncExecutor")} +
+ * {@code @TransactionalEventListener(AFTER_COMMIT)} 이고 {@code batchAsyncExecutor} 는
+ * {@code CallerRunsPolicy}(core 2 / max 4 / queue 50)다. 큐가 포화되면 리스너가 <b>AFTER_COMMIT 콜백
+ * 스레드에서 동기 실행</b>되는데, 그 시점은 {@code triggerAfterCommit()} 이 {@code cleanupAfterCompletion()}
+ * <b>이전</b>이라 원 트랜잭션의 리소스가 아직 스레드에 바인딩돼 있다 → 리포지토리 트랜잭션이 그
+ * 트랜잭션에 참여해 커넥션이 콜백 반환까지 유지된다. 해소에는 구조 변경(리스너가 {@code REQUIRES_NEW}
+ * 진입점을 통해서만 리포지토리를 호출하도록 등)이 필요하므로 <b>별도 이슈</b>로 두고, 여기서는
+ * 사실만 기록한다(코드 미변경).
  */
 @Slf4j
 @Service
-@Transactional(value = "controlTransactionManager", readOnly = true)
 public class AugmentJobSubmitService {
 
     /** 명세서 §4.1 input_files 상한. 설정으로 낮출 수는 있어도 계약 상한을 넘길 수 없다. */
@@ -105,6 +157,13 @@ public class AugmentJobSubmitService {
      * <p><b>차단은 보류가 아니라 거부다 (2026-07-29 정책)</b> — 파생 생성이 원본 신고와 무관해지면서
      * 신고 해소 시의 증강 재개 배선이 철회됐다. 재개 트리거가 없는 보류는 아무도 깨우지 못하는
      * PENDING 고착이므로 사유를 남기고 실패로 종결한다(해소 후 재요청이 정상 동선).
+     *
+     * <p><b>트랜잭션 애너테이션 없음</b> — 클래스 주석 "커넥션 2중 점유 회피" 참조. 조회는 리포지토리별
+     * 짧은 트랜잭션, 기록은 {@link AugmentJobRecorder}({@code REQUIRES_NEW})가 각각 자기 커넥션을 잡고
+     * 즉시 반납한다(단, 상위 스코프가 열려 있지 않을 때 — 클래스 주석 "성립 조건" 참조). 이 메서드
+     * (또는 클래스)에 {@code @Transactional(readOnly)} 를 씌우면 위탁 동시 2건에서 커넥션 풀 데드락이
+     * 재발한다(실측). {@code NOT_SUPPORTED} 도 커넥션 고갈이 실측 재현됐으나 인과가 미규명이므로,
+     * 되돌리려면 클래스 주석의 두 관측을 <b>재측정</b>하고 근거를 남긴다.
      *
      * @return 위탁 결과 — 수락 job 수
      */

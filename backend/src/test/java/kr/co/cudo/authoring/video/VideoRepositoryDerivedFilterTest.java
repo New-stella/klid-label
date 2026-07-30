@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.video;
 
+import kr.co.cudo.authoring.assignment.dto.TaskBoardSearchCondition;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.repository.TaskBoardQueryRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +31,7 @@ class VideoRepositoryDerivedFilterTest {
 
     @Autowired private VideoRepository videoRepository;
     @Autowired private LsRawDataStatusRepository dataSttsRepository;
+    @Autowired private TaskBoardQueryRepository taskBoardQueryRepository;
 
     private LsDataRaw seedOriginal(String clipId, String status) {
         LsDataRaw raw = LsDataRaw.createFromIngest(
@@ -100,9 +103,11 @@ class VideoRepositoryDerivedFilterTest {
         LsDataRaw deriv = seedDerived(orig, "RESL_480P", "COMPLETED");
 
         // when: 작업 목록 쿼리(R1 필터 미적용)
-        Page<LsDataRaw> board = videoRepository.findBoardOrderByStatusPriority(
-                "COMPLETED", PageRequest.of(0, 100));
-        Page<LsDataRaw> unassigned = videoRepository.findUnassigned(PageRequest.of(0, 100));
+        Page<LsDataRaw> board = taskBoardQueryRepository.search(
+                new TaskBoardSearchCondition("COMPLETED", null, null, null, null), PageRequest.of(0, 100));
+        Page<LsDataRaw> unassigned = taskBoardQueryRepository.search(
+                new TaskBoardSearchCondition(TaskBoardSearchCondition.STATUS_UNASSIGNED, null, null, null, null),
+                PageRequest.of(0, 100));
 
         // then: 파생 RAW 도 작업 목록에는 그대로 유지된다(R2)
         List<Long> boardIds = board.getContent().stream().map(LsDataRaw::getRawSn).toList();

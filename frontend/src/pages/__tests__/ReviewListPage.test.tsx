@@ -13,6 +13,15 @@ describe('ReviewListPage', () => {
 
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
+    // ★ KPI 집계는 목록과 **독립 쿼리**다. 스텁하지 않으면 mock adapter 기본 passthrough 로
+    // 실제 네트워크 요청이 나가 항상 실패하고, 아래 테스트들이 "KPI 영구 실패" 상태에서만
+    // 통과하게 된다(신설 집계 경로를 전혀 덮지 못함).
+    mock.onGet('/reviews/summary').reply(200, {
+      success: true,
+      data: { total: 4, pending: 1, inReview: 1, approved: 1, rejected: 1 },
+      message: null,
+      errorCode: null,
+    });
     useAuthStore.setState({
       token: 'tok',
       claims: { sub: 'u', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
@@ -72,7 +81,8 @@ describe('ReviewListPage', () => {
     // 이벤트 컬럼 — BE 응답의 eventName 으로 EventTypeBadge 렌더
     expect(screen.getByText('쓰러짐')).toBeInTheDocument();
 
-    const startBtn = screen.getByRole('button', { name: /검수 시작 CCTV-A/ });
+    // 접근성 이름은 **표시 라벨과 같은 말**이어야 한다(WCAG 2.5.3 Label in Name).
+    const startBtn = screen.getByRole('button', { name: /검수시작 CCTV-A/ });
     await user.click(startBtn);
 
     await waitFor(() => {

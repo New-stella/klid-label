@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.entity.LsDataAugJob;
+import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobRepository;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitCommand;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitResult;
@@ -28,12 +29,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
@@ -41,6 +45,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,6 +72,8 @@ import static org.mockito.Mockito.verify;
 class AugmentRequestServiceTest {
 
     @Autowired private AugmentRequestService service;
+    /** 위탁 진입점 — 트랜잭션 전파(NOT_SUPPORTED) 불변식을 프록시 경유로 직접 관측하기 위해 주입한다. */
+    @Autowired private AugmentJobSubmitService submitService;
     @Autowired private LsRawDataStatusRepository statusRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataAugRepository augRepository;
@@ -74,6 +81,11 @@ class AugmentRequestServiceTest {
     @Autowired private LsWebhookIdempotencyRepository idempotencyRepository;
     @Autowired private WebhookIdempotencyLedger ledger;
     @Autowired private PlatformTransactionManager controlTransactionManager;
+    /**
+     * EM 바인딩 관측용 — {@code TransactionSynchronizationManager} 의 JPA 리소스 키는 EMF 인스턴스다.
+     * {@code controlTransactionManager} 가 쓰는 것과 <b>같은</b> EMF 여야 키가 일치한다.
+     */
+    @Autowired @Qualifier("controlEntityManagerFactory") private EntityManagerFactory controlEmf;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private ExternalAugmentClient externalClient;
@@ -310,6 +322,87 @@ class AugmentRequestServiceTest {
         // 외부로 나가는 경로는 비식별 프레임뿐이다(원본 경로 유출 금지).
         assertThat(command.inputFiles()).isNotEmpty()
                 .allSatisfy(f -> assertThat(f.filePath()).startsWith("/storage/deidentified/"));
+    }
+
+    /**
+     * 위탁 경로가 <b>커넥션을 겹쳐 잡지 않는지</b> 고정한다 (HikariPool 고갈 flaky 의 근본 원인).
+     *
+     * <h3>무엇이 문제였나</h3>
+     * <p>{@code AugmentJobSubmitService} 는 클래스 레벨 {@code @Transactional(readOnly=true)} 를 갖고
+     * 있어 {@code submit()} <b>전 구간</b>(외부 HTTP 왕복 포함)에 트랜잭션이 열려 있었다. 그 트랜잭션은
+     * 첫 조회 시점에 커넥션 1개를 잡고 커밋까지 놓지 않는데, 그 안에서 청크 선기록
+     * ({@code AugmentJobRecorder}, {@code REQUIRES_NEW})이 <b>같은 풀에서 두 번째 커넥션</b>을 요구한다.
+     * 즉 위탁 1건이 스레드당 커넥션 2개를 동시 점유한다.
+     *
+     * <p>따라서 위탁이 2건 겹치면(요청 2회의 AFTER_COMMIT 이 {@code batchAsyncExecutor} 에서 병렬 실행)
+     * 두 스레드가 각자 첫 커넥션을 잡고 서로의 두 번째 커넥션을 기다려 <b>풀 데드락</b>이 된다 —
+     * 테스트 풀(2)에서는 30s 타임아웃({@code HikariPool … request timed out}) 뒤
+     * {@code CannotCreateTransactionException} 이 터지고, 그 30초 동안 다른 모든 스레드
+     * (Quartz·다음 테스트 본체)까지 대기열에 쌓여 <b>엉뚱한 테스트가 실패</b>한다(간헐 실패의 정체).
+     * 운영 풀에서도 동시 위탁 수의 2배 커넥션을 요구하는 증폭은 그대로다.
+     *
+     * <h3>불변식 — 관측 지표는 <b>EM/커넥션 점유를 반영하는 축</b>이어야 한다</h3>
+     * <p>외부 HTTP 왕복 시점에 <b>트랜잭션 동기화가 열려 있지 않고</b>(=EM/커넥션을 붙잡을 스코프가 없고)
+     * <b>EntityManager 가 스레드에 바인딩돼 있지 않아야</b> 한다. 이는 {@code AugmentJobSubmitService}
+     * 클래스 주석이 명시한 설계 의도("외부 HTTP 왕복 동안 쓰기 트랜잭션과 커넥션을 붙잡지 않는다")와 같다.
+     *
+     * <h3>★ {@code isActualTransactionActive()} 로 관측하면 이 테스트는 <b>공허해진다</b> (함정)</h3>
+     * <p>구 구현은 {@code TransactionSynchronizationManager.isActualTransactionActive()} 를 봤다. 그런데
+     * {@code AbstractPlatformTransactionManager.getTransaction} 은 {@code NOT_SUPPORTED}(기존 트랜잭션 없음)
+     * 에서 {@code startTransaction}(→{@code setActualTransactionActive(true)}) 경로를 <b>타지 않고</b>
+     * "empty transaction"({@code prepareTransactionStatus(def, null, …)})을 만든다. 즉 클래스에
+     * {@code @Transactional(propagation = NOT_SUPPORTED)} 를 다시 붙여도 이 플래그는 {@code false} 로 남아
+     * <b>테스트가 GREEN 을 유지</b>했다 — 정작 실측으로 데드락이 재현된 형태가 무방비였다.
+     *
+     * <p>{@code NOT_SUPPORTED} 가 실제로 켜는 것은 <b>동기화</b>({@code initSynchronization()})이고, EM 은
+     * 그 동기화 위에서 스레드에 바인딩된다. 그래서 관측 축을
+     * {@code isSynchronizationActive()} + {@code getResource(controlEmf)} 로 바꾼다 — 같은 코드베이스의
+     * {@code AugmentJobExpiryTxService}·{@code AugmentResultService} 도 이 둘을 구분해 쓴다.
+     * 이 축이면 {@code readOnly}(REQUIRED) 재부착과 {@code NOT_SUPPORTED} 재부착이 <b>둘 다 RED</b> 다.
+     *
+     * <h3>왜 요청 API 가 아니라 위탁 진입점을 직접 호출하나</h3>
+     * <p>{@code service.request(...)} 로 재현하면 검증 대상이 아닌 <b>비동기 위탁</b>이 딸려 온다 —
+     * 이 테스트가 관측을 끝낸 뒤에도 {@code batchAsyncExecutor} 스레드의 in-flight 작업이 남아
+     * 커넥션(풀 2)을 물고 <b>뒤따르는 테스트</b>를 대기시킨다(정작 이 테스트가 잡으려는 고갈 현상을
+     * 테스트가 스스로 만드는 셈). 불변식은 "{@code submit()} 이 트랜잭션을 여는가" 하나이므로,
+     * 프록시를 통해 <b>테스트 스레드에서 동기 1회 호출</b>하면 그대로 관측된다 — 어느 순간에도
+     * 커넥션은 1개이고 in-flight 도 남지 않는다.
+     */
+    @Test
+    @DisplayName("외부_위탁_HTTP_왕복중에는_트랜잭션_동기화와_EntityManager를_잡지_않는다")
+    void externalSubmitDoesNotHoldTransactionConnection() {
+        AtomicBoolean syncActive = new AtomicBoolean(true);
+        AtomicBoolean emBound = new AtomicBoolean(true);
+        given(externalClient.requestAugment(any())).willAnswer(invocation -> {
+            // 커넥션 점유를 반영하는 축으로 관측한다 — isActualTransactionActive() 는 NOT_SUPPORTED 에서
+            // false 로 남아(위 클래스 주석 "함정") 회귀를 놓친다.
+            syncActive.set(TransactionSynchronizationManager.isSynchronizationActive());
+            emBound.set(TransactionSynchronizationManager.getResource(controlEmf) != null);
+            return AugmentSubmitResult.accepted("ext-job-" + UUID.randomUUID());
+        });
+
+        Long raw = nextRawSn();
+        Long frame = seedFrame(raw, 0);
+        String key = "idmp" + UUID.randomUUID().toString().replace("-", "");
+        Long augSn = tx.execute(s -> augRepository.saveAndFlush(
+                        LsDataAug.createRequested(frame, LsDataAug.AUG_WINTER, "1", key, null))
+                .getDataAugSn());
+
+        // when — 위탁 진입점을 프록시 경유로 동기 호출(비동기 브리지·커넥션 겹침 없음)
+        AugmentJobSubmitService.SubmitOutcome outcome = submitService.submit(
+                new AugmentRequestedItemEvent(augSn, raw, LsDataAug.AUG_WINTER, key,
+                        "http://localhost/v1/genai/callback", "1"));
+
+        assertThat(syncActive.get())
+                .as("외부 위탁 중 트랜잭션 동기화가 열려 있으면 그 스코프가 EM/커넥션을 붙잡은 채 "
+                        + "REQUIRES_NEW 선기록이 두 번째 커넥션을 요구해 풀 데드락이 된다")
+                .isFalse();
+        assertThat(emBound.get())
+                .as("외부 위탁 중 EntityManager 가 스레드에 바인딩돼 있으면 그것이 잡은 커넥션이 "
+                        + "HTTP 왕복 내내 반납되지 않는다")
+                .isFalse();
+        assertThat(outcome.accepted()).as("위탁이 실제로 수락돼 외부 호출 시점이 관측됐어야 한다").isEqualTo(1);
+        assertThat(jobsOf(augSn)).as("청크 선기록도 정상 수행된다").hasSize(1);
     }
 
     // ============================================================

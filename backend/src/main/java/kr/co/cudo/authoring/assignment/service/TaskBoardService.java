@@ -1,10 +1,15 @@
 package kr.co.cudo.authoring.assignment.service;
 
+import kr.co.cudo.authoring.assignment.domain.BoardWorkStatus;
+import kr.co.cudo.authoring.assignment.dto.EventTypeOptionsResponse;
 import kr.co.cudo.authoring.assignment.dto.TaskBoardItemResponse;
+import kr.co.cudo.authoring.assignment.dto.TaskBoardSearchCondition;
+import kr.co.cudo.authoring.assignment.dto.TaskBoardSummaryResponse;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
+import kr.co.cudo.authoring.assignment.repository.TaskBoardQueryRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -30,8 +35,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * SCR-TASK-001 REVIEWER 통합 작업 목록 — 처리 완료 영상을 BE 페이징으로 응답하고
+ * SCR-TASK-001 REVIEWER 통합 작업 목록 — 영상을 BE 페이징(+서버 필터)으로 응답하고
  * LABELER/REVIEWER 배정을 LEFT JOIN 방식으로 enrich 한다.
+ *
+ * <p>검색·필터·정렬은 {@link TaskBoardQueryRepository} 가 단일 조건으로 처리하고(목록/count 동일 조건),
+ * 본 서비스는 그 결과 페이지를 화면 표시용으로 enrich 하는 책임만 갖는다.
  *
  * <p>보안:
  * <ul>
@@ -48,30 +56,29 @@ import java.util.Set;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class TaskBoardService {
 
+    /** 이벤트유형 옵션 반환 상한 — 셀렉트박스가 감당할 수 있는 규모를 넘으면 잘라 내고 WARN(OWASP API4). */
+    private static final int MAX_EVENT_TYPE_OPTIONS = 500;
+
     private final VideoRepository videoRepository;
+    private final TaskBoardQueryRepository taskBoardQueryRepository;
     private final LsTaskAssignmentRepository authrtRepository;
     private final LsRawDataStatusRepository dataSttsRepository;
     private final LsDataSrcRepository dataSrcRepository;
     private final UserRepository userRepository;
 
-    /** 미배정 필터 — 배치 상태 무관, LABELER 배정이 없는 모든 영상을 반환하는 가상 status. */
-    static final String STATUS_UNASSIGNED = "UNASSIGNED";
-    private static final String DEFAULT_BATCH_STATUS = "COMPLETED";
-
-    public Page<TaskBoardItemResponse> listBoard(String status, TokenClaims actor, Pageable pageable) {
+    /**
+     * 작업목록 조회 — 배치 상태/워크플로 상태/검색어/이벤트유형/작업자 필터를 서버에서 처리한다.
+     *
+     * <p>정렬은 시간축 단일(기본 {@code REG_DT DESC} + {@code RAW_SN DESC} tie-break)이며 상태
+     * 우선순위 정렬은 적용하지 않는다(R1). 우선순위는 {@code workStatus} 필터로 표현한다.
+     * 신규 필터가 하나도 없으면 조건이 걸리지 않아 변경 전과 동일한 결과 집합을 반환한다(R8).
+     */
+    public Page<TaskBoardItemResponse> listBoard(TaskBoardSearchCondition condition, TokenClaims actor,
+                                                 Pageable pageable) {
         requireReviewer(actor);
 
-        String effectiveStatus = (status != null && !status.isBlank()) ? status : DEFAULT_BATCH_STATUS;
-        Page<LsDataRaw> page;
-        if (STATUS_UNASSIGNED.equals(effectiveStatus)) {
-            // 미배정 = 배치 상태 무관, LABELER 배정이 없는 모든 영상 (NOT EXISTS 필터).
-            // 신규 업로드(PENDING)·실패(FAILED) 영상도 포함 — FE 가 batchStatus 뱃지로 구분 표시.
-            page = videoRepository.findUnassigned(pageable);
-        } else {
-            // R2 AC2 — 재작업(반려)·검수대기 건이 상단에 오도록 워크플로 상태 우선순위로 서버 정렬한다
-            // (반려>검수대기>배정>미배정>완료 → REG_DT DESC → RAW_SN DESC). 배치 상태 필터·페이징은 불변.
-            page = videoRepository.findBoardOrderByStatusPriority(effectiveStatus, pageable);
-        }
+        TaskBoardSearchCondition effective = (condition != null) ? condition : TaskBoardSearchCondition.defaults();
+        Page<LsDataRaw> page = taskBoardQueryRepository.search(effective, pageable);
         List<LsDataRaw> rows = page.getContent();
         if (rows.isEmpty()) {
             return page.map(r -> toResponse(r, null, null, null, null, Collections.emptyMap(), null, 0L, null));
@@ -110,6 +117,49 @@ public class TaskBoardService {
             long frameCount = frameCountByVideo.getOrDefault(rawSn, 0L);
             return toResponse(r, cctvName, eventInfo, labeler, reviewer, nameByUserNo, dataSttsCd, frameCount, firstSrcSn);
         });
+    }
+
+    /**
+     * 작업목록 KPI 카드 집계 — 현재 페이지가 아니라 <b>필터 결과 전체</b>를 기준으로 센다.
+     *
+     * <p>필터는 {@link #listBoard} 와 동일하되 {@code workStatus} 만 제외한다 — KPI 카드 자체가
+     * workStatus 선택지이므로 이미 좁혀진 집합 위에서 5종을 세면 1개 카드만 non-zero 가 된다.
+     * {@code status=UNASSIGNED}(가상 status)가 걸린 경우에는 목록과 동일하게 <b>배치 상태 무관 ·
+     * LABELER 미배정 전체</b>가 기준이 되므로 결과적으로 미배정 카드만 값을 갖는다.
+     *
+     * <p>목록과 별도 요청이라 두 호출 사이의 배정/검수 변경으로 미세하게 어긋날 수 있으며, 반환값은
+     * <b>조회 시점 스냅샷</b>이다(대시보드성 KPI 라 강한 정합성은 요구하지 않는다).
+     */
+    public TaskBoardSummaryResponse summarizeBoard(TaskBoardSearchCondition condition, TokenClaims actor) {
+        requireReviewer(actor);
+
+        TaskBoardSearchCondition effective = (condition != null) ? condition : TaskBoardSearchCondition.defaults();
+        return TaskBoardSummaryResponse.of(taskBoardQueryRepository.countByWorkStatus(effective));
+    }
+
+    /**
+     * 이벤트유형 셀렉트 옵션 — 배치 상태 축({@code status})만 반영한 distinct 코드 목록(오름차순).
+     *
+     * <p>이벤트 마스터 테이블이 없어 코드값이 곧 표시명이다. 검색어/작업자/이벤트유형/워크플로 상태
+     * 필터는 <b>반영하지 않는다</b> — 사용자가 필터를 건 뒤 옵션이 사라지면 되돌아갈 수 없기 때문이다.
+     *
+     * <p>상한({@value #MAX_EVENT_TYPE_OPTIONS}) 초과 시 잘라 내되 <b>그 사실을 응답에 담는다</b>
+     * ({@link EventTypeOptionsResponse#truncated()}). 서버 WARN 로그만 남기고 배열만 반환하면 절단이
+     * 사용자에게 보이지 않아, 잘린 코드의 영상이 "존재하지 않는다"고 오인된다.
+     */
+    public EventTypeOptionsResponse listEventTypeOptions(TaskBoardSearchCondition condition, TokenClaims actor) {
+        requireReviewer(actor);
+
+        TaskBoardSearchCondition effective = (condition != null) ? condition : TaskBoardSearchCondition.defaults();
+        List<String> options = taskBoardQueryRepository
+                .findDistinctEventTypes(effective, MAX_EVENT_TYPE_OPTIONS + 1);
+        if (options.size() > MAX_EVENT_TYPE_OPTIONS) {
+            // 카디널리티 이상(코드 오염 등) — 응답을 무제한으로 키우지 않고 잘라 낸다(OWASP API4).
+            log.warn("[TaskBoard] eventTypeOptionsTruncated limit={}, status={}",
+                    MAX_EVENT_TYPE_OPTIONS, effective.status());
+            return EventTypeOptionsResponse.truncated(options.subList(0, MAX_EVENT_TYPE_OPTIONS));
+        }
+        return EventTypeOptionsResponse.of(options);
     }
 
     private TaskBoardItemResponse toResponse(LsDataRaw r, String cctvName, String[] eventInfo,
@@ -156,20 +206,12 @@ public class TaskBoardService {
     /**
      * LS_RAW_DATA_STATUS.DATA_STTS_CD + 배정 여부 = FE Task.status 매핑.
      * UNASSIGNED 는 task 없을 때만 사용한다. 배정이 있으면 STATUS row 없어도 PENDING 폴백.
+     *
+     * <p>매핑 규칙은 {@link BoardWorkStatus} 가 단일 원천으로 소유한다 — 같은 enum 이 서버 필터
+     * ({@code workStatus}) 의 WHERE 조건도 생성하므로 표시 상태와 필터 결과가 구조적으로 일치한다(HIGH-3).
      */
     private static String mapBoardStatus(String dataSttsCd, boolean hasLabeler) {
-        if (!hasLabeler) {
-            return "UNASSIGNED";
-        }
-        if (dataSttsCd == null) return "PENDING";
-        return switch (dataSttsCd) {
-            case "ASSIGNED"  -> "PENDING";
-            case "PENDING"   -> "REVIEW_PENDING";
-            case "IN_REVIEW" -> "REVIEW_PENDING";
-            case "APPROVED"  -> "COMPLETED";
-            case "REJECTED"  -> "REJECTED";
-            default          -> "PENDING";
-        };
+        return BoardWorkStatus.of(dataSttsCd, hasLabeler).name();
     }
 
     private Map<Long, String> lookupCctvNameByVideo(List<Long> rawSns) {
@@ -205,7 +247,12 @@ public class TaskBoardService {
 
     /**
      * TASK_TYPE_CD 별 rawDataId 에서 가장 최근 LsTaskAssignment 매핑.
-     * REG_DT DESC 정렬 결과의 첫 매칭만 유지 (putIfAbsent).
+     *
+     * <p>"가장 최근" = {@code REG_DT DESC} → {@code ASSIGNMENT_ID DESC}. REG_DT 가 동일한 배정이
+     * 여러 건일 때 DB 반환 순서에 의존하면(구 {@code putIfAbsent}) 표시되는 작업자가 비결정적이 되어,
+     * 같은 기준(REG_DT, ASSIGNMENT_ID)으로 최신 1건을 지목하는 서버 <b>작업자 필터</b>
+     * ({@code TaskBoardQueryRepository.latestLabelerMatches}) 와 결과가 어긋날 수 있다.
+     * 여기서도 동일 tie-break 를 적용해 필터 ↔ 표시를 일치시킨다.
      */
     private Map<Long, LsTaskAssignment> lookupLatestAssignmentByVideo(List<Long> rawSns, String taskTypeCd) {
         if (rawSns == null || rawSns.isEmpty()) return Collections.emptyMap();
@@ -214,9 +261,21 @@ public class TaskBoardService {
         Map<Long, LsTaskAssignment> map = new HashMap<>();
         for (LsTaskAssignment a : all) {
             if (a.getRawDataId() == null) continue;
-            map.putIfAbsent(a.getRawDataId(), a);
+            map.merge(a.getRawDataId(), a, TaskBoardService::laterAssignment);
         }
         return map;
+    }
+
+    /** (REG_DT, ASSIGNMENT_ID) 가 더 큰 배정을 최신으로 본다. */
+    private static LsTaskAssignment laterAssignment(LsTaskAssignment current, LsTaskAssignment candidate) {
+        if (current.getRegDt() == null) return candidate;
+        if (candidate.getRegDt() == null) return current;
+        int byRegDt = candidate.getRegDt().compareTo(current.getRegDt());
+        if (byRegDt != 0) return byRegDt > 0 ? candidate : current;
+        Long currentId = current.getAssignmentId();
+        Long candidateId = candidate.getAssignmentId();
+        if (currentId == null || candidateId == null) return current;
+        return candidateId > currentId ? candidate : current;
     }
 
     private Map<Long, Long> lookupFirstSrcSnByVideo(List<Long> rawSns) {

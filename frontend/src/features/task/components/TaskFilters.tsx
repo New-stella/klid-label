@@ -2,51 +2,64 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { useEventTypeLabels } from '@/features/eventType/hooks';
+import {
+  DEFAULT_TASK_FILTERS,
+  MAX_SEARCH_KEYWORD_LENGTH,
+  type TaskFilterValues,
+} from '@/features/task/boardParams';
 import type { Worker } from '@/features/task/types';
-
-export interface TaskFilterValues {
-  q: string;
-  status: string;
-  assigneeId: string;
-  eventType: string;
-}
-
-export const DEFAULT_TASK_FILTERS: TaskFilterValues = {
-  q: '',
-  status: '',
-  assigneeId: '',
-  eventType: '',
-};
+import { labelOf } from '@/lib/eventTypeLabel';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 
 interface TaskFiltersProps {
   values: TaskFilterValues;
   onChange: (v: TaskFilterValues) => void;
   onReset: () => void;
-  /** REVIEWER만 작업자 select 노출 */
+  /** REVIEWER만 작업자 select 노출 + 서버 workStatus 축 상태 옵션 사용 */
   showAssigneeSelect: boolean;
   workers: Worker[];
-  /** 영상의 이벤트 유형 옵션 (videos 의 eventName 에서 unique — 이미 한글 표시명). */
+  /** 이벤트 유형 **코드** 목록 (REVIEWER: 서버 조회 / WORKER: 배정 목록에서 수집). */
   eventTypes: string[];
+  /** 서버 옵션이 상한으로 잘렸는지 — true 면 "일부만 표시" 안내를 띄운다. */
+  eventTypesTruncated?: boolean;
 }
 
-const STATUSES_FULL = [
+/**
+ * 워크플로 상태(BE `workStatus`) 옵션 — ★ BE allowlist 와 **1:1**.
+ *
+ * `IN_PROGRESS` 는 넣지 않는다: BE `mapBoardStatus` 가 그 값을 절대 반환하지 않아(배정됨=PENDING)
+ * 고르면 항상 0건이고, 파라미터로 나가면 400 이다.
+ * PENDING 라벨은 행 뱃지('배정 완료')와 KPI 카드('작업중')를 함께 가리키도록 병기한다.
+ */
+const WORK_STATUS_OPTIONS = [
   { value: '', label: '전체 상태' },
   { value: 'UNASSIGNED', label: '미배정' },
+  { value: 'PENDING', label: '배정 완료(작업중)' },
+  { value: 'REVIEW_PENDING', label: '검수요청' },
+  { value: 'COMPLETED', label: '완료' },
+  { value: 'REJECTED', label: '반려' },
+] as const;
+
+/**
+ * WORKER 시각 상태 옵션 — 본인 배정 목록(/v1/assignments)을 화면에서 거르는 **클라이언트 필터**라
+ * BE workStatus allowlist 제약을 받지 않는다(미배정 개념도 없다). 기존 동작 보존.
+ */
+const WORKER_STATUS_OPTIONS = [
+  { value: '', label: '전체 상태' },
   { value: 'PENDING', label: '배정 완료' },
   { value: 'IN_PROGRESS', label: '작업중' },
   { value: 'REVIEW_PENDING', label: '검수요청' },
   { value: 'COMPLETED', label: '완료' },
   { value: 'REJECTED', label: '반려' },
-];
-
-const STATUSES_WORKER = STATUSES_FULL.filter((s) => s.value !== 'UNASSIGNED');
+] as const;
 
 /**
  * mock §4-5 정합 — 작업 목록 검색 폼.
  * 영상명/작업자명 input + 이벤트 select + 상태 select + (REVIEWER만) 작업자 select.
  *
  * 보안: 검색어는 부모에서 axios params로만 전달 — XSS/Injection 방지.
+ *       입력 길이는 BE `@Size(max=100)` 과 동일하게 제한해 400 왕복을 막는다.
  */
 export function TaskFilters({
   values,
@@ -55,13 +68,22 @@ export function TaskFilters({
   showAssigneeSelect,
   workers,
   eventTypes,
+  eventTypesTruncated = false,
 }: TaskFiltersProps) {
   const [local, setLocal] = useState<TaskFilterValues>(values);
+  // 이벤트 코드 → 한글 카테고리명 (미등록 코드는 원문 폴백).
+  const { data: eventLabelMap } = useEventTypeLabels();
 
-  // 외부에서 reset이 일어나면 local도 초기화
+  // 외부(KPI 카드 클릭)에서 바뀌는 축은 **상태(workStatus) 하나뿐**이므로 그것만 동기화한다.
+  // `values` 전체를 덮으면 아직 제출하지 않은 검색어·이벤트 선택이 카드 클릭 한 번에 사라진다.
+  // (초기화는 handleReset 이 local 을 직접 비운다.)
   useEffect(() => {
-    setLocal(values);
-  }, [values]);
+    setLocal((prev) =>
+      prev.workStatus === values.workStatus
+        ? prev
+        : { ...prev, workStatus: values.workStatus },
+    );
+  }, [values.workStatus]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -69,9 +91,13 @@ export function TaskFilters({
   };
 
   const handleReset = () => {
-    setLocal(DEFAULT_TASK_FILTERS);
+    setLocal({ ...DEFAULT_TASK_FILTERS });
     onReset();
   };
+
+  const statusOptions = showAssigneeSelect
+    ? WORK_STATUS_OPTIONS
+    : WORKER_STATUS_OPTIONS;
 
   return (
     <form
@@ -97,6 +123,7 @@ export function TaskFilters({
             id="task-filter-q"
             type="text"
             value={local.q}
+            maxLength={MAX_SEARCH_KEYWORD_LENGTH}
             onChange={(e) => setLocal((p) => ({ ...p, q: e.target.value }))}
             placeholder="검색어 입력"
             className={`w-full rounded-md border border-gray-300 py-1.5 pl-8 pr-3 text-sm ${KRDS_FOCUS}`}
@@ -114,19 +141,27 @@ export function TaskFilters({
         </label>
         <select
           id="task-filter-event"
-          value={local.eventType}
+          value={local.eventTypeCd}
           onChange={(e) =>
-            setLocal((p) => ({ ...p, eventType: e.target.value }))
+            setLocal((p) => ({ ...p, eventTypeCd: e.target.value }))
           }
           className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
         >
           <option value="">전체</option>
-          {eventTypes.map((et) => (
-            <option key={et} value={et}>
-              {et}
+          {eventTypes.map((code) => (
+            <option key={code} value={code}>
+              {labelOf(eventLabelMap, code)}
             </option>
           ))}
         </select>
+        {eventTypesTruncated && (
+          <p
+            data-testid="event-type-truncated"
+            className="text-xs text-gray-500"
+          >
+            옵션이 많아 일부만 표시됩니다
+          </p>
+        )}
       </div>
 
       {/* 상태 */}
@@ -139,13 +174,13 @@ export function TaskFilters({
         </label>
         <select
           id="task-filter-status"
-          value={local.status}
+          value={local.workStatus}
           onChange={(e) =>
-            setLocal((p) => ({ ...p, status: e.target.value }))
+            setLocal((p) => ({ ...p, workStatus: e.target.value }))
           }
           className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
         >
-          {(showAssigneeSelect ? STATUSES_FULL : STATUSES_WORKER).map((s) => (
+          {statusOptions.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
             </option>

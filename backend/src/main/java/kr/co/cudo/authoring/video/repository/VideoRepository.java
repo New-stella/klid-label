@@ -122,8 +122,8 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
      * <p>증강/해상도 파생 RAW 는 {@code ORGNL_RAW_SN} 이 원본을 가리키므로(NOT NULL), 처리 현황 목록에는
      * {@code ORGNL_RAW_SN IS NULL} 인 원본만 노출한다. 파생물은 증강 이력 화면(GET /v1/augments)에서만 본다.
      * 정렬은 Pageable 의 Sort 로 위임한다({@link #findAll(Pageable)} 대체). 작업 목록 쿼리
-     * ({@link #findBoardOrderByStatusPriority}/{@link #findUnassigned})에는 이 필터를 적용하지 않는다 —
-     * 파생물도 배정·검수 대상이므로 작업 목록에는 유지된다(R2).
+     * ({@link kr.co.cudo.authoring.assignment.repository.TaskBoardQueryRepository})에는 이 필터를
+     * 적용하지 않는다 — 파생물도 배정·검수 대상이므로 작업 목록에는 유지된다(R2).
      */
     Page<LsDataRaw> findAllByOrgnlRawSnIsNull(Pageable pageable);
 
@@ -183,43 +183,6 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                             Pageable pageable);
 
     /**
-     * REVIEWER 통합 작업 목록(SCR-TASK-001) — 배치 상태(dataSttsCd) 필터 + <b>워크플로 상태 우선순위 정렬</b>.
-     *
-     * <p>재작업(반려)·검수대기 건이 상단에 오도록 서버 정렬한다(R2 AC2). 정렬 기준은 화면에 표시되는
-     * 상태(= {@code TaskBoardService.mapBoardStatus}: LS_RAW_DATA_STATUS.DATA_STTS_CD + LABELER 배정 유무)와
-     * 정확히 일치한다:
-     * <pre>
-     *   반려(REJECTED)=0 &gt; 검수대기(PENDING·IN_REVIEW)=1 &gt; 배정/진행(ASSIGNED·null·기타 + 배정)=2
-     *     &gt; 미배정(LABELER 배정 없음)=3 &gt; 완료(APPROVED)=4
-     * </pre>
-     * 동순위는 {@code REG_DT DESC}(최신 우선) → {@code RAW_SN DESC} 로 tie-break 하여 페이지 경계에서도
-     * 서버 정렬이 일관된다.
-     *
-     * <p><b>미배정 우선</b>: mapBoardStatus 는 LABELER 배정이 없으면 상태와 무관하게 UNASSIGNED 로 표시하므로,
-     * CASE 도 {@code NOT EXISTS(LABELER)} 를 최우선으로 평가해 3(미배정)으로 확정한다. 워크플로 상태 row 는
-     * 배정 시점 lazy 생성되므로 LEFT JOIN 으로 결합해 미배정(status row 없음) 영상도 결과에 남긴다
-     * (INNER JOIN 이면 미배정 영상이 누락됨).
-     *
-     * <p>파라미터 바인딩만 사용({@code :dataSttsCd}) — SQL Injection 방어(CWE-89). CASE 내 상태 리터럴은
-     * 사용자 입력이 아닌 도메인 상수이므로 인젝션 표면 아님. 상태 row 는 PK(RAW_DATA_ID) 1:1 이라 LEFT JOIN
-     * 이 행을 증식시키지 않는다(Page 카운트 정합).
-     */
-    @Query(value = "SELECT v FROM LsDataRaw v " +
-            "LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn " +
-            "WHERE v.dataSttsCd = :dataSttsCd " +
-            "ORDER BY " +
-            "CASE WHEN NOT EXISTS (SELECT 1 FROM LsTaskAssignment a " +
-            "WHERE a.rawDataId = v.rawSn AND a.taskTypeCd = 'LABELER') THEN 3 " +
-            "WHEN s.dataSttsCd = 'REJECTED' THEN 0 " +
-            "WHEN s.dataSttsCd = 'PENDING' THEN 1 " +
-            "WHEN s.dataSttsCd = 'IN_REVIEW' THEN 1 " +
-            "WHEN s.dataSttsCd = 'APPROVED' THEN 4 " +
-            "ELSE 2 END ASC, " +
-            "v.regDt DESC, v.rawSn DESC",
-            countQuery = "SELECT COUNT(v) FROM LsDataRaw v WHERE v.dataSttsCd = :dataSttsCd")
-    Page<LsDataRaw> findBoardOrderByStatusPriority(@Param("dataSttsCd") String dataSttsCd, Pageable pageable);
-
-    /**
      * 미배정(UNASSIGNED) 영상 목록 — 지정 배치 상태(dataSttsCd)이면서 LABELER 배정이 없는 영상만.
      *
      * <p>SCR-TASK-002 배정 전용 화면에서 작업자가 아직 배정되지 않은 영상만 노출하는 용도.
@@ -230,19 +193,6 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             "AND NOT EXISTS (SELECT 1 FROM LsTaskAssignment a " +
             "WHERE a.rawDataId = v.rawSn AND a.taskTypeCd = 'LABELER')")
     Page<LsDataRaw> findUnassignedByDataSttsCd(@Param("dataSttsCd") String dataSttsCd, Pageable pageable);
-
-    /**
-     * 미배정(UNASSIGNED) 영상 목록 — 배치 상태 무관, LABELER 배정이 없는 모든 영상.
-     *
-     * <p>SCR-TASK-002 배정 전용 화면에서 신규 업로드(PENDING)·실패(FAILED) 영상까지 포함해
-     * 배정 가능한 모든 미배정 영상을 노출하기 위한 용도(상태 조건 제거). FE 는 batchStatus 뱃지로
-     * 상태를 구분 표시한다. LS_TASK_ASSIGNMENT 에 TASK_TYPE_CD='LABELER' row 가 없는 영상을
-     * NOT EXISTS 로 필터링한다. 파라미터 바인딩만 사용 — SQL Injection 방어 (CWE-89).
-     * 정렬은 Pageable 의 Sort 로 위임.
-     */
-    @Query("SELECT v FROM LsDataRaw v WHERE NOT EXISTS (SELECT 1 FROM LsTaskAssignment a " +
-            "WHERE a.rawDataId = v.rawSn AND a.taskTypeCd = 'LABELER')")
-    Page<LsDataRaw> findUnassigned(Pageable pageable);
 
     /** 개발 전용: DATA_STTS_CD 기준 가장 오래된 1건 (REG_DT 오름차순). */
     Optional<LsDataRaw> findFirstByDataSttsCdOrderByRegDtAsc(String dataSttsCd);
