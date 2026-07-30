@@ -125,11 +125,20 @@ class DeidentReportServiceTest {
         return s;
     }
 
+    /**
+     * 신고 대상 영상 픽스처.
+     *
+     * <p>DEV_FIX(L-2) — 비식별 완료('Y') 상태로 만든다. {@code createFromIngest} 기본값은
+     * {@code 'N'}(비식별 미수행)인데, 그 상태의 영상은 신고 대상이 아니다(프리컨디션 412) — 마킹·라벨링
+     * 어느 화면도 비식별 전 영상을 보여주지 않으므로 사용자가 개인정보 노출을 발견할 수 없다.
+     * 즉 구 픽스처가 비현실적이었고 프로덕션 가드가 맞다. {@code 'N'} 케이스는 전용 테스트에서 다룬다.
+     */
     private LsDataRaw raw(long rawSn, String prvc) {
         LsDataRaw r = LsDataRaw.createFromIngest(
                 "C-" + rawSn, "CCTV", "EVT", "GOV",
                 prvc, "/var/raw/clip.mp4", LocalDateTime.now(), 30);
         setField(r, "rawSn", rawSn);
+        r.markDeidentified("Y");
         return r;
     }
 
@@ -229,6 +238,176 @@ class DeidentReportServiceTest {
         assertThat(rprtSn).isEqualTo(555L);
         assertThat(origin.getDeIdntfYn()).isEqualTo("F");
         verify(workLockService).lockRawForRedeident(9210L, "100");
+    }
+
+    // ───────────── DEV_FIX(L-2): 비식별 미수행 영상은 신고 접수 대상이 아니다 ─────────────
+
+    @Test
+    @DisplayName("비식별_미수행_영상은_신고가_412로_거부되고_N이_F로_전이되지_않는다")
+    void reportRejectedWhenDeidentNotAttempted() {
+        // given — deIdntfYn='N'(비식별 미실행, PENDING). rawSn 진입점(마킹)은 이 상태에 직접 도달한다.
+        //   접수하면 'N'→'F' 로 hasDeidentArtifact() 가 거짓으로 true 가 되고(파생 부모 게이트 통과),
+        //   재비식별한 적이 없어 resolve 전제가 성립하지 않는 작업락이 고착된다.
+        LsDataRaw pending = LsDataRaw.createFromIngest(
+                "C-9401", "CCTV", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/clip.mp4", LocalDateTime.now(), 30);
+        setField(pending, "rawSn", 9401L);
+        assertThat(pending.getDeIdntfYn()).isEqualTo("N");
+        when(videoRepository.findByRawSnForUpdate(9401L)).thenReturn(Optional.of(pending));
+
+        // when / then — 412 (파생 거부와 동일한 신고 게이트 계열 표준 코드).
+        assertThatThrownBy(() -> service.reportByVideo(9401L, "얼굴 미블러", reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+
+        // then — 부작용 0. 특히 'N' 이 그대로 유지되어야 한다(판정 원천이 거짓이 되지 않는다).
+        assertThat(pending.getDeIdntfYn()).isEqualTo("N");
+        verify(reportRepository, never()).save(any());
+        verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
+        verify(notificationService, never()).notifyReviewersOnDeidentReport(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("이미_신고된_F_영상의_재신고는_412가_아니라_기존_409_경로를_그대로_탄다")
+    void reportOnAlreadyReportedVideoStillConflicts() {
+        // given — 'F' 는 "산출물 있음 + 신고 중"이다. 여기서 412 로 바꾸면 기존 계약(409)이 깨진다.
+        LsDataRaw reported = raw(9402L, LsDataRaw.PRVC_TYPE_PRVC);
+        reported.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9402L)).thenReturn(Optional.of(reported));
+        when(workLockService.isRawLocked(9402L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.reportByVideo(9402L, "또 있음", reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    // ───────────── B-ISSUE-28: 마킹 단계 rawSn 신고 진입점 ─────────────
+
+    @Test
+    @DisplayName("마킹단계_rawSn_신고시_작업락과_F전이와_개인정보리셋이_srcSn경로와_동일하게_수행된다")
+    void reportByVideoAppliesSameSideEffects() {
+        // given — 마킹 화면에는 프레임(srcSn) 컨텍스트가 없다. rawSn 만으로 신고할 수 있어야 한다.
+        LsDataRaw r = raw(9301L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findByRawSnForUpdate(9301L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9301L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9301L, false);
+
+        // when
+        Long rprtSn = service.reportByVideo(9301L, "번호판 미블러", workerActor);
+
+        // then — srcSn 경로와 동일 부수효과(신고행·작업락·'F'·개인정보 리셋·캐시 무효화·REVIEWER 알림).
+        assertThat(rprtSn).isEqualTo(555L);
+        assertThat(r.getDeIdntfYn()).isEqualTo("F");
+        verify(reportRepository).save(any(LsDeidentReport.class));
+        verify(workLockService).lockRawForRedeident(9301L, "100");
+        verify(srcRepository).resetPrivacyMetaByRawSn(9301L);
+        verify(streamMetaCacheEvictor).evictAfterCommit(9301L);
+        verify(notificationService).notifyReviewersOnDeidentReport(any(), eq(100L), anyString());
+        // 프레임 컨텍스트가 없으므로 srcSn 조회(IDOR 가드의 프레임 경로)는 타지 않는다.
+        verify(accessGuard, never()).verifyAndGet(anyLong(), any());
+        verify(accessGuard).verifyRawAccess(9301L, workerActor);
+    }
+
+    @Test
+    @DisplayName("마킹단계_rawSn_신고도_파생영상이면_412로_거부되고_부작용이_없다")
+    void reportByVideoRejectedForDerivative() {
+        // given — 파생영상(증강·해상도). 재비식별 수단이 없어 접수 자체를 하지 않는다(확정 정책).
+        LsDataRaw derivative = raw(9302L, LsDataRaw.PRVC_TYPE_ANONY);
+        setField(derivative, "orgnlRawSn", 9300L);
+        when(videoRepository.findByRawSnForUpdate(9302L)).thenReturn(Optional.of(derivative));
+
+        // when / then — 412 + 원본 rawSn 미노출(따라가면 막다른 길이라 유도 자체가 잘못된 정보다).
+        assertThatThrownBy(() -> service.reportByVideo(9302L, "얼굴 미블러", workerActor))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.PRECONDITION_FAILED);
+                    assertThat(ce.getMessage()).contains("파생영상");
+                    assertThat(ce.getMessage()).doesNotContain("9300");
+                });
+
+        verify(reportRepository, never()).save(any());
+        verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
+        verify(notificationService, never()).notifyReviewersOnDeidentReport(any(), any(), any());
+        assertThat(derivative.getDeIdntfYn()).isNotEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("마킹단계_rawSn_신고는_본인배정_아닌_WORKER를_403으로_차단한다")
+    void reportByVideoForbiddenForNotAssignedWorker() {
+        doThrow(new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다."))
+                .when(accessGuard).verifyRawAccess(eq(9303L), eq(workerActor));
+
+        assertThatThrownBy(() -> service.reportByVideo(9303L, "사유", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        // 인가 실패는 영상 조회 이전에 끝난다(IDOR 우선).
+        verify(videoRepository, never()).findByRawSnForUpdate(anyLong());
+        verify(reportRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("마킹단계_rawSn_신고_이미_잠금이면_409")
+    void reportByVideoAlreadyLockedConflict() {
+        LsDataRaw r = raw(9304L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findByRawSnForUpdate(9304L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9304L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.reportByVideo(9304L, "사유", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(reportRepository, never()).save(any());
+        assertThat(r.getDeIdntfYn()).isNotEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("마킹단계_rawSn_신고_존재하지_않는_영상은_404")
+    void reportByVideoUnknownVideoNotFound() {
+        when(videoRepository.findByRawSnForUpdate(9305L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.reportByVideo(9305L, "사유", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("마킹단계_rawSn_신고_사유가_비면_400")
+    void reportByVideoBlankReasonRejected() {
+        assertThatThrownBy(() -> service.reportByVideo(9306L, "   ", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(videoRepository, never()).findByRawSnForUpdate(anyLong());
+    }
+
+    @Test
+    @DisplayName("마킹단계_rawSn_신고도_APPROVED_영상이면_TASK_MODIFIED_통지가_발행된다")
+    void reportByVideoPublishesTaskModifiedWhenApproved() {
+        LsDataRaw r = raw(9307L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findByRawSnForUpdate(9307L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9307L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9307L, true);
+
+        service.reportByVideo(9307L, "사유", workerActor);
+
+        ArgumentCaptor<TaskModifiedEvent> cap = ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher, atLeastOnce()).publishEvent(cap.capture());
+        TaskModifiedEvent evt = cap.getValue();
+        assertThat(evt.rawSn()).isEqualTo(9307L);
+        assertThat(evt.changeType()).isEqualTo(ChangeType.META_UPDATED);
+        // 프레임 컨텍스트가 없는 영상 단위 변경 — srcSn 은 null(TaskModifiedEvent 규약).
+        assertThat(evt.srcSn()).isNull();
     }
 
     @Test

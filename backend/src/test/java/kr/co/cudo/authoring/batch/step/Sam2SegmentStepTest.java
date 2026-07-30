@@ -94,6 +94,25 @@ class Sam2SegmentStepTest {
             setField(arg, "lblSn", lblSnSeq.getAndIncrement());
             return arg;
         });
+        // B-ISSUE-42 — 저장 경로가 개별 save() 에서 프레임 단위 saveAll() 로 바뀌었다. 본 스텁은 saveAll 을
+        //   <원소별 save 위임>으로 모사해 기존 내용 단언(저장된 폴리곤의 좌표/타입 등)을 그대로 살린다.
+        //   "정말 배치로 저장되는가" 는 아래 B-ISSUE-42 전용 테스트가 saveAll 호출로 직접 고정한다.
+        when(lblRepository.saveAll(any())).thenAnswer(inv -> {
+            Iterable<LsDataLbl> in = inv.getArgument(0);
+            List<LsDataLbl> out = new java.util.ArrayList<>();
+            for (LsDataLbl l : in) {
+                out.add(lblRepository.save(l));
+            }
+            return out;
+        });
+        when(aiInfoRepository.saveAll(any())).thenAnswer(inv -> {
+            Iterable<LsDataLblAiInfo> in = inv.getArgument(0);
+            List<LsDataLblAiInfo> out = new java.util.ArrayList<>();
+            for (LsDataLblAiInfo a : in) {
+                out.add(aiInfoRepository.save(a));
+            }
+            return out;
+        });
 
         // dummy image files (Phase 4: srcSn 70/80 케이스 추가 — 범위 확장)
         Path rawDir = tempDir.resolve("raw");
@@ -584,5 +603,93 @@ class Sam2SegmentStepTest {
         byte[] decoded = java.util.Base64.getDecoder().decode(captor.getValue().imageB64());
         // 원본 프레임 내용과 동일해야 함 (비식별 아님)
         assertThat(decoded).isEqualTo(rawContent);
+    }
+
+    // ============ B-ISSUE-42 — 루프 내 개별 save() → 프레임 단위 saveAll() ============
+
+    @Test
+    @DisplayName("한_프레임의_폴리곤들은_라벨_saveAll_1회와_AI메타_saveAll_1회로_저장된다")
+    void polygonsOfOneFramePersistedWithSingleSaveAll() {
+        // given — 프레임 1개 × SegmentJob 2건(라벨 2종)
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(710L)).thenReturn(List.of(newSrc(10L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(10L, "Y")).thenReturn(List.of());
+        List<BbHint> hints = List.of(
+                new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1),
+                new BbHint(10L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81, 2));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(5.0, 6.0)), 0.88)));
+
+        // when
+        int saved = step.run(710L, hints);
+
+        // then — 구 구현은 save 2회 + save 2회였다
+        assertThat(saved).isEqualTo(2);
+        ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
+        verify(lblRepository, times(1)).saveAll(lblCaptor.capture());
+        assertThat(lblCaptor.getValue()).hasSize(2);
+        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
+        verify(aiInfoRepository, times(1)).saveAll(aiCaptor.capture());
+        assertThat(aiCaptor.getValue()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("AI메타는_대응_폴리곤의_PK와_1대1로_매칭되어_저장된다")
+    void aiInfoRowsMatchTheirOwnPolygonPk() {
+        // given — 신뢰도가 다른 SAM2 응답 2건
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(711L)).thenReturn(List.of(newSrc(10L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(10L, "Y")).thenReturn(List.of());
+        List<BbHint> hints = List.of(
+                new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1),
+                new BbHint(10L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81, 2));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(5.0, 6.0)), 0.11)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(7.0, 8.0)), 0.99)));
+
+        // when
+        step.run(711L, hints);
+
+        // then
+        ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
+        verify(lblRepository).saveAll(lblCaptor.capture());
+        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
+        verify(aiInfoRepository).saveAll(aiCaptor.capture());
+
+        List<LsDataLbl> labels = new java.util.ArrayList<>();
+        lblCaptor.getValue().forEach(labels::add);
+        List<LsDataLblAiInfo> infos = new java.util.ArrayList<>();
+        aiCaptor.getValue().forEach(infos::add);
+
+        assertThat(labels).hasSize(2);
+        assertThat(infos).hasSize(2);
+        for (int i = 0; i < labels.size(); i++) {
+            assertThat(infos.get(i).getDataLblSn())
+                    .as("AI 메타 %d 은 대응 폴리곤의 PK 를 가져야 한다", i)
+                    .isNotNull()
+                    .isEqualTo(labels.get(i).getLblSn());
+            assertThat(infos.get(i).getDataSrcSn()).isEqualTo(labels.get(i).getSrcSn());
+            assertThat(infos.get(i).getConfScore()).isEqualByComparingTo(labels.get(i).getConfScore());
+            assertThat(infos.get(i).getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_SAM2);
+        }
+        assertThat(infos.stream().map(LsDataLblAiInfo::getDataLblSn).distinct().count()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("SAM2_저장대상이_없는_프레임은_saveAll을_호출하지_않는다")
+    void frameWithoutPolygonDoesNotCallSaveAll() {
+        // given — SegmentJob 은 있으나 SAM2 응답 폴리곤이 없음
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(712L)).thenReturn(List.of(newSrc(10L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(10L, "Y")).thenReturn(List.of());
+        List<BbHint> hints = List.of(
+                new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1));
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(null, 0.5)));
+
+        // when
+        int saved = step.run(712L, hints);
+
+        // then
+        assertThat(saved).isZero();
+        verify(lblRepository, never()).saveAll(any());
+        verify(aiInfoRepository, never()).saveAll(any());
     }
 }

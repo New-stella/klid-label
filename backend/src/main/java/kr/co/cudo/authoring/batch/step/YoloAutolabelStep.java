@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
@@ -15,7 +16,9 @@ import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.DetectionBoxNormalizer;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.label.service.FrameBoundsResolver;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
@@ -93,6 +96,8 @@ public class YoloAutolabelStep implements BatchStep {
     private final PresetLabelLookupService presetLabelLookup;
     private final SystemConfigService systemConfigService;
     private final LabelMasterService labelMasterService;
+    /** C-ISSUE-41 — 저장 전 좌표 clamp 기준(프레임 실측 [width, height], 캐시). 측정 실패 시 상한 생략. */
+    private final FrameBoundsResolver frameBoundsResolver;
     private final ObjectMapper objectMapper;
     private final Path baseRawPath;
 
@@ -104,6 +109,7 @@ public class YoloAutolabelStep implements BatchStep {
                              PresetLabelLookupService presetLabelLookup,
                              SystemConfigService systemConfigService,
                              LabelMasterService labelMasterService,
+                             FrameBoundsResolver frameBoundsResolver,
                              ObjectMapper objectMapper,
                              @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
         this.aiServerClient = aiServerClient;
@@ -114,6 +120,7 @@ public class YoloAutolabelStep implements BatchStep {
         this.presetLabelLookup = presetLabelLookup;
         this.systemConfigService = systemConfigService;
         this.labelMasterService = labelMasterService;
+        this.frameBoundsResolver = frameBoundsResolver;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
@@ -172,11 +179,16 @@ public class YoloAutolabelStep implements BatchStep {
         int bboxSaved = 0;
         int yoloTotal = 0;
         int hintsEmitted = 0;
+        // DEV_FIX(M-1/M-2) — 검출 단위 드롭은 관측 가능해야 한다(전체 실패가 아니므로 로그가 유일한 신호).
+        int droppedDegenerate = 0;
+        int droppedMalformed = 0;
         // Phase 4: 영상 내 프레임 순서(0-base). Repository 가 frame_no ASC 정렬 보장.
         // ultralytics 트래커는 frame_index=0 시 상태 리셋, 그 외엔 persist=True 로 누적.
         // 같은 영상 프레임은 본 루프에서 순차 호출 — 정적/필드 저장 금지(스레드 안전).
         int frameIndex = 0;
         for (LsDataSrc src : frames) {
+            // B-ISSUE-42 — 이 프레임의 저장 대기 라벨. 검출마다 save() 하지 않고 프레임 끝에서 saveAll() 한다.
+            List<AutoLabelBatchPersister.PendingLabel> pending = new ArrayList<>();
             String relPath = resolveImagePath(src);
             String imageB64 = readImageAsBase64(relPath);
             YoloResponse resp;
@@ -207,6 +219,10 @@ public class YoloAutolabelStep implements BatchStep {
                         LogSanitizer.sanitize(resp.source()),
                         LogSanitizer.sanitize(resp.mockReason()));
             }
+            // C-ISSUE-41 — 이 프레임의 실측 해상도(캐시). clamp 상한 기준이며, 측정 불가면 null 로
+            //   상한만 생략한다(fail-open — 원천 이미지가 없는 정상 작업을 배치가 막지 않는다).
+            int[] frameBounds = resp.detections().isEmpty()
+                    ? null : frameBoundsResolver.resolve(src).orElse(null);
             for (YoloResponse.Detection d : resp.detections()) {
                 yoloTotal++;
                 AnnotationToggle toggle = resolveToggle(togglesOpt, d.label());
@@ -214,25 +230,91 @@ public class YoloAutolabelStep implements BatchStep {
                     // 매핑 존재 + 허용 라벨에 미포함 → 노이즈 제거
                     continue;
                 }
+                // ── DEV_FIX(M-1) — 좌표 정규화를 검출 루프 <b>선두에서 1회</b> 수행하고, 그 결과를
+                //    BBOX 저장과 polygon hint 가 <b>공유</b>한다. 구 구현은 정규화가 persistBbox 안에만
+                //    있어 hint 는 언제나 <b>미clamp 원본</b>을 실었고, 그 결과 ①bbox 가 퇴화로 스킵된 검출
+                //    ②애초에 bbox=false 인 폴리곤 전용 프리셋에서 DB BBOX 가 없어 Sam2SegmentStep 이
+                //    hint 를 채택 → 이미지 완전 밖 좌표가 SAM box 프롬프트로 나가고 그 산출 폴리곤이
+                //    LS_DATA_LBL 에 저장됐다(학습데이터 오염). 정규화 실패/퇴화면 bbox·polygon 을 <b>둘 다</b>
+                //    스킵한다.
+                // ── DEV_FIX(M-2) — 형식 위반(개수 ≠ 4 · null · NaN/Infinity)도 <b>검출 단위 드롭</b>이다.
+                //    구 구현은 예외가 run() 밖으로 전파되어 300프레임 영상의 마지막 검출 1건 때문에 그 영상의
+                //    YOLO 단계 전체가 실패(작업 상태 FAILED)하고 앞서 저장된 라벨만 남는 부분 상태가 됐다.
+                //    같은 클래스가 "영상 1건의 배치를 통째로 실패시키지 않는다"(YoloLabelPersister)를 명시해
+                //    놓고 퇴화는 스킵·NaN 은 전체 실패로 정책이 갈리던 자기모순을 해소한다.
+                //    ※ 온라인 경로(AutolabelOnlineService·YoloTrackService)의 all-or-nothing 400 은 유지한다
+                //      — 사용자가 즉시 재시도할 수 있고 외부 응답 불신 계약이 우선이다. 배치만 관대하다.
+                List<Double> points;
+                try {
+                    Optional<List<Double>> normalized =
+                            DetectionBoxNormalizer.normalizeBbox(d.points(), frameBounds);
+                    if (normalized.isEmpty()) {
+                        droppedDegenerate++;
+                        log.warn("[Batch][Yolo] detection dropped — box degenerate after clamp rawSn={} srcSn={} label={}",
+                                rawSn, src.getSrcSn(), LogSanitizer.sanitize(d.label()));
+                        continue;
+                    }
+                    points = normalized.get();
+                } catch (IllegalArgumentException e) {
+                    droppedMalformed++;
+                    log.warn("[Batch][Yolo] detection dropped — malformed coordinates rawSn={} srcSn={} label={}",
+                            rawSn, src.getSrcSn(), LogSanitizer.sanitize(d.label()));
+                    continue;
+                }
                 // Phase 6: ai-server 응답 라벨명을 LS_LABEL 마스터 PK 로 매핑 (미매칭 시 null).
                 Long labelId = labelMasterService.findLabelIdByDtctType(d.label()).orElse(null);
                 log.info("[Batch][Yolo] mapped label name={} labelId={}",
                         LogSanitizer.sanitize(d.label()), labelId);
                 if (toggle.bbox()) {
-                    // Phase 3(online): 좌표 정규화 + BBOX/AI_INFO 저장은 배치·온라인 공용 헬퍼로 단일화.
-                    // 배치 출처 마커 REG_ID = "batch". 홀수/ null 좌표는 헬퍼가 INVALID_INPUT 으로 래핑.
-                    YoloLabelPersister.persistBbox(lblRepository, aiInfoRepository, objectMapper,
-                            src.getSrcSn(), rawSn, d.label(), labelId,
-                            d.points(), d.score(), d.trackId(), YoloLabelPersister.SOURCE_BATCH);
-                    bboxSaved++;
-                    labeledFrames.add(src.getSrcSn());
+                    // Phase 3(online): BBOX 엔티티 생성은 공용 헬퍼로 단일화. 배치 출처 마커 REG_ID = "batch".
+                    //
+                    // 헬퍼 시그니처는 그대로 두고 <b>이미 정규화된 좌표를 다시 넘긴다</b>. 근거: ①clamp 는
+                    // 멱등이고(정규화된 좌표를 재정규화하면 같은 값) 비퇴화 박스는 재정규화 후에도 비퇴화라
+                    // 결과가 동일하다 ②헬퍼가 단독 호출돼도 정규화 방어가 유지된다(오버로드를 추가하면
+                    // "검증 없는 저장 경로"가 새로 생긴다 — 이 리포에서 반복된 '게이트 없는 쌍둥이' 패턴).
+                    // 따라서 여기서 empty/예외가 나오면 그것은 정규화 계약 위반이라 방어적으로 드롭한다.
+                    //
+                    // B-ISSUE-42 — 여기서는 <b>저장 대기 목록에 담기만</b> 하고, 실제 INSERT 는 프레임 끝의
+                    //   saveAll 1회가 수행한다. "퇴화·형식위반 검출은 스킵하고 나머지는 저장" 시맨틱은
+                    //   드롭 판정이 여전히 검출 단위에서 일어나므로 그대로 유지된다.
+                    try {
+                        Optional<AutoLabelBatchPersister.PendingLabel> built = YoloLabelPersister.buildBbox(
+                                objectMapper, src.getSrcSn(), d.label(), labelId,
+                                points, frameBounds, d.score(), d.trackId());
+                        if (built.isPresent()) {
+                            pending.add(built.get());
+                            bboxSaved++;
+                            labeledFrames.add(src.getSrcSn());
+                        } else {
+                            droppedDegenerate++;
+                            log.warn("[Batch][Yolo] detection dropped — box degenerate after clamp rawSn={} srcSn={} label={}",
+                                    rawSn, src.getSrcSn(), LogSanitizer.sanitize(d.label()));
+                            continue;
+                        }
+                    } catch (CustomException e) {
+                        if (e.getErrorCode() != ErrorCode.INVALID_INPUT) {
+                            throw e;
+                        }
+                        droppedMalformed++;
+                        log.warn("[Batch][Yolo] detection dropped — persist rejected coordinates rawSn={} srcSn={} label={}",
+                                rawSn, src.getSrcSn(), LogSanitizer.sanitize(d.label()));
+                        continue;
+                    }
                 }
                 if (toggle.polygon()) {
+                    // C-ISSUE-41 — BbHint 좌표는 SAM box 프롬프트 입력이지만 <b>clamp 된 좌표를 싣는다</b>.
+                    //   구 주석("프롬프트는 DB BBOX(=clamp 된 값)를 우선 사용한다")은 사실이 아니었다:
+                    //   Sam2SegmentStep.buildJobs 는 (label, trackId) 키로 DB BBOX 를 우선 등록한 뒤
+                    //   putIfAbsent 로 hint 를 채우므로, DB BBOX 가 <b>없을 때</b>(bbox 스킵 · 폴리곤 전용
+                    //   프리셋)는 hint 가 그대로 프롬프트가 된다. 위에서 정규화한 좌표를 공유해 그 구멍을 막는다.
                     // Phase 4: BbHint 5번째 인자에 d.trackId() (Integer) 그대로 전달.
-                    hints.add(new BbHint(src.getSrcSn(), d.label(), d.points(), d.score(), d.trackId()));
+                    hints.add(new BbHint(src.getSrcSn(), d.label(), points, d.score(), d.trackId()));
                     hintsEmitted++;
                 }
             }
+            // B-ISSUE-42 — 프레임 단위 일괄 저장(라벨 saveAll → AI 메타 saveAll). 검출 0건이면 no-op.
+            AutoLabelBatchPersister.saveAll(lblRepository, aiInfoRepository, pending, rawSn,
+                    LsDataLblAiInfo.SRC_YOLO, YoloLabelPersister.SOURCE_BATCH);
             frameIndex++;
         }
         // C-ISSUE-21 — 배치 오토라벨이 라벨 row 를 만든 <b>그 프레임</b>의 라벨셋 버전을 +1 한다(단일 UPDATE,
@@ -249,8 +331,9 @@ public class YoloAutolabelStep implements BatchStep {
         if (!labeledFrames.isEmpty()) {
             srcRepository.bumpLabelVersionIn(labeledFrames);
         }
-        log.info("[Batch][Yolo] saved labels rawSn={} clipId={} eventType={} frames={} yoloCount={} bboxSaved={} hintsEmitted={} preset={} conf={} imgsz={} iou={}",
+        log.info("[Batch][Yolo] saved labels rawSn={} clipId={} eventType={} frames={} yoloCount={} bboxSaved={} hintsEmitted={} droppedDegenerate={} droppedMalformed={} preset={} conf={} imgsz={} iou={}",
                 rawSn, clipId, eventTypeCd, frameIndex, yoloTotal, bboxSaved, hintsEmitted,
+                droppedDegenerate, droppedMalformed,
                 togglesOpt.map(m -> m.keySet().toString()).orElse("(none)"),
                 confThreshold, imgsz, iou);
         return hints;

@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.DetectionBoxNormalizer;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.label.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.label.dto.YoloTrackResponseDto;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -41,7 +43,10 @@ import java.util.UUID;
  *   <li>IDOR (CWE-639): 시작 + 모든 후속 프레임에 {@link LabelAccessGuard} 검증.</li>
  *   <li>교차 영상 혼입 방지: 시퀀스 각 프레임의 rawSn 이 시작 프레임과 동일한지 검증(트래커 무결성).</li>
  *   <li>Path Traversal (CWE-22): {@link FrameImageEncoder} 가 storage.raw-path 기준 경로 범위 내로 제한.</li>
- *   <li>입력 검증 (CWE-20): ai-server 응답 points 4개(x1,y1,x2,y2)·비음수 검증.</li>
+ *   <li>입력 검증 (CWE-20 · C-ISSUE-41): ai-server 응답 좌표는 {@link DetectionBoxNormalizer} <b>공용 규칙</b>
+ *       으로 정규화한다 — 배치({@code YoloLabelPersister})·AI 탐지({@code AutolabelOnlineService})와 같은
+ *       함수다. 형식 위반(개수 ≠ 4 · null · NaN/Infinity)만 400 이고, 경계를 넘긴 좌표는 clamp,
+ *       퇴화 박스는 <b>그 검출만</b> 스킵한다.</li>
  *   <li>Log Injection (CWE-117): 외부 유래 라벨명 {@link LogSanitizer} 로 CRLF 제거.</li>
  *   <li>Info Leak (CWE-209): 내부 경로·스택트레이스 클라이언트 노출 금지.</li>
  *   <li>SSRF: ai-server base-url 은 AiServerClient 내부 설정값 사용(사용자 입력 URL 아님).</li>
@@ -64,6 +69,11 @@ public class YoloTrackService {
     private final LabelAccessGuard accessGuard;
     private final SystemConfigService systemConfigService;
     private final FrameImageEncoder frameImageEncoder;
+    /**
+     * C-ISSUE-41 — 좌표 clamp 상한 기준(프레임 실측 [width, height]). 프레임마다 필요하지만 자체
+     * Caffeine 캐시를 보유하므로 시퀀스 내 재조회 비용은 없다. 측정 실패 시 상한만 생략(fail-open).
+     */
+    private final FrameBoundsResolver frameBoundsResolver;
 
     public YoloTrackResponseDto track(YoloTrackRequest req, TokenClaims actor) {
         // IDOR 차단 (CWE-639): 시작 + 모든 후속 프레임 접근 권한을 ai 호출 이전에 검증.
@@ -119,7 +129,7 @@ public class YoloTrackService {
                         "YOLO track 호출 실패: frameIndex=" + frameIndex);
             }
 
-            List<YoloTrackResponseDto.Detected> detections = mapDetections(resp);
+            List<YoloTrackResponseDto.Detected> detections = mapDetections(resp, src);
             frames.add(new YoloTrackResponseDto.FrameDetections(sn, frameIndex, detections));
             frameIndex++;
         }
@@ -129,16 +139,44 @@ public class YoloTrackService {
         return new YoloTrackResponseDto(frames);
     }
 
-    /** ai-server 응답 → 응답 DTO 매핑. null/빈 detections 는 빈 리스트로 처리(예외 아님). */
-    private List<YoloTrackResponseDto.Detected> mapDetections(YoloResponse resp) {
-        if (resp == null || resp.detections() == null) {
+    /**
+     * ai-server 응답 → 응답 DTO 매핑. null/빈 detections 는 빈 리스트로 처리(예외 아님).
+     *
+     * <h3>C-ISSUE-41 — 좌표 정규화는 공용 규칙 단일화</h3>
+     * 이 서비스는 배치·AI 탐지와 <b>같은 모델</b>({@code /infer/yolo/track})을 호출하므로 같은 경계 좌표
+     * (실측 {@code -1.5731…})가 그대로 온다. 구 구현은 음수를 즉시 400 으로 거부해 C-41 이 폐기한 정책이
+     * 남아 있었고, {@code NaN < 0} 이 {@code false} 라 <b>NaN 이 검증을 통과</b>해 응답 DTO 에 실렸으며,
+     * 상한(이미지 경계)은 아예 보지 않았다. 이제 {@link DetectionBoxNormalizer} 로 통일한다.
+     *
+     * <p>폐기 범위 축소(중요): 본 서비스는 <b>최대 50프레임 시퀀스</b>를 한 요청에서 처리하므로, 어느 한
+     * 프레임의 경계 검출 1건으로 400 을 내면 <b>시퀀스 전체</b>가 버려진다. 그래서 퇴화 박스는 해당 검출만
+     * 스킵하고(WARN), 형식 위반(개수 ≠ 4 · null · NaN/Infinity)만 400 으로 올린다 — 외부 응답 불신 계약상
+     * 형식이 깨진 응답은 부분 채택하지 않는다({@code AutolabelOnlineService} 와 동일 규약).
+     *
+     * @param src 이 프레임 엔티티 — clamp 상한(실측 해상도) 해석 대상. 프레임마다 다르므로 루프 안에서 해석한다.
+     */
+    private List<YoloTrackResponseDto.Detected> mapDetections(YoloResponse resp, LsDataSrc src) {
+        if (resp == null || resp.detections() == null || resp.detections().isEmpty()) {
             return List.of();
         }
+        // 프레임별 실측 해상도(FrameBoundsResolver 자체 캐시). 측정 실패면 null → 상한 생략, 하한만 clamp.
+        int[] bounds = frameBoundsResolver.resolve(src).orElse(null);
         List<YoloTrackResponseDto.Detected> out = new ArrayList<>(resp.detections().size());
         for (YoloResponse.Detection d : resp.detections()) {
-            validateBbox(d.points());
+            Optional<List<Double>> points;
+            try {
+                points = DetectionBoxNormalizer.normalizeBbox(d.points(), bounds);
+            } catch (IllegalArgumentException e) {
+                // 형식 위반 — 고정 문구만 노출(좌표 원문·내부 경로 미포함, CWE-209).
+                throw new CustomException(ErrorCode.INVALID_INPUT, e.getMessage());
+            }
+            if (points.isEmpty()) {
+                log.warn("[YoloTrack] detection dropped — box degenerate after clamp srcSn={} label={}",
+                        src.getSrcSn(), LogSanitizer.sanitize(d.label()));
+                continue;
+            }
             out.add(new YoloTrackResponseDto.Detected(
-                    d.label(), d.points(), clampScore(d.score()), d.trackId()));
+                    d.label(), points.get(), clampScore(d.score()), d.trackId()));
         }
         return out;
     }
@@ -149,20 +187,6 @@ public class YoloTrackService {
             return null;
         }
         return Math.max(0.0, Math.min(1.0, raw));
-    }
-
-    /** 외부 응답 좌표 검증 (CWE-20) — 정확히 4개(x1,y1,x2,y2)이고 모두 0 이상. */
-    private void validateBbox(List<Double> points) {
-        if (points == null || points.size() != 4) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "YOLO 응답 좌표는 [x1,y1,x2,y2] 4개여야 합니다.");
-        }
-        for (Double v : points) {
-            if (v == null || v < 0) {
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        "YOLO 응답 좌표는 0 이상이어야 합니다.");
-            }
-        }
     }
 
     /** 정수 백분율 → 비율(/100.0). 조회 실패·null 시 fallback (fail-safe). */

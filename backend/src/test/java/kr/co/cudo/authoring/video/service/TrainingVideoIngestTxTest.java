@@ -4,7 +4,6 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.entity.MngClipEvntLst;
 import kr.co.cudo.authoring.video.entity.MngClipMaster;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
-import kr.co.cudo.authoring.video.repository.MngClipEvntLstRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,16 +45,11 @@ class TrainingVideoIngestTxTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
-    @Mock
-    private MngClipEvntLstRepository clipEvntLstRepository;
-
     private TrainingVideoIngestTx tx;
 
     @BeforeEach
     void setUp() {
-        tx = new TrainingVideoIngestTx(videoRepository, eventPublisher, clipEvntLstRepository);
-        // 이벤트리스트 미매칭이 기본값(개별 테스트에서 매칭 stub 으로 덮어쓴다).
-        lenient().when(clipEvntLstRepository.findFirstByEvntId(anyString())).thenReturn(Optional.empty());
+        tx = new TrainingVideoIngestTx(videoRepository, eventPublisher);
     }
 
     /** 이벤트리스트 1행 생성 — evntTypeCd + 촬영일자(shtDt) 매핑 대상. */
@@ -123,7 +117,7 @@ class TrainingVideoIngestTxTest {
         stubSaveAssigningRawSn(1000L);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then — CLIP_ID 가 멱등키(VMS_CLIP_ID), FILE_PATH 가 rawFilePathNm 으로 적재.
         assertThat(ingested).isTrue();
@@ -149,7 +143,7 @@ class TrainingVideoIngestTxTest {
         stubSaveAssigningRawSn(3000L);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then — ms/1000 = 602s 로 초 단위 적재.
         assertThat(ingested).isTrue();
@@ -168,7 +162,7 @@ class TrainingVideoIngestTxTest {
         stubSaveAssigningRawSn(3200L);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then — round(0.5)=1 → 1초 적재(0/절삭 아님).
         assertThat(ingested).isTrue();
@@ -187,7 +181,7 @@ class TrainingVideoIngestTxTest {
         stubSaveAssigningRawSn(3300L);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then — round(0.49)=0 → null(0 미영속).
         assertThat(ingested).isTrue();
@@ -206,7 +200,7 @@ class TrainingVideoIngestTxTest {
         stubSaveAssigningRawSn(3400L);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isTrue();
@@ -225,7 +219,7 @@ class TrainingVideoIngestTxTest {
         stubSaveAssigningRawSn(3100L);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isTrue();
@@ -240,13 +234,11 @@ class TrainingVideoIngestTxTest {
         // given — MNG_CLIP_EVNT_LST 에 EVNT_ID 매칭 1행(EVNT_TYPE_CD + SHT_DT).
         MngClipMaster clip = clip("EVT-MATCH", "CLIP-UUID-MATCH", "/nas/m.mp4");
         LocalDateTime shtDt = LocalDateTime.of(2026, 5, 20, 14, 30);
-        when(clipEvntLstRepository.findFirstByEvntId("EVT-MATCH"))
-                .thenReturn(Optional.of(evntLst("EVT-MATCH", "FIRE", shtDt)));
         when(videoRepository.findByVmsClipId("CLIP-UUID-MATCH")).thenReturn(Optional.empty());
         stubSaveAssigningRawSn(4000L);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, evntLst("EVT-MATCH", "FIRE", shtDt));
 
         // then — evntTypeCd 는 이벤트리스트값, shtDt 는 SHT_DT(CRT_DT 근사 아님).
         assertThat(ingested).isTrue();
@@ -264,12 +256,11 @@ class TrainingVideoIngestTxTest {
         MngClipMaster clip = clip("EVT-NOMATCH", "CLIP-UUID-NOMATCH", "/nas/nm.mp4");
         LocalDateTime crtDt = LocalDateTime.of(2026, 6, 1, 10, 0);
         ReflectionTestUtils.setField(clip, "crtDt", crtDt);
-        when(clipEvntLstRepository.findFirstByEvntId("EVT-NOMATCH")).thenReturn(Optional.empty());
         when(videoRepository.findByVmsClipId("CLIP-UUID-NOMATCH")).thenReturn(Optional.empty());
         stubSaveAssigningRawSn(5000L);
 
         // when — 미매칭이 적재를 막지 않는다.
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then — evntTypeCd=null, shtDt=CRT_DT 폴백, 적재 계속.
         assertThat(ingested).isTrue();
@@ -291,7 +282,7 @@ class TrainingVideoIngestTxTest {
         stubSaveAssigningRawSn(2000L);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isTrue();
@@ -310,7 +301,7 @@ class TrainingVideoIngestTxTest {
                         "CLIP-UUID-DUP", "CCTV-X", null, null, "ANONY", "/nas/x.mp4", null, null)));
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isFalse();
@@ -328,7 +319,7 @@ class TrainingVideoIngestTxTest {
                 .thenThrow(new DataIntegrityViolationException("duplicate key VMS_CLIP_ID"));
 
         // when — 예외를 던지지 않고 false 로 정상 skip.
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isFalse();
@@ -342,7 +333,7 @@ class TrainingVideoIngestTxTest {
         MngClipMaster clip = clip("EVT-NULL", null, "/nas/n.mp4");
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isFalse();
@@ -360,7 +351,7 @@ class TrainingVideoIngestTxTest {
         ReflectionTestUtils.setField(clip, "vmsCctvId", null);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then — findByVmsClipId 도 호출하지 않고 사전 skip(중복 race 와 구분).
         assertThat(ingested).isFalse();
@@ -377,7 +368,7 @@ class TrainingVideoIngestTxTest {
         ReflectionTestUtils.setField(clip, "vmsCctvId", "   ");
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isFalse();
@@ -392,7 +383,7 @@ class TrainingVideoIngestTxTest {
         MngClipMaster clip = clip("EVT-NOPATH", "CLIP-UUID-NOPATH", "   ");
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isFalse();
@@ -407,7 +398,7 @@ class TrainingVideoIngestTxTest {
         MngClipMaster clip = clip("EVT-NULLPATH", "CLIP-UUID-NULLPATH", null);
 
         // when
-        boolean ingested = tx.ingestOne(clip);
+        boolean ingested = tx.ingestOne(clip, null);
 
         // then
         assertThat(ingested).isFalse();

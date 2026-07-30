@@ -2,12 +2,15 @@ package kr.co.cudo.authoring.batch.status;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -57,6 +60,12 @@ class BatchTransitionServiceRowCreationIT {
     @Autowired
     private BatchTransitionService batchTransitionService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /** 시드한 부모 영상 — V146 FK(LS_RAW_DATA_STATUS → LS_DATA_RAW) 충족용. */
+    private Long seededRawSn;
+
     private final TransactionTemplate txTemplate;
 
     BatchTransitionServiceRowCreationIT(
@@ -68,6 +77,14 @@ class BatchTransitionServiceRowCreationIT {
      * {@link MarkingBatchBridge#onMarkingCompleted} 의 클레임 시퀀스와 동일한 로직.
      * 각 서비스 메서드는 REQUIRES_NEW 로 독립 커밋되므로 여기엔 활성 tx 가 없어도 된다.
      */
+    @AfterEach
+    void cleanSeededVideo() {
+        if (seededRawSn != null) {
+            RawVideoFixture.deleteRaws(jdbcTemplate, seededRawSn); // CASCADE 로 작업 상태 행까지 정리
+            seededRawSn = null;
+        }
+    }
+
     private boolean bridgeClaim(long rawSn) {
         boolean claimed = batchTransitionService.tryClaimBatchQueued(rawSn, SKIP);
         if (!claimed) {
@@ -91,8 +108,10 @@ class BatchTransitionServiceRowCreationIT {
     @Test
     @DisplayName("동시_2스레드_row부재_rawSn_클레임 — 정확히1건만_true_나머지는_예외없이_false_DB엔_BATCH_QUEUED_1건")
     void concurrentRowCreation_exactlyOneClaims_noExceptionPropagates() throws Exception {
-        // given — 작업 상태 row 가 전혀 없는 rawSn (미배정 REVIEWER 직접 마킹 코호트)
-        long rawSn = System.nanoTime();
+        // given — 영상은 실재하지만(V146 FK) 작업 상태 row 는 전혀 없는 rawSn
+        //   (미배정 REVIEWER 직접 마킹 코호트 — 작업 상태 행은 배정 시점 lazy 생성이라 아직 없다)
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSn = rawSn;
         assertThat(countRows(rawSn)).isZero();
 
         // when — 두 스레드가 거의 동시에 브리지 클레임 시퀀스를 실행

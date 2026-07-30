@@ -114,8 +114,8 @@ class DatasetVideoMetaSnapshotServiceTest {
         LsDatasetVideoMeta e = captor.getValue();
         assertThat(e.getActiveYn()).isEqualTo("Y");
         assertThat(e.getRawSn()).isEqualTo(rawSn);
-        assertThat(e.getDayNgtCd()).isEqualTo("NGT");   // 21시 → 야간
-        assertThat(e.getSesnCd()).isEqualTo("SUMMER");  // 7월 → 여름
+        assertThat(e.getDayNgtCd()).isNull();           // 수동 미입력 → 미상(SHT_DT 추정 금지)
+        assertThat(e.getSesnCd()).isNull();             // 수동 미입력 → 미상(SHT_DT 추정 금지)
         assertThat(e.getAiCrtYn()).isEqualTo("N");      // orgnlRawSn null
         assertThat(e.getVdoWdth()).isEqualTo(1920);
         assertThat(e.getVdoHgt()).isEqualTo(1080);
@@ -204,9 +204,9 @@ class DatasetVideoMetaSnapshotServiceTest {
     }
 
     @Test
-    @DisplayName("수동_촬영환경값이_없으면_기존_파생값을_동결한다")
-    void materialize_fallsBackToDerivedEnvironment() {
-        // given — 수동값 미입력(회귀 방어)
+    @DisplayName("수동_촬영환경값이_없으면_추정하지_않고_null로_동결한다")
+    void materialize_freezesNullWhenNoManualEnvironment() {
+        // given — 수동값 미입력. 원천이 없으면 self-fill(촬영일시 규칙 추정) 금지 — 미상(null)을 유지한다.
         long rawSn = 105L;
         DatasetMetaSourceRow row = sourceRow(rawSn);
         when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
@@ -214,13 +214,119 @@ class DatasetVideoMetaSnapshotServiceTest {
         // when
         service.materialize(rawSn);
 
-        // then — 기존 동작(SHT_DT 파생) 유지
+        // then — 날씨와 동일 규칙(미입력=null). 주야간/계절도 SHT_DT 파생값이 실리지 않는다.
         ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
         verify(metaRepository).upsertSnapshot(captor.capture());
         LsDatasetVideoMeta e = captor.getValue();
         assertThat(e.getWthrNm()).isNull();
-        assertThat(e.getDayNgtCd()).isEqualTo("NGT");
-        assertThat(e.getSesnCd()).isEqualTo("SUMMER");
+        assertThat(e.getDayNgtCd()).isNull();
+        assertThat(e.getSesnCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("여름_18시_영상은_야간으로_오분류되지_않고_null로_동결된다")
+    void materialize_doesNotMisclassifySummerEveningAsNight() {
+        // given — E-ISSUE-42 실증 케이스(rawSn=26): SHT_DT=2026-07-25 18:00.
+        //         구 파생 규칙(hour>=18 → NGT)은 한국 7월 일몰(약 19:50) 전인 이 영상을 야간으로 오분류했다.
+        long rawSn = 126L;
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getShtDt()).thenReturn(LocalDateTime.of(2026, 7, 25, 18, 0));
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        service.materialize(rawSn);
+
+        // then — 추정값(NGT/SUMMER)이 아니라 미상(null)이 동결된다.
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        LsDatasetVideoMeta e = captor.getValue();
+        assertThat(e.getDayNgtCd()).isNull();
+        assertThat(e.getSesnCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("주야간만_수동입력되면_계절은_null로_동결된다")
+    void materialize_freezesOnlyManuallyEnteredEnvironmentFields() {
+        // given — 부분 입력. 입력된 항목만 동결되고 미입력 항목이 파생값으로 채워지지 않아야 한다.
+        long rawSn = 110L;
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getDayNgtCd()).thenReturn("DAY");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        service.materialize(rawSn);
+
+        // then
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        LsDatasetVideoMeta e = captor.getValue();
+        assertThat(e.getDayNgtCd()).isEqualTo("DAY");
+        assertThat(e.getSesnCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("공백_촬영환경값은_미입력으로_정규화되어_null로_동결된다")
+    void materialize_normalizesBlankEnvironmentToNull() {
+        // given — DB 직접/레거시 입력으로 공백만 저장된 경우(날씨와 동일 정규화 규칙)
+        long rawSn = 111L;
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getDayNgtCd()).thenReturn("  ");
+        when(row.getSesnCd()).thenReturn("");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        service.materialize(rawSn);
+
+        // then — 공백이 그대로 동결되지도, 파생값으로 대체되지도 않는다.
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        LsDatasetVideoMeta e = captor.getValue();
+        assertThat(e.getDayNgtCd()).isNull();
+        assertThat(e.getSesnCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("촬영환경_미입력이면_해시_입력의_주야간_계절도_null이다")
+    void materialize_hashUsesNullEnvironmentWhenNoManualValue() {
+        // given — 해시 입력도 <동결값> 기준이어야 "동결 내용 = 해시가 대표하는 내용"이 성립한다.
+        long rawSn = 112L;
+        SnapshotHasher hasher = mock(SnapshotHasher.class);
+        when(hasher.hash(any())).thenReturn("e".repeat(64));
+        DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
+                sourceRepository, metaRepository, outboxRepository,
+                evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+
+        // when
+        svc.materialize(rawSn);
+
+        // then — 키는 유지(구 스킴과 동일 인코딩)하되 값이 null 이다.
+        java.util.Map<String, String> fields = captureHashFields(hasher);
+        assertThat(fields).containsEntry("DAY_NGT_CD", null);
+        assertThat(fields).containsEntry("SESN_CD", null);
+    }
+
+    @Test
+    @DisplayName("촬영환경_수동입력이_추가되면_스냅샷_해시가_달라진다")
+    void materialize_manualEnvironmentIsPartOfHash() {
+        // given — 미입력 상태로 1회 동결 후, 작업자가 주야간·계절을 입력하고 재승인
+        long rawSn = 113L;
+        DatasetMetaSourceRow first = sourceRow(rawSn);
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(first);
+        service.materialize(rawSn);
+
+        DatasetMetaSourceRow second = sourceRow(rawSn);
+        when(second.getDayNgtCd()).thenReturn("DAY");
+        when(second.getSesnCd()).thenReturn("SUMMER");
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(second);
+        service.materialize(rawSn);
+
+        // then — 동결 내용이 달라졌으므로 새 버전(다른 해시)
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository, times(2)).upsertSnapshot(captor.capture());
+        assertThat(captor.getAllValues().get(0).getSnpshtHash())
+                .isNotEqualTo(captor.getAllValues().get(1).getSnpshtHash());
     }
 
     @Test

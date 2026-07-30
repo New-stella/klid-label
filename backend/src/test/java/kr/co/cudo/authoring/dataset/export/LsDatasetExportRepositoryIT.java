@@ -2,18 +2,22 @@ package kr.co.cudo.authoring.dataset.export;
 
 import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
 import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,11 +37,31 @@ class LsDatasetExportRepositoryIT {
     @Autowired
     private LsDatasetExportRepository exportRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /** 시드한 부모 영상 — V146 FK(LS_DATASET_EXPORT → LS_DATA_RAW) 충족용. */
+    private final List<Long> seededRawSns = new ArrayList<>();
+
     private final TransactionTemplate txTemplate;
 
     LsDatasetExportRepositoryIT(
             @Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager) {
         this.txTemplate = new TransactionTemplate(controlTxManager);
+    }
+
+    @AfterEach
+    void cleanSeededVideos() {
+        // 부모 삭제 = export 이력 CASCADE 삭제.
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
+        seededRawSns.clear();
+    }
+
+    /** export 이력이 참조할 <b>실재하는</b> 부모 영상을 1건 만든다(V146 FK). */
+    private long newVideo() {
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSns.add(rawSn);
+        return rawSn;
     }
 
     private LsDatasetExport save(long rawSn, int verNo, String path) {
@@ -49,7 +73,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("버전은_기존_export_건수+1로_도출된다")
     void versionDerivedFromCountPlusOne() {
         // given — 고유 rawSn 에 아직 export 없음 → count=0, 다음 버전=1
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         long v1 = txTemplate.execute(s -> exportRepository.countByDataRawSn(rawSn)) + 1;
         assertThat(v1).isEqualTo(1);
         save(rawSn, (int) v1, "/labeling/" + rawSn + "/v1");
@@ -67,7 +91,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("LS_DATASET_EXPORT_UK_중복_버전_삽입시_제약위반")
     void duplicateVersionViolatesUniqueConstraint() {
         // given — 같은 rawSn, 같은 버전 1건 적재
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         save(rawSn, 1, "/labeling/" + rawSn + "/v1");
 
         // when / then — 동일 (DATA_RAW_SN, EXPORT_VER_NO) 재삽입 시 UK 위반
@@ -79,7 +103,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("existsByDataRawSnAndExportVerNo_존재여부_판정")
     void existsByRawSnAndVerNo() {
         // given
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         save(rawSn, 1, "/labeling/" + rawSn + "/v1");
 
         // when / then
@@ -95,7 +119,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("findFirstByDataRawSnOrderByExportVerNoDesc_최신버전_반환")
     void findsLatestVersion() {
         // given — v1, v2, v3 순서 무관 적재
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         save(rawSn, 1, "/labeling/" + rawSn + "/v1");
         save(rawSn, 3, "/labeling/" + rawSn + "/v3");
         save(rawSn, 2, "/labeling/" + rawSn + "/v2");
@@ -113,7 +137,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("findFirstByDataRawSnAndExportSttsCdIn_최신이_FAILED여도_이전_SUCCEEDED를_반환")
     void findsLatestSucceededDespiteLaterFailed() {
         // given — v1 SUCCEEDED, v2 FAILED (최신)
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         txTemplate.executeWithoutResult(s -> {
             LsDatasetExport v1 = exportRepository.save(
                     LsDatasetExport.create(rawSn, 1, "/labeling/" + rawSn + "/v1", "hashH"));
@@ -139,7 +163,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("멱등baseline_IN쿼리는_직전_PARTIAL도_반환한다 — 이미지 지속부재 영상의 무한채번 방지 가드")
     void baselineIncludesPartial() {
         // given — v1 PARTIAL(최신, 원천 이미지 지속 부재로 일부만 산출). SUCCEEDED 는 없음.
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         txTemplate.executeWithoutResult(s -> {
             LsDatasetExport v1 = LsDatasetExport.create(
                     rawSn, 1, "/labeling/" + rawSn + "/v1", "hashP");
@@ -163,7 +187,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("markSucceeded_상태와_프레임수_반영")
     void markSucceededPersistsStatusAndFrameCount() {
         // given — PENDING 으로 적재
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         LsDatasetExport saved = save(rawSn, 1, "/labeling/" + rawSn + "/v1");
         assertThat(saved.getExportSttsCd()).isEqualTo(LsDatasetExport.STATUS_PENDING);
         Long id = saved.getExportSn();
@@ -184,7 +208,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("findStalePendingAnchors_오래된_PENDING만_반환 — 최근 PENDING·다른 상태 제외")
     void findsOnlyStalePending() {
         // given — 같은 rawSn 하위에 (1)오래된 PENDING (2)최근 PENDING (3)오래된 SUCCEEDED 를 적재.
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         LocalDateTime old = LocalDateTime.now().minusHours(1);
         LocalDateTime recent = LocalDateTime.now();
         Long stalePendingId = txTemplate.execute(s -> {
@@ -219,7 +243,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("claimStalePending_은_PENDING_1행만_FAILED로_클레임하고_재호출은_0행 — 멱등")
     void claimStalePendingIsAtomicAndIdempotent() {
         // given — stale PENDING 1건
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         LocalDateTime old = LocalDateTime.now().minusHours(1);
         Long exportSn = txTemplate.execute(s -> {
             LsDatasetExport stalePending = LsDatasetExport.create(rawSn, 1, "/labeling/" + rawSn + "/v1");
@@ -257,7 +281,7 @@ class LsDatasetExportRepositoryIT {
     @DisplayName("markFailed_상태전이_영속")
     void markFailedPersistsStatus() {
         // given
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         Long id = save(rawSn, 1, "/labeling/" + rawSn + "/v1").getExportSn();
 
         // when

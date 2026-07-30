@@ -9,12 +9,15 @@ import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
@@ -52,11 +55,21 @@ class WorkerStatsControllerTest {
     @Autowired private LsRawDataStatusRepository rawDataStatusRepository;
     @Autowired private LsDataLblRepository lblRepository;
     @Autowired private LsDataSrcRepository srcRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
 
     private static final Long WORKER_ID = 100L;
     private static final Long OTHER_WORKER_ID = 101L;
+
+    /** 본 테스트가 쓰는 영상 ID — V146 이후 배정·작업상태·프레임이 LS_DATA_RAW 를 FK 로 참조한다. */
+    private static final long[] RAW_SNS = {9001L, 9002L, 9003L, 9004L, 9005L};
+
+    @AfterEach
+    void removeParentVideos() {
+        // 부모 삭제 = 배정·작업상태·프레임·라벨까지 CASCADE 정리(마지막 테스트 후 잔재 방지).
+        RawVideoFixture.deleteRaws(jdbcTemplate, RAW_SNS);
+    }
 
     @Test
     @DisplayName("WORKER_본인_통계_데이터_없으면_모든_카운트_0_안전_응답")
@@ -213,6 +226,7 @@ class WorkerStatsControllerTest {
     // ---- test data helpers ----
 
     private void seedAssignment(Long userNo, Long rawDataId, String status) {
+        RawVideoFixture.seedRaw(jdbcTemplate, rawDataId); // 부모 영상 선시드(V146 FK, 멱등)
         taskAssignmentRepository.save(LsTaskAssignment.createLabeler(rawDataId, userNo, userNo));
         LsRawDataStatus rds = LsRawDataStatus.initial(rawDataId);
         rds.transitionTo(status);
@@ -220,6 +234,7 @@ class WorkerStatsControllerTest {
     }
 
     private Long seedSrc(Long rawSn, int frameNo) {
+        RawVideoFixture.seedRaw(jdbcTemplate, rawSn); // 부모 영상 선시드(V146 FK, 멱등)
         LsDataSrc src = LsDataSrc.create(rawSn, frameNo, "/tmp/" + rawSn + "_" + frameNo + ".png",
                 LocalDateTime.now());
         return srcRepository.save(src).getSrcSn();

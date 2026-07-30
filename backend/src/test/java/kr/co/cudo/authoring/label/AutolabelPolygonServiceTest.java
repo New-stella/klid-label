@@ -78,6 +78,8 @@ class AutolabelPolygonServiceTest {
     @Mock private WorkLockService workLockService;
     @Mock private FrameImageEncoder frameImageEncoder;
     @Mock private kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
+    /** C-ISSUE-41 — 좌표 clamp 기준. 스텁 없으면 Optional.empty()(실측 불가 → 하한 clamp 만). */
+    @Mock private kr.co.cudo.authoring.label.service.FrameBoundsResolver frameBoundsResolver;
 
     private AutolabelOnlineService service;
 
@@ -92,7 +94,8 @@ class AutolabelPolygonServiceTest {
         Bulkhead bulkhead = Bulkhead.of("aiOnlinePolyTest", BulkheadConfig.custom()
                 .maxConcurrentCalls(25).maxWaitDuration(Duration.ZERO).build());
         service = new AutolabelOnlineService(aiServerClient, accessGuard, systemConfigService,
-                workLockService, frameImageEncoder, labelMasterService, deidentReportGate, bulkhead);
+                workLockService, frameImageEncoder, labelMasterService, deidentReportGate,
+                frameBoundsResolver, bulkhead);
 
         LsDataSrc src = LsDataSrc.create(RAW_SN, 0, "0.jpg", LocalDateTime.now());
         ReflectionTestUtils.setField(src, "srcSn", SRC_SN);
@@ -320,7 +323,8 @@ class AutolabelPolygonServiceTest {
         Bulkhead saturating = Bulkhead.of("aiOnlineSat", BulkheadConfig.custom()
                 .maxConcurrentCalls(1).maxWaitDuration(Duration.ZERO).build());
         AutolabelOnlineService svc = new AutolabelOnlineService(aiServerClient, accessGuard,
-                systemConfigService, workLockService, frameImageEncoder, labelMasterService, deidentReportGate, saturating);
+                systemConfigService, workLockService, frameImageEncoder, labelMasterService, deidentReportGate,
+                frameBoundsResolver, saturating);
 
         stubYolo(detections(2));
         when(aiServerClient.segment(any())).thenAnswer(inv -> {

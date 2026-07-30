@@ -99,7 +99,8 @@ public class DeidentReportService {
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
      *
-     * <p>흐름: 권한검사 → 영상로드 → <b>파생영상 거부</b>({@link #requireReportableVideo}) → 잠금 선점검
+     * <p>흐름: 권한검사 → 영상로드 → <b>파생영상 거부</b>({@link #requireReportableVideo})
+     *        → <b>비식별 미수행 거부</b>({@link #requireDeidentAttempted}) → 잠금 선점검
      *        → 신고 OPEN 저장 → 개인정보 3필드 리셋
      *        → APPROVED 면 TASK_MODIFIED 통지 → 작업락 + DE_IDNTF_YN='F' → REVIEWER 알림.
      *        <b>라벨은 삭제하지 않는다</b>(2026-07-27 정책 반전 — 클래스 javadoc 참조).
@@ -115,14 +116,58 @@ public class DeidentReportService {
      * @return 생성된 신고 RPRT_SN
      */
     public Long report(Long srcSn, String reason, TokenClaims actor) {
-        if (reason == null || reason.isBlank()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "신고 사유는 필수입니다.");
-        }
+        requireReason(reason);
 
         // 1) 권한 검사 + srcSn 의 rawSn 획득 (LabelAccessGuard: WORKER 는 본인 배정 영상만 통과)
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
         Long reporterNo = accessGuard.parseUserNo(actor.sub());
 
+        return doReport(src.getRawSn(), src.getSrcSn(), reason, reporterNo, actor);
+    }
+
+    /**
+     * B-ISSUE-28 — <b>마킹 단계</b> 비식별 누락 신고 (영상 단위 진입점, {@code POST /v1/videos/{rawSn}/deident-report}).
+     *
+     * <p>마킹 화면은 비식별 <b>영상</b>을 재생하며 프레임(srcSn) 컨텍스트가 없다. 구현이 라벨링 단계
+     * ({@code POST /v1/labels/{srcSn}/deident-report})뿐이라, 마킹 중 개인정보 노출을 발견해도 라벨링
+     * 단계까지 진행해야 신고할 수 있었다(CLAUDE.md 상 planned 였던 갭).
+     *
+     * <p><b>부수효과는 srcSn 경로와 완전히 동일</b>하다 — 아래 {@link #doReport} 하나로 수렴하므로 두 진입점이
+     * 갈라질 수 없다(파생영상·비식별 미수행 412 거부·작업락·{@code 'F'} 전이·개인정보 3필드 리셋·스트림 캐시 무효화·
+     * APPROVED 통지). 차이는 <b>인가 축</b>과 <b>통지의 프레임 식별자</b> 둘뿐이다:
+     * <ul>
+     *   <li>인가 — 프레임이 없으므로 {@link LabelAccessGuard#verifyRawAccess}(영상 단위, 동일 규칙:
+     *       REVIEWER 전체 / WORKER 본인 배정만)를 쓴다.</li>
+     *   <li>통지 — {@code TaskModifiedEvent.srcSn=null}(영상 단위 변경). 개인정보 리셋 자체가 영상 전
+     *       프레임 대상이라 특정 프레임을 지목할 근거가 없다.</li>
+     * </ul>
+     *
+     * @return 생성된 신고 RPRT_SN
+     */
+    public Long reportByVideo(Long rawSn, String reason, TokenClaims actor) {
+        requireReason(reason);
+
+        // 1) 인가 — 영상 단위(IDOR, CWE-639). 영상 조회보다 먼저 평가해 미인가자에게 존재 여부를 흘리지 않는다.
+        accessGuard.verifyRawAccess(rawSn, actor);
+        Long reporterNo = accessGuard.parseUserNo(actor.sub());
+
+        return doReport(rawSn, null, reason, reporterNo, actor);
+    }
+
+    /** 신고 사유 필수 검증 — 두 진입점 공통(컨트롤러 @Valid 우회 호출 방어). */
+    private void requireReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "신고 사유는 필수입니다.");
+        }
+    }
+
+    /**
+     * 신고 접수 공통 본체 — 인가만 진입점이 다르고 그 뒤 부수효과는 전부 여기 한 곳이다.
+     *
+     * @param srcSnForNotify TASK_MODIFIED 통지에 실을 프레임 ID. 영상 단위 진입(마킹)은 null.
+     */
+    private Long doReport(Long rawSnHint, Long srcSnForNotify, String reason,
+                          Long reporterNo, TokenClaims actor) {
         // 2) 영상 로드 — 부모 RAW 행을 PESSIMISTIC_WRITE(SELECT … FOR UPDATE)로 잠금 조회한다
         //    (HIGH — PII TOCTOU 차단). 비잠금 findById 로 읽으면 read→markDeidentified('F') flush 사이
         //    창에서 동시 증강 콜백(AugmentResultService.createAugmentedVideo)의 findByRawSnForUpdate 가
@@ -130,12 +175,15 @@ public class DeidentReportService {
         //    (CWE-359). read 시점부터 커밋까지 부모 row 잠금을 유지하면, 증강 tx 는 신고가 'F' 를 커밋할
         //    때까지 같은 row 에서 직렬화되어 대기 후 'F' 를 관측→자식 생성을 게이트에서 보류한다.
         //    본 서비스는 @Transactional("controlTransactionManager")(readOnly 아님) 안이므로 락이 유지된다.
-        LsDataRaw raw = videoRepository.findByRawSnForUpdate(src.getRawSn())
+        LsDataRaw raw = videoRepository.findByRawSnForUpdate(rawSnHint)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
         Long rawSn = raw.getRawSn();
 
         // 2-1) ★ 파생영상(증강·해상도 변환본)은 신고 체계 밖이다 — 접수하지 않는다.
         requireReportableVideo(raw, reason);
+
+        // 2-2) DEV_FIX(L-2) — 비식별을 아직 수행하지 않은 영상은 신고 대상이 아니다.
+        requireDeidentAttempted(raw);
 
         // 3) 이미 잠금 상태면 409 — 중복 신고 차단
         if (workLockService.isRawLocked(rawSn)) {
@@ -181,7 +229,7 @@ public class DeidentReportService {
         //      TASK_MODIFIED(META_UPDATED) 발행. 라벨은 보존되므로 구 LABEL_DELETED 는 더 이상 맞지 않다.
         if (isReviewApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, src.getSrcSn(), ChangeType.META_UPDATED, reporterNo));
+                    rawSn, srcSnForNotify, ChangeType.META_UPDATED, reporterNo));
         }
 
         // 6) 영상 잠금 + 비식별 상태 'F' 마킹. 동시 신고 unique 위반 → 409.
@@ -255,6 +303,37 @@ public class DeidentReportService {
         throw new CustomException(ErrorCode.PRECONDITION_FAILED,
                 "이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상(증강·해상도 변환본)이라 "
                         + "이 화면에서는 비식별 재처리를 요청할 수 없습니다.");
+    }
+
+    /**
+     * DEV_FIX(L-2) — <b>비식별 산출물이 있는 영상에서만</b> 신고를 접수한다(프리컨디션).
+     *
+     * <h3>왜 필요한가</h3>
+     * {@code doReport} 는 무조건 {@code markDeidentified("F")} 로 전이한다. 라벨링 단계(srcSn) 진입점은
+     * 프레임이 존재해야 도달하므로 사실상 비식별·프레임추출 완료가 전제였지만, 신설된 <b>마킹 단계
+     * (rawSn) 진입점</b>은 {@code PENDING}(비식별 미실행) 영상에도 직접 도달한다. 그 상태에서 접수하면
+     * <ul>
+     *   <li>{@code 'N' → 'F'} 로 바뀌어 {@link LsDataRaw#hasDeidentArtifact()} 가 true 가 된다 —
+     *       "산출물이 있다"는 뜻인데 실제로는 없다(증강·해상도 파생 부모 게이트가 통과된다.
+     *       뒤의 산출물 실재 fail-closed 검사가 막긴 하지만, 판정 원천이 거짓이 되는 것 자체가 결함이다).</li>
+     *   <li>파이프라인 진행 중 영상에 작업락이 고착된다 — 해소는 "외부 솔루션이 <b>재</b>비식별했다"는
+     *       전제의 {@code resolve} 뿐인데, 애초에 비식별을 한 적이 없어 그 전제가 성립하지 않는다.</li>
+     * </ul>
+     *
+     * <h3>판정·응답</h3>
+     * 판정은 {@link LsDataRaw#hasDeidentArtifact()} <b>단일 원천</b>({@code 'Y'} | {@code 'F'})을 재사용한다
+     * (여기서 {@code "F"} 비교를 재구현하지 않는다). 따라서 <b>이미 신고된 {@code 'F'} 는 통과</b>하며,
+     * 그 중복 신고는 기존 409(이미 재비식별 진행 중) 경로가 그대로 처리한다 — 여기서 412 로 바꾸면 기존
+     * 계약이 깨진다. {@code 'N'}·null 만 412 {@link ErrorCode#PRECONDITION_FAILED}(신고 게이트 계열 표준 코드).
+     */
+    private void requireDeidentAttempted(LsDataRaw raw) {
+        if (raw.hasDeidentArtifact()) {
+            return;
+        }
+        log.warn("[DeidentReport] rejected — video has no deidentification artifact rawSn={} deIdntfYn={}",
+                raw.getRawSn(), raw.getDeIdntfYn());
+        throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                "아직 비식별 처리가 완료되지 않은 영상입니다. 비식별 완료 후 신고할 수 있습니다.");
     }
 
     /**

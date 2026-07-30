@@ -1,10 +1,12 @@
 package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,9 @@ class LsDeidentProcLogRepositoryLatestInTest {
     @Autowired
     private LsDeidentProcLogRepository repository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private LsDeidentProcLog requested(long rawSn) {
         return LsDeidentProcLog.request(rawSn, "req-" + rawSn + "-" + System.nanoTime(),
                 "/var/raw/c" + rawSn + ".mp4", "tester");
@@ -39,6 +44,8 @@ class LsDeidentProcLogRepositoryLatestInTest {
         // given — rawSn=971001 에 procLog 2건(재비식별): 먼저 REQUESTED, 이후 SUCCEEDED 행 추가.
         long rawA = 971_001L;
         long rawB = 971_002L;
+        // 부모 영상 선시드 — V146 FK(LS_DEIDENT_PROC_LOG → LS_DATA_RAW) 충족.
+        RawVideoFixture.seedRaws(jdbcTemplate, rawA, rawB);
         repository.saveAndFlush(requested(rawA)); // 1차 (오래된 행)
 
         LsDeidentProcLog laterA = requested(rawA); // 2차 (최신 행)

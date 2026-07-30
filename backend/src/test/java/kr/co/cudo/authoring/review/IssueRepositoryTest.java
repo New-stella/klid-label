@@ -4,10 +4,14 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -23,6 +27,24 @@ class IssueRepositoryTest {
 
     @Autowired private IssueRepository issueRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    /**
+     * 본 테스트가 쓰는 영상 ID — V146(DB-ISSUE-01) 이후 LS_TASK_ASSIGNMENT·LS_DATA_ISSUE 가
+     * LS_DATA_RAW 를 FK 로 참조하므로 부모 영상을 먼저 시드해야 한다.
+     */
+    private static final long[] RAW_SNS = {5001L, 5002L, 5003L, 6001L, 7777L};
+
+    @BeforeEach
+    void seedParentVideos() {
+        RawVideoFixture.seedRaws(jdbcTemplate, RAW_SNS);
+    }
+
+    @AfterEach
+    void removeParentVideos() {
+        // 부모 삭제 = 배정·이슈 행까지 CASCADE 삭제 → 다음 테스트에 집계가 새지 않는다.
+        RawVideoFixture.deleteRaws(jdbcTemplate, RAW_SNS);
+    }
 
     @Test
     @DisplayName("IssueRepository_작업자별_반려_건수_집계_쿼리_정상_QUR_03")

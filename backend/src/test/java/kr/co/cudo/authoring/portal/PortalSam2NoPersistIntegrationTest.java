@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import kr.co.cudo.authoring.portal.service.PortalSam2Service;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -51,6 +53,7 @@ class PortalSam2NoPersistIntegrationTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsRawDataStatusRepository rawDataStatusRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private AiServerClient aiServerClient;
 
@@ -82,6 +85,8 @@ class PortalSam2NoPersistIntegrationTest {
         labelRepository.deleteAll();
         srcRepository.deleteAll();
         rawDataStatusRepository.deleteById(rawSn);
+        // 프레임·작업상태가 참조할 <b>실재하는</b> 부모 영상(V146 FK).
+        RawVideoFixture.seedRaw(jdbcTemplate, rawSn);
 
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
         Files.write(tmpRawDir.resolve("1.jpg"), new byte[]{0x03, 0x04});
@@ -104,6 +109,7 @@ class PortalSam2NoPersistIntegrationTest {
         labelRepository.deleteAll();
         srcRepository.deleteAll();
         rawDataStatusRepository.deleteById(rawSn);
+        RawVideoFixture.deleteRaws(jdbcTemplate, rawSn); // 부모 삭제 = 잔여 자식 CASCADE 정리
     }
 
     @Test

@@ -4,7 +4,6 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.entity.MngClipEvntLst;
 import kr.co.cudo.authoring.video.entity.MngClipMaster;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
-import kr.co.cudo.authoring.video.repository.MngClipEvntLstRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,8 +37,12 @@ import org.springframework.util.StringUtils;
  * </ul>
  *
  * <p>이벤트 메타 도출: 관제 마스터에 EVNT_TYPE_CD/촬영 일자 직접 컬럼이 없어 {@code EVNT_ID} 로
- * {@link MngClipEvntLstRepository} 를 조인 조회한다(실측 EVNT_ID 당 1행). 미매칭(조회 empty)이어도
- * evntTypeCd=null + shtDt=CRT_DT 폴백으로 적재를 진행한다 — 이벤트리스트 미매칭이 적재를 막지 않는다.
+ * 이벤트리스트를 조인 조회한다(실측 EVNT_ID 당 1행). 미매칭(null)이어도 evntTypeCd=null +
+ * shtDt=CRT_DT 폴백으로 적재를 진행한다 — 이벤트리스트 미매칭이 적재를 막지 않는다.
+ *
+ * <p><b>B-ISSUE-04</b>: 이벤트리스트 조회는 클립당 개별 조회에서 <b>스캔 단계의 IN 조회 1회</b>
+ * ({@code TrainingVideoIngestService.loadEventListsFor})로 옮겼다. 본 빈은 조회 결과를 파라미터로
+ * 받기만 한다 — 매 tick N 회의 point lookup 이 관제 공유 DB 에 발생하던 것을 제거한다.
  *
  * <p>멱등성/안전 처리:
  * <ol>
@@ -68,15 +71,16 @@ public class TrainingVideoIngestTx {
 
     private final VideoRepository videoRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final MngClipEvntLstRepository clipEvntLstRepository;
 
     /**
      * 단일 클립을 독립(REQUIRES_NEW) 트랜잭션으로 적재한다.
      *
+     * @param clip    적재 대상 관제 클립
+     * @param evntLst 스캔 단계가 IN 조회 1회로 확보한 이벤트리스트 행 (미매칭이면 {@code null} — 폴백 적재)
      * @return 신규 적재 성공 시 true, 중복/스킵 시 false
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, transactionManager = "controlTransactionManager")
-    public boolean ingestOne(MngClipMaster clip) {
+    public boolean ingestOne(MngClipMaster clip, MngClipEvntLst evntLst) {
         String vmsClipId = clip.getClipId();
         // 식별자 가드 — CLIP_ID 가 null/blank 면 findByVmsClipId(null) 오작동을 피해 skip.
         if (!StringUtils.hasText(vmsClipId)) {
@@ -101,8 +105,7 @@ public class TrainingVideoIngestTx {
             log.debug("[TrainingIngest] clip already ingested — skip clipId={}", vmsClipId);
             return false;
         }
-        // 이벤트 메타 도출: EVNT_ID 로 이벤트리스트 1회 조회(미매칭이면 폴백). 클립당 1회만 조회한다.
-        MngClipEvntLst evntLst = clipEvntLstRepository.findFirstByEvntId(clip.getEvntId()).orElse(null);
+        // 이벤트 메타 도출: 스캔 단계 IN 조회 1회의 결과를 그대로 사용한다(미매칭이면 폴백).
         String evntTypeCd = (evntLst != null) ? evntLst.getEvntTypeCd() : null;
         // shtDt: 이벤트리스트 SHT_DT(실제 촬영 일자) 우선, 미매칭/null 이면 CRT_DT 근사 폴백.
         java.time.LocalDateTime shtDt = (evntLst != null && evntLst.getShtDt() != null)

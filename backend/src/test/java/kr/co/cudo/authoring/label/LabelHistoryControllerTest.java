@@ -14,20 +14,23 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.service.TrackEditService;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -64,7 +67,8 @@ class LabelHistoryControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
-    @Autowired private VideoRepository rawRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired @Qualifier("controlTransactionManager") private PlatformTransactionManager controlTxManager;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
@@ -87,12 +91,9 @@ class LabelHistoryControllerTest {
         workerAssignedToken    = JwtTestSupport.token(secret, "100", "WORKER",   "INTERNAL", issuer, 60);
         workerNotAssignedToken = JwtTestSupport.token(secret, "101", "WORKER",   "INTERNAL", issuer, 60);
 
-        LsDataRaw raw = LsDataRaw.createFromIngest(
-                "CLIP-HST-001", "CCTV-001", "EVT-A", "11680",
-                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip.mp4",
-                LocalDateTime.now(), 30);
-        raw = rawRepository.save(raw);
-        rawSn = raw.getRawSn();
+        // ★ 부모 영상만 <b>커밋</b> 시드 — 라벨 저장/트랙 삭제가 작업락을 REQUIRES_NEW 로 쓰므로
+        //   (LS_AUTH_WORK_LOCK) ambient 미커밋 영상은 그 트랜잭션에서 보이지 않아 V146 FK 검증에 걸린다.
+        rawSn = RawVideoFixture.newRawCommitted(controlTxManager, jdbcTemplate);
 
         LsDataSrc src = LsDataSrc.create(rawSn, 0, "/var/raw/frame_0.jpg", LocalDateTime.now());
         src = srcRepository.save(src);
@@ -100,6 +101,13 @@ class LabelHistoryControllerTest {
 
         // 작업자 100 만 배정 (작업자 101 은 미배정 — IDOR 차단 검증용)
         authrtRepository.save(LsTaskAssignment.createLabeler(rawSn, 100L, 1L));
+    }
+
+    @AfterEach
+    void tearDown() {
+        // ambient(롤백) 트랜잭션을 먼저 닫아야 미커밋 자식의 FK 키공유 잠금이 풀려 부모 삭제가 가능하다.
+        RawVideoFixture.endAmbientTransaction();
+        RawVideoFixture.deleteRaws(jdbcTemplate, rawSn);
     }
 
     private LabelBulkUpsertRequest newBboxRequest(Long id, String label) {

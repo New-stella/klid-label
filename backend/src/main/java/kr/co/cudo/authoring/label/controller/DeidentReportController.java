@@ -32,9 +32,13 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>경로:
  * <ul>
- *   <li>{@code POST /v1/labels/{srcSn}/deident-report} — 신고 등록.</li>
+ *   <li>{@code POST /v1/labels/{srcSn}/deident-report} — 신고 등록(라벨링 단계, 프레임 기준).</li>
+ *   <li>{@code POST /v1/videos/{rawSn}/deident-report} — 신고 등록(마킹 단계, 영상 기준 — B-ISSUE-28).</li>
  *   <li>{@code POST /v1/deident-reports/{rprtSn}/resolve} — 외부 솔루션 수동 비식별화 완료 후 신고 해소.</li>
  * </ul>
+ * <p>영상 단위 경로는 URL 이 {@code /v1/videos/**} 지만 <b>비식별 신고 워크플로</b>의 일부라 본 컨트롤러에
+ * 둔다 — 두 진입점의 응답 규약·권한·부수효과가 한 파일에서 함께 검토되게 하기 위함이다(서비스도
+ * {@code DeidentReportService} 한 곳으로 수렴한다).
  * <p>권한: REVIEWER, WORKER (WORKER 는 본인 배정 영상만 — LabelAccessGuard).
  */
 @Tag(name = "DeidentReport",
@@ -95,6 +99,33 @@ public class DeidentReportController {
             @Valid @RequestBody DeidentReportRequest request,
             @AuthenticationPrincipal TokenClaims actor) {
         Long rprtSn = deidentReportService.report(srcSn, request.reason(), actor);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(rprtSn));
+    }
+
+    @Operation(
+            summary = "비식별 누락 신고 (마킹 단계 · 영상 단위)",
+            description = "영상 rawSn 에 대해 비식별 누락 신고를 등록한다. 마킹 화면은 비식별 '영상'을 재생해 " +
+                    "프레임(srcSn) 컨텍스트가 없으므로 영상 단위 진입점을 제공한다. " +
+                    "부수효과(작업락 + DE_IDNTF_YN='F' + 개인정보 3필드 리셋 + 검수완료 영상 TASK_MODIFIED 통지)는 " +
+                    "라벨링 단계 신고와 동일하다. WORKER 는 본인 배정 영상만 가능 (CWE-639 방어). " +
+                    "파생영상(증강·해상도 변환본)은 재비식별 수단이 없어 접수하지 않는다 → 412."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신고 등록 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패 (reason 누락/1000자 초과)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (WORKER 인 경우)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 재비식별 진행 중"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "파생영상 — 신고 접수 대상 아님")
+    })
+    @PostMapping("/v1/videos/{rawSn}/deident-report")
+    @PreAuthorize("hasAnyRole('WORKER', 'REVIEWER')")
+    public ResponseEntity<ApiResponse<Long>> reportByVideo(
+            @Parameter(description = "영상 PK (RAW_SN)", required = true, example = "1") @PathVariable Long rawSn,
+            @Valid @RequestBody DeidentReportRequest request,
+            @AuthenticationPrincipal TokenClaims actor) {
+        Long rprtSn = deidentReportService.reportByVideo(rawSn, request.reason(), actor);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(rprtSn));
     }
 

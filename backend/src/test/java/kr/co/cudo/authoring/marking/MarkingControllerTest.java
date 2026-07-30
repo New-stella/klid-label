@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.dto.MarkingRequest;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -47,7 +48,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>반면 마킹 생성({@code create}) 자체는 여전히 클래스 레벨 {@code @Transactional} 의 ambient 트랜잭션에
  * join 하여 테스트 종료 시 롤백된다 — 이렇게 해야 {@code MarkingBatchBridge} 의 {@code AFTER_COMMIT}
  * 리스너(→ 비동기 배치)가 발화하지 않아 테스트 부작용을 차단한다. 커밋한 시드(영상·배정)만 {@link #tearDown}
- * 에서 별도 커밋 트랜잭션으로 정리한다(LS_MARKING↔LS_DATA_RAW FK 없음 — 롤백 대기 데드락 없음).
+ * 에서 별도 커밋 트랜잭션으로 정리한다.
+ *
+ * <p><b>V146(DB-ISSUE-01) 이후 정리 순서 주의</b>: {@code LS_MARKING → LS_DATA_RAW} FK 가 생겼으므로
+ * ambient 트랜잭션이 INSERT 한 <b>미커밋 마킹</b>이 부모 영상 행에 {@code FOR KEY SHARE} 를 걸고 있다.
+ * 그 상태에서 별도 커밋 트랜잭션이 부모를 삭제하면 잠금 대기(lock timeout)로 실패한다. 따라서
+ * {@link #tearDown()} 은 <b>ambient 트랜잭션을 먼저 롤백해 닫은 뒤</b> 정리한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -60,6 +66,7 @@ class MarkingControllerTest {
     @Autowired private VideoRepository videoRepository;
     @Autowired private LsMarkingRepository markingRepository;
     @Autowired private LsTaskAssignmentRepository assignmentRepository;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -108,19 +115,14 @@ class MarkingControllerTest {
 
     @AfterEach
     void tearDown() {
-        // 커밋한 시드(영상·배정)를 별도 커밋 트랜잭션으로 정리한다. create() 가 만든 마킹은 ambient
-        // 롤백으로 사라지므로(미커밋) 커밋 정리 tx 에서는 보이지 않는다. FK(LS_MARKING→LS_DATA_RAW)가
-        // 없어 미커밋 자식으로 인한 부모 삭제 대기(데드락)도 없다.
         if (rawSn == null) {
             return;
         }
-        committedTx.executeWithoutResult(s -> {
-            markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(rawSn).forEach(markingRepository::delete);
-            assignmentRepository
-                    .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(LsTaskAssignment.TASK_LABELER, List.of(rawSn))
-                    .forEach(assignmentRepository::delete);
-            videoRepository.deleteById(rawSn);
-        });
+        // ★ ambient(롤백) 트랜잭션을 먼저 닫는다 — 미커밋 마킹이 부모 영상 행에 걸어 둔 FK 키공유
+        //   잠금을 풀어야 아래 커밋 트랜잭션의 부모 삭제가 대기 없이 성공한다(V146).
+        RawVideoFixture.endAmbientTransaction();
+        // 커밋한 시드(영상·배정)를 정리한다. 부모 삭제 = ON DELETE CASCADE 로 자식(배정 등) 동반 삭제.
+        RawVideoFixture.deleteRaws(jdbcTemplate, rawSn);
     }
 
     @Test

@@ -145,4 +145,56 @@ public interface LsDatasetVideoMetaRepository extends JpaRepository<LsDatasetVid
              LIMIT :batchSize
             """, nativeQuery = true)
     List<BackfillTargetRow> findEventAnnoHealTargets(@Param("batchSize") int batchSize);
+
+    /**
+     * 촬영환경 <b>레거시 파생 동결값 정정 대상</b> 판별식(M-1, Phase 10B) — 공통 WHERE 절.
+     *
+     * <p>대상 = 라이브 {@code LS_DATA_RAW} 의 수동값이 <b>없는데</b> 활성 스냅샷에는 값이 <b>있는</b> 행.
+     * E-ISSUE-42 로 동결 경로의 파생 폴백을 제거한 뒤에는 수동 입력이 유일한 원천이므로,
+     * "수동 원천 없음 + 동결값 있음" 조합이 성립할 경로는 <b>폐기된 파생 폴백뿐</b>이다 —
+     * 즉 그 값이 파생값(추정)임이 결정적으로 증명된다.
+     *
+     * <p>범위 제한(넓히면 사용자 입력을 지운다):
+     * <ul>
+     *   <li><b>날씨({@code WTHR_NM})는 대상이 아니다</b> — 애초에 파생 원천이 없어 non-null 이면 수동값이다.</li>
+     *   <li><b>반대 방향(raw non-null + 스냅샷 null)도 대상이 아니다</b> — 승인 이후 수동 입력이 추가된
+     *       정상 케이스이며 동결은 승인 시점 스냅샷이라 그대로 둔다.</li>
+     *   <li>{@code APPROVED} 만 대상 — 관제/데이터마트에 노출되는 상태이며, 미승인 영상은 다음 승인의
+     *       {@code materialize} 가 라이브 수동값(=null)으로 자연히 정정한다.</li>
+     * </ul>
+     *
+     * <p>공백은 미입력으로 정규화({@code NULLIF(TRIM(..),'')})해 {@code materialize} 의 blank→null 규칙과
+     * 판정을 일치시킨다. 정정 후에는 스냅샷 값이 null 이 되어 이 판별식에서 빠지므로 <b>멱등</b>하다.
+     */
+    String ENV_CORRECTION_PREDICATE = """
+              FROM LS_RAW_DATA_STATUS s
+              JOIN LS_DATA_RAW r ON r.RAW_SN = s.RAW_DATA_ID
+              JOIN LS_DATASET_VIDEO_META m ON m.RAW_SN = s.RAW_DATA_ID AND m.ACTIVE_YN = 'Y'
+             WHERE s.DATA_STTS_CD = 'APPROVED'
+               AND ((NULLIF(TRIM(r.DAY_NGT_CD), '') IS NULL AND NULLIF(TRIM(m.DAY_NGT_CD), '') IS NOT NULL)
+                 OR (NULLIF(TRIM(r.SESN_CD), '')    IS NULL AND NULLIF(TRIM(m.SESN_CD), '')    IS NOT NULL))
+            """;
+
+    /**
+     * 정정 대상 <b>총 건수</b>(dry-run 성격) — 실제 정정 전에 규모를 로그로 알려 운영이 폭주 여부를
+     * 판단할 수 있게 한다. 파라미터가 없어 SQL Injection 표면이 없다(CWE-89).
+     *
+     * @see #ENV_CORRECTION_PREDICATE
+     */
+    @Query(value = "SELECT COUNT(*) " + ENV_CORRECTION_PREDICATE, nativeQuery = true)
+    long countShootingEnvCorrectionTargets();
+
+    /**
+     * 정정 대상 1페이지 조회({@code LIMIT} 배치 — 무제한 조회 금지).
+     *
+     * <p>{@code approvedAt} 은 여기서 채우지 않고({@code NULL}) 정정 트랜잭션 안에서 활성 스냅샷의
+     * {@code RVW_CMPL_DT} 를 advisory 락 아래 다시 읽는다 — 조회~정정 사이에 재동결이 끼어들어도
+     * 승계할 승인 시각이 stale 해지지 않게 하기 위함이다(선례: {@code frozenReviewCompletedAt}).
+     *
+     * @see #ENV_CORRECTION_PREDICATE
+     */
+    @Query(value = "SELECT s.RAW_DATA_ID AS \"rawSn\", NULL AS \"approvedAt\" "
+            + ENV_CORRECTION_PREDICATE
+            + " ORDER BY s.RAW_DATA_ID LIMIT :batchSize", nativeQuery = true)
+    List<BackfillTargetRow> findShootingEnvCorrectionTargets(@Param("batchSize") int batchSize);
 }

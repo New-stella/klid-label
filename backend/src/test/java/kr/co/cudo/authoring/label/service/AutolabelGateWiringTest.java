@@ -93,7 +93,8 @@ class AutolabelGateWiringTest {
         Bulkhead bulkhead = Bulkhead.of("aiOnlineGateWiring", BulkheadConfig.custom()
                 .maxConcurrentCalls(25).maxWaitDuration(Duration.ZERO).build());
         service = new AutolabelOnlineService(aiServerClient, accessGuard, systemConfigService,
-                workLockService, frameImageEncoder, labelMasterService, deidentReportGate, bulkhead);
+                workLockService, frameImageEncoder, labelMasterService, deidentReportGate,
+                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class), bulkhead);
         ReflectionTestUtils.setField(service, "polygonTotalBudget", Duration.ofSeconds(30));
 
         LsDataSrc src = LsDataSrc.create(RAW_SN, 0, "0.jpg", LocalDateTime.now());

@@ -43,9 +43,14 @@ public class VideoMetaMapper {
         String prvcTypeCd = firstNonNull(meta.getPrvcTypeCd(), raw == null ? null : raw.getPrvcTypeCd());
         String prvcYn = firstNonNull(meta.getPrvcYn(), raw == null ? null : raw.getPrvcYn());
 
-        // 촬영환경(날씨·시간대·계절)만 우선순위가 <b>반대</b>다 — raw(수동 저장값) → meta(동결 파생값).
+        // 촬영환경(날씨·시간대·계절)만 우선순위가 <b>반대</b>다 — raw(수동 저장값) → meta(동결값).
         // 위 필드들은 승인 시점 동결값이 정본이라 meta 우선이지만, 촬영환경은 작업자가 승인 후에도
         // 정정할 수 있는 수동 입력값이므로 최신 수동값이 export 에 반영돼야 한다(수동값 없으면 기존 동결값 유지).
+        // meta 폴백은 재유입 경로가 아니다(M-1 검토 결론) — 동결 경로가 파생을 폐기해(E-ISSUE-42)
+        //   "raw=null 인데 meta 가 non-null" 인 조합을 더는 만들어내지 못하고, 폐기 이전에 생성된 레거시
+        //   행은 correctDerivedShootingEnvironment 백필이 null 로 정정한다. 순서를 meta 우선으로 뒤집어도
+        //   그 조합에서는 결과가 같아(meta 승) 오염을 막지 못하므로, 재동결이 fail-safe skip 된 영상에서
+        //   최신 수동값을 살리는 현행 raw 우선을 유지한다.
         // 영상 단위 값이라 ExportKind(ORIGINAL/DEIDENTIFIED)로 분기하지 않는다 — 2벌 산출이 동일해야 한다.
         // blank→null 정규화: 서비스 경유 입력은 정규화되나 DB 직접/레거시 행에 빈 문자열이 있으면
         // export 는 ""(빈값)로, 스냅샷은 null 로 표현이 갈린다(F). 여기서도 blank 를 null 로 맞춰 일치시킨다.

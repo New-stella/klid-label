@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -39,6 +41,10 @@ class AugmentRequestControllerTest {
     @Autowired private LsRawDataStatusRepository statusRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    /** 시드한 부모 영상 — V146 FK(작업상태·프레임·증강 → LS_DATA_RAW) 충족용. */
+    private final java.util.Set<Long> seededRawSns = new java.util.LinkedHashSet<>();
 
     /** 위탁 리스너가 {@code @Async} 로 바뀌었으므로 테스트 간 비동기 잔업을 명시적으로 배수한다. */
     @Autowired @Qualifier("batchAsyncExecutor") private Executor batchAsyncExecutor;
@@ -71,9 +77,20 @@ class AugmentRequestControllerTest {
                     .until(() -> pool.getActiveCount() == 0
                             && pool.getThreadPoolExecutor().getQueue().isEmpty());
         }
+        // 시드한 부모 영상 정리 — CASCADE 로 작업상태·프레임·증강 자식까지 함께 사라진다.
+        // (비동기 위탁 배수 후에 실행해야 위탁 트랜잭션의 FK 키공유 잠금과 겹치지 않는다)
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
+        seededRawSns.clear();
+    }
+
+    /** 부모 영상 선시드(V146 FK, 멱등) — 종료 시 CASCADE 로 정리하도록 기록한다. */
+    private void seedParentVideo(Long rawDataId) {
+        RawVideoFixture.seedRaw(jdbcTemplate, rawDataId);
+        seededRawSns.add(rawDataId);
     }
 
     private void seedStatus(Long rawDataId, String dataSttsCd) {
+        seedParentVideo(rawDataId);
         LsRawDataStatus status = LsRawDataStatus.initial(rawDataId);
         status.transitionTo(dataSttsCd);
         statusRepository.saveAndFlush(status);
@@ -84,6 +101,7 @@ class AugmentRequestControllerTest {
      * 200 을 기대하는 케이스는 반드시 프레임을 함께 시드해야 <b>실제로 접수되는</b> 요청이 된다.
      */
     private void seedFrame(Long rawDataId) {
+        seedParentVideo(rawDataId);
         srcRepository.saveAndFlush(LsDataSrc.create(rawDataId, 0, null,
                 "/storage/raw/" + rawDataId + "_0.jpg",
                 "/storage/deidentified/" + rawDataId + "_0.jpg", null));

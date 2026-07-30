@@ -44,6 +44,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("local")
 class LsDatasetVideoMetaRepositoryIT {
+    // ── DB-ISSUE-01 / V146: 자식 행이 참조할 부모 영상(LS_DATA_RAW) 시드 ──
+    //   FK 신설 전에는 임의 정수를 rawSn 으로 써도 통과했지만 그렇게 만든 데이터는 실제로는 고아였다.
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate parentVideoJdbc;
+
+    private final java.util.List<Long> seededParentRawSns = new java.util.ArrayList<>();
+
+    /** 실재하는 부모 영상 1건을 만들고 rawSn 을 돌려준다(V146 FK). */
+    private long newVideo() {
+        long rawSn = kr.co.cudo.authoring.support.RawVideoFixture.newRaw(parentVideoJdbc);
+        seededParentRawSns.add(rawSn);
+        return rawSn;
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void cleanSeededParentVideos() {
+        // 부모 삭제 = 자식(동결 메타·아웃박스·export 등) CASCADE 삭제.
+        seededParentRawSns.forEach(
+                sn -> kr.co.cudo.authoring.support.RawVideoFixture.deleteRaws(parentVideoJdbc, sn));
+        seededParentRawSns.clear();
+    }
+
 
     @Autowired
     private LsDatasetVideoMetaRepository metaRepository;
@@ -111,7 +133,7 @@ class LsDatasetVideoMetaRepositoryIT {
     @DisplayName("통합메타_upsert시_ACTIVE_Y_1행_적재")
     void upsert_persistsSingleActiveRow() {
         // given
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
 
         // when
         int affected = upsert(snapshot(rawSn, "hash-a"));
@@ -132,7 +154,7 @@ class LsDatasetVideoMetaRepositoryIT {
     @DisplayName("동일_RAW_SN_HASH_재upsert시_중복_차단_멱등")
     void duplicateUpsert_isIdempotent() {
         // given — 최초 삽입
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         assertThat(upsert(snapshot(rawSn, "hash-dup"))).isEqualTo(1);
 
         // when — 동일 (RAW_SN, SNPSHT_HASH) 재upsert
@@ -147,7 +169,7 @@ class LsDatasetVideoMetaRepositoryIT {
     @DisplayName("동시_2요청_같은해시_upsert시_1행만_적재")
     void concurrentUpsertSameHash_insertsExactlyOnce() throws Exception {
         // given
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
         AtomicInteger insertedCount = new AtomicInteger();
@@ -176,10 +198,11 @@ class LsDatasetVideoMetaRepositoryIT {
     @DisplayName("deactivate_then_insert시_기존_ACTIVE_N_전환_활성1건_유지")
     void deactivateThenInsert_flipsOldActiveToN() {
         // given — 동일 RAW_SN 에 이전 스냅샷(hash-old) 적재
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         assertThat(upsert(snapshot(rawSn, "hash-old"))).isEqualTo(1);
-        // 다른 RAW_SN 의 활성 스냅샷(무영향 검증용)
-        long otherRaw = rawSn + 1;
+        // 다른 RAW_SN 의 활성 스냅샷(무영향 검증용) — 두 번째 영상도 실재해야 한다(V146 FK:
+        // 구 픽스처 rawSn+1 은 존재하지 않는 영상을 참조하는 고아였다).
+        long otherRaw = newVideo();
         assertThat(upsert(snapshot(otherRaw, "hash-other"))).isEqualTo(1);
 
         // when — Phase 2 순서: 기존 활성 비활성화 → 신규 스냅샷(hash-new) 삽입
@@ -206,7 +229,7 @@ class LsDatasetVideoMetaRepositoryIT {
     @DisplayName("동시_다른해시_승인시_활성_1건_불변식_부분유니크인덱스_원천차단")
     void partialUniqueIndex_blocksTwoActiveRows() {
         // given — 활성 스냅샷 1건(hash-a)
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         assertThat(upsert(snapshot(rawSn, "hash-a"))).isEqualTo(1);
 
         // when / then — 기존 활성을 내리지 않고 다른 해시 활성 행을 삽입하면(잘못된 순서)
@@ -226,7 +249,7 @@ class LsDatasetVideoMetaRepositoryIT {
     @DisplayName("deactivate_then_insert_정상순서시_활성_1건_전환_성공")
     void deactivateThenInsert_properOrder_keepsSingleActive() {
         // given — 활성 hash-a
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         assertThat(upsert(snapshot(rawSn, "hash-a"))).isEqualTo(1);
 
         // when — 올바른 순서(deactivate → insert)로 다른 해시(hash-b) 활성 전환
@@ -246,10 +269,12 @@ class LsDatasetVideoMetaRepositoryIT {
     @DisplayName("outbox_insert후_PENDING_폴링_조회")
     void outbox_pollsPendingByRegDt() {
         // given — PENDING outbox 2건 insert
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
+        // 2건은 서로 다른 영상 것이어야 하므로 두 번째 영상도 실재하게 시드한다(V146 FK).
+        long otherRawSn = newVideo();
         txTemplate.executeWithoutResult(s -> {
             outboxRepository.save(LsMetaReplOutbox.create(rawSn, "hash-1", "{\"rawSn\":" + rawSn + "}"));
-            outboxRepository.save(LsMetaReplOutbox.create(rawSn + 1, "hash-2", "{}"));
+            outboxRepository.save(LsMetaReplOutbox.create(otherRawSn, "hash-2", "{}"));
         });
 
         // when — PENDING 폴링(limit=10)

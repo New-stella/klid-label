@@ -19,6 +19,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotencyRepository;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import org.awaitility.Awaitility;
@@ -30,6 +31,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -72,6 +74,7 @@ class AugmentRequestServiceTest {
     @Autowired private LsWebhookIdempotencyRepository idempotencyRepository;
     @Autowired private WebhookIdempotencyLedger ledger;
     @Autowired private PlatformTransactionManager controlTransactionManager;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private ExternalAugmentClient externalClient;
 
@@ -116,13 +119,24 @@ class AugmentRequestServiceTest {
         tx.executeWithoutResult(s -> seededIdemKeys.forEach(k -> {
             if (idempotencyRepository.existsById(k)) idempotencyRepository.deleteById(k);
         }));
+        // 마지막으로 부모 영상 삭제 — V146 FK ON DELETE CASCADE 로 남은 자식(작업상태·프레임·증강)까지 정리된다.
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
         seededRawSns.clear();
         seededSrcSns.clear();
         seededIdemKeys.clear();
     }
 
+    /**
+     * 격리된 새 영상 1건을 <b>실제로 적재</b>하고 그 rawSn 을 반환한다.
+     *
+     * <p>V146(DB-ISSUE-01) 이후 작업상태·프레임·증강 행이 모두 {@code LS_DATA_RAW} 를 FK 로 참조하므로
+     * 임의 정수를 rawSn 으로 쓰던 구 방식은 성립하지 않는다(그렇게 만든 데이터는 실제로는 고아였다).
+     */
     private long nextRawSn() {
-        return RAW_SN_SEQ.incrementAndGet();
+        long rawSn = RAW_SN_SEQ.incrementAndGet();
+        RawVideoFixture.seedRaw(jdbcTemplate, rawSn);
+        seededRawSns.add(rawSn);
+        return rawSn;
     }
 
     private void seedStatus(Long rawDataId, String dataSttsCd) {
@@ -131,7 +145,6 @@ class AugmentRequestServiceTest {
             status.transitionTo(dataSttsCd);
             statusRepository.save(status);
         });
-        seededRawSns.add(rawDataId);
     }
 
     /** 영상(rawSn)에 대표 프레임을 적재하고 첫 프레임 srcSn 을 반환. */

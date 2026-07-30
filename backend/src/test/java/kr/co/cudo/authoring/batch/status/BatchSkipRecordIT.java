@@ -1,14 +1,16 @@
 package kr.co.cudo.authoring.batch.status;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,6 +27,18 @@ class BatchSkipRecordIT {
 
     @Autowired private BatchStatusService statusService;
     @Autowired private LsBatchProcLogRepository repository;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    /** 시드한 부모 영상 — V146 FK(LS_BATCH_PROC_LOG → LS_DATA_RAW) 충족용. */
+    private Long seededRawSn;
+
+    @AfterEach
+    void cleanSeededVideo() {
+        if (seededRawSn != null) {
+            RawVideoFixture.deleteRaws(jdbcTemplate, seededRawSn); // CASCADE 로 배치 로그까지 정리
+            seededRawSn = null;
+        }
+    }
 
     private List<LsBatchProcLog> rowsOf(Long rawSn) {
         return repository.findAll().stream()
@@ -35,7 +49,8 @@ class BatchSkipRecordIT {
     @Test
     @DisplayName("VLM_SKIPPED_감사행은_다음_단계_전이에_덮이지_않고_보존된다")
     void skippedRowSurvivesNextStageTransition() {
-        Long rawSn = ThreadLocalRandom.current().nextLong(900_000_000L, 999_999_999L);
+        Long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSn = rawSn;
 
         // given — VLM 단계 진입(진행 행 생성) 후 비활성으로 skip 기록
         statusService.markStage(rawSn, BatchStage.VLM);

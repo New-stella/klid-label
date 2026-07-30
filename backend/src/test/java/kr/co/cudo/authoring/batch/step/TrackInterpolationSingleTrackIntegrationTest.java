@@ -6,12 +6,14 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +45,7 @@ class TrackInterpolationSingleTrackIntegrationTest {
     @Autowired private LsDataLblRepository lblRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
     @PersistenceContext private EntityManager em;
 
     /** 벌크 삭제(deleteAllByIdInBatch)는 DB 는 반영하나 L1 영속성 컨텍스트를 동기화하지 않으므로,
@@ -55,8 +58,12 @@ class TrackInterpolationSingleTrackIntegrationTest {
     // 테스트 간 rawSn 충돌 방지용 유니크 시드.
     private static final AtomicLong RAW_SEQ = new AtomicLong(970_700_000L);
 
+    /**
+     * 격리된 새 영상 1건을 <b>실제로 적재</b>하고 rawSn 을 반환한다.
+     * V146(DB-ISSUE-01) 이후 프레임·AI_INFO 가 {@code LS_DATA_RAW} 를 FK 로 참조한다.
+     */
     private long nextRaw() {
-        return RAW_SEQ.incrementAndGet();
+        return RawVideoFixture.seedRaw(jdbcTemplate, RAW_SEQ.incrementAndGet());
     }
 
     /** frameNo 0..count-1 프레임 생성 → frameNo→srcSn 매핑 반환. */

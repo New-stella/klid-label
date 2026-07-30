@@ -1,10 +1,12 @@
 package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,11 +40,14 @@ class LsDataSrcRepositoryVideoFrameNoIT {
     @Autowired
     private LsDataSrcRepository repository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     @DisplayName("LsDataSrc_videoFrameNo가_실제_PostgreSQL_VDO_FRM_NO_컬럼에_저장되고_조회된다")
     void videoFrameNo가_실제_PostgreSQL_VDO_FRM_NO_컬럼에_저장되고_조회된다() {
         // given — frameNo(추출순번)=0, videoFrameNo(실 영상 프레임 위치)=1500 인 프레임 row
-        long rawSn = System.nanoTime();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
         LocalDateTime now = LocalDateTime.now();
         LsDataSrc src = LsDataSrc.create(rawSn, 0, 1500L, "/frames/raw/" + rawSn + "/000000.jpg", now);
 
@@ -59,7 +64,7 @@ class LsDataSrcRepositoryVideoFrameNoIT {
     @DisplayName("videoFrameNo_미지정_4인자_create는_VDO_FRM_NO가_null로_round_trip된다")
     void videoFrameNo_미지정시_VDO_FRM_NO가_null로_round_trip된다() {
         // given — videoFrameNo 를 받지 않는 4인자 팩토리 (레거시 추출 경로 호환)
-        long rawSn = System.nanoTime();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
         LocalDateTime now = LocalDateTime.now();
         LsDataSrc src = LsDataSrc.create(rawSn, 0, "/frames/raw/" + rawSn + "/000000.jpg", now);
 

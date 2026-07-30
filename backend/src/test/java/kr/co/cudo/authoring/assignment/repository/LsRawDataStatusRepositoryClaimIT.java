@@ -2,16 +2,20 @@ package kr.co.cudo.authoring.assignment.repository;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -59,6 +63,12 @@ class LsRawDataStatusRepositoryClaimIT {
     @Autowired
     private BatchTransitionService batchTransitionService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /** 시드한 부모 영상 — V146 FK(LS_RAW_DATA_STATUS → LS_DATA_RAW) 충족용. */
+    private final List<Long> seededRawSns = new ArrayList<>();
+
     private final TransactionTemplate txTemplate;
 
     LsRawDataStatusRepositoryClaimIT(
@@ -66,9 +76,23 @@ class LsRawDataStatusRepositoryClaimIT {
         this.txTemplate = new TransactionTemplate(controlTxManager);
     }
 
+    @AfterEach
+    void cleanSeededVideos() {
+        // 부모 삭제 = 작업 상태 행 CASCADE 삭제.
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
+        seededRawSns.clear();
+    }
+
+    /** 작업 상태 행이 참조할 <b>실재하는</b> 부모 영상을 1건 만든다(V146 FK). */
+    private long newVideo() {
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSns.add(rawSn);
+        return rawSn;
+    }
+
     /** 고유한 rawSn 으로 주어진 상태의 작업 상태 row 를 독립 트랜잭션에 커밋 저장한다. */
     private long persistStatus(String status) {
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         txTemplate.executeWithoutResult(s -> repository.save(
                 LsRawDataStatus.builder()
                         .rawDataId(rawSn)
@@ -132,8 +156,8 @@ class LsRawDataStatusRepositoryClaimIT {
     void fieldMapping_updatesUpdDtAndMatchesRawDataIdOnly() {
         // given — 전이 대상(ASSIGNED) + 비대상(다른 rawSn, ASSIGNED). updDt 갱신을 관찰하기 위해
         //         과거 시각으로 직접 저장한다.
-        long target = System.nanoTime();
-        long other = target + 1;
+        long target = newVideo();
+        long other = newVideo();
         LocalDateTime past = LocalDateTime.now().minusDays(1);
         txTemplate.executeWithoutResult(s -> {
             repository.save(LsRawDataStatus.builder()
@@ -198,7 +222,7 @@ class LsRawDataStatusRepositoryClaimIT {
     @Test
     @DisplayName("row없음 — 존재하지_않는_rawSn은_affected0")
     void missingRow_returnsZero() {
-        // given — 저장하지 않은 rawSn
+        // given — 저장하지 않은 rawSn (SELECT/UPDATE 뿐이라 INSERT 가 없어 부모 시드가 필요 없다)
         long missing = System.nanoTime();
         // also ensure not present via a quick list (defensive)
         List<LsRawDataStatus> existing = txTemplate.execute(s ->

@@ -4,6 +4,9 @@ import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.entity.LsIssueComment;
 import kr.co.cudo.authoring.review.repository.IssueCommentRepository;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +30,20 @@ class IssueThreadRepositoryTest {
     @Autowired
     @org.springframework.beans.factory.annotation.Qualifier("controlDataSource")
     private DataSource controlDataSource;
+
+    /** 본 테스트가 쓰는 영상 ID — V146 이후 LS_DATA_ISSUE 가 LS_DATA_RAW 를 FK 로 참조한다. */
+    private static final long[] RAW_SNS = {9001L, 9002L, 9003L};
+
+    @BeforeEach
+    void seedParentVideos() {
+        RawVideoFixture.seedRaws(controlDataSource, RAW_SNS);
+    }
+
+    @AfterEach
+    void removeParentVideos() {
+        // 부모 삭제 = 이슈 행 CASCADE 삭제(LS_ISSUE_COMMENT 는 이슈 FK 가 없어 그대로 남는다 — 기존 동작).
+        RawVideoFixture.deleteRaws(controlDataSource, RAW_SNS);
+    }
 
     @Test
     @DisplayName("V57_적용후_기존_반려행은_REJECTION_RESOLVED_로_backfill_된다")
