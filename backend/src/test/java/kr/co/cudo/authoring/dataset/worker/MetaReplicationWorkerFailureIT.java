@@ -35,6 +35,28 @@ import static org.mockito.BDDMockito.willThrow;
 @ActiveProfiles("local")
 @TestPropertySource(properties = "authoring.meta-replication.max-retry=2")
 class MetaReplicationWorkerFailureIT {
+    // ── DB-ISSUE-01 / V146: 자식 행이 참조할 부모 영상(LS_DATA_RAW) 시드 ──
+    //   FK 신설 전에는 임의 정수를 rawSn 으로 써도 통과했지만 그렇게 만든 데이터는 실제로는 고아였다.
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate parentVideoJdbc;
+
+    private final java.util.List<Long> seededParentRawSns = new java.util.ArrayList<>();
+
+    /** 실재하는 부모 영상 1건을 만들고 rawSn 을 돌려준다(V146 FK). */
+    private long newVideo() {
+        long rawSn = kr.co.cudo.authoring.support.RawVideoFixture.newRaw(parentVideoJdbc);
+        seededParentRawSns.add(rawSn);
+        return rawSn;
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void cleanSeededParentVideos() {
+        // 부모 삭제 = 자식(동결 메타·아웃박스·export 등) CASCADE 삭제.
+        seededParentRawSns.forEach(
+                sn -> kr.co.cudo.authoring.support.RawVideoFixture.deleteRaws(parentVideoJdbc, sn));
+        seededParentRawSns.clear();
+    }
+
 
     @Autowired
     private MetaReplicationWorker worker;
@@ -85,7 +107,7 @@ class MetaReplicationWorkerFailureIT {
     @DisplayName("복제실패시_RETRY_증가_후_STATUS_PENDING_유지")
     void failure_incrementsRetry_keepsPending() {
         // given
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         Long outboxSn = insertOutbox(rawSn, "hash-fail");
 
         // when — 1회 실패
@@ -102,7 +124,7 @@ class MetaReplicationWorkerFailureIT {
     @DisplayName("RETRY_max_초과시_DEAD_전환_deadletter")
     void failure_exceedingMaxRetry_movesToDead() {
         // given — max-retry=2
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         Long outboxSn = insertOutbox(rawSn, "hash-dead");
 
         // when — 2회 실패(각 tick 이 동일 PENDING 을 재폴링)
@@ -124,7 +146,7 @@ class MetaReplicationWorkerFailureIT {
     @DisplayName("복제실패가_승인_materialize_커밋에_무영향_관심분리")
     void replicationFailure_doesNotAffectControlCommit() {
         // given — control 커밋(승인)은 이미 완료되어 outbox PENDING 이 쌓인 상태
-        long rawSn = System.nanoTime();
+        long rawSn = newVideo();
         Long outboxSn = insertOutbox(rawSn, "hash-sep");
 
         // when — 워커가 실패해도(예외 주입) control 트랜잭션은 롤백되지 않는다

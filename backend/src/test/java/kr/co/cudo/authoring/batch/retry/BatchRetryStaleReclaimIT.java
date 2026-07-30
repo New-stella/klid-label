@@ -1,11 +1,13 @@
 package kr.co.cudo.authoring.batch.retry;
 
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -18,7 +20,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -44,6 +45,9 @@ class BatchRetryStaleReclaimIT {
     @Autowired
     private LsBatRtyWtngRepository repository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     /**
      * 픽스처 준비용 트랜잭션 — {@code @Modifying} 쿼리(claimAtomically)는 활성 트랜잭션을 요구한다.
      * 운영에서는 {@code BatchRetryQueue} 의 REQUIRES_NEW 가 그 역할을 하고, 여기서는 테스트가 직접 연다.
@@ -58,14 +62,18 @@ class BatchRetryStaleReclaimIT {
     /** tick 당 회수 상한 — 운영 기본값과 동일. */
     private static final int BATCH_SIZE = 50;
 
-    private final AtomicLong rawSnSeq = new AtomicLong(System.nanoTime());
     private final List<Long> createdSns = new ArrayList<>();
+    /** 시드한 부모 영상 — V146 FK(LS_BAT_RTY_WTNG → LS_DATA_RAW) 충족용. */
+    private final List<Long> seededRawSns = new ArrayList<>();
 
     @AfterEach
     void cleanup() {
         tx.executeWithoutResult(status ->
                 createdSns.forEach(sn -> repository.findById(sn).ifPresent(repository::delete)));
         createdSns.clear();
+        // 부모 삭제 = 남은 자식 CASCADE 삭제.
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
+        seededRawSns.clear();
     }
 
     /**
@@ -78,7 +86,9 @@ class BatchRetryStaleReclaimIT {
 
     /** RETRYING 상태의 재시도 항목 1건을 만든다(= 폴러가 클레임한 직후 상태). */
     private LsBatRtyWtng persistRetrying(int attempts, int maxAttempts) {
-        LsBatRtyWtng entry = LsBatRtyWtng.create(rawSnSeq.incrementAndGet(), maxAttempts);
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSns.add(rawSn);
+        LsBatRtyWtng entry = LsBatRtyWtng.create(rawSn, maxAttempts);
         for (int i = 0; i < attempts; i++) {
             entry.incrementAttempt();
         }

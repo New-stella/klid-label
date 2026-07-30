@@ -6,17 +6,22 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -43,6 +48,12 @@ class BatchTransitionReviewGuardIT {
     @Autowired
     private BatchTransitionService batchTransitionService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /** 시드한 부모 영상 — V146 FK(LS_RAW_DATA_STATUS → LS_DATA_RAW) 충족용. */
+    private final List<Long> seededRawSns = new ArrayList<>();
+
     private final TransactionTemplate txTemplate;
 
     BatchTransitionReviewGuardIT(
@@ -50,8 +61,16 @@ class BatchTransitionReviewGuardIT {
         this.txTemplate = new TransactionTemplate(controlTxManager);
     }
 
+    @AfterEach
+    void cleanSeededVideos() {
+        // 부모 삭제 = 작업 상태 행 CASCADE 삭제.
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
+        seededRawSns.clear();
+    }
+
     private long persistStatus(String status) {
-        long rawSn = System.nanoTime();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSns.add(rawSn);
         txTemplate.executeWithoutResult(s -> repository.save(
                 LsRawDataStatus.builder()
                         .rawDataId(rawSn)

@@ -101,6 +101,26 @@ class YoloAutolabelStepTest {
             } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
             return arg;
         });
+        // B-ISSUE-42 — 프로덕션 저장 경로가 save() 개별 호출에서 프레임 단위 saveAll() 로 바뀌었다.
+        //   본 스텁은 saveAll 을 <원소별 save 위임>으로 모사한다. 목적은 기존 <내용 단언>(저장된 라벨의
+        //   좌표/타입/신뢰도 등을 save 캡처로 검증하는 30여 개 테스트)을 그대로 살리는 것이며,
+        //   "정말 배치로 저장되는가" 는 별도 테스트(saveAll 호출 횟수·PK 매칭)가 직접 고정한다.
+        when(lblRepository.saveAll(any())).thenAnswer(inv -> {
+            Iterable<LsDataLbl> in = inv.getArgument(0);
+            java.util.List<LsDataLbl> out = new java.util.ArrayList<>();
+            for (LsDataLbl l : in) {
+                out.add(lblRepository.save(l));
+            }
+            return out;
+        });
+        when(aiInfoRepository.saveAll(any())).thenAnswer(inv -> {
+            Iterable<LsDataLblAiInfo> in = inv.getArgument(0);
+            java.util.List<LsDataLblAiInfo> out = new java.util.ArrayList<>();
+            for (LsDataLblAiInfo a : in) {
+                out.add(aiInfoRepository.save(a));
+            }
+            return out;
+        });
 
         // Create temp directory and dummy image files
         Path rawDir = tempDir.resolve("raw");
@@ -1078,5 +1098,131 @@ class YoloAutolabelStepTest {
                 .filter(e -> e.getFormattedMessage().contains("labelId=1"))
                 .count();
         assertThat(matchedLogs).isGreaterThanOrEqualTo(1L);
+    }
+
+    // ============ B-ISSUE-42 — 루프 내 개별 save() → 프레임 단위 saveAll() ============
+
+    @Test
+    @DisplayName("한_프레임의_검출들은_라벨_saveAll_1회와_AI메타_saveAll_1회로_저장된다")
+    void detectionsOfOneFramePersistedWithSingleSaveAll() {
+        // given — 프레임 1개 × 검출 3건
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(700L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
+                        new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81),
+                        new YoloResponse.Detection("dog", List.of(9.0, 10.0, 11.0, 12.0), 0.55)
+                ))));
+
+        // when
+        step.run(700L);
+
+        // then — 검출 3건이 saveAll 1회로 묶인다(구 구현은 save 3회 + save 3회였다)
+        ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).saveAll(lblCaptor.capture());
+        assertThat(lblCaptor.getValue()).hasSize(3);
+        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
+        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.times(1)).saveAll(aiCaptor.capture());
+        assertThat(aiCaptor.getValue()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("AI메타는_대응_라벨의_PK와_1대1로_매칭되어_저장된다")
+    void aiInfoRowsMatchTheirOwnLabelPk() {
+        // given — 신뢰도가 서로 다른 검출 3건(순서가 뒤섞이면 매칭이 깨지는 것을 관측 가능하게)
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(701L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.11),
+                        new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.55),
+                        new YoloResponse.Detection("dog", List.of(9.0, 10.0, 11.0, 12.0), 0.99)
+                ))));
+
+        // when
+        step.run(701L);
+
+        // then — i 번째 AI 메타는 i 번째 라벨의 lblSn/srcSn/신뢰도를 그대로 가진다.
+        ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
+        org.mockito.Mockito.verify(lblRepository).saveAll(lblCaptor.capture());
+        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
+        org.mockito.Mockito.verify(aiInfoRepository).saveAll(aiCaptor.capture());
+
+        List<LsDataLbl> labels = new java.util.ArrayList<>();
+        lblCaptor.getValue().forEach(labels::add);
+        List<LsDataLblAiInfo> infos = new java.util.ArrayList<>();
+        aiCaptor.getValue().forEach(infos::add);
+
+        assertThat(labels).hasSize(3);
+        assertThat(infos).hasSize(3);
+        for (int i = 0; i < labels.size(); i++) {
+            assertThat(infos.get(i).getDataLblSn())
+                    .as("AI 메타 %d 은 대응 라벨의 PK 를 가져야 한다", i)
+                    .isNotNull()
+                    .isEqualTo(labels.get(i).getLblSn());
+            assertThat(infos.get(i).getDataSrcSn()).isEqualTo(labels.get(i).getSrcSn());
+            assertThat(infos.get(i).getConfScore()).isEqualByComparingTo(labels.get(i).getConfScore());
+            assertThat(infos.get(i).getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
+        }
+        // PK 는 라벨마다 달라야 한다(전부 같은 값에 붙으면 조용한 오염)
+        assertThat(infos.stream().map(LsDataLblAiInfo::getDataLblSn).distinct().count()).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("프레임마다_saveAll이_분리_호출된다")
+    void saveAllIsInvokedPerFrame() {
+        // given — 프레임 2개 × 검출 1건
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(702L))
+                .thenReturn(List.of(newSrc(10L), newSrc(11L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
+                ))));
+
+        // when
+        step.run(702L);
+
+        // then — 프레임 단위 flush (메모리 상한 확보)
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(2)).saveAll(any());
+        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.times(2)).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("저장할_검출이_없는_프레임은_saveAll을_호출하지_않는다")
+    void emptyFrameDoesNotCallSaveAll() {
+        // given — 검출 0건
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(703L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of())));
+
+        // when
+        step.run(703L);
+
+        // then — 빈 saveAll 로도 왕복하지 않는다
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).saveAll(any());
+        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("퇴화_검출은_배치에서_빠지고_나머지는_그대로_저장된다")
+    void degenerateDetectionIsExcludedFromBatchWhileOthersPersist() {
+        // given — 이미지(1280x720) 완전 밖 검출 1건 + 정상 검출 1건.
+        //   B-ISSUE-42 리팩터링 후에도 "퇴화·형식위반은 스킵하고 나머지는 저장" 시맨틱이 유지돼야 한다.
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(704L)).thenReturn(List.of(newSrc(10L)));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(-50.0, -40.0, -10.0, -5.0), 0.92),
+                        new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
+                ))));
+
+        // when
+        step.run(704L);
+
+        // then — 배치에는 정상 1건만 담긴다
+        ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).saveAll(lblCaptor.capture());
+        List<LsDataLbl> labels = new java.util.ArrayList<>();
+        lblCaptor.getValue().forEach(labels::add);
+        assertThat(labels).hasSize(1);
+        assertThat(labels.get(0).getLabelNm()).isEqualTo("car");
     }
 }

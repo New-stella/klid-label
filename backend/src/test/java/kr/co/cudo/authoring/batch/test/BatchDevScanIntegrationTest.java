@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.test;
 
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -75,7 +76,11 @@ class BatchDevScanIntegrationTest {
     }
 
     private void cleanup() {
-        jdbc.update("DELETE FROM LS_DATA_RAW WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'");
+        // V146(DB-ISSUE-01) 이후 적재 영상에는 자식 FK 가 붙는다. 적재는 AFTER_COMMIT → @Async 선두
+        // 비식별을 띄우므로, 그 비동기 트랜잭션이 LS_DEIDENT_PROC_LOG 를 INSERT 한 채 커밋 전이면 부모
+        // 영상 행에 FOR KEY SHARE 가 걸려 삭제가 대기한다(커넥션 기본 lock_timeout 30s → 테스트 실패).
+        // 짧은 lock_timeout + 재시도로 비동기 커밋을 기다린 뒤 삭제한다(자식은 CASCADE 동반 삭제).
+        RawVideoFixture.deleteRawsWhere(jdbc, "VMS_CLIP_ID LIKE ?", "DEV-CLIP-%");
         jdbc.update("DELETE FROM MNG_CLIP_EVNT_LST WHERE EVNT_ID LIKE 'DEV-EVT-%'");
         jdbc.update("DELETE FROM MNG_CLIP_MASTER WHERE EVNT_ID LIKE 'DEV-EVT-%'");
     }

@@ -1,10 +1,12 @@
 package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,11 +40,14 @@ class VideoMetaUpsertIT {
     @Autowired
     private LsDataMetaRepository repository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     @DisplayName("upsertMeta_최초삽입시_1행_생성되고_MDFCN_DT는_null이다")
     void upsertMeta_최초삽입시_1행_MDFCN_DT_null() {
         // given — 아직 존재하지 않는 (rawSn, key)
-        long rawSn = System.nanoTime();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
 
         // when
         repository.upsertMeta(rawSn, "video.fps", "29.97");
@@ -61,7 +66,7 @@ class VideoMetaUpsertIT {
     @DisplayName("동일키_재upsert시_UK위반없이_1행유지_값과_MDFCN_DT_갱신된다")
     void 동일키_재upsert_멱등_1행유지_값갱신() {
         // given — 최초 삽입
-        long rawSn = System.nanoTime();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
         repository.upsertMeta(rawSn, "video.fps", "29.97");
 
         // when — 동일 (rawSn, metaKey) 로 다른 값 재upsert (UK 위반 상황을 원자적으로 해소)
@@ -79,7 +84,7 @@ class VideoMetaUpsertIT {
     @DisplayName("서로다른_6개키_upsert시_6행_생성된다")
     void 서로다른_6개키_6행() {
         // given
-        long rawSn = System.nanoTime();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
 
         // when — video.* 6키를 각각 원자 upsert
         repository.upsertMeta(rawSn, "video.fps", "29.97");

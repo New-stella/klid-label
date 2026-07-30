@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.service;
 
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -52,9 +54,14 @@ class KpstDeidentPollClaimIT {
     @Autowired
     private LsDeidentProcLogRepository procLogRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private final TransactionTemplate txTemplate;
 
     private final List<Long> createdProcLogSns = new ArrayList<>();
+    /** 시드한 부모 영상 — V146 FK(LS_DEIDENT_PROC_LOG → LS_DATA_RAW) 충족용. */
+    private final List<Long> seededRawSns = new ArrayList<>();
 
     KpstDeidentPollClaimIT(
             @Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager) {
@@ -65,11 +72,16 @@ class KpstDeidentPollClaimIT {
     void cleanup() {
         createdProcLogSns.forEach(sn -> procLogRepository.findById(sn).ifPresent(procLogRepository::delete));
         createdProcLogSns.clear();
+        // 부모 삭제 = 남은 자식 CASCADE 삭제.
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
+        seededRawSns.clear();
     }
 
     /** 위탁 완료(WAITING) 상태의 procLog 1건을 커밋 저장한다. */
     private Long persistWaiting() {
-        long rawSn = System.nanoTime();
+        // 비식별 처리 로그가 참조할 <b>실재하는</b> 부모 영상을 먼저 만든다(V146 FK).
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSns.add(rawSn);
         Long procLogSn = txTemplate.execute(s -> {
             LsDeidentProcLog log = LsDeidentProcLog.request(rawSn, null, "/raw/claim-" + rawSn + ".mp4", "batch");
             log.markKpstSubmitted(101L, null);

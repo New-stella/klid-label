@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.controlnotify.debounce;
 
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.controlnotify.service.ControlNotifyDebouncer;
 import kr.co.cudo.authoring.controlnotify.service.ControlNotifyService;
 import kr.co.cudo.authoring.controlnotify.service.FrameChangeSet;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -20,7 +22,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,19 +61,26 @@ class ControlNotifyDebounceCrossNodeIT {
     @Autowired
     private LsMonNotiAcmlRepository repository;
 
-    /** 이 테스트가 쓰는 rawSn — 다른 테스트/잔여 행과 섞이지 않도록 유일값을 쓴다. */
-    private final AtomicLong rawSnSeq = new AtomicLong(System.nanoTime());
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private final List<Long> usedRawSns = new java.util.ArrayList<>();
 
     @AfterEach
     void cleanup() {
         usedRawSns.forEach(rawSn -> repository.findByRawSn(rawSn).forEach(repository::delete));
+        // 부모 삭제 = 남은 통지 축적 행 CASCADE 삭제.
+        usedRawSns.forEach(rawSn -> RawVideoFixture.deleteRaws(jdbcTemplate, rawSn));
         usedRawSns.clear();
     }
 
+    /**
+     * 이 테스트가 쓰는 영상 — 다른 테스트/잔여 행과 섞이지 않도록 매번 새로 적재한다.
+     * V146(DB-ISSUE-01) 이후 {@code LS_MON_NOTI_ACML} 이 {@code LS_DATA_RAW} 를 FK 로 참조하므로
+     * 임의 정수를 rawSn 으로 쓸 수 없다.
+     */
     private Long nextRawSn() {
-        Long rawSn = rawSnSeq.incrementAndGet();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
         usedRawSns.add(rawSn);
         return rawSn;
     }

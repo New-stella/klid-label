@@ -117,6 +117,26 @@
 
 > 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 수신 후 RAW_SN으로 4 View SELECT → 영상 1건=1 row UPSERT. 비식별 **영상** 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 적재값 사용(문자열 치환 도출 아님, View 미포함). 비식별 **프레임** 경로는 `V_COMPLETED_FRAME.DEIDENTIFIED_PATH`(=`LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`)에 직접 노출되며, 신규 추출은 원본 `{base}/frames/raw/{rawSn}`·비식별 `{base}/frames/deid/{rawSn}` 로 분기 저장돼 `STORAGE_RAW_PATH==STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`)여도 충돌하지 않는다. → [15](15-control-notify.md)
 
+### 18.3.1 `LS_DATA_RAW` 참조 무결성 — 자식 FK + `ON DELETE CASCADE` (V146)
+
+구 스키마는 `LS_DATA_RAW` 를 참조하는 FK 가 `LS_EVNT_ANNO` 단 1건뿐이라 영상 행이 사라져도 자식이 고아로 잔존했다(실측: `LS_MARKING` 고아 2행). V146 이 **자식 27개 테이블에 FK 를 신설**한다.
+
+| 구분 | 대상 | 삭제 규칙 | 근거 |
+|------|------|:---------:|------|
+| 일반 자식 | `LS_DATA_SRC`·`LS_MARKING`·`LS_DATA_META`·`LS_DATA_META_REVIEW`·`LS_DATA_LBL_AI_INFO`·`LS_DEIDENT_PROC_LOG`·`LS_DEIDENT_REPORT`·`LS_BATCH_PROC_LOG`·`LS_BAT_RTY_WTNG`·`LS_AUTH_WORK_LOCK`·`LS_DATA_ISSUE`·`LS_DATA_AUG_RVW`·`LS_DATA_RAW_HSTRY`·`LS_LABEL_VERSION`·`LS_DATASET_EXPORT`·`LS_DATASET_VIDEO_META`·`LS_RAW_DATA_STATUS`·`LS_RAW_DATA_ENROLLMENT`·`LS_TASK_ASSIGNMENT`·`LS_TASK_ASSIGN_HISTORY`·`LS_TASK_EVENT_LOG`·`LS_CONTROL_NOTIFY_FALLBACK`·`LS_META_REPL_OUTBOX`·`LS_MON_NOTI_ACML`·`LS_PORTAL_USER_LABEL`·`LS_EVNT_ANNO`(기존 FK 를 NO ACTION→CASCADE 로 통일) | `CASCADE` | 영상 행이 사라지면 그 자식 데이터는 의미가 없다. RESTRICT 로 하면 실재 삭제 경로(`ResolutionPersistService.deleteFailedDerivativeRaw`·`TusUploadService` 완료 경합 롤백)가 깨진다 |
+| 원장·세션 | `LS_WEBHOOK_IDEMPOTENCY.RAW_SN`·`LS_TUS_UPLOAD.RAW_SN` | `SET NULL` | 행이 사라지면 웹훅 재전송 방지/업로드 멱등 응답이 무너진다. 두 컬럼 모두 nullable 이라 참조만 끊는다 |
+| **제외** | `MNG_CLIP_SCHEDULE_QUE.RAW_SN` | — | 관제서버 소유(MNG_*) — 변경 시 관제팀 선승인 필수 |
+| **제외** | `LS_DATA_RAW.ORGNL_RAW_SN`·`LS_DATASET_VIDEO_META.ORGNL_RAW_SN` | — | 자식이 아니라 파생 계보(self-reference)/승인 시점 **동결** 값. 고아 자동 복구가 둘 다 위험(NULL 화 시 파생본이 "원본" 으로 승격돼 비식별 신고 거부·PII 정책이 역전, 삭제 시 검수 완료 파생 학습데이터 소실) — 별건 |
+
+**고아 선행 정리 정책** (FK 는 고아가 있으면 생성 자체가 실패):
+- 일반 자식의 고아는 삭제하되 테이블별 건수를 `RAISE NOTICE` 로 남긴다.
+- **데이터마트 뷰 공급 테이블**(`LS_DATASET_VIDEO_META`·`LS_RAW_DATA_STATUS`·`LS_DATASET_EXPORT`·`LS_DEIDENT_PROC_LOG`·`LS_DATA_SRC`·`LS_DATA_META`·`LS_DATA_META_REVIEW`)에 고아가 있으면 **삭제하지 않고 마이그레이션을 중단**한다 — 관제가 보던 행이 예고 없이 사라지는 것을 막는다("검수 완료·통지 건 관제 접근 보장" 구속 제약, V143 선례).
+- 한 테이블 고아가 **1,000건 초과**면 정상 운영의 잔여물이 아니라고 보고 중단한다.
+
+> ⚠ 배포 시 `ADD CONSTRAINT` 가 자식 테이블에 SHARE ROW EXCLUSIVE 를 잡고 전량 검증 스캔을 한다 — 2노드 Active-Active 롤링 배포 중 짧은 쓰기 차단이 발생할 수 있다(읽기 무영향).
+>
+> **남은 갭(후속)**: 2단계 이하(`LS_DATA_SRC`→`LS_DATA_LBL`, `LS_DATA_LBL`→`LS_DATA_AUG_LBL_MAP` 등)에는 여전히 FK 가 없다. 영상 삭제가 프레임을 CASCADE 로 지우면 그 프레임의 라벨은 고아로 남는다. 실 삭제 경로 두 곳은 모두 "프레임 0건" 가드가 있어 현재는 도달하지 않지만, 별도 이슈로 다뤄야 한다.
+
 ## 18.4 관제서버 소유 MNG_* (읽기 전용 9개)
 
 `MNG_ACCT_USER`, `MNG_ACCT_AUTHRT`, `MNG_ACCT_USER_AUTHRT`, `MNG_CLIP_MASTER`, `MNG_RESOURCE_CCTV`, `MNG_EX_EVNT_TYPE`, `MNG_EX_EVNT_TYPE_MAP`, `MNG_EX_LOCAL_GOV`, `MNG_CLIP_SCHEDULE_QUE`(배치 큐).

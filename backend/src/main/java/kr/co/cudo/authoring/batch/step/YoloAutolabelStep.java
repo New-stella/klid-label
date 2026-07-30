@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
@@ -186,6 +187,8 @@ public class YoloAutolabelStep implements BatchStep {
         // 같은 영상 프레임은 본 루프에서 순차 호출 — 정적/필드 저장 금지(스레드 안전).
         int frameIndex = 0;
         for (LsDataSrc src : frames) {
+            // B-ISSUE-42 — 이 프레임의 저장 대기 라벨. 검출마다 save() 하지 않고 프레임 끝에서 saveAll() 한다.
+            List<AutoLabelBatchPersister.PendingLabel> pending = new ArrayList<>();
             String relPath = resolveImagePath(src);
             String imageB64 = readImageAsBase64(relPath);
             YoloResponse resp;
@@ -263,19 +266,23 @@ public class YoloAutolabelStep implements BatchStep {
                 log.info("[Batch][Yolo] mapped label name={} labelId={}",
                         LogSanitizer.sanitize(d.label()), labelId);
                 if (toggle.bbox()) {
-                    // Phase 3(online): BBOX/AI_INFO 저장은 배치·온라인 공용 헬퍼로 단일화. 배치 출처 마커
-                    // REG_ID = "batch".
+                    // Phase 3(online): BBOX 엔티티 생성은 공용 헬퍼로 단일화. 배치 출처 마커 REG_ID = "batch".
                     //
                     // 헬퍼 시그니처는 그대로 두고 <b>이미 정규화된 좌표를 다시 넘긴다</b>. 근거: ①clamp 는
                     // 멱등이고(정규화된 좌표를 재정규화하면 같은 값) 비퇴화 박스는 재정규화 후에도 비퇴화라
                     // 결과가 동일하다 ②헬퍼가 단독 호출돼도 정규화 방어가 유지된다(오버로드를 추가하면
                     // "검증 없는 저장 경로"가 새로 생긴다 — 이 리포에서 반복된 '게이트 없는 쌍둥이' 패턴).
                     // 따라서 여기서 empty/예외가 나오면 그것은 정규화 계약 위반이라 방어적으로 드롭한다.
+                    //
+                    // B-ISSUE-42 — 여기서는 <b>저장 대기 목록에 담기만</b> 하고, 실제 INSERT 는 프레임 끝의
+                    //   saveAll 1회가 수행한다. "퇴화·형식위반 검출은 스킵하고 나머지는 저장" 시맨틱은
+                    //   드롭 판정이 여전히 검출 단위에서 일어나므로 그대로 유지된다.
                     try {
-                        if (YoloLabelPersister.persistBbox(lblRepository, aiInfoRepository, objectMapper,
-                                src.getSrcSn(), rawSn, d.label(), labelId,
-                                points, frameBounds, d.score(), d.trackId(),
-                                YoloLabelPersister.SOURCE_BATCH).isPresent()) {
+                        Optional<AutoLabelBatchPersister.PendingLabel> built = YoloLabelPersister.buildBbox(
+                                objectMapper, src.getSrcSn(), d.label(), labelId,
+                                points, frameBounds, d.score(), d.trackId());
+                        if (built.isPresent()) {
+                            pending.add(built.get());
                             bboxSaved++;
                             labeledFrames.add(src.getSrcSn());
                         } else {
@@ -305,6 +312,9 @@ public class YoloAutolabelStep implements BatchStep {
                     hintsEmitted++;
                 }
             }
+            // B-ISSUE-42 — 프레임 단위 일괄 저장(라벨 saveAll → AI 메타 saveAll). 검출 0건이면 no-op.
+            AutoLabelBatchPersister.saveAll(lblRepository, aiInfoRepository, pending, rawSn,
+                    LsDataLblAiInfo.SRC_YOLO, YoloLabelPersister.SOURCE_BATCH);
             frameIndex++;
         }
         // C-ISSUE-21 — 배치 오토라벨이 라벨 row 를 만든 <b>그 프레임</b>의 라벨셋 버전을 +1 한다(단일 UPDATE,

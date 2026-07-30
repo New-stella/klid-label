@@ -6,17 +6,21 @@ import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.augment.service.AugmentReviewService;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,9 +39,21 @@ class AugmentReviewServiceTest {
     @Autowired private AugmentReviewService service;
     @Autowired private LsDataAugRepository repository;
     @Autowired private LsDataAugRvwRepository reviewRepository;
+    @Autowired private LsDataSrcRepository srcRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     private TokenClaims reviewer;
     private TokenClaims worker;
+
+    /**
+     * 증강 대표 프레임(srcSn) — <b>실재하는</b> 영상의 프레임이어야 한다.
+     *
+     * <p>V146(DB-ISSUE-01) 이후 {@code LS_DATA_AUG_RVW.DATA_RAW_SN} 이 {@code LS_DATA_RAW} 를 FK 로
+     * 참조한다. 검수 서비스는 srcSn → rawSn 을 역해석해 검수 이력에 적는데, 프레임이 실재하지 않으면
+     * rawSn 이 null 로 나와 {@code 0L} 센티널이 적히고 FK 에 걸린다. 구 픽스처는 존재하지 않는
+     * srcSn(500)을 썼기 때문에 그 경로를 탔다 — 운영 형태(프레임 → 영상 연결 존재)로 시드한다.
+     */
+    private Long srcSn;
 
     @BeforeEach
     void setup() {
@@ -45,10 +61,24 @@ class AugmentReviewServiceTest {
         worker   = new TokenClaims("100", Role.WORKER,   Channel.INTERNAL, Instant.now().plusSeconds(3600));
         reviewRepository.deleteAll();
         repository.deleteAll();
+        srcSn = newFrame();
+    }
+
+    /**
+     * 실재하는 영상 1건 + 그 대표프레임 1건을 시드하고 SRC_SN 을 돌려준다.
+     *
+     * <p>{@code accept}/{@code reject} 는 검수 이력에 원본 RAW_SN 을 적어야 하므로 프레임 → 영상
+     * 연결이 실재해야 한다(연결이 없으면 서비스가 CONFLICT 로 <b>정당하게</b> 거부한다 —
+     * {@link #unresolvableRawSnRejectedWithoutSentinel} 참조).
+     */
+    private Long newFrame() {
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        return srcRepository.saveAndFlush(
+                LsDataSrc.create(rawSn, 0, "/storage/raw/" + rawSn + "_0.jpg", null)).getSrcSn();
     }
 
     private LsDataAug seedPending(String augType) {
-        LsDataAug aug = LsDataAug.createPending(500L, augType, new BigDecimal("85.50"), "system");
+        LsDataAug aug = LsDataAug.createPending(srcSn, augType, new BigDecimal("85.50"), "system");
         return repository.save(aug);
     }
 
@@ -148,7 +178,7 @@ class AugmentReviewServiceTest {
     void resolutionDerivativeRowBlockedFromReview() {
         // 해상도 파생(RES_ 접두)은 저작도구 내부 생성물 — 생성 즉시 ACCEPTED, 외부 검수 대상 아님.
         LsDataAug resAug = repository.save(
-                LsDataAug.createResolutionAccepted(500L, LsDataAug.AUG_RESL_720P, "system"));
+                LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
 
         assertThatThrownBy(() -> service.accept(resAug.getDataAugSn(), reviewer))
                 .isInstanceOf(CustomException.class)
@@ -165,6 +195,38 @@ class AugmentReviewServiceTest {
         assertThat(after.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
     }
 
+    @Test
+    @DisplayName("대표프레임이_실재하지_않으면_accept_reject가_CONFLICT로_거부되고_rawSn_0_센티널_이력이_생기지_않는다")
+    void unresolvableRawSnRejectedWithoutSentinel() {
+        // given — LS_DATA_AUG.SRC_SN 에는 프레임 FK 가 없어(V146 범위 밖) 프레임이 사라진 뒤에도
+        //         증강 행이 남는다. 그 상태에서는 SRC_SN → RAW_SN 역해석이 실패한다.
+        Long danglingSrcSn = 500L; // LS_DATA_SRC 에 없는 프레임
+        assertThat(srcRepository.findById(danglingSrcSn)).isEmpty();
+        LsDataAug orphanForAccept = seedPendingOn(danglingSrcSn, LsDataAug.AUG_WINTER);
+        LsDataAug orphanForReject = seedPendingOn(danglingSrcSn, LsDataAug.AUG_NIGHT);
+
+        // when / then — 센티널(0L) 저장도, FK 위반 500 도 아니라 명시적 409 CONFLICT 로 거부한다.
+        assertThatThrownBy(() -> service.accept(orphanForAccept.getDataAugSn(), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+        assertThatThrownBy(() -> service.reject(orphanForReject.getDataAugSn(), "사유", reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        // 검수 이력 row 자체가 생기지 않는다(구 구현은 DATA_RAW_SN=0 행을 남겼다).
+        assertThat(reviewRepository.findLatestByDataAugSn(orphanForAccept.getDataAugSn())).isEmpty();
+        assertThat(reviewRepository.findLatestByDataAugSn(orphanForReject.getDataAugSn())).isEmpty();
+        assertThat(reviewRepository.findAllByDataRawSnAndRvwSttsCd(0L, LsDataAugRvw.STTS_PENDING)).isEmpty();
+    }
+
+    /** 지정한 srcSn(정합 여부 무관) 위에 PENDING 증강 행을 만든다. */
+    private LsDataAug seedPendingOn(Long targetSrcSn, String augType) {
+        return repository.save(
+                LsDataAug.createPending(targetSrcSn, augType, new BigDecimal("85.50"), "system"));
+    }
+
     // ============================================================
     // 증강 결과 상태 집계 — /{jobId}/result (FE 결과 화면 실상태 반영)
     // ============================================================
@@ -172,11 +234,11 @@ class AugmentReviewServiceTest {
     @Test
     @DisplayName("aggregateResultStatus_전부_종료된_aug면_COMPLETED_반환")
     void aggregateResultStatusCompletedWhenAllTerminal() {
-        LsDataAug seed = seedPending(LsDataAug.AUG_WINTER); // srcSn=500
+        LsDataAug seed = seedPending(LsDataAug.AUG_WINTER);
         service.accept(seed.getDataAugSn(), reviewer);      // PENDING → ACCEPTED(terminal)
 
-        // jobId 매핑 부재(LS_DATA_SRC 없음) → srcSn 폴백으로 집계.
-        assertThat(service.aggregateResultStatus(500L)).isEqualTo("COMPLETED");
+        // jobId 를 SRC_SN 으로 넘기는 구 경로 → findByOriginalRawSn 미매칭 후 srcSn 폴백으로 집계.
+        assertThat(service.aggregateResultStatus(srcSn)).isEqualTo("COMPLETED");
     }
 
     @Test
@@ -186,7 +248,7 @@ class AugmentReviewServiceTest {
         seed.markDeadLetter();
         repository.save(seed);
 
-        assertThat(service.aggregateResultStatus(500L)).isEqualTo("FAILED");
+        assertThat(service.aggregateResultStatus(srcSn)).isEqualTo("FAILED");
     }
 
     @Test
@@ -194,7 +256,7 @@ class AugmentReviewServiceTest {
     void aggregateResultStatusProcessingWhenPending() {
         seedPending(LsDataAug.AUG_WINTER); // PENDING → REQUESTED → PROCESSING
 
-        assertThat(service.aggregateResultStatus(500L)).isEqualTo("PROCESSING");
+        assertThat(service.aggregateResultStatus(srcSn)).isEqualTo("PROCESSING");
     }
 
     @Test
@@ -256,7 +318,7 @@ class AugmentReviewServiceTest {
     @Test
     @DisplayName("listAll_전부_종료_상태면_status_COMPLETED_completedAt_채워짐")
     void listAllCompletedWhenAllTerminal() {
-        Long srcSn = 920L;
+        Long srcSn = newFrame(); // accept/reject 대상 → 영상·프레임이 실재해야 한다
         LsDataAug a1 = repository.save(
                 LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
         LsDataAug a2 = repository.save(
@@ -274,7 +336,7 @@ class AugmentReviewServiceTest {
     @Test
     @DisplayName("listAll_일부만_종료면_status_IN_PROGRESS_completedAt_null")
     void listAllInProgressWhenPartialTerminal() {
-        Long srcSn = 930L;
+        Long srcSn = newFrame(); // accept 대상 → 영상·프레임이 실재해야 한다
         LsDataAug a1 = repository.save(
                 LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT, new BigDecimal("80.00"), "system"));
@@ -467,7 +529,7 @@ class AugmentReviewServiceTest {
     @DisplayName("WINTER_PENDING과_RESL_ACCEPTED_혼합그룹의_집계상태")
     void mixedPendingAndResolutionAcceptedAggregateStatus() {
         // given — WINTER(PENDING) + NIGHT(ACCEPTED) + RESL_720P(ACCEPTED) 혼합 그룹
-        Long srcSn = 967L;
+        Long srcSn = newFrame(); // NIGHT accept 대상 → 영상·프레임이 실재해야 한다
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
         LsDataAug night = repository.save(
                 LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT, new BigDecimal("80.00"), "system"));

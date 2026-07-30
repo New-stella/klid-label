@@ -4,8 +4,10 @@ import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>검수 목록에 노출 가능한 상태 집합 = {@code PENDING/IN_REVIEW/APPROVED/REJECTED}. 배치/작업 상태
  * ({@code ASSIGNED/BATCH_QUEUED/PROCESSING/COMPLETED/FAILED})는 상시 제외되어야 한다.
- * LS_RAW_DATA_STATUS 는 FK 제약이 없어 상태 row 를 직접 시드해 검증한다.
+ * 상태 row 를 직접 시드해 검증한다(V146 이후 부모 영상 {@code LS_DATA_RAW} 를 함께 시드한다).
  *
  * <p>컨테이너는 {@code PostgresContainerContextCustomizerFactory} 가 자동 주입한다.
  * {@link ReviewRepository} 는 {@code @ControlRepo} 이므로 {@code controlTransactionManager} 안에서 동작한다.
@@ -36,11 +38,16 @@ class ReviewListWhitelistFilterIT {
     @Autowired
     private ReviewRepository reviewRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     /** 다른 시드와 충돌하지 않도록 높은 rawDataId 대역을 사용한다. */
     private static final long BASE_ID = 990_000_000L;
 
     private long seed(long offset, String status, LocalDateTime updDt) {
         long rawDataId = BASE_ID + offset;
+        // 부모 영상 선시드 — V146 FK(LS_RAW_DATA_STATUS → LS_DATA_RAW).
+        RawVideoFixture.seedRaw(jdbcTemplate, rawDataId);
         LsRawDataStatus s = LsRawDataStatus.builder()
                 .rawDataId(rawDataId)
                 .dataSttsCd(status)

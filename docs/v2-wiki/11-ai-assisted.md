@@ -27,6 +27,10 @@
   - **배치는 형식 위반도 검출 단위 드롭** — 온라인은 all-or-nothing 400 이지만(사용자가 즉시 재시도 가능·외부 응답 불신 계약 우선), 배치는 300프레임 영상의 마지막 검출 1건 때문에 그 영상의 YOLO 단계 전체가 실패(작업 상태 FAILED)하고 앞서 저장된 라벨만 남는 부분 상태가 되면 안 된다. 드롭 건수는 `droppedDegenerate`/`droppedMalformed` 로 배치 요약 로그에 노출된다.
   - **SAM 프롬프트(`BbHint`)도 clamp 된 좌표를 싣는다** — `Sam2SegmentStep.buildJobs` 는 `(label, trackId)` 키로 DB BBOX 를 우선 등록한 뒤 `putIfAbsent` 로 hint 를 채우므로, DB BBOX 가 **없을 때**(퇴화로 bbox 스킵 · **폴리곤 전용 프리셋**)는 hint 가 곧 프롬프트가 된다. 미clamp 원본을 실으면 이미지 완전 밖 좌표가 SAM box 프롬프트로 나가고 그 산출 폴리곤이 `LS_DATA_LBL` 에 저장된다(학습데이터 오염). 정규화는 검출 루프 선두에서 1회 수행하고 bbox 저장·polygon hint 가 **같은 좌표를 공유**하며, 퇴화면 **둘 다** 스킵한다.
   - 구 동작(폐기): 온라인만 `좌표 < 0` 을 all-or-nothing 400 으로 거부하고 배치는 무검증 저장 → 실데이터에서 AI 탐지가 프레임 대부분 400 이었고 `LS_DATA_LBL` 에는 음수 좌표 라벨이 적재됐다(같은 응답에 대해 두 경로 정책이 갈림). 상한(`x2>width`) 미검증도 함께 해소.
+- **★배치 자동 라벨 저장은 프레임 단위 일괄 저장 (B-ISSUE-42, 2026-07-29)**: YOLO(`YoloAutolabelStep`)·SAM2(`Sam2SegmentStep`) 모두 검출 루프 안에서 `save()` 를 개별 호출하던 것을 **프레임마다 `saveAll()` 2회**(라벨 → AI 메타)로 묶는다. 공용 헬퍼는 `batch/step/AutoLabelBatchPersister` 하나이며 `YoloLabelPersister` 는 **엔티티 생성(정규화 포함)까지만** 담당한다(`buildBbox`).
+  - **PK 매칭 계약** — AI 메타(`LS_DATA_LBL_AI_INFO.DATA_LBL_SN`)는 반드시 대응 라벨의 PK 를 가져야 한다. 헬퍼가 `saveAll` 반환 목록을 순서대로 순회하며 그 라벨에서 직접 `LBL_SN`/`SRC_SN` 을 읽고, 크기가 어긋나면(계약 위반) 잘못된 라벨에 메타가 붙는 대신 즉시 실패시킨다. 어긋나면 **조용한 데이터 오염**이라 회귀 테스트로 고정돼 있다.
+  - **드롭 시맨틱 불변** — 퇴화·형식위반 검출은 배치 목록에 담기지 않고 그 검출만 스킵되며, 나머지는 그대로 저장된다(위 C-ISSUE-41 규칙 유지).
+  - ⚠ **성능 개선 폭의 한계(정직 표기)** — `LsDataLbl`/`LsDataLblAiInfo` 는 `GenerationType.IDENTITY` 이고 **PK 전략은 바꾸지 않았다**(사용자 확정 범위). Hibernate 는 IDENTITY 에서 JDBC 배치를 구조적으로 비활성화하므로 `hibernate.jdbc.batch_size` 는 여전히 이 엔티티들에 적용되지 않는다. 실익은 **왕복 횟수 감소와 저장 지점 단일화**이지 INSERT 문 묶음이 아니다. 실제 JDBC 배치는 시퀀스 PK 전환이 선행돼야 하나 `LBL_SN` 참조 모듈이 12개 이상(증강 라벨맵·해상도 파생·포털·품질검사·export 해시·버전 롤백의 LBL_SN 보존 복원 등)이라 별건이다.
 
 ### 온디맨드 YOLO 객체 추적 — `POST /v1/frames/{srcSn}/yolo-track` (인터랙티브)
 - 배치 자동라벨링과 **별개의 온디맨드 경로** — 라벨러가 정렬된 프레임 시퀀스(`srcSn` 시작 + `nextSrcSns` 후속, 최대 50)를 지정하면 ai-server `/infer/yolo/track`을 프레임별 프록시하여 검출(`label`/`points[x1,y1,x2,y2]`/`score`/`track_id`)을 프레임별로 반환

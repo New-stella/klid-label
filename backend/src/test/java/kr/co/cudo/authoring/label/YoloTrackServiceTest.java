@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.label.dto.YoloTrackResponseDto;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.label.service.YoloTrackService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -61,6 +63,7 @@ class YoloTrackServiceTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private AiServerClient aiServerClient;
 
@@ -88,7 +91,8 @@ class YoloTrackServiceTest {
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
-        rawSn = 9101L;
+        // 프레임·배정이 참조할 <b>실재하는</b> 부모 영상을 만든다(V146 FK).
+        rawSn = RawVideoFixture.seedRaw(jdbcTemplate, 9101L);
 
         Files.write(tmpRawDir.resolve("0.jpg"), new byte[]{0x01, 0x02});
         Files.write(tmpRawDir.resolve("1.jpg"), new byte[]{0x03, 0x04});
@@ -120,6 +124,8 @@ class YoloTrackServiceTest {
         labelRepository.deleteAll();
         authrtRepository.deleteAll();
         srcRepository.deleteAll();
+        // 9202L = 다른 영상 혼입 검증(nextFrameFromDifferentVideoRejected)에서만 시드되는 두 번째 영상.
+        RawVideoFixture.deleteRaws(jdbcTemplate, 9101L, 9202L);
     }
 
     private YoloResponse detectionResponse() {
@@ -214,8 +220,9 @@ class YoloTrackServiceTest {
     @DisplayName("후속프레임이_다른_영상이면_INVALID_INPUT")
     void nextFrameFromDifferentVideoRejected() {
         when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(detectionResponse()));
-        // 다른 영상(rawSn)에 속한 프레임을 후속 시퀀스에 혼입.
-        long otherRawSn = 9202L;
+        // 다른 영상(rawSn)에 속한 프레임을 후속 시퀀스에 혼입 — "서로 다른 영상" 이 검증 전제이므로
+        // 두 번째 영상도 <b>실재</b>해야 한다(V146 FK: 부모 없는 프레임은 정당하게 거부된다).
+        long otherRawSn = RawVideoFixture.seedRaw(jdbcTemplate, 9202L);
         Long otherSrc = srcRepository.save(
                 LsDataSrc.create(otherRawSn, 0, "other.jpg", LocalDateTime.now())).getSrcSn();
 

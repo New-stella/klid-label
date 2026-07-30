@@ -8,11 +8,13 @@ import kr.co.cudo.authoring.batch.status.LsBatchProcLogRepository;
 import kr.co.cudo.authoring.review.entity.LsIssueComment;
 import kr.co.cudo.authoring.review.repository.IssueCommentRepository;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotencyRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,12 +44,15 @@ class ColumnTypeAlignmentIT {
     @Autowired private IssueCommentRepository issueCommentRepository;
     @Autowired private LsBatchProcLogRepository batchProcLogRepository;
     @Autowired private LsWebhookIdempotencyRepository webhookIdempotencyRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("FRM_NO_VDO_FRM_NO_BIGINT_범위_초과값_저장_조회")
     void FRM_NO_VDO_FRM_NO_BIGINT_범위_초과값_저장_조회() {
         // given — Integer.MAX_VALUE(2,147,483,647) 를 초과하는 Long 프레임 번호
-        long rawSn = System.nanoTime();
+        // 부모 영상 선시드 — V146 FK(LS_DATA_SRC → LS_DATA_RAW). 검증 대상은 FRM_NO/VDO_FRM_NO 의
+        // BIGINT round-trip 이라 부모 존재 여부와 무관하다.
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
         long bigFrameNo = 3_000_000_000L;      // > Integer.MAX_VALUE
         long bigVideoFrameNo = 5_000_000_000L; // > Integer.MAX_VALUE
         LsDataSrc src = LsDataSrc.create(rawSn, bigFrameNo, bigVideoFrameNo,
@@ -82,7 +87,8 @@ class ColumnTypeAlignmentIT {
     void REQ_RESP_PAYLOAD_CN_TEXT_대용량_저장_성공() {
         // given — VARCHAR(4000) 를 초과하는 대용량 페이로드 (TEXT 컬럼 검증)
         String largePayload = "{\"data\":\"" + "z".repeat(10_000) + "\"}";
-        LsBatchProcLog log = LsBatchProcLog.create(System.nanoTime(), BatchStage.VLM);
+        // 부모 영상 선시드 — V146 FK(LS_BATCH_PROC_LOG → LS_DATA_RAW).
+        LsBatchProcLog log = LsBatchProcLog.create(RawVideoFixture.newRaw(jdbcTemplate), BatchStage.VLM);
         log.setResPayloadCn(largePayload);
 
         // when

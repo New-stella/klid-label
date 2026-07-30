@@ -387,11 +387,35 @@ public class AugmentReviewService {
     }
 
     private LsDataAugRvw loadOrCreateReview(LsDataAug aug, String actorId) {
-        // PJT_SN 0L — Phase 5+7 와 동일 정책 (프로젝트 매핑 컬럼 미연결).
+        // 기존 검수 row 가 있으면 그 row 의 DATA_RAW_SN 은 이미 유효하다(FK 통과분) → 역해석 불필요.
         return reviewRepository.findLatestByDataAugSn(aug.getDataAugSn())
                 .orElseGet(() -> reviewRepository.save(
-                        LsDataAugRvw.pending(aug.getDataAugSn(), 0L, aug.getSrcSn(),
+                        LsDataAugRvw.pending(aug.getDataAugSn(), resolveRawSnOrThrow(aug), aug.getSrcSn(),
                                 aug.getLblIntgrtPct(), actorId)));
+    }
+
+    /**
+     * 검수 이력({@code LS_DATA_AUG_RVW.DATA_RAW_SN})에 적을 원본 영상 RAW_SN 을 대표프레임
+     * (SRC_SN)에서 역해석한다. <b>해석 실패는 센티널({@code 0L}) 저장이 아니라 명시 거부</b>다.
+     *
+     * <p>왜 거부인가: 이 컬럼은 DB {@code NOT NULL} 이고 V146 부터 {@code LS_DATA_RAW} FK 를 갖는다.
+     * 구 구현은 하드코딩 {@code 0L} 을 넣어 "존재하지 않는 영상" 을 참조했다 — FK 이전에는 어느 영상의
+     * 검수 이력인지 알 수 없는 행이 조용히 쌓였고, FK 이후에는 INSERT 거부로 accept/reject 가 500 이 된다.
+     *
+     * <p>도달 경로: {@code LS_DATA_AUG.SRC_SN} 에는 프레임 FK 가 없어(본 이슈 범위 밖) 영상·프레임이
+     * 사라진 뒤에도 증강 행이 남아 SRC_SN 이 붕 뜬다. 이는 사용자 입력 오류가 아니라 <b>데이터 정합
+     * 충돌</b>이므로 409 CONFLICT 로 알린다(내부 경로·스택은 노출하지 않는다 — CWE-209).
+     */
+    private Long resolveRawSnOrThrow(LsDataAug aug) {
+        Long srcSn = aug.getSrcSn();
+        Long rawSn = srcSn == null ? null : loadRawSnBySrcSn(List.of(srcSn)).get(srcSn);
+        if (rawSn == null) {
+            log.warn("[Augment] review blocked — rawSn unresolved dataAugSn={} srcSn={}",
+                    aug.getDataAugSn(), srcSn);
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "증강 결과의 원본 영상 정보를 확인할 수 없어 검수를 기록할 수 없습니다.");
+        }
+        return rawSn;
     }
 
     private LsDataAug loadOrThrow(Long dataAugSn) {

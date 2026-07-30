@@ -1,14 +1,19 @@
 package kr.co.cudo.authoring.batch.retry;
 
+import kr.co.cudo.authoring.support.RawVideoFixture;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -49,6 +54,12 @@ class BatchRetryQueueIT {
     @Autowired
     private LsBatRtyWtngRepository repository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /** 시드한 부모 영상 — V146 FK(LS_BAT_RTY_WTNG → LS_DATA_RAW) 충족용. 종료 시 CASCADE 로 정리한다. */
+    private final List<Long> seededRawSns = new ArrayList<>();
+
     private final TransactionTemplate txTemplate;
 
     BatchRetryQueueIT(@Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager) {
@@ -61,8 +72,18 @@ class BatchRetryQueueIT {
         txTemplate.executeWithoutResult(s -> repository.deleteAllInBatch());
     }
 
+    @AfterEach
+    void cleanSeededVideos() {
+        // 부모 삭제 = 자식(재시도 큐 행) CASCADE 삭제 — 공유 테이블 잔재를 남기지 않는다.
+        seededRawSns.forEach(sn -> RawVideoFixture.deleteRaws(jdbcTemplate, sn));
+        seededRawSns.clear();
+    }
+
+    /** 재시도 큐 행이 참조할 <b>실재하는</b> 부모 영상을 1건 만들고 그 rawSn 을 돌려준다(V146 FK). */
     private long uniqueRawSn() {
-        return System.nanoTime();
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        seededRawSns.add(rawSn);
+        return rawSn;
     }
 
     @Test

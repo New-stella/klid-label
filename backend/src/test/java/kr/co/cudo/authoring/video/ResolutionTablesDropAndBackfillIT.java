@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.video;
 
+import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,6 +63,8 @@ class ResolutionTablesDropAndBackfillIT {
         jdbc.update("DELETE FROM LS_DATA_AUG_LBL_MAP WHERE REG_ID = ?", SEED_REG_ID);
         jdbc.update("DELETE FROM LS_DATA_AUG WHERE REG_USER_NO = ?", SEED_REG_ID);
         jdbc.update("DELETE FROM LS_DATA_SRC WHERE RAW_SN BETWEEN 990000 AND 990999");
+        // V146(DB-ISSUE-01) 이후 프레임 시드에는 부모 영상이 필요하다 — 시드 대역째로 정리한다(CASCADE).
+        RawVideoFixture.deleteRawsWhere(jdbc, "RAW_SN BETWEEN 990000 AND 990999");
     }
 
     @Test
@@ -101,6 +104,9 @@ class ResolutionTablesDropAndBackfillIT {
         recreateSourceTables();
 
         // 대표프레임 시드: RAW 990101 에 FRM_NO 5, 2 두 프레임. 대표 = FRM_NO 최소(2).
+        // 부모 영상 선시드 — V146 FK(LS_DATA_SRC → LS_DATA_RAW). 백필 SQL 은 LS_DATA_RAW 를 읽지 않으므로
+        // 검증 대상(대표프레임 선정·AUG_TYPE_CD 변환·라벨매핑 이관)에는 영향이 없다.
+        RawVideoFixture.seedRaw(jdbc, SEED_RAW_SN);
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, ?, ?)",
                 SEED_RAW_SN, 5L, "/x/f5.jpg");
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, ?, ?)",
@@ -154,6 +160,7 @@ class ResolutionTablesDropAndBackfillIT {
 
         // 정상 export(프레임 보유) 1건: 백필되면 aug 1행 생성 대상 — 예외 롤백 시 사라져야 함(롤백 증거).
         long okRaw = 990201L;
+        RawVideoFixture.seedRaw(jdbc, okRaw); // 부모 영상 선시드(V146 FK)
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, 1, '/x/ok.jpg')", okRaw);
         jdbc.update("INSERT INTO LS_RESOLUTION_EXPORT (DATA_RAW_SN, GOAL_RESL_CD, REG_ID, REG_DT) "
                 + "VALUES (?, 'RES_1080P', ?, CURRENT_TIMESTAMP)", okRaw, SEED_REG_ID);
@@ -199,6 +206,7 @@ class ResolutionTablesDropAndBackfillIT {
 
         long rawA = 990101L;
         long rawB = 990102L;
+        RawVideoFixture.seedRaws(jdbc, rawA, rawB); // 부모 영상 선시드(V146 FK)
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, 3, '/x/a.jpg')", rawA);
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, 1, '/x/b.jpg')", rawB);
 
@@ -253,6 +261,7 @@ class ResolutionTablesDropAndBackfillIT {
 
         long rawWithMap = 990401L;
         long rawNoMap = 990402L;
+        RawVideoFixture.seedRaws(jdbc, rawWithMap, rawNoMap); // 부모 영상 선시드(V146 FK)
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, 1, '/x/wm.jpg')", rawWithMap);
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, 1, '/x/nm.jpg')", rawNoMap);
 
