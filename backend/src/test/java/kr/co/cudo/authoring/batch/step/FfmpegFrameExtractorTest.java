@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -113,15 +114,20 @@ class FfmpegFrameExtractorTest {
 
     private FfmpegFrameExtractor newExtractor() {
         Path deidBase = tmp.resolve("deid");
+        // 비식별 입력 영상의 읽기 허용 base 판정은 리졸버(구 위치 + co-locate 2-way)로 위임된다.
         return new FfmpegFrameExtractor(srcRepository, hstryRepository, deidentProcLogRepository,
-                frameWriter, fpsResolver, tmp.toString(), deidBase.toString());
+                frameWriter, fpsResolver,
+                ArtifactRootTestSupport.coLocate(tmp, tmp, deidBase),
+                tmp.toString(), deidBase.toString());
     }
 
     /** 운영 설정 재현: 원본·비식별 base 가 동일 경로(/nas-storage 등)로 주입된 extractor. */
     private FfmpegFrameExtractor newExtractorSameBase() {
         Path shared = tmp.resolve("nas-storage");
         return new FfmpegFrameExtractor(srcRepository, hstryRepository, deidentProcLogRepository,
-                frameWriter, fpsResolver, shared.toString(), shared.toString());
+                frameWriter, fpsResolver,
+                ArtifactRootTestSupport.coLocate(tmp, shared, shared),
+                shared.toString(), shared.toString());
     }
 
     /** deIdntfYn 기본 "Y" (비식별 완료) 영상. */
@@ -218,6 +224,87 @@ class FfmpegFrameExtractorTest {
         // base 밖 비식별 경로는 채택되지 않는다 — 비식별 경로 미저장(RAW only).
         assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
         // 비식별용 writeFrame 미수행 — raw 1회만.
+        assertThat(recordedSeekMillis).hasSize(1);
+    }
+
+    // ============================================================
+    // 결함#2 회귀 — co-locate(원본 옆) 비식별 영상도 채택되어 2벌이 추출된다
+    // ============================================================
+
+    @Test
+    @DisplayName("결함2_원본옆_co_locate_비식별영상도_채택되어_비식별프레임경로가_저장된다")
+    void extractByMarks_coLocateDeidVideo_attachesDeidPath() throws IOException {
+        // given — Phase 5A 확정 구조: 비식별 영상은 {dirname(원본)}/{rawSn}/deid/ 에 산출된다.
+        //   원본(sourceVideo)은 tmp 하위이므로 이 경로는 비식별 base(tmp/deid) <b>밖</b>이다.
+        //   구 가드(deidentified-path 단독)는 이 경로를 신뢰불가로 판정해 항상 RAW only 였다(실기동 실측:
+        //   DE_IDNTF_SRC_FILE_PATH_NM 전 행 NULL → export 비식별 벌 결손).
+        Path coLocateDeid = sourceVideo.getParent().resolve("9001").resolve("deid")
+                .resolve("clip-mask.mp4");
+        Files.createDirectories(coLocateDeid.getParent());
+        Files.write(coLocateDeid, new byte[]{0, 0, 0});
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
+                .thenReturn(Optional.of(succeededLog(coLocateDeid.toString())));
+
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then — 비식별 프레임 경로가 채워지고(2벌) 출력은 여전히 frames/deid 하위다(쓰기 축 불변).
+        assertThat(frames).hasSize(2);
+        assertThat(frames).allMatch(f -> f.getDeIdntfSrcFilePathNm() != null);
+        assertThat(frames).allMatch(f ->
+                f.getDeIdntfSrcFilePathNm().replace('\\', '/').contains("/frames/deid/9001/"));
+        // raw 2회 + deid 2회 = 4회 writeFrame (비식별 벌이 실제로 추출됐다는 증거)
+        assertThat(recordedSeekMillis).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("결함2_경로순회_비식별경로가_상위참조로_허용루트를_벗어나면_여전히_거부된다")
+    void extractByMarks_deidPathTraversal_stillRejected() throws IOException {
+        // given — '..' 순회로 허용 base(비식별 저장소·co-locate) 밖을 가리키는 오염 경로.
+        //   정규화하면 tmp/outside/traversed-deid.mp4 이며 어느 허용 base 하위도 아니다.
+        Path escaped = tmp.resolve("deid").resolve("videos").resolve("..").resolve("..")
+                .resolve("outside").resolve("traversed-deid.mp4");
+        Files.createDirectories(escaped.normalize().getParent());
+        Files.write(escaped.normalize(), new byte[]{0, 0, 0});
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
+                .thenReturn(Optional.of(succeededLog(escaped.toString())));
+
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then — 허용 base 전부의 밖 → 채택하지 않는다. 원본 폴백도 없다(RAW only, deid 경로 미저장).
+        assertThat(frames).hasSize(1);
+        assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
+        assertThat(recordedSeekMillis).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("결함2_다른영상의_co_locate_디렉터리_경로는_거부된다_rawSn_교차차단")
+    void extractByMarks_otherVideoColocateDir_rejected() throws IOException {
+        // given — co-locate 후보는 <b>이 영상의 rawSn</b> 디렉터리 하나뿐이다. 같은 원본 디렉터리 아래라도
+        //   다른 rawSn(9002) 의 deid 경로가 오면 채택되지 않아야 한다(영상 간 교차 참조 차단).
+        Path otherVideoDeid = sourceVideo.getParent().resolve("9002").resolve("deid")
+                .resolve("other-mask.mp4");
+        Files.createDirectories(otherVideoDeid.getParent());
+        Files.write(otherVideoDeid, new byte[]{0, 0, 0});
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
+                .thenReturn(Optional.of(succeededLog(otherVideoDeid.toString())));
+
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then
+        assertThat(frames).hasSize(1);
+        assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
         assertThat(recordedSeekMillis).hasSize(1);
     }
 

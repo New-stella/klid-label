@@ -320,6 +320,32 @@ public class VideoArtifactRootResolver {
     }
 
     /**
+     * 비식별 <b>영상</b> 읽기 허용 base <b>전체 집합</b> — {@code deidentified-path}(구 위치·파생영상 포함)
+     * ∪ {@link #readableDeidVideoDirs}(구 {@code {deid_base}/videos/{rawSn}} + co-locate
+     * {@code dirname(원본)/{rawSn}/deid}).
+     *
+     * <p><b>왜 필요한가</b> — {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 에 적재된 경로를 읽는
+     * 소비자는 하나가 아니다(마킹 스트리밍 · 프레임 추출). 각자 자기 방식으로 base 를 계산하면
+     * 클래스 주석의 "가드가 4벌로 갈라져 하나씩 샌다" 가 실제로 일어난다 — 실측: 프레임 추출기는
+     * {@code deidentified-path} <b>하나만</b> 기준으로 검증해, Phase 5A co-locate 로 산출된 우리 자신의
+     * 비식별 영상을 "신뢰불가 경로"로 판정하고 비식별 프레임 벌을 <b>항상</b> 건너뛰었다
+     * (DE_IDNTF_SRC_FILE_PATH_NM 전 행 NULL → export 비식별 벌 결손). 판정 축을 여기 한 곳에 모은다.
+     *
+     * <p>후보 도출 실패(co-locate base 검증 위반 등)는 조용히 빠지고 구 위치만 남는다(fail-secure).
+     * 이 목록은 <b>읽기 허용 범위</b>일 뿐이며, 실제 경로는 항상 DB 적재값을 쓰고 조합·추측하지 않는다.
+     */
+    public List<Path> readableDeidVideoBases(long rawSn, String rawFilePathNm) {
+        Set<Path> bases = new LinkedHashSet<>();
+        bases.add(deidentifiedBase);
+        try {
+            bases.addAll(readableDeidVideoDirs(rawSn, rawFilePathNm));
+        } catch (RuntimeException e) {
+            // 후보 도출 실패 — 구 위치(비식별 저장소 base)만으로 판정한다(fail-secure).
+        }
+        return List.copyOf(bases);
+    }
+
+    /**
      * <b>적재(ingest) 시점 경로 검증</b> — 외부(증강 콜백 등)가 건네는 영상 파일 경로를
      * {@code LS_DATA_RAW.RAW_FILE_PATH_NM} 에 적재하기 <b>전에</b> 고정 allowlist 하위인지 확인한다.
      *

@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.common.util.ManifestJsonlWriter;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
@@ -72,12 +73,18 @@ public class FfmpegFrameExtractor implements BatchStep {
     private final Path baseRawPath;
     /** Phase 2: 비식별 프레임 출력 base 경로 (영상 2벌 보관 정책). */
     private final Path baseDeidPath;
+    /**
+     * 비식별 <b>입력 영상</b> 읽기 허용 base 판정의 단일 원천 (Phase 5A co-locate 정합).
+     * 출력(프레임) base 는 여전히 {@link #baseDeidPath} 다 — 읽기 축과 쓰기 축을 섞지 않는다.
+     */
+    private final VideoArtifactRootResolver artifactRootResolver;
 
     public FfmpegFrameExtractor(LsDataSrcRepository srcRepository,
                                 LsDataSrcHstryRepository hstryRepository,
                                 LsDeidentProcLogRepository deidentProcLogRepository,
                                 FrameWriter frameWriter,
                                 VideoFpsResolver fpsResolver,
+                                VideoArtifactRootResolver artifactRootResolver,
                                 @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
                                 @Value("${authoring.storage.deidentified-path:./storage/deidentified}") String storageDeidPath) {
         this.srcRepository = srcRepository;
@@ -85,6 +92,7 @@ public class FfmpegFrameExtractor implements BatchStep {
         this.deidentProcLogRepository = deidentProcLogRepository;
         this.frameWriter = frameWriter;
         this.fpsResolver = fpsResolver;
+        this.artifactRootResolver = artifactRootResolver;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.baseDeidPath = Paths.get(storageDeidPath).toAbsolutePath().normalize();
     }
@@ -111,8 +119,14 @@ public class FfmpegFrameExtractor implements BatchStep {
      *   <li>추출 결과 0건이면 {@code INTERNAL_ERROR} — 기존 orchestrator 의 "프레임 추출 결과가
      *       0건입니다" 가드와 동일 ErrorCode/단계.</li>
      * </ul>
+     *
+     * <p><b>트랜잭션 경계는 여기에 있다</b>(DEV_FIX — self-invocation 트랜잭션 부재). 오케스트레이터가
+     * 빈(프록시)의 {@code execute} 를 호출하므로 애노테이션이 발효되고, 아래 {@code this.extractByMarks(...)}
+     * 는 자기호출이라 어드바이스가 걸리지 않아 본 트랜잭션에 참여한다(REQUIRES_NEW 중첩 없음 —
+     * 스텝 1건 = 트랜잭션 1건). {@code extractByMarks} 를 프록시 경유로 바꾸면 중첩되므로 바꾸지 말 것.
      */
     @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void execute(BatchContext ctx) {
         Long rawSn = ctx.getRawSn();
         List<MarkItem> marks = ctx.getMarks();
@@ -188,9 +202,9 @@ public class FfmpegFrameExtractor implements BatchStep {
         Path deidSource = null;
         Path deidOutputDir = null;
         if (deidVideoPath != null) {
-            Path deidPath = Paths.get(deidVideoPath).normalize();
-            if (!deidPath.startsWith(baseDeidPath)) {
-                // MED-sec: 비식별 영상 경로가 비식별 base 밖 — 외부 응답·DB 오염 등 신뢰불가 경로.
+            Path deidPath = Paths.get(deidVideoPath).toAbsolutePath().normalize();
+            if (!isUnderAllowedDeidBase(deidPath, raw)) {
+                // MED-sec: 비식별 영상 경로가 <b>허용 base 전부</b>의 밖 — 외부 응답·DB 오염 등 신뢰불가 경로.
                 // VideoStreamService.resolveSafe 와 대칭으로 fail-closed: 비식별 입력으로 쓰지 않고
                 // 미존재처럼 RAW only 진행(원본 fallback 차단, 경로 원문 미노출).
                 log.warn("[Batch][FrameExtract] deid path outside base rawSn={} — RAW only", raw.getRawSn());
@@ -268,6 +282,51 @@ public class FfmpegFrameExtractor implements BatchStep {
         }
         log.info("[Batch][FrameExtract] mark-based extracted rawSn={} frames={}", raw.getRawSn(), saved.size());
         return saved;
+    }
+
+    /**
+     * 비식별 <b>입력 영상</b> 경로가 허용 base 중 <b>하나라도</b> 하위인지 판정한다 (CWE-22, fail-closed).
+     *
+     * <h3>왜 base 가 여러 개인가 (근본 원인 — 읽는 쪽 가드가 과하게 좁았다)</h3>
+     * <p>구 구현은 {@code deidentified-path} <b>하나만</b> 기준으로 검증했다. 그런데 비식별 영상의 산출
+     * 위치는 Phase 5A 부터 <b>co-locate</b>({@code dirname(원본)/{rawSn}/deid/}) 이고, 그 경로는 우리가
+     * {@link VideoArtifactRootResolver#deidVideoDir} 로 <b>직접 지정</b>해 고정 allowlist
+     * ({@code raw-mount-roots}) 검증까지 통과시킨 경로다. 원본이 관제 NAS(=raw base) 하위에 있는 정상
+     * 형상에서 이 경로는 {@code deidentified-path} 밖이므로, 가드가 <b>자기가 지정한 산출물</b>을
+     * 신뢰불가로 판정해 비식별 프레임 벌을 항상 건너뛰었다(로컬 실기동 실측:
+     * {@code DE_IDNTF_SRC_FILE_PATH_NM} 전 행 NULL → {@code V_COMPLETED_FRAME.DEIDENTIFIED_PATH} NULL →
+     * export 비식별 벌 결손). 즉 <b>산출 경로가 아니라 읽는 쪽 가드가 틀렸다</b>. 판정은
+     * {@link VideoArtifactRootResolver#readableDeidVideoBases}(이미 {@code VideoStreamService} 가 쓰는
+     * 동일 축)로 위임해 가드가 갈라지지 않게 한다.
+     *
+     * <h3>유지되는 방어</h3>
+     * <ul>
+     *   <li>{@code ..} 순회는 {@code normalize()} 로 접힌 뒤 어느 base 하위도 아니게 되어 거부된다.</li>
+     *   <li>허용 루트 밖(외부·DB 오염) 경로는 여전히 거부 — <b>원본(비-비식별) 경로 폴백은 없다</b>
+     *       (거부 시 비식별 입력 없이 RAW only 진행. {@code deIdntfYn='Y'} 행에 원본 PII 경로가 실릴
+     *       여지를 만들지 않는다 — CWE-359).</li>
+     *   <li>거부 로그에 경로 원문을 남기지 않는다(CWE-209).</li>
+     *   <li>리졸버 미주입(단위 테스트 수동 생성)이면 구 동작({@code deidentified-path} 단독)으로
+     *       판정한다 — 넓어지지 않는다(fail-closed).</li>
+     * </ul>
+     */
+    private boolean isUnderAllowedDeidBase(Path deidPath, LsDataRaw raw) {
+        if (artifactRootResolver == null) {
+            return deidPath.startsWith(baseDeidPath);
+        }
+        List<Path> bases;
+        try {
+            bases = artifactRootResolver.readableDeidVideoBases(raw.getRawSn(), raw.getRawFilePathNm());
+        } catch (RuntimeException e) {
+            // 후보 도출 자체가 실패하면 구 동작으로 판정한다(fail-secure — 넓히지 않는다).
+            return deidPath.startsWith(baseDeidPath);
+        }
+        for (Path base : bases) {
+            if (deidPath.startsWith(base)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

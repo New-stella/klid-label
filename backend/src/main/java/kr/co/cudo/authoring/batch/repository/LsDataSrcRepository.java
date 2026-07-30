@@ -279,6 +279,14 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
      * <b>서로 다른 프레임 집합을 2회 이상</b> bump 하면 순서 규약만으로는 막을 수 없는 문장 간 ABBA 가
      * 성립하므로, 그런 경로는 {@link #lockFramesByRawSn} 로 락 획득 지점을 1곳으로 통합해야 한다.
      *
+     * <h3>{@code @Transactional} 을 여기에 붙이지 않는다 (DEV_FIX — 의도)</h3>
+     * <p>본 리포지토리의 {@code @Modifying} 4종 모두 애노테이션이 없고, <b>호출자(서비스/배치 스텝)가
+     * 트랜잭션 경계를 제공</b>하는 것이 이 리포의 규약이다. 과거 배치 스텝의 경계가 자기호출로 무력화돼
+     * 이 문장이 "Executing an update/delete query" 로 터졌으나, 그때의 근본 원인은 <b>스텝 경계</b>이고
+     * 여기에 애노테이션을 덧붙이는 것은 증상만 가린다 — 그렇게 하면 DML 마다 별도 트랜잭션이 열려
+     * (1) 스텝 단위 원자성이 깨지고(부분 커밋) (2) 같은 트랜잭션에서 잡아 둔 프레임 락과 분리되어 위
+     * 락 순서 규약이 무의미해지며 (3) 다음번 경계 누락이 무증상으로 지나간다.
+     *
      * @return 갱신된 프레임 수
      */
     @Modifying

@@ -94,8 +94,14 @@ public class TrackInterpolationStep implements BatchStep {
     /**
      * 파이프라인 진입점 — 트랙 보간을 수행한다.
      * 동작 보존: 기존 orchestrator 의 {@code trackInterpolationStep.run(rawSn)} 와 동일.
+     *
+     * <p><b>트랜잭션 경계는 여기에 있다</b>(DEV_FIX — self-invocation 트랜잭션 부재). 오케스트레이터가
+     * 빈(프록시)의 {@code execute} 를 호출하므로 애노테이션이 발효되고, 아래 {@code this.run(...)} 은
+     * 자기호출이라 어드바이스가 걸리지 않아 본 트랜잭션에 참여한다(REQUIRES_NEW 중첩 없음 —
+     * 스텝 1건 = 트랜잭션 1건). {@code run()} 을 프록시 경유로 바꾸면 중첩되므로 바꾸지 말 것.
      */
     @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void execute(BatchContext ctx) {
         run(ctx.getRawSn());
     }

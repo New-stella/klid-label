@@ -11,6 +11,22 @@ import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
  *
  * <p>구현 단계는 기존 typed 메서드(run/extractByMarks 등)를 보존하고
  * {@code execute} 가 그 메서드에 위임한다 — 기존 단위테스트 영향 최소화.
+ *
+ * <h2>트랜잭션 경계 규약 (Critical — DEV_FIX)</h2>
+ * <p>호출자({@code BatchOrchestrator.process}, {@code AsyncDeidentifyRunner.runAsync})는 <b>둘 다
+ * 트랜잭션이 없다</b>. 따라서 DB 를 쓰는 단계는 <b>{@code execute} 에</b>
+ * {@code @Transactional(value = "controlTransactionManager", propagation = REQUIRES_NEW)} 를 선언해야
+ * 한다 — 호출자가 주입받은 <b>빈(프록시)</b> 를 통해 호출하므로 이 위치에서만 어드바이스가 발효된다.
+ *
+ * <p>typed 메서드에만 애노테이션을 두고 {@code execute} 가 그것을 <b>자기호출</b>하면 프록시를 우회해
+ * <b>트랜잭션이 열리지 않는다</b>. 그 상태에서는 {@code @Modifying} 벌크 DML 이
+ * "Executing an update/delete query" 로 실패하고 dirty-update 는 조용히 유실된다(로컬 실기동에서
+ * YOLO 단계 전량 FAILED 로 실측).
+ *
+ * <p>반대로 {@code execute} 와 typed 메서드를 <b>둘 다 프록시 경유</b>로 REQUIRES_NEW 로 만들면
+ * 트랜잭션이 2회 열린다(중첩). 정석은 "경계는 {@code execute} 한 곳, 내부 위임은 자기호출" 이며,
+ * typed 메서드의 REQUIRES_NEW 는 <b>직접 호출 진입점</b>(dev 트리거·재처리 등)을 위해 남겨둔다.
+ * 이 규약은 {@code BatchStepTransactionBoundaryTest} 가 정적으로 강제한다.
  */
 public interface BatchStep {
 
