@@ -120,6 +120,9 @@ STEPS=(
 # 16: db/schema.sql 로드 (SPRING_FLYWAY_ENABLED=false 운영). SCHEMA_LOAD_RUN=1 일 때만
 #     실제 로드, 아니면 수동 안내만. Flyway 부트스트랩 구성이면 SKIP_SCHEMA_LOAD=1 로 생략.
 [[ "${SKIP_DB_INIT:-0}" == "1" ]] || STEPS+=("16-load-schema.sh")
+# 17: 포털 DB(PORTAL_DB_*) 복제본 스키마 로드. Flyway 는 control 에만 붙으므로 포털 스키마는
+#     설치가 책임진다 — 빠뜨리면 메타 복제가 조용히 0건으로 유지된다(로그·헬스로 안 드러남).
+[[ "${SKIP_DB_INIT:-0}" == "1" ]] || STEPS+=("17-load-portal-schema.sh")
 
 for step in "${STEPS[@]}"; do
   script="${SELF_DIR}/install/${step}"

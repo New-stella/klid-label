@@ -3,11 +3,13 @@ package kr.co.cudo.authoring.dataset.worker;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.repository.PortalDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.observability.metrics.MetaReplicationMetrics;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.sql.DataSource;
 import java.sql.SQLException;
 
 /**
@@ -19,14 +21,29 @@ import java.sql.SQLException;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PortalMetaReplicaWriter {
 
     /** PostgreSQL {@code undefined_table} SQLSTATE — 복제본 미프로비저닝 판별. */
     private static final String SQLSTATE_UNDEFINED_TABLE = "42P01";
 
+    /** 가용성 probe SQL — 존재/접근 가능 여부만 본다(행 0건도 정상). */
+    private static final String PROBE_SQL = "SELECT 1 FROM LS_DATASET_VIDEO_META LIMIT 1";
+
     private final PortalDatasetVideoMetaRepository portalRepository;
     private final MetaReplicationMetrics metrics;
+
+    /**
+     * probe 전용 — 포털 DataSource 직결(JPA/트랜잭션 미경유). 이유는 {@link #isReplicaAvailable()} 참조.
+     */
+    private final JdbcTemplate portalProbeJdbcTemplate;
+
+    public PortalMetaReplicaWriter(PortalDatasetVideoMetaRepository portalRepository,
+                                   MetaReplicationMetrics metrics,
+                                   @Qualifier("portalDataSource") DataSource portalDataSource) {
+        this.portalRepository = portalRepository;
+        this.metrics = metrics;
+        this.portalProbeJdbcTemplate = new JdbcTemplate(portalDataSource);
+    }
 
     /**
      * 포털 복제본에 스냅샷을 멱등 upsert 한다(포털 트랜잭션) — last-writer-wins.
@@ -64,12 +81,21 @@ public class PortalMetaReplicaWriter {
      * 조용한 skip 을 금지하고 ERROR 로그 + error 메트릭으로 승격한다(관측성). 어느 경우든 tick 을 중단시키지
      * 않기 위해 false 를 반환한다(다음 tick 이 재개).
      *
-     * @return 테이블 접근 가능 시 true, 부재/실장애 시 false
+     * <p><b>트랜잭션·JPA 를 경유하지 않는 이유(회귀 방지 — 이 메서드에 {@code @Transactional} 을 다시 붙이지 말 것)</b>:
+     * 과거 이 메서드는 {@code @Transactional("portalTransactionManager")} 안에서 JPA probe 를 실행하고 예외를
+     * <b>같은 트랜잭션 안에서</b> 삼켰다. 그러면 42P01 이 트랜잭션을 rollback-only 로 마킹한 뒤 정상 return 하므로,
+     * 프록시의 커밋 단계에서 {@code UnexpectedRollbackException} 이 터져 <b>graceful skip 이 성립하지 않았다</b>
+     * (미프로비저닝 포털 DB 에서 매 tick ERROR — dev 실측). {@code readOnly=true} 로도 막히지 않는다.
+     * 가용성 판정은 본질적으로 커넥션 수준 질의이므로 포털 DataSource 에 직결해 세션/트랜잭션을 오염시킬
+     * 여지를 없앤다. 호출부에 활성 트랜잭션이 있어도 이 probe 는 그 트랜잭션에 참여하지 않는다.
+     *
+     * @return 테이블 접근 가능 시 true(행 0건 포함), 부재/실장애 시 false
      */
-    @Transactional(value = "portalTransactionManager", readOnly = true)
     public boolean isReplicaAvailable() {
         try {
-            portalRepository.probeReplicaTable();
+            // queryForList — 행이 0건이어도 예외가 아니다(테이블은 존재). queryForObject 는 0건에
+            // EmptyResultDataAccessException 을 던져 "빈 복제본"을 미프로비저닝으로 오판한다.
+            portalProbeJdbcTemplate.queryForList(PROBE_SQL, Integer.class);
             return true;
         } catch (RuntimeException e) {
             if (isMissingRelation(e)) {
