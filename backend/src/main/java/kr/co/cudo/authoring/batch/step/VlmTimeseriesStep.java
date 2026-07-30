@@ -119,8 +119,19 @@ public class VlmTimeseriesStep implements BatchStep {
 
     /**
      * 파이프라인 진입점 — 마킹 유무에 따라 {@link #runWithMarking} / {@link #run} 분기.
+     *
+     * <p><b>트랜잭션 경계는 여기에 있다</b>(DEV_FIX — self-invocation 트랜잭션 부재). 오케스트레이터가
+     * 빈(프록시)의 {@code execute} 를 호출하므로 애노테이션이 발효되고, 아래 두 분기는 자기호출이라
+     * 어드바이스가 걸리지 않아 본 트랜잭션에 참여한다(REQUIRES_NEW 중첩 없음 — 스텝 1건 = 트랜잭션 1건).
+     * 분기 메서드를 프록시 경유로 바꾸면 중첩되므로 바꾸지 말 것.
+     *
+     * <p>속성은 <b>쓰기 가능</b>(readOnly 아님) — 두 분기 중 {@link #runWithMarking} 이 마킹 상태를
+     * 전이(저장)하므로 상위 경계는 그 상한을 따라야 한다. 마킹 없는 {@link #run} 분기는 스스로
+     * {@code readOnly=true} 이지만 그 경로에는 dirty 엔티티가 없고(변경 대상 marking 이 null),
+     * 상태 기록·ledger 는 별도 빈의 자체 트랜잭션이라 동작 차이가 없다.
      */
     @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void execute(BatchContext ctx) {
         List<LsMarking> markings = ctx.getMarkings();
         if (!markings.isEmpty()) {
@@ -242,11 +253,12 @@ public class VlmTimeseriesStep implements BatchStep {
             persistResult(rawSn, resp);
 
             // 마킹 상태 전이: PENDING → VLM_REQUESTED (DB 영속 보장, DEV_FIX #1/#2)
-            //  ctx 의 marking 은 MarkingLoadStep 리포지토리 tx 종료 후 detached 이고, execute() 가
-            //  이 메서드를 self-invoke 하여 @Transactional(REQUIRES_NEW) 프록시가 적용되지 않는다.
-            //  따라서 detached 필드 변경만으로는 flush 되지 않아 전이가 유실된다(재현 확인).
-            //  markingRepository.save(=merge) 로 명시 영속하여, 프록시/ambient tx 유무와 무관하게
-            //  전이가 durable 하게 커밋되도록 한다(최소 blast-radius — 다른 Step tx 경계 불변).
+            //  ctx 의 marking 은 MarkingLoadStep 리포지토리 tx 종료 후 <b>detached</b> 라, 이 트랜잭션의
+            //  영속성 컨텍스트가 관리하지 않는다 — 필드만 바꿔도 flush 대상이 아니어서 전이가 유실된다
+            //  (재현 확인). 그래서 markingRepository.save(=merge) 로 명시 영속한다.
+            //  ※ 트랜잭션 경계는 execute() 로 옮겨졌지만(DEV_FIX — self-invocation 부재 수정), detached
+            //    엔티티라는 사실은 그대로이므로 이 명시 merge 는 계속 필요하다. ambient tx 유무와
+            //    무관하게 durable 하게 커밋된다(최소 blast-radius — 다른 Step tx 경계 불변).
             persistMarkingTransition(marking);
             return resp;
         } catch (CustomException ce) {

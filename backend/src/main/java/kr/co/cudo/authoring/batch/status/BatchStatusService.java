@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -88,8 +89,24 @@ public class BatchStatusService {
      * <p>Phase 2 결과 수신 webhook 에서 externalJobId 로 영상을 역추적할 때 사용한다.
      * 별도 컬럼 추가 없이 기존 {@code RESP_PAYLOAD_CN} JSON 컬럼에 적재한다.
      * 로그가 없으면 새로 생성한다.
+     *
+     * <h3>왜 {@code REQUIRES_NEW} 인가 (감사 기록은 스텝 성패와 무관, CWE-778)</h3>
+     * <p>이 메서드는 <b>외부 위탁이 이미 성공한 사실</b>(request_id/status)을 남기는 감사 기록이다.
+     * 호출자({@code VlmTimeseriesStep.persistResult})는 스텝 트랜잭션 <b>안</b>에서 부르고, 그 뒤에
+     * 마킹 상태 전이 저장이 이어진다 — 기본 propagation(REQUIRED)이면 그 후속 작업이 실패할 때 이미
+     * 성공한 외부 호출의 유일한 흔적이 함께 사라진다(콜백 역추적 근거 소실). 그래서 스텝 tx 와 운명을
+     * 분리해 독립 커밋한다({@code ledger.recordIssued} 와 동일한 규약).
+     *
+     * <p><b>커넥션 1개 추가 요구</b> — 이 호출 지점은 외부 I/O({@code vlmClient…block()})가 <b>이미
+     * 반환한 뒤</b>이므로, 외부 대기 중에 커넥션 2개를 붙잡지 않는다. 또 같은 경로에서
+     * {@code WebhookIdempotencyLedger.recordIssued} 가 이미 {@code REQUIRES_NEW} 로 중첩 커넥션을
+     * 요구하므로 이 경로의 동시 점유 최대치(2)는 변하지 않는다.
+     * <p>같은 클래스의 {@code recordVlmSkipped} 는 <b>일부러 바꾸지 않았다</b> — 호출 직후 곧바로
+     * 반환해 스텝 tx 가 커밋되므로 롤백에 휩쓸릴 후속 작업이 없고(위험 부재), 그 경로는
+     * {@code vlm.client.enabled=false} 기본 형상에서 <b>모든</b> 배치가 지나는 길이라 여기에 중첩
+     * 커넥션을 요구하면 커넥션 기아 교착(과거 실사고 2건)의 노출면만 넓어진다.
      */
-    @Transactional("controlTransactionManager")
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void recordVlmTimeseriesResult(Long rawSn, String resPayloadJson) {
         if (rawSn == null) return;
         LsBatchProcLog logEntry = latestProgressLog(rawSn)

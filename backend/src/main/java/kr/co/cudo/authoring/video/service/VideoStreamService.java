@@ -449,18 +449,15 @@ public class VideoStreamService {
      * {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 값을 쓰며 조합/추측하지 않는다.
      */
     private List<Path> allowedDeidBases(Long rawSn, String rawFilePathNm) {
-        List<Path> bases = new java.util.ArrayList<>(3);
-        bases.add(Paths.get(deidentifiedPath).toAbsolutePath().normalize());
-        if (artifactRootResolver != null) {
-            // 읽기 후보는 <전략과 무관>하게 구/신 두 위치 모두다(S8) — 롤백 플래그를 되돌려도 이미 적재된
-            // co-locate 경로가 깨지지 않아야 하며, 반대로 전환 직후에도 구 위치 행이 계속 읽혀야 한다.
-            try {
-                bases.addAll(artifactRootResolver.readableDeidVideoDirs(rawSn, rawFilePathNm));
-            } catch (RuntimeException e) {
-                // 후보 도출 실패 — 구 위치 base 만으로 판정한다(fail-secure).
-            }
+        if (artifactRootResolver == null) {
+            return List.of(Paths.get(deidentifiedPath).toAbsolutePath().normalize());
         }
-        return bases;
+        // 판정 축은 리졸버 한 곳(readableDeidVideoBases) — 같은 DB 값(DE_IDNTF_FILE_PATH_NM)을 읽는
+        // 다른 소비자(프레임 추출기)와 가드가 갈라지면 한쪽만 새거나 한쪽만 막힌다(실측: 프레임 추출기가
+        // co-locate 산출물을 거부해 비식별 프레임 벌이 통째로 결손). 읽기 후보는 <전략과 무관>하게 구/신
+        // 두 위치 모두다(S8) — 롤백 플래그를 되돌려도 이미 적재된 co-locate 경로가 깨지지 않아야 하며,
+        // 반대로 전환 직후에도 구 위치 행이 계속 읽혀야 한다.
+        return artifactRootResolver.readableDeidVideoBases(rawSn, rawFilePathNm);
     }
 
     /**

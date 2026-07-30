@@ -139,8 +139,20 @@ public class YoloAutolabelStep implements BatchStep {
     /**
      * 파이프라인 진입점 — YOLO 자동 라벨링 결과 힌트를 컨텍스트에 적재한다.
      * 동작 보존: 기존 orchestrator 의 {@code ctx.hints = yoloStep.run(rawSn)} 와 동일.
+     *
+     * <p><b>트랜잭션 경계는 여기에 있다</b>(DEV_FIX — self-invocation 트랜잭션 부재). 오케스트레이터는
+     * 주입받은 <b>빈(프록시)</b> 의 {@code execute} 를 호출하므로 이 애노테이션이 실제로 발효되고,
+     * 오케스트레이터 자신은 트랜잭션이 없다({@code process()} 무-tx). 아래 {@code this.run(...)} 은
+     * <b>자기호출이라 트랜잭션 어드바이스가 걸리지 않아</b> 본 트랜잭션에 그대로 참여한다 — 즉
+     * REQUIRES_NEW 가 두 번 열리지 않는다(스텝 1건 = 트랜잭션 1건). {@code run()} 을 프록시 경유로
+     * 바꾸면 중첩되므로 바꾸지 말 것.
+     *
+     * <p>이 경계가 없던 동안 {@code srcRepository.bumpLabelVersionIn}(@Modifying 네이티브 UPDATE)이
+     * "Executing an update/delete query" 로 매번 터져 YOLO 단계가 전량 FAILED 였고, 라벨은 저장되는데
+     * {@code LBL_VER} 는 0 으로 남아 lost update 방어가 무효화됐다(로컬 실기동 실측).
      */
     @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void execute(BatchContext ctx) {
         ctx.setHints(run(ctx.getRawSn()));
     }
