@@ -26,15 +26,9 @@ public interface PortalDatasetVideoMetaRepository extends JpaRepository<LsDatase
 
     List<LsDatasetVideoMeta> findByRawSnAndActiveYn(Long rawSn, String activeYn);
 
-    /**
-     * 포털 복제본 테이블 존재/접근 가능 여부 probe.
-     *
-     * <p>복제본 테이블이 아직 프로비저닝되지 않은 포털 DB 에서 워커가 매 outbox 를 실패시켜
-     * 불필요한 재시도/dead-letter 로 몰지 않도록, 워커가 tick 진입 전에 이 probe 로 가용성을 확인한다.
-     * 테이블이 없으면 예외가 발생하고 워커가 graceful skip 한다(중단 아님).
-     */
-    @Query(value = "SELECT 1 FROM LS_DATASET_VIDEO_META LIMIT 1", nativeQuery = true)
-    Integer probeReplicaTable();
+    // 가용성 probe 는 이 리포지토리(JPA/트랜잭션 경유)에 두지 않는다 — 트랜잭션 안에서 42P01 을 삼키면
+    // rollback-only 마킹 때문에 커밋에서 UnexpectedRollbackException 이 터져 graceful skip 이 깨진다.
+    // PortalMetaReplicaWriter.isReplicaAvailable() 이 포털 DataSource 직결로 수행한다.
 
     /** control {@code LsDatasetVideoMetaRepository.upsertSnapshot} 와 동일한 멱등 upsert(포털 EMF). */
     @Modifying(clearAutomatically = false, flushAutomatically = true)

@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.support;
 
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.test.context.ContextConfigurationAttributes;
 import org.springframework.test.context.ContextCustomizer;
@@ -27,14 +28,25 @@ public class PostgresContainerContextCustomizerFactory implements ContextCustomi
     @Override
     public ContextCustomizer createContextCustomizer(Class<?> testClass,
                                                      List<ContextConfigurationAttributes> configAttributes) {
-        return new PostgresContainerContextCustomizer();
+        boolean portalProvisioned = !AnnotatedElementUtils.hasAnnotation(testClass, UnprovisionedPortalReplica.class);
+        return new PostgresContainerContextCustomizer(portalProvisioned);
     }
 
     /**
      * equals/hashCode 를 동일하게 유지하여 Spring 테스트 컨텍스트 캐시가 깨지지 않도록 한다
      * (모든 테스트가 동일 컨테이너를 공유하므로 customizer 도 동등하게 취급).
+     *
+     * <p>단 {@link UnprovisionedPortalReplica} 테스트는 portal 접속 대상이 다르므로 {@code portalProvisioned}
+     * 를 동등성에 포함해 <b>별도 컨텍스트</b>로 캐시된다 — 그러지 않으면 먼저 뜬 컨텍스트가 재사용돼
+     * 미프로비저닝 재현이 무산된다.
      */
     static final class PostgresContainerContextCustomizer implements ContextCustomizer {
+
+        private final boolean portalProvisioned;
+
+        PostgresContainerContextCustomizer(boolean portalProvisioned) {
+            this.portalProvisioned = portalProvisioned;
+        }
 
         @Override
         public void customizeContext(org.springframework.context.ConfigurableApplicationContext context,
@@ -42,13 +54,16 @@ public class PostgresContainerContextCustomizerFactory implements ContextCustomi
             String jdbcUrl = PostgresTestContainer.INSTANCE.getJdbcUrl();
             String username = PostgresTestContainer.INSTANCE.getUsername();
             String password = PostgresTestContainer.INSTANCE.getPassword();
+            String portalJdbcUrl = portalProvisioned
+                    ? jdbcUrl
+                    : PostgresTestContainer.unprovisionedPortalJdbcUrl();
 
             Map<String, Object> props = new LinkedHashMap<>();
             props.put("spring.datasource.control.jdbc-url", jdbcUrl);
             props.put("spring.datasource.control.username", username);
             props.put("spring.datasource.control.password", password);
             props.put("spring.datasource.control.driver-class-name", "org.postgresql.Driver");
-            props.put("spring.datasource.portal.jdbc-url", jdbcUrl);
+            props.put("spring.datasource.portal.jdbc-url", portalJdbcUrl);
             props.put("spring.datasource.portal.username", username);
             props.put("spring.datasource.portal.password", password);
             props.put("spring.datasource.portal.driver-class-name", "org.postgresql.Driver");
@@ -59,12 +74,13 @@ public class PostgresContainerContextCustomizerFactory implements ContextCustomi
 
         @Override
         public boolean equals(Object obj) {
-            return obj instanceof PostgresContainerContextCustomizer;
+            return obj instanceof PostgresContainerContextCustomizer other
+                    && this.portalProvisioned == other.portalProvisioned;
         }
 
         @Override
         public int hashCode() {
-            return PostgresContainerContextCustomizer.class.hashCode();
+            return Boolean.hashCode(portalProvisioned);
         }
     }
 }
