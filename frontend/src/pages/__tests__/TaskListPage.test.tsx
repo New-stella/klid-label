@@ -55,6 +55,13 @@ describe('TaskListPage', () => {
       message: null,
       errorCode: null,
     });
+    // WORKER 시각 이벤트유형 옵션(전체 기준) — 각 테스트가 필요하면 먼저 등록해 덮어쓴다.
+    mock.onGet('/assignments/event-types').reply(200, {
+      success: true,
+      data: { items: [], truncated: false },
+      message: null,
+      errorCode: null,
+    });
   });
 
   afterEach(() => {
@@ -609,11 +616,16 @@ describe('TaskListPage', () => {
     expect(row!.textContent).toContain('-');
   });
 
-  it('WORKER_시각_이벤트_필터_옵션이_tasks의_eventName으로_채워짐', async () => {
-    // 이슈 #3: WORKER 시각은 useVideos 비활성으로 videos 가 비어 있어
-    // 기존 코드는 eventTypeOptions 가 항상 [] 였다. 본 테스트는 tasks 의 eventName 으로
-    // 이벤트 select 옵션이 채워지는지 검증한다.
+  it('WORKER_시각_이벤트_필터_옵션은_현재_페이지에서_수집하지_않는다', async () => {
+    // Phase 4: 옵션은 `/v1/assignments/event-types`(본인 배정 **전체** 기준) 결과만 쓴다.
+    // 현재 페이지 tasks 에서 수집하면 뒷페이지에만 있는 코드를 영원히 고를 수 없다.
     setRole('WORKER');
+    mock.onGet('/assignments/event-types').reply(200, {
+      success: true,
+      data: { items: ['FIRE', 'INTRUSION', 'FALLDOWN'], truncated: false },
+      message: null,
+      errorCode: null,
+    });
     mock.onGet('/assignments').reply(200, {
       success: true,
       data: {
@@ -668,15 +680,11 @@ describe('TaskListPage', () => {
       expect(screen.getByText('CCTV-FIRE-1')).toBeInTheDocument();
     });
 
-    // 이벤트 select 의 옵션 — '전체' + FIRE/INTRUSION (총 3개, 중복 제거됨).
+    // 이벤트 select 의 옵션 = '전체' + 옵션 API 3종. 현재 페이지에는 FALLDOWN 이 없지만 고를 수 있고,
+    // 반대로 목록에 중복 등장하는 FIRE 도 한 번만 나온다(옵션 원천이 목록이 아니므로).
     const eventSelect = screen.getByLabelText('이벤트') as HTMLSelectElement;
     const optionValues = Array.from(eventSelect.options).map((o) => o.value);
-    expect(optionValues).toContain('FIRE');
-    expect(optionValues).toContain('INTRUSION');
-    // 중복 제거 검증 — FIRE 는 한 번만 등장.
-    expect(optionValues.filter((v) => v === 'FIRE')).toHaveLength(1);
-    // 빈 '전체' 옵션 포함 총 3개.
-    expect(optionValues).toHaveLength(3);
+    expect(optionValues).toEqual(['', 'FIRE', 'INTRUSION', 'FALLDOWN']);
   });
 
   it('REVIEWER로_진입_시_users_API_호출됨', async () => {

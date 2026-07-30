@@ -6,13 +6,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
+import kr.co.cudo.authoring.assignment.dto.AssignmentSearchCondition;
+import kr.co.cudo.authoring.assignment.dto.EventTypeOptionsResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.service.AssignmentService;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.SortAllowlist;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,9 +44,13 @@ import java.util.List;
 @RequestMapping("/v1/assignments")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
+@org.springframework.validation.annotation.Validated
 public class AssignmentController {
 
     private final AssignmentService assignmentService;
+
+    /** 정렬 미지정 시 기본값 — 배정일 최신순 (기존 기본 동작 불변). */
+    private static final Sort DEFAULT_ASSIGNMENT_SORT = Sort.by(Sort.Direction.DESC, "regDt");
 
     @Operation(
             summary = "배정 생성",
@@ -81,20 +91,112 @@ public class AssignmentController {
     }
 
     @Operation(
-            summary = "배정 목록 조회 (페이징)",
-            description = "인증된 사용자가 본인 또는 (REVIEWER인 경우) 특정 작업자의 배정을 페이징 조회. workerId 파라미터로 필터링 가능."
+            summary = "배정 목록 조회 (페이징 + 필터)",
+            description = "인증된 사용자가 본인 또는 (REVIEWER인 경우) 특정 작업자의 배정을 페이징 조회한다. " +
+                    "검색어(q)·워크플로 상태(workStatus)·이벤트유형(eventTypeCd) 필터는 **현재 페이지가 아니라 " +
+                    "전체 데이터셋 기준**으로 적용되며 totalElements 도 필터 결과 기준이다.\n\n" +
+                    "- 신규 파라미터는 전부 optional 이고 기본값이 없다 — 하나도 보내지 않으면 변경 전과 동일한 결과다.\n" +
+                    "- workStatus 는 FE AssignmentStatus 와 같은 값 집합" +
+                    "(PENDING|IN_PROGRESS|REVIEW_PENDING|COMPLETED|REJECTED)이며, 응답 status 와 **동일 근거**로 " +
+                    "판정된다(작업중 = 그 영상에 사용자 라벨 저장 이력이 1건 이상. 배치 오토라벨은 이력을 남기지 " +
+                    "않으므로 '작업중'으로 치지 않는다).\n" +
+                    "- 정렬 키는 allowlist(regDt/assignedAt/videoId/rawDataId/id/assignmentId) 밖이면 400 이다.\n" +
+                    "- **WORKER 의 workerId 파라미터는 무시**된다(403 아님) — 본인 배정으로 범위가 고정된다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "허용되지 않은 필터/정렬 값"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "타인 배정 조회 권한 없음")
     })
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Page<AssignmentResponse.Item>> list(@Parameter(description = "조회 대상 작업자 PK (선택, REVIEWER만)", example = "1001") @RequestParam(required = false) Long workerId,
-                                                            @AuthenticationPrincipal TokenClaims actor,
-                                                            @PageableDefault(size = 20, sort = "regDt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ApiResponse.ok(assignmentService.listAssignments(workerId, actor, pageable));
+    public ApiResponse<Page<AssignmentResponse.Item>> list(
+            @Parameter(description = "조회 대상 작업자 PK (선택, REVIEWER만 — WORKER 요청에서는 무시된다)", example = "1001")
+            @RequestParam(required = false)
+            @Positive(message = "workerId 는 양수여야 합니다") Long workerId,
+            @Parameter(description = "검색어 (선택) — 영상명·작업자명 부분일치.", example = "강남")
+            @RequestParam(name = "q", required = false)
+            @Size(max = 100, message = "검색어는 100자 이하여야 합니다") String q,
+            @Parameter(description = "워크플로 상태 필터 (선택). 빈 값/공백만 보내면 q·eventTypeCd 와 동일하게 "
+                    + "'필터 미적용' 으로 취급된다.", example = "IN_PROGRESS")
+            @RequestParam(name = "workStatus", required = false)
+            @Pattern(
+                    // 앞의 `[\x00-\x20]*` 는 "빈 문자열·공백만" 입력 허용 — AssignmentSearchCondition 의
+                    // 정규화가 null 로 떨어뜨려 필터가 걸리지 않는다. 이 분기가 없으면
+                    // `?workStatus=` 만 400 이 되어 q·eventTypeCd 와 blank 처리 의미가 갈린다.
+                    //
+                    // ⚠ 이 정규식은 **1차 방어**일 뿐 최종 판정이 아니다. 허용값의 진실원은
+                    // AssignmentWorkStatus 이며, 미지 값의 최종 거부는 그쪽 parse() 가 fail-closed 로
+                    // 수행한다(둘이 어긋나면 필터만 증발하는 fail-open 이 된다).
+                    // 두 정의의 드리프트는 AssignmentWorkStatusTest 의 결박 테스트가 잡는다.
+                    regexp = "^[\\x00-\\x20]*$|^(PENDING|IN_PROGRESS|REVIEW_PENDING|COMPLETED|REJECTED)$",
+                    message = "허용되지 않은 workStatus 값"
+            ) String workStatus,
+            @Parameter(description = "이벤트 유형 코드 필터 (선택).", example = "EVT-FIRE")
+            @RequestParam(name = "eventTypeCd", required = false)
+            @Size(max = 20, message = "이벤트 유형 코드는 20자 이하여야 합니다") String eventTypeCd,
+            @AuthenticationPrincipal TokenClaims actor,
+            @PageableDefault(size = 20, sort = "regDt", direction = Sort.Direction.DESC) Pageable pageable) {
+        // 정렬 키 화이트리스트 (CWE-20/CWE-209) — 미등록 키는 500(PropertyReferenceException) 이 아니라 400.
+        Pageable safePageable =
+                SortAllowlist.apply(pageable, SortAllowlist.ASSIGNMENT, DEFAULT_ASSIGNMENT_SORT);
+        AssignmentSearchCondition condition =
+                AssignmentSearchCondition.ofRequest(workerId, q, workStatus, eventTypeCd);
+        return ApiResponse.ok(assignmentService.listAssignments(condition, actor, safePageable));
+    }
+
+    /**
+     * 배정 목록 이벤트유형 셀렉트 옵션.
+     *
+     * <p><b>파라미터 시그니처가 계약이다</b> — {@code eventTypeCd} 를 <b>선언하지 않는다</b>. 자기 축을
+     * 반영하면 하나를 고르는 순간 나머지 선택지가 사라져 되돌아갈 수 없기 때문이며, FE 가 목록과 같은
+     * 쿼리스트링을 그대로 보내도(=eventTypeCd 포함) 미선언 파라미터로 무시된다.
+     * 나머지 축(workerId/q/workStatus)은 목록과 <b>같은 검증·같은 인가</b>를 통과한다.
+     */
+    @Operation(
+            summary = "배정 목록 이벤트유형 옵션 조회",
+            description = "본인(REVIEWER 는 전체/특정 작업자) 배정 **전체**에 존재하는 이벤트유형 코드를 " +
+                    "중복 없이 오름차순으로 반환한다. 이벤트 마스터 테이블이 없어 코드값이 곧 표시명이다.\n\n" +
+                    "- 목록(`GET /v1/assignments`)과 **같은 조건**을 적용하되 **자기 축(eventTypeCd)만 제외**한다 — " +
+                    "따라서 옵션에서 고른 값으로 같은 필터에 이어 붙이면 결과가 0건일 수 없다.\n" +
+                    "- 인가도 목록과 동일하다 — **WORKER 의 workerId 파라미터는 무시**되고 본인 배정으로 고정된다.\n" +
+                    "- EVNT_TYPE_CD 가 null/공백인 영상은 제외되고, 반환 값은 앞뒤 공백이 제거된다 " +
+                    "(목록 필터 eventTypeCd 도 trim 후 비교하므로 옵션을 그대로 다시 보내면 매칭된다).\n" +
+                    "- **페이징 없음** — 코드값 select-option 성격이라 화면이 전량을 한 번에 받아야 하고, " +
+                    "무제한 조회는 상한(500)으로 방어한다(페이징 없는 전체조회 금지 규칙의 예외).\n" +
+                    "- 상한 초과 시 잘라서 반환하며 **응답의 truncated=true 로 그 사실을 알린다**.\n" +
+                    "- 응답 형태는 `GET /v1/tasks/board/event-types` 와 동일하다(FE 공용 컴포넌트)."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "허용되지 않은 필터 값"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "조회 권한 없음")
+    })
+    @GetMapping("/event-types")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<EventTypeOptionsResponse> eventTypes(
+            @Parameter(description = "조회 대상 작업자 PK (선택, REVIEWER만 — WORKER 요청에서는 무시된다)", example = "1001")
+            @RequestParam(required = false)
+            @Positive(message = "workerId 는 양수여야 합니다") Long workerId,
+            @Parameter(description = "검색어 (선택) — 영상명·작업자명 부분일치.", example = "강남")
+            @RequestParam(name = "q", required = false)
+            @Size(max = 100, message = "검색어는 100자 이하여야 합니다") String q,
+            @Parameter(description = "워크플로 상태 필터 (선택). 빈 값/공백만 보내면 '필터 미적용'.",
+                    example = "IN_PROGRESS")
+            @RequestParam(name = "workStatus", required = false)
+            @Pattern(
+                    // 목록(list)과 동일한 정의를 유지한다 — 같은 값 집합을 다르게 검증하면 FE 가 같은
+                    // 쿼리스트링으로 두 엔드포인트를 호출할 때 한쪽만 400 이 된다.
+                    // 최종 판정은 여기가 아니라 AssignmentWorkStatus.parse (fail-closed) 다.
+                    regexp = "^[\\x00-\\x20]*$|^(PENDING|IN_PROGRESS|REVIEW_PENDING|COMPLETED|REJECTED)$",
+                    message = "허용되지 않은 workStatus 값"
+            ) String workStatus,
+            @AuthenticationPrincipal TokenClaims actor) {
+        AssignmentSearchCondition condition =
+                AssignmentSearchCondition.ofRequest(workerId, q, workStatus, null);
+        return ApiResponse.ok(assignmentService.listEventTypeOptions(condition, actor));
     }
 
     @Operation(

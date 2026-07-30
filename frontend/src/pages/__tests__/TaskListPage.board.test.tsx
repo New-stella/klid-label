@@ -109,6 +109,11 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
     navigateMock.mockReset();
+    // WORKER 시각 진입 시 함께 호출되는 옵션 엔드포인트 기본 스텁 — 스텁이 없으면 mock adapter 가
+    // passthrough 로 실제 네트워크를 시도해 테스트가 플레이키해진다.
+    mock
+      .onGet('/assignments/event-types')
+      .reply(200, ok({ items: [], truncated: false }));
   });
 
   afterEach(() => {
@@ -574,6 +579,8 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
 
   it('WORKER_전용_IN_PROGRESS_필터가_URL_진입에서_유지된다', async () => {
     setRole('WORKER');
+    // Phase 4 — 이 축은 이제 **서버 필터**다(BE allowlist 에 IN_PROGRESS 가 있다).
+    // 서버는 이미 걸러진 결과를 돌려주고 화면은 그대로 그린다.
     mock.onGet('/assignments').reply(
       200,
       page([
@@ -584,15 +591,6 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
           workerId: 7,
           workerName: '홍길동',
           status: 'IN_PROGRESS',
-          assignedAt: '2026-05-07T10:00:00Z',
-        },
-        {
-          id: 101,
-          videoId: 2,
-          cctvName: 'CCTV-DONE',
-          workerId: 7,
-          workerName: '홍길동',
-          status: 'COMPLETED',
           assignedAt: '2026-05-07T10:00:00Z',
         },
       ]),
@@ -607,7 +605,11 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
     });
     // URL 왕복에서 값이 버려지면 새로고침 후 필터가 사라진다.
     expect(screen.getByLabelText('상태')).toHaveValue('IN_PROGRESS');
-    expect(screen.queryByText('CCTV-DONE')).not.toBeInTheDocument();
+    // 그리고 그 값이 서버로 나가야 한다 — 화면에서만 거르면 뒷페이지 항목이 영원히 안 보인다.
+    const calls = mock.history.get.filter((r) => r.url === '/assignments');
+    expect(
+      (calls[calls.length - 1]?.params as Record<string, unknown>)?.workStatus,
+    ).toBe('IN_PROGRESS');
   });
 
   it('검색어_입력은_100자로_제한된다', async () => {
@@ -907,51 +909,48 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
     expect(screen.getByText(/전체 42건/)).toBeInTheDocument();
   });
 
-  it('WORKER_시각의_전체_건수는_클라이언트_필터_결과와_일치한다', async () => {
+  it('WORKER_시각의_전체_건수는_서버_필터_결과와_일치한다', async () => {
     setRole('WORKER');
-    // 서버는 전체 42건이라고 말하지만 WORKER 화면은 클라이언트 필터로 다시 거른다.
-    mock.onGet('/assignments').reply(
-      200,
-      page(
-        [
-          {
-            id: 100,
-            videoId: 1,
-            cctvName: 'CCTV-PENDING',
-            workerId: 7,
-            workerName: '홍길동',
-            status: 'PENDING',
-            assignedAt: '2026-05-07T10:00:00Z',
-          },
-          {
-            id: 101,
-            videoId: 2,
-            cctvName: 'CCTV-REVIEW',
-            workerId: 7,
-            workerName: '홍길동',
-            status: 'REVIEW_PENDING',
-            assignedAt: '2026-05-07T10:00:00Z',
-          },
-          {
-            id: 102,
-            videoId: 3,
-            cctvName: 'CCTV-DONE',
-            workerId: 7,
-            workerName: '홍길동',
-            status: 'COMPLETED',
-            assignedAt: '2026-05-07T10:00:00Z',
-          },
-        ],
-        1,
-        42,
-      ),
-    );
+    // Phase 4 — 필터가 서버로 가므로 "전체 N건" 의 원천도 서버 totalElements 다.
+    // 현재 페이지 3행 / 전체 42건: 화면 행 수로 덮어쓰면 뒷페이지가 없는 것처럼 보인다.
+    const rows = [
+      {
+        id: 100,
+        videoId: 1,
+        cctvName: 'CCTV-PENDING',
+        workerId: 7,
+        workerName: '홍길동',
+        status: 'PENDING',
+        assignedAt: '2026-05-07T10:00:00Z',
+      },
+      {
+        id: 101,
+        videoId: 2,
+        cctvName: 'CCTV-REVIEW',
+        workerId: 7,
+        workerName: '홍길동',
+        status: 'REVIEW_PENDING',
+        assignedAt: '2026-05-07T10:00:00Z',
+      },
+      {
+        id: 102,
+        videoId: 3,
+        cctvName: 'CCTV-DONE',
+        workerId: 7,
+        workerName: '홍길동',
+        status: 'COMPLETED',
+        assignedAt: '2026-05-07T10:00:00Z',
+      },
+    ];
+    mock.onGet('/assignments').replyOnce(200, page(rows, 3, 42));
+    // 필터 적용 후 — 서버가 1건으로 좁혀 응답한다.
+    mock.onGet('/assignments').reply(200, page([rows[1]], 1, 1));
 
     renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
     await waitFor(() => {
       expect(screen.getByText('CCTV-REVIEW')).toBeInTheDocument();
     });
-    expect(screen.getByText(/전체 3건/)).toBeInTheDocument();
+    expect(screen.getByText(/전체 42건/)).toBeInTheDocument();
 
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText('상태'), 'REVIEW_PENDING');
@@ -960,7 +959,6 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
     await waitFor(() => {
       expect(screen.queryByText('CCTV-DONE')).not.toBeInTheDocument();
     });
-    // 표에는 1행인데 헤더가 "전체 42건"이면 화면이 서로 다른 집합을 말한다.
     expect(screen.getByText(/전체 1건/)).toBeInTheDocument();
     expect(screen.queryByText(/전체 42건/)).not.toBeInTheDocument();
   });

@@ -6,6 +6,7 @@ import type { PageResponse } from '@/lib/api/types';
 import type {
   AssignTaskRequest,
   Assignment,
+  AssignmentEventTypeParams,
   AssignmentHistory,
   EventTypeOptionsResponse,
   ReassignTaskRequest,
@@ -31,6 +32,18 @@ const REPEAT_ARRAY_PARAMS = { indexes: null } as const;
 export function listTasks(params: TaskListParams) {
   return apiClient
     .get<PageResponse<Task>>('/assignments', { params })
+    .then((r) => r.data);
+}
+
+/**
+ * WORKER 작업목록 이벤트유형 셀렉트 옵션 — BE: /v1/assignments/event-types.
+ *
+ * 응답은 board 쪽과 **같은** `{ items, truncated }` 객체다. 옵션은 현재 페이지가 아니라 본인 배정
+ * **전체** 기준이며, 조회 범위는 서버가 인가로 고정한다(WORKER 는 workerId 를 보내도 무시된다).
+ */
+export function getAssignmentEventTypes(params: AssignmentEventTypeParams) {
+  return apiClient
+    .get<EventTypeOptionsResponse>('/assignments/event-types', { params })
     .then((r) => r.data);
 }
 

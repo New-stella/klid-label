@@ -19,7 +19,10 @@ interface TaskFiltersProps {
   /** REVIEWER만 작업자 select 노출 + 서버 workStatus 축 상태 옵션 사용 */
   showAssigneeSelect: boolean;
   workers: Worker[];
-  /** 이벤트 유형 **코드** 목록 (REVIEWER: 서버 조회 / WORKER: 배정 목록에서 수집). */
+  /**
+   * 이벤트 유형 **코드** 목록 — 역할별 서버 옵션 API 결과(둘 다 현재 페이지가 아닌 전체 기준).
+   * REVIEWER `/v1/tasks/board/event-types` · WORKER `/v1/assignments/event-types`.
+   */
   eventTypes: string[];
   /** 서버 옵션이 상한으로 잘렸는지 — true 면 "일부만 표시" 안내를 띄운다. */
   eventTypesTruncated?: boolean;
@@ -42,8 +45,10 @@ const WORK_STATUS_OPTIONS = [
 ] as const;
 
 /**
- * WORKER 시각 상태 옵션 — 본인 배정 목록(/v1/assignments)을 화면에서 거르는 **클라이언트 필터**라
- * BE workStatus allowlist 제약을 받지 않는다(미배정 개념도 없다). 기존 동작 보존.
+ * WORKER 시각 상태 옵션 — ★ BE `GET /v1/assignments` 의 `workStatus` allowlist 와 **1:1**.
+ *
+ * board 축과 값 집합이 다르다: `IN_PROGRESS`(= 그 영상에 라벨 저장 이력이 있음)는 여기서만 유효하고,
+ * `미배정`은 본인에게 배정된 행만 다루므로 개념 자체가 없다. 미등록 값을 보내면 BE 가 400 이다.
  */
 const WORKER_STATUS_OPTIONS = [
   { value: '', label: '전체 상태' },

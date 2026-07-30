@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.assignment;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
+import kr.co.cudo.authoring.assignment.dto.AssignmentSearchCondition;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
@@ -96,10 +97,60 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("listAssignments에_actor가_null이면_UNAUTHORIZED")
     void listAssignmentsNullActorThrowsUnauthorized() {
-        assertThatThrownBy(() -> assignmentService.listAssignments(null, null, PageRequest.of(0, 20)))
+        assertThatThrownBy(() -> assignmentService.listAssignments(AssignmentSearchCondition.none(), null, PageRequest.of(0, 20)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    /**
+     * 인가 fail-closed — WORKER/REVIEWER 가 아닌 역할은 조회 자체가 거부된다.
+     *
+     * <p>HTTP 경로에서는 SecurityConfig 의 {@code /v1/**} 매처(INTERNAL 채널 + REVIEWER|WORKER)가
+     * 먼저 막지만, 그 매처가 완화되면 이 분기가 <b>유일한</b> 방어가 된다. 따라서 서비스 레벨에서
+     * 직접 고정한다(별도 경로인 배정 이력 403 테스트로는 이 분기가 덮이지 않는다).
+     */
+    @Test
+    @DisplayName("PORTAL_USER_역할은_목록_조회시_403")
+    void listAssignmentsRejectsPortalUser() {
+        TokenClaims portal = new TokenClaims("3", Role.PORTAL_USER, Channel.PORTAL,
+                Instant.now().plusSeconds(60));
+
+        assertThatThrownBy(() -> assignmentService.listAssignments(
+                AssignmentSearchCondition.none(), portal, PageRequest.of(0, 20)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("역할_미배정_토큰도_목록_조회시_403")
+    void listAssignmentsRejectsRolelessToken() {
+        TokenClaims roleless = new TokenClaims("1", null, Channel.INTERNAL,
+                Instant.now().plusSeconds(60));
+
+        assertThatThrownBy(() -> assignmentService.listAssignments(
+                AssignmentSearchCondition.none(), roleless, PageRequest.of(0, 20)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    /**
+     * fail-closed 필터 — 미지 {@code workStatus} 는 조용히 무시(= WHERE 절 증발)되지 않고 400 이다.
+     * 컨트롤러 {@code @Pattern} 을 우회한 호출에서도 필터가 사라지지 않음을 서비스 레벨에서 고정한다.
+     */
+    @Test
+    @DisplayName("미지_workStatus_는_필터가_무시되지_않고_INVALID_INPUT")
+    void listAssignmentsRejectsUnknownWorkStatus() {
+        AssignmentSearchCondition bogus =
+                AssignmentSearchCondition.ofRequest(null, null, "UNASSIGNED", null);
+
+        assertThatThrownBy(() -> assignmentService.listAssignments(
+                bogus, reviewer(), PageRequest.of(0, 20)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
     @Test
@@ -211,7 +262,7 @@ class AssignmentServiceTest {
         assignmentService.assign(req, reviewer());
 
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
-                null, reviewer(), PageRequest.of(0, 20));
+                AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
 
         assertThat(page.getContent()).hasSize(1);
         AssignmentResponse.Item item = page.getContent().get(0);
@@ -233,7 +284,7 @@ class AssignmentServiceTest {
         assignmentService.assign(req, reviewer());
 
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
-                null, reviewer(), PageRequest.of(0, 20));
+                AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
 
         assertThat(page.getContent()).hasSize(1);
         AssignmentResponse.Item item = page.getContent().get(0);
@@ -257,7 +308,7 @@ class AssignmentServiceTest {
         assignmentService.assign(req, reviewer());
 
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
-                null, reviewer(), PageRequest.of(0, 20));
+                AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).hasSize(1);
@@ -280,7 +331,7 @@ class AssignmentServiceTest {
 
         // when
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
-                null, reviewer(), PageRequest.of(0, 20));
+                AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).hasSize(1);
@@ -321,7 +372,7 @@ class AssignmentServiceTest {
 
         // when
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
-                null, reviewer(), PageRequest.of(0, 20));
+                AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
 
         // then — ASSIGNED → FE 'PENDING' 매핑.
         assertThat(page.getContent()).hasSize(1);
@@ -343,7 +394,7 @@ class AssignmentServiceTest {
 
         // when
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
-                null, reviewer(), PageRequest.of(0, 20));
+                AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).hasSize(1);
@@ -481,7 +532,7 @@ class AssignmentServiceTest {
 
         // when
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
-                null, reviewer(), PageRequest.of(0, 20));
+                AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
 
         // then — 파생 RAW 는 작업 목록에 유지되며(R2) augmented=true + 정규화 augType=RESL_480P.
         assertThat(page.getContent()).hasSize(1);
@@ -507,7 +558,7 @@ class AssignmentServiceTest {
 
         // when
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
-                null, reviewer(), PageRequest.of(0, 20));
+                AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
 
         // then — 원본은 augmented=false, augType=null.
         assertThat(page.getContent()).hasSize(1);
