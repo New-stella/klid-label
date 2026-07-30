@@ -248,6 +248,19 @@ services:
       # VLM 콜백 outbound 허용 호스트(SSRF 방어). BE 는 WEBHOOK_CALLBACK_BASE_URL=
       #   http://klid-backend:8080/api 로 콜백 주소를 넘기므로 klid-backend 가 정상 경로다.
       MOCK_CALLBACK_ALLOWED_HOSTS: ${MOCK_CALLBACK_ALLOWED_HOSTS:-klid-backend,localhost,127.0.0.1}
+      # ── 워터마크 인코딩 GPU(NVENC) 사용 — GPU 가 있는 호스트에서만 실제로 활성화된다 ──
+      #   목적: 비식별 산출 영상에 마크를 박아 <b>프레임이 원본이 아니라 비식별본에서 추출됐는지</b>를
+      #   육안으로 확인한다. 4K 실자산의 CPU(libx264) 인코딩은 0.05x(80초 영상 27분)라 타임아웃·OOM 으로
+      #   항상 복사 폴백됐고, NVENC(Tesla T4)로는 1.87x(약 43초)다 — 2026-07-31 cudo_246 실측.
+      #
+      #   ⚠ `deploy.resources.devices` 대신 <b>환경변수</b>로 요청한다. 그 필드는 nvidia 런타임이 없는
+      #     호스트에서 "could not select device driver" 로 <b>기동 자체를 실패</b>시키지만, 아래 두 변수는
+      #     비GPU 호스트에서 그냥 무시된다(런타임이 주입하지 않음) → 로컬 개발 스택이 깨지지 않는다.
+      #   ⚠ NVENC 은 GPU 노출만으로는 부족하고 <b>video capability</b> 가 필요하다. 기본값
+      #     (compute,utility)이면 libcuda 는 로드되는데 libnvidia-encode.so.1 이 없어 실패한다(실측).
+      #   GPU 를 쓰지 않는 환경은 코드가 런타임 탐지로 CPU 인코딩에 폴백하므로 별도 설정이 필요 없다.
+      NVIDIA_VISIBLE_DEVICES: ${MOCK_NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${MOCK_NVIDIA_DRIVER_CAPABILITIES:-compute,video,utility}
     volumes:
       # backend 와 **동일 볼륨·동일 경로** — BE 가 넘긴 절대경로(input_path/export_path)를 그대로 읽고 쓴다.
       #   경로가 어긋나면 위탁은 성공하는데 결과 파일이 없어 비식별이 'F' 로 끝난다.
@@ -272,7 +285,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256m
+          # 256m 는 4K 디코딩 버퍼를 감당하지 못해 워터마크 ffmpeg 가 OOM-kill 됐다
+          #   (커널: `Memory cgroup out of memory: Kill process (ffmpeg)`, 2026-07-31 246 실측).
+          #   1g 에서 NVENC 인코딩이 1.87x 로 정상 동작한다. GPU 없이 CPU 로 폴백하는 환경에서도
+          #   저해상도 영상은 이 한도로 충분하다.
+          #   ⚠ `deploy.resources.limits` 가 있으면 Compose 는 `mem_limit` 을 무시한다 — 한도는
+          #     반드시 <여기서> 조정할 것(둘 다 두면 조용히 이 값이 이긴다).
+          memory: ${MOCK_MEM_LIMIT:-1g}
 
   # Vite dev 서버로 기동 — import.meta.env.DEV=true 산출물(/dev/login 등 dev 기능 활성).
   # 프로덕션 빌드는 dev 라우트를 dead-code 제거하므로 dev 서버 사용이 필수.
