@@ -36,10 +36,18 @@ import java.util.List;
  *
  * <h3>위탁 0건 = 즉시 실패 롤업 (DEV_FIX MEDIUM-4)</h3>
  * <p>전 청크 위탁이 실패하면 <b>콜백이 영영 오지 않으므로</b> {@code GenAiCallbackService} 의 롤업이
- * 호출되지 않고 {@code LS_DATA_AUG} 가 PENDING 으로 영구 고착된다(만료 스윕 없음). 그래서 위탁 결과가
- * "수락 0건" 이면 여기서 즉시 실패 롤업한다. 비식별 누락 신고 구간 차단도 <b>거부(실패)</b> 로
- * 종결되므로(2026-07-29 정책 — 파생 생성은 원본 신고와 무관해져 재개 배선이 철회됐다) 이 롤업이
- * 동일하게 적용된다.
+ * 호출되지 않고 {@code LS_DATA_AUG} 가 PENDING 으로 영구 고착된다. 그래서 위탁 결과가 "0건" 이면
+ * 여기서 즉시 실패 롤업한다. 비식별 누락 신고 구간 차단도 <b>거부(실패)</b> 로 종결되므로
+ * (2026-07-29 정책 — 파생 생성은 원본 신고와 무관해져 재개 배선이 철회됐다) 이 롤업이 동일하게 적용된다.
+ *
+ * <h3>Phase C-3 — 여기서 롤업하는 것은 <b>제출 전 거부</b>뿐이다</h3>
+ * <p>제출이 논블로킹이 되면서 {@code SubmitOutcome} 의 의미가 "202 수락 건수" → "<b>제출을 개시한</b>
+ * 건수" 로 바뀌었다. 즉 {@code dispatched==0} 은 이제 <b>외부로 한 건도 나가지 않은 사전 거부</b>
+ * (신고 구간·비식별 경로 부재·선기록 실패)만을 뜻하므로 이 자리의 즉시 롤업은 그대로 안전하다.
+ * <b>개시된 뒤</b> 전 청크가 실패하는 경우의 종결 판정은 완료 핸들러
+ * ({@code AugmentSubmitOutcomeRecorder} → {@code AugmentSubmitRollupTxService})로 이관됐다 —
+ * 그 경로가 없으면 "전부 terminal FAILED" 인 증강을 만료 스윕의 두 축(비종결 job / job 0건)이
+ * 모두 집지 못해 PENDING 에 고착된다.
  *
  * <h3>Phase 8 DEV_FIX HIGH-1 — 이 리스너는 반드시 {@code @Async} 다 (AFTER_COMMIT 트랜잭션 함정)</h3>
  * <p>{@code TransactionSynchronization.afterCommit} 은 <b>원 트랜잭션 리소스가 아직 바인딩된 채</b>

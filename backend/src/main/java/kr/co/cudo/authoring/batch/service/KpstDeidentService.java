@@ -3,10 +3,10 @@ package kr.co.cudo.authoring.batch.service;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
 import kr.co.cudo.authoring.common.client.KpstDeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
-import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
@@ -14,11 +14,12 @@ import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
@@ -40,8 +41,9 @@ import java.util.Set;
  *
  * <h3>흐름</h3>
  * <ol>
- *   <li>{@link #submit(LsDataRaw)} — 공유 마운트 원본 경로 참조로 {@code createProject} → procLog
- *       {@code markKpstSubmitted(prjId)} + POLL_STTS=WAITING 기록. DE_IDNTF_YN 미전이(완료대기).</li>
+ *   <li>{@link #submit(LsDataRaw)} — 원장 선커밋(POLL_STTS=WAITING, prjId 미정) 후 공유 마운트 원본
+ *       경로 참조로 {@code createProject} <b>논블로킹 제출</b>(Phase C-2). ACK 수신 시 완료 핸들러가
+ *       prjId 를 기록한다. DE_IDNTF_YN 미전이(완료대기).</li>
  *   <li>{@link #pollOne(LsDeidentProcLog)} — {@code retrieveProgress} → procState 판정.
  *       완료(state=2)면 응답 fileName 으로 회수 경로를 산출(복사 없음)하고 무결성 검증 후 완료 전이.
  *       진행중이면 시도 증가. 타임아웃이면 'F' 마킹.</li>
@@ -103,6 +105,30 @@ public class KpstDeidentService {
     private static final String SOURCE_MISSING_CODE = "KPST_SOURCE_MISSING";
 
     /**
+     * Phase C-2 — 비동기 제출이 <b>확정 실패</b>(onError·구독 거부·빈 응답)했을 때의 원장 실패 코드.
+     * ERR_CD(50) 도메인에 적재된다.
+     */
+    public static final String SUBMIT_FAILED_CODE = "KPST_SUBMIT_FAILED";
+
+    /**
+     * Phase C-2 — 제출 ACK 가 <b>끝내 오지 않아</b> 폴링 잡이 회수한 건의 원장 실패 코드.
+     *
+     * <p>{@link #SUBMIT_FAILED_CODE}(확정 실패, 신호를 받았음)와 구분한다 — 이 코드가 남았다는 것은
+     * "우리 프로세스가 ACK 를 관측하지 못했다"는 뜻이라, KPST 쪽에는 프로젝트가 실제로 생성돼 있을 수
+     * 있다(노드 사망 등). 운영이 외부 상태를 확인해야 하는 건을 코드로 식별하기 위해 분리한다.
+     */
+    public static final String ACK_MISSING_CODE = "KPST_ACK_MISSING";
+
+    /**
+     * M3 — 호출자 트랜잭션이 <b>커밋되지 않아</b> 제출이 아예 개시되지 않은 건의 원장 종결 코드.
+     *
+     * <p>{@link #SUBMIT_FAILED_CODE}(외부 호출이 실패)와 구분한다 — 이 코드는 "외부로 나간 것이 없다"는
+     * 뜻이라 <b>영상 비식별 상태를 'F' 로 내리지 않는다</b>. ACK 유예 회수({@link #ACK_MISSING_CODE})에
+     * 맡기면 그 종착이 'F' 라, 실패한 요청이 3분 뒤 영상을 차단 상태로 만든다.
+     */
+    public static final String SUBMIT_CANCELED_CODE = "KPST_SUBMIT_CANCELED";
+
+    /**
      * 산출물 무결성 재확인 유예의 <b>상한</b>(ms) — 폴링 워커 점유 보호 (DEV_FIX LOW).
      *
      * <p>유예는 폴링 워커 스레드를 그대로 잡는 {@code Thread.sleep} 이라 설정값이 크면 다른 영상의
@@ -127,6 +153,10 @@ public class KpstDeidentService {
      * <b>파일명은 KPST 가 정한다</b>({@code {stem}-mask{ext}} 실측) — 우리가 지정하는 것은 디렉터리까지다.
      */
     private final VideoArtifactRootResolver artifactRootResolver;
+    /** Phase C-2 — 비동기 제출의 완료 신호(ACK/실패) 기록 전용 빈(자체 트랜잭션 없음, 프록시 경유 위임). */
+    private final KpstSubmitOutcomeRecorder outcomeRecorder;
+    /** Phase C-2 — 완료 신호 전용 스케줄러. 완료 핸들러의 JPA 쓰기가 이벤트 루프에서 돌지 않게 고정한다. */
+    private final reactor.core.scheduler.Scheduler kpstSubmitScheduler;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
@@ -169,6 +199,16 @@ public class KpstDeidentService {
     @Value("${kpst.deid.result-recheck-delay-ms:2000}")
     private long resultRecheckDelayMs;
 
+    /**
+     * Phase C-2 — 제출 ACK 대기 유예(초). 이 시간 안에는 폴링 잡이 해당 건을 <b>건너뛴다</b>
+     * (외부 호출 0건, 시도 카운터 미소모). 유예를 넘기면 폴러가 {@link #ACK_MISSING_CODE} 로 회수한다.
+     *
+     * <p>기본 180초 — 클라이언트 타임아웃 45s × 재시도 3회 + 백오프(1s·2s) 최악값(≈138s)을 덮는다.
+     * 이보다 짧으면 정상 재시도 중인 건을 회수해버리고, 지나치게 길면 죽은 건이 그만큼 오래 남는다.
+     */
+    @Value("${kpst.deid.submit-ack-grace-sec:180}")
+    private long submitAckGraceSec;
+
     private Path baseDeidentifiedPath;
 
     public KpstDeidentService(KpstDeidentifyClient kpstClient,
@@ -176,13 +216,17 @@ public class KpstDeidentService {
                               LsDeidentProcLogRepository procLogRepository,
                               KpstDeidentTxService txService,
                               VideoArtifactRootResolver artifactRootResolver,
-                              BatchTransitionService batchTransitionService) {
+                              BatchTransitionService batchTransitionService,
+                              KpstSubmitOutcomeRecorder outcomeRecorder,
+                              @Qualifier("kpstSubmitScheduler") reactor.core.scheduler.Scheduler kpstSubmitScheduler) {
         this.kpstClient = kpstClient;
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
         this.txService = txService;
         this.artifactRootResolver = artifactRootResolver;
         this.batchTransitionService = batchTransitionService;
+        this.outcomeRecorder = outcomeRecorder;
+        this.kpstSubmitScheduler = kpstSubmitScheduler;
     }
 
     @PostConstruct
@@ -193,16 +237,13 @@ public class KpstDeidentService {
     // ────────────────────────────── 위탁 ──────────────────────────────
 
     /**
-     * KPST 위탁 — 공유 마운트 원본 경로 참조 → createProject → procLog WAITING 기록.
+     * KPST 위탁 — 공유 마운트 원본 경로 참조 → 원장 선커밋 → {@code createProject} <b>논블로킹 제출</b>.
      *
      * <p>영상 1건 = 프로젝트 1개. project_name 은 rawSn 기반 유니크. DE_IDNTF_YN 은 아직 미전이
-     * (완료 대기). MARKING_READY 미전이. 위탁 실패 시 'F' 마킹 후 예외 전파.
+     * (완료 대기). MARKING_READY 미전이.
      *
-     * <p>본 메서드는 cross-bean 호출(DeidentifyStep)로 진입하므로 REQUIRES_NEW 프록시가 적용된다.
-     *
-     * @return 위탁 기록된 procLog
+     * @return 위탁 원장(선커밋). 반환 시점에는 {@code prjId} 가 아직 없다(ACK 미도착).
      */
-    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public LsDeidentProcLog submit(LsDataRaw raw) {
         return submit(raw, false);
     }
@@ -213,8 +254,28 @@ public class KpstDeidentService {
      * <p>표시값(REQ_KIND_CD=REDEIDENT)은 폴링 완료 시점({@link KpstDeidentTxService}) 의 분기에 사용되어,
      * 완료 처리가 비식별 프레임 attach + APPROVED 유지(상태 강등 금지) 경로를 타도록 한다. 기존 배치 경로
      * ({@code redeident=false})는 무영향(REQ_KIND_CD=null)이다.
+     *
+     * <h3>★ 논블로킹 제출 (Phase C-2) — "외부연동은 모두 비동기" 의 스레드 축</h3>
+     * <p>프로토콜은 원래 비동기였으나(결과는 {@code retrieve_progress} 폴링) <b>ACK 왕복 동안 스레드를
+     * 점유</b>했다({@code .block(45s)}). 그 스레드는 적재 경로의 {@code batch-async-}(core 2) 또는
+     * 재비식별 요청의 Tomcat 요청 스레드였다. 이제 ACK 도 기다리지 않는다:
+     * <ol>
+     *   <li><b>선커밋</b> — 원장 발급({@link KpstDeidentTxService#issueSubmitLedger}, REQUIRES_NEW 독립
+     *       커밋)을 <b>제출 전에</b> 수행한다. ACK/실패 신호가 호출자 트랜잭션 커밋보다 먼저 도착해도
+     *       기록 대상이 존재한다.</li>
+     *   <li><b>제출</b> — 구독만 하고 즉시 반환한다. 활성 트랜잭션이 있으면 <b>커밋 후</b>에 구독한다
+     *       ({@link #dispatchSubmit}).</li>
+     *   <li><b>완료 핸들러</b> — 전용 풀({@code kpstSubmitScheduler})에서
+     *       {@link KpstSubmitOutcomeRecorder} 가 ACK(prjId 기록)/실패('F' 종결)를 기록한다.</li>
+     *   <li><b>회수</b> — 아무 신호도 오지 않으면(노드 사망 등) 폴링 잡이 ACK 대기 유예 만료로
+     *       회수한다({@link #ACK_MISSING_CODE}). 별도 스위퍼를 신설하지 않는다 — 폴러가 이미 클레임·
+     *       타임아웃·'F' 종결을 갖춘 회수기다(이중 진실원 금지).</li>
+     * </ol>
+     *
+     * <p><b>동기 실패 전파가 남는 것은 제출 이전의 사전 조건뿐</b>이다(raw null · 원본 부재 ·
+     * 경로 손상 · export 디렉터리 생성/검증 실패). 외부에 아무것도 나가지 않은 실패이므로 기존과 동일하게
+     * 예외를 던지고, 그와 별개로 실패 흔적은 별도 트랜잭션으로 커밋한다.
      */
-    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public LsDeidentProcLog submit(LsDataRaw raw, boolean redeident) {
         if (raw == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "raw 가 null 입니다.");
@@ -223,64 +284,149 @@ public class KpstDeidentService {
         // B-ISSUE-01 — 위탁 전 원본 실재 가드(fail-closed). 원본이 없는데 위탁하면 KPST 가 결과를 만들지
         // 못한 채(또는 스텁만 남긴 채) 완료로 응답해 거짓 'Y'/MARKING_READY 가 된다. 실패는 별도 커밋.
         verifySourceOrFail(rawSn, raw.getRawFilePathNm());
-        LsDeidentProcLog procLog = LsDeidentProcLog.request(rawSn, null, raw.getRawFilePathNm(), "batch");
-        if (redeident) {
-            procLog.markRedeident();
-        }
-        procLog = procLogRepository.save(procLog);
+        // 선커밋 — 원장(WAITING + prjId null = ACK 대기)을 외부 호출 전에 독립 커밋한다.
+        LsDeidentProcLog procLog = txService.issueSubmitLedger(rawSn, raw.getRawFilePathNm(), redeident);
+        Long procLogSn = procLog.getProcLogSn();
+
+        KpstProjectRequest projectReq;
         try {
-            // shared-mount 모델(규격 §22.3.3): 업로드 없이 원본 파일 경로를 직접 /project 에 전달한다.
-            String rawFilePathNm = raw.getRawFilePathNm();
-            if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
-                throw new CustomException(ErrorCode.INVALID_INPUT, "원본 파일 경로가 비어있습니다.");
-            }
-            Path fullPath = Paths.get(rawFilePathNm);
-            Path parent = fullPath.getParent();
-            if (parent == null) {
-                // 비정상 경로(부모 디렉터리 없음) — input_path/export_path 를 구성할 수 없으므로 거부(CWE-22).
-                throw new CustomException(ErrorCode.INVALID_INPUT, "원본 파일 경로의 부모 디렉터리를 확인할 수 없습니다.");
-            }
-            String dir = parent.toString();
-            List<String> files = List.of(fullPath.getFileName().toString());
-            // export_path = 비식별 영상 디렉터리(A-2). co-locate 전략에서는 원본 영상과 같은 디렉터리 하위
-            // ({dirname(원본)}/{rawSn}/deid/) 라 관제가 산출물 트리 한 경로로 전부 픽업할 수 있다.
-            // KPST 가 결과를 이 경로에 직접 WRITE 하므로(no-copy) 쓰기 대상 디렉터리를 사전 생성한다.
-            // 파일명은 KPST 소관이라 여기서 정하지 않는다.
-            Path exportDir = artifactRootResolver.deidVideoDir(rawSn, rawFilePathNm);
-            try {
-                Files.createDirectories(exportDir);
-            } catch (IOException ioe) {
-                // 위탁 실패 — 아래 catch(RuntimeException) 가 'F' 마킹 후 예외 전파.
-                throw new CustomException(ErrorCode.INTERNAL_ERROR, "비식별 결과 저장 디렉터리 생성 실패");
-            }
-            // B-3(TOCTOU, CWE-367/59) — 검증~생성 사이의 심링크 바꿔치기 창을 닫는다. base 를 다시 계산
-            // (allowlist·실경로 재검증)하고 방금 만든 디렉터리의 실경로가 여전히 그 하위인지 재확인한다.
-            // 이 경로는 KPST 가 결과를 직접 WRITE 하는 대상이라 위탁 전에 확정되어야 한다.
-            VideoArtifactRootResolver.verifyRealPathUnder(
-                    exportDir, artifactRootResolver.deidVideoDir(rawSn, rawFilePathNm));
-            // HIGH: REDEIDENT 재위탁 시 이전 회차 산출물(mock/규칙 변경 시 타임스탬프명 누적)이 남아
-            // 폴백 스캔이 stale 을 오회수하거나 다중 파일 모호 실패로 정상 완료를 막을 수 있다.
-            // 이번 회차 산출물만 남도록 export 디렉터리 바로 아래 정규 파일을 정리한다(최초 위탁 시 no-op).
-            cleanExportDir(exportDir, rawSn, rawFilePathNm);
-            KpstProjectRequest projectReq = KpstProjectRequest.withDefaults(
-                    projectName(rawSn), creatorId,
-                    exportDir + "/",    // export_path = 우리 base/videos/{rawSn}/ (KPST 결과 WRITE 대상)
-                    dir + "/",          // input_path  = 원본 부모디렉터리, 끝 슬래시 필수(규격 §22.3.3)
-                    files);
-            KpstProjectResponse project = kpstClient.createProject(projectReq);
-            if (project == null || project.prjId() == null) {
-                throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "프로젝트 생성 응답이 비어있습니다.");
-            }
-            // datasetId 는 첫 폴링에서 보충 — 위탁 시점 미상(§22.3.3).
-            procLog.markKpstSubmitted(project.prjId(), null);
-            log.info("[KpstDeid] submitted rawSn={} prjId={}", rawSn, project.prjId());
-            return procLog;
+            projectReq = buildProjectRequest(raw, rawSn);
         } catch (RuntimeException e) {
-            // CWE-209: 외부 본문/스택트레이스 미보존 — 코드/예외 클래스명만.
-            procLog.fail("EXTERNAL_API_ERROR", e.getClass().getSimpleName());
-            videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
-            log.error("[KpstDeid] submit failed rawSn={} errType={}", rawSn, e.getClass().getSimpleName());
+            // 제출 이전 사전 조건 실패 — 외부에 아무것도 나가지 않았다. 원장을 별도 트랜잭션으로 종결
+            // ('F' 커밋)한 뒤 기존 계약대로 동기 예외를 전파한다.
+            // (구 코드는 같은 REQUIRES_NEW 안에서 'F' 를 찍고 예외를 던져 그 마킹이 함께 롤백됐다 —
+            //  실패 흔적이 사라져 영상이 PENDING 에 고착되던 결함.)
+            txService.failSubmit(procLogSn, rawSn, SUBMIT_FAILED_CODE, e.getClass().getSimpleName());
+            log.error("[KpstDeid] submit prepare failed rawSn={} errType={}",
+                    rawSn, e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 위탁 실패", e);
+        }
+        dispatchSubmit(rawSn, procLogSn, projectReq);
+        return procLog;
+    }
+
+    /**
+     * {@code POST /project} 요청 바디 구성 — shared-mount 모델(규격 §22.3.3)의 경로 도출·검증·정리.
+     * 외부 호출 <b>전</b> 단계이므로 실패는 동기 예외로 전파된다(호출측이 원장을 종결한다).
+     */
+    private KpstProjectRequest buildProjectRequest(LsDataRaw raw, Long rawSn) {
+        // shared-mount 모델(규격 §22.3.3): 업로드 없이 원본 파일 경로를 직접 /project 에 전달한다.
+        String rawFilePathNm = raw.getRawFilePathNm();
+        if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "원본 파일 경로가 비어있습니다.");
+        }
+        Path fullPath = Paths.get(rawFilePathNm);
+        Path parent = fullPath.getParent();
+        if (parent == null) {
+            // 비정상 경로(부모 디렉터리 없음) — input_path/export_path 를 구성할 수 없으므로 거부(CWE-22).
+            throw new CustomException(ErrorCode.INVALID_INPUT, "원본 파일 경로의 부모 디렉터리를 확인할 수 없습니다.");
+        }
+        String dir = parent.toString();
+        List<String> files = List.of(fullPath.getFileName().toString());
+        // export_path = 비식별 영상 디렉터리(A-2). co-locate 전략에서는 원본 영상과 같은 디렉터리 하위
+        // ({dirname(원본)}/{rawSn}/deid/) 라 관제가 산출물 트리 한 경로로 전부 픽업할 수 있다.
+        // KPST 가 결과를 이 경로에 직접 WRITE 하므로(no-copy) 쓰기 대상 디렉터리를 사전 생성한다.
+        // 파일명은 KPST 소관이라 여기서 정하지 않는다.
+        Path exportDir = artifactRootResolver.deidVideoDir(rawSn, rawFilePathNm);
+        try {
+            Files.createDirectories(exportDir);
+        } catch (IOException ioe) {
+            // 위탁 실패 — 호출측이 원장을 'F' 로 종결한 뒤 예외를 전파한다.
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "비식별 결과 저장 디렉터리 생성 실패");
+        }
+        // B-3(TOCTOU, CWE-367/59) — 검증~생성 사이의 심링크 바꿔치기 창을 닫는다. base 를 다시 계산
+        // (allowlist·실경로 재검증)하고 방금 만든 디렉터리의 실경로가 여전히 그 하위인지 재확인한다.
+        // 이 경로는 KPST 가 결과를 직접 WRITE 하는 대상이라 위탁 전에 확정되어야 한다.
+        VideoArtifactRootResolver.verifyRealPathUnder(
+                exportDir, artifactRootResolver.deidVideoDir(rawSn, rawFilePathNm));
+        // HIGH: REDEIDENT 재위탁 시 이전 회차 산출물(mock/규칙 변경 시 타임스탬프명 누적)이 남아
+        // 폴백 스캔이 stale 을 오회수하거나 다중 파일 모호 실패로 정상 완료를 막을 수 있다.
+        // 이번 회차 산출물만 남도록 export 디렉터리 바로 아래 정규 파일을 정리한다(최초 위탁 시 no-op).
+        cleanExportDir(exportDir, rawSn, rawFilePathNm);
+        return KpstProjectRequest.withDefaults(
+                projectName(rawSn), creatorId,
+                exportDir + "/",    // export_path = 우리 base/videos/{rawSn}/ (KPST 결과 WRITE 대상)
+                dir + "/",          // input_path  = 원본 부모디렉터리, 끝 슬래시 필수(규격 §22.3.3)
+                files);
+    }
+
+    /**
+     * 논블로킹 제출 개시 — 활성 트랜잭션이 있으면 <b>커밋 후</b>에 구독한다.
+     *
+     * <p><b>왜 커밋 후인가</b>: 호출자({@code ApprovedRedeidentService})는 자기 트랜잭션 안에서
+     * <b>작업락을 INSERT</b> 한 뒤 위탁한다. 제출이 논블로킹이면 실패 신호가 그 커밋보다 먼저 도착할 수
+     * 있고, 그때 실패 핸들러(REQUIRES_NEW)는 <b>아직 커밋되지 않은 락을 볼 수 없어</b> 해제하지 못한다 →
+     * 재요청이 409 로 영구 차단된다. 커밋 후 구독이 이 창을 구조적으로 닫는다.
+     *
+     * <p>호출자 트랜잭션이 <b>롤백</b>되면 제출은 아예 일어나지 않는다(외부 고아 작업 방지).
+     *
+     * <h3>★ 롤백 시 원장을 <b>취소 종결</b>한다 (M3)</h3>
+     * <p>원장은 {@code REQUIRES_NEW} 로 이미 독립 커밋돼 있어 호출자 롤백으로 사라지지 않는다. 그대로
+     * 두면 폴러가 ACK 대기 유예(기본 180초) 만료로 회수하는데, <b>그 회수의 종착이
+     * {@code DE_IDNTF_YN='F'}</b> 다({@link KpstDeidentTxService#failSubmit}). 즉 요청이 실패(롤백)해
+     * 외부로 아무것도 나가지 않았는데 3분 뒤 그 영상이 신고 게이트에 걸려 라벨 조회 412 · 스트리밍 404 ·
+     * export 보류 상태가 된다 — APPROVED 영상 재비식별 요청이 실패했을 때 특히 해롭다.
+     *
+     * <p>그래서 {@code afterCompletion} 에서 커밋되지 않은 경우 원장을 <b>취소</b>로 종결한다
+     * ({@link KpstDeidentTxService#cancelSubmit}): 원장은 terminal 이라 폴링 대상에서 빠지고,
+     * 영상 상태는 <b>건드리지 않는다</b>(위탁이 없었으므로 비식별 실패가 아니다). Spring 규약대로
+     * 그 안의 DB 작업은 {@code REQUIRES_NEW} 로 수행한다.
+     */
+    private void dispatchSubmit(Long rawSn, Long procLogSn, KpstProjectRequest projectReq) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    subscribeSubmit(rawSn, procLogSn, projectReq);
+                }
+
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == TransactionSynchronization.STATUS_COMMITTED) {
+                        return;
+                    }
+                    // 외부로 아무것도 나가지 않았다 — 선커밋된 원장만 취소 종결한다(영상 상태 불변).
+                    try {
+                        boolean canceled = txService.cancelSubmit(procLogSn, rawSn);
+                        log.warn("[KpstDeid] submit canceled — caller tx not committed rawSn={} applied={}",
+                                rawSn, canceled);
+                    } catch (RuntimeException e) {
+                        // 취소 커밋까지 실패하면 폴러의 ACK 유예 회수가 뒤를 받는다(그 종착은 'F').
+                        log.error("[KpstDeid] submit cancel failed rawSn={} errType={}",
+                                rawSn, e.getClass().getSimpleName());
+                    }
+                }
+            });
+            return;
+        }
+        subscribeSubmit(rawSn, procLogSn, projectReq);
+    }
+
+    /**
+     * 실제 구독 — 완료 신호의 <b>기록</b>을 전용 풀({@code kpstSubmitScheduler})에서만 실행한다.
+     *
+     * <h3>왜 {@code publishOn} 이 아니라 명시적 디스패치인가 (M2)</h3>
+     * <p>{@code publishOn(전용풀)} 은 풀이 포화(AbortPolicy)되면 스케줄 제출이 거부되고, 그 거부가
+     * <b>시그널을 나른 스레드(reactor-netty 이벤트 루프)</b>에서 onError 로 흘러 실패 핸들러의 JPA 쓰기를
+     * 이벤트 루프에서 실행시킨다 — 같은 루프를 쓰는 모든 외부 호출이 동반 지연된다. 아래 try/catch 는
+     * 동기 {@code subscribe()} 구간만 덮으므로 그 거부를 잡지 못한다. 그래서 핸들러 호출 자체를
+     * {@link SubmitSignalDispatch} 로 감싸 "전용 풀 안에서만 실행"을 구조적으로 강제한다.
+     *
+     * <p>풀 포화로 기록이 <b>포기</b>되면 원장은 {@code WAITING + prjId null} 로 남고, 폴러가 ACK 대기
+     * 유예 만료로 회수한다({@link #ACK_MISSING_CODE}) — 선커밋 행이 방치되지 않는다.
+     *
+     * <p>아래 catch 는 조립/구독이 동기 실패한 경우(클라이언트 즉시 throw)만 도달하며, 그 스레드는
+     * 호출 스레드(커밋 후 콜백 또는 무트랜잭션)라 JPA 직접 호출이 안전하다.
+     */
+    private void subscribeSubmit(Long rawSn, Long procLogSn, KpstProjectRequest projectReq) {
+        try {
+            kpstClient.createProject(projectReq)
+                    .subscribe(resp -> SubmitSignalDispatch.run(kpstSubmitScheduler, "KpstDeid", rawSn,
+                                    () -> outcomeRecorder.onAccepted(rawSn, procLogSn, resp)),
+                            err -> SubmitSignalDispatch.run(kpstSubmitScheduler, "KpstDeid", rawSn,
+                                    () -> outcomeRecorder.onSubmitFailed(rawSn, procLogSn, err)));
+        } catch (RuntimeException e) {
+            outcomeRecorder.onSubmitFailed(rawSn, procLogSn, e);
         }
     }
 
@@ -393,8 +539,24 @@ public class KpstDeidentService {
         Long prjId = procLog.getKpstPrjId();
         Long procLogSn = procLog.getProcLogSn();
         if (prjId == null) {
-            // 위탁 미완(데이터 정합 깨짐) — 타임아웃 검사로만 처리.
-            txService.markTimeoutIfExpired(procLogSn, pollMaxAttempts, pollTimeoutMinutes);
+            // ── Phase C-2: WAITING + prjId null = <b>제출 ACK 대기</b> 구간.
+            //
+            //  제출이 논블로킹이 되면서 "원장은 커밋됐지만 ACK 는 아직" 인 창이 정상적으로 존재한다.
+            //  이 구간에서 진행조회를 부를 수 없고(프로젝트 ID 가 없다), 구 코드처럼 markTimeoutIfExpired
+            //  를 부르면 <b>시도 카운터/경과 타임아웃 예산만 헛되이 소모</b>한다.
+            //
+            //  ① 유예 안이면 아무것도 하지 않는다(외부 호출 0건, 카운터 미소모). 다음 틱에 재평가한다.
+            //  ② 유예를 넘기면 ACK 가 영영 오지 않는 건(노드 사망·기록 실패)이므로 <b>폴러가 회수</b>한다
+            //     — 별도 스위퍼를 만들지 않는다(폴러가 이미 회수기다. 이중 진실원 금지).
+            //  종결은 조건부 UPDATE(WAITING + prjId null)라, 판정에 쓴 엔티티가 stale 이어서 그 사이 ACK 가
+            //  도착했더라도 0행 no-op 이다(지각 ACK 를 강등하지 않는다).
+            if (withinSubmitAckGrace(procLog)) {
+                log.debug("[KpstDeid] skip poll — awaiting submit ack rawSn={}", rawSn);
+                return;
+            }
+            boolean reclaimed = txService.failSubmit(
+                    procLogSn, rawSn, ACK_MISSING_CODE, "submit ack not received");
+            log.warn("[KpstDeid] submit ack missing — reclaimed rawSn={} applied={}", rawSn, reclaimed);
             return;
         }
         KpstProgressResponse progress;
@@ -505,6 +667,20 @@ public class KpstDeidentService {
             txService.recordPollingProgress(procLogSn, ds.dsId());
             txService.markTimeoutIfExpired(procLogSn, pollMaxAttempts, pollTimeoutMinutes);
         }
+    }
+
+    /**
+     * 제출 ACK 대기 유예 안인지 — {@code REQ_DT + submit-ack-grace-sec} 가 아직 미래이면 true.
+     *
+     * <p>{@code REQ_DT} 는 원장 발급(= 제출 직전) 시각이라 "제출 후 경과"의 근사로 정확하다.
+     * 유예 설정이 0 이하이거나 {@code REQ_DT} 가 없으면 유예 없음(즉시 회수 대상)으로 본다 —
+     * 판정 불가를 대기로 해석하면 죽은 건이 무기한 남는다(fail-closed).
+     */
+    private boolean withinSubmitAckGrace(LsDeidentProcLog procLog) {
+        if (submitAckGraceSec <= 0 || procLog.getReqDt() == null) {
+            return false;
+        }
+        return procLog.getReqDt().plusSeconds(submitAckGraceSec).isAfter(java.time.LocalDateTime.now());
     }
 
     /**

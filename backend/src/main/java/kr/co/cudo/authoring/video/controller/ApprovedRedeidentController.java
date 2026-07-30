@@ -53,7 +53,9 @@ public class ApprovedRedeidentController {
             summary = "검수완료 영상 재비식별 요청 (REVIEWER)",
             description = "검수완료(APPROVED) 영상의 비식별을 재수행 요청한다. 전제조건 검증 + 작업락 선점 후 " +
                     "KPST 위탁(REDEIDENT) 을 시작하며, 완료는 폴링 잡이 비동기로 이어받는다. " +
-                    "응답은 수락 사실(status=ACCEPTED) + 위탁 식별자(procLogSn/kpstPrjId) 만 반환한다."
+                    "응답은 수락 사실(status=ACCEPTED) + 위탁 추적 키(procLogSn) 만 반환한다. " +
+                    "KPST 프로젝트 ID 는 논블로킹 제출이라 응답 시점에 존재하지 않으며, ACK 수신 시 " +
+                    "원장(LS_DEIDENT_PROC_LOG)에 기록된다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "202", description = "수락(비동기 처리 시작) — status=ACCEPTED"),

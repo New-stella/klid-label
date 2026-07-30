@@ -29,6 +29,17 @@ public interface LsMarkingRepository extends JpaRepository<LsMarking, Long> {
     List<LsMarking> findByRawSnAndSttsCd(Long rawSn, String sttsCd);
 
     /**
+     * 여러 상태를 한 번에 조회한다 — <b>콜백 선행 레이스</b> 대응 (Phase C-1).
+     *
+     * <p>VLM 콜백 수신부는 {@code VLM_REQUESTED} 만 보고 전이했는데, 제출이 논블로킹이 되면 콜백이
+     * ACK 보다 먼저 커밋될 수 있다. 선커밋(제출 전 전이)이 1차 방어지만, 어떤 이유로든 마킹이 아직
+     * {@code PENDING} 이면 콜백 전이가 0건이 되고 이후 스텝이 상태를 올려 <b>VLM_REQUESTED 영구 고착</b>이
+     * 된다. 그래서 수신부 조회를 {@link LsMarking#ACTIVE_STATUSES}(PENDING + VLM_REQUESTED)로 넓혀
+     * 양단에서 닫는다. 종결 상태(VLM_COMPLETED/VLM_FAILED)는 포함하지 않는다(역행 금지).
+     */
+    List<LsMarking> findByRawSnAndSttsCdIn(Long rawSn, Collection<String> sttsCds);
+
+    /**
      * 영상에 <b>활성(미종결) 마킹</b>이 이미 존재하는지 (B-ISSUE-22).
      *
      * <p>사전 거부(409)용 조회다. 동시 요청은 서로의 미커밋 행을 보지 못하므로 이 조회만으로는

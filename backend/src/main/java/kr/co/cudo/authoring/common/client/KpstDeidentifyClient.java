@@ -102,8 +102,24 @@ public class KpstDeidentifyClient {
     /**
      * 프로젝트 생성 및 작업 등록 — {@code POST /project} (application/json).
      * 동일 이름 존재 시 외부 409 → {@link ErrorCode#CONFLICT}.
+     *
+     * <h3>★ 논블로킹 반환 (Phase C-2) — "외부연동은 모두 비동기" 의 스레드 축</h3>
+     * <p>구 구현은 {@code blockOptional(45s)} 로 <b>수락(ACK) 왕복 동안 호출 스레드를 점유</b>했다.
+     * 그 스레드는 적재 경로의 {@code batch-async-}(core 2) 또는 재비식별 요청의 Tomcat 요청 스레드였다.
+     * 이제 {@link Mono} 를 그대로 돌려주고 <b>구독·완료 처리는 호출자가 전용 풀에서</b> 수행한다
+     * ({@code KpstDeidentService} → {@code kpstSubmitScheduler}). 프로토콜은 원래부터 비동기였고
+     * (결과는 {@code retrieve_progress} 폴링) 이번 변경은 ACK 왕복의 스레드 점유만 제거한다.
+     *
+     * <p>빈 응답({@code onComplete} only)은 어떤 신호도 남기지 않아 완료 핸들러가 전혀 실행되지 않으므로,
+     * 구 코드의 {@code orElseThrow} 가드를 {@code switchIfEmpty} 로 옮겨 <b>실패 경로로 흐르게</b> 유지한다
+     * (무흔적 유실 차단). 예외는 지연 생성해 정상 경로에서 스택트레이스를 채우지 않는다.
+     *
+     * <p>{@code switchIfEmpty} 는 retry/circuitBreaker <b>뒤</b>에 둔다 — 빈 응답을 재시도 대상으로
+     * 승격시키지 않기 위함이며, 이는 구 {@code blockOptional().orElseThrow()} 의 동작과 동일하다.
+     *
+     * @return 수락 응답 Mono. <b>구독 시점에 요청이 전송</b>된다(cold).
      */
-    public KpstProjectResponse createProject(KpstProjectRequest request) {
+    public Mono<KpstProjectResponse> createProject(KpstProjectRequest request) {
         return webClient.post()
                 .uri(PATH_PROJECT)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -115,9 +131,8 @@ public class KpstDeidentifyClient {
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
                 .onErrorMap(this::translate)
-                .blockOptional(DEFAULT_TIMEOUT)
-                .orElseThrow(() -> new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                        "비식별 프로젝트 생성 응답이 비어있습니다."));
+                .switchIfEmpty(Mono.error(() -> new CustomException(ErrorCode.EXTERNAL_API_ERROR,
+                        "비식별 프로젝트 생성 응답이 비어있습니다.")));
     }
 
     /**

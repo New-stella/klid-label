@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.augment.integration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 import java.util.regex.Pattern;
 
@@ -36,13 +37,16 @@ public class NoopExternalAugmentClient implements ExternalAugmentClient {
         return true;
     }
 
+    /** 구독 시점에만 로그를 남긴다 — 조립만 하고 구독하지 않은 요청이 "나갔다" 로 보이지 않게 한다. */
     @Override
-    public AugmentSubmitResult requestAugment(AugmentSubmitCommand command) {
-        // 외부 미연동 — 위탁하지 않는다. 파일 경로는 로그에 남기지 않고 개수만 남긴다.
-        log.info("[Augment] external request (noop) originAugSn={} augType={} jobSeq={}/{} inputCount={}",
-                command.originAugSn(), safe(command.augType()),
-                command.jobSeq(), command.jobCount(), command.inputFiles().size());
-        return AugmentSubmitResult.skipped();
+    public Mono<AugmentSubmitResult> requestAugment(AugmentSubmitCommand command) {
+        return Mono.fromSupplier(() -> {
+            // 외부 미연동 — 위탁하지 않는다. 파일 경로는 로그에 남기지 않고 개수만 남긴다.
+            log.info("[Augment] external request (noop) originAugSn={} augType={} jobSeq={}/{} inputCount={}",
+                    command.originAugSn(), safe(command.augType()),
+                    command.jobSeq(), command.jobCount(), command.inputFiles().size());
+            return AugmentSubmitResult.skipped();
+        });
     }
 
     private static String safe(String s) {

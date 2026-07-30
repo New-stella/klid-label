@@ -69,6 +69,21 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
         }
     }
 
+    /**
+     * H1 — 위탁 수락(ACK) 기록. 완료 핸들러가 <b>전용 풀 스레드</b>(ambient tx 없음)에서 호출하므로
+     * {@code REQUIRES_NEW} 로 독립 커밋한다. 조건부 UPDATE 라 이미 진행/종결된 행은 0행 no-op 이다.
+     */
+    @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordAckReceived(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return;
+        int applied = repository.claimAckReceived(idempotencyKey, java.time.LocalDateTime.now());
+        if (applied != 1) {
+            // 정상 케이스 — 콜백이 ACK 보다 먼저 처리(PROCESSED)했거나 스위퍼가 이미 회수(FAILED)했다.
+            log.debug("[WebhookLedger] ack ignored (already settled)");
+        }
+    }
+
     @Override
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markProcessed(String idempotencyKey, String externalJobId) {
@@ -124,11 +139,19 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
         return repository.findByIdmpKeyForUpdate(idempotencyKey).map(this::toEntry);
     }
 
+    /**
+     * 원장 행 → 콜백 수신부용 Entry.
+     *
+     * <p><b>비-PROCESSED 는 전부 {@code ISSUED} 로 매핑</b>한다(불변 계약): 스위퍼가 회수 표식으로 쓰는
+     * {@code FAILED} 도, ACK 수신 표식인 {@code ACCEPTED}(H1)도 여기서는 "발급됨"이다. 그래야 지각 콜백이
+     * 401 로 거부되지 않고 정상 처리된다.
+     */
     private Entry toEntry(LsWebhookIdempotency e) {
         return new Entry(
                 LsWebhookIdempotency.STATE_PROCESSED.equals(e.getSttsCd()) ? State.PROCESSED : State.ISSUED,
                 e.getOtsdJobId(),
-                e.getRawSn());
+                e.getRawSn(),
+                e.getRegDt());
     }
 
     /**

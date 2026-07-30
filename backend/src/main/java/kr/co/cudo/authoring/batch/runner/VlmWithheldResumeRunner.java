@@ -27,8 +27,10 @@ import java.util.List;
  *
  * <h3>재개 조건 (둘 다 만족)</h3>
  * <ol>
- *   <li><b>보류 기록 존재</b> — {@code (rawSn, VLM, SKIPPED, 신고 보류 사유)} 감사 행. 사유 문자열의
- *       단일 원천은 {@link VlmTimeseriesStep#SKIP_REASON_DEIDENT_REPORT} 다(여기서 재정의하지 않는다).</li>
+ *   <li><b>미수행 기록 존재</b> — {@code (rawSn, VLM, SKIPPED, 재개 대상 사유)} 감사 행. 사유 목록의
+ *       단일 원천은 {@link VlmTimeseriesStep#RESUMABLE_SKIP_REASONS} 다(여기서 재정의하지 않는다).
+ *       Phase C-1 에서 신고 보류에 더해 <b>비동기 제출 실패</b>·<b>ACK 미수신 회수</b>가 사유로 추가됐고,
+ *       후자 두 건은 {@code VlmSubmitPendingSweeper} 가 원자 클레임 후 트리거한다.</li>
  *   <li><b>시계열 메타 0건</b> — 콜백으로 이미 결과가 적재됐다면 재위탁은 중복 메타·중복 검수행을 만든다.
  *       보류 기록은 append-only 라 지워지지 않으므로, 이 조건이 <b>재개의 멱등성</b>을 담당한다.</li>
  * </ol>
@@ -37,7 +39,8 @@ import java.util.List;
  * 원래 파이프라인과 동일하게 이어간다({@code VlmTimeseriesStep.execute} 의 분기와 같은 규칙 ·
  * {@code MarkingLoadStep} 과 같은 정렬로 최신 마킹 1건 선택).
  *
- * <p>{@code @Async} 인 이유: 위탁은 외부 호출(블로킹, 최대 45s)이라 신고 해소 API 응답을 잡아둘 수 없다.
+ * <p>{@code @Async} 인 이유: 재개는 사전 조건 조회(DB) + 외부 제출 개시라 신고 해소 API 응답이나
+ * 스윕 tick 을 잡아둘 이유가 없다. (Phase C-1 이후 제출 자체는 논블로킹이라 45s 블로킹은 없다.)
  * 실패는 삼키고 로깅만 한다 — 재개 실패가 신고 해소 트랜잭션(이미 커밋됨)에 영향을 주면 안 된다.
  * 게이트 판정은 스텝 안에서 다시 수행되므로, 어떤 이유로든 아직 닫혀 있으면 스스로 다시 보류된다.
  */
@@ -75,10 +78,16 @@ public class VlmWithheldResumeRunner {
         }
     }
 
-    /** 신고 보류로 건너뛴 기록이 있고, 아직 시계열 메타가 한 건도 없는가. */
+    /**
+     * 재개 대상 미수행 기록이 있고, 아직 시계열 메타가 한 건도 없는가.
+     *
+     * <p>사유는 {@link VlmTimeseriesStep#RESUMABLE_SKIP_REASONS} 셋 중 하나다 — 신고 보류에 더해
+     * Phase C-1 의 <b>비동기 제출 실패</b>·<b>ACK 미수신 회수</b>가 추가됐다. 셋 다 "실패 행이 없어
+     * 재시도 큐가 집지 않는" 같은 성질이라 재개 경로도 하나로 공유한다.
+     */
     private boolean isWithheld(Long rawSn) {
-        boolean withheldLogged = batchStatusService.isStageSkippedWithReason(
-                rawSn, BatchStage.VLM, VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
+        boolean withheldLogged = batchStatusService.isStageSkippedWithAnyReason(
+                rawSn, BatchStage.VLM, VlmTimeseriesStep.RESUMABLE_SKIP_REASONS);
         if (!withheldLogged) {
             return false;
         }

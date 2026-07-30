@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,6 +58,31 @@ public class BatchStatusService {
     @Transactional("controlTransactionManager")
     public void recordVlmSkipped(Long rawSn, String reason) {
         if (rawSn == null) return;
+        saveVlmSkipRow(rawSn, reason);
+    }
+
+    /**
+     * VLM 단계 미수행 사유를 <b>독립 트랜잭션</b>으로 적재한다 — 비동기 완료 핸들러/스위퍼 전용 (Phase C-1).
+     *
+     * <p>{@link #recordVlmSkipped} 와 적재 내용은 같고 트랜잭션 전파만 다르다. 논블로킹 제출의 완료
+     * 핸들러는 파이프라인 스레드 밖(ambient tx 없음)에서 실행되고, 그 기록은 <b>호출자의 성패와
+     * 무관하게 남아야</b> 재개 대상 식별이 가능하다({@code ledger.recordIssued} 와 동일 규약).
+     *
+     * <p>{@link #recordVlmSkipped} 를 그대로 REQUIRES_NEW 로 바꾸지 않은 이유: 그 메서드는
+     * {@code vlm.client.enabled=false} 기본 형상에서 <b>모든</b> 배치가 지나는 길이라, 스텝 트랜잭션
+     * 안에서 중첩 커넥션을 요구하게 만들면 커넥션 기아 교착(과거 실사고 2건)의 노출면만 넓어진다.
+     *
+     * <p>두 메서드는 프록시 경유가 필요한 자기호출을 피하려 공통 로직을 <b>비트랜잭션 private
+     * 헬퍼</b>로 공유한다(자기호출로 경계가 유실되는 패턴을 만들지 않는다).
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordVlmSkippedInNewTx(Long rawSn, String reason) {
+        if (rawSn == null) return;
+        saveVlmSkipRow(rawSn, reason);
+    }
+
+    /** SKIPPED 감사 행 적재 공통 로직 — 트랜잭션 경계는 호출한 public 메서드가 소유한다. */
+    private void saveVlmSkipRow(Long rawSn, String reason) {
         repository.save(LsBatchProcLog.createSkipped(rawSn, BatchStage.VLM, reason));
         log.info("[Batch] stage skipped recorded rawSn={} stage={}", rawSn, BatchStage.VLM);
     }
@@ -76,6 +102,20 @@ public class BatchStatusService {
         if (rawSn == null || stage == null || reason == null) return false;
         return repository.existsByDataRawSnAndProcStepCdAndProcSttsCdAndErrorMsg(
                 rawSn, stage.name(), STTS_SKIPPED, reason);
+    }
+
+    /**
+     * 해당 단계가 <b>주어진 사유들 중 하나로</b> 건너뛴(SKIPPED) 감사 행을 갖고 있는가 (Phase C-1).
+     *
+     * <p>{@link #isStageSkippedWithReason} 의 다중 사유판. VLM 은 재개가 필요한 미수행 사유가
+     * 셋(신고 보류 · 비동기 제출 실패 · ACK 미수신)으로 늘었고, 재개 판정은 <b>어느 사유든</b>
+     * 성립해야 한다. 사유 문자열의 단일 원천은 각 스텝의 상수다.
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public boolean isStageSkippedWithAnyReason(Long rawSn, BatchStage stage, Collection<String> reasons) {
+        if (rawSn == null || stage == null || reasons == null || reasons.isEmpty()) return false;
+        return repository.existsByDataRawSnAndProcStepCdAndProcSttsCdAndErrorMsgIn(
+                rawSn, stage.name(), STTS_SKIPPED, reasons);
     }
 
     @Transactional("controlTransactionManager")

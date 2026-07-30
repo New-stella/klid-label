@@ -104,13 +104,18 @@ public class ApprovedRedeidentService {
         }
 
         // 4) KPST 위탁 + REDEIDENT 표시 (procLog REQ_KIND_CD=REDEIDENT)
+        //    Phase C-2 — 제출은 논블로킹이라 ACK 를 기다리지 않는다. 반환 원장은 선커밋된 "ACK 대기"
+        //    상태다(KPST 프로젝트 ID 는 ACK 수신 시 완료 핸들러가 원장에 기록 — 응답에는 싣지 않는다,
+        //    M4). 실제 외부 전송은 본 트랜잭션 커밋 후에 개시된다 — 위 작업락이 커밋돼야 위탁 실패 시
+        //    해제가 성립하기 때문이며, 본 트랜잭션이 롤백되면 위탁은 개시되지 않고 선커밋 원장은
+        //    취소 종결된다(M3 — KpstDeidentService.dispatchSubmit).
         LsDeidentProcLog procLog = kpstDeidentService.submit(raw, true);
 
-        log.info("[Redeident] requested rawSn={} actor={} procLogSn={} prjId={}",
-                rawSn, ownerId, procLog.getProcLogSn(), procLog.getKpstPrjId());
+        log.info("[Redeident] requested rawSn={} actor={} procLogSn={} (prjId 는 ACK 수신 후 원장에 확정)",
+                rawSn, ownerId, procLog.getProcLogSn());
 
         // 5) 비동기 — 폴링 잡이 완료를 이어받는다.
-        return RedeidentResponse.accepted(rawSn, procLog.getProcLogSn(), procLog.getKpstPrjId());
+        return RedeidentResponse.accepted(rawSn, procLog.getProcLogSn());
     }
 
     /**

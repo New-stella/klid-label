@@ -103,7 +103,7 @@ public class VlmResultService {
 
         // 5) failed → 적재 없이 error 기록 + 마킹 고착 해제(VLM_FAILED) + 멱등 마킹 (원자적)
         if (failed) {
-            handleFailed(req, requestId, rawSn);
+            handleFailed(req, requestId, rawSn, entry.issuedAt());
             ledger.markProcessedInTx(requestId, requestId);
             return true;
         }
@@ -150,8 +150,12 @@ public class VlmResultService {
         reviewRepository.saveAll(reviews);
 
         // 10) 마킹 상태 VLM_COMPLETED 전이
-        List<LsMarking> markings = markingRepository.findByRawSnAndSttsCd(
-                rawSn, LsMarking.STATUS_VLM_REQUESTED);
+        //  ★ 조회 범위는 ACTIVE_STATUSES(PENDING + VLM_REQUESTED) 다 — VLM_REQUESTED 단독이 아니다.
+        //    제출이 논블로킹이 되면서 콜백이 ACK 보다 먼저 커밋될 수 있는데, 그때 마킹이 아직 PENDING
+        //    이면 여기서 0건 전이로 끝나고 이후 스텝이 PENDING→VLM_REQUESTED 로 올려 <b>영구 고착</b>된다
+        //    (mock/저지연 벤더에서 현실적). 스텝의 선커밋과 함께 <b>양단 방어</b>를 이룬다.
+        //    종결 상태는 포함하지 않으므로 이미 VLM_COMPLETED 면 0건 = no-op(멱등).
+        List<LsMarking> markings = markingsInScope(rawSn, entry.issuedAt());
         for (LsMarking m : markings) {
             m.markVlmCompleted();
         }
@@ -164,16 +168,58 @@ public class VlmResultService {
         return true;
     }
 
+    /**
+     * 이 콜백이 전이해도 되는 마킹 — <b>이 위탁보다 나중에 생긴 마킹은 제외</b>한다 (L6).
+     *
+     * <h3>무엇을 막는가</h3>
+     * <p>콜백 선행 레이스를 닫기 위해 조회 범위를 {@code ACTIVE_STATUSES}(PENDING 포함)로 넓힌 부작용:
+     * 앞선 위탁이 {@code VLM_FAILED} 로 종결된 뒤 작업자가 <b>다시 마킹</b>하면 그 새 마킹(PENDING)이
+     * 활성 상태로 존재하는데, 이때 옛 request 의 지각 콜백이 도착하면 <b>한 번도 위탁된 적 없는</b> 새
+     * 마킹을 {@code VLM_COMPLETED} 로 올려버린다(그 마킹의 시계열 분석은 실제로 수행되지 않았다).
+     *
+     * <h3>판정</h3>
+     * <p>{@code VLM_REQUESTED} 는 이 위탁으로 올라간 상태이므로 항상 대상이다. {@code PENDING} 은
+     * <b>위탁 발급 시각(원장 REG_DT) 이후에 생성된 것만</b> 제외한다 — 콜백 선행 레이스의 마킹은 위탁
+     * <b>전에</b> 이미 존재하므로 그대로 전이되어 레이스 해소는 유지된다. 발급 시각을 알 수 없으면
+     * (구 원장 행 등) 종전과 동일하게 전부 대상으로 둔다(안전한 기본값 — 고착 방지 우선).
+     */
+    private List<LsMarking> markingsInScope(Long rawSn, java.time.LocalDateTime issuedAt) {
+        List<LsMarking> markings = markingRepository.findByRawSnAndSttsCdIn(
+                rawSn, LsMarking.ACTIVE_STATUSES);
+        if (issuedAt == null) {
+            return markings;
+        }
+        return markings.stream()
+                .filter(m -> !isCreatedAfterSubmit(m, issuedAt))
+                .toList();
+    }
+
+    /** 위탁 발급 이후에 새로 생성된 미위탁(PENDING) 마킹인가 — 지각 콜백의 오전이 대상. */
+    private boolean isCreatedAfterSubmit(LsMarking m, java.time.LocalDateTime issuedAt) {
+        if (!LsMarking.STATUS_PENDING.equals(m.getSttsCd()) || m.getRegDt() == null) {
+            return false;
+        }
+        boolean after = m.getRegDt().isAfter(issuedAt);
+        if (after) {
+            log.warn("[Webhook][Vlm] skip marking transition — created after submit markingSn={} rawSn={}",
+                    m.getMarkingSn(), m.getRawSn());
+        }
+        return after;
+    }
+
     /** failed 콜백 — error 기록 + VLM_REQUESTED 마킹을 VLM_FAILED 로 전이(고착 해제, #5). */
-    private void handleFailed(VlmResultRequest req, String requestId, Long rawSn) {
+    private void handleFailed(VlmResultRequest req, String requestId, Long rawSn,
+                              java.time.LocalDateTime issuedAt) {
         VlmResultRequest.VlmError err = req.error();
         log.warn("[Webhook][Vlm] describe failed request_id={} rawSn={} code={} message={}",
                 safe(requestId), rawSn,
                 safe(err == null ? null : err.code()),
                 safe(err == null ? null : err.message()));
 
-        List<LsMarking> markings = markingRepository.findByRawSnAndSttsCd(
-                rawSn, LsMarking.STATUS_VLM_REQUESTED);
+        // completed 경로와 동일하게 ACTIVE_STATUSES 로 조회한다(콜백 선행 레이스 대칭 — PENDING 인
+        // 마킹도 실패 콜백으로 종결시켜야 고착되지 않는다). 위탁 이후 새로 생긴 마킹 제외도 동일(L6) —
+        // 실패 콜백이 새 마킹을 VLM_FAILED 로 만들면 아직 위탁도 안 된 작업이 실패로 보인다.
+        List<LsMarking> markings = markingsInScope(rawSn, issuedAt);
         for (LsMarking m : markings) {
             m.markVlmFailed();
         }

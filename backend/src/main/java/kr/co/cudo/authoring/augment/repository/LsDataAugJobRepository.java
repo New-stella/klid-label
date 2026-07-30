@@ -77,4 +77,57 @@ public interface LsDataAugJobRepository extends JpaRepository<LsDataAugJob, Long
                      @Param("errorCode") String errorCode,
                      @Param("errorMessage") String errorMessage,
                      @Param("now") LocalDateTime now);
+
+    /**
+     * <b>제출 ACK 원자 클레임</b> — 202 로 받은 외부 job_id 를 적재한다 (Phase C-3 논블로킹 제출).
+     *
+     * <h3>왜 조건부 UPDATE 인가 (지각 신호 상태 강등 금지 · 2노드)</h3>
+     * <p>제출이 논블로킹이 되면 <b>벤더 콜백이 우리 ACK 기록보다 먼저</b> 도착할 수 있다(저지연 벤더·목).
+     * 콜백은 이미 {@code RUNNING}/{@code SUCCEEDED}/{@code FAILED} 로 전이시키고 job_id 도 채웠는데,
+     * 뒤늦은 ACK 기록이 엔티티를 무조건 덮어쓰면 <b>SUCCEEDED 를 RECEIVED 로 강등</b>시켜 롤업이
+     * 영원히 보류된다(구 {@code LsDataAugJob#markAccepted} 는 상태를 무조건 RECEIVED 로 되돌린다).
+     *
+     * <p>그래서 "아직 아무 신호도 받지 않은 선기록 상태"({@code RECEIVED} + {@code OTSD_JOB_ID IS NULL})
+     * 에서만 클레임한다. PostgreSQL 은 UPDATE 시 행 락을 얻고 <b>최신 버전으로 WHERE 를 재평가</b>하므로
+     * Active-Active 2노드에서도 한쪽만 1행을 얻는다.
+     *
+     * @return 클레임에 성공한 행 수(0 = 이미 콜백/다른 노드가 선점 → 기록하지 않는다)
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            UPDATE LS_DATA_AUG_JOB
+               SET OTSD_JOB_ID = :externalJobId,
+                   MDFCN_DT = :now
+             WHERE AUG_JOB_SN = :augJobSn
+               AND JOB_STTS_CD = 'RECEIVED'
+               AND OTSD_JOB_ID IS NULL
+            """, nativeQuery = true)
+    int claimSubmitAck(@Param("augJobSn") Long augJobSn,
+                       @Param("externalJobId") String externalJobId,
+                       @Param("now") LocalDateTime now);
+
+    /**
+     * <b>제출 실패 원자 클레임</b> — 위탁 호출이 확정 실패(4xx/타임아웃/서킷/빈 응답)했음을 종결 기록한다.
+     *
+     * <p>{@link #claimSubmitAck} 과 같은 술어를 쓴다. 우리 쪽 타임아웃이지만 <b>요청은 실제로 도달해</b>
+     * 벤더가 이미 콜백을 보낸 경우, 무조건 FAILED 로 덮으면 살아 있는 job 을 죽여 정상 산출물이 멱등
+     * 흡수로 버려진다. 아직 아무 신호도 없는 선기록 행만 실패로 종결한다(fail-safe).
+     *
+     * @return 클레임에 성공한 행 수(0 = 그 사이 콜백이 선점 → 강등하지 않는다)
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            UPDATE LS_DATA_AUG_JOB
+               SET JOB_STTS_CD = 'FAILED',
+                   ERR_CD = :errorCode,
+                   ERR_MSG_CN = :errorMessage,
+                   MDFCN_DT = :now
+             WHERE AUG_JOB_SN = :augJobSn
+               AND JOB_STTS_CD = 'RECEIVED'
+               AND OTSD_JOB_ID IS NULL
+            """, nativeQuery = true)
+    int claimSubmitFailure(@Param("augJobSn") Long augJobSn,
+                           @Param("errorCode") String errorCode,
+                           @Param("errorMessage") String errorMessage,
+                           @Param("now") LocalDateTime now);
 }

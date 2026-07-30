@@ -1,9 +1,9 @@
 package kr.co.cudo.authoring.batch.step;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.Optional;
 
@@ -26,24 +27,28 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * VlmTimeseriesStep.runWithMarking() 테스트 — describe 규격(v2.0.1) 정합.
+ * VlmTimeseriesStep.runWithMarking() 테스트 — describe 규격(v2.0.1) + 논블로킹 제출(Phase C-1) 정합.
  *
- * <p>describe 규격상 eventName/marks 는 요청 바디에 포함하지 않으나(R9), 위탁 성공 시
- * 마킹 상태를 VLM_REQUESTED 로 전이한다(파이프라인 상태 머신 유지).
+ * <p>describe 규격상 eventName/marks 는 요청 바디에 포함하지 않으나, <b>제출 직전</b> 마킹 상태를
+ * VLM_REQUESTED 로 전이·선커밋한다(상태 머신 유지 + 콜백 선행 레이스 폐쇄).
+ *
+ * <p>{@link VlmMarkingTxService} 는 실제 구현을 쓰되 리포지토리만 mock 한다 — 전이 판정 규칙
+ * (PENDING 에서만 전이 · 종결 상태 역행 금지)이 이 테스트의 검증 대상이기 때문이다.
  */
 class VlmTimeseriesStepMarkingTest {
 
     private VlmClient vlmClient;
     private VideoRepository videoRepository;
     private BatchStatusService batchStatusService;
-    private ObjectMapper objectMapper;
     private WebhookIdempotencyLedger ledger;
     private LsDeidentProcLogRepository deidentProcLogRepository;
     private LsMarkingRepository markingRepository;
     private DeidentReportGate deidentReportGate;
+    private VlmSubmitOutcomeRecorder outcomeRecorder;
     private VlmTimeseriesStep step;
 
     @BeforeEach
@@ -51,14 +56,14 @@ class VlmTimeseriesStepMarkingTest {
         vlmClient = mock(VlmClient.class);
         videoRepository = mock(VideoRepository.class);
         batchStatusService = mock(BatchStatusService.class);
-        objectMapper = new ObjectMapper();
         ledger = mock(WebhookIdempotencyLedger.class);
         deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
         deidentReportGate = mock(DeidentReportGate.class);
+        outcomeRecorder = mock(VlmSubmitOutcomeRecorder.class);
         step = new VlmTimeseriesStep(vlmClient, videoRepository, batchStatusService,
-                objectMapper, ledger, deidentProcLogRepository, markingRepository,
-                deidentReportGate);
+                ledger, deidentProcLogRepository, deidentReportGate,
+                new VlmMarkingTxService(markingRepository), outcomeRecorder, Schedulers.immediate());
     }
 
     private void seed(Long rawSn) {
@@ -93,7 +98,7 @@ class VlmTimeseriesStepMarkingTest {
         verify(vlmClient).submitTimeseries(captor.capture());
         VlmTimeseriesRequest req = captor.getValue();
         assertThat(req.media().path()).isEqualTo("/data/deid/400.mp4");
-        assertThat(resp.status()).isEqualTo("accepted");
+        assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
     }
 
     @Test
@@ -121,6 +126,7 @@ class VlmTimeseriesStepMarkingTest {
         assertThat(resp.status()).isEqualTo("skipped");
         verify(vlmClient, never()).submitTimeseries(any());
         assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_PENDING);
+        verifyNoInteractions(markingRepository);
     }
 
     @Test
@@ -153,6 +159,6 @@ class VlmTimeseriesStepMarkingTest {
         VlmTimeseriesResponse resp = step.runWithMarking(403L, null);
 
         verify(vlmClient).submitTimeseries(any(VlmTimeseriesRequest.class));
-        assertThat(resp.status()).isEqualTo("accepted");
+        assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
     }
 }

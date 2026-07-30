@@ -51,10 +51,15 @@ class VlmWithheldResumeRunnerTest {
                 vlmTimeseriesStep, batchStatusService, metaRepository, markingRepository);
     }
 
-    /** 보류 기록 존재 여부 stub — 사유 상수가 바뀌면 배선이 끊기므로 상수 자체를 매칭한다. */
+    /**
+     * 미수행 기록 존재 여부 stub — 사유 목록 상수가 바뀌면 배선이 끊기므로 상수 자체를 매칭한다.
+     *
+     * <p>Phase C-1 에서 재개 사유가 셋(신고 보류 · 비동기 제출 실패 · ACK 미수신 회수)으로 늘어
+     * 판정이 {@code isStageSkippedWithAnyReason} 으로 바뀌었다.
+     */
     private void stubWithheld(boolean withheld) {
-        when(batchStatusService.isStageSkippedWithReason(
-                RAW_SN, BatchStage.VLM, VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT))
+        when(batchStatusService.isStageSkippedWithAnyReason(
+                RAW_SN, BatchStage.VLM, VlmTimeseriesStep.RESUMABLE_SKIP_REASONS))
                 .thenReturn(withheld);
     }
 
@@ -119,6 +124,19 @@ class VlmWithheldResumeRunnerTest {
         runner.resumeAsync(RAW_SN); // 예외가 밖으로 나오면 실패
 
         verify(vlmTimeseriesStep).run(RAW_SN);
+    }
+
+    /**
+     * Phase C-1 — 미결 스위퍼가 남긴 {@code ACK 미수신} 감사 행도 같은 재개 경로를 타야 한다.
+     * 사유 목록에서 이 값이 빠지면 스위퍼가 클레임만 하고 아무도 재위탁하지 않는 무증상 결손이 된다.
+     */
+    @Test
+    @DisplayName("재개_사유_목록에_비동기_제출실패와_ACK_미수신이_포함된다")
+    void resumableReasonsCoverAsyncSubmitOutcomes() {
+        org.assertj.core.api.Assertions.assertThat(VlmTimeseriesStep.RESUMABLE_SKIP_REASONS)
+                .contains(VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT,
+                        VlmTimeseriesStep.SKIP_REASON_SUBMIT_FAILED,
+                        VlmTimeseriesStep.SKIP_REASON_ACK_MISSING);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.webhook.idempotency;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
@@ -31,8 +32,17 @@ public interface WebhookIdempotencyLedger {
     /**
      * @param rawSn 위탁 요청 대상 영상의 RAW_SN. 콜백 바디에 rawSn 이 없는 규격(예: VLM describe 콜백)에서
      *              request_id 로 rawSn 을 역조회하기 위한 슬롯. 매핑이 없으면 null.
+     * @param issuedAt 발급(위탁 개시) 시각. 콜백 수신부가 "이 위탁보다 <b>나중에 생긴</b> 대상"을
+     *                 건드리지 않도록 판정하는 데 쓴다(L6 — 지각 콜백이 새 마킹을 완료시키는 문제).
+     *                 알 수 없으면 null(= 판정 미적용, 종전 동작).
      */
-    record Entry(State state, String externalJobId, Long rawSn) {}
+    record Entry(State state, String externalJobId, Long rawSn, LocalDateTime issuedAt) {
+
+        /** 발급 시각을 모르는 호출부용 축약 생성자(종전 3-인자 계약 유지). */
+        public Entry(State state, String externalJobId, Long rawSn) {
+            this(state, externalJobId, rawSn, null);
+        }
+    }
 
     /**
      * 외부 위탁 시 발급한 idempotencyKey 를 등록한다.
@@ -66,6 +76,19 @@ public interface WebhookIdempotencyLedger {
      */
     default void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
         recordIssued(idempotencyKey, channel, externalJobId);
+    }
+
+    /**
+     * H1 — 위탁 <b>수락(ACK) 수신</b> 사실을 원장에 남긴다(발급 상태에서만 전이).
+     *
+     * <p>이 기록이 없으면 미결 회수 스윕이 "ACK 조차 못 받은 건"과 "결과 콜백을 기다리는 정상 건"을
+     * 구분하지 못해 진행 중인 위탁을 뺏고 중복 위탁한다. 콜백 시맨틱(발급 게이트·멱등)은 불변이다 —
+     * 영속 구현은 비-PROCESSED 를 모두 {@code ISSUED} 로 노출한다.
+     *
+     * <p>디폴트 구현(in-memory)은 no-op — 상태 모델에 수락 단계가 없고, 회수 스윕은 영속 원장만 본다.
+     */
+    default void recordAckReceived(String idempotencyKey) {
+        // no-op
     }
 
     /**

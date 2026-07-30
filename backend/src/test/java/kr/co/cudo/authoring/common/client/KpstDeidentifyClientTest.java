@@ -192,7 +192,7 @@ class KpstDeidentifyClientTest {
                 "/nas-storage/videos/9001/",
                 "/nas-storage/raw/9001/",
                 List.of("sample1.mp4", "sample2.mp4"));
-        KpstProjectResponse resp = client().createProject(req);
+        KpstProjectResponse resp = client().createProject(req).block();
 
         assertThat(resp.result()).isEqualTo("success");
         assertThat(resp.prjId()).isEqualTo(279L);
@@ -207,6 +207,42 @@ class KpstDeidentifyClientTest {
     }
 
     @Test
+    @DisplayName("PhaseC2_createProject는_구독전에는_요청을_전송하지_않는다_cold")
+    void createProjectIsColdUntilSubscribed() {
+        // given — 논블로킹 전환의 핵심 계약: 메서드 호출은 스레드를 점유하지 않으며, 전송은 구독 시점이다.
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"result\":\"success\",\"prj_id\":279}"));
+        KpstProjectRequest req = KpstProjectRequest.withDefaults(
+                "projectCold", "user01", "/nas-storage/videos/9003/", "/nas-storage/raw/9003/",
+                List.of("a.mp4"));
+
+        // when — Mono 만 조립(구독 없음).
+        reactor.core.publisher.Mono<KpstProjectResponse> mono = client().createProject(req);
+
+        // then — 서버에 아무 요청도 도달하지 않는다.
+        assertThat(server.getRequestCount()).isZero();
+        // 구독하면 그때 전송된다.
+        assertThat(mono.block().prjId()).isEqualTo(279L);
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("PhaseC2_빈_응답본문은_무흔적_유실없이_실패신호가_된다")
+    void createProjectEmptyBodyBecomesError() {
+        // given — 본문 없는 200 응답. 구 코드는 blockOptional().orElseThrow() 로 걸렀다.
+        //   논블로킹에서는 빈 완료(onComplete only)가 어떤 핸들러도 태우지 않으므로 반드시 에러로 승격해야 한다.
+        server.enqueue(new MockResponse().setResponseCode(200));
+        KpstProjectRequest req = KpstProjectRequest.withDefaults(
+                "projectEmpty", "user01", "/nas-storage/videos/9004/", "/nas-storage/raw/9004/",
+                List.of("a.mp4"));
+
+        assertThatThrownBy(() -> client().createProject(req).block())
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining("비식별 프로젝트 생성 응답이 비어있습니다");
+    }
+
+    @Test
     @DisplayName("프로젝트_동일이름_409를_적절히_처리한다")
     void createProjectConflict() {
         server.enqueue(new MockResponse()
@@ -217,7 +253,7 @@ class KpstDeidentifyClientTest {
         KpstProjectRequest req = KpstProjectRequest.withDefaults(
                 "projectA", "user01", "/nas-storage/videos/9002/", "/nas-storage/raw/9002/", List.of("a.mp4"));
 
-        assertThatThrownBy(() -> client().createProject(req))
+        assertThatThrownBy(() -> client().createProject(req).block())
                 .isInstanceOf(CustomException.class);
     }
 
@@ -308,7 +344,7 @@ class KpstDeidentifyClientTest {
                 "projectA", "user01", "/nas-storage/videos/9002/", "/nas-storage/raw/9002/", List.of("a.mp4"));
 
         // when / then — 3회 재시도 설정이라도 4xx 는 재시도되지 않고, 사용자-대면 CONFLICT 매핑이 보존된다.
-        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req))
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req).block())
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
         assertThat(server.getRequestCount()).isEqualTo(1);
@@ -324,7 +360,7 @@ class KpstDeidentifyClientTest {
         KpstProjectRequest req = KpstProjectRequest.withDefaults(
                 "projectA", "user01", "/nas-storage/videos/9002/", "/nas-storage/raw/9002/", List.of("a.mp4"));
 
-        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req))
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req).block())
                 .isInstanceOf(CustomException.class)
                 .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
         assertThat(server.getRequestCount()).isEqualTo(1);
@@ -340,7 +376,7 @@ class KpstDeidentifyClientTest {
         KpstProjectRequest req = KpstProjectRequest.withDefaults(
                 "projectA", "user01", "/nas-storage/videos/9002/", "/nas-storage/raw/9002/", List.of("a.mp4"));
 
-        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req))
+        assertThatThrownBy(() -> clientWith(tripleAttemptIgnoringNonRetryable()).createProject(req).block())
                 .isInstanceOf(CustomException.class);
         // 5xx 는 max-attempts(3) 만큼 재시도 → 3회 요청.
         assertThat(server.getRequestCount()).isEqualTo(3);

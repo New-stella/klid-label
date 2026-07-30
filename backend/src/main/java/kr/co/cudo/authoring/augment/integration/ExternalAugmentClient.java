@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.augment.integration;
 
+import reactor.core.publisher.Mono;
+
 /**
  * 외부 SFR-07 증강(생성형 AI) 시스템 연동 클라이언트.
  *
@@ -36,10 +38,19 @@ public interface ExternalAugmentClient {
     /**
      * 외부 시스템에 증강 작업을 위탁한다(job 1건 = 커맨드 1건).
      *
+     * <h3>★ 반환이 {@link Mono} 다 — 스레드를 점유하지 않는다 (Phase C-3)</h3>
+     * <p>사용자 확정 원칙 "외부연동은 모두 비동기" 의 <b>스레드 축</b>이다. 프로토콜은 원래부터
+     * 비동기였으나(결과는 웹훅) <b>202 ACK 왕복 동안 스레드를 점유</b>했다({@code .block()}). 그 스레드는
+     * {@code AugmentRequestBridge} 의 {@code batchAsyncExecutor}(core 2, CallerRuns)였고, 벤더가 느려지면
+     * 배치 풀이 통째로 마르고 역압이 커밋 스레드까지 물고 늘어졌다.
+     *
+     * <p>구현체는 <b>구독 시점에</b> 호출을 개시해야 한다(반환 즉시 부작용 금지 — 재시도/취소 의미론
+     * 보존). 호출부는 {@code publishOn(augmentSubmitScheduler)} 로 완료 신호를 전용 풀에 고정한다.
+     *
      * @param command 위탁 컨텍스트(멱등 키·비식별 입력 파일·콜백 URL 등)
-     * @return 외부가 발급한 job_id 를 담은 결과. 외부 호출을 하지 않는 구현체는
-     *         {@link AugmentSubmitResult#skipped()}.
-     * @throws RuntimeException 위탁 실패(4xx/5xx/네트워크). 호출부가 사유를 DB 에 남긴다.
+     * @return 외부가 발급한 job_id 를 담은 결과의 {@link Mono}. 외부 호출을 하지 않는 구현체는
+     *         {@link AugmentSubmitResult#skipped()}. 위탁 실패(4xx/5xx/네트워크)는 {@code onError} 로
+     *         전달되며 호출부가 사유를 DB 에 남긴다.
      */
-    AugmentSubmitResult requestAugment(AugmentSubmitCommand command);
+    Mono<AugmentSubmitResult> requestAugment(AugmentSubmitCommand command);
 }

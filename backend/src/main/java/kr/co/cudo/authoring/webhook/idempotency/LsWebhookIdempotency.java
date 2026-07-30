@@ -26,6 +26,20 @@ import java.time.LocalDateTime;
 public class LsWebhookIdempotency {
 
     public static final String STATE_ISSUED = "ISSUED";
+    /**
+     * 위탁 <b>수락(ACK) 수신</b> — 외부가 요청을 받아들였고 결과 콜백만 남은 상태 (H1).
+     *
+     * <p><b>왜 ISSUED 와 구분하는가</b>: 미결 회수 스윕은 {@code ISSUED + MDFCN_DT 경과} 를 후보로 삼는데,
+     * ACK 수신 사실이 원장에 남지 않으면 <b>정상 진행 중</b>(콜백 대기)인 위탁까지 회수해 같은 영상을
+     * 중복 위탁한다. VLM describe 는 영상 길이에 따라 콜백까지 수십 분이 걸릴 수 있어 ACK 창(수십 초)과
+     * 콜백 창(수십 분)을 하나의 임계로 덮을 수 없다. KPST 가 {@code prjId} 유무로 같은 문제를 푸는 것의
+     * 대칭이다.
+     *
+     * <p><b>콜백 시맨틱은 불변</b>: {@code PersistentWebhookIdempotencyLedger.toEntry} 는 비-PROCESSED 를
+     * 모두 {@code ISSUED} 로 매핑하므로, ACCEPTED 행에 도착한 콜백도 종전과 동일하게 발급 게이트를
+     * 통과하고 멱등 판정도 그대로다(지각 콜백이 401 이 되지 않는다).
+     */
+    public static final String STATE_ACCEPTED = "ACCEPTED";
     public static final String STATE_PROCESSED = "PROCESSED";
     public static final String STATE_FAILED = "FAILED";
 

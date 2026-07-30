@@ -97,7 +97,7 @@ class HttpExternalAugmentClientTest {
     void postsToGenAiJobsEndpoint() throws Exception {
         enqueueAccepted("AUG-1", "job-abc");
 
-        client(singleAttempt()).requestAugment(command("AUG-1"));
+        client(singleAttempt()).requestAugment(command("AUG-1")).block();
 
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getMethod()).isEqualTo("POST");
@@ -109,7 +109,7 @@ class HttpExternalAugmentClientTest {
     void requestBodyMatchesContract() throws Exception {
         enqueueAccepted("AUG-2", "job-2");
 
-        client(singleAttempt()).requestAugment(command("AUG-2"));
+        client(singleAttempt()).requestAugment(command("AUG-2")).block();
 
         JsonNode body = MAPPER.readTree(server.takeRequest().getBody().readUtf8());
         assertThat(body.get("request_id").asText()).isEqualTo("AUG-2");
@@ -140,7 +140,7 @@ class HttpExternalAugmentClientTest {
     void sendsIdempotencyKeyHeader() throws Exception {
         enqueueAccepted("AUG-3", "job-3");
 
-        client(singleAttempt()).requestAugment(command("AUG-3"));
+        client(singleAttempt()).requestAugment(command("AUG-3")).block();
 
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getHeader("Idempotency-Key")).isEqualTo("AUG-3");
@@ -154,10 +154,39 @@ class HttpExternalAugmentClientTest {
     void returnsExternallyIssuedJobId() {
         enqueueAccepted("AUG-4", "external-job-4");
 
-        AugmentSubmitResult result = client(singleAttempt()).requestAugment(command("AUG-4"));
+        AugmentSubmitResult result = client(singleAttempt()).requestAugment(command("AUG-4")).block();
 
         assertThat(result.externalJobId()).isEqualTo("external-job-4");
         assertThat(result.status()).isEqualTo(AugmentSubmitResult.STATUS_RECEIVED);
+    }
+
+    /**
+     * Phase C-3 — 반환 {@link reactor.core.publisher.Mono} 는 <b>cold</b> 여야 한다.
+     *
+     * <p>반환 즉시 호출이 나가면 재시도/취소 의미론이 깨지고, 조립만 하고 버린 요청이 실제로 외부에
+     * 도달해 <b>중복 위탁</b>이 된다. 호출부는 청크를 직렬로 <b>하나씩 구독</b>하므로 이 성질이 곧
+     * "앞 청크가 끝나기 전에 다음 청크가 나가지 않는다" 의 전제다.
+     */
+    @Test
+    @DisplayName("구독하기_전에는_외부_호출이_개시되지_않는다")
+    void isColdUntilSubscribed() {
+        enqueueAccepted("AUG-COLD", "job-cold");
+
+        client(singleAttempt()).requestAugment(command("AUG-COLD"));
+
+        assertThat(server.getRequestCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("응답이_비어있으면_EXTERNAL_API_ERROR")
+    void rejectsEmptyBody() {
+        // 202 + 본문 없음 — 어느 핸들러도 타지 않는 "신호 없는 종료" 를 실패로 승격한다.
+        server.enqueue(new MockResponse().setResponseCode(202));
+
+        assertThatThrownBy(() -> client(singleAttempt()).requestAugment(command("AUG-11")).block())
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
     }
 
     @Test
@@ -167,7 +196,7 @@ class HttpExternalAugmentClientTest {
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"code\":\"INVALID_PARAMETER\",\"message\":\"bad\"}"));
 
-        assertThatThrownBy(() -> client(tripleAttempt()).requestAugment(command("AUG-5")))
+        assertThatThrownBy(() -> client(tripleAttempt()).requestAugment(command("AUG-5")).block())
                 .isInstanceOf(NonRetryableExternalException.class);
 
         assertThat(server.getRequestCount()).as("4xx 는 1회만 전송(중복 위탁 방지)").isEqualTo(1);
@@ -180,7 +209,7 @@ class HttpExternalAugmentClientTest {
         server.enqueue(new MockResponse().setResponseCode(500));
         enqueueAccepted("AUG-6", "job-6");
 
-        AugmentSubmitResult result = client(tripleAttempt()).requestAugment(command("AUG-6"));
+        AugmentSubmitResult result = client(tripleAttempt()).requestAugment(command("AUG-6")).block();
 
         assertThat(result.externalJobId()).isEqualTo("job-6");
         assertThat(server.getRequestCount()).isEqualTo(3);
@@ -191,7 +220,7 @@ class HttpExternalAugmentClientTest {
     void retriesOnConnectionFailure() throws IOException {
         server.shutdown(); // 연결 자체가 실패하는 상황
 
-        assertThatThrownBy(() -> client(tripleAttempt()).requestAugment(command("AUG-7")))
+        assertThatThrownBy(() -> client(tripleAttempt()).requestAugment(command("AUG-7")).block())
                 .isInstanceOf(Exception.class);
         // 재시도 자체는 Resilience4j 가 수행한다(서버가 없어 요청 카운트로 셀 수 없음).
         // 여기서는 4xx 와 달리 NonRetryableExternalException 으로 분류되지 않음을 단언한다.
@@ -202,7 +231,7 @@ class HttpExternalAugmentClientTest {
     void rejectsMismatchedRequestIdEcho() {
         enqueueAccepted("SOMEONE-ELSE", "job-8");
 
-        assertThatThrownBy(() -> client(singleAttempt()).requestAugment(command("AUG-8")))
+        assertThatThrownBy(() -> client(singleAttempt()).requestAugment(command("AUG-8")).block())
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
@@ -215,7 +244,7 @@ class HttpExternalAugmentClientTest {
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"request_id\":\"AUG-9\",\"status\":\"RECEIVED\"}"));
 
-        assertThatThrownBy(() -> client(singleAttempt()).requestAugment(command("AUG-9")))
+        assertThatThrownBy(() -> client(singleAttempt()).requestAugment(command("AUG-9")).block())
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
@@ -228,7 +257,7 @@ class HttpExternalAugmentClientTest {
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"request_id\":\"AUG-10\",\"job_id\":\"j\",\"status\":\"FAILED\"}"));
 
-        assertThatThrownBy(() -> client(singleAttempt()).requestAugment(command("AUG-10")))
+        assertThatThrownBy(() -> client(singleAttempt()).requestAugment(command("AUG-10")).block())
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.EXTERNAL_API_ERROR);

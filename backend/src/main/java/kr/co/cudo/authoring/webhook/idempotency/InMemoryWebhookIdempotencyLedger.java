@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.webhook.idempotency;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,22 +28,25 @@ public class InMemoryWebhookIdempotencyLedger implements WebhookIdempotencyLedge
     @Override
     public void recordIssued(String idempotencyKey, String externalJobId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
-        ledger.putIfAbsent(idempotencyKey, new Entry(State.ISSUED, externalJobId, null));
+        ledger.putIfAbsent(idempotencyKey,
+                new Entry(State.ISSUED, externalJobId, null, LocalDateTime.now()));
     }
 
     @Override
     public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
-        ledger.putIfAbsent(idempotencyKey, new Entry(State.ISSUED, externalJobId, rawSn));
+        ledger.putIfAbsent(idempotencyKey,
+                new Entry(State.ISSUED, externalJobId, rawSn, LocalDateTime.now()));
     }
 
     @Override
     public void markProcessed(String idempotencyKey, String externalJobId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
-        // rawSn 매핑은 PROCESSED 전이 후에도 보존 (발급 시점 매핑 유지)
+        // rawSn 매핑 + 발급 시각은 PROCESSED 전이 후에도 보존 (발급 시점 매핑 유지)
         Entry prev = ledger.get(idempotencyKey);
         Long rawSn = prev == null ? null : prev.rawSn();
-        ledger.put(idempotencyKey, new Entry(State.PROCESSED, externalJobId, rawSn));
+        LocalDateTime issuedAt = prev == null ? null : prev.issuedAt();
+        ledger.put(idempotencyKey, new Entry(State.PROCESSED, externalJobId, rawSn, issuedAt));
     }
 
     @Override

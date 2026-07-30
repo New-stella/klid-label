@@ -58,6 +58,8 @@ class KpstDeidentServiceTest {
     private LsDeidentProcLogRepository procLogRepository;
     private KpstDeidentTxService txService;
     private BatchTransitionService batchTransitionService;
+    /** Phase C-2 — 비동기 제출의 완료 핸들러(ACK/실패 기록). 단위 테스트에서는 호출 위임만 검증한다. */
+    private KpstSubmitOutcomeRecorder outcomeRecorder;
     private KpstDeidentService service;
     private Path baseDeid;
     private ListAppender<ILoggingEvent> logCapture;
@@ -69,6 +71,20 @@ class KpstDeidentServiceTest {
         procLogRepository = mock(LsDeidentProcLogRepository.class);
         txService = mock(KpstDeidentTxService.class);
         batchTransitionService = mock(BatchTransitionService.class);
+        outcomeRecorder = mock(KpstSubmitOutcomeRecorder.class);
+        // Phase C-2 — 원장 발급은 별도 REQUIRES_NEW 빈(선커밋)으로 위임됐다. 단위 테스트에서는
+        // 실제 저장 대신 procLogSn 이 발급된 WAITING 원장을 돌려주는 스텁으로 대체한다.
+        when(txService.issueSubmitLedger(any(), any(), org.mockito.ArgumentMatchers.anyBoolean()))
+                .thenAnswer(inv -> {
+                    LsDeidentProcLog p = LsDeidentProcLog.request(
+                            inv.getArgument(0), null, inv.getArgument(1), "batch");
+                    if (Boolean.TRUE.equals(inv.getArgument(2))) {
+                        p.markRedeident();
+                    }
+                    p.markKpstSubmitPending();
+                    setField(p, "procLogSn", 1L);
+                    return p;
+                });
 
         baseDeid = tmp.resolve("deid");
         // 기존 케이스는 구 위치({deid_base}/videos/{rawSn}/) 계약을 검증하므로 롤백 전략 리졸버를 주입한다.
@@ -105,8 +121,11 @@ class KpstDeidentServiceTest {
 
     /** 공통 설정이 주입된 서비스 인스턴스 — 산출 base 전략(리졸버)만 케이스별로 바꾼다. */
     private KpstDeidentService newService(VideoArtifactRootResolver resolver) {
+        // 완료 신호 스케줄러는 immediate — 전용 풀 대신 호출 스레드에서 즉시 전달해 단위 테스트를
+        // 결정적으로 만든다(프로덕션은 kpstSubmitScheduler 전용 풀).
         KpstDeidentService s = new KpstDeidentService(kpstClient, videoRepository, procLogRepository,
-                txService, resolver, batchTransitionService);
+                txService, resolver, batchTransitionService, outcomeRecorder,
+                reactor.core.scheduler.Schedulers.immediate());
         setField(s, "deidPath", baseDeid.toString());
         setField(s, "creatorId", "authoring");
         setField(s, "reqUserId", "authoring");
@@ -115,6 +134,8 @@ class KpstDeidentServiceTest {
         setField(s, "verifySourceExists", true);
         // 유예 재확인은 케이스에서 명시적으로 켠다(기본 0 = 즉시 판정, 테스트 지연 없음).
         setField(s, "resultRecheckDelayMs", 0L);
+        // Phase C-2 — 제출 ACK 대기 유예(초). 기본은 "유예 안"(회수 안 함) 상태로 둔다.
+        setField(s, "submitAckGraceSec", 180L);
         invoke(s, "initBasePath");
         return s;
     }
@@ -180,7 +201,7 @@ class KpstDeidentServiceTest {
         // given — shared-mount 모델: 업로드 없이 공유 경로 참조로 createProject 만 호출
         LsDataRaw raw = newRaw();
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when
         LsDeidentProcLog procLog = service.submit(raw);
@@ -188,8 +209,11 @@ class KpstDeidentServiceTest {
         // then — createProject 1회만, 그 외 kpstClient 상호작용 없음(upload/download 미호출)
         verify(kpstClient).createProject(any(KpstProjectRequest.class));
         verifyNoMoreInteractions(kpstClient);
-        assertThat(procLog.getKpstPrjId()).isEqualTo(101L);
+        // Phase C-2 — 반환 시점 원장은 "WAITING + prjId 미정(ACK 대기)". prjId 는 완료 핸들러가 기록한다.
+        assertThat(procLog.getKpstPrjId()).isNull();
         assertThat(procLog.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_WAITING);
+        verify(outcomeRecorder).onAccepted(eq(9001L), eq(1L),
+                org.mockito.ArgumentMatchers.argThat(r -> r != null && r.prjId() == 101L));
         // DE_IDNTF_YN 미전이(완료 대기)
         assertThat(raw.getDeIdntfYn()).isNotEqualTo("Y");
     }
@@ -200,7 +224,7 @@ class KpstDeidentServiceTest {
         // given
         LsDataRaw raw = newRaw();
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when
         service.submit(raw);
@@ -217,7 +241,7 @@ class KpstDeidentServiceTest {
         // given
         LsDataRaw raw = newRaw();
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when
         service.submit(raw);
@@ -237,7 +261,7 @@ class KpstDeidentServiceTest {
         // given
         LsDataRaw raw = newRaw();
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when
         service.submit(raw);
@@ -250,17 +274,54 @@ class KpstDeidentServiceTest {
     }
 
     @Test
-    @DisplayName("위탁실패시_procLog_F_raw_F_마킹은_기존과_동일하다")
-    void submitFailureMarksF() {
-        // given — createProject(외부 호출) 실패
+    @DisplayName("제출실패는_예외전파대신_완료핸들러가_기록한다_PhaseC2")
+    void submitFailureRecordedByOutcomeHandler() {
+        // given — createProject(외부 호출)가 에러 신호로 종료(논블로킹 제출의 정상적인 실패 표현).
         LsDataRaw raw = newRaw();
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenThrow(new CustomException(ErrorCode.EXTERNAL_API_ERROR, "boom"));
+                .thenReturn(reactor.core.publisher.Mono.error(
+                        new CustomException(ErrorCode.EXTERNAL_API_ERROR, "boom")));
 
-        // when / then — 기존과 동일: 'F' 마킹 후 예외 전파
+        // when — ACK 왕복을 기다리지 않으므로 제출 이후 실패는 호출 스레드로 전파되지 않는다.
+        LsDeidentProcLog procLog = service.submit(raw);
+
+        // then — 종단 상태 기록은 완료 핸들러가 별도 커밋으로 수행한다('F' + 원장 FAILED).
+        assertThat(procLog.getProcLogSn()).isEqualTo(1L);
+        verify(outcomeRecorder).onSubmitFailed(eq(9001L), eq(1L), any(Throwable.class));
+        verify(outcomeRecorder, never()).onAccepted(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("제출구독이_동기예외로_거부되면_완료핸들러가_실패로_기록한다_전용풀포화")
+    void submitSubscriptionRejectionRecordedAsFailure() {
+        // given — 전용 풀 포화(AbortPolicy) 등으로 구독 자체가 즉시 예외를 던지는 상황.
+        LsDataRaw raw = newRaw();
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenThrow(new java.util.concurrent.RejectedExecutionException("pool full"));
+
+        // when — 예외를 밖으로 던지지 않는다(파이프라인을 실패로 만들지 않음).
+        service.submit(raw);
+
+        // then — 확정 실패와 동일하게 기록된다(기록 유실 != 위탁 유실).
+        verify(outcomeRecorder).onSubmitFailed(eq(9001L), eq(1L), any(Throwable.class));
+    }
+
+    @Test
+    @DisplayName("제출_사전조건_실패는_원장을_별도커밋_종결하고_동기예외를_전파한다")
+    void submitPrepareFailureTerminatesLedgerAndThrows() {
+        // given — 부모 디렉터리가 없는 손상 경로(외부에 아무것도 나가지 않는 사전 조건 실패).
+        setField(service, "verifySourceExists", false);
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-x", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "clip.mp4", null, 60);
+        setField(raw, "rawSn", 9001L);
+
+        // when / then — 기존 계약(동기 예외) 유지 + 실패 흔적은 별도 트랜잭션으로 커밋.
         assertThatThrownBy(() -> service.submit(raw)).isInstanceOf(CustomException.class);
-        assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+        verify(txService).failSubmit(eq(1L), eq(9001L),
+                eq(KpstDeidentService.SUBMIT_FAILED_CODE), any());
+        verify(kpstClient, never()).createProject(any());
     }
 
     @Test
@@ -275,10 +336,10 @@ class KpstDeidentServiceTest {
         setField(raw, "rawSn", 9001L);
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
 
-        // when / then — createProject 호출 전에 거부, F 마킹 + 예외 전파
+        // when / then — createProject 호출 전에 거부, F 마킹(별도 커밋) + 예외 전파
         assertThatThrownBy(() -> service.submit(raw)).isInstanceOf(CustomException.class);
         verify(kpstClient, never()).createProject(any());
-        assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+        verify(txService).failSubmit(eq(1L), eq(9001L), eq(KpstDeidentService.SUBMIT_FAILED_CODE), any());
     }
 
     // ─────────────── B-ISSUE-01: 원본 실재 가드(fail-closed) ───────────────
@@ -296,8 +357,9 @@ class KpstDeidentServiceTest {
         verify(kpstClient, never()).createProject(any());
         // 'F' 는 별도 REQUIRES_NEW 로 커밋되어야 한다(submit 트랜잭션 롤백과 독립).
         verify(batchTransitionService).recordDeidentFailure(eq(9001L), any(), any());
-        // 위탁 대기(WAITING) procLog 를 남기지 않는다 — 폴링 대상이 되면 안 된다.
+        // 위탁 대기(WAITING) 원장을 남기지 않는다 — 폴링 대상이 되면 안 된다.
         verify(procLogRepository, never()).save(any(LsDeidentProcLog.class));
+        verify(txService, never()).issueSubmitLedger(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
     }
 
     @Test
@@ -326,13 +388,14 @@ class KpstDeidentServiceTest {
         LsDataRaw raw = newRaw();
         setField(raw, "rawFilePathNm", tmp.resolve("gone.mp4").toString());
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when — 가드가 꺼져 있으면 원본이 없어도 위탁이 진행된다.
         LsDeidentProcLog procLog = service.submit(raw);
 
         // then — 침묵하지 않는다: 미검증 위탁임을 WARN 으로 남긴다.
-        assertThat(procLog.getKpstPrjId()).isEqualTo(101L);
+        assertThat(procLog.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_WAITING);
+        verify(outcomeRecorder).onAccepted(eq(9001L), eq(1L), any());
         verify(batchTransitionService, never()).recordDeidentFailure(any(), any(), any());
         assertThat(warnLogged("source existence guard disabled")).isTrue();
     }
@@ -349,7 +412,7 @@ class KpstDeidentServiceTest {
         java.nio.file.Files.writeString(exportDir.resolve("001_202601010000_mask.mp4"), "OLD");
         java.nio.file.Files.writeString(exportDir.resolve("001-mask.mp4"), "OLD");
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when
         service.submit(raw, true);
@@ -385,7 +448,7 @@ class KpstDeidentServiceTest {
             symlinkSupported = false;
         }
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when
         service.submit(raw, true);
@@ -409,13 +472,14 @@ class KpstDeidentServiceTest {
         // given — 최초 위탁: export 디렉터리 미존재. createDirectories 후 정리 대상 0건.
         LsDataRaw raw = newRaw();
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when — 정리가 예외를 던지지 않고 no-op.
         LsDeidentProcLog procLog = service.submit(raw);
 
         // then — 위탁 정상 진행.
-        assertThat(procLog.getKpstPrjId()).isEqualTo(101L);
+        assertThat(procLog.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_WAITING);
+        verify(outcomeRecorder).onAccepted(eq(9001L), eq(1L), any());
         assertThat(baseDeid.resolve("videos").resolve("9001")).exists();
     }
 
@@ -441,7 +505,7 @@ class KpstDeidentServiceTest {
         // given
         LsDataRaw raw = newRaw();
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when
         coLocateService().submit(raw);
@@ -468,7 +532,7 @@ class KpstDeidentServiceTest {
         java.nio.file.Files.createDirectories(coLocateDeidDir());
         java.nio.file.Files.writeString(coLocateDeidDir().resolve("clip-mask.mp4"), "OLD");
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
         // when — REDEIDENT 재위탁(정리 수행)
         coLocateService().submit(raw, true);
@@ -1065,16 +1129,40 @@ class KpstDeidentServiceTest {
     }
 
     @Test
-    @DisplayName("prjId_미상이면_타임아웃검사만_수행하고_외부호출하지_않는다")
-    void pollMissingPrjIdOnlyTimeout() {
+    @DisplayName("PhaseC2_prjId_미상은_ACK대기로_보고_유예안이면_아무것도_하지않는다")
+    void pollMissingPrjIdWithinAckGraceIsNoop() {
+        // given — 논블로킹 제출로 "원장은 커밋됐지만 ACK 는 아직" 인 창이 정상적으로 존재한다.
+        //   (구 계약: prjId 미상 = 데이터 정합 깨짐 → markTimeoutIfExpired. 이제는 시도/경과 예산을
+        //    헛되이 소모하지 않도록 유예 안에서는 판정 자체를 하지 않는다.)
         LsDeidentProcLog procLog = LsDeidentProcLog.request(9001L, null, "/raw/clip.mp4", "batch");
         setField(procLog, "procLogSn", 1L);
-        // prjId 미기록(위탁 미완)
+        procLog.markKpstSubmitPending();
 
         service.pollOne(procLog);
 
         verify(kpstClient, never()).retrieveProgress(any(), any());
-        verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
+        verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong());
+        verify(txService, never()).failSubmit(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("PhaseC2_ACK가_유예를_넘겨도_안오면_폴러가_ACK_MISSING으로_회수한다")
+    void pollReclaimsWhenAckGraceExpired() {
+        // given — 유예 만료(별도 스위퍼 없이 폴러가 회수기 역할을 그대로 수행한다).
+        setField(service, "submitAckGraceSec", 0L);
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(9001L, null, "/raw/clip.mp4", "batch");
+        setField(procLog, "procLogSn", 1L);
+        procLog.markKpstSubmitPending();
+
+        service.pollOne(procLog);
+
+        // then — 확정 실패(SUBMIT_FAILED)와 구분되는 코드로 terminal 종결. 진행조회는 호출할 수 없다.
+        verify(kpstClient, never()).retrieveProgress(any(), any());
+        verify(txService).failSubmit(eq(1L), eq(9001L),
+                eq(KpstDeidentService.ACK_MISSING_CODE), any());
+        verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong());
     }
 
     // ────────────────────────── K1: retrieveProgress 지속 예외 가드 ──────────────────────────
