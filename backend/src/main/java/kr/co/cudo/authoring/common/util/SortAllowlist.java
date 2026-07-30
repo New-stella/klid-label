@@ -52,8 +52,9 @@ import java.util.Set;
  * 해석하므로 미등록 키가 쿼리에 반영되는 경로는 어느 쪽에도 없다. 갈리는 것은 "거부할 것인가,
  * 무시할 것인가" 뿐이다.
  *
- * <p>기존 {@link kr.co.cudo.authoring.common.web.SortFieldMapper} 도 미등록 키를 조용히 drop 하지만,
- * 본 유틸의 lenient 모드는 폴백 사실을 WARN 으로 남겨 오타 진단이 가능하다.
+ * <p>{@link kr.co.cudo.authoring.common.web.SortFieldMapper}(영상 처리 현황 목록
+ * {@code GET /v1/videos} 전용 래퍼)도 <b>이 유틸의 lenient 모드에 위임</b>한다 — 미등록 키 drop 정책이
+ * 같고, 개수 상한·중복 제거를 두 곳에서 각자 구현하면 정책이 갈라지기 때문이다.
  *
  * <p>stateless 유틸 — 인스턴스화 금지.
  */
@@ -92,6 +93,27 @@ public final class SortAllowlist {
             "updDt", "updDt",
             "videoId", "rawDataId",
             "status", "dataSttsCd");
+
+    /**
+     * 영상 처리 현황 목록(GET /v1/videos) 정렬 allowlist — 외부 키 → {@code LsDataRaw} 필드.
+     *
+     * <p>7 개 외부 키가 고유 엔티티 필드 4개({@code shtDt}/{@code regDt}/{@code mdfcnDt}/{@code rawSn})를
+     * 가리킨다 — {@code capturedAt}·{@code createdAt}·{@code id} 는 FE 표시명 alias 다.
+     *
+     * <p>이 allowlist 는 {@code SortFieldMapper}(=이 유틸의 {@link #resolveLenient} 위임)와 함께 쓴다 —
+     * 영상 목록은 변경 전에도 미등록 키·과다 항목에 200 을 돌려줬기 때문이다(위 모드 표).
+     *
+     * <p><b>컨트롤러에 사본을 두지 않는다</b>: 사본을 두면 테스트가 사본만 검증해 컨트롤러 확장 시
+     * 드리프트를 놓친다(실제로 {@code SortFieldMapperTest} 가 "동형" 사본을 검증하고 있었다).
+     */
+    public static final Map<String, String> VIDEO = Map.of(
+            "capturedAt", "shtDt",
+            "shtDt", "shtDt",
+            "regDt", "regDt",
+            "createdAt", "regDt",
+            "updatedAt", "mdfcnDt",
+            "rawSn", "rawSn",
+            "id", "rawSn");
 
     private SortAllowlist() {
     }
@@ -174,7 +196,9 @@ public final class SortAllowlist {
         int seen = 0;
         for (Sort.Order order : raw) {
             if (++seen > limit) {
-                log.warn("[Sort] too many sort orders — fell back to default sort");
+                // 입력 키를 진단용으로 남기되 LogSanitizer 로 정제한다(CWE-117 Log Injection).
+                log.warn("[Sort] too many sort orders — fell back to default sort firstDroppedKey={}",
+                        LogSanitizer.sanitize(order.getProperty(), LOG_KEY_MAX_LENGTH));
                 return fallback;
             }
             String entityField = allowlist.get(order.getProperty());

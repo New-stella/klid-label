@@ -21,6 +21,8 @@ import kr.co.cudo.authoring.assignment.entity.QLsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.BlankTextPredicate;
+import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.user.entity.QMngAcctUser;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.entity.QLsDataRaw;
@@ -375,6 +377,13 @@ public class TaskBoardQueryRepository {
     /**
      * 영상명 부분일치 — 화면 표시명({@code MNG_RESOURCE_CCTV.CCTV_NM}, 없으면 {@code VMS_CCTV_ID} 폴백)
      * 기준으로 검색한다. CCTV 명이 있는 영상은 화면에 보이지 않는 {@code VMS_CCTV_ID} 로 매칭되지 않는다.
+     *
+     * <p>"CCTV 명이 비었는가" 판정은 표시측({@code TaskBoardService.resolveCctvName} 의 Java
+     * {@code isBlank()})과 <b>같은 의미</b>여야 한다. 구 구현은 SQL {@code trim(cctvNm) <> ''} 였는데
+     * {@code trim()} 은 공백문자(U+0020)만 제거하므로 {@code CCTV_NM='\t'} 같은 값이 <b>화면에는
+     * {@code VMS_CCTV_ID} 로 표시되면서 검색에서는 그 축이 열리지 않아</b> "보이는 값으로 검색해도
+     * 안 나오는" 영상이 생겼다(검수목록에서 이미 통일한 것과 같은 불일치). 판정은 단일 원천
+     * {@link BlankTextPredicate} 에 위임한다 — 검수목록 {@code ReviewQueryRepository} 도 같은 것을 쓴다.
      */
     private BooleanExpression videoNameLike(QLsDataRaw raw, String pattern) {
         QMngResourceCctv cctv = QMngResourceCctv.mngResourceCctv;
@@ -388,7 +397,7 @@ public class TaskBoardQueryRepository {
                 .from(cctv)
                 .where(cctv.vmsCctvId.eq(raw.vmsCctvId),
                         cctv.cctvNm.isNotNull(),
-                        cctv.cctvNm.trim().ne(""))
+                        BlankTextPredicate.isBlankAsJava(cctv.cctvNm).not())
                 .exists()
                 .not();
 
@@ -413,8 +422,17 @@ public class TaskBoardQueryRepository {
 
     // ---------------------------------------------------------------- order by
 
-    /** 정렬 가능한 엔티티 필드 수 — 정렬 항목 개수 상한(CWE-770). {@code SortAllowlist} 상한과 동일하다. */
-    private static final int MAX_SORT_ORDERS = 3;
+    /**
+     * 정렬 항목 개수 상한(CWE-770) — {@link SortAllowlist#TASK_BOARD} 에서 <b>파생</b>한다.
+     *
+     * <p>상수를 하드코딩하면 allowlist 확장 시 수동 동기화가 필요해 두 정의가 조용히 어긋난다
+     * (컨트롤러는 4건을 허용하는데 리포지토리가 3건에서 400 을 던지는 식). 검수목록
+     * {@code ReviewQueryRepository.MAX_SORT_ORDERS} 도 같은 방식으로 파생시킨다.
+     *
+     * <p>가시성이 package-private 인 이유: 파생값이 allowlist 와 일치함을 테스트가 직접 고정한다
+     * ({@code TaskBoardSortOrderLimitTest}).
+     */
+    static final int MAX_SORT_ORDERS = SortAllowlist.maxOrders(SortAllowlist.TASK_BOARD);
 
     /**
      * 정렬 조립 — 허용 필드만 해석하고 <b>전순서(total order)를 보장</b>해 페이지 경계에서 행 중복/누락이

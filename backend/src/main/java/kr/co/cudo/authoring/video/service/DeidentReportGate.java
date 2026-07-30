@@ -36,8 +36,14 @@ import org.springframework.stereotype.Component;
  * 막다른 안내(파생 배정 WORKER 는 부모에 403) 같은 결함이 연쇄로 나왔다. <b>다시 시도하지 말 것</b> —
  * 되살리려면 "파생본 재비식별 수단"부터 만들어야 한다.
  *
- * <p>판정은 {@code DE_IDNTF_YN} 단일 컬럼 projection 1회 조회다(PK 인덱스 lookup). 호출부는 루프 밖에서
- * 1회만 호출한다.
+ * <p>판정은 {@code DE_IDNTF_YN} 단일 컬럼 projection 1회 조회다(PK 인덱스 lookup).
+ *
+ * <p><b>호출 빈도</b>: 대부분의 호출부는 진입부에서 1회만 판정한다. 다만 <b>장시간 외부 전송</b>처럼
+ * 판정 이후에 신고가 커밋될 수 있는 경로는 <b>의도적으로 재판정</b>한다 —
+ * {@code AugmentJobSubmitService.submit} 은 청크(기본 100장) 단위 위탁 루프에서 청크마다 이 메서드를
+ * 호출해 남은 청크의 PII 경로 전송을 끊는다(수 초~수십 초에 걸친 전송 구간의 노출량 축소).
+ * 즉 "루프 밖 1회" 는 규약이 아니라 <b>기본값</b>이며, 재판정이 필요한 경로는 비용(PK lookup)을
+ * 감수하고 루프 안에서 호출한다.
  */
 @Component
 @RequiredArgsConstructor

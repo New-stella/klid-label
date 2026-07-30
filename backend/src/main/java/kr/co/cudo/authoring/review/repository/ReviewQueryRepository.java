@@ -7,7 +7,6 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.ComparableExpressionBase;
-import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.core.types.dsl.StringExpression;
 import com.querydsl.jpa.JPAExpressions;
@@ -21,6 +20,7 @@ import kr.co.cudo.authoring.assignment.entity.QLsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.BlankTextPredicate;
 import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.review.dto.ReviewSearchCondition;
 import kr.co.cudo.authoring.user.entity.QMngAcctUser;
@@ -96,18 +96,6 @@ public class ReviewQueryRepository {
      * (컨트롤러는 4건을 허용하는데 리포지토리가 3건에서 400 을 던지는 식).
      */
     private static final int MAX_SORT_ORDERS = SortAllowlist.maxOrders(SortAllowlist.REVIEW);
-
-    /**
-     * 표시명 폴백 판정용 — {@code Character.isWhitespace} 인 문자 중 공백(U+0020)을 뺀 집합.
-     *
-     * <p>표시측({@code ReviewService.lookupCctvNames})은 Java {@code String.isBlank()} 로 CCTV 명이
-     * 비었는지 판정하는데, SQL {@code trim()} 은 <b>공백문자만</b> 제거한다. 그대로 두면
-     * {@code CCTV_NM = '\t'} 인 CCTV 가 화면에는 {@code VMS_CCTV_ID} 로 표시되는데 검색에서는 그 축이
-     * 열리지 않아 <b>"보이는 값으로 검색해도 안 나온다"</b>. 이 집합으로 공백류를 모두 제거한 뒤
-     * {@code trim()} 하면 {@code isBlank()} 와 동일한 판정이 되며, 집합을 {@code Character.isWhitespace}
-     * 에서 생성하므로 두 판정의 일치가 <b>구조적으로</b> 보장된다(수동 나열이 아니다).
-     */
-    private static final List<String> NON_SPACE_WHITESPACE = nonSpaceWhitespaceChars();
 
     @PersistenceContext(unitName = "control")
     private EntityManager entityManager;
@@ -337,35 +325,11 @@ public class ReviewQueryRepository {
     }
 
     /**
-     * Java {@code String.isBlank()} 와 <b>동일한 판정</b>을 SQL 로 표현한다 — 공백류를 모두 제거한 뒤
-     * 빈 문자열이면 blank.
-     *
-     * <p>SQL {@code trim()} 은 공백문자(U+0020)만 제거하므로 {@code '\t'}·{@code '\n'}·{@code U+3000}
-     * (전각 공백, 한글 데이터에서 흔하다) 만으로 이루어진 값을 blank 로 보지 못한다. 제거 대상 문자는
-     * {@link #NON_SPACE_WHITESPACE}(= {@code Character.isWhitespace} 파생)에서 오므로 Java 판정과
-     * 자동으로 같은 집합을 쓴다.
-     *
-     * <p>{@code replace} 는 Hibernate 표준 HQL 함수이고 제거 대상 문자는 <b>파라미터로 바인딩</b>된다
-     * (쿼리 문자열 연결 없음 — CWE-89). 대상은 {@code VMS_CCTV_ID} 등가 조건으로 좁혀진 EXISTS
-     * 서브쿼리의 단일 행이라 비용은 무시할 수준이다.
+     * Java {@code String.isBlank()} 와 <b>동일한 판정</b>을 SQL 로 표현한다 — 판정 구현은 단일 원천
+     * {@link BlankTextPredicate} 에 위임한다(작업목록 {@code TaskBoardQueryRepository} 도 같은 것을 쓴다).
      */
     private static BooleanExpression blankAsJava(StringExpression text) {
-        Expression<String> stripped = text;
-        for (String whitespace : NON_SPACE_WHITESPACE) {
-            stripped = Expressions.stringTemplate("replace({0}, {1}, '')", stripped, whitespace);
-        }
-        return Expressions.stringTemplate("trim({0})", stripped).eq("");
-    }
-
-    /** {@code Character.isWhitespace} 인 문자에서 공백(U+0020)만 제외한 목록 — 공백은 {@code trim()} 이 처리한다. */
-    private static List<String> nonSpaceWhitespaceChars() {
-        List<String> chars = new ArrayList<>();
-        for (int c = Character.MIN_VALUE; c <= Character.MAX_VALUE; c++) {
-            if (c != ' ' && Character.isWhitespace((char) c)) {
-                chars.add(String.valueOf((char) c));
-            }
-        }
-        return List.copyOf(chars);
+        return BlankTextPredicate.isBlankAsJava(text);
     }
 
     /** LIKE 특수문자({@code \ % _}) 이스케이프 — 와일드카드 주입으로 필터가 무력화되는 것을 막는다. */

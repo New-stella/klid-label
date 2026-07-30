@@ -7,15 +7,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
+import javax.sql.DataSource;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,10 +44,16 @@ class VideoListSortMappingTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private VideoRepository videoRepository;
 
+    private final JdbcTemplate jdbc;
+
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
 
     private String reviewerToken;
+
+    VideoListSortMappingTest(@Qualifier("controlDataSource") DataSource dataSource) {
+        this.jdbc = new JdbcTemplate(dataSource);
+    }
 
     @BeforeEach
     void setup() {
@@ -54,6 +66,15 @@ class VideoListSortMappingTest {
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/" + clipId + ".mp4",
                 shtDt, 30);
         return videoRepository.save(raw);
+    }
+
+    /**
+     * 등록일을 명시적으로 고정한다 — {@code regDt} 는 엔티티 생성 시 {@code LocalDateTime.now()} 라
+     * 한 테스트 안에서 적재한 행들이 마이크로초 단위로만 갈린다. 기본 정렬({@code regDt DESC})의 결과
+     * 순서를 <b>단언</b>하려면 값이 결정적이어야 하므로 직접 덮어쓴다.
+     */
+    private void forceRegDt(Long rawSn, LocalDateTime regDt) {
+        jdbc.update("UPDATE LS_DATA_RAW SET REG_DT = ? WHERE RAW_SN = ?", Timestamp.valueOf(regDt), rawSn);
     }
 
     @Test
@@ -85,6 +106,51 @@ class VideoListSortMappingTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.content[0].id").value(v.getRawSn()));
+    }
+
+    /**
+     * 상한 초과 요청이 <b>실제로 기본 정렬 순서</b>를 돌려주는지 검증한다.
+     *
+     * <p>구 버전은 응답 앞 2건만 {@code containsExactlyInAnyOrder} 로 봤는데, 픽스처가
+     * {@code LS_DATA_RAW} 를 전부 DELETE 하고 이 테스트가 2건만 적재하므로 <b>표에 행이 2개뿐</b>이라
+     * 어떤 순서로 정렬돼도 통과했다 — {@code SortAllowlist.resolveLenient} 의 상한 체크를 삭제해도 GREEN.
+     *
+     * <p>그래서 ① 행을 3건 넣고 ② {@code regDt} 를 명시 고정해 <b>기본 정렬(regDt DESC)과 요청 정렬
+     * (capturedAt=shtDt ASC)의 결과 순서가 완전히 역순</b>이 되게 배치한 뒤 ③ 순서를
+     * {@code containsExactly} 로 단언한다. 상한 체크가 사라지면 {@code shtDt ASC, regDt ASC} 가
+     * 실제 {@code ORDER BY} 로 전개되어 순서가 뒤집히므로 RED 가 된다.
+     */
+    @Test
+    @DisplayName("대량_sort_파라미터_요청도_400이_아니라_200_기본정렬_순서로_폴백")
+    void massiveSortParametersFallBackToDefaultSort() throws Exception {
+        // given: 등록일 오름차순 = 촬영일 오름차순 (→ regDt DESC 와 shtDt ASC 결과가 정확히 역순)
+        LsDataRaw first = seedVideoWithShtDt("CLIP-SORT-MANY-1", LocalDateTime.of(2026, 1, 2, 0, 0));
+        LsDataRaw second = seedVideoWithShtDt("CLIP-SORT-MANY-2", LocalDateTime.of(2026, 3, 2, 0, 0));
+        LsDataRaw third = seedVideoWithShtDt("CLIP-SORT-MANY-3", LocalDateTime.of(2026, 6, 2, 0, 0));
+        forceRegDt(first.getRawSn(), LocalDateTime.of(2026, 5, 1, 0, 0));
+        forceRegDt(second.getRawSn(), LocalDateTime.of(2026, 5, 2, 0, 0));
+        forceRegDt(third.getRawSn(), LocalDateTime.of(2026, 5, 3, 0, 0));
+
+        // allowlist 등록 키를 반복 전개한 대량 sort (CWE-770 시도) — 상한(고유 필드 4)을 크게 초과
+        StringBuilder query = new StringBuilder("/v1/videos?page=0&size=20");
+        for (int i = 0; i < 200; i++) {
+            query.append(i % 2 == 0 ? "&sort=capturedAt,asc" : "&sort=regDt,asc");
+        }
+
+        // when: 400/500 이 아니라 200 이어야 한다(지금까지 200 이던 호출의 하위호환).
+        String body = mockMvc.perform(get(query.toString())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andReturn().getResponse().getContentAsString();
+
+        // then: 요청한 capturedAt ASC 가 한 항목도 ORDER BY 로 전개되지 않고 기본 정렬 regDt DESC 순서다.
+        //   (상한 체크가 없으면 shtDt ASC 가 적용돼 first→second→third 로 뒤집힌다.)
+        List<Number> ids = com.jayway.jsonpath.JsonPath.read(body, "$.data.content[*].id");
+        assertThat(ids.stream().map(Number::longValue))
+                .as("상한 초과 정렬은 전체가 기본 정렬(regDt DESC)로 폴백되어야 한다")
+                .containsExactly(third.getRawSn(), second.getRawSn(), first.getRawSn());
     }
 
     @Test

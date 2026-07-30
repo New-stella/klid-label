@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.assignment;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.domain.BoardWorkStatus;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
@@ -23,12 +25,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import javax.sql.DataSource;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -120,6 +125,32 @@ class TaskBoardFilterSortTest {
 
     private void forceShtDt(Long rawSn, LocalDateTime shtDt) {
         jdbc.update("UPDATE LS_DATA_RAW SET SHT_DT = ? WHERE RAW_SN = ?", Timestamp.valueOf(shtDt), rawSn);
+    }
+
+    /** CCTV 마스터 직접 시드 — 표시명 폴백 판정(공백문자만 있는 CCTV_NM) 검증용. */
+    private void seedCctv(String vmsCctvId, String cctvNm) {
+        jdbc.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, SHT_ADDR, OG_NM, RESOLUTION, USE_YN)"
+                + " VALUES (?, ?, ?, ?, ?, 'Y')", vmsCctvId, cctvNm, "주소", "서울시청", "1920x1080");
+    }
+
+    /**
+     * 응답 목록에서 해당 영상의 표시 영상명({@code cctvName})을 읽는다.
+     *
+     * <p>본문을 바이트로 받아 UTF-8 로 파싱한다 — {@code getContentAsString()} 기본 charset
+     * (ISO-8859-1)으로 읽으면 한글 표시명이 깨져 단언이 무의미해진다.
+     */
+    private String cctvNameOf(org.springframework.test.web.servlet.RequestBuilder request, Long rawSn)
+            throws Exception {
+        byte[] body = mockMvc.perform(request).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        JsonNode content = new ObjectMapper().readTree(new String(body, StandardCharsets.UTF_8))
+                .path("data").path("content");
+        for (JsonNode item : content) {
+            if (item.path("videoId").asLong() == rawSn) {
+                return item.path("cctvName").asText(null);
+            }
+        }
+        throw new AssertionError("응답에 영상이 없습니다 rawSn=" + rawSn);
     }
 
     private static final Pattern VIDEO_ID = Pattern.compile("\"videoId\"\\s*:\\s*(\\d+)");
@@ -569,6 +600,48 @@ class TaskBoardFilterSortTest {
 
         assertThat(videoIds(board("status", "COMPLETED", "size", "100", "q", "CCTV-999")))
                 .containsExactly(orphan.getRawSn());
+    }
+
+    @Test
+    @DisplayName("공백문자만_있는_CCTV명은_표시된_VMS_ID_로_검색된다")
+    void blankCctvNameFallsBackToVmsIdOnBothDisplayAndSearch() throws Exception {
+        // given — CCTV_NM 이 탭/개행/전각공백뿐이라 화면에는 VMS_CCTV_ID 로 표시되는 CCTV 들.
+        //   구 구현의 검색측 판정은 SQL trim(cctvNm) <> '' 이라 이 값들을 "이름 있음" 으로 보아
+        //   VMS_CCTV_ID 축을 열지 않았다(표시는 Java isBlank() → 폴백). 두 화면이 다르게 동작했다.
+        Map<String, String> blankNames = new LinkedHashMap<>();
+        blankNames.put("CCTV-TB-TAB", "\t");
+        blankNames.put("CCTV-TB-NL", "\n");
+        blankNames.put("CCTV-TB-IDEO", "　");     // 전각 공백(U+3000) — 한글 데이터에서 흔하다
+        blankNames.put("CCTV-TB-MIX", " \t \n ");
+        Map<String, Long> videos = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : blankNames.entrySet()) {
+            seedCctv(entry.getKey(), entry.getValue());
+            videos.put(entry.getKey(),
+                    seedVideo("CLIP-TB-BLK-" + entry.getKey(), entry.getKey(), "EVT-FIRE", "COMPLETED")
+                            .getRawSn());
+        }
+        // 대조군 — 이름이 있는 CCTV(CCTV-001='동대문구 회기로 CCTV')는 화면에 보이지 않는
+        //   VMS_CCTV_ID 로 검색되면 안 된다(기존 규칙 보존).
+        Long named = seedCompleted("CLIP-TB-BLK-NAMED").getRawSn();
+
+        for (Map.Entry<String, Long> entry : videos.entrySet()) {
+            String vmsCctvId = entry.getKey();
+            Long rawSn = entry.getValue();
+
+            // then (1) 표시 — Java isBlank() 판정으로 VMS_CCTV_ID 폴백
+            assertThat(cctvNameOf(board("status", "COMPLETED", "size", "100"), rawSn))
+                    .as("[%s] 공백문자만 있는 CCTV 명은 VMS ID 로 표시되어야 한다", vmsCctvId)
+                    .isEqualTo(vmsCctvId);
+
+            // then (2) 검색 — 표시된 그 값으로 검색하면 나와야 한다
+            assertThat(videoIds(board("status", "COMPLETED", "size", "100", "q", vmsCctvId)))
+                    .as("[%s] 화면에 보이는 값으로 검색하면 그 영상이 나와야 한다", vmsCctvId)
+                    .containsExactly(rawSn);
+        }
+
+        // then (3) 이름이 있는 CCTV 는 기존 규칙대로 VMS ID 축이 열리지 않는다.
+        assertThat(videoIds(board("status", "COMPLETED", "size", "100", "q", "CCTV-001")))
+                .doesNotContain(named);
     }
 
     @Test
