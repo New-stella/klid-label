@@ -28,8 +28,9 @@ import java.nio.file.Paths;
  * <p>{@link #isDeidentifiedArtifact(Path, Path)} 등은 순수 경로 계산이지만, 실제 "이 DB 경로가 비식별
  * 산출물인가" 판정은 <b>파일시스템 상태까지</b> 봐야 한다(존재·정규파일·심링크 실경로). 그 판정을
  * {@link #verifyDeidentifiedFile(Path, String)} <b>한 메서드</b>로 모아 서빙 경로({@code FrameSource})와
- * 감사 경로({@code ResolutionBackfillService})가 <b>literally 같은 코드</b>를 쓰게 한다 — SQL 로 근사한
- * 감사는 코드 판정과 동치가 아니어서 "영향 없음" 주장을 입증하지 못했다(H-4).
+ * 이 판정이 필요한 다른 경로가 <b>literally 같은 코드</b>를 쓰게 한다 — SQL 로 근사한 감사는 코드 판정과
+ * 동치가 아니어서 "영향 없음" 주장을 입증하지 못했다(H-4). (이 메서드를 함께 쓰던 해상도 저장소 이관
+ * 백필의 감사 경로는 2026-07-30 백필 제거와 함께 사라졌다.)
  *
  * <p><b>심링크 우회 차단(CWE-59, H-2)</b>: 두 base 가 같은 디렉토리인 운영(prd, {@code /nas-storage})에서는
  * {@code frames/deid/**} 안의 심링크가 {@code frames/raw/**} 를 가리켜도 ①lexical 서브트리 검사와

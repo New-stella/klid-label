@@ -56,7 +56,8 @@ import java.util.concurrent.TimeUnit;
  * <h3>flush 스케줄링 — 전용 executor(MED-1 — Phase 5C)</h3>
  * 만료 flush({@link #flushExpiredWindows})는 export 재생성 발화의 <b>유일한 경로</b>다. 구 구현은 이를
  * {@code @Scheduled} 로 걸어, 컨텍스트의 {@code @EnableScheduling} 이 <b>무관한 토글 3곳</b>
- * ({@code control-notify.enabled} · {@code work-lock.sweep.enabled} · {@code resolution-backfill.sweep.enabled})
+ * ({@code control-notify.enabled} · {@code work-lock.sweep.enabled} ·
+ * {@code resolution-backfill.sweep.enabled} — 마지막 키는 2026-07-30 백필 제거와 함께 사라졌다)
  * 중 하나로 켜질 때만 tick 했다. 셋을 모두 끈 형상에서는 flush 가 영영 발화하지 않아, 승인 후 수정이
  * 디바운스 윈도우에 축적만 된 채 export 재생성이 무증상 중단됐다(HIGH-E 잔여).
  *

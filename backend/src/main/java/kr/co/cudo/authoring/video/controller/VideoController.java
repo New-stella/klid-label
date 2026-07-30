@@ -16,14 +16,12 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import jakarta.validation.Valid;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
-import kr.co.cudo.authoring.video.dto.ResolutionBackfillResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.service.AutoLabelSummaryService;
 import kr.co.cudo.authoring.video.service.FrameImageService;
-import kr.co.cudo.authoring.video.service.ResolutionBackfillService;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
 import kr.co.cudo.authoring.video.service.VideoResolutionService;
 import kr.co.cudo.authoring.video.service.VideoStreamService;
@@ -68,8 +66,6 @@ public class VideoController {
     private final FrameImageService frameImageService;
     private final VideoStreamService videoStreamService;
     private final VideoResolutionService videoResolutionService;
-    /** 해상도 파생 산출물 비식별 저장소 이관 백필(E-ISSUE-21/41 운영 1회성). */
-    private final ResolutionBackfillService resolutionBackfillService;
     private final AutoLabelSummaryService autoLabelSummaryService;
     /** 영상 단위 인가 — 라벨/트랙 경로와 동일한 확립된 가드를 재사용한다(B-ISSUE-63). */
     private final LabelAccessGuard labelAccessGuard;
@@ -353,26 +349,4 @@ public class VideoController {
         return ApiResponse.ok(videoResolutionService.listDerivatives(rawSn));
     }
 
-    /**
-     * 해상도 파생 산출물 비식별 저장소 이관 백필 (E-ISSUE-21/41 운영 1회성).
-     *
-     * <p>Flyway 는 파일을 옮길 수 없어 스키마·뷰(V133)와 분리한 운영 배치다. Copy → Verify →
-     * DB 커밋 → 구 파일 삭제 순서로 멱등 수행하며, 실패 대상은 기존 경로를 유지한 채 목록으로 반환된다.
-     */
-    @Operation(
-            summary = "해상도 파생 산출물 비식별 저장소 이관 백필 (REVIEWER)",
-            description = "확정(ACCEPTED)된 해상도 파생영상의 비디오·프레임을 비식별 저장소 서브트리로 이관하고 경로를 정정한다. "
-                    + "멱등 재실행 가능. dryRun=true 면 대상/감사 결과만 산출한다."
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "실행 결과(대상/이관/스킵/실패/미매칭)"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
-    })
-    @PostMapping("/resolution-backfill")
-    @PreAuthorize("hasRole('REVIEWER')")
-    public ApiResponse<ResolutionBackfillResponse> runResolutionBackfill(
-            @Parameter(description = "true 면 변경 없이 대상만 산출") @RequestParam(defaultValue = "false") boolean dryRun) {
-        return ApiResponse.ok(resolutionBackfillService.run(dryRun));
-    }
 }

@@ -410,19 +410,6 @@ authoring:
       enabled: ${WORK_LOCK_SWEEP_ENABLED:true}
       interval-ms: ${WORK_LOCK_SWEEP_INTERVAL_MS:600000}
       initial-delay-ms: ${WORK_LOCK_SWEEP_INITIAL_DELAY_MS:60000}
-  # 해상도 파생 이관 백필 — 구 파일 <유예 삭제> 정책 (2노드 stale 캐시 대응).
-  #  - stale-grace-minutes: 이관 후 구 파일을 남겨두는 시간(분). stream-meta 캐시 TTL(5분) <b>이상</b>이어야
-  #    하며, 미만이면 기동 거부(ResolutionBackfillService.validateGracePeriod). 캐시는 프로세스 로컬이라
-  #    다른 노드는 최대 TTL 동안 옛 경로를 해석하는데, 그 파일이 살아 있어야 500 없이 정상 재생된다.
-  #  - sweep.enabled: 유예 경과 잔존물 정리 주기 잡. 운영(dev/stg/prd) 기본 true. local/test 는 override false.
-  #    기회적 정리(요청 시 청소)는 트래픽이 없으면 영원히 돌지 않으므로 주기 잡으로 보장한다.
-  #  - 2노드 동시 발화해도 마커 단위 조건부·멱등이라 안전.
-  resolution-backfill:
-    stale-grace-minutes: ${RESOLUTION_BACKFILL_STALE_GRACE_MINUTES:15}
-    sweep:
-      enabled: ${RESOLUTION_BACKFILL_SWEEP_ENABLED:true}
-      interval-ms: ${RESOLUTION_BACKFILL_SWEEP_INTERVAL_MS:300000}
-      initial-delay-ms: ${RESOLUTION_BACKFILL_SWEEP_INITIAL_DELAY_MS:120000}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
