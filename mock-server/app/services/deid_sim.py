@@ -550,6 +550,20 @@ FFMPEG_TIMEOUT_SEC: int = 600
 #: ffmpeg 인코딩 스레드 수 — 미지정 시 전 코어를 점유한다.
 FFMPEG_THREADS: int = 1
 
+#: 하드웨어(NVENC) 인코더 이름. GPU 가 노출된 호스트에서만 쓰이며, 아니면 CPU 로 폴백한다.
+#:
+#: 왜 필요한가(2026-07-31 cudo_246 실측): 4K 영상의 CPU(libx264) 워터마크 인코딩은 <b>0.05x</b> 라
+#: 80초 영상 하나에 27분이 걸려 {@code FFMPEG_TIMEOUT_SEC}(600초)를 넘고, 그 전에 컨테이너 메모리
+#: 한도에서 OOM-kill 된다(32코어 호스트라 x264 가 코어당 4K 프레임 버퍼를 잡는다). 결과적으로
+#: 실제 자산(전부 4K)에서는 워터마킹이 <b>항상 복사 폴백</b>해 "목 산출물 육안 확인" 목적이
+#: 달성되지 않았다. NVENC(Tesla T4) 로는 같은 영상이 <b>1.87x</b> — 80초 영상 약 43초다.
+HW_ENCODER: str = "h264_nvenc"
+
+#: NVENC 가용성 탐지용 최소 인코딩(합성 입력 → null 출력). 인코더 목록에 이름이 있어도
+#: {@code libcuda.so.1}/{@code libnvidia-encode.so.1} 이 없으면 <b>실행 시점에</b> 실패하므로,
+#: 목록 조회가 아니라 실제 1프레임 인코딩으로 판정한다.
+HW_ENCODER_PROBE_TIMEOUT_SEC: int = 15
+
 #: 동시에 진행할 수 있는 <b>백그라운드 산출 태스크</b> 수. 각 태스크는 실행 중 스레드풀 워커를
 #: 1개 점유하므로, 접수가 몰려도 anyio 워커 풀을 고갈시키지 않도록 묶는다(CWE-770).
 PRODUCTION_MAX_CONCURRENCY: int = 2
@@ -724,10 +738,64 @@ _DRAWTEXT_LOCK = threading.Lock()
 FFMPEG_CAPABILITY_TIMEOUT_SEC: int = 10
 
 
+# NVENC(하드웨어 인코더) 가용성 캐시 — drawtext 캐시와 동일 규약(바이너리 경로별 1회).
+_HW_ENCODER_SUPPORT: dict[str, bool] = {}
+_HW_ENCODER_LOCK = threading.Lock()
+
+
 def reset_ffmpeg_capability_cache() -> None:
     """ffmpeg 기능 탐지 캐시를 비운다(테스트용)."""
     with _DRAWTEXT_LOCK:
         _DRAWTEXT_SUPPORT.clear()
+    with _HW_ENCODER_LOCK:
+        _HW_ENCODER_SUPPORT.clear()
+
+
+def _ffmpeg_has_hw_encoder(ffmpeg: str) -> bool:
+    """NVENC 인코더를 <b>실제로 실행할 수 있는지</b> 확인한다(결과 캐시).
+
+    <b>인코더 목록 조회로는 부족하다</b>: 이미지에 {@code h264_nvenc} 가 빌드돼 있어도 컨테이너에
+    GPU 가 노출되지 않으면 목록에는 보이고 실행 시점에 {@code Cannot load libcuda.so.1} /
+    {@code libnvidia-encode.so.1} 로 죽는다(실측). 그래서 합성 입력 1프레임을 null 로 인코딩해
+    <b>런타임 가용성</b>을 판정한다.
+
+    ⚠ NVENC 은 GPU 노출뿐 아니라 <b>{@code video} 드라이버 capability</b> 가 필요하다
+    ({@code NVIDIA_DRIVER_CAPABILITIES=compute,video,utility}). 기본값({@code compute,utility})
+    만으로는 libcuda 는 로드되고 인코더 라이브러리만 없어 여기서 False 로 떨어진다.
+
+    drawtext 탐지와 같은 이유로 전역 세마포어 안에서 실행하고 캐시 갱신을 락으로 직렬화한다.
+    자리를 못 얻으면 캐시에 남기지 않는다(일시적 혼잡을 "미지원"으로 영구 기록하지 않는다).
+    """
+    with _HW_ENCODER_LOCK:
+        cached = _HW_ENCODER_SUPPORT.get(ffmpeg)
+        if cached is not None:
+            return cached
+        if not _FFMPEG_SEMAPHORE.acquire(timeout=FFMPEG_ACQUIRE_TIMEOUT_SEC):
+            logger.warning("[MOCK][KPST] 하드웨어 인코더 탐지 대기 초과 — 이번 요청은 CPU 인코딩")
+            return False
+        try:
+            completed = subprocess.run(  # noqa: S603 — 고정 인자 리스트, shell 미사용
+                [
+                    ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                    "-f", "lavfi", "-i", "color=c=black:s=64x64:d=0.04",
+                    "-c:v", HW_ENCODER, "-f", "null", "-",
+                ],
+                shell=False,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                timeout=HW_ENCODER_PROBE_TIMEOUT_SEC,
+                check=False,
+            )
+            supported = completed.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            supported = False
+        finally:
+            _FFMPEG_SEMAPHORE.release()
+        _HW_ENCODER_SUPPORT[ffmpeg] = supported
+        logger.info(
+            "[MOCK][KPST] 워터마크 인코더 = %s", HW_ENCODER if supported else "libx264(CPU)"
+        )
+        return supported
 
 
 def _ffmpeg_has_drawtext(ffmpeg: str) -> bool:
@@ -933,6 +1001,15 @@ def _run_ffmpeg_watermark(
     <b>절단</b>하면서 rc=0 으로 끝나 성공과 구분되지 않고(CWE-345/754), ``-fs`` 는 하드캡도 아니다.
     자원 초과는 "잘라서 내보내기"가 아니라 "포기하고 원본을 온전히 복사하기"로 처리한다.
     """
+    # 인코더 선택 — GPU(NVENC) 가 실행 가능하면 그걸 쓰고, 아니면 CPU(libx264) 로 폴백한다.
+    # 4K 실자산에서 CPU 경로는 0.05x(80초 영상 27분)라 타임아웃·OOM 으로 사실상 항상 복사 폴백된다.
+    use_hw = _ffmpeg_has_hw_encoder(ffmpeg)
+    if use_hw:
+        # NVENC 은 CRF 대신 CQ(-cq) 를 쓴다. preset p1=최속(육안 확인용이라 화질보다 속도).
+        codec_args = ["-c:v", HW_ENCODER, "-preset", "p1", "-cq", "28"]
+    else:
+        codec_args = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "28"]
+
     cmd = [
         ffmpeg,
         "-nostdin",
@@ -943,12 +1020,12 @@ def _run_ffmpeg_watermark(
         "-vf", _build_drawtext_filter(font_path),
         "-map", "0:v:0",
         "-map", "0:a?",  # 오디오는 있으면 그대로, 없으면 무시
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "28",
+        *codec_args,
         "-pix_fmt", "yuv420p",
         "-c:a", "copy",
         # ── 자원 상한 — CPU 만 묶는다(길이·크기 절단 인자 없음) ──
+        # NVENC 경로에서도 디코딩은 CPU 라 스레드 상한을 유지한다(32코어 호스트에서 x264 가 코어당
+        # 4K 프레임 버퍼를 잡아 컨테이너 메모리 한도를 넘겨 OOM-kill 되던 실측 사고 방지).
         "-threads", str(FFMPEG_THREADS),          # 전 코어 점유 방지
     ]
     if temp.suffix.lower() in _FASTSTART_SUFFIXES:
