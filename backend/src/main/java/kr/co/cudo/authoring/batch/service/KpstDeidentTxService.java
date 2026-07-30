@@ -66,6 +66,124 @@ public class KpstDeidentTxService {
     }
 
     /**
+     * Phase C-2 — 비동기 제출의 <b>선커밋 원장 발급</b>. 외부 호출 <b>전에</b> 독립 커밋된다.
+     *
+     * <p>제출이 논블로킹이 되면 ACK/실패 신호가 <b>호출자 트랜잭션이 커밋되기 전에</b> 도착할 수 있다.
+     * 원장을 호출자 트랜잭션 안에서 만들면 그 신호를 받은 핸들러가 행을 찾지 못해 위탁 사실이 통째로
+     * 유실된다(prjId 미기록 → 폴링 대상 부재 → 영상이 영영 마킹 대기 고착). 그래서 발급을 별도 빈의
+     * {@code REQUIRES_NEW} 로 분리해 <b>제출 전에</b> 커밋한다(C-1 VLM 상관키 선커밋과 동형).
+     *
+     * <p>{@code POLL_STTS=WAITING} 이되 {@code prjId} 는 null 이다 — 폴링 잡이 이 조합을 "ACK 대기"로
+     * 해석해 진행조회를 호출하지 않고, 유예를 넘기면 회수(terminal 'F')한다. 이 원장이 없으면
+     * 노드 사망 시 in-flight 제출이 아무 흔적 없이 사라진다.
+     *
+     * @param redeident 검수완료 재비식별 경로면 true (REQ_KIND_CD=REDEIDENT)
+     * @return 커밋된 원장(procLogSn 발급됨). 반환 시점에는 detached 다.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public LsDeidentProcLog issueSubmitLedger(Long rawSn, String orgnlFilePathNm, boolean redeident) {
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(rawSn, null, orgnlFilePathNm, "batch");
+        if (redeident) {
+            procLog.markRedeident();
+        }
+        procLog.markKpstSubmitPending();
+        return procLogRepository.saveAndFlush(procLog);
+    }
+
+    /**
+     * Phase C-2 — 제출 ACK(prj_id) 기록. 완료 핸들러({@code KpstSubmitOutcomeRecorder})가 전용 풀
+     * 스레드에서 <b>프록시 경유</b>로 호출한다(ambient 트랜잭션 없음 → REQUIRES_NEW 필수).
+     *
+     * <p>기록은 조건부 원자 UPDATE({@link LsDeidentProcLogRepository#claimSubmitAck})로만 수행한다 —
+     * 지각 ACK 가 이미 종결된 원장을 되살리지 못하게 하고(부활 금지), 2노드 중복 신호에도 1행만 성립한다.
+     *
+     * @return 실제로 기록됐으면 true. false 는 "이미 종결/기록됨"(정상, 무시)이다.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean recordSubmitAck(Long procLogSn, Long rawSn, Long prjId) {
+        if (procLogSn == null || prjId == null) {
+            return false;
+        }
+        if (procLogRepository.claimSubmitAck(procLogSn, prjId, LocalDateTime.now()) != 1) {
+            log.info("[KpstDeid] submit ack ignored (already settled) rawSn={} prjId={}", rawSn, prjId);
+            return false;
+        }
+        log.info("[KpstDeid] submitted rawSn={} prjId={}", rawSn, prjId);
+        return true;
+    }
+
+    /**
+     * M3 — 제출이 <b>개시되지도 않은</b> 건의 원장 취소 종결(호출자 트랜잭션 롤백).
+     *
+     * <h3>왜 {@link #failSubmit} 를 쓰지 않는가</h3>
+     * <p>{@code failSubmit} 은 영상을 {@code DE_IDNTF_YN='F'} 로 내린다. 그런데 이 경로는 <b>외부로
+     * 아무것도 나가지 않은</b> 상태다 — 요청 트랜잭션이 롤백돼 위탁 구독 자체가 일어나지 않았다.
+     * 여기서 'F' 를 찍으면 실패한 요청이 그 영상을 신고 게이트(라벨 조회 412 · 스트리밍 404 ·
+     * export 보류)에 밀어 넣는다. 그래서 <b>원장만</b> terminal 로 닫아 폴링 대상에서 제외하고
+     * 영상 상태·작업락은 건드리지 않는다(작업락 INSERT 도 같은 롤백으로 사라졌다).
+     *
+     * <p>종결은 {@code claimSubmitFailure}(WAITING + prjId null) 조건부 UPDATE 라, 만에 하나 ACK 가
+     * 먼저 기록된 건이면 0행 no-op 이다(진행 중 위탁을 취소하지 않는다).
+     *
+     * @return 실제로 취소 종결했으면 true
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean cancelSubmit(Long procLogSn, Long rawSn) {
+        if (procLogSn == null) {
+            return false;
+        }
+        int applied = procLogRepository.claimSubmitFailure(procLogSn,
+                KpstDeidentService.SUBMIT_CANCELED_CODE, "caller transaction rolled back",
+                LocalDateTime.now());
+        if (applied != 1) {
+            log.info("[KpstDeid] submit cancel ignored (already settled) rawSn={}", rawSn);
+            return false;
+        }
+        log.warn("[KpstDeid] submit canceled — ledger closed without deident failure rawSn={}", rawSn);
+        return true;
+    }
+
+    /**
+     * Phase C-2 — 제출 <b>확정 실패</b> 종결. 원장 FAILED + 영상 {@code DE_IDNTF_YN='F'} + (재비식별이면)
+     * 작업락 해제를 <b>하나의 REQUIRES_NEW 로 커밋</b>한다.
+     *
+     * <p>왜 별도 빈·별도 트랜잭션인가: ①실패는 비동기 완료 핸들러(전용 풀, ambient tx 없음) 또는 호출자
+     * 트랜잭션이 곧 롤백될 사전조건 실패 경로에서 발생한다 — 어느 쪽이든 호출자와 운명을 묶으면 실패
+     * 흔적이 함께 사라진다(구 {@code submit} 의 catch 블록이 정확히 그랬다: 'F' 마킹이 REQUIRES_NEW
+     * 롤백으로 취소돼 영상이 흔적 없이 PENDING 에 고착). ②이 레포에는 자기호출로 트랜잭션 경계가
+     * 유실된 실사고 이력이 있어 프록시 경유가 강제되는 구조로 둔다.
+     *
+     * <p><b>상태 강등 금지</b>: 종결은 {@link LsDeidentProcLogRepository#claimSubmitFailure}(WAITING +
+     * prjId null)로만 성립한다. ACK 를 이미 받았거나 폴링이 완료시킨 건에 지각 실패가 도착하면 0행 →
+     * 영상 상태를 건드리지 않는다.
+     *
+     * @param errorCd 실패 코드 — 제출 실패/ACK 미수신을 운영에서 구분하기 위해 호출자가 지정
+     * @return 실제로 종결했으면 true
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean failSubmit(Long procLogSn, Long rawSn, String errorCd, String errorDetail) {
+        if (procLogSn == null) {
+            return false;
+        }
+        if (procLogRepository.claimSubmitFailure(procLogSn, errorCd, errorDetail, LocalDateTime.now()) != 1) {
+            log.info("[KpstDeid] submit failure ignored (already settled) rawSn={} errCd={}", rawSn, errorCd);
+            return false;
+        }
+        videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
+        // 재비식별(REDEIDENT)은 요청 시 작업락을 잡는다 — 위탁이 실패로 끝나면 해제해야 재요청이 가능하다
+        // (해제하지 않으면 409 영구 차단). 배치 경로는 락 자체가 없어 무영향.
+        boolean redeident = procLogRepository.findById(procLogSn)
+                .map(LsDeidentProcLog::isRedeident)
+                .orElse(false);
+        if (redeident && workLockService.isRawLocked(rawSn)) {
+            workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_SUBMIT_FAILED");
+        }
+        log.warn("[KpstDeid] submit terminal-failed rawSn={} errCd={} detail={} redeident={}",
+                rawSn, errorCd, errorDetail, redeident);
+        return true;
+    }
+
+    /**
      * 다운로드 완료 + 비식별 완료(Y 전이)를 단일 REQUIRES_NEW 트랜잭션으로 원자화 — DEV_FIX HIGH/MEDIUM(M-1).
      *
      * <p>기존 2분리 트랜잭션(DOWNLOADED → Y) 은

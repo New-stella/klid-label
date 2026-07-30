@@ -124,6 +124,65 @@ public interface LsDeidentProcLogRepository extends JpaRepository<LsDeidentProcL
                                 @Param("deidFilePath") String deidFilePath,
                                 @Param("now") java.time.LocalDateTime now);
 
+    /**
+     * Phase C-2 — 비동기 제출 <b>ACK 기록</b>의 조건부 원자 UPDATE.
+     *
+     * <p>완료 핸들러는 파이프라인 스레드 밖(전용 풀)에서 늦게 실행되므로, 그 사이 같은 원장이 다른 경로로
+     * 종결됐을 수 있다(ACK 유예 만료 회수·중복 제출). 그래서 <b>아직 ACK 대기(WAITING + prjId null)</b>
+     * 인 행에만 prjId 를 기록한다:
+     * <ul>
+     *   <li>{@code DE_IDNTF_PJT_ID IS NULL} — 이미 ACK 된 건에 두 번 쓰지 않는다(멱등).</li>
+     *   <li>{@code POLL_STTS_CD = 'WAITING'} — 이미 FAILED/DOWNLOADED 로 <b>종결된 건을 되살리지</b>
+     *       않는다(지각 ACK 로 terminal 행이 부활하면 폴링이 되살아난다).</li>
+     * </ul>
+     * 2노드 Active-Active 에서 동일 원장에 두 신호가 겹쳐도 PostgreSQL 이 갱신된 최신 버전으로 WHERE 를
+     * 재평가하므로 정확히 한쪽만 1행을 얻는다(이 리포의 정본 클레임 패턴). 파라미터 바인딩만 사용(CWE-89).
+     *
+     * @return 기록에 성공한 행 수(0 또는 1)
+     */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_DEIDENT_PROC_LOG
+               SET DE_IDNTF_PJT_ID = :prjId,
+                   MDFCN_DT = :now
+             WHERE PROC_LOG_SN = :procLogSn
+               AND DE_IDNTF_PJT_ID IS NULL
+               AND POLL_STTS_CD = 'WAITING'
+            """, nativeQuery = true)
+    int claimSubmitAck(@Param("procLogSn") Long procLogSn,
+                       @Param("prjId") Long prjId,
+                       @Param("now") java.time.LocalDateTime now);
+
+    /**
+     * Phase C-2 — 비동기 제출 <b>실패 종결</b>의 조건부 원자 UPDATE(= 상태 강등 금지 가드).
+     *
+     * <p>{@link #claimSubmitAck} 와 동일한 술어(WAITING + prjId null)를 쓴다. 즉 <b>ACK 를 받은 뒤</b>
+     * 도착한 지각 실패 신호나, 이미 폴링이 완료(DOWNLOADED)시킨 건은 <b>0행</b>이라 강등되지 않는다
+     * (회귀 위험: 이미 진행된 영상을 FAILED 로 역행시키면 라벨링·검수 동선이 끊긴다).
+     *
+     * <p>{@code POLL_STTS_CD} 도 종료값('FAILED')으로 함께 내려 재폴링 대상에서 제외한다
+     * ({@code findByPollSttsCdIn([WAITING,POLLING])} 에서 빠짐).
+     *
+     * @return 종결에 성공한 행 수(0 또는 1)
+     */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_DEIDENT_PROC_LOG
+               SET PROC_STTS_CD = 'FAILED',
+                   POLL_STTS_CD = 'FAILED',
+                   ERR_CD = :errorCd,
+                   ERR_MSG_CN = :errorMsg,
+                   RSPNS_DT = :now,
+                   MDFCN_DT = :now
+             WHERE PROC_LOG_SN = :procLogSn
+               AND DE_IDNTF_PJT_ID IS NULL
+               AND POLL_STTS_CD = 'WAITING'
+            """, nativeQuery = true)
+    int claimSubmitFailure(@Param("procLogSn") Long procLogSn,
+                           @Param("errorCd") String errorCd,
+                           @Param("errorMsg") String errorMsg,
+                           @Param("now") java.time.LocalDateTime now);
+
     default Optional<LsDeidentProcLog> findLatestSuccessByDataRawSn(Long rawSn) {
         if (rawSn == null) return Optional.empty();
         List<LsDeidentProcLog> hits = findSuccessHistory(rawSn, PageRequest.of(0, 1));

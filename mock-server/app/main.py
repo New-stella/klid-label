@@ -24,7 +24,7 @@ from app.config import get_settings
 from app.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIdMiddleware
 from app.routers import augment, control, deid, vlm
-from app.services import genai_sim
+from app.services import deid_sim, genai_sim
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
 
@@ -61,8 +61,17 @@ async def lifespan(_: FastAPI):
         settings.sim_speed_factor,
         settings.callback_delay_seconds,
     )
+    # MEDIUM-1 — 이전 기동이 강제 종료(SIGKILL/compose down/OOM)돼 남은 워터마킹 임시 산출물을
+    # 정리한다. 기동 시점에는 우리 인코딩이 하나도 진행 중이 아니므로 남은 것은 전부 고아다.
+    # 실패해도 기동을 막지 않는다(목 안정성 우선).
+    try:
+        deid_sim.sweep_orphan_temp_files(settings.output_base)
+    except Exception:  # noqa: BLE001 — 정리 실패가 기동을 막으면 안 된다
+        logger.warning("[MOCK][KPST] 고아 임시 산출물 정리 실패 — 기동은 계속한다")
     yield
-    # 생성형 AI 작업 진행 태스크 누수 방지 — 종료 시 모두 취소·정리한다.
+    # 백그라운드 태스크 누수 방지 — 종료 시 모두 취소·정리한다.
+    # (KPST 산출 태스크는 구속 원칙 "외부연동은 모두 비동기"에 따라 요청과 분리돼 있다.)
+    await deid_sim.cancel_all_productions()
     await genai_sim.cancel_all_tasks()
     logger.info("[MOCK] shutdown")
 

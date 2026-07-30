@@ -1,14 +1,13 @@
 package kr.co.cudo.authoring.batch.step;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
-import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
@@ -18,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.Optional;
 
@@ -37,20 +37,28 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * VlmTimeseriesStep 단위 테스트 — 벤더 확정 계약(v2.0.1) describe 규격 정합 + 상관관계 배선(Phase 2).
+ * VlmTimeseriesStep 단위 테스트 — describe 규격 정합 + 상관관계 배선 + <b>논블로킹 제출</b>(Phase C-1).
  *
- * <p>핵심: 위탁 성공 시 (request_id → CHANNEL_VLM, rawSn) 매핑을 ledger 에 등록해 콜백 역조회를 성립시킨다(결함1/2 폐쇄).
+ * <p>핵심 계약:
+ * <ul>
+ *   <li>위탁 전 (request_id → CHANNEL_VLM, rawSn) 매핑을 ledger 에 등록해 콜백 역조회를 성립시킨다.</li>
+ *   <li>제출은 ACK 를 기다리지 않는다 — 반환 status 는 {@code submitted} 이며, 수락/실패는 완료
+ *       핸들러({@link VlmSubmitOutcomeRecorder})가 비동기로 기록한다.</li>
+ * </ul>
+ *
+ * <p>스케줄러는 {@link Schedulers#immediate()} 로 주입해 완료 핸들러 호출을 결정론적으로 검증한다
+ * (전용 풀로의 오프로딩 자체는 {@code VlmTimeseriesStepNonBlockingTest} 가 별도로 고정한다).
  */
 class VlmTimeseriesStepTest {
 
     private VlmClient vlmClient;
     private VideoRepository videoRepository;
     private BatchStatusService batchStatusService;
-    private ObjectMapper objectMapper;
     private WebhookIdempotencyLedger ledger;
     private LsDeidentProcLogRepository deidentProcLogRepository;
-    private LsMarkingRepository markingRepository;
     private DeidentReportGate deidentReportGate;
+    private VlmMarkingTxService markingTxService;
+    private VlmSubmitOutcomeRecorder outcomeRecorder;
     private VlmTimeseriesStep step;
 
     @BeforeEach
@@ -58,14 +66,14 @@ class VlmTimeseriesStepTest {
         vlmClient = mock(VlmClient.class);
         videoRepository = mock(VideoRepository.class);
         batchStatusService = mock(BatchStatusService.class);
-        objectMapper = new ObjectMapper();
         ledger = mock(WebhookIdempotencyLedger.class);
         deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
-        markingRepository = mock(LsMarkingRepository.class);
         deidentReportGate = mock(DeidentReportGate.class);
+        markingTxService = mock(VlmMarkingTxService.class);
+        outcomeRecorder = mock(VlmSubmitOutcomeRecorder.class);
         step = new VlmTimeseriesStep(vlmClient, videoRepository, batchStatusService,
-                objectMapper, ledger, deidentProcLogRepository, markingRepository,
-                deidentReportGate);
+                ledger, deidentProcLogRepository, deidentReportGate,
+                markingTxService, outcomeRecorder, Schedulers.immediate());
     }
 
     /** 비식별 경로가 존재하는 영상 시드 — existsById=true + 최신 성공 procLog 의 비식별 경로. */
@@ -79,7 +87,10 @@ class VlmTimeseriesStepTest {
 
     private void stubAccepted() {
         when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
-                .thenReturn(Mono.just(new VlmTimeseriesResponse("echo", "accepted")));
+                .thenAnswer(inv -> {
+                    VlmTimeseriesRequest r = inv.getArgument(0);
+                    return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
+                });
     }
 
     @Test
@@ -111,14 +122,12 @@ class VlmTimeseriesStepTest {
         VlmTimeseriesResponse resp = step.run(300L);
 
         // then — 외부 벤더로 나가는 상호작용이 0건이어야 한다(회수 불가 유출 차단).
-        //         vlmClient 에 남는 상호작용은 활성 여부 조회뿐이고 전송은 없다.
         verify(vlmClient).isEnabled();
         verifyNoMoreInteractions(vlmClient);
-        // 비식별 경로 조회 자체도 하지 않는다(전송 대상 경로를 만들지 않는다).
         verifyNoInteractions(deidentProcLogRepository);
-        // 상관키 발급(ledger)도 남기지 않는다 — 위탁하지 않았으므로 콜백 대기 상태를 만들지 않는다.
         verifyNoInteractions(ledger);
-        // 실패가 아니라 보류: SKIPPED 응답 + 사유가 LS_BATCH_PROC_LOG 에 적재된다(B-ISSUE-24 규약).
+        // 선커밋(마킹 전이)도 하지 않는다 — 위탁 자체를 하지 않았으므로 상태를 올리면 안 된다.
+        verifyNoInteractions(markingTxService);
         assertThat(resp).isNotNull();
         assertThat(resp.status()).isEqualTo("skipped");
         verify(batchStatusService).recordVlmSkipped(300L, VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
@@ -136,11 +145,11 @@ class VlmTimeseriesStepTest {
         // when — 1차 차단
         VlmTimeseriesResponse withheld = step.run(310L);
         // when — 2차(해소 후) 재개
-        VlmTimeseriesResponse accepted = step.run(310L);
+        VlmTimeseriesResponse submitted = step.run(310L);
 
         // then
         assertThat(withheld.status()).isEqualTo("skipped");
-        assertThat(accepted.status()).isEqualTo("accepted");
+        assertThat(submitted.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
         verify(vlmClient, times(1)).submitTimeseries(any());
         verify(ledger, times(1)).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM),
                 isNull(), eq(310L));
@@ -177,7 +186,6 @@ class VlmTimeseriesStepTest {
 
         step.run(210L);
 
-        // describe 요청에 실린 request_id 와 동일한 키가 CHANNEL_VLM + rawSn 으로 등록되어야 한다.
         ArgumentCaptor<VlmTimeseriesRequest> reqCap = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
         verify(vlmClient).submitTimeseries(reqCap.capture());
         String sentRequestId = reqCap.getValue().requestId();
@@ -214,7 +222,6 @@ class VlmTimeseriesStepTest {
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
         verify(vlmClient).submitTimeseries(captor.capture());
         VlmTimeseriesRequest req = captor.getValue();
-        // describe DTO 자체에 eventName/marks accessor 가 없다 — 직렬화 바디 검증은 VlmClientTest 담당.
         assertThat(req.media().framePolicy().selectedFrames()).isNull();
         assertThat(req.callbackUrl()).doesNotContain("event");
     }
@@ -255,34 +262,53 @@ class VlmTimeseriesStepTest {
         verify(ledger, never()).recordIssued(any(), any(), any(), any());
     }
 
+    /**
+     * ★ 계약 변경(Phase C-1): 구 테스트는 외부 호출 실패가 {@code EXTERNAL_API_ERROR} 로 <b>동기 전파</b>
+     * 되는 것을 고정했다(→ BatchOrchestrator FAILED + BatchRetryQueue). 제출이 논블로킹이 되면 실패는
+     * 파이프라인 스레드 밖에서 발생하므로 그 사슬은 성립하지 않으며, 되살려서도 안 된다(재시도 큐는
+     * rawSn 단위로 파이프라인 전체를 재실행한다). 이제 실패는 <b>완료 핸들러에 위임</b>되고
+     * 파이프라인 스레드로는 예외가 새지 않는다.
+     */
     @Test
-    @DisplayName("외부_호출_실패_시_EXTERNAL_API_ERROR_예외_전파")
-    void clientFailureWrappedAsCustomException() {
+    @DisplayName("외부_호출_실패는_파이프라인_스레드로_전파되지_않고_완료핸들러에_위임된다")
+    void clientFailureDelegatedToOutcomeRecorder() {
         seed(201L, "/data/deid/201.mp4");
         when(vlmClient.isEnabled()).thenReturn(true);
+        RuntimeException boom = new RuntimeException("vlm down");
         when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
-                .thenReturn(Mono.error(new RuntimeException("vlm down")));
+                .thenReturn(Mono.error(boom));
 
-        assertThatThrownBy(() -> step.run(201L))
-                .isInstanceOf(CustomException.class)
-                .hasMessageContaining("VLM 위탁");
+        VlmTimeseriesResponse resp = step.run(201L);
+
+        assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
+        verify(outcomeRecorder).onSubmitFailed(eq(201L), isNull(), eq(boom));
+        verify(outcomeRecorder, never()).onAccepted(any(), any(), any());
     }
 
+    /**
+     * ★ 계약 변경(Phase C-1): 빈 응답 가드는 유지하되 <b>비동기 실패 경로</b>로 옮겼다.
+     * {@code Mono.empty()} 는 onNext/onError 어느 핸들러도 타지 않아 무흔적 유실이 되므로,
+     * {@code switchIfEmpty} 로 실패 신호로 승격해 완료 핸들러가 기록·회수하게 한다.
+     */
     @Test
-    @DisplayName("빈_응답_시_EXTERNAL_API_ERROR")
-    void emptyResponseRejected() {
+    @DisplayName("빈_응답도_무흔적_유실되지_않고_제출실패로_기록된다")
+    void emptyResponseRoutedToFailureHandler() {
         seed(203L, "/data/deid/203.mp4");
         when(vlmClient.isEnabled()).thenReturn(true);
         when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class))).thenReturn(Mono.empty());
 
-        assertThatThrownBy(() -> step.run(203L))
-                .isInstanceOf(CustomException.class)
-                .hasMessageContaining("응답");
+        VlmTimeseriesResponse resp = step.run(203L);
+
+        assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
+        ArgumentCaptor<Throwable> causeCap = ArgumentCaptor.forClass(Throwable.class);
+        verify(outcomeRecorder).onSubmitFailed(eq(203L), isNull(), causeCap.capture());
+        assertThat(causeCap.getValue()).isInstanceOf(CustomException.class);
+        assertThat(causeCap.getValue()).hasMessageContaining("응답");
     }
 
     @Test
-    @DisplayName("위탁_성공_시_request_id_status가_LS_BATCH_PROC_LOG에_기록")
-    void resultPersistedToBatchProcLog() {
+    @DisplayName("ACK_수신시_완료핸들러가_수락응답을_넘겨받는다")
+    void ackDelegatedToOutcomeRecorder() {
         seed(300L, "/data/deid/300.mp4");
         when(vlmClient.isEnabled()).thenReturn(true);
         when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
@@ -290,19 +316,17 @@ class VlmTimeseriesStepTest {
 
         step.run(300L);
 
-        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
-        verify(batchStatusService, times(1))
-                .recordVlmTimeseriesResult(eq(300L), payloadCaptor.capture());
-        String payload = payloadCaptor.getValue();
-        assertThat(payload).contains("REQ-300");
-        assertThat(payload).contains("accepted");
+        ArgumentCaptor<VlmTimeseriesResponse> respCap =
+                ArgumentCaptor.forClass(VlmTimeseriesResponse.class);
+        verify(outcomeRecorder, times(1)).onAccepted(eq(300L), any(), respCap.capture());
+        assertThat(respCap.getValue().requestId()).isEqualTo("REQ-300");
+        assertThat(respCap.getValue().status()).isEqualTo("accepted");
+        verify(outcomeRecorder, never()).onSubmitFailed(any(), any(), any());
     }
 
     /**
-     * B-ISSUE-24 — 구 테스트({@code enabled_false_시_..._미호출})가 "skip 은 아무것도 기록하지 않는다"는
-     * <b>반대 의도</b>를 고정하고 있었다. skip 이 DB 에 무흔적이면 VLM 비활성/장애 구간에 처리된 영상이
-     * "메타 없음 + 무기록" 으로 남아 재처리 대상 식별이 애플리케이션 로그 보존기간에 종속된다.
-     * 이제 <b>SKIPPED 행 + 사유</b>를 기록하는 의도로 반전한다.
+     * B-ISSUE-24 — skip 이 DB 에 무흔적이면 VLM 비활성/장애 구간에 처리된 영상이 "메타 없음 + 무기록"
+     * 으로 남아 재처리 대상 식별이 애플리케이션 로그 보존기간에 종속된다.
      */
     @Test
     @DisplayName("VLM_비활성일_때_LS_BATCH_PROC_LOG_에_VLM_SKIPPED_행이_사유와_함께_남는다")
@@ -317,7 +341,6 @@ class VlmTimeseriesStepTest {
                 .as("사유가 비어 있으면 기록의 목적(재처리 대상 식별)을 달성하지 못한다")
                 .isNotBlank()
                 .contains("vlm.client.enabled");
-        // 외부 응답이 없으므로 응답 payload 기록은 여전히 하지 않는다.
         verify(batchStatusService, never()).recordVlmTimeseriesResult(any(), any());
     }
 
@@ -331,5 +354,6 @@ class VlmTimeseriesStepTest {
         step.run(302L);
 
         verify(batchStatusService, never()).recordVlmSkipped(any(), any());
+        verify(batchStatusService, never()).recordVlmSkippedInNewTx(any(), any());
     }
 }

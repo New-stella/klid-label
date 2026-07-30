@@ -119,6 +119,19 @@ class KpstDeidentPollIntegrationTest {
         createdRawSns.clear();
     }
 
+    /**
+     * Phase C-2 — 제출이 논블로킹이라 ACK(prj_id)는 전용 풀({@code kpst-submit-})에서 비동기로 기록된다.
+     * 위탁 직후 원장은 "WAITING + prjId null"(ACK 대기) 이므로, 폴링 검증 전에 ACK 반영을 기다린다.
+     */
+    private LsDeidentProcLog awaitAck(Long procLogSn) {
+        org.awaitility.Awaitility.await()
+                .atMost(java.time.Duration.ofSeconds(5))
+                .pollInterval(java.time.Duration.ofMillis(50))
+                .untilAsserted(() -> assertThat(
+                        procLogRepository.findById(procLogSn).orElseThrow().getKpstPrjId()).isNotNull());
+        return procLogRepository.findById(procLogSn).orElseThrow();
+    }
+
     private LsDataRaw persistRaw() {
         // Phase 5A — 원본은 허용 마운트 루트 하위에 둔다(co-locate 산출 base 원천).
         Path rawFile = RAW_MOUNT_ROOT.resolve("clip-" + System.nanoTime() + ".mp4");
@@ -165,13 +178,15 @@ class KpstDeidentPollIntegrationTest {
         reportRepository.save(LsDeidentReport.createReport(rawSn, 100L, "개인정보 노출"));
 
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
 
-        // when 1 — 위탁: WAITING + prjId 영속, DE_IDENT_YN 미전이
+        // when 1 — 위탁: 원장이 <b>제출 전에</b> WAITING 으로 선커밋되고(ACK 대기), ACK 수신 시 prjId 가
+        //   비동기로 기록된다. DE_IDENT_YN 은 어느 시점에도 미전이.
         LsDeidentProcLog submitted = kpstDeidentService.submit(raw);
         Long procLogSn = submitted.getProcLogSn();
+        assertThat(submitted.getKpstPrjId()).as("반환 시점에는 ACK 미도착").isNull();
 
-        LsDeidentProcLog afterSubmit = procLogRepository.findById(procLogSn).orElseThrow();
+        LsDeidentProcLog afterSubmit = awaitAck(procLogSn);
         assertThat(afterSubmit.getPollSttsCd()).isEqualTo(LsDeidentProcLog.POLL_WAITING);
         assertThat(afterSubmit.getKpstPrjId()).isEqualTo(101L);
         assertThat(videoRepository.findById(rawSn).orElseThrow().getDeIdntfYn()).isNotEqualTo("Y");
@@ -244,9 +259,10 @@ class KpstDeidentPollIntegrationTest {
         LsDataRaw raw = persistRaw();
         Long rawSn = raw.getRawSn();
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
         LsDeidentProcLog submitted = kpstDeidentService.submit(raw);
         Long procLogSn = submitted.getProcLogSn();
+        awaitAck(procLogSn);
 
         // when — 계속 진행중(state=1) 응답으로 pollMaxAttempts(2) 만큼 폴링 → 시도 초과 타임아웃
         when(kpstClient.retrieveProgress(any(), eq(101L))).thenReturn(progressWith(1, 202L));
@@ -266,7 +282,7 @@ class KpstDeidentPollIntegrationTest {
         // given — 위탁된 WAITING 건 (재기동 시 인메모리 상태 없이 DB 에서 복원)
         LsDataRaw raw = persistRaw();
         when(kpstClient.createProject(any(KpstProjectRequest.class)))
-                .thenReturn(new KpstProjectResponse("success", 101L));
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
         LsDeidentProcLog submitted = kpstDeidentService.submit(raw);
 
         // when — 폴링 잡이 사용하는 조회(WAITING/POLLING). 무제한 조회는 금지되어 상한이 필수다(B-ISSUE-82).

@@ -170,7 +170,6 @@ class ApprovedRedeidentServiceTest {
         assertThat(res.status()).isEqualTo(RedeidentResponse.STATUS_ACCEPTED);
         assertThat(res.rawSn()).isEqualTo(RAW_SN);
         assertThat(res.procLogSn()).isEqualTo(1L);
-        assertThat(res.kpstPrjId()).isEqualTo(101L);
     }
 
     @Test

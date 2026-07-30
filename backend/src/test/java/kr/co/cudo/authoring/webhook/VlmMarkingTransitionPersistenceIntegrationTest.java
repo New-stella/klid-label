@@ -15,6 +15,8 @@ import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
+import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -77,6 +79,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
     @Autowired private LsMarkingRepository markingRepository;
     @Autowired private LsDeidentProcLogRepository deidentProcLogRepository;
     @Autowired private LsDataMetaRepository metaRepository;
+    @Autowired private WebhookIdempotencyLedger ledger;
 
     /** 외부 VLM 호출만 mock — 나머지 경로(프록시/tx/DB/콜백)는 실제. */
     @MockBean private VlmClient vlmClient;
@@ -156,6 +159,42 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         List<LsDataMeta> metas = metaRepository.findByRawSnAndMetaKeyIn(rawSn, Set.of("0-8"));
         assertThat(metas).hasSize(1);
         assertThat(metas.get(0).getMetaKey()).isEqualTo("0-8");
+    }
+
+    /**
+     * ★ Phase C-1 회귀 가드 — <b>콜백 선행 레이스</b>.
+     *
+     * <p>제출이 논블로킹이 되면서 저지연 벤더(mock 포함)의 콜백이 ACK 처리보다 먼저 커밋될 수 있다.
+     * 구 수신부는 {@code VLM_REQUESTED} 만 조회해 전이했으므로, 그 순간 마킹이 아직 {@code PENDING}
+     * 이면 <b>전이 0건</b>으로 끝나고 이후 스텝이 {@code PENDING → VLM_REQUESTED} 로 올려
+     * 마킹이 <b>VLM_REQUESTED 에 영구 고착</b>됐다. 수신부 조회를 {@code ACTIVE_STATUSES} 로 넓혀
+     * (스텝의 선커밋과 함께 양단으로) 닫았음을 고정한다.
+     *
+     * <p>여기서는 스텝을 돌리지 않고 <b>ledger 만 선등록한 뒤 콜백을 먼저 보내</b> 그 창을 직접 재현한다.
+     */
+    @Test
+    @DisplayName("콜백이_ACK보다_먼저_도착해_마킹이_아직_PENDING이어도_VLM_COMPLETED로_전이한다")
+    void callbackBeforeAckStillCompletesPendingMarking() throws Exception {
+        // given — PENDING 마킹 + (request_id → rawSn) 상관키만 선커밋된 상태(제출 직후, ACK 이전)
+        Long rawSn = seedVideo();
+        seedDeidentSuccess(rawSn);
+        Long markingSn = seedMarkingPending(rawSn).getMarkingSn();
+        assertThat(markingRepository.findById(markingSn).orElseThrow().getSttsCd())
+                .isEqualTo(LsMarking.STATUS_PENDING);
+
+        String requestId = UUID.randomUUID().toString();
+        ledger.recordIssued(requestId, LsWebhookIdempotency.CHANNEL_VLM, null, rawSn);
+
+        // when — ACK 처리보다 먼저 결과 콜백이 도착
+        mockMvc.perform(post(CALLBACK_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(completedCallbackJson(requestId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.applied").value(true));
+
+        // then — PENDING 이어도 완료 전이가 성립한다(구 구현이면 PENDING 그대로 RED → 이후 영구 고착)
+        assertThat(markingRepository.findById(markingSn).orElseThrow().getSttsCd())
+                .isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
     }
 
     /**

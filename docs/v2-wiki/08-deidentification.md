@@ -23,9 +23,16 @@
 
 **[KPST 폴링 경로]** (`kpst.deid.enabled=true`, 기본)
 ```
-[배치] DeidentifyStep.run → KpstDeidentService.submit(원본 실재 가드 → project만 — input_path=원본 디렉터리, export_path={base}/videos/{rawSn}/, WAITING)
+[배치] DeidentifyStep.run → KpstDeidentService.submit
+        ① 원본 실재 가드 + 요청 조립(input_path=원본 디렉터리, export_path={base}/videos/{rawSn}/)
+        ② 선커밋 — 위탁 원장 발급(POLL_STTS=WAITING, prjId=null) ※ REQUIRES_NEW 독립 커밋
+        ③ 논블로킹 제출 — POST /project 를 subscribe 만 하고 즉시 반환(ACK 미대기)
+             · 활성 트랜잭션이 있으면 afterCommit 에 구독 / 롤백이면 제출 자체를 하지 않고 원장만 취소 종결
+        ④ 완료 핸들러 KpstSubmitOutcomeRecorder(전용 풀 kpstSubmitScheduler) 가 ACK 로 prjId 확정
         ↓ (영상 1건 = KPST 프로젝트 1개. DE_IDENT_YN 미전이 — 완료 대기. upload 없음)
 [폴링] KpstDeidentPollJob(Quartz) GET /retrieve_progress 반복 폴링
+        ※ prjId 가 아직 없으면 ACK 대기 유예(kpst.deid.submit-ack-grace-sec, 기본 180초) 안에서는
+          진행조회를 부르지 않고 시도 카운터도 소모하지 않는다. 유예 초과 시 KPST_ACK_MISSING 회수
         ↓ state=2(완료) 감지
 응답 dsStatus.fileName 으로 산출 경로 회수(no-copy) → 산출물 무결성 검증(미존재/512바이트 미만/영상 컨테이너 시그니처 불일치 시 Y 전이 차단)
         ↓ (KpstDeidentTxService.finishDownloadAndComplete, REQUIRES_NEW 원자화)
@@ -44,9 +51,36 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
 > ⚠ **레거시 동기 SPI/콜백 경로 제거(UC018)**: 구 `DeidentifyClient`(동기 위탁) + `POST /v1/deidentify/result` 콜백 수신(`DeidentifyResultController`/`DeidentifyResultService`/`DeidentifyResultRequest`) 경로는 제거되었다. mock 도 아니고 KPST 서비스도 없으면(설정 오류) `DeidentifyStep` 은 레거시 폴백 대신 명확한 설정 오류 예외(내부 정보 미노출)로 처리한다.
 
 - 실패 시 `DE_IDENT_YN='F'`, 원본 보존. 재비식별은 외부 솔루션 수동 처리(자동 재비식별 큐 없음).
-- 코드(폴링 경로): `KpstDeidentifyClient`, `KpstWebClientConfig`(자체CA TLS), `batch/service/KpstDeidentService`/`KpstDeidentTxService`, `batch/scheduler/KpstDeidentPollJob`
+- 코드(폴링 경로): `KpstDeidentifyClient`(`createProject` → `Mono`), `KpstWebClientConfig`(자체CA TLS), `batch/service/KpstDeidentService`/`KpstDeidentTxService`/`KpstSubmitOutcomeRecorder`, `batch/scheduler/KpstDeidentPollJob`
 - 코드(트리거/mock): `batch/step/DeidentifyStep`(mock/KPST/설정오류 3분기)
 - 공유 인프라: `HmacWebhookFilter`/`HmacSigner` + VLM(`/v1/vlm/callback`) 콜백은 그대로 유지. 증강 콜백은 2026-07-27 Phase 7-A2 에서 무서명 `/v1/genai/callback` 으로 교체됐다(→ [14](14-augmentation.md))
+
+### 8.2-1 위탁 제출의 논블로킹화 (2026-07-30)
+
+KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴링)이었으나 **수락 응답 왕복 동안 스레드를 점유**했다(`blockOptional(45s)`). 그 스레드는 적재 경로의 `batch-async-`(core 2) 또는 재비식별 요청의 Tomcat 요청 스레드였다. 공통 골격은 [07 §7.2-1](07-batch-pipeline.md) 참조이며, KPST 고유 규칙은 다음과 같다.
+
+- **ACK 대기 판정 = `prjId` 유무 + 유예** — 원장은 `POLL_STTS=WAITING` + `DE_IDNTF_PJT_ID=null` 로 선커밋되고, 폴러는 이 상태를 "제출 ACK 대기"로 해석한다. 유예(`kpst.deid.submit-ack-grace-sec`, 기본 **180초**) 안에서는 **외부 호출 0건 · 시도 카운터 미소모**로 건너뛰고, 초과하면 폴러가 `KPST_ACK_MISSING` 으로 회수한다. **별도 스위퍼를 만들지 않는다** — 폴러가 이미 클레임·타임아웃·`'F'` 종결을 갖춘 회수기다.
+  - 기본 180초의 근거: 클라이언트 타임아웃 45s × 재시도 3회 + 백오프(1s·2s) 최악값(≈138s)을 덮는 값. 더 짧으면 정상 재시도 중인 건을 회수한다.
+  - 회수 종결은 **조건부 UPDATE**(WAITING + prjId null)라, 판정 직후 ACK 가 도착했으면 0행 no-op 이다(지각 ACK 를 강등하지 않는다).
+- **호출자 트랜잭션이 롤백되면 영상을 `'F'` 로 만들지 않는다** — 제출은 `afterCommit` 에 구독하므로 롤백 시 **외부로 아무것도 나가지 않는다**. 이때 선커밋된 원장만 `KPST_SUBMIT_CANCELED` 로 취소 종결하고 **영상 상태는 건드리지 않는다**. 그대로 두면 유예 만료 회수의 종착(`DE_IDNTF_YN='F'`)이 걸려, 위탁하지도 않은 영상이 3분 뒤 신고 게이트에 걸려 라벨 조회 412 · 스트리밍 404 · export 보류가 됐다(APPROVED 영상 재비식별 요청 실패 시 특히 유해).
+  - 커밋 후 구독이 필요한 또 다른 이유: 재비식별 호출자(`ApprovedRedeidentService`)는 자기 트랜잭션에서 **작업락을 INSERT** 한다. 실패 신호가 그 커밋보다 먼저 오면 실패 핸들러(REQUIRES_NEW)가 아직 커밋되지 않은 락을 보지 못해 해제하지 못하고, 재요청이 409 로 영구 차단된다.
+- **원장 종결 코드 3종(`LS_DEIDENT_PROC_LOG.ERR_CD`)** — 운영이 "외부에 작업이 실재하는가"를 코드로 구분하기 위해 분리한다.
+
+  | 코드 | 의미 | 영상 `DE_IDNTF_YN` |
+  |------|------|:------------------:|
+  | `KPST_SUBMIT_FAILED` | 제출이 **확정 실패**(onError·구독 거부·빈 응답) — 신호를 받았다 | `'F'` |
+  | `KPST_ACK_MISSING` | ACK 를 **관측하지 못함**(노드 사망·기록 유실) — KPST 에 프로젝트가 실재할 수 있다 | `'F'` |
+  | `KPST_SUBMIT_CANCELED` | 호출자 tx 미커밋 — **외부로 나간 것이 없다** | 불변(전이 없음) |
+
+- **동기 실패 전파가 남는 것은 제출 이전 사전 조건뿐** — raw null · 원본 부재 · 경로 손상 · export 디렉터리 생성/검증 실패. 실패 흔적은 별도 트랜잭션으로 커밋한 뒤 예외를 전파한다.
+
+**신규 설정 키**
+
+| 키 | 기본값 | 설명 |
+|----|:-----:|------|
+| `kpst.deid.submit-ack-grace-sec` | `180` | 제출 ACK 대기 유예(초). 이 안에서는 폴러가 해당 건을 건너뛴다(외부 호출·카운터 미소모). `0` 이하 또는 `REQ_DT` 부재면 유예 없이 즉시 회수 대상 |
+
+> `application.yml` 의 `kpst.deid` 블록에는 아직 이 키가 명시돼 있지 않고 코드 `@Value` 기본값으로만 동작한다(환경변수 override 는 `kpst.deid.submit-ack-grace-sec` 프로퍼티 경로로 주입).
 
 ## 8.3 처리 이력 (RQ-SFR-09-03)
 
@@ -145,7 +179,10 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
 POST /v1/videos/{rawSn}/redeident   (@PreAuthorize REVIEWER)
   → 전제: APPROVED AND DE_IDENT_YN != 'Y'   (기비식별 영상 배제 = 네이티브 frm_no 순번 영상 자연 배제)
   → 작업락 선점(LS_AUTH_WORK_LOCK, 동일영상 활성락 1건 UNIQUE 강제 V69) → 202 Accepted
+       응답 = {rawSn, procLogSn, status:"ACCEPTED"}   ※ kpstPrjId 필드 제거(아래)
   → KPST 영상단위 위탁(원본 raw_file_path_nm 입력, REQ_KND_CD='REDEIDENT') — 비동기
+       실제 외부 전송은 <이 트랜잭션 커밋 후>에 개시된다(작업락이 커밋돼야 위탁 실패 시 해제가 성립).
+       롤백되면 위탁은 개시되지 않고 선커밋 원장만 취소 종결된다(영상 상태 불변)
   → 폴링 완료 시(REDEIDENT 분기):
       ① DeidentFrameAttacher: deidentified.mp4 에서 기존 LS_DATA_SRC 의 frm_no 프레임을
          프레임번호 직접 추출(ffmpeg select=eq(n,N), fps 무관)해 같은 행에 attachDeidPath (새 행 INSERT 없음 → 라벨 무변경)
@@ -159,6 +196,7 @@ POST /v1/videos/{rawSn}/redeident   (@PreAuthorize REVIEWER)
 - **해상도 fail-closed**: 비식별 출력 해상도 ≠ 원본이면 좌표가 깨지므로 전체 거부·롤백.
 - **APPROVED 보존**: 기존 자동 비식별 완료경로(BATCH)의 `MARKING_READY` 강등을 타지 않도록 `REQ_KND_CD`로 완료 분기 분리. 기존 BATCH 경로 무변경.
 - **멱등**: 이미 비식별 프레임이 attach된 행은 skip → 재요청으로 이어서 완성.
+- **응답 계약 변경(2026-07-30) — `kpstPrjId` 필드 제거**: 논블로킹 제출로 **응답 시점에는 KPST 프로젝트 ID 가 존재할 수 없다**(항상 null). 절대 채워지지 않는 필드를 계약에 남기면 소비자가 불필요한 null 분기를 하게 되므로 제거했다(FE 사용처 0건 확인). **위탁 추적의 안정 식별자는 `procLogSn`** 이며 항상 채워진다 — 프로젝트 ID 가 필요하면 `procLogSn` 으로 원장(`LS_DEIDENT_PROC_LOG.DE_IDNTF_PJT_ID`)을 조회한다.
 - 코드: `video/controller/ApprovedRedeidentController`, `video/service/ApprovedRedeidentService`, `batch/step/DeidentFrameAttacher`, `batch/service/KpstDeidentTxService`(완료 분기 `applyRedeidentCompletion`/`applyBatchCompletion`), `LS_DEIDENT_PROC_LOG.REQ_KND_CD`(V68 도입, V83 rename REQ_KIND_CD→REQ_KND_CD), `LS_AUTH_WORK_LOCK` partial unique index(V69)
 - 이관 연계: v1→v2 이관 비식별 미완 영상의 정공법 해법 → [23](23-v1-v2-db-migration.md)
 

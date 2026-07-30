@@ -144,11 +144,35 @@ public class LsDeidentProcLog {
      * <p>규격(§22.3.3)상 {@code /project} 응답엔 {@code prj_id} 만 있고 datasetId 는 미상이다.
      * datasetId 는 첫 {@code retrieve_progress} 응답의 {@code dsStatus[0].dsId} 로 {@link #recordDatasetId}
      * 에서 보충한다. 따라서 위탁 시점엔 null 을 허용한다(prjId 만 필수).
+     *
+     * <p><b>Phase C-2 이후 프로덕션 ACK 경로는 이 메서드가 아니다</b> — 논블로킹 제출의 ACK 는 지각
+     * 신호가 종결된 원장을 되살리지 못하도록 조건부 원자 UPDATE
+     * ({@code LsDeidentProcLogRepository.claimSubmitAck})로만 기록한다. 본 메서드는 "ACK 를 이미 받은
+     * 원장" 상태를 만들기 위한 도메인 표현(주로 테스트 픽스처)으로 남는다 — 새 프로덕션 경로에서
+     * 이 메서드를 쓰면 그 원자성 가드를 우회하게 되므로 쓰지 말 것.
      */
     public void markKpstSubmitted(Long kpstPrjId, Long kpstDatasetId) {
         if (kpstPrjId == null) throw new IllegalArgumentException("kpstPrjId 는 필수입니다.");
         this.kpstPrjId = kpstPrjId;
         this.kpstDatasetId = kpstDatasetId;
+        this.pollSttsCd = POLL_WAITING;
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
+    /**
+     * KPST 위탁 <b>개시</b> 표시 (Phase C-2 — 논블로킹 제출의 선커밋 원장).
+     *
+     * <p>제출이 논블로킹이 되면서 {@code prj_id} 는 ACK 가 도착해야 채워진다. 그 전에도 위탁 사실이
+     * durable 해야 하므로(노드 사망 시 회수 근거) 제출 <b>전에</b> 이 메서드로 {@code POLL_STTS=WAITING}
+     * 만 세우고 원장을 커밋한다. {@code prj_id} 는 여전히 null 이며, 폴링 잡은 "WAITING + prjId null"
+     * 을 <b>ACK 대기</b>로 해석해 진행조회를 호출하지 않는다(시도 카운터 미소모).
+     *
+     * <p>별도 코드값(예: SUBMITTING)을 새로 만들지 않는 이유: {@code POLL_STTS_CD IN ('WAITING','POLLING')}
+     * 리터럴이 네이티브 SQL·잡 상수·엔티티 전이에 흩어져 있어 새 값은 4곳을 동시에 맞춰야 하고 하나라도
+     * 빠지면 조용히 샌다. 또 "ACK 왔는가"의 진실원은 {@code prj_id} 유무 자체라, 상태값을 하나 더 두면
+     * 파생 정보의 이중 진실원이 된다.
+     */
+    public void markKpstSubmitPending() {
         this.pollSttsCd = POLL_WAITING;
         this.mdfcnDt = LocalDateTime.now();
     }

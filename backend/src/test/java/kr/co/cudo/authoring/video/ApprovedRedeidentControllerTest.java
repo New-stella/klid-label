@@ -82,7 +82,7 @@ class ApprovedRedeidentControllerTest {
     @DisplayName("REVIEWER_요청시_202_ACCEPTED_응답")
     void reviewer_202_accepted() throws Exception {
         when(approvedRedeidentService.requestRedeident(eq(1L), any()))
-                .thenReturn(RedeidentResponse.accepted(1L, 55L, 101L));
+                .thenReturn(RedeidentResponse.accepted(1L, 55L));
 
         mockMvc.perform(post("/v1/videos/1/redeident")
                         .header("Authorization", "Bearer " + reviewerToken))
@@ -90,7 +90,6 @@ class ApprovedRedeidentControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.rawSn").value(1))
                 .andExpect(jsonPath("$.data.procLogSn").value(55))
-                .andExpect(jsonPath("$.data.kpstPrjId").value(101))
                 .andExpect(jsonPath("$.data.status").value(RedeidentResponse.STATUS_ACCEPTED));
     }
 

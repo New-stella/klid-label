@@ -160,7 +160,7 @@ class MockServerLiveIntegrationIT {
                 baseUrl + "/export/9001/", "/nas-storage/raw/9001/",
                 List.of("sample1.mp4", "sample2.mp4"));
 
-        KpstProjectResponse resp = kpstClient().createProject(req);
+        KpstProjectResponse resp = kpstClient().createProject(req).block();
 
         assertThat(resp.result()).isEqualTo("success");
         assertThat(resp.prjId()).isGreaterThan(0L);

@@ -27,8 +27,11 @@
     - ledger.recordIssued(키 allowlist 등록)   ← 고아 키 방지(커밋 후에만)
     - AugmentJobSubmitService: 비식별 프레임을 100장 단위로 분할해
         POST {외부}/api/genai/jobs 위탁 (청크마다 request_id = "{키}-{jobSeq}")
-        · 위탁 직전 LS_DATA_AUG_JOB 선기록(RECEIVED) → 202 수신 후 OTSD_JOB_ID 적재
+        · 위탁 <전에> 모든 청크의 LS_DATA_AUG_JOB 을 RECEIVED 로 전량 선기록(REQUIRES_NEW)
+          — 하나라도 실패하면 한 건도 위탁하지 않고 앞 청크까지 FAILED 로 종결
         · 같은 tx 에 LS_DATA_AUG_JOB_FILE 선기록 — 입력 순서(FILE_SEQ)↔프레임(SRC_SN) 대응
+        · 제출은 <논블로킹 + concatMap 직렬>: 앞 청크 완료 → 비식별 신고 재판정 → 다음 청크
+          202 ACK 는 완료 핸들러(AugmentSubmitOutcomeRecorder, 전용 풀)가 받아 OTSD_JOB_ID 적재
         ↓ 비동기
 [웹훅] POST /api/v1/genai/callback  (무서명 — 명세서 v1.1 규격)
   수신: {request_id, job_id, status(RUNNING|SUCCEEDED|FAILED), progress, current_step,
@@ -50,6 +53,19 @@
 - **멱등**: 외부는 전송 실패 시 재시도하므로 같은 페이로드 중복 수신이 정상이다 — 종결된 job 의 재전송은 200 + `applied=false`.
 - **재수신(200) vs 진짜 충돌(409) 구분**: 증강 인계(`AugmentResultService`)에서 `otsd_job_id` 소유자를 **쓰기 이전에** 확인한다. 같은 증강의 재수신은 200(`DUPLICATE`, `applied=false`)으로 흡수하고, **다른 증강**이 그 job_id 를 보유한 오배송만 409 다. 충돌을 UNIQUE 위반으로 판정하면 PostgreSQL 이 트랜잭션을 abort(25P02) 시켜 이후 모든 쿼리가 거부되므로(=500), 위반 이후의 소유자 재조회는 **REQUIRES_NEW 독립 트랜잭션**(`AugmentJobIdOwnerLookup`)에서만 한다. 회귀 가드: `AugmentCallbackIdempotencyIT`(실 DB — 재수신 no-op·오배송 409·동시 2건 1회 반영·호출자 트랜잭션 무오염).
 - **고아 키 방지**: ledger 등록·외부 위탁은 요청 트랜잭션 안이 아니라 **AFTER_COMMIT** 에서만 수행 — 요청 롤백 시 aug 행도 멱등 키도 남지 않는다.
+
+#### 위탁 제출의 논블로킹화 (2026-07-30)
+
+`ExternalAugmentClient.requestAugment` 반환 타입이 `AugmentSubmitResult` → **`Mono<AugmentSubmitResult>`** 로 바뀌었다. 구 구현은 202 ACK 왕복을 `.block()` 으로 기다렸고, 그 스레드가 `AugmentRequestBridge` 의 `batchAsyncExecutor`(core 2 · CallerRuns)였다 — 청크가 N 개면 점유도 N 배였다. 공통 골격은 [07 §7.2-1](07-batch-pipeline.md) 참조이며, 증강 고유 규칙은 다음과 같다.
+
+- **청크 직렬화는 유지된다 — `flatMap` 이 아니라 `concatMap`**. 청크 사이에는 비식별 누락 신고 **재판정**(`Mono.defer` 안, 구독 시점 평가)이 있어 "위탁 도중 신고" 를 관측해 남은 청크의 PII 경로 전송을 끊는다. 병렬 발사하면 그 방어가 통째로 무력화된다(벤더 rate 측면에서도 동시 발사는 금물).
+- **`augmentSubmitScheduler` 전용 풀은 "완료 기록" 뿐 아니라 <u>청크 직렬 전송의 실행 스레드</u>** 다 — 두 번째 청크부터의 신고 재판정(DB 조회)·제출이 여기서 돌아야 reactor-netty 이벤트 루프가 블로킹되지 않는다. 증강만 `publishOn` 을 유지하는 이유가 이것이다(VLM·KPST 는 `SubmitSignalDispatch` 명시 투입).
+- **`SubmitOutcome.accepted` → `dispatched` 로 의미 변경** — 이제 "수락된 job 수"가 아니라 **시퀀스에 투입한 청크 수**다. 따라서 `dispatched==0` 은 "**제출 전에** 거부됐다"(신고 구간 · 비식별 경로 부재 · 선기록 실패)는 뜻이며 이때만 호출부가 즉시 실패 롤업한다(외부로 나간 것이 없어 안전).
+- **개시된 뒤의 전건 실패는 시퀀스 종료 롤업이 확정** — `doFinally` 에서 `AugmentSubmitOutcomeRecorder.onSubmitSequenceFinished` → `AugmentSubmitRollupTxService`. 구 "`accepted==0` 즉시 롤업" 의 이관처다.
+- **완료 핸들러는 조건부 원자 UPDATE 로 기록** — 지각 ACK 신호가 콜백이 이미 올린 job 상태를 강등하지 못한다.
+- **회수는 기존 `AugmentJobExpirySweeper`** 가 비종결(RECEIVED/RUNNING) job 을 집는다. **새 스위퍼를 만들지 않는다**(이중 진실원 금지).
+- `NoopExternalAugmentClient`(`mode=noop`)도 같은 시그니처로 `Mono.just(AugmentSubmitResult.skipped())` 를 반환한다.
+- 코드: `augment/integration/{ExternalAugmentClient,HttpExternalAugmentClient,NoopExternalAugmentClient}`, `augment/service/{AugmentJobSubmitService,AugmentSubmitOutcomeRecorder,AugmentSubmitRollupTxService,AugmentJobRecorder}`
 
 ## 14.2 증강 = 새 영상
 

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -27,6 +28,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AugmentJobRecorder {
+
+    /** {@code LS_DATA_AUG_JOB.ERR_MSG_CN} 컬럼 길이(내용V1000) — 엔티티와 같은 값. */
+    private static final int ERR_MSG_MAX = 1000;
 
     private final LsDataAugJobRepository jobRepository;
     private final LsDataAugJobFileRepository jobFileRepository;
@@ -55,6 +59,42 @@ public class AugmentJobRecorder {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markAccepted(Long augJobSn, String externalJobId) {
         jobRepository.findById(augJobSn).ifPresent(job -> job.markAccepted(externalJobId));
+    }
+
+    /**
+     * <b>비동기 제출 ACK 기록</b> — 조건부 원자 UPDATE (Phase C-3).
+     *
+     * <p>{@link #markAccepted} 와 달리 엔티티를 읽어 무조건 덮어쓰지 않는다. 논블로킹 제출에서는
+     * 벤더 콜백이 ACK 보다 먼저 도착할 수 있어(저지연 벤더·목), 무조건 덮으면 이미 SUCCEEDED 된 job 을
+     * RECEIVED 로 <b>강등</b>시킨다. 판정 술어는 리포지토리 주석 참조.
+     *
+     * @return true = 이번 호출이 기록함 / false = 이미 콜백·다른 노드가 선점(기록하지 않음)
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean markSubmitAccepted(Long augJobSn, String externalJobId) {
+        return jobRepository.claimSubmitAck(augJobSn, externalJobId, LocalDateTime.now()) == 1;
+    }
+
+    /**
+     * <b>비동기 제출 실패 기록</b> — 조건부 원자 UPDATE (Phase C-3).
+     *
+     * @return true = 이번 호출이 실패로 종결함 / false = 그 사이 콜백이 선점(강등하지 않음)
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean markSubmitFailed(Long augJobSn, String errorCode, String errorMessage) {
+        return jobRepository.claimSubmitFailure(
+                augJobSn, errorCode, truncateErrorMessage(errorMessage), LocalDateTime.now()) == 1;
+    }
+
+    /**
+     * {@code ERR_MSG_CN}(내용V1000) 길이 보호 — 네이티브 UPDATE 는 엔티티 setter 의 절단을 타지 않으므로
+     * 여기서 자른다(초과 시 DB 예외로 기록 자체가 유실되는 것을 막는다).
+     */
+    private static String truncateErrorMessage(String value) {
+        if (value == null || value.length() <= ERR_MSG_MAX) {
+            return value;
+        }
+        return value.substring(0, ERR_MSG_MAX);
     }
 
     /** 위탁 실패 — 사유와 함께 남긴다(조용한 유실 금지). */

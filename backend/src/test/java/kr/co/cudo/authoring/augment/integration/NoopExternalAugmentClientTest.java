@@ -21,9 +21,10 @@ class NoopExternalAugmentClientTest {
     @DisplayName("운영_ExternalAugmentClient구현은_외부호출없이_noop이다")
     void noopSkipsWithoutExternalCall() {
         AugmentSubmitResult result = client.requestAugment(new AugmentSubmitCommand(
-                10L, "WINTER", "abc-123_KEY", "FIRE", "1",
-                "http://localhost:8080/api/v1/genai/callback",
-                List.of(new AugmentInputFile(1, "/storage/deidentified/1.jpg")), 1, 1));
+                        10L, "WINTER", "abc-123_KEY", "FIRE", "1",
+                        "http://localhost:8080/api/v1/genai/callback",
+                        List.of(new AugmentInputFile(1, "/storage/deidentified/1.jpg")), 1, 1))
+                .block();
 
         assertThat(result.status()).isEqualTo(AugmentSubmitResult.STATUS_SKIPPED);
         assertThat(result.externalJobId()).as("외부 미호출이면 job_id 를 지어내지 않는다").isNull();

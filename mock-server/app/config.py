@@ -61,12 +61,25 @@ class Settings(BaseSettings):
             "미설정('')이면 fail-closed — 어떤 파일도 생성하지 않는다(HIGH-1)"
         ),
     )
+    deid_max_projects: int = Field(
+        default=1_000,
+        ge=1,
+        description=(
+            "인메모리 비식별 프로젝트 보관 상한(건). 초과하면 가장 오래된 프로젝트부터 "
+            "만료(FIFO)하며 딸린 데이터셋/작업로그도 함께 정리한다. 목은 무인증이라 상한이 "
+            "없으면 POST /project 반복만으로 메모리가 무제한 증가한다(CWE-770). "
+            "생성형 AI 저장소의 MOCK_GENAI_MAX_JOBS 와 같은 축이다"
+        ),
+    )
     input_base: str = Field(
         default="",
         description=(
             "복사 원본(input_path) 읽기 허용 루트. 목 서버는 인증이 없어 input_path 를 임의로 "
-            "지정할 수 있으므로, 이 루트 밖의 파일은 복사하지 않고 placeholder 로 대체한다"
-            "(임의 파일 노출 + GB급 반복 복사에 의한 디스크 고갈 차단 — CWE-22/CWE-400). "
+            "지정할 수 있으므로, 이 루트 밖의 파일은 읽지 않고 해당 산출을 실패(procState=99)로 "
+            "종결한다(임의 파일 노출 + GB급 반복 복사에 의한 디스크 고갈 차단 — CWE-22/CWE-400). "
+            "대체 산출물을 최종 경로에 남기는 안은 폐기됐다 — 읽지도 못한 원본을 BE 무결성에 "
+            "통과시켜 '비식별 완료'로 승격시키는 위장 산출물이고(CWE-345), no-overwrite 라 그 "
+            "이름이 이후 어떤 재시도로도 대체되지 않는다. "
             "미설정('')이면 output_base 의 상위(= storage 루트)를 자동 사용한다"
         ),
     )
@@ -207,7 +220,15 @@ class Settings(BaseSettings):
         ``/app/storage`` 이므로 BE 가 넘기는 원본 경로(``/app/storage/raw/...``)가 통과한다.
         ``output_base`` 는 co-locate 산출(Phase 5A) 이후 콤마 구분 다중 base 이므로
         항목별로 상위를 구해 중복 없이 콤마로 합친다.
-        둘 다 없으면 빈 문자열(제한 없음) — 이 경우 output_base 도 없어 어떤 파일도 쓰지 않는다.
+
+        **MEDIUM-3 — 루트 붕괴 방지(CWE-22/CWE-1188)**: 상위 도출은 1단만 올라가므로
+        ``output_base`` 가 ``/nas-storage`` 같은 **최상위 1단 디렉터리**면 상위가 ``/`` 가 되어
+        "허용 루트 = 파일시스템 전체"로 붕괴한다. 운영 스토리지 루트가 실제로 그 형태이므로
+        (CLAUDE.md), 루트로 붕괴하는 항목은 **채택하지 않고 버린다**.
+
+        반환값이 빈 문자열이면 "허용 루트 없음"이며 소비자는 **fail-closed** 로 동작한다
+        (``deid_sim.input_root_configured`` → 원본 미열람 · ``media_probe.resolve_probe_target``
+        → 길이 조회 안 함). 즉 이 상황에서는 ``MOCK_INPUT_BASE`` 를 명시 설정해야 한다.
         """
         if self.input_base:
             return self.input_base
@@ -215,7 +236,11 @@ class Settings(BaseSettings):
         for base in (b.strip() for b in self.output_base.split(",")):
             if not base:
                 continue
-            parent = str(Path(base).parent)
+            parent_path = Path(base).parent
+            if parent_path == parent_path.parent:
+                # 파일시스템 루트('/') 로 붕괴 — 허용 루트로 채택하지 않는다(fail-closed).
+                continue
+            parent = str(parent_path)
             if parent not in parents:
                 parents.append(parent)
         return ",".join(parents)

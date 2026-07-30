@@ -1,37 +1,35 @@
 package kr.co.cudo.authoring.batch.step;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
+import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.common.config.WebhookCallbackDefaults;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.HmacWebhookFilter;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
-import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
-import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -65,20 +63,40 @@ import java.util.UUID;
  *       보류로 기록해 해소 후 재처리로 이어진다.</li>
  *   <li>frame_policy 는 frame_interval + framerate(설정값 {@code vlm.client.frame-policy.framerate}, 기본 25).</li>
  *   <li>eventName/marks 는 describe 규격 밖이므로 전송하지 않는다(R9).</li>
- *   <li>외부 호출 실패 시 Resilience4j(VlmClient) Retry 후 {@link CustomException ErrorCode.EXTERNAL_API_ERROR}
- *       로 래핑 → BatchOrchestrator FAILED + BatchRetryQueue 처리.</li>
  * </ul>
+ *
+ * <h3>★ 논블로킹 제출 (Phase C-1) — "외부연동은 모두 비동기" 의 스레드 축</h3>
+ * <p>프로토콜은 원래 비동기였으나(ACK 만 받고 결과는 콜백) <b>ACK 왕복 동안 스레드를 점유</b>했다
+ * ({@code .block(45s)}). 그 스레드는 {@code batch-async-}(core 2), Quartz 워커(3), 수동 재처리의 Tomcat
+ * 요청 스레드였다. 이제 ACK 도 기다리지 않는다:
+ * <ol>
+ *   <li><b>선커밋</b> — 상관키 등록({@code ledger.recordIssued}) + 마킹 {@code PENDING→VLM_REQUESTED}
+ *       ({@link VlmMarkingTxService})를 <b>제출 전에</b> 각각 독립 커밋한다. 콜백이 ACK 보다 먼저
+ *       도착해도 역조회·전이가 성립한다(콜백 선행 레이스 폐쇄).</li>
+ *   <li><b>제출</b> — {@code subscribe} 만 하고 즉시 반환({@code status="submitted"}).</li>
+ *   <li><b>완료 핸들러</b> — 전용 풀({@code vlmSubmitScheduler})에서 {@link VlmSubmitOutcomeRecorder} 가
+ *       ACK/실패를 기존 원장·로그에 기록한다. <b>배치·작업 상태는 강등하지 않는다</b> — 지각 실패가
+ *       이미 완료된 파이프라인을 FAILED 로 역행시키면 라벨링·검수 동선이 끊긴다.</li>
+ *   <li><b>회수</b> — 확정 실패는 {@link #SKIP_REASON_SUBMIT_FAILED}, 무신호(노드 사망 등)는 미결
+ *       스위퍼({@code VlmSubmitPendingSweeper})가 {@link #SKIP_REASON_ACK_MISSING} 로 기록하고
+ *       {@code VlmWithheldResumeRunner} 가 재개한다(멱등: 시계열 메타 0건일 때만). <b>ACK 는 받았으나
+ *       결과 콜백이 오지 않는 건</b>은 같은 스위퍼의 <b>콜백 창</b> 패스가
+ *       {@link #SKIP_REASON_CALLBACK_MISSING} 로 회수한다 — ACK 수신이 원장에 {@code ACCEPTED} 로
+ *       남으므로 "미수락"과 "결과 대기"를 구분할 수 있다(H1).</li>
+ * </ol>
+ * <p>동기 실패 전파가 남아 있는 것은 <b>제출 이전</b>의 사전 조건뿐이다(rawSn null · 영상 미존재 ·
+ * 비식별 경로 부재 · 상관키 등록 실패) — 이들은 여전히 {@link CustomException} 으로 던져
+ * {@code BatchOrchestrator} FAILED + {@code BatchRetryQueue} 경로를 탄다.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class VlmTimeseriesStep implements BatchStep {
-
-    /** 외부 호출 1건 동기 wait 최대 시간. VlmClient 내부 timeout 보다 약간 길게. */
-    private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(45);
 
     /** frame_policy framerate 기본값 — 설정 미주입(단위 테스트 등) 시 폴백. */
     private static final int DEFAULT_FRAMERATE = 25;
+
+    /** 완료 신호 디스패치 로그 태그(고정 문자열 — 사용자 입력 미반영). */
+    private static final String LOG_TAG = "Batch][VlmTimeseries";
 
     /** VLM 단계 미수행 사유 — 운영 재처리 대상 식별용으로 DB 에 그대로 적재된다(B-ISSUE-24). */
     static final String SKIP_REASON_DISABLED = "VLM 위탁 비활성 (vlm.client.enabled=false)";
@@ -94,15 +112,58 @@ public class VlmTimeseriesStep implements BatchStep {
      */
     public static final String SKIP_REASON_DEIDENT_REPORT = "비식별 누락 신고 구간 — VLM 위탁 보류(재비식별 대기)";
 
+    /**
+     * VLM 단계 미수행 사유 — <b>비동기 제출이 확정 실패</b>(onError 수신)했다 (Phase C-1).
+     *
+     * <p>논블로킹 전환으로 제출 실패가 파이프라인 스레드 밖에서 발생하게 되면서, 기존 실패 전파 사슬
+     * (예외 → {@code BatchOrchestrator} catch → {@code markFailed} + {@code BatchRetryQueue})이 끊겼다.
+     * 그 사슬을 되살리지 <b>않는다</b> — 재시도 큐는 rawSn 단위로 파이프라인 전체를 재실행하므로
+     * VLM 제출 1건 실패에 프레임추출·YOLO·SAM2 가 전부 다시 돌기 때문이다. 대신 이 사유로 감사 행을
+     * 남기고 {@code VlmWithheldResumeRunner} 동형의 재개(멱등 조건: 시계열 메타 0건)로 회수한다.
+     *
+     * <p><b>재개 배선의 키</b>이므로 public 이며 값을 바꾸면 재개가 끊긴다.
+     */
+    public static final String SKIP_REASON_SUBMIT_FAILED = "VLM describe 비동기 제출 실패 — 재개 대기";
+
+    /**
+     * VLM 단계 미수행 사유 — <b>선기록만 되고 ACK·콜백이 모두 없었다</b>(미결 회수, Phase C-1).
+     *
+     * <p>노드 사망·재기동으로 in-flight subscription 이 유실되면 어떤 완료 신호도 오지 않는다.
+     * {@code VlmSubmitPendingSweeper} 가 원장의 미결(ISSUED) 행을 원자 클레임한 뒤 이 사유로 감사 행을
+     * 남기고 재개한다. 이 회수가 없으면 논블로킹 제출은 사실상 fire-and-forget 으로 퇴화한다.
+     */
+    public static final String SKIP_REASON_ACK_MISSING = "VLM describe 수락 응답·콜백 미수신 — 미결 회수 후 재개";
+
+    /**
+     * VLM 단계 미수행 사유 — <b>ACK 는 받았는데 결과 콜백이 끝내 오지 않았다</b>(콜백 창 만료 회수, H1).
+     *
+     * <p>{@link #SKIP_REASON_ACK_MISSING}(수락조차 못 받음)와 반드시 구분한다 — 이 코드가 남았다는 것은
+     * 벤더가 요청을 <b>받아들인 뒤</b> 결과를 주지 않았다는 뜻이라, 외부에는 분석 작업이 실재할 수 있다.
+     * ACK 창(수십 초)과 콜백 창(수십 분)은 임계가 자릿수로 다르므로 회수 임계도 분리한다
+     * ({@code authoring.batch.vlm.submit-reclaim.callback-timeout-minutes}).
+     *
+     * <p><b>재개 배선의 키</b>이므로 public 이며 값을 바꾸면 재개가 끊긴다.
+     */
+    public static final String SKIP_REASON_CALLBACK_MISSING = "VLM describe 결과 콜백 미수신 — 콜백 창 만료 회수 후 재개";
+
+    /** 재개 대상으로 인정하는 VLM 미수행 사유 전체 — 재개 판정의 단일 원천. */
+    public static final List<String> RESUMABLE_SKIP_REASONS = List.of(
+            SKIP_REASON_DEIDENT_REPORT, SKIP_REASON_SUBMIT_FAILED,
+            SKIP_REASON_ACK_MISSING, SKIP_REASON_CALLBACK_MISSING);
+
     private final VlmClient vlmClient;
     private final VideoRepository videoRepository;
     private final BatchStatusService batchStatusService;
-    private final ObjectMapper objectMapper;
     private final WebhookIdempotencyLedger ledger;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
-    private final LsMarkingRepository markingRepository;
     /** 비식별 누락 신고 구간 판정 단일 원천 — {@code 'F'} 비교·트리 순회를 여기서 재구현하지 않는다. */
     private final DeidentReportGate deidentReportGate;
+    /** 마킹 상태 전이 전용 REQUIRES_NEW 빈 — 제출 <b>전</b> 선커밋을 위해 별도 빈으로 분리(자기호출 금지). */
+    private final VlmMarkingTxService markingTxService;
+    /** 비동기 완료 핸들러 — ACK/실패를 기존 원장·로그에 기록한다(상태 강등 없음). */
+    private final VlmSubmitOutcomeRecorder outcomeRecorder;
+    /** 완료 신호 전용 스케줄러 — 완료 핸들러의 JPA 쓰기가 이벤트 루프에서 돌지 않게 고정한다. */
+    private final Scheduler vlmSubmitScheduler;
 
     /** 콜백 base URL — 외부 시스템이 describe 결과를 push 할 엔드포인트 prefix(고정, 사용자 입력 미반영). */
     @Value(WebhookCallbackDefaults.VALUE_EXPRESSION)
@@ -111,6 +172,30 @@ public class VlmTimeseriesStep implements BatchStep {
     /** frame_interval 정책 framerate. */
     @Value("${vlm.client.frame-policy.framerate:25}")
     private int framerate;
+
+    /**
+     * 명시 생성자 — {@code vlmSubmitScheduler} 를 {@link Qualifier} 로 못박기 위해 Lombok 대신 직접 선언한다
+     * (프로젝트에 {@code lombok.config} 가 없어 필드 애노테이션이 생성자로 복사되지 않는다).
+     */
+    public VlmTimeseriesStep(VlmClient vlmClient,
+                             VideoRepository videoRepository,
+                             BatchStatusService batchStatusService,
+                             WebhookIdempotencyLedger ledger,
+                             LsDeidentProcLogRepository deidentProcLogRepository,
+                             DeidentReportGate deidentReportGate,
+                             VlmMarkingTxService markingTxService,
+                             VlmSubmitOutcomeRecorder outcomeRecorder,
+                             @Qualifier("vlmSubmitScheduler") Scheduler vlmSubmitScheduler) {
+        this.vlmClient = vlmClient;
+        this.videoRepository = videoRepository;
+        this.batchStatusService = batchStatusService;
+        this.ledger = ledger;
+        this.deidentProcLogRepository = deidentProcLogRepository;
+        this.deidentReportGate = deidentReportGate;
+        this.markingTxService = markingTxService;
+        this.outcomeRecorder = outcomeRecorder;
+        this.vlmSubmitScheduler = vlmSubmitScheduler;
+    }
 
     @Override
     public BatchStage stage() {
@@ -145,7 +230,8 @@ public class VlmTimeseriesStep implements BatchStep {
      * 단일 영상에 대해 시계열 메타 분석을 describe 로 위탁한다(마킹 없음).
      *
      * @param rawSn 영상 식별자
-     * @return 외부 시스템 수락 응답(NO-OP 모드면 status=skipped)
+     * @return {@code status="submitted"}(제출 개시) / NO-OP·보류 모드면 {@code status="skipped"}.
+     *         수락({@code accepted}) 여부는 완료 핸들러가 비동기로 기록하므로 여기서 알 수 없다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public VlmTimeseriesResponse run(Long rawSn) {
@@ -155,12 +241,13 @@ public class VlmTimeseriesStep implements BatchStep {
     /**
      * 마킹 상태 전이를 포함하여 describe 위탁을 수행한다.
      *
-     * <p>describe 규격상 마킹 데이터(eventName/marks)는 요청 바디에 포함하지 않으나, 위탁 성공 시
-     * 마킹 상태를 {@link LsMarking#STATUS_VLM_REQUESTED} 로 전이한다(파이프라인 상태 머신 유지).
+     * <p>describe 규격상 마킹 데이터(eventName/marks)는 요청 바디에 포함하지 않으나, <b>제출 직전</b>
+     * 마킹 상태를 {@link LsMarking#STATUS_VLM_REQUESTED} 로 전이·선커밋한다(파이프라인 상태 머신 유지
+     * + 콜백 선행 레이스 폐쇄). 전이는 {@code PENDING} 에서만 발생한다(종결 상태 역행 금지).
      *
      * @param rawSn   영상 식별자
      * @param marking 마킹 엔티티(null 가능 — null 이면 {@link #run} 과 동일)
-     * @return 외부 시스템 수락 응답
+     * @return {@code status="submitted"} / NO-OP·보류 모드면 {@code status="skipped"}
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public VlmTimeseriesResponse runWithMarking(Long rawSn, LsMarking marking) {
@@ -237,38 +324,61 @@ public class VlmTimeseriesStep implements BatchStep {
                     "VLM 위탁 상관키 등록 실패 rawSn=" + rawSn, e);
         }
 
+        // ── 선커밋 2/2: 마킹 PENDING → VLM_REQUESTED 를 <b>제출 전에</b> 독립 커밋한다.
+        //
+        //  왜 제출 앞인가 (콜백 선행 레이스 폐쇄): 제출이 논블로킹이 되면 벤더 콜백이 ACK 보다 먼저
+        //  도착할 수 있다(mock/저지연 벤더에서 현실적). 전이를 ACK 이후에 두면 콜백 수신부가 전이 대상을
+        //  찾지 못해 0건 전이로 끝나고, 그 뒤 이 코드가 PENDING→VLM_REQUESTED 로 올려 마킹이
+        //  <b>VLM_REQUESTED 에 영구 고착</b>된다. 선커밋이 그 창을 닫는다(수신부 관용 확대와 양단 방어).
+        //
+        //  ctx 의 marking 은 MarkingLoadStep 리포지토리 tx 종료 후 detached 이므로 save(=merge) 로 명시
+        //  영속해야 하며(전이 유실 재현 확인), 호출자 tx 와 운명을 분리해야 하므로 REQUIRES_NEW 를 가진
+        //  별도 빈(VlmMarkingTxService)을 프록시 경유로 호출한다 — 자기호출이면 경계가 통째로 사라진다.
+        markingTxService.persistVlmRequested(marking);
+        Long markingSn = marking == null ? null : marking.getMarkingSn();
+
         VlmTimeseriesRequest req = VlmTimeseriesRequest.ofFrameInterval(
                 requestId, mediaPath, resolveFramerate(), callbackUrl);
 
         log.info("[Batch][VlmTimeseries] describe submit rawSn={} request_id={} hasMarking={}",
                 rawSn, VlmClient.safeForLog(requestId), marking != null);
-        try {
-            VlmTimeseriesResponse resp = vlmClient.submitTimeseries(req).block(BLOCK_TIMEOUT);
-            if (resp == null) {
-                throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                        "VLM describe 응답이 비어있습니다 rawSn=" + rawSn);
-            }
-            log.info("[Batch][VlmTimeseries] accepted rawSn={} request_id={} status={}",
-                    rawSn, VlmClient.safeForLog(resp.requestId()), VlmClient.safeForLog(resp.status()));
-            persistResult(rawSn, resp);
 
-            // 마킹 상태 전이: PENDING → VLM_REQUESTED (DB 영속 보장, DEV_FIX #1/#2)
-            //  ctx 의 marking 은 MarkingLoadStep 리포지토리 tx 종료 후 <b>detached</b> 라, 이 트랜잭션의
-            //  영속성 컨텍스트가 관리하지 않는다 — 필드만 바꿔도 flush 대상이 아니어서 전이가 유실된다
-            //  (재현 확인). 그래서 markingRepository.save(=merge) 로 명시 영속한다.
-            //  ※ 트랜잭션 경계는 execute() 로 옮겨졌지만(DEV_FIX — self-invocation 부재 수정), detached
-            //    엔티티라는 사실은 그대로이므로 이 명시 merge 는 계속 필요하다. ambient tx 유무와
-            //    무관하게 durable 하게 커밋된다(최소 blast-radius — 다른 Step tx 경계 불변).
-            persistMarkingTransition(marking);
-            return resp;
-        } catch (CustomException ce) {
-            throw ce;
+        // ── 논블로킹 제출 (Phase C-1): ACK 왕복조차 스레드를 점유하지 않는다.
+        //
+        //  구 코드는 .block(45s) 로 파이프라인 스레드(batch-async- / Quartz 워커 / 수동 재처리의 Tomcat
+        //  요청 스레드)를 최대 45초 붙잡았다. 외부가 느려지면 core 2 짜리 배치 풀이 통째로 마르고
+        //  CallerRuns 역압이 호출 스레드까지 물고 늘어진다.
+        //
+        //  ★ 완료 신호의 기록은 publishOn 이 아니라 <b>명시적 디스패치</b>로 전용 풀에 넣는다 (M2).
+        //   publishOn(전용풀) 은 풀이 포화(AbortPolicy)되면 스케줄 제출이 거부되고, 그 거부가
+        //   <b>시그널을 나른 스레드(reactor-netty 이벤트 루프)</b>에서 onError 로 흘러 실패 핸들러의 JPA
+        //   쓰기를 이벤트 루프에서 실행시킨다(모든 외부 호출 동반 지연). 아래 try/catch 는 동기 subscribe
+        //   구간만 덮으므로 그 거부를 <b>잡지 못한다</b>. 그래서 핸들러 호출 자체를 SubmitSignalDispatch 로
+        //   감싸 "전용 풀 안에서만 실행 · 거부되면 기록 포기(회수는 미결 스위퍼)" 로 못 박는다.
+        //
+        //  빈 응답(onComplete only)은 신호 없는 종료라 어느 핸들러도 타지 않으므로, 구 코드의
+        //  "응답이 비어있습니다" 가드를 switchIfEmpty 로 옮겨 실패 경로로 흐르게 유지한다.
+        try {
+            vlmClient.submitTimeseries(req)
+                    // 예외는 지연 생성한다(정상 경로에서 불필요한 스택트레이스 채움 방지).
+                    .switchIfEmpty(Mono.error(() -> new CustomException(ErrorCode.EXTERNAL_API_ERROR,
+                            "VLM describe 응답이 비어있습니다 rawSn=" + rawSn)))
+                    .subscribe(
+                            resp -> SubmitSignalDispatch.run(vlmSubmitScheduler, LOG_TAG, rawSn,
+                                    () -> outcomeRecorder.onAccepted(rawSn, requestId, resp)),
+                            err -> SubmitSignalDispatch.run(vlmSubmitScheduler, LOG_TAG, rawSn,
+                                    () -> outcomeRecorder.onSubmitFailed(rawSn, markingSn, err)));
         } catch (RuntimeException e) {
-            log.error("[Batch][VlmTimeseries] failed rawSn={} err={}", rawSn,
-                    VlmClient.safeForLog(e.getMessage()));
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "VLM 위탁 호출 실패 rawSn=" + rawSn, e);
+            // 조립/구독 자체가 동기 실패한 경우(클라이언트가 즉시 throw 등)에만 도달한다. 이 스레드는
+            // 파이프라인 스레드(batch-async-/Quartz/Tomcat)라 JPA 를 직접 호출해도 이벤트 루프를 막지 않는다.
+            // 위탁 상관키는 이미 durable 하므로 예외를 위로 던져 파이프라인을 FAILED 로 만들지 않고
+            // 확정 실패와 동일하게 기록만 남긴다.
+            outcomeRecorder.onSubmitFailed(rawSn, markingSn, e);
         }
+
+        // 스텝이 확정적으로 말할 수 있는 사실은 "제출을 개시했다" 뿐이다. 수락(accepted) 여부는
+        // 완료 핸들러가 LS_BATCH_PROC_LOG 에 비동기 기록하고, 아무 신호도 없으면 미결 스위퍼가 회수한다.
+        return VlmTimeseriesResponse.submitted(requestId);
     }
 
     /**
@@ -289,24 +399,6 @@ public class VlmTimeseriesStep implements BatchStep {
         return path;
     }
 
-    /**
-     * VLM_REQUESTED 전이를 DB 에 명시 영속한다(merge). detached/무-tx 경로에서도 durable.
-     *
-     * <p>{@link LsMarking#markVlmRequested()} 는 {@code PENDING} 에서만 전이하고 그 외 상태
-     * (이미 VLM_REQUESTED/VLM_COMPLETED/VLM_FAILED)에서는 no-op 이다. retry 재실행으로 이미
-     * 전이된 마킹이 들어오면 no-op → <b>save 하지 않아</b> VLM_COMPLETED 를 VLM_REQUESTED 로
-     * 덮어쓰는 durable 역행을 차단한다. markingSn 미발급(테스트 등 미영속 마킹)이면 저장을 생략한다.
-     */
-    private void persistMarkingTransition(LsMarking marking) {
-        if (marking == null) {
-            return;
-        }
-        boolean transitioned = marking.markVlmRequested();
-        if (transitioned && marking.getMarkingSn() != null) {
-            markingRepository.save(marking);
-        }
-    }
-
     /** 콜백 URL 구성 — 고정 base + {@link HmacWebhookFilter#PATH_VLM}. 사용자 입력 미반영(SSRF/오픈리다이렉트 차단). */
     private String resolveCallbackUrl() {
         String base = (callbackBaseUrl == null || callbackBaseUrl.isBlank())
@@ -321,22 +413,5 @@ public class VlmTimeseriesStep implements BatchStep {
     /** framerate 해석 — 미주입(≤0) 시 기본값. */
     private int resolveFramerate() {
         return framerate > 0 ? framerate : DEFAULT_FRAMERATE;
-    }
-
-    /**
-     * describe 수락 응답(request_id, status)을 {@code LS_BATCH_PROC_LOG.RESP_PAYLOAD_CN} 에 JSON 적재.
-     * 영속화 실패는 위탁 자체를 실패로 보지 않고 WARN 로깅만 남긴다.
-     */
-    private void persistResult(Long rawSn, VlmTimeseriesResponse resp) {
-        Map<String, String> payload = new LinkedHashMap<>();
-        payload.put("requestId", resp.requestId());
-        payload.put("status", resp.status());
-        try {
-            String json = objectMapper.writeValueAsString(payload);
-            batchStatusService.recordVlmTimeseriesResult(rawSn, json);
-        } catch (JsonProcessingException e) {
-            log.warn("[Batch][VlmTimeseries] persist res_payload failed rawSn={} err={}",
-                    rawSn, VlmClient.safeForLog(e.getMessage()));
-        }
     }
 }

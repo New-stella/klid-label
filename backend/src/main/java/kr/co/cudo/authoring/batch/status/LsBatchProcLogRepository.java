@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.status;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.Optional;
 
 @ControlRepo
@@ -31,4 +32,12 @@ public interface LsBatchProcLogRepository extends JpaRepository<LsBatchProcLog, 
      */
     boolean existsByDataRawSnAndProcStepCdAndProcSttsCdAndErrorMsg(
             Long dataRawSn, String procStepCd, String procSttsCd, String errorMsg);
+
+    /**
+     * 위 판정의 <b>다중 사유</b>판 (Phase C-1) — VLM 재개 대상 사유가 셋으로 늘어난 데 따른 확장.
+     *
+     * <p>파라미터 바인딩 파생 쿼리만 사용한다(CWE-89). 사유 집합은 호출부 상수라 크기가 고정이다.
+     */
+    boolean existsByDataRawSnAndProcStepCdAndProcSttsCdAndErrorMsgIn(
+            Long dataRawSn, String procStepCd, String procSttsCd, Collection<String> errorMsgs);
 }

@@ -4,16 +4,22 @@ import kr.co.cudo.authoring.augment.entity.LsDataAugJob;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
 import kr.co.cudo.authoring.augment.integration.AugmentInputFile;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitCommand;
-import kr.co.cudo.authoring.augment.integration.AugmentSubmitResult;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.observability.metrics.AugmentMetrics;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +51,29 @@ import java.util.Optional;
  *   <li><b>건별 격리</b>: 2번째 청크의 <b>위탁</b>이 실패해도 3번째 청크를 계속 위탁한다. 전체
  *       성공/부분 실패 판정(집계)은 결과 수신부(A2)의 책임이다.</li>
  * </ul>
+ *
+ * <h3>★ 논블로킹 제출 (Phase C-3) — "외부연동은 모두 비동기" 의 스레드 축</h3>
+ * <p>프로토콜은 원래 비동기였으나(결과는 웹훅) <b>202 ACK 왕복 동안 스레드를 점유</b>했다
+ * ({@code .block()}). 그 스레드는 {@code AugmentRequestBridge} 의 {@code batchAsyncExecutor}
+ * (core 2 · CallerRuns)라, 벤더가 느려지면 배치 풀이 마르고 역압이 커밋 스레드까지 물고 늘어졌다.
+ * 게다가 청크가 N 개면 그 점유가 N 배였다. 이제 ACK 도 기다리지 않는다:
+ * <ol>
+ *   <li><b>선커밋</b> — 청크 job 행 전량({@link #issueAllChunks})을 <b>제출 전에</b> REQUIRES_NEW 로
+ *       독립 커밋한다(기존과 동일). ACK·콜백이 먼저 도착해도 기록 대상이 존재한다.</li>
+ *   <li><b>직렬 제출</b> — {@code concatMap} 으로 "앞 청크 완료 → 신고 재판정 → 다음 청크" 순서를
+ *       <b>그대로 보존</b>한다. 병렬 발사는 금지다({@link #dispatchChunks} 주석).</li>
+ *   <li><b>완료 핸들러</b> — 전용 풀({@code augmentSubmitScheduler})에서
+ *       {@link AugmentSubmitOutcomeRecorder} 가 ACK(job_id 적재)/실패를 <b>조건부 원자 UPDATE</b> 로
+ *       기록한다(지각 신호가 콜백이 올린 상태를 강등하지 못한다).</li>
+ *   <li><b>종결 판정</b> — 시퀀스 종료 시 1회 롤업 시도({@link AugmentSubmitRollupTxService}).
+ *       구 "{@code accepted==0} 즉시 롤업" 의 이관처다.</li>
+ *   <li><b>회수</b> — 아무 신호도 기록되지 않으면 기존 {@code AugmentJobExpirySweeper} 가 비종결 job 을
+ *       회수한다. <b>새 스위퍼를 만들지 않는다</b>(이중 진실원 금지).</li>
+ * </ol>
+ *
+ * <p><b>동기 실패 전파가 남는 것은 제출 이전의 사전 조건뿐</b>이다(신고 구간 거부 · 비식별 경로 부재 ·
+ * 선기록 실패). 외부에 아무것도 나가지 않은 실패이므로 기존과 동일하게 {@code dispatched=0} 을
+ * 반환하고 호출부가 즉시 실패 롤업한다.
  *
  * <p>트랜잭션: 본 서비스는 <b>트랜잭션을 열지 않는다</b>. 조회는 리포지토리 자신의 짧은 트랜잭션,
  * 기록은 {@link AugmentJobRecorder}(REQUIRES_NEW)에 위임한다 — 외부 HTTP 왕복 동안 트랜잭션과
@@ -121,6 +150,10 @@ public class AugmentJobSubmitService {
     private final AugmentMetrics metrics;
     /** 비식별 누락 신고 구간 판정 — 단일 원천(자체 재구현 금지). */
     private final DeidentReportGate deidentReportGate;
+    /** 비동기 제출 완료 기록 + 종결 판정 — 트랜잭션은 이 빈이 REQUIRES_NEW 로 위임한다. */
+    private final AugmentSubmitOutcomeRecorder outcomeRecorder;
+    /** 완료 신호·다음 청크 실행 전용 풀({@code augmentSubmitExecutor}) — 이벤트 루프 블로킹 차단. */
+    private final Scheduler submitScheduler;
     private final int maxInputFiles;
 
     public AugmentJobSubmitService(LsDataSrcRepository srcRepository,
@@ -129,6 +162,8 @@ public class AugmentJobSubmitService {
                                    ExternalAugmentClient externalClient,
                                    AugmentMetrics metrics,
                                    DeidentReportGate deidentReportGate,
+                                   AugmentSubmitOutcomeRecorder outcomeRecorder,
+                                   @Qualifier("augmentSubmitScheduler") Scheduler submitScheduler,
                                    @Value("${authoring.augment.external.max-input-files:100}")
                                    int maxInputFiles) {
         this.srcRepository = srcRepository;
@@ -137,6 +172,8 @@ public class AugmentJobSubmitService {
         this.externalClient = externalClient;
         this.metrics = metrics;
         this.deidentReportGate = deidentReportGate;
+        this.outcomeRecorder = outcomeRecorder;
+        this.submitScheduler = submitScheduler;
         this.maxInputFiles = clampChunkSize(maxInputFiles);
     }
 
@@ -198,28 +235,125 @@ public class AugmentJobSubmitService {
         // 전량 선기록 — <위탁 전에> 기대 job 집합을 완성한다(DEV_FIX 2차 MEDIUM-2).
         Optional<List<Long>> issued = issueAllChunks(event, chunks);
         if (issued.isEmpty()) {
-            // 선기록 단계에서 끊었으므로 외부로 나간 청크는 없다 → 수락 0건(호출부가 실패 롤업).
+            // 선기록 단계에서 끊었으므로 외부로 나간 청크는 없다 → 개시 0건(호출부가 실패 롤업).
             return SubmitOutcome.of(0);
         }
         List<Long> augJobSns = issued.get();
 
-        int accepted = 0;
-        for (int i = 0; i < chunks.size(); i++) {
+        dispatchChunks(event, evntType, chunks, augJobSns);
+        log.info("[Augment] 위탁 개시 originAugSn={} rawSn={} jobCount={}",
+                event.originAugSn(), event.rawSn(), chunks.size());
+        return SubmitOutcome.of(chunks.size());
+    }
+
+    /**
+     * 청크 <b>직렬</b> 논블로킹 위탁 개시 — 구독만 하고 즉시 반환한다 (Phase C-3).
+     *
+     * <h3>★ 병렬 발사 금지 — {@code concatMap} 으로 직렬화한다</h3>
+     * <p>청크 사이에는 비식별 누락 신고 <b>재판정</b>이 있다(아래 {@link #submitChunkAsync}). 위탁 도중
+     * 신고가 커밋되면 남은 청크의 PII 경로 전송을 끊는 방어인데, 청크를 병렬로 발사하면 그 방어가
+     * 통째로 무력화된다("앞 청크 완료 → 재판정 → 다음 청크" 순서가 깨지므로). 벤더 rate 측면에서도
+     * 100장×N 을 동시에 던지지 않아야 한다. 그래서 {@code flatMap} 이 아니라 {@code concatMap} 이다.
+     *
+     * <h3>실행 스레드</h3>
+     * <p>첫 청크의 조립은 호출 스레드(브리지의 {@code batch-async-})에서 일어나지만 <b>블로킹은 없다</b>.
+     * 두 번째 청크부터는 앞 청크의 {@code publishOn(augmentSubmitScheduler)} 덕에 전용 풀 스레드에서
+     * 재판정·제출이 실행된다 — 신고 재판정(DB 조회)이 reactor-netty 이벤트 루프에서 돌지 않는다.
+     *
+     * <h3>종결 판정</h3>
+     * <p>어떤 경로로 끝나든({@code doFinally}) 시퀀스 종료를 핸들러에 알린다. 구 동기 구현의
+     * "{@code accepted==0} 이면 즉시 실패 롤업" 이 여기로 이관됐다 —
+     * {@link AugmentSubmitRollupTxService} 주석 참조.
+     */
+    private void dispatchChunks(AugmentRequestedItemEvent event, String evntType,
+                                List<List<FrameInput>> chunks, List<Long> augJobSns) {
+        int jobCount = chunks.size();
+        try {
+            Flux.range(0, jobCount)
+                    .concatMap(i -> submitChunkAsync(
+                            event, evntType, chunks.get(i), augJobSns, i, jobCount))
+                    .then()
+                    // 중단 신호는 오류가 아니다 — 남은 청크 종결 기록은 이미 끝났고 정상 완료로 흡수한다.
+                    .onErrorResume(SubmitAbortedException.class, e -> Mono.empty())
+                    // 종결 판정(JPA)도 전용 풀에서만 실행한다 — publishOn 이 거부된 경우 이 콜백은
+                    // reactor-netty 이벤트 루프에서 실행되기 때문이다(M2). 풀이 거부하면 기록을
+                    // 포기하고 기존 만료 스윕(AugmentJobExpirySweeper)이 비종결 job 을 회수한다.
+                    .doFinally(signal -> SubmitSignalDispatch.run(submitScheduler, "Augment",
+                            event.originAugSn(),
+                            () -> outcomeRecorder.onSubmitSequenceFinished(event.originAugSn())))
+                    .subscribe(ignored -> { },
+                            err -> log.error("[Augment] 위탁 시퀀스 비정상 종료 originAugSn={} errType={}",
+                                    event.originAugSn(), err.getClass().getSimpleName()));
+        } catch (RuntimeException e) {
+            // 여기 도달하는 것은 <b>동기 구독 구간</b>의 실패뿐이다(첫 청크 조립·구독이 즉시 throw).
+            // 전용 풀 포화로 인한 publishOn 거부는 응답 도착 후에 발생하므로 이 catch 로는 잡히지
+            // 않는다 — 그 경로는 submitChunkAsync 의 onErrorResume 이 (이벤트 루프에서 JPA 를 돌리지
+            // 않도록) 별도로 처리한다. 선기록 job 은 durable 하므로 만료 스윕이 회수한다. 여기서 예외를
+            // 위로 던지면 호출부가 "위탁 0건" 으로 오판해 실제 나간 청크가 있는데도 증강을 REJECTED 로
+            // 못박을 수 있다.
+            metrics.externalRequestFailure();
+            log.error("[Augment] 위탁 구독 거부 originAugSn={} errType={}",
+                    event.originAugSn(), e.getClass().getSimpleName());
+            outcomeRecorder.onSubmitSequenceFinished(event.originAugSn());
+        }
+    }
+
+    /**
+     * 청크 1건의 비동기 위탁 — <b>신고 재판정 → 제출 → 결과 기록</b>.
+     *
+     * <p>재판정을 {@code Mono.defer} 안에 두는 것이 핵심이다. 조립 시점이 아니라 <b>앞 청크가 끝난
+     * 뒤 구독 시점</b>에 평가돼야 "위탁 도중 신고" 를 관측할 수 있다(조립 시점에 평가하면 전 청크가
+     * 같은 순간의 판정을 공유해 방어가 사라진다).
+     *
+     * <p>실패는 {@code onErrorResume} 으로 흡수해 <b>다음 청크를 계속</b> 위탁한다(건별 격리 —
+     * 기존 동기 계약과 동일). 사유는 핸들러가 DB 에 남긴다(조용한 삼킴 금지).
+     */
+    private Mono<Void> submitChunkAsync(AugmentRequestedItemEvent event, String evntType,
+                                        List<FrameInput> chunk, List<Long> augJobSns,
+                                        int index, int jobCount) {
+        return Mono.defer(() -> {
             // 청크마다 재판정한다 — 250장 위탁은 수 초~수십 초 걸리고, 그 사이 신고가 커밋되면 남은
             // 청크의 PII 경로 전송을 막을 수 있다(전송 단위가 청크이므로 여기서 끊는 것이 유효하다).
-            // 잠금(FOR UPDATE)은 쓰지 않는다 — 외부 HTTP 왕복 전체를 한 트랜잭션으로 묶어 신고 자체를
+            // 잠금(FOR UPDATE)은 쓰지 않는다 — 외부 왕복 전체를 한 트랜잭션으로 묶어 신고 자체를
             // 블록하게 되므로, 여기서는 무잠금 판정으로 남은 노출량만 줄인다.
-            if (i > 0 && deidentReportGate.isUnderDeidentReport(event.rawSn())) {
-                abortRemainingChunks(event, augJobSns, i, chunks.size());
-                break;
+            if (index > 0 && deidentReportGate.isUnderDeidentReport(event.rawSn())) {
+                abortRemainingChunks(event, augJobSns, index, jobCount);
+                return Mono.error(new SubmitAbortedException());
             }
-            if (submitChunk(event, evntType, chunks.get(i), augJobSns.get(i), i + 1, chunks.size())) {
-                accepted++;
-            }
-        }
-        log.info("[Augment] 위탁 완료 originAugSn={} rawSn={} jobCount={} acceptedCount={}",
-                event.originAugSn(), event.rawSn(), chunks.size(), accepted);
-        return SubmitOutcome.of(accepted);
+            int jobSeq = index + 1;
+            Long augJobSn = augJobSns.get(index);
+            AugmentSubmitCommand command = new AugmentSubmitCommand(
+                    event.originAugSn(), event.augType(),
+                    chunkRequestId(event.idempotencyKey(), jobSeq), evntType,
+                    event.requestUserNo(), event.callbackUrl(),
+                    chunk.stream().map(FrameInput::toInputFile).toList(), jobSeq, jobCount);
+            return externalClient.requestAugment(command)
+                    // 빈 응답(onComplete only)은 어느 핸들러도 타지 않으므로 실패로 승격한다.
+                    .switchIfEmpty(Mono.error(() -> new CustomException(
+                            ErrorCode.EXTERNAL_API_ERROR, "생성형AI 위탁 응답이 비어있습니다.")))
+                    // 완료 신호를 전용 풀로 옮긴다 — 기록(JPA)과 다음 청크의 신고 재판정이
+                    // reactor-netty 이벤트 루프에서 실행되면 모든 외부 호출이 동반 지연된다.
+                    .publishOn(submitScheduler)
+                    .doOnNext(result -> outcomeRecorder.onAccepted(
+                            event.originAugSn(), augJobSn, result.externalJobId(), jobSeq, jobCount))
+                    .onErrorResume(err -> {
+                        // ★ 전용 풀 거부(publishOn 스케줄 거부)는 <b>이벤트 루프</b>에서 흐른다 (M2).
+                        //  여기서 기록(JPA)을 하면 이벤트 루프가 커넥션 대기에 묶여 모든 외부 호출이
+                        //  동반 지연되고, 이어서 concatMap 이 다음 청크를 같은 스레드에서 구독해
+                        //  신고 재판정(DB 조회)까지 루프에서 돈다. 그래서 기록도 다음 청크도 하지 않고
+                        //  시퀀스를 중단한다 — 선기록 job 은 비종결로 남아 만료 스윕이 회수하고,
+                        //  롤업은 "부분 실패 = 전체 실패" 로 끝낸다(부분 프레임셋 성공 확정 불가).
+                        if (SubmitSignalDispatch.isPoolRejection(err)) {
+                            log.error("[Augment] 완료 신호 전용 풀 포화 — 남은 청크 중단 originAugSn={} jobSeq={}/{}",
+                                    event.originAugSn(), jobSeq, jobCount);
+                            return Mono.error(new SubmitAbortedException());
+                        }
+                        outcomeRecorder.onSubmitFailed(
+                                event.originAugSn(), augJobSn, jobSeq, jobCount, err);
+                        return Mono.empty();
+                    })
+                    .then();
+        });
     }
 
     /**
@@ -293,53 +427,38 @@ public class AugmentJobSubmitService {
     }
 
     /**
-     * 위탁 결과 — 202 수락된 job 개수.
+     * 위탁 결과 — <b>제출을 개시한</b> job 개수 (Phase C-3 로 의미가 바뀌었다).
      *
-     * <p>{@code accepted==0} 은 즉시 실패 롤업 대상이다(콜백이 영영 오지 않아 PENDING 고착).
-     * 정책 보류 구분({@code withheld})은 2026-07-29 로 제거됐다 — 신고 구간 차단도 거부(실패)로
-     * 종결하므로 "롤업하지 않고 재개를 기다리는" 상태가 더 이상 없다.
+     * <h3>구 의미("202 수락 건수")를 유지할 수 없는 이유</h3>
+     * <p>제출이 논블로킹이 되면 반환 시점에는 수락 여부를 알 수 없다. 억지로 알려면 ACK 를 기다려야
+     * 하는데 그것이 바로 제거 대상이었다. 그래서 이 값은 "외부로 나가기 시작한 청크 수" 이고,
+     * <b>실제 수락/실패 집계와 종결 판정은 완료 핸들러</b>({@link AugmentSubmitOutcomeRecorder})<b>가
+     * {@code LS_DATA_AUG_JOB} 에 누적한 뒤</b> 수행한다.
      *
-     * @param accepted 202 수락된 job 개수
+     * <p>따라서 {@code dispatched==0} 은 이제 "제출 <b>전에</b> 거부됐다"(신고 구간·비식별 경로 부재·
+     * 선기록 실패)는 뜻이며, 이 경우에만 호출부가 즉시 실패 롤업한다 — 외부로 나간 것이 없으므로
+     * 그 판정이 안전하다. 개시된 뒤의 전 청크 실패는 핸들러의 시퀀스 종료 롤업이 처리한다.
+     *
+     * @param dispatched 제출을 개시한 job 개수
      */
-    public record SubmitOutcome(int accepted) {
+    public record SubmitOutcome(int dispatched) {
 
-        static SubmitOutcome of(int accepted) {
-            return new SubmitOutcome(accepted);
+        static SubmitOutcome of(int dispatched) {
+            return new SubmitOutcome(dispatched);
         }
 
-        /** 콜백이 오지 않을 상태(위탁 0건)인가 — 즉시 실패 롤업 판정. */
+        /** 외부로 한 건도 나가지 않았는가(제출 전 거부) — 호출부의 즉시 실패 롤업 판정. */
         public boolean requiresFailureRollup() {
-            return accepted == 0;
+            return dispatched == 0;
         }
     }
 
-    /**
-     * 청크 1건 위탁 — 외부 호출 → 결과 반영. 예외는 여기서 흡수하되 <b>DB 에 사유를 남긴다</b>.
-     *
-     * <p>선기록({@code recordIssued})은 {@link #issueAllChunks} 가 <b>위탁 루프 진입 전에</b> 전량
-     * 끝냈으므로 여기서는 이미 확보된 {@code augJobSn} 을 받아 쓴다.
-     *
-     * @return 202 수락 여부
-     */
-    private boolean submitChunk(AugmentRequestedItemEvent event, String evntType,
-                                List<FrameInput> chunk, Long augJobSn, int jobSeq, int jobCount) {
-        String requestId = chunkRequestId(event.idempotencyKey(), jobSeq);
-        try {
-            AugmentSubmitResult result = externalClient.requestAugment(new AugmentSubmitCommand(
-                    event.originAugSn(), event.augType(), requestId, evntType,
-                    event.requestUserNo(), event.callbackUrl(),
-                    chunk.stream().map(FrameInput::toInputFile).toList(), jobSeq, jobCount));
-            jobRecorder.markAccepted(augJobSn, result.externalJobId());
-            metrics.externalRequestSuccess();
-            return true;
-        } catch (Exception e) {
-            // 건별 격리 — 실패해도 다음 청크는 계속 위탁한다. 사유는 반드시 남긴다.
-            metrics.externalRequestFailure();
-            String reason = sanitize(e.getMessage());
-            jobRecorder.markFailed(augJobSn, LsDataAugJob.ERR_SUBMIT_FAILED, reason);
-            log.warn("[Augment] 위탁 실패(격리) originAugSn={} jobSeq={}/{} err={}",
-                    event.originAugSn(), jobSeq, jobCount, reason);
-            return false;
+    /** 위탁 도중 신고 관측으로 남은 청크를 끊는 내부 신호 — 오류가 아니라 <b>정상 중단</b>이다. */
+    private static final class SubmitAbortedException extends RuntimeException {
+
+        private SubmitAbortedException() {
+            // 스택트레이스 미수집 — 제어 흐름 신호라 비용만 든다.
+            super(null, null, false, false);
         }
     }
 

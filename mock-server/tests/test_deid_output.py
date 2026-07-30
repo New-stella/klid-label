@@ -25,7 +25,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-from app.services import deid_sim
+from app.services import deid_sim, path_policy
 
 # 마스킹명 형식: <stem>-mask[.<ext>] (실서버 계약 — 타임스탬프 세그먼트 없음)
 _MASK_RE = re.compile(r"^.+-mask(\.[^./\\]+)?$")
@@ -75,7 +75,13 @@ def _create(
         },
     )
     assert res.status_code == 200
-    return res.json()
+    body = res.json()
+    # ★ 비동기 접수(구속 원칙) — ``POST /project`` 는 접수만 하고 즉시 반환하므로, 산출물을
+    #   단정하려면 백그라운드 산출이 <b>종결</b>될 때까지 기다려야 한다. 응답 직후 파일이 없는
+    #   것은 결함이 아니라 정상이다.
+    state = deid_sim.wait_for_production(body["prj_id"], timeout=60.0)
+    assert state in ("SUCCEEDED", "FAILED"), f"산출이 종결되지 않았다(state={state})"
+    return body
 
 
 def _progress_file_names(client: TestClient, prj_id: int) -> list[str]:
@@ -113,10 +119,11 @@ def _derived_output_names(client: TestClient, prj_id: int) -> list[str]:
 
 # ── 마스킹 파일명 규칙 ────────────────────────────────────────────
 def test_영상모드_생성파일명이_마스킹규칙을_따른다(client: TestClient, tmp_path) -> None:
-    # given
+    # given — 원본이 실재하는 정상 경로(#3 이후 원본을 못 읽으면 산출 자체가 실패로 종결된다)
     export = tmp_path / "export"
     inp = tmp_path / "input"
     inp.mkdir()
+    (inp / "a.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
     # when
     _create(
         client,
@@ -125,8 +132,9 @@ def test_영상모드_생성파일명이_마스킹규칙을_따른다(client: Te
         input_path=f"{inp}/",
         files=["a.mp4"],
     )
-    # then — export 하위 유일 파일이 {stem}-mask{ext} 형식이고 크기>0
-    outputs = list(export.iterdir())
+    # then — export 하위 유일 <b>정규 파일</b>이 {stem}-mask{ext} 형식이고 크기>0
+    # (임시 산출물 은닉 디렉터리 ``.mock-tmp`` 는 정규 파일이 아니라 BE 폴백 스캔 대상이 아니다)
+    outputs = [p for p in export.iterdir() if p.is_file()]
     assert len(outputs) == 1
     out = outputs[0]
     assert _MASK_RE.match(out.name), out.name
@@ -149,6 +157,8 @@ def test_영상모드_progress_fileName이_원본입력경로다(
     export = tmp_path / "export"
     inp = tmp_path / "input"
     inp.mkdir()
+    (inp / "cam01.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
+    (inp / "cam02.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_456")
     body = _create(
         client,
         name="p1",
@@ -174,6 +184,7 @@ def test_슬래시포함_fileName도_progress와_실제파일명이_일치(
     export = tmp_path / "export"
     inp = tmp_path / "input"
     inp.mkdir()
+    (inp / "a.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
     body = _create(
         client,
         name="p1",
@@ -209,14 +220,17 @@ def test_이미지폴더모드_progress_fileName과_산출물명(
     )
     # when
     file_names = _progress_file_names(client, body["prj_id"])
-    # then — fileName 은 폴더 경로, 산출물은 {folderbase}-mask (확장자 없음)
+    # then — fileName 은 폴더 경로, 파생 산출물명은 {folderbase}-mask (확장자 없음)
     assert len(file_names) == 1
     out_name = _derived_output_names(client, body["prj_id"])[0]
     assert out_name == "imgfolder-mask"
     assert _MASK_RE.match(out_name), out_name
-    out = export / out_name
-    assert out.is_file()
-    assert out.stat().st_size > 0
+    # #3 — 이미지 폴더 모드는 <b>읽을 수 있는 원본 파일</b>이 없다(원본 축이 폴더다). 구 동작은
+    # 18B placeholder 를 최종 경로에 써서 '완료'로 보고했지만, 그건 BE 무결성(≥512B)에서
+    # 탈락하는 위장 산출물이라 폐기했다 — 지금은 산출 실패로 종결한다.
+    # (우리 BE 는 is_img 를 보내지 않는다 — KpstProjectRequest.withDefaults 는 영상 모드 전용.)
+    assert deid_sim.production_state_of(body["prj_id"]) == "FAILED"
+    assert not (export / out_name).exists()
 
 
 # ── B-ISSUE-84: 실서버 계약 정합 ──────────────────────────────────
@@ -228,6 +242,7 @@ def test_mock_server_의_fileName_이_원본_입력_절대경로다(
     export = tmp_path / "export"
     inp = tmp_path / "raw" / "seed"
     inp.mkdir(parents=True)
+    (inp / "clip-9101.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
     body = _create(
         client,
         name="p1",
@@ -268,6 +283,7 @@ def test_mock_server_산출물_파일명이_stem_hyphen_mask_ext_다(
     export = tmp_path / "export"
     inp = tmp_path / "input"
     inp.mkdir()
+    (inp / "001.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
     _create(
         client,
         name="p1",
@@ -275,8 +291,8 @@ def test_mock_server_산출물_파일명이_stem_hyphen_mask_ext_다(
         input_path=f"{inp}/",
         files=["001.mp4"],
     )
-    # then
-    outputs = [p.name for p in export.iterdir()]
+    # then (``.mock-tmp`` 은닉 디렉터리는 정규 파일이 아니라 제외)
+    outputs = [p.name for p in export.iterdir() if p.is_file()]
     assert outputs == ["001-mask.mp4"]
     assert not re.search(r"_\d{12}_mask", outputs[0])
 
@@ -304,9 +320,17 @@ def test_input_path에_원본이_있으면_마스킹명으로_복사된다(
     assert (export / out_name).read_bytes() == b"ORIGINAL_VIDEO_BYTES_123"
 
 
-def test_input_path에_원본이_없으면_마스킹명_placeholder로_생성(
+def test_input_path에_원본이_없으면_placeholder를_쓰지않고_산출실패로_종결한다(
     client: TestClient, tmp_path
 ) -> None:
+    """#3 — 18B placeholder 로 <b>최종 경로를 선점</b>하던 동작을 제거한 회귀 가드.
+
+    구 동작: placeholder(18B) 를 최종 경로에 쓰고 ``production=SUCCEEDED`` → ``procState=2``
+    (완료)로 보고 → BE 는 무결성(≥512B + 컨테이너 시그니처)에서 탈락시켜 'F' 를 남기는데,
+    no-overwrite 라 그 이름은 이후 어떤 재시도로도 대체되지 못한다(영구 고착).
+    이 분기는 드물지 않다 — 목 컨테이너에 원본 볼륨이 미마운트되거나 ``MOCK_INPUT_BASE`` 가
+    BE 마운트와 어긋나면 BE 만 원본을 보고 목은 못 본다.
+    """
     # given — input 디렉터리에 원본 없음
     export = tmp_path / "export"
     inp = tmp_path / "input"
@@ -318,12 +342,12 @@ def test_input_path에_원본이_없으면_마스킹명_placeholder로_생성(
         input_path=f"{inp}/",
         files=["a.mp4"],
     )
-    # then — 마스킹명 placeholder(비어있지 않음)로 생성.
-    #   ⚠ 이 placeholder 는 BE 무결성(크기 하한 + 컨테이너 시그니처)을 <통과하지 못한다>(의도된 동작).
+    # then — 최종 경로를 <b>선점하지 않는다</b> + 산출은 명시적 실패(procState=99)로 종결
     out_name = _derived_output_names(client, body["prj_id"])[0]
-    out = export / out_name
-    assert out.is_file()
-    assert out.read_bytes() == deid_sim.PLACEHOLDER_BYTES
+    assert not (export / out_name).exists()
+    # export 디렉터리 직속에 정규 파일이 하나도 없다(BE 폴백 스캔이 집을 것도 없다)
+    assert [p for p in export.iterdir() if p.is_file()] == []
+    assert deid_sim.production_state_of(body["prj_id"]) == "FAILED"
 
 
 # ── HIGH-1 fail-closed ────────────────────────────────────────────
@@ -351,6 +375,7 @@ def test_output_base_미설정이면_파일이_생기지않는다_failclosed(
     )
     # then — 200 유지하되 파일/디렉터리 미생성
     assert res.status_code == 200
+    deid_sim.wait_for_production(res.json()["prj_id"], timeout=60.0)
     assert not export.exists()
 
 
@@ -391,6 +416,7 @@ def test_output_base_설정시_base안_export_path는_쓰기허용(
     export = base / "videos" / "10"
     inp = tmp_path / "input"
     inp.mkdir()
+    (inp / "a.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
     monkeypatch.setenv("MOCK_OUTPUT_BASE", str(base))
     reload_settings()
     # when
@@ -423,6 +449,7 @@ def test_콤마구분_다중base_중_하나의_하위면_co_locate_export_path�
     deid_root.mkdir()
     inp = raw_root / "seed"
     inp.mkdir()
+    (inp / "clip-9101.mp4").write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
     export = inp / "77" / "deid"  # dirname(원본)/{rawSn}/deid
     monkeypatch.setenv("MOCK_OUTPUT_BASE", f"{raw_root},{deid_root}")
     reload_settings()
@@ -551,6 +578,10 @@ def test_fileName에_traversal이_들어와도_export_path_밖에는_안생긴�
     inp = tmp_path / "input"
     inp.mkdir()
     outside = root / "evil.mp4"
+    # 정화 후 basename 에 해당하는 원본을 실제로 배치한다 — #3 이후 원본을 읽지 못하면 산출이
+    # 실패로 종결되므로, "정화된 이름으로 export 안에만 생성된다"를 보려면 원본이 있어야 한다.
+    for seed in ("evil.mp4", "evil2.mp4", "ok.mp4"):
+        (inp / seed).write_bytes(b"ORIGINAL_VIDEO_BYTES_123")
     # when — traversal 파일명(마스킹명 조립 전에 basename 정화됨)
     body = _create(
         client,
@@ -622,6 +653,7 @@ def test_export_path를_파일이_점유해도_project는_200(
     # then
     assert res.status_code == 200
     assert res.json()["result"] == "success"
+    deid_sim.wait_for_production(res.json()["prj_id"], timeout=60.0)
     # 파일은 그대로(디렉터리로 바뀌지 않음)
     assert export_as_file.is_file()
 
@@ -703,9 +735,15 @@ def test_허용루트_밖_input_path의_원본은_복사하지_않는다(
         input_path=f"{outside}/",
         files=["a.mp4"],
     )
-    # then — 복사 대신 placeholder (원본 내용이 새지 않는다)
+    # then — 원본 내용이 새지 않는다. #3 이후에는 placeholder 로 대체하지도 않고
+    #        <b>산출 실패</b>로 종결한다(최종 이름을 선점하면 no-overwrite 로 영구 고착).
     out_name = _derived_output_names(client, body["prj_id"])[0]
-    assert (export / out_name).read_bytes() == deid_sim.PLACEHOLDER_BYTES
+    assert not (export / out_name).exists()
+    assert deid_sim.production_state_of(body["prj_id"]) == "FAILED"
+    if export.exists():
+        for produced in export.iterdir():
+            if produced.is_file():
+                assert b"SECRET_OUTSIDE_BYTES" not in produced.read_bytes()
 
 
 def test_허용루트_안_input_path의_원본은_복사된다(
@@ -826,14 +864,60 @@ def test_원본이_없을뿐이면_WARN이_아니라_INFO로_남는다(
             files=["a.mp4"],
         )
 
-    # then — placeholder 는 그대로 생성되지만 보안 이벤트(WARN)로 오인되면 안 된다
+    # then — 산출은 실패로 종결되지만(#3), 그 사유가 <b>보안 이벤트(경계 위반)</b>로 오인되면
+    #        안 된다. 두 경우는 로그 메시지로 구분된다:
+    #          · 허용 루트 밖 요청 → "deid source rejected(boundary)"  ← 보안 이벤트
+    #          · 원본이 없을 뿐   → "not readable"                     ← 목 운영 시나리오
     out_name = _derived_output_names(client, body["prj_id"])[0]
-    assert (export / out_name).read_bytes() == deid_sim.PLACEHOLDER_BYTES
-    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
-    assert any("not readable" in r.getMessage() for r in caplog.records)
+    assert not (export / out_name).exists()
+    assert deid_sim.production_state_of(body["prj_id"]) == "FAILED"
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("not readable" in m for m in messages)
+    assert not any("rejected(boundary)" in m for m in messages)
+
+
+# ── MEDIUM-3: 입력 허용 루트가 '/' 로 붕괴하지 않는다 (CWE-22/CWE-1188) ──
+def test_최상위_1단_output_base는_입력루트가_루트로_붕괴하지_않는다() -> None:
+    """``/nas-storage`` 처럼 최상위 1단 루트면 상위(``/``)를 허용 루트로 채택하면 안 된다.
+
+    CLAUDE.md 가 명시한 운영 스토리지 루트가 정확히 이 형태라, 붕괴하면 목이 인증 없이
+    파일시스템 전체를 읽을 수 있게 된다.
+    """
+    from app.config import Settings
+
+    settings = Settings(output_base="/nas-storage", input_base="")
+    assert settings.effective_input_base() == ""
+    # 그리고 그 빈 값은 '제한 없음'이 아니라 fail-closed 로 해석된다.
+    deid_sim.reset_base_warning()
+    assert deid_sim.input_root_configured("") is False
+    deid_sim.reset_base_warning()
+
+
+def test_다단계_output_base는_기존대로_상위를_입력루트로_쓴다() -> None:
+    # given / when / then — 정상 형상(2단 이상)은 기존 동작 그대로(회귀 없음)
+    from app.config import Settings
+
+    settings = Settings(output_base="/app/storage/deidentified", input_base="")
+    assert settings.effective_input_base() == "/app/storage"
+    # 붕괴 항목만 버리고 정상 항목은 유지한다(콤마 다중 base)
+    mixed = Settings(output_base="/nas-storage,/app/storage/deidentified", input_base="")
+    assert mixed.effective_input_base() == "/app/storage"
+
+
+def test_명시_input_base는_그대로_사용된다() -> None:
+    from app.config import Settings
+
+    settings = Settings(output_base="/nas-storage", input_base="/nas-storage")
+    assert settings.effective_input_base() == "/nas-storage"
 
 
 def test_resolve_input_dir_경계(tmp_path) -> None:
+    """저수준 헬퍼의 경계 계약.
+
+    ⚠ 이 함수는 ``path_policy`` 에서만 접근한다 — ``deid_sim`` 재노출은 제거됐다(#6).
+    fail-open(base 미설정 = 제한 없음) 계약이라 원본을 읽는 소비자가 직접 쓰면 안 되고,
+    반드시 정책 진입점 ``path_policy.resolve_readable_dir`` 을 거쳐야 한다.
+    """
     # given
     storage = tmp_path / "storage"
     inside = storage / "raw"
@@ -841,7 +925,9 @@ def test_resolve_input_dir_경계(tmp_path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
     # when / then
-    assert deid_sim.resolve_input_dir(str(inside), str(storage)) is not None
-    assert deid_sim.resolve_input_dir(str(outside), str(storage)) is None
-    # base 미설정이면 제한하지 않는다(출력 base 도 없으면 애초에 파일을 쓰지 않는다)
-    assert deid_sim.resolve_input_dir(str(outside), "") is not None
+    assert path_policy.resolve_input_dir(str(inside), str(storage)) is not None
+    assert path_policy.resolve_input_dir(str(outside), str(storage)) is None
+    # base 미설정이면 제한하지 않는다(그래서 소비자는 정책 진입점을 써야 한다)
+    assert path_policy.resolve_input_dir(str(outside), "") is not None
+    # 정책 진입점은 같은 입력을 fail-closed 로 거부한다
+    assert path_policy.resolve_readable_dir(str(outside), "") is None

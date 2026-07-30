@@ -53,6 +53,14 @@
 - 종결 상태(`VLM_COMPLETED`/`VLM_FAILED`)만 남은 영상의 **재마킹은 허용**된다(새 배치 사이클을 여는 정당한 동선).
 - 동시 요청 방어는 서비스 사전 조회가 아니라 **DB 부분 유니크 인덱스** `UK_LS_MARKING_RAW_ACTVTN`(V142)가 최종 보증한다 — 위반은 409 로 변환된다.
 
+### 6.4-2 VLM 위탁 구간의 마킹 상태 전이 (2026-07-30)
+
+VLM 제출이 논블로킹이 되면서 **콜백이 수락 응답(ACK)보다 먼저 도착**할 수 있게 됐다. 마킹 상태가 `VLM_REQUESTED` 에 영구 고착되는 것을 **양단에서** 막는다 → [09 §9.2-3](09-vlm-timeseries.md).
+
+- **송신측(선커밋)** — `PENDING → VLM_REQUESTED` 전이를 **제출 전에** 독립 커밋한다(`VlmMarkingTxService`, `REQUIRES_NEW`). 전이는 `PENDING` 에서만 발생한다(종결 상태 역행 금지).
+- **수신측(조회 범위 확대)** — 콜백 처리(`VlmResultService`)가 전이 대상을 `VLM_REQUESTED` 단독이 아니라 **`PENDING` + `VLM_REQUESTED`**(= 위 활성 정의와 동일)로 조회한다. 종결 상태는 포함하지 않으므로 이미 `VLM_COMPLETED` 면 0건 = 멱등 no-op.
+- **단, 위탁 발급 시각 이후에 새로 생긴 `PENDING` 마킹은 제외** — 앞선 위탁이 `VLM_FAILED` 로 끝난 뒤 작업자가 **재마킹**했는데 옛 request 의 지각 콜백이 도착하면, 한 번도 위탁된 적 없는 새 마킹이 `VLM_COMPLETED`(또는 `VLM_FAILED`)로 잘못 전이된다. 발급 시각을 알 수 없는 구 원장 행은 종전대로 전부 대상(고착 방지 우선).
+
 ## 6.5 관련 데이터 (DB)
 
 `LS_MARKING` (V45) — `EVNT_NM`(이벤트명), `MARK_MODE_CD`(AUTO/MANUAL), `FRME_INTV_NOCS`(프레임 간격), `MARK_CN`(marks JSON), `STTS_CD`(상태), 부분 유니크 인덱스 `UK_LS_MARKING_RAW_ACTVTN`(V142 — 활성 마킹 1건). → [18](18-database.md).

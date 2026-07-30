@@ -26,10 +26,15 @@ import java.util.Optional;
  * <ul>
  *   <li>자동 재비식별 큐를 신설하지 않는다. 실패 영상은 외부 비식별 프로그램에서 수동 재비식별 후
  *       기존 수동 resolve 경로로 복구한다.</li>
- *   <li>실패 시 deIdntfYn='F' 는 {@code DeidentifyStep} 이 <b>별도 커밋 트랜잭션</b>
- *       ({@code BatchTransitionService.recordDeidentFailure}, REQUIRES_NEW)으로 기록하므로 — 본 run()
- *       의 REQUIRES_NEW 롤백과 독립적으로 'F' 가 영속된다 — 여기서는 WARN 로깅만 하고 예외를
- *       삼킨다(@Async). MARKING_READY 로 전이하지 않는다.</li>
+ *   <li>실패 시 deIdntfYn='F' 는 <b>별도 커밋 트랜잭션</b>으로 기록되므로 — 본 run() 의 REQUIRES_NEW
+ *       롤백과 독립적으로 'F' 가 영속된다 — 여기서는 WARN 로깅만 하고 예외를 삼킨다(@Async).
+ *       MARKING_READY 로 전이하지 않는다. 기록 주체는 실패 시점에 따라 둘로 나뉜다:
+ *       ①<b>제출 이전</b>(mock 원본 부재·KPST 원본 부재/경로 손상) — {@code DeidentifyStep}/
+ *       {@code KpstDeidentService} 가 {@code BatchTransitionService.recordDeidentFailure}
+ *       (REQUIRES_NEW)로 기록하고 예외가 여기까지 전파된다. ②<b>제출 이후</b>(KPST ACK 왕복 실패,
+ *       Phase C-2 논블로킹 전환) — 예외가 이 스레드로 오지 않으며 {@code KpstSubmitOutcomeRecorder}
+ *       가 전용 풀에서 {@code KpstDeidentTxService.failSubmit}(REQUIRES_NEW)로 기록한다. 어느 쪽이든
+ *       종단 상태는 "원장 FAILED + DE_IDNTF_YN='F' + MARKING_READY 미전이"로 동일하다.</li>
  * </ul>
  *
  * <p>{@code AsyncBatchRunner} 의 try/catch + 로깅 패턴을 따른다. 재시도 큐(BatchRetryQueue) 는

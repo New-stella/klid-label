@@ -39,6 +39,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -107,8 +108,9 @@ class AugmentRequestServiceTest {
         tx = new TransactionTemplate(controlTransactionManager);
         reviewer = new TokenClaims("1",   Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         worker   = new TokenClaims("100", Role.WORKER,   Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        // Phase C-3 — 클라이언트는 Mono 를 반환한다(제출은 ACK 를 기다리지 않는다).
         given(externalClient.requestAugment(any()))
-                .willReturn(AugmentSubmitResult.accepted("ext-job-" + UUID.randomUUID()));
+                .willReturn(Mono.just(AugmentSubmitResult.accepted("ext-job-" + UUID.randomUUID())));
     }
 
     @AfterEach
@@ -378,7 +380,7 @@ class AugmentRequestServiceTest {
             // false 로 남아(위 클래스 주석 "함정") 회귀를 놓친다.
             syncActive.set(TransactionSynchronizationManager.isSynchronizationActive());
             emBound.set(TransactionSynchronizationManager.getResource(controlEmf) != null);
-            return AugmentSubmitResult.accepted("ext-job-" + UUID.randomUUID());
+            return Mono.just(AugmentSubmitResult.accepted("ext-job-" + UUID.randomUUID()));
         });
 
         Long raw = nextRawSn();
@@ -401,7 +403,8 @@ class AugmentRequestServiceTest {
                 .as("외부 위탁 중 EntityManager 가 스레드에 바인딩돼 있으면 그것이 잡은 커넥션이 "
                         + "HTTP 왕복 내내 반납되지 않는다")
                 .isFalse();
-        assertThat(outcome.accepted()).as("위탁이 실제로 수락돼 외부 호출 시점이 관측됐어야 한다").isEqualTo(1);
+        assertThat(outcome.dispatched())
+                .as("위탁이 실제로 개시돼 외부 호출 시점이 관측됐어야 한다").isEqualTo(1);
         assertThat(jobsOf(augSn)).as("청크 선기록도 정상 수행된다").hasSize(1);
     }
 
@@ -586,7 +589,7 @@ class AugmentRequestServiceTest {
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(raw, 0);
         given(externalClient.requestAugment(any()))
-                .willThrow(new RuntimeException("외부 시스템 장애 (mock)"));
+                .willReturn(Mono.error(new RuntimeException("외부 시스템 장애 (mock)")));
 
         AugmentRequestRequest req = new AugmentRequestRequest(
                 List.of(raw), List.of(AugmentTypeCode.WINTER));

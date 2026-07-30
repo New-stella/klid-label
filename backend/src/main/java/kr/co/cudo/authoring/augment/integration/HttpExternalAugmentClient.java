@@ -87,27 +87,44 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
         return true;
     }
 
+    /**
+     * 위탁 제출 — <b>논블로킹</b>. 구독 시점에 호출을 개시하고 202 ACK 도 기다리지 않는다 (Phase C-3).
+     *
+     * <p>구 구현은 {@code .block()} 으로 ACK 왕복(타임아웃 10s × 재시도) 동안 호출 스레드를 붙잡았다.
+     * 지금은 {@link Mono} 를 그대로 반환하고 호출부({@code AugmentJobSubmitService})가 전용 스케줄러로
+     * 완료 신호를 옮겨 처리한다.
+     *
+     * <p><b>연산자 순서는 의미가 있다</b>: 응답 검증({@link #validate})은 재시도/서킷 연산자 <b>뒤</b>에
+     * 둔다 — 구 구현이 {@code block()} 이후에 검증했던 것과 동일한 의미다. 앞에 두면 계약 위반 응답
+     * (request_id echo 불일치 등)이 재시도 대상이 되어 <b>중복 위탁</b>이 된다.
+     *
+     * <p>빈 응답(onComplete only)은 어느 핸들러도 타지 않으므로 {@code switchIfEmpty} 로 실패로 승격한다
+     * (구 구현의 {@code response == null} 가드와 동일 판정).
+     */
     @Override
-    public AugmentSubmitResult requestAugment(AugmentSubmitCommand command) {
+    public Mono<AugmentSubmitResult> requestAugment(AugmentSubmitCommand command) {
         GenAiJobSubmitRequest body = toRequestBody(command);
-        log.info("[Augment] genai submit originAugSn={} augType={} jobSeq={}/{} inputCount={}",
-                command.originAugSn(), safe(command.augType()),
-                command.jobSeq(), command.jobCount(), command.inputFiles().size());
 
-        GenAiJobAcceptedResponse response = webClient.post()
-                .uri(JOBS_PATH)
-                .header(IDEMPOTENCY_HEADER, command.requestId())
-                .bodyValue(body)
-                .retrieve()
-                // 4xx = 결정적 오류(형식/경로/이벤트유형). 재시도해도 결과가 같고 중복 위탁 위험만 는다.
-                .onStatus(HttpStatusCode::is4xxClientError, this::toNonRetryable4xx)
-                .bodyToMono(GenAiJobAcceptedResponse.class)
-                .timeout(timeout)
-                .transformDeferred(RetryOperator.of(retry))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
-                .block();
-
-        return AugmentSubmitResult.accepted(validate(response, command.requestId()));
+        return Mono.defer(() -> {
+            log.info("[Augment] genai submit originAugSn={} augType={} jobSeq={}/{} inputCount={}",
+                    command.originAugSn(), safe(command.augType()),
+                    command.jobSeq(), command.jobCount(), command.inputFiles().size());
+            return webClient.post()
+                    .uri(JOBS_PATH)
+                    .header(IDEMPOTENCY_HEADER, command.requestId())
+                    .bodyValue(body)
+                    .retrieve()
+                    // 4xx = 결정적 오류(형식/경로/이벤트유형). 재시도해도 결과가 같고 중복 위탁 위험만 는다.
+                    .onStatus(HttpStatusCode::is4xxClientError, this::toNonRetryable4xx)
+                    .bodyToMono(GenAiJobAcceptedResponse.class)
+                    .timeout(timeout)
+                    .transformDeferred(RetryOperator.of(retry))
+                    .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+        })
+                // 예외는 지연 생성한다(정상 경로에서 불필요한 스택트레이스 채움 방지).
+                .switchIfEmpty(Mono.error(() -> new CustomException(
+                        ErrorCode.EXTERNAL_API_ERROR, "생성형AI 위탁 응답이 비어있습니다.")))
+                .map(response -> AugmentSubmitResult.accepted(validate(response, command.requestId())));
     }
 
     /** 커맨드 → 명세서 §4.1 요청 바디. 채널/작업유형/생성모드는 저작도구 증강 고정값이다. */

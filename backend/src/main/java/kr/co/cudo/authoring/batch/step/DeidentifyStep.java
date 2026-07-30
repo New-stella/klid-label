@@ -44,6 +44,14 @@ import java.util.Set;
  *  - ① {@code mockMode}(local 전용): 외부 호출 없이 원본을 비식별 경로로 복사.
  *  - ② KPST 위탁({@code kpst.deid.enabled=true}): {@link KpstDeidentService#submit} 위탁만 수행하고
  *       완료(다운로드→Y전이)는 폴링 잡이 담당.
+ * <p>
+ * 실패 전파 계약 (Phase C-2 — 논블로킹 제출 전환에 따른 재배선):
+ *  - <b>제출 이전</b>의 실패(원본 부재·경로 손상·export 디렉터리 생성/검증 실패)는 <b>여전히 예외</b>로
+ *    전파되어 본 단계가 실패하고, 'F' 마킹은 별도 트랜잭션으로 커밋된다(기존과 동일).
+ *  - <b>제출 이후</b>(ACK 왕복)의 실패는 이 스레드로 돌아오지 않는다. {@code KpstSubmitOutcomeRecorder}
+ *    가 전용 풀에서 원장 FAILED + {@code DE_IDNTF_YN='F'}(+재비식별이면 락 해제)를 <b>별도 REQUIRES_NEW
+ *    로 커밋</b>하므로 종단 상태는 구 동기 계약과 동일하다. 어느 경로에서도 MARKING_READY 로 전이되지
+ *    않으므로 마킹 조기 진입은 발생하지 않는다.
  * 둘 다 아닌 경우(mock 아님 + KPST 서비스 미주입)는 설정 오류로 간주하고 명확한 예외를 던진다
  * (레거시 폴백 없음, 내부 정보 미노출).
  * <p>
@@ -248,6 +256,8 @@ public class DeidentifyStep implements BatchStep {
      *  1. {@code mockMode}(local 전용): 외부 호출 없이 원본을 비식별 경로로 복사.
      *  2. KPST 위탁({@code kpstEnabled} + 서비스 주입): {@link KpstDeidentService#submit} 위탁만 수행.
      *     DE_IDNTF_YN 미전이(완료 대기), MARKING_READY 미전이 — 완료는 폴링 잡이 담당.
+     *     제출은 논블로킹이라 ACK 를 기다리지 않는다(Phase C-2) — 제출 이후 실패는 예외가 아니라
+     *     완료 핸들러의 별도 커밋('F')으로 나타난다(클래스 javadoc "실패 전파 계약" 참조).
      *  3. 그 외(설정 오류): 레거시 동기 폴백 없음 → 명확한 설정 오류 예외(내부 정보 미노출).
      * <p>
      * REQUIRES_NEW 트랜잭션: 위탁 실패 시에도 src 레코드는 유지된다.

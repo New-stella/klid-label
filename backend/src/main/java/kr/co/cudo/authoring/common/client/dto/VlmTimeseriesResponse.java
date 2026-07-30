@@ -28,8 +28,25 @@ public record VlmTimeseriesResponse(
     /** describe 수락 상태 값. */
     public static final String STATUS_ACCEPTED = "accepted";
 
+    /**
+     * <b>제출 완료(ACK 대기)</b> 상태 값 — Phase C-1 논블로킹 전환에서 신설.
+     *
+     * <p>{@code VlmTimeseriesStep} 은 더 이상 ACK 왕복을 기다리지 않으므로(스레드 미점유),
+     * 스텝이 호출자에게 돌려줄 수 있는 사실은 "외부로 제출을 <b>개시</b>했다" 뿐이다.
+     * 실제 수락({@code accepted}) 여부는 완료 핸들러가 {@code LS_BATCH_PROC_LOG.RESP_PAYLOAD_CN} 에
+     * 비동기로 기록하며, 끝내 아무 신호도 없으면 미결 스위퍼가 회수한다.
+     *
+     * <p>이 값은 <b>외부 벤더 응답 값이 아니다</b>(벤더는 여전히 accepted 만 보낸다) — 내부 sentinel 이다.
+     */
+    public static final String STATUS_SUBMITTED = "submitted";
+
     /** 외부 위탁 비활성(enabled=false)/stub 모드에서 반환하는 sentinel. */
     public static VlmTimeseriesResponse skipped(String requestId) {
         return new VlmTimeseriesResponse(requestId, "skipped");
+    }
+
+    /** 논블로킹 제출 개시 sentinel — ACK 는 완료 핸들러가 비동기로 기록한다. */
+    public static VlmTimeseriesResponse submitted(String requestId) {
+        return new VlmTimeseriesResponse(requestId, STATUS_SUBMITTED);
     }
 }

@@ -94,7 +94,7 @@ class VlmResultServiceMarkingTest {
         LsMarking marking = createMarkingWithStatus(600L, LsMarking.STATUS_VLM_REQUESTED);
         assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
 
-        when(markingRepository.findByRawSnAndSttsCd(600L, LsMarking.STATUS_VLM_REQUESTED))
+        when(markingRepository.findByRawSnAndSttsCdIn(600L, LsMarking.ACTIVE_STATUSES))
                 .thenReturn(List.of(marking));
 
         VlmResultRequest req = new VlmResultRequest(
@@ -110,15 +110,21 @@ class VlmResultServiceMarkingTest {
         assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
     }
 
+    /**
+     * Phase C-1 — 조회 축이 {@code VLM_REQUESTED} 단독에서 {@link LsMarking#ACTIVE_STATUSES}
+     * (PENDING + VLM_REQUESTED)로 넓어졌다. 논블로킹 제출로 콜백이 ACK 보다 먼저 커밋될 수 있어,
+     * 마킹이 아직 PENDING 이어도 완료 전이가 성립해야 영구 고착(VLM_REQUESTED)이 생기지 않는다.
+     * 종결 상태(VLM_COMPLETED/VLM_FAILED)는 여전히 제외라 역행은 일어나지 않는다.
+     */
     @Test
-    @DisplayName("VLM_결과_수신시_VLM_REQUESTED_마킹만_전이")
-    void vlmResult_onlyTransitionsVlmRequestedMarkings() {
+    @DisplayName("VLM_결과_수신시_미종결_ACTIVE_마킹만_전이한다")
+    void vlmResult_onlyTransitionsActiveMarkings() {
         // given
         ledger.recordIssued("K-M2", LsWebhookIdempotency.CHANNEL_VLM, "EXT-M2", 601L);
         stubCompletedFlow(601L);
 
-        // PENDING 상태 마킹은 findByRawSnAndSttsCd 결과에 포함되지 않으므로 전이 대상 아님
-        when(markingRepository.findByRawSnAndSttsCd(601L, LsMarking.STATUS_VLM_REQUESTED))
+        // 종결(VLM_COMPLETED/VLM_FAILED) 마킹은 ACTIVE_STATUSES 조회 결과에 포함되지 않으므로 전이 대상 아님
+        when(markingRepository.findByRawSnAndSttsCdIn(601L, LsMarking.ACTIVE_STATUSES))
                 .thenReturn(Collections.emptyList());
 
         VlmResultRequest req = new VlmResultRequest(
@@ -131,7 +137,7 @@ class VlmResultServiceMarkingTest {
 
         // then — 정상 적재되지만 마킹 전이 대상 없음 (PENDING 마킹은 쿼리 결과에 없음)
         assertThat(applied).isTrue();
-        verify(markingRepository).findByRawSnAndSttsCd(601L, LsMarking.STATUS_VLM_REQUESTED);
+        verify(markingRepository).findByRawSnAndSttsCdIn(601L, LsMarking.ACTIVE_STATUSES);
     }
 
     @Test
@@ -142,7 +148,7 @@ class VlmResultServiceMarkingTest {
         stubCompletedFlow(602L);
 
         // 마킹이 전혀 없는 영상
-        when(markingRepository.findByRawSnAndSttsCd(602L, LsMarking.STATUS_VLM_REQUESTED))
+        when(markingRepository.findByRawSnAndSttsCdIn(602L, LsMarking.ACTIVE_STATUSES))
                 .thenReturn(Collections.emptyList());
 
         VlmResultRequest req = new VlmResultRequest(
@@ -165,7 +171,7 @@ class VlmResultServiceMarkingTest {
         // given — VLM_REQUESTED 에 머물던 마킹이 실패 콜백으로 dead-lock 되지 않아야 함(#5)
         ledger.recordIssued("K-M4", LsWebhookIdempotency.CHANNEL_VLM, "EXT-M4", 603L);
         LsMarking marking = createMarkingWithStatus(603L, LsMarking.STATUS_VLM_REQUESTED);
-        when(markingRepository.findByRawSnAndSttsCd(603L, LsMarking.STATUS_VLM_REQUESTED))
+        when(markingRepository.findByRawSnAndSttsCdIn(603L, LsMarking.ACTIVE_STATUSES))
                 .thenReturn(List.of(marking));
 
         VlmResultRequest req = new VlmResultRequest(

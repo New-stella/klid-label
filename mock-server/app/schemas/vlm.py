@@ -55,6 +55,13 @@ class Media(BaseModel):
     source_type: Literal["path", "upload"]
     path: Optional[str] = Field(default=None, description="source_type=path 일 때 미디어 경로")
     frame_policy: Optional[FramePolicy] = None
+    # 벤더 규격 밖 <b>목 전용 확장</b> — describe 더미 구간을 만들 영상 길이를 직접 지정한다.
+    #   우리 BE 는 보내지 않으며(없으면 목이 ffprobe 로 조회 → 실패 시 고정 폴백), 테스트/데모에서
+    #   특정 길이를 결정적으로 재현하기 위한 힌트다. 값 제약을 걸지 않는 이유는 이상값(0/음수/nan)이
+    #   422 가 되는 대신 조용히 무시되고 다음 폴백 단계로 넘어가야 하기 때문이다.
+    duration_sec: Optional[float] = Field(
+        default=None, description="[목 전용] 영상 길이(초) 힌트 — 생략 시 ffprobe 조회"
+    )
 
 
 class VerifyRequest(BaseModel):
