@@ -777,7 +777,10 @@ def _ffmpeg_has_hw_encoder(ffmpeg: str) -> bool:
             completed = subprocess.run(  # noqa: S603 — 고정 인자 리스트, shell 미사용
                 [
                     ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
-                    "-f", "lavfi", "-i", "color=c=black:s=64x64:d=0.04",
+                    # ⚠ 크기를 작게 잡으면 NVENC 이 "Frame Dimension less than the minimum
+                    #   supported value" 로 거부해 <GPU 가 멀쩡한데도> 미지원으로 오판한다
+                    #   (64x64 로 실측·확인). 최소 지원 치(H.264 145x49)보다 넉넉히 잡는다.
+                    "-f", "lavfi", "-i", "color=c=black:s=320x240:d=0.04",
                     "-c:v", HW_ENCODER, "-f", "null", "-",
                 ],
                 shell=False,
