@@ -16,16 +16,21 @@
 
 ```
 [배치] BatchOrchestrator → VlmTimeseriesStep
-   동기 호출 (45s 타임아웃, Resilience4j 재시도)
-   VLM 서버 즉시 응답 시 파이프라인 다음 단계 진행
+   ① 선커밋 — 상관키 등록(LS_WEBHOOK_IDEMPOTENCY = ISSUED) + 마킹 PENDING→VLM_REQUESTED
+                ※ 둘 다 REQUIRES_NEW 독립 커밋. 제출 <앞>에 수행한다
+   ② 논블로킹 제출 — subscribe 만 하고 즉시 반환(status="submitted")
+                ※ ACK 왕복조차 기다리지 않는다. 파이프라인은 다음 단계로 계속 진행
+   ③ 완료 핸들러 VlmSubmitOutcomeRecorder (전용 풀 vlmSubmitScheduler)
+        ACK 수신  → 원장 ISSUED→ACCEPTED + LS_BATCH_PROC_LOG 기록
+        제출 실패 → VLM/SKIPPED(사유) 기록 후 재개 대기  ※ 배치·작업 상태는 강등하지 않는다
         ↓ 상세 결과는 별도 콜백
-[콜백] POST /v1/vlm/result
+[콜백] POST /v1/vlm/callback
    → VlmResultService 가 LS_DATA_META 적재
    → 검수큐 LS_DATA_META_REVIEW 진입
 ```
 
 - 마킹 결과(이벤트명 + 영상경로 + marks)를 VLM에 콜백 형태로 전달 → [06](06-marking.md)
-- 코드: `VlmClient`, `VlmTimeseriesStep`, `webhook/VlmResultController`/`VlmResultService`
+- 코드: `VlmClient`, `VlmTimeseriesStep`/`VlmSubmitOutcomeRecorder`, `batch/vlm/{VlmSubmitPendingSweeper,VlmSubmitReclaimTxService}`, `webhook/VlmResultController`/`VlmResultService`
 
 ### 9.2-1 URL 검증 정책 (운영 엄격 / 개발 완화)
 
@@ -37,6 +42,54 @@
 
 - `vlm.client.enabled=false` 로 VLM 단계를 건너뛰면 `LS_BATCH_PROC_LOG` 에 `PROC_STEP_CD='VLM'` / `PROC_STTS_CD='SKIPPED'` 감사 행 1건을 **사유와 함께**(`ERR_MSG_CN`) 남긴다.
 - 이 감사 행은 append-only 이며 진행 상태 조회에서 제외되므로 다음 단계 전이에 덮이지 않는다 — VLM 비활성/장애 구간에 처리된 영상을 DB 만으로 재처리 대상으로 식별할 수 있다.
+
+**미수행 사유 카탈로그** (`VlmTimeseriesStep` 상수 — 값은 **재개 배선의 키**라 바꾸면 재개가 끊긴다)
+
+| 사유 | 발생 시점 | 재개 대상 |
+|------|----------|:--------:|
+| VLM 위탁 비활성 (`vlm.client.enabled=false`) | 스텝 진입 즉시 NO-OP | ✕ |
+| 비식별 누락 신고 구간 — 위탁 보류(재비식별 대기) | 외부 전송 직전 게이트 | ○ |
+| describe **비동기 제출 실패** — 재개 대기 | 완료 핸들러 `onError` | ○ |
+| describe **수락 응답·콜백 미수신** — 미결 회수 후 재개 | 스위퍼 **ACK 창** 만료 | ○ |
+| describe **결과 콜백 미수신** — 콜백 창 만료 회수 후 재개 | 스위퍼 **콜백 창** 만료 | ○ |
+
+- 재개 판정의 단일 원천은 `VlmTimeseriesStep.RESUMABLE_SKIP_REASONS` 이며, 재개는 `VlmWithheldResumeRunner` 가 **멱등 조건(시계열 메타 0건)** 으로 수행한다.
+- 제출 실패를 배치 재시도 큐로 넘기지 않는 이유: 재시도 큐는 rawSn 단위로 파이프라인 **전체**를 재실행하므로, VLM 제출 1건 실패에 프레임추출·YOLO·SAM2 가 전부 다시 돈다.
+
+### 9.2-3 논블로킹 제출 · 미결 회수 (2026-07-30)
+
+프로토콜은 원래부터 비동기였으나(ACK 만 받고 결과는 콜백) **ACK 왕복 동안 스레드를 점유**했다(`.block()`). 그 스레드는 `batch-async-`(core 2)·Quartz 워커·수동 재처리의 Tomcat 요청 스레드였다. 이제 **ACK 도 기다리지 않는다**.
+
+- **선커밋이 제출 앞에 온다** — 상관키 등록(`ledger.recordIssued`)과 마킹 `PENDING→VLM_REQUESTED`(`VlmMarkingTxService`, REQUIRES_NEW)를 제출 **전에** 각각 독립 커밋한다. 콜백이 ACK 보다 먼저 도착해도 역조회·전이가 성립한다(**콜백 선행 레이스** 폐쇄).
+- **수신부 조회 범위 확대(양단 방어)** — `VlmResultService` 가 전이 대상을 `VLM_REQUESTED` 단독에서 `LsMarking.ACTIVE_STATUSES`(PENDING + VLM_REQUESTED)로 넓혔다(`findByRawSnAndSttsCdIn`). 종결 상태(VLM_COMPLETED/VLM_FAILED)는 포함하지 않는다(역행 금지). 단 **위탁 발급 시각(원장 REG_DT) 이후에 새로 생성된 PENDING 마킹은 제외**한다 — 이전 위탁의 지각 콜백이 아직 위탁된 적 없는 새 마킹을 완료/실패로 만들지 않게 한다. 발급 시각을 알 수 없으면(구 원장 행) 종전대로 전부 대상.
+- **완료 핸들러는 상태를 강등하지 않는다** — 제출 실패가 파이프라인 스레드 밖에서 오므로 `BatchOrchestrator` FAILED + 재시도 큐 사슬을 되살리지 않는다(rawSn 단위 전량 재실행이 되기 때문). 대신 `LS_BATCH_PROC_LOG` 에 `VLM/SKIPPED` + 사유를 남기고 재개(`VlmWithheldResumeRunner`, 멱등 조건 = 시계열 메타 0건)로 회수한다.
+- **동기 실패 전파가 남는 것은 제출 이전 사전 조건뿐** — rawSn null · 영상 미존재 · 비식별 경로 부재 · 상관키 등록 실패.
+
+**미결 회수 스위퍼 `VlmSubmitPendingSweeper`** — 노드 사망·재기동으로 in-flight subscription 이 사라지면 어떤 신호도 오지 않는다(실패 행이 없어 재시도 큐·회수기도 집지 못함). 이 스윕이 유일한 회수 경로이며 **창을 둘로 나눈다**.
+
+| 창 | 원장 상태 | 임계(기본) | 회수 사유 코드 |
+|----|:--------:|:---------:|---------------|
+| **ACK 창** — 수락 응답조차 관측 못 함 | `ISSUED` | 30분(하한 clamp 10분) | `VLM describe 수락 응답·콜백 미수신 — 미결 회수 후 재개` |
+| **콜백 창** — 수락은 받았고 결과만 안 옴 | `ACCEPTED` | 360분(하한 clamp 60분) | `VLM describe 결과 콜백 미수신 — 콜백 창 만료 회수 후 재개` |
+
+- 두 창을 구분할 수 있는 근거는 완료 핸들러가 ACK 수신 시 원장을 `ISSUED → ACCEPTED` 로 전이하기 때문이다. 하나의 임계로 덮으면 describe 분석 중(수십 분)인 정상 위탁을 뺏어 같은 비식별 영상을 중복 위탁한다.
+- 2노드 Active-Active 정합은 **조건부 원자 UPDATE 클레임**(`VlmSubmitReclaimTxService.claim`/`claimAccepted`)이 담당한다 — Quartz 클러스터링은 트리거 중복만 막는다.
+- 무한 재위탁 방지로 영상당 **회수 예산**(`max-reclaims`, 기본 3)을 두고 초과 시 기록만 남기고 재개하지 않는다. **상태 강등은 하지 않는다**.
+- `@Scheduled` 가 아니라 **데몬 스레드 1개짜리 전용 스케줄러**로 돈다(`BatchRetryStaleReclaimSweeper`·`AugmentJobExpirySweeper` 동형) — 무조건적 `@EnableScheduling` 이 게이팅 없는 남의 잡까지 깨우는 것을 피한다. 자기 토글만 본다.
+
+**설정 키** (전부 `application.yml` 미기재 — 코드 `@Value` 기본값. 필요 시 환경별 yml/환경변수로 override)
+
+| 키 | 기본값 | 설명 |
+|----|:-----:|------|
+| `authoring.batch.vlm.submit-reclaim.enabled` | `true` | 미결 회수 스윕 on/off |
+| `authoring.batch.vlm.submit-reclaim.interval-ms` | `900000` | 스윕 주기(하한 60,000ms) |
+| `authoring.batch.vlm.submit-reclaim.initial-delay-ms` | `300000` | 기동 후 첫 스윕 지연 |
+| `authoring.batch.vlm.submit-reclaim.stale-timeout-minutes` | `30` | **ACK 창** 임계(하한 10) |
+| `authoring.batch.vlm.submit-reclaim.callback-timeout-minutes` | `360` | **콜백 창** 임계(하한 60) |
+| `authoring.batch.vlm.submit-reclaim.batch-size` | `50` | tick 당 회수 상한(CWE-770) |
+| `authoring.batch.vlm.submit-reclaim.max-reclaims` | `3` | 영상당 회수 예산 |
+
+> 외부 호출 자체의 타임아웃은 `vlm.client.timeout-seconds`(기본 **10초**, WebClient `.timeout()` 단일 출처) + Resilience4j `vlmClient` 재시도(3회·1s·×2) / 서킷브레이커다. 논블로킹 전환 이후에도 이 값들은 그대로이며, 달라진 것은 **그 왕복을 어느 스레드도 기다리지 않는다**는 점이다.
 
 ## 9.3 메타 검수 (REVIEWER)
 

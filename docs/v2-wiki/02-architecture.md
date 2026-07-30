@@ -58,6 +58,10 @@ Controller → Service → Repository (+ QueryDSL 보조)
 | `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` | **듀얼 EntityManager/TxManager** (`@ControlRepo`/`@PortalRepo`) |
 | `common.logging.RequestIdFilter` + Logback JSON | traceId(MDC) + 민감 필드 마스킹 |
 | `common.client.*` | DeidentifyClient/AiServerClient/VlmClient/ControlNotifyClient/ExternalAugmentClient (Resilience4j) |
+| `common.config.AsyncConfig` | `@Async` 풀(`batchAsyncExecutor`·`portalExtractExecutor`) + **외부연동 제출 완료 핸들러 전용 풀 3종**(`vlmSubmitExecutor`/`kpstSubmitExecutor`/`augmentSubmitExecutor` + 동명 Reactor `Scheduler` 빈) |
+| `common.async.SubmitSignalDispatch` | 논블로킹 제출의 완료 신호를 전용 풀에 **명시 투입** — `publishOn` 만 쓰면 풀 거부가 이벤트 루프에서 흘러 JPA 가 루프에서 돌아간다 |
+
+> **외부연동 제출은 모두 논블로킹**(2026-07-30) — VLM·KPST·증강 세 연동 모두 수락(ACK) 왕복조차 스레드를 점유하지 않는다. 선커밋 → subscribe 후 즉시 반환 → 전용 풀의 완료 핸들러가 ACK/실패 기록 → 무신호는 각 연동의 **기존** 회수기가 회수. 전용 풀은 `batchAsyncExecutor`(CallerRuns)와 분리하고 포화 정책을 **AbortPolicy** 로 둔다 — CallerRuns 는 포화 시 reactor-netty 이벤트 루프에서 JPA 를 실행해 논블로킹 이득을 정확히 되돌린다. 세 연동의 풀도 서로 분리한다(한쪽 벤더 지연이 다른 쪽 ACK 기록을 굶기지 않게). 상세 규칙 → [07 §7.2-1](07-batch-pipeline.md)
 
 ## 2.5 듀얼 데이터소스
 
