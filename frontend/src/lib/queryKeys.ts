@@ -12,6 +12,9 @@ export const USER_KEYS = {
 export const ASSIGNMENT_KEYS = {
   all: ['assignments'] as const,
   list: (params: Record<string, unknown>) => [...ASSIGNMENT_KEYS.all, 'list', params] as const,
+  /** 이벤트유형 옵션 — 목록 필터에 의존하지 않는다(near-immutable). */
+  eventTypes: (params: Record<string, unknown>) =>
+    [...ASSIGNMENT_KEYS.all, 'event-types', params] as const,
   history: (id: number) => [...ASSIGNMENT_KEYS.all, 'history', id] as const,
 };
 

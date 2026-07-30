@@ -5,37 +5,28 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.common.exception.CustomException;
-import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.video.service.FrameImageService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.CacheControl;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * 프레임 이미지 바이너리 서빙 — 라벨링 캔버스용.
+ *
+ * <p><b>서빙 대상은 기본적으로 비식별(DEID) 프레임</b>이다 — 라벨링은 비식별 영상의 프레임으로
+ * 수행하는 것이 설계이며, 이 경로만 원본을 서빙하던 미배선 상태를 정합했다. 원본은 REVIEWER 가
+ * {@code raw=true} 를 명시할 때만 나간다. 판정·검증은 전부
+ * {@link FrameImageService#serveBySrcSn} 단일 원천에 위임한다.
  *
  * <p>보안 (Critical):
  * <ul>
@@ -58,7 +49,6 @@ import java.nio.file.Paths;
  * <p>이미지는 {@code <img>} 태그로 직접 로드되지 않는다 (인증 헤더 미전달).
  * FE 는 axios 로 fetch → blob URL 변환 → konva Image 에 전달한다.
  */
-@Slf4j
 @Tag(name = "FrameImage", description = "프레임 이미지 바이너리 서빙 — 라벨링 캔버스용. 인증/IDOR/Path Traversal 방어.")
 @RestController
 @RequestMapping("/v1/frames")
@@ -66,18 +56,18 @@ import java.nio.file.Paths;
 @SecurityRequirement(name = "bearerAuth")
 public class FrameImageController {
 
-    private final LsDataSrcRepository srcRepository;
-    private final LabelAccessGuard accessGuard;
-    /** 비식별 이미지 서빙 위임 — 비식별 경로 판정(StorageSubtreePolicy)을 한 곳에서만 수행한다. */
+    /**
+     * 이미지 서빙 위임 — 인가·신고 게이트·비식별/원본 판정·경로 검증(StorageSubtreePolicy)을
+     * 한 곳에서만 수행한다. 컨트롤러는 HTTP 계약(경로·파라미터·역할)만 담당한다.
+     */
     private final FrameImageService frameImageService;
-
-    @Value("${authoring.storage.raw-path:./storage/raw}")
-    private String storageRawPath;
 
     @Operation(
             summary = "프레임 이미지 다운로드",
-            description = "프레임 이미지 바이너리 반환. 인증 필수, WORKER 는 본인 배정 프레임만 (CWE-639). " +
-                    "Path traversal 방어 (CWE-22). DEV/LOCAL 시드는 합성 placeholder."
+            description = "프레임 이미지 바이너리 반환. <b>기본은 비식별(DEID) 프레임</b>이며 REVIEWER 가 "
+                    + "<code>raw=true</code> 를 명시할 때만 원본을 서빙한다(WORKER 의 raw=true 는 무시). "
+                    + "비식별 경로가 없으면 PRVC/PSDO 는 404, ANONY 는 원본 폴백. 인증 필수, WORKER 는 "
+                    + "본인 배정 프레임만 (CWE-639). Path traversal/심링크 방어 (CWE-22/59)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 — image/jpeg or image/png"),
@@ -90,50 +80,13 @@ public class FrameImageController {
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER', 'PORTAL_USER')")
     public ResponseEntity<Resource> getImage(
             @Parameter(description = "프레임 PK (SRC_SN)", required = true, example = "1") @PathVariable Long srcSn,
+            @Parameter(description = "REVIEWER 전용 — true 면 원본(비식별 전) 프레임 요청. WORKER 는 무시되고 DEID 강제.")
+            @RequestParam(name = "raw", required = false, defaultValue = "false") boolean raw,
             @AuthenticationPrincipal TokenClaims actor) throws IOException {
-
-        // 1) 프레임 조회 + IDOR 가드 (LabelAccessGuard 가 NOT_FOUND/FORBIDDEN 처리)
-        accessGuard.verifyAccess(srcSn, actor);
-        LsDataSrc src = srcRepository.findById(srcSn)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
-
-        // 1-1) S7 (DEV_FIX-A/H1 — HIGH, CWE-359) — 비식별 누락 신고 구간(DE_IDNTF_YN='F')에는 프레임
-        //      이미지를 서빙하지 않는다. 이 경로는 비식별 판정 없이 <b>원본 프레임</b>을 그대로 서빙하므로
-        //      신고(=비식별 누락 확인) 상태에서 열려 있으면 PII 이미지가 그대로 나간다. 인가(verifyAccess)
-        //      <b>이후</b> 평가해 게이트가 인가를 대체하지 않게 한다. resolve('F'→'Y') 로 자동 해제.
-        //      (원본 프레임 자체를 WORKER 에게 서빙하는 정책 문제는 본 수정 범위 밖 — 신고 구간만 차단한다.)
-        accessGuard.requireNotUnderDeidentReport(src.getRawSn());
-
-        // 2) Path traversal 방어 — baseDir 기준 normalize + startsWith 검증
-        Path baseDir = Paths.get(storageRawPath).toAbsolutePath().normalize();
-        Path resolved = resolveSafe(baseDir, src.getSrcFilePathNm());
-
-        // 3) 파일 존재 확인 — 부재 시 404 (내부 경로 노출 금지)
-        if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
-            log.warn("[FrameImage] file not found srcSn={} path-not-found (raw rel: {})",
-                    srcSn, src.getSrcFilePathNm());
-            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
-        }
-
-        // 4) 확장자 allowlist 기반 MIME 결정
-        MediaType mediaType = resolveMediaType(resolved);
-
-        // 5) InputStream → InputStreamResource 로 응답 (대용량 메모리 적재 회피)
-        long contentLength = Files.size(resolved);
-        InputStream in = Files.newInputStream(resolved);
-        InputStreamResource body = new InputStreamResource(in);
-
-        return ResponseEntity.ok()
-                .contentType(mediaType)
-                .contentLength(contentLength)
-                // 위 1-1 신고 게이트가 매 요청 평가되도록 클라이언트 캐시 재사용을 금지한다 —
-                // max-age 동안 캐시된 프레임(PII 노출분)이 게이트를 우회해 재노출된다(CWE-359/525).
-                // /deid-image · 영상 /stream 과 동일 정책(no-store).
-                .cacheControl(CacheControl.noStore())
-                // 보안 헤더 보강 — 다운로드 강제 X (캔버스 inline 표시 목적)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"frame_" + srcSn + extOf(resolved) + "\"")
-                .header("X-Content-Type-Options", "nosniff")
-                .body(body);
+        // 인가(CWE-639) → 신고 구간 게이트(412) → 비식별/원본 판정 → 경로 검증 → 스트림 응답까지
+        // 전부 서비스가 수행한다. 컨트롤러가 판정을 재구현하면 (rawSn, frameNo) 경로와 갈라져
+        // "한쪽만 원본이 새는" 상태가 된다(이 결함의 원인) — 단일 원천에만 위임한다.
+        return frameImageService.serveBySrcSn(srcSn, raw, actor);
     }
 
     /**
@@ -168,47 +121,6 @@ public class FrameImageController {
         return frameImageService.serveDeidentified(srcSn, actor);
     }
 
-    /**
-     * Path traversal 방어 (CWE-22).
-     * <p>filePath 가 baseDir 밖으로 나가면 FORBIDDEN 으로 거부.
-     * 절대 경로면 그대로(단 baseDir 안), 상대 경로면 baseDir 기준 resolve.
-     *
-     * <p>VisibleForTesting — 단위 테스트에서 직접 검증하기 위해 public.
-     */
-    public static Path resolveSafe(Path baseDir, String filePath) {
-        if (filePath == null || filePath.isBlank()) {
-            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 경로가 비어있습니다.");
-        }
-        Path candidate = Paths.get(filePath);
-        Path resolved = candidate.isAbsolute()
-                ? candidate.normalize()
-                : baseDir.resolve(candidate).normalize();
-        if (!resolved.startsWith(baseDir)) {
-            // 침입 시도일 가능성 — 403 으로 거부, 상세 경로 노출 금지
-            throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
-        }
-        return resolved;
-    }
-
-    /** 확장자 allowlist 기반 MIME 결정 — 알 수 없는 확장자는 거부. VisibleForTesting. */
-    public static MediaType resolveMediaType(Path path) {
-        String name = path.getFileName().toString().toLowerCase();
-        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
-            return MediaType.IMAGE_JPEG;
-        }
-        if (name.endsWith(".png")) {
-            return MediaType.IMAGE_PNG;
-        }
-        if (name.endsWith(".webp")) {
-            return MediaType.parseMediaType("image/webp");
-        }
-        // allowlist 외 — 정책상 거부 (CWE-434 차단)
-        throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 확장자입니다.");
-    }
-
-    private static String extOf(Path p) {
-        String n = p.getFileName().toString();
-        int dot = n.lastIndexOf('.');
-        return dot >= 0 ? n.substring(dot) : "";
-    }
+    // 경로 검증(resolveSafe) · MIME allowlist(resolveMediaType) 는 FrameImageService 로 일원화했다 —
+    // 컨트롤러가 같은 로직을 복사 보유하면 정책이 갈라진다(이 결함의 원인).
 }

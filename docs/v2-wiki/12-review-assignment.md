@@ -14,6 +14,30 @@
 - **두 화면 배정 시나리오 정합**: 배정자 표시·배정/재배정 토글·재배정 시 현재 배정자 사전선택·완료 영상 재배정 차단·성공 후 즉시 갱신을 작업 목록과 동일하게 적용. 영상 목록은 배정정보를 `GET /v1/videos`(VideoSummaryResponse) 응답으로 받으며, 산출 기준(현재 활성 LABELER 배정 1건)은 `TaskBoardService`와 동일
 - 코드: `assignment/AssignmentController`, `TaskBoardController`, FE `pages/VideoListPage.tsx`·`features/task/components/AssignModal.tsx`
 
+### 12.1.1 배정 목록 조회 API (`GET /v1/assignments`) — 서버 필터 (2026-07-30)
+
+작업 목록 화면(SC-012)의 **WORKER 시각**이 쓰는 엔드포인트다. 화면 동작·문구는 [04 화면·IA](04-screens-ia.md) §4.2 노트 참조.
+
+| 파라미터 | 필수 | 값 | 비고 |
+|---------|:----:|----|------|
+| `q` | 선택 | ≤100자 | 영상명(표시명)·작업자명 부분일치. LIKE 이스케이프 후 바인딩 |
+| `workStatus` | 선택 | `PENDING`\|`IN_PROGRESS`\|`REVIEW_PENDING`\|`COMPLETED`\|`REJECTED` | 미등록 값 400. 빈 값/공백은 '필터 미적용' |
+| `eventTypeCd` | 선택 | ≤20자 | 옵션 API 가 내려준 값을 그대로 재전송하면 매칭됨(정규화 축 동일) |
+| `workerId` | 선택 | 양수 | REVIEWER 전용. **WORKER 요청에서는 무시**(403 아님) |
+| `page`/`size`/`sort` | 선택 | 기본 `regDt,desc` | 정렬 allowlist: `regDt`/`assignedAt`/`rawDataId`/`videoId`/`assignmentId`/`id` — **미등록 키 400(strict)** |
+
+- **필터는 현재 페이지가 아니라 전체 데이터셋 기준**이며 `totalElements` 도 필터 결과 기준이다. 신규 파라미터는 전부 optional·기본값 없음이라 **하나도 보내지 않으면 변경 전과 동일한 응답**이다(하위호환 회귀 가드: `ListApiBackwardCompatibilityIT`).
+- **`IN_PROGRESS`(작업중) 판정 = 그 영상에 라벨 저장 이력(`LS_DATA_LBL_HSTRY`, 종류별 건수 합 > 0)이 존재**. 필터 WHERE 와 응답 `status` 가 **같은 표현식**에서 나오므로 "작업중으로 걸렀는데 목록엔 대기로 표시" 가 생기지 않는다. 판별식은 데이터마트 뷰 `V_COMPLETED_LABEL_CHANGE`(V139)와 동일하며 `SaveHistoryChangeViewParityIT` 가 결박한다.
+  - ⚠ **알려진 한계(수용됨)**: 트랙 분할·트랙 병합·객체 속성 저장은 이력을 남기지 않아 그 작업만 한 영상은 '대기'로 표시된다. 이력 도입 이전 레거시 작업분도 동일(백필 없음).
+- **인가 축과 필터 축을 분리**한다 — WORKER 면 토큰 subject 로 조회 범위를 고정하고 요청의 `workerId` 는 **읽지 않는다**(CWE-639 IDOR).
+
+### 12.1.2 배정 이벤트유형 옵션 API (`GET /v1/assignments/event-types`) — 신규 (2026-07-30)
+
+- 본인(REVIEWER 는 전체/특정 작업자) 배정 **전체**에 존재하는 `EVNT_TYPE_CD` 를 중복 없이 오름차순 반환. 목록과 **같은 조건**을 쓰되 **자기 축(`eventTypeCd`)만 제외**하므로 옵션에서 고른 값으로 필터하면 0건일 수 없다.
+- 응답은 `GET /v1/tasks/board/event-types` 와 **동일 형태** `{ items: string[], truncated: boolean }`(FE 공용 컴포넌트). 페이징 없음 — 상한 500 으로 무제한 조회를 막고 초과 시 `truncated=true` 로 알린다.
+- 인가는 목록과 동일(WORKER 의 `workerId` 무시). "그 값이 존재한다" 자체가 정보이므로 범위가 목록과 같아야 한다.
+- 코드: `assignment/controller/AssignmentController`, `assignment/service/AssignmentService`, `assignment/repository/AssignmentQueryRepository`, `assignment/domain/AssignmentWorkStatus`, FE `features/task/boardParams.ts`·`hooks/useAssignmentEventTypes.ts`·`pages/TaskListPage.tsx`
+
 ## 12.2 검수 (단일 승인)
 
 - **검수 완료 = 작업 완료**: REVIEWER가 `APPROVED` 처리 → `LsRawDataStatus.dataSttsCd` `COMPLETED` 전이

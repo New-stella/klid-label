@@ -67,7 +67,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * <ul>
  *   <li><b>H1</b> 프레임 이미지 서빙 2경로 — {@code FrameImageService.serve}(rawSn+frameNo),
- *       {@code FrameImageController.getImage}(srcSn, 원본 프레임)</li>
+ *       {@code FrameImageController.getImage}(srcSn) — 두 경로 모두 <b>기본은 비식별 프레임</b>을
+ *       서빙하며(REVIEWER {@code raw=true} 만 원본), 비식별 경로가 없는 ANONY 레거시 프레임만 원본으로
+ *       폴백한다. 신고 구간에는 어느 쪽이든 412 로 차단된다.</li>
  *   <li><b>H2</b> 포털(외부 채널) — {@code PortalLabelService.loadFrameLabels/serveFrameImage}</li>
  *   <li><b>H3</b> 관제 조회 — {@code TaskQueryController.getLabels}</li>
  *   <li><b>H4</b> 라벨 이력 / 버전 diff — {@code LabelService.getHistory}, {@code VersionService.diff}</li>
@@ -285,18 +287,20 @@ class DeidentReportGateCoverageIT {
         Seed seed = seed("H1", false);
         assertThat(frameImageService.serve(seed.rawSn(), 0, false, reviewer).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
-        assertThat(frameImageController.getImage(seed.srcSn(), reviewer).getStatusCode())
+        assertThat(frameImageController.getImage(seed.srcSn(), false, reviewer).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
 
         // when — 비식별 누락 신고 (라벨·이미지는 보존되지만 접근은 막혀야 한다).
         deidentReportService.report(seed.srcSn(), "얼굴 미블러 노출", reviewer);
 
-        // then — 비식별본 경로(rawSn+frameNo)와 원본 프레임 경로(srcSn) 모두 412.
+        // then — (rawSn+frameNo) 경로와 (srcSn) 경로 모두 412.
+        //   ※ 두 경로 모두 <b>비식별 프레임</b>을 서빙한다(정합 후). 구 주석의 "원본 프레임 경로(srcSn)"
+        //      표현은 srcSn 경로가 원본만 읽던 시절의 것이라 폐기 — 게이트 검증 의도는 동일하다.
         assertThatThrownBy(() -> frameImageService.serve(seed.rawSn(), 0, false, reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(DeidentReportGateCoverageIT::errorCodeOf)
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
-        assertThatThrownBy(() -> frameImageController.getImage(seed.srcSn(), reviewer))
+        assertThatThrownBy(() -> frameImageController.getImage(seed.srcSn(), false, reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(DeidentReportGateCoverageIT::errorCodeOf)
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
@@ -447,7 +451,7 @@ class DeidentReportGateCoverageIT {
     private void assertAllReadPathsOpen(Seed seed) throws IOException {
         assertThat(frameImageService.serve(seed.rawSn(), 0, false, reviewer).getStatusCode())
                 .isEqualTo(HttpStatus.OK);                                              // H1-a
-        assertThat(frameImageController.getImage(seed.srcSn(), reviewer).getStatusCode())
+        assertThat(frameImageController.getImage(seed.srcSn(), false, reviewer).getStatusCode())
                 .isEqualTo(HttpStatus.OK);                                              // H1-b
         assertThat(portalLabelService.loadFrameLabels(seed.srcSn(), portalUser).labels())
                 .hasSize(2);                                                            // H2-a

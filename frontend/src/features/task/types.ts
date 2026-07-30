@@ -2,7 +2,22 @@
 
 import { type AugType } from '@/features/augment/augTypeLabel';
 
-export type AssignmentStatus = 'PENDING' | 'IN_PROGRESS' | 'REVIEW_PENDING' | 'COMPLETED' | 'REJECTED';
+/**
+ * 배정 워크플로 상태 — BE `GET /v1/assignments` 의 **응답 status 와 필터 `workStatus` 가 같은 값 집합**이다
+ * (BE `AssignmentWorkStatus` allowlist 와 1:1). 그래서 표시용 타입을 그대로 필터 파라미터로 쓴다.
+ *
+ * ★ board 축({@link WorkStatusParam})과 혼동 금지 — 그쪽은 `IN_PROGRESS` 를 반환하지도 허용하지도 않고
+ * 대신 `UNASSIGNED` 를 갖는다(미배정 영상까지 다루므로). 두 축은 값 집합이 다르다.
+ */
+export const ASSIGNMENT_STATUS_VALUES = [
+  'PENDING',
+  'IN_PROGRESS',
+  'REVIEW_PENDING',
+  'COMPLETED',
+  'REJECTED',
+] as const;
+
+export type AssignmentStatus = (typeof ASSIGNMENT_STATUS_VALUES)[number];
 
 export interface Worker {
   id: number;
@@ -60,12 +75,35 @@ export interface Assignment {
   assignedAt: string;
 }
 
+/**
+ * `GET /v1/assignments` 쿼리 파라미터 (WORKER 작업목록).
+ *
+ * - `q`/`workStatus`/`eventTypeCd` 는 **서버사이드 필터**다 — 전체 배정 기준으로 걸러지고
+ *   `totalElements` 도 그 결과 기준이다(화면에서 다시 거르지 않는다).
+ * - 빈 문자열은 절대 넣지 않는다 — 값이 없으면 **키 자체를 생략**한다(조립은 `boardParams.ts` 빌더).
+ * - `workerId` 는 REVIEWER 전용 필터이며 WORKER 요청에서는 **서버가 무시**한다(403 아님).
+ * - `sort` 는 BE allowlist(regDt/assignedAt/rawDataId/videoId/assignmentId/id) 밖이면 400 이다.
+ *   WORKER 화면에는 정렬 UI 가 없어 보내지 않는다 — board 정렬 키(shtDt/rawSn)는 이 allowlist 밖이라
+ *   URL 에 남아 있는 값을 그대로 흘려보내면 목록이 400 으로 죽는다.
+ */
 export interface TaskListParams {
   workerId?: number;
+  q?: string;
+  workStatus?: AssignmentStatus;
+  eventTypeCd?: string;
   page?: number;
   size?: number;
   sort?: string;
 }
+
+/**
+ * `GET /v1/assignments/event-types` 파라미터.
+ *
+ * BE 는 목록과 같은 축(workerId/q/workStatus)을 받지만 **FE 는 아무것도 보내지 않는다** — 옵션이
+ * 다른 필터로 좁아지면 이미 고른 이벤트유형이 목록에서 사라져 되돌아갈 수 없다(board 와 같은 규약).
+ * 조회 범위는 서버가 인가로 고정한다(WORKER = 본인 배정).
+ */
+export type AssignmentEventTypeParams = Pick<TaskListParams, 'workerId'>;
 
 /**
  * REVIEWER 통합 작업 목록 — BE /v1/tasks/board 응답 1행.
@@ -188,7 +226,9 @@ export interface TaskBoardSummary {
 }
 
 /**
- * `GET /v1/tasks/board/event-types` 응답 — ★ 배열이 아니라 **객체**다.
+ * 이벤트유형 옵션 응답 — ★ 배열이 아니라 **객체**다.
+ * `GET /v1/tasks/board/event-types`(REVIEWER)와 `GET /v1/assignments/event-types`(WORKER)가
+ * **같은 형태**를 반환하므로 화면이 한 컴포넌트로 두 경로를 다룬다.
  *
  * `truncated=true` 면 `items` 는 전체가 아니다(상한 500 초과 절단) — 화면이 그 사실을 알려야
  * "그 이벤트유형 영상이 없다" 는 오인을 막는다.

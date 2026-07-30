@@ -78,6 +78,30 @@ public final class SortAllowlist {
             "videoId", "rawSn");
 
     /**
+     * 배정 목록(GET /v1/assignments) 정렬 allowlist — 외부 키 → {@code LsTaskAssignment} 필드.
+     *
+     * <p>값 집합은 {@code regDt}(배정일) / {@code rawDataId}(영상 ID) / {@code assignmentId}(배정 ID)
+     * 세 컬럼뿐이며 모두 응답 필드로 노출된다. {@code assignedAt}·{@code videoId}·{@code id} 는
+     * 응답 DTO({@code AssignmentResponse.Item})가 그대로 alias 한 이름이라 함께 등록한다 — FE 는
+     * 화면에 보이는 이름으로 정렬을 요청할 수 있어야 한다.
+     *
+     * <p><b>{@code regDt} 는 반드시 포함</b>한다 — 컨트롤러 {@code @PageableDefault} 의 기본 정렬이라
+     * 빠지면 <b>파라미터 없는 기존 호출이 전부 400</b> 이 된다.
+     *
+     * <p>이 allowlist 는 <b>{@link #resolve(Sort, Map, Sort)}(strict 모드)와 함께</b> 쓴다 — 이
+     * 엔드포인트는 변경 전에도 {@code Pageable} 을 받아 잘못된 키면 Spring Data 가 500 을 던졌으므로
+     * 400 은 하위호환 파손이 아니라 개선이다(위 모드 표 — 작업목록과 같은 근거, 검수목록의 lenient
+     * 정책과 통일하지 않는다).
+     */
+    public static final Map<String, String> ASSIGNMENT = Map.of(
+            "regDt", "regDt",
+            "assignedAt", "regDt",
+            "rawDataId", "rawDataId",
+            "videoId", "rawDataId",
+            "assignmentId", "assignmentId",
+            "id", "assignmentId");
+
+    /**
      * 검수목록(GET /v1/reviews) 정렬 allowlist — 외부 키 → {@code LsRawDataStatus} 필드.
      *
      * <p>값 집합은 {@code updDt}(제출일=최종 갱신일) / {@code rawDataId}(영상 ID) /

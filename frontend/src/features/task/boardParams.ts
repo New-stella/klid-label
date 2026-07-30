@@ -1,5 +1,9 @@
 // 작업목록(SCR-TASK-001) 필터 상태 ↔ URL ↔ 서버 파라미터 **단일 매핑 지점**.
 //
+// 같은 필터 상태가 역할에 따라 **다른 엔드포인트**로 나간다 — REVIEWER 는 `/v1/tasks/board`,
+// WORKER 는 `/v1/assignments`. 두 축은 워크플로 허용값이 다르므로(아래 asWorkStatusParam /
+// asAssignmentWorkStatusParam) 조립 함수를 축별로 분리한다. 축을 섞어 보내면 BE 가 400 이다.
+//
 // 세 이름(로컬 필드 / URL 키 / API 파라미터)이 어긋나면 새로고침 후 필터가 유실되거나 잘못된 축으로
 // 복원된다. 이 파일 밖에서 필터 이름을 다시 쓰지 않는 것이 유일한 방어다.
 //
@@ -25,12 +29,16 @@ import {
   type BoardSortEntry,
 } from './boardSort';
 import {
+  ASSIGNMENT_STATUS_VALUES,
   BATCH_STATUS_PARAMS,
   WORK_STATUS_PARAMS,
+  type AssignmentEventTypeParams,
+  type AssignmentStatus,
   type BatchStatusParam,
   type TaskBoardEventTypeParams,
   type TaskBoardParams,
   type TaskBoardSummaryParams,
+  type TaskListParams,
   type WorkStatusParam,
 } from './types';
 
@@ -66,14 +74,16 @@ export const DEFAULT_TASK_FILTERS: TaskFilterValues = {
 };
 
 /**
- * 화면(URL·select)에서 허용하는 워크플로 값.
+ * 화면(URL·select)에서 허용하는 워크플로 값 — **두 축의 합집합**이다.
  *
- * BE allowlist 에 더해 `IN_PROGRESS` 를 포함한다 — WORKER 시각의 **클라이언트 필터** 선택지라
- * 여기서 떨어뜨리면 조회 후 새로고침에 필터가 사라진다(서버 전송은 여전히 막는다).
+ * 상태 select 의 선택지는 역할마다 다르고(board 축은 `UNASSIGNED`, 배정 축은 `IN_PROGRESS`),
+ * URL 은 두 역할이 공유한다. 합집합으로 두지 않으면 한쪽 값이 새로고침에서 조용히 사라진다.
+ * 서버로 나갈 때는 축별 정규화({@link asWorkStatusParam} / {@link asAssignmentWorkStatusParam})가
+ * 각자의 allowlist 밖 값을 떨어뜨린다.
  */
 const UI_WORK_STATUS_VALUES: readonly string[] = [
   ...Object.values(WORK_STATUS_PARAMS),
-  'IN_PROGRESS',
+  ...ASSIGNMENT_STATUS_VALUES,
 ];
 
 /** URL/로컬 워크플로 값 정규화 — allowlist 밖이면 빈 문자열(필터 미적용). */
@@ -93,6 +103,21 @@ export function asWorkStatusParam(
   const value = (raw ?? '').trim();
   const allowed = Object.values(WORK_STATUS_PARAMS) as string[];
   return allowed.includes(value) ? (value as WorkStatusParam) : undefined;
+}
+
+/**
+ * 배정 목록(`GET /v1/assignments`) 워크플로 축 정규화 — allowlist 밖이면 `undefined`.
+ *
+ * board 축과 값 집합이 다르다: `IN_PROGRESS` 는 여기서만 유효하고(BE 가 라벨 저장 이력으로 판정),
+ * `UNASSIGNED` 는 여기 없다(본인에게 배정된 행만 다루므로 개념 자체가 없다). BE 는 미등록 값을
+ * 400 으로 거부하므로 축을 섞어 보내면 목록 전체가 죽는다.
+ */
+export function asAssignmentWorkStatusParam(
+  raw: string | null | undefined,
+): AssignmentStatus | undefined {
+  const value = (raw ?? '').trim();
+  const allowed = ASSIGNMENT_STATUS_VALUES as readonly string[];
+  return allowed.includes(value) ? (value as AssignmentStatus) : undefined;
 }
 
 /** 작업자 PK 정규화 — 양수만(BE `@Positive`). */
@@ -162,6 +187,44 @@ export function buildBoardSummaryParams(
  */
 export function buildBoardEventTypeParams(): TaskBoardEventTypeParams {
   return { status: BOARD_BATCH_STATUS };
+}
+
+interface AssignmentPageOptions {
+  page: number;
+  size: number;
+}
+
+/**
+ * WORKER 작업목록(`GET /v1/assignments`) 요청 파라미터.
+ *
+ * 필터는 **서버**가 전체 배정 기준으로 적용한다(화면 재필터 금지). 빈 값은 `compactParams` 가
+ * 키째로 제거해 "필터 미적용" 을 뜻하는 기존 호출 형태를 그대로 유지한다.
+ *
+ * ★ 정렬은 보내지 않는다 — WORKER 화면에는 정렬 UI 가 없고, URL 에 남아 있을 수 있는 board 정렬 키
+ * (`shtDt`/`rawSn`)는 이 엔드포인트 allowlist 밖이라 그대로 전달하면 400 이 된다.
+ */
+export function buildAssignmentParams(
+  filters: TaskFilterValues,
+  { page, size }: AssignmentPageOptions,
+): TaskListParams {
+  return compactParams<TaskListParams>({
+    q: asKeyword(filters.q),
+    workStatus: asAssignmentWorkStatusParam(filters.workStatus),
+    eventTypeCd: asEventTypeCd(filters.eventTypeCd),
+    workerId: asWorkerId(filters.assigneeId),
+    page,
+    size,
+  }) as TaskListParams;
+}
+
+/**
+ * 배정 이벤트유형 옵션 요청 파라미터 — **아무 축도 보내지 않는다**.
+ *
+ * BE 는 목록과 같은 축(q/workStatus)을 받지만, 옵션이 다른 필터로 좁아지면 이미 고른 이벤트유형이
+ * 목록에서 사라져 되돌아갈 수 없다(board 와 동일한 판단). 조회 범위는 서버 인가가 고정한다.
+ */
+export function buildAssignmentEventTypeParams(): AssignmentEventTypeParams {
+  return {};
 }
 
 /** URL → 필터 상태. 허용되지 않은 값은 조용히 기본값으로 떨어진다(구 URL·수기 조작 방어). */

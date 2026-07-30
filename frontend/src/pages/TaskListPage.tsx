@@ -7,6 +7,10 @@ import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
 import {
   DEFAULT_TASK_FILTERS,
+  asAssignmentWorkStatusParam,
+  asWorkStatusParam,
+  buildAssignmentEventTypeParams,
+  buildAssignmentParams,
   buildBoardEventTypeParams,
   buildBoardParams,
   buildBoardSummaryParams,
@@ -30,6 +34,7 @@ import {
 import { TaskBoardKpiCards } from '@/features/task/components/TaskBoardKpiCards';
 import { TaskWorkerKpiCards } from '@/features/task/components/TaskWorkerKpiCards';
 import { TaskFilters } from '@/features/task/components/TaskFilters';
+import { useAssignmentEventTypes } from '@/features/task/hooks/useAssignmentEventTypes';
 import { useTaskBoard } from '@/features/task/hooks/useTaskBoard';
 import { useTaskBoardEventTypes } from '@/features/task/hooks/useTaskBoardEventTypes';
 import { useTaskBoardSummary } from '@/features/task/hooks/useTaskBoardSummary';
@@ -65,12 +70,15 @@ const PAGE_SIZE = 20;
  *   - 다중 선택 일괄 배정 액션바
  *   - 테이블(TaskBoardTable): (REVIEWER) 체크박스 + 영상명 + 영상 ID + 촬영일시 + 이벤트 + 상태 …
  *
- * ★ 필터·정렬·KPI 축:
- * - REVIEWER 시각은 **서버 필터**다 — 검색어/상태/이벤트/작업자를 `/v1/tasks/board` 에 위임하고
- *   화면에서 행을 다시 거르지 않는다(현재 페이지 20건 안에서 거르면 결과·숫자가 모두 틀린다).
- * - 배치 상태 축은 **COMPLETED 고정**이다(URL 로도 못 바꾼다) — 헤더 부제와 한 몸이다.
- * - KPI 는 `/v1/tasks/board/summary` 의 **전체 기준** 집계이며, 카드 클릭은 `workStatus` 축만 바꾼다.
- * - WORKER 시각(/v1/assignments)은 서버 필터·정렬을 지원하지 않아 기존 클라이언트 필터를 유지한다.
+ * ★ 필터·KPI 축 — **두 역할 모두 서버 필터**다(클라이언트 재필터 없음):
+ * - REVIEWER: 검색어/상태/이벤트/작업자를 `/v1/tasks/board` 에 위임. 배치 상태 축은 **COMPLETED
+ *   고정**이며(URL 로도 못 바꾼다) 헤더 부제와 한 몸이다. KPI 는 `/v1/tasks/board/summary` 의
+ *   **전체 기준** 집계이고 카드 클릭은 `workStatus` 축만 바꾼다.
+ * - WORKER: 검색어/상태/이벤트를 `/v1/assignments` 에 위임(Phase 4). 조회 범위는 서버 인가가
+ *   본인 배정으로 고정한다.
+ * - 화면에서 행을 다시 거르지 않는다 — 현재 페이지 20건 안에서 거르면 목록·"전체 N건"·페이지 수·
+ *   드롭다운이 서로 다른 집합을 말하게 되고 뒷페이지 항목은 검색해도 나오지 않는다.
+ * - 이벤트유형 드롭다운도 역할별 옵션 API(전체 기준)를 쓴다 — 현재 페이지에서 수집하지 않는다.
  *
  * UI/UX §4-5 정합 — priority/deadline 컬럼은 절대 추가하지 않는다.
  */
@@ -84,11 +92,13 @@ export function TaskListPage() {
 
   const [filters, setFilters] = useState<TaskFilterValues>(() => {
     const parsed = searchParamsToFilters(searchParams);
-    // `IN_PROGRESS` 는 WORKER 전용 클라이언트 필터 값이다. REVIEWER 축에는 선택지가 없어
-    // 그대로 두면 상태 select 는 빈칸인데 목록은 전체가 나오는 어긋난 화면이 된다.
-    return isReviewer && parsed.workStatus === 'IN_PROGRESS'
-      ? { ...parsed, workStatus: '' }
-      : parsed;
+    // 워크플로 값 집합은 역할마다 다르다(REVIEWER 축엔 `IN_PROGRESS` 가, WORKER 축엔 `UNASSIGNED` 가
+    // 없다). URL 은 두 역할이 공유하므로 반대 축 값이 들어올 수 있는데, 그대로 두면 상태 select 는
+    // 빈칸인데 목록은 전체가 나오는 어긋난 화면이 된다 — 이 화면에서 고를 수 없는 값은 버린다.
+    const selectable = isReviewer
+      ? asWorkStatusParam(parsed.workStatus)
+      : asAssignmentWorkStatusParam(parsed.workStatus);
+    return selectable ? parsed : { ...parsed, workStatus: '' };
   });
   const [sort, setSort] = useState<BoardSortEntry[]>(() =>
     searchParamsToSort(searchParams),
@@ -118,20 +128,13 @@ export function TaskListPage() {
     undefined,
   );
 
-  // 데이터 fetch — workerId 필터(URL)는 그대로 BE로 위임.
-  // - WORKER 시각: BE 페이징(/assignments) 사용
+  // 데이터 fetch — 필터·페이징을 그대로 BE로 위임.
+  // - WORKER 시각: BE 페이징+필터(/assignments) 사용
   // - REVIEWER 시각: /v1/tasks/board BE 단일 엔드포인트 사용 — useVideos 의존 제거
-  const taskParams = useMemo<TaskListParams>(() => {
-    const workerIdParam = filters.assigneeId;
-    return {
-      page,
-      size: PAGE_SIZE,
-      workerId:
-        workerIdParam && Number.isFinite(Number(workerIdParam))
-          ? Number(workerIdParam)
-          : undefined,
-    };
-  }, [filters.assigneeId, page]);
+  const taskParams = useMemo<TaskListParams>(
+    () => buildAssignmentParams(filters, { page, size: PAGE_SIZE }),
+    [filters, page],
+  );
 
   const {
     data: tasksPage,
@@ -165,10 +168,22 @@ export function TaskListPage() {
     refetch: refetchSummary,
   } = useTaskBoardSummary(summaryParams, { enabled: isReviewer });
 
-  // 이벤트유형 옵션 — 배치 상태 축(고정)만 반영한다.
+  // 이벤트유형 옵션 — 역할별 엔드포인트, 둘 다 **현재 페이지가 아니라 전체 기준**이다.
+  // 어느 쪽도 다른 필터 축을 보내지 않는다(옵션이 좁아지면 고른 값으로 되돌아갈 수 없다).
   const eventTypeParams = useMemo(() => buildBoardEventTypeParams(), []);
-  const { items: boardEventTypes, truncated: eventTypesTruncated } =
+  const { items: boardEventTypes, truncated: boardEventTypesTruncated } =
     useTaskBoardEventTypes(eventTypeParams, { enabled: isReviewer });
+
+  const assignmentEventTypeParams = useMemo(
+    () => buildAssignmentEventTypeParams(),
+    [],
+  );
+  const {
+    items: assignmentEventTypes,
+    truncated: assignmentEventTypesTruncated,
+  } = useAssignmentEventTypes(assignmentEventTypeParams, {
+    enabled: !isReviewer,
+  });
 
   const isLoading = isReviewer ? boardLoading : tasksLoading;
   // ★ 페이지 레벨 에러는 **목록 쿼리만** 결정한다 — KPI/옵션 실패가 정상 목록을 가리면 안 된다.
@@ -218,17 +233,14 @@ export function TaskListPage() {
     return map;
   }, [reviewersPage]);
 
-  // 이벤트 유형 옵션.
-  // - REVIEWER: 서버 조회(/v1/tasks/board/event-types) 결과 — 현재 페이지에 없는 코드도 고를 수 있다.
-  // - WORKER  : 기존대로 본인 배정 목록에서 수집(클라이언트 필터라 서버 옵션이 필요 없다).
-  const eventTypeOptions = useMemo(() => {
-    if (isReviewer) return boardEventTypes;
-    const set = new Set<string>();
-    tasks.forEach((t) => {
-      if (t.eventTypeCd) set.add(t.eventTypeCd);
-    });
-    return Array.from(set).sort();
-  }, [isReviewer, boardEventTypes, tasks]);
+  // 이벤트 유형 옵션 — 역할별 서버 조회 결과(현재 페이지에 없는 코드도 고를 수 있다).
+  // - REVIEWER: /v1/tasks/board/event-types
+  // - WORKER  : /v1/assignments/event-types (본인 배정 전체 기준, 서버가 인가로 범위 고정)
+  const eventTypeOptions = isReviewer ? boardEventTypes : assignmentEventTypes;
+  // 상한 절단 여부도 그대로 넘긴다 — 버리면 "그 유형 영상이 없다" 는 조용한 오인이 된다.
+  const eventTypesTruncated = isReviewer
+    ? boardEventTypesTruncated
+    : assignmentEventTypesTruncated;
 
   // base 계산.
   // - WORKER: 본인에게 배정된 task만 표시 (미배정 영상 left-join 금지 — IDOR/노이즈 방지)
@@ -307,49 +319,19 @@ export function TaskListPage() {
   }, [isReviewer, boardItems, tasks]);
 
   /**
-   * 화면에 그릴 행.
+   * 화면에 그릴 행 = **서버가 이미 거른 결과** 그대로다.
    *
-   * - REVIEWER: **서버가 이미 거른 결과** 그대로다. 여기서 다시 거르면 현재 페이지 20건 안에서만
-   *   걸러져 목록·총건수·KPI 가 서로 다른 값을 말하게 된다(클라이언트 재필터 금지).
-   * - WORKER  : /v1/assignments 는 workerId 외 필터를 지원하지 않아 기존 클라이언트 필터를 유지한다.
+   * 여기서 다시 거르면 현재 페이지 20건 안에서만 걸러져 목록·총건수·KPI 가 서로 다른 값을 말하고,
+   * 뒷페이지 항목은 검색해도 나오지 않는다(클라이언트 재필터 금지 — 역할 무관).
    */
-  const visibleRows = useMemo<TaskRow[]>(() => {
-    if (isReviewer) return allRows;
+  const pagedRows = allRows;
 
-    let result = allRows;
-    if (filters.q) {
-      const q = filters.q.toLowerCase();
-      result = result.filter(
-        (r) =>
-          r.videoName.toLowerCase().includes(q) ||
-          (r.task?.workerName ?? '').toLowerCase().includes(q),
-      );
-    }
-    if (filters.workStatus) {
-      result = result.filter((r) => r.rowStatus === filters.workStatus);
-    }
-    if (filters.eventTypeCd) {
-      result = result.filter((r) => r.video.eventTypeCd === filters.eventTypeCd);
-    }
-    return result;
-  }, [isReviewer, allRows, filters.q, filters.workStatus, filters.eventTypeCd]);
-
-  // 페이징
-  // - WORKER:    BE /assignments       totalPages 사용
-  // - REVIEWER:  BE /v1/tasks/board     totalPages 사용 (필터가 서버에 적용된 결과)
-  const totalPages = Math.max(
-    1,
-    (isReviewer ? boardPage?.totalPages : tasksPage?.totalPages) ?? 1,
-  );
+  // 페이징 — 두 역할 모두 BE totalPages 사용 (필터가 서버에 적용된 결과).
+  const listPage = isReviewer ? boardPage : tasksPage;
+  const totalPages = Math.max(1, listPage?.totalPages ?? 1);
   const safePage = Math.min(page, totalPages - 1);
-  const pagedRows = visibleRows;
-  // 헤더의 "전체 N건" 은 **화면에 그려진 행과 같은 집합**을 세야 한다. 원천은 역할마다 다르다.
-  // - REVIEWER: 서버가 이미 필터를 적용한 결과라 서버 totalElements 가 그 집합이다.
-  // - WORKER  : /v1/assignments 는 필터를 지원하지 않아 화면에서 다시 거른다. 서버 totalElements 를
-  //             쓰면 표에는 3행인데 헤더는 "전체 42건"이 되므로 클라이언트 필터 결과 행 수를 쓴다.
-  const totalElements = isReviewer
-    ? boardPage?.totalElements ?? visibleRows.length
-    : visibleRows.length;
+  // 헤더의 "전체 N건" 은 **필터 결과 전체**를 세야 한다 — 현재 페이지 행 수가 아니다.
+  const totalElements = listPage?.totalElements ?? allRows.length;
 
   // 필터·정렬 변경 시 URL 동기화. 페이지 리셋은 **상태를 바꾼 핸들러가 함께** 처리한다 —
   // effect 로 미루면 직전 페이지 번호로 목록 요청이 한 번 더 나간다.
@@ -497,9 +479,11 @@ export function TaskListPage() {
     return map;
   }, [boardItems, tasks]);
 
+  // WORKER KPI 4카드 — 서버 집계 API 가 REVIEWER 전용(403)이라 현재 페이지 행을 센다(표시 전용,
+  // 구 동작 그대로). 카드 클릭 필터 연동이 없어 숫자를 필터의 근거로 쓰지 않는다.
   const workerRowStatuses = useMemo(
-    () => visibleRows.map((r) => r.rowStatus),
-    [visibleRows],
+    () => pagedRows.map((r) => r.rowStatus),
+    [pagedRows],
   );
 
   /** 배정/일괄배정 성공 — 모달을 닫고 선택을 비운 뒤 목록을 다시 읽는다. */
@@ -536,7 +520,7 @@ export function TaskListPage() {
         showAssigneeSelect={isReviewer}
         workers={workers}
         eventTypes={eventTypeOptions}
-        eventTypesTruncated={isReviewer && eventTypesTruncated}
+        eventTypesTruncated={eventTypesTruncated}
       />
 
       {hasListError && (

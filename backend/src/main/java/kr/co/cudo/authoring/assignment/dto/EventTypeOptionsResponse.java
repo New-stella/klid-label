@@ -3,7 +3,12 @@ package kr.co.cudo.authoring.assignment.dto;
 import java.util.List;
 
 /**
- * 작업목록 이벤트유형 셀렉트 옵션({@code GET /v1/tasks/board/event-types}) 응답.
+ * 이벤트유형 셀렉트 옵션 응답 — REVIEWER 작업목록({@code GET /v1/tasks/board/event-types})과
+ * WORKER 배정목록({@code GET /v1/assignments/event-types}) <b>공용</b>.
+ *
+ * <p>두 경로가 같은 레코드를 쓰는 이유는 FE 가 같은 셀렉트 컴포넌트로 역할에 따라 엔드포인트만 바꿔
+ * 호출하기 때문이다 — 형태가 갈라지면 화면에 분기가 하나 더 생긴다. 적용 필터 축은 경로마다 다르지만
+ * (board=배치 상태 / assignments=인가+검색어+워크플로 상태) <b>응답 계약은 동일</b>하다.
  *
  * <p><b>왜 {@code List<String>} 이 아니라 래퍼인가</b> — 옵션 개수에는 상한이 있고 초과 시 잘라서
  * 반환한다(무제한 응답 차단, OWASP API4). 벌거벗은 배열로 반환하면 <b>절단이 응답에 드러나지 않아</b>

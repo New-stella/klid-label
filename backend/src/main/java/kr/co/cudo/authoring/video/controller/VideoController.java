@@ -256,13 +256,25 @@ public class VideoController {
 
     /**
      * SCR-REVIEW-002 — 프레임 이미지 byte streaming.
-     * <p>rawSn + frameNo 기반. PRVC/PSDO 영상은 비식별 경로만 사용 (REVIEWER 도 원본 강제 노출 금지).
+     *
+     * <p>rawSn + frameNo 기반이며 판정은 형제 경로({@code GET /v1/frames/{srcSn}/image})와
+     * <b>같은 단일 원천</b>({@code FrameImageService})이다.
+     * <ul>
+     *   <li><b>기본 서빙 = 비식별(DEID) 프레임</b>. WORKER 의 {@code raw=true} 는 무시된다.</li>
+     *   <li><b>REVIEWER 가 {@code raw=true} 를 명시하면 원본을 서빙한다 — PRVC/PSDO 영상도 포함</b>
+     *       (검수자는 마스킹 품질을 원본과 대조해야 한다). 구 서술 "REVIEWER 도 원본 강제 노출 금지"는
+     *       현재 코드와 반대라 정정한 것이다.</li>
+     *   <li>비식별 경로가 없을 때: PRVC/PSDO 는 404(원본 폴백 금지), ANONY 레거시는 원본 폴백.</li>
+     *   <li>비식별 누락 신고 구간({@code DE_IDNTF_YN='F'})은 역할 무관 412.</li>
+     * </ul>
      */
     @Operation(
             summary = "프레임 이미지 다운로드 (rawSn + frameNo)",
             description = "검수 화면용 프레임 이미지 byte streaming. " +
-                    "비식별 대상(PRVC/PSDO) 영상은 deid 경로 강제 사용. " +
-                    "Path Traversal 방어 (CWE-22) + 확장자 allowlist + Cache-Control: private, max-age=3600."
+                    "기본은 비식별(DEID) 프레임이며 REVIEWER 가 raw=true 를 명시할 때만 원본을 서빙한다" +
+                    "(WORKER 의 raw=true 는 무시). 비식별 경로가 없으면 PRVC/PSDO 는 404, ANONY 는 원본 폴백. " +
+                    "Path Traversal/심링크 방어 (CWE-22/59) + 확장자 allowlist + " +
+                    "Cache-Control: no-store (신고 게이트가 매 요청 평가되어야 하므로 클라이언트 캐시 재사용 금지)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 — image/jpeg or image/png or image/webp"),

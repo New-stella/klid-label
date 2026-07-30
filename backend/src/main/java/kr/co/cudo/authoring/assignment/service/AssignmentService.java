@@ -3,11 +3,14 @@ package kr.co.cudo.authoring.assignment.service;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
+import kr.co.cudo.authoring.assignment.dto.AssignmentSearchCondition;
+import kr.co.cudo.authoring.assignment.dto.EventTypeOptionsResponse;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignHistory;
+import kr.co.cudo.authoring.assignment.repository.AssignmentQueryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
@@ -46,7 +49,15 @@ import java.util.stream.Collectors;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class AssignmentService {
 
+    /**
+     * 이벤트유형 옵션 반환 상한 — 페이징 없는 목록이라 상한이 유일한 자원 고갈 방어다(OWASP API4).
+     * 값은 REVIEWER 쪽 {@code TaskBoardService.MAX_EVENT_TYPE_OPTIONS} 와 동일하게 맞춘다 —
+     * 같은 셀렉트 컴포넌트가 두 경로를 다루므로 상한이 다르면 화면 동작이 경로마다 달라진다.
+     */
+    private static final int MAX_EVENT_TYPE_OPTIONS = 500;
+
     private final LsTaskAssignmentRepository authrtRepository;
+    private final AssignmentQueryRepository assignmentQueryRepository;
     private final LsTaskAssignHistoryRepository hstryRepository;
     private final LsRawDataStatusRepository dataSttsRepository;
     private final LsTaskEventLogRepository taskEventLogRepository;
@@ -302,36 +313,41 @@ public class AssignmentService {
         return out;
     }
 
-    public Page<AssignmentResponse.Item> listAssignments(Long workerIdParam, TokenClaims actor, Pageable pageable) {
-        if (actor == null) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
-        }
-        Page<LsTaskAssignment> page;
-        if (actor.role() == Role.WORKER) {
-            // IDOR 방어: WORKER 는 본인 배정만 조회 가능. workerId 파라미터는 무시하거나 본인 sub 강제.
-            Long selfNo = parseUserNo(actor.sub());
-            page = authrtRepository.findByUserNoAndTaskTypeCd(selfNo, LsTaskAssignment.TASK_LABELER, pageable);
-        } else if (actor.role() == Role.REVIEWER) {
-            if (workerIdParam != null) {
-                page = authrtRepository.findByUserNoAndTaskTypeCd(workerIdParam, LsTaskAssignment.TASK_LABELER, pageable);
-            } else {
-                page = authrtRepository.findByTaskTypeCd(LsTaskAssignment.TASK_LABELER, pageable);
-            }
-        } else {
-            throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
-        }
-        Map<Long, Long> reviewerByVideo = lookupReviewerByVideo(page.getContent());
-        Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(page.getContent());
-        Map<Long, String> cctvNameByVideo = lookupCctvNameByVideo(page.getContent());
-        Map<Long, String[]> eventInfoByVideo = lookupEventInfoByVideo(page.getContent());
+    /**
+     * 배정 목록 조회 — 검색·필터는 <b>전체 데이터셋 기준</b>으로 쿼리 계층에서 적용된다(R1/R2).
+     *
+     * <p><b>IDOR 방어 (CWE-639, R6)</b>: WORKER 요청이면 요청이 보낸 {@code workerId} 를
+     * <b>참조하지 않고</b> 토큰 subject 로 조회 범위를 고정한다
+     * ({@link AssignmentSearchCondition#scopedToSelf}). 조건 객체는 인가 축이 채워지는 순간 필터 축을
+     * 스스로 지우므로, 이후 어떤 필터가 추가돼도 두 축이 섞일 수 없다. 기존 계약대로 403 이 아니라
+     * <b>무시</b>다(FE 가 REVIEWER/WORKER 공용 쿼리스트링을 그대로 보낸다).
+     *
+     * <p>목록 조회 자체는 쿼리 1 + count 1 이고, 화면 표시용 부가 정보(cctvName/이벤트/상태/파생 여부)는
+     * 페이지 단위 batch lookup 으로 채운다(N+1 회피). '작업중' 판정 근거인 라벨 저장 이력 존재 여부는
+     * 목록 쿼리의 프로젝션으로 이미 실려 오므로 <b>여기서 다시 조회하지 않는다</b> — 재조회하면 필터와
+     * 표시가 서로 다른 근거를 쓰게 된다(HIGH-3).
+     */
+    public Page<AssignmentResponse.Item> listAssignments(AssignmentSearchCondition condition,
+                                                         TokenClaims actor, Pageable pageable) {
+        AssignmentSearchCondition scoped = scopeForActor(condition, actor);
+
+        Page<AssignmentQueryRepository.AssignmentRow> page = assignmentQueryRepository.search(scoped, pageable);
+        List<LsTaskAssignment> rows = page.getContent().stream()
+                .map(AssignmentQueryRepository.AssignmentRow::assignment)
+                .toList();
+
+        Map<Long, Long> reviewerByVideo = lookupReviewerByVideo(rows);
+        Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(rows);
+        Map<Long, String> cctvNameByVideo = lookupCctvNameByVideo(rows);
+        Map<Long, String[]> eventInfoByVideo = lookupEventInfoByVideo(rows);
         // FE Task.status 정합 — LS_RAW_DATA_STATUS.DATA_STTS_CD 를 단일 IN 쿼리로 일괄 lookup (N+1 회피).
-        Map<Long, String> dataSttsByVideo = lookupDataSttsByVideo(page.getContent());
+        Map<Long, String> dataSttsByVideo = lookupDataSttsByVideo(rows);
         // R3 — 파생 영상 여부/증강 종류 파생을 위한 LS_DATA_RAW batch lookup (N+1 회피).
-        Map<Long, LsDataRaw> videoByRaw = lookupVideoByRaw(page.getContent());
+        Map<Long, LsDataRaw> videoByRaw = lookupVideoByRaw(rows);
 
         // worker + reviewer userNo 를 한 Set 에 모아 1회 batch 조회 (N+1 회피).
         Set<Long> userNos = new HashSet<>();
-        for (LsTaskAssignment e : page.getContent()) {
+        for (LsTaskAssignment e : rows) {
             if (e.getUserNo() != null) userNos.add(e.getUserNo());
             Long reviewerNo = reviewerByVideo.get(e.getRawDataId());
             if (reviewerNo != null) userNos.add(reviewerNo);
@@ -343,7 +359,8 @@ public class AssignmentService {
             }
         }
 
-        return page.map(e -> {
+        return page.map(row -> {
+            LsTaskAssignment e = row.assignment();
             Long reviewerId = reviewerByVideo.get(e.getRawDataId());
             String workerName = e.getUserNo() != null ? nameByUserNo.get(e.getUserNo()) : null;
             String reviewerName = reviewerId != null ? nameByUserNo.get(reviewerId) : null;
@@ -358,8 +375,60 @@ public class AssignmentService {
             String augType = augmented ? AugTypeParser.parse(video.getVmsClipId()) : null;
             return AssignmentResponse.Item.from(
                     e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName, eventName, eventTypeCd,
-                    dataSttsCd, augmented, augType);
+                    dataSttsCd, augmented, augType, row.hasSaveHistory());
         });
+    }
+
+    /**
+     * 이벤트유형 셀렉트 옵션 조회 — <b>현재 페이지가 아니라 조회 가능한 배정 전체</b> 기준(R4).
+     *
+     * <p><b>인가는 목록과 완전히 동일</b>하다 — 같은 {@link #scopeForActor} 를 통과하므로 WORKER 는
+     * 본인 배정으로 고정되고(요청 {@code workerId} 는 읽지 않는다), REVIEWER 만 작업자 필터를 쓸 수
+     * 있으며 그 외 역할은 403 이다. 옵션 API 는 "그 값이 존재한다" 는 사실 자체가 정보이므로 목록보다
+     * 느슨할 이유가 없다(CWE-639).
+     *
+     * <p>다른 필터(검색어·워크플로 상태)는 반영하고 <b>이벤트유형 축만 제외</b>한다 — 리포지토리가
+     * 목록과 같은 조건 조립을 공유하므로 "옵션엔 있는데 고르면 0건" 이 생길 수 없다.
+     *
+     * <p><b>페이징 없음 + 개수 상한({@value #MAX_EVENT_TYPE_OPTIONS})</b> — 코드값 select-option 이라
+     * 화면이 전량을 한 번에 받아야 해서 페이징을 두지 않는다(목록 전체조회 금지 규칙의 예외). 대신
+     * 상한을 두어 코드 오염 등으로 카디널리티가 폭증해도 응답이 무제한으로 커지지 않게 하고
+     * (OWASP API4 — 자원 고갈), 잘렸다는 사실은 {@code truncated=true} 로 알린다. 상한값과 응답 형태는
+     * REVIEWER 쪽 {@code GET /v1/tasks/board/event-types} 와 동일하게 맞춰 FE 가 한 컴포넌트로 다룬다.
+     */
+    public EventTypeOptionsResponse listEventTypeOptions(AssignmentSearchCondition condition, TokenClaims actor) {
+        AssignmentSearchCondition scoped = scopeForActor(condition, actor);
+
+        List<String> options = assignmentQueryRepository
+                .findDistinctEventTypes(scoped, MAX_EVENT_TYPE_OPTIONS + 1);
+        if (options.size() > MAX_EVENT_TYPE_OPTIONS) {
+            // 카디널리티 이상(코드 오염 등) — 응답을 무제한으로 키우지 않고 잘라 낸다(OWASP API4).
+            log.warn("[Assignment] eventTypeOptionsTruncated limit={}", MAX_EVENT_TYPE_OPTIONS);
+            return EventTypeOptionsResponse.truncated(options.subList(0, MAX_EVENT_TYPE_OPTIONS));
+        }
+        return EventTypeOptionsResponse.of(options);
+    }
+
+    /**
+     * 조회 범위 확정 — <b>인가 판정 단일 지점</b>(목록·이벤트유형 옵션 공용).
+     *
+     * <p>엔드포인트마다 조건을 조립하면 한쪽만 self 강제가 빠져 IDOR 이 생긴다(CWE-639). WORKER 는
+     * 요청이 보낸 {@code workerId} 를 <b>읽지 않고</b> 토큰 subject 로 고정하며(기존 계약대로 403 이
+     * 아니라 무시), REVIEWER 만 작업자 필터를 유지한다. 그 외 역할은 여기서 403 으로 막는다 —
+     * SecurityConfig 의 역할 게이트와 이중 방어다.
+     */
+    private AssignmentSearchCondition scopeForActor(AssignmentSearchCondition condition, TokenClaims actor) {
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        AssignmentSearchCondition requested = condition != null ? condition : AssignmentSearchCondition.none();
+        if (actor.role() == Role.WORKER) {
+            return requested.scopedToSelf(parseUserNo(actor.sub()));
+        }
+        if (actor.role() == Role.REVIEWER) {
+            return requested;
+        }
+        throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
     }
 
     /**

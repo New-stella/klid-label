@@ -141,11 +141,33 @@ class SortAllowlistTest {
     }
 
     @Test
+    @DisplayName("배정목록_allowlist는_FE_노출_컬럼만_보유하고_기본정렬키_regDt를_포함한다")
+    void assignmentAllowlistExposesOnlyPublicColumns() {
+        assertThat(SortAllowlist.ASSIGNMENT).containsOnlyKeys(
+                "regDt", "assignedAt", "rawDataId", "videoId", "assignmentId", "id");
+        assertThat(SortAllowlist.ASSIGNMENT.values()).containsOnly("regDt", "rawDataId", "assignmentId");
+        // regDt 는 @PageableDefault 의 기본 정렬 — 빠지면 파라미터 없는 기존 호출이 전부 400 이 된다.
+        assertThat(SortAllowlist.ASSIGNMENT).containsEntry("regDt", "regDt");
+    }
+
+    @Test
+    @DisplayName("배정목록은_strict_모드라_미등록_정렬키를_거부한다")
+    void assignmentUsesStrictMode() {
+        // 검수목록(lenient)과 정책이 다르다 — 통일하지 말 것(CLAUDE.md 구속). 근거는 "변경 전 200 이었는가".
+        assertThatThrownBy(() -> SortAllowlist.resolve(
+                Sort.by(Sort.Order.asc("taskTypeCd")), SortAllowlist.ASSIGNMENT, FALLBACK))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
     @DisplayName("정렬_항목_상한은_allowlist_고유_엔티티필드_수에서_파생된다")
     void maxOrdersDerivedFromAllowlist() {
         // 리포지토리가 상한을 하드코딩하면 allowlist 확장 시 조용히 어긋난다 — 파생 계약을 고정한다.
         assertThat(SortAllowlist.maxOrders(SortAllowlist.REVIEW)).isEqualTo(3);
         assertThat(SortAllowlist.maxOrders(SortAllowlist.TASK_BOARD)).isEqualTo(3);
+        assertThat(SortAllowlist.maxOrders(SortAllowlist.ASSIGNMENT)).isEqualTo(3);
     }
 
     // ------------------------------------------------------------- lenient 모드

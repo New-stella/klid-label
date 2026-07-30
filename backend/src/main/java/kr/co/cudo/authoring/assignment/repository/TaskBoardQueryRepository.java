@@ -22,6 +22,7 @@ import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.BlankTextPredicate;
+import kr.co.cudo.authoring.common.util.LikeEscape;
 import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.user.entity.QMngAcctUser;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -413,11 +414,15 @@ public class TaskBoardQueryRepository {
                 .exists());
     }
 
-    /** LIKE 특수문자({@code \ % _}) 이스케이프 — 와일드카드 주입으로 필터가 무력화되는 것을 막는다. */
+    /**
+     * LIKE 특수문자({@code \ % _}) 이스케이프 — 와일드카드 주입으로 필터가 무력화되는 것을 막는다.
+     *
+     * <p>규칙 자체는 {@link LikeEscape} 가 단일 원천으로 보유한다 — 배정 목록
+     * ({@code AssignmentQueryRepository}) 이 같은 규칙을 써야 하는데 사본을 만들면 한쪽만 바뀌어도
+     * 드러나지 않기 때문이다. 여기서는 호출부를 바꾸지 않기 위해 위임만 한다.
+     */
     private static String escapeLike(String raw) {
-        return raw.replace("\\", "\\\\")
-                .replace("%", "\\%")
-                .replace("_", "\\_");
+        return LikeEscape.escape(raw);
     }
 
     // ---------------------------------------------------------------- order by
