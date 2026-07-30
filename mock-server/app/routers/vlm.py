@@ -217,10 +217,23 @@ async def describe(request: Request, background_tasks: BackgroundTasks) -> Accep
     )
     # 결정적 실패 트리거면 동기 응답은 accepted 유지, failed 콜백만 발사(규격 동작).
     if vlm_sim.is_failure_trigger(request_id, req.media.path):
-        callback = vlm_sim.build_failed_callback(request_id)
+        _enqueue_callback(
+            background_tasks,
+            str(req.callback_url),
+            vlm_sim.build_failed_callback(request_id),
+        )
     else:
-        callback = vlm_sim.build_describe_callback(request_id)
-    _enqueue_callback(background_tasks, str(req.callback_url), callback)
+        # 성공 콜백은 대상 영상의 <b>실제 길이</b>를 조회해 그 길이 전체를 덮는 구간을 만든다.
+        # 길이 조회(ffprobe)는 블로킹이라 페이로드 생성을 백그라운드로 미룬다 — accepted 응답을
+        # 지연시키지 않기 위함. 조회 실패는 폴백 길이로 degrade 한다(콜백은 항상 발사).
+        background_tasks.add_task(
+            vlm_sim.schedule_describe_callback,
+            str(req.callback_url),
+            request_id,
+            req.media.path,
+            req.media.duration_sec,
+            get_settings().callback_delay_seconds,
+        )
     return AcceptedResponse(request_id=request_id, status="accepted")
 
 

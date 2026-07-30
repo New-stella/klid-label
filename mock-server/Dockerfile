@@ -11,6 +11,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# 시스템 의존성 — KPST 목이 산출하는 비식별 영상에 '비식별 완료' 워터마크를 굽는 데 쓴다.
+#   ffmpeg      : drawtext 필터(libfreetype 포함 빌드)로 프레임에 텍스트를 직접 인코딩
+#   fonts-nanum : 한글 폰트(/usr/share/fonts/truetype/nanum/NanumGothic.ttf).
+#                 drawtext 에 fontfile 절대경로로 지정하므로 fontconfig 탐색에 의존하지 않는다.
+# 둘 중 하나라도 없으면 워터마킹은 자동으로 '원본 복사' 폴백이라 목 자체는 계속 동작한다.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-nanum \
+    && rm -rf /var/lib/apt/lists/*
+
 # 의존성 먼저 설치(레이어 캐시 활용). 순수 파이썬 패키지라 빌드 도구 불필요.
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt

@@ -11,6 +11,13 @@
   경과초 → progressRate/state 를 계산한다. 벽시계(time.time)가 아닌 monotonic 을
   써서 시스템 시간 변경에 영향받지 않는다.
 
+★ **비동기 산출 축(production_state)** — 구속 원칙 "외부연동은 모두 비동기":
+``POST /project`` 는 접수만 하고 즉시 반환하며, 실제 산출(ffmpeg 인코딩·복사)은 백그라운드
+태스크가 수행한다. 그래서 진행률에는 **두 축**이 있다:
+  ① 경과초(위 시뮬레이션) ② 실제 산출 진행(``Project.production_state``).
+완료(progressRate=100 → procState=2)는 **둘 다 끝났을 때만** 보고한다. 경과초만으로 완료를
+보고하면 BE 가 아직 만들어지지 않은 산출물을 회수하러 가서 무결성 실패 → 거짓 'F' 가 된다.
+
 Phase 2/3 가 이 저장소를 확장(데이터셋/작업로그 로직 추가)해 사용한다.
 """
 
@@ -30,6 +37,20 @@ from app.schemas.genai import TERMINAL_STATUSES, JobStatus
 # 예: 10%/s → 배속 1.0 에서 10초면 100% 도달.
 PROGRESS_PERCENT_PER_SECOND: float = 10.0
 PROGRESS_MAX: float = 100.0
+
+#: 산출(백그라운드)이 끝나기 전 보고할 수 있는 진행률 상한 — 100 미만이어야 한다.
+#: 100 을 보고하면 그 자체가 "완료"라 BE 가 아직 없는 산출물을 회수하러 간다.
+PROGRESS_INCOMPLETE_CAP: float = 99.0
+
+# ── 백그라운드 산출 상태 (구속 원칙: 외부연동은 모두 비동기) ────────
+PRODUCTION_PENDING: str = "PENDING"
+PRODUCTION_RUNNING: str = "RUNNING"
+PRODUCTION_SUCCEEDED: str = "SUCCEEDED"
+PRODUCTION_FAILED: str = "FAILED"
+#: 더 이상 변하지 않는 산출 상태 — 대기 헬퍼/폴링 판정의 종료 조건.
+PRODUCTION_TERMINAL: frozenset[str] = frozenset(
+    {PRODUCTION_SUCCEEDED, PRODUCTION_FAILED}
+)
 
 
 #: 로그 인젝션에 쓰이는 제어문자 — C0(\x00~\x1f, ANSI ESC \x1b 포함) · DEL(\x7f) ·
@@ -56,10 +77,10 @@ class DuplicateProjectError(Exception):
 
 @dataclass
 class ProgressSnapshot:
-    """경과초로 계산한 진행률 스냅샷."""
+    """진행률 스냅샷 — 경과초 축과 산출 축을 합친 결과."""
 
     progress_rate: float
-    state: str  # PENDING | PROCESSING | COMPLETED
+    state: str  # PENDING | PROCESSING | COMPLETED | FAILED
 
 
 def elapsed_progress(
@@ -97,6 +118,30 @@ def elapsed_progress(
     return ProgressSnapshot(progress_rate=float(rate), state=state)
 
 
+def combined_progress(
+    elapsed: ProgressSnapshot, production_state: str
+) -> ProgressSnapshot:
+    """경과초 진행률에 **실제 산출 진행**을 반영한 최종 스냅샷을 만든다.
+
+    - 산출 실패(``PRODUCTION_FAILED``) → ``FAILED``. 완료로 위장하지 않는다. 라우터가 이 상태를
+      KPST 오류 sentinel(``procState=99``)로 내보내면 BE 는 타임아웃을 기다리지 않고 즉시
+      terminal 'F' 로 종결한다(``KpstDeidentService.PROC_STATE_TERMINAL_FAILED``).
+    - 산출 미완료 → 진행률을 ``PROGRESS_INCOMPLETE_CAP`` 으로 눌러 완료 보고를 막는다.
+    - 산출 성공 → 경과초 스냅샷 그대로(둘 다 끝나야 완료).
+    """
+    if production_state == PRODUCTION_FAILED:
+        return ProgressSnapshot(
+            progress_rate=min(elapsed.progress_rate, PROGRESS_INCOMPLETE_CAP),
+            state="FAILED",
+        )
+    if production_state != PRODUCTION_SUCCEEDED:
+        rate = min(elapsed.progress_rate, PROGRESS_INCOMPLETE_CAP)
+        return ProgressSnapshot(
+            progress_rate=rate, state="PROCESSING" if rate > 0.0 else "PENDING"
+        )
+    return elapsed
+
+
 @dataclass
 class Project:
     """목 서버가 관리하는 프로젝트(작업) 단위."""
@@ -111,6 +156,8 @@ class Project:
     input_path: str = ""
     is_img: int = 0
     db_save: int = 0
+    #: 백그라운드 산출 진행 상태(PENDING→RUNNING→SUCCEEDED|FAILED). 완료 보고의 두 번째 축이다.
+    production_state: str = PRODUCTION_PENDING
     # Phase 2/3 확장용 — 데이터셋 식별자 목록, 임의 메타데이터
     dataset_ids: list[int] = field(default_factory=list)
     meta: dict[str, Any] = field(default_factory=dict)
@@ -143,9 +190,17 @@ class InMemoryStore:
 
     프로젝트/데이터셋/작업로그를 단일 락으로 보호한다. 재진입이 필요한
     복합 연산은 없으므로 표준 ``Lock`` 을 사용한다.
+
+    자원 상한(MEDIUM-3, CWE-770 · OWASP API4:2023) — **``GenAiJobStore`` 와 같은 패턴**:
+    보관 프로젝트 수가 ``max_projects`` 를 넘으면 가장 오래된 것부터 만료(FIFO)하고 그
+    프로젝트에 딸린 데이터셋·작업로그·이름 색인까지 함께 정리한다. 목은 무인증이라
+    ``POST /project`` 를 고유 이름으로 반복하면 프로젝트/데이터셋/로그가 무제한 상주했다
+    (같은 프로세스의 생성형 AI 저장소만 상한을 갖고 있던 비대칭).
+    만료된 프로젝트의 산출 태스크는 ``set_production_state`` 가 False 를 돌려주므로
+    ``run_production`` 이 "project gone" 으로 스스로 중단한다.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_projects: Optional[int] = None) -> None:
         self._lock = threading.Lock()
         self._projects: dict[int, Project] = {}
         self._name_index: dict[str, int] = {}
@@ -154,6 +209,33 @@ class InMemoryStore:
         self._prj_seq: int = 0
         self._dataset_seq: int = 0
         self._job_seq: int = 0
+        self._max_projects = max_projects
+
+    def _limit(self) -> int:
+        """보관 상한 — 생성자 지정값 우선, 없으면 설정값(``GenAiJobStore._limit`` 과 동형)."""
+        if self._max_projects is not None:
+            return self._max_projects
+        from app.config import get_settings
+
+        return get_settings().deid_max_projects
+
+    def _evict_locked(self) -> None:
+        """상한 초과분을 오래된 순서로 제거한다(락 보유 상태에서 호출).
+
+        dict 는 삽입 순서를 유지하므로 선두가 가장 오래된 프로젝트다. 프로젝트만 지우면
+        데이터셋/로그가 고아로 남아 상한이 무의미해지므로 함께 정리한다.
+        """
+        limit = self._limit()
+        while len(self._projects) > limit:
+            oldest_id = next(iter(self._projects))
+            evicted = self._projects.pop(oldest_id, None)
+            if evicted is None:
+                continue
+            if self._name_index.get(evicted.project_name) == oldest_id:
+                self._name_index.pop(evicted.project_name, None)
+            for dataset_id in evicted.dataset_ids:
+                self._datasets.pop(dataset_id, None)
+            self._job_logs = [log for log in self._job_logs if log.prj_id != oldest_id]
 
     # ── 프로젝트 ────────────────────────────────────────────────
     def create_project(
@@ -192,6 +274,7 @@ class InMemoryStore:
             )
             self._projects[prj_id] = project
             self._name_index[project_name] = prj_id
+            self._evict_locked()
             return project
 
     def get_project(self, prj_id: int) -> Optional[Project]:
@@ -236,15 +319,38 @@ class InMemoryStore:
             return True
 
     def progress_of(self, prj_id: int) -> Optional[ProgressSnapshot]:
-        """프로젝트의 현재 진행률 스냅샷을 계산한다. 대상 없으면 None."""
+        """프로젝트의 현재 진행률 스냅샷을 계산한다. 대상 없으면 None.
+
+        경과초 축과 **백그라운드 산출 축**을 합쳐서 판정한다(``combined_progress``) — 완료 판정을
+        여기 한 곳에서만 내려야 소비자(progress/report/job_logs)가 서로 다른 답을 내지 않는다.
+        """
         from app.config import get_settings
 
         with self._lock:
             project = self._projects.get(prj_id)
             created = project.created_monotonic if project else None
-        if created is None:
+            production = project.production_state if project else None
+        if created is None or production is None:
             return None
-        return elapsed_progress(created, time.monotonic(), get_settings().sim_speed_factor)
+        elapsed = elapsed_progress(
+            created, time.monotonic(), get_settings().sim_speed_factor
+        )
+        return combined_progress(elapsed, production)
+
+    def set_production_state(self, prj_id: int, state: str) -> bool:
+        """백그라운드 산출 상태를 기록한다. 대상 프로젝트가 없으면 False(삭제됨)."""
+        with self._lock:
+            project = self._projects.get(prj_id)
+            if project is None:
+                return False
+            project.production_state = state
+            return True
+
+    def production_state_of(self, prj_id: int) -> Optional[str]:
+        """백그라운드 산출 상태를 조회한다. 대상 없으면 None."""
+        with self._lock:
+            project = self._projects.get(prj_id)
+            return project.production_state if project is not None else None
 
     # ── 데이터셋 (Phase 2 확장 골격) ─────────────────────────────
     def add_dataset(self, prj_id: int, name: str, **meta: Any) -> Optional[Dataset]:
