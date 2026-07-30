@@ -204,10 +204,12 @@ public class FfmpegFrameExtractor implements BatchStep {
         if (deidVideoPath != null) {
             Path deidPath = Paths.get(deidVideoPath).toAbsolutePath().normalize();
             if (!isUnderAllowedDeidBase(deidPath, raw)) {
-                // MED-sec: 비식별 영상 경로가 <b>허용 base 전부</b>의 밖 — 외부 응답·DB 오염 등 신뢰불가 경로.
+                // MED-sec: 비식별 영상 경로가 <b>허용 base 전부</b>의 밖(또는 실경로가 base 밖을 가리키는
+                // 심링크) — 외부 응답·DB 오염·NAS 링크 조작 등 신뢰불가 경로.
                 // VideoStreamService.resolveSafe 와 대칭으로 fail-closed: 비식별 입력으로 쓰지 않고
                 // 미존재처럼 RAW only 진행(원본 fallback 차단, 경로 원문 미노출).
-                log.warn("[Batch][FrameExtract] deid path outside base rawSn={} — RAW only", raw.getRawSn());
+                log.warn("[Batch][FrameExtract] deid path rejected (base/realpath) rawSn={} — RAW only",
+                        raw.getRawSn());
             } else if (frameWriter.sourceExists(deidPath)) {
                 deidSource = deidPath;
                 deidOutputDir = resolveSafeOutputDir(baseDeidPath, raw.getRawSn(), FrameKind.DEID);
@@ -305,6 +307,7 @@ public class FfmpegFrameExtractor implements BatchStep {
      *   <li>허용 루트 밖(외부·DB 오염) 경로는 여전히 거부 — <b>원본(비-비식별) 경로 폴백은 없다</b>
      *       (거부 시 비식별 입력 없이 RAW only 진행. {@code deIdntfYn='Y'} 행에 원본 PII 경로가 실릴
      *       여지를 만들지 않는다 — CWE-359).</li>
+     *   <li><b>실경로(심링크) 재검증</b> — {@link #underBaseWithRealPath} 참조.</li>
      *   <li>거부 로그에 경로 원문을 남기지 않는다(CWE-209).</li>
      *   <li>리졸버 미주입(단위 테스트 수동 생성)이면 구 동작({@code deidentified-path} 단독)으로
      *       판정한다 — 넓어지지 않는다(fail-closed).</li>
@@ -312,21 +315,55 @@ public class FfmpegFrameExtractor implements BatchStep {
      */
     private boolean isUnderAllowedDeidBase(Path deidPath, LsDataRaw raw) {
         if (artifactRootResolver == null) {
-            return deidPath.startsWith(baseDeidPath);
+            return underBaseWithRealPath(deidPath, baseDeidPath);
         }
         List<Path> bases;
         try {
             bases = artifactRootResolver.readableDeidVideoBases(raw.getRawSn(), raw.getRawFilePathNm());
         } catch (RuntimeException e) {
             // 후보 도출 자체가 실패하면 구 동작으로 판정한다(fail-secure — 넓히지 않는다).
-            return deidPath.startsWith(baseDeidPath);
+            return underBaseWithRealPath(deidPath, baseDeidPath);
         }
         for (Path base : bases) {
-            if (deidPath.startsWith(base)) {
+            if (underBaseWithRealPath(deidPath, base)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * base 1건에 대한 허용 판정 — lexical({@code startsWith}) <b>+ 실경로 재검증</b>(CWE-59).
+     *
+     * <h3>왜 lexical 만으로는 부족한가</h3>
+     * <p>허용 집합에 co-locate 경로({@code dirname(원본)/{rawSn}/deid})가 들어오면서, 판정 대상이
+     * <b>외부 비식별 벤더(KPST)가 공유 마운트로 직접 산출물을 쓰는 디렉터리</b>로 넓어졌다. 즉 신뢰
+     * 경계가 "우리만 쓰는 저장소" → "벤더가 쓰는 NAS 디렉터리" 로 확장됐으므로, 그 디렉터리 안의
+     * <b>대상 파일 자체</b>가 심링크로 원본(PII) 영상을 가리키는 경우를 막아야 한다. lexical 검사만
+     * 통과시키면 원본에서 추출한 프레임이 {@code DE_IDNTF_SRC_FILE_PATH_NM} 에 "비식별본" 으로
+     * 적재되어 데이터마트 뷰·export {@code deid/} 벌·포털 프레임 서빙으로 새어 나간다(CWE-359).
+     * 신고 게이트도 이 경로를 {@code 'Y'} 로 보기 때문에 뒤에서 막아주지 않는다.
+     *
+     * <h3>판정 로직을 복제하지 않는다</h3>
+     * <p>실경로 판정은 {@link VideoArtifactRootResolver#verifyRealPathUnder}(리졸버가 base 축에
+     * 쓰는 <b>같은</b> 정적 메서드)를 그대로 호출한다 — 이 결함군의 뿌리가 "가드가 여러 벌로 갈라져
+     * 하나씩 샌다" 였으므로 여기서 {@code toRealPath} 비교를 다시 구현하지 않는다.
+     *
+     * <p>검증 실패(실경로가 base 밖 / 해석 불가·권한 오류)는 모두 <b>거부</b>다(fail-closed).
+     * 거부는 예외가 아니라 {@code false} 이므로 호출부의 기존 "RAW only" 분기로 흡수된다 —
+     * 파이프라인을 실패시키지 않고, 원본 폴백도 만들지 않는다.
+     */
+    private static boolean underBaseWithRealPath(Path deidPath, Path base) {
+        if (!deidPath.startsWith(base)) {
+            return false;
+        }
+        try {
+            VideoArtifactRootResolver.verifyRealPathUnder(deidPath, base);
+            return true;
+        } catch (RuntimeException e) {
+            // 실경로가 base 밖(심링크 우회) 또는 해석 실패 — 이 base 로는 허용하지 않는다.
+            return false;
+        }
     }
 
     /**
