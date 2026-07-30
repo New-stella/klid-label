@@ -161,6 +161,13 @@ class BatchDevScanIntegrationTest {
      * <p>상태 컬럼({@code DE_IDENT_YN})만으로는 부족하다 — 실패 기록은 별도 트랜잭션에서 먼저 커밋되고
      * 부모 행 잠금을 쥔 {@code run()} 트랜잭션의 롤백은 그 <b>직후</b>에 일어나므로, 상태만 보면 잠금이
      * 아직 살아 있는 짧은 창이 남는다. 스레드 반납은 그 롤백 이후이므로 이 조건이 창을 닫는다.
+     *
+     * <p><b>⚠ 결합 위험 — 테스트 병렬 실행을 켜면 이 조건이 역효과가 된다.</b> {@code batchAsyncExecutor}
+     * 는 증강·export·해상도·VLM·포털 러너가 함께 쓰는 싱글턴이라 여기서 기다리는 것은 "이 테스트의 작업"
+     * 이 아니라 <b>풀 전체</b>의 유휴다. 현재는 테스트가 단일 JVM 순차 실행({@code maxParallelForks}·
+     * {@code junit-platform.properties} 미설정)이라 다른 테스트의 비동기 작업이 동시에 떠 있을 수 없어
+     * 무해하다. 병렬 실행을 도입하면 무관한 작업을 기다려 상한을 소모하고 헛 WARN 을 내므로, 판정을
+     * "이 테스트가 띄운 작업"으로 좁히는 선행 작업이 필요하다(그 경우 시드 격리도 함께 손봐야 한다).
      */
     private boolean batchAsyncIdle() {
         if (!(batchAsyncExecutor instanceof ThreadPoolTaskExecutor pool)) {
