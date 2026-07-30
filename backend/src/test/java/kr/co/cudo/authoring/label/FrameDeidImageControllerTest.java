@@ -214,12 +214,16 @@ class FrameDeidImageControllerTest {
         // given — setup 의 프레임은 SRC_FILE_PATH_NM = null (파생 프레임 정책 A)
         assertThat(srcRepository.findById(srcSn).orElseThrow().getSrcFilePathNm()).isNull();
 
-        // when/then — deid-image 는 200, 기존 image 는 404(원본 픽셀 부재)
+        // when/then — deid-image 는 200.
         mockMvc.perform(get(url(srcSn)).header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk());
+        // 기대값 변경 사유: 구 구현은 /image 가 SRC_FILE_PATH_NM 만 읽어 파생 프레임을 404 로 떨궜고
+        // (라벨링 캔버스 백지의 원인), 그 404 를 이 테스트가 고정하고 있었다. 정합 후 /image 도 비식별
+        // 프레임을 서빙하므로 200 이다. /deid-image 의 존재 이유는 "파생만 볼 수 있는 유일한 경로"가
+        // 아니라 <b>원본 폴백이 절대 없는 엄격 계약</b>이며, 그 계약은 아래 테스트들이 계속 고정한다.
         mockMvc.perform(get("/v1/frames/" + srcSn + "/image")
                         .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
     }
 
     @Test

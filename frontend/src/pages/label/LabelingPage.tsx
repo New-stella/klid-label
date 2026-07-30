@@ -134,7 +134,22 @@ export function LabelingPage() {
   // BE 의 인증 보호된 프레임 이미지 API 를 axios 로 fetch → blob URL 발급.
   // <img>/Image() 직접 호출은 Bearer 토큰 누락으로 401. CSP 의 img-src blob: 허용 활용.
   // R16 — 포털 모드는 /portal/frames/{id}/image (내부 /frames/{id}/image 는 PORTAL 채널 403).
-  const { url: imageBlobUrl } = useImageBlob(data?.srcSn, { portalMode });
+  // 이미지 로드 실패(error)를 반드시 받아 화면에 표시한다 — 구현상 실패하면 imageBlobUrl 이 null 로
+  // 남아 캔버스가 <b>아무 안내 없이 백지</b>가 됐다(파생영상 404 실측). 원인 파악 불가 = 사용자·운영
+  // 모두에게 최악의 실패 모드라, 실패 사실만이라도 캔버스 영역에 노출한다.
+  const {
+    url: imageBlobUrl,
+    loading: imageLoading,
+    error: imageError,
+  } = useImageBlob(data?.srcSn, { portalMode });
+  // 사유 힌트는 상태코드로만 만든다 — 서버 메시지(내부 경로 등)를 그대로 화면에 싣지 않는다(CWE-209).
+  const frameImageErrorHint = (() => {
+    const status = (imageError as { status?: number } | null)?.status;
+    if (status === 412) return '비식별 재처리 대기 중인 영상입니다.';
+    if (status === 403) return '이 프레임에 접근할 권한이 없습니다.';
+    if (status === 404) return '이미지 파일을 찾을 수 없습니다.';
+    return undefined;
+  })();
 
   const { mutate: submitForReview, isPending: submitting } = useSubmitReview({
     onSuccess: () => {
@@ -1196,6 +1211,20 @@ export function LabelingPage() {
             </Suspense>
           ) : (
             <div className="text-gray-400 text-sm">프레임 없음</div>
+          )}
+          {/* 프레임 이미지 로드 실패 안내 — 캔버스는 그대로 두고(라벨/도구는 계속 조작 가능) 실패
+              사실만 겹쳐 알린다. 이게 없으면 이미지 404/412 가 "그냥 백지"로 보인다. */}
+          {imageError && !imageLoading && (
+            <div
+              role="alert"
+              data-testid="frame-image-error"
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-10 max-w-[90%] rounded border border-red-700 bg-red-950/90 px-4 py-2 text-center text-sm text-red-100 shadow-lg"
+            >
+              프레임 이미지를 불러오지 못했습니다.
+              {frameImageErrorHint && (
+                <span className="ml-2 text-xs text-red-200">{frameImageErrorHint}</span>
+              )}
+            </div>
           )}
         </div>
 

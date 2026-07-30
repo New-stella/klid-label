@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.common.util.KeypointPoint;
 import kr.co.cudo.authoring.common.util.KeypointSerializer;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
@@ -25,7 +26,6 @@ import kr.co.cudo.authoring.video.service.FrameImageService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -35,7 +35,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -89,7 +89,8 @@ public class PortalLabelService {
      * R17 이슈1 — 비식별 프레임 이미지 base 경로.
      * deidFilePath 는 FFmpeg 추출 단계에서 deidentified-path 기준 절대경로로 저장된다
      * ({@code FfmpegFrameExtractor.attachDeidPath(deidFrame.toString())}).
-     * 따라서 Path Traversal 가드(resolveSafe)의 baseDir 도 raw-path 가 아닌 deidentified-path 여야 한다.
+     * 따라서 경로 검증({@link StorageSubtreePolicy#verifyDeidentifiedFile})의 base 도
+     * raw-path 가 아닌 deidentified-path 여야 한다.
      * (구버전은 raw-path 를 baseDir 로 잡아 startsWith 검증 실패 → 전 프레임 403 회귀)
      */
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
@@ -406,10 +407,25 @@ public class PortalLabelService {
      *       미승인 영상 프레임은 403 (FORBIDDEN).</li>
      *   <li>비식별(DEID) 경로만 서빙 — 포털은 데이터마트 비식별본 대상. 원본 폴백 금지
      *       (deid 경로 부재 시 404).</li>
-     *   <li>Path Traversal (CWE-22): baseDir 외부 경로 거부 (FrameImageService.resolveSafe 재사용).</li>
+     *   <li><b>경로 검증은 단일 판정기</b>({@link StorageSubtreePolicy#verifyDeidentifiedFile}) —
+     *       base 포함(CWE-22) + 존재/정규파일 + <b>실경로({@code toRealPath}) 기준</b> 비식별 서브트리
+     *       ({@code frames/deid/**}·{@code videos/**}). 아래 "왜 lexical 검증으로는 부족한가" 참조.</li>
      *   <li>확장자 allowlist 기반 MIME (FrameImageService.resolveMediaType 재사용).</li>
-     *   <li>Information Leak (CWE-209): 파일 부재/오류 시 내부 경로 비노출.</li>
+     *   <li><b>open 은 NOFOLLOW</b>({@link FrameImageService#openNoFollow}) — 내부 경로와 <b>같은 헬퍼</b>.</li>
+     *   <li>Information Leak (CWE-209): 파일 부재/오류 시 내부 경로·예외 원인 비노출.</li>
      * </ul>
+     *
+     * <h3>왜 lexical 검증(구 {@code resolveSafe})으로는 부족한가 (CWE-59/367/22/359)</h3>
+     * <p>운영 형상은 {@code STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH}(={@code /nas-storage},
+     * 의도된 동일 설정)다. 이때 {@code startsWith(deidBase)} 만 보는 lexical 검사는
+     * {@code frames/raw/**}(마스킹 전 원본 프레임)도 그대로 통과시킨다. 여기에 더해
+     * {@code frames/deid/{rawSn}/f.jpg → ../../raw/{rawSn}/f.jpg} 심링크가 있으면
+     * {@code Files.exists}/{@code Files.size}/{@code FileSystemResource} 는 모두 <b>링크를 따라가</b>
+     * 원본 픽셀을 "비식별본"으로 200 서빙한다 — 그것도 <b>외부 채널(PORTAL_USER)</b> 로.
+     * 따라서 ①서브트리 판정을 <b>실경로</b>에 적용하고 ②판정에 쓴 <b>그 실경로</b>를 열며
+     * ③open 자체를 {@code NOFOLLOW_LINKS} 로 해 판정~open 사이 교체(TOCTOU)까지 fail-closed 로 막는다.
+     * export({@code FrameSource})·내부 서빙({@code FrameImageService})이 이미 같은 규약이며,
+     * 이 포털 경로만 남아 있던 것을 정합했다. <b>판정·open 규약을 여기서 재구현하지 않는다.</b>
      */
     public ResponseEntity<Resource> serveFrameImage(Long srcSn, TokenClaims actor) throws IOException {
         requireActor(actor);
@@ -434,22 +450,47 @@ public class PortalLabelService {
         }
 
         // R17 이슈1 — deid 프레임은 deidentified-path 기준 절대경로. baseDir 도 deidentified-path 로 잡아야
-        // resolveSafe 의 startsWith 검증을 통과한다 (CWE-22 Path Traversal 가드는 그대로 유지).
+        // base 포함 검증을 통과한다 (CWE-22 Path Traversal 가드는 그대로 유지).
+        // 여기서 판정을 국소 재구현하지 않고 export·내부 서빙과 <b>literally 같은 판정기</b>를 쓴다 —
+        // 두 base 동일 운영 형상에서 lexical 검사는 frames/raw/** 를 통과시키고(fail-open),
+        // 심링크는 실경로 검사 없이는 잡히지 않는다(CWE-59/359).
         Path baseDir = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
-        Path resolved = FrameImageService.resolveSafe(baseDir, deid);
-        if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
-            log.warn("[Portal] frame image file not found srcSn={}", srcSn);
-            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+        StorageSubtreePolicy.Verification verification =
+                StorageSubtreePolicy.verifyDeidentifiedFile(baseDir, deid);
+        if (!verification.ok()) {
+            // 사유 코드만 로그에 남긴다 — 경로 원문/내부 구조 비노출(CWE-209/117).
+            log.warn("[Portal] frame image rejected srcSn={} rawSn={} verdict={}",
+                    srcSn, src.getRawSn(), verification.verdict());
+            // 응답 코드는 <b>기존 포털 계약 그대로</b>: 경로 부재/파일 없음 = 404,
+            // base 이탈·비식별 서브트리 밖(심링크 우회 포함) = 403(구 resolveSafe FORBIDDEN 과 동일).
+            throw switch (verification.verdict()) {
+                case BLANK, MISSING, NOT_REGULAR_FILE, REALPATH_FAILED ->
+                        new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+                default -> new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
+            };
         }
+        // A-1 — 판정에 쓴 <b>실경로</b>를 그대로 사용한다(lexical 경로를 열면 검증 대상 ≠ 사용 대상).
+        Path resolved = verification.path();
 
         MediaType mediaType = FrameImageService.resolveMediaType(resolved);
-        long contentLength = Files.size(resolved);
-        Resource body = new FileSystemResource(resolved);
+
+        // open 도 내부 서빙과 동일 규약(NOFOLLOW_LINKS) — 판정~open 사이에 최종 컴포넌트가
+        // 원본 프레임을 가리키는 심링크로 교체돼도 따라가지 않고 실패한다(TOCTOU, CWE-367).
+        // 크기와 스트림을 같은 open 에서 얻어 판정 대상과 응답 대상이 어긋나지 않게 한다.
+        FrameImageService.OpenedFile opened;
+        try {
+            opened = FrameImageService.openNoFollow(resolved);
+        } catch (IOException e) {
+            // 내부 경로/원인 노출 없이 규약 4xx 로 마감(CWE-209, OWASP A10) — 식별자 + 예외 클래스명만.
+            log.warn("[Portal] frame image open failed srcSn={} reason={}", srcSn, e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+        }
+        Resource body = new InputStreamResource(opened.stream());
 
         return ResponseEntity.ok()
                 .contentType(mediaType)
-                .contentLength(contentLength)
-                // 신고 게이트(위 417행)가 매 요청 평가되려면 브라우저 HTTP 캐시가 응답을 재사용하면
+                .contentLength(opened.size())
+                // 신고 게이트(위 requireNotUnderDeidentReport)가 매 요청 평가되려면 브라우저 HTTP 캐시가 응답을 재사용하면
                 // 안 된다 — max-age 동안 캐시된 "마스킹 실패" 비식별 프레임이 412 로 바뀐 뒤에도
                 // 그대로 재노출된다(CWE-359/525). 내부 /v1/frames/{srcSn}/image ·
                 // /deid-image · 영상 /stream 과 동일하게 no-store 로 통일.

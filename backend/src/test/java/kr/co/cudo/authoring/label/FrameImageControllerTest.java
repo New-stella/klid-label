@@ -5,8 +5,8 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.label.controller.FrameImageController;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.service.FrameImageService;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,6 +59,7 @@ class FrameImageControllerTest {
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
     @Value("${authoring.storage.raw-path:./storage/raw}") private String storageRawPath;
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}") private String storageDeidentifiedPath;
 
     private String reviewerToken;
     private String workerAssignedToken;
@@ -74,7 +75,9 @@ class FrameImageControllerTest {
         workerAssignedToken     = JwtTestSupport.token(secret, "100", "WORKER",   "INTERNAL", issuer, 60);
         workerNotAssignedToken  = JwtTestSupport.token(secret, "101", "WORKER",   "INTERNAL", issuer, 60);
 
-        // raw + frame 시드 (rawSn 9001 시뮬레이션 — 시드 충돌 방지 위해 별도)
+        // raw + frame 시드 (rawSn 9001 시뮬레이션 — 시드 충돌 방지 위해 별도).
+        // ANONY + 비식별 경로 없음 = 레거시 프레임 형태이므로, 서빙 정책 정합 후에도 원본 폴백이 적용돼
+        // 아래 200/403/404 기대값이 그대로 유지된다(R3 — 레거시 동작 보존).
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "CLIP-IMG-001", "CCTV-IMG", "EVT_FALL", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip.mp4",
@@ -155,6 +158,53 @@ class FrameImageControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    /**
+     * 이 스위트의 기본 시드는 <b>ANONY + 비식별 경로 null</b> 이라 원본 폴백 경로만 지나간다 —
+     * 즉 "기본 서빙 = 비식별" 정책 전환을 하나도 통과하지 않는다. 그래서 <b>비식별 경로가 채워진</b>
+     * 프레임을 이 스위트에서도 직접 시드해, 기본(raw 파라미터 미지정) 응답이 원본이 아니라
+     * 비식별 파일임을 고정한다(정책이 되돌아가면 여기서도 깨진다).
+     */
+    @Test
+    @DisplayName("FrameImage_비식별경로가_있으면_기본_요청은_비식별_프레임을_서빙한다")
+    void deidPathServedByDefault() throws Exception {
+        // given — 원본·비식별 두 벌이 모두 존재하는 프레임
+        byte[] deidBytes = "DEID-FRAME-PIXELS".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        byte[] rawBytes = "RAW-ORIGINAL-FRAME-PIXELS-LONGER".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        String rawRel = "frames/raw/" + rawSn + "/fic-orig.jpg";
+        String deidRel = "frames/deid/" + rawSn + "/fic-deid.jpg";
+        Path rawFile = baseDir.resolve(rawRel).normalize();
+        Path deidBase = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
+        Path deidFile = deidBase.resolve(deidRel).normalize();
+        Files.createDirectories(rawFile.getParent());
+        Files.createDirectories(deidFile.getParent());
+        Files.write(rawFile, rawBytes);
+        Files.write(deidFile, deidBytes);
+        LsDataSrc paired = srcRepository.save(
+                LsDataSrc.create(rawSn, 7, null, rawRel, deidRel, LocalDateTime.now()));
+
+        // when / then — 기본(raw 미지정)은 비식별본, REVIEWER 가 raw=true 를 명시할 때만 원본
+        byte[] served = mockMvc.perform(get("/v1/frames/" + paired.getSrcSn() + "/image")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(served).isEqualTo(deidBytes);
+
+        byte[] rawServed = mockMvc.perform(get("/v1/frames/" + paired.getSrcSn() + "/image")
+                        .queryParam("raw", "true")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(rawServed).isEqualTo(rawBytes);
+
+        // WORKER 는 raw=true 를 보내도 원본을 받지 못한다(강제 DEID)
+        byte[] workerServed = mockMvc.perform(get("/v1/frames/" + paired.getSrcSn() + "/image")
+                        .queryParam("raw", "true")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(workerServed).isEqualTo(deidBytes);
+    }
+
     @Test
     @DisplayName("FrameImage_PathTraversal_시도시_403")
     void pathTraversalBlocked() throws Exception {
@@ -184,11 +234,14 @@ class FrameImageControllerTest {
                 .andExpect(status().isForbidden());
     }
 
+    // 아래 두 테스트의 검증 대상(resolveSafe)은 컨트롤러가 아니라 FrameImageService 로 일원화되었다 —
+    // 컨트롤러가 경로 판정을 자체 보유하던 것이 "srcSn 경로만 원본을 서빙"하던 결함의 원인이라, 판정
+    // 코드를 서비스 단일 원천으로 옮겼다. 테스트 의미(경로 순회 차단)는 그대로 두고 참조만 옮긴다.
     @Test
     @DisplayName("FrameImage_resolveSafe_baseDir_상대경로_정상_resolve")
     void resolveSafeRelativeOk() {
         Path base = Paths.get("/var/storage").toAbsolutePath().normalize();
-        Path resolved = FrameImageController.resolveSafe(base, "seed/9001/frame_1.jpg");
+        Path resolved = FrameImageService.resolveSafe(base, "seed/9001/frame_1.jpg");
         assertThat(resolved.toString()).endsWith("seed/9001/frame_1.jpg");
         assertThat(resolved.startsWith(base)).isTrue();
     }
@@ -199,6 +252,6 @@ class FrameImageControllerTest {
         Path base = Paths.get("/var/storage").toAbsolutePath().normalize();
         org.junit.jupiter.api.Assertions.assertThrows(
                 kr.co.cudo.authoring.common.exception.CustomException.class,
-                () -> FrameImageController.resolveSafe(base, "../../etc/passwd"));
+                () -> FrameImageService.resolveSafe(base, "../../etc/passwd"));
     }
 }

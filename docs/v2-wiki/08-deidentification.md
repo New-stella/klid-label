@@ -111,7 +111,7 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
   | # | 엔드포인트 | 구현 |
   |:-:|-----------|------|
   | 1 | `GET /v1/videos/{rawSn}/stream` (200·206) | `VideoStreamService` |
-  | 2 | `GET /v1/frames/{srcSn}/image` | `FrameImageController` |
+  | 2 | `GET /v1/frames/{srcSn}/image` | `FrameImageService.serveBySrcSn` (컨트롤러는 위임만) |
   | 3 | `GET /v1/frames/{srcSn}/deid-image` | `FrameImageService.serveDeidentified` |
   | 4 | `GET /v1/videos/{rawSn}/frames/{frameNo}/image` | `FrameImageService.serve` |
   | 5 | `GET /v1/portal/frames/{srcSn}/image` | `PortalLabelService.serveFrameImage` |
@@ -119,6 +119,15 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
   5번은 포털(외부 채널)로 내보내는 **내부 파이프라인 비식별 프레임**이라 위 412 게이트 대상인데, 캐시만 `private, max-age=300` 으로 남아 신고 이후에도 최대 5분간 마스킹 실패 프레임이 재노출됐다(2026-07-28 누락 보정). 반면 **포털 업로드 자산**(`GET /v1/portal/uploads/frames/{uldFrmeSn}/image`, `PortalUploadService`)은 포털 사용자 **본인이 업로드한** 자산이라 비식별·신고 게이트 대상이 아니며(ADR-013 예외, 내부 파이프라인·데이터마트와 분리) 이 통일 대상이 **아니다**.
 
   이 응답들은 매 요청 게이트를 통과해야 하는데, 클라이언트가 `max-age` 동안 응답을 재사용하면 **요청이 서버에 오지 않아** 신고 직후에도 마스킹 실패 영상/프레임이 계속 재생·표시된다(재생 중 신고 시나리오에서 실증). 응답에 검증자(ETag/Last-Modified)가 없어 `no-cache`(재검증 강제)로 해도 304 가 성립하지 않아 대역폭 이득 없이 디스크 캐시 잔존 위험만 남으므로 `no-store` 로 통일했다. 서버측 `stream-meta` 캐시는 유지하되 **게이트를 캐시 앞(매 요청)에서 평가**하고, 신고/해소 시 **자기 `rawSn` 캐시만** 커밋 후 무효화한다(파생 캐시는 대상 아님 — 위 판정 범위와 대칭).
+- **비식별 프레임 경로 검증은 단일 판정기 + NOFOLLOW open (CWE-59/367/22/359)** — 비식별 프레임을 서빙·산출하는 경로는 모두 `StorageSubtreePolicy.verifyDeidentifiedFile` 하나로 판정하고, **판정에 쓴 실경로(`toRealPath`)를 그대로** `LinkOption.NOFOLLOW_LINKS` 로 연다(`FrameImageService.openNoFollow` — 구현 1벌 공용).
+
+  | 경로 | 구현 | 성격 |
+  |------|------|------|
+  | `GET /v1/frames/{srcSn}/image` · `/deid-image` · `/v1/videos/{rawSn}/frames/{frameNo}/image` | `FrameImageService` | 내부 |
+  | `GET /v1/portal/frames/{srcSn}/image` | `PortalLabelService.serveFrameImage` | **외부(포털)** |
+  | 검수 승인 export | `FrameSource` | 파일 산출 |
+
+  운영 형상이 `STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`, 의도된 동일 설정)라 `startsWith(deidBase)` 만 보는 lexical 검사는 `frames/raw/**`(마스킹 전 원본)까지 통과시키고(fail-open), `frames/deid/{rawSn}/f.jpg → ../../raw/{rawSn}/f.jpg` 심링크는 `Files.exists`/`Files.size`/`FileSystemResource` 가 모두 **따라가** 원본 픽셀을 "비식별본"으로 200 서빙한다. 그래서 ①서브트리 판정을 **실경로**에 적용하고 ②판정~open 사이 교체(TOCTOU)까지 NOFOLLOW 로 fail-closed 처리한다. 포털 경로는 **외부 채널**인데 이 정합에서 마지막까지 lexical 검증(`resolveSafe`)으로 남아 있던 것을 **2026-07-30 보정**했다(응답 계약은 불변 — 파일 부재 404 / base 이탈·서브트리 밖 403, 내부 경로·예외 원인 미노출). 포털 **업로드 자산**(`PortalUploadService`)은 본인 업로드분이라 이 대상이 아니다.
 - **신규 API `GET /v1/frames/{srcSn}/deid-image`**: 프레임의 **비식별 이미지 전용** 서빙(`DE_IDNTF_SRC_FILE_PATH_NM`). 해상도 파생 프레임은 원본 픽셀이 실재하지 않아 `SRC_FILE_PATH_NM` 이 null 이므로 기존 `/image` 로는 조회되지 않는다. **원본 폴백 없음** — 비식별 경로가 없거나 파일이 없으면 404. 응답 200 / 401 / 403(미배정·경로 위반) / 404 / 412(신고 구간). 인가(`LabelAccessGuard`) → 신고 게이트 → 경로 검증(심링크·경로순회 차단) 순서로 평가한다. **2026-07-28 백엔드 신설 — FE 연동은 후속**.
 - **해소(resolve) 시 export 재산출 재트리거**: `'F'→'Y'` 복원으로 위 게이트가 전부 자동 해제되고, 신고 구간에 보류됐던 **검수 승인(APPROVED) 영상의 export 재산출**이 `DeidentReportResolvedEvent` → `DatasetExportBridge`(AFTER_COMMIT)로 재개된다. 신고 구간 export 는 `LS_DATASET_EXPORT` 행을 남기지 않아 실패 회수기(FAILED 행 스캔)가 집지 못하므로 **해제 시점 재트리거가 유일한 복구 경로**다. **복구 범위는 해제된 영상 하나뿐**이다 — 어떤 신고가 막는 노드는 정확히 그 신고된 영상 하나이므로(위 판정 범위) **자손 팬아웃·상한·"다른 조상이 아직 신고 중인가" 판정이 모두 불필요**하다. 함께 발행되는 `DeidentGateReopenedEvent` 는 승인 여부와 무관하게 항상 발행되어 보류됐던 파이프라인 작업(특히 **VLM 시계열 위탁**)을 재개시킨다.
 - **수동 해소 시 비식별 산출물 검증 게이트(CWE-359, fail-closed)**: `resolveManually` 는 `'F'`→`'Y'` 복원 전에 해당 `RAW_SN` 의 최신 성공 처리 이력(`LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM`)에 기록된 비식별 파일이 스토리지에 실존(정규 파일 + >0바이트)하는지 확인한다. 기록이 없거나 파일이 부재/빈 파일이면 `409` 로 거부(내부 경로 미노출)하고 신고는 `OPEN`·작업락·`DE_IDENT_YN='F'` 를 유지한다 — 실제 외부 비식별 없이 마킹 게이트/스트리밍이 재개방되어 PII 가 재노출되는 것을 차단한다. 경로는 DB 적재값만 사용(사용자 입력 경로 구성 금지 — Path Manipulation 방지).
