@@ -75,6 +75,25 @@ class AugmentDiscardPurgeIT {
     private final List<Long> rawSns = new ArrayList<>();
 
     /**
+     * 시드가 만든 행 중 <b>{@code LS_DATA_RAW} 삭제로 정리되지 않는 것</b>의 PK.
+     *
+     * <p>V146 이 붙인 RAW CASCADE 는 {@code LS_DATA_SRC} 까지만 닿는다. 라벨({@code LS_DATA_LBL})은
+     * {@code SRC_SN} 에 <b>FK 가 없어</b> 프레임이 지워져도 남고, 라벨 속성값·라벨 마스터·속성 정의도
+     * 마찬가지다. 그래서 이 시드는 <b>테스트 클래스 경계를 넘어</b> 누적됐고, 뒤따르는
+     * {@code label}·{@code stats}·{@code portal} 테스트가 그 테이블을 비우거나 개수를 단언할 때
+     * FK 위반으로 무더기 실패했다(FULL 회귀 실패 69건 = {@code fk_ls_data_lbl_attr_lbl} 45 +
+     * {@code fk_ls_data_lbl_attr_attr} 13 + {@code fk_ls_label_attr_label} 11).
+     *
+     * <p>세그먼트(패키지별 {@code --tests}) 실행에서는 <b>피해자가 같은 실행에 없어</b> 드러나지 않는다 —
+     * 그래서 PK 를 모아 {@code @AfterEach} 에서 <b>자기 시드만</b> 되돌린다. 범위를 넓혀
+     * ({@code DELETE FROM LS_LABEL} 같은) 전량 삭제를 하면 반대 방향 오염이 된다.
+     */
+    private final List<Long> srcSns = new ArrayList<>();
+    private final List<Long> dataLblSns = new ArrayList<>();
+    private final List<Long> labelMasterIds = new ArrayList<>();
+    private final List<Long> dataAugSns = new ArrayList<>();
+
+    /**
      * 테스트가 <b>실 파일시스템</b>({@code backend/storage/deidentified})에 심은 시드 경로.
      *
      * <p>이 IT 는 @TempDir 이 아니라 프로젝트 작업 디렉터리 하위를 쓰므로 잔재가 <b>다음 실행까지
@@ -128,6 +147,7 @@ class AugmentDiscardPurgeIT {
                 parentSrc, mapped ? derivative : null);
         long dataAugSn = jdbc.queryForObject(
                 "SELECT MAX(DATA_AUG_SN) FROM LS_DATA_AUG WHERE SRC_SN = ?", Long.class, parentSrc);
+        dataAugSns.add(dataAugSn);
         jdbc.update("INSERT INTO LS_DATA_AUG_LBL_MAP (DATA_AUG_SN, DATA_LBL_SN, COORD_RECALC_YN, REG_DT) "
                 + "VALUES (?, ?, 'N', CURRENT_TIMESTAMP)", dataAugSn, lblSn);
 
@@ -147,14 +167,19 @@ class AugmentDiscardPurgeIT {
     private long insertFrame(long rawSn, int frameNo, String path) {
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM, DE_IDNTF_SRC_FILE_PATH_NM) "
                 + "VALUES (?, ?, ?, ?)", rawSn, frameNo, path, path);
-        return jdbc.queryForObject("SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN = ? AND FRM_NO = ?",
+        Long srcSn = jdbc.queryForObject("SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN = ? AND FRM_NO = ?",
                 Long.class, rawSn, frameNo);
+        srcSns.add(srcSn);
+        return srcSn;
     }
 
     private long insertLabel(long srcSn, String name) {
         jdbc.update("INSERT INTO LS_DATA_LBL (SRC_SN, LBL_TYPE_CD, LBL_NM, POINT_CN, REG_DT) "
                 + "VALUES (?, 'BBOX', ?, '[]', CURRENT_TIMESTAMP)", srcSn, name);
-        return jdbc.queryForObject("SELECT MAX(LBL_SN) FROM LS_DATA_LBL WHERE SRC_SN = ?", Long.class, srcSn);
+        Long lblSn = jdbc.queryForObject(
+                "SELECT MAX(LBL_SN) FROM LS_DATA_LBL WHERE SRC_SN = ?", Long.class, srcSn);
+        dataLblSns.add(lblSn);
+        return lblSn;
     }
 
     /** 라벨 마스터 + 속성 정의(LS_LABEL_ATTR) — 속성값 FK 를 만족시키기 위한 최소 시드. */
@@ -162,6 +187,7 @@ class AugmentDiscardPurgeIT {
         jdbc.update("INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, USE_YN, SORT_SEQ, REG_DT) "
                 + "VALUES (?, '#fff', 'BBOX', 'Y', 1, CURRENT_TIMESTAMP)", "M-" + uniq);
         Long labelId = jdbc.queryForObject("SELECT LBL_ID FROM LS_LABEL WHERE LBL_NM = ?", Long.class, "M-" + uniq);
+        labelMasterIds.add(labelId);
         jdbc.update("INSERT INTO LS_LABEL_ATTR (LBL_ID, ATRB_NM, INPUT_TYPE_CD, MUTABLE_YN, SORT_SEQ, USE_YN, REG_DT) "
                 + "VALUES (?, 'color', 'TEXT', 'Y', 1, 'Y', CURRENT_TIMESTAMP)", labelId);
         return jdbc.queryForObject("SELECT MAX(ATRB_ID) FROM LS_LABEL_ATTR WHERE LBL_ID = ?", Long.class, labelId);
@@ -220,10 +246,48 @@ class AugmentDiscardPurgeIT {
         return count("SELECT COUNT(1) FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn) > 0;
     }
 
+    /**
+     * 남은 시드 정리(테스트가 지우지 못한 것만) — <b>단언이 모두 평가된 뒤</b>에 돈다. 그래서 "고아 없이
+     * 지웠다" 를 확인하는 테스트({@code deletesLabelGraphWithoutOrphans})의 검증력을 건드리지 않는다.
+     * 이미 실삭제된 시드에 대해서는 전부 0건 DELETE 다(멱등).
+     *
+     * <p>삭제 순서는 <b>FK 역방향</b>이다 — {@code LS_DATA_LBL_ATTR_VAL} 은
+     * {@code LS_DATA_LBL}({@code fk_ls_data_lbl_attr_lbl}) 과 {@code LS_LABEL_ATTR}
+     * ({@code fk_ls_data_lbl_attr_attr}) 을, {@code LS_LABEL_ATTR} 은
+     * {@code LS_LABEL}({@code fk_ls_label_attr_label}) 을 참조하므로 값 → 라벨/속성정의 → 마스터 순으로
+     * 내려가야 한다.
+     *
+     * <p><b>범위는 자기 시드 PK 로 한정</b>한다. 편하다고 전량 삭제({@code DELETE FROM LS_LABEL})로
+     * 바꾸면 이번 사고의 방향만 뒤집힐 뿐이다 — 다른 테스트의 라벨 마스터 전제를 지운다.
+     */
     @AfterEach
     void cleanup() {
         cleanupSeededFiles();
-        // 남은 시드 정리(테스트가 지우지 못한 것만). FK CASCADE 가 자식을 정리한다.
+
+        // 증강 축 — LS_DATA_AUG 는 SRC_SN 에 FK 가 없어 RAW CASCADE 로 정리되지 않는다. 구 정리는
+        // NEW_RAW_SN 일치분만 지워, 매핑 없는 그랜드퍼더링 시드(seed(tag, false))가 그대로 남았다.
+        for (Long dataAugSn : dataAugSns) {
+            jdbc.update("DELETE FROM LS_DATA_AUG_DSCD WHERE DATA_AUG_SN = ?", dataAugSn);
+            jdbc.update("DELETE FROM LS_DATA_AUG_LBL_MAP WHERE DATA_AUG_SN = ?", dataAugSn);
+            jdbc.update("DELETE FROM LS_DATA_AUG_RVW WHERE DATA_AUG_SN = ?", dataAugSn);
+            jdbc.update("DELETE FROM LS_DATA_AUG WHERE DATA_AUG_SN = ?", dataAugSn);
+        }
+        // 라벨 축 — 속성값을 먼저 지워야 라벨과 속성 정의를 지울 수 있다.
+        for (Long lblSn : dataLblSns) {
+            jdbc.update("DELETE FROM LS_DATA_LBL_ATTR_VAL WHERE LBL_SN = ?", lblSn);
+            jdbc.update("DELETE FROM LS_DATA_LBL WHERE LBL_SN = ?", lblSn);
+        }
+        // 프레임 이력 축 — SRC_SN 에 FK 도, RAW_SN 컬럼도 없어 어떤 자동 경로로도 정리되지 않는다.
+        for (Long srcSn : srcSns) {
+            jdbc.update("DELETE FROM LS_DATA_LBL_HSTRY WHERE SRC_SN = ?", srcSn);
+            jdbc.update("DELETE FROM LS_DATA_SRC_HSTRY WHERE SRC_SN = ?", srcSn);
+        }
+        // 라벨 마스터 축 — 속성 정의가 마스터를 참조하므로 정의 → 마스터 순.
+        for (Long labelId : labelMasterIds) {
+            jdbc.update("DELETE FROM LS_LABEL_ATTR WHERE LBL_ID = ?", labelId);
+            jdbc.update("DELETE FROM LS_LABEL WHERE LBL_ID = ?", labelId);
+        }
+        // 영상 축 — FK CASCADE(V146)가 프레임·상태·검수 등 자식을 정리한다.
         // 비석(LS_DATA_AUG_DSCD)은 FK 가 없어 아무것도 지워주지 않으므로 명시 정리한다 — 남기면
         // 다음 테스트의 스윕이 남의 표식을 집어 "삭제 0건" 단언이 비결정적으로 깨진다.
         for (Long rawSn : rawSns) {
@@ -231,6 +295,11 @@ class AugmentDiscardPurgeIT {
             jdbc.update("DELETE FROM LS_DATA_AUG WHERE NEW_RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
         }
+
+        dataAugSns.clear();
+        dataLblSns.clear();
+        srcSns.clear();
+        labelMasterIds.clear();
         rawSns.clear();
     }
 
