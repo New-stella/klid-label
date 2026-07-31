@@ -24,9 +24,10 @@ import { Spinner } from '@/components/common/Spinner';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { PORTAL_KEYS } from '@/lib/queryKeys';
-import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
+import { isEditBlockedState, useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 import { CanvasShell } from '@/features/label/canvas/CanvasShell';
+import { BusyOverlay } from '@/features/label/components/BusyOverlay';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
 import type { FrameSummary, ToolType } from '@/features/label/types';
 import { ToolType as Tool } from '@/features/label/types';
@@ -92,6 +93,17 @@ export function PortalUploadLabelingPage() {
   // 이 화면의 저장은 현재 프레임 **전체교체 PUT** 이라, 저장 중에 그린 라벨은 저장에도 담기지
   // 않고 저장 성공 후 재조회에 덮여 사라진다. 차단이 그 창 자체를 없앤다.
   const isEditBlocked = useIsEditBlocked(uldFrmeSn);
+  // 진행 오버레이 배선 — 내부 라벨링(LabelingPage)과 **같은 컴포넌트·같은 파생 규칙**을 쓴다.
+  // 차단만 있고 취소가 없으면 저장이 늘어질 때 5분 fail-safe 까지 화면이 잠긴 채로 남는다.
+  // 프레임 스코프(isEditBlockedState)로 걸러 다른 프레임의 작업이 이 화면을 덮지 않게 한다.
+  // ⚠ ADR-013 — 이 화면에는 AI 작업이 없어 실제 종류는 SAVE 뿐이다(문구는 busyPolicy 단일 소스).
+  const busyKind = useLabelStore((s) =>
+    isEditBlockedState(s, uldFrmeSn) ? (s.busy?.kind ?? null) : null,
+  );
+  const busyStartedAt = useLabelStore((s) =>
+    isEditBlockedState(s, uldFrmeSn) ? (s.busy?.startedAt ?? undefined) : undefined,
+  );
+  const cancelBusy = useLabelStore((s) => s.cancelBusy);
 
   // 라벨 스토어 — 진입 시 초기화, 이탈 시 정리(다른 화면 잔존 방지).
   const reset = useLabelStore((s) => s.reset);
@@ -352,6 +364,10 @@ export function PortalUploadLabelingPage() {
             표시할 프레임이 없습니다.
           </div>
         )}
+        {/* 진행 오버레이 — 무엇이 진행 중인지 캔버스 위에 보이고 거기서 바로 취소한다(AC4/AC5).
+            300ms 지연 표시라 짧은 저장에는 깜빡이지 않는다(AC7). 취소는 클라이언트 결과 폐기이며
+            서버 처리를 중단시키지 않는다. */}
+        <BusyOverlay kind={busyKind} startedAt={busyStartedAt} onCancel={cancelBusy} />
         {/* 프레임 이미지 blob 로드 중 중앙 스피너 오버레이 — 로드 완료/실패 시 자동 해제. */}
         {frame && imageLoading && (
           <div

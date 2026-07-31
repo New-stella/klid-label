@@ -360,7 +360,15 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
         // 취소한 적 없는 작업을 잃었다. 이제 작업만 취소하고 누적점은 보존한다(R9/AC10).
         // 리스너는 activeTool 에만 재구독하므로 렌더 값은 ref 로, 실시간 값은 store 로 본다(fail-closed).
         // 취소 판정·안내는 화면 공통 단일 헬퍼(M4)에 있다 — 지연 창 취소는 안내가 필요하다(D4).
+        //
+        // ★ 대기 중인 **확정 큐도 함께 비운다**(N-4→N-2): 지연 창에서 Enter 로 큐잉된 확정은
+        //   busy 해제를 트리거로 자동 발사되는데, 그 해제가 **사용자의 취소**라면 발사는 취소와
+        //   정반대 동작이다(취소했더니 그 작업이 실행됨). 큐 비움은 취소 여부와 무관하게 수행한다
+        //   — 같은 ESC 에 여러 리스너가 반응해 다른 리스너가 먼저 busy 를 풀었을 수 있고, 그때
+        //   handleBusyEscape 의 반환값(이미 취소됨=false)으로 판정하면 큐가 남아 그대로 샌다.
+        //   누적점은 지우지 않는다 — 사용자가 지운 적이 없다.
         if (busyBlockedRef.current || isEditBlockedNow()) {
+          setPendingConfirm(false);
           handleBusyEscape();
           return;
         }

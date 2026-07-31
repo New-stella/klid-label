@@ -248,6 +248,34 @@ describe('OverlayLayer — 다른 종류 작업 진행 중 AI 분할', () => {
     expect(requestSam2Segment).not.toHaveBeenCalled();
   });
 
+  it('ESC로_취소하면_확정_큐도_비워져_자동_발사되지_않는다', async () => {
+    // N-2 — 지연 창(<300ms)에 Enter 로 큐잉된 확정이, 사용자가 ESC 로 작업을 **취소한 뒤에**
+    // busy 해제를 신호로 자동 발사되던 결함. 취소는 "이 작업을 그만둔다"는 의사표시이므로
+    // 그 시점의 대기 확정도 함께 사라져야 한다(누적점은 보존 — 사용자가 지운 적 없다).
+    const onLabelAdd = vi.fn();
+    const { container } = render(<Harness onLabelAdd={onLabelAdd} pointer={{ x: 15, y: 25 }} />);
+    fireEvent.click(findRect(container));
+    expect(countCircles(container)).toBe(1);
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', { srcSn: SRC_SN });
+    });
+    // 지연 창 안이라 오버레이가 없다 → Enter 가 캔버스 확정으로 들어와 큐잉된다.
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    // when: ESC 로 진행 중 작업을 취소한다(busy 해제 = 확정 큐 effect 의 트리거).
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' });
+      await Promise.resolve();
+    });
+
+    // then: 취소했으므로 확정이 자동 발사되지 않는다. 2회째 ESC 가 필요하지도 않다.
+    await waitFor(() => expect(useLabelStore.getState().busy).toBeNull());
+    expect(requestSam2Segment).not.toHaveBeenCalled();
+    expect(onLabelAdd).not.toHaveBeenCalled();
+    // 누적점은 그대로 — ESC 는 작업만 취소하고 사용자의 클릭은 잃지 않는다(R9/AC10).
+    expect(countCircles(container)).toBe(1);
+  });
+
   it('다른_종류_작업_진행중_박스드래그_분할도_무음_소실되지_않는다', async () => {
     // given: 저장이 진행 중
     const onLabelAdd = vi.fn();

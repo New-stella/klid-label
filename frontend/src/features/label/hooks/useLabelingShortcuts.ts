@@ -206,13 +206,21 @@ export function useLabelingShortcuts(
       // IME 조합 중에는 e.key 가 변환된 한글/'Process' 라 문자 매칭이 깨지므로 물리 code 만 신뢰.
       const composing = e.isComposing || e.key === 'Process';
 
+      // 편집 차단 판정 — **렌더 값과 실시간 store 값의 OR**(fail-closed, N-3).
+      //
+      // ⚠ 렌더 값(blocked) 단독으로 판정하면 안 된다: busy 는 이벤트 핸들러 실행 시점(렌더 사이)에
+      //   시작되고, 그 커밋이 화면에 반영되기 전에 도착한 keydown 은 blocked=false 로 보여
+      //   삭제(R/Del)·도구 전환·프레임 이동이 차단을 뚫는다. 아래 ESC 분기와 `OverlayLayer`·
+      //   `LabelingPage` 는 이미 실시간 값을 함께 보고 있었다 — 판정 축을 여기에 맞춘다.
+      //   판정은 이벤트당 1회(store 는 핸들러 실행 중 바뀌지 않는다).
+      const editBlocked = blocked || isEditBlockedNow();
+
       // Phase 3 — 차단 구간의 ESC 는 **진행 중 작업 취소**다. 아래 키맵 루프로 흘려보내지 않는다
       // (ESC 바인딩은 tool.select 라 도구가 바뀌면서 누적점·폴리곤 draft 가 파기된다).
-      // 렌더 값(blocked)이 낡았을 수 있으므로 실시간 store 값도 함께 본다(fail-closed).
       //
       // 취소 판정·안내는 화면 공통 단일 헬퍼(M4)가 한다 — 특히 오버레이가 뜨기 전(지연 창)의
       // 취소는 화면에 아무 흔적이 없어 반드시 안내되어야 한다(D4).
-      if (e.key === 'Escape' && (blocked || isEditBlockedNow())) {
+      if (e.key === 'Escape' && editBlocked) {
         handleBusyEscape();
         return;
       }
@@ -221,7 +229,7 @@ export function useLabelingShortcuts(
       // ?(shift+/) — 치트시트 토글. 도구/액션 키맵에 없는 별도 콜백이라 디스패치 루프 앞에서 처리.
       // 수식키(Ctrl/Alt) 조합이 아닐 때만(순수 '?') 반응해 Ctrl+? 등 브라우저 단축키와 충돌 회피.
       if (
-        !blocked &&
+        !editBlocked &&
         handlers.onToggleCheatSheet &&
         e.key === '?' &&
         !e.ctrlKey &&
@@ -235,8 +243,8 @@ export function useLabelingShortcuts(
       for (const binding of SHORTCUT_KEYMAP) {
         // ADR-013 — 포털 모드에서는 오토라벨/키포인트 도구 단축키 게이팅(툴바 숨김과 정합).
         if (portalMode && binding.tool && PORTAL_HIDDEN_TOOLS.includes(binding.tool)) continue;
-        // 편집 차단 중에는 어떤 단축키도 통과시키지 않는다(ESC 포함 — 위 blocked 주석 참조).
-        if (blocked) continue;
+        // 편집 차단 중에는 어떤 단축키도 통과시키지 않는다(ESC 포함 — 위 editBlocked 주석 참조).
+        if (editBlocked) continue;
         if (!matches(e, binding, composing)) continue;
         // Ctrl 조합(저장/undo/redo)은 브라우저 기본 동작 차단.
         if (binding.ctrl) e.preventDefault();
