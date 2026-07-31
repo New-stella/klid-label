@@ -78,12 +78,10 @@ export interface AiToolModalProps {
    */
   defaultSimplifyTolerance?: number;
   /**
-   * "즉시 그리기" 토글 상태(controlled). true 면 AI 분할 클릭마다 미리보기가 즉시 그려진다.
-   * 미지정 시 OFF(false). 상위(LabelingPage)가 값과 변경 콜백을 함께 소유한다.
+   * 실행 차단(장시간 작업 진행 중) — 실행 버튼과 정밀도 슬라이더를 비활성화한다.
+   * 눌러도 배타 실행에 거부될 뿐인 버튼을 활성처럼 보이게 두지 않는다.
    */
-  immediateDraw?: boolean;
-  /** "즉시 그리기" 토글 변경 콜백. */
-  onImmediateDrawChange?: (value: boolean) => void;
+  disabled?: boolean;
 }
 
 export function AiToolModal({
@@ -95,10 +93,9 @@ export function AiToolModal({
   candidatesLoading = false,
   candidatesError = false,
   onRetryCandidates,
-  immediateDraw = false,
-  onImmediateDrawChange,
   defaultConfThreshold,
   defaultSimplifyTolerance,
+  disabled = false,
 }: AiToolModalProps) {
   const [shape, setShape] = useState<DetectShapeType>('BBOX');
   // 선택은 라벨 마스터 PK(labelId) 기준 — 매핑된 라벨만 선택 대상이 된다.
@@ -163,6 +160,7 @@ export function AiToolModal({
   };
 
   const handleRun = (mode: AiToolMode) => {
+    if (disabled) return;
     const ids = selectedClassIds();
     // detect 만 정밀도 옵션 대상(트랙은 이번 범위 제외). 미조절이면 인자 자체를 생략해 무회귀.
     const opts = mode === 'detect' ? buildOpts() : undefined;
@@ -282,31 +280,22 @@ export function AiToolModal({
         <SensitivitySlider
           id="ai-tool-sensitivity"
           value={confThreshold}
+          disabled={disabled}
           onChange={handleConfChange}
         />
         {shape === 'POLYGON' && (
           <ToleranceSlider
             id="ai-tool-tolerance"
             value={simplifyTolerance}
+            disabled={disabled}
             onChange={handleTolChange}
           />
         )}
       </div>
 
-      {/* 즉시 그리기 토글 — ON 이면 AI 분할 클릭마다 미리보기가 즉시 그려진다(모델명 비노출 정책). */}
-      <div className="mt-4 flex flex-col gap-1">
-        <label htmlFor="ai-tool-immediate" className="flex cursor-pointer items-center gap-2">
-          <input
-            id="ai-tool-immediate"
-            type="checkbox"
-            className="h-4 w-4"
-            checked={immediateDraw}
-            onChange={(e) => onImmediateDrawChange?.(e.target.checked)}
-          />
-          <span className="text-body text-gray-900">즉시 그리기</span>
-        </label>
-        <p className="pl-6 text-[11px] text-gray-400">클릭할 때마다 미리보기가 그려집니다.</p>
-      </div>
+      {/* "즉시 그리기" 토글은 이 팝업에 두지 않는다 — 그 옵션은 AI 분할(SAM_SEGMENT) 도구의
+          클릭 프리뷰에만 효력이 있어, 실제 사용 지점인 우측 객체 속성 패널의
+          "AI 분할 정밀도" 섹션(ObjectAttributePanel)으로 이동했다. */}
 
       <div className="mt-6 flex items-center justify-between">
         <span className="text-sub text-gray-500" aria-live="polite">
@@ -316,14 +305,23 @@ export function AiToolModal({
           <Button variant="outline" onClick={onClose}>
             취소
           </Button>
-          <Button variant="outline" onClick={() => handleRun('detect')} disabled={!canRun}>
+          <Button variant="outline" onClick={() => handleRun('detect')} disabled={disabled || !canRun}>
             일반
           </Button>
-          <Button variant="primary" onClick={() => handleRun('track')} disabled={!canTrack || !canRun}>
+          <Button
+            variant="primary"
+            onClick={() => handleRun('track')}
+            disabled={disabled || !canTrack || !canRun}
+          >
             트랙
           </Button>
         </div>
       </div>
+      {disabled && (
+        <p className="mt-2 text-right text-[11px] text-gray-400" aria-live="polite">
+          다른 작업이 진행 중이라 지금은 실행할 수 없습니다.
+        </p>
+      )}
       {!canTrack && (
         <p className="mt-2 text-right text-[11px] text-gray-400" aria-live="polite">
           후속 프레임이 없어 추적할 수 없습니다.

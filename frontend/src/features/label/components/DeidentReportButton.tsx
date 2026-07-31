@@ -20,9 +20,11 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
 import { resolveApiMessage } from '@/lib/api/resolveApiMessage';
+import { isEditBlockedNow, useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { reportDeidentMiss } from '../api';
+import { busyRejectedMessage } from '../hooks/useBusyTask';
 
 const schema = z.object({
   reason: z
@@ -93,6 +95,13 @@ export function DeidentReportButton({
   };
 
   const onSubmit = async (values: FormValues) => {
+    // 이중 방어 — 버튼(disabled)은 "모달을 여는 시점"만 막는다. 모달을 먼저 연 뒤 저장/AI 가
+    // 시작되면 제출이 그대로 성공하고, 성공 후처리(라벨 스토어 reset)가 진행 중 작업을 조용히
+    // 취소한다. 발사 직전 실시간 재판정으로 막는다(fail-closed).
+    if (isEditBlockedNow(srcSn)) {
+      setServerError(busyRejectedMessage(useLabelStore.getState().busy?.kind ?? null));
+      return;
+    }
     setSubmitting(true);
     setServerError(null);
     try {

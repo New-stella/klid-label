@@ -18,8 +18,10 @@ import {
 
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { cn } from '@/lib/cn';
-import { useLabelStore } from '@/stores/useLabelStore';
+import { isEditBlockedNow, useLabelStore, useIsEditBlocked } from '@/stores/useLabelStore';
+import { useUiStore } from '@/stores/useUiStore';
 
+import { busyRejectedMessage } from '../hooks/useBusyTask';
 import { getLabelColor, getLabelDisplayName } from '../labelColors';
 import type { Label } from '../types';
 import { trackIdToColor } from '../utils/trackColor';
@@ -63,6 +65,9 @@ export function ObjectClassTree({
   currentFrameNo,
   portalMode = false,
 }: ObjectClassTreeProps) {
+  // 편집 차단 단일 판정원 — 장시간 작업 중에는 객체/트랙 편집(삭제·번호변경·분할) 진입을 막는다.
+  // 캔버스만 막고 목록 패널을 열어두면 같은 라벨을 옆문으로 지울 수 있다.
+  const editBlocked = useIsEditBlocked();
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const selectLabel = useLabelStore((s) => s.selectLabel);
   const removeLabel = useLabelStore((s) => s.removeLabel);
@@ -90,6 +95,16 @@ export function ObjectClassTree({
   };
 
   const commitRename = (obj: Label) => {
+    // 차단 중 확정된 편집은 반영하지 않는다. **무음으로 버리지 않는다** — 사용자는 번호가 바뀐
+    // 줄 알고 다음 작업으로 넘어간다. draft 는 그대로 두어 해제 후 다시 확정할 수 있게 한다.
+    // 렌더 값이 낡았을 수 있으므로 실시간 store 값도 함께 본다(fail-closed).
+    if (editBlocked || isEditBlockedNow()) {
+      useUiStore.getState().pushToast({
+        variant: 'warning',
+        message: busyRejectedMessage(useLabelStore.getState().busy?.kind ?? null),
+      });
+      return;
+    }
     const next = draft.trim();
     const current = obj.trackId ?? null;
     setRenamingId(null);
@@ -227,8 +242,14 @@ export function ObjectClassTree({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => selectLabel(obj.id)}
-                        className="flex-1 flex items-center gap-2 text-left"
+                        // 선택은 이동·리사이즈·속성편집의 진입점이다 — 차단 중에는 캔버스 선택이
+                        // 막히므로 목록 행도 같이 막아야 옆문이 열리지 않는다(AC1).
+                        onClick={() => {
+                          if (editBlocked) return;
+                          selectLabel(obj.id);
+                        }}
+                        disabled={editBlocked}
+                        className="flex-1 flex items-center gap-2 text-left disabled:cursor-not-allowed"
                         aria-label={`${displayName} #${objNumber} 선택`}
                       >
                         <span aria-hidden>{sourceIcon}</span>
@@ -289,7 +310,7 @@ export function ObjectClassTree({
                     )}
                     {/* Phase 10(축소) — 포털은 트랙 rename/머지 미제공(데이터모델 부재)이라 연필 버튼 숨김.
                         잠금(isLocked) 객체는 트랙 ID 변경 진입 차단. */}
-                    {!portalMode && renamingId !== obj.id && !isLocked && (
+                    {!portalMode && renamingId !== obj.id && !isLocked && !editBlocked && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -307,6 +328,7 @@ export function ObjectClassTree({
                     {!portalMode &&
                       renamingId !== obj.id &&
                       !isLocked &&
+                      !editBlocked &&
                       trackId != null &&
                       currentFrameNo != null &&
                       onSplitTrack && (
@@ -326,6 +348,7 @@ export function ObjectClassTree({
                     {!portalMode &&
                       renamingId !== obj.id &&
                       !isLocked &&
+                      !editBlocked &&
                       trackId != null &&
                       currentFrameNo != null &&
                       onDeleteTrack && (
@@ -349,15 +372,15 @@ export function ObjectClassTree({
                     {/* 잠금 객체는 삭제 차단(disabled + store 가드). */}
                     <button
                       type="button"
-                      disabled={isLocked}
+                      disabled={isLocked || editBlocked}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isLocked) return;
+                        if (isLocked || editBlocked) return;
                         removeLabel(obj.id);
                       }}
                       className={cn(
                         'text-gray-400 transition-opacity',
-                        isLocked
+                        isLocked || editBlocked
                           ? 'opacity-30 cursor-not-allowed'
                           : 'opacity-0 group-hover:opacity-100 hover:text-red-400',
                       )}

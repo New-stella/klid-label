@@ -149,61 +149,16 @@ describe('AiToolModal', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  // === 즉시 그리기 토글 ===
-  it('즉시_그리기_토글이_체크박스와_라벨로_렌더된다', () => {
+  // === 즉시 그리기 토글은 이 팝업에 없다(회귀 가드) ===
+  // 그 옵션은 AI 분할 도구의 클릭 프리뷰에만 효력이 있어 우측 속성 패널의 "AI 분할 정밀도"
+  // 섹션(ObjectAttributePanel)으로 이동했다. 동작 검증은
+  // ObjectAttributePanel.segmentTolerance.test.tsx 가 담당한다.
+  it('즉시_그리기_체크박스가_AI_Tool_팝업에_없다', () => {
     renderWithProviders(
       <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,
     );
-    const cb = screen.getByRole('checkbox', { name: '즉시 그리기' });
-    expect(cb).toBeInTheDocument();
-    // 기본 OFF (미지정 시 false).
-    expect(cb).not.toBeChecked();
-  });
-
-  it('토글_변경시_onImmediateDrawChange가_호출된다', () => {
-    const onImmediateDrawChange = vi.fn();
-    renderWithProviders(
-      <AiToolModal
-        open
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-        candidates={CANDIDATES}
-        immediateDraw={false}
-        onImmediateDrawChange={onImmediateDrawChange}
-      />,
-    );
-    fireEvent.click(screen.getByRole('checkbox', { name: '즉시 그리기' }));
-    expect(onImmediateDrawChange).toHaveBeenCalledWith(true);
-  });
-
-  it('immediateDraw_prop이_체크상태에_반영된다', () => {
-    renderWithProviders(
-      <AiToolModal
-        open
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-        candidates={CANDIDATES}
-        immediateDraw
-        onImmediateDrawChange={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole('checkbox', { name: '즉시 그리기' })).toBeChecked();
-  });
-
-  it('즉시_그리기_토글에도_모델명(YOLO/SAM)이_노출되지_않는다', () => {
-    const { container } = renderWithProviders(
-      <AiToolModal
-        open
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-        candidates={CANDIDATES}
-        immediateDraw
-        onImmediateDrawChange={vi.fn()}
-      />,
-    );
-    const text = container.textContent ?? '';
-    expect(text).not.toMatch(/YOLO/i);
-    expect(text).not.toMatch(/SAM2?/i);
+    expect(screen.queryByRole('checkbox', { name: '즉시 그리기' })).not.toBeInTheDocument();
+    expect(screen.queryByText('클릭할 때마다 미리보기가 그려집니다.')).not.toBeInTheDocument();
   });
 
   // === Phase 2 [FE] 정밀도 조절 (인식 민감도 / 경계 세밀함) ===

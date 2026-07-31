@@ -32,13 +32,21 @@ interface SliderProps {
   onChange: (value: number) => void;
   /** 다크 패널(속성 패널)에서 사용 시 true — 텍스트 색상만 전환(문구 동일). */
   dark?: boolean;
+  /** 조절 차단(장시간 작업 진행 중 등) — 슬라이더를 비활성화한다. */
+  disabled?: boolean;
 }
 
 /**
  * 인식 민감도 슬라이더 (conf 0.25~0.80).
  * 문구·눈금은 PrecisionConfigCard 와 동일. 값은 0~1 실수를 그대로 다룬다.
  */
-export function SensitivitySlider({ id, value, onChange, dark = false }: SliderProps) {
+export function SensitivitySlider({
+  id,
+  value,
+  onChange,
+  dark = false,
+  disabled = false,
+}: SliderProps) {
   const labelCls = dark ? 'font-medium text-gray-200' : 'font-medium text-gray-700';
   return (
     <div className="space-y-1.5">
@@ -54,8 +62,9 @@ export function SensitivitySlider({ id, value, onChange, dark = false }: SliderP
         max={SENSITIVITY_MAX}
         step={SENSITIVITY_STEP}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(clamp(Number(e.target.value), SENSITIVITY_MIN, SENSITIVITY_MAX))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-300 accent-primary-600"
+        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-300 accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
       />
       <div className="flex justify-between text-xs text-gray-400">
         <span>낮음 (0.25)</span>
@@ -72,7 +81,13 @@ export function SensitivitySlider({ id, value, onChange, dark = false }: SliderP
  * 경계 세밀함 슬라이더 (simplify tolerance 0~50px).
  * 문구·눈금은 PrecisionConfigCard 와 동일. 폴리곤 경계 단순화 정도(Douglas-Peucker epsilon).
  */
-export function ToleranceSlider({ id, value, onChange, dark = false }: SliderProps) {
+export function ToleranceSlider({
+  id,
+  value,
+  onChange,
+  dark = false,
+  disabled = false,
+}: SliderProps) {
   const labelCls = dark ? 'font-medium text-gray-200' : 'font-medium text-gray-700';
   return (
     <div className="space-y-1.5">
@@ -88,8 +103,9 @@ export function ToleranceSlider({ id, value, onChange, dark = false }: SliderPro
         max={TOLERANCE_MAX}
         step={TOLERANCE_STEP}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(clamp(Number(e.target.value), TOLERANCE_MIN, TOLERANCE_MAX))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-300 accent-primary-600"
+        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-300 accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
       />
       <div className="flex justify-between text-xs text-gray-400">
         <span>세밀 (0.0)</span>

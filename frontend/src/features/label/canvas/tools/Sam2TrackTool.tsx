@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react';
 import { Play, Square } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { useIsEditBlocked } from '@/stores/useLabelStore';
 
 import { useSam2Track } from '../../hooks/useSam2Track';
 import { Sam2TrackChunkError, type DetectShapeType, type Sam2TrackedItem } from '../../api';
@@ -62,6 +63,8 @@ export function Sam2TrackTool({
   // 팝업 라벨(labelOverride)이 있으면 우선, 없으면 캔버스 선택 객체 클래스(label).
   const effectiveLabel =
     labelOverride !== undefined && labelOverride.length > 0 ? labelOverride : label;
+  // 다른 장시간 작업이 진행 중이면 추적 실행 버튼을 비활성화한다(눌러도 거부될 뿐인 버튼 제거).
+  const editBlocked = useIsEditBlocked(srcSn);
   // 청크 순차 추적 진행 상태 (누적 프레임 / 전체) + 부분/전체 실패 메시지.
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -97,7 +100,7 @@ export function Sam2TrackTool({
   const isPending = mutation.isPending;
 
   const handleToggle = useCallback(() => {
-    if (disabled || !prevPolygon || effectiveLabel === undefined || trackId === undefined) return;
+    if (disabled || editBlocked || !prevPolygon || effectiveLabel === undefined || trackId === undefined) return;
     // 새 시도마다 진행률/실패 상태 초기화.
     setProgress({ done: 0, total: nextSrcSns.length });
     setFailure(null);
@@ -109,7 +112,7 @@ export function Sam2TrackTool({
       nextSrcSns,
       ...(shape ? { shape } : {}),
     });
-  }, [disabled, prevPolygon, effectiveLabel, trackId, shape, nextSrcSns, mutation]);
+  }, [disabled, editBlocked, prevPolygon, effectiveLabel, trackId, shape, nextSrcSns, mutation]);
 
   const progressPct =
     progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
@@ -119,12 +122,12 @@ export function Sam2TrackTool({
       <button
         type="button"
         onClick={handleToggle}
-        disabled={disabled || isPending}
+        disabled={disabled || editBlocked || isPending}
         aria-label={isPending ? '자동추적 진행 중' : '자동추적 시작'}
         className={cn(
           'flex items-center gap-1 rounded border border-border px-3 py-1 text-sub',
           isPending ? 'bg-warning/10 text-warning' : 'bg-white text-primary hover:bg-bgLight',
-          disabled && 'opacity-50',
+          (disabled || editBlocked) && 'opacity-50',
         )}
       >
         {isPending ? <Square size={14} /> : <Play size={14} />}
@@ -152,7 +155,8 @@ export function Sam2TrackTool({
           )}
         </div>
       )}
-      {mutation.isSuccess && !isPending && (
+      {/* data===null 은 거부/폐기(취소·프레임 전환)라 완료로 표시하지 않는다. */}
+      {mutation.isSuccess && mutation.data != null && !isPending && (
         <div
           role="progressbar"
           aria-label="AI 추적 완료"

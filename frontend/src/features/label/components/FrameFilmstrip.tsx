@@ -6,6 +6,8 @@ interface FrameFilmstripProps {
   frames: FrameSummary[];
   currentIndex: number;
   onSelect: (index: number) => void;
+  /** 프레임 전환 차단(장시간 작업 진행 중) — 썸네일 선택을 비활성화한다. */
+  disabled?: boolean;
 }
 
 /**
@@ -13,7 +15,12 @@ interface FrameFilmstripProps {
  *
  * 보안: thumbnailUrl은 BE 신뢰 도메인만. img alt 텍스트만 사용 (XSS 자동 escape).
  */
-export function FrameFilmstrip({ frames, currentIndex, onSelect }: FrameFilmstripProps) {
+export function FrameFilmstrip({
+  frames,
+  currentIndex,
+  onSelect,
+  disabled = false,
+}: FrameFilmstripProps) {
   return (
     <div
       className="flex gap-1 overflow-x-auto border-t border-border bg-bgLight px-2 py-2"
@@ -27,9 +34,11 @@ export function FrameFilmstrip({ frames, currentIndex, onSelect }: FrameFilmstri
           role="option"
           aria-selected={idx === currentIndex}
           onClick={() => onSelect(idx)}
+          disabled={disabled}
           className={cn(
             'flex shrink-0 flex-col items-center gap-1 rounded p-1 transition',
             idx === currentIndex ? 'bg-primary' : 'bg-white hover:bg-border',
+            disabled && 'cursor-not-allowed opacity-50',
           )}
         >
           <img

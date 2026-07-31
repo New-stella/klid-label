@@ -24,6 +24,7 @@ import { useVersions } from '@/features/version/hooks/useVersions';
 import { Role } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { isEditBlockedNow, useIsEditBlocked } from '@/stores/useLabelStore';
 
 /** 히스토리 패널 탭 — 변경 이력(저장, LS_DATA_LBL_HSTRY) / 버전(커밋, LS_LABEL_VERSION). */
 type HistoryTab = 'changes' | 'versions';
@@ -69,6 +70,9 @@ export function HistoryPanel({
 }: HistoryPanelProps) {
   const role = useAuthStore((s) => s.claims?.role ?? null);
   const canRollback = role === Role.REVIEWER || role === Role.WORKER;
+  // 편집 차단 단일 판정원 — 롤백은 **서버측 라벨 재작성**이라 저장 PUT in-flight 와 교차 실행되면
+  // 어느 쪽이 최종본인지 결정되지 않는다. 진행 중에는 진입 자체를 막는다.
+  const editBlocked = useIsEditBlocked();
 
   const { data: versions, isLoading, error } = useVersions(srcSn);
 
@@ -224,7 +228,17 @@ export function HistoryPanel({
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => setShowRollback(true)}
+                      // 이중 방어 — 렌더 값이 낡았을 수 있으므로 실행 시점 store 값도 본다(fail-closed).
+                      onClick={() => {
+                        if (editBlocked || isEditBlockedNow()) return;
+                        setShowRollback(true);
+                      }}
+                      disabled={editBlocked}
+                      title={
+                        editBlocked
+                          ? '다른 작업이 진행 중입니다. 완료 후 롤백할 수 있습니다.'
+                          : undefined
+                      }
                       data-testid={`rollback-trigger-${rollbackVersion.shortHash}`}
                     >
                       <RotateCcw size={14} />

@@ -1,6 +1,6 @@
 # H. FE 화면/컴포넌트 + E2E — 테스트 케이스
 
-> 293 케이스 · 계층: component / e2e / a11y / security · [← README](README.md)
+> 309 케이스 · 계층: component / e2e / a11y / security · [← README](README.md)
 > ID: TC-FE(컴포넌트/상태) · TC-E2E(시나리오) · TC-A11Y(접근성)
 
 ## 변경 이력
@@ -8,6 +8,8 @@
 | 회차 | 일자 | 정정 | 신규 | 폐기 | 요약 |
 |:--:|------|:--:|:--:|:--:|------|
 | 1 | 2026-07-30 | 224건<br>(기대결과 실질 변경 21건) | 69건 | 0건 | 07-25 이후 `frontend/src` 73파일 변경 반영. ①**작업목록 전면 개편**(b23b8cbd — 상태 우선순위 정렬 폐기→등록일 최신순 시간축 단일, 필터·KPI 서버 이관, KPI 5카드 토글, 컬럼 헤더 정렬, 체크박스 페이지 이월 차단, `TaskBoardTable` 추출) → **H-16 신설** ②**검수목록 개편**(7ecbc66e — 진입 기본값 검수요청·FIFO 를 명시 전송+URL 기록, 상태 코드 역매핑 `Record` 강제, 상태 컬럼 정렬 제외, 300ms debounce) → **H-17 신설** ③**인증 이미지 blob 전환**(f4f2d9fe — `AuthImage` `srcSn\|path` 유니온 + 경로 화이트리스트 fail-closed, `authImageStore` refcount 공유) ④증강 결과 해상도 파생 비교 이미지·프레임 페이저·`reviewable` ⑤412 `PRECONDITION_FAILED` 매핑 + 파생영상 신고 버튼 사전 비활성 ⑥라벨 저장 409 충돌 다이얼로그·`labelVersion` 낙관적 토큰 ⑦검수 승인 `REVIEW_NO_LABEL` 확인 ⑧마킹 fps 서버 위임·`batchTriggered=false` 안내 ⑨`cot` 배열/객체 양형 정규화. 근거(file:line) 전면 재확인 + 파일 경로를 `src/` 기준 상대경로로 정규화(구 파일명만 표기 → 실제 경로). UNCERTAINTIES #23·#25 는 코드로 확정 가능(하단 참조) |
+
+| 2 | 2026-07-31 | 0건 | 16건 | 0건 | **라벨링 화면 장시간 작업(busy) 배타 실행** 반영 — ①편집 차단(캔버스·툴바·프레임 이동·실행 버튼·단축키·되돌리기·롤백·신고), **차단은 입력 단계에서** ②진행 오버레이(300ms 초과, 작업명+경과 초+취소, 모델명 미노출) ③**취소 = 클라이언트 결과 폐기이며 서버 처리 중단 아님**(마우스·Enter·Space·ESC) ④단축키 판정 fail-closed(렌더 값 OR 실시간 store) ⑤ESC 취소 시 AI 분할 확정 큐도 비움 ⑥메타 편집 5종은 **의도적 미차단** ⑦크로스탭 동시성은 범위 밖(서버 409 담당) ⑧**포털 업로드 라벨링에도 오버레이·취소 대칭 배선**. H-3 하위 절 + H-11(TC-FE-271~275) + H-13(TC-A11Y-015) |
 
 > **ID 부여 규칙(이번 회차)**: 신규 케이스는 섹션 위치와 무관하게 **문서 전체 마지막 번호 다음**부터 이어서 부여했다(TC-FE-194~260, TC-A11Y-013~014). 섹션별로 이어 붙이면 뒤 섹션의 기존 ID 와 충돌하기 때문이다.
 > **기준선**: FE 테스트 **1,674 tests**(2026-07-30). 07-25 시점 ~1,5xx → "기존 테스트 부분 커버" 서술은 이 수치로 읽는다.
@@ -126,6 +128,23 @@
 | TC-FE-200 | 파생영상 — 비식별 신고 버튼 사전 비활성 (신규) | `VideoDetailResponse.derivative=true` | 라벨링 진입 | 버튼 disabled + title/aria-label 에 "증강·해상도 변환으로 만든 파생영상이라 …" 사유. **원본으로 유도하지 않고 부모 rawSn 도 표시하지 않는다** | security | High | pages/label/LabelingPage.tsx:127-132,1036 · features/label/components/DeidentReportButton.tsx:35-51,133-146 |
 | TC-FE-201 | 신고 412 — 서버 안내문 그대로 노출 (신규) | 화면이 파생 여부를 모름(구 응답) | 신고 제출 → 412 | `resolveApiMessage` 로 **BE 안내문**을 폼 내 role=alert 에 표시(구: INTERNAL_ERROR 일반문구로 대체됨) | security | High | features/label/components/DeidentReportButton.tsx:109-116 · features/label/__tests__/DeidentReportButton.test.tsx |
 | TC-FE-202 | 이벤트 어노테이션 cot 객체형 정규화 (신규) | `cot={"1단계":"…","2단계":"…"}` | toCaptionRows | 배열/객체 양형 모두 3단계 배열로 정규화(크래시 없음, 키 순서 유지) | component | High | features/label/api/eventAnnotation.ts:normalizeCot · features/label/components/eventAnnotationForm.ts:toCaptionRows |
+
+### 장시간 작업(busy) 편집 차단 · 진행 표시 · 취소 — 2026-07-31 신설
+
+> 대상: AI 탐지 / AI 분할 / AI 추적 / 저장 / 불러오기 5종이 **단일 배타 축**. 규칙 전문 → [v2-wiki 10 §10.6](../v2-wiki/10-labeling.md). **차단은 요청 거부가 아니라 입력 차단**이며, **취소는 클라이언트 결과 폐기이지 서버 중단이 아니다**.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-261 | busy 중 캔버스·툴바·프레임이동·실행버튼 차단 (신규) | busy(SAVE/AI\*) 진행 중 | 캔버스 그리기·선택·삭제 / 슬라이더·필름스트립·버튼 / 저장·검수제출·AI 실행 | 전부 무반응(캔버스 readOnly, 버튼 disabled). **입력 단계에서** 막혀 드래그가 시작되지 않는다 | component | High | features/label/__tests__/editBlocking.test.tsx · stores/useLabelStore.ts:useIsEditBlocked |
+| TC-FE-262 | 되돌리기·버전 롤백·비식별 신고도 차단 (신규) | busy 진행 중 | 각 버튼 | 실행되지 않음(신고 성공 시 `reset()` 이 진행 작업을 조용히 취소하던 경로 차단) | security | High | features/label/__tests__/editBlocking.test.tsx:259,280 |
+| TC-FE-263 | 단축키 차단은 fail-closed (신규) | busy 시작 커밋과 리렌더 **사이**(렌더 값은 아직 blocked=false) | `D`/`B`/`R`/`Ctrl+S` keydown | 전부 무시. 판정 = 렌더 값 **OR 실시간 store**(`isEditBlockedNow`) — 렌더 값 단독 판정이던 창을 닫음 | security | High | features/label/hooks/useLabelingShortcuts.ts:216,223,247 · features/label/__tests__/shortcutsFailClosed.test.tsx |
+| TC-FE-264 | 300ms 초과부터 진행 오버레이 (신규) | 저장/AI 작업 진행 | 지연 창 안 / 초과 | <300ms 미표시(즉시 그리기 깜빡임 방지), 초과 시 **작업명 + 경과 초 + 취소 버튼**. 문구에 모델명(YOLO/SAM/SAM2)·식별자·경로 없음 | component | High | features/label/components/BusyOverlay.tsx:48-67,125-131 · features/label/busyPolicy.ts:20-49 |
+| TC-FE-265 | 취소 = 결과 폐기(서버 중단 아님) (신규) | 오버레이 표시 중 | 취소 버튼 클릭 / Enter·Space / ESC | busy 즉시 해제 + 편집 복귀. **취소 후 도착한 응답은 같은 프레임이어도 미반영**(세대 토큰), dirty 유지 | component | High | features/label/hooks/useBusyTask.ts:120-165 · features/label/busyPolicy.ts:124-136 |
+| TC-FE-266 | ESC 취소는 AI 분할 확정 큐도 비운다 (신규) | 지연 창에서 Enter 로 확정 큐잉 후 ESC | busy 해제 | 큐잉된 확정이 **자동 발사되지 않는다**(취소와 정반대 동작 차단). 누적점은 보존 | component | High | features/label/canvas/layers/OverlayLayer.tsx:357-381 · .../__tests__/OverlayLayerSegmentBusy.test.tsx |
+| TC-FE-267 | busy 5분 fail-safe 자동 해제 (신규) | 응답 누락 | 5분 경과 | busy 자동 해제(화면 영구 잠금 방지). 뒤늦게 도착한 결과는 토큰 사망으로 폐기 | component | Med | features/label/hooks/useBusyTask.ts:13,145-151 |
+| TC-FE-268 | 메타 편집은 busy 와 독립(의도 고정) (신규) | busy 진행 중 | 촬영환경·개인정보 메타·프레임 설명·이벤트 어노테이션·시계열 메타 검수 | **차단되지 않고 편집·저장된다**. 라벨 작업본과 공유 상태가 없다 — 깨지면 회귀가 아니라 정책 변경 | component | High | features/label/__tests__/metaEditBusyIndependence.test.tsx:46,71,102,135,171 |
+| TC-FE-269 | 툴바 버튼 포커스 중 Space 는 팬이 아니다(표준 동작 고정) (신규) | 툴바 버튼 클릭 직후(포커스 유지) | Space | 팬 홀드 미발동 + **그 버튼이 활성화**된다(APG). 활성화가 포커스를 훔치지 않으며, 포커스가 버튼을 떠나면 Space 팬이 정상 복귀 | a11y | Med | features/label/canvas/CanvasShell.tsx:71-104,185-193 · .../__tests__/CanvasShellSpaceActivation.test.tsx |
+| TC-FE-270 | 크로스탭 동시성은 busy 범위 밖 (신규) | 다른 탭/사용자가 먼저 저장 | 저장 | FE busy 는 **같은 탭 한정**. 교차 수정은 서버 낙관적 잠금 409 → 충돌 다이얼로그(TC-FE-197)가 담당 | security | High | pages/label/LabelingPage.tsx 저장 catch(409 → setSaveConflictMessage) · docs/v2-wiki/10-labeling.md §10.6 |
 
 ## H-4. useLabelStore (Zustand)
 
@@ -274,6 +293,11 @@
 | TC-FE-175 | 포털 업로드 라벨링 BBOX/POLYGON만 | READY | 진입 | CanvasShell, 오토라벨 없음 | component | Med | pages/portal/PortalUploadLabelingPage.tsx |
 | TC-FE-176 | 포털 홈 데이터마트 영상 선택 | PORTAL_USER | /portal | 영상 목록+선택 | component | Med | pages/portal/PortalHomePage.tsx |
 | TC-FE-177 | 포털 라벨링 저장(원본 미수정, 본인 적재) | 저장 | useSavePortalLabels | LS_PORTAL_USER_LABEL | security | High | features/portal/hooks/useSavePortalLabels.ts |
+| TC-FE-271 | 포털 업로드 — 저장 중 진행 오버레이 + 취소 (신규) | 저장 PUT in-flight 300ms 초과 | 렌더 / 취소 버튼 | "저장 중" 오버레이(경과 초 + 취소). 취소 시 즉시 편집 복귀 + 오버레이 소멸 + **dirty 유지**(저장됨으로 취급하지 않음). 내부 라벨링과 **대칭** | component | High | pages/portal/PortalUploadLabelingPage.tsx(BusyOverlay 배선) · pages/portal/__tests__/PortalUploadLabelingBusy.test.tsx |
+| TC-FE-272 | 포털 업로드 — 취소 후 도착 응답 미반영 (신규) | 취소 후 PUT 응답 도착 | 응답 처리 | `clearDirty` 등 성공 후처리 미실행(클라이언트 폐기 — 서버 처리 중단 아님) | security | High | features/portal/uploads/hooks/useSaveUploadLabels.ts:85-98 |
+| TC-FE-273 | 포털 업로드 — 짧은 저장엔 오버레이 미표시 (신규) | 저장 <300ms | 렌더 | 오버레이 없음(지연 창) | component | Med | features/label/busyPolicy.ts:69 · features/label/components/BusyOverlay.tsx:48-67 |
+| TC-FE-274 | 포털 업로드에는 AI busy 가 없다 (신규) | ADR-013 별도 경로(`LS_PORTAL_*`) | 화면 전체 | AI 탐지/분할/추적 진입점 자체가 없어 관측되는 busy 종류는 **SAVE 뿐**. 오버레이 문구도 "저장 중" | component | High | pages/portal/PortalUploadLabelingPage.tsx:42-48(UPLOAD_TOOLS) · pages/portal/__tests__/PortalUploadLabelingBusy.test.tsx |
+| TC-FE-275 | "포털 라벨링" ≠ "포털 업로드 라벨링" 경계 (신규) | 두 화면 | 경로·데이터 | 전자=`/portal/label/:id`(데이터마트 영상, AI 분할·추적 제공/AI 탐지 미제공), 후자=`/portal/uploads/:uldSn/label`(본인 업로드 자산, AI 없음). **차단·오버레이·취소는 양쪽 모두 적용** | component | High | features/label/components/DarkToolbar.tsx:120-145 · pages/portal/PortalUploadLabelingPage.tsx |
 | TC-E2E-008 | 포털 홈 정상 진입 | PORTAL_USER | /portal | 홈 렌더 | e2e | High | e2e/specs/portal-channel-guard.spec.ts:10 |
 | TC-E2E-009 | 포털→내부 대시보드 차단 | PORTAL_USER | /dashboard | forbidden | security | High | e2e/specs/portal-channel-guard.spec.ts:15 |
 | TC-E2E-010 | 포털→내부 관리 화면 차단 | PORTAL_USER | /manage/* | 차단 | security | High | e2e/specs/portal-channel-guard.spec.ts:26 |
@@ -305,7 +329,7 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-A11Y-001 | 우측 패널 탭 role=tab/tabpanel | 라벨링 | 렌더 | role=tablist/tab, aria-selected/controls | a11y | High | pages/label/LabelingPage.tsx:1205-1310 |
-| TC-A11Y-002 | AiToolModal 라디오/체크박스 label 연결 | 팝업 | 렌더 | htmlFor↔id | a11y | High | features/label/components/AiToolModal.tsx:198,209,255,298 |
+| TC-A11Y-002 | AiToolModal 라디오/체크박스 label 연결 + AI 분할 정밀도 "즉시 그리기" 체크박스 label 연결 | 팝업 / AI 분할 도구 활성 | 렌더 | htmlFor↔id | a11y | High | features/label/components/AiToolModal.tsx:198,209,255 · components/ObjectAttributePanel.tsx (ai-segment-immediate) |
 | TC-A11Y-003 | Modal 포커스 트랩+ESC+포커스 복귀 | 모달 열림 | ESC | 닫힘+포커스 복귀 | a11y | High | components/common/Modal.tsx |
 | TC-A11Y-004 | 마킹 키보드 전 조작(Space/Del/Enter) | MANUAL | 키보드 | 마우스 없이 완결 | a11y | High | pages/MarkingPage.tsx:133-152 |
 | TC-A11Y-005 | 라벨링 단축키(W/S/F/Q/T/?/Ctrl+C/V) | 라벨링 | 키 | 이동/폴리곤/표시토글/치트시트/복붙 | a11y | High | pages/label/LabelingPage.tsx:846-901 |
@@ -318,6 +342,7 @@
 | TC-A11Y-012 | 검수 캔버스 aria-label 읽기전용 | 검수 | 렌더 | aria-label="검수 캔버스 (읽기 전용)" | a11y | Low | pages/ReviewPage.tsx:297 |
 | TC-A11Y-013 | KPI 필터 카드 aria-pressed 토글 시맨틱 (신규) | 클릭형 KPI 카드 | 카드 선택/해제 | `<button aria-pressed>` 로 선택 상태 전달 + **테두리 두께**로도 구분(색상 단독 금지). `onClick` 없는 카드는 `aria-pressed` 자체가 붙지 않음 | a11y | High | components/common/KpiCard.tsx:19-29,48-62 |
 | TC-A11Y-014 | 정렬 가능 헤더 aria-sort + button (신규) | 작업목록 헤더 | 촬영일시/영상 ID 클릭 | `<th aria-sort=ascending\|descending\|none>` + 내부 `<button>`. 정렬 상태를 아이콘·색이 아니라 aria-sort 로 전달 | a11y | High | features/task/components/TaskBoardTable.tsx:58-84 |
+| TC-A11Y-015 | 진행 오버레이 상태 전달·포커스 정책 (신규) | busy 300ms 초과(내부·포털 업로드 공통) | 오버레이 표시 | `role="status" aria-live="polite" aria-busy="true"` + 취소 버튼으로 포커스 이동(**포커스 트랩 없음** — Tab 으로 빠져나갈 수 있어야 한다). **경과 초는 라이브 리전에서 제외**(`aria-hidden` — 매초 낭독 방지), 스피너는 장식. **모달이 열려 있으면 포커스를 가져가지 않는다**(모달 뒤 보이지 않는 버튼이 Enter/Space 로 눌리는 것 방지) | a11y | High | features/label/components/BusyOverlay.tsx:69-79,108-131 · features/label/busyPolicy.ts:107-110 |
 
 ## H-14. 보안 (XSS/토큰/용어정책)
 
