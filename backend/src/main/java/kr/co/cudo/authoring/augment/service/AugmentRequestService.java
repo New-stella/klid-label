@@ -1,20 +1,25 @@
 package kr.co.cudo.authoring.augment.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
+import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.VisibleTextNormalizer;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -58,6 +63,20 @@ import java.util.concurrent.atomic.AtomicLong;
  * ({@code skippedVideoIds}) 알린다. 응답은 요청 echo 가 아니라 실제 생성 수
  * ({@code createdCount})를 담는다.
  *
+ * <h3>같은 (영상 × 종류) 재요청은 <b>몇 번이든 허용</b>한다 (2026-07-31 정책 전환)</h3>
+ * <p>구 구현은 활성(PENDING·ACCEPTED) 중복 요청을 409 로 막고 DB 부분 유니크
+ * ({@code UK_LS_DATA_AUG_ACTVTN}, V143)로 최종 방어했다("요청 1회 = 파생영상 1건"). <b>사용자 확정으로
+ * 폐기</b>됐다 — 증강 결과 이미지는 요청마다 다르게 생성되므로, 원하는 결과가 나오지 않으면 같은
+ * 영상·같은 종류로 다시 요청하는 것이 정상 운영 동선이기 때문이다. 사전 조회 가드·안내 문구·제약 위반
+ * 409 분기·인덱스(V147 DROP)를 모두 제거했다. 오조작(연타) 방어는 <b>FE 단독 책임</b>이다.
+ *
+ * <h3>요청마다 <b>생성 조건(prompt)</b>을 받는다</h3>
+ * <p>REVIEWER 가 5필드(time/season/weather/terrain/severity)를 입력하면 그대로 외부로 나가고
+ * ({@code AugmentPrompts}) 동시에 {@code LS_DATA_AUG.PROMPT_CN} 에 원문이 남는다. 반복 요청이 허용되는
+ * 이상 "이 파생본은 어떤 조건으로 만든 것인가" 를 남기지 않으면 결과물을 구분할 수 없다.
+ * <b>증강 유형({@code AUG_TYPE_CD})은 prompt 에서 파생하지 않는다</b> — 자유 문자열이 유형으로 흘러가면
+ * 산출물 경로 순회(CWE-22)와 {@code RESL_} 네임스페이스 침범이 열린다({@code AugmentPrompts} 주석).
+ *
  * <p><b>고아 위탁 방지 (DEV_FIX HIGH #1)</b>: 외부 위탁({@code AugmentJobSubmitService.submit})은
  * 요청 트랜잭션 안에서 하지 않고, {@code AugmentRequestBridge} 가
  * {@code @TransactionalEventListener(AFTER_COMMIT)} 로 수신해 <b>커밋 확정 후</b>에만 수행한다.
@@ -94,6 +113,8 @@ public class AugmentRequestService {
     private final DeidentReportGate deidentReportGate;
     /** 콜백 URL 조립 — 요청 경로와 재개 경로가 같은 값을 만들게 하는 단일 원천. */
     private final AugmentCallbackUrlResolver callbackUrlResolver;
+    /** prompt 보관용 JSON 직렬화 — 외부로 나가는 dict 를 그대로 문자열화한다(전송본↔저장본 동일 출처). */
+    private final ObjectMapper objectMapper;
 
     /**
      * placeholder jobId 시퀀스 — 외부 SFR-07 연동 전까지 응답 jobId 발급에 사용.
@@ -107,8 +128,9 @@ public class AugmentRequestService {
      * @param request 영상 1건 + 종류 1개 (DTO 단계 형식 검증 통과)
      * @param actor   호출자 토큰 (REVIEWER 만 허용)
      * @return jobId / 요청 시각 / 요청 수 / <b>실제 생성 수</b>
-     * @throws CustomException FORBIDDEN(WORKER 등), INVALID_INPUT(단건 계약 위반),
+     * @throws CustomException FORBIDDEN(WORKER 등), INVALID_INPUT(단건 계약·프롬프트 형식 위반),
      *                         NOT_REVIEWED(미검수), PRECONDITION_FAILED(신고 구간·프레임 미추출),
+     *                         CONFLICT(제약 위반 — 멱등 키 충돌·정합 충돌),
      *                         INTERNAL_ERROR(적재 실패 — 생성 0건)
      */
     @Transactional("controlTransactionManager")
@@ -122,6 +144,11 @@ public class AugmentRequestService {
         String augType = requireSingleSelection(request.types(),
                 "증강 종류는 한 번에 1개만 선택할 수 있습니다.").name();
         List<Long> videoIds = List.of(rawSn);
+
+        // 1-1) 프롬프트 정규화 + 직렬화 — 외부 전송본과 DB 보관본이 <같은 dict> 에서 나오게 한다.
+        //      순수 입력 검증이므로 <DB 조회보다 먼저> 한다: 형식이 틀린 요청 하나가 검수상태·신고구간·
+        //      프레임 조회 3회를 유발하면 인증 사용자가 반복 호출로 DB 부하를 증폭시킬 수 있다(CWE-770).
+        PromptPayload prompt = buildPrompt(request.prompt());
 
         // 2) 검수 완료(APPROVED) 검증 — 미검수면 거부
         List<Long> blocked = findBlockedVideoIds(videoIds);
@@ -163,18 +190,12 @@ public class AugmentRequestService {
                     skippedDetails(rawSn));
         }
 
-        // 3-1) 중복 증강 요청 차단 — 같은 (원본 × 종류)를 반복/동시 요청하면 콜백마다 새 파생 RAW 가
-        //      생기고(AugmentResultService.createAugmentedVideo) 반려해도 그 파생 RAW 행은 남는다.
-        //      요청 1회 = 파생영상 1건이라는 계약을 입구에서 지킨다(파생 트리·저장소·검수 큐 오염 방지).
-        rejectDuplicateActiveRequests(
-                videoIds, List.of(augType), Map.of(rawSn, representativeSrcSn), actor);
-
         // 4) PENDING 적재 + 멱등 키 발급 + 콜백 컨텍스트 전달.
         //    실패는 삼키지 않는다 — 사유를 남기고(로그) 호출자에게 실패로 회신한다(E-ISSUE-09).
         String regUserNo = actor.sub();
         String callbackUrl = callbackUrlResolver.resolve();
         boolean created = createOneAugmentRequest(
-                rawSn, representativeSrcSn, augType, regUserNo, callbackUrl);
+                rawSn, representativeSrcSn, augType, regUserNo, callbackUrl, prompt);
         if (!created) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR,
                     "증강 요청을 생성하지 못했습니다.", skippedDetails(rawSn));
@@ -188,91 +209,79 @@ public class AugmentRequestService {
     }
 
     /**
-     * 중복 증강 요청 1선 가드 — 이미 <b>활성</b>({@link LsDataAug#ACTIVE_STATUSES} = PENDING·ACCEPTED)
-     * 인 (대표프레임 × 종류)를 다시 요청하면 409 로 거부한다.
+     * 사용자 입력 5필드 → 외부 전송 dict + DB 보관 JSON.
      *
-     * <p>"활성"의 정의는 {@code LsDataAug.ACTIVE_STATUSES} 단일 원천이며 DB 부분 유니크 인덱스
-     * {@code UK_LS_DATA_AUG_ACTVTN}(V143)의 술어와 일치한다. REJECTED(반려·종결)는 제외 —
-     * 반려 후 재요청은 정당한 운영 동선이다.
+     * <h3>정규화는 {@code VisibleTextNormalizer} 단일 원천을 쓴다</h3>
+     * <p>제어문자(개행·탭·NUL)뿐 아니라 <b>보이지 않는 문자</b>(NBSP·ZWSP·BOM·WJ·RLO·U+2028/2029)까지
+     * 걷어내고 앞뒤 공백을 다듬는다. 개행이 남으면 ①이 값이 로그에 닿는 순간 로그 위조(CWE-117)가 되고
+     * ②{@code U+0000} 은 PgJDBC 가 거부해 적재가 500 이 된다. 그리고 <b>보이지 않는 문자만 채운 값</b>은
+     * {@code @NotBlank}({@code trim()} 기준)를 그대로 통과하므로, 여기서 걸러내지 않으면 "빈 조건" 이
+     * 벤더까지 나가 결과가 비결정적이 된다(이 DTO 가 막겠다고 선언한 바로 그 상태).
      *
-     * <p>이 조회는 <b>1선</b>일 뿐이다: 서로의 미커밋 행을 보지 못하는 동시 요청은 여기서 전부 통과하며,
-     * 실제 직렬화는 DB 인덱스가 한다({@link #createOneAugmentRequest} 의 제약 위반 처리 참조).
+     * <p>공용 {@code ControlCharNormalizer} 를 넓히지 않은 이유는 그 규칙이 <b>SQL 표현식과 등가</b>여야
+     * 하는 제약을 지고 있기 때문이다({@code VisibleTextNormalizer} 주석 참조) — 한쪽만 넓히면 목록 필터
+     * 왕복이 조용히 깨진다.
      *
-     * <h3>안내 문구는 <b>실제로 수행 가능한 동선</b>만 말한다 (2026-07-29 정정)</h3>
-     * 구 문구는 상태와 무관하게 "반려 후 다시 요청하세요" 였는데, {@code ACCEPTED} 는
-     * {@code LsDataAug.applyReviewStatus} 가 {@code PENDING} 에서만 전이를 허용하므로 <b>반려로 갈 수
-     * 없다</b> — 사용자가 따라 할 수 없는 안내였다. 그래서 중복 건의 실제 상태로 갈라 말한다.
-     * <ul>
-     *   <li>{@code PENDING}(진행 중) — 결과가 도착해 채택/반려로 종결되거나, 검수 화면에서 REVIEWER 가
-     *       반려하면 같은 종류를 다시 요청할 수 있다.</li>
-     *   <li>{@code ACCEPTED}(채택 완료) — <b>종결 상태라 되돌릴 수 없다</b>. 같은 (영상 × 종류) 증강은
-     *       더 만들지 않는다는 뜻이므로, "기다리면 된다"고 오해하지 않도록 그 사실을 그대로 알린다.</li>
-     * </ul>
+     * <h3>DTO 검증을 서비스에서 다시 확인하는 이유 (fail-closed)</h3>
+     * <p>{@code @NotBlank}/{@code @Size} 는 <b>컨트롤러 진입</b>에만 적용된다. 서비스를 직접 부르는 경로
+     * (내부 호출·테스트)가 상한을 우회해 {@code PROMPT_CN}(VARCHAR(4000)) 적재 오류나 무제한 외부 중계로
+     * 이어지지 않도록 같은 규칙을 여기서도 확인한다({@code requireSingleSelection} 과 동일한 태도).
+     * 정규화로 제어문자만 남는 값이 사라지면 "공백만 입력" 과 동치이므로 함께 거부한다.
+     *
+     * <p>오류 메시지에는 <b>필드 이름만</b> 싣고 입력값은 넣지 않는다 — 입력값을 되돌려주면 그 자체가
+     * 반사형 노출 경로가 되고, 사용자가 PII 를 적었을 경우 응답·로그로 번진다(CWE-359).
      */
-    private void rejectDuplicateActiveRequests(List<Long> videoIds, List<String> types,
-                                               Map<Long, Long> firstSrcSnByRawSn, TokenClaims actor) {
-        List<Long> srcSns = videoIds.stream()
-                .map(firstSrcSnByRawSn::get)
-                .filter(java.util.Objects::nonNull)
-                .toList();
-        if (srcSns.isEmpty() || types.isEmpty()) {
-            return;
+    private PromptPayload buildPrompt(AugmentRequestRequest.PromptFields fields) {
+        if (fields == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "증강 생성 조건(prompt)은 필수입니다.");
         }
-        // (srcSn|augType) → 현재 활성 상태. 상태를 함께 들고 있어야 수행 가능한 안내 문구를 만들 수 있다.
-        Map<String, String> activeStatusByKey = new LinkedHashMap<>();
-        for (LsDataAug aug : augRepository.findBySrcSnInAndAugProcSttsCdIn(
-                srcSns, LsDataAug.ACTIVE_STATUSES)) {
-            activeStatusByKey.put(aug.getSrcSn() + "|" + aug.getAugTypeCd(), aug.getAugProcSttsCd());
-        }
-        if (activeStatusByKey.isEmpty()) {
-            return;
-        }
-        List<Map<String, Object>> duplicated = new java.util.ArrayList<>();
-        boolean anyAccepted = false;
-        boolean anyPending = false;
-        for (Long rawSn : videoIds) {
-            Long srcSn = firstSrcSnByRawSn.get(rawSn);
-            if (srcSn == null) {
-                continue;
-            }
-            for (String augType : types) {
-                String status = activeStatusByKey.get(srcSn + "|" + augType);
-                if (status == null) {
-                    continue;
-                }
-                anyAccepted |= LsDataAug.STTS_ACCEPTED.equals(status);
-                anyPending |= LsDataAug.STTS_PENDING.equals(status);
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("videoId", rawSn);
-                item.put("type", augType);
-                item.put("status", status);
-                duplicated.add(item);
-            }
-        }
-        if (duplicated.isEmpty()) {
-            return;
-        }
-        log.warn("[Augment] request blocked — duplicate active augment actor={} duplicatedCount={}",
-                sanitize(actor.sub()), duplicated.size());
-        Map<String, Object> details = new LinkedHashMap<>();
-        details.put("duplicatedRequests", duplicated);
-        throw new CustomException(ErrorCode.CONFLICT,
-                duplicateGuidance(anyAccepted, anyPending), details);
+        Map<String, Object> prompt = AugmentPrompts.of(
+                requirePromptField(fields.time(), AugmentPrompts.KEY_TIME),
+                requirePromptField(fields.season(), AugmentPrompts.KEY_SEASON),
+                requirePromptField(fields.weather(), AugmentPrompts.KEY_WEATHER),
+                requirePromptField(fields.terrain(), AugmentPrompts.KEY_TERRAIN),
+                requirePromptField(fields.severity(), AugmentPrompts.KEY_SEVERITY));
+        return new PromptPayload(prompt, serializePrompt(prompt));
     }
 
-    /** 중복 상태별 안내 문구 — 채택(되돌릴 수 없음) / 진행 중(종결 후 재요청 가능) 구분. */
-    private static String duplicateGuidance(boolean anyAccepted, boolean anyPending) {
-        if (anyAccepted && anyPending) {
-            return "이미 채택되었거나 진행 중인 증강이 포함되어 있습니다. "
-                    + "채택된 증강은 되돌릴 수 없어 같은 영상·종류로 다시 요청할 수 없고, "
-                    + "진행 중인 요청은 완료되거나 검수에서 반려된 뒤 다시 요청할 수 있습니다.";
+    /** 프롬프트 1필드 정규화 + 필수/길이 재확인. 실패 시 필드명만 알린다. */
+    private static String requirePromptField(String raw, String key) {
+        String normalized = VisibleTextNormalizer.normalizeOrNull(raw);
+        if (normalized == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "증강 생성 조건 항목은 비워둘 수 없습니다: " + key);
         }
-        if (anyAccepted) {
-            return "이미 채택된 증강입니다. 채택된 증강은 되돌릴 수 없어 "
-                    + "같은 영상·종류로는 다시 요청할 수 없습니다.";
+        if (normalized.length() > AugmentRequestRequest.PromptFields.MAX_FIELD_LENGTH) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "증강 생성 조건 항목이 너무 깁니다(최대 "
+                            + AugmentRequestRequest.PromptFields.MAX_FIELD_LENGTH + "자): " + key);
         }
-        return "이미 요청되어 진행 중인 증강입니다. "
-                + "결과가 도착해 완료되거나 검수에서 반려된 뒤 다시 요청하세요.";
+        return normalized;
+    }
+
+    /**
+     * 보관용 JSON 직렬화 — 외부로 나가는 dict 와 <b>같은 객체</b>에서 만든다(전송본↔저장본 불일치 차단).
+     * 실패 원문은 응답으로 내보내지 않는다(CWE-209).
+     */
+    private String serializePrompt(Map<String, Object> prompt) {
+        try {
+            return objectMapper.writeValueAsString(prompt);
+        } catch (JsonProcessingException e) {
+            log.error("[Augment] prompt 직렬화 실패 keys={}", prompt.keySet());
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "증강 요청을 생성하지 못했습니다.");
+        }
+    }
+
+    /**
+     * 프롬프트의 두 표현 — 외부 전송용 dict 와 DB 보관용 JSON 문자열.
+     *
+     * <p>한 쌍으로 묶어 다니는 이유는 <b>둘이 갈라지지 않게</b> 하기 위함이다. 각각을 따로 만들어
+     * 넘기면 위탁된 조건과 적재된 조건이 달라져 사후 역추적이 거짓이 된다.
+     *
+     * @param fields 외부 전송 dict(불변)
+     * @param json   위 dict 를 직렬화한 원문 — {@code LS_DATA_AUG.PROMPT_CN} 적재값
+     */
+    private record PromptPayload(Map<String, Object> fields, String json) {
     }
 
     /**
@@ -302,37 +311,48 @@ public class AugmentRequestService {
      *
      * <p><b>실패 격리</b>: 예외를 <b>삼키지 않고</b> 사유를 로그로 남긴 뒤 {@code false} 를 반환한다.
      * 호출자는 생성 0건을 성공으로 회신하지 않는다(E-ISSUE-09). 예외 원문은 응답으로 나가지 않는다.
+     * 단 <b>제약 위반({@link DataIntegrityViolationException})만은 409 로 즉시 종결</b>한다 — 원인이
+     * 특정된 충돌을 "생성 0건 → 500" 으로 뭉개면 호출자가 재시도 가능 여부를 판단할 수 없다.
      *
      * @return PENDING 행 생성 성공 여부
      */
     private boolean createOneAugmentRequest(Long rawSn, Long srcSn, String augType,
-                                            String regUserNo, String callbackUrl) {
+                                            String regUserNo, String callbackUrl,
+                                            PromptPayload prompt) {
         try {
             // 1) idempotencyKey 를 먼저 발급 (UUID 기반 — dataAugSn 비의존).
             //    externalJobId 는 발급하지 않는다 — 외부가 202 응답으로 발급하는 값이다(Phase 7-A1).
             String idempotencyKey = generateIdempotencyKey();
 
-            // 2) 키를 실은 PENDING 행을 단일 save 로 INSERT (이중 save / IDMP_KEY=null orphan 제거)
-            LsDataAug aug = augRepository.save(
-                    LsDataAug.createRequested(srcSn, augType, regUserNo, idempotencyKey, null));
+            // 2) 키를 실은 PENDING 행을 단일 save 로 INSERT (이중 save / IDMP_KEY=null orphan 제거).
+            //    전송할 prompt 원문도 같은 INSERT 에 실어 "보낸 조건" 을 파생본과 함께 남긴다(V147).
+            LsDataAug aug = augRepository.save(LsDataAug.createRequested(
+                    srcSn, augType, regUserNo, idempotencyKey, null, prompt.json()));
             Long originAugSn = aug.getDataAugSn();
 
             // 3) 멱등 키 발급 + 외부 위탁은 요청 트랜잭션 커밋 이후로 위임 (고아 키 방지)
             eventPublisher.publishEvent(new AugmentRequestedItemEvent(
-                    originAugSn, rawSn, augType, idempotencyKey, callbackUrl, regUserNo));
+                    originAugSn, rawSn, augType, prompt.fields(),
+                    idempotencyKey, callbackUrl, regUserNo));
             return true;
         } catch (DataIntegrityViolationException e) {
-            // 중복 증강 최종 방어 — 부분 유니크 인덱스 UK_LS_DATA_AUG_ACTVTN(V143) 위반.
-            //
-            // 여기서는 <b>건별 격리로 삼키지 않는다</b>: PostgreSQL 은 제약 위반이 나면 트랜잭션 전체를
-            // abort 시켜 이후 모든 문장이 "current transaction is aborted" 로 실패한다. 삼키고 다음 건을
-            // 계속 처리하면 그 사실이 커밋 시점에야 드러나 원인 추적이 불가능한 500 이 된다.
-            // 요청 트랜잭션을 롤백시키고 409 로 마감한다(위 미검수/중복 검증과 동일한 부분 처리 금지).
-            log.warn("[Augment] aug request rejected — active duplicate constraint srcSn={} augType={}",
-                    srcSn, sanitize(augType));
-            // 문구는 사전 조회 경로와 동일 원천(duplicateGuidance). 여기서는 동시 요청이 원인이라
-            // 상대 건이 방금 만들어진 PENDING 이므로 "진행 중" 안내가 정확하다.
-            throw new CustomException(ErrorCode.CONFLICT, duplicateGuidance(false, true));
+            // ⚠ 이 분기는 <중복 증강 차단이 아니다>. 그 정책(UK_LS_DATA_AUG_ACTVTN)은 2026-07-31 폐기됐고
+            //    인덱스도 V147 에서 DROP 됐다 — 되살리는 코드로 오해하지 말 것.
+            //    남아 있는 제약은 IDMP_KEY UNIQUE(멱등 키 충돌)와 FK(대표프레임 소멸 등 정합 충돌)이며,
+            //    둘 다 "요청자의 입력 오류가 아닌 데이터 충돌" 이라 500(INTERNAL_ERROR)이 아니라 409 가
+            //    맞다. generic catch 로 흡수시키면 원인 불명 500 이 되어 관측성이 무너진다(구 회귀).
+            //    제약 이름·SQL 원문은 응답으로 내보내지 않는다(CWE-209).
+            //    ⚠ 로그에도 DB 오류 <원문>을 싣지 않는다(DEV_FIX LOW) — PostgreSQL 의 unique 위반
+            //      메시지는 "Key (idmp_key)=(AUG-…) already exists" 형태로 제약명·컬럼·<키 값>을 그대로
+            //      담아, 로그 열람 권한만으로 내부 스키마와 실제 키 값이 드러난다. 진단에 필요한 것은
+            //      "어떤 제약이 걸렸는가" 이므로 제약명(있으면)과 예외 종류만 남긴다.
+            log.warn("[Augment] aug request rejected — data integrity conflict srcSn={} augType={} "
+                            + "constraint={} errType={}",
+                    srcSn, sanitize(augType), constraintNameOf(e),
+                    e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "증강 요청 처리 중 데이터 충돌이 발생했습니다. 잠시 후 다시 시도해 주세요.",
+                    skippedDetails(rawSn));
         } catch (Exception e) {
             // 건별 격리 — 한 건 실패가 전체 요청을 깨지 않게 한다.
             log.warn("[Augment] aug request item failed (isolated) srcSn={} augType={} err={}",
@@ -391,5 +411,20 @@ public class AugmentRequestService {
     private static String sanitize(String value) {
         if (value == null) return null;
         return value.replace('\n', '_').replace('\r', '_');
+    }
+
+    /**
+     * 제약 위반의 <b>제약명만</b> 뽑는다 — DB 오류 원문(키 값·SQL)을 로그로 흘리지 않기 위함(CWE-209).
+     *
+     * <p>Hibernate 가 제약명을 파싱해 주면 그것을 쓰고, 아니면 {@code "unknown"} 이다. 원문 폴백을
+     * 두지 않는다 — 폴백이 있으면 드라이버·버전에 따라 조용히 원문 로깅으로 되돌아간다.
+     */
+    private static String constraintNameOf(DataIntegrityViolationException e) {
+        for (Throwable c = e; c != null && c != c.getCause(); c = c.getCause()) {
+            if (c instanceof ConstraintViolationException cve && cve.getConstraintName() != null) {
+                return sanitize(cve.getConstraintName());
+            }
+        }
+        return "unknown";
     }
 }

@@ -49,10 +49,17 @@ public record GenAiCallbackRequest(
         @JsonProperty("request_id")
         String requestId,
 
-        /** 외부가 202 응답으로 발급한 job_id. */
+        /**
+         * 외부가 202 응답으로 발급한 job_id.
+         *
+         * <p>패턴은 {@code GenAiContract.JOB_ID} 와 <b>동일 규약</b>이다 — 이 값은 조회/취소에서 URL
+         * <b>경로 세그먼트</b>로 다시 나가므로, 무서명 웹훅으로 들어오는 이 입구가 느슨하면 거기가
+         * 오염된 식별자의 유입 경로가 된다. 선두 {@code (?!\.+$)} 는 {@code ".."} 같은 점-전용
+         * 세그먼트 차단이다(CWE-22 — {@code .} 는 unreserved 라 인코딩되지 않는다).
+         */
         @NotBlank
         @Size(max = 200)
-        @Pattern(regexp = "^[A-Za-z0-9_.:-]+$",
+        @Pattern(regexp = "^(?!\\.+$)[A-Za-z0-9_.:-]+$",
                 message = "job_id 형식이 올바르지 않습니다.")
         @JsonProperty("job_id")
         String jobId,

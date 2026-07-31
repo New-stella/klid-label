@@ -267,10 +267,16 @@ public class AugmentReviewService {
         return AugmentJobStatus.REQUESTED;
     }
 
-    /** 종료(검수 완료) 상태 여부 — AUG_PROC_STTS_CD = ACCEPTED/REJECTED. */
+    /**
+     * 종료 상태 여부 — 판정은 {@link LsDataAug#isTerminalStatus(String)} <b>단일 원천</b>에 위임한다.
+     *
+     * <p>구 구현은 여기서 문자열 두 개를 직접 비교했다. 그 상태로 {@code CANCELED}(2026-07-31 신설)를
+     * 추가하면 <b>취소된 증강이 든 영상 그룹이 영원히 REQUESTED/IN_PROGRESS 로 표시</b>된다 —
+     * "전부 종결 → COMPLETED" 규칙에 취소가 종결로 안 잡히기 때문이다. 집계 <b>규칙</b>은 그대로 두고
+     * (새 집계 로직 없음, {@code AugmentJobStatus} 확장 없음) 종결 판정만 한 곳으로 모은다.
+     */
     private boolean isTerminal(String augProcSttsCd) {
-        return LsDataAug.STTS_ACCEPTED.equals(augProcSttsCd)
-                || LsDataAug.STTS_REJECTED.equals(augProcSttsCd);
+        return LsDataAug.isTerminalStatus(augProcSttsCd);
     }
 
     /** CCTV 명 폴백값 — RAW_SN 매핑/CCTV 시드 부재 시 FE 비-옵셔널 계약 보호용. */

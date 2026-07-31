@@ -1,21 +1,16 @@
 package kr.co.cudo.authoring.webhook.service;
 
 import kr.co.cudo.authoring.augment.entity.LsDataAugJob;
-import kr.co.cudo.authoring.augment.entity.LsDataAugJobFile;
-import kr.co.cudo.authoring.augment.repository.LsDataAugJobFileRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
-import kr.co.cudo.authoring.observability.metrics.AugmentMetrics;
 import kr.co.cudo.authoring.webhook.dto.GenAiCallbackRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -68,15 +63,14 @@ public class GenAiCallbackService {
     private static final int LOG_MSG_MAX = 200;
 
     private final LsDataAugJobRepository jobRepository;
-    /** 위탁 시점에 못박은 순서↔프레임 대응 — 여기에 산출 경로를 되붙인다(Phase 7-D). */
-    private final LsDataAugJobFileRepository jobFileRepository;
     private final LsDataAugRepository augRepository;
     /** 전 job 종결 판정 + 증강 1건 확정 — 만료 스윕과 <b>같은 규칙</b>을 쓰기 위한 단일 원천. */
     private final AugmentJobRollup rollup;
-    /** 외부가 준 {@code output_file_path} 가 <b>읽기</b> 허용 루트 하위인지 확인한다(CWE-22). */
-    private final VideoArtifactRootResolver artifactRootResolver;
-    /** 거부 사유 집계 — 상태를 바꾸지 않는 400 이 조용히 고착되는 것을 운영이 감지할 근거. */
-    private final AugmentMetrics metrics;
+    /**
+     * 성공 산출물 적용(경로 허용루트 검증 + 위탁 항목 되붙임 + 성공 종결) — <b>웹훅/결과조회 회수 공용</b>.
+     * 여기서 자체 구현하면 회수 경로가 검증을 우회할 수 있다(S15).
+     */
+    private final AugmentJobSuccessApplier successApplier;
 
     /**
      * 웹훅 1건 처리.
@@ -164,76 +158,29 @@ public class GenAiCallbackService {
     }
 
     /**
-     * SUCCEEDED 수신 반영 — 산출 경로를 <b>위탁 항목에 되붙인 뒤에만</b> 성공으로 종결한다.
+     * SUCCEEDED 수신 반영 — 산출 경로 검증·되붙임·성공 종결은 전부
+     * {@link AugmentJobSuccessApplier}(웹훅/회수 공용 단일 원천)에 위임한다.
      *
-     * <p>계약상 {@code results[]} 에는 입력 식별자가 없어 <b>순서</b>로만 대응시킬 수 있다. 따라서
-     * 위탁 시점에 못박아 둔 항목({@code LS_DATA_AUG_JOB_FILE}, FILE_SEQ 오름차순)과 수신 결과를
-     * 같은 순서로 짝짓는다. <b>건수가 다르면 짝짓기가 성립하지 않으므로</b> 성공으로 접수하지 않고
-     * 이 job 을 FAILED 로 종결한다 — 롤업의 부분 실패 규칙에 따라 증강 1건도 실패로 끝난다
-     * (fail-closed. 부분/오정렬 산출물로 프레임셋을 채우면 다른 프레임에 남의 증강본이 붙는다).
+     * <p><b>여기서 다시 구현하지 않는다</b>: 결과조회 회수 경로(INT-030)가 같은 일을 별도 파일로
+     * 재구현하면 경로 검증 정적 가드({@code ExternalAugmentClientContractGuardTest})가 초록인 채
+     * 검증이 빠진다(그 가드는 파일·식별자 단위라 파일 분리로 우회된다 — 클래스 Javadoc "한계" 절).
+     *
+     * <p>경로 거부는 예외로 전파되어 {@code 400} 이 되고 <b>상태를 바꾸지 않는다</b> — 외부가 올바른
+     * 경로로 재전송하면 정상 처리된다. 재시도가 소진돼도 {@code AugmentJobExpirySweeper} 가 비종결
+     * job 을 회수하므로 무한 대기는 없다.
      */
     private void applySucceeded(LsDataAugJob target, GenAiCallbackRequest req, String requestId) {
-        List<String> outputs = verifiedOutputPaths(req, requestId);
-        List<LsDataAugJobFile> files = jobFileRepository.findByAugJobSnOrderByFileSeqAsc(target.getAugJobSn());
-        if (files.size() != outputs.size()) {
-            target.markFailed(req.jobId(), LsDataAugJob.ERR_RESULT_COUNT_MISMATCH,
-                    "위탁 " + files.size() + "건 대비 수신 " + outputs.size() + "건");
-            log.warn("[Webhook][GenAi] result count mismatch — job failed (fail-closed) request_id={} "
-                            + "jobSeq={} issuedCount={} receivedCount={}",
-                    safe(requestId), target.getJobSeq(), files.size(), outputs.size());
-            return;
-        }
-        for (int i = 0; i < files.size(); i++) {
-            files.get(i).applyResultPath(outputs.get(i));
-        }
-        jobFileRepository.saveAll(files);
-        target.markSucceeded(req.jobId());
-        log.info("[Webhook][GenAi] job succeeded request_id={} jobSeq={} outputCount={}",
-                safe(requestId), target.getJobSeq(), outputs.size());
+        List<String> outputs = successApplier.verifyOutputPaths(outputFilePathsOf(req), requestId);
+        successApplier.applySucceeded(target, req.jobId(), outputs, requestId);
     }
 
-    /**
-     * {@code results[].output_file_path} 를 <b>정규화 후</b> <b>읽기</b> 허용 루트 하위인지 검증한다(CWE-22).
-     *
-     * <p>판정 축은 {@code VideoArtifactRootResolver#verifyExternalReadablePath} 다 — 벤더 산출물은 우리가
-     * <b>읽어서</b> 파생 프레임으로 복사할 대상이므로, 쓰기 base allowlist
-     * ({@code raw-mount-roots}) 를 넓히지 않고 별도 읽기 루트({@code external-read-roots})로 허용한다.
-     *
-     * <p>하나라도 허용 밖이면 {@code 400} 으로 거부하고 <b>상태를 바꾸지 않는다</b> — job 을 강제로
-     * FAILED 로 만들지 않으므로 외부가 올바른 경로로 재전송하면 정상 처리된다. 거부 메시지에 경로
-     * 원문·내부 디렉터리 구조를 담지 않는다(CWE-209).
-     *
-     * <p><b>고착 회수(Phase 8-A)</b>: 상태를 바꾸지 않는다는 것은, 외부가 재시도를 포기하면
-     * job 이 비종결(RECEIVED/RUNNING)로 남아 증강 1건이 PENDING 에 머문다는 뜻이다. 재전송 여지는
-     * 그대로 두되 <b>무한 대기는 없앤다</b> — {@code AugmentJobExpirySweeper} 가 무갱신 경과 임계를
-     * 넘긴 비종결 job 을 {@code FAILED(ERR_CD=EXPIRED)} 로 회수해 롤업을 진행시킨다. 관측 근거도
-     * 유지된다 — WARN 로그 + 메트릭({@code augment.callback.rejected} tag {@code reason=output_path}).
-     *
-     * @return 검증을 통과한 경로 목록({@code results[]} 순서 그대로 — 위탁 항목과 짝짓는 재료)
-     */
-    private List<String> verifiedOutputPaths(GenAiCallbackRequest req, String requestId) {
+    /** 콜백 {@code results[]} → 산출 경로 목록(순서 보존). 검증은 applier 가 수행한다. */
+    private static List<String> outputFilePathsOf(GenAiCallbackRequest req) {
         List<GenAiCallbackRequest.ResultItem> results = req.results();
-        if (results == null || results.isEmpty()) {
-            // SUCCEEDED 인데 산출물이 없다 = 계약 위반. 성공으로 접수하면 빈 증강본이 확정된다.
-            metrics.callbackRejected(AugmentMetrics.REASON_MISSING_RESULTS);
-            log.warn("[Webhook][GenAi] succeeded without results request_id={}", safe(requestId));
-            throw new CustomException(ErrorCode.INVALID_INPUT, "SUCCEEDED 콜백에는 results 가 필요합니다.");
+        if (results == null) {
+            return List.of();
         }
-        List<String> paths = new ArrayList<>(results.size());
-        for (GenAiCallbackRequest.ResultItem item : results) {
-            try {
-                artifactRootResolver.verifyExternalReadablePath(item.outputFilePath());
-            } catch (CustomException e) {
-                metrics.callbackRejected(AugmentMetrics.REASON_OUTPUT_PATH);
-                log.warn("[Webhook][GenAi] output path rejected (outside readable roots) request_id={} code={}"
-                                + " — job 은 비종결로 남는다(재전송 대기). 재시도 소진 시 증강이 PENDING 에 머문다",
-                        safe(requestId), e.getErrorCode());
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        "output_file_path 가 허용된 저장 경로가 아닙니다.");
-            }
-            paths.add(item.outputFilePath());
-        }
-        return paths;
+        return results.stream().map(GenAiCallbackRequest.ResultItem::outputFilePath).toList();
     }
 
     /** Log Injection (CWE-117) 방어 — CR/LF/TAB 제거. */

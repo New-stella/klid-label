@@ -373,6 +373,9 @@ async def cancel_job(job_id: str, request: Request) -> JobCancelResponse:
             "이미 종료된 작업은 취소할 수 없습니다",
         )
 
+    # 대기 중(RECEIVED)이었다면 내부 큐에서 제거한다 — 취소분이 슬롯을 소모하지 않는다.
+    genai_sim.on_job_canceled(job_id)
+
     logger.info(
         "[MOCK][GENAI] job canceled job_id=%s requested_by=%s",
         sanitize_for_log(job_id),
@@ -403,7 +406,12 @@ async def mock_list_jobs() -> dict[str, Any]:
         }
         for job in genai_sim.get_job_store().list_jobs()
     ]
-    return {"jobs": jobs, "active_tasks": genai_sim.active_task_count()}
+    return {
+        "jobs": jobs,
+        "active_tasks": genai_sim.active_task_count(),
+        # 내부 큐 관측 — 동시 처리 슬롯 수 / 실행 중 / 대기 목록(FIFO 순서)
+        "queue": genai_sim.get_scheduler().stats(),
+    }
 
 
 @router.post("/_mock/reset")

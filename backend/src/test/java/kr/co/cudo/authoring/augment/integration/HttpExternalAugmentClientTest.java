@@ -33,6 +33,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class HttpExternalAugmentClientTest {
 
+    /** 위탁 payload 의 prompt — 이 테스트의 관심사가 아니라 계약(필수 non-empty)을 채우는 고정값. */
+    private static final java.util.Map<String, Object> PROMPT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
+
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private MockWebServer server;
@@ -75,7 +79,7 @@ class HttpExternalAugmentClientTest {
 
     private AugmentSubmitCommand command(String requestId) {
         return new AugmentSubmitCommand(
-                10L, "WINTER", requestId, "FIRE", "1",
+                10L, "WINTER", PROMPT, requestId, "FIRE", "1",
                 "http://localhost:8080/api/v1/genai/callback",
                 List.of(new AugmentInputFile(1, "/app/storage/deidentified/frames/1.jpg"),
                         new AugmentInputFile(2, "/app/storage/deidentified/frames/2.jpg")),
@@ -119,8 +123,17 @@ class HttpExternalAugmentClientTest {
         assertThat(body.get("evnt_type").asText()).isEqualTo("FIRE");
         assertThat(body.get("request_user_id").asText()).isEqualTo("1");
         assertThat(body.get("callback_url").asText()).endsWith("/v1/genai/callback");
-        assertThat(body.get("prompt").isObject()).isTrue();
-        assertThat(body.get("prompt").get("style").asText()).isEqualTo("WINTER");
+        // prompt 는 <사용자 입력 5필드>가 그대로 나간다 (2026-07-31). 구 계약은 증강 유형별 고정 문구
+        // ({style, instruction, preserve})를 서버가 만들어 보냈으나, 조건을 REVIEWER 가 정하도록 바뀌었다.
+        JsonNode prompt = body.get("prompt");
+        assertThat(prompt.isObject()).isTrue();
+        assertThat(prompt.get("time").asText()).isEqualTo("NIGHT");
+        assertThat(prompt.get("season").asText()).isEqualTo("WINTER");
+        assertThat(prompt.get("weather").asText()).isEqualTo("RAIN");
+        assertThat(prompt.get("terrain").asText()).isEqualTo("ROAD");
+        assertThat(prompt.get("severity").asText()).isEqualTo("HIGH");
+        assertThat(prompt.has("style")).as("서버 고정 문구 시절 키가 남아 있으면 안 된다").isFalse();
+        assertThat(prompt.has("instruction")).isFalse();
 
         JsonNode files = body.get("input_files");
         assertThat(files.isArray()).isTrue();

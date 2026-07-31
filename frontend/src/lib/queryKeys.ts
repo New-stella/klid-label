@@ -77,9 +77,18 @@ export const VERSION_KEYS = {
 export const AUGMENT_KEYS = {
   all: ['augments'] as const,
   list: (params: Record<string, unknown>) => [...AUGMENT_KEYS.all, 'list', params] as const,
-  // 프레임 쌍 페이징(page/size)까지 키에 포함해야 페이지 전환이 캐시에 반영된다.
+  /**
+   * 결과 조회 전체 prefix — **진행상태 키(`progress`)를 포함하지 않는다**.
+   * 결과만 다시 받고 싶을 때 `all` 을 무효화하면 폴링 쿼리까지 함께 깨워 서버 요청이 증폭된다
+   * (서버에 속도 제한이 없다). 결과 갱신은 이 prefix 로만 한다.
+   */
+  details: () => [...AUGMENT_KEYS.all, 'detail'] as const,
+  // 프레임 쌍(page/size) + 결과 항목(itemPage/itemSize) 두 축을 모두 키에 포함해야
+  // 페이지 전환이 캐시에 반영된다(축이 둘이라 한쪽만 넣으면 다른 축이 캐시에 갇힌다).
   detail: (id: number, params: Record<string, unknown> = {}) =>
-    [...AUGMENT_KEYS.all, 'detail', id, params] as const,
+    [...AUGMENT_KEYS.details(), id, params] as const,
+  /** 항목별 진행상태 폴링 — 결과 조회와 갱신 주기가 달라 키를 분리한다. */
+  progress: (id: number) => [...AUGMENT_KEYS.all, 'progress', id] as const,
 };
 
 export const EXPORT_KEYS = {

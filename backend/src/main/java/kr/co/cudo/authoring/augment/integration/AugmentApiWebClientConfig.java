@@ -45,7 +45,15 @@ import java.time.Duration;
         matchIfMissing = true)
 public class AugmentApiWebClientConfig {
 
-    /** 202 응답(JSON) 대비 버퍼 상한. 파일 본문은 주고받지 않으므로 작게 잡는다. */
+    /**
+     * 응답(JSON) 버퍼 상한. 파일 본문은 주고받지 않으므로(경로만 교환) 작게 잡는다.
+     *
+     * <p>Phase 7-A2 재검토 — 최대 응답은 202 ACK 가 아니라 §4.5 결과 조회다. 계약 상한인 100건 ×
+     * (generated_data_id 128 + output_file_path 500 + checksum 128 + media_type) ≈ 80KB 이므로 1MB 는
+     * 항목당 ~10KB 의 {@code media_metadata} 여유를 남긴다(목은 mime_type/size_bytes 2개뿐). 넉넉하다.
+     * 초과 시에는 조용히 절단되지 않고 {@code DataBufferLimitException} 으로 <b>실패</b>하므로,
+     * 부분 결과를 전량으로 오인할 위험도 없다(fail-closed).
+     */
     private static final int MAX_IN_MEMORY_BYTES = 1024 * 1024;
 
     /** 커넥션 수립 타임아웃 — 방화벽 drop(SYN 무응답) 시 무기한 블록 방지. */

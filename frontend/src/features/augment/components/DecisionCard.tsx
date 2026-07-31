@@ -52,6 +52,25 @@ export function DecisionCard({
     );
   }
 
+  if (status === 'CANCELED') {
+    // 사용자 취소로 종결된 항목. 잡 집계(AugmentJobStatus)는 이를 "종료"로 세어 COMPLETED 를
+    // 주므로, 취소가 "완료"로 보이지 않게 하는 보정은 이 표시 축의 책임이다.
+    return (
+      <div
+        data-testid="decision-card"
+        data-decision="CANCELED"
+        className="rounded border border-border bg-bgLight p-3"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-section-title text-gray-600">취소됨</span>
+        </div>
+        <p className="mt-1 text-sub text-neutral">
+          사용자 요청으로 취소되어 이 결과는 활용되지 않습니다.
+        </p>
+      </div>
+    );
+  }
+
   if (status === 'REJECTED') {
     return (
       <div

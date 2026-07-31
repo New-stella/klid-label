@@ -40,25 +40,38 @@ public class LsDataAug {
     public static final String STTS_REJECTED = "REJECTED";
 
     /**
-     * <b>활성(중복 금지 대상) 상태</b> — 같은 (원본 대표프레임 × 증강 종류)에 대해 동시에 1건만 존재해야
-     * 하는 상태 집합. 부분 유니크 인덱스 {@code UK_LS_DATA_AUG_ACTVTN}(V143)의 술어와 <b>반드시 일치</b>
-     * 해야 한다(정의의 단일 원천은 이 상수다).
+     * <b>사용자 취소로 종결</b> — 2026-07-31 신설(FE 취소 API {@code POST /v1/augments/{id}/cancel}).
      *
-     * <ul>
-     *   <li>{@link #STTS_PENDING} — 요청/생성 in-flight. 재요청하면 콜백마다 파생 RAW 가 하나씩 더 생긴다.</li>
-     *   <li>{@link #STTS_ACCEPTED} — 채택된 파생본이 <b>이미 존재</b>. 같은 종류를 다시 받을 이유가 없고,
-     *       받으면 파생 RAW·스토리지·검수 큐만 불어난다("요청 1회 = 파생영상 1건" 계약 위반).
-     *       채택은 <b>종결 상태</b>라 반려로 되돌릴 수 없으므로({@code applyReviewStatus} 는 PENDING 만
-     *       전이 허용) 같은 (영상 × 종류) 재요청은 영구 불가다 — 안내 문구도 그 사실대로 말해야 한다.</li>
-     *   <li>{@link #STTS_REJECTED} — <b>제외</b>. 반려는 종결 상태이고, 반려 후 다시 요청하는 것은 정당한
-     *       운영 동선이다(V142 가 종결 마킹을 유니크 대상에서 제외한 것과 같은 판단).</li>
-     * </ul>
+     * <h3>왜 새 상태가 필요한가 (S1)</h3>
+     * <p>「생성형 AI API 연동명세서 v1.1」 §4.6 은 취소에 <b>웹훅을 발사하지 않는다</b> — 동기 취소
+     * 응답이 유일한 통보다. 그 시점에 상태를 확정하지 않으면 다시 알 방법이 없고, 그 증강은 영원히
+     * {@link #STTS_PENDING} 에 남는다. 고아 회수기({@code findOrphanPendingAugSns})는 "job 0건" 만
+     * 집으므로(취소된 증강은 job 이 1건 이상 존재한다) <b>만료 스윕도 건지지 못한다</b>.
      *
-     * <p>해상도 파생({@link #RESL_PREFIX} 접두)은 이 인덱스 대상이 아니다 — 상태와 무관하게 1건만
-     * 허용하는 별도 부분 유니크({@code UK_LS_DATA_AUG_RESL}, V125)가 이미 있다.
+     * <h3>왜 {@link #STTS_REJECTED} 를 재사용하지 않는가</h3>
+     * <p>{@code REJECTED} 에는 이미 두 의미가 겹쳐 있다 — REVIEWER 의 정상 반려와 외부 처리 실패
+     * 롤업. 세 번째 의미를 얹으면 "취소된 증강" 을 어느 축으로도 구분할 수 없다(E-06 과 같은 형태의
+     * 오집계). 취소는 실패가 아니므로 {@code DEAD_LETTER_AT}(처리 실패 전용 마커)도 <b>찍지 않는다</b>.
+     *
+     * <h3>집계 영향 — 새 집계 로직을 만들지 않는다</h3>
+     * <p>{@code AugmentJobStatus}(영상 그룹 집계 enum)에 값을 <b>추가하지 않는다</b>. 대신
+     * {@link #isTerminalStatus(String)} 이 CANCELED 를 종결로 인정해 기존 규칙("전부 종결 →
+     * COMPLETED")이 그대로 성립하게 한다. 이걸 빠뜨리면 취소된 증강이 든 영상 그룹이 영원히
+     * REQUESTED/IN_PROGRESS 로 표시된다.
      */
-    public static final java.util.Set<String> ACTIVE_STATUSES =
-            java.util.Set.of(STTS_PENDING, STTS_ACCEPTED);
+    public static final String STTS_CANCELED = "CANCELED";
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 폐기 이력 — 구 ACTIVE_STATUSES(PENDING·ACCEPTED) 상수는 제거됐다 (2026-07-31).
+    //
+    // 그 상수는 "같은 (원본 대표프레임 × 증강 종류) 활성 증강은 1건" 이라는 부분 유니크 인덱스
+    // UK_LS_DATA_AUG_ACTVTN(V143)의 술어를 코드에서 미러하는 <단일 원천> 이었다. 그 정책("요청 1회 =
+    // 파생영상 1건")이 사용자 확정으로 폐기되고(증강 결과는 요청마다 다르게 생성되므로 원하는 결과가
+    // 나올 때까지 같은 영상·종류로 재요청하는 것이 정상 동선이다) 인덱스도 V147 에서 DROP 됐다.
+    // 인덱스가 없어진 뒤에도 상수만 남겨두면 "여기에 맞춰 DB 제약이 있다" 는 사라진 계약을 계속
+    // 주장하게 되므로, 유일한 소비자(AugmentRequestService 중복 가드)와 함께 제거했다.
+    // 되살리려면 V147 주석의 롤백 절차(활성 중복 선정리 → 인덱스 재생성)를 먼저 수행할 것.
+    // ────────────────────────────────────────────────────────────────────────
 
     public static final String AUG_WINTER     = "WINTER";
     public static final String AUG_NIGHT      = "NIGHT";
@@ -128,6 +141,22 @@ public class LsDataAug {
     @Column(name = "OTSD_JOB_ID", length = 200)
     private String externalJobId;
 
+    /**
+     * 외부 위탁 시 전송한 {@code prompt}(요청 조건 5필드) JSON 원문 — V147 신설.
+     *
+     * <p>구 구현은 증강 유형별 고정 문구를 서버가 만들어 보냈지만, 지금은 REVIEWER 입력값이
+     * 그대로 나간다. 같은 (영상 × 종류) 반복 요청이 허용되므로(V147 【2】) "이 파생본은 어떤
+     * 조건으로 만든 것인가" 를 이 컬럼 없이는 되짚을 수 없다 — 그래서 <b>보낸 원문 그대로</b> 남긴다.
+     *
+     * <p>표준용어 등록 복합용어 <b>프롬프트내용 = PROMPT_CN</b>, 사업도메인 <b>내용V4000</b>
+     * (=VARCHAR(4000)) 을 물리명·크기 모두 등록값 그대로 채택했다. 실제 적재량은 5필드 × 50자 +
+     * JSON 오버헤드라 1천 자를 넘지 않는다(V147 주석 참조).
+     *
+     * <p>해상도 파생(RESL_*)과 V147 이전 요청은 {@code null} 이다.
+     */
+    @Column(name = "PROMPT_CN", length = 4000)
+    private String promptCn;
+
     /** Phase 4 비동기 표준 컬럼 — 재시도 횟수. */
     @Column(name = "RTRY_NMTM", nullable = false)
     private int retryCount;
@@ -141,7 +170,7 @@ public class LsDataAug {
                       BigDecimal lblIntgrtPct, String rejectRsn,
                       String dcsnUserNo, LocalDateTime dcsnDt,
                       LocalDateTime regDt, String regUserNo,
-                      String idempotencyKey, String externalJobId) {
+                      String idempotencyKey, String externalJobId, String promptCn) {
         this.srcSn = srcSn;
         this.augTypeCd = augTypeCd;
         this.augProcSttsCd = augProcSttsCd;
@@ -153,6 +182,7 @@ public class LsDataAug {
         this.regUserNo = regUserNo;
         this.idempotencyKey = idempotencyKey;
         this.externalJobId = externalJobId;
+        this.promptCn = promptCn;
         this.retryCount = 0;
     }
 
@@ -178,9 +208,26 @@ public class LsDataAug {
      *
      * <p>idempotencyKey 는 UUID 기반(dataAugSn 비의존)이므로 save 이전에 미리 발급해 행에 실어
      * 한 번의 save 로 커밋한다.
+     *
+     * <p>프롬프트를 남기지 않는 호출 전용 오버로드다(테스트 시드 등). 실제 요청 경로는
+     * {@link #createRequested(Long, String, String, String, String, String)} 를 쓴다 — 그쪽이
+     * 전송한 prompt 원문을 함께 적재한다.
      */
     public static LsDataAug createRequested(Long srcSn, String augTypeCd, String regUserNo,
                                             String idempotencyKey, String externalJobId) {
+        return createRequested(srcSn, augTypeCd, regUserNo, idempotencyKey, externalJobId, null);
+    }
+
+    /**
+     * 콜백 충실 플로우 요청용 — 위와 동일하되 <b>외부로 전송한 prompt JSON 원문</b>을 함께 적재한다(V147).
+     *
+     * <p>같은 (영상 × 종류) 반복 요청이 허용되므로(2026-07-31 정책) 파생본마다 "어떤 조건으로
+     * 만들었는가" 를 남겨야 사후 역추적이 가능하다. 전송본과 저장본이 어긋나지 않도록
+     * <b>같은 dict 에서 만든 문자열</b>을 넘긴다(호출부 {@code AugmentRequestService} 참조).
+     */
+    public static LsDataAug createRequested(Long srcSn, String augTypeCd, String regUserNo,
+                                            String idempotencyKey, String externalJobId,
+                                            String promptCn) {
         return LsDataAug.builder()
                 .srcSn(srcSn)
                 .augTypeCd(augTypeCd)
@@ -189,6 +236,7 @@ public class LsDataAug {
                 .regUserNo(regUserNo)
                 .idempotencyKey(idempotencyKey)
                 .externalJobId(externalJobId)
+                .promptCn(promptCn)
                 .build();
     }
 
@@ -261,6 +309,47 @@ public class LsDataAug {
      * 검수 결과를 LsDataAug.augProcSttsCd 에도 동기 반영 (DB 설계서 라인 162-169 호환).
      * 상세 audit 컬럼(LBL_INTGRT_PCT/RJCT_RSN/DCSN_USER_NO/DCSN_DT)은 LS_DATA_AUG_RVW 에서 관리.
      */
+    /**
+     * 종결 상태 판정 <b>단일 원천</b> — 검수 결과 축({@code AUG_PROC_STTS_CD})에서 "더 바뀌지 않는" 값.
+     *
+     * <p>이 판정을 호출처마다 문자열 비교로 복제하면 상태가 늘 때 한쪽만 고쳐져 조용히 어긋난다
+     * (실제로 CANCELED 신설 시 {@code AugmentReviewService.isTerminal} 만 고치고 다른 곳을 빠뜨리면
+     * 그 그룹이 영원히 진행중으로 보인다). 판정은 여기 한 곳에서만 한다.
+     */
+    public static boolean isTerminalStatus(String status) {
+        return STTS_ACCEPTED.equals(status)
+                || STTS_REJECTED.equals(status)
+                || STTS_CANCELED.equals(status);
+    }
+
+    /** 이 증강이 종결됐는가 — {@link #isTerminalStatus(String)} 위임. */
+    public boolean isTerminal() {
+        return isTerminalStatus(this.augProcSttsCd);
+    }
+
+    /**
+     * 사용자 취소 확정 — {@link #STTS_PENDING} → {@link #STTS_CANCELED}.
+     *
+     * <p><b>취소 요청 트랜잭션의 "클레임"</b>이다(S4). 호출자는 반드시
+     * {@code findByDataAugSnForUpdate}(FOR UPDATE)로 이 행을 잠근 뒤 호출해야 하며, 그래야
+     * ①동시 취소 2건이 직렬화되고 ②외부 취소 호출이 <b>정확히 한 번만</b> 나간다. 잠금 없이 부르면
+     * 두 요청이 모두 PENDING 을 관측해 둘 다 외부로 나가고, 두 번째가 벤더 409 를 받는다.
+     *
+     * <p><b>웹훅과의 경합도 같은 잠금으로 정리된다</b> — 콜백 경로({@code GenAiCallbackService} →
+     * {@code AugmentResultService})도 같은 행을 FOR UPDATE 로 잠그므로, 취소가 먼저 커밋되면 늦게 온
+     * 성공 결과는 non-PENDING 앵커에 흡수되어 폐기된다(WARN 만 남는다 — 의도된 동작).
+     *
+     * <p>비-PENDING 재취소는 {@link ErrorCode#CONFLICT} 다. 다만 <b>API 는 이 예외를 사용자에게
+     * 노출하지 않는다</b> — 호출자가 잠금 안에서 상태를 먼저 보고 멱등 200 으로 회신한다.
+     */
+    public void markCanceled() {
+        if (!STTS_PENDING.equals(this.augProcSttsCd)) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이미 처리된 증강 결과입니다. status=" + this.augProcSttsCd);
+        }
+        this.augProcSttsCd = STTS_CANCELED;
+    }
+
     public void applyReviewStatus(String newStatus) {
         if (newStatus == null
                 || (!STTS_ACCEPTED.equals(newStatus) && !STTS_REJECTED.equals(newStatus))) {

@@ -22,6 +22,18 @@ const statusBadgeMap: Record<AugmentJobStatus, BadgeStatus> = {
   FAILED: 'BATCH_FAILED',
 };
 
+/**
+ * 잡 집계 상태의 표시 문구 보정.
+ *
+ * BE 의 `COMPLETED` 는 "그룹의 모든 항목이 **종료 상태**(채택/반려/**취소**)" 라는 뜻이지 성공이
+ * 아니다. 그래서 취소로 종결된 잡도 `COMPLETED` 로 내려온다 — BE 는 이 enum 을 확장하지 않기로
+ * 확정했으므로(취소 상태 신설·집계 변경 없음) **표시 축에서** 성공을 단정하지 않는 중립 문구로
+ * 보정한다. 상세(항목별 채택/반려/취소)는 결과 화면에서 확인한다.
+ */
+const statusLabelOverride: Partial<Record<AugmentJobStatus, string>> = {
+  COMPLETED: '처리 종료',
+};
+
 export interface JobCardProps {
   job: AugmentJob;
 }
@@ -51,7 +63,10 @@ export function JobCard({ job }: JobCardProps) {
     >
       <div className="flex items-center justify-between">
         <span className="text-section-title text-primary">{job.cctvName}</span>
-        <StatusBadge status={statusBadgeMap[job.status]} />
+        <StatusBadge
+          status={statusBadgeMap[job.status]}
+          label={statusLabelOverride[job.status]}
+        />
       </div>
       <div className="flex flex-wrap gap-1">
         {job.types.map((t) => (

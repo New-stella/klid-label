@@ -66,8 +66,24 @@ export const AugmentDecision = {
   PENDING: 'PENDING',
   ACCEPTED: 'ACCEPTED',
   REJECTED: 'REJECTED',
+  /**
+   * 사용자 취소로 종결된 항목(BE `LS_DATA_AUG.AUG_PROC_STTS_CD=CANCELED`).
+   *
+   * 잡 카드 집계(`AugmentJobStatus` 4값)는 CANCELED 를 "종료"로 세어 **COMPLETED** 를 주고
+   * BE 는 그 enum 을 확장하지 않기로 확정했다. 따라서 "취소가 완료로 보이는" 문제는
+   * **표시 축(FE)** 에서 이 항목 상태로 보정한다.
+   */
+  CANCELED: 'CANCELED',
 } as const;
 export type AugmentDecision = (typeof AugmentDecision)[keyof typeof AugmentDecision];
+
+/** 활용 결정 상태의 사용자 노출 문구 — 화면 어디서나 같은 단어를 쓴다. */
+export const AUGMENT_DECISION_LABEL: Record<AugmentDecision, string> = {
+  PENDING: '활용 결정 대기',
+  ACCEPTED: '채택됨',
+  REJECTED: '거부됨',
+  CANCELED: '취소됨',
+};
 
 /** 증강 잡 카드 데이터 (이력 그리드용) */
 export interface AugmentJob {
@@ -93,6 +109,16 @@ export interface AugmentJob {
  */
 export type AugmentResultType = AugmentType | ResolutionPreset;
 
+/** 해상도 파생 코드 접두 — BE `AUG_TYPE_CD` 의 `RESL_*` 규약. */
+export const RESOLUTION_TYPE_PREFIX = 'RESL_';
+
+/**
+ * 해상도 파생(내부 생성물)인가.
+ * 외부 위탁 증강과 달리 검수(채택/반려)·진행상태 조회 대상이 아니다(BE 는 진행상태에 400).
+ */
+export const isResolutionDerivativeType = (type: string | null | undefined): boolean =>
+  typeof type === 'string' && type.startsWith(RESOLUTION_TYPE_PREFIX);
+
 /** 증강 결과 — 영상별 + 유형별 */
 export interface AugmentResult {
   /** 결과 항목 ID (acceptAugment/rejectAugment의 path param) */
@@ -116,6 +142,14 @@ export interface AugmentResult {
    * 구 응답(외부 위탁 증강)에는 없으므로 미지정은 "검수 가능"으로 취급한다.
    */
   reviewable?: boolean;
+  /**
+   * 이 결과물을 만들 때 외부로 전송한 **생성 조건 원문**(BE `LS_DATA_AUG.PROMPT_CN`).
+   *
+   * 같은 (영상 × 종류) 재요청이 허용되므로 "이 파생본이 어떤 조건으로 만들어졌는가"가
+   * 결과 식별의 유일한 수단이다(R9 역추적). 보낸 그대로의 JSON 문자열이며 서버가 재가공하지
+   * 않으므로 **파싱 실패에 안전하게** 다룬다(해상도 파생·구 요청은 null).
+   */
+  prompt?: string | null;
 }
 
 export interface AugmentFramePair {
@@ -148,17 +182,166 @@ export interface AugmentResultPage {
   page?: number;
   /** 프레임 쌍 페이지 크기 — 구 응답에는 없음 */
   size?: number;
+  /** 결과 항목 축 페이지 번호 (0-based) — 구 응답에는 없음 */
+  itemPage?: number;
+  /** 결과 항목 축 페이지 크기 — 구 응답에는 없음 */
+  itemSize?: number;
+  /** 결과 항목 축 총량(외부 위탁 + 해상도 파생) — 구 응답에는 없음 */
+  totalElements?: number;
+  /** 결과 항목 축 총 페이지 수(총량 0 이면 0) — 구 응답에는 없음 */
+  totalPages?: number;
 }
 
-/** 증강 결과 조회 파라미터 — 프레임 쌍 페이징 (BE 기본 12, 최대 100) */
+/**
+ * 증강 결과 조회 파라미터 — **페이징 축이 둘이다**.
+ * - `page`/`size` : 프레임 쌍 축 (BE 기본 0/12)
+ * - `itemPage`/`itemSize` : 결과 항목 축 (BE 기본 0/20)
+ *
+ * 한 창을 공유하면 "한쪽 축 총량이 0이면 다른 축이 갇힌다"가 구조적으로 남는다
+ * (순수 외부 위탁 잡은 프레임 쌍이 0건이라 프레임 페이저가 렌더되지 않는다).
+ */
 export interface GetAugmentResultParams {
   page?: number;
   size?: number;
+  itemPage?: number;
+  itemSize?: number;
 }
+
+/**
+ * 증강 진행상태 — `GET /v1/augments/{id}/progress` (id = 결과 항목 id).
+ *
+ * `progress` 가 null 이면 값을 신뢰할 수 없고 사유는 `unavailableReason` 에 있다.
+ * `nextPollAfterMs` 는 서버 **권고** 폴링 간격이며 0 이면 종결(폴링 중단)이다 —
+ * 서버에 속도 제한이 없으므로 폴링 증폭을 줄이는 수단은 이 힌트뿐이다.
+ */
+export const AugmentProgressStatus = {
+  RECEIVED: 'RECEIVED',
+  RUNNING: 'RUNNING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED',
+  CANCELED: 'CANCELED',
+} as const;
+export type AugmentProgressStatus =
+  (typeof AugmentProgressStatus)[keyof typeof AugmentProgressStatus];
+
+/** 진행률을 산출하지 못한 사유 — 넷은 성격이 전혀 달라 화면 표시도 달라야 한다. */
+export const AugmentProgressUnavailableReason = {
+  /** 외부 연동 비활성(배포 기본값). **오류가 아니다** */
+  NOOP: 'NOOP',
+  /** 외부 호출 실패(서킷 open·타임아웃·계약 위반) — 작업 자체는 계속 진행 중 */
+  TRANSIENT_ERROR: 'TRANSIENT_ERROR',
+  /** 외부 작업 ID 미수신(접수 직후·ACK 유실) — 오류로 표시 금지 */
+  AWAITING_ACK: 'AWAITING_ACK',
+  /** 우리 쪽 자체 상한(청크 과다·요청 예산) — 벤더 장애가 아니다 */
+  QUERY_LIMIT_EXCEEDED: 'QUERY_LIMIT_EXCEEDED',
+} as const;
+export type AugmentProgressUnavailableReason =
+  (typeof AugmentProgressUnavailableReason)[keyof typeof AugmentProgressUnavailableReason];
+
+export interface AugmentProgress {
+  id: number;
+  augTypeCd: string;
+  status: AugmentProgressStatus;
+  /** 0~100. null 이면 산출 불가(사유는 unavailableReason) */
+  progress: number | null;
+  unavailableReason: AugmentProgressUnavailableReason | null;
+  totalJobCount: number;
+  terminalJobCount: number;
+  /** 취소 가능 여부(증강 행이 PENDING 일 때만 true) */
+  cancelable: boolean;
+  /** 권고 폴링 간격(ms). 0 = 더 폴링할 필요 없음(종결) */
+  nextPollAfterMs: number;
+}
+
+/**
+ * 증강 취소 응답 — **accept/reject(`AugmentSummaryResponse`)와 shape 이 다르다**.
+ *
+ * 증강 1건이 여러 청크로 나뉘어 위탁되므로 "일부만 취소" 가 정상 시나리오이며,
+ * 요약 DTO 로는 그 사실을 표현할 수 없어 전용 타입이다. 같은 파서로 다루지 말 것.
+ */
+export interface AugmentCancelResult {
+  id: number;
+  augTypeCd: string;
+  /** 취소 후 증강 상태(CANCELED 또는 이미 종결이던 기존 상태) */
+  status: string;
+  /** **이번 요청이** 취소를 확정했는가. 멱등 재요청·이미 종결이면 false(오류 아님) */
+  canceled: boolean;
+  /** 취소 대상 청크 전부의 외부 취소가 성립했는가 */
+  fullyCanceled: boolean;
+  targetJobCount: number;
+  canceledJobCount: number;
+  /** 외부 취소가 전달되지 않은 청크 순번 */
+  failedJobSeqs: number[];
+  /** BE 가 주는 사용자 안내 문구 — 화면은 이 문구를 그대로 쓴다 */
+  message: string;
+}
+
+/** 취소 요청 바디 — **`reason` 하나만** 보낸다(Mass Assignment 방어, BE 계약). */
+export interface CancelAugmentRequest {
+  reason?: string;
+}
+
+/** BE `AugmentCancelRequest#reason` 과 동일 상한. */
+export const AUGMENT_CANCEL_REASON_MAX_LENGTH = 500;
+
+/**
+ * 외부 생성형 AI 로 그대로 전달되는 **구조화 프롬프트 5필드** (「생성형 AI API 연동명세서 v1.1」 §4.1).
+ *
+ * - **5필드 전부 필수** — 하나라도 비면 BE 가 400 으로 거부한다. 벤더가 빈 조건을 임의 기본값으로
+ *   채우면 결과가 비결정적이 되기 때문이다.
+ * - **값은 자유 문자열** — 연동명세서가 `prompt` 를 자유 dict 로만 규정하고 허용값 enum 을 정의하지
+ *   않는다. 예시값(NIGHT/WINTER/RAIN/ROAD/HIGH)은 규격서 **샘플**일 뿐 선택지가 아니므로,
+ *   FE 에서 select 로 고정해 사용자를 가두지 않는다(벤더가 지원하는 조건을 우리가 모르는 채 막게 된다).
+ * - 형식만 닫는다: 필수 · 공백 불가 · **보이지 않는 문자만 채운 값 불가** · 50자 이내.
+ *   검증 규칙은 `validateAugmentPrompt`(BE `VisibleTextNormalizer` 미러) 참조.
+ */
+export const AUGMENT_PROMPT_FIELD_KEYS = [
+  'time',
+  'season',
+  'weather',
+  'terrain',
+  'severity',
+] as const;
+export type AugmentPromptFieldKey = (typeof AUGMENT_PROMPT_FIELD_KEYS)[number];
+
+/** 프롬프트 5필드 값 묶음 — 전송 페이로드의 `prompt` 그 자체. */
+export type AugmentPromptFields = Record<AugmentPromptFieldKey, string>;
+
+/** BE `PromptFields.MAX_FIELD_LENGTH` 와 동일 상한. 넘으면 BE 가 400 으로 거부한다. */
+export const AUGMENT_PROMPT_MAX_LENGTH = 50;
+
+/**
+ * 입력 폼 표시 메타 — 라벨과 **예시(placeholder)**.
+ * placeholder 는 규격서 샘플값이며 선택지가 아니다(자유 입력을 막지 않는다).
+ */
+export const AUGMENT_PROMPT_FIELD_META: Record<
+  AugmentPromptFieldKey,
+  { label: string; placeholder: string; hint: string }
+> = {
+  time: { label: '시간대', placeholder: 'NIGHT', hint: '예: NIGHT, 새벽, 해질녘' },
+  season: { label: '계절', placeholder: 'WINTER', hint: '예: WINTER, 초봄' },
+  weather: { label: '날씨', placeholder: 'RAIN', hint: '예: RAIN, 폭설, 안개' },
+  terrain: { label: '지형', placeholder: 'ROAD', hint: '예: ROAD, 교차로, 골목' },
+  severity: { label: '심각도', placeholder: 'HIGH', hint: '예: HIGH, 보통' },
+};
+
+/** 빈 프롬프트 초기값 — 상수 객체를 공유하지 않도록 매 호출 새 객체를 만든다(불변성). */
+export const createEmptyAugmentPrompt = (): AugmentPromptFields => ({
+  time: '',
+  season: '',
+  weather: '',
+  terrain: '',
+  severity: '',
+});
 
 export interface RequestAugmentRequest {
   videoIds: number[];
   types: AugmentType[];
+  /**
+   * 생성 조건 5필드 — **필수**. 미전송 시 BE 가 400(INVALID_INPUT).
+   * `types` 는 이 값에서 파생되지 않는다(사용자가 카드로 직접 고른 값 그대로).
+   */
+  prompt: AugmentPromptFields;
 }
 
 export interface RequestAugmentResponse {

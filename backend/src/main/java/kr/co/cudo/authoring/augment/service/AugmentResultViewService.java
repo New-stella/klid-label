@@ -4,7 +4,10 @@ import kr.co.cudo.authoring.augment.dto.AugmentFramePairResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentResultItemResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentResultResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
+import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -22,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -33,10 +37,15 @@ import java.util.Set;
 /**
  * 증강 작업 결과 본문 조회 — {@code GET /v1/augments/{jobId}/result} 의 {@code results[]} 구성.
  *
- * <h3>범위 — 해상도 파생(RESL_*)만</h3>
- * 외부 위탁 증강(WINTER/NIGHT/RAIN)의 프레임 쌍은 외부 SFR-07 연동 이후 별도로 채워진다. 여기서는
- * <b>저작도구가 직접 생성한 해상도 파생</b>만 다뤄, 구 구현이 {@code List.of()} 로 하드코딩해
- * "비교 이미지가 하나도 안 나오던" 결함을 해소한다. 외부 증강 잡은 기존과 동일하게 빈 목록이다(회귀 0).
+ * <h3>범위 — 해상도 파생(RESL_*) <b>+ 외부 위탁 증강(WINTER/NIGHT/RAIN)</b></h3>
+ * <p>해상도 파생은 프레임 쌍(부모 비식별 ↔ 파생 리스케일)까지 채운다. 구 구현이 {@code List.of()} 로
+ * 하드코딩해 "비교 이미지가 하나도 안 나오던" 결함을 해소한 부분이다.
+ *
+ * <p>외부 위탁 증강은 <b>항목만</b> 채운다({@code framePairs} 는 외부 SFR-07 연동 이후). 구 구현은 이
+ * 항목을 아예 제외했는데, 그 결과 "이 결과물을 어떤 조건({@code prompt})으로 만들었는가" 를 볼 수 있는
+ * 경로가 accept/reject <b>응답</b>뿐이었다 — 즉 <b>결정을 내린 뒤에야</b>, 그것도 재전이가 CONFLICT 로
+ * 막혀 <b>다시 조회할 수 없는</b> 형태였다. 같은 (영상 × 종류) 반복 요청이 허용된 2026-07-31 이후에는
+ * 결과물끼리 구분이 조건으로만 가능하므로(R9 역추적) 조회(GET) 경로에 반드시 실려야 한다.
  *
  * <h3>부모↔파생 프레임 조인 = {@code (RAW_SN, FRM_NO)} 동등 조인</h3>
  * <p><b>전제</b>: 파생 프레임은 {@code ResolutionSnapshot.FrameSpec} 이 부모의 {@code frameNo} 를 그대로
@@ -53,13 +62,30 @@ import java.util.Set;
  *
  * <h3>보안</h3>
  * <ul>
+ *   <li><b>생성 조건(prompt) 노출 범위</b> — 이 엔드포인트는 {@code @PreAuthorize("hasRole('REVIEWER')")}
+ *       라 accept/reject 와 <b>동일한 권한 경계</b> 안에 있다. WORKER 는 403 이므로 prompt 를 조회로
+ *       넓혀도 노출 대상이 늘지 않는다(목록 {@code GET /v1/augments} 는 WORKER 도 허용되므로 그쪽에는
+ *       싣지 않는다).</li>
  *   <li><b>비식별 신고 게이트(CWE-359)</b> — 진입 시 {@link DeidentReportGate} 로 원본(부모)을 판정하고
  *       걸리면 412. 파생영상은 <b>각자의 행</b>으로 판정해(원본 신고는 파생에 전파되지 않는다 —
  *       2026-07-29 확정 정책) 신고된 파생만 쌍에서 제외한다.</li>
  *   <li><b>원본(PII) 경로 미노출(CWE-209)</b> — 응답에 파일 경로를 담지 않는다. 좌/우 모두
  *       {@code /v1/frames/{srcSn}/deid-image}(비식별 전용 서빙 API) 경로만 반환한다.</li>
- *   <li><b>입력 검증(CWE-20)</b> — page/size 범위를 조회 이전에 검증한다.</li>
+ *   <li><b>입력 검증(CWE-20)</b> — 두 축(page/size, itemPage/itemSize) 범위를 조회 이전에 검증한다.</li>
  * </ul>
+ *
+ * <h3>페이징 축 분리 (DEV_FIX HIGH-1 → MED-5)</h3>
+ * <p>프레임 쌍 축({@code page}/{@code size})과 결과 항목 축({@code itemPage}/{@code itemSize})은
+ * <b>독립</b>이다. 한 창을 공유하면 "한쪽 축 총량이 0이면 다른 축이 갇힌다" 가 구조적으로 남는다 —
+ * 실제로 프레임 쌍 0건인 순수 외부 위탁 영상에서 13번째 항목이 도달 불가가 됐다.
+ *
+ * <p><b>독립의 의미(MED-5 정정)</b>: 항목 축은 <b>모든 결과 항목</b>(외부 위탁 + 해상도 파생)을
+ * 페이징하고, 프레임 축은 <b>그 페이지에 실린 해상도 항목 안에서</b> 프레임 쌍을 페이징한다. 중간
+ * 구현은 해상도 항목을 항목 축 바깥에 두고 {@code itemPage==0} 에만 실었는데, 그러면 이번엔
+ * <b>프레임 축이 항목 축 위치에 갇혀</b>(itemPage≥1 이면 비교 이미지 도달 불가) 같은 결함이 반대
+ * 방향으로 재발했다. 한 {@code results[]} 안에서 "전 항목 도달 가능 + 페이지 간 중복 0 +
+ * {@code totalElements} 정합" 을 동시에 만족하는 구성은 <b>해상도 파생도 항목 축의 정식 원소로
+ * 세는 것</b> 하나뿐이다.
  */
 @Slf4j
 @Service
@@ -71,6 +97,17 @@ public class AugmentResultViewService {
     public static final int DEFAULT_FRAME_PAIR_SIZE = 12;
     /** 프레임 쌍 페이지 크기 상한 — {@code rules/api-design.md} 페이징 규약(max 100). */
     public static final int MAX_FRAME_PAIR_SIZE = 100;
+
+    /**
+     * 결과 항목 기본 페이지 크기 — {@code rules/api-design.md} 표준 기본값(20).
+     *
+     * <p>프레임 축 기본값(12)을 따라가지 않는다. 12 는 <b>이미지 그리드 한 화면</b> 크기라 항목 축에
+     * 의미가 없고, 무엇보다 항목 페이저 배선이 아직 없는 구 FE(Phase 5 대상)에서 13번째 항목이
+     * 소실됐던 값이 정확히 12 다. 항목은 이미지가 없는 경량 레코드라 20 건이 응답 크기 문제가 되지 않는다.
+     */
+    public static final int DEFAULT_ITEM_SIZE = 20;
+    /** 결과 항목 페이지 크기 상한 — {@code rules/api-design.md} 페이징 규약(max 100). */
+    public static final int MAX_ITEM_SIZE = 100;
 
     /** 비식별 프레임 이미지 서빙 API — 좌/우 이미지 모두 이 경로로만 노출한다(경로 문자열 미노출). */
     private static final String DEID_IMAGE_URL_FORMAT = "/v1/frames/%d/deid-image";
@@ -86,6 +123,8 @@ public class AugmentResultViewService {
                     + "외부 위탁 증강(WINTER/NIGHT/RAIN)의 프레임별 결과는 외부 SFR-07 연동 이후 제공됩니다.";
 
     private final LsDataAugRepository augRepository;
+    /** 외부 위탁 항목의 결정 상태(일시·반려사유) 조회 — 항목당 조회가 아니라 배치 1회. */
+    private final LsDataAugRvwRepository reviewRepository;
     private final LsDataSrcRepository srcRepository;
     private final VideoRepository videoRepository;
     private final AugmentReviewService reviewService;
@@ -94,18 +133,21 @@ public class AugmentResultViewService {
     /**
      * 증강 작업 결과 본문 조회.
      *
-     * @param jobId 증강 jobId (= 원본 RAW_SN)
-     * @param page  프레임 쌍 페이지 번호 (0-based)
-     * @param size  프레임 쌍 페이지 크기 (1..{@value #MAX_FRAME_PAIR_SIZE})
-     * @throws CustomException 400 page/size 범위 위반, 412 비식별 누락 신고 구간
+     * @param jobId    증강 jobId (= 원본 RAW_SN)
+     * @param page     <b>프레임 쌍 축</b> 페이지 번호 (0-based)
+     * @param size     <b>프레임 쌍 축</b> 페이지 크기 (1..{@value #MAX_FRAME_PAIR_SIZE})
+     * @param itemPage <b>결과 항목 축</b> 페이지 번호 (0-based)
+     * @param itemSize <b>결과 항목 축</b> 페이지 크기 (1..{@value #MAX_ITEM_SIZE})
+     * @throws CustomException 400 페이징 범위 위반, 412 비식별 누락 신고 구간
      */
-    public AugmentResultResponse result(Long jobId, int page, int size) {
-        validatePaging(page, size);
+    public AugmentResultResponse result(Long jobId, int page, int size, int itemPage, int itemSize) {
+        Paging paging = new Paging(page, size, itemPage, itemSize);
+        paging.validate();
 
+        // (구 {@code jobId == null} 분기는 제거됐다 — 진입점이 {@code @PathVariable Long jobId} 라
+        //  null 이 도달할 수 없는 사문 코드였다. 도달 불가 분기를 남기면 "여기서도 방어한다" 는 잘못된
+        //  안전 신호를 준다.)
         String status = reviewService.aggregateResultStatus(jobId);
-        if (jobId == null) {
-            return new AugmentResultResponse(null, status, List.of(), MESSAGE, page, size);
-        }
 
         // H1 (CWE-359) — 비식별 누락 신고 구간이면 결과 본문(프레임 쌍 = PII 위치 단서)을 노출하지 않는다.
         //                라벨 조회와 동일 정책(412). 파생영상은 아래에서 각자 판정한다.
@@ -115,15 +157,52 @@ public class AugmentResultViewService {
                     "비식별 재처리 대기 중인 영상은 증강 결과를 조회할 수 없습니다.");
         }
 
-        List<LsDataAug> generated = generatedResolutionAugs(jobId);
+        List<LsDataAug> augs = augRepository.findByOriginalRawSn(jobId);
+        // ★ 항목 축의 원소 = 외부 위탁 항목 + 해상도 파생 항목 (DEV_FIX MED-5 — 축 독립의 <진짜> 성립)
+        //
+        //   구 구현은 해상도 파생을 항목 축 <바깥>에 두고 itemPage==0 에만 실었다. 그러면 항목 페이저를
+        //   넘긴 사용자는 프레임 쌍(비교 이미지)에 <도달할 수 없다> — 프레임 축이 이번엔 항목 축 위치에
+        //   갇힌 것이다(Phase 2 가 세운 "두 축은 서로 독립" 불변식의 역방향 파손).
+        //
+        //   해결은 셋을 동시에 만족해야 한다: ①모든 항목이 itemPage 로 도달 가능 ②어떤 항목도 페이지
+        //   간 중복 없음 ③results.length ↔ totalElements 정합. 하나의 results[] 안에서 이 셋을 만족하는
+        //   구성은 "해상도 파생도 항목 축의 정식 원소로 세는 것" 뿐이다. 그러면 프레임 축(page/size)은
+        //   <그 항목 안에서> 독립적으로 동작하고, 항목 축은 표준 페이징 규약(api-design.md)과 정확히
+        //   일치한다(totalElements 가 results 전체를 센다).
+        //
+        //   FE 영향 없음: FE 는 itemPage 를 보내지 않아 기본값(0/20)이 적용되고, 항목이 20건 이하인
+        //   정상 형상에서는 종전과 동일하게 외부 위탁 + 해상도 파생이 한 응답에 함께 실린다.
+        List<LsDataAug> items = new ArrayList<>(externalAugs(augs));
+        items.addAll(generatedResolutionAugs(augs));
+        long itemTotal = items.size();
+        if (items.isEmpty()) {
+            return paging.response(jobId, status, List.of(), itemTotal);
+        }
+
+        // 항목 축 창 — 이 페이지에 실릴 항목만 남긴다(외부/해상도 구분 없이 같은 규칙).
+        List<LsDataAug> pageItems = pageOf(items, itemPage, itemSize);
+        if (pageItems.isEmpty()) {
+            return paging.response(jobId, status, List.of(), itemTotal);
+        }
+        List<LsDataAug> external = pageItems.stream()
+                .filter(a -> AugmentPrompts.isExternalAugType(a.getAugTypeCd())).toList();
+        List<LsDataAug> generated = pageItems.stream()
+                .filter(a -> !AugmentPrompts.isExternalAugType(a.getAugTypeCd())).toList();
+
+        String cctvName = resolveCctvName(jobId);
+        // 외부 위탁 항목이 앞선다 — 검수(채택/반려) 대상이고, 해상도 파생은 내부 생성물(비검수)이다.
+        List<AugmentResultItemResponse> results =
+                new ArrayList<>(toExternalItems(jobId, cctvName, external));
         if (generated.isEmpty()) {
-            return new AugmentResultResponse(jobId, status, List.of(), MESSAGE, page, size);
+            return paging.response(jobId, status, results, itemTotal);
         }
 
         Map<String, Long> derivativeRawSnByType = resolveDerivativeRawSns(jobId);
         Pageable pageable = PageRequest.of(page, size);
 
         // 1차 — 유형별 파생 프레임 슬라이스를 모으고(유형당 1 페이지 쿼리), FRM_NO 집합을 합친다.
+        //        ★ 이 페이지에 실린 해상도 항목에 대해서만 조회한다 — 프레임 쌍 쿼리(비용 큰 경로)가
+        //          항목 페이징으로 자연히 제한된다.
         Map<String, DerivativeSlice> slices = new LinkedHashMap<>();
         Set<Long> frameNos = new LinkedHashSet<>();
         for (LsDataAug aug : generated) {
@@ -146,18 +225,172 @@ public class AugmentResultViewService {
             framePage.getContent().forEach(f -> frameNos.add(f.getFrameNo()));
         }
         if (slices.isEmpty()) {
-            return new AugmentResultResponse(jobId, status, List.of(), MESSAGE, page, size);
+            return paging.response(jobId, status, results, itemTotal);
         }
 
         // 2차 — 부모 프레임을 (RAW_SN, FRM_NO) 배치 IN 조회 1회로 해결한다(H4 N+1 회피).
         Map<Long, Long> parentSrcSnByFrameNo = loadParentSrcSnByFrameNo(jobId, frameNos);
-        String cctvName = resolveCctvName(jobId);
 
-        List<AugmentResultItemResponse> results = new ArrayList<>(slices.size());
         for (DerivativeSlice slice : slices.values()) {
             results.add(toResultItem(jobId, cctvName, slice, parentSrcSnByFrameNo));
         }
-        return new AugmentResultResponse(jobId, status, results, MESSAGE, page, size);
+        return paging.response(jobId, status, results, itemTotal);
+    }
+
+    /**
+     * 항목 목록에 <b>항목 축 창({@code itemPage}/{@code itemSize})</b>을 적용한다.
+     *
+     * <p>구 구현(1차 DEV_FIX 이전)은 {@code results} 를 매 호출 전량으로 초기화해 같은 항목이
+     * 프레임 페이지마다 다시 내려갔다(응답 크기 × 페이지 수, CWE-770). 1차 수정은 <b>프레임 축 창을
+     * 그대로</b> 항목에 적용해 중복은 없앴지만, 프레임 쌍이 0건인 영상에서는 FE 페이저가 렌더되지 않아
+     * 2페이지로 갈 수단이 없어 <b>13번째 항목이 화면에서 소실</b>됐다.
+     *
+     * <p>축을 분리하면 두 목표가 동시에 성립한다 — 항목 슬라이스는 {@code itemSize}(≤100)로 <b>상한이
+     * 있고</b>(무한정 커지지 않는다), 모든 항목은 {@code itemPage} 로 <b>도달 가능</b>하다(R9 생성 조건
+     * 역추적 보존). 프레임 페이지를 넘길 때 같은 항목 슬라이스가 다시 실리는 것은 <b>의도된 동작</b>이다
+     * — 항목은 화면의 탭 구성이라 프레임 이동으로 바뀌면 안 되며, 슬라이스 상한이 있어 응답 크기가
+     * 무한정 곱해지지 않는다.
+     *
+     * <p>이 창은 <b>외부 위탁·해상도 파생을 가리지 않고</b> 적용된다(MED-5) — 한쪽만 창 밖에 두면
+     * "그 항목은 특정 itemPage 에서만 보인다(=다른 페이지에서 도달 불가)" 거나 "모든 페이지에 실린다
+     * (=이어붙이기 중복)" 중 하나가 반드시 생긴다.
+     */
+    private static <T> List<T> pageOf(List<T> all, int page, int size) {
+        int from = (int) Math.min((long) page * size, all.size());
+        int to = (int) Math.min((long) from + size, all.size());
+        return all.subList(from, to);
+    }
+
+    /**
+     * 두 페이징 축(프레임 쌍 / 결과 항목) — 검증과 응답 조립을 한곳에 모은다.
+     *
+     * <p>응답 조립을 값 객체에 두는 이유: {@link #result} 는 조기 반환 지점이 5곳이라, 총량 필드를
+     * 반환 지점마다 손으로 채우면 <b>한 곳만 빠뜨려도 그 경로에서 페이저가 사라진다</b>(이번 결함의
+     * 재발 형태). 조립 경로를 하나로 묶어 그 가능성을 없앤다.
+     */
+    private record Paging(int page, int size, int itemPage, int itemSize) {
+
+        /** 입력 검증(CWE-20/770) — 조회 이전에 수행해 잘못된 페이징이 DB 까지 내려가지 않게 한다. */
+        void validate() {
+            validateAxis(page, size, "page", "size", MAX_FRAME_PAIR_SIZE);
+            validateAxis(itemPage, itemSize, "itemPage", "itemSize", MAX_ITEM_SIZE);
+        }
+
+        private static void validateAxis(int page, int size, String pageName, String sizeName, int max) {
+            if (page < 0) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, pageName + " 는 0 이상이어야 합니다.");
+            }
+            if (size < 1) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, sizeName + " 는 1 이상이어야 합니다.");
+            }
+            if (size > max) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        sizeName + " 한도 초과 (max=" + max + ")");
+            }
+        }
+
+        /** 항목 축 총량({@code itemTotal})으로 페이저 근거 4필드를 채워 응답을 만든다. */
+        AugmentResultResponse response(Long jobId, String status,
+                                       List<AugmentResultItemResponse> results, long itemTotal) {
+            return new AugmentResultResponse(jobId, status, results, MESSAGE, page, size,
+                    itemPage, itemSize, itemTotal, totalPages(itemTotal));
+        }
+
+        /** 총량 0 이면 0 페이지 (Spring {@code Page.getTotalPages()} 와 동일 규약). */
+        private int totalPages(long itemTotal) {
+            return (int) ((itemTotal + itemSize - 1) / itemSize);
+        }
+    }
+
+    /**
+     * 외부 위탁 증강(WINTER/NIGHT/RAIN) 결과 항목 — <b>최신순</b>(등록일시 DESC → PK DESC).
+     *
+     * <p>같은 종류를 여러 번 요청할 수 있게 된 뒤로는 "몇 번째 요청의 결과인가" 가 화면 판독의 축이므로
+     * <b>시간 순</b>이 정본이다(유형 우선순위로 섞지 않는다 — 목록 정렬 정책과 같은 태도).
+     *
+     * <h3>ASC → DESC 로 뒤집은 이유 (2026-07-31)</h3>
+     * <p>오름차순이면 항목 축 1페이지에서 <b>잘려나가는 쪽이 가장 최신</b>이다. 그런데 가장 최신
+     * 항목이야말로 <b>유일하게 {@code PENDING} 인 결정 대상</b>(직전 요청분)이라, 항목 페이저가 아직
+     * 배선되지 않은 FE(Phase 5 대상)에서는 방금 요청한 결과에 도달할 수단이 없었다. 내림차순이면
+     * 페이저 없이도 실무 도달성이 유지되고, {@code rules/api-design.md} 의 기본 정렬
+     * ({@code createdAt,desc})과도 일치한다.
+     */
+    private List<LsDataAug> externalAugs(List<LsDataAug> augs) {
+        return augs.stream()
+                .filter(a -> AugmentPrompts.isExternalAugType(a.getAugTypeCd()))
+                .sorted(Comparator.comparing(LsDataAug::getRegDt,
+                                Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(LsDataAug::getDataAugSn,
+                                Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .reversed())
+                .toList();
+    }
+
+    /**
+     * 외부 위탁 증강 항목 변환.
+     *
+     * <ul>
+     *   <li>{@code framePairs}/{@code totalFramePairs} — 외부 SFR-07 프레임별 산출물 연동 전이라 비어 있다.</li>
+     *   <li>{@code derivativeRawSn} — <b>항상 null</b>. 증강 행↔파생 RAW 를 잇는 컬럼이 없어 유형만으로는
+     *       짝지을 수 없고(같은 종류 파생이 여러 건일 수 있다) 추정으로 잇는 순간 <b>다른 요청의 파생본</b>
+     *       으로 이동시키게 된다. 매핑 영속은 스키마 변경이 필요해 후속 과제로 남긴다.</li>
+     *   <li>{@code decision}/{@code decidedAt}/{@code rejectReason} — 검수 행(LS_DATA_AUG_RVW)의 최신값.</li>
+     *   <li>{@code reviewable} — PENDING 일 때만 true({@code applyReviewStatus} 가 재전이를 막는다).</li>
+     * </ul>
+     */
+    private List<AugmentResultItemResponse> toExternalItems(Long jobId, String cctvName,
+                                                            List<LsDataAug> external) {
+        if (external.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, LsDataAugRvw> reviews = loadLatestReviews(external);
+        List<AugmentResultItemResponse> items = new ArrayList<>(external.size());
+        for (LsDataAug aug : external) {
+            LsDataAugRvw review = reviews.get(aug.getDataAugSn());
+            items.add(new AugmentResultItemResponse(
+                    aug.getDataAugSn(),
+                    jobId,
+                    cctvName,
+                    aug.getAugTypeCd(),
+                    List.of(),
+                    aug.getAugProcSttsCd(),
+                    review == null ? null : review.getRvwDt(),
+                    review == null ? null : review.getRejectRsn(),
+                    null,
+                    0L,
+                    LsDataAug.STTS_PENDING.equals(aug.getAugProcSttsCd()),
+                    // R9 — 이 결과물을 만든 생성 조건 원문. 결정(채택/반려) <b>이전</b>에 확인 가능해야 한다.
+                    aug.getPromptCn()));
+        }
+        return items;
+    }
+
+    /** DATA_AUG_SN → 최신 검수 행 (배치 1회 조회 — N+1 회피). */
+    private Map<Long, LsDataAugRvw> loadLatestReviews(List<LsDataAug> augs) {
+        List<Long> augSns = augs.stream().map(LsDataAug::getDataAugSn).toList();
+        Map<Long, LsDataAugRvw> latest = new HashMap<>();
+        for (LsDataAugRvw rvw : reviewRepository.findByDataAugSnIn(augSns)) {
+            latest.merge(rvw.getDataAugSn(), rvw, (a, b) -> isNewer(b, a) ? b : a);
+        }
+        return latest;
+    }
+
+    /**
+     * 검수 행 최신 판정 — <b>검수 일시({@code RVW_DT})만</b> 본다.
+     *
+     * <p>구 주석은 "미기록이면 PK 큰 쪽" 이라 했으나 코드는 PK 를 비교하지 않는다(DEV_FIX LOW —
+     * 서술 정정). 둘 다 일시가 없으면 <b>먼저 만난 행</b>이 유지된다. 검수 행은 결정 시점에 일시와
+     * 함께 기록되므로 일시 없는 행이 복수인 경우는 정상 형상에 없다 — PK 비교를 넣어 "일시가 없어도
+     * 최신을 안다" 는 인상을 주기보다, 판정 축이 하나임을 그대로 드러낸다.
+     */
+    private static boolean isNewer(LsDataAugRvw candidate, LsDataAugRvw current) {
+        if (candidate.getRvwDt() != null && current.getRvwDt() != null) {
+            return candidate.getRvwDt().isAfter(current.getRvwDt());
+        }
+        if (candidate.getRvwDt() != null) {
+            return true;
+        }
+        return false;
     }
 
     /** 파생 프레임 슬라이스 — 유형별 1건. */
@@ -203,13 +436,15 @@ public class AugmentResultViewService {
                 slice.derivativeRawSn(),
                 // 총량 = 쌍이 성립하는 프레임 수(= 실제 표시 가능한 카드 수). 파생 프레임 총수가 아니다.
                 slice.framePage().getTotalElements(),
-                false);
+                false,
+                // 해상도 파생은 외부 위탁이 아니라 내부 ffmpeg 리스케일이라 생성 조건(prompt)이 없다.
+                null);
     }
 
     /** 생성 완료(ACCEPTED)된 해상도 파생 증강행만 표시 순서대로 반환한다. */
-    private List<LsDataAug> generatedResolutionAugs(Long jobId) {
+    private List<LsDataAug> generatedResolutionAugs(List<LsDataAug> augs) {
         Map<String, LsDataAug> byType = new HashMap<>();
-        for (LsDataAug aug : augRepository.findByOriginalRawSn(jobId)) {
+        for (LsDataAug aug : augs) {
             String type = aug.getAugTypeCd();
             if (type == null || !type.startsWith(LsDataAug.RESL_PREFIX)) {
                 continue; // 외부 위탁 증강(WINTER/NIGHT/RAIN) — 본 경로 대상 아님(회귀 0)
@@ -314,20 +549,6 @@ public class AugmentResultViewService {
     /** 이미지 노출은 API 경로로만 — 스토리지 경로를 응답에 싣지 않는다(CWE-209/359). */
     private static String deidImageUrl(Long srcSn) {
         return String.format(DEID_IMAGE_URL_FORMAT, srcSn);
-    }
-
-    /** 입력 검증(CWE-20) — 조회 이전에 수행해 잘못된 페이징이 DB 까지 내려가지 않게 한다. */
-    private static void validatePaging(int page, int size) {
-        if (page < 0) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "page 는 0 이상이어야 합니다.");
-        }
-        if (size < 1) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "size 는 1 이상이어야 합니다.");
-        }
-        if (size > MAX_FRAME_PAIR_SIZE) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "size 한도 초과 (max=" + MAX_FRAME_PAIR_SIZE + ")");
-        }
     }
 
     /** Log Injection (CWE-117) 방어 — CR/LF 제거. */

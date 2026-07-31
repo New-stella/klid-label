@@ -22,7 +22,9 @@ describe('augment api', () => {
     mock.restore();
   });
 
-  it('requestAugment_POST_augments_request_요청_바디_videoIds_types_전달', async () => {
+  // BE 계약(2026-07-31): videoIds·types 는 각각 길이 1, prompt 5필드는 **필수**.
+  // prompt 를 빠뜨리면 BE 가 400 INVALID_INPUT 으로 거부한다.
+  it('requestAugment_POST_augments_request_요청_바디_videoIds_types_prompt_전달', async () => {
     let body: unknown;
     mock.onPost('/augments/request').reply((config) => {
       body = JSON.parse(config.data ?? '{}');
@@ -33,8 +35,8 @@ describe('augment api', () => {
           data: {
             jobId: 100,
             requestedAt: '2026-05-19T10:00:00Z',
-            videoCount: 3,
-            typeCount: 2,
+            videoCount: 1,
+            typeCount: 1,
           },
           message: null,
           errorCode: null,
@@ -43,13 +45,30 @@ describe('augment api', () => {
     });
 
     const res = await requestAugment({
-      videoIds: [1, 2, 3],
-      types: ['WINTER', 'NIGHT'],
+      videoIds: [1],
+      types: ['WINTER'],
+      prompt: {
+        time: 'NIGHT',
+        season: 'WINTER',
+        weather: 'RAIN',
+        terrain: 'ROAD',
+        severity: 'HIGH',
+      },
     });
-    expect(body).toMatchObject({ videoIds: [1, 2, 3], types: ['WINTER', 'NIGHT'] });
+    expect(body).toMatchObject({
+      videoIds: [1],
+      types: ['WINTER'],
+      prompt: {
+        time: 'NIGHT',
+        season: 'WINTER',
+        weather: 'RAIN',
+        terrain: 'ROAD',
+        severity: 'HIGH',
+      },
+    });
     expect(res.jobId).toBe(100);
-    expect(res.videoCount).toBe(3);
-    expect(res.typeCount).toBe(2);
+    expect(res.videoCount).toBe(1);
+    expect(res.typeCount).toBe(1);
     expect(res.requestedAt).toBe('2026-05-19T10:00:00Z');
   });
 

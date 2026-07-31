@@ -103,6 +103,13 @@ class AugmentRequestServiceTest {
     /** 테스트 격리용 고유 rawSn 시퀀스 (다른 테스트 데이터와 충돌 회피). */
     private static final AtomicLong RAW_SN_SEQ = new AtomicLong(990_000_000L);
 
+    /**
+     * 생성 조건 5필드 — 프롬프트 자체가 관심사가 아닌 케이스에서 계약(필수)을 채우는 고정값.
+     * 프롬프트 검증·전달 자체는 아래 전용 테스트와 {@code AugmentRequestContractTest} 가 본다.
+     */
+    private static final AugmentRequestRequest.PromptFields PROMPT =
+            new AugmentRequestRequest.PromptFields("NIGHT", "WINTER", "RAIN", "ROAD", "HIGH");
+
     @BeforeEach
     void setup() {
         tx = new TransactionTemplate(controlTransactionManager);
@@ -220,7 +227,7 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER));
+                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         // when — 실제 커밋 → AFTER_COMMIT 발화
         service.request(req, reviewer);
@@ -247,7 +254,7 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.NIGHT));
+                List.of(raw), List.of(AugmentTypeCode.NIGHT), PROMPT);
 
         // when — request() 를 트랜잭션 안에서 호출 후 강제 롤백 (커밋 미발생)
         List<String> capturedKeys = tx.execute(s -> {
@@ -278,7 +285,7 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER));
+                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         service.request(req, reviewer);
 
@@ -303,7 +310,7 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.RAIN));
+                List.of(raw), List.of(AugmentTypeCode.RAIN), PROMPT);
 
         service.request(req, reviewer);
         awaitExternalSubmitted(1);
@@ -392,7 +399,8 @@ class AugmentRequestServiceTest {
 
         // when — 위탁 진입점을 프록시 경유로 동기 호출(비동기 브리지·커넥션 겹침 없음)
         AugmentJobSubmitService.SubmitOutcome outcome = submitService.submit(
-                new AugmentRequestedItemEvent(augSn, raw, LsDataAug.AUG_WINTER, key,
+                new AugmentRequestedItemEvent(augSn, raw, LsDataAug.AUG_WINTER,
+                        java.util.Map.of("time", "NIGHT"), key,
                         "http://localhost/v1/genai/callback", "1"));
 
         assertThat(syncActive.get())
@@ -409,6 +417,111 @@ class AugmentRequestServiceTest {
     }
 
     // ============================================================
+    // 구조화 프롬프트 (2026-07-31 신설)
+    // ============================================================
+
+    /**
+     * 사용자 입력 5필드가 <b>가공 없이</b> 외부 위탁 페이로드의 {@code prompt} 로 나가는지 고정한다.
+     * 구 구현은 증강 유형별 고정 문구를 서버가 만들어 보냈으므로, 이 테스트가 없으면 입력이 조용히
+     * 무시되고 예전 문구가 나가도 아무도 모른다.
+     */
+    @Test
+    @DisplayName("프롬프트_5필드를_입력하면_외부전송_prompt_객체에_그대로_담긴다")
+    void promptFieldsArePassedThroughToExternalPayload() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(raw, 0);
+
+        AugmentRequestRequest.PromptFields fields =
+                new AugmentRequestRequest.PromptFields("DAWN", "SUMMER", "FOG", "TUNNEL", "LOW");
+        service.request(new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.RAIN), fields), reviewer);
+        awaitExternalSubmitted(1);
+
+        ArgumentCaptor<AugmentSubmitCommand> captor =
+                ArgumentCaptor.forClass(AugmentSubmitCommand.class);
+        verify(externalClient, times(1)).requestAugment(captor.capture());
+
+        assertThat(captor.getValue().prompt())
+                .as("입력 5필드가 그대로 외부 prompt dict 가 된다(서버 고정 문구 아님)")
+                .containsExactlyInAnyOrderEntriesOf(java.util.Map.of(
+                        "time", "DAWN", "season", "SUMMER", "weather", "FOG",
+                        "terrain", "TUNNEL", "severity", "LOW"));
+    }
+
+    /**
+     * 같은 (영상 × 종류) 반복 요청이 허용되므로(위 정책 블록), 결과물을 구분하려면 "어떤 조건으로
+     * 만들었는가" 가 DB 에 남아야 한다. 저장본이 <b>실제로 나간 값과 동일</b>한지도 함께 본다 —
+     * 둘이 갈라지면 역추적이 거짓이 된다.
+     */
+    @Test
+    @DisplayName("프롬프트가_DB에_보관되어_결과에서_역추적된다")
+    void promptIsPersistedForTraceability() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest.PromptFields fields =
+                new AugmentRequestRequest.PromptFields("DAWN", "SUMMER", "FOG", "TUNNEL", "LOW");
+        service.request(new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.WINTER), fields), reviewer);
+
+        List<LsDataAug> augs = augsOf(frame);
+        assertThat(augs).hasSize(1);
+        String stored = augs.get(0).getPromptCn();
+        assertThat(stored).as("전송한 prompt 원문이 LS_DATA_AUG.PROMPT_CN 에 남아야 한다")
+                .isNotNull()
+                .contains("\"time\":\"DAWN\"")
+                .contains("\"season\":\"SUMMER\"")
+                .contains("\"weather\":\"FOG\"")
+                .contains("\"terrain\":\"TUNNEL\"")
+                .contains("\"severity\":\"LOW\"");
+
+        // 결과 조회 경로(AugmentSummaryResponse)에서 도달 가능해야 한다.
+        assertThat(kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse.from(augs.get(0)).prompt())
+                .as("결과 조회 응답에서 생성 조건을 되짚을 수 있어야 한다")
+                .isEqualTo(stored);
+
+        awaitJobsOf(augs.get(0).getDataAugSn());
+    }
+
+    /**
+     * 개행이 섞인 입력이 <b>정규화 없이</b> 로그·저장·전송으로 흐르면 로그 위조(CWE-117)가 된다.
+     * 정규화 단일 원천({@code ControlCharNormalizer})을 실제로 통과하는지 값 축으로 고정한다.
+     *
+     * <p>로그 축은 "프롬프트 원문을 아예 로그에 싣지 않는다" 는 설계로 닫혀 있다(서비스는 jobId·actor·
+     * rawSn·augType 만 남긴다) — 개행을 제거하는 것과 애초에 찍지 않는 것 <b>두 겹</b> 방어다.
+     */
+    @Test
+    @DisplayName("개행이_포함된_프롬프트는_로그에_원본_개행이_남지_않는다")
+    void controlCharactersAreStrippedFromPrompt() {
+        Long raw = nextRawSn();
+        seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(raw, 0);
+
+        AugmentRequestRequest.PromptFields injected = new AugmentRequestRequest.PromptFields(
+                "NIGHT\n2026-01-01 FAKE LOG LINE", "WINTER\r\nINJECTED",
+                "RA\tIN", "ROAD " + (char) 0, "HIGH");
+        service.request(new AugmentRequestRequest(
+                List.of(raw), List.of(AugmentTypeCode.NIGHT), injected), reviewer);
+
+        List<LsDataAug> augs = augsOf(frame);
+        assertThat(augs).hasSize(1);
+        assertThat(augs.get(0).getPromptCn())
+                .as("제어문자(개행/CR/탭)는 제거된다 — 원문자와 JSON 이스케이프 양쪽으로 확인한다. "
+                        + "이스케이프 축까지 보지 않으면 Jackson 이 escape 로 바꿔 담은 것을 "
+                        + "'제거됐다'고 오판한다(정규화를 지워도 통과하는 공허한 테스트가 된다)")
+                .doesNotContain("\n").doesNotContain("\r").doesNotContain("\t")
+                .doesNotContain("\\n").doesNotContain("\\r").doesNotContain("\\t")
+                .contains("NIGHT2026-01-01 FAKE LOG LINE")
+                .contains("RAIN")
+                // 앞뒤 공백도 정규화 대상 — "ROAD " 는 "ROAD" 로 다듬어진다(문자열 중간 공백은 유지).
+                .contains("\"terrain\":\"ROAD\"");
+
+        awaitJobsOf(augs.get(0).getDataAugSn());
+    }
+
+    // ============================================================
     // 회귀 — 기존 동작 보존
     // ============================================================
 
@@ -421,7 +534,7 @@ class AugmentRequestServiceTest {
 
         // 단건 계약(E-ISSUE-08) — 영상 1건 × 종류 1개
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER));
+                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         AugmentRequestResponse resp = service.request(req, reviewer);
 
@@ -442,7 +555,7 @@ class AugmentRequestServiceTest {
         Long frame1 = seedFrame(r1, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER));
+                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         service.request(req, reviewer);
 
@@ -465,7 +578,7 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER));
+                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         service.request(req, reviewer);
 
@@ -491,7 +604,7 @@ class AugmentRequestServiceTest {
         // 프레임 미적재
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER));
+                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -513,7 +626,7 @@ class AugmentRequestServiceTest {
         seedStatus(r2, LsRawDataStatus.STTS_IN_REVIEW);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r2), List.of(AugmentTypeCode.WINTER));
+                List.of(r2), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -535,7 +648,7 @@ class AugmentRequestServiceTest {
         Long missing = nextRawSn(); // status row 없음
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(missing), List.of(AugmentTypeCode.NIGHT));
+                List.of(missing), List.of(AugmentTypeCode.NIGHT), PROMPT);
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -566,13 +679,13 @@ class AugmentRequestServiceTest {
         seedFrame(r2, 0);
 
         assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(r1, r2), List.of(AugmentTypeCode.WINTER)), reviewer))
+                List.of(r1, r2), List.of(AugmentTypeCode.WINTER), PROMPT), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
         assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT)), reviewer))
+                List.of(r1), List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT), PROMPT), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -592,7 +705,7 @@ class AugmentRequestServiceTest {
                 .willReturn(Mono.error(new RuntimeException("외부 시스템 장애 (mock)")));
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER));
+                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         // when — 외부 호출은 AFTER_COMMIT 에서 실패하지만 요청 트랜잭션/응답에는 영향 없음
         AugmentRequestResponse resp = service.request(req, reviewer);
@@ -607,59 +720,56 @@ class AugmentRequestServiceTest {
     }
 
     // ============================================================
-    // HIGH-3 — 중복 증강 요청 차단 (파생 트리 팬아웃 DoS 근원 제거)
+    // 중복 재요청 허용 (2026-07-31 정책 전환)
+    //
+    // ★ 이 블록의 기대값을 <다시 뒤집지 말 것>. 구 정책("요청 1회 = 파생영상 1건", 2026-07-29)은
+    //   활성 중복 요청을 409 로 막고 부분 유니크 인덱스 UK_LS_DATA_AUG_ACTVTN(V143)으로 최종
+    //   방어했으나, <사용자가 2026-07-31 에 명시적으로 폐기>했다. 근거 원문:
+    //   "증강 이미지가 요청때마다 다르게 나올텐데 원하는 이미지가 안 나오면 동일하게 다시 요청할 수도 있다".
+    //   즉 같은 영상·같은 종류의 재요청은 결함이 아니라 <정상 운영 동선>이다.
+    //   연타(오조작) 방어는 FE 단독 책임으로 이관됐다 — BE 에 409 를 되살리는 것이 아니다.
     // ============================================================
 
     @Test
-    @DisplayName("이미_요청된_증강을_같은_종류로_다시_요청하면_409로_차단된다")
-    void duplicateActiveAugmentRequestRejected() {
+    @DisplayName("같은_영상_같은_종류로_두_번_요청해도_모두_성공한다")
+    void repeatedRequestForSameVideoAndTypeSucceeds() {
         Long raw = nextRawSn();
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER));
-        service.request(req, reviewer);
+                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
 
-        // when — 동일 (영상 × 종류) 재요청
-        assertThatThrownBy(() -> service.request(req, reviewer))
-                .isInstanceOf(CustomException.class)
-                .satisfies(e -> {
-                    CustomException ce = (CustomException) e;
-                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
-                    @SuppressWarnings("unchecked")
-                    var details = (java.util.Map<String, Object>) ce.getDetails();
-                    @SuppressWarnings("unchecked")
-                    List<java.util.Map<String, Object>> dup =
-                            (List<java.util.Map<String, Object>>) details.get("duplicatedRequests");
-                    assertThat(dup).hasSize(1);
-                    assertThat(dup.get(0)).containsEntry("videoId", raw)
-                            .containsEntry("type", LsDataAug.AUG_WINTER);
-                });
+        assertThat(service.request(req, reviewer).createdCount()).isEqualTo(1);
+        assertThat(service.request(req, reviewer).createdCount()).isEqualTo(1);
 
-        // then — 파생 트리를 부풀릴 두 번째 증강 행이 생기지 않았다.
-        assertThat(augsOf(frame)).hasSize(1);
+        assertThat(augsOf(frame)).hasSize(2);
     }
 
+    /**
+     * 채택(ACCEPTED)은 되돌릴 수 없는 종결 상태라 구 정책에서는 <b>같은 (영상 × 종류) 재요청이 영구
+     * 불가</b>했다(409). 지금은 채택된 파생본이 이미 있어도 "다른 결과를 받아보고 싶다" 는 요구가
+     * 정당하므로 그대로 접수된다.
+     */
     @Test
-    @DisplayName("채택된_증강도_같은_종류로_다시_요청하면_409로_차단된다")
-    void acceptedAugmentBlocksReRequest() {
+    @DisplayName("채택된_증강이_있어도_같은_종류로_다시_요청할_수_있다")
+    void acceptedAugmentAllowsReRequest() {
         Long raw = nextRawSn();
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.NIGHT));
+                List.of(raw), List.of(AugmentTypeCode.NIGHT), PROMPT);
         service.request(req, reviewer);
         // 검수 승인(ACCEPTED) — 채택된 파생본이 이미 존재하는 상태.
         tx.executeWithoutResult(s -> augRepository.findBySrcSnOrderByAugTypeCd(frame)
                 .forEach(a -> a.applyReviewStatus(LsDataAug.STTS_ACCEPTED)));
 
-        assertThatThrownBy(() -> service.request(req, reviewer))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
-        assertThat(augsOf(frame)).hasSize(1);
+        assertThat(service.request(req, reviewer).createdCount()).isEqualTo(1);
+
+        assertThat(augsOf(frame)).hasSize(2);
+        assertThat(augsOf(frame)).extracting(LsDataAug::getAugProcSttsCd)
+                .containsExactlyInAnyOrder(LsDataAug.STTS_ACCEPTED, LsDataAug.STTS_PENDING);
     }
 
     @Test
@@ -670,9 +780,9 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.RAIN));
+                List.of(raw), List.of(AugmentTypeCode.RAIN), PROMPT);
         service.request(req, reviewer);
-        // 반려(REJECTED) — 종결 상태이므로 활성 유니크 대상에서 빠진다(정당한 재요청 동선 보존).
+        // 반려(REJECTED) 후 재요청 — 구 정책에서도 허용되던 동선이며 정책 전환 후에도 그대로다(회귀 가드).
         tx.executeWithoutResult(s -> augRepository.findBySrcSnOrderByAugTypeCd(frame)
                 .forEach(a -> a.applyReviewStatus(LsDataAug.STTS_REJECTED)));
 
@@ -685,50 +795,51 @@ class AugmentRequestServiceTest {
     }
 
     /**
-     * DB 최종 방어 자체의 결정론적 가드 — 서비스 경로를 <b>우회</b>해 리포지토리로 직접 중복 INSERT 를
-     * 시도한다. 부분 유니크 인덱스({@code UK_LS_DATA_AUG_ACTVTN}, V143)가 없으면 2행이 저장돼 RED.
-     * REJECTED(종결)는 술어 밖이라 같은 키로 여러 건이 허용된다는 것도 함께 고정한다.
+     * 활성 중복 INSERT 가 <b>DB 레벨에서도 허용</b>되는지 확인한다 — 서비스 가드만 지우고 인덱스를
+     * 남기면 재요청이 500(제약 위반)으로 죽어 정책 전환이 반쪽이 된다.
+     *
+     * <p>동시에 <b>해상도 파생 전용 유니크는 살아 있어야</b> 한다. 두 인덱스는 같은 컬럼쌍
+     * {@code (SRC_SN, AUG_TYPE_CD)} 위에 있어 술어만 다르므로, 정리 과정에서 함께 지워지기 쉽다.
+     * {@code UK_LS_DATA_AUG_RESL}(V125)은 저작도구 <b>내부</b> 생성물(같은 프리셋을 두 번 만들 이유가
+     * 없다)의 이중 생성을 막는 별개 계약이라 이번 정책 전환과 무관하다.
      */
     @Test
-    @DisplayName("활성_중복_INSERT는_DB_부분유니크_인덱스가_거부하고_반려행은_허용한다")
-    void partialUniqueIndexRejectsActiveDuplicateInsert() {
+    @DisplayName("해상도파생_유니크_UK_LS_DATA_AUG_RESL_은_유지되고_활성중복_유니크만_사라진다")
+    void resolutionUniqueSurvivesWhileActiveUniqueIsDropped() {
+        List<String> indexNames = jdbcTemplate.queryForList(
+                "SELECT indexname FROM pg_indexes WHERE lower(tablename) = 'ls_data_aug'",
+                String.class);
+
+        assertThat(indexNames).extracting(String::toLowerCase)
+                .as("해상도 파생 이중 생성 방어(V125)는 이번 정책 전환 대상이 아니다")
+                .contains("uk_ls_data_aug_resl")
+                .as("활성 중복 유니크(V143)는 V147 에서 제거됐다")
+                .doesNotContain("uk_ls_data_aug_actvtn");
+
+        // 행 레벨에서도 확인 — 같은 (SRC_SN, AUG_TYPE_CD) 활성 행 2건이 실제로 적재된다.
         Long raw = nextRawSn();
         Long frame = seedFrame(raw, 0);
-
         tx.executeWithoutResult(s -> augRepository.saveAndFlush(
                 LsDataAug.createPending(frame, LsDataAug.AUG_WINTER, null, "1")));
-
-        // 같은 (SRC_SN, AUG_TYPE_CD) 활성 행 두 번째 INSERT → 인덱스 위반
-        assertThatThrownBy(() -> tx.executeWithoutResult(s -> augRepository.saveAndFlush(
-                LsDataAug.createPending(frame, LsDataAug.AUG_WINTER, null, "1"))))
-                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
-
-        // 반려(종결) 행은 술어 밖 — 같은 키로도 적재 가능해야 한다(재요청 동선 보존).
-        tx.executeWithoutResult(s -> {
-            LsDataAug rejected = LsDataAug.createPending(frame, LsDataAug.AUG_WINTER, null, "1");
-            rejected.applyReviewStatus(LsDataAug.STTS_REJECTED);
-            augRepository.saveAndFlush(rejected);
-        });
+        tx.executeWithoutResult(s -> augRepository.saveAndFlush(
+                LsDataAug.createPending(frame, LsDataAug.AUG_WINTER, null, "1")));
 
         assertThat(augsOf(frame)).hasSize(2);
     }
 
     /**
-     * 동시 요청은 서로의 미커밋 행을 보지 못하므로 서비스 사전 조회(1선)만으로는 전부 통과한다.
-     * 실제 방어는 부분 유니크 인덱스 {@code UK_LS_DATA_AUG_ACTVTN}(V143)이며, 위반은
-     * {@code DataIntegrityViolationException} → 409 로 표면화된다. 인덱스를 지우면 2건이 저장돼 RED.
-     *
-     * <p>PostgreSQL 은 제약 위반 시 트랜잭션 전체를 abort 시키므로 같은 트랜잭션 안에서 재시도할 수
-     * 없다 — 패자는 요청 트랜잭션째 롤백되어 409 로 끝난다(부분 처리 금지).
+     * 동시 재요청도 <b>둘 다 성공</b>한다. 구 구현에서는 부분 유니크 인덱스가 패자를 409 로 떨어뜨렸고
+     * 그것이 의도된 계약이었다 — 정책 전환으로 인덱스가 사라졌으므로 두 건 모두 접수돼야 한다.
+     * (한쪽이 500 으로 죽으면 인덱스나 제약이 어딘가 남아 있다는 신호다.)
      */
     @Test
-    @DisplayName("동시_증강_요청_2건이어도_활성_증강행은_1건만_생성된다")
-    void concurrentRequests_onlyOneActiveAugRow() throws Exception {
+    @DisplayName("동시_증강_요청_2건이_모두_성공한다")
+    void concurrentRequests_bothSucceed() throws Exception {
         Long raw = nextRawSn();
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(raw, 0);
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER));
+                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         int threads = 2;
         java.util.concurrent.ExecutorService pool =
@@ -736,7 +847,6 @@ class AugmentRequestServiceTest {
         java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(threads);
         java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
         java.util.concurrent.atomic.AtomicInteger created = new java.util.concurrent.atomic.AtomicInteger();
-        java.util.concurrent.atomic.AtomicInteger conflicted = new java.util.concurrent.atomic.AtomicInteger();
         java.util.concurrent.atomic.AtomicInteger other = new java.util.concurrent.atomic.AtomicInteger();
         try {
             java.util.concurrent.Future<?>[] futures = new java.util.concurrent.Future<?>[threads];
@@ -747,12 +857,6 @@ class AugmentRequestServiceTest {
                         start.await();
                         service.request(req, reviewer);
                         created.incrementAndGet();
-                    } catch (CustomException e) {
-                        if (e.getErrorCode() == ErrorCode.CONFLICT) {
-                            conflicted.incrementAndGet();
-                        } else {
-                            other.incrementAndGet();
-                        }
                     } catch (Exception e) {
                         other.incrementAndGet();
                     }
@@ -768,11 +872,9 @@ class AugmentRequestServiceTest {
             pool.shutdownNow();
         }
 
-        assertThat(created.get()).as("동시 요청 중 정확히 1건만 성공해야 한다").isEqualTo(1);
-        assertThat(conflicted.get()).as("패자는 409(CONFLICT) 로 표면화돼야 한다(500 누수 금지)")
-                .isEqualTo(threads - 1);
-        assertThat(other.get()).isZero();
-        assertThat(augsOf(frame)).as("활성 증강 행은 1건이어야 한다(파생 트리 팬아웃 방지)").hasSize(1);
+        assertThat(created.get()).as("동시 재요청 2건이 모두 접수돼야 한다").isEqualTo(threads);
+        assertThat(other.get()).as("제약 위반 등으로 떨어진 요청이 없어야 한다").isZero();
+        assertThat(augsOf(frame)).as("요청 수만큼 증강 행이 생긴다").hasSize(threads);
     }
 
     @Test
@@ -782,7 +884,7 @@ class AugmentRequestServiceTest {
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER));
+                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
 
         assertThatThrownBy(() -> service.request(req, worker))
                 .isInstanceOf(CustomException.class)

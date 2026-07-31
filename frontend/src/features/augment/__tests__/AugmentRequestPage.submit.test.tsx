@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
@@ -21,6 +21,25 @@ vi.mock('react-router-dom', async () => {
 });
 
 /**
+ * 증강 생성 조건 5필드 — BE 필수 계약(2026-07-31). 증강 경로 실행 전에 반드시 채워야
+ * 제출 버튼이 활성화된다. 해상도 변경 경로는 외부 위탁이 아니라 입력이 필요 없다.
+ */
+const fillPromptFields = () => {
+  const values: Record<string, string> = {
+    시간대: 'NIGHT',
+    계절: 'WINTER',
+    날씨: 'RAIN',
+    지형: 'ROAD',
+    심각도: 'HIGH',
+  };
+  Object.entries(values).forEach(([label, value]) => {
+    fireEvent.change(screen.getByLabelText(new RegExp(label)), {
+      target: { value },
+    });
+  });
+};
+
+/**
  * SCR-AUG-001 통합 단일 선택 UI (Phase 2) — 선택 후 실행 시나리오 분기 검증.
  *
  * - 증강 종류(WINTER/NIGHT/RAIN) 실행 → POST /augments/request (videoIds·types 길이 1)
@@ -36,7 +55,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     navigateMock.mockClear();
     mock = new MockAdapter(apiClient);
     useAuthStore.setState({
-      token: 'tok',
+      token: 'dummy-token',
       claims: { sub: 'u', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
     });
     mock.onGet('/augments').reply(200, {
@@ -102,6 +121,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
 
     await user.click(await screen.findByTestId('process-kind-WINTER'));
     await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
+    fillPromptFields();
     await user.click(screen.getByTestId('augment-submit'));
 
     await waitFor(() => {
@@ -160,7 +180,8 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     renderWithProviders(<AugmentRequestPage />);
 
     await user.click(await screen.findByTestId('process-kind-WINTER'));
-    // 영상 미선택 상태
+    fillPromptFields();
+    // 영상 미선택 상태 — 생성 조건을 다 채워도 제출 불가
     expect(screen.getByTestId('augment-submit')).toBeDisabled();
   });
 
@@ -181,12 +202,19 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     expect(screen.getByTestId('augment-submit')).toBeDisabled();
   });
 
-  it('증강_실행_성공시_결과화면으로_네비게이션한다', async () => {
+  /**
+   * ⚠ 이 테스트는 한때 `'/augment/result/42'`(= 응답 jobId) 를 성공으로 단언해 **죽은 링크를
+   * 굳히고 있었다**. BE 의 `jobId` 는 placeholder 카운터(`AugmentRequestService#jobIdSeq`)이고
+   * 결과 API 의 경로변수는 **원본 영상 RAW_SN** 이라, 그 값으로 이동하면 결과 0건 화면에 고착된다.
+   * 이동 축은 "요청한 영상" 이어야 하므로 선택한 영상 id(=RAW_SN)로 단언한다.
+   */
+  it('증강_실행_성공시_요청한_영상의_결과화면으로_이동한다', async () => {
     replyVideos(2);
     mock.onPost('/augments/request').reply(200, {
       success: true,
       data: {
-        jobId: 42,
+        // placeholder jobId — 어떤 엔티티의 식별자도 아니다(이 값으로 이동하면 안 된다)
+        jobId: 1_753_900_000_042,
         requestedAt: '2026-06-16T10:00:00Z',
         videoCount: 1,
         typeCount: 1,
@@ -199,12 +227,18 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     renderWithProviders(<AugmentRequestPage />);
 
     await user.click(await screen.findByTestId('process-kind-NIGHT'));
-    await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
+    // CCTV-2 = videoId 2 (RAW_SN). 첫 영상이 아니어야 "우연히 맞음" 을 배제할 수 있다.
+    await user.click(await screen.findByRole('radio', { name: /CCTV-2 선택/ }));
+    fillPromptFields();
     await user.click(screen.getByTestId('augment-submit'));
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith('/augment/result/42');
+      expect(navigateMock).toHaveBeenCalledWith('/augment/result/2');
     });
+    // placeholder jobId 는 어떤 경로에도 쓰이지 않는다
+    expect(navigateMock).not.toHaveBeenCalledWith(
+      '/augment/result/1753900000042',
+    );
   });
 
   it('해상도_실행_성공시_결과(파생영상목록·검수대기)가_표시된다', async () => {

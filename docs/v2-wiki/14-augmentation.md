@@ -10,6 +10,10 @@
 - **증강(생성) 본체는 외부 시스템 책임** — 저작도구는 위탁·결과 검수만
 - **증강 AI는 이미지-to-이미지** — 영상(비디오)을 재생성하지 않는다. 증강 결과 영상은 원본(비식별) 영상 파일을 그대로 복사하고 프레임 이미지만 변환한다.
 - 위탁 유형 3종: **WINTER / NIGHT / RAIN** (날씨·계절·시간). 해상도 변경(RESOLUTION)은 §14.3 내부 수행 — 단, 2026-07-21부터 처리 결과 자체는 증강과 동일하게 새 파생영상(RAW_SN)을 생성한다(외부 위탁 여부만 다름)
+- **요청 시 생성 조건(prompt) 5필드 필수 (2026-07-31)** — REVIEWER 가 `time`/`season`/`weather`/`terrain`/`severity` 를 입력하면 명세서 v1.1 §4.1 `prompt`(자유 구조 dict)로 **가공 없이 그대로** 전송되고, 같은 값이 `LS_DATA_AUG.PROMPT_CN`(JSON 원문)에 보관된다. 구 구현의 "증강 유형별 서버 고정 문구"는 폐기. 값은 **자유 문자열**이다(계약이 허용값 enum 을 정의하지 않으므로 우리가 좁히지 않는다) — 형식 검증은 필수·공백금지·50자 상한 + **보이지 않는 문자 제거**(`VisibleTextNormalizer` — 제어문자에 더해 NBSP(U+00A0)·ZWSP(U+200B)·BOM(U+FEFF)·WJ(U+2060)·U+2028/2029·RLO(U+202E) 등 Cf/Zl/Zp/Zs 카테고리)뿐. ⚠ 공용 `ControlCharNormalizer` 를 넓히지 않고 **전용 정규화기를 분리**한 이유는 그 공용 유틸이 **SQL 표현식(`translate`)과 등가**여야 하는 제약(목록 필터 옵션 왕복)을 지고 있어, 한쪽만 제거 집합을 넓히면 이벤트유형 필터가 조용히 0건이 되기 때문이다. ⚠ **증강 유형(`AUG_TYPE_CD`)은 prompt 에서 파생하지 않는다** — 자유 문자열이 유형으로 흘러가면 파생 산출물 경로(`.../{augTypeCd}.mp4`) 순회(CWE-22)와 `RESL_` 네임스페이스 침범(검수 우회)이 열린다. 유형의 단일 원천은 `types[]` enum 3종이다.
+- **★같은 (영상 × 종류) 재요청은 몇 번이든 허용 (2026-07-31 사용자 확정, 구속)** — 구 "요청 1회 = 파생영상 1건" 정책(사전 조회 409 + 부분 유니크 `UK_LS_DATA_AUG_ACTVTN` V143)은 **폐기**했다(V147 DROP). 근거: 증강 결과 이미지는 요청마다 다르게 생성되므로 원하는 결과가 안 나오면 같은 영상·종류로 다시 요청하는 것이 **정상 운영 동선**이다. 연타(오조작) 방어는 **FE 단독 책임**이며 **속도 제한(RateLimiter)도 두지 않는다**(자원 소모 CWE-770 은 사용자가 인지·수용한 잔여 위험 — "보안 강화" 명목으로 되살리지 말 것). ⚠ 해상도 파생 전용 `UK_LS_DATA_AUG_RESL`(V125)은 성격이 다르므로 **그대로 유지**된다.
+- **★반복 요청의 귀결 ① 결과 구분축은 prompt** — 같은 (영상 × 종류) 파생이 여러 건 공존하므로 `GET /v1/augments/{jobId}/result` 가 **외부 위탁 항목을 항목(=`DATA_AUG_SN`) 단위로** 내려주고 각 항목에 `prompt`(전송 원문 JSON 문자열, 재가공 없음)를 싣는다. 항목을 구분하는 축은 `type` 이 아니라 `id`+`prompt` 다. 구 구현은 이 항목을 제외해, 조건을 볼 수 있는 경로가 accept/reject **응답**뿐이었다 — 즉 **결정을 내린 뒤에야**, 게다가 재전이가 CONFLICT 로 막혀 **다시 조회할 수 없었다**(R9 미충족). 이 엔드포인트는 REVIEWER 전용이라 노출 범위는 accept/reject 와 동일하다(목록 `GET /v1/augments` 는 WORKER 도 허용되므로 prompt 를 싣지 않는다). 외부 위탁 항목의 `framePairs` 는 여전히 비어 있고(프레임별 비교는 외부 연동 이후), `derivativeRawSn` 은 **항상 null** 이다(증강행↔파생 RAW 연결 컬럼이 없어 유형만으로 짝지으면 다른 요청의 파생본으로 이동시킨다 — 후속 과제).
+- **★반복 요청의 귀결 ② 파생 영상 식별자는 시각이 아니라 증강행 PK** — `LS_DATA_RAW.VMS_CLIP_ID` 를 `{부모}_AUG_{종류}_{DATA_AUG_SN}` 로 만든다(구: `System.currentTimeMillis()`). 동시 콜백 2건이 같은 밀리초에 도달하면 `UK_LS_DATA_RAW_VMS_CLIP` 위반 → 콜백 tx 롤백 → 파생 미생성 + PENDING 잔류 → 만료 스윕 FAILED 로 **이미 생성된 외부 결과물이 유실**된다(2노드 Active-Active). 포맷은 그대로라 `AugTypeParser`·데이터마트 뷰·동결 메타는 영향 없다. 상한(VARCHAR(128)) 초과 시 앞쪽(부모 부분)만 잘라 유일 접미를 보존한다.
 - **증강 요청 화면(SCR-AUG-001)은 통합 단일 선택 UI** — 처리 종류 카드 4개(겨울/야간/우천/해상도 변경)를 `radiogroup` 으로 **하나만** 선택하고, 대상 영상도 검수 완료(승인) 1건만 단일 선택한다(§14.6). BE 증강 요청 API 는 `types` enum allowlist(WINTER/NIGHT/RAIN)로 강제하며, RESOLUTION 은 증강 잡 경로가 아니라 저작도구 직접 수행 경로(§14.3)로 분기된다.
 
 ### 위탁 → 웹훅 → 새 영상 적재 (생성형 AI API 연동명세서 v1.1, 2026-07-27 계약 교체)
@@ -97,7 +101,11 @@
 - **증강 이력 노출·집계 포함, 단 검수 차단** — 해상도 파생은 증강 이력(`GET /v1/augments`) 응답의 `resolutionTypes` 필드로 별도 노출되고 상태 집계/통계에 포함되나, 저작도구 내부 생성물이라 **accept/reject(검수 승인·반려)는 차단**(진입 시 400 — `AugmentReviewService.loadOrThrow` 가드). aug 상태 라이프사이클은 파생 생성과 일치한다: **예약 시 PENDING(생성 중) → finalize 성공 시 ACCEPTED(생성 완료)**, 실패 시 예약 aug 행 삭제
 - 파생영상(RAW) 본체는 증강과 동일하게 **PENDING → 배정 → 검수** 파이프라인에 진입하고, 검수 승인 시 관제에 **별도 완료 통지(TASK_COMPLETED)** 가 발송된다(이 검수는 파생 영상 라벨 검수이며, 위 aug 행 상태와 무관)
 - **화면: 증강 요청 화면(SCR-AUG-001)의 통합 단일 선택 UI에 흡수** — '해상도 변경' 카드 선택 시 타겟 해상도(1080P/720P/480P, 미지정 시 3종 전체) 선택 UI가 노출되고, 실행하면 `POST /v1/videos/{rawSn}/resolution` 으로 직접 호출되어 응답 `{derivatives:[{rawSn,goalResCd,targetW,targetH,status}]}` 목록이 화면에 inline 표시된다(네비게이션 없음). 1건 이상 생성 성공=201 / 전부 실패=500 / 대상 프리셋 전부 스킵=400. 증강 3종 실행은 잡 등록 후 결과화면(SC-023)으로 이동한다. (구 '영상 상세 화면 독립 해상도 export 섹션'은 폐지 — 컴포넌트 정리됨)
-- **결과 조회(`GET /v1/augments/{jobId}/result`, SC-023)는 해상도 파생의 프레임 비교쌍을 반환**한다 — 좌=원본 비식별 프레임 / 우=파생 프레임(둘 다 `/v1/frames/{srcSn}/deid-image` 경로만 노출, 스토리지 경로 미노출), `(RAW_SN, FRM_NO)` 동등 조인 + 기본 12장 페이징. **외부 위탁 증강(WINTER/NIGHT/RAIN)은 여전히 빈 배열**(외부 SFR-07 연동 이후 제공). 파생↔프리셋 판별은 `VMS_CLIP_ID` 를 **중앙 파서 `video/util/AugTypeParser` 단일 원천**으로 해석하므로 실데이터 포맷 드리프트(`_RESL_RESL_480P_`·구형 `_RES_RES_480P_`)도 증강 이력 화면과 동일하게 인식된다. 코드: `augment/service/AugmentResultViewService`
+- **결과 조회(`GET /v1/augments/{jobId}/result`, SC-023)는 해상도 파생의 프레임 비교쌍을 반환**한다 — 좌=원본 비식별 프레임 / 우=파생 프레임(둘 다 `/v1/frames/{srcSn}/deid-image` 경로만 노출, 스토리지 경로 미노출), `(RAW_SN, FRM_NO)` 동등 조인 + 기본 12장 페이징. **외부 위탁 증강(WINTER/NIGHT/RAIN)의 `framePairs` 는 여전히 빈 배열**(외부 SFR-07 연동 이후 제공 — 항목 자체는 위 '반복 요청의 귀결 ①' 대로 내려간다).
+  - **★페이징 축이 둘이다 (2026-07-31 확정)** — `page`/`size`(기본 0/12, max 100)는 **프레임 쌍 축**, `itemPage`/`itemSize`(기본 0/20, max 100)는 **결과 항목 축**이며 서로 **독립**이다. 응답에 항목 축 총량 `totalElements`/`totalPages` 를 싣는다.
+  - 한 창을 공유하면 **"한쪽 축 총량이 0이면 다른 축이 갇힌다"** 가 구조적으로 남는다 — 실제로 프레임 쌍 0건인 순수 외부 위탁 영상(WINTER 12 + RAIN 1)에서 FE 페이저가 렌더되지 않아 **13번째 항목이 도달 불가**가 됐고, 응답에 항목 축 총량이 없어 2페이지의 존재조차 알 수 없었다. 프레임 페이지 이동이 **탭 구성을 바꾸던** 부수 증상도 축 분리로 해소된다.
+  - **해상도 파생 항목은 항목 페이징 대상이 아니다** — 유형당 1건으로 병합돼 최대 3건이고, 무엇보다 **프레임 쌍 축의 컨테이너**라 항목 페이징으로 떨어뜨리면 `page`/`size` 가 다시 다른 축 상태에 갇힌다. 따라서 모든 항목 페이지에 함께 실리며 `totalElements` 는 **외부 위탁 항목 수**다(즉 `results.length` = 이 페이지의 외부 위탁 항목 + 해상도 파생 항목).
+  - 하위호환: 신규 파라미터는 전부 optional 이고 **기존 `page`/`size` 의 기본값·의미는 불변**이라 구 호출이 그대로 동작한다. FE 항목 페이저 배선은 후속(Phase 5). 파생↔프리셋 판별은 `VMS_CLIP_ID` 를 **중앙 파서 `video/util/AugTypeParser` 단일 원천**으로 해석하므로 실데이터 포맷 드리프트(`_RESL_RESL_480P_`·구형 `_RES_RES_480P_`)도 증강 이력 화면과 동일하게 인식된다. 코드: `augment/service/AugmentResultViewService`
 - **★파생 생성은 원본 비식별 신고와 무관하다 (2026-07-29 확정, 구속)** — 증강 파생과 동일 정책이다. 해상도 파생은 **외부 위탁이 전혀 없는 내부 ffmpeg/Java2D 리스케일**뿐이라 신고 구간에 생성해도 외부 유출 경로가 열리지 않는다.
   - 부모 게이트 3곳(`ResolutionReservationPersister` 예약 · `ResolutionSnapshotService` Phase A · `ResolutionPersistService` Phase C)은 **`DE_IDNTF_YN='N'`(비식별 미수행)·null 만 차단**하고 `'F'`(신고)는 통과시킨다. 판정 단일 원천은 `LsDataRaw.hasDeidentArtifact()`(`'Y'`|`'F'`)이며 **증강 경로(`AugmentResultService.evaluateParentGate`)도 같은 헬퍼를 쓴다**.
   - `'F'` 는 의미가 둘이다 — ①**비식별 누락 신고**(비식별본은 디스크에 존재, 마스킹만 실패) ②**비식별 API 실패**(산출물 자체가 없음). 플래그만으로 구분되지 않으므로 **산출물 실재 검증이 fail-closed 로 뒤를 받친다**: Phase A 는 최신 SUCCESS 비식별 procLog 경로 부재 → `NOT_FOUND`, 프레임 비식별 경로 부재 → `CONFLICT`(`deidFrameSourceStrict`), Phase B 는 비식별 영상 파일 부재 → `NOT_FOUND`. **원본(비-비식별) 경로 폴백은 어디에도 두지 않는다**(PII 복제 차단).
@@ -113,7 +121,24 @@ PENDING 증강 영상 (SCR-AUG-002)
 ```
 
 - `POST /v1/augments/{id}/accept` · `/reject`, PENDING 외 상태 전이는 409
-- `LS_DATA_AUG.AUG_PROC_STTS_CD`: PENDING / ACCEPTED / REJECTED
+- `LS_DATA_AUG.AUG_PROC_STTS_CD`: PENDING / ACCEPTED / REJECTED / **CANCELED**(V148 신설, §14.4.1)
+
+### 14.4.1 진행상태 조회 · 취소 · 웹훅 유실 회수 (FE 내부 API)
+
+- **`GET /v1/augments/{id}/progress`** (REVIEWER/WORKER) — `id` = `LS_DATA_AUG.DATA_AUG_SN`(accept/reject 와 동일 식별자, 별도 job PK 개념 없음).
+  - **진행률 = 청크 job 의 파일 수 가중 평균**: `round(Σ(weight×p)/Σweight)`, `weight = max(1, LS_DATA_AUG_JOB.TOT_NOCS)`, `p` = 종결 청크 100 / 비종결 청크는 외부 상태조회(§4.4) `progress`(미제공 0). **min 이 아니다** — min 이면 청크 3개 중 2개가 100%여도 전체가 0%로 보인다. `weight` 최솟값 1 은 위탁 거부 기록(`TOT_NOCS=0`)이 분모에서 사라지는 것을 막는다.
+  - **외부 장애는 200 으로 degrade** — `progress:null` + `unavailableReason` 3값: `NOOP`(외부 미연동 `mode=noop` — **오류 아님**, 진행률 바를 숨기고 안내만) / `TRANSIENT_ERROR`(서킷 open·타임아웃·계약 위반 — **진짜 장애**, 서버 WARN + 재시도 안내) / `AWAITING_ACK`(비종결 청크 중 `OTSD_JOB_ID` 미보유 — "접수 확인 중", 오류로 표시 금지). dev/stg/prd 기본이 `noop` 이라 대부분 `NOOP` 이 나온다.
+  - `nextPollAfterMs` 는 **권고** 폴링 간격(0=종결). 속도 제한(RateLimiter)은 두지 않기로 확정돼 폴링 증폭을 줄이는 수단은 이 힌트뿐이다.
+  - 진행률이 0 보다 크면 표시 상태는 `RUNNING` 이다(“접수됨 99%” 자기모순 방지). DB `JOB_STTS_CD` 를 덮어쓰지는 않는다.
+  - **웹훅 유실 회수(INT-030)** — 외부 상태조회가 종결(SUCCEEDED/FAILED/CANCELED)인데 로컬이 비종결이면 이 조회 시점에 결과조회(`GET /api/genai/jobs/{job_id}/results`)로 산출물을 회수해 인계한다. 산출 경로 검증은 웹훅과 **같은 코드**(`AugmentJobSuccessApplier.verifyOutputPaths` → `verifyExternalReadablePath`)를 쓰며, 허용 루트 밖이면 회수하지 않고 job 을 비종결로 둔다(만료 스윕이 회수). 멱등은 증강 행 `FOR UPDATE` + `job.isTerminal()` 재확인 + `uk_aug_external_job_id` UNIQUE 3겹이라 **파생 영상이 중복 생성되지 않는다**.
+- **`POST /v1/augments/{id}/cancel`** (REVIEWER 전용) — 요청 바디는 선택이며 **`reason` 필드 하나만** 받는다(Mass Assignment 방어 — 종결 판정을 요청으로 조작할 수 있는 필드를 두지 않는다).
+  - 계약상 취소는 **웹훅을 발사하지 않으므로**(동기 응답이 유일한 통보) 같은 요청에서 `LS_DATA_AUG` 를 `CANCELED` 로 확정한다. 확정하지 않으면 그 증강은 영구 `PENDING` 이고, 고아 회수기(`findOrphanPendingAugSns`)는 "job 0건" 만 집으므로 만료 스윕도 건지지 못한다.
+  - **비종결 청크 전부**에 §4.6 취소를 보낸다. 일부만 성립하면 `fullyCanceled=false` + `failedJobSeqs` 로 **부분 실패를 드러낸다**(재시도 멱등). 재시도하지 않아도 남은 청크는 만료 스윕이 회수하므로 영구 대기는 없다.
+  - **동시 취소·이미 종결은 409 가 아니라 200 + `canceled=false`** — 증강 행 `FOR UPDATE` 안에서 `PENDING→CANCELED` 전이가 곧 클레임이라 외부 호출은 정확히 한 번만 나간다.
+  - 취소 직후 도착한 SUCCEEDED 결과는 non-PENDING 앵커에 흡수되어 폐기된다(WARN — 의도된 동작).
+- **해상도 파생(`RESL_*`)은 두 API 모두 400** — 외부 위탁 job 이 없어 조회·취소 대상 자체가 없다(`AugmentReviewService.loadOrThrow` 의 accept/reject 차단과 같은 패턴).
+- 없는 `id` 는 역할과 무관하게 **404**(403 과 섞으면 응답 코드가 존재 여부 오라클이 된다). 소유자 스코프는 목록 `GET /v1/augments` 와 동일하게 두지 않는다(기존 정책 상속).
+- 코드: `augment/service/{AugmentProgressService,AugmentProgressCalculator,AugmentSnapshotLoader,AugmentExternalProbe,AugmentCancelService,AugmentCancelTxService,AugmentResultRecoveryService,AugmentJobRecoveryTxService}`, `webhook/service/AugmentJobSuccessApplier`(웹훅/회수 공용)
 - **해상도 파생(`AUG_TYPE_CD='RESL_*'`)은 검수 대상 아님** — 저작도구 내부 생성물이라 accept/reject 진입 자체가 400 으로 차단된다(`AugmentReviewService.loadOrThrow`). 이력·집계에는 포함되며 상태는 내부 라이프사이클(예약 PENDING → finalize ACCEPTED)로만 전이한다(§14.3)
 
 ## 14.5 관련 데이터 (DB)

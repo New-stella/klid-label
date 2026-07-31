@@ -111,7 +111,7 @@ class AugmentExtractPersistTest {
                 "clip-" + parentRawSn, "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_ANONY, "/storage/raw/" + parentRawSn + ".mp4", null, 60);
         setField(parent, "rawSn", parentRawSn);
-        LsDataRaw aug = LsDataRaw.createFromAugment(parent, filePath, "WINTER");
+        LsDataRaw aug = LsDataRaw.createFromAugment(parent, filePath, "WINTER", rawSn);
         setField(aug, "rawSn", rawSn);
         return aug;
     }

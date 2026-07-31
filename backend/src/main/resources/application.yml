@@ -534,6 +534,33 @@ resilience4j:
         # 4xx(400 형식/경로 오류, 413 등)는 결정적 실패라 서킷 failure 로 집계하지 않는다.
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # Phase 7-A2 — 외부 증강 상태/결과/취소 조회 (INT-020/030/031).
+      #   ★ 위탁(augmentClient)과 <반드시 별도 인스턴스>다. 조회는 화면 폴링으로 호출량이 곱해지므로
+      #   벤더 지연·5xx 를 가장 먼저·가장 많이 맞는다. 인스턴스를 공유하면 그 실패가 서킷을 열어
+      #   <신규 증강 위탁(POST /jobs)까지> 차단된다 — 조회 장애가 위탁을 막는 것은 장애 전파다.
+      #   호출량이 위탁보다 많으므로 표본(window/minimum)도 크게 잡아 단발 실패에 덜 예민하게 한다.
+      augmentQuery:
+        failure-rate-threshold: 50
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        wait-duration-in-open-state: 30s
+        # 404(JOB_NOT_FOUND) / 409(STATE_CONFLICT) 는 정상 흐름의 결정적 응답이다.
+        #   집계하면 "조회 시도 = 서킷 오픈" 이 되어 조회 전체가 죽는다.
+        #   디코딩 실패(깨진 본문·크기 초과·비-JSON)도 같은 예외로 분류되어 여기서 제외된다 —
+        #   재요청해도 결과가 같은 결정적 실패이기 때문(DEV_FIX MED-1a).
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # Phase 7-A2 / DEV_FIX MED-1b — 취소(INT-031) 전용. 폴링(augmentQuery)과도 <별도 인스턴스>다.
+      #   취소는 사용자가 직접 누르는 능동 행위이고 폴링은 배경 자동 호출이다. 공유하면 "상태조회
+      #   응답만 깨뜨리는 벤더" 가 서킷을 열어 사용자 취소를 30초 단위로 반복 차단한다.
+      #   호출량이 낮으므로 표본(window/minimum)은 위탁과 같은 수준으로 작게 잡는다.
+      augmentCancel:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
   retry:
     instances:
       deid:
@@ -573,6 +600,23 @@ resilience4j:
       #   재시도가 안전한 근거: 동일 request_id 를 Idempotency-Key 로 보내므로 외부가 기존 job 을 반환한다.
       augmentClient:
         max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # Phase 7-A2 — 조회/취소 3종 전용(위탁과 분리).
+      #   max-attempts 를 2 로 낮춘 이유: 조회는 <다음 폴링 주기가 곧 재시도>다. 여기서 3회 백오프까지
+      #   돌리면 이미 힘든 벤더에 부하를 곱하고, 화면 응답만 늦어진다(취소도 사용자가 다시 누르면 된다).
+      #   4xx(404/409)는 아래 ignore 로 애초에 재시도 대상이 아니다.
+      augmentQuery:
+        max-attempts: 2
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # DEV_FIX MED-1b — 취소 전용. 사용자가 기다리는 요청이라 백오프를 길게 물리지 않는다(2회).
+      augmentCancel:
+        max-attempts: 2
         wait-duration: 1s
         exponential-backoff-multiplier: 2
         ignore-exceptions:

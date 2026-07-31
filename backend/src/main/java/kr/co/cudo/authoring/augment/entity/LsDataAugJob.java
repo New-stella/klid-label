@@ -96,8 +96,27 @@ public class LsDataAugJob {
      */
     public static final String ERR_EXPIRED = "EXPIRED";
 
+    /**
+     * <b>사용자 취소 종결</b>의 사유 코드 — 오류가 아니라 <b>종결 사유</b>다({@link #ERR_EXPIRED} 와 동일 성격).
+     *
+     * <p>{@code ERR_CD} 를 종결 사유 칸으로 겸용하는 것은 이 테이블의 기존 관행이며, 취소를 별도
+     * 컬럼으로 표현하려면 스키마 추가가 필요한데 판정 축({@code JOB_STTS_CD=CANCELED})이 이미 있으므로
+     * 사유 문자열만 남긴다.
+     */
+    public static final String ERR_CANCELED = "CANCELED";
+
     /** 오류 메시지 컬럼 길이(내용V1000) — 초과분은 절단 저장한다. */
     private static final int ERR_MSG_MAX = 1000;
+
+    /**
+     * 오류 코드 컬럼 길이(코드V50) — 초과분은 절단 저장한다 (DEV_FIX MED-3 안전망).
+     *
+     * <p>계약 검증은 <b>입구</b>(웹훅 DTO {@code @Size(max=50)} / 조회 {@code validateStatus})가 담당하고
+     * 여기는 마지막 방어선이다. 이 절단이 없으면 어느 경로 하나라도 검증을 빠뜨렸을 때
+     * PostgreSQL {@code 22001}(value too long)로 <b>트랜잭션 전체가 롤백</b>되어, 삼켜진 예외 뒤에서
+     * 그 job 이 영구히 종결되지 못한다(고착). 값이 잘리는 것보다 훨씬 나쁜 결과다.
+     */
+    private static final int ERR_CD_MAX = 50;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -167,7 +186,7 @@ public class LsDataAugJob {
     public static LsDataAugJob createRejected(Long dataAugSn, int jobSeq, String idempotencyKey,
                                               String errorCode, String errorMessage) {
         LsDataAugJob job = new LsDataAugJob(dataAugSn, jobSeq, idempotencyKey, STTS_FAILED, 0);
-        job.errorCode = errorCode;
+        job.errorCode = truncateCode(errorCode);
         job.errorMessage = truncate(errorMessage);
         return job;
     }
@@ -182,7 +201,7 @@ public class LsDataAugJob {
     /** 위탁 실패 — 사유를 남긴다(조용한 유실 금지). */
     public void markFailed(String errorCode, String errorMessage) {
         this.jobSttsCd = STTS_FAILED;
-        this.errorCode = errorCode;
+        this.errorCode = truncateCode(errorCode);
         this.errorMessage = truncate(errorMessage);
         this.mdfcnDt = LocalDateTime.now();
     }
@@ -222,6 +241,36 @@ public class LsDataAugJob {
     }
 
     /**
+     * <b>취소 종결</b> — 외부 §4.6 취소가 성립했거나(사용자 취소) 조회로 외부 CANCELED 를 회수했을 때.
+     *
+     * <h3>호출 규약 — 증강 행 {@code FOR UPDATE} 안에서 호출한다</h3>
+     * <p>콜백 경로도 같은 행을 잠그므로, 잠금 안에서 전이해야 "우리가 CANCELED 로 쓰는 사이 웹훅이
+     * SUCCEEDED 로 덮어쓰는" 경합이 <b>그 트랜잭션 구간에서만큼은</b> 직렬화된다.
+     *
+     * <p>이미 종결된 job 에는 호출하지 않는다(호출자가 {@link #isTerminal()} 로 거른다) — 성공한
+     * 청크를 취소로 덮으면 산출물이 있는데 없는 것처럼 보인다.
+     *
+     * <h3>⚠ 잠금만으로 (aug=CANCELED, job=SUCCEEDED) 가 <b>막히지는 않는다</b> (DEV_FIX MED-6a 정정)</h3>
+     * <p>구 주석은 "이 순서만 지키면 경합이 직렬화된다" 고 단언했으나 사실이 아니다. 사용자 취소는
+     * <b>두 트랜잭션</b>으로 나뉘고({@code AugmentCancelTxService#claim} → 외부 HTTP 왕복 →
+     * {@code #markJobsCanceled}) 그 사이 창에 SUCCEEDED 웹훅이 커밋되면, 확정 단계는 그 job 을
+     * <b>의도적으로 건너뛴다</b>(위 문단 — 성공을 취소로 덮지 않는다). 즉 그 조합은 남을 수 있다.
+     *
+     * <p>남아도 <b>결과가 인계되지는 않는다</b>: 증강 행이 이미 non-PENDING 이라
+     * {@code AugmentResultService} 의 앵커가 그 결과를 폐기하고(파생영상 0건·롤업 없음), 화면도
+     * {@code AugmentProgressCalculator} 가 증강 상태(CANCELED)를 최우선으로 읽는다. 잔존 영향은
+     * <b>관측상의 불일치</b>(job 행이 SUCCEEDED 로 보임)뿐이며, 이를 없애려고 성공 청크를 CANCELED 로
+     * 덮으면 "산출물이 있는데 없는 것처럼" 보이는 더 나쁜 왜곡이 된다.
+     */
+    public void markCanceled(String externalJobId, String reason) {
+        applyExternalJobId(externalJobId);
+        this.jobSttsCd = STTS_CANCELED;
+        this.errorCode = ERR_CANCELED;
+        this.errorMessage = truncate(reason);
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
+    /**
      * 외부 job_id 보정 — 202 응답을 놓친 경우(선기록 직후 프로세스 종료 등) 웹훅이 처음 알려준다.
      * 이미 값이 있으면 덮어쓰지 않는다(오배송 판정은 호출자가 수행).
      */
@@ -236,5 +285,13 @@ public class LsDataAugJob {
             return null;
         }
         return value.length() <= ERR_MSG_MAX ? value : value.substring(0, ERR_MSG_MAX);
+    }
+
+    /** {@link #ERR_CD_MAX} 절단 — 적재 시점 {@code 22001} 로 트랜잭션이 죽는 것을 막는 마지막 방어선. */
+    private static String truncateCode(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= ERR_CD_MAX ? value : value.substring(0, ERR_CD_MAX);
     }
 }

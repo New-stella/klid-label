@@ -55,20 +55,10 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
             + "(SELECT s.srcSn FROM LsDataSrc s WHERE s.rawSn = :rawSn)")
     List<LsDataAug> findByOriginalRawSn(@Param("rawSn") Long rawSn);
 
-    /**
-     * <b>중복 증강 요청 1선 가드</b> — 주어진 대표프레임들에 이미 존재하는 <b>활성</b>
-     * ({@link LsDataAug#ACTIVE_STATUSES}) 증강 행 조회.
-     *
-     * <p>같은 (원본 × 종류) 재요청은 콜백마다 파생 RAW 를 하나씩 더 만들어 파생 트리·스토리지·검수 큐를
-     * 무제한 오염시킨다("요청 1회 = 파생영상 1건" 계약 위반).
-     * 요청 진입부에서 이 조회로 즉시 409 를 돌려주고, 동시 요청(서로의 미커밋 행 미관측)은 부분 유니크
-     * 인덱스 {@code UK_LS_DATA_AUG_ACTVTN}(V143)이 최종 방어한다. 배치 IN 조회 1회 — N+1 없음.
-     *
-     * <p>파라미터 바인딩만 사용(CWE-89). 상태 목록은 호출부가 {@code ACTIVE_STATUSES} 단일 원천을 넘긴다.
-     */
-    @Query("SELECT a FROM LsDataAug a WHERE a.srcSn IN :srcSns AND a.augProcSttsCd IN :sttsCds")
-    List<LsDataAug> findBySrcSnInAndAugProcSttsCdIn(@Param("srcSns") Collection<Long> srcSns,
-                                                    @Param("sttsCds") Collection<String> sttsCds);
+    // 폐기 이력 — 구 findBySrcSnInAndAugProcSttsCdIn(활성 중복 1선 가드 전용 조회)은 제거됐다
+    // (2026-07-31). 유일한 호출부였던 AugmentRequestService 의 중복 차단이 정책 폐기로 사라졌고,
+    // DB 최종 방어였던 UK_LS_DATA_AUG_ACTVTN 도 V147 에서 DROP 됐다. 호출부 없는 조회를 남겨두면
+    // "아직 중복을 막고 있다" 는 사라진 계약을 코드가 계속 주장한다.
 
     /**
      * Phase 4 — webhook race 흡수용 멱등 키 조회.
