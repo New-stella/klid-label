@@ -305,7 +305,7 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-A11Y-001 | 우측 패널 탭 role=tab/tabpanel | 라벨링 | 렌더 | role=tablist/tab, aria-selected/controls | a11y | High | pages/label/LabelingPage.tsx:1205-1310 |
-| TC-A11Y-002 | AiToolModal 라디오/체크박스 label 연결 | 팝업 | 렌더 | htmlFor↔id | a11y | High | features/label/components/AiToolModal.tsx:198,209,255,298 |
+| TC-A11Y-002 | AiToolModal 라디오/체크박스 label 연결 + AI 분할 정밀도 "즉시 그리기" 체크박스 label 연결 | 팝업 / AI 분할 도구 활성 | 렌더 | htmlFor↔id | a11y | High | features/label/components/AiToolModal.tsx:198,209,255 · components/ObjectAttributePanel.tsx (ai-segment-immediate) |
 | TC-A11Y-003 | Modal 포커스 트랩+ESC+포커스 복귀 | 모달 열림 | ESC | 닫힘+포커스 복귀 | a11y | High | components/common/Modal.tsx |
 | TC-A11Y-004 | 마킹 키보드 전 조작(Space/Del/Enter) | MANUAL | 키보드 | 마우스 없이 완결 | a11y | High | pages/MarkingPage.tsx:133-152 |
 | TC-A11Y-005 | 라벨링 단축키(W/S/F/Q/T/?/Ctrl+C/V) | 라벨링 | 키 | 이동/폴리곤/표시토글/치트시트/복붙 | a11y | High | pages/label/LabelingPage.tsx:846-901 |

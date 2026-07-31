@@ -586,7 +586,8 @@ export function LabelingPage() {
   // Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 버튼 클릭 시 팝업을 열고, 확정 시 실행.
   const [autolabelModalOpen, setAutolabelModalOpen] = useState(false);
   // "즉시 그리기" 토글 — AI 분할 클릭마다 미리보기 즉시 그리기. 기본 OFF(false).
-  // AiToolModal 에서 토글하고 CanvasShell→OverlayLayer 의 immediateSegment 로 배선된다.
+  // AI 분할 도구 활성 시 우측 속성 패널의 "AI 분할 정밀도" 섹션(ObjectAttributePanel)에서
+  // 토글하고 CanvasShell→OverlayLayer 의 immediateSegment 로 배선된다.
   const [immediateDraw, setImmediateDraw] = useState(false);
   // Phase 2 [FE] — AI 정밀도 프리필. 시스템 설정값을 슬라이더 기본값으로 사용(실패/로딩 시 undefined →
   // 컴포넌트 코드 상수 폴백). 인식 민감도는 정수%(0~80) → /100(0~1) 변환, 경계 세밀함은 그대로.
@@ -1165,8 +1166,6 @@ export function LabelingPage() {
         candidatesLoading={detectCandidatesLoading}
         candidatesError={detectCandidatesError}
         onRetryCandidates={() => void refetchDetectCandidates()}
-        immediateDraw={immediateDraw}
-        onImmediateDrawChange={setImmediateDraw}
         defaultConfThreshold={defaultConfThreshold}
         defaultSimplifyTolerance={defaultSimplifyTolerance}
       />
@@ -1379,10 +1378,13 @@ export function LabelingPage() {
                   }}
                   // Phase 2 [FE] — AI 분할 도구 활성 시 경계 세밀함 조절. 프리필=시스템 설정값,
                   // 조절 시에만 segmentTolerance 로 올라가 분할 요청에 배선(미조절이면 BE 기본값).
+                  // "즉시 그리기"도 같은 섹션에서 토글 — 값은 CanvasShell 의 immediateSegment 로 배선.
                   segment={{
                     defaultTolerance: defaultSimplifyTolerance,
                     tolerance: segmentTolerance,
                     onToleranceChange: setSegmentTolerance,
+                    immediateDraw,
+                    onImmediateDrawChange: setImmediateDraw,
                   }}
                 />
               </div>
