@@ -16,8 +16,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { resolveApiMessage } from '@/lib/api/resolveApiMessage';
+import { isEditBlockedNow, useLabelStore } from '@/stores/useLabelStore';
 
 import type { LabelAttrDef } from '../api/labelAttr';
+import { useBlockNotice } from '../hooks/useBlockNotice';
+import { busyRejectedMessage } from '../hooks/useBusyTask';
 import { useLabelAttrs } from '../hooks/useLabelAttrs';
 import { useLabelAttrValues } from '../hooks/useLabelAttrValues';
 
@@ -31,13 +34,22 @@ export interface ObjectAttributeSectionProps {
   classId: number;
   /** 영속 라벨 id (LS_DATA_LBL, lblSn) — 값 조회/저장. 미저장 객체면 undefined. */
   serverId?: number;
+  /**
+   * 장시간 작업(저장/AI 실행) 진행 중 여부(렌더 값). 속성값 커밋은 즉시 서버 쓰기(PUT)라,
+   * 차단 구간에 나가면 진행 중 작업의 결과 병합과 겹쳐 같은 라벨이 두 축에서 갈린다.
+   */
+  editBlocked?: boolean;
 }
 
 /**
  * 선택 객체 라벨의 속성 정의를 입력 UI로 렌더하고 값을 로드/저장.
  * target 이 존재할 때만 마운트되므로 여기의 훅은 조건부 마운트로 안전하게 실행된다.
  */
-export function ObjectAttributeSection({ classId, serverId }: ObjectAttributeSectionProps) {
+export function ObjectAttributeSection({
+  classId,
+  serverId,
+  editBlocked = false,
+}: ObjectAttributeSectionProps) {
   const defsQuery = useLabelAttrs(classId);
   const defs = useMemo(
     () =>
@@ -84,6 +96,11 @@ export function ObjectAttributeSection({ classId, serverId }: ObjectAttributeSec
     });
   }, [effective]);
 
+  // 차단으로 저장하지 못한 속성 — 사용자가 적은 값은 그대로 두고 "미저장"만 표시한다(P-2).
+  const [unsavedAttrIds, setUnsavedAttrIds] = useState<number[]>([]);
+  // 차단 안내는 화면 공통 dedupe 정책 하나를 쓴다(P-1) — 여러 필드가 연달아 blur 돼도 같은 사유는 1회.
+  const pushBlockNotice = useBlockNotice();
+
   function setDraftValue(attrId: number, value: string) {
     dirtyRef.current.add(attrId);
     setDraft((prev) => ({ ...prev, [attrId]: value }));
@@ -92,6 +109,18 @@ export function ObjectAttributeSection({ classId, serverId }: ObjectAttributeSec
   function commit(attrId: number, value: string) {
     if (!persisted || valuesLoadFailed) return;
     if (value === effective[attrId]) return; // 변경 없음 → skip
+    // 이중 방어 — 입력 disabled 만으로는 "선택한 뒤 busy 가 시작된" 찰나가 남는다. 렌더 값이
+    // 낡았을 수 있으므로 실시간 store 값도 함께 본다(fail-closed).
+    if (editBlocked || isEditBlockedNow()) {
+      // ⚠ **draft 를 서버값으로 되돌리지 않는다**(P-2). 진행 오버레이의 취소 버튼처럼 포커스를
+      //   뺏지 않는 busy 트리거가 생기면서 이 경로가 실제로 열렸다 — 되돌리면 사용자가 입력 중이던
+      //   텍스트가 통째로 사라진다(R9/AC10: 차단은 작업 결과를 잃지 않는다).
+      //   대신 "저장되지 않았다"를 화면에 남겨 서버값으로 오인하지 않게 한다.
+      setUnsavedAttrIds((prev) => (prev.includes(attrId) ? prev : [...prev, attrId]));
+      pushBlockNotice(busyRejectedMessage(useLabelStore.getState().busy?.kind ?? null));
+      return;
+    }
+    setUnsavedAttrIds((prev) => prev.filter((id) => id !== attrId));
     save([{ attrId, value }]);
   }
 
@@ -139,7 +168,10 @@ export function ObjectAttributeSection({ classId, serverId }: ObjectAttributeSec
           key={def.attrId}
           def={def}
           value={draft[def.attrId] ?? ''}
-          disabled={!persisted || valuesLoadFailed || def.mutable === 'N'}
+          disabled={editBlocked || !persisted || valuesLoadFailed || def.mutable === 'N'}
+          // 표식은 "아직 서버값과 다른 동안"만 유효하다 — 저장이 반영되면(서버가 따라잡으면)
+          // 별도 정리 없이 자동으로 사라진다(스테일 표식 방지).
+          unsaved={unsavedAttrIds.includes(def.attrId) && (draft[def.attrId] ?? '') !== effective[def.attrId]}
           onDraft={(v) => setDraftValue(def.attrId, v)}
           onCommit={(v) => commit(def.attrId, v)}
         />
@@ -169,12 +201,23 @@ interface AttrInputProps {
   def: LabelAttrDef;
   value: string;
   disabled: boolean;
+  /** 차단으로 저장되지 못한 입력값(P-2) — 값은 보존하되 저장 안 됐음을 알린다. */
+  unsaved?: boolean;
   onDraft: (value: string) => void;
   onCommit: (value: string) => void;
 }
 
+/** 미저장 표식 — 색상만으로 정보를 전달하지 않도록 텍스트로 명시한다(a11y). */
+function UnsavedMark({ attrId }: { attrId: number }) {
+  return (
+    <span role="status" data-testid={`attr-unsaved-${attrId}`} className="text-xs text-amber-300">
+      저장되지 않음 — 진행 중 작업이 끝난 뒤 다시 저장하세요.
+    </span>
+  );
+}
+
 /** 정의(inputType)에 맞는 입력 컨트롤. label 연결 + 색상 단독 정보전달 금지(텍스트 병기). */
-function AttrInput({ def, value, disabled, onDraft, onCommit }: AttrInputProps) {
+function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }: AttrInputProps) {
   const choices = parseValues(def.valuesJson);
   const legendId = `attr-legend-${def.attrId}`;
 
@@ -182,6 +225,7 @@ function AttrInput({ def, value, disabled, onDraft, onCommit }: AttrInputProps) 
     return (
       <label className="flex flex-col gap-0.5">
         <span className="text-xs text-gray-400">{def.name}</span>
+        {unsaved && <UnsavedMark attrId={def.attrId} />}
         <select
           aria-label={def.name}
           value={value}
@@ -209,6 +253,7 @@ function AttrInput({ def, value, disabled, onDraft, onCommit }: AttrInputProps) 
         <legend id={legendId} className="text-xs text-gray-400">
           {def.name}
         </legend>
+        {unsaved && <UnsavedMark attrId={def.attrId} />}
         {choices.map((c) => (
           <label key={c} className="flex items-center gap-2 text-sub text-gray-100">
             <input
@@ -242,6 +287,7 @@ function AttrInput({ def, value, disabled, onDraft, onCommit }: AttrInputProps) 
         <legend id={legendId} className="text-xs text-gray-400">
           {def.name}
         </legend>
+        {unsaved && <UnsavedMark attrId={def.attrId} />}
         {choices.map((c) => (
           <label key={c} className="flex items-center gap-2 text-sub text-gray-100">
             <input
@@ -261,6 +307,7 @@ function AttrInput({ def, value, disabled, onDraft, onCommit }: AttrInputProps) 
   return (
     <label className="flex flex-col gap-0.5">
       <span className="text-xs text-gray-400">{def.name}</span>
+      {unsaved && <UnsavedMark attrId={def.attrId} />}
       <input
         type={def.inputType === 'NUMBER' ? 'number' : 'text'}
         aria-label={def.name}

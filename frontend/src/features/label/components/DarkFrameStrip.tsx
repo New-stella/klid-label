@@ -33,6 +33,8 @@ interface DarkFrameStripProps {
   savedSrcSns?: Set<number>;
   /** R16 — 포털 모드면 썸네일도 포털 전용 이미지 엔드포인트로 fetch (내부 API 403 회피). */
   portalMode?: boolean;
+  /** 프레임 전환 차단(장시간 작업 진행 중) — 썸네일 선택을 비활성화한다. */
+  disabled?: boolean;
 }
 
 interface FrameThumbnailProps {
@@ -44,6 +46,7 @@ interface FrameThumbnailProps {
   hasIssue: boolean;
   onSelect: (index: number) => void;
   portalMode?: boolean;
+  disabled?: boolean;
 }
 
 /**
@@ -59,6 +62,7 @@ function FrameThumbnail({
   hasIssue,
   onSelect,
   portalMode,
+  disabled = false,
 }: FrameThumbnailProps) {
   const { url } = useImageBlob(srcSn, { portalMode });
   return (
@@ -69,9 +73,11 @@ function FrameThumbnail({
       data-frame-index={index}
       data-frame-status={status}
       onClick={() => onSelect(index)}
+      disabled={disabled}
       className={cn(
         'relative shrink-0 rounded overflow-hidden border-2 transition-all bg-black',
         FRAME_STATUS_BORDER[status],
+        disabled && 'opacity-50 cursor-not-allowed',
       )}
       style={{ width: 80, height: 45 }}
       aria-label={`프레임 ${frameNo}`}
@@ -108,6 +114,7 @@ export function DarkFrameStrip({
   inquirySrcSns,
   savedSrcSns,
   portalMode,
+  disabled = false,
 }: DarkFrameStripProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -158,6 +165,7 @@ export function DarkFrameStrip({
             hasIssue={issueFrameNos?.has(f.frameNo) ?? false}
             onSelect={onSelect}
             portalMode={portalMode}
+            disabled={disabled}
           />
         );
       })}

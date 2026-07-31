@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
-import { useLabelStore } from '@/stores/useLabelStore';
+import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { formatBindingKeys } from '../hooks/labelingKeymap';
 import { PORTAL_HIDDEN_TOOLS, ToolType } from '../types';
@@ -87,6 +87,8 @@ export function DarkToolbar({
   isAutolabeling = false,
 }: DarkToolbarProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
+  // 편집 차단 단일 판정원 — 장시간 작업 중에는 도구 전환·삭제·되돌리기·저장을 모두 비활성화한다.
+  const editBlocked = useIsEditBlocked();
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
   const undo = useLabelStore((s) => s.undo);
   const removeLabel = useLabelStore((s) => s.removeLabel);
@@ -155,6 +157,8 @@ export function DarkToolbar({
           return <div key={idx} className="w-8 h-px bg-gray-600 my-1" />;
         }
         const busy = item.kind === 'action' && item.busy === true;
+        // 진행 중 표시(busy)와 편집 차단(editBlocked)은 다른 축이지만, 버튼 비활성은 동일하게 적용한다.
+        const disabled = busy || editBlocked;
         const Icon = busy ? Loader2 : item.icon;
         const isActive = item.kind === 'tool' && activeTool === item.tool;
         const handleClick =
@@ -165,7 +169,7 @@ export function DarkToolbar({
             <button
               type="button"
               onClick={handleClick}
-              disabled={busy}
+              disabled={disabled}
               aria-label={item.label}
               // 단축키를 title 로도 노출 — 키맵 파생(오표기 0), 마우스 호버/스크린리더 힌트.
               title={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}
@@ -176,7 +180,7 @@ export function DarkToolbar({
                 isActive
                   ? 'bg-primary-600 text-white'
                   : 'text-gray-300 hover:bg-gray-700 hover:text-white',
-                busy && 'opacity-60 cursor-not-allowed',
+                disabled && 'opacity-60 cursor-not-allowed',
               )}
             >
               <Icon size={18} className={cn(busy && 'animate-spin')} />

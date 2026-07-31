@@ -13,6 +13,11 @@ interface DarkFrameSliderProps {
    * 무한 팝업 방지를 위해 정지 후 인터벌을 종료한다. dirty 없으면 정상 자동 진행.
    */
   dirtyGuard?: boolean;
+  /**
+   * 프레임 전환 차단(장시간 작업 진행 중). true 면 재생/이동 컨트롤을 모두 비활성화하고
+   * 자동 재생도 진행하지 않는다 — 이동이 막힌 상태에서 인터벌만 도는 것을 막는다.
+   */
+  disabled?: boolean;
 }
 
 const PLAY_INTERVAL_MS = 500;
@@ -22,6 +27,7 @@ export function DarkFrameSlider({
   totalFrames,
   onSelect,
   dirtyGuard = false,
+  disabled = false,
 }: DarkFrameSliderProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -35,16 +41,17 @@ export function DarkFrameSlider({
   }, []);
 
   const handlePlayToggle = useCallback(() => {
+    if (disabled) return;
     if (isPlaying) {
       stopPlay();
       return;
     }
     setIsPlaying(true);
-  }, [isPlaying, stopPlay]);
+  }, [disabled, isPlaying, stopPlay]);
 
   // 재생 인터벌 — currentIndex가 바뀔 때마다 재설정 (closure 문제 회피)
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || disabled) return;
     intervalRef.current = setInterval(() => {
       const next = currentIndex + 1;
       if (next >= totalFrames) {
@@ -75,7 +82,12 @@ export function DarkFrameSlider({
         intervalRef.current = null;
       }
     };
-  }, [isPlaying, currentIndex, totalFrames, onSelect, dirtyGuard]);
+  }, [isPlaying, disabled, currentIndex, totalFrames, onSelect, dirtyGuard]);
+
+  // 차단이 걸리면 진행 중이던 자동 재생을 즉시 멈춘다(정지 버튼도 눌리지 않으므로).
+  useEffect(() => {
+    if (disabled) stopPlay();
+  }, [disabled, stopPlay]);
 
   // 언마운트 시 정리
   useEffect(() => {
@@ -96,7 +108,7 @@ export function DarkFrameSlider({
       <button
         type="button"
         onClick={() => onSelect(Math.max(0, currentIndex - 1))}
-        disabled={currentIndex === 0}
+        disabled={disabled || currentIndex === 0}
         aria-label="이전 프레임"
         className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
       >
@@ -106,8 +118,9 @@ export function DarkFrameSlider({
       <button
         type="button"
         onClick={handlePlayToggle}
+        disabled={disabled}
         aria-label={isPlaying ? '정지' : '재생'}
-        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
       >
         {isPlaying ? <Pause size={16} /> : <Play size={16} />}
       </button>
@@ -118,14 +131,15 @@ export function DarkFrameSlider({
         max={max}
         value={currentIndex}
         onChange={(e) => onSelect(Number(e.target.value))}
+        disabled={disabled}
         aria-label="프레임 슬라이더"
-        className="flex-1 accent-primary-500 h-1.5"
+        className="flex-1 accent-primary-500 h-1.5 disabled:cursor-not-allowed disabled:opacity-50"
       />
 
       <button
         type="button"
         onClick={() => onSelect(Math.min(max, currentIndex + 1))}
-        disabled={currentIndex >= max}
+        disabled={disabled || currentIndex >= max}
         aria-label="다음 프레임"
         className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
       >

@@ -3,7 +3,13 @@ import { Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
 
 import { Spinner } from '@/components/common/Spinner';
-import { useLabelStore, MIN_ZOOM, MAX_ZOOM, clampPan } from '@/stores/useLabelStore';
+import {
+  useIsEditBlocked,
+  useLabelStore,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  clampPan,
+} from '@/stores/useLabelStore';
 
 import type { FrameSummary, Label } from '../types';
 import { useSam2Segment } from '../hooks/useSam2Segment';
@@ -62,6 +68,41 @@ export type { OverlayLayerHandle } from './layers/OverlayLayer';
 // 휠 한 틱당 줌 배율.
 const WHEEL_ZOOM_FACTOR = 1.1;
 
+/** Space/Enter 가 **기본 활성화**를 일으키는 태그. 여기서 팬 홀드가 키를 삼키면 안 된다. */
+const KEYBOARD_ACTIVATABLE_TAGS = new Set(['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'SUMMARY']);
+/** 위와 같은 기대를 갖는 ARIA 위젯 역할(APG — Space 로 조작되는 컨트롤). */
+const KEYBOARD_ACTIVATABLE_ROLES = new Set([
+  'button',
+  'link',
+  'checkbox',
+  'radio',
+  'switch',
+  'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
+  'option',
+  'tab',
+]);
+
+/**
+ * 이벤트 대상이 **키보드 기본 활성화(Space/Enter)를 가진 컨트롤**인가.
+ *
+ * ⚠ Space 팬 홀드는 window keydown 을 preventDefault 하는데, 버튼의 Space 활성화는 **keyup** 에
+ *   일어난다 — keydown 을 막으면 그 활성화가 통째로 사라져, 포커스된 버튼이 Space 로 눌리지 않는다
+ *   (진행 오버레이의 '작업 취소' 버튼이 ESC 로만 눌리던 결함 NF-2). 텍스트 입력 보존과 같은 이유로
+ *   이 요소들 위에서는 팬 홀드를 시작하지 않는다(팬은 캔버스/본문 포커스에서 그대로 동작).
+ */
+function isKeyboardActivatableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  const tag = el?.tagName;
+  if (typeof tag !== 'string') return false; // window/document 등 — 캔버스 조작으로 본다
+  if (el?.isContentEditable) return true;
+  if (KEYBOARD_ACTIVATABLE_TAGS.has(tag)) return true;
+  if (tag === 'A' && el?.hasAttribute('href')) return true;
+  const role = el?.getAttribute('role');
+  return role !== null && role !== undefined && KEYBOARD_ACTIVATABLE_ROLES.has(role);
+}
+
 /**
  * react-konva Stage 컨테이너.
  * Layer 분리 원칙: ImageLayer는 imageUrl 변경 시에만 재렌더 (라벨 변경 시 X).
@@ -83,6 +124,9 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
   ref,
 ) {
   const stageRef = useRef<Konva.Stage | null>(null);
+  // 편집 차단 단일 판정원 — 장시간 작업(저장/불러오기/AI) 진행 중이면 캔버스 입력을 막는다.
+  // 두 라벨링 화면(내부·포털 업로드)이 모두 이 컴포넌트를 거치므로 배선이 한 곳에서 끝난다.
+  const editBlocked = useIsEditBlocked(frame.srcSn);
   const zoom = useLabelStore((s) => s.zoom);
   const panX = useLabelStore((s) => s.panX);
   const panY = useLabelStore((s) => s.panY);
@@ -140,10 +184,9 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (!isSpaceKey(e)) return;
-      // 입력 필드/편집영역 포커스 시에는 팬/스크롤 억제하지 않는다(텍스트 입력 보존).
-      const t = e.target as HTMLElement | null;
-      const tag = t?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable) return;
+      // 입력 필드/편집영역, 그리고 **Space 로 활성화되는 컨트롤**(버튼·링크 등) 위에서는
+      // 팬/스크롤 억제를 하지 않는다 — 텍스트 입력과 기본 키보드 활성화를 보존한다.
+      if (isKeyboardActivatableTarget(e.target)) return;
       spaceDownRef.current = true;
       setSpaceDown(true);
       e.preventDefault(); // 페이지 스페이스 스크롤 방지
@@ -308,7 +351,16 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
   const cursor = panning ? 'grabbing' : spaceDown ? 'grab' : undefined;
 
   return (
-    <div className="relative" data-testid="canvas-shell" style={cursor ? { cursor } : undefined}>
+    <div
+      className="relative"
+      data-testid="canvas-shell"
+      // 캔버스는 DOM 으로 상태를 드러내지 않아 차단 여부를 밖에서 확인할 방법이 없다 —
+      // 회귀 가드가 관측할 수 있도록 두 차단축을 각각 노출한다(내부 식별자·경로는 담지 않는다).
+      data-edit-blocked={editBlocked ? 'true' : 'false'}
+      data-read-only={readOnly ? 'true' : 'false'}
+      aria-busy={editBlocked}
+      style={cursor ? { cursor } : undefined}
+    >
       <Stage
         ref={stageRef}
         width={width}
@@ -325,9 +377,22 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
             <ImageLayer image={imageEl} geometry={geometry} adjust={imageAdjust} />
           )}
         </Layer>
-        <Layer name="labels-layer" opacity={imageAdjust.labelOpacity} listening={!interactionSuppressed}>
+        <Layer
+          name="labels-layer"
+          opacity={imageAdjust.labelOpacity}
+          // 차단 구간에는 라벨 레이어의 pointer 이벤트를 통째로 끈다 — 선택·이동·꼭짓점 편집이
+          // 시작될 수 있는 입구를 하나도 남기지 않는다(핸들러 가드는 그 다음 방어선).
+          listening={!interactionSuppressed && !editBlocked}
+        >
           {/* 타이밍 가드 — geometry(실측 크기) 확정 전에는 라벨을 그리지 않는다. */}
-          {geometry && <LabelsLayer labels={labels} geometry={geometry} readOnly={readOnly} />}
+          {geometry && (
+            <LabelsLayer
+              labels={labels}
+              geometry={geometry}
+              readOnly={readOnly}
+              editBlocked={editBlocked}
+            />
+          )}
         </Layer>
         <Layer name="overlay-layer" opacity={imageAdjust.activeOpacity} listening={!interactionSuppressed}>
           {geometry && (
@@ -338,6 +403,8 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
               onLabelAdd={onLabelAdd}
               stageRef={stageRef}
               segment={segment}
+              /* 프레임 동일성 판정 키 — segment 참조는 세밀함 슬라이더로도 바뀌므로 쓸 수 없다. */
+              srcSn={frame.srcSn}
               onMockWarning={handleMockWarning}
               onLowConfidence={handleLowConfidence}
               onCommitError={handleCommitError}

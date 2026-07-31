@@ -18,9 +18,11 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Skeleton } from '@/components/common/Skeleton';
 import { cn } from '@/lib/cn';
+import { useIsEditBlocked } from '@/stores/useLabelStore';
 
 import type { LabelHistoryItem } from '../api';
 import { LABEL_HISTORY_PAGE_SIZE, useLabelHistory } from '../hooks/useLabelHistory';
+
 import { LabelChangeDetail } from './LabelChangeDetail';
 
 interface LabelHistoryPanelProps {
@@ -96,6 +98,10 @@ function SummaryBadges({ item, dark }: { item: LabelHistoryItem; dark: boolean }
 export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistoryPanelProps) {
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  // 편집 차단 단일 판정원 — 되돌리기는 작업본(labels/dirty)을 바꾸는 **편집**이다. 저장 in-flight
+  // 중에 실행되면 저장 성공 시 clearDirty() 가 되돌린 분의 미저장 표식까지 지워, 이탈 경고·프레임
+  // 가드가 풀린 채 서버본이 화면을 덮는다(무음 소실).
+  const editBlocked = useIsEditBlocked();
 
   // 프레임 전환 시 페이지/펼침 상태 초기화 (이전 프레임 상태 잔존 방지).
   useEffect(() => {
@@ -197,10 +203,16 @@ export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistor
                         <button
                           type="button"
                           aria-label="이 저장으로 되돌리기"
-                          title="이 저장으로 되돌리기"
+                          title={
+                            editBlocked
+                              ? '다른 작업이 진행 중입니다. 완료 후 되돌릴 수 있습니다.'
+                              : '이 저장으로 되돌리기'
+                          }
+                          disabled={editBlocked}
                           onClick={() => onRevert(item)}
                           className={cn(
                             'mt-0.5 inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium',
+                            'disabled:cursor-not-allowed disabled:opacity-40',
                             dark
                               ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
                               : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800',
