@@ -15,6 +15,8 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,6 +66,7 @@ class AugmentRequestContractTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private DeidentReportGate deidentReportGate;
     @Mock private AugmentCallbackUrlResolver callbackUrlResolver;
+    @Mock private VideoRepository videoRepository;
 
     private AugmentRequestService service;
     private TokenClaims reviewer;
@@ -78,11 +81,21 @@ class AugmentRequestContractTest {
     @BeforeEach
     void setUp() {
         service = new AugmentRequestService(statusRepository, srcRepository, augRepository,
-                eventPublisher, deidentReportGate, callbackUrlResolver, new ObjectMapper());
+                videoRepository, eventPublisher, deidentReportGate, callbackUrlResolver,
+                new ObjectMapper());
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         when(callbackUrlResolver.resolve()).thenReturn("http://authoring/v1/genai/callback");
         when(deidentReportGate.isUnderDeidentReport(anyLong())).thenReturn(false);
+        // 파생 영상 가드(원본만 증강 요청 가능) — 정상 시드는 ORGNL_RAW_SN 이 null 인 원본이다.
+        when(videoRepository.findById(anyLong())).thenReturn(java.util.Optional.of(originalVideo()));
         approved(RAW_SN);
+    }
+
+    /** ORGNL_RAW_SN 이 null 인 원본 영상 스텁. */
+    private static LsDataRaw originalVideo() {
+        return LsDataRaw.createFromIngest("CLIP-" + RAW_SN, "CCTV-001", "EVT", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/nas-storage/raw/x.mp4",
+                java.time.LocalDateTime.now(), 30);
     }
 
     private void approved(Long rawSn) {

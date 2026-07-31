@@ -643,6 +643,33 @@ class AugmentRequestServiceTest {
     }
 
     @Test
+    @DisplayName("파생영상_증강요청시_400_이고_사유가_파생차단이다")
+    void rejectsDerivativeVideoBeforeAnyOtherReason() {
+        // given — 파생 영상이면서 <동시에> 미검수(상태 row 없음) + 비식별 신고 구간('F')이다.
+        //         가드 순서가 틀리면 "미검수(NOT_REVIEWED)" 나 "신고 구간(PRECONDITION_FAILED)" 같은
+        //         엉뚱한 사유가 먼저 뜨고 요청자는 진짜 사유(파생 차단)에 도달하지 못한다.
+        Long parentRawSn = nextRawSn();
+        Long derivativeRawSn = nextRawSn();
+        jdbcTemplate.update("UPDATE LS_DATA_RAW SET ORGNL_RAW_SN = ?, DE_IDENT_YN = 'F' WHERE RAW_SN = ?",
+                parentRawSn, derivativeRawSn);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(derivativeRawSn), List.of(AugmentTypeCode.WINTER), PROMPT);
+
+        // when / then — 해상도 변경 경로와 동일한 400(INVALID_INPUT) 계열.
+        assertThatThrownBy(() -> service.request(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+                    assertThat(ce.getMessage()).contains("파생 영상");
+                    // 원본으로 유도하지 않는다 — 부모 rawSn 을 응답에 싣지 않는다(CWE-209/639).
+                    assertThat(String.valueOf(ce.getDetails())).doesNotContain(String.valueOf(parentRawSn));
+                });
+        verify(externalClient, never()).requestAugment(any());
+    }
+
+    @Test
     @DisplayName("AugmentRequestService_LsRawDataStatus_row가_없는_영상_요청시_NOT_REVIEWED")
     void rejectsWhenStatusRowMissing() {
         Long missing = nextRawSn(); // status row 없음
@@ -763,7 +790,7 @@ class AugmentRequestServiceTest {
         service.request(req, reviewer);
         // 검수 승인(ACCEPTED) — 채택된 파생본이 이미 존재하는 상태.
         tx.executeWithoutResult(s -> augRepository.findBySrcSnOrderByAugTypeCd(frame)
-                .forEach(a -> a.applyReviewStatus(LsDataAug.STTS_ACCEPTED)));
+                .forEach(a -> a.applyGenerationResult(LsDataAug.STTS_ACCEPTED)));
 
         assertThat(service.request(req, reviewer).createdCount()).isEqualTo(1);
 
@@ -784,7 +811,7 @@ class AugmentRequestServiceTest {
         service.request(req, reviewer);
         // 반려(REJECTED) 후 재요청 — 구 정책에서도 허용되던 동선이며 정책 전환 후에도 그대로다(회귀 가드).
         tx.executeWithoutResult(s -> augRepository.findBySrcSnOrderByAugTypeCd(frame)
-                .forEach(a -> a.applyReviewStatus(LsDataAug.STTS_REJECTED)));
+                .forEach(a -> a.applyGenerationResult(LsDataAug.STTS_REJECTED)));
 
         AugmentRequestResponse resp = service.request(req, reviewer);
 

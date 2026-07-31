@@ -3,7 +3,9 @@ package kr.co.cudo.authoring.augment;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManagerFactory;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -54,6 +56,7 @@ class AugmentResolutionResultTest {
     @Autowired private VideoRepository videoRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataAugRepository augRepository;
+    @Autowired private LsDataAugRvwRepository reviewRepository;
 
     @Qualifier("controlEntityManagerFactory")
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -133,9 +136,59 @@ class AugmentResolutionResultTest {
         return videoRepository.save(d);
     }
 
+    /**
+     * <b>생성이 성공한</b> 외부 위탁 증강 행 시드 — 웹훅 성공 인계 이후 상태(결과물 실재).
+     * 결정(채택/반려) 가능 상태의 정본 픽스처다.
+     */
+    private LsDataAug seedGeneratedExternalAug(Long representativeSrcSn, String augType) {
+        LsDataAug aug = augRepository.save(LsDataAug.createPending(representativeSrcSn, augType,
+                new BigDecimal("90.00"), "system"));
+        aug.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        return augRepository.saveAndFlush(aug);
+    }
+
     /** 확정된 해상도 파생 aug 행(ACCEPTED) 시드. */
     private LsDataAug seedResolutionAug(Long representativeSrcSn, String presetCd) {
         return augRepository.save(LsDataAug.createResolutionAccepted(representativeSrcSn, presetCd, "rev1"));
+    }
+
+    /**
+     * 외부 위탁 증강의 <b>확정된 파생 영상</b>(deIdntfYn='Y' + COMPLETED) 시드 + {@code NEW_RAW_SN} 매핑.
+     *
+     * <p>프로덕션은 {@code AugmentResultService.createAugmentedVideo} 가 파생 RAW 를 INSERT 한
+     * <b>같은 트랜잭션</b>에서 {@code assignDerivativeRawSn} 을 호출한다 — 그 상태를 재현한다.
+     */
+    private LsDataRaw seedExternalDerivative(LsDataRaw parent, LsDataAug aug) {
+        LsDataRaw d = LsDataRaw.createFromAugment(parent,
+                "/nas/videos/" + parent.getRawSn() + "/" + aug.getAugTypeCd() + ".mp4",
+                aug.getAugTypeCd(), aug.getDataAugSn());
+        d.markDeidentified("Y");
+        d.markCompleted();
+        LsDataRaw saved = videoRepository.save(d);
+        aug.assignDerivativeRawSn(saved.getRawSn());
+        augRepository.saveAndFlush(aug);
+        return saved;
+    }
+
+    /** 외부 위탁 증강 완전 시드 결과 — 증강 행까지 들고 있어야 검수 행 시드를 붙일 수 있다. */
+    private record ExtFixture(LsDataRaw parent, List<LsDataSrc> parentFrames, LsDataAug aug,
+                              LsDataRaw derivative, List<LsDataSrc> derivativeFrames) {
+    }
+
+    /** 부모 프레임 frameCount 개 + 생성 성공 외부 위탁 증강 + 파생 영상/프레임(동수) 완전 시드. */
+    private ExtFixture seedFullExternalDerivative(String suffix, String augType, int frameCount) {
+        LsDataRaw parent = seedParent(suffix, "Y");
+        List<LsDataSrc> parentFrames = new ArrayList<>();
+        for (long i = 0; i < frameCount; i++) {
+            parentFrames.add(seedParentFrame(parent.getRawSn(), i, suffix));
+        }
+        LsDataAug aug = seedGeneratedExternalAug(parentFrames.get(0).getSrcSn(), augType);
+        LsDataRaw derivative = seedExternalDerivative(parent, aug);
+        List<LsDataSrc> derivativeFrames = new ArrayList<>();
+        for (long i = 0; i < frameCount; i++) {
+            derivativeFrames.add(seedDerivativeFrame(derivative.getRawSn(), i, suffix));
+        }
+        return new ExtFixture(parent, parentFrames, aug, derivative, derivativeFrames);
     }
 
     private record Fixture(LsDataRaw parent, List<LsDataSrc> parentFrames,
@@ -559,20 +612,19 @@ class AugmentResolutionResultTest {
     // ============================================================
 
     /**
-     * <b>계약 변경(2026-07-31, DEV_FIX HIGH-1)</b>: 외부 위탁 증강은 이제 <b>항목으로 노출</b>된다.
-     * 구 계약("빈 results 유지")은 조건(prompt) 확인 경로를 accept/reject 응답 하나로 묶어버려
-     * REVIEWER 가 <b>결정 전에</b> 생성 조건을 볼 수 없게 만들었다(R9 미충족).
+     * <b>파생 매핑({@code NEW_RAW_SN})이 없는</b> 외부 위탁 항목 — V149 이전 요청(그랜드퍼더링) 또는
+     * 콜백 전. 이 경우에만 프레임 쌍이 비고, 그때도 항목 자체는 노출된다(R9 생성 조건 확인 경로).
      *
-     * <p>단 <b>프레임 쌍은 여전히 비어 있다</b> — 프레임별 비교 산출물은 외부 SFR-07 연동 이후다.
-     * 해상도 파생 경로(프레임 쌍 채움)에는 영향이 없다.
+     * <p>매핑이 있는 정상 형상에서는 프레임 쌍이 채워진다 —
+     * {@link #externalAugmentResultReturnsFramePairs()} 참조.
      */
     @Test
     @DisplayName("WINTER_외부증강_잡은_항목으로_노출되되_프레임쌍은_비어_있다")
     void externalAugmentJobIsExposedWithoutFramePairs() throws Exception {
         LsDataRaw parent = seedParent("WINTER", "Y");
         LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "WINTER");
-        augRepository.save(LsDataAug.createPending(pf.getSrcSn(), LsDataAug.AUG_WINTER,
-                new BigDecimal("90.00"), "system"));
+        // 생성이 끝난(결과물 실재) 상태 — 이때만 결정 버튼이 뜬다(reviewable 두 축 중 결과물 축).
+        seedGeneratedExternalAug(pf.getSrcSn(), LsDataAug.AUG_WINTER);
 
         mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
                         .header("Authorization", "Bearer " + reviewerToken))
@@ -588,7 +640,265 @@ class AugmentResolutionResultTest {
                 .andExpect(jsonPath("$.data.results[0].derivativeRawSn").doesNotExist())
                 // V147 이전 방식으로 적재된 행은 생성 조건이 없다 → null
                 .andExpect(jsonPath("$.data.results[0].prompt").doesNotExist())
+                // 집계 축(생성 결과)은 전부 종결 → COMPLETED
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+    }
+
+    // ============================================================
+    // DEV_FIX(2026-07-31) FIX-A — 증강 3종도 비교 이미지를 낸다
+    //   구 구현은 toExternalItems 가 framePairs=List.of(), totalFramePairs=0 을 <상수>로 반환해
+    //   검수 가능한 유일한 유형(WINTER/NIGHT/RAIN)의 비교 이미지가 영구히 0장이었다. 그 상태에서
+    //   FE 는 "외부 연동 이후 표시됩니다" 를 띄우면서 채택/거부 버튼을 활성으로 그렸다 — 이미지를
+    //   한 장도 못 보고 승인하면 등재 게이트가 의례적 절차가 된다.
+    // ============================================================
+
+    /**
+     * <b>계획서 명시 케이스</b> — 증강 3종 결과 화면에서 원본(부모 비식별) ↔ 증강 프레임 쌍이 반환된다.
+     *
+     * <p>짝짓기 근거는 <b>{@code LS_DATA_AUG.NEW_RAW_SN}</b>(V149)이다 — 유형이나 {@code VMS_CLIP_ID}
+     * 마커로 추정하지 않는다(같은 종류 재요청이 허용돼 유형만으로는 다른 요청의 파생본을 가리킨다).
+     */
+    @Test
+    @DisplayName("증강_3종_결과화면에서_원본과_증강_프레임쌍이_반환된다")
+    void externalAugmentResultReturnsFramePairs() throws Exception {
+        ExtFixture fx = seedFullExternalDerivative("EXTPAIR", LsDataAug.AUG_WINTER, 3);
+        Long jobId = fx.parent().getRawSn();
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results.length()").value(1))
+                .andExpect(jsonPath("$.data.results[0].type").value("WINTER"))
+                // NEW_RAW_SN 매핑이 그대로 내려간다(추정 없음)
+                .andExpect(jsonPath("$.data.results[0].derivativeRawSn")
+                        .value(fx.derivative().getRawSn().intValue()))
+                // ★ 핵심 — 구 구현은 여기가 항상 0 이었다
+                .andExpect(jsonPath("$.data.results[0].framePairs.length()").value(3))
+                .andExpect(jsonPath("$.data.results[0].totalFramePairs").value(3))
+                .andExpect(jsonPath("$.data.results[0].framePairs[0].frameNo").value(0))
+                .andExpect(jsonPath("$.data.results[0].framePairs[0].originalUrl")
+                        .value("/v1/frames/" + fx.parentFrames().get(0).getSrcSn() + "/deid-image"))
+                .andExpect(jsonPath("$.data.results[0].framePairs[0].augmentedUrl")
+                        .value("/v1/frames/" + fx.derivativeFrames().get(0).getSrcSn() + "/deid-image"))
+                .andExpect(jsonPath("$.data.results[0].framePairs[2].frameNo").value(2))
+                // 비교 이미지가 실재한다 → 결정 가능
+                .andExpect(jsonPath("$.data.results[0].resultState").value("READY"))
+                .andExpect(jsonPath("$.data.results[0].reviewable").value(true))
+                // 스토리지 경로는 여전히 노출하지 않는다(CWE-209/359)
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/nas/frames"))));
+    }
+
+    /** 프레임 축(page/size)은 외부 위탁 항목에서도 해상도 항목과 동일하게 동작한다. */
+    @Test
+    @DisplayName("외부증강_프레임쌍도_page_size_로_페이징된다")
+    void externalAugmentFramePairsArePaged() throws Exception {
+        ExtFixture fx = seedFullExternalDerivative("EXTFPAGE", LsDataAug.AUG_RAIN, 5);
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", fx.parent().getRawSn())
+                        .param("page", "1").param("size", "2")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].type").value("RAIN"))
+                .andExpect(jsonPath("$.data.results[0].totalFramePairs").value(5))
+                .andExpect(jsonPath("$.data.results[0].framePairs.length()").value(2))
+                .andExpect(jsonPath("$.data.results[0].framePairs[0].frameNo").value(2))
+                .andExpect(jsonPath("$.data.results[0].framePairs[1].frameNo").value(3));
+    }
+
+    /**
+     * <b>두 축의 독립성이 외부 위탁 항목에서도 유지된다</b> (Phase 5 에서 세 번 뒤집힌 불변식).
+     *
+     * <p>①항목 페이저를 넘겨도 그 페이지의 항목은 자기 프레임 쌍을 그대로 받고
+     * ②프레임 페이저를 넘겨도 항목 구성은 바뀌지 않는다.
+     */
+    @Test
+    @DisplayName("외부증강_프레임쌍은_항목축과_프레임축_어느_쪽에도_갇히지_않는다")
+    void externalFramePairsAreNotTrappedByEitherAxis() throws Exception {
+        ExtFixture fx = seedFullExternalDerivative("EXTAXIS", LsDataAug.AUG_WINTER, 5);
+        Long jobId = fx.parent().getRawSn();
+        // 더 최신인 항목 1건을 추가 — 최신순 정렬이라 itemPage=0 에는 이 NIGHT 이, 1에는 WINTER 가 온다.
+        augRepository.saveAndFlush(LsDataAug.createPending(fx.parentFrames().get(0).getSrcSn(),
+                LsDataAug.AUG_NIGHT, new BigDecimal("90.00"), "system"));
+
+        String itemPage1 = resultJson(jobId, 0, 12, 1, 1);
+        assertThat((List<Object>) JsonPath.read(itemPage1, "$.data.results[*].type"))
+                .containsExactly("WINTER");
+        assertThat((List<Object>) JsonPath.read(itemPage1, "$.data.results[0].framePairs[*].frameNo"))
+                .as("항목 페이저를 넘긴 사용자도 비교 이미지에 도달해야 한다")
+                .hasSize(5);
+
+        // 프레임 축은 그 항목 안에서 독립적으로 동작한다.
+        assertThat((List<Object>) JsonPath.read(
+                resultJson(jobId, 2, 2, 1, 1), "$.data.results[0].framePairs[*].frameNo"))
+                .containsExactly(4);
+
+        // 프레임 페이지를 넘겨도 항목(탭) 구성은 그대로다.
+        assertThat((List<Object>) JsonPath.read(resultJson(jobId, 1, 2, null, null),
+                "$.data.results[*].type"))
+                .isEqualTo(JsonPath.read(resultJson(jobId, 0, 2, null, null),
+                        "$.data.results[*].type"));
+    }
+
+    /**
+     * <b>프레임이 아직 없는 정상 상태</b>(반입이 비동기) 와 <b>영구 실패</b>가 응답에서 구분된다.
+     *
+     * <p>구 FE 는 쌍이 0장이면 무조건 "프레임별 비교 결과는 외부 연동 이후 표시됩니다" 를 띄웠다 —
+     * 사실과 다르고, 무엇보다 "기다리면 온다" 와 "영영 안 온다" 가 화면에서 같아 보인다.
+     */
+    @Test
+    @DisplayName("프레임_반입중과_추출_영구실패가_resultState_로_구분된다")
+    void preparingFramesIsDistinguishedFromPermanentFailure() throws Exception {
+        // given — 파생은 만들어졌지만 프레임 반입 전(정상). 프레임 0건.
+        LsDataRaw parent = seedParent("EXTPREP", "Y");
+        LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "EXTPREP");
+        LsDataAug preparing = seedGeneratedExternalAug(pf.getSrcSn(), LsDataAug.AUG_WINTER);
+        seedExternalDerivative(parent, preparing);
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].totalFramePairs").value(0))
+                .andExpect(jsonPath("$.data.results[0].resultState").value("PREPARING_FRAMES"))
+                .andExpect(jsonPath("$.data.results[0].decision").value("PENDING"));
+
+        // given — 같은 형상인데 비동기 확정이 영구 실패(dead-letter)했다. 상태 컬럼은 ACCEPTED 그대로.
+        LsDataRaw parent2 = seedParent("EXTDEAD", "Y");
+        LsDataSrc pf2 = seedParentFrame(parent2.getRawSn(), 0L, "EXTDEAD");
+        LsDataAug dead = seedGeneratedExternalAug(pf2.getSrcSn(), LsDataAug.AUG_WINTER);
+        seedExternalDerivative(parent2, dead);
+        dead.markDeadLetter();
+        augRepository.saveAndFlush(dead);
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent2.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].resultState").value("GENERATION_FAILED"))
+                // ACCEPTED 로 남은 상태를 그대로 보이면 "채택됨" 이 되어 헤더(FAILED)와 상반된다
+                .andExpect(jsonPath("$.data.results[0].decision").value("REJECTED"))
+                .andExpect(jsonPath("$.data.results[0].reviewable").value(false))
+                // 두 축이 같은 사실을 말한다
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+    }
+
+    /**
+     * FIX-D — <b>생성 실패</b>와 <b>사람의 반려</b>는 둘 다 {@code decision=REJECTED} 라 FE 가
+     * 구분할 수 없었다(실패인데 "누군가 거부함" 으로 보였다). {@code resultState} 가 그 축을 준다.
+     */
+    @Test
+    @DisplayName("사람_반려와_생성_실패가_resultState_로_구분된다")
+    void humanRejectionIsDistinguishedFromGenerationFailure() throws Exception {
+        ExtFixture fx = seedFullExternalDerivative("EXTREJ", LsDataAug.AUG_WINTER, 2);
+        Long jobId = fx.parent().getRawSn();
+        reviewRepository.saveAndFlush(LsDataAugRvw.createRejected(
+                fx.aug().getDataAugSn(), jobId, fx.parentFrames().get(0).getSrcSn(),
+                "겨울 질감이 부자연스럽다", "1", LocalDateTime.now()));
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].decision").value("REJECTED"))
+                .andExpect(jsonPath("$.data.results[0].rejectReason").value("겨울 질감이 부자연스럽다"))
+                // 사람이 반려했을 뿐 결과물은 정상 — 생성 실패가 아니다
+                .andExpect(jsonPath("$.data.results[0].resultState").value("READY"));
+    }
+
+    // ------------------------------------------------------------
+    // DEV_FIX(2026-07-31) — 결정 버튼은 <결정 가능할 때만> 뜬다
+    //   reviewable 은 accept/reject 사전조건과 같은 두 축(결과물 실재 + 미결정)으로 계산된다.
+    //   한쪽만 보면 "버튼이 보이는데 누르면 거부" 또는 "결과물 없이 승인 가능" 이 생긴다.
+    // ------------------------------------------------------------
+
+    /**
+     * <b>생성 중</b>인 증강에는 결정 버튼이 뜨지 않는다.
+     *
+     * <p>중간 구현은 검수 축(검수 행 없음 → 미결정)만 보고 {@code reviewable=true} 를 내려, FE 가
+     * 그린 채택 버튼을 누르는 <b>정상 동선</b>으로 결과물 없는 승인이 성립했다(등재 게이트 무력화).
+     * {@code decision} 은 검수 축의 사실대로 PENDING 이지만 {@code reviewable=false} 라 FE 는 카드를
+     * 감춘다({@code AugmentResultPanel.showDecision}).
+     */
+    @Test
+    @DisplayName("생성이_끝나지_않은_증강은_결정_대상이_아니다_reviewable_false")
+    void inFlightAugmentIsNotReviewable() throws Exception {
+        LsDataRaw parent = seedParent("INFLIGHT", "Y");
+        LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "INFLIGHT");
+        augRepository.save(LsDataAug.createPending(pf.getSrcSn(), LsDataAug.AUG_WINTER,
+                new BigDecimal("90.00"), "system"));
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results.length()").value(1))
+                .andExpect(jsonPath("$.data.results[0].reviewable").value(false))
+                .andExpect(jsonPath("$.data.results[0].decision").value("PENDING"))
                 .andExpect(jsonPath("$.data.status").value("PROCESSING"));
+    }
+
+    /**
+     * <b>생성 실패(dead-letter)</b> 증강은 결정 대상이 아니고, 화면에도 "미결정" 이 아니라 실패로 보인다.
+     *
+     * <p>구 구현({@code decision = AUG_PROC_STTS_CD})은 이걸 맞게 표시하고 있었는데 축 분리 중간
+     * 구현이 <b>회귀</b>시켰다 — 실패한 증강 카드에 채택/반려 버튼이 뜨고 상태는 "미결정" 이었다.
+     */
+    @Test
+    @DisplayName("생성_실패로_종결된_증강은_REJECTED로_표기되고_결정_대상이_아니다")
+    void deadLetteredAugmentIsShownAsFailedAndNotReviewable() throws Exception {
+        LsDataRaw parent = seedParent("DEADL", "Y");
+        LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "DEADL");
+        LsDataAug failed = augRepository.save(LsDataAug.createPending(pf.getSrcSn(),
+                LsDataAug.AUG_NIGHT, new BigDecimal("90.00"), "system"));
+        failed.applyGenerationResult(LsDataAug.STTS_REJECTED);
+        failed.markDeadLetter();
+        augRepository.saveAndFlush(failed);
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].reviewable").value(false))
+                .andExpect(jsonPath("$.data.results[0].decision").value("REJECTED"))
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+    }
+
+    /**
+     * <b>사용자 취소</b> 증강도 결정 대상이 아니며 CANCELED 로 표기된다 — FE 의 취소 표시 분기
+     * ({@code DecisionCard} CANCELED)가 도달 가능해야 한다.
+     */
+    @Test
+    @DisplayName("취소된_증강은_CANCELED로_표기되고_결정_대상이_아니다")
+    void canceledAugmentIsShownAsCanceledAndNotReviewable() throws Exception {
+        LsDataRaw parent = seedParent("CANCEL", "Y");
+        LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "CANCEL");
+        LsDataAug canceled = augRepository.save(LsDataAug.createPending(pf.getSrcSn(),
+                LsDataAug.AUG_RAIN, new BigDecimal("90.00"), "system"));
+        canceled.markCanceled();
+        augRepository.saveAndFlush(canceled);
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].reviewable").value(false))
+                .andExpect(jsonPath("$.data.results[0].decision").value("CANCELED"));
+    }
+
+    /**
+     * 결정이 끝난 뒤에는 그 결과가 그대로 보이고 버튼은 사라진다(재결정 409 와 화면 정합).
+     */
+    @Test
+    @DisplayName("이미_결정된_증강은_그_결정이_표시되고_reviewable_false")
+    void decidedAugmentShowsDecisionAndIsNotReviewable() throws Exception {
+        LsDataRaw parent = seedParent("DECIDED", "Y");
+        LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "DECIDED");
+        LsDataAug generated = seedGeneratedExternalAug(pf.getSrcSn(), LsDataAug.AUG_WINTER);
+        reviewRepository.saveAndFlush(LsDataAugRvw.createRejected(
+                generated.getDataAugSn(), parent.getRawSn(), pf.getSrcSn(),
+                "겨울 질감이 부자연스럽다", "1", LocalDateTime.now()));
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].reviewable").value(false))
+                .andExpect(jsonPath("$.data.results[0].decision").value("REJECTED"))
+                .andExpect(jsonPath("$.data.results[0].rejectReason").value("겨울 질감이 부자연스럽다"));
     }
 
     /**

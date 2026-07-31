@@ -121,7 +121,7 @@ class AugmentProgressCancelIT {
                 "AUG-AUGPRG-" + java.util.UUID.randomUUID(), null, "{\"time\":\"NIGHT\"}");
         aug = augRepository.save(aug);
         if (LsDataAug.STTS_ACCEPTED.equals(status) || LsDataAug.STTS_REJECTED.equals(status)) {
-            aug.applyReviewStatus(status);
+            aug.applyGenerationResult(status);
             aug = augRepository.saveAndFlush(aug);
         }
         return aug;

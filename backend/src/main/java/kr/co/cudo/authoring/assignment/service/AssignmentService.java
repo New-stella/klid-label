@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
+import kr.co.cudo.authoring.augment.repository.DerivativeWorkGateRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -64,6 +65,8 @@ public class AssignmentService {
     private final UserRepository userRepository;
     private final LsDataSrcRepository dataSrcRepository;
     private final VideoRepository videoRepository;
+    /** 파생영상 등재 게이트 — 목록 술어와 <b>같은 판정 원천</b>을 쓰는 쓰기 경로 창구(S1). */
+    private final DerivativeWorkGateRepository derivativeWorkGateRepository;
 
     @Transactional("controlTransactionManager")
     public AssignmentResponse assign(AssignmentCreateRequest req, TokenClaims actor) {
@@ -78,6 +81,7 @@ public class AssignmentService {
         }
 
         rejectApprovedTargets(req.rawDataIds());
+        rejectUnenrolledDerivatives(req.rawDataIds());
 
         List<LsTaskAssignment> created = new ArrayList<>();
         try {
@@ -152,6 +156,36 @@ public class AssignmentService {
     }
 
     /**
+     * 배정 대상 중 <b>미등재 파생영상</b>이 있으면 배정 자체를 거부한다 (S1).
+     *
+     * <p><b>목록 게이팅만으로는 막히지 않는다</b>: 이 API 는 {@code rawDataId} 를 요청 바디로 받아
+     * 그대로 INSERT 하므로, REVIEWER 가 미등재 파생의 rawSn 을 알아내면 목록을 우회해 배정할 수 있다.
+     * 그래서 목록 술어와 <b>같은 판정 원천</b>({@code DerivativeWorkEligibility})을 쓰는 검사를
+     * {@link #rejectApprovedTargets} 와 <b>같은 자리</b>(같은 트랜잭션, INSERT 이전)에 둔다.
+     *
+     * <p><b>신규 배정({@link #assign})과 재배정({@link #reassign}) 양쪽</b>에서 호출한다 — 둘 다
+     * 배정 축이고, 사용자 확정 스코프("등재 게이트 = 작업목록·배정")가 그 축 전체를 가리킨다.
+     *
+     * <p><b>부분성공 금지 — 전체 실패 정책</b>: 기존 APPROVED 가드와 동일하다. 1건이라도 미등재
+     * 파생이면 어떤 영상도 배정하지 않는다. 상태 조회는 단일 IN 쿼리 1회(N+1 회피).
+     *
+     * <p>거부 메시지에 부모 rawSn 을 담지 않는다 — 접근 권한이 없는 자원의 존재를 알려 주게 된다
+     * (CWE-209/639). 어떤 영상이 막혔는지는 요청자가 이미 아는 입력값(rawSn)으로 충분하다.
+     */
+    private void rejectUnenrolledDerivatives(List<Long> rawDataIds) {
+        if (rawDataIds == null || rawDataIds.isEmpty()) {
+            return;
+        }
+        List<Long> ineligible = derivativeWorkGateRepository.findIneligibleRawSns(rawDataIds);
+        if (!ineligible.isEmpty()) {
+            log.warn("[Assignment] rejected — unenrolled derivative included blockedCount={}",
+                    ineligible.size());
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "검수 승인 전인 파생 영상은 배정할 수 없습니다.");
+        }
+    }
+
+    /**
      * REVIEWER 배정 — 각 rawDataId 에 대해 (RAW_DATA_ID, USER_NO=reviewerId, TASK_TYPE_CD='REVIEWER')
      * row 가 이미 존재하는지 확인 후 없을 때만 INSERT.
      * UK 충돌이 발생해도 worker 배정 결과는 보존되어야 하므로 별도 try-catch 로 격리하고
@@ -204,6 +238,19 @@ public class AssignmentService {
                         "완료된 작업은 재배정할 수 없습니다.");
             }
         });
+
+        // 재배정도 <배정 축>이라 신규 배정과 같은 게이트를 적용한다 (2026-07-31 DEV_FIX).
+        //
+        // 구 구현은 "차단하면 레거시 파생이 작업자 교체조차 못 하는 락아웃" 이라며 WARN 만 남겼는데
+        // 그 근거는 성립하지 않는다: ①레거시(V149 이전, NEW_RAW_SN 매핑 없음) 파생은 게이트를
+        // <통과>하므로 여기서 걸리지 않는다(그랜드퍼더링) ②실제로 걸리는 미등재 파생은 이미
+        // 작업목록·배정목록에서 숨겨져 <이미 락아웃 상태>다 — 작업자만 바꿔 봐야 아무도 접근할 수
+        // 없다. 즉 열어 둬서 구제되는 대상이 없고, 열어 두면 "목록에 없는 영상을 배정 축으로 계속
+        // 다룰 수 있는" 구멍만 남는다.
+        //
+        // 사용자 확정 스코프(등재 게이트 = 작업목록·배정)에 재배정이 포함되므로 assign 과 <같은 술어>
+        // 로 막는다. 승인되면 게이트가 자동 해제되어 재배정도 즉시 가능해진다.
+        rejectUnenrolledDerivatives(List.of(prev.getRawDataId()));
 
         if (userRepository.findByUserNo(req.workerId()).isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "존재하지 않는 작업자입니다.");

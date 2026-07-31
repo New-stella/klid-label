@@ -172,7 +172,7 @@ public class AugmentExtractPersist {
      * 막혀 회복도 되지 않으므로, 실패는 실패로 드러나야 운영이 재요청 대상을 식별할 수 있다.
      *
      * <h3>왜 상태(REJECTED)가 아니라 dead-letter 인가</h3>
-     * <p>{@code AUG_PROC_STTS_CD} 는 <b>검수 결과 축</b>이고 {@code applyReviewStatus} 는 PENDING 에서만
+     * <p>{@code AUG_PROC_STTS_CD} 는 <b>검수 결과 축</b>이고 {@code applyGenerationResult} 는 PENDING 에서만
      * 전이를 허용한다(ACCEPTED→REJECTED 불가). 이 도메인의 실패 판정 축은 처리 실패 전용 마커
      * {@code DEAD_LETTER_AT}({@link LsDataAug#isProcessingFailed()}) 이고, 동기 실패 인계
      * ({@code AugmentResultService} 의 {@code markProcessingFailure})가 쓰는 수단과 동일하다 —

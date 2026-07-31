@@ -118,6 +118,13 @@ public class ResolutionReservationPersister {
                 parent.getRawSn(), newRaw.getRawSn(), preset.name())).toString();
         newRaw.assignDerivativeVideoPath(derivativeVideoPath);
 
+        // [V149] 예약 증강 행 ↔ 파생 영상 매핑을 <같은 트랜잭션에서> 확정한다. aug 는 바로 위에서
+        // save/flush 한 관리 인스턴스이므로 dirty checking 으로 UPDATE 된다(재조회·추가 save 불필요).
+        // 비동기로 미루면 그 창에서 매핑 없는 파생이 되어 등재 게이트가 그랜드퍼더링으로 통과시킨다
+        // (해상도 파생은 어차피 게이트 예외지만, 두 생성 경로가 같은 규약을 지켜야 예외 판정 근거인
+        //  "매핑 행" 자체가 항상 존재한다 — 결과 조회의 derivativeRawSn 도 이 값을 쓴다).
+        aug.assignDerivativeRawSn(newRaw.getRawSn());
+
         triggerAsyncFinalizeAfterCommit(newRaw.getRawSn(), parent.getRawSn(), aug.getDataAugSn(), preset);
         return new Reservation(newRaw.getRawSn(), aug.getDataAugSn());
     }

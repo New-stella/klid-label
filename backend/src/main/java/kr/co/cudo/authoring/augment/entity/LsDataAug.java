@@ -157,6 +157,33 @@ public class LsDataAug {
     @Column(name = "PROMPT_CN", length = 4000)
     private String promptCn;
 
+    /**
+     * 이 요청이 만들어 낸 <b>파생 영상</b>({@code LS_DATA_RAW.RAW_SN}) — V149 신설.
+     *
+     * <p>표준용어 등록 복합용어 <b>신규원시일련번호 = NEW_RAW_SN</b>(데이터타입 N, 길이 19)을 물리명·
+     * 타입 모두 등록값 그대로 채택했다.
+     *
+     * <h3>왜 필요한가</h3>
+     * <p>증강 행 ↔ 파생 영상을 잇는 유일한 단서가 {@code VMS_CLIP_ID} 의 마커 문자열뿐이었고, 그 접미는
+     * 증강 행 PK 가 아니라 <b>생성 시각</b>이다. 같은 (영상 × 종류) 반복 요청이 허용된 뒤로는(2026-07-31)
+     * 유형만으로 짝지으면 <b>다른 요청의 파생본</b>을 가리킨다. 이 컬럼은 그 추정을 없앤다 — 결과 조회의
+     * {@code derivativeRawSn} 과 <b>파생영상 등재 게이트</b>(파생은 검수 승인 뒤에만 작업 대상)가 모두
+     * 이 값을 근거로 삼는다.
+     *
+     * <h3>NULL 의 의미는 둘이다 (게이트 판정에 직결)</h3>
+     * <ul>
+     *   <li><b>아직/영영 파생이 없다</b> — 생성 전(외부 콜백 대기)이거나 실패로 끝난 요청.</li>
+     *   <li><b>V149 이전에 만들어진 파생</b> — 백필하지 않았다(시각 기반 역추정이 엉뚱한 행을 가리킨다).
+     *       등재 게이트는 이 경우를 <b>그랜드퍼더링</b>으로 통과시킨다.</li>
+     * </ul>
+     * 두 의미가 겹쳐도 게이트는 안전하다 — 신규 파생을 만드는 경로는 <b>정확히 두 곳</b>
+     * ({@code AugmentResultService.createAugmentedVideo} · {@code ResolutionReservationPersister.reserveAndCreate})
+     * 이고 둘 다 파생 RAW 를 INSERT 한 <b>같은 트랜잭션</b>에서 이 값을 채우기 때문에, "신규 파생인데
+     * NEW_RAW_SN 이 NULL" 인 상태는 커밋될 수 없다.
+     */
+    @Column(name = "NEW_RAW_SN")
+    private Long newRawSn;
+
     /** Phase 4 비동기 표준 컬럼 — 재시도 횟수. */
     @Column(name = "RTRY_NMTM", nullable = false)
     private int retryCount;
@@ -350,17 +377,113 @@ public class LsDataAug {
         this.augProcSttsCd = STTS_CANCELED;
     }
 
-    public void applyReviewStatus(String newStatus) {
+    /**
+     * <b>생성 결과</b> 확정 — {@link #STTS_PENDING} → {@link #STTS_ACCEPTED}(생성 성공) /
+     * {@link #STTS_REJECTED}(생성 실패).
+     *
+     * <h3>★ 이 축은 사람의 사용/폐기 결정이 아니다 (2026-07-31 확정 — 다시 합치지 말 것)</h3>
+     * <p>{@code AUG_PROC_STTS_CD} 는 <b>외부/내부 생성기가 소유</b>한다 — 증강은 웹훅
+     * ({@code AugmentResultService}), 해상도는 finalize({@link #markResolutionGenerated()})가 쓴다.
+     * REVIEWER 의 채택/반려는 <b>{@code LS_DATA_AUG_RVW.RVW_STTS_CD} 가 단독으로 소유</b>한다.
+     *
+     * <p>구 구현은 검수 서비스({@code AugmentReviewService.accept/reject})도 이 메서드를 호출해 한
+     * 컬럼에 두 주체가 썼다. 외부 증강은 <b>웹훅이 항상 먼저</b> 도착해 PENDING 을 소진하므로, 그
+     * 뒤에 오는 REVIEWER 의 승인·반려는 아래 non-PENDING 가드에 걸려 <b>영구히 409</b> 였다 —
+     * 사용/폐기 워크플로 자체가 도달 불가능했다. 그래서 호출자를 생성기 하나로 좁히고 이름도
+     * 축(생성 결과)에 맞췄다(구 {@code applyReviewStatus}).
+     */
+    public void applyGenerationResult(String newStatus) {
         if (newStatus == null
                 || (!STTS_ACCEPTED.equals(newStatus) && !STTS_REJECTED.equals(newStatus))) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "유효하지 않은 검수 상태입니다. status=" + newStatus);
+                    "유효하지 않은 생성 결과 상태입니다. status=" + newStatus);
         }
         if (!STTS_PENDING.equals(this.augProcSttsCd)) {
             throw new CustomException(ErrorCode.CONFLICT,
                     "이미 처리된 증강 결과입니다. status=" + this.augProcSttsCd);
         }
         this.augProcSttsCd = newStatus;
+    }
+
+    /**
+     * <b>결정할 결과물이 실재하는가</b> — 사람의 사용/폐기 결정(accept/reject) 가능 여부의
+     * <b>판정 단일 원천</b>.
+     *
+     * <h3>왜 이 가드가 필요한가 (2026-07-31 DEV_FIX HIGH — 되돌리지 말 것)</h3>
+     * <p>축 분리 이전에는 {@code applyReviewStatus} 의 "PENDING 에서만 전이" 가드가 <b>부수적으로</b>
+     * "생성이 끝나기 전에는 결정할 수 없다" 를 강제하고 있었다. 축을 가르며 그 호출을 걷어내자
+     * 대체 가드 없이 사라져, <b>요청 직후(결과물 0건) 상태의 증강을 승인</b>할 수 있게 됐다 —
+     * 그러면 뒤늦게 도착한 콜백이 만든 파생영상이 <b>사람이 한 번도 보지 않은 채</b> 등재 게이트를
+     * 통과한다(게이트는 {@code ACCEPTED} 검수 행 존재만 본다). 상위 요구가 "이미지를 비교해 보고
+     * 사용 여부를 선택" 이므로 결정은 결과물 실재를 전제로만 성립한다.
+     *
+     * <h3>판정 기준 = {@code AUG_PROC_STTS_CD == ACCEPTED} <b>이고</b> dead-letter 가 아님</h3>
+     * <p>{@code NEW_RAW_SN != null} 도 후보였으나 채택하지 않았다. 두 값은 외부 증강 경로에서
+     * <b>같은 트랜잭션</b>에 확정되므로({@code AugmentResultService.handle} — 성공 ⟺ 상태 전이 +
+     * {@code createAugmentedVideo} 가 한 커밋) 신규 데이터에서는 등가지만, {@code NEW_RAW_SN} 은
+     * V149 신설이라 <b>그 이전 파생은 매핑이 없다</b>. 매핑을 기준으로 삼으면 실제 결과물이 있는
+     * 레거시 증강까지 결정 불가가 되어 그랜드퍼더링 정책과 어긋난다.
+     *
+     * <h3>★ dead-letter 축을 함께 본다 (2026-07-31 DEV_FIX MEDIUM — 되돌리지 말 것)</h3>
+     * <p>구 판정은 상태 컬럼만 봤다. 그런데 <b>비동기 확정(Phase A/B/C) 실패</b>는 상태를 건드리지
+     * 못한다 — {@code applyGenerationResult} 가 PENDING 에서만 전이를 허용하기 때문에
+     * {@code AugmentExtractPersist.markAugProcessingFailed} 는 <b>{@code ACCEPTED} 를 그대로 둔 채
+     * {@code DEAD_LETTER_AT} 만 찍는다</b>(그 파일 javadoc 이 이 마커를 "이 도메인의 실패 판정 축"
+     * 으로 선언한다). 그래서 상태만 보는 판정은 <b>프레임 0건으로 영구 실패한 파생</b>을 "결정 가능"
+     * 으로 통과시켰고, 그 결과 ①결과물 없는 채택이 성립해 등재 게이트를 통과했으며 ②같은 화면의
+     * 헤더는 {@code aggregateStatus}({@link #isProcessingFailed()})로 FAILED 를 표시해 <b>한 화면에서
+     * 두 축이 상반</b>됐다.
+     *
+     * <p>따라서 이 판정과 {@link #isProcessingFailed()} 는 <b>같은 사실</b>을 말한다 —
+     * 실패로 못박힌 증강은 어느 축에서도 "성공/결정 가능" 으로 보이지 않는다.
+     *
+     * <p><b>자기 반증</b>: {@code ACCEPTED} 인데 결과물이 없는 경로가 있는가? 이 값을
+     * {@code ACCEPTED} 로 쓰는 곳은 정확히 셋이다 — ①{@link #applyGenerationResult}(웹훅; 성공은
+     * 부모 게이트 PASS 를 전제로 하고 같은 트랜잭션에서 파생 RAW 를 INSERT 한다. 영상 생성이 실패로
+     * 튀면 트랜잭션째 롤백되어 {@code ACCEPTED} 도 커밋되지 않는다) ②{@link #markResolutionGenerated()}
+     * ③{@link #createResolutionAccepted} — ②③은 {@code RESL_} 접두 전용이고 그 행은 검수 진입
+     * 자체가 앞단에서 차단된다({@code AugmentReviewService.loadOrThrow}). 따라서 이 판정으로
+     * 통과하는 외부 증강에는 파생 영상 행이 반드시 존재한다.
+     *
+     * <p><b>보장하지 않는 것</b>: 파생의 <b>프레임·라벨</b>은 커밋 후 비동기로 채워지므로
+     * (Phase 11 {@code AsyncAugmentFrameRunner}) 결정 시점에 비교 이미지가 아직 0장일 수 있다.
+     * 이 가드가 세우는 불변식은 "결정 대상 파생영상이 실재하고 그 확정이 실패로 끝나지 않았다" 이지
+     * "프레임까지 완비됐다" 가 아니다(반입 진행 중과 영구 실패의 구분은
+     * {@code AugmentResultViewService} 의 {@code resultState} 가 화면에 전달한다).
+     */
+    public boolean isGenerationSucceeded() {
+        return STTS_ACCEPTED.equals(this.augProcSttsCd) && !isProcessingFailed();
+    }
+
+    /**
+     * 생성이 아직 진행 중인가 — 결정 불가 사유를 "아직 없음" 과 "영영 없음" 으로 가르는 축.
+     * (거부 응답 문구를 나누기 위한 것으로, 판정 자체는 {@link #isGenerationSucceeded()} 가 한다.)
+     */
+    public boolean isGenerationInProgress() {
+        return STTS_PENDING.equals(this.augProcSttsCd);
+    }
+
+    /**
+     * 이 요청이 만든 파생 영상({@code LS_DATA_RAW.RAW_SN})을 연결한다 — {@link #newRawSn} 참조.
+     *
+     * <p><b>반드시 파생 RAW 를 INSERT 한 그 트랜잭션 안에서</b> 호출한다(커밋 후 비동기로 미루면
+     * 그 사이 등재 게이트가 "매핑 없는 파생" 으로 보고 그랜드퍼더링 통과시켜 미검수 파생이 목록에
+     * 뜬다). 두 호출부 모두 같은 트랜잭션에 두 객체를 이미 들고 있으므로 재조회가 필요 없다 —
+     * <b>{@code findById} 로 다시 로드한 별도 인스턴스에 쓰지 말 것</b>(그 쓰기는 원 인스턴스의
+     * dirty checking 에 덮여 사라질 수 있다).
+     *
+     * <p>1회 배정만 허용한다. 이미 다른 파생을 가리키는 행을 덮어쓰면 앞선 파생이 매핑을 잃고
+     * 그랜드퍼더링으로 새어 나간다.
+     */
+    public void assignDerivativeRawSn(Long newRawSn) {
+        if (newRawSn == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "파생 영상 식별자가 없습니다.");
+        }
+        if (this.newRawSn != null && !this.newRawSn.equals(newRawSn)) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이미 다른 파생 영상이 연결된 증강 행입니다. dataAugSn=" + this.dataAugSn);
+        }
+        this.newRawSn = newRawSn;
     }
 
     // ============================================================

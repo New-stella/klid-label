@@ -336,16 +336,28 @@ public class AugmentReviewService {
     }
 
     /**
-     * REVIEWER 가 증강 결과를 승인. PENDING → ACCEPTED.
-     * LS_DATA_AUG_RVW row INSERT/갱신 + LsDataAug.augProcSttsCd 동기 갱신 (DB 설계서 라인 162-169 호환).
+     * REVIEWER 가 증강 결과를 <b>사용</b>하기로 결정한다 — {@code LS_DATA_AUG_RVW.RVW_STTS_CD}
+     * PENDING → ACCEPTED.
+     *
+     * <h3>★ 생성 결과 컬럼({@code AUG_PROC_STTS_CD})은 건드리지 않는다 (2026-07-31 확정)</h3>
+     * <p>구 구현은 여기서도 {@code aug.applyReviewStatus(...)} 를 불러 <b>한 컬럼에 두 주체</b>가 썼다.
+     * 그 컬럼은 PENDING 에서만 전이를 허용하는데 외부 증강은 <b>웹훅이 항상 먼저</b> 도착해 PENDING 을
+     * 소진하므로, REVIEWER 의 승인·반려는 그 뒤에 <b>영구히 409</b> 로 막혔다(사용/폐기 워크플로가
+     * 도달 불가). 지금은 축이 갈라져 있다 — 생성 결과는 생성기(웹훅/finalize)가, <b>사람의 사용/폐기
+     * 결정은 검수 행이 단독으로</b> 소유한다. 두 축을 다시 합치지 말 것
+     * ({@link LsDataAug#applyGenerationResult(String)} javadoc 참조).
+     *
+     * <p>재결정 차단(멱등)은 검수 행 자신의 {@code ensurePending} 가드가 계속 담당한다 — 이미 결정된
+     * 증강을 다시 승인/반려하면 여전히 409 다.
+     *
+     * <p><b>사전조건</b>: 결정은 <b>결과물이 실재할 때만</b> 가능하다({@link #requireGeneratedResult}).
+     * 축 분리로 사라졌던 "생성 전에는 결정 불가" 불변식을 명시 가드로 되세운 것이며, 이것이 없으면
+     * 등재 게이트가 무력화된다.
      */
     @Transactional("controlTransactionManager")
     public AugmentSummaryResponse accept(Long dataAugSn, TokenClaims actor) {
         requireReviewer(actor);
         LsDataAug aug = loadOrThrow(dataAugSn);
-        // 1) LsDataAug.augProcSttsCd 갱신 (DB 설계서 호환 — PENDING 이외면 CONFLICT)
-        aug.applyReviewStatus(LsDataAug.STTS_ACCEPTED);
-        // 2) LS_DATA_AUG_RVW row INSERT/갱신
         LsDataAugRvw review = loadOrCreateReview(aug, actor.sub());
         review.accept(actor.sub(), LocalDateTime.now());
         // 외부 통보 (best-effort — 실패해도 본 트랜잭션 영향 없음)
@@ -360,8 +372,11 @@ public class AugmentReviewService {
     }
 
     /**
-     * REVIEWER 가 증강 결과를 반려. PENDING → REJECTED. 사유 필수.
-     * LS_DATA_AUG_RVW row INSERT/갱신 + LsDataAug.augProcSttsCd 동기 갱신.
+     * REVIEWER 가 증강 결과를 <b>폐기</b>하기로 결정한다 — {@code LS_DATA_AUG_RVW.RVW_STTS_CD}
+     * PENDING → REJECTED. 사유 필수.
+     *
+     * <p>{@link #accept} 와 동일하게 생성 결과 컬럼({@code AUG_PROC_STTS_CD})은 건드리지 않는다
+     * (축 분리 — 위 javadoc 참조).
      */
     @Transactional("controlTransactionManager")
     public AugmentSummaryResponse reject(Long dataAugSn, String reason, TokenClaims actor) {
@@ -370,9 +385,6 @@ public class AugmentReviewService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "반려 사유는 필수입니다.");
         }
         LsDataAug aug = loadOrThrow(dataAugSn);
-        // 1) LsDataAug.augProcSttsCd 갱신 (DB 설계서 호환 — PENDING 이외면 CONFLICT)
-        aug.applyReviewStatus(LsDataAug.STTS_REJECTED);
-        // 2) LS_DATA_AUG_RVW row INSERT/갱신
         LsDataAugRvw review = loadOrCreateReview(aug, actor.sub());
         review.reject(reason, actor.sub(), LocalDateTime.now());
         try {
@@ -424,8 +436,29 @@ public class AugmentReviewService {
         return rawSn;
     }
 
+    /**
+     * 결정 대상 증강 행을 <b>행 잠금(FOR UPDATE)</b>으로 읽는다 — accept/reject 직렬화 (DEV_FIX MEDIUM).
+     *
+     * <h3>왜 잠가야 하는가</h3>
+     * <p>결정 기록은 {@code findLatestByDataAugSn} → (없으면) {@code save} 의 <b>read-then-act</b> 다.
+     * 그런데 {@code LS_DATA_AUG_RVW} 에는 {@code DATA_AUG_SN} 유니크가 <b>없다</b>(V25 는 비유니크
+     * 인덱스뿐). 그래서 같은 증강에 accept 와 reject 가 동시에 들어오면 둘 다 "검수 행 없음" 을
+     * 관측해 <b>각자 새 행을 INSERT</b> 하고 {@code ensurePending} 가드도 각자 통과한다. 그 결과:
+     * <ul>
+     *   <li>등재 게이트({@code DerivativeWorkEligibility})는 {@code EXISTS(RVW_STTS_CD='ACCEPTED')}
+     *       라 <b>등재</b>로 보고,</li>
+     *   <li>결과 화면은 최신 1행({@code REG_DT DESC})만 읽어 <b>거부됨</b>으로 보인다.</li>
+     * </ul>
+     * "사람은 거부했는데 파생이 작업목록에 올라간다" 가 성립하고, 재결정은 409 로 막혀 화면에서
+     * 되돌릴 수단도 없다.
+     *
+     * <p><b>왜 유니크 인덱스가 아니라 행 잠금인가</b>: 유니크 추가는 <b>기존 중복 행 선정리</b>를
+     * 전제하는데 이 프로젝트는 백필·데이터 정리 마이그레이션을 금지한다. 잠금은 스키마 변경 없이
+     * 같은 직렬화를 얻고, 웹훅 경로가 <b>이미 쓰는 잠금</b>({@code findByDataAugSnForUpdate})을 그대로
+     * 재사용하므로 락 순서(증강 행 → 부모 RAW)도 유지된다(데드락 없음).
+     */
     private LsDataAug loadOrThrow(Long dataAugSn) {
-        LsDataAug aug = repository.findById(dataAugSn)
+        LsDataAug aug = repository.findByDataAugSnForUpdate(dataAugSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "증강 결과를 찾을 수 없습니다."));
         // 해상도 파생(RESL_ 접두)은 저작도구 내부 생성물로, 예약 시 PENDING(생성 중)으로 적재되고
         // finalize 성공 확정 시 ACCEPTED(생성 완료)로 전이되는 내부 라이프사이클을 가지며 외부 검수 대상이 아니다.
@@ -433,7 +466,49 @@ public class AugmentReviewService {
         if (aug.getAugTypeCd() != null && aug.getAugTypeCd().startsWith(LsDataAug.RESL_PREFIX)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "해상도 파생 결과는 검수 대상이 아닙니다.");
         }
+        requireGeneratedResult(aug);
         return aug;
+    }
+
+    /**
+     * <b>결과물이 실재할 때만 결정할 수 있다</b> — accept/reject 공통 사전조건 (2026-07-31 DEV_FIX HIGH).
+     *
+     * <h3>이 가드가 없으면 게이트가 무력화된다</h3>
+     * <p>파생영상 등재 게이트({@code DerivativeWorkEligibility})는 "그 증강 행에 {@code ACCEPTED}
+     * 검수가 있는가" 만 본다. 그런데 결정을 <b>결과물보다 먼저</b> 내릴 수 있으면 순서가 이렇게 된다:
+     * 요청 → (결과물 0건 상태에서) 승인 → 콜백 도착 → 파생영상 생성 → 게이트 통과. 사람이 본 것은
+     * "요청" 뿐인데 파생영상이 작업목록에 올라가고 배정된다. 상위 요구("증강 결과에서 <b>이미지를
+     * 비교해 보고</b> 사용 여부를 선택해야 작업목록에 올라간다")를 정면으로 깨뜨린다.
+     *
+     * <p>구 구현에서는 {@code applyReviewStatus} 의 PENDING 요구가 이 역할을 <b>부수적으로</b>
+     * 수행했다. 축을 가르며 그 호출을 걷어냈으므로 <b>대체 가드를 명시적으로</b> 세운다. 판정은
+     * {@link LsDataAug#isGenerationSucceeded()} 단일 원천에 위임한다 — 화면의 {@code reviewable}
+     * 도 같은 판정을 쓰므로 "버튼은 보이는데 누르면 거부" 가 구조적으로 생기지 않는다
+     * ({@code AugmentResultViewService.toExternalItems}).
+     *
+     * <h3>사유를 구분해 알린다 (새 에러코드 신설 없음)</h3>
+     * <p>둘 다 "지금 상태에서는 그 전이가 불가" 이므로 {@link ErrorCode#CONFLICT}(409) 계열을
+     * 재사용한다(이미 결정된 증강의 재결정 409 와 같은 가족). 다만 메시지로 사유를 가른다 —
+     * <b>아직 생성 중</b>이면 기다렸다 다시 시도하면 되고, <b>실패/취소로 종결</b>됐으면 기다려도
+     * 결과물이 생기지 않아 재요청이 유일한 동선이기 때문이다.
+     */
+    private void requireGeneratedResult(LsDataAug aug) {
+        if (aug.isGenerationSucceeded()) {
+            return;
+        }
+        // 실패 축(dead-letter)을 먼저 본다 — 확정이 영구 실패한 행은 상태가 ACCEPTED/PENDING 으로
+        // 남아 있을 수 있어(AugmentExtractPersist.markAugProcessingFailed 는 상태를 건드리지 않는다)
+        // 상태만 보면 "곧 생성됩니다" 라는 사실과 다른 안내가 나간다.
+        if (!aug.isProcessingFailed() && aug.isGenerationInProgress()) {
+            log.info("[Augment] decision blocked — result not generated yet dataAugSn={}",
+                    aug.getDataAugSn());
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "증강 결과가 아직 생성되지 않았습니다. 생성이 완료된 뒤에 사용 여부를 결정할 수 있습니다.");
+        }
+        log.info("[Augment] decision blocked — generation not successful dataAugSn={} status={}",
+                aug.getDataAugSn(), sanitize(aug.getAugProcSttsCd()));
+        throw new CustomException(ErrorCode.CONFLICT,
+                "생성에 실패했거나 취소된 증강은 사용 여부 결정 대상이 아닙니다. 필요하면 다시 요청해 주세요.");
     }
 
     private void requireReviewer(TokenClaims actor) {

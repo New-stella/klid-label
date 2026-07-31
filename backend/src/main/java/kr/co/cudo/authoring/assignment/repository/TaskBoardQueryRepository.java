@@ -19,6 +19,7 @@ import kr.co.cudo.authoring.assignment.dto.TaskBoardSearchCondition;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.entity.QLsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
+import kr.co.cudo.authoring.augment.repository.DerivativeWorkEligibility;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.BlankTextPredicate;
@@ -246,6 +247,11 @@ public class TaskBoardQueryRepository {
     private BooleanBuilder buildWhere(QLsDataRaw raw, TaskBoardSearchCondition condition,
                                       boolean includeWorkStatus) {
         BooleanBuilder where = new BooleanBuilder();
+
+        // 파생영상 등재 게이트 — 미검수 파생은 작업 대상이 아니다(판정은 단일 원천에 위임).
+        // 필터가 아니라 <가시 범위> 이므로 목록·count·KPI 집계·이벤트유형 옵션 <전부>에 걸린다.
+        // 그래서 여기(조건 조립 단일 지점)에만 붙인다 — 호출부마다 붙이면 한 곳이 빠져 샌다.
+        where.and(DerivativeWorkEligibility.eligible(raw));
 
         String batchStatus = condition.batchStatusFilter();
         if (batchStatus != null) {

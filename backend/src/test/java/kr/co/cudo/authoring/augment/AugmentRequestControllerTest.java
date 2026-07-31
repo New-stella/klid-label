@@ -449,7 +449,7 @@ class AugmentRequestControllerTest {
      * <b>결정을 내리기 전에</b> "이 결과물이 어떤 조건으로 만들어졌는가" 를 볼 수 있어야 한다(R9).
      *
      * <p>구 구현에서 prompt 를 실어 나르는 경로는 accept/reject <b>응답</b>뿐이었다 — 처리하는 그 순간
-     * 1회만 볼 수 있고, {@code applyReviewStatus} 가 재전이를 CONFLICT 로 막아 <b>재조회 수단이 없었다</b>.
+     * 1회만 볼 수 있고, {@code applyGenerationResult} 가 재전이를 CONFLICT 로 막아 <b>재조회 수단이 없었다</b>.
      * 조회(GET) 경로에 실려야 비로소 판단 근거가 된다.
      *
      * <p>같은 (영상 × 종류)를 <b>조건만 바꿔 두 번</b> 요청해, 결과 항목이 요청별로 분리되고 각 항목이
@@ -474,7 +474,10 @@ class AugmentRequestControllerTest {
                 .andExpect(jsonPath("$.data.results.length()").value(2))
                 .andExpect(jsonPath("$.data.results[0].type").value("WINTER"))
                 .andExpect(jsonPath("$.data.results[0].decision").value("PENDING"))
-                .andExpect(jsonPath("$.data.results[0].reviewable").value(true))
+                // 방금 요청한 건이라 <생성이 진행 중>이다 → 아직 결정 대상이 아니다(2026-07-31 DEV_FIX).
+                // 그래도 항목과 prompt 는 실린다 — R9 역추적(조건 확인)은 결정 가능 여부와 별개 축이고,
+                // 오히려 "결정 전에 조건을 본다" 는 요구가 이 상태에서 성립해야 한다.
+                .andExpect(jsonPath("$.data.results[0].reviewable").value(false))
                 .andExpect(jsonPath("$.data.results[0].id").isNumber())
                 // ★ 정렬은 <최신순>이다(2026-07-31 흡수 항목 MED) — 나중에 요청한 DUSK 건이 맨 앞이다.
                 //   오름차순이면 항목 1페이지에서 잘려나가는 쪽이 <가장 최신 = 유일한 결정 대상>이라,

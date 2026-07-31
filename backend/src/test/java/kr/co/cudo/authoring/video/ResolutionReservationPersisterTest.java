@@ -97,6 +97,10 @@ class ResolutionReservationPersisterTest {
         assertThat(aug.getIdempotencyKey()).isNull();
         assertThat(aug.getExternalJobId()).isNull();
         assertThat(aug.getRetryCount()).isZero();
+        // [V149] 해상도_예약시_NEW_RAW_SN_이_채워진다 — 예약 트랜잭션 안에서 파생 영상을 가리켜야 한다.
+        // 이 매핑이 없으면 등재 게이트가 "V149 이전 파생"(그랜드퍼더링)으로 오판하고,
+        // 결과 조회의 derivativeRawSn 도 다시 마커 문자열 추정으로 되돌아간다.
+        assertThat(aug.getNewRawSn()).isEqualTo(600L);
 
         ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
         verify(videoRepository).save(rawCaptor.capture());

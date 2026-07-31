@@ -82,6 +82,19 @@ class AugmentReviewServiceTest {
         return repository.save(aug);
     }
 
+    /**
+     * <b>생성이 성공해 결과물(파생영상)이 실재하는</b> 증강 행 — accept/reject 정상 경로의 전제.
+     *
+     * <p>외부 증강은 웹훅이 성공 결과를 인계하며 {@code AUG_PROC_STTS_CD} 를 ACCEPTED 로 확정하고
+     * <b>같은 트랜잭션</b>에서 파생 RAW 를 만든다({@code AugmentResultService.handle}). 검수는 그
+     * 뒤에 온다 — 그래서 결정 테스트의 정상 픽스처는 PENDING 이 아니라 이 상태다.
+     */
+    private LsDataAug seedGenerated(String augType) {
+        LsDataAug aug = seedPending(augType);
+        aug.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        return repository.saveAndFlush(aug);
+    }
+
     @Test
     @DisplayName("AugmentReviewService_WORKER가_accept_호출시_403_FORBIDDEN")
     void workerCannotAccept() {
@@ -94,9 +107,9 @@ class AugmentReviewServiceTest {
     }
 
     @Test
-    @DisplayName("AugmentReviewService_REVIEWER_accept시_AUG_PROC_STTS_CD_ACCEPTED_+_LS_DATA_AUG_RVW_row_INSERT")
+    @DisplayName("검수_승인은_생성결과_컬럼을_바꾸지_않는다")
     void reviewerAcceptUpdatesStatusAndAudit() {
-        LsDataAug seed = seedPending(LsDataAug.AUG_WINTER);
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_WINTER);
 
         var resp = service.accept(seed.getDataAugSn(), reviewer);
 
@@ -105,7 +118,8 @@ class AugmentReviewServiceTest {
         assertThat(resp.decisionUserNo()).isEqualTo("1");
         assertThat(resp.decisionAt()).isNotNull();
 
-        // LsDataAug.augProcSttsCd 동기 갱신 (DB 설계서 라인 162-169 호환)
+        // ★ 축 분리 — 생성 결과 컬럼(AUG_PROC_STTS_CD)은 생성기(웹훅/finalize)만 쓴다.
+        //   검수는 LS_DATA_AUG_RVW 만 건드리므로 이 값은 웹훅이 남긴 그대로여야 한다.
         LsDataAug after = repository.findById(seed.getDataAugSn()).orElseThrow();
         assertThat(after.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
 
@@ -122,16 +136,16 @@ class AugmentReviewServiceTest {
     @Test
     @DisplayName("AugmentReviewService_REJECTED_시_사유_LS_DATA_AUG_RVW_REJECT_RSN_저장")
     void rejectStoresReason() {
-        LsDataAug seed = seedPending(LsDataAug.AUG_NIGHT);
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_NIGHT);
 
         var resp = service.reject(seed.getDataAugSn(), "야간 명도 조정 부정확", reviewer);
 
         assertThat(resp.augProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
         assertThat(resp.rejectReason()).isEqualTo("야간 명도 조정 부정확");
 
-        // LsDataAug.augProcSttsCd 동기 갱신
+        // ★ 축 분리 — 반려도 생성 결과 컬럼을 건드리지 않는다(웹훅이 남긴 ACCEPTED 유지).
         LsDataAug after = repository.findById(seed.getDataAugSn()).orElseThrow();
-        assertThat(after.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_REJECTED);
+        assertThat(after.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_ACCEPTED);
 
         // LS_DATA_AUG_RVW.REJECT_RSN 저장 검증
         LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
@@ -144,7 +158,7 @@ class AugmentReviewServiceTest {
     @Test
     @DisplayName("AugmentReviewService_반려_사유_누락시_INVALID_INPUT")
     void rejectWithoutReasonFails() {
-        LsDataAug seed = seedPending(LsDataAug.AUG_NIGHT);
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_NIGHT);
 
         assertThatThrownBy(() -> service.reject(seed.getDataAugSn(), "", reviewer))
                 .isInstanceOf(CustomException.class)
@@ -155,13 +169,190 @@ class AugmentReviewServiceTest {
     @Test
     @DisplayName("AugmentReviewService_이미_ACCEPTED인_AUG_재처리시_409_CONFLICT")
     void duplicateAcceptReturnsConflict() {
-        LsDataAug seed = seedPending(LsDataAug.AUG_RAIN);
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_RAIN);
         service.accept(seed.getDataAugSn(), reviewer);
 
         assertThatThrownBy(() -> service.accept(seed.getDataAugSn(), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("생성성공으로_ACCEPTED_인_증강도_검수자가_승인할_수_있다")
+    void webhookAcceptedAugmentIsStillReviewable() {
+        // given — 외부 증강은 <웹훅이 항상 먼저> 도착해 생성 결과를 ACCEPTED 로 확정한다.
+        LsDataAug seed = seedPending(LsDataAug.AUG_WINTER);
+        seed.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        repository.saveAndFlush(seed);
+
+        // when — 그 뒤에 REVIEWER 가 사용 결정을 내린다.
+        //        구 구현은 두 주체가 같은 컬럼을 써서 여기서 <영구히 409> 였다(워크플로 도달 불가).
+        var resp = service.accept(seed.getDataAugSn(), reviewer);
+
+        // then — 409 없이 검수 행이 생기고, 생성 결과 컬럼은 웹훅이 남긴 값 그대로다.
+        assertThat(resp.augProcSttsCd()).isEqualTo(LsDataAugRvw.STTS_ACCEPTED);
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd()).isEqualTo(LsDataAugRvw.STTS_ACCEPTED);
+        assertThat(rvw.getRvwId()).isEqualTo("1");
+        assertThat(repository.findById(seed.getDataAugSn()).orElseThrow().getAugProcSttsCd())
+                .isEqualTo(LsDataAug.STTS_ACCEPTED);
+    }
+
+    @Test
+    @DisplayName("생성성공으로_ACCEPTED_인_증강도_검수자가_반려할_수_있다")
+    void webhookAcceptedAugmentIsStillRejectable() {
+        LsDataAug seed = seedPending(LsDataAug.AUG_RAIN);
+        seed.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        repository.saveAndFlush(seed);
+
+        var resp = service.reject(seed.getDataAugSn(), "우천 질감이 부자연스럽다", reviewer);
+
+        assertThat(resp.augProcSttsCd()).isEqualTo(LsDataAugRvw.STTS_REJECTED);
+        assertThat(repository.findById(seed.getDataAugSn()).orElseThrow().getAugProcSttsCd())
+                .isEqualTo(LsDataAug.STTS_ACCEPTED);
+    }
+
+    // ============================================================
+    // ★ 결과물이 없으면 결정할 수 없다 (2026-07-31 DEV_FIX HIGH — 등재 게이트 무력화 차단)
+    // ============================================================
+
+    /**
+     * <b>회귀 방지의 핵심</b> — 결정은 결과물 실재를 전제로만 성립한다.
+     *
+     * <p>이 가드가 없으면 "요청 직후 승인 → 나중에 도착한 콜백이 파생영상 생성 → 등재 게이트 통과"
+     * 순서가 성립해, 사람이 <b>결과 이미지를 한 번도 보지 않은</b> 파생영상이 작업목록에 오른다.
+     * 상위 요구("이미지를 비교해 보고 사용 여부를 선택")를 정면으로 깨는 경로다.
+     *
+     * <p>검수 행이 <b>만들어지지도 않아야</b> 한다 — PENDING 검수 행만 남아도 화면 상태가 달라진다.
+     */
+    @Test
+    @DisplayName("생성이_끝나지_않은_증강은_승인도_반려도_할_수_없다")
+    void undecidableWhileGenerationInProgress() {
+        // given — 요청만 접수된 상태(외부 콜백 전). 결과물이 아직 없다.
+        LsDataAug requested = seedPending(LsDataAug.AUG_WINTER);
+        assertThat(requested.getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
+
+        // when / then — 승인·반려 모두 409 로 거부된다.
+        assertThatThrownBy(() -> service.accept(requested.getDataAugSn(), reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    // 사유 구분 — "아직 생성되지 않음"(기다리면 된다)
+                    assertThat(ce.getMessage()).contains("아직 생성되지 않았");
+                });
+        assertThatThrownBy(() -> service.reject(requested.getDataAugSn(), "사유", reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        // 검수 행 자체가 생기지 않는다(게이트가 보는 ACCEPTED 행은 물론이고 PENDING 행도 없다).
+        assertThat(reviewRepository.findLatestByDataAugSn(requested.getDataAugSn())).isEmpty();
+    }
+
+    /**
+     * 생성이 <b>결과물 없이 종결</b>된 증강(실패 dead-letter / 사용자 취소)은 결정 대상이 아니다.
+     * 기다려도 결과물이 생기지 않으므로 "아직 생성 중" 과 사유를 구분해 알린다.
+     */
+    @Test
+    @DisplayName("생성_실패나_취소로_종결된_증강은_결정_대상이_아니다")
+    void undecidableWhenGenerationTerminatedWithoutResult() {
+        // given — ① 웹훅 실패 인계(REJECTED + dead-letter) ② 사용자 취소(CANCELED)
+        LsDataAug failed = seedPending(LsDataAug.AUG_NIGHT);
+        failed.applyGenerationResult(LsDataAug.STTS_REJECTED);
+        failed.markDeadLetter();
+        repository.saveAndFlush(failed);
+
+        LsDataAug canceled = seedPending(LsDataAug.AUG_RAIN);
+        canceled.markCanceled();
+        repository.saveAndFlush(canceled);
+
+        // when / then
+        assertThatThrownBy(() -> service.accept(failed.getDataAugSn(), reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(ce.getMessage()).contains("실패");
+                });
+        assertThatThrownBy(() -> service.reject(canceled.getDataAugSn(), "사유", reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        assertThat(reviewRepository.findLatestByDataAugSn(failed.getDataAugSn())).isEmpty();
+        assertThat(reviewRepository.findLatestByDataAugSn(canceled.getDataAugSn())).isEmpty();
+    }
+
+    /**
+     * <b>추출이 영구 실패(dead-letter)한 증강은 결정할 수 없다</b> — 2026-07-31 DEV_FIX MEDIUM(FIX-B).
+     *
+     * <p>비동기 확정(Phase A/B/C) 실패는 상태 컬럼을 건드리지 못한다 —
+     * {@code applyGenerationResult} 가 PENDING 에서만 전이를 허용하므로
+     * {@code AugmentExtractPersist.markAugProcessingFailed} 는 <b>{@code ACCEPTED} 를 그대로 둔 채</b>
+     * {@code DEAD_LETTER_AT} 만 찍는다. 상태만 보던 구 판정은 그래서 <b>프레임 0건으로 영구 실패한
+     * 파생</b>을 "결정 가능" 으로 통과시켰고, 채택하면 등재 게이트({@code acceptedReviewExists})까지
+     * 통과해 <b>비교 이미지가 영영 없는 파생영상이 작업목록에 올랐다</b>.
+     *
+     * <p>같은 화면의 헤더는 이미 {@code isProcessingFailed} 로 FAILED 를 표시하고 있었으므로, 이
+     * 가드가 없으면 한 화면에서 두 축이 상반된다.
+     */
+    @Test
+    @DisplayName("추출_영구실패_증강은_결정할_수_없다")
+    void deadLetteredAugmentCannotBeDecided() {
+        // given — 웹훅은 성공(ACCEPTED)으로 종결했지만 비동기 프레임 확정이 영구 실패했다.
+        LsDataAug failedAfterAccept = seedGenerated(LsDataAug.AUG_WINTER);
+        failedAfterAccept.markDeadLetter();
+        repository.saveAndFlush(failedAfterAccept);
+        assertThat(failedAfterAccept.getAugProcSttsCd())
+                .as("실패 마킹은 상태 컬럼을 건드리지 않는다 — 그래서 상태만 보는 판정이 뚫렸다")
+                .isEqualTo(LsDataAug.STTS_ACCEPTED);
+
+        // when / then — 채택·반려 모두 409. 기다려도 결과물이 생기지 않으므로 "생성 중" 이 아닌 실패 사유.
+        assertThatThrownBy(() -> service.accept(failedAfterAccept.getDataAugSn(), reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(ce.getMessage()).contains("실패");
+                });
+        assertThatThrownBy(() -> service.reject(failedAfterAccept.getDataAugSn(), "사유", reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        // 등재 게이트가 보는 ACCEPTED 검수 행은 물론 PENDING 행도 생기지 않는다.
+        assertThat(reviewRepository.findLatestByDataAugSn(failedAfterAccept.getDataAugSn())).isEmpty();
+
+        // 두 축이 같은 사실을 말한다 — 실패로 못박힌 행은 "생성 성공" 으로도 보이지 않는다.
+        LsDataAug reloaded = repository.findById(failedAfterAccept.getDataAugSn()).orElseThrow();
+        assertThat(reloaded.isProcessingFailed()).isTrue();
+        assertThat(reloaded.isGenerationSucceeded()).isFalse();
+    }
+
+    /**
+     * 음성 케이스 — 가드가 <b>정상 동선까지</b> 막지 않는다는 반증. 생성이 성공하면 그 즉시 결정 가능하다.
+     * (이 단언이 없으면 위 두 테스트는 "전부 막기" 로도 통과한다.)
+     */
+    @Test
+    @DisplayName("생성이_성공하면_그_즉시_승인할_수_있다")
+    void decidableOnceGenerationSucceeded() {
+        LsDataAug requested = seedPending(LsDataAug.AUG_WINTER);
+        assertThatThrownBy(() -> service.accept(requested.getDataAugSn(), reviewer))
+                .isInstanceOf(CustomException.class);
+
+        // when — 외부 콜백이 도착해 생성 결과가 확정된다(같은 트랜잭션에서 파생영상이 만들어진다).
+        requested.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        repository.saveAndFlush(requested);
+
+        // then
+        var resp = service.accept(requested.getDataAugSn(), reviewer);
+        assertThat(resp.augProcSttsCd()).isEqualTo(LsDataAugRvw.STTS_ACCEPTED);
+        assertThat(reviewRepository.findLatestByDataAugSn(requested.getDataAugSn()))
+                .get()
+                .extracting(LsDataAugRvw::getRvwSttsCd)
+                .isEqualTo(LsDataAugRvw.STTS_ACCEPTED);
     }
 
     @Test
@@ -202,8 +393,11 @@ class AugmentReviewServiceTest {
         //         증강 행이 남는다. 그 상태에서는 SRC_SN → RAW_SN 역해석이 실패한다.
         Long danglingSrcSn = 500L; // LS_DATA_SRC 에 없는 프레임
         assertThat(srcRepository.findById(danglingSrcSn)).isEmpty();
-        LsDataAug orphanForAccept = seedPendingOn(danglingSrcSn, LsDataAug.AUG_WINTER);
-        LsDataAug orphanForReject = seedPendingOn(danglingSrcSn, LsDataAug.AUG_NIGHT);
+        // 생성은 성공한(결과물 실재) 행이어야 한다 — 그래야 결정 사전조건을 통과해 <rawSn 역해석>
+        // 단계까지 도달한다. PENDING 으로 두면 앞단 가드가 먼저 CONFLICT 를 내 이 테스트가 검증하려는
+        // 경로를 가린다(같은 409 라 통과처럼 보이는 위양성).
+        LsDataAug orphanForAccept = seedGeneratedOn(danglingSrcSn, LsDataAug.AUG_WINTER);
+        LsDataAug orphanForReject = seedGeneratedOn(danglingSrcSn, LsDataAug.AUG_NIGHT);
 
         // when / then — 센티널(0L) 저장도, FK 위반 500 도 아니라 명시적 409 CONFLICT 로 거부한다.
         assertThatThrownBy(() -> service.accept(orphanForAccept.getDataAugSn(), reviewer))
@@ -227,6 +421,13 @@ class AugmentReviewServiceTest {
                 LsDataAug.createPending(targetSrcSn, augType, new BigDecimal("85.50"), "system"));
     }
 
+    /** 지정한 srcSn 위에 <b>생성 성공(ACCEPTED)</b> 증강 행을 만든다. */
+    private LsDataAug seedGeneratedOn(Long targetSrcSn, String augType) {
+        LsDataAug aug = seedPendingOn(targetSrcSn, augType);
+        aug.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        return repository.saveAndFlush(aug);
+    }
+
     // ============================================================
     // 증강 결과 상태 집계 — /{jobId}/result (FE 결과 화면 실상태 반영)
     // ============================================================
@@ -235,7 +436,9 @@ class AugmentReviewServiceTest {
     @DisplayName("aggregateResultStatus_전부_종료된_aug면_COMPLETED_반환")
     void aggregateResultStatusCompletedWhenAllTerminal() {
         LsDataAug seed = seedPending(LsDataAug.AUG_WINTER);
-        service.accept(seed.getDataAugSn(), reviewer);      // PENDING → ACCEPTED(terminal)
+        // 집계 축은 <생성 결과> 다 — 웹훅 성공 인계를 재현한다(검수 승인은 이 컬럼을 바꾸지 않는다).
+        seed.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        repository.saveAndFlush(seed);
 
         // jobId 를 SRC_SN 으로 넘기는 구 경로 → findByOriginalRawSn 미매칭 후 srcSn 폴백으로 집계.
         assertThat(service.aggregateResultStatus(srcSn)).isEqualTo("COMPLETED");
@@ -323,8 +526,10 @@ class AugmentReviewServiceTest {
                 LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
         LsDataAug a2 = repository.save(
                 LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT, new BigDecimal("80.00"), "system"));
-        service.accept(a1.getDataAugSn(), reviewer);
-        service.reject(a2.getDataAugSn(), "야간 명도 조정 부정확", reviewer);
+        // 집계 축은 <생성 결과> 다 — 웹훅 성공/실패 인계를 재현한다.
+        a1.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        a2.applyGenerationResult(LsDataAug.STTS_REJECTED);
+        repository.saveAllAndFlush(java.util.List.of(a1, a2));
 
         var page = service.listAll(PageRequest.of(0, 10));
 
@@ -340,7 +545,9 @@ class AugmentReviewServiceTest {
         LsDataAug a1 = repository.save(
                 LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
         repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT, new BigDecimal("80.00"), "system"));
-        service.accept(a1.getDataAugSn(), reviewer);
+        // 집계 축은 <생성 결과> 다 — 1건만 웹훅 인계 완료된 상태를 재현한다.
+        a1.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        repository.saveAndFlush(a1);
 
         var page = service.listAll(PageRequest.of(0, 10));
 
@@ -534,7 +741,10 @@ class AugmentReviewServiceTest {
         LsDataAug night = repository.save(
                 LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT, new BigDecimal("80.00"), "system"));
         repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
-        service.accept(night.getDataAugSn(), reviewer);
+        // 집계 축은 <생성 결과> 다 — 웹훅 성공 인계를 재현한다. (검수 승인은 이 컬럼을 바꾸지 않으므로
+        //  accept 로는 이 그룹의 종결 수가 변하지 않는다 — 축 분리 이후 accept 를 쓰면 픽스처가 무의미해진다.)
+        night.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
+        repository.saveAndFlush(night);
 
         // when
         var page = service.listAll(PageRequest.of(0, 10));

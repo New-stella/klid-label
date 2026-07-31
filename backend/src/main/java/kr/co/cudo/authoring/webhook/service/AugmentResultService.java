@@ -435,6 +435,15 @@ public class AugmentResultService {
                 StorageSubtreePolicy.augmentVideoFile(
                         parentRaw.getRawSn(), newRaw.getRawSn(), aug.getAugTypeCd())).toString());
 
+        // [V149] 증강 행 ↔ 파생 영상 매핑을 <같은 트랜잭션에서> 확정한다.
+        //
+        // ⚠ 이 대입을 AFTER_COMMIT/@Async 로 미루면 안 된다. 파생영상 등재 게이트는 "NEW_RAW_SN 이
+        //   비어 있는 파생 = V149 이전 생성분" 으로 보고 <그랜드퍼더링 통과>시키므로, 커밋~비동기 사이
+        //   창에서 미검수 파생이 작업목록·배정에 노출된다. aug 는 handle() 상단에서 FOR UPDATE 로 잠근
+        //   바로 그 인스턴스라 dirty checking 으로 반영된다(재조회 금지 — 다른 인스턴스에 쓰면 이
+        //   인스턴스의 flush 에 덮인다).
+        aug.assignDerivativeRawSn(newRaw.getRawSn());
+
         // 커밋 후 비동기 프레임 재추출 + 라벨/메타 복사 + 비식별 완료 불변식 확정 트리거.
         triggerAsyncFrameExtractionAfterCommit(newRaw.getRawSn(), aug.getDataAugSn());
 
@@ -502,7 +511,7 @@ public class AugmentResultService {
     private static void applyAugStateAndExternalJobId(LsDataAug target, AugmentOutcome outcome,
                                                       String newStatus) {
         if (LsDataAug.STTS_PENDING.equals(target.getAugProcSttsCd())) {
-            target.applyReviewStatus(newStatus);
+            target.applyGenerationResult(newStatus);
         }
         target.assignExternalJobId(outcome.externalJobId());
     }

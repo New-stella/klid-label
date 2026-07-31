@@ -16,6 +16,8 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.VisibleTextNormalizer;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -108,6 +110,8 @@ public class AugmentRequestService {
     private final LsRawDataStatusRepository statusRepository;
     private final LsDataSrcRepository srcRepository;
     private final LsDataAugRepository augRepository;
+    /** 파생 영상 판정용 — {@code ORGNL_RAW_SN} 하나만 본다(조상 체인 순회 금지, 2026-07-29 철회 정책). */
+    private final VideoRepository videoRepository;
     private final ApplicationEventPublisher eventPublisher;
     /** 비식별 누락 신고 구간 판정 — 단일 원천(자체 재구현 금지). */
     private final DeidentReportGate deidentReportGate;
@@ -149,6 +153,15 @@ public class AugmentRequestService {
         //      순수 입력 검증이므로 <DB 조회보다 먼저> 한다: 형식이 틀린 요청 하나가 검수상태·신고구간·
         //      프레임 조회 3회를 유발하면 인증 사용자가 반복 호출로 DB 부하를 증폭시킬 수 있다(CWE-770).
         PromptPayload prompt = buildPrompt(request.prompt());
+
+        // 1-2) 파생 영상 차단 — <b>다른 어떤 사유보다 먼저</b> 판정한다.
+        //      해상도 변경 경로({@code VideoResolutionService.loadAndValidate})는 이미 같은 가드를
+        //      APPROVED 검증 <앞>에 두고 있다. 두 경로의 순서가 어긋나면 파생 영상 증강 요청 시
+        //      "미검수"/"신고 구간" 같은 <엉뚱한 사유>가 먼저 뜨고(파생본은 통상 미검수 상태다)
+        //      요청자는 진짜 사유에 영원히 도달하지 못한다.
+        //      단 인가 검사(requireReviewer) <뒤>여야 한다 — 앞서면 응답 코드가 "그 영상이 존재하는가/
+        //      파생인가" 를 알려주는 오라클이 된다(CWE-209).
+        requireNotDerivative(rawSn);
 
         // 2) 검수 완료(APPROVED) 검증 — 미검수면 거부
         List<Long> blocked = findBlockedVideoIds(videoIds);
@@ -296,6 +309,39 @@ public class AugmentRequestService {
             throw new CustomException(ErrorCode.INVALID_INPUT, message);
         }
         return values.get(0);
+    }
+
+    /**
+     * 파생 영상(증강·해상도 산출물)에서의 증강 요청을 거부한다 — 해상도 변경 경로와 동일 정책·동일
+     * 에러코드 계열({@link ErrorCode#INVALID_INPUT}, 400).
+     *
+     * <p><b>신규 정책이 아니라 드리프트 정정</b>이다: 해상도 변경은 {@code ORGNL_RAW_SN IS NOT NULL} 인
+     * 영상을 이미 거부하는데(중첩 파생 금지) 증강 요청만 그 가드가 없어, 파생본에서 또 파생을 만들 수
+     * 있었다. 새 에러코드를 만들지 않는다.
+     *
+     * <p><b>원본으로 유도하지 않고 부모 rawSn 도 내려주지 않는다</b> — 파생에 배정된 WORKER 는 원본
+     * 접근 권한이 없어({@code LabelAccessGuard} 403) 따라갈 수 없고, 부모 식별자를 실어 주면 접근
+     * 권한이 없는 자원의 존재를 알려 주는 셈이 된다(CWE-209/639).
+     *
+     * <p>이미 존재하는 손자 파생(깊이 2+)은 정리하지 않는다 — 신규 생성만 막는다.
+     *
+     * <p><b>영상이 없으면 여기서 판단하지 않는다 (응답 계약 보존, DEV_FIX LOW)</b>: 이 가드의 책임은
+     * "파생인가" 하나이고 <b>존재 여부는 다음 단계(APPROVED 검증)의 축</b>이다. 중간 구현은 조회 실패를
+     * {@link ErrorCode#NOT_FOUND}(404)로 던져, 존재하지 않는 {@code rawSn} 의 응답이 종전
+     * {@link ErrorCode#NOT_REVIEWED}(400)에서 <b>조용히 404 로 바뀌었다</b> — 이 가드가 의도한 정책
+     * 변경이 아니라 부수 효과이므로 되돌린다. 영상이 없으면 파생도 아니므로 그대로 통과시키고,
+     * 곧바로 {@code findBlockedVideoIds} 가 "미검수" 로 종전과 동일하게 거부한다.
+     */
+    private void requireNotDerivative(Long rawSn) {
+        LsDataRaw video = videoRepository.findById(rawSn).orElse(null);
+        if (video == null) {
+            return;
+        }
+        if (video.getOrgnlRawSn() != null) {
+            log.info("[Augment] request blocked — derivative video rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "파생 영상은 증강 요청 대상이 아닙니다.", skippedDetails(rawSn));
+        }
     }
 
     /** 생성되지 못한 영상 식별자 — 호출자(관리 화면)가 어떤 영상이 막혔는지 알 수 있게 한다. */
